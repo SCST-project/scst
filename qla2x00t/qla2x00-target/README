@@ -16,7 +16,7 @@ as well.
 If you have a driver's version (e.g. development) without the patch, but
 with the full patched initiator source code, you should replace by it
 qla2xxx subdirectory in kernel_source/drivers/scsi/ and then rebuild the
-kernels or only its modules.
+kernel or only its modules.
 
 This version is compatible with SCST version 0.9.5 and higher.
 
