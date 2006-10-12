@@ -1,0 +1,84 @@
+#
+#  Qlogic 2x00 SCSI target driver makefile
+#  
+#  Copyright (C) 2004 Vladislav Bolkhovitin <vst@vlnb.net>
+#                 and Leonid Stoljar
+#  
+#  This program is free software; you can redistribute it and/or
+#  modify it under the terms of the GNU General Public License
+#  as published by the Free Software Foundation, version 2
+#  of the License.
+# 
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+#  GNU General Public License for more details.
+#
+#
+# Main targets:
+#    all (the default) : make all
+#    clean             : clean files
+#    extraclean        : clean + clean dependencies
+#    install           : install 
+#    uninstall         : uninstall 
+#
+# Notes :
+#    - install and uninstall must be made as root
+#
+
+#SCST_INC_DIR := /usr/local/include/scst
+SCST_INC_DIR := $(SUBDIRS)/../../scst/include
+SCST_DIR := $(shell pwd)/../../scst/src
+EXTRA_CFLAGS += -I$(SCST_INC_DIR) -DFC_TARGET_SUPPORT
+EXTRA_CFLAGS += -DFC_SCST_WWN_AUTH
+EXTRA_CFLAGS += -DEXTRACHECKS 
+
+INSTALL_DIR := /lib/modules/$(shell uname -r)/extra
+
+#EXTRA_CFLAGS += -DTRACING
+EXTRA_CFLAGS += -DDEBUG_TGT -DDEBUG_WORK_IN_THREAD
+#EXTRA_CFLAGS += -DDEBUG_WORK_IN_THREAD
+
+ifeq ($(KVER),)
+  ifeq ($(KDIR),)
+    KDIR := /lib/modules/$(shell uname -r)/build
+  endif
+else
+  KDIR := /lib/modules/$(KVER)/build
+endif
+
+QLA2XXX_INC_DIR := $(KDIR)/drivers/scsi/qla2xxx
+EXTRA_CFLAGS += -I$(QLA2XXX_INC_DIR)
+
+ifneq ($(KERNELRELEASE),)
+obj-m := qla2x00tgt.o
+qla2x00tgt-objs := qla2x00t.o
+
+else
+
+all: Modules.symvers
+	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m
+
+tgt: Modules.symvers
+	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=n
+
+install: all
+	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
+		modules_install
+	-depmod -a
+
+Modules.symvers: $(SCST_DIR)/Modules.symvers
+	-cp $(SCST_DIR)/Modules.symvers .
+
+uninstall:
+	rm -f $(INSTALL_DIR)/qla2[23x]00tgt.ko
+	-/sbin/depmod -a
+endif
+
+clean:
+	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend *~ Modules.symvers
+	rm -rf .tmp_versions
+
+extraclean: clean
+
+.PHONY: all tgt install uninstall clean extraclean

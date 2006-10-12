@@ -1,0 +1,408 @@
+Generic SCSI target mid-level for Linux (SCST)
+==============================================
+
+Version 0.9.5, XX XXX 2006
+--------------------------
+
+SCST is designed to provide unified, consistent interface between SCSI
+target drivers and Linux kernel and simplify target drivers development
+as much as possible. Detail description of SCST's features and internals
+could be found in "Generic SCSI Target Middle Level for Linux" document
+SCST's Internet page http://scst.sourceforge.net.
+
+SCST looks to be quite stable (for beta) and useful. It supports disks
+(SCSI type 0), tapes (type 1), processor (type 3), CDROM's (type 5), MO
+disks (type 7), medium changers (type 8) and RAID controller (type 0xC).
+There are also FILEIO and "performance" device handlers. In addition,
+starting from version 0.9.3 advanced per-initiator access and devices
+visibility management is added, so different initiators could see
+different set of devices with different access permissions. See below
+for details.
+
+This is more or less stable (but still beta) version.
+
+Tested mostly on "vanilla" 2.6.17.8 kernel from kernel.org.
+
+Device handlers
+---------------
+
+Device specific drivers (device handlers) are plugins for SCST, which
+help SCST to analyze incoming requests and determine parameters,
+specific to various types of devices. If an appropriate device handler
+for a SCSI device type isn't loaded, SCST doesn't know how to handle
+devices of this type, so they will be invisible for remote initiators
+(more precisely, "LUN not supported" sense code will be returned).
+
+In addition to device handlers for real devices, there are FILEIO and
+"performance" ones.
+
+FILEIO device handler works over files on file systems and makes from
+them virtual remotely available SCSI disks or CDROM's. In addition, it
+allows to work directly over a block device, e.g. local IDE or SCSI disk
+or ever disk partition, where there is no file systems overhead. Using
+block devices comparing to sending SCSI commands directly to SCSI
+mid-level via scsi_do_req() has advantage that data are transfered via
+system cache, so it is possible to fully benefit from caching and read
+ahead performed by Linux's VM subsystem. The only disadvantage here that
+there is superfluous data copying between the cache and SCST's buffers.
+This issue is going to be addressed in the next release. Virtual CDROM's
+are useful for remote installation. See below for details how to setup
+and use FILEIO device handler.
+
+"Performance" device handlers for disks, MO disks and tapes in their
+exec() method skip (pretend to execute) all READ and WRITE operations
+and thus provide a way for direct link performance measurements without
+overhead of actual data transferring from/to underlying SCSI device.
+Starting from 0.9.3 these handlers are incorporated inside of
+corresponding device handler for real device and could be assigned on
+run-time via "assign" command in "/proc/scsi_tgt/scsi_tgt" (see below).
+
+NOTE: Since "perf" device handlers on READ operations don't touch the
+====  commands' data buffer, it is returned to remote initiators as it
+      was allocated, without even being zeroed. Thus, "perf" device
+      handlers impose some security risk, so use them with caution.
+
+Installation
+------------
+
+At first, make sure that the link "/lib/modules/`you_kernel_version`/build" 
+points to the source code for your currently running kernel.
+
+Then, if you are going to work on 2.6 kernels, since in those kernels
+scsi_do_req() works in LIFO order, instead of expected and required
+FIFO, SCST needs a new function scsi_do_req_fifo() to be added in the
+kernel. Patch 26_scst.patch (or 26_scst-2.6.14-.patch for early kernels)
+from "kernel" directory does that. If it doesn't apply to your kernel
+version, apply it manually, it only adds that function and nothing more.
+You may not patch the kernel if STRICT_SERIALIZING is defined during the
+compilation (see its description below).
+
+To compile SCST go to 'src' directory and type 'make' on 2.6 kernels and
+'make -f Makefile-24' on 2.4 ones. It will build SCST itself and its
+device handlers. To install them type 'make install'. The driver modules
+will be installed in
+'/lib/modules/`you_kernel_version`/kernel/drivers/scsi/scsi_tgt' on 2.4
+kernels and in '/lib/modules/`you_kernel_version`/extra' on 2.6 ones. In
+addition, scsi_tgt.h, scst_debug.h and scst_debug.c will be copied to
+'/usr/local/include/scst'. The first file contains all SCST's public
+data definition, which are used by target drivers. The other ones
+support debug messages logging.
+
+Then you can load any module by typing 'modprobe drive_name'. The names are:
+
+ - scsi_tgt - SCST itself
+ - scst_disk - device handler for disks (type 0)
+ - scst_tape - device handler for tapes (type 1)
+ - scst_processor - device handler for processors (type 3)
+ - scst_cdrom - device handler for CDROMs (type 5)
+ - scst_modisk - device handler for MO disks (type 7)
+ - scst_changer - device handler for medium changers (type 8)
+ - scst_raid - device handler for storage array controller (e.g. raid) (type C)
+ - scst_fileio - device handler for FILE IO (disk or ISO CD image).
+
+Then, to see your devices remotely, you need to add them to at least
+"Default" security group (see below how). By default, no local devices
+are seen remotely. There must be LUN 0 in each security group, i.e. LUs
+numeration must not start from, e.g., 1.
+
+Module "scst_target" supports parameter "scst_threads", which allows to
+set count of SCST's threads (CPU count by default).
+
+IMPORTANT: without loading appropriate device handler, corresponding devices
+=========  will be invisible for remote initiators, which could lead to holes
+           in the LUN addressing, so automatic device scanning by remote SCSI 
+           mid-level could not notice the devices. Therefore you will have 
+	   to add them manually via 
+	   'echo "scsi add-single-device A 0 0 B" >/proc/scsi/scsi',
+	   where A - is the host number, B - LUN.
+
+IMPORTANT 1: In the current version simultaneous access to local SCSI
+===========  devices via standard high-level SCSI drivers (sd, st, sg,
+             etc.) and SCST's target drivers is unsupported. Especially
+	     it is important for execution via sg and st commands that
+	     change the state of devices and their parameters, because
+	     that could lead to data corruption. If any such command
+	     is done, at least related device handler driver(s) must be
+	     restarted. For block devices READ/WRITE commands using direct
+	     disk handler look to be safe.
+
+To uninstall, type 'make uninstall'. It is not implemented for 2.6
+kernels.
+
+If you install QLA2x00 target driver's source code in this directory,
+then you can build, install or uninstall it by typing 'make qla', 'make
+qla_install' or 'make qla_uninstall' correspondingly. Or 'make qla26',
+'make qla26_install' or 'make qla26_uninstall' for new 2.6 driver. For
+more details about QLA2x00 target drivers see their README files.
+
+Compilation options
+-------------------
+
+There are the following compilation options, that could be commented
+in/out in Makefile:
+
+ - DEBUG - turns on some debugging code, including some logging. Makes
+   the driver considerably bigger and slower, producing large amount of
+   log data.
+
+ - TRACING - turns on ability to log events. Makes the driver considerably
+   bigger and lead to some performance loss.
+
+ - EXTRACHECKS - adds extra validity checks in the various places.
+
+ - DEBUG_TM - turns on task management functions debugging, when on
+   LUN 0 in the "Default" group some of the commands will be delayed for
+   about 60 sec., so making the remote initiator send TM functions, eg
+   ABORT TASK and TARGET RESET. Also set TM_DBG_GO_OFFLINE symbol in the
+   Makefile to 1 if you want that the device eventually become
+   completely unresponsive, or to 0 otherwise to circle around ABORTs
+   and RESETs code. Needs DEBUG turned on.
+
+ - STRICT_SERIALIZING - makes SCST send all commands to underlying SCSI
+   device synchronously, one after one. This makes task management more
+   reliable, with cost of some performance penalty. This is mostly
+   actual for stateful SCSI devices like tapes, where the result of
+   command's execution depends from device's settings set by previous
+   commands. Disk and RAID devices are stateless in the most cases. The
+   current SCSI core in Linux doesn't allow to abort all commands
+   reliably if they sent asynchronously to a stateful device. Turned off
+   by default, turn it on if you use stateful device(s) and need as much
+   error recovery reliability as possible. As a side effect, no kernel
+   patching is necessary.
+
+ - SCST_HIGHMEM - if defined on HIGHMEM systems with 2.6 kernels, it
+   allows SCST to use HIGHMEM. This is very experimental feature and it
+   is unclear, if it brings something valuable, except some performance
+   hit, so in the current version it is disabled. Note, that
+   SCST_HIGHMEM isn't required for HIGHMEM systems and SCST will work
+   fine on them with SCST_HIGHMEM off. Untested.
+  
+ - SCST_STRICT_SECURITY - if defined, makes SCST zero allocated data
+   buffers. Undefining it (default) considerably improves performance
+   and eases CPU load, but could create a security hole (information
+   leakage), so enable it, if you have strict security requirements.
+
+SCST "/proc" commands
+---------------------
+
+For communications with user space programs SCST provides proc-based
+interface in "/proc/scsi_tgt" directory. It contains the following
+entries:
+
+  - "help" file, which provides online help for SCST commands
+  
+  - "scsi_tgt" file, which on read provides information of serving by SCST
+    devices and their dev handlers. On write it supports the following
+    command:
+    
+      * "assign H:C:I:L HANDLER_NAME" assigns dev handler "HANDLER_NAME" 
+        on device with host:channel:id:lun
+
+  - "sessions" file, which lists currently connected initiators (open sessions)
+	
+  - "threads" file, which allows to read and set number of SCST's threads
+  
+  - "version" file, which shows version of SCST
+  
+  - "trace_level" file, which allows to read and set trace (logging) level
+    for SCST. See "help" file for list of trace levels.
+
+Each dev handler has own subdirectory. Most dev handler have only two
+files in this subdirectory: "trace_level" and "type". The first one is
+similar to main SCST "trace_level" file, the latter one shows SCSI type
+number of this handler as well as some text description.
+
+For example, "echo "assign 1:0:1:0 dev_disk" >/proc/scsi_tgt/scsi_tgt"
+will assign device handler "dev_disk" to real device sitting on host 1,
+channel 0, ID 1, LUN 0.
+
+Access and devices visibility management
+----------------------------------------
+
+Access and devices visibility management allows for an initiator or
+group of initiators to have different limited set of LUs/LUNs (security
+group) each with appropriate access permissions. Initiator is
+represented as a SCST session. Session is binded to security group on
+its registration time by character "name" parameter of the registration
+function, which provided by target driver, based on its internal
+authentication. For example, for FC "name" could be WWN or just loop
+ID. For iSCSI this could be iSCSI login credentials or iSCSI initiator
+name. Each security group has set of names assigned to it by system
+administrator. Session is binded to security group with provided name.
+If no such groups found, the session binded to "Default" group.
+
+In /proc/scsi_tgt each group represented as "groups/GROUP_NAME/"
+subdirectory. In it there are files "devices" and "users". File
+"devices" lists all devices and their LUNs in the group, file "users"
+lists all names that should be binded to this group.
+
+To configure access and devices visibility management SCST provides the
+following files and directories under /proc/scsi_tgt:
+
+  - "add_group GROUP" to /proc/scsi_tgt/scsi_tgt adds group "GROUP"
+  
+  - "del_group GROUP" to /proc/scsi_tgt/scsi_tgt deletes group "GROUP"
+  
+  - "add H:C:I:L lun [RO]" to /proc/scsi_tgt/groups/GROUP/devices adds 
+    device with host:channel:id:lun as LUN "lun" in group "GROUP". Optionally,
+    the device could be marked as read only.
+  
+  - "del H:C:I:L" to /proc/scsi_tgt/groups/GROUP/devices deletes device with
+    host:channel:id:lun from group "GROUP"
+  
+  - "add V_NAME lun [RO]" to /proc/scsi_tgt/groups/GROUP/devices adds device with
+    virtual name "V_NAME" as LUN "lun" in group "GROUP". Optionally, the device 
+    could be marked as read only.
+  
+  - "del V_NAME" to /proc/scsi_tgt/groups/GROUP/devices deletes device with
+    virtual name "V_NAME" from group "GROUP"
+  
+  - "clear" to /proc/scsi_tgt/groups/GROUP/devices clears the list of devices
+    for group "GROUP"
+  
+  - "add NAME" to /proc/scsi_tgt/groups/GROUP/names adds name "NAME" to group 
+    "GROUP"
+  
+  - "del NAME" to /proc/scsi_tgt/groups/GROUP/names deletes name "NAME" from group 
+    "GROUP"
+  
+  - "clear" to /proc/scsi_tgt/groups/GROUP/names clears the list of names
+    for group "GROUP"
+
+Examples:
+
+ - "echo "add 1:0:1:0 0" >/proc/scsi_tgt/groups/Default/devices" will
+ add real device sitting on host 1, channel 0, ID 1, LUN 0 to "Default"
+ group with LUN 0.
+
+ - "echo "add disk1 1" >/proc/scsi_tgt/groups/Default/devices" will
+ add virtual FILEIO device with name "disk1" to "Default" group
+ with LUN 1. 
+
+FILEIO device handler
+---------------------
+
+After loading FILEIO device handler creates in "/proc/scsi_tgt/"
+subdirectories "disk_fileio" and "cdrom_fileio". They have similar layout:
+
+  - "trace_level" and "type" files as described for other dev handlers
+  
+  - "help" file, which provides online help for FILEIO commands
+  
+  - "disk_fileio"/"cdrom_fileio" files, which on read provides
+    information of currently open device files. On write it supports the
+    following command:
+    
+    * "open NAME PATH [FLAGS]" - opens file "PATH" as device "NAME" with 
+      flags "FLAGS. Possible flags:
+      
+      - WRITE_THROUGH - write back caching disabled
+      
+      - READ_ONLY - read only
+      
+      - O_DIRECT - both read and write caching disabled (doesn't work
+        currently).
+
+      - NULLIO - in this mode no real IO will be done, but success will be
+        returned. Intended to be used for performance measurements at the same
+        way as "*_perf" handlers.
+    
+    * "close NAME" - closes device "NAME".
+
+For example, "echo "open disk1 /vdisks/disk1" >/proc/scsi_tgt/disk_fileio/disk_fileio"
+will open file /vdisks/disk1 as virtual FILEIO disk with name "disk1".
+
+IMPORTANT: by default for performance reasons FILEIO devices use write back
+=========  caching policy, so if you care about the consistence of file systems,
+           laying over them, and your data you must supply your target
+           server with some king of UPS or disable write back caching
+           via WRITE_THROUGH flag. The FS joutnaling over write back
+           caching enabled devices doesn't protect from power failures
+           on the target side, therefore even after successful journal
+           rollback you very much risk to loose your data.
+
+Performance
+-----------
+
+Before doing any performance measurements note that:
+
+I. Maximum performance is possible only with real SCSI devices or
+performance handlers. FILEIO handler isn't optimized for performance
+yet, although, if you have enough CPU power, it could provide very
+acceptable results, when aggregate throughput is close to aggregate
+throuput locally on the target on the same disks.
+
+II. In order to get the maximum performance you should:
+
+1. For SCST:
+
+ - Disable in Makefile STRICT_SERIALIZING, EXTRACHECKS, TRACING, DEBUG,
+   SCST_STRICT_SECURITY, SCST_HIGHMEM
+
+2. For Qlogic target driver:
+
+ - Disable in Makefile EXTRACHECKS, TRACING, DEBUG_TGT, DEBUG_WORK_IN_THREAD
+
+3. For device handlers, including FILEIO:
+
+ - Disable in Makefile TRACING, DEBUG
+
+IMPORTANT: Some of those options enabled by default, i.e. SCST is optimized
+=========  currently rather for development, not for performance.
+
+4. For kernel:
+
+ - Don't enable debug/hacking features, i.e. use them as they are by
+   default.
+
+ - The default kernel read-ahead and queuing settings are optimized
+   for locally attached disks, therefore they are not optimal if they
+   attached remotly (our case), which sometimes could lead to unexpectedly
+   low throughput. You should increase read-ahead size
+   (/sys/block/device/queue/read_ahead_kb) for at least 256Kb or even
+   more on all initiators and the target. Also experiment with other
+   parameters in /sys/block/device directory, they also affect the
+   performance. If you find the best values, please share them with us.
+
+5. For hardware.
+
+ - Make sure that your target hardware (e.g. target FC card) and underlaying
+   SCSI hardware (e.g. SCSI card to which your disks connected) stay on
+   different PCI buses. They will have to work in parallel, so it
+   will be better if they don't race for the bus. The problem is not
+   only in the bandwidth, which they have to share, but also in the
+   interaction between the cards during that competition. We have told
+   that in some cases it could lead to 5-10 times less performance, than
+   expected.
+
+Just for reference: we had with 0.9.2 and "old" Qlogic driver on 2.4.2x
+kernel, where we did carefull performance study, aggregate throuhput
+about 390 Mb/sec from 2 qla2300 cards sitting on different 64-bit PCI
+buses and working simultaneously for two different initiators with
+several simultaneously working load programs on each. From one card -
+about 190 Mb/sec. We used tape_perf handler, so there was no influence
+from underlying SCSI hardware, i.e. we measured only SCST/FC overhead.
+The target computer configuration was not very modern for the moment:
+something like 2x1GHz Intel P3 Xeon CPUs. You can estimate the
+memory/PCI speed from that. CPU load was ~5%, there were ~30K IRQ/sec
+and no additional SCST related context switches. Version 0.9.3 at the
+same setup will usually have 1 CS/cmd for buffer allocation, so the will
+be about 5-10K CS/sec. This will be fixed in the next version, when
+sgv_pool is integrated.
+
+Credits
+-------
+
+Thanks to:
+
+ * Mark Buechler <mark.buechler@gmail.com> for a lot of useful
+   suggestions, bug reports and help in debugging.
+
+ * Ming Zhang <mingz@ele.uri.edu> for fixes and comments.
+ 
+ * Nathaniel Clark <nate@misrule.us> for fixes and comments.
+
+ * Calvin Morrow <calvin.morrow@comcast.net> for testing and usful
+   suggestions.
+
+Vladislav Bolkhovitin <vst@vlnb.net>, http://scst.sourceforge.net

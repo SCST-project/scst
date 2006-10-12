@@ -1,0 +1,55 @@
+To be done
+----------
+
+ - Kernel build integration (patch).
+
+ - Reimplement FILEIO handler with usage of async. read/write operations
+   (in order to avoid unnecessary context switches) and direct access to
+   the page cache (in order to avoid data copy between it and internal
+   buffers). Requires modifications of the kernel.
+
+ - O_DIRECT mode doesn't work (oops'es somewhere in the kernel)
+ 
+ - Close integration with Linux initiator SCSI mil-level, including 
+   queue types (simple, ordered, etc.) and local initiators (sd, st, sg,
+   etc.) support. Requires modifications of the kernel.
+
+ - Improve task management and Unit Attention conditions handling
+   using ACA in order to make them always reliable. Honoring NACA, QErr,
+   TST, UA_INTLCK_CTRL bits. Requires deep modifications of the kernel.
+ 
+ - Move linear searches to hash-table based.
+ 
+ - Create dev handler for block devices, which would insert commands as
+   block requests in the device's block queue, so they would processed
+   by IO-scheduler then.
+
+ - Redone some semaphores with completion interface.
+
+ - HIGHMEM cleanup. Looks like HIGHMEM usage doesn't worth the effort and 
+   performance hit, at least until FILEIO handler doesn't use the page
+   cache directly, so disable it for now, although the code looks ready.
+   To enable it, set SCST_HIGHMEM in 1 in scst_priv.h. HIGHMEM is not 
+   supported on 2.4 and is not going to be.
+
+ - More intelligent IO-throttling.
+
+ - Small ToDo's spread all over the code.
+
+ - Investigate possible missed emulated UA cases.
+
+ - More target drivers errors handling (timeouts for commands, sent
+   to target drivers, e.g. via xmit_response(), etc.) with some kind
+   of error recovery.
+
+ - Additional ability for target drivers to ask for command's retry also
+   after xmit_response() and rdy_to_xfer() returned (for example, if a
+   command was successfully sent to the target card, but later it was
+   returned by the card with BUSY completion status).
+ 
+ - Asynchronous Event Notification support.
+ 
+ - Support of SCSI 3 variable length CDBs, as well as OSD's extensions.
+ 
+ - Advanced SCSI commands support: COPY, EXTENDED COPY, PERSISTENT
+   RESERVE IN/OUT, third party RESERVE, etc.

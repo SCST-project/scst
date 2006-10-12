@@ -1,0 +1,99 @@
+Target driver for Qlogic 2200/2300 Fibre Channel cards
+======================================================
+
+Version 0.9.5-pre1, XX XXX 2006
+-------------------------------
+
+This driver has all required features and looks to be quite stable (for
+beta) and useful. It is designed to work in conjunction with the
+initiator driver from Linux kernel version 2.6, which is intended to
+perform all the initialization and shutdown tasks. This driver needs to
+be patched to enable the target mode and provide all necessary
+callbacks, but it's still capable to work as initiator only. Mode, when
+a host acts as the initiator and the target simultaneously, is supported
+as well.
+
+This version is compatible with SCST version 0.9.5 and higher.
+
+Tested on stable kernels from http://www.kernel.org
+
+NOTE: WWN-based authentification on 2200 cards doesn't always work from
+----  the first "connect", but works on all subsequent attempts.
+      On this error message "Unable to find wwn login for loop
+      id XX, using loop id instead" is logged. So, just try again, eg
+      unload/load FC card driver on the initiator host. This is the
+      current limitation. Everyone who fix it or found a usable
+      workaround is welcome.
+
+See also "ToDo" file for list of known issues and unimplemented 
+features.
+
+Installation
+------------
+
+At first, make sure that the link "/lib/modules/`you_kernel_version`/build" 
+points to the source code for your currently running kernel.
+
+Then, edit Makefile and set SCST_INC_DIR variable to point to the
+directory, where SCST's public include files are located. If you install
+QLA2x00 target driver's source code in the SCST's directory, then
+SCST_INC_DIR will be set correctly for you ("../include").
+
+The driver consists of two parts: the patch for initiator driver
+"linux-2.6-qla2xxx-target.patch" and target driver in the
+"qla2x00-target" directory.
+
+Patch the kernel tree with "linux-2.6-qla2xxx-target.patch" patch.
+
+To compile, type 'make'. It will build qla2x00tgt.ko module.
+
+To install, type 'make install'. The target driver will be installed in
+/lib/modules/`you_kernel_version`/kernel/drivers/scsi/scsi_tgt.
+
+To uninstall, type 'make uninstall'.
+
+The initiator driver must be loaded before the target one.
+
+Then the target mode should be enabled via a sysfs interface on a per
+card basis. Under the appropriate scsi_host there is an entry
+target_mode_enabled, where you should write "1", like:
+
+echo "1" >/sys/class/scsi_host/host0/target_mode_enabled
+
+Compilation options
+-------------------
+
+There are the following compilation options, that could be commented
+in/out in Makefile:
+
+ - FC_SCST_WWN_AUTH - turns on using remote initiator's WWN as 
+   authentification name for scst_register_session_ex(). See note above
+   about limitations of this mode. If it is off, LOOP ID used instead of
+   WWN.
+
+ - DEBUG_TGT - turns on some debugging code, including some logging. Makes
+   the driver considerably bigger and slower, producing large amount of
+   log data.
+
+ - TRACING - turns on ability to log events. Makes the driver considerably
+   bigger and lead to some performance loss.
+
+ - DEBUG_WORK_IN_THREAD - makes SCST process incoming commands and
+   call the driver's callbacks in SCST thread context instead of tasklet
+   one. Useful for debugging and lead to some performance loss.
+   
+Credits
+-------
+
+Thanks to 
+
+ * Nathaniel Clark <nate@misrule.us> for porting to new 2.6 kernel
+initiator driver.
+
+ * Mark Buechler <mark.buechler@gmail.com> for the original
+WWN-based authentification, a lot of useful suggestions, bug reports and
+help in debugging.
+
+ * Ming Zhang <mingz@ele.uri.edu> for his fixes.
+
+Vladislav Bolkhovitin <vst@vlnb.net>, http://scst.sourceforge.net

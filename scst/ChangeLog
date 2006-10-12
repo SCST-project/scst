@@ -1,0 +1,177 @@
+Summary of changes between versions 0.9.4 and 0.9.5
+---------------------------------------------------
+
+ - Fixed many found task management related problems, especially in the
+   RESETs area. DEBUG_TM compilation option added (see README).
+
+ - Timer-based retries for targets after SCST_TGT_RES_QUEUE_FULL status
+   implemented.
+
+ - Fixed broken CDROM FILEIO. Before that it always reported 
+   "No medium found"
+
+ - Fixed READ(6)/WRITE(6) CDB decoding for block devices.
+   This bug prevented FreeBSD initiator from working.
+
+ - Implemented sgv_pool. It is mempool-like interface, which caches
+   built SG-vectors in order not to rebuild them again for every
+   subsequent command, so saves performance price of building
+   SG-vectors, including pages allocation, and of additional context
+   switches.
+
+ - For ABORTED commands xmit_response() now called. A target driver
+   should recognized such commands using new function
+   scst_cmd_aborted(). Also there are some other cleanups, improvements
+   and interfaces changes that affect target drivers and dev handlers.
+   You can find their full list by diff'ing scsi_tgt.h between versions
+   0.9.4 and 0.9.5.
+
+ - Function alloc_data_buf() added to struct scst_tgt_template as well
+   as data_buf_tgt_alloc added to struct scst_cmd to allow a target
+   driver implement own memory management handler (by Arne Redlich
+   <arne.redlich@xiranet.com>).
+
+ - Exported symbols are now not GPL'ed
+
+ - Various cleanups and bug fixes.
+
+Summary of changes between versions 0.9.3 and 0.9.4
+---------------------------------------------------
+
+ - Support for 2.4 kernels has been removed
+
+ - Added on_free_cmd() callback for dev handlers
+
+ - Fixed BUG() on task aborts.
+
+ - Fixed WCE (Write Cache Enabled) handling in FILEIO 
+   (by Ming Zhang <mingz@ele.uri.edu>)
+
+ - Minor cleanups and bug fixes.
+
+Summary of changes between versions 0.9.3-pre4 and 0.9.3
+--------------------------------------------------------
+
+ - Fixed IO errors on initiators (return code 20008) under considerable
+   load, because of returned BUSY status. Now QUEUE FULL status returned
+   instead.
+
+ - Fixed "deadlock" on sessions creation.
+
+ - Fixed support for > 2TB storage device in FILEIO handler
+   (by Ming Zhang <mingz@ele.uri.edu>)
+
+ - NULLIO added to FILEIO handler (by Ming Zhang <mingz@ele.uri.edu>)
+
+ - Commands serialization now per-(session, device), i.e. tgt_dev.
+
+ - Minor cleanups and bug fixes
+
+Summary of changes between versions 0.9.3-pre2 and 0.9.3-pre4
+-------------------------------------------------------------
+
+ - Sessions registration and unregistrations reimplemented. The
+   interface with target drivers changed (made much more simple, but
+   incompatible).
+
+ - Some kmalloc()'s converted to SLAB caches (by Nathaniel Clark
+   <nate@misrule.us>)
+
+ - Too low timeouts for management operations in scst_disk were
+   increased
+
+ - Cleanups and bug fixes, including several race-based crashes
+
+Summary of changes between versions 0.9.3-pre1 and 0.9.3-pre2
+-------------------------------------------------------------
+
+ - Task management was considerably redone. Particularly, now the result
+   of ABORT TASK is returned to remote initiator immediately, except if
+   the result of the aborted command is already started to be sent.
+
+ - Per-session commands serialization implemented as part of "device
+   blocking" cleanup.
+
+ - UA generating after MODE SELECT and LOG SELECT implemented
+
+ - STRICT_SERIALIZING compile-time option added for those who need most
+   robust task management and willing to pay some performance cost for
+   that (see README)
+
+ - IRQ spinlocks were replaced by BH ones, where appropriate.
+
+ - Ability to change ISO image on the fly in CDROM FILEIO module added
+
+ - Cleanups and bug fixes
+
+Summary of changes between versions 0.9.2 and 0.9.3-pre1
+--------------------------------------------------------
+
+ - Sophisticated per-initiator access and devices visibility management added
+   (different initiators now could see different set of devices with
+   different permissions)
+
+ - FILEIO dev handler was reimplemented in most areas, including:
+
+    * Management interface via /proc added
+
+    * Various defects using devices/files larger 2Gb were fixed. Thanks
+      to Mark Buechler <mark.buechler@gmail.com>
+
+    * New CDROM FILEIO handler added.
+
+    * Now per-session threads created to improve concurrent performance.
+ 
+    * New flags added that allow using virtual devices as read only,
+      with write through caching or in O_DIRECT mode.
+
+    * Task management support added.
+
+ - RAID controller (type 0xC) dev handler added.
+
+ - SCSI processor (type 3) dev handler added.
+
+ - Sessions unregistration contexts cleanup.
+ 
+ - Dev handler's on_free_cmd() was dropped. Target driver's flag 
+   "thread_per_session" was dropped as well.
+ 
+ - Internal locking partially redone.
+ 
+ - A lot of stability/bug fixes, cleanups and performance improvements.
+
+Summary of changes between versions 0.9.1 and 0.9.2
+---------------------------------------------------
+
+ - 2.6 support, developed and tested on 2.6.7.
+ 
+ - FILEIO/BLKDEV virtual disk device handler added. See main README for
+   details.
+ 
+ - /proc updates, "trace_log_level" entry added to change traced
+   events on the fly.
+   
+ - Some internal interfaces changed, see the documentation.
+ 
+ - Device handlers' source code layout changed, all device handlers
+   live in one subdirectory now.
+ 
+ - Crash on memory allocation failure while building SG data vector
+   fixed.
+
+ - Other minor fixes
+
+Summary of changes between versions 0.9.0a and 0.9.1
+----------------------------------------------------
+
+ - scst_debug.* files are also installed together with scsi_tgt.h
+   (required by QLA2x00 target and could be useful for other target
+   drivers)
+ 
+ - CDB length for unknown commands (e.g. vendor ones) is now determined
+   from CDB
+   
+ - Race with the commands serialization on one drive fixed
+   
+ - Cleanup
+

@@ -1,0 +1,107 @@
+#
+#  SCSI target mid-level makefile
+#  
+#  Copyright (C) 2004 Vladislav Bolkhovitin <vst@vlnb.net>
+#                 and Leonid Stoljar
+#  
+#  This program is free software; you can redistribute it and/or
+#  modify it under the terms of the GNU General Public License
+#  as published by the Free Software Foundation, version 2
+#  of the License.
+# 
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+#  GNU General Public License for more details.
+#
+#
+# Main targets:
+#    all (the default) : make all
+#    clean             : clean files
+#    extraclean        : clean + clean dependencies
+#    install           : install 
+#    uninstall         : uninstall 
+#
+# Notes :
+#    - install and uninstall must be made as root
+#
+
+DEV_HANDLERS_DIR = dev_handlers
+
+ifneq ($(KERNELRELEASE),)
+obj-m := scsi_tgt.o
+scsi_tgt-objs := scst.o scst_targ.o scst_lib.o scst_mem.o scst_proc.o
+
+obj-$(BUILD_DEV) += $(DEV_HANDLERS_DIR)/
+
+else
+ifeq ($(KVER),)
+  ifeq ($(KDIR),)
+    KDIR := /lib/modules/$(shell uname -r)/build
+  endif
+else
+  KDIR := /lib/modules/$(KVER)/build
+endif
+
+all:
+	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_DEV=m
+
+scst:
+	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_DEV=n
+
+install: all
+	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_DEV=m \
+		modules_install
+	install -d $(INSTALL_DIR_H)
+	install -m 644 ../include/scsi_tgt.h $(INSTALL_DIR_H)
+	install -m 644 ../include/scst_debug.h $(INSTALL_DIR_H)
+	install -m 644 ../include/scst_debug.c $(INSTALL_DIR_H)
+	-depmod -a
+
+uninstall:
+	cd $(DEV_HANDLERS_DIR) && $(MAKE) $@
+	rm -f $(INSTALL_DIR)/scsi_tgt.ko
+	-rmdir $(INSTALL_DIR) 2>/dev/null
+	-/sbin/depmod -a
+	rm -rf $(INSTALL_DIR_H)
+endif
+
+INSTALL_DIR := /lib/modules/$(shell uname -r)/extra
+INSTALL_DIR_H := /usr/local/include/scst
+
+INC_DIR := $(SUBDIRS)/../include
+
+EXTRA_CFLAGS += -I$(INC_DIR)
+
+#EXTRA_CFLAGS += -DSTRICT_SERIALIZING
+
+EXTRA_CFLAGS += -DEXTRACHECKS 
+
+#EXTRA_CFLAGS += -fno-inline
+
+#EXTRA_CFLAGS += -DTRACING
+
+EXTRA_CFLAGS += -DDEBUG
+#EXTRA_CFLAGS += -DDEBUG_TM -DTM_DBG_GO_OFFLINE=0
+#EXTRA_CFLAGS += -DDEBUG_RETRY
+#EXTRA_CFLAGS += -DDEBUG_OOM
+
+# If defined, makes SCST zero allocated data buffers. 
+# Undefining it considerably improves performance and eases CPU load, 
+# but could create a security hole (information leakage), so 
+# enable it if you have strict security requirements.
+#EXTRA_CFLAGS += -DSCST_STRICT_SECURITY
+
+# If defined, allows SCST to use HIGHMEM. It's unclear, if it brings
+# something valuable, except performance hit in some cases,
+# so let it be off. Untested.
+#EXTRA_CFLAGS += -DSCST_HIGHMEM
+
+clean:
+	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend Modules.symvers
+	rm -rf .tmp_versions
+	cd $(DEV_HANDLERS_DIR) && $(MAKE) $@
+
+extraclean: clean
+
+.PHONY: all install uninstall clean extraclean

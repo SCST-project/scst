@@ -1,0 +1,17 @@
+
+EXTRA_CFLAGS		+= -Iinclude/scsi
+
+scsi_tgt-y				+= scst.o
+scsi_tgt-y				+= scst_targ.o
+scsi_tgt-y				+= scst_lib.o
+scsi_tgt-y				+= scst_proc.o
+
+obj-$(CONFIG_SCSI_TARGET)		+= scsi_tgt.o
+obj-$(CONFIG_SCSI_TARGET_DISK)		+= scst_disk.o
+obj-$(CONFIG_SCSI_TARGET_TAPE)		+= scst_tape.o
+obj-$(CONFIG_SCSI_TARGET_CDROM)		+= scst_cdrom.o
+obj-$(CONFIG_SCSI_TARGET_MODISK)	+= scst_modisk.o
+obj-$(CONFIG_SCSI_TARGET_CHANGER)	+= scst_changer.o
+obj-$(CONFIG_SCSI_TARGET_RAID)		+= scst_raid.o
+obj-$(CONFIG_SCSI_TARGET_PROCESSOR)	+= scst_processor.o
+obj-$(CONFIG_SCSI_TARGET_FILEIO)	+= scst_fileio.o

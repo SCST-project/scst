@@ -1,0 +1,11 @@
+--- Kconfig	2004-08-18 13:14:50.328907320 +0400
++++ Kconfig.scsi	2004-08-13 18:01:13.000000000 +0400
+@@ -1261,6 +1261,8 @@ config SCSI_QLOGICPTI
+ 
+ source "drivers/scsi/qla2xxx/Kconfig"
+ 
++source "drivers/scsi/scsi_tgt/Kconfig"
++
+ config SCSI_SEAGATE
+ 	tristate "Seagate ST-02 and Future Domain TMC-8xx SCSI support"
+ 	depends on X86 && ISA && SCSI && BROKEN
