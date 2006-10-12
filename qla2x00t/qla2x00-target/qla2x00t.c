@@ -198,7 +198,7 @@ static void q2t_modify_command_count(scsi_qla_host_t *ha, int cmd_count,
 static void __q2t_send_notify_ack(scsi_qla_host_t *ha,
 	 uint16_t target_id, uint16_t status, uint16_t task_flags,
 	 uint16_t seq_id, uint32_t add_flags,  uint16_t resp_code,
-	 int resp_code_valid)
+	 int resp_code_valid, uint16_t ox_id)
 {
 	nack_entry_t *ntfy;
 	
@@ -226,7 +226,7 @@ static void __q2t_send_notify_ack(scsi_qla_host_t *ha,
 	/* Do not increment here, the chip isn't decrementing */
 	/* ntfy->flags = __constant_cpu_to_le16(NOTIFY_ACK_RES_COUNT); */
 	ntfy->flags |= cpu_to_le16(add_flags);
-	/* ntfy->ox_id = iocb->ox_id; ToDo */
+	ntfy->ox_id = ox_id;
 
 	if (resp_code_valid) {
 		ntfy->resp_code = cpu_to_le16(resp_code);
@@ -246,14 +246,12 @@ out:
 }
 /* ha->hardware_lock supposed to be held on entry */
 static inline void q2t_send_notify_ack(scsi_qla_host_t *ha,
-				       notify_entry_t *iocb,
-				       uint32_t add_flags, 
-				       uint16_t resp_code,
-				       int resp_code_valid)
+	notify_entry_t *iocb, uint32_t add_flags, uint16_t resp_code,
+	int resp_code_valid)
 {
 	__q2t_send_notify_ack(ha,  GET_TARGET_ID(ha, iocb), iocb->status,
-			      iocb->task_flags, iocb->seq_id,
-			      add_flags, resp_code, resp_code_valid);
+	      iocb->task_flags, iocb->seq_id, add_flags, resp_code,
+	      resp_code_valid, iocb->ox_id);
 }
 
 /* 
@@ -938,7 +936,7 @@ static void q2x_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd)
 	}
 
 	SET_TARGET_ID(ha, ctio->target, GET_TARGET_ID(ha, atio));
-//ToDo!!	ctio->rx_id = atio->rx_id;
+	ctio->exchange_id = atio->exchange_id;
 
 	ctio->flags = __constant_cpu_to_le16(OF_FAST_POST | OF_TERM_EXCH |
 			OF_NO_DATA | OF_SS_MODE_1);

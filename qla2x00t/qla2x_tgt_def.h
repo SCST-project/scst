@@ -74,6 +74,7 @@
 #define OF_NO_DATA          (BIT_7 | BIT_6)
 #define OF_INC_RC           BIT_8       /* Increment command resource count */
 #define OF_FAST_POST        BIT_9       /* Enable mailbox fast posting. */
+#define OF_TERM_EXCH        BIT_14      /* Terminate exchange */
 #define OF_SSTS             BIT_15      /* Send SCSI status */
 #endif
 
@@ -181,7 +182,8 @@ typedef struct
 	uint16_t seq_id;
 	uint16_t reserved_5[11];
 	uint16_t scsi_status;
-	uint8_t	 sense_data[18];
+	uint8_t	 sense_data[16];
+	uint16_t ox_id;
 }notify_entry_t;
 #endif
 
@@ -205,7 +207,8 @@ typedef struct
 	uint16_t status;
 	uint16_t task_flags;
 	uint16_t seq_id;
-	uint16_t reserved_3[21];
+	uint16_t reserved_3[20];
+	uint16_t ox_id;
 }nack_entry_t;
 #define NOTIFY_ACK_SUCCESS      0x01
 #endif
@@ -285,10 +288,14 @@ typedef struct
 	uint32_t dseg_2_address;	    /* Data segment 2 address. */
 	uint32_t dseg_2_length;		    /* Data segment 2 length. */
 }ctio_entry_t;
-#define CTIO_SUCCESS                0x01
-#define CTIO_ABORTED                0x02
-#define CTIO_ERROR_INVALID_RX_ID    0x08
-#define CTIO_ERROR_PORT_LOGGED_OUT  0x29
+#define CTIO_SUCCESS			0x01
+#define CTIO_ABORTED			0x02
+#define CTIO_INVALID_RX_ID		0x08
+#define CTIO_TIMEOUT			0x0B
+#define CTIO_LIP_RESET			0x0E
+#define CTIO_TARGET_RESET		0x17
+#define CTIO_PORT_UNAVAILABLE		0x28
+#define CTIO_PORT_LOGGED_OUT		0x29
 #endif
 
 #ifndef CTIO_RET_TYPE

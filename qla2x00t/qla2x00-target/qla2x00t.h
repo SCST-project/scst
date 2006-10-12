@@ -79,17 +79,6 @@
 #define ATIO_ACA_QUEUE              4
 #define ATIO_UNTAGGED               5
 
-/* CTIO additional flag ToDo: move to the appropriate place */
-#define OF_TERM_EXCH                BIT_14      /* Terminate exchange */
-
-/* ToDo: move to the appropriate place */
-#define CTIO_INVALID_RX_ID		0x08
-#define CTIO_TIMEOUT			0x0B
-#define CTIO_LIP_RESET			0x0E
-#define CTIO_TARGET_RESET		0x17
-#define CTIO_PORT_UNAVAILABLE		0x28
-#define CTIO_PORT_LOGGED_OUT		0x29
-
 /* TM failed response code, see FCP */
 #define FC_TM_FAILED                0x5
 
