@@ -346,7 +346,8 @@ static inline void scst_block_dev(struct scst_device *dev,
 	__scst_block_dev(dev);
 	spin_unlock_bh(&dev->dev_lock);
 
-	TRACE_MGMT_DBG("%s", "Waiting during blocking");
+	TRACE_MGMT_DBG("Waiting during blocking outstanding %d (on_dev_count "
+		"%d)", outstanding, atomic_read(&dev->on_dev_count));
 	wait_event(dev->on_dev_waitQ, 
 		atomic_read(&dev->on_dev_count) <= outstanding);
 	TRACE_MGMT_DBG("%s", "wait_event() returned");

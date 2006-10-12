@@ -1580,7 +1580,7 @@ static int scst_send_to_midlev(struct scst_cmd *cmd)
 	}
 
 	count = 0;
-	do {
+	while(1) {
 		rc = scst_do_send_to_midlev(cmd);
 		if (rc == SCST_EXEC_NEED_THREAD) {
 			TRACE_DBG("%s", "scst_do_send_to_midlev() requested "
@@ -1597,8 +1597,11 @@ static int scst_send_to_midlev(struct scst_cmd *cmd)
 		count++;
 		expected_sn = __scst_inc_expected_sn(tgt_dev);
 		cmd = scst_check_deferred_commands(tgt_dev, expected_sn);
+		if (cmd == NULL)
+			break;
+		if (unlikely(scst_inc_on_dev_cmd(cmd) != 0))
+			break;
 	}
-	while(cmd != NULL);
 
 out_unplug:
 	if (dev->scsi_dev != NULL)
@@ -1742,9 +1745,6 @@ static int scst_done_cmd_check(struct scst_cmd *cmd, int *pres)
 
 	TRACE_ENTRY();
 
-	if (unlikely(cmd->sg == NULL))
-		goto out;
-
 	if (cmd->cdb[0] == REQUEST_SENSE) {
 		if (cmd->internal)
 			cmd = scst_complete_request_sense(cmd);
@@ -1775,15 +1775,12 @@ static int scst_done_cmd_check(struct scst_cmd *cmd, int *pres)
 		uint8_t *address;
 
 		length = scst_get_buf_first(cmd, &address);
-		if (unlikely(length <= 0)) {
+		if (length <= 0)
 			goto out;
-		}
-		if (length > 2 && cmd->cdb[0] == MODE_SENSE) {
+		if (length > 2 && cmd->cdb[0] == MODE_SENSE)
 			address[2] |= 0x80;   /* Write Protect*/
-		}
-		else if (length > 3 && cmd->cdb[0] == MODE_SENSE_10) {
+		else if (length > 3 && cmd->cdb[0] == MODE_SENSE_10)
 			address[3] |= 0x80;   /* Write Protect*/
-		}
 		scst_put_buf(cmd, address);
 	}
 
@@ -1800,7 +1797,7 @@ static int scst_done_cmd_check(struct scst_cmd *cmd, int *pres)
 
 		/* ToDo: all pages ?? */
 		buflen = scst_get_buf_first(cmd, &buffer);
-		if (likely(buflen > 0)) {
+		if (buflen > 0) {
 			if (buflen > SCST_INQ_BYTE3) {
 #ifdef EXTRACHECKS
 				if (buffer[SCST_INQ_BYTE3] & SCST_INQ_NORMACA_BIT) {
