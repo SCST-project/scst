@@ -1,0 +1,246 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
+<html>
+<head>
+  <meta http-equiv="content-type"
+ content="text/html; charset=ISO-8859-1">
+  <title>SCST: Generic SCSI Target Middle Level for Linux</title>
+  <meta name="Keywords"
+ content="SCST, Linux, SCSI target, Qlogic, QLA2200, QLA2300, iSCSI, SCSI">
+</head>
+<body>
+<a href="http://sourceforge.net"> <img
+ src="http://sourceforge.net/sflogo.php?group_id=110471&amp;type=5"
+ alt="SourceForge.net Logo" border="0" height="62" width="210"></a>
+<h1><small>Generic SCSI Target Middle Level for Linux</small><br>
+</h1>
+<p style="text-align: justify;">The SCSI target mid-level subsystem for
+Linux (SCST) is a new subsystem of the Linux kernel that provides a
+standard framework for SCSI target drivers development. It is designed
+to
+provide unified, consistent interface between SCSI target drivers and
+Linux kernel and simplify target drivers development as much as
+possible. A system with a SCSI target device is able to share its local
+or virtual devices with other systems on a network with SCSI protocol
+support, e.g. SCSI bus, Fibre Channel, TCP/IP with iSCSI. This is
+commonly used for data storage virtualization.<br>
+</p>
+<p style="text-align: justify;">SCST has the following features:</p>
+<div style="text-align: justify;">
+</div>
+<p style="text-align: justify;">
+</p>
+<div style="text-align: justify;">
+</div>
+<ul style="text-align: justify;">
+  <li>Simple, easy to use interface with target drivers. Particularly,
+SCST performs all required pre- and post- processing of incoming
+requests and all necessary error recovery.</li>
+  <li>Undertakes most problems, related to execution contexts, thus
+practically eliminating one of the most complicated problem in the
+kernel drivers development. For example, a target driver for Qlogic
+2200/2300 cards, which has all necessary features, is only ~2000 lines
+of code long.</li>
+  <li> Very low overhead, fine-grained locks and simplest commands
+processing path, which allow to reach maximum possible performance and
+scalability. Particularly, incoming
+requests can be processed in the caller's context or in
+one of the internal SCST's tasklets, therefore no extra context
+switches
+required.</li>
+  <li>Provides advanced per-initiator device visibility management,
+which allows different initiators could see different set of devices
+with different access permissions. For instance, initiator A could see
+exported from
+target T devices Da and Db read-writable, and initiator B from the same
+target T could see devices Db read-only and Dc read-writable.<br>
+  </li>
+  <li> Complete SMP support.<br>
+  </li>
+  <li> Emulates necessary functionality of SCSI host adapter, because
+from a remote initiator's point of view SCST acts as a SCSI host with
+its
+own devices. Some of the emulated functions are the following:
+    <ul>
+      <li> Generation of necessary UNIT ATTENTIONs, their storage and
+delivery to all connected remote initiators (sessions). </li>
+      <li> RESERVE/RELEASE functionality. </li>
+      <li> CA/ACA conditions. </li>
+      <li> All types of RESETs and other task management functions. </li>
+      <li> REPORT LUNS command as well as SCSI address space management
+in order to have consistent address space on all remote initiators,
+since local SCSI devices could not know about each other to report
+via REPORT LUNS command. Additionally, SCST responds with error on
+all commands to non-existing devices and provides access control
+(not implemented yet), so different remote initiators could see
+different set of devices. </li>
+      <li> Other necessary functionality (task attributes, etc.) as
+specified in SAM-2, SPC-2, SAM-3, SPC-3 and other SCSI standards. </li>
+    </ul>
+  </li>
+  <li> Device handlers (i.e. plugins) architecture provides extra
+flexibility by allowing to make any additional
+requests processing, which is completely independent from target
+drivers and SCST core, like, for instance, device dependent exceptional
+conditions treatment, data caching or passing commands in the user
+space for device emulation. Example of such plugin is FILEIO device
+handler (see below) .<br>
+  </li>
+  <li>Well documented.<br>
+  </li>
+</ul>
+<div style="text-align: justify;">
+</div>
+<p style="text-align: justify;">Interoperability between SCST and local
+SCSI initiators (like sd, st) is
+the additional issue that SCST is going to address (it is not
+implemented yet). It is necessary, because local SCSI initiators can
+change the state of the device, for example RESERVE the device, or some
+of its parameters and that would be done behind SCST, which could lead
+to various problems. Thus, RESERVE/RELEASE commands, locally generated
+UNIT ATTENTIONs, etc. should be intercepted and processed as if local
+SCSI initiators act as remote SCSI initiators connected to SCST. This
+feature requires some the kernel modification. Since in the current
+version it is not implemented, SCST and target drivers are
+able to work with any 2.4 or 2.6 kernel version.<br>
+</p>
+<p style="text-align: justify;">Interface between SCST and target
+drivers is based on work, done by <a href="http://www.iol.unh.edu/">University
+of New Hampshire Interoperability Labs (UNH IOL)</a> for the <a
+ href="http://www.iol.unh.edu/consortiums/iscsi/index.html">UNH-iSCSI
+project</a>, which is currently developed on <a
+ href="http://unh-iscsi.sourceforge.net/">SourceForge.net</a>.<br>
+</p>
+<p style="text-align: justify;">The latest stable version is 0.9.4. It
+supports SCSI disks (type 0), tapes (type 1), processors (type
+3), CDROMs (type 5), MO disks (type 7), medium changers (type 8) and
+RAID controllers (type 0xC). Also it supports FILEIO and "performance"
+device handlers. FILEIO device handler allows to use files on file
+systems or block devices as virtual remotely available SCSI disks or
+CDROM's. "Performance" device handlers provide a way for direct
+performance measurements without overhead of actual data transferring
+from/to underlying SCSI device. Requires Linux kernel 2.6.14 or higher.
+Tested on i386 and x86_64 only,
+but should also
+work on any other
+supported by Linux platform. More detail information you could find in
+the project README file.<br>
+</p>
+<p style="text-align: justify;">Starting from version 0.9.4 2.4 Linux
+kernels are not supported anymore, although there could be new SCST
+releases those kernels with very important bug fixes. The latest stable
+version of SCST with 2.4 kernels support is 0.9.3.1-24.</p>
+<p style="text-align: justify;">If you have any questions you can ask
+them on the SCST SF.net page either using forum, or scst-devel mailing
+list.<br>
+</p>
+<a href="http://sourceforge.net/project/showfiles.php?group_id=110471">Download</a><br>
+<a href="http://www.sourceforge.net/projects/scst">SCST SF.net project
+page</a><br>
+<a href="ChangeLog.scst">Change Log</a><br>
+Documentation: <a href="doc/scst_pg.html">HTML</a>, <a
+ href="doc/scst_pg.pdf">PDF</a><br>
+<p>The latest development versions of SCST and its drivers are
+available directly from the
+project's SVN. You can access it using either <a
+ href="http://svn.sourceforge.net/scst">web-based SVN
+repository viewer</a> or using anonymous access: </p>
+<p> <tt> svn co https://svn.sourceforge.net/svnroot/scst<br>
+</tt></p>
+<p>More information about accessing SVN repository may be found <a
+ href="http://sourceforge.net/docs/E09">here</a>.<br>
+</p>
+<p>History of the pre-SVN SCST development is available in SCST CVS
+repository, which is accessible using <a
+ href="http://cvs.sourceforge.net/viewcvs.py/scst">web-based CVS
+repository viewer</a> or anonymous CVS access.<br>
+</p>
+<hr
+ style="width: 100%; height: 2px; margin-left: 0px; margin-right: 0px;">
+<h1><small>Target driver for Qlogic 2200/2300 cards for 2.6 kernels<br>
+</small></h1>
+<div style="text-align: justify;">
+<p>This is ported version of the
+previous target driver for 2.4 kernels (see below) to the in-tree 2.6
+Qlogic 2x00 initiator
+driver. The port was done by Nathaniel Clark. This is stable and
+functional driver with
+the larger feature set, than the parent driver has.</p>
+<p style="text-align: justify;">The latest version is 0.9.3.8. Requires
+Linux kernel version 2.6.15.X and SCST version 0.9.4 or higher.
+For usage with other kernel versions you will need to port the
+initiator patch to that version of the kernel.<br>
+</p>
+<p style="text-align: justify;">You can find the latest development
+version of this driver in the SCST CVS. See above how to setup access
+to it.<br>
+</p>
+<p style="text-align: justify;"><a
+ href="http://sourceforge.net/project/showfiles.php?group_id=110471">Download</a><br>
+<a href="ChangeLog.qla26">Change Log</a><br>
+</p>
+</div>
+<hr style="width: 100%; height: 2px;">
+<h1><small>Target driver for Qlogic 2200/2300 cards<br>
+</small></h1>
+<div style="text-align: justify;">Target driver for Qlogic 2200/2300
+cards has all required features and
+looks to be quite stable. It is designed to work in conjunction with
+the initiator
+driver, which is intended to perform all the initialization and
+shutdown tasks. In the current release as a base for the initiator
+driver was taken Red Hat's driver from the stock 2.4.20 kernel. Then it
+was patched, basically, to enable the target mode and provide all
+necessary callbacks, and it's still able to work as initiator only.
+Mode, when a host acts as the initiator and the target simultaneously,
+is also supported. This driver is going to be obsolete soon in favor of
+2.6-based driver (see above).<br>
+<br>
+The latest version is 0.9.3.4. Requires Linux kernel versions 2.4.20 or
+higher and SCST version 0.9.3-pre4 or higher. If you are lucky, it
+works also on 2.6 kernels, see README file
+for details. Tested on i386 only, but
+should work on any other supported by Linux platform.<br>
+<br>
+</div>
+<a href="http://sourceforge.net/project/showfiles.php?group_id=110471">Download</a><br>
+<a href="ChangeLog.qla">Change Log</a>
+<p style="text-align: justify;"></p>
+<hr style="width: 100%; height: 2px;">
+<span style="font-weight: bold;"></span>
+<h1><small>Target drivers for Adaptec 7xxx, LSI/MPT and Qlogic QLA12xx
+cards</small></h1>
+Target drivers for Adaptec 7xxx, LSI/MPT and Qlogic QLA12xx cards have
+being developed by Hu Gang and they available for download from <a
+ href="http://bj.soulinfo.com/%7Ehugang/scst/tgt/">http://bj.soulinfo.com/~hugang/scst/tgt/</a>.
+These drivers are not completed, but looks to be a good starting point
+if you are going to use one of these cards.
+SCST team don't have the appropriate hardware, therefore have not
+tested and don't support these drivers. Send all questions to Hu Gang
+&lt;hugang
+% soulinfo.com&gt;. If some of these drivers don't compile for you, try
+again with SCST version 0.9.3-pre2.<br>
+<br>
+<a href="http://bj.soulinfo.com/%7Ehugang/scst/tgt/">Download</a><br>
+<br>
+<hr style="width: 100%; height: 2px;">
+<h1><small>Patches for UNH-iSCSI Target 1.5.03 and 1.6.00 to work over
+SCST</small></h1>
+SCST is much more advanced, than the internal mid-level of <a
+ href="http://sourceforge.net/projects/unh-iscsi">UNH-iSCSI target
+driver</a>.
+With SCST the iSCSI target benefits from all its features and gets
+ability to use all its advantages, like high performance and
+scalability, SMP support, required SCSI functionality emulation, etc.<br>
+<br>
+Since the interface between SCST and the target drivers is based on
+work, done by UNH IOL, it was relatively simple to update UNH-iSCSI
+target to work over SCST. Mostly it was "search and replace" job. The
+built-in scsi_target remains available as a compile-time option.<br>
+<br>
+Requires Linux kernel versions 2.4.20 or
+higher or 2.6.7 or higher and SCST version 0.9.2 or higher.<br>
+<br>
+<a href="http://sourceforge.net/project/showfiles.php?group_id=110471">Download</a><br>
+<br>
+</body>
+</html>
