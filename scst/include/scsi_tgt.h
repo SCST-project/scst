@@ -341,12 +341,6 @@
 /* Set if the cmd is dead and can be destroyed at any time */
 #define SCST_CMD_CAN_BE_DESTROYED	6
 
-/*
- * Set if the cmd is throtteled, ie put on hold since there
- * are too many pending commands.
- */
-#define SCST_CMD_THROTTELED		7
-
 /*************************************************************
  ** Tgt_dev's flags 
  *************************************************************/
@@ -1014,6 +1008,12 @@ struct scst_cmd
 	 */
 	unsigned int sg_buff_modified:1;
 
+	/*
+	 * Set if the cmd's memory requirements are checked and found
+	 * acceptable
+	 */
+	unsigned int mem_checked:1;
+
 	/**************************************************************/
 
 	unsigned long cmd_flags;	/* cmd's async flags */
@@ -1022,9 +1022,9 @@ struct scst_cmd
 	struct scst_tgt *tgt;		/* to save extra dereferences */
 	struct scst_device *dev;	/* to save extra dereferences */
 
-	lun_t lun;		/* LUN for this cmd */
+	lun_t lun;			/* LUN for this cmd */
 
-	struct scst_tgt_dev *tgt_dev; /* corresponding device for this cmd */
+	struct scst_tgt_dev *tgt_dev;	/* corresponding device for this cmd */
 
 	struct scsi_request *scsi_req;	/* SCSI request */
 
@@ -1252,9 +1252,6 @@ struct scst_tgt_dev
 	 * Protected by scst_list_lock.
 	 */
 	int cmd_count; 
-
-	/* Throttled commands, protected by scst_list_lock */
-	struct list_head thr_cmd_list;
 
 	spinlock_t tgt_dev_lock;	/* per-session device lock */
 
@@ -2047,5 +2044,16 @@ unsigned long scst_random(void);
  * using this function. Value of resp_data_len must be <= cmd->bufflen.
  */
 void scst_set_resp_data_len(struct scst_cmd *cmd, int resp_data_len);
+
+/*
+ * Checks if total memory allocated by commands is less, than defined
+ * limit (scst_cur_max_cmd_mem) and returns 0, if it is so. Otherwise,
+ * returnes 1 and sets on cmd QUEUE FULL or BUSY status as well as
+ * SCST_CMD_STATE_XMIT_RESP state. Target drivers and dev handlers are
+ * required to call this function if they allocate data buffers on their
+ * own.
+ */
+int scst_check_mem(struct scst_cmd *cmd);
+
 
 #endif /* __SCST_H */

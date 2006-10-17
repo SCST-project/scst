@@ -72,9 +72,17 @@ LIST_HEAD(scst_active_cmd_list);
 LIST_HEAD(scst_init_cmd_list);
 LIST_HEAD(scst_cmd_list);
 DECLARE_WAIT_QUEUE_HEAD(scst_list_waitQ);
+
+spinlock_t scst_cmd_mem_lock = SPIN_LOCK_UNLOCKED;
+unsigned long scst_cur_cmd_mem, scst_cur_max_cmd_mem;
+
 struct tasklet_struct scst_tasklets[NR_CPUS];
 
 struct scst_sgv_pools scst_sgv;
+
+DECLARE_WORK(scst_cmd_mem_work, scst_cmd_mem_work_fn, 0);
+
+unsigned long scst_max_cmd_mem;
 
 LIST_HEAD(scst_mgmt_cmd_list);
 LIST_HEAD(scst_active_mgmt_cmd_list);
@@ -104,6 +112,10 @@ uint8_t scst_temp_UA[SCSI_SENSE_BUFFERSIZE];
 
 module_param_named(scst_threads, scst_threads, int, 0);
 MODULE_PARM_DESC(scst_threads, "SCSI target threads count");
+
+module_param_named(scst_max_cmd_mem, scst_max_cmd_mem, long, 0);
+MODULE_PARM_DESC(scst_max_cmd_mem, "Maximum memory allowed to be consumed by "
+	"the SCST commands at any given time in Mb");
 
 int scst_register_target_template(struct scst_tgt_template *vtt)
 {
@@ -1032,8 +1044,22 @@ static int __init init_scst(void)
 	}
 	atomic_inc(&scst_threads_count);
 
-	PRINT_INFO_PR("SCST version %s loaded successfully", 
-		SCST_VERSION_STRING);
+	if (scst_max_cmd_mem == 0) {
+		struct sysinfo si;
+		si_meminfo(&si);
+#if BITS_PER_LONG == 32
+		scst_max_cmd_mem = min(((uint64_t)si.totalram << PAGE_SHIFT) >> 2,
+					(uint64_t)1 << 30);
+#else
+		scst_max_cmd_mem = (si.totalram << PAGE_SHIFT) >> 2;
+#endif
+	} else
+		scst_max_cmd_mem <<= 20;
+
+	scst_cur_max_cmd_mem = scst_max_cmd_mem;
+
+	PRINT_INFO_PR("SCST version %s loaded successfully (max mem for "
+		"commands %ld Mb)", SCST_VERSION_STRING, scst_max_cmd_mem >> 20);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1125,6 +1151,11 @@ static void __exit exit_scst(void)
 		}
 	}
 
+	if (test_bit(SCST_FLAG_CMD_MEM_WORK_SCHEDULED, &scst_flags)) {
+		cancel_delayed_work(&scst_cmd_mem_work);
+		flush_scheduled_work();
+	}
+
 	scst_proc_cleanup_module();
 	scsi_unregister_interface(&scst_interface);
 	scst_destroy_acg(scst_default_acg);
@@ -1207,6 +1238,7 @@ EXPORT_SYMBOL(scst_proc_log_entry_write);
 #endif
 
 EXPORT_SYMBOL(__scst_get_buf);
+EXPORT_SYMBOL(scst_check_mem);
 
 /*
  * Other Commands

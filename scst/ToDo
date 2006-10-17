@@ -32,8 +32,6 @@ To be done
    To enable it, set SCST_HIGHMEM in 1 in scst_priv.h. HIGHMEM is not 
    supported on 2.4 and is not going to be.
 
- - More intelligent IO-throttling.
-
  - Small ToDo's spread all over the code.
 
  - Investigate possible missed emulated UA cases.

@@ -105,9 +105,6 @@ Then, to see your devices remotely, you need to add them to at least
 are seen remotely. There must be LUN 0 in each security group, i.e. LUs
 numeration must not start from, e.g., 1.
 
-Module "scst_target" supports parameter "scst_threads", which allows to
-set count of SCST's threads (CPU count by default).
-
 IMPORTANT: without loading appropriate device handler, corresponding devices
 =========  will be invisible for remote initiators, which could lead to holes
            in the LUN addressing, so automatic device scanning by remote SCSI 
@@ -181,6 +178,18 @@ in/out in Makefile:
    buffers. Undefining it (default) considerably improves performance
    and eases CPU load, but could create a security hole (information
    leakage), so enable it, if you have strict security requirements.
+
+Module parameters
+-----------------
+
+Module scsi_tgt supports the following parameters:
+
+ - scst_threads - allows to set count of SCST's threads. By default it
+   is CPU count.
+
+ - scst_max_cmd_mem - sets maximum amount of memory in Mb allowed to be
+   consumed by the SCST commands for data buffers at any given time. By
+   default it is approximately TotalMem/4.
 
 SCST "/proc" commands
 ---------------------

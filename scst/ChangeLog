@@ -7,11 +7,13 @@ Summary of changes between versions 0.9.4 and 0.9.5
  - Timer-based retries for targets after SCST_TGT_RES_QUEUE_FULL status
    implemented.
 
+ - More intelligent IO flow control implemented.
+
  - Fixed broken CDROM FILEIO. Before that it always reported 
    "No medium found"
 
  - Fixed READ(6)/WRITE(6) CDB decoding for block devices.
-   This bug prevented FreeBSD initiator from working.
+   This bug prevented FreeBSD initiators from working.
 
  - Implemented sgv_pool. It is mempool-like interface, which caches
    built SG-vectors in order not to rebuild them again for every
@@ -33,7 +35,7 @@ Summary of changes between versions 0.9.4 and 0.9.5
 
  - Exported symbols are now not GPL'ed
 
- - Various cleanups and bug fixes.
+ - Various cleanups and a lot of bug fixes.
 
 Summary of changes between versions 0.9.3 and 0.9.4
 ---------------------------------------------------

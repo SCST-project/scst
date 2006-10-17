@@ -92,15 +92,13 @@ void scst_set_busy(struct scst_cmd *cmd)
 	{
 		scst_set_cmd_error_status(cmd, SAM_STAT_BUSY);
 		TRACE_MGMT_DBG("Sending BUSY status to initiator %s "
-			"(cmds count %d, queue_type %x, sess->init_phase %d), "
-			"probably the system is overloaded",
+			"(cmds count %d, queue_type %x, sess->init_phase %d)",
 			cmd->sess->initiator_name, cmd->sess->sess_cmd_count,
 			cmd->queue_type, cmd->sess->init_phase);
 	} else {
 		scst_set_cmd_error_status(cmd, SAM_STAT_TASK_SET_FULL);
 		TRACE_MGMT_DBG("Sending QUEUE_FULL status to initiator %s "
-			"(cmds count %d, queue_type %x, sess->init_phase %d), "
-			"probably the system is overloaded",
+			"(cmds count %d, queue_type %x, sess->init_phase %d)",
 			cmd->sess->initiator_name, cmd->sess->sess_cmd_count,
 			cmd->queue_type, cmd->sess->init_phase);
 	}
@@ -358,7 +356,6 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 		      (uint64_t)tgt_dev->acg_dev->lun);
 	}
 
-	INIT_LIST_HEAD(&tgt_dev->thr_cmd_list);
 	spin_lock_init(&tgt_dev->tgt_dev_lock);
 	INIT_LIST_HEAD(&tgt_dev->UA_list);
 	spin_lock_init(&tgt_dev->sn_lock);
@@ -2034,28 +2031,6 @@ void scst_unblock_cmds(struct scst_device *dev)
 
 	TRACE_EXIT();
 	return;
-}
-
-/* Called under scst_list_lock and IRQs disabled */
-void scst_throttle_cmd(struct scst_cmd *cmd)
-{
-	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
-
-	TRACE(TRACE_RETRY, "Too many pending commands in session, initiator "
-		"\"%s\". Moving cmd %p to thr cmd list", 
-		(cmd->sess->initiator_name[0] == '\0') ? "Anonymous" : 
-				cmd->sess->initiator_name, cmd);
-	list_move_tail(&cmd->cmd_list_entry, &tgt_dev->thr_cmd_list);
-	set_bit(SCST_CMD_THROTTELED, &cmd->cmd_flags);
-}
-
-/* Called under scst_list_lock and IRQs disabled */
-void scst_unthrottle_cmd(struct scst_cmd *cmd)
-{
-	TRACE(TRACE_RETRY|TRACE_DEBUG, "Moving cmd %p from "
-		"thr cmd list to active cmd list", cmd);
-	list_move_tail(&cmd->cmd_list_entry, &scst_active_cmd_list);
-	clear_bit(SCST_CMD_THROTTELED, &cmd->cmd_flags);
 }
 
 static struct scst_cmd *scst_inc_expected_sn(

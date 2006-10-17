@@ -171,7 +171,7 @@ static int sgv_alloc_sg(struct sgv_pool_obj *obj, int pages,
 	obj->sg_count = 0;
 	for (pg = 0; pg < pages; pg++) {
 #ifdef DEBUG_OOM
-		if (((scst_random() % 100) == 55))
+		if ((scst_random() % 10000) == 55)
 			obj->entries[obj->sg_count].page = NULL;
 		else
 #endif

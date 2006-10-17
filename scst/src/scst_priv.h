@@ -73,6 +73,9 @@
 /* Set if a TM command is being performed */
 #define SCST_FLAG_TM_ACTIVE                  2
 
+/* Set if scst_cmd_mem_work is scheduled */
+#define SCST_FLAG_CMD_MEM_WORK_SCHEDULED     3
+
 /** 
  ** Return codes for cmd state process functions 
  **/
@@ -93,6 +96,7 @@
 #define SCST_THREAD_FLAGS                  CLONE_KERNEL
 
 #define SCST_TGT_RETRY_TIMEOUT             (3/2*HZ)
+#define SCST_CMD_MEM_TIMEOUT               (120*HZ)
 
 static inline int scst_get_context(void) {
 	/* Be overinsured */
@@ -141,6 +145,11 @@ extern struct list_head scst_active_cmd_list;
 extern struct list_head scst_init_cmd_list;
 extern struct list_head scst_cmd_list;
 
+extern spinlock_t scst_cmd_mem_lock;
+extern unsigned long scst_max_cmd_mem, scst_cur_max_cmd_mem, scst_cur_cmd_mem;
+extern struct work_struct scst_cmd_mem_work;
+
+/* The following lists protected by scst_list_lock as well */
 extern struct list_head scst_mgmt_cmd_list;
 extern struct list_head scst_active_mgmt_cmd_list;
 extern struct list_head scst_delayed_mgmt_cmd_list;
@@ -202,6 +211,7 @@ int scst_cmd_thread(void *arg);
 void scst_cmd_tasklet(long p);
 int scst_mgmt_cmd_thread(void *arg);
 int scst_mgmt_thread(void *arg);
+void scst_cmd_mem_work_fn(void *p);
 
 struct scst_device *scst_alloc_device(int gfp_mask);
 void scst_free_device(struct scst_device *tgt_dev);

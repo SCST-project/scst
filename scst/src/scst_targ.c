@@ -468,6 +468,96 @@ out_xmit:
 	goto out;
 }
 
+void scst_cmd_mem_work_fn(void *p)
+{
+	TRACE_ENTRY();
+
+	spin_lock_bh(&scst_cmd_mem_lock);
+
+	scst_cur_max_cmd_mem += (scst_cur_max_cmd_mem >> 3);
+	if (scst_cur_max_cmd_mem < scst_max_cmd_mem) {
+		TRACE_MGMT_DBG("%s", "Schedule cmd_mem_work");
+		schedule_delayed_work(&scst_cmd_mem_work, SCST_CMD_MEM_TIMEOUT);
+	} else {
+		scst_cur_max_cmd_mem = scst_max_cmd_mem;
+		clear_bit(SCST_FLAG_CMD_MEM_WORK_SCHEDULED, &scst_flags);
+	}
+	TRACE_MGMT_DBG("New max cmd mem %ld Mb", scst_cur_max_cmd_mem >> 20);
+
+	spin_unlock_bh(&scst_cmd_mem_lock);
+
+	TRACE_EXIT();
+	return;
+}
+
+int scst_check_mem(struct scst_cmd *cmd)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	if (cmd->mem_checked)
+		goto out;
+
+	spin_lock_bh(&scst_cmd_mem_lock);
+
+	scst_cur_cmd_mem += cmd->bufflen;
+	cmd->mem_checked = 1;
+	if (likely(scst_cur_cmd_mem <= scst_cur_max_cmd_mem))
+		goto out_unlock;
+
+	TRACE(TRACE_OUT_OF_MEM, "Total memory allocated by commands (%ld Kb) "
+		"is too big, returning QUEUE FULL to initiator \"%s\" (maximum "
+		"allowed %ld Kb)", scst_cur_cmd_mem >> 10,
+		(cmd->sess->initiator_name[0] == '\0') ?
+		  "Anonymous" : cmd->sess->initiator_name,
+		scst_cur_max_cmd_mem >> 10);
+
+	scst_cur_cmd_mem -= cmd->bufflen;
+	cmd->mem_checked = 0;
+	scst_set_busy(cmd);
+	cmd->state = SCST_CMD_STATE_XMIT_RESP;
+	res = 1;
+
+out_unlock:
+	spin_unlock_bh(&scst_cmd_mem_lock);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static void scst_low_cur_max_cmd_mem(void)
+{
+	TRACE_ENTRY();
+
+	if (test_bit(SCST_FLAG_CMD_MEM_WORK_SCHEDULED, &scst_flags)) {
+		cancel_delayed_work(&scst_cmd_mem_work);
+		flush_scheduled_work();
+		clear_bit(SCST_FLAG_CMD_MEM_WORK_SCHEDULED, &scst_flags);
+	}
+
+	spin_lock_bh(&scst_cmd_mem_lock);
+
+	scst_cur_max_cmd_mem = (scst_cur_cmd_mem >> 1) + 
+				(scst_cur_cmd_mem >> 2);
+	if (scst_cur_max_cmd_mem < 16*1024*1024)
+		scst_cur_max_cmd_mem = 16*1024*1024;
+
+	if (!test_bit(SCST_FLAG_CMD_MEM_WORK_SCHEDULED, &scst_flags)) {
+		TRACE_MGMT_DBG("%s", "Schedule cmd_mem_work");
+		schedule_delayed_work(&scst_cmd_mem_work, SCST_CMD_MEM_TIMEOUT);
+		set_bit(SCST_FLAG_CMD_MEM_WORK_SCHEDULED, &scst_flags);
+	}
+
+	spin_unlock_bh(&scst_cmd_mem_lock);
+
+	TRACE_MGMT_DBG("New max cmd mem %ld Mb", scst_cur_max_cmd_mem >> 20);
+
+	TRACE_EXIT();
+	return;
+}
+
 static int scst_prepare_space(struct scst_cmd *cmd)
 {
 	int r, res = SCST_CMD_STATE_RES_CONT_SAME;
@@ -478,6 +568,10 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 		cmd->state = SCST_CMD_STATE_SEND_TO_MIDLEV;
 		goto out;
 	}
+
+	r = scst_check_mem(cmd);
+	if (unlikely(r != 0))
+		goto out;
 
 	if (cmd->data_buf_tgt_alloc) {
 		TRACE_MEM("%s", "Custom tgt data buf allocation requested");
@@ -512,7 +606,8 @@ out:
 
 out_no_space:
 	TRACE(TRACE_OUT_OF_MEM, "Unable to allocate or build requested buffer "
-		"(size %zd), sending BUSY status", cmd->bufflen);
+		"(size %zd), sending BUSY or QUEUE FULL status", cmd->bufflen);
+	scst_low_cur_max_cmd_mem();
 	scst_set_busy(cmd);
 	cmd->state = SCST_CMD_STATE_DEV_DONE;
 	res = SCST_CMD_STATE_RES_CONT_SAME;
@@ -2090,6 +2185,12 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
+	if (cmd->mem_checked) {
+		spin_lock_bh(&scst_cmd_mem_lock);
+		scst_cur_cmd_mem -= cmd->bufflen;
+		spin_unlock_bh(&scst_cmd_mem_lock);
+	}
+
 	spin_lock_irq(&scst_list_lock);
 
 	TRACE_DBG("Deleting cmd %p from cmd list", cmd);
@@ -2098,18 +2199,8 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 	if (cmd->mgmt_cmnd)
 		scst_complete_cmd_mgmt(cmd, cmd->mgmt_cmnd);
 
-	if (likely(cmd->tgt_dev != NULL)) {
-		struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
-		tgt_dev->cmd_count--;
-		if (!list_empty(&tgt_dev->thr_cmd_list)) {
-			struct scst_cmd *t = 
-				list_entry(tgt_dev->thr_cmd_list.next,
-					typeof(*t), cmd_list_entry);
-			scst_unthrottle_cmd(t);
-			if (!cmd->processible_env)
-				wake_up(&scst_list_waitQ);
-		}
-	}
+	if (likely(cmd->tgt_dev != NULL))
+		cmd->tgt_dev->cmd_count--;
 
 	cmd->sess->sess_cmd_count--;
 
@@ -2261,18 +2352,7 @@ static int scst_process_init_cmd(struct scst_cmd *cmd)
 	res = scst_translate_lun(cmd);
 	if (likely(res == 0)) {
 		cmd->state = SCST_CMD_STATE_DEV_PARSE;
-		if (cmd->tgt_dev->cmd_count > SCST_MAX_DEVICE_COMMANDS)
-#if 0 /* don't know how it's better */
-		{
-			scst_throttle_cmd(cmd);
-		} else {
-			BUG_ON(!list_empty(&cmd->tgt_dev->thr_cmd_list));
-			TRACE_DBG("Moving cmd %p to active cmd list", cmd);
-			list_move_tail(&cmd->cmd_list_entry, 
-				&scst_active_cmd_list);
-		}
-#else
-		{
+		if (cmd->tgt_dev->cmd_count > SCST_MAX_DEVICE_COMMANDS)	{
 			TRACE(TRACE_RETRY, "Too many pending commands in "
 				"session, returning BUSY to initiator \"%s\"",
 				(cmd->sess->initiator_name[0] == '\0') ?
@@ -2282,7 +2362,6 @@ static int scst_process_init_cmd(struct scst_cmd *cmd)
 		}
 		TRACE_DBG("Moving cmd %p to active cmd list", cmd);
 		list_move_tail(&cmd->cmd_list_entry, &scst_active_cmd_list);
-#endif
 	} else if (res < 0) {
 		TRACE_DBG("Finishing cmd %p", cmd);
 		scst_set_cmd_error(cmd,
@@ -2687,9 +2766,6 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 	}
 	set_bit(SCST_CMD_ABORTED, &cmd->cmd_flags);
 	smp_mb__after_set_bit();
-
-	if (test_bit(SCST_CMD_THROTTELED, &cmd->cmd_flags))
-		scst_unthrottle_cmd(cmd);
 
 	if (call_dev_task_mgmt_fn && cmd->tgt_dev)
 		 scst_call_dev_task_mgmt_fn(mcmd, cmd->tgt_dev, 0);
