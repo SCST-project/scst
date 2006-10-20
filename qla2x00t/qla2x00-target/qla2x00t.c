@@ -772,10 +772,10 @@ static int q2t_xmit_response(struct scst_cmd *scst_cmd)
 		prm.residual =
 		    le32_to_cpu(prm.cmd->atio.data_length) - prm.bufflen;
 		if (prm.residual > 0) {
-			TRACE_MGMT_DBG("Residual underflow: %d", prm.residual);
+			TRACE_DBG("Residual underflow: %d", prm.residual);
 			prm.rq_result |= SS_RESIDUAL_UNDER;
 		} else if (prm.residual < 0) {
-			TRACE_MGMT_DBG("Residual overflow: %d", prm.residual);
+			TRACE_DBG("Residual overflow: %d", prm.residual);
 			prm.rq_result |= SS_RESIDUAL_OVER;
 			prm.residual = -prm.residual;
 		}
