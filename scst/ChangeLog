@@ -12,6 +12,9 @@ Summary of changes between versions 0.9.4 and 0.9.5
  - Fixed broken CDROM FILEIO. Before that it always reported 
    "No medium found"
 
+ - Data synchronization fixes and improvements in FILEIO. Added FUA
+   support.
+
  - Fixed READ(6)/WRITE(6) CDB decoding for block devices.
    This bug prevented FreeBSD initiators from working.
 

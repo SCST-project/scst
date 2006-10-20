@@ -13,13 +13,12 @@ SCST's Internet page http://scst.sourceforge.net.
 SCST looks to be quite stable (for beta) and useful. It supports disks
 (SCSI type 0), tapes (type 1), processor (type 3), CDROM's (type 5), MO
 disks (type 7), medium changers (type 8) and RAID controller (type 0xC).
-There are also FILEIO and "performance" device handlers. In addition,
-starting from version 0.9.3 advanced per-initiator access and devices
-visibility management is added, so different initiators could see
-different set of devices with different access permissions. See below
-for details.
+There are also FILEIO and "performance" device handlers. In addition, it
+supports advanced per-initiator access and devices visibility
+management, so different initiators could see different set of devices
+with different access permissions. See below for details.
 
-This is more or less stable (but still beta) version.
+This is quite stable (but still beta) version.
 
 Tested mostly on "vanilla" 2.6.17.8 kernel from kernel.org.
 
@@ -53,9 +52,6 @@ and use FILEIO device handler.
 exec() method skip (pretend to execute) all READ and WRITE operations
 and thus provide a way for direct link performance measurements without
 overhead of actual data transferring from/to underlying SCSI device.
-Starting from 0.9.3 these handlers are incorporated inside of
-corresponding device handler for real device and could be assigned on
-run-time via "assign" command in "/proc/scsi_tgt/scsi_tgt" (see below).
 
 NOTE: Since "perf" device handlers on READ operations don't touch the
 ====  commands' data buffer, it is returned to remote initiators as it
@@ -105,7 +101,7 @@ Then, to see your devices remotely, you need to add them to at least
 are seen remotely. There must be LUN 0 in each security group, i.e. LUs
 numeration must not start from, e.g., 1.
 
-IMPORTANT: without loading appropriate device handler, corresponding devices
+IMPORTANT: Without loading appropriate device handler, corresponding devices
 =========  will be invisible for remote initiators, which could lead to holes
            in the LUN addressing, so automatic device scanning by remote SCSI 
            mid-level could not notice the devices. Therefore you will have 
@@ -113,15 +109,15 @@ IMPORTANT: without loading appropriate device handler, corresponding devices
 	   'echo "scsi add-single-device A 0 0 B" >/proc/scsi/scsi',
 	   where A - is the host number, B - LUN.
 
-IMPORTANT 1: In the current version simultaneous access to local SCSI
-===========  devices via standard high-level SCSI drivers (sd, st, sg,
-             etc.) and SCST's target drivers is unsupported. Especially
-	     it is important for execution via sg and st commands that
-	     change the state of devices and their parameters, because
-	     that could lead to data corruption. If any such command
-	     is done, at least related device handler driver(s) must be
-	     restarted. For block devices READ/WRITE commands using direct
-	     disk handler look to be safe.
+IMPORTANT: In the current version simultaneous access to local SCSI devices
+=========  via standard high-level SCSI drivers (sd, st, sg, etc.) and
+           SCST's target drivers is unsupported. Especially it is
+	   important for execution via sg and st commands that change
+	   the state of devices and their parameters, because that could
+	   lead to data corruption. If any such command is done, at
+	   least related device handler driver(s) must be restarted. For
+	   block devices READ/WRITE commands using direct disk handler
+	   look to be safe.
 
 To uninstall, type 'make uninstall'. It is not implemented for 2.6
 kernels.
@@ -302,8 +298,10 @@ subdirectories "disk_fileio" and "cdrom_fileio". They have similar layout:
     information of currently open device files. On write it supports the
     following command:
     
-    * "open NAME PATH [FLAGS]" - opens file "PATH" as device "NAME" with 
-      flags "FLAGS. Possible flags:
+    * "open NAME PATH [BLOCK_SIZE] [FLAGS]" - opens file "PATH" as
+      device "NAME" with block size "BLOCK_SIZE" bytes with flags
+      "FLAGS". The block size must be power of 2 and >= 512 bytes
+      Default is 512. Possible flags:
       
       - WRITE_THROUGH - write back caching disabled
       
@@ -315,20 +313,60 @@ subdirectories "disk_fileio" and "cdrom_fileio". They have similar layout:
       - NULLIO - in this mode no real IO will be done, but success will be
         returned. Intended to be used for performance measurements at the same
         way as "*_perf" handlers.
+
+      - NV_CACHE - enables "non-volatile cache" mode. In this mode it is
+        assumed that the target has GOOD uninterruptable power supply
+	and software/hardware bug free, i.e. all data from the target's
+	cache are guaranteed sooner or later to go to the media, hence
+	all data synchronization with media operations, like
+	SYNCHRONIZE_CACHE, are ignored (BTW, so violating SCSI standard)
+	in order to bring a bit more performance. Use with extreme
+	caution, since in this mode after a crash of the target
+	journaled file systems don't guarantee the consistency after
+	journal recovery, therefore manual fsck MUST be ran. The main
+	intent for it is to determine the performance impact caused by
+	the cache synchronization. Note, that since usually the journal
+	barrier protection (see "IMPORTANT" below) turned off, enabling
+	NV_CACHE could change nothing, since no data synchronization
+	with media operations will go from the initiator.
     
     * "close NAME" - closes device "NAME".
 
 For example, "echo "open disk1 /vdisks/disk1" >/proc/scsi_tgt/disk_fileio/disk_fileio"
 will open file /vdisks/disk1 as virtual FILEIO disk with name "disk1".
 
-IMPORTANT: by default for performance reasons FILEIO devices use write back
-=========  caching policy, so if you care about the consistence of file systems,
-           laying over them, and your data you must supply your target
-           server with some king of UPS or disable write back caching
-           via WRITE_THROUGH flag. The FS joutnaling over write back
-           caching enabled devices doesn't protect from power failures
-           on the target side, therefore even after successful journal
-           rollback you very much risk to loose your data.
+IMPORTANT: By default for performance reasons FILEIO devices use write back
+=========  caching policy. This is generally safe from the consistence of
+           journaled file systems, laying over them, point of view, but
+	   your unsaved cached data will be lost in case of
+	   power/hardware/software faulure, so you must supply your
+	   target server with some kind of UPS or disable write back
+	   caching using WRITE_THROUGH flag. You also should note, that
+	   the file systems journaling over write back caching enabled
+	   devices works reliably *ONLY* if it uses some kind of data
+	   protection barriers (i.e. after writing journaling data some
+	   kind of synchronization with media operations will be used),
+	   otherwise, because of possible reordering in the cache, even
+	   after successful journal rollback you very much risk to loose
+	   your data on the FS. On Linux initiators for EXT3 and
+	   ReiserFS file systems the barrier protection could be turned
+	   on using "barrier=1" and "barrier=flush" mount options
+	   correspondingly. Note, that usually it turned off by default
+	   and the status of barriers usage isn't reported anywhere in
+	   the system logs as well as there is no way to know it on the
+	   mounted file system (at least we don't know how). Also note
+	   that on some real-life workloads write through caching might
+	   perform better, than write back one with barrier protection
+	   turned on.
+
+IMPORTANT: Many disk and partition table mananagement utilities don't support
+=========  block sizes >512 bytes, therefore make sure that your favorite one
+           supports it. Also, if you export disk file or device with
+	   another block size, than one, with which it was already
+	   divided on partitions, you could get various weird things
+	   like utilities hang up or other unexpected behaviour. Thus, to
+	   be sure, zero the exported file or device before the first
+	   access to it from the remote initiator with another block size.
 
 Performance
 -----------
@@ -384,6 +422,15 @@ IMPORTANT: Some of those options enabled by default, i.e. SCST is optimized
    that in some cases it could lead to 5-10 times less performance, than
    expected.
 
+IMPORTANT: If you use on initiator some versions of Windows (at least W2K)
+=========  you can't get good write performance for FILEIO devices with
+           default 512 bytes block sizes. You could get about 10% of
+	   the expected one. This is because of "unusual" write access
+	   pattern, with which Windows'es write data and which is
+	   (simplifying) incompatible with how Linux page cache works.
+	   With 4096 bytes block sizes for FILEIO devices the write
+	   performance will be as expected.
+
 Just for reference: we had with 0.9.2 and "old" Qlogic driver on 2.4.2x
 kernel, where we did carefull performance study, aggregate throuhput
 about 390 Mb/sec from 2 qla2300 cards sitting on different 64-bit PCI
@@ -394,10 +441,7 @@ from underlying SCSI hardware, i.e. we measured only SCST/FC overhead.
 The target computer configuration was not very modern for the moment:
 something like 2x1GHz Intel P3 Xeon CPUs. You can estimate the
 memory/PCI speed from that. CPU load was ~5%, there were ~30K IRQ/sec
-and no additional SCST related context switches. Version 0.9.3 at the
-same setup will usually have 1 CS/cmd for buffer allocation, so the will
-be about 5-10K CS/sec. This will be fixed in the next version, when
-sgv_pool is integrated.
+and no additional SCST related context switches.
 
 Credits
 -------

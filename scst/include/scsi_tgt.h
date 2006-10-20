@@ -1388,6 +1388,9 @@ struct scst_info_cdb
 #define scst_sense_miscompare_error		MISCOMPARE,      0x1D, 0
 #define scst_sense_block_out_range_error	ILLEGAL_REQUEST, 0x21, 0
 #define scst_sense_medium_changed_UA		UNIT_ATTENTION,  0x28, 0
+#define scst_sense_read_error			MEDIUM_ERROR,    0x11, 0
+#define scst_sense_write_error			MEDIUM_ERROR,    0x03, 0
+#define scst_sense_not_ready			NOT_READY,       0x04, 0x10
 
 #ifndef smp_mb__after_set_bit
 /* There is no smp_mb__after_set_bit() in the kernel */
@@ -2055,5 +2058,11 @@ void scst_set_resp_data_len(struct scst_cmd *cmd, int resp_data_len);
  */
 int scst_check_mem(struct scst_cmd *cmd);
 
+/* 
+ * Get/put global ref counter that prevents from entering into suspended
+ * activities stage, so protects from any global management operations.
+ */
+void scst_get(void);
+void scst_put(void);
 
 #endif /* __SCST_H */

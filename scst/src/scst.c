@@ -881,6 +881,16 @@ void scst_del_threads(int num)
 	return;
 }
 
+void scst_get(void)
+{
+	scst_inc_cmd_count();
+}
+
+void scst_put(void)
+{
+	scst_dec_cmd_count();
+}
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,15)
 static int scst_add(struct class_device *cdev)
 #else
@@ -1239,6 +1249,8 @@ EXPORT_SYMBOL(scst_proc_log_entry_write);
 
 EXPORT_SYMBOL(__scst_get_buf);
 EXPORT_SYMBOL(scst_check_mem);
+EXPORT_SYMBOL(scst_get);
+EXPORT_SYMBOL(scst_put);
 
 /*
  * Other Commands
