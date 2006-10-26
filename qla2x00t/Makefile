@@ -40,7 +40,7 @@ uninstall:
 endif
 
 clean:
-	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend *~ Modules.symvers
+	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend *~ Modules.symvers Module.symvers
 	rm -rf .tmp_versions
 
 extraclean: clean

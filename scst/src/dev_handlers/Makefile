@@ -56,7 +56,7 @@ EXTRA_CFLAGS += -I$(SUBDIRS) -I$(SUBDIRS)/../include
 EXTRA_CFLAGS += -DDEBUG
 
 clean:
-	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend Modules.symvers
+	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend Modules.symvers Module.symvers
 	rm -rf .tmp_versions
 
 extraclean: clean
