@@ -56,10 +56,10 @@ qla2x00tgt-objs := qla2x00t.o
 
 else
 
-all: Modules.symvers
+all: Modules.symvers Module.symvers
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m
 
-tgt: Modules.symvers
+tgt: Modules.symvers Module.symvers
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=n
 
 install: all
@@ -67,8 +67,23 @@ install: all
 		modules_install
 	-depmod -a
 
+SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Modules.symvers 2>/dev/null)
+ifneq ($(SCST_MOD_VERS),)
 Modules.symvers: $(SCST_DIR)/Modules.symvers
-	-cp $(SCST_DIR)/Modules.symvers .
+	echo $(SCST_MOD_VERS)
+	cp $(SCST_DIR)/Modules.symvers .
+else
+.PHONY: Modules.symvers
+endif
+
+# It's renamed in 2.6.18
+SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Module.symvers 2>/dev/null)
+ifneq ($(SCST_MOD_VERS),)
+Module.symvers: $(SCST_DIR)/Module.symvers
+	cp $(SCST_DIR)/Module.symvers .
+else
+.PHONY: Module.symvers
+endif
 
 uninstall:
 	rm -f $(INSTALL_DIR)/qla2[23x]00tgt.ko

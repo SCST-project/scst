@@ -10,6 +10,7 @@
 #include <linux/vmalloc.h>
 #include <linux/delay.h>
 #include <linux/kthread.h>
+#include <linux/version.h>
 
 #include <scsi/scsi_tcq.h>
 #include <scsi/scsicam.h>
@@ -1197,12 +1198,14 @@ qla2x00_set_isp_flags(scsi_qla_host_t *ha)
 		ha->device_type |= DT_ISP2432;
 		ha->device_type |= DT_ZIO_SUPPORTED;
 		break;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,17)
 	case PCI_DEVICE_ID_QLOGIC_ISP5422:
 		ha->device_type |= DT_ISP5422;
 		break;
 	case PCI_DEVICE_ID_QLOGIC_ISP5432:
 		ha->device_type |= DT_ISP5432;
 		break;
+#endif
 	}
 }
 
@@ -2168,7 +2171,12 @@ qla2x00_allocate_sp_pool(scsi_qla_host_t *ha)
 	int      rval;
 
 	rval = QLA_SUCCESS;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,17)
 	ha->srb_mempool = mempool_create_slab_pool(SRB_MIN_REQ, srb_cachep);
+#else
+	ha->srb_mempool = mempool_create(SRB_MIN_REQ, mempool_alloc_slab,
+		mempool_free_slab, srb_cachep);
+#endif
 	if (ha->srb_mempool == NULL) {
 		qla_printk(KERN_INFO, ha, "Unable to allocate SRB mempool.\n");
 		rval = QLA_FUNCTION_FAILED;
@@ -2701,10 +2709,12 @@ static struct pci_device_id qla2xxx_pci_tbl[] = {
 		PCI_ANY_ID, PCI_ANY_ID, },
 	{ PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2432,
 		PCI_ANY_ID, PCI_ANY_ID, },
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,17)
 	{ PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP5422,
 		PCI_ANY_ID, PCI_ANY_ID, },
 	{ PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP5432,
 		PCI_ANY_ID, PCI_ANY_ID, },
+#endif
 	{ 0 },
 };
 MODULE_DEVICE_TABLE(pci, qla2xxx_pci_tbl);

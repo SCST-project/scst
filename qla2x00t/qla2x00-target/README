@@ -20,7 +20,9 @@ kernel or only its modules.
 
 This version is compatible with SCST version 0.9.5 and higher.
 
-Tested on stable kernels from http://www.kernel.org
+Tested on stable kernels from http://www.kernel.org. The original
+initiator driver was taken from kernel version 2.6.17.8, but it should
+also work on other versions, including 2.6.18.x and 2.6.16.x.
 
 NOTE: WWN-based authentification on 2200 cards doesn't always work from
 ----  the first "connect", but works on all subsequent attempts.
