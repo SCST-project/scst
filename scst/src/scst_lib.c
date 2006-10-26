@@ -711,6 +711,7 @@ int scst_acg_remove_name(struct scst_acg *acg, const char *name)
 	return res;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
 static void scst_req_done(struct scsi_cmnd *scsi_cmd)
 {
 	struct scsi_request *req;
@@ -776,6 +777,41 @@ out:
 	TRACE_EXIT();
 	return;
 }
+#else /* LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18) */
+static void scst_send_release(struct scst_tgt_dev *tgt_dev)
+{
+	struct scsi_device *scsi_dev;
+	unsigned char cdb[6];
+	unsigned char sense[SCSI_SENSE_BUFFERSIZE];
+	int rc;
+
+	TRACE_ENTRY();
+	
+	if (tgt_dev->acg_dev->dev->scsi_dev == NULL)
+		goto out;
+
+	scsi_dev = tgt_dev->acg_dev->dev->scsi_dev;
+
+	memset(cdb, 0, sizeof(cdb));
+	cdb[0] = RELEASE;
+	cdb[1] = (scsi_dev->scsi_level <= SCSI_2) ?
+	    ((scsi_dev->lun << 5) & 0xe0) : 0;
+
+	TRACE(TRACE_DEBUG | TRACE_SCSI, "%s", "Sending RELEASE req to SCSI "
+		"mid-level");
+	rc = scsi_execute(scsi_dev, cdb, SCST_DATA_NONE, NULL, 0,
+			sense, SCST_DEFAULT_TIMEOUT,
+			3, GFP_KERNEL);
+	if (rc) {
+		PRINT_INFO_PR("scsi_execute() failed: %d", rc);
+		goto out;
+	}
+
+out:
+	TRACE_EXIT();
+	return;
+}
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18) */
 
 struct scst_session *scst_alloc_session(struct scst_tgt *tgt, int gfp_mask,
 	const char *initiator_name)
@@ -944,7 +980,7 @@ void scst_free_cmd(struct scst_cmd *cmd)
 
 	BUG_ON(cmd->blocking);
 
-#ifdef EXTRACHECKS
+#if defined(EXTRACHECKS) && (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18))
 	if (cmd->scsi_req) {
 		PRINT_ERROR_PR("%s: %s", __FUNCTION__, "Cmd with unfreed "
 			"scsi_req!");
@@ -1114,6 +1150,7 @@ void scst_free_mgmt_cmd(struct scst_mgmt_cmd *mcmd, int del)
 	return;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
 int scst_alloc_request(struct scst_cmd *cmd)
 {
 	int res = 0;
@@ -1154,6 +1191,7 @@ void scst_release_request(struct scst_cmd *cmd)
 	scsi_release_request(cmd->scsi_req);
 	cmd->scsi_req = NULL;
 }
+#endif
 
 int scst_alloc_space(struct scst_cmd *cmd)
 {

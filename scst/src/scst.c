@@ -631,6 +631,16 @@ int scst_register_dev_driver(struct scst_dev_type *dev_type)
 		goto out;
 	}
 
+#ifdef FILEIO_ONLY
+	if (dev_type->exec == NULL) {
+		PRINT_ERROR_PR("Pass-through dev handlers (handler %s) not "
+			"supported. Recompile SCST with undefined FILEIO_ONLY",
+			dev_type->name);
+		res = -EINVAL;
+		goto out;
+	}
+#endif
+
 	if (down_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
 		goto out;
@@ -950,11 +960,22 @@ static int __init init_scst(void)
 {
 	int res = 0, i;
 	struct scst_cmd *cmd;
-	struct scsi_request *req;
 
 	TRACE_ENTRY();
 
-	BUILD_BUG_ON(sizeof(cmd->sense_buffer) != sizeof(req->sr_sense_buffer));
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
+	{
+		struct scsi_request *req;
+		BUILD_BUG_ON(sizeof(cmd->sense_buffer) !=
+			sizeof(req->sr_sense_buffer));
+	}
+#else
+	{
+		struct scsi_sense_hdr *shdr;
+		BUILD_BUG_ON((sizeof(cmd->sense_buffer) < sizeof(*shdr)) &&
+			(sizeof(cmd->sense_buffer) >= SCSI_SENSE_BUFFERSIZE));
+	}
+#endif
 
 	scst_num_cpus = get_cpus_count();
 	
@@ -1130,6 +1151,9 @@ out_destroy_mgmt_cache:
 
 static void __exit exit_scst(void)
 {
+#ifdef CONFIG_LOCKDEP
+	static /* To hide the lockdep's warning about non-static key */
+#endif
 	DECLARE_MUTEX_LOCKED(shm);
 
 	TRACE_ENTRY();

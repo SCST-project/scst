@@ -823,8 +823,8 @@ void scst_rx_data(struct scst_cmd *cmd, int status, int pref_context)
 }
 
 /* No locks supposed to be held */
-static void scst_check_sense(struct scst_cmd *cmd, struct scsi_request *req,
-			     int *next_state)
+static void scst_check_sense(struct scst_cmd *cmd, const uint8_t *rq_sense,
+	int rq_sense_len, int *next_state)
 {
 	int sense_valid;
 	struct scst_device *dev = cmd->dev;
@@ -848,11 +848,15 @@ static void scst_check_sense(struct scst_cmd *cmd, struct scsi_request *req,
 		smp_mb();
 	}
 
-	if (req != NULL) {
-		sense_valid = SCST_SENSE_VALID(req->sr_sense_buffer);
+	if (rq_sense != NULL) {
+		sense_valid = SCST_SENSE_VALID(rq_sense);
 		if (sense_valid) {
-			memcpy(cmd->sense_buffer, req->sr_sense_buffer,
-			       sizeof(cmd->sense_buffer));
+			memset(cmd->sense_buffer, 0, sizeof(cmd->sense_buffer));
+			/* 
+			 * We checked that rq_sense_len < sizeof(cmd->sense_buffer)
+			 * in init_scst()
+			 */
+			memcpy(cmd->sense_buffer, rq_sense, rq_sense_len);
 		}
 	} else
 		sense_valid = SCST_SENSE_VALID(cmd->sense_buffer);
@@ -971,38 +975,60 @@ static int scst_check_auto_sense(struct scst_cmd *cmd)
 	return res;
 }
 
-static void scst_do_cmd_done(struct scst_cmd *cmd,
-	struct scsi_request *req, int *next_state)
+static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
+	const uint8_t *rq_sense, int rq_sense_len, int *next_state)
 {
+	unsigned char type;
+
 	TRACE_ENTRY();
 
-	cmd->status = req->sr_result & 0xff;
-	cmd->masked_status = status_byte(req->sr_result);
-	cmd->msg_status = msg_byte(req->sr_result);
-	cmd->host_status = host_byte(req->sr_result);
-	cmd->driver_status = driver_byte(req->sr_result);
-	TRACE(TRACE_SCSI, "req->sr_result=%x, cmd->status=%x, "
+	cmd->status = result & 0xff;
+	cmd->masked_status = status_byte(result);
+	cmd->msg_status = msg_byte(result);
+	cmd->host_status = host_byte(result);
+	cmd->driver_status = driver_byte(result);
+	TRACE(TRACE_SCSI, "result=%x, cmd->status=%x, "
 	      "cmd->masked_status=%x, cmd->msg_status=%x, cmd->host_status=%x, "
-	      "cmd->driver_status=%x", req->sr_result, cmd->status,
+	      "cmd->driver_status=%x", result, cmd->status,
 	      cmd->masked_status, cmd->msg_status, cmd->host_status,
 	      cmd->driver_status);
 
-	scst_check_sense(cmd, req, next_state);
+	cmd->completed = 1;
 
-	cmd->bufflen = req->sr_bufflen;	//??
+	scst_dec_on_dev_cmd(cmd);
 
-	/* Clear out request structure */
-	req->sr_use_sg = 0;
-	req->sr_sglist_len = 0;
-	req->sr_bufflen = 0;
-	req->sr_buffer = NULL;
-	req->sr_underflow = 0;
-	req->sr_request->rq_disk = NULL; /* disown request blk */ ;
+	type = cmd->dev->handler->type;
+	if ((cmd->cdb[0] == MODE_SENSE || cmd->cdb[0] == MODE_SENSE_10) &&
+	    cmd->tgt_dev->acg_dev->rd_only_flag &&
+	    (type == TYPE_DISK || type == TYPE_WORM || type == TYPE_MOD ||
+	     type == TYPE_TAPE)) {
+		int32_t length;
+		uint8_t *address;
+
+		length = scst_get_buf_first(cmd, &address);
+		TRACE_DBG("length %d", length);
+		if (unlikely(length <= 0)) {
+			PRINT_ERROR_PR("%s: scst_get_buf_first() failed",
+				__func__);
+			goto next;
+		}
+		if (length > 2 && cmd->cdb[0] == MODE_SENSE) {
+			address[2] |= 0x80;   /* Write Protect*/
+		}
+		else if (length > 3 && cmd->cdb[0] == MODE_SENSE_10) {
+			address[3] |= 0x80;   /* Write Protect*/
+		}
+		scst_put_buf(cmd, address);
+	}
+
+next:
+	scst_check_sense(cmd, rq_sense, rq_sense_len, next_state);
 
 	TRACE_EXIT();
 	return;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
 static inline struct scst_cmd *scst_get_cmd(struct scsi_cmnd *scsi_cmd,
 					    struct scsi_request **req)
 {
@@ -1025,7 +1051,6 @@ static void scst_cmd_done(struct scsi_cmnd *scsi_cmd)
 	struct scsi_request *req = NULL;
 	struct scst_cmd *cmd;
 	int next_state;
-	unsigned char type;
 
 	TRACE_ENTRY();
 
@@ -1044,35 +1069,19 @@ static void scst_cmd_done(struct scsi_cmnd *scsi_cmd)
 	if (cmd == NULL)
 		goto out;
 
-	cmd->completed = 1;
-
-	scst_dec_on_dev_cmd(cmd);
-
-	type = cmd->dev->handler->type;
-	if ((cmd->cdb[0] == MODE_SENSE || cmd->cdb[0] == MODE_SENSE_10) &&
-	    cmd->tgt_dev->acg_dev->rd_only_flag &&
-	    (type == TYPE_DISK || type == TYPE_WORM || type == TYPE_MOD ||
-	     type == TYPE_TAPE)) {
-		int32_t length;
-		uint8_t *address;
-
-		length = scst_get_buf_first(cmd, &address);
-		TRACE_DBG("length %d", length);
-		if (unlikely(length <= 0)) {
-			goto out;
-		}
-		if (length > 2 && cmd->cdb[0] == MODE_SENSE) {
-			address[2] |= 0x80;   /* Write Protect*/
-		}
-		else if (length > 3 && cmd->cdb[0] == MODE_SENSE_10) {
-			address[3] |= 0x80;   /* Write Protect*/
-		}
-		scst_put_buf(cmd, address);
-	}
-
 	next_state = SCST_CMD_STATE_DEV_DONE;
+	scst_do_cmd_done(cmd, req->sr_result, req->sr_sense_buffer,
+		sizeof(req->sr_sense_buffer), &next_state);
 
-	scst_do_cmd_done(cmd, req, &next_state);
+	/* Clear out request structure */
+	req->sr_use_sg = 0;
+	req->sr_sglist_len = 0;
+	req->sr_bufflen = 0;
+	req->sr_buffer = NULL;
+	req->sr_underflow = 0;
+	req->sr_request->rq_disk = NULL; /* disown request blk */
+
+	cmd->bufflen = req->sr_bufflen;	//??
 
 	scst_release_request(cmd);
 
@@ -1085,6 +1094,43 @@ out:
 	TRACE_EXIT();
 	return;
 }
+#else /* LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18) */
+static void scst_cmd_done(void *data, char *sense, int result, int resid)
+{
+	struct scst_cmd *cmd;
+	int next_state;
+
+	TRACE_ENTRY();
+
+	WARN_ON(in_irq());
+
+	/*
+	 * We don't use resid, because:
+	 * 1. Many low level initiator drivers don't use (set) this field
+	 * 2. We determine the command's buffer size directly from CDB,
+	 *    so resid is not relevant for us, and target drivers
+	 *    should know the residual, if necessary, by comparing expected
+	 *    and actual transfer sizes.
+	 */
+
+	cmd = (struct scst_cmd *)data;
+	if (cmd == NULL)
+		goto out;
+
+	next_state = SCST_CMD_STATE_DEV_DONE;
+	scst_do_cmd_done(cmd, result, sense, SCSI_SENSE_BUFFERSIZE,
+		&next_state);
+
+	cmd->state = next_state;
+	cmd->non_atomic_only = 0;
+
+	__scst_process_active_cmd(cmd, scst_get_context(), 0);
+
+out:
+	TRACE_EXIT();
+	return;
+}
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18) */
 
 static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state)
 {
@@ -1133,7 +1179,7 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state)
 	}
 #endif
 
-	scst_check_sense(cmd, NULL, &next_state);
+	scst_check_sense(cmd, NULL, 0, &next_state);
 
 	cmd->state = next_state;
 	cmd->non_atomic_only = 0;
@@ -1557,7 +1603,8 @@ static int scst_do_send_to_midlev(struct scst_cmd *cmd)
 			(uint64_t)cmd->lun);
 		goto out_error;
 	}
-	
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)	
 	if (scst_alloc_request(cmd) != 0) {
 		PRINT_INFO_PR("%s", "Unable to allocate request, "
 			"sending BUSY status");
@@ -1568,6 +1615,16 @@ static int scst_do_send_to_midlev(struct scst_cmd *cmd)
 		    (void *)cmd->scsi_req->sr_buffer,
 		    cmd->scsi_req->sr_bufflen, scst_cmd_done, cmd->timeout,
 		    cmd->retries);
+#else
+	rc = scst_exec_req(cmd->dev->scsi_dev, cmd->cdb, cmd->cdb_len,
+			cmd->data_direction, cmd->sg, cmd->bufflen, cmd->sg_cnt,
+			cmd->timeout, cmd->retries, cmd, scst_cmd_done,
+			GFP_KERNEL);
+	if (rc) {
+		PRINT_INFO_PR("scst_exec_req() failed: %d", rc);
+		goto out_error;
+	}
+#endif
 
 	rc = SCST_EXEC_COMPLETED;
 
@@ -1593,7 +1650,8 @@ out_error:
 	rc = SCST_EXEC_COMPLETED;
 	scst_cmd_done_local(cmd, SCST_CMD_STATE_DEFAULT);
 	goto out;
-	
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)	
 out_busy:
 	scst_set_busy(cmd);
 	cmd->completed = 1;
@@ -1601,6 +1659,7 @@ out_busy:
 	rc = SCST_EXEC_COMPLETED;
 	scst_cmd_done_local(cmd, SCST_CMD_STATE_DEFAULT);
 	goto out;
+#endif
 
 out_aborted:
 	rc = SCST_EXEC_COMPLETED;

@@ -4,6 +4,12 @@ Summary of changes between versions 0.9.4 and 0.9.5
  - Fixed many found task management related problems, especially in the
    RESETs area. DEBUG_TM compilation option added (see README).
 
+ - Updated to work on kernels version 2.6.18+.
+
+ - FILEIO_ONLY added. If it's defined, there is no need to patch the
+   kernel, but pass-through modules (scst_disk, scst_tape, etc.) are not
+   supported).
+
  - Timer-based retries for targets after SCST_TGT_RES_QUEUE_FULL status
    implemented.
 

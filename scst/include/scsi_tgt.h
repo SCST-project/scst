@@ -1026,7 +1026,9 @@ struct scst_cmd
 
 	struct scst_tgt_dev *tgt_dev;	/* corresponding device for this cmd */
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
 	struct scsi_request *scsi_req;	/* SCSI request */
+#endif
 
 	/* List entry for tgt_dev's SN related lists */
 	struct list_head sn_cmd_list_entry;

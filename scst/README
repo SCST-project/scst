@@ -134,6 +134,11 @@ Compilation options
 There are the following compilation options, that could be commented
 in/out in Makefile:
 
+ - FILEIO_ONLY - if defined, the pass-through device handlers
+   (scst_disk, scst_tape) will not work, but SCST will not require the
+   kernel patching. Defined by default to ease new people try SCST on
+   their kernels.
+
  - DEBUG - turns on some debugging code, including some logging. Makes
    the driver considerably bigger and slower, producing large amount of
    log data.
@@ -424,12 +429,18 @@ IMPORTANT: Some of those options enabled by default, i.e. SCST is optimized
 
 IMPORTANT: If you use on initiator some versions of Windows (at least W2K)
 =========  you can't get good write performance for FILEIO devices with
-           default 512 bytes block sizes. You could get about 10% of
-	   the expected one. This is because of "unusual" write access
+           default 512 bytes block sizes. You could get about 10% of the
+	   expected one. This is because of "unusual" write access
 	   pattern, with which Windows'es write data and which is
-	   (simplifying) incompatible with how Linux page cache works.
+	   (simplifying) incompatible with how Linux page cache works,
+	   so for each write the corresponding block must be read first.
 	   With 4096 bytes block sizes for FILEIO devices the write
-	   performance will be as expected.
+	   performance will be as expected. Actually, any system on
+	   initiator, not only Windows, will benefit from block size
+	   max(PAGE_SIZE, BLOCK_SIZE_ON_UNDERLYING_FS), where PAGE_SIZE
+	   is the page size, BLOCK_SIZE_ON_UNDERLYING_FS is block size on
+	   the underlying FS, on which the device file located, or 0, if
+	   a device node is used. Both values are on the target.
 
 Just for reference: we had with 0.9.2 and "old" Qlogic driver on 2.4.2x
 kernel, where we did carefull performance study, aggregate throuhput

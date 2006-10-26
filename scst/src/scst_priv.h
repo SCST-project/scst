@@ -24,8 +24,11 @@
 #include <scsi/scsi_cmnd.h>
 #include <scsi/scsi_driver.h>
 #include <scsi/scsi_device.h>
-#include <scsi/scsi_request.h>
 #include <scsi/scsi_host.h>
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
+#include <scsi/scsi_request.h>
+#endif
 
 #define SCST_MAJOR              177
 
@@ -250,6 +253,7 @@ static inline void scst_destroy_cmd(struct scst_cmd *cmd)
 void scst_check_retries(struct scst_tgt *tgt, int processible_env);
 void scst_tgt_retry_timer_fn(unsigned long arg);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
 int scst_alloc_request(struct scst_cmd *cmd);
 void scst_release_request(struct scst_cmd *cmd);
 
@@ -257,12 +261,33 @@ static inline void scst_do_req(struct scsi_request *sreq,
 	const void *cmnd, void *buffer, unsigned bufflen, 
 	void (*done)(struct scsi_cmnd *), int timeout, int retries)
 {
-#ifdef STRICT_SERIALIZING
+    #ifdef STRICT_SERIALIZING
 	scsi_do_req(sreq, cmnd, buffer, bufflen, done, timeout, retries);
-#else
+    #elif defined(FILEIO_ONLY)
+    	BUG();
+    #else
 	scsi_do_req_fifo(sreq, cmnd, buffer, bufflen, done, timeout, retries);
-#endif
+    #endif
 }
+#else
+static inline int scst_exec_req(struct scsi_device *sdev,
+	const unsigned char *cmd, int cmd_len, int data_direction,
+	void *buffer, unsigned bufflen,	int use_sg, int timeout, int retries,
+	void *privdata, void (*done)(void *, char *, int, int), gfp_t gfp)
+{
+    #ifdef STRICT_SERIALIZING
+	return scsi_execute_async(sdev, cmd, cmd_len, data_direction, buffer,
+		bufflen, use_sg, timeout, retries, privdata, done, gfp);
+    #elif defined(FILEIO_ONLY)
+    	BUG();
+    	return -1;
+    #else
+    	return scsi_execute_async_fifo(sdev, cmd, cmd_len, data_direction,
+    		buffer,	bufflen, use_sg, timeout, retries, privdata, done, gfp);
+    #endif
+}
+#endif
+
 int scst_alloc_space(struct scst_cmd *cmd);
 void scst_release_space(struct scst_cmd *cmd);
 void scst_scsi_op_list_init(void);
