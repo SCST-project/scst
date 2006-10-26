@@ -383,8 +383,8 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 SCST_DATA_NONE, 0, SCST_LONG_TIMEOUT, 0, 0},
 	{0x93, "O    O          ", "WRITE SAME(16)",
 	 SCST_DATA_WRITE, 4, SCST_UNKNOWN_LENGTH, 1, 0},	/*N2! */
-	{0x93, " M              ", "ERASE(16)",
-	 SCST_DATA_NONE, 0, SCST_LONG_TIMEOUT, 0, 0},
+	{0x9E, "M               ", "SERVICE ACTION IN",
+	 SCST_DATA_READ, 4, 0, 0, 0},
 
 	/* 12-bytes length CDB */
 	{0xA0, "VVVVVVVVVV  M   ", "REPORT LUN",
