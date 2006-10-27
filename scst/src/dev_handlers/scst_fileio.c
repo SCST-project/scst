@@ -105,6 +105,7 @@ struct scst_fileio_dev {
 
 struct scst_fileio_tgt_dev {
 	spinlock_t fdev_lock;
+	enum scst_cmd_queue_type last_write_cmd_queue_type;
 	int shutdown;
 	struct file *fd;
 	struct iovec *iv;
@@ -380,6 +381,26 @@ static void fileio_detach(struct scst_device *dev)
 	return;
 }
 
+static inline int fileio_sync_queue_type(enum scst_cmd_queue_type qt)
+{
+	switch(qt) {
+		case SCST_CMD_QUEUE_ORDERED:
+		case SCST_CMD_QUEUE_HEAD_OF_QUEUE:
+			return 1;
+		default:
+			return 0;
+	}
+}
+
+static inline int fileio_need_pre_sync(enum scst_cmd_queue_type cwqt,
+	enum scst_cmd_queue_type lwqt)
+{
+	if (fileio_sync_queue_type(cwqt))
+		if (!fileio_sync_queue_type(lwqt))
+			return 1;
+	return 0;
+}
+
 static void fileio_do_job(struct scst_cmd *cmd)
 {
 	uint64_t lba_start;
@@ -482,11 +503,15 @@ static void fileio_do_job(struct scst_cmd *cmd)
 			struct scst_fileio_tgt_dev *ftgt_dev =
 				(struct scst_fileio_tgt_dev*)
 					cmd->tgt_dev->dh_priv;
-			if ((cmd->queue_type == SCST_CMD_QUEUE_ORDERED) && 
+			enum scst_cmd_queue_type last_queue_type =
+				ftgt_dev->last_write_cmd_queue_type;
+			ftgt_dev->last_write_cmd_queue_type = cmd->queue_type;
+			if (fileio_need_pre_sync(cmd->queue_type, last_queue_type) &&
 			    !virt_dev->wt_flag) {
-			    	TRACE(TRACE_SCSI/*|TRACE_SPECIAL*/, "ORDERED WRITE: "
-					"loff=%Ld, data_len=%Ld", (uint64_t)loff,
-					(uint64_t)data_len);
+			    	TRACE(TRACE_SCSI/*|TRACE_SPECIAL*/, "ORDERED "
+			    		"WRITE(%d): loff=%Ld, data_len=%Ld",
+			    		cmd->queue_type, (uint64_t)loff,
+			    		(uint64_t)data_len);
 			    	do_fsync = 1;
 				if (fileio_fsync(ftgt_dev, 0, 0, cmd) != 0)
 					goto done;
@@ -509,11 +534,15 @@ static void fileio_do_job(struct scst_cmd *cmd)
 			struct scst_fileio_tgt_dev *ftgt_dev =
 				(struct scst_fileio_tgt_dev*)
 					cmd->tgt_dev->dh_priv;
-			if ((cmd->queue_type == SCST_CMD_QUEUE_ORDERED) && 
+			enum scst_cmd_queue_type last_queue_type =
+				ftgt_dev->last_write_cmd_queue_type;
+			ftgt_dev->last_write_cmd_queue_type = cmd->queue_type;
+			if (fileio_need_pre_sync(cmd->queue_type, last_queue_type) && 
 			    !virt_dev->wt_flag) {
 			    	TRACE(TRACE_SCSI/*|TRACE_SPECIAL*/, "ORDERED "
-			    		"WRITE_VERIFY: loff=%Ld, data_len=%Ld",
-			    		(uint64_t)loff, (uint64_t)data_len);
+			    		"WRITE_VERIFY(%d): loff=%Ld, data_len=%Ld",
+			    		cmd->queue_type, (uint64_t)loff,
+			    		(uint64_t)data_len);
 			    	do_fsync = 1;
 				if (fileio_fsync(ftgt_dev, 0, 0, cmd) != 0)
 					goto done;
