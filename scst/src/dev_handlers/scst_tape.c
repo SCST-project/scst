@@ -248,7 +248,7 @@ out_free_buf:
 
 out_free_req:
 	if (res == 0)
-		dev->tgt_dev_specific = tape;
+		dev->dh_priv = tape;
 	else {
 		TRACE_MEM("kfree for tape: %p", tape);
 		kfree(tape);
@@ -270,13 +270,13 @@ out:
  ************************************************************/
 void tape_detach(struct scst_device *dev)
 {
-	struct tape_params *tape = (struct tape_params *)dev->tgt_dev_specific;
+	struct tape_params *tape = (struct tape_params *)dev->dh_priv;
 
 	TRACE_ENTRY();
 
 	TRACE_MEM("kfree for tape: %p", tape);
 	kfree(tape);
-	dev->tgt_dev_specific = NULL;
+	dev->dh_priv = NULL;
 
 	TRACE_EXIT();
 	return;
@@ -337,7 +337,7 @@ int tape_parse(struct scst_cmd *cmd, const struct scst_info_cdb *info_cdb)
 		 * No need for locks here, since *_detach() can not be called,
 		 * when there are existing commands.
 		 */
-		tape = (struct tape_params *)cmd->dev->tgt_dev_specific;
+		tape = (struct tape_params *)cmd->dev->dh_priv;
 		cmd->bufflen = info_cdb->transfer_len * tape->block_size;
 	}
 
@@ -400,7 +400,7 @@ int tape_done(struct scst_cmd *cmd)
 				 * can not be called, when there are 
 				 * existing commands.
 				 */
-				tape = (struct tape_params *)cmd->dev->tgt_dev_specific;
+				tape = (struct tape_params *)cmd->dev->dh_priv;
 				spin_lock_bh(&tape->tp_lock);
 				if (buffer[3] == 8) {
 					tape->block_size = (buffer[9] << 16) |
@@ -419,7 +419,7 @@ int tape_done(struct scst_cmd *cmd)
 			 * No need for locks here, since *_detach() can not be
 			 * called, when there are existing commands.
 			 */
-			tape = (struct tape_params *)cmd->dev->tgt_dev_specific;
+			tape = (struct tape_params *)cmd->dev->dh_priv;
 			spin_lock_bh(&tape->tp_lock);
 			if (buffer[3] == 8) {
 				tape->block_size =
@@ -477,7 +477,7 @@ int tape_done(struct scst_cmd *cmd)
 					 * *_detach() can not be called, when
 					 * there are existing commands.
 					 */
-					tape = (struct tape_params *)cmd->dev->tgt_dev_specific;
+					tape = (struct tape_params *)cmd->dev->dh_priv;
 					resp_data_len *= tape->block_size;
 				}
 				scst_set_resp_data_len(cmd, resp_data_len);

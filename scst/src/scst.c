@@ -1280,8 +1280,8 @@ EXPORT_SYMBOL(scst_put);
  * Other Commands
  */
 EXPORT_SYMBOL(scst_get_cdb_info);
-EXPORT_SYMBOL(scst_cmd_get_tgt_specific_lock);
-EXPORT_SYMBOL(scst_cmd_set_tgt_specific_lock);
+EXPORT_SYMBOL(scst_cmd_get_tgt_priv_lock);
+EXPORT_SYMBOL(scst_cmd_set_tgt_priv_lock);
 
 #ifdef DEBUG
 EXPORT_SYMBOL(scst_random);

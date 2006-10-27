@@ -163,7 +163,7 @@ out_free_buf:
 
 out_free_cdrom:
 	if (res == 0)
-		dev->tgt_dev_specific = cdrom;
+		dev->dh_priv = cdrom;
 	else {
 		TRACE_MEM("kfree for cdrom: %p", cdrom);
 		kfree(cdrom);
@@ -185,14 +185,13 @@ out:
  ************************************************************/
 void cdrom_detach(struct scst_device *dev)
 {
-	struct cdrom_params *cdrom =
-	    (struct cdrom_params *)dev->tgt_dev_specific;
+	struct cdrom_params *cdrom = (struct cdrom_params *)dev->dh_priv;
 
 	TRACE_ENTRY();
 
 	TRACE_MEM("kfree for cdrom: %p", cdrom);
 	kfree(cdrom);
-	dev->tgt_dev_specific = NULL;
+	dev->dh_priv = NULL;
 
 	TRACE_EXIT();
 	return;
@@ -277,7 +276,7 @@ int cdrom_parse(struct scst_cmd *cmd, const struct scst_info_cdb *info_cdb)
 		 * No need for locks here, since *_detach() can not be
 		 * called, when there are existing commands.
 		 */
-		cdrom = (struct cdrom_params *)cmd->dev->tgt_dev_specific;
+		cdrom = (struct cdrom_params *)cmd->dev->dh_priv;
 		cmd->bufflen = info_cdb->transfer_len * cdrom->sector_size;
 	}
 
@@ -341,8 +340,7 @@ int cdrom_done(struct scst_cmd *cmd)
 			 * No need for locks here, since *_detach() can not be
 			 * called, when there are existing commands.
 			 */
-			cdrom =
-			    (struct cdrom_params *)cmd->dev->tgt_dev_specific;
+			cdrom = (struct cdrom_params *)cmd->dev->dh_priv;
 			sector_size =
 			    ((buffer[4] << 24) | (buffer[5] << 16) |
 			     (buffer[6] << 8) | (buffer[7] << 0));

@@ -236,7 +236,7 @@ out_free_buf:
 
 out_free_disk:
 	if (res == 0)
-		dev->tgt_dev_specific = disk;
+		dev->dh_priv = disk;
 	else {
 		TRACE_MEM("kfree for disk: %p", disk);
 		kfree(disk);
@@ -258,13 +258,13 @@ out:
  ************************************************************/
 void disk_detach(struct scst_device *dev)
 {
-	struct disk_params *disk = (struct disk_params *)dev->tgt_dev_specific;
+	struct disk_params *disk = (struct disk_params *)dev->dh_priv;
 
 	TRACE_ENTRY();
 
 	TRACE_MEM("kfree for disk: %p", disk);
 	kfree(disk);
-	dev->tgt_dev_specific = NULL;
+	dev->dh_priv = NULL;
 
 	TRACE_EXIT();
 	return;
@@ -337,7 +337,7 @@ int disk_parse(struct scst_cmd *cmd, const struct scst_info_cdb *info_cdb)
 		 * No need for locks here, since *_detach() can not be
 		 * called, when there are existing commands.
 		 */
-		disk = (struct disk_params *)cmd->dev->tgt_dev_specific;
+		disk = (struct disk_params *)cmd->dev->dh_priv;
 		cmd->bufflen = info_cdb->transfer_len * disk->sector_size;
 	}
 
@@ -401,7 +401,7 @@ int disk_done(struct scst_cmd *cmd)
 			 * No need for locks here, since *_detach() can not be
 			 * called, when there are existing commands.
 			 */
-			disk = (struct disk_params *)cmd->dev->tgt_dev_specific;
+			disk = (struct disk_params *)cmd->dev->dh_priv;
 			sector_size =
 			    ((buffer[4] << 24) | (buffer[5] << 16) |
 			     (buffer[6] << 8) | (buffer[7] << 0));

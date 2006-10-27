@@ -3400,7 +3400,7 @@ static void scst_mgmt_cmd_send_done(struct scst_mgmt_cmd *mcmd)
 		break;
 	}
 
-	mcmd->tgt_specific = NULL;
+	mcmd->tgt_priv = NULL;
 
 	TRACE_EXIT();
 	return;
@@ -3535,7 +3535,7 @@ int scst_mgmt_cmd_thread(void *arg)
 }
 
 static struct scst_mgmt_cmd *scst_pre_rx_mgmt_cmd(struct scst_session
-	*sess, int fn, int atomic, void *tgt_specific)
+	*sess, int fn, int atomic, void *tgt_priv)
 {
 	struct scst_mgmt_cmd *mcmd = NULL;
 
@@ -3554,7 +3554,7 @@ static struct scst_mgmt_cmd *scst_pre_rx_mgmt_cmd(struct scst_session
 	mcmd->sess = sess;
 	mcmd->fn = fn;
 	mcmd->state = SCST_MGMT_CMD_STATE_INIT;
-	mcmd->tgt_specific = tgt_specific;
+	mcmd->tgt_priv = tgt_priv;
 
 out:
 	TRACE_EXIT();
@@ -3623,7 +3623,7 @@ out_unlock:
  */
 int scst_rx_mgmt_fn_lun(struct scst_session *sess, int fn,
 			const uint8_t *lun, int lun_len, int atomic,
-			void *tgt_specific)
+			void *tgt_priv)
 {
 	int res = -EFAULT;
 	struct scst_mgmt_cmd *mcmd = NULL;
@@ -3636,7 +3636,7 @@ int scst_rx_mgmt_fn_lun(struct scst_session *sess, int fn,
 		goto out;
 	}
 
-	mcmd = scst_pre_rx_mgmt_cmd(sess, fn, atomic, tgt_specific);
+	mcmd = scst_pre_rx_mgmt_cmd(sess, fn, atomic, tgt_priv);
 	if (mcmd == NULL)
 		goto out;
 
@@ -3666,7 +3666,7 @@ out_free:
  * same sess
  */
 int scst_rx_mgmt_fn_tag(struct scst_session *sess, int fn, uint32_t tag,
-		       int atomic, void *tgt_specific)
+		       int atomic, void *tgt_priv)
 {
 	int res = -EFAULT;
 	struct scst_mgmt_cmd *mcmd = NULL;
@@ -3679,7 +3679,7 @@ int scst_rx_mgmt_fn_tag(struct scst_session *sess, int fn, uint32_t tag,
 		goto out;
 	}
 
-	mcmd = scst_pre_rx_mgmt_cmd(sess, fn, atomic, tgt_specific);
+	mcmd = scst_pre_rx_mgmt_cmd(sess, fn, atomic, tgt_priv);
 	if (mcmd == NULL)
 		goto out;
 
@@ -4024,20 +4024,20 @@ struct scst_cmd *scst_find_cmd_by_tag(struct scst_session *sess,
 	return cmd;
 }
 
-void *scst_cmd_get_tgt_specific_lock(struct scst_cmd *cmd)
+void *scst_cmd_get_tgt_priv_lock(struct scst_cmd *cmd)
 {
 	void *res;
 	unsigned long flags;
 	spin_lock_irqsave(&scst_list_lock, flags);
-	res = cmd->tgt_specific;
+	res = cmd->tgt_priv;
 	spin_unlock_irqrestore(&scst_list_lock, flags);
 	return res;
 }
 
-void scst_cmd_set_tgt_specific_lock(struct scst_cmd *cmd, void *val)
+void scst_cmd_set_tgt_priv_lock(struct scst_cmd *cmd, void *val)
 {
 	unsigned long flags;
 	spin_lock_irqsave(&scst_list_lock, flags);
-	cmd->tgt_specific = val;
+	cmd->tgt_priv = val;
 	spin_unlock_irqrestore(&scst_list_lock, flags);
 }

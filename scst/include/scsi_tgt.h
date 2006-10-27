@@ -832,8 +832,8 @@ struct scst_tgt
 	/* Maximum SG table size */
 	int sg_tablesize;
 
-	/* Used for storage of target specific stuff */
-	void *tgt_specific;
+	/* Used for storage of target driver private stuff */
+	void *tgt_priv;
 };
 
 struct scst_session
@@ -870,8 +870,8 @@ struct scst_session
 	/* List entry for the sessions list inside ACG */
 	struct list_head acg_sess_list_entry;
 
-	/* Used for storage of target specific stuff */
-	void *tgt_specific;
+	/* Used for storage of target driver private stuff */
+	void *tgt_priv;
 
 	/* 
 	 * List of cmds in this session. Used to find a cmd in the
@@ -1114,11 +1114,11 @@ struct scst_cmd
 	struct list_head fileio_cmd_list_entry;
 	int fileio_in_list;
 
-	/* Used for storage of target specific stuff */
-	void *tgt_specific;
+	/* Used for storage of target driver private stuff */
+	void *tgt_priv;
 
-	/* Used for storage of dev handler specific stuff */
-	void *tgt_dev_specific;
+	/* Used for storage of dev handler private stuff */
+	void *dh_priv;
 
 	/* 
 	 * Used to store previous tgt_dev if dev handler returns 
@@ -1162,8 +1162,8 @@ struct scst_mgmt_cmd
 	/* completition status, one of the SCST_MGMT_STATUS_* constants */
 	int status;
 
-	/* Used for storage of target specific stuff */
-	void *tgt_specific;
+	/* Used for storage of target driver private stuff */
+	void *tgt_priv;
 };
 
 struct scst_device
@@ -1211,8 +1211,8 @@ struct scst_device
 	/* Corresponding real SCSI device, could be NULL for virtual devices */
 	struct scsi_device *scsi_dev;
 	
-	/* Used for storage of dev handler specific stuff */
-	void *tgt_dev_specific;
+	/* Used for storage of dev handler private stuff */
+	void *dh_priv;
 
 	/* Used to wait for requested amount of "on_dev" commands */
 	wait_queue_head_t on_dev_waitQ;
@@ -1262,8 +1262,8 @@ struct scst_tgt_dev
 
 	unsigned long tgt_dev_flags;	/* tgt_dev's flags */
 	
-	/* Used for storage of dev handler specific stuff */
-	void *tgt_dev_specific;
+	/* Used for storage of dev handler private stuff */
+	void *dh_priv;
 
 	/* 
 	 * Used to execute cmd's in order of arrival.
@@ -1553,7 +1553,7 @@ void scst_tgt_cmd_done(struct scst_cmd *cmd);
  * same sess. Returns 0 for success, error code otherwise.
  */
 int scst_rx_mgmt_fn_tag(struct scst_session *sess, int fn, uint32_t tag,
-		       int atomic, void *tgt_specific);
+		       int atomic, void *tgt_priv);
 
 /* 
  * Creates new management command using LUN and sends it for execution.
@@ -1563,7 +1563,7 @@ int scst_rx_mgmt_fn_tag(struct scst_session *sess, int fn, uint32_t tag,
  */
 int scst_rx_mgmt_fn_lun(struct scst_session *sess, int fn,
 			const uint8_t *lun, int lun_len,
-			int atomic, void *tgt_specific);
+			int atomic, void *tgt_priv);
 
 /*
  * Provides various CDB info
@@ -1649,30 +1649,30 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 void scst_unregister_virtual_device(int id);
 
 /*
- * Get/Set functions for tgt's target specific data
+ * Get/Set functions for tgt's target private data
  */
-static inline void *scst_tgt_get_tgt_specific(struct scst_tgt *tgt)
+static inline void *scst_tgt_get_tgt_priv(struct scst_tgt *tgt)
 {
-	return tgt->tgt_specific;
+	return tgt->tgt_priv;
 }
 
-static inline void scst_tgt_set_tgt_specific(struct scst_tgt *tgt, void *val)
+static inline void scst_tgt_set_tgt_priv(struct scst_tgt *tgt, void *val)
 {
-	tgt->tgt_specific = val;
+	tgt->tgt_priv = val;
 }
 
 /*
- * Get/Set functions for session's target specific data
+ * Get/Set functions for session's target private data
  */
-static inline void *scst_sess_get_tgt_specific(struct scst_session *sess)
+static inline void *scst_sess_get_tgt_priv(struct scst_session *sess)
 {
-	return sess->tgt_specific;
+	return sess->tgt_priv;
 }
 
-static inline void scst_sess_set_tgt_specific(struct scst_session *sess,
+static inline void scst_sess_set_tgt_priv(struct scst_session *sess,
 					      void *val)
 {
-	sess->tgt_specific = val;
+	sess->tgt_priv = val;
 }
 
 /* Returns TRUE if cmd is being executed in atomic context */
@@ -1811,23 +1811,23 @@ static inline void scst_cmd_set_tag(struct scst_cmd *cmd, uint32_t tag)
 }
 
 /*
- * Get/Set functions for cmd's target specific data.
+ * Get/Set functions for cmd's target private data.
  * Variant with *_lock must be used if target driver uses
  * scst_find_cmd() to avoid race with it, except inside scst_find_cmd()'s
  * callback, where lock is already taken.
  */
-static inline void *scst_cmd_get_tgt_specific(struct scst_cmd *cmd)
+static inline void *scst_cmd_get_tgt_priv(struct scst_cmd *cmd)
 {
-	return cmd->tgt_specific;
+	return cmd->tgt_priv;
 }
 
-static inline void scst_cmd_set_tgt_specific(struct scst_cmd *cmd, void *val)
+static inline void scst_cmd_set_tgt_priv(struct scst_cmd *cmd, void *val)
 {
-	cmd->tgt_specific = val;
+	cmd->tgt_priv = val;
 }
 
-void *scst_cmd_get_tgt_specific_lock(struct scst_cmd *cmd);
-void scst_cmd_set_tgt_specific_lock(struct scst_cmd *cmd, void *val);
+void *scst_cmd_get_tgt_priv_lock(struct scst_cmd *cmd);
+void scst_cmd_set_tgt_priv_lock(struct scst_cmd *cmd, void *val);
 
 /*
  * Get/Set functions for data_buf_tgt_alloc flag
@@ -1897,17 +1897,17 @@ static inline void scst_cmd_set_expected(struct scst_cmd *cmd,
 }
 
 /*
- * Get/Set function for mgmt cmd's target specific data
+ * Get/Set function for mgmt cmd's target private data
  */
-static inline void *scst_mgmt_cmd_get_tgt_specific(struct scst_mgmt_cmd *mcmd)
+static inline void *scst_mgmt_cmd_get_tgt_priv(struct scst_mgmt_cmd *mcmd)
 {
-	return mcmd->tgt_specific;
+	return mcmd->tgt_priv;
 }
 
-static inline void scst_mgmt_cmd_set_tgt_specific(struct scst_mgmt_cmd *mcmd,
+static inline void scst_mgmt_cmd_set_tgt_priv(struct scst_mgmt_cmd *mcmd,
 	void *val)
 {
-	mcmd->tgt_specific = val;
+	mcmd->tgt_priv = val;
 }
 
 /*

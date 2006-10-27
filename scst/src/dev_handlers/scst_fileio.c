@@ -341,7 +341,7 @@ static int fileio_attach(struct scst_device *dev)
 			virt_dev->name);
 	}
 
-	dev->tgt_dev_specific = virt_dev;
+	dev->dh_priv = virt_dev;
 
 out:
 	TRACE_EXIT();
@@ -364,7 +364,7 @@ out_close_file:
 static void fileio_detach(struct scst_device *dev)
 {
 	struct scst_fileio_dev *virt_dev =
-	    (struct scst_fileio_dev *)dev->tgt_dev_specific;
+	    (struct scst_fileio_dev *)dev->dh_priv;
 
 	TRACE_ENTRY();
 
@@ -374,7 +374,7 @@ static void fileio_detach(struct scst_device *dev)
 		      virt_dev->name, virt_dev->file_name);
 
 	/* virt_dev will be freed by the caller */
-	dev->tgt_dev_specific = NULL;
+	dev->dh_priv = NULL;
 	
 	TRACE_EXIT();
 	return;
@@ -388,7 +388,7 @@ static void fileio_do_job(struct scst_cmd *cmd)
 	loff_t loff;
 	struct scst_device *dev = cmd->dev;
 	struct scst_fileio_dev *virt_dev =
-		(struct scst_fileio_dev *)dev->tgt_dev_specific;
+		(struct scst_fileio_dev *)dev->dh_priv;
 	int fua = 0;
 
 	TRACE_ENTRY();
@@ -481,7 +481,7 @@ static void fileio_do_job(struct scst_cmd *cmd)
 			int do_fsync = 0;
 			struct scst_fileio_tgt_dev *ftgt_dev =
 				(struct scst_fileio_tgt_dev*)
-					cmd->tgt_dev->tgt_dev_specific;
+					cmd->tgt_dev->dh_priv;
 			if ((cmd->queue_type == SCST_CMD_QUEUE_ORDERED) && 
 			    !virt_dev->wt_flag) {
 			    	TRACE(TRACE_SCSI/*|TRACE_SPECIAL*/, "ORDERED WRITE: "
@@ -508,7 +508,7 @@ static void fileio_do_job(struct scst_cmd *cmd)
 			int do_fsync = 0;
 			struct scst_fileio_tgt_dev *ftgt_dev =
 				(struct scst_fileio_tgt_dev*)
-					cmd->tgt_dev->tgt_dev_specific;
+					cmd->tgt_dev->dh_priv;
 			if ((cmd->queue_type == SCST_CMD_QUEUE_ORDERED) && 
 			    !virt_dev->wt_flag) {
 			    	TRACE(TRACE_SCSI/*|TRACE_SPECIAL*/, "ORDERED "
@@ -535,7 +535,7 @@ static void fileio_do_job(struct scst_cmd *cmd)
 		int immed = cmd->cdb[1] & 0x2;
 		struct scst_fileio_tgt_dev *ftgt_dev = 
 			(struct scst_fileio_tgt_dev*)
-				cmd->tgt_dev->tgt_dev_specific;
+				cmd->tgt_dev->dh_priv;
 		TRACE(TRACE_SCSI, "SYNCHRONIZE_CACHE: "
 			"loff=%Ld, data_len=%Ld, immed=%d", (uint64_t)loff,
 			(uint64_t)data_len, immed);
@@ -664,7 +664,7 @@ static int fileio_cmd_thread(void *arg)
 static int fileio_attach_tgt(struct scst_tgt_dev *tgt_dev)
 {
 	struct scst_fileio_dev *virt_dev =
-	    (struct scst_fileio_dev *)tgt_dev->acg_dev->dev->tgt_dev_specific;
+	    (struct scst_fileio_dev *)tgt_dev->acg_dev->dev->dh_priv;
 	struct scst_fileio_tgt_dev *ftgt_dev;
 	int res = 0;
 
@@ -710,7 +710,7 @@ static int fileio_attach_tgt(struct scst_tgt_dev *tgt_dev)
 	res = 0;
 	atomic_inc(&ftgt_dev->threads_count);
 
-	tgt_dev->tgt_dev_specific = ftgt_dev;
+	tgt_dev->dh_priv = ftgt_dev;
 
 	down(&virt_dev->ftgt_list_mutex);
 	list_add_tail(&ftgt_dev->ftgt_list_entry, 
@@ -734,9 +734,9 @@ out_free:
 static void fileio_detach_tgt(struct scst_tgt_dev *tgt_dev)
 {
 	struct scst_fileio_tgt_dev *ftgt_dev = 
-		(struct scst_fileio_tgt_dev *)tgt_dev->tgt_dev_specific;
+		(struct scst_fileio_tgt_dev *)tgt_dev->dh_priv;
 	struct scst_fileio_dev *virt_dev =
-	    (struct scst_fileio_dev *)tgt_dev->acg_dev->dev->tgt_dev_specific;
+	    (struct scst_fileio_dev *)tgt_dev->acg_dev->dev->dh_priv;
 
 	TRACE_ENTRY();
 
@@ -759,7 +759,7 @@ static void fileio_detach_tgt(struct scst_tgt_dev *tgt_dev)
 	TRACE_MEM("kfree ftgt_dev: %p", ftgt_dev);
 	kfree(ftgt_dev);
 
-	tgt_dev->tgt_dev_specific = NULL;
+	tgt_dev->dh_priv = NULL;
 
 	TRACE_EXIT();
 }
@@ -781,7 +781,7 @@ static int disk_fileio_parse(struct scst_cmd *cmd,
 	int res = SCST_CMD_STATE_DEFAULT;
 	int fixed;
 	struct scst_fileio_dev *virt_dev =
-	    (struct scst_fileio_dev *)cmd->dev->tgt_dev_specific;
+	    (struct scst_fileio_dev *)cmd->dev->dh_priv;
 
 	TRACE_ENTRY();
 	
@@ -842,7 +842,7 @@ static int disk_fileio_parse(struct scst_cmd *cmd,
 static inline void fileio_queue_cmd(struct scst_cmd *cmd)
 {
 	struct scst_fileio_tgt_dev *ftgt_dev =
-		(struct scst_fileio_tgt_dev *)cmd->tgt_dev->tgt_dev_specific;
+		(struct scst_fileio_tgt_dev *)cmd->tgt_dev->dh_priv;
 	spin_lock_bh(&ftgt_dev->fdev_lock);
 	TRACE_DBG("Pushing cmd %p to IO thread", cmd);
 	list_add_tail(&cmd->fileio_cmd_list_entry, 
@@ -963,7 +963,7 @@ static int cdrom_fileio_parse(struct scst_cmd *cmd,
 	int res = SCST_CMD_STATE_DEFAULT;
 	int fixed;
 	struct scst_fileio_dev *virt_dev =
-	    (struct scst_fileio_dev *)cmd->dev->tgt_dev_specific;
+	    (struct scst_fileio_dev *)cmd->dev->dh_priv;
 
 	TRACE_ENTRY();
 	
@@ -1029,7 +1029,7 @@ static int cdrom_fileio_exec(struct scst_cmd *cmd)
 	int delayed = 0;
 	int opcode = cmd->cdb[0];
 	struct scst_fileio_dev *virt_dev =
-	    (struct scst_fileio_dev *)cmd->dev->tgt_dev_specific;
+	    (struct scst_fileio_dev *)cmd->dev->dh_priv;
 
 	TRACE_ENTRY();
 
@@ -1129,7 +1129,7 @@ static void fileio_exec_inquiry(struct scst_cmd *cmd)
 	uint8_t *address;
 	uint8_t *buf;
 	struct scst_fileio_dev *virt_dev =
-	    (struct scst_fileio_dev *)cmd->dev->tgt_dev_specific;
+	    (struct scst_fileio_dev *)cmd->dev->dh_priv;
 
 	/* ToDo: Performance Boost:
 	 * 1. remove kzalloc, buf
@@ -1378,7 +1378,7 @@ static void fileio_exec_mode_sense(struct scst_cmd *cmd)
 		goto out;
 	}
 
-	virt_dev = (struct scst_fileio_dev *)cmd->dev->tgt_dev_specific;
+	virt_dev = (struct scst_fileio_dev *)cmd->dev->dh_priv;
 	blocksize = virt_dev->block_size;
 	nblocks = virt_dev->nblocks;
 	
@@ -1560,7 +1560,7 @@ static void fileio_exec_mode_select(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	virt_dev = (struct scst_fileio_dev *)cmd->dev->tgt_dev_specific;
+	virt_dev = (struct scst_fileio_dev *)cmd->dev->dh_priv;
 	mselect_6 = (MODE_SELECT == cmd->cdb[0]);
 
 	length = scst_get_buf_first(cmd, &address);
@@ -1640,7 +1640,7 @@ static void fileio_exec_read_capacity(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	virt_dev = (struct scst_fileio_dev *)cmd->dev->tgt_dev_specific;
+	virt_dev = (struct scst_fileio_dev *)cmd->dev->dh_priv;
 	blocksize = virt_dev->block_size;
 	nblocks = virt_dev->nblocks;
 
@@ -1691,7 +1691,7 @@ static void fileio_exec_read_capacity16(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	virt_dev = (struct scst_fileio_dev *)cmd->dev->tgt_dev_specific;
+	virt_dev = (struct scst_fileio_dev *)cmd->dev->dh_priv;
 	blocksize = virt_dev->block_size;
 	nblocks = virt_dev->nblocks;
 
@@ -1763,7 +1763,7 @@ static void fileio_exec_read_toc(struct scst_cmd *cmd)
 		goto out;
 	}
 
-	virt_dev = (struct scst_fileio_dev *)cmd->dev->tgt_dev_specific;
+	virt_dev = (struct scst_fileio_dev *)cmd->dev->dh_priv;
 	/* FIXME when you have > 8TB ROM device. */
 	nblocks = (uint32_t)virt_dev->nblocks;
 
@@ -1806,7 +1806,7 @@ out:
 static void fileio_exec_prevent_allow_medium_removal(struct scst_cmd *cmd)
 {
 	struct scst_fileio_dev *virt_dev =
-		(struct scst_fileio_dev *)cmd->dev->tgt_dev_specific;
+		(struct scst_fileio_dev *)cmd->dev->dh_priv;
 
 	TRACE_DBG("PERSIST/PREVENT 0x%02x", cmd->cdb[4]);
 
@@ -1889,9 +1889,9 @@ static void fileio_exec_read(struct scst_cmd *cmd, loff_t loff)
 	ssize_t length, full_len;
 	uint8_t *address;
 	struct scst_fileio_dev *virt_dev =
-	    (struct scst_fileio_dev *)cmd->dev->tgt_dev_specific;
+	    (struct scst_fileio_dev *)cmd->dev->dh_priv;
 	struct scst_fileio_tgt_dev *ftgt_dev = 
-		(struct scst_fileio_tgt_dev *)cmd->tgt_dev->tgt_dev_specific;
+		(struct scst_fileio_tgt_dev *)cmd->tgt_dev->dh_priv;
 	struct file *fd = ftgt_dev->fd;
 	struct iovec *iv;
 	int iv_count, i;
@@ -1974,9 +1974,9 @@ static void fileio_exec_write(struct scst_cmd *cmd, loff_t loff)
 	ssize_t length, full_len;
 	uint8_t *address;
 	struct scst_fileio_dev *virt_dev =
-	    (struct scst_fileio_dev *)cmd->dev->tgt_dev_specific;
+	    (struct scst_fileio_dev *)cmd->dev->dh_priv;
 	struct scst_fileio_tgt_dev *ftgt_dev = 
-		(struct scst_fileio_tgt_dev *)cmd->tgt_dev->tgt_dev_specific;
+		(struct scst_fileio_tgt_dev *)cmd->tgt_dev->dh_priv;
 	struct file *fd = ftgt_dev->fd;
 	struct iovec *iv, *eiv;
 	int iv_count, eiv_count;
@@ -2092,7 +2092,7 @@ static void fileio_exec_verify(struct scst_cmd *cmd, loff_t loff)
 	uint8_t *address_sav, *address;
 	int compare;
 	struct scst_fileio_tgt_dev *ftgt_dev = 
-		(struct scst_fileio_tgt_dev *)cmd->tgt_dev->tgt_dev_specific;
+		(struct scst_fileio_tgt_dev *)cmd->tgt_dev->dh_priv;
 	struct file *fd = ftgt_dev->fd;
 	uint8_t *mem_verify = NULL;
 
@@ -2205,8 +2205,7 @@ static int fileio_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 		unsigned long flags;
 		struct scst_cmd *cmd_to_abort = mcmd->cmd_to_abort;
 		struct scst_fileio_tgt_dev *ftgt_dev = 
-		  (struct scst_fileio_tgt_dev *)cmd_to_abort->tgt_dev->
-		  	tgt_dev_specific;
+		  (struct scst_fileio_tgt_dev *)cmd_to_abort->tgt_dev->dh_priv;
 		/* 
 		 * Actually, _bh lock is enough here. But, since we
 		 * could be called with IRQ off, the in-kernel debug check

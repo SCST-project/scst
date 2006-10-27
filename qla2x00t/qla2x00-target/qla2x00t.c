@@ -297,7 +297,7 @@ static void q2t_free_session_done(struct scst_session *scst_sess)
 	TRACE_ENTRY();
 
 	BUG_ON(scst_sess == NULL);
-	sess = (struct q2t_sess *)scst_sess_get_tgt_specific(scst_sess);
+	sess = (struct q2t_sess *)scst_sess_get_tgt_priv(scst_sess);
 	BUG_ON(sess == NULL);
 	tgt = sess->tgt;
 
@@ -387,8 +387,7 @@ static void q2t_clear_tgt_db(struct q2t_tgt *tgt)
 static int q2t_target_release(struct scst_tgt *scst_tgt)
 {
 	int res = 0;
-	struct q2t_tgt *tgt =
-	    (struct q2t_tgt *)scst_tgt_get_tgt_specific(scst_tgt);
+	struct q2t_tgt *tgt = (struct q2t_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
 	scsi_qla_host_t *ha = tgt->ha;
 	unsigned long flags = 0;
 
@@ -412,7 +411,7 @@ static int q2t_target_release(struct scst_tgt *scst_tgt)
 		"sess_count=%d", tgt, list_empty(&tgt->sess_list),
 		atomic_read(&tgt->sess_count));
 
-	scst_tgt_set_tgt_specific(scst_tgt, NULL);
+	scst_tgt_set_tgt_priv(scst_tgt, NULL);
 
 	TRACE_MEM("kfree for tgt %p", tgt);
 	kfree(tgt);
@@ -698,9 +697,9 @@ static int q2t_xmit_response(struct scst_cmd *scst_cmd)
 	TRACE_ENTRY();
 	TRACE(TRACE_SCSI, "tag=%d", scst_cmd_get_tag(scst_cmd));
 
-	prm.cmd = (struct q2t_cmd *)scst_cmd_get_tgt_specific(scst_cmd);
+	prm.cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
 	sess = (struct q2t_sess *)
-		scst_sess_get_tgt_specific(scst_cmd_get_session(scst_cmd));
+		scst_sess_get_tgt_priv(scst_cmd_get_session(scst_cmd));
 
 	if (unlikely(scst_cmd_aborted(scst_cmd))) {
 		scsi_qla_host_t *ha = sess->tgt->ha;
@@ -844,9 +843,9 @@ static int q2t_rdy_to_xfer(struct scst_cmd *scst_cmd)
 	TRACE_ENTRY();
 	TRACE(TRACE_SCSI, "tag=%d", scst_cmd_get_tag(scst_cmd));
 
-	prm.cmd = (struct q2t_cmd *)scst_cmd_get_tgt_specific(scst_cmd);
+	prm.cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
 	sess = (struct q2t_sess *)
-		scst_sess_get_tgt_specific(scst_cmd_get_session(scst_cmd));
+		scst_sess_get_tgt_priv(scst_cmd_get_session(scst_cmd));
 
 	prm.sg = scst_cmd_get_sg(scst_cmd);
 	prm.bufflen = scst_cmd_get_bufflen(scst_cmd);
@@ -967,13 +966,12 @@ static inline void q2t_free_cmd(struct q2t_cmd *cmd)
 
 void q2t_on_free_cmd(struct scst_cmd *scst_cmd)
 {
-	struct q2t_cmd *cmd =
-	    (struct q2t_cmd *)scst_cmd_get_tgt_specific(scst_cmd);
+	struct q2t_cmd *cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
 
 	TRACE_ENTRY();
 	TRACE(TRACE_SCSI, "END Command tag %d", scst_cmd_get_tag(scst_cmd));
 
-	scst_cmd_set_tgt_specific(scst_cmd, NULL);
+	scst_cmd_set_tgt_priv(scst_cmd, NULL);
 
 	q2t_free_cmd(cmd);
 
@@ -1082,7 +1080,7 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha,
 	} else
 		goto out;
 
-	cmd = (struct q2t_cmd *)scst_cmd_get_tgt_specific(scst_cmd);
+	cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
 
 	if (cmd->state == Q2T_STATE_PROCESSED) {
 		TRACE_DBG("Command %p finished", cmd);
@@ -1205,7 +1203,7 @@ static int q2t_do_send_cmd_to_scst(scsi_qla_host_t *ha, struct q2t_cmd *cmd)
 	}
 
 	scst_cmd_set_tag(cmd->scst_cmd, le16_to_cpu(cmd->atio.exchange_id));
-	scst_cmd_set_tgt_specific(cmd->scst_cmd, cmd);
+	scst_cmd_set_tgt_priv(cmd->scst_cmd, cmd);
 
 	if (cmd->atio.execution_codes & ATIO_EXEC_READ)
 		dir = SCST_DATA_READ;
@@ -1402,7 +1400,7 @@ static int q2t_send_cmd_to_scst(scsi_qla_host_t *ha, atio_entry_t *atio)
 			res = -EFAULT;
 			goto out_free_sess;
 		}
-		scst_sess_set_tgt_specific(sess->scst_sess, sess);
+		scst_sess_set_tgt_priv(sess->scst_sess, sess);
 
 		/* add session data to host data structure */
 		list_add(&sess->list, &tgt->sess_list);
@@ -1591,7 +1589,7 @@ static void q2t_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 	TRACE(TRACE_MGMT, "scst_mcmd (%p) status %#x state %#x", scst_mcmd, 
 	      scst_mcmd->status, scst_mcmd->state);
 
-	mcmd = scst_mgmt_cmd_get_tgt_specific(scst_mcmd);
+	mcmd = scst_mgmt_cmd_get_tgt_priv(scst_mcmd);
 	if (unlikely(mcmd == NULL)) {
 		PRINT_ERROR("scst_mcmd %p tgt_spec is NULL", mcmd);
 		goto out;
@@ -1603,8 +1601,8 @@ static void q2t_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 			 ? 0 : FC_TM_FAILED, 1);
 	spin_unlock_irqrestore(&mcmd->sess->tgt->ha->hardware_lock, flags);
 
-	/* scst_mgmt_cmd_set_tgt_specific(scst_mcmd, NULL); */
-	scst_mcmd->tgt_specific = NULL;
+	/* scst_mgmt_cmd_set_tgt_priv(scst_mcmd, NULL); */
+	scst_mcmd->tgt_priv = NULL;
 	TRACE_MEM("kfree for mcmd %p", mcmd);
 	kfree(mcmd);
 
@@ -2008,7 +2006,7 @@ static void q2t_host_action(scsi_qla_host_t *ha,
 			goto out;
 		}
 		
-		scst_tgt_set_tgt_specific(tgt->scst_tgt, tgt);
+		scst_tgt_set_tgt_priv(tgt->scst_tgt, tgt);
 		
 		spin_lock_irqsave(&ha->hardware_lock, flags);
 		ha->tgt = tgt;
