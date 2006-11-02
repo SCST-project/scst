@@ -141,6 +141,8 @@ int changer_parse(struct scst_cmd *cmd, const struct scst_info_cdb *info_cdb)
 	 * based on info_cdb, therefore change them only if necessary
 	 */
 
+	cmd->retries = 1;
+
 	if (info_cdb->flags & SCST_LONG_TIMEOUT) {
 		cmd->timeout = CHANGER_LONG_TIMEOUT;
 	} else {

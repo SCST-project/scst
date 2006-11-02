@@ -58,7 +58,7 @@
   exec:     disk_exec,       \
 }
 
-#define DISK_RETRIES  2
+#define DISK_RETRIES  5
 #define DISK_SMALL_TIMEOUT  (3 * HZ)
 #define DISK_REG_TIMEOUT    (60 * HZ)
 #define DISK_LONG_TIMEOUT   (3600 * HZ)
@@ -293,6 +293,8 @@ int disk_parse(struct scst_cmd *cmd, const struct scst_info_cdb *info_cdb)
 	 * SCST sets good defaults for cmd->data_direction and cmd->bufflen
 	 * based on info_cdb, therefore change them only if necessary
 	 */
+
+	cmd->retries = DISK_RETRIES;
 
 	if (info_cdb->flags & SCST_SMALL_TIMEOUT) {
 		cmd->timeout = DISK_SMALL_TIMEOUT;

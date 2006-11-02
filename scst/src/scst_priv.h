@@ -102,9 +102,15 @@
 #define SCST_CMD_MEM_TIMEOUT               (120*HZ)
 
 static inline int scst_get_context(void) {
-	/* Be overinsured */
-	return (in_atomic() || in_interrupt()) ? SCST_CONTEXT_DIRECT_ATOMIC :
-						 SCST_CONTEXT_DIRECT;
+	if (in_irq())
+		return SCST_CONTEXT_TASKLET;
+	if (in_softirq())
+		return SCST_CONTEXT_DIRECT_ATOMIC;
+	if (in_interrupt()) /* Is it possible? */
+		return SCST_CONTEXT_THREAD;
+	if (in_atomic())
+		return SCST_CONTEXT_DIRECT_ATOMIC;
+	return SCST_CONTEXT_DIRECT;
 }
 
 #define SCST_MGMT_CMD_CACHE_STRING "scst_mgmt_cmd"
@@ -250,6 +256,8 @@ static inline void scst_destroy_cmd(struct scst_cmd *cmd)
 	return;
 }
 
+void scst_proccess_redirect_cmd(struct scst_cmd *cmd, int context,
+	int check_retries);
 void scst_check_retries(struct scst_tgt *tgt, int processible_env);
 void scst_tgt_retry_timer_fn(unsigned long arg);
 

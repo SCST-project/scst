@@ -227,10 +227,9 @@
 #define SCST_DEV_TM_NOT_COMPLETED     1
 
 /************************************************************* 
- ** Default timeout and retries count for cmd's CDB execution 
- ** by SCSI mid-level (cmd's "timeout" and "retries" fields).
+ ** Default timeout for cmd's CDB execution 
+ ** by SCSI mid-level (cmd's "timeout" field).
  *************************************************************/
-#define SCST_DEFAULT_RETRIES         5
 #define SCST_DEFAULT_TIMEOUT         (30*HZ)
 
 /************************************************************* 

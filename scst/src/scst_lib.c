@@ -949,7 +949,7 @@ struct scst_cmd *scst_alloc_cmd(int gfp_mask)
 
 	cmd->queue_type = SCST_CMD_QUEUE_UNTAGGED;
 	cmd->timeout = SCST_DEFAULT_TIMEOUT;
-	cmd->retries = SCST_DEFAULT_RETRIES;
+	cmd->retries = 1;
 	cmd->data_len = -1;
 	cmd->tgt_resp_flags = SCST_TSC_FLAG_STATUS;
 	cmd->resp_data_len = -1;

@@ -1725,7 +1725,7 @@ static void fileio_exec_read_capacity16(struct scst_cmd *cmd)
 	nblocks = virt_dev->nblocks;
 
 	memset(buffer, 0, sizeof(buffer));
-	data64 = (uint64_t *)buffer;
+	data64 = (uint64_t*)buffer;
 	data64[0] = cpu_to_be64(nblocks - 1);
 	buffer[8] = (blocksize >> (BYTE * 3)) & 0xFF;
 	buffer[9] = (blocksize >> (BYTE * 2)) & 0xFF;
