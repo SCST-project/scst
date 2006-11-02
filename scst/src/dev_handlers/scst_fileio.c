@@ -2301,8 +2301,8 @@ static int disk_fileio_proc(char *buffer, char **start, off_t offset,
 	}
 	
 	if (inout == 0) { /* read */
-		size = scnprintf(buffer, length, "%-17s %-12s %-15s %s\n",
-			       "Name", "Size(MB)", "Options", "File name");
+		size = scnprintf(buffer, length, "%-17s %-11s %-11s %-15s %s\n",
+			       "Name", "Size(MB)", "Block size", "Options", "File name");
 		if (fileio_proc_update_size(size, &len, &begin, &pos, &offset)) {
 			res = len;
 			goto out_up;
@@ -2313,8 +2313,9 @@ static int disk_fileio_proc(char *buffer, char **start, off_t offset,
 		{
 			int c;
 			size = scnprintf(buffer + len, length - len, 
-				"%-17s %-13d", virt_dev->name,
-				(uint32_t)(virt_dev->file_size >> 20));
+				"%-17s %-11d %-12d", virt_dev->name,
+				(uint32_t)(virt_dev->file_size >> 20),
+				virt_dev->block_size);
 			if (fileio_proc_update_size(size, &len, &begin, &pos, 
 						&offset)) {
 				res = len;
