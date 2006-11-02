@@ -238,8 +238,6 @@ struct scst_tgt *scst_register(struct scst_tgt_template *vtt)
 	TRACE_ENTRY();
 
 	tgt = kzalloc(sizeof(*tgt), GFP_KERNEL);
-	TRACE_MEM("kzalloc(GFP_KERNEL) for tgt (%zd): %p",
-	      sizeof(*tgt), tgt);
 	if (tgt == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "kzalloc() failed");
 		goto out;
@@ -272,7 +270,6 @@ out:
 	return tgt;
 
 out_free:
-	TRACE_MEM("kfree() for tgt %p", tgt);
 	kfree(tgt);
 	goto out;
 }
@@ -314,7 +311,6 @@ void scst_unregister(struct scst_tgt *tgt)
 
 	del_timer_sync(&tgt->retry_timer);
 
-	TRACE_MEM("kfree for tgt: %p", tgt);
 	kfree(tgt);
 
 	TRACE_EXIT();

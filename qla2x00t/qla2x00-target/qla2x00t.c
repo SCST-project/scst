@@ -53,21 +53,6 @@
 #include <scst_debug.h>
 #include <scst_debug.c>
 
-#ifndef MEMCPY
-/* Debugging to see how many memcopys/memsets happen */
-#define MEMCPY(d, s, l) do {                                    \
-                TRACE_MEM("memcpy to %p size %zd", d, (size_t)l); \
-                memcpy(d, s, l);                                \
-        } while (0)
-#endif
-
-#ifndef MEMSET
-#define MEMSET(d, c, l) do {                                    \
-                TRACE_MEM("memset of %p size %zd", d, (size_t)l); \
-                memset(d, c, l);                                \
-        } while (0)
-#endif
-
 #ifndef FC_TARGET_SUPPORT
 #error "FC_TARGET_SUPPORT is NOT DEFINED"
 #endif
@@ -217,7 +202,7 @@ static void __q2t_send_notify_ack(scsi_qla_host_t *ha,
 	if (ha->tgt != NULL)
 		ha->tgt->notify_ack_expected++;
 
-	MEMSET(ntfy, 0, sizeof(*ntfy));
+	memset(ntfy, 0, sizeof(*ntfy));
 	ntfy->entry_type = NOTIFY_ACK_TYPE;
 	ntfy->entry_count = 1;
 	SET_TARGET_ID(ha, ntfy->target, target_id);
@@ -302,7 +287,6 @@ static void q2t_free_session_done(struct scst_session *scst_sess)
 	BUG_ON(sess == NULL);
 	tgt = sess->tgt;
 
-	TRACE_MEM("kfree for sess %p (tgt %p)", sess, tgt);
 	kfree(sess);
 
 	if (tgt == NULL)
@@ -414,7 +398,6 @@ static int q2t_target_release(struct scst_tgt *scst_tgt)
 
 	scst_tgt_set_tgt_priv(scst_tgt, NULL);
 
-	TRACE_MEM("kfree for tgt %p", tgt);
 	kfree(tgt);
 
 	TRACE_EXIT_RES(res);
@@ -598,7 +581,7 @@ static void q2t_load_data_segments(struct q2t_prm *prm)
 		 * that.
 		 */
 
-		MEMSET(cont_pkt64, 0, sizeof(*cont_pkt64));
+		memset(cont_pkt64, 0, sizeof(*cont_pkt64));
 
 		cont_pkt64->entry_count = 1;
 		cont_pkt64->sys_define = 0;
@@ -665,10 +648,10 @@ static void q2t_init_ctio_ret_entry(ctio_ret_entry_t *ctio_m1,
 		ctio_m1->scsi_status |=
 				__constant_cpu_to_le16(SS_SENSE_LEN_VALID);
 		ctio_m1->sense_length = cpu_to_le16(prm->sense_buffer_len);
-		MEMCPY(ctio_m1->sense_data, prm->sense_buffer,
+		memcpy(ctio_m1->sense_data, prm->sense_buffer,
 		       prm->sense_buffer_len);
 	} else {
-		MEMSET(ctio_m1->sense_data, 0, sizeof(ctio_m1->sense_data));
+		memset(ctio_m1->sense_data, 0, sizeof(ctio_m1->sense_data));
 		ctio_m1->sense_length = 0;
 	}
 
@@ -800,7 +783,7 @@ static int q2t_xmit_response(struct scst_cmd *scst_cmd)
 				TRACE_DBG("%s", "Building additional status "
 					"packet");
 
-				MEMCPY(ctio_m1, prm.pkt, sizeof(*ctio_m1));
+				memcpy(ctio_m1, prm.pkt, sizeof(*ctio_m1));
 				ctio_m1->entry_count = 1;
 
 				/* Real finish is ctio_m1's finish */
@@ -965,7 +948,6 @@ out_unlock:
 
 static inline void q2t_free_cmd(struct q2t_cmd *cmd)
 {
-	TRACE_MEM("kfree for cmd (q2t_cmd) %p", cmd);
 	kmem_cache_free(q2t_cmd_cachep, cmd);
 }
 
@@ -1367,7 +1349,6 @@ static int q2t_send_cmd_to_scst(scsi_qla_host_t *ha, atio_entry_t *atio)
 	}
 
 	cmd =  kmem_cache_alloc(q2t_cmd_cachep, GFP_ATOMIC);
-	TRACE_MEM("kmem_cache_alloc(GFP_ATOMIC) for cmd (%zd): %p", sizeof(*cmd), cmd);
 	if (cmd == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of cmd failed");
 		res = -ENOMEM;
@@ -1375,15 +1356,13 @@ static int q2t_send_cmd_to_scst(scsi_qla_host_t *ha, atio_entry_t *atio)
 	}
 
 	TRACE_BUFFER("ATIO Coming Up", atio, sizeof(*atio));
-	MEMSET(cmd, 0, sizeof(*cmd));
-	MEMCPY(&cmd->atio, atio, sizeof(*atio));
+	memset(cmd, 0, sizeof(*cmd));
+	memcpy(&cmd->atio, atio, sizeof(*atio));
 	cmd->state = Q2T_STATE_NEW;
 
 	sess = q2t_find_sess_by_lid(tgt, loop_id);
 	if (unlikely(sess == NULL)) {
 		sess = kzalloc(sizeof(*sess), GFP_ATOMIC);
-		TRACE_MEM("kzalloc(GFP_ATOMIC) for sess (%zd): %p",
-		      sizeof(*sess), sess);
 		if (sess == NULL) {
 			TRACE(TRACE_OUT_OF_MEM, "%s",
 			      "Allocation of sess failed");
@@ -1431,7 +1410,6 @@ out:
 	return res;
 
 out_free_sess:
-	TRACE_MEM("kfree for sess %p", sess);
 	kfree(sess);
 	smp_mb__before_atomic_dec();
 	if (atomic_dec_and_test(&tgt->sess_count))
@@ -1470,8 +1448,6 @@ static int q2t_handle_task_mgmt(scsi_qla_host_t *ha, notify_entry_t *iocb)
 	}
 
 	mcmd = kzalloc(sizeof(*mcmd), GFP_ATOMIC);
-	TRACE_MEM("kzalloc(GFP_ATOMIC) for mcmd (%zd): %p",
-		  sizeof(*mcmd), mcmd);
 	if (mcmd == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of mgmt cmd failed");
 		res = -ENOMEM;
@@ -1535,7 +1511,6 @@ out:
 	return res;
 
 out_free:
-	TRACE_MEM("kfree for mcmd %p", mcmd);
 	kfree(mcmd);
 	goto out;
 }
@@ -1563,7 +1538,6 @@ static int q2t_abort_task(scsi_qla_host_t *ha, notify_entry_t *iocb)
 	}
 	
 	mcmd = kzalloc(sizeof(*mcmd), GFP_ATOMIC);
-	TRACE_MEM("kzalloc(GFP_ATOMIC) for mcmd (%zd): %p", sizeof(*mcmd), mcmd);
 	if (mcmd == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of mgmt cmd failed");
 		res = -ENOMEM;
@@ -1587,7 +1561,6 @@ out:
 	return res;
 
 out_free:
-	TRACE_MEM("kfree for mcmd %p", mcmd);
 	kfree(mcmd);
 	goto out;
 }
@@ -1617,7 +1590,6 @@ static void q2t_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 
 	/* scst_mgmt_cmd_set_tgt_priv(scst_mcmd, NULL); */
 	scst_mcmd->tgt_priv = NULL;
-	TRACE_MEM("kfree for mcmd %p", mcmd);
 	kfree(mcmd);
 
 out:
@@ -1982,8 +1954,6 @@ static void q2t_host_action(scsi_qla_host_t *ha,
 	switch (action) {
 	case ENABLE_TARGET_MODE :
 		tgt = kzalloc(sizeof(*tgt), GFP_KERNEL);
-		TRACE_MEM("kzalloc(GFP_KERNEL) for tgt (%zd): %p",
-			  sizeof(*tgt), tgt);
 		if (tgt == NULL) {
 			TRACE(TRACE_OUT_OF_MEM, "%s",
 			      "Allocation of tgt failed");
@@ -2021,7 +1991,6 @@ static void q2t_host_action(scsi_qla_host_t *ha,
 			PRINT_ERROR("qla2x00tgt(%ld): scst_register() "
 				    "failed for host %ld(%p)", ha->instance, 
 				    ha->host_no, ha);
-			TRACE_MEM("kfree for tgt %p", tgt);
 			kfree(tgt);
 			goto out;
 		}

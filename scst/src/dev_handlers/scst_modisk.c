@@ -171,8 +171,6 @@ int modisk_attach(struct scst_device *dev)
 	}
 
 	modisk = kzalloc(sizeof(*modisk), GFP_KERNEL);
-	TRACE_MEM("kzalloc(GFP_KERNEL) for struct modisk_params (%zu): %p",
-	      sizeof(*modisk), modisk);
 	if (modisk == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s",
 		      "Unable to allocate struct modisk_params");
@@ -193,7 +191,6 @@ int modisk_attach(struct scst_device *dev)
 	}
 
 	buffer = kzalloc(buffer_size, GFP_KERNEL);
-	TRACE_MEM("kzalloc(GFP_KERNEL) for %d: %p", buffer_size, buffer);
 	if (!buffer) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Memory allocation failure");
 		res = -ENOMEM;
@@ -245,16 +242,13 @@ int modisk_attach(struct scst_device *dev)
 	}
 
 out_free_buf:
-	TRACE_MEM("kfree for buffer: %p", buffer);
 	kfree(buffer);
 
 out_free_modisk:
 	if (res == 0)
 		dev->dh_priv = modisk;
-	else {
-		TRACE_MEM("kfree for modisk: %p", modisk);
+	else
 		kfree(modisk);
-	}
 
 out:
 	TRACE_EXIT_RES(res);
@@ -276,7 +270,6 @@ void modisk_detach(struct scst_device *dev)
 
 	TRACE_ENTRY();
 
-	TRACE_MEM("kfree for modisk: %p", modisk);
 	kfree(modisk);
 	dev->dh_priv = NULL;
 

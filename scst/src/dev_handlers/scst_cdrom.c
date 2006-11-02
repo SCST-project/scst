@@ -95,8 +95,6 @@ int cdrom_attach(struct scst_device *dev)
 	}
 
 	cdrom = kzalloc(sizeof(*cdrom), GFP_KERNEL);
-	TRACE_MEM("kzalloc(GFP_KERNEL) for struct cdrom_params (%zu): %p",
-	      sizeof(*cdrom), cdrom);
 	if (cdrom == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s",
 		      "Unable to allocate struct cdrom_params");
@@ -105,7 +103,6 @@ int cdrom_attach(struct scst_device *dev)
 	}
 
 	buffer = kzalloc(buffer_size, GFP_KERNEL);
-	TRACE_MEM("kzalloc(GFP_KERNEL) for %d: %p", buffer_size, buffer);
 	if (!buffer) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Memory allocation failure");
 		res = -ENOMEM;
@@ -158,16 +155,13 @@ int cdrom_attach(struct scst_device *dev)
 	}
 
 out_free_buf:
-	TRACE_MEM("kfree for buffer: %p", buffer);
 	kfree(buffer);
 
 out_free_cdrom:
 	if (res == 0)
 		dev->dh_priv = cdrom;
-	else {
-		TRACE_MEM("kfree for cdrom: %p", cdrom);
+	else
 		kfree(cdrom);
-	}
 
 out:
 	TRACE_EXIT();
@@ -189,7 +183,6 @@ void cdrom_detach(struct scst_device *dev)
 
 	TRACE_ENTRY();
 
-	TRACE_MEM("kfree for cdrom: %p", cdrom);
 	kfree(cdrom);
 	dev->dh_priv = NULL;
 

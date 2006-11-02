@@ -171,8 +171,6 @@ int disk_attach(struct scst_device *dev)
 	}
 
 	disk = kzalloc(sizeof(*disk), GFP_KERNEL);
-	TRACE_MEM("kzalloc(GFP_KERNEL) for struct disk_params (%zu): %p",
-	      sizeof(*disk), disk);
 	if (disk == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s",
 		      "Unable to allocate struct disk_params");
@@ -181,7 +179,6 @@ int disk_attach(struct scst_device *dev)
 	}
 
 	buffer = kzalloc(buffer_size, GFP_KERNEL);
-	TRACE_MEM("kzalloc(GFP_KERNEL) for %d: %p", buffer_size, buffer);
 	if (!buffer) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Memory allocation failure");
 		res = -ENOMEM;
@@ -231,16 +228,13 @@ int disk_attach(struct scst_device *dev)
 	}
 
 out_free_buf:
-	TRACE_MEM("kfree for buffer: %p", buffer);
 	kfree(buffer);
 
 out_free_disk:
 	if (res == 0)
 		dev->dh_priv = disk;
-	else {
-		TRACE_MEM("kfree for disk: %p", disk);
+	else
 		kfree(disk);
-	}
 
 out:
 	TRACE_EXIT_RES(res);
@@ -262,7 +256,6 @@ void disk_detach(struct scst_device *dev)
 
 	TRACE_ENTRY();
 
-	TRACE_MEM("kfree for disk: %p", disk);
 	kfree(disk);
 	dev->dh_priv = NULL;
 

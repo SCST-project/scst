@@ -150,7 +150,6 @@ struct scst_device *scst_alloc_device(int gfp_mask)
 	TRACE_ENTRY();
 
 	dev = kzalloc(sizeof(*dev), gfp_mask);
-	TRACE_MEM("kzalloc() for dev (%zd): %p", sizeof(*dev), dev);
 	if (dev == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s",
 		      "Allocation of scst_device failed");
@@ -185,7 +184,6 @@ void scst_free_device(struct scst_device *dev)
 	}
 #endif
 
-	TRACE_MEM("kfree for dev: %p", dev);
 	kfree(dev);
 
 	TRACE_EXIT();
@@ -200,7 +198,6 @@ struct scst_acg_dev *scst_alloc_acg_dev(struct scst_acg *acg,
 	TRACE_ENTRY();
 	
 	res = kmem_cache_alloc(scst_acgd_cachep, GFP_KERNEL);
-	TRACE_MEM("kmem_cache_alloc() for acg_dev (%zd): %p", sizeof(*res), res);
 	if (res == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of scst_acg_dev failed");
 		goto out;
@@ -226,7 +223,6 @@ void scst_free_acg_dev(struct scst_acg_dev *acg_dev)
 	list_del(&acg_dev->acg_dev_list_entry);
 	list_del(&acg_dev->dev_acg_dev_list_entry);
 	
-	TRACE_MEM("kfree for acg_dev: %p", acg_dev);
 	kmem_cache_free(scst_acgd_cachep, acg_dev);
 	
 	TRACE_EXIT();
@@ -241,7 +237,6 @@ struct scst_acg *scst_alloc_add_acg(const char *acg_name)
 	TRACE_ENTRY();
 
 	acg = kzalloc(sizeof(*acg), GFP_KERNEL);
-	TRACE_MEM("kzalloc() for acg (%zd): %p", sizeof(*acg), acg);
 	if (acg == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of acg failed");
 		goto out;
@@ -302,16 +297,12 @@ int scst_destroy_acg(struct scst_acg *acg)
 		acn_list_entry)
 	{
 		list_del(&n->acn_list_entry);
-		TRACE_MEM("kfree() for scst_acn->name: %p", n->name);
 		kfree(n->name);
-		TRACE_MEM("kfree() for scst_acn: %p", n);
 		kfree(n);
 	}
 	INIT_LIST_HEAD(&acg->acn_list);
 
-	TRACE_MEM("kfree for acg: %p", acg);
 	kfree(acg);
-
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -331,8 +322,6 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	TRACE_ENTRY();
 
 	tgt_dev = kmem_cache_alloc(scst_tgtd_cachep, GFP_KERNEL);
-	TRACE_MEM("kmem_cache_alloc(GFP_KERNEL) for tgt_dev (%zd): %p",
-	      sizeof(*tgt_dev), tgt_dev);
 	if (tgt_dev != NULL)
 		memset(tgt_dev, 0, sizeof(*tgt_dev));
 	else {
@@ -394,7 +383,6 @@ out:
 	return tgt_dev;
 
 out_free:
-	TRACE_MEM("kfree for tgt_dev: %p", tgt_dev);
 	kmem_cache_free(scst_tgtd_cachep, tgt_dev);
 	tgt_dev = NULL;
 	goto out;
@@ -463,7 +451,6 @@ static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 		TRACE_DBG("%s", "Dev handler's detach_tgt() returned");
 	}
 
-	TRACE_MEM("kfree for tgt_dev: %p", tgt_dev);
 	kmem_cache_free(scst_tgtd_cachep, tgt_dev);
 
 	TRACE_EXIT();
@@ -649,7 +636,6 @@ int scst_acg_add_name(struct scst_acg *acg, const char *name)
 	}
 	
 	n = kmalloc(sizeof(*n), GFP_KERNEL);
-	TRACE_MEM("kmalloc(GFP_KERNEL) for scst_acn (%zd): %p", sizeof(*n), n);
 	if (n == NULL) {
 		PRINT_ERROR_PR("%s", "Unable to allocate scst_acn");
 		res = -ENOMEM;
@@ -658,8 +644,6 @@ int scst_acg_add_name(struct scst_acg *acg, const char *name)
 	
 	len = strlen(name);
 	nm = kmalloc(len + 1, GFP_KERNEL);
-	TRACE_MEM("kmalloc(GFP_KERNEL) for scst_acn->name (%d): %p",
-		  len + 1, nm);
 	if (nm == NULL) {
 		PRINT_ERROR_PR("%s", "Unable to allocate scst_acn->name");
 		res = -ENOMEM;
@@ -676,7 +660,6 @@ out:
 	return res;
 
 out_free:
-	TRACE_MEM("kfree() for scst_acn: %p", n);
 	kfree(n);
 	goto out;
 }
@@ -693,9 +676,7 @@ int scst_acg_remove_name(struct scst_acg *acg, const char *name)
 	{
 		if (strcmp(n->name, name) == 0) {
 			list_del(&n->acn_list_entry);
-			TRACE_MEM("kfree() for scst_acn->name: %p", n->name);
 		        kfree(n->name);
-			TRACE_MEM("kfree() for scst_acn: %p", n);
 		        kfree(n);
 			res = 0;
 			break;
@@ -720,11 +701,8 @@ static void scst_req_done(struct scsi_cmnd *scsi_cmd)
 
 	if (scsi_cmd && (req = scsi_cmd->sc_request)) {
 		if (req) {
-			if (req->sr_bufflen) {
-				TRACE_MEM("kfree for req->sr_buffer: %p",
-				      req->sr_buffer);
+			if (req->sr_bufflen)
 				kfree(req->sr_buffer);
-			}
 			scsi_release_request(req);
 		}
 	}
@@ -823,7 +801,6 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, int gfp_mask,
 	TRACE_ENTRY();
 
 	sess = kmem_cache_alloc(scst_sess_cachep, gfp_mask);
-	TRACE_MEM("kmem_cache_alloc() for sess (%zd): %p", sizeof(*sess), sess);
 	if (sess != NULL)
 		memset(sess, 0, sizeof(*sess));
 	else {
@@ -842,8 +819,6 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, int gfp_mask,
 	
 	len = strlen(initiator_name);
 	nm = kmalloc(len + 1, gfp_mask);
-	TRACE_MEM("kmalloc(GFP_KERNEL) for sess->initiator_name (%d): %p",
-		  len + 1, nm);
 	if (nm == NULL) {
 		PRINT_ERROR_PR("%s", "Unable to allocate sess->initiator_name");
 		goto out_free;
@@ -857,7 +832,6 @@ out:
 	return sess;
 
 out_free:
-	TRACE_MEM("kfree() for sess: %p", sess);
 	kmem_cache_free(scst_sess_cachep, sess);
 	sess = NULL;
 	goto out;
@@ -881,10 +855,7 @@ void scst_free_session(struct scst_session *sess)
 
 	up(&scst_mutex);
 
-	TRACE_MEM("kfree for sess->initiator_name: %p", sess->initiator_name);
 	kfree(sess->initiator_name);
-
-	TRACE_MEM("kfree for sess: %p", sess);
 	kmem_cache_free(scst_sess_cachep, sess);
 
 	TRACE_EXIT();
@@ -939,7 +910,6 @@ struct scst_cmd *scst_alloc_cmd(int gfp_mask)
 	TRACE_ENTRY();
 
 	cmd = kmem_cache_alloc(scst_cmd_cachep, gfp_mask);
-	TRACE_MEM("kmem_cache_alloc() for cmd (%zd): %p", sizeof(*cmd), cmd);
 	if (cmd != NULL)
 		memset(cmd, 0, sizeof(*cmd));
 	else {
@@ -1112,8 +1082,6 @@ struct scst_mgmt_cmd *scst_alloc_mgmt_cmd(int gfp_mask)
 	TRACE_ENTRY();
 
 	mcmd = mempool_alloc(scst_mgmt_mempool, gfp_mask);
-	TRACE_MEM("mempool_alloc() for mgmt cmd (%zd): %p", sizeof(*mcmd),
-		mcmd);
 	if (mcmd == NULL) {
 		PRINT_ERROR("%s", "Allocation of management command "
 			"failed, some commands and their data could leak");
@@ -1143,7 +1111,6 @@ void scst_free_mgmt_cmd(struct scst_mgmt_cmd *mcmd, int del)
 	if (mcmd->mcmd_tgt_dev != NULL)
 		scst_dec_cmd_count();
 
-	TRACE_MEM("mempool_free for mgmt cmd: %p", mcmd);
 	mempool_free(mcmd, scst_mgmt_mempool);
 
 	TRACE_EXIT();
@@ -1755,8 +1722,6 @@ int scst_set_pending_UA(struct scst_cmd *cmd)
 
 	list_del(&UA_entry->UA_list_entry);
 
-
-	TRACE_MEM("mempool_free for UA_entry: %p", UA_entry);
 	mempool_free(UA_entry, scst_ua_mempool);
 
 	if (list_empty(&cmd->tgt_dev->UA_list)) {
@@ -1784,8 +1749,6 @@ void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
 	TRACE_ENTRY();
 
 	UA_entry = mempool_alloc(scst_ua_mempool, GFP_ATOMIC);
-	TRACE_MEM("mempool_alloc(GFP_ATOMIC) for UA_entry (%zd): %p",
-		sizeof(*UA_entry), UA_entry);
 	if (UA_entry == NULL) {
 		PRINT_ERROR_PR("%s", "UNIT ATTENTION memory "
 		     "allocation failed. The UNIT ATTENTION "
@@ -1876,7 +1839,6 @@ void scst_free_all_UA(struct scst_tgt_dev *tgt_dev)
 		TRACE_MGMT_DBG("Clearing UA for tgt_dev lun %d", 
 			tgt_dev->acg_dev->lun);
 		list_del(&UA_entry->UA_list_entry);
-		TRACE_MEM("kfree for UA_entry: %p", UA_entry);
 		kfree(UA_entry);
 	}
 	INIT_LIST_HEAD(&tgt_dev->UA_list);

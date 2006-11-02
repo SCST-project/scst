@@ -251,7 +251,6 @@ struct scst_cmd *scst_alloc_cmd(int gfp_mask);
 void scst_free_cmd(struct scst_cmd *cmd);
 static inline void scst_destroy_cmd(struct scst_cmd *cmd)
 {
-	TRACE_MEM("kfree for cmd: %p", cmd);
 	kmem_cache_free(scst_cmd_cachep, cmd);
 	return;
 }

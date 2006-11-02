@@ -700,8 +700,6 @@ static int fileio_attach_tgt(struct scst_tgt_dev *tgt_dev)
 	TRACE_ENTRY();
 
 	ftgt_dev = kzalloc(sizeof(*ftgt_dev), GFP_KERNEL);
-	TRACE_MEM("kzalloc(GFP_KERNEL) for ftgt_dev (%zd): %p", 
-		sizeof(*ftgt_dev), ftgt_dev);
 	if (ftgt_dev == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of per-session "
 			"virtual device failed");
@@ -755,7 +753,6 @@ out_free_close:
 		filp_close(ftgt_dev->fd, NULL);
 
 out_free:
-	TRACE_MEM("kfree ftgt_dev: %p", ftgt_dev);
 	kfree(ftgt_dev);
 	goto out;
 }
@@ -780,12 +777,9 @@ static void fileio_detach_tgt(struct scst_tgt_dev *tgt_dev)
 	if (ftgt_dev->fd)
 		filp_close(ftgt_dev->fd, NULL);
 
-	if (ftgt_dev->iv != NULL) {
-		TRACE_MEM("kfree ftgt_dev->iv: %p", ftgt_dev->iv);
+	if (ftgt_dev->iv != NULL)
 		kfree(ftgt_dev->iv);
-	}
 
-	TRACE_MEM("kfree ftgt_dev: %p", ftgt_dev);
 	kfree(ftgt_dev);
 
 	tgt_dev->dh_priv = NULL;
@@ -1892,13 +1886,9 @@ static struct iovec *fileio_alloc_iv(struct scst_cmd *cmd,
 	
 	iv_count = scst_get_buf_count(cmd);
 	if (iv_count > ftgt_dev->iv_count) {
-		if (ftgt_dev->iv != NULL) {
-			TRACE_MEM("kfree ftgt_dev->iv: %p", ftgt_dev->iv);
+		if (ftgt_dev->iv != NULL)
 			kfree(ftgt_dev->iv);
-		}
 		ftgt_dev->iv = kmalloc(sizeof(*ftgt_dev->iv) * iv_count, GFP_KERNEL);
-		TRACE_MEM("kmalloc(GFP_KERNEL) for iv (%zd): %p",
-		    sizeof(*ftgt_dev->iv) * iv_count, ftgt_dev->iv);
 		if (ftgt_dev->iv == NULL) {
 			PRINT_ERROR_PR("Unable to allocate iv (%d)", iv_count);
 			scst_set_busy(cmd);
@@ -2260,7 +2250,6 @@ static inline struct scst_fileio_dev *fileio_alloc_dev(void)
 {
 	struct scst_fileio_dev *dev;
 	dev = kzalloc(sizeof(*dev), GFP_KERNEL);
-	TRACE_MEM("kzalloc(GFP_KERNEL) for dev (%zd): %p", sizeof(*dev), dev);
 	if (dev == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of virtual "
 			"device failed");
@@ -2551,8 +2540,6 @@ static int disk_fileio_proc(char *buffer, char **start, off_t offset,
 
 			len = strlen(file_name) + 1;
 			virt_dev->file_name = kmalloc(len, GFP_KERNEL);
-			TRACE_MEM("kmalloc(GFP_KERNEL) for file_name (%d): %p",
-				  len, virt_dev->file_name);
 			if (virt_dev->file_name == NULL) {
 				TRACE(TRACE_OUT_OF_MEM, "%s",
 				      "Allocation of file_name failed");
@@ -2598,9 +2585,7 @@ static int disk_fileio_proc(char *buffer, char **start, off_t offset,
 
 			list_del(&virt_dev->fileio_dev_list_entry);
 
-			TRACE_MEM("kfree for file_name: %p", virt_dev->file_name);
 			kfree(virt_dev->file_name);
-			TRACE_MEM("kfree for virt_dev: %p", virt_dev);
 			kfree(virt_dev);
 		}
 		res = length;
@@ -2615,12 +2600,9 @@ out:
 
 out_free_vpath:
 	list_del(&virt_dev->fileio_dev_list_entry);
-
-	TRACE_MEM("kfree for file_name: %p", virt_dev->file_name);
 	kfree(virt_dev->file_name);
 
 out_free_vdev:
-	TRACE_MEM("kfree for virt_dev: %p", virt_dev);
 	kfree(virt_dev);
 	goto out_up;
 }
@@ -2681,8 +2663,6 @@ static int cdrom_fileio_open(char *p, char *name)
 	if (!virt_dev->cdrom_empty) {
 		len = strlen(file_name) + 1;
 		virt_dev->file_name = kmalloc(len, GFP_KERNEL);
-		TRACE_MEM("kmalloc(GFP_KERNEL) for file_name (%d): %p",
-			  len, virt_dev->file_name);
 		if (virt_dev->file_name == NULL) {
 			TRACE(TRACE_OUT_OF_MEM, "%s",
 			      "Allocation of file_name failed");
@@ -2711,12 +2691,9 @@ out:
 
 out_free_vpath:
 	list_del(&virt_dev->fileio_dev_list_entry);
-
-	TRACE_MEM("kfree for file_name: %p", virt_dev->file_name);
 	kfree(virt_dev->file_name);
 
 out_free_vdev:
-	TRACE_MEM("kfree for virt_dev: %p", virt_dev);
 	kfree(virt_dev);
 	goto out;
 }
@@ -2749,11 +2726,8 @@ static int cdrom_fileio_close(char *name)
 
 	list_del(&virt_dev->fileio_dev_list_entry);
 
-	if (virt_dev->file_name) {
-		TRACE_MEM("kfree for file_name: %p", virt_dev->file_name);
+	if (virt_dev->file_name)
 		kfree(virt_dev->file_name);
-	}
-	TRACE_MEM("kfree for virt_dev: %p", virt_dev);
 	kfree(virt_dev);
 
 out:
@@ -2810,8 +2784,6 @@ static int cdrom_fileio_change(char *p, char *name)
 	if (!virt_dev->cdrom_empty) {
 		len = strlen(file_name) + 1;
 		fn = kmalloc(len, GFP_KERNEL);
-		TRACE_MEM("kmalloc(GFP_KERNEL) for file_name (%d): %p",
-			len, fn);
 		if (fn == NULL) {
 			TRACE(TRACE_OUT_OF_MEM, "%s",
 				"Allocation of file_name failed");
@@ -2908,10 +2880,8 @@ static int cdrom_fileio_change(char *p, char *name)
 			virt_dev->name);
 	}
 
-	if (old_fn) {
-		TRACE_MEM("kfree for old_fn: %p", old_fn);
+	if (old_fn)
 		kfree(old_fn);
-	}
 
 out_resume:
 	scst_resume_activity();
@@ -2921,19 +2891,16 @@ out:
 
 out_free:
 	virt_dev->file_name = old_fn;
-	TRACE_MEM("kfree for fn: %p", fn);
 	kfree(fn);
 	goto out;
 
 out_free_resume:
 	virt_dev->file_name = old_fn;
-	TRACE_MEM("kfree for fn: %p", fn);
 	kfree(fn);
 	goto out_resume;
 
 out_err_resume:
 	virt_dev->file_name = old_fn;
-	TRACE_MEM("kfree for fn: %p", fn);
 	kfree(fn);
 	scst_resume_activity();
 	cdrom_fileio_close(name);
@@ -3161,9 +3128,7 @@ static void __exit exit_scst_fileio(struct scst_dev_type *devtype,
 
 		PRINT_INFO_PR("Virtual device %s unregistered", virt_dev->name);
 		TRACE_DBG("virt_id %d", virt_dev->virt_id);
-		TRACE_MEM("kfree for file_name: %p", virt_dev->file_name);
 		kfree(virt_dev->file_name);
-		TRACE_MEM("kfree for virt_dev: %p", virt_dev);
 		kfree(virt_dev);
 	}
 	up(&scst_fileio_mutex);

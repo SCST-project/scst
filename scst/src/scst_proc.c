@@ -619,7 +619,6 @@ static int scst_proc_group_add(const char *p)
 	TRACE_ENTRY();
 
 	name = kmalloc(len, GFP_KERNEL);
-	TRACE_MEM("kmalloc() for acg_dev (%d): %p", len, name);
 	if (name == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of name failed");
 		goto out_nomem;
@@ -644,7 +643,6 @@ out_free_acg:
 	scst_proc_del_free_acg(acg, 0);
 
 out_free:
-	TRACE_MEM("kfree for name: %p", name);
 	kfree(name);
 
 out_nomem:
@@ -666,7 +664,6 @@ static int scst_proc_del_free_acg(struct scst_acg *acg, int remove_proc)
 		if (res == 0) {
 			if (remove_proc)
 				scst_proc_del_acg_tree(acg_proc_root, name);
-			TRACE_MEM("kfree for name: %p", name);
 			kfree(name);
 		}
 	}
@@ -2231,9 +2228,7 @@ static int scst_proc_groups_names_write(struct file *file, const char *buf,
 		list_for_each_entry_safe(n, nn, &acg->acn_list, 
 					 acn_list_entry) {
 			list_del(&n->acn_list_entry);
-			TRACE_MEM("kfree() for scst_acn->name: %p", n->name);
 			kfree(n->name);
-			TRACE_MEM("kfree() for scst_acn: %p", n);
 			kfree(n);
 		}
 		break;

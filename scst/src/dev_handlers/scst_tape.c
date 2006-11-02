@@ -181,8 +181,6 @@ int tape_attach(struct scst_device *dev)
 	}
 
 	tape = kzalloc(sizeof(*tape), GFP_KERNEL);
-	TRACE_MEM("kzalloc(GFP_KERNEL) for struct tape_params (%zu): %p",
-	      sizeof(*tape), tape);
 	if (tape == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s",
 		      "Unable to allocate struct tape_params");
@@ -192,7 +190,6 @@ int tape_attach(struct scst_device *dev)
 	spin_lock_init(&tape->tp_lock);
 
 	buffer = kmalloc(buffer_size, GFP_KERNEL);
-	TRACE_MEM("kmalloc(GFP_KERNEL) for %d: %p", buffer_size, buffer);
 	if (!buffer) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Memory allocation failure");
 		res = -ENOMEM;
@@ -243,16 +240,13 @@ int tape_attach(struct scst_device *dev)
 	}
 
 out_free_buf:
-	TRACE_MEM("kfree for buffer: %p", buffer);
 	kfree(buffer);
 
 out_free_req:
 	if (res == 0)
 		dev->dh_priv = tape;
-	else {
-		TRACE_MEM("kfree for tape: %p", tape);
+	else
 		kfree(tape);
-	}
 
 out:
 	TRACE_EXIT_RES(res);
@@ -274,7 +268,6 @@ void tape_detach(struct scst_device *dev)
 
 	TRACE_ENTRY();
 
-	TRACE_MEM("kfree for tape: %p", tape);
 	kfree(tape);
 	dev->dh_priv = NULL;
 
