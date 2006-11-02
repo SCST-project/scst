@@ -374,14 +374,24 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 		TRACE_DBG("Dev handler %s parse() returned %d",
 			dev->handler->name, state);
 
-		if (cmd->data_len == -1)
-			cmd->data_len = cmd->bufflen;
-
 		if (state == SCST_CMD_STATE_DEFAULT)
 			state = SCST_CMD_STATE_PREPARE_SPACE;
 	}
 	else
 		state = SCST_CMD_STATE_PREPARE_SPACE;
+
+	if (scst_cmd_is_expected_set(cmd)) {
+		if (cmd->expected_transfer_len < cmd->bufflen) {
+			TRACE(TRACE_SCSI, "cmd->expected_transfer_len(%d) < "
+				"cmd->bufflen(%d), using expected_transfer_len "
+				"instead", cmd->expected_transfer_len,
+				cmd->bufflen);
+			cmd->bufflen = cmd->expected_transfer_len;
+		}
+	}
+
+	if (cmd->data_len == -1)
+		cmd->data_len = cmd->bufflen;
 
 #ifdef EXTRACHECKS
 	if (state != SCST_CMD_STATE_NEED_THREAD_CTX) {

@@ -1485,9 +1485,8 @@ int scst_get_cdb_info(const uint8_t *cdb_p, int dev_type,
 		}
 	}
 	if (!info_p->transfer_len) {
-		TRACE(TRACE_SCSI,
-		      "Warning! transfer_len 0, direction %d change on " "%d",
-		      info_p->direction, SCST_DATA_NONE);
+		TRACE_DBG("Warning! transfer_len 0, direction %d change on %d",
+			info_p->direction, SCST_DATA_NONE);
 		info_p->direction = SCST_DATA_NONE;
 	}
 
