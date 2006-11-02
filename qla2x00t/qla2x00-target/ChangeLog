@@ -1,3 +1,13 @@
+Summary of changes between versions 0.9.3.8 and 0.9.5
+-----------------------------------------------------
+
+ - Ported to 2.6.17.x and 2.6.18.
+ 
+ - Updated for the latest SCST interfaces changes.
+
+ - Cleanups and minor bug fixes.
+
+
 Summary of changes between versions 0.9.3.8 and 0.9.3.9
 -------------------------------------------------------
 Patch vs: qla2xxx v8.01.03-k (in kernels 2.6.15.x+, including 2.6.16-prex)
