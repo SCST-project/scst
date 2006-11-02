@@ -112,7 +112,8 @@ static void q2t_async_event(uint16_t code, scsi_qla_host_t *ha,
 static void q2t_ctio_completion(scsi_qla_host_t *ha, uint32_t handle);
 static void q2t_host_action(scsi_qla_host_t *ha,
 	qla2x_tgt_host_action_t action);
-static void q2x_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd);
+static void q2t_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
+	atio_entry_t *atio);
 
 /*
  * Global Variables
@@ -710,7 +711,7 @@ static int q2t_xmit_response(struct scst_cmd *scst_cmd)
 
 		prm.cmd->state = Q2T_STATE_ABORTED;
 
-		q2x_send_term_exchange(ha, prm.cmd);
+		q2t_send_term_exchange(ha, prm.cmd, &prm.cmd->atio);
 		/* !! At this point cmd could be already freed !! */
 		goto out;
 	}
@@ -895,10 +896,10 @@ out_unlock:
 	return res;
 }
 
-static void q2x_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd)
+static void q2t_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
+	atio_entry_t *atio)
 {
 	ctio_ret_entry_t *ctio;
-	atio_entry_t *atio = &cmd->atio;
 	unsigned long flags;
 	int do_tgt_cmd_done = 0;
 
@@ -925,14 +926,18 @@ static void q2x_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd)
 	ctio->entry_type = CTIO_RET_TYPE;
 	ctio->entry_count = 1;
 
-	ctio->handle = q2t_make_handle(ha);
-	if (ctio->handle != Q2T_NULL_HANDLE) {
-		ha->cmds[ctio->handle] = cmd;
-		ctio->handle |= CTIO_COMPLETION_HANDLE_MARK;
-	} else {
-		ctio->handle = Q2T_SKIP_HANDLE | CTIO_COMPLETION_HANDLE_MARK;
-		do_tgt_cmd_done = 1;
-	}
+	if (cmd != NULL) {
+		ctio->handle = q2t_make_handle(ha);
+		if (ctio->handle != Q2T_NULL_HANDLE) {
+			ha->cmds[ctio->handle] = cmd;
+		} else {
+			ctio->handle = Q2T_SKIP_HANDLE;
+			do_tgt_cmd_done = 1;
+		}
+	} else
+		ctio->handle = Q2T_SKIP_HANDLE;
+
+	ctio->handle |= CTIO_COMPLETION_HANDLE_MARK;
 
 	SET_TARGET_ID(ha, ctio->target, GET_TARGET_ID(ha, atio));
 	ctio->exchange_id = atio->exchange_id;
@@ -1274,7 +1279,6 @@ static void q2t_alloc_session_done(struct scst_session *scst_sess,
 	return;
 }
 
-
 static char *q2t_make_name(scsi_qla_host_t *ha, int loop_id)
 #ifdef FC_SCST_WWN_AUTH
 {
@@ -1303,10 +1307,18 @@ static char *q2t_make_name(scsi_qla_host_t *ha, int loop_id)
 	}
 
 	if (wwn_found == 0) {
-	    PRINT_ERROR("qla2x00tgt(%ld): Unable to find wwn login for "
+#if 0
+		PRINT_ERROR("qla2x00tgt(%ld): Unable to find wwn login for "
 			"loop id %d, using loop id instead", ha->instance, loop_id);
-	    snprintf(wwn_str, 2*WWN_SIZE, "%d", loop_id);
+		snprintf(wwn_str, 2*WWN_SIZE, "%d", loop_id);
+#else
+		TRACE_DBG("qla2x00tgt(%ld): Unable to find wwn login for "
+			"loop id %d", ha->instance, loop_id);
+		kfree(wwn_str);
+		wwn_str = NULL;
+#endif
 	}
+
 
 out:
 	return wwn_str;
@@ -1386,8 +1398,10 @@ static int q2t_send_cmd_to_scst(scsi_qla_host_t *ha, atio_entry_t *atio)
 		/* register session (remote initiator) */
 		{
 			char *name = q2t_make_name(ha, loop_id);
-			if (name == NULL)
+			if (name == NULL) {
+				res = -ESRCH;
 				goto out_free_sess;
+			}
 			sess->scst_sess = scst_register_session(
 				tgt->scst_tgt, 1, name, sess,
 				q2t_alloc_session_done);
@@ -1733,6 +1747,7 @@ static void q2t_response_pkt(scsi_qla_host_t *ha, sts_entry_t *pkt)
 	switch (pkt->entry_type) {
 	case ACCEPT_TGT_IO_TYPE:
 		if (ha->flags.enable_target_mode && ha->tgt != NULL) {
+			int rc;
 			atio = (atio_entry_t *)pkt;
 			TRACE_DBG("ACCEPT_TGT_IO instance %ld status %04x "
 				  "lun %04x read/write %d data_length %08x "
@@ -1752,12 +1767,17 @@ static void q2t_response_pkt(scsi_qla_host_t *ha, sts_entry_t *pkt)
 			}
 			TRACE_BUFF_FLAG(TRACE_SCSI, "CDB", atio->cdb,
 					sizeof(atio->cdb));
-			if (q2t_send_cmd_to_scst(ha, atio) != 0) {
-				PRINT_INFO("qla2x00tgt(%ld): Unable to send "
-					   "the command to SCSI target "
-					   "mid-level, sending BUSY status", 
-					   ha->instance);
-				q2t_send_busy(ha, atio);
+			rc = q2t_send_cmd_to_scst(ha, atio);
+			if (unlikely(rc != 0)) {
+				if (rc == -ESRCH) {
+					q2t_send_term_exchange(ha, NULL, atio);
+				} else {
+					PRINT_INFO("qla2x00tgt(%ld): Unable to "
+					    "send the command to SCSI target "
+					    "mid-level, sending BUSY status", 
+					    ha->instance);
+					q2t_send_busy(ha, atio);
+				}
 			}
 		} else {
 			PRINT_ERROR("qla2x00tgt(%ld): ATIO, but target mode "
