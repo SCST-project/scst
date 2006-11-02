@@ -77,10 +77,6 @@
 # endif
 #endif
 
-#if defined(DEBUG) || defined(TRACING)
-unsigned long trace_flag = SCST_DEFAULT_QLA_LOG_FLAGS;
-#endif
-
 static int q2t_target_detect(struct scst_tgt_template *templ);
 static int q2t_target_release(struct scst_tgt *scst_tgt);
 static int q2t_xmit_response(struct scst_cmd *scst_cmd);
@@ -104,6 +100,10 @@ static void q2t_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
  * Global Variables
  */
 
+#if defined(DEBUG) || defined(TRACING)
+unsigned long trace_flag = SCST_DEFAULT_QLA_LOG_FLAGS;
+#endif
+
 struct scst_tgt_template tgt_template = {
       name:"qla2x00tgt",
       sg_tablesize:0,
@@ -123,8 +123,8 @@ struct scst_tgt_template tgt_template = {
       task_mgmt_fn_done:q2t_task_mgmt_fn_done,
 };
 
-static struct qla2x_tgt_target tgt_data;
 kmem_cache_t *q2t_cmd_cachep = NULL;
+static struct qla2x_tgt_target tgt_data;
 
 /*
  * Functions
