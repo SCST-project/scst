@@ -94,7 +94,7 @@ static void q2t_ctio_completion(scsi_qla_host_t *ha, uint32_t handle);
 static void q2t_host_action(scsi_qla_host_t *ha,
 	qla2x_tgt_host_action_t action);
 static void q2t_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
-	atio_entry_t *atio);
+	atio_entry_t *atio, int ha_locked);
 
 /*
  * Global Variables
@@ -694,7 +694,7 @@ static int q2t_xmit_response(struct scst_cmd *scst_cmd)
 
 		prm.cmd->state = Q2T_STATE_ABORTED;
 
-		q2t_send_term_exchange(ha, prm.cmd, &prm.cmd->atio);
+		q2t_send_term_exchange(ha, prm.cmd, &prm.cmd->atio, 0);
 		/* !! At this point cmd could be already freed !! */
 		goto out;
 	}
@@ -880,17 +880,18 @@ out_unlock:
 }
 
 static void q2t_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
-	atio_entry_t *atio)
+	atio_entry_t *atio, int ha_locked)
 {
 	ctio_ret_entry_t *ctio;
-	unsigned long flags;
+	unsigned long flags = 0;
 	int do_tgt_cmd_done = 0;
 
 	TRACE_ENTRY();
 
 	TRACE_DBG("Sending TERM EXCH CTIO (ha=%p)", ha);
 
-	spin_lock_irqsave(&ha->hardware_lock, flags);
+	if (!ha_locked)
+		spin_lock_irqsave(&ha->hardware_lock, flags);
 
 	/* Send marker if required */
 	if (tgt_data.issue_marker(ha) != QLA_SUCCESS) {
@@ -934,7 +935,8 @@ static void q2t_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
 	q2t_exec_queue(ha);
 
 out_unlock:
-	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+	if (!ha_locked)
+		spin_unlock_irqrestore(&ha->hardware_lock, flags);
 
 	if (do_tgt_cmd_done) {
 		msleep(250);
@@ -1742,7 +1744,7 @@ static void q2t_response_pkt(scsi_qla_host_t *ha, sts_entry_t *pkt)
 			rc = q2t_send_cmd_to_scst(ha, atio);
 			if (unlikely(rc != 0)) {
 				if (rc == -ESRCH) {
-					q2t_send_term_exchange(ha, NULL, atio);
+					q2t_send_term_exchange(ha, NULL, atio, 1);
 				} else {
 					PRINT_INFO("qla2x00tgt(%ld): Unable to "
 					    "send the command to SCSI target "

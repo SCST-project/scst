@@ -24,14 +24,6 @@ Tested on stable kernels from http://www.kernel.org. The original
 initiator driver was taken from kernel version 2.6.17.8, but it should
 also work on other versions, including 2.6.18.x and 2.6.16.x.
 
-NOTE: WWN-based authentification on 2200 cards doesn't always work from
-----  the first "connect", but works on all subsequent attempts.
-      On this error message "Unable to find wwn login for loop
-      id XX, using loop id instead" is logged. So, just try again, eg
-      unload/load FC card driver on the initiator host. This is the
-      current limitation. Everyone who fix it or found a usable
-      workaround is welcome.
-
 See also "ToDo" file for list of known issues and unimplemented 
 features.
 
@@ -74,9 +66,8 @@ There are the following compilation options, that could be commented
 in/out in Makefile:
 
  - FC_SCST_WWN_AUTH - turns on using remote initiator's WWN as 
-   authentification name for scst_register_session_ex(). See note above
-   about limitations of this mode. If it is off, LOOP ID used instead of
-   WWN.
+   authentification name for scst_register_session_ex(). If it is off,
+   LOOP ID used instead of WWN.
 
  - DEBUG_TGT - turns on some debugging code, including some logging. Makes
    the driver considerably bigger and slower, producing large amount of

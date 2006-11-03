@@ -2,6 +2,8 @@ Summary of changes between versions 0.9.3.8 and 0.9.5
 -----------------------------------------------------
 
  - Ported to 2.6.17.x and 2.6.18.
+
+ - Problem with not found WWN on the first login attempt fixed.
  
  - Updated for the latest SCST interfaces changes.
 
