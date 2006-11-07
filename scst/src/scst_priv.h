@@ -104,11 +104,9 @@
 static inline int scst_get_context(void) {
 	if (in_irq())
 		return SCST_CONTEXT_TASKLET;
-	if (in_softirq())
-		return SCST_CONTEXT_DIRECT_ATOMIC;
-	if (in_interrupt()) /* Is it possible? */
+	if (irqs_disabled())
 		return SCST_CONTEXT_THREAD;
-	if (in_atomic())
+	if (in_softirq() || in_atomic())
 		return SCST_CONTEXT_DIRECT_ATOMIC;
 	return SCST_CONTEXT_DIRECT;
 }
@@ -447,8 +445,11 @@ static inline void scst_sess_get(struct scst_session *sess)
 
 static inline void scst_sess_put(struct scst_session *sess)
 {
-	if (atomic_dec_and_test(&sess->refcnt))
+	smp_mb__before_atomic_dec();
+	if (atomic_dec_and_test(&sess->refcnt)) {
+		smp_mb__after_atomic_dec();
 		scst_sched_session_free(sess);
+	}
 }
 
 void __scst_suspend_activity(void);

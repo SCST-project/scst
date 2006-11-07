@@ -2469,7 +2469,9 @@ static int __scst_process_active_cmd(struct scst_cmd *cmd, int context,
 
 	TRACE_ENTRY();
 
+#ifdef EXTRACHECKS
 	BUG_ON(in_irq());
+#endif
 
 	cmd->atomic = ((context & ~SCST_PROCESSIBLE_ENV) == 
 			SCST_CONTEXT_DIRECT_ATOMIC);
@@ -2788,10 +2790,18 @@ static int scst_call_dev_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 {
 	int res = SCST_DEV_TM_NOT_COMPLETED;
 	if (tgt_dev->acg_dev->dev->handler->task_mgmt_fn) {
+		int irq = irqs_disabled();
 		TRACE_MGMT_DBG("Calling dev handler %s task_mgmt_fn(fn=%d)",
-		      tgt_dev->acg_dev->dev->handler->name, mcmd->fn);
+			tgt_dev->acg_dev->dev->handler->name, mcmd->fn);
+#ifdef EXTRACHECKS
+		BUG_ON(in_irq());
+#endif
+		if (!irq)
+			local_bh_disable();
 		res = tgt_dev->acg_dev->dev->handler->task_mgmt_fn(mcmd, 
 			tgt_dev);
+		if (!irq)
+			local_bh_enable();
 		TRACE_MGMT_DBG("Dev handler %s task_mgmt_fn() returned %d",
 		      tgt_dev->acg_dev->dev->handler->name, res);
 		if (set_status && (res != SCST_DEV_TM_NOT_COMPLETED)) {
@@ -2817,7 +2827,7 @@ static inline int scst_is_strict_mgmt_fn(int mgmt_fn)
 
 /* 
  * Called under scst_list_lock and IRQ off (to protect cmd
- * from being destroyed).
+ * from being destroyed) + BHs also off
  * Returns -1 if command is being executed (ABORT failed), 0 otherwise
  */
 void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
@@ -2945,6 +2955,7 @@ static void __scst_abort_task_set(struct scst_mgmt_cmd *mcmd,
 
 	TRACE_ENTRY();
 
+	local_bh_disable();
 	spin_lock_irq(&scst_list_lock);
 
 	TRACE_DBG("Searching in search cmd list (sess=%p)", sess);
@@ -2958,6 +2969,7 @@ static void __scst_abort_task_set(struct scst_mgmt_cmd *mcmd,
 		scst_abort_cmd(cmd, mcmd, other_ini, 0);
 	}
 	spin_unlock_irq(&scst_list_lock);
+	local_bh_enable();
 
 	scst_unblock_aborted_cmds(scst_mutex_held);
 
@@ -3026,6 +3038,7 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 		struct scst_session *sess = mcmd->sess;
 		struct scst_cmd *cmd;
 
+		local_bh_disable();
 		spin_lock_irq(&scst_list_lock);
 		cmd = __scst_find_cmd_by_tag(sess, mcmd->tag);
 		if (cmd == NULL) {
@@ -3042,6 +3055,7 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 			mcmd->cmd_to_abort = NULL; /* just in case */
 		}
 		spin_unlock_irq(&scst_list_lock);
+		local_bh_enable();
 	} else {
 		int rc;
 		rc = scst_mgmt_translate_lun(mcmd);
@@ -3944,8 +3958,12 @@ restart:
 				scst_free_session_callback(sess);
 			} else if (sess->init_phase == SCST_SESS_IPH_INITING) {
 				scst_init_session(sess);
-			} else
+			} else {
+				PRINT_ERROR_PR("session %p is in "
+					"scst_sess_mgmt_list, but in unknown "
+					"phase %x", sess, sess->init_phase);
 				BUG();
+			}
 			spin_lock_irq(&scst_mgmt_lock);
 			goto restart;
 		}

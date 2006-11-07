@@ -774,7 +774,7 @@ struct scst_dev_type
 	 *  - SCST_DEV_TM_NOT_COMPLETED - regular standard actions for the command
 	 *	should be done
 	 *
-	 * NOTE: for SCST_ABORT_TASK called under spinlock
+	 * Called with BH off. Might be called under a lock and IRQ off.
 	 */
 	int (*task_mgmt_fn) (struct scst_mgmt_cmd *mgmt_cmd, 
 		struct scst_tgt_dev *tgt_dev);

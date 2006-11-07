@@ -1651,6 +1651,7 @@ void scst_process_reset(struct scst_device *dev,
 	{
 		struct scst_session *sess = tgt_dev->sess;
 
+		local_bh_disable();
 		spin_lock_irq(&scst_list_lock);
 
 		TRACE_DBG("Searching in search cmd list (sess=%p)", sess);
@@ -1666,6 +1667,7 @@ void scst_process_reset(struct scst_device *dev,
 			}
 		}
 		spin_unlock_irq(&scst_list_lock);
+		local_bh_enable();
 	}
 
 	list_for_each_entry_safe(cmd, tcmd, &dev->blocked_cmd_list,
@@ -1980,37 +1982,43 @@ out_unlock:
 void scst_unblock_cmds(struct scst_device *dev)
 {
 #ifdef STRICT_SERIALIZING
-	struct scst_cmd *cmd;
+	struct scst_cmd *cmd, *t;
 	int found = 0;
 
 	TRACE_ENTRY();
 
-	list_for_each_entry(cmd, &dev->blocked_cmd_list,
+	list_for_each_entry_safe(cmd, t, &dev->blocked_cmd_list,
 				 blocked_cmd_list_entry) {
+		unsigned long flags;
+		int brk = 0;
 		/* 
 		 * Since only one cmd per time is being executed, expected_sn
 		 * can't change behind us, if the corresponding cmd is in
-		 * blocked_cmd_list
+		 * blocked_cmd_list, but we could be called before
+		 * __scst_inc_expected_sn().
 		 */
-		if ((cmd->tgt_dev && (cmd->sn == cmd->tgt_dev->expected_sn)) ||
-		    (unlikely(cmd->internal) || unlikely(cmd->retry))) {
-		    	unsigned long flags;
-			list_del(&cmd->blocked_cmd_list_entry);
-			TRACE_MGMT_DBG("Moving cmd %p to active cmd list", cmd);
-			spin_lock_irqsave(&scst_list_lock, flags);
-			list_move(&cmd->cmd_list_entry, &scst_active_cmd_list);
-			spin_unlock_irqrestore(&scst_list_lock, flags);
-			wake_up(&scst_list_waitQ);
-			found = 1;
-			break;
+		if (likely(!cmd->internal) && likely(!cmd->retry)) {
+			int expected_sn;
+			if (cmd->tgt_dev == NULL)
+				BUG();
+			expected_sn = cmd->tgt_dev->expected_sn;
+			if (cmd->sn == expected_sn)
+				brk = 1;
+			else if (cmd->sn != (expected_sn+1))
+				continue;
 		}
+		    	
+		list_del(&cmd->blocked_cmd_list_entry);
+		TRACE_MGMT_DBG("Moving cmd %p to active cmd list", cmd);
+		spin_lock_irqsave(&scst_list_lock, flags);
+		list_move(&cmd->cmd_list_entry, &scst_active_cmd_list);
+		spin_unlock_irqrestore(&scst_list_lock, flags);
+		found = 1;
+		if (brk)
+			break;
 	}
-#ifdef EXTRACHECKS
-	if (!found && !list_empty(&dev->blocked_cmd_list)) {
-		TRACE(TRACE_MINOR, "%s", "No commands unblocked when "
-			"blocked cmd list is not empty");
-	}
-#endif
+	if (found)
+		wake_up(&scst_list_waitQ);
 #else /* STRICT_SERIALIZING */
 	struct scst_cmd *cmd, *tcmd;
 	unsigned long flags;
