@@ -1011,7 +1011,8 @@ static int scst_check_auto_sense(struct scst_cmd *cmd)
 }
 
 static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
-	const uint8_t *rq_sense, int rq_sense_len, int *next_state)
+	const uint8_t *rq_sense, int rq_sense_len, int resid,
+	int *next_state)
 {
 	unsigned char type;
 
@@ -1022,9 +1023,19 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 	cmd->msg_status = msg_byte(result);
 	cmd->host_status = host_byte(result);
 	cmd->driver_status = driver_byte(result);
-	TRACE(TRACE_SCSI, "result=%x, cmd->status=%x, "
+	if (unlikely(resid != 0)) {
+#ifdef EXTRACHECKS
+		if ((resid < 0) || (resid >= cmd->resp_data_len)) {
+			PRINT_ERROR_PR("Wrong resid %d (cmd->resp_data_len=%d)",
+				resid, cmd->resp_data_len);
+		} else
+#endif
+			scst_set_resp_data_len(cmd, cmd->resp_data_len - resid);
+	}
+
+	TRACE(TRACE_SCSI, "result=%x, cmd->status=%x, resid=%d, "
 	      "cmd->masked_status=%x, cmd->msg_status=%x, cmd->host_status=%x, "
-	      "cmd->driver_status=%x", result, cmd->status,
+	      "cmd->driver_status=%x", result, cmd->status, resid,
 	      cmd->masked_status, cmd->msg_status, cmd->host_status,
 	      cmd->driver_status);
 
@@ -1091,22 +1102,13 @@ static void scst_cmd_done(struct scsi_cmnd *scsi_cmd)
 
 	WARN_ON(in_irq());
 
-	/*
-	 * We don't use scsi_cmd->resid, because:
-	 * 1. Many low level initiator drivers don't use (set) this field
-	 * 2. We determine the command's buffer size directly from CDB, 
-	 *    so scsi_cmd->resid is not relevant for us, and target drivers 
-	 *    should know the residual, if necessary, by comparing expected 
-	 *    and actual transfer sizes.
-	 */
-
 	cmd = scst_get_cmd(scsi_cmd, &req);
 	if (cmd == NULL)
 		goto out;
 
 	next_state = SCST_CMD_STATE_DEV_DONE;
 	scst_do_cmd_done(cmd, req->sr_result, req->sr_sense_buffer,
-		sizeof(req->sr_sense_buffer), &next_state);
+		sizeof(req->sr_sense_buffer), scsi_cmd->resid, &next_state);
 
 	/* Clear out request structure */
 	req->sr_use_sg = 0;
@@ -1153,7 +1155,7 @@ static void scst_cmd_done(void *data, char *sense, int result, int resid)
 		goto out;
 
 	next_state = SCST_CMD_STATE_DEV_DONE;
-	scst_do_cmd_done(cmd, result, sense, SCSI_SENSE_BUFFERSIZE,
+	scst_do_cmd_done(cmd, result, sense, SCSI_SENSE_BUFFERSIZE, resid,
 		&next_state);
 
 	cmd->state = next_state;
