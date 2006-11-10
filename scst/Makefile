@@ -43,6 +43,8 @@ help:
 	@echo "		install           : install"
 	@echo "		uninstall         : uninstall"
 	@echo "	Notes :"
-	@echo "		- install and uninstall must be made as root"
+	@echo "		- install and uninstall must be made as root."
+	@echo "         - be sure to compile qla against the correct initiator"
+	@echo "           driver. Read its README for details."
 
 .PHONY: all install uninstall clean extraclean help

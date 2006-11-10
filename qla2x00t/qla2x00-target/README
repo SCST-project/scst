@@ -5,18 +5,13 @@ Version 0.9.5-pre2, XX XXX 2006
 -------------------------------
 
 This driver has all required features and looks to be quite stable (for
-beta) and useful. It is designed to work in conjunction with the
-initiator driver from Linux kernel version 2.6, which is intended to
-perform all the initialization and shutdown tasks. This driver needs to
-be patched to enable the target mode and provide all necessary
-callbacks, but it's still capable to work as initiator only. Mode, when
-a host acts as the initiator and the target simultaneously, is supported
-as well.
-
-If you have a driver's version (e.g. development) without the patch, but
-with the full patched initiator source code, you should replace by it
-qla2xxx subdirectory in kernel_source/drivers/scsi/ and then rebuild the
-kernel or only its modules.
+beta) and useful. It consists from two parts: the target mode driver
+itself and the changed initiator driver from Linux kernel, which is,
+particularly, intended to perform all the initialization and shutdown
+tasks. This driver was changed to provide the target mode support and
+all necessary callbacks, but it's still capable to work as initiator
+only. Mode, when a host acts as the initiator and the target
+simultaneously, is supported as well.
 
 This version is compatible with SCST version 0.9.5 and higher.
 
@@ -33,28 +28,24 @@ Installation
 At first, make sure that the link "/lib/modules/`you_kernel_version`/build" 
 points to the source code for your currently running kernel.
 
-Then, edit Makefile and set SCST_INC_DIR variable to point to the
+Then you should replace (or link) by the initiator driver from this
+package "qla2xxx" subdirectory in kernel_source/drivers/scsi/ and then
+rebuild the kernel and its modules.
+
+Then edit Makefile and set SCST_INC_DIR variable to point to the
 directory, where SCST's public include files are located. If you install
 QLA2x00 target driver's source code in the SCST's directory, then
 SCST_INC_DIR will be set correctly for you ("../include").
 
-The driver consists of two parts: the patch for initiator driver
-"linux-2.6-qla2xxx-target.patch" and target driver in the
-"qla2x00-target" directory.
-
-Patch the kernel tree with "linux-2.6-qla2xxx-target.patch" patch.
-
 To compile, type 'make'. It will build qla2x00tgt.ko module.
 
 To install, type 'make install'. The target driver will be installed in
-/lib/modules/`you_kernel_version`/kernel/drivers/scsi/scsi_tgt.
+/lib/modules/`you_kernel_version`/extra.
 
 To uninstall, type 'make uninstall'.
 
-The initiator driver must be loaded before the target one.
-
-Then the target mode should be enabled via a sysfs interface on a per
-card basis. Under the appropriate scsi_host there is an entry
+The target mode should be enabled via a sysfs interface on a per card
+basis. Under the appropriate scsi_host there is an entry
 target_mode_enabled, where you should write "1", like:
 
 echo "1" >/sys/class/scsi_host/host0/target_mode_enabled

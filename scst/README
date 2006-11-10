@@ -12,8 +12,8 @@ SCST's Internet page http://scst.sourceforge.net.
 
 SCST looks to be quite stable (for beta) and useful. It supports disks
 (SCSI type 0), tapes (type 1), processor (type 3), CDROM's (type 5), MO
-disks (type 7), medium changers (type 8) and RAID controller (type 0xC).
-There are also FILEIO and "performance" device handlers. In addition, it
+disks (type 7), medium changers (type 8) and RAID controller (type 0xC)
+as well as FILEIO and "performance" device handlers. In addition, it
 supports advanced per-initiator access and devices visibility
 management, so different initiators could see different set of devices
 with different access permissions. See below for details.
@@ -22,64 +22,25 @@ This is quite stable (but still beta) version.
 
 Tested mostly on "vanilla" 2.6.17.8 kernel from kernel.org.
 
-Device handlers
----------------
-
-Device specific drivers (device handlers) are plugins for SCST, which
-help SCST to analyze incoming requests and determine parameters,
-specific to various types of devices. If an appropriate device handler
-for a SCSI device type isn't loaded, SCST doesn't know how to handle
-devices of this type, so they will be invisible for remote initiators
-(more precisely, "LUN not supported" sense code will be returned).
-
-In addition to device handlers for real devices, there are FILEIO and
-"performance" ones.
-
-FILEIO device handler works over files on file systems and makes from
-them virtual remotely available SCSI disks or CDROM's. In addition, it
-allows to work directly over a block device, e.g. local IDE or SCSI disk
-or ever disk partition, where there is no file systems overhead. Using
-block devices comparing to sending SCSI commands directly to SCSI
-mid-level via scsi_do_req() has advantage that data are transfered via
-system cache, so it is possible to fully benefit from caching and read
-ahead performed by Linux's VM subsystem. The only disadvantage here that
-there is superfluous data copying between the cache and SCST's buffers.
-This issue is going to be addressed in the next release. Virtual CDROM's
-are useful for remote installation. See below for details how to setup
-and use FILEIO device handler.
-
-"Performance" device handlers for disks, MO disks and tapes in their
-exec() method skip (pretend to execute) all READ and WRITE operations
-and thus provide a way for direct link performance measurements without
-overhead of actual data transferring from/to underlying SCSI device.
-
-NOTE: Since "perf" device handlers on READ operations don't touch the
-====  commands' data buffer, it is returned to remote initiators as it
-      was allocated, without even being zeroed. Thus, "perf" device
-      handlers impose some security risk, so use them with caution.
-
 Installation
 ------------
 
 At first, make sure that the link "/lib/modules/`you_kernel_version`/build" 
 points to the source code for your currently running kernel.
 
-Then, if you are going to work on 2.6 kernels, since in those kernels
-scsi_do_req() works in LIFO order, instead of expected and required
-FIFO, SCST needs a new function scsi_do_req_fifo() to be added in the
-kernel. Patch 26_scst.patch (or 26_scst-2.6.14-.patch for early kernels)
-from "kernel" directory does that. If it doesn't apply to your kernel
-version, apply it manually, it only adds that function and nothing more.
-You may not patch the kernel if STRICT_SERIALIZING is defined during the
-compilation (see its description below).
+Then, since in the mainstream kernels scsi_do_req()/scsi_execute_async()
+work in LIFO order, instead of expected and required FIFO, SCST needs a
+new functions scsi_do_req_fifo()/scsi_execute_async_fifo() to be added
+in the kernel. Patch 26_scst-2.6.X.patch from "kernel" directory does
+that. If it doesn't apply to your kernel, apply it manually, it only
+adds one of those functions and nothing more. You may not patch the
+kernel if STRICT_SERIALIZING or FILEIO_ONLY are defined during the
+compilation (see their description below).
 
-To compile SCST go to 'src' directory and type 'make' on 2.6 kernels and
-'make -f Makefile-24' on 2.4 ones. It will build SCST itself and its
-device handlers. To install them type 'make install'. The driver modules
-will be installed in
-'/lib/modules/`you_kernel_version`/kernel/drivers/scsi/scsi_tgt' on 2.4
-kernels and in '/lib/modules/`you_kernel_version`/extra' on 2.6 ones. In
-addition, scsi_tgt.h, scst_debug.h and scst_debug.c will be copied to
+To compile SCST type 'make'. It will build SCST itself and its device
+handlers. To install them type 'make install'. The driver modules will
+be installed in '/lib/modules/`you_kernel_version`/extra'. In addition,
+scsi_tgt.h, scst_debug.h and scst_debug.c will be copied to
 '/usr/local/include/scst'. The first file contains all SCST's public
 data definition, which are used by target drivers. The other ones
 support debug messages logging.
@@ -115,18 +76,52 @@ IMPORTANT: In the current version simultaneous access to local SCSI devices
 	   important for execution via sg and st commands that change
 	   the state of devices and their parameters, because that could
 	   lead to data corruption. If any such command is done, at
-	   least related device handler driver(s) must be restarted. For
-	   block devices READ/WRITE commands using direct disk handler
-	   look to be safe.
+	   least related device handler(s) must be restarted. For block
+	   devices READ/WRITE commands using direct disk handler look to
+	   be safe.
 
-To uninstall, type 'make uninstall'. It is not implemented for 2.6
-kernels.
+To uninstall, type 'make uninstall'.
 
 If you install QLA2x00 target driver's source code in this directory,
 then you can build, install or uninstall it by typing 'make qla', 'make
-qla_install' or 'make qla_uninstall' correspondingly. Or 'make qla26',
-'make qla26_install' or 'make qla26_uninstall' for new 2.6 driver. For
-more details about QLA2x00 target drivers see their README files.
+qla_install' or 'make qla_uninstall' correspondingly. For more details
+about QLA2x00 target drivers see their README files.
+
+Device handlers
+---------------
+
+Device specific drivers (device handlers) are plugins for SCST, which
+help SCST to analyze incoming requests and determine parameters,
+specific to various types of devices. If an appropriate device handler
+for a SCSI device type isn't loaded, SCST doesn't know how to handle
+devices of this type, so they will be invisible for remote initiators
+(more precisely, "LUN not supported" sense code will be returned).
+
+In addition to device handlers for real devices, there are FILEIO and
+"performance" ones.
+
+FILEIO device handler works over files on file systems and makes from
+them virtual remotely available SCSI disks or CDROM's. In addition, it
+allows to work directly over a block device, e.g. local IDE or SCSI disk
+or ever disk partition, where there is no file systems overhead. Using
+block devices comparing to sending SCSI commands directly to SCSI
+mid-level via scsi_do_req()/scsi_execute_async() has advantage that data
+are transfered via system cache, so it is possible to fully benefit from
+caching and read ahead performed by Linux's VM subsystem. The only
+disadvantage here that there is superfluous data copying between the
+cache and SCST's buffers. This issue is going to be addressed in the
+next release. Virtual CDROM's are useful for remote installation. See
+below for details how to setup and use FILEIO device handler.
+
+"Performance" device handlers for disks, MO disks and tapes in their
+exec() method skip (pretend to execute) all READ and WRITE operations
+and thus provide a way for direct link performance measurements without
+overhead of actual data transferring from/to underlying SCSI device.
+
+NOTE: Since "perf" device handlers on READ operations don't touch the
+====  commands' data buffer, it is returned to remote initiators as it
+      was allocated, without even being zeroed. Thus, "perf" device
+      handlers impose some security risk, so use them with caution.
 
 Compilation options
 -------------------
@@ -175,7 +170,7 @@ in/out in Makefile:
    SCST_HIGHMEM isn't required for HIGHMEM systems and SCST will work
    fine on them with SCST_HIGHMEM off. Untested.
   
- - SCST_STRICT_SECURITY - if defined, makes SCST zero allocated data
+ - SCST_STRICT_SECURITY - if defined, makes SCST clean allocated data
    buffers. Undefining it (default) considerably improves performance
    and eases CPU load, but could create a security hole (information
    leakage), so enable it, if you have strict security requirements.
@@ -209,6 +204,13 @@ entries:
         on device with host:channel:id:lun
 
   - "sessions" file, which lists currently connected initiators (open sessions)
+
+  - "sgv" file provides some statistic about with which block sizes
+    commands from remote initiators come and how effective sgv_pool in
+    serving those allocations from the cache, i.e. without memory
+    allocations requests to the kernel. "Size" - is the commands data
+    size upper rounded to power of 2, "Hit" - how many there are
+    allocations from the cache, "Total" - total number of allocations.
 	
   - "threads" file, which allows to read and set number of SCST's threads
   
@@ -303,10 +305,11 @@ subdirectories "disk_fileio" and "cdrom_fileio". They have similar layout:
     information of currently open device files. On write it supports the
     following command:
     
-    * "open NAME PATH [BLOCK_SIZE] [FLAGS]" - opens file "PATH" as
+    * "open NAME [PATH] [BLOCK_SIZE] [FLAGS]" - opens file "PATH" as
       device "NAME" with block size "BLOCK_SIZE" bytes with flags
-      "FLAGS". The block size must be power of 2 and >= 512 bytes
-      Default is 512. Possible flags:
+      "FLAGS". "PATH" could be empty only for FILEIO CDROM. "BLOCK_SIZE"
+      and "FLAGS" are valid only for disk FILEIO. The block size must be
+      power of 2 and >= 512 bytes Default is 512. Possible flags:
       
       - WRITE_THROUGH - write back caching disabled
       
@@ -337,6 +340,8 @@ subdirectories "disk_fileio" and "cdrom_fileio". They have similar layout:
     
     * "close NAME" - closes device "NAME".
 
+    * "change NAME [PATH]" - changes a virtual CD in the FILEIO CDROM.
+
 For example, "echo "open disk1 /vdisks/disk1" >/proc/scsi_tgt/disk_fileio/disk_fileio"
 will open file /vdisks/disk1 as virtual FILEIO disk with name "disk1".
 
@@ -359,19 +364,20 @@ IMPORTANT: By default for performance reasons FILEIO devices use write back
 	   correspondingly. Note, that usually it turned off by default
 	   and the status of barriers usage isn't reported anywhere in
 	   the system logs as well as there is no way to know it on the
-	   mounted file system (at least we don't know how). Also note
+	   mounted file system (at least no known one). Also note
 	   that on some real-life workloads write through caching might
-	   perform better, than write back one with barrier protection
+	   perform better, than write back one with the barrier protection
 	   turned on.
 
 IMPORTANT: Many disk and partition table mananagement utilities don't support
 =========  block sizes >512 bytes, therefore make sure that your favorite one
            supports it. Also, if you export disk file or device with
-	   another block size, than one, with which it was already
-	   divided on partitions, you could get various weird things
-	   like utilities hang up or other unexpected behaviour. Thus, to
-	   be sure, zero the exported file or device before the first
-	   access to it from the remote initiator with another block size.
+	   some block size, different from one, with which it was
+	   already divided on partitions, you could get various weird
+	   things like utilities hang up or other unexpected behaviour.
+	   Hence, to be sure, zero the exported file or device before the
+	   first access to it from the remote initiator with another
+	   block size.
 
 Performance
 -----------
@@ -379,10 +385,9 @@ Performance
 Before doing any performance measurements note that:
 
 I. Maximum performance is possible only with real SCSI devices or
-performance handlers. FILEIO handler isn't optimized for performance
-yet, although, if you have enough CPU power, it could provide very
-acceptable results, when aggregate throughput is close to aggregate
-throuput locally on the target on the same disks.
+performance handlers. If you have enough CPU power, FILEIO handler could
+provide the same results, when aggregate throughput is close to
+aggregate throuput locally on the target on the same disks.
 
 II. In order to get the maximum performance you should:
 
@@ -411,7 +416,7 @@ IMPORTANT: Some of those options enabled by default, i.e. SCST is optimized
    for locally attached disks, therefore they are not optimal if they
    attached remotly (our case), which sometimes could lead to unexpectedly
    low throughput. You should increase read-ahead size
-   (/sys/block/device/queue/read_ahead_kb) for at least 256Kb or even
+   (/sys/block/device/queue/read_ahead_kb) to at least 256Kb or even
    more on all initiators and the target. Also experiment with other
    parameters in /sys/block/device directory, they also affect the
    performance. If you find the best values, please share them with us.
