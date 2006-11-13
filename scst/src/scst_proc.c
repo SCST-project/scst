@@ -726,45 +726,62 @@ static void scst_proc_cleanup_groups(void)
 	TRACE_EXIT();
 }
 
-static int scst_proc_update_size(int size, int *len,
-	off_t *begin, off_t *pos, off_t *offset, int length)
+struct scst_proc_update_struct {
+	int len, plen, pplen;
+	off_t begin, pbegin, ppbegin;
+	off_t pos;
+};
+
+static int scst_proc_update_size(int size, off_t offset, int length,
+	struct scst_proc_update_struct *p)
 {
 	int res;
 	if (size > 0) {
-		*len += size;
-		*pos = *begin + *len;
-		if (*pos < *offset) {
-			*len = 0;
-			*begin = *pos;
+		p->len += size;
+		p->pos = p->begin + p->len;
+		if (p->pos < offset) {
+			p->len = 0;
+			p->begin = p->pos;
 		}
-		if (pos > offset + length)
+		if (p->pos > offset + length) {
+			p->begin = p->pbegin;
+			p->len = p->plen;
 			res = 1;
-		else
+			goto out;
+		} else
 			res = 0;
-	} else
+	} else {
+		p->begin = p->ppbegin;
+		p->len = p->pplen;
 		res = 1;
+		goto out;
+	}
+	p->ppbegin = p->pbegin;
+	p->pplen = p->plen;
+	p->pbegin = p->begin;
+	p->plen = p->len;
+out:
 	return res;
 }
 
-static int scst_proc_sgv_read_1(char *buffer, int *len,
-	off_t *begin, off_t *pos, off_t *offset, int length,
+static int scst_proc_sgv_read_1(char *buffer, off_t offset, int length,
+	struct scst_proc_update_struct *p,
 	const struct sgv_pool *pool, const char *name)
 {
 	int i, size;
 
-	size = scnprintf(buffer + *len, length - *len, "\n%-20s %-11d %-11d\n",
+	size = scnprintf(buffer + p->len, length - p->len, "\n%-20s %-11d %-11d\n",
 		name, atomic_read(&pool->acc.hit_alloc),
 		atomic_read(&pool->acc.total_alloc));
-	if (scst_proc_update_size(size, len, begin, pos, offset, length))
+	if (scst_proc_update_size(size, offset, length, p))
 		return 1;
 
 	for(i = 0; i < SGV_POOL_ELEMENTS; i++) {
-		size = scnprintf(buffer + *len, length - *len, 
+		size = scnprintf(buffer + p->len, length - p->len, 
 			"  %-18s %-11d %-11d\n", pool->cache_names[i], 
 			atomic_read(&pool->cache_acc[i].hit_alloc),
 			atomic_read(&pool->cache_acc[i].total_alloc));
-		if (scst_proc_update_size(size, len, begin, pos, offset,
-				length))
+		if (scst_proc_update_size(size, offset, length, p))
 			return 1;
 	}
 	return 0;
@@ -774,48 +791,52 @@ static int scst_proc_sgv_read(char *buffer, char **start,
 	off_t offset, int length, int *eof, void *data)
 {
 	int res = 0;
-	int size, len = 0;
-	off_t begin = 0, pos = 0;
+	int size;
+	struct scst_proc_update_struct st;
 
 	TRACE_ENTRY();
 
 	TRACE_DBG("offset: %d, length %d", (int) offset, length);
 
-	size = scnprintf(buffer + len, length - len, "%-20s %-11s %-11s",
+	memset(&st, 0, sizeof(st));
+
+	size = scnprintf(buffer + st.len, length - st.len, "%-20s %-11s %-11s",
 		"Name", "Hit", "Total");
-	if (scst_proc_update_size(size, &len, &begin, &pos, &offset, length))
+	if (scst_proc_update_size(size, offset, length, &st))
 		goto stop_output;
 
-	if (scst_proc_sgv_read_1(buffer, &len, &begin, &pos, &offset, length, 
-			&scst_sgv.norm, "sgv"))
+	if (scst_proc_sgv_read_1(buffer, offset, length, &st, &scst_sgv.norm,
+			"sgv"))
 		goto stop_output;
 
-	if (scst_proc_sgv_read_1(buffer, &len, &begin, &pos, &offset, length, 
+	if (scst_proc_sgv_read_1(buffer, offset, length, &st,
 			&scst_sgv.norm_clust, "sgv-clust"))
 		goto stop_output;
 
-	if (scst_proc_sgv_read_1(buffer, &len, &begin, &pos, &offset, length, 
+	if (scst_proc_sgv_read_1(buffer, offset, length, &st,
 			&scst_sgv.dma, "sgv-dma"))
 		goto stop_output;
 
 #ifdef SCST_HIGHMEM
-	if (scst_proc_sgv_read_1(buffer, &len, &begin, &pos, &offset, length, 
+	if (scst_proc_sgv_read_1(buffer, offset, length, &st,
 			&scst_sgv.highmem, "sgv-highmem"))
 		goto stop_output;
 
 #endif
 
-	size = scnprintf(buffer + len, length - len, "\n%-32s %-11d\n", 
+	size = scnprintf(buffer + st.len, length - st.len, "\n%-32s %-11d\n", 
 		"big", atomic_read(&sgv_big_total_alloc));
-	if (scst_proc_update_size(size, &len, &begin, &pos, &offset, length))
+	if (scst_proc_update_size(size, offset, length, &st))
 		goto stop_output;
 
+	*eof = 1;
+
 stop_output:
-	*start = buffer + (offset - begin);
-	len -= (offset - begin);
-	if (len > length)
-		len = length;
-	res = len;
+	*start = buffer + (offset - st.begin);
+	st.len -= (offset - st.begin);
+	if (st.len > length)
+		st.len = length;
+	res = st.len;
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -979,8 +1000,8 @@ static int scst_scsi_tgt_proc_info(char *buffer, char **start,
 				   void *data)
 {
 	int res = 0;
-	int size, len = 0;
-	off_t begin = 0, pos = 0;
+	int size, len = 0, plen, pplen;
+	off_t begin = 0, pos = 0, pbegin, ppbegin;
 	struct scst_device *dev;
 
 	TRACE_ENTRY();
@@ -1005,6 +1026,8 @@ static int scst_scsi_tgt_proc_info(char *buffer, char **start,
 	} else
 		goto stop_output;
 
+	ppbegin = pbegin = begin;
+	pplen = plen = len;
 	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
 		if (dev->virt_id == 0) {
 			size = scnprintf(buffer + len, length - len,
@@ -1027,11 +1050,23 @@ static int scst_scsi_tgt_proc_info(char *buffer, char **start,
 				len = 0;
 				begin = pos;
 			}
-			if (pos > offset + length)
+			if (pos > offset + length) {
+				begin = pbegin;
+				len = plen;
 				goto stop_output;
-		} else
+			}
+		} else {
+			begin = ppbegin;
+			len = pplen;
 			goto stop_output;
+		}
+		ppbegin = pbegin;
+		pplen = plen;
+		pbegin = begin;
+		plen = len;
 	}
+
+	*eof = 1;
 
 stop_output:
 	*start = buffer + (offset - begin);
@@ -1771,8 +1806,8 @@ static int scst_proc_groups_devices_read(char *buffer, char **start,
 	int res = 0;
 	struct scst_acg *acg = (struct scst_acg *)data;
 	struct scst_acg_dev *acg_dev;
-	int size, len = 0;
-	off_t begin = 0, pos = 0;
+	int size, len = 0, plen, pplen;
+	off_t begin = 0, pos = 0, pbegin, ppbegin;
 
 	TRACE_ENTRY();
 
@@ -1796,6 +1831,8 @@ static int scst_proc_groups_devices_read(char *buffer, char **start,
 	} else
 		goto stop_output;
 
+	ppbegin = pbegin = begin;
+	pplen = plen = len;
 	list_for_each_entry(acg_dev, &acg->acg_dev_list, acg_dev_list_entry) {
 		if (acg_dev->dev->virt_id == 0) {
 			size = scnprintf(buffer + len, length - len,
@@ -1819,11 +1856,23 @@ static int scst_proc_groups_devices_read(char *buffer, char **start,
 				len = 0;
 				begin = pos;
 			}
-			if (pos > offset + length)
+			if (pos > offset + length) {
+				begin = pbegin;
+				len = plen;
 				goto stop_output;
-		} else
+			}
+		} else {
+			begin = ppbegin;
+			len = pplen;
 			goto stop_output;
+		}
+		ppbegin = pbegin;
+		pplen = plen;
+		pbegin = begin;
+		plen = len;
 	}
+
+	*eof = 1;
 
 stop_output:
 	*start = buffer + (offset - begin);
@@ -2034,8 +2083,8 @@ static int scst_proc_sessions_read(char *buffer, char **start,
 	int res = 0;
 	struct scst_acg *acg;
 	struct scst_session *sess;
-	int size, len = 0;
-	off_t begin = 0, pos = 0;
+	int size, len = 0, plen, pplen;
+	off_t begin = 0, pos = 0,  pbegin, ppbegin;
 
 	TRACE_ENTRY();
 
@@ -2059,6 +2108,8 @@ static int scst_proc_sessions_read(char *buffer, char **start,
 	} else
 		goto stop_output;
 
+	ppbegin = pbegin = begin;
+	pplen = plen = len;
 	list_for_each_entry(acg, &scst_acg_list, scst_acg_list_entry) {
 		list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
 			size = scnprintf(buffer + len, length - len,
@@ -2074,12 +2125,24 @@ static int scst_proc_sessions_read(char *buffer, char **start,
 					len = 0;
 					begin = pos;
 				}
-				if (pos > offset + length)
+				if (pos > offset + length) {
+					begin = pbegin;
+					len = plen;
 					goto stop_output;
-			} else
+				}
+			} else {
+				begin = ppbegin;
+				len = pplen;
 				goto stop_output;
+			}
+			ppbegin = pbegin;
+			pplen = plen;
+			pbegin = begin;
+			plen = len;
 		}
 	}
+
+	*eof = 1;
 
 stop_output:
 	*start = buffer + (offset - begin);
@@ -2102,8 +2165,8 @@ static int scst_proc_groups_names_read(char *buffer, char **start,
 	int res = 0;
 	struct scst_acg *acg = (struct scst_acg *)data;
 	struct scst_acn *name;
-	int size, len = 0;
-	off_t begin = 0, pos = 0;
+	int size, len = 0, plen, pplen;
+	off_t begin = 0, pos = 0, pbegin, ppbegin;
 
 	TRACE_ENTRY();
 
@@ -2112,6 +2175,8 @@ static int scst_proc_groups_names_read(char *buffer, char **start,
 		goto out;
 	}
 
+	ppbegin = pbegin = begin;
+	pplen = plen = len;
 	list_for_each_entry(name, &acg->acn_list, acn_list_entry) {
 		size = scnprintf(buffer + len, length - len, "%s\n",
 			name->name);
@@ -2122,11 +2187,23 @@ static int scst_proc_groups_names_read(char *buffer, char **start,
 				len = 0;
 				begin = pos;
 			}
-			if (pos > offset + length)
+			if (pos > offset + length) {
+				begin = pbegin;
+				len = plen;
 				goto stop_output;
-		} else
+			}
+		} else {
+			begin = ppbegin;
+			len = pplen;
 			goto stop_output;
+		}
+		ppbegin = pbegin;
+		pplen = plen;
+		pbegin = begin;
+		plen = len;
 	}
+
+	*eof = 1;
 
 stop_output:
 	*start = buffer + (offset - begin);

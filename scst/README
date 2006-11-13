@@ -323,20 +323,20 @@ subdirectories "disk_fileio" and "cdrom_fileio". They have similar layout:
         way as "*_perf" handlers.
 
       - NV_CACHE - enables "non-volatile cache" mode. In this mode it is
-        assumed that the target has GOOD uninterruptable power supply
-	and software/hardware bug free, i.e. all data from the target's
-	cache are guaranteed sooner or later to go to the media, hence
-	all data synchronization with media operations, like
-	SYNCHRONIZE_CACHE, are ignored (BTW, so violating SCSI standard)
-	in order to bring a bit more performance. Use with extreme
-	caution, since in this mode after a crash of the target
-	journaled file systems don't guarantee the consistency after
-	journal recovery, therefore manual fsck MUST be ran. The main
-	intent for it is to determine the performance impact caused by
-	the cache synchronization. Note, that since usually the journal
-	barrier protection (see "IMPORTANT" below) turned off, enabling
-	NV_CACHE could change nothing, since no data synchronization
-	with media operations will go from the initiator.
+        assumed that the target has GOOD UPS and software/hardware bug
+	free, i.e. all data from the target's cache are guaranteed
+	sooner or later to go to the media, hence all data
+	synchronization with media operations, like SYNCHRONIZE_CACHE,
+	are ignored (BTW, so violating SCSI standard) in order to bring
+	a bit more performance. Use with extreme caution, since in this
+	mode after a crash of the target journaled file systems don't
+	guarantee the consistency after journal recovery, therefore
+	manual fsck MUST be ran. The main intent for it is to determine
+	the performance impact caused by the cache synchronization.
+	Note, that since usually the journal barrier protection (see
+	"IMPORTANT" below) turned off, enabling NV_CACHE could change
+	nothing, since no data synchronization with media operations
+	will go from the initiator.
     
     * "close NAME" - closes device "NAME".
 
@@ -349,32 +349,36 @@ IMPORTANT: By default for performance reasons FILEIO devices use write back
 =========  caching policy. This is generally safe from the consistence of
            journaled file systems, laying over them, point of view, but
 	   your unsaved cached data will be lost in case of
-	   power/hardware/software faulure, so you must supply your
+	   power/hardware/software failure, so you must supply your
 	   target server with some kind of UPS or disable write back
 	   caching using WRITE_THROUGH flag. You also should note, that
 	   the file systems journaling over write back caching enabled
-	   devices works reliably *ONLY* if it uses some kind of data
-	   protection barriers (i.e. after writing journaling data some
-	   kind of synchronization with media operations will be used),
-	   otherwise, because of possible reordering in the cache, even
-	   after successful journal rollback you very much risk to loose
-	   your data on the FS. On Linux initiators for EXT3 and
-	   ReiserFS file systems the barrier protection could be turned
-	   on using "barrier=1" and "barrier=flush" mount options
-	   correspondingly. Note, that usually it turned off by default
-	   and the status of barriers usage isn't reported anywhere in
-	   the system logs as well as there is no way to know it on the
-	   mounted file system (at least no known one). Also note
-	   that on some real-life workloads write through caching might
-	   perform better, than write back one with the barrier protection
-	   turned on.
+	   devices works reliably *ONLY* if the order of journal writes
+	   is guaranteed or it uses some kind of data protection
+	   barriers (i.e. after writing journal data some kind of
+	   synchronization with media operations is used), otherwise,
+	   because of possible reordering in the cache, even after
+	   successful journal rollback, you very much risk to loose your
+	   data on the FS. Currently, Linux IO subsystem guarantees
+	   order of write operations only using data protection
+	   barriers. Some info about it from the XFS point of view could
+	   be found at http://oss.sgi.com/projects/xfs/faq.html#wcache.
+	   On Linux initiators for EXT3 and ReiserFS file systems the
+	   barrier protection could be turned on using "barrier=1" and
+	   "barrier=flush" mount options correspondingly. Note, that
+	   usually it turned off by default and the status of barriers
+	   usage isn't reported anywhere in the system logs as well as
+	   there is no way to know it on the mounted file system (at
+	   least no known one). Also note that on some real-life
+	   workloads write through caching might perform better, than
+	   write back one with the barrier protection turned on.
 
-IMPORTANT: Many disk and partition table mananagement utilities don't support
+IMPORTANT: Many disk and partition table management utilities don't support
 =========  block sizes >512 bytes, therefore make sure that your favorite one
            supports it. Also, if you export disk file or device with
 	   some block size, different from one, with which it was
 	   already divided on partitions, you could get various weird
-	   things like utilities hang up or other unexpected behaviour.
+	   things like utilities hang up or other unexpected behavior.
 	   Hence, to be sure, zero the exported file or device before the
 	   first access to it from the remote initiator with another
 	   block size.
@@ -384,10 +388,15 @@ Performance
 
 Before doing any performance measurements note that:
 
-I. Maximum performance is possible only with real SCSI devices or
-performance handlers. If you have enough CPU power, FILEIO handler could
-provide the same results, when aggregate throughput is close to
-aggregate throuput locally on the target on the same disks.
+I. Currently maximum performance is possible only with real SCSI devices
+with several simultaneously executed commands (SCSI tagged queuing) or
+performance handlers. If you have enough CPU power, FILEIO handler also
+could provide the same results, when aggregate throughput is close to
+the aggregate throughput locally on the target from the same disks. Also
+note, that currently IO subsystem in Linux implemented on such way, so a
+FILEIO device over a single file occupied entire formatted with some
+file system device (eg /dev/hdc) could perform considerably better, than
+a FILEIO device over /dev/hdc itself without the file system involved.
 
 II. In order to get the maximum performance you should:
 
@@ -414,8 +423,8 @@ IMPORTANT: Some of those options enabled by default, i.e. SCST is optimized
 
  - The default kernel read-ahead and queuing settings are optimized
    for locally attached disks, therefore they are not optimal if they
-   attached remotly (our case), which sometimes could lead to unexpectedly
-   low throughput. You should increase read-ahead size
+   attached remotely (our case), which sometimes could lead to
+   unexpectedly low throughput. You should increase read-ahead size
    (/sys/block/device/queue/read_ahead_kb) to at least 256Kb or even
    more on all initiators and the target. Also experiment with other
    parameters in /sys/block/device directory, they also affect the
@@ -448,7 +457,7 @@ IMPORTANT: If you use on initiator some versions of Windows (at least W2K)
 	   a device node is used. Both values are on the target.
 
 Just for reference: we had with 0.9.2 and "old" Qlogic driver on 2.4.2x
-kernel, where we did carefull performance study, aggregate throuhput
+kernel, where we did careful performance study, aggregate throughput
 about 390 Mb/sec from 2 qla2300 cards sitting on different 64-bit PCI
 buses and working simultaneously for two different initiators with
 several simultaneously working load programs on each. From one card -

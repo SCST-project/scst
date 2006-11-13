@@ -2066,7 +2066,7 @@ restart:
 		 * value less, than requested. Let's restart.
 		 */
 		int i, e = eiv_count;
-		TRACE(TRACE_MINOR, "write() returned %d from %zd "
+		TRACE_MGMT_DBG("write() returned %d from %zd "
 			"(iv_count=%d)", (int)err, full_len,
 			eiv_count);
 		if (err == 0) {
@@ -2261,20 +2261,43 @@ out:
 	return dev;
 }
 
-static int fileio_proc_update_size(int size, int *len,
-	off_t *begin, off_t *pos, off_t *offset)
+struct fileio_proc_update_struct {
+	int len, plen, pplen;
+	off_t begin, pbegin, ppbegin;
+	off_t pos;
+};
+
+static int fileio_proc_update_size(int size, off_t offset, int length,
+	struct fileio_proc_update_struct *p, int is_start)
 {
 	int res;
 	if (size > 0) {
-		*len += size;
-		*pos = *begin + *len;
-		if (*pos < *offset) {
-			*len = 0;
-			*begin = *pos;
+		p->len += size;
+		p->pos = p->begin + p->len;
+		if (p->pos < offset) {
+			p->len = 0;
+			p->begin = p->pos;
 		}
-		res = 0;
-	} else
+		if (p->pos > offset + length) {
+			p->begin = p->pbegin;
+			p->len = p->plen;
+			res = 1;
+			goto out;
+		} else
+			res = 0;
+	} else {
+		p->begin = p->ppbegin;
+		p->len = p->pplen;
 		res = 1;
+		goto out;
+	}
+	if (is_start) {
+		p->ppbegin = p->pbegin;
+		p->pplen = p->plen;
+		p->pbegin = p->begin;
+		p->plen = p->len;
+	}
+out:
 	return res;
 }
 
@@ -2288,10 +2311,12 @@ static int disk_fileio_proc(char *buffer, char **start, off_t offset,
 	int res = 0, action;
 	char *p, *name, *file_name;
 	struct scst_fileio_dev *virt_dev, *vv;
-	int size, len = 0;
-	off_t begin = 0, pos = 0;
+	int size;
+	struct fileio_proc_update_struct pu;
 
 	TRACE_ENTRY();
+
+	memset(&pu, 0, sizeof(pu));
 	
 	/* VERY UGLY code. You can rewrite it if you want */
 	
@@ -2303,99 +2328,84 @@ static int disk_fileio_proc(char *buffer, char **start, off_t offset,
 	if (inout == 0) { /* read */
 		size = scnprintf(buffer, length, "%-17s %-11s %-11s %-15s %s\n",
 			       "Name", "Size(MB)", "Block size", "Options", "File name");
-		if (fileio_proc_update_size(size, &len, &begin, &pos, &offset)) {
-			res = len;
-			goto out_up;
-		}
+		if (fileio_proc_update_size(size, offset, length, &pu, 1))
+			goto stop_output;
 
 		list_for_each_entry(virt_dev, &disk_fileio_dev_list, 
 			fileio_dev_list_entry)
 		{
 			int c;
-			size = scnprintf(buffer + len, length - len, 
+			size = scnprintf(buffer + pu.len, length - pu.len, 
 				"%-17s %-11d %-12d", virt_dev->name,
 				(uint32_t)(virt_dev->file_size >> 20),
 				virt_dev->block_size);
-			if (fileio_proc_update_size(size, &len, &begin, &pos, 
-						&offset)) {
-				res = len;
-				goto out_up;
+			if (fileio_proc_update_size(size, offset, length, &pu,
+					1)) {
+				goto stop_output;
 			}
 			c = 0;
 			if (virt_dev->wt_flag) {
-				size = scnprintf(buffer + len, length - len, "WT");
+				size = scnprintf(buffer + pu.len, length - pu.len, "WT");
 				c += size;
-				if (fileio_proc_update_size(size, &len, &begin, 
-							&pos, &offset)) {
-					res = len;
-					goto out_up;
+				if (fileio_proc_update_size(size, offset,
+						length, &pu, 0)) {
+					goto stop_output;
 				}
 			}
 			if (virt_dev->nv_cache) {
-				size = scnprintf(buffer + len, length - len,
+				size = scnprintf(buffer + pu.len, length - pu.len,
 					c ? ",NV" : "NV");
 				c += size;
-				if (fileio_proc_update_size(size, &len, &begin, 
-							&pos, &offset)) {
-					res = len;
-					goto out_up;
+				if (fileio_proc_update_size(size, offset,
+						length, &pu, 0)) {
+					goto stop_output;
 				}
 			}
 			if (virt_dev->rd_only_flag) {
-				size = scnprintf(buffer + len, length - len, 
+				size = scnprintf(buffer + pu.len, length - pu.len, 
 					c ? ",RO" : "RO");
 				c += size;
-				if (fileio_proc_update_size(size, &len, &begin, 
-							&pos, &offset)) {
-					res = len;
-					goto out_up;
+				if (fileio_proc_update_size(size, offset,
+						length, &pu, 0)) {
+					goto stop_output;
 				}
 			}
 			if (virt_dev->o_direct_flag) {
-				size = scnprintf(buffer + len, length - len, 
+				size = scnprintf(buffer + pu.len, length - pu.len, 
 					c ? ",DR" : "DR");
 				c += size;
-				if (fileio_proc_update_size(size, &len, &begin, 
-							&pos, &offset)) {
-					res = len;
-					goto out_up;
+				if (fileio_proc_update_size(size, offset,
+						length, &pu, 0)) {
+					goto stop_output;
 				}
 			}
 			if (virt_dev->nullio) {
-				size = scnprintf(buffer + len, length - len, 
+				size = scnprintf(buffer + pu.len, length - pu.len, 
 					c ? ",NIO" : "NIO");
 				c += size;
-				if (fileio_proc_update_size(size, &len, &begin, 
-							&pos, &offset)) {
-					res = len;
-					goto out_up;
+				if (fileio_proc_update_size(size, offset,
+						length, &pu, 0)) {
+					goto stop_output;
 				}
 			}
 			while (c < 16) {
-				size = scnprintf(buffer + len, length - len, " ");
-				if (fileio_proc_update_size(size, &len, &begin, &pos, 
-						&offset)) {
-					res = len;
-					goto out_up;
+				size = scnprintf(buffer + pu.len, length - pu.len, " ");
+				if (fileio_proc_update_size(size, offset,
+						length, &pu, 0)) {
+					goto stop_output;
 				}
 				c++;
 			}
-			size = scnprintf(buffer + len, length - len, "%s\n",
+			size = scnprintf(buffer + pu.len, length - pu.len, "%s\n",
 					virt_dev->file_name);
-			if (fileio_proc_update_size(size, &len, &begin, 
-						&pos, &offset)) {
-				res = len;
-				goto out_up;
+			if (fileio_proc_update_size(size, offset, length, &pu,
+					0)) {
+				goto stop_output;
 			}
 		}
-		*start = buffer + (offset - begin);
-		len -= (offset - begin);
-		if (len > length)
-			len = length;
-		res = len;
 		*eof = 1;
-	} 
-	else {  /* write */
+		goto stop_output;
+	} else {  /* write */
 		uint32_t block_size = DEF_DISK_BLOCKSIZE;
 		int block_shift = DEF_DISK_BLOCKSIZE_SHIFT;
 		p = buffer;
@@ -2545,15 +2555,15 @@ static int disk_fileio_proc(char *buffer, char **start, off_t offset,
 			
 			strcpy(virt_dev->name, name);
 
-			len = strlen(file_name) + 1;
-			virt_dev->file_name = kmalloc(len, GFP_KERNEL);
+			pu.len = strlen(file_name) + 1;
+			virt_dev->file_name = kmalloc(pu.len, GFP_KERNEL);
 			if (virt_dev->file_name == NULL) {
 				TRACE(TRACE_OUT_OF_MEM, "%s",
 				      "Allocation of file_name failed");
 				res = -ENOMEM;
 				goto out_free_vdev;
 			}
-			strncpy(virt_dev->file_name, file_name, len);
+			strncpy(virt_dev->file_name, file_name, pu.len);
 
 			list_add_tail(&virt_dev->fileio_dev_list_entry,
 				      &disk_fileio_dev_list);
@@ -2604,6 +2614,14 @@ out_up:
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+stop_output:
+	*start = buffer + (offset - pu.begin);
+	pu.len -= (offset - pu.begin);
+	if (pu.len > length)
+		pu.len = length;
+	res = pu.len;
+	goto out_up;
 
 out_free_vpath:
 	list_del(&virt_dev->fileio_dev_list_entry);
@@ -2924,10 +2942,12 @@ static int cdrom_fileio_proc(char *buffer, char **start, off_t offset,
 	int res = 0, action;
 	char *p, *name;
 	struct scst_fileio_dev *virt_dev;
-	int size, len = 0;
-	off_t begin = 0, pos = 0;
+	int size;
+	struct fileio_proc_update_struct pu;
 
 	TRACE_ENTRY();
+
+	memset(&pu, 0, sizeof(pu));
 
 	if (down_interruptible(&scst_fileio_mutex) != 0) {
 		res = -EINTR;
@@ -2937,32 +2957,24 @@ static int cdrom_fileio_proc(char *buffer, char **start, off_t offset,
 	if (inout == 0) { /* read */
 		size = scnprintf(buffer, length, "%-17s %-9s %s\n",
 			       "Name", "Size(MB)", "File name");
-		if (fileio_proc_update_size(size, &len, &begin, &pos, 
-					&offset)) {
-			res = len;
-			goto out_up;
-		}
+		if (fileio_proc_update_size(size, offset, length, &pu, 1))
+			goto stop_output;
 
 		list_for_each_entry(virt_dev, &cdrom_fileio_dev_list, 
 			fileio_dev_list_entry)
 		{
-			size = scnprintf(buffer + len, length - len, 
+			size = scnprintf(buffer + pu.len, length - pu.len, 
 				"%-17s %-9d %s\n", virt_dev->name,
 				(uint32_t)(virt_dev->file_size >> 20),
 				virt_dev->file_name);
-			if (fileio_proc_update_size(size, &len, &begin, 
-						&pos, &offset)) {
-				res = len;
-				goto out_up;
+			if (fileio_proc_update_size(size, offset, length, &pu,
+					1)) {
+				goto stop_output;
 			}
 		}
-		*start = buffer + (offset - begin);
-		len -= (offset - begin);
-		if (len > length)
-			len = length;
-		res = len;
-	} 
-	else {  /* write */
+		*eof = 1;
+		goto stop_output;
+	} else {  /* write */
 		p = buffer;
 		if (p[strlen(p) - 1] == '\n') {
 			p[strlen(p) - 1] = '\0';
@@ -3022,6 +3034,13 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 
+stop_output:
+	*start = buffer + (offset - pu.begin);
+	pu.len -= (offset - pu.begin);
+	if (pu.len > length)
+		pu.len = length;
+	res = pu.len;
+	goto out_up;
 }
 
 static int fileio_proc_help_build(struct scst_dev_type *dev_type)

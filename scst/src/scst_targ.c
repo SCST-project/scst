@@ -306,7 +306,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 				cmd->cdb[0], dev->handler->name);
 		}
 		if (scst_cmd_is_expected_set(cmd)) {
-			TRACE(TRACE_MINOR, "Using initiator supplied values: "
+			TRACE(TRACE_SCSI, "Using initiator supplied values: "
 				"direction %d, transfer_len %d",
 				cmd->expected_data_direction,
 				cmd->expected_transfer_len);
@@ -1234,6 +1234,7 @@ static int scst_report_luns_local(struct scst_cmd *cmd)
 	int buffer_size;
 	struct scst_tgt_dev *tgt_dev = NULL;
 	uint8_t *buffer;
+	int offs, overflow = 0;
 
 	TRACE_ENTRY();
 
@@ -1243,45 +1244,70 @@ static int scst_report_luns_local(struct scst_cmd *cmd)
 	cmd->host_status = DID_OK;
 	cmd->driver_status = 0;
 
-	/* ToDo: use full SG buffer, not only the first entry */
+	if (cmd->cdb[2] != 0) {
+		PRINT_ERROR_PR("Unsupported SELECT REPORT value %x in REPORT "
+			"LUNS command", cmd->cdb[2]);
+		goto out_err;
+	}
+
 	buffer_size = scst_get_buf_first(cmd, &buffer);
 	if (unlikely(buffer_size <= 0))
 		goto out_err;
 
-	if (buffer_size < 16) {
+	if (buffer_size < 16)
 		goto out_put_err;
-	}
 
 	memset(buffer, 0, buffer_size);
+	offs = 8;
 
 	/* sess->sess_tgt_dev_list is protected by suspended activity */
 	list_for_each_entry(tgt_dev, &cmd->sess->sess_tgt_dev_list,
 			    sess_tgt_dev_list_entry) 
 	{
-		if (8 + 8 * dev_cnt + 2 <= buffer_size) {
-			buffer[8 + 8 * dev_cnt] = (tgt_dev->acg_dev->lun >> 8) & 0xff;
-			buffer[8 + 8 * dev_cnt + 1] = tgt_dev->acg_dev->lun & 0xff;
+		if (!overflow) {
+			if (offs >= buffer_size) {
+				scst_put_buf(cmd, buffer);
+				buffer_size = scst_get_buf_first(cmd, &buffer);
+				if (buffer_size > 0) {
+					memset(buffer, 0, buffer_size);
+					offs = 0;
+				} else {
+					overflow = 1;
+					goto inc_dev_cnt;
+				}
+			}
+			if ((buffer_size - offs) < 8) {
+				PRINT_ERROR_PR("Buffer allocated for REPORT "
+					"LUNS command doesn't allow to fit 8 "
+					"byte entry (buffer_size=%d)",
+					buffer_size);
+				goto out_put_hw_err;
+			}
+			buffer[offs] = (tgt_dev->acg_dev->lun >> 8) & 0xff;
+			buffer[offs + 1] = tgt_dev->acg_dev->lun & 0xff;
+			offs += 8;
 		}
+inc_dev_cnt:
 		dev_cnt++;
-		/* Tmp, until ToDo above done */
-		if (dev_cnt >= ((PAGE_SIZE >> 3) - 2))
-			break;
 	}
+	if (!overflow)
+		scst_put_buf(cmd, buffer);
 
 	/* Set the response header */
+	buffer_size = scst_get_buf_first(cmd, &buffer);
+	if (unlikely(buffer_size <= 0))
+		goto out_err;
 	dev_cnt *= 8;
 	buffer[0] = (dev_cnt >> 24) & 0xff;
 	buffer[1] = (dev_cnt >> 16) & 0xff;
 	buffer[2] = (dev_cnt >> 8) & 0xff;
 	buffer[3] = dev_cnt & 0xff;
-
-	dev_cnt += 8;
-
 	scst_put_buf(cmd, buffer);
 
-	if (buffer_size > dev_cnt)
+	dev_cnt += 8;
+	if (dev_cnt < cmd->resp_data_len)
 		scst_set_resp_data_len(cmd, dev_cnt);
-	
+
 out_done:
 	cmd->completed = 1;
 
@@ -1297,6 +1323,11 @@ out_put_err:
 out_err:
 	scst_set_cmd_error(cmd,
 		   SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+	goto out_done;
+
+out_put_hw_err:
+	scst_put_buf(cmd, buffer);
+	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 	goto out_done;
 }
 

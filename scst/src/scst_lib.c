@@ -341,7 +341,7 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 		      dev->scsi_dev->lun, (uint64_t)tgt_dev->acg_dev->lun);
 	}
 	else {
-		TRACE(TRACE_MINOR, "Virtual device SCST lun=%Ld", 
+		TRACE_MGMT_DBG("Virtual device SCST lun=%Ld", 
 		      (uint64_t)tgt_dev->acg_dev->lun);
 	}
 
@@ -1562,6 +1562,7 @@ lun_t scst_unpack_lun(const uint8_t *lun, int len)
 	address_method = (*lun) >> 6;	/* high 2 bits of byte 0 */
 	switch (address_method) {
 	case 0:	/* peripheral device addressing method */
+#if 0 /* At least QLA2300 Linux ini uses it as the flat space addressing method */
 		if (*lun) {
 			PRINT_ERROR_PR("Illegal BUS INDENTIFIER in LUN "
 			     "peripheral device addressing method 0x%02x, "
@@ -1570,6 +1571,9 @@ lun_t scst_unpack_lun(const uint8_t *lun, int len)
 		}
 		res = *(lun + 1);
 		break;
+#else
+		/* go through */
+#endif
 
 	case 1:	/* flat space addressing method */
 		res = *(lun + 1) | (((*lun) & 0x3f) << 8);
