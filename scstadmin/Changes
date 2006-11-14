@@ -1,0 +1,17 @@
+Changes since 0.9.2-pre2:
+
+- List SCST sessions
+- Verify specified config file against live configuration and show differences
+- Write config file based on live configuration
+- Force-apply configuration, even config deletions with a force flag.
+- Added new option types
+- Added support for specifying a blocksize
+- Added "-reload-config" to init script
+
+Changes since 0.9.5-pre0:
+
+- Renamed scst to scstadmin
+- Fixed writeConfiguration() to properly write DEVICE lines with no options
+- Removed the comment which prevented a target from being enabled in enableTarget()
+- Updated init.d/scst to use scstadmin instead of scst_db
+- Fixup of README file

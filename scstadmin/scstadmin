@@ -1,0 +1,1270 @@
+#!/usr/bin/perl
+$Version  = 'SCST Configurator v0.6';
+
+# Configures SCST
+#
+# Written by Mark R. Buechler 12/07/04
+
+sub usage
+  {
+    die <<"EndUsage";
+$Version
+
+Usage:
+General Operations
+     -config <config>     : Configure SCST given the specified configuration file.
+     -ClearConfig         : Clear all SCST configuration.
+     -WriteConfig <file>  : Writes the current configuration out to the specified file.
+     -checkConfig <file>  : Checks the saved configuration in the specified file.
+     -sessions            : List current initiator sessions.
+     
+Target Driver Operations
+     -enable <wwn|host>   : Enable target mode for driver at specified WWN or host.
+     -disable <wwn|host>  : Disable target mode for driver at specified WWN or host.
+
+Devices Operations
+     -adddev <device>     : Adds a device to a handler.
+         -handler <handler>
+         -path <path>
+         -options <options>
+         -blocksize <bytes>
+     -RemoveDev <device>  : Remove a device from a handler.
+         -handler <handler>
+ 
+Users Operations
+     -adduser <user>      : Adds a user to a security group.
+         -group <group>
+     -RemoveUser <user>   : Delete a user from a security group.
+         -group <group>
+     -ClearUsers          : Clear all users from a given security group.
+         -group <group>
+
+Groups Operations
+     -addgroup <group>    : Add a given group to available security groups.
+     -RemoveGroup <group> : Remove a give group from available security groups.
+     
+Assignments Operations
+     -assigndev <device>  : Assign a given device to a security group.
+         -group <group>
+         -lun <lun>
+     -ReleaseDev <device> : Remove a given device from a security group.
+         -group <group>
+     -ClearDevs           : Clear all device assignments for a security group.
+         -group <group>
+
+Options
+     -ForceConfig         : Force all confuration changes, even deletions (DANGER!).
+  
+Debugging (limited support)
+     -debug               : Debug mode - don\'t do anything destructive.
+
+Available Handlers:
+      disk, disk_fileio, disk_perf, cdrom, changer, modisk, modisk_perf, tape, tape_perf
+
+Available Options for create and open:
+      WRITE_THROUGH, READ_ONLY, O_DIRECT, NULLIO, NV_CACHE
+     
+Examples:
+     Enable target mode for fibre card specifying its WWN
+       scstadmin -enable 50:06:0B:00:00:39:71:78
+
+     Disable target mode for SCSI host specifying host number
+       scstadmin -disable host4 
+
+     Create a new security group:
+       scstadmin -addgroup HOST01
+       
+     Create a device given an already existing disk file:
+       scstadmin -adddev DISK01 -handler disk_fileio -path /vdisks/disk01.dsk -options READ_ONLY,WRITE_THROUGH
+       
+     Assign a device to a security group:
+       scstadmin -assigndev DISK01 -group HOST01 -lun 1
+
+EndUsage
+  }
+
+use SCST::SCST;
+use Getopt::Long;
+use IO::File;
+use IO::Dir;
+use POSIX;
+use strict;
+
+my $_DEF_CONFIG_ = '/etc/scst.conf';
+
+my $TRUE  = 1;
+my $FALSE = 0;
+
+my $_MAX_LUNS_      = 255;
+my $_DEFAULT_GROUP_ = 'Default';
+
+my $_SCSI_CLASS_    = '/sys/class/scsi_host';
+my $_FC_CLASS_      = '/sys/class/fc_host';
+
+my $SCST;
+my $DEVICES;
+my $TARGETS;
+my %USERS;
+my %ASSIGNMENTS;
+my %HANDLERS;
+my %GROUPS;
+my $_DEBUG_;
+
+my %_HANDLER_MAP_ = ('cdrom' => $SCST::SCST::CDROM_TYPE,
+		     'changer' => $SCST::SCST::CHANGER_TYPE,
+		     'disk' => $SCST::SCST::DISK_TYPE,
+		     'disk_fileio' => $SCST::SCST::DISKFILE_TYPE,
+		     'cdrom_fileio' => $SCST::SCST::CDROMFILE_TYPE,
+		     'disk_perf' => $SCST::SCST::DISKPERF_TYPE,
+		     'modisk' => $SCST::SCST::MODISK_TYPE,
+		     'modisk_perf' => $SCST::SCST::MODISKPERF_TYPE,
+		     'tape' => $SCST::SCST::TAPE_TYPE,
+		     'tape_perf' => $SCST::SCST::TAPEPERF_TYPE);
+		     
+my %_REVERSE_MAP_ = ($SCST::SCST::CDROM_TYPE => 'cdrom',
+		     $SCST::SCST::CHANGER_TYPE => 'changer',
+		     $SCST::SCST::DISK_TYPE => 'disk',
+		     $SCST::SCST::DISKFILE_TYPE => 'disk_fileio',
+		     $SCST::SCST::CDROMFILE_TYPE => 'cdrom_fileio',
+		     $SCST::SCST::DISKPERF_TYPE => 'disk_perf',
+		     $SCST::SCST::MODISK_TYPE => 'modisk',
+		     $SCST::SCST::MODISKPERF_TYPE => 'modisk_perf',
+		     $SCST::SCST::TAPE_TYPE => 'tape',
+		     $SCST::SCST::TAPEPERF_TYPE => 'tape_perf');
+
+$SIG{INT} = \&commitSuicide;
+
+POSIX::setsid();
+
+&main();
+
+sub getArgs {
+	my $applyConfig;
+	my $forceConfig;
+	my $clearConfig;
+	my $writeConfig;
+	my $checkConfig;
+	my $showSessions;
+	my $addDev;
+	my $devPath;
+	my $removeDev;
+	my $addUser;
+	my $removeUser;
+	my $clearUsers;
+	my $addGroup;
+	my $removeGroup;
+	my $assignDev;
+	my $releaseDev;
+	my $clearDevs;
+	my $devLun;
+	my $handler;
+	my $group;
+	my $options;
+	my $blocksize;
+	my $enable;
+	my $disable;
+
+	my $p = new Getopt::Long::Parser;
+
+	if (!$p->getoptions('config:s'          => \$applyConfig,
+			    'ClearConfig'       => \$clearConfig,
+			    'ForceConfig'	=> \$forceConfig,
+			    'WriteConfig=s'	=> \$writeConfig,
+			    'checkConfig=s'	=> \$checkConfig,
+			    'sessions'		=> \$showSessions,
+			    'adddev=s'          => \$addDev,
+			    'path=s'		=> \$devPath,
+			    'RemoveDev=s'       => \$removeDev,
+			    'lun=s'             => \$devLun,
+			    'adduser=s'         => \$addUser,
+			    'RemoveUser=s'      => \$removeUser,
+			    'ClearUsers'        => \$clearUsers,
+			    'addgroup=s'        => \$addGroup,
+			    'RemoveGroup=s'     => \$removeGroup,
+			    'assigndev=s'       => \$assignDev,
+			    'ReleaseDev=s'      => \$releaseDev,
+			    'ClearDevs'         => \$clearDevs,
+			    'handler=s'         => \$handler,
+			    'group=s'           => \$group,
+			    'options=s'		=> \$options,
+			    'blocksize=s'	=> \$blocksize,
+			    'enable=s'		=> \$enable,
+			    'disable=s'		=> \$disable,
+			    'debug'             => \$_DEBUG_)) {
+		&usage();
+	}
+
+	if ((defined($enable) && !$enable) || (defined($disable) && !$disable)) {
+		print "Argument -enable/-disable requires a WWN or host.\n\n";
+		usage();
+	}
+
+	if ($handler && !$_HANDLER_MAP_{$handler}) {
+		print "Invalid handler '$handler' specified. Available handlers are:\n\n";
+		foreach my $_handler (keys %_HANDLER_MAP_) {
+			print "\t$_handler\n";
+		}
+		print "\n";
+		exit 1;
+	}
+
+	if ($addDev && !($handler && $devPath)) {
+		print "Please specify -handler and -path with -adddev.\n\n";
+		usage();
+	}
+
+	if (defined($blocksize) && !$blocksize) {
+		print "Please specify bytes with -blocksize.\n\n";
+		usage();
+	}
+
+	if ($blocksize && !$addDev) {
+		print "Please specify -adddev with -blocksize.\n";
+		usage();
+	}
+
+	if (defined($forceConfig) && !defined($applyConfig)) {
+		print "Please specify -config with -ForceConfig.\n\n";
+		usage();
+	}
+
+	if ($removeDev && !$handler) {
+		print "Please specify -handler with -RemoveDev.\n\n";
+		usage();
+	}
+
+	if ($addUser && !defined($group)) {
+		print "Please specify -group with -adduser.\n\n";
+		usage();
+	}
+
+	if ($removeUser && !defined($group)) {
+		print "Please specify -group with -RemoveUser.\n\n";
+		usage();
+	}
+
+	if ($clearUsers && !defined($group)) {
+		print "Please specify -group with -ClearUsers.\n\n";
+		usage();
+	}
+
+	if ($assignDev && !(defined($group) && defined($devLun))) {
+		print "Please specify -group and -lun with -assigndev.\n\n";
+		usage();
+	}
+
+	if ($releaseDev && !defined($group)) {
+		print "Please specify -group with -RemoveDev.\n\n";
+		usage();
+	}
+
+	if ($clearDevs && !defined($group)) {
+		print "Please specify -group with -ClearDevs.\n\n";
+		usage();
+	}
+
+	if (defined($writeConfig) && !$writeConfig) {
+		print "Please specify a file name to write configuration to..\n\n";
+		usage();
+	}
+
+	$forceConfig = $TRUE if (defined($forceConfig));
+	$showSessions = $TRUE if (defined($showSessions));
+
+	$enable =~ tr/A-Z/a-z/; $disable =~ tr/A-Z/a-z/;
+
+	if ((defined($showSessions) + defined($addDev) + defined($removeDev) +
+	     defined($addUser) + defined($enable) + defined($disable) +
+	     defined($removeUser) + defined($clearUsers) + defined($assignDev) +
+	     defined($releaseDev) + defined($clearDevs) + defined($applyConfig) +
+	     defined($clearConfig) + defined($writeConfig) + defined($checkConfig)) > 1) {
+		print "Please specify only one operation at a time.\n";
+		usage();
+	}
+
+	$applyConfig = $_DEF_CONFIG_ if (defined($applyConfig) && !$applyConfig);
+	$checkConfig = $_DEF_CONFIG_ if (defined($checkConfig) && !$checkConfig);
+
+	return ($enable, $disable, $addDev, $devPath, $devLun, $removeDev, $addUser, $removeUser,
+	        $clearUsers, $addGroup, $removeGroup, $assignDev, $releaseDev, $clearDevs,
+		$handler, $group, $options, $blocksize, $applyConfig, $forceConfig,
+		$clearConfig, $writeConfig, $checkConfig, $showSessions);
+}
+
+sub main {
+	my $rc;
+
+	STDOUT->autoflush(1);
+
+	# We need to run as root
+	if ( $> ) {die("This program must run as root.\n");}
+
+	my ($enable, $disable, $addDev, $devPath, $devLun, $removeDev, $addUser, $removeUser,
+	    $clearUsers, $addGroup, $removeGroup, $assignDev, $releaseDev, $clearDevs,
+	    $handler, $group, $options, $blocksize, $applyConfig, $forceConfig,
+	    $clearConfig, $writeConfig, $checkConfig, $showSessions) = getArgs();
+
+	$SCST = new SCST::SCST($_DEBUG_);
+
+	readCurrentConfig();
+
+	SWITCH: {
+		$applyConfig && do {
+			if ($forceConfig) {
+				$rc = applyConfiguration($applyConfig, $FALSE, $TRUE);
+				die("Configuration errors found, aborting.\n") if ($rc);
+
+				print "\nConfiguration will apply in 10 seconds, type ctrl-c to abort..\n";
+				sleep 10;
+			}
+
+			$rc = applyConfiguration($applyConfig, $forceConfig, $FALSE);
+			last SWITCH;
+		};
+		$checkConfig && do {
+			$rc = applyConfiguration($checkConfig, $FALSE, $TRUE);
+			last SWITCH;
+		};
+		$writeConfig && do {
+			$rc = writeConfiguration($writeConfig);
+			last SWITCH;
+		};
+		$showSessions && do {
+			$rc = showSessions();
+			last SWITCH;
+		};
+		defined($clearConfig) && do {
+			$rc = clearConfiguration();
+			last SWITCH;
+		};
+		$addDev && do {
+			$rc = addDevice($handler, $addDev, $devPath, $options, $blocksize);
+			last SWITCH;
+		};
+		$removeDev && do {
+			$rc = removeDevice($handler, $removeDev);
+			last SWITCH;
+		};
+		$addUser && do {
+			$rc = addUser($group, $addUser);
+			last SWITCH;
+		};
+		$removeUser && do {
+			$rc = removeUser($group, $removeUser);
+			last SWITCH;
+		};
+		defined($clearUsers) && do {
+			$rc = clearUsers($group);
+			last SWITCH;
+		};
+		$addGroup && do {
+			$rc = addGroup($addGroup);
+			last SWITCH;
+		};
+		$removeGroup && do {
+			$rc = removeGroup($removeGroup);
+			last SWITCH;
+		};
+		$assignDev && do {
+			$rc = assignDevice($group, $assignDev, $devLun);
+			last SWITCH;
+		};
+		$releaseDev && do {
+			$rc = releaseDevice($group, $releaseDev);
+			last SWITCH;
+		};
+		defined($clearDevs) && do {
+			$rc = clearDevices($group);
+			last SWITCH;
+		};
+		$enable && do {
+			$enable = unformatTarget($enable);
+			$rc = enableTarget($enable, $TRUE);
+			last SWITCH;
+		};
+		$disable && do {
+			$disable = unformatTarget($disable);
+			$rc = enableTarget($disable, $FALSE);
+			last SWITCH;
+		};
+
+		print "No valid operations specified.\n";
+		usage();
+		exit $TRUE;
+	}
+
+	print "All done.\n";
+
+	exit $rc;
+}
+
+sub readCurrentConfig {
+	print "Collecting current configuration.. ";
+
+	my $eHandlers = $SCST->handlers();
+
+	foreach my $handler (@{$eHandlers}) {
+		$HANDLERS{$handler}++; # For quick lookups
+	}
+
+	$TARGETS = targets();
+
+	$DEVICES = $SCST->devices();
+	my $_eGroups = $SCST->groups();
+
+	foreach my $group (@{$_eGroups}) {
+		$GROUPS{$group}++; # For quick lookups
+		$ASSIGNMENTS{$group} = $SCST->groupDevices($group);
+		my $eUsers = $SCST->users($group);
+
+		foreach my $user (@{$eUsers}) {
+			$USERS{$group}->{$user}++; # For quick lookups
+		}
+	}
+
+	print "done.\n";
+}
+
+sub writeConfiguration {
+	my $file = shift;
+
+	if (-f $file) {
+		if (!unlink $file) {
+			print "Failed to save current configuration, specified ".
+			  "file exists and cannot be deleted.\n";
+			return 1;
+		}
+	}
+
+	my $io = new IO::File $file, O_CREAT|O_WRONLY;
+
+	if (!$io) {
+		print "Failed to save configuration to file '$file': $!\n";
+		return 1;
+	}
+
+	print "Writing current configuration to file '$file'.. ";
+
+	print $io "# Automatically generated by scst.\n\n";
+
+	# Device information
+	foreach my $handler (sort keys %HANDLERS) {
+		print $io "[HANDLER ".$_REVERSE_MAP_{$handler}."]\n";
+
+		my $devices = $SCST->handlerDevices($handler);
+
+		foreach my $device (sort keys %{$devices}) {
+			my $options = $$devices{$device}->{'OPTIONS'};
+			$options =~ s/\,/\|/;
+
+			print $io "DEVICE $device,".$$devices{$device}->{'PATH'};
+			print $io ",$options";
+			print $io ",".$$devices{$device}->{'BLOCKSIZE'};
+			print $io "\n";
+		}
+
+		print $io "\n";
+	}
+
+	# User configuration
+	foreach my $group (sort keys %USERS) {
+		print $io "[GROUP $group]\n";
+
+		foreach my $user (keys %{$USERS{$group}}) {
+			print $io "USER $user\n";
+		}
+
+		print $io "\n";
+	}
+
+	# Assignments configuration
+	foreach my $group (sort keys %ASSIGNMENTS) {
+		print $io "[ASSIGNMENT $group]\n";
+
+		my $pointer = $ASSIGNMENTS{$group};
+		foreach my $device (sort keys %{$pointer}) {
+			print $io "DEVICE $device,".$$pointer{$device}."\n";
+		}
+
+		print $io "\n";
+	}
+
+	# Targets configuration
+	foreach my $type ('enable', 'disable') {
+		print $io "[TARGETS $type]\n";
+
+		foreach my $target (sort keys %{$TARGETS}) {
+			if ((($type eq 'enable') && $$TARGETS{$target}->{'enabled'}) ||
+			    (($type eq 'disable') && !$$TARGETS{$target}->{'enabled'})) {
+				my $f_target = formatTarget($target);
+				print $io "HOST $f_target\n" if (!$$TARGETS{$target}->{'duplicate'});
+			}
+		}
+
+		print $io "\n";
+	}
+
+	print "done\n";
+
+	close $io;
+
+	return 0;
+}
+
+sub applyConfiguration {
+	my $confile = shift;
+	my $force = shift;
+	my $check = shift;
+	my $config = readConfig($confile);
+	my $errs;
+	my $changes = 0;
+
+	my %used_devs;
+	my %used_users;
+	my %used_assignments;
+
+	print "Applying configurations additions..\n" if (!$check);
+	print "\n";
+
+	# Enable/Disable configured targets
+	foreach my $type (keys %{$$config{'TARGETS'}}) {
+		my $enable;
+
+		if ($type eq 'enable') {
+			$enable = $TRUE;
+		} elsif ($type eq 'disable') {
+			$enable = $FALSE;
+		} else {
+			print "\t-> WARNING: Ignoring invalid TARGETS specifier '$type'. ".
+			  "Should be one of enable,disable.\n";
+			next;
+		}
+
+		foreach my $target (@{$$config{'TARGETS'}->{$type}->{'HOST'}}) {
+			my $i_target = unformatTarget($target);
+
+			if (!defined($$TARGETS{$i_target})) {
+				print "\t-> WARNING: Target '$target' not found on system.\n";
+				$errs += 1;
+				next;
+			}
+
+			next if ($enable == targetEnabled($i_target));
+
+			if (!$enable && targetEnabled($target)) {
+				if ($force || $check) {
+					print "\t-force: Target mode for '$target' is currently enabled, ".
+					  "however configuration file wants it disabled";
+
+					if (!$check) {
+						print ", disabling.\n";
+						$errs += enableTarget($target, $enable);
+					} else {
+						print ".\n";
+					}
+
+					$changes++;
+				}
+			} else {
+				print "\t-> Target '$target' is enabled in configuration file, ".
+				  "however is currently disabled";
+
+				if (!$check) {
+					print ", enabling.\n";
+					$errs += enableTarget($target, $enable);
+				} else {
+					print ".\n";
+				}
+
+				$changes++;
+			}
+		}
+	}
+
+	# Open new devices and assign them to handlers..
+	foreach my $entry (keys %{$$config{'HANDLER'}}) {
+		if (!$HANDLERS{$_HANDLER_MAP_{$entry}}) {
+			print "\t-> WARNING: Handler '$entry' does not exist.\n";
+			$errs += 1;
+			next;
+		}
+
+		foreach my $device (@{$$config{'HANDLER'}->{$entry}->{'DEVICE'}}) {
+			my($vname, $path, $options, $blocksize) = split(/\,/, $device);
+			$vname = cleanupString($vname);
+			$path = cleanupString($path);
+
+			$options =~ s/\s+//; $options =~ s/\|/,/;
+
+			$used_devs{$vname} = $entry;
+
+			next if (defined($$DEVICES{$vname}));
+
+			$changes++;
+
+			if ($check) {
+				print "\t-> New device '$entry:$vname' at path '$path', options '$options', blocksize $blocksize.\n";
+				$$DEVICES{$vname} = $_HANDLER_MAP_{$entry};
+			} else {
+				$errs += addDevice($entry, $vname, $path, $options, $blocksize);
+			}
+		}
+	}
+
+	# Create new groups and add users..
+	foreach my $group (keys %{$$config{'GROUP'}}) {
+		if (!defined($GROUPS{$group})) {
+			$changes++;
+
+			if ($check) {
+				print "\t-> New group definition '$group.'\n";
+				$GROUPS{$group}++;
+			} else {
+				$errs += addGroup($group);
+			}
+		}
+
+		foreach my $user (@{$$config{'GROUP'}->{$group}->{'USER'}}) {
+			$used_users{$group}->{$user}++;
+
+			if (!defined($USERS{$group}->{$user})) {
+				$changes++;
+
+				if ($check) {
+					print "\t-> New user definition '$user' for group '$group'.\n";
+					$USERS{$group}->{$user}++;
+				} else {
+					$errs += addUser($group, $user);
+				}
+			}
+		}
+	}
+
+	# Assign new devices to groups..
+	foreach my $group (keys %{$$config{'ASSIGNMENT'}}) {
+		if (!defined($GROUPS{$group})) {
+			print "\t-> WARNING: Unable to assign to non-existant group '$group'.\n";
+			$errs += 1;
+			next;
+		}
+
+		foreach my $device (@{$$config{'ASSIGNMENT'}->{$group}->{'DEVICE'}}) {
+			my($vname, $lun) = split(/\,/, $device);
+			$vname = cleanupString($vname);
+			$lun = cleanupString($lun);
+
+			$used_assignments{$group}->{$vname}++;
+
+			my $_assignments = $ASSIGNMENTS{$group};
+			next if (defined($$_assignments{$vname}));
+
+			$changes++;
+
+			if ($check) {
+				$lun = 'auto' if (!defined($lun));
+				print "\t-> New device assignment for '$vname' to group '$group' at LUN $lun.\n";
+			} else {
+				$errs += assignDevice($group, $vname, $lun);
+			}
+		}
+	}
+
+	# If -ForceConfig is used, check for configurations which we've deleted but are still active.
+	if ($force || $check) {
+		readCurrentConfig() if (!$check);
+
+		# Associations
+		foreach my $group (sort keys %ASSIGNMENTS) {
+			if (!defined($used_assignments{$group})) {
+				print "\t-force: Group $group has no associations in saved configuration";
+
+				if (!$check) {
+					print ", clearing all associations.\n";
+					$errs += clearDevices($group);
+				} else {
+					print ".\n";
+				}
+
+				$changes++;
+			} else {
+				my $_assignments = $ASSIGNMENTS{$group};
+
+				foreach my $device (sort keys %{$_assignments}) {
+					if (!defined($used_assignments{$group}->{$device})) {
+						print "\t-force: Device $device is not associated with group ".
+						  "$group in saved configuration";
+
+						if (!$check) {
+							print ", releasing.\n";
+							$errs += releaseDevice($group, $device);
+						} else {
+							print ".\n";
+						}
+
+						$changes++;
+					}
+				}
+			}
+		}
+
+		# Users & Groups
+		foreach my $group (sort keys %USERS) {
+			if (!defined($used_users{$group})) {
+				print "\t-force: Group $group does not exist in saved configuration";
+
+				if (!$check) {
+					print ", removing.\n";
+					$errs += clearUsers($group);
+					$errs += removeGroup($group);
+				} else {
+					print ".\n";
+				}
+
+				$changes++;
+			} else {
+				foreach my $user (sort keys %{$USERS{$group}}) {
+					if (!defined($used_users{$group}->{$user})) {
+						print "\t-force: User $user is not defined as part of group $group ".
+						  "in saved configuration";
+
+						if (!$check) {
+							print ", removing.\n";
+							$errs += removeUser($group, $user);
+						} else {
+							print ".\n";
+						}
+
+						$changes++;
+					}
+				}
+			}
+		}
+
+		# Devices
+		foreach my $device (sort keys %{$DEVICES}) {
+			if ($$DEVICES{$device} && !defined($used_devs{$device})) {
+				# Device gone, but is it still assigned tp a group?
+				my $isAssigned = $FALSE;
+				foreach my $group (sort keys %used_assignments) {
+					if (defined($used_assignments{$group}->{$device})) {
+						print "\t-force: WARNING: Device $device is not defined in saved configuration, ".
+						  "however, it is still assigned to group $group! Ignoring removal.\n";
+						$isAssigned = $TRUE;
+					}
+				}
+
+				if (!$isAssigned) {
+					print "\t-force: Device $device is not defined in saved configuration";
+
+					if (!$check) {
+						print ", removing.\n";
+						$errs += removeDevice($device);
+					} else {
+						print ".\n";
+					}
+
+					$changes++;
+				}
+			} else {
+				# Handler change
+				if ($_HANDLER_MAP_{$used_devs{$device}} != $$DEVICES{$device}) {
+					my $handler = $used_devs{$device};
+
+					if ($HANDLERS{$_HANDLER_MAP_{$handler}}) {
+						print "\t-force: Device $device changes handler to $handler";
+
+						if (!$check) {
+							print ", changing.\n";
+							$errs += assignDeviceToHandler($device, $handler);
+
+						} else {
+							print ".\n";
+						}
+
+						$changes++;
+					}
+				}
+			}
+		}
+	}
+
+	print "\nEncountered $errs error(s) while processing.\n" if ($errs);
+
+	if ($check) {
+		print "Configuration checked, $changes difference(s) found with current configuration.\n";
+	} else {
+		$changes = 0 if ($_DEBUG_);
+		print "Configuration applied, $changes changes made.\n";
+	}
+
+	return $TRUE if ($errs);
+	return $FALSE;
+}
+
+sub clearConfiguration {
+	my $errs;
+
+	print "WARNING: This removes ALL applied SCST configuration and may result in data loss!\n";
+	print "If this is not what you intend, press ctrl-c now. Waiting 10 seconds.\n\n";
+	sleep 10;
+
+	print "\nRemoving all user and groups:\n\n";
+	foreach my $group (keys %GROUPS) {
+		$errs += removeGroup($group) if ($group ne $_DEFAULT_GROUP_);
+	}
+
+	print "\nRemoving all handler devices:\n\n";
+	foreach my $device (keys %{$DEVICES}) {
+		$errs += removeDevice($_REVERSE_MAP_{$$DEVICES{$device}}, $device);
+	}
+
+	print "\nEncountered $errs error(s) while processing.\n" if ($errs);
+	print "\nConfiguration cleared.\n";
+
+	return $TRUE if ($errs);
+	return $FALSE;
+}
+
+sub showSessions {
+	my $sessions = $SCST->sessions();
+
+	print "\n\tTarget Name\tInitiator Name\t\t\tGroup Name\t\tCommand Count\n";
+
+	foreach my $target (keys %{$sessions}) {
+		foreach my $group (keys %{$$sessions{$target}}) {
+			foreach my $user (keys %{$$sessions{$target}->{$group}}) {
+				my $commands = $$sessions{$target}->{$group}->{$user};
+
+				print "\t$target\t$user\t\t$group\t\t$commands\n";
+			}
+		}
+	}
+
+	print "\n";
+
+	return $FALSE;
+}
+
+sub addDevice {
+	my $handler = shift;
+	my $device = shift;
+	my $path = shift;
+	my $options = shift;
+	my $blocksize = shift;
+
+	$options =~ s/\,/ /;
+
+	my $_handler = $_HANDLER_MAP_{$handler};
+
+	if (defined($$DEVICES{$device})) {
+		print "WARNING: Device '$device' already defined.\n";
+		return $TRUE;
+	}
+
+	print "\t-> Opening virtual device '$device' at path '$path' using handler '$handler'..\n";
+
+	if ($SCST->openDevice($_handler, $device, $path, $options, $blocksize)) {
+		print "WARNING: Failed to open virtual device '$device' at path '$path'.\n";
+		return $TRUE;
+	}
+
+	$$DEVICES{$device} = $_handler;
+
+	return $FALSE;
+}
+
+sub removeDevice {
+	my $handler = shift;
+	my $device = shift;
+
+	my $_handler = $_HANDLER_MAP_{$handler};
+
+	if (!defined($$DEVICES{$device})) {
+		print "WARNING: Device '$device' not defined.\n";
+		return $TRUE;
+	}
+
+	print "\t-> Closing virtual device '$device'..\n";
+
+	if ($SCST->closeDevice($_handler, $device)) {
+		print "WARNING: Failed to close virtual device '$device'.\n";
+		return $TRUE;
+	}
+
+	undef $$DEVICES{$device};
+
+	return $FALSE;
+}
+
+sub addGroup {
+	my $group = shift;
+
+	if (defined($GROUPS{$group})) {
+		print "WARNING: Group '$group' already exists.\n";
+		return $TRUE;
+	}
+
+	print "\t-> Creating security group '$group'..\n";
+
+	if ($SCST->addGroup($group)) {
+		print "WARNING: Failed to create security group '$group'.\n";
+		return $TRUE;
+	}
+
+	$GROUPS{$group}++;
+
+	return $FALSE;
+}
+
+sub removeGroup {
+	my $group = shift;
+
+	if (!defined($GROUPS{$group})) {
+		print "WARNING: Group '$group' does not exist.\n";
+		return $TRUE;
+	}
+
+	print "\t-> Removing security group '$group'..\n";
+
+	if ($SCST->removeGroup($group)) {
+		print "WARNING: Failed to remove security group '$group'.\n";
+		return $TRUE;
+	}
+
+	undef $GROUPS{$group};
+
+	return $FALSE;
+}
+
+sub addUser {
+	my $group = shift;
+	my $user = shift;
+
+	if (!defined($GROUPS{$group})) {
+		print "WARNING: Failed to add user '$user' to group '$group', group does not exist.\n";
+		return $TRUE;
+	}
+
+	if (defined($USERS{$group}->{$user})) {
+		print "WARNING: User '$user' already exists in security group '$group'.\n";
+		return $TRUE;
+	}
+
+	print "\t-> Adding user '$user' to security group '$group'..\n";
+
+	if ($SCST->addUser($user, $group)) {
+		print "WARNING: Failed to add user '$user' to security group '$group'.\n";
+		return $TRUE;
+	}
+
+	$USERS{$group}->{$user}++;
+
+	return $FALSE;
+}
+
+sub removeUser {
+	my $group = shift;
+	my $user = shift;
+
+	if (!defined($GROUPS{$group})) {
+		print "WARNING: Failed to remove user '$user' from group '$group', group does not exist.\n";
+		return $TRUE;
+	}
+
+	if (!defined($USERS{$group}->{$user})) {
+		print "WARNING: User '$user' doesn\'t exist in security group '$group'.\n";
+		return $TRUE;
+	}
+
+	print "\t-> Removing user '$user' from security group '$group'..\n";
+
+	if ($SCST->removeUser($user, $group)) {
+		print "WARNING: Failed to add user '$user' to security group '$group'.\n";
+		return $TRUE;
+	}
+
+	undef $USERS{$group}->{$user};
+
+	return $FALSE;
+}
+
+sub clearUsers {
+	my $group = shift;
+
+	if (!defined($GROUPS{$group})) {
+		print "WARNING: Failed to clear users from group '$group', group does not exist.\n";
+		return $TRUE;
+	}
+
+	print "\t-> Clearing users from security group '$group'..\n";
+
+	if ($SCST->clearUsers($group)) {
+		print "WARNING: Failed to clear users from security group '$group'.\n";
+		return $TRUE;
+	}
+
+	undef $USERS{$group};
+
+	return $FALSE;
+}
+
+sub assignDevice {
+	my $group = shift;
+	my $device = shift;
+	my $lun = shift;
+	my %allLuns;
+
+	# Put luns into something easier to parse..
+	foreach my $_group (keys %ASSIGNMENTS) {
+		my $_gAssigns = $ASSIGNMENTS{$_group};
+
+		foreach my $_device (keys %{$_gAssigns}) {
+			@{$allLuns{$_group}}[$$_gAssigns{$_device}] = $_device;
+		}
+	}
+
+	# Use the next available LUN if none specified
+	if ($lun !~ /\d+/) {
+		$lun = ($#{$allLuns{$group}} + 1);
+		if ($lun > $_MAX_LUNS_) {
+			print "ERROR: Unable to use next available LUN of $lun, lun out of range.\n";
+			return $TRUE;
+		}
+
+		print "\t-> Device '$device': Using next available LUN of $lun for group '$group'.\n";
+	}
+			
+	if (($lun < 0) || ($lun > $_MAX_LUNS_)) {
+		print "ERROR: Unable to assign device '$device', lun '$lun' is out of range.\n";
+		return $TRUE;
+	}
+
+	if (!defined($$DEVICES{$device})) {
+		print "WARNING: Unable to assign non-existant device '$device' to group '$group'.\n";
+		return $TRUE;
+	}
+
+	if (@{$allLuns{$group}}[$lun]) {
+		print "ERROR: Device '$device': Lun '$lun' is already assigned to device '".@{$allLuns{$group}}[$lun]."'.\n";
+		return $TRUE;
+	}
+
+	print "\t-> Assign virtual device '$device' to group '$group' at LUN '$lun'..\n";
+
+	if ($SCST->assignDeviceToGroup($device, $group, $lun)) {
+		print "WARNING: Failed to assign device '$device' to group '$group'.\n";
+		return $TRUE;
+	}
+
+	if (!defined($ASSIGNMENTS{$group})) {
+		my %assignments_t;
+		$ASSIGNMENTS{$group} = \%assignments_t;
+	}
+
+	my $_assignments = $ASSIGNMENTS{$group};
+
+	$$_assignments{$device} = $lun; 
+
+	return $FALSE;
+}
+
+sub releaseDevice {
+	my $group = shift;
+	my $device = shift;
+
+	if (!defined($GROUPS{$group})) {
+		print "WARNING: Failed to release device '$device' from group '$group', group does not exist.\n";
+		return $TRUE;
+	}
+
+	if (!defined($$DEVICES{$device})) {
+		print "WARNING: Failed to release device '$device', device not defined.\n";
+		return $TRUE;
+	}
+
+	print "\t-> Release virtual device '$device' from group '$group'..\n";
+
+	if ($SCST->removeDeviceFromGroup($device, $group)) {
+		print "WARNING: Failed to release device '$device' from group '$group'.\n";
+		return $TRUE;
+	}
+
+	my $_assignments = $ASSIGNMENTS{$group};
+
+	undef $$_assignments{$device};
+
+	return $FALSE;
+}
+
+sub clearDevices {
+	my $group = shift;
+
+	if (!defined($GROUPS{$group})) {
+		print "WARNING: Failed to clear devices from group '$group', group does not exist.\n";
+		return $TRUE;
+	}
+
+	print "\t-> Clear virtual devices from group '$group'..\n";
+
+	if ($SCST->clearGroupDevices($group)) {
+		print "WARNING: Failed to clear devices from group '$group'.\n";
+		return $TRUE;
+	}
+
+	undef $ASSIGNMENTS{$group};
+
+	return $FALSE;
+}
+
+sub targets {
+	my %targets;
+	my %fcards;
+	my $root = new IO::Dir $_FC_CLASS_;
+
+	if ($root) {
+		while (my $entry = $root->read()) {
+			next if (($entry eq '.') || ($entry eq '..'));
+
+			my $io = new IO::File "$_FC_CLASS_/$entry/port_name", O_RDONLY;
+
+			if ($io) {
+				my $wwn = <$io>;
+				chomp $wwn;
+				close $io;
+
+				$fcards{$entry} = $wwn;
+			}
+		}
+	}
+
+	$root = new IO::Dir $_SCSI_CLASS_;
+
+	if ($root) {
+		while (my $entry = $root->read()) {
+			next if (($entry eq '.') || ($entry eq '..'));
+
+			my $io = new IO::File "$_SCSI_CLASS_/$entry/target_mode_enabled", O_RDONLY;
+
+			if ($io) {
+				my $enabled = <$io>;
+				chomp $enabled;
+				close $io;
+
+				$targets{$entry}->{'path'} = "$_SCSI_CLASS_/$entry/target_mode_enabled";
+				$targets{$entry}->{'enabled'} = $enabled;
+
+				if ($fcards{$entry}) {
+					$targets{$fcards{$entry}}->{'enabled'} = $enabled;
+					$targets{$fcards{$entry}}->{'path'} =
+					  "$_SCSI_CLASS_/$entry/target_mode_enabled";
+					$targets{$entry}->{'duplicate'} = $TRUE;
+				} else {
+					$targets{$entry}->{'duplicate'} = $FALSE;
+				}
+			}
+		}
+	}
+
+	return \%targets;
+}
+
+sub targetEnabled {
+	my $target = shift;
+
+	return undef if (!defined($$TARGETS{$target}));
+	return $$TARGETS{$target}->{'enabled'};
+}
+
+sub enableTarget {
+	my $target = shift;
+	my $enable = shift;
+
+	return undef if (!defined($$TARGETS{$target}));
+
+	my $io = new IO::File $$TARGETS{$target}->{'path'}, O_WRONLY;
+	return $TRUE if (!$io);
+
+	print $enable ? "\t-> Enabling" : "\t-> Disabling";
+	print " target mode for SCST host '$target'.\n";
+
+	if ($_DEBUG_) {
+		print "DBG($$): ".$$TARGETS{$target}->{'path'}." -> $enable\n\n";
+	} else {
+		print $io $enable;
+	}
+
+	close $io;
+
+	$$TARGETS{unformatTarget($target)}->{'enabled'} = $enable;
+
+	return $FALSE;
+}
+
+sub readConfig {
+	my $confile = shift;
+	my %config;
+	my $section;
+	my $arg;
+
+	my $io = new IO::File $confile, O_RDONLY;
+
+	die("FATAL: Unable to open specified configuration file $confile: $!\n") if (!$io);
+
+	while (my $line = <$io>) {
+		($line, undef) = split(/\#/, $line, 2);
+		$line = cleanupString($line);
+
+		if ($line =~ /^\[(.*)\]$/) {
+			($section, $arg) = split(/\s+/, $1, 2);
+		} elsif ($section && $arg && $line) {
+			my($parameter, $value) = split(/\s+/, $line, 2);
+			push @{$config{$section}->{$arg}->{$parameter}}, $value;
+		}
+	}
+
+	close $io;
+
+	return \%config;
+}
+
+sub cleanupString {
+	my $string = shift;
+
+	$string =~ s/^\s+//;
+	$string =~ s/\s+$//;
+
+	return $string;
+}
+
+sub formatTarget {
+	my $target = shift;
+
+	if ($target =~ /^0x/) {
+		$target =~ s/^0x//;
+		my($o1, $o2, $o3, $o4, $o5, $o6, $o7, $o8) = unpack("A2A2A2A2A2A2A2A2", $target);
+		$target = "$o1:$o2:$o3:$o4:$o5:$o6:$o7:$o8";
+	}
+
+	$target =~ tr/A-Z/a-z/;
+
+	return $target;
+}
+
+sub unformatTarget {
+	my $target = shift;
+
+	if ($target =~ /^.{2}\:.{2}\:.{2}\:.{2}\:.{2}\:.{2}\:.{2}\:.{2}/) {
+		$target =~ s/\://g;
+		$target = "0x$target";
+	}
+
+	$target =~ tr/A-Z/a-z/;
+
+	return $target;
+}
+
+# Hey! Stop that!
+sub commitSuicide {
+	print "\n\nAborting immediately.\n";
+	exit 1;
+}

@@ -1,0 +1,71 @@
+#!/bin/sh
+
+PATH=/bin:/usr/bin:/sbin:/usr/sbin:/usr/local/sbin:/usr/local/bin
+SCST_CMD=/usr/local/sbin/scstadmin
+SCST_CFG=/etc/scst.conf
+
+# Modules to load/unload
+SCST_MODULES="scst_fileio scst_disk scst_cdrom"
+
+OPTIONS=""
+
+test -x $SCST_CMD -a -f $SCST_CFG || exit 0
+
+case "$1" in
+  start)
+	echo -n "Loading and configuring SCSI Target Mid-level: scst "
+
+	modprobe qla2x00tgt || { echo "[qla2x00tgt failed]" ; exit 1 ; }
+
+	for module in ${SCST_MODULES}; do
+		modprobe ${module} || { echo "[${module} failed]" ; exit 1 ; }
+	done
+
+	$SCST_CMD -config $SCST_CFG
+
+	RC=$?
+
+	if [ $RC -ne 0 ];
+	then
+		echo "[config failed]"
+	fi
+
+	echo "."
+	;;
+  stop)	
+	echo -n "Stopping SCSI Target Mid-level: scst "
+
+	for module in ${SCST_MODULES}; do
+		rmmod ${module} || { echo "[${module} failed]" ; }
+	done
+
+	rmmod qla2x00tgt || { echo "[qla2x00tgt failed]" ; }
+	rmmod scsi_tgt || { echo "[scsi_tgt failed]" ; }
+	
+	echo "."
+	;;
+  force-reload|restart)
+	$0 stop
+	sleep 1
+	$0 start
+	;;
+  reload-config)
+	echo -n "Reloading configuration: scst "
+
+	$SCST_CMD -config $SCST_CFG
+
+	RC=$?
+
+	if [ $RC -ne 0 ];
+	then
+		echo "[config failed]"
+	fi
+
+	echo "."
+	;;
+  *)
+	echo "Usage: /etc/init.d/scst {start|stop|restart|force-reload|reload-config}"
+	exit 1
+esac
+
+exit 0
