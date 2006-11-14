@@ -46,7 +46,7 @@ case "$1" in
 	;;
   force-reload|restart)
 	$0 stop
-	sleep 1
+	sleep 5
 	$0 start
 	;;
   reload-config)
