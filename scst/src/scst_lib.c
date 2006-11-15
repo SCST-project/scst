@@ -1438,8 +1438,7 @@ int scst_get_cdb_info(const uint8_t *cdb_p, int dev_type,
 			info_p->transfer_len = (*(cdb_p + 8));
 
 			/* opcode = READ-WRITE UPDATED BLOCK */
-			if ((ptr->ops == 0x5d) ||
-			    (ptr->ops == UPDATE_BLOCK) ||
+			if ((ptr->ops == UPDATE_BLOCK) ||
 			    (ptr->ops == WRITE_SAME)) {
 				/* the opcode always returns 1 block */
 				info_p->flags |= SCST_TRANSFER_LEN_TYPE_FIXED;
