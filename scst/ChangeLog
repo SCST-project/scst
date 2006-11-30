@@ -10,6 +10,8 @@ Summary of changes between versions 0.9.4 and 0.9.5
    kernel, but pass-through modules (scst_disk, scst_tape, etc.) are not
    supported).
 
+ - Fixed problems with big amount of LUNs (500+).
+
  - Timer-based retries for targets after SCST_TGT_RES_QUEUE_FULL status
    implemented.
 

@@ -692,6 +692,128 @@ int scst_acg_remove_name(struct scst_acg *acg, const char *name)
 	return res;
 }
 
+struct scst_cmd *scst_create_prepare_internal_cmd(
+	struct scst_cmd *orig_cmd, int bufsize)
+{
+	struct scst_cmd *res;
+	int gfp_mask = scst_cmd_atomic(orig_cmd) ? GFP_ATOMIC : GFP_KERNEL;
+
+	TRACE_ENTRY();
+
+	res = scst_alloc_cmd(gfp_mask);
+	if (unlikely(res == NULL)) {
+		goto out;
+	}
+
+	res->sess = orig_cmd->sess;
+	res->state = SCST_CMD_STATE_SEND_TO_MIDLEV;
+	res->atomic = scst_cmd_atomic(orig_cmd);
+	res->internal = 1;
+	res->tgtt = orig_cmd->tgtt;
+	res->tgt = orig_cmd->tgt;
+	res->dev = orig_cmd->dev;
+	res->tgt_dev = orig_cmd->tgt_dev;
+	res->lun = orig_cmd->lun;
+	res->queue_type = SCST_CMD_QUEUE_HEAD_OF_QUEUE;
+	res->data_direction = SCST_DATA_UNKNOWN;
+	res->orig_cmd = orig_cmd;
+
+	res->bufflen = bufsize;
+	if (bufsize > 0) {
+		if (scst_alloc_space(res) != 0)
+			PRINT_ERROR("Unable to create buffer (size %d) for "
+				"internal cmd", bufsize);
+			goto out_free_res;
+	}
+
+out:
+	TRACE_EXIT_HRES((unsigned long)res);
+	return res;
+
+out_free_res:
+	scst_destroy_cmd(res);
+	res = NULL;
+	goto out;
+}
+
+void scst_free_internal_cmd(struct scst_cmd *cmd)
+{
+	TRACE_ENTRY();
+
+	if (cmd->bufflen > 0)
+		scst_release_space(cmd);
+	scst_destroy_cmd(cmd);
+
+	TRACE_EXIT();
+	return;
+}
+
+int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
+{
+	int res = SCST_CMD_STATE_RES_RESTART;
+#define sbuf_size 252
+	static const unsigned char request_sense[6] =
+	    { REQUEST_SENSE, 0, 0, 0, sbuf_size, 0 };
+	struct scst_cmd *rs_cmd;
+
+	TRACE_ENTRY();
+
+	rs_cmd = scst_create_prepare_internal_cmd(orig_cmd, sbuf_size);
+	if (rs_cmd != 0)
+		goto out_error;
+
+	memcpy(rs_cmd->cdb, request_sense, sizeof(request_sense));
+	rs_cmd->cdb_len = sizeof(request_sense);
+	rs_cmd->data_direction = SCST_DATA_READ;
+
+	spin_lock_irq(&scst_list_lock);
+	list_add(&rs_cmd->cmd_list_entry, &scst_active_cmd_list);
+	spin_unlock_irq(&scst_list_lock);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_error:
+	res = -1;
+	goto out;
+#undef sbuf_size
+}
+
+struct scst_cmd *scst_complete_request_sense(struct scst_cmd *cmd)
+{
+	struct scst_cmd *orig_cmd = cmd->orig_cmd;
+	uint8_t *buf;
+	int len;
+
+	TRACE_ENTRY();
+
+	BUG_ON(orig_cmd);
+
+	len = scst_get_buf_first(cmd, &buf);
+
+	if ((cmd->status == 0) && SCST_SENSE_VALID(buf) &&
+	    (!SCST_NO_SENSE(buf))) 
+	{
+		TRACE_BUFF_FLAG(TRACE_SCSI, "REQUEST SENSE returned", 
+			buf, len);
+		memcpy(orig_cmd->sense_buffer, buf,
+			(sizeof(orig_cmd->sense_buffer) > len) ?
+				len : sizeof(orig_cmd->sense_buffer));
+	} else {
+		PRINT_ERROR_PR("%s", "Unable to get the sense via "
+			"REQUEST SENSE, returning HARDWARE ERROR");
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+	}
+
+	scst_put_buf(cmd, buf);
+
+	scst_free_internal_cmd(cmd);
+
+	TRACE_EXIT_HRES((unsigned long)orig_cmd);
+	return orig_cmd;
+}
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
 static void scst_req_done(struct scsi_cmnd *scsi_cmd)
 {
@@ -1561,7 +1683,7 @@ lun_t scst_unpack_lun(const uint8_t *lun, int len)
 	address_method = (*lun) >> 6;	/* high 2 bits of byte 0 */
 	switch (address_method) {
 	case 0:	/* peripheral device addressing method */
-#if 0 /* At least QLA2300 Linux ini uses it as the flat space addressing method */
+#if 0 /* Looks like it's legal to use it as flat space addressing method as well */
 		if (*lun) {
 			PRINT_ERROR_PR("Illegal BUS INDENTIFIER in LUN "
 			     "peripheral device addressing method 0x%02x, "

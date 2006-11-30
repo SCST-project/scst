@@ -2274,13 +2274,10 @@ static int fileio_proc_update_size(int size, off_t offset, int length,
 	if (size > 0) {
 		p->len += size;
 		p->pos = p->begin + p->len;
-		if (p->pos < offset) {
+		if (p->pos <= offset) {
 			p->len = 0;
 			p->begin = p->pos;
-		}
-		if (p->pos > offset + length) {
-			p->begin = p->pbegin;
-			p->len = p->plen;
+		} else if (p->pos >= offset + length) {
 			res = 1;
 			goto out;
 		} else
@@ -2620,7 +2617,7 @@ stop_output:
 	pu.len -= (offset - pu.begin);
 	if (pu.len > length)
 		pu.len = length;
-	res = pu.len;
+	res = max(0, pu.len);
 	goto out_up;
 
 out_free_vpath:

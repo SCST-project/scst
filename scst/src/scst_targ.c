@@ -1141,15 +1141,6 @@ static void scst_cmd_done(void *data, char *sense, int result, int resid)
 
 	WARN_ON(in_irq());
 
-	/*
-	 * We don't use resid, because:
-	 * 1. Many low level initiator drivers don't use (set) this field
-	 * 2. We determine the command's buffer size directly from CDB,
-	 *    so resid is not relevant for us, and target drivers
-	 *    should know the residual, if necessary, by comparing expected
-	 *    and actual transfer sizes.
-	 */
-
 	cmd = (struct scst_cmd *)data;
 	if (cmd == NULL)
 		goto out;
@@ -1180,8 +1171,8 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state)
 	if (next_state == SCST_CMD_STATE_DEFAULT)
 		next_state = SCST_CMD_STATE_DEV_DONE;
 
-	if (next_state == SCST_CMD_STATE_DEV_DONE) {
 #if defined(DEBUG) || defined(TRACING)
+	if (next_state == SCST_CMD_STATE_DEV_DONE) {
 		if (cmd->sg) {
 			int i;
 			struct scatterlist *sg = cmd->sg;
@@ -1194,8 +1185,8 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state)
 					sg[i].length);
 			}
 		}
-#endif
 	}
+#endif
 
 
 #ifdef EXTRACHECKS
@@ -1244,7 +1235,7 @@ static int scst_report_luns_local(struct scst_cmd *cmd)
 	cmd->host_status = DID_OK;
 	cmd->driver_status = 0;
 
-	if (cmd->cdb[2] != 0) {
+	if ((cmd->cdb[2] != 0) && (cmd->cdb[2] != 2)) {
 		PRINT_ERROR_PR("Unsupported SELECT REPORT value %x in REPORT "
 			"LUNS command", cmd->cdb[2]);
 		goto out_err;
@@ -1267,7 +1258,7 @@ static int scst_report_luns_local(struct scst_cmd *cmd)
 		if (!overflow) {
 			if (offs >= buffer_size) {
 				scst_put_buf(cmd, buffer);
-				buffer_size = scst_get_buf_first(cmd, &buffer);
+				buffer_size = scst_get_buf_next(cmd, &buffer);
 				if (buffer_size > 0) {
 					memset(buffer, 0, buffer_size);
 					offs = 0;
@@ -1284,7 +1275,7 @@ static int scst_report_luns_local(struct scst_cmd *cmd)
 				goto out_put_hw_err;
 			}
 			buffer[offs] = (tgt_dev->acg_dev->lun >> 8) & 0xff;
-			buffer[offs + 1] = tgt_dev->acg_dev->lun & 0xff;
+			buffer[offs+1] = tgt_dev->acg_dev->lun & 0xff;
 			offs += 8;
 		}
 inc_dev_cnt:
@@ -1490,51 +1481,53 @@ static int scst_pre_exec(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	/* Reserve check before Unit Attention */
-	if (unlikely(test_bit(SCST_TGT_DEV_RESERVED, &tgt_dev->tgt_dev_flags)) &&
-	    (cmd->cdb[0] != INQUIRY) &&
-	    (cmd->cdb[0] != REPORT_LUNS) &&
-	    (cmd->cdb[0] != RELEASE) &&
-	    (cmd->cdb[0] != RELEASE_10) &&
-	    (cmd->cdb[0] != REPORT_DEVICE_IDENTIFIER) &&
-	    (cmd->cdb[0] != ALLOW_MEDIUM_REMOVAL || (cmd->cdb[4] & 3)) &&
-	    (cmd->cdb[0] != LOG_SENSE) && (cmd->cdb[0] != REQUEST_SENSE)) 
-	{
-		scst_report_reserved(cmd);
-		res = SCST_EXEC_COMPLETED;
-		goto out;
+	if (unlikely(test_bit(SCST_TGT_DEV_RESERVED, &tgt_dev->tgt_dev_flags))) {
+		if ((cmd->cdb[0] != INQUIRY) && (cmd->cdb[0] != REPORT_LUNS) &&
+		    (cmd->cdb[0] != RELEASE) && (cmd->cdb[0] != RELEASE_10) &&
+		    (cmd->cdb[0] != REPORT_DEVICE_IDENTIFIER) &&
+		    (cmd->cdb[0] != ALLOW_MEDIUM_REMOVAL || (cmd->cdb[4] & 3)) &&
+		    (cmd->cdb[0] != LOG_SENSE) && (cmd->cdb[0] != REQUEST_SENSE))
+		{
+			scst_report_reserved(cmd);
+			res = SCST_EXEC_COMPLETED;
+			goto out;
+		}
 	}
 
 	/* If we had a internal bus reset, set the command error unit attention */
 	if ((cmd->dev->scsi_dev != NULL) &&
-	    unlikely(cmd->dev->scsi_dev->was_reset) &&
-	    scst_is_ua_command(cmd)) 
-	{
-		struct scst_device *dev = cmd->dev;
-		int done = 0;
-		/* Prevent more than 1 cmd to be triggered by was_reset */
-		spin_lock_bh(&dev->dev_lock);
-		barrier(); /* to reread was_reset */
-		if (dev->scsi_dev->was_reset) {
-			TRACE(TRACE_MGMT, "was_reset is %d", 1);
-			scst_set_cmd_error(cmd,
-				   SCST_LOAD_SENSE(scst_sense_reset_UA));
-			/* It looks like it is safe to clear was_reset here */
-			dev->scsi_dev->was_reset = 0;
-			smp_mb();
-			done = 1;
-		}
-		spin_unlock_bh(&dev->dev_lock);
+	    unlikely(cmd->dev->scsi_dev->was_reset)) {
+		if (scst_is_ua_command(cmd)) 
+		{
+			struct scst_device *dev = cmd->dev;
+			int done = 0;
+			/* Prevent more than 1 cmd to be triggered by was_reset */
+			spin_lock_bh(&dev->dev_lock);
+			barrier(); /* to reread was_reset */
+			if (dev->scsi_dev->was_reset) {
+				TRACE(TRACE_MGMT, "was_reset is %d", 1);
+				scst_set_cmd_error(cmd,
+					   SCST_LOAD_SENSE(scst_sense_reset_UA));
+				/* It looks like it is safe to clear was_reset here */
+				dev->scsi_dev->was_reset = 0;
+				smp_mb();
+				done = 1;
+			}
+			spin_unlock_bh(&dev->dev_lock);
 
-		if (done)
-			goto out_done;
+			if (done)
+				goto out_done;
+		}
 	}
 
-	if (test_bit(SCST_TGT_DEV_UA_PENDING, &cmd->tgt_dev->tgt_dev_flags) &&
-	    scst_is_ua_command(cmd)) 
-	{
-		rc = scst_set_pending_UA(cmd);
-		if (rc == 0)
-			goto out_done;
+	if (unlikely(test_bit(SCST_TGT_DEV_UA_PENDING, 
+			&cmd->tgt_dev->tgt_dev_flags))) {
+		if (scst_is_ua_command(cmd)) 
+		{
+			rc = scst_set_pending_UA(cmd);
+			if (rc == 0)
+				goto out_done;
+		}
 	}
 
 	/* Check READ_ONLY device status */
@@ -1653,14 +1646,12 @@ static int scst_do_send_to_midlev(struct scst_cmd *cmd)
 		/* !! At this point cmd, sess & tgt_dev can be already freed !! */
 		TRACE_DBG("Dev handler %s exec() returned %d",
 		      dev->handler->name, rc);
-		if (rc != SCST_EXEC_NOT_COMPLETED) {
-			if (rc == SCST_EXEC_COMPLETED)
-				goto out;
-			else if (rc == SCST_EXEC_NEED_THREAD)
-				goto out_clear;
-			else
-				goto out_rc_error;
-		}
+		if (rc == SCST_EXEC_COMPLETED)
+			goto out;
+		else if (rc == SCST_EXEC_NEED_THREAD)
+			goto out_clear;
+		else if (rc != SCST_EXEC_NOT_COMPLETED)
+			goto out_rc_error;
 	}
 
 	TRACE_DBG("Sending cmd %p to SCSI mid-level", cmd);
@@ -1673,10 +1664,15 @@ static int scst_do_send_to_midlev(struct scst_cmd *cmd)
 	}
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)	
-	if (scst_alloc_request(cmd) != 0) {
-		PRINT_INFO_PR("%s", "Unable to allocate request, "
-			"sending BUSY status");
-		goto out_busy;
+	if (unlikely(scst_alloc_request(cmd) != 0)) {
+		if (scst_cmd_atomic(cmd)) {
+			rc = SCST_EXEC_NEED_THREAD;
+			goto out_clear;
+		} else {
+			PRINT_INFO_PR("%s", "Unable to allocate request, "
+				"sending BUSY status");
+			goto out_busy;
+		}
 	}
 	
 	scst_do_req(cmd->scsi_req, (void *)cmd->cdb,
@@ -1687,10 +1683,15 @@ static int scst_do_send_to_midlev(struct scst_cmd *cmd)
 	rc = scst_exec_req(cmd->dev->scsi_dev, cmd->cdb, cmd->cdb_len,
 			cmd->data_direction, cmd->sg, cmd->bufflen, cmd->sg_cnt,
 			cmd->timeout, cmd->retries, cmd, scst_cmd_done,
-			GFP_KERNEL);
-	if (rc) {
-		PRINT_INFO_PR("scst_exec_req() failed: %d", rc);
-		goto out_error;
+			scst_cmd_atomic(cmd) ? GFP_ATOMIC : GFP_KERNEL);
+	if (unlikely(rc != 0)) {
+		if (scst_cmd_atomic(cmd)) {
+			rc = SCST_EXEC_NEED_THREAD;
+			goto out_clear;
+		} else {
+			PRINT_INFO_PR("scst_exec_req() failed: %d", rc);
+			goto out_error;
+		}
 	}
 #endif
 
@@ -1838,128 +1839,6 @@ out:
 	return res;
 }
 
-static struct scst_cmd *scst_create_prepare_internal_cmd(
-	struct scst_cmd *orig_cmd, int bufsize)
-{
-	struct scst_cmd *res;
-	int gfp_mask = scst_cmd_atomic(orig_cmd) ? GFP_ATOMIC : GFP_KERNEL;
-
-	TRACE_ENTRY();
-
-	res = scst_alloc_cmd(gfp_mask);
-	if (unlikely(res == NULL)) {
-		goto out;
-	}
-
-	res->sess = orig_cmd->sess;
-	res->state = SCST_CMD_STATE_SEND_TO_MIDLEV;
-	res->atomic = scst_cmd_atomic(orig_cmd);
-	res->internal = 1;
-	res->tgtt = orig_cmd->tgtt;
-	res->tgt = orig_cmd->tgt;
-	res->dev = orig_cmd->dev;
-	res->tgt_dev = orig_cmd->tgt_dev;
-	res->lun = orig_cmd->lun;
-	res->queue_type = SCST_CMD_QUEUE_HEAD_OF_QUEUE;
-	res->data_direction = SCST_DATA_UNKNOWN;
-	res->orig_cmd = orig_cmd;
-
-	res->bufflen = bufsize;
-	if (bufsize > 0) {
-		if (scst_alloc_space(res) != 0)
-			PRINT_ERROR("Unable to create buffer (size %d) for "
-				"internal cmd", bufsize);
-			goto out_free_res;
-	}
-
-out:
-	TRACE_EXIT_HRES((unsigned long)res);
-	return res;
-
-out_free_res:
-	scst_destroy_cmd(res);
-	res = NULL;
-	goto out;
-}
-
-static void scst_free_internal_cmd(struct scst_cmd *cmd)
-{
-	TRACE_ENTRY();
-
-	if (cmd->bufflen > 0)
-		scst_release_space(cmd);
-	scst_destroy_cmd(cmd);
-
-	TRACE_EXIT();
-	return;
-}
-
-static int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
-{
-	int res = SCST_CMD_STATE_RES_RESTART;
-#define sbuf_size 252
-	static const unsigned char request_sense[6] =
-	    { REQUEST_SENSE, 0, 0, 0, sbuf_size, 0 };
-	struct scst_cmd *rs_cmd;
-
-	TRACE_ENTRY();
-
-	rs_cmd = scst_create_prepare_internal_cmd(orig_cmd, sbuf_size);
-	if (rs_cmd != 0)
-		goto out_error;
-
-	memcpy(rs_cmd->cdb, request_sense, sizeof(request_sense));
-	rs_cmd->cdb_len = sizeof(request_sense);
-	rs_cmd->data_direction = SCST_DATA_READ;
-
-	spin_lock_irq(&scst_list_lock);
-	list_add(&rs_cmd->cmd_list_entry, &scst_active_cmd_list);
-	spin_unlock_irq(&scst_list_lock);
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-
-out_error:
-	res = -1;
-	goto out;
-#undef sbuf_size
-}
-
-static struct scst_cmd *scst_complete_request_sense(struct scst_cmd *cmd)
-{
-	struct scst_cmd *orig_cmd = cmd->orig_cmd;
-	uint8_t *buf;
-	int len;
-
-	TRACE_ENTRY();
-
-	BUG_ON(orig_cmd);
-
-	len = scst_get_buf_first(cmd, &buf);
-
-	if ((cmd->status == 0) && SCST_SENSE_VALID(buf) &&
-	    (!SCST_NO_SENSE(buf))) 
-	{
-		TRACE_BUFF_FLAG(TRACE_SCSI, "REQUEST SENSE returned", 
-			buf, len);
-		memcpy(orig_cmd->sense_buffer, buf,
-			(sizeof(orig_cmd->sense_buffer) > len) ?
-				len : sizeof(orig_cmd->sense_buffer));
-	} else {
-		PRINT_ERROR_PR("%s", "Unable to get the sense via "
-			"REQUEST SENSE, returning HARDWARE ERROR");
-		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
-	}
-
-	scst_put_buf(cmd, buf);
-
-	scst_free_internal_cmd(cmd);
-
-	TRACE_EXIT_HRES((unsigned long)orig_cmd);
-	return orig_cmd;
-}
-
 static int scst_done_cmd_check(struct scst_cmd *cmd, int *pres)
 {
 	int res = 0, rc;
@@ -1967,10 +1846,10 @@ static int scst_done_cmd_check(struct scst_cmd *cmd, int *pres)
 
 	TRACE_ENTRY();
 
-	if (cmd->cdb[0] == REQUEST_SENSE) {
+	if (unlikely(cmd->cdb[0] == REQUEST_SENSE)) {
 		if (cmd->internal)
 			cmd = scst_complete_request_sense(cmd);
-	} else if (scst_check_auto_sense(cmd)) {
+	} else if (unlikely(scst_check_auto_sense(cmd))) {
 		PRINT_INFO_PR("Command finished with CHECK CONDITION, but "
 			    "without sense data (opcode 0x%x), issuing "
 			    "REQUEST SENSE", cmd->cdb[0]);
@@ -2238,7 +2117,7 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 		if (cmd->sg) {
 			int i;
 			struct scatterlist *sg = cmd->sg;
-			TRACE(TRACE_SEND_BOT, 
+			TRACE(TRACE_SEND_BOT,
 			      "Xmitting %d S/G(s) at %p sg[0].page at %p",
 			      cmd->sg_cnt, sg, (void*)sg[0].page);
 			for(i = 0; i < cmd->sg_cnt; ++i) {
@@ -2306,6 +2185,19 @@ out_error:
 	goto out;
 }
 
+void scst_tgt_cmd_done(struct scst_cmd *cmd)
+{
+	TRACE_ENTRY();
+
+	BUG_ON(cmd->state != SCST_CMD_STATE_XMIT_WAIT);
+
+	cmd->state = SCST_CMD_STATE_FINISHED;
+	scst_proccess_redirect_cmd(cmd, scst_get_context(), 1);
+
+	TRACE_EXIT();
+	return;
+}
+
 static int scst_finish_cmd(struct scst_cmd *cmd)
 {
 	int res;
@@ -2341,19 +2233,6 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 
 	TRACE_EXIT_HRES(res);
 	return res;
-}
-
-void scst_tgt_cmd_done(struct scst_cmd *cmd)
-{
-	TRACE_ENTRY();
-
-	BUG_ON(cmd->state != SCST_CMD_STATE_XMIT_WAIT);
-
-	cmd->state = SCST_CMD_STATE_FINISHED;
-	scst_proccess_redirect_cmd(cmd, scst_get_context(), 1);
-
-	TRACE_EXIT();
-	return;
 }
 
 /*

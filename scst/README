@@ -255,16 +255,16 @@ following files and directories under /proc/scsi_tgt:
   
   - "del_group GROUP" to /proc/scsi_tgt/scsi_tgt deletes group "GROUP"
   
-  - "add H:C:I:L lun [RO]" to /proc/scsi_tgt/groups/GROUP/devices adds 
+  - "add H:C:I:L lun [READ_ONLY]" to /proc/scsi_tgt/groups/GROUP/devices adds 
     device with host:channel:id:lun as LUN "lun" in group "GROUP". Optionally,
     the device could be marked as read only.
   
   - "del H:C:I:L" to /proc/scsi_tgt/groups/GROUP/devices deletes device with
     host:channel:id:lun from group "GROUP"
   
-  - "add V_NAME lun [RO]" to /proc/scsi_tgt/groups/GROUP/devices adds device with
-    virtual name "V_NAME" as LUN "lun" in group "GROUP". Optionally, the device 
-    could be marked as read only.
+  - "add V_NAME lun [READ_ONLY]" to /proc/scsi_tgt/groups/GROUP/devices adds
+    device with virtual name "V_NAME" as LUN "lun" in group "GROUP".
+    Optionally, the device could be marked as read only.
   
   - "del V_NAME" to /proc/scsi_tgt/groups/GROUP/devices deletes device with
     virtual name "V_NAME" from group "GROUP"

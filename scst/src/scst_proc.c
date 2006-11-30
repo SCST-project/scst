@@ -228,11 +228,10 @@ int scst_proc_read_tlb(const struct scst_proc_log *tbl, char *buffer,
 			if (*size > 0) {
 				*len += *size;
 				*pos = *begin + *len;
-				if (*pos < offset) {
+				if (*pos <= offset) {
 					*len = 0;
 					*begin = *pos;
-				}
-				if (*pos > offset + length)
+				} else if (*pos >= offset + length)
 					goto out_end;
 			} else
 				goto out_end;
@@ -278,11 +277,10 @@ int scst_proc_log_entry_read(char *buffer, char **start,
 	if (size > 0) {
 		len += size;
 		pos = begin + len;
-		if (pos < offset) {
+		if (pos <= offset) {
 			len = 0;
 			begin = pos;
-		}
-		if (pos > offset + length)
+		} else if (pos >= offset + length)
 			goto stop_output;
 	} else
 		goto stop_output;
@@ -292,7 +290,7 @@ stop_output:
 	len -= (offset - begin);
 	if (len > length)
 		len = length;
-	res = len;
+	res = max(0, len);
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -739,13 +737,10 @@ static int scst_proc_update_size(int size, off_t offset, int length,
 	if (size > 0) {
 		p->len += size;
 		p->pos = p->begin + p->len;
-		if (p->pos < offset) {
+		if (p->pos <= offset) {
 			p->len = 0;
 			p->begin = p->pos;
-		}
-		if (p->pos > offset + length) {
-			p->begin = p->pbegin;
-			p->len = p->plen;
+		} else if (p->pos >= offset + length) {
 			res = 1;
 			goto out;
 		} else
@@ -836,7 +831,7 @@ stop_output:
 	st.len -= (offset - st.begin);
 	if (st.len > length)
 		st.len = length;
-	res = st.len;
+	res = max(0, st.len);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -1006,6 +1001,8 @@ static int scst_scsi_tgt_proc_info(char *buffer, char **start,
 
 	TRACE_ENTRY();
 
+//TRACE(TRACE_SPECIAL, "offset=%ld, length=%d", offset, length);
+
 	if (down_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
 		goto out;
@@ -1014,14 +1011,17 @@ static int scst_scsi_tgt_proc_info(char *buffer, char **start,
 	size = scnprintf(buffer + len, length - len, "%-60s%s\n",
 		       "Device (host:ch:id:lun or name)",
 		       "Device handler");
+
+//TRACE(TRACE_SPECIAL, "size=%d, pos=%ld, begin=%ld, len=%d, buf %s",
+//	size, pos, begin, len, buffer+len);
+
 	if (size > 0) {
 		len += size;
 		pos = begin + len;
-		if (pos < offset) {
+		if (pos <= offset) {
 			len = 0;
 			begin = pos;
-		}
-		if (pos > offset + length)
+		} else if (pos >= offset + length)
 			goto stop_output;
 	} else
 		goto stop_output;
@@ -1030,31 +1030,35 @@ static int scst_scsi_tgt_proc_info(char *buffer, char **start,
 	pplen = plen = len;
 	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
 		if (dev->virt_id == 0) {
+			char conv[12];
 			size = scnprintf(buffer + len, length - len,
-				       "%d:%d:%d:%-54d%s\n",
+				       "%d:%d:%d:",
 					dev->scsi_dev->host->host_no,
 					dev->scsi_dev->channel,
-					dev->scsi_dev->id,
-					dev->scsi_dev->lun,
-					dev->handler ? dev->handler->name :
-					"-");
+					dev->scsi_dev->id);
+			sprintf(conv, "%%-%dd%%s\n", 60-size);
+			size += scnprintf(buffer + len + size, length - len - size,
+				        conv, dev->scsi_dev->lun,
+					dev->handler ? dev->handler->name : "-");
 		} else {
 			size = scnprintf(buffer + len, length - len,
 				       "%-60s%s\n",
 				       dev->virt_name, dev->handler->name);
 		}
+
+//printk("size=%d, pbegin=%ld, plen=%d, ppbegin=%ld, pplen=%d, buf %s",
+//	size, pbegin, plen, ppbegin, pplen, buffer+len);
+
 		if (size > 0) {
 			len += size;
 			pos = begin + len;
-			if (pos < offset) {
+			if (pos <= offset) {
 				len = 0;
 				begin = pos;
 			}
-			if (pos > offset + length) {
-				begin = pbegin;
-				len = plen;
+//TRACE(TRACE_SPECIAL, "pos=%ld, begin=%ld, len=%d", pos, begin, len);
+			if (pos >= offset + length)
 				goto stop_output;
-			}
 		} else {
 			begin = ppbegin;
 			len = pplen;
@@ -1073,7 +1077,9 @@ stop_output:
 	len -= (offset - begin);
 	if (len > length)
 		len = length;
-	res = len;
+	res = max(0, len);
+
+//TRACE(TRACE_SPECIAL, "res=%d, start=%ld, len=%d, begin=%ld, eof=%d", res, offset-begin, len, begin, *eof);
 
 	up(&scst_mutex);
 
@@ -1822,11 +1828,10 @@ static int scst_proc_groups_devices_read(char *buffer, char **start,
 	if (size > 0) {
 		len += size;
 		pos = begin + len;
-		if (pos < offset) {
+		if (pos <= offset) {
 			len = 0;
 			begin = pos;
-		}
-		if (pos > offset + length)
+		} else if (pos >= offset + length)
 			goto stop_output;
 	} else
 		goto stop_output;
@@ -1835,11 +1840,15 @@ static int scst_proc_groups_devices_read(char *buffer, char **start,
 	pplen = plen = len;
 	list_for_each_entry(acg_dev, &acg->acg_dev_list, acg_dev_list_entry) {
 		if (acg_dev->dev->virt_id == 0) {
+			char conv[20];
 			size = scnprintf(buffer + len, length - len,
-				       "%d:%d:%d:%-54d%4d%12s\n",
+				        "%d:%d:%d:",
 					acg_dev->dev->scsi_dev->host->host_no,
 					acg_dev->dev->scsi_dev->channel,
-					acg_dev->dev->scsi_dev->id,
+					acg_dev->dev->scsi_dev->id);
+			sprintf(conv, "%%-%dd%%4d%%12s\n", 60-size);
+			size += scnprintf(buffer + len + size,
+					length - len - size, conv,
 					acg_dev->dev->scsi_dev->lun,
 					acg_dev->lun,
 					acg_dev->rd_only_flag ? "RO" : "");
@@ -1852,15 +1861,11 @@ static int scst_proc_groups_devices_read(char *buffer, char **start,
 		if (size > 0) {
 			len += size;
 			pos = begin + len;
-			if (pos < offset) {
+			if (pos <= offset) {
 				len = 0;
 				begin = pos;
-			}
-			if (pos > offset + length) {
-				begin = pbegin;
-				len = plen;
+			} else if (pos >= offset + length)
 				goto stop_output;
-			}
 		} else {
 			begin = ppbegin;
 			len = pplen;
@@ -1879,7 +1884,7 @@ stop_output:
 	len -= (offset - begin);
 	if (len > length)
 		len = length;
-	res = len;
+	res = max(0, len);
 
 	up(&scst_mutex);
 
@@ -2099,11 +2104,10 @@ static int scst_proc_sessions_read(char *buffer, char **start,
 	if (size > 0) {
 		len += size;
 		pos = begin + len;
-		if (pos < offset) {
+		if (pos <= offset) {
 			len = 0;
 			begin = pos;
-		}
-		if (pos > offset + length)
+		} else if (pos >= offset + length)
 			goto stop_output;
 	} else
 		goto stop_output;
@@ -2121,15 +2125,11 @@ static int scst_proc_sessions_read(char *buffer, char **start,
 			if (size > 0) {
 				len += size;
 				pos = begin + len;
-				if (pos < offset) {
+				if (pos <= offset) {
 					len = 0;
 					begin = pos;
-				}
-				if (pos > offset + length) {
-					begin = pbegin;
-					len = plen;
+				} else if (pos >= offset + length)
 					goto stop_output;
-				}
 			} else {
 				begin = ppbegin;
 				len = pplen;
@@ -2149,7 +2149,7 @@ stop_output:
 	len -= (offset - begin);
 	if (len > length)
 		len = length;
-	res = len;
+	res = max(0, len);
 
 	up(&scst_mutex);
 
@@ -2183,15 +2183,11 @@ static int scst_proc_groups_names_read(char *buffer, char **start,
 		if (size > 0) {
 			len += size;
 			pos = begin + len;
-			if (pos < offset) {
+			if (pos <= offset) {
 				len = 0;
 				begin = pos;
-			}
-			if (pos > offset + length) {
-				begin = pbegin;
-				len = plen;
+			} else if (pos >= offset + length)
 				goto stop_output;
-			}
 		} else {
 			begin = ppbegin;
 			len = pplen;
@@ -2210,7 +2206,7 @@ stop_output:
 	len -= (offset - begin);
 	if (len > length)
 		len = length;
-	res = len;
+	res = max(0, len);
 
 	up(&scst_mutex);
 
