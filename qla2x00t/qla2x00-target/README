@@ -56,10 +56,6 @@ Compilation options
 There are the following compilation options, that could be commented
 in/out in Makefile:
 
- - FC_SCST_WWN_AUTH - turns on using remote initiator's WWN as 
-   authentification name for scst_register_session_ex(). If it is off,
-   LOOP ID used instead of WWN.
-
  - DEBUG_TGT - turns on some debugging code, including some logging. Makes
    the driver considerably bigger and slower, producing large amount of
    log data.

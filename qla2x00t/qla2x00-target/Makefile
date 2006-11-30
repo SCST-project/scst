@@ -30,7 +30,6 @@
 SCST_INC_DIR := $(SUBDIRS)/../../scst/include
 SCST_DIR := $(shell pwd)/../../scst/src
 EXTRA_CFLAGS += -I$(SCST_INC_DIR) -DFC_TARGET_SUPPORT
-EXTRA_CFLAGS += -DFC_SCST_WWN_AUTH
 
 INSTALL_DIR := /lib/modules/$(shell uname -r)/extra
 

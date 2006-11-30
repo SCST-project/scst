@@ -7,6 +7,7 @@
 #include "qla_def.h"
 
 #include <linux/vmalloc.h>
+#include <linux/delay.h>
 #include <linux/version.h>
 
 #ifdef FC_TARGET_SUPPORT
@@ -61,17 +62,17 @@ qla2x00_store_tgt_enabled(struct class_device *cdev,
 		if ((ha->flags.enable_target_mode) || force) {
 			qla_target.tgt_host_action(ha, DISABLE_TARGET_MODE);
 		}
+		msleep_interruptible(3*1000);
 		break;
 	case '1' :
 		if ((ha->flags.enable_target_mode == 0) || force) {
 			qla_target.tgt_host_action(ha, ENABLE_TARGET_MODE);
 		}
+		msleep_interruptible(3*1000);
 		break;
 	default:
-#if defined(QL_DEBUG_LEVEL_9) || defined(QL_DEBUG_LEVEL_11)
 		printk("%s: Requested action not understood: %s\n",
 		       __func__, buffer);
-#endif
 		break;
 	}
 

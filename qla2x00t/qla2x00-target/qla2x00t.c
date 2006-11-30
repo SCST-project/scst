@@ -953,7 +953,7 @@ static inline void q2t_free_cmd(struct q2t_cmd *cmd)
 	kmem_cache_free(q2t_cmd_cachep, cmd);
 }
 
-void q2t_on_free_cmd(struct scst_cmd *scst_cmd)
+static void q2t_on_free_cmd(struct scst_cmd *scst_cmd)
 {
 	struct q2t_cmd *cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
 
@@ -1148,7 +1148,7 @@ static void q2t_send_busy(scsi_qla_host_t *ha, atio_entry_t *atio)
 	ctio = (ctio_ret_entry_t *)tgt_data.req_pkt(ha);
 	ctio->entry_type = CTIO_RET_TYPE;
 	ctio->entry_count = 1;
-	ctio->handle = Q2T_BUSY_HANDLE;
+	ctio->handle = Q2T_BUSY_HANDLE | CTIO_COMPLETION_HANDLE_MARK;
 	ctio->scsi_status = __constant_cpu_to_le16(BUSY << 1);
 
 	/* Set IDs */
@@ -1263,8 +1263,7 @@ static void q2t_alloc_session_done(struct scst_session *scst_sess,
 	return;
 }
 
-static char *q2t_make_name(scsi_qla_host_t *ha, int loop_id)
-#ifdef FC_SCST_WWN_AUTH
+static char *q2t_find_name(scsi_qla_host_t *ha, int loop_id)
 {
 	int wwn_found = 0;
 	char *wwn_str;
@@ -1291,31 +1290,32 @@ static char *q2t_make_name(scsi_qla_host_t *ha, int loop_id)
 	}
 
 	if (wwn_found == 0) {
-#if 0
-		PRINT_ERROR("qla2x00tgt(%ld): Unable to find wwn login for "
-			"loop id %d, using loop id instead", ha->instance, loop_id);
-		snprintf(wwn_str, 2*WWN_SIZE, "%d", loop_id);
-#else
-		TRACE_DBG("qla2x00tgt(%ld): Unable to find wwn login for "
+		TRACE_MGMT_DBG("qla2x00tgt(%ld): Unable to find wwn login for "
 			"loop id %d", ha->instance, loop_id);
 		kfree(wwn_str);
 		wwn_str = NULL;
-#endif
 	}
-
 
 out:
 	return wwn_str;
 }
-#else
+
+static char *q2t_make_name(scsi_qla_host_t *ha, const uint8_t *name)
 {
-	char *s;
-	s = kmalloc(12, GFP_ATOMIC);
-	if (s != NULL)
-		snprintf(s, 12, "%d", loop_id);
-	return s;
+	char *wwn_str;
+
+	wwn_str = kmalloc(3*WWN_SIZE, GFP_ATOMIC);
+	if (wwn_str == NULL) {
+		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of wwn_str failed");
+		goto out;
+	}
+	sprintf(wwn_str, "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
+		name[1], name[0], name[3], name[2], name[5], name[4], 
+		name[7], name[6]);
+
+out:
+	return wwn_str;
 }
-#endif
 
 /* ha->hardware_lock supposed to be held on entry */
 static int q2t_send_cmd_to_scst(scsi_qla_host_t *ha, atio_entry_t *atio)
@@ -1378,11 +1378,18 @@ static int q2t_send_cmd_to_scst(scsi_qla_host_t *ha, atio_entry_t *atio)
 
 		/* register session (remote initiator) */
 		{
-			char *name = q2t_make_name(ha, loop_id);
+			char *name;
+			if (IS_QLA2200(ha))
+				name = q2t_find_name(ha, loop_id);
+			else {
+				name = q2t_make_name(ha,
+					atio->initiator_port_name);
+			}
 			if (name == NULL) {
 				res = -ESRCH;
 				goto out_free_sess;
 			}
+
 			sess->scst_sess = scst_register_session(
 				tgt->scst_tgt, 1, name, sess,
 				q2t_alloc_session_done);
@@ -1744,7 +1751,11 @@ static void q2t_response_pkt(scsi_qla_host_t *ha, sts_entry_t *pkt)
 			rc = q2t_send_cmd_to_scst(ha, atio);
 			if (unlikely(rc != 0)) {
 				if (rc == -ESRCH) {
+#if 1 /* With TERM EXCHANGE some FC cards refuse to boot */
+					q2t_send_busy(ha, atio);
+#else
 					q2t_send_term_exchange(ha, NULL, atio, 1);
+#endif
 				} else {
 					PRINT_INFO("qla2x00tgt(%ld): Unable to "
 					    "send the command to SCSI target "

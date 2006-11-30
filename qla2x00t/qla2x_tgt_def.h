@@ -236,8 +236,8 @@ typedef struct
 	uint8_t	 cdb[MAX_CMDSZ];
 	uint32_t data_length;
 	uint16_t lun;
-	uint8_t initiator_port_name[WWN_SIZE]; /* on qla23xx */
-	uint16_t reserved_32[6];
+	uint8_t  initiator_port_name[WWN_SIZE]; /* on qla23xx */
+	uint8_t  reserved2[12];
 	uint16_t ox_id;
 }atio_entry_t;
 #endif
