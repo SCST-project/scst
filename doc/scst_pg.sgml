@@ -8,7 +8,7 @@
 	<name>Vladislav Bolkhovitin &lt;<tt/vst @at@ vlnb .dot. net/&gt;</name>
 </author>
 
-<date>Version 0.9.3-pre4 2006/02/07, actual for SCST 0.9.3-pre4 and later</date>
+<date>Version 0.9.5 2006/12/01, actual for SCST 0.9.5 and later</date>
 
 <abstract>
 This document describes SCSI target mid-level for Linux (SCST), its
@@ -122,7 +122,8 @@ SCST session is the object that describes relationship between a remote
 initiator and SCST via a target driver. All the commands from the remote
 initiator is passed to SCST in the session. For example, for connection
 oriented protocols, like iSCSI, SCST session could be mapped to the TCP
-connection. SCST session is the close equivalent of I_T nexus object.
+connection (as well as iSCSI session). SCST session is the close
+equivalent of I_T nexus object.
 
 <bf/Local SCSI initiator/
 

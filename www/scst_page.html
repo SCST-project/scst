@@ -110,7 +110,7 @@ of New Hampshire Interoperability Labs (UNH IOL)</a> for the <a
 project</a>, which is currently developed on <a
  href="http://unh-iscsi.sourceforge.net/">SourceForge.net</a>.<br>
 </p>
-<p style="text-align: justify;">The latest stable version is 0.9.4. It
+<p style="text-align: justify;">The latest stable version is 0.9.5. It
 supports SCSI disks (type 0), tapes (type 1), processors (type
 3), CDROMs (type 5), MO disks (type 7), medium changers (type 8) and
 RAID controllers (type 0xC). Also it supports FILEIO and "performance"
@@ -165,13 +165,15 @@ Qlogic 2x00 initiator
 driver. The port was done by Nathaniel Clark. This is stable and
 functional driver with
 the larger feature set, than the parent driver has.</p>
-<p style="text-align: justify;">The latest version is 0.9.3.8. Requires
-Linux kernel version 2.6.15.X and SCST version 0.9.4 or higher.
-For usage with other kernel versions you will need to port the
-initiator patch to that version of the kernel.<br>
+<p style="text-align: justify;">The latest version is 0.9.5. Requires
+Linux kernel version 2.6.16.X and SCST version 0.9.5 or higher.
+For usage with other kernel versions you need to port the
+initiator patch to that version of the kernel. Tested on i386 and
+x86_64 only, but
+should work on any other supported by Linux platform.
 </p>
 <p style="text-align: justify;">You can find the latest development
-version of this driver in the SCST CVS. See above how to setup access
+version of this driver in the SCST SVN. See above how to setup access
 to it.<br>
 </p>
 <p style="text-align: justify;"><a
@@ -192,7 +194,7 @@ driver was taken Red Hat's driver from the stock 2.4.20 kernel. Then it
 was patched, basically, to enable the target mode and provide all
 necessary callbacks, and it's still able to work as initiator only.
 Mode, when a host acts as the initiator and the target simultaneously,
-is also supported. This driver is going to be obsolete soon in favor of
+is also supported. This driver is obsoleted in favor of
 2.6-based driver (see above).<br>
 <br>
 The latest version is 0.9.3.4. Requires Linux kernel versions 2.4.20 or

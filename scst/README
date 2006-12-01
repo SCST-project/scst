@@ -1,7 +1,7 @@
 Generic SCSI target mid-level for Linux (SCST)
 ==============================================
 
-Version 0.9.5, XX XXX 2006
+Version 0.9.5, 01 Dec 2006
 --------------------------
 
 SCST is designed to provide unified, consistent interface between SCSI
@@ -429,6 +429,9 @@ IMPORTANT: Some of those options enabled by default, i.e. SCST is optimized
    more on all initiators and the target. Also experiment with other
    parameters in /sys/block/device directory, they also affect the
    performance. If you find the best values, please share them with us.
+
+ - Also it is recommended to turn the kernel preemption off, i.e. set
+   the kernel preemption model to "No Forced Preemption (Server)".
 
 5. For hardware.
 

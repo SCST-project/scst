@@ -26,16 +26,17 @@
 #    - install and uninstall must be made as root
 #
 
-#SCST_INC_DIR := /usr/local/include/scst
-SCST_INC_DIR := $(SUBDIRS)/../../scst/include
-SCST_DIR := $(shell pwd)/../../scst/src
+SCST_INC_DIR := /usr/local/include/scst
+#SCST_INC_DIR := $(SUBDIRS)/../../scst/include
+#SCST_DIR := $(shell pwd)/../../scst/src
+SCST_DIR := $(shell pwd)/../../scst-0.9.5/src
 EXTRA_CFLAGS += -I$(SCST_INC_DIR) -DFC_TARGET_SUPPORT
 
 INSTALL_DIR := /lib/modules/$(shell uname -r)/extra
 
 EXTRA_CFLAGS += -DEXTRACHECKS 
-#EXTRA_CFLAGS += -DTRACING
-EXTRA_CFLAGS += -DDEBUG_TGT
+EXTRA_CFLAGS += -DTRACING
+#EXTRA_CFLAGS += -DDEBUG_TGT
 #EXTRA_CFLAGS += -DDEBUG_WORK_IN_THREAD
 
 ifeq ($(KVER),)

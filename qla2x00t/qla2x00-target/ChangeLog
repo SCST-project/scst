@@ -42,11 +42,10 @@ Patch vs: qla2xxx v8.01.03-k (in kernels 2.6.15.x+, including 2.6.16-prex)
 
  - Include MEMSET, MEMCPY definitions
 	
- - Patched to compile on 64bit cleanly (thanks to Ming Zhang <mingz@ele.uri.edu>
-for patch)
+ - Patched to compile on 64bit cleanly (thanks to Ming Zhang for patch)
 
 - Fixed possible race during initial enabling of Target Mode (thanks to 
-Mark Buechler <mark.buechler@gmail.com> for finding)
+Mark Buechler for finding)
 	
 Summary of changes between versions 0.9.3.4 and 0.9.3.5
 -------------------------------------------------------
@@ -61,8 +60,7 @@ tracked.
  - Added Module Info
 
  - Fixed module counting with initiator module preventing it from going
-away w/out telling us (pointed out by Vladislav Bolkhovitin
-<vst@vlnb.net>)
+away w/out telling us (pointed out by Vladislav Bolkhovitin)
 
  - Some minor debugging changes
 
@@ -70,7 +68,7 @@ Summary of changes between versions 0.9.3.2 of old driver and 0.9.3.4
 ---------------------------------------------------------------------
 
  - Support for the latest in-tree Qlogic initiator added by Nathaniel
-Clark <nate@misrule.us>
+Clark
 
  - Only one module is build and it interacts with a patched kernel
 qla2xxx driver. The single module is called qla2x00tgt.ko instead of

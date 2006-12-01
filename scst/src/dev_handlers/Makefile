@@ -51,9 +51,9 @@ INSTALL_DIR := /lib/modules/$(shell uname -r)/extra
 EXTRA_CFLAGS += -I$(SUBDIRS) -I$(SUBDIRS)/../include
 #EXTRA_CFLAGS += -I$(SUBDIRS) -I$(SUBDIRS)/../../include -I$(SUBDIRS)/..
 
-#EXTRA_CFLAGS += -DTRACING
+EXTRA_CFLAGS += -DTRACING
 
-EXTRA_CFLAGS += -DDEBUG
+#EXTRA_CFLAGS += -DDEBUG
 
 clean:
 	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend Modules.symvers Module.symvers

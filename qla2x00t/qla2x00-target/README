@@ -1,8 +1,8 @@
 Target driver for Qlogic 2200/2300 Fibre Channel cards
 ======================================================
 
-Version 0.9.5-pre2, XX XXX 2006
--------------------------------
+Version 0.9.5, 01 Dec 2006
+--------------------------
 
 This driver has all required features and looks to be quite stable (for
 beta) and useful. It consists from two parts: the target mode driver
@@ -29,24 +29,34 @@ At first, make sure that the link "/lib/modules/`you_kernel_version`/build"
 points to the source code for your currently running kernel.
 
 Then you should replace (or link) by the initiator driver from this
-package "qla2xxx" subdirectory in kernel_source/drivers/scsi/ and then
-rebuild the kernel and its modules.
+package "qla2xxx" subdirectory in kernel_source/drivers/scsi/ of the
+currently running kernel and using your favorite kernel configuration
+tool enable in the QLogic QLA2XXX Fibre Channel driver target mode
+support (CONFIG_SCSI_QLA2XXX_TARGET). Then rebuild the kernel and its
+modules. During this step you will compile the initiator driver. To
+install it, install the built kernel and its modules.
 
-Then edit Makefile and set SCST_INC_DIR variable to point to the
-directory, where SCST's public include files are located. If you install
-QLA2x00 target driver's source code in the SCST's directory, then
-SCST_INC_DIR will be set correctly for you ("../include").
+Then edit qla2x00-target/Makefile and set SCST_INC_DIR variable to point
+to the directory, where SCST's public include files are located. If you
+install QLA2x00 target driver's source code in the SCST's directory,
+then SCST_INC_DIR will be set correctly for you.
 
-To compile, type 'make'. It will build qla2x00tgt.ko module.
+Also you can set SCST_DIR variable to the directory, where SCST was
+built, but this is optional. If you don't set it or set incorrectly,
+during the compilation you will get a bunch of harmless warnings like
+"WARNING: "scst_rx_data" [/XXX/qla2x00tgt.ko] undefined!"
 
-To install, type 'make install'. The target driver will be installed in
-/lib/modules/`you_kernel_version`/extra.
+To compile the target driver, type 'make' in qla2x00-target/
+subdirectory. It will build qla2x00tgt.ko module.
 
-To uninstall, type 'make uninstall'.
+To install the target driver, type 'make install' in qla2x00-target/
+subdirectory. The target driver will be installed in
+/lib/modules/`you_kernel_version`/extra. To uninstall it, type 'make
+uninstall'.
 
-The target mode should be enabled via a sysfs interface on a per card
-basis. Under the appropriate scsi_host there is an entry
-target_mode_enabled, where you should write "1", like:
+After the drivers are loaded, the target mode should be enabled via a
+sysfs interface on a per card basis. Under the appropriate scsi_host
+there is an entry target_mode_enabled, where you should write "1", like:
 
 echo "1" >/sys/class/scsi_host/host0/target_mode_enabled
 
