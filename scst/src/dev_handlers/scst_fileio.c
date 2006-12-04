@@ -2270,7 +2270,7 @@ struct fileio_proc_update_struct {
 static int fileio_proc_update_size(int size, off_t offset, int length,
 	struct fileio_proc_update_struct *p, int is_start)
 {
-	int res;
+	int res = 0;
 	if (size > 0) {
 		p->len += size;
 		p->pos = p->begin + p->len;
