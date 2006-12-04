@@ -57,6 +57,9 @@ void debug_print_buffer(const void *data, int len)
 	int f = 0;
 	unsigned long flags;
 
+	if (buf == NULL)
+		return;
+
 	spin_lock_irqsave(&trace_buf_lock, flags);
 
 	PRINT(NO_FLAG, " (h)___0__1__2__3__4__5__6__7__8__9__A__B__C__D__E__F");
