@@ -32,6 +32,7 @@
 #include <linux/list.h>
 #include <linux/ctype.h>
 #include <linux/writeback.h>
+#include <linux/vmalloc.h>
 #include <asm/atomic.h>
 
 #define LOG_PREFIX			"dev_fileio"
