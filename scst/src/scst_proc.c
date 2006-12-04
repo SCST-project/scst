@@ -191,6 +191,8 @@ static DECLARE_MUTEX(scst_proc_mutex);
 
 #include <linux/ctype.h>
 
+#if !defined(CONFIG_PPC)
+
 #if defined(DEBUG) || defined(TRACING)
 static int strcasecmp(const char *s1, const char *s2)
 {
@@ -212,6 +214,8 @@ static int strncasecmp(const char *s1, const char *s2, int n)
 	} while ((--n > 0) && c1 == c2 && c1 != 0);
 	return c1 - c2;
 }
+
+#endif /* CONFIG_PPC */
 
 int scst_proc_read_tlb(const struct scst_proc_log *tbl, char *buffer,
 	int length, off_t offset, unsigned long log_level, int *first,
