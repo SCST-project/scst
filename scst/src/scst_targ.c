@@ -3861,17 +3861,15 @@ restart:
 		list_for_each_entry(sess, &scst_sess_mgmt_list,
 			sess_mgmt_list_entry)
 		{
-			int shutting_down;
 			TRACE_DBG("Removing sess %p from scst_sess_mgmt_list",
 				sess);
 			list_del(&sess->sess_mgmt_list_entry);
-			shutting_down = sess->shutting_down;
 			spin_unlock_irq(&scst_mgmt_lock);
-			if (shutting_down) {
+			if (sess->init_phase == SCST_SESS_IPH_INITING) {
+				scst_init_session(sess);
+			} else if (sess->shutting_down) {
 				BUG_ON(atomic_read(&sess->refcnt) != 0);
 				scst_free_session_callback(sess);
-			} else if (sess->init_phase == SCST_SESS_IPH_INITING) {
-				scst_init_session(sess);
 			} else {
 				PRINT_ERROR_PR("session %p is in "
 					"scst_sess_mgmt_list, but in unknown "
