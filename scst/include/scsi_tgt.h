@@ -1013,6 +1013,13 @@ struct scst_cmd
 	 */
 	unsigned int mem_checked:1;
 
+	/*
+	 * Set if target driver may need to call dma_sync_sg() or similar
+	 * function before transferring cmd' data to the target device
+	 * via DMA.
+	 */
+	unsigned int may_need_dma_sync:1;
+
 	/**************************************************************/
 
 	unsigned long cmd_flags;	/* cmd's async flags */
@@ -1896,6 +1903,19 @@ static inline void scst_cmd_set_expected(struct scst_cmd *cmd,
 }
 
 /*
+ * Get/clear functions for cmd's may_need_dma_sync
+ */
+static inline int scst_get_may_need_dma_sync(struct scst_cmd *cmd)
+{
+	return cmd->may_need_dma_sync;
+}
+
+static inline void scst_clear_may_need_dma_sync(struct scst_cmd *cmd)
+{
+	cmd->may_need_dma_sync = 0;
+}
+
+/*
  * Get/Set function for mgmt cmd's target private data
  */
 static inline void *scst_mgmt_cmd_get_tgt_priv(struct scst_mgmt_cmd *mcmd)
@@ -1931,6 +1951,7 @@ int __scst_get_buf(struct scst_cmd *cmd, uint8_t **buf);
 static inline int scst_get_buf_first(struct scst_cmd *cmd, uint8_t **buf)
 {
 	cmd->get_sg_buf_entry_num = 0;
+	cmd->may_need_dma_sync = 1;
 	return __scst_get_buf(cmd, buf);
 }
 
