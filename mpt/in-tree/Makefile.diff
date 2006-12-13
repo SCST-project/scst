@@ -1,19 +1,10 @@
 --- Makefile_orig	2006-03-05 22:07:54.000000000 +0300
-+++ Makefile	2006-12-13 14:11:52.000000000 +0300
-@@ -8,7 +8,6 @@
- #EXTRA_CFLAGS += -DMPT_DEBUG_EXIT
- #EXTRA_CFLAGS += -DMPT_DEBUG_FAIL
- 
--
- #
- # driver/module specifics...
- #
-@@ -30,9 +29,19 @@
++++ Makefile	2006-12-13 14:50:36.000000000 +0300
+@@ -30,9 +30,18 @@
  #CFLAGS_mptctl.o += -DMPT_DEBUG_IOCTL
  #
  
 +SCST_INC_DIR := /usr/local/include/scst
-+SCST_DIR := $(SCST_INC_DIR)
 +
 +CFLAGS_mpt_scst.o += -I$(SCST_INC_DIR) -I$(src)
 +CFLAGS_mpt_scst.o += -DEXTRACHECKS
