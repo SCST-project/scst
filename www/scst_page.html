@@ -14,7 +14,7 @@
 <h1><small>Generic SCSI Target Middle Level for Linux</small><br>
 </h1>
 <p style="text-align: justify;">The SCSI target mid-level subsystem for
-Linux (SCST) is a new subsystem of the Linux kernel that provides a
+Linux (SCST) is a subsystem of the Linux kernel that provides a
 standard framework for SCSI target drivers development. It is designed
 to
 provide unified, consistent interface between SCSI target drivers and
@@ -47,8 +47,9 @@ requests can be processed in the caller's context or in
 one of the internal SCST's tasklets, therefore no extra context
 switches
 required.</li>
-  <li>Provides advanced per-initiator device visibility management,
-which allows different initiators could see different set of devices
+  <li>Provides advanced per-initiator device visibility management (LUN
+masking),
+which allows different initiators see different set of devices
 with different access permissions. For instance, initiator A could see
 exported from
 target T devices Da and Db read-writable, and initiator B from the same
@@ -64,14 +65,14 @@ own devices. Some of the emulated functions are the following:
       <li> Generation of necessary UNIT ATTENTIONs, their storage and
 delivery to all connected remote initiators (sessions). </li>
       <li> RESERVE/RELEASE functionality. </li>
-      <li> CA/ACA conditions. </li>
+      <li> CA/ACA conditions (not implemented yet). </li>
       <li> All types of RESETs and other task management functions. </li>
       <li> REPORT LUNS command as well as SCSI address space management
 in order to have consistent address space on all remote initiators,
 since local SCSI devices could not know about each other to report
 via REPORT LUNS command. Additionally, SCST responds with error on
-all commands to non-existing devices and provides access control
-(not implemented yet), so different remote initiators could see
+all commands to non-existing devices and provides access control, so
+different remote initiators could see
 different set of devices. </li>
       <li> Other necessary functionality (task attributes, etc.) as
 specified in SAM-2, SPC-2, SAM-3, SPC-3 and other SCSI standards. </li>
@@ -101,7 +102,7 @@ UNIT ATTENTIONs, etc. should be intercepted and processed as if local
 SCSI initiators act as remote SCSI initiators connected to SCST. This
 feature requires some the kernel modification. Since in the current
 version it is not implemented, SCST and target drivers are
-able to work with any 2.4 or 2.6 kernel version.<br>
+able to work with any version of Linux 2.6 kernel.<br>
 </p>
 <p style="text-align: justify;">Interface between SCST and target
 drivers is based on work, done by <a href="http://www.iol.unh.edu/">University
@@ -116,18 +117,19 @@ supports SCSI disks (type 0), tapes (type 1), processors (type
 RAID controllers (type 0xC). Also it supports FILEIO and "performance"
 device handlers. FILEIO device handler allows to use files on file
 systems or block devices as virtual remotely available SCSI disks or
-CDROM's. "Performance" device handlers provide a way for direct
+CDROMs. "Performance" device handlers provide a way for direct
 performance measurements without overhead of actual data transferring
 from/to underlying SCSI device. Requires Linux kernel 2.6.14 or higher.
-Tested on i386 and x86_64 only,
+Tested mostly on i386 and x86_64,
 but should also
 work on any other
 supported by Linux platform. More detail information you could find in
-the project README file.<br>
+the project's README file.<br>
 </p>
 <p style="text-align: justify;">Starting from version 0.9.4 2.4 Linux
 kernels are not supported anymore, although there could be new SCST
-releases those kernels with very important bug fixes. The latest stable
+releases for those kernels with very important bug fixes. The latest
+stable
 version of SCST with 2.4 kernels support is 0.9.3.1-24.</p>
 <p style="text-align: justify;">If you have any questions you can ask
 them on the SCST SF.net page either using forum, or scst-devel mailing
@@ -156,20 +158,33 @@ repository viewer</a> or anonymous CVS access.<br>
 </p>
 <hr
  style="width: 100%; height: 2px; margin-left: 0px; margin-right: 0px;">
+<h1><small>SCST administration utility<br>
+</small></h1>
+<p>SCST administration utility "scstadmin" is developed by Mark
+Buechler. With it you can manually or automatically using either plain
+text config file, or MySQL database configure every aspect of SCST, for
+instance as part of the system startup/shutdown, including
+enabling/disabling target mode on your target SCSI controller.<br>
+</p>
+<p><a
+ href="http://sourceforge.net/project/showfiles.php?group_id=110471">Download</a>
+</p>
+<hr
+ style="width: 100%; height: 2px; margin-left: 0px; margin-right: 0px;">
 <h1><small>Target driver for Qlogic 2200/2300 cards for 2.6 kernels<br>
 </small></h1>
 <div style="text-align: justify;">
-<p>This is ported version of the
-previous target driver for 2.4 kernels (see below) to the in-tree 2.6
+<p>This is ported and improved version of the "old" target driver for
+2.4 kernels (see below) to the in-tree 2.6
 Qlogic 2x00 initiator
 driver. The port was done by Nathaniel Clark. This is stable and
 functional driver with
 the larger feature set, than the parent driver has.</p>
 <p style="text-align: justify;">The latest version is 0.9.5. Requires
-Linux kernel version 2.6.16.X and SCST version 0.9.5 or higher.
-For usage with other kernel versions you need to port the
-initiator patch to that version of the kernel. Tested on i386 and
-x86_64 only, but
+Linux kernel version 2.6.16.x or higher and SCST version 0.9.5 or
+higher.
+Tested mostly on i386 and
+x86_64, but
 should work on any other supported by Linux platform.
 </p>
 <p style="text-align: justify;">You can find the latest development
@@ -182,16 +197,26 @@ to it.<br>
 </p>
 </div>
 <hr style="width: 100%; height: 2px;">
-<h1><small>Target driver for Qlogic 2200/2300 cards<br>
+<h1><small>Target driver for LSI/MPT cards</small></h1>
+Target driver LSI/MPT cards was originally developed by Hu Gang, then
+Erik Habbinga has continued the development. This driver is on the
+alpha stage and available from the <a
+ href="http://svn.sourceforge.net/scst">SCST SVN repository</a>. See
+above how to setup access to it.<br>
+<br>
+<hr style="width: 100%; height: 2px;">
+<h1><small>Old target driver for Qlogic 2200/2300 cards<br>
 </small></h1>
-<div style="text-align: justify;">Target driver for Qlogic 2200/2300
-cards has all required features and
+<div style="text-align: justify;">Old target driver for Qlogic
+2200/2300
+cards is capable to work on 2.4 kernels. It has all required features
+and
 looks to be quite stable. It is designed to work in conjunction with
 the initiator
 driver, which is intended to perform all the initialization and
 shutdown tasks. In the current release as a base for the initiator
 driver was taken Red Hat's driver from the stock 2.4.20 kernel. Then it
-was patched, basically, to enable the target mode and provide all
+was patched to enable the target mode and provide all
 necessary callbacks, and it's still able to work as initiator only.
 Mode, when a host acts as the initiator and the target simultaneously,
 is also supported. This driver is obsoleted in favor of
@@ -206,13 +231,11 @@ should work on any other supported by Linux platform.<br>
 </div>
 <a href="http://sourceforge.net/project/showfiles.php?group_id=110471">Download</a><br>
 <a href="ChangeLog.qla">Change Log</a>
-<p style="text-align: justify;"></p>
-<hr style="width: 100%; height: 2px;">
-<span style="font-weight: bold;"></span>
-<h1><small>Target drivers for Adaptec 7xxx, LSI/MPT and Qlogic QLA12xx
+<hr style="width: 100%; height: 2px;"><span style="font-weight: bold;"></span>
+<h1><small>Target drivers for Adaptec 7xxx and Qlogic QLA12xx
 cards</small></h1>
-Target drivers for Adaptec 7xxx, LSI/MPT and Qlogic QLA12xx cards have
-being developed by Hu Gang and they available for download from <a
+Target drivers for Adaptec 7xxx and Qlogic QLA12xx cards have
+been developed by Hu Gang and they available for download from <a
  href="http://bj.soulinfo.com/%7Ehugang/scst/tgt/">http://bj.soulinfo.com/~hugang/scst/tgt/</a>.
 These drivers are not completed, but looks to be a good starting point
 if you are going to use one of these cards.
