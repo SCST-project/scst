@@ -1,0 +1,10 @@
+--- Kconfig_orig	2006-03-05 22:07:54.000000000 +0300
++++ Kconfig	2006-12-13 13:00:41.000000000 +0300
+@@ -100,4 +100,7 @@
+ 
+ 	  If unsure whether you really want or need this, say N.
+ 
++config FUSION_SCST
++	source "drivers/message/fusion/mpt_scst/Kconfig"
++
+ endmenu

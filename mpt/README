@@ -1,0 +1,12 @@
+Target driver for LSI/MPT XXX cards
+===================================
+
+Version X.X.X, XX XXX 200X
+--------------------------
+
+This driver was originally developed by Hu Gang and then is developed by
+Erik Habbinga <erikhabbinga@inphase-tech.com>. It is on the early stage
+of development.
+
+The current maintainer of this driver is Erik. Please send him all
+question related to it (CC: scst-devel@lists.sourceforge.net).

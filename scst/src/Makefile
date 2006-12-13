@@ -49,6 +49,10 @@ all:
 scst:
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_DEV=n
 
+MODS_VERS := $(shell ls Modules.symvers 2>/dev/null)
+# It's renamed in 2.6.18
+MOD_VERS := $(shell ls Module.symvers 2>/dev/null)
+
 install: all
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_DEV=m \
 		modules_install
@@ -56,6 +60,14 @@ install: all
 	install -m 644 ../include/scsi_tgt.h $(INSTALL_DIR_H)
 	install -m 644 ../include/scst_debug.h $(INSTALL_DIR_H)
 	install -m 644 ../include/scst_debug.c $(INSTALL_DIR_H)
+ifneq ($(MODS_VERS),)
+	rm -f $(INSTALL_DIR_H)/Module.symvers
+	install -m 644 Modules.symvers $(INSTALL_DIR_H)
+endif
+ifneq ($(MOD_VERS),)
+	rm -f $(INSTALL_DIR_H)/Modules.symvers
+	install -m 644 Module.symvers $(INSTALL_DIR_H)
+endif
 	-depmod -a
 
 uninstall:
