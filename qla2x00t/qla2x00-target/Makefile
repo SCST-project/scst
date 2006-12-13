@@ -27,9 +27,10 @@
 #
 
 #SCST_INC_DIR := /usr/local/include/scst
+#SCST_DIR := $(SCST_INC_DIR)
 SCST_INC_DIR := $(SUBDIRS)/../../scst/include
 SCST_DIR := $(shell pwd)/../../scst/src
-#SCST_DIR := $(shell pwd)/../../scst-0.9.5/src
+
 EXTRA_CFLAGS += -I$(SCST_INC_DIR) -DFC_TARGET_SUPPORT
 
 INSTALL_DIR := /lib/modules/$(shell uname -r)/extra
@@ -70,7 +71,6 @@ install: all
 SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Modules.symvers 2>/dev/null)
 ifneq ($(SCST_MOD_VERS),)
 Modules.symvers: $(SCST_DIR)/Modules.symvers
-	echo $(SCST_MOD_VERS)
 	cp $(SCST_DIR)/Modules.symvers .
 else
 .PHONY: Modules.symvers

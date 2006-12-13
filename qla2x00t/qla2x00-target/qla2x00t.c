@@ -292,8 +292,7 @@ static void q2t_free_session_done(struct scst_session *scst_sess)
 	if (tgt == NULL)
 		goto out;
 
-	TRACE(TRACE_DEBUG|TRACE_MGMT, 
-	      "tgt->handle %x empty(sess_list) %d sess_count %d", 
+	TRACE_MGMT_DBG("tgt->handle %x empty(sess_list) %d sess_count %d",
 	      tgt->handle, list_empty(&tgt->sess_list),
 	      atomic_read(&tgt->sess_count));
 
@@ -339,8 +338,7 @@ static void q2t_port_logout(scsi_qla_host_t *ha, int loop_id)
 {
 	struct q2t_sess *sess = q2t_find_sess_by_lid(ha->tgt, loop_id);
 
-	TRACE(TRACE_DEBUG|TRACE_MGMT, 
-	      "scsi(%ld) Unregistering session %p loop_id=%d",
+	TRACE_MGMT_DBG("scsi(%ld) Unregistering session %p loop_id=%d",
 	      ha->host_no, sess, loop_id);
 
 	q2t_unreg_sess(sess);
@@ -353,7 +351,7 @@ static void q2t_clear_tgt_db(struct q2t_tgt *tgt)
 
 	TRACE_ENTRY();
 
-	TRACE(TRACE_DEBUG|TRACE_MGMT, "Clearing targets DB %p", tgt);
+	TRACE_MGMT_DBG("Clearing targets DB %p", tgt);
 
 	list_for_each_entry_safe(sess, sess_tmp, &tgt->sess_list, list) {
 		q2t_unreg_sess(sess);
@@ -1620,7 +1618,7 @@ static void q2t_handle_imm_notify(scsi_qla_host_t *ha, notify_entry_t *iocb)
 	loop_id = GET_TARGET_ID(ha, iocb);
 
 	if (!ha->flags.enable_target_mode || ha->tgt == NULL) {
-		TRACE(TRACE_MGMT|TRACE_SCSI|TRACE_DEBUG,
+		TRACE(TRACE_MGMT_DEBUG|TRACE_SCSI|TRACE_DEBUG,
 		      "Acking %04x S %04x I %#x -> L %#x", status, 
 		      le16_to_cpu(iocb->seq_id), loop_id,
 		      le16_to_cpu(iocb->lun));
@@ -1917,8 +1915,7 @@ static void q2t_async_event(uint16_t code, scsi_qla_host_t *ha, uint16_t *mailbo
 	case MBA_LIP_RESET:		/* LIP reset occurred */
 	case MBA_POINT_TO_POINT:	/* Point to point mode. */
 	case MBA_CHG_IN_CONNECTION:	/* Change in connection mode. */
-		TRACE(TRACE_MGMT|TRACE_DEBUG,
-		      "Async event %#x occured: clear tgt_db", code);
+		TRACE_MGMT_DBG("Async event %#x occured: clear tgt_db", code);
 #if 0
 		/* 
 		 * ToDo: doing so we reset all holding RESERVE'ations, 
@@ -1928,21 +1925,19 @@ static void q2t_async_event(uint16_t code, scsi_qla_host_t *ha, uint16_t *mailbo
 #endif
 		break;
 	case MBA_RSCN_UPDATE:
-		TRACE(TRACE_MGMT|TRACE_DEBUG, "RSCN Update (%x) N_Port %#06x (fmt %x)",
+		TRACE_MGMT_DBG("RSCN Update (%x) N_Port %#06x (fmt %x)",
 		      code, ((mailbox[1]&0xF)<<2)|le16_to_cpu(mailbox[2]), 
 		      (mailbox[1]&0xF0)>>1);
 		break;
 
 	case MBA_PORT_UPDATE:		/* Port database update occurred */
-		TRACE(TRACE_MGMT|TRACE_DEBUG,
-		      "Port DB Chng: L_ID %#4x did %d: ignore",
+		TRACE_MGMT_DBG("Port DB Chng: L_ID %#4x did %d: ignore",
 		      le16_to_cpu(mailbox[1]), le16_to_cpu(mailbox[2]));
 		break;
 
 	case MBA_LOOP_UP:
 	default:
-		TRACE(TRACE_MGMT|TRACE_DEBUG,
-		      "Async event %#x occured: ignore", code);
+		TRACE_MGMT_DBG("Async event %#x occured: ignore", code);
 		/* just don't DO anything */
 		break;
 	}
