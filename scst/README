@@ -228,8 +228,8 @@ For example, "echo "assign 1:0:1:0 dev_disk" >/proc/scsi_tgt/scsi_tgt"
 will assign device handler "dev_disk" to real device sitting on host 1,
 channel 0, ID 1, LUN 0.
 
-Access and devices visibility management
-----------------------------------------
+Access and devices visibility management (LUN masking)
+------------------------------------------------------
 
 Access and devices visibility management allows for an initiator or
 group of initiators to have different limited set of LUs/LUNs (security
