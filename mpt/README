@@ -10,3 +10,16 @@ of development.
 
 The current maintainer of this driver is Erik. Please send him all
 question related to it (CC: scst-devel@lists.sourceforge.net).
+
+Building from the Linux kernel tree
+-----------------------------------
+
+To build from the kernel tree, you should:
+
+1. Link drivers/message/fusion/mpt_scst to $(SCST_DIR)/mpt
+
+2. Patch drivers/message/fusion/Makefile and
+drivers/message/fusion/Kconfig by diffs from $(SCST_DIR)/mpt/in-tree
+
+3. Correct in drivers/message/fusion/Makefile SCST_INC_DIR variable so
+it points to correct directory with SCST include files.
