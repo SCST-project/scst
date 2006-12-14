@@ -28,55 +28,31 @@
 #include <asm/string.h>
 #include <asm/uaccess.h>
 #include <linux/proc_fs.h>
+#include <linux/seq_file.h>
 
 #include "scst_debug.h"
 #include "scsi_tgt.h"
 #include "scst_mem.h"
 #include "scst_priv.h"
 
-static int scst_scsi_tgt_proc_info(char *buffer, char **start,
-				   off_t offset, int length, int *eof,
-				   void *data);
-static int scst_proc_scsi_tgt_gen_write(struct file *file,
-					const char *buf,
-					unsigned long length, void *data);
-static int scst_proc_version_read(char *buffer, char **start,off_t offset,
-				  int length, int *eof, void *data);
-static int scst_proc_sessions_read(char *buffer, char **start, off_t offset,
-				   int length, int *eof, void *data);
-static int scst_proc_help_read(char *buffer, char **start,off_t offset,
-			       int length, int *eof, void *data);
-static int scst_proc_threads_read(char *buffer, char **start,off_t offset,
-				  int length, int *eof, void *data);
-static int scst_proc_threads_write(struct file *file, const char *buf,
-				   unsigned long length, void *data);
-static int scst_proc_scsi_tgt_read(char *buffer, char **start, off_t offset,
-				   int length, int *eof, void *data);
-static int scst_proc_scsi_tgt_write(struct file *file, const char *buf,
-				    unsigned long count, void *data);
-static int scst_proc_scsi_dev_handler_read(char *buffer, char **start,
-					   off_t offset, int length, int *eof,
-					   void *data);
-static int scst_proc_scsi_dev_handler_write(struct file *file, const char *buf,
-					    unsigned long count, void *data);
-static int scst_proc_scsi_dev_handler_type_read(char *buffer, char **start,
-						off_t offset, int length,
-						int *eof, void *data);
 static int scst_proc_init_groups(void);
 static void scst_proc_cleanup_groups(void);
 static int scst_proc_assign_handler(char *buf);
 static int scst_proc_group_add(const char *p);
-static int scst_proc_groups_devices_read(char *buffer, char **start,
-					 off_t offset, int length, int *eof,
-					 void *data);
-static int scst_proc_groups_devices_write(struct file *file, const char *buf,
-					  unsigned long length, void *data);
-static int scst_proc_groups_names_read(char *buffer, char **start,
-				       off_t offset, int length, int *eof,
-				       void *data);
-static int scst_proc_groups_names_write(struct file *file, const char *buf,
-					unsigned long length, void *data);
 static int scst_proc_del_free_acg(struct scst_acg *acg, int remove_proc);
+
+static struct scst_proc_data scst_version_proc_data;
+static struct scst_proc_data scst_help_proc_data;
+static struct scst_proc_data scst_sgv_proc_data;
+static struct scst_proc_data scst_groups_names_proc_data;
+static struct scst_proc_data scst_groups_devices_proc_data;
+static struct scst_proc_data scst_sessions_proc_data;
+static struct scst_proc_data scst_dev_handler_type_proc_data;
+static struct scst_proc_data scst_log_proc_data;
+static struct scst_proc_data scst_tgt_proc_data;
+static struct scst_proc_data scst_threads_proc_data;
+static struct scst_proc_data scst_scsi_tgt_proc_data;
+static struct scst_proc_data scst_dev_handler_proc_data;
 
 /* 
  * Must be less than 4K page size, since our output routines 
@@ -217,90 +193,10 @@ static int strncasecmp(const char *s1, const char *s2, int n)
 
 #endif /* CONFIG_PPC */
 
-int scst_proc_read_tlb(const struct scst_proc_log *tbl, char *buffer,
-	int length, off_t offset, unsigned long log_level, int *first,
-	int *size, int *len, off_t *begin, off_t *pos)
-{
-	const struct scst_proc_log *t = tbl;
-	int res = 0;
-
-	while (t->token) {
-		if (log_level & t->val) {
-			*size = scnprintf(buffer + *len, length - *len,
-			    "%s%s", *first ? "" : " | ", t->token);
-			*first = 0;
-			if (*size > 0) {
-				*len += *size;
-				*pos = *begin + *len;
-				if (*pos <= offset) {
-					*len = 0;
-					*begin = *pos;
-				} else if (*pos >= offset + length)
-					goto out_end;
-			} else
-				goto out_end;
-		}
-		t++;
-	}
-out:
-	return res;
-
-out_end:
-	res = 1;
-	goto out;
-}
-
 #if defined(DEBUG) || defined(TRACING)
 
-int scst_proc_log_entry_read(char *buffer, char **start,
-			     off_t offset, int length, int *eof, void *data,
-			     unsigned long log_level,
-			     const struct scst_proc_log *tbl)
-{
-	int res = 0, first = 1;
-	int size, len = 0;
-	off_t begin = 0, pos = 0;
-
-	TRACE_ENTRY();
-
-	TRACE_DBG("offset: %d, length %d", (int) offset, length);
-
-	if (scst_proc_read_tlb(scst_proc_trace_tbl, buffer, length, offset,
-			log_level, &first, &size, &len, &begin, &pos))
-		goto stop_output;
-
-	if (tbl) {
-		TRACE_DBG("Reading private tlb, offset: %d, length %d",
-			(int) offset, length);
-		if (scst_proc_read_tlb(tbl, buffer, length, offset, 
-				log_level, &first, &size, &len, &begin, &pos))
-			goto stop_output;
-	}
-
-	size = scnprintf(buffer + len, length - len, "%s\n", first ? "none" : "");
-	if (size > 0) {
-		len += size;
-		pos = begin + len;
-		if (pos <= offset) {
-			len = 0;
-			begin = pos;
-		} else if (pos >= offset + length)
-			goto stop_output;
-	} else
-		goto stop_output;
-
-stop_output:
-	*start = buffer + (offset - begin);
-	len -= (offset - begin);
-	if (len > length)
-		len = length;
-	res = max(0, len);
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
 int scst_proc_log_entry_write(struct file *file, const char *buf,
-	unsigned long length, void *data, unsigned long *log_level,
+	unsigned long length, unsigned long *log_level,
 	unsigned long default_level, const struct scst_proc_log *tbl)
 {
 	int res = length;
@@ -308,6 +204,7 @@ int scst_proc_log_entry_write(struct file *file, const char *buf,
 	unsigned long level = 0, oldlevel;
 	char *buffer, *p, *e;
 	const struct scst_proc_log *t;
+	char *data = (char *)PDE(file->f_dentry->d_inode)->data;
 
 	TRACE_ENTRY();
 
@@ -452,33 +349,8 @@ out:
 	return res;
 }
 
-static int scst_scsi_tgt_proc_info_log(char *buffer, char **start,
-				       off_t offset, int length, int *eof,
-				       void *data)
-{
-	int res;
-
-	TRACE_ENTRY();
-
-
-	if (down_interruptible(&scst_proc_mutex) != 0) {
-		res = -EINTR;
-		goto out;
-	}
-
-	res = scst_proc_log_entry_read(buffer, start, offset, length, eof,
-			data, trace_flag, scst_proc_local_trace_tbl);
-
-	up(&scst_proc_mutex);
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static int scst_proc_scsi_tgt_gen_write_log(struct file *file,
-					const char *buf,
-					unsigned long length, void *data)
+static int scst_proc_scsi_tgt_gen_write_log(struct file *file, const char __user *buf,
+					size_t length, loff_t *off)
 {
 	int res;
 
@@ -489,7 +361,7 @@ static int scst_proc_scsi_tgt_gen_write_log(struct file *file,
 		goto out;
 	}
 
-	res = scst_proc_log_entry_write(file, buf, length, data,
+	res = scst_proc_log_entry_write(file, buf, length,
 		&trace_flag, SCST_DEFAULT_LOG_FLAGS, scst_proc_local_trace_tbl);
 
 	up(&scst_proc_mutex);
@@ -501,7 +373,7 @@ out:
 
 #endif /* defined(DEBUG) || defined(TRACING) */
 
-static int scst_proc_init_module_log(void)
+static int __init scst_proc_init_module_log(void)
 {
 	int res = 0;
 #if defined(DEBUG) || defined(TRACING)
@@ -509,14 +381,10 @@ static int scst_proc_init_module_log(void)
 
 	TRACE_ENTRY();
 
-	generic = create_proc_read_entry(SCST_PROC_LOG_ENTRY_NAME,
-					 S_IFREG | S_IRUGO | S_IWUSR,
-					 scst_proc_scsi_tgt,
-					 scst_scsi_tgt_proc_info_log,
-					 (void *)"scsi_tgt");
-	if (generic) {
-		generic->write_proc = scst_proc_scsi_tgt_gen_write_log;
-	} else {
+	generic = scst_create_proc_entry(scst_proc_scsi_tgt,
+					 SCST_PROC_LOG_ENTRY_NAME,
+					 &scst_log_proc_data);
+	if (!generic) {
 		PRINT_ERROR_PR("cannot init /proc/%s/%s",
 			    SCST_PROC_ENTRY_NAME, SCST_PROC_LOG_ENTRY_NAME);
 		res = -ENOMEM;
@@ -527,7 +395,7 @@ static int scst_proc_init_module_log(void)
 	return res;
 }
 
-static void scst_proc_cleanup_module_log(void)
+static void __exit scst_proc_cleanup_module_log(void)
 {
 #if defined(DEBUG) || defined(TRACING)
 	TRACE_ENTRY();
@@ -553,14 +421,11 @@ static int scst_proc_group_add_tree(struct scst_acg *acg, const char *p)
 		goto out;
 	}
 
-	generic = create_proc_read_entry(SCST_PROC_GROUPS_DEVICES_ENTRY_NAME,
-					 S_IFREG | S_IRUGO | S_IWUSR,
-					 acg->acg_proc_root,
-					 scst_proc_groups_devices_read,
-					 (void *)acg);
-	if (generic) {
-		generic->write_proc = scst_proc_groups_devices_write;
-	} else {
+	scst_groups_devices_proc_data.data = acg;
+	generic = scst_create_proc_entry(acg->acg_proc_root,
+					 SCST_PROC_GROUPS_DEVICES_ENTRY_NAME,
+					 &scst_groups_devices_proc_data);
+	if (!generic) {
 		PRINT_ERROR_PR("cannot init /proc/%s/%s/%s/%s",
 			       SCST_PROC_ENTRY_NAME,
 			       SCST_PROC_GROUPS_ENTRY_NAME,
@@ -569,14 +434,11 @@ static int scst_proc_group_add_tree(struct scst_acg *acg, const char *p)
 		goto out_remove;
 	}
 
-	generic = create_proc_read_entry(SCST_PROC_GROUPS_USERS_ENTRY_NAME,
-					 S_IFREG | S_IRUGO | S_IWUSR,
-					 acg->acg_proc_root,
-					 scst_proc_groups_names_read,
-					 (void *)acg);
-	if (generic) {
-		generic->write_proc = scst_proc_groups_names_write;
-	} else {
+	scst_groups_names_proc_data.data = acg;
+	generic = scst_create_proc_entry(acg->acg_proc_root,
+					 SCST_PROC_GROUPS_USERS_ENTRY_NAME,
+					 &scst_groups_names_proc_data);
+	if (!generic) {
 		PRINT_ERROR_PR("cannot init /proc/%s/%s/%s/%s",
 			       SCST_PROC_ENTRY_NAME,
 			       SCST_PROC_GROUPS_ENTRY_NAME,
@@ -674,7 +536,7 @@ static int scst_proc_del_free_acg(struct scst_acg *acg, int remove_proc)
 	return res;
 }
 
-static int scst_proc_init_groups(void)
+static int __init scst_proc_init_groups(void)
 {
 	int res = 0;
 
@@ -707,7 +569,7 @@ out_nomem:
 	goto out;
 }
 
-static void scst_proc_cleanup_groups(void)
+static void __exit scst_proc_cleanup_groups(void)
 {
 	struct scst_acg *acg_tmp, *acg;
 
@@ -728,133 +590,14 @@ static void scst_proc_cleanup_groups(void)
 	TRACE_EXIT();
 }
 
-struct scst_proc_update_struct {
-	int len, plen, pplen;
-	off_t begin, pbegin, ppbegin;
-	off_t pos;
-};
-
-static int scst_proc_update_size(int size, off_t offset, int length,
-	struct scst_proc_update_struct *p)
-{
-	int res = 0;
-	if (size > 0) {
-		p->len += size;
-		p->pos = p->begin + p->len;
-		if (p->pos <= offset) {
-			p->len = 0;
-			p->begin = p->pos;
-		} else if (p->pos >= offset + length) {
-			res = 1;
-			goto out;
-		} else
-			res = 0;
-	} else {
-		p->begin = p->ppbegin;
-		p->len = p->pplen;
-		res = 1;
-		goto out;
-	}
-	p->ppbegin = p->pbegin;
-	p->pplen = p->plen;
-	p->pbegin = p->begin;
-	p->plen = p->len;
-out:
-	return res;
-}
-
-static int scst_proc_sgv_read_1(char *buffer, off_t offset, int length,
-	struct scst_proc_update_struct *p,
-	const struct sgv_pool *pool, const char *name)
-{
-	int i, size;
-
-	size = scnprintf(buffer + p->len, length - p->len, "\n%-20s %-11d %-11d\n",
-		name, atomic_read(&pool->acc.hit_alloc),
-		atomic_read(&pool->acc.total_alloc));
-	if (scst_proc_update_size(size, offset, length, p))
-		return 1;
-
-	for(i = 0; i < SGV_POOL_ELEMENTS; i++) {
-		size = scnprintf(buffer + p->len, length - p->len, 
-			"  %-18s %-11d %-11d\n", pool->cache_names[i], 
-			atomic_read(&pool->cache_acc[i].hit_alloc),
-			atomic_read(&pool->cache_acc[i].total_alloc));
-		if (scst_proc_update_size(size, offset, length, p))
-			return 1;
-	}
-	return 0;
-}
-
-static int scst_proc_sgv_read(char *buffer, char **start,
-	off_t offset, int length, int *eof, void *data)
-{
-	int res = 0;
-	int size;
-	struct scst_proc_update_struct st;
-
-	TRACE_ENTRY();
-
-	TRACE_DBG("offset: %d, length %d", (int) offset, length);
-
-	memset(&st, 0, sizeof(st));
-
-	size = scnprintf(buffer + st.len, length - st.len, "%-20s %-11s %-11s",
-		"Name", "Hit", "Total");
-	if (scst_proc_update_size(size, offset, length, &st))
-		goto stop_output;
-
-	if (scst_proc_sgv_read_1(buffer, offset, length, &st, &scst_sgv.norm,
-			"sgv"))
-		goto stop_output;
-
-	if (scst_proc_sgv_read_1(buffer, offset, length, &st,
-			&scst_sgv.norm_clust, "sgv-clust"))
-		goto stop_output;
-
-	if (scst_proc_sgv_read_1(buffer, offset, length, &st,
-			&scst_sgv.dma, "sgv-dma"))
-		goto stop_output;
-
-#ifdef SCST_HIGHMEM
-	if (scst_proc_sgv_read_1(buffer, offset, length, &st,
-			&scst_sgv.highmem, "sgv-highmem"))
-		goto stop_output;
-
-#endif
-
-	size = scnprintf(buffer + st.len, length - st.len, "\n%-32s %-11d\n", 
-		"big", atomic_read(&sgv_big_total_alloc));
-	if (scst_proc_update_size(size, offset, length, &st))
-		goto stop_output;
-
-	size = scnprintf(buffer + st.len, length - st.len, "\n%-32s %-11d\n", 
-		"other", atomic_read(&sgv_other_total_alloc));
-	if (scst_proc_update_size(size, offset, length, &st))
-		goto stop_output;
-
-	*eof = 1;
-
-stop_output:
-	*start = buffer + (offset - st.begin);
-	st.len -= (offset - st.begin);
-	if (st.len > length)
-		st.len = length;
-	res = max(0, st.len);
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static int scst_proc_init_sgv(void)
+static int __init scst_proc_init_sgv(void)
 {
 	int res = 0;
 	struct proc_dir_entry *pr;
 
 	TRACE_ENTRY();
 
-	pr = create_proc_read_entry("sgv", S_IFREG | S_IRUGO,
-		 scst_proc_scsi_tgt, scst_proc_sgv_read, NULL);
+	pr = scst_create_proc_entry(scst_proc_scsi_tgt, "sgv", &scst_sgv_proc_data);
 	if (pr == NULL) {
 		PRINT_ERROR_PR("%s", "cannot create sgv /proc entry");
 		res = -ENOMEM;
@@ -864,14 +607,14 @@ static int scst_proc_init_sgv(void)
 	return res;
 }
 
-static void scst_proc_cleanup_sgv(void)
+static void __exit scst_proc_cleanup_sgv(void)
 {
 	TRACE_ENTRY();
 	remove_proc_entry("sgv", scst_proc_scsi_tgt);
 	TRACE_EXIT();
 }
 
-int scst_proc_init_module(void)
+int __init scst_proc_init_module(void)
 {
 	int res = 0;
 	struct proc_dir_entry *generic;
@@ -884,57 +627,47 @@ int scst_proc_init_module(void)
 		goto out_nomem;
 	}
 
-	generic = create_proc_read_entry(SCST_PROC_ENTRY_NAME,
-					 S_IFREG | S_IRUGO | S_IWUSR,
-					 scst_proc_scsi_tgt,
-					 scst_scsi_tgt_proc_info, NULL);
+	generic = scst_create_proc_entry(scst_proc_scsi_tgt,
+					 SCST_PROC_ENTRY_NAME,
+					 &scst_tgt_proc_data);
 	if (!generic) {
 		PRINT_ERROR_PR("cannot init /proc/%s/%s",
 			    SCST_PROC_ENTRY_NAME, SCST_PROC_ENTRY_NAME);
 		goto out_remove;
 	}
-	generic->write_proc = scst_proc_scsi_tgt_gen_write;
 
-	generic = create_proc_read_entry(SCST_PROC_VERSION_NAME,
-					 S_IFREG | S_IRUGO,
-					 scst_proc_scsi_tgt,
-					 scst_proc_version_read, NULL);
+	generic = scst_create_proc_entry(scst_proc_scsi_tgt, SCST_PROC_VERSION_NAME,
+					 &scst_version_proc_data);
 	if (!generic) {
 		PRINT_ERROR_PR("cannot init /proc/%s/%s",
 			    SCST_PROC_ENTRY_NAME, SCST_PROC_VERSION_NAME);
 		goto out_remove1;
 	}
 
-	generic = create_proc_read_entry(SCST_PROC_SESSIONS_NAME,
-					 S_IFREG | S_IRUGO,
-					 scst_proc_scsi_tgt,
-					 scst_proc_sessions_read, NULL);
+	generic = scst_create_proc_entry(scst_proc_scsi_tgt, SCST_PROC_SESSIONS_NAME,
+					 &scst_sessions_proc_data);
 	if (!generic) {
 		PRINT_ERROR_PR("cannot init /proc/%s/%s",
 			    SCST_PROC_ENTRY_NAME, SCST_PROC_SESSIONS_NAME);
 		goto out_remove2;
 	}
 
-	generic = create_proc_read_entry(SCST_PROC_HELP_NAME,
-					 S_IFREG | S_IRUGO,
-					 scst_proc_scsi_tgt,
-					 scst_proc_help_read, NULL);
+	generic = scst_create_proc_entry(scst_proc_scsi_tgt, SCST_PROC_HELP_NAME,
+					 &scst_help_proc_data);
 	if (!generic) {
 		PRINT_ERROR_PR("cannot init /proc/%s/%s",
 			    SCST_PROC_ENTRY_NAME, SCST_PROC_HELP_NAME);
 		goto out_remove3;
 	}
 
-	generic = create_proc_read_entry(SCST_PROC_THREADS_NAME,
-					 S_IFREG | S_IRUGO | S_IWUSR,
-					 scst_proc_scsi_tgt,
-					 scst_proc_threads_read, NULL);
+	generic = scst_create_proc_entry(scst_proc_scsi_tgt,
+					 SCST_PROC_THREADS_NAME,
+					 &scst_threads_proc_data);
 	if (!generic) {
 		PRINT_ERROR_PR("cannot init /proc/%s/%s",
 			    SCST_PROC_ENTRY_NAME, SCST_PROC_THREADS_NAME);
 		goto out_remove4;
 	}
-	generic->write_proc = scst_proc_threads_write;
 
 	if (scst_proc_init_module_log() < 0) {
 		goto out_remove5;
@@ -981,7 +714,7 @@ out_nomem:
 	goto out;
 }
 
-void scst_proc_cleanup_module(void)
+void __exit scst_proc_cleanup_module(void)
 {
 	TRACE_ENTRY();
 
@@ -999,188 +732,12 @@ void scst_proc_cleanup_module(void)
 	TRACE_EXIT();
 }
 
-static int scst_scsi_tgt_proc_info(char *buffer, char **start,
-				   off_t offset, int length, int *eof,
-				   void *data)
-{
-	int res = 0;
-	int size, len = 0, plen, pplen;
-	off_t begin = 0, pos = 0, pbegin, ppbegin;
-	struct scst_device *dev;
-
-	TRACE_ENTRY();
-
-//TRACE(TRACE_SPECIAL, "offset=%ld, length=%d", offset, length);
-
-	if (down_interruptible(&scst_mutex) != 0) {
-		res = -EINTR;
-		goto out;
-	}
-
-	size = scnprintf(buffer + len, length - len, "%-60s%s\n",
-		       "Device (host:ch:id:lun or name)",
-		       "Device handler");
-
-//TRACE(TRACE_SPECIAL, "size=%d, pos=%ld, begin=%ld, len=%d, buf %s",
-//	size, pos, begin, len, buffer+len);
-
-	if (size > 0) {
-		len += size;
-		pos = begin + len;
-		if (pos <= offset) {
-			len = 0;
-			begin = pos;
-		} else if (pos >= offset + length)
-			goto stop_output;
-	} else
-		goto stop_output;
-
-	ppbegin = pbegin = begin;
-	pplen = plen = len;
-	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
-		if (dev->virt_id == 0) {
-			char conv[12];
-			size = scnprintf(buffer + len, length - len,
-				       "%d:%d:%d:",
-					dev->scsi_dev->host->host_no,
-					dev->scsi_dev->channel,
-					dev->scsi_dev->id);
-			sprintf(conv, "%%-%dd%%s\n", 60-size);
-			size += scnprintf(buffer + len + size, length - len - size,
-				        conv, dev->scsi_dev->lun,
-					dev->handler ? dev->handler->name : "-");
-		} else {
-			size = scnprintf(buffer + len, length - len,
-				       "%-60s%s\n",
-				       dev->virt_name, dev->handler->name);
-		}
-
-//printk("size=%d, pbegin=%ld, plen=%d, ppbegin=%ld, pplen=%d, buf %s",
-//	size, pbegin, plen, ppbegin, pplen, buffer+len);
-
-		if (size > 0) {
-			len += size;
-			pos = begin + len;
-			if (pos <= offset) {
-				len = 0;
-				begin = pos;
-			}
-//TRACE(TRACE_SPECIAL, "pos=%ld, begin=%ld, len=%d", pos, begin, len);
-			if (pos >= offset + length)
-				goto stop_output;
-		} else {
-			begin = ppbegin;
-			len = pplen;
-			goto stop_output;
-		}
-		ppbegin = pbegin;
-		pplen = plen;
-		pbegin = begin;
-		plen = len;
-	}
-
-	*eof = 1;
-
-stop_output:
-	*start = buffer + (offset - begin);
-	len -= (offset - begin);
-	if (len > length)
-		len = length;
-	res = max(0, len);
-
-//TRACE(TRACE_SPECIAL, "res=%d, start=%ld, len=%d, begin=%ld, eof=%d", res, offset-begin, len, begin, *eof);
-
-	up(&scst_mutex);
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static int scst_proc_version_read(char *buffer, char **start,off_t offset,
-				  int length, int *eof, void *data)
-{
-	int res;
-
-	TRACE_ENTRY();
-
-	res = scnprintf(buffer, length, "%s\n", SCST_VERSION_STRING);
-
-#ifdef STRICT_SERIALIZING
-	if (res < length)
-		res += scnprintf(&buffer[res], length-res, "Strict "
-			"serializing enabled\n");
-#endif
-
-#ifdef EXTRACHECKS
-	if (res < length)
-		res += scnprintf(&buffer[res], length-res, "EXTRACHECKS\n");
-#endif
-
-#ifdef TRACING
-	if (res < length)
-		res += scnprintf(&buffer[res], length-res, "TRACING\n");
-#endif
-
-#ifdef DEBUG
-	if (res < length)
-		res += scnprintf(&buffer[res], length-res, "DEBUG\n");
-#endif
-
-#ifdef DEBUG_TM
-	if (res < length)
-		res += scnprintf(&buffer[res], length-res, "DEBUG_TM\n");
-#endif
-
-#ifdef DEBUG_RETRY
-	if (res < length)
-		res += scnprintf(&buffer[res], length-res, "DEBUG_RETRY\n");
-#endif
-
-#ifdef DEBUG_OOM
-	if (res < length)
-		res += scnprintf(&buffer[res], length-res, "DEBUG_OOM\n");
-#endif
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static int scst_proc_help_read(char *buffer, char **start, off_t offset,
-			       int length, int *eof, void *data)
-{
-	int res;
-
-	TRACE_ENTRY();
-
-	res = scnprintf(buffer, length, "%s", scst_proc_help_string);
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static int scst_proc_threads_read(char *buffer, char **start,off_t offset,
-				   int length, int *eof, void *data)
-{
-	int res;
-
-	TRACE_ENTRY();
-
-	/* 2 mgmt threads */
-	res = scnprintf(buffer, length, "%d\n",
-		atomic_read(&scst_threads_count) - 2);
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static int scst_proc_threads_write(struct file *file, const char *buf,
-				   unsigned long length, void *data)
+static int scst_proc_threads_write(struct file *file, const char __user *buf,
+				   size_t length, loff_t *off)
 {
 	int res = length;
 	int oldtn, newtn, delta;
 	char *buffer;
-	
 
 	TRACE_ENTRY();
 
@@ -1282,13 +839,13 @@ int scst_build_proc_target_entries(struct scst_tgt *vtt)
 
 	TRACE_ENTRY();
 
-	if (vtt->tgtt->proc_info) {
+	if (vtt->tgtt->read_proc || vtt->tgtt->write_proc) {
 		/* create the proc file entry for the device */
 		scnprintf(name, sizeof(name), "%d", vtt->tgtt->proc_dev_num);
-		p = create_proc_read_entry(name, S_IFREG | S_IRUGO | S_IWUSR,
-					   vtt->tgtt->proc_tgt_root,
-					   scst_proc_scsi_tgt_read,
-					   (void *)vtt);
+		scst_scsi_tgt_proc_data.data = (void*)vtt;
+		p = scst_create_proc_entry(vtt->tgtt->proc_tgt_root,
+					   name,
+					   &scst_scsi_tgt_proc_data);
 		if (p == NULL) {
 			PRINT_ERROR_PR("Not enough memory to register SCSI "
 			     "target entry %s in /proc/%s/%s", name,
@@ -1296,7 +853,6 @@ int scst_build_proc_target_entries(struct scst_tgt *vtt)
 			res = -ENOMEM;
 			goto out;
 		}
-		p->write_proc = scst_proc_scsi_tgt_write;
 		vtt->proc_num = vtt->tgtt->proc_dev_num;
 		vtt->tgtt->proc_dev_num++;
 	}
@@ -1312,7 +868,7 @@ void scst_cleanup_proc_target_entries(struct scst_tgt *vtt)
 
 	TRACE_ENTRY();
 
-	if (vtt->tgtt->proc_info) {
+	if (vtt->tgtt->read_proc || vtt->tgtt->write_proc) {
 		scnprintf(name, sizeof(name), "%d", vtt->proc_num);
 		remove_proc_entry(name, vtt->tgtt->proc_tgt_root);
 	}
@@ -1321,39 +877,10 @@ void scst_cleanup_proc_target_entries(struct scst_tgt *vtt)
 	return;
 }
 
-static int scst_proc_scsi_tgt_read(char *buffer, char **start,
-				   off_t offset, int length, int *eof,
-				   void *data)
+static int scst_proc_scsi_tgt_write(struct file *file, const char __user *buf,
+				    size_t length, loff_t *off)
 {
-	struct scst_tgt *vtt = data;
-	int res = 0;
-
-	TRACE_ENTRY();
-
-	TRACE_DBG("offset: %d, length %d, id: %d",
-	      (int) offset, length, vtt->proc_num);
-
-	if (down_interruptible(&scst_proc_mutex) != 0) {
-		res = -EINTR;
-		goto out;
-	}
-
-	if (vtt->tgtt->proc_info) {
-		res = vtt->tgtt->proc_info(buffer, start, offset, length, eof,
-		    vtt, 0);
-	}
-
-	up(&scst_proc_mutex);
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static int scst_proc_scsi_tgt_write(struct file *file, const char *buf,
-				    unsigned long length, void *data)
-{
-	struct scst_tgt *vtt = data;
+	struct scst_tgt *vtt = (struct scst_tgt *)PDE(file->f_dentry->d_inode)->data;
 	ssize_t res = 0;
 	char *buffer;
 	char *start;
@@ -1361,7 +888,7 @@ static int scst_proc_scsi_tgt_write(struct file *file, const char *buf,
 
 	TRACE_ENTRY();
 
-	if (vtt->tgtt->proc_info == NULL) {
+	if (vtt->tgtt->write_proc == NULL) {
 		res = -ENOSYS;
 		goto out;
 	}
@@ -1397,7 +924,7 @@ static int scst_proc_scsi_tgt_write(struct file *file, const char *buf,
 		goto out_free;
 	}
 
-	res = vtt->tgtt->proc_info(buffer, &start, 0, length, &eof, vtt, 1);
+	res = vtt->tgtt->write_proc(buffer, &start, 0, length, &eof, vtt);
 
 	up(&scst_proc_mutex);
 
@@ -1427,11 +954,10 @@ int scst_build_proc_dev_handler_dir_entries(struct scst_dev_type *dev_type)
 		goto out_nomem;
 	}
 
-	p = create_proc_read_entry(SCST_PROC_DEV_HANDLER_TYPE_ENTRY_NAME,
-				   S_IFREG | S_IRUGO,
-				   dev_type->proc_dev_type_root,
-				   scst_proc_scsi_dev_handler_type_read,
-				   (void *)dev_type);
+	scst_dev_handler_type_proc_data.data = dev_type;
+	p = scst_create_proc_entry(dev_type->proc_dev_type_root,
+				   SCST_PROC_DEV_HANDLER_TYPE_ENTRY_NAME,
+				   &scst_dev_handler_type_proc_data);
 	if (p == NULL) {
 		PRINT_ERROR_PR("Not enough memory to register dev "
 		     "handler entry %s in /proc/%s/%s",
@@ -1440,20 +966,18 @@ int scst_build_proc_dev_handler_dir_entries(struct scst_dev_type *dev_type)
 		goto out_remove;
 	}
 
-	if (dev_type->proc_info) {
+	if (dev_type->read_proc || dev_type->write_proc) {
 		/* create the proc file entry for the dev type handler */
-		p = create_proc_read_entry(dev_type->name,
-					   S_IFREG | S_IRUGO | S_IWUSR,
-					   dev_type->proc_dev_type_root,
-					   scst_proc_scsi_dev_handler_read,
-					   (void *)dev_type);
+		scst_dev_handler_proc_data.data = (void *)dev_type;
+		p = scst_create_proc_entry(dev_type->proc_dev_type_root,
+					   dev_type->name,
+					   &scst_dev_handler_proc_data);
 		if (p == NULL) {
 			PRINT_ERROR_PR("Not enough memory to register dev "
 			     "handler entry %s in /proc/%s/%s", dev_type->name,
 			     SCST_PROC_ENTRY_NAME, dev_type->name);
 			goto out_remove1;
 		}
-		p->write_proc = scst_proc_scsi_dev_handler_write;
 	}
 
 out:
@@ -1479,7 +1003,7 @@ void scst_cleanup_proc_dev_handler_dir_entries(struct scst_dev_type *dev_type)
 	if (dev_type->proc_dev_type_root) {
 		remove_proc_entry(SCST_PROC_DEV_HANDLER_TYPE_ENTRY_NAME,
 				  dev_type->proc_dev_type_root);
-		if (dev_type->proc_info) {
+		if (dev_type->read_proc || dev_type->write_proc) {
 			remove_proc_entry(dev_type->name,
 					  dev_type->proc_dev_type_root);
 		}
@@ -1491,56 +1015,10 @@ void scst_cleanup_proc_dev_handler_dir_entries(struct scst_dev_type *dev_type)
 	return;
 }
 
-static int scst_proc_scsi_dev_handler_type_read(char *buffer, char **start,
-						off_t offset, int length,
-						int *eof, void *data)
+static int scst_proc_scsi_dev_handler_write(struct file *file, const char __user *buf,
+					    size_t length, loff_t *off)
 {
-	struct scst_dev_type *dev_type = data;
-	int n = 0;
-
-	TRACE_ENTRY();
-
-	n = scnprintf(buffer, length, "%d - %s\n", dev_type->type,
-		    dev_type->type > 0x0f ?
-		    "unknown" : scst_proc_dev_handler_type[dev_type->type]);
-
-	TRACE_EXIT_RES(n);
-	return n;
-}
-
-static int scst_proc_scsi_dev_handler_read(char *buffer, char **start,
-					   off_t offset, int length, int *eof,
-					   void *data)
-{
-	struct scst_dev_type *dev_type = data;
-	int res = 0;
-
-	TRACE_ENTRY();
-
-	TRACE_DBG("offset: %d, length %d, name: %s",
-	      (int) offset, length, dev_type->name);
-
-	if (down_interruptible(&scst_proc_mutex) != 0) {
-		res = -EINTR;
-		goto out;
-	}
-
-	if (dev_type->proc_info) {
-		res = dev_type->proc_info(buffer, start, offset, length, eof,
-		    dev_type, 0);
-	}
-
-	up(&scst_proc_mutex);
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static int scst_proc_scsi_dev_handler_write(struct file *file, const char *buf,
-					    unsigned long length, void *data)
-{
-	struct scst_dev_type *dev_type = data;
+	struct scst_dev_type *dev_type = (struct scst_dev_type *)PDE(file->f_dentry->d_inode)->data;
 	ssize_t res = 0;
 	char *buffer;
 	char *start;
@@ -1548,7 +1026,7 @@ static int scst_proc_scsi_dev_handler_write(struct file *file, const char *buf,
 
 	TRACE_ENTRY();
 
-	if (dev_type->proc_info == NULL) {
+	if (dev_type->write_proc == NULL) {
 		res = -ENOSYS;
 		goto out;
 	}
@@ -1585,7 +1063,7 @@ static int scst_proc_scsi_dev_handler_write(struct file *file, const char *buf,
 		goto out_free;
 	}
 
-	res = dev_type->proc_info(buffer, &start, 0, length, &eof, dev_type, 1);
+	res = dev_type->write_proc(buffer, &start, 0, length, &eof, dev_type);
 
 	up(&scst_proc_mutex);
 
@@ -1597,9 +1075,8 @@ out:
 	return res;
 }
 
-static int scst_proc_scsi_tgt_gen_write(struct file *file,
-					const char *buf,
-					unsigned long length, void *data)
+static int scst_proc_scsi_tgt_gen_write(struct file *file, const char __user *buf,
+					size_t length, loff_t *off)
 {
 	int res = length, rc = 0, action;
 	char *buffer, *p;
@@ -1814,101 +1291,13 @@ out_synt_err:
 	goto out;
 }
 
-static int scst_proc_groups_devices_read(char *buffer, char **start,
-					 off_t offset, int length, int *eof,
-					 void *data)
-{
-	int res = 0;
-	struct scst_acg *acg = (struct scst_acg *)data;
-	struct scst_acg_dev *acg_dev;
-	int size, len = 0, plen, pplen;
-	off_t begin = 0, pos = 0, pbegin, ppbegin;
-
-	TRACE_ENTRY();
-
-	if (down_interruptible(&scst_mutex) != 0) {
-		res = -EINTR;
-		goto out;
-	}
-
-	size = scnprintf(buffer + len, length - len, "%-60s%s  %s\n",
-		       "Device (host:ch:id:lun or name)",
-		       "Virtual lun", "Options");
-	if (size > 0) {
-		len += size;
-		pos = begin + len;
-		if (pos <= offset) {
-			len = 0;
-			begin = pos;
-		} else if (pos >= offset + length)
-			goto stop_output;
-	} else
-		goto stop_output;
-
-	ppbegin = pbegin = begin;
-	pplen = plen = len;
-	list_for_each_entry(acg_dev, &acg->acg_dev_list, acg_dev_list_entry) {
-		if (acg_dev->dev->virt_id == 0) {
-			char conv[20];
-			size = scnprintf(buffer + len, length - len,
-				        "%d:%d:%d:",
-					acg_dev->dev->scsi_dev->host->host_no,
-					acg_dev->dev->scsi_dev->channel,
-					acg_dev->dev->scsi_dev->id);
-			sprintf(conv, "%%-%dd%%4d%%12s\n", 60-size);
-			size += scnprintf(buffer + len + size,
-					length - len - size, conv,
-					acg_dev->dev->scsi_dev->lun,
-					acg_dev->lun,
-					acg_dev->rd_only_flag ? "RO" : "");
-		} else {
-			size = scnprintf(buffer + len, length - len,
-				       "%-60s%4d%12s\n",
-				       acg_dev->dev->virt_name, acg_dev->lun,
-				       acg_dev->rd_only_flag ? "RO" : "");
-		}
-		if (size > 0) {
-			len += size;
-			pos = begin + len;
-			if (pos <= offset) {
-				len = 0;
-				begin = pos;
-			} else if (pos >= offset + length)
-				goto stop_output;
-		} else {
-			begin = ppbegin;
-			len = pplen;
-			goto stop_output;
-		}
-		ppbegin = pbegin;
-		pplen = plen;
-		pbegin = begin;
-		plen = len;
-	}
-
-	*eof = 1;
-
-stop_output:
-	*start = buffer + (offset - begin);
-	len -= (offset - begin);
-	if (len > length)
-		len = length;
-	res = max(0, len);
-
-	up(&scst_mutex);
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static int scst_proc_groups_devices_write(struct file *file, const char *buf,
-					  unsigned long length, void *data)
+static int scst_proc_groups_devices_write(struct file *file, const char __user *buf,
+					  size_t length, loff_t *off)
 {
 	int res = length, action, virt = 0, rc, read_only = 0;
 	char *buffer, *p, *e = NULL;
 	int host, channel = 0, id = 0, lun = 0, virt_lun;
-	struct scst_acg *acg = (struct scst_acg *)data;
+	struct scst_acg *acg = (struct scst_acg *)PDE(file->f_dentry->d_inode)->data;
 	struct scst_acg_dev *acg_dev = NULL, *acg_dev_tmp;
 	struct scst_device *d, *dev = NULL;
 
@@ -2090,146 +1479,12 @@ out:
 	return res;
 }
 
-static int scst_proc_sessions_read(char *buffer, char **start,
-					 off_t offset, int length, int *eof,
-					 void *data)
-{
-	int res = 0;
-	struct scst_acg *acg;
-	struct scst_session *sess;
-	int size, len = 0, plen, pplen;
-	off_t begin = 0, pos = 0,  pbegin, ppbegin;
-
-	TRACE_ENTRY();
-
-	if (down_interruptible(&scst_mutex) != 0) {
-		res = -EINTR;
-		goto out;
-	}
-
-	size = scnprintf(buffer + len, length - len, "%-20s%-35s%-20s%-15s\n",
-		       "Target name", "Initiator name", "Group name", 
-		       "Command Count");
-	if (size > 0) {
-		len += size;
-		pos = begin + len;
-		if (pos <= offset) {
-			len = 0;
-			begin = pos;
-		} else if (pos >= offset + length)
-			goto stop_output;
-	} else
-		goto stop_output;
-
-	ppbegin = pbegin = begin;
-	pplen = plen = len;
-	list_for_each_entry(acg, &scst_acg_list, scst_acg_list_entry) {
-		list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
-			size = scnprintf(buffer + len, length - len,
-				       "%-20s%-35s%-20s%-15d\n",
-					sess->tgt->tgtt->name,
-					sess->initiator_name,
-				       acg->acg_name,
-				       sess->sess_cmd_count);
-			if (size > 0) {
-				len += size;
-				pos = begin + len;
-				if (pos <= offset) {
-					len = 0;
-					begin = pos;
-				} else if (pos >= offset + length)
-					goto stop_output;
-			} else {
-				begin = ppbegin;
-				len = pplen;
-				goto stop_output;
-			}
-			ppbegin = pbegin;
-			pplen = plen;
-			pbegin = begin;
-			plen = len;
-		}
-	}
-
-	*eof = 1;
-
-stop_output:
-	*start = buffer + (offset - begin);
-	len -= (offset - begin);
-	if (len > length)
-		len = length;
-	res = max(0, len);
-
-	up(&scst_mutex);
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static int scst_proc_groups_names_read(char *buffer, char **start,
-				       off_t offset, int length, int *eof,
-				       void *data)
-{
-	int res = 0;
-	struct scst_acg *acg = (struct scst_acg *)data;
-	struct scst_acn *name;
-	int size, len = 0, plen, pplen;
-	off_t begin = 0, pos = 0, pbegin, ppbegin;
-
-	TRACE_ENTRY();
-
-	if (down_interruptible(&scst_mutex) != 0) {
-		res = -EINTR;
-		goto out;
-	}
-
-	ppbegin = pbegin = begin;
-	pplen = plen = len;
-	list_for_each_entry(name, &acg->acn_list, acn_list_entry) {
-		size = scnprintf(buffer + len, length - len, "%s\n",
-			name->name);
-		if (size > 0) {
-			len += size;
-			pos = begin + len;
-			if (pos <= offset) {
-				len = 0;
-				begin = pos;
-			} else if (pos >= offset + length)
-				goto stop_output;
-		} else {
-			begin = ppbegin;
-			len = pplen;
-			goto stop_output;
-		}
-		ppbegin = pbegin;
-		pplen = plen;
-		pbegin = begin;
-		plen = len;
-	}
-
-	*eof = 1;
-
-stop_output:
-	*start = buffer + (offset - begin);
-	len -= (offset - begin);
-	if (len > length)
-		len = length;
-	res = max(0, len);
-
-	up(&scst_mutex);
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static int scst_proc_groups_names_write(struct file *file, const char *buf,
-					unsigned long length, void *data)
+static int scst_proc_groups_names_write(struct file *file, const char __user *buf,
+					size_t length, loff_t *off)
 {
 	int res = length, action;
 	char *buffer, *p, *e;
-	struct scst_acg *acg = (struct scst_acg *)data;
+	struct scst_acg *acg = (struct scst_acg *)PDE(file->f_dentry->d_inode)->data;
 	struct scst_acn *n, *nn;
 
 	TRACE_ENTRY();
@@ -2324,3 +1579,445 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
+
+static int scst_version_info_show(struct seq_file *seq, void *v)
+{
+	TRACE_ENTRY();
+
+	seq_printf(seq, "%s\n", SCST_VERSION_STRING);
+
+#ifdef STRICT_SERIALIZING
+	seq_printf(seq, "Strict serializing enabled\n");
+#endif
+
+#ifdef EXTRACHECKS
+	seq_printf(seq, "EXTRACHECKS\n");
+#endif
+
+#ifdef TRACING
+	seq_printf(seq, "TRACING\n");
+#endif
+
+#ifdef DEBUG
+	seq_printf(seq, "DEBUG\n");
+#endif
+
+#ifdef DEBUG_TM
+	seq_printf(seq, "DEBUG_TM\n");
+#endif
+
+#ifdef DEBUG_RETRY
+	seq_printf(seq, "DEBUG_RETRY\n");
+#endif
+
+#ifdef DEBUG_OOM
+	seq_printf(seq, "DEBUG_OOM\n");
+#endif
+
+	TRACE_EXIT();
+	return 0;
+}
+
+static struct scst_proc_data scst_version_proc_data = {
+	SCST_DEF_RW_SEQ_OP(NULL)
+	.show = scst_version_info_show,
+};
+
+static int scst_help_info_show(struct seq_file *seq, void *v)
+{
+	TRACE_ENTRY();
+
+	seq_printf(seq, "%s\n", scst_proc_help_string);
+
+	TRACE_EXIT();
+	return 0;
+}
+
+static struct scst_proc_data scst_help_proc_data = {
+	SCST_DEF_RW_SEQ_OP(NULL)
+	.show = scst_help_info_show,
+};
+
+static int scst_dev_handler_type_info_show(struct seq_file *seq, void *v)
+{
+	struct scst_dev_type *dev_type = (struct scst_dev_type *)seq->private;
+
+	TRACE_ENTRY();
+
+	seq_printf(seq, "%d - %s\n", dev_type->type,
+		    dev_type->type > ARRAY_SIZE(scst_proc_dev_handler_type) ?
+		    "unknown" : scst_proc_dev_handler_type[dev_type->type]);
+
+	TRACE_EXIT();
+	return 0;
+}
+
+static struct scst_proc_data scst_dev_handler_type_proc_data = {
+	SCST_DEF_RW_SEQ_OP(NULL)
+	.show = scst_dev_handler_type_info_show,
+};
+
+static int scst_sessions_info_show(struct seq_file *seq, void *v)
+{
+	int res = 0;
+	struct scst_acg *acg;
+	struct scst_session *sess;
+
+	TRACE_ENTRY();
+
+	if (down_interruptible(&scst_mutex) != 0) {
+		res = -EINTR;
+		goto out;
+	}
+
+	seq_printf(seq, "%-20s%-35s%-20s%-15s\n", "Target name", "Initiator name", 
+		       "Group name", "Command Count");
+
+	list_for_each_entry(acg, &scst_acg_list, scst_acg_list_entry) {
+		list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
+			seq_printf(seq, "%-20s%-35s%-20s%-15d\n",
+					sess->tgt->tgtt->name,
+					sess->initiator_name,
+					acg->acg_name,
+					sess->sess_cmd_count);
+		}
+	}
+
+	up(&scst_mutex);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct scst_proc_data scst_sessions_proc_data = {
+	SCST_DEF_RW_SEQ_OP(NULL)
+	.show = scst_sessions_info_show,
+};
+
+static int scst_do_sgv_read(struct seq_file *seq, const struct sgv_pool *pool, const char *name)
+{
+	int i;
+
+	seq_printf(seq, "\n%-20s %-11d %-11d\n", name, atomic_read(&pool->acc.hit_alloc),
+		atomic_read(&pool->acc.total_alloc));
+
+	for (i = 0; i < SGV_POOL_ELEMENTS; i++) {
+		seq_printf(seq, "  %-18s %-11d %-11d\n", pool->cache_names[i], 
+			atomic_read(&pool->cache_acc[i].hit_alloc),
+			atomic_read(&pool->cache_acc[i].total_alloc));
+	}
+	return 0;
+}
+
+static int scst_sgv_info_show(struct seq_file *seq, void *v)
+{
+	TRACE_ENTRY();
+
+	seq_printf(seq, "%-20s %-11s %-11s", "Name", "Hit", "Total");
+
+	scst_do_sgv_read(seq, &scst_sgv.norm, "sgv");
+	scst_do_sgv_read(seq, &scst_sgv.norm_clust, "sgv-clust");
+	scst_do_sgv_read(seq, &scst_sgv.dma, "sgv-dma");
+
+#ifdef SCST_HIGHMEM
+	scst_do_sgv_read(seq, &scst_sgv.highmem, "sgv-highmem");
+#endif
+
+	seq_printf(seq, "\n%-32s %-11d\n", "big", atomic_read(&sgv_big_total_alloc));
+	seq_printf(seq, "%-32s %-11d\n", "other", atomic_read(&sgv_other_total_alloc));
+
+	TRACE_EXIT();
+	return 0;
+}
+
+static struct scst_proc_data scst_sgv_proc_data = {
+	SCST_DEF_RW_SEQ_OP(NULL)
+	.show = scst_sgv_info_show,
+};
+
+static int scst_groups_names_show(struct seq_file *seq, void *v)
+{
+	int res = 0;
+        struct scst_acg *acg = (struct scst_acg *)seq->private;
+	struct scst_acn *name;
+
+	TRACE_ENTRY();
+
+	if (down_interruptible(&scst_mutex) != 0) {
+		res = -EINTR;
+		goto out;
+	}
+
+	list_for_each_entry(name, &acg->acn_list, acn_list_entry) {
+		seq_printf(seq, "%s\n", name->name);
+	}
+
+	up(&scst_mutex);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct scst_proc_data scst_groups_names_proc_data = {
+	SCST_DEF_RW_SEQ_OP(scst_proc_groups_names_write)
+	.show = scst_groups_names_show,
+};
+
+static int scst_groups_devices_show(struct seq_file *seq, void *v)
+{
+	int res = 0;
+	struct scst_acg *acg = (struct scst_acg *)seq->private;
+	struct scst_acg_dev *acg_dev;
+
+	TRACE_ENTRY();
+
+	if (down_interruptible(&scst_mutex) != 0) {
+		res = -EINTR;
+		goto out;
+	}
+
+	seq_printf(seq, "%-60s%s  %s\n", "Device (host:ch:id:lun or name)",
+		       "Virtual lun", "Options");
+
+	list_for_each_entry(acg_dev, &acg->acg_dev_list, acg_dev_list_entry) {
+		if (acg_dev->dev->virt_id == 0) {
+			char conv[60];
+			int size = sizeof(conv);
+
+			memset(conv, 0, size);
+			size = snprintf(conv, size, "%d:%d:%d:",
+					acg_dev->dev->scsi_dev->host->host_no,
+					acg_dev->dev->scsi_dev->channel,
+					acg_dev->dev->scsi_dev->id);
+			seq_printf(seq, "%s", conv);
+			sprintf(conv, "%%-%dd%%4d%%12s\n", 60 - size);
+			seq_printf(seq, conv,
+					acg_dev->dev->scsi_dev->lun,
+					acg_dev->lun,
+					acg_dev->rd_only_flag ? "RO" : "");
+		} else {
+			seq_printf(seq, "%-60s%4d%12s\n",
+				       acg_dev->dev->virt_name, acg_dev->lun,
+				       acg_dev->rd_only_flag ? "RO" : "");
+		}
+	}
+	up(&scst_mutex);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct scst_proc_data scst_groups_devices_proc_data = {
+	SCST_DEF_RW_SEQ_OP(scst_proc_groups_devices_write)
+	.show = scst_groups_devices_show,
+};
+
+#if defined(DEBUG) || defined(TRACING)
+
+int scst_proc_read_tlb(const struct scst_proc_log *tbl, struct seq_file *seq, 
+	unsigned long log_level, int *first)
+{
+	const struct scst_proc_log *t = tbl;
+	int res = 0;
+
+	while (t->token) {
+		if (log_level & t->val) {
+			seq_printf(seq, "%s%s", *first ? "" : " | ", t->token);
+			*first = 0;
+		}
+		t++;
+	}
+	return res;
+}
+
+int scst_proc_log_entry_read(struct seq_file *seq, unsigned long log_level,
+			     const struct scst_proc_log *tbl)
+{
+	int res = 0, first = 1;
+
+	TRACE_ENTRY();
+
+	scst_proc_read_tlb(scst_proc_trace_tbl, seq, log_level, &first);
+
+	if (tbl) {
+		scst_proc_read_tlb(tbl, seq, log_level, &first);
+	}
+
+	seq_printf(seq, "%s\n", first ? "none" : "");
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int log_info_show(struct seq_file *seq, void *v)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	if (down_interruptible(&scst_proc_mutex) != 0) {
+		res = -EINTR;
+		goto out;
+	}
+
+	res = scst_proc_log_entry_read(seq, trace_flag, scst_proc_local_trace_tbl);
+
+	up(&scst_proc_mutex);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct scst_proc_data scst_log_proc_data = {
+	SCST_DEF_RW_SEQ_OP(scst_proc_scsi_tgt_gen_write_log)
+	.show = log_info_show,
+	.data = "scsi_tgt",
+};
+
+#endif
+
+static int scst_tgt_info_show(struct seq_file *seq, void *v)
+{
+	int res = 0;
+	struct scst_device *dev;
+
+	TRACE_ENTRY();
+
+	if (down_interruptible(&scst_mutex) != 0) {
+		res = -EINTR;
+		goto out;
+	}
+
+	seq_printf(seq, "%-60s%s\n", "Device (host:ch:id:lun or name)", "Device handler");
+	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
+		if (dev->virt_id == 0) {
+			char conv[60];
+			int size = sizeof(conv);
+			size = snprintf(conv, size, "%d:%d:%d:",
+					dev->scsi_dev->host->host_no,
+					dev->scsi_dev->channel,
+					dev->scsi_dev->id);
+			seq_printf(seq, "%s", conv);
+			sprintf(conv, "%%-%dd%%s\n", 60 - size);
+			seq_printf(seq, conv, dev->scsi_dev->lun,
+					dev->handler ? dev->handler->name : "-");
+		} else
+			seq_printf(seq, "%-60s%s\n", dev->virt_name, dev->handler->name);
+	}
+
+	up(&scst_mutex);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct scst_proc_data scst_tgt_proc_data = {
+	SCST_DEF_RW_SEQ_OP(scst_proc_scsi_tgt_gen_write)
+	.show = scst_tgt_info_show,
+};
+
+static int scst_threads_info_show(struct seq_file *seq, void *v)
+{
+	TRACE_ENTRY();
+
+	/* 2 mgmt threads */
+	seq_printf(seq, "%d\n", atomic_read(&scst_threads_count) - 2);
+
+	TRACE_EXIT();
+	return 0;
+}
+
+static struct scst_proc_data scst_threads_proc_data = {
+	SCST_DEF_RW_SEQ_OP(scst_proc_threads_write)
+	.show = scst_threads_info_show,
+};
+
+static int scst_scsi_tgtinfo_show(struct seq_file *seq, void *v)
+{
+	struct scst_tgt *vtt = seq->private;
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	if (down_interruptible(&scst_proc_mutex) != 0) {
+		res = -EINTR;
+		goto out;
+	}
+
+	if (vtt->tgtt->read_proc)
+		res = vtt->tgtt->read_proc(seq, vtt);
+
+	up(&scst_proc_mutex);
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct scst_proc_data scst_scsi_tgt_proc_data = {
+	SCST_DEF_RW_SEQ_OP(scst_proc_scsi_tgt_write)
+	.show = scst_scsi_tgtinfo_show,
+};
+
+static int scst_dev_handler_info_show(struct seq_file *seq, void *v)
+{
+	struct scst_dev_type *dev_type = seq->private;
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	if (down_interruptible(&scst_proc_mutex) != 0) {
+		res = -EINTR;
+		goto out;
+	}
+
+	if (dev_type->read_proc)
+		res = dev_type->read_proc(seq, dev_type);
+
+	up(&scst_proc_mutex);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct scst_proc_data scst_dev_handler_proc_data = {
+	SCST_DEF_RW_SEQ_OP(scst_proc_scsi_dev_handler_write)
+	.show = scst_dev_handler_info_show,
+};
+
+struct proc_dir_entry *scst_create_proc_entry(struct proc_dir_entry * root,
+	const char *name, struct scst_proc_data *pdata)
+{
+	struct proc_dir_entry *p = NULL;
+
+	TRACE_ENTRY();
+
+	if (root) {
+		mode_t mode;
+
+		mode  = S_IFREG | S_IRUGO | ((pdata->seq_op.write) ? S_IWUSR : 0);
+		p = create_proc_entry(name, mode, root);
+		if (p == NULL) {
+			PRINT_ERROR_PR("Fail to create entry %s in /proc", name);
+		} else {
+			p->proc_fops = &pdata->seq_op;
+			p->data = pdata->data;
+		}
+	}
+
+	TRACE_EXIT();
+	return p;
+}
+
+int scst_single_seq_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, 
+		container_of(inode->i_fop, struct scst_proc_data, seq_op)->show, 
+		PDE(inode)->data);
+}
+

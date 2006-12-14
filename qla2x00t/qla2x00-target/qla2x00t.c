@@ -28,7 +28,7 @@
 #include <scsi/scsi_host.h>
 #include <linux/pci.h>
 #include <linux/delay.h>
-
+#include <linux/seq_file.h>
 #include <linux/list.h>
 
 #include <scsi_tgt.h>
@@ -2054,36 +2054,40 @@ out:
 
 #include <linux/proc_fs.h>
 
-static int qla2x00t_proc_log_entry_read(char *buffer, char **start,
-					off_t offset, int length, int *eof,
-					void *data)
-{
-	int res = 0;
-
-	TRACE_ENTRY();
-	res = scst_proc_log_entry_read(buffer, start, offset, length, eof,
-				       data, trace_flag, NULL);
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static int qla2x00t_proc_log_entry_write(struct file *file, const char *buf,
-					 unsigned long length, void *data)
+static int q2t_log_info_show(struct seq_file *seq, void *v)
 {
 	int res = 0;
 
 	TRACE_ENTRY();
 
-	res = scst_proc_log_entry_write(file, buf, length, data,
-			&trace_flag, SCST_DEFAULT_QLA_LOG_FLAGS, NULL);
+	res = scst_proc_log_entry_read(seq, trace_flag, NULL);
 
 	TRACE_EXIT_RES(res);
 	return res;
 }
+
+static int q2t_proc_log_entry_write(struct file *file, const char __user *buf,
+					 size_t length, loff_t *off)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	res = scst_proc_log_entry_write(file, buf, length, &trace_flag,
+		SCST_DEFAULT_QLA_LOG_FLAGS, NULL);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+
+static struct scst_proc_data q2t_log_proc_data = {
+	SCST_DEF_RW_SEQ_OP(q2t_proc_log_entry_write)
+	.show = q2t_log_info_show,
+};
 #endif
 
-static int qla2x00t_proc_log_entry_build(struct scst_tgt_template *templ)
+static int q2t_proc_log_entry_build(struct scst_tgt_template *templ)
 {
 	int res = 0;
 #if defined(DEBUG) || defined(TRACING)
@@ -2094,10 +2098,9 @@ static int qla2x00t_proc_log_entry_build(struct scst_tgt_template *templ)
 
 	if (root) {
 		/* create the proc file entry for the device */
-		p = create_proc_read_entry(Q2T_PROC_LOG_ENTRY_NAME,
-					   S_IFREG | S_IRUGO | S_IWUSR, root,
-					   qla2x00t_proc_log_entry_read,
-					   (void *)templ->name);
+		q2t_log_proc_data.data = (void *)templ->name;
+		p = scst_create_proc_entry(root, Q2T_PROC_LOG_ENTRY_NAME,
+					&q2t_log_proc_data);
 		if (p == NULL) {
 			PRINT_ERROR("Not enough memory to register "
 			     "target driver %s entry %s in /proc",
@@ -2105,7 +2108,6 @@ static int qla2x00t_proc_log_entry_build(struct scst_tgt_template *templ)
 			res = -ENOMEM;
 			goto out;
 		}
-		p->write_proc = qla2x00t_proc_log_entry_write;
 	}
 
 out:
@@ -2115,7 +2117,7 @@ out:
 	return res;
 }
 
-static void qla2x00t_proc_log_entry_clean(struct scst_tgt_template *templ)
+static void q2t_proc_log_entry_clean(struct scst_tgt_template *templ)
 {
 #if defined(DEBUG) || defined(TRACING)
 	struct proc_dir_entry *root;
@@ -2131,7 +2133,7 @@ static void qla2x00t_proc_log_entry_clean(struct scst_tgt_template *templ)
 #endif
 }
 
-static int __init qla2x00t_init(void)
+static int __init q2t_init(void)
 {
 	int res = 0;
 
@@ -2154,7 +2156,7 @@ static int __init qla2x00t_init(void)
 	 * called via scst_register_target_template()
 	 */
 
-	res = qla2x00t_proc_log_entry_build(&tgt_template);
+	res = q2t_proc_log_entry_build(&tgt_template);
 	if (res < 0) {
 		goto out_unreg_target;
 	}
@@ -2169,11 +2171,11 @@ out_unreg_target:
 	goto out;
 }
 
-static void __exit qla2x00t_exit(void)
+static void __exit q2t_exit(void)
 {
 	TRACE_ENTRY();
 
-	qla2x00t_proc_log_entry_clean(&tgt_template);
+	q2t_proc_log_entry_clean(&tgt_template);
 
 	scst_unregister_target_template(&tgt_template);
 	
@@ -2185,8 +2187,8 @@ static void __exit qla2x00t_exit(void)
 	return;
 }
 
-module_init(qla2x00t_init);
-module_exit(qla2x00t_exit);
+module_init(q2t_init);
+module_exit(q2t_exit);
 
 MODULE_AUTHOR("Vladislav Bolkhovitin & Leonid Stoljar & Nathaniel Clark");
 MODULE_DESCRIPTION("Target mode logic for qla2xxx");

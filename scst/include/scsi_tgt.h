@@ -24,10 +24,15 @@
 #include <linux/version.h>
 #include <linux/blkdev.h>
 #include <linux/interrupt.h>
+#include <linux/proc_fs.h>
+
 #ifdef SCST_HIGHMEM
 #include <asm/kmap_types.h>
 #endif
-#include <../drivers/scsi/scsi.h>
+#include <scsi/scsi_cmnd.h>
+#include <scsi/scsi_device.h>
+#include <scsi/scsi_eh.h>
+#include <scsi/scsi.h>
 
 /* Version numbers, the same as for the kernel */
 #define SCST_VERSION_CODE 0x000906
@@ -694,14 +699,15 @@ struct scst_tgt_template
 	 */
 	int (*report_aen) (int mgmt_fn, const uint8_t *lun, int lun_len);
 
-	/* 
-	 * This function can be used to export the driver's statistics and 
-	 * other infos to the world outside the kernel. 
+	/*
+	 * Those functions can be used to export the driver's statistics and
+	 * other infos to the world outside the kernel.
 	 *
 	 * OPTIONAL
 	 */
-	int (*proc_info) (char *buffer, char **start, off_t offset, 
-		int length, int *eof, struct scst_tgt *tgt, int inout);
+	int (*read_proc) (struct seq_file *seq, struct scst_tgt *tgt);
+	int (*write_proc) (char *buffer, char **start, off_t offset, 
+		int length, int *eof, struct scst_tgt *tgt);
 
 	/* 
 	 * Name of the template. Must be unique to identify
@@ -836,15 +842,15 @@ struct scst_dev_type
 	int (*task_mgmt_fn) (struct scst_mgmt_cmd *mgmt_cmd, 
 		struct scst_tgt_dev *tgt_dev);
 
-	/* 
-	 * This function can be used to export the handler's statistics and 
-	 * other infos to the world outside the kernel. 
+	/*
+	 * Those functions can be used to export the handler's statistics and
+	 * other infos to the world outside the kernel.
 	 *
 	 * OPTIONAL
 	 */
-	int (*proc_info) (char *buffer, char **start, off_t offset,
-		int length, int *eof, struct scst_dev_type *dev_type, 
-		int inout);
+	int (*read_proc) (struct seq_file *seq, struct scst_dev_type *dev_type);
+	int (*write_proc) (char *buffer, char **start, off_t offset,
+		int length, int *eof, struct scst_dev_type *dev_type);
 
 	struct module *module;
 
@@ -2149,13 +2155,36 @@ struct scst_proc_log {
 	const char *token;
 };
 
-int scst_proc_log_entry_read(char *buffer, char **start,
-	off_t offset, int length, int *eof, void *data,
-	unsigned long log_level, const struct scst_proc_log *tbl);
+int scst_proc_log_entry_read(struct seq_file *seq, unsigned long log_level, 
+	const struct scst_proc_log *tbl);
 
 int scst_proc_log_entry_write(struct file *file, const char *buf,
-	unsigned long length, void *data, unsigned long *log_level,
+	unsigned long length, unsigned long *log_level,
 	unsigned long default_level, const struct scst_proc_log *tbl);
+
+/*
+ * helper data structure and function to create proc entry.
+ */
+struct scst_proc_data {
+	struct file_operations seq_op;
+	int (*show)(struct seq_file *, void *);
+	void *data;
+};
+
+int scst_single_seq_open(struct inode *inode, struct file *file);
+
+struct proc_dir_entry *scst_create_proc_entry(struct proc_dir_entry * root,
+        const char *name, struct scst_proc_data *pdata);
+
+#define SCST_DEF_RW_SEQ_OP(x)                          \
+	.seq_op = {                                    \
+		.owner          = THIS_MODULE,         \
+		.open           = scst_single_seq_open,\
+		.read           = seq_read,            \
+		.write          = x,                   \
+		.llseek         = seq_lseek,           \
+		.release        = single_release,      \
+	},
 
 /*
  * Adds and deletes (stops) num SCST's threads. Returns 0 on success,

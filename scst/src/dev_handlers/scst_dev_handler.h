@@ -8,6 +8,7 @@
 
 #include <linux/module.h>
 #include <linux/proc_fs.h>
+#include <linux/seq_file.h>
 
 #ifdef DEBUG
 #define SCST_DEFAULT_DEV_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_PID | \
@@ -17,28 +18,28 @@
 #define SCST_DEFAULT_DEV_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_MINOR)
 #endif
 
-static int scst_dev_handler_proc_log_entry_read(char *buffer, char **start,
-	off_t offset, int length, int *eof, void *data)
+static struct scst_proc_data dev_handler_log_proc_data;
+
+static int dev_handler_log_info_show(struct seq_file *seq, void *v)
 {
 	int res = 0;
 
 	TRACE_ENTRY();
-	res = scst_proc_log_entry_read(buffer, start, offset, length, eof,
-				       data, trace_flag, NULL);
+	res = scst_proc_log_entry_read(seq, trace_flag, NULL);
 
 	TRACE_EXIT_RES(res);
 	return res;
 }
 
-static int scst_dev_handler_proc_log_entry_write(struct file *file,
-	const char *buf, unsigned long length, void *data)
+static int scst_dev_handler_proc_log_entry_write(struct file *file, const char __user *buf,
+	size_t length, loff_t *off)
 {
 	int res = 0;
 
 	TRACE_ENTRY();
 
-	res = scst_proc_log_entry_write(file, buf, length, data,
-				&trace_flag, SCST_DEFAULT_DEV_LOG_FLAGS, NULL);
+	res = scst_proc_log_entry_write(file, buf, length, &trace_flag,
+			SCST_DEFAULT_DEV_LOG_FLAGS, NULL);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -57,10 +58,9 @@ static int scst_dev_handler_build_std_proc(struct scst_dev_type *dev_type)
 
 	if (root) {
 		/* create the proc file entry for the device */
-		p = create_proc_read_entry(DEV_HANDLER_LOG_ENTRY_NAME,
-					   S_IFREG | S_IRUGO | S_IWUSR, root,
-					   scst_dev_handler_proc_log_entry_read,
-					   (void *)dev_type->name);
+		dev_handler_log_proc_data.data = (void *)dev_type->name;
+		p = scst_create_proc_entry(root, DEV_HANDLER_LOG_ENTRY_NAME,
+					   &dev_handler_log_proc_data);
 		if (p == NULL) {
 			PRINT_ERROR_PR("Not enough memory to register dev "
 			     "handler %s entry %s in /proc",
@@ -68,7 +68,6 @@ static int scst_dev_handler_build_std_proc(struct scst_dev_type *dev_type)
 			res = -ENOMEM;
 			goto out;
 		}
-		p->write_proc = scst_dev_handler_proc_log_entry_write;
 	}
 
 out:
@@ -93,3 +92,9 @@ static void scst_dev_handler_destroy_std_proc(struct scst_dev_type *dev_type)
 #endif
 }
 
+#if defined(DEBUG) || defined(TRACING)
+static struct scst_proc_data dev_handler_log_proc_data = {
+	SCST_DEF_RW_SEQ_OP(scst_dev_handler_proc_log_entry_write)
+	.show = dev_handler_log_info_show,
+};
+#endif

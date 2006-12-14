@@ -287,7 +287,7 @@ static struct scst_tgt_template tgt_template = {
 	.rdy_to_xfer = mpt_rdy_to_xfer,
 	.on_free_cmd = mpt_on_free_cmd,
 	.task_mgmt_fn_done = mpt_task_mgmt_fn_done,
-	.proc_info = mpt_proc_info,
+//ToDo:	.proc_info = mpt_proc_info,
 };
 
 static inline void 

@@ -1254,6 +1254,9 @@ EXPORT_SYMBOL(scst_proc_log_entry_read);
 EXPORT_SYMBOL(scst_proc_log_entry_write);
 #endif
 
+EXPORT_SYMBOL(scst_create_proc_entry);
+EXPORT_SYMBOL(scst_single_seq_open);
+
 EXPORT_SYMBOL(__scst_get_buf);
 EXPORT_SYMBOL(scst_check_mem);
 EXPORT_SYMBOL(scst_get);

@@ -141,12 +141,12 @@ static void fileio_exec_read_toc(struct scst_cmd *cmd);
 static void fileio_exec_prevent_allow_medium_removal(struct scst_cmd *cmd);
 static int fileio_fsync(struct scst_fileio_tgt_dev *ftgt_dev,
 	loff_t loff, loff_t len, struct scst_cmd *cmd);
-static int disk_fileio_proc(char *buffer, char **start, off_t offset,
-	int length, int *eof, struct scst_dev_type *dev_type, int inout);
-static int cdrom_fileio_proc(char *buffer, char **start, off_t offset,
-	int length, int *eof, struct scst_dev_type *dev_type, int inout);
-static int fileio_proc_help_read(char *buffer, char **start,off_t offset,
-	int length, int *eof, void *data);
+static int disk_fileio_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type);
+static int disk_fileio_write_proc(char *buffer, char **start, off_t offset,
+	int length, int *eof, struct scst_dev_type *dev_type);
+static int cdrom_fileio_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type);
+static int cdrom_fileio_write_proc(char *buffer, char **start, off_t offset,
+	int length, int *eof, struct scst_dev_type *dev_type);
 
 #define DISK_TYPE_FILEIO {		\
   name:         DISK_FILEIO_NAME,	\
@@ -161,7 +161,8 @@ static int fileio_proc_help_read(char *buffer, char **start,off_t offset,
   parse:        disk_fileio_parse,	\
   exec:         disk_fileio_exec,	\
   task_mgmt_fn: fileio_task_mgmt_fn,	\
-  proc_info:    disk_fileio_proc,	\
+  read_proc:    disk_fileio_read_proc,	\
+  write_proc:   disk_fileio_write_proc,	\
 }
 
 #define CDROM_TYPE_FILEIO {		\
@@ -177,7 +178,8 @@ static int fileio_proc_help_read(char *buffer, char **start,off_t offset,
   parse:        cdrom_fileio_parse,	\
   exec:         cdrom_fileio_exec,	\
   task_mgmt_fn: fileio_task_mgmt_fn,	\
-  proc_info:    cdrom_fileio_proc,	\
+  read_proc:    cdrom_fileio_read_proc,	\
+  write_proc:   cdrom_fileio_write_proc,\
 }
 
 DECLARE_MUTEX(scst_fileio_mutex);
@@ -2262,349 +2264,285 @@ out:
 	return dev;
 }
 
-struct fileio_proc_update_struct {
-	int len, plen, pplen;
-	off_t begin, pbegin, ppbegin;
-	off_t pos;
-};
-
-static int fileio_proc_update_size(int size, off_t offset, int length,
-	struct fileio_proc_update_struct *p, int is_start)
-{
-	int res = 0;
-	if (size > 0) {
-		p->len += size;
-		p->pos = p->begin + p->len;
-		if (p->pos <= offset) {
-			p->len = 0;
-			p->begin = p->pos;
-		} else if (p->pos >= offset + length) {
-			res = 1;
-			goto out;
-		} else
-			res = 0;
-	} else {
-		p->begin = p->ppbegin;
-		p->len = p->pplen;
-		res = 1;
-		goto out;
-	}
-	if (is_start) {
-		p->ppbegin = p->pbegin;
-		p->pplen = p->plen;
-		p->pbegin = p->begin;
-		p->plen = p->len;
-	}
-out:
-	return res;
-}
-
 /* 
  * Called when a file in the /proc/DISK_FILEIO_NAME/DISK_FILEIO_NAME is read
- * or written 
  */
-static int disk_fileio_proc(char *buffer, char **start, off_t offset,
-	int length, int *eof, struct scst_dev_type *dev_type, int inout)
+static int disk_fileio_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
 {
-	int res = 0, action;
-	char *p, *name, *file_name;
-	struct scst_fileio_dev *virt_dev, *vv;
-	int size;
-	struct fileio_proc_update_struct pu;
+	int res = 0;
+	struct scst_fileio_dev *virt_dev;
 
 	TRACE_ENTRY();
-
-	memset(&pu, 0, sizeof(pu));
-	
-	/* VERY UGLY code. You can rewrite it if you want */
 	
 	if (down_interruptible(&scst_fileio_mutex) != 0) {
 		res = -EINTR;
 		goto out;
 	}
 	
-	if (inout == 0) { /* read */
-		size = scnprintf(buffer, length, "%-17s %-11s %-11s %-15s %s\n",
-			       "Name", "Size(MB)", "Block size", "Options", "File name");
-		if (fileio_proc_update_size(size, offset, length, &pu, 1))
-			goto stop_output;
+	seq_printf(seq, "%-17s %-11s %-11s %-15s %s\n",
+			   "Name", "Size(MB)", "Block size", "Options", "File name");
 
-		list_for_each_entry(virt_dev, &disk_fileio_dev_list, 
-			fileio_dev_list_entry)
+	list_for_each_entry(virt_dev, &disk_fileio_dev_list, fileio_dev_list_entry) {
+		int c;
+		seq_printf(seq, "%-17s %-11d %-12d", virt_dev->name,
+			(uint32_t)(virt_dev->file_size >> 20),
+			virt_dev->block_size);
+		c = 0;
+		if (virt_dev->wt_flag) {
+			seq_printf(seq, "WT ");
+			c += 3;
+		}
+		if (virt_dev->nv_cache) {
+			seq_printf(seq, "NV ");
+			c += 3;
+		}
+		if (virt_dev->rd_only_flag) {
+			seq_printf(seq, "RO ");
+			c += 3;
+		}
+		if (virt_dev->o_direct_flag) {
+			seq_printf(seq, "DR ");
+			c += 3;
+		}
+		if (virt_dev->nullio) {
+			seq_printf(seq, "NIO ");
+			c += 4;
+		}
+		while (c < 16) {
+			seq_printf(seq, " ");
+			c++;
+		}
+		seq_printf(seq, "%s\n", virt_dev->file_name);
+	}
+	up(&scst_fileio_mutex);
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/* 
+ * Called when a file in the /proc/DISK_FILEIO_NAME/DISK_FILEIO_NAME is written
+ */
+static int disk_fileio_write_proc(char *buffer, char **start, off_t offset,
+	int length, int *eof, struct scst_dev_type *dev_type)
+{
+	int res = 0, action;
+	char *p, *name, *file_name;
+	struct scst_fileio_dev *virt_dev, *vv;
+	uint32_t block_size = DEF_DISK_BLOCKSIZE;
+	int block_shift = DEF_DISK_BLOCKSIZE_SHIFT;
+	size_t len;
+
+	TRACE_ENTRY();
+	
+	/* VERY UGLY code. You can rewrite it if you want */
+
+	if (buffer[0] == '\0')
+		goto out;
+	
+	if (down_interruptible(&scst_fileio_mutex) != 0) {
+		res = -EINTR;
+		goto out;
+	}
+
+	p = buffer;
+	if (p[strlen(p) - 1] == '\n') {
+		p[strlen(p) - 1] = '\0';
+	}
+	if (!strncmp("close ", p, 6)) {
+		p += 6;
+		action = 0;
+	} else if (!strncmp("open ", p, 5)) {
+		p += 5;
+		action = 2;
+	} else {
+		PRINT_ERROR_PR("Unknown action \"%s\"", p);
+		res = -EINVAL;
+		goto out_up;
+	}
+
+	while (isspace(*p) && *p != '\0')
+		p++;
+	name = p;
+	while (!isspace(*p) && *p != '\0')
+		p++;
+	*p++ = '\0';
+	if (*name == '\0') {
+		PRINT_ERROR_PR("%s", "Name required");
+		res = -EINVAL;
+		goto out_up;
+	} else if (strlen(name) >= sizeof(virt_dev->name)) {
+		PRINT_ERROR_PR("Name is too long (max %zd "
+			"characters)", sizeof(virt_dev->name)-1);
+		res = -EINVAL;
+		goto out_up;
+	}
+
+	if (action) {                      /* open */
+		virt_dev = NULL;
+		list_for_each_entry(vv, &disk_fileio_dev_list,
+					fileio_dev_list_entry)
 		{
-			int c;
-			size = scnprintf(buffer + pu.len, length - pu.len, 
-				"%-17s %-11d %-12d", virt_dev->name,
-				(uint32_t)(virt_dev->file_size >> 20),
-				virt_dev->block_size);
-			if (fileio_proc_update_size(size, offset, length, &pu,
-					1)) {
-				goto stop_output;
-			}
-			c = 0;
-			if (virt_dev->wt_flag) {
-				size = scnprintf(buffer + pu.len, length - pu.len, "WT");
-				c += size;
-				if (fileio_proc_update_size(size, offset,
-						length, &pu, 0)) {
-					goto stop_output;
-				}
-			}
-			if (virt_dev->nv_cache) {
-				size = scnprintf(buffer + pu.len, length - pu.len,
-					c ? ",NV" : "NV");
-				c += size;
-				if (fileio_proc_update_size(size, offset,
-						length, &pu, 0)) {
-					goto stop_output;
-				}
-			}
-			if (virt_dev->rd_only_flag) {
-				size = scnprintf(buffer + pu.len, length - pu.len, 
-					c ? ",RO" : "RO");
-				c += size;
-				if (fileio_proc_update_size(size, offset,
-						length, &pu, 0)) {
-					goto stop_output;
-				}
-			}
-			if (virt_dev->o_direct_flag) {
-				size = scnprintf(buffer + pu.len, length - pu.len, 
-					c ? ",DR" : "DR");
-				c += size;
-				if (fileio_proc_update_size(size, offset,
-						length, &pu, 0)) {
-					goto stop_output;
-				}
-			}
-			if (virt_dev->nullio) {
-				size = scnprintf(buffer + pu.len, length - pu.len, 
-					c ? ",NIO" : "NIO");
-				c += size;
-				if (fileio_proc_update_size(size, offset,
-						length, &pu, 0)) {
-					goto stop_output;
-				}
-			}
-			while (c < 16) {
-				size = scnprintf(buffer + pu.len, length - pu.len, " ");
-				if (fileio_proc_update_size(size, offset,
-						length, &pu, 0)) {
-					goto stop_output;
-				}
-				c++;
-			}
-			size = scnprintf(buffer + pu.len, length - pu.len, "%s\n",
-					virt_dev->file_name);
-			if (fileio_proc_update_size(size, offset, length, &pu,
-					0)) {
-				goto stop_output;
+			if (strcmp(vv->name, name) == 0) {
+				virt_dev = vv;
+				break;
 			}
 		}
-		*eof = 1;
-		goto stop_output;
-	} else {  /* write */
-		uint32_t block_size = DEF_DISK_BLOCKSIZE;
-		int block_shift = DEF_DISK_BLOCKSIZE_SHIFT;
-		p = buffer;
-		if (p[strlen(p) - 1] == '\n') {
-			p[strlen(p) - 1] = '\0';
-		}
-		if (!strncmp("close ", p, 6)) {
-			p += 6;
-			action = 0;
-		} else if (!strncmp("open ", p, 5)) {
-			p += 5;
-			action = 2;
-		} else {
-			PRINT_ERROR_PR("Unknown action \"%s\"", p);
+		if (virt_dev) {
+			PRINT_ERROR_PR("Virtual device with name "
+				   "%s already exist", name);
 			res = -EINVAL;
 			goto out_up;
 		}
 
 		while (isspace(*p) && *p != '\0')
 			p++;
-		name = p;
+		file_name = p;
 		while (!isspace(*p) && *p != '\0')
 			p++;
 		*p++ = '\0';
-		if (*name == '\0') {
-			PRINT_ERROR_PR("%s", "Name required");
+		if (*file_name == '\0') {
+			PRINT_ERROR_PR("%s", "File name required");
 			res = -EINVAL;
 			goto out_up;
-		} else if (strlen(name) >= sizeof(virt_dev->name)) {
-			PRINT_ERROR_PR("Name is too long (max %zd "
-				"characters)", sizeof(virt_dev->name)-1);
+		} else if (*file_name != '/') {
+			PRINT_ERROR_PR("File path \"%s\" is not "
+				"absolute", file_name);
 			res = -EINVAL;
 			goto out_up;
 		}
 
-		if (action) {                      /* open */
-			virt_dev = NULL;
-			list_for_each_entry(vv, &disk_fileio_dev_list,
-					    fileio_dev_list_entry)
-			{
-				if (strcmp(vv->name, name) == 0) {
-					virt_dev = vv;
-					break;
-				}
-			}
-			if (virt_dev) {
-				PRINT_ERROR_PR("Virtual device with name "
-				       "%s already exist", name);
+		virt_dev = fileio_alloc_dev();
+		if (virt_dev == NULL) {
+			TRACE(TRACE_OUT_OF_MEM, "%s",
+				  "Allocation of virt_dev failed");
+			res = -ENOMEM;
+			goto out_up;
+		}
+
+		while (isspace(*p) && *p != '\0')
+			p++;
+
+		if (isdigit(*p)) {
+			char *pp;
+			uint32_t t;
+			block_size = simple_strtoul(p, &pp, 0);
+			p = pp;
+			if ((*p != '\0') && !isspace(*p)) {
+				PRINT_ERROR_PR("Parse error: \"%s\"", p);
 				res = -EINVAL;
-				goto out_up;
-			}
-
-			while (isspace(*p) && *p != '\0')
-				p++;
-			file_name = p;
-			while (!isspace(*p) && *p != '\0')
-				p++;
-			*p++ = '\0';
-			if (*file_name == '\0') {
-				PRINT_ERROR_PR("%s", "File name required");
-				res = -EINVAL;
-				goto out_up;
-			} else if (*file_name != '/') {
-				PRINT_ERROR_PR("File path \"%s\" is not "
-					"absolute", file_name);
-				res = -EINVAL;
-				goto out_up;
-			}
-
-			virt_dev = fileio_alloc_dev();
-			if (virt_dev == NULL) {
-				TRACE(TRACE_OUT_OF_MEM, "%s",
-				      "Allocation of virt_dev failed");
-				res = -ENOMEM;
-				goto out_up;
-			}
-
-			while (isspace(*p) && *p != '\0')
-				p++;
-
-			if (isdigit(*p)) {
-				char *pp;
-				uint32_t t;
-				block_size = simple_strtoul(p, &pp, 0);
-				p = pp;
-				if ((*p != '\0') && !isspace(*p)) {
-					PRINT_ERROR_PR("Parse error: \"%s\"", p);
-					res = -EINVAL;
-					goto out_free_vdev;
-				}
-				while (isspace(*p) && *p != '\0')
-					p++;
-
-				t = block_size;
-				block_shift = 0;
-				while(1) {
-					if ((t & 1) != 0)
-						break;
-					t >>= 1;
-					block_shift++;
-				}
-				if (block_shift < 9) {
-					PRINT_ERROR_PR("Wrong block size %d",
-						block_size);
-					res = -EINVAL;
-					goto out_free_vdev;
-				}
-			}
-			virt_dev->block_size = block_size;
-			virt_dev->block_shift = block_shift;
-			
-			while (*p != '\0') {
-				if (!strncmp("WRITE_THROUGH", p, 13)) {
-					p += 13;
-					virt_dev->wt_flag = 1;
-					TRACE_DBG("%s", "WRITE_THROUGH");
-				} else if (!strncmp("NV_CACHE", p, 8)) {
-					p += 8;
-					virt_dev->nv_cache = 1;
-					TRACE_DBG("%s", "NON-VOLATILE CACHE");
-				} else if (!strncmp("READ_ONLY", p, 9)) {
-					p += 9;
-					virt_dev->rd_only_flag = 1;
-					TRACE_DBG("%s", "READ_ONLY");
-				} else if (!strncmp("O_DIRECT", p, 8)) {
-					p += 8;
-			#if 0
-					
-					virt_dev->o_direct_flag = 1;
-					TRACE_DBG("%s", "O_DIRECT");
-			#else
-					PRINT_INFO_PR("%s flag doesn't currently"
-					    " work, ignoring it", "O_DIRECT");
-			#endif
-				} else if (!strncmp("NULLIO", p, 6)) {
-					p += 6;
-					virt_dev->nullio = 1;
-					TRACE_DBG("%s", "NULLIO");
-				} else {
-					PRINT_ERROR_PR("Unknown flag \"%s\"", p);
-					res = -EINVAL;
-					goto out_free_vdev;
-				}
-				while (isspace(*p) && *p != '\0')
-					p++;
-			}
-			
-			strcpy(virt_dev->name, name);
-
-			pu.len = strlen(file_name) + 1;
-			virt_dev->file_name = kmalloc(pu.len, GFP_KERNEL);
-			if (virt_dev->file_name == NULL) {
-				TRACE(TRACE_OUT_OF_MEM, "%s",
-				      "Allocation of file_name failed");
-				res = -ENOMEM;
 				goto out_free_vdev;
 			}
-			strncpy(virt_dev->file_name, file_name, pu.len);
+			while (isspace(*p) && *p != '\0')
+				p++;
 
-			list_add_tail(&virt_dev->fileio_dev_list_entry,
-				      &disk_fileio_dev_list);
-
-			virt_dev->virt_id =
-			    scst_register_virtual_device(&disk_devtype_fileio,
-							 virt_dev->name);
-			if (virt_dev->virt_id < 0) {
-				res = virt_dev->virt_id;
-				goto out_free_vpath;
-			}
-			TRACE_DBG("Added virt_dev (name %s, file name %s, "
-				"id %d, block size %d) to "
-				"disk_fileio_dev_list", virt_dev->name,
-				virt_dev->file_name, virt_dev->virt_id,
-				virt_dev->block_size);
-		} else {                           /* close */
-			virt_dev = NULL;
-			list_for_each_entry(vv, &disk_fileio_dev_list,
-					    fileio_dev_list_entry)
-			{
-				if (strcmp(vv->name, name) == 0) {
-					virt_dev = vv;
+			t = block_size;
+			block_shift = 0;
+			while(1) {
+				if ((t & 1) != 0)
 					break;
-				}
+				t >>= 1;
+				block_shift++;
 			}
-			if (virt_dev == NULL) {
-				PRINT_ERROR_PR("Device %s not found", name);
+			if (block_shift < 9) {
+				PRINT_ERROR_PR("Wrong block size %d",
+					block_size);
 				res = -EINVAL;
-				goto out_up;
+				goto out_free_vdev;
 			}
-			scst_unregister_virtual_device(virt_dev->virt_id);
-			PRINT_INFO_PR("Virtual device %s unregistered", 
-				virt_dev->name);
-			TRACE_DBG("virt_id %d unregister", virt_dev->virt_id);
-
-			list_del(&virt_dev->fileio_dev_list_entry);
-
-			kfree(virt_dev->file_name);
-			kfree(virt_dev);
 		}
-		res = length;
+		virt_dev->block_size = block_size;
+		virt_dev->block_shift = block_shift;
+		
+		while (*p != '\0') {
+			if (!strncmp("WRITE_THROUGH", p, 13)) {
+				p += 13;
+				virt_dev->wt_flag = 1;
+				TRACE_DBG("%s", "WRITE_THROUGH");
+			} else if (!strncmp("NV_CACHE", p, 8)) {
+				p += 8;
+				virt_dev->nv_cache = 1;
+				TRACE_DBG("%s", "NON-VOLATILE CACHE");
+			} else if (!strncmp("READ_ONLY", p, 9)) {
+				p += 9;
+				virt_dev->rd_only_flag = 1;
+				TRACE_DBG("%s", "READ_ONLY");
+			} else if (!strncmp("O_DIRECT", p, 8)) {
+				p += 8;
+		#if 0
+				
+				virt_dev->o_direct_flag = 1;
+				TRACE_DBG("%s", "O_DIRECT");
+		#else
+				PRINT_INFO_PR("%s flag doesn't currently"
+					" work, ignoring it", "O_DIRECT");
+		#endif
+			} else if (!strncmp("NULLIO", p, 6)) {
+				p += 6;
+				virt_dev->nullio = 1;
+				TRACE_DBG("%s", "NULLIO");
+			} else {
+				PRINT_ERROR_PR("Unknown flag \"%s\"", p);
+				res = -EINVAL;
+				goto out_free_vdev;
+			}
+			while (isspace(*p) && *p != '\0')
+				p++;
+		}
+		
+		strcpy(virt_dev->name, name);
+
+		len = strlen(file_name) + 1;
+		virt_dev->file_name = kmalloc(len, GFP_KERNEL);
+		if (virt_dev->file_name == NULL) {
+			TRACE(TRACE_OUT_OF_MEM, "%s",
+				  "Allocation of file_name failed");
+			res = -ENOMEM;
+			goto out_free_vdev;
+		}
+		strncpy(virt_dev->file_name, file_name, len);
+
+		list_add_tail(&virt_dev->fileio_dev_list_entry,
+				  &disk_fileio_dev_list);
+
+		virt_dev->virt_id =
+			scst_register_virtual_device(&disk_devtype_fileio,
+						 virt_dev->name);
+		if (virt_dev->virt_id < 0) {
+			res = virt_dev->virt_id;
+			goto out_free_vpath;
+		}
+		TRACE_DBG("Added virt_dev (name %s, file name %s, "
+			"id %d, block size %d) to "
+			"disk_fileio_dev_list", virt_dev->name,
+			virt_dev->file_name, virt_dev->virt_id,
+			virt_dev->block_size);
+	} else {                           /* close */
+		virt_dev = NULL;
+		list_for_each_entry(vv, &disk_fileio_dev_list,
+					fileio_dev_list_entry)
+		{
+			if (strcmp(vv->name, name) == 0) {
+				virt_dev = vv;
+				break;
+			}
+		}
+		if (virt_dev == NULL) {
+			PRINT_ERROR_PR("Device %s not found", name);
+			res = -EINVAL;
+			goto out_up;
+		}
+		scst_unregister_virtual_device(virt_dev->virt_id);
+		PRINT_INFO_PR("Virtual device %s unregistered", 
+			virt_dev->name);
+		TRACE_DBG("virt_id %d unregister", virt_dev->virt_id);
+
+		list_del(&virt_dev->fileio_dev_list_entry);
+
+		kfree(virt_dev->file_name);
+		kfree(virt_dev);
 	}
+	res = length;
 
 out_up:
 	up(&scst_fileio_mutex);
@@ -2612,14 +2550,6 @@ out_up:
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
-stop_output:
-	*start = buffer + (offset - pu.begin);
-	pu.len -= (offset - pu.begin);
-	if (pu.len > length)
-		pu.len = length;
-	res = max(0, pu.len);
-	goto out_up;
 
 out_free_vpath:
 	list_del(&virt_dev->fileio_dev_list_entry);
@@ -2629,6 +2559,7 @@ out_free_vdev:
 	kfree(virt_dev);
 	goto out_up;
 }
+
 
 /* scst_fileio_mutex supposed to be held */
 static int cdrom_fileio_open(char *p, char *name)
@@ -2640,8 +2571,7 @@ static int cdrom_fileio_open(char *p, char *name)
 	int cdrom_empty;
 
 	virt_dev = NULL;
-	list_for_each_entry(vv, &cdrom_fileio_dev_list,
-			    fileio_dev_list_entry)
+	list_for_each_entry(vv, &cdrom_fileio_dev_list, fileio_dev_list_entry)
 	{
 		if (strcmp(vv->name, name) == 0) {
 			virt_dev = vv;
@@ -2932,98 +2862,102 @@ out_err_resume:
 
 /* 
  * Called when a file in the /proc/CDROM_FILEIO_NAME/CDROM_FILEIO_NAME is read
- * or written 
  */
-static int cdrom_fileio_proc(char *buffer, char **start, off_t offset,
-	int length, int *eof, struct scst_dev_type *dev_type, int inout)
+static int cdrom_fileio_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
 {
-	int res = 0, action;
-	char *p, *name;
+	int res = 0;
 	struct scst_fileio_dev *virt_dev;
-	int size;
-	struct fileio_proc_update_struct pu;
 
 	TRACE_ENTRY();
-
-	memset(&pu, 0, sizeof(pu));
 
 	if (down_interruptible(&scst_fileio_mutex) != 0) {
 		res = -EINTR;
 		goto out;
 	}
 	
-	if (inout == 0) { /* read */
-		size = scnprintf(buffer, length, "%-17s %-9s %s\n",
-			       "Name", "Size(MB)", "File name");
-		if (fileio_proc_update_size(size, offset, length, &pu, 1))
-			goto stop_output;
+	seq_printf(seq, "%-17s %-9s %s\n", "Name", "Size(MB)", "File name");
 
-		list_for_each_entry(virt_dev, &cdrom_fileio_dev_list, 
-			fileio_dev_list_entry)
-		{
-			size = scnprintf(buffer + pu.len, length - pu.len, 
-				"%-17s %-9d %s\n", virt_dev->name,
-				(uint32_t)(virt_dev->file_size >> 20),
-				virt_dev->file_name);
-			if (fileio_proc_update_size(size, offset, length, &pu,
-					1)) {
-				goto stop_output;
-			}
-		}
-		*eof = 1;
-		goto stop_output;
-	} else {  /* write */
-		p = buffer;
-		if (p[strlen(p) - 1] == '\n') {
-			p[strlen(p) - 1] = '\0';
-		}
-		if (!strncmp("close ", p, 6)) {
-			p += 6;
-			action = 0;
-		} else if (!strncmp("change ", p, 5)) {
-			p += 7;
-			action = 1;
-		} else if (!strncmp("open ", p, 5)) {
-			p += 5;
-			action = 2;
-		} else {
-			PRINT_ERROR_PR("Unknown action \"%s\"", p);
-			res = -EINVAL;
-			goto out_up;
-		}
-
-		while (isspace(*p) && *p != '\0')
-			p++;
-		name = p;
-		while (!isspace(*p) && *p != '\0')
-			p++;
-		*p++ = '\0';
-		if (*name == '\0') {
-			PRINT_ERROR_PR("%s", "Name required");
-			res = -EINVAL;
-			goto out_up;
-		} else if (strlen(name) >= sizeof(virt_dev->name)) {
-			PRINT_ERROR_PR("Name is too long (max %zd "
-				"characters)", sizeof(virt_dev->name)-1);
-			res = -EINVAL;
-			goto out_up;
-		}
-
-		if (action == 2) {                      /* open */
-			res = cdrom_fileio_open(p, name);
-			if (res != 0)
-				goto out_up;
-		} else if (action == 1) {          /* change */
-			res = cdrom_fileio_change(p, name);
-			if (res != 0)
-				goto out_up;
-		} else {                           /* close */
-			res = cdrom_fileio_close(name);
-			if (res != 0)
-				goto out_up;
-		}
-		res = length;
+	list_for_each_entry(virt_dev, &cdrom_fileio_dev_list, 
+		fileio_dev_list_entry) {
+		seq_printf(seq, "%-17s %-9d %s\n", virt_dev->name,
+			(uint32_t)(virt_dev->file_size >> 20),
+			virt_dev->file_name);
 	}
+
+	up(&scst_fileio_mutex);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/* 
+ * Called when a file in the /proc/CDROM_FILEIO_NAME/CDROM_FILEIO_NAME is written 
+ */
+static int cdrom_fileio_write_proc(char *buffer, char **start, off_t offset,
+	int length, int *eof, struct scst_dev_type *dev_type)
+{
+	int res = 0, action;
+	char *p, *name;
+	struct scst_fileio_dev *virt_dev;
+
+	TRACE_ENTRY();
+
+	if (down_interruptible(&scst_fileio_mutex) != 0) {
+		res = -EINTR;
+		goto out;
+	}
+	
+	p = buffer;
+	if (p[strlen(p) - 1] == '\n') {
+		p[strlen(p) - 1] = '\0';
+	}
+	if (!strncmp("close ", p, 6)) {
+		p += 6;
+		action = 0;
+	} else if (!strncmp("change ", p, 5)) {
+		p += 7;
+		action = 1;
+	} else if (!strncmp("open ", p, 5)) {
+		p += 5;
+		action = 2;
+	} else {
+		PRINT_ERROR_PR("Unknown action \"%s\"", p);
+		res = -EINVAL;
+		goto out_up;
+	}
+
+	while (isspace(*p) && *p != '\0')
+		p++;
+	name = p;
+	while (!isspace(*p) && *p != '\0')
+		p++;
+	*p++ = '\0';
+	if (*name == '\0') {
+		PRINT_ERROR_PR("%s", "Name required");
+		res = -EINVAL;
+		goto out_up;
+	} else if (strlen(name) >= sizeof(virt_dev->name)) {
+		PRINT_ERROR_PR("Name is too long (max %zd "
+			"characters)", sizeof(virt_dev->name)-1);
+		res = -EINVAL;
+		goto out_up;
+	}
+
+	if (action == 2) {                      /* open */
+		res = cdrom_fileio_open(p, name);
+		if (res != 0)
+			goto out_up;
+	} else if (action == 1) {          /* change */
+		res = cdrom_fileio_change(p, name);
+		if (res != 0)
+			goto out_up;
+	} else {                           /* close */
+		res = cdrom_fileio_close(name);
+		if (res != 0)
+			goto out_up;
+	}
+	res = length;
 
 out_up:
 	up(&scst_fileio_mutex);
@@ -3031,15 +2965,24 @@ out_up:
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
-stop_output:
-	*start = buffer + (offset - pu.begin);
-	pu.len -= (offset - pu.begin);
-	if (pu.len > length)
-		pu.len = length;
-	res = pu.len;
-	goto out_up;
 }
+
+static int fileio_help_info_show(struct seq_file *seq, void *v)
+{
+	char *s = (char*)seq->private;
+
+	TRACE_ENTRY();
+
+	seq_printf(seq, "%s", s);
+
+	TRACE_EXIT();
+	return 0;
+}
+
+static struct scst_proc_data fileio_help_proc_data = {
+	SCST_DEF_RW_SEQ_OP(NULL)
+	.show = fileio_help_info_show,
+};
 
 static int fileio_proc_help_build(struct scst_dev_type *dev_type)
 {
@@ -3049,23 +2992,17 @@ static int fileio_proc_help_build(struct scst_dev_type *dev_type)
 	TRACE_ENTRY();
 
 	root = scst_proc_get_dev_type_root(dev_type);
-	if (root) {
-		p = create_proc_read_entry(FILEIO_PROC_HELP,
-			S_IFREG | S_IRUGO, root,
-			fileio_proc_help_read,
-			(dev_type->type == TYPE_DISK) ? 
-				disk_fileio_proc_help_string :
-				cdrom_fileio_proc_help_string);
-		if (p == NULL) {
-			PRINT_ERROR_PR("Not enough memory to register dev "
-			     "handler %s entry %s in /proc",
-			      dev_type->name, FILEIO_PROC_HELP);
-			res = -ENOMEM;
-			goto out;
-		}
+	fileio_help_proc_data.data = (dev_type->type == TYPE_DISK) ? 
+					disk_fileio_proc_help_string :
+					cdrom_fileio_proc_help_string;
+	p = scst_create_proc_entry(root, FILEIO_PROC_HELP, &fileio_help_proc_data);
+	if (p == NULL) {
+		PRINT_ERROR_PR("Not enough memory to register dev "
+		     "handler %s entry %s in /proc",
+		      dev_type->name, FILEIO_PROC_HELP);
+		res = -ENOMEM;
 	}
 
-out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -3081,21 +3018,6 @@ static void fileio_proc_help_destroy(struct scst_dev_type *dev_type)
 		remove_proc_entry(FILEIO_PROC_HELP, root);
 
 	TRACE_EXIT();
-}
-
-static int fileio_proc_help_read(char *buffer, char **start, off_t offset,
-				      int length, int *eof, void *data)
-{
-	int res = 0;
-	char *s = (char*)data;
-	
-	TRACE_ENTRY();
-	
-	if (offset < strlen(s))
-		res = scnprintf(buffer, length, "%s", &s[offset]);
-	
-	TRACE_EXIT_RES(res);
-	return res;
 }
 
 static int __init init_scst_fileio(struct scst_dev_type *devtype)
