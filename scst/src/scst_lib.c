@@ -180,7 +180,7 @@ void scst_free_device(struct scst_device *dev)
 	{
 		PRINT_ERROR_PR("%s: dev_tgt_dev_list or dev_acg_dev_list "
 			"is not empty!", __FUNCTION__);
-		BUG();
+		sBUG();
 	}
 #endif
 
@@ -732,7 +732,7 @@ struct scst_cmd *scst_create_prepare_internal_cmd(
 	res->bufflen = bufsize;
 	if (bufsize > 0) {
 		if (scst_alloc_space(res) != 0)
-			PRINT_ERROR("Unable to create buffer (size %d) for "
+			PRINT_ERROR_PR("Unable to create buffer (size %d) for "
 				"internal cmd", bufsize);
 			goto out_free_res;
 	}
@@ -799,7 +799,7 @@ struct scst_cmd *scst_complete_request_sense(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	BUG_ON(orig_cmd);
+	sBUG_ON(orig_cmd);
 
 	len = scst_get_buf_first(cmd, &buf);
 
@@ -1091,7 +1091,7 @@ void scst_free_cmd(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	BUG_ON(cmd->blocking);
+	sBUG_ON(cmd->blocking);
 
 #if defined(EXTRACHECKS) && (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18))
 	if (cmd->scsi_req) {
@@ -1101,9 +1101,11 @@ void scst_free_cmd(struct scst_cmd *cmd)
 	}
 #endif
 
-	TRACE_DBG("Calling target's on_free_cmd(%p)", cmd);
-	cmd->tgtt->on_free_cmd(cmd);
-	TRACE_DBG("%s", "Target's on_free_cmd() returned");
+	if (cmd->tgtt->on_free_cmd != NULL) {
+		TRACE_DBG("Calling target's on_free_cmd(%p)", cmd);
+		cmd->tgtt->on_free_cmd(cmd);
+		TRACE_DBG("%s", "Target's on_free_cmd() returned");
+	}
 
 	if (likely(cmd->dev != NULL)) {
 		struct scst_dev_type *handler = cmd->dev->handler;
@@ -1226,7 +1228,7 @@ struct scst_mgmt_cmd *scst_alloc_mgmt_cmd(int gfp_mask)
 
 	mcmd = mempool_alloc(scst_mgmt_mempool, gfp_mask);
 	if (mcmd == NULL) {
-		PRINT_ERROR("%s", "Allocation of management command "
+		PRINT_ERROR_PR("%s", "Allocation of management command "
 			"failed, some commands and their data could leak");
 		goto out;
 	}
@@ -1310,14 +1312,14 @@ int scst_alloc_space(struct scst_cmd *cmd)
 	int gfp_mask;
 	int res = -ENOMEM;
 	int ini_unchecked_isa_dma, ini_use_clustering;
+	int use_clustering = 0;
 	struct sgv_pool *pool;
-	struct sgv_pool_obj *sgv;
 
 	TRACE_ENTRY();
 
 	if (cmd->data_buf_alloced) {
 		TRACE_MEM("%s", "data_buf_alloced set, returning");
-		BUG_ON(cmd->sg == NULL);
+		sBUG_ON(cmd->sg == NULL);
 		res = 0;
 		goto out;
 	}
@@ -1340,10 +1342,12 @@ int scst_alloc_space(struct scst_cmd *cmd)
 		ini_use_clustering = 0;
 	}
 
-	if (cmd->tgtt->use_clustering || ini_use_clustering)
+	if ((cmd->tgtt->use_clustering || ini_use_clustering) && 
+	    !cmd->tgtt->no_clustering)
 	{
 		TRACE_MEM("%s", "Use clustering");
 		pool = &scst_sgv.norm_clust;
+		use_clustering = 1;
 	}
 
 	if (cmd->tgtt->unchecked_isa_dma || ini_unchecked_isa_dma) {
@@ -1357,9 +1361,17 @@ int scst_alloc_space(struct scst_cmd *cmd)
 #endif
 	}
 
-	sgv = sgv_pool_alloc(pool, cmd->bufflen, gfp_mask, &cmd->sg_cnt);
-	if (sgv == NULL)
-		goto out;
+	if (cmd->no_sgv) {
+		cmd->sg = scst_alloc(cmd->bufflen, gfp_mask, use_clustering,	
+			&cmd->sg_cnt);
+		if (cmd->sg == NULL)
+			goto out;
+	} else {
+		cmd->sg = sgv_pool_alloc(pool, cmd->bufflen, gfp_mask,
+				&cmd->sg_cnt, &cmd->sgv);
+		if (cmd->sg == NULL)
+			goto out;
+	}
 
 	if (unlikely(cmd->sg_cnt > ini_sg)) {
 		static int ll;
@@ -1370,7 +1382,7 @@ int scst_alloc_space(struct scst_cmd *cmd)
 				ini_sg);
 			ll++;
 		}
-		goto out_sgv_free;
+		goto out_sg_free;
 	}
 
 	if (unlikely(cmd->sg_cnt > tgt_sg)) {
@@ -1382,11 +1394,8 @@ int scst_alloc_space(struct scst_cmd *cmd)
 				cmd->sg_cnt, tgt_sg);
 			ll++;
 		}
-		goto out_sgv_free;
+		goto out_sg_free;
 	}
-
-	cmd->sgv = sgv;
-	cmd->sg = sgv_pool_sg(sgv);
 	
 	res = 0;
 
@@ -1394,8 +1403,13 @@ out:
 	TRACE_EXIT();
 	return res;
 
-out_sgv_free:
-	sgv_pool_free(sgv);
+out_sg_free:
+	if (cmd->no_sgv)
+		scst_free(cmd->sg, cmd->sg_cnt);
+	else
+		sgv_pool_free(cmd->sgv);
+	cmd->sgv = NULL;
+	cmd->sg = NULL;
 	cmd->sg_cnt = 0;
 	goto out;
 }
@@ -1412,7 +1426,8 @@ void scst_release_space(struct scst_cmd *cmd)
 	if (cmd->sgv) {
 		scst_check_restore_sg_buff(cmd);
 		sgv_pool_free(cmd->sgv);
-	}
+	} else if (cmd->sg)
+		scst_free(cmd->sg, cmd->sg_cnt);
 
 	cmd->sgv = NULL;
 	cmd->sg_cnt = 0;
@@ -1454,6 +1469,7 @@ int __scst_get_buf(struct scst_cmd *cmd, uint8_t **buf)
 #else
 	*buf = page_address(sg[i].page);
 #endif
+	*buf += sg[i].offset;
 	res = sg[i].length;
 	cmd->get_sg_buf_entry_num++;
 	
@@ -1982,7 +1998,7 @@ int scst_inc_on_dev_cmd(struct scst_cmd *cmd)
 	int res = 0;
 	struct scst_device *dev = cmd->dev;
 
-	BUG_ON(cmd->blocking);
+	sBUG_ON(cmd->blocking);
 
 	atomic_inc(&dev->on_dev_count);
 
@@ -2073,7 +2089,7 @@ void scst_unblock_cmds(struct scst_device *dev)
 		if (likely(!cmd->internal) && likely(!cmd->retry)) {
 			int expected_sn;
 			if (cmd->tgt_dev == NULL)
-				BUG();
+				sBUG();
 			expected_sn = cmd->tgt_dev->expected_sn;
 			if (cmd->sn == expected_sn)
 				brk = 1;
@@ -2137,13 +2153,18 @@ static struct scst_cmd *scst_inc_expected_sn(
 }
 
 void scst_inc_expected_sn_unblock(struct scst_tgt_dev *tgt_dev,
-	struct scst_cmd *cmd_sn, int locked)
+	struct scst_cmd *out_of_sn_cmd, int locked)
 {
 	struct scst_cmd *cmd;
 
 	TRACE_ENTRY();
 
-	cmd = scst_inc_expected_sn(tgt_dev, cmd_sn);
+	if (out_of_sn_cmd->no_sn) {
+		TRACE(TRACE_SCSI_SERIALIZING, "cmd %p with no_sn", out_of_sn_cmd);
+		goto out;
+	}
+
+	cmd = scst_inc_expected_sn(tgt_dev, out_of_sn_cmd);
 	if (cmd != NULL) {
 		unsigned long flags = 0;
 		if (!locked)
@@ -2153,10 +2174,11 @@ void scst_inc_expected_sn_unblock(struct scst_tgt_dev *tgt_dev,
 		list_move(&cmd->cmd_list_entry, &scst_active_cmd_list);
 		if (!locked)
 			spin_unlock_irqrestore(&scst_list_lock, flags);
-		if (!cmd_sn->processible_env)
+		if (!out_of_sn_cmd->processible_env)
 			wake_up(&scst_list_waitQ);
 	}
 
+out:
 	TRACE_EXIT();
 	return;
 }
@@ -2294,7 +2316,7 @@ static void tm_dbg_delay_cmd(struct scst_cmd *cmd)
 		break;
 
 	default:
-		BUG();
+		sBUG();
 	}
 	list_move_tail(&cmd->cmd_list_entry, &tm_dbg_delayed_cmd_list);
 	cmd->tm_dbg_delayed = 1;
@@ -2345,7 +2367,7 @@ static void tm_dbg_change_state(void)
 			}
 			break;
 		default:
-			BUG();
+			sBUG();
 		}
 		tm_dbg_on_state_passes =
 		    tm_dbg_on_state_num_passes[tm_dbg_state];

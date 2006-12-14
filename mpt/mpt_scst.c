@@ -126,8 +126,8 @@ mpt_proc_read(char *buffer, char **start, off_t offset, int length, int *eof,
 	TRACE_DBG("res %d, buffer %p, length %d, %d, priv %p, tgt %p", 
 			res, buffer, length, len, priv, tgt); 
 
-	BUG_ON(tgt == NULL);
-	BUG_ON(ioc == NULL);
+	sBUG_ON(tgt == NULL);
+	sBUG_ON(ioc == NULL);
 
 	len = snprintf(buffer, length,
 			"ProductID        :0x%04x (%s)\n"
@@ -318,7 +318,7 @@ mpt_msg_frame_alloc(MPT_ADAPTER *ioc, int index)
 	mf = mpt_get_msg_frame(stm_context, _IOC_ID);
 
 	if (mf == NULL) {
-		BUG_ON(1);
+		sBUG_ON(1);
 	}
 	
 	if (index != -1) {
@@ -725,7 +725,7 @@ stm_tgt_reply(MPT_ADAPTER *ioc, u32 reply_word)
 		TRACE_DBG("Data received, context %x, rx_status %d",
 				context, rx_status);
 
-		BUG_ON(!(*io_state & IO_STATE_DATA_SENT));
+		sBUG_ON(!(*io_state & IO_STATE_DATA_SENT));
 		mpt_msg_frame_free(priv, index);
 		if (*io_state & IO_STATE_DATA_SENT) {
 			*io_state &= ~IO_STATE_DATA_SENT;
@@ -1092,7 +1092,7 @@ mpt_set_sense_info(MPT_STM_PRIV *priv, CMD *cmd, int len, u8 *sense_buf)
 		}
 	}
 
-	BUG_ON(info == NULL);
+	sBUG_ON(info == NULL);
 	memcpy(info, sense_buf, len);
 /*out:*/
 

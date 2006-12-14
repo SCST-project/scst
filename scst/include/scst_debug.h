@@ -20,9 +20,7 @@
 #ifndef __SCST_DEBUG_H
 #define __SCST_DEBUG_H
 
-#include <linux/config.h>	/* for CONFIG_SCSI_TARGET_EXTRACHEKS
-				       CONFIG_SCSI_TARGET_TRACING
-				       CONFIG_SCSI_TARGET_DEBUG */
+#include <linux/config.h>	/* for CONFIG_* */
 
 #if !defined(EXTRACHECKS) && defined(CONFIG_SCSI_TARGET_EXTRACHECKS)
 #define EXTRACHECKS
@@ -34,6 +32,34 @@
 
 #if !defined(DEBUG) && defined(CONFIG_SCSI_TARGET_DEBUG)
 #define DEBUG
+#endif
+
+#ifdef DEBUG
+#ifndef CONFIG_DEBUG_BUGVERBOSE
+#define sBUG() do {						\
+	printk(KERN_CRIT "BUG at %s:%d\n",			\
+	       __FILE__, __LINE__);				\
+	BUG();							\
+} while (0)
+#else
+#define sBUG() BUG()
+#endif
+#define sBUG_ON(p) do {						\
+	if (unlikely(p)) {					\
+		printk(KERN_CRIT "BUG at %s:%d (%s)\n",		\
+		       __FILE__, __LINE__, #p);			\
+		BUG();						\
+	}							\
+} while (0)
+#else
+#define sBUG() BUG()
+#define sBUG_ON(p) BUG_ON(p)
+#endif
+
+#ifdef EXTRACHECKS
+#define EXTRACHECKS_BUG_ON(a)	sBUG_ON(a)
+#else
+#define EXTRACHECKS_BUG_ON(a)
 #endif
 
 #ifdef DEBUG

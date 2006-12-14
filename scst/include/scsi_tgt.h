@@ -56,26 +56,29 @@
 /* Allocation of the cmd's data buffer */
 #define SCST_CMD_STATE_PREPARE_SPACE 5
 
+/* Allocation of the cmd's data buffer */
+#define SCST_CMD_STATE_PREPROCESS_DONE 6
+
 /* Target driver's rdy_to_xfer() is going to be called */
-#define SCST_CMD_STATE_RDY_TO_XFER   6
+#define SCST_CMD_STATE_RDY_TO_XFER   7
 
 /* Waiting for data from the initiator (until scst_rx_data() called) */
-#define SCST_CMD_STATE_DATA_WAIT     7
+#define SCST_CMD_STATE_DATA_WAIT     8
 
 /* CDB is going to be sent to SCSI mid-level for execution */
-#define SCST_CMD_STATE_SEND_TO_MIDLEV 8
+#define SCST_CMD_STATE_SEND_TO_MIDLEV 9
 
 /* Waiting for CDB's execution finish */
-#define SCST_CMD_STATE_EXECUTING     9
+#define SCST_CMD_STATE_EXECUTING     10
 
 /* Dev handler's dev_done() is going to be called */
-#define SCST_CMD_STATE_DEV_DONE      10
+#define SCST_CMD_STATE_DEV_DONE      11
 
 /* Target driver's xmit_response() is going to be called */
-#define SCST_CMD_STATE_XMIT_RESP     11
+#define SCST_CMD_STATE_XMIT_RESP     12
 
 /* Waiting for response's transmission finish */
-#define SCST_CMD_STATE_XMIT_WAIT     12
+#define SCST_CMD_STATE_XMIT_WAIT     13
 
 /* The cmd finished */
 #define SCST_CMD_STATE_FINISHED      14
@@ -156,22 +159,47 @@
 #define SCST_RX_STATUS_SUCCESS       0
 
 /* 
- * Data receiving finished with error, so set the sense and 
+ * Data receiving finished with error, so set the sense and
  * finish the command, including xmit_response() call
  */
 #define SCST_RX_STATUS_ERROR         1
 
 /* 
- * Data receiving finished with error and the sense is set,  
+ * Data receiving finished with error and the sense is set,
  * so finish the command, including xmit_response() call
  */
 #define SCST_RX_STATUS_ERROR_SENSE_SET 2
 
 /* 
- * Data receiving finished with fatal error, so finish the command, 
+ * Data receiving finished with fatal error, so finish the command,
  * but don't call xmit_response()
  */
 #define SCST_RX_STATUS_ERROR_FATAL   3
+
+/************************************************************* 
+ ** Values for status parameter of scst_restart_cmd() 
+ *************************************************************/
+
+/* Success */
+#define SCST_PREPROCESS_STATUS_SUCCESS       0
+
+/* 
+ * Command's processing finished with error, so set the sense and
+ * finish the command, including xmit_response() call
+ */
+#define SCST_PREPROCESS_STATUS_ERROR         1
+
+/* 
+ * Command's processing finished with error and the sense is set,
+ * so finish the command, including xmit_response() call
+ */
+#define SCST_PREPROCESS_STATUS_ERROR_SENSE_SET 2
+
+/* 
+ * Command's processing finished with fatal error, so finish the command,
+ * but don't call xmit_response()
+ */
+#define SCST_PREPROCESS_STATUS_ERROR_FATAL   3
 
 /*************************************************************
  ** Allowed return codes for xmit_response(), rdy_to_xfer(), 
@@ -212,19 +240,6 @@
  * Exec() will be called again in the thread context.
  */
 #define SCST_EXEC_NEED_THREAD        2
-
-/*************************************************************
- ** Allowed return codes for dev handler's task_mgmt_fn()
- *************************************************************/
-
-/* The command is done with success, no firther actions required */
-#define SCST_DEV_TM_COMPLETED_SUCCESS 0
-
-/* The command is failed, no firther actions required */
-#define SCST_DEV_TM_COMPLETED_FAILED  -1
-
-/* Regular standard actions for the command should be done */
-#define SCST_DEV_TM_NOT_COMPLETED     1
 
 /************************************************************* 
  ** Default timeout for cmd's CDB execution 
@@ -286,10 +301,21 @@
 #define SCST_ABORT_ALL_TASKS         9
 
 /************************************************************* 
- ** Values for mgmt cmd's "status"
+ ** Values for mgmt cmd's status field. Codes taken from iSCSI
  *************************************************************/
-#define SCST_MGMT_STATUS_SUCCESS     0
-#define SCST_MGMT_STATUS_FAILED     -1
+#define SCST_MGMT_STATUS_SUCCESS		0
+#define SCST_MGMT_STATUS_TASK_NOT_EXIST		-1
+#define SCST_MGMT_STATUS_LUN_NOT_EXIST		-2
+#define SCST_MGMT_STATUS_FN_NOT_SUPPORTED	-5
+#define SCST_MGMT_STATUS_REJECTED		-255
+#define SCST_MGMT_STATUS_FAILED			-129
+
+/*************************************************************
+ ** Additional return code for dev handler's task_mgmt_fn()
+ *************************************************************/
+
+/* Regular standard actions for the command should be done */
+#define SCST_DEV_TM_NOT_COMPLETED     1
 
 /************************************************************* 
  ** Session initialization phases
@@ -478,12 +504,6 @@ struct scst_tgt_template
 	/* public: */
 
 	/* 
-	 * Name of the template. Must be unique to identify
-	 * the template. MUST HAVE
-	 */
-	const char name[15];
-
-	/* 
 	 * SG tablesize allows to check whether scatter/gather can be used
 	 * or not. 
 	 */
@@ -495,10 +515,15 @@ struct scst_tgt_template
 	unsigned unchecked_isa_dma:1;
 
 	/*
-	 * True, if this target adapter wants to use clustering 
-	 * (i.e. smaller number of segments).
+	 * True, if this target adapter can benefit from using SG-vector
+	 * clustering (i.e. smaller number of segments).
 	 */
 	unsigned use_clustering:1;
+
+	/*
+	 * True, if this target adapter doesn't support SG-vector clustering 
+	 */
+	unsigned no_clustering:1;
 
 	/*
 	 * True, if corresponding function supports execution in
@@ -506,6 +531,7 @@ struct scst_tgt_template
 	 */
 	unsigned xmit_response_atomic:1;
 	unsigned rdy_to_xfer_atomic:1;
+	unsigned preprocessing_done_atomic:1;
 
 	/* True, if the template doesn't need the entry in /proc */
 	unsigned no_proc_entry:1;
@@ -519,6 +545,120 @@ struct scst_tgt_template
 	 * also scst_cmd_aborted()).
 	 */
 	unsigned tm_sync_reply:1;
+
+	/*
+	 * This function is equivalent to the SCSI
+	 * queuecommand. The target should transmit the response
+	 * buffer and the status in the scst_cmd struct. 
+	 * The expectation is that this executing this command is NON-BLOCKING. 
+	 * 
+	 * After the response is actually transmitted, the target 
+	 * should call the scst_tgt_cmd_done() function of the 
+	 * mid-level, which will allow it to free up the command.
+	 * Returns one of the SCST_TGT_RES_* constants.
+	 *
+	 * Pay attention to "atomic" attribute of the cmd, which can be get
+	 * by scst_cmd_atomic(): it is true if the function called in the
+	 * atomic (non-sleeping) context.
+	 *
+	 * MUST HAVE
+	 */
+	int (*xmit_response) (struct scst_cmd *cmd);
+
+	/*
+	 * This function informs the driver that data
+	 * buffer corresponding to the said command have now been
+	 * allocated and it is OK to receive data for this command.
+	 * This function is necessary because a SCSI target does not
+	 * have any control over the commands it receives. Most lower
+	 * level protocols have a corresponding function which informs
+	 * the initiator that buffers have been allocated e.g., XFER_
+	 * RDY in Fibre Channel. After the data is actually received
+	 * the low-level driver needs to call scst_rx_data() in order to 
+	 * continue processing this command.
+	 * Returns one of the SCST_TGT_RES_* constants.
+	 * This command is expected to be NON-BLOCKING.
+	 *
+	 * Pay attention to "atomic" attribute of the cmd, which can be get
+	 * by scst_cmd_atomic(): it is true if the function called in the
+	 * atomic (non-sleeping) context.
+	 *
+	 * OPTIONAL
+	 */
+	int (*rdy_to_xfer) (struct scst_cmd *cmd);
+
+	/* 
+	 * Called to notify the driver that the command is about to be freed.
+	 * Necessary, because for aborted commands xmit_response() could not
+	 * be called. Could be called on IRQ context.
+	 *
+	 * OPTIONAL
+	 */
+	void (*on_free_cmd) (struct scst_cmd *cmd);
+
+	/*
+	 * This function allows the target driver to handle data buffer
+	 * allocations on its own.
+	 * Shall return 0 in case of success or < 0 (preferrably -ENOMEM)
+	 * in case of error, or > 0 if the regular SCST allocation should be
+	 * done. In case of returning successfully, scst_cmd->data_buf_alloced
+	 * will be set by SCST.
+	 *
+	 * If allocation in atomic context - cf. scst_cmd_atomic() - is not
+	 * desired or fails and consequently < 0 is returned, this function
+	 * will be re-called in thread context.
+	 *
+	 * Please note that the driver will have to handle all relevant details
+	 * such as scatterlist setup, highmem, freeing the allocated memory, ...
+	 * itself.
+	 *
+	 * OPTIONAL.
+	 */
+	int (*alloc_data_buf) (struct scst_cmd *cmd);
+
+	/*
+	 * This function informs the driver that data
+	 * buffer corresponding to the said command have now been
+	 * allocated and other preprocessing tasks have been done.
+	 * A target driver could need to do some actions at this stage.
+	 * After the target driver done the needed actions, it shall call
+	 * scst_restart_cmd() in order to continue processing this command.
+	 *
+	 * Called only if the cmd is queued using scst_cmd_init_stage1_done()
+	 * instead of scst_cmd_init_done().
+	 *
+	 * Returns void, the result is expected to be returned using
+	 * scst_restart_cmd().
+	 *
+	 * This command is expected to be NON-BLOCKING.
+	 *
+	 * Pay attention to "atomic" attribute of the cmd, which can be get
+	 * by scst_cmd_atomic(): it is true if the function called in the
+	 * atomic (non-sleeping) context.
+	 *
+	 * OPTIONAL.
+	 */
+	void (*preprocessing_done) (struct scst_cmd *cmd);
+
+	/*
+	 * This function informs the driver that a
+	 * received task management function has been completed. This
+	 * function is necessary because low-level protocols have some
+	 * means of informing the initiator about the completion of a
+	 * Task Management function. This function being called will
+	 * signify that a Task Management function is completed as far
+	 * as the mid-level is concerned. Any information that must be
+	 * stored about the command is the responsibility of the low-
+	 * level driver. No return value expected. 
+	 * This function is expected to be NON-BLOCKING
+	 *
+	 * Pay attention to "atomic" attribute of the cmd, which can be get
+	 * by scst_cmd_atomic(): it is true if the function called in the
+	 * atomic (non-sleeping) context.
+	 *
+	 * MUST HAVE if the target supports ABORTs
+	 */
+	void (*task_mgmt_fn_done) (struct scst_mgmt_cmd *mgmt_cmd);
 
 	/*
 	 * This function should detect the target adapters that
@@ -542,95 +682,6 @@ struct scst_tgt_template
 	int (*release) (struct scst_tgt *tgt);
 
 	/*
-	 * This function is equivalent to the SCSI
-	 * queuecommand. The target should transmit the response
-	 * buffer and the status in the scst_cmd struct. 
-	 * The expectation is that this executing this command is NON-BLOCKING. 
-	 * 
-	 * After the response is actually transmitted, the target 
-	 * should call the scst_tgt_cmd_done() function of the 
-	 * mid-level, which will allow it to free up the command.
-	 * Returns one of the SCST_TGT_RES_* constants.
-	 *
-	 * Pay attention to "atomic" attribute of the cmd, which can be get
-	 * by scst_cmd_atomic(): it is true if the function called in the
-	 * atomic (non-sleeping) context.
-	 *
-	 * MUST HAVE
-	 */
-	int (*xmit_response) (struct scst_cmd *cmd);
-
-	/*
-	 * This function allows the target driver to handle data buffer
-	 * allocations on its own.
-	 * Shall return 0 in case of success, and != 0 (preferrably -ENOMEM)
-	 * in case of error. In case of returning successfully,
-	 * scst_cmd->data_buf_alloced will be set by SCST.
-	 *
-	 * If allocation in atomic context - cf. scst_cmd_atomic() - is not
-	 * desired or fails and consequently != 0 is returned, this function
-	 * will be re-called in thread context.
-	 *
-	 * Please note that the driver will have to handle all relevant details
-	 * such as scatterlist setup, highmem, freeing the allocated memory, ...
-	 * itself.
-	 *
-	 * OPTIONAL.
-	 */
-	int (*alloc_data_buf) (struct scst_cmd *cmd);
-
-	/*
-	 * This function informs the driver that data
-	 * buffer corresponding to the said command have now been
-	 * allocated and it is OK to receive data for this command.
-	 * This function is necessary because a SCSI target does not
-	 * have any control over the commands it receives. Most lower
-	 * level protocols have a corresponding function which informs
-	 * the initiator that buffers have been allocated e.g., XFER_
-	 * RDY in Fibre Channel. After the data is actually received
-	 * the low-level driver needs to call scst_rx_data() in order to 
-	 * continue processing this command.
-	 * Returns one of the SCST_TGT_RES_* constants.
-	 * This command is expected to be NON-BLOCKING.
-	 *
-	 * Pay attention to "atomic" attribute of the cmd, which can be get
-	 * by scst_cmd_atomic(): it is true if the function called in the
-	 * atomic (non-sleeping) context.
-	 *
-	 * MUST HAVE.
-	 */
-	int (*rdy_to_xfer) (struct scst_cmd *cmd);
-
-	/* 
-	 * Called to notify the driver that the command is about to be freed.
-	 * Necessary, because for aborted commands xmit_response() could not
-	 * be called. Could be called on IRQ context.
-	 *
-	 * MUST HAVE
-	 */
-	void (*on_free_cmd) (struct scst_cmd *cmd);
-
-	/*
-	 * This function informs the driver that a
-	 * received task management function has been completed. This
-	 * function is necessary because low-level protocols have some
-	 * means of informing the initiator about the completion of a
-	 * Task Management function. This function being called will
-	 * signify that a Task Management function is completed as far
-	 * as the mid-level is concerned. Any information that must be
-	 * stored about the command is the responsibility of the low-
-	 * level driver. No return value expected. 
-	 * This function is expected to be NON-BLOCKING
-	 *
-	 * Pay attention to "atomic" attribute of the cmd, which can be get
-	 * by scst_cmd_atomic(): it is true if the function called in the
-	 * atomic (non-sleeping) context.
-	 *
-	 * MUST HAVE if the target supports ABORTs
-	 */
-	void (*task_mgmt_fn_done) (struct scst_mgmt_cmd *mgmt_cmd);
-
-	/*
 	 * This function is used for Asynchronous Event Notification. 
 	 * It is the responsibility of the driver to notify any/all
 	 * initiators about the Asynchronous Event reported.
@@ -651,6 +702,12 @@ struct scst_tgt_template
 	 */
 	int (*proc_info) (char *buffer, char **start, off_t offset, 
 		int length, int *eof, struct scst_tgt *tgt, int inout);
+
+	/* 
+	 * Name of the template. Must be unique to identify
+	 * the template. MUST HAVE
+	 */
+	const char name[50];
 
 	/* Private, must be inited to 0 by memset() */
 
@@ -767,9 +824,9 @@ struct scst_dev_type
 	/* 
 	 * Called to execute a task management command. 
 	 * Returns: 
-	 *  - SCST_DEV_TM_COMPLETED_SUCCESS - the command is done with success,
+	 *  - SCST_MGMT_STATUS_SUCCESS - the command is done with success,
 	 *	no firther actions required
-	 *  - SCST_DEV_TM_COMPLETED_FAILED - the command is failed, 
+	 *  - The SCST_MGMT_STATUS_* error code if the command is failed and 
 	 *	no firther actions required
 	 *  - SCST_DEV_TM_NOT_COMPLETED - regular standard actions for the command
 	 *	should be done
@@ -1020,6 +1077,21 @@ struct scst_cmd
 	 */
 	unsigned int may_need_dma_sync:1;
 
+	/*
+	 * Set if scst_cmd_init_stage1_done() called and the target
+	 * want that preprocessing_done() will be called
+	 */
+	unsigned int preprocessing_only:1;
+
+	/*
+	 * Set if scst_cmd_init_stage1_done() called and the target want
+	 * that the SN for the cmd isn't assigned until scst_restart_cmd()
+	 */
+	unsigned int no_sn:1;
+
+	/* Set if the cmd's must not use sgv cache for data buffer */
+	unsigned int no_sgv:1;
+
 	/**************************************************************/
 
 	unsigned long cmd_flags;	/* cmd's async flags */
@@ -1100,6 +1172,9 @@ struct scst_cmd
 	uint16_t host_status;	/* set by low-level driver to indicate status */
 	uint16_t driver_status;	/* set by mid-level */
 
+	/* Used for storage of target driver private stuff */
+	void *tgt_priv;
+
 	/* 
 	 * Used to restore the SG vector if it was modified by
 	 * scst_set_resp_data_len()
@@ -1114,17 +1189,14 @@ struct scst_cmd
 	/* List entry for dev's blocked_cmd_list */
 	struct list_head blocked_cmd_list_entry;
 
+	/* Used for storage of dev handler private stuff */
+	void *dh_priv;
+
 	/*
 	 * Fileio private fields
 	 */
 	struct list_head fileio_cmd_list_entry;
 	int fileio_in_list;
-
-	/* Used for storage of target driver private stuff */
-	void *tgt_priv;
-
-	/* Used for storage of dev handler private stuff */
-	void *dh_priv;
 
 	/* 
 	 * Used to store previous tgt_dev if dev handler returns 
@@ -1537,6 +1609,31 @@ struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
 void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context);
 
 /* 
+ * Notifies SCST that the driver finished the first stage of the command
+ * initialization, and the command is ready for execution, but after
+ * SCST done the command's preprocessing preprocessing_done() function
+ * should be called. The second argument sets preferred command execition
+ * context. See SCST_CONTEXT_* constants for details.
+ */
+static inline void scst_cmd_init_stage1_done(struct scst_cmd *cmd,
+	int pref_context, int set_sn)
+{
+	cmd->preprocessing_only = 1;
+	cmd->no_sn = !set_sn;
+	scst_cmd_init_done(cmd, pref_context);
+}
+
+/* 
+ * Notifies SCST that the driver finished its part of the command's
+ * preprocessing and it is ready for further processing.
+ * The second argument sets data receiving completion status
+ * (see SCST_PREPROCESS_STATUS_* constants for details)
+ * The third argument sets preferred command execition context
+ * (see SCST_CONTEXT_* constants for details)
+ */
+void scst_restart_cmd(struct scst_cmd *cmd, int status, int pref_context);
+
+/* 
  * Notifies SCST that the driver received all the necessary data 
  * and the command is ready for further processing.
  * The second argument sets data receiving completion status
@@ -1862,6 +1959,19 @@ static inline void scst_cmd_set_data_buff_alloced(struct scst_cmd *cmd)
 }
 
 /*
+ * Get/Set functions for no_sgv flag
+ */
+static inline int scst_cmd_get_no_sgv(struct scst_cmd *cmd)
+{
+	return cmd->no_sgv;
+}
+
+static inline void scst_cmd_set_no_sgv(struct scst_cmd *cmd)
+{
+	cmd->no_sgv = 1;
+}
+
+/*
  * Returns 1 if the cmd was aborted, so its status is invalid and no
  * reply shall be sent to the remote initiator. A target driver should
  * only clear internal resources, associated with cmd.
@@ -2086,5 +2196,17 @@ int scst_check_mem(struct scst_cmd *cmd);
  */
 void scst_get(void);
 void scst_put(void);
+
+/*
+ * Allocates and returns pointer to SG vector with data size "size".
+ * If use_clustering is not 0, segments in the vector will be merged,
+ * when possible. In *count returned the count of entries in the vector.
+ * Returns NULL for failure.
+ */
+struct scatterlist *scst_alloc(int size, unsigned long gfp_mask,
+	int use_clustering, int *count);
+
+/* Frees SG vector returned by scst_alloc() */
+void scst_free(struct scatterlist *sg, int count);
 
 #endif /* __SCST_H */

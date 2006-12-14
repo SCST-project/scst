@@ -147,20 +147,6 @@ int scst_register_target_template(struct scst_tgt_template *vtt)
 		goto out;
 	}
 
-	if (!vtt->rdy_to_xfer) {
-		PRINT_ERROR_PR("Target driver %s doesn't have a "
-			"rdy_to_xfer() method.", vtt->name);
-		res = -EINVAL;
-		goto out;
-	}
-	
-	if (!vtt->on_free_cmd) {
-		PRINT_ERROR_PR("Target driver %s doesn't have a "
-			"on_free_cmd() method.", vtt->name);
-		res = -EINVAL;
-		goto out;
-	}
-
 	if (!vtt->no_proc_entry) {
 		res = scst_build_proc_target_dir_entries(vtt);
 		if (res < 0) {
@@ -295,7 +281,7 @@ void scst_unregister(struct scst_tgt *tgt)
 
 	down(&scst_mutex);
 	list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
-		BUG_ON(!sess->shutting_down);
+		sBUG_ON(!sess->shutting_down);
 	}
 	up(&scst_mutex);
 
@@ -1245,6 +1231,7 @@ EXPORT_SYMBOL(scst_unregister_target_template);
 
 EXPORT_SYMBOL(scst_cmd_init_done);
 EXPORT_SYMBOL(scst_tgt_cmd_done);
+EXPORT_SYMBOL(scst_restart_cmd);
 EXPORT_SYMBOL(scst_rx_cmd);
 EXPORT_SYMBOL(scst_rx_data);
 EXPORT_SYMBOL(scst_rx_mgmt_fn_tag);
@@ -1271,6 +1258,9 @@ EXPORT_SYMBOL(__scst_get_buf);
 EXPORT_SYMBOL(scst_check_mem);
 EXPORT_SYMBOL(scst_get);
 EXPORT_SYMBOL(scst_put);
+
+EXPORT_SYMBOL(scst_alloc);
+EXPORT_SYMBOL(scst_free);
 
 /*
  * Other Commands

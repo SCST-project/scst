@@ -70,6 +70,7 @@ struct scst_sgv_pools
 };
 
 extern atomic_t sgv_big_total_alloc;
+extern atomic_t sgv_other_total_alloc;
 
 extern struct sgv_pool *sgv_pool_create(const char *name, int clustered);
 extern void sgv_pool_destroy(struct sgv_pool *pool);
@@ -78,19 +79,13 @@ extern int sgv_pool_init(struct sgv_pool *pool, const char *name,
 	int clustered);
 extern void sgv_pool_deinit(struct sgv_pool *pool);
 
-extern struct sgv_pool_obj *sgv_pool_alloc(struct sgv_pool *pool, int size,
-	unsigned long flags, int *count);
-extern void __sgv_pool_free_big(struct sgv_pool_obj *obj);
-
-static inline void sgv_pool_free(struct sgv_pool_obj *obj)
+extern struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, int size,
+	unsigned long gfp_mask, int *count, struct sgv_pool_obj **sgv);
+static inline void sgv_pool_free(struct sgv_pool_obj *sgv)
 {
-	TRACE_MEM("Freeing sgv_obj %p", obj);
-	if (obj->owner_cache != NULL) {
-		obj->entries[obj->orig_sg].length = obj->orig_length;
-		kmem_cache_free(obj->owner_cache, obj);
-	}
-	else
-		__sgv_pool_free_big(obj);
+	TRACE_MEM("Freeing sgv_obj %p", sgv);
+	sgv->entries[sgv->orig_sg].length = sgv->orig_length;
+	kmem_cache_free(sgv->owner_cache, sgv);
 }
 
 static inline struct scatterlist *sgv_pool_sg(struct sgv_pool_obj *obj)

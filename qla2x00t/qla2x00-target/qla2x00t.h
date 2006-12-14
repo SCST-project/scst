@@ -28,6 +28,15 @@
 #include <qla_def.h>
 #include "qla2x_tgt_def.h"
 
+/* Undefine the initiator driver's own DEBUG symbol */
+#undef DEBUG
+
+#ifdef DEBUG_TGT
+#define DEBUG
+#endif
+
+#include <scst_debug.h>
+
 /* Version numbers, the same as for the kernel */
 #define Q2T_VERSION(a,b,c,d) (((a) << 030) + ((b) << 020) + (c) << 010 + (d))
 #define Q2T_VERSION_CODE Q2T_VERSION(0,9,6,0)
@@ -157,7 +166,7 @@ static inline struct q2t_sess *q2t_find_sess_by_lid(struct q2t_tgt *tgt,
 						    uint16_t lid) 
 {
 	struct q2t_sess *sess, *sess_tmp;	
-	BUG_ON(tgt == NULL);
+	sBUG_ON(tgt == NULL);
 	list_for_each_entry_safe(sess, sess_tmp, &tgt->sess_list, list) {
 		if (lid == (sess->loop_id))
 			return sess;

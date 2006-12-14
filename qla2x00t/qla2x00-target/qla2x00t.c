@@ -43,14 +43,6 @@
 
 #include "qla2x00t.h"
 
-/* Undefine the initiator driver's own DEBUG symbol */
-#undef DEBUG
-
-#ifdef DEBUG_TGT
-#define DEBUG
-#endif
-
-#include <scst_debug.h>
 #include <scst_debug.c>
 
 #ifndef FC_TARGET_SUPPORT
@@ -282,9 +274,9 @@ static void q2t_free_session_done(struct scst_session *scst_sess)
 
 	TRACE_ENTRY();
 
-	BUG_ON(scst_sess == NULL);
+	sBUG_ON(scst_sess == NULL);
 	sess = (struct q2t_sess *)scst_sess_get_tgt_priv(scst_sess);
-	BUG_ON(sess == NULL);
+	sBUG_ON(sess == NULL);
 	tgt = sess->tgt;
 
 	kfree(sess);
@@ -406,7 +398,7 @@ static int q2t_pci_map_calc_cnt(struct q2t_prm *prm)
 {
 	int res = 0;
 
-	BUG_ON(prm->sg_cnt == 0);
+	sBUG_ON(prm->sg_cnt == 0);
 
 	/* 32 bit S/G Data Transfer */
 	prm->seg_cnt = pci_map_sg(prm->tgt->ha->pdev, prm->sg, prm->sg_cnt,
@@ -1123,7 +1115,7 @@ out_free:
 static void q2t_ctio_completion(scsi_qla_host_t *ha, uint32_t handle)
 {
 	TRACE_ENTRY();
-	BUG_ON(ha == NULL);
+	sBUG_ON(ha == NULL);
 
 	if (ha->tgt != NULL) {
 		q2t_do_ctio_completion(ha, handle,
@@ -1716,7 +1708,7 @@ static void q2t_response_pkt(scsi_qla_host_t *ha, sts_entry_t *pkt)
 
 	TRACE_ENTRY();
 	
-	BUG_ON((ha == NULL) || (pkt == NULL));
+	sBUG_ON((ha == NULL) || (pkt == NULL));
 
 	TRACE(TRACE_SCSI, "pkt %p: T %02x C %02x S %02x handle %#x",
 	      pkt, pkt->entry_type, pkt->entry_count, pkt->entry_status,
@@ -1902,7 +1894,7 @@ static void q2t_async_event(uint16_t code, scsi_qla_host_t *ha, uint16_t *mailbo
 {
 	TRACE_ENTRY();
 
-	BUG_ON(ha == NULL);
+	sBUG_ON(ha == NULL);
 
 	if (ha->tgt == NULL) {
 		TRACE(TRACE_DEBUG|TRACE_MGMT, 
@@ -1963,7 +1955,7 @@ static void q2t_host_action(scsi_qla_host_t *ha,
 
 	TRACE_ENTRY();
 
-	BUG_ON(ha == NULL);
+	sBUG_ON(ha == NULL);
 
 	switch (action) {
 	case ENABLE_TARGET_MODE :

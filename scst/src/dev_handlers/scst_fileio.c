@@ -45,7 +45,7 @@
 /* 8 byte ASCII Vendor of the FILE IO target */
 #define SCST_FIO_VENDOR			"SCST_FIO"
 /* 4 byte ASCII Product Revision Level of the FILE IO target - left aligned */
-#define SCST_FIO_REV			" 095"
+#define SCST_FIO_REV			" 096"
 
 #define READ_CAP_LEN			8
 #define READ_CAP16_LEN			32
@@ -2217,7 +2217,7 @@ out:
 static int fileio_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	struct scst_tgt_dev *tgt_dev)
 {
-	int res = SCST_DEV_TM_COMPLETED_SUCCESS;
+	int res = SCST_DEV_TM_NOT_COMPLETED;
 
 	TRACE_ENTRY();
 

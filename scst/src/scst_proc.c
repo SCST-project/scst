@@ -414,7 +414,7 @@ int scst_proc_log_entry_write(struct file *file, const char *buf,
 			}
 		}
 		if (level == 0) {
-			PRINT_ERROR("Unknown token \"%s\"", p);
+			PRINT_ERROR_PR("Unknown token \"%s\"", p);
 			res = -EINVAL;
 			goto out_free;
 		}
@@ -825,6 +825,11 @@ static int scst_proc_sgv_read(char *buffer, char **start,
 
 	size = scnprintf(buffer + st.len, length - st.len, "\n%-32s %-11d\n", 
 		"big", atomic_read(&sgv_big_total_alloc));
+	if (scst_proc_update_size(size, offset, length, &st))
+		goto stop_output;
+
+	size = scnprintf(buffer + st.len, length - st.len, "\n%-32s %-11d\n", 
+		"other", atomic_read(&sgv_other_total_alloc));
 	if (scst_proc_update_size(size, offset, length, &st))
 		goto stop_output;
 
