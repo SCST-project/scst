@@ -213,9 +213,15 @@ qla2x00_stop_firmware(scsi_qla_host_t *);
 /*
  * Global Function Prototypes in qla_isr.c source file.
  */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
 extern irqreturn_t qla2100_intr_handler(int, void *, struct pt_regs *);
 extern irqreturn_t qla2300_intr_handler(int, void *, struct pt_regs *);
 extern irqreturn_t qla24xx_intr_handler(int, void *, struct pt_regs *);
+#else
+extern irqreturn_t qla2100_intr_handler(int, void *);
+extern irqreturn_t qla2300_intr_handler(int, void *);
+extern irqreturn_t qla24xx_intr_handler(int, void *);
+#endif
 extern void qla2x00_process_response_queue(struct scsi_qla_host *);
 extern void qla24xx_process_response_queue(struct scsi_qla_host *);
 

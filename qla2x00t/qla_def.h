@@ -24,6 +24,7 @@
 #include <linux/workqueue.h>
 #include <linux/firmware.h>
 #include <asm/semaphore.h>
+#include <linux/version.h>
 
 #include <scsi/scsi.h>
 #include <scsi/scsi_host.h>
@@ -2116,7 +2117,11 @@ struct isp_operations {
 	char * (*pci_info_str) (struct scsi_qla_host *, char *);
 	char * (*fw_version_str) (struct scsi_qla_host *, char *);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
 	irqreturn_t (*intr_handler) (int, void *, struct pt_regs *);
+#else
+	irq_handler_t intr_handler;
+#endif
 	void (*enable_intrs) (struct scsi_qla_host *);
 	void (*disable_intrs) (struct scsi_qla_host *);
 

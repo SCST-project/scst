@@ -293,15 +293,20 @@ static int fileio_attach(struct scst_device *dev)
 			goto out;
 		}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
 		if ((fd->f_op == NULL) || (fd->f_op->readv == NULL) || 
 		    (fd->f_op->writev == NULL))
+#else
+		if ((fd->f_op == NULL) || (fd->f_op->aio_read == NULL) || 
+		    (fd->f_op->aio_write == NULL))
+#endif
 		{
 			PRINT_ERROR_PR("%s", "Wrong f_op or FS doesn't have "
 				"required capabilities");
 				res = -EINVAL;
 			goto out_close_file;
 		}
-	
+
 		/* seek to end */
 		old_fs = get_fs();
 		set_fs(get_ds());
@@ -1194,7 +1199,7 @@ static void fileio_exec_inquiry(struct scst_cmd *cmd)
 		}
 		len = scnprintf(dev_id_str, 6, "%d", dev_id_num);
 		TRACE_DBG("num %d, str <%s>, len %d",
-			   dev_id_num,dev_id_str, len);
+			   dev_id_num, dev_id_str, len);
 		if (0 == cmd->cdb[2]) { /* supported vital product data pages */
 			buf[3] = 3;
 			buf[4] = 0x0; /* this page */
@@ -1928,6 +1933,48 @@ out:
 	return ftgt_dev->iv;
 }
 
+/*
+ * copied from <ksrc>/fs/read_write.*
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,19)
+static void wait_on_retry_sync_kiocb(struct kiocb *iocb)
+{
+	set_current_state(TASK_UNINTERRUPTIBLE);
+	if (!kiocbIsKicked(iocb))
+		schedule();
+	else
+		kiocbClearKicked(iocb);
+	__set_current_state(TASK_RUNNING);
+}
+
+typedef ssize_t (*iov_fn_t)(struct kiocb *, const struct iovec *,
+				unsigned long, loff_t);
+
+ssize_t do_sync_readv_writev(struct file *filp, const struct iovec *iov,
+		unsigned long nr_segs, size_t len, loff_t *ppos, iov_fn_t fn)
+{
+	struct kiocb kiocb;
+	ssize_t ret;
+
+	init_sync_kiocb(&kiocb, filp);
+	kiocb.ki_pos = *ppos;
+	kiocb.ki_left = len;
+	kiocb.ki_nbytes = len;
+
+	for (;;) {
+		ret = fn(&kiocb, iov, nr_segs, kiocb.ki_pos);
+		if (ret != -EIOCBRETRY)
+			break;
+		wait_on_retry_sync_kiocb(&kiocb);
+	}
+
+	if (ret == -EIOCBQUEUED)
+		ret = wait_on_sync_kiocb(&kiocb);
+	*ppos = kiocb.ki_pos;
+	return ret;
+}
+#endif
+
 static void fileio_exec_read(struct scst_cmd *cmd, loff_t loff)
 {
 	mm_segment_t old_fs;
@@ -1988,7 +2035,12 @@ static void fileio_exec_read(struct scst_cmd *cmd, loff_t loff)
 	if (virt_dev->nullio)
 		err = full_len;
 	else
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
 		err = fd->f_op->readv(fd, iv, iv_count, &fd->f_pos);
+#else
+		err = do_sync_readv_writev(fd, iv, iv_count, full_len, &fd->f_pos, fd->f_op->aio_read);
+#endif
+
 	if ((err < 0) || (err < full_len)) {
 		PRINT_ERROR_PR("readv() returned %Ld from %zd", (uint64_t)err, 
 			full_len);
@@ -2076,7 +2128,13 @@ restart:
 	if (virt_dev->nullio)
 		err = full_len;
 	else
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
 		err = fd->f_op->writev(fd, eiv, eiv_count, &fd->f_pos);
+#else
+		err = do_sync_readv_writev(fd, iv, iv_count, full_len, &fd->f_pos, 
+									fd->f_op->aio_write);
+#endif
+
 	if (err < 0) {
 		PRINT_ERROR_PR("write() returned %Ld from %zd", 
 			(uint64_t)err, full_len);
@@ -2778,14 +2836,17 @@ static int cdrom_fileio_change(char *p, char *name)
 				       virt_dev->file_name, res);
 			goto out_free;
 		}
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
 		if ((fd->f_op == NULL) || (fd->f_op->readv == NULL)) {
+#else
+		if ((fd->f_op == NULL) || (fd->f_op->aio_read == NULL)) {
+#endif
 			PRINT_ERROR_PR("%s", "Wrong f_op or FS doesn't "
 				"have required capabilities");
 			res = -EINVAL;
 			filp_close(fd, NULL);
 			goto out_free;
 		}
-
 		/* seek to end */
 		old_fs = get_fs();
 		set_fs(get_ds());

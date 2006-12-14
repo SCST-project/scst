@@ -1249,6 +1249,7 @@ static void __exit exit_scst(void)
 
 	scst_sgv_pools_deinit(&scst_sgv);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
 #define DEINIT_CACHEP(p, s) do {			\
 		if (kmem_cache_destroy(p)) {		\
 			PRINT_INFO_PR("kmem_cache_destroy of %s returned an "\
@@ -1256,6 +1257,12 @@ static void __exit exit_scst(void)
 		}					\
 		p = NULL;				\
 	} while (0)
+#else
+#define DEINIT_CACHEP(p, s) do {			\
+		kmem_cache_destroy(p);			\
+                p = NULL;				\
+	} while (0)
+#endif
 
 	mempool_destroy(scst_mgmt_mempool);
 	mempool_destroy(scst_ua_mempool);

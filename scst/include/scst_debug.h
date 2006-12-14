@@ -20,7 +20,7 @@
 #ifndef __SCST_DEBUG_H
 #define __SCST_DEBUG_H
 
-#include <linux/config.h>	/* for CONFIG_* */
+#include <linux/autoconf.h>	/* for CONFIG_* */
 
 #if !defined(EXTRACHECKS) && defined(CONFIG_SCSI_TARGET_EXTRACHECKS)
 #define EXTRACHECKS

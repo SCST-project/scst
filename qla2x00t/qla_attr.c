@@ -681,13 +681,29 @@ void
 qla2x00_alloc_sysfs_attr(scsi_qla_host_t *ha)
 {
 	struct Scsi_Host *host = ha->host;
+	int ret;
 
-	sysfs_create_bin_file(&host->shost_gendev.kobj, &sysfs_fw_dump_attr);
-	sysfs_create_bin_file(&host->shost_gendev.kobj, &sysfs_nvram_attr);
-	sysfs_create_bin_file(&host->shost_gendev.kobj, &sysfs_optrom_attr);
-	sysfs_create_bin_file(&host->shost_gendev.kobj,
+	ret = sysfs_create_bin_file(&host->shost_gendev.kobj, &sysfs_fw_dump_attr);
+	if (ret)
+		qla_printk(KERN_INFO, ha, "sysfs_create_bin_file() failed: "
+			"%d\n", ret);
+	ret = sysfs_create_bin_file(&host->shost_gendev.kobj, &sysfs_nvram_attr);
+	if (ret)
+		qla_printk(KERN_INFO, ha, "sysfs_create_bin_file() failed: "
+			"%d\n", ret);
+	ret = sysfs_create_bin_file(&host->shost_gendev.kobj, &sysfs_optrom_attr);
+	if (ret)
+		qla_printk(KERN_INFO, ha, "sysfs_create_bin_file() failed: "
+			"%d\n", ret);
+	ret = sysfs_create_bin_file(&host->shost_gendev.kobj,
 	    &sysfs_optrom_ctl_attr);
-	sysfs_create_bin_file(&host->shost_gendev.kobj, &sysfs_vpd_attr);
+	if (ret)
+		qla_printk(KERN_INFO, ha, "sysfs_create_bin_file() failed: "
+			"%d\n", ret);
+	ret = sysfs_create_bin_file(&host->shost_gendev.kobj, &sysfs_vpd_attr);
+	if (ret)
+		qla_printk(KERN_INFO, ha, "sysfs_create_bin_file() failed: "
+			"%d\n", ret);
 }
 
 void
