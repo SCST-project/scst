@@ -196,13 +196,19 @@ struct scst_acg_dev *scst_alloc_acg_dev(struct scst_acg *acg,
 	struct scst_acg_dev *res;
 
 	TRACE_ENTRY();
-	
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
 	res = kmem_cache_alloc(scst_acgd_cachep, GFP_KERNEL);
+#else
+	res = kmem_cache_zalloc(scst_acgd_cachep, GFP_KERNEL);
+#endif
 	if (res == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of scst_acg_dev failed");
 		goto out;
 	}
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
 	memset(res, 0, sizeof(*res));
+#endif
 	
 	res->dev = dev;
 	res->acg = acg;
@@ -321,14 +327,19 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 
 	TRACE_ENTRY();
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
 	tgt_dev = kmem_cache_alloc(scst_tgtd_cachep, GFP_KERNEL);
-	if (tgt_dev != NULL)
-		memset(tgt_dev, 0, sizeof(*tgt_dev));
-	else {
+#else
+	tgt_dev = kmem_cache_zalloc(scst_tgtd_cachep, GFP_KERNEL);
+#endif
+	if (tgt_dev == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s",
 		      "Allocation of scst_tgt_dev failed");
 		goto out;
 	}
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
+	memset(tgt_dev, 0, sizeof(*tgt_dev));
+#endif
 
 	tgt_dev->acg_dev = acg_dev;
 	tgt_dev->sess = sess;
@@ -922,14 +933,19 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, int gfp_mask,
 
 	TRACE_ENTRY();
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
 	sess = kmem_cache_alloc(scst_sess_cachep, gfp_mask);
-	if (sess != NULL)
-		memset(sess, 0, sizeof(*sess));
-	else {
+#else
+	sess = kmem_cache_zalloc(scst_sess_cachep, gfp_mask);
+#endif
+	if (sess == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s",
 		      "Allocation of scst_session failed");
 		goto out;
 	}
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
+	memset(sess, 0, sizeof(*sess));
+#endif
 
 	sess->init_phase = SCST_SESS_IPH_INITING;
 	atomic_set(&sess->refcnt, 0);
@@ -1031,13 +1047,18 @@ struct scst_cmd *scst_alloc_cmd(int gfp_mask)
 
 	TRACE_ENTRY();
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
 	cmd = kmem_cache_alloc(scst_cmd_cachep, gfp_mask);
-	if (cmd != NULL)
-		memset(cmd, 0, sizeof(*cmd));
-	else {
+#else
+	cmd = kmem_cache_zalloc(scst_cmd_cachep, gfp_mask);
+#endif
+	if (cmd == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of scst_cmd failed");
 		goto out;
 	}
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
+	memset(cmd, 0, sizeof(*cmd));
+#endif
 
 	cmd->queue_type = SCST_CMD_QUEUE_UNTAGGED;
 	cmd->timeout = SCST_DEFAULT_TIMEOUT;

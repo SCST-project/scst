@@ -1348,15 +1348,21 @@ static int q2t_send_cmd_to_scst(scsi_qla_host_t *ha, atio_entry_t *atio)
 		goto out;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
 	cmd =  kmem_cache_alloc(q2t_cmd_cachep, GFP_ATOMIC);
+#else
+	cmd =  kmem_cache_zalloc(q2t_cmd_cachep, GFP_ATOMIC);
+#endif
 	if (cmd == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of cmd failed");
 		res = -ENOMEM;
 		goto out;
 	}
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
+	memset(cmd, 0, sizeof(*cmd));
+#endif
 
 	TRACE_BUFFER("ATIO Coming Up", atio, sizeof(*atio));
-	memset(cmd, 0, sizeof(*cmd));
 	memcpy(&cmd->atio, atio, sizeof(*atio));
 	cmd->state = Q2T_STATE_NEW;
 
