@@ -51,6 +51,8 @@
 #define READ_CAP_LEN			8
 #define READ_CAP16_LEN			32
 
+#define MAX_USN_LEN			20
+
 #define BYTCHK				0x02
 
 #define INQ_BUF_SZ			128
@@ -100,6 +102,7 @@ struct scst_fileio_dev {
 	char name[16+1];	/* Name of virtual device,
 				   must be <= SCSI Model + 1 */
 	char *file_name;	/* File name */
+	char *usn;
 	struct list_head fileio_dev_list_entry;
 	struct list_head ftgt_list;
 	struct semaphore ftgt_list_mutex;
@@ -863,7 +866,6 @@ static inline void fileio_queue_cmd(struct scst_cmd *cmd)
 	wake_up(&ftgt_dev->fdev_waitQ);
 }
 
-
 /********************************************************************
  *  Function:  disk_fileio_exec
  *
@@ -1136,7 +1138,7 @@ out:
 
 static void fileio_exec_inquiry(struct scst_cmd *cmd)
 {
-	int32_t length, len, i;
+	int32_t length, len, i, resp_len = 0;
 	uint8_t *address;
 	uint8_t *buf;
 	struct scst_fileio_dev *virt_dev =
@@ -1169,7 +1171,6 @@ static void fileio_exec_inquiry(struct scst_cmd *cmd)
 
 	/* 
 	 * ToDo: write through/back flags as well as read only one.
-	 * Also task queue size should be set on some value.
 	 */
 
 	if (cmd->cdb[1] & CMDDT) {
@@ -1199,10 +1200,23 @@ static void fileio_exec_inquiry(struct scst_cmd *cmd)
 			buf[4] = 0x0; /* this page */
 			buf[5] = 0x80; /* unit serial number */
 			buf[6] = 0x83; /* device identification */
+			resp_len = buf[3] + 4;
 		} else if (0x80 == cmd->cdb[2]) { /* unit serial number */
 			buf[1] = 0x80;
-			buf[3] = len;
-			memcpy(&buf[4], dev_id_str, len);
+			if (virt_dev->usn == NULL) {
+				buf[3] = MAX_USN_LEN;
+				memset(&buf[4], 0x20, MAX_USN_LEN);
+			} else {
+				int usn_len;
+
+				if (strlen(virt_dev->usn) > MAX_USN_LEN)
+					usn_len = MAX_USN_LEN;
+				else
+					usn_len = len;
+				buf[3] = usn_len;
+				strncpy(&buf[4], virt_dev->usn, usn_len);
+			}
+			resp_len = buf[3] + 4;
 		} else if (0x83 == cmd->cdb[2]) { /* device identification */
 			int num = 4;
 
@@ -1234,7 +1248,8 @@ static void fileio_exec_inquiry(struct scst_cmd *cmd)
 			buf[num + 10] = (dev_id_num >> 8) & 0xff;
 			buf[num + 11] = dev_id_num & 0xff;
 
-			buf[3] = num + 12 - 4;
+			*((u16*)&buf[2]) = cpu_to_be16(num + 12 - 4);
+			resp_len = be16_to_cpu(*((u16*)&buf[2])) + 4;
 		} else {
 			TRACE_DBG("INQUIRY: Unsupported EVPD page %x",
 				cmd->cdb[2]);
@@ -1266,12 +1281,18 @@ static void fileio_exec_inquiry(struct scst_cmd *cmd)
 
 		/* 4 byte ASCII Product Revision Level of the target - left aligned */
 		memcpy(&buf[32], SCST_FIO_REV, 4);
+		resp_len = buf[4] + 5;
 	}
 
-	memcpy(address, buf, length < INQ_BUF_SZ ? length : INQ_BUF_SZ);
-	
+	sBUG_ON(resp_len >= INQ_BUF_SZ);
+	if (length > resp_len)
+		length = resp_len;
+	memcpy(address, buf, length);
+
 out_put:
 	scst_put_buf(cmd, address);
+	if (length < cmd->resp_data_len)
+		scst_set_resp_data_len(cmd, length);
 
 out_free:
 	kfree(buf);
@@ -1377,7 +1398,7 @@ static void fileio_exec_mode_sense(struct scst_cmd *cmd)
 	unsigned char dbd, type;
 	int pcontrol, pcode, subpcode;
 	unsigned char dev_spec;
-	int msense_6, offset, len;
+	int msense_6, offset = 0, len;
 	unsigned char *bp;
 
 	TRACE_ENTRY();
@@ -1506,10 +1527,14 @@ static void fileio_exec_mode_sense(struct scst_cmd *cmd)
 		buf[1] = (offset - 2) & 0xff;
 	}
 
-	memcpy(address, buf, min(length, offset));
-	
+	if (offset > length)
+		offset = length;
+	memcpy(address, buf, offset);
+
 out_put:
 	scst_put_buf(cmd, address);
+	if (offset < cmd->resp_data_len)
+                scst_set_resp_data_len(cmd, offset);
 
 out_free:
 	kfree(buf);
@@ -1681,9 +1706,14 @@ static void fileio_exec_read_capacity(struct scst_cmd *cmd)
 		goto out;
 	}
 
-	memcpy(address, buffer, length < READ_CAP_LEN ? length : READ_CAP_LEN);
-	
+	if (length > READ_CAP_LEN)
+		length = READ_CAP_LEN;
+	memcpy(address, buffer, length);
+
 	scst_put_buf(cmd, address);
+
+	if (length < cmd->resp_data_len)
+		scst_set_resp_data_len(cmd, length);
 
 out:
 	TRACE_EXIT();
@@ -1722,10 +1752,14 @@ static void fileio_exec_read_capacity16(struct scst_cmd *cmd)
 		goto out;
 	}
 
-	memcpy(address, buffer, length < READ_CAP16_LEN ? 
-					length : READ_CAP16_LEN);
-	
+	if (length > READ_CAP16_LEN)
+		length = READ_CAP16_LEN;
+	memcpy(address, buffer, length);
+
 	scst_put_buf(cmd, address);
+
+	if (length < cmd->resp_data_len)
+		scst_set_resp_data_len(cmd, length);
 
 out:
 	TRACE_EXIT();
@@ -1805,9 +1839,14 @@ static void fileio_exec_read_toc(struct scst_cmd *cmd)
 
 	buffer[1] = off - 2;    /* Data  Length */
 
-	memcpy(address, buffer, (length < off) ? length : off);
-	
+	if (off > length)
+		off = length;
+	memcpy(address, buffer, off);
+
 	scst_put_buf(cmd, address);
+
+	if (off < cmd->resp_data_len)
+                scst_set_resp_data_len(cmd, off);
 
 out:
 	TRACE_EXIT();
@@ -3094,12 +3133,6 @@ static void __exit exit_scst_fileio_driver(void)
 {
 	exit_scst_fileio(&disk_devtype_fileio, &disk_fileio_dev_list);
 	exit_scst_fileio(&cdrom_devtype_fileio, &cdrom_fileio_dev_list);
-
-	/* 
-	 * Wait for one sec. to allow the thread(s) actually exit,
-	 * otherwise we can get Oops. Any better way?
-	 */
-	schedule_timeout(HZ);
 }
 
 module_init(init_scst_fileio_driver);
