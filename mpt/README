@@ -11,6 +11,8 @@ of development.
 The current maintainer of this driver is Erik. Please send him all
 question related to it (CC: scst-devel@lists.sourceforge.net).
 
+This driver tested only on Linux kernel versions 2.6.15.x.
+
 Building from the Linux kernel tree
 -----------------------------------
 
