@@ -66,13 +66,6 @@
 /* Set if new commands initialization should be suspended for a while */
 #define SCST_FLAG_SUSPENDED		     0
 
-/*
- * If set, SCST's threads exit immediately not performing any
- * sessions' shutdown tasks, therefore at this point all the sessions
- * must be already down.
- */
-#define SCST_FLAG_SHUTDOWN		     1
-
 /* Set if a TM command is being performed */
 #define SCST_FLAG_TM_ACTIVE                  2
 
@@ -95,8 +88,6 @@
  ** queue on any device. Then it will take TASK QUEUE FULL status.
  **/
 #define SCST_MAX_DEVICE_COMMANDS           128
-
-#define SCST_THREAD_FLAGS                  CLONE_KERNEL
 
 #define SCST_TGT_RETRY_TIMEOUT             (3/2*HZ)
 #define SCST_CMD_MEM_TIMEOUT               (120*HZ)
@@ -170,12 +161,23 @@ extern wait_queue_head_t scst_mgmt_waitQ;
 extern spinlock_t scst_mgmt_lock;
 extern struct list_head scst_sess_mgmt_list;
 
-extern int scst_threads;
-extern int scst_shut_threads_count;
-extern atomic_t scst_threads_count;
-extern int scst_thread_num;
+struct scst_cmd_thread_t {
+	struct task_struct *cmd_thread;
+	struct list_head thread_list_entry;
+};
 
-extern struct semaphore *scst_shutdown_mutex;
+struct scst_threads_info_t {
+	struct semaphore cmd_threads_mutex;
+	u32 nr_cmd_threads;
+	struct list_head cmd_threads_list;
+	struct task_struct *mgmt_thread;
+	struct task_struct *mgmt_cmd_thread;
+};
+
+extern struct scst_threads_info_t scst_threads_info;
+extern int scst_cmd_threads_count(void);
+extern int __scst_add_cmd_threads(int num);
+extern void __scst_del_cmd_threads(int num);
 
 extern spinlock_t scst_temp_UA_lock;
 extern uint8_t scst_temp_UA[SCSI_SENSE_BUFFERSIZE];

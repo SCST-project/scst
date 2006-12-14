@@ -34,6 +34,7 @@
 #include <linux/writeback.h>
 #include <linux/vmalloc.h>
 #include <asm/atomic.h>
+#include <linux/kthread.h>
 
 #define LOG_PREFIX			"dev_fileio"
 #include "scst_debug.h"
@@ -107,15 +108,13 @@ struct scst_fileio_dev {
 struct scst_fileio_tgt_dev {
 	spinlock_t fdev_lock;
 	enum scst_cmd_queue_type last_write_cmd_queue_type;
-	int shutdown;
 	struct file *fd;
 	struct iovec *iv;
 	int iv_count;
 	struct list_head fdev_cmd_list;
 	wait_queue_head_t fdev_waitQ;
+	struct task_struct *cmd_thread;
 	struct scst_fileio_dev *virt_dev;
-	atomic_t threads_count;
-	struct semaphore shutdown_mutex;
 	struct list_head ftgt_list_entry;
 };
 
@@ -197,8 +196,6 @@ static char *disk_fileio_proc_help_string =
 static char *cdrom_fileio_proc_help_string =
 	"echo \"open|change|close NAME [FILE_NAME]\" "
 	">/proc/scsi_tgt/" CDROM_FILEIO_NAME "/" CDROM_FILEIO_NAME "\n";
-
-#define FILEIO_THREAD_FLAGS                    CLONE_KERNEL
 
 /**************************************************************
  *  Function:  fileio_open
@@ -631,7 +628,7 @@ out:
 static inline int test_cmd_list(struct scst_fileio_tgt_dev *ftgt_dev)
 {
 	int res = !list_empty(&ftgt_dev->fdev_cmd_list) ||
-		  unlikely(ftgt_dev->shutdown);
+		  unlikely(kthread_should_stop());
 	return res;
 }
 
@@ -641,13 +638,11 @@ static int fileio_cmd_thread(void *arg)
 
 	TRACE_ENTRY();
 
-	daemonize("scst_fileio");
-	recalc_sigpending();
 	set_user_nice(current, 10);
 	current->flags |= PF_NOFREEZE;
 
 	spin_lock_bh(&ftgt_dev->fdev_lock);
-	while (1) {
+	while (!kthread_should_stop()) {
 		wait_queue_t wait;
 		struct scst_cmd *cmd;
 		init_waitqueue_entry(&wait, current);
@@ -674,20 +669,15 @@ static int fileio_cmd_thread(void *arg)
 			spin_unlock_bh(&ftgt_dev->fdev_lock);
 			fileio_do_job(cmd);
 			spin_lock_bh(&ftgt_dev->fdev_lock);
-			if (unlikely(ftgt_dev->shutdown))
-				break;
 		}
-
-		if (unlikely(ftgt_dev->shutdown))
-			break;
 	}
 	spin_unlock_bh(&ftgt_dev->fdev_lock);
 
-	if (atomic_dec_and_test(&ftgt_dev->threads_count)) {
-		smp_mb__after_atomic_dec();
-		TRACE_DBG("%s", "Releasing shutdown_mutex");
-		up(&ftgt_dev->shutdown_mutex);
-	}
+	/*
+	 * If kthread_should_stop() is true, we are guaranteed to be in
+	 * suspended activity state, so fdev_cmd_list must be empty.
+	 */
+	sBUG_ON(!list_empty(&ftgt_dev->fdev_cmd_list));
 
 	TRACE_EXIT();
 	return 0;
@@ -713,8 +703,6 @@ static int fileio_attach_tgt(struct scst_tgt_dev *tgt_dev)
 	spin_lock_init(&ftgt_dev->fdev_lock);
 	INIT_LIST_HEAD(&ftgt_dev->fdev_cmd_list);
 	init_waitqueue_head(&ftgt_dev->fdev_waitQ);
-	atomic_set(&ftgt_dev->threads_count, 0);
-	init_MUTEX_LOCKED(&ftgt_dev->shutdown_mutex);
 	ftgt_dev->virt_dev = virt_dev;
 
 	if (!virt_dev->cdrom_empty) {
@@ -732,13 +720,12 @@ static int fileio_attach_tgt(struct scst_tgt_dev *tgt_dev)
 	 * Only ONE thread must be run here, otherwise the commands could
 	 * be executed out of order !!
 	 */
-	res = kernel_thread(fileio_cmd_thread, ftgt_dev, FILEIO_THREAD_FLAGS);
-	if (res < 0) {
-		PRINT_ERROR_PR("kernel_thread() failed: %d", res);
+	ftgt_dev->cmd_thread = kthread_run(fileio_cmd_thread, ftgt_dev, "scst_fileio");
+	if (IS_ERR(ftgt_dev->cmd_thread)) {
+		PRINT_ERROR_PR("kthread_run failed to create %s", "scst_fileio");
+		res = PTR_ERR(ftgt_dev->cmd_thread);
 		goto out_free_close;
 	}
-	res = 0;
-	atomic_inc(&ftgt_dev->threads_count);
 
 	tgt_dev->dh_priv = ftgt_dev;
 
@@ -773,9 +760,7 @@ static void fileio_detach_tgt(struct scst_tgt_dev *tgt_dev)
 	list_del(&ftgt_dev->ftgt_list_entry);
 	up(&virt_dev->ftgt_list_mutex);
 
-	ftgt_dev->shutdown = 1;
-	wake_up_all(&ftgt_dev->fdev_waitQ);
-	down(&ftgt_dev->shutdown_mutex);
+	kthread_stop(ftgt_dev->cmd_thread);
 
 	if (ftgt_dev->fd)
 		filp_close(ftgt_dev->fd, NULL);
@@ -2800,9 +2785,7 @@ static int cdrom_fileio_change(char *p, char *name)
 		virt_dev->media_changed = 1;
 
 	down(&virt_dev->ftgt_list_mutex);
-	list_for_each_entry(ftgt_dev, &virt_dev->ftgt_list, 
-		ftgt_list_entry) 
-	{
+	list_for_each_entry(ftgt_dev, &virt_dev->ftgt_list, ftgt_list_entry) {
 		if (!virt_dev->cdrom_empty) {
 			fd = fileio_open(virt_dev);
 			if (IS_ERR(fd)) {
@@ -3116,12 +3099,7 @@ static void __exit exit_scst_fileio_driver(void)
 	 * Wait for one sec. to allow the thread(s) actually exit,
 	 * otherwise we can get Oops. Any better way?
 	 */
-	{
-		unsigned long t = jiffies;
-		TRACE_DBG("%s", "Waiting 1 sec...");
-		while ((jiffies - t) < HZ)
-			schedule();
-	}
+	schedule_timeout(HZ);
 }
 
 module_init(init_scst_fileio_driver);

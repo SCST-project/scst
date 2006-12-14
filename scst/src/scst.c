@@ -26,6 +26,7 @@
 #include <linux/sched.h>
 #include <asm/unistd.h>
 #include <asm/string.h>
+#include <linux/kthread.h>
 
 #include "scst_debug.h"
 #include "scsi_tgt.h"
@@ -93,12 +94,9 @@ DECLARE_WAIT_QUEUE_HEAD(scst_mgmt_waitQ);
 spinlock_t scst_mgmt_lock = SPIN_LOCK_UNLOCKED;
 LIST_HEAD(scst_sess_mgmt_list);
 
-struct semaphore *scst_shutdown_mutex = NULL;
+static int scst_threads;
+struct scst_threads_info_t scst_threads_info;
 
-int scst_threads;
-atomic_t scst_threads_count = ATOMIC_INIT(0);
-int scst_shut_threads_count;
-int scst_thread_num;
 static int suspend_count;
 
 int scst_virt_dev_last_id = 1; /* protected by scst_mutex */
@@ -832,21 +830,87 @@ out_err_detach_tgt:
 	goto out_resume;
 }
 
-int scst_add_threads(int num)
+int scst_cmd_threads_count(void)
 {
-	int res = 0, i;
-	
+	int i;
+
+	/* Just to lower the race window, when user can get just changed value */
+	down(&scst_threads_info.cmd_threads_mutex);
+	i = scst_threads_info.nr_cmd_threads;
+	up(&scst_threads_info.cmd_threads_mutex);
+	return i;
+}
+
+static void scst_threads_info_init(void)
+{
+	memset(&scst_threads_info, 0, sizeof(scst_threads_info));
+	init_MUTEX(&scst_threads_info.cmd_threads_mutex);
+	INIT_LIST_HEAD(&scst_threads_info.cmd_threads_list);
+}
+
+/* scst_threads_info.cmd_threads_mutex supposed to be held */
+void __scst_del_cmd_threads(int num)
+{
+	struct scst_cmd_thread_t *ct, *tmp;
+	int i;
+
 	TRACE_ENTRY();
-	
-	for (i = 0; i < num; i++) {
-		res = kernel_thread(scst_cmd_thread, 0, SCST_THREAD_FLAGS);
-		if (res < 0) {
-			PRINT_ERROR_PR("kernel_thread() failed: %d", res);
-			goto out_error;
-		}
-		atomic_inc(&scst_threads_count);
+
+	i = scst_threads_info.nr_cmd_threads;
+	if (num <= 0 || num > i) {
+		PRINT_ERROR_PR("can not del %d cmd threads from %d", num, i);
+		return;
 	}
 
+	list_for_each_entry_safe(ct, tmp, &scst_threads_info.cmd_threads_list,
+				thread_list_entry) {
+		int res;
+
+		res = kthread_stop(ct->cmd_thread);
+		if (res < 0) {
+			TRACE_MGMT_DBG("kthread_stop() failed: %d", res);
+		}
+		list_del(&ct->thread_list_entry);
+		kfree(ct);
+		scst_threads_info.nr_cmd_threads--;
+		--num;
+		if (num == 0)
+			break;
+	}
+
+	TRACE_EXIT();
+	return;
+}
+
+/* scst_threads_info.cmd_threads_mutex supposed to be held */
+int __scst_add_cmd_threads(int num)
+{
+	int res = 0, i;
+	static int scst_thread_num = 0;
+	
+	TRACE_ENTRY();
+
+	for (i = 0; i < num; i++) {
+		struct scst_cmd_thread_t *thr;
+
+		thr = kmalloc(sizeof(*thr), GFP_KERNEL);
+		if (!thr) {
+			res = -ENOMEM;
+			PRINT_ERROR_PR("fail to allocate thr %d", res);
+			goto out_error;
+		}
+		thr->cmd_thread = kthread_run(scst_cmd_thread, 0, "scsi_tgt%d",
+			scst_thread_num++);
+		if (IS_ERR(thr->cmd_thread)) {
+			res = PTR_ERR(thr->cmd_thread);
+			PRINT_ERROR_PR("kthread_create() failed: %d", res);
+			kfree(thr);
+			goto out_error;
+		}
+		list_add(&thr->thread_list_entry,
+			&scst_threads_info.cmd_threads_list);
+		scst_threads_info.nr_cmd_threads++;
+	}
 	res = 0;
 
 out:
@@ -855,22 +919,85 @@ out:
 
 out_error:
 	if (i > 0)
-		scst_del_threads(i-1);
+		__scst_del_cmd_threads(i - 1);
 	goto out;
 }
 
-void scst_del_threads(int num)
+int scst_add_cmd_threads(int num)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	down(&scst_threads_info.cmd_threads_mutex);
+	res = __scst_add_cmd_threads(num);
+	up(&scst_threads_info.cmd_threads_mutex);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+void scst_del_cmd_threads(int num)
 {
 	TRACE_ENTRY();
-	
-	spin_lock_irq(&scst_list_lock);
-	scst_shut_threads_count += num;
-	spin_unlock_irq(&scst_list_lock);
-	
-	wake_up_nr(&scst_list_waitQ, num);
+
+	down(&scst_threads_info.cmd_threads_mutex);
+	__scst_del_cmd_threads(num);
+	up(&scst_threads_info.cmd_threads_mutex);
 
 	TRACE_EXIT();
 	return;
+}
+
+static void scst_stop_all_threads(void)
+{
+	TRACE_ENTRY();
+
+	down(&scst_threads_info.cmd_threads_mutex);
+	__scst_del_cmd_threads(scst_threads_info.nr_cmd_threads);
+	if (scst_threads_info.mgmt_cmd_thread)
+		kthread_stop(scst_threads_info.mgmt_cmd_thread);
+	if (scst_threads_info.mgmt_thread)
+		kthread_stop(scst_threads_info.mgmt_thread);
+	up(&scst_threads_info.cmd_threads_mutex);
+
+	TRACE_EXIT();
+	return;
+}
+
+static int scst_start_all_threads(int num)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	down(&scst_threads_info.cmd_threads_mutex);		
+        res = __scst_add_cmd_threads(num);
+        if (res < 0)
+                goto out;
+
+        scst_threads_info.mgmt_cmd_thread = kthread_run(scst_mgmt_cmd_thread,
+                NULL, "scsi_tgt_mc");
+        if (IS_ERR(scst_threads_info.mgmt_cmd_thread)) {
+		res = PTR_ERR(scst_threads_info.mgmt_cmd_thread);
+                PRINT_ERROR_PR("kthread_create() for mcmd failed: %d", res);
+                scst_threads_info.mgmt_cmd_thread = NULL;
+                goto out;
+        }
+
+        scst_threads_info.mgmt_thread = kthread_run(scst_mgmt_thread,
+                NULL, "scsi_tgt_mgmt");
+        if (IS_ERR(scst_threads_info.mgmt_thread)) {
+		res = PTR_ERR(scst_threads_info.mgmt_thread);
+                PRINT_ERROR_PR("kthread_create() for mgmt failed: %d", res);
+                scst_threads_info.mgmt_thread = NULL;
+                goto out;
+        }
+
+out:
+	up(&scst_threads_info.cmd_threads_mutex);
+	TRACE_EXIT_RES(res);
+	return res;	
 }
 
 void scst_get(void)
@@ -969,10 +1096,11 @@ static int __init init_scst(void)
 	if (scst_threads < scst_num_cpus) {
 		PRINT_ERROR_PR("%s", "scst_threads can not be less than "
 			"CPUs count");
-		res = -EFAULT;
-		goto out;
+		scst_threads = scst_num_cpus;
 	}
-	
+
+	scst_threads_info_init();
+
 #define INIT_CACHEP(p, s, t, o) do {					\
 		p = kmem_cache_create(s, sizeof(struct t), 0,		\
 				      SCST_SLAB_FLAGS, NULL, NULL);	\
@@ -1024,38 +1152,19 @@ static int __init init_scst(void)
 
 	scst_scsi_op_list_init();
 
-	res = scst_proc_init_module();
-	if (res != 0)
-		goto out_unreg_interface;
+	for (i = 0; i < sizeof(scst_tasklets)/sizeof(scst_tasklets[0]); i++)
+		tasklet_init(&scst_tasklets[i], (void *)scst_cmd_tasklet, 0);
 
 	TRACE_DBG("%d CPUs found, starting %d threads", scst_num_cpus,
 		scst_threads);
 
-	for (i = 0; i < scst_threads; i++) {
-		res = kernel_thread(scst_cmd_thread, NULL, SCST_THREAD_FLAGS);
-		if (res < 0) {
-			PRINT_ERROR_PR("kernel_thread() failed: %d", res);
-			goto out_thread_free;
-		}
-		atomic_inc(&scst_threads_count);
-	}
-
-	for (i = 0; i < sizeof(scst_tasklets) / sizeof(scst_tasklets[0]); i++)
-		tasklet_init(&scst_tasklets[i], (void *)scst_cmd_tasklet, 0);
-
-	res = kernel_thread(scst_mgmt_cmd_thread, NULL, SCST_THREAD_FLAGS);
-	if (res < 0) {
-		PRINT_ERROR_PR("kernel_thread() for mcmd failed: %d", res);
+	res = scst_start_all_threads(scst_threads);
+	if (res < 0)
 		goto out_thread_free;
-	}
-	atomic_inc(&scst_threads_count);
 
-	res = kernel_thread(scst_mgmt_thread, NULL, SCST_THREAD_FLAGS);
-	if (res < 0) {
-		PRINT_ERROR_PR("kernel_thread() for mgmt failed: %d", res);
+	res = scst_proc_init_module();
+	if (res != 0)
 		goto out_thread_free;
-	}
-	atomic_inc(&scst_threads_count);
 
 	if (scst_max_cmd_mem == 0) {
 		struct sysinfo si;
@@ -1079,24 +1188,8 @@ out:
 	return res;
 
 out_thread_free:
-	if (atomic_read(&scst_threads_count)) {
-		DECLARE_MUTEX_LOCKED(shm);
-		scst_shutdown_mutex = &shm;
-		smp_mb();
-		set_bit(SCST_FLAG_SHUTDOWN, &scst_flags);
+	scst_stop_all_threads();
 
-		wake_up_all(&scst_list_waitQ);
-		wake_up_all(&scst_mgmt_cmd_list_waitQ);
-		wake_up_all(&scst_mgmt_waitQ);
-
-		TRACE_DBG("Waiting for %d threads to complete",
-			atomic_read(&scst_threads_count));
-		down(&shm);
-	}
-	
-	scst_proc_cleanup_module();
-
-out_unreg_interface:
 	scsi_unregister_interface(&scst_interface);
 
 out_free_acg:
@@ -1142,37 +1235,15 @@ static void __exit exit_scst(void)
 	
 	/* ToDo: unregister_cpu_notifier() */
 
-	scst_shutdown_mutex = &shm;
-	smp_mb();
-	set_bit(SCST_FLAG_SHUTDOWN, &scst_flags);
-
-	wake_up_all(&scst_list_waitQ);
-	wake_up_all(&scst_mgmt_cmd_list_waitQ);
-	wake_up_all(&scst_mgmt_waitQ);
-
-	if (atomic_read(&scst_threads_count)) {
-		TRACE_DBG("Waiting for %d threads to complete",
-		      atomic_read(&scst_threads_count));
-		down(&shm);
-	
-		/* 
-		 * Wait for one sec. to allow the thread(s) actually exit,
-		 * otherwise we can get Oops. Any better way?
-		 */
-		{
-			unsigned long t = jiffies;
-			TRACE_DBG("%s", "Waiting 1 sec...");
-			while((jiffies - t) < HZ)
-				schedule();
-		}
-	}
-
 	if (test_bit(SCST_FLAG_CMD_MEM_WORK_SCHEDULED, &scst_flags)) {
 		cancel_delayed_work(&scst_cmd_mem_work);
 		flush_scheduled_work();
 	}
 
 	scst_proc_cleanup_module();
+
+	scst_stop_all_threads();
+
 	scsi_unregister_interface(&scst_interface);
 	scst_destroy_acg(scst_default_acg);
 
@@ -1246,8 +1317,8 @@ EXPORT_SYMBOL(scst_find_cmd_by_tag);
 EXPORT_SYMBOL(scst_suspend_activity);
 EXPORT_SYMBOL(scst_resume_activity);
 
-EXPORT_SYMBOL(scst_add_threads);
-EXPORT_SYMBOL(scst_del_threads);
+EXPORT_SYMBOL(scst_add_cmd_threads);
+EXPORT_SYMBOL(scst_del_cmd_threads);
 
 #if defined(DEBUG) || defined(TRACING)
 EXPORT_SYMBOL(scst_proc_log_entry_read);

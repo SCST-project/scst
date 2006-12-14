@@ -770,25 +770,26 @@ static int scst_proc_threads_write(struct file *file, const char __user *buf,
 		goto out_free;
 	}
 
-	oldtn = atomic_read(&scst_threads_count);
-	newtn = simple_strtoul(buffer, NULL, 0) + 2; /* 2 mgmt threads */
+	down(&scst_threads_info.cmd_threads_mutex);
+
+	oldtn = scst_threads_info.nr_cmd_threads;
+	newtn = simple_strtoul(buffer, NULL, 0);
 	if (newtn <= 0) {
 		PRINT_ERROR_PR("Illegal threads num value %d", newtn);
 		res = -EINVAL;
-		goto out_up_free;
+		goto out_up_thr_free;
 	}
 	delta = newtn - oldtn;
-	if (delta < 0) {
-		scst_del_threads(-delta);
-	}
-	else {
-		scst_add_threads(delta);
-	}
+	if (delta < 0)
+		__scst_del_cmd_threads(-delta);
+	else
+		__scst_add_cmd_threads(delta);
 
-	PRINT_INFO_PR("Changed threads num: old %d, new %d(%d)", oldtn, newtn,
-		       atomic_read(&scst_threads_count));
+	PRINT_INFO_PR("Changed cmd threads num: old %d, new %d", oldtn, newtn);
 
-out_up_free:
+out_up_thr_free:
+	up(&scst_threads_info.cmd_threads_mutex);
+
 	up(&scst_proc_mutex);
 
 out_free:
@@ -1925,8 +1926,7 @@ static int scst_threads_info_show(struct seq_file *seq, void *v)
 {
 	TRACE_ENTRY();
 
-	/* 2 mgmt threads */
-	seq_printf(seq, "%d\n", atomic_read(&scst_threads_count) - 2);
+	seq_printf(seq, "%d\n", scst_cmd_threads_count());
 
 	TRACE_EXIT();
 	return 0;

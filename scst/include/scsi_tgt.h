@@ -2190,8 +2190,8 @@ struct proc_dir_entry *scst_create_proc_entry(struct proc_dir_entry * root,
  * Adds and deletes (stops) num SCST's threads. Returns 0 on success,
  * error code otherwise.
  */
-int scst_add_threads(int num);
-void scst_del_threads(int num);
+int scst_add_cmd_threads(int num);
+void scst_del_cmd_threads(int num);
 
 void scst_set_cmd_error_sense(struct scst_cmd *cmd, uint8_t *sense, 
 	unsigned int len);

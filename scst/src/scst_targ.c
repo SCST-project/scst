@@ -25,6 +25,7 @@
 #include <linux/smp_lock.h>
 #include <asm/unistd.h>
 #include <asm/string.h>
+#include <linux/kthread.h>
 
 #include "scst_debug.h"
 #include "scsi_tgt.h"
@@ -80,21 +81,7 @@ static inline void scst_schedule_tasklet(void)
 {
 	struct tasklet_struct *t = &scst_tasklets[smp_processor_id()];
 
-#if 0 /* Looks like #else is better for performance */
-	if ((!test_bit(TASKLET_STATE_SCHED, &t->state)) || (scst_num_cpus == 1))
-		tasklet_schedule(t);
-	else {
-		/* 
-		 * We suppose that other CPU(s) are rather idle, so we
-		 * ask one of them to help
-		 */
-		TRACE_DBG("Tasklet on CPU %d busy, waking up the thread "
-			"instead", smp_processor_id());
-		wake_up(&scst_list_waitQ);
-	}
-#else
 	tasklet_schedule(t);
-#endif
 }
 
 /* 
@@ -2683,29 +2670,20 @@ static inline int test_cmd_lists(void)
 	int res = !list_empty(&scst_active_cmd_list) ||
 	    (!list_empty(&scst_init_cmd_list) &&
 	     !test_bit(SCST_FLAG_SUSPENDED, &scst_flags)) ||
-	    test_bit(SCST_FLAG_SHUTDOWN, &scst_flags) ||
-	    unlikely(scst_shut_threads_count > 0) ||
+	    unlikely(kthread_should_stop()) ||
 	    tm_dbg_is_release();
 	return res;
 }
 
 int scst_cmd_thread(void *arg)
 {
-	static spinlock_t lock = SPIN_LOCK_UNLOCKED;
-	int n;
-
 	TRACE_ENTRY();
 
-	spin_lock(&lock);
-	n = scst_thread_num++;
-	spin_unlock(&lock);
-	daemonize("scsi_tgt%d", n);
-	recalc_sigpending();
 	set_user_nice(current, 10);
 	current->flags |= PF_NOFREEZE;
 
 	spin_lock_irq(&scst_list_lock);
-	while (1) {
+	while (!kthread_should_stop()) {
 		wait_queue_t wait;
 		init_waitqueue_entry(&wait, current);
 
@@ -2725,26 +2703,18 @@ int scst_cmd_thread(void *arg)
 
 		scst_do_job_init();
 		scst_do_job_active(SCST_CONTEXT_DIRECT|SCST_PROCESSIBLE_ENV);
-
-		if (unlikely(test_bit(SCST_FLAG_SHUTDOWN, &scst_flags)) &&
-		    list_empty(&scst_cmd_list) &&
-		    list_empty(&scst_active_cmd_list) &&
-		    list_empty(&scst_init_cmd_list)) {
-			break;
-		}
-		
-		if (unlikely(scst_shut_threads_count > 0)) {
-			scst_shut_threads_count--;
-			break;
-		}
 	}
 	spin_unlock_irq(&scst_list_lock);
 
-	if (atomic_dec_and_test(&scst_threads_count) && scst_shutdown_mutex) {
-		smp_mb__after_atomic_dec();
-		TRACE_DBG("%s", "Releasing scst_shutdown_mutex");
-		up(scst_shutdown_mutex);
-	}
+	/*
+	 * If kthread_should_stop() is true, we are guaranteed to be either
+	 * on the module unload, or there must be at least one other thread to
+	 * process the commands lists.
+	 */
+	sBUG_ON((scst_threads_info.nr_cmd_threads == 1) &&
+			(!list_empty(&scst_cmd_list) ||
+			 !list_empty(&scst_active_cmd_list) ||
+			 !list_empty(&scst_init_cmd_list)));
 
 	TRACE_EXIT();
 	return 0;
@@ -3548,7 +3518,7 @@ static inline int test_mgmt_cmd_list(void)
 {
 	int res = (!list_empty(&scst_active_mgmt_cmd_list) &&
 		   !test_bit(SCST_FLAG_SUSPENDED, &scst_flags)) ||
-		  test_bit(SCST_FLAG_SHUTDOWN, &scst_flags);
+		  unlikely(kthread_should_stop());
 	return res;
 }
 
@@ -3558,12 +3528,10 @@ int scst_mgmt_cmd_thread(void *arg)
 
 	TRACE_ENTRY();
 
-	daemonize("scsi_tgt_mc");
-	recalc_sigpending();
 	current->flags |= PF_NOFREEZE;
 
 	spin_lock_irq(&scst_list_lock);
-	while (1) {
+	while(!kthread_should_stop()) {
 		wait_queue_t wait;
 		init_waitqueue_entry(&wait, current);
 
@@ -3602,20 +3570,14 @@ int scst_mgmt_cmd_thread(void *arg)
 				       &scst_active_mgmt_cmd_list);
 			}
 		}
-
-		if (test_bit(SCST_FLAG_SHUTDOWN, &scst_flags) &&
-		    list_empty(&scst_active_mgmt_cmd_list)) 
-		{
-			break;
-		}
 	}
 	spin_unlock_irq(&scst_list_lock);
 
-	if (atomic_dec_and_test(&scst_threads_count) && scst_shutdown_mutex) {
-		smp_mb__after_atomic_dec();
-		TRACE_DBG("%s", "Releasing scst_shutdown_mutex");
-		up(scst_shutdown_mutex);
-	}
+	/*
+	 * If kthread_should_stop() is true, we are guaranteed to be
+	 * on the module unload, so scst_active_mgmt_cmd_list must be empty.
+	 */
+	sBUG_ON(!list_empty(&scst_active_mgmt_cmd_list));
 
 	TRACE_EXIT();
 	return 0;
@@ -3977,7 +3939,7 @@ void scst_unregister_session(struct scst_session *sess, int wait,
 static inline int test_mgmt_list(void)
 {
 	int res = !list_empty(&scst_sess_mgmt_list) ||
-	          test_bit(SCST_FLAG_SHUTDOWN, &scst_flags);
+		  unlikely(kthread_should_stop());
 	return res;
 }
 
@@ -3987,12 +3949,10 @@ int scst_mgmt_thread(void *arg)
 
 	TRACE_ENTRY();
 
-	daemonize("scsi_tgt_mgmt");
-	recalc_sigpending();
 	current->flags |= PF_NOFREEZE;
 
 	spin_lock_irq(&scst_mgmt_lock);
-	while (1) {
+	while(!kthread_should_stop()) {
 		wait_queue_t wait;
 		init_waitqueue_entry(&wait, current);
 
@@ -4032,20 +3992,14 @@ restart:
 			spin_lock_irq(&scst_mgmt_lock);
 			goto restart;
 		}
-
-		if (test_bit(SCST_FLAG_SHUTDOWN, &scst_flags) &&
-		    list_empty(&scst_sess_mgmt_list)) 
-		{
-			break;
-		}
 	}
 	spin_unlock_irq(&scst_mgmt_lock);
 
-	if (atomic_dec_and_test(&scst_threads_count) && scst_shutdown_mutex) {
-		smp_mb__after_atomic_dec();
-		TRACE_DBG("%s", "Releasing scst_shutdown_mutex");
-		up(scst_shutdown_mutex);
-	}
+	/*
+	 * If kthread_should_stop() is true, we are guaranteed to be
+	 * on the module unload, so scst_sess_mgmt_list must be empty.
+	 */
+	sBUG_ON(!list_empty(&scst_sess_mgmt_list));
 
 	TRACE_EXIT();
 	return 0;
