@@ -1472,6 +1472,51 @@ int scst_get_cdb_len(const uint8_t *cdb)
 	return SCST_GET_CDB_LEN(cdb[0]);
 }
 
+/* get_trans_len_x extract x bytes from cdb as length starting from off */
+
+static uint32_t get_trans_len_1(const uint8_t *cdb, uint8_t off)
+{
+	return (*(cdb + off));
+}
+
+static uint32_t get_trans_len_2(const uint8_t *cdb, uint8_t off)
+{
+	return be16_to_cpu(*((uint16_t *)(cdb + off)));
+}
+
+static uint32_t get_trans_len_3(const uint8_t *cdb, uint8_t off)
+{
+	const uint8_t *p = cdb + off;
+
+	return ((*p) << 16) + (*(p + 1) << 8) + *(p + 2);
+}
+
+static uint32_t get_trans_len_4(const uint8_t *cdb, uint8_t off)
+{
+	return be32_to_cpu(*((uint32_t *)(cdb + off)));
+}
+
+/* for special commands */
+static uint32_t get_trans_len_block_limit(const uint8_t *cdb, uint8_t off)
+{
+	return 6;
+}
+
+static uint32_t get_trans_len_read_capacity(const uint8_t *cdb, uint8_t off)
+{
+	return 8;
+}
+
+static uint32_t get_trans_len_single(const uint8_t *cdb, uint8_t off)
+{
+	return 1;
+}
+
+static uint32_t get_trans_len_none(const uint8_t *cdb, uint8_t off)
+{
+	return 0;
+}
+
 int scst_get_cdb_info(const uint8_t *cdb_p, int dev_type,
 		      struct scst_info_cdb *info_p)
 {
@@ -1481,12 +1526,9 @@ int scst_get_cdb_info(const uint8_t *cdb_p, int dev_type,
 
 	TRACE_ENTRY();
 
-	memset(info_p, 0, sizeof(*info_p));
-	info_p->direction = SCST_DATA_NONE;
-	info_p->op_name = "NOOP";
 	op = *cdb_p;	/* get clear opcode */
 
-	TRACE(TRACE_SCSI, "opcode=%02x, cdblen=%d bytes, tblsize=%zd, "
+	TRACE_DBG("opcode=%02x, cdblen=%d bytes, tblsize=%zd, "
 		"dev_type=%d", op, SCST_GET_CDB_LEN(op), SCST_CDB_TBL_SIZE,
 		dev_type);
 
@@ -1494,8 +1536,7 @@ int scst_get_cdb_info(const uint8_t *cdb_p, int dev_type,
 	while (i < SCST_CDB_TBL_SIZE && scst_scsi_op_table[i].ops == op) {
 		if (scst_scsi_op_table[i].devkey[dev_type] != SCST_CDB_NOTSUPP) {
 			ptr = &scst_scsi_op_table[i];
-#if 0
-			TRACE(TRACE_SCSI, "op = 0x%02x+'%c%c%c%c%c%c%c%c%c%c'+<%s>", 
+			TRACE_DBG("op = 0x%02x+'%c%c%c%c%c%c%c%c%c%c'+<%s>", 
 			      ptr->ops, ptr->devkey[0],	/* disk     */
 			      ptr->devkey[1],	/* tape     */
 			      ptr->devkey[2],	/* printer */
@@ -1507,13 +1548,10 @@ int scst_get_cdb_info(const uint8_t *cdb_p, int dev_type,
 			      ptr->devkey[8],	/* changer */
 			      ptr->devkey[9],	/* commdev */
 			      ptr->op_name);
-
-			TRACE(TRACE_SCSI,
-			      "direction=%d size_field_len=%d fixed=%d flag1=%d flag2=%d",
+			TRACE_DBG("direction=%d flags=%d off=%d",
 			      ptr->direction,
-			      ptr->size_field_len,
-			      ptr->fixed, ptr->flag1, ptr->flag2);
-#endif
+			      ptr->flags,
+			      ptr->off);
 			break;
 		}
 		i++;
@@ -1529,133 +1567,22 @@ int scst_get_cdb_info(const uint8_t *cdb_p, int dev_type,
 
 	info_p->cdb_len = SCST_GET_CDB_LEN(op);
 	info_p->op_name = ptr->op_name;
-	/* 1. direction */
 	info_p->direction = ptr->direction;
-	if (info_p->direction == SCST_DATA_NONE)
-		goto out;
+	info_p->flags = ptr->flags;
+	info_p->transfer_len = (*ptr->get_trans_len)(cdb_p, ptr->off);
 
-	/* 2. flags */
-	info_p->flags = ptr->fixed;
-
-	/*
-	 * CDB length needed, because we must know offsets:
-	 * 1) for  6-bytes CDB len = 1 byte or 3 bytes(if real transfer exist)
-	 * 2) for 10-bytes CDB len = 1 byte or 2 bytes(0x24,0x25 = 3)
-	 * 3) for 12-bytes CDB len = 1 byte or 4 bytes
-	 */
-
-	/* 3. transfer_len */
-	if (SCST_GET_CDB_LEN(op) == 6) {
-		if (ptr->size_field_len == 3) {
-			/* length = 3 bytes */
-			info_p->transfer_len = (((*(cdb_p + 2)) & 0xff) << 16) +
-			    (((*(cdb_p + 3)) & 0xff) << 8) +
-			    ((*(cdb_p + 4)) & 0xff);
-			info_p->transfer_len &= 0xffffff;
-		} else if (ptr->size_field_len == 1) {
-			/* 
-			 * Warning!!! CDB 'READ BLOCK LIMITS'
-			 * always returns 6-byte block with limits
-			 * info_p->transfer_len = (int)(*(cdb_p + 4));
-			 */
-			info_p->transfer_len = ((op == READ_BLOCK_LIMITS) ?
-						SCST_BLOCK_LIMIT_LEN : 
-						*(cdb_p + 4)) & 0xff;
-		}
-	} else if (SCST_GET_CDB_LEN(op) == 10) {
-		if (ptr->size_field_len == 3)
-			/* 
-			 * SET window usees 3 bytes length SET/GET WINDOW
-			 * if ((uint8_t)ptr->ops == 0x24 || 0x25)
-			 */
-		{
-			info_p->transfer_len = (((*(cdb_p + 6)) & 0xff) << 16) +
-			    (((*(cdb_p + 7)) & 0xff) << 8) +
-			    ((*(cdb_p + 8)) & 0xff);
-			info_p->transfer_len &= 0xffffff;
-		} else if (ptr->size_field_len == 2) {
-			info_p->transfer_len = (((*(cdb_p + 7)) & 0xff) << 8) +
-			    ((*(cdb_p + 8)) & 0xff);
-			info_p->transfer_len &= 0xffff;
-		} else if (ptr->size_field_len == 1) {
-			info_p->transfer_len = (*(cdb_p + 8));
-
-			/* opcode = READ-WRITE UPDATED BLOCK */
-			if ((ptr->ops == UPDATE_BLOCK) ||
-			    (ptr->ops == WRITE_SAME)) {
-				/* the opcode always returns 1 block */
-				info_p->flags |= SCST_TRANSFER_LEN_TYPE_FIXED;
-				info_p->transfer_len = 1;
-			}
-
-			if ((ptr->ops == COMPARE) || (ptr->ops == COPY_VERIFY)) {
-				/* ese other place in CDB [3,4],5 */
-				info_p->transfer_len = (*(cdb_p + 5));
-			}
-
-			info_p->transfer_len &= 0xff;
-		}
-	} else if (SCST_GET_CDB_LEN(op) == 12) {
-		if (ptr->size_field_len == 4) {
-			info_p->transfer_len = (((*(cdb_p + 6)) & 0xff) << 24) +
-			    (((*(cdb_p + 7)) & 0xff) << 16) +
-			    (((*(cdb_p + 8)) & 0xff) << 8) +
-			    ((*(cdb_p + 9)) & 0xff);
-			info_p->transfer_len &= 0xffffffff;
-		} else if (ptr->size_field_len == 3) {
-			info_p->transfer_len = (((*(cdb_p + 7)) & 0xff) << 16) +
-			    (((*(cdb_p + 8)) & 0xff) << 8) +
-			    ((*(cdb_p + 9)) & 0xff);
-			info_p->transfer_len &= 0xffffff;
-		} else if (ptr->size_field_len == 2) {
-			info_p->transfer_len = (((*(cdb_p + 8)) & 0xff) << 8) +
-			    ((*(cdb_p + 9)) & 0xff);
-			info_p->transfer_len &= 0xffff;
-		} else {
-			if (ptr->size_field_len == 1) {
-				info_p->transfer_len = (*(cdb_p + 9));
-				info_p->transfer_len &= 0xff;
-			}
-		}
-	} else if (SCST_GET_CDB_LEN(op) == 16) {
-		if (ptr->size_field_len == 4) {
-			info_p->transfer_len =
-			    (((*(cdb_p + 10)) & 0xff) << 24) +
-			    (((*(cdb_p + 11)) & 0xff) << 16) +
-			    (((*(cdb_p + 12)) & 0xff) << 8) +
-			    ((*(cdb_p + 13)) & 0xff);
-		}
-	}
-	if (!info_p->transfer_len) {
+#ifdef EXTRACHECKS
+	if (unlikely((info_p->transfer_len == 0) &&
+		     (info_p->direction != SCST_DATA_NONE))) {
 		TRACE_DBG("Warning! transfer_len 0, direction %d change on %d",
 			info_p->direction, SCST_DATA_NONE);
 		info_p->direction = SCST_DATA_NONE;
 	}
+#endif
 
 out:
 	TRACE_EXIT();
 	return res;
-}
-
-void scst_scsi_op_list_init(void)
-{
-	int i;
-	uint8_t op = 0xff;
-
-	TRACE_ENTRY();
-
-	for (i = 0; i < 256; i++)
-		scst_scsi_op_list[i] = SCST_CDB_TBL_SIZE;
-
-	for (i = 0; i < SCST_CDB_TBL_SIZE; i++) {
-		if (scst_scsi_op_table[i].ops != op) {
-			op = scst_scsi_op_table[i].ops;
-			scst_scsi_op_list[op] = i;
-		}
-	}
-
-	TRACE_EXIT();
-	return;
 }
 
 /*
@@ -2233,6 +2160,28 @@ void scst_inc_expected_sn_unblock(struct scst_tgt_dev *tgt_dev,
 	TRACE_EXIT();
 	return;
 }
+
+void __init scst_scsi_op_list_init(void)
+{
+	int i;
+	uint8_t op = 0xff;
+
+	TRACE_ENTRY();
+
+	for (i = 0; i < 256; i++)
+		scst_scsi_op_list[i] = SCST_CDB_TBL_SIZE;
+
+	for (i = 0; i < SCST_CDB_TBL_SIZE; i++) {
+		if (scst_scsi_op_table[i].ops != op) {
+			op = scst_scsi_op_table[i].ops;
+			scst_scsi_op_list[op] = i;
+		}
+	}
+
+	TRACE_EXIT();
+	return;
+}
+
 
 #ifdef DEBUG
 /* Original taken from the XFS code */
