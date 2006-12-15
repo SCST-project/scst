@@ -395,7 +395,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 	if (scst_cmd_is_expected_set(cmd)) {
 		if (cmd->expected_transfer_len < cmd->bufflen) {
 			TRACE(TRACE_SCSI, "cmd->expected_transfer_len(%d) < "
-				"cmd->bufflen(%d), using expected_transfer_len "
+				"cmd->bufflen(%zd), using expected_transfer_len "
 				"instead", cmd->expected_transfer_len,
 				cmd->bufflen);
 			cmd->bufflen = cmd->expected_transfer_len;

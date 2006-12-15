@@ -701,7 +701,8 @@ struct scst_tgt_template
 
 	/*
 	 * Those functions can be used to export the driver's statistics and
-	 * other infos to the world outside the kernel.
+	 * other infos to the world outside the kernel as well as to get some
+	 * management commands from it.
 	 *
 	 * OPTIONAL
 	 */
@@ -844,7 +845,8 @@ struct scst_dev_type
 
 	/*
 	 * Those functions can be used to export the handler's statistics and
-	 * other infos to the world outside the kernel.
+	 * other infos to the world outside the kernel as well as to get some
+	 * management commands from it.
 	 *
 	 * OPTIONAL
 	 */
@@ -1077,13 +1079,6 @@ struct scst_cmd
 	unsigned int mem_checked:1;
 
 	/*
-	 * Set if target driver may need to call dma_sync_sg() or similar
-	 * function before transferring cmd' data to the target device
-	 * via DMA.
-	 */
-	unsigned int may_need_dma_sync:1;
-
-	/*
 	 * Set if scst_cmd_init_stage1_done() called and the target
 	 * want that preprocessing_done() will be called
 	 */
@@ -1097,6 +1092,13 @@ struct scst_cmd
 
 	/* Set if the cmd's must not use sgv cache for data buffer */
 	unsigned int no_sgv:1;
+
+	/*
+	 * Set if target driver may need to call dma_sync_sg() or similar
+	 * function before transferring cmd' data to the target device
+	 * via DMA.
+	 */
+	unsigned int may_need_dma_sync:1;
 
 	/**************************************************************/
 

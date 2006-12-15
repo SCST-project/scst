@@ -2642,7 +2642,6 @@ out_free_vdev:
 	goto out_up;
 }
 
-
 /* scst_fileio_mutex supposed to be held */
 static int cdrom_fileio_open(char *p, char *name)
 {

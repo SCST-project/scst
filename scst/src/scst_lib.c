@@ -209,7 +209,7 @@ struct scst_acg_dev *scst_alloc_acg_dev(struct scst_acg *acg,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
 	memset(res, 0, sizeof(*res));
 #endif
-	
+
 	res->dev = dev;
 	res->acg = acg;
 	res->lun = lun;

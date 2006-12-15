@@ -410,7 +410,7 @@ int sgv_pool_init(struct sgv_pool *pool, const char *name, int clustered)
 	memset(pool, 0, sizeof(*pool));
 	pool->clustered = clustered;
 
-	TRACE_MEM("sizeof(*obj)=%d, clustered=%d, sizeof(obj->trans_tbl[0])=%d",
+	TRACE_MEM("sizeof(*obj)=%zd, clustered=%d, sizeof(obj->trans_tbl[0])=%zd",
 		sizeof(*obj), clustered, sizeof(obj->trans_tbl[0]));
 
 	for(i = 0; i < SGV_POOL_ELEMENTS; i++) {
