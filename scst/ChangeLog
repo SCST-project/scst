@@ -1,3 +1,20 @@
+Summary of changes between versions 0.9.5 and 0.9.6
+---------------------------------------------------
+
+ - Updated to work on 2.6.19.x, thanks to Ming Zhang.
+
+ - Internal threads management reimplemented based on kthread*() API,
+   thanks to Ming Zhang.
+
+ - /proc implementation moved to seq_*() library, thanks to Ming Zhang.
+   Target drivers need to be updated accordingly.
+
+ - Building from the Linux kernel tree updated, inside kernel building fixed.
+
+ - Support for CPU cache flushing before doing DMA to target devices added.
+
+ - Various cleanups and bug fixes.
+
 Summary of changes between versions 0.9.4 and 0.9.5
 ---------------------------------------------------
 
