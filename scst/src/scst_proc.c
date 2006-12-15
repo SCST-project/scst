@@ -31,8 +31,8 @@
 #include <linux/seq_file.h>
 
 #include "scsi_tgt.h"
-#include "scst_mem.h"
 #include "scst_priv.h"
+#include "scst_mem.h"
 
 static int scst_proc_init_groups(void);
 static void scst_proc_cleanup_groups(void);
