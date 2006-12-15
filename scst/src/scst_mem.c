@@ -31,7 +31,6 @@
 
 #include "scsi_tgt.h"
 #include "scst_priv.h"
-#include "scst_debug.h"
 #include "scst_mem.h"
 
 /*

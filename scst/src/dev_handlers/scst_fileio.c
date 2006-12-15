@@ -47,7 +47,7 @@
 #define SCST_FIO_REV			" 096"
 
 #define READ_CAP_LEN			8
-#define READ_CAP16_LEN			32
+#define READ_CAP16_LEN			12
 
 #define MAX_USN_LEN			20
 
