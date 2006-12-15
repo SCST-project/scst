@@ -30,6 +30,8 @@
 #include <scsi/scsi_request.h>
 #endif
 
+#include "scst_debug.h"
+
 #define SCST_MAJOR              177
 
 #define TRACE_RETRY             0x80000000
@@ -40,6 +42,11 @@
 #define TRACE_RECV_BOT		0x04000000
 
 #define LOG_PREFIX "scst"
+
+#if defined(DEBUG) || defined(TRACING)
+#define trace_flag scst_trace_flag
+extern unsigned long scst_trace_flag;
+#endif
 
 #ifdef DEBUG
 /*#define SCST_DEFAULT_LOG_FLAGS (TRACE_ALL & ~TRACE_MEMORY & ~TRACE_BUFF \

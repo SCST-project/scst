@@ -27,7 +27,6 @@
 #include <asm/string.h>
 #include <linux/kthread.h>
 
-#include "scst_debug.h"
 #include "scsi_tgt.h"
 #include "scst_priv.h"
 

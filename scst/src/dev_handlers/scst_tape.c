@@ -24,11 +24,9 @@
 #include <linux/init.h>
 
 #define LOG_PREFIX           "dev_tape"
-#include "scst_debug.h"
+
 #include "scsi_tgt.h"
 #include "scst_dev_handler.h"
-
-#include "scst_debug.c"
 
 # define TAPE_NAME           "dev_tape"
 # define TAPE_PERF_NAME      "dev_tape_perf"
@@ -91,10 +89,6 @@ int tape_parse(struct scst_cmd *, const struct scst_info_cdb *);
 int tape_done(struct scst_cmd *);
 int tape_exec(struct scst_cmd *);
 
-#if defined(DEBUG) || defined(TRACING)
-unsigned long trace_flag = SCST_DEFAULT_DEV_LOG_FLAGS;
-#endif
-
 static struct scst_dev_type tape_devtype = TAPE_TYPE;
 static struct scst_dev_type tape_devtype_perf = TAPE_PERF_TYPE;
 
@@ -103,7 +97,7 @@ static int __init init_scst_tape_driver(void)
 	int res = 0;
 
 	TRACE_ENTRY();
-	
+
 	tape_devtype.module = THIS_MODULE;
 	if (scst_register_dev_driver(&tape_devtype) < 0) {
 		res = -ENODEV;

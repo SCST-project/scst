@@ -24,11 +24,9 @@
 #include <linux/init.h>
 
 #define LOG_PREFIX             "dev_modisk"
-#include "scst_debug.h"
+
 #include "scsi_tgt.h"
 #include "scst_dev_handler.h"
-
-#include "scst_debug.c"
 
 # define MODISK_NAME           "dev_modisk"
 # define MODISK_PERF_NAME      "dev_modisk_perf"
@@ -77,10 +75,6 @@ void modisk_detach(struct scst_device *);
 int modisk_parse(struct scst_cmd *, const struct scst_info_cdb *);
 int modisk_done(struct scst_cmd *);
 int modisk_exec(struct scst_cmd *);
-
-#if defined(DEBUG) || defined(TRACING)
-unsigned long trace_flag = SCST_DEFAULT_DEV_LOG_FLAGS;
-#endif
 
 static struct scst_dev_type modisk_devtype = MODISK_TYPE;
 static struct scst_dev_type modisk_devtype_perf = MODISK_PERF_TYPE;

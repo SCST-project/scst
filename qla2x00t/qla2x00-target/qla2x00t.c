@@ -43,8 +43,6 @@
 
 #include "qla2x00t.h"
 
-#include <scst_debug.c>
-
 #ifndef FC_TARGET_SUPPORT
 #error "FC_TARGET_SUPPORT is NOT DEFINED"
 #endif
@@ -59,12 +57,12 @@
 #endif
 
 #ifdef DEBUG
-#define SCST_DEFAULT_QLA_LOG_FLAGS (TRACE_FUNCTION | TRACE_PID | \
+#define Q2T_DEFAULT_LOG_FLAGS (TRACE_FUNCTION | TRACE_PID | \
 	TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_MGMT_DEBUG | \
 	TRACE_MINOR | TRACE_SPECIAL)
 #else
 # ifdef TRACING
-#define SCST_DEFAULT_QLA_LOG_FLAGS (TRACE_FUNCTION | TRACE_PID | \
+#define Q2T_DEFAULT_LOG_FLAGS (TRACE_FUNCTION | TRACE_PID | \
 	TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_MINOR | TRACE_SPECIAL)
 # endif
 #endif
@@ -93,7 +91,8 @@ static void q2t_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
  */
 
 #if defined(DEBUG) || defined(TRACING)
-unsigned long trace_flag = SCST_DEFAULT_QLA_LOG_FLAGS;
+#define trace_flag q2t_trace_flag
+unsigned long q2t_trace_flag = Q2T_DEFAULT_LOG_FLAGS;
 #endif
 
 struct scst_tgt_template tgt_template = {
@@ -2074,7 +2073,7 @@ static int q2t_proc_log_entry_write(struct file *file, const char __user *buf,
 	TRACE_ENTRY();
 
 	res = scst_proc_log_entry_write(file, buf, length, &trace_flag,
-		SCST_DEFAULT_QLA_LOG_FLAGS, NULL);
+		Q2T_DEFAULT_LOG_FLAGS, NULL);
 
 	TRACE_EXIT_RES(res);
 	return res;

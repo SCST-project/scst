@@ -30,7 +30,6 @@
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 
-#include "scst_debug.h"
 #include "scsi_tgt.h"
 #include "scst_mem.h"
 #include "scst_priv.h"

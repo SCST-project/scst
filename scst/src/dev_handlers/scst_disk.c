@@ -24,11 +24,9 @@
 #include <linux/init.h>
 
 #define LOG_PREFIX           "dev_disk"
-#include "scst_debug.h"
+
 #include "scsi_tgt.h"
 #include "scst_dev_handler.h"
-
-#include "scst_debug.c"
 
 # define DISK_NAME           "dev_disk"
 # define DISK_PERF_NAME      "dev_disk_perf"
@@ -78,10 +76,6 @@ int disk_parse(struct scst_cmd *cmd, const struct scst_info_cdb *info_cmd);
 int disk_done(struct scst_cmd *cmd);
 int disk_exec(struct scst_cmd *cmd);
 
-#if defined(DEBUG) || defined(TRACING)
-unsigned long trace_flag = SCST_DEFAULT_DEV_LOG_FLAGS;
-#endif
-
 static struct scst_dev_type disk_devtype = DISK_TYPE;
 static struct scst_dev_type disk_devtype_perf = DISK_PERF_TYPE;
 
@@ -90,7 +84,7 @@ static int __init init_scst_disk_driver(void)
 	int res = 0;
 
 	TRACE_ENTRY();
-	
+
 	disk_devtype.module = THIS_MODULE;
 	if (scst_register_dev_driver(&disk_devtype) < 0) {
 		res = -ENODEV;

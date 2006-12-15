@@ -99,63 +99,61 @@
 
 #if defined(DEBUG) || defined(TRACING)
 
-extern unsigned long trace_flag;
+extern int debug_print_prefix(unsigned long trace_flag, const char *func, int line);
+extern void debug_print_buffer(unsigned long trace_flag, const void *data, int len);
 
-extern int debug_print_prefix(const char *func, int line);
-extern void debug_print_buffer(const void *data, int len);
-
-#define TRACE(trace, format, args...)           \
-do {                                            \
-  if (trace_flag & (trace))                     \
-  {                                             \
-    char *__tflag = LOG_FLAG;                   \
-    if (debug_print_prefix(__FUNCTION__, __LINE__) > 0) \
-    {                                           \
-      __tflag = NO_FLAG;                        \
-    }                                           \
-    PRINT(NO_FLAG, "%s" format, __tflag, args); \
-  }                                             \
+#define TRACE(trace, format, args...)                               \
+do {                                                                \
+  if (trace_flag & (trace))                                         \
+  {                                                                 \
+    char *__tflag = LOG_FLAG;                                       \
+    if (debug_print_prefix(trace_flag, __FUNCTION__, __LINE__) > 0) \
+    {                                                               \
+      __tflag = NO_FLAG;                                            \
+    }                                                               \
+    PRINT(NO_FLAG, "%s" format, __tflag, args);                     \
+  }                                                                 \
 } while(0)
 
-#define TRACE_LOG_FLAG(log_flag, trace, format, args...) \
-do {                                            \
-  char *__tflag = log_flag;                     \
-  if (trace_flag & (trace))                     \
-  {                                             \
-    if (debug_print_prefix(__FUNCTION__, __LINE__) > 0) \
-    {                                           \
-      __tflag = NO_FLAG;                        \
-    }                                           \
-  }                                             \
-  PRINT(NO_FLAG, "%s" format, __tflag, args);   \
+#define TRACE_LOG_FLAG(log_flag, trace, format, args...)            \
+do {                                                                \
+  char *__tflag = log_flag;                                         \
+  if (trace_flag & (trace))                                         \
+  {                                                                 \
+    if (debug_print_prefix(trace_flag, __FUNCTION__, __LINE__) > 0) \
+    {                                                               \
+      __tflag = NO_FLAG;                                            \
+    }                                                               \
+  }                                                                 \
+  PRINT(NO_FLAG, "%s" format, __tflag, args);                       \
 } while(0)
 
-#define TRACE_BUFFER(message, buff, len)        \
-do {                                            \
-  if (trace_flag & TRACE_BUFF)                  \
-  {                                             \
-    char *__tflag = LOG_FLAG;                   \
-    if (debug_print_prefix(__FUNCTION__, __LINE__) > 0) \
-    {                                           \
-      __tflag = NO_FLAG;                        \
-    }                                           \
-    PRINT(NO_FLAG, "%s%s:", __tflag, message);  \
-    debug_print_buffer(buff, len);              \
-  }                                             \
+#define TRACE_BUFFER(message, buff, len)                            \
+do {                                                                \
+  if (trace_flag & TRACE_BUFF)                                      \
+  {                                                                 \
+    char *__tflag = LOG_FLAG;                                       \
+    if (debug_print_prefix(trace_flag, __FUNCTION__, __LINE__) > 0) \
+    {                                                               \
+      __tflag = NO_FLAG;                                            \
+    }                                                               \
+    PRINT(NO_FLAG, "%s%s:", __tflag, message);                      \
+    debug_print_buffer(trace_flag, buff, len);                      \
+  }                                                                 \
 } while(0)
 
-#define TRACE_BUFF_FLAG(flag, message, buff, len) \
-do {                                            \
-  if (trace_flag & (flag))                      \
-  {                                             \
-    char *__tflag = LOG_FLAG;                   \
-    if (debug_print_prefix(__FUNCTION__, __LINE__) > 0) \
-    {                                           \
-      __tflag = NO_FLAG;                        \
-    }                                           \
-    PRINT(NO_FLAG, "%s%s:", __tflag, message);  \
-    debug_print_buffer(buff, len);              \
-  }                                             \
+#define TRACE_BUFF_FLAG(flag, message, buff, len)                   \
+do {                                                                \
+  if (trace_flag & (flag))                                          \
+  {                                                                 \
+    char *__tflag = LOG_FLAG;                                       \
+    if (debug_print_prefix(trace_flag, __FUNCTION__, __LINE__) > 0) \
+    {                                                               \
+      __tflag = NO_FLAG;                                            \
+    }                                                               \
+    PRINT(NO_FLAG, "%s%s:", __tflag, message);                      \
+    debug_print_buffer(trace_flag, buff, len);                      \
+  }                                                                 \
 } while(0)
 
 #else  /* DEBUG || TRACING */
@@ -168,54 +166,54 @@ do {                                            \
 
 #ifdef DEBUG
 
-#define TRACE_MEM(format, args...)		\
-do {                                            \
-  if (trace_flag & TRACE_MEMORY)                \
-  {                                             \
-    char *__tflag = LOG_FLAG;                   \
-    if (debug_print_prefix(__FUNCTION__, __LINE__) > 0) \
-    {                                           \
-      __tflag = NO_FLAG;                        \
-    }                                           \
-    PRINT(NO_FLAG, "%s" format, __tflag, args); \
-  }                                             \
+#define TRACE_MEM(format, args...)		                    \
+do {                                                                \
+  if (trace_flag & TRACE_MEMORY)                                    \
+  {                                                                 \
+    char *__tflag = LOG_FLAG;                                       \
+    if (debug_print_prefix(trace_flag, __FUNCTION__, __LINE__) > 0) \
+    {                                                               \
+      __tflag = NO_FLAG;                                            \
+    }                                                               \
+    PRINT(NO_FLAG, "%s" format, __tflag, args);                     \
+  }                                                                 \
 } while(0)
 
-#define TRACE_DBG(format, args...)		\
-do {                                            \
-  if (trace_flag & TRACE_DEBUG)                 \
-  {                                             \
-    char *__tflag = LOG_FLAG;                   \
-    if (debug_print_prefix(__FUNCTION__, __LINE__) > 0) \
-    {                                           \
-      __tflag = NO_FLAG;                        \
-    }                                           \
-    PRINT(NO_FLAG, "%s" format, __tflag, args); \
-  }                                             \
+#define TRACE_DBG(format, args...)		                    \
+do {                                                                \
+  if (trace_flag & TRACE_DEBUG)                                     \
+  {                                                                 \
+    char *__tflag = LOG_FLAG;                                       \
+    if (debug_print_prefix(trace_flag, __FUNCTION__, __LINE__) > 0) \
+    {                                                               \
+      __tflag = NO_FLAG;                                            \
+    }                                                               \
+    PRINT(NO_FLAG, "%s" format, __tflag, args);                     \
+  }                                                                 \
 } while(0)
 
-#define TRACE_MGMT_DBG(format, args...)		\
-do {                                            \
-  if (trace_flag & TRACE_MGMT_DEBUG)            \
-  {                                             \
-    char *__tflag = LOG_FLAG;                   \
-    if (debug_print_prefix(__FUNCTION__, __LINE__) > 0) \
-    {                                           \
-      __tflag = NO_FLAG;                        \
-    }                                           \
-    PRINT(NO_FLAG, "%s" format, __tflag, args); \
-  }                                             \
+#define TRACE_MGMT_DBG(format, args...)		                    \
+do {                                                                \
+  if (trace_flag & TRACE_MGMT_DEBUG)                                \
+  {                                                                 \
+    char *__tflag = LOG_FLAG;                                       \
+    if (debug_print_prefix(trace_flag, __FUNCTION__, __LINE__) > 0) \
+    {                                                               \
+      __tflag = NO_FLAG;                                            \
+    }                                                               \
+    PRINT(NO_FLAG, "%s" format, __tflag, args);                     \
+  }                                                                 \
 } while(0)
 
-#define PRINT_ERROR_PR(format, args...)         \
-do {                                            \
-  if (ERROR_FLAG != LOG_FLAG)                   \
-  {                                             \
+#define PRINT_ERROR_PR(format, args...)                             \
+do {                                                                \
+  if (ERROR_FLAG != LOG_FLAG)                                       \
+  {                                                                 \
     TRACE_LOG_FLAG(LOG_FLAG, trace_flag, "%s: ***ERROR*** " format, \
-    	LOG_PREFIX, args);			\
-  }                                             \
+    	LOG_PREFIX, args);			                    \
+  }                                                                 \
   TRACE_LOG_FLAG(ERROR_FLAG, trace_flag, "%s: ***ERROR*** " format, \
-  	LOG_PREFIX, args);			\
+  	LOG_PREFIX, args);			                    \
 } while(0)
 
 #define PRINT_INFO_PR(format, args...)          \
@@ -229,86 +227,86 @@ do {                                            \
   	format, LOG_PREFIX, args);		\
 } while(0)
 
-#define PRINT_ERROR(format, args...)		\
-do {                                            \
-  if (ERROR_FLAG != LOG_FLAG)                   \
-  {                                             \
+#define PRINT_ERROR(format, args...)		                       \
+do {                                                                   \
+  if (ERROR_FLAG != LOG_FLAG)                                          \
+  {                                                                    \
     TRACE_LOG_FLAG(LOG_FLAG, trace_flag, "***ERROR*** " format, args); \
-  }                                             \
+  }                                                                    \
   TRACE_LOG_FLAG(ERROR_FLAG, trace_flag, "***ERROR*** " format, args); \
 } while(0)
 
-#define PRINT_INFO(format, args...)             \
-do {                                            \
-  if (INFO_FLAG != LOG_FLAG)                    \
-  {                                             \
+#define PRINT_INFO(format, args...)                     \
+do {                                                    \
+  if (INFO_FLAG != LOG_FLAG)                            \
+  {                                                     \
     TRACE_LOG_FLAG(LOG_FLAG, trace_flag, format, args); \
-  }                                             \
-  TRACE_LOG_FLAG(INFO_FLAG, trace_flag, format, args); \
+  }                                                     \
+  TRACE_LOG_FLAG(INFO_FLAG, trace_flag, format, args);  \
 } while(0)
 
-#define TRACE_ENTRY()                           \
-do {                                            \
-  if (trace_flag & TRACE_ENTRYEXIT)             \
-  {                                             \
-    if (trace_flag & TRACE_PID)                 \
-    {                                           \
+#define TRACE_ENTRY()                                 \
+do {                                                  \
+  if (trace_flag & TRACE_ENTRYEXIT)                   \
+  {                                                   \
+    if (trace_flag & TRACE_PID)                       \
+    {                                                 \
       PRINT(LOG_FLAG, "[%d]: ENTRY %s", current->pid, \
-          __FUNCTION__);                        \
-    }                                           \
-    else                                        \
-    {                                           \
-      PRINT(LOG_FLAG, "ENTRY %s", __FUNCTION__); \
-    }                                           \
-  }                                             \
+          __FUNCTION__);                              \
+    }                                                 \
+    else                                              \
+    {                                                 \
+      PRINT(LOG_FLAG, "ENTRY %s", __FUNCTION__);      \
+    }                                                 \
+  }                                                   \
 } while(0)
 
-#define TRACE_EXIT()                            \
-do {                                            \
-  if (trace_flag & TRACE_ENTRYEXIT)             \
-  {                                             \
-    if (trace_flag & TRACE_PID)                 \
-    {                                           \
+#define TRACE_EXIT()                                 \
+do {                                                 \
+  if (trace_flag & TRACE_ENTRYEXIT)                  \
+  {                                                  \
+    if (trace_flag & TRACE_PID)                      \
+    {                                                \
       PRINT(LOG_FLAG, "[%d]: EXIT %s", current->pid, \
-          __FUNCTION__);		        \
-    }                                           \
-    else                                        \
-    {                                           \
-      PRINT(LOG_FLAG, "EXIT %s", __FUNCTION__); \
-    }                                           \
-  }                                             \
+          __FUNCTION__);		             \
+    }                                                \
+    else                                             \
+    {                                                \
+      PRINT(LOG_FLAG, "EXIT %s", __FUNCTION__);      \
+    }                                                \
+  }                                                  \
 } while(0)
 
-#define TRACE_EXIT_RES(res)                     \
-do {                                            \
-  if (trace_flag & TRACE_ENTRYEXIT)             \
-  {                                             \
-    if (trace_flag & TRACE_PID)                 \
-    {                                           \
-      PRINT(LOG_FLAG, "[%d]: EXIT %s: %ld", current->pid, \
-        __FUNCTION__, (long)(res));             \
-    }                                           \
-    else                                        \
-    {                                           \
+#define TRACE_EXIT_RES(res)                                       \
+do {                                                              \
+  if (trace_flag & TRACE_ENTRYEXIT)                               \
+  {                                                               \
+    if (trace_flag & TRACE_PID)                                   \
+    {                                                             \
+      PRINT(LOG_FLAG, "[%d]: EXIT %s: %ld", current->pid,         \
+        __FUNCTION__, (long)(res));                               \
+    }                                                             \
+    else                                                          \
+    {                                                             \
       PRINT(LOG_FLAG, "EXIT %s: %ld", __FUNCTION__, (long)(res)); \
-    }                                           \
-  }                                             \
+    }                                                             \
+  }                                                               \
 } while(0)
 
-#define TRACE_EXIT_HRES(res)                    \
-do {                                            \
-  if (trace_flag & TRACE_ENTRYEXIT)             \
-  {                                             \
-    if (trace_flag & TRACE_PID)                 \
-    {                                           \
-      PRINT(LOG_FLAG, "[%d]: EXIT %s: 0x%lx", current->pid,  \
-        __FUNCTION__, (long)(res));             \
-    }                                           \
-    else                                        \
-    {                                           \
+#define TRACE_EXIT_HRES(res)                                      \
+do {                                                              \
+  if (trace_flag & TRACE_ENTRYEXIT)                               \
+  {                                                               \
+    if (trace_flag & TRACE_PID)                                   \
+    {                                                             \
+      PRINT(LOG_FLAG, "[%d]: EXIT %s: 0x%lx", current->pid,       \
+        __FUNCTION__, (long)(res));                               \
+    }                                                             \
+    else                                                          \
+    {                                                             \
       PRINT(LOG_FLAG, "EXIT %s: %lx", __FUNCTION__, (long)(res)); \
-    }                                           \
-  }                                             \
+    }                                                             \
+  }                                                               \
 } while(0)
 
 #else  /* DEBUG */
@@ -321,8 +319,8 @@ do {                                            \
 #define TRACE_EXIT_RES(res) {}
 #define TRACE_EXIT_HRES(res) {}
 
-#define PRINT_INFO_PR(format, args...)          \
-do {                                            \
+#define PRINT_INFO_PR(format, args...)               \
+do {                                                 \
   PRINT(INFO_FLAG, "%s: " format, LOG_PREFIX, args); \
 } while(0)
 

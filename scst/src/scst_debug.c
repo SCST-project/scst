@@ -18,16 +18,18 @@
  *  GNU General Public License for more details.
  */
 
-#if defined(DEBUG) || defined(TRACING)
+#include "scst_debug.h"
+#include "scsi_tgt.h"
 
-unsigned long trace_flag;
+#if defined(DEBUG) || defined(TRACING)
 
 #define TRACE_BUF_SIZE    512
 
 static char trace_buf[TRACE_BUF_SIZE];
 static spinlock_t trace_buf_lock = SPIN_LOCK_UNLOCKED;
 
-int debug_print_prefix(const char *func, int line)
+int debug_print_prefix(unsigned long trace_flag, const char *func, 
+			int line)
 {
 	int i = 0;
 	unsigned long flags;
@@ -50,7 +52,8 @@ int debug_print_prefix(const char *func, int line)
 	return i;
 }
 
-void debug_print_buffer(const void *data, int len)
+void debug_print_buffer(unsigned long trace_flag, const void *data, 
+			int len)
 {
 	int z, z1, i;
 	const unsigned char *buf = (const unsigned char *) data;
@@ -105,4 +108,6 @@ void debug_print_buffer(const void *data, int len)
 	return;
 }
 
+EXPORT_SYMBOL(debug_print_prefix);
+EXPORT_SYMBOL(debug_print_buffer);
 #endif /* DEBUG || TRACING */

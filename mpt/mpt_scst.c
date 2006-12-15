@@ -29,6 +29,7 @@
 #include <linux/blkdev.h>
 #include <linux/interrupt.h>
 #include <scsi/scsi.h>
+#include <linux/seq_file.h>
 #include <scsi/scsi_host.h>
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2,5,0)
@@ -38,9 +39,6 @@
 #include "scsi_tgt.h"
 
 #include <scst_debug.h>
-
-#include <scst_debug.c>
-#include <linux/proc_fs.h>
 
 #include "mpt_scst.h"
 
@@ -60,6 +58,17 @@ static char *mpt_state_string[] = {
 	"processed",
 	"NULL",
 };
+#endif
+
+#ifdef DEBUG
+#define SCST_DEFAULT_MPT_LOG_FLAGS (TRACE_FUNCTION | TRACE_PID | \
+        TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_MGMT_DEBUG | \
+        TRACE_MINOR | TRACE_SPECIAL)
+#else
+# ifdef TRACING
+#define SCST_DEFAULT_MPT_LOG_FLAGS (TRACE_FUNCTION | TRACE_PID | \
+        TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_MINOR | TRACE_SPECIAL)
+# endif
 #endif
 
 static MPT_STM_PRIV *mpt_stm_priv[MPT_MAX_ADAPTERS+1];
@@ -113,48 +122,45 @@ static int stm_wait_for(MPT_STM_PRIV *priv, volatile int *flag, int seconds,
 static void stmapp_srr_process(MPT_STM_PRIV *priv, int rx_id, int r_ctl, 
 		u32 offset, LinkServiceBufferPostReply_t *rep, int index);
 
+#ifdef DEBUG
+#define trace_flag mpt_trace_flag
+unsigned long mpt_trace_flag = TRACE_FUNCTION | TRACE_OUT_OF_MEM | TRACE_SPECIAL;
+#else
+# ifdef TRACING
+#define trace_flag mpt_trace_flag
+unsigned long mpt_trace_flag = TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_SPECIAL;
+# endif
+#endif
+
 static int
-mpt_proc_read(char *buffer, char **start, off_t offset, int length, int *eof,
-		struct scst_tgt *scst_tgt)
+mpt_target_show(struct seq_file *seq, void *v)
 {
-	struct mpt_tgt *tgt = scst_tgt_get_tgt_priv(scst_tgt);
+	struct mpt_tgt *tgt = (struct mpt_tgt *)seq->private;
 	MPT_ADAPTER *ioc = tgt->priv->ioc;
-	int res = 0, len = 0;
 	MPT_STM_PRIV *priv = tgt->priv;
 
 	TRACE_ENTRY();
-	TRACE_DBG("res %d, buffer %p, length %d, %d, priv %p, tgt %p", 
-			res, buffer, length, len, priv, tgt); 
+	TRACE_DBG("priv %p, tgt %p", priv, tgt); 
 
 	sBUG_ON(tgt == NULL);
 	sBUG_ON(ioc == NULL);
 
-	len = snprintf(buffer, length,
-			"ProductID        :0x%04x (%s)\n"
+	seq_printf(seq, "ProductID        :0x%04x (%s)\n"
 			"Target Enable    :%s\n",
 			ioc->facts.ProductID,
 			ioc->prod_name,
 			tgt->target_enable ? "True" : "False");
-#define LEN_CHECK(res, buffer, length) \
-	TRACE_DBG("res %d, buffer %p, length %d, %d", res, buffer, length, len); \
-	res += len; buffer += len; length -= len; \
-	if (length <= 0) goto out;
-
-	LEN_CHECK(res, buffer, length)
 
 	if (ioc->bus_type == SCSI) {
 		int i = 0;
-		len = snprintf(buffer, length, 
-				"Target ID        :%d\n"
+		seq_printf(seq, "Target ID        :%d\n"
 				"Capabilities     :0x%x\n"
 				"PhysicalInterface:0x%x\n",
 				tgt->target_id,
 				priv->SCSIPortPage0.Capabilities,
 				priv->SCSIPortPage0.PhysicalInterface);
-		LEN_CHECK(res, buffer, length)
 
-		len = snprintf(buffer, length,
-				"Configuration    :0x%x\n"
+		seq_printf(seq, "Configuration    :0x%x\n"
 				"OnBusTimerValue  :0x%x\n"
 				"TargetConfig     :0x%x\n"
 				"IDConfig         :0x%x\n",
@@ -162,63 +168,55 @@ mpt_proc_read(char *buffer, char **start, off_t offset, int length, int *eof,
 				priv->SCSIPortPage1.OnBusTimerValue,
 				priv->SCSIPortPage1.TargetConfig,
 				priv->SCSIPortPage1.IDConfig);
-		LEN_CHECK(res, buffer, length);
 
-		len = snprintf(buffer, length,
-				"PortFlags        :0x%x\n"
+		seq_printf(seq, "PortFlags        :0x%x\n"
 				"PortSettings     :0x%x\n",
 				priv->SCSIPortPage2.PortFlags,
 				priv->SCSIPortPage2.PortSettings);
-		LEN_CHECK(res, buffer, length);
 #if 0
 		for (i = 0; i < 16; i++) {
-			len = snprintf(buffer, length,
-					" DeviceSeting %02d: 0x%x 0x%x 0x%x\n",
+			seq_printf(seq, " DeviceSeting %02d: 0x%x 0x%x 0x%x\n",
 					priv->SCSIPortPage2.DeviceSettings[i].Timeout,
 					priv->SCSIPortPage2.DeviceSettings[i].SyncFactor,
 					priv->SCSIPortPage2.DeviceSettings[i].DeviceFlags);
-			LEN_CHECK(res, buffer, length);
 		}
 #endif
 		for (i = 0; i < NUM_SCSI_DEVICES; i++) {
-			len = snprintf(buffer, length, 
-					"  Device %02d: 0x%x, 0x%x\n",
+			seq_printf(seq, "  Device %02d: 0x%x, 0x%x\n",
 					i,
 					priv->SCSIDevicePage1[i].RequestedParameters,
 					priv->SCSIDevicePage1[i].Configuration);
-			LEN_CHECK(res, buffer, length);
 		}
 	}
 
 	if (ioc->bus_type == FC) {
-		len = snprintf(buffer, length,
-				"WWN              :%08X%08X:%08X%08X\n",
+		seq_printf(seq, "WWN              :%08X%08X:%08X%08X\n",
 				ioc->fc_port_page0[0].WWNN.High,
 				ioc->fc_port_page0[0].WWNN.Low,
 				ioc->fc_port_page0[0].WWPN.High,
 				ioc->fc_port_page0[0].WWPN.Low);
-		LEN_CHECK(res, buffer, length);
 	}
-#undef LEN_CHECK
-out:
-	TRACE_EXIT_RES(res);
 
-	return res;
+	TRACE_EXIT();
+	return 0;
 }
 
 static int
-mpt_proc_write(struct file *file, const char *buf, unsigned long length, 
-		struct scst_tgt *scst_tgt)
+mpt_proc_target_write(struct file *file, const char __user *buf, 
+			size_t length, loff_t *off)
 {
 
-	struct mpt_tgt *tgt = scst_tgt_get_tgt_priv(scst_tgt);
+	struct mpt_tgt *tgt = (struct mpt_tgt *)PDE(file->f_dentry->d_inode)->data;
 	MPT_ADAPTER *ioc = tgt->priv->ioc;
 	int res = 0;
 	char tmp[32+1];
 
 	TRACE_ENTRY();
 	res = min(32, (int)length);
-	memcpy(tmp, buf, res);
+	if (copy_from_user(tmp, buf, res)) {
+		res = -EFAULT;
+		goto out;
+	}
 	tmp[res] = 0;
 
 	TRACE_DBG("buff '%s'", tmp);
@@ -245,20 +243,16 @@ mpt_proc_write(struct file *file, const char *buf, unsigned long length,
 	}
 #endif
 
+out:
 	TRACE_EXIT_RES(res);
 
 	return length;
 }
 
-static int mpt_proc_info(char *buffer, char **start, off_t offset,
-		int length, int *eof, struct scst_tgt *tgt, int inout)
-{
-	if (inout) {
-		return mpt_proc_write(NULL, buffer, length, tgt);
-	}
-	return  mpt_proc_read(buffer, start, offset, length, eof, tgt);
-}
-
+static struct scst_proc_data mpt_target_proc_data = {
+	SCST_DEF_RW_SEQ_OP(mpt_proc_target_write)
+	.show = mpt_target_show,
+};
 
 static int mpt_target_detect(struct scst_tgt_template *temp1);
 static int mpt_target_release(struct scst_tgt *scst_tgt);
@@ -287,7 +281,6 @@ static struct scst_tgt_template tgt_template = {
 	.rdy_to_xfer = mpt_rdy_to_xfer,
 	.on_free_cmd = mpt_on_free_cmd,
 	.task_mgmt_fn_done = mpt_task_mgmt_fn_done,
-//ToDo:	.proc_info = mpt_proc_info,
 };
 
 static inline void 
@@ -339,6 +332,9 @@ mptstm_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     MPT_ADAPTER	*ioc = pci_get_drvdata(pdev);
     int ret = 0;
     struct mpt_tgt *tgt;
+    struct proc_dir_entry *p;
+    struct proc_dir_entry *root;
+    char name[4];
     
     TRACE_ENTRY();
     ret = mpt_stm_adapter_install(ioc);
@@ -370,9 +366,23 @@ mptstm_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	    ret = -ENODEV;
 	    goto out;
     }
+
+    root = scst_proc_get_tgt_root(&tgt_template);
+    scnprintf(name, sizeof(name), "%d", ioc->id);
+    mpt_target_proc_data.data = (void *)tgt;
+    p = scst_create_proc_entry(root, name,
+				&mpt_target_proc_data);
+    if (p == NULL) {
+	    PRINT_ERROR("Not enough memory to register "
+			    "target driver %s entry %s in /proc",
+			    tgt_template.name, name);
+	    scst_unregister(tgt->scst_tgt);
+	    ret = -ENOMEM;
+	    goto out;
+    }
+
     scst_tgt_set_tgt_priv(tgt->scst_tgt, tgt);
     mpt_stm_priv[ioc->id]->tgt = tgt;
-    
     _mpt_ada_nums ++;
 			
  out:
@@ -5102,47 +5112,43 @@ stmapp_set_sense_info(MPT_STM_PRIV *priv,
 	TRACE_EXIT();
 }
 
+#if defined(DEBUG) || defined(TRACING)
+
 #define MPT_PROC_LOG_ENTRY_NAME "trace_level"
-#ifdef TRACING
-static struct scst_proc_log mpt_spec_tbl[] = 
+
+#include <linux/proc_fs.h>
+
+static int mpt_log_info_show(struct seq_file *seq, void *v)
 {
-	{ TRACE_MPI,	"mpt_mpi" },
-	{ 0, NULL }
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	res = scst_proc_log_entry_read(seq, trace_flag, NULL);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int mpt_proc_log_entry_write(struct file *file, const char __user *buf,
+					size_t length, loff_t *off)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	res = scst_proc_log_entry_write(file, buf, length, &trace_flag,
+		SCST_DEFAULT_MPT_LOG_FLAGS, NULL);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct scst_proc_data mpt_log_proc_data = {
+	SCST_DEF_RW_SEQ_OP(mpt_proc_log_entry_write)
+	.show = mpt_log_info_show,
 };
 #endif
-
-static int mpt_proc_log_entry_read(char *buffer, char **start,
-		off_t offset, int length, int *eof,
-		void *data)
-{
-	int res = 0;
-
-	TRACE_ENTRY();
-#ifdef TRACING
-	res = scst_proc_log_entry_read(buffer, start, offset, length, eof,
-			data, trace_flag, mpt_spec_tbl);
-#endif
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static int mpt_proc_log_entry_write(struct file *file, const char *buf,
-		unsigned long length, void *data)
-{
-	int res = 0;
-
-	TRACE_ENTRY();
-
-#ifdef TRACING
-	res = scst_proc_log_entry_write(file, buf, length, data,
-			&trace_flag, (TRACE_FUNCTION | TRACE_OUT_OF_MEM | TRACE_MGMT | \
-				    TRACE_MINOR | TRACE_SPECIAL), mpt_spec_tbl);
-#endif
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
 
 static int mpt_proc_log_entry_build(struct scst_tgt_template *templ)
 {
@@ -5153,10 +5159,10 @@ static int mpt_proc_log_entry_build(struct scst_tgt_template *templ)
 	root = scst_proc_get_tgt_root(templ);
 
 	if (root) {
-		p = create_proc_read_entry(MPT_PROC_LOG_ENTRY_NAME,
-				S_IFREG | S_IRUGO | S_IWUSR, root,
-				mpt_proc_log_entry_read,
-				(void *)templ->name);
+#if defined(DEBUG) || defined(TRACING)
+		mpt_log_proc_data.data = (void *)templ->name;
+		p = scst_create_proc_entry(root, MPT_PROC_LOG_ENTRY_NAME,
+					&mpt_log_proc_data);
 		if (p == NULL) {
 			PRINT_ERROR("Not enough memory to register "
 					"target driver %s entry %s in /proc",
@@ -5164,7 +5170,7 @@ static int mpt_proc_log_entry_build(struct scst_tgt_template *templ)
 			res = -ENOMEM;
 			goto out;
 		}
-		p->write_proc = mpt_proc_log_entry_write;
+#endif
 	}
 out:
 
@@ -5175,16 +5181,18 @@ out:
 
 static void mpt_proc_log_entry_clean(struct scst_tgt_template *templ)
 {
+#if defined(DEBUG) || defined(TRACING)
 	struct proc_dir_entry *root;
 
 	TRACE_ENTRY();
+
 	root = scst_proc_get_tgt_root(templ);
 
 	if (root) {
 		remove_proc_entry(MPT_PROC_LOG_ENTRY_NAME, root);
 	}
-
 	TRACE_EXIT();
+#endif
 }
 
 static int __init mpt_target_init(void)
@@ -5224,14 +5232,6 @@ static void __exit mpt_target_exit(void)
 	TRACE_EXIT();
 	return;
 }
-
-#ifdef DEBUG
-unsigned long trace_flag = TRACE_FUNCTION | TRACE_OUT_OF_MEM | TRACE_SPECIAL;
-#else
-# ifdef TRACING
-unsigned long trace_flag = TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_SPECIAL;
-# endif
-#endif
 
 module_init(mpt_target_init);
 module_exit(mpt_target_exit);

@@ -18,11 +18,9 @@
  */
 
 #define LOG_PREFIX      "dev_raid"
-#include "scst_debug.h"
+
 #include "scsi_tgt.h"
 #include "scst_dev_handler.h"
-
-#include "scst_debug.c"
 
 #define RAID_NAME	"dev_raid"
 
@@ -46,10 +44,6 @@ int raid_attach(struct scst_device *);
 void raid_detach(struct scst_device *);
 int raid_parse(struct scst_cmd *, const struct scst_info_cdb *);
 int raid_done(struct scst_cmd *);
-
-#if defined(DEBUG) || defined(TRACING)
-unsigned long trace_flag = SCST_DEFAULT_DEV_LOG_FLAGS;
-#endif
 
 static struct scst_dev_type raid_devtype = RAID_TYPE;
 
@@ -211,7 +205,7 @@ static int __init raid_init(void)
 	int res = 0;
 
 	TRACE_ENTRY();
-	
+
 	raid_devtype.module = THIS_MODULE;
 	if (scst_register_dev_driver(&raid_devtype) < 0) {
 		res = -ENODEV;

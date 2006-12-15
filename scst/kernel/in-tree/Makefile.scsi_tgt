@@ -5,6 +5,7 @@ scsi_tgt-y				+= scst.o
 scsi_tgt-y				+= scst_targ.o
 scsi_tgt-y				+= scst_lib.o
 scsi_tgt-y				+= scst_proc.o
+scsi_tgt-y				+= scst_mem.o
 
 obj-$(CONFIG_SCSI_TARGET)		+= scsi_tgt.o
 obj-$(CONFIG_SCSI_TARGET_DISK)		+= scst_disk.o

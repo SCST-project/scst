@@ -18,11 +18,9 @@
  */
 
 #define LOG_PREFIX      "dev_changer"
-#include "scst_debug.h"
+
 #include "scsi_tgt.h"
 #include "scst_dev_handler.h"
-
-#include "scst_debug.c"
 
 #define CHANGER_NAME	"dev_changer"
 
@@ -46,10 +44,6 @@ int changer_attach(struct scst_device *);
 void changer_detach(struct scst_device *);
 int changer_parse(struct scst_cmd *, const struct scst_info_cdb *);
 int changer_done(struct scst_cmd *);
-
-#if defined(DEBUG) || defined(TRACING)
-unsigned long trace_flag = SCST_DEFAULT_DEV_LOG_FLAGS;
-#endif
 
 static struct scst_dev_type changer_devtype = CHANGER_TYPE;
 

@@ -40,10 +40,10 @@ compilation (see their description below).
 To compile SCST type 'make'. It will build SCST itself and its device
 handlers. To install them type 'make install'. The driver modules will
 be installed in '/lib/modules/`you_kernel_version`/extra'. In addition,
-scsi_tgt.h, scst_debug.h and scst_debug.c will be copied to
-'/usr/local/include/scst'. The first file contains all SCST's public
-data definition, which are used by target drivers. The other ones
-support debug messages logging.
+scsi_tgt.h, scst_debug.h as well as Module.symvers or Modules.symvers
+will be copied to '/usr/local/include/scst'. The first file contains all
+SCST's public data definition, which are used by target drivers. The
+other ones support debug messages logging and build process.
 
 Then you can load any module by typing 'modprobe drive_name'. The names are:
 

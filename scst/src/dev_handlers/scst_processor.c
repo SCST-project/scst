@@ -18,11 +18,9 @@
  */
 
 #define LOG_PREFIX "dev_processor"
-#include "scst_debug.h"
+
 #include "scsi_tgt.h"
 #include "scst_dev_handler.h"
-
-#include "scst_debug.c"
 
 #define PROCESSOR_NAME	"dev_processor"
 
@@ -46,10 +44,6 @@ int processor_attach(struct scst_device *);
 void processor_detach(struct scst_device *);
 int processor_parse(struct scst_cmd *, const struct scst_info_cdb *);
 int processor_done(struct scst_cmd *);
-
-#if defined(DEBUG) || defined(TRACING)
-unsigned long trace_flag = SCST_DEFAULT_DEV_LOG_FLAGS;
-#endif
 
 static struct scst_dev_type processor_devtype = PROCESSOR_TYPE;
 
@@ -211,7 +205,7 @@ static int __init processor_init(void)
 	int res = 0;
 
 	TRACE_ENTRY();
-	
+
 	processor_devtype.module = THIS_MODULE;
 	if (scst_register_dev_driver(&processor_devtype) < 0) {
 		res = -ENODEV;

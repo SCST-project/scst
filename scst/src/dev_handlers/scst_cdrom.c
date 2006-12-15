@@ -20,11 +20,9 @@
 #include <linux/cdrom.h>
 
 #define LOG_PREFIX	"dev_cdrom"
-#include "scst_debug.h"
+
 #include "scsi_tgt.h"
 #include "scst_dev_handler.h"
-
-#include "scst_debug.c"
 
 #define CDROM_NAME	"dev_cdrom"
 
@@ -57,10 +55,6 @@ int cdrom_attach(struct scst_device *);
 void cdrom_detach(struct scst_device *);
 int cdrom_parse(struct scst_cmd *, const struct scst_info_cdb *);
 int cdrom_done(struct scst_cmd *);
-
-#if defined(DEBUG) || defined(TRACING)
-unsigned long trace_flag = SCST_DEFAULT_DEV_LOG_FLAGS;
-#endif
 
 static struct scst_dev_type cdrom_devtype = CDROM_TYPE;
 

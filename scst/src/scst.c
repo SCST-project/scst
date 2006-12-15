@@ -28,12 +28,13 @@
 #include <asm/string.h>
 #include <linux/kthread.h>
 
-#include "scst_debug.h"
 #include "scsi_tgt.h"
 #include "scst_priv.h"
 #include "scst_mem.h"
 
-#include "scst_debug.c"
+#if defined(DEBUG) || defined(TRACING)
+unsigned long scst_trace_flag = SCST_DEFAULT_LOG_FLAGS;
+#endif
 
 /*
  * All targets, devices and dev_types management is done under
@@ -69,10 +70,6 @@ LIST_HEAD(scst_active_cmd_list);
 LIST_HEAD(scst_init_cmd_list);
 LIST_HEAD(scst_cmd_list);
 DECLARE_WAIT_QUEUE_HEAD(scst_list_waitQ);
-
-#if defined(DEBUG) || defined(TRACING)
-unsigned long trace_flag = SCST_DEFAULT_LOG_FLAGS;
-#endif
 
 spinlock_t scst_cmd_mem_lock = SPIN_LOCK_UNLOCKED;
 unsigned long scst_cur_cmd_mem, scst_cur_max_cmd_mem;

@@ -37,11 +37,9 @@
 #include <linux/kthread.h>
 
 #define LOG_PREFIX			"dev_fileio"
-#include "scst_debug.h"
+
 #include "scsi_tgt.h"
 #include "scst_dev_handler.h"
-
-#include "scst_debug.c"
 
 /* 8 byte ASCII Vendor of the FILE IO target */
 #define SCST_FIO_VENDOR			"SCST_FIO"
@@ -80,10 +78,6 @@
 #define CDROM_FILEIO_NAME		"cdrom_fileio"
 
 #define FILEIO_PROC_HELP		"help"
-
-#if defined(DEBUG) || defined(TRACING)
-unsigned long trace_flag = SCST_DEFAULT_DEV_LOG_FLAGS;
-#endif
 
 struct scst_fileio_dev {
 	uint32_t block_size;
@@ -3109,7 +3103,6 @@ static int __init init_scst_fileio(struct scst_dev_type *devtype)
 	TRACE_ENTRY();
 
 	devtype->module = THIS_MODULE;
-
 	res = scst_register_virtual_dev_driver(devtype);
 	if (res < 0)
 		goto out;

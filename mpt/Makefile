@@ -25,7 +25,9 @@
 SCST_INC_DIR := $(SUBDIRS)/../scst/include
 SCST_DIR := $(shell pwd)/../scst/src
 
-EXTRA_CFLAGS += -I$(SCST_INC_DIR)
+FUSION_INC_DIR := drivers/message/fusion
+
+EXTRA_CFLAGS += -I$(SCST_INC_DIR) -I$(FUSION_INC_DIR) -Iinclude/scsi
 
 EXTRA_CFLAGS += -DEXTRACHECKS 
 #EXTRA_CFLAGS += -DTRACING
@@ -44,7 +46,7 @@ LSI_INC_DIR := $(KDIR)/drivers/message/fusion
 EXTRA_CFLAGS += -I$(LSI_INC_DIR)
 
 ifneq ($(KERNELRELEASE),)
-obj-m := mpt_scst.o
+obj-$(CONFIG_FUSION_SCST) += mpt_scst.o
 
 else
 

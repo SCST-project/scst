@@ -29,8 +29,18 @@
 DEV_HANDLERS_DIR = dev_handlers
 
 ifneq ($(KERNELRELEASE),)
+SCST_INC_DIR := $(SUBDIRS)/../include
+
 obj-m := scsi_tgt.o
 scsi_tgt-objs := scst.o scst_targ.o scst_lib.o scst_mem.o scst_proc.o
+
+scsi_tgt-y        += scst.o
+scsi_tgt-y        += scst_targ.o
+scsi_tgt-y        += scst_lib.o
+scsi_tgt-y        += scst_proc.o
+scsi_tgt-y        += scst_mem.o
+scsi_tgt-y        += scst_debug.o
+obj-$(CONFIG_SCSI_TARGET)   += scsi_tgt.o dev_handlers/
 
 obj-$(BUILD_DEV) += $(DEV_HANDLERS_DIR)/
 
@@ -59,7 +69,6 @@ install: all
 	install -d $(INSTALL_DIR_H)
 	install -m 644 ../include/scsi_tgt.h $(INSTALL_DIR_H)
 	install -m 644 ../include/scst_debug.h $(INSTALL_DIR_H)
-	install -m 644 ../include/scst_debug.c $(INSTALL_DIR_H)
 ifneq ($(MODS_VERS),)
 	rm -f $(INSTALL_DIR_H)/Module.symvers
 	install -m 644 Modules.symvers $(INSTALL_DIR_H)
@@ -81,9 +90,7 @@ endif
 INSTALL_DIR := /lib/modules/$(shell uname -r)/extra
 INSTALL_DIR_H := /usr/local/include/scst
 
-INC_DIR := $(SUBDIRS)/../include
-
-EXTRA_CFLAGS += -I$(INC_DIR)
+EXTRA_CFLAGS += -I$(SCST_INC_DIR)
 
 #EXTRA_CFLAGS += -DSTRICT_SERIALIZING
 
