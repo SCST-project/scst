@@ -1,19 +1,17 @@
 #ifndef __SCST_DEV_HANDLER_H
 #define __SCST_DEV_HANDLER_H
 
+#include <linux/module.h>
+#include <linux/proc_fs.h>
+#include <linux/seq_file.h>
 #include <scsi/scsi_eh.h>
+#include "scst_debug.h"
 
 #define SCST_DEV_UA_RETRIES 5
 
 #if defined(DEBUG) || defined(TRACING)
 
 #define DEV_HANDLER_LOG_ENTRY_NAME "trace_level"
-
-#include <linux/module.h>
-#include <linux/proc_fs.h>
-#include <linux/seq_file.h>
-
-#include "scst_debug.h"
 
 #ifdef DEBUG
 #define SCST_DEFAULT_DEV_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_PID | \

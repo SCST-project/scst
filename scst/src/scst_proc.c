@@ -47,7 +47,6 @@ static struct scst_proc_data scst_groups_names_proc_data;
 static struct scst_proc_data scst_groups_devices_proc_data;
 static struct scst_proc_data scst_sessions_proc_data;
 static struct scst_proc_data scst_dev_handler_type_proc_data;
-static struct scst_proc_data scst_log_proc_data;
 static struct scst_proc_data scst_tgt_proc_data;
 static struct scst_proc_data scst_threads_proc_data;
 static struct scst_proc_data scst_scsi_tgt_proc_data;
@@ -85,6 +84,8 @@ static struct proc_dir_entry *scst_proc_scsi_tgt;
 static struct proc_dir_entry *scst_proc_groups_root;
 
 #if defined(DEBUG) || defined(TRACING)
+static struct scst_proc_data scst_log_proc_data;
+
 static struct scst_proc_log scst_proc_trace_tbl[] =
 {
     { TRACE_OUT_OF_MEM,		"out_of_mem" },
