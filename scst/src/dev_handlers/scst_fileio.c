@@ -405,9 +405,10 @@ static inline int fileio_need_pre_sync(enum scst_cmd_queue_type cwqt,
 
 static void fileio_do_job(struct scst_cmd *cmd)
 {
-	uint64_t lba_start;
-	loff_t data_len;
-	int opcode = cmd->cdb[0];
+	uint64_t lba_start = 0;
+	loff_t data_len = 0;
+	uint8_t *cdb = cmd->cdb;
+	int opcode = cdb[0];
 	loff_t loff;
 	struct scst_device *dev = cmd->dev;
 	struct scst_fileio_dev *virt_dev =
@@ -427,9 +428,9 @@ static void fileio_do_job(struct scst_cmd *cmd)
 	case READ_6:
 	case WRITE_6:
 	case VERIFY_6:
-		lba_start = (((cmd->cdb[1] & 0x1f) << (BYTE * 2)) +
-			     (cmd->cdb[2] << (BYTE * 1)) +
-			     (cmd->cdb[3] << (BYTE * 0)));
+		lba_start = (((cdb[1] & 0x1f) << (BYTE * 2)) +
+			     (cdb[2] << (BYTE * 1)) +
+			     (cdb[3] << (BYTE * 0)));
 		data_len = cmd->bufflen;
 		break;
 	case READ_10:
@@ -440,13 +441,19 @@ static void fileio_do_job(struct scst_cmd *cmd)
 	case WRITE_VERIFY:
 	case WRITE_VERIFY_12:
 	case VERIFY_12:
-		lba_start = be32_to_cpu(*(u32 *)&cmd->cdb[2]);
+		lba_start |= ((u64)cdb[2]) << 24;
+		lba_start |= ((u64)cdb[3]) << 16;
+		lba_start |= ((u64)cdb[4]) << 8;
+		lba_start |= ((u64)cdb[5]);
 		data_len = cmd->bufflen;
 		break;
 	case SYNCHRONIZE_CACHE:
-		lba_start = be32_to_cpu(*(u32 *)&cmd->cdb[2]);
-		data_len = ((cmd->cdb[7] << (BYTE * 1)) +
-			(cmd->cdb[8] << (BYTE * 0))) << virt_dev->block_shift;
+		lba_start |= ((u64)cdb[2]) << 24;
+		lba_start |= ((u64)cdb[3]) << 16;
+		lba_start |= ((u64)cdb[4]) << 8;
+		lba_start |= ((u64)cdb[5]);
+		data_len = ((cdb[7] << (BYTE * 1)) + (cdb[8] << (BYTE * 0))) 
+				<< virt_dev->block_shift;
 		if (data_len == 0)
 			data_len = virt_dev->file_size - 
 				((loff_t)lba_start << virt_dev->block_shift);
@@ -455,12 +462,15 @@ static void fileio_do_job(struct scst_cmd *cmd)
 	case WRITE_16:
 	case WRITE_VERIFY_16:
 	case VERIFY_16:
-		lba_start = be64_to_cpu(*(u64*)&cmd->cdb[2]);
+		lba_start |= ((u64)cdb[2]) << 56;
+		lba_start |= ((u64)cdb[3]) << 48;
+		lba_start |= ((u64)cdb[4]) << 40;
+		lba_start |= ((u64)cdb[5]) << 32;
+		lba_start |= ((u64)cdb[6]) << 16;
+		lba_start |= ((u64)cdb[7]) << 8;
+		lba_start |= ((u64)cdb[8]);
 		data_len = cmd->bufflen;
 		break;
-	default:
-		lba_start = 0;
-		data_len = 0;
 	}
 
 	loff = (loff_t)lba_start << virt_dev->block_shift;
@@ -480,8 +490,8 @@ static void fileio_do_job(struct scst_cmd *cmd)
 	case WRITE_10:
 	case WRITE_12:
 	case WRITE_16:
-		fua = (cmd->cdb[1] & 0x8) && !virt_dev->wt_flag;
-		if (cmd->cdb[1] & 0x8) {
+		fua = (cdb[1] & 0x8) && !virt_dev->wt_flag;
+		if (cdb[1] & 0x8) {
 			TRACE(TRACE_SCSI, "FUA(%d): loff=%Ld, "
 				"data_len=%Ld", fua, (uint64_t)loff,
 				(uint64_t)data_len);
@@ -563,7 +573,7 @@ static void fileio_do_job(struct scst_cmd *cmd)
 		break;
 	case SYNCHRONIZE_CACHE:
 	{
-		int immed = cmd->cdb[1] & 0x2;
+		int immed = cdb[1] & 0x2;
 		struct scst_fileio_tgt_dev *ftgt_dev = 
 			(struct scst_fileio_tgt_dev*)
 				cmd->tgt_dev->dh_priv;
@@ -1247,8 +1257,10 @@ static void fileio_exec_inquiry(struct scst_cmd *cmd)
 			buf[num + 10] = (dev_id_num >> 8) & 0xff;
 			buf[num + 11] = dev_id_num & 0xff;
 
-			*((u16*)&buf[2]) = cpu_to_be16(num + 12 - 4);
-			resp_len = be16_to_cpu(*((u16*)&buf[2])) + 4;
+			resp_len = num + 12 - 4;
+			buf[2] = (resp_len >> 8) & 0xFF;
+			buf[3] = resp_len & 0xFF;
+			resp_len += 4;
 		} else {
 			TRACE_DBG("INQUIRY: Unsupported EVPD page %x",
 				cmd->cdb[2]);
@@ -1727,17 +1739,23 @@ static void fileio_exec_read_capacity16(struct scst_cmd *cmd)
 	uint32_t blocksize;
 	uint64_t nblocks;
 	uint8_t buffer[READ_CAP16_LEN];
-	uint64_t *data64;
 
 	TRACE_ENTRY();
 
 	virt_dev = (struct scst_fileio_dev *)cmd->dev->dh_priv;
 	blocksize = virt_dev->block_size;
-	nblocks = virt_dev->nblocks;
+	nblocks = virt_dev->nblocks - 1;
 
 	memset(buffer, 0, sizeof(buffer));
-	data64 = (uint64_t*)buffer;
-	data64[0] = cpu_to_be64(nblocks - 1);
+	buffer[0] = nblocks >> 56;
+	buffer[1] = (nblocks >> 48) & 0xFF;
+	buffer[2] = (nblocks >> 40) & 0xFF;
+	buffer[3] = (nblocks >> 32) & 0xFF;
+	buffer[4] = (nblocks >> 24) & 0xFF;
+	buffer[5] = (nblocks >> 16) & 0xFF;
+	buffer[6] = (nblocks >> 8) & 0xFF;
+	buffer[7] = nblocks& 0xFF;
+
 	buffer[8] = (blocksize >> (BYTE * 3)) & 0xFF;
 	buffer[9] = (blocksize >> (BYTE * 2)) & 0xFF;
 	buffer[10] = (blocksize >> (BYTE * 1)) & 0xFF;

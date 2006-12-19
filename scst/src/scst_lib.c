@@ -1492,24 +1492,43 @@ int scst_get_cdb_len(const uint8_t *cdb)
 
 static uint32_t get_trans_len_1(const uint8_t *cdb, uint8_t off)
 {
-	return (*(cdb + off));
+	u32 len;
+
+	len = (u32)cdb[off];
+	return len;
 }
 
 static uint32_t get_trans_len_2(const uint8_t *cdb, uint8_t off)
 {
-	return be16_to_cpu(*((uint16_t *)(cdb + off)));
+	const uint8_t *p = cdb + off;
+	u32 len = 0;
+
+	len |= ((u32)p[0]) << 8;
+	len |= ((u32)p[1]);
+	return len;
 }
 
 static uint32_t get_trans_len_3(const uint8_t *cdb, uint8_t off)
 {
 	const uint8_t *p = cdb + off;
+	u32 len = 0;
 
-	return ((*p) << 16) + (*(p + 1) << 8) + *(p + 2);
+	len |= ((u32)p[0]) << 16;
+	len |= ((u32)p[1]) << 8;
+	len |= ((u32)p[2]);
+	return len;
 }
 
 static uint32_t get_trans_len_4(const uint8_t *cdb, uint8_t off)
 {
-	return be32_to_cpu(*((uint32_t *)(cdb + off)));
+	const uint8_t *p = cdb + off;
+	u32 len = 0;
+
+	len |= ((u32)p[0]) << 24;
+	len |= ((u32)p[1]) << 16;
+	len |= ((u32)p[2]) << 8;
+	len |= ((u32)p[3]);
+	return len;
 }
 
 /* for special commands */
