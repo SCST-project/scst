@@ -179,6 +179,8 @@ typedef struct _MPT_STM_PRIV
     U64			wwnn;
     U64			wwpn;
     int			port_id;
+    int			scsi_port_config;
+    int			scsi_id_config;
     int			protocol;
     volatile int	port_flags;
     volatile int	port_speed;
@@ -354,7 +356,6 @@ struct mpt_tgt
 	wait_queue_head_t waitQ;
 	struct mpt_sess *sess[256];
 	int target_enable;
-	int target_id;
 };
 
 struct mpt_mgmt_cmd

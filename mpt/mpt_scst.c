@@ -121,6 +121,7 @@ static int stm_wait_for(MPT_STM_PRIV *priv, volatile int *flag, int seconds,
 	     int sleep);
 static void stmapp_srr_process(MPT_STM_PRIV *priv, int rx_id, int r_ctl, 
 		u32 offset, LinkServiceBufferPostReply_t *rep, int index);
+static void stm_set_scsi_port_page1(MPT_STM_PRIV *priv, int sleep);
 
 #ifdef DEBUG
 #define trace_flag mpt_trace_flag
@@ -156,7 +157,7 @@ mpt_target_show(struct seq_file *seq, void *v)
 		seq_printf(seq, "Target ID        :%d\n"
 				"Capabilities     :0x%x\n"
 				"PhysicalInterface:0x%x\n",
-				tgt->target_id,
+				priv->port_id,
 				priv->SCSIPortPage0.Capabilities,
 				priv->SCSIPortPage0.PhysicalInterface);
 
@@ -236,12 +237,19 @@ mpt_proc_target_write(struct file *file, const char __user *buf,
 		}
 	}
 
-#ifdef DEBUG   
 	if (strncmp("target_id:", tmp, strlen("target_id:")) == 0) {
 		char *s = tmp + strlen("target_id:");
-		TRACE_DBG("target id is '%s'", s);
+		int id = simple_strtoul(s, NULL, 0);
+		if (id < MPT_MAX_SCSI_DEVICES) {
+			if (IsScsi(tgt->priv)) {
+				TRACE_DBG("Changing target id to %d\n", 
+						id);
+				tgt->priv->port_id = id;
+				stm_set_scsi_port_page1(tgt->priv, 
+						NO_SLEEP);
+			}
+		}
 	}
-#endif
 
 out:
 	TRACE_EXIT_RES(res);
@@ -353,8 +361,12 @@ mptstm_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     }
     memset(tgt, 0, sizeof(*tgt));
     tgt->priv = mpt_stm_priv[ioc->id];
-	tgt->target_enable = 0;
-	tgt->target_id = 0;
+    tgt->target_enable = 0;
+    tgt->priv->port_id = 1;
+    /* tgt->priv->scsi_port_config = MPI_SCSIPORTPAGE1_TARGCONFIG_INIT_TARG; */
+    tgt->priv->scsi_port_config = MPI_SCSIPORTPAGE1_TARGCONFIG_TARG_ONLY;
+    /* tgt->priv->scsi_id_config = 0x7; */
+    tgt->priv->scsi_id_config = 0;
     atomic_set(&tgt->sess_count, 0);
     init_waitqueue_head(&tgt->waitQ);
     
@@ -3502,9 +3514,7 @@ stm_scsi_configuration(MPT_STM_PRIV *priv,
     MPT_ADAPTER		*ioc = priv->ioc;
 #endif
     SCSIPortPage0_t	*ScsiPort0;
-    SCSIPortPage1_t	*ScsiPort1;
     SCSIPortPage2_t	*ScsiPort2;
-    int			id;
     int			cap;
     int			wcap;
     int			ncap;
@@ -3520,36 +3530,20 @@ stm_scsi_configuration(MPT_STM_PRIV *priv,
     ScsiPort2 = &priv->SCSIPortPage2;
 	memcpy(&priv->SCSIPortPage2, priv->hw->config_buf, sizeof(SCSIPortPage2_t));
 
-    id = 0;//le32_to_cpu(ScsiPort2->PortSettings) & MPI_SCSIPORTPAGE2_PORT_HOST_ID_MASK;
-    TRACE_DBG("%s scsi id is %d", ioc->name, id);
-    priv->port_id = id;
+    TRACE_DBG("%s scsi id is %d", ioc->name, priv->port_id);
 
     memset(priv->hw->config_buf, 0, sizeof(priv->hw->config_buf));
     if (stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_SCSI_PORT, 0, 0, sleep)) {
 	return (-1);
     }
-	memcpy(&priv->SCSIPortPage0, priv->hw->config_buf, sizeof(SCSIPortPage0_t));
+    memcpy(&priv->SCSIPortPage0, priv->hw->config_buf, sizeof(SCSIPortPage0_t));
     ScsiPort0 = &priv->SCSIPortPage0;
 
     cap = le32_to_cpu(ScsiPort0->Capabilities);
     TRACE_DBG("%s target %d capabilities = %08x",
-	   ioc->name, id, cap);
+	   ioc->name, priv->port_id, cap);
 
-    memset(priv->hw->config_buf, 0, sizeof(priv->hw->config_buf));
-    memset(&priv->SCSIPortPage1, 0, sizeof(priv->SCSIPortPage1));
-    ScsiPort1 = &priv->SCSIPortPage1;
-    ScsiPort1->Configuration = cpu_to_le32(id | (1 << (id + 16)));
-    for (i = 1; i <= priv->num_aliases; i++) {
-	id = (priv->port_id + i) & 15;
-	TRACE_DBG("%s alias %d is target %d",
-	       ioc->name, i, id);
-	ScsiPort1->Configuration |= cpu_to_le32(1 << (id + 16));
-    }
-//  ScsiPort1->TargetConfig = MPI_SCSIPORTPAGE1_TARGCONFIG_INIT_TARG;
-    ScsiPort1->TargetConfig = MPI_SCSIPORTPAGE1_TARGCONFIG_TARG_ONLY;
-//	ScsiPort1->IDConfig = 0x7;
-	memcpy(priv->hw->config_buf, (u32 *)ScsiPort1, sizeof(*ScsiPort1));
-    stm_set_config_page(priv, MPI_CONFIG_PAGETYPE_SCSI_PORT, 1, 0, sleep);
+    stm_set_scsi_port_page1(priv, sleep);
 
     wcap = cap & ~MPI_SCSIPORTPAGE0_CAP_MIN_SYNC_PERIOD_MASK;
     ncap = wcap & ~MPI_SCSIPORTPAGE0_CAP_WIDE;
@@ -3582,6 +3576,37 @@ stm_scsi_configuration(MPT_STM_PRIV *priv,
 	TRACE_EXIT();
 
     return (0);
+}
+
+/*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=*/
+static void 
+stm_set_scsi_port_page1(MPT_STM_PRIV *priv, int sleep)
+{
+#ifdef TRACING
+	MPT_ADAPTER		*ioc = priv->ioc;
+#endif
+	SCSIPortPage1_t *ScsiPort1;
+	int i;
+	int id = priv->port_id;
+
+	TRACE_ENTRY();
+
+	memset(priv->hw->config_buf, 0, sizeof(priv->hw->config_buf));
+	memset(&priv->SCSIPortPage1, 0, sizeof(priv->SCSIPortPage1));
+	ScsiPort1 = &priv->SCSIPortPage1;
+	ScsiPort1->Configuration = cpu_to_le32(id | (1 << (id + 16)));
+	for (i = 1; i <= priv->num_aliases; i++) {
+		id = (priv->port_id + i) & 15;
+		TRACE_DBG("%s alias %d is target %d",
+				ioc->name, i, id);
+		ScsiPort1->Configuration |= cpu_to_le32(1 << (id + 16));
+	}
+	ScsiPort1->TargetConfig = priv->scsi_port_config;
+	ScsiPort1->IDConfig = priv->scsi_id_config;
+	memcpy(priv->hw->config_buf, (u32 *)ScsiPort1, sizeof(*ScsiPort1));
+	stm_set_config_page(priv, MPI_CONFIG_PAGETYPE_SCSI_PORT, 1, 0, sleep);
+
+	TRACE_EXIT();
 }
 
 /*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=*/
