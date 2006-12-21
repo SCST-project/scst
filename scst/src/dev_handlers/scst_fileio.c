@@ -893,7 +893,6 @@ static int disk_fileio_exec(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	cmd->status = 0;
-	cmd->masked_status = 0;
 	cmd->msg_status = 0;
 	cmd->host_status = DID_OK;
 	cmd->driver_status = 0;
@@ -1056,7 +1055,6 @@ static int cdrom_fileio_exec(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	cmd->status = 0;
-	cmd->masked_status = 0;
 	cmd->msg_status = 0;
 	cmd->host_status = DID_OK;
 	cmd->driver_status = 0;
@@ -1380,7 +1378,7 @@ static int fileio_ctrl_m_pg(unsigned char *p, int pcontrol,
 					   0, 0, 0x2, 0x4b};
 
 	memcpy(p, ctrl_m_pg, sizeof(ctrl_m_pg));
-	if (!virt_dev->wt_flag)
+	if (!virt_dev->wt_flag && !virt_dev->nv_cache)
 		p[3] |= 0x10; /* Enable unrestricted reordering */
 	if (1 == pcontrol)
 		memset(p + 2, 0, sizeof(ctrl_m_pg) - 2);

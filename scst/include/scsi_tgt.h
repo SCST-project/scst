@@ -1175,10 +1175,9 @@ struct scst_cmd
 	int resp_data_len;
 
 	uint8_t status;		/* status byte from target device */
-	uint8_t masked_status;	/* set from host device by status_byte() */
 	uint8_t msg_status;	/* return status from host adapter itself */
-	uint16_t host_status;	/* set by low-level driver to indicate status */
-	uint16_t driver_status;	/* set by mid-level */
+	uint8_t host_status;	/* set by low-level driver to indicate status */
+	uint8_t driver_status;	/* set by mid-level */
 
 	/* Used for storage of target driver private stuff */
 	void *tgt_priv;
@@ -1872,12 +1871,6 @@ static inline uint8_t scst_cmd_get_status(struct scst_cmd *cmd)
 	return cmd->status;
 }
 
-/* Returns cmd's status byte set from host device by status_byte() */
-static inline uint8_t scst_cmd_get_masked_status(struct scst_cmd *cmd)
-{
-	return cmd->masked_status;
-}
-
 /* Returns cmd's status from host adapter itself */
 static inline uint8_t scst_cmd_get_msg_status(struct scst_cmd *cmd)
 {
@@ -1885,13 +1878,13 @@ static inline uint8_t scst_cmd_get_msg_status(struct scst_cmd *cmd)
 }
 
 /* Returns cmd's status set by low-level driver to indicate its status */
-static inline uint16_t scst_cmd_get_host_status(struct scst_cmd *cmd)
+static inline uint8_t scst_cmd_get_host_status(struct scst_cmd *cmd)
 {
 	return cmd->host_status;
 }
 
 /* Returns cmd's status set by SCSI mid-level */
-static inline uint16_t scst_cmd_get_driver_status(struct scst_cmd *cmd)
+static inline uint8_t scst_cmd_get_driver_status(struct scst_cmd *cmd)
 {
 	return cmd->driver_status;
 }

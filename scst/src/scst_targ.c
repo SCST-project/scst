@@ -1062,7 +1062,6 @@ static void scst_check_sense(struct scst_cmd *cmd, const uint8_t *rq_sense,
 						TRACE(TRACE_MGMT, "Retrying cmd %p "
 							"(tag %d)", cmd, cmd->tag);
 						cmd->status = 0;
-						cmd->masked_status = 0;
 						cmd->msg_status = 0;
 						cmd->host_status = DID_OK;
 						cmd->driver_status = 0;
@@ -1127,9 +1126,8 @@ static int scst_check_auto_sense(struct scst_cmd *cmd)
 	     SCST_NO_SENSE(cmd->sense_buffer)))
 	{
 		TRACE(TRACE_SCSI|TRACE_MINOR, "CHECK_CONDITION, but no sense: "
-		      "cmd->status=%x, cmd->masked_status=%x, "
-		      "cmd->msg_status=%x, cmd->host_status=%x, "
-		      "cmd->driver_status=%x", cmd->status, cmd->masked_status, 
+		      "cmd->status=%x, cmd->msg_status=%x, "
+		      "cmd->host_status=%x, cmd->driver_status=%x", cmd->status,
 		      cmd->msg_status, cmd->host_status, cmd->driver_status);
 		res = 1;
 	} else if (unlikely(cmd->host_status)) {
@@ -1158,7 +1156,6 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 	TRACE_ENTRY();
 
 	cmd->status = result & 0xff;
-	cmd->masked_status = status_byte(result);
 	cmd->msg_status = msg_byte(result);
 	cmd->host_status = host_byte(result);
 	cmd->driver_status = driver_byte(result);
@@ -1173,10 +1170,9 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 	}
 
 	TRACE(TRACE_SCSI, "result=%x, cmd->status=%x, resid=%d, "
-	      "cmd->masked_status=%x, cmd->msg_status=%x, cmd->host_status=%x, "
+	      "cmd->msg_status=%x, cmd->host_status=%x, "
 	      "cmd->driver_status=%x", result, cmd->status, resid,
-	      cmd->masked_status, cmd->msg_status, cmd->host_status,
-	      cmd->driver_status);
+	      cmd->msg_status, cmd->host_status, cmd->driver_status);
 
 	cmd->completed = 1;
 
@@ -1369,7 +1365,6 @@ static int scst_report_luns_local(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	cmd->status = 0;
-	cmd->masked_status = 0;
 	cmd->msg_status = 0;
 	cmd->host_status = DID_OK;
 	cmd->driver_status = 0;
@@ -1581,7 +1576,6 @@ static int scst_release_local(struct scst_cmd *cmd)
 	if (test_bit(SCST_TGT_DEV_RESERVED, &cmd->tgt_dev->tgt_dev_flags)) {
 		res = SCST_EXEC_COMPLETED;
 		cmd->status = 0;
-		cmd->masked_status = 0;
 		cmd->msg_status = 0;
 		cmd->host_status = DID_OK;
 		cmd->driver_status = 0;
@@ -2062,7 +2056,7 @@ static int scst_done_cmd_check(struct scst_cmd *cmd, int *pres)
 					    	&cmd->tgt_dev->tgt_dev_flags)) {
 			struct scst_tgt_dev *tgt_dev_tmp;
 			TRACE(TRACE_SCSI, "Real RESERVE failed lun=%Ld, status=%x",
-			      (uint64_t)cmd->lun, cmd->masked_status);
+			      (uint64_t)cmd->lun, cmd->status);
 			TRACE_BUFF_FLAG(TRACE_SCSI, "Sense", cmd->sense_buffer,
 				     sizeof(cmd->sense_buffer));
 			/* Clearing the reservation */

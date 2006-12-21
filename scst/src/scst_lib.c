@@ -43,7 +43,6 @@ void scst_set_cmd_error_status(struct scst_cmd *cmd, int status)
 	TRACE_ENTRY();
 
 	cmd->status = status;
-	cmd->masked_status = status >> 1;
 	cmd->host_status = DID_OK;
 
 	cmd->data_direction = SCST_DATA_NONE;

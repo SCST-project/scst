@@ -375,7 +375,7 @@ int modisk_parse(struct scst_cmd *cmd, const struct scst_info_cdb *info_cdb)
 int modisk_done(struct scst_cmd *cmd)
 {
 	int opcode = cmd->cdb[0];
-	int masked_status = cmd->masked_status;
+	int status = cmd->status;
 	struct modisk_params *modisk;
 	int res = SCST_CMD_STATE_DEFAULT;
 
@@ -386,11 +386,11 @@ int modisk_done(struct scst_cmd *cmd)
 
 	/*
 	 * SCST sets good defaults for cmd->tgt_resp_flags and cmd->resp_data_len
-	 * based on cmd->masked_status and cmd->data_direction, therefore change
+	 * based on cmd->status and cmd->data_direction, therefore change
 	 * them only if necessary
 	 */
 
-	if ((masked_status == GOOD) || (masked_status == CONDITION_GOOD)) {
+	if ((status == SAM_STAT_GOOD) || (status == SAM_STAT_CONDITION_MET)) {
 		switch (opcode) {
 		case READ_CAPACITY:
 		{
@@ -468,7 +468,6 @@ int modisk_exec(struct scst_cmd *cmd)
 	case READ_16:
 		res = SCST_EXEC_COMPLETED;
 		cmd->status = 0;
-		cmd->masked_status = 0;
 		cmd->msg_status = 0;
 		cmd->host_status = DID_OK;
 		cmd->driver_status = 0;

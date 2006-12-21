@@ -288,7 +288,7 @@ int cdrom_parse(struct scst_cmd *cmd, const struct scst_info_cdb *info_cdb)
 int cdrom_done(struct scst_cmd *cmd)
 {
 	int opcode = cmd->cdb[0];
-	int masked_status = cmd->masked_status;
+	int status = cmd->status;
 	struct cdrom_params *cdrom;
 	int res = SCST_CMD_STATE_DEFAULT;
 
@@ -299,11 +299,11 @@ int cdrom_done(struct scst_cmd *cmd)
 
 	/*
 	 * SCST sets good defaults for cmd->tgt_resp_flags and cmd->resp_data_len
-	 * based on cmd->masked_status and cmd->data_direction, therefore change
+	 * based on cmd->status and cmd->data_direction, therefore change
 	 * them only if necessary
 	 */
 
-	if ((masked_status == GOOD) || (masked_status == CONDITION_GOOD)) {
+	if ((status == SAM_STAT_GOOD) || (status == SAM_STAT_CONDITION_MET)) {
 		switch (opcode) {
 		case READ_CAPACITY:
 		{

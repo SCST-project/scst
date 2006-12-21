@@ -183,7 +183,7 @@ int processor_done(struct scst_cmd *cmd)
 
 	/*
 	 * SCST sets good defaults for cmd->tgt_resp_flags and cmd->resp_data_len
-	 * based on cmd->masked_status and cmd->data_direction, therefore change
+	 * based on cmd->status and cmd->data_direction, therefore change
 	 * them only if necessary
 	 */
 
