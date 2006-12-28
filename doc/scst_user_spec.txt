@@ -1,0 +1,781 @@
+	SCST USER SPACE DEVICE HANDLER MODULE.
+
+	  USER SPACE INTERFACE DESCRIPTION.
+
+		   Version 0.3.
+
+
+		I. Description.
+
+SCST user space device handler module scst_user is a device handler for
+SCST, which provides a way to implement in the user space complete, full
+feature virtual SCSI devices in the SCST environment.
+
+This document assumes that the reader is familiar with the SCST
+architecture and the states through which SCSI commands go during
+processing in SCST. Module scst_user basically only provides hooks to
+them. Their description could be found on the SCST web page on
+http://scst.st.net.
+
+
+		II. User space API.
+
+Module scst_user provides /dev/scst_user character device with the
+following system calls available: 
+
+ - open() - allows to open the device and get a file handle, which
+   will be used in all subsequent actions until close() is called
+
+ - close() - closes file handle returned by open()
+ 
+ - poll() - allows to wait until some pending command from SCST to
+   process is available.
+
+ - ioctl() - main call, which allows commands interchange with the SCST
+   core.
+
+Device /dev/scst_user could be opened in blocking or non-blocking mode
+using O_NONBLOCK flag. In the blocking mode ioctl()
+SCST_USER_REPLY_GET_CMD function blocks until there is a new subcommand
+to process. In the non-blocking mode if there are no pending subcommands
+SCST_USER_REPLY_GET_CMD function returns immediately with EAGAIN error
+code, and the user space device handler can use poll() call to get
+notification about new subcommands arrival. The blocking mode is the
+default.
+
+
+		III. IOCTL() functions.
+
+There are following IOCTL functions available. All of them has one
+argument. They all, except SCST_USER_REGISTER_DEVICE return 0 for
+success or -1 in case of error, and errno is set appropriately.
+
+
+		1. SCST_USER_REGISTER_DEVICE
+
+SCST_USER_REGISTER_DEVICE - registers new virtual user space device. The
+argument is:
+
+struct scst_user_dev
+{
+	int version;
+	char name[SCST_MAX_NAME];
+	uint8_t type;
+},
+
+where:
+
+ - version - is a protocol version, shall be 0x0961
+
+ - name - name of the device
+ 
+ - type - SCSI type of the device
+
+SCST_USER_REGISTER_DEVICE returns registered device's handler or -1
+in case of error, and errno is set appropriately.
+
+
+		2. SCST_USER_UNREGISTER_DEVICE 
+
+SCST_USER_UNREGISTER_DEVICE unregisters virtual user space device. The
+argument is the device handler returned by SCST_USER_REGISTER_DEVICE
+command. If there are some pending commands at the time, when
+SCST_USER_UNREGISTER_DEVICE the function will fail with EBUSY errno set.
+
+
+		3. SCST_USER_SET_OPTIONS/SCST_USER_GET_OPTIONS
+
+SCST_USER_SET_OPTIONS/SCST_USER_GET_OPTIONS allows to set or get
+correspondingly various options that control various aspects of SCSI
+commands processing.
+
+The argument is:
+
+struct scst_user_dev
+{
+	int h;
+	uint8_t parse_type;
+	uint8_t on_free_cmd_type;
+	uint8_t memory_reuse_type;
+},
+
+where:
+
+ - h - corresponding device handle
+
+ - parse_type - defines how the user space handler wants to process
+   PARSE subcommand. Possible values are:
+  
+   * SCST_USER_PARSE_STANDARD - tells SCST use standard internal parse
+     routine for this SCSI device type.
+   
+   * SCST_USER_PARSE_CALL - tells SCST generate SCST_USER_PARSE for all
+     SCSI commands
+
+ - on_free_cmd_type - defines how the user space handler wants to
+   process ON_FREE_CMD subcommand. Possible values are:
+  
+   * SCST_USER_ON_FREE_CMD_IGNORE - tells SCST do nothing on this event.
+   
+   * SCST_USER_ON_FREE_CMD_CALL - tells SCST generate
+     SCST_USER_ON_FREE_CMD for all SCSI commands
+
+ - memory_reuse_type - defines how memory allocated by the user space
+   handler for a SCSI commands data buffers is then reused by the SCST
+   core as data buffer for subsequent commands. Possible values are:
+   
+   * SCST_USER_MEM_NO_REUSE - no memory reuse is possible, for each
+     commands the user space handler will each time allocate a dedicated
+     data buffer
+
+   * SCST_USER_MEM_REUSE_READ - memory reuse by only READ-type commands
+     (i.e. which involve data transfer from target to initiator) is
+     allowed. For all WRITE-type commands (i.e. which involves data
+     transfer from initiator to target) the user space handler will
+     each time allocate a dedicated data buffer
+
+   * SCST_USER_MEM_REUSE_WRITE - memory reuse by only WRITE-type
+     commands is allowed. For all WRITE-type commands the user space
+     handler will each time allocate a dedicated data buffer
+
+   * SCST_USER_MEM_REUSE_ALL - unlimited memory reuse is possible.
+
+Flags parse_type and on_free_cmd_type are designed to improve
+performance by eliminating context switches to the user space handler,
+when processing of the corresponding event isn't needed.
+
+Flag memory_reuse_type is designed to improve performance by eliminating
+memory allocation, preparation and then freeing each time for each
+commands, if the same memory will be allocated again and again. See
+SCST_USER_ALLOC_MEM description below for more info.
+
+By default, parse_type is SCST_USER_PARSE_STANDARD, on_free_cmd_type is
+SCST_USER_ON_FREE_CMD_CALL and memory_reuse_type is
+SCST_USER_MEM_NO_REUSE.
+
+
+		4. SCST_USER_REPLY_AND_GET_CMD
+
+If SCST_USER_REPLY_AND_GET_CMD allows at one call reply on the current
+subcommand from SCST and get the next one. If 0 is returned by ioctl(),
+SCST_USER_REPLY_AND_GET_CMD returns a SCST subcommand in the argument,
+which is defined as the following:
+
+struct scst_user_get_cmd
+{
+	int h;
+	int subcode;
+	struct scst_user_reply_cmd *reply;
+	int cmd_h;
+	union {
+		struct scst_user_sess sess;
+		struct scst_user_sess_descr sess_descr;
+		struct scst_user_scsi_cmd_parse parse_cmd;
+		struct scst_user_scsi_cmd_alloc_mem alloc_cmd;
+		struct scst_user_scsi_cmd_exec exec_cmd;
+		struct scst_user_scsi_cmd_free_cmd on_free_cmd;
+		struct scst_user_on_cached_mem_free on_cached_mem_free;
+		struct scst_user_tm tm_cmd;
+	} payload;
+},
+
+where:
+
+ - h - corresponding device handle
+
+ - subcode - subcommand code, see 4.1 below
+
+ - reply - pointer to the reply data or, if NULL, there is no reply, see
+   SCST_USER_REPLY_CMD for description of struct scst_user_reply_cmd
+   fields
+
+ - cmd_h - command handle used to identify the command in the reply.
+
+ - payload - command specific payload
+
+For all received subcommands the user space device handler shall call
+SCST_USER_REPLY_AND_GET_CMD or SCST_USER_REPLY_CMD function to tell SCST
+that the subcommand's processing is finished, although some subcommands
+don't return a value.
+
+
+		4.1. Possible subcommands:
+
+
+		4.1.1. SCST_USER_ATTACH_SESS
+
+SCST_USER_ATTACH_SESS notifies the user space handler that a new
+initiator's session is about to be attached to the device. Field
+"payload" contains struct scst_user_sess, which is defined as the
+following:
+
+struct scst_user_sess
+{
+	int h;
+	uint64_t lun;
+	uint8_t rd_only;
+},
+
+where:
+
+ - h - session's handle
+
+ - lun - assigned LUN for this device in this session
+ 
+ - rd_only - if true, this device is read only in this session
+ 
+If the user space handler needs more info about the session, it can call
+SCST_USER_DESCRIBE_SESS subcommand.
+
+The user space handler should reply with value 0 for success, or
+negative error code from errno.h otherwise.
+
+
+		4.1.2. SCST_USER_DETACH_SESS
+
+SCST_USER_DETACH_SESS notifies the user space handler that the
+corresponding initiator is about to be detached from the particular
+device. Field "payload" contains struct scst_user_sess, where only
+handle field is valid.
+
+This command doesn't reply anything, although SCST_USER_REPLY_AND_GET_CMD or
+SCST_USER_REPLY_CMD function must be called.
+
+
+		4.1.3. SCST_USER_DESCRIBE_SESS
+
+SCST_USER_DESCRIBE_SESS describes the session. Field "payload" contains
+struct scst_user_sess_descr, which is defined as the following:
+
+struct scst_user_sess_descr
+{
+	char initiator_name[SCST_MAX_NAME];
+	char acg_name[SCST_MAX_NAME];
+},
+
+where:
+
+ - initiator_name - name of the initiator port
+
+ - acg_name - name of the corresponding SCST security group, to which
+   this session is assigned.
+
+This command doesn't reply anything, although
+SCST_USER_REPLY_AND_GET_CMD or SCST_USER_REPLY_CMD function must be
+called.
+
+
+		4.1.4. SCST_USER_PARSE
+
+SCST_USER_PARSE returns SCSI command on PARSE state of the SCST
+processing. The PARSE state is intended to check validity of the
+command, determine data transfer type and the necessary data buffer
+size. This subcommand is returned only if SCST_USER_SET_OPTIONS
+parse_type is set to SCST_USER_PARSE_CALL. Otherwise, the standard SCST
+internal parse routine for this SCSI device type will do all the job.
+
+Field "payload" contains struct scst_user_scsi_cmd_parse, which is
+defined as the following:
+
+struct scst_user_scsi_cmd_parse
+{
+	int sess_h;
+
+	uint8_t cdb[MAX_COMMAND_SIZE];
+	int cdb_len;
+
+	enum scst_cmd_queue_type queue_type;
+	int timeout;
+	scst_data_direction data_direction;
+	size_t bufflen;
+
+	scst_data_direction expected_data_direction;
+	unsigned int expected_transfer_len;
+	uint8_t expected_values_set;
+},
+
+where:
+
+ - sess_h - corresponding session handler
+
+ - cdb - SCSI CDB
+
+ - cdb_len - SCSI CDB length
+ 
+ - queue_type - SCSI task attribute (queue type)
+ 
+ - timeout - CDB execution timeout
+ 
+ - data_direction - command's data flow direction, one of SCST_DATA_*
+   constants
+ 
+ - bufflen - command's buffer length
+ 
+ - expected_data_direction - remote initiator supplied command's data
+   flow direction
+
+ - expected_transfer_len - remote initiator supplied transfer length
+
+ - expected_values_set - true if expected_data_direction and
+   expected_transfer_len contain valid values
+   
+In the PARSE state of SCSI commands processing the user space device
+handler shall check and provide SCST values for command data buffer
+length, data flow direction and timeout, which it shall reply using the
+corresponding reply command.
+
+In case of any error the error reporting should be deferred until
+SCST_USER_EXEC subcommand, where the appropriate SAM status and sense
+shall be set.
+   
+
+		4.4.5. SCST_USER_ALLOC_MEM
+
+SCST_USER_ALLOC_MEM returns SCSI command on memory allocation state of
+the SCST processing. On this state the user space device handler shall
+allocate the command's data buffer with bufflen length and then return
+it to SCST using the corresponding reply command. There are no special
+requirements for this memory or its alignment, it could be just what 
+malloc() returns. Then SCST internally will convert it in SG vector in
+order to use it itself and by target drivers.
+
+This command will be returned only if parse_type was set to
+SCST_USER_PARSE_STANDARD during the device registration, otherwise the
+user space device handler shall allocate the command data buffer on the
+PARSE stage.
+
+Field "payload" contains struct scst_user_scsi_cmd_alloc_mem, which is
+defined as the following:
+
+struct scst_user_scsi_cmd_alloc_mem
+{
+	int sess_h;
+
+	uint8_t cdb[MAX_COMMAND_SIZE];
+	int cdb_len;
+
+	enum scst_cmd_queue_type queue_type;
+	scst_data_direction data_direction;
+	size_t bufflen;
+},
+
+where:
+
+ - sess_h - corresponding session handler
+
+ - cdb - SCSI CDB
+
+ - cdb_len - SCSI CDB length
+ 
+ - queue_type - SCSI task attribute (queue type )
+ 
+ - data_direction - command's data flow direction, one of SCST_DATA_*
+   constants
+
+ - bufflen - command's buffer length
+
+Memory allocation, preparation and freeing are ones of the most
+complicated and expensive operations during SCSI commands processing.
+Module scst_user provides a way to almost completely eliminate those
+operations by reusing once allocated memory for subsequent SCSI
+commands. It is controlled by memory_reuse_type option, which could be
+set by SCST_USER_SET_OPTIONS function. If any type memory reusage is
+enabled, then SCST will use its internal SGV cache in order to cache
+allocated and fully built SG vectors for subsequent commands of this
+type, so for them SCST_USER_ALLOC_MEM subfunction will not be called and
+in SCST_USER_EXEC buf pointer will point to that reused buffer. 
+
+SGV cache is a backend cache made on top of Linux kernel SLAB cache. It
+caches SG vectors with power of 2 data sizes: 4K, 8K, ..., 4M. So, if
+there is a 5K SCSI command coming, then the user space handler will be
+asked for 8K allocation, from which only 5K will be used for this
+particular SCSI command. Then that SG vector will be cached and
+subsequently reused for all SCSI commands between 4K and 8K. For a
+subsequent 1M SCSI command the user space handler will be asked for
+another buffer (while the previous 5K one will be kept), which will not
+be then reused for 5K SCSI commands, since 1M and 5K vectors belong to
+different cache data sizes, it will be reused only for commands between
+512K and 1M. Then, after some time of inactivity or when the system is
+under memory pressure, the cache entries will be freed and the user
+space handler will be notified using SCST_USER_ON_CACHED_MEM_FREE.
+
+Since SGV cache caches SG vectors with power of 2 data sizes, bufflen
+field could be up to 2 times more, than actually required by the SCSI
+command.
+
+The memory reuse could be used in both SCSI tagged and untagged queuing
+environments. In the SCSI tagged queuing environment the SGV cache will
+take care that several commands don't use the same buffer simultaneously
+by asking the user space handler to allocate a new data buffer, when all
+cached ones are busy.
+
+In case of any error the error reporting should be deferred until
+SCST_USER_EXEC subcommand, where the appropriate SAM status and sense
+should be set.
+
+
+		4.4.6. SCST_USER_EXEC
+
+SCST_USER_EXEC returns SCSI command on execution state of the SCST
+processing. The user space handler should execute the SCSI command and
+reply using the corresponding reply command.
+
+In some cases for performance reasons for READ-type SCSI commands
+SCST_USER_ALLOC_MEM subcommand isn't returned before SCST_USER_EXEC.
+Thus, if buf pointer is NULL and the SCSI command needs data transfer,
+the user space handler should be prepared to allocate the data buffer
+with size bufflen. Commands buffer length bufflen could be up to 2 times
+more, than actually required by the SCSI command. Data length field
+data_len contains the correct value. All the memory reusage rules,
+described in 4.4.5, apply to SCST_USER_EXEC as well.
+
+Field "payload" contains struct scst_user_scsi_cmd_exec, which is
+defined as the following:
+
+struct scst_user_scsi_cmd_exec
+{
+	int sess_h;
+
+	uint8_t cdb[MAX_COMMAND_SIZE];
+	int cdb_len;
+
+	enum scst_cmd_queue_type queue_type;
+	int timeout;
+	scst_data_direction data_direction;
+	size_t data_len;
+	size_t bufflen;
+	uint8_t *buf;
+},
+
+where:
+
+ - sess_h - corresponding session handler
+
+ - cdb - SCSI CDB
+
+ - cdb_len - SCSI CDB length
+ 
+ - queue_type - SCSI task attribute (queue type)
+
+ - timeout - CDB execution timeout
+ 
+ - data_direction - command's data flow direction, one of SCST_DATA_*
+   constants
+
+ - data_len - command's data length
+ 
+ - bufflen - command's buffer length
+ 
+ - buf - pointer to command's data buffer or NULL for SCSI commands
+   without data transfer.
+
+In case of any error it should be reported via appropriate SAM status
+and sense.
+
+
+		4.4.7. SCST_USER_ON_FREE_CMD
+
+SCST_USER_ON_FREE_CMD returns SCSI command when the command is about to
+be freed. At this stage, the user space device handler could do any
+necessary cleanups, for instance, free allocated for data buffer memory.
+
+NOTE! If the memory reusage is enabled, then the data buffer must not be
+freed, it will be reused by subsequent SCSI commands. The buffer must be
+freed only on SCST_USER_ON_CACHED_MEM_FREE event.
+
+Field "payload" contains struct scst_user_scsi_cmd_on_free_cmd, which is
+defined as the following:
+
+struct scst_user_scsi_cmd_on_free_cmd
+{
+	int sess_h;
+
+	uint8_t cdb[MAX_COMMAND_SIZE];
+	int cdb_len;
+
+	enum scst_cmd_queue_type queue_type;
+	scst_data_direction data_direction;
+	size_t data_len;
+	size_t bufflen;
+	uint8_t *buf;
+	int resp_data_len;
+
+	uint8_t status;
+	uint8_t sense_buffer[SCSI_SENSE_BUFFERSIZE];
+},
+
+where:
+
+ - sess_h - corresponding session handler
+
+ - cdb - SCSI CDB
+
+ - cdb_len - SCSI CDB length
+ 
+ - queue_type - SCSI task attribute (queue type )
+ 
+ - data_direction - command's data flow direction, one of SCST_DATA_*
+   constants
+
+ - data_len - command's data length
+ 
+ - bufflen - command's buffer length
+
+ - buf - pointer to command's data buffer or NULL for SCSI commands
+   without data transfer.
+
+ - resp_data_len - length of the response data
+
+ - status - SAM status of the commands execution
+   
+ - sense_buffer - sense buffer
+   
+The user space handler should reply using the corresponding reply
+command. No error code is returned.
+
+
+		4.4.9. SCST_USER_ON_CACHED_MEM_FREE
+
+SCST_USER_ON_CACHED_MEM_FREE subcommand is returned, when SGV cache
+decided that this buffer isn't needed anymore. This happens after some
+time of inactivity or when the system is under memory pressure.
+
+Field "payload" contains struct scst_user_on_cached_mem_free, which is
+defined as the following:
+
+struct scst_user_scsi_cmd_alloc_mem
+{
+	int sess_h;
+
+	uint8_t *buf;
+	size_t bufflen;
+},
+
+where:
+
+ - sess_h - corresponding session handler
+
+ - buf - pointer to buffer, which should be freed
+
+ - bufflen - command's buffer length
+
+
+
+		4.4.10. SCST_USER_TASK_MGMT
+ 
+SCST_USER_TASK_MGMT subcommand returns a task management functions.
+Field "payload" contains struct scst_user_tm, which is defined as the
+following:
+
+struct scst_user_tm
+{
+	int sess_h;
+	int fn;
+	int cmd_h_to_abort;
+},
+
+where:
+
+ - sess_h - corresponding session handler
+
+ - fn - task management function, see below
+
+ - cmd_h_to_abort - handle of command to abort. Valid only if fn is
+   SCST_ABORT_TASK
+   
+After TM function completed, the user space device handler shall reply
+using "result" field of the corresponding reply command. It isn't
+necessary to wait for aborted command(s) finished, the result of TM
+function could be returned immediately. SCST core will take care that
+the reply to the TM function isn't sent before all affection SCSI
+commands finished.
+
+Possible values of "fn" field:
+
+ - SCST_ABORT_TASK - cmd_h_to_abort shall be aborted
+
+ - SCST_ABORT_TASK_SET - task set on the device shall be aborted
+
+ - SCST_CLEAR_ACA - ACA status shall be cleared
+
+ - SCST_CLEAR_TASK_SET  - task set on the device shall be cleared
+
+ - SCST_LUN_RESET, SCST_TARGET_RESET - reset of the device shall be done
+
+ - SCST_NEXUS_LOSS_SESS - notifies about nexus loss event for the session
+
+ - SCST_ABORT_ALL_TASKS_SESS - all tasks in the session shall be aborted
+ 
+ - SCST_NEXUS_LOSS - notifies about global nexus loss event
+ 
+ - SCST_ABORT_ALL_TASKS - all tasks shall be aborted
+
+Possible return values are:
+
+ - SCST_DEV_TM_COMPLETED_SUCCESS - the command is done with success, no
+   further actions required
+  
+ - SCST_DEV_TM_COMPLETED_FAILED - the command is failed, no further
+   actions required
+
+ - SCST_DEV_TM_NOT_COMPLETED - the command partially completed, regular
+   standard actions for the command should be done
+
+
+		5. SCST_USER_REPLY_CMD
+
+SCST_USER_REPLY_CMD IOCTL function allows the user space handler to
+return the result of a command's execution. Its argument is defined as:
+
+struct scst_user_reply_cmd
+{
+	int h;
+	int cmd_h;
+	union {
+		int result;
+		struct scst_user_scsi_cmd_reply_parse parse_reply;
+		struct scst_user_scsi_cmd_reply_alloc_mem alloc_reply;
+		struct scst_user_scsi_cmd_reply_exec exec_reply;
+	} payload;
+},
+
+where:
+
+ - h - corresponding device handle
+
+ - cmd_h - command handle used to identify the command in the reply.
+
+ - payload - subcommand specific payload:
+
+struct scst_user_scsi_cmd_reply_parse
+{
+	enum scst_cmd_queue_type queue_type;
+	scst_data_direction data_direction;
+	size_t data_len;
+	size_t bufflen;
+	uint8_t *buf;
+},
+
+where:
+
+ - queue_type - SCSI task attribute (queue type )
+ 
+ - data_direction - command's data flow direction, one of SCST_DATA_* constants
+
+ - data_len - command's data length
+ 
+ - bufflen - command's buffer length
+
+ - buf - pointer to command's data buffer or NULL for SCSI commands
+   without data transfer.
+
+struct scst_user_scsi_cmd_reply_alloc_mem
+{
+	uint8_t *buf;
+},
+
+where:
+
+ - buf - pointer to command's data buffer
+
+struct scst_user_scsi_cmd_reply_exec
+{
+	uint8_t *buf;
+	int resp_data_len;
+
+	uint8_t status;
+	uint8_t sense_buffer[SCSI_SENSE_BUFFERSIZE];
+},
+
+where:
+
+ - buf - pointer to command's data buffer. Used only when in the
+   original SCST_USER_EXEC subcommand buf field is NULL
+
+ - resp_data_len - length of the response data
+
+ - status - SAM status of the commands execution
+   
+ - sense_buffer - sense buffer
+
+
+		IV. Commands processing flow.
+
+As the example consider a simple synchronous VTL, which serves one
+virtual SCSI tape device and can process only one command at time from
+any initiator. 
+
+At the beginning the VTL opens using open() call /dev/scst_user in the
+default blocking mode.
+
+Then it using SCST_USER_REGISTER_DEVICE ioctl() function registers the
+tape device. 
+
+Since only one command at time is supported, the allocated command's
+data memory could be reused for both READ-type (i.e. which involve data
+transfer from target to initiator) and WRITE-type (i.e. which involve
+data transfer from initiator to target) commands. So, the VTL then calls
+SCST_USER_SET_OPTIONS function with handle h returned by
+SCST_USER_REGISTER_DEVICE ioctl() and set parse_type to
+SCST_USER_PARSE_STANDARD, on_free_cmd_type to
+SCST_USER_ON_FREE_CMD_IGNORE and memory_reuse_type to
+SCST_USER_MEM_REUSE_ALL.
+
+Then it prepares struct scst_user_get_cmd with h set to the handle
+returned by SCST_USER_REGISTER_DEVICE ioctl() and reply set to NULL,
+calls SCST_USER_REPLY_AND_GET_CMD ioctl() and waits until some initiator
+connects to its tape device. On that event the VTL receives
+SCST_USER_ATTACH_SESS subcommand. Since the VTL doesn't use any
+initiator specific data, it can do nothing on that subcommand, so it
+prepares scst_user_reply_cmd structure, where:
+
+ - h set to handle returned by SCST_USER_REGISTER_DEVICE ioctl()
+ 
+ - cmd_h set to returned by SCST_USER_REPLY_AND_GET_CMD ioctl() cmd_h
+ 
+ - payload.result set to 0
+ 
+Then it prepares struct scst_user_get_cmd with h set to the handle
+returned by SCST_USER_REGISTER_DEVICE ioctl() and reply set to the
+prepared scst_user_reply_cmd structure, calls
+SCST_USER_REPLY_AND_GET_CMD ioctl() and waits for some SCSI command
+arrives from the initiator.
+
+If the received SCSI command is READ-type one, SCST does the necessary
+preparations, then the VTL receives SCST_USER_EXEC subcommand, where
+bufflen and data_len are set correctly, but memory for buffer isn't
+allocated, so buf field is NULL. The VTL then allocates the data buffer
+with size bufflen, e.g. by malloc(). Then the VTL reads the data from
+disk in it, e.g. using O_DIRECT read() function, then prepares
+scst_user_reply_cmd structure, where:
+
+ - h set to handle returned by SCST_USER_REGISTER_DEVICE ioctl()
+ 
+ - cmd_h set to returned by SCST_USER_REPLY_AND_GET_CMD ioctl() cmd_h
+ 
+ - payload.exec_reply.buf set to the data buffer, where the data were read
+ 
+ - payload.exec_reply.resp_data_len set to length of the read data
+ 
+ - payload.exec_reply.status set to the SAM defined status of the
+   operation
+ 
+ - payload.exec_reply.sense_buffer filled with the sense data, if
+   necessary
+
+Then it prepares struct scst_user_get_cmd with h set to the handle
+returned by SCST_USER_REGISTER_DEVICE ioctl() and reply set to the
+prepared scst_user_reply_cmd structure, calls
+SCST_USER_REPLY_AND_GET_CMD ioctl() and waits for the next SCSI command
+arrives from the initiator. That's all for this SCSI command. For the
+next one the used data buffer will be reused.
+
+For WRITE-type SCSI commands the processing is the same, but
+SCST_USER_ALLOC_MEM will be returned before SCST_USER_EXEC, since the
+data transfer from the initiator precedes the commands execution.
+
+In case, if the first command requires 4K data buffer, but the second
+one - 1M, then for it the VTL also will be asked to allocate the buffer.
+Then, if no more 4K commands come for some time, for it
+SCST_USER_ON_CACHED_MEM_FREE subcommand will be returned to the VTL in
+order to ask it to free that buffer.
