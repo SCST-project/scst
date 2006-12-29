@@ -131,7 +131,6 @@ extern kmem_cache_t *scst_acgd_cachep;
 
 extern struct scst_sgv_pools scst_sgv;
 
-extern int scst_num_cpus;
 extern unsigned long scst_flags;
 extern struct semaphore scst_mutex;
 extern atomic_t scst_cmd_count;

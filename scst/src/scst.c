@@ -42,7 +42,6 @@ unsigned long scst_trace_flag = SCST_DEFAULT_LOG_FLAGS;
  */
 DECLARE_MUTEX(scst_mutex);
 
-int scst_num_cpus;
 DECLARE_WAIT_QUEUE_HEAD(scst_dev_cmd_waitQ);
 LIST_HEAD(scst_dev_wait_sess_list);
 
@@ -116,6 +115,7 @@ int scst_register_target_template(struct scst_tgt_template *vtt)
 {
 	int res = 0;
 	struct scst_tgt_template *t;
+	static DECLARE_MUTEX(m);
 
 	TRACE_ENTRY();
 
@@ -149,8 +149,11 @@ int scst_register_target_template(struct scst_tgt_template *vtt)
 		}
 	}
 
-	if (down_interruptible(&scst_mutex) != 0)
+	if (down_interruptible(&m) != 0)
 		goto out;
+
+	if (down_interruptible(&scst_mutex) != 0)
+		goto out_m_up;
 	list_for_each_entry(t, &scst_template_list, scst_template_list_entry) {
 		if (strcmp(t->name, vtt->name) == 0) {
 			PRINT_ERROR_PR("Target driver %s already registered",
@@ -159,7 +162,6 @@ int scst_register_target_template(struct scst_tgt_template *vtt)
 			goto out_cleanup;
 		}
 	}
-	/* That's OK to drop it. The race doesn't matter */
 	up(&scst_mutex);
 
 	TRACE_DBG("%s", "Calling target driver's detect()");
@@ -176,6 +178,9 @@ int scst_register_target_template(struct scst_tgt_template *vtt)
 	up(&scst_mutex);
 
 	res = 0;
+
+out_m_up:
+	up(&m);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -238,21 +243,16 @@ struct scst_tgt *scst_register(struct scst_tgt_template *vtt)
 	down(&scst_mutex);
 
 	if (scst_build_proc_target_entries(tgt) < 0) {
+		kfree(tgt);
 		tgt = NULL;
-		goto out_free;
-	}
-
-	list_add_tail(&tgt->tgt_list_entry, &vtt->tgt_list);
+	} else
+		list_add_tail(&tgt->tgt_list_entry, &vtt->tgt_list);
 
 	up(&scst_mutex);
 
 out:
 	TRACE_EXIT();
 	return tgt;
-
-out_free:
-	kfree(tgt);
-	goto out;
 }
 
 static inline int test_sess_list(struct scst_tgt *tgt)
@@ -632,16 +632,16 @@ int scst_register_dev_driver(struct scst_dev_type *dev_type)
 			break;
 		}
 	}
-	
+
+	if (exist)
+		goto out_up;
+
 	res = scst_build_proc_dev_handler_dir_entries(dev_type);
 	if (res < 0) {
 		goto out_up;
 	}
 	
 	list_add_tail(&dev_type->dev_type_list_entry, &scst_dev_type_list);
-	
-	if (exist)
-		goto out_up;
 
 	__scst_suspend_activity();
 	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
@@ -671,8 +671,7 @@ void scst_unregister_dev_driver(struct scst_dev_type *dev_type)
 
 	TRACE_ENTRY();
 
-	if (down_interruptible(&scst_mutex) != 0)
-		goto out;
+	down(&scst_mutex);
 
 	__scst_suspend_activity();
 	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
@@ -692,7 +691,6 @@ void scst_unregister_dev_driver(struct scst_dev_type *dev_type)
 	PRINT_INFO_PR("Device handler %s for type %d unloaded",
 		   dev_type->name, dev_type->type);
 
-out:
 	TRACE_EXIT();
 	return;
 }
@@ -1053,19 +1051,11 @@ static struct class_interface scst_interface = {
 	.remove = scst_remove,
 };
 
-static inline int get_cpus_count(void)
-{
-#ifdef CONFIG_SMP
-	return cpus_weight(cpu_online_map);
-#else
-	return 1;
-#endif
-}
-
 static int __init init_scst(void)
 {
 	int res = 0, i;
 	struct scst_cmd *cmd;
+	int scst_num_cpus;
 
 	TRACE_ENTRY();
 
@@ -1083,8 +1073,8 @@ static int __init init_scst(void)
 	}
 #endif
 
-	scst_num_cpus = get_cpus_count();
-	
+	scst_num_cpus = num_online_cpus();
+
 	/* ToDo: register_cpu_notifier() */
 	
 	if (scst_threads == 0)

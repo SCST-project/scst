@@ -514,11 +514,11 @@ int scst_sgv_pools_init(struct scst_sgv_pools *pools)
 
 	res = sgv_pool_init(&pools->norm, "sgv", 0);
 	if (res != 0)
-		goto out_free_clust;
+		goto out;
 
 	res = sgv_pool_init(&pools->norm_clust, "sgv-clust", 1);
 	if (res != 0)
-		goto out;
+		goto out_free_clust;
 
 	res = sgv_pool_init(&pools->dma, "sgv-dma", 0);
 	if (res != 0)

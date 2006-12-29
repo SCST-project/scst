@@ -188,7 +188,6 @@ void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context)
 		}
 	}
 
-#ifdef EXTRACHECKS
 	if (unlikely(cmd->lun == (lun_t)-1)) {
 		PRINT_ERROR_PR("Wrong LUN %d, finishing cmd", -1);
 		scst_set_cmd_error(cmd,
@@ -204,7 +203,6 @@ void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context)
 		scst_setup_to_active(cmd);
 		goto active;
 	}
-#endif
 
 	TRACE_DBG("Adding cmd %p to init cmd list", cmd);
 	list_add_tail(&cmd->cmd_list_entry, &scst_init_cmd_list);
@@ -608,8 +606,7 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 			r = scst_alloc_space(cmd);
 		else if (r == 0) {
 			cmd->data_buf_alloced = 1;
-			if (cmd->data_buf_alloced && 
-			    unlikely(orig_bufflen < cmd->bufflen)) {
+			if (unlikely(orig_bufflen < cmd->bufflen)) {
 				PRINT_ERROR_PR("Target driver allocated data "
 					"buffer (size %d), is less, than "
 					"required (size %d)", orig_bufflen,
