@@ -197,14 +197,11 @@ void scst_unregister_target_template(struct scst_tgt_template *vtt)
 
 	TRACE_ENTRY();
 
-	if (down_interruptible(&scst_mutex) != 0)
-		goto out;
-
 restart:
+	down(&scst_mutex);
 	list_for_each_entry(tgt, &vtt->tgt_list, tgt_list_entry) {
 		up(&scst_mutex);
 		scst_unregister(tgt);
-		down(&scst_mutex);
 		goto restart;
 	}
 	list_del(&vtt->scst_template_list_entry);
@@ -212,7 +209,6 @@ restart:
 
 	scst_cleanup_proc_target_dir_entries(vtt);
 
-out:
 	TRACE_EXIT();
 	return;
 }

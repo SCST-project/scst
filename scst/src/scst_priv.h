@@ -211,10 +211,9 @@ static inline int __scst_inc_expected_sn(struct scst_tgt_dev *tgt_dev)
 
 	typeof(tgt_dev->expected_sn) e;
 
-	e = tgt_dev->expected_sn;
 	tgt_dev->expected_sn++;
+	e = tgt_dev->expected_sn;
 	smp_mb(); /* write must be before def_cmd_count read */
-	e++;
 	TRACE(TRACE_DEBUG/*TRACE_SCSI_SERIALIZING*/, "Next expected_sn: %d", e);
 	return e;
 }

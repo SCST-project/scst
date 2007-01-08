@@ -1250,8 +1250,6 @@ static void scst_cmd_done(struct scsi_cmnd *scsi_cmd)
 	req->sr_underflow = 0;
 	req->sr_request->rq_disk = NULL; /* disown request blk */
 
-	cmd->bufflen = req->sr_bufflen;	//??
-
 	scst_release_request(cmd);
 
 	cmd->state = next_state;

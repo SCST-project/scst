@@ -1363,14 +1363,12 @@ int scst_alloc_space(struct scst_cmd *cmd)
 	if (cmd->no_sgv) {
 		cmd->sg = scst_alloc(cmd->bufflen, gfp_mask, use_clustering,	
 			&cmd->sg_cnt);
-		if (cmd->sg == NULL)
-			goto out;
 	} else {
 		cmd->sg = sgv_pool_alloc(pool, cmd->bufflen, gfp_mask,
 				&cmd->sg_cnt, &cmd->sgv);
-		if (cmd->sg == NULL)
-			goto out;
 	}
+	if (cmd->sg == NULL)
+		goto out;
 
 	if (unlikely(cmd->sg_cnt > ini_sg)) {
 		static int ll;

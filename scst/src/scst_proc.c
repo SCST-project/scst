@@ -474,6 +474,7 @@ static void scst_proc_del_acg_tree(struct proc_dir_entry *acg_proc_root,
 	return;
 }
 
+/* scst_mutex supposed to be held */
 static int scst_proc_group_add(const char *p)
 {
 	int res = 0, len = strlen(p) + 1;
@@ -514,6 +515,7 @@ out_nomem:
 	goto out;
 }
 
+/* scst_mutex supposed to be held */
 static int scst_proc_del_free_acg(struct scst_acg *acg, int remove_proc)
 {
 	const char *name;
