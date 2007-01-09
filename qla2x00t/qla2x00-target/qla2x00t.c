@@ -287,11 +287,8 @@ static void q2t_free_session_done(struct scst_session *scst_sess)
 	      tgt->handle, list_empty(&tgt->sess_list),
 	      atomic_read(&tgt->sess_count));
 
-	smp_mb__before_atomic_dec();
-	if (atomic_dec_and_test(&tgt->sess_count)) {
-		smp_mb__after_atomic_dec();
+	if (atomic_dec_and_test(&tgt->sess_count))
 		wake_up_all(&tgt->waitQ);
-	}
 
 out:
 	TRACE_EXIT();
@@ -1415,7 +1412,6 @@ out:
 
 out_free_sess:
 	kfree(sess);
-	smp_mb__before_atomic_dec();
 	if (atomic_dec_and_test(&tgt->sess_count))
 		wake_up_all(&tgt->waitQ);
 	/* go through */

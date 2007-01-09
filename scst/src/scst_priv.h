@@ -433,6 +433,7 @@ static inline void scst_dec_on_dev_cmd(struct scst_cmd *cmd)
 static inline void scst_inc_cmd_count(void)
 {
 	atomic_inc(&scst_cmd_count);
+	/* It's needed to be before test_bit(SCST_FLAG_SUSPENDED) */
 	smp_mb__after_atomic_inc();
 	TRACE_DBG("Incrementing scst_cmd_count(%d)",
 	      atomic_read(&scst_cmd_count));
@@ -442,7 +443,6 @@ static inline void scst_dec_cmd_count(void)
 {
 	int f;
 	f = atomic_dec_and_test(&scst_cmd_count);
-	smp_mb__after_atomic_dec();
 	if (f && unlikely(test_bit(SCST_FLAG_SUSPENDED, &scst_flags)))
 		wake_up_all(&scst_dev_cmd_waitQ);
 	TRACE_DBG("Decrementing scst_cmd_count(%d)",
@@ -458,11 +458,8 @@ static inline void scst_sess_get(struct scst_session *sess)
 
 static inline void scst_sess_put(struct scst_session *sess)
 {
-	smp_mb__before_atomic_dec();
-	if (atomic_dec_and_test(&sess->refcnt)) {
-		smp_mb__after_atomic_dec();
+	if (atomic_dec_and_test(&sess->refcnt))
 		scst_sched_session_free(sess);
-	}
 }
 
 void __scst_suspend_activity(void);
