@@ -264,6 +264,7 @@ static struct scst_proc_data mpt_target_proc_data = {
 
 static int mpt_target_detect(struct scst_tgt_template *temp1);
 static int mpt_target_release(struct scst_tgt *scst_tgt);
+static int stmapp_pending_sense(struct mpt_cmd *mpt_cmd);
 static int mpt_xmit_response(struct scst_cmd *scst_cmd);
 static int mpt_rdy_to_xfer(struct scst_cmd *scst_cmd);
 static void mpt_on_free_cmd(struct scst_cmd *scst_cmd);
@@ -690,11 +691,11 @@ stm_data_done(MPT_ADAPTER *ioc, u32 reply_word,
 			pci_unmap_sg(priv->ioc->pcidev,
 				scst_cmd_get_sg(scst_cmd),
 				scst_cmd_get_sg_cnt(scst_cmd),
-				scst_to_dma_dir(scst_cmd_get_data_direction(scst_cmd)));
+				scst_to_tgt_dma_dir(scst_cmd_get_data_direction(scst_cmd)));
 		} else {
 			pci_unmap_single(priv->ioc->pcidev, cmd->dma_handle,
 				scst_get_buf_first(scst_cmd, &buf),
-				scst_to_dma_dir(scst_cmd_get_data_direction(scst_cmd)));
+				scst_to_tgt_dma_dir(scst_cmd_get_data_direction(scst_cmd)));
 		}
 	}
 	TRACE_EXIT();
@@ -705,6 +706,7 @@ stm_tgt_reply(MPT_ADAPTER *ioc, u32 reply_word)
 {
 	MPT_STM_PRIV *priv = mpt_stm_priv[ioc->id];
 	int index;
+	int init_index;
 	struct scst_cmd *scst_cmd;
 	struct mpt_cmd *cmd;
 	volatile int *io_state;
@@ -712,6 +714,7 @@ stm_tgt_reply(MPT_ADAPTER *ioc, u32 reply_word)
 	TRACE_ENTRY();
 
 	index = GET_IO_INDEX(reply_word);
+	init_index = GET_INITIATOR_INDEX(reply_word);
 	scst_cmd = priv->scst_cmd[index];
 	io_state = priv->io_state + index;
 
@@ -726,7 +729,7 @@ stm_tgt_reply(MPT_ADAPTER *ioc, u32 reply_word)
 		*io_state &= ~IO_STATE_POSTED;
 	
 		mpt_msg_frame_free(priv, index);
-		
+
 		stmapp_tgt_command(priv, reply_word);
 		goto out;
 	}
@@ -786,7 +789,20 @@ stm_tgt_reply(MPT_ADAPTER *ioc, u32 reply_word)
 			stm_cmd_buf_post(priv, index);
 		}
 
-		scst_tgt_cmd_done(scst_cmd);
+		/*
+		 * don't go through SCST if we've sent cached sense.
+		 * We're done sending the sense, so clear the pending sense flag
+		 */
+		if (IsScsi(priv) && 
+			(atomic_read(&priv->pending_sense[init_index]) == 1) &&
+			(scst_cmd->cdb[0] == REQUEST_SENSE)) {
+			TRACE_DBG("%s: clearing pending sense", ioc->name);
+			atomic_set(&priv->pending_sense[init_index], 0);
+			mpt_on_free_cmd(scst_cmd);
+			kfree(scst_cmd); /* created in stmapp_pending_sense */
+		} else {
+			scst_tgt_cmd_done(scst_cmd);
+		}
 
 		goto out;
 	}
@@ -945,10 +961,15 @@ stmapp_tgt_command(MPT_STM_PRIV *priv, u32 reply_word)
 	if (test_bit(MPT_SESS_INITING, &sess->sess_flags)) {
 		list_add_tail(&cmd->delayed_cmds_entry, &sess->delayed_cmds);
 	} else {
-		res = mpt_send_cmd_to_scst(cmd, SCST_CONTEXT_TASKLET);
-		/*res = mpt_send_cmd_to_scst(cmd, SCST_CONTEXT_DIRECT_ATOMIC);*/
-		if (res != 0)
-			goto out_free_cmd;
+		/* if there is pending sense left over from the last command,
+		 * we need to send that if this is a REQUEST SENSE command.
+		 * Otherwise send the command to SCST */
+		if (!stmapp_pending_sense(cmd)) {
+			res = mpt_send_cmd_to_scst(cmd, SCST_CONTEXT_TASKLET);
+			/*res = mpt_send_cmd_to_scst(cmd, SCST_CONTEXT_DIRECT_ATOMIC);*/
+			if (res != 0)
+				goto out_free_cmd;
+		}
 	}
 	
  out:
@@ -1035,11 +1056,11 @@ mpt_sge_to_sgl(struct mpt_prm *prm, MPT_STM_PRIV *priv, MPT_SGL *sgl)
 		prm->sg = (struct scatterlist *)prm->buffer;
 		prm->seg_cnt = 
 			pci_map_sg(priv->ioc->pcidev, prm->sg, prm->use_sg,
-				   scst_to_dma_dir(prm->data_direction));
+				   scst_to_tgt_dma_dir(prm->data_direction));
 		
 		pci_dma_sync_sg_for_cpu(priv->ioc->pcidev, prm->sg, 
 				prm->use_sg, 
-				scst_to_dma_dir(prm->data_direction));
+				scst_to_tgt_dma_dir(prm->data_direction));
 		for (i = 0; i < prm->use_sg; i++) {
 			sgl->sge[i].length = sg_dma_len(&prm->sg[i]);
 			sgl->sge[i].address = sg_dma_address(&prm->sg[i]);
@@ -1053,19 +1074,25 @@ mpt_sge_to_sgl(struct mpt_prm *prm, MPT_STM_PRIV *priv, MPT_SGL *sgl)
 		}
 		pci_dma_sync_sg_for_device(priv->ioc->pcidev, prm->sg, 
 				prm->use_sg, 
-				scst_to_dma_dir(prm->data_direction));
+				scst_to_tgt_dma_dir(prm->data_direction));
 	} else {
 		prm->cmd->dma_handle = 
 			pci_map_single(priv->ioc->pcidev, prm->buffer, 
 				       prm->bufflen,
-				       scst_to_dma_dir(prm->data_direction));
+				       scst_to_tgt_dma_dir(prm->data_direction));
 		
-		pci_dma_sync_single_for_cpu(priv->ioc->pcidev, prm->cmd->dma_handle, prm->bufflen, scst_to_dma_dir(prm->data_direction));
+		pci_dma_sync_single_for_cpu(priv->ioc->pcidev, 
+				prm->cmd->dma_handle, 
+				prm->bufflen, 
+				scst_to_tgt_dma_dir(prm->data_direction));
 		sgl->sge[0].length = prm->bufflen;
 		sgl->sge[0].address = virt_to_phys(prm->buffer);
 		
 		mpt_dump_sge(&sgl->sge[0], NULL);
-		pci_dma_sync_single_for_device(priv->ioc->pcidev, prm->cmd->dma_handle, prm->bufflen, scst_to_dma_dir(prm->data_direction));
+		pci_dma_sync_single_for_device(priv->ioc->pcidev, 
+				prm->cmd->dma_handle, 
+				prm->bufflen, 
+				scst_to_tgt_dma_dir(prm->data_direction));
 
 		prm->seg_cnt = 1;
 	}
@@ -1366,6 +1393,101 @@ mpt_send_target_data(struct mpt_prm *prm, int flags)
 }
 
 /*
+ * this function checks if any pending sense is available for
+ * a SCSI device.  This sense wasn't able to be sent for the
+ * last command with a check condition, so it needs to either
+ * get sent for a REQUEST SENSE command or forgotten.
+ */
+static int 
+stmapp_pending_sense(struct mpt_cmd *mpt_cmd)
+{
+	int res = 0;
+	MPT_STM_PRIV *priv;
+	int index = 0;
+	int init_index = 0;
+	int flags = 0;
+	SCSI_CMD *scsi_cmd = NULL;
+	CMD *cmd;
+	u8 *cdb;
+	struct mpt_prm prm = { 0 };
+	struct scst_cmd *scst_cmd;
+
+	TRACE_ENTRY();
+
+	/* 
+	 * check for pending sense if we're a SCSI controller, and
+	 * send it back in response to REQUEST SENSE or clear it 
+	 */
+	priv = mpt_cmd->priv;
+	if (IsScsi(priv)) {
+		index = GET_IO_INDEX(mpt_cmd->reply_word);
+		init_index = GET_INITIATOR_INDEX(mpt_cmd->reply_word);
+		if (atomic_read(&priv->pending_sense[init_index]) != 0) {
+			cmd = &priv->hw->cmd_buf[index];
+			scsi_cmd = (SCSI_CMD *)cmd->cmd;
+			cdb = scsi_cmd->CDB;
+
+			if (cdb[0] == REQUEST_SENSE) {
+				/* scst_cmd used as a container in stm_tgt_reply,
+				 * command doesn't actually go to SCST */
+				scst_cmd = kmalloc(sizeof(struct scst_cmd), 
+						GFP_ATOMIC);
+				TRACE_DBG("scst_cmd 0x%p", scst_cmd);
+				if (scst_cmd != NULL) {
+					cmd->reply_word = mpt_cmd->reply_word;
+					if (cmd->reply_word & 
+						TARGET_MODE_REPLY_ALIAS_MASK) {
+						cmd->alias = (scsi_cmd->AliasID - 
+								priv->port_id) & 15;
+					} else {
+						cmd->alias = 0;
+					}
+					cmd->lun = get2bytes(scsi_cmd->LogicalUnitNumber, 
+							0);
+					cmd->tag = scsi_cmd->Tag;
+					mpt_cmd->CMD = cmd;
+
+					memset(scst_cmd, 0x00, 
+						sizeof(struct scst_cmd));
+					scst_cmd->resp_data_len = -1;
+					memcpy(scst_cmd->cdb, cdb, 
+							MPT_MAX_CDB_LEN);
+					priv->scst_cmd[index] = scst_cmd;
+					scst_cmd_set_tag(scst_cmd, cmd->tag);
+					scst_cmd_set_tgt_priv(scst_cmd, mpt_cmd);
+
+					TRACE_BUFFER("CDB", cdb, MPT_MAX_CDB_LEN);
+
+					flags = TARGET_ASSIST_FLAGS_AUTO_STATUS;
+					prm.cmd = mpt_cmd;
+					prm.bufflen = min((size_t)cdb[4], 
+							(size_t)SCSI_SENSE_BUFFERSIZE);
+					prm.buffer = 
+						priv->pending_sense_buffer[init_index];
+					prm.use_sg = 0;
+					prm.data_direction = SCST_DATA_READ;
+					prm.tgt = priv->tgt->sess[init_index]->tgt;
+					prm.cmd->state = MPT_STATE_DATA_OUT;
+
+					TRACE_DBG("%s: sending pending sense", 
+							priv->ioc->name);
+					mpt_send_target_data(&prm, flags);
+					res = 1;
+				} else {
+					atomic_set(&priv->pending_sense[init_index], 
+							0);
+				}
+			} else {
+				atomic_set(&priv->pending_sense[init_index], 0);
+			}
+		}
+	}
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/*
  * this function is equivalent to the SCSI queuecommand(). The target should
  * transmit the response data and the status in the struct scst_cmd. See
  * below for details. Must be defined.
@@ -1396,9 +1518,6 @@ mpt_xmit_response(struct scst_cmd *scst_cmd)
 	prm.tgt = sess->tgt;
 	prm.seg_cnt = 0;
 	resp_flags = scst_cmd_get_tgt_resp_flags(scst_cmd);
-
-	/* FIXME */
-	prm.sense_buffer_len = 14;
 
 	TRACE_DBG("rq_result=%x, resp_flags=%x, %x, %d", prm.rq_result, 
 			resp_flags, prm.bufflen, prm.sense_buffer_len);
@@ -2802,10 +2921,10 @@ stm_send_target_status(MPT_STM_PRIV *priv,
     int				length;
     int				status;
     int				init_index;
-	dma_addr_t			dma_addr;
-	MPT_FRAME_HDR *mf = priv->current_mf[index];
+    dma_addr_t			dma_addr;
+    MPT_FRAME_HDR *mf = priv->current_mf[index];
 
-	TRACE_ENTRY();
+    TRACE_ENTRY();
     if (priv->io_state[index] & IO_STATE_DATA_SENT) {
 		priv->current_mf[index] = NULL;
 	}
@@ -2840,6 +2959,7 @@ stm_send_target_status(MPT_STM_PRIV *priv,
 	length = 0;
 	if (IsScsi(priv)) {
 	    SCSI_RSP	*rsp = (SCSI_RSP *)cmd->rsp;
+	    size_t sense_size;
 
 	    length += sizeof(*rsp);
 	    length -= sizeof(rsp->SenseData);
@@ -2855,6 +2975,21 @@ stm_send_target_status(MPT_STM_PRIV *priv,
 		    flags &= ~TARGET_STATUS_SEND_FLAGS_REPOST_CMD_BUFFER;
 		    priv->io_state[index] &= ~IO_STATE_AUTO_REPOST;
 		}
+		/*
+		 * copy sense buffer so we can send it on the next
+		 * REQUEST SENSE command if the IOC can't send the
+		 * status and sense simultaneously (generating 
+		 * MPT_IOC_STATUS_TARGET_STS_DATA_NOT_SENT IOCStatus)
+		 */
+		sense_size = min(sizeof(rsp->SenseData), 
+				       (size_t)SCSI_SENSE_BUFFERSIZE);
+		TRACE_DBG("caching %d bytes pending sense", sense_size);
+		memcpy(priv->pending_sense_buffer[init_index], 
+				rsp->SenseData, sense_size);
+		TRACE_BUFFER("priv->pending_sense_buffer", 
+				priv->pending_sense_buffer[init_index], 
+				sense_size);
+		atomic_set(&priv->pending_sense[init_index], 1);
 	    }
 	    if (rsp->Valid & SCSI_RSP_LEN_VALID) {
 		length += be32_to_cpu(rsp->PktFailuresListLength);
@@ -2918,37 +3053,37 @@ stm_send_target_status(MPT_STM_PRIV *priv,
      *  there's a limitation here -- if target data is outstanding, we must
      *  wait for it to finish before we send the target status
      */
-	if (priv->io_state[index] & IO_STATE_DATA_SENT) {
-		priv->current_mf[index] = mf;
-		priv->status_deferred_mf[index] = (MPT_FRAME_HDR *)req;
-		priv->io_state[index] |= IO_STATE_STATUS_DEFERRED;
-		TRACE_EXIT_RES(1);
-		return (1);
-	}
-	priv->io_state[index] |= IO_STATE_STATUS_SENT;
+    if (priv->io_state[index] & IO_STATE_DATA_SENT) {
+	    priv->current_mf[index] = mf;
+	    priv->status_deferred_mf[index] = (MPT_FRAME_HDR *)req;
+	    priv->io_state[index] |= IO_STATE_STATUS_DEFERRED;
+	    TRACE_EXIT_RES(1);
+	    return (1);
+    }
+    priv->io_state[index] |= IO_STATE_STATUS_SENT;
 
 #ifdef TRACING
-	if(trace_mpi)
-	{
-		u32 *p = (u32 *)req;
-		int i;
+    if(trace_mpi)
+    {
+	    u32 *p = (u32 *)req;
+	    int i;
 
-		TRACE(TRACE_MPI, "%s: stm_send_target_status %d",
-				ioc->name, index);
-		for (i = 0; i < sizeof(*req) / 4; i++) {
-			TRACE(TRACE_MPI, "%s: req[%02x] = %08x",
-					ioc->name, i * 4, le32_to_cpu(p[i]));
-		}
-	}
+	    TRACE(TRACE_MPI, "%s: stm_send_target_status %d",
+			    ioc->name, index);
+	    for (i = 0; i < sizeof(*req) / 4; i++) {
+		    TRACE(TRACE_MPI, "%s: req[%02x] = %08x",
+				    ioc->name, i * 4, le32_to_cpu(p[i]));
+	    }
+    }
 #endif
 
-	if (priv->io_state[index] & IO_STATE_HIGH_PRIORITY) {
-		mpt_send_handshake_request(stm_context, _IOC_ID,
-				sizeof(*req), (u32 *)req _HS_SLEEP);
-	} else {
-		mpt_put_msg_frame(stm_context, _IOC_ID, (MPT_FRAME_HDR *)req);
-	}
-	TRACE_EXIT_RES(1);
+    if (priv->io_state[index] & IO_STATE_HIGH_PRIORITY) {
+	    mpt_send_handshake_request(stm_context, _IOC_ID,
+			    sizeof(*req), (u32 *)req _HS_SLEEP);
+    } else {
+	    mpt_put_msg_frame(stm_context, _IOC_ID, (MPT_FRAME_HDR *)req);
+    }
+    TRACE_EXIT_RES(1);
     return (1);
 }
 
@@ -3522,7 +3657,7 @@ stm_scsi_configuration(MPT_STM_PRIV *priv,
     int			flags;
     int			i;
 
-	TRACE_ENTRY();
+    TRACE_ENTRY();
     memset(priv->hw->config_buf, 0, sizeof(priv->hw->config_buf));
     if (stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_SCSI_PORT, 2, 0, sleep)) {
 	return (-1);
@@ -3553,7 +3688,7 @@ stm_scsi_configuration(MPT_STM_PRIV *priv,
 
     for (i = 0; i < NUM_SCSI_DEVICES; i++) {
 	int wide = 0;
-    SCSIDevicePage1_t	*ScsiDevice1 = &priv->SCSIDevicePage1[i];
+	SCSIDevicePage1_t *ScsiDevice1 = &priv->SCSIDevicePage1[i];
 	sync = ScsiPort2->DeviceSettings[i].SyncFactor;
 	flags = le16_to_cpu(ScsiPort2->DeviceSettings[i].DeviceFlags);
 	if (flags & MPI_SCSIPORTPAGE2_DEVICE_WIDE_DISABLE)
@@ -3572,8 +3707,9 @@ stm_scsi_configuration(MPT_STM_PRIV *priv,
 		   wide ? "WIDE" : " ");
 	memcpy(priv->hw->config_buf, ScsiDevice1, sizeof(*ScsiDevice1));
 	stm_set_config_page(priv, MPI_CONFIG_PAGETYPE_SCSI_DEVICE, 1, i, sleep);
+	atomic_set(&priv->pending_sense[i], 0);
     }
-	TRACE_EXIT();
+    TRACE_EXIT();
 
     return (0);
 }
@@ -4884,7 +5020,7 @@ stmapp_target_error_prioprity_io(MPT_STM_PRIV *priv,
 	 *  command buffer, so fake it out a bit
 	 */
 	TRACE_ENTRY();
-    io_state = priv->io_state + index;
+	io_state = priv->io_state + index;
 	*io_state |= IO_STATE_AUTO_REPOST;
 	scst_cmd = priv->scst_cmd[index];
 	mpt_cmd = (struct mpt_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
@@ -5075,13 +5211,23 @@ stmapp_target_error(MPT_STM_PRIV *priv,
      *  ignore the error here, so that we don't post this command buffer again
      *  (that is, treat this as a successful completion, which is what it is)
      */
-	if (IsScsi(priv) && status == MPI_IOCSTATUS_TARGET_STS_DATA_NOT_SENT) {
-		if (*io_state & IO_STATE_AUTO_REPOST) {
-			stm_tgt_reply(ioc, reply_word);
-			TRACE_EXIT();
-			return;
-		}
-	}
+    /*
+     *  Allow STATUS_SENT status to go through also, this is the
+     *  result of an attempt to send a check condition with 
+     *  attached sense bytes.  
+     *  The IOC knows it can't send status and sense over a 
+     *  traditional SCSI cable (non-packetized), so we should 
+     *  treat this as a successful completion, manually repost the
+     *  command to the IOC, and free the SCST command.
+     */
+    if (IsScsi(priv) && status == MPI_IOCSTATUS_TARGET_STS_DATA_NOT_SENT) {
+	    if ((*io_state & IO_STATE_AUTO_REPOST) ||
+		(*io_state & IO_STATE_STATUS_SENT)) {
+		    stm_tgt_reply(ioc, reply_word);
+		    TRACE_EXIT();
+		    return;
+	    }
+    }
 
     *io_state &= ~IO_STATE_AUTO_REPOST;
     stm_target_cleanup(priv, index);

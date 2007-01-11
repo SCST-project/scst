@@ -203,13 +203,15 @@ typedef struct _MPT_STM_PRIV
     MPT_FRAME_HDR	*current_mf[NUM_CMD_BUFFERS];
     MPT_FRAME_HDR	*status_deferred_mf[NUM_CMD_BUFFERS];
     MPT_SGL		sgl;
-	SCSIPortPage0_t SCSIPortPage0;
-	SCSIPortPage1_t SCSIPortPage1;
-	SCSIPortPage2_t SCSIPortPage2;
+    SCSIPortPage0_t SCSIPortPage0;
+    SCSIPortPage1_t SCSIPortPage1;
+    SCSIPortPage2_t SCSIPortPage2;
 #define NUM_SCSI_DEVICES       16
-	SCSIDevicePage1_t SCSIDevicePage1[NUM_SCSI_DEVICES];
-	struct mpt_tgt *tgt;
-	struct scst_cmd *scst_cmd[NUM_CMD_BUFFERS];
+    SCSIDevicePage1_t SCSIDevicePage1[NUM_SCSI_DEVICES];
+    struct mpt_tgt *tgt;
+    struct scst_cmd *scst_cmd[NUM_CMD_BUFFERS];
+    atomic_t pending_sense[NUM_SCSI_DEVICES];
+    u8 pending_sense_buffer[NUM_SCSI_DEVICES][SCSI_SENSE_BUFFERSIZE];
 } MPT_STM_PRIV;
 
 #define IO_STATE_POSTED			0x1
@@ -314,7 +316,7 @@ typedef struct _MPT_STM_PRIV
 #define MPT_STATE_NEW              1    /* New command and SCST processes it */
 #define MPT_STATE_NEED_DATA        2    /* SCST needs data to process */
 #define MPT_STATE_DATA_IN          3    /* Data arrived and SCST processes it */
-#define MPT_STATE_DATA_OUT		   4
+#define MPT_STATE_DATA_OUT         4
 #define MPT_STATE_PROCESSED        5    /* SCST done processing */
 
 /* Target's flags */
