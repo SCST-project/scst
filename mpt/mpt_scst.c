@@ -49,6 +49,9 @@ static int trace_mpi = 0;
 
 #define TRACE_MPI	0x80000000
 
+#endif
+
+#ifdef DEBUG
 static char *mpt_state_string[] = {
 	"0",
 	"new",
@@ -3257,7 +3260,7 @@ stm_target_mode_abort_all(MPT_STM_PRIV *priv)
 static int
 stm_target_mode_abort(MPT_STM_PRIV *priv)
 {
-#ifdef TRACING
+#ifdef DEBUG
     MPT_ADAPTER		*ioc = priv->ioc;
 #endif
     int			i;
@@ -3645,7 +3648,7 @@ static int
 stm_scsi_configuration(MPT_STM_PRIV *priv,
 		       int sleep)
 {
-#ifdef TRACING
+#ifdef DEBUG
     MPT_ADAPTER		*ioc = priv->ioc;
 #endif
     SCSIPortPage0_t	*ScsiPort0;
@@ -3718,7 +3721,7 @@ stm_scsi_configuration(MPT_STM_PRIV *priv,
 static void 
 stm_set_scsi_port_page1(MPT_STM_PRIV *priv, int sleep)
 {
-#ifdef TRACING
+#ifdef DEBUG
 	MPT_ADAPTER		*ioc = priv->ioc;
 #endif
 	SCSIPortPage1_t *ScsiPort1;
@@ -5324,13 +5327,14 @@ static struct scst_proc_data mpt_log_proc_data = {
 static int mpt_proc_log_entry_build(struct scst_tgt_template *templ)
 {
 	int res = 0;
+#if defined(DEBUG) || defined(TRACING)
 	struct proc_dir_entry *p, *root;
 
 	TRACE_ENTRY();
-	root = scst_proc_get_tgt_root(templ);
 
+	root = scst_proc_get_tgt_root(templ);
 	if (root) {
-#if defined(DEBUG) || defined(TRACING)
+
 		mpt_log_proc_data.data = (void *)templ->name;
 		p = scst_create_proc_entry(root, MPT_PROC_LOG_ENTRY_NAME,
 					&mpt_log_proc_data);
@@ -5341,12 +5345,12 @@ static int mpt_proc_log_entry_build(struct scst_tgt_template *templ)
 			res = -ENOMEM;
 			goto out;
 		}
-#endif
+
 	}
 out:
 
 	TRACE_EXIT_RES(res);
-
+#endif
 	return res;
 }
 
