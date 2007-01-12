@@ -178,7 +178,7 @@ static int cdrom_fileio_write_proc(char *buffer, char **start, off_t offset,
   write_proc:   cdrom_fileio_write_proc,\
 }
 
-DECLARE_MUTEX(scst_fileio_mutex);
+static DECLARE_MUTEX(scst_fileio_mutex);
 static LIST_HEAD(disk_fileio_dev_list);
 static LIST_HEAD(cdrom_fileio_dev_list);
 

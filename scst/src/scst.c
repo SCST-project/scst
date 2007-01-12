@@ -125,32 +125,31 @@ int scst_register_target_template(struct scst_tgt_template *vtt)
 		PRINT_ERROR_PR("Target driver %s doesn't have a "
 			"detect() method.", vtt->name);
 		res = -EINVAL;
-		goto out;
+		goto out_err;
 	}
 	
 	if (!vtt->release) {
 		PRINT_ERROR_PR("Target driver %s doesn't have a "
 			"release() method.", vtt->name);
 		res = -EINVAL;
-		goto out;
+		goto out_err;
 	}
 
 	if (!vtt->xmit_response) {
 		PRINT_ERROR_PR("Target driver %s doesn't have a "
 			"xmit_response() method.", vtt->name);
 		res = -EINVAL;
-		goto out;
+		goto out_err;
 	}
 
 	if (!vtt->no_proc_entry) {
 		res = scst_build_proc_target_dir_entries(vtt);
-		if (res < 0) {
-			goto out;
-		}
+		if (res < 0)
+			goto out_err;
 	}
 
 	if (down_interruptible(&m) != 0)
-		goto out;
+		goto out_err;
 
 	if (down_interruptible(&scst_mutex) != 0)
 		goto out_m_up;
@@ -179,32 +178,58 @@ int scst_register_target_template(struct scst_tgt_template *vtt)
 
 	res = 0;
 
-out_m_up:
+	PRINT_INFO_PR("Target template %s registered successfully", vtt->name);
+
 	up(&m);
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 
+out_m_up:
+	up(&m);
+
 out_cleanup:
 	scst_cleanup_proc_target_dir_entries(vtt);
+
+out_err:
+	PRINT_ERROR_PR("Failed to register target template %s", vtt->name);
 	goto out;
 }
 
 void scst_unregister_target_template(struct scst_tgt_template *vtt)
 {
 	struct scst_tgt *tgt;
+	struct scst_tgt_template *t;
+	int found = 0;
 
 	TRACE_ENTRY();
 
-restart:
 	down(&scst_mutex);
+
+	list_for_each_entry(t, &scst_template_list, scst_template_list_entry) {
+		if (strcmp(t->name, vtt->name) == 0) {
+			found = 1;
+			break;
+		}
+	}
+	if (!found) {
+		PRINT_ERROR_PR("Target driver %s isn't registered", vtt->name);
+		goto out_up;
+	}
+
+restart:
 	list_for_each_entry(tgt, &vtt->tgt_list, tgt_list_entry) {
 		up(&scst_mutex);
 		scst_unregister(tgt);
+		down(&scst_mutex);
 		goto restart;
 	}
 	list_del(&vtt->scst_template_list_entry);
+
+	PRINT_INFO_PR("Target template %s unregistered successfully", vtt->name);
+
+out_up:
 	up(&scst_mutex);
 
 	scst_cleanup_proc_target_dir_entries(vtt);
@@ -222,7 +247,7 @@ struct scst_tgt *scst_register(struct scst_tgt_template *vtt)
 	tgt = kzalloc(sizeof(*tgt), GFP_KERNEL);
 	if (tgt == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "kzalloc() failed");
-		goto out;
+		goto out_err;
 	}
 
 	INIT_LIST_HEAD(&tgt->sess_list);
@@ -241,14 +266,25 @@ struct scst_tgt *scst_register(struct scst_tgt_template *vtt)
 	if (scst_build_proc_target_entries(tgt) < 0) {
 		kfree(tgt);
 		tgt = NULL;
+		goto out_up;
 	} else
 		list_add_tail(&tgt->tgt_list_entry, &vtt->tgt_list);
 
 	up(&scst_mutex);
 
+	PRINT_INFO_PR("Target for template %s registered successfully",
+		vtt->name);
+
 out:
 	TRACE_EXIT();
 	return tgt;
+
+out_up:
+	up(&scst_mutex);
+
+out_err:
+	PRINT_ERROR_PR("Failed to register target for template %s", vtt->name);
+	goto out;
 }
 
 static inline int test_sess_list(struct scst_tgt *tgt)
@@ -263,6 +299,7 @@ static inline int test_sess_list(struct scst_tgt *tgt)
 void scst_unregister(struct scst_tgt *tgt)
 {
 	struct scst_session *sess;
+	struct scst_tgt_template *vtt = tgt->tgtt;
 
 	TRACE_ENTRY();
 
@@ -289,6 +326,9 @@ void scst_unregister(struct scst_tgt *tgt)
 	del_timer_sync(&tgt->retry_timer);
 
 	kfree(tgt);
+
+	PRINT_INFO_PR("Target for template %s unregistered successfully",
+		vtt->name);
 
 	TRACE_EXIT();
 	return;
@@ -377,8 +417,7 @@ static int scst_register_device(struct scsi_device *scsidp)
 	dev->rq_disk = alloc_disk(1);
 	if (dev->rq_disk == NULL) {
 		res = -ENOMEM;
-		scst_free_device(dev);
-		goto out;
+		goto out_free_dev;
 	}
 	dev->rq_disk->major = SCST_MAJOR;
 
@@ -413,10 +452,11 @@ out:
 	return res;
 
 out_free:
+	list_del(&dev->dev_list_entry);
 	put_disk(dev->rq_disk);
 
-	list_del(&dev->dev_list_entry);
-	scst_assign_dev_handler(dev, NULL);
+out_free_dev:
+	scst_free_device(dev);
 	goto out;
 }
 
@@ -437,7 +477,6 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 			break;
 		}
 	}
-
 	if (dev == NULL) {
 		PRINT_ERROR_PR("%s", "Target device not found");
 		goto out_unblock;
@@ -456,12 +495,12 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 	put_disk(dev->rq_disk);
 	scst_free_device(dev);
 
+	PRINT_INFO_PR("Detached SCSI target mid-level from scsi%d, channel %d, "
+		"id %d, lun %d, type %d", scsidp->host->host_no,
+		scsidp->channel, scsidp->id, scsidp->lun, scsidp->type);
+
 out_unblock:
 	__scst_resume_activity();
-
-	PRINT_INFO_PR("Detached SCSI target mid-level from scsi%d, channel %d, "
-	     "id %d, lun %d, type %d", scsidp->host->host_no, scsidp->channel, 
-	     scsidp->id, scsidp->lun, scsidp->type);
 
 	TRACE_EXIT();
 	return;
@@ -545,8 +584,7 @@ void scst_unregister_virtual_device(int id)
 
 	TRACE_ENTRY();
 
-	if (down_interruptible(&scst_mutex) != 0)
-		goto out;
+	down(&scst_mutex);
 
 	__scst_suspend_activity();
 
@@ -557,7 +595,6 @@ void scst_unregister_virtual_device(int id)
 			break;
 		}
 	}
-
 	if (dev == NULL) {
 		PRINT_ERROR_PR("%s", "Target device not found");
 		goto out_unblock;
@@ -583,7 +620,6 @@ out_unblock:
 
 	up(&scst_mutex);
 
-out:
 	TRACE_EXIT();
 	return;
 }
@@ -601,7 +637,7 @@ int scst_register_dev_driver(struct scst_dev_type *dev_type)
 		PRINT_ERROR_PR("scst dev_type driver %s doesn't have a "
 			"parse() method.", dev_type->name);
 		res = -EINVAL;
-		goto out;
+		goto out_err;
 	}
 
 #ifdef FILEIO_ONLY
@@ -610,25 +646,24 @@ int scst_register_dev_driver(struct scst_dev_type *dev_type)
 			"supported. Recompile SCST with undefined FILEIO_ONLY",
 			dev_type->name);
 		res = -EINVAL;
-		goto out;
+		goto out_err;
 	}
 #endif
 
 	if (down_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
-		goto out;
+		goto out_err;
 	}
 
 	exist = 0;
 	list_for_each_entry(dt, &scst_dev_type_list, dev_type_list_entry) {
-		if (dt->type == dev_type->type) {
-			TRACE_DBG("Device type handler for type %d "
-				"already exist", dt->type);
+		if (strcmp(dt->name, dev_type->name) == 0) {
+			PRINT_ERROR_PR("Device type handler %s already exist",
+				dt->name);
 			exist = 1;
 			break;
 		}
 	}
-
 	if (exist)
 		goto out_up;
 
@@ -636,38 +671,59 @@ int scst_register_dev_driver(struct scst_dev_type *dev_type)
 	if (res < 0) {
 		goto out_up;
 	}
-	
+
 	list_add_tail(&dev_type->dev_type_list_entry, &scst_dev_type_list);
 
 	__scst_suspend_activity();
 	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
-		if (dev->scsi_dev == NULL)
+		if ((dev->scsi_dev == NULL) || (dev->handler != NULL))
 			continue;
 		if (dev->scsi_dev->type == dev_type->type)
 			scst_assign_dev_handler(dev, dev_type);
 	}
 	__scst_resume_activity();
 
-out_up:
 	up(&scst_mutex);
 
 	if (res == 0) {
-		PRINT_INFO_PR("Device handler %s for type %d loaded "
+		PRINT_INFO_PR("Device handler %s for type %d registered "
 			"successfully", dev_type->name, dev_type->type);
 	}
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_up:
+	up(&scst_mutex);
+
+out_err:
+	PRINT_ERROR_PR("Failed to register device handler %s for type %d",
+		dev_type->name, dev_type->type);
+	goto out;
 }
 
 void scst_unregister_dev_driver(struct scst_dev_type *dev_type)
 {
 	struct scst_device *dev;
+	struct scst_dev_type *dt;
+	int found = 0;
 
 	TRACE_ENTRY();
 
 	down(&scst_mutex);
+
+	list_for_each_entry(dt, &scst_dev_type_list, dev_type_list_entry) {
+		if (strcmp(dt->name, dev_type->name) == 0) {
+			found = 1;
+			break;
+		}
+	}
+	if (!found) {
+		PRINT_ERROR_PR("Dev handler %s isn't registered",
+			dev_type->name);
+		goto out_up;
+	}
 
 	__scst_suspend_activity();
 	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
@@ -687,8 +743,13 @@ void scst_unregister_dev_driver(struct scst_dev_type *dev_type)
 	PRINT_INFO_PR("Device handler %s for type %d unloaded",
 		   dev_type->name, dev_type->type);
 
+out:
 	TRACE_EXIT();
 	return;
+
+out_up:
+	up(&scst_mutex);
+	goto out;
 }
 
 int scst_register_virtual_dev_driver(struct scst_dev_type *dev_type)
@@ -701,20 +762,24 @@ int scst_register_virtual_dev_driver(struct scst_dev_type *dev_type)
 		PRINT_ERROR_PR("scst dev_type driver %s doesn't have a "
 			"parse() method.", dev_type->name);
 		res = -EINVAL;
-		goto out;
+		goto out_err;
 	}
 
 	res = scst_build_proc_dev_handler_dir_entries(dev_type);
-	if (res < 0) {
-		goto out;
-	}
+	if (res < 0)
+		goto out_err;
 	
-	PRINT_INFO_PR("Device handler %s for type %d loaded "
+	PRINT_INFO_PR("Virtuel device handler %s for type %d registered "
 		"successfully", dev_type->name, dev_type->type);
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_err:
+	PRINT_ERROR_PR("Failed to register virtual device handler %s for "
+		"type %d", dev_type->name, dev_type->type);
+	goto out;
 }
 
 void scst_unregister_virtual_dev_driver(struct scst_dev_type *dev_type)
