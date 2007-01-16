@@ -25,3 +25,25 @@ drivers/message/fusion/Kconfig by diffs from $(SCST_DIR)/mpt/in-tree
 
 3. Correct in drivers/message/fusion/Makefile SCST_INC_DIR variable so
 it points to correct directory with SCST include files.
+
+Notes on implementation
+-----------------------
+The driver takes the mptstm target driver implemented by LSI
+and ports it to the SCST architecture.
+
+The LSI hardware returns an error when it realizes that command
+status and sense data cannot be sent in the same transaction.
+This happens during non-packetized SCSI command handling (not FC or
+SAS).  For SCSI implementations, the driver speculatively caches
+sense data.  If the hardware reports that the sense data could not
+be sent, the driver will return the cached sense data without
+involving SCST if the next command is REQUEST SENSE.  Cached sense
+data is discarded on bus reset or if the next command after sense
+send failure was not REQUEST SENSE.
+
+Caching sense data in this fashion probably won't work in a tagged
+command queuing environment.  If SCSI hardware is being used, the
+driver inspects responses to the INQUIRY command and clears the
+BQUE and CMDQUE bits in the standard INQUIRY response to disable
+tagged command queuing.
+
