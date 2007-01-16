@@ -327,6 +327,12 @@ typedef struct _MPT_STM_PRIV
 #define MPT_SESS_INITING            0   /* The session is being unregistered */
 #define MPT_SESS_SHUTDOWN           1   /* The session is being unregistered */
 
+/* pending sense states */
+#define MPT_STATUS_SENSE_IDLE      0 /* no cached pending sense */
+#define MPT_STATUS_SENSE_ATTEMPT   1 /* attempt to send status and sense */
+#define MPT_STATUS_SENSE_NOT_SENT  2 /* sense couldn't be sent with status */
+#define MPT_STATUS_SENSE_HANDLE_RQ 3 /* REQUEST SENSE handled with cached sense */
+
 struct mpt_cmd 
 {
 	struct mpt_sess *sess;

@@ -269,6 +269,8 @@ static int mpt_target_detect(struct scst_tgt_template *temp1);
 static int mpt_target_release(struct scst_tgt *scst_tgt);
 static int stmapp_pending_sense(struct mpt_cmd *mpt_cmd);
 static int mpt_xmit_response(struct scst_cmd *scst_cmd);
+static void mpt_inquiry_no_tagged_commands(MPT_STM_PRIV *priv, 
+		struct scst_cmd *scst_cmd);
 static int mpt_rdy_to_xfer(struct scst_cmd *scst_cmd);
 static void mpt_on_free_cmd(struct scst_cmd *scst_cmd);
 static void mpt_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd);
@@ -793,16 +795,45 @@ stm_tgt_reply(MPT_ADAPTER *ioc, u32 reply_word)
 		}
 
 		/*
-		 * don't go through SCST if we've sent cached sense.
-		 * We're done sending the sense, so clear the pending sense flag
+		 * figure out how we're handling cached sense data.
 		 */
-		if (IsScsi(priv) && 
-			(atomic_read(&priv->pending_sense[init_index]) == 1) &&
-			(scst_cmd->cdb[0] == REQUEST_SENSE)) {
-			TRACE_DBG("%s: clearing pending sense", ioc->name);
-			atomic_set(&priv->pending_sense[init_index], 0);
-			mpt_on_free_cmd(scst_cmd);
-			kfree(scst_cmd); /* created in stmapp_pending_sense */
+		if (IsScsi(priv)) {
+			switch (atomic_read(&priv->pending_sense[init_index])) {
+				/* attempt to send status and sense succeeded */
+				case MPT_STATUS_SENSE_ATTEMPT:
+					atomic_set(&priv->pending_sense[init_index], 
+						MPT_STATUS_SENSE_IDLE);
+					scst_tgt_cmd_done(scst_cmd);
+					break;
+
+				/* we tried to send status and sense 
+				 * simltaneously and failed.  Prepare to handle 
+				 * the next command without SCST if it is 
+				 * REQUEST_SENSE */
+				case MPT_STATUS_SENSE_NOT_SENT:
+					atomic_set(&priv->pending_sense[init_index], 
+						MPT_STATUS_SENSE_HANDLE_RQ);
+					scst_tgt_cmd_done(scst_cmd);
+					break;
+
+				/* we've handled REQUEST_SENSE ourselves and
+				 * we're done with the command.  Clean up */
+				case MPT_STATUS_SENSE_HANDLE_RQ:
+					TRACE_DBG("%s: clearing pending sense", 
+							ioc->name);
+					atomic_set(&priv->pending_sense[init_index], 
+							MPT_STATUS_SENSE_IDLE);
+					mpt_on_free_cmd(scst_cmd);
+					/* scst_cmd alloced in stmapp_pending_sense */
+					kfree(scst_cmd); 
+					break;
+
+				default:
+					/* nothing much to do here, we aren't 
+					 * handling cached sense/status */
+					scst_tgt_cmd_done(scst_cmd);
+					break;
+			}
 		} else {
 			scst_tgt_cmd_done(scst_cmd);
 		}
@@ -1396,10 +1427,65 @@ mpt_send_target_data(struct mpt_prm *prm, int flags)
 }
 
 /*
- * this function checks if any pending sense is available for
- * a SCSI device.  This sense wasn't able to be sent for the
- * last command with a check condition, so it needs to either
- * get sent for a REQUEST SENSE command or forgotten.
+ * this function checks if we need to handle REQUEST_SENSE on behalf of the 
+ * target device.  If the sense wasn't able to be sent simultaneously 
+ * with the status for the last command with a check condition, it needs 
+ * to either get sent for a REQUEST_SENSE command or forgotten. 
+ *
+ * The pending_sense state and a buffer for holding sense is created for
+ * each possible initiator.  The pending_sense state is used to tell if
+ * sending sense failed and to track the progress of the following 
+ * REQUEST_SENSE command.
+ *
+ * There are four values for the pending_sense state:
+ * - STATUS_SENSE_IDLE: no caching of sense data is in progress
+ * - STATUS_SENSE_ATTEMPT: an attempt is being made to send status and
+ *   sense in the same bus transaction.
+ * - STATUS_SENSE_NOT_SENT: the attempt to send simultanous status and
+ *   sense failed.
+ * - STATUS_SENSE_HANDLE_RQ: the next command from the initiator needs
+ *   to be handled by the LSI driver if it is REQUEST_SENSE using cached
+ *   sense data, otherwise the cached sense data is ignored and the
+ *   command is sent to SCST.
+ *
+ * In stmapp_pending_sense, if pending_sense state for an initiator == 
+ * SENSE_HANDLE_RQ, the incoming command is inspected.  If it is 
+ * REQUEST_SENSE, the command is handled by the LSI driver without 
+ * involving SCST.  The cached sense data from the immediately previous 
+ * command is used.  This sense data was not sent along with the status 
+ * for that command (see below).  If the command is not REQUEST_SENSE, 
+ * the cached sense data is discarded and the command is sent to SCST 
+ * for processing.
+ *
+ * In stm_send_target_status, sense data about to be sent is saved in a
+ * buffer and the pending_sense state for that initiator is set to
+ * MPT_STATUS_SENSE_ATTEMPT.  The sense and status are sent to the LSI
+ * hardware.  
+ *
+ * If the LSI hardware determines that the sense and status could not be 
+ * sent in one operation, stm_reply is called with state == STATUS_SENT 
+ * and with IOCStatus of MPI_IOCSTATUS_TARGET_STS_DATA_NOT_SENT (0x6B).  
+ * This condition only happens in the non-packetized SCSI operating mode.  
+ * When this happens, the pending_sense state is advanced to 
+ * MPT_STATUS_SENSE_NOT_SENT.
+ *
+ * In stm_tgt_reply, if io_state == STATUS_SENT:
+ * - if pending_sense state == SENSE_ATTEMPT, the status and sense attempt was
+ *   successful, so the pending_sense state is set to IDLE and the command
+ *   is sent to SCST for completion.
+ * - if pending_sense state == SENSE_NOT_SENT, the status and sense attempt
+ *   failed.  The pending_sense state is advanced to SENSE_HANDLE_RQ and the
+ *   current command is sent to SCST for completion.  The next command from
+ *   this initiator will enter stmapp_pending_sense as described above.
+ * - if pending_sense state == SENSE_HANDLE_RQ, the REQUEST_SENSE command
+ *   handled alone by the LSI driver is done and resources need to be
+ *   released.  pending_sense state is set to IDLE.
+ * - if pending_sense state == SENSE_IDLE, a normal SCST command is done
+ *   and is sent to SCST for completion.
+ *
+ * Because of this caching sense behaviour, we think we need to turn off
+ * tagged command queueing.  The mpt_inquiry_no_tagged_commands function
+ * does this by modifying INQUIRY data before sending it over the wire.
  */
 static int 
 stmapp_pending_sense(struct mpt_cmd *mpt_cmd)
@@ -1417,15 +1503,12 @@ stmapp_pending_sense(struct mpt_cmd *mpt_cmd)
 
 	TRACE_ENTRY();
 
-	/* 
-	 * check for pending sense if we're a SCSI controller, and
-	 * send it back in response to REQUEST SENSE or clear it 
-	 */
 	priv = mpt_cmd->priv;
 	if (IsScsi(priv)) {
 		index = GET_IO_INDEX(mpt_cmd->reply_word);
 		init_index = GET_INITIATOR_INDEX(mpt_cmd->reply_word);
-		if (atomic_read(&priv->pending_sense[init_index]) != 0) {
+		if (atomic_read(&priv->pending_sense[init_index]) == 
+				MPT_STATUS_SENSE_HANDLE_RQ) {
 			cmd = &priv->hw->cmd_buf[index];
 			scsi_cmd = (SCSI_CMD *)cmd->cmd;
 			cdb = scsi_cmd->CDB;
@@ -1477,12 +1560,25 @@ stmapp_pending_sense(struct mpt_cmd *mpt_cmd)
 					mpt_send_target_data(&prm, flags);
 					res = 1;
 				} else {
+					/* we couldn't create a scst_cmd, so 
+					 * we can't do anything.  Send the
+					 * command to SCST. */
 					atomic_set(&priv->pending_sense[init_index], 
-							0);
+							MPT_STATUS_SENSE_IDLE);
 				}
 			} else {
-				atomic_set(&priv->pending_sense[init_index], 0);
+				/* next command immediately after check 
+				 * condition is not REQUEST_SENSE, so we can 
+				 * discard the cached sense and send the 
+				 * command to SCST. */
+				atomic_set(&priv->pending_sense[init_index], 
+						MPT_STATUS_SENSE_IDLE);
 			}
+		} else {
+			/* we don't need to perform REQUEST_SENSE and can
+			 * send the command to SCST */
+			atomic_set(&priv->pending_sense[init_index], 
+					MPT_STATUS_SENSE_IDLE);
 		}
 	}
 
@@ -1596,6 +1692,46 @@ mpt_xmit_response(struct scst_cmd *scst_cmd)
 }
 
 /*
+ * modifiy the response for an INQUIRY command to turn off
+ * support for tagged command queuing if we're on a SCSI bus.
+ * It's doubtful that caching sense data will work correctly
+ * if tagging is enabled.
+ */
+static void
+mpt_inquiry_no_tagged_commands(MPT_STM_PRIV *priv, struct scst_cmd *scst_cmd)
+{
+	int32_t length;
+	uint8_t *address;
+
+	TRACE_ENTRY();
+
+	/* 
+	 * only modify INQUIRY if we're on a SCSI bus,
+	 * and we are handling a standard INQUIRY command
+	 * (EVPD = 0)
+	 */
+	if (IsScsi(priv) && (scst_cmd->cdb[0] == INQUIRY) && 
+			!(scst_cmd->cdb[1] & 0x1)) {
+		if (!scst_cmd->sg_cnt) {
+			address = (uint8_t *)scst_cmd->sg;
+			length = scst_cmd->bufflen;
+		} else {
+			length = scst_get_buf_first(scst_cmd, &address);
+		}
+		if (length >= 8) {
+			TRACE_DBG("clearing BQUE + CMDQUE 0x%p", address);
+			address[6] &= ~0x80; /* turn off BQUE */
+			address[7] &= ~0x02; /* turn off CMDQUE */
+		}
+		if (scst_cmd->sg_cnt) {
+			scst_put_buf(scst_cmd, address);
+		}
+	}
+
+	TRACE_EXIT();
+}
+
+/*
  * this function 
  * informs the driver that data buffer corresponding to the said command
  * have now been allocated and it is OK to receive data for this command.
@@ -1621,6 +1757,7 @@ static int mpt_rdy_to_xfer(struct scst_cmd *scst_cmd)
 	prm.cmd = (struct mpt_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
 	sess = (struct mpt_sess *)
 		scst_sess_get_tgt_priv(scst_cmd_get_session(scst_cmd));
+	mpt_inquiry_no_tagged_commands(sess->tgt->priv, scst_cmd);
 
 	prm.sg = (struct scatterlist *)NULL;
 	prm.bufflen = scst_cmd->bufflen;
@@ -2383,6 +2520,15 @@ stm_event_process(MPT_ADAPTER *ioc,
 	    scsi_data = (EventDataScsi_t *)rep->Data;
 	    printk("%s Ext Bus Reset on port %d\n",
 		   ioc->name, scsi_data->BusPort);
+	    /*
+	     * clear any pending sense flags on bus reset
+	     */
+	    if (IsScsi(priv)) {
+		    for (i = 0; i < NUM_SCSI_DEVICES; i++) {
+			    atomic_set(&priv->pending_sense[i], 
+					    MPT_STATUS_SENSE_IDLE);
+		    }
+	    }
 	    break;
 
 	case MPI_EVENT_LINK_STATUS_CHANGE:
@@ -2979,10 +3125,10 @@ stm_send_target_status(MPT_STM_PRIV *priv,
 		    priv->io_state[index] &= ~IO_STATE_AUTO_REPOST;
 		}
 		/*
-		 * copy sense buffer so we can send it on the next
+		 * cache sense buffer so we can send it on the next
 		 * REQUEST SENSE command if the IOC can't send the
 		 * status and sense simultaneously (generating 
-		 * MPT_IOC_STATUS_TARGET_STS_DATA_NOT_SENT IOCStatus)
+		 * MPI_IOCSTATUS_TARGET_STS_DATA_NOT_SENT IOCStatus)
 		 */
 		sense_size = min(sizeof(rsp->SenseData), 
 				       (size_t)SCSI_SENSE_BUFFERSIZE);
@@ -2992,7 +3138,8 @@ stm_send_target_status(MPT_STM_PRIV *priv,
 		TRACE_BUFFER("priv->pending_sense_buffer", 
 				priv->pending_sense_buffer[init_index], 
 				sense_size);
-		atomic_set(&priv->pending_sense[init_index], 1);
+		atomic_set(&priv->pending_sense[init_index], 
+				MPT_STATUS_SENSE_ATTEMPT);
 	    }
 	    if (rsp->Valid & SCSI_RSP_LEN_VALID) {
 		length += be32_to_cpu(rsp->PktFailuresListLength);
@@ -3710,7 +3857,7 @@ stm_scsi_configuration(MPT_STM_PRIV *priv,
 		   wide ? "WIDE" : " ");
 	memcpy(priv->hw->config_buf, ScsiDevice1, sizeof(*ScsiDevice1));
 	stm_set_config_page(priv, MPI_CONFIG_PAGETYPE_SCSI_DEVICE, 1, i, sleep);
-	atomic_set(&priv->pending_sense[i], 0);
+	atomic_set(&priv->pending_sense[i], MPT_STATUS_SENSE_IDLE);
     }
     TRACE_EXIT();
 
@@ -5101,12 +5248,14 @@ stmapp_target_error(MPT_STM_PRIV *priv,
     CMD			*cmd;
     int			lun = 0;
     int			tag = 0;
+    int			init_index = 0;
 
-	TRACE_ENTRY();
+    TRACE_ENTRY();
     TRACE_DBG("%s target error, index %d, status %x, reason %x",
 	    ioc->name, index, status, reason);
 
     io_state = priv->io_state + index;
+    init_index = GET_INITIATOR_INDEX(reply_word);
 
     if (*io_state & IO_STATE_DATA_SENT) {
 	TargetAssistRequest_t	*req;
@@ -5219,13 +5368,20 @@ stmapp_target_error(MPT_STM_PRIV *priv,
      *  result of an attempt to send a check condition with 
      *  attached sense bytes.  
      *  The IOC knows it can't send status and sense over a 
-     *  traditional SCSI cable (non-packetized), so we should 
+     *  traditional SCSI cable (if non-packetized), so we should 
      *  treat this as a successful completion, manually repost the
      *  command to the IOC, and free the SCST command.
      */
-    if (IsScsi(priv) && status == MPI_IOCSTATUS_TARGET_STS_DATA_NOT_SENT) {
+    if (IsScsi(priv) && (status == MPI_IOCSTATUS_TARGET_STS_DATA_NOT_SENT)) {
 	    if ((*io_state & IO_STATE_AUTO_REPOST) ||
 		(*io_state & IO_STATE_STATUS_SENT)) {
+		    /* if we know we were attempting to send status and sense
+		     * simultaneously, indicate that we failed */
+		    if (atomic_read(&priv->pending_sense[init_index]) ==
+				    MPT_STATUS_SENSE_ATTEMPT) {
+			    atomic_set(&priv->pending_sense[init_index], 
+				MPT_STATUS_SENSE_NOT_SENT);
+		    }
 		    stm_tgt_reply(ioc, reply_word);
 		    TRACE_EXIT();
 		    return;
@@ -5234,7 +5390,7 @@ stmapp_target_error(MPT_STM_PRIV *priv,
 
     *io_state &= ~IO_STATE_AUTO_REPOST;
     stm_target_cleanup(priv, index);
-	TRACE_EXIT();
+    TRACE_EXIT();
 }
 
 static void
