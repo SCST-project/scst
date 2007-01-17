@@ -2270,7 +2270,7 @@ static int tm_dbg_state;
 static int tm_dbg_on_state_passes;
 static DEFINE_TIMER(tm_dbg_timer, tm_dbg_timer_fn, 0, 0);
 
-static const int tm_dbg_on_state_num_passes[] = { 10, 1, 0x7ffffff };
+static const int tm_dbg_on_state_num_passes[] = { 5, 1, 0x7ffffff };
 
 void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev,
 	struct scst_acg_dev *acg_dev)
@@ -2308,16 +2308,20 @@ static void tm_dbg_delay_cmd(struct scst_cmd *cmd)
 		if (tm_dbg_delayed_cmds_count == 0) {
 			unsigned long d = 58*HZ + (scst_random() % (4*HZ));
 			TRACE_MGMT_DBG("%s: delaying timed cmd %p (tag %d) "
-				"for %ld.%ld seconds (%ld HZ)", __func__, cmd, cmd->tag,
-				d/HZ, (d%HZ)*100/HZ, d);
+				"for %ld.%ld seconds (%ld HZ), "
+				"tm_dbg_on_state_passes=%d", __func__, cmd, 
+				cmd->tag, d/HZ, (d%HZ)*100/HZ, d,
+				tm_dbg_on_state_passes);
 			mod_timer(&tm_dbg_timer, jiffies + d);
 #if 0
 			tm_dbg_blocked = 1;
 #endif
 		} else {
 			TRACE_MGMT_DBG("%s: delaying another timed cmd %p "
-				"(tag %d), delayed_cmds_count=%d", __func__, cmd,
-				cmd->tag, tm_dbg_delayed_cmds_count);
+				"(tag %d), delayed_cmds_count=%d, "
+				"tm_dbg_on_state_passes=%d", __func__, cmd,
+				cmd->tag, tm_dbg_delayed_cmds_count,
+				tm_dbg_on_state_passes);
 			if (tm_dbg_delayed_cmds_count == 2)
 				tm_dbg_blocked = 0;
 		}
@@ -2326,8 +2330,10 @@ static void tm_dbg_delay_cmd(struct scst_cmd *cmd)
 	case TM_DBG_STATE_RESET:
 	case TM_DBG_STATE_OFFLINE:
 		TRACE_MGMT_DBG("%s: delaying cmd %p "
-			"(tag %d), delayed_cmds_count=%d", __func__, cmd,
-			cmd->tag, tm_dbg_delayed_cmds_count);
+			"(tag %d), delayed_cmds_count=%d, "
+			"tm_dbg_on_state_passes=%d", __func__, cmd,
+			cmd->tag, tm_dbg_delayed_cmds_count,
+			tm_dbg_on_state_passes);
 		tm_dbg_blocked = 1;
 		break;
 

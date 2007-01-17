@@ -722,6 +722,8 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status, int pref_context)
 			scst_cmd_set_sn(cmd);
 			spin_unlock_irqrestore(&scst_list_lock, flags);
 		}
+		if (tm_dbg_check_cmd(cmd) != 0)
+			goto out;
 		break;
 
 	case SCST_PREPROCESS_STATUS_ERROR_SENSE_SET:
@@ -3403,7 +3405,7 @@ static void scst_mgmt_cmd_send_done(struct scst_mgmt_cmd *mcmd)
 
 	mcmd->state = SCST_MGMT_CMD_STATE_FINISHED;
 	if (scst_is_strict_mgmt_fn(mcmd->fn) && (mcmd->completed_cmd_count > 0))
-		mcmd->status = SCST_MGMT_STATUS_FAILED;
+		mcmd->status = SCST_MGMT_STATUS_TASK_NOT_EXIST;
 
 	if (mcmd->sess->tgt->tgtt->task_mgmt_fn_done) {
 		TRACE_DBG("Calling target %s task_mgmt_fn_done()",
