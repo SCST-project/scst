@@ -685,23 +685,17 @@ stm_data_done(MPT_ADAPTER *ioc, u32 reply_word,
 		struct scst_cmd *scst_cmd, struct mpt_cmd *cmd, int index)
 {
 	MPT_STM_PRIV *priv = mpt_stm_priv[ioc->id];
-	uint8_t *buf = NULL;
 
 	TRACE_ENTRY();
 	TRACE_DBG("scst cmd %p, index %d, data done",  scst_cmd, index);
 
 	if (scst_cmd_get_resp_data_len(scst_cmd) > 0) {
 		TRACE_DBG("clear the data flags <%p>", scst_cmd);
-		if (scst_cmd_get_sg_cnt(scst_cmd)) {
-			pci_unmap_sg(priv->ioc->pcidev,
-				scst_cmd_get_sg(scst_cmd),
-				scst_cmd_get_sg_cnt(scst_cmd),
-				scst_to_tgt_dma_dir(scst_cmd_get_data_direction(scst_cmd)));
-		} else {
-			pci_unmap_single(priv->ioc->pcidev, cmd->dma_handle,
-				scst_get_buf_first(scst_cmd, &buf),
-				scst_to_tgt_dma_dir(scst_cmd_get_data_direction(scst_cmd)));
-		}
+		sBUG_ON(scst_cmd_get_sg_cnt(scst_cmd) == 0);
+		pci_unmap_sg(priv->ioc->pcidev,
+			scst_cmd_get_sg(scst_cmd),
+			scst_cmd_get_sg_cnt(scst_cmd),
+			scst_to_tgt_dma_dir(scst_cmd_get_data_direction(scst_cmd)));
 	}
 	TRACE_EXIT();
 }
@@ -1083,53 +1077,31 @@ static inline void
 mpt_sge_to_sgl(struct mpt_prm *prm, MPT_STM_PRIV *priv, MPT_SGL *sgl)
 {
 	unsigned int bufflen = prm->bufflen;
+	int i;
+
 	TRACE_ENTRY();
 	TRACE_DBG("bufflen %d, %p", bufflen, prm->buffer);
-	if (prm->use_sg) {
-		int i;
-		prm->sg = (struct scatterlist *)prm->buffer;
-		prm->seg_cnt = 
-			pci_map_sg(priv->ioc->pcidev, prm->sg, prm->use_sg,
+	sBUG_ON(prm->use_sg == 0);
+
+	prm->sg = (struct scatterlist *)prm->buffer;
+	prm->seg_cnt = pci_map_sg(priv->ioc->pcidev, prm->sg, prm->use_sg,
 				   scst_to_tgt_dma_dir(prm->data_direction));
 		
-		pci_dma_sync_sg_for_cpu(priv->ioc->pcidev, prm->sg, 
-				prm->use_sg, 
-				scst_to_tgt_dma_dir(prm->data_direction));
-		for (i = 0; i < prm->use_sg; i++) {
-			sgl->sge[i].length = sg_dma_len(&prm->sg[i]);
-			sgl->sge[i].address = sg_dma_address(&prm->sg[i]);
+	pci_dma_sync_sg_for_cpu(priv->ioc->pcidev, prm->sg, prm->use_sg, 
+			scst_to_tgt_dma_dir(prm->data_direction));
+	for (i = 0; i < prm->use_sg; i++) {
+		sgl->sge[i].length = sg_dma_len(&prm->sg[i]);
+		sgl->sge[i].address = sg_dma_address(&prm->sg[i]);
 
-			TRACE_DBG("%d, %d", bufflen, prm->sg[i].length);
-			if (bufflen < prm->sg[i].length) {
-				sgl->sge[i].length = bufflen;
-			}
-			mpt_dump_sge(&sgl->sge[i], &prm->sg[i]);
-			bufflen -= sgl->sge[i].length;
+		TRACE_DBG("%d, %d", bufflen, prm->sg[i].length);
+		if (bufflen < prm->sg[i].length) {
+			sgl->sge[i].length = bufflen;
 		}
-		pci_dma_sync_sg_for_device(priv->ioc->pcidev, prm->sg, 
-				prm->use_sg, 
-				scst_to_tgt_dma_dir(prm->data_direction));
-	} else {
-		prm->cmd->dma_handle = 
-			pci_map_single(priv->ioc->pcidev, prm->buffer, 
-				       prm->bufflen,
-				       scst_to_tgt_dma_dir(prm->data_direction));
-		
-		pci_dma_sync_single_for_cpu(priv->ioc->pcidev, 
-				prm->cmd->dma_handle, 
-				prm->bufflen, 
-				scst_to_tgt_dma_dir(prm->data_direction));
-		sgl->sge[0].length = prm->bufflen;
-		sgl->sge[0].address = virt_to_phys(prm->buffer);
-		
-		mpt_dump_sge(&sgl->sge[0], NULL);
-		pci_dma_sync_single_for_device(priv->ioc->pcidev, 
-				prm->cmd->dma_handle, 
-				prm->bufflen, 
-				scst_to_tgt_dma_dir(prm->data_direction));
-
-		prm->seg_cnt = 1;
+		mpt_dump_sge(&sgl->sge[i], &prm->sg[i]);
+		bufflen -= sgl->sge[i].length;
 	}
+	pci_dma_sync_sg_for_device(priv->ioc->pcidev, prm->sg, prm->use_sg, 
+			scst_to_tgt_dma_dir(prm->data_direction));
 	
 	sgl->num_sges = prm->seg_cnt;
 	
@@ -1500,6 +1472,7 @@ stmapp_pending_sense(struct mpt_cmd *mpt_cmd)
 	u8 *cdb;
 	struct mpt_prm prm = { 0 };
 	struct scst_cmd *scst_cmd;
+	struct scatterlist sg;
 
 	TRACE_ENTRY();
 
@@ -1546,11 +1519,19 @@ stmapp_pending_sense(struct mpt_cmd *mpt_cmd)
 
 					flags = TARGET_ASSIST_FLAGS_AUTO_STATUS;
 					prm.cmd = mpt_cmd;
+					/* smallest amount of data between
+					 * requested length, buffer size,
+					 * and cached length */
 					prm.bufflen = min((size_t)cdb[4], 
-							(size_t)SCSI_SENSE_BUFFERSIZE);
-					prm.buffer = 
-						priv->pending_sense_buffer[init_index];
-					prm.use_sg = 0;
+						(size_t)SCSI_SENSE_BUFFERSIZE);
+					prm.bufflen = min(prm.bufflen, 
+						(size_t)(priv->pending_sense_buffer[init_index][7] 
+							 + 8));
+					sg.page = virt_to_page(priv->pending_sense_buffer[init_index]);
+					sg.offset = offset_in_page(priv->pending_sense_buffer[init_index]);
+					sg.length = prm.bufflen;
+					prm.buffer = &sg;
+					prm.use_sg = 1;
 					prm.data_direction = SCST_DATA_READ;
 					prm.tgt = priv->tgt->sess[init_index]->tgt;
 					prm.cmd->state = MPT_STATE_DATA_OUT;
@@ -1712,20 +1693,14 @@ mpt_inquiry_no_tagged_commands(MPT_STM_PRIV *priv, struct scst_cmd *scst_cmd)
 	 */
 	if (IsScsi(priv) && (scst_cmd->cdb[0] == INQUIRY) && 
 			!(scst_cmd->cdb[1] & 0x1)) {
-		if (!scst_cmd->sg_cnt) {
-			address = (uint8_t *)scst_cmd->sg;
-			length = scst_cmd->bufflen;
-		} else {
-			length = scst_get_buf_first(scst_cmd, &address);
-		}
+		sBUG_ON(scst_cmd->sg_cnt == 0);
+		length = scst_get_buf_first(scst_cmd, &address);
 		if (length >= 8) {
 			TRACE_DBG("clearing BQUE + CMDQUE 0x%p", address);
 			address[6] &= ~0x80; /* turn off BQUE */
 			address[7] &= ~0x02; /* turn off CMDQUE */
 		}
-		if (scst_cmd->sg_cnt) {
-			scst_put_buf(scst_cmd, address);
-		}
+		scst_put_buf(scst_cmd, address);
 	}
 
 	TRACE_EXIT();
