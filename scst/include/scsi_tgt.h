@@ -957,7 +957,7 @@ struct scst_session
 	const char *initiator_name;
 
 	/* Used if scst_unregister_session() called in wait mode */
-	struct semaphore *shutdown_mutex;
+	struct completion *shutdown_compl;
 	
 	/* List entry of sessions per target */
 	struct list_head sess_list_entry;

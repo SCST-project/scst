@@ -1001,13 +1001,13 @@ void scst_free_session(struct scst_session *sess)
 
 void scst_free_session_callback(struct scst_session *sess)
 {
-	struct semaphore *shm;
+	struct completion *c;
 
 	TRACE_ENTRY();
 
 	TRACE_DBG("Freeing session %p", sess);
 
-	shm = sess->shutdown_mutex;
+	c = sess->shutdown_compl;
 
 	if (sess->unreg_done_fn) {
 		TRACE_DBG("Calling unreg_done_fn(%p)", sess);
@@ -1016,8 +1016,8 @@ void scst_free_session_callback(struct scst_session *sess)
 	}
 	scst_free_session(sess);
 
-	if (shm)
-		up(shm);
+	if (c)
+		complete_all(c);
 
 	TRACE_EXIT();
 	return;

@@ -24,6 +24,10 @@
 static unsigned long dh_trace_flag = SCST_DEFAULT_DEV_LOG_FLAGS; 
 #define trace_flag dh_trace_flag
 
+#ifndef trace_log_tbl
+#define trace_log_tbl	NULL
+#endif
+
 static struct scst_proc_data dev_handler_log_proc_data;
 
 static int dev_handler_log_info_show(struct seq_file *seq, void *v)
@@ -32,21 +36,21 @@ static int dev_handler_log_info_show(struct seq_file *seq, void *v)
 
 	TRACE_ENTRY();
 
-	res = scst_proc_log_entry_read(seq, trace_flag, NULL);
+	res = scst_proc_log_entry_read(seq, trace_flag, trace_log_tbl);
 
 	TRACE_EXIT_RES(res);
 	return res;
 }
 
-static int scst_dev_handler_proc_log_entry_write(struct file *file, const char __user *buf,
-	size_t length, loff_t *off)
+static int scst_dev_handler_proc_log_entry_write(struct file *file,
+	const char __user *buf, size_t length, loff_t *off)
 {
 	int res = 0;
 
 	TRACE_ENTRY();
 
 	res = scst_proc_log_entry_write(file, buf, length, &trace_flag,
-			SCST_DEFAULT_DEV_LOG_FLAGS, NULL);
+			SCST_DEFAULT_DEV_LOG_FLAGS, trace_log_tbl);
 
 	TRACE_EXIT_RES(res);
 	return res;

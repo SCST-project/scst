@@ -3900,7 +3900,7 @@ void scst_unregister_session(struct scst_session *sess, int wait,
 	void (*unreg_done_fn) (struct scst_session *sess))
 {
 	unsigned long flags;
-	DECLARE_MUTEX_LOCKED(shm);
+	DECLARE_COMPLETION(c);
 
 	TRACE_ENTRY();
 
@@ -3909,7 +3909,7 @@ void scst_unregister_session(struct scst_session *sess, int wait,
 	sess->shutting_down = 1;
 	sess->unreg_done_fn = unreg_done_fn;
 	if (wait) {
-		sess->shutdown_mutex = &shm;
+		sess->shutdown_compl = &c;
 		smp_mb();
 	}
 
@@ -3919,7 +3919,7 @@ void scst_unregister_session(struct scst_session *sess, int wait,
 
 	if (wait) {
 		TRACE_DBG("Waiting for session %p to complete", sess);
-		down(&shm);
+		wait_for_completion(&c);
 	}
 
 	TRACE_EXIT();

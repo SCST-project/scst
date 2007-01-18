@@ -39,6 +39,16 @@
 #define LOG_PREFIX			"dev_fileio"
 
 #include "scsi_tgt.h"
+
+#define TRACE_ORDER	0x80000000
+
+static struct scst_proc_log fileio_proc_local_trace_tbl[] =
+{
+    { TRACE_ORDER,		"order" },
+    { 0,			NULL }
+};
+#define trace_log_tbl	fileio_proc_local_trace_tbl
+
 #include "scst_dev_handler.h"
 
 /* 8 byte ASCII Vendor of the FILE IO target */
@@ -279,47 +289,51 @@ static int fileio_attach(struct scst_device *dev)
 		virt_dev->rd_only_flag = 1;
 
 	if (!virt_dev->cdrom_empty) {
-		fd = fileio_open(virt_dev);
-		if (IS_ERR(fd)) {
-			res = PTR_ERR(fd);
-			PRINT_ERROR_PR("filp_open(%s) returned an error %d",
+		if (virt_dev->nullio)
+			err = 3LL*1024*1024*1024*1024/2;
+		else {
+			fd = fileio_open(virt_dev);
+			if (IS_ERR(fd)) {
+				res = PTR_ERR(fd);
+				PRINT_ERROR_PR("filp_open(%s) returned an error %d",
 				       virt_dev->file_name, res);
-			goto out;
-		}
+				goto out;
+			}
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
-		if ((fd->f_op == NULL) || (fd->f_op->readv == NULL) || 
-		    (fd->f_op->writev == NULL))
+			if ((fd->f_op == NULL) || (fd->f_op->readv == NULL) || 
+			    (fd->f_op->writev == NULL))
 #else
-		if ((fd->f_op == NULL) || (fd->f_op->aio_read == NULL) || 
-		    (fd->f_op->aio_write == NULL))
+			if ((fd->f_op == NULL) || (fd->f_op->aio_read == NULL) || 
+			    (fd->f_op->aio_write == NULL))
 #endif
-		{
-			PRINT_ERROR_PR("%s", "Wrong f_op or FS doesn't have "
-				"required capabilities");
-				res = -EINVAL;
-			goto out_close_file;
-		}
-
-		/* seek to end */
-		old_fs = get_fs();
-		set_fs(get_ds());
-		if (fd->f_op->llseek) {
-			err = fd->f_op->llseek(fd, 0, 2/*SEEK_END*/);
-		} else {
-			err = default_llseek(fd, 0, 2/*SEEK_END*/);
-		}
-		set_fs(old_fs);
-		if (err < 0) {
-			res = err;
-			PRINT_ERROR_PR("llseek %s returned an error %d",
+			{
+				PRINT_ERROR_PR("%s", "Wrong f_op or FS doesn't have "
+					"required capabilities");
+					res = -EINVAL;
+				filp_close(fd, NULL);
+				goto out;
+			}
+		
+			/* seek to end */
+			old_fs = get_fs();
+			set_fs(get_ds());
+			if (fd->f_op->llseek) {
+				err = fd->f_op->llseek(fd, 0, 2/*SEEK_END*/);
+			} else {
+				err = default_llseek(fd, 0, 2/*SEEK_END*/);
+			}
+			set_fs(old_fs);
+			filp_close(fd, NULL);
+			if (err < 0) {
+				res = err;
+				PRINT_ERROR_PR("llseek %s returned an error %d",
 				       virt_dev->file_name, res);
-			goto out_close_file;
+				goto out;
+			}
 		}
 		virt_dev->file_size = err;
 		TRACE_DBG("size of file: %Ld", (uint64_t)err);
-
-		filp_close(fd, NULL);
 	} else
 		virt_dev->file_size = 0;
 
@@ -349,10 +363,6 @@ static int fileio_attach(struct scst_device *dev)
 out:
 	TRACE_EXIT();
 	return res;
-
-out_close_file:
-	filp_close(fd, NULL);
-	goto out;
 }
 
 /************************************************************
@@ -492,7 +502,7 @@ static void fileio_do_job(struct scst_cmd *cmd)
 	case WRITE_16:
 		fua = (cdb[1] & 0x8) && !virt_dev->wt_flag;
 		if (cdb[1] & 0x8) {
-			TRACE(TRACE_SCSI, "FUA(%d): loff=%Ld, "
+			TRACE(TRACE_ORDER, "FUA(%d): loff=%Ld, "
 				"data_len=%Ld", fua, (uint64_t)loff,
 				(uint64_t)data_len);
 		}
@@ -520,7 +530,7 @@ static void fileio_do_job(struct scst_cmd *cmd)
 			ftgt_dev->last_write_cmd_queue_type = cmd->queue_type;
 			if (fileio_need_pre_sync(cmd->queue_type, last_queue_type) &&
 			    !virt_dev->wt_flag) {
-			    	TRACE(TRACE_SCSI/*|TRACE_SPECIAL*/, "ORDERED "
+			    	TRACE(TRACE_ORDER, "ORDERED "
 			    		"WRITE(%d): loff=%Ld, data_len=%Ld",
 			    		cmd->queue_type, (uint64_t)loff,
 			    		(uint64_t)data_len);
@@ -551,7 +561,7 @@ static void fileio_do_job(struct scst_cmd *cmd)
 			ftgt_dev->last_write_cmd_queue_type = cmd->queue_type;
 			if (fileio_need_pre_sync(cmd->queue_type, last_queue_type) && 
 			    !virt_dev->wt_flag) {
-			    	TRACE(TRACE_SCSI/*|TRACE_SPECIAL*/, "ORDERED "
+			    	TRACE(TRACE_ORDER, "ORDERED "
 			    		"WRITE_VERIFY(%d): loff=%Ld, data_len=%Ld",
 			    		cmd->queue_type, (uint64_t)loff,
 			    		(uint64_t)data_len);
@@ -577,7 +587,7 @@ static void fileio_do_job(struct scst_cmd *cmd)
 		struct scst_fileio_tgt_dev *ftgt_dev = 
 			(struct scst_fileio_tgt_dev*)
 				cmd->tgt_dev->dh_priv;
-		TRACE(TRACE_SCSI, "SYNCHRONIZE_CACHE: "
+		TRACE(TRACE_ORDER, "SYNCHRONIZE_CACHE: "
 			"loff=%Ld, data_len=%Ld, immed=%d", (uint64_t)loff,
 			(uint64_t)data_len, immed);
 		if (immed) {
@@ -717,7 +727,7 @@ static int fileio_attach_tgt(struct scst_tgt_dev *tgt_dev)
 	init_waitqueue_head(&ftgt_dev->fdev_waitQ);
 	ftgt_dev->virt_dev = virt_dev;
 
-	if (!virt_dev->cdrom_empty) {
+	if (!virt_dev->cdrom_empty && !virt_dev->nullio) {
 		ftgt_dev->fd = fileio_open(virt_dev);
 		if (IS_ERR(ftgt_dev->fd)) {
 			res = PTR_ERR(ftgt_dev->fd);
@@ -1561,7 +1571,7 @@ static int fileio_set_wt(struct scst_fileio_dev *virt_dev, int wt)
 
 	TRACE_ENTRY();
 
-	if (virt_dev->wt_flag == wt)
+	if ((virt_dev->wt_flag == wt) || virt_dev->nullio)
 		goto out;
 
 	virt_dev->wt_flag = wt;
@@ -2023,33 +2033,33 @@ static void fileio_exec_read(struct scst_cmd *cmd, loff_t loff)
 		    SCST_LOAD_SENSE(scst_sense_hardw_error));
 		goto out_put;
 	}
-	
+
 	old_fs = get_fs();
 	set_fs(get_ds());
-	
-	/* SEEK */	
-	if (fd->f_op->llseek) {
-		err = fd->f_op->llseek(fd, loff, 0/*SEEK_SET*/);
-	} else {
-		err = default_llseek(fd, loff, 0/*SEEK_SET*/);
-	}
-	if (err != loff) {
-		PRINT_ERROR_PR("lseek trouble %Ld != %Ld", (uint64_t)err, 
-			(uint64_t)loff);
-		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
-		goto out_set_fs;
-	}
-	
-	/* READ */
+
 	TRACE_DBG("reading(iv_count %d, full_len %zd)", iv_count, full_len);
 	if (virt_dev->nullio)
 		err = full_len;
-	else
+	else {
+		/* SEEK */	
+		if (fd->f_op->llseek) {
+			err = fd->f_op->llseek(fd, loff, 0/*SEEK_SET*/);
+		} else {
+			err = default_llseek(fd, loff, 0/*SEEK_SET*/);
+		}
+		if (err != loff) {
+			PRINT_ERROR_PR("lseek trouble %Ld != %Ld", (uint64_t)err, 
+				(uint64_t)loff);
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+			goto out_set_fs;
+		}
+		/* READ */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
 		err = fd->f_op->readv(fd, iv, iv_count, &fd->f_pos);
 #else
 		err = do_sync_readv_writev(fd, iv, iv_count, full_len, &fd->f_pos, fd->f_op->aio_read);
 #endif
+	}
 
 	if ((err < 0) || (err < full_len)) {
 		PRINT_ERROR_PR("readv() returned %Ld from %zd", (uint64_t)err, 
@@ -2111,25 +2121,10 @@ static void fileio_exec_write(struct scst_cmd *cmd, loff_t loff)
 		    SCST_LOAD_SENSE(scst_sense_hardw_error));
 		goto out_put;
 	}
-	
+
 	old_fs = get_fs();
 	set_fs(get_ds());
-	
-	/* SEEK */
-	if (fd->f_op->llseek) {
-		err = fd->f_op->llseek(fd, loff, 0 /*SEEK_SET */ );
-	} else {
-		err = default_llseek(fd, loff, 0 /*SEEK_SET */ );
-	}
-	if (err != loff) {
-		PRINT_ERROR_PR("lseek trouble %Ld != %Ld", (uint64_t)err, 
-			(uint64_t)loff);
-		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_hardw_error));
-		goto out_set_fs;
-	}
-	
-	/* WRITE */
+
 	eiv = iv;
 	eiv_count = iv_count;
 restart:
@@ -2137,13 +2132,29 @@ restart:
 
 	if (virt_dev->nullio)
 		err = full_len;
-	else
+	else {
+		/* SEEK */
+		if (fd->f_op->llseek) {
+			err = fd->f_op->llseek(fd, loff, 0 /*SEEK_SET */ );
+		} else {
+			err = default_llseek(fd, loff, 0 /*SEEK_SET */ );
+		}
+		if (err != loff) {
+			PRINT_ERROR_PR("lseek trouble %Ld != %Ld", (uint64_t)err, 
+				(uint64_t)loff);
+			scst_set_cmd_error(cmd,
+			    SCST_LOAD_SENSE(scst_sense_hardw_error));
+			goto out_set_fs;
+		}
+
+		/* WRITE */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
 		err = fd->f_op->writev(fd, eiv, eiv_count, &fd->f_pos);
 #else
 		err = do_sync_readv_writev(fd, iv, iv_count, full_len, &fd->f_pos, 
 									fd->f_op->aio_write);
 #endif
+	}
 
 	if (err < 0) {
 		PRINT_ERROR_PR("write() returned %Ld from %zd", 
@@ -2205,6 +2216,8 @@ static void fileio_exec_verify(struct scst_cmd *cmd, loff_t loff)
 	ssize_t length, len_mem = 0;
 	uint8_t *address_sav, *address;
 	int compare;
+	struct scst_fileio_dev *virt_dev =
+	    (struct scst_fileio_dev *)cmd->dev->dh_priv;
 	struct scst_fileio_tgt_dev *ftgt_dev = 
 		(struct scst_fileio_tgt_dev *)cmd->tgt_dev->dh_priv;
 	struct file *fd = ftgt_dev->fd;
@@ -2227,16 +2240,18 @@ static void fileio_exec_verify(struct scst_cmd *cmd, loff_t loff)
 	old_fs = get_fs();
 	set_fs(get_ds());
 
-	if (fd->f_op->llseek) {
-		err = fd->f_op->llseek(fd, loff, 0/*SEEK_SET*/);
-	} else {
-		err = default_llseek(fd, loff, 0/*SEEK_SET*/);
-	}
-	if (err != loff) {
-		PRINT_ERROR_PR("lseek trouble %Ld != %Ld", (uint64_t)err, 
-			(uint64_t)loff);
-		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
-		goto out_set_fs;
+	if (!virt_dev->nullio) {
+		if (fd->f_op->llseek) {
+			err = fd->f_op->llseek(fd, loff, 0/*SEEK_SET*/);
+		} else {
+			err = default_llseek(fd, loff, 0/*SEEK_SET*/);
+		}
+		if (err != loff) {
+			PRINT_ERROR_PR("lseek trouble %Ld != %Ld", (uint64_t)err, 
+				(uint64_t)loff);
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+			goto out_set_fs;
+		}
 	}
 
 	mem_verify = vmalloc(LEN_MEM);
@@ -2260,7 +2275,10 @@ static void fileio_exec_verify(struct scst_cmd *cmd, loff_t loff)
 		len_mem = length > LEN_MEM ? LEN_MEM : length;
 		TRACE_DBG("Verify: length %zd - len_mem %zd", length, len_mem);
 
-		err = fd->f_op->read(fd, (char*)mem_verify, len_mem, &fd->f_pos);
+		if (!virt_dev->nullio)
+			err = fd->f_op->read(fd, (char*)mem_verify, len_mem, &fd->f_pos);
+		else
+			err = len_mem;
 		if ((err < 0) || (err < len_mem)) {
 			PRINT_ERROR_PR("verify() returned %Ld from %zd",
 				(uint64_t)err, len_mem);
@@ -2497,11 +2515,6 @@ static int disk_fileio_write_proc(char *buffer, char **start, off_t offset,
 			PRINT_ERROR_PR("%s", "File name required");
 			res = -EINVAL;
 			goto out_up;
-		} else if (*file_name != '/') {
-			PRINT_ERROR_PR("File path \"%s\" is not "
-				"absolute", file_name);
-			res = -EINVAL;
-			goto out_up;
 		}
 
 		virt_dev = fileio_alloc_dev();
@@ -2581,7 +2594,14 @@ static int disk_fileio_write_proc(char *buffer, char **start, off_t offset,
 			while (isspace(*p) && *p != '\0')
 				p++;
 		}
-		
+
+		if (!virt_dev->nullio && (*file_name != '/')) {
+			PRINT_ERROR_PR("File path \"%s\" is not "
+				"absolute", file_name);
+			res = -EINVAL;
+			goto out_up;
+		}
+
 		strcpy(virt_dev->name, name);
 
 		len = strlen(file_name) + 1;
@@ -2825,7 +2845,7 @@ static int cdrom_fileio_change(char *p, char *name)
 
 	old_fn = virt_dev->file_name;
 
-	if (!virt_dev->cdrom_empty) {
+	if (!virt_dev->cdrom_empty && !virt_dev->nullio) {
 		len = strlen(file_name) + 1;
 		fn = kmalloc(len, GFP_KERNEL);
 		if (fn == NULL) {
@@ -2895,7 +2915,7 @@ static int cdrom_fileio_change(char *p, char *name)
 
 	down(&virt_dev->ftgt_list_mutex);
 	list_for_each_entry(ftgt_dev, &virt_dev->ftgt_list, ftgt_list_entry) {
-		if (!virt_dev->cdrom_empty) {
+		if (!virt_dev->cdrom_empty && !virt_dev->nullio) {
 			fd = fileio_open(virt_dev);
 			if (IS_ERR(fd)) {
 				res = PTR_ERR(fd);
