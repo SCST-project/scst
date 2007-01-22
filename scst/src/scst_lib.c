@@ -1313,6 +1313,7 @@ int scst_alloc_space(struct scst_cmd *cmd)
 	int ini_unchecked_isa_dma, ini_use_clustering;
 	int use_clustering = 0;
 	struct sgv_pool *pool;
+	int atomic = scst_cmd_atomic(cmd);
 
 	TRACE_ENTRY();
 
@@ -1324,7 +1325,7 @@ int scst_alloc_space(struct scst_cmd *cmd)
 	}
 
 	gfp_mask = __GFP_NOWARN;
-	gfp_mask |= (scst_cmd_atomic(cmd) ? GFP_ATOMIC : GFP_KERNEL);
+	gfp_mask |= (atomic ? GFP_ATOMIC : GFP_KERNEL);
 	pool = &scst_sgv.norm;
 
 	if (cmd->dev->scsi_dev != NULL) {
@@ -1364,7 +1365,7 @@ int scst_alloc_space(struct scst_cmd *cmd)
 		cmd->sg = scst_alloc(cmd->bufflen, gfp_mask, use_clustering,	
 			&cmd->sg_cnt);
 	} else {
-		cmd->sg = sgv_pool_alloc(pool, cmd->bufflen, gfp_mask,
+		cmd->sg = sgv_pool_alloc(pool, cmd->bufflen, gfp_mask, atomic,
 				&cmd->sg_cnt, &cmd->sgv);
 	}
 	if (cmd->sg == NULL)

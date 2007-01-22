@@ -80,7 +80,8 @@ extern int sgv_pool_init(struct sgv_pool *pool, const char *name,
 extern void sgv_pool_deinit(struct sgv_pool *pool);
 
 extern struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, int size,
-	unsigned long gfp_mask, int *count, struct sgv_pool_obj **sgv);
+	unsigned long gfp_mask, int atomic, int *count,
+	struct sgv_pool_obj **sgv);
 static inline void sgv_pool_free(struct sgv_pool_obj *sgv)
 {
 	TRACE_MEM("Freeing sgv_obj %p", sgv);

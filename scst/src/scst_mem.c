@@ -211,7 +211,8 @@ out_no_mem:
 }
 
 struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, int size,
-	unsigned long gfp_mask, int *count, struct sgv_pool_obj **sgv)
+	unsigned long gfp_mask, int atomic, int *count,
+	struct sgv_pool_obj **sgv)
 {
 	struct sgv_pool_obj *obj;
 	int order, pages, cnt, sg;
@@ -227,7 +228,7 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, int size,
 
 	if (order >= SGV_POOL_ELEMENTS) {
 		obj = NULL;
-		if (gfp_mask & GFP_ATOMIC)
+		if (atomic)
 			goto out;
 		atomic_inc(&sgv_big_total_alloc);
 		atomic_dec(&sgv_other_total_alloc);
@@ -238,7 +239,7 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, int size,
 	obj = kmem_cache_alloc(pool->caches[order], 
 			gfp_mask & ~(__GFP_HIGHMEM|GFP_DMA));
 	if (obj == NULL) {
-		if (!(gfp_mask & GFP_ATOMIC)) {
+		if (!atomic) {
 			TRACE(TRACE_OUT_OF_MEM, "Allocation of sgv_pool_obj "
 				"failed (size %d)", size);
 		}
@@ -248,7 +249,7 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, int size,
 	if (obj->owner_cache != pool->caches[order]) {
 		int esz, epg, eorder;
 
-		if (gfp_mask & GFP_ATOMIC)
+		if (atomic)
 			goto out_free;
 
 		esz = (1 << order) * sizeof(obj->entries[0]);

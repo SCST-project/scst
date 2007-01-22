@@ -13,7 +13,7 @@ Summary of changes between versions 0.9.5 and 0.9.6
 
  - Support for CPU cache flushing before doing DMA to target devices added.
 
- - Various cleanups and bug fixes.
+ - Various cleanups, bug fixes and improvements.
 
 Summary of changes between versions 0.9.4 and 0.9.5
 ---------------------------------------------------
