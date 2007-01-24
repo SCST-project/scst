@@ -526,61 +526,6 @@ sub applyConfiguration {
 	print "Applying configurations additions..\n" if (!$check);
 	print "\n";
 
-	# Enable/Disable configured targets
-	foreach my $type (keys %{$$config{'TARGETS'}}) {
-		my $enable;
-
-		if ($type eq 'enable') {
-			$enable = $TRUE;
-		} elsif ($type eq 'disable') {
-			$enable = $FALSE;
-		} else {
-			print "\t-> WARNING: Ignoring invalid TARGETS specifier '$type'. ".
-			  "Should be one of enable,disable.\n";
-			next;
-		}
-
-		foreach my $target (@{$$config{'TARGETS'}->{$type}->{'HOST'}}) {
-			my $i_target = unformatTarget($target);
-
-			if (!defined($$TARGETS{$i_target})) {
-				print "\t-> WARNING: Target '$target' not found on system.\n";
-				$errs += 1;
-				next;
-			}
-
-			next if ($enable == targetEnabled($i_target));
-
-			if (!$enable && targetEnabled($target)) {
-				if ($force || $check) {
-					print "\t-force: Target mode for '$target' is currently enabled, ".
-					  "however configuration file wants it disabled";
-
-					if (!$check) {
-						print ", disabling.\n";
-						$errs += enableTarget($target, $enable);
-					} else {
-						print ".\n";
-					}
-
-					$changes++;
-				}
-			} else {
-				print "\t-> Target '$target' is enabled in configuration file, ".
-				  "however is currently disabled";
-
-				if (!$check) {
-					print ", enabling.\n";
-					$errs += enableTarget($target, $enable);
-				} else {
-					print ".\n";
-				}
-
-				$changes++;
-			}
-		}
-	}
-
 	# Open new devices and assign them to handlers..
 	foreach my $entry (keys %{$$config{'HANDLER'}}) {
 		if (!$HANDLERS{$_HANDLER_MAP_{$entry}}) {
@@ -784,6 +729,61 @@ sub applyConfiguration {
 						$changes++;
 					}
 				}
+			}
+		}
+	}
+
+	# Enable/Disable configured targets
+	foreach my $type (keys %{$$config{'TARGETS'}}) {
+		my $enable;
+
+		if ($type eq 'enable') {
+			$enable = $TRUE;
+		} elsif ($type eq 'disable') {
+			$enable = $FALSE;
+		} else {
+			print "\t-> WARNING: Ignoring invalid TARGETS specifier '$type'. ".
+			  "Should be one of enable,disable.\n";
+			next;
+		}
+
+		foreach my $target (@{$$config{'TARGETS'}->{$type}->{'HOST'}}) {
+			my $i_target = unformatTarget($target);
+
+			if (!defined($$TARGETS{$i_target})) {
+				print "\t-> WARNING: Target '$target' not found on system.\n";
+				$errs += 1;
+				next;
+			}
+
+			next if ($enable == targetEnabled($i_target));
+
+			if (!$enable && targetEnabled($target)) {
+				if ($force || $check) {
+					print "\t-force: Target mode for '$target' is currently enabled, ".
+					  "however configuration file wants it disabled";
+
+					if (!$check) {
+						print ", disabling.\n";
+						$errs += enableTarget($target, $enable);
+					} else {
+						print ".\n";
+					}
+
+					$changes++;
+				}
+			} else {
+				print "\t-> Target '$target' is enabled in configuration file, ".
+				  "however is currently disabled";
+
+				if (!$check) {
+					print ", enabling.\n";
+					$errs += enableTarget($target, $enable);
+				} else {
+					print ".\n";
+				}
+
+				$changes++;
 			}
 		}
 	}
