@@ -538,7 +538,16 @@ qla2x00_rff_id(scsi_qla_host_t *ha)
 	ct_req->req.rff_id.port_id[1] = ha->d_id.b.area;
 	ct_req->req.rff_id.port_id[2] = ha->d_id.b.al_pa;
 
-	ct_req->req.rff_id.fc4_feature = BIT_1;
+#ifdef FC_TARGET_SUPPORT
+	/*
+	 * FC-4 Feature bit 0 indicates target functionality to the name server.
+	 */
+	if (ha->flags.enable_target_mode) {
+		ct_req->req.rff_id.fc4_feature = BIT_0 | BIT_1;
+	} else
+#endif
+		ct_req->req.rff_id.fc4_feature = BIT_1;
+
 	ct_req->req.rff_id.fc4_type = 0x08;		/* SCSI - FCP */
 
 	/* Execute MS IOCB */
