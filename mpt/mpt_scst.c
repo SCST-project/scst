@@ -780,6 +780,8 @@ stm_tgt_reply(MPT_ADAPTER *ioc, u32 reply_word)
 			*io_state &= ~IO_STATE_DATA_SENT;
 			stm_data_done(ioc, reply_word, scst_cmd, cmd, index);
 		}
+		TRACE_DBG("set priv->scst_cmd[%d] = NULL", index);
+		priv->scst_cmd[index] = NULL;
 		if ((*io_state & ~IO_STATE_HIGH_PRIORITY) == IO_STATE_AUTO_REPOST) {
 			TRACE_DBG("%s", "io state auto repost");
 			*io_state = IO_STATE_POSTED;
@@ -1770,16 +1772,10 @@ static void mpt_on_free_cmd(struct scst_cmd *scst_cmd)
 {
 	struct mpt_cmd *cmd =
 		(struct mpt_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
-	MPT_STM_PRIV *priv = cmd->priv;
-	int index = GET_IO_INDEX(cmd->reply_word);
-	//MPT_ADAPTER *ioc = priv->ioc;
 
 	TRACE_ENTRY();
 	
-	TRACE_DBG("scst_cmd is %p, cmd %p, %p", 
-			priv->scst_cmd[index], cmd, scst_cmd);
-	WARN_ON(priv->scst_cmd[index] != scst_cmd);
-	priv->scst_cmd[index] = NULL;
+	TRACE_DBG("cmd %p, scst_cmd %p", cmd, scst_cmd);
 
 	scst_cmd_set_tgt_priv(scst_cmd, NULL);
 
@@ -2107,8 +2103,20 @@ stm_reply(MPT_ADAPTER *ioc, MPT_FRAME_HDR *mf_req, MPT_FRAME_HDR *mf_rep)
 	     *  and repost the command buffer
 	     */
 	    if (ioc_status != MPI_IOCSTATUS_SUCCESS) {
-		printk(KERN_ERR MYNAM ":%s TargetStatusSendReq IOCStatus = %04x\n",
-		       ioc->name, ioc_status);
+		/* if this is a MPI_IOCSTATUS_TARGET_STS_DATA_NOT_SENT
+		 * and we're SCSI, only print if we're debugging and
+		 * tracing.  This is a normal consequence of attempting
+		 * to send sense data and status in the same 
+		 * transaction.
+		 */
+		if (IsScsi(priv) && 
+			(ioc_status == MPI_IOCSTATUS_TARGET_STS_DATA_NOT_SENT)) {
+			TRACE_DBG(MYNAM ":%s TargetStatusSendReq IOCStatus = %04x\n",
+				ioc->name, ioc_status);
+		} else {
+			printk(KERN_ERR MYNAM ":%s TargetStatusSendReq IOCStatus = %04x\n",
+				ioc->name, ioc_status);
+		}
 	    }
 	    stm_target_reply_error(ioc, (TargetErrorReply_t *)rep);
 	    return (0);
