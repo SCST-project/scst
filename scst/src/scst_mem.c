@@ -316,7 +316,7 @@ out_free:
 	goto out;
 }
 
-static void sgv_ctor(void *data,  kmem_cache_t *c, unsigned long flags)
+static void sgv_ctor(void *data,  struct kmem_cache *c, unsigned long flags)
 {
 	struct sgv_pool_obj *obj = data;
 
@@ -339,7 +339,7 @@ static void __sgv_dtor(void *data, int pages)
 }
 
 #define SGV_DTOR_NAME(order) sgv_dtor##order
-#define SGV_DTOR(order) static void sgv_dtor##order(void *d, kmem_cache_t *k, \
+#define SGV_DTOR(order) static void sgv_dtor##order(void *d, struct kmem_cache *k, \
 		unsigned long f) { __sgv_dtor(d, 1 << order); }
 
 SGV_DTOR(0);
@@ -354,7 +354,7 @@ SGV_DTOR(8);
 SGV_DTOR(9);
 SGV_DTOR(10);
 
-typedef void (*dtor_t)(void *, kmem_cache_t *, unsigned long);
+typedef void (*dtor_t)(void *, struct kmem_cache *, unsigned long);
 
 dtor_t cache_dtors[SGV_POOL_ELEMENTS] =
 	{ SGV_DTOR_NAME(0), SGV_DTOR_NAME(1), SGV_DTOR_NAME(2), SGV_DTOR_NAME(3),

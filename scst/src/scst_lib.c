@@ -1362,6 +1362,8 @@ int scst_alloc_space(struct scst_cmd *cmd)
 	}
 
 	if (cmd->no_sgv) {
+		if (atomic)
+			goto out;
 		cmd->sg = scst_alloc(cmd->bufflen, gfp_mask, use_clustering,	
 			&cmd->sg_cnt);
 	} else {

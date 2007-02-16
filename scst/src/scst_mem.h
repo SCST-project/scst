@@ -36,7 +36,7 @@ struct trans_tbl_ent {
 
 struct sgv_pool_obj
 {
-	kmem_cache_t *owner_cache;
+	struct kmem_cache *owner_cache;
 	int eorder;
 	int orig_sg;
 	int orig_length;
@@ -56,7 +56,7 @@ struct sgv_pool
 	struct sgv_pool_acc cache_acc[SGV_POOL_ELEMENTS];
 	unsigned int clustered:1;
 	/* 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048 */
-	kmem_cache_t *caches[SGV_POOL_ELEMENTS];
+	struct kmem_cache *caches[SGV_POOL_ELEMENTS];
 	char cache_names[SGV_POOL_ELEMENTS][25];
 };
 

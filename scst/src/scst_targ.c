@@ -495,7 +495,11 @@ out_xmit:
 	goto out;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
 void scst_cmd_mem_work_fn(void *p)
+#else
+void scst_cmd_mem_work_fn(struct work_struct *work)
+#endif
 {
 	TRACE_ENTRY();
 

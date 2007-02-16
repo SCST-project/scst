@@ -49,18 +49,18 @@ LIST_HEAD(scst_template_list);
 LIST_HEAD(scst_dev_list);
 LIST_HEAD(scst_dev_type_list);
 
-kmem_cache_t *scst_mgmt_cachep;
+struct kmem_cache *scst_mgmt_cachep;
 mempool_t *scst_mgmt_mempool;
-kmem_cache_t *scst_ua_cachep;
+struct kmem_cache *scst_ua_cachep;
 mempool_t *scst_ua_mempool;
-kmem_cache_t *scst_tgtd_cachep;
-kmem_cache_t *scst_sess_cachep;
-kmem_cache_t *scst_acgd_cachep;
+struct kmem_cache *scst_tgtd_cachep;
+struct kmem_cache *scst_sess_cachep;
+struct kmem_cache *scst_acgd_cachep;
 
 LIST_HEAD(scst_acg_list);
 struct scst_acg *scst_default_acg;
 
-kmem_cache_t *scst_cmd_cachep;
+struct kmem_cache *scst_cmd_cachep;
 
 unsigned long scst_flags;
 atomic_t scst_cmd_count = ATOMIC_INIT(0);
@@ -77,7 +77,11 @@ struct tasklet_struct scst_tasklets[NR_CPUS];
 
 struct scst_sgv_pools scst_sgv;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
 DECLARE_WORK(scst_cmd_mem_work, scst_cmd_mem_work_fn, 0);
+#else
+DECLARE_DELAYED_WORK(scst_cmd_mem_work, scst_cmd_mem_work_fn);
+#endif
 
 unsigned long scst_max_cmd_mem;
 

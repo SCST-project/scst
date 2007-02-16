@@ -110,24 +110,24 @@ static inline int scst_get_context(void) {
 }
 
 #define SCST_MGMT_CMD_CACHE_STRING "scst_mgmt_cmd"
-extern kmem_cache_t *scst_mgmt_cachep;
+extern struct kmem_cache *scst_mgmt_cachep;
 extern mempool_t *scst_mgmt_mempool;
 
 #define SCST_UA_CACHE_STRING "scst_ua"
-extern kmem_cache_t *scst_ua_cachep;
+extern struct kmem_cache *scst_ua_cachep;
 extern mempool_t *scst_ua_mempool;
 
 #define SCST_CMD_CACHE_STRING "scst_cmd"
-extern kmem_cache_t *scst_cmd_cachep;
+extern struct kmem_cache *scst_cmd_cachep;
 
 #define SCST_SESSION_CACHE_STRING "scst_session"
-extern kmem_cache_t *scst_sess_cachep;
+extern struct kmem_cache *scst_sess_cachep;
 
 #define SCST_TGT_DEV_CACHE_STRING "scst_tgt_dev"
-extern kmem_cache_t *scst_tgtd_cachep;
+extern struct kmem_cache *scst_tgtd_cachep;
 
 #define SCST_ACG_DEV_CACHE_STRING "scst_acg_dev"
-extern kmem_cache_t *scst_acgd_cachep;
+extern struct kmem_cache *scst_acgd_cachep;
 
 extern struct scst_sgv_pools scst_sgv;
 
@@ -151,7 +151,11 @@ extern struct list_head scst_cmd_list;
 
 extern spinlock_t scst_cmd_mem_lock;
 extern unsigned long scst_max_cmd_mem, scst_cur_max_cmd_mem, scst_cur_cmd_mem;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
 extern struct work_struct scst_cmd_mem_work;
+#else
+extern struct delayed_work scst_cmd_mem_work;
+#endif
 
 /* The following lists protected by scst_list_lock as well */
 extern struct list_head scst_mgmt_cmd_list;
@@ -225,7 +229,11 @@ int scst_cmd_thread(void *arg);
 void scst_cmd_tasklet(long p);
 int scst_mgmt_cmd_thread(void *arg);
 int scst_mgmt_thread(void *arg);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
 void scst_cmd_mem_work_fn(void *p);
+#else
+void scst_cmd_mem_work_fn(struct work_struct *work);
+#endif
 
 struct scst_device *scst_alloc_device(int gfp_mask);
 void scst_free_device(struct scst_device *tgt_dev);

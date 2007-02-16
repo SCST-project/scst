@@ -114,7 +114,7 @@ struct scst_tgt_template tgt_template = {
       task_mgmt_fn_done:q2t_task_mgmt_fn_done,
 };
 
-kmem_cache_t *q2t_cmd_cachep = NULL;
+struct kmem_cache *q2t_cmd_cachep = NULL;
 static struct qla2x_tgt_target tgt_data;
 
 /*
