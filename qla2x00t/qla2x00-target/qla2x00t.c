@@ -924,8 +924,9 @@ out_unlock:
 	if (!ha_locked)
 		spin_unlock_irqrestore(&ha->hardware_lock, flags);
 
-	if (do_tgt_cmd_done && !in_interrupt()) {
-		msleep(250);
+	if (do_tgt_cmd_done) {
+		if (!in_interrupt())
+			msleep(250);
 		scst_tgt_cmd_done(cmd->scst_cmd);
 		/* !! At this point cmd could be already freed !! */
 	}
