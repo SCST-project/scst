@@ -2325,7 +2325,7 @@ out:
 	return;
 }
 
-/* Called with BH off. Might be called under lock and IRQ off */
+/* No locks supposed to be held, thread context */
 static int fileio_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	struct scst_tgt_dev *tgt_dev)
 {
@@ -2338,12 +2338,7 @@ static int fileio_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 		struct scst_fileio_tgt_dev *ftgt_dev = 
 		  (struct scst_fileio_tgt_dev *)cmd_to_abort->tgt_dev->dh_priv;
 
-		/*
-		 * It is safe relating to scst_list_lock despite of lockdep's
-		 * warning. Just don't know how to tell it to lockdep.
-		 */
-		/* BH already off */
-		spin_lock(&ftgt_dev->fdev_lock);
+		spin_lock_bh(&ftgt_dev->fdev_lock);
 		if (cmd_to_abort->fileio_in_list) {
 			TRACE(TRACE_MGMT, "Aborting cmd %p and moving it to "
 				"the queue head", cmd_to_abort);
@@ -2352,7 +2347,7 @@ static int fileio_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 				&ftgt_dev->fdev_cmd_list);
 			wake_up(&ftgt_dev->fdev_waitQ);
 		}
-		spin_unlock(&ftgt_dev->fdev_lock);
+		spin_unlock_bh(&ftgt_dev->fdev_lock);
 	}
 
 	TRACE_EXIT_RES(res);

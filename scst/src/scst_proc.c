@@ -474,7 +474,7 @@ static void scst_proc_del_acg_tree(struct proc_dir_entry *acg_proc_root,
 	return;
 }
 
-/* scst_mutex supposed to be held */
+/* The activity supposed to be suspended and scst_mutex held */
 static int scst_proc_group_add(const char *p)
 {
 	int res = 0, len = strlen(p) + 1;
@@ -515,7 +515,7 @@ out_nomem:
 	goto out;
 }
 
-/* scst_mutex supposed to be held */
+/* The activity supposed to be suspended and scst_mutex held */
 static int scst_proc_del_free_acg(struct scst_acg *acg, int remove_proc)
 {
 	const char *name;
@@ -1136,9 +1136,11 @@ static int scst_proc_scsi_tgt_gen_write(struct file *file, const char __user *bu
 		goto out_free;
 	}
 
+	scst_suspend_activity();
+
 	if (down_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
-		goto out_free;
+		goto out_free_resume;
 	}
 
 	switch (action) {
@@ -1188,14 +1190,18 @@ static int scst_proc_scsi_tgt_gen_write(struct file *file, const char __user *bu
 out_up_free:
 	up(&scst_mutex);
 
+out_free_resume:
+	scst_resume_activity();
+
 out_free:
 	free_page((unsigned long)buffer);
+
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
 
-/* Called under scst_mutex */
+/* The activity supposed to be suspended and scst_mutex held */
 static int scst_proc_assign_handler(char *buf)
 {
 	int res = 0;
@@ -1354,9 +1360,11 @@ static int scst_proc_groups_devices_write(struct file *file, const char __user *
 		goto out_free;
 	}
 
+	scst_suspend_activity();
+
 	if (down_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
-		goto out_free;
+		goto out_free_resume;
 	}
 
 	switch (action) {
@@ -1476,8 +1484,12 @@ static int scst_proc_groups_devices_write(struct file *file, const char __user *
 out_free_up:
 	up(&scst_mutex);
 
+out_free_resume:
+	scst_resume_activity();
+
 out_free:
 	free_page((unsigned long)buffer);
+
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -1674,12 +1686,12 @@ static int scst_sessions_info_show(struct seq_file *seq, void *v)
 		goto out;
 	}
 
-	seq_printf(seq, "%-20s%-35s%-20s%-15s\n", "Target name", "Initiator name", 
+	seq_printf(seq, "%-20s%-35s%-35s%-15s\n", "Target name", "Initiator name", 
 		       "Group name", "Command Count");
 
 	list_for_each_entry(acg, &scst_acg_list, scst_acg_list_entry) {
 		list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
-			seq_printf(seq, "%-20s%-35s%-20s%-15d\n",
+			seq_printf(seq, "%-20s%-35s%-35s%-15d\n",
 					sess->tgt->tgtt->name,
 					sess->initiator_name,
 					acg->acg_name,

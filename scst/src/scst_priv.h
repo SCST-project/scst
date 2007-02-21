@@ -70,8 +70,15 @@ extern unsigned long scst_trace_flag;
  ** Bits for scst_flags 
  **/
 
-/* Set if new commands initialization should be suspended for a while */
-#define SCST_FLAG_SUSPENDED		     0
+/* 
+ * Set if new commands initialization is being suspended for a while.
+ * Used to let TM commands execute while preparing the suspend, since
+ * RESET or ABORT could be necessary to free SCSI commands.
+ */
+#define SCST_FLAG_SUSPENDING		     0
+
+/* Set if new commands initialization is suspended for a while */
+#define SCST_FLAG_SUSPENDED		     1
 
 /* Set if a TM command is being performed */
 #define SCST_FLAG_TM_ACTIVE                  2
@@ -129,13 +136,13 @@ extern struct kmem_cache *scst_tgtd_cachep;
 #define SCST_ACG_DEV_CACHE_STRING "scst_acg_dev"
 extern struct kmem_cache *scst_acgd_cachep;
 
+extern spinlock_t scst_main_lock;
+
 extern struct scst_sgv_pools scst_sgv;
 
 extern unsigned long scst_flags;
 extern struct semaphore scst_mutex;
 extern atomic_t scst_cmd_count;
-extern spinlock_t scst_list_lock;
-extern struct list_head scst_dev_wait_sess_list; /* protected by scst_list_lock */
 extern struct list_head scst_template_list; /* protected by scst_mutex */
 extern struct list_head scst_dev_list; /* protected by scst_mutex */
 extern struct list_head scst_dev_type_list; /* protected by scst_mutex */
@@ -144,10 +151,12 @@ extern wait_queue_head_t scst_dev_cmd_waitQ;
 extern struct list_head scst_acg_list;
 extern struct scst_acg *scst_default_acg;
 
-/* The following lists protected by scst_list_lock */
-extern struct list_head scst_active_cmd_list;
+extern spinlock_t scst_init_lock;
 extern struct list_head scst_init_cmd_list;
-extern struct list_head scst_cmd_list;
+extern wait_queue_head_t scst_init_cmd_list_waitQ;
+extern unsigned int scst_init_poll_cnt;
+
+extern struct scst_cmd_lists scst_main_cmd_lists;
 
 extern spinlock_t scst_cmd_mem_lock;
 extern unsigned long scst_max_cmd_mem, scst_cur_max_cmd_mem, scst_cur_cmd_mem;
@@ -157,15 +166,20 @@ extern struct work_struct scst_cmd_mem_work;
 extern struct delayed_work scst_cmd_mem_work;
 #endif
 
-/* The following lists protected by scst_list_lock as well */
-extern struct list_head scst_mgmt_cmd_list;
+extern spinlock_t scst_mcmd_lock;
+/* The following lists protected by scst_mcmd_lock */
 extern struct list_head scst_active_mgmt_cmd_list;
 extern struct list_head scst_delayed_mgmt_cmd_list;
 
-extern struct tasklet_struct scst_tasklets[NR_CPUS];
-extern wait_queue_head_t scst_list_waitQ;
-
 extern wait_queue_head_t scst_mgmt_cmd_list_waitQ;
+
+struct scst_tasklet
+{
+	spinlock_t tasklet_lock;
+	struct list_head tasklet_cmd_list;
+	struct tasklet_struct tasklet;
+};
+extern struct scst_tasklet scst_tasklets[NR_CPUS];
 
 extern wait_queue_head_t scst_mgmt_waitQ;
 extern spinlock_t scst_mgmt_lock;
@@ -180,6 +194,7 @@ struct scst_threads_info_t {
 	struct semaphore cmd_threads_mutex;
 	u32 nr_cmd_threads;
 	struct list_head cmd_threads_list;
+	struct task_struct *init_cmd_thread;
 	struct task_struct *mgmt_thread;
 	struct task_struct *mgmt_cmd_thread;
 };
@@ -223,10 +238,11 @@ static inline int __scst_inc_expected_sn(struct scst_tgt_dev *tgt_dev)
 }
 
 void scst_inc_expected_sn_unblock(struct scst_tgt_dev *tgt_dev,
-	struct scst_cmd *cmd_sn, int locked);
+	struct scst_cmd *cmd_sn);
 
 int scst_cmd_thread(void *arg);
 void scst_cmd_tasklet(long p);
+int scst_init_cmd_thread(void *arg);
 int scst_mgmt_cmd_thread(void *arg);
 int scst_mgmt_thread(void *arg);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
@@ -276,7 +292,7 @@ static inline void scst_destroy_cmd(struct scst_cmd *cmd)
 
 void scst_proccess_redirect_cmd(struct scst_cmd *cmd, int context,
 	int check_retries);
-void scst_check_retries(struct scst_tgt *tgt, int processible_env);
+void scst_check_retries(struct scst_tgt *tgt);
 void scst_tgt_retry_timer_fn(unsigned long arg);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
@@ -324,7 +340,8 @@ struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,
 	uint32_t tag);
 
 struct scst_mgmt_cmd *scst_alloc_mgmt_cmd(int gfp_mask);
-void scst_free_mgmt_cmd(struct scst_mgmt_cmd *mcmd, int del);
+void scst_free_mgmt_cmd(struct scst_mgmt_cmd *mcmd);
+void scst_complete_cmd_mgmt(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd);
 
 /* /proc support */
 int scst_proc_init_module(void);
@@ -438,21 +455,24 @@ static inline void scst_dec_on_dev_cmd(struct scst_cmd *cmd)
 		wake_up_all(&cmd->dev->on_dev_waitQ);
 }
 
-static inline void scst_inc_cmd_count(void)
+static inline void __scst_get(int barrier)
 {
 	atomic_inc(&scst_cmd_count);
-	/* It's needed to be before test_bit(SCST_FLAG_SUSPENDED) */
-	smp_mb__after_atomic_inc();
 	TRACE_DBG("Incrementing scst_cmd_count(%d)",
-	      atomic_read(&scst_cmd_count));
+		atomic_read(&scst_cmd_count));
+
+	if (barrier)
+		smp_mb__after_atomic_inc();
 }
 
-static inline void scst_dec_cmd_count(void)
+static inline void __scst_put(void)
 {
 	int f;
 	f = atomic_dec_and_test(&scst_cmd_count);
-	if (f && unlikely(test_bit(SCST_FLAG_SUSPENDED, &scst_flags)))
+	if (f && unlikely(test_bit(SCST_FLAG_SUSPENDED, &scst_flags))) {
+		TRACE_MGMT_DBG("%s", "Waking up scst_dev_cmd_waitQ");
 		wake_up_all(&scst_dev_cmd_waitQ);
+	}
 	TRACE_DBG("Decrementing scst_cmd_count(%d)",
 	      atomic_read(&scst_cmd_count));
 }
@@ -470,8 +490,16 @@ static inline void scst_sess_put(struct scst_session *sess)
 		scst_sched_session_free(sess);
 }
 
-void __scst_suspend_activity(void);
-void __scst_resume_activity(void);
+static inline void scst_cmd_get(struct scst_cmd *cmd)
+{
+	atomic_inc(&cmd->cmd_ref);
+}
+
+static inline void scst_cmd_put(struct scst_cmd *cmd)
+{
+	if (atomic_dec_and_test(&cmd->cmd_ref))
+		scst_free_cmd(cmd);
+}
 
 extern void scst_throttle_cmd(struct scst_cmd *cmd);
 extern void scst_unthrottle_cmd(struct scst_cmd *cmd);
@@ -504,7 +532,7 @@ extern void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev);
 extern void tm_dbg_check_released_cmds(void);
 extern int tm_dbg_check_cmd(struct scst_cmd *cmd);
 extern void tm_dbg_release_cmd(struct scst_cmd *cmd);
-extern void tm_dbg_task_mgmt(const char *fn);
+extern void tm_dbg_task_mgmt(const char *fn, int force);
 extern int tm_dbg_is_release(void);
 #else
 static inline void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev,
@@ -516,7 +544,7 @@ static inline int tm_dbg_check_cmd(struct scst_cmd *cmd)
 	return 0;
 }
 static inline void tm_dbg_release_cmd(struct scst_cmd *cmd) {}
-static inline void tm_dbg_task_mgmt(const char *fn) {}
+static inline void tm_dbg_task_mgmt(const char *fn, int force) {}
 static inline int tm_dbg_is_release(void)
 {
 	return 0;

@@ -150,12 +150,6 @@
 /* Thread context required for cmd's processing */
 #define SCST_CONTEXT_THREAD          3
 
-/*
- * Additional bit to set processible environment.
- * Private for SCST, ie must not be used target drivers.
- */
-#define SCST_PROCESSIBLE_ENV         0x10000000
-
 /************************************************************* 
  ** Values for status parameter of scst_rx_data() 
  *************************************************************/
@@ -365,24 +359,30 @@
  */
 #define SCST_CMD_XMITTING		4
 
-/* Set if the cmd was done or aborted out of its SN */
-#define SCST_CMD_OUT_OF_SN		5
-
 /* Set if the cmd is dead and can be destroyed at any time */
-#define SCST_CMD_CAN_BE_DESTROYED	6
+#define SCST_CMD_CAN_BE_DESTROYED	5
 
 /*************************************************************
- ** Tgt_dev's flags 
+ ** Tgt_dev's flags (tgt_dev_flags)
  *************************************************************/
 
 /* Set if tgt_dev has Unit Attention sense */
-#define SCST_TGT_DEV_UA_PENDING      0
+#define SCST_TGT_DEV_UA_PENDING		0
 
 /* Set if tgt_dev is RESERVED by another session */
-#define SCST_TGT_DEV_RESERVED        1
+#define SCST_TGT_DEV_RESERVED		1
+
+/* Set if the corresponding context is atomic */
+#define SCST_TGT_DEV_AFTER_INIT_WR_ATOMIC	5
+#define SCST_TGT_DEV_AFTER_INIT_OTH_ATOMIC	6
+#define SCST_TGT_DEV_AFTER_RESTART_WR_ATOMIC	7
+#define SCST_TGT_DEV_AFTER_RESTART_OTH_ATOMIC	8
+#define SCST_TGT_DEV_AFTER_RX_DATA_ATOMIC	9
+#define SCST_TGT_DEV_AFTER_EXEC_ATOMIC		10
+
 
 #ifdef DEBUG_TM
-#define SCST_TGT_DEV_UNDER_TM_DBG    10
+#define SCST_TGT_DEV_UNDER_TM_DBG	20
 #endif
 
 /************************************************************* 
@@ -657,9 +657,7 @@ struct scst_tgt_template
 	 * level driver. No return value expected. 
 	 * This function is expected to be NON-BLOCKING
 	 *
-	 * Pay attention to "atomic" attribute of the cmd, which can be get
-	 * by scst_cmd_atomic(): it is true if the function called in the
-	 * atomic (non-sleeping) context.
+	 * Called without any locks held from a thread context.
 	 *
 	 * MUST HAVE if the target supports ABORTs
 	 */
@@ -838,7 +836,7 @@ struct scst_dev_type
 	 *  - SCST_DEV_TM_NOT_COMPLETED - regular standard actions for the command
 	 *	should be done
 	 *
-	 * Called with BH off. Might be called under a lock and IRQ off.
+	 * Called without any locks held from a thread context.
 	 */
 	int (*task_mgmt_fn) (struct scst_mgmt_cmd *mgmt_cmd, 
 		struct scst_tgt_dev *tgt_dev);
@@ -907,18 +905,12 @@ struct scst_session
 
 	atomic_t refcnt;		/* get/put counter */
 
-	/* Alive commands for this session. Serialized by scst_list_lock */
-	int sess_cmd_count;		
-
 	/************************************************************* 
-	 ** Session's flags. Serialized by scst_list_lock
+	 ** Session's flags. Serialized by scst_mgmt_lock
 	 *************************************************************/
 
 	/* Set if the session is shutting down */
 	unsigned int shutting_down:1;
-
-	/* Set if the session is waiting in suspended state */
-	unsigned int waiting:1;
 
 	/**************************************************************/
 
@@ -937,28 +929,22 @@ struct scst_session
 	/* Used for storage of target driver private stuff */
 	void *tgt_priv;
 
+	/* Alive commands for this session, protected by sess_list_lock */
+	int sess_cmd_count;		
+
+	spinlock_t sess_list_lock; /* protects search_cmd_list, etc */
+
 	/* 
 	 * List of cmds in this session. Used to find a cmd in the
-	 * session. Protected by scst_list_lock.
-	 *
-	 * ToDo: make it protected by own lock.
+	 * session. Protected by sess_list_lock.
 	 */
 	struct list_head search_cmd_list;
 	
 	struct scst_tgt *tgt;	/* corresponding target */
 
-	/*
-	 * List entry for the list that keeps all sessions, which were
-	 * stopped due to device block
-	 */
-	struct list_head dev_wait_sess_list_entry;
-
 	/* Name of attached initiator */
 	const char *initiator_name;
 
-	/* Used if scst_unregister_session() called in wait mode */
-	struct completion *shutdown_compl;
-	
 	/* List entry of sessions per target */
 	struct list_head sess_list_entry;
 
@@ -967,10 +953,13 @@ struct scst_session
 
 	/* 
 	 * Lists of deffered during session initialization commands.
-	 * Protected by scst_list_lock.
+	 * Protected by sess_list_lock.
 	 */
 	struct list_head init_deferred_cmd_list;
 	struct list_head init_deferred_mcmd_list;
+
+	/* Used if scst_unregister_session() called in wait mode */
+	struct completion *shutdown_compl;
 
 	/*
 	 * Functions and data for user callbacks from scst_register_session()
@@ -991,10 +980,23 @@ enum scst_cmd_queue_type
 	SCST_CMD_QUEUE_ACA
 };
 
+struct scst_cmd_lists
+{
+	spinlock_t cmd_list_lock;
+	struct list_head active_cmd_list;
+	wait_queue_head_t cmd_list_waitQ;
+	struct list_head lists_list_entry;
+};
+
 struct scst_cmd
 {
-	/* List entry for global *_cmd_list */
+	/* List entry for below *_cmd_lists */
 	struct list_head cmd_list_entry;
+
+	/* Pointer to lists of commands with the lock */
+	struct scst_cmd_lists *cmd_lists;
+
+	atomic_t cmd_ref;
 
 	struct scst_session *sess;	/* corresponding session */
 
@@ -1018,9 +1020,6 @@ struct scst_cmd
 
 	/* Set if cmd is being processed in atomic context */
 	unsigned int atomic:1;
-
-	/* Set if cmd must be processed only in non-atomic context */
-	unsigned int non_atomic_only:1;
 
 	/* Set if cmd is internally generated */
 	unsigned int internal:1;
@@ -1046,14 +1045,6 @@ struct scst_cmd
 
 	/* Set if the target driver called scst_set_expected() */
 	unsigned int expected_values_set:1;
-
-	/*
-	 * Set if the cmd is being processed from the thread/tasklet,
-	 * i.e. if another cmd is moved to the active list during processing
-	 * of the current one, then another cmd will be processed after
-	 * the current. Helps to save some context switches.
-	 */
-	unsigned int processible_env:1;
 
 	/*
 	 * Set if the cmd was delayed by task management debugging code.
@@ -1100,9 +1091,12 @@ struct scst_cmd
 	 */
 	unsigned int may_need_dma_sync:1;
 
+	/* Set if the cmd was done or aborted out of its SN */
+	unsigned long out_of_sn:1;
+
 	/**************************************************************/
 
-	unsigned long cmd_flags;	/* cmd's async flags */
+	unsigned long cmd_flags; /* cmd's async flags */
 
 	struct scst_tgt_template *tgtt;	/* to save extra dereferences */
 	struct scst_tgt *tgt;		/* to save extra dereferences */
@@ -1190,7 +1184,7 @@ struct scst_cmd
 
 	uint8_t sense_buffer[SCSI_SENSE_BUFFERSIZE];	/* sense buffer */
 
-	/* The corresponding mgmt cmd, if any. Protected by scst_list_lock */
+	/* The corresponding mgmt cmd, if any, protected by sess_list_lock */
 	struct scst_mgmt_cmd *mgmt_cmnd;
 
 	/* List entry for dev's blocked_cmd_list */
@@ -1227,11 +1221,15 @@ struct scst_mgmt_cmd
 	int fn;
 
 	unsigned int completed:1;	/* set, if the mcmd is completed */
+	unsigned int active:1;		/* set, if the mcmd is active */
 
-	/* Number of commands to complete before sending response */
+	/*
+	 * Number of commands to complete before sending response,
+	 * protected by scst_mcmd_lock
+	 */
 	int cmd_wait_count;
 
-	/* Number of completed commands */
+	/* Number of completed commands, protected by scst_mcmd_lock */
 	int completed_cmd_count;
 
 	lun_t lun;	/* LUN for this mgmt cmd */
@@ -1334,11 +1332,8 @@ struct scst_tgt_dev
 	
 	struct scst_acg_dev *acg_dev;	/* corresponding acg_dev */
 
-	/* 
-	 * How many cmds alive on this dev in this session.
-	 * Protected by scst_list_lock.
-	 */
-	int cmd_count; 
+	/* How many cmds alive on this dev in this session */
+	atomic_t cmd_count; 
 
 	spinlock_t tgt_dev_lock;	/* per-session device lock */
 
@@ -1350,16 +1345,19 @@ struct scst_tgt_dev
 	/* Used for storage of dev handler private stuff */
 	void *dh_priv;
 
+	/* Pointer to lists of commands with the lock */
+	struct scst_cmd_lists *p_cmd_lists;
+
 	/* 
 	 * Used to execute cmd's in order of arrival.
 	 *
-	 * Protected by sn_lock, except next_sn and expected_sn.
+	 * Protected by sn_lock, except curr_sn and expected_sn.
 	 * Expected_sn protected by itself, since only one thread, which
 	 * processes SN matching command, can increment it at any time.
-	 * Next_sn must be the same type as expected_sn to overflow
+	 * Next_sn must have the same size as expected_sn to overflow
 	 * simultaneously.
 	 */
-	int next_sn; /* protected by scst_list_lock */
+	atomic_t curr_sn;
 	int expected_sn;
 	spinlock_t sn_lock;
 	int def_cmd_count;
