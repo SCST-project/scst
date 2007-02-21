@@ -1,11 +1,11 @@
 /*
- *  scst_fileio.c
+ *  scst_vdisk.c
  *  
  *  Copyright (C) 2004-2006 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
  *
  *  SCSI disk (type 0) and CDROM (type 5) dev handler using files 
- *  on file systems (FILEIO)
+ *  on file systems (VDISK)
  *  
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -36,25 +36,25 @@
 #include <asm/atomic.h>
 #include <linux/kthread.h>
 
-#define LOG_PREFIX			"dev_fileio"
+#define LOG_PREFIX			"dev_vdisk"
 
 #include "scsi_tgt.h"
 
 #define TRACE_ORDER	0x80000000
 
-static struct scst_proc_log fileio_proc_local_trace_tbl[] =
+static struct scst_proc_log vdisk_proc_local_trace_tbl[] =
 {
     { TRACE_ORDER,		"order" },
     { 0,			NULL }
 };
-#define trace_log_tbl	fileio_proc_local_trace_tbl
+#define trace_log_tbl	vdisk_proc_local_trace_tbl
 
 #include "scst_dev_handler.h"
 
 #if defined(DEBUG) && defined(CONFIG_DEBUG_SLAB)
-#define FILEIO_SLAB_FLAGS ( SLAB_RED_ZONE | SLAB_POISON )
+#define VDISK_SLAB_FLAGS ( SLAB_RED_ZONE | SLAB_POISON )
 #else
-#define FILEIO_SLAB_FLAGS 0L
+#define VDISK_SLAB_FLAGS 0L
 #endif
 
 /* 8 byte ASCII Vendor of the FILE IO target */
@@ -90,12 +90,12 @@ static struct scst_proc_log fileio_proc_local_trace_tbl[] =
 #define	DEF_CDROM_BLOCKSIZE_SHIFT	11
 #define	DEF_SECTORS_PER			63
 #define LEN_MEM				(32 * 1024)
-#define DISK_FILEIO_NAME		"disk_fileio"
-#define CDROM_FILEIO_NAME		"cdrom_fileio"
+#define VDISK_NAME			"vdisk"
+#define VCDROM_NAME			"vcdrom"
 
-#define FILEIO_PROC_HELP		"help"
+#define VDISK_PROC_HELP			"help"
 
-struct scst_fileio_dev {
+struct scst_vdisk_dev {
 	uint32_t block_size;
 	uint64_t nblocks;
 	int block_shift;
@@ -103,7 +103,7 @@ struct scst_fileio_dev {
 	spinlock_t flags_lock;
 	/*
 	 * Below flags are protected by flags_lock or suspended activity
-	 * with scst_fileio_mutex.
+	 * with scst_vdisk_mutex.
 	 */
 	unsigned int rd_only_flag:1;
 	unsigned int wt_flag:1;
@@ -119,105 +119,105 @@ struct scst_fileio_dev {
 	char *file_name;	/* File name */
 	char *usn;
 	struct scst_device *dev;
-	struct list_head fileio_dev_list_entry;
+	struct list_head vdisk_dev_list_entry;
 };
 
-struct scst_fileio_tgt_dev {
+struct scst_vdisk_tgt_dev {
 	enum scst_cmd_queue_type last_write_cmd_queue_type;
 };
 
-struct scst_fileio_thr {
+struct scst_vdisk_thr {
 	struct scst_thr_data_hdr hdr;
 	struct file *fd;
 	struct iovec *iv;
 	int iv_count;
-	struct scst_fileio_dev *virt_dev;
+	struct scst_vdisk_dev *virt_dev;
 };
 
-static struct kmem_cache *fileio_thr_cachep;
+static struct kmem_cache *vdisk_thr_cachep;
 
-static int fileio_attach(struct scst_device *dev);
-static void fileio_detach(struct scst_device *dev);
-static int fileio_attach_tgt(struct scst_tgt_dev *tgt_dev);
-static void fileio_detach_tgt(struct scst_tgt_dev *tgt_dev);
-static int disk_fileio_parse(struct scst_cmd *, const struct scst_info_cdb *info_cdb);
-static int fileio_do_job(struct scst_cmd *cmd);
-static int cdrom_fileio_parse(struct scst_cmd *, const struct scst_info_cdb *info_cdb);
-static int cdrom_fileio_exec(struct scst_cmd *cmd);
-static void fileio_exec_read(struct scst_cmd *cmd,
-	struct scst_fileio_thr *thr, loff_t loff);
-static void fileio_exec_write(struct scst_cmd *cmd,
-	struct scst_fileio_thr *thr, loff_t loff);
-static void fileio_exec_verify(struct scst_cmd *cmd,
-	struct scst_fileio_thr *thr, loff_t loff);
-static void fileio_exec_read_capacity(struct scst_cmd *cmd);
-static void fileio_exec_read_capacity16(struct scst_cmd *cmd);
-static void fileio_exec_inquiry(struct scst_cmd *cmd);
-static void fileio_exec_mode_sense(struct scst_cmd *cmd);
-static void fileio_exec_mode_select(struct scst_cmd *cmd);
-static void fileio_exec_read_toc(struct scst_cmd *cmd);
-static void fileio_exec_prevent_allow_medium_removal(struct scst_cmd *cmd);
-static int fileio_fsync(struct scst_fileio_thr *thr,
+static int vdisk_attach(struct scst_device *dev);
+static void vdisk_detach(struct scst_device *dev);
+static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev);
+static void vdisk_detach_tgt(struct scst_tgt_dev *tgt_dev);
+static int vdisk_parse(struct scst_cmd *, const struct scst_info_cdb *info_cdb);
+static int vdisk_do_job(struct scst_cmd *cmd);
+static int vcdrom_parse(struct scst_cmd *, const struct scst_info_cdb *info_cdb);
+static int vcdrom_exec(struct scst_cmd *cmd);
+static void vdisk_exec_read(struct scst_cmd *cmd,
+	struct scst_vdisk_thr *thr, loff_t loff);
+static void vdisk_exec_write(struct scst_cmd *cmd,
+	struct scst_vdisk_thr *thr, loff_t loff);
+static void vdisk_exec_verify(struct scst_cmd *cmd,
+	struct scst_vdisk_thr *thr, loff_t loff);
+static void vdisk_exec_read_capacity(struct scst_cmd *cmd);
+static void vdisk_exec_read_capacity16(struct scst_cmd *cmd);
+static void vdisk_exec_inquiry(struct scst_cmd *cmd);
+static void vdisk_exec_mode_sense(struct scst_cmd *cmd);
+static void vdisk_exec_mode_select(struct scst_cmd *cmd);
+static void vdisk_exec_read_toc(struct scst_cmd *cmd);
+static void vdisk_exec_prevent_allow_medium_removal(struct scst_cmd *cmd);
+static int vdisk_fsync(struct scst_vdisk_thr *thr,
 	loff_t loff, loff_t len, struct scst_cmd *cmd);
-static int disk_fileio_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type);
-static int disk_fileio_write_proc(char *buffer, char **start, off_t offset,
+static int vdisk_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type);
+static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 	int length, int *eof, struct scst_dev_type *dev_type);
-static int cdrom_fileio_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type);
-static int cdrom_fileio_write_proc(char *buffer, char **start, off_t offset,
+static int vcdrom_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type);
+static int vcdrom_write_proc(char *buffer, char **start, off_t offset,
 	int length, int *eof, struct scst_dev_type *dev_type);
 
-#define DISK_TYPE_FILEIO {		\
-  name:         DISK_FILEIO_NAME,	\
+#define VDISK_TYPE {			\
+  name:         VDISK_NAME,		\
   type:         TYPE_DISK,		\
   parse_atomic: 1,			\
   exec_atomic:  0,			\
   dev_done_atomic: 1,			\
   dedicated_thread: 1,			\
-  attach:       fileio_attach,		\
-  detach:       fileio_detach,		\
-  attach_tgt:   fileio_attach_tgt,	\
-  detach_tgt:   fileio_detach_tgt,	\
-  parse:        disk_fileio_parse,	\
-  exec:         fileio_do_job,		\
-  read_proc:    disk_fileio_read_proc,	\
-  write_proc:   disk_fileio_write_proc,	\
+  attach:       vdisk_attach,		\
+  detach:       vdisk_detach,		\
+  attach_tgt:   vdisk_attach_tgt,	\
+  detach_tgt:   vdisk_detach_tgt,	\
+  parse:        vdisk_parse,		\
+  exec:         vdisk_do_job,		\
+  read_proc:    vdisk_read_proc,	\
+  write_proc:   vdisk_write_proc,	\
 }
 
-#define CDROM_TYPE_FILEIO {		\
-  name:         CDROM_FILEIO_NAME,	\
+#define VCDROM_TYPE {			\
+  name:         VCDROM_NAME,		\
   type:         TYPE_ROM,		\
   parse_atomic: 1,			\
   exec_atomic:  0,			\
   dev_done_atomic: 1,			\
   dedicated_thread: 1,			\
-  attach:       fileio_attach,		\
-  detach:       fileio_detach,		\
-  attach_tgt:   fileio_attach_tgt,	\
-  detach_tgt:   fileio_detach_tgt,	\
-  parse:        cdrom_fileio_parse,	\
-  exec:         cdrom_fileio_exec,	\
-  read_proc:    cdrom_fileio_read_proc,	\
-  write_proc:   cdrom_fileio_write_proc,\
+  attach:       vdisk_attach,		\
+  detach:       vdisk_detach,		\
+  attach_tgt:   vdisk_attach_tgt,	\
+  detach_tgt:   vdisk_detach_tgt,	\
+  parse:        vcdrom_parse,		\
+  exec:         vcdrom_exec,		\
+  read_proc:    vcdrom_read_proc,	\
+  write_proc:   vcdrom_write_proc,	\
 }
 
-static DECLARE_MUTEX(scst_fileio_mutex);
-static LIST_HEAD(disk_fileio_dev_list);
-static LIST_HEAD(cdrom_fileio_dev_list);
+static DECLARE_MUTEX(scst_vdisk_mutex);
+static LIST_HEAD(vdisk_dev_list);
+static LIST_HEAD(vcdrom_dev_list);
 
-static struct scst_dev_type disk_devtype_fileio = DISK_TYPE_FILEIO;
-static struct scst_dev_type cdrom_devtype_fileio = CDROM_TYPE_FILEIO;
+static struct scst_dev_type disk_devtype_vdisk = VDISK_TYPE;
+static struct scst_dev_type cdrom_devtype_vdisk = VCDROM_TYPE;
 
-static char *disk_fileio_proc_help_string =
+static char *vdisk_proc_help_string =
 	"echo \"open|close NAME [FILE_NAME [BLOCK_SIZE] [WRITE_THROUGH "
 	"READ_ONLY O_DIRECT NULLIO NV_CACHE]]\" >/proc/scsi_tgt/" 
-	DISK_FILEIO_NAME "/" DISK_FILEIO_NAME "\n";
+	VDISK_NAME "/" VDISK_NAME "\n";
 
-static char *cdrom_fileio_proc_help_string =
+static char *vcdrom_proc_help_string =
 	"echo \"open|change|close NAME [FILE_NAME]\" "
-	">/proc/scsi_tgt/" CDROM_FILEIO_NAME "/" CDROM_FILEIO_NAME "\n";
+	">/proc/scsi_tgt/" VCDROM_NAME "/" VCDROM_NAME "\n";
 
 /**************************************************************
- *  Function:  fileio_open
+ *  Function:  vdisk_open
  *
  *  Argument:  
  *
@@ -225,7 +225,7 @@ static char *cdrom_fileio_proc_help_string =
  *
  *  Description:  
  *************************************************************/
-static struct file *fileio_open(const struct scst_fileio_dev *virt_dev)
+static struct file *vdisk_open(const struct scst_vdisk_dev *virt_dev)
 {
 	int open_flags = 0;
 	struct file *fd;
@@ -248,7 +248,7 @@ static struct file *fileio_open(const struct scst_fileio_dev *virt_dev)
 }
 
 /**************************************************************
- *  Function:  fileio_attach
+ *  Function:  vdisk_attach
  *
  *  Argument:  
  *
@@ -256,14 +256,14 @@ static struct file *fileio_open(const struct scst_fileio_dev *virt_dev)
  *
  *  Description:  
  *************************************************************/
-static int fileio_attach(struct scst_device *dev)
+static int vdisk_attach(struct scst_device *dev)
 {
 	int res = 0;
 	loff_t err;
 	mm_segment_t old_fs;
 	struct file *fd;
-	struct scst_fileio_dev *virt_dev = NULL, *vv;
-	struct list_head *fileio_dev_list;
+	struct scst_vdisk_dev *virt_dev = NULL, *vv;
+	struct list_head *vd;
 
 	TRACE_ENTRY();
 
@@ -275,15 +275,15 @@ static int fileio_attach(struct scst_device *dev)
 		goto out;
 	}
 
-	fileio_dev_list = (dev->handler->type == TYPE_DISK) ? 
-				&disk_fileio_dev_list :
-				&cdrom_fileio_dev_list;
+	vd = (dev->handler->type == TYPE_DISK) ? 
+				&vdisk_dev_list :
+				&vcdrom_dev_list;
 
 	/* 
-	 * scst_fileio_mutex must be already taken before 
+	 * scst_vdisk_mutex must be already taken before 
 	 * scst_register_virtual_device()
 	 */
-	list_for_each_entry(vv, fileio_dev_list, fileio_dev_list_entry)	{
+	list_for_each_entry(vv, vd, vdisk_dev_list_entry) {
 		if (strcmp(vv->name, dev->virt_name) == 0) {
 			virt_dev = vv;
 			break;
@@ -305,7 +305,7 @@ static int fileio_attach(struct scst_device *dev)
 		if (virt_dev->nullio)
 			err = 3LL*1024*1024*1024*1024/2;
 		else {
-			fd = fileio_open(virt_dev);
+			fd = vdisk_open(virt_dev);
 			if (IS_ERR(fd)) {
 				res = PTR_ERR(fd);
 				PRINT_ERROR_PR("filp_open(%s) returned an error %d",
@@ -379,7 +379,7 @@ out:
 }
 
 /************************************************************
- *  Function:  fileio_detach
+ *  Function:  vdisk_detach
  *
  *  Argument: 
  *
@@ -387,10 +387,10 @@ out:
  *
  *  Description:  Called to detach this device type driver
  ************************************************************/
-static void fileio_detach(struct scst_device *dev)
+static void vdisk_detach(struct scst_device *dev)
 {
-	struct scst_fileio_dev *virt_dev =
-	    (struct scst_fileio_dev *)dev->dh_priv;
+	struct scst_vdisk_dev *virt_dev =
+	    (struct scst_vdisk_dev *)dev->dh_priv;
 
 	TRACE_ENTRY();
 
@@ -406,9 +406,9 @@ static void fileio_detach(struct scst_device *dev)
 	return;
 }
 
-static void fileio_free_thr_data(struct scst_thr_data_hdr *d)
+static void vdisk_free_thr_data(struct scst_thr_data_hdr *d)
 {
-	struct scst_fileio_thr *thr = container_of(d, struct scst_fileio_thr,
+	struct scst_vdisk_thr *thr = container_of(d, struct scst_vdisk_thr,
 						hdr);
 
 	TRACE_ENTRY();
@@ -419,38 +419,38 @@ static void fileio_free_thr_data(struct scst_thr_data_hdr *d)
 	if (thr->iv != NULL)
 		kfree(thr->iv);
 
-	kmem_cache_free(fileio_thr_cachep, thr);
+	kmem_cache_free(vdisk_thr_cachep, thr);
 
 	TRACE_EXIT();
 	return;
 }
 
-static struct scst_fileio_thr *fileio_init_thr_data(
+static struct scst_vdisk_thr *vdisk_init_thr_data(
 	struct scst_tgt_dev *tgt_dev)
 {
-	struct scst_fileio_thr *res;
-	struct scst_fileio_dev *virt_dev =
-	    (struct scst_fileio_dev *)tgt_dev->dev->dh_priv;
+	struct scst_vdisk_thr *res;
+	struct scst_vdisk_dev *virt_dev =
+	    (struct scst_vdisk_dev *)tgt_dev->dev->dh_priv;
 
 	TRACE_ENTRY();
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
-	res = kmem_cache_alloc(fileio_thr_cachep, GFP_KERNEL);
+	res = kmem_cache_alloc(vdisk_thr_cachep, GFP_KERNEL);
 	if (res != NULL)
 		memset(thr, 0, sizeof(*thr));
 #else
-	res = kmem_cache_zalloc(fileio_thr_cachep, GFP_KERNEL);
+	res = kmem_cache_zalloc(vdisk_thr_cachep, GFP_KERNEL);
 #endif
 	if (res == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Unable to allocate struct "
-			"scst_fileio_thr");
+			"scst_vdisk_thr");
 		goto out;
 	}
 
 	res->virt_dev = virt_dev;
 
 	if (!virt_dev->cdrom_empty && !virt_dev->nullio) {
-		res->fd = fileio_open(virt_dev);
+		res->fd = vdisk_open(virt_dev);
 		if (IS_ERR(res->fd)) {
 			PRINT_ERROR_PR("filp_open(%s) returned an error %ld",
 				virt_dev->file_name, PTR_ERR(res->fd));
@@ -459,21 +459,21 @@ static struct scst_fileio_thr *fileio_init_thr_data(
 	} else
 		res->fd = NULL;
 
-	scst_add_thr_data(tgt_dev, &res->hdr, fileio_free_thr_data);
+	scst_add_thr_data(tgt_dev, &res->hdr, vdisk_free_thr_data);
 
 out:
 	TRACE_EXIT_HRES((unsigned long)res);
 	return res;
 
 out_free:
-	kmem_cache_free(fileio_thr_cachep, res);
+	kmem_cache_free(vdisk_thr_cachep, res);
 	res = NULL;
 	goto out;
 }
 
-static int fileio_attach_tgt(struct scst_tgt_dev *tgt_dev)
+static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev)
 {
-	struct scst_fileio_tgt_dev *ftgt_dev;
+	struct scst_vdisk_tgt_dev *ftgt_dev;
 	int res = 0;
 
 	TRACE_ENTRY();
@@ -493,10 +493,10 @@ out:
 	return res;
 }
 
-static void fileio_detach_tgt(struct scst_tgt_dev *tgt_dev)
+static void vdisk_detach_tgt(struct scst_tgt_dev *tgt_dev)
 {
-	struct scst_fileio_tgt_dev *ftgt_dev = 
-		(struct scst_fileio_tgt_dev *)tgt_dev->dh_priv;
+	struct scst_vdisk_tgt_dev *ftgt_dev = 
+		(struct scst_vdisk_tgt_dev *)tgt_dev->dh_priv;
 
 	TRACE_ENTRY();
 
@@ -509,7 +509,7 @@ static void fileio_detach_tgt(struct scst_tgt_dev *tgt_dev)
 	return;
 }
 
-static inline int fileio_sync_queue_type(enum scst_cmd_queue_type qt)
+static inline int vdisk_sync_queue_type(enum scst_cmd_queue_type qt)
 {
 	switch(qt) {
 		case SCST_CMD_QUEUE_ORDERED:
@@ -520,16 +520,16 @@ static inline int fileio_sync_queue_type(enum scst_cmd_queue_type qt)
 	}
 }
 
-static inline int fileio_need_pre_sync(enum scst_cmd_queue_type cwqt,
+static inline int vdisk_need_pre_sync(enum scst_cmd_queue_type cwqt,
 	enum scst_cmd_queue_type lwqt)
 {
-	if (fileio_sync_queue_type(cwqt))
-		if (!fileio_sync_queue_type(lwqt))
+	if (vdisk_sync_queue_type(cwqt))
+		if (!vdisk_sync_queue_type(lwqt))
 			return 1;
 	return 0;
 }
 
-static int fileio_do_job(struct scst_cmd *cmd)
+static int vdisk_do_job(struct scst_cmd *cmd)
 {
 	uint64_t lba_start = 0;
 	loff_t data_len = 0;
@@ -537,10 +537,10 @@ static int fileio_do_job(struct scst_cmd *cmd)
 	int opcode = cdb[0];
 	loff_t loff;
 	struct scst_device *dev = cmd->dev;
-	struct scst_fileio_dev *virt_dev =
-		(struct scst_fileio_dev *)dev->dh_priv;
+	struct scst_vdisk_dev *virt_dev =
+		(struct scst_vdisk_dev *)dev->dh_priv;
 	struct scst_thr_data_hdr *d;
-	struct scst_fileio_thr *thr = NULL;
+	struct scst_vdisk_thr *thr = NULL;
 	int fua = 0;
 
 	TRACE_ENTRY();
@@ -558,14 +558,14 @@ static int fileio_do_job(struct scst_cmd *cmd)
 
 	d = scst_find_thr_data(cmd->tgt_dev);
 	if (unlikely(d == NULL)) {
-		thr = fileio_init_thr_data(cmd->tgt_dev);
+		thr = vdisk_init_thr_data(cmd->tgt_dev);
 		if (thr == NULL) {
 			scst_set_busy(cmd);
 			goto done;
 		}
 		scst_thr_data_get(&thr->hdr);
 	} else
-		thr = container_of(d, struct scst_fileio_thr, hdr);
+		thr = container_of(d, struct scst_vdisk_thr, hdr);
 
 	switch (opcode) {
 	case READ_6:
@@ -647,7 +647,7 @@ static int fileio_do_job(struct scst_cmd *cmd)
 	case READ_10:
 	case READ_12:
 	case READ_16:
-		fileio_exec_read(cmd, thr, loff);
+		vdisk_exec_read(cmd, thr, loff);
 		break;
 	case WRITE_6:
 	case WRITE_10:
@@ -655,26 +655,26 @@ static int fileio_do_job(struct scst_cmd *cmd)
 	case WRITE_16:
 		if (likely(!virt_dev->rd_only_flag)) {
 			int do_fsync = 0;
-			struct scst_fileio_tgt_dev *ftgt_dev =
-				(struct scst_fileio_tgt_dev*)
+			struct scst_vdisk_tgt_dev *ftgt_dev =
+				(struct scst_vdisk_tgt_dev*)
 					cmd->tgt_dev->dh_priv;
 			enum scst_cmd_queue_type last_queue_type =
 				ftgt_dev->last_write_cmd_queue_type;
 			ftgt_dev->last_write_cmd_queue_type = cmd->queue_type;
-			if (fileio_need_pre_sync(cmd->queue_type, last_queue_type) &&
+			if (vdisk_need_pre_sync(cmd->queue_type, last_queue_type) &&
 			    !virt_dev->wt_flag) {
 			    	TRACE(TRACE_ORDER, "ORDERED "
 			    		"WRITE(%d): loff=%Ld, data_len=%Ld",
 			    		cmd->queue_type, (uint64_t)loff,
 			    		(uint64_t)data_len);
 			    	do_fsync = 1;
-				if (fileio_fsync(thr, 0, 0, cmd) != 0)
+				if (vdisk_fsync(thr, 0, 0, cmd) != 0)
 					goto done;
 			}
-			fileio_exec_write(cmd, thr, loff);
+			vdisk_exec_write(cmd, thr, loff);
 			/* O_SYNC flag is used for wt_flag devices */
 			if (do_fsync || fua)
-				fileio_fsync(thr, loff, data_len, cmd);
+				vdisk_fsync(thr, loff, data_len, cmd);
 		} else {
 			TRACE_DBG("%s", "Attempt to write to read-only device");
 			scst_set_cmd_error(cmd,
@@ -686,28 +686,28 @@ static int fileio_do_job(struct scst_cmd *cmd)
 	case WRITE_VERIFY_16:
 		if (likely(!virt_dev->rd_only_flag)) {
 			int do_fsync = 0;
-			struct scst_fileio_tgt_dev *ftgt_dev =
-				(struct scst_fileio_tgt_dev*)
+			struct scst_vdisk_tgt_dev *ftgt_dev =
+				(struct scst_vdisk_tgt_dev*)
 					cmd->tgt_dev->dh_priv;
 			enum scst_cmd_queue_type last_queue_type =
 				ftgt_dev->last_write_cmd_queue_type;
 			ftgt_dev->last_write_cmd_queue_type = cmd->queue_type;
-			if (fileio_need_pre_sync(cmd->queue_type, last_queue_type) && 
+			if (vdisk_need_pre_sync(cmd->queue_type, last_queue_type) && 
 			    !virt_dev->wt_flag) {
 			    	TRACE(TRACE_ORDER, "ORDERED "
 			    		"WRITE_VERIFY(%d): loff=%Ld, data_len=%Ld",
 			    		cmd->queue_type, (uint64_t)loff,
 			    		(uint64_t)data_len);
 			    	do_fsync = 1;
-				if (fileio_fsync(thr, 0, 0, cmd) != 0)
+				if (vdisk_fsync(thr, 0, 0, cmd) != 0)
 					goto done;
 			}
-			fileio_exec_write(cmd, thr, loff);
+			vdisk_exec_write(cmd, thr, loff);
 			/* O_SYNC flag is used for wt_flag devices */
 			if (cmd->status == 0)
-				fileio_exec_verify(cmd, thr, loff);
+				vdisk_exec_verify(cmd, thr, loff);
 			else if (do_fsync)
-				fileio_fsync(thr, loff, data_len, cmd);
+				vdisk_fsync(thr, loff, data_len, cmd);
 		} else {
 			TRACE_DBG("%s", "Attempt to write to read-only device");
 			scst_set_cmd_error(cmd,
@@ -725,12 +725,12 @@ static int fileio_do_job(struct scst_cmd *cmd)
 			cmd->completed = 1;
 			cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);
 			/* cmd is dead here */
-			fileio_fsync(thr, loff, data_len, NULL);
-			/* ToDo: fileio_fsync() error processing */
+			vdisk_fsync(thr, loff, data_len, NULL);
+			/* ToDo: vdisk_fsync() error processing */
 			scst_put();
 			goto out;
 		} else {
-			fileio_fsync(thr, loff, data_len, cmd);
+			vdisk_fsync(thr, loff, data_len, cmd);
 			break;
 		}
 	}
@@ -738,21 +738,21 @@ static int fileio_do_job(struct scst_cmd *cmd)
 	case VERIFY:
 	case VERIFY_12:
 	case VERIFY_16:
-		fileio_exec_verify(cmd, thr, loff);
+		vdisk_exec_verify(cmd, thr, loff);
 		break;
 	case MODE_SENSE:
 	case MODE_SENSE_10:
-		fileio_exec_mode_sense(cmd);
+		vdisk_exec_mode_sense(cmd);
 		break;
 	case MODE_SELECT:
 	case MODE_SELECT_10:
-		fileio_exec_mode_select(cmd);
+		vdisk_exec_mode_select(cmd);
 		break;
 	case ALLOW_MEDIUM_REMOVAL:
-		fileio_exec_prevent_allow_medium_removal(cmd);
+		vdisk_exec_prevent_allow_medium_removal(cmd);
 		break;
 	case READ_TOC:
-		fileio_exec_read_toc(cmd);
+		vdisk_exec_read_toc(cmd);
 		break;
 	case START_STOP:
 	case RESERVE:
@@ -762,14 +762,14 @@ static int fileio_do_job(struct scst_cmd *cmd)
 	case TEST_UNIT_READY:
 		break;
 	case INQUIRY:
-		fileio_exec_inquiry(cmd);
+		vdisk_exec_inquiry(cmd);
 		break;
 	case READ_CAPACITY:
-		fileio_exec_read_capacity(cmd);
+		vdisk_exec_read_capacity(cmd);
 		break;
         case SERVICE_ACTION_IN:
 		if ((cmd->cdb[1] & 0x1f) == SAI_READ_CAPACITY_16) {
-			fileio_exec_read_capacity16(cmd);
+			vdisk_exec_read_capacity16(cmd);
 			break;
 		}
 		/* else go through */
@@ -795,7 +795,7 @@ out:
 }
 
 /********************************************************************
- *  Function:  disk_fileio_parse
+ *  Function:  vdisk_parse
  *
  *  Argument:  
  *
@@ -805,13 +805,13 @@ out:
  *
  *  Note:  Not all states are allowed on return
  ********************************************************************/
-static int disk_fileio_parse(struct scst_cmd *cmd,
+static int vdisk_parse(struct scst_cmd *cmd,
 	const struct scst_info_cdb *info_cdb)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
 	int fixed;
-	struct scst_fileio_dev *virt_dev =
-	    (struct scst_fileio_dev *)cmd->dev->dh_priv;
+	struct scst_vdisk_dev *virt_dev =
+	    (struct scst_vdisk_dev *)cmd->dev->dh_priv;
 
 	TRACE_ENTRY();
 	
@@ -870,7 +870,7 @@ static int disk_fileio_parse(struct scst_cmd *cmd,
 }
 
 /********************************************************************
- *  Function:  cdrom_fileio_parse
+ *  Function:  vcdrom_parse
  *
  *  Argument:  
  *
@@ -880,13 +880,13 @@ static int disk_fileio_parse(struct scst_cmd *cmd,
  *
  *  Note:  Not all states are allowed on return
  ********************************************************************/
-static int cdrom_fileio_parse(struct scst_cmd *cmd,
+static int vcdrom_parse(struct scst_cmd *cmd,
 	const struct scst_info_cdb *info_cdb)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
 	int fixed;
-	struct scst_fileio_dev *virt_dev =
-	    (struct scst_fileio_dev *)cmd->dev->dh_priv;
+	struct scst_vdisk_dev *virt_dev =
+	    (struct scst_vdisk_dev *)cmd->dev->dh_priv;
 
 	TRACE_ENTRY();
 	
@@ -939,7 +939,7 @@ static int cdrom_fileio_parse(struct scst_cmd *cmd,
 }
 
 /********************************************************************
- *  Function:  cdrom_fileio_exec
+ *  Function:  vcdrom_exec
  *
  *  Argument:  
  *
@@ -947,11 +947,11 @@ static int cdrom_fileio_parse(struct scst_cmd *cmd,
  *
  *  Description:  
  ********************************************************************/
-static int cdrom_fileio_exec(struct scst_cmd *cmd)
+static int vcdrom_exec(struct scst_cmd *cmd)
 {
 	int opcode = cmd->cdb[0];
-	struct scst_fileio_dev *virt_dev =
-	    (struct scst_fileio_dev *)cmd->dev->dh_priv;
+	struct scst_vdisk_dev *virt_dev =
+	    (struct scst_vdisk_dev *)cmd->dev->dh_priv;
 
 	TRACE_ENTRY();
 
@@ -981,7 +981,7 @@ static int cdrom_fileio_exec(struct scst_cmd *cmd)
 		spin_unlock(&virt_dev->flags_lock);
 	}
 
-	fileio_do_job(cmd);
+	vdisk_do_job(cmd);
 
 out:
 	TRACE_EXIT();
@@ -993,13 +993,13 @@ out_complete:
 	goto out;
 }
 
-static void fileio_exec_inquiry(struct scst_cmd *cmd)
+static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 {
 	int32_t length, len, i, resp_len = 0;
 	uint8_t *address;
 	uint8_t *buf;
-	struct scst_fileio_dev *virt_dev =
-	    (struct scst_fileio_dev *)cmd->dev->dh_priv;
+	struct scst_vdisk_dev *virt_dev =
+	    (struct scst_vdisk_dev *)cmd->dev->dh_priv;
 
 	/* ToDo: Performance Boost:
 	 * 1. remove kzalloc, buf
@@ -1167,8 +1167,8 @@ out:
  * ToDo: revise them
  */
 
-static int fileio_err_recov_pg(unsigned char *p, int pcontrol,
-			       struct scst_fileio_dev *virt_dev)
+static int vdisk_err_recov_pg(unsigned char *p, int pcontrol,
+			       struct scst_vdisk_dev *virt_dev)
 {	/* Read-Write Error Recovery page for mode_sense */
 	const unsigned char err_recov_pg[] = {0x1, 0xa, 0xc0, 11, 240, 0, 0, 0,
 					      5, 0, 0xff, 0xff};
@@ -1179,8 +1179,8 @@ static int fileio_err_recov_pg(unsigned char *p, int pcontrol,
 	return sizeof(err_recov_pg);
 }
 
-static int fileio_disconnect_pg(unsigned char *p, int pcontrol,
-				struct scst_fileio_dev *virt_dev)
+static int vdisk_disconnect_pg(unsigned char *p, int pcontrol,
+				struct scst_vdisk_dev *virt_dev)
 { 	/* Disconnect-Reconnect page for mode_sense */
 	const unsigned char disconnect_pg[] = {0x2, 0xe, 128, 128, 0, 10, 0, 0,
 					       0, 0, 0, 0, 0, 0, 0, 0};
@@ -1191,8 +1191,8 @@ static int fileio_disconnect_pg(unsigned char *p, int pcontrol,
 	return sizeof(disconnect_pg);
 }
 
-static int fileio_format_pg(unsigned char *p, int pcontrol,
-			    struct scst_fileio_dev *virt_dev)
+static int vdisk_format_pg(unsigned char *p, int pcontrol,
+			    struct scst_vdisk_dev *virt_dev)
 {       /* Format device page for mode_sense */
 	const unsigned char format_pg[] = {0x3, 0x16, 0, 0, 0, 0, 0, 0,
 					   0, 0, 0, 0, 0, 0, 0, 0,
@@ -1208,8 +1208,8 @@ static int fileio_format_pg(unsigned char *p, int pcontrol,
         return sizeof(format_pg);
 }
 
-static int fileio_caching_pg(unsigned char *p, int pcontrol,
-			     struct scst_fileio_dev *virt_dev)
+static int vdisk_caching_pg(unsigned char *p, int pcontrol,
+			     struct scst_vdisk_dev *virt_dev)
 { 	/* Caching page for mode_sense */
 	const unsigned char caching_pg[] = {0x8, 18, 0x10, 0, 0xff, 0xff, 0, 0,
 		0xff, 0xff, 0xff, 0xff, 0x80, 0x14, 0, 0, 0, 0, 0, 0};
@@ -1221,8 +1221,8 @@ static int fileio_caching_pg(unsigned char *p, int pcontrol,
 	return sizeof(caching_pg);
 }
 
-static int fileio_ctrl_m_pg(unsigned char *p, int pcontrol,
-			    struct scst_fileio_dev *virt_dev)
+static int vdisk_ctrl_m_pg(unsigned char *p, int pcontrol,
+			    struct scst_vdisk_dev *virt_dev)
 { 	/* Control mode page for mode_sense */
 	const unsigned char ctrl_m_pg[] = {0xa, 0xa, 0x22, 0, 0, 0x40, 0, 0,
 					   0, 0, 0x2, 0x4b};
@@ -1235,8 +1235,8 @@ static int fileio_ctrl_m_pg(unsigned char *p, int pcontrol,
 	return sizeof(ctrl_m_pg);
 }
 
-static int fileio_iec_m_pg(unsigned char *p, int pcontrol,
-			   struct scst_fileio_dev *virt_dev)
+static int vdisk_iec_m_pg(unsigned char *p, int pcontrol,
+			   struct scst_vdisk_dev *virt_dev)
 {	/* Informational Exceptions control mode page for mode_sense */
 	const unsigned char iec_m_pg[] = {0x1c, 0xa, 0x08, 0, 0, 0, 0, 0,
 				          0, 0, 0x0, 0x0};
@@ -1246,12 +1246,12 @@ static int fileio_iec_m_pg(unsigned char *p, int pcontrol,
 	return sizeof(iec_m_pg);
 }
 
-static void fileio_exec_mode_sense(struct scst_cmd *cmd)
+static void vdisk_exec_mode_sense(struct scst_cmd *cmd)
 {
 	int32_t length;
 	uint8_t *address;
 	uint8_t *buf;
-	struct scst_fileio_dev *virt_dev;
+	struct scst_vdisk_dev *virt_dev;
 	uint32_t blocksize;
 	uint64_t nblocks;
 	unsigned char dbd, type;
@@ -1269,7 +1269,7 @@ static void fileio_exec_mode_sense(struct scst_cmd *cmd)
 		goto out;
 	}
 
-	virt_dev = (struct scst_fileio_dev *)cmd->dev->dh_priv;
+	virt_dev = (struct scst_vdisk_dev *)cmd->dev->dh_priv;
 	blocksize = virt_dev->block_size;
 	nblocks = virt_dev->nblocks;
 	
@@ -1341,36 +1341,36 @@ static void fileio_exec_mode_sense(struct scst_cmd *cmd)
 
 	switch (pcode) {
 	case 0x1:	/* Read-Write error recovery page, direct access */
-		len = fileio_err_recov_pg(bp, pcontrol, virt_dev);
+		len = vdisk_err_recov_pg(bp, pcontrol, virt_dev);
 		offset += len;
 		break;
 	case 0x2:	/* Disconnect-Reconnect page, all devices */
-		len = fileio_disconnect_pg(bp, pcontrol, virt_dev);
+		len = vdisk_disconnect_pg(bp, pcontrol, virt_dev);
 		offset += len;
 		break;
         case 0x3:       /* Format device page, direct access */
-                len = fileio_format_pg(bp, pcontrol, virt_dev);
+                len = vdisk_format_pg(bp, pcontrol, virt_dev);
                 offset += len;
                 break;
 	case 0x8:	/* Caching page, direct access */
-		len = fileio_caching_pg(bp, pcontrol, virt_dev);
+		len = vdisk_caching_pg(bp, pcontrol, virt_dev);
 		offset += len;
 		break;
 	case 0xa:	/* Control Mode page, all devices */
-		len = fileio_ctrl_m_pg(bp, pcontrol, virt_dev);
+		len = vdisk_ctrl_m_pg(bp, pcontrol, virt_dev);
 		offset += len;
 		break;
 	case 0x1c:	/* Informational Exceptions Mode page, all devices */
-		len = fileio_iec_m_pg(bp, pcontrol, virt_dev);
+		len = vdisk_iec_m_pg(bp, pcontrol, virt_dev);
 		offset += len;
 		break;
 	case 0x3f:	/* Read all Mode pages */
-		len = fileio_err_recov_pg(bp, pcontrol, virt_dev);
-		len += fileio_disconnect_pg(bp + len, pcontrol, virt_dev);
-		len += fileio_format_pg(bp + len, pcontrol, virt_dev);
-		len += fileio_caching_pg(bp + len, pcontrol, virt_dev);
-		len += fileio_ctrl_m_pg(bp + len, pcontrol, virt_dev);
-		len += fileio_iec_m_pg(bp + len, pcontrol, virt_dev);
+		len = vdisk_err_recov_pg(bp, pcontrol, virt_dev);
+		len += vdisk_disconnect_pg(bp + len, pcontrol, virt_dev);
+		len += vdisk_format_pg(bp + len, pcontrol, virt_dev);
+		len += vdisk_caching_pg(bp + len, pcontrol, virt_dev);
+		len += vdisk_ctrl_m_pg(bp + len, pcontrol, virt_dev);
+		len += vdisk_iec_m_pg(bp + len, pcontrol, virt_dev);
 		offset += len;
 		break;
 	default:
@@ -1403,7 +1403,7 @@ out:
 	return;
 }
 
-static int fileio_set_wt(struct scst_fileio_dev *virt_dev, int wt)
+static int vdisk_set_wt(struct scst_vdisk_dev *virt_dev, int wt)
 {
 	int res = 0;
 
@@ -1423,16 +1423,16 @@ out:
 	return res;
 }
 
-static void fileio_exec_mode_select(struct scst_cmd *cmd)
+static void vdisk_exec_mode_select(struct scst_cmd *cmd)
 {
 	int32_t length;
 	uint8_t *address;
-	struct scst_fileio_dev *virt_dev;
+	struct scst_vdisk_dev *virt_dev;
 	int mselect_6, offset;
 
 	TRACE_ENTRY();
 
-	virt_dev = (struct scst_fileio_dev *)cmd->dev->dh_priv;
+	virt_dev = (struct scst_vdisk_dev *)cmd->dev->dh_priv;
 	mselect_6 = (MODE_SELECT == cmd->cdb[0]);
 
 	length = scst_get_buf_first(cmd, &address);
@@ -1482,7 +1482,7 @@ static void fileio_exec_mode_select(struct scst_cmd *cmd)
 				    	scst_sense_invalid_field_in_parm_list));
 				goto out_put;
 			}
-			if (fileio_set_wt(virt_dev,
+			if (vdisk_set_wt(virt_dev,
 			      (address[offset + 2] & WCE) ? 0 : 1) != 0) {
 				scst_set_cmd_error(cmd,
 				    SCST_LOAD_SENSE(scst_sense_hardw_error));
@@ -1501,18 +1501,18 @@ out:
 	return;
 }
 
-static void fileio_exec_read_capacity(struct scst_cmd *cmd)
+static void vdisk_exec_read_capacity(struct scst_cmd *cmd)
 {
 	int32_t length;
 	uint8_t *address;
-	struct scst_fileio_dev *virt_dev;
+	struct scst_vdisk_dev *virt_dev;
 	uint32_t blocksize;
 	uint64_t nblocks;
 	uint8_t buffer[READ_CAP_LEN];
 
 	TRACE_ENTRY();
 
-	virt_dev = (struct scst_fileio_dev *)cmd->dev->dh_priv;
+	virt_dev = (struct scst_vdisk_dev *)cmd->dev->dh_priv;
 	blocksize = virt_dev->block_size;
 	nblocks = virt_dev->nblocks;
 
@@ -1556,18 +1556,18 @@ out:
 	return;
 }
 
-static void fileio_exec_read_capacity16(struct scst_cmd *cmd)
+static void vdisk_exec_read_capacity16(struct scst_cmd *cmd)
 {
 	int32_t length;
 	uint8_t *address;
-	struct scst_fileio_dev *virt_dev;
+	struct scst_vdisk_dev *virt_dev;
 	uint32_t blocksize;
 	uint64_t nblocks;
 	uint8_t buffer[READ_CAP16_LEN];
 
 	TRACE_ENTRY();
 
-	virt_dev = (struct scst_fileio_dev *)cmd->dev->dh_priv;
+	virt_dev = (struct scst_vdisk_dev *)cmd->dev->dh_priv;
 	blocksize = virt_dev->block_size;
 	nblocks = virt_dev->nblocks - 1;
 
@@ -1608,11 +1608,11 @@ out:
 	return;
 }
 
-static void fileio_exec_read_toc(struct scst_cmd *cmd)
+static void vdisk_exec_read_toc(struct scst_cmd *cmd)
 {
 	int32_t length, off = 0;
 	uint8_t *address;
-	struct scst_fileio_dev *virt_dev;
+	struct scst_vdisk_dev *virt_dev;
 	uint32_t nblocks;
 	uint8_t buffer[4+8+8] = { 0x00, 0x0a, 0x01, 0x01, 0x00, 0x14, 
 				  0x01, 0x00, 0x00, 0x00, 0x00, 0x00 };
@@ -1650,7 +1650,7 @@ static void fileio_exec_read_toc(struct scst_cmd *cmd)
 		goto out;
 	}
 
-	virt_dev = (struct scst_fileio_dev *)cmd->dev->dh_priv;
+	virt_dev = (struct scst_vdisk_dev *)cmd->dev->dh_priv;
 	/* FIXME when you have > 8TB ROM device. */
 	nblocks = (uint32_t)virt_dev->nblocks;
 
@@ -1695,10 +1695,10 @@ out:
 	return;
 }
 
-static void fileio_exec_prevent_allow_medium_removal(struct scst_cmd *cmd)
+static void vdisk_exec_prevent_allow_medium_removal(struct scst_cmd *cmd)
 {
-	struct scst_fileio_dev *virt_dev =
-		(struct scst_fileio_dev *)cmd->dev->dh_priv;
+	struct scst_vdisk_dev *virt_dev =
+		(struct scst_vdisk_dev *)cmd->dev->dh_priv;
 
 	TRACE_DBG("PERSIST/PREVENT 0x%02x", cmd->cdb[4]);
 
@@ -1717,7 +1717,7 @@ static void fileio_exec_prevent_allow_medium_removal(struct scst_cmd *cmd)
 	return;
 }
 
-static int fileio_fsync(struct scst_fileio_thr *thr,
+static int vdisk_fsync(struct scst_vdisk_thr *thr,
 	loff_t loff, loff_t len, struct scst_cmd *cmd)
 {
 	int res = 0;
@@ -1746,8 +1746,8 @@ out:
 	return res;
 }
 
-static struct iovec *fileio_alloc_iv(struct scst_cmd *cmd,
-	struct scst_fileio_thr *thr)
+static struct iovec *vdisk_alloc_iv(struct scst_cmd *cmd,
+	struct scst_vdisk_thr *thr)
 {
 	int iv_count;
 	
@@ -1810,22 +1810,22 @@ ssize_t do_sync_readv_writev(struct file *filp, const struct iovec *iov,
 }
 #endif
 
-static void fileio_exec_read(struct scst_cmd *cmd,
-	struct scst_fileio_thr *thr, loff_t loff)
+static void vdisk_exec_read(struct scst_cmd *cmd,
+	struct scst_vdisk_thr *thr, loff_t loff)
 {
 	mm_segment_t old_fs;
 	loff_t err;
 	ssize_t length, full_len;
 	uint8_t *address;
-	struct scst_fileio_dev *virt_dev =
-	    (struct scst_fileio_dev *)cmd->dev->dh_priv;
+	struct scst_vdisk_dev *virt_dev =
+	    (struct scst_vdisk_dev *)cmd->dev->dh_priv;
 	struct file *fd = thr->fd;
 	struct iovec *iv;
 	int iv_count, i;
 
 	TRACE_ENTRY();
 	
-	iv = fileio_alloc_iv(cmd, thr);
+	iv = vdisk_alloc_iv(cmd, thr);
 	if (iv == NULL)
 		goto out;
 	
@@ -1899,22 +1899,22 @@ out:
 	return;
 }
 
-static void fileio_exec_write(struct scst_cmd *cmd,
-	struct scst_fileio_thr *thr, loff_t loff)
+static void vdisk_exec_write(struct scst_cmd *cmd,
+	struct scst_vdisk_thr *thr, loff_t loff)
 {
 	mm_segment_t old_fs;
 	loff_t err;
 	ssize_t length, full_len;
 	uint8_t *address;
-	struct scst_fileio_dev *virt_dev =
-	    (struct scst_fileio_dev *)cmd->dev->dh_priv;
+	struct scst_vdisk_dev *virt_dev =
+	    (struct scst_vdisk_dev *)cmd->dev->dh_priv;
 	struct file *fd = thr->fd;
 	struct iovec *iv, *eiv;
 	int iv_count, eiv_count;
 
 	TRACE_ENTRY();
 
-	iv = fileio_alloc_iv(cmd, thr);
+	iv = vdisk_alloc_iv(cmd, thr);
 	if (iv == NULL)
 		goto out;
 	
@@ -2022,22 +2022,22 @@ out:
 	return;
 }
 
-static void fileio_exec_verify(struct scst_cmd *cmd, 
-	struct scst_fileio_thr *thr, loff_t loff)
+static void vdisk_exec_verify(struct scst_cmd *cmd, 
+	struct scst_vdisk_thr *thr, loff_t loff)
 {
 	mm_segment_t old_fs;
 	loff_t err;
 	ssize_t length, len_mem = 0;
 	uint8_t *address_sav, *address;
 	int compare;
-	struct scst_fileio_dev *virt_dev =
-	    (struct scst_fileio_dev *)cmd->dev->dh_priv;
+	struct scst_vdisk_dev *virt_dev =
+	    (struct scst_vdisk_dev *)cmd->dev->dh_priv;
 	struct file *fd = thr->fd;
 	uint8_t *mem_verify = NULL;
 
 	TRACE_ENTRY();
 
-	if (fileio_fsync(thr, loff, cmd->bufflen, cmd) != 0)
+	if (vdisk_fsync(thr, loff, cmd->bufflen, cmd) != 0)
 		goto out;
 
 	/* 
@@ -2137,9 +2137,9 @@ out:
 	return;
 }
 
-static inline struct scst_fileio_dev *fileio_alloc_dev(void)
+static inline struct scst_vdisk_dev *vdisk_alloc_dev(void)
 {
-	struct scst_fileio_dev *dev;
+	struct scst_vdisk_dev *dev;
 	dev = kzalloc(sizeof(*dev), GFP_KERNEL);
 	if (dev == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of virtual "
@@ -2152,16 +2152,16 @@ out:
 }
 
 /* 
- * Called when a file in the /proc/DISK_FILEIO_NAME/DISK_FILEIO_NAME is read
+ * Called when a file in the /proc/VDISK_NAME/VDISK_NAME is read
  */
-static int disk_fileio_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
+static int vdisk_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
 {
 	int res = 0;
-	struct scst_fileio_dev *virt_dev;
+	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
 	
-	if (down_interruptible(&scst_fileio_mutex) != 0) {
+	if (down_interruptible(&scst_vdisk_mutex) != 0) {
 		res = -EINTR;
 		goto out;
 	}
@@ -2169,7 +2169,7 @@ static int disk_fileio_read_proc(struct seq_file *seq, struct scst_dev_type *dev
 	seq_printf(seq, "%-17s %-11s %-11s %-15s %s\n",
 			   "Name", "Size(MB)", "Block size", "Options", "File name");
 
-	list_for_each_entry(virt_dev, &disk_fileio_dev_list, fileio_dev_list_entry) {
+	list_for_each_entry(virt_dev, &vdisk_dev_list, vdisk_dev_list_entry) {
 		int c;
 		seq_printf(seq, "%-17s %-11d %-12d", virt_dev->name,
 			(uint32_t)(virt_dev->file_size >> 20),
@@ -2201,21 +2201,21 @@ static int disk_fileio_read_proc(struct seq_file *seq, struct scst_dev_type *dev
 		}
 		seq_printf(seq, "%s\n", virt_dev->file_name);
 	}
-	up(&scst_fileio_mutex);
+	up(&scst_vdisk_mutex);
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
 
 /* 
- * Called when a file in the /proc/DISK_FILEIO_NAME/DISK_FILEIO_NAME is written
+ * Called when a file in the /proc/VDISK_NAME/VDISK_NAME is written
  */
-static int disk_fileio_write_proc(char *buffer, char **start, off_t offset,
+static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 	int length, int *eof, struct scst_dev_type *dev_type)
 {
 	int res = 0, action;
 	char *p, *name, *file_name;
-	struct scst_fileio_dev *virt_dev, *vv;
+	struct scst_vdisk_dev *virt_dev, *vv;
 	uint32_t block_size = DEF_DISK_BLOCKSIZE;
 	int block_shift = DEF_DISK_BLOCKSIZE_SHIFT;
 	size_t len;
@@ -2227,7 +2227,7 @@ static int disk_fileio_write_proc(char *buffer, char **start, off_t offset,
 	if (buffer[0] == '\0')
 		goto out;
 	
-	if (down_interruptible(&scst_fileio_mutex) != 0) {
+	if (down_interruptible(&scst_vdisk_mutex) != 0) {
 		res = -EINTR;
 		goto out;
 	}
@@ -2267,8 +2267,8 @@ static int disk_fileio_write_proc(char *buffer, char **start, off_t offset,
 
 	if (action) {                      /* open */
 		virt_dev = NULL;
-		list_for_each_entry(vv, &disk_fileio_dev_list,
-					fileio_dev_list_entry)
+		list_for_each_entry(vv, &vdisk_dev_list,
+					vdisk_dev_list_entry)
 		{
 			if (strcmp(vv->name, name) == 0) {
 				virt_dev = vv;
@@ -2294,7 +2294,7 @@ static int disk_fileio_write_proc(char *buffer, char **start, off_t offset,
 			goto out_up;
 		}
 
-		virt_dev = fileio_alloc_dev();
+		virt_dev = vdisk_alloc_dev();
 		if (virt_dev == NULL) {
 			TRACE(TRACE_OUT_OF_MEM, "%s",
 				  "Allocation of virt_dev failed");
@@ -2391,11 +2391,11 @@ static int disk_fileio_write_proc(char *buffer, char **start, off_t offset,
 		}
 		strncpy(virt_dev->file_name, file_name, len);
 
-		list_add_tail(&virt_dev->fileio_dev_list_entry,
-				  &disk_fileio_dev_list);
+		list_add_tail(&virt_dev->vdisk_dev_list_entry,
+				  &vdisk_dev_list);
 
 		virt_dev->virt_id =
-			scst_register_virtual_device(&disk_devtype_fileio,
+			scst_register_virtual_device(&disk_devtype_vdisk,
 						 virt_dev->name);
 		if (virt_dev->virt_id < 0) {
 			res = virt_dev->virt_id;
@@ -2403,13 +2403,13 @@ static int disk_fileio_write_proc(char *buffer, char **start, off_t offset,
 		}
 		TRACE_DBG("Added virt_dev (name %s, file name %s, "
 			"id %d, block size %d) to "
-			"disk_fileio_dev_list", virt_dev->name,
+			"vdisk_dev_list", virt_dev->name,
 			virt_dev->file_name, virt_dev->virt_id,
 			virt_dev->block_size);
 	} else {                           /* close */
 		virt_dev = NULL;
-		list_for_each_entry(vv, &disk_fileio_dev_list,
-					fileio_dev_list_entry)
+		list_for_each_entry(vv, &vdisk_dev_list,
+					vdisk_dev_list_entry)
 		{
 			if (strcmp(vv->name, name) == 0) {
 				virt_dev = vv;
@@ -2426,7 +2426,7 @@ static int disk_fileio_write_proc(char *buffer, char **start, off_t offset,
 			virt_dev->name);
 		TRACE_DBG("virt_id %d unregister", virt_dev->virt_id);
 
-		list_del(&virt_dev->fileio_dev_list_entry);
+		list_del(&virt_dev->vdisk_dev_list_entry);
 
 		kfree(virt_dev->file_name);
 		kfree(virt_dev);
@@ -2434,14 +2434,14 @@ static int disk_fileio_write_proc(char *buffer, char **start, off_t offset,
 	res = length;
 
 out_up:
-	up(&scst_fileio_mutex);
+	up(&scst_vdisk_mutex);
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 
 out_free_vpath:
-	list_del(&virt_dev->fileio_dev_list_entry);
+	list_del(&virt_dev->vdisk_dev_list_entry);
 	kfree(virt_dev->file_name);
 
 out_free_vdev:
@@ -2449,17 +2449,17 @@ out_free_vdev:
 	goto out_up;
 }
 
-/* scst_fileio_mutex supposed to be held */
-static int cdrom_fileio_open(char *p, char *name)
+/* scst_vdisk_mutex supposed to be held */
+static int vcdrom_open(char *p, char *name)
 {
-	struct scst_fileio_dev *virt_dev, *vv;
+	struct scst_vdisk_dev *virt_dev, *vv;
 	char *file_name;
 	int len;
 	int res = 0;
 	int cdrom_empty;
 
 	virt_dev = NULL;
-	list_for_each_entry(vv, &cdrom_fileio_dev_list, fileio_dev_list_entry)
+	list_for_each_entry(vv, &vcdrom_dev_list, vdisk_dev_list_entry)
 	{
 		if (strcmp(vv->name, name) == 0) {
 			virt_dev = vv;
@@ -2490,7 +2490,7 @@ static int cdrom_fileio_open(char *p, char *name)
 	} else
 		cdrom_empty = 0;
 
-	virt_dev = fileio_alloc_dev();
+	virt_dev = vdisk_alloc_dev();
 	if (virt_dev == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s",
 		      "Allocation of virt_dev failed");
@@ -2513,25 +2513,25 @@ static int cdrom_fileio_open(char *p, char *name)
 		strncpy(virt_dev->file_name, file_name, len);
 	}
 
-	list_add_tail(&virt_dev->fileio_dev_list_entry,
-		      &cdrom_fileio_dev_list);
+	list_add_tail(&virt_dev->vdisk_dev_list_entry,
+		      &vcdrom_dev_list);
 
 	virt_dev->virt_id =
-	    scst_register_virtual_device(&cdrom_devtype_fileio,
+	    scst_register_virtual_device(&cdrom_devtype_vdisk,
 					 virt_dev->name);
 	if (virt_dev->virt_id < 0) {
 		res = virt_dev->virt_id;
 		goto out_free_vpath;
 	}
 	TRACE_DBG("Added virt_dev (name %s file_name %s id %d) "
-		  "to cdrom_fileio_dev_list", virt_dev->name,
+		  "to vcdrom_dev_list", virt_dev->name,
 		  virt_dev->file_name, virt_dev->virt_id);
 
 out:
 	return res;
 
 out_free_vpath:
-	list_del(&virt_dev->fileio_dev_list_entry);
+	list_del(&virt_dev->vdisk_dev_list_entry);
 	kfree(virt_dev->file_name);
 
 out_free_vdev:
@@ -2539,15 +2539,15 @@ out_free_vdev:
 	goto out;
 }
 
-/* scst_fileio_mutex supposed to be held */
-static int cdrom_fileio_close(char *name)
+/* scst_vdisk_mutex supposed to be held */
+static int vcdrom_close(char *name)
 {
-	struct scst_fileio_dev *virt_dev, *vv;
+	struct scst_vdisk_dev *virt_dev, *vv;
 	int res = 0;
 
 	virt_dev = NULL;
-	list_for_each_entry(vv, &cdrom_fileio_dev_list,
-			    fileio_dev_list_entry)
+	list_for_each_entry(vv, &vcdrom_dev_list,
+			    vdisk_dev_list_entry)
 	{
 		if (strcmp(vv->name, name) == 0) {
 			virt_dev = vv;
@@ -2565,7 +2565,7 @@ static int cdrom_fileio_close(char *name)
 		virt_dev->name);
 	TRACE_DBG("virt_id %d unregister", virt_dev->virt_id);
 
-	list_del(&virt_dev->fileio_dev_list_entry);
+	list_del(&virt_dev->vdisk_dev_list_entry);
 
 	if (virt_dev->file_name)
 		kfree(virt_dev->file_name);
@@ -2575,20 +2575,20 @@ out:
 	return res;
 }
 
-/* scst_fileio_mutex supposed to be held */
-static int cdrom_fileio_change(char *p, char *name)
+/* scst_vdisk_mutex supposed to be held */
+static int vcdrom_change(char *p, char *name)
 {
 	struct file *fd;
 	loff_t err;
 	mm_segment_t old_fs;
-	struct scst_fileio_dev *virt_dev, *vv;
+	struct scst_vdisk_dev *virt_dev, *vv;
 	char *file_name, *fn, *old_fn;
 	int len;
 	int res = 0;
 
 	virt_dev = NULL;
-	list_for_each_entry(vv, &cdrom_fileio_dev_list,
-			    fileio_dev_list_entry)
+	list_for_each_entry(vv, &vcdrom_dev_list,
+			    vdisk_dev_list_entry)
 	{
 		if (strcmp(vv->name, name) == 0) {
 			virt_dev = vv;
@@ -2634,7 +2634,7 @@ static int cdrom_fileio_change(char *p, char *name)
 		strncpy(fn, file_name, len);
 		virt_dev->file_name = fn;
 
-		fd = fileio_open(virt_dev);
+		fd = vdisk_open(virt_dev);
 		if (IS_ERR(fd)) {
 			res = PTR_ERR(fd);
 			PRINT_ERROR_PR("filp_open(%s) returned an error %d",
@@ -2725,30 +2725,30 @@ out_free_resume:
 }
 
 /* 
- * Called when a file in the /proc/CDROM_FILEIO_NAME/CDROM_FILEIO_NAME is read
+ * Called when a file in the /proc/VCDROM_NAME/VCDROM_NAME is read
  */
-static int cdrom_fileio_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
+static int vcdrom_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
 {
 	int res = 0;
-	struct scst_fileio_dev *virt_dev;
+	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
 
-	if (down_interruptible(&scst_fileio_mutex) != 0) {
+	if (down_interruptible(&scst_vdisk_mutex) != 0) {
 		res = -EINTR;
 		goto out;
 	}
 	
 	seq_printf(seq, "%-17s %-9s %s\n", "Name", "Size(MB)", "File name");
 
-	list_for_each_entry(virt_dev, &cdrom_fileio_dev_list, 
-		fileio_dev_list_entry) {
+	list_for_each_entry(virt_dev, &vcdrom_dev_list, 
+		vdisk_dev_list_entry) {
 		seq_printf(seq, "%-17s %-9d %s\n", virt_dev->name,
 			(uint32_t)(virt_dev->file_size >> 20),
 			virt_dev->file_name);
 	}
 
-	up(&scst_fileio_mutex);
+	up(&scst_vdisk_mutex);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -2756,18 +2756,18 @@ out:
 }
 
 /* 
- * Called when a file in the /proc/CDROM_FILEIO_NAME/CDROM_FILEIO_NAME is written 
+ * Called when a file in the /proc/VCDROM_NAME/VCDROM_NAME is written 
  */
-static int cdrom_fileio_write_proc(char *buffer, char **start, off_t offset,
+static int vcdrom_write_proc(char *buffer, char **start, off_t offset,
 	int length, int *eof, struct scst_dev_type *dev_type)
 {
 	int res = 0, action;
 	char *p, *name;
-	struct scst_fileio_dev *virt_dev;
+	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
 
-	if (down_interruptible(&scst_fileio_mutex) != 0) {
+	if (down_interruptible(&scst_vdisk_mutex) != 0) {
 		res = -EINTR;
 		goto out;
 	}
@@ -2809,29 +2809,29 @@ static int cdrom_fileio_write_proc(char *buffer, char **start, off_t offset,
 	}
 
 	if (action == 2) {                      /* open */
-		res = cdrom_fileio_open(p, name);
+		res = vcdrom_open(p, name);
 		if (res != 0)
 			goto out_up;
 	} else if (action == 1) {          /* change */
-		res = cdrom_fileio_change(p, name);
+		res = vcdrom_change(p, name);
 		if (res != 0)
 			goto out_up;
 	} else {                           /* close */
-		res = cdrom_fileio_close(name);
+		res = vcdrom_close(name);
 		if (res != 0)
 			goto out_up;
 	}
 	res = length;
 
 out_up:
-	up(&scst_fileio_mutex);
+	up(&scst_vdisk_mutex);
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
 
-static int fileio_help_info_show(struct seq_file *seq, void *v)
+static int vdisk_help_info_show(struct seq_file *seq, void *v)
 {
 	char *s = (char*)seq->private;
 
@@ -2843,12 +2843,12 @@ static int fileio_help_info_show(struct seq_file *seq, void *v)
 	return 0;
 }
 
-static struct scst_proc_data fileio_help_proc_data = {
+static struct scst_proc_data vdisk_help_proc_data = {
 	SCST_DEF_RW_SEQ_OP(NULL)
-	.show = fileio_help_info_show,
+	.show = vdisk_help_info_show,
 };
 
-static int fileio_proc_help_build(struct scst_dev_type *dev_type)
+static int vdisk_proc_help_build(struct scst_dev_type *dev_type)
 {
 	int res = 0;
 	struct proc_dir_entry *p, *root;
@@ -2856,14 +2856,14 @@ static int fileio_proc_help_build(struct scst_dev_type *dev_type)
 	TRACE_ENTRY();
 
 	root = scst_proc_get_dev_type_root(dev_type);
-	fileio_help_proc_data.data = (dev_type->type == TYPE_DISK) ? 
-					disk_fileio_proc_help_string :
-					cdrom_fileio_proc_help_string;
-	p = scst_create_proc_entry(root, FILEIO_PROC_HELP, &fileio_help_proc_data);
+	vdisk_help_proc_data.data = (dev_type->type == TYPE_DISK) ? 
+					vdisk_proc_help_string :
+					vcdrom_proc_help_string;
+	p = scst_create_proc_entry(root, VDISK_PROC_HELP, &vdisk_help_proc_data);
 	if (p == NULL) {
 		PRINT_ERROR_PR("Not enough memory to register dev "
 		     "handler %s entry %s in /proc",
-		      dev_type->name, FILEIO_PROC_HELP);
+		      dev_type->name, VDISK_PROC_HELP);
 		res = -ENOMEM;
 	}
 
@@ -2871,7 +2871,7 @@ static int fileio_proc_help_build(struct scst_dev_type *dev_type)
 	return res;
 }
 
-static void fileio_proc_help_destroy(struct scst_dev_type *dev_type)
+static void vdisk_proc_help_destroy(struct scst_dev_type *dev_type)
 {
 	struct proc_dir_entry *root;
 
@@ -2879,12 +2879,12 @@ static void fileio_proc_help_destroy(struct scst_dev_type *dev_type)
 
 	root = scst_proc_get_dev_type_root(dev_type);
 	if (root)
-		remove_proc_entry(FILEIO_PROC_HELP, root);
+		remove_proc_entry(VDISK_PROC_HELP, root);
 
 	TRACE_EXIT();
 }
 
-static int __init init_scst_fileio(struct scst_dev_type *devtype)
+static int __init init_scst_vdisk(struct scst_dev_type *devtype)
 {
 	int res = 0;
 
@@ -2900,7 +2900,7 @@ static int __init init_scst_fileio(struct scst_dev_type *devtype)
 	if (res < 0)
 		goto out_unreg;
 
-	res = fileio_proc_help_build(devtype);
+	res = vdisk_proc_help_build(devtype);
 	if (res < 0) {
 		goto out_destroy_proc;
 	}
@@ -2917,33 +2917,33 @@ out_unreg:
 	goto out;
 }
 
-static void __exit exit_scst_fileio(struct scst_dev_type *devtype,
-	struct list_head *fileio_dev_list)
+static void __exit exit_scst_vdisk(struct scst_dev_type *devtype,
+	struct list_head *vdisk_dev_list)
 {
 	TRACE_ENTRY();
 
-	down(&scst_fileio_mutex);
+	down(&scst_vdisk_mutex);
 	while (1) {
-		struct scst_fileio_dev *virt_dev;
+		struct scst_vdisk_dev *virt_dev;
 
-		if (list_empty(fileio_dev_list))
+		if (list_empty(vdisk_dev_list))
 			break;
 		
-		virt_dev = list_entry(fileio_dev_list->next, typeof(*virt_dev),
-				fileio_dev_list_entry);
+		virt_dev = list_entry(vdisk_dev_list->next, typeof(*virt_dev),
+				vdisk_dev_list_entry);
 
 		scst_unregister_virtual_device(virt_dev->virt_id);
 
-		list_del(&virt_dev->fileio_dev_list_entry);
+		list_del(&virt_dev->vdisk_dev_list_entry);
 
 		PRINT_INFO_PR("Virtual device %s unregistered", virt_dev->name);
 		TRACE_DBG("virt_id %d", virt_dev->virt_id);
 		kfree(virt_dev->file_name);
 		kfree(virt_dev);
 	}
-	up(&scst_fileio_mutex);
+	up(&scst_vdisk_mutex);
 
-	fileio_proc_help_destroy(devtype);
+	vdisk_proc_help_destroy(devtype);
 	scst_dev_handler_destroy_std_proc(devtype);
 
 	scst_unregister_virtual_dev_driver(devtype);
@@ -2952,23 +2952,23 @@ static void __exit exit_scst_fileio(struct scst_dev_type *devtype,
 	return;
 }
 
-static int __init init_scst_fileio_driver(void)
+static int __init init_scst_vdisk_driver(void)
 {
 	int res;
 
-	fileio_thr_cachep = kmem_cache_create("fileio_thr_data",
-		sizeof(struct scst_fileio_thr), 0, FILEIO_SLAB_FLAGS, NULL,
+	vdisk_thr_cachep = kmem_cache_create("vdisk_thr_data",
+		sizeof(struct scst_vdisk_thr), 0, VDISK_SLAB_FLAGS, NULL,
 		NULL);
-	if (fileio_thr_cachep == NULL) {
+	if (vdisk_thr_cachep == NULL) {
 		res = -ENOMEM;
 		goto out;
 	}
 
-	res = init_scst_fileio(&disk_devtype_fileio);
+	res = init_scst_vdisk(&disk_devtype_vdisk);
 	if (res != 0)
 		goto out_free_slab;
 
-	res = init_scst_fileio(&cdrom_devtype_fileio);
+	res = init_scst_vdisk(&cdrom_devtype_vdisk);
 	if (res != 0)
 		goto out_err;
 
@@ -2976,21 +2976,21 @@ out:
 	return res;
 
 out_err:
-	exit_scst_fileio(&disk_devtype_fileio, &disk_fileio_dev_list);
+	exit_scst_vdisk(&disk_devtype_vdisk, &vdisk_dev_list);
 
 out_free_slab:
-	kmem_cache_destroy(fileio_thr_cachep);
+	kmem_cache_destroy(vdisk_thr_cachep);
 	goto out;
 }
 
-static void __exit exit_scst_fileio_driver(void)
+static void __exit exit_scst_vdisk_driver(void)
 {
-	exit_scst_fileio(&disk_devtype_fileio, &disk_fileio_dev_list);
-	exit_scst_fileio(&cdrom_devtype_fileio, &cdrom_fileio_dev_list);
-	kmem_cache_destroy(fileio_thr_cachep);
+	exit_scst_vdisk(&disk_devtype_vdisk, &vdisk_dev_list);
+	exit_scst_vdisk(&cdrom_devtype_vdisk, &vcdrom_dev_list);
+	kmem_cache_destroy(vdisk_thr_cachep);
 }
 
-module_init(init_scst_fileio_driver);
-module_exit(exit_scst_fileio_driver);
+module_init(init_scst_vdisk_driver);
+module_exit(exit_scst_vdisk_driver);
 
 MODULE_LICENSE("GPL");
