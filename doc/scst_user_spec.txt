@@ -2,7 +2,7 @@
 
 	  USER SPACE INTERFACE DESCRIPTION.
 
-		   Version 0.3.
+		   Version 0.4.
 
 
 		I. Description.
@@ -97,9 +97,11 @@ struct scst_user_dev
 	uint8_t parse_type;
 	uint8_t on_free_cmd_type;
 	uint8_t memory_reuse_type;
+	uint8_t partial_transfers_type;
+	uint32_t partial_len;
 },
 
-where:
+where (the first item is the default):
 
  - h - corresponding device handle
 
@@ -114,11 +116,11 @@ where:
 
  - on_free_cmd_type - defines how the user space handler wants to
    process ON_FREE_CMD subcommand. Possible values are:
-  
-   * SCST_USER_ON_FREE_CMD_IGNORE - tells SCST do nothing on this event.
-   
+
    * SCST_USER_ON_FREE_CMD_CALL - tells SCST generate
      SCST_USER_ON_FREE_CMD for all SCSI commands
+
+   * SCST_USER_ON_FREE_CMD_IGNORE - tells SCST do nothing on this event.
 
  - memory_reuse_type - defines how memory allocated by the user space
    handler for a SCSI commands data buffers is then reused by the SCST
@@ -139,6 +141,29 @@ where:
      handler will each time allocate a dedicated data buffer
 
    * SCST_USER_MEM_REUSE_ALL - unlimited memory reuse is possible.
+
+ - partial_transfers_type - defines if the user space handler supports
+   partial data transfers, when a SCSI command, which required big data
+   transfer, is broken on several subcommands with smaller data
+   transfers. This allows to improve performance by simultaneous data
+   transfers from/to remote initiator and to/from the underlying storage
+   device as well as lower the allocation memory requirements for each
+   (sub)command. All subcommands will have the same unique value in
+   "parent_cmd_h" field and SCST_USER_SUBCOMMAND flag in "partial" field
+   of struct scst_user_scsi_cmd_exec. The final subcommand will also
+   have in that field SCST_USER_SUBCOMMAND_FINAL flag. All the
+   subcommands will have the original unmodified CDB. Possible values
+   are:
+   
+   * SCST_USER_PARTIAL_TRANSFERS_NOT_SUPPORTED - the partial data
+     transfers are not supported
+
+   * SCST_USER_PARTIAL_TRANSFERS_SUPPORTED_ORDERED - the partial data
+     transfers are supported, but all the subcommands must come in order
+     of data chunks. Could be used, e.g., for tape devices.
+
+   * SCST_USER_PARTIAL_TRANSFERS_SUPPORTED - the partial data transfers
+     are supported without limitations.
 
 Flags parse_type and on_free_cmd_type are designed to improve
 performance by eliminating context switches to the user space handler,
@@ -409,6 +434,21 @@ take care that several commands don't use the same buffer simultaneously
 by asking the user space handler to allocate a new data buffer, when all
 cached ones are busy.
 
+Some important notes:
+
+1. If the user space handler needs to call fork(), it must call
+madvise() with MADV_DONTFORK flag all allocated data buffers, otherwise
+parent or child process could loose the connection with them, which
+could lead to data corruption. See http://lwn.net/Articles/171941/ for
+details.
+
+2. The interface assumes that all allocated memory by the user space
+handler is DMA'able by the target hardware. This is almost always true
+for most modern systems, except if the target hardware isn't capable of
+using 64-bit address space and the system has >4GB of memory or the
+momory addresses are in address space, which is unavailable with 32-bit
+addresses.
+
 In case of any error the error reporting should be deferred until
 SCST_USER_EXEC subcommand, where the appropriate SAM status and sense
 should be set.
@@ -439,12 +479,17 @@ struct scst_user_scsi_cmd_exec
 	uint8_t cdb[MAX_COMMAND_SIZE];
 	int cdb_len;
 
-	enum scst_cmd_queue_type queue_type;
 	int timeout;
-	scst_data_direction data_direction;
 	size_t data_len;
 	size_t bufflen;
 	uint8_t *buf;
+	enum scst_cmd_queue_type queue_type;
+	scst_data_direction data_direction;
+
+	uint8_t partial;
+	int parent_cmd_h;
+	size_t parent_cmd_data_len;
+	size_t partial_offset;
 },
 
 where:
@@ -454,14 +499,9 @@ where:
  - cdb - SCSI CDB
 
  - cdb_len - SCSI CDB length
- 
- - queue_type - SCSI task attribute (queue type)
 
  - timeout - CDB execution timeout
  
- - data_direction - command's data flow direction, one of SCST_DATA_*
-   constants
-
  - data_len - command's data length
  
  - bufflen - command's buffer length
@@ -469,8 +509,32 @@ where:
  - buf - pointer to command's data buffer or NULL for SCSI commands
    without data transfer.
 
+ - queue_type - SCSI task attribute (queue type)
+
+ - data_direction - command's data flow direction, one of SCST_DATA_*
+   constants
+
+ - partial - specifies, if the command is a partial subcommand, could
+   have the following OR'ed flags:
+
+   * SCST_USER_SUBCOMMAND - set if the command is a partial subcommand
+   
+   * SCST_USER_SUBCOMMAND_FINAL - set if the subcommand is a final one
+
+ - parent_cmd_h - has the same unique value for all partial data
+   transfers subcommands of one original (parent) command
+
+ - parent_cmd_data_len - for partial data transfers subcommand has the
+   size of the overall data transfer of the original (parent) command
+
+ - partial_offset - has offset of the subcommand in the original
+   (parent) command
+
 In case of any error it should be reported via appropriate SAM status
-and sense.
+and sense. If it happens for a subcommand of a partial data transfers
+command, all other subcommands of this command, which already passed the
+the user space handler or will be passed in the future, will be aborted,
+the user space handler should ignore them.
 
 
 		4.4.7. SCST_USER_ON_FREE_CMD
@@ -683,6 +747,8 @@ struct scst_user_scsi_cmd_reply_exec
 	uint8_t *buf;
 	int resp_data_len;
 
+	uint8_t reply_type;
+
 	uint8_t status;
 	uint8_t sense_buffer[SCSI_SENSE_BUFFERSIZE];
 },
@@ -693,6 +759,17 @@ where:
    original SCST_USER_EXEC subcommand buf field is NULL
 
  - resp_data_len - length of the response data
+
+ - reply_type - could be one of the following constants:
+ 
+     * SCST_EXEC_REPLY_BACKGROUND - tells SCST send to the remote
+       initiator GOOD status, but the command not yet completed by the
+       user space handler, it is being executed in the background. When
+       it will be completed, the user space handler will call
+       SCST_USER_REPLY_CMD again with reply_type
+       SCST_EXEC_REPLY_COMPLETED.
+     
+     * SCST_EXEC_REPLY_COMPLETED - the user space handler completed the command
 
  - status - SAM status of the commands execution
    
@@ -757,6 +834,8 @@ scst_user_reply_cmd structure, where:
  
  - payload.exec_reply.resp_data_len set to length of the read data
  
+ - payload.exec_reply.reply_type set to SCST_EXEC_REPLY_COMPLETED
+ 
  - payload.exec_reply.status set to the SAM defined status of the
    operation
  
@@ -775,7 +854,7 @@ SCST_USER_ALLOC_MEM will be returned before SCST_USER_EXEC, since the
 data transfer from the initiator precedes the commands execution.
 
 In case, if the first command requires 4K data buffer, but the second
-one - 1M, then for it the VTL also will be asked to allocate the buffer.
+one - 1M, for it the VTL also will be asked to allocate the buffer.
 Then, if no more 4K commands come for some time, for it
 SCST_USER_ON_CACHED_MEM_FREE subcommand will be returned to the VTL in
 order to ask it to free that buffer.
