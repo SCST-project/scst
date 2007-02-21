@@ -486,6 +486,14 @@ Thanks to:
  * Calvin Morrow <calvin.morrow@comcast.net> for testing and usful
    suggestions.
 
- * Erik Habbinga <erikhabbinga@inphase-tech.com> for fixes.
+ * Hu Gang <hugang@soulinfo.com> for the original version of the
+   LSI target driver.
+
+ * Erik Habbinga <erikhabbinga@inphase-tech.com> for fixes and support
+   of the LSI target driver.
+
+ * Ross S. W. Walker <rswwalker@hotmail.com> for the original block IO
+   code and Vu Pham <huongvp@yahoo.com> who updated it for the VDISK dev
+   handler.
 
 Vladislav Bolkhovitin <vst@vlnb.net>, http://scst.sourceforge.net

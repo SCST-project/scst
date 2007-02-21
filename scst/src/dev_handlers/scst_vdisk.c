@@ -3,9 +3,11 @@
  *  
  *  Copyright (C) 2004-2006 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
+ *            (C) 2007 Ming Zhang <blackmagic02881 at gmail dot com>
+ *            (C) 2007 Ross Walker <rswwalker at hotmail dot com>
  *
  *  SCSI disk (type 0) and CDROM (type 5) dev handler using files 
- *  on file systems (VDISK)
+ *  on file systems or block devices (VDISK)
  *  
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -57,9 +59,10 @@ static struct scst_proc_log vdisk_proc_local_trace_tbl[] =
 #define VDISK_SLAB_FLAGS 0L
 #endif
 
-/* 8 byte ASCII Vendor of the FILE IO target */
+/* 8 byte ASCII Vendor */
 #define SCST_FIO_VENDOR			"SCST_FIO"
-/* 4 byte ASCII Product Revision Level of the FILE IO target - left aligned */
+#define SCST_BIO_VENDOR			"SCST_BIO"
+/* 4 byte ASCII Product Revision Level - left aligned */
 #define SCST_FIO_REV			" 096"
 
 #define READ_CAP_LEN			8
@@ -112,6 +115,7 @@ struct scst_vdisk_dev {
 	unsigned int media_changed:1;
 	unsigned int prevent_allow_medium_removal:1;
 	unsigned int nullio:1;
+	unsigned int blockio:1;
 	unsigned int cdrom_empty:1;
 	int virt_id;
 	char name[16+1];	/* Name of virtual device,
@@ -129,6 +133,7 @@ struct scst_vdisk_tgt_dev {
 struct scst_vdisk_thr {
 	struct scst_thr_data_hdr hdr;
 	struct file *fd;
+	struct block_device *bdev;
 	struct iovec *iv;
 	int iv_count;
 	struct scst_vdisk_dev *virt_dev;
@@ -148,6 +153,8 @@ static void vdisk_exec_read(struct scst_cmd *cmd,
 	struct scst_vdisk_thr *thr, loff_t loff);
 static void vdisk_exec_write(struct scst_cmd *cmd,
 	struct scst_vdisk_thr *thr, loff_t loff);
+static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
+	u64 lba_start, int write);
 static void vdisk_exec_verify(struct scst_cmd *cmd,
 	struct scst_vdisk_thr *thr, loff_t loff);
 static void vdisk_exec_read_capacity(struct scst_cmd *cmd);
@@ -209,7 +216,7 @@ static struct scst_dev_type cdrom_devtype_vdisk = VCDROM_TYPE;
 
 static char *vdisk_proc_help_string =
 	"echo \"open|close NAME [FILE_NAME [BLOCK_SIZE] [WRITE_THROUGH "
-	"READ_ONLY O_DIRECT NULLIO NV_CACHE]]\" >/proc/scsi_tgt/" 
+	"READ_ONLY O_DIRECT NULLIO NV_CACHE BLOCKIO]]\" >/proc/scsi_tgt/" 
 	VDISK_NAME "/" VDISK_NAME "\n";
 
 static char *vcdrom_proc_help_string =
@@ -260,7 +267,6 @@ static int vdisk_attach(struct scst_device *dev)
 {
 	int res = 0;
 	loff_t err;
-	mm_segment_t old_fs;
 	struct file *fd;
 	struct scst_vdisk_dev *virt_dev = NULL, *vv;
 	struct list_head *vd;
@@ -305,6 +311,8 @@ static int vdisk_attach(struct scst_device *dev)
 		if (virt_dev->nullio)
 			err = 3LL*1024*1024*1024*1024/2;
 		else {
+			struct inode *inode;
+
 			fd = vdisk_open(virt_dev);
 			if (IS_ERR(fd)) {
 				res = PTR_ERR(fd);
@@ -328,22 +336,28 @@ static int vdisk_attach(struct scst_device *dev)
 				goto out;
 			}
 		
-			/* seek to end */
-			old_fs = get_fs();
-			set_fs(get_ds());
-			if (fd->f_op->llseek) {
-				err = fd->f_op->llseek(fd, 0, 2/*SEEK_END*/);
-			} else {
-				err = default_llseek(fd, 0, 2/*SEEK_END*/);
-			}
-			set_fs(old_fs);
-			filp_close(fd, NULL);
-			if (err < 0) {
-				res = err;
-				PRINT_ERROR_PR("llseek %s returned an error %d",
-				       virt_dev->file_name, res);
+			inode = fd->f_dentry->d_inode;
+
+			if (virt_dev->blockio && !S_ISBLK(inode->i_mode)) {
+				PRINT_ERROR_PR("File %s is NOT a block device",
+					virt_dev->file_name);
+				res = -EINVAL;
+				filp_close(fd, NULL);
 				goto out;
 			}
+
+			if (S_ISREG(inode->i_mode))
+				;
+			else if (S_ISBLK(inode->i_mode))
+				inode = inode->i_bdev->bd_inode;
+			else {
+				res = -EINVAL;
+				filp_close(fd, NULL);
+				goto out;
+ 			}
+			err = inode->i_size;
+ 
+			filp_close(fd, NULL);
 		}
 		virt_dev->file_size = err;
 		TRACE_DBG("size of file: %Ld", (uint64_t)err);
@@ -456,6 +470,10 @@ static struct scst_vdisk_thr *vdisk_init_thr_data(
 				virt_dev->file_name, PTR_ERR(res->fd));
 			goto out_free;
 		}
+		if (virt_dev->blockio)
+			res->bdev = res->fd->f_dentry->d_inode->i_bdev;
+		else
+			res->bdev = NULL;
 	} else
 		res->fd = NULL;
 
@@ -647,7 +665,10 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	case READ_10:
 	case READ_12:
 	case READ_16:
-		vdisk_exec_read(cmd, thr, loff);
+		if (virt_dev->blockio)
+			blockio_exec_rw(cmd, thr, lba_start, 0);
+		else
+			vdisk_exec_read(cmd, thr, loff);
 		break;
 	case WRITE_6:
 	case WRITE_10:
@@ -671,7 +692,10 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 				if (vdisk_fsync(thr, 0, 0, cmd) != 0)
 					goto done;
 			}
-			vdisk_exec_write(cmd, thr, loff);
+			if (virt_dev->blockio)
+				blockio_exec_rw(cmd, thr, lba_start, 1);
+			else
+				vdisk_exec_write(cmd, thr, loff);
 			/* O_SYNC flag is used for wt_flag devices */
 			if (do_fsync || fua)
 				vdisk_fsync(thr, loff, data_len, cmd);
@@ -702,6 +726,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 				if (vdisk_fsync(thr, 0, 0, cmd) != 0)
 					goto done;
 			}
+			/* ToDo: BLOCKIO VERIFY */
 			vdisk_exec_write(cmd, thr, loff);
 			/* O_SYNC flag is used for wt_flag devices */
 			if (cmd->status == 0)
@@ -1083,7 +1108,10 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			buf[num + 0] = 0x2;	/* ASCII */
 			buf[num + 1] = 0x1;
 			buf[num + 2] = 0x0;
-			memcpy(&buf[num + 4], SCST_FIO_VENDOR, 8);
+			if (virt_dev->blockio)
+				memcpy(&buf[num + 4], SCST_BIO_VENDOR, 8);
+			else
+				memcpy(&buf[num + 4], SCST_FIO_VENDOR, 8);
 			memset(&buf[num + 12], ' ', 16);
 			i = strlen(virt_dev->name);
 			i = i < 16 ? i : 16;
@@ -1130,7 +1158,10 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 		buf[6] = 0; buf[7] = 2; /* BQue = 0, CMDQUE = 1 commands queuing supported */
 
 		/* 8 byte ASCII Vendor Identification of the target - left aligned */
-		memcpy(&buf[8], SCST_FIO_VENDOR, 8);
+		if (virt_dev->blockio)
+			memcpy(&buf[8], SCST_BIO_VENDOR, 8);
+		else
+			memcpy(&buf[8], SCST_FIO_VENDOR, 8);
 
 		/* 16 byte ASCII Product Identification of the target - left aligned */
 		memset(&buf[16], ' ', 16);
@@ -1727,7 +1758,8 @@ static int vdisk_fsync(struct scst_vdisk_thr *thr,
 
 	TRACE_ENTRY();
 
-	if (thr->virt_dev->nv_cache)
+	/* ToDo: BLOCKIO fsync() */
+	if (thr->virt_dev->nv_cache || thr->virt_dev->blockio)
 		goto out;
 
 	res = sync_page_range(inode, mapping, loff, len);
@@ -2022,6 +2054,156 @@ out:
 	return;
 }
 
+struct blockio_work {
+	atomic_t bios_inflight;
+	struct scst_cmd *cmd;
+	struct completion complete;
+};
+
+static int blockio_endio(struct bio *bio, unsigned int bytes_done, int error)
+{
+	struct blockio_work *blockio_work = bio->bi_private;
+
+	if (bio->bi_size)
+		return 1;
+
+	error = test_bit(BIO_UPTODATE, &bio->bi_flags) ? error : -EIO;
+
+	if (unlikely(error != 0)) {
+		PRINT_ERROR_PR("cmd %p returned error %d", blockio_work->cmd,
+			error);
+		if (bio->bi_rw & WRITE)
+			scst_set_cmd_error(blockio_work->cmd,
+				SCST_LOAD_SENSE(scst_sense_write_error));
+		else
+			scst_set_cmd_error(blockio_work->cmd,
+				SCST_LOAD_SENSE(scst_sense_read_error));
+	}
+
+	/* Decrement the bios in processing, and if zero signal completion */
+	if (atomic_dec_and_test(&blockio_work->bios_inflight))
+		complete(&blockio_work->complete);
+
+	bio_put(bio);
+	return 0;
+}
+
+static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
+	u64 lba_start, int write)
+{
+	struct scst_vdisk_dev *virt_dev = thr->virt_dev;
+	struct block_device *bdev = thr->bdev;
+	struct request_queue *q = bdev_get_queue(bdev);
+	int j, max_nr_vecs = 0;
+	struct bio *bio = NULL, *hbio = NULL, *tbio = NULL;
+	int need_new_bio;
+	struct scatterlist *sgl = cmd->sg;
+	struct blockio_work *blockio_work;
+
+	TRACE_ENTRY();
+
+	if (virt_dev->nullio)
+		goto out;
+
+	/* Allocate and initialize blockio_work struct */
+	blockio_work = kmalloc(sizeof (*blockio_work), GFP_KERNEL);
+	if (blockio_work == NULL)
+		goto out_no_mem;
+
+	atomic_set(&blockio_work->bios_inflight, 0);
+	blockio_work->cmd = cmd;
+	init_completion(&blockio_work->complete);
+
+	if (q)
+		max_nr_vecs = min(bio_get_nr_vecs(bdev), BIO_MAX_PAGES);
+	else
+		max_nr_vecs = 1;
+
+	need_new_bio = 1;
+	for (j = 0; j < cmd->sg_cnt; ++j) {
+		unsigned int len, bytes, off, thislen;
+		struct page *page;
+
+		page = sgl[j].page;
+		off = sgl[j].offset;
+		len = sgl[j].length;
+		thislen = 0;
+
+		while (len > 0) {
+			if (need_new_bio) {
+				bio = bio_alloc(GFP_KERNEL, max_nr_vecs);
+				if (!bio) {
+					PRINT_ERROR_PR("Failed to create bio"
+						       "for data segment= %d"
+						       " cmd %p", j, cmd);
+					goto out_no_bio;
+				}
+
+				atomic_inc(&blockio_work->bios_inflight);
+				need_new_bio = 0;
+				bio->bi_end_io = blockio_endio;
+				bio->bi_sector = lba_start;
+				bio->bi_bdev = bdev;
+				bio->bi_private = blockio_work;
+				bio->bi_rw |= write;
+				if (write && virt_dev->wt_flag)
+					bio->bi_rw |= 1 << BIO_RW_SYNC;
+
+		 		if (!hbio)
+				 	hbio = tbio = bio;
+				 else
+		 			tbio = tbio->bi_next = bio;
+			}
+
+			bytes = min_t(unsigned int, len, PAGE_SIZE - off);
+
+			if (bio_add_page(bio, page, bytes, off) < bytes) {
+				need_new_bio = 1;
+				lba_start += thislen >> virt_dev->block_shift;
+				continue;
+			}
+
+			page++;
+			thislen += bytes;
+			len -= bytes;
+			off = 0;
+		}
+
+		lba_start += sgl[j].length >> virt_dev->block_shift;
+	}
+
+	while (hbio) {
+		bio = hbio;
+		hbio = hbio->bi_next;
+		bio->bi_next = NULL;
+
+		generic_make_request(bio);
+	}
+
+	if (q && q->unplug_fn)
+		q->unplug_fn(q);
+
+	wait_for_completion(&blockio_work->complete);
+
+	kfree(blockio_work);
+
+out:
+	TRACE_EXIT();
+	return;
+
+out_no_bio:
+	while (hbio) {
+		bio = hbio;
+		hbio = hbio->bi_next;
+		bio_put(bio);
+	}
+	kfree(blockio_work);
+
+out_no_mem:
+	scst_set_busy(cmd);
+	goto out;
+}
+
 static void vdisk_exec_verify(struct scst_cmd *cmd, 
 	struct scst_vdisk_thr *thr, loff_t loff)
 {
@@ -2195,6 +2377,10 @@ static int vdisk_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
 			seq_printf(seq, "NIO ");
 			c += 4;
 		}
+		if (virt_dev->blockio) {
+			seq_printf(seq, "BIO ");
+			c += 4;
+		}
 		while (c < 16) {
 			seq_printf(seq, " ");
 			c++;
@@ -2363,6 +2549,10 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 				p += 6;
 				virt_dev->nullio = 1;
 				TRACE_DBG("%s", "NULLIO");
+			} else if (!strncmp("BLOCKIO", p, 7)) {
+				p += 7;
+				virt_dev->blockio = 1;
+				TRACE_DBG("%s", "BLOCKIO");
 			} else {
 				PRINT_ERROR_PR("Unknown flag \"%s\"", p);
 				res = -EINVAL;
