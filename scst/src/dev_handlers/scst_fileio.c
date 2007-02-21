@@ -51,6 +51,12 @@ static struct scst_proc_log fileio_proc_local_trace_tbl[] =
 
 #include "scst_dev_handler.h"
 
+#if defined(DEBUG) && defined(CONFIG_DEBUG_SLAB)
+#define FILEIO_SLAB_FLAGS ( SLAB_RED_ZONE | SLAB_POISON )
+#else
+#define FILEIO_SLAB_FLAGS 0L
+#endif
+
 /* 8 byte ASCII Vendor of the FILE IO target */
 #define SCST_FIO_VENDOR			"SCST_FIO"
 /* 4 byte ASCII Product Revision Level of the FILE IO target - left aligned */
@@ -94,6 +100,11 @@ struct scst_fileio_dev {
 	uint64_t nblocks;
 	int block_shift;
 	loff_t file_size;	/* in bytes */
+	spinlock_t flags_lock;
+	/*
+	 * Below flags are protected by flags_lock or suspended activity
+	 * with scst_fileio_mutex.
+	 */
 	unsigned int rd_only_flag:1;
 	unsigned int wt_flag:1;
 	unsigned int nv_cache:1;
@@ -107,37 +118,38 @@ struct scst_fileio_dev {
 				   must be <= SCSI Model + 1 */
 	char *file_name;	/* File name */
 	char *usn;
+	struct scst_device *dev;
 	struct list_head fileio_dev_list_entry;
-	struct list_head ftgt_list;
-	struct semaphore ftgt_list_mutex;
 };
 
 struct scst_fileio_tgt_dev {
-	spinlock_t fdev_lock;
 	enum scst_cmd_queue_type last_write_cmd_queue_type;
+};
+
+struct scst_fileio_thr {
+	struct scst_thr_data_hdr hdr;
 	struct file *fd;
 	struct iovec *iv;
 	int iv_count;
-	struct list_head fdev_cmd_list;
-	wait_queue_head_t fdev_waitQ;
-	struct task_struct *cmd_thread;
 	struct scst_fileio_dev *virt_dev;
-	struct list_head ftgt_list_entry;
 };
+
+static struct kmem_cache *fileio_thr_cachep;
 
 static int fileio_attach(struct scst_device *dev);
 static void fileio_detach(struct scst_device *dev);
 static int fileio_attach_tgt(struct scst_tgt_dev *tgt_dev);
 static void fileio_detach_tgt(struct scst_tgt_dev *tgt_dev);
 static int disk_fileio_parse(struct scst_cmd *, const struct scst_info_cdb *info_cdb);
-static int disk_fileio_exec(struct scst_cmd *cmd);
+static int fileio_do_job(struct scst_cmd *cmd);
 static int cdrom_fileio_parse(struct scst_cmd *, const struct scst_info_cdb *info_cdb);
 static int cdrom_fileio_exec(struct scst_cmd *cmd);
-static void fileio_exec_read(struct scst_cmd *cmd, loff_t loff);
-static void fileio_exec_write(struct scst_cmd *cmd, loff_t loff);
-static void fileio_exec_verify(struct scst_cmd *cmd, loff_t loff);
-static int fileio_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
-	struct scst_tgt_dev *tgt_dev);
+static void fileio_exec_read(struct scst_cmd *cmd,
+	struct scst_fileio_thr *thr, loff_t loff);
+static void fileio_exec_write(struct scst_cmd *cmd,
+	struct scst_fileio_thr *thr, loff_t loff);
+static void fileio_exec_verify(struct scst_cmd *cmd,
+	struct scst_fileio_thr *thr, loff_t loff);
 static void fileio_exec_read_capacity(struct scst_cmd *cmd);
 static void fileio_exec_read_capacity16(struct scst_cmd *cmd);
 static void fileio_exec_inquiry(struct scst_cmd *cmd);
@@ -145,7 +157,7 @@ static void fileio_exec_mode_sense(struct scst_cmd *cmd);
 static void fileio_exec_mode_select(struct scst_cmd *cmd);
 static void fileio_exec_read_toc(struct scst_cmd *cmd);
 static void fileio_exec_prevent_allow_medium_removal(struct scst_cmd *cmd);
-static int fileio_fsync(struct scst_fileio_tgt_dev *ftgt_dev,
+static int fileio_fsync(struct scst_fileio_thr *thr,
 	loff_t loff, loff_t len, struct scst_cmd *cmd);
 static int disk_fileio_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type);
 static int disk_fileio_write_proc(char *buffer, char **start, off_t offset,
@@ -158,15 +170,15 @@ static int cdrom_fileio_write_proc(char *buffer, char **start, off_t offset,
   name:         DISK_FILEIO_NAME,	\
   type:         TYPE_DISK,		\
   parse_atomic: 1,			\
-  exec_atomic:  1,			\
+  exec_atomic:  0,			\
   dev_done_atomic: 1,			\
+  dedicated_thread: 1,			\
   attach:       fileio_attach,		\
   detach:       fileio_detach,		\
   attach_tgt:   fileio_attach_tgt,	\
   detach_tgt:   fileio_detach_tgt,	\
   parse:        disk_fileio_parse,	\
-  exec:         disk_fileio_exec,	\
-  task_mgmt_fn: fileio_task_mgmt_fn,	\
+  exec:         fileio_do_job,		\
   read_proc:    disk_fileio_read_proc,	\
   write_proc:   disk_fileio_write_proc,	\
 }
@@ -175,15 +187,15 @@ static int cdrom_fileio_write_proc(char *buffer, char **start, off_t offset,
   name:         CDROM_FILEIO_NAME,	\
   type:         TYPE_ROM,		\
   parse_atomic: 1,			\
-  exec_atomic:  1,			\
+  exec_atomic:  0,			\
   dev_done_atomic: 1,			\
+  dedicated_thread: 1,			\
   attach:       fileio_attach,		\
   detach:       fileio_detach,		\
   attach_tgt:   fileio_attach_tgt,	\
   detach_tgt:   fileio_detach_tgt,	\
   parse:        cdrom_fileio_parse,	\
   exec:         cdrom_fileio_exec,	\
-  task_mgmt_fn: fileio_task_mgmt_fn,	\
   read_proc:    cdrom_fileio_read_proc,	\
   write_proc:   cdrom_fileio_write_proc,\
 }
@@ -271,8 +283,7 @@ static int fileio_attach(struct scst_device *dev)
 	 * scst_fileio_mutex must be already taken before 
 	 * scst_register_virtual_device()
 	 */
-	list_for_each_entry(vv, fileio_dev_list, fileio_dev_list_entry)
-	{
+	list_for_each_entry(vv, fileio_dev_list, fileio_dev_list_entry)	{
 		if (strcmp(vv->name, dev->virt_name) == 0) {
 			virt_dev = vv;
 			break;
@@ -284,7 +295,9 @@ static int fileio_attach(struct scst_device *dev)
 		res = -EINVAL;
 		goto out;
 	}
-	
+
+	virt_dev->dev = dev;
+
 	if (dev->handler->type == TYPE_ROM)
 		virt_dev->rd_only_flag = 1;
 
@@ -393,6 +406,109 @@ static void fileio_detach(struct scst_device *dev)
 	return;
 }
 
+static void fileio_free_thr_data(struct scst_thr_data_hdr *d)
+{
+	struct scst_fileio_thr *thr = container_of(d, struct scst_fileio_thr,
+						hdr);
+
+	TRACE_ENTRY();
+
+	if (thr->fd)
+		filp_close(thr->fd, NULL);
+
+	if (thr->iv != NULL)
+		kfree(thr->iv);
+
+	kmem_cache_free(fileio_thr_cachep, thr);
+
+	TRACE_EXIT();
+	return;
+}
+
+static struct scst_fileio_thr *fileio_init_thr_data(
+	struct scst_tgt_dev *tgt_dev)
+{
+	struct scst_fileio_thr *res;
+	struct scst_fileio_dev *virt_dev =
+	    (struct scst_fileio_dev *)tgt_dev->dev->dh_priv;
+
+	TRACE_ENTRY();
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
+	res = kmem_cache_alloc(fileio_thr_cachep, GFP_KERNEL);
+	if (res != NULL)
+		memset(thr, 0, sizeof(*thr));
+#else
+	res = kmem_cache_zalloc(fileio_thr_cachep, GFP_KERNEL);
+#endif
+	if (res == NULL) {
+		TRACE(TRACE_OUT_OF_MEM, "%s", "Unable to allocate struct "
+			"scst_fileio_thr");
+		goto out;
+	}
+
+	res->virt_dev = virt_dev;
+
+	if (!virt_dev->cdrom_empty && !virt_dev->nullio) {
+		res->fd = fileio_open(virt_dev);
+		if (IS_ERR(res->fd)) {
+			PRINT_ERROR_PR("filp_open(%s) returned an error %ld",
+				virt_dev->file_name, PTR_ERR(res->fd));
+			goto out_free;
+		}
+	} else
+		res->fd = NULL;
+
+	scst_add_thr_data(tgt_dev, &res->hdr, fileio_free_thr_data);
+
+out:
+	TRACE_EXIT_HRES((unsigned long)res);
+	return res;
+
+out_free:
+	kmem_cache_free(fileio_thr_cachep, res);
+	res = NULL;
+	goto out;
+}
+
+static int fileio_attach_tgt(struct scst_tgt_dev *tgt_dev)
+{
+	struct scst_fileio_tgt_dev *ftgt_dev;
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	ftgt_dev = kzalloc(sizeof(*ftgt_dev), GFP_KERNEL);
+	if (ftgt_dev == NULL) {
+		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of per-session "
+			"virtual device failed");
+		res = -ENOMEM;
+		goto out;
+	}
+
+	tgt_dev->dh_priv = ftgt_dev;
+	
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static void fileio_detach_tgt(struct scst_tgt_dev *tgt_dev)
+{
+	struct scst_fileio_tgt_dev *ftgt_dev = 
+		(struct scst_fileio_tgt_dev *)tgt_dev->dh_priv;
+
+	TRACE_ENTRY();
+
+	scst_del_all_thr_data(tgt_dev);
+
+	kfree(ftgt_dev);
+	tgt_dev->dh_priv = NULL;
+
+	TRACE_EXIT();
+	return;
+}
+
 static inline int fileio_sync_queue_type(enum scst_cmd_queue_type qt)
 {
 	switch(qt) {
@@ -413,7 +529,7 @@ static inline int fileio_need_pre_sync(enum scst_cmd_queue_type cwqt,
 	return 0;
 }
 
-static void fileio_do_job(struct scst_cmd *cmd)
+static int fileio_do_job(struct scst_cmd *cmd)
 {
 	uint64_t lba_start = 0;
 	loff_t data_len = 0;
@@ -423,16 +539,33 @@ static void fileio_do_job(struct scst_cmd *cmd)
 	struct scst_device *dev = cmd->dev;
 	struct scst_fileio_dev *virt_dev =
 		(struct scst_fileio_dev *)dev->dh_priv;
+	struct scst_thr_data_hdr *d;
+	struct scst_fileio_thr *thr = NULL;
 	int fua = 0;
 
 	TRACE_ENTRY();
+
+	cmd->status = 0;
+	cmd->msg_status = 0;
+	cmd->host_status = DID_OK;
+	cmd->driver_status = 0;
 
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
 		TRACE_MGMT_DBG("Flag ABORTED set for "
 		      "cmd %p (tag %d), skipping", cmd, cmd->tag);
 		goto done_uncompl;
 	}
-	
+
+	d = scst_find_thr_data(cmd->tgt_dev);
+	if (unlikely(d == NULL)) {
+		thr = fileio_init_thr_data(cmd->tgt_dev);
+		if (thr == NULL) {
+			scst_set_busy(cmd);
+			goto done;
+		}
+		scst_thr_data_get(&thr->hdr);
+	} else
+		thr = container_of(d, struct scst_fileio_thr, hdr);
 
 	switch (opcode) {
 	case READ_6:
@@ -514,7 +647,7 @@ static void fileio_do_job(struct scst_cmd *cmd)
 	case READ_10:
 	case READ_12:
 	case READ_16:
-		fileio_exec_read(cmd, loff);
+		fileio_exec_read(cmd, thr, loff);
 		break;
 	case WRITE_6:
 	case WRITE_10:
@@ -535,13 +668,13 @@ static void fileio_do_job(struct scst_cmd *cmd)
 			    		cmd->queue_type, (uint64_t)loff,
 			    		(uint64_t)data_len);
 			    	do_fsync = 1;
-				if (fileio_fsync(ftgt_dev, 0, 0, cmd) != 0)
+				if (fileio_fsync(thr, 0, 0, cmd) != 0)
 					goto done;
 			}
-			fileio_exec_write(cmd, loff);
+			fileio_exec_write(cmd, thr, loff);
 			/* O_SYNC flag is used for wt_flag devices */
 			if (do_fsync || fua)
-				fileio_fsync(ftgt_dev, loff, data_len, cmd);
+				fileio_fsync(thr, loff, data_len, cmd);
 		} else {
 			TRACE_DBG("%s", "Attempt to write to read-only device");
 			scst_set_cmd_error(cmd,
@@ -566,15 +699,15 @@ static void fileio_do_job(struct scst_cmd *cmd)
 			    		cmd->queue_type, (uint64_t)loff,
 			    		(uint64_t)data_len);
 			    	do_fsync = 1;
-				if (fileio_fsync(ftgt_dev, 0, 0, cmd) != 0)
+				if (fileio_fsync(thr, 0, 0, cmd) != 0)
 					goto done;
 			}
-			fileio_exec_write(cmd, loff);
+			fileio_exec_write(cmd, thr, loff);
 			/* O_SYNC flag is used for wt_flag devices */
 			if (cmd->status == 0)
-				fileio_exec_verify(cmd, loff);
+				fileio_exec_verify(cmd, thr, loff);
 			else if (do_fsync)
-				fileio_fsync(ftgt_dev, loff, data_len, cmd);
+				fileio_fsync(thr, loff, data_len, cmd);
 		} else {
 			TRACE_DBG("%s", "Attempt to write to read-only device");
 			scst_set_cmd_error(cmd,
@@ -584,9 +717,6 @@ static void fileio_do_job(struct scst_cmd *cmd)
 	case SYNCHRONIZE_CACHE:
 	{
 		int immed = cdb[1] & 0x2;
-		struct scst_fileio_tgt_dev *ftgt_dev = 
-			(struct scst_fileio_tgt_dev*)
-				cmd->tgt_dev->dh_priv;
 		TRACE(TRACE_ORDER, "SYNCHRONIZE_CACHE: "
 			"loff=%Ld, data_len=%Ld, immed=%d", (uint64_t)loff,
 			(uint64_t)data_len, immed);
@@ -595,12 +725,12 @@ static void fileio_do_job(struct scst_cmd *cmd)
 			cmd->completed = 1;
 			cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);
 			/* cmd is dead here */
-			fileio_fsync(ftgt_dev, loff, data_len, NULL);
+			fileio_fsync(thr, loff, data_len, NULL);
 			/* ToDo: fileio_fsync() error processing */
 			scst_put();
 			goto out;
 		} else {
-			fileio_fsync(ftgt_dev, loff, data_len, cmd);
+			fileio_fsync(thr, loff, data_len, cmd);
 			break;
 		}
 	}
@@ -608,7 +738,7 @@ static void fileio_do_job(struct scst_cmd *cmd)
 	case VERIFY:
 	case VERIFY_12:
 	case VERIFY_16:
-		fileio_exec_verify(cmd, loff);
+		fileio_exec_verify(cmd, thr, loff);
 		break;
 	case MODE_SENSE:
 	case MODE_SENSE_10:
@@ -629,7 +759,21 @@ static void fileio_do_job(struct scst_cmd *cmd)
 	case RESERVE_10:
 	case RELEASE:
 	case RELEASE_10:
+	case TEST_UNIT_READY:
 		break;
+	case INQUIRY:
+		fileio_exec_inquiry(cmd);
+		break;
+	case READ_CAPACITY:
+		fileio_exec_read_capacity(cmd);
+		break;
+        case SERVICE_ACTION_IN:
+		if ((cmd->cdb[1] & 0x1f) == SAI_READ_CAPACITY_16) {
+			fileio_exec_read_capacity16(cmd);
+			break;
+		}
+		/* else go through */
+	case REPORT_LUNS:
 	default:
 		TRACE_DBG("Invalid opcode %d", opcode);
 		scst_set_cmd_error(cmd,
@@ -643,158 +787,11 @@ done_uncompl:
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);
 
 out:
-	TRACE_EXIT();
-	return;
-}
-
-static inline int test_cmd_list(struct scst_fileio_tgt_dev *ftgt_dev)
-{
-	int res = !list_empty(&ftgt_dev->fdev_cmd_list) ||
-		  unlikely(kthread_should_stop());
-	return res;
-}
-
-static int fileio_cmd_thread(void *arg)
-{
-	struct scst_fileio_tgt_dev *ftgt_dev = (struct scst_fileio_tgt_dev*)arg;
-
-	TRACE_ENTRY();
-
-	set_user_nice(current, 10);
-	current->flags |= PF_NOFREEZE;
-
-	spin_lock_bh(&ftgt_dev->fdev_lock);
-	while (!kthread_should_stop()) {
-		wait_queue_t wait;
-		struct scst_cmd *cmd;
-		init_waitqueue_entry(&wait, current);
-
-		if (!test_cmd_list(ftgt_dev)) {
-			add_wait_queue_exclusive(&ftgt_dev->fdev_waitQ, &wait);
-			for (;;) {
-				set_current_state(TASK_INTERRUPTIBLE);
-				if (test_cmd_list(ftgt_dev))
-					break;
-				spin_unlock_bh(&ftgt_dev->fdev_lock);
-				schedule();
-				spin_lock_bh(&ftgt_dev->fdev_lock);
-			}
-			set_current_state(TASK_RUNNING);
-			remove_wait_queue(&ftgt_dev->fdev_waitQ, &wait);
-		}
-
-		while (!list_empty(&ftgt_dev->fdev_cmd_list)) {
-			cmd = list_entry(ftgt_dev->fdev_cmd_list.next, 
-				typeof(*cmd), fileio_cmd_list_entry);
-			cmd->fileio_in_list = 0;
-			list_del(&cmd->fileio_cmd_list_entry);
-			spin_unlock_bh(&ftgt_dev->fdev_lock);
-			fileio_do_job(cmd);
-			spin_lock_bh(&ftgt_dev->fdev_lock);
-		}
-	}
-	spin_unlock_bh(&ftgt_dev->fdev_lock);
-
-	/*
-	 * If kthread_should_stop() is true, we are guaranteed to be in
-	 * suspended activity state, so fdev_cmd_list must be empty.
-	 */
-	sBUG_ON(!list_empty(&ftgt_dev->fdev_cmd_list));
+	if (likely(thr != NULL))
+		scst_thr_data_put(&thr->hdr);
 
 	TRACE_EXIT();
-	return 0;
-}
-
-static int fileio_attach_tgt(struct scst_tgt_dev *tgt_dev)
-{
-	struct scst_fileio_dev *virt_dev =
-	    (struct scst_fileio_dev *)tgt_dev->acg_dev->dev->dh_priv;
-	struct scst_fileio_tgt_dev *ftgt_dev;
-	int res = 0;
-
-	TRACE_ENTRY();
-
-	ftgt_dev = kzalloc(sizeof(*ftgt_dev), GFP_KERNEL);
-	if (ftgt_dev == NULL) {
-		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of per-session "
-			"virtual device failed");
-		res = -ENOMEM;
-		goto out;
-	}
-
-	spin_lock_init(&ftgt_dev->fdev_lock);
-	INIT_LIST_HEAD(&ftgt_dev->fdev_cmd_list);
-	init_waitqueue_head(&ftgt_dev->fdev_waitQ);
-	ftgt_dev->virt_dev = virt_dev;
-
-	if (!virt_dev->cdrom_empty && !virt_dev->nullio) {
-		ftgt_dev->fd = fileio_open(virt_dev);
-		if (IS_ERR(ftgt_dev->fd)) {
-			res = PTR_ERR(ftgt_dev->fd);
-			PRINT_ERROR_PR("filp_open(%s) returned an error %d",
-				       virt_dev->file_name, res);
-			goto out_free;
-		}
-	} else
-		ftgt_dev->fd = NULL;
-
-	/* 
-	 * Only ONE thread must be run here, otherwise the commands could
-	 * be executed out of order !!
-	 */
-	ftgt_dev->cmd_thread = kthread_run(fileio_cmd_thread, ftgt_dev, "scst_fileio");
-	if (IS_ERR(ftgt_dev->cmd_thread)) {
-		PRINT_ERROR_PR("kthread_run failed to create %s", "scst_fileio");
-		res = PTR_ERR(ftgt_dev->cmd_thread);
-		goto out_free_close;
-	}
-
-	tgt_dev->dh_priv = ftgt_dev;
-
-	down(&virt_dev->ftgt_list_mutex);
-	list_add_tail(&ftgt_dev->ftgt_list_entry, 
-		&virt_dev->ftgt_list);
-	up(&virt_dev->ftgt_list_mutex);
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-
-out_free_close:
-	if (ftgt_dev->fd)
-		filp_close(ftgt_dev->fd, NULL);
-
-out_free:
-	kfree(ftgt_dev);
-	goto out;
-}
-
-static void fileio_detach_tgt(struct scst_tgt_dev *tgt_dev)
-{
-	struct scst_fileio_tgt_dev *ftgt_dev = 
-		(struct scst_fileio_tgt_dev *)tgt_dev->dh_priv;
-	struct scst_fileio_dev *virt_dev =
-	    (struct scst_fileio_dev *)tgt_dev->acg_dev->dev->dh_priv;
-
-	TRACE_ENTRY();
-
-	down(&virt_dev->ftgt_list_mutex);
-	list_del(&ftgt_dev->ftgt_list_entry);
-	up(&virt_dev->ftgt_list_mutex);
-
-	kthread_stop(ftgt_dev->cmd_thread);
-
-	if (ftgt_dev->fd)
-		filp_close(ftgt_dev->fd, NULL);
-
-	if (ftgt_dev->iv != NULL)
-		kfree(ftgt_dev->iv);
-
-	kfree(ftgt_dev);
-
-	tgt_dev->dh_priv = NULL;
-
-	TRACE_EXIT();
+	return SCST_EXEC_COMPLETED;
 }
 
 /********************************************************************
@@ -870,111 +867,6 @@ static int disk_fileio_parse(struct scst_cmd *cmd,
 
 	TRACE_EXIT();
 	return res;
-}
-
-static inline void fileio_queue_cmd(struct scst_cmd *cmd)
-{
-	struct scst_fileio_tgt_dev *ftgt_dev =
-		(struct scst_fileio_tgt_dev *)cmd->tgt_dev->dh_priv;
-	spin_lock_bh(&ftgt_dev->fdev_lock);
-	TRACE_DBG("Pushing cmd %p to IO thread", cmd);
-	list_add_tail(&cmd->fileio_cmd_list_entry, 
-		&ftgt_dev->fdev_cmd_list);
-	cmd->fileio_in_list = 1;
-	spin_unlock_bh(&ftgt_dev->fdev_lock);
-	wake_up(&ftgt_dev->fdev_waitQ);
-}
-
-/********************************************************************
- *  Function:  disk_fileio_exec
- *
- *  Argument:  
- *
- *  Returns : always SCST_EXEC_COMPLETED, real status is in error condition
- *  in command
- *
- *  Description:  
- ********************************************************************/
-static int disk_fileio_exec(struct scst_cmd *cmd)
-{
-	int delayed = 0;
-	int opcode = cmd->cdb[0];
-
-	TRACE_ENTRY();
-
-	cmd->status = 0;
-	cmd->msg_status = 0;
-	cmd->host_status = DID_OK;
-	cmd->driver_status = 0;
-
-	/* 
-	 * !!
-	 * Only commands that unsensible to the execution order could be 
-	 * performed here, in place. Other ones must be passed to the
-	 * thread.
-	 * !!
-	 */
-	switch (opcode) {
-	case INQUIRY:
-		fileio_exec_inquiry(cmd);
-		break;
-	case READ_CAPACITY:
-		fileio_exec_read_capacity(cmd);
-		break;
-        case SERVICE_ACTION_IN:
-		if ((cmd->cdb[1] & 0x1f) == SAI_READ_CAPACITY_16)
-			fileio_exec_read_capacity16(cmd);
-		else
-			goto def;
-		break;
-	case WRITE_VERIFY:
-	case WRITE_VERIFY_12:
-	case WRITE_VERIFY_16:
-	    /* fall through */
-	case WRITE_6:
-	case WRITE_10:
-	case WRITE_12:
-	case WRITE_16:
-	    /* could move READ ONLY check up to here (currenlty in do_job()) */
-	    /* fall through */
-	case MODE_SENSE:
-	case MODE_SENSE_10:
-	case MODE_SELECT:
-	case MODE_SELECT_10:
-	case READ_6:
-	case READ_10:
-	case READ_12:
-	case READ_16:
-	case SYNCHRONIZE_CACHE:
-	case VERIFY_6:
-	case VERIFY:
-	case VERIFY_12:
-	case VERIFY_16:
-	case START_STOP:
-	case RESERVE:
-	case RESERVE_10:
-	case RELEASE:
-	case RELEASE_10:
-		fileio_queue_cmd(cmd);
-		delayed = 1;
-		break;
-	case TEST_UNIT_READY:
-		break;
-	case REPORT_LUNS:
-def:
-	default:
-		TRACE_DBG("Invalid opcode 0x%02x", opcode);
-		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_invalid_opcode));
-	}
-
-	if (!delayed) {
-		cmd->completed = 1;
-		cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);
-	}
-
-	TRACE_EXIT();
-	return SCST_EXEC_COMPLETED;
 }
 
 /********************************************************************
@@ -1057,7 +949,6 @@ static int cdrom_fileio_parse(struct scst_cmd *cmd,
  ********************************************************************/
 static int cdrom_fileio_exec(struct scst_cmd *cmd)
 {
-	int delayed = 0;
 	int opcode = cmd->cdb[0];
 	struct scst_fileio_dev *virt_dev =
 	    (struct scst_fileio_dev *)cmd->dev->dh_priv;
@@ -1073,84 +964,33 @@ static int cdrom_fileio_exec(struct scst_cmd *cmd)
 		TRACE_DBG("%s", "CDROM empty");
 		scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_sense_not_ready));
-		goto out;
+		goto out_complete;
 	}
 
-	/* 
-	 * No protection is necessary, because media_changed set only
-	 * in suspended state and exec() is serialized
-	 */
 	if (virt_dev->media_changed && (cmd->cdb[0] != INQUIRY) && 
 	    (cmd->cdb[0] != REQUEST_SENSE) && (cmd->cdb[0] != REPORT_LUNS)) {
-		virt_dev->media_changed = 0;
-		TRACE_DBG("%s", "Reporting media changed");
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_medium_changed_UA));
-		goto out;
+		spin_lock(&virt_dev->flags_lock);
+		if (virt_dev->media_changed) {
+			virt_dev->media_changed = 0;
+			TRACE_DBG("%s", "Reporting media changed");
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_medium_changed_UA));
+			spin_unlock(&virt_dev->flags_lock);
+			goto out_complete;
+		}
+		spin_unlock(&virt_dev->flags_lock);
 	}
 
-	/* 
-	 * !!
-	 * Only commands that unsensible to the execution order could be 
-	 * performed here, in place. Other ones must be passed to the
-	 * thread.
-	 * !!
-	 */
-
-	switch (opcode) {
-	case INQUIRY:
-		fileio_exec_inquiry(cmd);
-		break;
-	case READ_CAPACITY:
-		fileio_exec_read_capacity(cmd);
-		break;
-	case WRITE_VERIFY:
-	case WRITE_VERIFY_12:
-	case WRITE_VERIFY_16:
-	    /* fall through */
-	case MODE_SENSE:
-	case MODE_SENSE_10:
-	case MODE_SELECT:
-	case MODE_SELECT_10:
-	case READ_6:
-	case READ_10:
-	case READ_12:
-	case READ_16:
-	case WRITE_6:
-	case WRITE_10:
-	case WRITE_12:
-	case WRITE_16:
-	case VERIFY_6:
-	case VERIFY:
-	case VERIFY_12:
-	case VERIFY_16:
-	case START_STOP:
-	case RESERVE:
-	case RESERVE_10:
-	case RELEASE:
-	case RELEASE_10:
-	case ALLOW_MEDIUM_REMOVAL:
-	case READ_TOC:
-		fileio_queue_cmd(cmd);
-		delayed = 1;
-		break;
-	case TEST_UNIT_READY:
-		break;
-	case REPORT_LUNS:
-	default:
-		TRACE_DBG("Invalid opcode 0x%02x", opcode);
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_opcode));
-	}
+	fileio_do_job(cmd);
 
 out:
-	if (!delayed) {
-		cmd->completed = 1;
-		cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);
-	}
-
 	TRACE_EXIT();
 	return SCST_EXEC_COMPLETED;
+
+out_complete:
+	cmd->completed = 1;
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);
+	goto out;
 }
 
 static void fileio_exec_inquiry(struct scst_cmd *cmd)
@@ -1566,40 +1406,17 @@ out:
 static int fileio_set_wt(struct scst_fileio_dev *virt_dev, int wt)
 {
 	int res = 0;
-	struct scst_fileio_tgt_dev *ftgt_dev;
-	struct file *fd;
 
 	TRACE_ENTRY();
 
 	if ((virt_dev->wt_flag == wt) || virt_dev->nullio)
 		goto out;
 
+	spin_lock(&virt_dev->flags_lock);
 	virt_dev->wt_flag = wt;
+	spin_unlock(&virt_dev->flags_lock);
 
-	scst_suspend_activity();
-
-	down(&virt_dev->ftgt_list_mutex);
-	list_for_each_entry(ftgt_dev, &virt_dev->ftgt_list, 
-		ftgt_list_entry) 
-	{
-		fd = fileio_open(virt_dev);
-		if (IS_ERR(fd)) {
-			res = PTR_ERR(fd);
-			PRINT_ERROR_PR("filp_open(%s) returned an error %d, "
-				"unable to change the cache mode",
-				virt_dev->file_name, res);
-			up(&virt_dev->ftgt_list_mutex);
-			res = 0; /* ?? ToDo */
-			goto out_resume;
-		}
-		if (ftgt_dev->fd)
-			filp_close(ftgt_dev->fd, NULL);
-		ftgt_dev->fd = fd;
-	}
-	up(&virt_dev->ftgt_list_mutex);
-
-out_resume:
-	scst_resume_activity();
+	scst_dev_del_all_thr_data(virt_dev->dev);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1885,10 +1702,7 @@ static void fileio_exec_prevent_allow_medium_removal(struct scst_cmd *cmd)
 
 	TRACE_DBG("PERSIST/PREVENT 0x%02x", cmd->cdb[4]);
 
-	/* 
-	 * No protection here, because in cdrom_fileio_change() the
-	 * activity is suspended and exec() is serialized
-	 */
+	spin_lock(&virt_dev->flags_lock);
 	if (cmd->dev->handler->type == TYPE_ROM)
 		virt_dev->prevent_allow_medium_removal = 
 			cmd->cdb[4] & 0x01 ? 1 : 0;
@@ -1898,21 +1712,22 @@ static void fileio_exec_prevent_allow_medium_removal(struct scst_cmd *cmd)
 		scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 	}
+	spin_unlock(&virt_dev->flags_lock);
 
 	return;
 }
 
-static int fileio_fsync(struct scst_fileio_tgt_dev *ftgt_dev,
+static int fileio_fsync(struct scst_fileio_thr *thr,
 	loff_t loff, loff_t len, struct scst_cmd *cmd)
 {
 	int res = 0;
-	struct file *file = ftgt_dev->fd;
+	struct file *file = thr->fd;
 	struct inode *inode = file->f_dentry->d_inode;
 	struct address_space *mapping = file->f_mapping;
 
 	TRACE_ENTRY();
 
-	if (ftgt_dev->virt_dev->nv_cache)
+	if (thr->virt_dev->nv_cache)
 		goto out;
 
 	res = sync_page_range(inode, mapping, loff, len);
@@ -1932,25 +1747,25 @@ out:
 }
 
 static struct iovec *fileio_alloc_iv(struct scst_cmd *cmd,
-	struct scst_fileio_tgt_dev *ftgt_dev)
+	struct scst_fileio_thr *thr)
 {
 	int iv_count;
 	
 	iv_count = scst_get_buf_count(cmd);
-	if (iv_count > ftgt_dev->iv_count) {
-		if (ftgt_dev->iv != NULL)
-			kfree(ftgt_dev->iv);
-		ftgt_dev->iv = kmalloc(sizeof(*ftgt_dev->iv) * iv_count, GFP_KERNEL);
-		if (ftgt_dev->iv == NULL) {
+	if (iv_count > thr->iv_count) {
+		if (thr->iv != NULL)
+			kfree(thr->iv);
+		thr->iv = kmalloc(sizeof(*thr->iv) * iv_count, GFP_KERNEL);
+		if (thr->iv == NULL) {
 			PRINT_ERROR_PR("Unable to allocate iv (%d)", iv_count);
 			scst_set_busy(cmd);
 			goto out;
 		}
-		ftgt_dev->iv_count = iv_count;
+		thr->iv_count = iv_count;
 	}
 
 out:
-	return ftgt_dev->iv;
+	return thr->iv;
 }
 
 /*
@@ -1995,7 +1810,8 @@ ssize_t do_sync_readv_writev(struct file *filp, const struct iovec *iov,
 }
 #endif
 
-static void fileio_exec_read(struct scst_cmd *cmd, loff_t loff)
+static void fileio_exec_read(struct scst_cmd *cmd,
+	struct scst_fileio_thr *thr, loff_t loff)
 {
 	mm_segment_t old_fs;
 	loff_t err;
@@ -2003,15 +1819,13 @@ static void fileio_exec_read(struct scst_cmd *cmd, loff_t loff)
 	uint8_t *address;
 	struct scst_fileio_dev *virt_dev =
 	    (struct scst_fileio_dev *)cmd->dev->dh_priv;
-	struct scst_fileio_tgt_dev *ftgt_dev = 
-		(struct scst_fileio_tgt_dev *)cmd->tgt_dev->dh_priv;
-	struct file *fd = ftgt_dev->fd;
+	struct file *fd = thr->fd;
 	struct iovec *iv;
 	int iv_count, i;
 
 	TRACE_ENTRY();
 	
-	iv = fileio_alloc_iv(cmd, ftgt_dev);
+	iv = fileio_alloc_iv(cmd, thr);
 	if (iv == NULL)
 		goto out;
 	
@@ -2085,7 +1899,8 @@ out:
 	return;
 }
 
-static void fileio_exec_write(struct scst_cmd *cmd, loff_t loff)
+static void fileio_exec_write(struct scst_cmd *cmd,
+	struct scst_fileio_thr *thr, loff_t loff)
 {
 	mm_segment_t old_fs;
 	loff_t err;
@@ -2093,15 +1908,13 @@ static void fileio_exec_write(struct scst_cmd *cmd, loff_t loff)
 	uint8_t *address;
 	struct scst_fileio_dev *virt_dev =
 	    (struct scst_fileio_dev *)cmd->dev->dh_priv;
-	struct scst_fileio_tgt_dev *ftgt_dev = 
-		(struct scst_fileio_tgt_dev *)cmd->tgt_dev->dh_priv;
-	struct file *fd = ftgt_dev->fd;
+	struct file *fd = thr->fd;
 	struct iovec *iv, *eiv;
 	int iv_count, eiv_count;
 
 	TRACE_ENTRY();
 
-	iv = fileio_alloc_iv(cmd, ftgt_dev);
+	iv = fileio_alloc_iv(cmd, thr);
 	if (iv == NULL)
 		goto out;
 	
@@ -2209,7 +2022,8 @@ out:
 	return;
 }
 
-static void fileio_exec_verify(struct scst_cmd *cmd, loff_t loff)
+static void fileio_exec_verify(struct scst_cmd *cmd, 
+	struct scst_fileio_thr *thr, loff_t loff)
 {
 	mm_segment_t old_fs;
 	loff_t err;
@@ -2218,14 +2032,12 @@ static void fileio_exec_verify(struct scst_cmd *cmd, loff_t loff)
 	int compare;
 	struct scst_fileio_dev *virt_dev =
 	    (struct scst_fileio_dev *)cmd->dev->dh_priv;
-	struct scst_fileio_tgt_dev *ftgt_dev = 
-		(struct scst_fileio_tgt_dev *)cmd->tgt_dev->dh_priv;
-	struct file *fd = ftgt_dev->fd;
+	struct file *fd = thr->fd;
 	uint8_t *mem_verify = NULL;
 
 	TRACE_ENTRY();
 
-	if (fileio_fsync(ftgt_dev, loff, cmd->bufflen, cmd) != 0)
+	if (fileio_fsync(thr, loff, cmd->bufflen, cmd) != 0)
 		goto out;
 
 	/* 
@@ -2325,35 +2137,6 @@ out:
 	return;
 }
 
-/* No locks supposed to be held, thread context */
-static int fileio_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
-	struct scst_tgt_dev *tgt_dev)
-{
-	int res = SCST_DEV_TM_NOT_COMPLETED;
-
-	TRACE_ENTRY();
-
-	if (mcmd->fn == SCST_ABORT_TASK) {
-		struct scst_cmd *cmd_to_abort = mcmd->cmd_to_abort;
-		struct scst_fileio_tgt_dev *ftgt_dev = 
-		  (struct scst_fileio_tgt_dev *)cmd_to_abort->tgt_dev->dh_priv;
-
-		spin_lock_bh(&ftgt_dev->fdev_lock);
-		if (cmd_to_abort->fileio_in_list) {
-			TRACE(TRACE_MGMT, "Aborting cmd %p and moving it to "
-				"the queue head", cmd_to_abort);
-			list_del(&cmd_to_abort->fileio_cmd_list_entry);
-			list_add(&cmd_to_abort->fileio_cmd_list_entry,
-				&ftgt_dev->fdev_cmd_list);
-			wake_up(&ftgt_dev->fdev_waitQ);
-		}
-		spin_unlock_bh(&ftgt_dev->fdev_lock);
-	}
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
 static inline struct scst_fileio_dev *fileio_alloc_dev(void)
 {
 	struct scst_fileio_dev *dev;
@@ -2363,8 +2146,7 @@ static inline struct scst_fileio_dev *fileio_alloc_dev(void)
 			"device failed");
 		goto out;
 	}
-	INIT_LIST_HEAD(&dev->ftgt_list);
-	init_MUTEX(&dev->ftgt_list_mutex);
+	spin_lock_init(&dev->flags_lock);
 out:
 	return dev;
 }
@@ -2797,7 +2579,6 @@ out:
 static int cdrom_fileio_change(char *p, char *name)
 {
 	struct file *fd;
-	struct scst_fileio_tgt_dev *ftgt_dev;
 	loff_t err;
 	mm_segment_t old_fs;
 	struct scst_fileio_dev *virt_dev, *vv;
@@ -2908,24 +2689,7 @@ static int cdrom_fileio_change(char *p, char *name)
 	if (!virt_dev->cdrom_empty)
 		virt_dev->media_changed = 1;
 
-	down(&virt_dev->ftgt_list_mutex);
-	list_for_each_entry(ftgt_dev, &virt_dev->ftgt_list, ftgt_list_entry) {
-		if (!virt_dev->cdrom_empty && !virt_dev->nullio) {
-			fd = fileio_open(virt_dev);
-			if (IS_ERR(fd)) {
-				res = PTR_ERR(fd);
-				PRINT_ERROR_PR("filp_open(%s) returned an error %d, "
-					"closing the device", virt_dev->file_name, res);
-				up(&virt_dev->ftgt_list_mutex);
-				goto out_err_resume;
-			}
-		} else
-			fd = NULL;
-		if (ftgt_dev->fd)
-			filp_close(ftgt_dev->fd, NULL);
-		ftgt_dev->fd = fd;
-	}
-	up(&virt_dev->ftgt_list_mutex);
+	scst_dev_del_all_thr_data(virt_dev->dev);
 
 	if (!virt_dev->cdrom_empty) {
 		PRINT_INFO_PR("Changed SCSI target virtual cdrom %s "
@@ -2958,13 +2722,6 @@ out_free_resume:
 	virt_dev->file_name = old_fn;
 	kfree(fn);
 	goto out_resume;
-
-out_err_resume:
-	virt_dev->file_name = old_fn;
-	kfree(fn);
-	scst_resume_activity();
-	cdrom_fileio_close(name);
-	goto out;
 }
 
 /* 
@@ -3134,6 +2891,7 @@ static int __init init_scst_fileio(struct scst_dev_type *devtype)
 	TRACE_ENTRY();
 
 	devtype->module = THIS_MODULE;
+
 	res = scst_register_virtual_dev_driver(devtype);
 	if (res < 0)
 		goto out;
@@ -3197,9 +2955,18 @@ static void __exit exit_scst_fileio(struct scst_dev_type *devtype,
 static int __init init_scst_fileio_driver(void)
 {
 	int res;
+
+	fileio_thr_cachep = kmem_cache_create("fileio_thr_data",
+		sizeof(struct scst_fileio_thr), 0, FILEIO_SLAB_FLAGS, NULL,
+		NULL);
+	if (fileio_thr_cachep == NULL) {
+		res = -ENOMEM;
+		goto out;
+	}
+
 	res = init_scst_fileio(&disk_devtype_fileio);
 	if (res != 0)
-		goto out;
+		goto out_free_slab;
 
 	res = init_scst_fileio(&cdrom_devtype_fileio);
 	if (res != 0)
@@ -3210,6 +2977,9 @@ out:
 
 out_err:
 	exit_scst_fileio(&disk_devtype_fileio, &disk_fileio_dev_list);
+
+out_free_slab:
+	kmem_cache_destroy(fileio_thr_cachep);
 	goto out;
 }
 
@@ -3217,6 +2987,7 @@ static void __exit exit_scst_fileio_driver(void)
 {
 	exit_scst_fileio(&disk_devtype_fileio, &disk_fileio_dev_list);
 	exit_scst_fileio(&cdrom_devtype_fileio, &cdrom_fileio_dev_list);
+	kmem_cache_destroy(fileio_thr_cachep);
 }
 
 module_init(init_scst_fileio_driver);

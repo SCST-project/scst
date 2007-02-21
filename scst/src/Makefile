@@ -105,6 +105,7 @@ EXTRA_CFLAGS += -DDEBUG
 #EXTRA_CFLAGS += -DDEBUG_TM -DTM_DBG_GO_OFFLINE=0
 #EXTRA_CFLAGS += -DDEBUG_RETRY
 #EXTRA_CFLAGS += -DDEBUG_OOM
+#EXTRA_CFLAGS += -DDEBUG_SN
 
 # If defined, makes SCST zero allocated data buffers. 
 # Undefining it considerably improves performance and eases CPU load, 

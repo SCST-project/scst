@@ -57,13 +57,20 @@ extern unsigned long scst_trace_flag;
 #define SCST_DEFAULT_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MINOR | TRACE_PID | \
 	TRACE_FUNCTION | TRACE_SPECIAL | TRACE_MGMT | TRACE_MGMT_DEBUG | \
 	TRACE_RETRY)
-#else
+
+#define TRACE_SN(args...)	TRACE(TRACE_SCSI_SERIALIZING, args)
+
+#else /* DEBUG */
+
 # ifdef TRACING
 #define SCST_DEFAULT_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MINOR | TRACE_PID | \
 	TRACE_SPECIAL)
 # else
 #define SCST_DEFAULT_LOG_FLAGS 0
 # endif
+
+#define TRACE_SN(args...)
+
 #endif
 
 /**
@@ -92,7 +99,6 @@ extern unsigned long scst_trace_flag;
 #define SCST_CMD_STATE_RES_CONT_SAME         0
 #define SCST_CMD_STATE_RES_CONT_NEXT         1
 #define SCST_CMD_STATE_RES_NEED_THREAD       2
-#define SCST_CMD_STATE_RES_RESTART           3
 
 /** Name of the "default" security group **/
 #define SCST_DEFAULT_ACG_NAME                "Default"
@@ -147,6 +153,9 @@ extern struct list_head scst_template_list; /* protected by scst_mutex */
 extern struct list_head scst_dev_list; /* protected by scst_mutex */
 extern struct list_head scst_dev_type_list; /* protected by scst_mutex */
 extern wait_queue_head_t scst_dev_cmd_waitQ;
+
+extern struct semaphore scst_suspend_mutex;
+extern struct list_head scst_cmd_lists_list; /* protected by scst_suspend_mutex */
 
 extern struct list_head scst_acg_list;
 extern struct scst_acg *scst_default_acg;
@@ -208,36 +217,23 @@ extern spinlock_t scst_temp_UA_lock;
 extern uint8_t scst_temp_UA[SCSI_SENSE_BUFFERSIZE];
 
 extern struct scst_cmd *__scst_check_deferred_commands(
-	struct scst_tgt_dev *tgt_dev, int expected_sn);
+	struct scst_tgt_dev *tgt_dev);
 
-/* Used to save the function call on th fast path */
+/* Used to save the function call on the fast path */
 static inline struct scst_cmd *scst_check_deferred_commands(
-	struct scst_tgt_dev *tgt_dev, int expected_sn)
+	struct scst_tgt_dev *tgt_dev)
 {
-	if (tgt_dev->def_cmd_count == 0)
+	if ((tgt_dev->def_cmd_count == 0) && 
+	    likely(!test_bit(SCST_TGT_DEV_HQ_ACTIVE, &tgt_dev->tgt_dev_flags)))
 		return NULL;
 	else
-		return __scst_check_deferred_commands(tgt_dev, expected_sn);
+		return __scst_check_deferred_commands(tgt_dev);
 }
 
-static inline int __scst_inc_expected_sn(struct scst_tgt_dev *tgt_dev)
-{
-	/*
-	 * No locks is needed, because only one thread at time can 
-	 * call it (serialized by sn). Also it is supposed that there
-	 * could not be half-incremented halves.
-	 */
+void scst_inc_expected_sn(struct scst_tgt_dev *tgt_dev, atomic_t *slot);
+int scst_check_hq_cmd(struct scst_cmd *cmd);
 
-	typeof(tgt_dev->expected_sn) e;
-
-	tgt_dev->expected_sn++;
-	e = tgt_dev->expected_sn;
-	smp_mb(); /* write must be before def_cmd_count read */
-	TRACE(TRACE_DEBUG/*TRACE_SCSI_SERIALIZING*/, "Next expected_sn: %d", e);
-	return e;
-}
-
-void scst_inc_expected_sn_unblock(struct scst_tgt_dev *tgt_dev,
+void scst_unblock_deferred(struct scst_tgt_dev *tgt_dev,
 	struct scst_cmd *cmd_sn);
 
 int scst_cmd_thread(void *arg);
@@ -386,6 +382,16 @@ static inline int scst_is_ua_command(struct scst_cmd *cmd)
 		(cmd->cdb[0] != REPORT_LUNS));
 }
 
+static inline int scst_is_implicit_hq(struct scst_cmd *cmd)
+{
+	return ((cmd->cdb[0] == INQUIRY) ||
+		(cmd->cdb[0] == REPORT_LUNS) ||
+		((cmd->dev->type == TYPE_DISK) &&
+		   ((cmd->cdb[0] == READ_CAPACITY) ||
+		    ((cmd->cdb[0] == SERVICE_ACTION_IN) &&
+		       ((cmd->cdb[1] & 0x1f) == SAI_READ_CAPACITY_16)))));
+}
+
 /*
  * Returns 1, if cmd's CDB is locally handled by SCST and 0 otherwise.
  * Dev handlers parse() and dev_done() not called for such commands.
@@ -441,18 +447,28 @@ static inline void scst_unblock_dev(struct scst_device *dev)
 	spin_unlock_bh(&dev->dev_lock);
 }
 
-static inline void scst_dec_on_dev_cmd(struct scst_cmd *cmd)
+static inline void __scst_dec_on_dev_cmd(struct scst_device *dev,
+	int cmd_blocking)
 {
-	if (cmd->blocking) {
+	if (cmd_blocking)
+		scst_unblock_dev(dev);
+	atomic_dec(&dev->on_dev_count);
+	smp_mb__after_atomic_dec();
+	if (unlikely(dev->block_count != 0))
+		wake_up_all(&dev->on_dev_waitQ);
+}
+
+static inline int scst_dec_on_dev_cmd(struct scst_cmd *cmd, int defer)
+{
+	int cmd_blocking = cmd->blocking;
+	if (cmd_blocking) {
 		TRACE_MGMT_DBG("cmd %p (tag %d): unblocking dev %p", cmd,
 			cmd->tag, cmd->dev);
 		cmd->blocking = 0;
-		scst_unblock_dev(cmd->dev);
 	}
-	atomic_dec(&cmd->dev->on_dev_count);
-	smp_mb__after_atomic_dec();
-	if (unlikely(cmd->dev->block_count != 0))
-		wake_up_all(&cmd->dev->on_dev_waitQ);
+	if (!defer)
+		__scst_dec_on_dev_cmd(cmd->dev, cmd_blocking);
+	return cmd_blocking;
 }
 
 static inline void __scst_get(int barrier)
@@ -550,5 +566,11 @@ static inline int tm_dbg_is_release(void)
 	return 0;
 }
 #endif /* DEBUG_TM */
+
+#ifdef DEBUG_SN
+void scst_check_debug_sn(struct scst_cmd *cmd);
+#else
+static inline void scst_check_debug_sn(struct scst_cmd *cmd) {}
+#endif
 
 #endif /* __SCST_PRIV_H */

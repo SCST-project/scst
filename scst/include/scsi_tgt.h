@@ -49,12 +49,6 @@
 /* LUN translation (cmd->tgt_dev assignment) */
 #define SCST_CMD_STATE_INIT          2
 
-/* 
- * Again LUN translation (cmd->tgt_dev assignment), used if dev handler
- * wants to restart cmd on another LUN
- */
-#define SCST_CMD_STATE_REINIT        3
-
 /* Dev handler's parse() is going to be called */
 #define SCST_CMD_STATE_DEV_PARSE     4
 
@@ -380,6 +374,8 @@
 #define SCST_TGT_DEV_AFTER_RX_DATA_ATOMIC	9
 #define SCST_TGT_DEV_AFTER_EXEC_ATOMIC		10
 
+/* Set HEAD OF QUEUE cmd is being executed */
+#define SCST_TGT_DEV_HQ_ACTIVE		12
 
 #ifdef DEBUG_TM
 #define SCST_TGT_DEV_UNDER_TM_DBG	20
@@ -734,12 +730,6 @@ struct scst_tgt_template
 
 struct scst_dev_type
 {
-	/* Name of the dev handler. Must be unique. MUST HAVE */
-	char name[15];
-
-	/* SCSI type of the supported device. MUST HAVE */
-	int type;
-
 	/*
 	 * True, if corresponding function supports execution in
 	 * the atomic (non-sleeping) context
@@ -747,24 +737,7 @@ struct scst_dev_type
 	unsigned parse_atomic:1;
 	unsigned exec_atomic:1;
 	unsigned dev_done_atomic:1;
-
-	/* 
-	 * Called when new device is attaching to the dev handler
-	 * Returns 0 on success, error code otherwise.
-	 */
-	int (*attach) (struct scst_device *dev);
-
-	/* Called when new device is detaching from the dev handler */
-	void (*detach) (struct scst_device *dev);
-
-	/* 
-	 * Called when new tgt_dev (session) is attaching to the dev handler.
-	 * Returns 0 on success, error code otherwise.
-	 */
-	int (*attach_tgt) (struct scst_tgt_dev *tgt_dev);
-
-	/* Called when tgt_dev (session) is detaching from the dev handler */
-	void (*detach_tgt) (struct scst_tgt_dev *tgt_dev);
+	unsigned dedicated_thread:1;
 
 	/* 
 	 * Called to parse CDB from the cmd and initialize 
@@ -841,6 +814,24 @@ struct scst_dev_type
 	int (*task_mgmt_fn) (struct scst_mgmt_cmd *mgmt_cmd, 
 		struct scst_tgt_dev *tgt_dev);
 
+	/* 
+	 * Called when new device is attaching to the dev handler
+	 * Returns 0 on success, error code otherwise.
+	 */
+	int (*attach) (struct scst_device *dev);
+
+	/* Called when new device is detaching from the dev handler */
+	void (*detach) (struct scst_device *dev);
+
+	/* 
+	 * Called when new tgt_dev (session) is attaching to the dev handler.
+	 * Returns 0 on success, error code otherwise.
+	 */
+	int (*attach_tgt) (struct scst_tgt_dev *tgt_dev);
+
+	/* Called when tgt_dev (session) is detaching from the dev handler */
+	void (*detach_tgt) (struct scst_tgt_dev *tgt_dev);
+
 	/*
 	 * Those functions can be used to export the handler's statistics and
 	 * other infos to the world outside the kernel as well as to get some
@@ -851,6 +842,12 @@ struct scst_dev_type
 	int (*read_proc) (struct seq_file *seq, struct scst_dev_type *dev_type);
 	int (*write_proc) (char *buffer, char **start, off_t offset,
 		int length, int *eof, struct scst_dev_type *dev_type);
+
+	/* Name of the dev handler. Must be unique. MUST HAVE */
+	char name[15];
+
+	/* SCSI type of the supported device. MUST HAVE */
+	int type;
 
 	struct module *module;
 
@@ -1094,6 +1091,12 @@ struct scst_cmd
 	/* Set if the cmd was done or aborted out of its SN */
 	unsigned long out_of_sn:1;
 
+	/* Set if the cmd is HEAD OF QUEUE */
+	unsigned long head_of_queue:1;
+
+	/* Set if the cmd is deferred HEAD OF QUEUE */
+	unsigned long hq_deferred:1;
+
 	/**************************************************************/
 
 	unsigned long cmd_flags; /* cmd's async flags */
@@ -1115,6 +1118,9 @@ struct scst_cmd
 
 	/* Cmd's serial number, used to execute cmd's in order of arrival */
 	unsigned int sn;
+
+	/* The corresponding sn_slot in tgt_dev->sn_slots */
+	atomic_t *sn_slot;
 
 	/* List entry for session's search_cmd_list */
 	struct list_head search_cmd_list_entry;
@@ -1193,18 +1199,6 @@ struct scst_cmd
 	/* Used for storage of dev handler private stuff */
 	void *dh_priv;
 
-	/*
-	 * Fileio private fields
-	 */
-	struct list_head fileio_cmd_list_entry;
-	int fileio_in_list;
-
-	/* 
-	 * Used to store previous tgt_dev if dev handler returns 
-	 * SCST_CMD_STATE_REINIT state
-	 */
-	struct scst_tgt_dev *tgt_dev_saved;
-
 	struct scst_cmd *orig_cmd; /* Used to issue REQUEST SENSE */
 };
 
@@ -1253,8 +1247,7 @@ struct scst_device
 {
 	struct scst_dev_type *handler;	/* corresponding dev handler */
 
-	/* Used to translate SCSI's cmd to SCST's cmd */
-	struct gendisk *rq_disk;
+	unsigned short type;	/* SCSI type of the device */
 
 	/*************************************************************
 	 ** Dev's flags. Updates serialized by dev_lock or suspended
@@ -1262,16 +1255,16 @@ struct scst_device
 	 *************************************************************/
 
 	/* Set if dev is RESERVED */
-	unsigned int dev_reserved:1;
+	unsigned short dev_reserved:1;
 
 	/* Set if dev accepts only one command at time  */
-	unsigned int dev_serialized:1;
+	unsigned short dev_serialized:1;
 
 	/* Set if double reset UA is possible */
-	unsigned int dev_double_ua_possible:1;
+	unsigned short dev_double_ua_possible:1;
 
 	/* Set if reset UA sent (to avoid double reset UAs) */
-	unsigned int dev_reset_ua_sent:1;
+	unsigned short dev_reset_ua_sent:1;
 
 	/**************************************************************/
 
@@ -1290,12 +1283,15 @@ struct scst_device
 	atomic_t on_dev_count;
 
 	struct list_head blocked_cmd_list; /* protected by dev_lock */
-	
-	/* Corresponding real SCSI device, could be NULL for virtual devices */
-	struct scsi_device *scsi_dev;
-	
+
 	/* Used for storage of dev handler private stuff */
 	void *dh_priv;
+
+	/* Used to translate SCSI's cmd to SCST's cmd */
+	struct gendisk *rq_disk;
+
+	/* Corresponding real SCSI device, could be NULL for virtual devices */
+	struct scsi_device *scsi_dev;
 
 	/* Used to wait for requested amount of "on_dev" commands */
 	wait_queue_head_t on_dev_waitQ;
@@ -1322,6 +1318,19 @@ struct scst_device
 	struct list_head dev_acg_dev_list;
 };
 
+/*
+ * Used to store threads local tgt_dev specific data
+ */
+struct scst_thr_data_hdr
+{
+	/* List entry in tgt_dev->thr_data_list */
+	struct list_head thr_data_list_entry;
+	pid_t pid; /* PID of the owner thread */
+	atomic_t ref;
+	/* Function that will be called on the tgt_dev destruction */
+	void (*free_fn) (struct scst_thr_data_hdr *data);
+};
+
 /* 
  * Used to store per-session specific device information
  */
@@ -1329,48 +1338,64 @@ struct scst_tgt_dev
 {
 	/* List entry in sess->sess_tgt_dev_list */
 	struct list_head sess_tgt_dev_list_entry;
-	
-	struct scst_acg_dev *acg_dev;	/* corresponding acg_dev */
+
+	struct scst_device *dev; /* to save extra dereferences */
+	lun_t lun;		 /* to save extra dereferences */
+
+	/* Pointer to lists of commands with the lock */
+	struct scst_cmd_lists *p_cmd_lists;
 
 	/* How many cmds alive on this dev in this session */
 	atomic_t cmd_count; 
+
+	unsigned long tgt_dev_flags;	/* tgt_dev's async flags */
+
+	/* 
+	 * Used to execute cmd's in order of arrival, honoring SCSI task
+	 * attributes.
+	 *
+	 * Protected by sn_lock, except expected_sn, which is protected by
+	 * itself. Curr_sn must have the same size as expected_sn to
+	 * overflow simultaneously.
+	 */
+	int def_cmd_count;
+	spinlock_t sn_lock;
+	int expected_sn;
+	int curr_sn;
+	struct list_head deferred_cmd_list;
+	struct list_head skipped_sn_list;
+	struct list_head hq_cmd_list;
+	unsigned short prev_cmd_ordered; /* Set if the prev cmd was ORDERED */
+	short num_free_sn_slots;
+	atomic_t *cur_sn_slot;
+	atomic_t sn_slots[10];
+
+	/* Lists of commands with the lock, if dedicated threads are used */
+	struct scst_cmd_lists cmd_lists;
+
+	/* Used for storage of dev handler private stuff */
+	void *dh_priv;
+
+	/* List of scst_thr_data_hdr and lock */
+	spinlock_t thr_data_lock;
+	struct list_head thr_data_list;
 
 	spinlock_t tgt_dev_lock;	/* per-session device lock */
 
 	/* List of UA's for this device, protected by tgt_dev_lock */
 	struct list_head UA_list;
 
-	unsigned long tgt_dev_flags;	/* tgt_dev's flags */
-	
-	/* Used for storage of dev handler private stuff */
-	void *dh_priv;
-
-	/* Pointer to lists of commands with the lock */
-	struct scst_cmd_lists *p_cmd_lists;
-
-	/* 
-	 * Used to execute cmd's in order of arrival.
-	 *
-	 * Protected by sn_lock, except curr_sn and expected_sn.
-	 * Expected_sn protected by itself, since only one thread, which
-	 * processes SN matching command, can increment it at any time.
-	 * Next_sn must have the same size as expected_sn to overflow
-	 * simultaneously.
-	 */
-	atomic_t curr_sn;
-	int expected_sn;
-	spinlock_t sn_lock;
-	int def_cmd_count;
-	struct list_head deferred_cmd_list;
-	struct list_head skipped_sn_list;
-	
 	struct scst_session *sess;	/* corresponding session */
-	
+	struct scst_acg_dev *acg_dev;	/* corresponding acg_dev */
+
 	/* list entry in dev->dev_tgt_dev_list */
 	struct list_head dev_tgt_dev_list_entry;
 	
 	/* internal tmp list entry */
 	struct list_head extra_tgt_dev_list_entry;
+
+	/* Dedicated thread. Doesn't need any protection. */
+	struct task_struct *thread;
 };
 
 /*
@@ -1609,7 +1634,18 @@ struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
  * Notifies SCST that the driver finished its part of the command 
  * initialization, and the command is ready for execution.
  * The second argument sets preferred command execition context. 
- * See SCST_CONTEXT_* constants for details
+ * See SCST_CONTEXT_* constants for details.
+ *
+ * !!IMPORTANT!!
+ *
+ * If cmd->no_sn not set, this function, as well as scst_cmd_init_stage1_done()
+ * and scst_restart_cmd() must not be called simultaneously for the same session
+ * (more precisely, for the same session/LUN, i.e. tgt_dev), i.e. they must be
+ * somehow externally serialized. This is needed to have lock free fast path in
+ * scst_cmd_set_sn(). For majority of targets those functions are naturally
+ * serialized by the single source of commands. Only iSCSI immediate commands
+ * with multiple connections per session seems to be an exception. For it, some
+ * mutex/lock shall be used for the serialization.
  */
 void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context);
 
@@ -1619,6 +1655,8 @@ void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context);
  * SCST done the command's preprocessing preprocessing_done() function
  * should be called. The second argument sets preferred command execition
  * context. See SCST_CONTEXT_* constants for details.
+ *
+ * See also scst_cmd_init_done() comment for the serialization requirements.
  */
 static inline void scst_cmd_init_stage1_done(struct scst_cmd *cmd,
 	int pref_context, int set_sn)
@@ -1634,7 +1672,9 @@ static inline void scst_cmd_init_stage1_done(struct scst_cmd *cmd,
  * The second argument sets data receiving completion status
  * (see SCST_PREPROCESS_STATUS_* constants for details)
  * The third argument sets preferred command execition context
- * (see SCST_CONTEXT_* constants for details)
+ * (see SCST_CONTEXT_* constants for details).
+ *
+ * See also scst_cmd_init_done() comment for the serialization requirements.
  */
 void scst_restart_cmd(struct scst_cmd *cmd, int status, int pref_context);
 
@@ -2230,5 +2270,33 @@ struct scatterlist *scst_alloc(int size, unsigned long gfp_mask,
 
 /* Frees SG vector returned by scst_alloc() */
 void scst_free(struct scatterlist *sg, int count);
+
+/*
+ * Adds local to the current thread data to tgt_dev 
+ * (they will be local for the tgt_dev and current thread).
+ */
+void scst_add_thr_data(struct scst_tgt_dev *tgt_dev,
+	struct scst_thr_data_hdr *data,
+	void (*free_fn) (struct scst_thr_data_hdr *data));
+
+/* Deletes all local to threads data from tgt_dev */
+void scst_del_all_thr_data(struct scst_tgt_dev *tgt_dev);
+
+/* Deletes all local to threads data from all tgt_dev's of the dev */
+void scst_dev_del_all_thr_data(struct scst_device *dev);
+
+/* Finds local to the current thread data. Returns NULL, if they not found. */
+struct scst_thr_data_hdr *scst_find_thr_data(struct scst_tgt_dev *tgt_dev);
+
+static inline void scst_thr_data_get(struct scst_thr_data_hdr *data)
+{
+	atomic_inc(&data->ref);
+}
+
+static inline void scst_thr_data_put(struct scst_thr_data_hdr *data)
+{
+	if (atomic_dec_and_test(&data->ref))
+		data->free_fn(data);
+}
 
 #endif /* __SCST_H */

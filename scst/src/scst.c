@@ -445,6 +445,8 @@ static int scst_register_device(struct scsi_device *scsidp)
 		goto out_up;
 	}
 
+	dev->type = scsidp->type;
+
 	dev->rq_disk = alloc_disk(1);
 	if (dev->rq_disk == NULL) {
 		res = -ENOMEM;
@@ -594,6 +596,7 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 		goto out;
 	}
 
+	dev->type = dev_handler->type;
 	dev->scsi_dev = NULL;
 	dev->virt_name = dev_name;
 
@@ -1274,7 +1277,7 @@ static int __init init_scst(void)
 
 	scst_scsi_op_list_init();
 
-	for (i = 0; i < sizeof(scst_tasklets)/sizeof(scst_tasklets[0]); i++) {
+	for (i = 0; i < ARRAY_SIZE(scst_tasklets); i++) {
 		spin_lock_init(&scst_tasklets[i].tasklet_lock);
 		INIT_LIST_HEAD(&scst_tasklets[i].tasklet_cmd_list);
 		tasklet_init(&scst_tasklets[i].tasklet, (void*)scst_cmd_tasklet,
@@ -1468,6 +1471,12 @@ EXPORT_SYMBOL(scst_put);
 
 EXPORT_SYMBOL(scst_alloc);
 EXPORT_SYMBOL(scst_free);
+
+/* Tgt_dev's threads local storage */
+EXPORT_SYMBOL(scst_add_thr_data);
+EXPORT_SYMBOL(scst_del_all_thr_data);
+EXPORT_SYMBOL(scst_dev_del_all_thr_data);
+EXPORT_SYMBOL(scst_find_thr_data);
 
 /*
  * Other Commands

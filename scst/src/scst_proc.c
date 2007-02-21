@@ -1606,6 +1606,10 @@ static int scst_version_info_show(struct seq_file *seq, void *v)
 	seq_printf(seq, "Strict serializing enabled\n");
 #endif
 
+#ifdef SINGLE_DEFAULT_GROUP
+	seq_printf(seq, "Single default group\n");
+#endif
+
 #ifdef EXTRACHECKS
 	seq_printf(seq, "EXTRACHECKS\n");
 #endif
@@ -1628,6 +1632,10 @@ static int scst_version_info_show(struct seq_file *seq, void *v)
 
 #ifdef DEBUG_OOM
 	seq_printf(seq, "DEBUG_OOM\n");
+#endif
+
+#ifdef DEBUG_SN
+	seq_printf(seq, "DEBUG_SN\n");
 #endif
 
 	TRACE_EXIT();
