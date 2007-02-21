@@ -15,4 +15,4 @@ obj-$(CONFIG_SCSI_TARGET_MODISK)	+= scst_modisk.o
 obj-$(CONFIG_SCSI_TARGET_CHANGER)	+= scst_changer.o
 obj-$(CONFIG_SCSI_TARGET_RAID)		+= scst_raid.o
 obj-$(CONFIG_SCSI_TARGET_PROCESSOR)	+= scst_processor.o
-obj-$(CONFIG_SCSI_TARGET_FILEIO)	+= scst_fileio.o
+obj-$(CONFIG_SCSI_TARGET_VDISK	)	+= scst_vdisk.o

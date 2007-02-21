@@ -3,7 +3,7 @@ To be done
 
  - Kernel build integration (patch).
 
- - Reimplement FILEIO handler with usage of async. read/write operations
+ - Reimplement VDISK handler with usage of async. read/write operations
    (in order to avoid unnecessary context switches) and direct access to
    the page cache (in order to avoid data copy between it and internal
    buffers). Requires modifications of the kernel.
@@ -27,7 +27,7 @@ To be done
  - Redone some semaphores with completion interface.
 
  - HIGHMEM cleanup. Looks like HIGHMEM usage doesn't worth the effort and 
-   performance hit, at least until FILEIO handler doesn't use the page
+   performance hit, at least until VDISK handler doesn't use the page
    cache directly, so disable it for now, although the code looks ready.
    To enable it, set SCST_HIGHMEM in 1 in scst_priv.h. HIGHMEM is not 
    supported on 2.4 and is not going to be.

@@ -30,7 +30,7 @@ ifneq ($(KERNELRELEASE),)
 SCST_INC_DIR := $(SUBDIRS)/../include
 
 obj-m := scst_cdrom.o scst_changer.o scst_disk.o scst_modisk.o scst_tape.o \
-	scst_fileio.o scst_raid.o scst_processor.o
+	scst_vdisk.o scst_raid.o scst_processor.o
 
 obj-$(CONFIG_SCSI_TARGET_DISK)    += scst_disk.o
 obj-$(CONFIG_SCSI_TARGET_TAPE)    += scst_tape.o
@@ -39,7 +39,7 @@ obj-$(CONFIG_SCSI_TARGET_MODISK)  += scst_modisk.o
 obj-$(CONFIG_SCSI_TARGET_CHANGER) += scst_changer.o
 obj-$(CONFIG_SCSI_TARGET_RAID)    += scst_raid.o
 obj-$(CONFIG_SCSI_TARGET_PROCESSOR) += scst_processor.o
-obj-$(CONFIG_SCSI_TARGET_FILEIO)  += scst_fileio.o
+obj-$(CONFIG_SCSI_TARGET_VDISK)  += scst_vdisk.o
 
 else
 ifeq ($(KDIR),)

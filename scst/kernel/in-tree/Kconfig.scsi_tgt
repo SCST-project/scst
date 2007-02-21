@@ -56,7 +56,7 @@ config SCSI_TARGET_RAID
 	---help---
 	  SCSI TARGET handler for raid storage array controller (raid) device.
 
-config SCSI_TARGET_FILEIO
+config SCSI_TARGET_VDISK
 	tristate "SCSI target virtual disk and/or cdrom support"
 	default SCSI_TARGET
 	depends on SCSI && PROC_FS && SCSI_TARGET

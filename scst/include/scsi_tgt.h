@@ -1611,7 +1611,7 @@ int scst_register_dev_driver(struct scst_dev_type *dev_type);
 void scst_unregister_dev_driver(struct scst_dev_type *dev_type);
 
 /* 
- * Registers dev handler driver for virtual devices (eg FILEIO)
+ * Registers dev handler driver for virtual devices (eg VDISK)
  * Returns 0 on success or appropriate error code otherwise
  */
 int scst_register_virtual_dev_driver(struct scst_dev_type *dev_type);

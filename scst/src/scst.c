@@ -704,10 +704,10 @@ int scst_register_dev_driver(struct scst_dev_type *dev_type)
 	if (res != 0)
 		goto out_err;
 
-#ifdef FILEIO_ONLY
+#ifdef VDISK_ONLY
 	if (dev_type->exec == NULL) {
 		PRINT_ERROR_PR("Pass-through dev handlers (handler %s) not "
-			"supported. Recompile SCST with undefined FILEIO_ONLY",
+			"supported. Recompile SCST with undefined VDISK_ONLY",
 			dev_type->name);
 		res = -EINVAL;
 		goto out_err;
@@ -1410,7 +1410,7 @@ static void __exit exit_scst(void)
 }
 
 /*
- * Device Handler Side (i.e. scst_fileio)
+ * Device Handler Side (i.e. scst_vdisk)
  */
 EXPORT_SYMBOL(scst_register_dev_driver);
 EXPORT_SYMBOL(scst_unregister_dev_driver);
