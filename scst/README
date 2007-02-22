@@ -337,6 +337,12 @@ subdirectories "vdisk" and "vcdrom". They have similar layout:
 	"IMPORTANT" below) turned off, enabling NV_CACHE could change
 	nothing, since no data synchronization with media operations
 	will go from the initiator.
+
+      - BLOCKIO - enables block mode, which will perform direct block
+        IO with the device, bypassing page-cache for all operations.
+	This mode works ideally with high-end storage HBAs and for
+	applications that either do not need caching between application
+	and disk or need the large block throughput. See also below.
     
     * "close NAME" - closes device "NAME".
 
@@ -383,6 +389,28 @@ IMPORTANT: Many disk and partition table management utilities don't support
 	   first access to it from the remote initiator with another
 	   block size.
 
+BLOCKIO VDISK mode (written by Ross S. W. Walker)
+-------------------------------------------------
+
+This module works best for these types of scenarios:
+
+1) Data that are not aligned to 4K sector boundaries and <4K block sizes
+are used, which is normally found in virtualization environments where
+operating systems start partitions on odd sectors (Windows and it's
+sector 63).
+
+2) Large block data transfers normally found in database loads/dumps and
+streaming media.
+
+3) Advanced relational database systems that perform their own caching
+which prefer or demand direct IO access and, because of the nature of
+their data access, can actually see worse performance with
+non-discriminate caching.
+
+4) Multiple layers of targets were the secondary/triary layers need to
+have a consistent view of the primary targets in order to preserve data
+integrity which a page cache backed IO type might not provide reliably.
+
 Performance
 -----------
 
@@ -402,7 +430,7 @@ II. In order to get the maximum performance you should:
 
 1. For SCST:
 
- - Disable in Makefile STRICT_SERIALIZING, EXTRACHECKS, TRACING, DEBUG,
+ - Disable in Makefile STRICT_SERIALIZING, EXTRACHECKS, TRACING, DEBUG*,
    SCST_STRICT_SECURITY, SCST_HIGHMEM
 
 2. For Qlogic target driver:
