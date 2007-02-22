@@ -2160,6 +2160,7 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 			if (bio_add_page(bio, page, bytes, off) < bytes) {
 				need_new_bio = 1;
 				lba_start += thislen >> virt_dev->block_shift;
+				thislen = 0;
 				continue;
 			}
 

@@ -2340,13 +2340,13 @@ void scst_unblock_cmds(struct scst_device *dev)
 {
 #ifdef STRICT_SERIALIZING
 	struct scst_cmd *cmd, *t;
+	unsigned long flags;
 
 	TRACE_ENTRY();
 
 	local_irq_save(flags);
 	list_for_each_entry_safe(cmd, t, &dev->blocked_cmd_list,
 				 blocked_cmd_list_entry) {
-		unsigned long flags;
 		int brk = 0;
 		/* 
 		 * Since only one cmd per time is being executed, expected_sn
@@ -2374,7 +2374,7 @@ void scst_unblock_cmds(struct scst_device *dev)
 		if (brk)
 			break;
 	}
-	local_irq_restore(, flags);
+	local_irq_restore(flags);
 #else /* STRICT_SERIALIZING */
 	struct scst_cmd *cmd, *tcmd;
 	unsigned long flags;

@@ -2464,14 +2464,10 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 		}
 		break;
 
-	default:
-		PRINT_ERROR_PR("Unsupported queue type %d, treating it as "
-			"ORDERED", cmd->queue_type);
-		cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
-		/* go through */
 	case SCST_CMD_QUEUE_ORDERED:
 		TRACE(TRACE_SCSI|TRACE_SCSI_SERIALIZING, "ORDERED cmd %p "
 			"(op %x)", cmd, cmd->cdb[0]);
+ordered:
 		if (!tgt_dev->prev_cmd_ordered) {
 			spin_lock_irqsave(&tgt_dev->sn_lock, flags);
 			tgt_dev->num_free_sn_slots--;
@@ -2491,7 +2487,6 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 				tgt_dev->num_free_sn_slots++;
 			spin_unlock_irqrestore(&tgt_dev->sn_lock, flags);
 		}
-ordered:
 		tgt_dev->prev_cmd_ordered = 1;
 		tgt_dev->curr_sn++;
 		cmd->sn = tgt_dev->curr_sn;
@@ -2506,6 +2501,12 @@ ordered:
 		list_add(&cmd->sn_cmd_list_entry, &tgt_dev->hq_cmd_list);
 		spin_unlock_irqrestore(&tgt_dev->sn_lock, flags);
 		break;
+
+	default:
+		PRINT_ERROR_PR("Unsupported queue type %d, treating it as "
+			"ORDERED", cmd->queue_type);
+		cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
+		goto ordered;
 	}
 
 	TRACE_SN("cmd(%p)->sn: %d (tgt_dev %p, *cur_sn_slot %d, "
