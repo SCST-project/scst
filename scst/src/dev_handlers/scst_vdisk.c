@@ -211,8 +211,8 @@ static DECLARE_MUTEX(scst_vdisk_mutex);
 static LIST_HEAD(vdisk_dev_list);
 static LIST_HEAD(vcdrom_dev_list);
 
-static struct scst_dev_type disk_devtype_vdisk = VDISK_TYPE;
-static struct scst_dev_type cdrom_devtype_vdisk = VCDROM_TYPE;
+static struct scst_dev_type vdisk_devtype = VDISK_TYPE;
+static struct scst_dev_type vcdrom_devtype = VCDROM_TYPE;
 
 static char *vdisk_proc_help_string =
 	"echo \"open|close NAME [FILE_NAME [BLOCK_SIZE] [WRITE_THROUGH "
@@ -538,11 +538,11 @@ static inline int vdisk_sync_queue_type(enum scst_cmd_queue_type qt)
 	}
 }
 
-static inline int vdisk_need_pre_sync(enum scst_cmd_queue_type cwqt,
-	enum scst_cmd_queue_type lwqt)
+static inline int vdisk_need_pre_sync(enum scst_cmd_queue_type cur,
+	enum scst_cmd_queue_type last)
 {
-	if (vdisk_sync_queue_type(cwqt))
-		if (!vdisk_sync_queue_type(lwqt))
+	if (vdisk_sync_queue_type(cur))
+		if (!vdisk_sync_queue_type(last))
 			return 1;
 	return 0;
 }
@@ -651,7 +651,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	case WRITE_10:
 	case WRITE_12:
 	case WRITE_16:
-		fua = (cdb[1] & 0x8) && !virt_dev->wt_flag;
+		fua = (cdb[1] & 0x8);
 		if (cdb[1] & 0x8) {
 			TRACE(TRACE_ORDER, "FUA(%d): loff=%Ld, "
 				"data_len=%Ld", fua, (uint64_t)loff,
@@ -675,15 +675,14 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	case WRITE_12:
 	case WRITE_16:
 		if (likely(!virt_dev->rd_only_flag)) {
-			int do_fsync = 0;
+			int do_fsync = vdisk_sync_queue_type(cmd->queue_type);
 			struct scst_vdisk_tgt_dev *ftgt_dev =
 				(struct scst_vdisk_tgt_dev*)
 					cmd->tgt_dev->dh_priv;
 			enum scst_cmd_queue_type last_queue_type =
 				ftgt_dev->last_write_cmd_queue_type;
 			ftgt_dev->last_write_cmd_queue_type = cmd->queue_type;
-			if (vdisk_need_pre_sync(cmd->queue_type, last_queue_type) &&
-			    !virt_dev->wt_flag) {
+			if (vdisk_need_pre_sync(cmd->queue_type, last_queue_type)) {
 			    	TRACE(TRACE_ORDER, "ORDERED "
 			    		"WRITE(%d): loff=%Ld, data_len=%Ld",
 			    		cmd->queue_type, (uint64_t)loff,
@@ -696,11 +695,12 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 				blockio_exec_rw(cmd, thr, lba_start, 1);
 			else
 				vdisk_exec_write(cmd, thr, loff);
-			/* O_SYNC flag is used for wt_flag devices */
+			/* O_SYNC flag is used for WT devices */
 			if (do_fsync || fua)
 				vdisk_fsync(thr, loff, data_len, cmd);
 		} else {
-			TRACE_DBG("%s", "Attempt to write to read-only device");
+			TRACE(TRACE_MINOR, "Attempt to write to read-only "
+				"device %s", virt_dev->name);
 			scst_set_cmd_error(cmd,
 		    		SCST_LOAD_SENSE(scst_sense_data_protect));
 		}
@@ -709,15 +709,14 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	case WRITE_VERIFY_12:
 	case WRITE_VERIFY_16:
 		if (likely(!virt_dev->rd_only_flag)) {
-			int do_fsync = 0;
+			int do_fsync = vdisk_sync_queue_type(cmd->queue_type);
 			struct scst_vdisk_tgt_dev *ftgt_dev =
 				(struct scst_vdisk_tgt_dev*)
 					cmd->tgt_dev->dh_priv;
 			enum scst_cmd_queue_type last_queue_type =
 				ftgt_dev->last_write_cmd_queue_type;
 			ftgt_dev->last_write_cmd_queue_type = cmd->queue_type;
-			if (vdisk_need_pre_sync(cmd->queue_type, last_queue_type) && 
-			    !virt_dev->wt_flag) {
+			if (vdisk_need_pre_sync(cmd->queue_type, last_queue_type)) {
 			    	TRACE(TRACE_ORDER, "ORDERED "
 			    		"WRITE_VERIFY(%d): loff=%Ld, data_len=%Ld",
 			    		cmd->queue_type, (uint64_t)loff,
@@ -728,13 +727,14 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 			}
 			/* ToDo: BLOCKIO VERIFY */
 			vdisk_exec_write(cmd, thr, loff);
-			/* O_SYNC flag is used for wt_flag devices */
+			/* O_SYNC flag is used for WT devices */
 			if (cmd->status == 0)
 				vdisk_exec_verify(cmd, thr, loff);
 			else if (do_fsync)
 				vdisk_fsync(thr, loff, data_len, cmd);
 		} else {
-			TRACE_DBG("%s", "Attempt to write to read-only device");
+			TRACE(TRACE_MINOR, "Attempt to write to read-only "
+				"device %s", virt_dev->name);
 			scst_set_cmd_error(cmd,
 		    		SCST_LOAD_SENSE(scst_sense_data_protect));
 		}
@@ -1752,14 +1752,17 @@ static int vdisk_fsync(struct scst_vdisk_thr *thr,
 	loff_t loff, loff_t len, struct scst_cmd *cmd)
 {
 	int res = 0;
+	struct scst_vdisk_dev *virt_dev = thr->virt_dev;
 	struct file *file = thr->fd;
 	struct inode *inode = file->f_dentry->d_inode;
 	struct address_space *mapping = file->f_mapping;
 
 	TRACE_ENTRY();
 
-	/* ToDo: BLOCKIO fsync() */
-	if (thr->virt_dev->nv_cache || thr->virt_dev->blockio)
+	/* Hopefully, the compiler will generate the single comparison */
+	if (virt_dev->nv_cache || virt_dev->blockio || virt_dev->wt_flag ||
+	    virt_dev->rd_only_flag || virt_dev->o_direct_flag ||
+	    virt_dev->nullio)
 		goto out;
 
 	res = sync_page_range(inode, mapping, loff, len);
@@ -2146,8 +2149,7 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 				bio->bi_bdev = bdev;
 				bio->bi_private = blockio_work;
 				bio->bi_rw |= write;
-				if (write && virt_dev->wt_flag)
-					bio->bi_rw |= 1 << BIO_RW_SYNC;
+				bio->bi_rw |= 1 << BIO_RW_SYNC;
 
 		 		if (!hbio)
 				 	hbio = tbio = bio;
@@ -2586,7 +2588,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 				  &vdisk_dev_list);
 
 		virt_dev->virt_id =
-			scst_register_virtual_device(&disk_devtype_vdisk,
+			scst_register_virtual_device(&vdisk_devtype,
 						 virt_dev->name);
 		if (virt_dev->virt_id < 0) {
 			res = virt_dev->virt_id;
@@ -2708,7 +2710,7 @@ static int vcdrom_open(char *p, char *name)
 		      &vcdrom_dev_list);
 
 	virt_dev->virt_id =
-	    scst_register_virtual_device(&cdrom_devtype_vdisk,
+	    scst_register_virtual_device(&vcdrom_devtype,
 					 virt_dev->name);
 	if (virt_dev->virt_id < 0) {
 		res = virt_dev->virt_id;
@@ -3155,11 +3157,11 @@ static int __init init_scst_vdisk_driver(void)
 		goto out;
 	}
 
-	res = init_scst_vdisk(&disk_devtype_vdisk);
+	res = init_scst_vdisk(&vdisk_devtype);
 	if (res != 0)
 		goto out_free_slab;
 
-	res = init_scst_vdisk(&cdrom_devtype_vdisk);
+	res = init_scst_vdisk(&vcdrom_devtype);
 	if (res != 0)
 		goto out_err;
 
@@ -3167,7 +3169,7 @@ out:
 	return res;
 
 out_err:
-	exit_scst_vdisk(&disk_devtype_vdisk, &vdisk_dev_list);
+	exit_scst_vdisk(&vdisk_devtype, &vdisk_dev_list);
 
 out_free_slab:
 	kmem_cache_destroy(vdisk_thr_cachep);
@@ -3176,8 +3178,8 @@ out_free_slab:
 
 static void __exit exit_scst_vdisk_driver(void)
 {
-	exit_scst_vdisk(&disk_devtype_vdisk, &vdisk_dev_list);
-	exit_scst_vdisk(&cdrom_devtype_vdisk, &vcdrom_dev_list);
+	exit_scst_vdisk(&vdisk_devtype, &vdisk_dev_list);
+	exit_scst_vdisk(&vcdrom_devtype, &vcdrom_dev_list);
 	kmem_cache_destroy(vdisk_thr_cachep);
 }
 
