@@ -2075,6 +2075,11 @@ static int blockio_endio(struct bio *bio, unsigned int bytes_done, int error)
 	if (unlikely(error != 0)) {
 		PRINT_ERROR_PR("cmd %p returned error %d", blockio_work->cmd,
 			error);
+		/* 
+		 * The race with other such bio's doesn't matter, since all
+		 * scst_set_cmd_error() calls do the same local to this cmd
+		 * operations.
+		 */
 		if (bio->bi_rw & WRITE)
 			scst_set_cmd_error(blockio_work->cmd,
 				SCST_LOAD_SENSE(scst_sense_write_error));
@@ -2136,21 +2141,22 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 			if (need_new_bio) {
 				bio = bio_alloc(GFP_KERNEL, max_nr_vecs);
 				if (!bio) {
-					PRINT_ERROR_PR("Failed to create bio"
-						       "for data segment= %d"
-						       " cmd %p", j, cmd);
+					PRINT_ERROR_PR("Failed to create bio "
+						       "for data segment= %d "
+						       "cmd %p", j, cmd);
 					goto out_no_bio;
 				}
 
 				atomic_inc(&blockio_work->bios_inflight);
 				need_new_bio = 0;
 				bio->bi_end_io = blockio_endio;
-				bio->bi_sector = lba_start;
+				bio->bi_sector = lba_start << 
+					(virt_dev->block_shift - 9);
 				bio->bi_bdev = bdev;
 				bio->bi_private = blockio_work;
-				bio->bi_rw |= write;
+#if 0 /* It could be win, but could be not, so a performance study is needed */
 				bio->bi_rw |= 1 << BIO_RW_SYNC;
-
+#endif
 		 		if (!hbio)
 				 	hbio = tbio = bio;
 				 else
@@ -2180,7 +2186,7 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 		hbio = hbio->bi_next;
 		bio->bi_next = NULL;
 
-		generic_make_request(bio);
+		submit_bio(write, bio);
 	}
 
 	if (q && q->unplug_fn)
