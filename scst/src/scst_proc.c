@@ -195,6 +195,8 @@ static int strncasecmp(const char *s1, const char *s2, int n)
 
 #if defined(DEBUG) || defined(TRACING)
 
+static DECLARE_MUTEX(scst_log_mutex);
+
 int scst_proc_log_entry_write(struct file *file, const char *buf,
 	unsigned long length, unsigned long *log_level,
 	unsigned long default_level, const struct scst_proc_log *tbl)
@@ -356,7 +358,7 @@ static int scst_proc_scsi_tgt_gen_write_log(struct file *file, const char __user
 
 	TRACE_ENTRY();
 
-	if (down_interruptible(&scst_proc_mutex) != 0) {
+	if (down_interruptible(&scst_log_mutex) != 0) {
 		res = -EINTR;
 		goto out;
 	}
@@ -364,7 +366,7 @@ static int scst_proc_scsi_tgt_gen_write_log(struct file *file, const char __user
 	res = scst_proc_log_entry_write(file, buf, length,
 		&trace_flag, SCST_DEFAULT_LOG_FLAGS, scst_proc_local_trace_tbl);
 
-	up(&scst_proc_mutex);
+	up(&scst_log_mutex);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1882,14 +1884,14 @@ static int log_info_show(struct seq_file *seq, void *v)
 
 	TRACE_ENTRY();
 
-	if (down_interruptible(&scst_proc_mutex) != 0) {
+	if (down_interruptible(&scst_log_mutex) != 0) {
 		res = -EINTR;
 		goto out;
 	}
 
 	res = scst_proc_log_entry_read(seq, trace_flag, scst_proc_local_trace_tbl);
 
-	up(&scst_proc_mutex);
+	up(&scst_log_mutex);
 
 out:
 	TRACE_EXIT_RES(res);

@@ -20,10 +20,6 @@ To be done
  
  - Move linear searches to hash-table based.
  
- - Create dev handler for block devices, which would insert commands as
-   block requests in the device's block queue, so they would processed
-   by IO-scheduler then.
-
  - Redone some semaphores with completion interface.
 
  - HIGHMEM cleanup. Looks like HIGHMEM usage doesn't worth the effort and 

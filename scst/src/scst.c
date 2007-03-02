@@ -601,7 +601,6 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 	dev->virt_name = dev_name;
 
 	scst_suspend_activity();
-
 	if (down_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
 		goto out_free_dev;
@@ -715,7 +714,6 @@ int scst_register_dev_driver(struct scst_dev_type *dev_type)
 #endif
 
 	scst_suspend_activity();
-
 	if (down_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
 		goto out_err;

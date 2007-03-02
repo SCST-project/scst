@@ -108,10 +108,11 @@ block devices comparing to sending SCSI commands directly to SCSI
 mid-level via scsi_do_req()/scsi_execute_async() has advantage that data
 are transfered via system cache, so it is possible to fully benefit from
 caching and read ahead performed by Linux's VM subsystem. The only
-disadvantage here that there is superfluous data copying between the
-cache and SCST's buffers. This issue is going to be addressed in the
-next release. Virtual CDROM's are useful for remote installation. See
-below for details how to setup and use VDISK device handler.
+disadvantage here that in the FILEIO mode there is superfluous data
+copying between the cache and SCST's buffers. This issue is going to be
+addressed in the next release. Virtual CDROM's are useful for remote
+installation. See below for details how to setup and use VDISK device
+handler.
 
 "Performance" device handlers for disks, MO disks and tapes in their
 exec() method skip (pretend to execute) all READ and WRITE operations
@@ -351,8 +352,8 @@ subdirectories "vdisk" and "vcdrom". They have similar layout:
 For example, "echo "open disk1 /vdisks/disk1" >/proc/scsi_tgt/vdisk/vdisk"
 will open file /vdisks/disk1 as virtual VDISK disk with name "disk1".
 
-IMPORTANT: By default for performance reasons VDISK devices use write back
-=========  caching policy. This is generally safe from the consistence of
+IMPORTANT: By default for performance reasons VDISK FILEIO devices use write
+=========  back caching policy. This is generally safe from the consistence of
            journaled file systems, laying over them, point of view, but
 	   your unsaved cached data will be lost in case of
 	   power/hardware/software failure, so you must supply your
@@ -389,8 +390,8 @@ IMPORTANT: Many disk and partition table management utilities don't support
 	   first access to it from the remote initiator with another
 	   block size.
 
-BLOCKIO VDISK mode (written by Ross S. W. Walker)
--------------------------------------------------
+BLOCKIO VDISK mode
+------------------
 
 This module works best for these types of scenarios:
 
@@ -411,20 +412,25 @@ non-discriminate caching.
 have a consistent view of the primary targets in order to preserve data
 integrity which a page cache backed IO type might not provide reliably.
 
+Also it has an advantage over FILEIO that it doesn't copy data between
+the system cache and the commands data buffers, so it saves a
+considerable amount of CPU power and memory bandwidth.
+
 Performance
 -----------
 
 Before doing any performance measurements note that:
 
 I. Currently maximum performance is possible only with real SCSI devices
-with several simultaneously executed commands (SCSI tagged queuing) or
-performance handlers. If you have enough CPU power, VDISK handler also
-could provide the same results, when aggregate throughput is close to
-the aggregate throughput locally on the target from the same disks. Also
-note, that currently IO subsystem in Linux implemented on such way, so a
-VDISK device over a single file occupied entire formatted with some
-file system device (eg /dev/hdc) could perform considerably better, than
-a VDISK device over /dev/hdc itself without the file system involved.
+or VDISK BLOCKIO mode with several simultaneously executed commands
+(SCSI tagged queuing) or performance handlers. If you have enough CPU
+power, VDISK FILEIO handler also could provide the same results, when
+aggregate throughput is close to the aggregate throughput locally on the
+target from the same disks. Also note, that currently IO subsystem in
+Linux implemented on such way, so a VDISK FILEIO device over a single
+file occupied entire formatted with some file system device (eg
+/dev/hdc) could perform considerably better, than a VDISK FILEIO device
+over /dev/hdc itself without the file system involved.
 
 II. In order to get the maximum performance you should:
 
@@ -473,7 +479,7 @@ IMPORTANT: Some of those options enabled by default, i.e. SCST is optimized
    expected.
 
 IMPORTANT: If you use on initiator some versions of Windows (at least W2K)
-=========  you can't get good write performance for VDISK devices with
+=========  you can't get good write performance for VDISK FILEIO devices with
            default 512 bytes block sizes. You could get about 10% of the
 	   expected one. This is because of "unusual" write access
 	   pattern, with which Windows'es write data and which is

@@ -665,9 +665,10 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	case READ_10:
 	case READ_12:
 	case READ_16:
-		if (virt_dev->blockio)
+		if (virt_dev->blockio) {
 			blockio_exec_rw(cmd, thr, lba_start, 0);
-		else
+			goto out;
+		} else
 			vdisk_exec_read(cmd, thr, loff);
 		break;
 	case WRITE_6:
@@ -691,9 +692,10 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 				if (vdisk_fsync(thr, 0, 0, cmd) != 0)
 					goto done;
 			}
-			if (virt_dev->blockio)
+			if (virt_dev->blockio) {
 				blockio_exec_rw(cmd, thr, lba_start, 1);
-			else
+				goto out;
+			} else
 				vdisk_exec_write(cmd, thr, loff);
 			/* O_SYNC flag is used for WT devices */
 			if (do_fsync || fua)
@@ -2060,7 +2062,6 @@ out:
 struct blockio_work {
 	atomic_t bios_inflight;
 	struct scst_cmd *cmd;
-	struct completion complete;
 };
 
 static int blockio_endio(struct bio *bio, unsigned int bytes_done, int error)
@@ -2089,8 +2090,12 @@ static int blockio_endio(struct bio *bio, unsigned int bytes_done, int error)
 	}
 
 	/* Decrement the bios in processing, and if zero signal completion */
-	if (atomic_dec_and_test(&blockio_work->bios_inflight))
-		complete(&blockio_work->complete);
+	if (atomic_dec_and_test(&blockio_work->bios_inflight)) {
+		blockio_work->cmd->completed = 1;
+		blockio_work->cmd->scst_cmd_done(blockio_work->cmd,
+			SCST_CMD_STATE_DEFAULT);
+		kfree(blockio_work);
+	}
 
 	bio_put(bio);
 	return 0;
@@ -2107,6 +2112,7 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 	int need_new_bio;
 	struct scatterlist *sgl = cmd->sg;
 	struct blockio_work *blockio_work;
+	int bios = 0;
 
 	TRACE_ENTRY();
 
@@ -2117,10 +2123,8 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 	blockio_work = kmalloc(sizeof (*blockio_work), GFP_KERNEL);
 	if (blockio_work == NULL)
 		goto out_no_mem;
-
-	atomic_set(&blockio_work->bios_inflight, 0);
+	
 	blockio_work->cmd = cmd;
-	init_completion(&blockio_work->complete);
 
 	if (q)
 		max_nr_vecs = min(bio_get_nr_vecs(bdev), BIO_MAX_PAGES);
@@ -2147,7 +2151,7 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 					goto out_no_bio;
 				}
 
-				atomic_inc(&blockio_work->bios_inflight);
+				bios++;
 				need_new_bio = 0;
 				bio->bi_end_io = blockio_endio;
 				bio->bi_sector = lba_start << 
@@ -2180,21 +2184,17 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 
 		lba_start += sgl[j].length >> virt_dev->block_shift;
 	}
+	atomic_set(&blockio_work->bios_inflight, bios);
 
 	while (hbio) {
 		bio = hbio;
 		hbio = hbio->bi_next;
 		bio->bi_next = NULL;
-
 		submit_bio(write, bio);
 	}
 
 	if (q && q->unplug_fn)
 		q->unplug_fn(q);
-
-	wait_for_completion(&blockio_work->complete);
-
-	kfree(blockio_work);
 
 out:
 	TRACE_EXIT();

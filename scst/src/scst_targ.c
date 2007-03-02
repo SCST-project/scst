@@ -144,7 +144,8 @@ out_redirect:
 	} else {
 		unsigned long flags;
 		spin_lock_irqsave(&scst_init_lock, flags);
-		TRACE_MGMT_DBG("Adding cmd %p to init cmd list", cmd);
+		TRACE_MGMT_DBG("Adding cmd %p to init cmd list (scst_cmd_count "
+			"%d)", cmd, atomic_read(&scst_cmd_count));
 		list_add_tail(&cmd->cmd_list_entry, &scst_init_cmd_list);
 		if (test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))
 			scst_init_poll_cnt++;
@@ -974,161 +975,8 @@ void scst_rx_data(struct scst_cmd *cmd, int status, int pref_context)
 	return;
 }
 
-/* No locks supposed to be held */
-static void scst_check_sense(struct scst_cmd *cmd, const uint8_t *rq_sense,
-	int rq_sense_len, int *next_state)
-{
-	int sense_valid;
-	struct scst_device *dev = cmd->dev;
-	int dbl_ua_possible, ua_sent = 0;
-
-	TRACE_ENTRY();
-
-	/* If we had a internal bus reset behind us, set the command error UA */
-	if ((dev->scsi_dev != NULL) &&
-	    unlikely(cmd->host_status == DID_RESET) &&
-	    scst_is_ua_command(cmd))
-	{
-		TRACE(TRACE_MGMT, "DID_RESET: was_reset=%d host_status=%x",
-		      dev->scsi_dev->was_reset, cmd->host_status);
-		scst_set_cmd_error(cmd,
-		   SCST_LOAD_SENSE(scst_sense_reset_UA));
-		/* just in case */
-		cmd->ua_ignore = 0;
-		/* It looks like it is safe to clear was_reset here */
-		dev->scsi_dev->was_reset = 0;
-		smp_mb();
-	}
-
-	if (rq_sense != NULL) {
-		sense_valid = SCST_SENSE_VALID(rq_sense);
-		if (sense_valid) {
-			/* 
-			 * We checked that rq_sense_len < sizeof(cmd->sense_buffer)
-			 * in init_scst()
-			 */
-			memcpy(cmd->sense_buffer, rq_sense, rq_sense_len);
-			memset(&cmd->sense_buffer[rq_sense_len], 0,
-				sizeof(cmd->sense_buffer) - rq_sense_len);
-		}
-	} else
-		sense_valid = SCST_SENSE_VALID(cmd->sense_buffer);
-
-	dbl_ua_possible = dev->dev_double_ua_possible;
-	TRACE_DBG("cmd %p dbl_ua_possible %d", cmd, dbl_ua_possible);
-	if (unlikely(dbl_ua_possible)) {
-		spin_lock_bh(&dev->dev_lock);
-		barrier(); /* to reread dev_double_ua_possible */
-		dbl_ua_possible = dev->dev_double_ua_possible;
-		if (dbl_ua_possible)
-			ua_sent = dev->dev_reset_ua_sent;
-		else
-			spin_unlock_bh(&dev->dev_lock);
-	}
-
-	if (sense_valid) {
-		TRACE_BUFF_FLAG(TRACE_SCSI, "Sense", cmd->sense_buffer,
-			     sizeof(cmd->sense_buffer));
-		/* Check Unit Attention Sense Key */
-		if (cmd->sense_buffer[2] == UNIT_ATTENTION) {
-			if (cmd->sense_buffer[12] == SCST_SENSE_ASC_UA_RESET) {
-				if (dbl_ua_possible) 
-				{
-					if (ua_sent) {
-						TRACE(TRACE_MGMT, "%s", 
-							"Double UA detected");
-						/* Do retry */
-						TRACE(TRACE_MGMT, "Retrying cmd %p "
-							"(tag %d)", cmd, cmd->tag);
-						cmd->status = 0;
-						cmd->msg_status = 0;
-						cmd->host_status = DID_OK;
-						cmd->driver_status = 0;
-						memset(cmd->sense_buffer, 0,
-							sizeof(cmd->sense_buffer));
-						cmd->retry = 1;
-						*next_state = SCST_CMD_STATE_SEND_TO_MIDLEV;
-						/* 
-						 * Dev is still blocked by this cmd, so
-						 * it's OK to clear SCST_DEV_SERIALIZED
-						 * here.
-						 */
-						dev->dev_double_ua_possible = 0;
-						dev->dev_serialized = 0;
-						dev->dev_reset_ua_sent = 0;
-						goto out_unlock;
-					} else
-						dev->dev_reset_ua_sent = 1;
-				}
-			}
-			if (cmd->ua_ignore == 0) {
-				if (unlikely(dbl_ua_possible)) {
-					__scst_process_UA(dev, cmd,
-						cmd->sense_buffer,
-						sizeof(cmd->sense_buffer), 0);
-				} else {
-					scst_process_UA(dev, cmd,
-						cmd->sense_buffer,
-						sizeof(cmd->sense_buffer), 0);
-				}
-			}
-		}
-	}
-
-	if (unlikely(dbl_ua_possible)) {
-		if (ua_sent && scst_is_ua_command(cmd)) {
-			TRACE_MGMT_DBG("%s", "Clearing dbl_ua_possible flag");
-			dev->dev_double_ua_possible = 0;
-			dev->dev_serialized = 0;
-			dev->dev_reset_ua_sent = 0;
-		}
-		spin_unlock_bh(&dev->dev_lock);
-	}
-
-out:
-	TRACE_EXIT();
-	return;
-
-out_unlock:
-	spin_unlock_bh(&dev->dev_lock);
-	goto out;
-}
-
-static int scst_check_auto_sense(struct scst_cmd *cmd)
-{
-	int res = 0;
-
-	TRACE_ENTRY();
-
-	if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION) &&
-	    (!SCST_SENSE_VALID(cmd->sense_buffer) ||
-	     SCST_NO_SENSE(cmd->sense_buffer)))
-	{
-		TRACE(TRACE_SCSI|TRACE_MINOR, "CHECK_CONDITION, but no sense: "
-		      "cmd->status=%x, cmd->msg_status=%x, "
-		      "cmd->host_status=%x, cmd->driver_status=%x", cmd->status,
-		      cmd->msg_status, cmd->host_status, cmd->driver_status);
-		res = 1;
-	} else if (unlikely(cmd->host_status)) {
-		if ((cmd->host_status == DID_REQUEUE) ||
-		    (cmd->host_status == DID_IMM_RETRY) ||
-		    (cmd->host_status == DID_SOFT_ERROR)) {
-			scst_set_busy(cmd);
-		} else {
-			TRACE(TRACE_SCSI|TRACE_MINOR, "Host status %x "
-				"received, returning HARDWARE ERROR instead",
-				cmd->host_status);
-			scst_set_cmd_error(cmd,	SCST_LOAD_SENSE(scst_sense_hardw_error));
-		}
-	}
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
 static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
-	const uint8_t *rq_sense, int rq_sense_len, int resid,
-	int *next_state)
+	const uint8_t *rq_sense, int rq_sense_len, int resid)
 {
 	unsigned char type;
 
@@ -1147,6 +995,14 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 #endif
 			scst_set_resp_data_len(cmd, cmd->resp_data_len - resid);
 	}
+
+	/* 
+	 * We checked that rq_sense_len < sizeof(cmd->sense_buffer)
+	 * in init_scst()
+	 */
+	memcpy(cmd->sense_buffer, rq_sense, rq_sense_len);
+	memset(&cmd->sense_buffer[rq_sense_len], 0,
+		sizeof(cmd->sense_buffer) - rq_sense_len);
 
 	TRACE(TRACE_SCSI, "result=%x, cmd->status=%x, resid=%d, "
 	      "cmd->msg_status=%x, cmd->host_status=%x, "
@@ -1170,7 +1026,7 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 		if (unlikely(length <= 0)) {
 			PRINT_ERROR_PR("%s: scst_get_buf_first() failed",
 				__func__);
-			goto next;
+			goto out;
 		}
 		if (length > 2 && cmd->cdb[0] == MODE_SENSE) {
 			address[2] |= 0x80;   /* Write Protect*/
@@ -1181,9 +1037,7 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 		scst_put_buf(cmd, address);
 	}
 
-next:
-	scst_check_sense(cmd, rq_sense, rq_sense_len, next_state);
-
+out:
 	TRACE_EXIT();
 	return;
 }
@@ -1223,19 +1077,15 @@ static void scst_cmd_done(struct scsi_cmnd *scsi_cmd)
 {
 	struct scsi_request *req = NULL;
 	struct scst_cmd *cmd;
-	int next_state;
 
 	TRACE_ENTRY();
-
-	WARN_ON(in_irq());
 
 	cmd = scst_get_cmd(scsi_cmd, &req);
 	if (cmd == NULL)
 		goto out;
 
-	next_state = SCST_CMD_STATE_DEV_DONE;
 	scst_do_cmd_done(cmd, req->sr_result, req->sr_sense_buffer,
-		sizeof(req->sr_sense_buffer), scsi_cmd->resid, &next_state);
+		sizeof(req->sr_sense_buffer), scsi_cmd->resid);
 
 	/* Clear out request structure */
 	req->sr_use_sg = 0;
@@ -1247,7 +1097,7 @@ static void scst_cmd_done(struct scsi_cmnd *scsi_cmd)
 
 	scst_release_request(cmd);
 
-	cmd->state = next_state;
+	cmd->state = SCST_CMD_STATE_DEV_DONE;
 
 	scst_proccess_redirect_cmd(cmd,
 		scst_optimize_post_exec_context(cmd, scst_get_context()), 0);
@@ -1260,21 +1110,16 @@ out:
 static void scst_cmd_done(void *data, char *sense, int result, int resid)
 {
 	struct scst_cmd *cmd;
-	int next_state;
 
 	TRACE_ENTRY();
-
-	WARN_ON(in_irq());
 
 	cmd = (struct scst_cmd *)data;
 	if (cmd == NULL)
 		goto out;
 
-	next_state = SCST_CMD_STATE_DEV_DONE;
-	scst_do_cmd_done(cmd, result, sense, SCSI_SENSE_BUFFERSIZE, resid,
-		&next_state);
+	scst_do_cmd_done(cmd, result, sense, SCSI_SENSE_BUFFERSIZE, resid);
 
-	cmd->state = next_state;
+	cmd->state = SCST_CMD_STATE_DEV_DONE;
 
 	scst_proccess_redirect_cmd(cmd,
 		scst_optimize_post_exec_context(cmd, scst_get_context()), 0);
@@ -1288,8 +1133,6 @@ out:
 static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state)
 {
 	TRACE_ENTRY();
-
-	sBUG_ON(in_irq());
 
 	scst_dec_on_dev_cmd(cmd, 0);
 
@@ -1325,15 +1168,7 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state)
 				   SCST_LOAD_SENSE(scst_sense_hardw_error));
 		next_state = SCST_CMD_STATE_DEV_DONE;
 	}
-
-	if (scst_check_auto_sense(cmd)) {
-		PRINT_ERROR_PR("CHECK_CONDITION, but no valid sense for "
-			"opcode %d", cmd->cdb[0]);
-	}
 #endif
-
-	scst_check_sense(cmd, NULL, 0, &next_state);
-
 	cmd->state = next_state;
 
 	scst_proccess_redirect_cmd(cmd,
@@ -2052,6 +1887,147 @@ out:
 	return res;
 }
 
+/* No locks supposed to be held */
+static int scst_check_sense(struct scst_cmd *cmd)
+{
+	int res = 0;
+	int sense_valid;
+	struct scst_device *dev = cmd->dev;
+	int dbl_ua_possible, ua_sent = 0;
+
+	TRACE_ENTRY();
+
+	/* If we had a internal bus reset behind us, set the command error UA */
+	if ((dev->scsi_dev != NULL) &&
+	    unlikely(cmd->host_status == DID_RESET) &&
+	    scst_is_ua_command(cmd))
+	{
+		TRACE(TRACE_MGMT, "DID_RESET: was_reset=%d host_status=%x",
+		      dev->scsi_dev->was_reset, cmd->host_status);
+		scst_set_cmd_error(cmd,
+		   SCST_LOAD_SENSE(scst_sense_reset_UA));
+		/* just in case */
+		cmd->ua_ignore = 0;
+		/* It looks like it is safe to clear was_reset here */
+		dev->scsi_dev->was_reset = 0;
+		smp_mb();
+	}
+
+	sense_valid = SCST_SENSE_VALID(cmd->sense_buffer);
+
+	dbl_ua_possible = dev->dev_double_ua_possible;
+	TRACE_DBG("cmd %p dbl_ua_possible %d", cmd, dbl_ua_possible);
+	if (unlikely(dbl_ua_possible)) {
+		spin_lock_bh(&dev->dev_lock);
+		barrier(); /* to reread dev_double_ua_possible */
+		dbl_ua_possible = dev->dev_double_ua_possible;
+		if (dbl_ua_possible)
+			ua_sent = dev->dev_reset_ua_sent;
+		else
+			spin_unlock_bh(&dev->dev_lock);
+	}
+
+	if (sense_valid) {
+		TRACE_BUFF_FLAG(TRACE_SCSI, "Sense", cmd->sense_buffer,
+			     sizeof(cmd->sense_buffer));
+		/* Check Unit Attention Sense Key */
+		if (cmd->sense_buffer[2] == UNIT_ATTENTION) {
+			if (cmd->sense_buffer[12] == SCST_SENSE_ASC_UA_RESET) {
+				if (dbl_ua_possible) 
+				{
+					if (ua_sent) {
+						TRACE(TRACE_MGMT, "%s", 
+							"Double UA detected");
+						/* Do retry */
+						TRACE(TRACE_MGMT, "Retrying cmd %p "
+							"(tag %d)", cmd, cmd->tag);
+						cmd->status = 0;
+						cmd->msg_status = 0;
+						cmd->host_status = DID_OK;
+						cmd->driver_status = 0;
+						memset(cmd->sense_buffer, 0,
+							sizeof(cmd->sense_buffer));
+						cmd->retry = 1;
+						cmd->state = SCST_CMD_STATE_SEND_TO_MIDLEV;
+						res = 1;
+						/* 
+						 * Dev is still blocked by this cmd, so
+						 * it's OK to clear SCST_DEV_SERIALIZED
+						 * here.
+						 */
+						dev->dev_double_ua_possible = 0;
+						dev->dev_serialized = 0;
+						dev->dev_reset_ua_sent = 0;
+						goto out_unlock;
+					} else
+						dev->dev_reset_ua_sent = 1;
+				}
+			}
+			if (cmd->ua_ignore == 0) {
+				if (unlikely(dbl_ua_possible)) {
+					__scst_process_UA(dev, cmd,
+						cmd->sense_buffer,
+						sizeof(cmd->sense_buffer), 0);
+				} else {
+					scst_process_UA(dev, cmd,
+						cmd->sense_buffer,
+						sizeof(cmd->sense_buffer), 0);
+				}
+			}
+		}
+	}
+
+	if (unlikely(dbl_ua_possible)) {
+		if (ua_sent && scst_is_ua_command(cmd)) {
+			TRACE_MGMT_DBG("%s", "Clearing dbl_ua_possible flag");
+			dev->dev_double_ua_possible = 0;
+			dev->dev_serialized = 0;
+			dev->dev_reset_ua_sent = 0;
+		}
+		spin_unlock_bh(&dev->dev_lock);
+	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_unlock:
+	spin_unlock_bh(&dev->dev_lock);
+	goto out;
+}
+
+static int scst_check_auto_sense(struct scst_cmd *cmd)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION) &&
+	    (!SCST_SENSE_VALID(cmd->sense_buffer) ||
+	     SCST_NO_SENSE(cmd->sense_buffer)))
+	{
+		TRACE(TRACE_SCSI|TRACE_MINOR, "CHECK_CONDITION, but no sense: "
+		      "cmd->status=%x, cmd->msg_status=%x, "
+		      "cmd->host_status=%x, cmd->driver_status=%x", cmd->status,
+		      cmd->msg_status, cmd->host_status, cmd->driver_status);
+		res = 1;
+	} else if (unlikely(cmd->host_status)) {
+		if ((cmd->host_status == DID_REQUEUE) ||
+		    (cmd->host_status == DID_IMM_RETRY) ||
+		    (cmd->host_status == DID_SOFT_ERROR)) {
+			scst_set_busy(cmd);
+		} else {
+			TRACE(TRACE_SCSI|TRACE_MINOR, "Host status %x "
+				"received, returning HARDWARE ERROR instead",
+				cmd->host_status);
+			scst_set_cmd_error(cmd,	SCST_LOAD_SENSE(scst_sense_hardw_error));
+		}
+	}
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 static int scst_done_cmd_check(struct scst_cmd *cmd, int *pres)
 {
 	int res = 0, rc;
@@ -2077,6 +2053,10 @@ static int scst_done_cmd_check(struct scst_cmd *cmd, int *pres)
 			scst_set_cmd_error(cmd,
 				SCST_LOAD_SENSE(scst_sense_hardw_error));
 		}
+	} else if (scst_check_sense(cmd)) {
+		*pres = SCST_CMD_STATE_RES_CONT_SAME;
+		res = 1;
+		goto out;
 	}
 
 	type = cmd->dev->handler->type;
@@ -2419,6 +2399,12 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 	cmd->sess->sess_cmd_count--;
 	list_del(&cmd->search_cmd_list_entry);
 	spin_unlock_irq(&cmd->sess->sess_list_lock);
+
+	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
+		TRACE_MGMT_DBG("Aborted cmd %p finished (cmd_ref %d, "
+			"scst_cmd_count %d)", cmd, atomic_read(&cmd->cmd_ref),
+			atomic_read(&scst_cmd_count));
+	}
 
 	scst_cmd_put(cmd);
 

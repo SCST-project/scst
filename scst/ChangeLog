@@ -1,7 +1,7 @@
 Summary of changes between versions 0.9.5 and 0.9.6
 ---------------------------------------------------
 
- - FILEIO was renamed to VDISK. BLOCK IO added to it, thanks to Ross S. W.
+ - FILEIO was renamed to VDISK. BLOCKIO added to it, thanks to Ross S. W.
    Walker and Vu Pham.
 
  - Internal locking and execution context were reimplemnted. Particularly,

@@ -1193,6 +1193,11 @@ void scst_free_cmd(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
+	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
+		TRACE_MGMT_DBG("Freeing aborted cmd %p (scst_cmd_count %d)",
+			cmd, atomic_read(&scst_cmd_count));
+	}
+
 	sBUG_ON(cmd->blocking);
 
 #if defined(EXTRACHECKS) && (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18))
