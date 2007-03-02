@@ -1140,7 +1140,7 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 	cmd->driver_status = driver_byte(result);
 	if (unlikely(resid != 0)) {
 #ifdef EXTRACHECKS
-		if ((resid < 0) || (resid >= cmd->resp_data_len)) {
+		if ((resid < 0) || (resid > cmd->resp_data_len)) {
 			PRINT_ERROR_PR("Wrong resid %d (cmd->resp_data_len=%d)",
 				resid, cmd->resp_data_len);
 		} else

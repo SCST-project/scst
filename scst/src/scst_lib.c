@@ -132,7 +132,7 @@ void scst_set_resp_data_len(struct scst_cmd *cmd, int resp_data_len)
 			cmd->orig_sg_cnt = cmd->sg_cnt;
 			cmd->orig_sg_entry = i;
 			cmd->orig_entry_len = cmd->sg[i].length;
-			cmd->sg_cnt = i+1;
+			cmd->sg_cnt = (left > 0) ? i+1 : i;
 			cmd->sg[i].length = left;
 			cmd->sg_buff_modified = 1;
 			break;
