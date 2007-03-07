@@ -1257,7 +1257,7 @@ static int vdisk_caching_pg(unsigned char *p, int pcontrol,
 static int vdisk_ctrl_m_pg(unsigned char *p, int pcontrol,
 			    struct scst_vdisk_dev *virt_dev)
 { 	/* Control mode page for mode_sense */
-	const unsigned char ctrl_m_pg[] = {0xa, 0xa, 0x22, 0, 0, 0x40, 0, 0,
+	const unsigned char ctrl_m_pg[] = {0xa, 0xa, 0x20, 0, 0, 0x40, 0, 0,
 					   0, 0, 0x2, 0x4b};
 
 	memcpy(p, ctrl_m_pg, sizeof(ctrl_m_pg));

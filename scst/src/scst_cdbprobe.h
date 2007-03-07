@@ -297,6 +297,8 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 SCST_DATA_READ, FLAG_NONE, 7, get_trans_len_2},
 	{0x43, "     O          ", "READ TOC/PMA/ATIP",
 	 SCST_DATA_READ, FLAG_NONE, 7, get_trans_len_2},
+	{0x44, " M              ", "REPORT DENSITY SUPPORT",
+	 SCST_DATA_READ, FLAG_NONE, 7, get_trans_len_2},
 	{0x44, "     O          ", "READ HEADER",
 	 SCST_DATA_READ, FLAG_NONE, 7, get_trans_len_2},
 	{0x45, "     O          ", "PLAY AUDIO(10)",
