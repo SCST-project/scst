@@ -782,6 +782,8 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 		vdisk_exec_read_toc(cmd);
 		break;
 	case START_STOP:
+		vdisk_fsync(thr, 0, virt_dev->file_size, cmd);
+		break;
 	case RESERVE:
 	case RESERVE_10:
 	case RELEASE:

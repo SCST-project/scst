@@ -975,6 +975,7 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha,
 	struct scst_cmd *scst_cmd;
 	struct q2t_cmd *cmd;
 	uint16_t loop_id = -1;
+	int err = 0;
 
 	TRACE_ENTRY();
 
@@ -994,23 +995,24 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha,
 		case CTIO_ABORTED:
 		case CTIO_TIMEOUT:
 		case CTIO_INVALID_RX_ID:
+			err = 1;
 			/* they are OK */
-#if defined(DEBUG) || defined(TRACING)
-			PRINT_INFO("qla2x00tgt(%ld): CTIO with status %#x "
+			TRACE_MGMT_DBG("qla2x00tgt(%ld): CTIO with status %#x "
 				"received (LIP_RESET=e, ABORTED=2, "
 				"TARGET_RESET=17, TIMEOUT=b, "
 				"INVALID_RX_ID=8)", ha->instance, status);
-#endif
 			break;
 
 		case CTIO_PORT_LOGGED_OUT:
 		case CTIO_PORT_UNAVAILABLE:
+			err = 1;
 			PRINT_INFO("qla2x00tgt(%ld): CTIO with PORT LOGGED "
 				"OUT (29) or PORT UNAVAILABLE (28) status %x "
 				"received", ha->instance, status);
 			break;
 
 		default:
+			err = 1;
 			PRINT_ERROR("qla2x00tgt(%ld): CTIO with error status "
 				    "0x%x received", ha->instance, status);
 			break;
@@ -1032,6 +1034,10 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha,
 				   ha->instance, handle);
 			goto out;
 		}
+		if (unlikely(err)) {
+			PRINT_INFO("Found by handle failed CTIO scst_cmd "
+				"%p (op %x)", scst_cmd, scst_cmd->cdb[0]);
+		}
 	} else if (ctio != NULL) {
 		uint32_t tag = le16_to_cpu(ctio->exchange_id);
 		struct q2t_sess *sess = q2t_find_sess_by_lid(ha->tgt, loop_id);
@@ -1051,12 +1057,19 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha,
 			     ha->instance, tag, loop_id);
 			goto out;
 		}
+		if (unlikely(err)) {
+			PRINT_INFO("Found by ctio failed CTIO scst_cmd %p "
+				"(op %x)", scst_cmd, scst_cmd->cdb[0]);
+		}
 
 		TRACE_DBG("Found scst_cmd %p", scst_cmd);
 	} else
 		goto out;
 
 	cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
+	if (unlikely(err)) {
+		PRINT_INFO("Failed CTIO state %d", cmd->state);
+	}
 
 	if (cmd->state == Q2T_STATE_PROCESSED) {
 		TRACE_DBG("Command %p finished", cmd);
@@ -1103,6 +1116,9 @@ out:
 	return;
 
 out_free:
+	if (unlikely(err)) {
+		TRACE_MGMT_DBG("%s", "Finishing failed CTIO");
+	}
 	scst_tgt_cmd_done(scst_cmd);
 	goto out;
 }
