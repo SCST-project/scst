@@ -1,7 +1,7 @@
 /*
  *  qla2x00t.c
  *  
- *  Copyright (C) 2004-2006 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                          Leonid Stoljar
  *                          Nathaniel Clark <nate@misrule.us>
  *
