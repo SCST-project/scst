@@ -47,7 +47,8 @@ obj-$(BUILD_DEV) += $(DEV_HANDLERS_DIR)/
 else
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
-    KDIR := /lib/modules/$(shell uname -r)/build
+    KVER = $(shell uname -r)
+    KDIR := /lib/modules/$(KVER)/build
   endif
 else
   KDIR := /lib/modules/$(KVER)/build
@@ -77,13 +78,13 @@ ifneq ($(MOD_VERS),)
 	rm -f $(INSTALL_DIR_H)/Modules.symvers
 	install -m 644 Module.symvers $(INSTALL_DIR_H)
 endif
-	-depmod -a
+	-depmod -a $(KVER)
 
 uninstall:
 	cd $(DEV_HANDLERS_DIR) && $(MAKE) $@
 	rm -f $(INSTALL_DIR)/scsi_tgt.ko
 	-rmdir $(INSTALL_DIR) 2>/dev/null
-	-/sbin/depmod -a
+	-/sbin/depmod -a $(KVER)
 	rm -rf $(INSTALL_DIR_H)
 endif
 

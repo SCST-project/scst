@@ -43,7 +43,8 @@ obj-$(CONFIG_SCSI_TARGET_VDISK)  += scst_vdisk.o
 
 else
 ifeq ($(KDIR),)
-  KDIR := /lib/modules/$(shell uname -r)/build
+  KVER = $(shell uname -r)
+  KDIR := /lib/modules/$(KVER)/build
 endif
 
 all:
@@ -52,7 +53,7 @@ all:
 install: all
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) \
 		modules_install
-	-depmod -a
+	-depmod -a $(KVER)
 
 uninstall:
 	rm -f $(INSTALL_DIR)/scst_*.ko

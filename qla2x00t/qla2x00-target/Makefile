@@ -42,7 +42,8 @@ EXTRA_CFLAGS += -DDEBUG_TGT -g
 
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
-    KDIR := /lib/modules/$(shell uname -r)/build
+    KVER = $(shell uname -r)
+    KDIR := /lib/modules/$(KVER)/build
   endif
 else
   KDIR := /lib/modules/$(KVER)/build
@@ -66,7 +67,7 @@ tgt: Modules.symvers Module.symvers
 install: all
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
 		modules_install
-	-depmod -a
+	-depmod -a $(KVER)
 
 SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Modules.symvers 2>/dev/null)
 ifneq ($(SCST_MOD_VERS),)
@@ -87,7 +88,7 @@ endif
 
 uninstall:
 	rm -f $(INSTALL_DIR)/qla2[23x]00tgt.ko
-	-/sbin/depmod -a
+	-/sbin/depmod -a $(KVER)
 endif
 
 clean:

@@ -21,7 +21,8 @@ obj-$(CONFIG_SCSI_QLA24XX) += qla2xxx.o qla2400.o
 else
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
-    KDIR := /lib/modules/$(shell uname -r)/build
+    KVER = $(shell uname -r)
+    KDIR := /lib/modules/$(KVER)/build
   endif
 else
   KDIR := /lib/modules/$(KVER)/build
@@ -36,7 +37,7 @@ install: all
 
 uninstall:
 	rm -f $(INSTALL_DIR)/qla2[2-3]00.ko $(INSTALL_DIR)/qla2xxx.ko 
-	-/sbin/depmod -a
+	-/sbin/depmod -a $(KVER)
 endif
 
 clean:
