@@ -1,7 +1,7 @@
 /*
  *  scst.c
  *  
- *  Copyright (C) 2004-2006 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
  *  
  *  This program is free software; you can redistribute it and/or
@@ -111,7 +111,7 @@ int scst_virt_dev_last_id = 1; /* protected by scst_mutex */
  * could fail in improper places.
  */
 spinlock_t scst_temp_UA_lock = SPIN_LOCK_UNLOCKED;
-uint8_t scst_temp_UA[SCSI_SENSE_BUFFERSIZE];
+uint8_t scst_temp_UA[SCST_SENSE_BUFFERSIZE];
 
 module_param_named(scst_threads, scst_threads, int, 0);
 MODULE_PARM_DESC(scst_threads, "SCSI target threads count");
@@ -705,7 +705,7 @@ int scst_register_dev_driver(struct scst_dev_type *dev_type)
 
 #ifdef VDISK_ONLY
 	if (dev_type->exec == NULL) {
-		PRINT_ERROR_PR("Pass-through dev handlers (handler %s) not "
+		PRINT_ERROR_PR("Pass-through dev handlers (handler \"%s\") not "
 			"supported. Recompile SCST with undefined VDISK_ONLY",
 			dev_type->name);
 		res = -EINVAL;
@@ -722,8 +722,8 @@ int scst_register_dev_driver(struct scst_dev_type *dev_type)
 	exist = 0;
 	list_for_each_entry(dt, &scst_dev_type_list, dev_type_list_entry) {
 		if (strcmp(dt->name, dev_type->name) == 0) {
-			PRINT_ERROR_PR("Device type handler %s already exist",
-				dt->name);
+			PRINT_ERROR_PR("Device type handler \"%s\" already "
+				"exist", dt->name);
 			exist = 1;
 			break;
 		}
@@ -749,7 +749,7 @@ int scst_register_dev_driver(struct scst_dev_type *dev_type)
 	scst_resume_activity();
 
 	if (res == 0) {
-		PRINT_INFO_PR("Device handler %s for type %d registered "
+		PRINT_INFO_PR("Device handler \"%s\" for type %d registered "
 			"successfully", dev_type->name, dev_type->type);
 	}
 
@@ -762,7 +762,7 @@ out_up:
 
 out_err:
 	scst_resume_activity();
-	PRINT_ERROR_PR("Failed to register device handler %s for type %d",
+	PRINT_ERROR_PR("Failed to register device handler \"%s\" for type %d",
 		dev_type->name, dev_type->type);
 	goto out;
 }
@@ -785,7 +785,7 @@ void scst_unregister_dev_driver(struct scst_dev_type *dev_type)
 		}
 	}
 	if (!found) {
-		PRINT_ERROR_PR("Dev handler %s isn't registered",
+		PRINT_ERROR_PR("Dev handler \"%s\" isn't registered",
 			dev_type->name);
 		goto out_up;
 	}
@@ -804,7 +804,7 @@ void scst_unregister_dev_driver(struct scst_dev_type *dev_type)
 
 	scst_cleanup_proc_dev_handler_dir_entries(dev_type);
 
-	PRINT_INFO_PR("Device handler %s for type %d unloaded",
+	PRINT_INFO_PR("Device handler \"%s\" for type %d unloaded",
 		   dev_type->name, dev_type->type);
 
 out:
@@ -827,20 +827,28 @@ int scst_register_virtual_dev_driver(struct scst_dev_type *dev_type)
 	if (res != 0)
 		goto out_err;
 
-	res = scst_build_proc_dev_handler_dir_entries(dev_type);
-	if (res < 0)
-		goto out_err;
-	
-	PRINT_INFO_PR("Virtuel device handler %s for type %d registered "
-		"successfully", dev_type->name, dev_type->type);
+	if (!dev_type->no_proc) {
+		res = scst_build_proc_dev_handler_dir_entries(dev_type);
+		if (res < 0)
+			goto out_err;
+	}
+
+	if (dev_type->type != -1) {
+		PRINT_INFO_PR("Virtual device handler %s for type %d "
+			"registered successfully", dev_type->name,
+			dev_type->type);
+	} else {
+		PRINT_INFO_PR("Virtual device handler \"%s\" registered "
+			"successfully", dev_type->name);
+	}
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 
 out_err:
-	PRINT_ERROR_PR("Failed to register virtual device handler %s for "
-		"type %d", dev_type->name, dev_type->type);
+	PRINT_ERROR_PR("Failed to register virtual device handler \"%s\"",
+		dev_type->name);
 	goto out;
 }
 
@@ -848,10 +856,10 @@ void scst_unregister_virtual_dev_driver(struct scst_dev_type *dev_type)
 {
 	TRACE_ENTRY();
 
-	scst_cleanup_proc_dev_handler_dir_entries(dev_type);
+	if (!dev_type->no_proc)
+		scst_cleanup_proc_dev_handler_dir_entries(dev_type);
 
-	PRINT_INFO_PR("Device handler %s for type %d unloaded",
-		   dev_type->name, dev_type->type);
+	PRINT_INFO_PR("Device handler \"%s\" unloaded", dev_type->name);
 
 	TRACE_EXIT();
 	return;
@@ -1195,13 +1203,20 @@ static int __init init_scst(void)
 	{
 		struct scsi_sense_hdr *shdr;
 		BUILD_BUG_ON((sizeof(cmd->sense_buffer) < sizeof(*shdr)) &&
-			(sizeof(cmd->sense_buffer) >= SCSI_SENSE_BUFFERSIZE));
+			(sizeof(cmd->sense_buffer) >= SCST_SENSE_BUFFERSIZE));
 	}
 #endif
 	{
 		struct scst_tgt_dev *t;
+		struct scst_cmd *c;
 		BUILD_BUG_ON(sizeof(t->curr_sn) != sizeof(t->expected_sn));
+		BUILD_BUG_ON(sizeof(c->sn) != sizeof(t->expected_sn));
 	}
+
+	BUILD_BUG_ON(SCST_DATA_UNKNOWN != DMA_BIDIRECTIONAL);
+	BUILD_BUG_ON(SCST_DATA_WRITE != DMA_TO_DEVICE);
+	BUILD_BUG_ON(SCST_DATA_READ != DMA_FROM_DEVICE);
+	BUILD_BUG_ON(SCST_DATA_NONE != DMA_NONE);
 
 	spin_lock_init(&scst_main_cmd_lists.cmd_list_lock);
 	INIT_LIST_HEAD(&scst_main_cmd_lists.active_cmd_list);
@@ -1275,7 +1290,7 @@ static int __init init_scst(void)
 
 	scst_scsi_op_list_init();
 
-	for (i = 0; i < ARRAY_SIZE(scst_tasklets); i++) {
+	for (i = 0; i < (int)ARRAY_SIZE(scst_tasklets); i++) {
 		spin_lock_init(&scst_tasklets[i].tasklet_lock);
 		INIT_LIST_HEAD(&scst_tasklets[i].tasklet_cmd_list);
 		tasklet_init(&scst_tasklets[i].tasklet, (void*)scst_cmd_tasklet,
@@ -1425,6 +1440,8 @@ EXPORT_SYMBOL(scst_set_cmd_error_status);
 EXPORT_SYMBOL(scst_set_cmd_error);
 EXPORT_SYMBOL(scst_set_resp_data_len);
 
+EXPORT_SYMBOL(scst_process_active_cmd);
+
 /*
  * Target Driver Side (i.e. HBA)
  */
@@ -1475,6 +1492,14 @@ EXPORT_SYMBOL(scst_add_thr_data);
 EXPORT_SYMBOL(scst_del_all_thr_data);
 EXPORT_SYMBOL(scst_dev_del_all_thr_data);
 EXPORT_SYMBOL(scst_find_thr_data);
+
+/* SGV pool routines */
+EXPORT_SYMBOL(sgv_pool_create);
+EXPORT_SYMBOL(sgv_pool_destroy);
+EXPORT_SYMBOL(sgv_pool_set_allocator);
+EXPORT_SYMBOL(sgv_pool_alloc);
+EXPORT_SYMBOL(sgv_pool_free);
+EXPORT_SYMBOL(sgv_get_priv);
 
 /* Generic parse() routines */
 EXPORT_SYMBOL(scst_calc_block_shift);

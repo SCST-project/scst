@@ -1,7 +1,7 @@
 /*
  *  include/scst_debug.h
  *  
- *  Copyright (C) 2004-2006 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
  *  
  *  Contains macroses for execution tracing and error reporting
@@ -100,7 +100,7 @@
 #if defined(DEBUG) || defined(TRACING)
 
 extern int debug_print_prefix(unsigned long trace_flag, const char *func, int line);
-extern void debug_print_buffer(unsigned long trace_flag, const void *data, int len);
+extern void debug_print_buffer(const void *data, int len);
 
 #define TRACE(trace, format, args...)                               \
 do {                                                                \
@@ -138,7 +138,7 @@ do {                                                                \
       __tflag = NO_FLAG;                                            \
     }                                                               \
     PRINT(NO_FLAG, "%s%s:", __tflag, message);                      \
-    debug_print_buffer(trace_flag, buff, len);                      \
+    debug_print_buffer(buff, len);  		                    \
   }                                                                 \
 } while(0)
 
@@ -152,7 +152,7 @@ do {                                                                \
       __tflag = NO_FLAG;                                            \
     }                                                               \
     PRINT(NO_FLAG, "%s%s:", __tflag, message);                      \
-    debug_print_buffer(trace_flag, buff, len);                      \
+    debug_print_buffer(buff, len);                                  \
   }                                                                 \
 } while(0)
 

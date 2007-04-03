@@ -1,7 +1,7 @@
 /*
  *  scst_disk.c
  *  
- *  Copyright (C) 2004-2006 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
  *
  *  SCSI disk (type 0) dev handler
@@ -147,7 +147,7 @@ int disk_attach(struct scst_device *dev)
 	const int buffer_size = 512;
 	uint8_t *buffer = NULL;
 	int retries;
-	unsigned char sense_buffer[SCSI_SENSE_BUFFERSIZE];
+	unsigned char sense_buffer[SCST_SENSE_BUFFERSIZE];
 	enum dma_data_direction data_dir;
 	unsigned char *sbuff;
 	struct disk_params *params;
@@ -213,7 +213,7 @@ int disk_attach(struct scst_device *dev)
 		else
 			params->block_shift = scst_calc_block_shift(sector_size);
 	} else {
-		TRACE_BUFFER("Sense set", sbuff, SCSI_SENSE_BUFFERSIZE);
+		TRACE_BUFFER("Sense set", sbuff, SCST_SENSE_BUFFERSIZE);
 		res = -ENODEV;
 		goto out_free_buf;
 	}
@@ -258,6 +258,10 @@ void disk_detach(struct scst_device *dev)
 static int disk_get_block_shift(struct scst_cmd *cmd)
 {
 	struct disk_params *params = (struct disk_params *)cmd->dev->dh_priv;
+	/* 
+	 * No need for locks here, since *_detach() can not be
+	 * called, when there are existing commands.
+	 */
 	return params->block_shift;
 }
 
@@ -275,11 +279,6 @@ static int disk_get_block_shift(struct scst_cmd *cmd)
 int disk_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
-
-	/* 
-	 * No need for locks here, since *_detach() can not be
-	 * called, when there are existing commands.
-	 */
 
 	scst_sbc_generic_parse(cmd, info_cdb, disk_get_block_shift);
 
@@ -299,6 +298,10 @@ int disk_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 static void disk_set_block_shift(struct scst_cmd *cmd, int block_shift)
 {
 	struct disk_params *params = (struct disk_params *)cmd->dev->dh_priv;
+	/* 
+	 * No need for locks here, since *_detach() can not be
+	 * called, when there are existing commands.
+	 */
 	if (block_shift != 0)
 		params->block_shift = block_shift;
 	else
@@ -323,10 +326,6 @@ int disk_done(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	/* 
-	 * No need for locks here, since *_detach() can not be
-	 * called, when there are existing commands.
-	 */
 	res = scst_block_generic_dev_done(cmd, disk_set_block_shift);
 
 	TRACE_EXIT_RES(res);
@@ -373,4 +372,7 @@ int disk_exec(struct scst_cmd *cmd)
 	return res;
 }
 
+MODULE_AUTHOR("Vladislav Bolkhovitin & Leonid Stoljar");
 MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("SCSI disk (type 0) dev handler for SCST");
+MODULE_VERSION(SCST_VERSION_STRING);

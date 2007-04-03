@@ -1,7 +1,7 @@
 /*
  *  scst_modisk.c
  *  
- *  Copyright (C) 2004-2006 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
  *
  *  SCSI MO disk (type 7) dev handler
@@ -147,7 +147,7 @@ int modisk_attach(struct scst_device *dev)
 	const int buffer_size = 512;
 	uint8_t *buffer = NULL;
 	int retries;
-	unsigned char sense_buffer[SCSI_SENSE_BUFFERSIZE];
+	unsigned char sense_buffer[SCST_SENSE_BUFFERSIZE];
 	enum dma_data_direction data_dir;
 	unsigned char *sbuff;
 	struct modisk_params *params;
@@ -226,7 +226,7 @@ int modisk_attach(struct scst_device *dev)
 		TRACE_DBG("Sector size is %i scsi_level %d(SCSI_2 %d)",
 		      sector_size, dev->scsi_dev->scsi_level, SCSI_2);
 	} else {
-		TRACE_BUFFER("Sense set", sbuff, SCSI_SENSE_BUFFERSIZE);
+		TRACE_BUFFER("Sense set", sbuff, SCST_SENSE_BUFFERSIZE);
 			     
 		if (sbuff[2] != NOT_READY)
 			res = -ENODEV;
@@ -273,6 +273,10 @@ void modisk_detach(struct scst_device *dev)
 static int modisk_get_block_shift(struct scst_cmd *cmd)
 {
 	struct modisk_params *params = (struct modisk_params *)cmd->dev->dh_priv;
+	/* 
+	 * No need for locks here, since *_detach() can not be
+	 * called, when there are existing commands.
+	 */
 	return params->block_shift;
 }
 
@@ -291,11 +295,6 @@ int modisk_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
 
-	/* 
-	 * No need for locks here, since *_detach() can not be
-	 * called, when there are existing commands.
-	 */
-
 	scst_modisk_generic_parse(cmd, info_cdb, modisk_get_block_shift);
 
 	cmd->retries = 1;
@@ -313,6 +312,10 @@ int modisk_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 static void modisk_set_block_shift(struct scst_cmd *cmd, int block_shift)
 {
 	struct modisk_params *params = (struct modisk_params *)cmd->dev->dh_priv;
+	/* 
+	 * No need for locks here, since *_detach() can not be
+	 * called, when there are existing commands.
+	 */
 	if (block_shift != 0)
 		params->block_shift = block_shift;
 	else
@@ -337,10 +340,6 @@ int modisk_done(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	/* 
-	 * No need for locks here, since *_detach() can not be
-	 * called, when there are existing commands.
-	 */
 	res = scst_block_generic_dev_done(cmd, modisk_set_block_shift);
 
 	TRACE_EXIT_RES(res);
@@ -387,4 +386,7 @@ int modisk_exec(struct scst_cmd *cmd)
 	return res;
 }
 
+MODULE_AUTHOR("Vladislav Bolkhovitin & Leonid Stoljar");
 MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("SCSI MO disk (type 7) dev handler for SCST");
+MODULE_VERSION(SCST_VERSION_STRING);

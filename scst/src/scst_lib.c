@@ -1,7 +1,7 @@
 /*
  *  scst_lib.c
  *  
- *  Copyright (C) 2004-2006 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
  *  
  *  This program is free software; you can redistribute it and/or
@@ -126,7 +126,7 @@ void scst_set_resp_data_len(struct scst_cmd *cmd, int resp_data_len)
 		l += cmd->sg[i].length;
 		if (l >= resp_data_len) {
 			int left = resp_data_len - (l - cmd->sg[i].length);
-			TRACE(TRACE_SG, "cmd %p (tag %d), "
+			TRACE(TRACE_SG|TRACE_MEMORY, "cmd %p (tag %d), "
 				"resp_data_len %d, i %d, cmd->sg[i].length %d, "
 				"left %d", cmd, cmd->tag, resp_data_len, i,
 				cmd->sg[i].length, left);
@@ -387,6 +387,7 @@ out:
 static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	struct scst_acg_dev *acg_dev)
 {
+	int ini_sg, ini_unchecked_isa_dma, ini_use_clustering;
 	struct scst_tgt_dev *tgt_dev;
 	struct scst_device *dev = acg_dev->dev;
 	int rc, i;
@@ -413,6 +414,40 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	tgt_dev->sess = sess;
 	atomic_set(&tgt_dev->cmd_count, 0);
 
+	tgt_dev->gfp_mask = __GFP_NOWARN;
+	tgt_dev->pool = &scst_sgv.norm;
+
+	if (tgt_dev->dev->scsi_dev != NULL) {
+		ini_sg = tgt_dev->dev->scsi_dev->host->sg_tablesize;
+		ini_unchecked_isa_dma = 
+			tgt_dev->dev->scsi_dev->host->unchecked_isa_dma;
+		ini_use_clustering = 
+			(tgt_dev->dev->scsi_dev->host->use_clustering == 
+				ENABLE_CLUSTERING);
+	} else {
+		ini_sg = (1 << 15) /* infinite */;
+		ini_unchecked_isa_dma = 0;
+		ini_use_clustering = 0;
+	}
+	tgt_dev->max_sg_cnt = min(ini_sg, sess->tgt->sg_tablesize);
+
+	if ((sess->tgt->tgtt->use_clustering || ini_use_clustering) && 
+	    !sess->tgt->tgtt->no_clustering) {
+		TRACE_MEM("%s", "Use clustering");
+		tgt_dev->pool = &scst_sgv.norm_clust;
+	}
+
+	if (sess->tgt->tgtt->unchecked_isa_dma || ini_unchecked_isa_dma) {
+		TRACE_MEM("%s", "Use ISA DMA memory");
+		tgt_dev->gfp_mask |= GFP_DMA;
+		tgt_dev->pool = &scst_sgv.dma;
+	} else {
+#ifdef SCST_HIGHMEM
+		gfp_mask |= __GFP_HIGHMEM;
+		tgt_dev->pool = &scst_sgv.highmem;
+#endif
+	}
+
 	tgt_dev->p_cmd_lists = &scst_main_cmd_lists;
 	
 	if (dev->scsi_dev != NULL) {
@@ -437,7 +472,7 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	tgt_dev->expected_sn = 1;
 	tgt_dev->num_free_sn_slots = ARRAY_SIZE(tgt_dev->sn_slots);
 	tgt_dev->cur_sn_slot = &tgt_dev->sn_slots[0];
-	for(i = 0; i < ARRAY_SIZE(tgt_dev->sn_slots); i++)
+	for(i = 0; i < (int)ARRAY_SIZE(tgt_dev->sn_slots); i++)
 		atomic_set(&tgt_dev->sn_slots[i], 0);
 
 	if (dev->handler->parse_atomic && 
@@ -908,8 +943,8 @@ struct scst_cmd *scst_complete_request_sense(struct scst_cmd *cmd)
 		TRACE_BUFF_FLAG(TRACE_SCSI, "REQUEST SENSE returned", 
 			buf, len);
 		memcpy(orig_cmd->sense_buffer, buf,
-			(sizeof(orig_cmd->sense_buffer) > len) ?
-				len : sizeof(orig_cmd->sense_buffer));
+			((int)sizeof(orig_cmd->sense_buffer) > len) ?
+				len : (int)sizeof(orig_cmd->sense_buffer));
 	} else {
 		PRINT_ERROR_PR("%s", "Unable to get the sense via "
 			"REQUEST SENSE, returning HARDWARE ERROR");
@@ -992,13 +1027,16 @@ static void scst_send_release(struct scst_tgt_dev *tgt_dev)
 {
 	struct scsi_device *scsi_dev;
 	unsigned char cdb[6];
-	unsigned char sense[SCSI_SENSE_BUFFERSIZE];
+	unsigned char *sense;
 	int rc;
 
 	TRACE_ENTRY();
 	
 	if (tgt_dev->dev->scsi_dev == NULL)
 		goto out;
+
+	/* We can't afford missing RELEASE due to memory shortage */
+	sense = kzalloc(SCST_SENSE_BUFFERSIZE, GFP_KERNEL|__GFP_NOFAIL);
 
 	scsi_dev = tgt_dev->dev->scsi_dev;
 
@@ -1010,12 +1048,14 @@ static void scst_send_release(struct scst_tgt_dev *tgt_dev)
 	TRACE(TRACE_DEBUG | TRACE_SCSI, "%s", "Sending RELEASE req to SCSI "
 		"mid-level");
 	rc = scsi_execute(scsi_dev, cdb, SCST_DATA_NONE, NULL, 0,
-			sense, SCST_DEFAULT_TIMEOUT,
-			3, GFP_KERNEL);
+			sense, SCST_DEFAULT_TIMEOUT, 3, GFP_KERNEL);
 	if (rc) {
 		PRINT_INFO_PR("scsi_execute() failed: %d", rc);
-		goto out;
+		goto out_free;
 	}
+
+out_free:
+	kfree(sense);
 
 out:
 	TRACE_EXIT();
@@ -1220,6 +1260,8 @@ void scst_free_cmd(struct scst_cmd *cmd)
 	if (unlikely(cmd->mgmt_cmnd))
 		scst_complete_cmd_mgmt(cmd, cmd->mgmt_cmnd);
 
+	scst_check_restore_sg_buff(cmd);
+
 	if (unlikely(cmd->internal)) {
 		if (cmd->bufflen > 0)
 			scst_release_space(cmd);
@@ -1250,7 +1292,7 @@ void scst_free_cmd(struct scst_cmd *cmd)
 #ifdef EXTRACHECKS
 		if (unlikely(!cmd->sent_to_midlev)) {
 			PRINT_ERROR_PR("Finishing not executed cmd %p (opcode "
-			     "%d, target %s, lun %Ld, sn %d, expected_sn %d)",
+			     "%d, target %s, lun %Ld, sn %ld, expected_sn %ld)",
 			     cmd, cmd->cdb[0], cmd->tgtt->name, (uint64_t)cmd->lun,
 			     cmd->sn, cmd->tgt_dev->expected_sn);
 			scst_unblock_deferred(cmd->tgt_dev, cmd);
@@ -1258,7 +1300,7 @@ void scst_free_cmd(struct scst_cmd *cmd)
 #endif
 
 		if (unlikely(cmd->out_of_sn)) {
-			TRACE_SN("Out of SN cmd %p (tag %d, sn %d), "
+			TRACE_SN("Out of SN cmd %p (tag %d, sn %ld), "
 				"destroy=%d", cmd, cmd->tag, cmd->sn, destroy);
 			destroy = test_and_set_bit(SCST_CMD_CAN_BE_DESTROYED,
 					&cmd->cmd_flags);
@@ -1421,97 +1463,36 @@ void scst_release_request(struct scst_cmd *cmd)
 
 int scst_alloc_space(struct scst_cmd *cmd)
 {
-	int tgt_sg = cmd->tgt->sg_tablesize;
-	int ini_sg;
 	int gfp_mask;
 	int res = -ENOMEM;
-	int ini_unchecked_isa_dma, ini_use_clustering;
-	int use_clustering = 0;
-	struct sgv_pool *pool;
 	int atomic = scst_cmd_atomic(cmd);
+	int flags;
+	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
 
 	TRACE_ENTRY();
 
-	if (cmd->data_buf_alloced) {
-		TRACE_MEM("%s", "data_buf_alloced set, returning");
-		sBUG_ON(cmd->sg == NULL);
-		res = 0;
-		goto out;
-	}
+	gfp_mask = tgt_dev->gfp_mask | (atomic ? GFP_ATOMIC : GFP_KERNEL);
 
-	gfp_mask = __GFP_NOWARN;
-	gfp_mask |= (atomic ? GFP_ATOMIC : GFP_KERNEL);
-	pool = &scst_sgv.norm;
-
-	if (cmd->dev->scsi_dev != NULL) {
-		ini_sg = cmd->dev->scsi_dev->host->sg_tablesize;
-		ini_unchecked_isa_dma = 
-			cmd->dev->scsi_dev->host->unchecked_isa_dma;
-		ini_use_clustering = 
-			(cmd->dev->scsi_dev->host->use_clustering == 
-				ENABLE_CLUSTERING);
-	}
-	else {
-		ini_sg = (1 << 15) /* infinite */;
-		ini_unchecked_isa_dma = 0;
-		ini_use_clustering = 0;
-	}
-
-	if ((cmd->tgtt->use_clustering || ini_use_clustering) && 
-	    !cmd->tgtt->no_clustering)
-	{
-		TRACE_MEM("%s", "Use clustering");
-		pool = &scst_sgv.norm_clust;
-		use_clustering = 1;
-	}
-
-	if (cmd->tgtt->unchecked_isa_dma || ini_unchecked_isa_dma) {
-		TRACE_MEM("%s", "Use ISA DMA memory");
-		gfp_mask |= GFP_DMA;
-		pool = &scst_sgv.dma;
-	} else {
-#ifdef SCST_HIGHMEM
-		gfp_mask |= __GFP_HIGHMEM;
-		pool = &scst_sgv.highmem;
-#endif
-	}
-
-	if (cmd->no_sgv) {
-		if (atomic)
-			goto out;
-		cmd->sg = scst_alloc(cmd->bufflen, gfp_mask, use_clustering,	
-			&cmd->sg_cnt);
-	} else {
-		cmd->sg = sgv_pool_alloc(pool, cmd->bufflen, gfp_mask, atomic,
-				&cmd->sg_cnt, &cmd->sgv);
-	}
+	flags = atomic ? SCST_POOL_NO_ALLOC_ON_CACHE_MISS : 0;
+	if (cmd->no_sgv)
+		flags |= SCST_POOL_ALLOC_NO_CACHED;
+	cmd->sg = sgv_pool_alloc(tgt_dev->pool, cmd->bufflen, gfp_mask, flags,
+			&cmd->sg_cnt, &cmd->sgv, NULL);
 	if (cmd->sg == NULL)
 		goto out;
 
-	if (unlikely(cmd->sg_cnt > ini_sg)) {
+	if (unlikely(cmd->sg_cnt > tgt_dev->max_sg_cnt)) {
 		static int ll;
 		if (ll < 10) {
 			PRINT_INFO("Unable to complete command due to "
-				"underlying device SG IO count limitation "
-				"(requested %d, available %d)", cmd->sg_cnt,
-				ini_sg);
+				"SG IO count limitation (requested %d, "
+				"available %d, tgt lim %d)", cmd->sg_cnt,
+				tgt_dev->max_sg_cnt, cmd->tgt->sg_tablesize);
 			ll++;
 		}
 		goto out_sg_free;
 	}
 
-	if (unlikely(cmd->sg_cnt > tgt_sg)) {
-		static int ll;
-		if (ll < 10) {
-			PRINT_INFO("Unable to complete command due to "
-				"target device %s SG IO count limitation "
-				"(requested %d, available %d)", cmd->tgtt->name,
-				cmd->sg_cnt, tgt_sg);
-			ll++;
-		}
-		goto out_sg_free;
-	}
-	
 	res = 0;
 
 out:
@@ -1519,10 +1500,7 @@ out:
 	return res;
 
 out_sg_free:
-	if (cmd->no_sgv)
-		scst_free(cmd->sg, cmd->sg_cnt);
-	else
-		sgv_pool_free(cmd->sgv);
+	sgv_pool_free(cmd->sgv);
 	cmd->sgv = NULL;
 	cmd->sg = NULL;
 	cmd->sg_cnt = 0;
@@ -1533,16 +1511,15 @@ void scst_release_space(struct scst_cmd *cmd)
 {
 	TRACE_ENTRY();
 
+	if (cmd->sgv == NULL)
+		goto out;
+
 	if (cmd->data_buf_alloced) {
 		TRACE_MEM("%s", "data_buf_alloced set, returning");
 		goto out;
 	}
 
-	if (cmd->sgv) {
-		scst_check_restore_sg_buff(cmd);
-		sgv_pool_free(cmd->sgv);
-	} else if (cmd->sg)
-		scst_free(cmd->sg, cmd->sg_cnt);
+	sgv_pool_free(cmd->sgv);
 
 	cmd->sgv = NULL;
 	cmd->sg_cnt = 0;
@@ -1565,7 +1542,7 @@ int __scst_get_buf(struct scst_cmd *cmd, uint8_t **buf)
 	
 	*buf = NULL;
 	
-	if (i >= cmd->sg_cnt)
+	if ((i >= cmd->sg_cnt) || unlikely(sg == NULL))
 		goto out;
 #ifdef SCST_HIGHMEM
 	/* 
@@ -1712,6 +1689,8 @@ int scst_get_cdb_info(const uint8_t *cdb_p, int dev_type,
 		TRACE(TRACE_SCSI, "Unknown opcode 0x%x for type %d", op,
 		      dev_type);
 		res = -1;
+		memset(info_p, 0, sizeof(*info_p));
+		info_p->flags = SCST_INFO_INVALID;
 		goto out;
 	}
 
@@ -1833,11 +1812,12 @@ out_err:
 int scst_calc_block_shift(int sector_size)
 {
 	int block_shift = 0;
-	int t = sector_size;
+	int t;
 
 	if (sector_size == 0)
 		sector_size = 512;
 
+	t = sector_size;
 	while(1) {
 		if ((t & 1) != 0)
 			break;
@@ -2104,19 +2084,22 @@ static int scst_null_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 }
 
 int scst_changer_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb, int nothing)
+	struct scst_info_cdb *info_cdb,
+	int (*nothing)(struct scst_cmd *cmd))
 {
 	return scst_null_parse(cmd, info_cdb);
 }
 
 int scst_processor_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb, int nothing)
+	struct scst_info_cdb *info_cdb,
+	int (*nothing)(struct scst_cmd *cmd))
 {
 	return scst_null_parse(cmd, info_cdb);
 }
 
 int scst_raid_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb, int nothing)
+	struct scst_info_cdb *info_cdb,
+	int (*nothing)(struct scst_cmd *cmd))
 {
 	return scst_null_parse(cmd, info_cdb);
 }
@@ -2129,9 +2112,6 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 	int res = SCST_CMD_STATE_DEFAULT;
 
 	TRACE_ENTRY();
-
-	if (unlikely(cmd->sg == NULL))
-		goto out;
 
 	/*
 	 * SCST sets good defaults for cmd->tgt_resp_flags and cmd->resp_data_len
@@ -2149,9 +2129,8 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 
 			buffer_size = scst_get_buf_first(cmd, &buffer);
 			if (unlikely(buffer_size <= 0)) {
-				PRINT_ERROR_PR("%s: Unable to get the buffer",
-					__FUNCTION__);
-				scst_set_busy(cmd);
+				PRINT_ERROR_PR("%s: Unable to get the buffer "
+					"(%d)",	__FUNCTION__, buffer_size);
 				goto out;
 			}
 
@@ -2191,9 +2170,6 @@ int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 
 	TRACE_ENTRY();
 
-	if (unlikely(cmd->sg == NULL))
-		goto out;
-
 	/*
 	 * SCST sets good defaults for cmd->tgt_resp_flags and cmd->resp_data_len
 	 * based on cmd->status and cmd->data_direction, therefore change
@@ -2205,9 +2181,8 @@ int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 	case MODE_SELECT:
 		buffer_size = scst_get_buf_first(cmd, &buffer);
 		if (unlikely(buffer_size <= 0)) {
-			PRINT_ERROR_PR("%s: Unable to get the buffer",
-				__FUNCTION__);
-			scst_set_busy(cmd);
+			PRINT_ERROR_PR("%s: Unable to get the buffer (%d)",
+				__FUNCTION__, buffer_size);
 			goto out;
 		}
 		break;
@@ -2395,7 +2370,7 @@ void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
 	}
 	memset(UA_entry, 0, sizeof(*UA_entry));
 
-	if (sense_len > sizeof(UA_entry->UA_sense_buffer))
+	if (sense_len > (int)sizeof(UA_entry->UA_sense_buffer))
 		sense_len = sizeof(UA_entry->UA_sense_buffer);
 	memcpy(UA_entry->UA_sense_buffer, sense, sense_len);
 	set_bit(SCST_TGT_DEV_UA_PENDING, &tgt_dev->tgt_dev_flags);
@@ -2531,7 +2506,7 @@ int scst_check_hq_cmd(struct scst_cmd *cmd)
 struct scst_cmd *__scst_check_deferred_commands(struct scst_tgt_dev *tgt_dev)
 {
 	struct scst_cmd *res = NULL, *cmd, *t;
-	int expected_sn = tgt_dev->expected_sn;
+	typeof(tgt_dev->expected_sn) expected_sn = tgt_dev->expected_sn;
 
 	spin_lock_irq(&tgt_dev->sn_lock);
 
@@ -2565,7 +2540,7 @@ restart:
 	list_for_each_entry_safe(cmd, t, &tgt_dev->deferred_cmd_list,
 				sn_cmd_list_entry) {
 		if (cmd->sn == expected_sn) {
-			TRACE_SN("Deferred command %p (sn %d) found",
+			TRACE_SN("Deferred command %p (sn %ld) found",
 				cmd, cmd->sn);
 			tgt_dev->def_cmd_count--;
 			list_del(&cmd->sn_cmd_list_entry);
@@ -2594,12 +2569,13 @@ restart:
 			 * !! sn_slot and sn_cmd_list_entry, could be	!!
 			 * !! already destroyed				!!
 			 */
-			TRACE_SN("cmd %p (tag %d) with skipped sn %d found",
+			TRACE_SN("cmd %p (tag %d) with skipped sn %ld found",
 				cmd, cmd->tag, cmd->sn);
 			tgt_dev->def_cmd_count--;
 			list_del(&cmd->sn_cmd_list_entry);
 			spin_unlock_irq(&tgt_dev->sn_lock);
-			EXTRACHECKS_BUG_ON(cmd->head_of_queue);
+			EXTRACHECKS_BUG_ON(cmd->queue_type ==
+				SCST_CMD_QUEUE_HEAD_OF_QUEUE);
 			if (test_and_set_bit(SCST_CMD_CAN_BE_DESTROYED, 
 					&cmd->cmd_flags)) {
 				scst_destroy_put_cmd(cmd);
@@ -2691,6 +2667,8 @@ int scst_inc_on_dev_cmd(struct scst_cmd *cmd)
 	int res = 0;
 	struct scst_device *dev = cmd->dev;
 
+	TRACE_ENTRY();
+
 	sBUG_ON(cmd->blocking);
 
 	atomic_inc(&dev->on_dev_count);
@@ -2707,7 +2685,7 @@ int scst_inc_on_dev_cmd(struct scst_cmd *cmd)
 			      &dev->blocked_cmd_list);
 		res = 1;
 	} else {
-		__scst_block_dev(cmd->dev);
+		__scst_block_dev(dev);
 		cmd->blocking = 1;
 	}
 	spin_unlock_bh(&dev->dev_lock);
@@ -2735,17 +2713,19 @@ repeat:
 		}
 		spin_unlock_bh(&dev->dev_lock);
 	}
-	if (unlikely(cmd->dev->dev_serialized)) {
+	if (unlikely(dev->dev_serialized)) {
 		spin_lock_bh(&dev->dev_lock);
 		barrier(); /* to reread block_count */
-		if (cmd->dev->block_count == 0) {
+		if (dev->block_count == 0) {
 			TRACE_MGMT_DBG("cmd %p (tag %d), blocking further "
 				"cmds due to serializing (dev %p)", cmd,
 				cmd->tag, dev);
-			__scst_block_dev(cmd->dev);
+			__scst_block_dev(dev);
 			cmd->blocking = 1;
 		} else {
 			spin_unlock_bh(&dev->dev_lock);
+			TRACE_MGMT_DBG("Somebody blocked the device, "
+				"repeating (count %d)", dev->block_count);
 			goto repeat;
 		}
 		spin_unlock_bh(&dev->dev_lock);
@@ -2753,6 +2733,7 @@ repeat:
 #endif
 
 out:
+	TRACE_EXIT_RES(res);
 	return res;
 
 out_unlock:
@@ -2780,7 +2761,7 @@ void scst_unblock_cmds(struct scst_device *dev)
 		 * scst_inc_expected_sn().
 		 */
 		if (likely(!cmd->internal) && likely(!cmd->retry)) {
-			int expected_sn;
+			typeof(cmd->tgt_dev->expected_sn) expected_sn;
 			if (cmd->tgt_dev == NULL)
 				sBUG();
 			expected_sn = cmd->tgt_dev->expected_sn;
@@ -2812,7 +2793,7 @@ void scst_unblock_cmds(struct scst_device *dev)
 		list_del(&cmd->blocked_cmd_list_entry);
 		TRACE_MGMT_DBG("Adding blocked cmd %p to active cmd list", cmd);
 		spin_lock(&cmd->cmd_lists->cmd_list_lock);
-		if (unlikely(cmd->head_of_queue))
+		if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))
 			list_add(&cmd->cmd_list_entry,
 				&cmd->cmd_lists->active_cmd_list);
 		else
@@ -2833,7 +2814,7 @@ static struct scst_cmd *__scst_unblock_deferred(
 {
 	struct scst_cmd *res = NULL;
 
-	if (out_of_sn_cmd->head_of_queue) {
+	if (out_of_sn_cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE) {
 		TRACE_SN("HQ out_of_sn_cmd %p", out_of_sn_cmd);
 		spin_lock_irq(&out_of_sn_cmd->tgt_dev->sn_lock);
 		list_del(&out_of_sn_cmd->sn_cmd_list_entry);
@@ -2848,8 +2829,8 @@ static struct scst_cmd *__scst_unblock_deferred(
 		tgt_dev->def_cmd_count++;
 		list_add_tail(&out_of_sn_cmd->sn_cmd_list_entry,
 			      &tgt_dev->skipped_sn_list);
-		TRACE_SN("out_of_sn_cmd %p with sn %d added to skipped_sn_list "
-			"(expected_sn %d)", out_of_sn_cmd, out_of_sn_cmd->sn,
+		TRACE_SN("out_of_sn_cmd %p with sn %ld added to skipped_sn_list "
+			"(expected_sn %ld)", out_of_sn_cmd, out_of_sn_cmd->sn,
 			tgt_dev->expected_sn);
 		spin_unlock_irq(&tgt_dev->sn_lock);
 	}
@@ -2873,7 +2854,7 @@ void scst_unblock_deferred(struct scst_tgt_dev *tgt_dev,
 	if (cmd != NULL) {
 		unsigned long flags;
 		spin_lock_irqsave(&cmd->cmd_lists->cmd_list_lock, flags);
-		TRACE_SN("cmd %p with sn %d added to the head of active cmd "
+		TRACE_SN("cmd %p with sn %ld added to the head of active cmd "
 			"list", cmd, cmd->sn);
 		list_add(&cmd->cmd_list_entry, &cmd->cmd_lists->active_cmd_list);
 		wake_up(&cmd->cmd_lists->cmd_list_waitQ);

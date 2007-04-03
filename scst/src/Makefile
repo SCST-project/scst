@@ -70,6 +70,7 @@ install: all
 	install -d $(INSTALL_DIR_H)
 	install -m 644 ../include/scsi_tgt.h $(INSTALL_DIR_H)
 	install -m 644 ../include/scst_debug.h $(INSTALL_DIR_H)
+	install -m 644 ../include/scst_const.h $(INSTALL_DIR_H)
 ifneq ($(MODS_VERS),)
 	rm -f $(INSTALL_DIR_H)/Module.symvers
 	install -m 644 Modules.symvers $(INSTALL_DIR_H)
@@ -91,7 +92,7 @@ endif
 INSTALL_DIR := /lib/modules/$(shell uname -r)/extra
 INSTALL_DIR_H := /usr/local/include/scst
 
-EXTRA_CFLAGS += -I$(SCST_INC_DIR)
+EXTRA_CFLAGS += -I$(SCST_INC_DIR) -Wextra -Wno-unused-parameter
 
 #EXTRA_CFLAGS += -DSTRICT_SERIALIZING
 
@@ -102,7 +103,7 @@ EXTRA_CFLAGS += -DEXTRACHECKS
 
 #EXTRA_CFLAGS += -DTRACING
 
-EXTRA_CFLAGS += -DDEBUG
+EXTRA_CFLAGS += -DDEBUG -g
 #EXTRA_CFLAGS += -DDEBUG_TM -DTM_DBG_GO_OFFLINE=0
 #EXTRA_CFLAGS += -DDEBUG_RETRY
 #EXTRA_CFLAGS += -DDEBUG_OOM

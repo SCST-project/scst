@@ -1,7 +1,7 @@
 /*
  *  scst_module.c
  *  
- *  Copyright (C) 2004-2006 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
  *
  *  Support for loading target modules. The usage is similar to scsi_module.c

@@ -1,7 +1,7 @@
 /*
  *  scst_changer.c
  *  
- *  Copyright (C) 2004-2006 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
  *
  *  SCSI medium changer (type 8) dev handler
@@ -158,9 +158,6 @@ int changer_done(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	if (unlikely(cmd->sg == NULL))
-		goto out;
-
 	/*
 	 * SCST sets good defaults for cmd->tgt_resp_flags and cmd->resp_data_len
 	 * based on cmd->status and cmd->data_direction, therefore change
@@ -175,7 +172,6 @@ int changer_done(struct scst_cmd *cmd)
 	}
 #endif
 
-out:
 	TRACE_EXIT();
 	return res;
 }
@@ -217,4 +213,7 @@ static void __exit changer_exit(void)
 module_init(changer_init);
 module_exit(changer_exit);
 
+MODULE_AUTHOR("Vladislav Bolkhovitin & Leonid Stoljar");
 MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("SCSI medium changer (type 8) dev handler for SCST");
+MODULE_VERSION(SCST_VERSION_STRING);

@@ -1,7 +1,7 @@
 /*
  *  scst_cdbprobe.h
  *  
- *  Copyright (C) 2004-2006 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
  *  
  *  This program is free software; you can redistribute it and/or
@@ -509,6 +509,6 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	#define WRITE_LONG_2			0xea
 */
 
-#define SCST_CDB_TBL_SIZE ((sizeof(scst_scsi_op_table)/sizeof(struct scst_sdbops)))
+#define SCST_CDB_TBL_SIZE ((int)(sizeof(scst_scsi_op_table)/sizeof(struct scst_sdbops)))
 
 #endif /* __SCST_CDBPROBE_H */

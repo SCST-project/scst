@@ -1,7 +1,7 @@
 /*
  *  scst_proc.c
  *  
- *  Copyright (C) 2004-2006 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
  *  
  *  This program is free software; you can redistribute it and/or
@@ -948,9 +948,8 @@ int scst_build_proc_dev_handler_dir_entries(struct scst_dev_type *dev_type)
 
 	TRACE_ENTRY();
 
-	if (dev_type->proc_dev_type_root) {
-		goto out;
-	}
+	sBUG_ON(dev_type->proc_dev_type_root);
+
 	/* create the proc directory entry for the dev type handler */
 	dev_type->proc_dev_type_root = proc_mkdir(dev_type->name,
 						  scst_proc_scsi_tgt);
@@ -961,15 +960,17 @@ int scst_build_proc_dev_handler_dir_entries(struct scst_dev_type *dev_type)
 	}
 
 	scst_dev_handler_type_proc_data.data = dev_type;
-	p = scst_create_proc_entry(dev_type->proc_dev_type_root,
+	if (dev_type->type >= 0) {
+		p = scst_create_proc_entry(dev_type->proc_dev_type_root,
 				   SCST_PROC_DEV_HANDLER_TYPE_ENTRY_NAME,
 				   &scst_dev_handler_type_proc_data);
-	if (p == NULL) {
-		PRINT_ERROR_PR("Not enough memory to register dev "
-		     "handler entry %s in /proc/%s/%s",
-		     SCST_PROC_DEV_HANDLER_TYPE_ENTRY_NAME,
-		     SCST_PROC_ENTRY_NAME, dev_type->name);
-		goto out_remove;
+		if (p == NULL) {
+			PRINT_ERROR_PR("Not enough memory to register dev "
+			     "handler entry %s in /proc/%s/%s",
+			     SCST_PROC_DEV_HANDLER_TYPE_ENTRY_NAME,
+			     SCST_PROC_ENTRY_NAME, dev_type->name);
+			goto out_remove;
+		}
 	}
 
 	if (dev_type->read_proc || dev_type->write_proc) {
@@ -991,8 +992,9 @@ out:
 	return res;
 
 out_remove1:
-	remove_proc_entry(SCST_PROC_DEV_HANDLER_TYPE_ENTRY_NAME,
-			  dev_type->proc_dev_type_root);
+	if (dev_type->type >= 0)
+		remove_proc_entry(SCST_PROC_DEV_HANDLER_TYPE_ENTRY_NAME,
+				  dev_type->proc_dev_type_root);
 
 out_remove:
 	remove_proc_entry(dev_type->name, scst_proc_scsi_tgt);
@@ -1006,16 +1008,16 @@ void scst_cleanup_proc_dev_handler_dir_entries(struct scst_dev_type *dev_type)
 {
 	TRACE_ENTRY();
 
-	if (dev_type->proc_dev_type_root) {
+	sBUG_ON(dev_type->proc_dev_type_root == NULL);
+
+	if (dev_type->type >= 0) {
 		remove_proc_entry(SCST_PROC_DEV_HANDLER_TYPE_ENTRY_NAME,
 				  dev_type->proc_dev_type_root);
-		if (dev_type->read_proc || dev_type->write_proc) {
-			remove_proc_entry(dev_type->name,
-					  dev_type->proc_dev_type_root);
-		}
-		remove_proc_entry(dev_type->name, scst_proc_scsi_tgt);
-		dev_type->proc_dev_type_root = NULL;
 	}
+	if (dev_type->read_proc || dev_type->write_proc)
+		remove_proc_entry(dev_type->name, dev_type->proc_dev_type_root);
+	remove_proc_entry(dev_type->name, scst_proc_scsi_tgt);
+	dev_type->proc_dev_type_root = NULL;
 
 	TRACE_EXIT();
 	return;
@@ -1208,7 +1210,7 @@ static int scst_proc_assign_handler(char *buf)
 {
 	int res = 0;
 	char *p = buf, *e, *ee;
-	int host, channel = 0, id = 0, lun = 0;
+	unsigned int host, channel = 0, id = 0, lun = 0;
 	struct scst_device *d, *dev = NULL;
 	struct scst_dev_type *dt, *handler = NULL;
 
@@ -1308,7 +1310,7 @@ static int scst_proc_groups_devices_write(struct file *file, const char __user *
 {
 	int res = length, action, virt = 0, rc, read_only = 0;
 	char *buffer, *p, *e = NULL;
-	int host, channel = 0, id = 0, lun = 0, virt_lun;
+	unsigned int host, channel = 0, id = 0, lun = 0, virt_lun;
 	struct scst_acg *acg = (struct scst_acg *)PDE(file->f_dentry->d_inode)->data;
 	struct scst_acg_dev *acg_dev = NULL, *acg_dev_tmp;
 	struct scst_device *d, *dev = NULL;
@@ -1671,7 +1673,7 @@ static int scst_dev_handler_type_info_show(struct seq_file *seq, void *v)
 	TRACE_ENTRY();
 
 	seq_printf(seq, "%d - %s\n", dev_type->type,
-		    dev_type->type > ARRAY_SIZE(scst_proc_dev_handler_type) ?
+		    dev_type->type > (int)ARRAY_SIZE(scst_proc_dev_handler_type) ?
 		    "unknown" : scst_proc_dev_handler_type[dev_type->type]);
 
 	TRACE_EXIT();
@@ -1721,37 +1723,41 @@ static struct scst_proc_data scst_sessions_proc_data = {
 	.show = scst_sessions_info_show,
 };
 
-static int scst_do_sgv_read(struct seq_file *seq, const struct sgv_pool *pool, const char *name)
+static void scst_do_sgv_read(struct seq_file *seq, const struct sgv_pool *pool)
 {
 	int i;
 
-	seq_printf(seq, "\n%-20s %-11d %-11d\n", name, atomic_read(&pool->acc.hit_alloc),
+	seq_printf(seq, "\n%-30s %-11d %-11d\n", pool->name,
+		atomic_read(&pool->acc.hit_alloc),
 		atomic_read(&pool->acc.total_alloc));
 
 	for (i = 0; i < SGV_POOL_ELEMENTS; i++) {
-		seq_printf(seq, "  %-18s %-11d %-11d\n", pool->cache_names[i], 
+		seq_printf(seq, "  %-28s %-11d %-11d\n", pool->cache_names[i], 
 			atomic_read(&pool->cache_acc[i].hit_alloc),
 			atomic_read(&pool->cache_acc[i].total_alloc));
 	}
-	return 0;
+
+	seq_printf(seq, "  %-28s %-11d %-11d\n", "big/other", atomic_read(&pool->big_alloc),
+		atomic_read(&pool->other_alloc));
+
+	return;
 }
 
 static int scst_sgv_info_show(struct seq_file *seq, void *v)
 {
+	struct sgv_pool *pool;
+
 	TRACE_ENTRY();
 
-	seq_printf(seq, "%-20s %-11s %-11s", "Name", "Hit", "Total");
+	seq_printf(seq, "%-30s %-11s %-11s", "Name", "Hit", "Total");
 
-	scst_do_sgv_read(seq, &scst_sgv.norm, "sgv");
-	scst_do_sgv_read(seq, &scst_sgv.norm_clust, "sgv-clust");
-	scst_do_sgv_read(seq, &scst_sgv.dma, "sgv-dma");
+	down(&scst_sgv_pool_mutex);
+	list_for_each_entry(pool, &scst_sgv_pool_list, sgv_pool_list_entry) {
+		scst_do_sgv_read(seq, pool);
+	}
+	up(&scst_sgv_pool_mutex);
 
-#ifdef SCST_HIGHMEM
-	scst_do_sgv_read(seq, &scst_sgv.highmem, "sgv-highmem");
-#endif
-
-	seq_printf(seq, "\n%-32s %-11d\n", "big", atomic_read(&sgv_big_total_alloc));
-	seq_printf(seq, "%-32s %-11d\n", "other", atomic_read(&sgv_other_total_alloc));
+	seq_printf(seq, "\n%-42s %-11d\n", "other", atomic_read(&sgv_other_total_alloc));
 
 	TRACE_EXIT();
 	return 0;

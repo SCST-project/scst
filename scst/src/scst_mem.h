@@ -1,7 +1,7 @@
 /*
  *  scst_sgv_pool.h
  *  
- *  Copyright (C) 2006 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2006-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *  
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -27,7 +27,7 @@
 /* 
  * sg_num is indexed by the page number, pg_count is indexed by the sg number.
  * Made in one entry to simplify the code (eg all sizeof(*) parts) and save
- * the CPU cache for non-clustered case.
+ * some CPU cache for non-clustered case.
  */
 struct trans_tbl_ent {
 	unsigned short sg_num;
@@ -37,11 +37,12 @@ struct trans_tbl_ent {
 struct sgv_pool_obj
 {
 	struct kmem_cache *owner_cache;
-	int eorder;
+	struct sgv_pool *owner_pool;
 	int orig_sg;
 	int orig_length;
 	int sg_count;
-	struct scatterlist *entries;
+	struct scatterlist *sg_entries;
+	void *allocator_priv;
 	struct trans_tbl_ent trans_tbl[0];
 };
 
@@ -50,14 +51,28 @@ struct sgv_pool_acc
 	atomic_t total_alloc, hit_alloc;
 };
 
+struct sgv_pool_alloc_fns
+{
+	struct page *(*alloc_pages_fn)(struct scatterlist *sg, gfp_t gfp_mask,
+		void *priv);
+	void (*free_pages_fn)(struct scatterlist *sg, int sg_count,
+		void *priv);
+};
+
 struct sgv_pool
 {
-	struct sgv_pool_acc acc;
-	struct sgv_pool_acc cache_acc[SGV_POOL_ELEMENTS];
-	unsigned int clustered:1;
+	unsigned int clustered;
+	struct sgv_pool_alloc_fns alloc_fns;
 	/* 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048 */
 	struct kmem_cache *caches[SGV_POOL_ELEMENTS];
+
+	atomic_t big_alloc, other_alloc;
+	struct sgv_pool_acc acc;
+	struct sgv_pool_acc cache_acc[SGV_POOL_ELEMENTS];
+
 	char cache_names[SGV_POOL_ELEMENTS][25];
+	char name[25];
+	struct list_head sgv_pool_list_entry;
 };
 
 struct scst_sgv_pools
@@ -69,29 +84,17 @@ struct scst_sgv_pools
 #endif
 };
 
-extern atomic_t sgv_big_total_alloc;
 extern atomic_t sgv_other_total_alloc;
+extern struct semaphore scst_sgv_pool_mutex;
+extern struct list_head scst_sgv_pool_list; 
 
-extern struct sgv_pool *sgv_pool_create(const char *name, int clustered);
-extern void sgv_pool_destroy(struct sgv_pool *pool);
-
-extern int sgv_pool_init(struct sgv_pool *pool, const char *name, 
+int sgv_pool_init(struct sgv_pool *pool, const char *name, 
 	int clustered);
-extern void sgv_pool_deinit(struct sgv_pool *pool);
-
-extern struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, int size,
-	unsigned long gfp_mask, int atomic, int *count,
-	struct sgv_pool_obj **sgv);
-static inline void sgv_pool_free(struct sgv_pool_obj *sgv)
-{
-	TRACE_MEM("Freeing sgv_obj %p", sgv);
-	sgv->entries[sgv->orig_sg].length = sgv->orig_length;
-	kmem_cache_free(sgv->owner_cache, sgv);
-}
+void sgv_pool_deinit(struct sgv_pool *pool);
 
 static inline struct scatterlist *sgv_pool_sg(struct sgv_pool_obj *obj)
 {
-	return obj->entries;
+	return obj->sg_entries;
 }
 
 extern int scst_sgv_pools_init(struct scst_sgv_pools *pools);

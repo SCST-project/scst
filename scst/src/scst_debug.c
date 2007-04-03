@@ -1,7 +1,7 @@
 /*
- *  include/scst_debug.c
+ *  scst_debug.c
  *  
- *  Copyright (C) 2004-2006 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
  *  
  *  Contains helper functions for execution tracing and error reporting. 
@@ -52,8 +52,7 @@ int debug_print_prefix(unsigned long trace_flag, const char *func,
 	return i;
 }
 
-void debug_print_buffer(unsigned long trace_flag, const void *data, 
-			int len)
+void debug_print_buffer(const void *data, int len)
 {
 	int z, z1, i;
 	const unsigned char *buf = (const unsigned char *) data;

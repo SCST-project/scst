@@ -1,7 +1,7 @@
 /*
  *  scst_cdrom.c
  *  
- *  Copyright (C) 2004-2006 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
  *
  *  SCSI CDROM (type 5) dev handler
@@ -71,7 +71,7 @@ int cdrom_attach(struct scst_device *dev)
 	const int buffer_size = 512;
 	uint8_t *buffer = NULL;
 	int retries;
-	unsigned char sense_buffer[SCSI_SENSE_BUFFERSIZE];
+	unsigned char sense_buffer[SCST_SENSE_BUFFERSIZE];
 	enum dma_data_direction data_dir;
 	unsigned char *sbuff;
 	struct cdrom_params *params;
@@ -140,7 +140,7 @@ int cdrom_attach(struct scst_device *dev)
 		TRACE_DBG("Sector size is %i scsi_level %d(SCSI_2 %d)",
 			sector_size, dev->scsi_dev->scsi_level, SCSI_2);
 	} else {
-		TRACE_BUFFER("Sense set", sbuff, SCSI_SENSE_BUFFERSIZE);
+		TRACE_BUFFER("Sense set", sbuff, SCST_SENSE_BUFFERSIZE);
 		params->block_shift = CDROM_DEF_BLOCK_SHIFT;
 //		res = -ENODEV;
 		goto out_free_buf;
@@ -186,6 +186,10 @@ void cdrom_detach(struct scst_device *dev)
 static int cdrom_get_block_shift(struct scst_cmd *cmd)
 {
 	struct cdrom_params *params = (struct cdrom_params *)cmd->dev->dh_priv;
+	/* 
+	 * No need for locks here, since *_detach() can not be
+	 * called, when there are existing commands.
+	 */
 	return params->block_shift;
 }
 
@@ -203,12 +207,6 @@ static int cdrom_get_block_shift(struct scst_cmd *cmd)
 int cdrom_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
-	
-
-	/* 
-	 * No need for locks here, since *_detach() can not be
-	 * called, when there are existing commands.
-	 */
 
 	scst_cdrom_generic_parse(cmd, info_cdb, cdrom_get_block_shift);
 
@@ -227,6 +225,10 @@ int cdrom_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 static void cdrom_set_block_shift(struct scst_cmd *cmd, int block_shift)
 {
 	struct cdrom_params *params = (struct cdrom_params *)cmd->dev->dh_priv;
+	/* 
+	 * No need for locks here, since *_detach() can not be
+	 * called, when there are existing commands.
+	 */
 	if (block_shift != 0)
 		params->block_shift = block_shift;
 	else
@@ -251,10 +253,6 @@ int cdrom_done(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	/* 
-	 * No need for locks here, since *_detach() can not be
-	 * called, when there are existing commands.
-	 */
 	res = scst_block_generic_dev_done(cmd, cdrom_set_block_shift);
 
 	TRACE_EXIT_RES(res);
@@ -299,3 +297,6 @@ module_init(cdrom_init);
 module_exit(cdrom_exit);
 
 MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Vladislav Bolkhovitin & Leonid Stoljar");
+MODULE_DESCRIPTION("SCSI CDROM (type 5) dev handler for SCST");
+MODULE_VERSION(SCST_VERSION_STRING);

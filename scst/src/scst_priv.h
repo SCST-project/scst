@@ -1,7 +1,7 @@
 /*
  *  scst_priv.h
  *  
- *  Copyright (C) 2004-2006 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
  *  
  *  This program is free software; you can redistribute it and/or
@@ -55,8 +55,8 @@ extern unsigned long scst_trace_flag;
 	~TRACE_SCSI & ~TRACE_SCSI_SERIALIZING & ~TRACE_DEBUG)
 */
 #define SCST_DEFAULT_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MINOR | TRACE_PID | \
-	TRACE_FUNCTION | TRACE_SPECIAL | TRACE_MGMT | TRACE_MGMT_DEBUG | \
-	TRACE_RETRY)
+	TRACE_LINE | TRACE_FUNCTION | TRACE_SPECIAL | TRACE_MGMT | \
+	TRACE_MGMT_DEBUG | TRACE_RETRY)
 
 #define TRACE_SN(args...)	TRACE(TRACE_SCSI_SERIALIZING, args)
 
@@ -214,7 +214,7 @@ extern int __scst_add_cmd_threads(int num);
 extern void __scst_del_cmd_threads(int num);
 
 extern spinlock_t scst_temp_UA_lock;
-extern uint8_t scst_temp_UA[SCSI_SENSE_BUFFERSIZE];
+extern uint8_t scst_temp_UA[SCST_SENSE_BUFFERSIZE];
 
 extern struct scst_cmd *__scst_check_deferred_commands(
 	struct scst_tgt_dev *tgt_dev);
@@ -393,20 +393,6 @@ static inline int scst_is_implicit_hq(struct scst_cmd *cmd)
 }
 
 /*
- * Returns 1, if cmd's CDB is locally handled by SCST and 0 otherwise.
- * Dev handlers parse() and dev_done() not called for such commands.
- */
-static inline int scst_is_cmd_local(struct scst_cmd *cmd)
-{
-	int res = 0;
-	switch (cmd->cdb[0]) {
-	case REPORT_LUNS:
-		res = 1;
-	}
-	return res;
-}
-
-/*
  * Some notes on devices "blocking". Blocking means that no
  * commands will go from SCST to underlying SCSI device until it 
  * is unblocked. But we don't care about all commands that 
@@ -424,7 +410,7 @@ static inline void __scst_block_dev(struct scst_device *dev)
 }
 
 static inline void scst_block_dev(struct scst_device *dev, 
-	unsigned int outstanding)
+	int outstanding)
 {
 	spin_lock_bh(&dev->dev_lock);
 	__scst_block_dev(dev);
@@ -536,6 +522,10 @@ static inline void scst_set_sense(uint8_t *buffer, int len, int key,
 static inline void scst_check_restore_sg_buff(struct scst_cmd *cmd)
 {
 	if (cmd->sg_buff_modified) {
+		TRACE_MEM("cmd %p, sg %p, orig_sg_entry %d, "
+			"orig_entry_len %d, orig_sg_cnt %d", cmd, cmd->sg,
+			cmd->orig_sg_entry, cmd->orig_entry_len,
+			cmd->orig_sg_cnt);
 		cmd->sg[cmd->orig_sg_entry].length = cmd->orig_entry_len;
 		cmd->sg_cnt = cmd->orig_sg_cnt;
 	}

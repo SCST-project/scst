@@ -416,6 +416,10 @@ Also it has an advantage over FILEIO that it doesn't copy data between
 the system cache and the commands data buffers, so it saves a
 considerable amount of CPU power and memory bandwidth.
 
+IMPORTANT: Since data in BLOCKIO and FILEIO modes are not consistent between
+=========  them, if you try to use a device in both those modes simultaneously,
+           you will almost instantly corrupt your data on that device.
+
 Performance
 -----------
 

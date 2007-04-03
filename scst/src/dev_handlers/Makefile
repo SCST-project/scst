@@ -61,10 +61,12 @@ endif
 
 INSTALL_DIR := /lib/modules/$(shell uname -r)/extra
 
-EXTRA_CFLAGS += -I$(SUBDIRS) -I$(SCST_INC_DIR)
+EXTRA_CFLAGS += -I$(SUBDIRS) -I$(SCST_INC_DIR) -Wextra -Wno-unused-parameter
+
+EXTRA_CFLAGS += -DEXTRACHECKS
 
 #EXTRA_CFLAGS += -DTRACING
-EXTRA_CFLAGS += -DDEBUG
+EXTRA_CFLAGS += -DDEBUG -g
 
 clean:
 	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend Modules.symvers Module.symvers

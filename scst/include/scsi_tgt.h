@@ -1,7 +1,7 @@
 /*
  *  include/scsi_tgt.h
  *  
- *  Copyright (C) 2004-2006 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
  *  
  *  Main SCSI target mid-level include file.
@@ -33,6 +33,8 @@
 #include <scsi/scsi_device.h>
 #include <scsi/scsi_eh.h>
 #include <scsi/scsi.h>
+
+#include <scst_const.h>
 
 /* Version numbers, the same as for the kernel */
 #define SCST_VERSION_CODE 0x000906
@@ -95,6 +97,13 @@
  ** context.
  *************************************************************/
 #define SCST_CMD_STATE_NEED_THREAD_CTX       100
+
+/************************************************************* 
+ ** Can be retuned instead of cmd's state by dev handlers' 
+ ** parse function, if the cmd processing should be stopped
+ ** for now. The cmd will be restarted by dev handlers itself.
+ *************************************************************/
+#define SCST_CMD_STATE_STOP          101
 
 /*************************************************************
  ** States of mgmt command processing state machine
@@ -240,14 +249,6 @@
  *************************************************************/
 #define SCST_DEFAULT_TIMEOUT         (30*HZ)
 
-/************************************************************* 
- ** Data direction aliases 
- *************************************************************/
-#define SCST_DATA_UNKNOWN            DMA_BIDIRECTIONAL
-#define SCST_DATA_WRITE              DMA_TO_DEVICE
-#define SCST_DATA_READ               DMA_FROM_DEVICE
-#define SCST_DATA_NONE               DMA_NONE
-
 /*************************************************************
  ** Flags of cmd->tgt_resp_flags
  *************************************************************/
@@ -260,48 +261,6 @@
  * probably, will never be).
  */
 #define SCST_TSC_FLAG_STATUS         0x2
-
-/************************************************************* 
- ** Values for management functions
- *************************************************************/
-#define SCST_ABORT_TASK              0
-#define SCST_ABORT_TASK_SET          1
-#define SCST_CLEAR_ACA               2
-#define SCST_CLEAR_TASK_SET          3
-#define SCST_LUN_RESET               4
-#define SCST_TARGET_RESET            5
-
-/** SCST extensions **/
-
-/* 
- * Notifies about I_T nexus loss event in the corresponding session.
- * Aborts all tasks there, resets the reservation, if any, and sets
- * up the I_T Nexus loss UA.
- */
-#define SCST_NEXUS_LOSS_SESS         6
-
-/* Aborts all tasks in the corresponding session with TASK_ABORTED status */
-#define SCST_ABORT_ALL_TASKS_SESS    7
-
-/* 
- * Notifies about I_T nexus loss event. Aborts all tasks in all sessions
- * of the tgt, resets the reservations, if any,  and sets up the I_T Nexus
- * loss UA.
- */
-#define SCST_NEXUS_LOSS              8
-
-/* Aborts all tasks in all sessions of the tgt with TASK_ABORTED status */
-#define SCST_ABORT_ALL_TASKS         9
-
-/************************************************************* 
- ** Values for mgmt cmd's status field. Codes taken from iSCSI
- *************************************************************/
-#define SCST_MGMT_STATUS_SUCCESS		0
-#define SCST_MGMT_STATUS_TASK_NOT_EXIST		-1
-#define SCST_MGMT_STATUS_LUN_NOT_EXIST		-2
-#define SCST_MGMT_STATUS_FN_NOT_SUPPORTED	-5
-#define SCST_MGMT_STATUS_REJECTED		-255
-#define SCST_MGMT_STATUS_FAILED			-129
 
 /*************************************************************
  ** Additional return code for dev handler's task_mgmt_fn()
@@ -366,6 +325,9 @@
 /* Set if tgt_dev is RESERVED by another session */
 #define SCST_TGT_DEV_RESERVED		1
 
+/* Set HEAD OF QUEUE cmd is being executed */
+#define SCST_TGT_DEV_HQ_ACTIVE		2
+
 /* Set if the corresponding context is atomic */
 #define SCST_TGT_DEV_AFTER_INIT_WR_ATOMIC	5
 #define SCST_TGT_DEV_AFTER_INIT_OTH_ATOMIC	6
@@ -374,105 +336,14 @@
 #define SCST_TGT_DEV_AFTER_RX_DATA_ATOMIC	9
 #define SCST_TGT_DEV_AFTER_EXEC_ATOMIC		10
 
-/* Set HEAD OF QUEUE cmd is being executed */
-#define SCST_TGT_DEV_HQ_ACTIVE		12
-
 #ifdef DEBUG_TM
 #define SCST_TGT_DEV_UNDER_TM_DBG	20
 #endif
-
-/************************************************************* 
- ** Commands that are not listed anywhere else 
- *************************************************************/
-#ifndef REPORT_DEVICE_IDENTIFIER
-#define REPORT_DEVICE_IDENTIFIER    0xA3
-#endif
-#ifndef INIT_ELEMENT_STATUS
-#define INIT_ELEMENT_STATUS         0x07
-#endif
-#ifndef INIT_ELEMENT_STATUS_RANGE
-#define INIT_ELEMENT_STATUS_RANGE   0x37
-#endif
-#ifndef PREVENT_ALLOW_MEDIUM
-#define PREVENT_ALLOW_MEDIUM        0x1E
-#endif
-#ifndef READ_ATTRIBUTE
-#define READ_ATTRIBUTE              0x8C
-#endif
-#ifndef REQUEST_VOLUME_ADDRESS
-#define REQUEST_VOLUME_ADDRESS      0xB5
-#endif
-#ifndef WRITE_ATTRIBUTE
-#define WRITE_ATTRIBUTE             0x8D
-#endif
-#ifndef WRITE_VERIFY_16
-#define WRITE_VERIFY_16             0x8E
-#endif
-#ifndef VERIFY_6
-#define VERIFY_6                    0x13
-#endif
-#ifndef VERIFY_12
-#define VERIFY_12                   0xAF
-#endif
-
-/*************************************************************
- ** Control byte field in CDB
- *************************************************************/
-#ifndef CONTROL_BYTE_LINK_BIT
-#define CONTROL_BYTE_LINK_BIT       0x01
-#endif
-#ifndef CONTROL_BYTE_NACA_BIT
-#define CONTROL_BYTE_NACA_BIT       0x04
-#endif
-
-/*************************************************************
- ** Byte 1 in INQUIRY CDB
- *************************************************************/
-#define SCST_INQ_EVPD                0x01
-
-/*************************************************************
- ** Byte 3 in Standard INQUIRY data
- *************************************************************/
-#define SCST_INQ_BYTE3               3
-
-#define SCST_INQ_NORMACA_BIT         0x20
-
-/*************************************************************
- ** Byte 2 in RESERVE_10 CDB
- *************************************************************/
-#define SCST_RES_3RDPTY              0x10
-#define SCST_RES_LONGID              0x02
-
-/*************************************************************
- ** Bits in the READ POSITION command
- *************************************************************/
-#define TCLP_BIT                     4
-#define LONG_BIT                     2
-#define BT_BIT                       1
-
-/************************************************************* 
- ** Misc SCSI constants
- *************************************************************/
-#define SCST_SENSE_ASC_UA_RESET      0x29
-#define READ_CAP_LEN		     8
-#define READ_CAP16_LEN		     12
-#define BYTCHK			     0x02
-#define POSITION_LEN_SHORT           20
-#define POSITION_LEN_LONG            32
 
 /*************************************************************
  ** Name of the entry in /proc
  *************************************************************/
 #define SCST_PROC_ENTRY_NAME         "scsi_tgt"
-
-/*************************************************************
- ** Used with scst_set_cmd_error() 
- *************************************************************/
-#define SCST_LOAD_SENSE(key_asc_ascq) key_asc_ascq
-
-#define SCST_SENSE_VALID(sense)      ((((uint8_t *)(sense))[0] & 0x70) == 0x70)
-
-#define SCST_NO_SENSE(sense)         (((uint8_t *)(sense))[2] == 0)
 
 /*************************************************************
  *                     TYPES
@@ -751,13 +622,21 @@ struct scst_dev_type
 	unsigned dev_done_atomic:1;
 	unsigned dedicated_thread:1;
 
+	/* Set, if no /proc files should be automatically created by SCST */
+	unsigned no_proc:1;
+
+	/* Set if expected_sn in cmd->scst_cmd_done() */
+	unsigned inc_expected_sn_on_done:1; 
+
 	/* 
 	 * Called to parse CDB from the cmd and initialize 
 	 * cmd->bufflen and cmd->data_direction (both - REQUIRED).
 	 * Returns the command's next state or SCST_CMD_STATE_DEFAULT, 
 	 * if the next default state should be used, or 
 	 * SCST_CMD_STATE_NEED_THREAD_CTX if the function called in atomic 
-	 * context, but requires sleeping. In the last case, the function 
+	 * context, but requires sleeping, or SCST_CMD_STATE_STOP if the
+	 * command should not be further processed for now. In the
+	 * SCST_CMD_STATE_NEED_THREAD_CTX case the function 
 	 * will be recalled in the thread context, where sleeping is allowed.
 	 *
 	 * Pay attention to "atomic" attribute of the cmd, which can be get
@@ -899,7 +778,10 @@ struct scst_tgt
 	struct timer_list retry_timer;
 	int retry_timer_active;
 
-	/* Maximum SG table size */
+	/*
+	 * Maximum SG table size. Needed here, since different cards on the
+	 * same target template can have different SG table limitations.
+	 */
 	int sg_tablesize;
 
 	/* Used for storage of target driver private stuff */
@@ -977,15 +859,6 @@ struct scst_session
 	void (*init_result_fn) (struct scst_session *sess, void *data,
 				int result);
 	void (*unreg_done_fn) (struct scst_session *sess);
-};
-
-enum scst_cmd_queue_type
-{
-	SCST_CMD_QUEUE_UNTAGGED = 0,
-	SCST_CMD_QUEUE_SIMPLE,
-	SCST_CMD_QUEUE_ORDERED,
-	SCST_CMD_QUEUE_HEAD_OF_QUEUE,
-	SCST_CMD_QUEUE_ACA
 };
 
 struct scst_cmd_lists
@@ -1100,13 +973,19 @@ struct scst_cmd
 	unsigned int may_need_dma_sync:1;
 
 	/* Set if the cmd was done or aborted out of its SN */
-	unsigned long out_of_sn:1;
-
-	/* Set if the cmd is HEAD OF QUEUE */
-	unsigned long head_of_queue:1;
+	unsigned int out_of_sn:1;
 
 	/* Set if the cmd is deferred HEAD OF QUEUE */
-	unsigned long hq_deferred:1;
+	unsigned int hq_deferred:1;
+
+	/* Set if the internal parse should be skipped */
+	unsigned int skip_parse:1;
+
+	/*
+	 * Set if inc expected_sn in cmd->scst_cmd_done() (to 
+	 * save extra dereferences)
+	 */
+	unsigned inc_expected_sn_on_done:1; 
 
 	/**************************************************************/
 
@@ -1128,7 +1007,7 @@ struct scst_cmd
 	struct list_head sn_cmd_list_entry;
 
 	/* Cmd's serial number, used to execute cmd's in order of arrival */
-	unsigned int sn;
+	unsigned long sn;
 
 	/* The corresponding sn_slot in tgt_dev->sn_slots */
 	atomic_t *sn_slot;
@@ -1143,7 +1022,7 @@ struct scst_cmd
 	uint32_t tag;
 
 	/* CDB and its len */
-	uint8_t cdb[MAX_COMMAND_SIZE];
+	uint8_t cdb[SCST_MAX_CDB_SIZE];
 	int cdb_len;
 
 	enum scst_cmd_queue_type queue_type;
@@ -1156,17 +1035,21 @@ struct scst_cmd
 	
 	/* Remote initiator supplied values, if any */
 	scst_data_direction expected_data_direction;
-	unsigned int expected_transfer_len;
+	int expected_transfer_len;
 
-	/* cmd data length */
-	size_t data_len;
+	/* 
+	 * Cmd data length. Could be different from bufflen for commands like
+	 * VERIFY, which transfer different amount of data (if any), than
+	 * processed.
+	 */
+	int data_len;
 
 	/* Completition routine */
 	void (*scst_cmd_done) (struct scst_cmd *cmd, int next_state);
 
 	struct sgv_pool_obj *sgv;	/* sgv object */
 
-	size_t bufflen;			/* cmd buffer length */
+	int bufflen;			/* cmd buffer length */
 	struct scatterlist *sg;		/* cmd data buffer SG vector */
 	int sg_cnt;			/* SG segments count */
 	
@@ -1199,7 +1082,7 @@ struct scst_cmd
 	 */
 	int orig_sg_cnt, orig_sg_entry, orig_entry_len;
 
-	uint8_t sense_buffer[SCSI_SENSE_BUFFERSIZE];	/* sense buffer */
+	uint8_t sense_buffer[SCST_SENSE_BUFFERSIZE];	/* sense buffer */
 
 	/* The corresponding mgmt cmd, if any, protected by sess_list_lock */
 	struct scst_mgmt_cmd *mgmt_cmnd;
@@ -1359,6 +1242,10 @@ struct scst_tgt_dev
 	/* How many cmds alive on this dev in this session */
 	atomic_t cmd_count; 
 
+	int gfp_mask;
+	struct sgv_pool *pool;
+	int max_sg_cnt;
+
 	unsigned long tgt_dev_flags;	/* tgt_dev's async flags */
 
 	/* 
@@ -1371,13 +1258,18 @@ struct scst_tgt_dev
 	 */
 	int def_cmd_count;
 	spinlock_t sn_lock;
-	int expected_sn;
-	int curr_sn;
+	unsigned long expected_sn, curr_sn;
 	struct list_head deferred_cmd_list;
 	struct list_head skipped_sn_list;
 	struct list_head hq_cmd_list;
-	unsigned short prev_cmd_ordered; /* Set if the prev cmd was ORDERED */
-	short num_free_sn_slots;
+
+	/*
+	 * Set if the prev cmd was ORDERED. Size must allow unprotected
+	 * modifications
+	 */
+	unsigned long prev_cmd_ordered; 
+
+	int num_free_sn_slots;
 	atomic_t *cur_sn_slot;
 	atomic_t sn_slots[10];
 
@@ -1471,7 +1363,7 @@ struct scst_tgt_dev_UA
 	/* List entry in tgt_dev->UA_list */
 	struct list_head UA_list_entry;
 	/* Unit Attention sense */
-	uint8_t UA_sense_buffer[SCSI_SENSE_BUFFERSIZE];
+	uint8_t UA_sense_buffer[SCST_SENSE_BUFFERSIZE];
 };
 
 enum scst_cdb_flags
@@ -1480,6 +1372,7 @@ enum scst_cdb_flags
 	SCST_SMALL_TIMEOUT = 0x02,
 	SCST_LONG_TIMEOUT = 0x04,
 	SCST_UNKNOWN_LENGTH = 0x08,
+	SCST_INFO_INVALID = 0x10,
 };
 
 struct scst_info_cdb
@@ -1490,28 +1383,6 @@ struct scst_info_cdb
 	unsigned short cdb_len;
 	const char *op_name;
 };
-
-/*
- * Sense data for the appropriate errors. Can be used with
- * scst_set_cmd_error()
- */
-#define scst_sense_no_sense			NO_SENSE,        0x00, 0
-#define scst_sense_hardw_error			HARDWARE_ERROR,  0x44, 0
-#define scst_sense_aborted_command		ABORTED_COMMAND, 0x00, 0
-#define scst_sense_invalid_opcode		ILLEGAL_REQUEST, 0x20, 0
-#define scst_sense_invalid_field_in_cdb		ILLEGAL_REQUEST, 0x24, 0
-#define scst_sense_invalid_field_in_parm_list	ILLEGAL_REQUEST, 0x26, 0
-#define scst_sense_reset_UA			UNIT_ATTENTION,  0x29, 0
-#define scst_sense_nexus_loss_UA		UNIT_ATTENTION,  0x29, 0x7
-#define scst_sense_saving_params_unsup		ILLEGAL_REQUEST, 0x39, 0
-#define scst_sense_lun_not_supported		ILLEGAL_REQUEST, 0x25, 0
-#define scst_sense_data_protect			DATA_PROTECT,    0x00, 0
-#define scst_sense_miscompare_error		MISCOMPARE,      0x1D, 0
-#define scst_sense_block_out_range_error	ILLEGAL_REQUEST, 0x21, 0
-#define scst_sense_medium_changed_UA		UNIT_ATTENTION,  0x28, 0
-#define scst_sense_read_error			MEDIUM_ERROR,    0x11, 0
-#define scst_sense_write_error			MEDIUM_ERROR,    0x03, 0
-#define scst_sense_not_ready			NOT_READY,       0x04, 0x10
 
 #ifndef smp_mb__after_set_bit
 /* There is no smp_mb__after_set_bit() in the kernel */
@@ -1788,6 +1659,20 @@ static inline int scst_to_tgt_dma_dir(int scst_dir)
 }
 
 /*
+ * Returns 1, if cmd's CDB is locally handled by SCST and 0 otherwise.
+ * Dev handlers parse() and dev_done() not called for such commands.
+ */
+static inline int scst_is_cmd_local(struct scst_cmd *cmd)
+{
+	int res = 0;
+	switch (cmd->cdb[0]) {
+	case REPORT_LUNS:
+		res = 1;
+	}
+	return res;
+}
+
+/*
  * Registers a virtual device.
  * Parameters:
  *   dev_type - the device's device handler
@@ -2047,7 +1932,7 @@ static inline scst_data_direction scst_cmd_get_expected_data_direction(
 	return cmd->expected_data_direction;
 }
 
-static inline unsigned int scst_cmd_get_expected_transfer_len(
+static inline int scst_cmd_get_expected_transfer_len(
 	struct scst_cmd *cmd)
 {
 	return cmd->expected_transfer_len;
@@ -2055,7 +1940,7 @@ static inline unsigned int scst_cmd_get_expected_transfer_len(
 
 static inline void scst_cmd_set_expected(struct scst_cmd *cmd,
 	scst_data_direction expected_data_direction,
-	unsigned int expected_transfer_len)
+	int expected_transfer_len)
 {
 	cmd->expected_data_direction = expected_data_direction;
 	cmd->expected_transfer_len = expected_transfer_len;
@@ -2161,6 +2046,13 @@ static inline int scst_get_buf_count(struct scst_cmd *cmd)
  */
 void scst_suspend_activity(void);
 void scst_resume_activity(void);
+
+/*
+ * Main SCST commands processing routing. Must be used only by dev handlers.
+ * Argument context sets the execution context, only SCST_CONTEXT_DIRECT and
+ * SCST_CONTEXT_DIRECT_ATOMIC are allowed.
+ */
+void scst_process_active_cmd(struct scst_cmd *cmd, int context);
 
 /* 
  * Returns target driver's root entry in SCST's /proc hierarchy.
@@ -2310,6 +2202,34 @@ static inline void scst_thr_data_put(struct scst_thr_data_hdr *data)
 		data->free_fn(data);
 }
 
+/* SGV pool routines and flag bits */
+
+/* Set if the allocated object must be not from the cache */
+#define SCST_POOL_ALLOC_NO_CACHED		1
+
+/* Set if there should not be any memory allocations on a cache miss */
+#define SCST_POOL_NO_ALLOC_ON_CACHE_MISS	2
+
+/* Set an object should be returned even if it doesn't have SG vector built */
+#define SCST_POOL_RETURN_OBJ_ON_ALLOC_FAIL	4
+
+struct sgv_pool_obj;
+struct sgv_pool;
+
+struct sgv_pool *sgv_pool_create(const char *name, int clustered);
+void sgv_pool_destroy(struct sgv_pool *pool);
+
+void sgv_pool_set_allocator(struct sgv_pool *pool,
+	struct page *(*alloc_pages_fn)(struct scatterlist *, gfp_t, void *),
+	void (*free_pages_fn)(struct scatterlist *, int, void *));
+
+struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
+	unsigned long gfp_mask, int atomic, int *count,
+	struct sgv_pool_obj **sgv, void *priv);
+void sgv_pool_free(struct sgv_pool_obj *sgv);
+
+void *sgv_get_priv(struct sgv_pool_obj *sgv);
+
 /**
  ** Generic parse() support routines.
  ** Done via pointer on functions to avoid unneeded dereferences on
@@ -2341,15 +2261,18 @@ int scst_tape_generic_parse(struct scst_cmd *cmd,
 
 /* Generic parse() for changer devices */
 int scst_changer_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb, int nothing);
+	struct scst_info_cdb *info_cdb,
+	int (*nothing)(struct scst_cmd *cmd));
 
 /* Generic parse() for "processor" devices */
 int scst_processor_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb, int nothing);
+	struct scst_info_cdb *info_cdb,
+	int (*nothing)(struct scst_cmd *cmd));
 
 /* Generic parse() for RAID devices */
 int scst_raid_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb, int nothing);
+	struct scst_info_cdb *info_cdb,
+	int (*nothing)(struct scst_cmd *cmd));
 
 /**
  ** Generic dev_done() support routines.

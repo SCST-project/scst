@@ -1,7 +1,7 @@
 /*
  *  scst_vdisk.c
  *  
- *  Copyright (C) 2004-2006 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
  *            (C) 2007 Ming Zhang <blackmagic02881 at gmail dot com>
  *            (C) 2007 Ross Walker <rswwalker at hotmail dot com>
@@ -44,12 +44,14 @@
 
 #define TRACE_ORDER	0x80000000
 
+#if defined(DEBUG) || defined(TRACING)
 static struct scst_proc_log vdisk_proc_local_trace_tbl[] =
 {
     { TRACE_ORDER,		"order" },
     { 0,			NULL }
 };
 #define trace_log_tbl	vdisk_proc_local_trace_tbl
+#endif
 
 #include "scst_dev_handler.h"
 
@@ -122,6 +124,10 @@ struct scst_vdisk_dev {
 };
 
 struct scst_vdisk_tgt_dev {
+	/*
+	 * Used without locking since SCST core ensures that only commands
+	 * of the same type per tgt_dev can be processed simultaneously
+	 */
 	enum scst_cmd_queue_type last_write_cmd_queue_type;
 };
 
@@ -949,10 +955,6 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 		goto out_free;
 	}
 
-	/* 
-	 * ToDo: write through/back flags as well as read only one.
-	 */
-
 	if (cmd->cdb[1] & CMDDT) {
 		TRACE_DBG("%s", "INQUIRY: CMDDT is unsupported");
 		scst_set_cmd_error(cmd,
@@ -969,7 +971,7 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 		int dev_id_num;
 		char dev_id_str[6];
 		
-		for (dev_id_num = 0, i = 0; i < strlen(virt_dev->name); i++) {
+		for (dev_id_num = 0, i = 0; i < (int)strlen(virt_dev->name); i++) {
 			dev_id_num += virt_dev->name[i];
 		}
 		len = scnprintf(dev_id_str, 6, "%d", dev_id_num);
@@ -1218,8 +1220,6 @@ static void vdisk_exec_mode_sense(struct scst_cmd *cmd)
 		goto out_free;
 	}
 
-	memset(buf, 0, sizeof(buf));
-	
 	if (0x3 == pcontrol) {
 		TRACE_DBG("%s", "MODE SENSE: Saving values not supported");
 		scst_set_cmd_error(cmd,
@@ -2029,7 +2029,7 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 
 	need_new_bio = 1;
 	for (j = 0; j < cmd->sg_cnt; ++j) {
-		unsigned int len, bytes, off, thislen;
+		int len, bytes, off, thislen;
 		struct page *page;
 
 		page = sgl[j].page;
@@ -2171,7 +2171,7 @@ static void vdisk_exec_verify(struct scst_cmd *cmd,
 		compare = 1;
 
 	while (length > 0) {
-		len_mem = length > LEN_MEM ? LEN_MEM : length;
+		len_mem = (length > LEN_MEM) ? LEN_MEM : length;
 		TRACE_DBG("Verify: length %zd - len_mem %zd", length, len_mem);
 
 		if (!virt_dev->nullio)
@@ -2190,8 +2190,7 @@ static void vdisk_exec_verify(struct scst_cmd *cmd,
 			scst_put_buf(cmd, address_sav);
 			goto out_set_fs;
 		}
-		if (compare && memcmp(address, mem_verify, len_mem) != 0)
-		{
+		if (compare && memcmp(address, mem_verify, len_mem) != 0) {
 			TRACE_DBG("Verify: error memcmp length %zd", length);
 			scst_set_cmd_error(cmd,
 			    SCST_LOAD_SENSE(scst_sense_miscompare_error));
@@ -2200,8 +2199,7 @@ static void vdisk_exec_verify(struct scst_cmd *cmd,
 		}
 		length -= len_mem;
 		address += len_mem;
-		if (compare && length <= 0)
-		{
+		if (compare && length <= 0) {
 			scst_put_buf(cmd, address_sav);
 			length = scst_get_buf_next(cmd, &address);
 			address_sav = address;
@@ -2398,7 +2396,6 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 
 		if (isdigit(*p)) {
 			char *pp;
-			uint32_t t;
 			block_size = simple_strtoul(p, &pp, 0);
 			p = pp;
 			if ((*p != '\0') && !isspace(*p)) {
@@ -2409,17 +2406,8 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 			while (isspace(*p) && *p != '\0')
 				p++;
 
-			t = block_size;
-			block_shift = 0;
-			while(1) {
-				if ((t & 1) != 0)
-					break;
-				t >>= 1;
-				block_shift++;
-			}
+			block_shift = scst_calc_block_shift(block_size);
 			if (block_shift < 9) {
-				PRINT_ERROR_PR("Wrong block size %d",
-					block_size);
 				res = -EINVAL;
 				goto out_free_vdev;
 			}
@@ -3088,4 +3076,8 @@ static void __exit exit_scst_vdisk_driver(void)
 module_init(init_scst_vdisk_driver);
 module_exit(exit_scst_vdisk_driver);
 
+MODULE_AUTHOR("Vladislav Bolkhovitin & Leonid Stoljar");
 MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("SCSI disk (type 0) and CDROM (type 5) dev handler for "
+	"SCST using files on file systems or block devices");
+MODULE_VERSION(SCST_VERSION_STRING);

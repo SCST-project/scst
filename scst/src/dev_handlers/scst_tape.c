@@ -1,7 +1,7 @@
 /*
  *  scst_tape.c
  *  
- *  Copyright (C) 2004-2006 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
  *
  *  SCSI tape (type 1) dev handler 
@@ -261,6 +261,10 @@ void tape_detach(struct scst_device *dev)
 static int tape_get_block_size(struct scst_cmd *cmd)
 {
 	struct tape_params *params = (struct tape_params *)cmd->dev->dh_priv;
+	/* 
+	 * No need for locks here, since *_detach() can not be called,
+	 * when there are existing commands.
+	 */
 	return params->block_size;
 }
 
@@ -279,11 +283,6 @@ int tape_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
 
-	/* 
-	 * No need for locks here, since *_detach() can not be called,
-	 * when there are existing commands.
-	 */
-
 	scst_tape_generic_parse(cmd, info_cdb, tape_get_block_size);
 
 	cmd->retries = 1;
@@ -301,6 +300,10 @@ int tape_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 static void tape_set_block_size(struct scst_cmd *cmd, int block_size)
 {
 	struct tape_params *params = (struct tape_params *)cmd->dev->dh_priv;
+	/* 
+	 * No need for locks here, since *_detach() can not be called, when
+	 * there are existing commands.
+	 */
 	params->block_size = block_size;
 	return;
 }
@@ -323,11 +326,6 @@ int tape_done(struct scst_cmd *cmd)
 	int res = SCST_CMD_STATE_DEFAULT;
 
 	TRACE_ENTRY();
-
-	/* 
-	 * No need for locks here, since *_detach() can not be called, when
-	 * there are existing commands.
-	 */
 
 	if ((status == SAM_STAT_GOOD) || (status == SAM_STAT_CONDITION_MET)) {
 		res = scst_tape_generic_dev_done(cmd, tape_set_block_size);
@@ -413,4 +411,7 @@ int tape_exec(struct scst_cmd *cmd)
 	return res;
 }
 
+MODULE_AUTHOR("Vladislav Bolkhovitin & Leonid Stoljar");
 MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("SCSI tape (type 1) dev handler for SCST");
+MODULE_VERSION(SCST_VERSION_STRING);
