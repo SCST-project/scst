@@ -443,10 +443,22 @@
 #define SCST_RES_3RDPTY              0x10
 #define SCST_RES_LONGID              0x02
 
+/*************************************************************
+ ** Bits in the READ POSITION command
+ *************************************************************/
+#define TCLP_BIT                     4
+#define LONG_BIT                     2
+#define BT_BIT                       1
+
 /************************************************************* 
  ** Misc SCSI constants
  *************************************************************/
 #define SCST_SENSE_ASC_UA_RESET      0x29
+#define READ_CAP_LEN		     8
+#define READ_CAP16_LEN		     12
+#define BYTCHK			     0x02
+#define POSITION_LEN_SHORT           20
+#define POSITION_LEN_LONG            32
 
 /*************************************************************
  ** Name of the entry in /proc
@@ -754,8 +766,7 @@ struct scst_dev_type
 	 *
 	 * MUST HAVE
 	 */
-	int (*parse) (struct scst_cmd *cmd,
-		      const struct scst_info_cdb *cdb_info);
+	int (*parse) (struct scst_cmd *cmd, struct scst_info_cdb *cdb_info);
 
 	/* 
 	 * Called to execute CDB. Useful, for instance, to implement 
@@ -2297,6 +2308,47 @@ static inline void scst_thr_data_put(struct scst_thr_data_hdr *data)
 {
 	if (atomic_dec_and_test(&data->ref))
 		data->free_fn(data);
+}
+
+/**
+ ** Generic parse() support routines
+ **/
+
+/* Calculates and returns block shift for the given sector size */
+int scst_calc_block_shift(int sector_size);
+
+/* Generic parse() for SBC (disk) devices */
+int scst_sbc_generic_parse(struct scst_cmd *cmd,
+	struct scst_info_cdb *info_cdb, int block_shift);
+
+/* Generic parse() for MMC (cdrom) devices */
+int scst_cdrom_generic_parse(struct scst_cmd *cmd,
+	struct scst_info_cdb *info_cdb, int block_shift);
+
+/* Generic parse() for MO disk devices */
+int scst_modisk_generic_parse(struct scst_cmd *cmd,
+	struct scst_info_cdb *info_cdb, int block_shift);
+
+/* Generic parse() for tape devices */
+int scst_tape_generic_parse(struct scst_cmd *cmd,
+	struct scst_info_cdb *info_cdb, int block_size);
+
+/* Generic parse() functions for other devices */
+int scst_null_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb);
+static inline int scst_changer_generic_parse(struct scst_cmd *cmd,
+	struct scst_info_cdb *info_cdb)
+{
+	return scst_null_parse(cmd, info_cdb);
+}
+static inline int scst_processor_generic_parse(struct scst_cmd *cmd,
+	struct scst_info_cdb *info_cdb)
+{
+	return scst_null_parse(cmd, info_cdb);
+}
+static inline int scst_raid_generic_parse(struct scst_cmd *cmd,
+	struct scst_info_cdb *info_cdb)
+{
+	return scst_null_parse(cmd, info_cdb);
 }
 
 #endif /* __SCST_H */

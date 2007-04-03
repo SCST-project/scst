@@ -1476,6 +1476,14 @@ EXPORT_SYMBOL(scst_del_all_thr_data);
 EXPORT_SYMBOL(scst_dev_del_all_thr_data);
 EXPORT_SYMBOL(scst_find_thr_data);
 
+/* Generic parse() routines */
+EXPORT_SYMBOL(scst_calc_block_shift);
+EXPORT_SYMBOL(scst_sbc_generic_parse);
+EXPORT_SYMBOL(scst_cdrom_generic_parse);
+EXPORT_SYMBOL(scst_modisk_generic_parse);
+EXPORT_SYMBOL(scst_tape_generic_parse);
+EXPORT_SYMBOL(scst_null_parse);
+
 /*
  * Other Commands
  */

@@ -56,23 +56,18 @@
   exec:     disk_exec,       \
 }
 
-#define DISK_RETRIES  5
 #define DISK_SMALL_TIMEOUT  (3 * HZ)
 #define DISK_REG_TIMEOUT    (60 * HZ)
 #define DISK_LONG_TIMEOUT   (3600 * HZ)
-#define READ_CAP_LEN  8
-
-/* Flags */
-#define BYTCHK         0x02
 
 struct disk_params
 {
-	int sector_size;
+	int block_shift;
 };
 
 int disk_attach(struct scst_device *dev);
 void disk_detach(struct scst_device *dev);
-int disk_parse(struct scst_cmd *cmd, const struct scst_info_cdb *info_cmd);
+int disk_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cmd);
 int disk_done(struct scst_cmd *cmd);
 int disk_exec(struct scst_cmd *cmd);
 
@@ -193,7 +188,7 @@ int disk_attach(struct scst_device *dev)
 		TRACE_DBG("%s", "Doing READ_CAPACITY");
 		res = scsi_execute(dev->scsi_dev, cmd, data_dir, buffer, 
 				   buffer_size, sbuff, 
-				   DISK_REG_TIMEOUT, DISK_RETRIES, 0);
+				   DISK_REG_TIMEOUT, 3, 0);
 
 		TRACE_DBG("READ_CAPACITY done: %x", res);
 
@@ -209,12 +204,9 @@ int disk_attach(struct scst_device *dev)
 		}
 	}
 	if (res == 0) {
-		disk->sector_size = ((buffer[4] << 24) | (buffer[5] << 16) |
+		int sector_size = ((buffer[4] << 24) | (buffer[5] << 16) |
 				     (buffer[6] << 8) | (buffer[7] << 0));
-		TRACE_DBG("Sector size is %i", disk->sector_size);
-		if (!disk->sector_size) {
-			disk->sector_size = 512;
-		}
+		disk->block_shift = scst_calc_block_shift(sector_size);
 	} else {
 		TRACE_BUFFER("Sense set", sbuff, SCSI_SENSE_BUFFERSIZE);
 		res = -ENODEV;
@@ -268,20 +260,19 @@ void disk_detach(struct scst_device *dev)
  *
  *  Note:  Not all states are allowed on return
  ********************************************************************/
-int disk_parse(struct scst_cmd *cmd, const struct scst_info_cdb *info_cdb)
+int disk_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 {
+	struct disk_params *disk = (struct disk_params *)cmd->dev->dh_priv;
 	int res = SCST_CMD_STATE_DEFAULT;
-	struct disk_params *disk;
-	int fixed;
 
-	TRACE_ENTRY();
-
-	/*
-	 * SCST sets good defaults for cmd->data_direction and cmd->bufflen
-	 * based on info_cdb, therefore change them only if necessary
+	/* 
+	 * No need for locks here, since *_detach() can not be
+	 * called, when there are existing commands.
 	 */
 
-	cmd->retries = DISK_RETRIES;
+	scst_sbc_generic_parse(cmd, info_cdb, disk->block_shift);
+
+	cmd->retries = 1;
 
 	if (info_cdb->flags & SCST_SMALL_TIMEOUT) {
 		cmd->timeout = DISK_SMALL_TIMEOUT;
@@ -291,49 +282,6 @@ int disk_parse(struct scst_cmd *cmd, const struct scst_info_cdb *info_cdb)
 		cmd->timeout = DISK_REG_TIMEOUT;
 	}
 
-	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d",
-	      info_cdb->op_name,
-	      info_cdb->direction, info_cdb->flags, info_cdb->transfer_len);
-
-	fixed = info_cdb->flags & SCST_TRANSFER_LEN_TYPE_FIXED;
-	switch (cmd->cdb[0]) {
-	case READ_CAPACITY:
-		cmd->bufflen = READ_CAP_LEN;
-		cmd->data_direction = SCST_DATA_READ;
-		break;
-#if 0
-	case SYNCHRONIZE_CACHE:
-		cmd->underflow = 0;
-		break;
-#endif
-	case VERIFY_6:
-	case VERIFY:
-	case VERIFY_12:
-	case VERIFY_16:
-		if ((cmd->cdb[1] & BYTCHK) == 0) {
-			cmd->bufflen = 0;
-			cmd->data_direction = SCST_DATA_NONE;
-			fixed = 0;
-		}
-		break;
-	default:
-		/* It's all good */
-		break;
-	}
-
-	if (fixed) {
-		/* 
-		 * No need for locks here, since *_detach() can not be
-		 * called, when there are existing commands.
-		 */
-		disk = (struct disk_params *)cmd->dev->dh_priv;
-		cmd->bufflen = info_cdb->transfer_len * disk->sector_size;
-	}
-
-	TRACE_DBG("res %d bufflen %zd direct %d",
-	      res, cmd->bufflen, cmd->data_direction);
-
-	TRACE_EXIT_RES(res);
 	return res;
 }
 
@@ -371,13 +319,9 @@ int disk_done(struct scst_cmd *cmd)
 		case READ_CAPACITY:
 		{
 			/* Always keep track of disk capacity */
-			int buffer_size;
-			/* 
-			 * To force the compiler not to optimize it out to keep
-			 * disk->sector_size access atomic
-			 */
-			volatile int sector_size;
+			int buffer_size, sector_size, block_shift;
 			uint8_t *buffer;
+
 			buffer_size = scst_get_buf_first(cmd, &buffer);
 			if (unlikely(buffer_size <= 0)) {
 				PRINT_ERROR_PR("%s: Unable to get the buffer",
@@ -394,12 +338,14 @@ int disk_done(struct scst_cmd *cmd)
 			sector_size =
 			    ((buffer[4] << 24) | (buffer[5] << 16) |
 			     (buffer[6] << 8) | (buffer[7] << 0));
-			if (!sector_size)
-				sector_size = 512;
-			disk->sector_size = sector_size;
-			TRACE_DBG("Sector size is %i", disk->sector_size);
-			
 			scst_put_buf(cmd, buffer);
+			block_shift = scst_calc_block_shift(sector_size);
+			/* 
+			 * To force the compiler not to optimize it out to keep
+			 * disk->block_shift access atomic
+			 */
+			barrier();
+			disk->block_shift = block_shift;
 			break;
 		}
 		default:

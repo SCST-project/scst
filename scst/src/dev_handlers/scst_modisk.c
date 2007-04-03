@@ -56,23 +56,20 @@
   exec:     modisk_exec,       \
 }
 
-#define MODISK_RETRIES        2
 #define MODISK_SMALL_TIMEOUT  (3 * HZ)
 #define MODISK_REG_TIMEOUT    (900 * HZ)
 #define MODISK_LONG_TIMEOUT   (14000 * HZ)
-#define READ_CAP_LEN          8
-#define MODISK_SECTOR_SIZE    1024
-/* Flags */
-#define BYTCHK  	      0x02
+#define MODISK_BLOCK_SHIFT    10
+#define MODISK_SECTOR_SIZE    (1 << MODISK_BLOCK_SHIFT)
 
 struct modisk_params
 {
-	int sector_size;
+	int block_shift;
 };
 
 int modisk_attach(struct scst_device *);
 void modisk_detach(struct scst_device *);
-int modisk_parse(struct scst_cmd *, const struct scst_info_cdb *);
+int modisk_parse(struct scst_cmd *, struct scst_info_cdb *);
 int modisk_done(struct scst_cmd *);
 int modisk_exec(struct scst_cmd *);
 
@@ -171,7 +168,7 @@ int modisk_attach(struct scst_device *dev)
 		res = -ENOMEM;
 		goto out;
 	}
-	modisk->sector_size = MODISK_SECTOR_SIZE;
+	modisk->block_shift = MODISK_BLOCK_SHIFT;
 
 	/*
 	 * If the device is offline, don't try to read capacity or any
@@ -205,7 +202,7 @@ int modisk_attach(struct scst_device *dev)
 		TRACE_DBG("%s", "Doing READ_CAPACITY");
 		res = scsi_execute(dev->scsi_dev, cmd, data_dir, buffer, 
 				   buffer_size, sbuff, 
-				   MODISK_REG_TIMEOUT, MODISK_RETRIES, 0);
+				   MODISK_REG_TIMEOUT, 3, 0);
 
 		TRACE_DBG("READ_CAPACITY done: %x", res);
 
@@ -220,13 +217,13 @@ int modisk_attach(struct scst_device *dev)
 		}
 	}
 	if (res == 0) {
-		modisk->sector_size = ((buffer[4] << 24) | (buffer[5] << 16) |
+		int sector_size = ((buffer[4] << 24) | (buffer[5] << 16) |
 				       (buffer[6] << 8) | (buffer[7] << 0));
+		if (sector_size == 0)
+			sector_size = MODISK_SECTOR_SIZE;
+		modisk->block_shift = scst_calc_block_shift(sector_size);
 		TRACE_DBG("Sector size is %i scsi_level %d(SCSI_2 %d)",
-		      modisk->sector_size, dev->scsi_dev->scsi_level, SCSI_2);
-		if (!modisk->sector_size) {
-			modisk->sector_size = MODISK_SECTOR_SIZE;
-		}
+		      sector_size, dev->scsi_dev->scsi_level, SCSI_2);
 	} else {
 		TRACE_BUFFER("Sense set", sbuff, SCSI_SENSE_BUFFERSIZE);
 			     
@@ -282,18 +279,19 @@ void modisk_detach(struct scst_device *dev)
  *
  *  Note:  Not all states are allowed on return
  ********************************************************************/
-int modisk_parse(struct scst_cmd *cmd, const struct scst_info_cdb *info_cdb)
+int modisk_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
-	struct modisk_params *modisk;
-	int fixed;
+	struct modisk_params *modisk = (struct modisk_params*)cmd->dev->dh_priv;
 
-	TRACE_ENTRY();
-
-	/*
-	 * SCST sets good defaults for cmd->data_direction and cmd->bufflen
-	 * based on info_cdb, therefore change them only if necessary
+	/* 
+	 * No need for locks here, since *_detach() can not be
+	 * called, when there are existing commands.
 	 */
+
+	scst_modisk_generic_parse(cmd, info_cdb, modisk->block_shift);
+
+	cmd->retries = 1;
 
 	if (info_cdb->flags & SCST_SMALL_TIMEOUT) {
 		cmd->timeout = MODISK_SMALL_TIMEOUT;
@@ -302,62 +300,6 @@ int modisk_parse(struct scst_cmd *cmd, const struct scst_info_cdb *info_cdb)
 	} else {
 		cmd->timeout = MODISK_REG_TIMEOUT;
 	}
-
-	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d lun %d(%d)",
-	      info_cdb->op_name,
-	      info_cdb->direction,
-	      info_cdb->flags,
-	      info_cdb->transfer_len, cmd->lun, (cmd->cdb[1] >> 5) & 7);
-
-	cmd->cdb[1] &= 0x1f;
-
-	fixed = info_cdb->flags & SCST_TRANSFER_LEN_TYPE_FIXED;
-	switch (cmd->cdb[0]) {
-	case READ_CAPACITY:
-		cmd->bufflen = READ_CAP_LEN;
-		cmd->data_direction = SCST_DATA_READ;
-		break;
-	case 0xB6 /* SET_STREAMING */ :
-		cmd->bufflen = (((*(cmd->cdb + 9)) & 0xff) << 8) +
-		    ((*(cmd->cdb + 10)) & 0xff);
-		cmd->bufflen &= 0xffff;
-		break;
-	case 0xBE /* READ_CD */ :
-		cmd->bufflen = cmd->bufflen >> 8;
-		break;
-#if 0
-	case SYNCHRONIZE_CACHE:
-		cmd->underflow = 0;
-		break;
-#endif
-	case VERIFY_6:
-	case VERIFY:
-	case VERIFY_12:
-	case VERIFY_16:
-		if ((cmd->cdb[1] & BYTCHK) == 0) {
-			cmd->bufflen = 0;
-			cmd->data_direction = SCST_DATA_NONE;
-			fixed = 0;
-		}
-		break;
-	default:
-		/* It's all good */
-		break;
-	}
-
-	if (fixed) {
-		/* 
-		 * No need for locks here, since *_detach() can not be
-		 * called, when there are existing commands.
-		 */
-		modisk = (struct modisk_params *)cmd->dev->dh_priv;
-		cmd->bufflen = info_cdb->transfer_len * modisk->sector_size;
-	}
-
-	TRACE_DBG("res %d bufflen %zd direct %d",
-	      res, cmd->bufflen, cmd->data_direction);
-
-	TRACE_EXIT_RES(res);
 	return res;
 }
 
@@ -395,13 +337,9 @@ int modisk_done(struct scst_cmd *cmd)
 		case READ_CAPACITY:
 		{
 			/* Always keep track of modisk capacity */
-			int buffer_size;
-			/* 
-			 * To force the compiler not to optimize it out to keep
-			 * modisk->sector_size access atomic
-			 */
-			volatile int sector_size;
+			int buffer_size, sector_size, block_shift;
 			uint8_t *buffer;
+
 			buffer_size = scst_get_buf_first(cmd, &buffer);
 			if (unlikely(buffer_size <= 0)) {
 				PRINT_ERROR_PR("%s: Unable to get the buffer",
@@ -418,12 +356,16 @@ int modisk_done(struct scst_cmd *cmd)
 			sector_size =
 			    ((buffer[4] << 24) | (buffer[5] << 16) |
 			     (buffer[6] << 8) | (buffer[7] << 0));
+			scst_put_buf(cmd, buffer);
 			if (!sector_size)
 				sector_size = MODISK_SECTOR_SIZE;
-			modisk->sector_size = sector_size;
-			TRACE_DBG("Sector size is %i", modisk->sector_size);
-			
-			scst_put_buf(cmd, buffer);
+			block_shift = scst_calc_block_shift(sector_size);
+			/* 
+			 * To force the compiler not to optimize it out to keep
+			 * cdrom->block_shift access atomic
+			 */
+			barrier();
+			modisk->block_shift = block_shift;
 			break;
 		}
 		default:

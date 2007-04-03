@@ -42,7 +42,7 @@
 
 int raid_attach(struct scst_device *);
 void raid_detach(struct scst_device *);
-int raid_parse(struct scst_cmd *, const struct scst_info_cdb *);
+int raid_parse(struct scst_cmd *, struct scst_info_cdb *);
 int raid_done(struct scst_cmd *);
 
 static struct scst_dev_type raid_devtype = RAID_TYPE;
@@ -124,16 +124,11 @@ void raid_detach(struct scst_device *dev)
  *
  *  Note:  Not all states are allowed on return
  ********************************************************************/
-int raid_parse(struct scst_cmd *cmd, const struct scst_info_cdb *info_cdb)
+int raid_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
 
-	TRACE_ENTRY();
-
-	/*
-	 * SCST sets good defaults for cmd->data_direction and cmd->bufflen
-	 * based on info_cdb, therefore change them only if necessary
-	 */
+	scst_raid_generic_parse(cmd, info_cdb);
 
 	cmd->retries = 1;
 
@@ -142,22 +137,6 @@ int raid_parse(struct scst_cmd *cmd, const struct scst_info_cdb *info_cdb)
 	} else {
 		cmd->timeout = RAID_TIMEOUT;
 	}
-
-	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d",
-	      info_cdb->op_name,
-	      info_cdb->direction, info_cdb->flags, info_cdb->transfer_len);
-#if 0
-	switch (cmd->cdb[0]) {
-	default:
-		/* It's all good */
-		break;
-	}
-#endif
-	TRACE_DBG("res %d bufflen %zd direct %d",
-	      res, cmd->bufflen, cmd->data_direction);
-
-	TRACE_EXIT();
-
 	return res;
 }
 

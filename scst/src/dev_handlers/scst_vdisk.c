@@ -65,12 +65,7 @@ static struct scst_proc_log vdisk_proc_local_trace_tbl[] =
 /* 4 byte ASCII Product Revision Level - left aligned */
 #define SCST_FIO_REV			" 096"
 
-#define READ_CAP_LEN			8
-#define READ_CAP16_LEN			12
-
 #define MAX_USN_LEN			20
-
-#define BYTCHK				0x02
 
 #define INQ_BUF_SZ			128
 #define EVPD				0x01
@@ -145,9 +140,9 @@ static int vdisk_attach(struct scst_device *dev);
 static void vdisk_detach(struct scst_device *dev);
 static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev);
 static void vdisk_detach_tgt(struct scst_tgt_dev *tgt_dev);
-static int vdisk_parse(struct scst_cmd *, const struct scst_info_cdb *info_cdb);
+static int vdisk_parse(struct scst_cmd *, struct scst_info_cdb *info_cdb);
 static int vdisk_do_job(struct scst_cmd *cmd);
-static int vcdrom_parse(struct scst_cmd *, const struct scst_info_cdb *info_cdb);
+static int vcdrom_parse(struct scst_cmd *, struct scst_info_cdb *info_cdb);
 static int vcdrom_exec(struct scst_cmd *cmd);
 static void vdisk_exec_read(struct scst_cmd *cmd,
 	struct scst_vdisk_thr *thr, loff_t loff);
@@ -835,67 +830,13 @@ out:
  *  Note:  Not all states are allowed on return
  ********************************************************************/
 static int vdisk_parse(struct scst_cmd *cmd,
-	const struct scst_info_cdb *info_cdb)
+	struct scst_info_cdb *info_cdb)
 {
-	int res = SCST_CMD_STATE_DEFAULT;
-	int fixed;
 	struct scst_vdisk_dev *virt_dev =
 	    (struct scst_vdisk_dev *)cmd->dev->dh_priv;
 
-	TRACE_ENTRY();
-	
-	/*
-	 * SCST sets good defaults for cmd->data_direction and cmd->bufflen
-	 * based on info_cdb, therefore change them only if necessary
-	 */
-
-	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d",
-	      info_cdb->op_name,
-	      info_cdb->direction, info_cdb->flags, info_cdb->transfer_len);
-
-	fixed = info_cdb->flags & SCST_TRANSFER_LEN_TYPE_FIXED;
-	switch (cmd->cdb[0]) {
-	case READ_CAPACITY:
-		cmd->bufflen = READ_CAP_LEN;
-		cmd->data_direction = SCST_DATA_READ;
-		break;
-	case SERVICE_ACTION_IN:
-		if ((cmd->cdb[1] & 0x1f) == SAI_READ_CAPACITY_16) {
-			cmd->bufflen = READ_CAP16_LEN;
-			cmd->data_direction = SCST_DATA_READ;
-		}
-		break;
-	case VERIFY_6:
-	case VERIFY:
-	case VERIFY_12:
-	case VERIFY_16:
-		if ((cmd->cdb[1] & BYTCHK) == 0) {
-			cmd->data_len = 
-			    info_cdb->transfer_len << virt_dev->block_shift;
-			cmd->bufflen = 0;
-			cmd->data_direction = SCST_DATA_NONE;
-			fixed = 0;
-		} else
-			cmd->data_len = 0;
-		break;
-	default:
-		/* It's all good */
-		break;
-	}
-
-	if (fixed) {
-		/* 
-		 * No need for locks here, since *_detach() can not be
-		 * called, when there are existing commands.
-		 */
-		cmd->bufflen = info_cdb->transfer_len << virt_dev->block_shift;
-	}
-
-	TRACE_DBG("res %d, bufflen %zd, data_len %zd, direct %d",
-	      res, cmd->bufflen, cmd->data_len, cmd->data_direction);
-
-	TRACE_EXIT();
-	return res;
+	scst_sbc_generic_parse(cmd, info_cdb, virt_dev->block_shift);
+	return SCST_CMD_STATE_DEFAULT;
 }
 
 /********************************************************************
@@ -910,61 +851,13 @@ static int vdisk_parse(struct scst_cmd *cmd,
  *  Note:  Not all states are allowed on return
  ********************************************************************/
 static int vcdrom_parse(struct scst_cmd *cmd,
-	const struct scst_info_cdb *info_cdb)
+	struct scst_info_cdb *info_cdb)
 {
-	int res = SCST_CMD_STATE_DEFAULT;
-	int fixed;
 	struct scst_vdisk_dev *virt_dev =
 	    (struct scst_vdisk_dev *)cmd->dev->dh_priv;
 
-	TRACE_ENTRY();
-	
-	/*
-	 * SCST sets good defaults for cmd->data_direction and cmd->bufflen
-	 * based on info_cdb, therefore change them only if necessary
-	 */
-
-	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d",
-	      info_cdb->op_name,
-	      info_cdb->direction, info_cdb->flags, info_cdb->transfer_len);
-
-	fixed = info_cdb->flags & SCST_TRANSFER_LEN_TYPE_FIXED;
-	switch (cmd->cdb[0]) {
-	case READ_CAPACITY:
-		cmd->bufflen = READ_CAP_LEN;
-		cmd->data_direction = SCST_DATA_READ;
-		break;
-	case VERIFY_6:
-	case VERIFY:
-	case VERIFY_12:
-	case VERIFY_16:
-		if ((cmd->cdb[1] & BYTCHK) == 0) {
-			cmd->data_len = 
-			    info_cdb->transfer_len << virt_dev->block_shift;
-			cmd->bufflen = 0;
-			cmd->data_direction = SCST_DATA_NONE;
-			fixed = 0;
-		} else
-			cmd->data_len = 0;
-		break;
-	default:
-		/* It's all good */
-		break;
-	}
-
-	if (fixed) {
-		/* 
-		 * No need for locks here, since *_detach() can not be
-		 * called, when there are existing commands.
-		 */
-		cmd->bufflen = info_cdb->transfer_len << virt_dev->block_shift;
-	}
-
-	TRACE_DBG("res %d, bufflen %zd, data_len %zd, direct %d",
-	      res, cmd->bufflen, cmd->data_len, cmd->data_direction);
-
-	TRACE_EXIT_HRES(res);
-	return res;
+	scst_cdrom_generic_parse(cmd, info_cdb, virt_dev->block_shift);
+	return SCST_CMD_STATE_DEFAULT;
 }
 
 /********************************************************************

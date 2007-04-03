@@ -23,6 +23,7 @@
 #include <linux/slab.h>
 #include <linux/sched.h>
 #include <linux/kthread.h>
+#include <linux/cdrom.h>
 #include <asm/unistd.h>
 #include <asm/string.h>
 
@@ -1827,6 +1828,275 @@ out:
 out_err:
 	PRINT_ERROR_PR("%s", "Multi-level LUN unimplemented");
 	goto out;
+}
+
+int scst_calc_block_shift(int sector_size)
+{
+	int block_shift = 0;
+	int t = sector_size;
+
+	if (sector_size == 0)
+		sector_size = 512;
+
+	while(1) {
+		if ((t & 1) != 0)
+			break;
+		t >>= 1;
+		block_shift++;
+	}
+	if (block_shift < 9) {
+		PRINT_ERROR_PR("Wrong sector size %d", sector_size);
+		block_shift = -1;
+	} 
+
+	TRACE_EXIT_RES(block_shift);
+	return block_shift;
+}
+
+int scst_sbc_generic_parse(struct scst_cmd *cmd,
+	struct scst_info_cdb *info_cdb, int block_shift)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+	
+	/*
+	 * SCST sets good defaults for cmd->data_direction and cmd->bufflen
+	 * based on info_cdb, therefore change them only if necessary
+	 */
+
+	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d",
+	      info_cdb->op_name,
+	      info_cdb->direction, info_cdb->flags, info_cdb->transfer_len);
+
+	switch (cmd->cdb[0]) {
+	case READ_CAPACITY:
+		cmd->bufflen = READ_CAP_LEN;
+		cmd->data_direction = SCST_DATA_READ;
+		break;
+	case SERVICE_ACTION_IN:
+		if ((cmd->cdb[1] & 0x1f) == SAI_READ_CAPACITY_16) {
+			cmd->bufflen = READ_CAP16_LEN;
+			cmd->data_direction = SCST_DATA_READ;
+		}
+		break;
+	case VERIFY_6:
+	case VERIFY:
+	case VERIFY_12:
+	case VERIFY_16:
+		if ((cmd->cdb[1] & BYTCHK) == 0) {
+			cmd->data_len = 
+			    info_cdb->transfer_len << block_shift;
+			cmd->bufflen = 0;
+			cmd->data_direction = SCST_DATA_NONE;
+			info_cdb->flags &= ~SCST_TRANSFER_LEN_TYPE_FIXED;
+		} else
+			cmd->data_len = 0;
+		break;
+	default:
+		/* It's all good */
+		break;
+	}
+
+	if (info_cdb->flags & SCST_TRANSFER_LEN_TYPE_FIXED) {
+		/* 
+		 * No need for locks here, since *_detach() can not be
+		 * called, when there are existing commands.
+		 */
+		cmd->bufflen = info_cdb->transfer_len << block_shift;
+	}
+
+	TRACE_DBG("res %d, bufflen %zd, data_len %zd, direct %d",
+	      res, cmd->bufflen, cmd->data_len, cmd->data_direction);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+int scst_cdrom_generic_parse(struct scst_cmd *cmd,
+	struct scst_info_cdb *info_cdb, int block_shift)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	/*
+	 * SCST sets good defaults for cmd->data_direction and cmd->bufflen
+	 * based on info_cdb, therefore change them only if necessary
+	 */
+
+	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d lun %d(%d)",
+	      info_cdb->op_name,
+	      info_cdb->direction,
+	      info_cdb->flags,
+	      info_cdb->transfer_len, cmd->lun, (cmd->cdb[1] >> 5) & 7);
+
+	cmd->cdb[1] &= 0x1f;
+
+	switch (cmd->cdb[0]) {
+	case READ_CAPACITY:
+		cmd->bufflen = READ_CAP_LEN;
+		cmd->data_direction = SCST_DATA_READ;
+		break;
+	case GPCMD_SET_STREAMING:
+		cmd->bufflen = (((*(cmd->cdb + 9)) & 0xff) << 8) +
+		    ((*(cmd->cdb + 10)) & 0xff);
+		cmd->bufflen &= 0xffff;
+		break;
+	case GPCMD_READ_CD:
+		cmd->bufflen = cmd->bufflen >> 8;
+		break;
+	case VERIFY_6:
+	case VERIFY:
+	case VERIFY_12:
+	case VERIFY_16:
+		if ((cmd->cdb[1] & BYTCHK) == 0) {
+			cmd->data_len = 
+			    info_cdb->transfer_len << block_shift;
+			cmd->bufflen = 0;
+			cmd->data_direction = SCST_DATA_NONE;
+			info_cdb->flags &= ~SCST_TRANSFER_LEN_TYPE_FIXED;
+		}
+		break;
+	default:
+		/* It's all good */
+		break;
+	}
+
+	if (info_cdb->flags & SCST_TRANSFER_LEN_TYPE_FIXED)
+		cmd->bufflen = info_cdb->transfer_len << block_shift;
+
+	TRACE_DBG("res %d bufflen %zd direct %d",
+	      res, cmd->bufflen, cmd->data_direction);
+
+	TRACE_EXIT();
+	return res;
+}
+
+int scst_modisk_generic_parse(struct scst_cmd *cmd,
+	struct scst_info_cdb *info_cdb, int block_shift)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	/*
+	 * SCST sets good defaults for cmd->data_direction and cmd->bufflen
+	 * based on info_cdb, therefore change them only if necessary
+	 */
+
+	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d lun %d(%d)",
+	      info_cdb->op_name,
+	      info_cdb->direction,
+	      info_cdb->flags,
+	      info_cdb->transfer_len, cmd->lun, (cmd->cdb[1] >> 5) & 7);
+
+	cmd->cdb[1] &= 0x1f;
+
+	switch (cmd->cdb[0]) {
+	case READ_CAPACITY:
+		cmd->bufflen = READ_CAP_LEN;
+		cmd->data_direction = SCST_DATA_READ;
+		break;
+	case 0xB6 /* SET_STREAMING */ :
+		cmd->bufflen = (((*(cmd->cdb + 9)) & 0xff) << 8) +
+		    ((*(cmd->cdb + 10)) & 0xff);
+		cmd->bufflen &= 0xffff;
+		break;
+	case 0xBE /* READ_CD */ :
+		cmd->bufflen = cmd->bufflen >> 8;
+		break;
+	case VERIFY_6:
+	case VERIFY:
+	case VERIFY_12:
+	case VERIFY_16:
+		if ((cmd->cdb[1] & BYTCHK) == 0) {
+			cmd->data_len = 
+			    info_cdb->transfer_len << block_shift;
+			cmd->bufflen = 0;
+			cmd->data_direction = SCST_DATA_NONE;
+			info_cdb->flags &= ~SCST_TRANSFER_LEN_TYPE_FIXED;
+		}
+		break;
+	default:
+		/* It's all good */
+		break;
+	}
+
+	if (info_cdb->flags & SCST_TRANSFER_LEN_TYPE_FIXED)
+		cmd->bufflen = info_cdb->transfer_len << block_shift;;
+
+	TRACE_DBG("res %d bufflen %zd direct %d",
+	      res, cmd->bufflen, cmd->data_direction);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+int scst_tape_generic_parse(struct scst_cmd *cmd,
+	struct scst_info_cdb *info_cdb, int block_size)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	/*
+	 * SCST sets good defaults for cmd->data_direction and cmd->bufflen
+	 * based on info_cdb, therefore change them only if necessary
+	 */
+
+	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d",
+	      info_cdb->op_name,
+	      info_cdb->direction, info_cdb->flags, info_cdb->transfer_len);
+
+	if (cmd->cdb[0] == READ_POSITION) {
+		int tclp = cmd->cdb[1] & TCLP_BIT;
+		int long_bit = cmd->cdb[1] & LONG_BIT;
+		int bt = cmd->cdb[1] & BT_BIT;
+
+		if ((tclp == long_bit) && (!bt || !long_bit)) {
+			cmd->bufflen =
+			    tclp ? POSITION_LEN_LONG : POSITION_LEN_SHORT;
+			cmd->data_direction = SCST_DATA_READ;
+		} else {
+			cmd->bufflen = 0;
+			cmd->data_direction = SCST_DATA_NONE;
+		}
+	}
+
+	if (info_cdb->flags & SCST_TRANSFER_LEN_TYPE_FIXED & cmd->cdb[1])
+		cmd->bufflen = info_cdb->transfer_len * block_size;
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+int scst_null_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	/*
+	 * SCST sets good defaults for cmd->data_direction and cmd->bufflen
+	 * based on info_cdb, therefore change them only if necessary
+	 */
+
+	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d",
+	      info_cdb->op_name,
+	      info_cdb->direction, info_cdb->flags, info_cdb->transfer_len);
+#if 0
+	switch (cmd->cdb[0]) {
+	default:
+		/* It's all good */
+		break;
+	}
+#endif
+	TRACE_DBG("res %d bufflen %zd direct %d",
+	      res, cmd->bufflen, cmd->data_direction);
+
+	TRACE_EXIT();
+	return res;
 }
 
 /* Called under dev_lock and BH off */

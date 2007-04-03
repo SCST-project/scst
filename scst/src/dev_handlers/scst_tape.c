@@ -65,14 +65,6 @@
 /* The fixed bit in READ/WRITE/VERIFY */
 #define SILI_BIT            2
 
-/* Bits in the READ POSITION command */
-#define TCLP_BIT            4
-#define LONG_BIT            2
-#define BT_BIT              1
-
-#define POSITION_LEN_SHORT  20
-#define POSITION_LEN_LONG   32
-
 struct tape_params
 {
 	spinlock_t tp_lock;
@@ -85,7 +77,7 @@ struct tape_params
 
 int tape_attach(struct scst_device *);
 void tape_detach(struct scst_device *);
-int tape_parse(struct scst_cmd *, const struct scst_info_cdb *);
+int tape_parse(struct scst_cmd *, struct scst_info_cdb *);
 int tape_done(struct scst_cmd *);
 int tape_exec(struct scst_cmd *);
 
@@ -280,17 +272,17 @@ void tape_detach(struct scst_device *dev)
  *
  *  Note:  Not all states are allowed on return
  ********************************************************************/
-int tape_parse(struct scst_cmd *cmd, const struct scst_info_cdb *info_cdb)
+int tape_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
-	struct tape_params *tape;
+	struct tape_params *tape = (struct tape_params*)cmd->dev->dh_priv;
 
-	TRACE_ENTRY();
-
-	/*
-	 * SCST sets good defaults for cmd->data_direction and cmd->bufflen
-	 * based on info_cdb, therefore change them only if necessary
+	/* 
+	 * No need for locks here, since *_detach() can not be called,
+	 * when there are existing commands.
 	 */
+
+	scst_tape_generic_parse(cmd, info_cdb, tape->block_size);
 
 	cmd->retries = 1;
 
@@ -301,36 +293,6 @@ int tape_parse(struct scst_cmd *cmd, const struct scst_info_cdb *info_cdb)
 	} else {
 		cmd->timeout = TAPE_REG_TIMEOUT;
 	}
-
-	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d",
-	      info_cdb->op_name,
-	      info_cdb->direction, info_cdb->flags, info_cdb->transfer_len);
-
-	if (cmd->cdb[0] == READ_POSITION) {
-		int tclp = cmd->cdb[1] & TCLP_BIT;
-		int long_bit = cmd->cdb[1] & LONG_BIT;
-		int bt = cmd->cdb[1] & BT_BIT;
-
-		if ((tclp == long_bit) && (!bt || !long_bit)) {
-			cmd->bufflen =
-			    tclp ? POSITION_LEN_LONG : POSITION_LEN_SHORT;
-			cmd->data_direction = SCST_DATA_READ;
-		} else {
-			cmd->bufflen = 0;
-			cmd->data_direction = SCST_DATA_NONE;
-		}
-	}
-
-	if (info_cdb->flags & SCST_TRANSFER_LEN_TYPE_FIXED & cmd->cdb[1]) {
-		/* 
-		 * No need for locks here, since *_detach() can not be called,
-		 * when there are existing commands.
-		 */
-		tape = (struct tape_params *)cmd->dev->dh_priv;
-		cmd->bufflen = info_cdb->transfer_len * tape->block_size;
-	}
-
-	TRACE_EXIT_RES(res);
 	return res;
 }
 
