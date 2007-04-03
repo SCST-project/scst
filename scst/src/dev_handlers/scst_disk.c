@@ -60,6 +60,8 @@
 #define DISK_REG_TIMEOUT    (60 * HZ)
 #define DISK_LONG_TIMEOUT   (3600 * HZ)
 
+#define DISK_DEF_BLOCK_SHIFT	9
+
 struct disk_params
 {
 	int block_shift;
@@ -148,7 +150,7 @@ int disk_attach(struct scst_device *dev)
 	unsigned char sense_buffer[SCSI_SENSE_BUFFERSIZE];
 	enum dma_data_direction data_dir;
 	unsigned char *sbuff;
-	struct disk_params *disk;
+	struct disk_params *params;
 
 	TRACE_ENTRY();
 
@@ -159,8 +161,8 @@ int disk_attach(struct scst_device *dev)
 		goto out;
 	}
 
-	disk = kzalloc(sizeof(*disk), GFP_KERNEL);
-	if (disk == NULL) {
+	params = kzalloc(sizeof(*params), GFP_KERNEL);
+	if (params == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s",
 		      "Unable to allocate struct disk_params");
 		res = -ENOMEM;
@@ -171,7 +173,7 @@ int disk_attach(struct scst_device *dev)
 	if (!buffer) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Memory allocation failure");
 		res = -ENOMEM;
-		goto out_free_disk;
+		goto out_free_params;
 	}
 
 	/* Clear any existing UA's and get disk capacity (disk block size) */
@@ -206,7 +208,10 @@ int disk_attach(struct scst_device *dev)
 	if (res == 0) {
 		int sector_size = ((buffer[4] << 24) | (buffer[5] << 16) |
 				     (buffer[6] << 8) | (buffer[7] << 0));
-		disk->block_shift = scst_calc_block_shift(sector_size);
+		if (sector_size == 0)
+			params->block_shift = DISK_DEF_BLOCK_SHIFT;
+		else
+			params->block_shift = scst_calc_block_shift(sector_size);
 	} else {
 		TRACE_BUFFER("Sense set", sbuff, SCSI_SENSE_BUFFERSIZE);
 		res = -ENODEV;
@@ -216,11 +221,11 @@ int disk_attach(struct scst_device *dev)
 out_free_buf:
 	kfree(buffer);
 
-out_free_disk:
+out_free_params:
 	if (res == 0)
-		dev->dh_priv = disk;
+		dev->dh_priv = params;
 	else
-		kfree(disk);
+		kfree(params);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -238,15 +243,22 @@ out:
  ************************************************************/
 void disk_detach(struct scst_device *dev)
 {
-	struct disk_params *disk = (struct disk_params *)dev->dh_priv;
+	struct disk_params *params =
+		(struct disk_params *)dev->dh_priv;
 
 	TRACE_ENTRY();
 
-	kfree(disk);
+	kfree(params);
 	dev->dh_priv = NULL;
 
 	TRACE_EXIT();
 	return;
+}
+
+static int disk_get_block_shift(struct scst_cmd *cmd)
+{
+	struct disk_params *params = (struct disk_params *)cmd->dev->dh_priv;
+	return params->block_shift;
 }
 
 /********************************************************************
@@ -262,7 +274,6 @@ void disk_detach(struct scst_device *dev)
  ********************************************************************/
 int disk_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 {
-	struct disk_params *disk = (struct disk_params *)cmd->dev->dh_priv;
 	int res = SCST_CMD_STATE_DEFAULT;
 
 	/* 
@@ -270,7 +281,7 @@ int disk_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 	 * called, when there are existing commands.
 	 */
 
-	scst_sbc_generic_parse(cmd, info_cdb, disk->block_shift);
+	scst_sbc_generic_parse(cmd, info_cdb, disk_get_block_shift);
 
 	cmd->retries = 1;
 
@@ -283,6 +294,16 @@ int disk_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 	}
 
 	return res;
+}
+
+static void disk_set_block_shift(struct scst_cmd *cmd, int block_shift)
+{
+	struct disk_params *params = (struct disk_params *)cmd->dev->dh_priv;
+	if (block_shift != 0)
+		params->block_shift = block_shift;
+	else
+		params->block_shift = DISK_DEF_BLOCK_SHIFT;
+	return;
 }
 
 /********************************************************************
@@ -298,66 +319,16 @@ int disk_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
  ********************************************************************/
 int disk_done(struct scst_cmd *cmd)
 {
-	int opcode = cmd->cdb[0];
-	int status = cmd->status;
-	struct disk_params *disk;
 	int res = SCST_CMD_STATE_DEFAULT;
 
 	TRACE_ENTRY();
 
-	if (unlikely(cmd->sg == NULL))
-		goto out;
-
-	/*
-	 * SCST sets good defaults for cmd->tgt_resp_flags and cmd->resp_data_len
-	 * based on cmd->status and cmd->data_direction, therefore change
-	 * them only if necessary
+	/* 
+	 * No need for locks here, since *_detach() can not be
+	 * called, when there are existing commands.
 	 */
+	res = scst_block_generic_dev_done(cmd, disk_set_block_shift);
 
-	if ((status == SAM_STAT_GOOD) || (status == SAM_STAT_CONDITION_MET)) {
-		switch (opcode) {
-		case READ_CAPACITY:
-		{
-			/* Always keep track of disk capacity */
-			int buffer_size, sector_size, block_shift;
-			uint8_t *buffer;
-
-			buffer_size = scst_get_buf_first(cmd, &buffer);
-			if (unlikely(buffer_size <= 0)) {
-				PRINT_ERROR_PR("%s: Unable to get the buffer",
-					__FUNCTION__);
-				scst_set_busy(cmd);
-				goto out;
-			}
-
-			/* 
-			 * No need for locks here, since *_detach() can not be
-			 * called, when there are existing commands.
-			 */
-			disk = (struct disk_params *)cmd->dev->dh_priv;
-			sector_size =
-			    ((buffer[4] << 24) | (buffer[5] << 16) |
-			     (buffer[6] << 8) | (buffer[7] << 0));
-			scst_put_buf(cmd, buffer);
-			block_shift = scst_calc_block_shift(sector_size);
-			/* 
-			 * To force the compiler not to optimize it out to keep
-			 * disk->block_shift access atomic
-			 */
-			barrier();
-			disk->block_shift = block_shift;
-			break;
-		}
-		default:
-			/* It's all good */
-			break;
-		}
-	}
-
-	TRACE_DBG("cmd->tgt_resp_flags=%x, cmd->resp_data_len=%d, "
-	      "res=%d", cmd->tgt_resp_flags, cmd->resp_data_len, res);
-
-out:
 	TRACE_EXIT_RES(res);
 	return res;
 }

@@ -62,16 +62,13 @@
 #define TAPE_REG_TIMEOUT    (900 * HZ)
 #define TAPE_LONG_TIMEOUT   (14000 * HZ)
 
+#define TAPE_DEF_BLOCK_SIZE	512
+
 /* The fixed bit in READ/WRITE/VERIFY */
 #define SILI_BIT            2
 
 struct tape_params
 {
-	spinlock_t tp_lock;
-	uint8_t density;
-	uint8_t mode;
-	uint8_t speed;
-	uint8_t medium_type;
 	int block_size;
 };
 
@@ -155,7 +152,7 @@ int tape_attach(struct scst_device *dev)
 	struct scsi_mode_data data;
 	const int buffer_size = 512;
 	uint8_t *buffer = NULL;
-	struct tape_params *tape;
+	struct tape_params *params;
 
 	TRACE_ENTRY();
 
@@ -166,14 +163,13 @@ int tape_attach(struct scst_device *dev)
 		goto out;
 	}
 
-	tape = kzalloc(sizeof(*tape), GFP_KERNEL);
-	if (tape == NULL) {
+	params = kzalloc(sizeof(*params), GFP_KERNEL);
+	if (params == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s",
 		      "Unable to allocate struct tape_params");
 		res = -ENOMEM;
 		goto out;
 	}
-	spin_lock_init(&tape->tp_lock);
 
 	buffer = kmalloc(buffer_size, GFP_KERNEL);
 	if (!buffer) {
@@ -205,21 +201,21 @@ int tape_attach(struct scst_device *dev)
 	TRACE_DBG("MODE_SENSE done: %x", res);
 
 	if (res == 0) {
+		int medium_type, mode, speed, density;
 		if (buffer[3] == 8) {
-			tape->block_size = ((buffer[9] << 16) |
+			params->block_size = ((buffer[9] << 16) |
 					    (buffer[10] << 8) |
 					    (buffer[11] << 0));
 		} else {
-			tape->block_size = 512;
+			params->block_size = TAPE_DEF_BLOCK_SIZE;
 		}
-		tape->medium_type = buffer[1];
-		tape->mode = (buffer[2] & 0x70) >> 4;
-		tape->speed = buffer[2] & 0x0f;
-		tape->density = buffer[4];
+		medium_type = buffer[1];
+		mode = (buffer[2] & 0x70) >> 4;
+		speed = buffer[2] & 0x0f;
+		density = buffer[4];
 		TRACE_DBG("Tape: lun %d. bs %d. type 0x%02x mode 0x%02x "
 		      "speed 0x%02x dens 0x%02x", dev->scsi_dev->lun,
-		      tape->block_size, tape->medium_type,
-		      tape->mode, tape->speed, tape->density);
+		      params->block_size, medium_type, mode, speed, density);
 	} else {
 		res = -ENODEV;
 		goto out_free_buf;
@@ -230,9 +226,9 @@ out_free_buf:
 
 out_free_req:
 	if (res == 0)
-		dev->dh_priv = tape;
+		dev->dh_priv = params;
 	else
-		kfree(tape);
+		kfree(params);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -250,15 +246,22 @@ out:
  ************************************************************/
 void tape_detach(struct scst_device *dev)
 {
-	struct tape_params *tape = (struct tape_params *)dev->dh_priv;
+	struct tape_params *params =
+		(struct tape_params *)dev->dh_priv;
 
 	TRACE_ENTRY();
 
-	kfree(tape);
+	kfree(params);
 	dev->dh_priv = NULL;
 
 	TRACE_EXIT();
 	return;
+}
+
+static int tape_get_block_size(struct scst_cmd *cmd)
+{
+	struct tape_params *params = (struct tape_params *)cmd->dev->dh_priv;
+	return params->block_size;
 }
 
 /********************************************************************
@@ -275,14 +278,13 @@ void tape_detach(struct scst_device *dev)
 int tape_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
-	struct tape_params *tape = (struct tape_params*)cmd->dev->dh_priv;
 
 	/* 
 	 * No need for locks here, since *_detach() can not be called,
 	 * when there are existing commands.
 	 */
 
-	scst_tape_generic_parse(cmd, info_cdb, tape->block_size);
+	scst_tape_generic_parse(cmd, info_cdb, tape_get_block_size);
 
 	cmd->retries = 1;
 
@@ -294,6 +296,13 @@ int tape_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 		cmd->timeout = TAPE_REG_TIMEOUT;
 	}
 	return res;
+}
+
+static void tape_set_block_size(struct scst_cmd *cmd, int block_size)
+{
+	struct tape_params *params = (struct tape_params *)cmd->dev->dh_priv;
+	params->block_size = block_size;
+	return;
 }
 
 /********************************************************************
@@ -311,94 +320,21 @@ int tape_done(struct scst_cmd *cmd)
 {
 	int opcode = cmd->cdb[0];
 	int status = cmd->status;
-	struct tape_params *tape;
 	int res = SCST_CMD_STATE_DEFAULT;
 
 	TRACE_ENTRY();
 
-	if (unlikely(cmd->sg == NULL))
-		goto out;
-
-	/*
-	 * SCST sets good defaults for cmd->tgt_resp_flags and cmd->resp_data_len
-	 * based on cmd->status and cmd->data_direction, therefore change
-	 * them only if necessary
+	/* 
+	 * No need for locks here, since *_detach() can not be called, when
+	 * there are existing commands.
 	 */
 
 	if ((status == SAM_STAT_GOOD) || (status == SAM_STAT_CONDITION_MET)) {
-		int buffer_size;
-		uint8_t *buffer = NULL;
-		
-		switch (opcode) {
-		case MODE_SENSE:
-		case MODE_SELECT:
-			buffer_size = scst_get_buf_first(cmd, &buffer);
-			if (unlikely(buffer_size <= 0)) {
-				PRINT_ERROR_PR("%s: Unable to get the buffer",
-					__FUNCTION__);
-				scst_set_busy(cmd);
-				goto out;
-			}
-			break;
-		}
-
-		switch (opcode) {
-		case MODE_SENSE:
-			TRACE_DBG("%s", "MODE_SENSE");
-			if ((cmd->cdb[2] & 0xC0) == 0) {
-				/* 
-				 * No need for locks here, since *_detach()
-				 * can not be called, when there are 
-				 * existing commands.
-				 */
-				tape = (struct tape_params *)cmd->dev->dh_priv;
-				spin_lock_bh(&tape->tp_lock);
-				if (buffer[3] == 8) {
-					tape->block_size = (buffer[9] << 16) |
-					    (buffer[10] << 8) | buffer[11];
-				}
-				tape->medium_type = buffer[1];
-				tape->mode = (buffer[2] & 0x70) >> 4;
-				tape->speed = buffer[2] & 0x0f;
-				tape->density = buffer[4];
-				spin_unlock_bh(&tape->tp_lock);
-			}
-			break;
-		case MODE_SELECT:
-			TRACE_DBG("%s", "MODE_SELECT");
-			/* 
-			 * No need for locks here, since *_detach() can not be
-			 * called, when there are existing commands.
-			 */
-			tape = (struct tape_params *)cmd->dev->dh_priv;
-			spin_lock_bh(&tape->tp_lock);
-			if (buffer[3] == 8) {
-				tape->block_size =
-				    (buffer[9] << 16) | (buffer[10] << 8) |
-				    (buffer[11]);
-			}
-			tape->medium_type = buffer[1];
-			tape->mode = (buffer[2] & 0x70) >> 4;
-			tape->speed = buffer[2] & 0x0f;
-			if (buffer[4] != 0x7f)
-				tape->density = buffer[4];
-			spin_unlock_bh(&tape->tp_lock);
-			break;
-		default:
-			/* It's all good */
-			break;
-		}
-		
-		switch (opcode) {
-		case MODE_SENSE:
-		case MODE_SELECT:
-			scst_put_buf(cmd, buffer);
-			break;
-		}
-	} 
-	else if ((status == SAM_STAT_CHECK_CONDITION) && 
+		res = scst_tape_generic_dev_done(cmd, tape_set_block_size);
+	} else if ((status == SAM_STAT_CHECK_CONDITION) && 
 		   SCST_SENSE_VALID(cmd->sense_buffer)) 
 	{
+		struct tape_params *params;
 		TRACE_DBG("%s", "Extended sense");
 		if (opcode == READ_6 && !(cmd->cdb[1] & SILI_BIT) &&
 		    (cmd->sense_buffer[2] & 0xe0)) {	/* EOF, EOM, or ILI */
@@ -428,8 +364,8 @@ int tape_done(struct scst_cmd *cmd)
 					 * *_detach() can not be called, when
 					 * there are existing commands.
 					 */
-					tape = (struct tape_params *)cmd->dev->dh_priv;
-					resp_data_len *= tape->block_size;
+					params = (struct tape_params *)cmd->dev->dh_priv;
+					resp_data_len *= params->block_size;
 				}
 				scst_set_resp_data_len(cmd, resp_data_len);
 			}
@@ -439,7 +375,6 @@ int tape_done(struct scst_cmd *cmd)
 	TRACE_DBG("cmd->tgt_resp_flags=%x, cmd->resp_data_len=%d, "
 	      "res=%d", cmd->tgt_resp_flags, cmd->resp_data_len, res);
 
-out:
 	TRACE_EXIT_RES(res);
 	return res;
 }

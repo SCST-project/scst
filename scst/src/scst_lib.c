@@ -1854,7 +1854,8 @@ int scst_calc_block_shift(int sector_size)
 }
 
 int scst_sbc_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb, int block_shift)
+	struct scst_info_cdb *info_cdb,
+	int (*get_block_shift)(struct scst_cmd *cmd))
 {
 	int res = 0;
 
@@ -1886,7 +1887,7 @@ int scst_sbc_generic_parse(struct scst_cmd *cmd,
 	case VERIFY_16:
 		if ((cmd->cdb[1] & BYTCHK) == 0) {
 			cmd->data_len = 
-			    info_cdb->transfer_len << block_shift;
+			    info_cdb->transfer_len << get_block_shift(cmd);
 			cmd->bufflen = 0;
 			cmd->data_direction = SCST_DATA_NONE;
 			info_cdb->flags &= ~SCST_TRANSFER_LEN_TYPE_FIXED;
@@ -1903,7 +1904,7 @@ int scst_sbc_generic_parse(struct scst_cmd *cmd,
 		 * No need for locks here, since *_detach() can not be
 		 * called, when there are existing commands.
 		 */
-		cmd->bufflen = info_cdb->transfer_len << block_shift;
+		cmd->bufflen = info_cdb->transfer_len << get_block_shift(cmd);
 	}
 
 	TRACE_DBG("res %d, bufflen %zd, data_len %zd, direct %d",
@@ -1914,7 +1915,8 @@ int scst_sbc_generic_parse(struct scst_cmd *cmd,
 }
 
 int scst_cdrom_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb, int block_shift)
+	struct scst_info_cdb *info_cdb,
+	int (*get_block_shift)(struct scst_cmd *cmd))
 {
 	int res = 0;
 
@@ -1952,7 +1954,7 @@ int scst_cdrom_generic_parse(struct scst_cmd *cmd,
 	case VERIFY_16:
 		if ((cmd->cdb[1] & BYTCHK) == 0) {
 			cmd->data_len = 
-			    info_cdb->transfer_len << block_shift;
+			    info_cdb->transfer_len << get_block_shift(cmd);
 			cmd->bufflen = 0;
 			cmd->data_direction = SCST_DATA_NONE;
 			info_cdb->flags &= ~SCST_TRANSFER_LEN_TYPE_FIXED;
@@ -1964,7 +1966,7 @@ int scst_cdrom_generic_parse(struct scst_cmd *cmd,
 	}
 
 	if (info_cdb->flags & SCST_TRANSFER_LEN_TYPE_FIXED)
-		cmd->bufflen = info_cdb->transfer_len << block_shift;
+		cmd->bufflen = info_cdb->transfer_len << get_block_shift(cmd);
 
 	TRACE_DBG("res %d bufflen %zd direct %d",
 	      res, cmd->bufflen, cmd->data_direction);
@@ -1974,7 +1976,8 @@ int scst_cdrom_generic_parse(struct scst_cmd *cmd,
 }
 
 int scst_modisk_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb, int block_shift)
+	struct scst_info_cdb *info_cdb,
+	int (*get_block_shift)(struct scst_cmd *cmd))
 {
 	int res = 0;
 
@@ -2012,7 +2015,7 @@ int scst_modisk_generic_parse(struct scst_cmd *cmd,
 	case VERIFY_16:
 		if ((cmd->cdb[1] & BYTCHK) == 0) {
 			cmd->data_len = 
-			    info_cdb->transfer_len << block_shift;
+			    info_cdb->transfer_len << get_block_shift(cmd);
 			cmd->bufflen = 0;
 			cmd->data_direction = SCST_DATA_NONE;
 			info_cdb->flags &= ~SCST_TRANSFER_LEN_TYPE_FIXED;
@@ -2024,7 +2027,7 @@ int scst_modisk_generic_parse(struct scst_cmd *cmd,
 	}
 
 	if (info_cdb->flags & SCST_TRANSFER_LEN_TYPE_FIXED)
-		cmd->bufflen = info_cdb->transfer_len << block_shift;;
+		cmd->bufflen = info_cdb->transfer_len << get_block_shift(cmd);
 
 	TRACE_DBG("res %d bufflen %zd direct %d",
 	      res, cmd->bufflen, cmd->data_direction);
@@ -2034,7 +2037,8 @@ int scst_modisk_generic_parse(struct scst_cmd *cmd,
 }
 
 int scst_tape_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb, int block_size)
+	struct scst_info_cdb *info_cdb,
+	int (*get_block_size)(struct scst_cmd *cmd))
 {
 	int res = 0;
 
@@ -2065,13 +2069,13 @@ int scst_tape_generic_parse(struct scst_cmd *cmd,
 	}
 
 	if (info_cdb->flags & SCST_TRANSFER_LEN_TYPE_FIXED & cmd->cdb[1])
-		cmd->bufflen = info_cdb->transfer_len * block_size;
+		cmd->bufflen = info_cdb->transfer_len * get_block_size(cmd);
 
 	TRACE_EXIT_RES(res);
 	return res;
 }
 
-int scst_null_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
+static int scst_null_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 {
 	int res = 0;
 
@@ -2096,6 +2100,152 @@ int scst_null_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 	      res, cmd->bufflen, cmd->data_direction);
 
 	TRACE_EXIT();
+	return res;
+}
+
+int scst_changer_generic_parse(struct scst_cmd *cmd,
+	struct scst_info_cdb *info_cdb, int nothing)
+{
+	return scst_null_parse(cmd, info_cdb);
+}
+
+int scst_processor_generic_parse(struct scst_cmd *cmd,
+	struct scst_info_cdb *info_cdb, int nothing)
+{
+	return scst_null_parse(cmd, info_cdb);
+}
+
+int scst_raid_generic_parse(struct scst_cmd *cmd,
+	struct scst_info_cdb *info_cdb, int nothing)
+{
+	return scst_null_parse(cmd, info_cdb);
+}
+
+int scst_block_generic_dev_done(struct scst_cmd *cmd,
+	void (*set_block_shift)(struct scst_cmd *cmd, int block_shift))
+{
+	int opcode = cmd->cdb[0];
+	int status = cmd->status;
+	int res = SCST_CMD_STATE_DEFAULT;
+
+	TRACE_ENTRY();
+
+	if (unlikely(cmd->sg == NULL))
+		goto out;
+
+	/*
+	 * SCST sets good defaults for cmd->tgt_resp_flags and cmd->resp_data_len
+	 * based on cmd->status and cmd->data_direction, therefore change
+	 * them only if necessary
+	 */
+
+	if ((status == SAM_STAT_GOOD) || (status == SAM_STAT_CONDITION_MET)) {
+		switch (opcode) {
+		case READ_CAPACITY:
+		{
+			/* Always keep track of disk capacity */
+			int buffer_size, sector_size, sh;
+			uint8_t *buffer;
+
+			buffer_size = scst_get_buf_first(cmd, &buffer);
+			if (unlikely(buffer_size <= 0)) {
+				PRINT_ERROR_PR("%s: Unable to get the buffer",
+					__FUNCTION__);
+				scst_set_busy(cmd);
+				goto out;
+			}
+
+			sector_size =
+			    ((buffer[4] << 24) | (buffer[5] << 16) |
+			     (buffer[6] << 8) | (buffer[7] << 0));
+			scst_put_buf(cmd, buffer);
+			if (sector_size != 0)
+				sh = scst_calc_block_shift(sector_size);
+			else
+				sh = 0;
+			set_block_shift(cmd, sh);
+			TRACE(TRACE_SCSI, "block_shift %d", sh);
+			break;
+		}
+		default:
+			/* It's all good */
+			break;
+		}
+	}
+
+	TRACE_DBG("cmd->tgt_resp_flags=%x, cmd->resp_data_len=%d, "
+	      "res=%d", cmd->tgt_resp_flags, cmd->resp_data_len, res);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+int scst_tape_generic_dev_done(struct scst_cmd *cmd,
+	void (*set_block_size)(struct scst_cmd *cmd, int block_shift))
+{
+	int opcode = cmd->cdb[0];
+	int res = SCST_CMD_STATE_DEFAULT;
+	int buffer_size, bs;
+	uint8_t *buffer = NULL;
+
+	TRACE_ENTRY();
+
+	if (unlikely(cmd->sg == NULL))
+		goto out;
+
+	/*
+	 * SCST sets good defaults for cmd->tgt_resp_flags and cmd->resp_data_len
+	 * based on cmd->status and cmd->data_direction, therefore change
+	 * them only if necessary
+	 */
+		
+	switch (opcode) {
+	case MODE_SENSE:
+	case MODE_SELECT:
+		buffer_size = scst_get_buf_first(cmd, &buffer);
+		if (unlikely(buffer_size <= 0)) {
+			PRINT_ERROR_PR("%s: Unable to get the buffer",
+				__FUNCTION__);
+			scst_set_busy(cmd);
+			goto out;
+		}
+		break;
+	}
+
+	switch (opcode) {
+	case MODE_SENSE:
+		TRACE_DBG("%s", "MODE_SENSE");
+		if ((cmd->cdb[2] & 0xC0) == 0) {
+			if (buffer[3] == 8) {
+				bs = (buffer[9] << 16) |
+				    (buffer[10] << 8) | buffer[11];
+				set_block_size(cmd, bs);
+			}
+		}
+		break;
+	case MODE_SELECT:
+		TRACE_DBG("%s", "MODE_SELECT");
+		if (buffer[3] == 8) {
+			bs = (buffer[9] << 16) | (buffer[10] << 8) |
+			    (buffer[11]);
+			set_block_size(cmd, bs);
+		}
+		break;
+	default:
+		/* It's all good */
+		break;
+	}
+	
+	switch (opcode) {
+	case MODE_SENSE:
+	case MODE_SELECT:
+		scst_put_buf(cmd, buffer);
+		break;
+	}
+
+out:
+	TRACE_EXIT_RES(res);
 	return res;
 }
 

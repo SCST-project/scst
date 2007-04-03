@@ -96,7 +96,7 @@ LIST_HEAD(scst_sess_mgmt_list);
 
 DECLARE_WAIT_QUEUE_HEAD(scst_dev_cmd_waitQ);
 
-DECLARE_MUTEX(scst_suspend_mutex);;
+DECLARE_MUTEX(scst_suspend_mutex);
 LIST_HEAD(scst_cmd_lists_list); /* protected by scst_suspend_mutex */
 
 static int scst_threads;
@@ -1482,7 +1482,13 @@ EXPORT_SYMBOL(scst_sbc_generic_parse);
 EXPORT_SYMBOL(scst_cdrom_generic_parse);
 EXPORT_SYMBOL(scst_modisk_generic_parse);
 EXPORT_SYMBOL(scst_tape_generic_parse);
-EXPORT_SYMBOL(scst_null_parse);
+EXPORT_SYMBOL(scst_changer_generic_parse);
+EXPORT_SYMBOL(scst_processor_generic_parse);
+EXPORT_SYMBOL(scst_raid_generic_parse);
+
+/* Generic dev_done() routines */
+EXPORT_SYMBOL(scst_block_generic_dev_done);
+EXPORT_SYMBOL(scst_tape_generic_dev_done);
 
 /*
  * Other Commands

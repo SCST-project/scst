@@ -128,7 +128,7 @@ int processor_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
 
-	scst_processor_generic_parse(cmd, info_cdb);
+	scst_processor_generic_parse(cmd, info_cdb, 0);
 
 	cmd->retries = 1;
 

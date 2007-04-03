@@ -59,8 +59,8 @@
 #define MODISK_SMALL_TIMEOUT  (3 * HZ)
 #define MODISK_REG_TIMEOUT    (900 * HZ)
 #define MODISK_LONG_TIMEOUT   (14000 * HZ)
-#define MODISK_BLOCK_SHIFT    10
-#define MODISK_SECTOR_SIZE    (1 << MODISK_BLOCK_SHIFT)
+
+#define MODISK_DEF_BLOCK_SHIFT    10
 
 struct modisk_params
 {
@@ -150,7 +150,7 @@ int modisk_attach(struct scst_device *dev)
 	unsigned char sense_buffer[SCSI_SENSE_BUFFERSIZE];
 	enum dma_data_direction data_dir;
 	unsigned char *sbuff;
-	struct modisk_params *modisk;
+	struct modisk_params *params;
 
 	TRACE_ENTRY();
 
@@ -161,14 +161,14 @@ int modisk_attach(struct scst_device *dev)
 		goto out;
 	}
 
-	modisk = kzalloc(sizeof(*modisk), GFP_KERNEL);
-	if (modisk == NULL) {
+	params = kzalloc(sizeof(*params), GFP_KERNEL);
+	if (params == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s",
 		      "Unable to allocate struct modisk_params");
 		res = -ENOMEM;
 		goto out;
 	}
-	modisk->block_shift = MODISK_BLOCK_SHIFT;
+	params->block_shift = MODISK_DEF_BLOCK_SHIFT;
 
 	/*
 	 * If the device is offline, don't try to read capacity or any
@@ -178,14 +178,14 @@ int modisk_attach(struct scst_device *dev)
 	{
 		TRACE_DBG("%s", "Device is offline");
 		res = -ENODEV;
-		goto out_free_modisk;
+		goto out_free_params;
 	}
 
 	buffer = kzalloc(buffer_size, GFP_KERNEL);
 	if (!buffer) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Memory allocation failure");
 		res = -ENOMEM;
-		goto out_free_modisk;
+		goto out_free_params;
 	}
 
 	/* Clear any existing UA's and get modisk capacity (modisk block size) */
@@ -220,8 +220,9 @@ int modisk_attach(struct scst_device *dev)
 		int sector_size = ((buffer[4] << 24) | (buffer[5] << 16) |
 				       (buffer[6] << 8) | (buffer[7] << 0));
 		if (sector_size == 0)
-			sector_size = MODISK_SECTOR_SIZE;
-		modisk->block_shift = scst_calc_block_shift(sector_size);
+			params->block_shift = MODISK_DEF_BLOCK_SHIFT;
+		else
+			params->block_shift = scst_calc_block_shift(sector_size);
 		TRACE_DBG("Sector size is %i scsi_level %d(SCSI_2 %d)",
 		      sector_size, dev->scsi_dev->scsi_level, SCSI_2);
 	} else {
@@ -235,11 +236,11 @@ int modisk_attach(struct scst_device *dev)
 out_free_buf:
 	kfree(buffer);
 
-out_free_modisk:
+out_free_params:
 	if (res == 0)
-		dev->dh_priv = modisk;
+		dev->dh_priv = params;
 	else
-		kfree(modisk);
+		kfree(params);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -257,15 +258,22 @@ out:
  ************************************************************/
 void modisk_detach(struct scst_device *dev)
 {
-	struct modisk_params *modisk = (struct modisk_params *)dev->dh_priv;
+	struct modisk_params *params =
+		(struct modisk_params *)dev->dh_priv;
 
 	TRACE_ENTRY();
 
-	kfree(modisk);
+	kfree(params);
 	dev->dh_priv = NULL;
 
 	TRACE_EXIT();
 	return;
+}
+
+static int modisk_get_block_shift(struct scst_cmd *cmd)
+{
+	struct modisk_params *params = (struct modisk_params *)cmd->dev->dh_priv;
+	return params->block_shift;
 }
 
 /********************************************************************
@@ -282,14 +290,13 @@ void modisk_detach(struct scst_device *dev)
 int modisk_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
-	struct modisk_params *modisk = (struct modisk_params*)cmd->dev->dh_priv;
 
 	/* 
 	 * No need for locks here, since *_detach() can not be
 	 * called, when there are existing commands.
 	 */
 
-	scst_modisk_generic_parse(cmd, info_cdb, modisk->block_shift);
+	scst_modisk_generic_parse(cmd, info_cdb, modisk_get_block_shift);
 
 	cmd->retries = 1;
 
@@ -301,6 +308,16 @@ int modisk_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 		cmd->timeout = MODISK_REG_TIMEOUT;
 	}
 	return res;
+}
+
+static void modisk_set_block_shift(struct scst_cmd *cmd, int block_shift)
+{
+	struct modisk_params *params = (struct modisk_params *)cmd->dev->dh_priv;
+	if (block_shift != 0)
+		params->block_shift = block_shift;
+	else
+		params->block_shift = MODISK_DEF_BLOCK_SHIFT;
+	return;
 }
 
 /********************************************************************
@@ -316,68 +333,16 @@ int modisk_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
  ********************************************************************/
 int modisk_done(struct scst_cmd *cmd)
 {
-	int opcode = cmd->cdb[0];
-	int status = cmd->status;
-	struct modisk_params *modisk;
-	int res = SCST_CMD_STATE_DEFAULT;
+	int res;
 
 	TRACE_ENTRY();
 
-	if (unlikely(cmd->sg == NULL))
-		goto out;
-
-	/*
-	 * SCST sets good defaults for cmd->tgt_resp_flags and cmd->resp_data_len
-	 * based on cmd->status and cmd->data_direction, therefore change
-	 * them only if necessary
+	/* 
+	 * No need for locks here, since *_detach() can not be
+	 * called, when there are existing commands.
 	 */
+	res = scst_block_generic_dev_done(cmd, modisk_set_block_shift);
 
-	if ((status == SAM_STAT_GOOD) || (status == SAM_STAT_CONDITION_MET)) {
-		switch (opcode) {
-		case READ_CAPACITY:
-		{
-			/* Always keep track of modisk capacity */
-			int buffer_size, sector_size, block_shift;
-			uint8_t *buffer;
-
-			buffer_size = scst_get_buf_first(cmd, &buffer);
-			if (unlikely(buffer_size <= 0)) {
-				PRINT_ERROR_PR("%s: Unable to get the buffer",
-					__FUNCTION__);
-				scst_set_busy(cmd);
-				goto out;
-			}
-
-			/* 
-			 * No need for locks here, since *_detach() can not be
-			 * called, when there are existing commands.
-			 */
-			modisk = (struct modisk_params *)cmd->dev->dh_priv;
-			sector_size =
-			    ((buffer[4] << 24) | (buffer[5] << 16) |
-			     (buffer[6] << 8) | (buffer[7] << 0));
-			scst_put_buf(cmd, buffer);
-			if (!sector_size)
-				sector_size = MODISK_SECTOR_SIZE;
-			block_shift = scst_calc_block_shift(sector_size);
-			/* 
-			 * To force the compiler not to optimize it out to keep
-			 * cdrom->block_shift access atomic
-			 */
-			barrier();
-			modisk->block_shift = block_shift;
-			break;
-		}
-		default:
-			/* It's all good */
-			break;
-		}
-	}
-
-	TRACE_DBG("cmd->tgt_resp_flags=%x, cmd->resp_data_len=%d, "
-	      "res=%d", cmd->tgt_resp_flags, cmd->resp_data_len, res);
-
-out:
 	TRACE_EXIT_RES(res);
 	return res;
 }

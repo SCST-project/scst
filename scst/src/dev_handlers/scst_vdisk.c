@@ -818,6 +818,13 @@ out:
 	return SCST_EXEC_COMPLETED;
 }
 
+static int vdisk_get_block_shift(struct scst_cmd *cmd)
+{
+	struct scst_vdisk_dev *virt_dev =
+	    (struct scst_vdisk_dev *)cmd->dev->dh_priv;
+	return virt_dev->block_shift;
+}
+
 /********************************************************************
  *  Function:  vdisk_parse
  *
@@ -832,10 +839,7 @@ out:
 static int vdisk_parse(struct scst_cmd *cmd,
 	struct scst_info_cdb *info_cdb)
 {
-	struct scst_vdisk_dev *virt_dev =
-	    (struct scst_vdisk_dev *)cmd->dev->dh_priv;
-
-	scst_sbc_generic_parse(cmd, info_cdb, virt_dev->block_shift);
+	scst_sbc_generic_parse(cmd, info_cdb, vdisk_get_block_shift);
 	return SCST_CMD_STATE_DEFAULT;
 }
 
@@ -853,10 +857,7 @@ static int vdisk_parse(struct scst_cmd *cmd,
 static int vcdrom_parse(struct scst_cmd *cmd,
 	struct scst_info_cdb *info_cdb)
 {
-	struct scst_vdisk_dev *virt_dev =
-	    (struct scst_vdisk_dev *)cmd->dev->dh_priv;
-
-	scst_cdrom_generic_parse(cmd, info_cdb, virt_dev->block_shift);
+	scst_cdrom_generic_parse(cmd, info_cdb, vdisk_get_block_shift);
 	return SCST_CMD_STATE_DEFAULT;
 }
 

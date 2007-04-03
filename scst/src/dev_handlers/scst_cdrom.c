@@ -41,6 +41,8 @@
 #define CDROM_REG_TIMEOUT    (900 * HZ)
 #define CDROM_LONG_TIMEOUT   (14000 * HZ)
 
+#define CDROM_DEF_BLOCK_SHIFT	11
+
 struct cdrom_params
 {
 	int block_shift;
@@ -72,7 +74,7 @@ int cdrom_attach(struct scst_device *dev)
 	unsigned char sense_buffer[SCSI_SENSE_BUFFERSIZE];
 	enum dma_data_direction data_dir;
 	unsigned char *sbuff;
-	struct cdrom_params *cdrom;
+	struct cdrom_params *params;
 
 	TRACE_ENTRY();
 
@@ -83,8 +85,8 @@ int cdrom_attach(struct scst_device *dev)
 		goto out;
 	}
 
-	cdrom = kzalloc(sizeof(*cdrom), GFP_KERNEL);
-	if (cdrom == NULL) {
+	params = kzalloc(sizeof(*params), GFP_KERNEL);
+	if (params == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s",
 		      "Unable to allocate struct cdrom_params");
 		res = -ENOMEM;
@@ -95,7 +97,7 @@ int cdrom_attach(struct scst_device *dev)
 	if (!buffer) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Memory allocation failure");
 		res = -ENOMEM;
-		goto out_free_cdrom;
+		goto out_free_params;
 	}
 
 	/* Clear any existing UA's and get cdrom capacity (cdrom block size) */
@@ -123,7 +125,7 @@ int cdrom_attach(struct scst_device *dev)
 		if (!--retries) {
 			PRINT_ERROR_PR("UA not clear after %d retries",
 				SCST_DEV_UA_RETRIES);
-			cdrom->block_shift = 11; /* 2048 bytes */
+			params->block_shift = CDROM_DEF_BLOCK_SHIFT;
 //			res = -ENODEV;
 			goto out_free_buf;
 		}
@@ -132,13 +134,14 @@ int cdrom_attach(struct scst_device *dev)
 		int sector_size = ((buffer[4] << 24) | (buffer[5] << 16) |
 				      (buffer[6] << 8) | (buffer[7] << 0));
 		if (sector_size == 0)
-			sector_size = 2048;
-		cdrom->block_shift = scst_calc_block_shift(sector_size);
+			params->block_shift = CDROM_DEF_BLOCK_SHIFT;
+		else
+			params->block_shift = scst_calc_block_shift(sector_size);
 		TRACE_DBG("Sector size is %i scsi_level %d(SCSI_2 %d)",
 			sector_size, dev->scsi_dev->scsi_level, SCSI_2);
 	} else {
 		TRACE_BUFFER("Sense set", sbuff, SCSI_SENSE_BUFFERSIZE);
-		cdrom->block_shift = 11; /* 2048 bytes */
+		params->block_shift = CDROM_DEF_BLOCK_SHIFT;
 //		res = -ENODEV;
 		goto out_free_buf;
 	}
@@ -146,11 +149,11 @@ int cdrom_attach(struct scst_device *dev)
 out_free_buf:
 	kfree(buffer);
 
-out_free_cdrom:
+out_free_params:
 	if (res == 0)
-		dev->dh_priv = cdrom;
+		dev->dh_priv = params;
 	else
-		kfree(cdrom);
+		kfree(params);
 
 out:
 	TRACE_EXIT();
@@ -168,15 +171,22 @@ out:
  ************************************************************/
 void cdrom_detach(struct scst_device *dev)
 {
-	struct cdrom_params *cdrom = (struct cdrom_params *)dev->dh_priv;
+	struct cdrom_params *params =
+		(struct cdrom_params *)dev->dh_priv;
 
 	TRACE_ENTRY();
 
-	kfree(cdrom);
+	kfree(params);
 	dev->dh_priv = NULL;
 
 	TRACE_EXIT();
 	return;
+}
+
+static int cdrom_get_block_shift(struct scst_cmd *cmd)
+{
+	struct cdrom_params *params = (struct cdrom_params *)cmd->dev->dh_priv;
+	return params->block_shift;
 }
 
 /********************************************************************
@@ -193,14 +203,14 @@ void cdrom_detach(struct scst_device *dev)
 int cdrom_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
-	struct cdrom_params *cdrom = (struct cdrom_params *)cmd->dev->dh_priv;
+	
 
 	/* 
 	 * No need for locks here, since *_detach() can not be
 	 * called, when there are existing commands.
 	 */
 
-	scst_cdrom_generic_parse(cmd, info_cdb, cdrom->block_shift);
+	scst_cdrom_generic_parse(cmd, info_cdb, cdrom_get_block_shift);
 
 	cmd->retries = 1;
 
@@ -212,6 +222,16 @@ int cdrom_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 		cmd->timeout = CDROM_REG_TIMEOUT;
 	}
 	return res;
+}
+
+static void cdrom_set_block_shift(struct scst_cmd *cmd, int block_shift)
+{
+	struct cdrom_params *params = (struct cdrom_params *)cmd->dev->dh_priv;
+	if (block_shift != 0)
+		params->block_shift = block_shift;
+	else
+		params->block_shift = CDROM_DEF_BLOCK_SHIFT;
+	return;
 }
 
 /********************************************************************
@@ -227,69 +247,17 @@ int cdrom_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
  ********************************************************************/
 int cdrom_done(struct scst_cmd *cmd)
 {
-	int opcode = cmd->cdb[0];
-	int status = cmd->status;
-	struct cdrom_params *cdrom;
 	int res = SCST_CMD_STATE_DEFAULT;
 
 	TRACE_ENTRY();
 
-	if (unlikely(cmd->sg == NULL))
-		goto out;
-
-	/*
-	 * SCST sets good defaults for cmd->tgt_resp_flags and cmd->resp_data_len
-	 * based on cmd->status and cmd->data_direction, therefore change
-	 * them only if necessary
+	/* 
+	 * No need for locks here, since *_detach() can not be
+	 * called, when there are existing commands.
 	 */
+	res = scst_block_generic_dev_done(cmd, cdrom_set_block_shift);
 
-	if ((status == SAM_STAT_GOOD) || (status == SAM_STAT_CONDITION_MET)) {
-		switch (opcode) {
-		case READ_CAPACITY:
-		{
-			/* Always keep track of cdrom capacity */
-			int buffer_size, sector_size, block_shift;
-			uint8_t *buffer;
-
-			buffer_size = scst_get_buf_first(cmd, &buffer);
-			if (unlikely(buffer_size <= 0)) {
-				PRINT_ERROR_PR("%s: Unable to get the buffer",
-					__FUNCTION__);
-				scst_set_busy(cmd);
-				goto out;
-			}
-
-			/* 
-			 * No need for locks here, since *_detach() can not be
-			 * called, when there are existing commands.
-			 */
-			cdrom = (struct cdrom_params *)cmd->dev->dh_priv;
-			sector_size =
-			    ((buffer[4] << 24) | (buffer[5] << 16) |
-			     (buffer[6] << 8) | (buffer[7] << 0));
-			scst_put_buf(cmd, buffer);
-			if (sector_size == 0)
-				sector_size = 2048;
-			block_shift = scst_calc_block_shift(sector_size);
-			/* 
-			 * To force the compiler not to optimize it out to keep
-			 * cdrom->block_shift access atomic
-			 */
-			barrier();
-			cdrom->block_shift = block_shift;
-			break;
-		}
-		default:
-			/* It's all good */
-			break;
-		}
-	}
-
-	TRACE_DBG("cmd->tgt_resp_flags=%x, cmd->resp_data_len=%d, "
-	      "res=%d", cmd->tgt_resp_flags, cmd->resp_data_len, res);
-
-out:
-	TRACE_EXIT();
+	TRACE_EXIT_RES(res);
 	return res;
 }
 

@@ -2311,7 +2311,9 @@ static inline void scst_thr_data_put(struct scst_thr_data_hdr *data)
 }
 
 /**
- ** Generic parse() support routines
+ ** Generic parse() support routines.
+ ** Done via pointer on functions to avoid unneeded dereferences on
+ ** the fast path.
  **/
 
 /* Calculates and returns block shift for the given sector size */
@@ -2319,36 +2321,48 @@ int scst_calc_block_shift(int sector_size);
 
 /* Generic parse() for SBC (disk) devices */
 int scst_sbc_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb, int block_shift);
+	struct scst_info_cdb *info_cdb,
+	int (*get_block_shift)(struct scst_cmd *cmd));
 
 /* Generic parse() for MMC (cdrom) devices */
 int scst_cdrom_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb, int block_shift);
+	struct scst_info_cdb *info_cdb,
+	int (*get_block_shift)(struct scst_cmd *cmd));
 
 /* Generic parse() for MO disk devices */
 int scst_modisk_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb, int block_shift);
+	struct scst_info_cdb *info_cdb,
+	int (*get_block_shift)(struct scst_cmd *cmd));
 
 /* Generic parse() for tape devices */
 int scst_tape_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb, int block_size);
+	struct scst_info_cdb *info_cdb,
+	int (*get_block_size)(struct scst_cmd *cmd));
 
-/* Generic parse() functions for other devices */
-int scst_null_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb);
-static inline int scst_changer_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb)
-{
-	return scst_null_parse(cmd, info_cdb);
-}
-static inline int scst_processor_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb)
-{
-	return scst_null_parse(cmd, info_cdb);
-}
-static inline int scst_raid_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb)
-{
-	return scst_null_parse(cmd, info_cdb);
-}
+/* Generic parse() for changer devices */
+int scst_changer_generic_parse(struct scst_cmd *cmd,
+	struct scst_info_cdb *info_cdb, int nothing);
+
+/* Generic parse() for "processor" devices */
+int scst_processor_generic_parse(struct scst_cmd *cmd,
+	struct scst_info_cdb *info_cdb, int nothing);
+
+/* Generic parse() for RAID devices */
+int scst_raid_generic_parse(struct scst_cmd *cmd,
+	struct scst_info_cdb *info_cdb, int nothing);
+
+/**
+ ** Generic dev_done() support routines.
+ ** Done via pointer on functions to avoid unneeded dereferences on
+ ** the fast path.
+ **/
+
+/* Generic dev_done() for block devices */
+int scst_block_generic_dev_done(struct scst_cmd *cmd,
+	void (*set_block_shift)(struct scst_cmd *cmd, int block_shift));
+
+/* Generic dev_done() for tape devices */
+int scst_tape_generic_dev_done(struct scst_cmd *cmd,
+	void (*set_block_size)(struct scst_cmd *cmd, int block_size));
 
 #endif /* __SCST_H */
