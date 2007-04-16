@@ -452,7 +452,7 @@ static struct scst_vdisk_thr *vdisk_init_thr_data(
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
 	res = kmem_cache_alloc(vdisk_thr_cachep, GFP_KERNEL);
 	if (res != NULL)
-		memset(thr, 0, sizeof(*thr));
+		memset(res, 0, sizeof(*res));
 #else
 	res = kmem_cache_zalloc(vdisk_thr_cachep, GFP_KERNEL);
 #endif
