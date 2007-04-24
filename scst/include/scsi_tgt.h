@@ -719,6 +719,15 @@ struct scst_dev_type
 	 */
 	int (*attach_tgt) (struct scst_tgt_dev *tgt_dev);
 
+	/* 
+	 * Called when a session, corresponding to a tgt_dev, is about to be
+	 * unregistered and the tgt_dev - detached. Supposed to be used to
+	 * clean out "stalled" commands, which otherwise could prevent SCST
+	 * from entering into the suspended activity state and, so,
+	 * unregistering the device.
+	 */
+	void (*pre_unreg_sess) (struct scst_tgt_dev *tgt_dev);
+
 	/* Called when tgt_dev (session) is detaching from the dev handler */
 	void (*detach_tgt) (struct scst_tgt_dev *tgt_dev);
 
@@ -850,6 +859,9 @@ struct scst_session
 
 	/* Used if scst_unregister_session() called in wait mode */
 	struct completion *shutdown_compl;
+
+	/* Used to push some unregister_session() works out of IRQ */
+	struct work_struct unreg_work;
 
 	/*
 	 * Functions and data for user callbacks from scst_register_session()

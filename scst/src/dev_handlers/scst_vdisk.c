@@ -653,9 +653,9 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	case WRITE_12:
 	case WRITE_16:
 		fua = (cdb[1] & 0x8);
-		if (cdb[1] & 0x8) {
-			TRACE(TRACE_ORDER, "FUA(%d): loff=%Ld, "
-				"data_len=%Ld", fua, (uint64_t)loff,
+		if (fua) {
+			TRACE(TRACE_ORDER, "FUA: loff=%Ld, "
+				"data_len=%Ld", (uint64_t)loff,
 				(uint64_t)data_len);
 		}
 		break;

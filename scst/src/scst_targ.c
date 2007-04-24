@@ -3536,13 +3536,13 @@ static int scst_abort_all_nexus_loss_sess(struct scst_mgmt_cmd *mcmd,
 		__scst_block_dev(dev);
 		spin_unlock_bh(&dev->dev_lock);
 
-		rc = scst_call_dev_task_mgmt_fn(mcmd, tgt_dev, 0);
-		if ((rc < 0) && (mcmd->status == SCST_MGMT_STATUS_SUCCESS))
-			mcmd->status = rc;
-
 		__scst_abort_task_set(mcmd, tgt_dev, !nexus_loss, 1);
 		if (nexus_loss)
 			scst_reset_tgt_dev(tgt_dev, 1);
+
+		rc = scst_call_dev_task_mgmt_fn(mcmd, tgt_dev, 0);
+		if ((rc < 0) && (mcmd->status == SCST_MGMT_STATUS_SUCCESS))
+			mcmd->status = rc;		
 	}
 	up(&scst_mutex);
 
@@ -3586,14 +3586,14 @@ static int scst_abort_all_nexus_loss_tgt(struct scst_mgmt_cmd *mcmd,
 		{
 			int rc;
 
+			__scst_abort_task_set(mcmd, tgt_dev, !nexus_loss, 1);
+			if (nexus_loss)
+				scst_reset_tgt_dev(tgt_dev, 1);
+
 			rc = scst_call_dev_task_mgmt_fn(mcmd, tgt_dev, 0);
 			if ((rc < 0) &&
 			    (mcmd->status == SCST_MGMT_STATUS_SUCCESS))
 				mcmd->status = rc;
-
-			__scst_abort_task_set(mcmd, tgt_dev, !nexus_loss, 1);
-			if (nexus_loss)
-				scst_reset_tgt_dev(tgt_dev, 1);
 		}
 	}
 
@@ -4197,6 +4197,42 @@ out_free:
 	goto out;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
+static void scst_unreg_work_fn(void *p)
+#else
+static void scst_unreg_work_fn(struct work_struct *work)
+#endif
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
+	struct scst_session *sess = (struct scst_session*)p;
+#else
+	struct scst_session *sess = container_of(work, struct scst_session,
+					unreg_work);
+#endif
+	struct scst_tgt_dev *tgt_dev;
+
+	TRACE_ENTRY();
+
+	down(&scst_mutex);
+	list_for_each_entry(tgt_dev, &sess->sess_tgt_dev_list,
+				 sess_tgt_dev_list_entry) {
+		struct scst_dev_type *handler = tgt_dev->dev->handler;
+		if (handler && handler->pre_unreg_sess) {
+			TRACE_DBG("Calling dev handler's pre_unreg_sess(%p)",
+			      tgt_dev);
+			handler->pre_unreg_sess(tgt_dev);
+			TRACE_DBG("%s", "Dev handler's pre_unreg_sess() "
+				"returned");
+		}
+	}
+	up(&scst_mutex);
+
+	scst_sess_put(sess);
+
+	TRACE_EXIT();
+	return;
+}
+
 /* 
  * Must not been called in parallel with scst_rx_cmd() or 
  * scst_rx_mgmt_fn_*() for the same sess
@@ -4235,7 +4271,13 @@ void scst_unregister_session(struct scst_session *sess, int wait,
 
 	tm_dbg_task_mgmt("UNREGISTER SESSION", 1);
 
-	scst_sess_put(sess);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
+	INIT_WORK(&sess->unreg_work, scst_unreg_work_fn, sess);
+#else
+	INIT_WORK(&sess->unreg_work, scst_unreg_work_fn);
+#endif
+
+	schedule_work(&sess->unreg_work);
 
 	if (wait) {
 		TRACE_DBG("Waiting for session %p to complete", sess);

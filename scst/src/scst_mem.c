@@ -41,6 +41,15 @@
  * of the existing SLAB code.
  */
 
+/* Chosen to have one page per slab for all orders */
+#ifdef CONFIG_DEBUG_SLAB
+#define SGV_MAX_LOCAL_SLAB_ORDER	4
+#else
+#define SGV_MAX_LOCAL_SLAB_ORDER	5
+#endif
+
+static int sgv_max_local_order, sgv_max_trans_order;
+
 atomic_t sgv_other_total_alloc;
 
 DECLARE_MUTEX(scst_sgv_pool_mutex);
@@ -229,20 +238,55 @@ out_no_mem:
 	goto out;
 }
 
-static inline struct scatterlist *sgv_alloc_sg_entries(int pages_to_alloc,
-	unsigned long gfp_mask)
+static int sgv_alloc_sg_entries(struct sgv_pool_obj *obj,
+	int pages_to_alloc, int order, unsigned long gfp_mask)
 {
-	int esz;
-	struct scatterlist *res;
+	int sz, tsz = 0;
+	int res = 0;
 
-	esz = pages_to_alloc * sizeof(*res);
-	res = (struct scatterlist*)kzalloc(esz, gfp_mask);
-	if (unlikely(res == NULL)) {
+	TRACE_ENTRY();
+
+	sz = pages_to_alloc * sizeof(obj->sg_entries[0]);
+
+	obj->sg_entries = (struct scatterlist*)kzalloc(sz, gfp_mask);
+ 	if (unlikely(obj->sg_entries == NULL)) {
 		TRACE(TRACE_OUT_OF_MEM, "Allocation of sgv_pool_obj "
-			"SG vector failed (size %d)", esz);
+			"SG vector failed (size %d)", sz);
+		res = -ENOMEM;
+		goto out;
+ 	}
+
+	if (obj->owner_pool->clustered) {
+		if (order <= sgv_max_trans_order) {
+			obj->trans_tbl = (struct trans_tbl_ent*)obj->sg_entries_data;
+			/*
+			 * No need to clear trans_tbl, if needed, it will be
+			 * fully rewritten in scst_alloc_sg_entries()
+			 */
+		} else {
+			tsz = pages_to_alloc * sizeof(obj->trans_tbl[0]);
+			obj->trans_tbl = (struct trans_tbl_ent*)kzalloc(tsz, gfp_mask);
+		 	if (unlikely(obj->trans_tbl == NULL)) {
+				TRACE(TRACE_OUT_OF_MEM, "Allocation of trans_tbl "
+					"failed (size %d)", tsz);
+				res = -ENOMEM;
+				goto out_free;
+ 			}
+		}
 	}
 
+	TRACE_MEM("pages_to_alloc %d, order %d, sz %d, tsz %d, obj %p, "
+		"sg_entries %p, trans_tbl %p", pages_to_alloc, order,
+		sz, tsz, obj, obj->sg_entries, obj->trans_tbl);
+
+out:
+	TRACE_EXIT_RES(res);
 	return res;
+
+out_free:
+	kfree(obj->sg_entries);
+	obj->sg_entries = NULL;
+	goto out;
 }
 
 struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
@@ -254,7 +298,6 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 	struct scatterlist *res;
 	int pages_to_alloc;
 	struct kmem_cache *cache;
-	struct trans_tbl_ent *trans_tbl;
 	int no_cached = flags & SCST_POOL_ALLOC_NO_CACHED;
 
 	sBUG_ON(size == 0);
@@ -268,13 +311,10 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 	if (*sgv != NULL) {
 		obj = *sgv;
 		TRACE_MEM("Supplied sgv_obj %p", obj);
-		pages_to_alloc = obj->sg_count;
+		pages_to_alloc = (1 << order);
 		cache = obj->owner_cache;
-		trans_tbl = obj->trans_tbl;
-		EXTRACHECKS_BUG_ON(obj->sg_entries != NULL);
-		obj->sg_entries = sgv_alloc_sg_entries(pages_to_alloc, gfp_mask);
-		if (unlikely(obj->sg_entries == NULL))
-			goto out_fail_free;
+		EXTRACHECKS_BUG_ON(cache != pool->caches[order]);
+		EXTRACHECKS_BUG_ON(obj->sg_count != 0);
 		goto alloc;
 	}
 
@@ -287,30 +327,51 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 				"sgv_pool_obj failed (size %d)", size);
 			goto out_fail;
 		}
-		if (obj->sg_entries != NULL) {
+		if (obj->sg_count != 0) {
 			TRACE_MEM("Cached sgv_obj %p", obj);
 			EXTRACHECKS_BUG_ON(obj->owner_cache != cache);
 			atomic_inc(&pool->acc.hit_alloc);
 			atomic_inc(&pool->cache_acc[order].hit_alloc);
 			goto success;
 		}
-		obj->owner_cache = cache;
 		pages_to_alloc = (1 << order);
 		if (flags & SCST_POOL_NO_ALLOC_ON_CACHE_MISS) {
-			if (flags & SCST_POOL_RETURN_OBJ_ON_ALLOC_FAIL)
-				goto out_return;
-			else
+			if (!(flags & SCST_POOL_RETURN_OBJ_ON_ALLOC_FAIL))
 				goto out_fail_free;
 		}
 		TRACE_MEM("Brand new sgv_obj %p", obj);
-		obj->sg_entries = sgv_alloc_sg_entries(pages_to_alloc, gfp_mask);
-		if (unlikely(obj->sg_entries == NULL))
-			goto out_fail_free;
-		trans_tbl = obj->trans_tbl;
-		/*
-		 * No need to clear trans_tbl, if needed, it will be fully
-		 * rewritten in scst_alloc_sg_entries() 
-		 */
+		obj->owner_cache = cache;
+		obj->owner_pool = pool;
+		if (order <= sgv_max_local_order) {
+			obj->sg_entries = obj->sg_entries_data;
+			TRACE_MEM("sg_entries %p", obj->sg_entries);
+			memset(obj->sg_entries, 0,
+				pages_to_alloc*sizeof(obj->sg_entries[0]));
+			if (pool->clustered) {
+				obj->trans_tbl = (struct trans_tbl_ent*)
+					(obj->sg_entries + pages_to_alloc);
+				TRACE_MEM("trans_tbl %p", obj->trans_tbl);
+				/* We want to have all the data on the same page */
+				EXTRACHECKS_BUG_ON(((unsigned long)obj->sg_entries & PAGE_MASK) !=
+					((unsigned long)&obj->trans_tbl[pages_to_alloc-1] & PAGE_MASK));
+				/*
+				 * No need to clear trans_tbl, if needed, it will
+				 * be fully rewritten in scst_alloc_sg_entries()
+				 */
+			} else {
+				/* We want to have all the data on the same page */
+				EXTRACHECKS_BUG_ON(((unsigned long)obj->sg_entries & PAGE_MASK) !=
+					((unsigned long)&obj->sg_entries[pages_to_alloc-1] & PAGE_MASK));
+			}
+		} else {
+			if (unlikely(sgv_alloc_sg_entries(obj, pages_to_alloc,
+					order, gfp_mask) != 0))
+				goto out_fail_free;
+		}
+		
+		if ((flags & SCST_POOL_NO_ALLOC_ON_CACHE_MISS) && 
+		    (flags & SCST_POOL_RETURN_OBJ_ON_ALLOC_FAIL))
+			goto out_return;
 	} else {
 		int sz;
 		pages_to_alloc = pages;
@@ -324,24 +385,22 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 				"sgv_pool_obj failed (size %d)", size);
 			goto out_fail;
 		}
-		obj->sg_entries = (struct scatterlist*)obj->trans_tbl;
-		trans_tbl = NULL;
+		obj->owner_pool = pool;
+		obj->sg_entries = obj->sg_entries_data;
 		TRACE_MEM("Big or no_cached sgv_obj %p (size %d)", obj,	sz);
 	}
 
 	obj->allocator_priv = priv;
-	obj->owner_pool = pool;
 
 alloc:
 	obj->sg_count = scst_alloc_sg_entries(obj->sg_entries,
-		pages_to_alloc, gfp_mask, pool->clustered, trans_tbl,
+		pages_to_alloc, gfp_mask, pool->clustered, obj->trans_tbl,
 		&pool->alloc_fns, priv);
 	if (unlikely(obj->sg_count <= 0)) {
-		if ((flags & SCST_POOL_RETURN_OBJ_ON_ALLOC_FAIL) && cache) {
-			kfree(obj->sg_entries);
-			obj->sg_entries = NULL;
+		obj->sg_count = 0;
+		if ((flags & SCST_POOL_RETURN_OBJ_ON_ALLOC_FAIL) && cache)
 			goto out_return1;
-		} else
+		else
 			goto out_fail_free_sg_entries;
 	}
 
@@ -353,7 +412,7 @@ success:
 		if (pool->clustered)
 			cnt = obj->trans_tbl[pages-1].sg_num;
 		else
-			cnt = obj->sg_count;
+			cnt = pages;
 		sg = cnt-1;
 		obj->orig_sg = sg;
 		obj->orig_length = obj->sg_entries[sg].length;
@@ -389,7 +448,6 @@ out_return:
 
 out_return1:
 	*sgv = obj;
-	obj->sg_count = pages_to_alloc;
 	TRACE_MEM("Returning failed sgv_obj %p (count %d)", obj, *count);
 
 out_return2:
@@ -398,7 +456,12 @@ out_return2:
 	goto out;
 
 out_fail_free_sg_entries:
-	if (cache) {
+	if (obj->sg_entries != obj->sg_entries_data) {
+		if (obj->trans_tbl != (struct trans_tbl_ent*)obj->sg_entries_data) {
+			/* kfree() handles NULL parameter */
+			kfree(obj->trans_tbl);
+			obj->trans_tbl = NULL;
+		}
 		kfree(obj->sg_entries);
 		obj->sg_entries = NULL;
 	}
@@ -428,8 +491,7 @@ void sgv_pool_free(struct sgv_pool_obj *sgv)
 		"sg_count %d, allocator_priv %p", sgv, sgv->owner_cache,
 		sgv->sg_entries, sgv->sg_count, sgv->allocator_priv);
 	if (sgv->owner_cache != NULL) {
-		if (likely(sgv->sg_entries != NULL))
-			sgv->sg_entries[sgv->orig_sg].length = sgv->orig_length;
+		sgv->sg_entries[sgv->orig_sg].length = sgv->orig_length;
 		kmem_cache_free(sgv->owner_cache, sgv);
 	} else {
 		sgv->owner_pool->alloc_fns.free_pages_fn(sgv->sg_entries,
@@ -455,9 +517,16 @@ static void sgv_ctor(void *data, struct kmem_cache *c, unsigned long flags)
 static void sgv_dtor(void *data, struct kmem_cache *k, unsigned long f)
 {
 	struct sgv_pool_obj *obj = data;
-	if (obj->sg_entries) {
+	if (obj->sg_count != 0) {
 		obj->owner_pool->alloc_fns.free_pages_fn(obj->sg_entries,
 			obj->sg_count, obj->allocator_priv);
+	}
+	if (obj->sg_entries != obj->sg_entries_data) {
+		if (obj->trans_tbl != (struct trans_tbl_ent*)obj->sg_entries_data) {
+			/* kfree() handles NULL parameter */
+			kfree(obj->trans_tbl);
+			obj->trans_tbl = NULL;
+		}
 		kfree(obj->sg_entries);
 	}
 	return;
@@ -522,23 +591,31 @@ int sgv_pool_init(struct sgv_pool *pool, const char *name, int clustered)
 	pool->alloc_fns.alloc_pages_fn = scst_alloc_sys_pages;
 	pool->alloc_fns.free_pages_fn = scst_free_sys_sg_entries;
 
-	TRACE_MEM("name %s, sizeof(*obj)=%zd, clustered=%d, "
-		"sizeof(obj->trans_tbl[0])=%zd", name, sizeof(*obj), clustered,
-		sizeof(obj->trans_tbl[0]));
+	TRACE_MEM("name %s, sizeof(*obj)=%zd, clustered=%d", name, sizeof(*obj),
+		clustered);
 
 	strncpy(pool->name, name, sizeof(pool->name)-1);
 	pool->name[sizeof(pool->name)-1] = '\0';
 
 	for(i = 0; i < SGV_POOL_ELEMENTS; i++) {
-		int size, pages;
+		int size;
 
 		atomic_set(&pool->cache_acc[i].total_alloc, 0);
 		atomic_set(&pool->cache_acc[i].hit_alloc, 0);
 
-		pages = 1 << i;
-		size = sizeof(*obj) + pages *
-			(clustered ? sizeof(obj->trans_tbl[0]) : 0);
-		TRACE_MEM("pages=%d, size=%d", pages, size);
+		/*
+		 * We need one page per SLAB. That's hackish, but is there
+		 * any other choice?
+		 */
+		if (i <= SGV_MAX_LOCAL_SLAB_ORDER) {
+			int pages = 1 << i;
+			size = sizeof(*obj) + pages * 
+				(sizeof(obj->sg_entries[0]) +
+				 (clustered ? sizeof(obj->trans_tbl[0]) : 0));
+		} else
+			size = PAGE_SIZE - 96;
+
+		TRACE_MEM("pages=%d, size=%d", 1 << i, size);
 
 		scnprintf(pool->cache_names[i], sizeof(pool->cache_names[i]),
 			"%s-%luK", name, (PAGE_SIZE >> 10) << i);
@@ -642,6 +719,18 @@ int scst_sgv_pools_init(struct scst_sgv_pools *pools)
 	int res;
 
 	TRACE_ENTRY();
+
+	sgv_max_local_order = get_order(
+		((((PAGE_SIZE - sizeof(struct sgv_pool_obj)) /
+		  (sizeof(struct trans_tbl_ent) + sizeof(struct scatterlist))) *
+			PAGE_SIZE) & PAGE_MASK));
+
+	sgv_max_trans_order = get_order(
+		((((PAGE_SIZE - sizeof(struct sgv_pool_obj)) /
+		  (sizeof(struct trans_tbl_ent))) * PAGE_SIZE) & PAGE_MASK));
+
+	TRACE_MEM("sgv_max_local_order %d, sgv_max_trans_order %d",
+		sgv_max_local_order, sgv_max_trans_order);
 
 	atomic_set(&sgv_other_total_alloc, 0);
 

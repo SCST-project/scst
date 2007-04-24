@@ -41,9 +41,10 @@ struct sgv_pool_obj
 	int orig_sg;
 	int orig_length;
 	int sg_count;
-	struct scatterlist *sg_entries;
 	void *allocator_priv;
-	struct trans_tbl_ent trans_tbl[0];
+	struct trans_tbl_ent *trans_tbl;
+	struct scatterlist *sg_entries;
+	struct scatterlist sg_entries_data[0];
 };
 
 struct sgv_pool_acc
