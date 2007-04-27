@@ -163,6 +163,7 @@ static void vdisk_exec_read_capacity16(struct scst_cmd *cmd);
 static void vdisk_exec_inquiry(struct scst_cmd *cmd);
 static void vdisk_exec_mode_sense(struct scst_cmd *cmd);
 static void vdisk_exec_mode_select(struct scst_cmd *cmd);
+static void vdisk_exec_log(struct scst_cmd *cmd);
 static void vdisk_exec_read_toc(struct scst_cmd *cmd);
 static void vdisk_exec_prevent_allow_medium_removal(struct scst_cmd *cmd);
 static int vdisk_fsync(struct scst_vdisk_thr *thr,
@@ -775,6 +776,10 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	case MODE_SELECT:
 	case MODE_SELECT_10:
 		vdisk_exec_mode_select(cmd);
+		break;
+	case LOG_SELECT:
+	case LOG_SENSE:
+		vdisk_exec_log(cmd);
 		break;
 	case ALLOW_MEDIUM_REMOVAL:
 		vdisk_exec_prevent_allow_medium_removal(cmd);
@@ -1426,6 +1431,18 @@ out_put:
 	scst_put_buf(cmd, address);
 
 out:
+	TRACE_EXIT();
+	return;
+}
+
+static void vdisk_exec_log(struct scst_cmd *cmd)
+{
+	TRACE_ENTRY();
+
+	/* No log pages are supported */
+	scst_set_cmd_error(cmd,
+		SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+
 	TRACE_EXIT();
 	return;
 }
