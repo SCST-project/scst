@@ -845,13 +845,12 @@ struct scst_cmd *scst_create_prepare_internal_cmd(
 	TRACE_ENTRY();
 
 	res = scst_alloc_cmd(gfp_mask);
-	if (unlikely(res == NULL)) {
+	if (res == NULL)
 		goto out;
-	}
 
 	res->cmd_lists = orig_cmd->cmd_lists;
 	res->sess = orig_cmd->sess;
-	res->state = SCST_CMD_STATE_SEND_TO_MIDLEV;
+	res->state = SCST_CMD_STATE_DEV_PARSE;
 	res->atomic = scst_cmd_atomic(orig_cmd);
 	res->internal = 1;
 	res->tgtt = orig_cmd->tgtt;
@@ -864,21 +863,10 @@ struct scst_cmd *scst_create_prepare_internal_cmd(
 	res->orig_cmd = orig_cmd;
 
 	res->bufflen = bufsize;
-	if (bufsize > 0) {
-		if (scst_alloc_space(res) != 0)
-			PRINT_ERROR_PR("Unable to create buffer (size %d) for "
-				"internal cmd", bufsize);
-			goto out_free_res;
-	}
 
 out:
 	TRACE_EXIT_HRES((unsigned long)res);
 	return res;
-
-out_free_res:
-	scst_destroy_cmd(res);
-	res = NULL;
-	goto out;
 }
 
 void scst_free_internal_cmd(struct scst_cmd *cmd)
@@ -895,14 +883,14 @@ int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
 {
 	int res = SCST_CMD_STATE_RES_CONT_NEXT;
 #define sbuf_size 252
-	static const unsigned char request_sense[6] =
+	static const uint8_t request_sense[6] =
 	    { REQUEST_SENSE, 0, 0, 0, sbuf_size, 0 };
 	struct scst_cmd *rs_cmd;
 
 	TRACE_ENTRY();
 
 	rs_cmd = scst_create_prepare_internal_cmd(orig_cmd, sbuf_size);
-	if (rs_cmd != 0)
+	if (rs_cmd == NULL)
 		goto out_error;
 
 	memcpy(rs_cmd->cdb, request_sense, sizeof(request_sense));
@@ -933,11 +921,20 @@ struct scst_cmd *scst_complete_request_sense(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
+	if (cmd->dev->handler->dev_done != NULL) {
+		int rc;
+		TRACE_DBG("Calling dev handler %s dev_done(%p)",
+		      cmd->dev->handler->name, cmd);
+		rc = cmd->dev->handler->dev_done(cmd);
+		TRACE_DBG("Dev handler %s dev_done() returned %d",
+		      cmd->dev->handler->name, rc);
+	}
+
 	sBUG_ON(orig_cmd);
 
 	len = scst_get_buf_first(cmd, &buf);
 
-	if ((cmd->status == 0) && SCST_SENSE_VALID(buf) &&
+	if ((cmd->status == 0) && (len > 0) && SCST_SENSE_VALID(buf) &&
 	    (!SCST_NO_SENSE(buf))) 
 	{
 		TRACE_BUFF_FLAG(TRACE_SCSI, "REQUEST SENSE returned", 
@@ -951,7 +948,8 @@ struct scst_cmd *scst_complete_request_sense(struct scst_cmd *cmd)
 		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 	}
 
-	scst_put_buf(cmd, buf);
+	if (len > 0)
+		scst_put_buf(cmd, buf);
 
 	scst_free_internal_cmd(cmd);
 
@@ -2760,7 +2758,7 @@ void scst_unblock_cmds(struct scst_device *dev)
 		 * blocked_cmd_list, but we could be called before
 		 * scst_inc_expected_sn().
 		 */
-		if (likely(!cmd->internal) && likely(!cmd->retry)) {
+		if (likely(!cmd->internal && !cmd->retry)) {
 			typeof(cmd->tgt_dev->expected_sn) expected_sn;
 			if (cmd->tgt_dev == NULL)
 				sBUG();

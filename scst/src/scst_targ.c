@@ -287,7 +287,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 
 	cmd->inc_expected_sn_on_done = dev->handler->inc_expected_sn_on_done;
 
-	if (cmd->skip_parse)
+	if (cmd->skip_parse || cmd->internal)
 		goto call_parse;
 
 	/*
@@ -1820,7 +1820,7 @@ static int scst_send_to_midlev(struct scst_cmd *cmd)
 
 	__scst_get(0); /* protect dev & tgt_dev */
 
-	if (unlikely(cmd->internal) || unlikely(cmd->retry)) {
+	if (unlikely(cmd->internal || cmd->retry)) {
 		rc = scst_do_send_to_midlev(cmd);
 		/* !! At this point cmd, sess & tgt_dev can be already freed !! */
 		if (rc == SCST_EXEC_NEED_THREAD) {
