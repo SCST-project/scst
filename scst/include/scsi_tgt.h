@@ -797,6 +797,11 @@ struct scst_tgt
 	void *tgt_priv;
 };
 
+/* Hash size and hash fn for hash based lun translation */
+#define	TGT_DEV_HASH_SHIFT	5
+#define	TGT_DEV_HASH_SIZE	(1<<TGT_DEV_HASH_SHIFT)
+#define	HASH_VAL(_val)		(_val & (TGT_DEV_HASH_SIZE - 1))
+
 struct scst_session
 {
 	/* Initialization phase, one of SCST_SESS_IPH_* constants */
@@ -814,10 +819,10 @@ struct scst_session
 	/**************************************************************/
 
 	/*
-	 * List of tgt_dev's for this session, protected by scst_mutex
+	 * Hash list of tgt_dev's for this session, protected by scst_mutex
 	 * and suspended activity
 	 */
-	struct list_head sess_tgt_dev_list;
+	struct list_head sess_tgt_dev_list_hash[TGT_DEV_HASH_SIZE];
 
 	/* Access control for this session and list entry there */
 	struct scst_acg *acg;
@@ -1242,7 +1247,7 @@ struct scst_thr_data_hdr
  */
 struct scst_tgt_dev
 {
-	/* List entry in sess->sess_tgt_dev_list */
+	/* List entry in sess->sess_tgt_dev_list_hash */
 	struct list_head sess_tgt_dev_list_entry;
 
 	struct scst_device *dev; /* to save extra dereferences */

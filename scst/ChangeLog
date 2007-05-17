@@ -8,7 +8,7 @@ Summary of changes between versions 0.9.5 and 0.9.6
    implemented full support for SCSI task attributes (SIMPLE, ORDERED,
    etc.).
 
- - Updated to work on 2.6.20.x
+ - Updated to work on 2.6.20.x, no update for 2.6.21.x is needed
 
  - Updated to work on 2.6.19.x, thanks to Ming Zhang.
 
@@ -17,6 +17,10 @@ Summary of changes between versions 0.9.5 and 0.9.6
 
  - /proc implementation moved to seq_*() library, thanks to Ming Zhang.
    Target drivers need to be updated accordingly.
+
+ - Linear search in the LUN translation routines scst_translate_lun()
+   and scst_mgmt_translate_lun() was changed to a hash-based one, thanks
+   to Michael G. Byrnes.
 
  - Building from the Linux kernel tree updated, inside kernel building fixed.
 

@@ -390,6 +390,7 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	int ini_sg, ini_unchecked_isa_dma, ini_use_clustering;
 	struct scst_tgt_dev *tgt_dev;
 	struct scst_device *dev = acg_dev->dev;
+	struct list_head *sess_tgt_dev_list_head;
 	int rc, i;
 
 	TRACE_ENTRY();
@@ -451,7 +452,7 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	tgt_dev->p_cmd_lists = &scst_main_cmd_lists;
 	
 	if (dev->scsi_dev != NULL) {
-		TRACE(TRACE_DEBUG, "host=%d, channel=%d, id=%d, lun=%d, "
+		TRACE_DBG("host=%d, channel=%d, id=%d, lun=%d, "
 		      "SCST lun=%Ld", dev->scsi_dev->host->host_no, 
 		      dev->scsi_dev->channel, dev->scsi_dev->id, 
 		      dev->scsi_dev->lun, (uint64_t)tgt_dev->lun);
@@ -527,8 +528,9 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	if (dev->dev_reserved)
 		__set_bit(SCST_TGT_DEV_RESERVED, &tgt_dev->tgt_dev_flags);
 
-	list_add_tail(&tgt_dev->sess_tgt_dev_list_entry,
-		&sess->sess_tgt_dev_list);
+	sess_tgt_dev_list_head = 
+		&sess->sess_tgt_dev_list_hash[HASH_VAL(tgt_dev->lun)];
+	list_add_tail(&tgt_dev->sess_tgt_dev_list_entry, sess_tgt_dev_list_head);
 
 out:
 	TRACE_EXIT();
@@ -623,7 +625,6 @@ int scst_sess_alloc_tgt_devs(struct scst_session *sess)
 
 	TRACE_ENTRY();
 
-	INIT_LIST_HEAD(&sess->sess_tgt_dev_list);
 	list_for_each_entry(acg_dev, &sess->acg->acg_dev_list, 
 		acg_dev_list_entry)
 	{
@@ -646,17 +647,21 @@ out_free:
 /* scst_mutex supposed to be held and activity suspended */
 void scst_sess_free_tgt_devs(struct scst_session *sess)
 {
+	int i;
 	struct scst_tgt_dev *tgt_dev, *t;
 
 	TRACE_ENTRY();
 	
 	/* The session is going down, no users, so no locks */
-	list_for_each_entry_safe(tgt_dev, t, &sess->sess_tgt_dev_list,
-				 sess_tgt_dev_list_entry) 
-	{
-		scst_free_tgt_dev(tgt_dev);
+	for(i = 0; i < TGT_DEV_HASH_SIZE; i++) {
+		struct list_head *sess_tgt_dev_list_head =
+			&sess->sess_tgt_dev_list_hash[i];
+		list_for_each_entry_safe(tgt_dev, t, sess_tgt_dev_list_head,
+				sess_tgt_dev_list_entry) {
+			scst_free_tgt_dev(tgt_dev);
+		}
+		INIT_LIST_HEAD(sess_tgt_dev_list_head);
 	}
-	INIT_LIST_HEAD(&sess->sess_tgt_dev_list);
 
 	TRACE_EXIT();
 	return;
@@ -1065,6 +1070,7 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, int gfp_mask,
 	const char *initiator_name)
 {
 	struct scst_session *sess;
+	int i;
 	int len;
 	char *nm;
 
@@ -1086,7 +1092,11 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, int gfp_mask,
 
 	sess->init_phase = SCST_SESS_IPH_INITING;
 	atomic_set(&sess->refcnt, 0);
-	INIT_LIST_HEAD(&sess->sess_tgt_dev_list);
+	for(i = 0; i < TGT_DEV_HASH_SIZE; i++) {
+		struct list_head *sess_tgt_dev_list_head =
+			 &sess->sess_tgt_dev_list_hash[i];
+		INIT_LIST_HEAD(sess_tgt_dev_list_head);
+	}
 	spin_lock_init(&sess->sess_list_lock);
 	INIT_LIST_HEAD(&sess->search_cmd_list);
 	sess->tgt = tgt;
