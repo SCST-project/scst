@@ -1669,8 +1669,8 @@ static int vdisk_fsync(struct scst_vdisk_thr *thr,
 	int res = 0;
 	struct scst_vdisk_dev *virt_dev = thr->virt_dev;
 	struct file *file = thr->fd;
-	struct inode *inode = file->f_dentry->d_inode;
-	struct address_space *mapping = file->f_mapping;
+	struct inode *inode;
+	struct address_space *mapping;
 
 	TRACE_ENTRY();
 
@@ -1679,6 +1679,9 @@ static int vdisk_fsync(struct scst_vdisk_thr *thr,
 	    virt_dev->rd_only_flag || virt_dev->o_direct_flag ||
 	    virt_dev->nullio)
 		goto out;
+
+	inode = file->f_dentry->d_inode;
+	mapping = file->f_mapping;
 
 	res = sync_page_range(inode, mapping, loff, len);
 	if (unlikely(res != 0)) {

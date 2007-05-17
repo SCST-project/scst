@@ -420,6 +420,31 @@ IMPORTANT: Since data in BLOCKIO and FILEIO modes are not consistent between
 =========  them, if you try to use a device in both those modes simultaneously,
            you will almost instantly corrupt your data on that device.
 
+Pass-through mode
+-----------------
+
+As any other hardware, a local SCSI hardware for devices on target,
+which are exported in the pass-through mode, can not handle commands
+with amount of data and/or segments count in scatter-gather array
+bigger, than some values. Therefore, when using the pass-through mode
+you should note that the corresponding values on the corresponding
+devices on initiators can not be bigger, than values, which the hardware
+on the target can support. Otherwise you will see symptoms like small
+transfers work well, but large ones stall and messages like: "Unable to
+complete command due to SG IO count limitation" are printed in the
+kernel logs.
+
+You can't control from the user space limit of the scatter-gather
+segments, but for block devices usually it is sufficient if you set on
+the initiator /sys/block/DEVICE_NAME/queue/max_sectors_kb in the same or
+lower value as in /sys/block/DEVICE_NAME/queue/max_hw_sectors_kb for the
+corresponding device on the target.
+
+For not-block devices SCSI commands are usually generated directly by
+applications, so, if you experience large transfers stalls, you should
+check documentation for your application how to limit the transfer
+sizes.
+
 Performance
 -----------
 

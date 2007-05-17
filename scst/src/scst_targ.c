@@ -655,7 +655,7 @@ prep_done:
 		}
 
 		if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
-			TRACE_DBG("ABORTED set, returning ABORTED for "
+			TRACE_MGMT_DBG("ABORTED set, returning ABORTED for "
 				"cmd %p", cmd);
 			cmd->state = SCST_CMD_STATE_DEV_DONE;
 			res = SCST_CMD_STATE_RES_CONT_SAME;
@@ -822,7 +822,7 @@ static int scst_rdy_to_xfer(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
-		TRACE_DBG("ABORTED set, aborting cmd %p", cmd);
+		TRACE_MGMT_DBG("ABORTED set, aborting cmd %p", cmd);
 		goto out_dev_done;
 	}
 
@@ -1634,7 +1634,7 @@ static int scst_do_send_to_midlev(struct scst_cmd *cmd)
 	smp_mb__after_set_bit();
 
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
-		TRACE_DBG("ABORTED set, aborting cmd %p", cmd);
+		TRACE_MGMT_DBG("ABORTED set, aborting cmd %p", cmd);
 		goto out_aborted;
 	}
 
@@ -1769,7 +1769,7 @@ void scst_inc_expected_sn(struct scst_tgt_dev *tgt_dev, atomic_t *slot)
 
 	/* Optimized for lockless fast path */
 
-	TRACE_SN("Slot %d, *cur_sn_slot %d", slot-tgt_dev->sn_slots,
+	TRACE_SN("Slot %d, *cur_sn_slot %d", slot - tgt_dev->sn_slots,
 		atomic_read(slot));
 
 	if (!atomic_dec_and_test(slot))
@@ -2913,7 +2913,9 @@ int scst_cmd_thread(void *arg)
 
 	TRACE_ENTRY();
 
+#if 0
 	set_user_nice(current, 10);
+#endif
 	current->flags |= PF_NOFREEZE;
 
 	spin_lock_irq(&p_cmd_lists->cmd_list_lock);
@@ -3694,7 +3696,7 @@ static void scst_mgmt_cmd_send_done(struct scst_mgmt_cmd *mcmd)
 		TRACE_DBG("Calling target %s task_mgmt_fn_done()",
 		      mcmd->sess->tgt->tgtt->name);
 		mcmd->sess->tgt->tgtt->task_mgmt_fn_done(mcmd);
-		TRACE_MGMT_DBG("Dev handler %s task_mgmt_fn_done() returned",
+		TRACE_MGMT_DBG("Target's %s task_mgmt_fn_done() returned",
 		      mcmd->sess->tgt->tgtt->name);
 	}
 
