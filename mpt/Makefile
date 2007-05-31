@@ -47,6 +47,7 @@ EXTRA_CFLAGS += -I$(LSI_INC_DIR)
 
 ifneq ($(KERNELRELEASE),)
 obj-$(CONFIG_FUSION_SCST) += mpt_scst.o
+#obj-m += mpt_scst.o
 
 else
 

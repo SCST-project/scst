@@ -376,7 +376,7 @@ mptstm_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     atomic_set(&tgt->sess_count, 0);
     init_waitqueue_head(&tgt->waitQ);
     
-    tgt->scst_tgt = scst_register(&tgt_template);
+    tgt->scst_tgt = scst_register(&tgt_template, NULL);
     if (tgt->scst_tgt == NULL) {
 	    PRINT_ERROR(MYNAM ": scst_register() "
 			"failed for host %p", pdev);
