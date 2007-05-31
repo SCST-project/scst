@@ -32,6 +32,11 @@
 #include "scst_priv.h"
 #include "scst_mem.h"
 
+#ifndef CONFIG_NOHIGHMEM
+#warning HIGHMEM kernel configurations are supported, but not recommended. \
+	Consider changing VMSPLIT option or using 64-bit configuration instead.
+#endif
+
 /*
  * All targets, devices and dev_types management is done under
  * this mutex.
