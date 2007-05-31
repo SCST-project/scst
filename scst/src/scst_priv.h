@@ -179,7 +179,6 @@ extern spinlock_t scst_mcmd_lock;
 /* The following lists protected by scst_mcmd_lock */
 extern struct list_head scst_active_mgmt_cmd_list;
 extern struct list_head scst_delayed_mgmt_cmd_list;
-
 extern wait_queue_head_t scst_mgmt_cmd_list_waitQ;
 
 struct scst_tasklet
@@ -252,6 +251,9 @@ void scst_free_device(struct scst_device *tgt_dev);
 
 struct scst_acg *scst_alloc_add_acg(const char *acg_name);
 int scst_destroy_acg(struct scst_acg *acg);
+int scst_proc_group_add_tree(struct scst_acg *acg, const char *name);
+void scst_proc_del_acg_tree(struct proc_dir_entry *acg_proc_root,
+	const char *name);
 
 int scst_sess_alloc_tgt_devs(struct scst_session *sess);
 void scst_sess_free_tgt_devs(struct scst_session *sess);

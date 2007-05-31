@@ -137,7 +137,7 @@ out_redirect:
 	if (cmd->preprocessing_only) {
 		/*
 		 * Poor man solution for single threaded targets, where 
-		 * blocking receiver at least somtimes means blocking all.
+		 * blocking receiver at least sometimes means blocking all.
 		 */
 		sBUG_ON(context != SCST_CONTEXT_DIRECT);
 		scst_set_busy(cmd);
@@ -598,14 +598,6 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 
 		TRACE_MEM("%s", "Custom tgt data buf allocation requested");
 
-		if (unlikely(cmd->data_buf_alloced)) {
-			PRINT_ERROR_PR("Target driver %s requested own data "
-				"allocation, but dev handler %s already "
-				"allocated them", cmd->tgtt->name,
-				cmd->dev->handler->name);
-			goto out_error;
-		}
-
 		r = cmd->tgtt->alloc_data_buf(cmd);
 		if (r > 0)
 			goto alloc;
@@ -618,15 +610,15 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 					cmd->bufflen);
 				goto out_error;
 			}
-		}
-		goto check;
+		} else
+			goto check;
 	}
 
 alloc:
-	if (!cmd->data_buf_alloced) {
-		r = scst_check_mem(cmd);
-		if (unlikely(r != 0))
-			goto out;
+	r = scst_check_mem(cmd);
+	if (unlikely(r != 0))
+		goto out;
+	else if (!cmd->data_buf_alloced) {
 		r = scst_alloc_space(cmd);
 	} else {
 		TRACE_MEM("%s", "data_buf_alloced set, returning");
@@ -4082,10 +4074,31 @@ out:
 	return res;
 }
 
+/* scst_mutex supposed to be held */
+static struct scst_acg *scst_find_acg_by_name(const char *acg_name)
+{
+	struct scst_acg *acg, *res = NULL;
+
+	TRACE_ENTRY();
+	
+	list_for_each_entry(acg, &scst_acg_list, scst_acg_list_entry) {
+		if (strcmp(acg->acg_name, acg_name) == 0) {
+			TRACE_DBG("Access control group %s found", 
+				acg->acg_name);
+			res = acg;
+			goto out;
+		}
+	}
+
+out:	
+	TRACE_EXIT_HRES(res);
+	return res;
+}
+
 static int scst_init_session(struct scst_session *sess)
 {
 	int res = 0;
-	struct scst_acg *acg;
+	struct scst_acg *acg = NULL;
 	struct scst_cmd *cmd;
 	struct scst_mgmt_cmd *mcmd, *tm;
 	int mwake = 0;
@@ -4095,16 +4108,15 @@ static int scst_init_session(struct scst_session *sess)
 	scst_suspend_activity();	
 	down(&scst_mutex);
 
-	if (sess->initiator_name) {
+	if (sess->initiator_name)
 		acg = scst_find_acg(sess->initiator_name);
-		if (acg == NULL) {
-			PRINT_INFO_PR("Name %s not found, using default group",
-				sess->initiator_name);
-			acg = scst_default_acg;
-		}
-	}
-	else
+	if ((acg == NULL) && (sess->tgt->default_group_name != NULL))
+		acg = scst_find_acg_by_name(sess->tgt->default_group_name);
+	if (acg == NULL)
 		acg = scst_default_acg;
+
+	PRINT_INFO_PR("Using security group \"%s\" for initiator \"%s\"",
+		acg->acg_name, sess->initiator_name);
 
 	sess->acg = acg;
 	TRACE_DBG("Assigning session %p to acg %s", sess, acg->acg_name);

@@ -4,11 +4,13 @@ Summary of changes between versions 0.9.5 and 0.9.6
  - FILEIO was renamed to VDISK. BLOCKIO added to it, thanks to Ross S. W.
    Walker and Vu Pham.
 
- - Internal locking and execution context were reimplemnted. Particularly,
-   implemented full support for SCSI task attributes (SIMPLE, ORDERED,
-   etc.).
+ - Updated to work on 2.6.20.x, no update for 2.6.21.x isn't needed
 
- - Updated to work on 2.6.20.x, no update for 2.6.21.x isn't needed.
+ - Internal locking and execution context were reimplemnted. As some of
+   the results now FILEIO has >1 IO threads and implemented full support
+   for SCSI task attributes (SIMPLE, ORDERED, etc.).
+
+ - Ability to have per-target default security groups added.
 
  - Updated to work on 2.6.19.x, thanks to Ming Zhang.
 

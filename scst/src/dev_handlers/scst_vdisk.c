@@ -178,10 +178,10 @@ static int vcdrom_write_proc(char *buffer, char **start, off_t offset,
 #define VDISK_TYPE {			\
   name:         VDISK_NAME,		\
   type:         TYPE_DISK,		\
+  threads_num:	-1,			\
   parse_atomic: 1,			\
   exec_atomic:  0,			\
   dev_done_atomic: 1,			\
-  dedicated_thread: 1,			\
   attach:       vdisk_attach,		\
   detach:       vdisk_detach,		\
   attach_tgt:   vdisk_attach_tgt,	\
@@ -192,13 +192,30 @@ static int vcdrom_write_proc(char *buffer, char **start, off_t offset,
   write_proc:   vdisk_write_proc,	\
 }
 
-#define VCDROM_TYPE {			\
-  name:         VCDROM_NAME,		\
-  type:         TYPE_ROM,		\
+#define VDISK_BLK_TYPE {		\
+  name:         VDISK_NAME "_blk",	\
+  type:         TYPE_DISK,		\
+  threads_num:	0,			\
   parse_atomic: 1,			\
   exec_atomic:  0,			\
   dev_done_atomic: 1,			\
-  dedicated_thread: 1,			\
+  no_proc: 1,				\
+  inc_expected_sn_on_done: 1,		\
+  attach:       vdisk_attach,		\
+  detach:       vdisk_detach,		\
+  attach_tgt:   vdisk_attach_tgt,	\
+  detach_tgt:   vdisk_detach_tgt,	\
+  parse:        vdisk_parse,		\
+  exec:         vdisk_do_job,		\
+}
+
+#define VCDROM_TYPE {			\
+  name:         VCDROM_NAME,		\
+  type:         TYPE_ROM,		\
+  threads_num:	-1,			\
+  parse_atomic: 1,			\
+  exec_atomic:  0,			\
+  dev_done_atomic: 1,			\
   attach:       vdisk_attach,		\
   detach:       vdisk_detach,		\
   attach_tgt:   vdisk_attach_tgt,	\
@@ -214,6 +231,7 @@ static LIST_HEAD(vdisk_dev_list);
 static LIST_HEAD(vcdrom_dev_list);
 
 static struct scst_dev_type vdisk_devtype = VDISK_TYPE;
+static struct scst_dev_type vdisk_blk_devtype = VDISK_BLK_TYPE;
 static struct scst_dev_type vcdrom_devtype = VCDROM_TYPE;
 
 static char *vdisk_proc_help_string =
@@ -2497,9 +2515,14 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 		list_add_tail(&virt_dev->vdisk_dev_list_entry,
 				  &vdisk_dev_list);
 
-		virt_dev->virt_id =
-			scst_register_virtual_device(&vdisk_devtype,
-						 virt_dev->name);
+		if (virt_dev->blockio)
+			virt_dev->virt_id =
+				scst_register_virtual_device(&vdisk_blk_devtype,
+							 virt_dev->name);
+		else
+			virt_dev->virt_id =
+				scst_register_virtual_device(&vdisk_devtype,
+							 virt_dev->name);
 		if (virt_dev->virt_id < 0) {
 			res = virt_dev->virt_id;
 			goto out_free_vpath;
@@ -2999,13 +3022,14 @@ static int __init init_scst_vdisk(struct scst_dev_type *devtype)
 	if (res < 0)
 		goto out;
 
-	res = scst_dev_handler_build_std_proc(devtype);
-	if (res < 0)
-		goto out_unreg;
+	if (!devtype->no_proc) {
+		res = scst_dev_handler_build_std_proc(devtype);
+		if (res < 0)
+			goto out_unreg;
 
-	res = vdisk_proc_help_build(devtype);
-	if (res < 0) {
-		goto out_destroy_proc;
+		res = vdisk_proc_help_build(devtype);
+		if (res < 0)
+			goto out_destroy_proc;
 	}
 
 out:
@@ -3013,7 +3037,8 @@ out:
 	return res;
 
 out_destroy_proc:
-	scst_dev_handler_destroy_std_proc(devtype);
+	if (!devtype->no_proc)
+		scst_dev_handler_destroy_std_proc(devtype);
 
 out_unreg:
 	scst_unregister_virtual_dev_driver(devtype);
@@ -3046,8 +3071,10 @@ static void __exit exit_scst_vdisk(struct scst_dev_type *devtype,
 	}
 	up(&scst_vdisk_mutex);
 
-	vdisk_proc_help_destroy(devtype);
-	scst_dev_handler_destroy_std_proc(devtype);
+	if (!devtype->no_proc) {
+		vdisk_proc_help_destroy(devtype);
+		scst_dev_handler_destroy_std_proc(devtype);
+	}
 
 	scst_unregister_virtual_dev_driver(devtype);
 
@@ -3057,7 +3084,7 @@ static void __exit exit_scst_vdisk(struct scst_dev_type *devtype,
 
 static int __init init_scst_vdisk_driver(void)
 {
-	int res;
+	int res, num_threads;
 
 	vdisk_thr_cachep = kmem_cache_create("vdisk_thr_data",
 		sizeof(struct scst_vdisk_thr), 0, VDISK_SLAB_FLAGS, NULL,
@@ -3067,9 +3094,17 @@ static int __init init_scst_vdisk_driver(void)
 		goto out;
 	}
 
+	num_threads = num_online_cpus() + 2;
+	vdisk_devtype.threads_num = num_threads;
+	vcdrom_devtype.threads_num = num_threads;
+
 	res = init_scst_vdisk(&vdisk_devtype);
 	if (res != 0)
 		goto out_free_slab;
+
+	res = init_scst_vdisk(&vdisk_blk_devtype);
+	if (res != 0)
+		goto out_free_vdisk;
 
 	res = init_scst_vdisk(&vcdrom_devtype);
 	if (res != 0)
@@ -3079,6 +3114,9 @@ out:
 	return res;
 
 out_err:
+	exit_scst_vdisk(&vdisk_blk_devtype, &vdisk_dev_list);
+
+out_free_vdisk:
 	exit_scst_vdisk(&vdisk_devtype, &vdisk_dev_list);
 
 out_free_slab:
@@ -3088,6 +3126,7 @@ out_free_slab:
 
 static void __exit exit_scst_vdisk_driver(void)
 {
+	exit_scst_vdisk(&vdisk_blk_devtype, &vdisk_dev_list);
 	exit_scst_vdisk(&vdisk_devtype, &vdisk_dev_list);
 	exit_scst_vdisk(&vcdrom_devtype, &vcdrom_dev_list);
 	kmem_cache_destroy(vdisk_thr_cachep);

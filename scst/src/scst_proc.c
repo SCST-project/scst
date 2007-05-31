@@ -408,17 +408,17 @@ static void __exit scst_proc_cleanup_module_log(void)
 #endif
 }
 
-static int scst_proc_group_add_tree(struct scst_acg *acg, const char *p)
+int scst_proc_group_add_tree(struct scst_acg *acg, const char *name)
 {
 	int res = 0;
 	struct proc_dir_entry *generic;
 
 	TRACE_ENTRY();
 
-	acg->acg_proc_root = proc_mkdir(p, scst_proc_groups_root);
+	acg->acg_proc_root = proc_mkdir(name, scst_proc_groups_root);
 	if (acg->acg_proc_root == NULL) {
 		PRINT_ERROR_PR("Not enough memory to register %s entry in "
-			       "/proc/%s/%s", p, SCST_PROC_ENTRY_NAME,
+			       "/proc/%s/%s", name, SCST_PROC_ENTRY_NAME,
 			       SCST_PROC_GROUPS_ENTRY_NAME);
 		goto out;
 	}
@@ -431,7 +431,7 @@ static int scst_proc_group_add_tree(struct scst_acg *acg, const char *p)
 		PRINT_ERROR_PR("cannot init /proc/%s/%s/%s/%s",
 			       SCST_PROC_ENTRY_NAME,
 			       SCST_PROC_GROUPS_ENTRY_NAME,
-			       p, SCST_PROC_GROUPS_DEVICES_ENTRY_NAME);
+			       name, SCST_PROC_GROUPS_DEVICES_ENTRY_NAME);
 		res = -ENOMEM;
 		goto out_remove;
 	}
@@ -444,7 +444,7 @@ static int scst_proc_group_add_tree(struct scst_acg *acg, const char *p)
 		PRINT_ERROR_PR("cannot init /proc/%s/%s/%s/%s",
 			       SCST_PROC_ENTRY_NAME,
 			       SCST_PROC_GROUPS_ENTRY_NAME,
-			       p, SCST_PROC_GROUPS_USERS_ENTRY_NAME);
+			       name, SCST_PROC_GROUPS_USERS_ENTRY_NAME);
 		res = -ENOMEM;
 		goto out_remove1;
 	}
@@ -458,11 +458,11 @@ out_remove1:
 			  acg->acg_proc_root);
 
 out_remove:
-	remove_proc_entry(p, scst_proc_groups_root);
+	remove_proc_entry(name, scst_proc_groups_root);
 	goto out;
 }
 
-static void scst_proc_del_acg_tree(struct proc_dir_entry *acg_proc_root,
+void scst_proc_del_acg_tree(struct proc_dir_entry *acg_proc_root,
 	const char *name)
 {
 	TRACE_ENTRY();
@@ -1608,10 +1608,6 @@ static int scst_version_info_show(struct seq_file *seq, void *v)
 
 #ifdef STRICT_SERIALIZING
 	seq_printf(seq, "Strict serializing enabled\n");
-#endif
-
-#ifdef SINGLE_DEFAULT_GROUP
-	seq_printf(seq, "Single default group\n");
 #endif
 
 #ifdef EXTRACHECKS

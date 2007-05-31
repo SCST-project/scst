@@ -39,7 +39,7 @@
 /* Version numbers, the same as for the kernel */
 #define SCST_VERSION_CODE 0x000906
 #define SCST_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))
-#define SCST_VERSION_STRING "0.9.6-pre1"
+#define SCST_VERSION_STRING "0.9.6-pre2"
 
 /*************************************************************
  ** States of command processing state machine
@@ -481,8 +481,15 @@ struct scst_tgt_template
 	void (*on_free_cmd) (struct scst_cmd *cmd);
 
 	/*
-	 * This function allows the target driver to handle data buffer
+	 * This function allows target driver to handle data buffer
 	 * allocations on its own.
+	 *
+	 * Target driver doesn't have to always allocate buffer in this
+	 * function, but if it decide to do it, it must check that
+	 * scst_cmd_get_data_buff_alloced() returns 0, otherwise to avoid
+	 * double buffer allocation and memory leaks alloc_data_buf() shall
+	 * fail.
+	 *
 	 * Shall return 0 in case of success or < 0 (preferrably -ENOMEM)
 	 * in case of error, or > 0 if the regular SCST allocation should be
 	 * done. In case of returning successfully, scst_cmd->data_buf_alloced
@@ -492,9 +499,9 @@ struct scst_tgt_template
 	 * desired or fails and consequently < 0 is returned, this function
 	 * will be re-called in thread context.
 	 *
-	 * Please note that the driver will have to handle all relevant details
-	 * such as scatterlist setup, highmem, freeing the allocated memory, ...
-	 * itself.
+	 * Please note that the driver will have to handle itself all relevant
+	 * details such as scatterlist setup, highmem, freeing the allocated
+	 * memory, etc.
 	 *
 	 * OPTIONAL.
 	 */
@@ -593,6 +600,14 @@ struct scst_tgt_template
 	 */
 	const char name[50];
 
+	/* 
+	 * Number of additional threads to the pool of dedicated threads.
+	 * Used if xmit_response() or rdy_to_xfer() is blocking.
+	 * It is the target driver's duty to ensure that not more, than that
+	 * number of threads, are blocked in those functions at any time.
+	 */
+	int threads_num;
+
 	/* Private, must be inited to 0 by memset() */
 
 	/* List of targets per template, protected by scst_mutex */
@@ -620,7 +635,6 @@ struct scst_dev_type
 	unsigned parse_atomic:1;
 	unsigned exec_atomic:1;
 	unsigned dev_done_atomic:1;
-	unsigned dedicated_thread:1;
 
 	/* Set, if no /proc files should be automatically created by SCST */
 	unsigned no_proc:1;
@@ -748,6 +762,12 @@ struct scst_dev_type
 	/* SCSI type of the supported device. MUST HAVE */
 	int type;
 
+	/*
+	 * Number of dedicated threads. If 0 - no dedicated threads will 
+	 * be created, if <0 - creation of dedicated threads is prohibited.
+	 */
+	int threads_num;
+
 	struct module *module;
 
 	/* private: */
@@ -795,6 +815,9 @@ struct scst_tgt
 
 	/* Used for storage of target driver private stuff */
 	void *tgt_priv;
+
+	/* Name on the default security group ("Default_target_name") */
+	char *default_group_name;
 };
 
 /* Hash size and hash fn for hash based lun translation */
@@ -1314,8 +1337,8 @@ struct scst_tgt_dev
 	/* internal tmp list entry */
 	struct list_head extra_tgt_dev_list_entry;
 
-	/* Dedicated thread. Doesn't need any protection. */
-	struct task_struct *thread;
+	/* List of dedicated threads. Doesn't need any protection.  */
+	struct list_head threads_list;
 };
 
 /*
@@ -1419,9 +1442,15 @@ void scst_unregister_target_template(struct scst_tgt_template *vtt);
 
 /* 
  * Registers and returns target adapter
- * Returns new target structure on success or NULL otherwise
+ * Returns new target structure on success or NULL otherwise.
+ *
+ * If parameter "target_name" isn't NULL, then new security group with name 
+ * "Default_##target_name" will be created and all sessions, which don't
+ * belong to any defined security groups, will be assigned to it instead of
+ * the "Default" one.
  */
-struct scst_tgt *scst_register(struct scst_tgt_template *vtt);
+struct scst_tgt *scst_register(struct scst_tgt_template *vtt,
+	const char *target_name);
 
 /* 
  * Unregisters target adapter

@@ -22,33 +22,39 @@ SCST_DIR=scst
 QLA_INI_DIR=qla2x00t
 QLA_DIR=qla2x00t/qla2x00-target
 LSI_DIR=mpt
+USR_DIR=usr/fileio
 
 all:
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
+	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 
 install: 
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
-	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
+#	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
+	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 
 uninstall: 
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
+	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 
 clean: 
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(QLA_INI_DIR) ]; then cd $(QLA_INI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
+	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 
 extraclean: 
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(QLA_INI_DIR) ]; then cd $(QLA_INI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
+	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 
 scst: 
 	cd $(SCST_DIR) && $(MAKE)
@@ -97,6 +103,21 @@ lsi_clean:
 lsi_extraclean:
 	cd $(LSI_DIR) && $(MAKE) extraclean
 
+usr:
+	cd $(USR_DIR) && $(MAKE)
+
+usr_install:
+	cd $(USR_DIR) && $(MAKE) install
+
+usr_uninstall:
+	cd $(USR_DIR) && $(MAKE) uninstall
+
+usr_clean: 
+	cd $(USR_DIR) && $(MAKE) clean
+
+usr_extraclean:
+	cd $(USR_DIR) && $(MAKE) extraclean
+
 help:
 	@echo "		all (the default) : make all"
 	@echo "		clean             : clean files"
@@ -121,6 +142,12 @@ help:
 	@echo "		lsi_extraclean  : lsi target: clean + clean dependencies"
 	@echo "		lsi_install     : lsi target: install"
 	@echo "		lsi_uninstall   : lsi target: uninstall"
+	@echo ""
+	@echo "		usr             : make usr target"
+	@echo "		usr_clean       : usr target: clean "
+	@echo "		usr_extraclean  : usr target: clean + clean dependencies"
+	@echo "		usr_install     : usr target: install"
+	@echo "		usr_uninstall   : usr target: uninstall"
 	@echo "	Notes :"
 	@echo "		- install and uninstall must be made as root"
 
@@ -128,3 +155,4 @@ help:
 	qla qla_install qla_uninstall qla_clean qla_extraclean \
 	lsi lsi_install lsi_uninstall lsi_clean lsi_extraclean \
 	scst scst_install scst_uninstall scst_clean scst_extraclean
+	usr usr_install usr_uninstall usr_clean usr_extraclean

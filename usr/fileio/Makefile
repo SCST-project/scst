@@ -1,0 +1,79 @@
+#
+#  SCSI target mid-level makefile
+#  
+#  Copyright (C) 2007 Vladislav Bolkhovitin <vst@vlnb.net>
+#  
+#  This program is free software; you can redistribute it and/or
+#  modify it under the terms of the GNU General Public License
+#  as published by the Free Software Foundation, version 2
+#  of the License.
+# 
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+#  GNU General Public License for more details.
+
+SRCS_F = fileio.c common.c debug.c
+OBJS_F = $(SRCS_F:.c=.o)
+
+#SRCS_C = 
+#OBJS_C = $(SRCS_C:.c=.o)
+
+SCST_INC_DIR := ../../scst/include
+INSTALL_DIR := /usr/local/bin/scst
+
+CFLAGS += -O2 -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes \
+	-I$(SCST_INC_DIR) -D_GNU_SOURCE -D__USE_FILE_OFFSET64 \
+	-D__USE_LARGEFILE64
+PROGS = fileio_tgt
+LIBS = -lpthread
+
+CFLAGS += -DEXTRACHECKS
+#CFLAGS += -DTRACING
+CFLAGS += -DDEBUG -g
+
+#CFLAGS += -DDEBUG_NOMEM
+#CFLAGS += -DDEBUG_SENSE
+#CFLAGS += -DDEBUG_TM_IGNORE
+#CFLAGS += -DDEBUG_TM_IGNORE -DDEBUG_TM_FN_IGNORE
+#CFLAGS += -DDEBUG_TM_IGNORE_ALL
+
+all: $(PROGS)
+
+fileio_tgt: .depend_f $(OBJS_F)
+	$(CC) $(OBJS_F) $(LIBS) -o $@
+
+#cdrom_tgt: .depend_c  $(OBJS_C)
+#	$(CC) $(OBJS_C) $(LIBS) -o $@
+
+ifeq (.depend_f,$(wildcard .depend_f))
+-include .depend_f
+endif
+
+#ifeq (.depend_c,$(wildcard .depend_c))
+#-include .depend_c
+#endif
+
+%.o: %.c Makefile
+	$(CC) -c -o $(@) $(CFLAGS) $(<)
+
+.depend_f:
+	$(CC) -M $(CFLAGS) $(SRCS_F) >$(@)
+
+#.depend_c:
+#	$(CC) -M $(CFLAGS) $(SRCS_C) >$(@)
+
+install: all
+	install -d $(INSTALL_DIR)
+	install -m 755 $(PROGS) $(INSTALL_DIR)
+
+uninstall:
+	rm -f $(INSTALL_DIR)/$(PROGS)
+	rm -rf $(INSTALL_DIR)
+
+clean:
+	rm -f *.o $(PROGS) .depend*
+
+extraclean: clean
+
+.PHONY: all install uninstall clean extraclean

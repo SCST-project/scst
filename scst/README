@@ -106,7 +106,7 @@ allows to work directly over a block device, e.g. local IDE or SCSI disk
 or ever disk partition, where there is no file systems overhead. Using
 block devices comparing to sending SCSI commands directly to SCSI
 mid-level via scsi_do_req()/scsi_execute_async() has advantage that data
-are transfered via system cache, so it is possible to fully benefit from
+are transferred via system cache, so it is possible to fully benefit from
 caching and read ahead performed by Linux's VM subsystem. The only
 disadvantage here that in the FILEIO mode there is superfluous data
 copying between the cache and SCST's buffers. This issue is going to be
@@ -145,12 +145,12 @@ in/out in Makefile:
  - EXTRACHECKS - adds extra validity checks in the various places.
 
  - DEBUG_TM - turns on task management functions debugging, when on
-   LUN 0 in the "Default" group some of the commands will be delayed for
-   about 60 sec., so making the remote initiator send TM functions, eg
-   ABORT TASK and TARGET RESET. Also set TM_DBG_GO_OFFLINE symbol in the
-   Makefile to 1 if you want that the device eventually become
-   completely unresponsive, or to 0 otherwise to circle around ABORTs
-   and RESETs code. Needs DEBUG turned on.
+   LUN 0 in the default access control group some of the commands will
+   be delayed for about 60 sec., so making the remote initiator send TM
+   functions, eg ABORT TASK and TARGET RESET. Also set TM_DBG_GO_OFFLINE
+   symbol in the Makefile to 1 if you want that the device eventually
+   become completely unresponsive, or to 0 otherwise to circle around
+   ABORTs and RESETs code. Needs DEBUG turned on.
 
  - STRICT_SERIALIZING - makes SCST send all commands to underlying SCSI
    device synchronously, one after one. This makes task management more
@@ -235,19 +235,21 @@ Access and devices visibility management (LUN masking)
 Access and devices visibility management allows for an initiator or
 group of initiators to have different limited set of LUs/LUNs (security
 group) each with appropriate access permissions. Initiator is
-represented as a SCST session. Session is binded to security group on
-its registration time by character "name" parameter of the registration
+represented as a SCST session. Session is bound to security group on its
+registration time by character "name" parameter of the registration
 function, which provided by target driver, based on its internal
-authentication. For example, for FC "name" could be WWN or just loop
-ID. For iSCSI this could be iSCSI login credentials or iSCSI initiator
-name. Each security group has set of names assigned to it by system
-administrator. Session is binded to security group with provided name.
-If no such groups found, the session binded to "Default" group.
+authentication. For example, for FC "name" could be WWN or just loop ID.
+For iSCSI this could be iSCSI login credentials or iSCSI initiator name.
+Each security group has set of names assigned to it by system
+administrator. Session is bound to security group with provided name. If
+no such groups found, the session bound to either "Default_target_name",
+or "Default" group, depending from either "Default_target_name" exists
+or not. In "Default_target_name" target name means name of the target.
 
 In /proc/scsi_tgt each group represented as "groups/GROUP_NAME/"
 subdirectory. In it there are files "devices" and "users". File
 "devices" lists all devices and their LUNs in the group, file "users"
-lists all names that should be binded to this group.
+lists all names that should be bound to this group.
 
 To configure access and devices visibility management SCST provides the
 following files and directories under /proc/scsi_tgt:
@@ -310,7 +312,7 @@ subdirectories "vdisk" and "vcdrom". They have similar layout:
       device "NAME" with block size "BLOCK_SIZE" bytes with flags
       "FLAGS". "PATH" could be empty only for VDISK CDROM. "BLOCK_SIZE"
       and "FLAGS" are valid only for disk VDISK. The block size must be
-      power of 2 and >= 512 bytes Default is 512. Possible flags:
+      power of 2 and >= 512 bytes. Default is 512. Possible flags:
       
       - WRITE_THROUGH - write back caching disabled
       
@@ -479,8 +481,15 @@ II. In order to get the maximum performance you should:
 
  - Disable in Makefile TRACING, DEBUG
 
-IMPORTANT: Some of those options enabled by default, i.e. SCST is optimized
-=========  currently rather for development, not for performance.
+ - If your initiator(s) use dedicated exported from the target virtual
+   SCSI devices and have more or equal amount of memory, than the
+   target, it is recommended to use O_DIRECT option (currently it is
+   available only with fileio_tgt user space program) or BLOCKIO. With
+   them you could have up to 100% increase in throughput.
+
+IMPORTANT: Some of the compilation options enabled by default, i.e. SCST
+=========  is optimized currently rather for development and bug hunting,
+           not for performance.
 
 4. For kernel:
 
@@ -496,7 +505,11 @@ IMPORTANT: Some of those options enabled by default, i.e. SCST is optimized
    parameters in /sys/block/device directory, they also affect the
    performance. If you find the best values, please share them with us.
 
- - Also it is recommended to turn the kernel preemption off, i.e. set
+ - Use on the target deadline IO scheduler with read_expire and
+   write_expire increased on all exported devices to 5000 and 20000
+   correspondingly.
+
+ - It is recommended to turn the kernel preemption off, i.e. set
    the kernel preemption model to "No Forced Preemption (Server)".
 
 5. For hardware.

@@ -255,7 +255,8 @@ out_up:
 	return;
 }
 
-struct scst_tgt *scst_register(struct scst_tgt_template *vtt)
+struct scst_tgt *scst_register(struct scst_tgt_template *vtt,
+	const char *target_name)
 {
 	struct scst_tgt *tgt;
 
@@ -281,26 +282,45 @@ struct scst_tgt *scst_register(struct scst_tgt_template *vtt)
 	scst_suspend_activity();
 	down(&scst_mutex);
 
-	if (scst_build_proc_target_entries(tgt) < 0) {
-		kfree(tgt);
-		tgt = NULL;
-		goto out_up;
-	} else
+	if (target_name != NULL) {
+		int len = strlen(target_name) + 1 +
+			strlen(SCST_DEFAULT_ACG_NAME) + 1;
+
+		tgt->default_group_name = kmalloc(len, GFP_KERNEL);
+		if (tgt->default_group_name == NULL) {
+			TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of default "
+				"group name failed");
+			goto out_free_err;
+		}
+		sprintf(tgt->default_group_name, "%s_%s", SCST_DEFAULT_ACG_NAME,
+			target_name);
+	}
+
+	if (scst_build_proc_target_entries(tgt) < 0)
+		goto out_free_name;
+	else
 		list_add_tail(&tgt->tgt_list_entry, &vtt->tgt_list);
 
 	up(&scst_mutex);
 	scst_resume_activity();
 
-	PRINT_INFO_PR("Target for template %s registered successfully",
-		vtt->name);
+	PRINT_INFO_PR("Target %s for template %s registered successfully",
+		target_name, vtt->name);
 
 out:
 	TRACE_EXIT();
 	return tgt;
 
-out_up:
+out_free_name:
+	if (tgt->default_group_name)
+		kfree(tgt->default_group_name);
+
+out_free_err:
 	up(&scst_mutex);
 	scst_resume_activity();
+
+	kfree(tgt);
+	tgt = NULL;
 
 out_err:
 	PRINT_ERROR_PR("Failed to register target for template %s", vtt->name);
@@ -343,6 +363,9 @@ void scst_unregister(struct scst_tgt *tgt)
 	list_del(&tgt->tgt_list_entry);
 
 	scst_cleanup_proc_target_entries(tgt);
+
+	if (tgt->default_group_name)
+		kfree(tgt->default_group_name);
 
 	up(&scst_mutex);
 	scst_resume_activity();

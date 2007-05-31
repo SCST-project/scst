@@ -63,6 +63,13 @@ config SCSI_TARGET_VDISK
 	---help---
 	  SCSI TARGET handler for virtual disk and/or cdrom device.
 
+config SCSI_TARGET_USER
+	tristate "SCSI user space virtual target devices support"
+	default SCSI_TARGET
+	depends on SCSI && PROC_FS && SCSI_TARGET
+	---help---
+	  SCSI TARGET handler for virtual user space device.
+
 config SCSI_TARGET_EXTRACHECKS
 	bool "Extrachecks support"
 	---help---
