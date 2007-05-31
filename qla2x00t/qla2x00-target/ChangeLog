@@ -1,11 +1,13 @@
 Summary of changes between versions 0.9.5 and 0.9.6
 ---------------------------------------------------
 
-  - Update to work on 2.6.19.x.
+ - Support for per-target default security groups added.
 
-  - Updated to work with SCST 0.9.6.
+ - Update to work on 2.6.19.x.
 
-  - Cleanups and minor bug fixes.
+ - Updated to work with SCST 0.9.6.
+
+ - Cleanups and minor bug fixes.
 
 Summary of changes between versions 0.9.3.8 and 0.9.5
 -----------------------------------------------------

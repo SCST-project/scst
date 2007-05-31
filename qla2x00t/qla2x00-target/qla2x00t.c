@@ -1406,7 +1406,7 @@ static int q2t_send_cmd_to_scst(scsi_qla_host_t *ha, atio_entry_t *atio)
 		}
 
 		if (sess->scst_sess == NULL) {
-			PRINT_ERROR("qla2x00tgt(%ld): scst_register() failed "
+			PRINT_ERROR("qla2x00tgt(%ld): scst_register_session() failed "
 			     "for host %ld(%p)", ha->instance, ha->host_no, ha);
 			res = -EFAULT;
 			goto out_free_sess;
@@ -1957,6 +1957,31 @@ out:
 	return;
 }
 
+static int q2t_get_target_name(scsi_qla_host_t *ha, char **wwn)
+{
+	const int wwn_len = 3*WWN_SIZE+2;
+	int res = 0;
+	char *name;
+
+	name = kmalloc(wwn_len, GFP_KERNEL);
+	if (name == NULL) {
+		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of tgt name failed");
+		res = -ENOMEM;
+		goto out;
+	}
+
+	sprintf(name, "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
+		ha->port_name[0], ha->port_name[1], 
+		ha->port_name[2], ha->port_name[3], 
+		ha->port_name[4], ha->port_name[5], 
+		ha->port_name[6], ha->port_name[7]);
+
+	*wwn = name;
+
+out:
+	return res;
+}
+
 /* no lock held on entry */
 /* called via callback from qla2xxx */
 static void q2t_host_action(scsi_qla_host_t *ha, 
@@ -1964,6 +1989,7 @@ static void q2t_host_action(scsi_qla_host_t *ha,
 {
 	struct q2t_tgt *tgt = NULL;
 	unsigned long flags = 0;
+	char *wwn;
 
 	TRACE_ENTRY();
 
@@ -2004,7 +2030,13 @@ static void q2t_host_action(scsi_qla_host_t *ha,
 			tgt->datasegs_per_cont = DATASEGS_PER_CONT32;
 		}
 		
-		tgt->scst_tgt = scst_register(&tgt_template);
+		if (q2t_get_target_name(ha, &wwn) != 0) {
+			kfree(tgt);
+			goto out;
+		}
+
+		tgt->scst_tgt = scst_register(&tgt_template, wwn);
+		kfree(wwn);
 		if (!tgt->scst_tgt) {
 			PRINT_ERROR("qla2x00tgt(%ld): scst_register() "
 				    "failed for host %ld(%p)", ha->instance, 
