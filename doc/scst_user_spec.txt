@@ -2,7 +2,7 @@
 
 	  USER SPACE INTERFACE DESCRIPTION.
 
-		   Version 0.9
+		   Version 0.9.6
 
 
 		I. Description.
