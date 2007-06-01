@@ -10,17 +10,39 @@ as much as possible. Detail description of SCST's features and internals
 could be found in "Generic SCSI Target Middle Level for Linux" document
 SCST's Internet page http://scst.sourceforge.net.
 
-SCST looks to be quite stable (for beta) and useful. It supports disks
-(SCSI type 0), tapes (type 1), processor (type 3), CDROM's (type 5), MO
-disks (type 7), medium changers (type 8) and RAID controller (type 0xC)
-as well as VDISK and "performance" device handlers. In addition, it
-supports advanced per-initiator access and devices visibility
-management, so different initiators could see different set of devices
-with different access permissions. See below for details.
+SCST supports the following I/O modes:
+
+ * Pass-through mode with one to many relationship, i.e. when multiple
+   initiators can connect to the exported pass-through devices, for   
+   the following SCSI devices types: disks (type 0), tapes (type 1),
+   processors (type 3), CDROMs (type 5), MO disks (type 7), medium
+   changers (type 8) and RAID controllers (type 0xC)
+
+ * FILEIO mode, which allows to use files on file systems or block
+   devices as virtual remotely available SCSI disks or CDROMs with
+   benefits of the Linux page cache
+
+ * BLOCKIO mode, which performsd irect block IO with a block device,
+   bypassing page-cache for all operations. This mode works ideally with
+   high-end storage HBAs and for applications that either do not need
+   caching between application and disk or need the large block
+   throughput
+
+ * User space mode using scst_user device handler, which allows to
+   implement in the user space virtual SCSI devices in the SCST
+   environment
+
+ * "Performance" device handlers, which provide in pseudo pass-through
+   mode a way for direct performance measurements without overhead of
+   actual data transferring from/to underlying SCSI device
+
+In addition, SCST supports advanced per-initiator access and devices
+visibility management, so different initiators could see different set
+of devices with different access permissions. See below for details.
 
 This is quite stable (but still beta) version.
 
-Tested mostly on "vanilla" 2.6.17.8 kernel from kernel.org.
+Tested mostly on "vanilla" 2.6.21.1 kernel from kernel.org.
 
 Installation
 ------------
@@ -45,7 +67,8 @@ will be copied to '/usr/local/include/scst'. The first file contains all
 SCST's public data definition, which are used by target drivers. The
 other ones support debug messages logging and build process.
 
-Then you can load any module by typing 'modprobe drive_name'. The names are:
+Then you can load any module by typing 'modprobe module_name'. The names
+are:
 
  - scsi_tgt - SCST itself
  - scst_disk - device handler for disks (type 0)
@@ -55,7 +78,8 @@ Then you can load any module by typing 'modprobe drive_name'. The names are:
  - scst_modisk - device handler for MO disks (type 7)
  - scst_changer - device handler for medium changers (type 8)
  - scst_raid - device handler for storage array controller (e.g. raid) (type C)
- - scst_vdisk - device handler for virtual disks (disk or ISO CD image).
+ - scst_vdisk - device handler for virtual disks (file, device or ISO CD image).
+ - scst_user - user space device handler
 
 Then, to see your devices remotely, you need to add them to at least
 "Default" security group (see below how). By default, no local devices
@@ -97,8 +121,8 @@ for a SCSI device type isn't loaded, SCST doesn't know how to handle
 devices of this type, so they will be invisible for remote initiators
 (more precisely, "LUN not supported" sense code will be returned).
 
-In addition to device handlers for real devices, there are VDISK and
-"performance" ones.
+In addition to device handlers for real devices, there are VDISK, user
+space and "performance" device handlers.
 
 VDISK device handler works over files on file systems and makes from
 them virtual remotely available SCSI disks or CDROM's. In addition, it
@@ -113,6 +137,13 @@ copying between the cache and SCST's buffers. This issue is going to be
 addressed in the next release. Virtual CDROM's are useful for remote
 installation. See below for details how to setup and use VDISK device
 handler.
+
+SCST user space device handler provides an interface between SCST and
+the user space, which allows to create pure user space devices. The
+simplest example, where one would want it is if he/she wants to write a
+VTL. With scst_user he/she can write it purely in the user space. Or one
+would want it if he/she needs some sophisticated for kernel space
+processing of the passed data, like encrypting them or making snapshots. 
 
 "Performance" device handlers for disks, MO disks and tapes in their
 exec() method skip (pretend to execute) all READ and WRITE operations
@@ -449,6 +480,19 @@ For not-block devices SCSI commands are usually generated directly by
 applications, so, if you experience large transfers stalls, you should
 check documentation for your application how to limit the transfer
 sizes.
+
+User space mode using scst_user dev handler
+-------------------------------------------
+
+User space program fileio_tgt uses interface of scst_user dev handler
+and allows to see how it work in various modes. Fileio_tgt provides
+mostly the same functionality as scst_vdisk handler with the only
+exception that it supports O_DIRECT mode. This mode is basically the
+same as BLOCKIO, but also supports files, so for some loads it could be
+significantly faster, than regular FILEIO access, provided by
+scst_vdisk. All the words about BLOCKIO from above apply to O_DIRECT as
+well. While running fileio_tgt if you don't uderstand some its options,
+use defaults for them, those values are the fastest.
 
 Performance
 -----------
