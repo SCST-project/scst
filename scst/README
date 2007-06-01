@@ -342,7 +342,7 @@ subdirectories "vdisk" and "vcdrom". They have similar layout:
 	will go from the initiator.
 
       - BLOCKIO - enables block mode, which will perform direct block
-        IO with the device, bypassing page-cache for all operations.
+        IO with a block device, bypassing page-cache for all operations.
 	This mode works ideally with high-end storage HBAs and for
 	applications that either do not need caching between application
 	and disk or need the large block throughput. See also below.

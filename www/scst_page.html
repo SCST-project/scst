@@ -55,15 +55,19 @@ exported from
 target T devices Da and Db read-writable, and initiator B from the same
 target T could see devices Db read-only and Dc read-writable.<br>
   </li>
-  <li> Complete SMP support.<br>
-  </li>
   <li> Emulates necessary functionality of SCSI host adapter, because
-from a remote initiator's point of view SCST acts as a SCSI host with
+from remote initiators point of view SCST acts as a SCSI host with
 its
-own devices. Some of the emulated functions are the following:
+own devices. This is especially important in pass-through mode with one
+to many relationship, i.e. when
+multiple initiators can connect to the exported pass-through devices.
+You can find more deep elaboration why it is needed in&nbsp;<a
+ href="http://www.mail-archive.com/linux-scsi@vger.kernel.org/msg06911.html">this</a>
+message in linux-scsi mailing list. Some of the emulated functions are
+the following:
     <ul>
       <li> Generation of necessary UNIT ATTENTIONs, their storage and
-delivery to all connected remote initiators (sessions). </li>
+delivery to all connected remote initiators. </li>
       <li> RESERVE/RELEASE functionality. </li>
       <li> CA/ACA conditions (not implemented yet). </li>
       <li> All types of RESETs and other task management functions. </li>
@@ -86,23 +90,24 @@ conditions treatment, data caching or passing commands in the user
 space for device emulation. Example of such plugin is FILEIO device
 handler (see below) .<br>
   </li>
+  <li> Complete SMP support.<br>
+  </li>
+  <li> </li>
   <li>Well documented.<br>
   </li>
 </ul>
 <div style="text-align: justify;">
 </div>
 <p style="text-align: justify;">Interoperability between SCST and local
-SCSI initiators (like sd, st) is
+SCSI initiators (i.e. sd, st, etc.) is
 the additional issue that SCST is going to address (it is not
 implemented yet). It is necessary, because local SCSI initiators can
 change the state of the device, for example RESERVE the device, or some
-of its parameters and that would be done behind SCST, which could lead
-to various problems. Thus, RESERVE/RELEASE commands, locally generated
+of its parameters and that could be done behind SCST, which could lead
+to various problems, including data corruption. Thus, RESERVE/RELEASE
+commands, locally generated
 UNIT ATTENTIONs, etc. should be intercepted and processed as if local
-SCSI initiators act as remote SCSI initiators connected to SCST. This
-feature requires some the kernel modification. Since in the current
-version it is not implemented, SCST and target drivers are
-able to work with any version of Linux 2.6 kernel.<br>
+SCSI initiators act as remote SCSI initiators connected to SCST.<br>
 </p>
 <p style="text-align: justify;">Interface between SCST and target
 drivers is based on work, done by <a href="http://www.iol.unh.edu/">University
@@ -111,26 +116,44 @@ of New Hampshire Interoperability Labs (UNH IOL)</a> for the <a
 project</a>, which is currently developed on <a
  href="http://unh-iscsi.sourceforge.net/">SourceForge.net</a>.<br>
 </p>
-<p style="text-align: justify;">The latest stable version is 0.9.5. It
-supports SCSI disks (type 0), tapes (type 1), processors (type
+<p style="text-align: justify;">SCST supports the following I/O modes:<br>
+</p>
+<ul>
+  <li>Pass-through mode with one to many relationship, i.e. when
+multiple initiators can connect to the exported pass-through devices,
+for virtually all SCSI devices types: disks
+(type 0), tapes (type 1), processors (type
 3), CDROMs (type 5), MO disks (type 7), medium changers (type 8) and
-RAID controllers (type 0xC). Also it supports FILEIO and "performance"
-device handlers. FILEIO device handler allows to use files on file
+RAID controllers (type 0xC)</li>
+  <li>FILEIO mode, which allows to use files on file
 systems or block devices as virtual remotely available SCSI disks or
-CDROMs. "Performance" device handlers provide a way for direct
+CDROMs with benefits of the Linux page cache<br>
+  </li>
+  <li>BLOCKIO mode, which performs direct block IO with a block device,
+bypassing page-cache for all operations. This mode works ideally with
+high-end storage HBAs and for applications that either do not need
+caching between application and disk or need the large block throughput.</li>
+  <li>User space mode using scst_user device handler, which allows to
+implement in the user space virtual SCSI devices in the SCST environment<br>
+  </li>
+  <li>"Performance" device handlers, which provide in pseudo
+pass-through mode a way for direct
 performance measurements without overhead of actual data transferring
-from/to underlying SCSI device. Requires Linux kernel 2.6.14 or higher.
+from/to underlying SCSI device<br>
+  </li>
+</ul>
+<p style="text-align: justify;">The latest stable version is 0.9.5.
+Requires Linux kernel 2.6.14 or higher.
 Tested mostly on i386 and x86_64,
 but should also
 work on any other
 supported by Linux platform. More detail information you could find in
-the project's README file.<br>
+the project's README file.
 </p>
 Starting from version 0.9.4 2.4 Linux
-kernels are not supported anymore, although there could be new SCST
-releases for those kernels with very important bug fixes. The latest
+kernels are not supported anymore. The latest
 stable
-version of SCST with 2.4 kernels support is 0.9.3.1-24.
+version of SCST for 2.4 kernels is 0.9.3.1-24.
 <p style="text-align: justify;">If you have any questions you can ask
 them on the SCST SF.net page either using forum, or scst-devel mailing
 list.<br>
@@ -140,7 +163,8 @@ list.<br>
 page</a><br>
 <a href="ChangeLog.scst">Change Log</a><br>
 Documentation: <a href="doc/scst_pg.html">HTML</a>, <a
- href="doc/scst_pg.pdf">PDF</a><br>
+ href="doc/scst_pg.pdf">PDF</a>, <a href="doc/scst_user_spec.txt">scst_user
+interface description</a><br>
 Some nice SCST call graphs, created by Ming Zhang: <a
  href="doc/init_scst.png">init_scst</a>, <a
  href="doc/scst_cmd_thread.png">scst_cmd_thread</a>, <a
@@ -151,6 +175,7 @@ available directly from the
 project's SVN. The SCST release policy is to make stable releases
 twice a year, with the only exception if the current stable version
 contains a critical bug. Therefore on practice the development version
+in the SVN
 is usually more stable, than the "stable" one. You can access it using
 either <a href="http://svn.sourceforge.net/scst">web-based SVN
 repository viewer</a> or using anonymous access: </p>
