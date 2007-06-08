@@ -2148,6 +2148,8 @@ static int dev_user_attach(struct scst_device *sdev)
 		goto out;
 	}
 
+	sdev->p_cmd_lists = &dev->cmd_lists;
+
 	sdev->dh_priv = dev;
 
 	PRINT_INFO_PR("Attached user space SCSI target virtual device \"%s\"",
@@ -2219,8 +2221,6 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 
 	TRACE_ENTRY();
 
-	tgt_dev->p_cmd_lists = &dev->cmd_lists;
-
 	ucmd = dev_user_alloc_ucmd(dev, GFP_KERNEL);
 	if (ucmd == NULL)
 		goto out_nomem;
@@ -2235,6 +2235,7 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 	ucmd->user_cmd.subcode = SCST_USER_ATTACH_SESS;
 	ucmd->user_cmd.sess.sess_h = (unsigned long)tgt_dev;
 	ucmd->user_cmd.sess.lun = (uint64_t)tgt_dev->lun;
+	ucmd->user_cmd.sess.threads_num = tgt_dev->sess->tgt->tgtt->threads_num;
 	ucmd->user_cmd.sess.rd_only = tgt_dev->acg_dev->rd_only_flag;
 	strncpy(ucmd->user_cmd.sess.initiator_name,
 		tgt_dev->sess->initiator_name,
@@ -2243,9 +2244,10 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 		sizeof(ucmd->user_cmd.sess.initiator_name)-1] = '\0';
 
 	TRACE_MGMT_DBG("Preparing ATTACH_SESS %p (h %d, sess_h %Lx, LUN %Lx, "
-		"rd_only_flag %d, initiator %s)", ucmd, ucmd->h,
+		"threads_num %d, rd_only_flag %d, initiator %s)", ucmd, ucmd->h,
 		ucmd->user_cmd.sess.sess_h, ucmd->user_cmd.sess.lun,
-		ucmd->user_cmd.sess.rd_only, ucmd->user_cmd.sess.initiator_name);
+		ucmd->user_cmd.sess.threads_num, ucmd->user_cmd.sess.rd_only,
+		ucmd->user_cmd.sess.initiator_name);
 
 	ucmd->state = UCMD_STATE_ATTACH_SESS;
 

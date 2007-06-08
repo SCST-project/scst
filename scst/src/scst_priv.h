@@ -246,7 +246,10 @@ void scst_cmd_mem_work_fn(void *p);
 void scst_cmd_mem_work_fn(struct work_struct *work);
 #endif
 
-struct scst_device *scst_alloc_device(int gfp_mask);
+int scst_add_dev_threads(struct scst_device *dev, int num);
+void scst_del_dev_threads(struct scst_device *dev, int num);
+
+int scst_alloc_device(int gfp_mask, struct scst_device **out_dev);
 void scst_free_device(struct scst_device *tgt_dev);
 
 struct scst_acg *scst_alloc_add_acg(const char *acg_name);

@@ -251,6 +251,7 @@ struct scst_user_sess
 {
 	uint64_t sess_h;
 	uint64_t lun;
+	uint16_t threads_num;
 	uint8_t rd_only;
 	char initiator_name[SCST_MAX_NAME];
 },
@@ -260,7 +261,10 @@ where:
  - sess_h - session's handle, may not be 0
 
  - lun - assigned LUN for this device in this session
- 
+
+ - threads_num - specifies amount of additional threads, requested by
+   the corresponding target driver
+
  - rd_only - if true, this device is read only in this session
 
  - initiator_name - name of the remote initiator, which initiated this

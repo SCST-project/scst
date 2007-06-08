@@ -57,9 +57,13 @@
 #endif
 
 #ifdef EXTRACHECKS
-#define EXTRACHECKS_BUG_ON(a)	sBUG_ON(a)
+#define EXTRACHECKS_BUG_ON(a)		sBUG_ON(a)
+#define EXTRACHECKS_WARN_ON(a)		WARN_ON(a)
+#define EXTRACHECKS_WARN_ON_ONCE(a)	WARN_ON_ONCE(a)
 #else
 #define EXTRACHECKS_BUG_ON(a)
+#define EXTRACHECKS_WARN_ON(a)
+#define EXTRACHECKS_WARN_ON_ONCE(a)
 #endif
 
 #ifdef DEBUG

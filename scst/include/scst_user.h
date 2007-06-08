@@ -106,6 +106,7 @@ struct scst_user_sess
 {
 	aligned_u64 sess_h;
 	aligned_u64 lun;
+	uint16_t threads_num;
 	uint8_t rd_only;
 	char initiator_name[SCST_MAX_NAME];
 };

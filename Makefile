@@ -154,5 +154,5 @@ help:
 .PHONY: all install uninstall clean extraclean help \
 	qla qla_install qla_uninstall qla_clean qla_extraclean \
 	lsi lsi_install lsi_uninstall lsi_clean lsi_extraclean \
-	scst scst_install scst_uninstall scst_clean scst_extraclean
+	scst scst_install scst_uninstall scst_clean scst_extraclean \
 	usr usr_install usr_uninstall usr_clean usr_extraclean

@@ -156,6 +156,14 @@ int scst_register_target_template(struct scst_tgt_template *vtt)
 		goto out_err;
 	}
 
+	if (vtt->threads_num < 0) {
+		PRINT_ERROR_PR("Wrong threads_num value %d for "
+			"target \"%s\"", vtt->threads_num,
+			vtt->name);
+		res = -EINVAL;
+		goto out_err;
+	}
+
 	if (!vtt->no_proc_entry) {
 		res = scst_build_proc_target_dir_entries(vtt);
 		if (res < 0)
@@ -467,11 +475,9 @@ static int scst_register_device(struct scsi_device *scsidp)
 	scst_suspend_activity();
 	down(&scst_mutex);
 
-	dev = scst_alloc_device(GFP_KERNEL);
-	if (dev == NULL) {
-		res = -ENOMEM;
+	res = scst_alloc_device(GFP_KERNEL, &dev);
+	if (res != 0)
 		goto out_up;
-	}
 
 	dev->type = scsidp->type;
 
@@ -618,22 +624,19 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 	if (res != 0)
 		goto out;
 
-	dev = scst_alloc_device(GFP_KERNEL);
-	if (dev == NULL) {
-		res = -ENOMEM;
-		goto out;
+	scst_suspend_activity();
+	if (down_interruptible(&scst_mutex) != 0) {
+		res = -EINTR;
+		goto out_resume;
 	}
+
+	res = scst_alloc_device(GFP_KERNEL, &dev);
+	if (res != 0)
+		goto out_up;
 
 	dev->type = dev_handler->type;
 	dev->scsi_dev = NULL;
 	dev->virt_name = dev_name;
-
-	scst_suspend_activity();
-	if (down_interruptible(&scst_mutex) != 0) {
-		res = -EINTR;
-		goto out_free_dev;
-	}
-
 	dev->virt_id = scst_virt_dev_last_id++;
 
 	list_add_tail(&dev->dev_list_entry, &scst_dev_list);
@@ -645,7 +648,8 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 		res = rc;
 		goto out_free_del;
 	}
-	
+
+out_up:
 	up(&scst_mutex);
 
 out_resume:
@@ -666,11 +670,8 @@ out:
 
 out_free_del:
 	list_del(&dev->dev_list_entry);
-	up(&scst_mutex);
-
-out_free_dev:
 	scst_free_device(dev);
-	goto out_resume;
+	goto out_up;
 }
 
 void scst_unregister_virtual_device(int id)
@@ -893,6 +894,123 @@ void scst_unregister_virtual_dev_driver(struct scst_dev_type *dev_type)
 	return;
 }
 
+/* Called under scst_mutex and suspended activity */
+int scst_add_dev_threads(struct scst_device *dev, int num)
+{
+	int i, res = 0;
+	static atomic_t major = ATOMIC_INIT(0);
+	int N, n = 0;
+	char nm[12];
+
+	TRACE_ENTRY();
+
+	N = atomic_inc_return(&major);
+
+	for (i = 0; i < num; i++) {
+		struct scst_cmd_thread_t *thr;
+
+		thr = kmalloc(sizeof(*thr), GFP_KERNEL);
+		if (!thr) {
+			res = -ENOMEM;
+			PRINT_ERROR_PR("Failed to allocate thr %d", res);
+			goto out;
+		}
+		strncpy(nm, dev->handler->name, ARRAY_SIZE(nm)-1);
+		nm[ARRAY_SIZE(nm)-1] = '\0';
+		thr->cmd_thread = kthread_run(scst_cmd_thread,
+			&dev->cmd_lists, "%sd%d_%d", nm, N, n++);
+		if (IS_ERR(thr->cmd_thread)) {
+			res = PTR_ERR(thr->cmd_thread);
+			PRINT_ERROR_PR("kthread_create() failed: %d", res);
+			kfree(thr);
+			goto out;
+		}
+		list_add(&thr->thread_list_entry, &dev->threads_list);
+	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/* Called under scst_mutex and suspended activity */
+static int scst_create_dev_threads(struct scst_device *dev)
+{
+	int res = 0;
+	int threads_num;
+
+	TRACE_ENTRY();
+
+	if (dev->handler->threads_num <= 0)
+		goto out;
+
+	threads_num = dev->handler->threads_num;
+
+	spin_lock_init(&dev->cmd_lists.cmd_list_lock);
+	INIT_LIST_HEAD(&dev->cmd_lists.active_cmd_list);
+	init_waitqueue_head(&dev->cmd_lists.cmd_list_waitQ);
+
+	res = scst_add_dev_threads(dev, threads_num);
+	if (res != 0)
+		goto out;
+
+	down(&scst_suspend_mutex);
+	list_add_tail(&dev->cmd_lists.lists_list_entry,
+		&scst_cmd_lists_list);
+	up(&scst_suspend_mutex);
+
+	dev->p_cmd_lists = &dev->cmd_lists;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/* Called under scst_mutex and suspended activity */
+void scst_del_dev_threads(struct scst_device *dev, int num)
+{
+	struct scst_cmd_thread_t *ct, *tmp;
+	int i = 0;
+
+	TRACE_ENTRY();
+
+	list_for_each_entry_safe(ct, tmp, &dev->threads_list,
+				thread_list_entry) {
+		int rc = kthread_stop(ct->cmd_thread);
+		if (rc < 0) {
+			TRACE_MGMT_DBG("kthread_stop() failed: %d", rc);
+		}
+		list_del(&ct->thread_list_entry);
+		kfree(ct);
+		if ((num >0) && (++i >= num))
+			break;
+	}
+
+	TRACE_EXIT();
+	return;
+}
+
+/* Called under scst_mutex and suspended activity */
+static void scst_stop_dev_threads(struct scst_device *dev)
+{
+	TRACE_ENTRY();
+
+	if (list_empty(&dev->threads_list))
+		goto out;
+
+	scst_del_dev_threads(dev, -1);
+
+	if (dev->p_cmd_lists == &dev->cmd_lists) {
+		down(&scst_suspend_mutex);
+		list_del(&dev->cmd_lists.lists_list_entry);
+		up(&scst_suspend_mutex);
+	}
+
+out:
+	TRACE_EXIT();
+	return;
+}
+
 /* The activity supposed to be suspended and scst_mutex held */
 int scst_assign_dev_handler(struct scst_device *dev, 
 	struct scst_dev_type *handler)
@@ -908,8 +1026,7 @@ int scst_assign_dev_handler(struct scst_device *dev,
 	
 	if (dev->handler && dev->handler->detach_tgt) {
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list, 
-			dev_tgt_dev_list_entry) 
-		{
+				dev_tgt_dev_list_entry) {
 			TRACE_DBG("Calling dev handler's detach_tgt(%p)",
 				tgt_dev);
 			dev->handler->detach_tgt(tgt_dev);
@@ -923,7 +1040,15 @@ int scst_assign_dev_handler(struct scst_device *dev,
 		TRACE_DBG("%s", "Old handler's detach() returned");
 	}
 
+	scst_stop_dev_threads(dev);
+
 	dev->handler = handler;
+
+	if (handler) {
+		res = scst_create_dev_threads(dev);
+		if (res != 0)
+			goto out_null;
+	}
 
 	if (handler && handler->attach) {
 		TRACE_DBG("Calling new dev handler's attach(%p)", dev);
@@ -933,13 +1058,12 @@ int scst_assign_dev_handler(struct scst_device *dev,
 			PRINT_ERROR_PR("New device handler's %s attach() "
 				"failed: %d", handler->name, res);
 		}
-		goto out_null;
+		goto out_thr_null;
 	}
 	
 	if (handler && handler->attach_tgt) {
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list, 
-			dev_tgt_dev_list_entry) 
-		{
+				dev_tgt_dev_list_entry) {
 			TRACE_DBG("Calling dev handler's attach_tgt(%p)",
 				tgt_dev);
 			res = handler->attach_tgt(tgt_dev);
@@ -953,7 +1077,11 @@ int scst_assign_dev_handler(struct scst_device *dev,
 				&attached_tgt_devs);
 		}
 	}
-	
+
+out_thr_null:
+	if (res != 0)
+		scst_stop_dev_threads(dev);
+
 out_null:
 	if (res != 0)
 		dev->handler = NULL;

@@ -619,9 +619,6 @@ struct scst_tgt_template
 	/* The pointer to the /proc directory entry */
 	struct proc_dir_entry *proc_tgt_root;
 
-	/* Dedicated thread number */
-	int thread_num;
-	
 	/* Device number in /proc */
 	int proc_dev_num;
 };
@@ -1181,6 +1178,12 @@ struct scst_device
 {
 	struct scst_dev_type *handler;	/* corresponding dev handler */
 
+	/* Pointer to lists of commands with the lock */
+	struct scst_cmd_lists *p_cmd_lists;
+
+	/* Lists of commands with the lock, if dedicated threads are used */
+	struct scst_cmd_lists cmd_lists;
+
 	unsigned short type;	/* SCSI type of the device */
 
 	/*************************************************************
@@ -1250,6 +1253,9 @@ struct scst_device
 	
 	/* List of acg_dev's, one per acg, protected by scst_mutex */
 	struct list_head dev_acg_dev_list;
+
+	/* List of dedicated threads. Doesn't need any protection.  */
+	struct list_head threads_list;
 };
 
 /*
@@ -1275,9 +1281,6 @@ struct scst_tgt_dev
 
 	struct scst_device *dev; /* to save extra dereferences */
 	lun_t lun;		 /* to save extra dereferences */
-
-	/* Pointer to lists of commands with the lock */
-	struct scst_cmd_lists *p_cmd_lists;
 
 	/* How many cmds alive on this dev in this session */
 	atomic_t cmd_count; 
@@ -1313,9 +1316,6 @@ struct scst_tgt_dev
 	atomic_t *cur_sn_slot;
 	atomic_t sn_slots[10];
 
-	/* Lists of commands with the lock, if dedicated threads are used */
-	struct scst_cmd_lists cmd_lists;
-
 	/* Used for storage of dev handler private stuff */
 	void *dh_priv;
 
@@ -1337,8 +1337,7 @@ struct scst_tgt_dev
 	/* internal tmp list entry */
 	struct list_head extra_tgt_dev_list_entry;
 
-	/* List of dedicated threads. Doesn't need any protection.  */
-	struct list_head threads_list;
+	
 };
 
 /*

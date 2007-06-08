@@ -352,7 +352,7 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 					(obj->sg_entries + pages_to_alloc);
 				TRACE_MEM("trans_tbl %p", obj->trans_tbl);
 				/* We want to have all the data on the same page */
-				EXTRACHECKS_BUG_ON(((unsigned long)obj->sg_entries & PAGE_MASK) !=
+				EXTRACHECKS_WARN_ON_ONCE(((unsigned long)obj->sg_entries & PAGE_MASK) !=
 					((unsigned long)&obj->trans_tbl[pages_to_alloc-1] & PAGE_MASK));
 				/*
 				 * No need to clear trans_tbl, if needed, it will
@@ -360,7 +360,7 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 				 */
 			} else {
 				/* We want to have all the data on the same page */
-				EXTRACHECKS_BUG_ON(((unsigned long)obj->sg_entries & PAGE_MASK) !=
+				EXTRACHECKS_WARN_ON_ONCE(((unsigned long)obj->sg_entries & PAGE_MASK) !=
 					((unsigned long)&obj->sg_entries[pages_to_alloc-1] & PAGE_MASK));
 			}
 		} else {

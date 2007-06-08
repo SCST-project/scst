@@ -594,8 +594,10 @@ static int do_sess(struct vdisk_cmd *vcmd)
 		tgt_dev->last_write_cmd_queue_type = SCST_CMD_QUEUE_SIMPLE;
 
 		PRINT_INFO_PR("Session from initiator %s attached (LUN %Lx, "
-			"rd_only %d, sess_h %Lx)", cmd->sess.initiator_name,
-			cmd->sess.lun, cmd->sess.rd_only, cmd->sess.sess_h);
+			"threads_num %d, rd_only %d, sess_h %Lx)",
+			cmd->sess.initiator_name, cmd->sess.lun,
+			cmd->sess.threads_num, cmd->sess.rd_only,
+			cmd->sess.sess_h);
 	} else {
 		if (tgt_dev == NULL) {
 			PRINT_ERROR_PR("Session %Lx not found)", cmd->sess.sess_h);

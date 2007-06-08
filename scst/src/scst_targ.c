@@ -2593,7 +2593,7 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 					break;
 				}
 				
-				cmd->cmd_lists = tgt_dev->p_cmd_lists;
+				cmd->cmd_lists = tgt_dev->dev->p_cmd_lists;
 				cmd->tgt_dev = tgt_dev;
 				cmd->dev = tgt_dev->dev;
 
@@ -4156,8 +4156,7 @@ static int scst_init_session(struct scst_session *sess)
 
 restart:
 	list_for_each_entry(cmd, &sess->init_deferred_cmd_list,
-				cmd_list_entry)
-	{
+				cmd_list_entry) {
 		TRACE_DBG("Deleting cmd %p from init deferred cmd list", cmd);
 		list_del(&cmd->cmd_list_entry);
 		sess->sess_cmd_count--;
@@ -4170,8 +4169,7 @@ restart:
 
 	spin_lock(&scst_mcmd_lock);
 	list_for_each_entry_safe(mcmd, tm, &sess->init_deferred_mcmd_list,
-				mgmt_cmd_list_entry)
-	{
+				mgmt_cmd_list_entry) {
 		TRACE_DBG("Moving mgmt command %p from init deferred mcmd list",
 			mcmd);
 		list_move_tail(&mcmd->mgmt_cmd_list_entry,

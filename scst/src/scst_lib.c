@@ -145,33 +145,41 @@ out:
 	return;
 }
 
-struct scst_device *scst_alloc_device(int gfp_mask)
+/* Called under scst_mutex and suspended activity */
+int scst_alloc_device(int gfp_mask, struct scst_device **out_dev)
 {
 	struct scst_device *dev;
+	int res = 0;
 
 	TRACE_ENTRY();
 
 	dev = kzalloc(sizeof(*dev), gfp_mask);
 	if (dev == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s",
-		      "Allocation of scst_device failed");
+			"Allocation of scst_device failed");
+		res = -ENOMEM;
 		goto out;
 	}
 
+	dev->p_cmd_lists = &scst_main_cmd_lists;
 	spin_lock_init(&dev->dev_lock);
 	atomic_set(&dev->on_dev_count, 0);
 	INIT_LIST_HEAD(&dev->blocked_cmd_list);
 	INIT_LIST_HEAD(&dev->dev_tgt_dev_list);
 	INIT_LIST_HEAD(&dev->dev_acg_dev_list);
+	INIT_LIST_HEAD(&dev->threads_list);
 	init_waitqueue_head(&dev->on_dev_waitQ);
 	dev->dev_double_ua_possible = 1;
 	dev->dev_serialized = 1;
 
+	*out_dev = dev;
+
 out:
-	TRACE_EXIT_HRES(dev);
-	return dev;
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
+/* Called under scst_mutex and suspended activity */
 void scst_free_device(struct scst_device *dev)
 {
 	TRACE_ENTRY();
@@ -312,96 +320,6 @@ out:
 	return res;
 }
 
-static int scst_create_tgt_threads(struct scst_tgt_dev *tgt_dev)
-{
-	int i, res = 0;
-	int threads_num = tgt_dev->dev->handler->threads_num +
-		tgt_dev->sess->tgt->tgtt->threads_num;
-	static atomic_t major = ATOMIC_INIT(0);
-	int N, n = 0;
-	char nm[12];
-
-	TRACE_ENTRY();
-
-	if (tgt_dev->dev->handler->threads_num < 0)
-		threads_num = 0;
-
-	if (threads_num == 0)
-		goto out;
-
-	spin_lock_init(&tgt_dev->cmd_lists.cmd_list_lock);
-	INIT_LIST_HEAD(&tgt_dev->cmd_lists.active_cmd_list);
-	init_waitqueue_head(&tgt_dev->cmd_lists.cmd_list_waitQ);
-
-	if (tgt_dev->dev->handler->threads_num == 0)
-		threads_num += num_online_cpus();
-
-	N = atomic_inc_return(&major);
-
-	for (i = 0; i < threads_num; i++) {
-		struct scst_cmd_thread_t *thr;
-
-		thr = kmalloc(sizeof(*thr), GFP_KERNEL);
-		if (!thr) {
-			res = -ENOMEM;
-			PRINT_ERROR_PR("fail to allocate thr %d", res);
-			goto out;
-		}
-		strncpy(nm, tgt_dev->dev->handler->name, ARRAY_SIZE(nm)-1);
-		nm[ARRAY_SIZE(nm)-1] = '\0';
-		thr->cmd_thread = kthread_run(scst_cmd_thread,
-			&tgt_dev->cmd_lists, "%sd%d_%d", nm, N, n++);
-		if (IS_ERR(thr->cmd_thread)) {
-			res = PTR_ERR(thr->cmd_thread);
-			PRINT_ERROR_PR("kthread_create() failed: %d", res);
-			kfree(thr);
-			goto out;
-		}
-		list_add(&thr->thread_list_entry, &tgt_dev->threads_list);
-	}
-
-	down(&scst_suspend_mutex);
-	list_add_tail(&tgt_dev->cmd_lists.lists_list_entry,
-		&scst_cmd_lists_list);
-	up(&scst_suspend_mutex);
-
-	tgt_dev->p_cmd_lists = &tgt_dev->cmd_lists;
-
-out:
-	TRACE_EXIT();
-	return res;
-}
-
-static void scst_stop_tgt_threads(struct scst_tgt_dev *tgt_dev)
-{
-	struct scst_cmd_thread_t *ct, *tmp;
-
-	TRACE_ENTRY();
-
-	if (list_empty(&tgt_dev->threads_list))
-		goto out;
-
-	list_for_each_entry_safe(ct, tmp, &tgt_dev->threads_list,
-				thread_list_entry) {
-		int rc = kthread_stop(ct->cmd_thread);
-		if (rc < 0) {
-			TRACE_MGMT_DBG("kthread_stop() failed: %d", rc);
-		}
-		list_del(&ct->thread_list_entry);
-		kfree(ct);
-	}
-
-	if (tgt_dev->p_cmd_lists == &tgt_dev->cmd_lists) {
-		down(&scst_suspend_mutex);
-		list_del(&tgt_dev->cmd_lists.lists_list_entry);
-		up(&scst_suspend_mutex);
-	}
-
-out:
-	TRACE_EXIT();
-	return;
-}
-
 /*
  * No spin locks supposed to be held, scst_mutex - held.
  * The activity is suspended.
@@ -413,6 +331,7 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	struct scst_tgt_dev *tgt_dev;
 	struct scst_device *dev = acg_dev->dev;
 	struct list_head *sess_tgt_dev_list_head;
+	struct scst_tgt_template *vtt = sess->tgt->tgtt;
 	int rc, i;
 
 	TRACE_ENTRY();
@@ -431,7 +350,7 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	memset(tgt_dev, 0, sizeof(*tgt_dev));
 #endif
 
-	tgt_dev->dev = acg_dev->dev;
+	tgt_dev->dev = dev;
 	tgt_dev->lun = acg_dev->lun;
 	tgt_dev->acg_dev = acg_dev;
 	tgt_dev->sess = sess;
@@ -440,12 +359,10 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	tgt_dev->gfp_mask = __GFP_NOWARN;
 	tgt_dev->pool = &scst_sgv.norm;
 
-	if (tgt_dev->dev->scsi_dev != NULL) {
-		ini_sg = tgt_dev->dev->scsi_dev->host->sg_tablesize;
-		ini_unchecked_isa_dma = 
-			tgt_dev->dev->scsi_dev->host->unchecked_isa_dma;
-		ini_use_clustering = 
-			(tgt_dev->dev->scsi_dev->host->use_clustering == 
+	if (dev->scsi_dev != NULL) {
+		ini_sg = dev->scsi_dev->host->sg_tablesize;
+		ini_unchecked_isa_dma = dev->scsi_dev->host->unchecked_isa_dma;
+		ini_use_clustering = (dev->scsi_dev->host->use_clustering == 
 				ENABLE_CLUSTERING);
 	} else {
 		ini_sg = (1 << 15) /* infinite */;
@@ -471,8 +388,6 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 #endif
 	}
 
-	tgt_dev->p_cmd_lists = &scst_main_cmd_lists;
-	
 	if (dev->scsi_dev != NULL) {
 		TRACE_DBG("host=%d, channel=%d, id=%d, lun=%d, "
 		      "SCST lun=%Ld", dev->scsi_dev->host->host_no, 
@@ -497,7 +412,6 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	tgt_dev->cur_sn_slot = &tgt_dev->sn_slots[0];
 	for(i = 0; i < (int)ARRAY_SIZE(tgt_dev->sn_slots); i++)
 		atomic_set(&tgt_dev->sn_slots[i], 0);
-	INIT_LIST_HEAD(&tgt_dev->threads_list);
 
 	if (dev->handler->parse_atomic && 
 	    sess->tgt->tgtt->preprocessing_done_atomic) {
@@ -531,9 +445,15 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 
 	tm_dbg_init_tgt_dev(tgt_dev, acg_dev);
 
-	rc = scst_create_tgt_threads(tgt_dev);
-	if (rc != 0)
-		goto out_free;
+	if (vtt->threads_num > 0) {
+		rc = 0;
+		if (dev->handler->threads_num > 0)
+			rc = scst_add_dev_threads(dev, vtt->threads_num);
+		else if (dev->handler->threads_num == 0)
+			rc = scst_add_cmd_threads(vtt->threads_num);
+		if (rc != 0)
+			goto out_free;
+	}
 
 	if (dev->handler && dev->handler->attach_tgt) {
 		TRACE_DBG("Calling dev handler's attach_tgt(%p)",
@@ -543,7 +463,7 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 		if (rc != 0) {
 			PRINT_ERROR_PR("Device handler's %s attach_tgt() "
 			    "failed: %d", dev->handler->name, rc);
-			goto out_stop_free;
+			goto out_thr_free;
 		}
 	}
 	
@@ -559,8 +479,13 @@ out:
 	TRACE_EXIT();
 	return tgt_dev;
 
-out_stop_free:
-	scst_stop_tgt_threads(tgt_dev);
+out_thr_free:
+	if (vtt->threads_num > 0) {
+		if (dev->handler->threads_num > 0)
+			scst_del_dev_threads(dev, vtt->threads_num);
+		else if (dev->handler->threads_num == 0)
+			scst_del_cmd_threads(vtt->threads_num);
+	}
 
 out_free:
 	kmem_cache_free(scst_tgtd_cachep, tgt_dev);
@@ -613,6 +538,7 @@ void scst_reset_tgt_dev(struct scst_tgt_dev *tgt_dev, int nexus_loss)
 static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 {
 	struct scst_device *dev = tgt_dev->dev;
+	struct scst_tgt_template *vtt = tgt_dev->sess->tgt->tgtt;
 
 	TRACE_ENTRY();
 
@@ -631,7 +557,12 @@ static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 		TRACE_DBG("%s", "Dev handler's detach_tgt() returned");
 	}
 
-	scst_stop_tgt_threads(tgt_dev);
+	if (vtt->threads_num > 0) {
+		if (dev->handler->threads_num > 0)
+			scst_del_dev_threads(dev, vtt->threads_num);
+		else if (dev->handler->threads_num == 0)
+			scst_del_cmd_threads(vtt->threads_num);
+	}
 
 	kmem_cache_free(scst_tgtd_cachep, tgt_dev);
 
@@ -2984,7 +2915,7 @@ void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev,
 	    	if (!tm_dbg_flags.tm_dbg_active) {
 			/* Do TM debugging only for LUN 0 */
 			tm_dbg_p_cmd_list_waitQ = 
-				&tgt_dev->p_cmd_lists->cmd_list_waitQ;
+				&tgt_dev->dev->p_cmd_lists->cmd_list_waitQ;
 			tm_dbg_state = INIT_TM_DBG_STATE;
 			tm_dbg_on_state_passes =
 				tm_dbg_on_state_num_passes[tm_dbg_state];
