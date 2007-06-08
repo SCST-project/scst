@@ -2632,15 +2632,23 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 	if (likely(res == 0)) {
 		int cnt;
 		cmd->state = SCST_CMD_STATE_DEV_PARSE;
-		cnt = atomic_inc_return(&cmd->tgt_dev->cmd_count);
-		if (unlikely(cnt > SCST_MAX_DEVICE_COMMANDS)) {
+		cnt = atomic_inc_return(&cmd->tgt_dev->tgt_dev_cmd_count);
+		if (unlikely(cnt > SCST_MAX_TGT_DEV_COMMANDS)) {
 			TRACE(TRACE_RETRY, "Too many pending commands in "
 				"session, returning BUSY to initiator \"%s\"",
 				(cmd->sess->initiator_name[0] == '\0') ?
 				  "Anonymous" : cmd->sess->initiator_name);
-			scst_set_busy(cmd);
-			cmd->state = SCST_CMD_STATE_XMIT_RESP;
-		} else if (!cmd->no_sn)
+			goto out_busy;
+		}
+		cnt = atomic_inc_return(&cmd->dev->dev_cmd_count);
+		if (unlikely(cnt > SCST_MAX_DEV_COMMANDS)) {
+			TRACE(TRACE_RETRY, "Too many pending device commands, "
+				"returning BUSY to initiator \"%s\"",
+				(cmd->sess->initiator_name[0] == '\0') ?
+				  "Anonymous" : cmd->sess->initiator_name);
+			goto out_busy;
+		}
+		if (!cmd->no_sn)
 			scst_cmd_set_sn(cmd);
 	} else if (res < 0) {
 		TRACE_DBG("Finishing cmd %p", cmd);
@@ -2653,6 +2661,11 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_busy:
+	scst_set_busy(cmd);
+	cmd->state = SCST_CMD_STATE_XMIT_RESP;
+	goto out;
 }
 
 /* Called under scst_init_lock and IRQs disabled */

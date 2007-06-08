@@ -105,12 +105,19 @@ extern unsigned long scst_trace_flag;
 
 /**
  ** Maximum count of uncompleted commands that an initiator could 
- ** queue on any device. Then it will take TASK QUEUE FULL status.
+ ** queue on any device. Then it will start getting TASK QUEUE FULL status.
  **/
-#define SCST_MAX_DEVICE_COMMANDS           128
+#define SCST_MAX_TGT_DEV_COMMANDS            64
 
-#define SCST_TGT_RETRY_TIMEOUT             (3/2*HZ)
-#define SCST_CMD_MEM_TIMEOUT               (120*HZ)
+/**
+ ** Maximum count of uncompleted commands that could be queued on any device.
+ ** Then initiators sending commands to this device will start getting
+ ** TASK QUEUE FULL status.
+ **/
+#define SCST_MAX_DEV_COMMANDS                256
+
+#define SCST_TGT_RETRY_TIMEOUT               (3/2*HZ)
+#define SCST_CMD_MEM_TIMEOUT                 (120*HZ)
 
 static inline int scst_get_context(void) {
 	if (in_irq())

@@ -162,6 +162,7 @@ int scst_alloc_device(int gfp_mask, struct scst_device **out_dev)
 	}
 
 	dev->p_cmd_lists = &scst_main_cmd_lists;
+	atomic_set(&dev->dev_cmd_count, 0);
 	spin_lock_init(&dev->dev_lock);
 	atomic_set(&dev->on_dev_count, 0);
 	INIT_LIST_HEAD(&dev->blocked_cmd_list);
@@ -354,7 +355,7 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	tgt_dev->lun = acg_dev->lun;
 	tgt_dev->acg_dev = acg_dev;
 	tgt_dev->sess = sess;
-	atomic_set(&tgt_dev->cmd_count, 0);
+	atomic_set(&tgt_dev->tgt_dev_cmd_count, 0);
 
 	tgt_dev->gfp_mask = __GFP_NOWARN;
 	tgt_dev->pool = &scst_sgv.norm;
@@ -1211,8 +1212,10 @@ void scst_free_cmd(struct scst_cmd *cmd)
 	}
 #endif
 
-	if (likely(cmd->tgt_dev != NULL))
-		atomic_dec(&cmd->tgt_dev->cmd_count);
+	if (likely(cmd->tgt_dev != NULL)) {
+		atomic_dec(&cmd->tgt_dev->tgt_dev_cmd_count);
+		atomic_dec(&cmd->dev->dev_cmd_count);
+	}
 
 	/* 
 	 * cmd->mgmt_cmnd can't being changed here, since for that it either

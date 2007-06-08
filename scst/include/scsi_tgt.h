@@ -1184,6 +1184,9 @@ struct scst_device
 	/* Lists of commands with the lock, if dedicated threads are used */
 	struct scst_cmd_lists cmd_lists;
 
+	/* How many cmds alive on this dev */
+	atomic_t dev_cmd_count; 
+
 	unsigned short type;	/* SCSI type of the device */
 
 	/*************************************************************
@@ -1283,7 +1286,7 @@ struct scst_tgt_dev
 	lun_t lun;		 /* to save extra dereferences */
 
 	/* How many cmds alive on this dev in this session */
-	atomic_t cmd_count; 
+	atomic_t tgt_dev_cmd_count;
 
 	int gfp_mask;
 	struct sgv_pool *pool;
