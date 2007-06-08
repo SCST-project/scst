@@ -898,17 +898,17 @@ void scst_unregister_virtual_dev_driver(struct scst_dev_type *dev_type)
 int scst_add_dev_threads(struct scst_device *dev, int num)
 {
 	int i, res = 0;
-	static atomic_t major = ATOMIC_INIT(0);
-	int N, n = 0;
+	int n = 0;
+	struct scst_cmd_thread_t *thr;
 	char nm[12];
 
 	TRACE_ENTRY();
 
-	N = atomic_inc_return(&major);
+	list_for_each_entry(thr, &dev->threads_list, thread_list_entry) {
+		n++;
+	}
 
 	for (i = 0; i < num; i++) {
-		struct scst_cmd_thread_t *thr;
-
 		thr = kmalloc(sizeof(*thr), GFP_KERNEL);
 		if (!thr) {
 			res = -ENOMEM;
@@ -918,7 +918,7 @@ int scst_add_dev_threads(struct scst_device *dev, int num)
 		strncpy(nm, dev->handler->name, ARRAY_SIZE(nm)-1);
 		nm[ARRAY_SIZE(nm)-1] = '\0';
 		thr->cmd_thread = kthread_run(scst_cmd_thread,
-			&dev->cmd_lists, "%sd%d_%d", nm, N, n++);
+			&dev->cmd_lists, "%sd%d_%d", nm, dev->dev_num, n++);
 		if (IS_ERR(thr->cmd_thread)) {
 			res = PTR_ERR(thr->cmd_thread);
 			PRINT_ERROR_PR("kthread_create() failed: %d", res);

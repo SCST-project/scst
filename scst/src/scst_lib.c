@@ -150,6 +150,7 @@ int scst_alloc_device(int gfp_mask, struct scst_device **out_dev)
 {
 	struct scst_device *dev;
 	int res = 0;
+	static int dev_num; /* protected by scst_mutex */
 
 	TRACE_ENTRY();
 
@@ -172,6 +173,7 @@ int scst_alloc_device(int gfp_mask, struct scst_device **out_dev)
 	init_waitqueue_head(&dev->on_dev_waitQ);
 	dev->dev_double_ua_possible = 1;
 	dev->dev_serialized = 1;
+	dev->dev_num = dev_num++;
 
 	*out_dev = dev;
 

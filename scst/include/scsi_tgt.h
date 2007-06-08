@@ -1181,7 +1181,7 @@ struct scst_device
 	/* Pointer to lists of commands with the lock */
 	struct scst_cmd_lists *p_cmd_lists;
 
-	/* Lists of commands with the lock, if dedicated threads are used */
+	/* Lists of commands with lock, if dedicated threads are used */
 	struct scst_cmd_lists cmd_lists;
 
 	/* How many cmds alive on this dev */
@@ -1257,8 +1257,11 @@ struct scst_device
 	/* List of acg_dev's, one per acg, protected by scst_mutex */
 	struct list_head dev_acg_dev_list;
 
-	/* List of dedicated threads. Doesn't need any protection.  */
+	/* List of dedicated threads, protected by scst_mutex */
 	struct list_head threads_list;
+
+	/* Device number */
+	int dev_num;
 };
 
 /*
