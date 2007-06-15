@@ -133,7 +133,8 @@ struct q2t_tgt
 	int notify_ack_expected;
 	volatile int modify_lun_expected;
 	volatile int disable_lun_status;
-	atomic_t sess_count;		/* count sessions refing q2t_tgt */
+	/* Count of sessions refering q2t_tgt, protected by hardware_lock */
+	int sess_count;
 	struct list_head sess_list;
 };
 

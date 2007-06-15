@@ -123,7 +123,20 @@ static struct qla2x_tgt_target tgt_data;
 
 static inline int test_tgt_sess_count(struct q2t_tgt *tgt, scsi_qla_host_t *ha)
 {
-	return (atomic_read(&tgt->sess_count) == 0);
+	unsigned long flags;
+	int res;
+
+	/*
+	 * We need to protect against race, when tgt is freed before or
+	 * inside wake_up()
+	 */
+	spin_lock_irqsave(&tgt->ha->hardware_lock, flags);
+	TRACE_DBG("tgt %p, empty(sess_list)=%d sess_count=%d",
+	      tgt, list_empty(&tgt->sess_list), tgt->sess_count);
+	res = (tgt->sess_count == 0);
+	spin_unlock_irqrestore(&tgt->ha->hardware_lock, flags);
+
+	return res;
 }
 
 /* ha->hardware_lock supposed to be held on entry */
@@ -270,6 +283,8 @@ static void q2t_free_session_done(struct scst_session *scst_sess)
 {
 	struct q2t_sess *sess;
 	struct q2t_tgt *tgt;
+	scsi_qla_host_t *ha;
+	unsigned long flags;
 
 	TRACE_ENTRY();
 
@@ -284,11 +299,19 @@ static void q2t_free_session_done(struct scst_session *scst_sess)
 		goto out;
 
 	TRACE_MGMT_DBG("tgt->handle %x empty(sess_list) %d sess_count %d",
-	      tgt->handle, list_empty(&tgt->sess_list),
-	      atomic_read(&tgt->sess_count));
+	      tgt->handle, list_empty(&tgt->sess_list), tgt->sess_count);
 
-	if (atomic_dec_and_test(&tgt->sess_count))
+	ha = tgt->ha;
+
+	/*
+	 * We need to protect against race, when tgt is freed before or
+	 * inside wake_up()
+	 */
+	spin_lock_irqsave(&ha->hardware_lock, flags);
+	tgt->sess_count--;
+	if (tgt->sess_count == 0)
 		wake_up_all(&tgt->waitQ);
+	spin_unlock_irqrestore(&ha->hardware_lock, flags);
 
 out:
 	TRACE_EXIT();
@@ -380,9 +403,10 @@ static int q2t_target_release(struct scst_tgt *scst_tgt)
 	
 	TRACE_MGMT_DBG("Finished waiting for tgt %p: empty(sess_list)=%d "
 		"sess_count=%d", tgt, list_empty(&tgt->sess_list),
-		atomic_read(&tgt->sess_count));
+		tgt->sess_count);
 
 	scst_tgt_set_tgt_priv(scst_tgt, NULL);
+	ha->tgt = NULL;
 
 	kfree(tgt);
 
@@ -1134,7 +1158,7 @@ static void q2t_ctio_completion(scsi_qla_host_t *ha, uint32_t handle)
 		q2t_do_ctio_completion(ha, handle,
 				       CTIO_SUCCESS, NULL);
 	} else {
-		TRACE_DBG("CTIO but target mode not enabled. ha %p handle %#x", 
+		TRACE_DBG("CTIO, but target mode not enabled. ha %p handle %#x",
 			  ha, handle);
 	}
 	TRACE_EXIT();
@@ -1347,8 +1371,8 @@ static int q2t_send_cmd_to_scst(scsi_qla_host_t *ha, atio_entry_t *atio)
 
 
 	if (tgt->tgt_shutdown) {
-		TRACE_DBG("New command while the device %p is shutting down", 
-			  tgt);
+		TRACE_MGMT_DBG("New command while device %p is shutting "
+			"down", tgt);
 		res = -EFAULT;
 		goto out;
 	}
@@ -1415,7 +1439,7 @@ static int q2t_send_cmd_to_scst(scsi_qla_host_t *ha, atio_entry_t *atio)
 
 		/* add session data to host data structure */
 		list_add(&sess->list, &tgt->sess_list);
-		atomic_inc(&tgt->sess_count);
+		tgt->sess_count++;
 	}
 
 	cmd->sess = sess;
@@ -1429,7 +1453,8 @@ out:
 
 out_free_sess:
 	kfree(sess);
-	if (atomic_dec_and_test(&tgt->sess_count))
+	tgt->sess_count--;
+	if (tgt->sess_count == 0)
 		wake_up_all(&tgt->waitQ);
 	/* go through */
 
@@ -1765,14 +1790,16 @@ static void q2t_response_pkt(scsi_qla_host_t *ha, sts_entry_t *pkt)
 					q2t_send_term_exchange(ha, NULL, atio, 1);
 #endif
 				} else {
-					PRINT_INFO("qla2x00tgt(%ld): Unable to "
-					    "send the command to SCSI target "
-					    "mid-level, sending BUSY status", 
-					    ha->instance);
+					if (!ha->tgt->tgt_shutdown) {
+						PRINT_INFO("qla2x00tgt(%ld): Unable to "
+						    "send the command to SCSI target "
+						    "mid-level, sending BUSY status", 
+						    ha->instance);
+					}
 					q2t_send_busy(ha, atio);
 				}
 			}
-		} else {
+		} else if (!ha->tgt->tgt_shutdown) {
 			PRINT_ERROR("qla2x00tgt(%ld): ATIO, but target mode "
 				"disabled", ha->instance);
 		}
@@ -1786,7 +1813,7 @@ static void q2t_response_pkt(scsi_qla_host_t *ha, sts_entry_t *pkt)
 			q2t_do_ctio_completion(ha, entry->handle,
 					       le16_to_cpu(entry->status), 
 					       entry);
-		} else {
+		} else if (!ha->tgt->tgt_shutdown) {
 			PRINT_ERROR("qla2x00tgt(%ld): CTIO, but target mode "
 				"disabled", ha->instance);
 		}
@@ -1799,7 +1826,7 @@ static void q2t_response_pkt(scsi_qla_host_t *ha, sts_entry_t *pkt)
 			q2t_do_ctio_completion(ha, entry->handle, 
 					       le16_to_cpu(entry->status), 
 					       entry);
-		} else {
+		} else if (!ha->tgt->tgt_shutdown) {
 			PRINT_ERROR("qla2x00tgt(%ld): CTIO_A64, but target "
 				"mode disabled", ha->instance);
 		}
@@ -1853,8 +1880,6 @@ static void q2t_response_pkt(scsi_qla_host_t *ha, sts_entry_t *pkt)
 					    entry->status);
 			}
 			tgt->disable_lun_status = entry->status;
-			wake_up_all(&tgt->waitQ);
-
 		} else {
 			PRINT_ERROR("qla2x00tgt(%ld): Unexpected MODIFY_LUN "
 				    "received", (ha != NULL) ?ha->instance :-1);
@@ -1874,8 +1899,8 @@ static void q2t_response_pkt(scsi_qla_host_t *ha, sts_entry_t *pkt)
 					  entry->status);
 				entry->status = ENABLE_LUN_SUCCESS;
 			} else if (entry->status == ENABLE_LUN_RC_NONZERO) {
-				TRACE_DBG("ENABLE_LUN succeeded but with error: "
-					  "%#x", entry->status);
+				TRACE_DBG("ENABLE_LUN succeeded, but with "
+					"error: %#x", entry->status);
 				entry->status = ENABLE_LUN_SUCCESS;
 			} else if (entry->status != ENABLE_LUN_SUCCESS) {
 				PRINT_ERROR("qla2x00tgt(%ld): ENABLE_LUN " 
@@ -1885,7 +1910,6 @@ static void q2t_response_pkt(scsi_qla_host_t *ha, sts_entry_t *pkt)
 					~ha->flags.enable_target_mode;
 			} /* else success */
 			tgt->disable_lun_status = entry->status;
-			wake_up_all(&tgt->waitQ);
 		}
 		break;
 
@@ -1910,7 +1934,7 @@ static void q2t_async_event(uint16_t code, scsi_qla_host_t *ha, uint16_t *mailbo
 
 	if (ha->tgt == NULL) {
 		TRACE(TRACE_DEBUG|TRACE_MGMT, 
-		      "ASYNC EVENT %#x but no tgt. ha %p tgt_flag %d",
+		      "ASYNC EVENT %#x, but no tgt. ha %p tgt_flag %d",
 		      code, ha, ha->flags.enable_target_mode);
 		goto out;
 	}
@@ -2007,7 +2031,6 @@ static void q2t_host_action(scsi_qla_host_t *ha,
 		tgt->ha = ha;
 		tgt->disable_lun_status = Q2T_DISABLE_LUN_STATUS_NOT_SET;
 		INIT_LIST_HEAD(&tgt->sess_list);
-		atomic_set(&tgt->sess_count, 0);
 		init_waitqueue_head(&tgt->waitQ);
 		
 		if (ha->flags.enable_64bit_addressing) {
