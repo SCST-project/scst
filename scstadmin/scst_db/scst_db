@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-$Version  = 'SCST DB Configurator v0.51';
+$Version  = 'SCST DB Configurator v0.51.1';
 
 # Configures SCST
 #
@@ -61,8 +61,8 @@ my %MD_DEVICES;
 my %_HANDLER_MAP_ = ('cdrom' => $SCST::SCST::CDROM_TYPE,
 		     'changer' => $SCST::SCST::CHANGER_TYPE,
 		     'disk' => $SCST::SCST::DISK_TYPE,
-		     'disk_fileio' => $SCST::SCST::DISKFILE_TYPE,
-		     'cdrom_fileio' => $SCST::SCST::CDROMFILE_TYPE,
+		     'vdisk' => $SCST::SCST::VDISK_TYPE,
+		     'vcdrom' => $SCST::SCST::VCDROM_TYPE,
 		     'disk_perf' => $SCST::SCST::DISKPERF_TYPE,
 		     'modisk' => $SCST::SCST::MODISK_TYPE,
 		     'modisk_perf' => $SCST::SCST::MODISKPERF_TYPE,
@@ -72,8 +72,8 @@ my %_HANDLER_MAP_ = ('cdrom' => $SCST::SCST::CDROM_TYPE,
 my %_REVERSE_MAP_ = ($SCST::SCST::CDROM_TYPE => 'cdrom',
 		     $SCST::SCST::CHANGER_TYPE => 'changer',
 		     $SCST::SCST::DISK_TYPE => 'disk',
-		     $SCST::SCST::DISKFILE_TYPE => 'disk_fileio',
-		     $SCST::SCST::CDROMFILE_TYPE => 'cdrom_fileio',
+		     $SCST::SCST::VDISK_TYPE => 'vdisk',
+		     $SCST::SCST::VCDROM_TYPE => 'vcdrom',
 		     $SCST::SCST::DISKPERF_TYPE => 'disk_perf',
 		     $SCST::SCST::MODISK_TYPE => 'modisk',
 		     $SCST::SCST::MODISKPERF_TYPE => 'modisk_perf',

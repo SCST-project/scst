@@ -148,7 +148,7 @@ CREATE TABLE `scst_handlers` (
 
 LOCK TABLES `scst_handlers` WRITE;
 /*!40000 ALTER TABLE `scst_handlers` DISABLE KEYS */;
-INSERT INTO `scst_handlers` VALUES (1,'disk','N'),(2,'disk_fileio','Y'),(3,'cdrom','N'),(4,'changer','N'),(5,'disk_perf','N'),(6,'modisk','N'),(7,'modisk_perf','N'),(8,'tape','N'),(9,'tape_perf','N');
+INSERT INTO `scst_handlers` VALUES (1,'disk','N'),(2,'vdisk','Y'),(3,'cdrom','N'),(4,'changer','N'),(5,'disk_perf','N'),(6,'modisk','N'),(7,'modisk_perf','N'),(8,'tape','N'),(9,'tape_perf','N');
 /*!40000 ALTER TABLE `scst_handlers` ENABLE KEYS */;
 UNLOCK TABLES;
 

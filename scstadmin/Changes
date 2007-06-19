@@ -15,3 +15,14 @@ Changes since 0.9.5-pre0:
 - Removed the comment which prevented a target from being enabled in enableTarget()
 - Updated init.d/scst to use scstadmin instead of scst_db
 - Fixup of README file
+
+Changes since 0.9.6-pre2:
+
+- Updated SCST/SCST.pm for vdisk/vcdrom from cdrom_fileio/disk_fileio
+- Updated scstadmin for vdisk/vcdrom...
+- Minor updates to scst_db for vdisk/vcdrom - UNTESTED
+- Enhanced error messages in SCST/SCST.pm. Now has new method errorString()
+- Added additional error messaging to scstadmin
+- Changed SCST/SCST.pm to look for vdisk/vdisk instead of vdisk/type for
+  valid device handler types.
+- Minor bug fixes
