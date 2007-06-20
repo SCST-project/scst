@@ -62,7 +62,7 @@ Available Handlers:
       disk, vdisk, disk_perf, cdrom, vcdrom, changer, modisk, modisk_perf, tape, tape_perf
 
 Available Options for create and open:
-      WRITE_THROUGH, READ_ONLY, O_DIRECT, NULLIO, NV_CACHE
+      WRITE_THROUGH, READ_ONLY, O_DIRECT, NULLIO, NV_CACHE, BLOCKIO
      
 Examples:
      Enable target mode for fibre card specifying its WWN
@@ -256,7 +256,7 @@ sub getArgs {
 	}
 
 	if ($releaseDev && !defined($group)) {
-		print "Please specify -group with -RemoveDev.\n\n";
+		print "Please specify -group with -ReleaseDev.\n\n";
 		usage();
 	}
 
@@ -905,7 +905,7 @@ sub removeDevice {
 
 	if ($SCST->closeDevice($_handler, $device)) {
 		print "WARNING: Failed to close virtual device '$device': ".
-		  $SCST->errorString();
+		  $SCST->errorString()."\n";
 		return $TRUE;
 	}
 

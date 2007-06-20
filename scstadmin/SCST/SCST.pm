@@ -32,7 +32,8 @@ my $_SCST_VERSION_IO_    = $_SCST_DIR_.'/version';
 my $_SCST_USERS_IO_      = 'names';
 my $_SCST_DEVICES_IO_    = 'devices';
 
-my @_AVAILABLE_OPTIONS_  = ('WRITE_THROUGH', 'O_DIRECT', 'READ_ONLY', 'NULLIO', 'NV_CACHE');
+my @_AVAILABLE_OPTIONS_  = ('WRITE_THROUGH', 'O_DIRECT', 'READ_ONLY',
+			    'NULLIO', 'NV_CACHE', 'BLOCKIO');
 
 use vars qw(@ISA @EXPORT $VERSION $CDROM_TYPE $CHANGER_TYPE $DISK_TYPE $VDISK_TYPE
             $VCDROM_TYPE $DISKPERF_TYPE $MODISK_TYPE $MODISKPERF_TYPE $TAPE_TYPE
@@ -437,7 +438,7 @@ sub closeDevice {
 		return $TRUE;
 	}
 
-	if ($self->handlerDeviceExists($handler, $device)) {
+	if (!$self->handlerDeviceExists($handler, $device)) {
 		$self->{'error'} = "closeDevice(): Device $device is not open";
 		return 2;
 	}
