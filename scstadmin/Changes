@@ -25,4 +25,7 @@ Changes since 0.9.6-pre2:
 - Added additional error messaging to scstadmin
 - Changed SCST/SCST.pm to look for vdisk/vdisk instead of vdisk/type for
   valid device handler types.
+- Fixed applyConfiguration() to remove entries before adding new ones.
+- Fixed changes and differences counts
+- Added intelligence around virtual/physical/performance type devices
 - Minor bug fixes

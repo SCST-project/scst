@@ -24,6 +24,7 @@ my $_SCST_TAPE_IO_       = $_SCST_DIR_.'/dev_tape/dev_tape';
 my $_SCST_TAPEP_IO_      = $_SCST_DIR_.'/dev_tape_perf/dev_tape_perf';
 my $_SCST_VDISK_IO_      = $_SCST_DIR_.'/vdisk/vdisk';
 my $_SCST_VCDROM_IO_     = $_SCST_DIR_.'/vcdrom/vcdrom';
+my $_SCST_PROCESSOR_IO_  = $_SCST_DIR_.'/dev_processor/dev_processor';
 my $_SCST_GROUPS_DIR_    = $_SCST_DIR_.'/groups';
 my $_SCST_SGV_STATS_     = $_SCST_DIR_.'/sgv';
 my $_SCST_SESSIONS_      = $_SCST_DIR_.'/sessions';
@@ -37,18 +38,24 @@ my @_AVAILABLE_OPTIONS_  = ('WRITE_THROUGH', 'O_DIRECT', 'READ_ONLY',
 
 use vars qw(@ISA @EXPORT $VERSION $CDROM_TYPE $CHANGER_TYPE $DISK_TYPE $VDISK_TYPE
             $VCDROM_TYPE $DISKPERF_TYPE $MODISK_TYPE $MODISKPERF_TYPE $TAPE_TYPE
-            $TAPEPERF_TYPE);
+            $TAPEPERF_TYPE $PROCESSOR_TYPE $IOTYPE_PHYSICAL $IOTYPE_VIRTUAL
+            $IOTYPE_PERFORMANCE);
 
-$CDROM_TYPE      = 1;
-$CHANGER_TYPE    = 2;
-$DISK_TYPE       = 3;
-$VDISK_TYPE      = 4;
-$VCDROM_TYPE     = 5;
-$DISKPERF_TYPE   = 6;
-$MODISK_TYPE     = 7;
-$MODISKPERF_TYPE = 8;
-$TAPE_TYPE       = 9;
-$TAPEPERF_TYPE   = 10;
+$CDROM_TYPE         = 1;
+$CHANGER_TYPE       = 2;
+$DISK_TYPE          = 3;
+$VDISK_TYPE         = 4;
+$VCDROM_TYPE        = 5;
+$DISKPERF_TYPE      = 6;
+$MODISK_TYPE        = 7;
+$MODISKPERF_TYPE    = 8;
+$TAPE_TYPE          = 9;
+$TAPEPERF_TYPE      = 10;
+$PROCESSOR_TYPE     = 11;
+
+$IOTYPE_PHYSICAL    = 100;
+$IOTYPE_VIRTUAL     = 101;
+$IOTYPE_PERFORMANCE = 102;
 
 $VERSION = 0.6.1;
 
@@ -65,7 +72,8 @@ my %_IO_MAP_ = ($CDROM_TYPE => $_SCST_CDROM_IO_,
 		$MODISK_TYPE => $_SCST_MODISK_IO_,
 		$MODISKPERF_TYPE => $_SCST_MODISKP_IO_,
 		$TAPE_TYPE => $_SCST_TAPE_IO_,
-		$TAPEPERF_TYPE => $_SCST_TAPEP_IO_);
+		$TAPEPERF_TYPE => $_SCST_TAPEP_IO_,
+		$PROCESSOR_TYPE => $_SCST_PROCESSOR_IO_);
 
 my %_TYPE_MAP_ = ('dev_cdrom' => $CDROM_TYPE,
 		  'dev_changer' => $CHANGER_TYPE,
@@ -76,7 +84,20 @@ my %_TYPE_MAP_ = ('dev_cdrom' => $CDROM_TYPE,
 		  'dev_modisk' => $MODISK_TYPE,
 		  'dev_modisk_perf' => $MODISKPERF_TYPE,
 		  'dev_tape' => $TAPE_TYPE,
-		  'dev_tape_perf' => $TAPEPERF_TYPE);
+		  'dev_tape_perf' => $TAPEPERF_TYPE,
+		  'dev_processor' => $PROCESSOR_TYPE);
+
+my %_IO_TYPES_ = ($CDROM_TYPE => $IOTYPE_PHYSICAL,
+		  $CHANGER_TYPE => $IOTYPE_PHYSICAL,
+		  $DISK_TYPE => $IOTYPE_PHYSICAL,
+		  $VDISK_TYPE => $IOTYPE_VIRTUAL,
+		  $VCDROM_TYPE => $IOTYPE_VIRTUAL,
+		  $DISKPERF_TYPE => $IOTYPE_PERFORMANCE,
+		  $MODISK_TYPE => $IOTYPE_PHYSICAL,
+		  $MODISKPERF_TYPE => $IOTYPE_PERFORMANCE,
+		  $TAPE_TYPE => $IOTYPE_PHYSICAL,
+		  $TAPEPERF_TYPE => $IOTYPE_PERFORMANCE,
+		  $PROCESSOR_TYPE => $IOTYPE_PHYSICAL);
 
 sub new {
 	my $this = shift;
@@ -370,6 +391,20 @@ sub handlerDeviceExists {
 	return $FALSE;
 }
 
+sub handlerType {
+	my $self = shift;
+	my $handler = shift;
+
+	my $type = $_IO_TYPES_{$handler};
+
+	if (!$type) {
+		$self->{'error'} = "handlerType(): Handler type for handler $handler not defined";
+		return undef;
+	}
+
+	return $type;
+}
+
 sub openDevice {
 	my $self = shift;
 	my $handler = shift;
@@ -614,7 +649,7 @@ sub handlers {
 
 	foreach my $entry (readdir($dirHandle)) {
 		next if (($entry eq '.') || ($entry eq '..'));
-		if ((-d $_SCST_DIR_.'/'.$entry ) && (-f $_SCST_DIR_.'/'.$entry.'/'.$entry)) {
+		if ((-d $_SCST_DIR_.'/'.$entry ) && (-f $_SCST_DIR_.'/'.$entry.'/type')) {
 			push @handlers, $_TYPE_MAP_{$entry} if ($_TYPE_MAP_{$entry});
 		}
 	}
@@ -1039,6 +1074,18 @@ Checks for a specified device is configured for a specified device handler.
 Arguments: (int) $handler, (string) $device
 
 Returns: (boolean) $deviceExists
+
+=item SCST::SCST->handlerType();
+
+Return the handler type for the specified handler. Handler types are:
+
+  SCST::SCST::IOTYPE_PHYSICAL
+  SCST::SCST::IOTYPE_VIRTUAL
+  SCST::SCST::IOTYPE_PERFORMANCE
+
+Arguments: (int) $handler
+
+Returns: (int) $handler_type
 
 =item SCST::SCST->openDevice();
 

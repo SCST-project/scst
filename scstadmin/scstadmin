@@ -119,7 +119,18 @@ my %_HANDLER_MAP_ = ('cdrom' => $SCST::SCST::CDROM_TYPE,
 		     'modisk' => $SCST::SCST::MODISK_TYPE,
 		     'modisk_perf' => $SCST::SCST::MODISKPERF_TYPE,
 		     'tape' => $SCST::SCST::TAPE_TYPE,
-		     'tape_perf' => $SCST::SCST::TAPEPERF_TYPE);
+		     'tape_perf' => $SCST::SCST::TAPEPERF_TYPE,
+		     'processor' => $SCST::SCST::PROCESSOR_TYPE,
+		# Add in the dev_ names as well
+		     'dev_cdrom' => $SCST::SCST::CDROM_TYPE,
+		     'dev_changer' => $SCST::SCST::CHANGER_TYPE,
+		     'dev_disk' => $SCST::SCST::DISK_TYPE,
+		     'dev_disk_perf' => $SCST::SCST::DISKPERF_TYPE,
+		     'dev_modisk' => $SCST::SCST::MODISK_TYPE,
+		     'dev_modisk_perf' => $SCST::SCST::MODISKPERF_TYPE,
+		     'dev_tape' => $SCST::SCST::TAPE_TYPE,
+		     'dev_tape_perf' => $SCST::SCST::TAPEPERF_TYPE,
+		     'dev_processor' => $SCST::SCST::PROCESSOR_TYPE);
 		     
 my %_REVERSE_MAP_ = ($SCST::SCST::CDROM_TYPE => 'cdrom',
 		     $SCST::SCST::CHANGER_TYPE => 'changer',
@@ -130,7 +141,12 @@ my %_REVERSE_MAP_ = ($SCST::SCST::CDROM_TYPE => 'cdrom',
 		     $SCST::SCST::MODISK_TYPE => 'modisk',
 		     $SCST::SCST::MODISKPERF_TYPE => 'modisk_perf',
 		     $SCST::SCST::TAPE_TYPE => 'tape',
-		     $SCST::SCST::TAPEPERF_TYPE => 'tape_perf');
+		     $SCST::SCST::TAPEPERF_TYPE => 'tape_perf',
+		     $SCST::SCST::PROCESSOR_TYPE => 'processor');
+
+my %_HANDLER_TYPE_MAP_ = ($SCST::SCST::IOTYPE_PHYSICAL => 'physical',
+			  $SCST::SCST::IOTYPE_VIRTUAL => 'virtual',
+			  $SCST::SCST::IOTYPE_PERFORMANCE => 'performance');
 
 $SIG{INT} = \&commitSuicide;
 
@@ -458,6 +474,8 @@ sub writeConfiguration {
 
 	# Device information
 	foreach my $handler (sort keys %HANDLERS) {
+		next if ($SCST->handlerType($handler) != $SCST::SCST::IOTYPE_VIRTUAL);
+
 		print $io "[HANDLER ".$_REVERSE_MAP_{$handler}."]\n";
 		print $io "#DEVICE <vdisk name>,<device path>,<options>,<block size>\n";
 
@@ -538,130 +556,68 @@ sub applyConfiguration {
 	my %used_users;
 	my %used_assignments;
 
-	print "Applying configurations additions..\n" if (!$check);
-	print "\n";
-
-	# Open new devices and assign them to handlers..
+	# Cache device/handler configuration
 	foreach my $entry (keys %{$$config{'HANDLER'}}) {
-		if (!$HANDLERS{$_HANDLER_MAP_{$entry}}) {
-			print "\t-> WARNING: Handler '$entry' does not exist.\n";
-			$errs += 1;
-			next;
-		}
-
 		foreach my $device (@{$$config{'HANDLER'}->{$entry}->{'DEVICE'}}) {
-			my($vname, $path, $options, $blocksize) = split(/\,/, $device);
+			my($vname, undef) = split(/\,/, $device, 2);
 			$vname = cleanupString($vname);
-			$path = cleanupString($path);
-
-			$options =~ s/\s+//; $options =~ s/\|/,/;
-
 			$used_devs{$vname} = $entry;
-
-			next if (defined($$DEVICES{$vname}));
-
-			$changes++;
-
-			if ($check) {
-				print "\t-> New device '$entry:$vname' at path '$path', options '$options', blocksize $blocksize.\n";
-				$$DEVICES{$vname} = $_HANDLER_MAP_{$entry};
-			} else {
-				$errs += addDevice($entry, $vname, $path, $options, $blocksize);
-			}
 		}
 	}
 
-	# Create new groups and add users..
+	# Cache user/group configuration
 	foreach my $group (keys %{$$config{'GROUP'}}) {
-		if (!defined($GROUPS{$group})) {
-			$changes++;
-
-			if ($check) {
-				print "\t-> New group definition '$group.'\n";
-				$GROUPS{$group}++;
-			} else {
-				$errs += addGroup($group);
-			}
-		}
-
 		foreach my $user (@{$$config{'GROUP'}->{$group}->{'USER'}}) {
 			$used_users{$group}->{$user}++;
-
-			if (!defined($USERS{$group}->{$user})) {
-				$changes++;
-
-				if ($check) {
-					print "\t-> New user definition '$user' for group '$group'.\n";
-					$USERS{$group}->{$user}++;
-				} else {
-					$errs += addUser($group, $user);
-				}
-			}
 		}
 	}
 
-	# Assign new devices to groups..
+	# Cache device association configuration
 	foreach my $group (keys %{$$config{'ASSIGNMENT'}}) {
-		if (!defined($GROUPS{$group})) {
-			print "\t-> WARNING: Unable to assign to non-existant group '$group'.\n";
-			$errs += 1;
-			next;
-		}
-
 		foreach my $device (@{$$config{'ASSIGNMENT'}->{$group}->{'DEVICE'}}) {
 			my($vname, $lun) = split(/\,/, $device);
 			$vname = cleanupString($vname);
-			$lun = cleanupString($lun);
-
-			$used_assignments{$group}->{$vname}++;
-
-			my $_assignments = $ASSIGNMENTS{$group};
-			next if (defined($$_assignments{$vname}));
-
-			$changes++;
-
-			if ($check) {
-				$lun = 'auto' if (!defined($lun));
-				print "\t-> New device assignment for '$vname' to group '$group' at LUN $lun.\n";
-			} else {
-				$errs += assignDevice($group, $vname, $lun);
-			}
+			$used_assignments{$group}->{$vname} = $lun;
 		}
 	}
 
 	# If -ForceConfig is used, check for configurations which we've deleted but are still active.
 	if ($force || $check) {
-		readCurrentConfig() if (!$check);
-
 		# Associations
 		foreach my $group (sort keys %ASSIGNMENTS) {
-			if (!defined($used_assignments{$group})) {
-				print "\t-force: Group $group has no associations in saved configuration";
+			if (!defined($used_assignments{$group}) && (keys %{$ASSIGNMENTS{$group}})) {
+				print "\tWARNING: Group $group has no associations in saved configuration";
 
 				if (!$check) {
 					print ", clearing all associations.\n";
-					$errs += clearDevices($group);
+					if (clearDevices($group)) {
+						$errs++;
+					} else {
+						$changes++;
+					}
 				} else {
 					print ".\n";
+					$changes++;
 				}
-
-				$changes++;
 			} else {
 				my $_assignments = $ASSIGNMENTS{$group};
 
 				foreach my $device (sort keys %{$_assignments}) {
 					if (!defined($used_assignments{$group}->{$device})) {
-						print "\t-force: Device $device is not associated with group ".
+						print "\tWARNING: Device $device is not associated with group ".
 						  "$group in saved configuration";
 
 						if (!$check) {
 							print ", releasing.\n";
-							$errs += releaseDevice($group, $device);
+							if (releaseDevice($group, $device)) {
+								$errs++;
+							} else {
+								$changes++;
+							}
 						} else {
 							print ".\n";
+							$changes++;
 						}
-
-						$changes++;
 					}
 				}
 			}
@@ -670,31 +626,42 @@ sub applyConfiguration {
 		# Users & Groups
 		foreach my $group (sort keys %USERS) {
 			if (!defined($used_users{$group})) {
-				print "\t-force: Group $group does not exist in saved configuration";
+				print "\tWARNING: Group $group does not exist in saved configuration";
 
 				if (!$check) {
 					print ", removing.\n";
-					$errs += clearUsers($group);
-					$errs += removeGroup($group);
+					if (clearUsers($group)) {
+						$errs++;
+					} else {
+						$changes++;
+					}
+
+					if (removeGroup($group)) {
+						$errs++;
+					} else {
+						$changes++;
+					}
 				} else {
 					print ".\n";
+					$changes++;
 				}
-
-				$changes++;
 			} else {
 				foreach my $user (sort keys %{$USERS{$group}}) {
 					if (!defined($used_users{$group}->{$user})) {
-						print "\t-force: User $user is not defined as part of group $group ".
+						print "\WARNING: User $user is not defined as part of group $group ".
 						  "in saved configuration";
 
 						if (!$check) {
 							print ", removing.\n";
-							$errs += removeUser($group, $user);
+							if (removeUser($group, $user)) {
+								$errs++;
+							} else {
+								$changes++;
+							}
 						} else {
 							print ".\n";
+							$changes++;
 						}
-
-						$changes++;
 					}
 				}
 			}
@@ -702,28 +669,33 @@ sub applyConfiguration {
 
 		# Devices
 		foreach my $device (sort keys %{$DEVICES}) {
+			next if ($SCST->handlerType($$DEVICES{$device}) != $SCST::SCST::IOTYPE_VIRTUAL);
+
 			if ($$DEVICES{$device} && !defined($used_devs{$device})) {
-				# Device gone, but is it still assigned tp a group?
+				# Device gone, but is it still assigned to a group?
 				my $isAssigned = $FALSE;
 				foreach my $group (sort keys %used_assignments) {
 					if (defined($used_assignments{$group}->{$device})) {
-						print "\t-force: WARNING: Device $device is not defined in saved configuration, ".
+						print "\tWARNING: Device $device is not defined in saved configuration, ".
 						  "however, it is still assigned to group $group! Ignoring removal.\n";
 						$isAssigned = $TRUE;
 					}
 				}
 
 				if (!$isAssigned) {
-					print "\t-force: Device $device is not defined in saved configuration";
+					print "\tWARNING: Device $device is not defined in saved configuration";
 
 					if (!$check) {
 						print ", removing.\n";
-						$errs += removeDevice($device);
+						if (removeDevice($device)) {
+							$errs++;
+						} else {
+							$changes++;
+						}
 					} else {
 						print ".\n";
+						$changes++;
 					}
-
-					$changes++;
 				}
 			} else {
 				# Handler change
@@ -731,18 +703,115 @@ sub applyConfiguration {
 					my $handler = $used_devs{$device};
 
 					if ($HANDLERS{$_HANDLER_MAP_{$handler}}) {
-						print "\t-force: Device $device changes handler to $handler";
+						print "\tWARNING: Device $device changes handler to $handler";
 
 						if (!$check) {
 							print ", changing.\n";
-							$errs += assignDeviceToHandler($device, $handler);
-
+							if (assignDeviceToHandler($device, $handler)) {
+								$errs++;
+							} else {
+								$changes++;
+							}
 						} else {
 							print ".\n";
+							$changes++;
 						}
+					}
+				}
+			}
+		}
+	}
 
+	print "Applying configurations additions..\n" if (!$check);
+	print "\n";
+
+	readCurrentConfig() if ($force);
+
+	foreach my $vname (keys %used_devs) {
+		my $_handler = $used_devs{$vname};
+
+		if (!$HANDLERS{$_HANDLER_MAP_{$_handler}}) {
+			print "\t-> WARNING: Handler '$_handler' does not exist.\n";
+			$errs += 1;
+			next;
+		}
+
+		foreach my $device (@{$$config{'HANDLER'}->{$_handler}->{'DEVICE'}}) {
+			my(undef, $path, $options, $blocksize) = split(/\,/, $device);
+			$path = cleanupString($path);
+			$options =~ s/\s+//; $options =~ s/\|/,/;
+
+			next if (defined($$DEVICES{$vname}));
+
+			if ($check) {
+				print "\t-> New device '$_handler:$vname' at path '$path', options '$options', blocksize $blocksize.\n";
+				$$DEVICES{$vname} = $_HANDLER_MAP_{$_handler};
+				$changes++;
+			} else {
+				if (addDevice($_handler, $vname, $path, $options, $blocksize)) {
+					$errs++;
+				} else {
+					$changes++;
+				}
+			}
+		}
+	}
+
+	# Create new groups and add users..
+	foreach my $group (keys %used_users) {
+		if (!defined($GROUPS{$group})) {
+			if ($check) {
+				print "\t-> New group definition '$group.'\n";
+				$GROUPS{$group}++;
+				$changes++;
+			} else {
+				if (addGroup($group)) {
+					$errs++;
+				} else {
+					$changes++;
+				}
+			}
+		}
+
+		foreach my $user (keys %{$used_users{$group}}) {
+			if (!defined($USERS{$group}->{$user})) {
+				if ($check) {
+					print "\t-> New user definition '$user' for group '$group'.\n";
+					$USERS{$group}->{$user}++;
+					$changes++;
+				} else {
+					if (addUser($group, $user)) {
+						$errs++;
+					} else {
 						$changes++;
 					}
+				}
+			}
+		}
+	}
+
+	# Assign new devices to groups..
+	foreach my $group (keys %used_assignments) {
+		if (!defined($GROUPS{$group})) {
+			print "\t-> WARNING: Unable to assign to non-existant group '$group'.\n";
+			$errs += 1;
+			next;
+		}
+
+		foreach my $vname (keys %{$used_assignments{$group}}) {
+			my $lun = $used_assignments{$group}->{$vname};
+			my $_assignments = $ASSIGNMENTS{$group};
+			next if (defined($$_assignments{$vname}));
+
+			if ($check) {
+				$lun = 'auto' if (!defined($lun));
+				print "\t-> New device assignment for '$vname' to group '$group' at LUN $lun.\n";
+				$changes++;
+			} else {
+				if (assignDevice($group, $vname, $lun)) {
+					$errs++;
+				} else {
+					$changes++;
 				}
 			}
 		}
@@ -775,17 +844,20 @@ sub applyConfiguration {
 
 			if (!$enable && targetEnabled($target)) {
 				if ($force || $check) {
-					print "\t-force: Target mode for '$target' is currently enabled, ".
+					print "\tWARNING: Target mode for '$target' is currently enabled, ".
 					  "however configuration file wants it disabled";
 
 					if (!$check) {
 						print ", disabling.\n";
-						$errs += enableTarget($target, $enable);
+						if (enableTarget($target, $enable)) {
+							$errs++;
+						} else {
+							$changes++;
+						}
 					} else {
 						print ".\n";
+						$changes++;
 					}
-
-					$changes++;
 				}
 			} else {
 				print "\t-> Target '$target' is enabled in configuration file, ".
@@ -793,12 +865,15 @@ sub applyConfiguration {
 
 				if (!$check) {
 					print ", enabling.\n";
-					$errs += enableTarget($target, $enable);
+					if (enableTarget($target, $enable)) {
+						$errs++;
+					} else {
+						$changes++;
+					}
 				} else {
 					print ".\n";
+					$changes++;
 				}
-
-				$changes++;
 			}
 		}
 	}
@@ -830,6 +905,7 @@ sub clearConfiguration {
 
 	print "\nRemoving all handler devices:\n\n";
 	foreach my $device (keys %{$DEVICES}) {
+		next if ($SCST->handlerType($$DEVICES{$device}) != $SCST::SCST::IOTYPE_VIRTUAL);
 		$errs += removeDevice($_REVERSE_MAP_{$$DEVICES{$device}}, $device);
 	}
 
@@ -871,6 +947,21 @@ sub addDevice {
 	$options =~ s/\,/ /;
 
 	my $_handler = $_HANDLER_MAP_{$handler};
+	my $htype = $SCST->handlerType($_handler);
+
+	if (!$htype) {
+		print "WARNING: Internal error occured: ".$SCST->errorString()."\n";
+		return $TRUE;
+	}
+
+	if ($htype != $SCST::SCST::IOTYPE_VIRTUAL) {
+		my $typeString = $_HANDLER_TYPE_MAP_{$htype};
+		my $validType = $_HANDLER_TYPE_MAP_{$SCST::SCST::IOTYPE_VIRTUAL};
+		print "WARNING: Handler $handler of type $typeString is incapable of ".
+		  "opening/closing devices. Valid handlers are:\n".
+		  validHandlerTypes($SCST::SCST::IOTYPE_VIRTUAL)."\n";
+		return $TRUE;
+	}
 
 	if (defined($$DEVICES{$device})) {
 		print "WARNING: Device '$device' already defined.\n";
@@ -895,6 +986,21 @@ sub removeDevice {
 	my $device = shift;
 
 	my $_handler = $_HANDLER_MAP_{$handler};
+	my $htype = $SCST->handlerType($_handler);
+
+	if (!$htype) {
+		print "WARNING: Internal error occured: ".$SCST->errorString()."\n";
+		return $TRUE;
+	}
+
+	if ($htype != $SCST::SCST::IOTYPE_VIRTUAL) {
+		my $typeString = $_HANDLER_TYPE_MAP_{$htype};
+		my $validType = $_HANDLER_TYPE_MAP_{$SCST::SCST::IOTYPE_VIRTUAL};
+		print "WARNING: Handler $handler of type $typeString is incapable of ".
+		  "opening/closing devices. Valid handlers are:\n".
+		  validHandlerTypes($SCST::SCST::IOTYPE_VIRTUAL)."\n";
+		return $TRUE;
+	}
 
 	if (!defined($$DEVICES{$device})) {
 		print "WARNING: Device '$device' not defined.\n";
@@ -1287,6 +1393,17 @@ sub unformatTarget {
 	$target =~ tr/A-Z/a-z/;
 
 	return $target;
+}
+
+sub validHandlerTypes {
+	my $type = shift;
+	my $buffer = "\n";
+
+	foreach my $handler (keys %_REVERSE_MAP_) {
+		$buffer .= "\t".$_REVERSE_MAP_{$handler}."\n" if ($SCST->handlerType($handler) == $type);
+	}
+
+	return $buffer;
 }
 
 # If we have an unread error from SCST, exit immediately
