@@ -57,7 +57,7 @@ $IOTYPE_PHYSICAL    = 100;
 $IOTYPE_VIRTUAL     = 101;
 $IOTYPE_PERFORMANCE = 102;
 
-$VERSION = 0.7;
+$VERSION = 0.7.1;
 
 my $_SCST_MIN_MAJOR_   = 0;
 my $_SCST_MIN_MINOR_   = 9;
@@ -86,6 +86,18 @@ my %_TYPE_MAP_ = ('dev_cdrom' => $CDROM_TYPE,
 		  'dev_tape' => $TAPE_TYPE,
 		  'dev_tape_perf' => $TAPEPERF_TYPE,
 		  'dev_processor' => $PROCESSOR_TYPE);
+
+my %_REVERSE_MAP_ = ($CDROM_TYPE => 'dev_cdrom',
+		     $CHANGER_TYPE => 'dev_changer',
+		     $DISK_TYPE => 'dev_disk',
+		     $VDISK_TYPE => 'vdisk',
+		     $VCDROM_TYPE => 'vcdrom',
+		     $DISKPERF_TYPE => 'dev_disk_perf',
+		     $MODISK_TYPE => 'dev_modisk',
+		     $MODISKPERF_TYPE => 'dev_modisk_perf',
+		     $TAPE_TYPE => 'dev_tape',
+		     $TAPEPERF_TYPE => 'dev_tape_perf',
+		     $PROCESSOR_TYPE => 'dev_processor');
 
 my %_IO_TYPES_ = ($CDROM_TYPE => $IOTYPE_PHYSICAL,
 		  $CHANGER_TYPE => $IOTYPE_PHYSICAL,
@@ -349,8 +361,8 @@ sub handlerDevices {
 	my $io = new IO::File $handler_io, O_RDONLY;
 
 	if (!$io) {
-		$self->{'error'} = "handlerDevices(): Failed to open handler IO $handler_io";
-		return undef;
+		print "WARNING: handlerDevices(): Failed to open handler IO $handler_io, assuming disabled.\n";
+		return \%devices; # Return an empty hash
 	}
 
 	while (my $line = <$io>) {
@@ -753,24 +765,25 @@ sub assignDeviceToHandler {
 	my $device = shift;
 	my $handler = shift;
 	my $handler_io = $_IO_MAP_{$handler};
+	my $_handler = $_REVERSE_MAP_{$handler};
 
 	if (!$handler_io) {
 		$self->{'error'} = "assignDeviceToHandler(): Failed to open handler IO $handler_io or ".
-		  "handler $handler invalid";
+		  "handler $_handler($handler) invalid";
 		return $TRUE;
 	}
 
 	if (!$self->handlerExists($handler)) {
-		$self->{'error'} = "assignDeviceToHandler(): Handler $handler does not exist";
+		$self->{'error'} = "assignDeviceToHandler(): Handler $_handler does not exist";
 		return $TRUE;
 	}
 
-	if ($self->handlerDeviceExists($device, $handler)) {
-		$self->{'error'} = "assignDeviceToHandler(): Device $device is already assigned to handler $handler";
+	if ($self->handlerDeviceExists($handler, $device)) {
+		$self->{'error'} = "assignDeviceToHandler(): Device $device is already assigned to handler $_handler";
 		return 2;
 	}
 
-	my $cmd = "assign $device $handler\n";
+	my $cmd = "assign $device $_handler\n";
 
 	my $rc = $self->scst_private($cmd);
 
@@ -781,7 +794,7 @@ sub assignDeviceToHandler {
 
 	if ($rc) {
 		$self->{'error'} = "assignDeviceToHandler(): An error occured while assigning device $device ".
-		  "to handler $handler. See dmesg/kernel log for more information.";
+		  "to handler $_handler. See dmesg/kernel log for more information.";
 	}
 
 	return $rc;
@@ -850,8 +863,8 @@ sub handler_private {
 	my $io = new IO::File $handler_io, O_WRONLY;
 
 	if (!$io) {
-		$self->{'error'} = "SCST/SCST.pm: Failed to open handler IO $handler_io";
-		return $TRUE;
+		print "WARNING: SCST/SCST.pm: Failed to open handler IO $handler_io, assuming disabled.\n";
+		return $FALSE;
 	}
 
 	if ($self->{'debug'}) {

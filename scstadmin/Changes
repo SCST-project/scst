@@ -28,4 +28,8 @@ Changes since 0.9.6-pre2:
 - Fixed applyConfiguration() to remove entries before adding new ones.
 - Fixed changes and differences counts
 - Added intelligence around virtual/physical/performance type devices
+- Fixed applyConfiguration() to apply a full config even in -ForceConfig mode
+- Fixed device handler switches
+- Fixed device assignment LUN changes
+- Fixed handling of disabled handlers (like dev_disk, dev_cdrom, etc from compile time)
 - Minor bug fixes
