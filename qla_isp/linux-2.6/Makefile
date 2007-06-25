@@ -1,0 +1,61 @@
+# $Id: Makefile,v 1.5 2007/03/10 02:27:53 mjacob Exp $
+#
+# Makefile
+#
+# Copyright (c) 2006-2007 by Matthew Jacob
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+# 
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+#
+#
+# Matthew Jacob
+# Feral Software
+# 421 Laurel Avenue
+# Menlo Park, CA 94025
+# USA
+#
+# gpl at feral com
+#
+ifndef KDIR
+LVERS	=	$(shell uname -r)
+LINUX	?=	/lib/modules/${LVERS}/build
+else
+LINUX = ${KDIR}
+endif
+
+all:	links
+	@$(MAKE) -C ${LINUX} M=${CURDIR}/build
+
+tgt:	links
+	@$(MAKE) -C ${LINUX} M=${CURDIR}/build ISP_TARGET_MODE=1
+
+clean:
+	@$(MAKE) -C ${LINUX} M=${CURDIR}/build clean
+	@$(MAKE) -C build clean_links
+	@$(RM) tags
+
+install:
+	@$(MAKE) -C ${LINUX} M=${CURDIR}/build modules_install
+
+links:
+	@$(MAKE) -C build make_links
+
+tools:
+	cd ../linux && $(MAKE) tools
+
+tags:	FRC
+	@ctags --recurse --append=no --exclude=Makefile --exclude=freebsd --exclude=solaris ../
+
+FRC:
+

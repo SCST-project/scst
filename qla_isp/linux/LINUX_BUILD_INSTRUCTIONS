@@ -1,0 +1,13 @@
+$Id: LINUX_BUILD_INSTRUCTIONS,v 1.23 2006/06/29 21:14:53 mjacob Exp $
+Copyright (c) 1997-2006 by Matthew Jacob
+All rights reserved.
+
+This driver is for Linux-2.4 and Linux-2.6 kernels only. If you build
+in this directory, this is for Linux-2.4 only. To build Linux-2.6, change
+directory to ../Linux-2.6.
+
+Since this is a mature product, it's recommended that you just use the 2.4.32
+kernel from the ftp.kernel.org repository and build this as a module.
+
+If you need to build this inside the kernel tree itself, there is
+a patch set for linux 2.4.20. This hasn't been tested in quite a while.

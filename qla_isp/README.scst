@@ -1,0 +1,48 @@
+WARNING: This driver is not finished, USE ONLY FOR TESTING. 
+
+This is SCST driver for ISP Qlogic chipsets commonly used in many SCSI and FC 
+host bus adapters. Supported chipset are listed in README file, incomplete 
+list of supported HBA's is in doc/Hardware.txt . 
+
+It is based on Matthew Jacob's multiplatform driver for ISP chipsets,
+which can be download from ftp://ftp.feral.com/pub/isp/isp_dist.tgz. The
+update for SCST was made and supported by Stanislaw Gruszka
+<stanislawg1@open-e.com>.
+
+Driver operate same hardware as qla2x00tgt, but have one adventage over it:
+support of 24xx series of Qlogic adapters.
+
+INSTALLATION:
+
+Build driver with command
+$ make 
+Then install isp_mod, isp_scst modules
+$ make install
+
+Other Qlogic drivers can not coexist in system, unload all other qla modules
+
+$ rmmod qla2x00tgt
+$ rmmod qla2400
+$ rmmod qla2300
+$ rmmod qla2200
+$ rmmod qla2xxx
+
+Load isp modules
+
+$ modprobe isp_scst
+$ modprobe isp_mod
+
+Enable all logical units to work in target mode
+
+$ echo 1 > /proc/scsi_tgt/qla_isp/0 
+
+(to unload isp_mod.ko module you must write 0 to this file).  
+This is not switching target/initiator role. If you have more then one device,
+role of each you can set using isp_roles parameter, like in example:
+
+$ modprobe isp_mode isp_roles="b0300=initiator"
+
+Magic number "b0300" is DEVID value, which you can find in /proc/scsi/isp/X 
+
+To attach logical units continue with normal SCST setup
+
