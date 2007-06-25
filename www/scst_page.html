@@ -37,7 +37,7 @@ SCST performs all required pre- and post- processing of incoming
 requests and all necessary error recovery.</li>
   <li>Undertakes most problems, related to execution contexts, thus
 practically eliminating one of the most complicated problem in the
-kernel drivers development. For example, a target driver for Qlogic
+kernel drivers development. For example, a target driver for QLogic
 2200/2300 cards, which has all necessary features, is only ~2000 lines
 of code long.</li>
   <li> Very low overhead, fine-grained locks and simplest commands
@@ -205,12 +205,11 @@ enabling/disabling target mode on your target SCSI controller.<br>
 </p>
 <hr
  style="width: 100%; height: 2px; margin-left: 0px; margin-right: 0px;">
-<h1><small>Target driver for Qlogic 2200/2300 cards for 2.6 kernels<br>
+<h1><small>Target driver for QLogic 2200/2300 cards<br>
 </small></h1>
 <div style="text-align: justify;">
 <p>This is ported and improved version of the "old" target driver for
-2.4 kernels (see below) to the in-tree 2.6
-Qlogic 2x00 initiator
+2.4 kernels (see below) to the in-tree 2.6 QLogic 2x00 initiator
 driver. The port was done by Nathaniel Clark. This is stable and
 functional driver with
 the larger feature set, than the parent driver has.</p>
@@ -240,16 +239,34 @@ above how to setup access to it.<br>
 <br>
 <hr style="width: 100%; height: 2px;">
 <h1><small>SCSI RDMA Protocol (SRP) Target driver</small></h1>
-<p>SCSI RDMA Protocol (SRP) Target driver is developed
+SCSI RDMA Protocol (SRP) Target driver is developed
 independently from SCST team. You can find instructions how to download
 and install it on this page: <a
  href="http://lists.openfabrics.org/pipermail/iwg/2007-March/000378.html">http://lists.openfabrics.org/pipermail/iwg/2007-March/000378.html</a><br>
 <br>
-</p>
 <hr style="width: 100%; height: 2px;">
-<h1><small>Old target driver for Qlogic 2200/2300 cards<br>
+<h1><small>Target driver for QLogic ISP chipsets<br>
 </small></h1>
-<div style="text-align: justify;">Old target driver for Qlogic
+This is target driver for ISP QLogic chipsets commonly used in many
+SCSI and FC host bus adapters. Supported chipsets are listed in README
+file, incomplete list of supported HBA's is in doc/Hardware.txt. It is
+based on Matthew Jacob's multiplatform driver for ISP chipsets, which
+can be downloaded from <a
+ href="ftp://ftp.feral.com/pub/isp/isp_dist.tgz">ftp://ftp.feral.com/pub/isp/isp_dist.tgz</a>.
+The update for SCST was made and supported by Stanislaw Gruszka.<br>
+<br>
+One major difference of this driver from the above target driver for
+QLogic 2200/2300 cards is that it supports 24xx series of chipsets.<br>
+<br>
+This driver is unstable and on the
+alpha stage. It is available from the <a
+ href="http://svn.sourceforge.net/scst">SCST SVN repository</a>. See
+above how to setup access to it.<br>
+<br>
+<hr style="width: 100%; height: 2px;">
+<h1><small>Old target driver for QLogic 2200/2300 cards for 2.4 kernels<br>
+</small></h1>
+<div style="text-align: justify;">Old target driver for QLogic
 2200/2300
 cards is capable to work on 2.4 kernels. It has all required features
 and
@@ -277,9 +294,9 @@ only.<br>
 <a href="http://sourceforge.net/project/showfiles.php?group_id=110471">Download</a><br>
 <a href="ChangeLog.qla">Change Log</a>
 <hr style="width: 100%; height: 2px;"><span style="font-weight: bold;"></span>
-<h1><small>Target drivers for Adaptec 7xxx and Qlogic QLA12xx
+<h1><small>Target drivers for Adaptec 7xxx and QLogic QLA12xx
 cards</small></h1>
-Target drivers for Adaptec 7xxx and Qlogic QLA12xx cards have
+Target drivers for Adaptec 7xxx and QLogic QLA12xx cards have
 been developed by Hu Gang and they available for download from <a
  href="http://bj.soulinfo.com/%7Ehugang/scst/tgt/">http://bj.soulinfo.com/~hugang/scst/tgt/</a>.
 These drivers are not completed, but looks to be a good starting point
