@@ -26,7 +26,7 @@
 #include "scst_user.h"
 #include "scst_dev_handler.h"
 
-#ifndef CONFIG_NOHIGHMEM
+#if !defined(CONFIG_NOHIGHMEM) && !defined(CONFIG_64BIT)
 #warning HIGHMEM kernel configurations are not supported. Consider \
 	changing VMSPLIT option or using 64-bit configuration.
 #endif
@@ -2927,7 +2927,7 @@ static int __init init_scst_user(void)
 
 	TRACE_ENTRY();
 
-#ifndef CONFIG_NOHIGHMEM
+#if !defined(CONFIG_NOHIGHMEM) && !defined(CONFIG_64BIT)
 	PRINT_ERROR_PR("%s", "HIGHMEM kernel configurations are not supported. "
 		"Consider changing VMSPLIT option or using 64-bit "
 		"configuration.");

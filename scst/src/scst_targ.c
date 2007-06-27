@@ -402,7 +402,7 @@ call_parse:
 	if (scst_cmd_is_expected_set(cmd)) {
 		if (cmd->expected_transfer_len < cmd->bufflen) {
 			TRACE(TRACE_SCSI, "cmd->expected_transfer_len(%d) < "
-				"cmd->bufflen(%zd), using expected_transfer_len "
+				"cmd->bufflen(%d), using expected_transfer_len "
 				"instead", cmd->expected_transfer_len,
 				cmd->bufflen);
 			cmd->bufflen = cmd->expected_transfer_len;
@@ -433,7 +433,7 @@ call_parse:
 	{
 		PRINT_ERROR_PR("Dev handler %s parse() returned "
 			       "invalid cmd data_direction %d, "
-			       "bufflen %zd or state %d (opcode 0x%x)",
+			       "bufflen %d or state %d (opcode 0x%x)",
 			       dev->handler->name, 
 			       cmd->data_direction, cmd->bufflen,
 			       state, cmd->cdb[0]);
@@ -680,7 +680,7 @@ out:
 
 out_no_space:
 	TRACE(TRACE_OUT_OF_MEM, "Unable to allocate or build requested buffer "
-		"(size %zd), sending BUSY or QUEUE FULL status", cmd->bufflen);
+		"(size %d), sending BUSY or QUEUE FULL status", cmd->bufflen);
 	scst_low_cur_max_cmd_mem();
 	scst_set_busy(cmd);
 	cmd->state = SCST_CMD_STATE_DEV_DONE;
@@ -1765,7 +1765,7 @@ void scst_inc_expected_sn(struct scst_tgt_dev *tgt_dev, atomic_t *slot)
 
 	/* Optimized for lockless fast path */
 
-	TRACE_SN("Slot %d, *cur_sn_slot %d", slot - tgt_dev->sn_slots,
+	TRACE_SN("Slot %zd, *cur_sn_slot %d", slot - tgt_dev->sn_slots,
 		atomic_read(slot));
 
 	if (!atomic_dec_and_test(slot))
@@ -2521,7 +2521,7 @@ ordered:
 						ARRAY_SIZE(tgt_dev->sn_slots))
 					    tgt_dev->cur_sn_slot = tgt_dev->sn_slots;
 				} while(atomic_read(tgt_dev->cur_sn_slot) != 0);
-				TRACE_SN("New cur SN slot %d",
+				TRACE_SN("New cur SN slot %zd",
 					tgt_dev->cur_sn_slot-tgt_dev->sn_slots);
 			} else
 				tgt_dev->num_free_sn_slots++;
@@ -2550,7 +2550,7 @@ ordered:
 
 	TRACE_SN("cmd(%p)->sn: %ld (tgt_dev %p, *cur_sn_slot %d, "
 		"num_free_sn_slots %d, prev_cmd_ordered %ld, "
-		"cur_sn_slot %d)", cmd, cmd->sn, tgt_dev,
+		"cur_sn_slot %zd)", cmd, cmd->sn, tgt_dev,
 		atomic_read(tgt_dev->cur_sn_slot), 
 		tgt_dev->num_free_sn_slots, tgt_dev->prev_cmd_ordered,
 		tgt_dev->cur_sn_slot-tgt_dev->sn_slots);

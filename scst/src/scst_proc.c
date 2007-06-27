@@ -351,7 +351,7 @@ out:
 	return res;
 }
 
-static int scst_proc_scsi_tgt_gen_write_log(struct file *file, const char __user *buf,
+static ssize_t scst_proc_scsi_tgt_gen_write_log(struct file *file, const char __user *buf,
 					size_t length, loff_t *off)
 {
 	int res;
@@ -736,7 +736,7 @@ void __exit scst_proc_cleanup_module(void)
 	TRACE_EXIT();
 }
 
-static int scst_proc_threads_write(struct file *file, const char __user *buf,
+static ssize_t scst_proc_threads_write(struct file *file, const char __user *buf,
 				   size_t length, loff_t *off)
 {
 	int res = length;
@@ -883,7 +883,7 @@ void scst_cleanup_proc_target_entries(struct scst_tgt *vtt)
 	return;
 }
 
-static int scst_proc_scsi_tgt_write(struct file *file, const char __user *buf,
+static ssize_t scst_proc_scsi_tgt_write(struct file *file, const char __user *buf,
 				    size_t length, loff_t *off)
 {
 	struct scst_tgt *vtt = (struct scst_tgt *)PDE(file->f_dentry->d_inode)->data;
@@ -1023,7 +1023,7 @@ void scst_cleanup_proc_dev_handler_dir_entries(struct scst_dev_type *dev_type)
 	return;
 }
 
-static int scst_proc_scsi_dev_handler_write(struct file *file, const char __user *buf,
+static ssize_t scst_proc_scsi_dev_handler_write(struct file *file, const char __user *buf,
 					    size_t length, loff_t *off)
 {
 	struct scst_dev_type *dev_type = (struct scst_dev_type *)PDE(file->f_dentry->d_inode)->data;
@@ -1083,7 +1083,7 @@ out:
 	return res;
 }
 
-static int scst_proc_scsi_tgt_gen_write(struct file *file, const char __user *buf,
+static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file, const char __user *buf,
 					size_t length, loff_t *off)
 {
 	int res = length, rc = 0, action;
@@ -1210,7 +1210,7 @@ static int scst_proc_assign_handler(char *buf)
 {
 	int res = 0;
 	char *p = buf, *e, *ee;
-	unsigned int host, channel = 0, id = 0, lun = 0;
+	unsigned long host, channel = 0, id = 0, lun = 0;
 	struct scst_device *d, *dev = NULL;
 	struct scst_dev_type *dt, *handler = NULL;
 
@@ -1247,7 +1247,7 @@ static int scst_proc_assign_handler(char *buf)
 	}
 	*ee = '\0';
 
-	TRACE_DBG("Dev %d:%d:%d:%d, handler %s", host, channel, id, lun, e);
+	TRACE_DBG("Dev %ld:%ld:%ld:%ld, handler %s", host, channel, id, lun, e);
 
 	list_for_each_entry(d, &scst_dev_list, dev_list_entry) {
 		if ((d->virt_id == 0) &&
@@ -1257,14 +1257,14 @@ static int scst_proc_assign_handler(char *buf)
 		    d->scsi_dev->lun == lun)
 		{
 			dev = d;
-			TRACE_DBG("Dev %p (%d:%d:%d:%d) found",
+			TRACE_DBG("Dev %p (%ld:%ld:%ld:%ld) found",
 				  dev, host, channel, id, lun);
 			break;
 		}
 	}
 
 	if (dev == NULL) {
-		PRINT_ERROR_PR("Device %d:%d:%d:%d not found",
+		PRINT_ERROR_PR("Device %ld:%ld:%ld:%ld not found",
 			       host, channel, id, lun);
 		res = -EINVAL;
 		goto out;
@@ -1305,7 +1305,7 @@ out_synt_err:
 	goto out;
 }
 
-static int scst_proc_groups_devices_write(struct file *file, const char __user *buf,
+static ssize_t scst_proc_groups_devices_write(struct file *file, const char __user *buf,
 					  size_t length, loff_t *off)
 {
 	int res = length, action, virt = 0, rc, read_only = 0;
@@ -1499,7 +1499,7 @@ out:
 	return res;
 }
 
-static int scst_proc_groups_names_write(struct file *file, const char __user *buf,
+static ssize_t scst_proc_groups_names_write(struct file *file, const char __user *buf,
 					size_t length, loff_t *off)
 {
 	int res = length, action;

@@ -32,7 +32,7 @@
 #include "scst_priv.h"
 #include "scst_mem.h"
 
-#ifndef CONFIG_NOHIGHMEM
+#if !defined(CONFIG_NOHIGHMEM) && !defined(CONFIG_64BIT)
 #warning HIGHMEM kernel configurations are supported, but not recommended. \
 	Consider changing VMSPLIT option or using 64-bit configuration instead.
 #endif

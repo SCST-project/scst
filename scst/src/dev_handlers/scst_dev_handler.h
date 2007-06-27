@@ -42,7 +42,7 @@ static int dev_handler_log_info_show(struct seq_file *seq, void *v)
 	return res;
 }
 
-static int scst_dev_handler_proc_log_entry_write(struct file *file,
+static ssize_t scst_dev_handler_proc_log_entry_write(struct file *file,
 	const char __user *buf, size_t length, loff_t *off)
 {
 	int res = 0;

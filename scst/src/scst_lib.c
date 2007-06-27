@@ -1622,7 +1622,7 @@ int scst_get_cdb_info(const uint8_t *cdb_p, int dev_type,
 
 	op = *cdb_p;	/* get clear opcode */
 
-	TRACE_DBG("opcode=%02x, cdblen=%d bytes, tblsize=%zd, "
+	TRACE_DBG("opcode=%02x, cdblen=%d bytes, tblsize=%d, "
 		"dev_type=%d", op, SCST_GET_CDB_LEN(op), SCST_CDB_TBL_SIZE,
 		dev_type);
 
@@ -1854,7 +1854,7 @@ int scst_sbc_generic_parse(struct scst_cmd *cmd,
 		cmd->bufflen = info_cdb->transfer_len << get_block_shift(cmd);
 	}
 
-	TRACE_DBG("res %d, bufflen %zd, data_len %zd, direct %d",
+	TRACE_DBG("res %d, bufflen %d, data_len %d, direct %d",
 	      res, cmd->bufflen, cmd->data_len, cmd->data_direction);
 
 	TRACE_EXIT_RES(res);
@@ -1915,7 +1915,7 @@ int scst_cdrom_generic_parse(struct scst_cmd *cmd,
 	if (info_cdb->flags & SCST_TRANSFER_LEN_TYPE_FIXED)
 		cmd->bufflen = info_cdb->transfer_len << get_block_shift(cmd);
 
-	TRACE_DBG("res %d bufflen %zd direct %d",
+	TRACE_DBG("res %d bufflen %d direct %d",
 	      res, cmd->bufflen, cmd->data_direction);
 
 	TRACE_EXIT();
@@ -1976,7 +1976,7 @@ int scst_modisk_generic_parse(struct scst_cmd *cmd,
 	if (info_cdb->flags & SCST_TRANSFER_LEN_TYPE_FIXED)
 		cmd->bufflen = info_cdb->transfer_len << get_block_shift(cmd);
 
-	TRACE_DBG("res %d bufflen %zd direct %d",
+	TRACE_DBG("res %d bufflen %d direct %d",
 	      res, cmd->bufflen, cmd->data_direction);
 
 	TRACE_EXIT_RES(res);
@@ -2043,7 +2043,7 @@ static int scst_null_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 		break;
 	}
 #endif
-	TRACE_DBG("res %d bufflen %zd direct %d",
+	TRACE_DBG("res %d bufflen %d direct %d",
 	      res, cmd->bufflen, cmd->data_direction);
 
 	TRACE_EXIT();

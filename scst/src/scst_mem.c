@@ -556,7 +556,7 @@ struct scatterlist *scst_alloc(int size, unsigned long gfp_mask,
 out:
 	TRACE_MEM("Alloced sg %p (count %d)", res, *count);
 
-	TRACE_EXIT_HRES((int)res);
+	TRACE_EXIT_HRES(res);
 	return res;
 
 out_free:
