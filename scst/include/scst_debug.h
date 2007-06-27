@@ -35,6 +35,11 @@
 #endif
 
 #ifdef DEBUG
+
+#ifndef EXTRACHECKS
+#define EXTRACHECKS
+#endif
+
 #ifndef CONFIG_DEBUG_BUGVERBOSE
 #define sBUG() do {						\
 	printk(KERN_CRIT "BUG at %s:%d\n",			\
@@ -44,6 +49,7 @@
 #else
 #define sBUG() BUG()
 #endif
+
 #define sBUG_ON(p) do {						\
 	if (unlikely(p)) {					\
 		printk(KERN_CRIT "BUG at %s:%d (%s)\n",		\
@@ -51,9 +57,23 @@
 		BUG();						\
 	}							\
 } while (0)
+
 #else
+
 #define sBUG() BUG()
 #define sBUG_ON(p) BUG_ON(p)
+
+#endif
+
+#ifndef WARN_ON_ONCE
+#define WARN_ON_ONCE(condition)	({				\
+	static int __warned;					\
+	typeof(condition) __ret_warn_once = (condition);	\
+								\
+	if (unlikely(__ret_warn_once))				\
+		__warned = 1;					\
+	unlikely(__ret_warn_once);				\
+})
 #endif
 
 #ifdef EXTRACHECKS
