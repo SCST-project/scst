@@ -72,7 +72,10 @@
 	typeof(condition) __ret_warn_once = (condition);	\
 								\
 	if (unlikely(__ret_warn_once))				\
-		__warned = 1;					\
+		if (!__warned) { 				\
+			WARN_ON(1);				\
+			__warned = 1;				\
+		}						\
 	unlikely(__ret_warn_once);				\
 })
 #endif
