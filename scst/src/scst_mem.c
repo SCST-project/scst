@@ -723,11 +723,11 @@ int scst_sgv_pools_init(struct scst_sgv_pools *pools)
 	sgv_max_local_order = get_order(
 		((((PAGE_SIZE - sizeof(struct sgv_pool_obj)) /
 		  (sizeof(struct trans_tbl_ent) + sizeof(struct scatterlist))) *
-			PAGE_SIZE) & PAGE_MASK));
+			PAGE_SIZE) & PAGE_MASK)) - 1;
 
 	sgv_max_trans_order = get_order(
 		((((PAGE_SIZE - sizeof(struct sgv_pool_obj)) /
-		  (sizeof(struct trans_tbl_ent))) * PAGE_SIZE) & PAGE_MASK));
+		  (sizeof(struct trans_tbl_ent))) * PAGE_SIZE) & PAGE_MASK)) - 1;
 
 	TRACE_MEM("sgv_max_local_order %d, sgv_max_trans_order %d",
 		sgv_max_local_order, sgv_max_trans_order);
