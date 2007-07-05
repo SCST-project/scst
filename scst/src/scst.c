@@ -32,15 +32,27 @@
 #include "scst_priv.h"
 #include "scst_mem.h"
 
-#if !defined(CONFIG_NOHIGHMEM) && !defined(CONFIG_64BIT)
-#warning HIGHMEM kernel configurations are supported, but not recommended. \
-	Consider changing VMSPLIT option or using 64-bit configuration instead.
+#if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
+#warning HIGHMEM kernel configurations are fully supported, but not \
+	recommended for performance reasons. Consider change VMSPLIT \
+	option or use 64-bit configuration instead. See README file for \
+	details.
 #endif
 
-/*
- * All targets, devices and dev_types management is done under
- * this mutex.
- */
+#ifdef SCST_HIGHMEM
+#error SCST_HIGHMEM configuration isn't supported and broken, because there \
+	is no real point to support it, at least it definitely doesn't worth \
+	the effort. Better use no-HIGHMEM kernel with VMSPLIT option \
+	or in 64-bit configuration instead. See README file for details.
+#endif
+
+#if !defined(SCSI_EXEC_REQ_FIFO_DEFINED) && !defined(STRICT_SERIALIZING)
+#warning Patch scst_exec_req_fifo.patch was not applied on your kernel and \
+	STRICT_SERIALIZING isn't defined. Pass-through dev handlers will \
+	not be supported.
+#endif
+
+/* All targets, devices and dev_types management is done under this mutex */
 DECLARE_MUTEX(scst_mutex);
 
 LIST_HEAD(scst_template_list);
@@ -732,10 +744,11 @@ int scst_register_dev_driver(struct scst_dev_type *dev_type)
 	if (res != 0)
 		goto out_err;
 
-#ifdef VDISK_ONLY
+#if !defined(SCSI_EXEC_REQ_FIFO_DEFINED) && !defined(STRICT_SERIALIZING)
 	if (dev_type->exec == NULL) {
 		PRINT_ERROR_PR("Pass-through dev handlers (handler \"%s\") not "
-			"supported. Recompile SCST with undefined VDISK_ONLY",
+			"supported. Consider applying on your kernel patch "
+			"scst_exec_req_fifo.patch or define STRICT_SERIALIZING",
 			dev_type->name);
 		res = -EINVAL;
 		goto out_err;

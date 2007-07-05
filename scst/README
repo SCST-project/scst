@@ -22,7 +22,7 @@ SCST supports the following I/O modes:
    devices as virtual remotely available SCSI disks or CDROMs with
    benefits of the Linux page cache
 
- * BLOCKIO mode, which performsd irect block IO with a block device,
+ * BLOCKIO mode, which performs direct block IO with a block device,
    bypassing page-cache for all operations. This mode works ideally with
    high-end storage HBAs and for applications that either do not need
    caching between application and disk or need the large block
@@ -53,11 +53,11 @@ points to the source code for your currently running kernel.
 Then, since in the mainstream kernels scsi_do_req()/scsi_execute_async()
 work in LIFO order, instead of expected and required FIFO, SCST needs a
 new functions scsi_do_req_fifo()/scsi_execute_async_fifo() to be added
-in the kernel. Patch 26_scst-2.6.X.patch from "kernel" directory does
-that. If it doesn't apply to your kernel, apply it manually, it only
-adds one of those functions and nothing more. You may not patch the
-kernel if STRICT_SERIALIZING or VDISK_ONLY are defined during the
-compilation (see their description below).
+in the kernel. Patch scst_exec_req_fifo.patch from "kernel" directory
+does that. If it doesn't apply to your kernel, apply it manually, it
+only adds one of those functions and nothing more. You may not patch the
+kernel if you don't need pass-through support or STRICT_SERIALIZING is
+defined during the compilation (see description below).
 
 To compile SCST type 'make'. It will build SCST itself and its device
 handlers. To install them type 'make install'. The driver modules will
@@ -161,11 +161,6 @@ Compilation options
 There are the following compilation options, that could be commented
 in/out in Makefile:
 
- - VDISK_ONLY - if defined, the pass-through device handlers
-   (scst_disk, scst_tape) will not work, but SCST will not require the
-   kernel patching. Defined by default to ease new people try SCST on
-   their kernels.
-
  - DEBUG - turns on some debugging code, including some logging. Makes
    the driver considerably bigger and slower, producing large amount of
    log data.
@@ -196,16 +191,33 @@ in/out in Makefile:
    patching is necessary.
 
  - SCST_HIGHMEM - if defined on HIGHMEM systems with 2.6 kernels, it
-   allows SCST to use HIGHMEM. This is very experimental feature and it
-   is unclear, if it brings something valuable, except some performance
-   hit, so in the current version it is disabled. Note, that
+   allows SCST to use HIGHMEM. This is very experimental feature, which
+   is currently broken and unsupported, since it is unclear, if it
+   brings something valuable, except some performance hit. Note, that
    SCST_HIGHMEM isn't required for HIGHMEM systems and SCST will work
-   fine on them with SCST_HIGHMEM off. Untested.
+   fine on them with SCST_HIGHMEM off.
   
- - SCST_STRICT_SECURITY - if defined, makes SCST clean allocated data
+ - SCST_STRICT_SECURITY - if defined, makes SCST zero allocated data
    buffers. Undefining it (default) considerably improves performance
    and eases CPU load, but could create a security hole (information
    leakage), so enable it, if you have strict security requirements.
+
+HIGHMEM kernel configurations are fully supported, but not recommended
+for performance reasons, except for scst_user, where they are not
+supported, because this module deals with user supplied memory on a
+zero-copy manner. Consider change VMSPLIT option or use 64-bit system
+configuration instead.
+
+For changing VMSPLIT option (CONFIG_VMSPLIT to be precise) you should in
+"make menuconfig" command set the following variables:
+
+ - General setup->Configure standard kernel features (for small systems): ON
+
+ - Processor type and features->High Memory Support: OFF
+
+ - Processor type and features->Memory split: according to amount of
+   memory you have. If it is less than 800MB, you may not touch this
+   option at all.
 
 Module parameters
 -----------------
@@ -491,7 +503,7 @@ exception that it supports O_DIRECT mode. This mode is basically the
 same as BLOCKIO, but also supports files, so for some loads it could be
 significantly faster, than regular FILEIO access, provided by
 scst_vdisk. All the words about BLOCKIO from above apply to O_DIRECT as
-well. While running fileio_tgt if you don't uderstand some its options,
+well. While running fileio_tgt if you don't understand some its options,
 use defaults for them, those values are the fastest.
 
 Performance
@@ -606,7 +618,7 @@ Thanks to:
  
  * Nathaniel Clark <nate@misrule.us> for fixes and comments.
 
- * Calvin Morrow <calvin.morrow@comcast.net> for testing and usful
+ * Calvin Morrow <calvin.morrow@comcast.net> for testing and useful
    suggestions.
 
  * Hu Gang <hugang@soulinfo.com> for the original version of the

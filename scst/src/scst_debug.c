@@ -18,8 +18,8 @@
  *  GNU General Public License for more details.
  */
 
-#include "scst_debug.h"
 #include "scsi_tgt.h"
+#include "scst_debug.h"
 
 #if defined(DEBUG) || defined(TRACING)
 

@@ -313,7 +313,7 @@ static inline void scst_do_req(struct scsi_request *sreq,
 {
     #ifdef STRICT_SERIALIZING
 	scsi_do_req(sreq, cmnd, buffer, bufflen, done, timeout, retries);
-    #elif defined(VDISK_ONLY)
+    #elif !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
     	sBUG();
     #else
 	scsi_do_req_fifo(sreq, cmnd, buffer, bufflen, done, timeout, retries);
@@ -328,7 +328,7 @@ static inline int scst_exec_req(struct scsi_device *sdev,
     #ifdef STRICT_SERIALIZING
 	return scsi_execute_async(sdev, cmd, cmd_len, data_direction, buffer,
 		bufflen, use_sg, timeout, retries, privdata, done, gfp);
-    #elif defined(VDISK_ONLY)
+    #elif !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
     	sBUG();
     	return -1;
     #else
