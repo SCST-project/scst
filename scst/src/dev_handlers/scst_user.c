@@ -2489,7 +2489,10 @@ static int dev_user_register_dev(struct file *file,
 		goto out;
 	}
 
-	if (dev_desc->type != TYPE_TAPE) {
+	switch(dev_desc->type) {
+	case TYPE_DISK:
+	case TYPE_ROM:
+	case TYPE_MOD:
 		if (dev_desc->block_size == 0) {
 			PRINT_ERROR_PR("Wrong block size %d", dev_desc->block_size);
 			res = -EINVAL;
@@ -2500,8 +2503,11 @@ static int dev_user_register_dev(struct file *file,
 			res = -EINVAL;
 			goto out;
 		}
-	} else
+		break;
+	default:
 		block = dev_desc->block_size;
+		break;
+	}
 
 	if (!try_module_get(THIS_MODULE)) {
 		PRINT_ERROR_PR("%s", "Fail to get module");
