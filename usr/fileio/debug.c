@@ -20,6 +20,8 @@
 
 #include <stdio.h>
 #include <time.h>
+#include <pthread.h>
+#include <string.h>
 
 #include "debug.h"
 
@@ -30,14 +32,14 @@ _syscall0(pid_t,gettid);
 #define TRACE_BUF_SIZE    512
 
 static char trace_buf[TRACE_BUF_SIZE];
-//static spinlock_t trace_buf_lock = SPIN_LOCK_UNLOCKED;
+static pthread_spinlock_t trace_buf_lock;
 
 int debug_print_prefix(unsigned long trace_flag, const char *func, 
 			int line)
 {
 	int i = 0;
 
-//	spin_lock_irqsave(&trace_buf_lock, flags);
+	pthread_spin_lock(&trace_buf_lock);
 
 	if (trace_flag & TRACE_TIME) {
 		struct tm t;
@@ -58,7 +60,7 @@ int debug_print_prefix(unsigned long trace_flag, const char *func,
 	if (i > 0)
 		PRINTN("%s", trace_buf);
 
-//	spin_unlock_irqrestore(&trace_buf_lock, flags);
+	pthread_spin_unlock(&trace_buf_lock);
 
 	return i;
 }
@@ -72,7 +74,7 @@ void debug_print_buffer(const void *data, int len)
 	if (buf == NULL)
 		return;
 
-//	spin_lock_irqsave(&trace_buf_lock, flags);
+	pthread_spin_lock(&trace_buf_lock);
 
 	PRINT(" (h)___0__1__2__3__4__5__6__7__8__9__A__B__C__D__E__F");
 	for (z = 0, z1 = 0, i = 0; z < len; z++) {
@@ -113,8 +115,26 @@ void debug_print_buffer(const void *data, int len)
 		PRINT("%s", trace_buf);
 	}
 
-//	spin_unlock_irqrestore(&trace_buf_lock, flags);
+	pthread_spin_unlock(&trace_buf_lock);
 	return;
+}
+
+int debug_init(void)
+{
+	int res;
+
+	res = pthread_spin_init(&trace_buf_lock, PTHREAD_PROCESS_PRIVATE);
+	if (res != 0) {
+		res = errno;
+		PRINT_ERROR_PR("pthread_spin_init() failed: %s", strerror(res));
+	}
+
+	return res;
+}
+
+void debug_done(void)
+{
+	pthread_spin_destroy(&trace_buf_lock);
 }
 
 #endif /* DEBUG || TRACING */

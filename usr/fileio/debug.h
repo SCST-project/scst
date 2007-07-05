@@ -64,6 +64,9 @@ extern char *app_name;
 
 extern unsigned long trace_flag;
 
+extern int debug_init(void);
+extern void debug_done(void);
+
 extern int debug_print_prefix(unsigned long trace_flag, const char *func, int line);
 extern void debug_print_buffer(const void *data, int len);
 

@@ -166,6 +166,10 @@ int main(int argc, char **argv)
 
 	setlinebuf(stdout);
 
+	res = debug_init();
+	if (res != 0)
+		goto out;
+
 	app_name = argv[0];
 
 	memset(&dev, 0, sizeof(dev));
@@ -254,7 +258,7 @@ int main(int argc, char **argv)
 #endif
 		case 'v':
 			printf("%s version %s\n", app_name, VERSION_STR);
-			goto out;
+			goto out_done;
 		default:
 			goto out_usage;
 		}
@@ -276,7 +280,7 @@ int main(int argc, char **argv)
 		res = errno;
 		PRINT_ERROR_PR("Unable to open file %s (%s)", dev.file_name,
 			strerror(res));
-		goto out;
+		goto out_done;
 	}
 
 	dev.file_size = lseek64(fd, 0, SEEK_END);
@@ -367,7 +371,7 @@ int main(int argc, char **argv)
 		res = dev.scst_usr_fd;
 		PRINT_ERROR_PR("Unable to open SCST device %s (%s)",
 			DEV_USER_PATH DEV_USER_NAME, strerror(res));
-		goto out;
+		goto out_done;
 	}
 
 	memset(&desc, 0, sizeof(desc));
@@ -479,10 +483,13 @@ int main(int argc, char **argv)
 out_close:
 	close(dev.scst_usr_fd);
 
+out_done:
+	debug_done();
+
 out:
 	return res;
 
 out_usage:
 	usage();
-	goto out;
+	goto out_done;
 }
