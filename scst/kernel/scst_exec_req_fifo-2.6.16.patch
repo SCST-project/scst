@@ -1,0 +1,80 @@
+diff -upr linux-2.6.16.29/drivers/scsi/scsi_lib.c linux-2.6.16.29/drivers/scsi/scsi_lib.c
+--- linux-2.6.16.29/drivers/scsi/scsi_lib.c	2006-09-12 22:02:10.000000000 +0400
++++ linux-2.6.16.29/drivers/scsi/scsi_lib.c	2007-07-05 12:59:24.000000000 +0400
+@@ -227,6 +227,63 @@ void scsi_do_req(struct scsi_request *sr
+ }
+ EXPORT_SYMBOL(scsi_do_req);
+ 
++/*
++ * Function:    scsi_do_req_fifo
++ *
++ * Purpose:     Queue a SCSI request
++ *
++ * Arguments:   sreq      - command descriptor.
++ *              cmnd      - actual SCSI command to be performed.
++ *              buffer    - data buffer.
++ *              bufflen   - size of data buffer.
++ *              done      - completion function to be run.
++ *              timeout   - how long to let it run before timeout.
++ *              retries   - number of retries we allow.
++ *
++ * Lock status: No locks held upon entry.
++ *
++ * Returns:     Nothing.
++ *
++ * Notes:       This function is used for queueing requests in FIFO order.
++ *              It is a copy of scsi_do_req() with only changed the last 
++ *              parameter of scsi_insert_special_req(). Not sure, if it
++ *              breaks quiesce, but, anyway, I don't see another way to 
++ *              queue requests in FIFO order, which is necessary for SCST.
++ */
++void scsi_do_req_fifo(struct scsi_request *sreq, const void *cmnd,
++		      void *buffer, unsigned bufflen,
++		      void (*done)(struct scsi_cmnd *),
++		      int timeout, int retries)
++{
++	/*
++	 * If the upper level driver is reusing these things, then
++	 * we should release the low-level block now.  Another one will
++	 * be allocated later when this request is getting queued.
++	 */
++	__scsi_release_request(sreq);
++ 
++	/*
++	 * Our own function scsi_done (which marks the host as not busy,
++	 * disables the timeout counter, etc) will be called by us or by the
++	 * scsi_hosts[host].queuecommand() function needs to also call
++	 * the completion function for the high level driver.
++	 */
++	memcpy(sreq->sr_cmnd, cmnd, sizeof(sreq->sr_cmnd));
++	sreq->sr_bufflen = bufflen;
++	sreq->sr_buffer = buffer;
++	sreq->sr_allowed = retries;
++	sreq->sr_done = done;
++	sreq->sr_timeout_per_command = timeout;
++ 
++	if (sreq->sr_cmd_len == 0)
++		sreq->sr_cmd_len = COMMAND_SIZE(sreq->sr_cmnd[0]);
++ 
++	sreq->sr_request->flags &= ~REQ_DONTPREP;
++	blk_insert_request(sreq->sr_device->request_queue, sreq->sr_request,
++			   1, sreq);
++}
++EXPORT_SYMBOL(scsi_do_req_fifo);
++ 
+ /**
+  * scsi_execute - insert request and wait for the result
+  * @sdev:	scsi device
+diff -upr linux-2.6.16.29/include/scsi/scsi_request.h linux-2.6.16.29/include/scsi/scsi_request.h
+--- linux-2.6.16.29/include/scsi/scsi_request.h	2006-09-12 22:02:10.000000000 +0400
++++ linux-2.6.16.29/include/scsi/scsi_request.h	2007-07-05 13:01:04.000000000 +0400
+@@ -51,4 +51,9 @@ extern void scsi_do_req(struct scsi_requ
+ 			void *buffer, unsigned bufflen,
+ 			void (*done) (struct scsi_cmnd *),
+ 			int timeout, int retries);
++#define SCSI_EXEC_REQ_FIFO_DEFINED
++extern void scsi_do_req_fifo(struct scsi_request *, const void *cmnd,
++			     void *buffer, unsigned bufflen,
++			     void (*done) (struct scsi_cmnd *),
++			     int timeout, int retries);
+ #endif /* _SCSI_SCSI_REQUEST_H */
