@@ -171,6 +171,9 @@ struct bus {
 
 static int scsi_tdebug = 0;
 
+#define    Eprintk(fmt, args...) printk(KERN_ERR "isp_scst(%s): " fmt, __FUNCTION__, ##args)
+#define    Iprintk(fmt, args...) printk(KERN_INFO "isp_scst(%s): " fmt, __FUNCTION__, ##args)
+
 static void scsi_target_handler(qact_e, void *);
 
 static __inline bus_t *bus_from_tmd(tmd_cmd_t *);
@@ -284,20 +287,30 @@ bus_from_notify(tmd_notify_t *np)
  */
 
 static ini_t *
-alloc_ini(bus_t *bp)
+alloc_ini(bus_t *bp, uint64_t iid)
 {
     ini_t *nptr;
+    char ini_name[24];
 
-    // FIXME: info to user - scst not register ours buses
-    if (!bp || !bp->scst_tgt)
+    if (!bp->scst_tgt) {
+        Eprintk("cannot find SCST target for incoming command\n");
         return (NULL);
+    }
 
     nptr = kmalloc(sizeof(ini_t), GFP_KERNEL);
-    if (!nptr)
+    if (!nptr) {
+        Eprintk("cannot allocate initiator data\n");
         return (NULL);
+    }
 
-    nptr->ini_scst_sess = scst_register_session(bp->scst_tgt, 0, bp->h.r_name, NULL, NULL);    
+    #define GET(byte) (uint8_t) ((iid >> 8*byte) & 0xff)
+    snprintf(ini_name, sizeof(ini_name), "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
+        GET(7), GET(6), GET(5) , GET(4), GET(3), GET(2), GET(1), GET(0));
+    #undef GET
+    
+    nptr->ini_scst_sess = scst_register_session(bp->scst_tgt, 0, ini_name, NULL, NULL);    
     if (!nptr->ini_scst_sess) {
+        Eprintk("cannot register SCST session\n");
         kfree(nptr); 
         return (NULL);
     } 
@@ -367,6 +380,7 @@ static int
 scsi_target_rx_cmd(ini_t *ini, tmd_cmd_t *tmd, int from_intr)
 {
     struct scst_cmd *scst_cmd;
+    scst_data_direction dir;
 
     scst_cmd = scst_rx_cmd(ini->ini_scst_sess, tmd->cd_lun, sizeof(tmd->cd_lun), tmd->cd_cdb, sizeof(tmd->cd_cdb), from_intr);
     if (!scst_cmd)
@@ -396,9 +410,16 @@ scsi_target_rx_cmd(ini_t *ini, tmd_cmd_t *tmd, int from_intr)
             scst_cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
             break;
     }
-    // FIXME: expected length end direction
-
-    scst_cmd_init_done(scst_cmd, SCST_CONTEXT_TASKLET);
+    
+    dir = SCST_DATA_UNKNOWN; // bidirectional or no transfer
+    if ((tmd->cd_lflags & CDFL_DATA_OUT) && !(tmd->cd_lflags & CDFL_DATA_IN)) {
+        dir = SCST_DATA_WRITE;
+    } else if (tmd->cd_lflags & CDFL_DATA_IN) {
+        dir = SCST_DATA_READ;
+    }
+    scst_cmd_set_expected(scst_cmd, dir, tmd->cd_totlen);
+    
+    scst_cmd_init_done(scst_cmd, SCST_CONTEXT_TASKLET); 
     return (0);
 }
 
@@ -423,7 +444,7 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
     bp = bus_from_tmd(tmd);
     if (bp == NULL) {
         spin_unlock_irqrestore(&scsi_target_lock, flags);
-        printk(KERN_WARNING "cannot find bus for incoming command\n");
+        Eprintk("cannot find bus for incoming command\n");
         return;
     }
     tmd->cd_bus = bp;
@@ -451,7 +472,7 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
         }
 
         spin_unlock_irqrestore(&scsi_target_lock, flags);
-        nptr = alloc_ini(bp);
+        nptr = alloc_ini(bp, tmd->cd_iid);
         spin_lock_irqsave(&scsi_target_lock, flags);
 
         /*
@@ -494,21 +515,14 @@ err:
 static void 
 scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
 {
-//  bus_t *bp;
     struct scst_cmd *scst_cmd;
     
     SDprintk2("scsi_target: TMD_DONE[%llx] %p hf %x lf %x xfrlen %d resid %d\n",
               tmd->cd_tagval, tmd, tmd->cd_hflags, tmd->cd_lflags, tmd->cd_xfrlen, tmd->cd_resid);
-/* 
-    bp = bus_from_tmd(tmd);
-    if (bp == NULL) {
-        printk(KERN_WARNING "%s: TMD_DONE cannot find bus again\n", __FUNCTION__);
-        return;
-    }
-*/   
+    
     scst_cmd = tmd->cd_scst_cmd; 
     if (!scst_cmd) {
-        printk(KERN_WARNING "%s TMD_DONE cannot find scst command\n", __FUNCTION__);
+        Eprintk("TMD_DONE cannot find scst command\n");
         return;
     }
  
@@ -524,7 +538,11 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
     if (tmd->cd_hflags & CDFH_DATA_OUT) {
         if (tmd->cd_resid == 0) {
             if (tmd->cd_xfrlen) {
-                // FIXME: error handle
+                int rx_status = SCST_RX_STATUS_SUCCESS;
+
+                if (tmd->cd_lflags & CDFL_ERROR) {
+                    rx_status = SCST_RX_STATUS_ERROR;
+                }
                 scst_rx_data(scst_cmd, SCST_RX_STATUS_SUCCESS, SCST_CONTEXT_TASKLET);
             } else {
                 scst_tgt_cmd_done(scst_cmd);
@@ -557,19 +575,19 @@ scsi_target_handler(qact_e action, void *arg)
         }
         if (bp == &busses[MAX_BUS]) {
             spin_unlock_irqrestore(&scsi_target_lock, flags);
-            printk("scsi_target: cannot register any more SCSI busses\n");
+            Eprintk("cannot register any more SCSI busses\n");
             break;
         }
         hp = arg;
         if (hp->r_version != QR_VERSION) {
             spin_unlock_irqrestore(&scsi_target_lock, flags);
-            printk("scsi_target: version mismatch - compiled with %d, got %d\n", QR_VERSION, hp->r_version);
+            Eprintk("version mismatch - compiled with %d, got %d\n", QR_VERSION, hp->r_version);
             break;
         }
         bp->h = *hp;
         spin_unlock_irqrestore(&scsi_target_lock, flags);
         schedule_register_scst();
-        printk("scsi_target: registering %s%d\n", hp->r_name, hp->r_inst);
+        Iprintk("registering %s%d\n", hp->r_name, hp->r_inst);
         (hp->r_action)(QIN_HBA_REG, arg);
         break;
     }
@@ -612,14 +630,14 @@ scsi_target_handler(qact_e action, void *arg)
         bp = bus_from_notify(arg);
         if (bp == NULL) {
             spin_unlock_irqrestore(&scsi_target_lock, flags);
-            printk(KERN_WARNING "%s: TMD_NOTIFY cannot find bus\n", __FUNCTION__);
+            Eprintk("TMD_NOTIFY cannot find bus\n");
             break;
         }
         
         ini = ini_from_notify(bp, np);
         if (ini == NULL) {
             spin_unlock_irqrestore(&scsi_target_lock, flags);
-            printk(KERN_WARNING "%s: TMD_NOTIFY cannot find initiator\n", __FUNCTION__);
+            Eprintk("TMD_NOTIFY cannot find initiator\n");
             (*bp->h.r_action) (QIN_NOTIFY_ACK, arg);
             break;
         }
@@ -651,18 +669,18 @@ scsi_target_handler(qact_e action, void *arg)
         }
         if (bp == &busses[MAX_BUS]) {
             spin_unlock_irqrestore(&scsi_target_lock, flags);
-            printk(KERN_WARNING "%s: HBA_UNREG cannot find busp)\n", __FUNCTION__);
+            Eprintk("HBA_UNREG cannot find bus\n");
             break;
         }
         memset(&bp->h, 0, sizeof (hba_register_t));
         spin_unlock_irqrestore(&scsi_target_lock, flags);
         schedule_unregister_scst();
-        printk("scsi_target: unregistering %s%d\n", hp->r_name, hp->r_inst);
+        Iprintk("unregistering %s%d\n", hp->r_name, hp->r_inst);
         (hp->r_action)(QIN_HBA_UNREG, arg);
         break;
     }
     default:
-        printk("scsi_target: action code %d (0x%x)?\n", action, action);
+        Eprintk("action code %d (0x%x)?\n", action, action);
         break;
     }
 }
@@ -785,12 +803,6 @@ isp_rdy_to_xfer(struct scst_cmd *scst_cmd)
     
     tmd = (tmd_cmd_t *) scst_cmd_get_tgt_priv(scst_cmd);
     
-    // FIXME: this function is called for reading ?
-    if (scst_cmd_get_data_direction(scst_cmd) == SCST_DATA_READ) {
-        tmd->cd_hflags |= CDFH_DATA_IN;
-        SDprintk("%s: read nbytes %u\n", __FUNCTION__, scst_cmd_get_bufflen(scst_cmd));
-    }
-    
     if (scst_cmd_get_data_direction(scst_cmd) == SCST_DATA_WRITE) {
         tmd->cd_hflags |= CDFH_DATA_OUT; 
         tmd->cd_data = scst_cmd_get_sg(scst_cmd);
@@ -804,6 +816,29 @@ isp_rdy_to_xfer(struct scst_cmd *scst_cmd)
     return (0);
 }
 
+static void 
+fill_sense(tmd_cmd_t *tmd, const uint8_t *sbuf, uint8_t slen)
+{
+    if (slen > TMD_SENSELEN) {
+        // FIXME: maybe increase TMD_SENSELEN ?
+        // Eprintk("sense data too big (totlen %u len %u)\n", TMD_SENSELEN, slen);
+        slen = TMD_SENSELEN;
+    }
+    
+    memcpy(tmd->cd_sense, sbuf, slen);
+    tmd->cd_hflags |= CDFH_SNSVALID;
+    tmd->cd_xfrlen = 0;
+    tmd->cd_hflags &= ~CDFH_DATA_MASK;
+
+    if (scsi_tdebug) {
+        uint8_t key, asc, ascq;
+        key = (slen >= 2) ? sbuf[2] : 0;
+        asc = (slen >= 12) ? sbuf[12] : 0;
+        ascq = (slen >= 13) ? sbuf[13] : 0;
+        SDprintk("%s: key 0x%02x asc 0x%02x ascq 0x%02x\n", __FUNCTION__, key, asc, ascq);
+    }
+}
+
 static int
 isp_xmit_response(struct scst_cmd *scst_cmd)
 {   
@@ -812,12 +847,26 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
     
     tmd = (tmd_cmd_t *) scst_cmd_get_tgt_priv(scst_cmd);
 
-    //FIXME: maximum length
-    //unsigned int len = min(scst_cmd_get_resp_data_len(scst_cmd), tmd->cd_totlen);
     if (scst_cmd_get_data_direction(scst_cmd) == SCST_DATA_READ) {
-        tmd->cd_hflags |= CDFH_DATA_IN;
-        tmd->cd_xfrlen = scst_cmd_get_resp_data_len(scst_cmd);
-        tmd->cd_data = scst_cmd_get_sg(scst_cmd);
+        unsigned int len = scst_cmd_get_resp_data_len(scst_cmd);
+        if (len > tmd->cd_totlen) { 
+            /* this shouldn't happen */
+            const uint8_t ifailure[TMD_SENSELEN] = { 0xf0, 0, 0x4, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0x44 };
+            
+            Eprintk("data size too big (totlen %u len %u)\n", tmd->cd_totlen, len);
+            WARN_ON(1);
+            
+            fill_sense(tmd, ifailure, TMD_SENSELEN);
+            
+            tmd->cd_hflags |= CDFH_STSVALID;
+            tmd->cd_scsi_status = SCSI_CHECK; 
+            goto out;
+        
+        } else {
+            tmd->cd_hflags |= CDFH_DATA_IN;
+            tmd->cd_xfrlen = len;
+            tmd->cd_data = scst_cmd_get_sg(scst_cmd);
+        }
     } else { 
         /* finished write to target or command with no data */
         tmd->cd_xfrlen = 0;
@@ -829,20 +878,15 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
         tmd->cd_scsi_status = scst_cmd_get_status(scst_cmd);
         
         if (tmd->cd_scsi_status == SCSI_CHECK) {
-            unsigned int slen =  scst_cmd_get_sense_buffer_len(scst_cmd);
-            if (slen > TMD_SENSELEN) {
-                // FIMXE: info to user
-                slen = TMD_SENSELEN;
-            }
-            memcpy(tmd->cd_sense, scst_cmd_get_sense_buffer(scst_cmd), slen);
-            tmd->cd_hflags |= CDFH_SNSVALID;
-            tmd->cd_xfrlen = 0;
-            tmd->cd_hflags &= ~CDFH_DATA_MASK;
-        }
+            uint8_t *sbuf = scst_cmd_get_sense_buffer(scst_cmd);
+            unsigned int slen = scst_cmd_get_sense_buffer_len(scst_cmd);
             
+            fill_sense(tmd, sbuf, slen);  
+        }
         SDprintk2("%s: status %d\n", __FUNCTION__, scst_cmd_get_status(scst_cmd));
     }
-       
+
+out:    
     bp = bus_from_tmd(tmd);
     (*bp->h.r_action)(QIN_TMD_CONT, tmd);
     return (0);
@@ -963,7 +1007,7 @@ register_scst(void)
             bp->scst_tgt->tgt_priv = bp;
             ntgts++;
         } else {
-            printk(KERN_ERR "cannot register scst device %s\n", name); 
+            Eprintk("cannot register scst device %s\n", name); 
         }
     }
 
@@ -1033,7 +1077,7 @@ int init_module(void)
 
     ret = scst_register_target_template(&isp_tgt_template);
     if (ret < 0) {
-        printk(KERN_ERR "cannot register scst target template\n");
+        Eprintk("cannot register scst target template\n");
         stop_scsi_target_thread();
     }
     return (ret);
