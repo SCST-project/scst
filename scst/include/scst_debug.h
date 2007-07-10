@@ -67,7 +67,7 @@
 #endif
 
 #ifndef WARN_ON_ONCE
-#define WARN_ON_ONCE(condition)	({				\
+#define WARN_ON_ONCE(condition) ({				\
 	static int __warned;					\
 	typeof(condition) __ret_warn_once = (condition);	\
 								\

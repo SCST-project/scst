@@ -3307,7 +3307,7 @@ static int scst_abort_task_set(struct scst_mgmt_cmd *mcmd)
 	struct scst_tgt_dev *tgt_dev = mcmd->mcmd_tgt_dev;
 	struct scst_device *dev = tgt_dev->dev;
 
-	TRACE(TRACE_MGMT, "Aborting task set (lun=%d, mcmd=%p)",
+	TRACE(TRACE_MGMT, "Aborting task set (lun=%Ld, mcmd=%p)",
 		tgt_dev->lun, mcmd);
 
 	spin_lock_bh(&dev->dev_lock);
@@ -3493,7 +3493,7 @@ static int scst_lun_reset(struct scst_mgmt_cmd *mcmd)
 
 	TRACE_ENTRY();
 
-	TRACE(TRACE_MGMT, "Resetting lun %d (mcmd %p)", tgt_dev->lun, mcmd);
+	TRACE(TRACE_MGMT, "Resetting lun %Ld (mcmd %p)", tgt_dev->lun, mcmd);
 
 	spin_lock_bh(&dev->dev_lock);
 	__scst_block_dev(dev);

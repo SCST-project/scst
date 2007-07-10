@@ -1874,7 +1874,7 @@ int scst_cdrom_generic_parse(struct scst_cmd *cmd,
 	 * based on info_cdb, therefore change them only if necessary
 	 */
 
-	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d lun %d(%d)",
+	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d lun %Ld(%d)",
 	      info_cdb->op_name,
 	      info_cdb->direction,
 	      info_cdb->flags,
@@ -1935,7 +1935,7 @@ int scst_modisk_generic_parse(struct scst_cmd *cmd,
 	 * based on info_cdb, therefore change them only if necessary
 	 */
 
-	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d lun %d(%d)",
+	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d lun %Ld(%d)",
 	      info_cdb->op_name,
 	      info_cdb->direction,
 	      info_cdb->flags,
@@ -2208,7 +2208,7 @@ void scst_process_reset(struct scst_device *dev,
 				    dev_tgt_dev_list_entry) 
 		{
 			TRACE(TRACE_MGMT, "Clearing RESERVE'ation for tgt_dev "
-				"lun %d", tgt_dev->lun);
+				"lun %Ld", tgt_dev->lun);
 			clear_bit(SCST_TGT_DEV_RESERVED,
 				  &tgt_dev->tgt_dev_flags);
 		}
@@ -2416,7 +2416,7 @@ void scst_free_all_UA(struct scst_tgt_dev *tgt_dev)
 	TRACE_ENTRY();
 
 	list_for_each_entry_safe(UA_entry, t, &tgt_dev->UA_list, UA_list_entry) {
-		TRACE_MGMT_DBG("Clearing UA for tgt_dev lun %d", 
+		TRACE_MGMT_DBG("Clearing UA for tgt_dev lun %Ld", 
 			tgt_dev->lun);
 		list_del(&UA_entry->UA_list_entry);
 		kfree(UA_entry);

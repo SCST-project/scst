@@ -361,7 +361,7 @@ struct scst_acg;
 struct scst_acg_dev;
 struct scst_acn;
 
-typedef uint32_t lun_t;
+typedef uint64_t lun_t;
 
 typedef enum dma_data_direction scst_data_direction;
 
@@ -1036,6 +1036,9 @@ struct scst_cmd
 
 	struct scst_tgt_dev *tgt_dev;	/* corresponding device for this cmd */
 
+	/* The corresponding mgmt cmd, if any, protected by sess_list_lock */
+	struct scst_mgmt_cmd *mgmt_cmnd;
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
 	struct scsi_request *scsi_req;	/* SCSI request */
 #endif
@@ -1113,6 +1116,9 @@ struct scst_cmd
 	/* Used for storage of target driver private stuff */
 	void *tgt_priv;
 
+	/* Used for storage of dev handler private stuff */
+	void *dh_priv;
+
 	/* 
 	 * Used to restore the SG vector if it was modified by
 	 * scst_set_resp_data_len()
@@ -1121,14 +1127,8 @@ struct scst_cmd
 
 	uint8_t sense_buffer[SCST_SENSE_BUFFERSIZE];	/* sense buffer */
 
-	/* The corresponding mgmt cmd, if any, protected by sess_list_lock */
-	struct scst_mgmt_cmd *mgmt_cmnd;
-
 	/* List entry for dev's blocked_cmd_list */
 	struct list_head blocked_cmd_list_entry;
-
-	/* Used for storage of dev handler private stuff */
-	void *dh_priv;
 
 	struct scst_cmd *orig_cmd; /* Used to issue REQUEST SENSE */
 };

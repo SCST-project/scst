@@ -1826,7 +1826,7 @@ static int scst_groups_devices_show(struct seq_file *seq, void *v)
 					acg_dev->lun,
 					acg_dev->rd_only_flag ? "RO" : "");
 		} else {
-			seq_printf(seq, "%-60s%4d%12s\n",
+			seq_printf(seq, "%-60s%4Ld%12s\n",
 				       acg_dev->dev->virt_name, acg_dev->lun,
 				       acg_dev->rd_only_flag ? "RO" : "");
 		}
