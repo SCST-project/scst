@@ -115,7 +115,7 @@
 #define MAX_BUS             8
 #define MAX_LUN             64
 
-/* FIXME: comment me */
+/* usefull pointers when data is processed */
 #define cd_scst_cmd      cd_hreserved[0].ptrs[0]
 #define cd_bus           cd_hreserved[1].ptrs[0]
 
