@@ -181,9 +181,10 @@ void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context)
 	}
 #endif
 
+	atomic_inc(&sess->sess_cmd_count);
+
 	spin_lock_irqsave(&sess->sess_list_lock, flags);
 
-	sess->sess_cmd_count++;
 	list_add_tail(&cmd->search_cmd_list_entry, &sess->search_cmd_list);
 
 	if (unlikely(sess->init_phase != SCST_SESS_IPH_READY)) {
@@ -2312,6 +2313,17 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 		goto out;
 	}
 
+	/*
+	 * If we don't remove cmd from the search list here, before
+	 * submitting it for transmittion, we will have a race, when for
+	 * some reason cmd's release is delayed after transmittion and
+	 * initiator sends cmd with the same tag => it is possible that
+	 * a wrong cmd will be found by find() functions.
+	 */
+	spin_lock_irq(&cmd->sess->sess_list_lock);
+	list_del(&cmd->search_cmd_list_entry);
+	spin_unlock_irq(&cmd->sess->sess_list_lock);
+
 	set_bit(SCST_CMD_XMITTING, &cmd->cmd_flags);
 	smp_mb__after_set_bit();
 
@@ -2449,10 +2461,7 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 		spin_unlock_bh(&scst_cmd_mem_lock);
 	}
 
-	spin_lock_irq(&cmd->sess->sess_list_lock);
-	cmd->sess->sess_cmd_count--;
-	list_del(&cmd->search_cmd_list_entry);
-	spin_unlock_irq(&cmd->sess->sess_list_lock);
+	atomic_dec(&cmd->sess->sess_cmd_count);
 
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
 		TRACE_MGMT_DBG("Aborted cmd %p finished (cmd_ref %d, "
@@ -3143,44 +3152,32 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 	}
 
 	if (mcmd) {
-		int defer;
-		if (cmd->tgtt->tm_sync_reply)
-			defer = 1;
-		else {
-			if (scst_is_strict_mgmt_fn(mcmd->fn))
-				defer = test_bit(SCST_CMD_EXECUTING,
-					&cmd->cmd_flags);
-			else
-				defer = test_bit(SCST_CMD_XMITTING,
-					&cmd->cmd_flags);
-		}
-
-		if (defer) {
-			unsigned long flags;
-			/*
-			 * Delay the response until the command's finish in
-			 * order to guarantee that "no further responses from
-			 * the task are sent to the SCSI initiator port" after
-			 * response from the TM function is sent (SAM)
-			 */
-			TRACE(TRACE_MGMT, "cmd %p (tag %d) being executed/"
-				"xmitted (state %d), deferring ABORT...", cmd,
-				cmd->tag, cmd->state);
+		unsigned long flags;
+		/*
+		 * Delay the response until the command's finish in
+		 * order to guarantee that "no further responses from
+		 * the task are sent to the SCSI initiator port" after
+		 * response from the TM function is sent (SAM). Plus,
+		 * we must wait here to be sure that we won't receive
+		 * double commands with the same tag.
+		 */
+		TRACE(TRACE_MGMT, "cmd %p (tag %d) being executed/"
+			"xmitted (state %d), deferring ABORT...", cmd,
+			cmd->tag, cmd->state);
 #ifdef EXTRACHECKS
-			if (cmd->mgmt_cmnd) {
-				printk(KERN_ALERT "cmd %p (tag %d, state %d) "
-					"has non-NULL mgmt_cmnd %p!!! Current "
-					"mcmd %p\n", cmd, cmd->tag, cmd->state,
-					cmd->mgmt_cmnd, mcmd);
-			}
-#endif
-			sBUG_ON(cmd->mgmt_cmnd);
-			spin_lock_irqsave(&scst_mcmd_lock, flags);
-			mcmd->cmd_wait_count++;
-			spin_unlock_irqrestore(&scst_mcmd_lock, flags);
-			/* cmd can't die here or sess_list_lock already taken */
-			cmd->mgmt_cmnd = mcmd;
+		if (cmd->mgmt_cmnd) {
+			printk(KERN_ALERT "cmd %p (tag %d, state %d) "
+				"has non-NULL mgmt_cmnd %p!!! Current "
+				"mcmd %p\n", cmd, cmd->tag, cmd->state,
+				cmd->mgmt_cmnd, mcmd);
 		}
+#endif
+		sBUG_ON(cmd->mgmt_cmnd);
+		spin_lock_irqsave(&scst_mcmd_lock, flags);
+		mcmd->cmd_wait_count++;
+		spin_unlock_irqrestore(&scst_mcmd_lock, flags);
+		/* cmd can't die here or sess_list_lock already taken */
+		cmd->mgmt_cmnd = mcmd;
 	}
 
 	tm_dbg_release_cmd(cmd);
@@ -3407,7 +3404,7 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 	TRACE_ENTRY();
 
 	TRACE(TRACE_MGMT, "Target reset (mcmd %p, cmd count %d)",
-		mcmd, mcmd->sess->sess_cmd_count);
+		mcmd, atomic_read(&mcmd->sess->sess_cmd_count));
 
 	down(&scst_mutex);
 
@@ -3927,7 +3924,7 @@ static int scst_post_rx_mgmt_cmd(struct scst_session *sess,
 	local_irq_save(flags);
 
 	spin_lock(&sess->sess_list_lock);
-	sess->sess_cmd_count++;
+	atomic_inc(&sess->sess_cmd_count);
 
 #ifdef EXTRACHECKS
 	if (unlikely(sess->shutting_down)) {
@@ -4172,7 +4169,7 @@ restart:
 				cmd_list_entry) {
 		TRACE_DBG("Deleting cmd %p from init deferred cmd list", cmd);
 		list_del(&cmd->cmd_list_entry);
-		sess->sess_cmd_count--;
+		atomic_dec(&sess->sess_cmd_count);
 		list_del(&cmd->search_cmd_list_entry);
 		spin_unlock_irq(&sess->sess_list_lock);
 		scst_cmd_init_done(cmd, SCST_CONTEXT_THREAD);

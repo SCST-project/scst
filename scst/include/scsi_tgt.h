@@ -421,16 +421,6 @@ struct scst_tgt_template
 	unsigned no_proc_entry:1;
 
 	/*
-	 * True, if the target requires that *ALL* affecting by a task
-	 * management command outstanding SCSI commands finished before
-	 * sending the TM command reply. Otherwise, the TM reply will be
-	 * send immediately after it is insured, that the affecting SCSI
-	 * commands will reach xmit_response() with ABORTED flag set (see
-	 * also scst_cmd_aborted()).
-	 */
-	unsigned tm_sync_reply:1;
-
-	/*
 	 * This function is equivalent to the SCSI
 	 * queuecommand. The target should transmit the response
 	 * buffer and the status in the scst_cmd struct. 
@@ -853,8 +843,8 @@ struct scst_session
 	/* Used for storage of target driver private stuff */
 	void *tgt_priv;
 
-	/* Alive commands for this session, protected by sess_list_lock */
-	int sess_cmd_count;		
+	/* Alive commands for this session. ToDo: make it part of common IO flow control */
+	atomic_t sess_cmd_count;		
 
 	spinlock_t sess_list_lock; /* protects search_cmd_list, etc */
 

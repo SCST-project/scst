@@ -1703,7 +1703,7 @@ static int scst_sessions_info_show(struct seq_file *seq, void *v)
 					sess->tgt->tgtt->name,
 					sess->initiator_name,
 					acg->acg_name,
-					sess->sess_cmd_count);
+					atomic_read(&sess->sess_cmd_count));
 		}
 	}
 

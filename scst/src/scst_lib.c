@@ -86,7 +86,7 @@ void scst_set_cmd_error_sense(struct scst_cmd *cmd, uint8_t *sense,
 
 void scst_set_busy(struct scst_cmd *cmd)
 {
-	int c = cmd->sess->sess_cmd_count;
+	int c = atomic_read(&cmd->sess->sess_cmd_count);
 
 	TRACE_ENTRY();
 
@@ -1371,7 +1371,7 @@ void scst_free_mgmt_cmd(struct scst_mgmt_cmd *mcmd)
 	TRACE_ENTRY();
 
 	spin_lock_irqsave(&mcmd->sess->sess_list_lock, flags);
-	mcmd->sess->sess_cmd_count--;
+	atomic_dec(&mcmd->sess->sess_cmd_count);
 	spin_unlock_irqrestore(&mcmd->sess->sess_list_lock, flags);
 
 	scst_sess_put(mcmd->sess);
