@@ -657,7 +657,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
 		TRACE_MGMT_DBG("Flag ABORTED set for "
-		      "cmd %p (tag %d), skipping", cmd, cmd->tag);
+		      "cmd %p (tag %lld), skipping", cmd, cmd->tag);
 		goto done_uncompl;
 	}
 

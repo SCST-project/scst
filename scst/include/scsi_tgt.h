@@ -1049,7 +1049,7 @@ struct scst_cmd
 	 * Used to found the cmd by scst_find_cmd_by_tag(). Set by the
 	 * target driver on the cmd's initialization time
 	 */
-	uint32_t tag;
+	uint64_t tag;
 
 	/* CDB and its len */
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
@@ -1149,7 +1149,7 @@ struct scst_mgmt_cmd
 
 	lun_t lun;	/* LUN for this mgmt cmd */
 	/* or */
-	uint32_t tag;	/* tag of the corresponding cmd */
+	uint64_t tag;	/* tag of the corresponding cmd */
 
 	/* corresponding cmd (to be aborted, found by tag) */
 	struct scst_cmd *cmd_to_abort;
@@ -1623,7 +1623,7 @@ void scst_tgt_cmd_done(struct scst_cmd *cmd);
  * Must not been called in parallel with scst_unregister_session() for the 
  * same sess. Returns 0 for success, error code otherwise.
  */
-int scst_rx_mgmt_fn_tag(struct scst_session *sess, int fn, uint32_t tag,
+int scst_rx_mgmt_fn_tag(struct scst_session *sess, int fn, uint64_t tag,
 		       int atomic, void *tgt_priv);
 
 /* 
@@ -1667,7 +1667,7 @@ void scst_set_busy(struct scst_cmd *cmd);
  * that previously set by scst_cmd_set_tag(). 
  * Returns the command on success or NULL otherwise
  */
-struct scst_cmd *scst_find_cmd_by_tag(struct scst_session *sess, uint32_t tag);
+struct scst_cmd *scst_find_cmd_by_tag(struct scst_session *sess, uint64_t tag);
 
 /* 
  * Finds a command based on user supplied data and comparision
@@ -1879,12 +1879,12 @@ static inline int scst_cmd_get_sense_buffer_len(struct scst_cmd *cmd)
 /*
  * Get/Set functions for cmd's target SN
  */
-static inline uint32_t scst_cmd_get_tag(struct scst_cmd *cmd)
+static inline uint64_t scst_cmd_get_tag(struct scst_cmd *cmd)
 {
 	return cmd->tag;
 }
 
-static inline void scst_cmd_set_tag(struct scst_cmd *cmd, uint32_t tag)
+static inline void scst_cmd_set_tag(struct scst_cmd *cmd, uint64_t tag)
 {
 	cmd->tag = tag;
 }

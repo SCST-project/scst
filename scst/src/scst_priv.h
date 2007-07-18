@@ -345,7 +345,7 @@ void scst_scsi_op_list_init(void);
 lun_t scst_unpack_lun(const uint8_t *lun, int len);
 
 struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess, 
-	uint32_t tag);
+	uint64_t tag);
 
 struct scst_mgmt_cmd *scst_alloc_mgmt_cmd(int gfp_mask);
 void scst_free_mgmt_cmd(struct scst_mgmt_cmd *mcmd);
@@ -460,7 +460,7 @@ static inline int scst_dec_on_dev_cmd(struct scst_cmd *cmd, int defer)
 {
 	int cmd_blocking = cmd->blocking;
 	if (cmd_blocking) {
-		TRACE_MGMT_DBG("cmd %p (tag %d): unblocking dev %p", cmd,
+		TRACE_MGMT_DBG("cmd %p (tag %lld): unblocking dev %p", cmd,
 			cmd->tag, cmd->dev);
 		cmd->blocking = 0;
 	}
