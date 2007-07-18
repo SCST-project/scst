@@ -689,7 +689,7 @@ static int q2t_xmit_response(struct scst_cmd *scst_cmd)
 	uint16_t full_req_cnt;
 
 	TRACE_ENTRY();
-	TRACE(TRACE_SCSI, "tag=%d", scst_cmd_get_tag(scst_cmd));
+	TRACE(TRACE_SCSI, "tag=%Ld", scst_cmd_get_tag(scst_cmd));
 
 	prm.cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
 	sess = (struct q2t_sess *)
@@ -699,7 +699,7 @@ static int q2t_xmit_response(struct scst_cmd *scst_cmd)
 		scsi_qla_host_t *ha = sess->tgt->ha;
 
 		TRACE(TRACE_MGMT, "qla2x00tgt(%ld): terminating exchange "
-			"for aborted scst_cmd=%p (tag=%d)",
+			"for aborted scst_cmd=%p (tag=%Ld)",
 			ha->instance, scst_cmd, scst_cmd_get_tag(scst_cmd));
 
 		prm.cmd->state = Q2T_STATE_ABORTED;
@@ -835,7 +835,7 @@ static int q2t_rdy_to_xfer(struct scst_cmd *scst_cmd)
 	struct q2t_prm prm = { 0 };
 
 	TRACE_ENTRY();
-	TRACE(TRACE_SCSI, "tag=%d", scst_cmd_get_tag(scst_cmd));
+	TRACE(TRACE_SCSI, "tag=%Ld", scst_cmd_get_tag(scst_cmd));
 
 	prm.cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
 	sess = (struct q2t_sess *)
@@ -969,7 +969,7 @@ static void q2t_on_free_cmd(struct scst_cmd *scst_cmd)
 	struct q2t_cmd *cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
 
 	TRACE_ENTRY();
-	TRACE(TRACE_SCSI, "END Command tag %d", scst_cmd_get_tag(scst_cmd));
+	TRACE(TRACE_SCSI, "END Command tag %Ld", scst_cmd_get_tag(scst_cmd));
 
 	scst_cmd_set_tgt_priv(scst_cmd, NULL);
 
@@ -1258,7 +1258,7 @@ static int q2t_do_send_cmd_to_scst(scsi_qla_host_t *ha, struct q2t_cmd *cmd)
 #endif
 
 	TRACE_DBG("Context %x", context);
-	TRACE(TRACE_SCSI, "START Command (tag %d)", scst_cmd_get_tag(cmd->scst_cmd));
+	TRACE(TRACE_SCSI, "START Command (tag %Ld)", scst_cmd_get_tag(cmd->scst_cmd));
 	scst_cmd_init_done(cmd->scst_cmd, context);
 
 out:
