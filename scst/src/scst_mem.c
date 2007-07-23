@@ -41,6 +41,19 @@
  * of the existing SLAB code.
  */
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22))
+#error 2.6.22+ kernels are not supported yet, because some oversmart nerd \
+has deleted support for destructors from SLABs in those kernels and was \
+unresponsible enough to made that without even set it in the deprecated \
+status for some time to allow depending on it projects fix it without \
+disturbing their users. Blame him for that! So, now to be usable on \
+2.6.22+ kernels SCST requires a complete rewrite of one of its major low \
+level parts: all kmem_cache_*() functions in this file should be replaced \
+with new ones with similar functionality. I'm not sure I will have time for \
+that in the near future, therefore you are welcome to implement that. \
+Don't hesitate to ask me how to do it most effectively. VLNB.
+#endif
+
 /* Chosen to have one page per slab for all orders */
 #ifdef CONFIG_DEBUG_SLAB
 #define SGV_MAX_LOCAL_SLAB_ORDER	4
@@ -505,9 +518,11 @@ static void sgv_ctor(void *data, struct kmem_cache *c, unsigned long flags)
 {
 	struct sgv_pool_obj *obj = data;
 
+#ifdef SLAB_CTOR_VERIFY
 	if ((flags & (SLAB_CTOR_VERIFY|SLAB_CTOR_CONSTRUCTOR)) !=
 	     SLAB_CTOR_CONSTRUCTOR)
 		return;
+#endif
 
 	TRACE_MEM("Constructor for sgv_obj %p", obj);
 	memset(obj, 0, sizeof(*obj));

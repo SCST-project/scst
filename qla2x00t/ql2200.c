@@ -73,7 +73,7 @@ static struct pci_driver qla2200_pci_driver = {
 static int __init
 qla2200_init(void)
 {
-	return pci_module_init(&qla2200_pci_driver);
+	return pci_register_driver(&qla2200_pci_driver);
 }
 
 static void __exit

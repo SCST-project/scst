@@ -1557,7 +1557,7 @@ int qla2x00_probe_one(struct pci_dev *pdev, struct qla_board_info *brd_info)
 	host->transportt = qla2xxx_transport_template;
 
 	ret = request_irq(pdev->irq, ha->isp_ops.intr_handler,
-	    SA_INTERRUPT|SA_SHIRQ, ha->brd_info->drv_name, ha);
+	    IRQF_DISABLED|IRQF_SHARED, ha->brd_info->drv_name, ha);
 	if (ret) {
 		qla_printk(KERN_WARNING, ha,
 		    "Failed to reserve interrupt %d already in use.\n",
@@ -2744,7 +2744,7 @@ static struct pci_driver qla2xxx_pci_driver = {
 static inline int
 qla2x00_pci_module_init(void)
 {
-	return pci_module_init(&qla2xxx_pci_driver);
+	return pci_register_driver(&qla2xxx_pci_driver);
 }
 
 static inline void

@@ -167,7 +167,7 @@ static DECLARE_MUTEX(scst_proc_mutex);
 
 #include <linux/ctype.h>
 
-#if !defined(CONFIG_PPC)
+#if !defined(CONFIG_PPC) && (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22))
 
 #if defined(DEBUG) || defined(TRACING)
 static int strcasecmp(const char *s1, const char *s2)
@@ -191,7 +191,7 @@ static int strncasecmp(const char *s1, const char *s2, int n)
 	return c1 - c2;
 }
 
-#endif /* CONFIG_PPC */
+#endif /* !CONFIG_PPC && (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22)) */
 
 #if defined(DEBUG) || defined(TRACING)
 

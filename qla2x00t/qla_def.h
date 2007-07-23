@@ -98,6 +98,13 @@
 #define LSD(x)	((uint32_t)((uint64_t)(x)))
 #define MSD(x)	((uint32_t)((((uint64_t)(x)) >> 16) >> 16))
 
+#ifndef IRQF_DISABLED
+#define IRQF_DISABLED		SA_INTERRUPT
+#endif
+
+#ifndef IRQF_SHARED
+#define IRQF_SHARED		SA_SHIRQ
+#endif
 
 /*
  * I/O register
