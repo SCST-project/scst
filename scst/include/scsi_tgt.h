@@ -522,6 +522,22 @@ struct scst_tgt_template
 	void (*preprocessing_done) (struct scst_cmd *cmd);
 
 	/*
+	 * This function informs the driver that the said command is about
+	 * to be executed.
+	 *
+	 * Returns one of the SCST_PREPROCESS_* constants.
+	 *
+	 * This command is expected to be NON-BLOCKING.
+	 *
+	 * Pay attention to "atomic" attribute of the cmd, which can be get
+	 * by scst_cmd_atomic(): it is true if the function called in the
+	 * atomic (non-sleeping) context.
+	 *
+	 * OPTIONAL
+	 */
+	int (*pre_exec) (struct scst_cmd *cmd);
+
+	/*
 	 * This function informs the driver that a
 	 * received task management function has been completed. This
 	 * function is necessary because low-level protocols have some

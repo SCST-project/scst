@@ -65,7 +65,7 @@ static int sgv_max_local_order, sgv_max_trans_order;
 
 atomic_t sgv_other_total_alloc;
 
-DECLARE_MUTEX(scst_sgv_pool_mutex);
+DEFINE_MUTEX(scst_sgv_pool_mutex);
 LIST_HEAD(scst_sgv_pool_list);
 
 static int scst_check_clustering(struct scatterlist *sg, int cur, int hint)
@@ -643,9 +643,9 @@ int sgv_pool_init(struct sgv_pool *pool, const char *name, int clustered)
 		}
 	}
 
-	down(&scst_sgv_pool_mutex);
+	mutex_lock(&scst_sgv_pool_mutex);
 	list_add_tail(&pool->sgv_pool_list_entry, &scst_sgv_pool_list);
-	up(&scst_sgv_pool_mutex);
+	mutex_unlock(&scst_sgv_pool_mutex);
 
 	res = 0;
 
@@ -676,9 +676,9 @@ void sgv_pool_deinit(struct sgv_pool *pool)
 		pool->caches[i] = NULL;
 	}
 
-	down(&scst_sgv_pool_mutex);
+	mutex_lock(&scst_sgv_pool_mutex);
 	list_del(&pool->sgv_pool_list_entry);
-	up(&scst_sgv_pool_mutex);
+	mutex_unlock(&scst_sgv_pool_mutex);
 
 	TRACE_EXIT();
 }

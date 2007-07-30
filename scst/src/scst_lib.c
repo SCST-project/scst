@@ -1085,7 +1085,7 @@ void scst_free_session(struct scst_session *sess)
 	TRACE_ENTRY();
 
 	scst_suspend_activity();
-	down(&scst_mutex);
+	mutex_lock(&scst_mutex);
 
 	TRACE_DBG("Removing sess %p from the list", sess);
 	list_del(&sess->sess_list_entry);
@@ -1096,7 +1096,7 @@ void scst_free_session(struct scst_session *sess)
 
 	wake_up_all(&sess->tgt->unreg_waitQ);
 
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
 
 	kfree(sess->initiator_name);
@@ -2599,14 +2599,14 @@ void scst_dev_del_all_thr_data(struct scst_device *dev)
 	 * suspending the activity isn't necessary.
 	 */
 
-	down(&scst_mutex);
+	mutex_lock(&scst_mutex);
 
 	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 				dev_tgt_dev_list_entry) {
 		scst_del_all_thr_data(tgt_dev);
 	}
 
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 
 	TRACE_EXIT();
 	return;

@@ -163,7 +163,7 @@ static char *scst_proc_dev_handler_type[] =
     "Optical card reader/writer device"
 };
 
-static DECLARE_MUTEX(scst_proc_mutex);
+static DEFINE_MUTEX(scst_proc_mutex);
 
 #include <linux/ctype.h>
 
@@ -195,7 +195,7 @@ static int strncasecmp(const char *s1, const char *s2, int n)
 
 #if defined(DEBUG) || defined(TRACING)
 
-static DECLARE_MUTEX(scst_log_mutex);
+static DEFINE_MUTEX(scst_log_mutex);
 
 int scst_proc_log_entry_write(struct file *file, const char *buf,
 	unsigned long length, unsigned long *log_level,
@@ -358,7 +358,7 @@ static ssize_t scst_proc_scsi_tgt_gen_write_log(struct file *file, const char __
 
 	TRACE_ENTRY();
 
-	if (down_interruptible(&scst_log_mutex) != 0) {
+	if (mutex_lock_interruptible(&scst_log_mutex) != 0) {
 		res = -EINTR;
 		goto out;
 	}
@@ -366,7 +366,7 @@ static ssize_t scst_proc_scsi_tgt_gen_write_log(struct file *file, const char __
 	res = scst_proc_log_entry_write(file, buf, length,
 		&trace_flag, SCST_DEFAULT_LOG_FLAGS, scst_proc_local_trace_tbl);
 
-	up(&scst_log_mutex);
+	mutex_unlock(&scst_log_mutex);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -769,12 +769,12 @@ static ssize_t scst_proc_threads_write(struct file *file, const char __user *buf
 		goto out_free;
 	}
 
-	if (down_interruptible(&scst_proc_mutex) != 0) {
+	if (mutex_lock_interruptible(&scst_proc_mutex) != 0) {
 		res = -EINTR;
 		goto out_free;
 	}
 
-	down(&scst_threads_info.cmd_threads_mutex);
+	mutex_lock(&scst_threads_info.cmd_threads_mutex);
 
 	oldtn = scst_threads_info.nr_cmd_threads;
 	newtn = simple_strtoul(buffer, NULL, 0);
@@ -792,9 +792,9 @@ static ssize_t scst_proc_threads_write(struct file *file, const char __user *buf
 	PRINT_INFO_PR("Changed cmd threads num: old %d, new %d", oldtn, newtn);
 
 out_up_thr_free:
-	up(&scst_threads_info.cmd_threads_mutex);
+	mutex_unlock(&scst_threads_info.cmd_threads_mutex);
 
-	up(&scst_proc_mutex);
+	mutex_unlock(&scst_proc_mutex);
 
 out_free:
 	free_page((unsigned long)buffer);
@@ -925,14 +925,14 @@ static ssize_t scst_proc_scsi_tgt_write(struct file *file, const char __user *bu
 
 	TRACE_BUFFER("Buffer", buffer, length);
 
-	if (down_interruptible(&scst_proc_mutex) != 0) {
+	if (mutex_lock_interruptible(&scst_proc_mutex) != 0) {
 		res = -EINTR;
 		goto out_free;
 	}
 
 	res = vtt->tgtt->write_proc(buffer, &start, 0, length, &eof, vtt);
 
-	up(&scst_proc_mutex);
+	mutex_unlock(&scst_proc_mutex);
 
 out_free:
 	free_page((unsigned long)buffer);
@@ -1066,14 +1066,14 @@ static ssize_t scst_proc_scsi_dev_handler_write(struct file *file, const char __
 
 	TRACE_BUFFER("Buffer", buffer, length);
 
-	if (down_interruptible(&scst_proc_mutex) != 0) {
+	if (mutex_lock_interruptible(&scst_proc_mutex) != 0) {
 		res = -EINTR;
 		goto out_free;
 	}
 
 	res = dev_type->write_proc(buffer, &start, 0, length, &eof, dev_type);
 
-	up(&scst_proc_mutex);
+	mutex_unlock(&scst_proc_mutex);
 
 out_free:
 	free_page((unsigned long)buffer);
@@ -1142,7 +1142,7 @@ static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file, const char __user
 
 	scst_suspend_activity();
 
-	if (down_interruptible(&scst_mutex) != 0) {
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
 		goto out_free_resume;
 	}
@@ -1192,7 +1192,7 @@ static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file, const char __user
 		res = rc;
 
 out_up_free:
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 
 out_free_resume:
 	scst_resume_activity();
@@ -1366,7 +1366,7 @@ static ssize_t scst_proc_groups_devices_write(struct file *file, const char __us
 
 	scst_suspend_activity();
 
-	if (down_interruptible(&scst_mutex) != 0) {
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
 		goto out_free_resume;
 	}
@@ -1486,7 +1486,7 @@ static ssize_t scst_proc_groups_devices_write(struct file *file, const char __us
 	}
 
 out_free_up:
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 
 out_free_resume:
 	scst_resume_activity();
@@ -1569,7 +1569,7 @@ static ssize_t scst_proc_groups_names_write(struct file *file, const char __user
 		break;
 	}
 
-	if (down_interruptible(&scst_mutex) != 0) {
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
 		goto out_free;
 	}
@@ -1591,7 +1591,7 @@ static ssize_t scst_proc_groups_names_write(struct file *file, const char __user
 		break;
 	}
 
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 
 out_free:
 	free_page((unsigned long)buffer);
@@ -1689,7 +1689,7 @@ static int scst_sessions_info_show(struct seq_file *seq, void *v)
 
 	TRACE_ENTRY();
 
-	if (down_interruptible(&scst_mutex) != 0) {
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
 		goto out;
 	}
@@ -1707,7 +1707,7 @@ static int scst_sessions_info_show(struct seq_file *seq, void *v)
 		}
 	}
 
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1747,11 +1747,11 @@ static int scst_sgv_info_show(struct seq_file *seq, void *v)
 
 	seq_printf(seq, "%-30s %-11s %-11s", "Name", "Hit", "Total");
 
-	down(&scst_sgv_pool_mutex);
+	mutex_lock(&scst_sgv_pool_mutex);
 	list_for_each_entry(pool, &scst_sgv_pool_list, sgv_pool_list_entry) {
 		scst_do_sgv_read(seq, pool);
 	}
-	up(&scst_sgv_pool_mutex);
+	mutex_unlock(&scst_sgv_pool_mutex);
 
 	seq_printf(seq, "\n%-42s %-11d\n", "other", atomic_read(&sgv_other_total_alloc));
 
@@ -1772,7 +1772,7 @@ static int scst_groups_names_show(struct seq_file *seq, void *v)
 
 	TRACE_ENTRY();
 
-	if (down_interruptible(&scst_mutex) != 0) {
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
 		goto out;
 	}
@@ -1781,7 +1781,7 @@ static int scst_groups_names_show(struct seq_file *seq, void *v)
 		seq_printf(seq, "%s\n", name->name);
 	}
 
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1801,7 +1801,7 @@ static int scst_groups_devices_show(struct seq_file *seq, void *v)
 
 	TRACE_ENTRY();
 
-	if (down_interruptible(&scst_mutex) != 0) {
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
 		goto out;
 	}
@@ -1831,7 +1831,7 @@ static int scst_groups_devices_show(struct seq_file *seq, void *v)
 				       acg_dev->rd_only_flag ? "RO" : "");
 		}
 	}
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1886,14 +1886,14 @@ static int log_info_show(struct seq_file *seq, void *v)
 
 	TRACE_ENTRY();
 
-	if (down_interruptible(&scst_log_mutex) != 0) {
+	if (mutex_lock_interruptible(&scst_log_mutex) != 0) {
 		res = -EINTR;
 		goto out;
 	}
 
 	res = scst_proc_log_entry_read(seq, trace_flag, scst_proc_local_trace_tbl);
 
-	up(&scst_log_mutex);
+	mutex_unlock(&scst_log_mutex);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1915,7 +1915,7 @@ static int scst_tgt_info_show(struct seq_file *seq, void *v)
 
 	TRACE_ENTRY();
 
-	if (down_interruptible(&scst_mutex) != 0) {
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
 		goto out;
 	}
@@ -1937,7 +1937,7 @@ static int scst_tgt_info_show(struct seq_file *seq, void *v)
 			seq_printf(seq, "%-60s%s\n", dev->virt_name, dev->handler->name);
 	}
 
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1971,7 +1971,7 @@ static int scst_scsi_tgtinfo_show(struct seq_file *seq, void *v)
 
 	TRACE_ENTRY();
 
-	if (down_interruptible(&scst_proc_mutex) != 0) {
+	if (mutex_lock_interruptible(&scst_proc_mutex) != 0) {
 		res = -EINTR;
 		goto out;
 	}
@@ -1979,7 +1979,7 @@ static int scst_scsi_tgtinfo_show(struct seq_file *seq, void *v)
 	if (vtt->tgtt->read_proc)
 		res = vtt->tgtt->read_proc(seq, vtt);
 
-	up(&scst_proc_mutex);
+	mutex_unlock(&scst_proc_mutex);
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -1997,7 +1997,7 @@ static int scst_dev_handler_info_show(struct seq_file *seq, void *v)
 
 	TRACE_ENTRY();
 
-	if (down_interruptible(&scst_proc_mutex) != 0) {
+	if (mutex_lock_interruptible(&scst_proc_mutex) != 0) {
 		res = -EINTR;
 		goto out;
 	}
@@ -2005,7 +2005,7 @@ static int scst_dev_handler_info_show(struct seq_file *seq, void *v)
 	if (dev_type->read_proc)
 		res = dev_type->read_proc(seq, dev_type);
 
-	up(&scst_proc_mutex);
+	mutex_unlock(&scst_proc_mutex);
 
 out:
 	TRACE_EXIT_RES(res);

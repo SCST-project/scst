@@ -220,9 +220,35 @@ do {                                                                \
   }                                                                 \
 } while(0)
 
+#define TRACE_DBG_SPECIAL(format, args...)	                    \
+do {                                                                \
+  if (trace_flag & (TRACE_DEBUG|TRACE_SPECIAL))                     \
+  {                                                                 \
+    char *__tflag = LOG_FLAG;                                       \
+    if (debug_print_prefix(trace_flag, __FUNCTION__, __LINE__) > 0) \
+    {                                                               \
+      __tflag = NO_FLAG;                                            \
+    }                                                               \
+    PRINT(NO_FLAG, "%s" format, __tflag, args);                     \
+  }                                                                 \
+} while(0)
+
 #define TRACE_MGMT_DBG(format, args...)		                    \
 do {                                                                \
   if (trace_flag & TRACE_MGMT_DEBUG)                                \
+  {                                                                 \
+    char *__tflag = LOG_FLAG;                                       \
+    if (debug_print_prefix(trace_flag, __FUNCTION__, __LINE__) > 0) \
+    {                                                               \
+      __tflag = NO_FLAG;                                            \
+    }                                                               \
+    PRINT(NO_FLAG, "%s" format, __tflag, args);                     \
+  }                                                                 \
+} while(0)
+
+#define TRACE_MGMT_DBG_SPECIAL(format, args...)                     \
+do {                                                                \
+  if (trace_flag & (TRACE_MGMT_DEBUG|TRACE_SPECIAL))                \
   {                                                                 \
     char *__tflag = LOG_FLAG;                                       \
     if (debug_print_prefix(trace_flag, __FUNCTION__, __LINE__) > 0) \
@@ -341,7 +367,9 @@ do {                                                              \
 
 #define TRACE_MEM(format, args...) {}
 #define TRACE_DBG(format, args...) {}
+#define TRACE_DBG_SPECIAL(format, args...) {}
 #define TRACE_MGMT_DBG(format, args...) {}
+#define TRACE_MGMT_DBG_SPECIAL(format, args...) {}
 #define TRACE_ENTRY() {}
 #define TRACE_EXIT() {}
 #define TRACE_EXIT_RES(res) {}

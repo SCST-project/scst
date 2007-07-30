@@ -1001,6 +1001,43 @@ void scst_rx_data(struct scst_cmd *cmd, int status, int pref_context)
 	return;
 }
 
+static int scst_tgt_pre_exec(struct scst_cmd *cmd, int *action)
+{
+	int res = 0, rc;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("Calling pre_exec(%p)", cmd);
+	rc = cmd->tgtt->pre_exec(cmd);
+	TRACE_DBG("pre_exec() returned %d", rc);
+
+	if (unlikely(rc != SCST_PREPROCESS_STATUS_SUCCESS)) {
+		switch(rc) {
+		case SCST_PREPROCESS_STATUS_ERROR_SENSE_SET:
+			cmd->state = SCST_CMD_STATE_DEV_DONE;
+			*action = SCST_CMD_STATE_RES_CONT_SAME;
+			res = -1;
+			break;
+		case SCST_PREPROCESS_STATUS_ERROR_FATAL:
+			set_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags);
+			/* go through */
+		case SCST_PREPROCESS_STATUS_ERROR:
+			scst_set_cmd_error(cmd,
+				   SCST_LOAD_SENSE(scst_sense_hardw_error));
+			cmd->state = SCST_CMD_STATE_DEV_DONE;
+			*action = SCST_CMD_STATE_RES_CONT_SAME;
+			res = -1;
+			break;
+		default:
+			sBUG();
+			break;
+		}
+	}
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 static void scst_inc_check_expected_sn(struct scst_cmd *cmd)
 {
 	struct scst_cmd *c;
@@ -1811,6 +1848,12 @@ static int scst_send_to_midlev(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	res = SCST_CMD_STATE_RES_CONT_NEXT;
+
+	if (cmd->tgtt->pre_exec != NULL) {
+		rc = scst_tgt_pre_exec(cmd, &res);
+		if (unlikely(rc != 0))
+			goto out;
+	}
 
 	if (unlikely(scst_inc_on_dev_cmd(cmd) != 0))
 		goto out;
@@ -3229,7 +3272,7 @@ static void scst_unblock_aborted_cmds(int scst_mutex_held)
 	TRACE_ENTRY();
 
 	if (!scst_mutex_held)
-		down(&scst_mutex);
+		mutex_lock(&scst_mutex);
 
 	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
 		struct scst_cmd *cmd, *tcmd;
@@ -3264,7 +3307,7 @@ static void scst_unblock_aborted_cmds(int scst_mutex_held)
 	}
 
 	if (!scst_mutex_held)
-		up(&scst_mutex);
+		mutex_unlock(&scst_mutex);
 
 	TRACE_EXIT();
 	return;
@@ -3406,7 +3449,7 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 	TRACE(TRACE_MGMT, "Target reset (mcmd %p, cmd count %d)",
 		mcmd, atomic_read(&mcmd->sess->sess_cmd_count));
 
-	down(&scst_mutex);
+	mutex_lock(&scst_mutex);
 
 	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
 		int found = 0;
@@ -3472,7 +3515,7 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 			dev->scsi_dev->was_reset = 0;
 	}
 
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 
 	tm_dbg_task_mgmt("TARGET RESET", 0);
 	res = scst_set_mcmd_next_state(mcmd);
@@ -3537,7 +3580,7 @@ static int scst_abort_all_nexus_loss_sess(struct scst_mgmt_cmd *mcmd,
 			mcmd);
 	}
 
-	down(&scst_mutex);
+	mutex_lock(&scst_mutex);
 	for(i = 0; i < TGT_DEV_HASH_SIZE; i++) {
 		struct list_head *sess_tgt_dev_list_head =
 			&sess->sess_tgt_dev_list_hash[i];
@@ -3559,7 +3602,7 @@ static int scst_abort_all_nexus_loss_sess(struct scst_mgmt_cmd *mcmd,
 				mcmd->status = rc;		
 		}
 	}
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 
 	res = scst_set_mcmd_next_state(mcmd);
 
@@ -3588,7 +3631,7 @@ static int scst_abort_all_nexus_loss_tgt(struct scst_mgmt_cmd *mcmd,
 			mcmd);
 	}
 
-	down(&scst_mutex);
+	mutex_lock(&scst_mutex);
 
 	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
 		spin_lock_bh(&dev->dev_lock);
@@ -3616,7 +3659,7 @@ static int scst_abort_all_nexus_loss_tgt(struct scst_mgmt_cmd *mcmd,
 		}
 	}
 
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 
 	res = scst_set_mcmd_next_state(mcmd);
 
@@ -3728,11 +3771,11 @@ static void scst_mgmt_cmd_send_done(struct scst_mgmt_cmd *mcmd)
 		case SCST_TARGET_RESET:
 		case SCST_ABORT_ALL_TASKS:
 		case SCST_NEXUS_LOSS:
-			down(&scst_mutex);
+			mutex_lock(&scst_mutex);
 			list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
 				scst_unblock_dev(dev);
 			}
-			up(&scst_mutex);
+			mutex_unlock(&scst_mutex);
 			break;
 
 		case SCST_NEXUS_LOSS_SESS:
@@ -3740,7 +3783,7 @@ static void scst_mgmt_cmd_send_done(struct scst_mgmt_cmd *mcmd)
 		{
 			int i;
 
-			down(&scst_mutex);
+			mutex_lock(&scst_mutex);
 			for(i = 0; i < TGT_DEV_HASH_SIZE; i++) {
 				struct list_head *sess_tgt_dev_list_head = 
 					&mcmd->sess->sess_tgt_dev_list_hash[i];
@@ -3749,7 +3792,7 @@ static void scst_mgmt_cmd_send_done(struct scst_mgmt_cmd *mcmd)
 					scst_unblock_dev(tgt_dev->dev);
 				}
 			}
-			up(&scst_mutex);
+			mutex_unlock(&scst_mutex);
 
 			break;
 		}
@@ -4116,7 +4159,7 @@ static int scst_init_session(struct scst_session *sess)
 	TRACE_ENTRY();
 
 	scst_suspend_activity();	
-	down(&scst_mutex);
+	mutex_lock(&scst_mutex);
 
 	if (sess->initiator_name)
 		acg = scst_find_acg(sess->initiator_name);
@@ -4137,7 +4180,7 @@ static int scst_init_session(struct scst_session *sess)
 
 	res = scst_sess_alloc_tgt_devs(sess);
 
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
 
 	if (sess->init_result_fn) {
@@ -4259,7 +4302,7 @@ static void scst_unreg_work_fn(struct work_struct *work)
 
 	TRACE_ENTRY();
 
-	down(&scst_mutex);
+	mutex_lock(&scst_mutex);
 	for(i = 0; i < TGT_DEV_HASH_SIZE; i++) {
 		struct list_head *sess_tgt_dev_list_head =
 			&sess->sess_tgt_dev_list_hash[i];
@@ -4275,7 +4318,7 @@ static void scst_unreg_work_fn(struct work_struct *work)
 			}
 		}
 	}
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 
 	scst_sess_put(sess);
 

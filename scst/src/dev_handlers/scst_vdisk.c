@@ -293,7 +293,7 @@ static int vcdrom_write_proc(char *buffer, char **start, off_t offset,
   write_proc:   vcdrom_write_proc,	\
 }
 
-static DECLARE_MUTEX(scst_vdisk_mutex);
+static DEFINE_MUTEX(scst_vdisk_mutex);
 static LIST_HEAD(vdisk_dev_list);
 static LIST_HEAD(vcdrom_dev_list);
 
@@ -2356,7 +2356,7 @@ static int vdisk_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
 
 	TRACE_ENTRY();
 	
-	if (down_interruptible(&scst_vdisk_mutex) != 0) {
+	if (mutex_lock_interruptible(&scst_vdisk_mutex) != 0) {
 		res = -EINTR;
 		goto out;
 	}
@@ -2400,7 +2400,7 @@ static int vdisk_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
 		}
 		seq_printf(seq, "%s\n", virt_dev->file_name);
 	}
-	up(&scst_vdisk_mutex);
+	mutex_unlock(&scst_vdisk_mutex);
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -2426,7 +2426,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 	if (buffer[0] == '\0')
 		goto out;
 	
-	if (down_interruptible(&scst_vdisk_mutex) != 0) {
+	if (mutex_lock_interruptible(&scst_vdisk_mutex) != 0) {
 		res = -EINTR;
 		goto out;
 	}
@@ -2632,7 +2632,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 	res = length;
 
 out_up:
-	up(&scst_vdisk_mutex);
+	mutex_unlock(&scst_vdisk_mutex);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -2932,7 +2932,7 @@ static int vcdrom_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type
 
 	TRACE_ENTRY();
 
-	if (down_interruptible(&scst_vdisk_mutex) != 0) {
+	if (mutex_lock_interruptible(&scst_vdisk_mutex) != 0) {
 		res = -EINTR;
 		goto out;
 	}
@@ -2946,7 +2946,7 @@ static int vcdrom_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type
 			virt_dev->file_name);
 	}
 
-	up(&scst_vdisk_mutex);
+	mutex_unlock(&scst_vdisk_mutex);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -2965,7 +2965,7 @@ static int vcdrom_write_proc(char *buffer, char **start, off_t offset,
 
 	TRACE_ENTRY();
 
-	if (down_interruptible(&scst_vdisk_mutex) != 0) {
+	if (mutex_lock_interruptible(&scst_vdisk_mutex) != 0) {
 		res = -EINTR;
 		goto out;
 	}
@@ -3022,7 +3022,7 @@ static int vcdrom_write_proc(char *buffer, char **start, off_t offset,
 	res = length;
 
 out_up:
-	up(&scst_vdisk_mutex);
+	mutex_unlock(&scst_vdisk_mutex);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -3122,7 +3122,7 @@ static void __exit exit_scst_vdisk(struct scst_dev_type *devtype,
 {
 	TRACE_ENTRY();
 
-	down(&scst_vdisk_mutex);
+	mutex_lock(&scst_vdisk_mutex);
 	while (1) {
 		struct scst_vdisk_dev *virt_dev;
 
@@ -3141,7 +3141,7 @@ static void __exit exit_scst_vdisk(struct scst_dev_type *devtype,
 		kfree(virt_dev->file_name);
 		kfree(virt_dev);
 	}
-	up(&scst_vdisk_mutex);
+	mutex_unlock(&scst_vdisk_mutex);
 
 	if (!devtype->no_proc) {
 		vdisk_proc_help_destroy(devtype);

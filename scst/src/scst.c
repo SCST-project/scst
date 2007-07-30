@@ -53,7 +53,7 @@
 #endif
 
 /* All targets, devices and dev_types management is done under this mutex */
-DECLARE_MUTEX(scst_mutex);
+DEFINE_MUTEX(scst_mutex);
 
 LIST_HEAD(scst_template_list);
 LIST_HEAD(scst_dev_list);
@@ -113,7 +113,7 @@ LIST_HEAD(scst_sess_mgmt_list);
 
 DECLARE_WAIT_QUEUE_HEAD(scst_dev_cmd_waitQ);
 
-DECLARE_MUTEX(scst_suspend_mutex);
+DEFINE_MUTEX(scst_suspend_mutex);
 LIST_HEAD(scst_cmd_lists_list); /* protected by scst_suspend_mutex */
 
 static int scst_threads;
@@ -141,7 +141,7 @@ int scst_register_target_template(struct scst_tgt_template *vtt)
 {
 	int res = 0;
 	struct scst_tgt_template *t;
-	static DECLARE_MUTEX(m);
+	static DEFINE_MUTEX(m);
 
 	TRACE_ENTRY();
 
@@ -185,20 +185,20 @@ int scst_register_target_template(struct scst_tgt_template *vtt)
 	if (vtt->preprocessing_done == NULL)
 		vtt->preprocessing_done_atomic = 1;
 
-	if (down_interruptible(&m) != 0)
+	if (mutex_lock_interruptible(&m) != 0)
 		goto out_err;
 
-	if (down_interruptible(&scst_mutex) != 0)
+	if (mutex_lock_interruptible(&scst_mutex) != 0)
 		goto out_m_up;
 	list_for_each_entry(t, &scst_template_list, scst_template_list_entry) {
 		if (strcmp(t->name, vtt->name) == 0) {
 			PRINT_ERROR_PR("Target driver %s already registered",
 				vtt->name);
-			up(&scst_mutex);
+			mutex_unlock(&scst_mutex);
 			goto out_cleanup;
 		}
 	}
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 
 	TRACE_DBG("%s", "Calling target driver's detect()");
 	res = vtt->detect(vtt);
@@ -209,22 +209,22 @@ int scst_register_target_template(struct scst_tgt_template *vtt)
 		goto out_cleanup;
 	}
 
-	down(&scst_mutex);
+	mutex_lock(&scst_mutex);
 	list_add_tail(&vtt->scst_template_list_entry, &scst_template_list);
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 
 	res = 0;
 
 	PRINT_INFO_PR("Target template %s registered successfully", vtt->name);
 
-	up(&m);
+	mutex_unlock(&m);
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 
 out_m_up:
-	up(&m);
+	mutex_unlock(&m);
 
 out_cleanup:
 	scst_cleanup_proc_target_dir_entries(vtt);
@@ -242,7 +242,7 @@ void scst_unregister_target_template(struct scst_tgt_template *vtt)
 
 	TRACE_ENTRY();
 
-	down(&scst_mutex);
+	mutex_lock(&scst_mutex);
 
 	list_for_each_entry(t, &scst_template_list, scst_template_list_entry) {
 		if (strcmp(t->name, vtt->name) == 0) {
@@ -257,9 +257,9 @@ void scst_unregister_target_template(struct scst_tgt_template *vtt)
 
 restart:
 	list_for_each_entry(tgt, &vtt->tgt_list, tgt_list_entry) {
-		up(&scst_mutex);
+		mutex_unlock(&scst_mutex);
 		scst_unregister(tgt);
-		down(&scst_mutex);
+		mutex_lock(&scst_mutex);
 		goto restart;
 	}
 	list_del(&vtt->scst_template_list_entry);
@@ -267,7 +267,7 @@ restart:
 	PRINT_INFO_PR("Target template %s unregistered successfully", vtt->name);
 
 out_up:
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 
 	scst_cleanup_proc_target_dir_entries(vtt);
 
@@ -300,7 +300,7 @@ struct scst_tgt *scst_register(struct scst_tgt_template *vtt,
 	tgt->retry_timer.function = scst_tgt_retry_timer_fn;
 
 	scst_suspend_activity();
-	down(&scst_mutex);
+	mutex_lock(&scst_mutex);
 
 	if (target_name != NULL) {
 		int len = strlen(target_name) + 1 +
@@ -321,7 +321,7 @@ struct scst_tgt *scst_register(struct scst_tgt_template *vtt,
 	else
 		list_add_tail(&tgt->tgt_list_entry, &vtt->tgt_list);
 
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
 
 	PRINT_INFO_PR("Target %s for template %s registered successfully",
@@ -336,7 +336,7 @@ out_free_name:
 		kfree(tgt->default_group_name);
 
 out_free_err:
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
 
 	kfree(tgt);
@@ -350,9 +350,9 @@ out_err:
 static inline int test_sess_list(struct scst_tgt *tgt)
 {
 	int res;
-	down(&scst_mutex);
+	mutex_lock(&scst_mutex);
 	res = list_empty(&tgt->sess_list);
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 	return res;
 }
 
@@ -367,18 +367,18 @@ void scst_unregister(struct scst_tgt *tgt)
 	tgt->tgtt->release(tgt);
 	TRACE_DBG("%s", "Target driver's release() returned");
 
-	down(&scst_mutex);
+	mutex_lock(&scst_mutex);
 	list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
 		sBUG_ON(!sess->shutting_down);
 	}
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 
 	TRACE_DBG("%s", "Waiting for sessions shutdown");
 	wait_event(tgt->unreg_waitQ, test_sess_list(tgt));
 	TRACE_DBG("%s", "wait_event() returned");
 
 	scst_suspend_activity();
-	down(&scst_mutex);
+	mutex_lock(&scst_mutex);
 
 	list_del(&tgt->tgt_list_entry);
 
@@ -387,7 +387,7 @@ void scst_unregister(struct scst_tgt *tgt)
 	if (tgt->default_group_name)
 		kfree(tgt->default_group_name);
 
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
 
 	del_timer_sync(&tgt->retry_timer);
@@ -405,7 +405,7 @@ void scst_suspend_activity(void)
 {
 	TRACE_ENTRY();
 
-	down(&scst_suspend_mutex);
+	mutex_lock(&scst_suspend_mutex);
 
 	TRACE_MGMT_DBG("suspend_count %d", suspend_count);
 	suspend_count++;
@@ -430,7 +430,7 @@ void scst_suspend_activity(void)
 	TRACE_MGMT_DBG("%s", "wait_event() returned");
 
 out_up:
-	up(&scst_suspend_mutex);
+	mutex_unlock(&scst_suspend_mutex);
 
 	TRACE_EXIT();
 	return;
@@ -442,7 +442,7 @@ void scst_resume_activity(void)
 
 	TRACE_ENTRY();
 
-	down(&scst_suspend_mutex);
+	mutex_lock(&scst_suspend_mutex);
 
 	TRACE_MGMT_DBG("suspend_count %d", suspend_count);
 	suspend_count--;
@@ -470,7 +470,7 @@ void scst_resume_activity(void)
 	wake_up_all(&scst_mgmt_cmd_list_waitQ);
 
 out_up:
-	up(&scst_suspend_mutex);
+	mutex_unlock(&scst_suspend_mutex);
 
 	TRACE_EXIT();
 	return;
@@ -485,7 +485,7 @@ static int scst_register_device(struct scsi_device *scsidp)
 	TRACE_ENTRY();
 
 	scst_suspend_activity();
-	down(&scst_mutex);
+	mutex_lock(&scst_mutex);
 
 	res = scst_alloc_device(GFP_KERNEL, &dev);
 	if (res != 0)
@@ -514,7 +514,7 @@ static int scst_register_device(struct scsi_device *scsidp)
 	}
 
 out_up:
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
 
 	if (res == 0) {
@@ -550,7 +550,7 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 	TRACE_ENTRY();
 	
 	scst_suspend_activity();
-	down(&scst_mutex);
+	mutex_lock(&scst_mutex);
 
 	list_for_each_entry(d, &scst_dev_list, dev_list_entry) {
 		if (d->scsi_dev == scsidp) {
@@ -582,7 +582,7 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 		scsidp->channel, scsidp->id, scsidp->lun, scsidp->type);
 
 out_unblock:
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
 
 	TRACE_EXIT();
@@ -637,7 +637,7 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 		goto out;
 
 	scst_suspend_activity();
-	if (down_interruptible(&scst_mutex) != 0) {
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
 		goto out_resume;
 	}
@@ -662,7 +662,7 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 	}
 
 out_up:
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 
 out_resume:
 	scst_resume_activity();
@@ -694,7 +694,7 @@ void scst_unregister_virtual_device(int id)
 	TRACE_ENTRY();
 
 	scst_suspend_activity();
-	down(&scst_mutex);
+	mutex_lock(&scst_mutex);
 
 	list_for_each_entry(d, &scst_dev_list, dev_list_entry) {
 		if (d->virt_id == id) {
@@ -724,7 +724,7 @@ void scst_unregister_virtual_device(int id)
 	scst_free_device(dev);
 
 out_unblock:
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
 
 	TRACE_EXIT();
@@ -756,7 +756,7 @@ int scst_register_dev_driver(struct scst_dev_type *dev_type)
 #endif
 
 	scst_suspend_activity();
-	if (down_interruptible(&scst_mutex) != 0) {
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
 		goto out_err;
 	}
@@ -787,7 +787,7 @@ int scst_register_dev_driver(struct scst_dev_type *dev_type)
 			scst_assign_dev_handler(dev, dev_type);
 	}
 
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
 
 	if (res == 0) {
@@ -800,7 +800,7 @@ out:
 	return res;
 
 out_up:
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 
 out_err:
 	scst_resume_activity();
@@ -818,7 +818,7 @@ void scst_unregister_dev_driver(struct scst_dev_type *dev_type)
 	TRACE_ENTRY();
 
 	scst_suspend_activity();
-	down(&scst_mutex);
+	mutex_lock(&scst_mutex);
 
 	list_for_each_entry(dt, &scst_dev_type_list, dev_type_list_entry) {
 		if (strcmp(dt->name, dev_type->name) == 0) {
@@ -841,7 +841,7 @@ void scst_unregister_dev_driver(struct scst_dev_type *dev_type)
 
 	list_del(&dev_type->dev_type_list_entry);
 
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
 
 	scst_cleanup_proc_dev_handler_dir_entries(dev_type);
@@ -854,7 +854,7 @@ out:
 	return;
 
 out_up:
-	up(&scst_mutex);
+	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
 	goto out;
 }
@@ -967,10 +967,10 @@ static int scst_create_dev_threads(struct scst_device *dev)
 	if (res != 0)
 		goto out;
 
-	down(&scst_suspend_mutex);
+	mutex_lock(&scst_suspend_mutex);
 	list_add_tail(&dev->cmd_lists.lists_list_entry,
 		&scst_cmd_lists_list);
-	up(&scst_suspend_mutex);
+	mutex_unlock(&scst_suspend_mutex);
 
 	dev->p_cmd_lists = &dev->cmd_lists;
 
@@ -1014,9 +1014,9 @@ static void scst_stop_dev_threads(struct scst_device *dev)
 	scst_del_dev_threads(dev, -1);
 
 	if (dev->p_cmd_lists == &dev->cmd_lists) {
-		down(&scst_suspend_mutex);
+		mutex_lock(&scst_suspend_mutex);
 		list_del(&dev->cmd_lists.lists_list_entry);
-		up(&scst_suspend_mutex);
+		mutex_unlock(&scst_suspend_mutex);
 	}
 
 out:
@@ -1127,16 +1127,16 @@ int scst_cmd_threads_count(void)
 	int i;
 
 	/* Just to lower the race window, when user can get just changed value */
-	down(&scst_threads_info.cmd_threads_mutex);
+	mutex_lock(&scst_threads_info.cmd_threads_mutex);
 	i = scst_threads_info.nr_cmd_threads;
-	up(&scst_threads_info.cmd_threads_mutex);
+	mutex_unlock(&scst_threads_info.cmd_threads_mutex);
 	return i;
 }
 
 static void scst_threads_info_init(void)
 {
 	memset(&scst_threads_info, 0, sizeof(scst_threads_info));
-	init_MUTEX(&scst_threads_info.cmd_threads_mutex);
+	mutex_init(&scst_threads_info.cmd_threads_mutex);
 	INIT_LIST_HEAD(&scst_threads_info.cmd_threads_list);
 }
 
@@ -1222,9 +1222,9 @@ int scst_add_cmd_threads(int num)
 
 	TRACE_ENTRY();
 
-	down(&scst_threads_info.cmd_threads_mutex);
+	mutex_lock(&scst_threads_info.cmd_threads_mutex);
 	res = __scst_add_cmd_threads(num);
-	up(&scst_threads_info.cmd_threads_mutex);
+	mutex_unlock(&scst_threads_info.cmd_threads_mutex);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -1234,9 +1234,9 @@ void scst_del_cmd_threads(int num)
 {
 	TRACE_ENTRY();
 
-	down(&scst_threads_info.cmd_threads_mutex);
+	mutex_lock(&scst_threads_info.cmd_threads_mutex);
 	__scst_del_cmd_threads(num);
-	up(&scst_threads_info.cmd_threads_mutex);
+	mutex_unlock(&scst_threads_info.cmd_threads_mutex);
 
 	TRACE_EXIT();
 	return;
@@ -1246,7 +1246,7 @@ static void scst_stop_all_threads(void)
 {
 	TRACE_ENTRY();
 
-	down(&scst_threads_info.cmd_threads_mutex);
+	mutex_lock(&scst_threads_info.cmd_threads_mutex);
 	__scst_del_cmd_threads(scst_threads_info.nr_cmd_threads);
 	if (scst_threads_info.mgmt_cmd_thread)
 		kthread_stop(scst_threads_info.mgmt_cmd_thread);
@@ -1254,7 +1254,7 @@ static void scst_stop_all_threads(void)
 		kthread_stop(scst_threads_info.mgmt_thread);
 	if (scst_threads_info.init_cmd_thread)
 		kthread_stop(scst_threads_info.init_cmd_thread);
-	up(&scst_threads_info.cmd_threads_mutex);
+	mutex_unlock(&scst_threads_info.cmd_threads_mutex);
 
 	TRACE_EXIT();
 	return;
@@ -1266,7 +1266,7 @@ static int scst_start_all_threads(int num)
 
 	TRACE_ENTRY();
 
-	down(&scst_threads_info.cmd_threads_mutex);		
+	mutex_lock(&scst_threads_info.cmd_threads_mutex);		
         res = __scst_add_cmd_threads(num);
         if (res < 0)
                 goto out;
@@ -1299,7 +1299,7 @@ static int scst_start_all_threads(int num)
         }
 
 out:
-	up(&scst_threads_info.cmd_threads_mutex);
+	mutex_unlock(&scst_threads_info.cmd_threads_mutex);
 	TRACE_EXIT_RES(res);
 	return res;	
 }

@@ -86,7 +86,7 @@ struct scst_sgv_pools
 };
 
 extern atomic_t sgv_other_total_alloc;
-extern struct semaphore scst_sgv_pool_mutex;
+extern struct mutex scst_sgv_pool_mutex;
 extern struct list_head scst_sgv_pool_list; 
 
 int sgv_pool_init(struct sgv_pool *pool, const char *name, 

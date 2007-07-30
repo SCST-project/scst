@@ -154,14 +154,14 @@ extern spinlock_t scst_main_lock;
 extern struct scst_sgv_pools scst_sgv;
 
 extern unsigned long scst_flags;
-extern struct semaphore scst_mutex;
+extern struct mutex scst_mutex;
 extern atomic_t scst_cmd_count;
 extern struct list_head scst_template_list; /* protected by scst_mutex */
 extern struct list_head scst_dev_list; /* protected by scst_mutex */
 extern struct list_head scst_dev_type_list; /* protected by scst_mutex */
 extern wait_queue_head_t scst_dev_cmd_waitQ;
 
-extern struct semaphore scst_suspend_mutex;
+extern struct mutex scst_suspend_mutex;
 extern struct list_head scst_cmd_lists_list; /* protected by scst_suspend_mutex */
 
 extern struct list_head scst_acg_list;
@@ -206,7 +206,7 @@ struct scst_cmd_thread_t {
 };
 
 struct scst_threads_info_t {
-	struct semaphore cmd_threads_mutex;
+	struct mutex cmd_threads_mutex;
 	u32 nr_cmd_threads;
 	struct list_head cmd_threads_list;
 	struct task_struct *init_cmd_thread;
