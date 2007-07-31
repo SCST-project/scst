@@ -165,7 +165,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context)
 	TRACE_ENTRY();
 
 	TRACE_DBG("Preferred context: %d (cmd %p)", pref_context, cmd);
-	TRACE(TRACE_SCSI, "tag=%lld, lun=%Ld, CDB len=%d", cmd->tag, 
+	TRACE(TRACE_SCSI, "tag=%llu, lun=%Ld, CDB len=%d", cmd->tag, 
 		(uint64_t)cmd->lun, cmd->cdb_len);
 	TRACE_BUFF_FLAG(TRACE_SCSI|TRACE_RECV_BOT, "Recieving CDB",
 		cmd->cdb, cmd->cdb_len);
@@ -700,7 +700,7 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status, int pref_context)
 	TRACE_ENTRY();
 
 	TRACE_DBG("Preferred context: %d", pref_context);
-	TRACE_DBG("tag=%lld, status=%#x", scst_cmd_get_tag(cmd), status);
+	TRACE_DBG("tag=%llu, status=%#x", scst_cmd_get_tag(cmd), status);
 
 #ifdef EXTRACHECKS
 	if (in_irq() && ((pref_context == SCST_CONTEXT_DIRECT) ||
@@ -950,7 +950,7 @@ void scst_rx_data(struct scst_cmd *cmd, int status, int pref_context)
 	TRACE_ENTRY();
 
 	TRACE_DBG("Preferred context: %d", pref_context);
-	TRACE(TRACE_SCSI, "tag=%lld status=%#x", scst_cmd_get_tag(cmd), status);
+	TRACE(TRACE_SCSI, "tag=%llu status=%#x", scst_cmd_get_tag(cmd), status);
 
 #ifdef EXTRACHECKS
 	if (in_irq() && ((pref_context == SCST_CONTEXT_DIRECT) ||
@@ -1095,7 +1095,9 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 
 	cmd->completed = 1;
 
-	scst_dec_on_dev_cmd(cmd, 0);
+	if (likely(cmd->host_status != DID_RESET) &&
+	    likely(!SCST_SENSE_VALID(cmd->sense_buffer)))
+		scst_dec_on_dev_cmd(cmd);
 
 	type = cmd->dev->handler->type;
 	if ((cmd->cdb[0] == MODE_SENSE || cmd->cdb[0] == MODE_SENSE_10) &&
@@ -1218,7 +1220,8 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state)
 {
 	TRACE_ENTRY();
 
-	scst_dec_on_dev_cmd(cmd, 0);
+	if (likely(!SCST_SENSE_VALID(cmd->sense_buffer)))
+		scst_dec_on_dev_cmd(cmd);
 
 	if (cmd->inc_expected_sn_on_done)
 		scst_inc_check_expected_sn(cmd);
@@ -1383,8 +1386,7 @@ static int scst_pre_select(struct scst_cmd *cmd)
 		goto out;
 	}
 
-	scst_block_dev(cmd->dev, 1);
-	/* Device will be unblocked in scst_done_cmd_check() */
+	scst_block_dev_cmd(cmd, 1);
 
 	if (test_bit(SCST_TGT_DEV_UA_PENDING, &cmd->tgt_dev->tgt_dev_flags)) {
 		int rc = scst_set_pending_UA(cmd);
@@ -1439,8 +1441,8 @@ static int scst_reserve_local(struct scst_cmd *cmd)
 	}
 
 	dev = cmd->dev;
-	scst_block_dev(dev, 1);
-	/* Device will be unblocked in scst_done_cmd_check() */
+
+	scst_block_dev_cmd(cmd, 1);
 
 	spin_lock_bh(&dev->dev_lock);
 
@@ -1478,9 +1480,7 @@ static int scst_release_local(struct scst_cmd *cmd)
 
 	dev = cmd->dev;
 
-	scst_block_dev(dev, 1);
-	cmd->blocking = 1;
-	TRACE_MGMT_DBG("Blocking cmd %p (tag %lld)", cmd, cmd->tag);
+	scst_block_dev_cmd(cmd, 1);
 
 	spin_lock_bh(&dev->dev_lock);
 
@@ -1867,7 +1867,7 @@ static int scst_send_to_midlev(struct scst_cmd *cmd)
 			TRACE_DBG("%s", "scst_do_send_to_midlev() requested "
 			      "thread context, rescheduling");
 			res = SCST_CMD_STATE_RES_NEED_THREAD;
-			scst_dec_on_dev_cmd(cmd, 0);
+			scst_dec_on_dev_cmd(cmd);
 			goto out_dec_cmd_count;
 		} else {
 			sBUG_ON(rc != SCST_EXEC_COMPLETED);
@@ -1887,7 +1887,7 @@ static int scst_send_to_midlev(struct scst_cmd *cmd)
 			scst_cmd_put(cmd);
 			goto exec;
 		} else {
-			scst_dec_on_dev_cmd(cmd, 0);
+			scst_dec_on_dev_cmd(cmd);
 			scst_cmd_put(cmd);
 			goto out_unplug;
 		}
@@ -1905,10 +1905,10 @@ static int scst_send_to_midlev(struct scst_cmd *cmd)
 		if ((cmd->sn != expected_sn) || test_bit(SCST_TGT_DEV_HQ_ACTIVE,
 						&tgt_dev->tgt_dev_flags)) {
 			/* We are under IRQ lock, but dev->dev_lock is BH one */
-			int cmd_blocking = scst_dec_on_dev_cmd(cmd, 1);
+			int cmd_blocking = scst_pre_dec_on_dev_cmd(cmd);
 			if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
 				/* Necessary to allow aborting out of sn cmds */
-				TRACE_MGMT_DBG("Aborting out of sn cmd %p (tag %lld)",
+				TRACE_MGMT_DBG("Aborting out of sn cmd %p (tag %llu)",
 					cmd, cmd->tag);
 				tgt_dev->def_cmd_count--;
 				cmd->state = SCST_CMD_STATE_DEV_DONE;
@@ -1954,7 +1954,7 @@ exec:
 					&tgt_dev->hq_cmd_list);
 				spin_unlock_irq(&tgt_dev->sn_lock);
 			}
-			scst_dec_on_dev_cmd(cmd, 0);
+			scst_dec_on_dev_cmd(cmd);
 			if (count != 0)
 				goto out_unplug;
 			else
@@ -2025,20 +2025,19 @@ static int scst_check_sense(struct scst_cmd *cmd)
 			spin_unlock_bh(&dev->dev_lock);
 	}
 
-	if (sense_valid) {
+	if (unlikely(sense_valid)) {
 		TRACE_BUFF_FLAG(TRACE_SCSI, "Sense", cmd->sense_buffer,
-			     sizeof(cmd->sense_buffer));
+			sizeof(cmd->sense_buffer));
 		/* Check Unit Attention Sense Key */
 		if (cmd->sense_buffer[2] == UNIT_ATTENTION) {
 			if (cmd->sense_buffer[12] == SCST_SENSE_ASC_UA_RESET) {
-				if (dbl_ua_possible) 
-				{
+				if (dbl_ua_possible) {
 					if (ua_sent) {
 						TRACE(TRACE_MGMT, "%s", 
 							"Double UA detected");
 						/* Do retry */
 						TRACE(TRACE_MGMT, "Retrying cmd %p "
-							"(tag %lld)", cmd, cmd->tag);
+							"(tag %llu)", cmd, cmd->tag);
 						cmd->status = 0;
 						cmd->msg_status = 0;
 						cmd->host_status = DID_OK;
@@ -2223,7 +2222,6 @@ static int scst_done_cmd_check(struct scst_cmd *cmd, int *pres)
 			}
 			cmd->dev->dev_reserved = 0;
 		}
-		scst_unblock_dev(cmd->dev);
 	}
 	
 	if (unlikely((cmd->cdb[0] == MODE_SELECT) || 
@@ -2248,7 +2246,6 @@ static int scst_done_cmd_check(struct scst_cmd *cmd, int *pres)
 				sizeof(scst_temp_UA), 1);
 			spin_unlock_bh(&scst_temp_UA_lock);
 		}
-		scst_unblock_dev(cmd->dev);
 	}
 
 out:
@@ -2258,7 +2255,7 @@ out:
 
 static int scst_dev_done(struct scst_cmd *cmd)
 {
-	int res = SCST_CMD_STATE_RES_CONT_SAME;
+	int res = SCST_CMD_STATE_RES_CONT_SAME, rc;
 	int state;
 	int atomic = scst_cmd_atomic(cmd);
 
@@ -2273,7 +2270,15 @@ static int scst_dev_done(struct scst_cmd *cmd)
 		goto out;
 	}
 
-	if (scst_done_cmd_check(cmd, &res))
+	rc = scst_done_cmd_check(cmd, &res);
+
+	if (cmd->needs_unblocking)
+		scst_unblock_dev_cmd(cmd);
+
+	if (unlikely(cmd->dec_on_dev_needed))
+		scst_dec_on_dev_cmd(cmd);
+
+	if (rc)
 		goto out;
 
 	state = SCST_CMD_STATE_XMIT_RESP;
@@ -2373,13 +2378,13 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
 		if (test_bit(SCST_CMD_ABORTED_OTHER, &cmd->cmd_flags)) {
 			TRACE_MGMT_DBG("Flag ABORTED OTHER set for cmd %p "
-				"(tag %lld), returning TASK ABORTED", cmd, cmd->tag);
+				"(tag %llu), returning TASK ABORTED", cmd, cmd->tag);
 			scst_set_cmd_error_status(cmd, SAM_STAT_TASK_ABORTED);
 		}
 	}
 
 	if (unlikely(test_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags))) {
-		TRACE_MGMT_DBG("Flag NO_RESP set for cmd %p (tag %lld), skipping",
+		TRACE_MGMT_DBG("Flag NO_RESP set for cmd %p (tag %llu), skipping",
 			cmd, cmd->tag);
 		cmd->state = SCST_CMD_STATE_FINISHED;
 		res = SCST_CMD_STATE_RES_CONT_SAME;
@@ -2393,7 +2398,7 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 			res = SCST_CMD_STATE_RES_NEED_THREAD;
 			goto out;
 		}
-		TRACE_MGMT_DBG("Delaying cmd %p (tag %lld) for 1 second",
+		TRACE_MGMT_DBG("Delaying cmd %p (tag %llu) for 1 second",
 			cmd, cmd->tag);
 		schedule_timeout_uninterruptible(HZ);
 	}
@@ -2746,7 +2751,7 @@ restart:
 				goto restart;
 			}
 		} else {
-			TRACE_MGMT_DBG("Aborting not inited cmd %p (tag %lld)",
+			TRACE_MGMT_DBG("Aborting not inited cmd %p (tag %llu)",
 				cmd, cmd->tag);
 			cmd->state = SCST_CMD_STATE_XMIT_RESP;
 		}
@@ -2866,7 +2871,7 @@ void scst_process_active_cmd(struct scst_cmd *cmd, int context)
 		case SCST_CMD_STATE_SEND_TO_MIDLEV:
 			if (tm_dbg_check_cmd(cmd) != 0) {
 				res = SCST_CMD_STATE_RES_CONT_NEXT;
-				TRACE_MGMT_DBG("Skipping cmd %p (tag %lld), "
+				TRACE_MGMT_DBG("Skipping cmd %p (tag %llu), "
 					"because of TM DBG delay", cmd,
 					cmd->tag);
 				break;
@@ -3094,7 +3099,7 @@ void scst_complete_cmd_mgmt(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd)
 
 	spin_lock_irq(&scst_mcmd_lock);
 
-	TRACE_MGMT_DBG("cmd %p completed (tag %lld, mcmd %p, "
+	TRACE_MGMT_DBG("cmd %p completed (tag %llu, mcmd %p, "
 		"mcmd->cmd_wait_count %d)", cmd, cmd->tag, mcmd,
 		mcmd->cmd_wait_count);
 
@@ -3172,7 +3177,7 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 {
 	TRACE_ENTRY();
 
-	TRACE(TRACE_MGMT, "Aborting cmd %p (tag %lld)", cmd, cmd->tag);
+	TRACE(TRACE_MGMT, "Aborting cmd %p (tag %llu)", cmd, cmd->tag);
 
 	if (other_ini) {
 		set_bit(SCST_CMD_ABORTED_OTHER, &cmd->cmd_flags);
@@ -3204,12 +3209,12 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 		 * we must wait here to be sure that we won't receive
 		 * double commands with the same tag.
 		 */
-		TRACE(TRACE_MGMT, "cmd %p (tag %lld) being executed/"
+		TRACE(TRACE_MGMT, "cmd %p (tag %llu) being executed/"
 			"xmitted (state %d), deferring ABORT...", cmd,
 			cmd->tag, cmd->state);
 #ifdef EXTRACHECKS
 		if (cmd->mgmt_cmnd) {
-			printk(KERN_ALERT "cmd %p (tag %lld, state %d) "
+			printk(KERN_ALERT "cmd %p (tag %llu, state %d) "
 				"has non-NULL mgmt_cmnd %p!!! Current "
 				"mcmd %p\n", cmd, cmd->tag, cmd->state,
 				cmd->mgmt_cmnd, mcmd);
@@ -3400,7 +3405,7 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 		cmd = __scst_find_cmd_by_tag(sess, mcmd->tag);
 		if (cmd == NULL) {
 			TRACE(TRACE_MGMT, "ABORT TASK failed: command for "
-				"tag %lld not found", mcmd->tag);
+				"tag %llu not found", mcmd->tag);
 			mcmd->status = SCST_MGMT_STATUS_TASK_NOT_EXIST;
 			mcmd->state = SCST_MGMT_CMD_STATE_DONE;
 			spin_unlock_irq(&sess->sess_list_lock);
@@ -3408,7 +3413,7 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 		}
 		scst_cmd_get(cmd);
 		spin_unlock_irq(&sess->sess_list_lock);
-		TRACE(TRACE_MGMT, "Cmd %p for tag %lld (sn %ld) found, "
+		TRACE(TRACE_MGMT, "Cmd %p for tag %llu (sn %ld) found, "
 			"aborting it", cmd, mcmd->tag, cmd->sn);
 		mcmd->cmd_to_abort = cmd;
 		scst_abort_cmd(cmd, mcmd, 0, 1);
@@ -4084,7 +4089,7 @@ int scst_rx_mgmt_fn_tag(struct scst_session *sess, int fn, uint64_t tag,
 
 	mcmd->tag = tag;
 
-	TRACE(TRACE_MGMT, "sess=%p, tag=%lld", sess, mcmd->tag);
+	TRACE(TRACE_MGMT, "sess=%p, tag=%llu", sess, mcmd->tag);
 
 	if (scst_post_rx_mgmt_cmd(sess, mcmd) != 0)
 		goto out_free;
@@ -4462,7 +4467,7 @@ struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess, uint64_t tag)
 
 	/* ToDo: hash list */
 
-	TRACE_DBG("%s (sess=%p, tag=%lld)", "Searching in search cmd list",
+	TRACE_DBG("%s (sess=%p, tag=%llu)", "Searching in search cmd list",
 		sess, tag);
 	list_for_each_entry(cmd, &sess->search_cmd_list, 
 			search_cmd_list_entry) {

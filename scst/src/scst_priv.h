@@ -414,59 +414,41 @@ static inline int scst_is_implicit_hq(struct scst_cmd *cmd)
 extern int scst_inc_on_dev_cmd(struct scst_cmd *cmd);
 extern void scst_unblock_cmds(struct scst_device *dev);
 
-static inline void __scst_block_dev(struct scst_device *dev)
-{
-	dev->block_count++;
-	smp_mb();
-	TRACE_MGMT_DBG("Device BLOCK(%d), dev %p", dev->block_count, dev);
-}
-
-static inline void scst_block_dev(struct scst_device *dev, 
-	int outstanding)
-{
-	spin_lock_bh(&dev->dev_lock);
-	__scst_block_dev(dev);
-	spin_unlock_bh(&dev->dev_lock);
-
-	TRACE_MGMT_DBG("Waiting during blocking outstanding %d (on_dev_count "
-		"%d)", outstanding, atomic_read(&dev->on_dev_count));
-	wait_event(dev->on_dev_waitQ, 
-		atomic_read(&dev->on_dev_count) <= outstanding);
-	TRACE_MGMT_DBG("%s", "wait_event() returned");
-}
-
-static inline void scst_unblock_dev(struct scst_device *dev)
-{
-	spin_lock_bh(&dev->dev_lock);
-	TRACE_MGMT_DBG("Device UNBLOCK(%d), dev %p",
-		dev->block_count-1, dev);
-	if (--dev->block_count == 0)
-		scst_unblock_cmds(dev);
-	spin_unlock_bh(&dev->dev_lock);
-}
+extern void __scst_block_dev(struct scst_device *dev);
+extern void scst_block_dev(struct scst_device *dev, int outstanding);
+extern void scst_block_dev_cmd(struct scst_cmd *cmd, int outstanding);
+extern void scst_unblock_dev(struct scst_device *dev);
+extern void scst_unblock_dev_cmd(struct scst_cmd *cmd);
 
 static inline void __scst_dec_on_dev_cmd(struct scst_device *dev,
-	int cmd_blocking)
+	int unblock_dev)
 {
-	if (cmd_blocking)
+	if (unblock_dev)
 		scst_unblock_dev(dev);
 	atomic_dec(&dev->on_dev_count);
 	smp_mb__after_atomic_dec();
+	TRACE_DBG("New on_dev_count %d", atomic_read(&dev->on_dev_count));
+	sBUG_ON(atomic_read(&dev->on_dev_count) < 0);
 	if (unlikely(dev->block_count != 0))
 		wake_up_all(&dev->on_dev_waitQ);
 }
 
-static inline int scst_dec_on_dev_cmd(struct scst_cmd *cmd, int defer)
+static inline int scst_pre_dec_on_dev_cmd(struct scst_cmd *cmd)
 {
-	int cmd_blocking = cmd->blocking;
+	int cmd_blocking = cmd->inc_blocking;
 	if (cmd_blocking) {
-		TRACE_MGMT_DBG("cmd %p (tag %lld): unblocking dev %p", cmd,
+		TRACE_MGMT_DBG("cmd %p (tag %llu): unblocking dev %p", cmd,
 			cmd->tag, cmd->dev);
-		cmd->blocking = 0;
+		cmd->inc_blocking = 0;
 	}
-	if (!defer)
-		__scst_dec_on_dev_cmd(cmd->dev, cmd_blocking);
+	cmd->dec_on_dev_needed = 0;
 	return cmd_blocking;
+}
+
+static inline void scst_dec_on_dev_cmd(struct scst_cmd *cmd)
+{
+	int cmd_blocking = scst_pre_dec_on_dev_cmd(cmd);
+	__scst_dec_on_dev_cmd(cmd->dev, cmd_blocking);
 }
 
 static inline void __scst_get(int barrier)

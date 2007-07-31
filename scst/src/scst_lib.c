@@ -126,7 +126,7 @@ void scst_set_resp_data_len(struct scst_cmd *cmd, int resp_data_len)
 		l += cmd->sg[i].length;
 		if (l >= resp_data_len) {
 			int left = resp_data_len - (l - cmd->sg[i].length);
-			TRACE(TRACE_SG|TRACE_MEMORY, "cmd %p (tag %lld), "
+			TRACE(TRACE_SG|TRACE_MEMORY, "cmd %p (tag %llu), "
 				"resp_data_len %d, i %d, cmd->sg[i].length %d, "
 				"left %d", cmd, cmd->tag, resp_data_len, i,
 				cmd->sg[i].length, left);
@@ -1199,12 +1199,15 @@ void scst_free_cmd(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
+	TRACE_DBG("Freeing cmd %p (tag %Lu)", cmd, cmd->tag);
+
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
 		TRACE_MGMT_DBG("Freeing aborted cmd %p (scst_cmd_count %d)",
 			cmd, atomic_read(&scst_cmd_count));
 	}
 
-	sBUG_ON(cmd->blocking);
+	sBUG_ON(cmd->inc_blocking || cmd->needs_unblocking ||
+		cmd->dec_on_dev_needed);
 
 #if defined(EXTRACHECKS) && (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18))
 	if (cmd->scsi_req) {
@@ -1267,7 +1270,7 @@ void scst_free_cmd(struct scst_cmd *cmd)
 #endif
 
 		if (unlikely(cmd->out_of_sn)) {
-			TRACE_SN("Out of SN cmd %p (tag %lld, sn %ld), "
+			TRACE_SN("Out of SN cmd %p (tag %llu, sn %ld), "
 				"destroy=%d", cmd, cmd->tag, cmd->sn, destroy);
 			destroy = test_and_set_bit(SCST_CMD_CAN_BE_DESTROYED,
 					&cmd->cmd_flags);
@@ -2536,7 +2539,7 @@ restart:
 			 * !! sn_slot and sn_cmd_list_entry, could be	!!
 			 * !! already destroyed				!!
 			 */
-			TRACE_SN("cmd %p (tag %lld) with skipped sn %ld found",
+			TRACE_SN("cmd %p (tag %llu) with skipped sn %ld found",
 				cmd, cmd->tag, cmd->sn);
 			tgt_dev->def_cmd_count--;
 			list_del(&cmd->sn_cmd_list_entry);
@@ -2628,6 +2631,58 @@ struct scst_thr_data_hdr *scst_find_thr_data(struct scst_tgt_dev *tgt_dev)
 	return res;
 }
 
+/* dev_lock supposed to be held and BH disabled */
+void __scst_block_dev(struct scst_device *dev)
+{
+	dev->block_count++;
+	smp_mb();
+	TRACE_MGMT_DBG("Device BLOCK(new %d), dev %p", dev->block_count, dev);
+}
+
+/* No locks */
+void scst_block_dev(struct scst_device *dev, int outstanding)
+{
+	spin_lock_bh(&dev->dev_lock);
+	__scst_block_dev(dev);
+	spin_unlock_bh(&dev->dev_lock);
+
+	TRACE_MGMT_DBG("Waiting during blocking outstanding %d (on_dev_count "
+		"%d)", outstanding, atomic_read(&dev->on_dev_count));
+	wait_event(dev->on_dev_waitQ, 
+		atomic_read(&dev->on_dev_count) <= outstanding);
+	TRACE_MGMT_DBG("%s", "wait_event() returned");
+}
+
+/* No locks */
+void scst_block_dev_cmd(struct scst_cmd *cmd, int outstanding)
+{
+	sBUG_ON(cmd->needs_unblocking);
+
+	cmd->needs_unblocking = 1;
+	TRACE_MGMT_DBG("Needs unblocking cmd %p (tag %llu)", cmd, cmd->tag);
+
+	scst_block_dev(cmd->dev, outstanding);
+}
+
+/* No locks */
+void scst_unblock_dev(struct scst_device *dev)
+{
+	spin_lock_bh(&dev->dev_lock);
+	TRACE_MGMT_DBG("Device UNBLOCK(new %d), dev %p",
+		dev->block_count-1, dev);
+	if (--dev->block_count == 0)
+		scst_unblock_cmds(dev);
+	spin_unlock_bh(&dev->dev_lock);
+	sBUG_ON(dev->block_count < 0);
+}
+
+/* No locks */
+void scst_unblock_dev_cmd(struct scst_cmd *cmd)
+{
+	scst_unblock_dev(cmd->dev);
+	cmd->needs_unblocking = 0;
+}
+
 /* No locks */
 int scst_inc_on_dev_cmd(struct scst_cmd *cmd)
 {
@@ -2636,24 +2691,26 @@ int scst_inc_on_dev_cmd(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	sBUG_ON(cmd->blocking);
+	sBUG_ON(cmd->inc_blocking || cmd->dec_on_dev_needed);
 
 	atomic_inc(&dev->on_dev_count);
+	cmd->dec_on_dev_needed = 1;
+	TRACE_DBG("New on_dev_count %d", atomic_read(&dev->on_dev_count));
 
 #ifdef STRICT_SERIALIZING
 	spin_lock_bh(&dev->dev_lock);
 	if (test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))
 		goto out_unlock;
 	if (dev->block_count > 0) {
-		scst_dec_on_dev_cmd(cmd, 0);
-		TRACE_MGMT_DBG("Delaying cmd %p due to blocking or serializing"
-		      "(tag %lld, dev %p)", cmd, cmd->tag, dev);
+		scst_dec_on_dev_cmd(cmd);
+		TRACE_MGMT_DBG("Delaying cmd %p due to blocking or strict "
+			"serializing (tag %llu, dev %p)", cmd, cmd->tag, dev);
 		list_add_tail(&cmd->blocked_cmd_list_entry,
 			      &dev->blocked_cmd_list);
 		res = 1;
 	} else {
 		__scst_block_dev(dev);
-		cmd->blocking = 1;
+		cmd->inc_blocking = 1;
 	}
 	spin_unlock_bh(&dev->dev_lock);
 	goto out;
@@ -2665,9 +2722,9 @@ repeat:
 			goto out_unlock;
 		barrier(); /* to reread block_count */
 		if (dev->block_count > 0) {
-			scst_dec_on_dev_cmd(cmd, 0);
+			scst_dec_on_dev_cmd(cmd);
 			TRACE_MGMT_DBG("Delaying cmd %p due to blocking or "
-				"serializing (tag %lld, dev %p)", cmd,
+				"serializing (tag %llu, dev %p)", cmd,
 				cmd->tag, dev);
 			list_add_tail(&cmd->blocked_cmd_list_entry,
 				      &dev->blocked_cmd_list);
@@ -2684,11 +2741,11 @@ repeat:
 		spin_lock_bh(&dev->dev_lock);
 		barrier(); /* to reread block_count */
 		if (dev->block_count == 0) {
-			TRACE_MGMT_DBG("cmd %p (tag %lld), blocking further "
+			TRACE_MGMT_DBG("cmd %p (tag %llu), blocking further "
 				"cmds due to serializing (dev %p)", cmd,
 				cmd->tag, dev);
 			__scst_block_dev(dev);
-			cmd->blocking = 1;
+			cmd->inc_blocking = 1;
 		} else {
 			spin_unlock_bh(&dev->dev_lock);
 			TRACE_MGMT_DBG("Somebody blocked the device, "
@@ -2960,7 +3017,7 @@ static void tm_dbg_delay_cmd(struct scst_cmd *cmd)
 	case TM_DBG_STATE_ABORT:
 		if (tm_dbg_delayed_cmds_count == 0) {
 			unsigned long d = 58*HZ + (scst_random() % (4*HZ));
-			TRACE_MGMT_DBG("STATE ABORT: delaying cmd %p (tag %lld) "
+			TRACE_MGMT_DBG("STATE ABORT: delaying cmd %p (tag %llu) "
 				"for %ld.%ld seconds (%ld HZ), "
 				"tm_dbg_on_state_passes=%d", cmd, cmd->tag,
 				d/HZ, (d%HZ)*100/HZ, d,	tm_dbg_on_state_passes);
@@ -2970,7 +3027,7 @@ static void tm_dbg_delay_cmd(struct scst_cmd *cmd)
 #endif
 		} else {
 			TRACE_MGMT_DBG("Delaying another timed cmd %p "
-				"(tag %lld), delayed_cmds_count=%d, "
+				"(tag %llu), delayed_cmds_count=%d, "
 				"tm_dbg_on_state_passes=%d", cmd, cmd->tag,
 				tm_dbg_delayed_cmds_count,
 				tm_dbg_on_state_passes);
@@ -2982,7 +3039,7 @@ static void tm_dbg_delay_cmd(struct scst_cmd *cmd)
 	case TM_DBG_STATE_RESET:
 	case TM_DBG_STATE_OFFLINE:
 		TRACE_MGMT_DBG("STATE RESET/OFFLINE: delaying cmd %p "
-			"(tag %lld), delayed_cmds_count=%d, "
+			"(tag %llu), delayed_cmds_count=%d, "
 			"tm_dbg_on_state_passes=%d", cmd, cmd->tag,
 			tm_dbg_delayed_cmds_count, tm_dbg_on_state_passes);
 		tm_dbg_flags.tm_dbg_blocked = 1;
@@ -3008,7 +3065,7 @@ void tm_dbg_check_released_cmds(void)
 		spin_lock_irq(&scst_tm_dbg_lock);
 		list_for_each_entry_safe_reverse(cmd, tc, 
 				&tm_dbg_delayed_cmd_list, cmd_list_entry) {
-			TRACE_MGMT_DBG("Releasing timed cmd %p (tag %lld), "
+			TRACE_MGMT_DBG("Releasing timed cmd %p (tag %llu), "
 				"delayed_cmds_count=%d", cmd, cmd->tag,
 				tm_dbg_delayed_cmds_count);
 			spin_lock(&cmd->cmd_lists->cmd_list_lock);
@@ -3070,7 +3127,7 @@ int tm_dbg_check_cmd(struct scst_cmd *cmd)
 
 	if (cmd->tm_dbg_delayed) {
 		spin_lock_irqsave(&scst_tm_dbg_lock, flags);
-		TRACE_MGMT_DBG("Processing delayed cmd %p (tag %lld), "
+		TRACE_MGMT_DBG("Processing delayed cmd %p (tag %llu), "
 			"delayed_cmds_count=%d", cmd, cmd->tag,
 			tm_dbg_delayed_cmds_count);
 
@@ -3108,7 +3165,7 @@ void tm_dbg_release_cmd(struct scst_cmd *cmd)
 				cmd_list_entry) {
 		if (c == cmd) {
 			TRACE_MGMT_DBG("Abort request for "
-				"delayed cmd %p (tag=%lld), moving it to "
+				"delayed cmd %p (tag=%llu), moving it to "
 				"active cmd list (delayed_cmds_count=%d)",
 				c, c->tag, tm_dbg_delayed_cmds_count);
 			spin_lock(&cmd->cmd_lists->cmd_list_lock);

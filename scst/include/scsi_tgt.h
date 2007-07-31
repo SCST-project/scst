@@ -951,8 +951,14 @@ struct scst_cmd
 	/* Set if cmd is being retried */
 	unsigned int retry:1;
 
-	/* Set if the device should be unblock after cmd's finish */
-	unsigned int blocking:1;
+	/* Set if the device was blocked by scst_inc_on_dev_cmd() (for debug) */
+	unsigned int inc_blocking:1;
+
+	/* Set if the device should be unblocked after cmd's finish */
+	unsigned int needs_unblocking:1;
+
+	/* Set if scst_dec_on_dev_cmd() call is needed on the cmd's finish */
+	unsigned int dec_on_dev_needed:1;
 
 	/*
 	 * Set if the target driver wants to alloc data buffers on its own.
