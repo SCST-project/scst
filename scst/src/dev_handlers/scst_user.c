@@ -191,7 +191,7 @@ static int dev_user_release(struct inode *inode, struct file *file);
 
 static struct kmem_cache *user_cmd_cachep;
 
-static DEFINE_MUTEX(dev_user_mutex);
+static DEFINE_MUTEX(dev_priv_mutex);
 
 static struct file_operations dev_user_fops = {
 	.poll		= dev_user_poll,
@@ -204,6 +204,7 @@ static struct file_operations dev_user_fops = {
 
 static struct class *dev_user_sysfs_class;
 
+static spinlock_t dev_list_lock = SPIN_LOCK_UNLOCKED;
 static LIST_HEAD(dev_list);
 
 static spinlock_t cleanup_lock = SPIN_LOCK_UNLOCKED;
@@ -1383,15 +1384,15 @@ static int dev_user_reply_cmd(struct file *file, unsigned long arg)
 
 	TRACE_ENTRY();
 
-	mutex_lock(&dev_user_mutex);
+	mutex_lock(&dev_priv_mutex);
 	dev = (struct scst_user_dev*)file->private_data;
 	res = dev_user_check_reg(dev);
 	if (res != 0) {
-		mutex_unlock(&dev_user_mutex);
+		mutex_unlock(&dev_priv_mutex);
 		goto out;
 	}
 	down_read(&dev->dev_rwsem);
-	mutex_unlock(&dev_user_mutex);
+	mutex_unlock(&dev_priv_mutex);
 
 	reply = kzalloc(sizeof(*reply), GFP_KERNEL);
 	if (reply == NULL) {
@@ -1452,16 +1453,28 @@ again:
 		TRACE_DBG("Found ready ucmd %p", u);
 		list_del(&u->ready_cmd_list_entry);
 		EXTRACHECKS_BUG_ON(u->state & UCMD_STATE_JAMMED_MASK);
-		if ((u->cmd != NULL) &&
-		     unlikely(test_bit(SCST_CMD_ABORTED,
-				&u->cmd->cmd_flags))) {
-			switch(u->state) {
-			case UCMD_STATE_PARSING:
-			case UCMD_STATE_BUF_ALLOCING:
-			case UCMD_STATE_EXECING:
-				TRACE_MGMT_DBG("Aborting ucmd %p", u);
-				dev_user_unjam_cmd(u, 0, NULL);
-				goto again;
+		if (u->cmd != NULL) {
+			if (u->state == UCMD_STATE_EXECING) {
+				int rc = scst_check_local_events(u->cmd);
+				if (unlikely(rc != 0)) {
+					if (rc > 0) {
+						u->cmd->completed = 1;
+						u->cmd->scst_cmd_done(
+							u->cmd, SCST_CMD_STATE_DEFAULT);
+					} else
+						dev_user_unjam_cmd(u, 0, NULL);
+					goto again;
+				}
+			} else if (unlikely(test_bit(SCST_CMD_ABORTED,
+					&u->cmd->cmd_flags))) {
+				switch(u->state) {
+				case UCMD_STATE_PARSING:
+				case UCMD_STATE_BUF_ALLOCING:
+				case UCMD_STATE_EXECING:
+					TRACE_MGMT_DBG("Aborting ucmd %p", u);
+					dev_user_unjam_cmd(u, 0, NULL);
+					goto again;
+				}
 			}
 		}
 		u->state |= UCMD_STATE_SENT_MASK;
@@ -1604,15 +1617,15 @@ static int dev_user_reply_get_cmd(struct file *file, unsigned long arg,
 
 	TRACE_ENTRY();
 
-	mutex_lock(&dev_user_mutex);
+	mutex_lock(&dev_priv_mutex);
 	dev = (struct scst_user_dev*)file->private_data;
 	res = dev_user_check_reg(dev);
 	if (res != 0) {
-		mutex_unlock(&dev_user_mutex);
+		mutex_unlock(&dev_priv_mutex);
 		goto out;
 	}
 	down_read(&dev->dev_rwsem);
-	mutex_unlock(&dev_user_mutex);
+	mutex_unlock(&dev_priv_mutex);
 
 	res = copy_from_user(&ureply, (void*)arg, sizeof(ureply));
 	if (res < 0)
@@ -1742,15 +1755,15 @@ static unsigned int dev_user_poll(struct file *file, poll_table *wait)
 
 	TRACE_ENTRY();
 
-	mutex_lock(&dev_user_mutex);
+	mutex_lock(&dev_priv_mutex);
 	dev = (struct scst_user_dev*)file->private_data;
 	res = dev_user_check_reg(dev);
 	if (res != 0) {
-		mutex_unlock(&dev_user_mutex);
+		mutex_unlock(&dev_priv_mutex);
 		goto out;
 	}
 	down_read(&dev->dev_rwsem);
-	mutex_unlock(&dev_user_mutex);
+	mutex_unlock(&dev_priv_mutex);
 
 	spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
 
@@ -1828,7 +1841,8 @@ static void dev_user_unjam_cmd(struct dev_user_cmd *ucmd, int busy,
 			scst_set_cmd_error(ucmd->cmd,
 				SCST_LOAD_SENSE(scst_sense_hardw_error));
 		TRACE_MGMT_DBG("EXEC: unjamming ucmd %p", ucmd);
-		ucmd->cmd->completed = 1;
+		if (!test_bit(SCST_CMD_ABORTED,	&ucmd->cmd->cmd_flags))
+			ucmd->cmd->completed = 1;
 		ucmd->cmd->scst_cmd_done(ucmd->cmd, SCST_CMD_STATE_DEFAULT);
 		if (flags != NULL)
 			spin_lock_irqsave(&dev->cmd_lists.cmd_list_lock, *flags);
@@ -2136,14 +2150,14 @@ static int dev_user_attach(struct scst_device *sdev)
 
 	TRACE_ENTRY();
 
-	mutex_lock(&dev_user_mutex);
+	spin_lock(&dev_list_lock);
 	list_for_each_entry(d, &dev_list, dev_list_entry) {
 		if (strcmp(d->name, sdev->virt_name) == 0) {
 			dev = d;
 			break;
 		}
 	}
-	mutex_unlock(&dev_user_mutex);
+	spin_unlock(&dev_list_lock);
 	if (dev == NULL) {
 		PRINT_ERROR_PR("Device %s not found", sdev->virt_name);
 		res = -EINVAL;
@@ -2539,17 +2553,6 @@ static int dev_user_register_dev(struct file *file,
 	strncpy(dev->name, dev_desc->name, sizeof(dev->name)-1);
 	dev->name[sizeof(dev->name)-1] = '\0';
 
-	mutex_lock(&dev_user_mutex);
-
-	list_for_each_entry(d, &dev_list, dev_list_entry) {
-		if (strcmp(d->name, dev->name) == 0) {
-			PRINT_ERROR_PR("Device %s already exist",
-				dev->name);
-			res = -EEXIST;
-			goto out_free_unlock;
-		}
-	}
-
 	/*
 	 * We don't use clustered pool, since it implies pages reordering,
 	 * which isn't possible with user space supplied buffers. Although
@@ -2558,7 +2561,7 @@ static int dev_user_register_dev(struct file *file,
 	 */
 	dev->pool = sgv_pool_create(dev->name, 0);
 	if (dev->pool == NULL)
-		goto out_free_unlock;
+		goto out_put;
 	sgv_pool_set_allocator(dev->pool, dev_user_alloc_pages,
 		dev_user_free_sg_entries);
 
@@ -2588,16 +2591,28 @@ static int dev_user_register_dev(struct file *file,
 
 	TRACE_MEM("dev %p, name %s", dev, dev->name);
 
+	spin_lock(&dev_list_lock);
+
+	list_for_each_entry(d, &dev_list, dev_list_entry) {
+		if (strcmp(d->name, dev->name) == 0) {
+			PRINT_ERROR_PR("Device %s already exist",
+				dev->name);
+			res = -EEXIST;
+			spin_unlock(&dev_list_lock);
+			goto out_free;
+		}
+	}
+
 	list_add_tail(&dev->dev_list_entry, &dev_list);
 
-	mutex_unlock(&dev_user_mutex);
+	spin_unlock(&dev_list_lock);
 
 	if (res != 0)
-		goto out_free_pool;
+		goto out_del_free;
 
 	res = scst_register_virtual_dev_driver(&dev->devtype);
 	if (res < 0)
-		goto out_free_pool;
+		goto out_del_free;
 
 	dev->virt_id = scst_register_virtual_device(&dev->devtype, dev->name);
 	if (dev->virt_id < 0) {
@@ -2605,15 +2620,15 @@ static int dev_user_register_dev(struct file *file,
 		goto out_unreg_handler;
 	}
 
-	mutex_lock(&dev_user_mutex);
+	mutex_lock(&dev_priv_mutex);
 	if (file->private_data != NULL) {
-		mutex_unlock(&dev_user_mutex);
+		mutex_unlock(&dev_priv_mutex);
 		PRINT_ERROR_PR("%s", "Device already registered");
 		res = -EINVAL;
 		goto out_unreg_drv;
 	}
 	file->private_data = dev;
-	mutex_unlock(&dev_user_mutex);
+	mutex_unlock(&dev_priv_mutex);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -2625,17 +2640,15 @@ out_unreg_drv:
 out_unreg_handler:
 	scst_unregister_virtual_dev_driver(&dev->devtype);
 
-out_free_pool:
-	mutex_lock(&dev_user_mutex);
+out_del_free:
+	spin_lock(&dev_list_lock);
 	list_del(&dev->dev_list_entry);
-	mutex_unlock(&dev_user_mutex);
+	spin_unlock(&dev_list_lock);
+
+out_free:
 	sgv_pool_destroy(dev->pool);
 	kfree(dev);
 	goto out_put;
-
-out_free_unlock:
-	kfree(dev);
-	mutex_unlock(&dev_user_mutex);
 
 out_put:
 	module_put(THIS_MODULE);
@@ -2696,15 +2709,15 @@ static int dev_user_set_opt(struct file *file, const struct scst_user_opt *opt)
 
 	TRACE_ENTRY();
 
-	mutex_lock(&dev_user_mutex);
+	mutex_lock(&dev_priv_mutex);
 	dev = (struct scst_user_dev*)file->private_data;
 	res = dev_user_check_reg(dev);
 	if (res != 0) {
-		mutex_unlock(&dev_user_mutex);
+		mutex_unlock(&dev_priv_mutex);
 		goto out;
 	}
 	down_read(&dev->dev_rwsem);
-	mutex_unlock(&dev_user_mutex);
+	mutex_unlock(&dev_priv_mutex);
 
 	scst_suspend_activity();
 	res = __dev_user_set_opt(dev, opt);
@@ -2725,15 +2738,15 @@ static int dev_user_get_opt(struct file *file, void *arg)
 
 	TRACE_ENTRY();
 
-	mutex_lock(&dev_user_mutex);
+	mutex_lock(&dev_priv_mutex);
 	dev = (struct scst_user_dev*)file->private_data;
 	res = dev_user_check_reg(dev);
 	if (res != 0) {
-		mutex_unlock(&dev_user_mutex);
+		mutex_unlock(&dev_priv_mutex);
 		goto out;
 	}
 	down_read(&dev->dev_rwsem);
-	mutex_unlock(&dev_user_mutex);
+	mutex_unlock(&dev_priv_mutex);
 
 	opt.parse_type = dev->parse_type;
 	opt.on_free_cmd_type = dev->on_free_cmd_type;
@@ -2777,15 +2790,19 @@ static int dev_user_release(struct inode *inode, struct file *file)
 
 	TRACE_ENTRY();
 
-	mutex_lock(&dev_user_mutex);
+	mutex_lock(&dev_priv_mutex);
 	dev = (struct scst_user_dev*)file->private_data;
 	if (dev == NULL) {
-		mutex_unlock(&dev_user_mutex);
+		mutex_unlock(&dev_priv_mutex);
 		goto out;
 	}
 	file->private_data = NULL;
+
+	spin_lock(&dev_list_lock);
 	list_del(&dev->dev_list_entry);
-	mutex_unlock(&dev_user_mutex);
+	spin_unlock(&dev_list_lock);
+
+	mutex_unlock(&dev_priv_mutex);
 
 	down_write(&dev->dev_rwsem);
 

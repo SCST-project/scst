@@ -117,7 +117,7 @@ EXTRA_CFLAGS += -DDEBUG -g
 
 # If defined, allows SCST to use HIGHMEM. It's unclear, if it brings
 # something valuable, except performance hit in some cases,
-# so let it be off. Untested.
+# so let it be off. Untested and unsupported.
 #EXTRA_CFLAGS += -DSCST_HIGHMEM
 
 clean:

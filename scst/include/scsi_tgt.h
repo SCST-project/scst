@@ -678,6 +678,9 @@ struct scst_dev_type
 	 * by scst_cmd_atomic(): it is true if the function called in the
 	 * atomic (non-sleeping) context.
 	 *
+	 * !! If this function is implemented, scst_check_local_events() shall !!
+	 * !! be called inside it just before the actual command's execution.  !!
+	 *
 	 * OPTIONAL, if not set, the commands will be sent directly to SCSI
 	 * device.
 	 */
@@ -2116,6 +2119,17 @@ void scst_resume_activity(void);
  * SCST_CONTEXT_DIRECT_ATOMIC are allowed.
  */
 void scst_process_active_cmd(struct scst_cmd *cmd, int context);
+
+/*
+ * Checks if command can be executed (reservations, etc.) or there are local
+ * events, like pending UAs. Returns < 0 if command must be aborted, > 0 if
+ * there is an event and command should be immediately completed, or 0
+ * otherwise.
+ *
+ * !! Dev handlers implementing exec() callback must call this function there !!
+ * !! just before the actual command's execution                              !!
+ */
+int scst_check_local_events(struct scst_cmd *cmd);
 
 /* 
  * Returns target driver's root entry in SCST's /proc hierarchy.

@@ -1694,12 +1694,12 @@ static int scst_sessions_info_show(struct seq_file *seq, void *v)
 		goto out;
 	}
 
-	seq_printf(seq, "%-20s%-35s%-35s%-15s\n", "Target name", "Initiator name", 
+	seq_printf(seq, "%-20s %-35s %-35s %-15s\n", "Target name", "Initiator name", 
 		       "Group name", "Command Count");
 
 	list_for_each_entry(acg, &scst_acg_list, scst_acg_list_entry) {
 		list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
-			seq_printf(seq, "%-20s%-35s%-35s%-15d\n",
+			seq_printf(seq, "%-20s %-35s %-35s %-15d\n",
 					sess->tgt->tgtt->name,
 					sess->initiator_name,
 					acg->acg_name,

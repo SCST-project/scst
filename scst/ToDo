@@ -8,7 +8,7 @@ To be done
    the page cache (in order to avoid data copy between it and internal
    buffers). Requires modifications of the kernel.
 
- - O_DIRECT mode doesn't work (oops'es somewhere in the kernel)
+ - O_DIRECT mode doesn't work for FILEIO (oops'es somewhere in the kernel)
  
  - Close integration with Linux initiator SCSI mil-level, including 
    queue types (simple, ordered, etc.) and local initiators (sd, st, sg,
@@ -17,11 +17,11 @@ To be done
  - Improve task management and Unit Attention conditions handling
    using ACA in order to make them always reliable. Honoring NACA, QErr,
    TST, UA_INTLCK_CTRL bits. Requires deep modifications of the kernel.
+
+ - Better handle of devices DMA restrictions.
  
  - Move linear searches to hash-table based.
  
- - Redone some semaphores with completion interface.
-
  - HIGHMEM cleanup. Looks like HIGHMEM usage doesn't worth the effort and 
    performance hit, at least until VDISK handler doesn't use the page
    cache directly, so disable it for now, although the code looks ready.

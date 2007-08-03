@@ -26,6 +26,7 @@
 #include <asm/unistd.h>
 #include <asm/string.h>
 #include <linux/kthread.h>
+#include <linux/delay.h>
 
 #include "scsi_tgt.h"
 #include "scst_priv.h"
@@ -142,6 +143,11 @@ out_redirect:
 		sBUG_ON(context != SCST_CONTEXT_DIRECT);
 		scst_set_busy(cmd);
 		cmd->state = SCST_CMD_STATE_XMIT_RESP;
+		/* Keep initiator away from too many BUSY commands */
+		if (!in_interrupt() && !in_atomic())
+			ssleep(2);
+		else
+			WARN_ON_ONCE(1);
 	} else {
 		unsigned long flags;
 		spin_lock_irqsave(&scst_init_lock, flags);
@@ -1270,7 +1276,7 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state)
 
 static int scst_report_luns_local(struct scst_cmd *cmd)
 {
-	int res = SCST_EXEC_COMPLETED;
+	int res = SCST_EXEC_COMPLETED, rc;
 	int dev_cnt = 0;
 	int buffer_size;
 	int i;
@@ -1279,6 +1285,14 @@ static int scst_report_luns_local(struct scst_cmd *cmd)
 	int offs, overflow = 0;
 
 	TRACE_ENTRY();
+
+	rc = scst_check_local_events(cmd);
+	if (unlikely(rc != 0)) {
+		if (rc > 0)
+			goto out_done;
+		else
+			goto out_uncompl;
+	}
 
 	cmd->status = 0;
 	cmd->msg_status = 0;
@@ -1355,6 +1369,7 @@ inc_dev_cnt:
 out_done:
 	cmd->completed = 1;
 
+out_uncompl:
 	/* Report the result */
 	scst_cmd_done_local(cmd, SCST_CMD_STATE_DEFAULT);
 
@@ -1388,16 +1403,7 @@ static int scst_pre_select(struct scst_cmd *cmd)
 
 	scst_block_dev_cmd(cmd, 1);
 
-	if (test_bit(SCST_TGT_DEV_UA_PENDING, &cmd->tgt_dev->tgt_dev_flags)) {
-		int rc = scst_set_pending_UA(cmd);
-		if (rc == 0) {
-			res = SCST_EXEC_COMPLETED;
-			cmd->completed = 1;
-			/* Report the result */
-			scst_cmd_done_local(cmd, SCST_CMD_STATE_DEFAULT);
-			goto out;
-		}
-	}
+	/* Check for local events will be done when cmd will be executed */
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1419,7 +1425,7 @@ static inline void scst_report_reserved(struct scst_cmd *cmd)
 
 static int scst_reserve_local(struct scst_cmd *cmd)
 {
-	int res = SCST_EXEC_NOT_COMPLETED;
+	int res = SCST_EXEC_NOT_COMPLETED, rc;
 	struct scst_device *dev;
 	struct scst_tgt_dev *tgt_dev_tmp;
 
@@ -1443,6 +1449,14 @@ static int scst_reserve_local(struct scst_cmd *cmd)
 	dev = cmd->dev;
 
 	scst_block_dev_cmd(cmd, 1);
+
+	rc = scst_check_local_events(cmd);
+	if (unlikely(rc != 0)) {
+		if (rc > 0)
+			goto out_compl;
+		else
+			goto out_uncompl;
+	}
 
 	spin_lock_bh(&dev->dev_lock);
 
@@ -1468,19 +1482,41 @@ out_unlock:
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_compl:
+	cmd->completed = 1;
+
+out_uncompl:
+	res = SCST_EXEC_COMPLETED;
+	/* Report the result */
+	scst_cmd_done_local(cmd, SCST_CMD_STATE_DEFAULT);
+	goto out;
 }
 
 static int scst_release_local(struct scst_cmd *cmd)
 {
-	int res = SCST_EXEC_NOT_COMPLETED;
+	int res = SCST_EXEC_NOT_COMPLETED, rc;
 	struct scst_tgt_dev *tgt_dev_tmp;
 	struct scst_device *dev;
 
 	TRACE_ENTRY();
 
+	if (scst_cmd_atomic(cmd)) {
+		res = SCST_EXEC_NEED_THREAD;
+		goto out;
+	}
+
 	dev = cmd->dev;
 
 	scst_block_dev_cmd(cmd, 1);
+
+	rc = scst_check_local_events(cmd);
+	if (unlikely(rc != 0)) {
+		if (rc > 0)
+			goto out_compl;
+		else
+			goto out_uncompl;
+	}
 
 	spin_lock_bh(&dev->dev_lock);
 
@@ -1498,8 +1534,7 @@ static int scst_release_local(struct scst_cmd *cmd)
 	} else {
 		list_for_each_entry(tgt_dev_tmp,
 				    &dev->dev_tgt_dev_list,
-				    dev_tgt_dev_list_entry) 
-		{
+				    dev_tgt_dev_list_entry) {
 			clear_bit(SCST_TGT_DEV_RESERVED, 
 				&tgt_dev_tmp->tgt_dev_flags);
 		}
@@ -1508,26 +1543,34 @@ static int scst_release_local(struct scst_cmd *cmd)
 
 	spin_unlock_bh(&dev->dev_lock);
 
-	if (res == SCST_EXEC_COMPLETED) {
-		cmd->completed = 1;
-		/* Report the result */
-		scst_cmd_done_local(cmd, SCST_CMD_STATE_DEFAULT);
-	}
+	if (res == SCST_EXEC_COMPLETED)
+		goto out_compl;
 
+out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_compl:
+	cmd->completed = 1;
+
+out_uncompl:
+	res = SCST_EXEC_COMPLETED;
+	/* Report the result */
+	scst_cmd_done_local(cmd, SCST_CMD_STATE_DEFAULT);
+	goto out;
 }
 
-/* 
- * The result of cmd execution, if any, should be reported 
- * via scst_cmd_done_local() 
- */
-static int scst_pre_exec(struct scst_cmd *cmd)
+int scst_check_local_events(struct scst_cmd *cmd)
 {
-	int res = SCST_EXEC_NOT_COMPLETED, rc;
+	int res, rc;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
 
 	TRACE_ENTRY();
+
+	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
+		TRACE_MGMT_DBG("ABORTED set, aborting cmd %p", cmd);
+		goto out_uncomplete;
+	}
 
 	/* Reserve check before Unit Attention */
 	if (unlikely(test_bit(SCST_TGT_DEV_RESERVED, &tgt_dev->tgt_dev_flags))) {
@@ -1538,8 +1581,7 @@ static int scst_pre_exec(struct scst_cmd *cmd)
 		    (cmd->cdb[0] != LOG_SENSE) && (cmd->cdb[0] != REQUEST_SENSE))
 		{
 			scst_report_reserved(cmd);
-			res = SCST_EXEC_COMPLETED;
-			goto out;
+			goto out_complete;
 		}
 	}
 
@@ -1565,7 +1607,7 @@ static int scst_pre_exec(struct scst_cmd *cmd)
 			spin_unlock_bh(&dev->dev_lock);
 
 			if (done)
-				goto out_done;
+				goto out_complete;
 		}
 	}
 
@@ -1575,9 +1617,35 @@ static int scst_pre_exec(struct scst_cmd *cmd)
 		{
 			rc = scst_set_pending_UA(cmd);
 			if (rc == 0)
-				goto out_done;
+				goto out_complete;
 		}
 	}
+
+	res = 0;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_complete:
+	res = 1;
+	goto out;
+
+out_uncomplete:
+	res = -1;
+	goto out;
+}
+
+/* 
+ * The result of cmd execution, if any, should be reported 
+ * via scst_cmd_done_local() 
+ */
+static int scst_pre_exec(struct scst_cmd *cmd)
+{
+	int res = SCST_EXEC_NOT_COMPLETED;
+	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
+
+	TRACE_ENTRY();
 
 	/* Check READ_ONLY device status */
 	if (tgt_dev->acg_dev->rd_only_flag &&
@@ -1595,6 +1663,7 @@ static int scst_pre_exec(struct scst_cmd *cmd)
 			   SCST_LOAD_SENSE(scst_sense_data_protect));
 		goto out_done;
 	}
+
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -1667,11 +1736,6 @@ static int scst_do_send_to_midlev(struct scst_cmd *cmd)
 	set_bit(SCST_CMD_EXECUTING, &cmd->cmd_flags);
 	smp_mb__after_set_bit();
 
-	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
-		TRACE_MGMT_DBG("ABORTED set, aborting cmd %p", cmd);
-		goto out_aborted;
-	}
-
 	rc = scst_pre_exec(cmd);
 	/* !! At this point cmd, sess & tgt_dev can be already freed !! */
 	if (rc != SCST_EXEC_NOT_COMPLETED) {
@@ -1719,6 +1783,14 @@ static int scst_do_send_to_midlev(struct scst_cmd *cmd)
 			"processed by device handler (lun %Ld)!",
 			(uint64_t)cmd->lun);
 		goto out_error;
+	}
+
+	rc = scst_check_local_events(cmd);
+	if (unlikely(rc != 0)) {
+		if (rc > 0)
+			goto out_compl;
+		else
+			goto out_aborted;
 	}
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)	
@@ -1772,8 +1844,9 @@ out_rc_error:
 
 out_error:
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+
+out_compl:
 	cmd->completed = 1;
-	cmd->state = SCST_CMD_STATE_DEV_DONE;
 	rc = SCST_EXEC_COMPLETED;
 	scst_cmd_done_local(cmd, SCST_CMD_STATE_DEFAULT);
 	goto out;
@@ -1781,10 +1854,7 @@ out_error:
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)	
 out_busy:
 	scst_set_busy(cmd);
-	cmd->completed = 1;
-	cmd->state = SCST_CMD_STATE_DEV_DONE;
-	rc = SCST_EXEC_COMPLETED;
-	scst_cmd_done_local(cmd, SCST_CMD_STATE_DEFAULT);
+	goto out_compl;
 	goto out;
 #endif
 

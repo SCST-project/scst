@@ -1656,6 +1656,8 @@ EXPORT_SYMBOL(scst_put);
 EXPORT_SYMBOL(scst_alloc);
 EXPORT_SYMBOL(scst_free);
 
+EXPORT_SYMBOL(scst_check_local_events);
+
 /* Tgt_dev's threads local storage */
 EXPORT_SYMBOL(scst_add_thr_data);
 EXPORT_SYMBOL(scst_del_all_thr_data);

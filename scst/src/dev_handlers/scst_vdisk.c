@@ -636,6 +636,7 @@ static inline int vdisk_need_pre_sync(enum scst_cmd_queue_type cur,
 
 static int vdisk_do_job(struct scst_cmd *cmd)
 {
+	int rc;
 	uint64_t lba_start = 0;
 	loff_t data_len = 0;
 	uint8_t *cdb = cmd->cdb;
@@ -650,16 +651,18 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
+	rc = scst_check_local_events(cmd);
+	if (unlikely(rc != 0)) {
+		if (rc > 0)
+			goto done;
+		else
+			goto done_uncompl;
+	}
+
 	cmd->status = 0;
 	cmd->msg_status = 0;
 	cmd->host_status = DID_OK;
 	cmd->driver_status = 0;
-
-	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
-		TRACE_MGMT_DBG("Flag ABORTED set for "
-		      "cmd %p (tag %llu), skipping", cmd, cmd->tag);
-		goto done_uncompl;
-	}
 
 	d = scst_find_thr_data(cmd->tgt_dev);
 	if (unlikely(d == NULL)) {

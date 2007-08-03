@@ -2699,7 +2699,7 @@ int scst_inc_on_dev_cmd(struct scst_cmd *cmd)
 
 #ifdef STRICT_SERIALIZING
 	spin_lock_bh(&dev->dev_lock);
-	if (test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))
+	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)))
 		goto out_unlock;
 	if (dev->block_count > 0) {
 		scst_dec_on_dev_cmd(cmd);
@@ -2718,7 +2718,7 @@ int scst_inc_on_dev_cmd(struct scst_cmd *cmd)
 repeat:
 	if (unlikely(dev->block_count > 0)) {
 		spin_lock_bh(&dev->dev_lock);
-		if (test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))
+		if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)))
 			goto out_unlock;
 		barrier(); /* to reread block_count */
 		if (dev->block_count > 0) {
@@ -3184,6 +3184,9 @@ void tm_dbg_task_mgmt(const char *fn, int force)
 {
 	unsigned long flags;
 
+	if (!tm_dbg_flags.tm_dbg_active)
+		goto out;
+
 	spin_lock_irqsave(&scst_tm_dbg_lock, flags);
 	if ((tm_dbg_state != TM_DBG_STATE_OFFLINE) || force) {
 		TRACE_MGMT_DBG("%s: freeing %d delayed cmds", fn,
@@ -3196,6 +3199,9 @@ void tm_dbg_task_mgmt(const char *fn, int force)
 		TRACE_MGMT_DBG("%s: while OFFLINE state, doing nothing", fn);
 	}
 	spin_unlock_irqrestore(&scst_tm_dbg_lock, flags);
+
+out:
+	return;
 }
 
 int tm_dbg_is_release(void)

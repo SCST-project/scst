@@ -358,10 +358,18 @@ int modisk_done(struct scst_cmd *cmd)
  ********************************************************************/
 int modisk_exec(struct scst_cmd *cmd)
 {
-	int res = SCST_EXEC_NOT_COMPLETED;
+	int res = SCST_EXEC_NOT_COMPLETED, rc;
 	int opcode = cmd->cdb[0];
 
 	TRACE_ENTRY();
+
+	rc = scst_check_local_events(cmd);
+	if (unlikely(rc != 0)) {
+		if (rc > 0)
+			goto out_compl;
+		else
+			goto out_uncompl;
+	}
 
 	switch (opcode) {
 	case WRITE_6:
@@ -372,18 +380,24 @@ int modisk_exec(struct scst_cmd *cmd)
 	case READ_10:
 	case READ_12:
 	case READ_16:
-		res = SCST_EXEC_COMPLETED;
-		cmd->status = 0;
-		cmd->msg_status = 0;
-		cmd->host_status = DID_OK;
-		cmd->driver_status = 0;
-		cmd->completed = 1;
-		cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);
-		break;
+		goto out_compl;
 	}
 
+out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_compl:
+	cmd->completed = 1;
+	cmd->status = 0;
+	cmd->msg_status = 0;
+	cmd->host_status = DID_OK;
+	cmd->driver_status = 0;
+
+out_uncompl:
+	res = SCST_EXEC_COMPLETED;
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);
+	goto out;
 }
 
 MODULE_AUTHOR("Vladislav Bolkhovitin & Leonid Stoljar");

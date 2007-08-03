@@ -210,8 +210,9 @@ static int scst_alloc_sg_entries(struct scatterlist *sg, int pages,
 	for (pg = 0; pg < pages; pg++) {
 		void *rc;
 #ifdef DEBUG_OOM
-		if ((scst_random() % 10000) == 55)
-			void *rc = NULL;
+		if (((gfp_mask & __GFP_NOFAIL) == 0) &&
+		    ((scst_random() % 10000) == 55))
+			rc = NULL;
 		else
 #endif
 			rc = alloc_fns->alloc_pages_fn(&sg[sg_count], gfp_mask,
