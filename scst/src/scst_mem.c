@@ -42,16 +42,17 @@
  */
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22))
-#error 2.6.22+ kernels are not supported yet, because some oversmart nerd \
-has deleted support for destructors from SLABs in those kernels and was \
-unresponsible enough to made that without even set it in the deprecated \
-status for some time to allow depending on it projects fix it without \
-disturbing their users. Blame him for that! So, now to be usable on \
-2.6.22+ kernels SCST requires a complete rewrite of one of its major low \
+#warning SCST on 2.6.22+ kernels will run in performance degraded mode, \
+because some oversmart mainline kernel developers have deleted in those \
+kernels support for destructors in SLAB cache and they were unresponsible \
+enough to made that change without even set that feature in the deprecated \
+status for some time to allow depending on it projects to fix themself without \
+disturbing their users. Blame those people for that! So, now to run in full \
+power on those kernels SCST requires a complete rewrite of one of its major low \
 level parts: all kmem_cache_*() functions in this file should be replaced \
 with new ones with similar functionality. I'm not sure I will have time for \
-that in the near future, therefore you are welcome to implement that. \
-Don't hesitate to ask me how to do it most effectively. VLNB.
+that in the near future, therefore you are welcome to implement it. Don't \
+hesitate to ask me how I think it should be done most effectively. VLNB.
 #endif
 
 /* Chosen to have one page per slab for all orders */
@@ -67,6 +68,10 @@ atomic_t sgv_other_total_alloc;
 
 DEFINE_MUTEX(scst_sgv_pool_mutex);
 LIST_HEAD(scst_sgv_pool_list);
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22))
+static void sgv_dtor(void *data, struct kmem_cache *k, unsigned long f);
+#endif
 
 static int scst_check_clustering(struct scatterlist *sg, int cur, int hint)
 {
@@ -481,9 +486,12 @@ out_fail_free_sg_entries:
 	}
 
 out_fail_free:
-	if (cache)
+	if (cache) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22))
+		sgv_dtor(obj, NULL, 0);
+#endif
 		kmem_cache_free(pool->caches[order], obj);
-	else
+	} else
 		kfree(obj);
 
 out_fail:
@@ -505,8 +513,12 @@ void sgv_pool_free(struct sgv_pool_obj *sgv)
 		"sg_count %d, allocator_priv %p", sgv, sgv->owner_cache,
 		sgv->sg_entries, sgv->sg_count, sgv->allocator_priv);
 	if (sgv->owner_cache != NULL) {
+		struct kmem_cache *c = sgv->owner_cache;
 		sgv->sg_entries[sgv->orig_sg].length = sgv->orig_length;
-		kmem_cache_free(sgv->owner_cache, sgv);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22))
+		sgv_dtor(sgv, NULL, 0);
+#endif
+		kmem_cache_free(c, sgv);
 	} else {
 		sgv->owner_pool->alloc_fns.free_pages_fn(sgv->sg_entries,
 			sgv->sg_count, sgv->allocator_priv);
@@ -545,6 +557,9 @@ static void sgv_dtor(void *data, struct kmem_cache *k, unsigned long f)
 		}
 		kfree(obj->sg_entries);
 	}
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22))
+	memset(obj, 0, sizeof(*obj));
+#endif
 	return;
 }
 
@@ -635,8 +650,13 @@ int sgv_pool_init(struct sgv_pool *pool, const char *name, int clustered)
 
 		scnprintf(pool->cache_names[i], sizeof(pool->cache_names[i]),
 			"%s-%luK", name, (PAGE_SIZE >> 10) << i);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22))
+		pool->caches[i] = kmem_cache_create(pool->cache_names[i], 
+			size, 0, SCST_SLAB_FLAGS, sgv_ctor, NULL);
+#else
 		pool->caches[i] = kmem_cache_create(pool->cache_names[i], 
 			size, 0, SCST_SLAB_FLAGS, sgv_ctor, sgv_dtor);
+#endif
 		if (pool->caches[i] == NULL) {
 			TRACE(TRACE_OUT_OF_MEM, "Allocation of sgv_pool cache "
 				"%s(%d) failed", name, i);

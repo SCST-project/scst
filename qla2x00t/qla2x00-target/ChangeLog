@@ -3,11 +3,14 @@ Summary of changes between versions 0.9.5 and 0.9.6
 
  - Support for per-target default security groups added.
 
- - Update to work on 2.6.19.x.
+ - Update to work on the latest kernel (2.6.22.x).
 
  - Updated to work with SCST 0.9.6.
 
+ - /proc support routines changed to work with seq_file interface.
+
  - Cleanups and minor bug fixes.
+
 
 Summary of changes between versions 0.9.3.8 and 0.9.5
 -----------------------------------------------------
