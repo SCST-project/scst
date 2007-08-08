@@ -8,7 +8,7 @@ To be done
    the page cache (in order to avoid data copy between it and internal
    buffers). Requires modifications of the kernel.
 
- - O_DIRECT mode doesn't work for FILEIO (oops'es somewhere in the kernel)
+ - Fix in-kernel O_DIRECT mode.
  
  - Close integration with Linux initiator SCSI mil-level, including 
    queue types (simple, ordered, etc.) and local initiators (sd, st, sg,

@@ -2447,9 +2447,16 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
 		if (test_bit(SCST_CMD_ABORTED_OTHER, &cmd->cmd_flags)) {
-			TRACE_MGMT_DBG("Flag ABORTED OTHER set for cmd %p "
-				"(tag %llu), returning TASK ABORTED", cmd, cmd->tag);
-			scst_set_cmd_error_status(cmd, SAM_STAT_TASK_ABORTED);
+			if (cmd->completed) {
+				/* It's completed and it's OK to return its result */
+				clear_bit(SCST_CMD_ABORTED, &cmd->cmd_flags);
+				clear_bit(SCST_CMD_ABORTED_OTHER, &cmd->cmd_flags);
+			} else {
+				TRACE_MGMT_DBG("Flag ABORTED OTHER set for cmd "
+					"%p (tag %llu), returning TASK ABORTED",
+					cmd, cmd->tag);
+				scst_set_cmd_error_status(cmd, SAM_STAT_TASK_ABORTED);
+			}
 		}
 	}
 

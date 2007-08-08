@@ -2549,7 +2549,8 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 				TRACE_DBG("%s", "O_DIRECT");
 		#else
 				PRINT_INFO_PR("%s flag doesn't currently"
-					" work, ignoring it", "O_DIRECT");
+					" work, ignoring it, use fileio_tgt "
+					"in O_DIRECT mode instead", "O_DIRECT");
 		#endif
 			} else if (!strncmp("NULLIO", p, 6)) {
 				p += 6;

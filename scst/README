@@ -361,8 +361,9 @@ subdirectories "vdisk" and "vcdrom". They have similar layout:
       
       - READ_ONLY - read only
       
-      - O_DIRECT - both read and write caching disabled (doesn't work
-        currently).
+      - O_DIRECT - both read and write caching disabled. This mode
+        isn't currently fully implemented, you should use user space
+	fileio_tgt program in O_DIRECT mode instead (see below).
 
       - NULLIO - in this mode no real IO will be done, but success will be
         returned. Intended to be used for performance measurements at the same
@@ -499,28 +500,21 @@ User space mode using scst_user dev handler
 User space program fileio_tgt uses interface of scst_user dev handler
 and allows to see how it work in various modes. Fileio_tgt provides
 mostly the same functionality as scst_vdisk handler with the only
-exception that it supports O_DIRECT mode. This mode is basically the
-same as BLOCKIO, but also supports files, so for some loads it could be
-significantly faster, than regular FILEIO access, provided by
-scst_vdisk. All the words about BLOCKIO from above apply to O_DIRECT as
-well. While running fileio_tgt if you don't understand some its options,
-use defaults for them, those values are the fastest.
+exceptions that it has implemented O_DIRECT mode and doesn't support
+BLOCKIO one. O_DIRECT mode is basically the same as BLOCKIO, but also
+supports files, so for some loads it could be significantly faster, than
+regular FILEIO access. All the words about BLOCKIO from above apply to
+O_DIRECT as well. While running fileio_tgt if you don't understand some
+its options, use defaults for them, those values are the fastest.
 
 Performance
 -----------
 
 Before doing any performance measurements note that:
 
-I. Currently maximum performance is possible only with real SCSI devices
-or VDISK BLOCKIO mode with several simultaneously executed commands
-(SCSI tagged queuing) or performance handlers. If you have enough CPU
-power, VDISK FILEIO handler also could provide the same results, when
-aggregate throughput is close to the aggregate throughput locally on the
-target from the same disks. Also note, that currently IO subsystem in
-Linux implemented on such way, so a VDISK FILEIO device over a single
-file occupied entire formatted with some file system device (eg
-/dev/hdc) could perform considerably better, than a VDISK FILEIO device
-over /dev/hdc itself without the file system involved.
+I. Performance results are very much dependent from your type of load,
+so it is crucial that you choose access mode (FILEIO, BLOCKIO,
+O_DIRECT, pass-through), which suits your needs the best.
 
 II. In order to get the maximum performance you should:
 
@@ -529,9 +523,9 @@ II. In order to get the maximum performance you should:
  - Disable in Makefile STRICT_SERIALIZING, EXTRACHECKS, TRACING, DEBUG*,
    SCST_STRICT_SECURITY, SCST_HIGHMEM
 
-2. For Qlogic target driver:
+2. For target drivers:
 
- - Disable in Makefile EXTRACHECKS, TRACING, DEBUG_TGT, DEBUG_WORK_IN_THREAD
+ - Disable in Makefiles EXTRACHECKS, TRACING, DEBUG*
 
 3. For device handlers, including VDISK:
 
@@ -554,12 +548,39 @@ IMPORTANT: Some of the compilation options enabled by default, i.e. SCST
 
  - The default kernel read-ahead and queuing settings are optimized
    for locally attached disks, therefore they are not optimal if they
-   attached remotely (our case), which sometimes could lead to
-   unexpectedly low throughput. You should increase read-ahead size
-   (/sys/block/device/queue/read_ahead_kb) to at least 256Kb or even
-   more on all initiators and the target. Also experiment with other
-   parameters in /sys/block/device directory, they also affect the
-   performance. If you find the best values, please share them with us.
+   attached remotely (SCSI target case), which sometimes could lead to
+   unexpectedly low throughput. You should increase read-ahead size to at
+   least 512KB or even more on all initiators and the target.
+   
+   You should also limit on all initiators maximum amount of sectors per
+   SCSI command. To do it on Linux initiators, run:
+  
+   echo “64” > /sys/block/sdX/queue/max_sectors_kb
+
+   where specify instead of X your imported from target device letter,
+   like 'b', i.e. sdb.
+
+   To increase read-ahead size on Linux, run:
+  
+   blockdev --setra N /dev/sdX
+
+   where N is a read-ahead number in 512-byte sectors and X is a device
+   letter like above.
+
+   Note: you need to set read-ahead setting for device sdX again after
+   you changed the maximum amount of sectors per SCSI command for that
+   device.
+
+ - You may need to increase amount of requests that OS on initiator
+   sends to the target device. To do it on Linux initiators, run
+
+   echo “512” > /sys/block/sdX/queue/nr_requests
+
+   where X is a device letter like above.
+
+   You may also experiment with other parameters in /sys/block/sdX
+   directory, they also affect performance. If you find the best values,
+   please share them with us.
 
  - Use on the target deadline IO scheduler with read_expire and
    write_expire increased on all exported devices to 5000 and 20000
@@ -571,40 +592,29 @@ IMPORTANT: Some of the compilation options enabled by default, i.e. SCST
 5. For hardware.
 
  - Make sure that your target hardware (e.g. target FC card) and underlaying
-   SCSI hardware (e.g. SCSI card to which your disks connected) stay on
-   different PCI buses. They will have to work in parallel, so it
-   will be better if they don't race for the bus. The problem is not
-   only in the bandwidth, which they have to share, but also in the
-   interaction between the cards during that competition. We have told
-   that in some cases it could lead to 5-10 times less performance, than
+   IO hardware (e.g. IO card, like SATA, SCSI or RAID to which your
+   disks connected) stay on different PCI buses. They have to work in
+   parallel, so it will be better if they don't compete for the bus. The
+   problem is not only in the bandwidth, which they have to share, but
+   also in the interaction between cards during that competition. In
+   some cases it could lead up to 5-10 times less performance, than
    expected.
 
 IMPORTANT: If you use on initiator some versions of Windows (at least W2K)
 =========  you can't get good write performance for VDISK FILEIO devices with
            default 512 bytes block sizes. You could get about 10% of the
-	   expected one. This is because of "unusual" write access
-	   pattern, with which Windows'es write data and which is
-	   (simplifying) incompatible with how Linux page cache works,
-	   so for each write the corresponding block must be read first.
-	   With 4096 bytes block sizes for VDISK devices the write
-	   performance will be as expected. Actually, any system on
-	   initiator, not only Windows, will benefit from block size
+	   expected one. This is because of partition alignment, which
+	   is (simplifying) incompatible with how Linux page cache
+	   works, so for each write the corresponding block must be read
+	   first. Use 4096 bytes block sizes for VDISK devices and you
+	   will have the expected write performance. Actually, any OS on
+	   initiators, not only Windows, will benefit from block size
 	   max(PAGE_SIZE, BLOCK_SIZE_ON_UNDERLYING_FS), where PAGE_SIZE
-	   is the page size, BLOCK_SIZE_ON_UNDERLYING_FS is block size on
-	   the underlying FS, on which the device file located, or 0, if
-	   a device node is used. Both values are on the target.
-
-Just for reference: we had with 0.9.2 and "old" Qlogic driver on 2.4.2x
-kernel, where we did careful performance study, aggregate throughput
-about 390 Mb/sec from 2 qla2300 cards sitting on different 64-bit PCI
-buses and working simultaneously for two different initiators with
-several simultaneously working load programs on each. From one card -
-about 190 Mb/sec. We used tape_perf handler, so there was no influence
-from underlying SCSI hardware, i.e. we measured only SCST/FC overhead.
-The target computer configuration was not very modern for the moment:
-something like 2x1GHz Intel P3 Xeon CPUs. You can estimate the
-memory/PCI speed from that. CPU load was ~5%, there were ~30K IRQ/sec
-and no additional SCST related context switches.
+	   is the page size, BLOCK_SIZE_ON_UNDERLYING_FS is block size
+	   on the underlying FS, on which the device file located, or 0,
+	   if a device node is used. Both values are from the target.
+	   See also important notes about setting block sizes >512 bytes
+	   for VDISK FILEIO devices above.
 
 Credits
 -------
