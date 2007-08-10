@@ -1657,6 +1657,21 @@ probe_out:
 }
 EXPORT_SYMBOL_GPL(qla2x00_probe_one);
 
+static void
+qla2x00_stop_dpc_thread(scsi_qla_host_t *ha)
+{
+	if (ha->dpc_thread) {
+		struct task_struct *t = ha->dpc_thread;
+
+		/*
+		 * qla2xxx_wake_dpc checks for ->dpc_thread
+		 * so we need to zero it out.
+		 */
+		ha->dpc_thread = NULL;
+		kthread_stop(t);
+	}
+}
+
 void qla2x00_remove_one(struct pci_dev *pdev)
 {
 	scsi_qla_host_t *ha;
@@ -1668,6 +1683,10 @@ void qla2x00_remove_one(struct pci_dev *pdev)
 	if (qla_target.tgt_host_action != NULL) 
 		qla_target.tgt_host_action(ha, DISABLE_TARGET_MODE);
 #endif
+
+	/* Necessary to prevent races with it */
+	qla2x00_stop_dpc_thread(ha);
+
 	qla2x00_free_sysfs_attr(ha);
 
 	fc_remove_host(ha->host);
@@ -1694,16 +1713,7 @@ qla2x00_free_device(scsi_qla_host_t *ha)
 		qla2x00_stop_timer(ha);
 
 	/* Kill the kernel thread for this host */
-	if (ha->dpc_thread) {
-		struct task_struct *t = ha->dpc_thread;
-
-		/*
-		 * qla2xxx_wake_dpc checks for ->dpc_thread
-		 * so we need to zero it out.
-		 */
-		ha->dpc_thread = NULL;
-		kthread_stop(t);
-	}
+	qla2x00_stop_dpc_thread(ha);
 
 	/* Stop currently executing firmware. */
 	qla2x00_stop_firmware(ha);
