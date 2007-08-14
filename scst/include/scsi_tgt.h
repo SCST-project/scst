@@ -285,6 +285,19 @@
 /* Set if session is initialized and ready */
 #define SCST_SESS_IPH_READY          3
 
+/************************************************************* 
+ ** Session shutdown phases
+ *************************************************************/
+
+/* Set if session is initialized and ready */
+#define SCST_SESS_SPH_READY          0
+
+/* Set if session is on calling pre_unreg_sess() phase */
+#define SCST_SESS_SPH_PRE_UNREG      1
+
+/* Set if session is shutting down */
+#define SCST_SESS_SPH_SHUTDOWN       2
+
 /*************************************************************
  ** Cmd's async (atomic) flags 
  *************************************************************/
@@ -833,19 +846,26 @@ struct scst_tgt
 
 struct scst_session
 {
-	/* Initialization phase, one of SCST_SESS_IPH_* constants */
+	/*
+	 * Initialization phase, one of SCST_SESS_IPH_* constants, protected by
+	 * sess_list_lock
+	 */
 	int init_phase;
 
 	atomic_t refcnt;		/* get/put counter */
 
-	/************************************************************* 
-	 ** Session's flags. Serialized by scst_mgmt_lock
-	 *************************************************************/
-
-	/* Set if the session is shutting down */
-	unsigned int shutting_down:1;
-
 	/**************************************************************/
+
+	/* Alive commands for this session. ToDo: make it part of the common IO flow control */
+	atomic_t sess_cmd_count;		
+
+	spinlock_t sess_list_lock; /* protects search_cmd_list, etc */
+
+	/* 
+	 * List of cmds in this session. Used to find a cmd in the
+	 * session. Protected by sess_list_lock.
+	 */
+	struct list_head search_cmd_list;
 
 	/*
 	 * Hash list of tgt_dev's for this session, protected by scst_mutex
@@ -859,21 +879,10 @@ struct scst_session
 	/* List entry for the sessions list inside ACG */
 	struct list_head acg_sess_list_entry;
 
+	struct scst_tgt *tgt;	/* corresponding target */
+
 	/* Used for storage of target driver private stuff */
 	void *tgt_priv;
-
-	/* Alive commands for this session. ToDo: make it part of common IO flow control */
-	atomic_t sess_cmd_count;		
-
-	spinlock_t sess_list_lock; /* protects search_cmd_list, etc */
-
-	/* 
-	 * List of cmds in this session. Used to find a cmd in the
-	 * session. Protected by sess_list_lock.
-	 */
-	struct list_head search_cmd_list;
-	
-	struct scst_tgt *tgt;	/* corresponding target */
 
 	/* Name of attached initiator */
 	const char *initiator_name;
@@ -882,7 +891,10 @@ struct scst_session
 	struct list_head sess_list_entry;
 
 	/* List entry for the list that keeps session, waiting for the init */
-	struct list_head sess_mgmt_list_entry;
+	struct list_head sess_init_list_entry;
+
+	/* List entry for the list that keeps session, waiting for the shutdown */
+	struct list_head sess_shut_list_entry;
 
 	/* 
 	 * Lists of deffered during session initialization commands.
@@ -891,11 +903,15 @@ struct scst_session
 	struct list_head init_deferred_cmd_list;
 	struct list_head init_deferred_mcmd_list;
 
+	/*
+	 * Shutdown phase, one of SCST_SESS_SPH_* constants, unprotected.
+	 * Async. relating to init_phase, must be a separate variable, because
+	 * session could be unregistered before async. registration is finished.
+	 */
+	unsigned long shut_phase;
+
 	/* Used if scst_unregister_session() called in wait mode */
 	struct completion *shutdown_compl;
-
-	/* Used to push some unregister_session() works out of IRQ */
-	struct work_struct unreg_work;
 
 	/*
 	 * Functions and data for user callbacks from scst_register_session()

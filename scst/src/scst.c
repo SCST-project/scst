@@ -52,7 +52,14 @@
 	not be supported.
 #endif
 
-/* All targets, devices and dev_types management is done under this mutex */
+/*
+ * All targets, devices and dev_types management is done under this mutex.
+ *
+ * It must NOT be used in any works (schedule_work(), etc.), because
+ * otherwise a deadlock (double lock, actually) is possible, e.g., with
+ * scst_user detach_tgt(), which is called under scst_mutex and calls
+ * flush_scheduled_work().
+ */
 DEFINE_MUTEX(scst_mutex);
 
 LIST_HEAD(scst_template_list);
@@ -109,7 +116,8 @@ DECLARE_WAIT_QUEUE_HEAD(scst_mgmt_cmd_list_waitQ);
 
 DECLARE_WAIT_QUEUE_HEAD(scst_mgmt_waitQ);
 spinlock_t scst_mgmt_lock = SPIN_LOCK_UNLOCKED;
-LIST_HEAD(scst_sess_mgmt_list);
+LIST_HEAD(scst_sess_init_list);
+LIST_HEAD(scst_sess_shut_list);
 
 DECLARE_WAIT_QUEUE_HEAD(scst_dev_cmd_waitQ);
 
@@ -369,7 +377,7 @@ void scst_unregister(struct scst_tgt *tgt)
 
 	mutex_lock(&scst_mutex);
 	list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
-		sBUG_ON(!sess->shutting_down);
+		sBUG_ON(sess->shut_phase == SCST_SESS_SPH_READY);
 	}
 	mutex_unlock(&scst_mutex);
 

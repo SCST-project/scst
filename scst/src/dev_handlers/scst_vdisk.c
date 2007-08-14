@@ -652,12 +652,8 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	rc = scst_check_local_events(cmd);
-	if (unlikely(rc != 0)) {
-		if (rc > 0)
-			goto done;
-		else
-			goto done_uncompl;
-	}
+	if (unlikely(rc != 0))
+		goto out_done;
 
 	cmd->status = 0;
 	cmd->msg_status = 0;
@@ -669,7 +665,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 		thr = vdisk_init_thr_data(cmd->tgt_dev);
 		if (thr == NULL) {
 			scst_set_busy(cmd);
-			goto done;
+			goto out_compl;
 		}
 		scst_thr_data_get(&thr->hdr);
 	} else
@@ -734,7 +730,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 			(uint64_t)virt_dev->file_size, (uint64_t)data_len);
 		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
 					scst_sense_block_out_range_error));
-		goto done;
+		goto out_compl;
 	}
 
 	switch (opcode) {
@@ -780,7 +776,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 			    		(uint64_t)data_len);
 			    	do_fsync = 1;
 				if (vdisk_fsync(thr, 0, 0, cmd) != 0)
-					goto done;
+					goto out_compl;
 			}
 			if (virt_dev->blockio) {
 				blockio_exec_rw(cmd, thr, lba_start, 1);
@@ -815,7 +811,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 			    		(uint64_t)data_len);
 			    	do_fsync = 1;
 				if (vdisk_fsync(thr, 0, 0, cmd) != 0)
-					goto done;
+					goto out_compl;
 			}
 			/* ToDo: BLOCKIO VERIFY */
 			vdisk_exec_write(cmd, thr, loff);
@@ -903,10 +899,10 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 		    SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 	}
 
-done:
+out_compl:
 	cmd->completed = 1;
 
-done_uncompl:
+out_done:
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);
 
 out:

@@ -61,7 +61,7 @@ struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
 	TRACE_ENTRY();
 
 #ifdef EXTRACHECKS
-	if (unlikely(sess->shutting_down)) {
+	if (unlikely(sess->shut_phase != SCST_SESS_SPH_READY)) {
 		PRINT_ERROR_PR("%s", "New cmd while shutting down the session");
 		sBUG();
 	}
@@ -145,7 +145,7 @@ out_redirect:
 		cmd->state = SCST_CMD_STATE_XMIT_RESP;
 		/* Keep initiator away from too many BUSY commands */
 		if (!in_interrupt() && !in_atomic())
-			ssleep(2);
+			msleep(50);
 		else
 			WARN_ON_ONCE(1);
 	} else {
@@ -1287,12 +1287,8 @@ static int scst_report_luns_local(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	rc = scst_check_local_events(cmd);
-	if (unlikely(rc != 0)) {
-		if (rc > 0)
-			goto out_done;
-		else
-			goto out_uncompl;
-	}
+	if (unlikely(rc != 0))
+		goto out_done;
 
 	cmd->status = 0;
 	cmd->msg_status = 0;
@@ -1366,10 +1362,10 @@ inc_dev_cnt:
 	if (dev_cnt < cmd->resp_data_len)
 		scst_set_resp_data_len(cmd, dev_cnt);
 
-out_done:
+out_compl:
 	cmd->completed = 1;
 
-out_uncompl:
+out_done:
 	/* Report the result */
 	scst_cmd_done_local(cmd, SCST_CMD_STATE_DEFAULT);
 
@@ -1382,12 +1378,12 @@ out_put_err:
 out_err:
 	scst_set_cmd_error(cmd,
 		   SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
-	goto out_done;
+	goto out_compl;
 
 out_put_hw_err:
 	scst_put_buf(cmd, buffer);
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
-	goto out_done;
+	goto out_compl;
 }
 
 static int scst_pre_select(struct scst_cmd *cmd)
@@ -1451,12 +1447,8 @@ static int scst_reserve_local(struct scst_cmd *cmd)
 	scst_block_dev_cmd(cmd, 1);
 
 	rc = scst_check_local_events(cmd);
-	if (unlikely(rc != 0)) {
-		if (rc > 0)
-			goto out_compl;
-		else
-			goto out_uncompl;
-	}
+	if (unlikely(rc != 0))
+		goto out_done;
 
 	spin_lock_bh(&dev->dev_lock);
 
@@ -1483,10 +1475,7 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 
-out_compl:
-	cmd->completed = 1;
-
-out_uncompl:
+out_done:
 	res = SCST_EXEC_COMPLETED;
 	/* Report the result */
 	scst_cmd_done_local(cmd, SCST_CMD_STATE_DEFAULT);
@@ -1511,12 +1500,8 @@ static int scst_release_local(struct scst_cmd *cmd)
 	scst_block_dev_cmd(cmd, 1);
 
 	rc = scst_check_local_events(cmd);
-	if (unlikely(rc != 0)) {
-		if (rc > 0)
-			goto out_compl;
-		else
-			goto out_uncompl;
-	}
+	if (unlikely(rc != 0))
+		goto out_done;
 
 	spin_lock_bh(&dev->dev_lock);
 
@@ -1544,16 +1529,13 @@ static int scst_release_local(struct scst_cmd *cmd)
 	spin_unlock_bh(&dev->dev_lock);
 
 	if (res == SCST_EXEC_COMPLETED)
-		goto out_compl;
+		goto out_done;
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 
-out_compl:
-	cmd->completed = 1;
-
-out_uncompl:
+out_done:
 	res = SCST_EXEC_COMPLETED;
 	/* Report the result */
 	scst_cmd_done_local(cmd, SCST_CMD_STATE_DEFAULT);
@@ -1629,6 +1611,7 @@ out:
 
 out_complete:
 	res = 1;
+	cmd->completed = 1;
 	goto out;
 
 out_uncomplete:
@@ -1786,12 +1769,8 @@ static int scst_do_send_to_midlev(struct scst_cmd *cmd)
 	}
 
 	rc = scst_check_local_events(cmd);
-	if (unlikely(rc != 0)) {
-		if (rc > 0)
-			goto out_compl;
-		else
-			goto out_aborted;
-	}
+	if (unlikely(rc != 0))
+		goto out_done;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)	
 	if (unlikely(scst_alloc_request(cmd) != 0)) {
@@ -1845,20 +1824,14 @@ out_rc_error:
 out_error:
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 
-out_compl:
-	cmd->completed = 1;
-	rc = SCST_EXEC_COMPLETED;
-	scst_cmd_done_local(cmd, SCST_CMD_STATE_DEFAULT);
-	goto out;
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)	
 out_busy:
 	scst_set_busy(cmd);
-	goto out_compl;
-	goto out;
+	cmd->completed = 1;
+	/* go through */
 #endif
 
-out_aborted:
+out_done:
 	rc = SCST_EXEC_COMPLETED;
 	/* Report the result. The cmd is not completed */
 	scst_cmd_done_local(cmd, SCST_CMD_STATE_DEFAULT);
@@ -4052,7 +4025,7 @@ static int scst_post_rx_mgmt_cmd(struct scst_session *sess,
 	atomic_inc(&sess->sess_cmd_count);
 
 #ifdef EXTRACHECKS
-	if (unlikely(sess->shutting_down)) {
+	if (unlikely(sess->shut_phase != SCST_SESS_SPH_READY)) {
 		PRINT_ERROR_PR("%s",
 			"New mgmt cmd while shutting down the session");
 		sBUG();
@@ -4346,9 +4319,9 @@ struct scst_session *scst_register_session(struct scst_tgt *tgt, int atomic,
 		sess->reg_sess_data = data;
 		sess->init_result_fn = result_fn;
 		spin_lock_irqsave(&scst_mgmt_lock, flags);
-		TRACE_DBG("Adding sess %p to scst_sess_mgmt_list", sess);
-		list_add_tail(&sess->sess_mgmt_list_entry,
-			      &scst_sess_mgmt_list);
+		TRACE_DBG("Adding sess %p to scst_sess_init_list", sess);
+		list_add_tail(&sess->sess_init_list_entry,
+			      &scst_sess_init_list);
 		spin_unlock_irqrestore(&scst_mgmt_lock, flags);
 		wake_up(&scst_mgmt_waitQ);
 	} else {
@@ -4365,47 +4338,6 @@ out_free:
 	scst_free_session(sess);
 	sess = NULL;
 	goto out;
-}
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
-static void scst_unreg_work_fn(void *p)
-#else
-static void scst_unreg_work_fn(struct work_struct *work)
-#endif
-{
-	int i;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
-	struct scst_session *sess = (struct scst_session*)p;
-#else
-	struct scst_session *sess = container_of(work, struct scst_session,
-					unreg_work);
-#endif
-	struct scst_tgt_dev *tgt_dev;
-
-	TRACE_ENTRY();
-
-	mutex_lock(&scst_mutex);
-	for(i = 0; i < TGT_DEV_HASH_SIZE; i++) {
-		struct list_head *sess_tgt_dev_list_head =
-			&sess->sess_tgt_dev_list_hash[i];
-		list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
-				sess_tgt_dev_list_entry) {
-			struct scst_dev_type *handler = tgt_dev->dev->handler;
-			if (handler && handler->pre_unreg_sess) {
-				TRACE_DBG("Calling dev handler's pre_unreg_sess(%p)",
-				      tgt_dev);
-				handler->pre_unreg_sess(tgt_dev);
-				TRACE_DBG("%s", "Dev handler's pre_unreg_sess() "
-					"returned");
-			}
-		}
-	}
-	mutex_unlock(&scst_mutex);
-
-	scst_sess_put(sess);
-
-	TRACE_EXIT();
-	return;
 }
 
 /* 
@@ -4429,9 +4361,10 @@ void scst_unregister_session(struct scst_session *sess, int wait,
 	pc = &c;
 #endif
 
+	sess->shut_phase = SCST_SESS_SPH_PRE_UNREG;
+
 	spin_lock_irqsave(&scst_mgmt_lock, flags);
 
-	sess->shutting_down = 1;
 	sess->unreg_done_fn = unreg_done_fn;
 	if (wait) {
 		sess->shutdown_compl = pc;
@@ -4446,13 +4379,7 @@ void scst_unregister_session(struct scst_session *sess, int wait,
 
 	tm_dbg_task_mgmt("UNREGISTER SESSION", 1);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
-	INIT_WORK(&sess->unreg_work, scst_unreg_work_fn, sess);
-#else
-	INIT_WORK(&sess->unreg_work, scst_unreg_work_fn);
-#endif
-
-	schedule_work(&sess->unreg_work);
+	scst_sess_put(sess);
 
 	if (wait) {
 		TRACE_DBG("Waiting for session %p to complete", sess);
@@ -4467,9 +4394,47 @@ void scst_unregister_session(struct scst_session *sess, int wait,
 	return;
 }
 
+static void scst_pre_unreg_sess(struct scst_session *sess)
+{
+	int i;
+	struct scst_tgt_dev *tgt_dev;
+	unsigned long flags;
+
+	TRACE_ENTRY();
+
+	mutex_lock(&scst_mutex);
+	for(i = 0; i < TGT_DEV_HASH_SIZE; i++) {
+		struct list_head *sess_tgt_dev_list_head =
+			&sess->sess_tgt_dev_list_hash[i];
+		list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
+				sess_tgt_dev_list_entry) {
+			struct scst_dev_type *handler = tgt_dev->dev->handler;
+			if (handler && handler->pre_unreg_sess) {
+				TRACE_DBG("Calling dev handler's pre_unreg_sess(%p)",
+				      tgt_dev);
+				handler->pre_unreg_sess(tgt_dev);
+				TRACE_DBG("%s", "Dev handler's pre_unreg_sess() "
+					"returned");
+			}
+		}
+	}
+	mutex_unlock(&scst_mutex);
+
+	sess->shut_phase = SCST_SESS_SPH_SHUTDOWN;
+
+	spin_lock_irqsave(&scst_mgmt_lock, flags);
+	TRACE_DBG("Adding sess %p to scst_sess_shut_list", sess);
+	list_add_tail(&sess->sess_shut_list_entry, &scst_sess_shut_list);
+	spin_unlock_irqrestore(&scst_mgmt_lock, flags);
+
+	TRACE_EXIT();
+	return;
+}
+
 static inline int test_mgmt_list(void)
 {
-	int res = !list_empty(&scst_sess_mgmt_list) ||
+	int res = !list_empty(&scst_sess_init_list) ||
+		  !list_empty(&scst_sess_shut_list) ||
 		  unlikely(kthread_should_stop());
 	return res;
 }
@@ -4500,36 +4465,64 @@ int scst_mgmt_thread(void *arg)
 			set_current_state(TASK_RUNNING);
 			remove_wait_queue(&scst_mgmt_waitQ, &wait);
 		}
-restart:
-		list_for_each_entry(sess, &scst_sess_mgmt_list,
-			sess_mgmt_list_entry)
-		{
-			TRACE_DBG("Removing sess %p from scst_sess_mgmt_list",
+
+		while (!list_empty(&scst_sess_init_list)) {
+			sess = list_entry(scst_sess_init_list.next,
+				typeof(*sess), sess_init_list_entry);
+			TRACE_DBG("Removing sess %p from scst_sess_init_list",
 				sess);
-			list_del(&sess->sess_mgmt_list_entry);
+			list_del(&sess->sess_init_list_entry);
 			spin_unlock_irq(&scst_mgmt_lock);
-			if (sess->init_phase == SCST_SESS_IPH_INITING) {
+
+			if (sess->init_phase == SCST_SESS_IPH_INITING)
 				scst_init_session(sess);
-			} else if (sess->shutting_down) {
-				sBUG_ON(atomic_read(&sess->refcnt) != 0);
-				scst_free_session_callback(sess);
-			} else {
+			else {
 				PRINT_ERROR_PR("session %p is in "
-					"scst_sess_mgmt_list, but in unknown "
-					"phase %x", sess, sess->init_phase);
+					"scst_sess_init_list, but in unknown "
+					"init phase %x", sess,
+					sess->init_phase);
 				sBUG();
 			}
+
 			spin_lock_irq(&scst_mgmt_lock);
-			goto restart;
+		}
+
+		while (!list_empty(&scst_sess_shut_list)) {
+			sess = list_entry(scst_sess_shut_list.next,
+				typeof(*sess), sess_shut_list_entry);
+			TRACE_DBG("Removing sess %p from scst_sess_shut_list",
+				sess);
+			list_del(&sess->sess_shut_list_entry);
+			spin_unlock_irq(&scst_mgmt_lock);
+
+			switch(sess->shut_phase) {
+			case SCST_SESS_SPH_PRE_UNREG:
+				scst_pre_unreg_sess(sess);
+				break;
+			case SCST_SESS_SPH_SHUTDOWN:
+				sBUG_ON(atomic_read(&sess->refcnt) != 0);
+				scst_free_session_callback(sess);
+				break;
+			default:
+				PRINT_ERROR_PR("session %p is in "
+					"scst_sess_shut_list, but in unknown "
+					"shut phase %lx", sess,
+					sess->shut_phase);
+				sBUG();
+				break;
+			}
+
+			spin_lock_irq(&scst_mgmt_lock);
 		}
 	}
 	spin_unlock_irq(&scst_mgmt_lock);
 
 	/*
 	 * If kthread_should_stop() is true, we are guaranteed to be
-	 * on the module unload, so scst_sess_mgmt_list must be empty.
+	 * on the module unload, so both lists must be empty.
 	 */
-	sBUG_ON(!list_empty(&scst_sess_mgmt_list));
+	sBUG_ON(!list_empty(&scst_sess_init_list));
+	sBUG_ON(!list_empty(&scst_sess_shut_list));
 
 	TRACE_EXIT();
 	return 0;

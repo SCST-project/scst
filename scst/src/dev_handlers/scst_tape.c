@@ -395,34 +395,27 @@ int tape_exec(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	rc = scst_check_local_events(cmd);
-	if (unlikely(rc != 0)) {
-		if (rc > 0)
-			goto out_compl;
-		else
-			goto out_uncompl;
-	}
+	if (unlikely(rc != 0))
+		goto out_done;
 
-	switch (opcode) {
-	case WRITE_6:
-	case READ_6:
-		goto out_compl;
-	}
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-
-out_compl:
-	cmd->completed = 1;
 	cmd->status = 0;
 	cmd->msg_status = 0;
 	cmd->host_status = DID_OK;
 	cmd->driver_status = 0;
 
-out_uncompl:
+	switch (opcode) {
+	case WRITE_6:
+	case READ_6:
+		cmd->completed = 1;
+		break;
+	}
+
+out_done:
 	res = SCST_EXEC_COMPLETED;
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);
-	goto out;
+
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 MODULE_AUTHOR("Vladislav Bolkhovitin & Leonid Stoljar");

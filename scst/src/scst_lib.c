@@ -1048,6 +1048,7 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, int gfp_mask,
 #endif
 
 	sess->init_phase = SCST_SESS_IPH_INITING;
+	sess->shut_phase = SCST_SESS_SPH_READY;
 	atomic_set(&sess->refcnt, 0);
 	for(i = 0; i < TGT_DEV_HASH_SIZE; i++) {
 		struct list_head *sess_tgt_dev_list_head =
@@ -1137,8 +1138,8 @@ void scst_sched_session_free(struct scst_session *sess)
 	TRACE_ENTRY();
 
 	spin_lock_irqsave(&scst_mgmt_lock, flags);
-	TRACE_DBG("Adding sess %p to scst_sess_mgmt_list", sess);
-	list_add_tail(&sess->sess_mgmt_list_entry, &scst_sess_mgmt_list);
+	TRACE_DBG("Adding sess %p to scst_sess_shut_list", sess);
+	list_add_tail(&sess->sess_shut_list_entry, &scst_sess_shut_list);
 	spin_unlock_irqrestore(&scst_mgmt_lock, flags);
 	
 	wake_up(&scst_mgmt_waitQ);

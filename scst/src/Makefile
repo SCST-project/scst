@@ -81,6 +81,12 @@ ifneq ($(MOD_VERS),)
 	install -m 644 Module.symvers $(INSTALL_DIR_H)
 endif
 	-depmod -a $(KVER)
+	@echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+	@echo "!!     Now don't forget to rebuild and reinstall all your     !!"
+	@echo "!!   target drivers, custom dev handlers and necessary user   !!"
+	@echo "!!   space applications. Otherwise, because of the versions   !!"
+	@echo "!!     mismatch, you could have many problems and crashes!    !!"
+	@echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 
 uninstall:
 	cd $(DEV_HANDLERS_DIR) && $(MAKE) $@

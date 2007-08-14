@@ -198,7 +198,8 @@ extern struct scst_tasklet scst_tasklets[NR_CPUS];
 
 extern wait_queue_head_t scst_mgmt_waitQ;
 extern spinlock_t scst_mgmt_lock;
-extern struct list_head scst_sess_mgmt_list;
+extern struct list_head scst_sess_init_list;
+extern struct list_head scst_sess_shut_list;
 
 struct scst_cmd_thread_t {
 	struct task_struct *cmd_thread;

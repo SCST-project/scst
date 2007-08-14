@@ -23,7 +23,7 @@
 
 #define DEV_USER_NAME                "scst_user"
 #define DEV_USER_PATH			"/dev/"
-#define DEV_USER_VERSION		96
+#define DEV_USER_VERSION		961
 
 /* 
  * Chosen so sizeof(scst_user_sess) <= sizeof(scst_user_scsi_cmd_exec) 
@@ -95,7 +95,7 @@ struct scst_user_opt
 
 struct scst_user_dev_desc
 {
-	uint8_t version;
+	uint32_t version;
 	uint8_t type;
 	struct scst_user_opt opt;
 	uint32_t block_size;
@@ -168,6 +168,7 @@ struct scst_user_scsi_on_free_cmd
 	aligned_u64 pbuf;
 	int32_t resp_data_len;
 	uint8_t buffer_cached;
+	uint8_t aborted;
 	uint8_t status;
 };
 

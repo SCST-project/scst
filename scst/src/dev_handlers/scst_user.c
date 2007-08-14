@@ -124,6 +124,7 @@ struct dev_user_cmd
 	unsigned int buf_dirty:1;
 	unsigned int background_exec:1;
 	unsigned int internal_reset_tm:1;
+	unsigned int aborted:1;
 
 	struct dev_user_cmd *buf_ucmd;
 
@@ -842,6 +843,7 @@ static void dev_user_on_free_cmd(struct scst_cmd *cmd)
 	ucmd->user_cmd.on_free_cmd.pbuf = ucmd->ubuff;
 	ucmd->user_cmd.on_free_cmd.resp_data_len = cmd->resp_data_len;
 	ucmd->user_cmd.on_free_cmd.buffer_cached = ucmd->buff_cached;
+	ucmd->user_cmd.on_free_cmd.aborted = ucmd->aborted;
 	ucmd->user_cmd.on_free_cmd.status = cmd->status;
 
 	ucmd->state = UCMD_STATE_ON_FREEING;
@@ -1251,6 +1253,7 @@ static int dev_user_process_reply_exec(struct dev_user_cmd *ucmd,
 out_compl:
 	cmd->completed = 1;
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);
+	/* !! At this point cmd can be already freed !! */
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1445,9 +1448,10 @@ static int dev_user_process_scst_commands(struct scst_user_dev *dev)
 
 struct dev_user_cmd *__dev_user_get_next_cmd(struct list_head *cmd_list)
 {
-	struct dev_user_cmd *u = NULL;
+	struct dev_user_cmd *u;
 
 again:
+	u = NULL;
 	if (!list_empty(cmd_list)) {
 		u = list_entry(cmd_list->next, typeof(*u), ready_cmd_list_entry);
 		TRACE_DBG("Found ready ucmd %p", u);
@@ -1457,12 +1461,17 @@ again:
 			if (u->state == UCMD_STATE_EXECING) {
 				int rc = scst_check_local_events(u->cmd);
 				if (unlikely(rc != 0)) {
-					if (rc > 0) {
-						u->cmd->completed = 1;
-						u->cmd->scst_cmd_done(
-							u->cmd, SCST_CMD_STATE_DEFAULT);
-					} else
-						dev_user_unjam_cmd(u, 0, NULL);
+					struct scst_user_dev *dev = u->dev;
+					spin_unlock_irq(
+						&dev->cmd_lists.cmd_list_lock);
+					u->cmd->scst_cmd_done(u->cmd,
+						SCST_CMD_STATE_DEFAULT);
+					/* 
+					 * !! At this point cmd & u can be !!
+					 * !! already freed		   !! 
+					 */
+					spin_lock_irq(
+						&dev->cmd_lists.cmd_list_lock);
 					goto again;
 				}
 			} else if (unlikely(test_bit(SCST_CMD_ABORTED,
@@ -1470,10 +1479,11 @@ again:
 				switch(u->state) {
 				case UCMD_STATE_PARSING:
 				case UCMD_STATE_BUF_ALLOCING:
-				case UCMD_STATE_EXECING:
 					TRACE_MGMT_DBG("Aborting ucmd %p", u);
 					dev_user_unjam_cmd(u, 0, NULL);
 					goto again;
+				case UCMD_STATE_EXECING:
+					EXTRACHECKS_BUG_ON(1);
 				}
 			}
 		}
@@ -1819,11 +1829,15 @@ static void dev_user_unjam_cmd(struct dev_user_cmd *ucmd, int busy,
 	switch(state) {
 	case UCMD_STATE_PARSING:
 	case UCMD_STATE_BUF_ALLOCING:
-		if (busy)
-			scst_set_busy(ucmd->cmd);
-		else
-			scst_set_cmd_error(ucmd->cmd,
-				SCST_LOAD_SENSE(scst_sense_hardw_error));
+		if (test_bit(SCST_CMD_ABORTED, &ucmd->cmd->cmd_flags))
+			ucmd->aborted = 1;
+		else {
+			if (busy)
+				scst_set_busy(ucmd->cmd);
+			else
+				scst_set_cmd_error(ucmd->cmd,
+					SCST_LOAD_SENSE(scst_sense_hardw_error));
+		}
 		TRACE_MGMT_DBG("Adding ucmd %p to active list", ucmd);
 		list_add(&ucmd->cmd->cmd_list_entry,
 			&ucmd->cmd->cmd_lists->active_cmd_list);
@@ -1835,15 +1849,23 @@ static void dev_user_unjam_cmd(struct dev_user_cmd *ucmd, int busy,
 			spin_unlock_irqrestore(&dev->cmd_lists.cmd_list_lock, *flags);
 		else
 			spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
-		if (busy)
-			scst_set_busy(ucmd->cmd);
-		else
-			scst_set_cmd_error(ucmd->cmd,
-				SCST_LOAD_SENSE(scst_sense_hardw_error));
+		
 		TRACE_MGMT_DBG("EXEC: unjamming ucmd %p", ucmd);
-		if (!test_bit(SCST_CMD_ABORTED,	&ucmd->cmd->cmd_flags))
+
+		if (test_bit(SCST_CMD_ABORTED,	&ucmd->cmd->cmd_flags))
+			ucmd->aborted = 1;
+		else {
 			ucmd->cmd->completed = 1;
+			if (busy)
+				scst_set_busy(ucmd->cmd);
+			else
+				scst_set_cmd_error(ucmd->cmd,
+					SCST_LOAD_SENSE(scst_sense_hardw_error));
+		}
+
 		ucmd->cmd->scst_cmd_done(ucmd->cmd, SCST_CMD_STATE_DEFAULT);
+		/* !! At this point cmd ans ucmd can be already freed !! */
+
 		if (flags != NULL)
 			spin_lock_irqsave(&dev->cmd_lists.cmd_list_lock, *flags);
 		else
