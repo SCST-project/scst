@@ -562,10 +562,10 @@ NOTE! If the memory reusage is enabled, then the data buffer must not be
 freed, it will be reused by subsequent SCSI commands. The buffer must be
 freed only on SCST_USER_ON_CACHED_MEM_FREE event.
 
-Payload contains struct scst_user_scsi_cmd_on_free_cmd, which is defined
+Payload contains struct scst_user_scsi_on_free_cmd, which is defined
 as the following:
 
-struct scst_user_scsi_cmd_on_free_cmd
+struct scst_user_scsi_on_free_cmd
 {
 	uint64_t pbuf;
 	int32_t resp_data_len;
