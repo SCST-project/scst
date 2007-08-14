@@ -396,7 +396,7 @@ int main(int argc, char **argv)
 		goto out_close;
 	}
 
-#if 0
+#if 1
 	{
 		/* Not needed, added here only as a test */
 		struct scst_user_opt opt;
@@ -464,8 +464,11 @@ int main(int argc, char **argv)
 				res = errno;
 				PRINT_ERROR_PR("pthread_join() failed: %s",
 					strerror(res));
-			} else if (rc1 != NULL)
+			} else if (rc1 != NULL) {
 				res = (int)rc1;
+				PRINT_INFO("Thread %d exited, res %x", i, res);
+			} else
+				PRINT_INFO("Thread %d exited", i);
 		}
 		if (dev.prio_thr) {
 			rc = pthread_join(prio, &rc1);
@@ -473,8 +476,11 @@ int main(int argc, char **argv)
 				res = errno;
 				PRINT_ERROR_PR("Prio pthread_join() failed: %s",
 					strerror(res));
-			} else if (rc1 != NULL)
+			} else if (rc1 != NULL) {
 				res = (int)rc1;
+				PRINT_INFO("Prio thread %d exited, res %x", i, res);
+			} else
+				PRINT_INFO("Prio thread %d exited", i);
 		}
 	}
 

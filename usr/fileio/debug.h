@@ -105,6 +105,9 @@ do {								\
 #define TRACE_BUFFER(message, buff, len) {}
 #define TRACE_BUFF_FLAG(flag, message, buff, len) {}
 
+static inline int debug_init(void) { return 0; }
+static inline void debug_done(void) {}
+
 #endif /* DEBUG || TRACING */
 
 #ifdef DEBUG

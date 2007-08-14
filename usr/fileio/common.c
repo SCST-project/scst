@@ -800,7 +800,7 @@ out_close:
 	close(vcmd.fd);
 
 out:
-	PRINT_INFO_PR("Thread %d exited (res=%d)", gettid(), res);
+	PRINT_INFO_PR("Thread %d exiting (res=%d)", gettid(), res);
 
 	TRACE_EXIT_RES(res);
 	return (void*)res;

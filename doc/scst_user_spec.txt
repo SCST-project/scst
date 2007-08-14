@@ -2,7 +2,7 @@
 
 	  USER SPACE INTERFACE DESCRIPTION.
 
-		   Version 0.9.6
+		   Version 0.9.6/1
 
 
 		I. Description.
@@ -570,6 +570,7 @@ struct scst_user_scsi_cmd_on_free_cmd
 	uint64_t pbuf;
 	int32_t resp_data_len;
 	uint8_t buffer_cached;
+	uint8_t aborted;
 	uint8_t status;
 },
 
@@ -581,6 +582,8 @@ where:
  - resp_data_len - length of the response data
 
  - buffer_cached - true, if memory reusage is enabled for this command
+
+ - aborted - true, if command was aborted
 
  - status - SAM status of the commands execution
    
