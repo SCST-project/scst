@@ -1,0 +1,7 @@
+# Some examples
+#
+#iqn.2001-04.com.example:storage.disk1.sys1.xyz 192.168.22.2, 192.168.3.8
+#iqn.2001-04.com.example:storage.disk1.sys2.xyz [3ffe:302:11:1:211:43ff:fe31:5ae2], [3ffe:505:2:1::]/64
+#iqn.2001-04.com.example:storage.disk1.sys3.xyz ALL
+#iqn.2001-04.com.example:storage.disk1.sys4.xyz 192.168.22.3
+#ALL 192.168.22.4

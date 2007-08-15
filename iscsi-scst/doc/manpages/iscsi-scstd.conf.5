@@ -1,0 +1,210 @@
+.\" Process this file with
+.\" groff -man -Tascii iscsi-scstd.conf.5
+.\" 
+.TH "ISCSI_SCSTD.CONF" "5" "May 2007" "A. Lehmann, M. Zhang and A. Redlich" "File formats"
+.SH "NAME"
+/etc/iscsi-scstd.conf \- configuration for iSCSI SCST Target Daemon
+.SH "SYNOPSIS"
+/etc/iscsi-scstd.conf
+.SH "DESCRIPTION"
+/etc/iscsi-scstd.conf contains configuration information for the
+.B iscsi-scstd (8)
+command. This is the place, where you configure your iSCSI targets and daemon parameters.
+.P
+Only lines starting with `#' are ignored. Putting '#' in the middle of a line is disallowed. A line may be extended across multiple lines by making the last character a backslash.
+.P
+The "Yes" and "No" for parameter values are case sensitive. The parameter names are case insensitive.
+.P
+The file consists of a global part and zero or more "Target" stanzas. Everything until the first target definition belongs to the global configuration. 
+
+Here is an example:
+
+IncomingUser joe secret
+.br 
+OutgoingUser jack secret2
+
+Target iqn.2007\-05.com.example:storage.disk2.sys1.xyz
+    IncomingUser jim othersecret
+    OutgoingUser james yetanothersecret
+    Alias Test
+    HeaderDigest None
+    DataDigest None
+    MaxConnections 1
+    InitialR2T No
+    ImmediateData Yes
+    MaxRecvDataSegmentLength 1048576
+    MaxXmitDataSegmentLength 1048576
+    MaxBurstLength 1048576
+    FirstBurstLength 1048576
+    DefaultTime2Wait 2
+    DefaultTime2Retain 20
+    MaxOutstandingR2T 20
+    DataPDUInOrder Yes
+    DataSequenceInOrder Yes
+    ErrorRecoveryLevel 0
+.P
+Stanzas start with the word "Target" and the target name. This name must be a globally unique name, as defined by the iSCSI standard : the "iSCSI Qualified Name". The daemon brings the targets up in the order listed.
+.SH "GLOBAL OPTIONS"
+Global Options are case sensitive.
+.TP 
+.B [IncomingUser <username> <password>]
+The 
+.I <username>
+and 
+.I <password>
+used during discovery sessions to authenticate iSCSI initiators. Several of those can be specified for discovery. If no
+.B IncomingUser
+is specified, any initiator is allowed to open a discovery session.
+.RS
+HINT: RFC 3720 requires
+.I <password>
+to be 12 characters long. This is enforced e.g. by MS Initiator.
+.RE
+.TP 
+.B [OutgoingUser <username> <password>]
+The 
+.I <username>
+and 
+.I <password>
+used during discovery sessions to authenticate the target to initiators. Only one outgoing 
+.I <username>/<password>
+combination may be specified.
+.RS
+HINT: RFC 3720 requires
+.I <password>
+to be 12 characters long. This is enforced e.g. by MS Initiator.
+.RE
+.TP 
+.B Target iqn.<yyyy\-mm>.<tld.domain.some.host>[:<identifier>]
+A target definition and the target name. The targets name (the
+.B iSCSI Qualified Name
+) must be a globally unique name (as defined by the iSCSI standard) and has to start with
+.I iqn
+followed by a single dot. The EUI\-64 form is not supported. 
+.I <yyyy\-mm>
+is the date (year and month) at which the domain is valid. This has to be followed by a single dot and the reversed domain name.
+The optional 
+.I <identifier>
+\- which is freely selectable \- has to be separated by a single colon. For further details please check the iSCSI spec.
+
+Here is an example:
+
+Target iqn.2007\-05.com.example.host:storage.disk2.sys1.xyz
+.SH "TARGET OPTIONS"
+Target options are also case sensitive.
+.TP 
+.B [IncomingUser <username> <password>]
+The
+.I <username>
+and
+.I <password>
+used to authenticate the iSCSI initiators to this target. It may be different from the username and password in section GLOBAL OPTIONS, which is used for discovery. If you omit the
+.B IncomingUser
+Option, connections are allowed without authentication. A
+.I <password>
+has to be provided, if there is a 
+.I <username>
+given. Specifying several different
+.B IncomingUser
+accounts is supported.
+.TP 
+.B [OutgoingUser <username> <password>]
+The
+.I <username>
+and
+.I <password>
+used to authenticate this iSCSI target to initiators. Only one
+.B 
+OutgoingUser
+per target is supported. It may be different from the username and password in section GLOBAL OPTIONS, which is used for discovery. A
+.I <password>
+has to be provided, if there is a 
+.I <username>
+given.
+.TP 
+.B [Alias <aliasname>]
+This assigns an optional 
+.I <aliasname>
+to the target.
+.TP 
+.B [HeaderDigest <CRC32C|None>]
+Optional. If set to "CRC32C" and the initiator is configured accordingly, the integrity of an iSCSI PDU's header segments will be protected by a CRC32C checksum. The default is "None". Note that header digests are not supported during discovery sessions.
+.TP 
+.B [DataDigest <CRC32C|None>]
+Optional. If set to "CRC32C" and the initiator is configured accordingly, the integrity of an iSCSI PDU's data segment will be protected by a CRC32C checksum. The default is "None". Note that data digests are not supported during discovery sessions.
+.TP 
+.B [MaxConnections <value>]
+Optional. Has to be set to "1" (in words: one), which is also the default.
+.TP 
+.B [InitialR2T <Yes|No>]
+Optional. If set to "Yes", the initiator has to wait for the target to solicit SCSI data before sending it. Setting it to "No" (default) allows the initiator to send a burst of
+.B FirstBurstLength
+bytes unsolicited right after and/or (depending on the setting of
+.B ImmediateData
+) together with the command. Thus setting it to "No" may improve performance.
+.TP 
+.B [ImmediateData <Yes|No>]
+Optional. This allows the initiator to append unsolicited data to a command. To achieve better performance, this should be set to "Yes". Which is the default.
+.TP 
+.B [MaxRecvDataSegmentLength <value>]
+Optional. Sets the maximum data segment length that can be received. The 
+.I <value>
+should be set to multiples of PAGE_SIZE. Configuring too large values may lead to problems allocating sufficient memory, which in turn may lead to SCSI commands timing out at the initiator host. The default value is the highes possible for current platform (1 or 2 MB).
+.TP 
+.B [MaxXmitDataSegmentLength <value>]
+Optional. Sets the maximum data segment length that can be sent. The
+.I <value>
+actually used is the minimum of
+.B MaxXmitDataSegmentLength
+and the
+.B MaxRecvDataSegmentLength
+announced by the initiator. The 
+.I <value>
+should be set to multiples of PAGE_SIZE. Configuring too large values may lead to problems allocating sufficient memory, which in turn may lead to SCSI commands timing out at the initiator host. The default value is the highes possible for current platform (1 or 2 MB).
+.TP 
+.B [MaxBurstLength <value>]
+Optional. Sets the maximum amount of either unsolicited or solicited data the initiator may send in a single burst. Any amount of data exceeding this value must be explicitly solicited by the target. The 
+.I <value>
+should be set to multiples of PAGE_SIZE. Configuring too large values may lead to problems allocating sufficient memory, which in turn may lead to SCSI commands timing out at the initiator host. The default value is the highes possible for current platform (1 or 2 MB).
+.TP 
+.B [FirstBurstLength <value>]
+Optional. Sets the amount of unsolicited data the initiator may transmit in the first burst of a transfer either with and/or right after the command, depending on the settings of
+.B InitialR2T
+and
+.B ImmediateData
+.
+.I <value>
+should be set to multiples of PAGE_SIZE. Configuring too large values may lead to problems allocating sufficient memory, which in turn may lead to SCSI commands timing out at the initiator host. The default value is the highes possible for current platform (1 or 2 MB).
+.TP 
+.B [DefaultTime2Wait <value>]
+Currently not supported.
+.TP 
+.B [DefaultTime2Retain <value>]
+Currently not supported.
+.TP 
+.B [MaxOutstandingR2T <value>]
+Optional. Controls the maximum number of data transfers the target may request at once, each of up to
+.B MaxBurstLength
+bytes. The default is 20.
+.TP 
+.B [DataPDUInOrder <Yes|No>]
+Optional. Has to be set to "Yes" \- which is also the default.
+.TP 
+.B [DataSequenceInOrder <Yes|No>]
+Optional. Has to be set to "Yes" \- which is also the default.
+.TP 
+.B [ErrorRecoveryLevel <value>]
+Optional. Has to be set to "0" (in words: zero), which is also the default.
+.TP 
+.B [QueuedCommands <value>]
+Optional. This parameter defines a window of commands an initiator may send and that will be buffered by the target. Depending on your hardware and your (expected) workload, the
+.I value
+may be carefully adjusted. The default value of 32 should be sufficient for most purposes.
+.SH "KNOWN BUGS/LIMITATIONS"
+Currently (as of 0.4.11) not all iSCSI target parameters are used. Header and data digests are not supported during discovery sessions.
+.SH "SEE ALSO"
+.B iscsi-scstd (8)
+.TP 
+You should have a look at
+.B RFC 3720
+for all the glory details.

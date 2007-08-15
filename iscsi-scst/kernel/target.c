@@ -1,0 +1,278 @@
+/*
+ * Copyright (C) 2002-2003 Ardis Technolgies <roman@ardistech.com>
+ *
+ * Released under the terms of the GNU GPL v2.0.
+ */
+
+#include <linux/delay.h>
+
+#include "iscsi.h"
+#include "digest.h"
+
+#define	MAX_NR_TARGETS	(1UL << 30)
+
+DEFINE_MUTEX(target_mgmt_mutex);
+
+/* All 3 protected by target_mgmt_mutex */
+static LIST_HEAD(target_list);
+static u32 next_target_id;
+static u32 nr_targets;
+
+static struct iscsi_sess_param default_session_param = {
+	.initial_r2t = 1,
+	.immediate_data = 1,
+	.max_connections = 1,
+	.max_recv_data_length = 8192,
+	.max_xmit_data_length = 8192,
+	.max_burst_length = 262144,
+	.first_burst_length = 65536,
+	.default_wait_time = 2,
+	.default_retain_time = 20,
+	.max_outstanding_r2t = 1,
+	.data_pdu_inorder = 1,
+	.data_sequence_inorder = 1,
+	.error_recovery_level = 0,
+	.header_digest = DIGEST_NONE,
+	.data_digest = DIGEST_NONE,
+	.ofmarker = 0,
+	.ifmarker = 0,
+	.ofmarkint = 2048,
+	.ifmarkint = 2048,
+};
+
+static struct iscsi_trgt_param default_target_param = {
+	.queued_cmnds = DEFAULT_NR_QUEUED_CMNDS,
+};
+
+/* target_mgmt_mutex supposed to be locked */
+struct iscsi_target *target_lookup_by_id(u32 id)
+{
+	struct iscsi_target *target;
+
+	list_for_each_entry(target, &target_list, target_list_entry) {
+		if (target->tid == id)
+			return target;
+	}
+	return NULL;
+}
+
+/* target_mgmt_mutex supposed to be locked */
+static struct iscsi_target *target_lookup_by_name(char *name)
+{
+	struct iscsi_target *target;
+
+	list_for_each_entry(target, &target_list, target_list_entry) {
+		if (!strcmp(target->name, name))
+			return target;
+	}
+	return NULL;
+}
+
+/* target_mgmt_mutex supposed to be locked */
+static int iscsi_target_create(struct target_info *info, u32 tid)
+{
+	int err = -EINVAL, len;
+	char *name = info->name;
+	struct iscsi_target *target;
+
+	TRACE_MGMT_DBG("Creating target tid %u, name %s", tid, name);
+
+	if (!(len = strlen(name))) {
+		PRINT_ERROR_PR("The length of the target name is zero %u", tid);
+		goto out;
+	}
+
+	if (!try_module_get(THIS_MODULE)) {
+		PRINT_ERROR_PR("Fail to get module %u", tid);
+		goto out;
+	}
+
+	if (!(target = kzalloc(sizeof(*target), GFP_KERNEL))) {
+		err = -ENOMEM;
+		goto out_put;
+	}
+
+	target->tid = info->tid = tid;
+
+	memcpy(&target->trgt_sess_param, &default_session_param,
+		sizeof(default_session_param));
+	memcpy(&target->trgt_param, &default_target_param,
+		sizeof(default_target_param));
+
+	strncpy(target->name, name, sizeof(target->name) - 1);
+
+	mutex_init(&target->target_mutex);
+	INIT_LIST_HEAD(&target->session_list);
+
+	list_add(&target->target_list_entry, &target_list);
+
+	target->scst_tgt = scst_register(&iscsi_template, target->name);
+	if (!target->scst_tgt) {
+		PRINT_ERROR_PR("%s", "scst_register() failed");
+		goto out_free;
+	}
+
+	return 0;
+
+out_free:
+	kfree(target);
+
+out_put:
+	module_put(THIS_MODULE);
+
+out:
+	return err;
+}
+
+/* target_mgmt_mutex supposed to be locked */
+int target_add(struct target_info *info)
+{
+	int err = -EEXIST;
+	u32 tid = info->tid;
+
+	if (nr_targets > MAX_NR_TARGETS) {
+		err = -EBUSY;
+		goto out;
+	}
+
+	if (target_lookup_by_name(info->name))
+		goto out;
+
+	if (tid && target_lookup_by_id(tid))
+		goto out;
+
+	if (!tid) {
+		do {
+			if (!++next_target_id)
+				++next_target_id;
+		} while(target_lookup_by_id(next_target_id));
+
+		tid = next_target_id;
+	}
+
+	if (!(err = iscsi_target_create(info, tid)))
+		nr_targets++;
+out:
+	return err;
+}
+
+static void target_destroy(struct iscsi_target *target)
+{
+	TRACE_MGMT_DBG("Destroying target tid %u", target->tid);
+
+	scst_unregister(target->scst_tgt);
+
+	kfree(target);
+
+	module_put(THIS_MODULE);
+}
+
+/* target_mgmt_mutex supposed to be locked */
+int target_del(u32 id)
+{
+	struct iscsi_target *target;
+	int err;
+
+	if (!(target = target_lookup_by_id(id))) {
+		err = -ENOENT;
+		goto out;
+	}
+
+	mutex_lock(&target->target_mutex);
+
+	if (!list_empty(&target->session_list)) {
+		err = -EBUSY;
+		goto out_unlock;
+	}
+
+	list_del(&target->target_list_entry);
+	nr_targets--;
+
+	mutex_unlock(&target->target_mutex);
+
+	target_destroy(target);
+	return 0;
+
+out_unlock:
+	mutex_unlock(&target->target_mutex);
+
+out:
+	return err;
+}
+
+void target_del_all(void)
+{
+	struct iscsi_target *target, *t;
+
+	TRACE_ENTRY();
+
+	TRACE(TRACE_MGMT, "%s", "Deleting all targets");
+
+	/* Complete brain damage, ToDo */
+	while(1) {
+		mutex_lock(&target_mgmt_mutex);
+
+		if (list_empty(&target_list))
+			break;
+
+		list_for_each_entry_safe(target, t, &target_list, target_list_entry) {
+			struct iscsi_session *session, *ts;
+			mutex_lock(&target->target_mutex);
+			if (!list_empty(&target->session_list)) {
+				TRACE_DBG("target %p", target);
+				list_for_each_entry_safe(session, ts, &target->session_list,
+						session_list_entry) {
+					TRACE_DBG("session %p", session);
+					if (!list_empty(&session->conn_list)) {
+						struct iscsi_conn *conn, *tc;
+						list_for_each_entry_safe(conn, tc,
+								&session->conn_list,
+								conn_list_entry) {
+							TRACE_DBG("conn %p", conn);
+							mark_conn_closed(conn);
+						}
+					} else {
+						TRACE_DBG("session %p with empty "
+							"connection list", session);
+					}
+				}
+				mutex_unlock(&target->target_mutex);
+			} else {
+				TRACE_DBG("deleting target %p", target);
+				list_del(&target->target_list_entry);
+				nr_targets--;
+				mutex_unlock(&target->target_mutex);
+				target_destroy(target);
+				continue;
+			}
+		}
+		mutex_unlock(&target_mgmt_mutex);
+		msleep(100);
+	}
+
+	mutex_unlock(&target_mgmt_mutex);
+
+	TRACE_EXIT();
+	return;
+}
+
+int iscsi_info_show(struct seq_file *seq, iscsi_show_info_t *func)
+{
+	int err;
+	struct iscsi_target *target;
+
+	if ((err = mutex_lock_interruptible(&target_mgmt_mutex)) < 0)
+		return err;
+
+	list_for_each_entry(target, &target_list, target_list_entry) {
+		seq_printf(seq, "tid:%u name:%s\n", target->tid, target->name);
+
+		mutex_lock(&target->target_mutex);
+		func(seq, target);
+		mutex_unlock(&target->target_mutex);
+	}
+
+	mutex_unlock(&target_mgmt_mutex);
+
+	return 0;
+}

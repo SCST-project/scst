@@ -1,0 +1,32 @@
+ - Reimplement sessions parameters negotiation and storage. In IET
+   the negotiation isn't iSCSI RFC confirmed: it doesn't support ranges
+   of values and, more important, violates RFC in case when in the IET
+   config file some value for some parameter is set and a remote
+   initiator doesn't initiate the negotiation for this parameter or
+   declare its value. According to RFC, in this case IET shall use the
+   RFC-specified default value, but it will use config file specified
+   one instead. Looks like the implementation confuses IET config file
+   default values and iSCSI ones. The default values handling was fixed
+   in very dirty and hackish way, but ranges support remains unfixed.
+   Storage of set by user parameters should be reimplemented, so they
+   will be kept in iscsi-scstd, not in the kernel, as it is currently
+   done in IET's code. Using kernel to *only* store parameters is quite
+   questionable decision, especially considering that it leads to some
+   code duplication between kernel and user space, so remove all
+   parameters storage code from kernel. Remove target_param, leave only
+   one type of parameters, but separate processing of iSCSI RFC
+   parameters from local ones (currently they are mixed up). Also mixing
+   up conceptions of "key" and "param" in param_*() and struct
+   iscsi_key_ops functions makes the code hardly manageable, particularly
+   for adding support for ranges in the negotiation keys, so it needs to
+   be fixed as well.
+
+ - Fix SNACK command handling. Currently it violates iSCSI RFC.
+
+ - Consider better integration with TCP internals on receive path to
+   improve performance.
+
+ - The target shouldn't crash/hang/etc. on initiators' misbehavior as
+   IET likes to do.
+
+ - Minor "ToDo"'s spread in the code.

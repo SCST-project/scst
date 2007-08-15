@@ -1,0 +1,115 @@
+iSCSI SCST target driver
+========================
+
+Version 0.9.6/XXXX, XX XXX 200X
+-------------------------------
+
+This driver is a forked with all respects version of iSCSI Enterprise
+Target (IET) (http://iscsitarget.sourceforge.net/) with updates to work
+over SCST as well as with many improvements and bugfixes (see ChangeLog
+file). The reason of fork is that the necessary changes are intrusive
+and with the current IET merge policy, where only simple bugfix-like
+patches, which doesn't touch the core code, could be merged, it is very
+unlikely that they will be merged in the main IET trunk.
+
+To let it be installed and work at the same host together with IET
+simultaneously all the driver's modules and files were renamed:
+
+ * ietd.conf -> iscsi-scstd.conf
+ * ietadm -> iscsi-scst-adm
+ * ietd -> iscsi-scstd
+ * iscsi-target -> iscsi-scst
+ * iscsi-target.ko -> iscsi-scst.ko
+
+This version is compatible with SCST version 0.9.6 and higher.
+
+Tested on 2.6.21.1 kernel, but it should also work on other versions,
+starting from 2.6.16.x.
+
+Installation
+------------
+
+Basically as in README-IET, where file names are changed as specified
+above.
+
+To use full power of TCP zero-copy transmit functions, especially
+dealing with user space supplied via scst_user module memory, iSCSI-SCST
+needs to be notified when Linux networking finished data transmission.
+Patch put_page_callback.patch provides such functionality. The
+corresponding version of it should be applied on your kernel. This is
+highly recommended, but not required. If it isn't applied, iSCSI-SCST
+will work in the performance degraded mode, when for data transmission:
+
+ - For in-kernel allocated memory (scst_vdisk and pass-through
+   handlers) usage of SGV cache on transmit path (READ-type commands)
+   will be disabled. The performance hit will be not big, performance
+   will still remain better, than for IET, because SGV cache will remain
+   used on receive path and IET doesn't have such feature.
+
+ - For user space allocated memory (scst_user handler) all transmitted
+   data will be additionally copied into temporary TCP buffers. The
+   performance hit will be quite noticiable.
+  
+If you need your own version of put_page_callback.patch for your custom
+kernel, for which there is no prepared version, you can create it
+yourself. For that it is only necessary:
+
+1. Apply the closest version of put_page_callback.patch on your kernel.
+Resolve only failed hanks from include/ and net/core/utils.c, ignore
+other failures.
+
+2. Grep net/ and replace everywhere, except in net/sunrpc/svc.c and
+net/core/pktgen.c, put_page() by net_put_page() and get_page() by
+net_get_page().
+
+That's all.
+
+Usage
+-----
+
+ISCSI parameters like iSNS, CHAP and target parameters are configured in
+iscsi-scstd.conf. All LUN information is configured using the regular
+SCST interface. The LUN information in iscsi-scstd.conf will be ignored.
+This is because now responsibilities are divided (as it should be)
+between the target driver (iSCSI-SCST) and the SCST core. The target
+driver is responsible for handling targets and their parameters, SCST
+core is responsible for handling backstorage.
+
+If you need to configure different LUs for different targets you should
+create for each target group "Default_target_name", where target name
+means name of the target, for example:
+"Default_iqn.2007-05.com.example:storage.disk1.sys1.xyz", and add there
+all necessary LUNs. Check SCST README file for details.
+
+Compilation options
+-------------------
+
+There are the following compilation options, that could be commented
+in/out in the kernel's module Makefile:
+
+ - DEBUG - turns on some debugging code, including some logging. Makes
+   the driver considerably bigger and slower, producing large amount of
+   log data.
+
+ - TRACING - turns on ability to log events. Makes the driver considerably
+   bigger and lead to some performance loss.
+
+ - EXTRACHECKS - adds extra validity checks in the various places.
+
+ - DEBUG_DIGEST_FAILURES - simulates digest failures in random places.
+
+Credits
+-------
+
+Thanks to:
+
+ * IET developers for IET
+
+ * Ming Zhang <blackmagic02881@gmail.com> for fixes
+
+ * Krzysztof Blaszkowski <kb@sysmikro.com.pl> for many fixes
+
+ * Alexey Kuznetsov <kuznet@ms2.inr.ac.ru> for comments and help in
+   debugging
+ 
+Vladislav Bolkhovitin <vst@vlnb.net>, http://scst.sourceforge.net

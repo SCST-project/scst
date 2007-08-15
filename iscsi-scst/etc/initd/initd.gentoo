@@ -1,0 +1,71 @@
+#!/sbin/runscript
+#
+# Start the iSCSI Enterprise Target.
+#
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin
+MEM_SIZE=1048576
+
+depend()
+{
+        use net
+}
+
+configure_memsize()
+{
+    if [ -e /proc/sys/net/core/wmem_max ]; then
+        echo ${MEM_SIZE} > /proc/sys/net/core/wmem_max
+    fi
+
+    if [ -e /proc/sys/net/core/rmem_max ]; then
+        echo ${MEM_SIZE} > /proc/sys/net/core/rmem_max
+    fi
+
+    if [ -e /proc/sys/net/core/wmem_default ]; then
+        echo ${MEM_SIZE} > /proc/sys/net/core/wmem_default
+    fi
+
+    if [ -e /proc/sys/net/core/rmem_default ]; then
+        echo ${MEM_SIZE} > /proc/sys/net/core/rmem_default
+    fi
+
+    if [ -e /proc/sys/net/ipv4/tcp_mem ]; then
+        echo "${MEM_SIZE} ${MEM_SIZE} ${MEM_SIZE}" > /proc/sys/net/ipv4/tcp_mem
+    fi
+
+    if [ -e  /proc/sys/net/ipv4/tcp_rmem ]; then
+        echo "${MEM_SIZE} ${MEM_SIZE} ${MEM_SIZE}" > /proc/sys/net/ipv4/tcp_rmem
+    fi
+
+    if [ -e /proc/sys/net/ipv4/tcp_wmem ]; then
+        echo "${MEM_SIZE} ${MEM_SIZE} ${MEM_SIZE}" > /proc/sys/net/ipv4/tcp_wmem
+    fi
+}
+
+start_server()
+{
+#        configure_memsize
+        modprobe -q crc32c
+        modprobe iscsi-scst
+        /usr/local/sbin/iscsi-scstd
+}
+
+stop_server()
+{
+        killall iscsi-scstd
+        rmmod -w iscsi-scst
+}
+
+start()
+{
+        ebegin "Starting iscsi"
+        start_server
+        eend 0
+}
+
+stop()
+{
+        ebegin "Stopping iscsi"
+        stop_server
+        eend 0
+}

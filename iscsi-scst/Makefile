@@ -1,0 +1,76 @@
+#
+# Makefile for the Linux kernel device drivers.
+#
+# Note! Dependencies are done automagically by 'make dep', which also
+# removes any old dependencies. DON'T put your own dependencies here
+# unless it's something special (not a .c file).
+#
+# Note 2! The CFLAGS definitions are now in the main makefile.
+
+SCST_DIR := $(shell pwd)/../scst/src
+SUBDIRS := $(shell pwd)
+
+ifeq ($(KVER),)
+  ifeq ($(KDIR),)
+    KVER = $(shell uname -r)
+    KDIR ?= /lib/modules/$(KVER)/build
+  else
+    KVER = $$KERNELRELEASE
+  endif
+else
+  KDIR ?= /lib/modules/$(KVER)/build
+endif
+
+all: progs mods
+
+mods: Modules.symvers Module.symvers
+	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/kernel modules
+
+progs:
+	$(MAKE) -C usr
+
+install: all kernel/iscsi-scst.ko usr/iscsi-scstd usr/iscsi-scst-adm
+	@install -vD usr/iscsi-scstd $(DISTDIR)/usr/local/sbin/iscsi-scstd
+	@install -vD usr/iscsi-scst-adm $(DISTDIR)/usr/local/sbin/iscsi-scst-adm
+	if [ -f /etc/debian_version ]; then \
+		install -vD -m 755 etc/initd/initd.debian $(DISTDIR)/etc/init.d/iscsi-scst; \
+	elif [ -f /etc/redhat-release ]; then \
+		install -vD -m 755 etc/initd/initd.redhat $(DISTDIR)/etc/init.d/iscsi-scst; \
+	elif [ -f /etc/gentoo-release ]; then \
+		install -vD -m 755 etc/initd/initd.gentoo $(DISTDIR)/etc/init.d/iscsi-scst; \
+	elif [ -f /etc/slackware-version ]; then \
+		install -vD -m 755 etc/initd/initd $(DISTDIR)/etc/rc.d/iscsi-scst; \
+	else \
+		install -vD -m 755 etc/initd/initd $(DISTDIR)/etc/init.d/iscsi-scst; \
+	fi
+	@eval `sed -n 's/#define UTS_RELEASE /KERNELRELEASE=/p' $(KDIR)/include/linux/version.h $(KDIR)/include/linux/utsrelease.h 2>/dev/null`; \
+	install -vD -m 644 kernel/iscsi-scst.ko \
+	$(DISTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra/iscsi-scst.ko
+	-/sbin/depmod -aq $(KVER)
+
+SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Modules.symvers 2>/dev/null)
+ifneq ($(SCST_MOD_VERS),)
+Modules.symvers: $(SCST_DIR)/Modules.symvers
+	echo $(SCST_MOD_VERS)
+	cp $(SCST_DIR)/Modules.symvers kernel/
+else
+.PHONY: Modules.symvers
+endif
+
+# It's renamed in 2.6.18
+SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Module.symvers 2>/dev/null)
+ifneq ($(SCST_MOD_VERS),)
+Module.symvers: $(SCST_DIR)/Module.symvers
+	cp $(SCST_DIR)/Module.symvers kernel/
+else
+.PHONY: Module.symvers
+endif
+
+clean:
+	$(MAKE) -C usr clean
+	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/kernel clean
+	rm -f kernel/Modules.symvers kernel/Module.symvers
+
+extraclean: clean
+
+.PHONY: all mods progs install clean extraclean

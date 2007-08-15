@@ -1,0 +1,38 @@
+SRCS_D = iscsid.c iscsi_scstd.c conn.c session.c target.c message.c ctldev.c \
+		log.c chap.c event.c param.c plain.c isns.c
+OBJS_D = $(SRCS_D:.c=.o)
+
+SRCS_ADM = iscsi_adm.c param.c
+OBJS_ADM = $(SRCS_ADM:.c=.o)
+
+CFLAGS += -O2 -fno-inline -Wall -Wstrict-prototypes -g -I../include
+PROGRAMS = iscsi-scstd iscsi-scst-adm
+LIBS = -lcrypto
+
+all: $(PROGRAMS)
+
+iscsi-scstd: .depend_d $(OBJS_D)
+	$(CC) $(OBJS_D) $(LIBS) -o $@
+
+iscsi-scst-adm: .depend_adm  $(OBJS_ADM)
+	$(CC) $(OBJS_ADM) $(LIBS) -o $@
+
+ifeq (.depend_d,$(wildcard .depend_d))
+-include .depend_d
+endif
+
+ifeq (.depend_adm,$(wildcard .depend_adm))
+-include .depend_adm
+endif
+
+%.o: %.c Makefile
+	$(CC) -c -o $(@) $(CFLAGS) $(<)
+
+.depend_d:
+	$(CC) -M $(CFLAGS) $(SRCS_D) >$(@)
+
+.depend_adm:
+	$(CC) -M $(CFLAGS) $(SRCS_ADM) >$(@)
+
+clean:
+	rm -f *.o $(PROGRAMS) .depend*

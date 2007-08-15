@@ -24,22 +24,28 @@ QLA_DIR=qla2x00t/qla2x00-target
 LSI_DIR=mpt
 USR_DIR=usr/fileio
 
+ISCSI_DIR=iscsi-scst
+#ISCSI_DISTDIR=../../../../iscsi_scst_inst
+
 all:
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
+	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 
 install: 
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
+	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) DISTDIR=$(ISCSI_DISTDIR) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 
 uninstall: 
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
+	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 
 clean: 
@@ -47,6 +53,7 @@ clean:
 	@if [ -d $(QLA_INI_DIR) ]; then cd $(QLA_INI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
+	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 
 extraclean: 
@@ -54,6 +61,7 @@ extraclean:
 	@if [ -d $(QLA_INI_DIR) ]; then cd $(QLA_INI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
+	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 
 scst: 
@@ -87,6 +95,21 @@ qla_clean:
 qla_extraclean:
 	cd $(QLA_INI_DIR)/.. && $(MAKE) extraclean
 	cd $(QLA_DIR) && $(MAKE) extraclean
+
+iscsi:
+	cd $(ISCSI_DIR) && $(MAKE)
+
+iscsi_install:
+	cd $(ISCSI_DIR) && $(MAKE) install
+
+iscsi_uninstall:
+	cd $(ISCSI_DIR) && $(MAKE) uninstall
+
+iscsi_clean: 
+	cd $(ISCSI_DIR) && $(MAKE) clean
+
+iscsi_extraclean:
+	cd $(ISCSI_DIR) && $(MAKE) extraclean
 
 lsi:
 	cd $(LSI_DIR) && $(MAKE)
@@ -137,6 +160,12 @@ help:
 	@echo "		qla_install     : 2.6 qla target: install"
 	@echo "		qla_uninstall   : 2.6 qla target: uninstall"
 	@echo ""
+	@echo "		iscsi             : make new ISCSI target"
+	@echo "		iscsi_clean       : ISCSI target: clean "
+	@echo "		iscsi_extraclean  : ISCSI target: clean + clean dependencies"
+	@echo "		iscsi_install     : ISCSI target: install"
+	@echo "		iscsi_uninstall   : ISCSI target: uninstall"
+	@echo ""
 	@echo "		lsi             : make lsi target"
 	@echo "		lsi_clean       : lsi target: clean "
 	@echo "		lsi_extraclean  : lsi target: clean + clean dependencies"
@@ -154,5 +183,6 @@ help:
 .PHONY: all install uninstall clean extraclean help \
 	qla qla_install qla_uninstall qla_clean qla_extraclean \
 	lsi lsi_install lsi_uninstall lsi_clean lsi_extraclean \
+	iscsi iscsi_install iscsi_uninstall iscsi_clean iscsi_extraclean \
 	scst scst_install scst_uninstall scst_clean scst_extraclean \
 	usr usr_install usr_uninstall usr_clean usr_extraclean

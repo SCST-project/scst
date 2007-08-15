@@ -1,0 +1,38 @@
+Summary of changes in iSCSI-SCST since it was IET
+-------------------------------------------------
+
+ - Commands processing flow changed to work with SCST. Significant
+   cleanup was done. Modules and config files were renamed to allow to
+   run with IET on the same host.
+
+ - In IET the iSCSI negotiation isn't fully iSCSI RFC confirmed: it doesn't
+   support ranges of values and, more important, violates RFC in case
+   when in the IET config file some value for some parameter is set and
+   a remote initiator doesn't initiate the negotiation for this
+   parameter or declare its value. According to RFC, in this case IET
+   shall use the RFC-specified default value, but it uses config file
+   specified one instead. Looks like the implementation confuses IET
+   config file default values and iSCSI RFC ones. The default values
+   handling was fixed. But support for ranges remains unfixed (see ToDo
+   file).
+
+ - All shutdown/restart problems (resource leaks, hangups, etc.), especially
+   under load, were fixed.
+
+ - Full duplex network IO implemented.
+
+ - Threading model reimplemented.
+
+ - Digests calculation made multi-threaded.
+
+ - TX data digest errors handling iSCSI RFC violation was fixed. Another one
+   (SNACK handling) remains unfixed.
+
+ - Ability to send data with sense in a single response added.
+
+ - Ability to handle initiators misbehavior a bit improved: several BUG()'s
+   were relaced by the proper handling. Hovewer, there is a plenty of work in
+   this area left, IET is known to have a lot of weaknesses here.
+
+ - A lot of other bugfixes and code cleanups.
+

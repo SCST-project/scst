@@ -1,0 +1,308 @@
+.\" Process this file with
+.\" groff -man -Tascii iscsi-scstd.8
+.\"
+.TH "iSCSI SCST Target Daemon" 8 "May 2007" Linux "User Manuals"
+.SH NAME
+iscsi-scstd \- iSCSI SCST Target Daemon
+.SH SYNOPSIS
+.B iscsi-scstd
+.RB [\| \-c
+.IR configfile \|]
+.RB [\| \-d
+.IR debuglevel \|]
+.RB [\| \-f \|]
+.RB [\| \-g
+.IR GID \|]
+.RB [\| \-h \|]
+.RB [\| \-a
+.IR address \|]
+.RB [\| \-p
+.IR port \|]
+.RB [\| \-s
+.IR IP \|]
+.RB [\| \-u
+.IR UID \|]
+.SH DESCRIPTION
+The
+.B iscsi-scstd
+program implements the user level part of iSCSI SCST Target software for building an iSCSI storage system on Linux.
+.SH OPTIONS
+.TP
+.BI \-c\  filename ,\ \-\-config= filename
+Specify configuration file, default is
+.I /etc/iscsi-scstd.conf
+.TP
+.BI \-d\  debuglevel ,\ \-\-debug= debuglevel
+Turns on debugging. Logging goes to
+.I /var/log/syslog
+via
+.BR syslog (1).
+.TP
+.BI \-f,\  \-\-foreground
+Act as a normal application which uses a console.
+.TP
+.BI \-g\  GID ,\ \-\-gid= GID
+Specify running group id, default is current gid.
+.TP
+.BI \-a\  address ,\ \-\-address= address
+Specify on which local address the server should listen, default is any.
+.TP
+.BI \-p\  port ,\ \-\-port= port
+Specify on which port the server should listen, default is 3260.
+.TP
+.BI \-h,\  \-\-help
+Display help message on command line options.
+.TP
+.BI \-s\  IP ,\ \-\-isns= IP
+isns server's IP address
+.TP
+.BI \-u\  UID ,\ \-\-uid= UID
+Specify running user id, default is current uid.
+.SH FILES
+.I /etc/iscsi-scstd.conf
+.RS
+The system wide configuration file. See	
+.BR iscsi-scstd.conf (5)
+for further details.
+.RE
+.SH DIAGNOSTICS
+This may be logged to stderr:
+
+.B Warnings
+
+"Dropping key (%s=%s)"
+.RS
+Value(s): key, value
+.RE
+
+"unable to set fd flags (%s)!"
+.RS
+Value(s): strerror(errno)
+.RE
+
+"unable to get fd flags (%s)!"
+.RS
+Value(s): strerror(errno)
+.RE
+
+"unable to set SO_REUSEADDR on server socket (%s)!"
+.RS
+Value(s): strerror(errno)
+.RE
+
+"iscsi_ctrl: failed to scan '%s'"
+.RS
+Value(s): p
+.RE
+
+"target %u not found?"
+.RS
+Value(s): target_id
+.RE
+
+"session %#Lx not found?"
+.RS
+Value(s): session_id
+.RE
+
+"session_remove: session %#Lx not found?"
+.RS
+Value(s): session->sid.id64
+.RE
+
+"need to shutdown target %s"
+.RS
+Value(s): target->name
+.RE
+
+.B Errors
+
+"unable to create server socket (%s)!"
+.RS
+Value(s): strerror(errno)
+.RE
+
+"unable to bind server socket (%s)!"
+.RS
+Value(s): strerror(errno)
+.RE
+
+"unable to listen to server socket (%s)!"
+.RS
+Value(s): strerror(errno)
+.RE
+
+"error reading /proc/iscsi/iscsi (%d)"
+.RS
+Value(s): errno
+.RE
+
+"unable to create pid file"
+
+"starting daemon failed"
+
+"unable to lock pid file"
+
+"unable to open %s! (%s)"
+.RS
+Value(s): PROC_DEVICEDIR, strerror(errno)
+.RE
+
+"unable to open %s! (%s)"
+.RS
+Value(s): PROC_TARGETDIR, strerror(errno)
+.RE
+
+.B Debug Messages Level 0
+
+"unknown user %s"
+.RS
+Value(s): value
+.RE
+
+"login by %s failed"
+.RS
+Value(s): user->name
+.RE
+
+"succesfull login by %s"
+.RS
+Value(s): user->name
+.RE
+
+"connection request from %s"
+.RS
+Value(s): inet_ntoa(name.sin_addr)
+.RE
+
+"connection closed"
+
+.RS
+Value(s): target->id
+.RE
+
+.B Debug Messages Level 1
+
+"conn_take_fd: %u %u %u %Lx %d"
+.RS
+Value(s): conn->cid, conn->stat_sn, conn->exp_stat_sn, conn->sid.id64, fd
+.RE
+
+"exp_cmd_sn: %d,%d"
+.RS
+Value(s): conn->exp_cmd_sn, req->cmd_sn
+.RE
+
+"Login request (security negotiation): %d"
+.RS
+Value(s): conn->state
+.RE
+
+"Login request (operational negotiation): %d"
+.RS
+Value(s): conn->state
+.RE
+
+"Text request: %d"
+.RS
+Value(s): conn->state
+.RE
+
+"close conn %u session %Lx target %u"
+.RS
+Value(s): conn_id, session_id, target_id
+.RE
+
+"session_find_name: %s,%#Lx"
+.RS
+Value(s): iname, sid.id64
+.RE
+
+"session_find_id: %#Lx"
+.RS
+Value(s): sid
+.RE
+
+"session_create: %#Lx"
+.RS
+Value(s): session->sid.id64
+.RE
+
+"session_close: %#Lx"
+.RS
+Value(s): session->sid.id64
+.RE
+
+"session_remove: %#Lx"
+.RS
+Value(s): session->sid.id64
+.RE
+
+"active target %d: %s"
+.RS
+Value(s): id, name
+.RE
+
+"removing target %d"
+.RS
+Value(s): id
+.RE
+
+"creaing target %u: %s"
+.RS
+Value(s): target_next_id, p
+.RE
+
+
+"target_find_name: %s"
+.RS
+Value(s): name
+.RE
+
+"target_find_id: %u"
+.RS
+Value(s): id
+.RE
+
+"target_remove: %u,%s"
+.RS
+Value(s): target->id, target->name
+.RE
+
+.B Debug Messages Level 2
+
+"%s %.16s"
+.RS
+Value(s): line, buf
+.RE
+
+"BHS: (%p)"
+.RS
+Value(s): buf
+.RE
+
+"AHS: (%p)"
+.RS
+Value(s): buf
+.RE
+
+"Data: (%p)"
+.RS
+Value(s): buf
+.RE
+
+.SH KNOWN ISSUES
+Task attributes is incomplete (all tasks are treated as if they have the SIMPLE attribute.)
+
+SCSI task management is incomplete.
+
+NOP-In is incomplete.
+
+The target never sends a NOP-In of its own accord.
+
+Header and Data Digest in a discovery session are not implemented.
+
+Out-of-memory situation leads to the system crash (There are still some out-of-memory bugs.)
+
+.SH "SEE ALSO"
+.BR iscsi-scstd.conf (5)

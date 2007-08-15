@@ -1,0 +1,14 @@
+# The semantics are:
+# * By default, every initiator can see and connect to all targets.
+#  
+# * Deny for some or every initiator access to one or all targets,
+#   by adding a line to this file.
+# 
+# * Then allow some named initiators access to selected targets,
+#   by adding lines to initiators.allow
+#
+# Some examples
+#iqn.2001-04.com.example:storage.disk1.sys1.xyz ALL
+#iqn.2001-04.com.example:storage.disk1.sys2.xyz 192.168.12.2, 192.168.3.0/24, 192.167.1.16/28
+#iqn.2001-04.com.example:storage.disk1.sys4.xyz [3ffe:302:11:1:211:43ff:fe31:5ae2], [3ffe:505:2:1::]/64
+#ALL ALL

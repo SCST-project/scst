@@ -1,0 +1,133 @@
+#!/bin/sh
+#
+# chkconfig: - 39 35
+# description: Starts and stops the iSCSI target
+# debianized start-stop script
+
+PID_FILE=/var/run/iscsi-scst.pid
+CONFIG_FILE=/etc/iscsi-scstd.conf
+DAEMON=/usr/local/sbin/iscsi-scstd
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin
+
+# Don't touch this "memsize thingy" unless you are blessed
+# with knowledge about it.
+MEM_SIZE=1048576
+
+configure_memsize()
+{
+    if [ -e /proc/sys/net/core/wmem_max ]; then
+        echo ${MEM_SIZE} > /proc/sys/net/core/wmem_max
+    fi
+
+    if [ -e /proc/sys/net/core/rmem_max ]; then
+        echo ${MEM_SIZE} > /proc/sys/net/core/rmem_max
+    fi
+
+    if [ -e /proc/sys/net/core/wmem_default ]; then
+        echo ${MEM_SIZE} > /proc/sys/net/core/wmem_default
+    fi
+
+    if [ -e /proc/sys/net/core/rmem_default ]; then
+        echo ${MEM_SIZE} > /proc/sys/net/core/rmem_default
+    fi
+
+    if [ -e /proc/sys/net/ipv4/tcp_mem ]; then
+        echo "${MEM_SIZE} ${MEM_SIZE} ${MEM_SIZE}" > /proc/sys/net/ipv4/tcp_mem
+    fi
+
+    if [ -e  /proc/sys/net/ipv4/tcp_rmem ]; then
+        echo "${MEM_SIZE} ${MEM_SIZE} ${MEM_SIZE}" > /proc/sys/net/ipv4/tcp_rmem
+    fi
+
+    if [ -e /proc/sys/net/ipv4/tcp_wmem ]; then
+        echo "${MEM_SIZE} ${MEM_SIZE} ${MEM_SIZE}" > /proc/sys/net/ipv4/tcp_wmem
+    fi
+}
+
+RETVAL=0
+
+iscsi_scstd_start()
+{
+	echo -n "Starting iSCSI enterprise target service: "
+#	configure_memsize
+	modprobe -q crc32c
+	modprobe iscsi-scst
+	start-stop-daemon --start --exec $DAEMON --quiet
+	RETVAL=$?
+	if [ $RETVAL == "0" ]; then
+	    echo "succeeded."
+	else
+	    echo "failed."
+	fi	    
+}
+	
+iscsi_scstd_stop()
+{
+	echo -n "Stopping iSCSI enterprise target service: "
+	start-stop-daemon --stop --quiet --exec $DAEMON --pidfile $PID_FILE
+	RETVAL=$?
+	if [ $RETVAL == "0" ]; then
+	    echo "succeeded."
+	else
+	    echo "failed."
+	fi
+	# ugly, but pid file is not removed ba iscsi-scstd
+	rm -f $PID_FILE
+
+	echo -n "Removing iSCSI enterprise target modules: "
+	rmmod -w iscsi-scst
+	RETVAL=$?
+	modprobe -r crc32c 2>/dev/null
+	if [ $RETVAL == "0" ]; then
+	    echo "succeeded."
+	else
+	    echo "failed."
+	    exit 1
+	fi
+}
+
+case "$1" in
+  start)
+        iscsi_scstd_start
+        ;;
+  stop)
+        iscsi_scstd_stop
+        ;;
+  restart)
+        iscsi_scstd_stop
+	sleep 1
+	iscsi_scstd_start
+        ;;
+  status)
+	PID=`pidof iscsi-scstd`
+	if [ $PID ]; then
+		echo "iSCSI enterprise target is running at pid $PID"
+	else
+		echo "no iSCSI enterprise target found!"
+		exit 1
+	fi	
+        ;;
+  dump)
+	DUMP=`tempfile -p iscsi-scstd`
+	RETVAL=$?
+	if [ $RETVAL != "0" ]; then
+	    echo "Failed to create dump file $DUMP"
+	    exit 1
+	fi
+        iscsi-scst-adm --mode dump --all >$DUMP
+	RETVAL=$?
+	if [ $RETVAL != "0" ]; then
+	    echo "Error dumping config from daemon"
+	    rm $DUMP
+	    exit 1
+	fi
+	mv -u $DUMP $CONFIG_FILE
+	echo "Config dumped to $CONFIG_FILE"
+        ;;
+  *)
+        echo $"Usage: $0 {start|stop|restart|status|dump}"
+        exit 1
+esac
+
+exit 0
