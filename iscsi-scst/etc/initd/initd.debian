@@ -49,7 +49,7 @@ RETVAL=0
 
 iscsi_scstd_start()
 {
-	echo -n "Starting iSCSI enterprise target service: "
+	echo -n "Starting iSCSI-SCST target service: "
 #	configure_memsize
 	modprobe -q crc32c
 	modprobe iscsi-scst
@@ -64,7 +64,7 @@ iscsi_scstd_start()
 	
 iscsi_scstd_stop()
 {
-	echo -n "Stopping iSCSI enterprise target service: "
+	echo -n "Stopping iSCSI-SCST target service: "
 	start-stop-daemon --stop --quiet --exec $DAEMON --pidfile $PID_FILE
 	RETVAL=$?
 	if [ $RETVAL == "0" ]; then
@@ -75,7 +75,7 @@ iscsi_scstd_stop()
 	# ugly, but pid file is not removed ba iscsi-scstd
 	rm -f $PID_FILE
 
-	echo -n "Removing iSCSI enterprise target modules: "
+	echo -n "Removing iSCSI-SCST target modules: "
 	rmmod -w iscsi-scst
 	RETVAL=$?
 	modprobe -r crc32c 2>/dev/null
@@ -102,9 +102,9 @@ case "$1" in
   status)
 	PID=`pidof iscsi-scstd`
 	if [ $PID ]; then
-		echo "iSCSI enterprise target is running at pid $PID"
+		echo "iSCSI-SCST target is running at pid $PID"
 	else
-		echo "no iSCSI enterprise target found!"
+		echo "no iSCSI-SCST target found!"
 		exit 1
 	fi	
         ;;

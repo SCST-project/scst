@@ -1,6 +1,6 @@
 #!/sbin/runscript
 #
-# Start the iSCSI Enterprise Target.
+# Start the iSCSI-SCST Target.
 #
 
 PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin

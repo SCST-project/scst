@@ -1,5 +1,5 @@
 /*
- * iscsi_adm - manage iSCSI Enterprise Target software.
+ * iscsi_adm - manage iSCSI-SCST Target software.
  *
  * (C) 2004 - 2005 FUJITA Tomonori <tomof@acm.org>
  *
@@ -57,7 +57,7 @@ static void usage(int status)
 	else {
 		printf("Usage: %s [OPTION]\n", program_name);
 		printf("\
-iSCSI Enterprise Target Administration Utility.\n\
+iSCSI-SCST Target Administration Utility.\n\
 \n\
   --op new --tid=[id] --params Name=[name]\n\
                         add a new target with [id]. [id] must not be zero.\n\
