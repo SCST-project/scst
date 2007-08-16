@@ -31,16 +31,16 @@ DEV_HANDLERS_DIR = dev_handlers
 ifneq ($(KERNELRELEASE),)
 SCST_INC_DIR := $(SUBDIRS)/../include
 
-obj-m := scsi_tgt.o
-scsi_tgt-objs := scst.o scst_targ.o scst_lib.o scst_mem.o scst_proc.o
+obj-m := scst.o
+scst-objs := scst_main.o scst_targ.o scst_lib.o scst_mem.o scst_proc.o
 
-scsi_tgt-y        += scst.o
-scsi_tgt-y        += scst_targ.o
-scsi_tgt-y        += scst_lib.o
-scsi_tgt-y        += scst_proc.o
-scsi_tgt-y        += scst_mem.o
-scsi_tgt-y        += scst_debug.o
-obj-$(CONFIG_SCSI_TARGET)   += scsi_tgt.o dev_handlers/
+scst-y        += scst_main.o
+scst-y        += scst_targ.o
+scst-y        += scst_lib.o
+scst-y        += scst_proc.o
+scst-y        += scst_mem.o
+scst-y        += scst_debug.o
+obj-$(CONFIG_SCSI_TARGET)   += scst.o dev_handlers/
 
 obj-$(BUILD_DEV) += $(DEV_HANDLERS_DIR)/
 
@@ -65,6 +65,7 @@ MODS_VERS := $(shell ls Modules.symvers 2>/dev/null)
 MOD_VERS := $(shell ls Module.symvers 2>/dev/null)
 
 install: all
+	-rm -f $(INSTALL_DIR)/scsi_tgt.ko
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_DEV=m \
 		modules_install
 	install -d $(INSTALL_DIR_H)
@@ -90,13 +91,17 @@ endif
 
 uninstall:
 	cd $(DEV_HANDLERS_DIR) && $(MAKE) $@
-	rm -f $(INSTALL_DIR)/scsi_tgt.ko
+	rm -f $(INSTALL_DIR)/scst.ko
 	-rmdir $(INSTALL_DIR) 2>/dev/null
 	-/sbin/depmod -a $(KVER)
 	rm -rf $(INSTALL_DIR_H)
 endif
 
+ifeq ($(KVER),)
 INSTALL_DIR := /lib/modules/$(shell uname -r)/extra
+else
+INSTALL_DIR := /lib/modules/$(KVER)/extra
+endif
 INSTALL_DIR_H := /usr/local/include/scst
 
 EXTRA_CFLAGS += -I$(SCST_INC_DIR) -Wextra -Wno-unused-parameter

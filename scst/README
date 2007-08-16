@@ -70,7 +70,7 @@ other ones support debug messages logging and build process.
 Then you can load any module by typing 'modprobe module_name'. The names
 are:
 
- - scsi_tgt - SCST itself
+ - scst - SCST itself
  - scst_disk - device handler for disks (type 0)
  - scst_tape - device handler for tapes (type 1)
  - scst_processor - device handler for processors (type 3)
@@ -222,7 +222,7 @@ For changing VMSPLIT option (CONFIG_VMSPLIT to be precise) you should in
 Module parameters
 -----------------
 
-Module scsi_tgt supports the following parameters:
+Module scst supports the following parameters:
 
  - scst_threads - allows to set count of SCST's threads. By default it
    is CPU count.

@@ -60,7 +60,11 @@ uninstall:
 	rm -f $(INSTALL_DIR)/scst_*.ko
 endif
 
+ifeq ($(KVER),)
 INSTALL_DIR := /lib/modules/$(shell uname -r)/extra
+else
+INSTALL_DIR := /lib/modules/$(KVER)/extra
+endif
 
 EXTRA_CFLAGS += -I$(SUBDIRS) -I$(SCST_INC_DIR) -Wextra -Wno-unused-parameter
 
