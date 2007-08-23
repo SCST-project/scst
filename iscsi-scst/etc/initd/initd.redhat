@@ -63,7 +63,7 @@ start()
 	echo
 	return $RETVAL
 }
-	
+
 stop()
 {
 	echo -n "Stopping iSCSI target service: "
@@ -72,7 +72,7 @@ stop()
 	rmmod -w iscsi-scst
 	RETVAL=$?
 	modprobe -r crc32c 2>/dev/null
-	if [ $RETVAL == "0" ]; then
+	if [ $RETVAL -eq 0 ]; then
 		echo_success
 	else
 		echo_failure
@@ -103,7 +103,7 @@ status()
 		exit 1
 	else
 		echo "iscsi-scstd (pid $PID) is running..."
-	fi	
+	fi
 }
 
 case "$1" in

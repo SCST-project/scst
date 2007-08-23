@@ -44,7 +44,7 @@ start_server()
 	modprobe iscsi-scst
 	/usr/local/sbin/iscsi-scstd
 }
-	
+
 stop_server()
 {
 	killall iscsi-scstd

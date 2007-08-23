@@ -1510,6 +1510,17 @@ static void execute_task_management(struct iscsi_cmnd *req)
 	TRACE(TRACE_MGMT, "TM cmd: req %p, itt %x, fn %d, rtt %x", req, cmnd_itt(req),
 		function, req_hdr->rtt);
 
+	/* 
+	 * ToDo: relevant TM functions shall affect only commands with
+	 * CmdSN lower req_hdr->cmd_sn (see RFC 3720 section 10.5).
+	 * 
+	 * I suppose, iscsi_session_push_cmnd() should be updated to keep
+	 * commands with higher CmdSN in the session->pending_list until
+	 * executing TM command finished. Although, if higher CmdSN commands
+	 * might be already sent to SCST for execution, it could get much more
+	 * complicated and should be implemented on SCST level.
+	 */
+
 	switch (function) {
 	case ISCSI_FUNCTION_ABORT_TASK:
 		err = cmnd_abort(conn->session, req_hdr->rtt);

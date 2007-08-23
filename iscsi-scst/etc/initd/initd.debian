@@ -55,11 +55,11 @@ iscsi_scstd_start()
 	modprobe iscsi-scst
 	start-stop-daemon --start --exec $DAEMON --quiet
 	RETVAL=$?
-	if [ $RETVAL == "0" ]; then
+	if [ $RETVAL -eq 0 ]; then
 	    echo "succeeded."
 	else
 	    echo "failed."
-	fi	    
+	fi
 }
 	
 iscsi_scstd_stop()
@@ -67,7 +67,7 @@ iscsi_scstd_stop()
 	echo -n "Stopping iSCSI-SCST target service: "
 	start-stop-daemon --stop --quiet --exec $DAEMON --pidfile $PID_FILE
 	RETVAL=$?
-	if [ $RETVAL == "0" ]; then
+	if [ $RETVAL -eq 0 ]; then
 	    echo "succeeded."
 	else
 	    echo "failed."
@@ -79,7 +79,7 @@ iscsi_scstd_stop()
 	rmmod -w iscsi-scst
 	RETVAL=$?
 	modprobe -r crc32c 2>/dev/null
-	if [ $RETVAL == "0" ]; then
+	if [ $RETVAL -eq 0 ]; then
 	    echo "succeeded."
 	else
 	    echo "failed."
@@ -106,18 +106,18 @@ case "$1" in
 	else
 		echo "no iSCSI-SCST target found!"
 		exit 1
-	fi	
+	fi
         ;;
   dump)
 	DUMP=`tempfile -p iscsi-scstd`
 	RETVAL=$?
-	if [ $RETVAL != "0" ]; then
+	if [ $RETVAL -ne 0 ]; then
 	    echo "Failed to create dump file $DUMP"
 	    exit 1
 	fi
         iscsi-scst-adm --mode dump --all >$DUMP
 	RETVAL=$?
-	if [ $RETVAL != "0" ]; then
+	if [ $RETVAL -ne 0 ]; then
 	    echo "Error dumping config from daemon"
 	    rm $DUMP
 	    exit 1
