@@ -2,6 +2,8 @@
  * iSNS functions
  *
  * Copyright (C) 2006 FUJITA Tomonori <tomof@acm.org>
+ * Copyright (C) 2007 Vladislav Bolkhovitin
+ * Copyright (C) 2007 CMS Distribution Limited
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as

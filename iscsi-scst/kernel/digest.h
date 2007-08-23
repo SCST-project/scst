@@ -1,13 +1,25 @@
 /*
- * iSCSI digest handling.
- * (C) 2004 Xiranet Communications GmbH <arne.redlich@xiranet.com>
- * This code is licensed under the GPL.
+ *  iSCSI digest handling.
+ *
+ *  Copyright (C) 2004 Xiranet Communications GmbH <arne.redlich@xiranet.com>
+ *  Copyright (C) 2007 Vladislav Bolkhovitin
+ *  Copyright (C) 2007 CMS Distribution Limited
+ * 
+ *  This program is free software; you can redistribute it and/or
+ *  modify it under the terms of the GNU General Public License
+ *  as published by the Free Software Foundation.
+ * 
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ *  GNU General Public License for more details.
  */
 
 #ifndef __ISCSI_DIGEST_H__
 #define __ISCSI_DIGEST_H__
 
 extern void digest_alg_available(unsigned int *val);
+
 extern int digest_init(struct iscsi_conn *conn);
 
 extern int digest_rx_header(struct iscsi_cmnd *cmnd);

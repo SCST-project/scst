@@ -1,9 +1,20 @@
 /*
- * Event notification code.
- * (C) 2005 FUJITA Tomonori <tomof@acm.org>
- * This code is licenced under the GPL.
+ *  Event notification code.
  *
- * Some functions are based on audit code.
+ *  Copyright (C) 2005 FUJITA Tomonori <tomof@acm.org>
+ *  Copyright (C) 2007 Vladislav Bolkhovitin
+ *  Copyright (C) 2007 CMS Distribution Limited
+ * 
+ *  This program is free software; you can redistribute it and/or
+ *  modify it under the terms of the GNU General Public License
+ *  as published by the Free Software Foundation.
+ * 
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ *  GNU General Public License for more details.
+ *
+ *  Some functions are based on audit code.
  */
 
 #include <net/tcp.h>
