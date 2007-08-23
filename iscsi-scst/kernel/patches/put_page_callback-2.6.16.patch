@@ -118,7 +118,7 @@ diff -upr linux-2.6.16.29/net/core/skbuff.c linux-2.6.16.29/net/core/skbuff.c
  				skb_shinfo(skb)->frags[i].size	= len - pos;
 diff -upr linux-2.6.16.29/net/core/utils.c linux-2.6.16.29/net/core/utils.c
 --- linux-2.6.16.29/net/core/utils.c	2006-09-12 22:02:10.000000000 +0400
-+++ linux-2.6.16.29/net/core/utils.c	2007-08-07 19:54:27.000000000 +0400
++++ linux-2.6.16.29/net/core/utils.c	2007-08-23 19:54:03.000000000 +0400
 @@ -24,11 +24,15 @@
  #include <linux/random.h>
  #include <linux/percpu.h>
@@ -135,7 +135,7 @@ diff -upr linux-2.6.16.29/net/core/utils.c linux-2.6.16.29/net/core/utils.c
  /*
    This is a maximally equidistributed combined Tausworthe generator
    based on code from GNU Scientific Library 1.5 (30 Jun 2004)
-@@ -190,3 +194,29 @@ __be32 in_aton(const char *str)
+@@ -190,3 +194,32 @@ __be32 in_aton(const char *str)
  }
  
  EXPORT_SYMBOL(in_aton);
@@ -165,6 +165,9 @@ diff -upr linux-2.6.16.29/net/core/utils.c linux-2.6.16.29/net/core/utils.c
 +	return res;
 +}
 +EXPORT_SYMBOL(net_set_get_put_page_callbacks);
++
++EXPORT_SYMBOL(net_get_page_callback);
++EXPORT_SYMBOL(net_put_page_callback);
 diff -upr linux-2.6.16.29/net/ipv4/ip_output.c linux-2.6.16.29/net/ipv4/ip_output.c
 --- linux-2.6.16.29/net/ipv4/ip_output.c	2006-09-12 22:02:10.000000000 +0400
 +++ linux-2.6.16.29/net/ipv4/ip_output.c	2007-08-07 19:54:27.000000000 +0400

@@ -127,7 +127,7 @@ diff -upr linux-2.6.21.1/net/core/skbuff.c linux-2.6.21.1/net/core/skbuff.c
  			if (pos < offset) {
 diff -upr linux-2.6.21.1/net/core/utils.c linux-2.6.21.1/net/core/utils.c
 --- linux-2.6.21.1/net/core/utils.c	2007-04-28 01:49:26.000000000 +0400
-+++ linux-2.6.21.1/net/core/utils.c	2007-07-25 12:17:19.000000000 +0400
++++ linux-2.6.21.1/net/core/utils.c	2007-08-23 19:38:32.000000000 +0400
 @@ -25,6 +25,7 @@
  #include <linux/random.h>
  #include <linux/percpu.h>
@@ -146,7 +146,7 @@ diff -upr linux-2.6.21.1/net/core/utils.c linux-2.6.21.1/net/core/utils.c
  /*
   * All net warning printk()s should be guarded by this function.
   */
-@@ -290,3 +294,29 @@ out:
+@@ -290,3 +294,32 @@ out:
  }
  
  EXPORT_SYMBOL(in6_pton);
@@ -176,6 +176,9 @@ diff -upr linux-2.6.21.1/net/core/utils.c linux-2.6.21.1/net/core/utils.c
 +	return res;
 +}
 +EXPORT_SYMBOL(net_set_get_put_page_callbacks);
++
++EXPORT_SYMBOL(net_get_page_callback);
++EXPORT_SYMBOL(net_put_page_callback);
 diff -upr linux-2.6.21.1/net/ipv4/ip_output.c linux-2.6.21.1/net/ipv4/ip_output.c
 --- linux-2.6.21.1/net/ipv4/ip_output.c	2007-04-28 01:49:26.000000000 +0400
 +++ linux-2.6.21.1/net/ipv4/ip_output.c	2007-07-04 13:17:53.000000000 +0400
