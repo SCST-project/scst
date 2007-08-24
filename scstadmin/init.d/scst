@@ -40,7 +40,7 @@ case "$1" in
 	done
 
 	rmmod qla2x00tgt || { echo "[qla2x00tgt failed]" ; }
-	rmmod scsi_tgt || { echo "[scsi_tgt failed]" ; }
+	rmmod scst || { echo "[scst failed]" ; }
 	
 	echo "."
 	;;
