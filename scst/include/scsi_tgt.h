@@ -66,23 +66,26 @@
 /* Waiting for data from the initiator (until scst_rx_data() called) */
 #define SCST_CMD_STATE_DATA_WAIT     8
 
+/* Target driver's pre_exec() is going to be called */
+#define SCST_CMD_STATE_PRE_EXEC      9
+
 /* CDB is going to be sent to SCSI mid-level for execution */
-#define SCST_CMD_STATE_SEND_TO_MIDLEV 9
+#define SCST_CMD_STATE_SEND_TO_MIDLEV 10
 
 /* Waiting for CDB's execution finish */
-#define SCST_CMD_STATE_EXECUTING     10
+#define SCST_CMD_STATE_EXECUTING     11
 
 /* Dev handler's dev_done() is going to be called */
-#define SCST_CMD_STATE_DEV_DONE      11
+#define SCST_CMD_STATE_DEV_DONE      12
 
 /* Target driver's xmit_response() is going to be called */
-#define SCST_CMD_STATE_XMIT_RESP     12
+#define SCST_CMD_STATE_XMIT_RESP     13
 
 /* Waiting for response's transmission finish */
-#define SCST_CMD_STATE_XMIT_WAIT     13
+#define SCST_CMD_STATE_XMIT_WAIT     14
 
 /* The cmd finished */
-#define SCST_CMD_STATE_FINISHED      14
+#define SCST_CMD_STATE_FINISHED      15
 
 /************************************************************* 
  ** Can be retuned instead of cmd's state by dev handlers' 

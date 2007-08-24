@@ -2636,7 +2636,6 @@ struct scst_thr_data_hdr *scst_find_thr_data(struct scst_tgt_dev *tgt_dev)
 void __scst_block_dev(struct scst_device *dev)
 {
 	dev->block_count++;
-	smp_mb();
 	TRACE_MGMT_DBG("Device BLOCK(new %d), dev %p", dev->block_count, dev);
 }
 

@@ -452,6 +452,7 @@ call_parse:
 	case SCST_CMD_STATE_PREPARE_SPACE:
 	case SCST_CMD_STATE_DEV_PARSE:
 	case SCST_CMD_STATE_RDY_TO_XFER:
+	case SCST_CMD_STATE_PRE_EXEC:
 	case SCST_CMD_STATE_SEND_TO_MIDLEV:
 	case SCST_CMD_STATE_DEV_DONE:
 	case SCST_CMD_STATE_XMIT_RESP:
@@ -677,7 +678,7 @@ prep_done:
 		break;
 
 	default:
-		cmd->state = SCST_CMD_STATE_SEND_TO_MIDLEV;
+		cmd->state = SCST_CMD_STATE_PRE_EXEC;
 		break;
 	}
 
@@ -726,7 +727,7 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status, int pref_context)
 			cmd->state = SCST_CMD_STATE_RDY_TO_XFER;
 			break;
 		default:
-			cmd->state = SCST_CMD_STATE_SEND_TO_MIDLEV;
+			cmd->state = SCST_CMD_STATE_PRE_EXEC;
 			break;
 		}
 		if (cmd->no_sn)
@@ -826,7 +827,7 @@ static int scst_rdy_to_xfer(struct scst_cmd *cmd)
 	}
 
 	if (cmd->tgtt->rdy_to_xfer == NULL) {
-		cmd->state = SCST_CMD_STATE_SEND_TO_MIDLEV;
+		cmd->state = SCST_CMD_STATE_PRE_EXEC;
 		res = SCST_CMD_STATE_RES_CONT_SAME;
 		goto out;
 	}
@@ -971,7 +972,7 @@ void scst_rx_data(struct scst_cmd *cmd, int status, int pref_context)
 
 	switch (status) {
 	case SCST_RX_STATUS_SUCCESS:
-		cmd->state = SCST_CMD_STATE_SEND_TO_MIDLEV;
+		cmd->state = SCST_CMD_STATE_PRE_EXEC;
 		/* Small context optimization */
 		if ((pref_context == SCST_CONTEXT_TASKLET) || 
 		    (pref_context == SCST_CONTEXT_DIRECT_ATOMIC)) {
@@ -1007,11 +1008,16 @@ void scst_rx_data(struct scst_cmd *cmd, int status, int pref_context)
 	return;
 }
 
-static int scst_tgt_pre_exec(struct scst_cmd *cmd, int *action)
+static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 {
-	int res = 0, rc;
+	int rc;
 
 	TRACE_ENTRY();
+
+	cmd->state = SCST_CMD_STATE_SEND_TO_MIDLEV;
+
+	if (cmd->tgtt->pre_exec == NULL)
+		goto out;
 
 	TRACE_DBG("Calling pre_exec(%p)", cmd);
 	rc = cmd->tgtt->pre_exec(cmd);
@@ -1021,8 +1027,6 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd, int *action)
 		switch(rc) {
 		case SCST_PREPROCESS_STATUS_ERROR_SENSE_SET:
 			cmd->state = SCST_CMD_STATE_DEV_DONE;
-			*action = SCST_CMD_STATE_RES_CONT_SAME;
-			res = -1;
 			break;
 		case SCST_PREPROCESS_STATUS_ERROR_FATAL:
 			set_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags);
@@ -1031,8 +1035,6 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd, int *action)
 			scst_set_cmd_error(cmd,
 				   SCST_LOAD_SENSE(scst_sense_hardw_error));
 			cmd->state = SCST_CMD_STATE_DEV_DONE;
-			*action = SCST_CMD_STATE_RES_CONT_SAME;
-			res = -1;
 			break;
 		default:
 			sBUG();
@@ -1040,8 +1042,9 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd, int *action)
 		}
 	}
 
-	TRACE_EXIT_RES(res);
-	return res;
+out:
+	TRACE_EXIT();
+	return SCST_CMD_STATE_RES_CONT_SAME;
 }
 
 static void scst_inc_check_expected_sn(struct scst_cmd *cmd)
@@ -1892,12 +1895,6 @@ static int scst_send_to_midlev(struct scst_cmd *cmd)
 
 	res = SCST_CMD_STATE_RES_CONT_NEXT;
 
-	if (cmd->tgtt->pre_exec != NULL) {
-		rc = scst_tgt_pre_exec(cmd, &res);
-		if (unlikely(rc != 0))
-			goto out;
-	}
-
 	if (unlikely(scst_inc_on_dev_cmd(cmd) != 0))
 		goto out;
 
@@ -2339,12 +2336,13 @@ static int scst_dev_done(struct scst_cmd *cmd)
 	}
 
 	switch (state) {
+	case SCST_CMD_STATE_XMIT_RESP:
 	case SCST_CMD_STATE_DEV_PARSE:
 	case SCST_CMD_STATE_PREPARE_SPACE:
 	case SCST_CMD_STATE_RDY_TO_XFER:
+	case SCST_CMD_STATE_PRE_EXEC:
 	case SCST_CMD_STATE_SEND_TO_MIDLEV:
 	case SCST_CMD_STATE_DEV_DONE:
-	case SCST_CMD_STATE_XMIT_RESP:
 	case SCST_CMD_STATE_FINISHED:
 		cmd->state = state;
 		res = SCST_CMD_STATE_RES_CONT_SAME;
@@ -2908,7 +2906,10 @@ void scst_process_active_cmd(struct scst_cmd *cmd, int context)
 		switch (cmd->state) {
 		case SCST_CMD_STATE_DEV_PARSE:
 			res = scst_parse_cmd(cmd);
-			break;
+			if ((res != SCST_CMD_STATE_RES_CONT_SAME) ||
+			    (cmd->state != SCST_CMD_STATE_PREPARE_SPACE))
+				break;
+			/* else go through */
 
 		case SCST_CMD_STATE_PREPARE_SPACE:
 			res = scst_prepare_space(cmd);
@@ -2917,6 +2918,13 @@ void scst_process_active_cmd(struct scst_cmd *cmd, int context)
 		case SCST_CMD_STATE_RDY_TO_XFER:
 			res = scst_rdy_to_xfer(cmd);
 			break;
+
+		case SCST_CMD_STATE_PRE_EXEC:
+			res = scst_tgt_pre_exec(cmd);
+			if ((res != SCST_CMD_STATE_RES_CONT_SAME) ||
+			    (cmd->state != SCST_CMD_STATE_SEND_TO_MIDLEV))
+				break;
+			/* else go through */
 
 		case SCST_CMD_STATE_SEND_TO_MIDLEV:
 			if (tm_dbg_check_cmd(cmd) != 0) {
@@ -2932,6 +2940,10 @@ void scst_process_active_cmd(struct scst_cmd *cmd, int context)
 
 		case SCST_CMD_STATE_DEV_DONE:
 			res = scst_dev_done(cmd);
+			if ((res != SCST_CMD_STATE_RES_CONT_SAME) ||
+			    (cmd->state != SCST_CMD_STATE_XMIT_RESP))
+				break;
+			/* else go through */
 			break;
 
 		case SCST_CMD_STATE_XMIT_RESP:
@@ -2959,6 +2971,7 @@ void scst_process_active_cmd(struct scst_cmd *cmd, int context)
 		case SCST_CMD_STATE_DEV_PARSE:
 		case SCST_CMD_STATE_PREPARE_SPACE:
 		case SCST_CMD_STATE_RDY_TO_XFER:
+		case SCST_CMD_STATE_PRE_EXEC:
 		case SCST_CMD_STATE_SEND_TO_MIDLEV:
 		case SCST_CMD_STATE_DEV_DONE:
 		case SCST_CMD_STATE_XMIT_RESP:
