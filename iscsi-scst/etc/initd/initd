@@ -5,6 +5,11 @@
 
 PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin
 MEM_SIZE=1048576
+SCST_CMD=/usr/local/sbin/scstadmin
+SCST_CFG=/etc/scst.conf
+
+# Additional modules to load/unload
+ADD_MODULES="scst_vdisk scst"
 
 configure_memsize()
 {
@@ -40,15 +45,22 @@ configure_memsize()
 start_server()
 {
 #	configure_memsize
-	modprobe -q crc32c
-	modprobe iscsi-scst
+
+	modprobe iscsi-scst || { exit $? ; }
+	for module in ${ADD_MODULES}; do
+		modprobe ${module} || { exit 1 ; }
+	done
+
+	$SCST_CMD -config $SCST_CFG || { exit $? ; }
+
 	/usr/local/sbin/iscsi-scstd
 }
 
 stop_server()
 {
 	killall iscsi-scstd
-	rmmod -w iscsi-scst
+	rmmod -w iscsi-scst || { exit $? ; }
+	rmmod ${ADD_MODULES} || { exit $? ; }
 }
 
 case "$1" in
