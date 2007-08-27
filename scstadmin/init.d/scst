@@ -5,7 +5,7 @@ SCST_CMD=/usr/local/sbin/scstadmin
 SCST_CFG=/etc/scst.conf
 
 # Modules to load/unload
-SCST_MODULES="scst_fileio scst_disk scst_cdrom"
+SCST_MODULES="scst_vdisk scst_disk scst_cdrom"
 
 OPTIONS=""
 
