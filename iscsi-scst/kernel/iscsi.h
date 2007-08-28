@@ -407,12 +407,6 @@ static inline void iscsi_cmnd_set_length(struct iscsi_pdu *pdu)
 #endif
 }
 
-#define cmnd_hdr(cmnd) ((struct iscsi_scsi_cmd_hdr *) (&((cmnd)->pdu.bhs)))
-#define cmnd_ttt(cmnd) cpu_to_be32((cmnd)->pdu.bhs.ttt)
-#define cmnd_itt(cmnd) cpu_to_be32((cmnd)->pdu.bhs.itt)
-#define cmnd_opcode(cmnd) ((cmnd)->pdu.bhs.opcode & ISCSI_OPCODE_MASK)
-#define cmnd_scsicode(cmnd) cmnd_hdr(cmnd)->scb[0]
-
 extern struct scst_tgt_template iscsi_template;
 
 static inline void cmnd_get(struct iscsi_cmnd *cmnd)

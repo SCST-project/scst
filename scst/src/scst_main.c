@@ -1633,8 +1633,7 @@ EXPORT_SYMBOL(scst_tgt_cmd_done);
 EXPORT_SYMBOL(scst_restart_cmd);
 EXPORT_SYMBOL(scst_rx_cmd);
 EXPORT_SYMBOL(scst_rx_data);
-EXPORT_SYMBOL(scst_rx_mgmt_fn_tag);
-EXPORT_SYMBOL(scst_rx_mgmt_fn_lun);
+EXPORT_SYMBOL(scst_rx_mgmt_fn);
 
 EXPORT_SYMBOL(scst_find_cmd);
 EXPORT_SYMBOL(scst_find_cmd_by_tag);

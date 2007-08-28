@@ -1056,7 +1056,10 @@ struct scst_cmd
 	 * Set if inc expected_sn in cmd->scst_cmd_done() (to 
 	 * save extra dereferences)
 	 */
-	unsigned inc_expected_sn_on_done:1; 
+	unsigned int inc_expected_sn_on_done:1; 
+
+	/* Set if tgt_sn field is valid */
+	unsigned int tgt_sn_set:1;
 
 	/**************************************************************/
 
@@ -1094,6 +1097,8 @@ struct scst_cmd
 	 * target driver on the cmd's initialization time
 	 */
 	uint64_t tag;
+
+	uint32_t tgt_sn; /* SN set by target driver (for TM purposes) */
 
 	/* CDB and its len */
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
@@ -1167,6 +1172,20 @@ struct scst_cmd
 	struct scst_cmd *orig_cmd; /* Used to issue REQUEST SENSE */
 };
 
+struct scst_rx_mgmt_params
+{
+	int fn;
+	uint64_t tag;
+	const uint8_t *lun;
+	int lun_len;
+	uint32_t cmd_sn;
+	int atomic;
+	void *tgt_priv;
+	unsigned char tag_set;
+	unsigned char lun_set;
+	unsigned char cmd_sn_set;
+};
+
 struct scst_mgmt_cmd
 {
 	/* List entry for *_mgmt_cmd_list */
@@ -1181,6 +1200,10 @@ struct scst_mgmt_cmd
 
 	unsigned int completed:1;	/* set, if the mcmd is completed */
 	unsigned int active:1;		/* set, if the mcmd is active */
+	/* Set if device(s) should be unblocked after mcmd's finish */
+	unsigned int needs_unblocking:1;
+	unsigned int lun_set:1;		/* set, if lun field is valid */
+	unsigned int cmd_sn_set:1;	/* set, if cmd_sn field is valid */
 
 	/*
 	 * Number of commands to complete before sending response,
@@ -1192,8 +1215,10 @@ struct scst_mgmt_cmd
 	int completed_cmd_count;
 
 	lun_t lun;	/* LUN for this mgmt cmd */
-	/* or */
+	/* or (and for iSCSI) */
 	uint64_t tag;	/* tag of the corresponding cmd */
+
+	uint32_t cmd_sn; /* affected command's highest SN */
 
 	/* corresponding cmd (to be aborted, found by tag) */
 	struct scst_cmd *cmd_to_abort;
@@ -1590,7 +1615,7 @@ void scst_unregister_virtual_dev_driver(struct scst_dev_type *dev_type);
 
 /* 
  * Creates and sends new command to SCST.
- * Must not been called in parallel with scst_unregister_session() for the
+ * Must not be called in parallel with scst_unregister_session() for the
  * same sess. Returns the command on success or NULL otherwise
  */
 struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
@@ -1662,23 +1687,61 @@ void scst_rx_data(struct scst_cmd *cmd, int status, int pref_context);
 void scst_tgt_cmd_done(struct scst_cmd *cmd);
 
 /* 
- * Creates new management command using tag and sends it for execution.
- * Can be used for SCST_ABORT_TASK only.
- * Must not been called in parallel with scst_unregister_session() for the 
+ * Creates new management command sends it for execution.
+ * Must not be called in parallel with scst_unregister_session() for the 
  * same sess. Returns 0 for success, error code otherwise.
  */
-int scst_rx_mgmt_fn_tag(struct scst_session *sess, int fn, uint64_t tag,
-		       int atomic, void *tgt_priv);
+int scst_rx_mgmt_fn(struct scst_session *sess,
+	const struct scst_rx_mgmt_params *params);
+
+/* 
+ * Creates new management command using tag and sends it for execution.
+ * Can be used for SCST_ABORT_TASK only.
+ * Must not be called in parallel with scst_unregister_session() for the 
+ * same sess. Returns 0 for success, error code otherwise.
+ *
+ * Obsolete in favor of scst_rx_mgmt_fn()
+ */
+static inline int scst_rx_mgmt_fn_tag(struct scst_session *sess, int fn,
+	uint64_t tag, int atomic, void *tgt_priv)
+{
+	struct scst_rx_mgmt_params params;
+
+	BUG_ON(fn != SCST_ABORT_TASK);
+
+	memset(&params, 0, sizeof(params));
+	params.fn = fn;
+	params.tag = tag;
+	params.tag_set = 1;
+	params.atomic = atomic;
+	params.tgt_priv = tgt_priv;
+	return scst_rx_mgmt_fn(sess, &params);
+}
 
 /* 
  * Creates new management command using LUN and sends it for execution.
  * Currently can be used for any fn, except SCST_ABORT_TASK.
- * Must not been called in parallel with scst_unregister_session() for the 
+ * Must not be called in parallel with scst_unregister_session() for the 
  * same sess. Returns 0 for success, error code otherwise.
+ *
+ * Obsolete in favor of scst_rx_mgmt_fn()
  */
-int scst_rx_mgmt_fn_lun(struct scst_session *sess, int fn,
-			const uint8_t *lun, int lun_len,
-			int atomic, void *tgt_priv);
+static inline int scst_rx_mgmt_fn_lun(struct scst_session *sess, int fn,
+	const uint8_t *lun, int lun_len, int atomic, void *tgt_priv)
+{
+	struct scst_rx_mgmt_params params;
+
+	BUG_ON(fn == SCST_ABORT_TASK);
+
+	memset(&params, 0, sizeof(params));
+	params.fn = fn;
+	params.lun = lun;
+	params.lun_len = lun_len;
+	params.lun_set = 1;
+	params.atomic = atomic;
+	params.tgt_priv = tgt_priv;
+	return scst_rx_mgmt_fn(sess, &params);
+}
 
 /*
  * Provides various CDB info
@@ -1990,6 +2053,22 @@ static inline void scst_cmd_set_no_sgv(struct scst_cmd *cmd)
 {
 	cmd->no_sgv = 1;
 }
+
+/*
+ * Get/Set functions for tgt_sn
+ */
+static inline int scst_cmd_get_tgt_sn(struct scst_cmd *cmd)
+{
+	BUG_ON(!cmd->tgt_sn_set);
+	return cmd->tgt_sn;
+}
+
+static inline void scst_cmd_set_tgt_sn(struct scst_cmd *cmd, uint32_t tgt_sn)
+{
+	cmd->tgt_sn_set = 1;
+	cmd->tgt_sn = tgt_sn;
+}
+
 
 /*
  * Returns 1 if the cmd was aborted, so its status is invalid and no

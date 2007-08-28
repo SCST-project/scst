@@ -49,7 +49,7 @@ static inline void scst_schedule_tasklet(struct scst_cmd *cmd)
 }
 
 /* 
- * Must not been called in parallel with scst_unregister_session() for the 
+ * Must not be called in parallel with scst_unregister_session() for the 
  * same sess
  */
 struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
@@ -3397,8 +3397,15 @@ static void __scst_abort_task_set(struct scst_mgmt_cmd *mcmd,
  			search_cmd_list_entry) {
  		if ((cmd->tgt_dev == tgt_dev) ||
  		    ((cmd->tgt_dev == NULL) && 
-		     (cmd->lun == tgt_dev->lun)))
+		     (cmd->lun == tgt_dev->lun))) {
+			if (mcmd->cmd_sn_set) {
+				sBUG_ON(!cmd->tgt_sn_set);
+				if (scst_sn_before(mcmd->cmd_sn, cmd->tgt_sn) ||
+				    (mcmd->cmd_sn == cmd->tgt_sn))
+					continue;
+			}
 			scst_abort_cmd(cmd, mcmd, other_ini, 0);
+		}
 	}
 	spin_unlock_irq(&sess->sess_list_lock);
 
@@ -3417,6 +3424,8 @@ static int scst_abort_task_set(struct scst_mgmt_cmd *mcmd)
 
 	TRACE(TRACE_MGMT, "Aborting task set (lun=%Ld, mcmd=%p)",
 		tgt_dev->lun, mcmd);
+
+	mcmd->needs_unblocking = 1;
 
 	spin_lock_bh(&dev->dev_lock);
 	__scst_block_dev(dev);
@@ -3452,7 +3461,7 @@ static int scst_check_delay_mgmt_cmd(struct scst_mgmt_cmd *mcmd)
  * >0, if it should be requeued, <0 otherwise */
 static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 {
-	int res = 0;
+	int res = 0, rc;
 
 	TRACE_ENTRY();
 
@@ -3460,7 +3469,11 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 	if (res != 0)
 		goto out;
 
-	if (mcmd->fn == SCST_ABORT_TASK) {
+	mcmd->state = SCST_MGMT_CMD_STATE_READY;
+
+	switch (mcmd->fn) {
+	case SCST_ABORT_TASK:
+	{
 		struct scst_session *sess = mcmd->sess;
 		struct scst_cmd *cmd;
 
@@ -3479,23 +3492,43 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 		TRACE(TRACE_MGMT, "Cmd %p for tag %llu (sn %ld) found, "
 			"aborting it", cmd, mcmd->tag, cmd->sn);
 		mcmd->cmd_to_abort = cmd;
-		scst_abort_cmd(cmd, mcmd, 0, 1);
-		scst_unblock_aborted_cmds(0);
+		if (mcmd->lun_set && (mcmd->lun != cmd->lun)) {
+			PRINT_ERROR_PR("ABORT TASK: LUN mismatch: mcmd LUN %Lx, "
+				"cmd LUN %Lx, cmd tag %Lu", mcmd->lun, cmd->lun,
+				mcmd->tag);
+			mcmd->status = SCST_MGMT_STATUS_REJECTED;
+		} else if (mcmd->cmd_sn_set && 
+		           (scst_sn_before(mcmd->cmd_sn, cmd->tgt_sn) ||
+			    (mcmd->cmd_sn == cmd->tgt_sn))) {
+			PRINT_ERROR_PR("ABORT TASK: SN mismatch: mcmd SN %x, "
+				"cmd SN %x, cmd tag %Lu", mcmd->cmd_sn,
+				cmd->tgt_sn, mcmd->tag);
+			mcmd->status = SCST_MGMT_STATUS_REJECTED;
+		} else {
+			scst_abort_cmd(cmd, mcmd, 0, 1);
+			scst_unblock_aborted_cmds(0);
+		}
 		res = scst_set_mcmd_next_state(mcmd);
 		mcmd->cmd_to_abort = NULL; /* just in case */
 		scst_cmd_put(cmd);
-	} else {
-		int rc;
+		break;
+	}
+
+	case SCST_TARGET_RESET:
+	case SCST_ABORT_ALL_TASKS:
+	case SCST_NEXUS_LOSS:
+		break;
+
+	default:
 		rc = scst_mgmt_translate_lun(mcmd);
 		if (rc < 0) {
 			PRINT_ERROR_PR("Corresponding device for lun %Ld not "
 				"found", (uint64_t)mcmd->lun);
 			mcmd->status = SCST_MGMT_STATUS_LUN_NOT_EXIST;
 			mcmd->state = SCST_MGMT_CMD_STATE_DONE;
-		} else if (rc == 0)
-			mcmd->state = SCST_MGMT_CMD_STATE_READY;
-		else
+		} else if (rc != 0)
 			res = rc;
+		break;
 	}
 
 out:
@@ -3516,6 +3549,8 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 
 	TRACE(TRACE_MGMT, "Target reset (mcmd %p, cmd count %d)",
 		mcmd, atomic_read(&mcmd->sess->sess_cmd_count));
+
+	mcmd->needs_unblocking = 1;
 
 	mutex_lock(&scst_mutex);
 
@@ -3603,6 +3638,8 @@ static int scst_lun_reset(struct scst_mgmt_cmd *mcmd)
 
 	TRACE(TRACE_MGMT, "Resetting lun %Ld (mcmd %p)", tgt_dev->lun, mcmd);
 
+	mcmd->needs_unblocking = 1;
+
 	spin_lock_bh(&dev->dev_lock);
 	__scst_block_dev(dev);
 	scst_process_reset(dev, mcmd->sess, NULL, mcmd);
@@ -3647,6 +3684,8 @@ static int scst_abort_all_nexus_loss_sess(struct scst_mgmt_cmd *mcmd,
 		TRACE(TRACE_MGMT, "Aborting all from sess %p (mcmd %p)", sess,
 			mcmd);
 	}
+
+	mcmd->needs_unblocking = 1;
 
 	mutex_lock(&scst_mutex);
 	for(i = 0; i < TGT_DEV_HASH_SIZE; i++) {
@@ -3698,6 +3737,8 @@ static int scst_abort_all_nexus_loss_tgt(struct scst_mgmt_cmd *mcmd,
 		TRACE(TRACE_MGMT, "Aborting all from tgt %p (mcmd %p)", tgt,
 			mcmd);
 	}
+
+	mcmd->needs_unblocking = 1;
 
 	mutex_lock(&scst_mutex);
 
@@ -3828,7 +3869,7 @@ static void scst_mgmt_cmd_send_done(struct scst_mgmt_cmd *mcmd)
 		      mcmd->sess->tgt->tgtt->name);
 	}
 
-	if (mcmd->mcmd_tgt_dev != NULL) {
+	if (mcmd->needs_unblocking) {
 		switch (mcmd->fn) {
 		case SCST_ABORT_TASK_SET:
 		case SCST_CLEAR_TASK_SET:
@@ -3864,8 +3905,8 @@ static void scst_mgmt_cmd_send_done(struct scst_mgmt_cmd *mcmd)
 
 			break;
 		}
-		case SCST_CLEAR_ACA:
 		default:
+			sBUG();
 			break;
 		}
 	}
@@ -4085,74 +4126,51 @@ out_unlock:
 }
 
 /* 
- * Must not been called in parallel with scst_unregister_session() for the 
+ * Must not be called in parallel with scst_unregister_session() for the 
  * same sess
  */
-int scst_rx_mgmt_fn_lun(struct scst_session *sess, int fn,
-			const uint8_t *lun, int lun_len, int atomic,
-			void *tgt_priv)
+int scst_rx_mgmt_fn(struct scst_session *sess,
+	const struct scst_rx_mgmt_params *params)
 {
 	int res = -EFAULT;
 	struct scst_mgmt_cmd *mcmd = NULL;
 
 	TRACE_ENTRY();
 
-	if (unlikely(fn == SCST_ABORT_TASK)) {
-		PRINT_ERROR_PR("%s() for ABORT TASK called", __FUNCTION__);
-		res = -EINVAL;
-		goto out;
+	switch (params->fn) {
+	case SCST_ABORT_TASK:
+		sBUG_ON(!params->tag_set);
+		break;
+	case SCST_TARGET_RESET:
+	case SCST_ABORT_ALL_TASKS:
+	case SCST_NEXUS_LOSS:
+		break;
+	default:
+		sBUG_ON(!params->lun_set);
 	}
 
-	mcmd = scst_pre_rx_mgmt_cmd(sess, fn, atomic, tgt_priv);
+	mcmd = scst_pre_rx_mgmt_cmd(sess, params->fn, params->atomic,
+		params->tgt_priv);
 	if (mcmd == NULL)
 		goto out;
 
-	mcmd->lun = scst_unpack_lun(lun, lun_len);
-	if (mcmd->lun == (lun_t)-1)
-		goto out_free;
-
-	TRACE(TRACE_MGMT, "sess=%p, lun=%Ld", sess, (uint64_t)mcmd->lun);
-
-	if (scst_post_rx_mgmt_cmd(sess, mcmd) != 0)
-		goto out_free;
-
-	res = 0;
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-
-out_free:
-	scst_free_mgmt_cmd(mcmd);
-	mcmd = NULL;
-	goto out;
-}
-
-/* 
- * Must not been called in parallel with scst_unregister_session() for the 
- * same sess
- */
-int scst_rx_mgmt_fn_tag(struct scst_session *sess, int fn, uint64_t tag,
-		       int atomic, void *tgt_priv)
-{
-	int res = -EFAULT;
-	struct scst_mgmt_cmd *mcmd = NULL;
-
-	TRACE_ENTRY();
-
-	if (unlikely(fn != SCST_ABORT_TASK)) {
-		PRINT_ERROR_PR("%s(%d) called", __FUNCTION__, fn);
-		res = -EINVAL;
-		goto out;
+	if (params->lun_set) {
+		mcmd->lun = scst_unpack_lun(params->lun, params->lun_len);
+		if (mcmd->lun == (lun_t)-1)
+			goto out_free;
+		mcmd->lun_set = 1;
 	}
 
-	mcmd = scst_pre_rx_mgmt_cmd(sess, fn, atomic, tgt_priv);
-	if (mcmd == NULL)
-		goto out;
+	if (params->tag_set)
+		mcmd->tag = params->tag;
 
-	mcmd->tag = tag;
+	mcmd->cmd_sn_set = params->cmd_sn_set;
+	mcmd->cmd_sn = params->cmd_sn;
 
-	TRACE(TRACE_MGMT, "sess=%p, tag=%llu", sess, mcmd->tag);
+	TRACE(TRACE_MGMT, "sess=%p, fn %x, tag_set %d, tag %Ld, lun_set %d, "
+		"lun=%Ld, cmd_sn_set %d, cmd_sn %x", sess, params->fn,
+		params->tag_set, params->tag, params->lun_set,
+		(uint64_t)mcmd->lun, params->cmd_sn_set, params->cmd_sn);
 
 	if (scst_post_rx_mgmt_cmd(sess, mcmd) != 0)
 		goto out_free;
@@ -4354,7 +4372,7 @@ out_free:
 }
 
 /* 
- * Must not been called in parallel with scst_rx_cmd() or 
+ * Must not be called in parallel with scst_rx_cmd() or 
  * scst_rx_mgmt_fn_*() for the same sess
  */
 void scst_unregister_session(struct scst_session *sess, int wait,

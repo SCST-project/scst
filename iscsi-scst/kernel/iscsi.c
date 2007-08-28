@@ -937,7 +937,7 @@ static void send_r2t(struct iscsi_cmnd *req)
 		rsp_hdr = (struct iscsi_r2t_hdr *)&rsp->pdu.bhs;
 		rsp_hdr->opcode = ISCSI_OP_R2T;
 		rsp_hdr->flags = ISCSI_FLG_FINAL;
-		memcpy(rsp_hdr->lun, cmnd_hdr(req)->lun, 8);
+		rsp_hdr->lun = cmnd_hdr(req)->lun;
 		rsp_hdr->itt = cmnd_hdr(req)->itt;
 		rsp_hdr->r2t_sn = cpu_to_be32(req->r2t_sn++);
 		rsp_hdr->buffer_offset = cpu_to_be32(offset);
@@ -1130,7 +1130,7 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 	TRACE_DBG("scsi command: %02x", req_hdr->scb[0]);
 
 	scst_cmd = scst_rx_cmd(session->scst_sess,
-		(uint8_t*)req_hdr->lun, sizeof(req_hdr->lun),
+		(uint8_t*)&req_hdr->lun, sizeof(req_hdr->lun),
 		req_hdr->scb, sizeof(req_hdr->scb), SCST_NON_ATOMIC);
 	if (scst_cmd == NULL) {
 		create_status_rsp(req, SAM_STAT_BUSY, NULL, 0);
@@ -1175,6 +1175,9 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 		scst_cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
 		break;
 	}
+
+	/* cmd_sn is already in CPU format converted in check_cmd_sn() */
+	scst_cmd_set_tgt_sn(scst_cmd, req_hdr->cmd_sn);
 
 	TRACE_DBG("START Command (tag %d, queue_type %d)",
 		req_hdr->itt, scst_cmd->queue_type);
@@ -1411,27 +1414,57 @@ static inline int __cmnd_abort(struct iscsi_cmnd *cmnd)
 	return res;
 }
 
-static int cmnd_abort(struct iscsi_session *session, u32 itt)
+static int cmnd_abort(struct iscsi_cmnd *req)
 {
+	struct iscsi_session *session = req->conn->session;
+	struct iscsi_task_mgt_hdr *req_hdr =
+		(struct iscsi_task_mgt_hdr *)&req->pdu.bhs;
 	struct iscsi_cmnd *cmnd;
 	int err;
 
-	if ((cmnd = cmnd_find_hash_get(session, itt, ISCSI_RESERVED_TAG))) {
+	if ((cmnd = cmnd_find_hash_get(session, req_hdr->rtt, ISCSI_RESERVED_TAG))) {
 		struct iscsi_conn *conn = cmnd->conn;
+		struct iscsi_scsi_cmd_hdr *hdr = cmnd_hdr(cmnd);
+
+		if (req_hdr->lun != hdr->lun) {
+			 PRINT_ERROR_PR("ABORT TASK: LUN mismatch: req LUN "
+			 	"%Lx, cmd LUN %Lx, rtt %u", req_hdr->lun,
+			 	hdr->lun, req_hdr->rtt);
+			err = ISCSI_RESPONSE_FUNCTION_REJECTED;
+			goto out_put;
+		}
+
+		if (before(req_hdr->cmd_sn, hdr->cmd_sn) ||
+		    (req_hdr->cmd_sn == hdr->cmd_sn)) {
+			PRINT_ERROR_PR("ABORT TASK: SN mismatch: req SN %x, "
+				"cmd SN %x, rtt %u", req_hdr->cmd_sn,
+				hdr->cmd_sn, req_hdr->rtt);
+			err = ISCSI_RESPONSE_FUNCTION_REJECTED;
+			goto out_put;
+		}
+
 		spin_lock_bh(&conn->cmd_list_lock);
 		__cmnd_abort(cmnd);
 		spin_unlock_bh(&conn->cmd_list_lock);
+
 		cmnd_put(cmnd);
 		err = 0;
 	} else
 		err = ISCSI_RESPONSE_UNKNOWN_TASK;
 
+out:
 	return err;
+
+out_put:
+	cmnd_put(cmnd);
+	goto out;
 }
 
-static int target_abort(struct iscsi_cmnd *req, u16 *lun, int all)
+static int target_abort(struct iscsi_cmnd *req, int all)
 {
 	struct iscsi_target *target = req->conn->session->target;
+	struct iscsi_task_mgt_hdr *req_hdr =
+		(struct iscsi_task_mgt_hdr *)&req->pdu.bhs;
 	struct iscsi_session *session;
 	struct iscsi_conn *conn;
 	struct iscsi_cmnd *cmnd;
@@ -1448,8 +1481,7 @@ again:
 					continue;
 				if (all)
 					again = __cmnd_abort(cmnd);
-				else if (memcmp(lun, &cmnd_hdr(cmnd)->lun,
-						sizeof(cmnd_hdr(cmnd)->lun)) == 0)
+				else if (req_hdr->lun == cmnd_hdr(cmnd)->lun)
 					again = __cmnd_abort(cmnd);
 				if (again)
 					goto again;
@@ -1465,6 +1497,8 @@ again:
 static void task_set_abort(struct iscsi_cmnd *req)
 {
 	struct iscsi_session *session = req->conn->session;
+	struct iscsi_task_mgt_hdr *req_hdr =
+		(struct iscsi_task_mgt_hdr *)&req->pdu.bhs;
 	struct iscsi_target *target = session->target;
 	struct iscsi_conn *conn;
 	struct iscsi_cmnd *cmnd;
@@ -1475,9 +1509,16 @@ static void task_set_abort(struct iscsi_cmnd *req)
 		spin_lock_bh(&conn->cmd_list_lock);
 again:
 		list_for_each_entry(cmnd, &conn->cmd_list, cmd_list_entry) {
-			if (cmnd != req)
-				if (__cmnd_abort(cmnd))
-					goto again;
+			struct iscsi_scsi_cmd_hdr *hdr = cmnd_hdr(cmnd);
+			if (cmnd == req)
+				continue;
+			if (req_hdr->lun != hdr->lun)
+				continue;
+			if (before(req_hdr->cmd_sn, hdr->cmd_sn) ||
+			    req_hdr->cmd_sn == hdr->cmd_sn)
+				continue;
+			if (__cmnd_abort(cmnd))
+				goto again;
 		}
 		spin_unlock_bh(&conn->cmd_list_lock);
 	}
@@ -1504,61 +1545,91 @@ again:
 static void execute_task_management(struct iscsi_cmnd *req)
 {
 	struct iscsi_conn *conn = req->conn;
-	struct iscsi_task_mgt_hdr *req_hdr = (struct iscsi_task_mgt_hdr *)&req->pdu.bhs;
+	struct iscsi_task_mgt_hdr *req_hdr =
+		(struct iscsi_task_mgt_hdr *)&req->pdu.bhs;
 	int err = 0, function = req_hdr->function & ISCSI_FUNCTION_MASK;
+	struct scst_rx_mgmt_params params;
 
 	TRACE(TRACE_MGMT, "TM cmd: req %p, itt %x, fn %d, rtt %x", req, cmnd_itt(req),
 		function, req_hdr->rtt);
 
-	/* 
-	 * ToDo: relevant TM functions shall affect only commands with
-	 * CmdSN lower req_hdr->cmd_sn (see RFC 3720 section 10.5).
-	 * 
-	 * I suppose, iscsi_session_push_cmnd() should be updated to keep
-	 * commands with higher CmdSN in the session->pending_list until
-	 * executing TM command finished. Although, if higher CmdSN commands
-	 * might be already sent to SCST for execution, it could get much more
-	 * complicated and should be implemented on SCST level.
-	 */
+	memset(&params, 0, sizeof(params));
+	params.atomic = SCST_NON_ATOMIC;
+	params.tgt_priv = req;
+	
+	if ((function != ISCSI_FUNCTION_ABORT_TASK) &&
+	    (req_hdr->rtt != ISCSI_RESERVED_TAG)) {
+		PRINT_ERROR_PR("Invalid RTT %x (TM fn %x)", req_hdr->rtt,
+			function);
+		err = -1;
+		goto reject;
+	}
+
+	/* cmd_sn is already in CPU format converted in check_cmd_sn() */
 
 	switch (function) {
 	case ISCSI_FUNCTION_ABORT_TASK:
-		err = cmnd_abort(conn->session, req_hdr->rtt);
+		err = cmnd_abort(req);
 		if (err == 0) {
-			err = scst_rx_mgmt_fn_tag(conn->session->scst_sess,
-				SCST_ABORT_TASK, req_hdr->rtt, SCST_NON_ATOMIC,
-				req);
+			params.fn = SCST_ABORT_TASK;
+			params.tag = req_hdr->rtt;
+			params.tag_set = 1;
+			params.lun = (uint8_t *)&req_hdr->lun;
+			params.lun_len = sizeof(req_hdr->lun);
+			params.lun_set = 1;
+			params.cmd_sn = req_hdr->cmd_sn;
+			params.cmd_sn_set = 1;
+			err = scst_rx_mgmt_fn(conn->session->scst_sess,
+				&params);
 		}
 		break;
 	case ISCSI_FUNCTION_ABORT_TASK_SET:
 		task_set_abort(req);
-		err = scst_rx_mgmt_fn_lun(conn->session->scst_sess,
-			SCST_ABORT_TASK_SET, (uint8_t *)req_hdr->lun,
-			sizeof(req_hdr->lun), SCST_NON_ATOMIC, req);
+		params.fn = SCST_ABORT_TASK_SET;
+		params.lun = (uint8_t *)&req_hdr->lun;
+		params.lun_len = sizeof(req_hdr->lun);
+		params.lun_set = 1;
+		params.cmd_sn = req_hdr->cmd_sn;
+		params.cmd_sn_set = 1;
+		err = scst_rx_mgmt_fn(conn->session->scst_sess,
+			&params);
 		break;
 	case ISCSI_FUNCTION_CLEAR_TASK_SET:
 		task_set_abort(req);
-		err = scst_rx_mgmt_fn_lun(conn->session->scst_sess,
-			SCST_CLEAR_TASK_SET, (uint8_t *)req_hdr->lun,
-			sizeof(req_hdr->lun), SCST_NON_ATOMIC, req);
+		params.fn = SCST_CLEAR_TASK_SET;
+		params.lun = (uint8_t *)&req_hdr->lun;
+		params.lun_len = sizeof(req_hdr->lun);
+		params.lun_set = 1;
+		params.cmd_sn = req_hdr->cmd_sn;
+		params.cmd_sn_set = 1;
+		err = scst_rx_mgmt_fn(conn->session->scst_sess,
+			&params);
 		break;
 	case ISCSI_FUNCTION_CLEAR_ACA:
-		err = scst_rx_mgmt_fn_lun(conn->session->scst_sess,
-			SCST_CLEAR_ACA,	(uint8_t *)req_hdr->lun,
-			sizeof(req_hdr->lun), SCST_NON_ATOMIC, req);
+		params.fn = SCST_CLEAR_ACA;
+		params.lun = (uint8_t *)&req_hdr->lun;
+		params.lun_len = sizeof(req_hdr->lun);
+		params.lun_set = 1;
+		params.cmd_sn = req_hdr->cmd_sn;
+		params.cmd_sn_set = 1;
+		err = scst_rx_mgmt_fn(conn->session->scst_sess,
+			&params);
 		break;
 	case ISCSI_FUNCTION_TARGET_COLD_RESET:
 	case ISCSI_FUNCTION_TARGET_WARM_RESET:
-		target_abort(req, 0, 1);
-		err = scst_rx_mgmt_fn_lun(conn->session->scst_sess,
-			SCST_TARGET_RESET, (uint8_t *)req_hdr->lun,
-			sizeof(req_hdr->lun), SCST_NON_ATOMIC, req);
+		target_abort(req, 1);
+		params.fn = SCST_TARGET_RESET;
+		err = scst_rx_mgmt_fn(conn->session->scst_sess,
+			&params);
 		break;
 	case ISCSI_FUNCTION_LOGICAL_UNIT_RESET:
-		target_abort(req, req_hdr->lun, 0);
-		err = scst_rx_mgmt_fn_lun(conn->session->scst_sess,
-			SCST_LUN_RESET, (uint8_t *)req_hdr->lun,
-			sizeof(req_hdr->lun), SCST_NON_ATOMIC, req);
+		target_abort(req, 0);
+		params.fn = SCST_LUN_RESET;
+		params.lun = (uint8_t *)&req_hdr->lun;
+		params.lun_len = sizeof(req_hdr->lun);
+		params.lun_set = 1;
+		err = scst_rx_mgmt_fn(conn->session->scst_sess,
+			&params);
 		break;
 	case ISCSI_FUNCTION_TASK_REASSIGN:
 		iscsi_send_task_mgmt_resp(req, 
@@ -1570,6 +1641,7 @@ static void execute_task_management(struct iscsi_cmnd *req)
 		break;
 	}
 
+reject:
 	if (err != 0) {
 		iscsi_send_task_mgmt_resp(req,
 			ISCSI_RESPONSE_FUNCTION_REJECTED);
