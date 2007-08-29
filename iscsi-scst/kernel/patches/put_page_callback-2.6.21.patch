@@ -19,15 +19,15 @@ diff -upr linux-2.6.21.1/include/linux/mm_types.h linux-2.6.21.1/include/linux/m
  #endif /* _LINUX_MM_TYPES_H */
 diff -upr linux-2.6.21.1/include/linux/net.h linux-2.6.21.1/include/linux/net.h
 --- linux-2.6.21.1/include/linux/net.h	2007-04-28 01:49:26.000000000 +0400
-+++ linux-2.6.21.1/include/linux/net.h	2007-07-24 19:09:40.000000000 +0400
-@@ -19,6 +19,7 @@
- #define _LINUX_NET_H
- 
- #include <linux/wait.h>
++++ linux-2.6.21.1/include/linux/net.h	2007-08-29 14:57:06.000000000 +0400
+@@ -57,6 +57,7 @@ typedef enum {
+ #ifdef __KERNEL__
+ #include <linux/stringify.h>
+ #include <linux/random.h>
 +#include <linux/mm.h>
- #include <asm/socket.h>
  
- struct poll_table_struct;
+ #define SOCK_ASYNC_NOSPACE	0
+ #define SOCK_ASYNC_WAITDATA	1
 @@ -319,5 +320,30 @@ extern int net_msg_cost;
  extern int net_msg_burst;
  #endif

@@ -19,15 +19,15 @@ diff -upr linux-2.6.16.29/include/linux/mm.h linux-2.6.16.29/include/linux/mm.h
  #define page_private(page)		((page)->private)
 diff -upr linux-2.6.16.29/include/linux/net.h linux-2.6.16.29/include/linux/net.h
 --- linux-2.6.16.29/include/linux/net.h	2006-09-12 22:02:10.000000000 +0400
-+++ linux-2.6.16.29/include/linux/net.h	2007-08-07 19:55:27.000000000 +0400
-@@ -22,6 +22,7 @@
- #include <linux/wait.h>
- #include <linux/stringify.h>
- #include <asm/socket.h>
++++ linux-2.6.16.29/include/linux/net.h	2007-08-29 18:31:40.000000000 +0400
+@@ -57,6 +57,7 @@ typedef enum {
+ #define __SO_ACCEPTCON	(1 << 16)	/* performed a listen		*/
+ 
+ #ifdef __KERNEL__
 +#include <linux/mm.h>
  
- struct poll_table_struct;
- struct inode;
+ #define SOCK_ASYNC_NOSPACE	0
+ #define SOCK_ASYNC_WAITDATA	1
 @@ -294,5 +295,30 @@ extern int net_msg_cost;
  extern int net_msg_burst;
  #endif

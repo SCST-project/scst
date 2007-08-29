@@ -59,13 +59,14 @@ only adds one of those functions and nothing more. You may not patch the
 kernel if you don't need pass-through support or STRICT_SERIALIZING is
 defined during the compilation (see description below).
 
-To compile SCST type 'make'. It will build SCST itself and its device
-handlers. To install them type 'make install'. The driver modules will
-be installed in '/lib/modules/`you_kernel_version`/extra'. In addition,
-scsi_tgt.h, scst_debug.h as well as Module.symvers or Modules.symvers
-will be copied to '/usr/local/include/scst'. The first file contains all
-SCST's public data definition, which are used by target drivers. The
-other ones support debug messages logging and build process.
+To compile SCST type 'make scst'. It will build SCST itself and its
+device handlers. To install them type 'make scst_install'. The driver
+modules will be installed in '/lib/modules/`you_kernel_version`/extra'.
+In addition, scsi_tgt.h, scst_debug.h as well as Module.symvers or
+Modules.symvers will be copied to '/usr/local/include/scst'. The first
+file contains all SCST's public data definition, which are used by
+target drivers. The other ones support debug messages logging and build
+process.
 
 Then you can load any module by typing 'modprobe module_name'. The names
 are:
@@ -94,6 +95,16 @@ IMPORTANT: Without loading appropriate device handler, corresponding devices
 	   'echo "scsi add-single-device A 0 0 B" >/proc/scsi/scsi',
 	   where A - is the host number, B - LUN.
 
+IMPORTANT: Experience shows that if people work with out of SCST tree target
+=========  drivers, like target driver for Infiniband or in case if they
+           downloaded and use the released versions of SCST and target
+	   drivers, they are too often (actually, almost always) after
+	   upgrading SCST core forget to rebuild their target drivers,
+	   which then immediately after load crash in the hard to trace
+	   manner. So, after you reinstalled SCST core don't forget to
+	   rebuild and reinstall all your target drivers, custom dev
+	   handlers and necessary user space applications.
+
 IMPORTANT: In the current version simultaneous access to local SCSI devices
 =========  via standard high-level SCSI drivers (sd, st, sg, etc.) and
            SCST's target drivers is unsupported. Especially it is
@@ -104,7 +115,7 @@ IMPORTANT: In the current version simultaneous access to local SCSI devices
 	   devices READ/WRITE commands using direct disk handler look to
 	   be safe.
 
-To uninstall, type 'make uninstall'.
+To uninstall, type 'make scst_uninstall'.
 
 If you install QLA2x00 target driver's source code in this directory,
 then you can build, install or uninstall it by typing 'make qla', 'make
