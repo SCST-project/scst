@@ -27,6 +27,46 @@ USR_DIR=usr/fileio
 ISCSI_DIR=iscsi-scst
 #ISCSI_DISTDIR=../../../../iscsi_scst_inst
 
+help:
+	@echo "		all               : make all"
+	@echo "		clean             : clean files"
+	@echo "		extraclean        : clean + clean dependencies"
+	@echo "		install           : install"
+	@echo "		uninstall         : uninstall"
+	@echo ""
+	@echo "		scst              : make scst only"
+	@echo "		scst_clean        : scst: clean "
+	@echo "		scst_extraclean   : scst: clean + clean dependencies"
+	@echo "		scst_install      : scst: install"
+	@echo "		scst_uninstall    : scst: uninstall"
+	@echo ""
+	@echo "		qla               : make QLA target driver"
+	@echo "		qla_clean         : 2.6 qla target: clean "
+	@echo "		qla_extraclean    : 2.6 qla target: clean + clean dependencies"
+	@echo "		qla_install       : 2.6 qla target: install"
+	@echo "		qla_uninstall     : 2.6 qla target: uninstall"
+	@echo ""
+	@echo "		iscsi             : make iSCSI target"
+	@echo "		iscsi_clean       : ISCSI target: clean "
+	@echo "		iscsi_extraclean  : ISCSI target: clean + clean dependencies"
+	@echo "		iscsi_install     : ISCSI target: install"
+	@echo "		iscsi_uninstall   : ISCSI target: uninstall"
+	@echo ""
+	@echo "		lsi               : make LSI MPT target"
+	@echo "		lsi_clean         : lsi target: clean "
+	@echo "		lsi_extraclean    : lsi target: clean + clean dependencies"
+	@echo "		lsi_install       : lsi target: install"
+	@echo "		lsi_uninstall     : lsi target: uninstall"
+	@echo ""
+	@echo "		usr               : make user space fileio_tgt target"
+	@echo "		usr_clean         : usr target: clean "
+	@echo "		usr_extraclean    : usr target: clean + clean dependencies"
+	@echo "		usr_install       : usr target: install"
+	@echo "		usr_uninstall     : usr target: uninstall"
+
+	@echo "	Note:"
+	@echo "		- install and uninstall may need root privileges"
+
 all:
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
@@ -140,45 +180,6 @@ usr_clean:
 
 usr_extraclean:
 	cd $(USR_DIR) && $(MAKE) extraclean
-
-help:
-	@echo "		all (the default) : make all"
-	@echo "		clean             : clean files"
-	@echo "		extraclean        : clean + clean dependencies"
-	@echo "		install           : install"
-	@echo "		uninstall         : uninstall"
-	@echo ""
-	@echo "		scst              : make scst only"
-	@echo "		scst_clean        : scst: clean "
-	@echo "		scst_extraclean   : scst: clean + clean dependencies"
-	@echo "		scst_install      : scst: install"
-	@echo "		scst_uninstall    : scst: uninstall"
-	@echo ""
-	@echo "		qla             : make new qla target using 2.6.x kernel qla2xxx"
-	@echo "		qla_clean       : 2.6 qla target: clean "
-	@echo "		qla_extraclean  : 2.6 qla target: clean + clean dependencies"
-	@echo "		qla_install     : 2.6 qla target: install"
-	@echo "		qla_uninstall   : 2.6 qla target: uninstall"
-	@echo ""
-	@echo "		iscsi             : make new ISCSI target"
-	@echo "		iscsi_clean       : ISCSI target: clean "
-	@echo "		iscsi_extraclean  : ISCSI target: clean + clean dependencies"
-	@echo "		iscsi_install     : ISCSI target: install"
-	@echo "		iscsi_uninstall   : ISCSI target: uninstall"
-	@echo ""
-	@echo "		lsi             : make lsi target"
-	@echo "		lsi_clean       : lsi target: clean "
-	@echo "		lsi_extraclean  : lsi target: clean + clean dependencies"
-	@echo "		lsi_install     : lsi target: install"
-	@echo "		lsi_uninstall   : lsi target: uninstall"
-	@echo ""
-	@echo "		usr             : make usr target"
-	@echo "		usr_clean       : usr target: clean "
-	@echo "		usr_extraclean  : usr target: clean + clean dependencies"
-	@echo "		usr_install     : usr target: install"
-	@echo "		usr_uninstall   : usr target: uninstall"
-	@echo "	Notes :"
-	@echo "		- install and uninstall must be made as root"
 
 .PHONY: all install uninstall clean extraclean help \
 	qla qla_install qla_uninstall qla_clean qla_extraclean \

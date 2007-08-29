@@ -1,5 +1,5 @@
 /*
- *  scst.c
+ *  scst_main.c
  *  
  *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
@@ -47,9 +47,9 @@
 #endif
 
 #if !defined(SCSI_EXEC_REQ_FIFO_DEFINED) && !defined(STRICT_SERIALIZING)
-#warning Patch scst_exec_req_fifo.patch was not applied on your kernel and \
-	STRICT_SERIALIZING isn't defined. Pass-through dev handlers will \
-	not be supported.
+#warning Patch scst_exec_req_fifo-<kernel-version>.patch was not applied on \
+	your kernel and STRICT_SERIALIZING isn't defined. Pass-through dev \
+	handlers will not be supported.
 #endif
 
 /*
@@ -756,8 +756,8 @@ int scst_register_dev_driver(struct scst_dev_type *dev_type)
 	if (dev_type->exec == NULL) {
 		PRINT_ERROR_PR("Pass-through dev handlers (handler \"%s\") not "
 			"supported. Consider applying on your kernel patch "
-			"scst_exec_req_fifo.patch or define STRICT_SERIALIZING",
-			dev_type->name);
+			"scst_exec_req_fifo-<kernel-version>.patch or define "
+			"STRICT_SERIALIZING", dev_type->name);
 		res = -EINVAL;
 		goto out_err;
 	}

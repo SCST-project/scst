@@ -24,9 +24,9 @@
 #include "digest.h"
 
 #ifndef NET_PAGE_CALLBACKS_DEFINED
-#warning Patch put_page_callback.patch not applied on your kernel. ISCSI-SCST \
-	will run in the performance degraded mode. Refer README file for \
-	details.
+#warning Patch put_page_callback-<kernel-version>.patch not applied on your \
+	kernel. ISCSI-SCST will run in the performance degraded mode. Refer \
+	README file for details.
 #endif
 
 #define ISCSI_INIT_WRITE_WAKE		0x1
@@ -2425,9 +2425,9 @@ static int __init iscsi_init(void)
 		goto out;
 	}
 #else
-	PRINT_INFO_PR("%s", "Patch put_page_callback.patch not applied on your "
-		"kernel. Running in the performance degraded mode. Refer "
-		"README file for details");
+	PRINT_INFO_PR("%s", "Patch put_page_callback-<kernel-version>.patch "
+		"not applied on your kernel. Running in the performance "
+		"degraded mode. Refer README file for details");
 #endif
 
 	BUILD_BUG_ON(MAX_DATA_SEG_LEN != (ISCSI_CONN_IOV_MAX<<PAGE_SHIFT));

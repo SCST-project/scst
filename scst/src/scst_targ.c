@@ -2739,17 +2739,17 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 		cmd->state = SCST_CMD_STATE_DEV_PARSE;
 		cnt = atomic_inc_return(&cmd->tgt_dev->tgt_dev_cmd_count);
 		if (unlikely(cnt > SCST_MAX_TGT_DEV_COMMANDS)) {
-			TRACE(TRACE_RETRY, "Too many pending commands in "
+			TRACE(TRACE_RETRY, "Too many pending commands (%d) in "
 				"session, returning BUSY to initiator \"%s\"",
-				(cmd->sess->initiator_name[0] == '\0') ?
+				cnt, (cmd->sess->initiator_name[0] == '\0') ?
 				  "Anonymous" : cmd->sess->initiator_name);
 			goto out_busy;
 		}
 		cnt = atomic_inc_return(&cmd->dev->dev_cmd_count);
 		if (unlikely(cnt > SCST_MAX_DEV_COMMANDS)) {
-			TRACE(TRACE_RETRY, "Too many pending device commands, "
-				"returning BUSY to initiator \"%s\"",
-				(cmd->sess->initiator_name[0] == '\0') ?
+			TRACE(TRACE_RETRY, "Too many pending device commands "
+				"(%d), returning BUSY to initiator \"%s\"",
+				cnt, (cmd->sess->initiator_name[0] == '\0') ?
 				  "Anonymous" : cmd->sess->initiator_name);
 			goto out_busy;
 		}

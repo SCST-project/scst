@@ -1,5 +1,5 @@
 /*
- *  scst_sgv_pool.h
+ *  scst_mem.h
  *  
  *  Copyright (C) 2006-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *  

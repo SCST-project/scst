@@ -1,5 +1,5 @@
 /*
- *  scst_sgv_pool.c
+ *  scst_mem.c
  *  
  *  Copyright (C) 2006-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *  
@@ -43,16 +43,14 @@
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22))
 #warning SCST on 2.6.22+ kernels will run in performance degraded mode, \
-because some oversmart mainline kernel developers have deleted in those \
-kernels support for destructors in SLAB cache and they were unresponsible \
-enough to made that change without even set that feature in the deprecated \
-status for some time to allow depending on it projects to fix themself without \
-disturbing their users. Blame those people for that! So, now to run in full \
-power on those kernels SCST requires a complete rewrite of one of its major low \
-level parts: all kmem_cache_*() functions in this file should be replaced \
-with new ones with similar functionality. I'm not sure I will have time for \
-that in the near future, therefore you are welcome to implement it. Don't \
-hesitate to ask me how I think it should be done most effectively. VLNB.
+because some unresponsible mainline kernel developers have deleted in those \
+kernels support for destructors in SLAB cache and made that change without \
+even set that feature in the deprecated status for some time to allow \
+depending on it projects to fix themself without disturbing their users. \
+Blame those people for that! So, now to run in full power on those kernels \
+SCST requires a complete rewrite of one of its major low level parts: all \
+kmem_cache_*() functions in this file should be replaced with new ones with \
+similar functionality.
 #endif
 
 /* Chosen to have one page per slab for all orders */
