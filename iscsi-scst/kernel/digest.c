@@ -24,7 +24,7 @@
 
 void digest_alg_available(unsigned int *val)
 {
-#if CONFIG_LIBCRC32C_MODULE || CONFIG_LIBCRC32C
+#if defined(CONFIG_LIBCRC32C_MODULE) || defined(CONFIG_LIBCRC32C)
 	int crc32c = 1;
 #else
 	int crc32c = 0;
@@ -75,7 +75,7 @@ static u32 evaluate_crc32_from_sg(struct scatterlist *sg, int total,
 	}
 #endif
 
-#if CONFIG_LIBCRC32C_MODULE || CONFIG_LIBCRC32C
+#if defined(CONFIG_LIBCRC32C_MODULE) || defined(CONFIG_LIBCRC32C)
 	while (total > 0) {
 		int d = min(min(total, (int)(sg->length)),
 			(int)(PAGE_SIZE - sg->offset));
