@@ -840,7 +840,6 @@ isplinux_pci_init(struct Scsi_Host *host)
         isp_pci_mapmem &= ~(1 << isp->isp_unit);
 #endif
     }
-    irq = isp_pci->pci_dev->irq;
 
     if (vid != PCI_VENDOR_ID_QLOGIC) {
         printk("%s: 0x%04x is not QLogic's PCI Vendor ID\n", loc, vid);
@@ -911,6 +910,7 @@ isplinux_pci_init(struct Scsi_Host *host)
         return (1);
     }
 
+    irq = isp_pci->pci_dev->irq;
     (void) PRDW(isp_pci, PCI_COMMAND, &cmd);
 
     if ((cmd & PCI_CMD_ISP) != pci_cmd_isp) {
