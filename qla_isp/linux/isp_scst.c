@@ -59,9 +59,7 @@
  * Copyright 2007 by Stanislaw Gruszka <stanislawg1@open-e.com> 
  */
 
-#ifdef  MODULE
-#define EXPORT_SYMTAB
-#else
+#ifndef  MODULE
 #error  "this can only be built as a module"
 #endif
 
@@ -102,6 +100,7 @@
 
 #include <scsi/scsi_host.h>
 #include <scsi_tgt.h>
+#include <scst_debug.h>
 
 #ifdef  min
 #undef  min
@@ -109,6 +108,7 @@
 #define min(a,b) (((a)<(b))?(a):(b))
 
 #include "isp_tpublic.h"
+#include "isp_linux.h"
 #include "linux/smp_lock.h"
 
 #define DEFAULT_DEVICE_TYPE 0       /* DISK */
@@ -148,11 +148,35 @@
 typedef struct bus bus_t;
 typedef struct initiator ini_t;
 
+/* this is very experimental, need review and tests */
+//#define NO_AUTOSENSE 1
+
 struct initiator {
     ini_t *                 ini_next;
     bus_t *                 ini_bus;        /* backpointer to containing bus */
     uint64_t                ini_iid;        /* initiator identifier */
     struct scst_session *   ini_scst_sess;  /* FIXME: comment me */ 
+#ifdef NO_AUTOSENSE
+    /*
+     * There are cases when Autosense not work for some reason, at least for 24xx chipsets.
+     * This is workaround. Here we do not try to send sense in autosense mode. Insted if 
+     * command terminate with "check status" (FIXME: some other should be attended too?) 
+     * we turn on CA (Contingent allegiance) condition and save sense. In SCSI standarts v2 
+     * (v3 tell autosense must work) CA condition finish when any new command arrive to target, 
+     * but we do differently, we reject  any new command except REQUEST_SENSE with "busy" status. 
+     * All commands returned from upper SCST layer are queued and wait for CA finish. If we get 
+     * REQUEST_SENSE we send saved sense data and finish CA condition. Task management functions
+     * finish CA too. We assume initiator will send REQUEST SENSE command or task management 
+     * functions. Other solution will be limit command queue to 1 and finish CA when any new 
+     * command arrive, but this may degrade performance.
+     */
+    int                     ini_ca_cond;    /* is contingent allegiance condition on */
+    spinlock_t              ini_ca_lock;    
+    tmd_cmd_t *             ini_ca_front;   /* list of finished command by SCST under Contingent Allegiance condition */ 
+    tmd_cmd_t *             ini_ca_tail;    
+    uint8_t                 ini_sense[TMD_SENSELEN]; /* saved sense */
+    struct scatterlist      ini_sense_sg;   /* saved sense passed to low level driver */
+#endif
 };
 
 #define    HASH_WIDTH    16
@@ -162,7 +186,10 @@ struct bus {
     hba_register_t      h;                  /* must be first */
     ini_t *             list[HASH_WIDTH];   /* hash list of known initiators */
     struct scst_tgt *   scst_tgt;
-    int                 enable;
+    int                 enable;             /* is target mode enabled in low level driver */
+#ifdef NO_AUTOSENSE
+    int                 no_autosense;       /* autosense not work for this hba */
+#endif
 };
 
 #define    SDprintk     if (scsi_tdebug) printk
@@ -321,13 +348,21 @@ alloc_ini(bus_t *bp, uint64_t iid)
 static void
 add_ini(bus_t *bp, uint64_t iid, ini_t *nptr)
 {
-   ini_t **ptrlptr = &INI_HASH_LISTP(bp, iid);
+    ini_t **ptrlptr = &INI_HASH_LISTP(bp, iid);
 
-   nptr->ini_iid = iid;
-   nptr->ini_bus = (struct bus *) bp;
-   nptr->ini_next = *ptrlptr;
+    nptr->ini_iid = iid;
+    nptr->ini_bus = (struct bus *) bp;
+    nptr->ini_next = *ptrlptr;
 
-   *ptrlptr = nptr;
+#ifdef NO_AUTOSENSE
+    nptr->ini_ca_cond = 0;
+    spin_lock_init(&nptr->ini_ca_lock);
+    nptr->ini_sense_sg.page = virt_to_page(nptr->ini_sense);
+    nptr->ini_sense_sg.offset = offset_in_page(nptr->ini_sense);
+    nptr->ini_sense_sg.length = TMD_SENSELEN;
+#endif
+
+    *ptrlptr = nptr;
 }
 
 static void
@@ -375,6 +410,190 @@ schedule_unregister_scst(void)
     unregister_scst_flg = 1;
     up(&scsi_thread_sleep_semaphore);
 }
+
+#ifdef NO_AUTOSENSE 
+
+static int
+ca_xmit_response(bus_t *bp, tmd_cmd_t *tmd)
+{
+    if (bp->no_autosense) {
+        ini_t *ini;
+        unsigned long flags;
+
+        ini = ini_from_tmd(bp, tmd);
+        if (!ini) {
+            Eprintk("cannot find initiator for tmd\n");
+            WARN_ON(1);
+            return (-ENODEV);
+        }
+        
+        spin_lock_irqsave(&ini->ini_ca_lock, flags);
+        if (ini->ini_ca_cond) {
+            /* we are under Contingent Allegiance condition, save finished command 
+             * with all state: status, data, sense. As long we not call scst_tgt_cmd_done()
+             * scst will keep all data and scst task mgmt functions will work
+             */
+            tmd->cd_private = NULL;
+            if (!ini->ini_ca_front) {
+                ini->ini_ca_front = tmd;
+            } else {
+                ini->ini_ca_tail->cd_private = tmd;
+            }
+            ini->ini_ca_tail = tmd;
+        
+            spin_unlock_irqrestore(&ini->ini_ca_lock, flags);
+            return (0);
+        } else {
+            if ((tmd->cd_hflags & CDFH_STSVALID) && (tmd->cd_scsi_status == SCSI_CHECK)) {
+                ini->ini_ca_cond = 1; 
+                /* save sense and send only status (check condition) for this command */
+                memcpy(ini->ini_sense, tmd->cd_sense, TMD_SENSELEN);
+                tmd->cd_xfrlen = 0;
+                tmd->cd_hflags &= ~CDFH_DATA_MASK;
+            }
+        }
+        spin_unlock_irqrestore(&ini->ini_ca_lock, flags);
+    
+    } else {
+        if ((tmd->cd_hflags & CDFH_STSVALID) && (tmd->cd_scsi_status == SCSI_CHECK)) {
+            tmd->cd_xfrlen = 0;
+            tmd->cd_hflags &= ~CDFH_DATA_MASK;
+            tmd->cd_hflags |= CDFH_SNSVALID;
+        }
+    }
+    
+    (*bp->h.r_action)(QIN_TMD_CONT, tmd);
+    return (0);
+}
+
+static void
+ca_finish(bus_t *bp, ini_t *ini)
+{
+    tmd_cmd_t *tmd;
+    unsigned long flags;
+
+    if (!bp->no_autosense) {
+        return;
+    }
+
+    spin_lock_irqsave(&ini->ini_ca_lock, flags);
+    while (ini->ini_ca_front && !ini->ini_ca_cond) {
+        tmd = ini->ini_ca_front;
+        ini->ini_ca_front = tmd->cd_private;
+        spin_unlock_irqrestore(&ini->ini_ca_lock, flags);
+        
+        ca_xmit_response(bp, tmd);  
+        
+        spin_lock_irqsave(&ini->ini_ca_lock, flags);
+    }   
+
+    if (ini->ini_ca_front == NULL) {
+        ini->ini_ca_tail = NULL;
+    }
+    spin_unlock_irqrestore(&ini->ini_ca_lock, flags);
+}
+
+static void 
+ca_abort_task(bus_t *bp, ini_t *ini, uint64_t tagval)
+{    
+    tmd_cmd_t *tmd, *prev_tmd;
+    unsigned long flags;
+    
+    if (!bp->no_autosense) {
+        return;
+    }
+
+    spin_lock_irqsave(&ini->ini_ca_lock, flags);
+    tmd = ini->ini_ca_front;
+    if (!tmd) {
+        goto out;
+    }
+    
+    if (tmd->cd_tagval == tagval) {
+        ini->ini_ca_front = tmd->cd_private;
+        goto out;
+    }
+   
+    while (1) {
+        prev_tmd = tmd;
+        tmd = tmd->cd_private;
+        if (!tmd)
+            goto out;
+
+        if (tmd->cd_tagval == tagval) {
+            prev_tmd->cd_private = tmd->cd_private;
+            goto out;
+        }   
+    } 
+
+out:
+    if (ini->ini_ca_front == NULL) {
+        ini->ini_ca_tail = NULL;
+    }
+    spin_unlock_irqrestore(&ini->ini_ca_lock, flags);
+}
+
+static void
+ca_abort_all_tasks(bus_t *bp, ini_t *ini, uint16_t lun)
+{
+    tmd_cmd_t *tmd, *next_tmd;
+    unsigned long flags;
+
+    if (!bp->no_autosense) {
+        return;
+    }
+   
+    
+    spin_lock_irqsave(&ini->ini_ca_lock, flags);
+    tmd = ini->ini_ca_front;
+    while (tmd && L0LUN_TO_FLATLUN(tmd->cd_lun) == lun) {
+        ini->ini_ca_front = tmd->cd_private;
+        tmd->cd_private = NULL;
+        tmd = ini->ini_ca_front;
+    }
+
+    if (!tmd) {
+        goto out;
+    }
+
+    next_tmd = tmd->cd_private;
+    while (next_tmd) {
+        if (L0LUN_TO_FLATLUN(next_tmd->cd_lun) == lun) {
+            tmd->cd_private = next_tmd->cd_private;
+            next_tmd->cd_private = NULL;
+        } else {
+            tmd = next_tmd;
+            next_tmd = tmd->cd_private;
+        }
+    } 
+
+out:
+    if (ini->ini_ca_front == NULL) { 
+        ini->ini_ca_tail = NULL;
+    }
+    spin_unlock_irqrestore(&ini->ini_ca_lock, flags);
+}
+
+#else // NO_AUTOSENSE
+
+static int
+ca_xmit_response(bus_t *bp, tmd_cmd_t *tmd)
+{
+    if ((tmd->cd_hflags & CDFH_STSVALID) && (tmd->cd_scsi_status == SCSI_CHECK)) {
+        tmd->cd_xfrlen = 0;
+        tmd->cd_hflags &= ~CDFH_DATA_MASK;
+        tmd->cd_hflags |= CDFH_SNSVALID;
+    }
+    
+    (*bp->h.r_action)(QIN_TMD_CONT, tmd);
+    return (0);
+}
+
+#define ca_finish(bp, ini)                  do { } while (0)
+#define ca_abort_task(bp, ini, tagval)      do { } while (0)
+#define ca_abort_all_tasks(bp, ini, lun)    do { } while (0)
+
+#endif // NO_AUTOSENSE 
 
 static int    
 scsi_target_rx_cmd(ini_t *ini, tmd_cmd_t *tmd, int from_intr)
@@ -436,6 +655,7 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
     tmd->cd_data = NULL;
     tmd->cd_xfrlen = 0;
     tmd->cd_resid = tmd->cd_totlen;
+    tmd->cd_private = NULL;
 
     /*
      * First, find the bus.
@@ -497,6 +717,34 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
         spin_unlock_irqrestore(&scsi_target_lock, flags);
     }
 
+#ifdef NO_AUTOSENSE 
+    if (bp->no_autosense) {
+        spin_lock_irqsave(&ini->ini_ca_lock, flags);    
+        if (ini->ini_ca_cond) {
+            spin_unlock_irqrestore(&ini->ini_ca_lock, flags);
+            // FIXME: other commands which finish contingent allegiance
+            if (tmd->cd_cdb[0] == REQUEST_SENSE) {
+                tmd->cd_data = &ini->ini_sense_sg; 
+                tmd->cd_xfrlen = TMD_SENSELEN; 
+                tmd->cd_hflags |= CDFH_STSVALID | CDFH_DATA_IN;
+                tmd->cd_scsi_status = SCSI_GOOD;
+
+                (*bp->h.r_action)(QIN_TMD_CONT, tmd);
+                return;
+            } else {
+                /* we send bussy in CA, this not conform any version of scsi standard */
+                goto err; 
+            }
+        } else {
+            spin_unlock_irqrestore(&ini->ini_ca_lock, flags);
+        }
+    }
+#else
+    if (tmd->cd_cdb[0] == REQUEST_SENSE) { 
+        Eprintk("REQUEST SENSE in auto sense mode !?! Maybe compile with NO_AUTOSENSE flag.\n");
+    }
+#endif
+
     ret = scsi_target_rx_cmd(ini, tmd, from_intr);
     if (ret < 0) 
         goto err;
@@ -515,11 +763,42 @@ err:
 static void 
 scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
 {
+#ifdef NO_AUTOSENSE
+    bus_t *bp;
+#endif
     struct scst_cmd *scst_cmd;
-    
+
     SDprintk2("scsi_target: TMD_DONE[%llx] %p hf %x lf %x xfrlen %d resid %d\n",
               tmd->cd_tagval, tmd, tmd->cd_hflags, tmd->cd_lflags, tmd->cd_xfrlen, tmd->cd_resid);
-    
+   
+#ifdef NO_AUTOSENSE
+    bp = bus_from_tmd(tmd);
+    EXTRACHECKS_BUG_ON(!bp);
+
+    if (bp->no_autosense && tmd->cd_cdb[0] == REQUEST_SENSE) {
+        unsigned long flags;
+        ini_t *ini;
+        
+        if (tmd->cd_lflags & CDFL_ERROR) {
+            Eprintk("Transport error when reponse REQUEST_SENSE command");
+            return;
+        }
+            
+        /* sense was transfered, we may exit now from CA */
+        ini = ini_from_tmd(bp, tmd);
+        EXTRACHECKS_BUG_ON(!ini);
+        EXTRACHECKS_BUG_ON(tmd->cd_data != &ini->ini_sense_sg);
+        SDprintk("%s: TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
+        (*bp->h.r_action)(QIN_TMD_FIN, tmd);
+                
+        spin_lock_irqsave(&ini->ini_ca_lock, flags);
+        ini->ini_ca_cond = 0;
+        spin_unlock_irqrestore(&ini->ini_ca_lock, flags);
+        ca_finish(bp, ini);
+        return;
+    }
+#endif 
+ 
     scst_cmd = tmd->cd_scst_cmd; 
     if (!scst_cmd) {
         Eprintk("TMD_DONE cannot find scst command\n");
@@ -585,6 +864,12 @@ scsi_target_handler(qact_e action, void *arg)
             break;
         }
         bp->h = *hp;
+#ifdef NO_AUTOSENSE
+        // FIXME: on some 24xx cards autosense may work so this should be user selectable  
+        if (IS_24XX((ispsoftc_t *)hp->r_identity)) {
+            bp->no_autosense = 1;
+        }
+#endif
         spin_unlock_irqrestore(&scsi_target_lock, flags);
         schedule_register_scst();
         Iprintk("registering %s%d\n", hp->r_name, hp->r_inst);
@@ -627,6 +912,8 @@ scsi_target_handler(qact_e action, void *arg)
         tmd_notify_t *np = arg;
         spin_lock_irqsave(&scsi_target_lock, flags);
         
+        // FIXME: good handle for all notifies and TGT_ALL, INI_ALL, ...
+        
         bp = bus_from_notify(arg);
         if (bp == NULL) {
             spin_unlock_irqrestore(&scsi_target_lock, flags);
@@ -641,16 +928,30 @@ scsi_target_handler(qact_e action, void *arg)
             (*bp->h.r_action) (QIN_NOTIFY_ACK, arg);
             break;
         }
-        
+       
+        // FIXME: if scst mgmt fail we can't give info to isp driver via tpublic
+        // FIXME: interface, but seems low level stuff is capable to handle error case 
+        // FIXME: now smile and assume mgmt_fn not fail 
         if (np->nt_ncode == NT_ABORT_TASK) {
+            uint64_t tagval;
             spin_unlock_irqrestore(&scsi_target_lock, flags);
-            scst_rx_mgmt_fn_tag(ini->ini_scst_sess, SCST_ABORT_TASK, np->nt_tagval, 1, arg);
+             
+            tagval = np->nt_tagval; /* after scst return "np" may not be valid */
+            scst_rx_mgmt_fn_tag(ini->ini_scst_sess, SCST_ABORT_TASK, np->nt_tagval, 1, np); 
+            ca_abort_task(bp, ini, tagval);
+            ca_finish(bp, ini);
         } else {
+            uint16_t lun;
             uint8_t lunbuf[8];
             spin_unlock_irqrestore(&scsi_target_lock, flags);
+            
             SDprintk("scsi_target: MGT code %x from %s%d\n", np->nt_ncode, bp->h.r_name, bp->h.r_inst);
             FLATLUN_TO_L0LUN(lunbuf, np->nt_lun);
-            scst_rx_mgmt_fn_lun(ini->ini_scst_sess, np->nt_ncode, lunbuf, sizeof(lunbuf), 1, arg);
+            
+            lun = np->nt_lun; /* after scst return "np" may not be valid */
+            scst_rx_mgmt_fn_lun(ini->ini_scst_sess, np->nt_ncode, lunbuf, sizeof(lunbuf), 1, np);
+            ca_abort_all_tasks(bp, ini, lun);
+            ca_finish(bp, ini);
         }
         break;
     }
@@ -661,7 +962,7 @@ scsi_target_handler(qact_e action, void *arg)
         spin_lock_irqsave(&scsi_target_lock, flags);
         for (bp = busses; bp < &busses[MAX_BUS]; bp++) {
             if (bp->h.r_action == NULL) {
-                continue;
+               continue;
             }
             if (bp->h.r_identity == hp->r_identity) {
                 break;
@@ -817,19 +1118,8 @@ isp_rdy_to_xfer(struct scst_cmd *scst_cmd)
 }
 
 static void 
-fill_sense(tmd_cmd_t *tmd, const uint8_t *sbuf, uint8_t slen)
+SDprint_sense(const uint8_t *sbuf, uint8_t slen)
 {
-    if (slen > TMD_SENSELEN) {
-        // FIXME: maybe increase TMD_SENSELEN ?
-        // Eprintk("sense data too big (totlen %u len %u)\n", TMD_SENSELEN, slen);
-        slen = TMD_SENSELEN;
-    }
-    
-    memcpy(tmd->cd_sense, sbuf, slen);
-    tmd->cd_hflags |= CDFH_SNSVALID;
-    tmd->cd_xfrlen = 0;
-    tmd->cd_hflags &= ~CDFH_DATA_MASK;
-
     if (scsi_tdebug) {
         uint8_t key, asc, ascq;
         key = (slen >= 2) ? sbuf[2] : 0;
@@ -844,8 +1134,9 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
 {   
     tmd_cmd_t *tmd;
     bus_t *bp;
-    
+
     tmd = (tmd_cmd_t *) scst_cmd_get_tgt_priv(scst_cmd);
+    bp = bus_from_tmd(tmd);
 
     if (scst_cmd_get_data_direction(scst_cmd) == SCST_DATA_READ) {
         unsigned int len = scst_cmd_get_resp_data_len(scst_cmd);
@@ -856,12 +1147,10 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
             Eprintk("data size too big (totlen %u len %u)\n", tmd->cd_totlen, len);
             WARN_ON(1);
             
-            fill_sense(tmd, ifailure, TMD_SENSELEN);
-            
+            memcpy(tmd->cd_sense, ifailure, TMD_SENSELEN);
             tmd->cd_hflags |= CDFH_STSVALID;
             tmd->cd_scsi_status = SCSI_CHECK; 
             goto out;
-        
         } else {
             tmd->cd_hflags |= CDFH_DATA_IN;
             tmd->cd_xfrlen = len;
@@ -880,16 +1169,19 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
         if (tmd->cd_scsi_status == SCSI_CHECK) {
             uint8_t *sbuf = scst_cmd_get_sense_buffer(scst_cmd);
             unsigned int slen = scst_cmd_get_sense_buffer_len(scst_cmd);
-            
-            fill_sense(tmd, sbuf, slen);  
+            if (slen > TMD_SENSELEN) {
+                // FIXME: maybe increase TMD_SENSELEN ?
+                // Eprintk("sense data too big (totlen %u len %u)\n", TMD_SENSELEN, slen);
+                slen = TMD_SENSELEN;
+            }
+            memcpy(tmd->cd_sense, sbuf, slen);
+            SDprint_sense(sbuf, slen);
         }
         SDprintk2("%s: status %d\n", __FUNCTION__, scst_cmd_get_status(scst_cmd));
     }
 
-out:    
-    bp = bus_from_tmd(tmd);
-    (*bp->h.r_action)(QIN_TMD_CONT, tmd);
-    return (0);
+out:
+    return ca_xmit_response(bp, tmd);
 }
 
 static void
@@ -913,8 +1205,8 @@ isp_task_mgmt_fn_done(struct scst_mgmt_cmd *mgmt_cmd)
     bus_t *bp;
 
     // FIXME bus can not dissapear
-    SDprintk("%s: NOTIFY_ACK[%llx]\n", __FUNCTION__, np->nt_tagval);
     bp = bus_from_notify(np);
+    SDprintk("%s: NOTIFY_ACK[%llx]\n", __FUNCTION__, np->nt_tagval);
     (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
 }
 
@@ -1037,7 +1329,7 @@ unregister_scst(void)
             }
             
             scst_unregister(bp->scst_tgt);
-            bp->scst_tgt = NULL;
+            memset(bp, 0, sizeof(bus_t));
         }
     }
 }
