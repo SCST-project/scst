@@ -1345,7 +1345,6 @@ unregister_scst(void)
                     free_ini(ptr);
                 } while ((ptr = ini_next) != NULL);
             }
-            bp->list[i] = NULL;
         }
         
         if (scst_tgt)    
