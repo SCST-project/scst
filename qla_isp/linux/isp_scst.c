@@ -331,6 +331,7 @@ alloc_ini(bus_t *bp, uint64_t iid)
         Eprintk("cannot allocate initiator data\n");
         return (NULL);
     }
+    memset(nptr, 0, sizeof(ini_t));
 
     #define GET(byte) (uint8_t) ((iid >> 8*byte) & 0xff)
     snprintf(ini_name, sizeof(ini_name), "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
@@ -545,7 +546,6 @@ ca_abort_all_tasks(bus_t *bp, ini_t *ini, uint16_t lun)
         return;
     }
    
-    
     spin_lock_irqsave(&ini->ini_ca_lock, flags);
     tmd = ini->ini_ca_front;
     while (tmd && L0LUN_TO_FLATLUN(tmd->cd_lun) == lun) {
@@ -765,24 +765,24 @@ err:
 static void 
 scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
 {
-#ifdef NO_AUTOSENSE
     bus_t *bp;
-#endif
     struct scst_cmd *scst_cmd;
 
     SDprintk2("scsi_target: TMD_DONE[%llx] %p hf %x lf %x xfrlen %d resid %d\n",
               tmd->cd_tagval, tmd, tmd->cd_hflags, tmd->cd_lflags, tmd->cd_xfrlen, tmd->cd_resid);
    
-#ifdef NO_AUTOSENSE
     bp = bus_from_tmd(tmd);
     EXTRACHECKS_BUG_ON(!bp);
 
+#ifdef NO_AUTOSENSE
     if (bp->no_autosense && tmd->cd_cdb[0] == REQUEST_SENSE) {
         unsigned long flags;
         ini_t *ini;
         
         if (tmd->cd_lflags & CDFL_ERROR) {
             Eprintk("Transport error when reponse REQUEST_SENSE command");
+            SDprintk("%s: TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
+            (*bp->h.r_action)(QIN_TMD_FIN, tmd);
             return;
         }
             
@@ -800,10 +800,12 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
         return;
     }
 #endif 
- 
+    
     scst_cmd = tmd->cd_scst_cmd; 
     if (!scst_cmd) {
-        Eprintk("TMD_DONE cannot find scst command\n");
+        /* command returned by us with status BUSY */
+        SDprintk("%s: TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
+        (*bp->h.r_action)(QIN_TMD_FIN, tmd);
         return;
     }
  
