@@ -321,11 +321,6 @@ alloc_ini(bus_t *bp, uint64_t iid)
     ini_t *nptr;
     char ini_name[24];
 
-    if (!bp->scst_tgt) {
-        Eprintk("cannot find SCST target for incoming command\n");
-        return (NULL);
-    }
-
     nptr = kmalloc(sizeof(ini_t), GFP_KERNEL);
     if (!nptr) {
         Eprintk("cannot allocate initiator data\n");
@@ -910,21 +905,22 @@ scsi_target_handler(qact_e action, void *arg)
     {
         ini_t *ini;
         tmd_notify_t *np = arg;
+        
         spin_lock_irqsave(&scsi_target_lock, flags);
-        
-        // FIXME: good handle for all notifies and TGT_ALL, INI_ALL, ...
-        
         bp = bus_from_notify(arg);
         if (bp == NULL) {
             spin_unlock_irqrestore(&scsi_target_lock, flags);
             Eprintk("TMD_NOTIFY cannot find bus\n");
             break;
         }
-        
+
         ini = ini_from_notify(bp, np);
         if (ini == NULL) {
             spin_unlock_irqrestore(&scsi_target_lock, flags);
-            Eprintk("TMD_NOTIFY cannot find initiator\n");
+            if (np->nt_iid != INI_ANY) {
+                Eprintk("TMD_NOTIFY cannot find initiator 0x%016llx\n", np->nt_iid);
+            }
+            /* only ack, we don't care about bus/lip resets and link up/down */
             (*bp->h.r_action) (QIN_NOTIFY_ACK, arg);
             break;
         }

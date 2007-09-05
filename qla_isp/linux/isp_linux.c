@@ -1390,7 +1390,7 @@ isp_taction(qact_e action, void *arg)
                 rsp->abts_rsp_payload.ba_acc.high_seq_cnt = 0xffff;
                 isp_notify_ack(isp, ins->qentry);
             } else if (ins->notify.nt_need_ack) {
-                isp_prt(isp, ISP_LOGINFO, "[%llx] Notify Code 0x%x (qevalid=%d) being acked", ins->notify.nt_tagval, ins->notify.nt_ncode, ins->qevalid);
+                isp_prt(isp, ISP_LOGDEBUG0, "[%llx] Notify Code 0x%x (qevalid=%d) being acked", ins->notify.nt_tagval, ins->notify.nt_ncode, ins->qevalid);
                 if (ins->qevalid) {
                     isp_notify_ack(isp, ins->qentry);
                 } else {
@@ -3057,7 +3057,7 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
                 break;
             default:
                 if (isp_find_iid_wwn(isp, mp->nt_channel, loopid, &ins->notify.nt_iid) == 0) {
-                    isp_prt(isp, ISP_LOGINFO, "cannot find WWN for loopid 0x%x for notify action 0x%x", loopid, mp->nt_ncode);
+                    isp_prt(isp, ISP_LOGDEBUG0, "cannot find WWN for loopid 0x%x for notify action 0x%x", loopid, mp->nt_ncode);
                     ins->notify.nt_iid = INI_ANY;
                 }
                 break;
@@ -3069,7 +3069,7 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
         } else {
             TAG_INSERT_INST(mp->nt_tagval, isp->isp_unit);
         }
-        isp_prt(isp, ISP_LOGINFO, "Notify Code 0x%x iid 0x%016llx tgt 0x%016llx lun %u tag %llx",
+        isp_prt(isp, ISP_LOGDEBUG0, "Notify Code 0x%x iid 0x%016llx tgt 0x%016llx lun %u tag %llx",
             mp->nt_ncode, (unsigned long long) mp->nt_iid, (unsigned long long) mp->nt_tgt,
             mp->nt_lun, mp->nt_tagval);
         CALL_PARENT_NOTIFY(isp, ins);
