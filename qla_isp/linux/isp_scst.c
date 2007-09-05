@@ -424,12 +424,7 @@ ca_xmit_response(bus_t *bp, tmd_cmd_t *tmd)
         unsigned long flags;
 
         ini = ini_from_tmd(bp, tmd);
-        if (!ini) {
-            Eprintk("cannot find initiator for tmd\n");
-            WARN_ON(1);
-            return (-ENODEV);
-        }
-        
+        EXTRACHECKS_BUG_ON(!ini);
         spin_lock_irqsave(&ini->ini_ca_lock, flags);
         if (ini->ini_ca_cond) {
             /* we are under Contingent Allegiance condition, save finished command 
@@ -670,6 +665,7 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
         return;
     } 
     tmd->cd_bus = bp;
+    tmd->cd_scst_cmd = NULL;
 
     /*
      * Next check if we have commands pending on the front
@@ -771,8 +767,7 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
     SDprintk2("scsi_target: TMD_DONE[%llx] %p hf %x lf %x xfrlen %d resid %d\n",
               tmd->cd_tagval, tmd, tmd->cd_hflags, tmd->cd_lflags, tmd->cd_xfrlen, tmd->cd_resid);
    
-    bp = bus_from_tmd(tmd);
-    EXTRACHECKS_BUG_ON(!bp);
+    bp = tmd->cd_bus;
 
 #ifdef NO_AUTOSENSE
     if (bp->no_autosense && tmd->cd_cdb[0] == REQUEST_SENSE) {
@@ -1114,7 +1109,7 @@ isp_rdy_to_xfer(struct scst_cmd *scst_cmd)
         tmd->cd_xfrlen = scst_cmd_get_bufflen(scst_cmd);
         SDprintk("%s: write nbytes %u\n", __FUNCTION__, scst_cmd_get_bufflen(scst_cmd));
 
-        bp = bus_from_tmd(tmd);
+        bp = tmd->cd_bus;
         (*bp->h.r_action)(QIN_TMD_CONT, tmd);
     }
 
@@ -1140,7 +1135,7 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
     bus_t *bp;
 
     tmd = (tmd_cmd_t *) scst_cmd_get_tgt_priv(scst_cmd);
-    bp = bus_from_tmd(tmd);
+    bp = tmd->cd_bus;
 
     if (scst_cmd_get_data_direction(scst_cmd) == SCST_DATA_READ) {
         unsigned int len = scst_cmd_get_resp_data_len(scst_cmd);
@@ -1198,7 +1193,7 @@ isp_on_free_cmd(struct scst_cmd *scst_cmd)
     tmd->cd_data = NULL;
     
     SDprintk("%s: TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
-    bp = bus_from_tmd(tmd);
+    bp = tmd->cd_bus;
     (*bp->h.r_action)(QIN_TMD_FIN, tmd);
 }
 
@@ -1208,7 +1203,6 @@ isp_task_mgmt_fn_done(struct scst_mgmt_cmd *mgmt_cmd)
     tmd_notify_t *np = mgmt_cmd->tgt_priv;
     bus_t *bp;
 
-    // FIXME bus can not dissapear
     bp = bus_from_notify(np);
     SDprintk("%s: NOTIFY_ACK[%llx]\n", __FUNCTION__, np->nt_tagval);
     (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
@@ -1278,6 +1272,7 @@ static struct scst_tgt_template isp_tgt_template =
     .write_proc = isp_write_proc,
 };
 
+/* Register SCST target, must be called in process context */
 static int 
 register_scst(void)
 {
@@ -1286,7 +1281,9 @@ register_scst(void)
     
     for (bp = busses; bp < &busses[MAX_BUS]; bp++) {
         char name[32];
-         
+        info_t info;
+        struct scst_tgt *scst_tgt;
+
         spin_lock_irq(&scsi_target_lock);
         if (bp->h.r_action == NULL || !bp->need_reg) {
             spin_unlock_irq(&scsi_target_lock);
@@ -1295,15 +1292,43 @@ register_scst(void)
         bp->need_reg = 0;
         spin_unlock_irq(&scsi_target_lock);
         
-        // FIXME: give scst WWN or something like that  
-        snprintf(name, sizeof(name), "%s%d", bp->h.r_name, bp->h.r_inst);
-        
+        info.i_identity = bp->h.r_identity;
+        if (bp->h.r_type == R_FC) {
+            info.i_type = I_FC;
+        } else if (bp->h.r_type == R_SPI) {
+            info.i_type = I_SPI;
+        } else {
+            Eprintk("Unknown type of bus!\n");
+            continue;
+        }
+        info.i_channel = 0;
+        (*bp->h.r_action)(QIN_GETINFO, &info);
+        if (info.i_error) {
+            Eprintk("Cannot get device name from %s%d!\n", bp->h.r_name, bp->h.r_inst);
+            continue;
+        }
+
+        if (info.i_type == I_FC) {
+            #define GET(byte) (uint8_t) ((info.i_id.fc.wwpn >> 8*byte) & 0xff)
+            snprintf(name, sizeof(name), "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
+                GET(7), GET(6), GET(5) , GET(4), GET(3), GET(2), GET(1), GET(0));
+            #undef GET
+        } else { // SPI
+            #define GET(byte) (uint8_t) ((info.i_id.spi.iid >> 8*byte) & 0xff)
+            snprintf(name, sizeof(name), "%02x:%02x:%02x:%02x", GET(3), GET(2), GET(1), GET(0));
+            #undef GET
+        }
+
         // FIXME: we curently can not pass error to low level driver by tpublic interface 
         // FIXME: we reject tmd's when scst_tgt is NULL
-        bp->scst_tgt = scst_register(&isp_tgt_template, name);
-        if (bp->scst_tgt) {
+        scst_tgt = scst_register(&isp_tgt_template, name);
+        if (scst_tgt) {
             SDprintk("%s: device %s\n", __FUNCTION__ ,name);
+            spin_lock_irq(&scsi_target_lock);
+            bp->scst_tgt = scst_tgt;
             bp->scst_tgt->tgt_priv = bp;
+            /* now we can receive tmd's */
+            spin_unlock_irq(&scsi_target_lock);
             ntgts++;
         } else {
             Eprintk("cannot register scst device %s\n", name); 
@@ -1313,6 +1338,7 @@ register_scst(void)
     return (ntgts);
 }
 
+/* Unregister SCST target, must be called in process context */
 static void
 unregister_scst(void)
 {
