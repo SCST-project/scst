@@ -420,6 +420,8 @@ sub main {
 }
 
 sub readWorkingConfig {
+	my %empty;
+
 	print "Collecting current configuration.. ";
 
 	$TARGETS  = undef;
@@ -452,6 +454,7 @@ sub readWorkingConfig {
 		foreach my $user (@{$eUsers}) {
 			$USERS{$group}->{$user}++; # For quick lookups
 		}
+		$USERS{$group} = \%empty if (!$USERS{$group});
 	}
 
 	print "done.\n\n";
@@ -570,6 +573,7 @@ sub applyConfiguration {
 	my %used_devs;
 	my %used_users;
 	my %used_assignments;
+	my %empty;
 
 	# Cache device/handler configuration
 	foreach my $entry (keys %{$$config{'HANDLER'}}) {
@@ -585,6 +589,7 @@ sub applyConfiguration {
 		foreach my $user (@{$$config{'GROUP'}->{$group}->{'USER'}}) {
 			$used_users{$group}->{$user}++;
 		}
+		$used_users{$group} = \%empty if (!$used_users{$group});
 	}
 
 	# Cache device association configuration
@@ -1373,7 +1378,10 @@ sub readConfig {
 	my $confile = shift;
 	my %config;
 	my $section;
+	my $last_section;
 	my $arg;
+	my $last_arg;
+	my %empty;
 
 	my $io = new IO::File $confile, O_RDONLY;
 
@@ -1384,7 +1392,13 @@ sub readConfig {
 		$line = cleanupString($line);
 
 		if ($line =~ /^\[(.*)\]$/) {
+			$last_arg = $arg;
+			$last_section = $section;
 			($section, $arg) = split(/\s+/, $1, 2);
+
+			if ($last_arg && ($last_arg ne $arg) && !$config{$last_section}->{$last_arg}) {
+				$config{$last_section}->{$last_arg} = \%empty;
+			}   
 		} elsif ($section && $arg && $line) {
 			my($parameter, $value) = split(/\s+/, $line, 2);
 
