@@ -62,7 +62,7 @@ Available Handlers:
       disk, vdisk, disk_perf, cdrom, vcdrom, changer, modisk, modisk_perf, tape, tape_perf
 
 Available Options for create and open:
-      WRITE_THROUGH, READ_ONLY, O_DIRECT, NULLIO, NV_CACHE, BLOCKIO
+      WRITE_THROUGH, READ_ONLY, O_DIRECT, NULLIO, NV_CACHE, BIO
      
 Examples:
      Enable target mode for fibre card specifying its WWN
@@ -748,9 +748,7 @@ sub applyConfiguration {
 
 	readWorkingConfig() if ($force);
 
-	foreach my $vname (keys %used_devs) {
-		my $_handler = $used_devs{$vname};
-
+	foreach my $_handler (sort keys %{$$config{'HANDLER'}}) {
 		if (!$HANDLERS{$_HANDLER_MAP_{$_handler}}) {
 			print "\t-> WARNING: Handler '$_handler' does not exist.\n";
 			$errs += 1;
@@ -758,7 +756,7 @@ sub applyConfiguration {
 		}
 
 		foreach my $device (@{$$config{'HANDLER'}->{$_handler}->{'DEVICE'}}) {
-			my(undef, $path, $options, $blocksize) = split(/\,/, $device);
+			my($vname, $path, $options, $blocksize) = split(/\,/, $device);
 			$path = cleanupString($path);
 			$options =~ s/\s+//; $options =~ s/\|/,/;
 
@@ -943,6 +941,7 @@ sub clearConfiguration {
 
 	print "\nRemoving all handler devices:\n\n";
 	foreach my $device (keys %{$DEVICES}) {
+		next if (!$$DEVICES{$device});
 		next if ($SCST->handlerType($$DEVICES{$device}) != $SCST::SCST::IOTYPE_VIRTUAL);
 		$errs += removeDevice($_REVERSE_MAP_{$$DEVICES{$device}}, $device);
 	}
@@ -1388,6 +1387,7 @@ sub readConfig {
 			($section, $arg) = split(/\s+/, $1, 2);
 		} elsif ($section && $arg && $line) {
 			my($parameter, $value) = split(/\s+/, $line, 2);
+
 			push @{$config{$section}->{$arg}->{$parameter}}, $value;
 		}
 	}

@@ -33,9 +33,6 @@ my $_SCST_VERSION_IO_    = $_SCST_DIR_.'/version';
 my $_SCST_USERS_IO_      = 'names';
 my $_SCST_DEVICES_IO_    = 'devices';
 
-my @_AVAILABLE_OPTIONS_  = ('WRITE_THROUGH', 'O_DIRECT', 'READ_ONLY',
-			    'NULLIO', 'NV_CACHE', 'BLOCKIO');
-
 use vars qw(@ISA @EXPORT $VERSION $CDROM_TYPE $CHANGER_TYPE $DISK_TYPE $VDISK_TYPE
             $VCDROM_TYPE $DISKPERF_TYPE $MODISK_TYPE $MODISKPERF_TYPE $TAPE_TYPE
             $TAPEPERF_TYPE $PROCESSOR_TYPE $IOTYPE_PHYSICAL $IOTYPE_VIRTUAL
@@ -57,7 +54,7 @@ $IOTYPE_PHYSICAL    = 100;
 $IOTYPE_VIRTUAL     = 101;
 $IOTYPE_PERFORMANCE = 102;
 
-$VERSION = 0.7.1;
+$VERSION = 0.7.2;
 
 my $_SCST_MIN_MAJOR_   = 0;
 my $_SCST_MIN_MINOR_   = 9;
@@ -110,6 +107,16 @@ my %_IO_TYPES_ = ($CDROM_TYPE => $IOTYPE_PHYSICAL,
 		  $TAPE_TYPE => $IOTYPE_PHYSICAL,
 		  $TAPEPERF_TYPE => $IOTYPE_PERFORMANCE,
 		  $PROCESSOR_TYPE => $IOTYPE_PHYSICAL);
+
+my %_HANDLER_ALIASES_ = ('vdisk_blk' => 'vdisk');
+
+my %_AVAILABLE_OPTIONS_ = ('WRITE_THROUGH' => 'WRITE_THROUGH',
+			   'O_DIRECT'      => 'O_DIRECT',
+			   'READ_ONLY'     => 'READ_ONLY',
+			   'NULLIO'        => 'NULLIO',
+			   'NV_CACHE'      => 'NV_CACHE',
+			   'BLOCKIO'       => 'BLOCKIO',
+			   'BIO'           => 'BLOCKIO');
 
 sub new {
 	my $this = shift;
@@ -333,6 +340,8 @@ sub devices {
 		}
 
 		my($vname, $handler) = split(/\s+/, $line);
+
+		$handler = $_HANDLER_ALIASES_{$handler} if ($_HANDLER_ALIASES_{$handler});
 		$devices{$vname} = $_TYPE_MAP_{$handler};
 	}
 
@@ -425,9 +434,12 @@ sub openDevice {
 	my $options = shift;
 	my $blocksize = shift;
 	my $handler_io = $_IO_MAP_{$handler};
+	my $valid_opts;
 
-	if ($self->checkOptions($options)) {
-		$self->{'error'} = "openDevice(): Invalid options '$options' given for device $device";
+	($options, $valid_opts) = $self->checkOptions($options);
+
+	if (!$valid_opts) {
+		$self->{'error'} = "openDevice(): Invalid option(s) '$options' given for device $device";
 		return $TRUE;
 	}
 
@@ -642,6 +654,7 @@ sub clearUsers {
 sub handlerExists {
 	my $self = shift;
 	my $handler = shift;
+
 	my $handlers = $self->handlers();
 
 	foreach my $_handler (@{$handlers}) {
@@ -927,16 +940,19 @@ sub group_private {
 sub checkOptions {
 	my $self = shift;
 	my $options = shift;
+	my $o_string;
 
-	return if (!$options);
+	return undef, $TRUE if (!$options);
 
 	foreach my $option (split(/\s+/, $options)) {
-		foreach my $avail (@_AVAILABLE_OPTIONS_) {
-			return $FALSE if ($avail eq $option);
-		}
+		my $map = $_AVAILABLE_OPTIONS_{$option};
+		return undef, $FALSE if (!$map);
+		$o_string .= ",$map";
 	}
 
-	return $TRUE;
+	$o_string =~ s/^\,//;
+
+	return $o_string, $TRUE;
 }
 
 sub errorString {
