@@ -285,15 +285,28 @@ ini_from_tmd(bus_t *bp, tmd_cmd_t *tmd)
 static __inline ini_t *
 ini_from_notify(bus_t *bp, tmd_notify_t *np)
 {
-   ini_t *ptr = INI_HASH_LISTP(bp, np->nt_iid);
-   if (ptr) {
-        do {
-            if (ptr->ini_iid == np->nt_iid) {
+    ini_t *ptr = NULL;
+    int i;
+
+    if (np->nt_iid == INI_ANY) {
+        /* SCST task mgmt need to be related with some session */
+        for (i = 0; i < HASH_WIDTH; i++) {
+            ini_t *ptr = bp->list[i];
+            if (ptr) {
                 return (ptr);
             }
-        } while ((ptr = ptr->ini_next) != NULL);
-   }
-   return (ptr);
+        }
+    } else {
+        ptr = INI_HASH_LISTP(bp, np->nt_iid);
+        if (ptr) {
+            do {
+                if (ptr->ini_iid == np->nt_iid) {
+                    return (ptr);
+                }
+            } while ((ptr = ptr->ini_next) != NULL);
+        }
+    }
+    return (ptr);
 }
 
 static __inline bus_t *
@@ -807,7 +820,7 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
         scst_tgt_cmd_done(scst_cmd);
         return;
     }
-    
+   
     if (tmd->cd_hflags & CDFH_DATA_OUT) {
         if (tmd->cd_resid == 0) {
             if (tmd->cd_xfrlen) {
@@ -828,6 +841,91 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
         tmd->cd_xfrlen = 0;
         scst_tgt_cmd_done(scst_cmd);
     }
+}
+
+static void 
+scsi_target_notify(tmd_notify_t *np)
+{
+    bus_t *bp;
+    ini_t *ini;
+    int fn;
+    uint16_t lun;
+    uint64_t tagval;
+    uint8_t lunbuf[8];
+    unsigned long flags;
+
+    // FIXME: if scst mgmt fail we can't give info to isp driver via tpublic
+    // FIXME: interface, but seems low level stuff is capable to handle error case 
+    // FIXME: now smile and assume mgmt_fn not fail 
+
+    spin_lock_irqsave(&scsi_target_lock, flags);
+    bp = bus_from_notify(np);
+    if (bp == NULL) {
+        spin_unlock_irqrestore(&scsi_target_lock, flags);
+        Eprintk("TMD_NOTIFY cannot find bus\n");
+        return;
+    }
+    ini = ini_from_notify(bp, np);
+    spin_unlock_irqrestore(&scsi_target_lock, flags);
+    SDprintk("scsi_target: MGT code %x from %s%d\n", np->nt_ncode, bp->h.r_name, bp->h.r_inst);
+    
+    switch (np->nt_ncode) {
+        case NT_ABORT_TASK:
+            if (ini == NULL) {
+                Eprintk("TMD_NOTIFY cannot find initiator 0x%016llx\n", np->nt_iid);
+                (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
+                return;
+            }
+            tagval = np->nt_tagval; /* after scst return "np" may not be valid */
+            scst_rx_mgmt_fn_tag(ini->ini_scst_sess, SCST_ABORT_TASK, np->nt_tagval, 1, np); 
+            ca_abort_task(bp, ini, tagval);
+            ca_finish(bp, ini);
+            return; 
+        case NT_ABORT_TASK_SET:
+        case NT_CLEAR_TASK_SET:
+            fn = SCST_ABORT_TASK_SET;
+            break;
+        case NT_CLEAR_ACA: // FIXME: does we support this?
+            fn = SCST_CLEAR_ACA;
+            break; 
+        case NT_LUN_RESET:
+            fn = SCST_LUN_RESET;
+            break;
+        case NT_BUS_RESET:
+        case NT_HBA_RESET:
+        case NT_TARGET_RESET:
+            fn = SCST_TARGET_RESET;
+            break;
+        case NT_LIP_RESET:
+        case NT_LINK_UP:
+        case NT_LINK_DOWN:
+        case NT_LOGOUT:
+            /* only ack, we don't care about bus/lip resets and link up/down */
+            (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
+            return;
+        default:
+            Eprintk("Unknown notify 0x%x\n", np->nt_ncode);
+            return;
+    
+    }
+    
+    if (ini == NULL) {
+        Eprintk("TMD_NOTIFY cannot find initiator 0x%016llx\n", np->nt_iid);
+        (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
+        return;
+    }
+    /* save lun, after scst return "np" may not be valid */
+    if (np->nt_lun == LUN_ANY) {
+        /* SCST don't support LUN_ANY, lun 0 should be ok */
+        lun = 0;
+    } else {
+        lun = np->nt_lun;
+    }
+    // FIXME: ca_abort_task when LUN_ANY, INI_ANY, TARGET_RESET and so on !!!
+    FLATLUN_TO_L0LUN(lunbuf, lun);
+    scst_rx_mgmt_fn_lun(ini->ini_scst_sess, fn, lunbuf, sizeof(lunbuf), 1, np);
+    ca_abort_all_tasks(bp, ini, lun);
+    ca_finish(bp, ini);
 }
 
 void
@@ -903,52 +1001,9 @@ scsi_target_handler(qact_e action, void *arg)
     }
     case QOUT_NOTIFY:
     {
-        ini_t *ini;
         tmd_notify_t *np = arg;
-        
-        spin_lock_irqsave(&scsi_target_lock, flags);
-        bp = bus_from_notify(arg);
-        if (bp == NULL) {
-            spin_unlock_irqrestore(&scsi_target_lock, flags);
-            Eprintk("TMD_NOTIFY cannot find bus\n");
-            break;
-        }
-
-        ini = ini_from_notify(bp, np);
-        if (ini == NULL) {
-            spin_unlock_irqrestore(&scsi_target_lock, flags);
-            if (np->nt_iid != INI_ANY) {
-                Eprintk("TMD_NOTIFY cannot find initiator 0x%016llx\n", np->nt_iid);
-            }
-            /* only ack, we don't care about bus/lip resets and link up/down */
-            (*bp->h.r_action) (QIN_NOTIFY_ACK, arg);
-            break;
-        }
-       
-        // FIXME: if scst mgmt fail we can't give info to isp driver via tpublic
-        // FIXME: interface, but seems low level stuff is capable to handle error case 
-        // FIXME: now smile and assume mgmt_fn not fail 
-        if (np->nt_ncode == NT_ABORT_TASK) {
-            uint64_t tagval;
-            spin_unlock_irqrestore(&scsi_target_lock, flags);
-             
-            tagval = np->nt_tagval; /* after scst return "np" may not be valid */
-            scst_rx_mgmt_fn_tag(ini->ini_scst_sess, SCST_ABORT_TASK, np->nt_tagval, 1, np); 
-            ca_abort_task(bp, ini, tagval);
-            ca_finish(bp, ini);
-        } else {
-            uint16_t lun;
-            uint8_t lunbuf[8];
-            spin_unlock_irqrestore(&scsi_target_lock, flags);
-            
-            SDprintk("scsi_target: MGT code %x from %s%d\n", np->nt_ncode, bp->h.r_name, bp->h.r_inst);
-            FLATLUN_TO_L0LUN(lunbuf, np->nt_lun);
-            
-            lun = np->nt_lun; /* after scst return "np" may not be valid */
-            scst_rx_mgmt_fn_lun(ini->ini_scst_sess, np->nt_ncode, lunbuf, sizeof(lunbuf), 1, np);
-            ca_abort_all_tasks(bp, ini, lun);
-            ca_finish(bp, ini);
-        }
+        SDprintk2("scsi_target: TMD_NOTIFY %p code=0x%x\n", np, np->nt_ncode);
+        scsi_target_notify(np);
         break;
     }
     case QOUT_HBA_UNREG:
@@ -1098,7 +1153,7 @@ isp_rdy_to_xfer(struct scst_cmd *scst_cmd)
     bus_t *bp;
     
     tmd = (tmd_cmd_t *) scst_cmd_get_tgt_priv(scst_cmd);
-    
+
     if (scst_cmd_get_data_direction(scst_cmd) == SCST_DATA_WRITE) {
         tmd->cd_hflags |= CDFH_DATA_OUT; 
         tmd->cd_data = scst_cmd_get_sg(scst_cmd);
@@ -1132,7 +1187,7 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
 
     tmd = (tmd_cmd_t *) scst_cmd_get_tgt_priv(scst_cmd);
     bp = tmd->cd_bus;
-
+    
     if (scst_cmd_get_data_direction(scst_cmd) == SCST_DATA_READ) {
         unsigned int len = scst_cmd_get_resp_data_len(scst_cmd);
         if (len > tmd->cd_totlen) { 
