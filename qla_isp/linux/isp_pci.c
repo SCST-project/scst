@@ -909,8 +909,7 @@ isplinux_pci_init(struct Scsi_Host *host)
         pci_release_regions(isp_pci->pci_dev);
         return (1);
     }
-
-    irq = isp_pci->pci_dev->irq;
+    
     (void) PRDW(isp_pci, PCI_COMMAND, &cmd);
 
     if ((cmd & PCI_CMD_ISP) != pci_cmd_isp) {
@@ -1146,12 +1145,6 @@ isplinux_pci_init(struct Scsi_Host *host)
     }
 #endif
 
-    if (request_irq(irq, isplinux_intr, ISP_IRQ_FLAGS, isp->isp_name, isp_pci)) {
-        printk("%s: could not snag irq %u (0x%x)\n", loc, irq, irq);
-        goto bad;
-    }
-    host->irq = irq;
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
     host->select_queue_depths = isplinux_sqd;
 #endif
@@ -1212,14 +1205,16 @@ isplinux_pci_init(struct Scsi_Host *host)
     } else {
         host->max_cmd_len = 12;
     }
+    
+    irq = isp_pci->pci_dev->irq;
+    if (request_irq(irq, isplinux_intr, ISP_IRQ_FLAGS, isp->isp_name, isp_pci)) {
+        printk("%s: could not snag irq %u (0x%x)\n", loc, irq, irq);
+        goto bad;
+    }
+    host->irq = irq;
 
     return (0);
 bad:
-    if (host->irq) {
-        ISP_DISABLE_INTS(isp);
-        free_irq(host->irq, isp_pci);
-        host->irq = 0;
-    }
     if (isp_pci->vaddr != 0) {
         unmap_pci_mem(isp_pci, 0xff);
         isp_pci->vaddr = 0;
