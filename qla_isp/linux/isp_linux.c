@@ -2979,7 +2979,9 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
 
         if (isp->isp_osinfo.hcb == 0) {
             isp_prt(isp, ISP_LOGWARN, "ISPASYNC_TARGET_NOTIFY with target mode not enabled");
-            isp_notify_ack(isp, mp->nt_lreserved);
+            if (mp->nt_need_ack) {
+                isp_notify_ack(isp, mp->nt_lreserved);
+            }
             break;
         }
 
