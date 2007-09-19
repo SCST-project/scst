@@ -22,10 +22,15 @@
 #include <time.h>
 #include <pthread.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/syscall.h>
 
 #include "debug.h"
 
-_syscall0(pid_t,gettid);
+pid_t gettid (void)
+{
+	return syscall(__NR_gettid);
+}
 
 #if defined(DEBUG) || defined(TRACING)
 

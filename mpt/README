@@ -26,6 +26,17 @@ drivers/message/fusion/Kconfig by diffs from $(SCST_DIR)/mpt/in-tree
 3. Correct in drivers/message/fusion/Makefile SCST_INC_DIR variable so
 it points to correct directory with SCST include files.
 
+Building outside the Linux kernel tree
+--------------------------------------
+
+Edit Makefile, comment there line 
+
+obj-$(CONFIG_FUSION_SCST) += mpt_scst.o
+
+and uncomment line
+
+obj-m += mpt_scst.o
+
 Notes on implementation
 -----------------------
 The driver takes the mptstm target driver implemented by LSI
