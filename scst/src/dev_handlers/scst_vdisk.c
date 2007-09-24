@@ -713,9 +713,10 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 		lba_start |= ((u64)cdb[3]) << 48;
 		lba_start |= ((u64)cdb[4]) << 40;
 		lba_start |= ((u64)cdb[5]) << 32;
-		lba_start |= ((u64)cdb[6]) << 16;
-		lba_start |= ((u64)cdb[7]) << 8;
-		lba_start |= ((u64)cdb[8]);
+		lba_start |= ((u64)cdb[6]) << 24;
+		lba_start |= ((u64)cdb[7]) << 16;
+		lba_start |= ((u64)cdb[8]) << 8;
+		lba_start |= ((u64)cdb[9]);
 		data_len = cmd->bufflen;
 		break;
 	}
