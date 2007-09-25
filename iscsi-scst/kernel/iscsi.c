@@ -542,7 +542,7 @@ static struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req, int status,
 	if (status == SAM_STAT_CHECK_CONDITION) {
 		TRACE_DBG("%s", "CHECK_CONDITION");
 		/* ToDo: __GFP_NOFAIL ?? */
-		sg = rsp->sg = scst_alloc(PAGE_SIZE, GFP_KERNEL|__GFP_NOFAIL, 0,
+		sg = rsp->sg = scst_alloc(PAGE_SIZE, GFP_KERNEL|__GFP_NOFAIL,
 					&rsp->sg_cnt);
 		if (sg == NULL) {
 			/* ToDo(); */
@@ -601,7 +601,7 @@ static void iscsi_cmnd_reject(struct iscsi_cmnd *req, int reason)
 	rsp_hdr->reason = reason;
 
 	/* ToDo: __GFP_NOFAIL ?? */
-	sg = rsp->sg = scst_alloc(PAGE_SIZE, GFP_KERNEL|__GFP_NOFAIL, 0,
+	sg = rsp->sg = scst_alloc(PAGE_SIZE, GFP_KERNEL|__GFP_NOFAIL,
 				&rsp->sg_cnt);
 	if (sg == NULL) {
 		/* ToDo(); */
@@ -791,7 +791,7 @@ static void cmnd_prepare_skip_pdu(struct iscsi_cmnd *cmnd)
 	if (sg == NULL) {
 		/* ToDo: __GFP_NOFAIL ?? */
 		sg = cmnd->sg = scst_alloc(PAGE_SIZE, GFP_KERNEL|__GFP_NOFAIL,
-					0, &cmnd->sg_cnt);
+					&cmnd->sg_cnt);
 		if (sg == NULL) {
 			/* ToDo(); */
 		}
@@ -1061,7 +1061,7 @@ static int noop_out_start(struct iscsi_cmnd *cmnd)
 
 			/* ToDo: __GFP_NOFAIL ?? */
 			cmnd->sg = sg = scst_alloc(size,
-				GFP_KERNEL|__GFP_NOFAIL, 0, &cmnd->sg_cnt);
+				GFP_KERNEL|__GFP_NOFAIL, &cmnd->sg_cnt);
 			if (sg == NULL) {
 				/* ToDo(); */
 			}

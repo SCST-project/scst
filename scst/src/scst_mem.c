@@ -735,8 +735,7 @@ void sgv_pool_free(struct sgv_pool_obj *sgv)
 	return;
 }
 
-struct scatterlist *scst_alloc(int size, unsigned long gfp_mask,
-	int use_clustering, int *count)
+struct scatterlist *scst_alloc(int size, unsigned long gfp_mask, int *count)
 {
 	struct scatterlist *res;
 	int pages = (size >> PAGE_SHIFT) + ((size & ~PAGE_MASK) != 0);
@@ -757,8 +756,13 @@ struct scatterlist *scst_alloc(int size, unsigned long gfp_mask,
 	if (res == NULL)
 		goto out;
 
-	*count = scst_alloc_sg_entries(res, pages, gfp_mask, use_clustering,
-		NULL, &sys_alloc_fns, NULL);
+	/*
+	 * If we allow use clustering here, we will have troubles in
+	 * scst_free() to figure out how many pages are in the SG vector.
+	 * So, always don't use clustering.
+	 */
+	*count = scst_alloc_sg_entries(res, pages, gfp_mask, 0, NULL,
+			&sys_alloc_fns, NULL);
 	if (*count <= 0)
 		goto out_free;
 

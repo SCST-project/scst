@@ -2339,12 +2339,10 @@ void scst_put(void);
 
 /*
  * Allocates and returns pointer to SG vector with data size "size".
- * If use_clustering is not 0, segments in the vector will be merged,
- * when possible. In *count returned the count of entries in the vector.
+ * In *count returned the count of entries in the vector.
  * Returns NULL for failure.
  */
-struct scatterlist *scst_alloc(int size, unsigned long gfp_mask,
-	int use_clustering, int *count);
+struct scatterlist *scst_alloc(int size, unsigned long gfp_mask, int *count);
 
 /* Frees SG vector returned by scst_alloc() */
 void scst_free(struct scatterlist *sg, int count);
