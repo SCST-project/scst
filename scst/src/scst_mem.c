@@ -416,7 +416,6 @@ static int sgv_pool_cached_purge(struct sgv_pool_obj *e, int t,
 	unsigned long rt)
 {
 	EXTRACHECKS_BUG_ON(t == 0);
-	EXTRACHECKS_BUG_ON(rt == 0);
 
 	if (time_after(rt, (e->recycle_entry.time_stamp + t))) {
 		__sgv_pool_cached_purge(e);
@@ -710,23 +709,26 @@ void *sgv_get_priv(struct sgv_pool_obj *sgv)
 
 void sgv_pool_free(struct sgv_pool_obj *sgv)
 {
-	int order = sgv->order;
+	int order = sgv->order, pages;
 	
 	TRACE_MEM("Freeing sgv_obj %p, order %d, sg_entries %p, "
 		"sg_count %d, allocator_priv %p", sgv, order,
 		sgv->sg_entries, sgv->sg_count, sgv->allocator_priv);
 	if (order >= 0) {
 		sgv->sg_entries[sgv->orig_sg].length = sgv->orig_length;
+
+		pages = (sgv->sg_count) ? 1 << order : 0;
 		sgv_pool_cached_put(sgv);
 	} else {
 		sgv->owner_pool->alloc_fns.free_pages_fn(sgv->sg_entries,
 			sgv->sg_count, sgv->allocator_priv);
+
+		pages = (sgv->sg_count) ? 1 << (-order - 1) : 0;
 		kfree(sgv);
-		order = -order - 1;
 	}
 
 	spin_lock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
-	sgv_pools_mgr.mgr.thr.active_pages_total -= 1 << order;
+	sgv_pools_mgr.mgr.thr.active_pages_total -= pages;
 	spin_unlock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
 	return;
 }
