@@ -15,6 +15,7 @@
  */
 
 #include <asm/scatterlist.h>
+#include <linux/seq_file.h>
 
 #define SGV_POOL_ELEMENTS	11
 
@@ -85,9 +86,6 @@ struct scst_sgv_pools
 #endif
 };
 
-extern atomic_t sgv_other_total_alloc;
-extern struct mutex scst_sgv_pool_mutex;
-extern struct list_head scst_sgv_pool_list; 
 
 int sgv_pool_init(struct sgv_pool *pool, const char *name, 
 	int clustered);
@@ -100,3 +98,5 @@ static inline struct scatterlist *sgv_pool_sg(struct sgv_pool_obj *obj)
 
 extern int scst_sgv_pools_init(struct scst_sgv_pools *pools);
 extern void scst_sgv_pools_deinit(struct scst_sgv_pools *pools);
+extern int sgv_pool_procinfo_show(struct seq_file *seq, void *v);
+

@@ -62,10 +62,9 @@ similar functionality.
 
 static int sgv_max_local_order, sgv_max_trans_order;
 
-atomic_t sgv_other_total_alloc;
-
-DEFINE_MUTEX(scst_sgv_pool_mutex);
-LIST_HEAD(scst_sgv_pool_list);
+static atomic_t sgv_other_total_alloc;
+static DEFINE_MUTEX(scst_sgv_pool_mutex);
+static LIST_HEAD(scst_sgv_pool_list);
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22))
 static void sgv_dtor(void *data, struct kmem_cache *k, unsigned long f);
@@ -816,4 +815,44 @@ void scst_sgv_pools_deinit(struct scst_sgv_pools *pools)
 
 	TRACE_EXIT();
 	return;
+}
+
+static void scst_do_sgv_read(struct seq_file *seq, const struct sgv_pool *pool)
+{
+	int i;
+
+	seq_printf(seq, "\n%-30s %-11d %-11d\n", pool->name,
+		atomic_read(&pool->acc.hit_alloc),
+		atomic_read(&pool->acc.total_alloc));
+
+	for (i = 0; i < SGV_POOL_ELEMENTS; i++) {
+		seq_printf(seq, "  %-28s %-11d %-11d\n", pool->cache_names[i], 
+			atomic_read(&pool->cache_acc[i].hit_alloc),
+			atomic_read(&pool->cache_acc[i].total_alloc));
+	}
+
+	seq_printf(seq, "  %-28s %-11d %-11d\n", "big/other", atomic_read(&pool->big_alloc),
+		atomic_read(&pool->other_alloc));
+
+	return;
+}
+
+int sgv_pool_procinfo_show(struct seq_file *seq, void *v)
+{
+	struct sgv_pool *pool;
+
+	TRACE_ENTRY();
+
+	seq_printf(seq, "%-30s %-11s %-11s", "Name", "Hit", "Total");
+
+	mutex_lock(&scst_sgv_pool_mutex);
+	list_for_each_entry(pool, &scst_sgv_pool_list, sgv_pool_list_entry) {
+		scst_do_sgv_read(seq, pool);
+	}
+	mutex_unlock(&scst_sgv_pool_mutex);
+
+	seq_printf(seq, "\n%-42s %-11d\n", "other", atomic_read(&sgv_other_total_alloc));
+
+	TRACE_EXIT();
+	return 0;
 }
