@@ -39,7 +39,7 @@
 /* Version numbers, the same as for the kernel */
 #define SCST_VERSION_CODE 0x000906
 #define SCST_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))
-#define SCST_VERSION_STRING "0.9.6-pre2"
+#define SCST_VERSION_STRING "0.9.6-pre3"
 
 /*************************************************************
  ** States of command processing state machine

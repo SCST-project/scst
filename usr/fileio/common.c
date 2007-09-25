@@ -663,9 +663,9 @@ void *main_loop(void *arg)
 
 	vcmd.fd = open_dev_fd(dev);
 	if (vcmd.fd < 0) {
-		res = vcmd.fd;
+		res = -errno;
 		PRINT_ERROR_PR("Unable to open file %s (%s)", dev->file_name,
-			strerror(res));
+			strerror(-res));
 		goto out;
 	}
 

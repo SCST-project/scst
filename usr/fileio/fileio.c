@@ -277,9 +277,9 @@ int main(int argc, char **argv)
 	TRACE_DBG("Opening file %s", dev.file_name);
 	fd = open(dev.file_name, O_RDONLY|O_LARGEFILE);
 	if (fd < 0) {
-		res = errno;
+		res = -errno;
 		PRINT_ERROR_PR("Unable to open file %s (%s)", dev.file_name,
-			strerror(res));
+			strerror(-res));
 		goto out_done;
 	}
 
@@ -368,9 +368,9 @@ int main(int argc, char **argv)
 	dev.scst_usr_fd = open(DEV_USER_PATH DEV_USER_NAME, O_RDWR | 
 		(dev.non_blocking ? O_NONBLOCK : 0));
 	if (dev.scst_usr_fd < 0) {
-		res = dev.scst_usr_fd;
+		res = -errno;
 		PRINT_ERROR_PR("Unable to open SCST device %s (%s)",
-			DEV_USER_PATH DEV_USER_NAME, strerror(res));
+			DEV_USER_PATH DEV_USER_NAME, strerror(-res));
 		goto out_done;
 	}
 

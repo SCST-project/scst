@@ -361,7 +361,7 @@ static void dev_user_on_cached_mem_free(struct dev_user_cmd *ucmd)
 {
 	TRACE_ENTRY();
 
-	TRACE_DBG("Preparing ON_CACHED_MEM_FREE (ucmd %p, h %d, ubuff %lx)",
+	TRACE_MEM("Preparing ON_CACHED_MEM_FREE (ucmd %p, h %d, ubuff %lx)",
 		ucmd, ucmd->h, ucmd->ubuff);
 
 	ucmd->user_cmd.cmd_h = ucmd->h;
@@ -400,18 +400,14 @@ static void dev_user_unmap_buf(struct dev_user_cmd *ucmd)
 	return;
 }
 
-static void dev_user_free_sg_entries(struct scatterlist *sg, int sg_count,
-	void *priv)
+static void __dev_user_free_sg_entries(struct dev_user_cmd *ucmd)
 {
-	struct dev_user_cmd *ucmd = (struct dev_user_cmd*)priv;
-
 	TRACE_ENTRY();
 
 	sBUG_ON(ucmd->data_pages == NULL);
 
-	TRACE_MEM("Freeing data pages (ucmd=%p, ubuff=%lx, sg=%p, sg_count=%d, "
-		"buff_cached=%d)", ucmd, ucmd->ubuff, sg, sg_count,
-		ucmd->buff_cached);
+	TRACE_MEM("Freeing data pages (ucmd=%p, ubuff=%lx, buff_cached=%d)",
+		ucmd, ucmd->ubuff, ucmd->buff_cached);
 
 	dev_user_unmap_buf(ucmd);
 
@@ -421,6 +417,19 @@ static void dev_user_free_sg_entries(struct scatterlist *sg, int sg_count,
 		ucmd_put(ucmd);
 
 	TRACE_EXIT();
+	return;
+}
+
+static void dev_user_free_sg_entries(struct scatterlist *sg, int sg_count,
+	void *priv)
+{
+	struct dev_user_cmd *ucmd = (struct dev_user_cmd*)priv;
+
+	TRACE_MEM("Freeing data pages (sg=%p, sg_count=%d, priv %p)", sg,
+		sg_count, ucmd);
+
+	__dev_user_free_sg_entries(ucmd);
+
 	return;
 }
 
@@ -510,9 +519,8 @@ static int dev_user_alloc_sg(struct dev_user_cmd *ucmd, int cached_buff)
 					cmd->tgt->sg_tablesize);
 				ll++;
 			}
-			sgv_pool_free(ucmd->sgv);
-			ucmd->sgv = NULL;
 			cmd->sg = NULL;
+			/* sgv will be freed in dev_user_free_sgv() */
 			res = -1;
 		}
 	} else {
@@ -520,9 +528,9 @@ static int dev_user_alloc_sg(struct dev_user_cmd *ucmd, int cached_buff)
 			"sg_cnt %d, ubuff %lx, sgv %p", ucmd, ucmd->h,
 			ucmd->buff_cached, cmd->sg_cnt,	ucmd->ubuff, ucmd->sgv);
 		if (unlikely(cmd->sg_cnt == 0)) {
+			TRACE_MEM("Refused allocation (ucmd %p)", ucmd);
+			sBUG_ON(ucmd->sgv != NULL);
 			res = -1;
-			if (ucmd->data_pages != NULL)
-				dev_user_unmap_buf(ucmd);
 		} else {
 			switch(ucmd->state & ~UCMD_STATE_MASK) {
 			case UCMD_STATE_BUF_ALLOCING:
@@ -530,8 +538,6 @@ static int dev_user_alloc_sg(struct dev_user_cmd *ucmd, int cached_buff)
 				break;
 			case UCMD_STATE_EXECING:
 				res = -1;
-				if (ucmd->data_pages != NULL)
-					dev_user_unmap_buf(ucmd);
 				break;
 			default:
 				sBUG();
@@ -810,7 +816,12 @@ static void dev_user_free_sgv(struct dev_user_cmd *ucmd)
 	if (ucmd->sgv != NULL) {
 		sgv_pool_free(ucmd->sgv);
 		ucmd->sgv = NULL;
+	} else if (ucmd->data_pages != NULL) {
+		/* We mapped pages, but for some reason didn't allocate them */
+		ucmd_get(ucmd, 0);
+		__dev_user_free_sg_entries(ucmd);
 	}
+	return;
 }
 
 static void dev_user_on_free_cmd(struct scst_cmd *cmd)
@@ -822,7 +833,7 @@ static void dev_user_on_free_cmd(struct scst_cmd *cmd)
 	if (unlikely(ucmd == NULL))
 		goto out;
 
-	TRACE_DBG("ucmd %p, cmd %p, buff_cached %d, ubuff %lx", ucmd, ucmd->cmd,
+	TRACE_MEM("ucmd %p, cmd %p, buff_cached %d, ubuff %lx", ucmd, ucmd->cmd,
 		ucmd->buff_cached, ucmd->ubuff);
 
 	ucmd->cmd = NULL;
@@ -997,6 +1008,8 @@ static int dev_user_map_buf(struct dev_user_cmd *ucmd, unsigned long ubuff,
 
 	if (unlikely(ubuff == 0))
 		goto out_nomem;
+
+	sBUG_ON(ucmd->data_pages != NULL);
 
 	ucmd->num_data_pages = num_pg;
 

@@ -503,6 +503,8 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 	int no_cached = flags & SCST_POOL_ALLOC_NO_CACHED;
 	int no_fail = ((gfp_mask & __GFP_NOFAIL) == __GFP_NOFAIL);
 
+	TRACE_ENTRY();
+
 	sBUG_ON(size == 0);
 
 	pages = ((size + PAGE_SIZE - 1) >> PAGE_SHIFT);
@@ -519,13 +521,8 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 		EXTRACHECKS_BUG_ON(obj->sg_count != 0);
 		pages_to_alloc = (1 << order);
 		cache = pool->caches[obj->order];
-		if (sgv_pool_hiwmk_check(pages_to_alloc, no_fail) != 0) {
-			obj->sg_count = 0;
-			if ((flags & SCST_POOL_RETURN_OBJ_ON_ALLOC_FAIL))
-				goto out_return1;
-			else
-				goto out_fail_free_sg_entries;
-		}
+		if (sgv_pool_hiwmk_check(pages_to_alloc, no_fail) != 0)
+			goto out_fail_free_sg_entries;
 	} else if ((order < SGV_POOL_ELEMENTS) && !no_cached) {
 		cache = pool->caches[order];
 		obj = sgv_pool_cached_get(pool, order, gfp_mask);
@@ -579,13 +576,8 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 			goto out_return;
 			
 		obj->allocator_priv = priv;
-		if (sgv_pool_hiwmk_check(pages_to_alloc, no_fail) != 0) {
-			obj->sg_count = 0;
-			if ((flags & SCST_POOL_RETURN_OBJ_ON_ALLOC_FAIL))
-				goto out_return1;
-			else
-				goto out_fail_free_sg_entries;
-		}
+		if (sgv_pool_hiwmk_check(pages_to_alloc, no_fail) != 0)
+			goto out_fail_free_sg_entries;
 	} else {
 		int sz;
 		pages_to_alloc = pages;
@@ -604,10 +596,8 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 		obj->sg_entries = obj->sg_entries_data;
 		obj->allocator_priv = priv;
 		
-		if (sgv_pool_hiwmk_check(pages_to_alloc, no_fail) != 0) {
-			obj->sg_count = 0;
+		if (sgv_pool_hiwmk_check(pages_to_alloc, no_fail) != 0)
 			goto out_fail_free_sg_entries;
-		}
 		TRACE_MEM("Big or no_cached sgv_obj %p (size %d)", obj,	sz);		
 	}
 
@@ -662,6 +652,7 @@ success:
 		obj->sg_count, *count, obj->sg_entries[obj->orig_sg].length);
 
 out:
+	TRACE_EXIT_HRES(res);
 	return res;
 
 out_return:
