@@ -498,99 +498,7 @@ out_xmit:
 	goto out;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
-void scst_cmd_mem_work_fn(void *p)
-#else
-void scst_cmd_mem_work_fn(struct work_struct *work)
-#endif
-{
-	TRACE_ENTRY();
 
-	spin_lock_bh(&scst_cmd_mem_lock);
-
-	scst_cur_max_cmd_mem += (scst_cur_max_cmd_mem >> 3);
-	if (scst_cur_max_cmd_mem < scst_max_cmd_mem) {
-		TRACE_MGMT_DBG("%s", "Schedule cmd_mem_work");
-		schedule_delayed_work(&scst_cmd_mem_work, SCST_CMD_MEM_TIMEOUT);
-	} else {
-		scst_cur_max_cmd_mem = scst_max_cmd_mem;
-		clear_bit(SCST_FLAG_CMD_MEM_WORK_SCHEDULED, &scst_flags);
-	}
-	TRACE_MGMT_DBG("New max cmd mem %ld Mb", scst_cur_max_cmd_mem >> 20);
-
-	spin_unlock_bh(&scst_cmd_mem_lock);
-
-	TRACE_EXIT();
-	return;
-}
-
-int scst_check_mem(struct scst_cmd *cmd)
-{
-	int res = 0;
-
-	TRACE_ENTRY();
-
-	if (cmd->mem_checked)
-		goto out;
-
-	spin_lock_bh(&scst_cmd_mem_lock);
-
-	scst_cur_cmd_mem += cmd->bufflen;
-	cmd->mem_checked = 1;
-	if (likely(scst_cur_cmd_mem <= scst_cur_max_cmd_mem))
-		goto out_unlock;
-
-	TRACE(TRACE_OUT_OF_MEM, "Total memory allocated by commands (%ld Kb) "
-		"is too big, returning QUEUE FULL to initiator \"%s\" (maximum "
-		"allowed %ld Kb)", scst_cur_cmd_mem >> 10,
-		(cmd->sess->initiator_name[0] == '\0') ?
-		  "Anonymous" : cmd->sess->initiator_name,
-		scst_cur_max_cmd_mem >> 10);
-
-	scst_cur_cmd_mem -= cmd->bufflen;
-	cmd->mem_checked = 0;
-	scst_set_busy(cmd);
-	cmd->state = SCST_CMD_STATE_XMIT_RESP;
-	res = 1;
-
-out_unlock:
-	spin_unlock_bh(&scst_cmd_mem_lock);
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static void scst_low_cur_max_cmd_mem(void)
-{
-	TRACE_ENTRY();
-
-	if (test_bit(SCST_FLAG_CMD_MEM_WORK_SCHEDULED, &scst_flags)) {
-		cancel_delayed_work(&scst_cmd_mem_work);
-		flush_scheduled_work();
-		clear_bit(SCST_FLAG_CMD_MEM_WORK_SCHEDULED, &scst_flags);
-	}
-
-	spin_lock_bh(&scst_cmd_mem_lock);
-
-	scst_cur_max_cmd_mem = (scst_cur_cmd_mem >> 1) + 
-				(scst_cur_cmd_mem >> 2);
-	if (scst_cur_max_cmd_mem < 16*1024*1024)
-		scst_cur_max_cmd_mem = 16*1024*1024;
-
-	if (!test_bit(SCST_FLAG_CMD_MEM_WORK_SCHEDULED, &scst_flags)) {
-		TRACE_MGMT_DBG("%s", "Schedule cmd_mem_work");
-		schedule_delayed_work(&scst_cmd_mem_work, SCST_CMD_MEM_TIMEOUT);
-		set_bit(SCST_FLAG_CMD_MEM_WORK_SCHEDULED, &scst_flags);
-	}
-
-	spin_unlock_bh(&scst_cmd_mem_lock);
-
-	TRACE_MGMT_DBG("New max cmd mem %ld Mb", scst_cur_max_cmd_mem >> 20);
-
-	TRACE_EXIT();
-	return;
-}
 
 static int scst_prepare_space(struct scst_cmd *cmd)
 {
@@ -623,15 +531,12 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 	}
 
 alloc:
-	r = scst_check_mem(cmd);
-	if (unlikely(r != 0))
-		goto out;
-	else if (!cmd->data_buf_alloced) {
+	if (!cmd->data_buf_alloced) {
 		r = scst_alloc_space(cmd);
 	} else {
 		TRACE_MEM("%s", "data_buf_alloced set, returning");
 	}
-
+	
 check:
 	if (r != 0) {
 		if (scst_cmd_atomic(cmd)) {
@@ -689,7 +594,6 @@ out:
 out_no_space:
 	TRACE(TRACE_OUT_OF_MEM, "Unable to allocate or build requested buffer "
 		"(size %d), sending BUSY or QUEUE FULL status", cmd->bufflen);
-	scst_low_cur_max_cmd_mem();
 	scst_set_busy(cmd);
 	cmd->state = SCST_CMD_STATE_DEV_DONE;
 	res = SCST_CMD_STATE_RES_CONT_SAME;
@@ -2550,12 +2454,6 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 	int res;
 
 	TRACE_ENTRY();
-
-	if (cmd->mem_checked) {
-		spin_lock_bh(&scst_cmd_mem_lock);
-		scst_cur_cmd_mem -= cmd->bufflen;
-		spin_unlock_bh(&scst_cmd_mem_lock);
-	}
 
 	atomic_dec(&cmd->sess->sess_cmd_count);
 

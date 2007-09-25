@@ -97,17 +97,10 @@ spinlock_t scst_cmd_mem_lock = SPIN_LOCK_UNLOCKED;
 unsigned long scst_cur_cmd_mem, scst_cur_max_cmd_mem;
 unsigned long scst_max_cmd_mem;
 
-struct scst_sgv_pools scst_sgv;
-
 struct scst_cmd_lists scst_main_cmd_lists;
 
 struct scst_tasklet scst_tasklets[NR_CPUS];
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
-DECLARE_WORK(scst_cmd_mem_work, scst_cmd_mem_work_fn, 0);
-#else
-DECLARE_DELAYED_WORK(scst_cmd_mem_work, scst_cmd_mem_work_fn);
-#endif
 
 spinlock_t scst_mcmd_lock = SPIN_LOCK_UNLOCKED;
 LIST_HEAD(scst_active_mgmt_cmd_list);
@@ -1451,7 +1444,19 @@ static int __init init_scst(void)
 		goto out_destroy_mgmt_mempool;
 	}
 
-	res = scst_sgv_pools_init(&scst_sgv);
+	if (scst_max_cmd_mem == 0) {
+		struct sysinfo si;
+		si_meminfo(&si);
+#if BITS_PER_LONG == 32
+		scst_max_cmd_mem = min(((uint64_t)si.totalram << PAGE_SHIFT) >> 2,
+					(uint64_t)1 << 30);
+#else
+		scst_max_cmd_mem = (si.totalram << PAGE_SHIFT) >> 2;
+#endif
+	} else
+		scst_max_cmd_mem <<= 20;
+
+	res = scst_sgv_pools_init(scst_max_cmd_mem, 0);
 	if (res != 0)
 		goto out_destroy_ua_mempool;
 
@@ -1485,19 +1490,6 @@ static int __init init_scst(void)
 	if (res != 0)
 		goto out_thread_free;
 
-	if (scst_max_cmd_mem == 0) {
-		struct sysinfo si;
-		si_meminfo(&si);
-#if BITS_PER_LONG == 32
-		scst_max_cmd_mem = min(((uint64_t)si.totalram << PAGE_SHIFT) >> 2,
-					(uint64_t)1 << 30);
-#else
-		scst_max_cmd_mem = (si.totalram << PAGE_SHIFT) >> 2;
-#endif
-	} else
-		scst_max_cmd_mem <<= 20;
-
-	scst_cur_max_cmd_mem = scst_max_cmd_mem;
 
 	PRINT_INFO_PR("SCST version %s loaded successfully (max mem for "
 		"commands %ld Mb)", SCST_VERSION_STRING, scst_max_cmd_mem >> 20);
@@ -1515,7 +1507,7 @@ out_free_acg:
 	scst_destroy_acg(scst_default_acg);
 
 out_destroy_sgv_pool:
-	scst_sgv_pools_deinit(&scst_sgv);
+	scst_sgv_pools_deinit();
 
 out_destroy_ua_mempool:
 	mempool_destroy(scst_ua_mempool);
@@ -1554,11 +1546,6 @@ static void __exit exit_scst(void)
 	
 	/* ToDo: unregister_cpu_notifier() */
 
-	if (test_bit(SCST_FLAG_CMD_MEM_WORK_SCHEDULED, &scst_flags)) {
-		cancel_delayed_work(&scst_cmd_mem_work);
-		flush_scheduled_work();
-	}
-
 	scst_proc_cleanup_module();
 
 	scst_stop_all_threads();
@@ -1566,7 +1553,7 @@ static void __exit exit_scst(void)
 	scsi_unregister_interface(&scst_interface);
 	scst_destroy_acg(scst_default_acg);
 
-	scst_sgv_pools_deinit(&scst_sgv);
+	scst_sgv_pools_deinit();
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
 #define DEINIT_CACHEP(p, s) do {			\
@@ -1656,7 +1643,6 @@ EXPORT_SYMBOL(scst_create_proc_entry);
 EXPORT_SYMBOL(scst_single_seq_open);
 
 EXPORT_SYMBOL(__scst_get_buf);
-EXPORT_SYMBOL(scst_check_mem);
 EXPORT_SYMBOL(scst_get);
 EXPORT_SYMBOL(scst_put);
 

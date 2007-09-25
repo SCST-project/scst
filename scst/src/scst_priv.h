@@ -174,14 +174,6 @@ extern unsigned int scst_init_poll_cnt;
 
 extern struct scst_cmd_lists scst_main_cmd_lists;
 
-extern spinlock_t scst_cmd_mem_lock;
-extern unsigned long scst_max_cmd_mem, scst_cur_max_cmd_mem, scst_cur_cmd_mem;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
-extern struct work_struct scst_cmd_mem_work;
-#else
-extern struct delayed_work scst_cmd_mem_work;
-#endif
-
 extern spinlock_t scst_mcmd_lock;
 /* The following lists protected by scst_mcmd_lock */
 extern struct list_head scst_active_mgmt_cmd_list;
@@ -248,11 +240,6 @@ void scst_cmd_tasklet(long p);
 int scst_init_cmd_thread(void *arg);
 int scst_mgmt_cmd_thread(void *arg);
 int scst_mgmt_thread(void *arg);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
-void scst_cmd_mem_work_fn(void *p);
-#else
-void scst_cmd_mem_work_fn(struct work_struct *work);
-#endif
 
 int scst_add_dev_threads(struct scst_device *dev, int num);
 void scst_del_dev_threads(struct scst_device *dev, int num);

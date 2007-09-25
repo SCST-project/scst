@@ -359,8 +359,8 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	tgt_dev->sess = sess;
 	atomic_set(&tgt_dev->tgt_dev_cmd_count, 0);
 
-	tgt_dev->gfp_mask = __GFP_NOWARN;
-	tgt_dev->pool = &scst_sgv.norm;
+	
+	scst_sgv_pool_use_norm(tgt_dev);
 
 	if (dev->scsi_dev != NULL) {
 		ini_sg = dev->scsi_dev->host->sg_tablesize;
@@ -376,18 +376,14 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 
 	if ((sess->tgt->tgtt->use_clustering || ini_use_clustering) && 
 	    !sess->tgt->tgtt->no_clustering) {
-		TRACE_MEM("%s", "Use clustering");
-		tgt_dev->pool = &scst_sgv.norm_clust;
+		scst_sgv_pool_use_norm_clust(tgt_dev); 
 	}
 
 	if (sess->tgt->tgtt->unchecked_isa_dma || ini_unchecked_isa_dma) {
-		TRACE_MEM("%s", "Use ISA DMA memory");
-		tgt_dev->gfp_mask |= GFP_DMA;
-		tgt_dev->pool = &scst_sgv.dma;
+		scst_sgv_pool_use_dma(tgt_dev);
 	} else {
 #ifdef SCST_HIGHMEM
-		gfp_mask |= __GFP_HIGHMEM;
-		tgt_dev->pool = &scst_sgv.highmem;
+		scst_sgv_pool_use_highmem(tgt_dev);
 #endif
 	}
 

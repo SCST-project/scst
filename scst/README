@@ -660,6 +660,8 @@ Thanks to:
 
  * Terry Greeniaus <tgreeniaus@yottayotta.com> for fixes.
 
+ * Krzysztof Blaszkowski <kb@sysmikro.com.pl> for many fixes and bug reports.
+
  * Jianxi Chen <pacers@users.sourceforge.net> for fixing problem with
    devices >2TB in size
 

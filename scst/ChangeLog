@@ -1,6 +1,9 @@
 Summary of changes between versions 0.9.5 and 0.9.6
 ---------------------------------------------------
 
+ - New SGV cache low memory management backend with memory flow control
+   facility was implemented, thanks to Krzysztof Blaszkowski.
+
  - FILEIO was renamed to VDISK. BLOCKIO added to it, thanks to Ross S. W.
    Walker and Vu Pham.
 
