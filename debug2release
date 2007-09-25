@@ -1,0 +1,8 @@
+#!/bin/bash
+
+echo "Changing current debug state from full debug to release"
+
+patch -p0 <scst-release.patch && \
+patch -p0 <usr-release.patch && \
+patch -p0 <qla2x00t-release.patch && \
+patch -p0 <iscsi-release.patch

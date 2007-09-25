@@ -509,14 +509,13 @@ User space mode using scst_user dev handler
 -------------------------------------------
 
 User space program fileio_tgt uses interface of scst_user dev handler
-and allows to see how it work in various modes. Fileio_tgt provides
-mostly the same functionality as scst_vdisk handler with the only
-exceptions that it has implemented O_DIRECT mode and doesn't support
-BLOCKIO one. O_DIRECT mode is basically the same as BLOCKIO, but also
-supports files, so for some loads it could be significantly faster, than
-regular FILEIO access. All the words about BLOCKIO from above apply to
-O_DIRECT as well. While running fileio_tgt if you don't understand some
-its options, use defaults for them, those values are the fastest.
+and allows to see how it works in various modes. Fileio_tgt provides
+mostly the same functionality as scst_vdisk handler with the most
+noticeable difference that it supports O_DIRECT mode. O_DIRECT mode is
+basically the same as BLOCKIO, but also supports files, so for some
+loads it could be significantly faster, than the regular FILEIO access.
+All the words about BLOCKIO from above apply to O_DIRECT as well. See
+fileio_tgt's README file for more details.
 
 Performance
 -----------
@@ -550,7 +549,10 @@ II. In order to get the maximum performance you should:
 
 IMPORTANT: Some of the compilation options enabled by default, i.e. SCST
 =========  is optimized currently rather for development and bug hunting,
-           not for performance.
+           than for performance.
+
+If you use SCST version taken directly from its SVN repository, you can
+set the above options using debug2perf script file.
 
 4. For kernel:
 

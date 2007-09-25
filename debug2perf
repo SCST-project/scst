@@ -1,0 +1,8 @@
+#!/bin/bash
+
+echo "Changing current debug state from full debug to full performance"
+
+patch -p0 <scst-full_perf.patch && \
+patch -p0 <usr-full_perf.patch && \
+patch -p0 <qla2x00t-full_perf.patch && \
+patch -p0 <iscsi-full_perf.patch

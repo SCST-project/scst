@@ -1,0 +1,17 @@
+Index: qla2x00t/qla2x00-target/Makefile
+===================================================================
+--- qla2x00t/qla2x00-target/Makefile	(revision 324)
++++ qla2x00t/qla2x00-target/Makefile	(working copy)
+@@ -35,10 +35,10 @@ INSTALL_DIR := /lib/modules/$(shell unam
+ 
+ EXTRA_CFLAGS += -I$(SCST_INC_DIR) -DFC_TARGET_SUPPORT -Wextra -Wno-unused-parameter
+ 
+-EXTRA_CFLAGS += -DEXTRACHECKS 
++#EXTRA_CFLAGS += -DEXTRACHECKS 
+ #EXTRA_CFLAGS += -DTRACING
+ 
+-EXTRA_CFLAGS += -DDEBUG_TGT -g
++#EXTRA_CFLAGS += -DDEBUG_TGT -g
+ #EXTRA_CFLAGS += -DDEBUG_WORK_IN_THREAD
+ #EXTRA_CFLAGS += -DDEBUG_SRR
+ 

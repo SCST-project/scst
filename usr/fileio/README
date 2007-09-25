@@ -1,0 +1,83 @@
+User space FILEIO handler
+=========================
+
+Version 0.9.6, XX XXX 200X
+--------------------------
+
+User space program fileio_tgt uses interface of SCST's scst_user dev
+handler as well as allows to see how it works in various modes.
+Fileio_tgt provides mostly the same functionality as the kernel space
+SCST's scst_vdisk handler with the only exceptions that it supports
+O_DIRECT mode and doesn't support BLOCKIO one. O_DIRECT mode is
+basically the same as BLOCKIO, but also supports files, so for some
+loads it could be significantly faster, than the regular FILEIO access.
+All the words about BLOCKIO mode from SCST's README file apply to
+O_DIRECT mode as well.
+
+Installation
+------------
+
+Make sure you have installed SCST core, if not, see its README file for
+details how to do it.
+
+Then run "make all install"
+
+For the best performance make sure you don't have any debug options
+(i.e. lines like "CFLAGS += -DDEBUG" containing "-DDEBUG*" string)
+enabled in the Makefile.
+
+Usage
+-----
+
+Load scst_user module using modprobe or insmod, then start fileio_tgt
+program. It can be used as the following:
+
+fileio_tgt [OPTION] name path
+
+Where:
+
+ - OPTION - one or several not required options, see below.
+ 
+ - name - name of the virtual device as it will be seen by SCST and used
+   in the subsequent access management using the corresponding SCST interface.
+   
+ - path - path to the device file.
+
+The following options are supported:
+
+ -b or --block=size: block size, must be power of 2 and >=512
+
+ -e or --threads=count: number of threads
+
+ -t or --write_through: write through mode
+
+ -r or --read_only: read only
+
+ -o or --direct: O_DIRECT mode, see above for details
+
+ -n or --nullio: NULLIO mode, see SCST's README file for details
+
+ -c or --nv_cache: NV_CACHE mode, see SCST's README file for details
+
+ -p or --parse=type: parse type, one of "std" (default), "call" or "excpt"
+
+ -f or --on_free=type: on free call type, one of "ignore" (default) or "call"
+
+ -m or --mem_reuse=type: Memory reuse type, one of "all" (default), "read",
+  "write" or "none"
+
+ -s or --prio_thread: Use separate thread for mgmt (prio) commands
+
+ -l or --non_blocking: Use non-blocking operations
+
+Also in the debug builds the following options are supported:
+
+ -d or --debug=level: debug tracing level
+
+ -g or --debug_tm_ignore: turn on DEBUG_TM_IGNORE, one of the task management
+  debugging features
+
+If you don't understand some these options, don't use them, default
+values provide the best performance.
+
+Vladislav Bolkhovitin <vst@vlnb.net>, http://scst.sourceforge.net

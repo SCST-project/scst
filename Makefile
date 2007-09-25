@@ -63,7 +63,7 @@ help:
 	@echo "		usr_extraclean    : usr target: clean + clean dependencies"
 	@echo "		usr_install       : usr target: install"
 	@echo "		usr_uninstall     : usr target: uninstall"
-
+	@echo ""
 	@echo "	Note:"
 	@echo "		- install and uninstall may need root privileges"
 

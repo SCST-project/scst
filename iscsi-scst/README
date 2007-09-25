@@ -35,34 +35,48 @@ above.
 To use full power of TCP zero-copy transmit functions, especially
 dealing with user space supplied via scst_user module memory, iSCSI-SCST
 needs to be notified when Linux networking finished data transmission.
-Patch put_page_callback.patch provides such functionality. The
-corresponding version of it should be applied on your kernel. This is
-highly recommended, but not required. If it isn't applied, iSCSI-SCST
-will work in the performance degraded mode, when for data transmission:
+Patch put_page_callback-<kernel-version>.patch provides such
+functionality. The corresponding version of it should be applied on your
+kernel. This is highly recommended, but not required. Basically, you
+should consider using of this patch as some optimization, which IET
+doesn't have, so if you don't use it, you will just revert to the
+original IET behavior, when for data transmission:
 
  - For in-kernel allocated memory (scst_vdisk and pass-through
    handlers) usage of SGV cache on transmit path (READ-type commands)
-   will be disabled. The performance hit will be not big, performance
+   will be disabled. The performance hit will be not big, but performance
    will still remain better, than for IET, because SGV cache will remain
    used on receive path and IET doesn't have such feature.
 
  - For user space allocated memory (scst_user handler) all transmitted
    data will be additionally copied into temporary TCP buffers. The
-   performance hit will be quite noticiable.
-  
-If you need your own version of put_page_callback.patch for your custom
-kernel, for which there is no prepared version, you can create it
-yourself. For that it is only necessary:
+   performance hit will be quite noticeable.
 
-1. Apply the closest version of put_page_callback.patch on your kernel.
-Resolve only failed hanks from include/ and net/core/utils.c, ignore
-other failures.
+If you have error messages like:
 
-2. Grep net/ and replace everywhere, except in net/sunrpc/svc.c and
-net/core/pktgen.c, put_page() by net_put_page() and get_page() by
-net_get_page().
+iscsi-scst: ***ERROR*** net_priv isn't NULL and != ref_cmd
 
-That's all.
+with the corresponding kernel BUG dump, then put_page_callback patch you
+use isn't sufficient for your kernel. This might be because the kernel
+you use has some additional patches applied, which affect the
+functionality, which put_page_callback patch provides. For example,
+Fedora or Gentoo use kernels, which, although have version number like
+2.6.18, are greatly differ from the "vanilla" kernel 2.6.18,
+maintained by Linus Torvalds for that the put_page_callback patch was
+created. In this case I would recommend you either:
+
+ - Search net/ in your kernel source for "put_page" and "get_page" functions.
+   If you find any in some place, except in net/sunrpc/svc.c and
+   net/core/pktgen.c, then, most likely, you found the reason of your
+   problem. Replace them by "net_put_page" and "net_get_page"
+   correspondingly and try again. If the problem is solved, then please
+   prepare a new put_page_callback patch and send it to the SCST mailing
+   list scst-devel@lists.sourceforge.net.
+
+or
+
+ - Unapply this patch and use iSCSI-SCST without it. Also report this
+   problem to the SCST mailing list scst-devel@lists.sourceforge.net.
 
 Usage
 -----
@@ -71,9 +85,9 @@ ISCSI parameters like iSNS, CHAP and target parameters are configured in
 iscsi-scstd.conf. All LUN information is configured using the regular
 SCST interface. The LUN information in iscsi-scstd.conf will be ignored.
 This is because now responsibilities are divided (as it should be)
-between the target driver (iSCSI-SCST) and the SCST core. The target
-driver is responsible for handling targets and their parameters, SCST
-core is responsible for handling backstorage.
+between the target driver (iSCSI-SCST) and the SCST core as it logically
+should be: the target driver is responsible for handling targets and
+their parameters, SCST core is responsible for handling backstorage.
 
 If you need to configure different LUs for different targets you should
 create for each target group "Default_target_name", where target name
@@ -97,6 +111,26 @@ in/out in the kernel's module Makefile:
  - EXTRACHECKS - adds extra validity checks in the various places.
 
  - DEBUG_DIGEST_FAILURES - simulates digest failures in random places.
+
+Creating version of put_page_callback patch for your kernel
+-----------------------------------------------------------
+
+If you need your own version of put_page_callback patch for your custom
+kernel, for which there is no prepared version, you can create it
+yourself. This is pretty mechanical work, you don't need to understand
+how it works, you only need to do the following two steps:
+
+1. Apply the closest version of put_page_callback-<kernel-version>.patch
+on your kernel. Resolve only failed hanks from include/ and
+net/core/utils.c, ignore other failures.
+
+2. Search net/ in your kernel source for "put_page" and "get_page"
+functions. Replace them by "net_put_page" and "net_get_page"
+correspondingly. 
+
+That's all. Then please send your new
+put_page_callback-<kernel-version>.patch to the SCST mailing list
+scst-devel@lists.sourceforge.net.
 
 Credits
 -------

@@ -425,7 +425,7 @@ static int sgv_pool_cached_purge(struct sgv_pool_obj *e, int t,
 	return 1;
 }
 
-/* Called under pool_mgr_lock held, but drops/reaquire it inside */
+/* Called under pool_mgr_lock held, but drops/reaquires it inside */
 static int sgv_pool_oom_free_objs(int pgs)
 {
 	TRACE_MEM("Shrinking pools about %d pages", pgs);
@@ -478,10 +478,11 @@ static int sgv_pool_hiwmk_check(int pages_to_alloc, int no_fail)
 					"memory for being executed commands "
 					"exceeds allowed maximum %dMB, "
 					"should you increase scst_max_cmd_mem "
-					"(requested %d pages)? (This message "
-					"will be shown only the first 100 "
-					"times)", sgv_pools_mgr.mgr.thr.hi_wmk >>
-					  (20-PAGE_SHIFT), pages_to_alloc);
+					"(requested %d pages)? (This warning "
+					"will be shown only %d more times)",
+					sgv_pools_mgr.mgr.thr.hi_wmk >>
+					    (20-PAGE_SHIFT), pages_to_alloc,
+					100-q);
 			}
 			sgv_pools_mgr.mgr.thr.releases_failed++;
 			res = -ENOMEM;

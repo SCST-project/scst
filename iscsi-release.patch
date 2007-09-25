@@ -1,0 +1,17 @@
+Index: iscsi-scst/kernel/Makefile
+===================================================================
+--- iscsi-scst/kernel/Makefile	(revision 324)
++++ iscsi-scst/kernel/Makefile	(working copy)
+@@ -26,9 +26,9 @@ SCST_INC_DIR := $(SUBDIRS)/../../scst/in
+ EXTRA_CFLAGS += -I$(src)/../include -I$(SCST_INC_DIR)
+ # -Wextra -Wno-unused-parameter
+ 
+-EXTRA_CFLAGS += -DEXTRACHECKS
+-#EXTRA_CFLAGS += -DTRACING
+-EXTRA_CFLAGS += -DDEBUG -g
++#EXTRA_CFLAGS += -DEXTRACHECKS
++EXTRA_CFLAGS += -DTRACING
++#EXTRA_CFLAGS += -DDEBUG -g
+ 
+ #EXTRA_CFLAGS += -DDEBUG_DIGEST_FAILURES
+ 

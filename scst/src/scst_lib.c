@@ -90,8 +90,7 @@ void scst_set_busy(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	if ((c <= 1) || (cmd->sess->init_phase != SCST_SESS_IPH_READY))
-	{
+	if ((c <= 1) || (cmd->sess->init_phase != SCST_SESS_IPH_READY))	{
 		scst_set_cmd_error_status(cmd, SAM_STAT_BUSY);
 		TRACE_MGMT_DBG("Sending BUSY status to initiator %s "
 			"(cmds count %d, queue_type %x, sess->init_phase %d)",
