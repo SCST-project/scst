@@ -1446,6 +1446,7 @@ static int dev_user_process_scst_commands(struct scst_user_dev *dev)
 	return res;
 }
 
+/* Called under cmd_lists.cmd_list_lock and IRQ off */
 struct dev_user_cmd *__dev_user_get_next_cmd(struct list_head *cmd_list)
 {
 	struct dev_user_cmd *u;
@@ -1459,11 +1460,11 @@ again:
 		EXTRACHECKS_BUG_ON(u->state & UCMD_STATE_JAMMED_MASK);
 		if (u->cmd != NULL) {
 			if (u->state == UCMD_STATE_EXECING) {
-				int rc = scst_check_local_events(u->cmd);
+				struct scst_user_dev *dev = u->dev;
+				int rc;
+				spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+				rc = scst_check_local_events(u->cmd);
 				if (unlikely(rc != 0)) {
-					struct scst_user_dev *dev = u->dev;
-					spin_unlock_irq(
-						&dev->cmd_lists.cmd_list_lock);
 					u->cmd->scst_cmd_done(u->cmd,
 						SCST_CMD_STATE_DEFAULT);
 					/* 
@@ -1474,6 +1475,11 @@ again:
 						&dev->cmd_lists.cmd_list_lock);
 					goto again;
 				}
+				/*
+				 * There is no real need to lock again here, but
+				 * let's do it for simplicity.
+				 */
+				spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
 			} else if (unlikely(test_bit(SCST_CMD_ABORTED,
 					&u->cmd->cmd_flags))) {
 				switch(u->state) {

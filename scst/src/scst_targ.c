@@ -1449,6 +1449,7 @@ out_done:
 	goto out;
 }
 
+/* No locks, no IRQ or IRQ-safe context allowed */
 int scst_check_local_events(struct scst_cmd *cmd)
 {
 	int res, rc;

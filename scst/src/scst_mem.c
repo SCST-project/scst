@@ -471,19 +471,14 @@ static int sgv_pool_hiwmk_check(int pages_to_alloc, int no_fail)
 
 		pages = sgv_pool_oom_free_objs(pages);
 		if (pages > 0) {
-			static int q;
-			if (q < 100) {
-				q++;
-				TRACE(TRACE_OUT_OF_MEM, "Requested amount of "
-					"memory for being executed commands "
-					"exceeds allowed maximum %dMB, "
-					"should you increase scst_max_cmd_mem "
-					"(requested %d pages)? (This warning "
-					"will be shown only %d more times)",
-					sgv_pools_mgr.mgr.thr.hi_wmk >>
-					    (20-PAGE_SHIFT), pages_to_alloc,
-					100-q);
-			}
+			TRACE(TRACE_OUT_OF_MEM, "Requested amount of "
+			    "memory (%d pages) for being executed "
+			    "commands together with the already "
+			    "allocated memory exceeds the allowed "
+			    "maximum %dMB. Should you increase "
+			    "scst_max_cmd_mem?", pages_to_alloc,
+			   sgv_pools_mgr.mgr.thr.hi_wmk >>
+				(20-PAGE_SHIFT));
 			sgv_pools_mgr.mgr.thr.releases_failed++;
 			res = -ENOMEM;
 			goto out_unlock;
