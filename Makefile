@@ -25,7 +25,7 @@ LSI_DIR=mpt
 USR_DIR=usr/fileio
 
 ISCSI_DIR=iscsi-scst
-#ISCSI_DISTDIR=../../../../iscsi_scst_inst
+#ISCSI_DISTDIR=../../../iscsi_scst_inst
 
 help:
 	@echo "		all               : make all"
@@ -140,7 +140,7 @@ iscsi:
 	cd $(ISCSI_DIR) && $(MAKE)
 
 iscsi_install:
-	cd $(ISCSI_DIR) && $(MAKE) install
+	cd $(ISCSI_DIR) && $(MAKE) DISTDIR=$(ISCSI_DISTDIR) install
 
 iscsi_uninstall:
 	cd $(ISCSI_DIR) && $(MAKE) uninstall

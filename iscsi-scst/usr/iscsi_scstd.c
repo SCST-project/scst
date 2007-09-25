@@ -39,7 +39,7 @@
 #include "iscsi_adm.h"
 
 #define LISTEN_MAX		8
-#define INCOMING_MAX		32
+#define INCOMING_MAX		256
 
 enum {
 	POLL_LISTEN,
