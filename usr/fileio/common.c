@@ -184,6 +184,17 @@ static int do_exec(struct vdisk_cmd *vcmd)
 
 	TRACE_ENTRY();
 
+	switch(cmd->queue_type) {
+	case SCST_CMD_QUEUE_ORDERED:
+		TRACE(TRACE_ORDER, "ORDERED cmd_h %d", vcmd->cmd->cmd_h);
+		break;
+	case SCST_CMD_QUEUE_HEAD_OF_QUEUE:
+		TRACE(TRACE_ORDER, "HQ cmd_h %d", vcmd->cmd->cmd_h);
+		break;
+	default:
+		break;
+	}
+
 	memset(reply, 0, sizeof(*reply));
 	vcmd->reply->cmd_h = vcmd->cmd->cmd_h;
 	vcmd->reply->subcode = vcmd->cmd->subcode;
@@ -1601,8 +1612,8 @@ restart:
 	}
 
 	if (err < 0) {
-		PRINT_ERROR_PR("write() returned %Ld from %zd (errno %d)", 
-			(uint64_t)err, length, errno);
+		PRINT_ERROR_PR("write() returned %Ld from %zd (errno %d, cmd_h "
+			"%x)", (uint64_t)err, length, errno, vcmd->cmd->cmd_h);
 		if (err == -EAGAIN)
 			set_busy(reply);
 		else {

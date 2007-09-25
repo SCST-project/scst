@@ -90,9 +90,6 @@ extern unsigned long scst_trace_flag;
 /* Set if a TM command is being performed */
 #define SCST_FLAG_TM_ACTIVE                  2
 
-/* Set if scst_cmd_mem_work is scheduled */
-#define SCST_FLAG_CMD_MEM_WORK_SCHEDULED     3
-
 /** 
  ** Return codes for cmd state process functions 
  **/
@@ -222,8 +219,7 @@ extern struct scst_cmd *__scst_check_deferred_commands(
 static inline struct scst_cmd *scst_check_deferred_commands(
 	struct scst_tgt_dev *tgt_dev)
 {
-	if ((tgt_dev->def_cmd_count == 0) && 
-	    likely(!test_bit(SCST_TGT_DEV_HQ_ACTIVE, &tgt_dev->tgt_dev_flags)))
+	if (tgt_dev->def_cmd_count == 0)
 		return NULL;
 	else
 		return __scst_check_deferred_commands(tgt_dev);

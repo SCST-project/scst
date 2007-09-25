@@ -2092,6 +2092,7 @@ static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	int res, rc;
 	struct dev_user_cmd *ucmd;
 	struct scst_user_dev *dev = (struct scst_user_dev*)tgt_dev->dev->dh_priv;
+	struct dev_user_cmd *ucmd_to_abort = NULL;
 
 	TRACE_ENTRY();
 
@@ -2107,15 +2108,15 @@ static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	ucmd->user_cmd.tm_cmd.fn = mcmd->fn;
 
 	if (mcmd->cmd_to_abort != NULL) {
-		struct dev_user_cmd *ucmd_to_abort =
-			(struct dev_user_cmd*)mcmd->cmd_to_abort->dh_priv;
+		ucmd_to_abort = (struct dev_user_cmd*)mcmd->cmd_to_abort->dh_priv;
 		if (ucmd_to_abort != NULL)
 			ucmd->user_cmd.tm_cmd.cmd_h_to_abort = ucmd_to_abort->h;
 	}
 
 	TRACE_MGMT_DBG("Preparing TM ucmd %p (h %d, fn %d, cmd_to_abort %p, "
-		"ucmd_to_abort %d)", ucmd, ucmd->h, mcmd->fn,
-		mcmd->cmd_to_abort, ucmd->user_cmd.tm_cmd.cmd_h_to_abort);
+		"ucmd_to_abort %p, cmd_h_to_abort %d)", ucmd, ucmd->h,
+		mcmd->fn, mcmd->cmd_to_abort, ucmd_to_abort,
+		ucmd->user_cmd.tm_cmd.cmd_h_to_abort);
 
 	ucmd->state = UCMD_STATE_TM_EXECING;
 
@@ -2158,6 +2159,7 @@ static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	sBUG_ON(irqs_disabled());
 
 	spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
+
 out_locked_free:
 	kfree(ucmd->cmpl);
 	ucmd->cmpl = NULL;

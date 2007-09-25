@@ -341,9 +341,6 @@
 /* Set if tgt_dev is RESERVED by another session */
 #define SCST_TGT_DEV_RESERVED		1
 
-/* Set HEAD OF QUEUE cmd is being executed */
-#define SCST_TGT_DEV_HQ_ACTIVE		2
-
 /* Set if the corresponding context is atomic */
 #define SCST_TGT_DEV_AFTER_INIT_WR_ATOMIC	5
 #define SCST_TGT_DEV_AFTER_INIT_OTH_ATOMIC	6
@@ -658,7 +655,7 @@ struct scst_dev_type
 	/* Set, if no /proc files should be automatically created by SCST */
 	unsigned no_proc:1;
 
-	/* Set if expected_sn in cmd->scst_cmd_done() */
+	/* Set if increment expected_sn in cmd->scst_cmd_done() */
 	unsigned inc_expected_sn_on_done:1; 
 
 	/* 
@@ -1027,11 +1024,14 @@ struct scst_cmd
 	 */
 	unsigned int preprocessing_only:1;
 
+	/* Set if scst_cmd_set_sn() was called */
+	unsigned int sn_set:1;
+
 	/*
-	 * Set if scst_cmd_init_stage1_done() called and the target want
-	 * that the SN for the cmd isn't assigned until scst_restart_cmd()
+	 * Set if scst_cmd_init_stage1_done() called and the target wants
+	 * that the SN for the cmd won't be assigned until scst_restart_cmd()
 	 */
-	unsigned int no_sn:1;
+	unsigned int set_sn_on_restart_cmd:1;
 
 	/* Set if the cmd's must not use sgv cache for data buffer */
 	unsigned int no_sgv:1;
@@ -1053,8 +1053,8 @@ struct scst_cmd
 	unsigned int skip_parse:1;
 
 	/*
-	 * Set if inc expected_sn in cmd->scst_cmd_done() (to 
-	 * save extra dereferences)
+	 * Set if increment expected_sn in cmd->scst_cmd_done() (to save
+	 * extra dereferences)
 	 */
 	unsigned int inc_expected_sn_on_done:1; 
 
@@ -1366,10 +1366,11 @@ struct scst_tgt_dev
 	 */
 	int def_cmd_count;
 	spinlock_t sn_lock;
-	unsigned long expected_sn, curr_sn;
+	unsigned long expected_sn;
+	unsigned long curr_sn;
+	int hq_cmd_count;
 	struct list_head deferred_cmd_list;
 	struct list_head skipped_sn_list;
-	struct list_head hq_cmd_list;
 
 	/*
 	 * Set if the prev cmd was ORDERED. Size must allow unprotected
@@ -1508,10 +1509,9 @@ void scst_unregister_target_template(struct scst_tgt_template *vtt);
  * Registers and returns target adapter
  * Returns new target structure on success or NULL otherwise.
  *
- * If parameter "target_name" isn't NULL, then new security group with name 
- * "Default_##target_name" will be created and all sessions, which don't
- * belong to any defined security groups, will be assigned to it instead of
- * the "Default" one.
+ * If parameter "target_name" isn't NULL, then security group with name 
+ * "Default_##target_name", if created, will be used as the default
+ * instead of "Default" one for all initiators not assigned to any other group.
  */
 struct scst_tgt *scst_register(struct scst_tgt_template *vtt,
 	const char *target_name);
@@ -1630,9 +1630,10 @@ struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
  *
  * !!IMPORTANT!!
  *
- * If cmd->no_sn not set, this function, as well as scst_cmd_init_stage1_done()
- * and scst_restart_cmd() must not be called simultaneously for the same session
- * (more precisely, for the same session/LUN, i.e. tgt_dev), i.e. they must be
+ * If cmd->set_sn_on_restart_cmd not set, this function, as well as
+ * scst_cmd_init_stage1_done() and scst_restart_cmd(), must not be
+ * called simultaneously for the same session (more precisely,
+ * for the same session/LUN, i.e. tgt_dev), i.e. they must be
  * somehow externally serialized. This is needed to have lock free fast path in
  * scst_cmd_set_sn(). For majority of targets those functions are naturally
  * serialized by the single source of commands. Only iSCSI immediate commands
@@ -1654,7 +1655,7 @@ static inline void scst_cmd_init_stage1_done(struct scst_cmd *cmd,
 	int pref_context, int set_sn)
 {
 	cmd->preprocessing_only = 1;
-	cmd->no_sn = !set_sn;
+	cmd->set_sn_on_restart_cmd = !set_sn;
 	scst_cmd_init_done(cmd, pref_context);
 }
 

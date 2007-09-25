@@ -404,7 +404,6 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	spin_lock_init(&tgt_dev->sn_lock);
 	INIT_LIST_HEAD(&tgt_dev->deferred_cmd_list);
 	INIT_LIST_HEAD(&tgt_dev->skipped_sn_list);
-	INIT_LIST_HEAD(&tgt_dev->hq_cmd_list);
 	tgt_dev->expected_sn = 1;
 	tgt_dev->num_free_sn_slots = ARRAY_SIZE(tgt_dev->sn_slots);
 	tgt_dev->cur_sn_slot = &tgt_dev->sn_slots[0];
@@ -2427,47 +2426,6 @@ void scst_free_all_UA(struct scst_tgt_dev *tgt_dev)
 	return;
 }
 
-/* sn_lock supposed to be held and IRQ off */
-static inline int __scst_check_hq_cmd(struct scst_cmd *cmd)
-{
-	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
-	struct scst_cmd *hq;
-	int res;
-
-	TRACE_ENTRY();
-
-	/* According to SAM, the latest HQ cmd shall pass first */
-	hq = list_entry(tgt_dev->hq_cmd_list.next, typeof(*hq),
-			      sn_cmd_list_entry);
-	if ((cmd == hq) && !test_bit(SCST_TGT_DEV_HQ_ACTIVE,
-				&tgt_dev->tgt_dev_flags)) {
-		TRACE_SN("Passing HQ cmd %p", cmd);
-		res = 1;
-		list_del(&cmd->sn_cmd_list_entry);
-		set_bit(SCST_TGT_DEV_HQ_ACTIVE, &tgt_dev->tgt_dev_flags);
-	} else {
-		TRACE_SN("Defer HQ cmd %p", cmd);
-		res = 0;
-		cmd->hq_deferred = 1;
-		tgt_dev->def_cmd_count++;
-	}
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-int scst_check_hq_cmd(struct scst_cmd *cmd)
-{
-	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
-	int res;
-
-	spin_lock_irq(&tgt_dev->sn_lock);
-	res = __scst_check_hq_cmd(cmd);
-	spin_unlock_irq(&tgt_dev->sn_lock);
-
-	return res;
-}
-
 /* No locks */
 struct scst_cmd *__scst_check_deferred_commands(struct scst_tgt_dev *tgt_dev)
 {
@@ -2476,38 +2434,14 @@ struct scst_cmd *__scst_check_deferred_commands(struct scst_tgt_dev *tgt_dev)
 
 	spin_lock_irq(&tgt_dev->sn_lock);
 
-	if (unlikely(test_bit(SCST_TGT_DEV_HQ_ACTIVE, &tgt_dev->tgt_dev_flags))) {
-		if (!list_empty(&tgt_dev->hq_cmd_list)) {
-			int rc;
-			cmd = list_entry(tgt_dev->hq_cmd_list.next,
-				typeof(*cmd), sn_cmd_list_entry);
-			if (cmd->hq_deferred) {
-				TRACE_SN("Releasing deferred HQ cmd %p", cmd);
-				tgt_dev->def_cmd_count--;
-				cmd->hq_deferred = 0;
-				res = cmd;
-				/* 
-				 * Since __scst_check_hq_cmd() is inline, a lot
-				 * of code should be optimized out
-				 */
-				clear_bit(SCST_TGT_DEV_HQ_ACTIVE,
-					&tgt_dev->tgt_dev_flags);
-				rc = __scst_check_hq_cmd(res);
-				EXTRACHECKS_BUG_ON(rc != 1);
-				goto out_unlock;
-			}
-		}
-		TRACE_SN("Turning OFF hq_cmd_active (tgt_dev %p)",
-			tgt_dev);
-		clear_bit(SCST_TGT_DEV_HQ_ACTIVE, &tgt_dev->tgt_dev_flags);
-	}
-
 restart:
 	list_for_each_entry_safe(cmd, t, &tgt_dev->deferred_cmd_list,
 				sn_cmd_list_entry) {
+		EXTRACHECKS_BUG_ON(cmd->queue_type ==
+			SCST_CMD_QUEUE_HEAD_OF_QUEUE);
 		if (cmd->sn == expected_sn) {
-			TRACE_SN("Deferred command %p (sn %ld) found",
-				cmd, cmd->sn);
+			TRACE_SN("Deferred command %p (sn %ld, set %d) found",
+				cmd, cmd->sn, cmd->sn_set);
 			tgt_dev->def_cmd_count--;
 			list_del(&cmd->sn_cmd_list_entry);
 			if (res == NULL)
@@ -2528,6 +2462,8 @@ restart:
 
 	list_for_each_entry(cmd, &tgt_dev->skipped_sn_list,
 				sn_cmd_list_entry) {
+		EXTRACHECKS_BUG_ON(cmd->queue_type ==
+			SCST_CMD_QUEUE_HEAD_OF_QUEUE);
 		if (cmd->sn == expected_sn) {
 			atomic_t *slot = cmd->sn_slot;
 			/* 
@@ -2540,8 +2476,6 @@ restart:
 			tgt_dev->def_cmd_count--;
 			list_del(&cmd->sn_cmd_list_entry);
 			spin_unlock_irq(&tgt_dev->sn_lock);
-			EXTRACHECKS_BUG_ON(cmd->queue_type ==
-				SCST_CMD_QUEUE_HEAD_OF_QUEUE);
 			if (test_and_set_bit(SCST_CMD_CAN_BE_DESTROYED, 
 					&cmd->cmd_flags)) {
 				scst_destroy_put_cmd(cmd);
@@ -2833,13 +2767,9 @@ static struct scst_cmd *__scst_unblock_deferred(
 {
 	struct scst_cmd *res = NULL;
 
-	if (out_of_sn_cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE) {
-		TRACE_SN("HQ out_of_sn_cmd %p", out_of_sn_cmd);
-		spin_lock_irq(&out_of_sn_cmd->tgt_dev->sn_lock);
-		list_del(&out_of_sn_cmd->sn_cmd_list_entry);
-		spin_unlock_irq(&out_of_sn_cmd->tgt_dev->sn_lock);
-		res = scst_check_deferred_commands(tgt_dev);
-	} else if (out_of_sn_cmd->sn == tgt_dev->expected_sn) {
+	EXTRACHECKS_BUG_ON(!out_of_sn_cmd->sn_set);
+
+	if (out_of_sn_cmd->sn == tgt_dev->expected_sn) {
 		scst_inc_expected_sn(tgt_dev, out_of_sn_cmd->sn_slot);
 		res = scst_check_deferred_commands(tgt_dev);
 	} else {
@@ -2864,8 +2794,8 @@ void scst_unblock_deferred(struct scst_tgt_dev *tgt_dev,
 
 	TRACE_ENTRY();
 
-	if (out_of_sn_cmd->no_sn) {
-		TRACE_SN("cmd %p with no_sn", out_of_sn_cmd);
+	if (!out_of_sn_cmd->sn_set) {
+		TRACE_SN("cmd %p without sn", out_of_sn_cmd);
 		goto out;
 	}
 

@@ -634,7 +634,7 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status, int pref_context)
 			cmd->state = SCST_CMD_STATE_PRE_EXEC;
 			break;
 		}
-		if (cmd->no_sn)
+		if (cmd->set_sn_on_restart_cmd)
 			scst_cmd_set_sn(cmd);
 		/* Small context optimization */
 		if ((pref_context == SCST_CONTEXT_TASKLET) || 
@@ -955,8 +955,9 @@ static void scst_inc_check_expected_sn(struct scst_cmd *cmd)
 {
 	struct scst_cmd *c;
 
-	if (likely(cmd->queue_type != SCST_CMD_QUEUE_HEAD_OF_QUEUE))
+	if (likely(cmd->sn_set))
 		scst_inc_expected_sn(cmd->tgt_dev, cmd->sn_slot);
+
 	c = scst_check_deferred_commands(cmd->tgt_dev);
 	if (c != NULL) {
 		unsigned long flags;
@@ -1813,42 +1814,27 @@ static int scst_send_to_midlev(struct scst_cmd *cmd)
 			      "thread context, rescheduling");
 			res = SCST_CMD_STATE_RES_NEED_THREAD;
 			scst_dec_on_dev_cmd(cmd);
-			goto out_dec_cmd_count;
+			goto out_put;
 		} else {
 			sBUG_ON(rc != SCST_EXEC_COMPLETED);
 			goto out_unplug;
 		}
 	}
 
-	EXTRACHECKS_BUG_ON(cmd->no_sn);
+	if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))
+		goto exec;
 
-	if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE)) {
-		/* 
-		 * W/o get() there will be a race, when cmd is executed and
-		 * destroyed before "goto out_unplug"
-		 */
-		scst_cmd_get(cmd);
-		if (scst_check_hq_cmd(cmd)) {
-			scst_cmd_put(cmd);
-			goto exec;
-		} else {
-			scst_dec_on_dev_cmd(cmd);
-			scst_cmd_put(cmd);
-			goto out_unplug;
-		}
-	}
+	sBUG_ON(!cmd->sn_set);
 
 	expected_sn = tgt_dev->expected_sn;
 	/* Optimized for lockless fast path */
-	if ((cmd->sn != expected_sn) || unlikely(test_bit(SCST_TGT_DEV_HQ_ACTIVE,
-						&tgt_dev->tgt_dev_flags))) {
+	if ((cmd->sn != expected_sn) || (tgt_dev->hq_cmd_count > 0)) {
 		spin_lock_irq(&tgt_dev->sn_lock);
 		tgt_dev->def_cmd_count++;
 		smp_mb();
-		barrier(); /* to reread expected_sn & hq_cmd_active */
+		barrier(); /* to reread expected_sn & hq_cmd_count */
 		expected_sn = tgt_dev->expected_sn;
-		if ((cmd->sn != expected_sn) || test_bit(SCST_TGT_DEV_HQ_ACTIVE,
-						&tgt_dev->tgt_dev_flags)) {
+		if ((cmd->sn != expected_sn) || (tgt_dev->hq_cmd_count > 0)) {
 			/* We are under IRQ lock, but dev->dev_lock is BH one */
 			int cmd_blocking = scst_pre_dec_on_dev_cmd(cmd);
 			if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
@@ -1859,18 +1845,16 @@ static int scst_send_to_midlev(struct scst_cmd *cmd)
 				cmd->state = SCST_CMD_STATE_DEV_DONE;
 				res = SCST_CMD_STATE_RES_CONT_SAME;
 			} else {
-				TRACE_SN("Deferring cmd %p (sn=%ld, "
-					"expected_sn=%ld, hq_cmd_active=%d)", cmd,
-					cmd->sn, expected_sn, 
-					test_bit(SCST_TGT_DEV_HQ_ACTIVE,
-						&tgt_dev->tgt_dev_flags));
+				TRACE_SN("Deferring cmd %p (sn=%ld, set %d, "
+					"expected_sn=%ld)", cmd, cmd->sn,
+					cmd->sn_set, expected_sn);
 				list_add_tail(&cmd->sn_cmd_list_entry,
 					      &tgt_dev->deferred_cmd_list);
 			}
 			spin_unlock_irq(&tgt_dev->sn_lock);
 			/* !! At this point cmd can be already freed !! */
 			__scst_dec_on_dev_cmd(dev, cmd_blocking);
-			goto out_dec_cmd_count;
+			goto out_put;
 		} else {
 			TRACE_SN("Somebody incremented expected_sn %ld, "
 				"continuing", expected_sn);
@@ -1883,32 +1867,23 @@ exec:
 	count = 0;
 	while(1) {
 		atomic_t *slot = cmd->sn_slot;
-		int hq = (cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE);
-		int inc_expected_sn_on_done = cmd->inc_expected_sn_on_done;
+		int inc_expected_sn = !cmd->inc_expected_sn_on_done &&
+				      cmd->sn_set;
 		rc = scst_do_send_to_midlev(cmd);
 		if (rc == SCST_EXEC_NEED_THREAD) {
 			TRACE_DBG("%s", "scst_do_send_to_midlev() requested "
 			      "thread context, rescheduling");
 			res = SCST_CMD_STATE_RES_NEED_THREAD;
-			if (unlikely(hq)) {
-				TRACE_SN("Rescheduling HQ cmd %p", cmd);
-				spin_lock_irq(&tgt_dev->sn_lock);
-				clear_bit(SCST_TGT_DEV_HQ_ACTIVE,
-					&tgt_dev->tgt_dev_flags);
-				list_add(&cmd->sn_cmd_list_entry,
-					&tgt_dev->hq_cmd_list);
-				spin_unlock_irq(&tgt_dev->sn_lock);
-			}
 			scst_dec_on_dev_cmd(cmd);
 			if (count != 0)
 				goto out_unplug;
 			else
-				goto out_dec_cmd_count;
+				goto out_put;
 		}
 		sBUG_ON(rc != SCST_EXEC_COMPLETED);
 		/* !! At this point cmd can be already freed !! */
 		count++;
-		if ( !inc_expected_sn_on_done && likely(!hq))
+		if (inc_expected_sn)
 			scst_inc_expected_sn(tgt_dev, slot);
 		cmd = scst_check_deferred_commands(tgt_dev);
 		if (cmd == NULL)
@@ -1921,7 +1896,7 @@ out_unplug:
 	if (dev->scsi_dev != NULL)
 		generic_unplug_device(dev->scsi_dev->request_queue);
 
-out_dec_cmd_count:
+out_put:
 	__scst_put();
 	/* !! At this point sess, dev and tgt_dev can be already freed !! */
 
@@ -2293,11 +2268,41 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 	 * Check here also in order to avoid unnecessary delays of other
 	 * commands.
 	 */
-	if (unlikely(!cmd->sent_to_midlev) && (cmd->tgt_dev != NULL)) {
-		TRACE_SN("cmd %p was not sent to mid-lev (sn %ld)",
-			cmd, cmd->sn);
-		scst_unblock_deferred(cmd->tgt_dev, cmd);
-		cmd->sent_to_midlev = 1;
+	if (cmd->tgt_dev != NULL) {
+		if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE)) {
+			struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
+
+			spin_lock_irq(&tgt_dev->sn_lock);
+			tgt_dev->hq_cmd_count--;
+			spin_unlock_irq(&tgt_dev->sn_lock);
+
+			EXTRACHECKS_BUG_ON(tgt_dev->hq_cmd_count < 0);
+
+			/*
+			 * There is no problem in checking hq_cmd_count in the
+			 * non-locked state. In the worst case we will only have
+			 * unneeded run of the deferred commands.
+			 */
+			if (tgt_dev->hq_cmd_count == 0) {
+				struct scst_cmd *c =
+					scst_check_deferred_commands(tgt_dev);
+				if (c != NULL) {
+					spin_lock_irq(&c->cmd_lists->cmd_list_lock);
+					TRACE_SN("Adding cmd %p to active cmd list", c);
+					list_add_tail(&c->cmd_list_entry,
+						&c->cmd_lists->active_cmd_list);
+					wake_up(&c->cmd_lists->cmd_list_waitQ);
+					spin_unlock_irq(&c->cmd_lists->cmd_list_lock);
+				}
+			}
+		}
+
+		if (unlikely(!cmd->sent_to_midlev)) {
+			TRACE_SN("cmd %p was not sent to mid-lev (sn %ld, set %d)",
+				cmd, cmd->sn, cmd->sn_set);
+			scst_unblock_deferred(cmd->tgt_dev, cmd);
+			cmd->sent_to_midlev = 1;
+		}
 	}
 
 	if (atomic && !cmd->tgtt->xmit_response_atomic) {
@@ -2501,6 +2506,7 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 			}
 			cmd->sn_slot = tgt_dev->cur_sn_slot;
 			cmd->sn = tgt_dev->curr_sn;
+			
 			tgt_dev->prev_cmd_ordered = 0;
 		} else {
 			TRACE(TRACE_MINOR, "%s", "Not enough SN slots");
@@ -2540,10 +2546,9 @@ ordered:
 		TRACE(TRACE_SCSI|TRACE_SCSI_SERIALIZING, "HQ cmd %p "
 			"(op %x)", cmd, cmd->cdb[0]);
 		spin_lock_irqsave(&tgt_dev->sn_lock, flags);
-		/* Add in the head as required by SAM */
-		list_add(&cmd->sn_cmd_list_entry, &tgt_dev->hq_cmd_list);
+		tgt_dev->hq_cmd_count++;
 		spin_unlock_irqrestore(&tgt_dev->sn_lock, flags);
-		break;
+		goto out;
 
 	default:
 		PRINT_ERROR_PR("Unsupported queue type %d, treating it as "
@@ -2559,7 +2564,8 @@ ordered:
 		tgt_dev->num_free_sn_slots, tgt_dev->prev_cmd_ordered,
 		tgt_dev->cur_sn_slot-tgt_dev->sn_slots);
 
-	cmd->no_sn = 0;
+	cmd->sn_set = 1;
+out:
 	return;
 }
 
@@ -2652,7 +2658,7 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 				  "Anonymous" : cmd->sess->initiator_name);
 			goto out_busy;
 		}
-		if (!cmd->no_sn)
+		if (!cmd->set_sn_on_restart_cmd)
 			scst_cmd_set_sn(cmd);
 	} else if (res < 0) {
 		TRACE_DBG("Finishing cmd %p", cmd);
@@ -3388,8 +3394,9 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 		}
 		scst_cmd_get(cmd);
 		spin_unlock_irq(&sess->sess_list_lock);
-		TRACE(TRACE_MGMT, "Cmd %p for tag %llu (sn %ld) found, "
-			"aborting it", cmd, mcmd->tag, cmd->sn);
+		TRACE(TRACE_MGMT, "Cmd %p for tag %llu (sn %ld, set %d, "
+			"queue_type %x) found, aborting it", cmd, mcmd->tag,
+			cmd->sn, cmd->sn_set, cmd->queue_type);
 		mcmd->cmd_to_abort = cmd;
 		if (mcmd->lun_set && (mcmd->lun != cmd->lun)) {
 			PRINT_ERROR_PR("ABORT TASK: LUN mismatch: mcmd LUN %Lx, "
@@ -3988,7 +3995,7 @@ static int scst_post_rx_mgmt_cmd(struct scst_session *sess,
 	if (unlikely(sess->init_phase != SCST_SESS_IPH_READY)) {
 		switch(sess->init_phase) {
 		case SCST_SESS_IPH_INITING:
-			TRACE_DBG("Moving mcmd %p to init deferred mcmd list",
+			TRACE_DBG("Adding mcmd %p to init deferred mcmd list",
 				mcmd);
 			list_add_tail(&mcmd->mgmt_cmd_list_entry, 
 				&sess->init_deferred_mcmd_list);

@@ -651,6 +651,17 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
+	switch(cmd->queue_type) {
+	case SCST_CMD_QUEUE_ORDERED:
+		TRACE(TRACE_ORDER, "ORDERED cmd %p", cmd);
+		break;
+	case SCST_CMD_QUEUE_HEAD_OF_QUEUE:
+		TRACE(TRACE_ORDER, "HQ cmd %p", cmd);
+		break;
+	default:
+		break;
+	}
+
 	rc = scst_check_local_events(cmd);
 	if (unlikely(rc != 0))
 		goto out_done;
