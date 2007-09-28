@@ -114,7 +114,7 @@ struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *conn, struct iscsi_cmnd *parent
 	init_waitqueue_head(&cmnd->scst_waitQ);
 
 	if (parent == NULL) {
-		atomic_inc(&conn->conn_ref_cnt);
+		conn_get(conn);
 #ifdef NET_PAGE_CALLBACKS_DEFINED
 		atomic_set(&cmnd->net_ref_cnt, 0);
 #endif		
@@ -178,8 +178,7 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 		list_del(&cmnd->cmd_list_entry);
 		spin_unlock_bh(&conn->cmd_list_lock);
 
-		smp_mb__before_atomic_dec();
-		atomic_dec(&conn->conn_ref_cnt);
+		conn_put(conn);
 
 		EXTRACHECKS_BUG_ON(!list_empty(&cmnd->rsp_cmd_list));
 		EXTRACHECKS_BUG_ON(!list_empty(&cmnd->rx_ddigest_cmd_list));
@@ -234,6 +233,10 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 	return;
 }
 
+/*
+ * Corresponding conn may also gets destroyed atfer this function, except only
+ * if it's called from the read thread! 
+ */
 void req_cmnd_release_force(struct iscsi_cmnd *req, int flags)
 {
 	struct iscsi_cmnd *rsp;
@@ -244,21 +247,23 @@ void req_cmnd_release_force(struct iscsi_cmnd *req, int flags)
 	TRACE_DBG("%p", req);
 
 	if (flags & ISCSI_FORCE_RELEASE_WRITE) {
+again_write:
 		spin_lock(&conn->write_list_lock);
-		while(!list_empty(&conn->write_list)) {
-			rsp = list_entry(conn->write_list.next,
-				struct iscsi_cmnd, write_list_entry);
+		list_for_each_entry(rsp, &conn->write_list, write_list_entry) {
+			if (rsp->parent_req != req)
+				continue;
+
 			cmd_del_from_write_list(rsp);
+
 			spin_unlock(&conn->write_list_lock);
 
 			cmnd_put(rsp);
-
-			spin_lock(&conn->write_list_lock);
+			goto again_write;
 		}
 		spin_unlock(&conn->write_list_lock);
 	}
 
-again:
+again_rsp:
 	spin_lock_bh(&req->rsp_cmd_lock);
 	list_for_each_entry(rsp, &req->rsp_cmd_list, rsp_cmd_list_entry) {
 		int f;
@@ -278,12 +283,12 @@ again:
 			rsp->force_cleanup_done;
 		spin_unlock(&conn->write_list_lock);
 		if (f)
-			goto again;
+			goto again_rsp;
 
 		rsp->force_cleanup_done = 1;
 		cmnd_put(rsp);
 
-		goto again;
+		goto again_rsp;
 	}
 	spin_unlock_bh(&req->rsp_cmd_lock);
 
@@ -293,6 +298,10 @@ again:
 	return;
 }
 
+/*
+ * Corresponding conn may also gets destroyed atfer this function, except only
+ * if it's called from the read thread! 
+ */
 void req_cmnd_release(struct iscsi_cmnd *req)
 {
 	struct iscsi_cmnd *c, *t;
@@ -330,6 +339,10 @@ void req_cmnd_release(struct iscsi_cmnd *req)
 	return;
 }
 
+/*
+ * Corresponding conn may also gets destroyed atfer this function, except only
+ * if it's called from the read thread! 
+ */
 void rsp_cmnd_release(struct iscsi_cmnd *cmnd)
 {
 	TRACE_DBG("%p", cmnd);
@@ -388,9 +401,9 @@ static inline struct iscsi_cmnd *get_rsp_cmnd(struct iscsi_cmnd *req)
 
 static void iscsi_cmnds_init_write(struct list_head *send, int flags)
 {
-	struct iscsi_cmnd *cmnd = list_entry(send->next, struct iscsi_cmnd, 
+	struct iscsi_cmnd *rsp = list_entry(send->next, struct iscsi_cmnd, 
 						write_list_entry);
-	struct iscsi_conn *conn = cmnd->conn;
+	struct iscsi_conn *conn = rsp->conn;
 	struct list_head *pos, *next;
 
 	/*
@@ -400,25 +413,25 @@ static void iscsi_cmnds_init_write(struct list_head *send, int flags)
 	 * initiator sends cmd with the same ITT => this command will be
 	 * erroneously rejected as a duplicate.
 	 */
-	if ((flags & ISCSI_INIT_WRITE_REMOVE_HASH) && cmnd->parent_req->hashed &&
-	    (cmnd->parent_req->outstanding_r2t == 0))
-		cmnd_remove_hash(cmnd->parent_req);
+	if ((flags & ISCSI_INIT_WRITE_REMOVE_HASH) && rsp->parent_req->hashed &&
+	    (rsp->parent_req->outstanding_r2t == 0))
+		cmnd_remove_hash(rsp->parent_req);
 
 	list_for_each_safe(pos, next, send) {
-		cmnd = list_entry(pos, struct iscsi_cmnd, write_list_entry);
+		rsp = list_entry(pos, struct iscsi_cmnd, write_list_entry);
 
-		TRACE_DBG("%p:%x", cmnd, cmnd_opcode(cmnd));
+		TRACE_DBG("%p:%x", rsp, cmnd_opcode(rsp));
 
-		sBUG_ON(conn != cmnd->conn);
+		sBUG_ON(conn != rsp->conn);
 
 		if (!(conn->ddigest_type & DIGEST_NONE) &&
-		    (cmnd->pdu.datasize != 0))
-			digest_tx_data(cmnd);
+		    (rsp->pdu.datasize != 0))
+			digest_tx_data(rsp);
 
-		list_del(&cmnd->write_list_entry);
+		list_del(&rsp->write_list_entry);
 
 		spin_lock(&conn->write_list_lock);
-		cmd_add_on_write_list(conn, cmnd);
+		cmd_add_on_write_list(conn, rsp);
 		spin_unlock(&conn->write_list_lock);
 	}
 	
@@ -427,22 +440,22 @@ static void iscsi_cmnds_init_write(struct list_head *send, int flags)
 		iscsi_make_conn_wr_active(conn);
 }
 
-static void iscsi_cmnd_init_write(struct iscsi_cmnd *cmnd, int flags)
+static void iscsi_cmnd_init_write(struct iscsi_cmnd *rsp, int flags)
 {
 	LIST_HEAD(head);
 
-	if (unlikely(cmnd->on_write_list)) {
+	if (unlikely(rsp->on_write_list)) {
 		PRINT_ERROR_PR("cmd already on write list (%x %x %x %x %u %u "
 			"%u %u %u %u %u %d %d",
-			cmnd_itt(cmnd), cmnd_ttt(cmnd), cmnd_opcode(cmnd),
-			cmnd_scsicode(cmnd), cmnd->r2t_sn,
-			cmnd->r2t_length, cmnd->is_unsolicited_data,
-			cmnd->target_task_tag, cmnd->outstanding_r2t,
-			cmnd->hdigest, cmnd->ddigest,
-			list_empty(&cmnd->rsp_cmd_list), cmnd->hashed);
+			cmnd_itt(rsp), cmnd_ttt(rsp), cmnd_opcode(rsp),
+			cmnd_scsicode(rsp), rsp->r2t_sn,
+			rsp->r2t_length, rsp->is_unsolicited_data,
+			rsp->target_task_tag, rsp->outstanding_r2t,
+			rsp->hdigest, rsp->ddigest,
+			list_empty(&rsp->rsp_cmd_list), rsp->hashed);
 		sBUG();
 	}
-	list_add(&cmnd->write_list_entry, &head);
+	list_add(&rsp->write_list_entry, &head);
 	iscsi_cmnds_init_write(&head, flags);
 }
 
@@ -1383,7 +1396,9 @@ out:
 }
 
 /*
- * Called under cmd_list_lock, but may drop it inside.
+ * Must be called from the read thread. Also called under cmd_list_lock,
+ * but may drop it inside.
+ *
  * Returns >0 if cmd_list_lock was dropped inside, 0 otherwise.
  */
 static inline int __cmnd_abort(struct iscsi_cmnd *cmnd)
@@ -1408,12 +1423,17 @@ static inline int __cmnd_abort(struct iscsi_cmnd *cmnd)
 		spin_unlock_bh(&conn->cmd_list_lock);
 		TRACE_MGMT_DBG("Releasing data waiting cmd %p", cmnd);
 		req_cmnd_release_force(cmnd, ISCSI_FORCE_RELEASE_WRITE);
+		/*
+		 * We are in the read thread, so we may not worry that after
+		 * cmnd release conn gets released as well.
+		 */
 		spin_lock_bh(&conn->cmd_list_lock);
 	}
 
 	return res;
 }
 
+/* Must be called from the read thread */
 static int cmnd_abort(struct iscsi_cmnd *req)
 {
 	struct iscsi_session *session = req->conn->session;
@@ -1460,6 +1480,7 @@ out_put:
 	goto out;
 }
 
+/* Must be called from the read thread */
 static int target_abort(struct iscsi_cmnd *req, int all)
 {
 	struct iscsi_target *target = req->conn->session->target;
@@ -1494,6 +1515,7 @@ again:
 	return 0;
 }
 
+/* Must be called from the read thread */
 static void task_set_abort(struct iscsi_cmnd *req)
 {
 	struct iscsi_session *session = req->conn->session;
@@ -1527,6 +1549,7 @@ again:
 	return;
 }
 
+/* Must be called from the read thread */
 void conn_abort(struct iscsi_conn *conn)
 {
 	struct iscsi_cmnd *cmnd;
@@ -2106,6 +2129,13 @@ static void iscsi_preprocessing_done(struct scst_cmd *scst_cmd)
 	return;
 }
 
+/* 
+ * No locks.
+ *
+ * IMPORTANT! Connection conn must be protected by additional conn_get()
+ * upon entrance in this function, because otherwise it could be destroyed
+ * inside as a result of iscsi_send(), which releases sent commands.
+ */
 static void iscsi_try_local_processing(struct iscsi_conn *conn)
 {
 	int local;
@@ -2262,15 +2292,10 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 		sBUG();
 #endif
 
-	atomic_inc(&conn->conn_ref_cnt);
-	smp_mb__after_atomic_inc();
-
+	conn_get_ordered(conn);
 	req_cmnd_release(req);
-
 	iscsi_try_local_processing(conn);
-
-	smp_mb__before_atomic_dec();
-	atomic_dec(&conn->conn_ref_cnt);
+	conn_put(conn);
 
 out:
 	return SCST_TGT_RES_SUCCESS;

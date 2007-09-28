@@ -457,6 +457,33 @@ static inline int test_write_ready(struct iscsi_conn *conn)
 	return (!list_empty(&conn->write_list) || conn->write_cmnd);
 }
 
+static inline void conn_get(struct iscsi_conn *conn)
+{
+	atomic_inc(&conn->conn_ref_cnt);
+	TRACE_DBG("conn %p, new conn_ref_cnt %d", conn,
+		atomic_read(&conn->conn_ref_cnt));
+}
+
+static inline void conn_get_ordered(struct iscsi_conn *conn)
+{
+	conn_get(conn);
+	smp_mb__after_atomic_inc();
+}
+
+static inline void conn_put(struct iscsi_conn *conn)
+{
+	TRACE_DBG("conn %p, new conn_ref_cnt %d", conn,
+		atomic_read(&conn->conn_ref_cnt)-1);
+	sBUG_ON(atomic_read(&conn->conn_ref_cnt) == 0);
+
+	/* 
+	 * It always ordered to protect from undesired side effects like
+	 * accessing just destroyed obeject because of this *_dec() reordering.
+	 */
+	smp_mb__before_atomic_dec();
+	atomic_dec(&conn->conn_ref_cnt);
+}
+
 #ifdef EXTRACHECKS
 #define iscsi_extracheck_is_rd_thread(conn) sBUG_ON(current != (conn)->rd_task)
 #define iscsi_extracheck_is_wr_thread(conn) sBUG_ON(current != (conn)->wr_task)

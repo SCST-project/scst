@@ -836,7 +836,13 @@ static int iscsi_do_send(struct iscsi_conn *conn, int state)
 	return res;
 }
 
-/* No locks, conn is wr processing */
+/* 
+ * No locks, conn is wr processing.
+ *
+ * IMPORTANT! Connection conn must be protected by additional conn_get()
+ * upon entrance in this function, because otherwise it could be destroyed
+ * inside as a result of cmnd release.
+ */
 int iscsi_send(struct iscsi_conn *conn)
 {
 	struct iscsi_cmnd *cmnd = conn->write_cmnd;
@@ -889,7 +895,9 @@ int iscsi_send(struct iscsi_conn *conn)
 		sBUG();
 	}
 	cmnd_tx_end(cmnd);
+
 	rsp_cmnd_release(cmnd);
+
 	conn->write_cmnd = NULL;
 	conn->write_state = TX_INIT;
 
@@ -898,7 +906,12 @@ out:
 	return res;
 }
 
-/* No locks, conn is wr processing */
+/* No locks, conn is wr processing.
+ *
+ * IMPORTANT! Connection conn must be protected by additional conn_get()
+ * upon entrance in this function, because otherwise it could be destroyed
+ * inside as a result of iscsi_send(), which releases sent commands.
+ */
 static int process_write_queue(struct iscsi_conn *conn)
 {
 	int res = 0;
@@ -942,6 +955,8 @@ static void scst_do_job_wr(void)
 #endif
 		spin_unlock_bh(&iscsi_wr_lock);
 
+		conn_get(conn);
+
 		rc = process_write_queue(conn);
 
 		spin_lock_bh(&iscsi_wr_lock);
@@ -950,7 +965,7 @@ static void scst_do_job_wr(void)
 #endif
 		if ((rc == -EAGAIN) && !conn->wr_space_ready) {
 			conn->wr_state = ISCSI_CONN_WR_STATE_SPACE_WAIT;
-			continue;
+			goto cont;
 		}
 
 		if (test_write_ready(conn)) {
@@ -958,6 +973,9 @@ static void scst_do_job_wr(void)
 			conn->wr_state = ISCSI_CONN_WR_STATE_IN_LIST;
 		} else
 			conn->wr_state = ISCSI_CONN_WR_STATE_IDLE;
+
+cont:
+		conn_put(conn);
 	}
 
 	TRACE_EXIT();
