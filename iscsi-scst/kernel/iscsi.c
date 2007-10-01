@@ -1405,6 +1405,10 @@ static inline int __cmnd_abort(struct iscsi_cmnd *cmnd)
 {
 	int res = 0;
 
+	/* Check to avoid double release */
+	if (cmnd->tmfabort)
+		goto out;
+
 	TRACE(TRACE_MGMT, "Aborting cmd %p, scst_cmd %p (scst state %x, "
 		"itt %x, op %x, r2t_len %x, CDB op %x, size to write %u, "
 		"is_unsolicited_data %u, outstanding_r2t %u)",
@@ -1430,6 +1434,7 @@ static inline int __cmnd_abort(struct iscsi_cmnd *cmnd)
 		spin_lock_bh(&conn->cmd_list_lock);
 	}
 
+out:
 	return res;
 }
 
