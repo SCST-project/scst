@@ -2541,7 +2541,6 @@ static void __exit iscsi_exit(void)
 #endif
 }
 
-
 module_init(iscsi_init);
 module_exit(iscsi_exit);
 

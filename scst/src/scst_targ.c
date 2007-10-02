@@ -4164,7 +4164,7 @@ static int scst_init_session(struct scst_session *sess)
 		acg->acg_name, sess->initiator_name);
 
 	sess->acg = acg;
-	TRACE_DBG("Assigning session %p to acg %s", sess, acg->acg_name);
+	TRACE_MGMT_DBG("Assigning session %p to acg %s", sess, acg->acg_name);
 	list_add_tail(&sess->acg_sess_list_entry, &acg->acg_sess_list);
 
 	TRACE_DBG("Adding sess %p to tgt->sess_list", sess);
@@ -4291,6 +4291,8 @@ void scst_unregister_session(struct scst_session *sess, int wait,
 #endif
 
 	TRACE_ENTRY();
+
+	TRACE_MGMT_DBG("Unregistering session %p (wait %d)", sess, wait);
 
 #ifdef CONFIG_LOCKDEP
 	pc = sess->shutdown_compl;

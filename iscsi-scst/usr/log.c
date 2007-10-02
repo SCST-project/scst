@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <syslog.h>
 #include <sys/time.h>
+#include <string.h>
 
 #include "iscsid.h"
 
@@ -33,9 +34,15 @@ void log_init(void)
 
 static void dolog(int prio, const char *fmt, va_list ap)
 {
-	if (log_daemon)
-		vsyslog(prio, fmt, ap);
-	else {
+	if (log_daemon) {
+		int len = strlen(fmt);
+		char f[len+1+1];
+		if (fmt[len] != '\n')
+			sprintf(f, "%s\n", fmt);
+		else
+			sprintf(f, "%s", fmt);
+		vsyslog(prio, f, ap);
+	} else {
 		struct timeval time;
 
 		gettimeofday(&time, NULL);
@@ -44,6 +51,14 @@ static void dolog(int prio, const char *fmt, va_list ap)
 		fprintf(stderr, "\n");
 		fflush(stderr);
 	}
+}
+
+void log_info(const char *fmt, ...)
+{
+	va_list ap;
+	va_start(ap, fmt);
+	dolog(LOG_INFO, fmt, ap);
+	va_end(ap);
 }
 
 void log_warning(const char *fmt, ...)

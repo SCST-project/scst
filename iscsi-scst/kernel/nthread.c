@@ -172,14 +172,14 @@ static void close_conn(struct iscsi_conn *conn)
 		msleep(50);
 	}
 
+	TRACE_CONN_CLOSE("Notifying user space about closing conn %p", conn);
+	event_send(target->tid, session->sid, conn->cid, E_CONN_CLOSE, 0);
+
 	mutex_lock(&target->target_mutex);
 	conn_free(conn);
 	if (list_empty(&session->conn_list))
 		session_del(target, session->sid);
 	mutex_unlock(&target->target_mutex);
-
-	TRACE_CONN_CLOSE("Notifying user space about closing conn %p", conn);
-	event_send(target->tid, session->sid, conn->cid, E_CONN_CLOSE, 0);
 
 	TRACE_EXIT();
 	return;

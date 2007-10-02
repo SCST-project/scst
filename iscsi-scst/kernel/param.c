@@ -186,8 +186,13 @@ static void trgt_param_get(struct iscsi_trgt_param *param, struct iscsi_param_in
 static int trgt_param(struct iscsi_target *target, struct iscsi_param_info *info, int set)
 {
 	if (set) {
+		struct iscsi_trgt_param *prm;
 		trgt_param_check(info);
 		trgt_param_set(target, info);
+
+		prm = &target->trgt_param;
+		PRINT_INFO_PR("Target parameter changed: queued_cmnds %d",
+			prm->queued_cmnds);
 	} else
 		trgt_param_get(&target->trgt_param, info);
 

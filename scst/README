@@ -587,7 +587,7 @@ set the above options using debug2perf script file.
  - You may need to increase amount of requests that OS on initiator
    sends to the target device. To do it on Linux initiators, run
 
-   echo “512” > /sys/block/sdX/queue/nr_requests
+   echo “64” > /sys/block/sdX/queue/nr_requests
 
    where X is a device letter like above.
 

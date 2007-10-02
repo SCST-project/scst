@@ -181,6 +181,8 @@ extern int log_daemon;
 extern int log_level;
 
 extern void log_init(void);
+extern void log_info(const char *fmt, ...)
+	__attribute__ ((format (printf, 1, 2)));
 extern void log_warning(const char *fmt, ...)
 	__attribute__ ((format (printf, 1, 2)));
 extern void log_error(const char *fmt, ...)

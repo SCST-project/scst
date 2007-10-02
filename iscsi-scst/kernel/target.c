@@ -229,26 +229,28 @@ void target_del_all(void)
 			struct iscsi_session *session, *ts;
 			mutex_lock(&target->target_mutex);
 			if (!list_empty(&target->session_list)) {
-				TRACE_DBG("target %p", target);
+				TRACE_MGMT_DBG("Cleaning up target %p", target);
 				list_for_each_entry_safe(session, ts, &target->session_list,
 						session_list_entry) {
-					TRACE_DBG("session %p", session);
+					TRACE_MGMT_DBG("Cleaning up session %p", session);
 					if (!list_empty(&session->conn_list)) {
 						struct iscsi_conn *conn, *tc;
 						list_for_each_entry_safe(conn, tc,
 								&session->conn_list,
 								conn_list_entry) {
-							TRACE_DBG("conn %p", conn);
+							TRACE_MGMT_DBG("Mark conn %p "
+								"closing", conn);
 							mark_conn_closed(conn);
 						}
 					} else {
-						TRACE_DBG("session %p with empty "
-							"connection list", session);
+						TRACE_MGMT_DBG("Freeing session %p "
+							"without connections", session);
+						session_del(target, session->sid);
 					}
 				}
 				mutex_unlock(&target->target_mutex);
 			} else {
-				TRACE_DBG("deleting target %p", target);
+				TRACE_MGMT_DBG("Deleting target %p", target);
 				list_del(&target->target_list_entry);
 				nr_targets--;
 				mutex_unlock(&target->target_mutex);
