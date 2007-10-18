@@ -212,6 +212,8 @@ extern void __scst_del_cmd_threads(int num);
 extern spinlock_t scst_temp_UA_lock;
 extern uint8_t scst_temp_UA[SCST_SENSE_BUFFERSIZE];
 
+extern struct scst_dev_type scst_null_devtype;
+
 extern struct scst_cmd *__scst_check_deferred_commands(
 	struct scst_tgt_dev *tgt_dev);
 

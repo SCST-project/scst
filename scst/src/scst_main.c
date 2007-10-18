@@ -101,7 +101,6 @@ struct scst_cmd_lists scst_main_cmd_lists;
 
 struct scst_tasklet scst_tasklets[NR_CPUS];
 
-
 spinlock_t scst_mcmd_lock = SPIN_LOCK_UNLOCKED;
 LIST_HEAD(scst_active_mgmt_cmd_list);
 LIST_HEAD(scst_delayed_mgmt_cmd_list);
@@ -137,6 +136,11 @@ MODULE_PARM_DESC(scst_threads, "SCSI target threads count");
 module_param_named(scst_max_cmd_mem, scst_max_cmd_mem, long, 0);
 MODULE_PARM_DESC(scst_max_cmd_mem, "Maximum memory allowed to be consumed by "
 	"the SCST commands at any given time in Mb");
+
+struct scst_dev_type scst_null_devtype = 
+{
+  name:     "null_handler",
+};
 
 int scst_register_target_template(struct scst_tgt_template *vtt)
 {
@@ -574,7 +578,7 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 		scst_acg_remove_dev(acg_dev->acg, dev);
 	}
 
-	scst_assign_dev_handler(dev, NULL);
+	scst_assign_dev_handler(dev, &scst_null_devtype);
 
 	put_disk(dev->rq_disk);
 	scst_free_device(dev);
@@ -718,7 +722,7 @@ void scst_unregister_virtual_device(int id)
 		scst_acg_remove_dev(acg_dev->acg, dev);
 	}
 
-	scst_assign_dev_handler(dev, NULL);
+	scst_assign_dev_handler(dev, &scst_null_devtype);
 
 	PRINT_INFO_PR("Detached SCSI target mid-level from virtual device %s "
 		"(id %d)", dev->virt_name, dev->virt_id);
@@ -744,7 +748,7 @@ int scst_register_dev_driver(struct scst_dev_type *dev_type)
 
 	res = scst_dev_handler_check(dev_type);
 	if (res != 0)
-		goto out_err;
+		goto out_error;
 
 #if !defined(SCSI_EXEC_REQ_FIFO_DEFINED) && !defined(STRICT_SERIALIZING)
 	if (dev_type->exec == NULL) {
@@ -753,14 +757,14 @@ int scst_register_dev_driver(struct scst_dev_type *dev_type)
 			"scst_exec_req_fifo-<kernel-version>.patch or define "
 			"STRICT_SERIALIZING", dev_type->name);
 		res = -EINVAL;
-		goto out_err;
+		goto out;
 	}
 #endif
 
 	scst_suspend_activity();
 	if (mutex_lock_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
-		goto out_err;
+		goto out_err_res;
 	}
 
 	exist = 0;
@@ -783,7 +787,7 @@ int scst_register_dev_driver(struct scst_dev_type *dev_type)
 	list_add_tail(&dev_type->dev_type_list_entry, &scst_dev_type_list);
 
 	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
-		if ((dev->scsi_dev == NULL) || (dev->handler != NULL))
+		if ((dev->scsi_dev == NULL) || (dev->handler != &scst_null_devtype))
 			continue;
 		if (dev->scsi_dev->type == dev_type->type)
 			scst_assign_dev_handler(dev, dev_type);
@@ -804,8 +808,10 @@ out:
 out_up:
 	mutex_unlock(&scst_mutex);
 
-out_err:
+out_err_res:
 	scst_resume_activity();
+
+out_error:
 	PRINT_ERROR_PR("Failed to register device handler \"%s\" for type %d",
 		dev_type->name, dev_type->type);
 	goto out;
@@ -836,7 +842,7 @@ void scst_unregister_dev_driver(struct scst_dev_type *dev_type)
 
 	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
 		if (dev->handler == dev_type) {
-			scst_assign_dev_handler(dev, NULL);
+			scst_assign_dev_handler(dev, &scst_null_devtype);
 			TRACE_DBG("Dev handler removed from device %p", dev);
 		}
 	}
@@ -1035,6 +1041,8 @@ int scst_assign_dev_handler(struct scst_device *dev,
 	LIST_HEAD(attached_tgt_devs);
 	
 	TRACE_ENTRY();
+
+	sBUG_ON(handler == NULL);
 	
 	if (dev->handler == handler)
 		goto out;
@@ -1099,7 +1107,7 @@ out_thr_null:
 
 out_null:
 	if (res != 0)
-		dev->handler = NULL;
+		dev->handler = &scst_null_devtype;
 	
 out:
 	TRACE_EXIT_RES(res);

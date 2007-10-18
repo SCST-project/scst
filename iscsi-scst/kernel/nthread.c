@@ -689,6 +689,13 @@ retry2:
 				else
 					goto out_res;
 			}
+#ifdef NET_PAGE_CALLBACKS_DEFINED
+			if (atomic_read(&ref_cmd->net_ref_cnt) == 0) {
+				TRACE_DBG("%s", "sendpage() not called "
+					"get_page(), zeroing net_priv");
+				sg[idx].page->net_priv = NULL;
+			}
+#endif
 			if (res == size) {
 				conn->write_size = 0;
 				return saved_size;
@@ -711,6 +718,13 @@ retry1:
 			else
 				goto out_res;
 		}
+#ifdef NET_PAGE_CALLBACKS_DEFINED
+		if (atomic_read(&ref_cmd->net_ref_cnt) == 0) {
+			TRACE_DBG("%s", "sendpage() not called get_page(), "
+				"zeroing net_priv");
+			sg[idx].page->net_priv = NULL;
+		}
+#endif
 		if (res == sendsize) {
 			idx++;
 			offset = 0;

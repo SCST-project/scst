@@ -2596,7 +2596,7 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 			if (tgt_dev->lun == cmd->lun) {
 				TRACE_DBG("tgt_dev %p found", tgt_dev);
 
-				if (unlikely(tgt_dev->dev->handler == NULL)) {
+				if (unlikely(tgt_dev->dev->handler == &scst_null_devtype)) {
 					PRINT_INFO_PR("Dev handler for device "
 					  "%Ld is NULL, the device will not be "
 					  "visible remotely", (uint64_t)cmd->lun);

@@ -52,7 +52,15 @@ original IET behavior, when for data transmission:
    data will be additionally copied into temporary TCP buffers. The
    performance hit will be quite noticeable.
 
-If you have error messages like:
+Note, that if your network hardware does not support TX offload
+functions of has them disabled, then TCP zero-copy transmit functions on
+your system will not be used by Linux networking in any case, so
+put_page_callback patch will not be able to improve performance for you.
+You can check your network hardware offload capabilities by command
+"ethtool -k ethX", where X is the network device number. At least
+"tx-checksumming" and "scatter-gather" should be enabled.
+
+If you have in your kernel log error messages like:
 
 iscsi-scst: ***ERROR*** net_priv isn't NULL and != ref_cmd
 

@@ -161,6 +161,7 @@ int scst_alloc_device(int gfp_mask, struct scst_device **out_dev)
 		goto out;
 	}
 
+	dev->handler = &scst_null_devtype;
 	dev->p_cmd_lists = &scst_main_cmd_lists;
 	atomic_set(&dev->dev_cmd_count, 0);
 	spin_lock_init(&dev->dev_lock);
@@ -357,7 +358,6 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	tgt_dev->acg_dev = acg_dev;
 	tgt_dev->sess = sess;
 	atomic_set(&tgt_dev->tgt_dev_cmd_count, 0);
-
 	
 	scst_sgv_pool_use_norm(tgt_dev);
 
@@ -387,14 +387,14 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	}
 
 	if (dev->scsi_dev != NULL) {
-		TRACE_DBG("host=%d, channel=%d, id=%d, lun=%d, "
+		TRACE_MGMT_DBG("host=%d, channel=%d, id=%d, lun=%d, "
 		      "SCST lun=%Ld", dev->scsi_dev->host->host_no, 
 		      dev->scsi_dev->channel, dev->scsi_dev->id, 
 		      dev->scsi_dev->lun, (uint64_t)tgt_dev->lun);
 	}
 	else {
-		TRACE_MGMT_DBG("Virtual device SCST lun=%Ld", 
-		      (uint64_t)tgt_dev->lun);
+		TRACE_MGMT_DBG("Virtual device %s on SCST lun=%Ld", 
+			dev->virt_name, (uint64_t)tgt_dev->lun);
 	}
 
 	spin_lock_init(&tgt_dev->tgt_dev_lock);
