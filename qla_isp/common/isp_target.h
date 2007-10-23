@@ -1,4 +1,4 @@
-/* $Id: isp_target.h,v 1.50 2007/06/01 17:19:31 mjacob Exp $ */
+/* $Id: isp_target.h,v 1.53 2007/07/07 23:20:56 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -31,9 +31,8 @@
  *  is the GNU Public License:
  * 
  *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation; either version 2 of the License, or
- *   (at your option) any later version.
+ *   it under the terms of The Version 2 GNU General Public License as published
+ *   by the Free Software Foundation.
  * 
  *   This program is distributed in the hope that it will be useful,
  *   but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -937,11 +936,11 @@ void isp_notify_ack(ispsoftc_t *, void *);
 
 /*
  * Enable/Disable/Modify a logical unit.
- * (softc, cmd, bus, tgt, lun, cmd_cnt, inotify_cnt)
+ * (softc, cmd, bus, tgt, lun, cmd_cnt, inotify_cnt, opaque)
  */
 #define	DFLT_CMND_CNT	0xfe	/* unmonitored */
 #define	DFLT_INOT_CNT	0xfe	/* unmonitored */
-int isp_lun_cmd(ispsoftc_t *, int, int, int, int, int, int);
+int isp_lun_cmd(ispsoftc_t *, int, int, int, int, int, int, uint32_t);
 
 /*
  * General request queue 'put' routine for target mode entries.

@@ -1,4 +1,4 @@
-/* $Id: isp_linux.h,v 1.124 2007/06/01 17:19:34 mjacob Exp $ */
+/* $Id: isp_linux.h,v 1.138 2007/10/11 22:08:07 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -31,9 +31,8 @@
  *  is the GNU Public License:
  * 
  *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation; either version 2 of the License, or
- *   (at your option) any later version.
+ *   it under the terms of The Version 2 GNU General Public License as published
+ *   by the Free Software Foundation.
  * 
  *   This program is distributed in the hope that it will be useful,
  *   but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -72,11 +71,8 @@
 #define KERNEL_VERSION(v,p,s)   (((v)<<16)+(p<<8)+s)
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,4,0)
-#error  "Only Linux 2.4 and 2.6 kernels are supported with this driver"
-#endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0) && LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0)
-#error  "Only Linux 2.4 and 2.6 kernels are supported with this driver"
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0)
+#error  "Only Linux 2.6 kernels are supported with this driver"
 #endif
 
 #ifndef UNUSED_PARAMETER
@@ -92,9 +88,6 @@
 #include <linux/autoconf.h>
 #include <linux/init.h>
 #include <linux/types.h>
-#if    LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-#include <linux/blk.h>
-#endif
 #include <linux/blkdev.h>
 #include <linux/delay.h>
 #include <linux/ioport.h>
@@ -112,20 +105,36 @@
 #include <asm/uaccess.h>
 #include <asm/byteorder.h>
 #include <linux/interrupt.h>
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-#include "scsi.h"
-#include "hosts.h"
-#else
 #include <scsi/scsi.h>
 #include <scsi/scsi_cmnd.h>
 #include <scsi/scsi_host.h>
 #include <scsi/scsi_tcq.h>
 #include <scsi/scsi_device.h>
 
+#include <linux/cdev.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
+#include <linux/devfs_fs_kernel.h>
+#define ISP_CLASS           struct class_simple
+#define CREATE_ISP_CLASS    class_simple_create
+#define DESTROY_ISP_CLASS   class_simple_destroy
+#define CREATE_ISP_DEV(isp)     \
+    class_simple_device_add(isp_class, MKDEV(MAJOR(isp_dev), isp->isp_unit), NULL, "%s%d", ISP_NAME, isp->isp_unit),     \
+    devfs_mk_cdev(MKDEV(MAJOR(isp_dev), isp->isp_unit), S_IFCHR | S_IRUGO | S_IWUGO, "%s%d", ISP_NAME, isp->isp_unit)
+#define DESTROY_ISP_DEV(isp)    \
+    devfs_remove("%s%d", ISP_NAME, isp->isp_unit), class_simple_device_remove(MKDEV(MAJOR(isp_dev), isp->isp_unit))
+#else
+#define ISP_CLASS struct class
+#define CREATE_ISP_CLASS    class_create
+#define DESTROY_ISP_CLASS   class_destroy
+#define CREATE_ISP_DEV(isp)     \
+    class_device_create(isp_class, NULL, MKDEV(MAJOR(isp_dev), isp->isp_unit), NULL, "%s%d", ISP_NAME, isp->isp_unit)
+#define DESTROY_ISP_DEV(isp)    \
+    class_device_destroy(isp_class, MKDEV(MAJOR(isp_dev), (isp)->isp_unit));
+#endif
+
 typedef struct scsi_cmnd Scsi_Cmnd;
 typedef struct scsi_request Scsi_Request;
 typedef struct scsi_host_template Scsi_Host_Template;
-#endif
 #ifdef  CONFIG_PROC_FS
 #include <linux/proc_fs.h>
 #endif
@@ -153,6 +162,10 @@ typedef struct scsi_host_template Scsi_Host_Template;
 #define ISP_SBUS_SUPPORTED  0
 #endif
 
+#ifndef ISP_NAME
+#define ISP_NAME    "isp"
+#endif
+
 #define ISP_PLATFORM_VERSION_MAJOR  5
 #define ISP_PLATFORM_VERSION_MINOR  0
 
@@ -174,13 +187,8 @@ typedef struct scsi_host_template Scsi_Host_Template;
 #define __WORDSIZE  BITS_PER_LONG
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,4,16)
-#define DMA_HTYPE_T     char *
-#define QLA_HANDLE(cmd) (cmd)->SCp.ptr
-#else
 #define DMA_HTYPE_T     dma_addr_t
 #define QLA_HANDLE(cmd) (cmd)->SCp.dma_handle
-#endif
 
 #ifdef  min
 #undef  min
@@ -208,15 +216,6 @@ typedef struct scsi_host_template Scsi_Host_Template;
 #define u_char      unsigned char
 typedef u_long  vm_offset_t;
 
-/* bit map using 8 bit arrays */
-typedef uint8_t isp_bmap_t;
-#define _ISP_WIX(isp, ix)   (ix >> 3)
-#define _ISP_BIX(isp, ix)   (1 << (ix & 0x7))
-#define ISP_NBPIDX(x)       ((x) >> 8)  /* number of bits per index */
-#define ISP_BTST(map, ix)   (((map)[_ISP_WIX(isp, ix)] & _ISP_BIX(isp, ix)) != 0)
-#define ISP_BSET(map, ix)   (map)[_ISP_WIX(isp, ix)] |= _ISP_BIX(isp, ix)
-#define ISP_BCLR(map, ix)   (map)[_ISP_WIX(isp, ix)] &= ~_ISP_BIX(isp, ix)
-
 #ifdef  ISP_TARGET_MODE
 
 #ifndef DEFAULT_DEVICE_TYPE
@@ -226,6 +225,12 @@ typedef uint8_t isp_bmap_t;
 #define N_NOTIFIES          256
 #define DEFAULT_INQSIZE     32
 
+#define _WIX(isp, b, ix)    (((b << 6)) | (ix >> 5))
+#define _BIX(isp, ix)       (1 << (ix & 0x1f))
+
+#define LUN_BTST(isp, b, ix)    (((isp)->isp_osinfo.lunbmap[_WIX(isp, b, ix)] & _BIX(isp, ix)) != 0)
+#define LUN_BSET(isp, b, ix)    isp->isp_osinfo.lunbmap[_WIX(isp, b, ix)] |= _BIX(isp, ix)
+#define LUN_BCLR(isp, b, ix)    isp->isp_osinfo.lunbmap[_WIX(isp, b, ix)] &= ~_BIX(isp, ix)
 
 typedef struct isp_notify isp_notify_t;
 
@@ -274,7 +279,6 @@ struct isposinfo {
 #endif
     char                hbaname[16];
     long                bins[8];
-    u16                 instance;
     u16                 wqcnt;
     u16                 wqhiwater;
     u16                 hiwater;
@@ -293,14 +297,13 @@ struct isposinfo {
         _deadloop       : 1,
         _draining       : 1,
         _blocked        : 1,
-                        : 1,
+        _fcrswdog       : 1,
         _fcrspend       : 1,
         _dogactive      : 1,
         _mboxcmd_done   : 1,
         _mbox_waiting   : 1,
         _mbintsok       : 1,
         _intsok         : 1;
-    isp_bmap_t           _fcrswdog[ISP_NBPIDX(256)];       
     void *              misc[8]; /* private platform variant usage */
     struct task_struct *    task_thread;
     struct semaphore *  task_request;
@@ -313,20 +316,28 @@ struct isposinfo {
 #define TM_WANTED           0x08
 #define TM_BUSY             0x04
 #define TM_TMODE_ENABLED    0x03
-    uint32_t                : 16,
+    uint32_t   rollinfo    : 16,
                 rstatus     : 8,
                             : 1,
                 isget       : 1,
-                            : 1,
+                wildcarded  : 1,
                 hcb         : 1,
                 tmflags     : 4;
     struct semaphore    tgt_inisem;
     struct semaphore *  rsemap;
-#define TM_MAX_BUS_FC   256
-#define TM_MAX_BUS_SPI  2
-#define TM_MAX_LUN_SPI  8
-    isp_bmap_t              benabled[ISP_NBPIDX(TM_MAX_BUS_FC)];
-    isp_bmap_t              spi_lun_enabled[TM_MAX_BUS_SPI][ISP_NBPIDX(TM_MAX_LUN_SPI)];
+   /*
+    * This is very inefficient, but is in fact big enough
+    * to cover a complete bitmap for Fibre Channel, as well
+    * as the dual bus SCSI cards. This works out without
+    * overflow easily because the most you can enable
+    * for the SCSI cards is 64 luns (x 2 busses).
+    *
+    * For Fibre Channel, we can run the max luns up to 16384
+    * but we'll default to the minimum we can support here.
+    */
+#define TM_MAX_LUN_FC   64
+#define TM_MAX_LUN_SCSI 64
+    uint32_t                lunbmap[TM_MAX_LUN_FC >> 5];
     struct tmd_cmd *        pending_t;  /* pending list of commands going upstream */
     struct tmd_cmd *        tfreelist;  /* freelist head */
     struct tmd_cmd *        bfreelist;  /* freelist tail */
@@ -418,23 +429,12 @@ if (isp->isp_osinfo.task_request) {                                     \
 #define ISP_LOCKU_SOFTC             ISP_ILOCK_SOFTC
 #define ISP_UNLKU_SOFTC             ISP_IUNLK_SOFTC
 #define ISP_TLOCK_INIT(isp)         spin_lock_init(&isp->isp_osinfo.tlock)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-#define ISP_DRIVER_ENTRY_LOCK(isp)  spin_unlock_irq(&io_request_lock)
-#define ISP_DRIVER_EXIT_LOCK(isp)   spin_lock_irq(&io_request_lock)
-#define ISP_DRIVER_CTL_ENTRY_LOCK   ISP_DRIVER_ENTRY_LOCK
-#define ISP_DRIVER_CTL_EXIT_LOCK    ISP_DRIVER_EXIT_LOCK
-#else
 #define ISP_DRIVER_ENTRY_LOCK(isp)  spin_unlock_irq(isp->isp_osinfo.host->host_lock)
 #define ISP_DRIVER_EXIT_LOCK(isp)   spin_lock_irq(isp->isp_osinfo.host->host_lock)
 #define ISP_DRIVER_CTL_ENTRY_LOCK(isp)  do { } while (0)
 #define ISP_DRIVER_CTL_EXIT_LOCK(isp)   do { } while (0)
-#endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-#define ISP_ATOMIC in_interrupt
-#else
 #define ISP_ATOMIC in_atomic
-#endif
 
 #define ISP_MUST_POLL(isp)          (ISP_ATOMIC() || isp->mbintsok == 0)
 
@@ -442,13 +442,11 @@ if (isp->isp_osinfo.task_request) {                                     \
  * Required Macros/Defines
  */
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2,4,18)
 #if defined(CONFIG_HIGHMEM64G) || defined(CONFIG_X86_64)
 #define ISP_DAC_SUPPORTED   1
 #endif
-#endif
 
-#define ISP_FC_SCRLEN   0x1000
+#define ISP2100_SCRLEN  0x1000
 
 #define MEMZERO(b, a)   memset(b, 0, a)
 #define MEMCPY          memcpy
@@ -462,11 +460,7 @@ if (isp->isp_osinfo.task_request) {                                     \
 
 #define NANOTIME_T      struct timeval
 /* for prior to 2.2.19, use do_gettimeofday, and, well, it'll be inaccurate */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,4,18)
-#define GET_NANOTIME(ptr)   (ptr)->tv_sec = 0, (ptr)->tv_usec = 0, get_fast_time(ptr)
-#else
 #define GET_NANOTIME(ptr)   (ptr)->tv_sec = 0, (ptr)->tv_usec = 0, do_gettimeofday(ptr)
-#endif
 #define GET_NANOSEC(x)      ((uint64_t) ((((uint64_t)(x)->tv_sec) * 1000000 + (x)->tv_usec)))
 #define NANOTIME_SUB        _isp_microtime_sub
 
@@ -492,7 +486,7 @@ if (isp->isp_osinfo.task_request) {                                     \
     isp->mboxcmd_done = 1
 #define MBOX_RELEASE(isp)   up(&isp->mbox_sem)
 
-#define FC_SCRATCH_ACQUIRE(isp, chan)                   \
+#define FC_SCRATCH_ACQUIRE(isp)                         \
     /*                                                  \
      * Try and acquire semaphore the easy way first-    \
      * with our lock already held.                      \
@@ -509,7 +503,7 @@ if (isp->isp_osinfo.task_request) {                                     \
         ISP_IGET_LK_SOFTC(isp);                         \
     }
 
-#define FC_SCRATCH_RELEASE(isp, chan)   up(&isp->fcs_sem)
+#define FC_SCRATCH_RELEASE(isp) up(&isp->fcs_sem)
 
 
 #ifndef SCSI_GOOD
@@ -532,12 +526,6 @@ if (isp->isp_osinfo.task_request) {                                     \
 #define XS_T                Scsi_Cmnd
 #define XS_DMA_ADDR_T       dma_addr_t
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-#define XS_HOST(Cmnd)       Cmnd->host
-#define XS_CHANNEL(Cmnd)    (Cmnd)->channel
-#define XS_TGT(Cmnd)        (Cmnd)->target
-#define XS_LUN(Cmnd)        (Cmnd)->lun
-#else
 #define XS_HOST(Cmnd)       Cmnd->device->host
 #define XS_CHANNEL(Cmnd)    (Cmnd)->device->channel
 #define XS_TGT(Cmnd)        (Cmnd)->device->id
@@ -548,7 +536,6 @@ if (isp->isp_osinfo.task_request) {                                     \
 #define SCSI_DATA_WRITE     DMA_TO_DEVICE
 #define scsi_to_pci_dma_dir(x)  x
 
-#endif
 #define XS_ISP(Cmnd)        ((ispsoftc_t *)XS_HOST(Cmnd)->hostdata)
 #define XS_CDBP(Cmnd)       (Cmnd)->cmnd
 #define XS_CDBLEN(Cmnd)     (Cmnd)->cmd_len
@@ -607,7 +594,7 @@ if (isp->isp_osinfo.task_request) {                                     \
 #define ISP_IOXGET_16(isp, s, d)    d = le16_to_cpu(*((uint16_t *)s))
 #define ISP_IOXGET_32(isp, s, d)    d = le32_to_cpu(*((uint32_t *)s))
 
-#if BYTE_ORDER ==BIG_ENDIAN
+#if BYTE_ORDER == BIG_ENDIAN
 #define ISP_IOX_8X2(isp, sptr, dptr, tag1, tag2)    \
     dptr ## -> ## tag1 = sptr ## -> ## tag2;        \
     dptr ## -> ## tag2 = sptr ## -> ## tag1
@@ -631,6 +618,10 @@ if (isp->isp_osinfo.task_request) {                                     \
 #define ISP_IOZGET_32(isp, s, d)    d = be32_to_cpu(*((uint32_t *)s))
 
 #define ISP_SWIZZLE_NVRAM_WORD(isp, rp) *rp = le16_to_cpu(*rp)
+#define ISP_SWIZZLE_NVRAM_LONG(isp, rp) *rp = le32_to_cpu(*rp)
+
+#define ISP_SWAP16(isp, x)  swab16(x)
+#define ISP_SWAP32(isp, x)  swab32(x)
 
 
 /*
@@ -672,7 +663,7 @@ union pstore {
 };
 #define isp_name        isp_osinfo.hbaname
 #define isp_host        isp_osinfo.host
-#define isp_unit        isp_osinfo.instance
+#define isp_unit        isp_osinfo.host->unique_id
 #define isp_psco        isp_osinfo.storep->parallel_scsi.psc_opts
 #define isp_dutydone    isp_osinfo.storep->parallel_scsi.dutydone
 #define isp_defwwnn     isp_osinfo.storep->fibre_scsi.def_wwnn
@@ -685,9 +676,7 @@ union pstore {
  */
 void isplinux_timer(unsigned long);
 void isplinux_mbtimer(unsigned long);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-void isplinux_intr(int, void *, struct pt_regs *);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
 irqreturn_t isplinux_intr(int, void *, struct pt_regs *);
 #else
 irqreturn_t isplinux_intr(int, void *);
@@ -711,28 +700,11 @@ static __inline int isplinux_tagtype(Scsi_Cmnd *);
 static __inline int mbox_acquire(ispsoftc_t *);
 static __inline void mbox_wait_complete(ispsoftc_t *, mbreg_t *);
 
-
-
-int isplinux_proc_info(char *, char **, off_t, int, int, int);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
-int isplinux_proc_info_26(struct Scsi_Host *, char *, char **, off_t, int, int);
-#endif
-int isplinux_detect(Scsi_Host_Template *);
-#ifdef  MODULE
-int isplinux_release(struct Scsi_Host *);
-#define ISPLINUX_RELEASE    isplinux_release
-#else
-#define ISPLINUX_RELEASE    NULL
-#endif
+int isplinux_proc_info(struct Scsi_Host *, char *, char **, off_t, int, int);
 const char *isplinux_info(struct Scsi_Host *);
 int isplinux_queuecommand(Scsi_Cmnd *, void (* done)(Scsi_Cmnd *));
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-int isplinux_biosparam(Disk *, kdev_t, int[]);
-#else
 int isplinux_biosparam(struct scsi_device *, struct block_device *, sector_t, int[]); 
-#endif
 int isplinux_default_id(ispsoftc_t *);
-
 
 /*
  * Driver wide data...
@@ -743,7 +715,13 @@ extern int isp_disable;
 extern int isp_nofwreload;
 extern int isp_nonvram;
 extern int isp_fcduplex;
+extern int isp_maxsectors;
+extern struct scsi_host_template *isp_template;
 extern const char *class3_roles[4];
+extern dev_t isp_dev;
+extern struct cdev isp_cdev;
+extern struct file_operations isp_ioctl_operations;
+extern ISP_CLASS *isp_class;
 
 /*
  * This used to be considered bad form, but locking crasp made it more attractive.
@@ -751,7 +729,6 @@ extern const char *class3_roles[4];
 #define MAX_ISP     32
 extern ispsoftc_t *isplist[MAX_ISP];
 extern ispsoftc_t *api_isp;
-extern int api_channel;
 
 /*
  * Platform private flags
@@ -1007,7 +984,7 @@ isp_kzalloc(size_t size, int flags)
 
 int isp_init_target(ispsoftc_t *);
 void isp_attach_target(ispsoftc_t *);
-void isp_deini_target(ispsoftc_t *);
+void isp_deinit_target(ispsoftc_t *);
 void isp_detach_target(ispsoftc_t *);
 int isp_target_async(ispsoftc_t *, int, int);
 int isp_target_notify(ispsoftc_t *, void *, uint32_t *);

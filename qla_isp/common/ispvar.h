@@ -1,4 +1,4 @@
-/* $Id: ispvar.h,v 1.76 2007/06/01 17:19:31 mjacob Exp $ */
+/* $Id: ispvar.h,v 1.84 2007/10/11 22:08:38 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -31,9 +31,8 @@
  *  is the GNU Public License:
  * 
  *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation; either version 2 of the License, or
- *   (at your option) any later version.
+ *   it under the terms of The Version 2 GNU General Public License as published
+ *   by the Free Software Foundation.
  * 
  *   This program is distributed in the hope that it will be useful,
  *   but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -190,7 +189,9 @@ struct ispmdvec {
  * SCSI Specific Host Adapter Parameters- per bus, per target
  */
 typedef struct {
-	uint32_t 				: 12,
+	uint32_t 				: 10,
+			isp_bad_nvram		: 1,
+			isp_gotdparms		: 1,
 			isp_req_ack_active_neg	: 1,
 			isp_data_line_active_neg: 1,
 			isp_cmd_dma_burst_enable: 1,
@@ -344,7 +345,6 @@ typedef struct {
 	 * the 'loopid'.
 	 */
 	uint16_t	handle;
-
 	/*
 	 * The ini_map_idx, if nonzero, is the system virtual target ID (+1)
 	 * as a cross-reference with the isp_ini_map.
@@ -386,14 +386,14 @@ typedef struct {
  */
 typedef struct {
 	uint32_t				: 10,
-						: 1,
-						: 1,
-						: 1,
+				isp_tmode	: 1,
+				isp_2klogin	: 1,
+				isp_sccfw	: 1,
 				isp_gbspeed	: 3,
 						: 1,
 						: 1,
-						: 1,
-						: 1,
+				isp_gotdparms	: 1,
+				isp_bad_nvram	: 1,
 				isp_loopstate	: 4,	/* Current Loop State */
 				isp_fwstate	: 4,	/* ISP F/W state */
 				isp_topo	: 3,
@@ -404,6 +404,7 @@ typedef struct {
 	uint16_t		isp_xfwoptions;
 	uint16_t		isp_zfwoptions;
 	uint16_t		isp_loopid;	/* hard loop id */
+	uint16_t		isp_fwattr;	/* firmware attributes */
 	uint16_t		isp_execthrottle;
 	uint8_t			isp_retry_delay;
 	uint8_t			isp_retry_count;
@@ -482,28 +483,21 @@ struct ispsoftc {
 	 */
 
 	void * 			isp_param;	/* type specific */
-	uint16_t		isp_fwrev[3];	/* Loaded F/W revision */
-	uint16_t		isp_romfw_rev[3]; /* PROM F/W revision */
+	uint16_t		isp_fwrev[3];	/* runnng F/W revision */
 	uint16_t		isp_maxcmds;	/* max possible I/O cmds */
 	uint8_t			isp_type;	/* HBA Chip Type */
 	uint8_t			isp_revision;	/* HBA Chip H/W Revision */
 	uint32_t		isp_maxluns;	/* maximum luns supported */
 
 	uint32_t		isp_clock	: 8,	/* input clock */
-						: 2,
-				isp_gotdparms	: 1,
-						: 1,
+						: 5,
 				isp_port	: 1,	/* 23XX/24XX only */
-						: 1,
+				isp_failed	: 1,	/* board failed */
 				isp_open	: 1,	/* opened (ioctl) */
-				isp_touched	: 1,	/* board ever seen? */
 				isp_bustype	: 1,	/* SBus or PCI */
 				isp_loaded_fw	: 1,	/* loaded firmware */
 				isp_role	: 2,	/* roles supported */
 				isp_dblev	: 12;	/* debug log mask */
-
-	uint16_t		isp_fwattr;	/* firmware attributes */
-	uint16_t		isp_nchan;	/* number of channels */
 
 	uint32_t		isp_confopts;		/* config options */
 
@@ -577,8 +571,8 @@ struct ispsoftc {
 #endif
 };
 
-#define	SDPARAM(isp, chan)	(&((sdparam *)(isp)->isp_param)[(chan)])
-#define	FCPARAM(isp, chan)	(&((fcparam *)(isp)->isp_param)[(chan)])
+#define	SDPARAM(isp)	((sdparam *) (isp)->isp_param)
+#define	FCPARAM(isp)	((fcparam *) (isp)->isp_param)
 
 /*
  * ISP Driver Run States
@@ -788,34 +782,27 @@ void isp_done(XS_T *);
  * Platform Dependent to External to Internal Control Function
  *
  * Assumes locks are held on entry. You should note that with many of
- * these commands locks may be released while this function is called.
+ * these commands and locks may be released while this is occurring.
  *
- * ... ISPCTL_RESET_BUS, int channel);
- *        Reset BUS on this channel
- * ... ISPCTL_RESET_DEV, int channel, int target);
- *        Reset Device on this channel at this target.
- * ... ISPCTL_ABORT_CMD, XS_T *xs);
- *        Abort active transaction described by xs.
- * ... IPCTL_UPDATE_PARAMS);
- *        Update any operating parameters (speed, etc.)
- * ... ISPCTL_FCLINK_TEST, int channel);
- *        Test FC link status on this channel
- * ... ISPCTL_SCAN_FABRIC, int channel);
- *        Scan fabric on this channel
- * ... ISPCTL_SCAN_LOOP, int channel);
- *        Scan local loop on this channel
- * ... ISPCTL_PDB_SYNC, int channel);
- *        Synchronize port database on this channel
- * ... ISPCTL_SEND_LIP, int channel);
- *        Send a LIP on this channel
- * ... ISPCTL_GET_PORTNAME, int channel, int nphandle, uint64_t *wwpn)
- *        Get a WWPN for this N-port handle on this channel
- * ... ISPCTL_RUN_MBOXCMD, mbreg_t *mbp)
- *        Run this mailbox command
- * ... ISPCTL_GET_PDB, int channel, int nphandle, isp_pdb_t *pdb)
- *        Get PDB on this channel for this N-port handle
- * ... ISPCTL_PLOGX, isp_plcmd_t *)
- *        Performa a port login/logout
+ * A few notes about some of these functions:
+ *
+ * ISPCTL_FCLINK_TEST tests to make sure we have good fibre channel link.
+ * The argument is a pointer to an integer which is the time, in microseconds,
+ * we should wait to see whether we have good link. This test, if successful,
+ * lets us know our connection topology and our Loop ID/AL_PA and so on.
+ * You can't get anywhere without this.
+ *
+ * ISPCTL_SCAN_FABRIC queries the name server (if we're on a fabric) for
+ * all entities using the FC Generic Services subcommand GET ALL NEXT.
+ * For each found entity, an ISPASYNC_FABRICDEV event is generated (see
+ * below).
+ *
+ * ISPCTL_SCAN_LOOP does a local loop scan. This is only done if the connection
+ * topology is NL or FL port (private or public loop). Since the Qlogic f/w
+ * 'automatically' manages local loop connections, this function essentially
+ * notes the arrival, departure, and possible shuffling around of local loop
+ * entities. Thus for each arrival and departure this generates an isp_async
+ * event of ISPASYNC_PROMENADE (see below).
  *
  * ISPCTL_PDB_SYNC is somewhat misnamed. It actually is the final step, in
  * order, of ISPCTL_FCLINK_TEST, ISPCTL_SCAN_FABRIC, and ISPCTL_SCAN_LOOP.
@@ -826,21 +813,24 @@ void isp_done(XS_T *);
  * part of this function. It's now been separated to allow for finer control.
  */
 typedef enum {
-	ISPCTL_RESET_BUS,
-	ISPCTL_RESET_DEV,
-	ISPCTL_ABORT_CMD,
-	ISPCTL_UPDATE_PARAMS,
-	ISPCTL_FCLINK_TEST,
-	ISPCTL_SCAN_FABRIC,
-	ISPCTL_SCAN_LOOP,
-	ISPCTL_PDB_SYNC,
-	ISPCTL_SEND_LIP,
-	ISPCTL_GET_PORTNAME,
-	ISPCTL_RUN_MBOXCMD,
-	ISPCTL_GET_PDB,
-	ISPCTL_PLOGX
+	ISPCTL_RESET_BUS,		/* Reset Bus */
+	ISPCTL_RESET_DEV,		/* Reset Device */
+	ISPCTL_ABORT_CMD,		/* Abort Command */
+	ISPCTL_UPDATE_PARAMS,		/* Update Operating Parameters (SCSI) */
+	ISPCTL_FCLINK_TEST,		/* Test FC Link Status */
+	ISPCTL_SCAN_FABRIC,		/* (Re)scan Fabric Name Server */
+	ISPCTL_SCAN_LOOP,		/* (Re)scan Local Loop */
+	ISPCTL_PDB_SYNC,		/* Synchronize Port Database */
+	ISPCTL_SEND_LIP,		/* Send a LIP */
+	ISPCTL_GET_PORTNAME,		/* get portname from an N-port handle */
+	ISPCTL_GET_NODENAME,		/* get nodename from an N-port handle */
+	ISPCTL_RUN_MBOXCMD,		/* run a mailbox command */
+	ISPCTL_TOGGLE_TMODE,		/* toggle target mode */
+	ISPCTL_GET_PDB,			/* get a single port database entry */
+	ISPCTL_PLOGX			/* do a port login/logout */
 } ispctl_t;
-int isp_control(ispsoftc_t *, ispctl_t, ...);
+int isp_control(ispsoftc_t *, ispctl_t, void *);
+
 
 /*
  * Platform Dependent to Internal to External Control Function
@@ -852,7 +842,7 @@ int isp_control(ispsoftc_t *, ispctl_t, ...);
  *
  * ISPASYNC_CHANGE_NOTIFY notifies the outer layer that a change has
  * occurred that invalidates the list of fabric devices known and/or
- * the list of known loop devices. The argument passed is an integer
+ * the list of known loop devices. The argument passed is a pointer
  * whose values are defined below  (local loop change, name server
  * change, other). 'Other' may simply be a LIP, or a change in
  * connection topology.
@@ -896,15 +886,17 @@ typedef enum {
 	ISPASYNC_DEV_GONE,		/* FC Device Depart */
 	ISPASYNC_TARGET_NOTIFY,		/* target asynchronous notification event */
 	ISPASYNC_TARGET_ACTION,		/* target action requested */
+	ISPASYNC_CONF_CHANGE,		/* Platform Configuration Change */
+	ISPASYNC_UNHANDLED_RESPONSE,	/* Unhandled Response Entry */
 	ISPASYNC_FW_CRASH,		/* Firmware has crashed */
 	ISPASYNC_FW_DUMPED,		/* Firmware crashdump taken */
 	ISPASYNC_FW_RESTARTED		/* Firmware has been restarted */
 } ispasync_t;
-void isp_async(ispsoftc_t *, ispasync_t, ...);
+int isp_async(ispsoftc_t *, ispasync_t, void *);
 
-#define	ISPASYNC_CHANGE_PDB	0
-#define	ISPASYNC_CHANGE_SNS	1
-#define	ISPASYNC_CHANGE_OTHER	2
+#define	ISPASYNC_CHANGE_PDB	((void *) 0)
+#define	ISPASYNC_CHANGE_SNS	((void *) 1)
+#define	ISPASYNC_CHANGE_OTHER	((void *) 2)
 
 /*
  * Platform Dependent Error and Debug Printout
@@ -938,7 +930,7 @@ void isp_async(ispsoftc_t *, ispasync_t, ...);
  * Each platform must also provide the following macros/defines:
  *
  *
- *	ISP_FC_SCRLEN				FC scratch area DMA length
+ *	ISP2100_SCRLEN	-	length for the Fibre Channel scratch DMA area
  *
  *	MEMZERO(dst, src)			platform zeroing function
  *	MEMCPY(dst, src, count)			platform copying function
@@ -970,8 +962,8 @@ void isp_async(ispsoftc_t *, ispasync_t, ...);
  *	MBOX_NOTIFY_COMPLETE(ispsoftc_t *)	notification of mbox cmd donee
  *	MBOX_RELEASE(ispsoftc_t *)		release lock on mailbox regs
  *
- *	FC_SCRATCH_ACQUIRE(ispsoftc_t *, chan)	acquire lock on FC scratch area
- *	FC_SCRATCH_RELEASE(ispsoftc_t *, chan)	acquire lock on FC scratch area
+ *	FC_SCRATCH_ACQUIRE(ispsoftc_t *)	acquire lock on FC scratch area
+ *	FC_SCRATCH_RELEASE(ispsoftc_t *)	acquire lock on FC scratch area
  *
  *	SCSI_GOOD	SCSI 'Good' Status
  *	SCSI_CHECK	SCSI 'Check Condition' Status
@@ -1049,6 +1041,9 @@ void isp_async(ispsoftc_t *, ispasync_t, ...);
  *	ISP_IOXGET_32(ispsoftc_t *, uint32_t *srcptr, uint32_t dstrval)
  *
  *	ISP_SWIZZLE_NVRAM_WORD(ispsoftc_t *, uint16_t *)
+ *	ISP_SWIZZLE_NVRAM_LONG(ispsoftc_t *, uint32_t *)
+ *	ISP_SWAP16(ispsoftc_t *, uint16_t srcval)
+ *	ISP_SWAP32(ispsoftc_t *, uint32_t srcval)
  */
 
 #endif	/* _ISPVAR_H */

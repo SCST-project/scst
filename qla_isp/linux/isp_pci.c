@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.126 2007/06/01 17:19:34 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.137 2007/10/11 22:08:07 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -31,9 +31,8 @@
  *  is the GNU Public License:
  * 
  *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation; either version 2 of the License, or
- *   (at your option) any later version.
+ *   it under the terms of The Version 2 GNU General Public License as published
+ *   by the Free Software Foundation.
  * 
  *   This program is distributed in the hope that it will be useful,
  *   but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -62,7 +61,7 @@ static int isp_pci_mapmem = 0xffffffff;
 #undef  ioremap_nocache
 #define ioremap_nocache    ioremap
 #endif
-static int isplinux_pci_init(struct Scsi_Host *);
+static int isplinux_pci_init_one(struct Scsi_Host *);
 static uint32_t isp_pci_rd_reg(ispsoftc_t *, int);
 static void isp_pci_wr_reg(ispsoftc_t *, int, uint32_t);
 #if !(defined(ISP_DISABLE_1080_SUPPORT) && defined(ISP_DISABLE_12160_SUPPORT))
@@ -355,10 +354,6 @@ static struct ispmdvec mdvec_2400 = {
 #define PCI_DFLT_LNSZ   0x10
 #define PCI_CMD_ISP     (PCI_COMMAND_MASTER|PCI_COMMAND_INVALIDATE|PCI_COMMAND_PARITY|PCI_COMMAND_SERR)
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
-static struct device_driver isp_pci_device_driver;
-#endif
-
 /*
  * Encapsulating softc... Order of elements is important. The tag
  * pci_isp must come first because of multiple structure punning
@@ -422,319 +417,12 @@ map_isp_io(struct isp_pcisoftc *isp_pci, u_short cmd, vm_offset_t io_base)
 {
     if ((cmd & PCI_COMMAND_IO) && (io_base & 3) == 1) {
        isp_pci->port = io_base & PCI_BASE_ADDRESS_IO_MASK;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-        if (check_region(isp_pci->port, 0xff)) {
-            return (0);
-        }
-#endif
-        request_region(isp_pci->port, 0xff, "isp");
+        request_region(isp_pci->port, 0xff, ISP_NAME);
         return (1);
     }
     return (0);
 }
 
-#define ISEARCH(x)          (pcidev = pci_find_device(PCI_VENDOR_ID_QLOGIC, x, pcidev)) != NULL
-
-static struct isp_pcisoftc *
-isplinux_pci_addhost(Scsi_Host_Template *tmpt, struct pci_dev *pcidev)
-{
-    struct Scsi_Host *host;
-    ispsoftc_t *isp;
-    struct isp_pcisoftc *pci_isp;
-    int i;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
-
-    host = scsi_host_alloc(tmpt, sizeof(struct isp_pcisoftc));
-    if (host == NULL) {
-        return (NULL);
-    }
-    pci_isp = (struct isp_pcisoftc *) host->hostdata;
-    pci_set_drvdata(pcidev, pci_isp);
-    pci_isp->pci_dev = pcidev;
-    isp = (ispsoftc_t *) pci_isp;
-    isp->isp_host = host;
-    isp->isp_osinfo.storep = &pci_isp->params;
-    isp->isp_osinfo.device = pcidev;
-
-    host->unique_id = isp_unit_seed;
-    if (isplinux_pci_init(host)) {
-        scsi_host_put(host);
-        return (NULL);
-    }
-
-    pcidev->dev.driver = &isp_pci_device_driver;
-    if (scsi_add_host(host, &pcidev->dev)) {
-        scsi_host_put(host);
-        return (NULL);
-    }
-#else
-    host = scsi_register(tmpt, sizeof(struct isp_pcisoftc));
-    if (host == NULL) {
-        printk("isplinux_pci_addhost: scsi_register failed\n");
-        return (NULL);
-    }
-    pci_isp = (struct isp_pcisoftc *) host->hostdata;
-    if (pci_isp == NULL) {
-        scsi_unregister(host);
-        printk("isplinux_pci_addhost: cannot get softc out of scsi_register\n");
-        return (NULL);
-    }
-    pci_isp->pci_dev = pcidev;
-    isp = (ispsoftc_t *) pci_isp;
-    isp->isp_host = host;
-    isp->isp_osinfo.storep = &pci_isp->params;
-    isp->isp_osinfo.device = pcidev;
-
-    if (isplinux_pci_init(host)) {
-        scsi_unregister(host);
-        return (NULL);
-    }
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,4)
-    scsi_set_pci_device(host, pci_isp->pci_dev);
-#endif
-#endif
-    for (i = 0; i < MAX_ISP; i++) {
-        if (isplist[i] == NULL) {
-            isplist[i] = isp;
-            break;
-        }
-    }
-    return (pci_isp);
-}
-
-#if    LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,18) && LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-#include <linux/reboot.h>
-static int
-isp_notify_reboot(struct notifier_block *ispnb, unsigned long Event, void *b)
-{
-    unsigned long flags;
-    ispsoftc_t *isp;
-    int i;
-
-    switch (Event) {
-    case SYS_RESTART:
-    case SYS_HALT:
-    case SYS_POWER_OFF:
-        break;
-    default:
-        return (NOTIFY_DONE);
-    }
-    for (i = 0; i < MAX_ISP; i++) {
-        isp = isplist[i];
-        if (isp == NULL) {
-            continue;
-        }
-        ISP_LOCKU_SOFTC(isp);
-        isp_shutdown(isp);
-        ISP_UNLKU_SOFTC(isp);
-    }
-    return (NOTIFY_OK);
-}
-static struct notifier_block isp_notifier = {
-    notifier_call:  isp_notify_reboot,
-    next:           NULL,
-    priority:       0
-};
-#endif
-
-static int isp_nfound = 0;
-int
-isplinux_pci_detect(Scsi_Host_Template *tmpt)
-{
-    static const char *fmt =
-        KERN_INFO "ISP SCSI and Fibre Channel Host Adapter Driver\n"
-        KERN_INFO "      Linux Platform Version %d.%d\n"
-        KERN_INFO "      Common Core Code Version %d.%d\n"
-        KERN_INFO "      Built on %s, %s\n";
-    struct isp_pcisoftc *pci_isp;
-    struct pci_dev *pcidev;
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-    if (pci_present() == 0) {
-        return (0);
-    }
-#endif
-
-    printk(fmt, ISP_PLATFORM_VERSION_MAJOR, ISP_PLATFORM_VERSION_MINOR, ISP_CORE_VERSION_MAJOR, ISP_CORE_VERSION_MINOR, __DATE__ , __TIME__ );
-
-#ifndef    ISP_DISABLE_1020_SUPPORT
-    pcidev = NULL;
-    while(ISEARCH(PCI_DEVICE_ID_QLOGIC_ISP1020)) {
-        if (isplinux_pci_exclude(pcidev)) {
-            continue;
-        }
-        pci_isp = isplinux_pci_addhost(tmpt, pcidev);
-        if (pci_isp) {
-            isp_nfound++;
-        }
-    }
-#endif
-
-#ifndef    ISP_DISABLE_1080_SUPPORT
-    pcidev = NULL;
-    while(ISEARCH(PCI_DEVICE_ID_QLOGIC_ISP1240)) {
-        if (isplinux_pci_exclude(pcidev)) {
-            continue;
-        }
-        pci_isp = isplinux_pci_addhost(tmpt, pcidev);
-        if (pci_isp) {
-            isp_nfound++;
-        }
-    }
-    pcidev = NULL;
-    while(ISEARCH(PCI_DEVICE_ID_QLOGIC_ISP1080)) {
-        if (isplinux_pci_exclude(pcidev)) {
-            continue;
-        }
-        pci_isp = isplinux_pci_addhost(tmpt, pcidev);
-        if (pci_isp) {
-            isp_nfound++;
-        }
-    }
-    pcidev = NULL;
-    while(ISEARCH(PCI_DEVICE_ID_QLOGIC_ISP1280)) {
-        if (isplinux_pci_exclude(pcidev)) {
-            continue;
-        }
-        pci_isp = isplinux_pci_addhost(tmpt, pcidev);
-        if (pci_isp) {
-            isp_nfound++;
-        }
-    }
-#endif
-
-#ifndef    ISP_DISABLE_12160_SUPPORT
-    pcidev = NULL;
-    while(ISEARCH(PCI_DEVICE_ID_QLOGIC_ISP10160)) {
-        if (isplinux_pci_exclude(pcidev)) {
-            continue;
-        }
-        pci_isp = isplinux_pci_addhost(tmpt, pcidev);
-        if (pci_isp) {
-            isp_nfound++;
-        }
-    }
-    pcidev = NULL;
-    while(ISEARCH(PCI_DEVICE_ID_QLOGIC_ISP12160)) {
-        if (isplinux_pci_exclude(pcidev)) {
-            continue;
-        }
-        pci_isp = isplinux_pci_addhost(tmpt, pcidev);
-        if (pci_isp) {
-            isp_nfound++;
-        }
-    }
-#endif
-
-#ifndef    ISP_DISABLE_2100_SUPPORT
-    pcidev = NULL;
-    while(ISEARCH(PCI_DEVICE_ID_QLOGIC_ISP2100)) {
-        if (isplinux_pci_exclude(pcidev)) {
-            continue;
-        }
-        pci_isp = isplinux_pci_addhost(tmpt, pcidev);
-        if (pci_isp) {
-            isp_nfound++;
-        }
-    }
-#endif
-
-#ifndef    ISP_DISABLE_2200_SUPPORT
-    pcidev = NULL;
-    while(ISEARCH(PCI_DEVICE_ID_QLOGIC_ISP2200)) {
-        if (isplinux_pci_exclude(pcidev)) {
-            continue;
-        }
-        pci_isp = isplinux_pci_addhost(tmpt, pcidev);
-        if (pci_isp) {
-            isp_nfound++;
-        }
-    }
-#endif
-
-#ifndef    ISP_DISABLE_2300_SUPPORT
-    pcidev = NULL;
-    while(ISEARCH(PCI_DEVICE_ID_QLOGIC_ISP2300)) {
-        if (isplinux_pci_exclude(pcidev)) {
-            continue;
-        }
-        pci_isp = isplinux_pci_addhost(tmpt, pcidev);
-        if (pci_isp) {
-            isp_nfound++;
-        }
-    }
-    pcidev = NULL;
-    while(ISEARCH(PCI_DEVICE_ID_QLOGIC_ISP2312)) {
-        if (isplinux_pci_exclude(pcidev)) {
-            continue;
-        }
-        pci_isp = isplinux_pci_addhost(tmpt, pcidev);
-        if (pci_isp) {
-            isp_nfound++;
-        }
-    }
-    pcidev = NULL;
-    while(ISEARCH(PCI_DEVICE_ID_QLOGIC_ISP2322)) {
-        if (isplinux_pci_exclude(pcidev)) {
-            continue;
-        }
-        pci_isp = isplinux_pci_addhost(tmpt, pcidev);
-        if (pci_isp) {
-            isp_nfound++;
-        }
-    }
-    pcidev = NULL;
-    while(ISEARCH(PCI_DEVICE_ID_QLOGIC_ISP6312)) {
-        if (isplinux_pci_exclude(pcidev)) {
-            continue;
-        }
-        pci_isp = isplinux_pci_addhost(tmpt, pcidev);
-        if (pci_isp) {
-            isp_nfound++;
-        }
-    }
-    pcidev = NULL;
-    while(ISEARCH(PCI_DEVICE_ID_QLOGIC_ISP6322)) {
-        if (isplinux_pci_exclude(pcidev)) {
-            continue;
-        }
-        pci_isp = isplinux_pci_addhost(tmpt, pcidev);
-        if (pci_isp) {
-            isp_nfound++;
-        }
-    }
-#endif
-#ifndef ISP_DISABLE_2400_SUPPORT
-    pcidev = NULL;
-    while(ISEARCH(PCI_DEVICE_ID_QLOGIC_ISP2422)) {
-        if (isplinux_pci_exclude(pcidev)) {
-            continue;
-        }
-        pci_isp = isplinux_pci_addhost(tmpt, pcidev);
-        if (pci_isp) {
-            isp_nfound++;
-        }
-    }
-    while(ISEARCH(PCI_DEVICE_ID_QLOGIC_ISP2432)) {
-        if (isplinux_pci_exclude(pcidev)) {
-            continue;
-        }
-        pci_isp = isplinux_pci_addhost(tmpt, pcidev);
-        if (pci_isp) {
-            isp_nfound++;
-        }
-    }
-#endif
-    /*
-     * Don't do reboot notifier stuff for 2.5.X yet
-     */
-#if    LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,18) && LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-    if (isp_nfound) {
-        register_reboot_notifier(&isp_notifier);
-    }
-#endif
-    return (isp_nfound);
-}
 
 void
 isplinux_pci_release(struct Scsi_Host *host)
@@ -771,12 +459,9 @@ isplinux_pci_release(struct Scsi_Host *host)
         isp->isp_result = NULL;
     }
     if (IS_FC(isp)) {
-        for (i = 0; i < isp->isp_nchan; i++) {
-            fcparam *fcp = FCPARAM(isp, i);
-            if (fcp->isp_scratch) {
-                pci_free_consistent(pcs->pci_dev, ISP_FC_SCRLEN, fcp->isp_scratch, fcp->isp_scdma);
-                fcp->isp_scratch = NULL;
-            }
+        if (FCPARAM(isp)->isp_scratch) {
+            pci_free_consistent(pcs->pci_dev, ISP2100_SCRLEN, FCPARAM(isp)->isp_scratch, FCPARAM(isp)->isp_scdma);
+            FCPARAM(isp)->isp_scratch = NULL;
         }
     }
     pci_release_regions(pcs->pci_dev);
@@ -790,61 +475,69 @@ isplinux_pci_release(struct Scsi_Host *host)
             break;
         }
     }
-#if    LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,18) && LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-    if (--isp_nfound <= 0) {
-        unregister_reboot_notifier(&isp_notifier);
-    }
-#endif
 }
 
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,14)
+/**
+ * pci_intx - enables/disables PCI INTx for device dev
+ * @pdev: the PCI device to operate on
+ * @enable: boolean: whether to enable or disable PCI INTx
+ *
+ * Enables/disables PCI INTx for device dev
+ */
+static void
+pci_intx(struct pci_dev *pdev, int enable)
+{
+	u16 pci_command, new;
+	pci_read_config_word(pdev, PCI_COMMAND, &pci_command);
+	if (enable) {
+		new = pci_command & ~PCI_COMMAND_INTX_DISABLE;
+	} else {
+		new = pci_command | PCI_COMMAND_INTX_DISABLE;
+	}
+	if (new != pci_command) {
+		pci_write_config_word(pdev, PCI_COMMAND, new);
+	}
+}
+#endif
+
 static int
-isplinux_pci_init(struct Scsi_Host *host)
+isplinux_pci_init_one(struct Scsi_Host *host)
 {
     static char *nomap = "cannot map either memory or I/O space";
     unsigned long io_base, mem_base;
-    unsigned int irq, pci_cmd_isp = PCI_CMD_ISP;
+    unsigned int bar, rev;
+    u16 cmd;
     struct isp_pcisoftc *isp_pci;
-    u_char rev, lnsz, timer;
-    u_short vid, did, cmd;
-    char loc[32];
+    struct pci_dev *pdev;
     ispsoftc_t *isp;
-    int dowrite = 0;
 
     isp_pci = (struct isp_pcisoftc *) host->hostdata;
+    pdev = isp_pci->pci_dev;
     isp = (ispsoftc_t *) isp_pci;
 
-    if (pci_request_regions(isp_pci->pci_dev, "isp")) {
+    pci_read_config_word(pdev, PCI_COMMAND, &cmd);
+    pci_read_config_dword(pdev, PCI_CLASS_REVISION, &rev);
+    rev &= 0xff;
+
+    if (pci_request_regions(pdev, ISP_NAME)) {
         return (1);
     }
 
-    sprintf(loc, "isp@<PCI%d,Slot%d,Func%d>", isp_pci->pci_dev->bus->number, PCI_SLOT(isp_pci->pci_dev->devfn), PCI_FUNC(isp_pci->pci_dev->devfn));
-    if (PRDW(isp_pci, PCI_COMMAND, &cmd) || PRDB(isp_pci, PCI_CACHE_LINE_SIZE, &lnsz) || PRDB(isp_pci, PCI_LATENCY_TIMER, &timer) || PRDB(isp_pci, PCI_CLASS_REVISION, &rev)) {
-        printk("%s: error reading PCI configuration\n", loc);
-        pci_release_regions(isp_pci->pci_dev);
-        return (1);
-    }
-    vid = isp_pci->pci_dev->vendor;
-    did = isp_pci->pci_dev->device;
-
-    io_base = pci_resource_start(isp_pci->pci_dev, 0);
-    if (pci_resource_flags(isp_pci->pci_dev, 0) & PCI_BASE_ADDRESS_MEM_TYPE_64) {
-        irq = 2;
+    io_base = pci_resource_start(pdev, 0);
+    if (pci_resource_flags(pdev, 0) & PCI_BASE_ADDRESS_MEM_TYPE_64) {
+        bar = 2;
     } else {
-        irq = 1;
+        bar = 1;
     }
-    mem_base = pci_resource_start(isp_pci->pci_dev, irq);
-    if (pci_resource_flags(isp_pci->pci_dev, irq) & PCI_BASE_ADDRESS_MEM_TYPE_64) {
+    mem_base = pci_resource_start(pdev, bar);
+    if (pci_resource_flags(pdev, bar) & PCI_BASE_ADDRESS_MEM_TYPE_64) {
 #if    BITS_PER_LONG == 64
-        mem_base |= pci_resource_start(isp_pci->pci_dev, irq+1) << 32;
+        mem_base |= pci_resource_start(pdev, bar+1) << 32;
 #else
         isp_pci_mapmem &= ~(1 << isp->isp_unit);
 #endif
-    }
-
-    if (vid != PCI_VENDOR_ID_QLOGIC) {
-        printk("%s: 0x%04x is not QLogic's PCI Vendor ID\n", loc, vid);
-        pci_release_regions(isp_pci->pci_dev);
-        return (1);
     }
 
     isp_pci->poff[BIU_BLOCK >> _BLK_REG_SHFT] = BIU_REGS_OFF;
@@ -852,17 +545,15 @@ isplinux_pci_init(struct Scsi_Host *host)
     isp_pci->poff[SXP_BLOCK >> _BLK_REG_SHFT] = PCI_SXP_REGS_OFF;
     isp_pci->poff[RISC_BLOCK >> _BLK_REG_SHFT] = PCI_RISC_REGS_OFF;
     isp_pci->poff[DMA_BLOCK >> _BLK_REG_SHFT] = DMA_REGS_OFF;
-    isp->isp_nchan = 1;
-    switch (did) {
+
+    switch (pdev->device) {
     case PCI_DEVICE_ID_QLOGIC_ISP1020:
         break;
+    case PCI_DEVICE_ID_QLOGIC_ISP1080:
     case PCI_DEVICE_ID_QLOGIC_ISP1240:
     case PCI_DEVICE_ID_QLOGIC_ISP1280:
-    case PCI_DEVICE_ID_QLOGIC_ISP12160:
-        isp->isp_nchan = 2;
-        /* FALLTHROUGH */
-    case PCI_DEVICE_ID_QLOGIC_ISP1080:
     case PCI_DEVICE_ID_QLOGIC_ISP10160:
+    case PCI_DEVICE_ID_QLOGIC_ISP12160:
         isp_pci->poff[DMA_BLOCK >> _BLK_REG_SHFT] = ISP1080_DMA_REGS_OFF;
         break;
     case PCI_DEVICE_ID_QLOGIC_ISP2200:
@@ -870,164 +561,69 @@ isplinux_pci_init(struct Scsi_Host *host)
         isp_pci->poff[MBOX_BLOCK >> _BLK_REG_SHFT] = PCI_MBOX_REGS2100_OFF;
         break;
     case PCI_DEVICE_ID_QLOGIC_ISP2300:
-        pci_cmd_isp &= ~PCI_COMMAND_INVALIDATE;    /* per errata */
+        pci_clear_mwi(pdev);
         isp_pci->poff[MBOX_BLOCK >> _BLK_REG_SHFT] = PCI_MBOX_REGS2300_OFF;
         break;
     case PCI_DEVICE_ID_QLOGIC_ISP6312:
     case PCI_DEVICE_ID_QLOGIC_ISP2312:
     case PCI_DEVICE_ID_QLOGIC_ISP2322:
-        isp->isp_port = PCI_FUNC(isp_pci->pci_dev->devfn);
+        isp->isp_port = PCI_FUNC(pdev->devfn);
         isp_pci->poff[MBOX_BLOCK >> _BLK_REG_SHFT] = PCI_MBOX_REGS2300_OFF;
         break;
     case PCI_DEVICE_ID_QLOGIC_ISP2422:
     case PCI_DEVICE_ID_QLOGIC_ISP2432:
-        isp->isp_port = PCI_FUNC(isp_pci->pci_dev->devfn);
+        isp->isp_port = PCI_FUNC(pdev->devfn);
         isp_pci->poff[MBOX_BLOCK >> _BLK_REG_SHFT] = PCI_MBOX_REGS2400_OFF;
         break;
     default:
-        printk("%s: Device ID 0x%04x is not a known Qlogic Device\n", loc, did);
-        pci_release_regions(isp_pci->pci_dev);
+        isp_prt(isp, ISP_LOGERR, "Device ID 0x%04x is not a known Qlogic Device", pdev->device);
+        pci_release_regions(pdev);
         return (1);
-    }
-
-    /*
-     * Bump unit seed- we're here, whether we complete the attachment or not.
-     */
-    isp->isp_unit = isp_unit_seed++;
-    sprintf(isp->isp_name, "isp%d", isp->isp_unit);
-
-    isp->isp_osinfo.device_id = ((isp_pci->pci_dev->bus->number) << 16) | (PCI_SLOT(isp_pci->pci_dev->devfn) << 8) | (PCI_FUNC(isp_pci->pci_dev->devfn));
-
-    if (isp_disable & (1 << isp->isp_unit)) {
-        printk("%s: disabled at user request\n", loc);
-        pci_release_regions(isp_pci->pci_dev);
-        return (1);
-    }
-
-    if (pci_enable_device(isp_pci->pci_dev)) {
-        printk("%s: fails to be PCI_ENABLEd\n", loc);
-        pci_release_regions(isp_pci->pci_dev);
-        return (1);
-    }
-    
-    (void) PRDW(isp_pci, PCI_COMMAND, &cmd);
-
-    if ((cmd & PCI_CMD_ISP) != pci_cmd_isp) {
-        if (isp_debug & ISP_LOGINFO) {
-            printk("%s: rewriting command register from 0x%x to 0x%x\n", loc, cmd, (cmd & ~PCI_CMD_ISP) | pci_cmd_isp);
-        }
-        cmd &= ~PCI_CMD_ISP;
-        cmd |= pci_cmd_isp;
-        dowrite = 1;
     }
 
     /* PCI Rev 2.3 changes */
-    if (did == PCI_DEVICE_ID_QLOGIC_ISP6312 || did == PCI_DEVICE_ID_QLOGIC_ISP2322) {
-        if (cmd & PCI_COMMAND_INTX_DISABLE) {
-            cmd &= ~PCI_COMMAND_INTX_DISABLE;
-            dowrite = 1;
-        }
+    if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP6312 || pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2322) {
+        pci_intx(pdev, 1);
     }
 
-    if (did == PCI_DEVICE_ID_QLOGIC_ISP2422 || did == PCI_DEVICE_ID_QLOGIC_ISP2432) {
-
+    if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2422 || pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2432) {
         int reg;
 
-        cmd &= ~PCI_COMMAND_INTX_DISABLE;
-        dowrite = 1;
+        pci_intx(pdev, 1);
 
         /*
          * Is this a PCI-X card? If so, set max read byte count.
         */
-        reg = pci_find_capability(isp_pci->pci_dev, PCI_CAP_ID_PCIX);
+        reg = pci_find_capability(pdev, PCI_CAP_ID_PCIX);
         if (reg) {
             uint16_t pxcmd;
 
             reg += 0x2;
-            PRDW(isp_pci, reg, &pxcmd);
+            pci_read_config_word(pdev, reg, &pxcmd);
             pxcmd &= ~PCI_X_CMD_MAX_READ;
             pxcmd |= 0x8;
-            PWRW(isp_pci, reg, pxcmd);
+            pci_write_config_word(pdev, reg, pxcmd);
         }
 
         /*
          * Is this a PCI Express card? If so, set max read byte count.
          */
-        reg = pci_find_capability(isp_pci->pci_dev, PCI_CAP_ID_EXP);
+        reg = pci_find_capability(pdev, PCI_CAP_ID_EXP);
         if (reg) {
             uint16_t pectl;
 
             reg += 0x8;
-            PRDW(isp_pci, reg, &pectl);
+            pci_read_config_word(pdev, reg, &pectl);
             pectl &= ~0x7000;
             pectl |= 0x4000;
-            PWRW(isp_pci, reg, pectl);
+            pci_write_config_word(pdev, reg, pectl);
         }
-    }
-
-    if (dowrite) {
-        PWRW(isp_pci, PCI_COMMAND, cmd);
-    }
-
-    if (lnsz != PCI_DFLT_LNSZ) {
-        if (isp_debug & ISP_LOGINFO) {
-            printk("%s: rewriting cache line size from 0x%x to 0x%x\n", loc, lnsz, PCI_DFLT_LNSZ);
-        }
-        lnsz = PCI_DFLT_LNSZ;
-        PWRB(isp_pci, PCI_CACHE_LINE_SIZE, lnsz);
-    }
-
-#ifdef    __sparc__
-    if (PRDB(isp_pci, PCI_MIN_GNT, &rev)) {
-        printk("%s: unable to read min grant\n", loc);
-        pci_release_regions(isp_pci->pci_dev);
-        return (1);
-    }
-    if (rev) {
-        rev = (rev << 3) & 0xff;
-    }
-    if (rev == 0) {
-        rev = 64;
-    }
-    if (isp_debug & ISP_LOGINFO) {
-        printk("%s: rewriting latency timer from 0x%x to 0x%x\n", loc, timer, rev);
-    }
-    PWRB(isp_pci, PCI_LATENCY_TIMER, rev);
-#else
-    if (timer < PCI_DFLT_LTNCY) {
-        if (isp_debug & ISP_LOGINFO) {
-            printk("%s: rewriting latency timer from 0x%x to 0x%x\n", loc, timer, PCI_DFLT_LTNCY);
-        }
-        timer = PCI_DFLT_LTNCY;
-        PWRB(isp_pci, PCI_LATENCY_TIMER, timer);
-    }
-#endif
-
-    if ((cmd & (PCI_COMMAND_MEMORY|PCI_COMMAND_IO)) == 0) {
-#ifdef    __powerpc__
-        if (io_base == 0 && mem_base == 0) {
-            printk("%s: you lose- no register access defined\n", loc);
-            pci_release_regions(isp_pci->pci_dev);
-            return (1);
-        }
-        if (io_base) {
-            cmd |= PCI_COMMAND_IO;
-        }
-        if (mem_base) {
-            cmd |= PCI_COMMAND_MEMORY;
-        }
-        PWRW(isp_pci, PCI_COMMAND, cmd);
-#else
-        printk("%s: you lose- no register access defined\n", loc);
-        pci_release_regions(isp_pci->pci_dev);
-        return (1);
-#endif
     }
 
     /*
      * Disable the ROM.
      */
-    PWRL(isp_pci, PCI_ROM_ADDRESS, 0);
+    pci_write_config_dword(pdev, PCI_ROM_ADDRESS, 0);
 
     /*
      * Set up stuff...
@@ -1041,115 +637,107 @@ isplinux_pci_init(struct Scsi_Host *host)
     if (isp_pci_mapmem & (1 << isp->isp_unit)) {
         if (map_isp_mem(isp_pci, cmd, mem_base) == 0) {
             if (map_isp_io(isp_pci, cmd, io_base) == 0) {
-                printk("%s: %s\n", loc, nomap);
-                pci_release_regions(isp_pci->pci_dev);
+                isp_prt(isp, ISP_LOGERR, "%s", nomap);
+                pci_release_regions(pdev);
                 return (1);
             }
         }
     } else {
         if (map_isp_io(isp_pci, cmd, io_base) == 0) {
             if (map_isp_mem(isp_pci, cmd, mem_base) == 0) {
-                printk("%s: %s\n", loc, nomap);
-                pci_release_regions(isp_pci->pci_dev);
+                isp_prt(isp, ISP_LOGERR, "%s", nomap);
+                pci_release_regions(pdev);
                 return (1);
             }
         }
     }
     if (isp_pci->vaddr) {
-        if (isp_debug & ISP_LOGCONFIG) {
-            printk("%s: mapped memory 0x%lx at %p\n", loc, isp_pci->paddr, isp_pci->vaddr);
-        }
+        isp_prt(isp, ISP_LOGCONFIG, "mapped memory 0x%lx at %p",  isp_pci->paddr, isp_pci->vaddr);
         host->io_port = isp_pci->paddr;
     } else {
-        if (isp_debug & ISP_LOGCONFIG) {
-            printk("%s: mapped I/O space at 0x%lx\n", loc, isp_pci->port);
-        }
+        isp_prt(isp, ISP_LOGCONFIG, "mapped I/O space at 0x%lx", isp_pci->port);
         host->io_port = isp_pci->port;
     }
     host->irq = 0;
     isp_pci->pci_isp.isp_revision = rev;
 #ifndef    ISP_DISABLE_1020_SUPPORT
-    if (did == PCI_DEVICE_ID_QLOGIC_ISP1020) {
+    if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP1020) {
         isp_pci->pci_isp.isp_mdvec = &mdvec;
         isp_pci->pci_isp.isp_type = ISP_HA_SCSI_UNKNOWN;
     } 
 #endif
 #ifndef    ISP_DISABLE_1080_SUPPORT
-    if (did == PCI_DEVICE_ID_QLOGIC_ISP1080) {
+    if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP1080) {
         isp_pci->pci_isp.isp_mdvec = &mdvec_1080;
         isp_pci->pci_isp.isp_type = ISP_HA_SCSI_1080;
     }
-    if (did == PCI_DEVICE_ID_QLOGIC_ISP1240) {
+    if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP1240) {
         isp_pci->pci_isp.isp_mdvec = &mdvec_1080;
         isp_pci->pci_isp.isp_type = ISP_HA_SCSI_1240;
         host->max_channel = 1;
     }
-    if (did == PCI_DEVICE_ID_QLOGIC_ISP1280) {
+    if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP1280) {
         isp_pci->pci_isp.isp_mdvec = &mdvec_1080;
         isp_pci->pci_isp.isp_type = ISP_HA_SCSI_1280;
         host->max_channel = 1;
     }
 #endif
 #ifndef    ISP_DISABLE_12160_SUPPORT
-    if (did == PCI_DEVICE_ID_QLOGIC_ISP10160) {
+    if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP10160) {
         isp_pci->pci_isp.isp_mdvec = &mdvec_12160;
         isp_pci->pci_isp.isp_type = ISP_HA_SCSI_12160;
     }
-    if (did == PCI_DEVICE_ID_QLOGIC_ISP12160) {
+    if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP12160) {
         isp_pci->pci_isp.isp_mdvec = &mdvec_12160;
         isp_pci->pci_isp.isp_type = ISP_HA_SCSI_12160;
         host->max_channel = 1;
     }
 #endif
 #ifndef    ISP_DISABLE_2100_SUPPORT
-    if (did == PCI_DEVICE_ID_QLOGIC_ISP2100) {
+    if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2100) {
         isp_pci->pci_isp.isp_mdvec = &mdvec_2100;
         isp_pci->pci_isp.isp_type = ISP_HA_FC_2100;
     }
 #endif
 #ifndef    ISP_DISABLE_2200_SUPPORT
-    if (did == PCI_DEVICE_ID_QLOGIC_ISP2200) {
+    if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2200) {
         isp_pci->pci_isp.isp_mdvec = &mdvec_2200;
         isp_pci->pci_isp.isp_type = ISP_HA_FC_2200;
     }
 #endif
 #ifndef    ISP_DISABLE_2300_SUPPORT
-    if (did == PCI_DEVICE_ID_QLOGIC_ISP2300) {
+    if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2300) {
         isp_pci->pci_isp.isp_mdvec = &mdvec_2300;
         isp_pci->pci_isp.isp_type = ISP_HA_FC_2300;
     }
-    if (did == PCI_DEVICE_ID_QLOGIC_ISP2312) {
+    if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2312) {
         isp_pci->pci_isp.isp_mdvec = &mdvec_2300;
         isp_pci->pci_isp.isp_type = ISP_HA_FC_2312;
     }
-    if (did == PCI_DEVICE_ID_QLOGIC_ISP2322) {
+    if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2322) {
         isp_pci->pci_isp.isp_mdvec = &mdvec_2322;
         isp_pci->pci_isp.isp_type = ISP_HA_FC_2322;
     }
-    if (did == PCI_DEVICE_ID_QLOGIC_ISP6312) {
+    if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP6312) {
         isp_pci->pci_isp.isp_mdvec = &mdvec_2300;
         isp_pci->pci_isp.isp_type = ISP_HA_FC_2312;
     }
 
-    if (IS_23XX(isp)) {
-        /*
-         * Can't tell if the ROM will hang on 'ABOUT FIRMWARE' command
-         */
-        isp->isp_touched = 1;
-    }
 #endif
 #ifndef    ISP_DISABLE_2400_SUPPORT
-    if (did == PCI_DEVICE_ID_QLOGIC_ISP2422 || did == PCI_DEVICE_ID_QLOGIC_ISP2432) {
+    if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2422 || pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2432) {
         isp_pci->pci_isp.isp_mdvec = &mdvec_2400;
         isp_pci->pci_isp.isp_type = ISP_HA_FC_2400;
     }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-    host->select_queue_depths = isplinux_sqd;
-#endif
+    if (request_irq(pdev->irq, isplinux_intr, ISP_IRQ_FLAGS, isp->isp_name, isp_pci)) {
+        isp_prt(isp, ISP_LOGERR, "could not snag irq %u (0x%x)", pdev->irq, pdev->irq);
+        goto bad;
+    }
+    host->irq = pdev->irq;
+
     isp->isp_param = &isp_pci->params;
-#if    LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,18)
     /*
      * All PCI QLogic cards really can do full 32 bit PCI transactions,
      * at least. But the older cards (1020s) have a 24 bit segment limit
@@ -1164,57 +752,40 @@ isplinux_pci_init(struct Scsi_Host *host)
      * remove code we wouldn't want to try and use if we don't have
      * CONFIG_HIGHMEM64G defined.
      */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-    host->highmem_io = 1;
-#endif
 
     if (isp->isp_type < ISP_HA_SCSI_1240) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-        host->highmem_io = 0;
-#endif
-        if (pci_set_dma_mask(isp_pci->pci_dev, (u64)0x00ffffff)) {
-            printk("%s: cannot set 24 bit dma mask\n", loc);
+        if (pci_set_dma_mask(pdev, (u64)0x00ffffff)) {
+            isp_prt(isp, ISP_LOGERR, "cannot set 24 bit dma mask");
             goto bad;
         }
     } else if (ISP_A64) {
-        if (pci_set_dma_mask(isp_pci->pci_dev, (u64) 0xffffffffffffffffULL)) {
-            if (pci_set_dma_mask(isp_pci->pci_dev, (u64) 0xffffffff)) {
-                printk("%s: cannot set 32 bit dma mask\n", loc);
+        if (pci_set_dma_mask(pdev, (u64) 0xffffffffffffffffULL)) {
+            if (pci_set_dma_mask(pdev, (u64) 0xffffffff)) {
+                isp_prt(isp, ISP_LOGERR, "cannot set 32 bit dma mask");
                 goto bad;
             }
         } else {
-            if (isp_debug & ISP_LOGCONFIG) {
-                printk("%s: enabling 64 bit DMA\n", loc);
-            }
+            isp_prt(isp, ISP_LOGCONFIG, "eanbling 64 bit DMA");
         }
     } else {
-        if (pci_set_dma_mask(isp_pci->pci_dev, (u64)0xffffffff)) {
-            printk("%s: cannot set 32 bit dma mask\n", loc);
+        if (pci_set_dma_mask(pdev, (u64)0xffffffff)) {
+            isp_prt(isp, ISP_LOGERR, "cannot set 32 bit dma mask");
             goto bad;
         }
     }
-#endif
 
     if (isplinux_common_init(isp)) {
-        printk("%s: isplinux_common_init failed\n", loc);
+        isp_prt(isp, ISP_LOGERR, "isplinux_common_init failed");
         goto bad;
     }
-
-    if (IS_FC(isp)) {
-        host->max_cmd_len = 16;
-    } else {
-        host->max_cmd_len = 12;
-    }
-    
-    irq = isp_pci->pci_dev->irq;
-    if (request_irq(irq, isplinux_intr, ISP_IRQ_FLAGS, isp->isp_name, isp_pci)) {
-        printk("%s: could not snag irq %u (0x%x)\n", loc, irq, irq);
-        goto bad;
-    }
-    host->irq = irq;
-
+    CREATE_ISP_DEV(isp);
     return (0);
 bad:
+    if (host->irq) {
+        ISP_DISABLE_INTS(isp);
+        free_irq(host->irq, isp_pci);
+        host->irq = 0;
+    }
     if (isp_pci->vaddr != 0) {
         unmap_pci_mem(isp_pci, 0xff);
         isp_pci->vaddr = 0;
@@ -1222,7 +793,7 @@ bad:
         release_region(isp_pci->port, 0xff);
         isp_pci->port = 0;
     }
-    pci_release_regions(isp_pci->pci_dev);
+    pci_release_regions(pdev);
     return (1);
 }
 
@@ -1689,8 +1260,6 @@ isp_pci_wr_reg_1080(ispsoftc_t *isp, int regoff, uint32_t val)
 static int
 isp_pci_mbxdma(ispsoftc_t *isp)
 {
-    fcparam *fcp;
-    int i;
     struct isp_pcisoftc *pcs;
 
     if (isp->isp_xflist) {
@@ -1764,21 +1333,19 @@ isp_pci_mbxdma(ispsoftc_t *isp)
     }
 
     if (IS_FC(isp)) {
-        for (i = 0; i < isp->isp_nchan; i++) {
-            fcp = FCPARAM(isp, i);
+        fcparam *fcp = isp->isp_param;
+        if (fcp->isp_scratch == NULL) {
+            dma_addr_t busaddr;
+            fcp->isp_scratch = pci_alloc_consistent(pcs->pci_dev, ISP2100_SCRLEN, &busaddr);
             if (fcp->isp_scratch == NULL) {
-                dma_addr_t busaddr;
-                fcp->isp_scratch = pci_alloc_consistent(pcs->pci_dev, ISP_FC_SCRLEN, &busaddr);
-                if (fcp->isp_scratch == NULL) {
-                    isp_prt(isp, ISP_LOGERR, "unable to allocate scratch space");
-                    goto bad;
-                }
-                fcp->isp_scdma = busaddr;
-                MEMZERO(fcp->isp_scratch, ISP_FC_SCRLEN);
-                if (fcp->isp_scdma & 0x7) {
-                    isp_prt(isp, ISP_LOGERR, "scratch space not 8 byte aligned");
-                    goto bad;
-                }
+                isp_prt(isp, ISP_LOGERR, "unable to allocate scratch space");
+                goto bad;
+            }
+            fcp->isp_scdma = busaddr;
+            MEMZERO(fcp->isp_scratch, ISP2100_SCRLEN);
+            if (fcp->isp_scdma & 0x7) {
+                isp_prt(isp, ISP_LOGERR, "scratch space not 8 byte aligned");
+                goto bad;
             }
         }
     }
@@ -1811,15 +1378,10 @@ bad:
         isp->isp_result = NULL;
         isp->isp_result_dma = 0;
     }
-    if (IS_FC(isp)) {
-        for (i = 0; i < isp->isp_nchan; i++) {
-            fcp = FCPARAM(isp, i);
-            if (fcp->isp_scratch) {
-                    pci_free_consistent(pcs->pci_dev, ISP_FC_SCRLEN, fcp->isp_scratch, fcp->isp_scdma);
-                    fcp->isp_scratch = NULL;
-                    fcp->isp_scdma = 0;
-            }
-        }
+    if (IS_FC(isp) && FCPARAM(isp)->isp_scratch) {
+        pci_free_consistent(pcs->pci_dev, ISP2100_SCRLEN, FCPARAM(isp)->isp_scratch, FCPARAM(isp)->isp_scdma);
+        FCPARAM(isp)->isp_scratch = NULL;
+        FCPARAM(isp)->isp_scdma = 0;
     }
     ISP_IGET_LK_SOFTC(isp);
     return (1);
@@ -3159,12 +2721,12 @@ mbxsync:
     }
 
     if (rq->req_header.rqs_entry_type == RQSTYPE_T3RQS) {
-        if (ISP_CAP_2KLOGIN(isp))
+        if (FCPARAM(isp)->isp_2klogin)
             isp_put_request_t3e(isp, (ispreqt3e_t *) rq, (ispreqt3e_t *) h);
         else
             isp_put_request_t3(isp, (ispreqt3_t *) rq, (ispreqt3_t *) h);
     } else if (rq->req_header.rqs_entry_type == RQSTYPE_T2RQS) {
-        if (ISP_CAP_2KLOGIN(isp))
+        if (FCPARAM(isp)->isp_2klogin)
             isp_put_request_t2e(isp, (ispreqt2e_t *) rq, (ispreqt2e_t *) h);
         else
             isp_put_request_t2(isp, (ispreqt2_t *) rq, (ispreqt2_t *) h);
@@ -3494,7 +3056,7 @@ isplinux_pci_exclude(struct pci_dev *dev)
                 if (checking_for_inclusion) {
                     return (0);
                 } else {
-                    printk(KERN_INFO "isp@<%d,%d,%d>: excluding device\n", dev->bus->number, PCI_SLOT(dev->devfn), PCI_FUNC(dev->devfn));
+                    printk(KERN_INFO "%s@<%d,%d,%d>: excluding device\n", ISP_NAME, dev->bus->number, PCI_SLOT(dev->devfn), PCI_FUNC(dev->devfn));
                     return (1);
                 }
             }
@@ -3511,22 +3073,16 @@ isplinux_pci_exclude(struct pci_dev *dev)
      * Otherwise, we can attach this device.
      */
     if (checking_for_inclusion) {
-        printk(KERN_INFO "isp@<%d,%d,%d>: excluding device\n", dev->bus->number, PCI_SLOT(dev->devfn), PCI_FUNC(dev->devfn));
+        printk(KERN_INFO "%s@<%d,%d,%d>: excluding device\n", ISP_NAME, dev->bus->number, PCI_SLOT(dev->devfn), PCI_FUNC(dev->devfn));
         return (1);
     } else {
         return (0);
     }
 }
 #ifdef    MODULE
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-MODULE_PARM(isp_pci_mapmem, "i");
-MODULE_PARM(isp_pci_exclude, "s");
-MODULE_PARM(isp_pci_include, "s");
-#else
 module_param(isp_pci_mapmem, int, 0);
 module_param(isp_pci_exclude, charp, 0);
 module_param(isp_pci_include, charp, 0);
-#endif
 #else
 static int __init isp_exclude(char *str)
 {
@@ -3541,8 +3097,209 @@ static int __init isp_include(char *str)
     return 0;
 }
 __setup("isp_pci_include=", isp_include);
-
 #endif
+
+static struct pci_device_id isp_pci_tbl[] __devinitdata = {
+#ifndef    ISP_DISABLE_1020_SUPPORT
+        { PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP1020) },
+#endif
+#ifndef    ISP_DISABLE_1080_SUPPORT
+        { PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP1080) },
+#endif
+#ifndef    ISP_DISABLE_12160_SUPPORT
+        { PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP12160) },
+#endif
+#ifndef    ISP_DISABLE_2100_SUPPORT
+        { PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2100) },
+#endif
+#ifndef    ISP_DISABLE_2200_SUPPORT
+        { PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2200) },
+#endif
+#ifndef    ISP_DISABLE_2300_SUPPORT
+        { PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2300) },
+        { PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2312) },
+        { PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2322) },
+        { PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP6312) },
+        { PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP6322) },
+#endif
+#ifndef    ISP_DISABLE_2400_SUPPORT
+        { PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2422) },
+        { PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2432) },
+#endif
+        { 0, 0 }
+};
+MODULE_DEVICE_TABLE(pci, isp_pci_tbl);
+
+static int __devinit
+isplinux_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
+{
+    struct Scsi_Host *host;
+    struct scsi_host_template *tmpt = isp_template;
+    ispsoftc_t *isp;
+    struct isp_pcisoftc *pci_isp;
+    int i, ret;
+
+    if (pdev->subsystem_vendor == PCI_VENDOR_ID_AMI) {
+        printk(KERN_INFO "skipping AMI Raid Card that uses QLogic chips\n");
+        return (-ENODEV);
+    }
+
+    if (isplinux_pci_exclude(pdev)) {
+        printk(KERN_INFO "%s: excluding device\n", pci_name(pdev));
+        return (-ENODEV);
+    }
+    if (pci_enable_device(pdev)) {
+        printk(KERN_ERR "%s: cannot enable\n", pci_name(pdev));
+        return (-ENODEV);
+    }
+    pci_set_master(pdev);
+
+    tmpt->max_sectors = isp_maxsectors;
+
+    host = scsi_host_alloc(tmpt, sizeof(struct isp_pcisoftc));
+    if (host == NULL) {
+        pci_disable_device(pdev);
+        return (-ENOMEM);
+    }
+    pci_isp = (struct isp_pcisoftc *) host->hostdata;
+    pci_set_drvdata(pdev, pci_isp);
+    pci_isp->pci_dev = pdev;
+    isp = (ispsoftc_t *) pci_isp;
+    isp->isp_host = host;
+    isp->isp_osinfo.storep = &pci_isp->params;
+    isp->isp_osinfo.device = pdev;
+    host->unique_id = isp_unit_seed++;
+    sprintf(isp->isp_name, "%s%d", ISP_NAME, isp->isp_unit);
+    isp->isp_osinfo.device_id = ((pdev->bus->number) << 16) | (PCI_SLOT(pdev->devfn) << 8) | (PCI_FUNC(pdev->devfn));
+    if (isp_disable & (1 << isp->isp_unit)) {
+        printk("%s: disabled at user request\n", isp->isp_name);
+        scsi_host_put(host);
+        pci_disable_device(pdev);
+        return (-ENODEV);
+    }
+    if (isplinux_pci_init_one(host)) {
+        scsi_host_put(host);
+        pci_disable_device(pdev);
+        return (-ENOMEM);
+    }
+    ret = scsi_add_host(host, &pdev->dev);
+    if (ret) {
+        scsi_host_put(host);
+        pci_disable_device(pdev);
+        return (ret);
+    }
+    for (i = 0; i < MAX_ISP; i++) {
+        if (isplist[i] == NULL) {
+            isplist[i] = isp;
+            break;
+        }
+    }
+    scsi_scan_host(host);
+    return (0);
+}
+
+static void __devexit
+isplinux_pci_remove(struct pci_dev *pdev)
+{
+    struct isp_pcisoftc *pci_isp = pci_get_drvdata(pdev);
+    unsigned long flags;
+    ispsoftc_t *isp;
+    struct Scsi_Host *host;
+
+    isp = (ispsoftc_t *) pci_isp;
+    DESTROY_ISP_DEV(isp);
+    host = isp->isp_host;
+    scsi_remove_host(host);
+#ifdef    ISP_TARGET_MODE
+    isp_detach_target(isp);
+#endif
+    if (isp->isp_osinfo.task_thread) {
+        SEND_THREAD_EVENT(isp, ISP_THREAD_EXIT, NULL, 1, __FUNCTION__, __LINE__);
+    }
+    ISP_LOCKU_SOFTC(isp);
+    isp_shutdown(isp);
+    isp->dogactive = 0;
+    del_timer(&isp->isp_osinfo.timer);
+    isp->isp_role = ISP_ROLE_NONE;
+    ISP_DISABLE_INTS(isp);
+    ISP_UNLKU_SOFTC(isp);
+    isplinux_pci_release(host);
+#ifdef    ISP_FW_CRASH_DUMP
+    if (FCPARAM(isp)->isp_dump_data) {
+        size_t amt;
+        if (IS_2200(isp)) {
+            amt = QLA2200_RISC_IMAGE_DUMP_SIZE;
+        } else {
+            amt = QLA2200_RISC_IMAGE_DUMP_SIZE;
+        }
+        isp_prt(isp, ISP_LOGCONFIG, "freeing crash dump area");
+        isp_kfree(FCPARAM(isp)->isp_dump_data, amt);
+        FCPARAM(isp)->isp_dump_data = 0;
+    }
+#endif
+#ifdef    ISP_TARGET_MODE
+    isp_deinit_target(isp);
+#endif
+    scsi_host_put(host);
+    pci_set_drvdata(pdev, NULL);
+}
+
+static struct pci_driver isplinux_pci_driver = {
+        .name           = ISP_NAME,
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,9)
+        .driver         = {
+            .owner      = THIS_MODULE,
+        },
+#endif
+        .id_table       = isp_pci_tbl,
+        .probe          = isplinux_pci_probe,
+        .remove         = __devexit_p(isplinux_pci_remove),
+};
+
+static int __init
+isplinux_pci_init(void)
+{
+    int ret;
+
+    printk(KERN_INFO "Feral Software QLogic SCSI/FC Driver built on %s %s\n", __DATE__, __TIME__);
+    ret = alloc_chrdev_region(&isp_dev, 0, MAX_ISP, ISP_NAME);
+    if (ret) {
+        printk(KERN_ERR "%s: cannot allocate chrdev region\n", __FUNCTION__);
+        return (ret);
+    }
+    cdev_init(&isp_cdev, &isp_ioctl_operations);
+    if (cdev_add(&isp_cdev, isp_dev, MAX_ISP)) {
+        printk(KERN_ERR "%s: cannot add cdev\n", __FUNCTION__);
+        kobject_put(&isp_cdev.kobj);
+        unregister_chrdev_region(isp_dev, MAX_ISP);
+        return (-EIO);
+    }
+    isp_class = CREATE_ISP_CLASS(THIS_MODULE, ISP_NAME);
+    if (IS_ERR(isp_class)) {
+        printk(KERN_ERR "%s: unable to add '%s' class\n", ISP_NAME, ISP_NAME);
+        cdev_del(&isp_cdev);
+        unregister_chrdev_region(isp_dev, MAX_ISP);
+        return (PTR_ERR(isp_class));
+    }
+    ret = pci_register_driver(&isplinux_pci_driver);
+    if (ret < 0) {
+        unregister_chrdev_region(isp_dev, MAX_ISP);
+        return (ret);
+    }
+    return (0);
+}
+
+static void __exit
+isplinux_pci_exit(void)
+{
+    pci_unregister_driver(&isplinux_pci_driver);
+    DESTROY_ISP_CLASS(isp_class);
+    cdev_del(&isp_cdev);
+    unregister_chrdev_region(isp_dev, MAX_ISP);
+}
+
+module_init(isplinux_pci_init);
+module_exit(isplinux_pci_exit);
 /*
  * vim:ts=4:sw=4:expandtab
  */

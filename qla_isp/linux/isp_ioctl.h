@@ -1,4 +1,4 @@
-/* $Id: isp_ioctl.h,v 1.18 2007/05/31 18:35:28 mjacob Exp $ */
+/* $Id: isp_ioctl.h,v 1.23 2007/07/19 01:58:40 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -31,9 +31,8 @@
  *  is the GNU Public License:
  * 
  *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation; either version 2 of the License, or
- *   (at your option) any later version.
+ *   it under the terms of The Version 2 GNU General Public License as published
+ *   by the Free Software Foundation.
  * 
  *   This program is distributed in the hope that it will be useful,
  *   but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -171,7 +170,7 @@ struct isp_hba_device {
     uint8_t     fc_fw_major;
     uint8_t     fc_fw_minor;
     uint8_t     fc_fw_micro;
-    uint8_t     fc_nchannels;
+    uint8_t     reserved;
     uint64_t    nvram_node_wwn;
     uint64_t    nvram_port_wwn;
     uint64_t    active_node_wwn;
@@ -216,13 +215,16 @@ struct isp_fc_tsk_mgmt {
 /*
  * Just gimme a list of WWPNs that are logged into us.
  */
-#define ISP_DL_MAX          256
 typedef struct {
     uint16_t count;
-    uint16_t channel;
-    uint64_t wwpns[1];
+    uint16_t reserved;
+    struct wwnpair {
+        uint64_t wwnn;
+        uint64_t wwpn;
+    } wwns[1];
 } isp_dlist_t;
-#define ISP_FC_GETDLIST     (ISP_IOC | 22)
+/* don't recycle 22 */
+#define ISP_FC_GETDLIST     (ISP_IOC | 23)
 /*
  * vim:ts=4:sw=4:expandtab
  */

@@ -1,4 +1,4 @@
-/* $Id: ispmbox.h,v 1.63 2007/06/01 01:15:02 mjacob Exp $ */
+/* $Id: ispmbox.h,v 1.66 2007/07/07 23:20:56 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -31,9 +31,8 @@
  *  is the GNU Public License:
  * 
  *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation; either version 2 of the License, or
- *   (at your option) any later version.
+ *   it under the terms of The Version 2 GNU General Public License as published
+ *   by the Free Software Foundation.
  * 
  *   This program is distributed in the hope that it will be useful,
  *   but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -794,31 +793,24 @@ typedef struct {
  * About Firmware returns an 'attribute' word in mailbox 6.
  * These attributes are for 2200 and 2300.
  */
-#define	ISP_FW_ATTR_TMODE	0x0001
-#define	ISP_FW_ATTR_SCCLUN	0x0002
-#define	ISP_FW_ATTR_FABRIC	0x0004
-#define	ISP_FW_ATTR_CLASS2	0x0008
-#define	ISP_FW_ATTR_FCTAPE	0x0010
-#define	ISP_FW_ATTR_IP		0x0020
-#define	ISP_FW_ATTR_VI		0x0040
-#define	ISP_FW_ATTR_VI_SOLARIS	0x0080
-#define	ISP_FW_ATTR_2KLOGINS	0x0100	/* just a guess... */
+#define	ISP_FW_ATTR_TMODE	0x01
+#define	ISP_FW_ATTR_SCCLUN	0x02
+#define	ISP_FW_ATTR_FABRIC	0x04
+#define	ISP_FW_ATTR_CLASS2	0x08
+#define	ISP_FW_ATTR_FCTAPE	0x10
+#define	ISP_FW_ATTR_IP		0x20
+#define	ISP_FW_ATTR_VI		0x40
+#define	ISP_FW_ATTR_VI_SOLARIS	0x80
+#define	ISP_FW_ATTR_2KLOGINS	0x100	/* XXX: just a guess */
 
 /* and these are for the 2400 */
-#define	ISP2400_FW_ATTR_CLASS2	0x0001
-#define	ISP2400_FW_ATTR_IP	0x0002
-#define	ISP2400_FW_ATTR_MULTIID	0x0004
-#define	ISP2400_FW_ATTR_SB2	0x0008
-#define	ISP2400_FW_ATTR_T10CRC	0x0010
-#define	ISP2400_FW_ATTR_VI	0x0020
-#define	ISP2400_FW_ATTR_EXPFW	0x2000
-
-#define	ISP_CAP_TMODE(isp)	\
-	(IS_24XX(isp)? 1 : (isp->isp_fwattr & ISP_FW_ATTR_TMODE))
-#define	ISP_CAP_SCCFW(isp)	\
-	(IS_24XX(isp)? 1 : (isp->isp_fwattr & ISP_FW_ATTR_SCCLUN))
-#define	ISP_CAP_2KLOGIN(isp)	\
-	(IS_24XX(isp)? 1 : (isp->isp_fwattr & ISP_FW_ATTR_2KLOGINS))
+#define	ISP2400_FW_ATTR_CLASS2	(1 << 0)
+#define	ISP2400_FW_ATTR_IP	(1 << 1)
+#define	ISP2400_FW_ATTR_MULTIID	(1 << 2)
+#define	ISP2400_FW_ATTR_SB2	(1 << 3)
+#define	ISP2400_FW_ATTR_T10CRC	(1 << 4)
+#define	ISP2400_FW_ATTR_VI	(1 << 5)
+#define	ISP2400_FW_ATTR_EXPFW	(1 << 13)
 
 /*
  * Reduced Interrupt Operation Response Queue Entreis
@@ -1172,7 +1164,6 @@ typedef struct {
  */
 typedef struct {
 	uint16_t	handle;
-	uint16_t	channel;
 	uint32_t
 		flags	: 8,
 		portid	: 24;
@@ -1426,9 +1417,7 @@ typedef struct {
 typedef struct {
 	uint16_t	handle;
 	uint16_t	lun;
-	uint32_t	
-		channel : 8,
-		portid	: 24;
+	uint32_t	portid;
 	uint32_t	timeout;
 	union {
 		struct {

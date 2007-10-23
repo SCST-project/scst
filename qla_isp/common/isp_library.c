@@ -1,4 +1,4 @@
-/* $Id: isp_library.c,v 1.38 2007/05/31 18:35:28 mjacob Exp $ */
+/* $Id: isp_library.c,v 1.44 2007/07/07 23:20:56 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -31,9 +31,8 @@
  *  is the GNU Public License:
  * 
  *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation; either version 2 of the License, or
- *   (at your option) any later version.
+ *   it under the terms of The Version 2 GNU General Public License as published
+ *   by the Free Software Foundation.
  * 
  *   This program is distributed in the hope that it will be useful,
  *   but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -215,17 +214,19 @@ isp_print_bytes(ispsoftc_t *isp, const char *msg, int amt, void *arg)
  */
 
 int
-isp_fc_runstate(ispsoftc_t *isp, int chan, int tval)
+isp_fc_runstate(ispsoftc_t *isp, int tval)
 {
 	fcparam *fcp;
+	int *tptr;
 
         if (isp->isp_role == ISP_ROLE_NONE) {
 		return (0);
 	}
-	fcp = FCPARAM(isp, 0);
+	fcp = FCPARAM(isp);
+	tptr = &tval;
 	if (fcp->isp_fwstate < FW_READY ||
 	    fcp->isp_loopstate < LOOP_PDB_RCVD) {
-		if (isp_control(isp, ISPCTL_FCLINK_TEST, chan, tval) != 0) {
+		if (isp_control(isp, ISPCTL_FCLINK_TEST, tptr) != 0) {
 			isp_prt(isp, ISP_LOGSANCFG,
 			    "isp_fc_runstate: linktest failed");
 			return (-1);
@@ -240,17 +241,17 @@ isp_fc_runstate(ispsoftc_t *isp, int chan, int tval)
 	if ((isp->isp_role & ISP_ROLE_INITIATOR) == 0) {
 		return (0);
 	}
-	if (isp_control(isp, ISPCTL_SCAN_LOOP, chan) != 0) {
+	if (isp_control(isp, ISPCTL_SCAN_LOOP, NULL) != 0) {
 		isp_prt(isp, ISP_LOGSANCFG,
 		    "isp_fc_runstate: scan loop fails");
 		return (LOOP_PDB_RCVD);
 	}
-	if (isp_control(isp, ISPCTL_SCAN_FABRIC, chan) != 0) {
+	if (isp_control(isp, ISPCTL_SCAN_FABRIC, NULL) != 0) {
 		isp_prt(isp, ISP_LOGSANCFG,
 		    "isp_fc_runstate: scan fabric fails");
 		return (LOOP_LSCAN_DONE);
 	}
-	if (isp_control(isp, ISPCTL_PDB_SYNC, chan) != 0) {
+	if (isp_control(isp, ISPCTL_PDB_SYNC, NULL) != 0) {
 		isp_prt(isp, ISP_LOGSANCFG, "isp_fc_runstate: pdb_sync fails");
 		return (LOOP_FSCAN_DONE);
 	}
@@ -266,9 +267,9 @@ isp_fc_runstate(ispsoftc_t *isp, int chan, int tval)
  * Fibre Channel Support- get the port database for the id.
  */
 void
-isp_dump_portdb(ispsoftc_t *isp, int chan)
+isp_dump_portdb(ispsoftc_t *isp)
 {
-	fcparam *fcp = FCPARAM(isp, chan);
+	fcparam *fcp = (fcparam *) isp->isp_param;
 	int i;
 
 	for (i = 0; i < MAX_FC_TARG; i++) {
@@ -620,7 +621,7 @@ isp_put_request_t7(ispsoftc_t *isp, ispreqt7_t *src, ispreqt7_t *dst)
 	a = (uint32_t *) src->req_lun;
 	b = (uint32_t *) dst->req_lun;
 	for (i = 0; i < (ASIZE(src->req_lun) >> 2); i++ ) {
-		ISP_IOZPUT_32(isp, *a++, b++);
+		*b++ = ISP_SWAP32(isp, *a++);
 	}
 	ISP_IOXPUT_8(isp, src->req_alen_datadir, &dst->req_alen_datadir);
 	ISP_IOXPUT_8(isp, src->req_task_management, &dst->req_task_management);
@@ -628,8 +629,8 @@ isp_put_request_t7(ispsoftc_t *isp, ispreqt7_t *src, ispreqt7_t *dst)
 	ISP_IOXPUT_8(isp, src->req_crn, &dst->req_crn);
 	a = (uint32_t *) src->req_cdb;
 	b = (uint32_t *) dst->req_cdb;
-	for (i = 0; i < (ASIZE(src->req_cdb) >> 2); i++ ) {
-		ISP_IOZPUT_32(isp, *a++, b++);
+	for (i = 0; i < (ASIZE(src->req_cdb) >> 2); i++) {
+		*b++ = ISP_SWAP32(isp, *a++);
 	}
 	ISP_IOXPUT_32(isp, src->req_dl, &dst->req_dl);
 	ISP_IOXPUT_16(isp, src->req_tidlo, &dst->req_tidlo);
@@ -722,6 +723,8 @@ isp_get_24xx_response(ispsoftc_t *isp, isp24xx_statusreq_t *src,
     isp24xx_statusreq_t *dst)
 {
 	int i;
+	uint32_t *s, *d;
+
 	isp_get_hdr(isp, &src->req_header, &dst->req_header);
 	ISP_IOXGET_32(isp, &src->req_handle, dst->req_handle);
 	ISP_IOXGET_16(isp, &src->req_completion_status,
@@ -735,9 +738,10 @@ isp_get_24xx_response(ispsoftc_t *isp, isp24xx_statusreq_t *src,
 	ISP_IOXGET_32(isp, &src->req_fcp_residual, dst->req_fcp_residual);
 	ISP_IOXGET_32(isp, &src->req_sense_len, dst->req_sense_len);
 	ISP_IOXGET_32(isp, &src->req_response_len, dst->req_response_len);
-	for (i = 0; i < 28; i++) {
-		ISP_IOXGET_8(isp, &src->req_rsp_sense[i],
-		    dst->req_rsp_sense[i]);
+	s = (uint32_t *)src->req_rsp_sense;
+	d = (uint32_t *)dst->req_rsp_sense;
+	for (i = 0; i < (ASIZE(src->req_rsp_sense) >> 2); i++) {
+		d[i] = ISP_SWAP32(isp, s[i]);
 	}
 }
 
@@ -750,14 +754,14 @@ isp_get_24xx_abrt(ispsoftc_t *isp, isp24xx_abrt_t *src, isp24xx_abrt_t *dst)
 	ISP_IOXGET_16(isp, &src->abrt_nphdl, dst->abrt_nphdl);
 	ISP_IOXGET_16(isp, &src->abrt_options, dst->abrt_options);
 	ISP_IOXGET_32(isp, &src->abrt_cmd_handle, dst->abrt_cmd_handle);
-	for (i = 0; i < ASIZE(&src->abrt_reserved); i++) {
+	for (i = 0; i < ASIZE(src->abrt_reserved); i++) {
 		ISP_IOXGET_8(isp, &src->abrt_reserved[i],
 		    dst->abrt_reserved[i]);
 	}
 	ISP_IOXGET_16(isp, &src->abrt_tidlo, dst->abrt_tidlo);
 	ISP_IOXGET_8(isp, &src->abrt_tidhi, dst->abrt_tidhi);
 	ISP_IOXGET_8(isp, &src->abrt_vpidx, dst->abrt_vpidx);
-	for (i = 0; i < ASIZE(&src->abrt_reserved1); i++) {
+	for (i = 0; i < ASIZE(src->abrt_reserved1); i++) {
 		ISP_IOXGET_8(isp, &src->abrt_reserved1[i],
 		    dst->abrt_reserved1[i]);
 	}

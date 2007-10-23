@@ -1,4 +1,4 @@
-/* $Id: scsi_target.c,v 1.62 2007/06/12 22:05:59 mjacob Exp $ */
+/* $Id: scsi_target.c,v 1.67 2007/08/27 07:25:52 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -31,9 +31,8 @@
  *  is the GNU Public License:
  * 
  *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation; either version 2 of the License, or
- *   (at your option) any later version.
+ *   it under the terms of The Version 2 GNU General Public License as published
+ *   by the Free Software Foundation.
  * 
  *   This program is distributed in the hope that it will be useful,
  *   but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -76,9 +75,6 @@
 #include <linux/autoconf.h>
 #include <linux/init.h>
 #include <linux/types.h>
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-#include <linux/blk.h>
-#endif
 #include <linux/blkdev.h>
 #include <linux/delay.h>
 #include <linux/ioport.h>
@@ -111,7 +107,7 @@
 
 #define DEFAULT_DEVICE_TYPE 0       /* DISK */
 #define MAX_BUS             8
-#define MAX_LUN             512
+#define MAX_LUN             64
 #define N_SENSE_BUFS        256
 
 #define cd_dp       cd_hreserved[0].ptrs[0]
@@ -153,9 +149,6 @@
 #ifndef WRITE_16
 #define WRITE_16                0x8a
 #endif
-#ifndef REPORT_LUNS
-#define REPORT_LUNS             0xa0
-#endif
 
 #define MODE_ALL_PAGES          0x3f
 #define MODE_VU_PAGE            0x00
@@ -185,7 +178,7 @@
 /*
  * Size to allocate both a scatterlist + payload for small allocations
  */ 
-#define SGS_SIZE            1024
+#define SGS_SIZE            512
 #define SGS0                (roundup(sizeof (struct scatterlist), sizeof (void *)))
 #define SGS_PAYLOAD_SIZE    (SGS_SIZE - SGS0)
 #define SGS_SGP(x)          ((struct scatterlist *)&((u8 *)(x))[SGS_PAYLOAD_SIZE])
@@ -238,12 +231,8 @@ init_sg_elem(struct scatterlist *sgp, struct page *p, int offset, void *addr, si
         sgp->page = p;
         sgp->offset = offset;
     } else {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-        sgp->address = addr;
-#else
         sgp->page = virt_to_page(addr);
         sgp->offset = offset_in_page(addr);
-#endif
     }
 }
 
@@ -299,13 +288,8 @@ static struct scatterlist *sg_cache = NULL;
  * An overcommit disk is a cache of a fixed size.
  */
 #define OC_SIZE             (64 << 20)
-#if    LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-#define NextPage(pp)        (pp)->next_hash
-#define NextPageType        struct page *
-#else
 #define NextPage(pp)        pp->private
 #define NextPageType        unsigned long
-#endif
 
 typedef struct {
     struct page ***     pagelists;
@@ -407,10 +391,7 @@ static uint8_t ua[TMD_SENSELEN] = {
     0xf0, 0, 0x6, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0x29, 0x1
 };
 static uint8_t nosense[TMD_SENSELEN] = {
-    0xf0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-};
-static uint8_t invchg[TMD_SENSELEN] = {
-    0xf0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x3f, 0x0e
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
 static bus_t busses[MAX_BUS];
@@ -888,70 +869,16 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
             } else {
                 dp = SGS_SGP(addr);
                 init_sg_elem(dp, NULL, 0, addr, min(TMD_SENSELEN, tmd->cd_totlen));
+                if (ini->ini_sdata == NULL) {
+                    add_sdata(ini, nosense);
+                }
                 tmd->cd_xfrlen = dp->length;
-                memcpy(addr, nosense, TMD_SENSELEN);
+                memcpy(addr, ini->ini_sdata->sdata, TMD_SENSELEN);
                 tmd->cd_data = dp;
                 tmd->cd_hflags |= CDFH_DATA_IN|CDFH_PRIVATE_0;
                 SDprintk2("sense data in scsi_target for %s%d: %p (%p) len %d, key/asc/ascq 0x%x/0x%x/0x%x\n",
                     bp->h.r_name, bp->h.r_inst, addr, dp, dp->length,
                     ((u8 *)addr)[2]&0xf, ((u8 *)addr)[12]&0xff, ((u8 *)addr)[13]);
-            }
-        }
-        tmd->cd_hflags |= CDFH_STSVALID;
-        goto doit;
-    }
-
-    if (tmd->cd_cdb[0] == REPORT_LUNS) {
-        struct scatterlist *dp = NULL;
-        if (tmd->cd_totlen != 0) {
-            if (from_intr) {
-                scsi_cmd_sched_restart(tmd, "REPORT_LUNS");
-                return;
-            }
-            addr = scsi_target_kzalloc(SGS_SIZE, GFP_KERNEL|GFP_ATOMIC);
-            if (addr == NULL) {
-                printk("scsi_target_alloc: out of memory for report luns\n");
-                add_sdata(ini, ifailure);
-                tmd->cd_hflags |= CDFH_SNSVALID;
-            } else {
-                int i;
-                uint32_t lim, nluns;
-                uint8_t *rpa = addr;
-
-                lim = (tmd->cd_cdb[6] << 24) | (tmd->cd_cdb[7] << 16) | (tmd->cd_cdb[8] << 8) | tmd->cd_cdb[9];
-
-                spin_lock_irqsave(&scsi_target_lock, flags);
-                for (nluns = i = 0; i < MAX_LUN; i++) {
-                    lun_t *lp = &bp->luns[i];
-                    if (lp->enabled) {
-                        uint8_t *ptr = &rpa[8 + (nluns << 3)];
-                        if (i >= 256) {
-                            ptr[0] = 0x40 | ((i >> 8) & 0x3f);
-                        }
-                        ptr[1] = i;
-                        nluns++;
-                    }
-                }
-                spin_unlock_irqrestore(&scsi_target_lock, flags);
-
-                /*
-                 * Make sure we always have *one* (lun 0) enabled
-                 */
-                if (nluns == 0) {
-                    nluns = 1;
-                }
-                rpa[0] = (nluns << 3) >> 24;
-                rpa[1] = (nluns << 3) >> 16;
-                rpa[2] = (nluns << 3) >> 8;
-                rpa[3] = (nluns << 3);
-
-                dp = SGS_SGP(addr);
-                lim = min(lim, tmd->cd_totlen);
-                lim = min(lim, (nluns << 3) + 8);
-                init_sg_elem(dp, NULL, 0, addr, lim);
-                tmd->cd_xfrlen = dp->length;
-                tmd->cd_data = dp;
-                tmd->cd_hflags |= CDFH_DATA_IN|CDFH_PRIVATE_0;
             }
         }
         tmd->cd_hflags |= CDFH_STSVALID;
@@ -1633,11 +1560,7 @@ scsi_target_ldfree(bus_t *bp, tmd_cmd_t *tmd, int from_intr)
         }
         SDprintk("scsi_target: LDFREE[%llx] %p tmd->cd_data %p\n", tmd->cd_tagval, tmd, dp);
         if (dp) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-            scsi_target_kfree(dp->address, SGS_SIZE);
-#else
             scsi_target_kfree(page_address(dp->page) + dp->offset, SGS_SIZE);
-#endif
         } else {
             printk(KERN_ERR "scsi_target: LDFREE[%llx] null dp @ line %d\n", tmd->cd_tagval, __LINE__);
             return (0);
@@ -1902,7 +1825,6 @@ scsi_target_handler(qact_e action, void *arg)
     case QOUT_HBA_UNREG:
     {
         hba_register_t *hp = arg;
-        bus_t tmp;
         int j;
 
         spin_lock_irqsave(&scsi_target_lock, flags);
@@ -1919,10 +1841,7 @@ scsi_target_handler(qact_e action, void *arg)
             printk(KERN_WARNING "%s: HBA_UNREG cannot find busp)\n", __FUNCTION__);
             break;
         }
-        tmp = *bp;
-        memset(bp, 0, sizeof (*bp));
         spin_unlock_irqrestore(&scsi_target_lock, flags);
-        bp = &tmp;
         for (j = 0; j < HASH_WIDTH; j++) {
             ini_t *nptr = bp->list[j];
             while (nptr) {
@@ -1955,12 +1874,7 @@ scsi_target_thread(void *arg)
 
     siginitsetinv(&current->blocked, 0);
     lock_kernel();
-#if    LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-    daemonize();
-    snprintf(current->comm, sizeof (current->comm), "scsi_target_thread");
-#else
     daemonize("scsi_target_thread");
-#endif
     unlock_kernel();
     up(&scsi_thread_entry_exit_semaphore);
     SDprintk("scsi_target_thread starting\n");
@@ -2045,9 +1959,6 @@ scsi_alloc_disk(bus_t *bp, int lun, int overcommit, uint64_t nbytes)
                     printk(KERN_ERR "%s: unable to allocate memory pages\n", __FUNCTION__);
                     goto fail;
                 }
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-                LockPage(pp);
-#endif
                 NextPage(pp) = (NextPageType) lp->pagelists;
                 lp->pagelists = (struct page ***) pp;
                 lp->npglists += 1;
@@ -2077,9 +1988,6 @@ scsi_alloc_disk(bus_t *bp, int lun, int overcommit, uint64_t nbytes)
                     printk(KERN_ERR "%s: unable to allocate memory pages\n", __FUNCTION__);
                     goto fail;
                 }
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-                LockPage(pptr[j]);
-#endif
                 if (--npgs == 0) {
                     break;
                 }
@@ -2105,9 +2013,6 @@ scsi_free_disk(bus_t *bp, int lun)
         while (lp->pagelists) {
             struct page *pp = (struct page *) lp->pagelists;
             lp->pagelists = (struct page ***) NextPage(pp);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-            UnlockPage(pp);
-#endif
             __free_page(pp);
         }
         lp->npglists = 0;
@@ -2122,9 +2027,6 @@ scsi_free_disk(bus_t *bp, int lun)
                 }
                 for (j = 0; j < PG_PER_LIST; j++) {
                     if (pptr[j] != NULL) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-                        UnlockPage(pptr[j]);
-#endif
                         __free_page(pptr[j]);
                         pptr[j] = NULL;
                 }
@@ -2323,11 +2225,10 @@ static int
 scsi_target_endis(char *hba_name_unit, uint64_t nbytes, int lun, int en)
 {
     DECLARE_MUTEX_LOCKED(rsem);
-    unsigned long flags;
     enadis_t ec;
     lun_t *lp;
     bus_t *bp;
-    int rv, i;
+    int rv;
 
     /*
      * XXX: yes, there is a race condition here where the bus can
@@ -2363,11 +2264,7 @@ scsi_target_endis(char *hba_name_unit, uint64_t nbytes, int lun, int en)
     memset(&ec, 0, sizeof (ec));
     ec.en_hba = bp->h.r_identity;
     ec.en_tgt = TGT_ANY;
-    if (bp->h.r_type == R_FC) {
-        ec.en_lun = LUN_ANY;
-    } else {
-        ec.en_lun = lun;
-    }
+    ec.en_lun = lun;
     ec.en_private = &rsem;
 
     (*bp->h.r_action)(en? QIN_ENABLE : QIN_DISABLE, &ec);
@@ -2378,19 +2275,6 @@ scsi_target_endis(char *hba_name_unit, uint64_t nbytes, int lun, int en)
         scsi_free_disk(bp, lun);
         return (ec.en_error);
     }
-
-    spin_lock_irqsave(&scsi_target_lock, flags);
-    for (i = 0; i < HASH_WIDTH; i++) {
-        ini_t *ini = bp->list[i];
-        while (ini) {
-            spin_unlock_irqrestore(&scsi_target_lock, flags);
-            add_sdata(ini, invchg);
-            spin_lock_irqsave(&scsi_target_lock, flags);
-            ini = ini->ini_next;
-        }
-    }
-    spin_unlock_irqrestore(&scsi_target_lock, flags);
-    
     if (en == 0) {
         scsi_free_disk(bp, lun);
     } else {
@@ -2402,13 +2286,8 @@ scsi_target_endis(char *hba_name_unit, uint64_t nbytes, int lun, int en)
     return (0);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-EXPORT_SYMBOL_NOVERS(scsi_target_handler);
-MODULE_PARM(scsi_tdebug, "i");
-#else
 EXPORT_SYMBOL(scsi_target_handler);
 module_param(scsi_tdebug, int, 0);
-#endif
 #ifdef    MODULE_LICENSE
 MODULE_LICENSE("Dual BSD/GPL");
 #endif

@@ -867,7 +867,7 @@ scsi_target_notify(tmd_notify_t *np)
     }
     ini = ini_from_notify(bp, np);
     spin_unlock_irqrestore(&scsi_target_lock, flags);
-    SDprintk("scsi_target: MGT code %x from %s%d\n", np->nt_ncode, bp->h.r_name, bp->h.r_inst);
+    SDprintk("scsi_target: MGT code %x from %s%d iid 0x%016llx\n", np->nt_ncode, bp->h.r_name, bp->h.r_inst, np->nt_iid);
     
     switch (np->nt_ncode) {
         case NT_ABORT_TASK:

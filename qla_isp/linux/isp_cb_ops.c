@@ -1,4 +1,4 @@
-/* $Id: isp_cb_ops.c,v 1.63 2007/06/01 01:15:02 mjacob Exp $ */
+/* $Id: isp_cb_ops.c,v 1.77 2007/08/29 20:37:08 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -31,9 +31,8 @@
  *  is the GNU Public License:
  * 
  *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation; either version 2 of the License, or
- *   (at your option) any later version.
+ *   it under the terms of The Version 2 GNU General Public License as published
+ *   by the Free Software Foundation.
  * 
  *   This program is distributed in the hope that it will be useful,
  *   but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -126,15 +125,8 @@ copy_info(struct info_str *info, const char *fmt, ...)
 }
 
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 int
-isplinux_proc_info_26(struct Scsi_Host *shp, char *buf, char **st, off_t off, int len, int io)
-{
-    return (isplinux_proc_info(buf, st, off, len, shp->host_no, io));
-}
-#endif
-int
-isplinux_proc_info(char *buf, char **st, off_t off, int len, int host, int io)
+isplinux_proc_info(struct Scsi_Host *shp, char *buf, char **st, off_t off, int len, int io)
 {
     int i;
     struct info_str info;
@@ -146,7 +138,7 @@ isplinux_proc_info(char *buf, char **st, off_t off, int len, int host, int io)
         if (isp == NULL) {
             continue;
         }
-        if (isp->isp_host->host_no == host) {
+        if (isp->isp_host->host_no == shp->host_no) {
             break;
         }
     }
@@ -172,9 +164,7 @@ isplinux_proc_info(char *buf, char **st, off_t off, int len, int host, int io)
             io = len;
         } else if (strncmp(buf, "rescan", 6) == 0) {
             if (IS_FC(isp)) {
-                for (io = 0; io < isp->isp_nchan; io++) {
-                    SEND_THREAD_EVENT(isp, ISP_THREAD_FC_RESCAN, FCPARAM(isp, io), 1, __FUNCTION__, __LINE__);
-                }
+                SEND_THREAD_EVENT(isp, ISP_THREAD_FC_RESCAN, NULL, 1, __FUNCTION__, __LINE__);
                 io = len;
             }
         } else if (strncmp(buf, "lip", 3) == 0) {
@@ -192,7 +182,7 @@ isplinux_proc_info(char *buf, char **st, off_t off, int len, int host, int io)
                 return (-EINVAL);
             }
             ISP_LOCKU_SOFTC(isp);
-            (void) isp_control(isp, ISPCTL_RESET_BUS, bus);
+            (void) isp_control(isp, ISPCTL_RESET_BUS, &bus);
             ISP_UNLKU_SOFTC(isp);
             io = len;
         } else if (strncmp(buf, "devreset=", 9) == 0) {
@@ -204,7 +194,7 @@ isplinux_proc_info(char *buf, char **st, off_t off, int len, int host, int io)
             }
             /* always bus 0 */
             ISP_LOCKU_SOFTC(isp);
-            (void) isp_control(isp, ISPCTL_RESET_DEV, 0, dev);
+            (void) isp_control(isp, ISPCTL_RESET_DEV, &dev);
             ISP_UNLKU_SOFTC(isp);
             io = len;
         } else if (strncmp(buf, "reset", 5) == 0) {
@@ -323,7 +313,7 @@ isplinux_proc_info(char *buf, char **st, off_t off, int len, int host, int io)
 #endif
 
     if (IS_FC(isp)) {
-        fcparam *fcp = FCPARAM(isp, 0);
+        fcparam *fcp = FCPARAM(isp);
         copy_info(&info,
             "Self:\nHandle ID 0x%x PortID 0x%06x FW State 0x%x Loop State 0x%x\n",
             fcp->isp_loopid, fcp->isp_portid, fcp->isp_fwstate, fcp->isp_loopstate);
@@ -372,91 +362,38 @@ static int isp_close(struct inode *, struct file *);
 static int isp_ioctl(struct inode *, struct file *, unsigned int, unsigned long);
 static int isp_qlogic_ext_ioctl(struct inode *, struct file *, unsigned int, unsigned long);
 
-struct file_operations isp_procfs_operations = {
+dev_t isp_dev;
+struct cdev isp_cdev = {
+    .kobj   =   { .name = ISP_NAME, } ,
+    .owner  =   THIS_MODULE
+};
+ISP_CLASS *isp_class;
+
+struct file_operations isp_ioctl_operations = {
  owner:     THIS_MODULE,
  open:      isp_open,
  release:   isp_close,
  ioctl:     isp_ioctl,
 };
 
-struct file_operations hba_api_procfs_operations = {
+struct file_operations hba_api_ioctl_operations = {
  owner:     THIS_MODULE,
  ioctl:     isp_qlogic_ext_ioctl,
 };
 
-static struct proc_dir_entry *isp_root = 0;
-static struct proc_dir_entry *hba_api_node = 0;
-
-void
-isplinux_init_proc(ispsoftc_t *isp)
-{
-    char tbuf[32];
-
-    SNPRINTF(tbuf, sizeof(tbuf), "isp%d@0x%x", isp->isp_unit, isp->isp_osinfo.device_id);
-    if (isp_root == NULL) {
-        isp_root = proc_mkdir("isp", 0);
-    }
-    if (isp_root != NULL && isp->isp_osinfo.pdp == NULL) {
-        isp->isp_osinfo.pdp = create_proc_entry(tbuf, S_IFREG|S_IRUGO|S_IWUSR, isp_root);
-        if (isp->isp_osinfo.pdp) {
-            isp->isp_osinfo.pdp->proc_fops = &isp_procfs_operations;
-        }
-    }
-    if (hba_api_node == NULL && isp->isp_osinfo.host && isp->isp_osinfo.host->hostt && isp->isp_osinfo.host->hostt->proc_dir) {
-        hba_api_node = create_proc_entry("HbaApiNode", S_IFREG|S_IRUGO|S_IWUSR,  isp->isp_osinfo.host->hostt->proc_dir);
-        if (hba_api_node) {
-            hba_api_node->proc_fops = &hba_api_procfs_operations;
-        }
-    }
-}
-
-void
-isplinux_undo_proc(ispsoftc_t *isp)
-{
-    char tbuf[64];
-    int i;
-
-    SNPRINTF(tbuf, sizeof(tbuf), "isp/isp%d@0x%x", isp->isp_unit, isp->isp_osinfo.device_id);
-    remove_proc_entry(tbuf, 0);
-    for (i = 0; i < MAX_ISP; i++) {
-        if (isplist[i]) {
-            break;
-        }
-    }
-    if (i == MAX_ISP) {
-        remove_proc_entry("isp", 0);
-        if (hba_api_node && isp->isp_osinfo.host && isp->isp_osinfo.host->hostt && isp->isp_osinfo.host->hostt->proc_dir) {
-            SNPRINTF(tbuf, sizeof(tbuf), "scsi/isp/HbaApiNode");
-            remove_proc_entry("HbaApiNode", isp->isp_osinfo.host->hostt->proc_dir);
-            hba_api_node = NULL;
-        }
-    }
-}
-
-static ispsoftc_t *
-get_isp_from_procname(const unsigned char *name)
-{
-    ispsoftc_t *isp;
-    int i;
-
-    for (i = 0; i < MAX_ISP; i++) {
-        char tbuf[32];
-        isp = isplist[i];
-        if (isp == NULL) {
-            continue;
-        }
-        SNPRINTF(tbuf, sizeof(tbuf), "isp%d@0x%x", isp->isp_unit, isp->isp_osinfo.device_id);
-        if (strcmp(name, tbuf) == 0) {
-            return (isp);
-        }
-    }
-    return (0);
-}
-
 static int
 isp_open(struct inode *ip, struct file *fp)
 {
-    ispsoftc_t *isp = get_isp_from_procname(fp->f_dentry->d_name.name);
+    const int minor = iminor(ip);
+    int i;
+    ispsoftc_t *isp = NULL;
+
+    for (i = 0; i < MAX_ISP; i++) {
+        if (isplist[i] && isplist[i]->isp_unit == minor) {
+            isp = isplist[i];
+            break;
+        }
+    }
     if (isp == NULL) {
         return (-ENXIO);
     }
@@ -480,7 +417,7 @@ static int
 isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
 {
     ispsoftc_t *isp = fp->private_data;
-    int i, rv, inarg, outarg;
+    int rv, inarg, outarg;
     fcparam *fcp;
     uint16_t loopid;
     mbreg_t mbs;
@@ -594,9 +531,7 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
     case ISP_RESCAN:
         if (IS_FC(isp)) {
             ISP_LOCKU_SOFTC(isp);
-            for (i = 0; i < isp->isp_nchan; i++) {
-                SEND_THREAD_EVENT(isp, ISP_THREAD_FC_RESCAN, FCPARAM(isp, i), 1, __FUNCTION__, __LINE__);
-            }
+            SEND_THREAD_EVENT(isp, ISP_THREAD_FC_RESCAN, NULL, 0, __FUNCTION__, __LINE__)
             ISP_UNLKU_SOFTC(isp);
         }
         break;
@@ -651,7 +586,7 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
     }
     case ISP_FC_LIP:
         ISP_LOCK_SOFTC(isp);
-        if (isp_control(isp, ISPCTL_SEND_LIP, 0)) {
+        if (isp_control(isp, ISPCTL_SEND_LIP, NULL)) {
             rv = -EIO;
         }
         ISP_UNLK_SOFTC(isp);
@@ -674,7 +609,7 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
             break;
         }
         ISP_LOCK_SOFTC(isp);
-        lp = &FCPARAM(isp, 0)->portdb[ifc->loopid];
+        lp = &FCPARAM(isp)->portdb[ifc->loopid];
         if (lp->state == FC_PORTDB_STATE_VALID) {
             ifc->role = lp->roles;
             ifc->loopid = lp->handle;
@@ -701,12 +636,12 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
         hba->fc_fw_major = ISP_FW_MAJORX(isp->isp_fwrev);
         hba->fc_fw_minor = ISP_FW_MINORX(isp->isp_fwrev);
         hba->fc_fw_micro = ISP_FW_MICROX(isp->isp_fwrev);
-        hba->fc_speed = FCPARAM(isp, 0)->isp_gbspeed;
+        hba->fc_speed = FCPARAM(isp)->isp_gbspeed;
         hba->fc_scsi_supported = 1;
-        hba->fc_topology = FCPARAM(isp, 0)->isp_topo + 1;
-        hba->fc_loopid = FCPARAM(isp, 0)->isp_loopid;
-        hba->nvram_node_wwn = FCPARAM(isp, 0)->isp_wwnn_nvram;
-        hba->nvram_port_wwn = FCPARAM(isp, 0)->isp_wwpn_nvram;
+        hba->fc_topology = FCPARAM(isp)->isp_topo + 1;
+        hba->fc_loopid = FCPARAM(isp)->isp_loopid;
+        hba->nvram_node_wwn = FCPARAM(isp)->isp_wwnn_nvram;
+        hba->nvram_port_wwn = FCPARAM(isp)->isp_wwpn_nvram;
         hba->active_node_wwn = ISP_NODEWWN(isp);
         hba->active_port_wwn = ISP_PORTWWN(isp);
         ISP_UNLK_SOFTC(isp);
@@ -734,7 +669,7 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
         MEMZERO(&mbs, sizeof (mbs));
         needmarker = rv = 0;
         loopid = fct->loopid;
-        if (ISP_CAP_2KLOGIN(isp) == 0) {
+        if (FCPARAM(isp)->isp_2klogin == 0) {
             loopid <<= 8;
         }
         switch (fct->action) {
@@ -787,49 +722,59 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
     }
     case ISP_FC_GETDLIST:
     {
-        isp_dlist_t local, *ua;
-        int rv, nph, nphe, lim, chan;
-        uint64_t wwpn, *uptr;
+        isp_dlist_t *ua;
+        uint16_t nph, nphs, nphe, lim, count;
+        struct wwnpair pair, *uptr;
 
         if (IS_SCSI(isp)) {
             rv = EINVAL;
             break;
         }
 
-        if (COPYIN((void *)arg, &local, sizeof (local))) {
+        ua = (isp_dlist_t *)arg;
+        uptr = &ua->wwns[0];
+
+        if (COPYIN((void *)&ua->count, &lim, sizeof (lim))) {
             rv = EFAULT;
             break;
         }
-        ua = (isp_dlist_t *)arg;
-        uptr = &ua->wwpns[0];
-        lim = local.count;
-        chan = local.channel;
-        local.count = 0;
-        if (ISP_CAP_2KLOGIN(isp)) {
-            nphe = NPH_MAX_2K;
-        } else {
-            nphe = NPH_MAX;
-        }
 
-        for (rv = 0, nph = 1; local.count < lim && nph != nphe; nph++) {
+        if (FCPARAM(isp)->isp_2klogin == 0) {
+            nphe = NPH_MAX;
+        } else {
+            nphe = NPH_MAX_2K;
+        }
+        if (IS_24XX(isp)) {
+            nphs = 1;
+        } else {
+            nphs = 0;
+        }
+        for (count = 0, nph = nphs; count < lim && nph != nphe; nph++) {
             ISP_LOCKU_SOFTC(isp);
-            rv = isp_control(isp, ISPCTL_GET_PORTNAME, chan, nph, &wwpn);
+            pair.wwnn = nph;
+            if (isp_control(isp, ISPCTL_GET_NODENAME, &pair.wwnn)) {
+                ISP_UNLKU_SOFTC(isp);
+                continue;
+            }
+            pair.wwpn = nph;
+            if (isp_control(isp, ISPCTL_GET_PORTNAME, &pair.wwpn)) {
+                ISP_UNLKU_SOFTC(isp);
+                continue;
+            }
             ISP_UNLKU_SOFTC(isp);
-            if (rv == 0 && wwpn != (uint64_t) 0) {
-                local.count++;
-                if (COPYOUT(&wwpn, (void *)uptr++, sizeof (uint64_t))) {
-                    rv = EFAULT;
-                    break;
-                }
+            if (pair.wwnn == 0 || pair.wwpn == 0) {
+                continue;
+            }
+            count++;
+            if (COPYOUT(&pair, (void *)uptr++, sizeof (pair))) {
+                rv = EFAULT;
+                break;
             }
         }
-
-        if (local.count) {
-                if (COPYOUT(&local.count, (void *)&ua->count, sizeof (local.count))) {
-                    rv = EFAULT;
-                } else {
-                    rv = 0;
-                }
+        if (rv == 0) {
+            if (COPYOUT(&count, (void *)&ua->count, sizeof (count))) {
+                rv = EFAULT;
+            }
         }
         break;
     }
@@ -847,7 +792,7 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
 static int isp_exti_query(EXT_IOCTL *);
 static int isp_exti_setinstance(EXT_IOCTL *);
 static int isp_exti_fcct_passthru(EXT_IOCTL *);
-static int isp_exti_discover_luns(ispsoftc_t *, int, UINT64, UINT64, UINT16 *);
+static int isp_exti_discover_luns(ispsoftc_t *, UINT64, UINT64, UINT16 *);
 static void *isp_exti_usrptr(UINT64, UINT16);
 static int isp_exti_passthru(EXT_IOCTL *);
 static int isp_run_cmd(ispsoftc_t *, isp_xcmd_t *);
@@ -969,7 +914,6 @@ isp_exti_setinstance(EXT_IOCTL *ext)
     }
     api_isp = isplist[index];
     ext->HbaSelect = api_isp->isp_unit;
-    api_channel = 0;    /* XXXXXXXXXXXXXXXXXXXXXXX */
     return (0);
 }
     
@@ -988,9 +932,9 @@ isp_exti_query(EXT_IOCTL *pext)
         return (0);
     }
     ISP_LOCKU_SOFTC(isp);
-    fcp = FCPARAM(isp, api_channel);
+    fcp = FCPARAM(isp);
     if (fcp->isp_fwstate != FW_READY || fcp->isp_loopstate < LOOP_LSCAN_DONE) {
-        if (isp_fc_runstate(isp, api_channel, 1000000) < 0) {
+        if (isp_fc_runstate(isp, 1000000) < 0) {
             ISP_UNLKU_SOFTC(isp);
             pext->Status = EXT_STATUS_PENDING;
             return (0);
@@ -1071,9 +1015,9 @@ isp_exti_query(EXT_IOCTL *pext)
         hbp.PortActiveFC4Types = EXT_DEF_FC4_TYPE_SCSI;
         hbp.PortSupportedSpeed = EXT_DEF_PORTSPEED_1GBIT;
         if (IS_23XX(isp)) {
-            hbp.PortSupportedSpeed |= EXT_DEF_PORTSPEED_2GBIT;
+            hbp.PortSupportedSpeed = EXT_DEF_PORTSPEED_2GBIT;
         } else if (IS_24XX(isp)) {
-            hbp.PortSupportedSpeed |= EXT_DEF_PORTSPEED_2GBIT|EXT_DEF_PORTSPEED_4GBIT;
+            hbp.PortSupportedSpeed = EXT_DEF_PORTSPEED_4GBIT;
         }
         cl = min(pext->ResponseLen, sizeof (hbp));
         if (COPYOUT(&hbp, outaddr, cl)) {
@@ -1197,7 +1141,7 @@ isp_exti_query(EXT_IOCTL *pext)
         wwpn = rlp->port_wwn;
         wwnn = rlp->node_wwn;
         ISP_UNLKU_SOFTC(isp);
-        rval = isp_exti_discover_luns(isp, api_channel, wwpn, wwnn, &tgt.LunCount);
+        rval = isp_exti_discover_luns(isp, wwpn, wwnn, &tgt.LunCount);
         if (rval) {
             break;
         }
@@ -1221,9 +1165,7 @@ isp_exti_query(EXT_IOCTL *pext)
         xc.PciBusNumber = pdev->bus->number;
         xc.PciDevFunc = pdev->devfn;
         xc.PciSlotNumber = PCI_SLOT(pdev->devfn);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
         xc.DomainNr = pci_domain_nr(pdev->bus);
-#endif
         xc.InterruptLevel = pdev->irq;
         cl = min(pext->ResponseLen, sizeof (xc));
         if (COPYOUT(&xc, outaddr, cl)) {
@@ -1243,16 +1185,16 @@ isp_exti_query(EXT_IOCTL *pext)
 
 
 #define IGPOFF  0                                   /* place CT Request itself is put */
-#define OGPOFF  (ISP_FC_SCRLEN >> 1)                /* place CT Response itself is put */
-#define ZTXOFF  (ISP_FC_SCRLEN - (1 * QENTRY_LEN))  /* place where status entry for CT passthru request ends up */
-#define CTXOFF  (ISP_FC_SCRLEN - (2 * QENTRY_LEN))  /* place where CT passthru request is put */
+#define OGPOFF  (ISP2100_SCRLEN >> 1)               /* place CT Response itself is put */
+#define ZTXOFF  (ISP2100_SCRLEN - (1 * QENTRY_LEN)) /* place where status entry for CT passthru request ends up */
+#define CTXOFF  (ISP2100_SCRLEN - (2 * QENTRY_LEN)) /* place where CT passthru request is put */
 
 static int
 isp_exti_fcct_passthru(EXT_IOCTL *pext)
 {
     ispsoftc_t *isp = api_isp;
     isp_plcmd_t p;
-    fcparam *fcp = FCPARAM(isp, 0);
+    fcparam *fcp = FCPARAM(isp);
     mbreg_t mbs;
     uint8_t qe[QENTRY_LEN], *scp;
     uint16_t handle;
@@ -1267,11 +1209,11 @@ isp_exti_fcct_passthru(EXT_IOCTL *pext)
         return (0);
     }
 
-    if (pext->RequestLen > (ISP_FC_SCRLEN >> 1)) {
+    if (pext->RequestLen > (ISP2100_SCRLEN >> 1)) {
         pext->Status = EXT_STATUS_NO_MEMORY;
         return (0);
     }
-    if (pext->ResponseLen > ((ISP_FC_SCRLEN >> 1) - (2 * QENTRY_LEN))) {
+    if (pext->ResponseLen > ((ISP2100_SCRLEN >> 1) - (2 * QENTRY_LEN))) {
         pext->Status = EXT_STATUS_NO_MEMORY;
         return (0);
     }
@@ -1305,7 +1247,6 @@ isp_exti_fcct_passthru(EXT_IOCTL *pext)
     /*
      * Login into the Management Server
      */
-    p.channel = api_channel;
     p.handle = NIL_HANDLE;
     p.portid = MANAGEMENT_PORT_ID;
     p.flags = PLOGX_FLG_CMD_PLOGI;
@@ -1322,7 +1263,7 @@ isp_exti_fcct_passthru(EXT_IOCTL *pext)
      * Acquire Scratch
      */
     MEMZERO(qe, QENTRY_LEN);
-    FC_SCRATCH_ACQUIRE(isp, 0);
+    FC_SCRATCH_ACQUIRE(isp);
     scp = fcp->isp_scratch;
 
     MEMCPY(&scp[IGPOFF], localmem, pext->RequestLen);
@@ -1387,7 +1328,7 @@ isp_exti_fcct_passthru(EXT_IOCTL *pext)
         ms->ms_header.rqs_entry_count = 1;
         ms->ms_header.rqs_entry_type = RQSTYPE_MS_PASSTHRU;
         ms->ms_handle = 0xffffffff;
-        if (ISP_CAP_2KLOGIN(isp)) {
+        if (FCPARAM(isp)->isp_2klogin) {
             ms->ms_nphdl = handle;
         } else {
             ms->ms_nphdl = handle << 8;
@@ -1435,12 +1376,11 @@ out1:
     /*
      * Release Scratch
      */
-    FC_SCRATCH_RELEASE(isp, 0);
+    FC_SCRATCH_RELEASE(isp);
 
     /*
      * Log out of the Management Server
      */
-    p.channel = api_channel;
     p.handle = handle;
     p.portid = MANAGEMENT_PORT_ID;
     p.flags = PLOGX_FLG_CMD_LOGO|PLOGX_FLG_EXPLICIT_LOGO;
@@ -1561,7 +1501,7 @@ isp_exti_passthru(EXT_IOCTL *pext)
      * so we know how to send the command.
      */
     ISP_LOCKU_SOFTC(isp);
-    for (lp = &FCPARAM(isp, 0)->portdb[0]; lp < &FCPARAM(isp, 0)->portdb[MAX_FC_TARG]; lp++) {
+    for (lp = &FCPARAM(isp)->portdb[0]; lp < &FCPARAM(isp)->portdb[MAX_FC_TARG]; lp++) {
         if (lp->state != FC_PORTDB_STATE_VALID) {
             continue;
         }
@@ -1579,7 +1519,7 @@ isp_exti_passthru(EXT_IOCTL *pext)
             }
         }
     }
-    if (lp == &FCPARAM(isp, 0)->portdb[MAX_FC_TARG]) {
+    if (lp == &FCPARAM(isp)->portdb[MAX_FC_TARG]) {
         ISP_UNLKU_SOFTC(isp);
         pext->Status = EXT_STATUS_DEV_NOT_FOUND;
         if (bufp) {
@@ -1591,7 +1531,6 @@ isp_exti_passthru(EXT_IOCTL *pext)
     wwpn = lp->port_wwn;
     cmd.handle = lp->handle;
     cmd.portid = lp->portid;
-    cmd.channel = api_channel;
     ISP_UNLKU_SOFTC(isp);
 
     MEMCPY(cmd.fcd.beg.cdb, fcx.Cdb, min(EXT_DEF_SCSI_PASSTHRU_CDB_LENGTH, sizeof (cmd.fcd.beg.cdb)));
@@ -1633,18 +1572,17 @@ isp_exti_passthru(EXT_IOCTL *pext)
 #define RPT_LUN_SIZE    1024
 
 static int
-isp_exti_discover_luns(ispsoftc_t *isp, int chan, UINT64 wwpn, UINT64 wwnn, UINT16 *nluns)
+isp_exti_discover_luns(ispsoftc_t *isp, UINT64 wwpn, UINT64 wwnn, UINT16 *nluns)
 {
     isp_xcmd_t cmd;
     int status, nent, i, hilun;
     unsigned long flags;
-    fcparam *fcp = FCPARAM(isp, chan);
     fcportdb_t *lp;
     uint8_t *bufp;
 
     MEMZERO(&cmd, sizeof (isp_xcmd_t));
     ISP_LOCKU_SOFTC(isp);
-    for (lp = &fcp->portdb[0]; lp < &fcp->portdb[MAX_FC_TARG]; lp++) {
+    for (lp = &FCPARAM(isp)->portdb[0]; lp < &FCPARAM(isp)->portdb[MAX_FC_TARG]; lp++) {
         if (lp->state != FC_PORTDB_STATE_VALID) {
             continue;
         }
@@ -1652,7 +1590,7 @@ isp_exti_discover_luns(ispsoftc_t *isp, int chan, UINT64 wwpn, UINT64 wwnn, UINT
             break;
         }
     }
-    if (lp == &fcp->portdb[MAX_FC_TARG]) {
+    if (lp == &FCPARAM(isp)->portdb[MAX_FC_TARG]) {
         ISP_UNLKU_SOFTC(isp);
         return (-ENODEV);
     }
@@ -1716,9 +1654,7 @@ isp_run_cmd_done(struct scsi_cmnd *Cmnd)
 static int
 isp_run_cmd(ispsoftc_t *isp, isp_xcmd_t *cmd)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
     struct scsi_device *dev = NULL;
-#endif
     Scsi_Cmnd *Cmnd = NULL;
     struct Scsi_Host *host = NULL;
     uint32_t nxti, optr, handle;
@@ -1742,7 +1678,6 @@ isp_run_cmd(ispsoftc_t *isp, isp_xcmd_t *cmd)
         goto out;
     }
     host = isp->isp_osinfo.host;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
     dev = isp_kzalloc(sizeof (struct scsi_device), GFP_KERNEL);
     if (dev == NULL) {
         result = -ENOMEM;
@@ -1750,9 +1685,6 @@ isp_run_cmd(ispsoftc_t *isp, isp_xcmd_t *cmd)
     }
     Cmnd->device = dev;
     dev->host = host;
-#else
-    Cmnd->host = host;
-#endif
     Cmnd->scsi_done = isp_run_cmd_done;
     Cmnd->request_buffer = &rsem;
 
@@ -1799,10 +1731,10 @@ isp_run_cmd(ispsoftc_t *isp, isp_xcmd_t *cmd)
         reqp->req_header.rqs_entry_type = RQSTYPE_T2RQS;
         t2->req_flags = REQFLAG_STAG;
 
-        if (ISP_CAP_2KLOGIN(isp)) {
+        if (FCPARAM(isp)->isp_2klogin) {
             ((ispreqt2e_t *)reqp)->req_target = cmd->handle;
             ((ispreqt2e_t *)reqp)->req_scclun = cmd->lun;
-        } else if (ISP_CAP_SCCFW(isp)) {
+        } else if (FCPARAM(isp)->isp_sccfw) {
             t2->req_target = cmd->handle;
             t2->req_scclun = cmd->lun;
         } else {
@@ -1869,11 +1801,9 @@ isp_run_cmd(ispsoftc_t *isp, isp_xcmd_t *cmd)
     isp_destroy_handle(isp, handle);
     ISP_UNLKU_SOFTC(isp);
 out:
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
     if (dev) {
         isp_kfree(dev, sizeof (struct scsi_device));
     }
-#endif
     isp_kfree(Cmnd, sizeof (Scsi_Cmnd));
     return (result);
 }
