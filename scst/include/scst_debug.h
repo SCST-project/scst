@@ -399,4 +399,10 @@ do {                                            \
 
 #endif /* DEBUG */
 
+#if defined(DEBUG) && defined(CONFIG_DEBUG_SLAB)
+#define SCST_SLAB_FLAGS ( SLAB_RED_ZONE | SLAB_POISON )
+#else
+#define SCST_SLAB_FLAGS 0L
+#endif
+
 #endif /* __SCST_DEBUG_H */

@@ -20,12 +20,6 @@
 
 #define SGV_POOL_ELEMENTS	11
 
-#if defined(DEBUG) && defined(CONFIG_DEBUG_SLAB)
-#define SCST_SLAB_FLAGS ( SLAB_RED_ZONE | SLAB_POISON )
-#else
-#define SCST_SLAB_FLAGS 0L
-#endif
-
 /* 
  * sg_num is indexed by the page number, pg_count is indexed by the sg number.
  * Made in one entry to simplify the code (eg all sizeof(*) parts) and save
@@ -118,8 +112,12 @@ struct scst_sgv_pools_manager
 			u32 releases_on_hiwmk;
 			u32 releases_failed;
 		} thr; /* protected by pool_mgr_lock */
-		
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))		
 		struct shrinker *sgv_shrinker;
+#else
+		struct shrinker sgv_shrinker;
+#endif
 		
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20))
 		struct delayed_work apit_pool;

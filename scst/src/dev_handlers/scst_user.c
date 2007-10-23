@@ -33,12 +33,6 @@
 	for details.
 #endif
 
-#if defined(DEBUG) && defined(CONFIG_DEBUG_SLAB)
-#define DEV_USER_SLAB_FLAGS ( SLAB_RED_ZONE | SLAB_POISON )
-#else
-#define DEV_USER_SLAB_FLAGS 0L
-#endif
-
 #define DEV_USER_MAJOR			237
 #define DEV_USER_CMD_HASH_ORDER		6
 #define DEV_USER_TM_TIMEOUT		(10*HZ)
@@ -99,7 +93,7 @@ struct scst_user_dev
 	struct completion cleanup_cmpl;
 };
 
-struct dev_user_pre_unreg_sess_obj
+struct scst_user_pre_unreg_sess_obj
 {
 	struct scst_tgt_dev *tgt_dev;
 	unsigned int active:1;
@@ -113,7 +107,7 @@ struct dev_user_pre_unreg_sess_obj
 };
 
 /* Most fields are unprotected, since only one thread at time can access them */
-struct dev_user_cmd
+struct scst_user_cmd
 {
 	struct scst_cmd *cmd;
 	struct scst_user_dev *dev;
@@ -126,7 +120,7 @@ struct dev_user_cmd
 	unsigned int internal_reset_tm:1;
 	unsigned int aborted:1;
 
-	struct dev_user_cmd *buf_ucmd;
+	struct scst_user_cmd *buf_ucmd;
 
 	int cur_data_page;
 	int num_data_pages;
@@ -148,9 +142,9 @@ struct dev_user_cmd
 	int result;
 };
 
-static struct dev_user_cmd *dev_user_alloc_ucmd(struct scst_user_dev *dev,
+static struct scst_user_cmd *dev_user_alloc_ucmd(struct scst_user_dev *dev,
 	int gfp_mask);
-static void dev_user_free_ucmd(struct dev_user_cmd *ucmd);
+static void dev_user_free_ucmd(struct scst_user_cmd *ucmd);
 
 static int dev_user_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb);
 static int dev_user_exec(struct scst_cmd *cmd);
@@ -166,16 +160,16 @@ static struct page *dev_user_alloc_pages(struct scatterlist *sg,
 static void dev_user_free_sg_entries(struct scatterlist *sg, int sg_count,
         void *priv);
 
-static void dev_user_add_to_ready(struct dev_user_cmd *ucmd);
+static void dev_user_add_to_ready(struct scst_user_cmd *ucmd);
 
-static void dev_user_unjam_cmd(struct dev_user_cmd *ucmd, int busy,
+static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 	unsigned long *flags);
 static void dev_user_unjam_dev(struct scst_user_dev *dev, int tm,
 	struct scst_tgt_dev *tgt_dev);
 
-static int dev_user_process_reply_tm_exec(struct dev_user_cmd *ucmd,
+static int dev_user_process_reply_tm_exec(struct scst_user_cmd *ucmd,
 	int status);
-static int dev_user_process_reply_sess(struct dev_user_cmd *ucmd, int status);
+static int dev_user_process_reply_sess(struct scst_user_cmd *ucmd, int status);
 static int dev_user_register_dev(struct file *file,
 	const struct scst_user_dev_desc *dev_desc);
 static int __dev_user_set_opt(struct scst_user_dev *dev,
@@ -213,7 +207,7 @@ static LIST_HEAD(cleanup_list);
 static DECLARE_WAIT_QUEUE_HEAD(cleanup_list_waitQ);
 static struct task_struct *cleanup_thread;
 
-static inline void ucmd_get(struct dev_user_cmd *ucmd, int barrier)
+static inline void ucmd_get(struct scst_user_cmd *ucmd, int barrier)
 {
 	TRACE_DBG("ucmd %p, ucmd_ref %d", ucmd, atomic_read(&ucmd->ucmd_ref));
 	atomic_inc(&ucmd->ucmd_ref);
@@ -221,7 +215,7 @@ static inline void ucmd_get(struct dev_user_cmd *ucmd, int barrier)
 		smp_mb__after_atomic_inc();
 }
 
-static inline void ucmd_put(struct dev_user_cmd *ucmd)
+static inline void ucmd_put(struct scst_user_cmd *ucmd)
 {
 	TRACE_DBG("ucmd %p, ucmd_ref %d", ucmd, atomic_read(&ucmd->ucmd_ref));
 	if (atomic_dec_and_test(&ucmd->ucmd_ref))
@@ -255,18 +249,18 @@ static inline int dev_user_check_reg(struct scst_user_dev *dev)
 	return 0;
 }
 
-static inline int dev_user_cmd_hashfn(int h)
+static inline int scst_user_cmd_hashfn(int h)
 {
 	return h & ((1 << DEV_USER_CMD_HASH_ORDER) - 1);
 }
 
-static inline struct dev_user_cmd *__ucmd_find_hash(struct scst_user_dev *dev,
+static inline struct scst_user_cmd *__ucmd_find_hash(struct scst_user_dev *dev,
 	unsigned int h)
 {
 	struct list_head *head;
-	struct dev_user_cmd *ucmd;
+	struct scst_user_cmd *ucmd;
 
-	head = &dev->ucmd_hash[dev_user_cmd_hashfn(h)];
+	head = &dev->ucmd_hash[scst_user_cmd_hashfn(h)];
 	list_for_each_entry(ucmd, head, hash_list_entry) {
 		if (ucmd->h == h) {
 			TRACE_DBG("Found ucmd %p", ucmd);
@@ -276,11 +270,11 @@ static inline struct dev_user_cmd *__ucmd_find_hash(struct scst_user_dev *dev,
 	return NULL;
 }
 
-static void cmnd_insert_hash(struct dev_user_cmd *ucmd)
+static void cmnd_insert_hash(struct scst_user_cmd *ucmd)
 {
 	struct list_head *head;
 	struct scst_user_dev *dev = ucmd->dev;
-	struct dev_user_cmd *u;
+	struct scst_user_cmd *u;
 	unsigned long flags;
 
 	spin_lock_irqsave(&dev->cmd_lists.cmd_list_lock, flags);
@@ -288,7 +282,7 @@ static void cmnd_insert_hash(struct dev_user_cmd *ucmd)
 		ucmd->h = dev->handle_counter++;
 		u = __ucmd_find_hash(dev, ucmd->h);
 	} while(u != NULL);
-	head = &dev->ucmd_hash[dev_user_cmd_hashfn(ucmd->h)];
+	head = &dev->ucmd_hash[scst_user_cmd_hashfn(ucmd->h)];
 	list_add_tail(&ucmd->hash_list_entry, head);
 	spin_unlock_irqrestore(&dev->cmd_lists.cmd_list_lock, flags);
 
@@ -296,7 +290,7 @@ static void cmnd_insert_hash(struct dev_user_cmd *ucmd)
 	return;
 }
 
-static inline void cmnd_remove_hash(struct dev_user_cmd *ucmd)
+static inline void cmnd_remove_hash(struct scst_user_cmd *ucmd)
 {
 	unsigned long flags;
 	spin_lock_irqsave(&ucmd->dev->cmd_lists.cmd_list_lock, flags);
@@ -307,7 +301,7 @@ static inline void cmnd_remove_hash(struct dev_user_cmd *ucmd)
 	return;
 }
 
-static void dev_user_free_ucmd(struct dev_user_cmd *ucmd)
+static void dev_user_free_ucmd(struct scst_user_cmd *ucmd)
 {
 	TRACE_ENTRY();
 
@@ -325,7 +319,7 @@ static void dev_user_free_ucmd(struct dev_user_cmd *ucmd)
 static struct page *dev_user_alloc_pages(struct scatterlist *sg,
 	gfp_t gfp_mask, void *priv)
 {
-	struct dev_user_cmd *ucmd = (struct dev_user_cmd*)priv;
+	struct scst_user_cmd *ucmd = (struct scst_user_cmd*)priv;
 
 	TRACE_ENTRY();
 
@@ -357,7 +351,7 @@ out:
 	return sg->page;
 }
 
-static void dev_user_on_cached_mem_free(struct dev_user_cmd *ucmd)
+static void dev_user_on_cached_mem_free(struct scst_user_cmd *ucmd)
 {
 	TRACE_ENTRY();
 
@@ -376,7 +370,7 @@ static void dev_user_on_cached_mem_free(struct dev_user_cmd *ucmd)
 	return;
 }
 
-static void dev_user_unmap_buf(struct dev_user_cmd *ucmd)
+static void dev_user_unmap_buf(struct scst_user_cmd *ucmd)
 {
 	int i;
 
@@ -400,7 +394,7 @@ static void dev_user_unmap_buf(struct dev_user_cmd *ucmd)
 	return;
 }
 
-static void __dev_user_free_sg_entries(struct dev_user_cmd *ucmd)
+static void __dev_user_free_sg_entries(struct scst_user_cmd *ucmd)
 {
 	TRACE_ENTRY();
 
@@ -423,7 +417,7 @@ static void __dev_user_free_sg_entries(struct dev_user_cmd *ucmd)
 static void dev_user_free_sg_entries(struct scatterlist *sg, int sg_count,
 	void *priv)
 {
-	struct dev_user_cmd *ucmd = (struct dev_user_cmd*)priv;
+	struct scst_user_cmd *ucmd = (struct scst_user_cmd*)priv;
 
 	TRACE_MEM("Freeing data pages (sg=%p, sg_count=%d, priv %p)", sg,
 		sg_count, ucmd);
@@ -433,7 +427,7 @@ static void dev_user_free_sg_entries(struct scatterlist *sg, int sg_count,
 	return;
 }
 
-static inline int is_buff_cached(struct dev_user_cmd *ucmd)
+static inline int is_buff_cached(struct scst_user_cmd *ucmd)
 {
 	int mem_reuse_type = ucmd->dev->memory_reuse_type;
 
@@ -451,7 +445,7 @@ static inline int is_buff_cached(struct dev_user_cmd *ucmd)
  * Returns 0 for success, <0 for fatal failure, >0 - need pages.
  * Unmaps the buffer, if needed in case of error
  */
-static int dev_user_alloc_sg(struct dev_user_cmd *ucmd, int cached_buff)
+static int dev_user_alloc_sg(struct scst_user_cmd *ucmd, int cached_buff)
 {
 	int res = 0;
 	struct scst_cmd *cmd = ucmd->cmd;
@@ -489,8 +483,8 @@ static int dev_user_alloc_sg(struct dev_user_cmd *ucmd, int cached_buff)
 	cmd->sg = sgv_pool_alloc(dev->pool, bufflen, gfp_mask, flags,
 			&cmd->sg_cnt, &ucmd->sgv, ucmd);
 	if (cmd->sg != NULL) {
-		struct dev_user_cmd *buf_ucmd =
-			(struct dev_user_cmd*)sgv_get_priv(ucmd->sgv);
+		struct scst_user_cmd *buf_ucmd =
+			(struct scst_user_cmd*)sgv_get_priv(ucmd->sgv);
 
 		TRACE_MEM("Buf ucmd %p", buf_ucmd);
 
@@ -551,7 +545,7 @@ out:
 	return res;
 }
 
-static int dev_user_alloc_space(struct dev_user_cmd *ucmd)
+static int dev_user_alloc_space(struct scst_user_cmd *ucmd)
 {
 	int rc, res = SCST_CMD_STATE_DEFAULT;
 	struct scst_cmd *cmd = ucmd->cmd;
@@ -596,10 +590,10 @@ out:
 	return res;
 }
 
-static struct dev_user_cmd *dev_user_alloc_ucmd(struct scst_user_dev *dev,
+static struct scst_user_cmd *dev_user_alloc_ucmd(struct scst_user_dev *dev,
 	int gfp_mask)
 {
-	struct dev_user_cmd *ucmd = NULL;
+	struct scst_user_cmd *ucmd = NULL;
 
 	TRACE_ENTRY();
 
@@ -641,7 +635,7 @@ static int dev_user_get_block(struct scst_cmd *cmd)
 static int dev_user_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 {
 	int rc, res = SCST_CMD_STATE_DEFAULT;
-	struct dev_user_cmd *ucmd;
+	struct scst_user_cmd *ucmd;
 	int atomic = scst_cmd_atomic(cmd);
 	struct scst_user_dev *dev = (struct scst_user_dev*)cmd->dev->dh_priv;
 	int gfp_mask = atomic ? GFP_ATOMIC : GFP_KERNEL;
@@ -662,7 +656,7 @@ static int dev_user_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 		ucmd->cmd = cmd;
 		cmd->dh_priv = ucmd;
 	} else {
-		ucmd = (struct dev_user_cmd*)cmd->dh_priv;
+		ucmd = (struct scst_user_cmd*)cmd->dh_priv;
 		TRACE_DBG("Used ucmd %p, state %x", ucmd, ucmd->state);
 	}
 
@@ -743,9 +737,9 @@ out_error:
 	goto out;
 }
 
-static void dev_user_flush_dcache(struct dev_user_cmd *ucmd)
+static void dev_user_flush_dcache(struct scst_user_cmd *ucmd)
 {
-	struct dev_user_cmd *buf_ucmd = ucmd->buf_ucmd;
+	struct scst_user_cmd *buf_ucmd = ucmd->buf_ucmd;
 	unsigned long start = buf_ucmd->ubuff;
 	int i;
 
@@ -773,7 +767,7 @@ out:
 
 static int dev_user_exec(struct scst_cmd *cmd)
 {
-	struct dev_user_cmd *ucmd = (struct dev_user_cmd*)cmd->dh_priv;
+	struct scst_user_cmd *ucmd = (struct scst_user_cmd*)cmd->dh_priv;
 
 	TRACE_ENTRY();
 
@@ -811,7 +805,7 @@ static int dev_user_exec(struct scst_cmd *cmd)
 	return SCST_EXEC_COMPLETED;
 }
 
-static void dev_user_free_sgv(struct dev_user_cmd *ucmd)
+static void dev_user_free_sgv(struct scst_user_cmd *ucmd)
 {
 	if (ucmd->sgv != NULL) {
 		sgv_pool_free(ucmd->sgv);
@@ -826,7 +820,7 @@ static void dev_user_free_sgv(struct dev_user_cmd *ucmd)
 
 static void dev_user_on_free_cmd(struct scst_cmd *cmd)
 {
-	struct dev_user_cmd *ucmd = (struct dev_user_cmd*)cmd->dh_priv;
+	struct scst_user_cmd *ucmd = (struct scst_user_cmd*)cmd->dh_priv;
 
 	TRACE_ENTRY();
 
@@ -905,7 +899,7 @@ static int dev_user_tape_done(struct scst_cmd *cmd)
 	return res;
 }
 
-static void dev_user_add_to_ready(struct dev_user_cmd *ucmd)
+static void dev_user_add_to_ready(struct scst_user_cmd *ucmd)
 {
 	struct scst_user_dev *dev = ucmd->dev;
 	unsigned long flags;
@@ -934,7 +928,7 @@ static void dev_user_add_to_ready(struct dev_user_cmd *ucmd)
 			    !(dev->attach_cmd_active || dev->tm_cmd_active ||
 			      dev->internal_reset_active ||
 			      (dev->detach_cmd_count != 0))) {
-				struct dev_user_pre_unreg_sess_obj *p, *found = NULL;
+				struct scst_user_pre_unreg_sess_obj *p, *found = NULL;
 				list_for_each_entry(p, &dev->pre_unreg_sess_list,
 					pre_unreg_sess_list_entry) {
 					if (p->tgt_dev == ucmd->cmd->tgt_dev) {
@@ -998,7 +992,7 @@ out:
 	return;
 }
 
-static int dev_user_map_buf(struct dev_user_cmd *ucmd, unsigned long ubuff,
+static int dev_user_map_buf(struct scst_user_cmd *ucmd, unsigned long ubuff,
 	int num_pg)
 {
 	int res = 0, rc;
@@ -1066,7 +1060,7 @@ out_unmap:
 	goto out_err;
 }
 
-static int dev_user_process_reply_alloc(struct dev_user_cmd *ucmd,
+static int dev_user_process_reply_alloc(struct scst_user_cmd *ucmd,
 	struct scst_user_reply_cmd *reply)
 {
 	int res = 0;
@@ -1105,7 +1099,7 @@ out_hwerr:
 	goto out_process;
 }
 
-static int dev_user_process_reply_parse(struct dev_user_cmd *ucmd,
+static int dev_user_process_reply_parse(struct scst_user_cmd *ucmd,
 	struct scst_user_reply_cmd *reply)
 {
 	int res = 0;
@@ -1153,7 +1147,7 @@ out_inval:
 	goto out_process;
 }
 
-static int dev_user_process_reply_on_free(struct dev_user_cmd *ucmd)
+static int dev_user_process_reply_on_free(struct scst_user_cmd *ucmd)
 {
 	int res = 0;
 
@@ -1168,7 +1162,7 @@ static int dev_user_process_reply_on_free(struct dev_user_cmd *ucmd)
 	return res;
 }
 
-static int dev_user_process_reply_on_cache_free(struct dev_user_cmd *ucmd)
+static int dev_user_process_reply_on_cache_free(struct scst_user_cmd *ucmd)
 {
 	int res = 0;
 
@@ -1182,7 +1176,7 @@ static int dev_user_process_reply_on_cache_free(struct dev_user_cmd *ucmd)
 	return res;
 }
 
-static int dev_user_process_reply_exec(struct dev_user_cmd *ucmd,
+static int dev_user_process_reply_exec(struct scst_user_cmd *ucmd,
 	struct scst_user_reply_cmd *reply)
 {
 	int res = 0;
@@ -1296,7 +1290,7 @@ static int dev_user_process_reply(struct scst_user_dev *dev,
 	struct scst_user_reply_cmd *reply)
 {
 	int res = 0;
-	struct dev_user_cmd *ucmd;
+	struct scst_user_cmd *ucmd;
 	int state;
 
 	TRACE_ENTRY();
@@ -1460,9 +1454,9 @@ static int dev_user_process_scst_commands(struct scst_user_dev *dev)
 }
 
 /* Called under cmd_lists.cmd_list_lock and IRQ off */
-struct dev_user_cmd *__dev_user_get_next_cmd(struct list_head *cmd_list)
+struct scst_user_cmd *__dev_user_get_next_cmd(struct list_head *cmd_list)
 {
-	struct dev_user_cmd *u;
+	struct scst_user_cmd *u;
 
 again:
 	u = NULL;
@@ -1522,7 +1516,7 @@ static inline int test_cmd_lists(struct scst_user_dev *dev)
 
 /* Called under cmd_lists.cmd_list_lock and IRQ off */
 static int dev_user_get_next_cmd(struct scst_user_dev *dev,
-	struct dev_user_cmd **ucmd)
+	struct scst_user_cmd **ucmd)
 {
 	int res = 0;
 	wait_queue_t wait;
@@ -1588,7 +1582,7 @@ static inline int test_prio_cmd_list(struct scst_user_dev *dev)
 
 /* Called under cmd_lists.cmd_list_lock and IRQ off */
 static int dev_user_get_next_prio_cmd(struct scst_user_dev *dev,
-	struct dev_user_cmd **ucmd)
+	struct scst_user_cmd **ucmd)
 {
 	int res = 0;
 	wait_queue_t wait;
@@ -1641,7 +1635,7 @@ static int dev_user_reply_get_cmd(struct file *file, unsigned long arg,
 	struct scst_user_dev *dev;
 	struct scst_user_get_cmd *cmd;
 	struct scst_user_reply_cmd *reply;
-	struct dev_user_cmd *ucmd;
+	struct scst_user_cmd *ucmd;
 	uint64_t ureply;
 
 	TRACE_ENTRY();
@@ -1829,7 +1823,7 @@ out:
 /*
  * Called under cmd_lists.cmd_list_lock, but can drop it inside, then reaquire.
  */
-static void dev_user_unjam_cmd(struct dev_user_cmd *ucmd, int busy,
+static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 	unsigned long *flags)
 {
 	int state = ucmd->state & ~UCMD_STATE_MASK;
@@ -1939,7 +1933,7 @@ out:
 	return;
 }
 
-static int __unjam_check_tgt_dev(struct dev_user_cmd *ucmd, int state,
+static int __unjam_check_tgt_dev(struct scst_user_cmd *ucmd, int state,
 	struct scst_tgt_dev *tgt_dev)
 {
 	int res = 0;
@@ -1964,7 +1958,7 @@ out:
 	return res;
 }
 
-static int __unjam_check_tm(struct dev_user_cmd *ucmd, int state)
+static int __unjam_check_tm(struct scst_user_cmd *ucmd, int state)
 {
 	int res = 0;
 
@@ -1991,7 +1985,7 @@ static void dev_user_unjam_dev(struct scst_user_dev *dev, int tm,
 {
 	int i;
 	unsigned long flags;
-	struct dev_user_cmd *ucmd;
+	struct scst_user_cmd *ucmd;
 
 	TRACE_ENTRY();
 
@@ -2065,7 +2059,7 @@ repeat:
  ** We also don't queue >1 ATTACH_SESS commands and after timeout fail it.
  **/
 
-static int dev_user_process_reply_tm_exec(struct dev_user_cmd *ucmd,
+static int dev_user_process_reply_tm_exec(struct scst_user_cmd *ucmd,
 	int status)
 {
 	int res = 0;
@@ -2103,9 +2097,9 @@ static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	struct scst_tgt_dev *tgt_dev)
 {
 	int res, rc;
-	struct dev_user_cmd *ucmd;
+	struct scst_user_cmd *ucmd;
 	struct scst_user_dev *dev = (struct scst_user_dev*)tgt_dev->dev->dh_priv;
-	struct dev_user_cmd *ucmd_to_abort = NULL;
+	struct scst_user_cmd *ucmd_to_abort = NULL;
 
 	TRACE_ENTRY();
 
@@ -2121,7 +2115,7 @@ static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	ucmd->user_cmd.tm_cmd.fn = mcmd->fn;
 
 	if (mcmd->cmd_to_abort != NULL) {
-		ucmd_to_abort = (struct dev_user_cmd*)mcmd->cmd_to_abort->dh_priv;
+		ucmd_to_abort = (struct scst_user_cmd*)mcmd->cmd_to_abort->dh_priv;
 		if (ucmd_to_abort != NULL)
 			ucmd->user_cmd.tm_cmd.cmd_h_to_abort = ucmd_to_abort->h;
 	}
@@ -2237,7 +2231,7 @@ static void dev_user_detach(struct scst_device *sdev)
 	return;
 }
 
-static int dev_user_process_reply_sess(struct dev_user_cmd *ucmd, int status)
+static int dev_user_process_reply_sess(struct scst_user_cmd *ucmd, int status)
 {
 	int res = 0;
 	unsigned long flags;
@@ -2276,7 +2270,7 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 	struct scst_user_dev *dev =
 		(struct scst_user_dev*)tgt_dev->dev->dh_priv;
 	int res = 0, rc;
-	struct dev_user_cmd *ucmd;
+	struct scst_user_cmd *ucmd;
 
 	TRACE_ENTRY();
 
@@ -2360,10 +2354,10 @@ static void dev_user_pre_unreg_sess_work_fn(struct work_struct *work)
 #endif
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
-	struct dev_user_pre_unreg_sess_obj *pd = (struct dev_user_pre_unreg_sess_obj*)p;
+	struct scst_user_pre_unreg_sess_obj *pd = (struct scst_user_pre_unreg_sess_obj*)p;
 #else
-	struct dev_user_pre_unreg_sess_obj *pd = container_of(
-		(struct delayed_work*)work, struct dev_user_pre_unreg_sess_obj,
+	struct scst_user_pre_unreg_sess_obj *pd = container_of(
+		(struct delayed_work*)work, struct scst_user_pre_unreg_sess_obj,
 		pre_unreg_sess_work);
 #endif
 	struct scst_user_dev *dev =
@@ -2393,7 +2387,7 @@ static void dev_user_pre_unreg_sess(struct scst_tgt_dev *tgt_dev)
 {
 	struct scst_user_dev *dev =
 		(struct scst_user_dev*)tgt_dev->dev->dh_priv;
-	struct dev_user_pre_unreg_sess_obj *pd;
+	struct scst_user_pre_unreg_sess_obj *pd;
 
 	TRACE_ENTRY();
 
@@ -2425,8 +2419,8 @@ static void dev_user_detach_tgt(struct scst_tgt_dev *tgt_dev)
 {
 	struct scst_user_dev *dev =
 		(struct scst_user_dev*)tgt_dev->dev->dh_priv;
-	struct dev_user_cmd *ucmd;
-	struct dev_user_pre_unreg_sess_obj *pd = NULL, *p;
+	struct scst_user_cmd *ucmd;
+	struct scst_user_pre_unreg_sess_obj *pd = NULL, *p;
 
 	TRACE_ENTRY();
 
@@ -2722,7 +2716,7 @@ static int __dev_user_set_opt(struct scst_user_dev *dev,
 
 	if ((dev->prio_queue_type != opt->prio_queue_type) &&
 	    (opt->prio_queue_type == SCST_USER_PRIO_QUEUE_SINGLE)) {
-		struct dev_user_cmd *u, *t;
+		struct scst_user_cmd *u, *t;
 		/* No need for lock, the activity is suspended */
 		list_for_each_entry_safe(u, t, &dev->prio_ready_cmd_list,
 				ready_cmd_list_entry) {
@@ -2887,7 +2881,7 @@ out:
 
 static void dev_user_process_cleanup(struct scst_user_dev *dev)
 {
-	struct dev_user_cmd *ucmd;
+	struct scst_user_cmd *ucmd;
 	int rc;
 
 	TRACE_ENTRY();
@@ -2917,7 +2911,7 @@ static void dev_user_process_cleanup(struct scst_user_dev *dev)
 	int i;
 	for(i = 0; i < (int)ARRAY_SIZE(dev->ucmd_hash); i++) {
 		struct list_head *head = &dev->ucmd_hash[i];
-		struct dev_user_cmd *ucmd, *t;
+		struct scst_user_cmd *ucmd, *t;
 		list_for_each_entry_safe(ucmd, t, head, hash_list_entry) {
 			PRINT_ERROR_PR("Lost ucmd %p (state %x, ref %d)", ucmd,
 				ucmd->state, atomic_read(&ucmd->ucmd_ref));
@@ -3003,9 +2997,7 @@ static int __init init_scst_user(void)
 	goto out;
 #endif
 
-	user_cmd_cachep = kmem_cache_create("scst_user_cmd",
-		sizeof(struct dev_user_cmd), 0, DEV_USER_SLAB_FLAGS, NULL,
-		NULL);
+	user_cmd_cachep = KMEM_CACHE(scst_user_cmd, SCST_SLAB_FLAGS);
 	if (user_cmd_cachep == NULL) {
 		res = -ENOMEM;
 		goto out;

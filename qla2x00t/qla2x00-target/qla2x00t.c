@@ -47,15 +47,6 @@
 #error "FC_TARGET_SUPPORT is NOT DEFINED"
 #endif
 
-/*
- * Whether to use slab cach instead of kmalloc/kfree
- */
-#if defined(DEBUG) && defined(CONFIG_DEBUG_SLAB)
-#define Q2T_CACHE_FLAGS ( SLAB_RED_ZONE | SLAB_POISON )
-#else
-#define Q2T_CACHE_FLAGS 0L
-#endif
-
 #ifdef DEBUG
 #define Q2T_DEFAULT_LOG_FLAGS (TRACE_FUNCTION | TRACE_PID | \
 	TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_MGMT_DEBUG | \
@@ -2206,9 +2197,7 @@ static int __init q2t_init(void)
 
 	TRACE_ENTRY();
 
-	q2t_cmd_cachep = kmem_cache_create("q2t_cmd_struct",
-					   sizeof(struct q2t_cmd),
-					   0, Q2T_CACHE_FLAGS, NULL, NULL);
+	q2t_cmd_cachep = KMEM_CACHE(q2t_cmd, SCST_SLAB_FLAGS);
 	if (q2t_cmd_cachep == NULL) {
 		res = -ENOMEM;
 		goto out;

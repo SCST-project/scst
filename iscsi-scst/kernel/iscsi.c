@@ -2471,8 +2471,7 @@ static int __init iscsi_init(void)
 	if ((err = event_init()) < 0)
 		goto out_reg;
 
-	iscsi_cmnd_cache = kmem_cache_create("scst_iscsi_cmnd",
-		sizeof(struct iscsi_cmnd), 0, 0, NULL, NULL);
+	iscsi_cmnd_cache = KMEM_CACHE(iscsi_cmnd, SCST_SLAB_FLAGS);
 	if (!iscsi_cmnd_cache) {
 		err = -ENOMEM;
 		goto out_event;

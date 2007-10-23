@@ -840,7 +840,12 @@ int sgv_pool_init(struct sgv_pool *pool, const char *name, int clustered)
 		scnprintf(pool->cache_names[i], sizeof(pool->cache_names[i]),
 			"%s-%luK", name, (PAGE_SIZE >> 10) << i);
 		pool->caches[i] = kmem_cache_create(pool->cache_names[i], 
-			size, 0, SCST_SLAB_FLAGS, NULL, NULL);
+			size, 0, SCST_SLAB_FLAGS, NULL
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
+			, NULL);
+#else
+			);
+#endif
 		if (pool->caches[i] == NULL) {
 			TRACE(TRACE_OUT_OF_MEM, "Allocation of sgv_pool cache "
 				"%s(%d) failed", name, i);
@@ -1086,8 +1091,14 @@ int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 	INIT_WORK(&pools->mgr.apit_pool, sgv_pool_cached_pitbool, NULL);
 #endif
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
 	pools->mgr.sgv_shrinker = set_shrinker(DEFAULT_SEEKS,
 		sgv_pool_cached_shrinker);
+#else
+	pools->mgr.sgv_shrinker.shrink = sgv_pool_cached_shrinker;
+	pools->mgr.sgv_shrinker.seeks = DEFAULT_SEEKS;
+	register_shrinker(&pools->mgr.sgv_shrinker);
+#endif
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1112,7 +1123,12 @@ void scst_sgv_pools_deinit(void)
 
 	TRACE_ENTRY();
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
 	remove_shrinker(pools->mgr.sgv_shrinker);
+#else
+	unregister_shrinker(&pools->mgr.sgv_shrinker);
+#endif
+
 	cancel_delayed_work(&pools->mgr.apit_pool);
 
 #ifdef SCST_HIGHMEM

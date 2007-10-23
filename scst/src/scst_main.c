@@ -1418,26 +1418,19 @@ static int __init init_scst(void)
 
 	scst_threads_info_init();
 
-#define INIT_CACHEP(p, s, t, o) do {					\
-		p = kmem_cache_create(s, sizeof(struct t), 0,		\
-				      SCST_SLAB_FLAGS, NULL, NULL);	\
-		TRACE_MEM("Slab create: %s at %p size %zd", s, p,	\
-			  sizeof(struct t));				\
+#define INIT_CACHEP(p, s, o) do {					\
+		p = KMEM_CACHE(s, SCST_SLAB_FLAGS);			\
+		TRACE_MEM("Slab create: %s at %p size %zd", #s, p,	\
+			  sizeof(struct s));				\
 		if (p == NULL) { res = -ENOMEM; goto o; }		\
 	} while (0)
 	  
-	INIT_CACHEP(scst_mgmt_cachep, SCST_MGMT_CMD_CACHE_STRING, 
-		    scst_mgmt_cmd, out);
-	INIT_CACHEP(scst_ua_cachep, SCST_UA_CACHE_STRING, 
-		    scst_tgt_dev_UA, out_destroy_mgmt_cache);
-	INIT_CACHEP(scst_cmd_cachep,  SCST_CMD_CACHE_STRING, 
-		    scst_cmd, out_destroy_ua_cache);
-	INIT_CACHEP(scst_sess_cachep, SCST_SESSION_CACHE_STRING,
-		    scst_session, out_destroy_cmd_cache);
-	INIT_CACHEP(scst_tgtd_cachep, SCST_TGT_DEV_CACHE_STRING,
-		    scst_tgt_dev, out_destroy_sess_cache);
-	INIT_CACHEP(scst_acgd_cachep, SCST_ACG_DEV_CACHE_STRING,
-		    scst_acg_dev, out_destroy_tgt_cache);
+	INIT_CACHEP(scst_mgmt_cachep, scst_mgmt_cmd, out);
+	INIT_CACHEP(scst_ua_cachep, scst_tgt_dev_UA, out_destroy_mgmt_cache);
+	INIT_CACHEP(scst_cmd_cachep, scst_cmd, out_destroy_ua_cache);
+	INIT_CACHEP(scst_sess_cachep, scst_session, out_destroy_cmd_cache);
+	INIT_CACHEP(scst_tgtd_cachep, scst_tgt_dev, out_destroy_sess_cache);
+	INIT_CACHEP(scst_acgd_cachep, scst_acg_dev, out_destroy_tgt_cache);
 
 	scst_mgmt_mempool = mempool_create(10, mempool_alloc_slab,
 		mempool_free_slab, scst_mgmt_cachep);
@@ -1564,30 +1557,20 @@ static void __exit exit_scst(void)
 
 	scst_sgv_pools_deinit();
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
-#define DEINIT_CACHEP(p, s) do {			\
-		if (kmem_cache_destroy(p)) {		\
-			PRINT_INFO_PR("kmem_cache_destroy of %s returned an "\
-				"error", s);		\
-		}					\
-		p = NULL;				\
+#define DEINIT_CACHEP(p) do {		\
+		kmem_cache_destroy(p);	\
+		p = NULL;		\
 	} while (0)
-#else
-#define DEINIT_CACHEP(p, s) do {			\
-		kmem_cache_destroy(p);			\
-                p = NULL;				\
-	} while (0)
-#endif
 
 	mempool_destroy(scst_mgmt_mempool);
 	mempool_destroy(scst_ua_mempool);
 
-	DEINIT_CACHEP(scst_mgmt_cachep, SCST_MGMT_CMD_CACHE_STRING);
-	DEINIT_CACHEP(scst_ua_cachep, SCST_UA_CACHE_STRING);
-	DEINIT_CACHEP(scst_cmd_cachep, SCST_CMD_CACHE_STRING);
-	DEINIT_CACHEP(scst_sess_cachep, SCST_SESSION_CACHE_STRING);
-	DEINIT_CACHEP(scst_tgtd_cachep, SCST_TGT_DEV_CACHE_STRING);
-	DEINIT_CACHEP(scst_acgd_cachep, SCST_ACG_DEV_CACHE_STRING);
+	DEINIT_CACHEP(scst_mgmt_cachep);
+	DEINIT_CACHEP(scst_ua_cachep);
+	DEINIT_CACHEP(scst_cmd_cachep);
+	DEINIT_CACHEP(scst_sess_cachep);
+	DEINIT_CACHEP(scst_tgtd_cachep);
+	DEINIT_CACHEP(scst_acgd_cachep);
 
 	PRINT_INFO_PR("%s", "SCST unloaded");
 

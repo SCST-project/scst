@@ -55,12 +55,6 @@ static struct scst_proc_log vdisk_proc_local_trace_tbl[] =
 
 #include "scst_dev_handler.h"
 
-#if defined(DEBUG) && defined(CONFIG_DEBUG_SLAB)
-#define VDISK_SLAB_FLAGS ( SLAB_RED_ZONE | SLAB_POISON )
-#else
-#define VDISK_SLAB_FLAGS 0L
-#endif
-
 /* 8 byte ASCII Vendor */
 #define SCST_FIO_VENDOR			"SCST_FIO"
 #define SCST_BIO_VENDOR			"SCST_BIO"
@@ -3170,9 +3164,7 @@ static int __init init_scst_vdisk_driver(void)
 {
 	int res, num_threads;
 
-	vdisk_thr_cachep = kmem_cache_create("vdisk_thr_data",
-		sizeof(struct scst_vdisk_thr), 0, VDISK_SLAB_FLAGS, NULL,
-		NULL);
+	vdisk_thr_cachep = KMEM_CACHE(scst_vdisk_thr, SCST_SLAB_FLAGS);
 	if (vdisk_thr_cachep == NULL) {
 		res = -ENOMEM;
 		goto out;

@@ -667,13 +667,24 @@ int scst_acg_add_dev(struct scst_acg *acg, struct scst_device *dev, lun_t lun,
 	}
 
 out:
+	if (res == 0) {
+		if (dev->virt_name != NULL) {
+			PRINT_INFO_PR("Added device %s to group %s",
+				dev->virt_name, acg->acg_name);
+		} else {
+			PRINT_INFO_PR("Added device %d:%d:%d:%d to group %s",
+				dev->scsi_dev->host->host_no,
+				dev->scsi_dev->channel,	dev->scsi_dev->id,
+				dev->scsi_dev->lun, acg->acg_name);
+		}
+	}
+
 	TRACE_EXIT_RES(res);
 	return res;
 
 out_free:
 	list_for_each_entry(tgt_dev, &tmp_tgt_dev_list,
-			 extra_tgt_dev_list_entry) 
-	{
+			 extra_tgt_dev_list_entry) {
 		scst_free_tgt_dev(tgt_dev);
 	}
 	scst_free_acg_dev(acg_dev);
@@ -710,7 +721,19 @@ int scst_acg_remove_dev(struct scst_acg *acg, struct scst_device *dev)
 	}
 	scst_free_acg_dev(acg_dev);
 
-out:	
+out:
+	if (res == 0) {
+		if (dev->virt_name != NULL) {
+			PRINT_INFO_PR("Removed device %s from group %s",
+				dev->virt_name, acg->acg_name);
+		} else {
+			PRINT_INFO_PR("Removed device %d:%d:%d:%d from group %s",
+				dev->scsi_dev->host->host_no,
+				dev->scsi_dev->channel,	dev->scsi_dev->id,
+				dev->scsi_dev->lun, acg->acg_name);
+		}
+	}
+
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -728,8 +751,8 @@ int scst_acg_add_name(struct scst_acg *acg, const char *name)
 	list_for_each_entry(n, &acg->acn_list, acn_list_entry) 
 	{
 		if (strcmp(n->name, name) == 0) {
-			PRINT_ERROR_PR("Name %s already exists in access "
-				"control group %s", name, acg->acg_name);
+			PRINT_ERROR_PR("Name %s already exists in group %s",
+				name, acg->acg_name);
 			res = -EINVAL;
 			goto out;
 		}
@@ -756,6 +779,10 @@ int scst_acg_add_name(struct scst_acg *acg, const char *name)
 	list_add_tail(&n->acn_list_entry, &acg->acn_list);
 
 out:
+	if (res == 0) {
+		PRINT_INFO_PR("Added name %s to group %s", name, acg->acg_name);
+	}
+
 	TRACE_EXIT_RES(res);
 	return res;
 
@@ -783,9 +810,12 @@ int scst_acg_remove_name(struct scst_acg *acg, const char *name)
 		}
 	}
 	
-	if (res != 0) {
-		PRINT_ERROR_PR("Unable to find name %s in access control "
-			"group %s", name, acg->acg_name);
+	if (res == 0) {
+		PRINT_INFO_PR("Removed name %s from group %s", name,
+			acg->acg_name);
+	} else {
+		PRINT_ERROR_PR("Unable to find name %s in group %s", name,
+			acg->acg_name);
 	}
 
 	TRACE_EXIT_RES(res);

@@ -2775,7 +2775,12 @@ qla2x00_module_init(void)
 
 	/* Allocate cache for SRBs. */
 	srb_cachep = kmem_cache_create("qla2xxx_srbs", sizeof(srb_t), 0,
-	    SLAB_HWCACHE_ALIGN, NULL, NULL);
+	    SLAB_HWCACHE_ALIGN, NULL
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
+	    , NULL);
+#else
+	    );
+#endif
 	if (srb_cachep == NULL) {
 		printk(KERN_ERR
 		    "qla2xxx: Unable to allocate SRB cache...Failing load!\n");

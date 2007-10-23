@@ -321,9 +321,15 @@ static CLASS_DEVICE_ATTR(port_database,
 			 qla2x00_update_portdb);
 #endif
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
 static ssize_t
 qla2x00_sysfs_read_fw_dump(struct kobject *kobj, char *buf, loff_t off,
     size_t count)
+#else
+static ssize_t
+qla2x00_sysfs_read_fw_dump(struct kobject *kobj, struct bin_attribute *attr,
+    char *buf, loff_t off, size_t count)
+#endif
 {
 	struct scsi_qla_host *ha = to_qla_host(dev_to_shost(container_of(kobj,
 	    struct device, kobj)));
@@ -340,9 +346,15 @@ qla2x00_sysfs_read_fw_dump(struct kobject *kobj, char *buf, loff_t off,
 	return (count);
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
 static ssize_t
 qla2x00_sysfs_write_fw_dump(struct kobject *kobj, char *buf, loff_t off,
     size_t count)
+#else
+static ssize_t
+qla2x00_sysfs_write_fw_dump(struct kobject *kobj, struct bin_attribute *attr,
+    char *buf, loff_t off, size_t count)
+#endif
 {
 	struct scsi_qla_host *ha = to_qla_host(dev_to_shost(container_of(kobj,
 	    struct device, kobj)));
@@ -419,9 +431,15 @@ static struct bin_attribute sysfs_fw_dump_attr = {
 	.write = qla2x00_sysfs_write_fw_dump,
 };
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
 static ssize_t
 qla2x00_sysfs_read_nvram(struct kobject *kobj, char *buf, loff_t off,
     size_t count)
+#else
+static ssize_t
+qla2x00_sysfs_read_nvram(struct kobject *kobj, struct bin_attribute *attr,
+    char *buf, loff_t off, size_t count)
+#endif
 {
 	struct scsi_qla_host *ha = to_qla_host(dev_to_shost(container_of(kobj,
 	    struct device, kobj)));
@@ -439,9 +457,15 @@ qla2x00_sysfs_read_nvram(struct kobject *kobj, char *buf, loff_t off,
 	return ha->nvram_size;
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
 static ssize_t
 qla2x00_sysfs_write_nvram(struct kobject *kobj, char *buf, loff_t off,
     size_t count)
+#else
+static ssize_t
+qla2x00_sysfs_write_nvram(struct kobject *kobj, struct bin_attribute *attr,
+    char *buf, loff_t off, size_t count)
+#endif
 {
 	struct scsi_qla_host *ha = to_qla_host(dev_to_shost(container_of(kobj,
 	    struct device, kobj)));
@@ -493,9 +517,15 @@ static struct bin_attribute sysfs_nvram_attr = {
 	.write = qla2x00_sysfs_write_nvram,
 };
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
 static ssize_t
 qla2x00_sysfs_read_optrom(struct kobject *kobj, char *buf, loff_t off,
     size_t count)
+#else
+static ssize_t
+qla2x00_sysfs_read_optrom(struct kobject *kobj, struct bin_attribute *attr,
+    char *buf, loff_t off, size_t count)
+#endif
 {
 	struct scsi_qla_host *ha = to_qla_host(dev_to_shost(container_of(kobj,
 	    struct device, kobj)));
@@ -512,9 +542,15 @@ qla2x00_sysfs_read_optrom(struct kobject *kobj, char *buf, loff_t off,
 	return count;
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
 static ssize_t
 qla2x00_sysfs_write_optrom(struct kobject *kobj, char *buf, loff_t off,
     size_t count)
+#else
+static ssize_t
+qla2x00_sysfs_write_optrom(struct kobject *kobj, struct bin_attribute *attr,
+    char *buf, loff_t off, size_t count)
+#endif
 {
 	struct scsi_qla_host *ha = to_qla_host(dev_to_shost(container_of(kobj,
 	    struct device, kobj)));
@@ -542,9 +578,15 @@ static struct bin_attribute sysfs_optrom_attr = {
 	.write = qla2x00_sysfs_write_optrom,
 };
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
 static ssize_t
 qla2x00_sysfs_write_optrom_ctl(struct kobject *kobj, char *buf, loff_t off,
     size_t count)
+#else
+static ssize_t
+qla2x00_sysfs_write_optrom_ctl(struct kobject *kobj, struct bin_attribute *attr,
+    char *buf, loff_t off, size_t count)
+#endif
 {
 	struct scsi_qla_host *ha = to_qla_host(dev_to_shost(container_of(kobj,
 	    struct device, kobj)));
@@ -622,9 +664,15 @@ static struct bin_attribute sysfs_optrom_ctl_attr = {
 	.write = qla2x00_sysfs_write_optrom_ctl,
 };
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
 static ssize_t
 qla2x00_sysfs_read_vpd(struct kobject *kobj, char *buf, loff_t off,
     size_t count)
+#else
+static ssize_t
+qla2x00_sysfs_read_vpd(struct kobject *kobj, struct bin_attribute *attr,
+    char *buf, loff_t off, size_t count)
+#endif
 {
 	struct scsi_qla_host *ha = to_qla_host(dev_to_shost(container_of(kobj,
 	    struct device, kobj)));
@@ -644,9 +692,15 @@ qla2x00_sysfs_read_vpd(struct kobject *kobj, char *buf, loff_t off,
 	return ha->vpd_size;
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
 static ssize_t
 qla2x00_sysfs_write_vpd(struct kobject *kobj, char *buf, loff_t off,
     size_t count)
+#else
+static ssize_t
+qla2x00_sysfs_write_vpd(struct kobject *kobj, struct bin_attribute *attr,
+    char *buf, loff_t off, size_t count)
+#endif
 {
 	struct scsi_qla_host *ha = to_qla_host(dev_to_shost(container_of(kobj,
 	    struct device, kobj)));

@@ -2004,8 +2004,12 @@ struct proc_dir_entry *scst_create_proc_entry(struct proc_dir_entry * root,
 
 int scst_single_seq_open(struct inode *inode, struct file *file)
 {
-	return single_open(file, 
-		container_of(inode->i_fop, struct scst_proc_data, seq_op)->show, 
-		PDE(inode)->data);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,23)
+	struct scst_proc_data *pdata = container_of(PDE(inode)->proc_fops,
+		struct scst_proc_data, seq_op);
+#else
+	struct scst_proc_data *pdata = container_of(inode->i_fop,
+		struct scst_proc_data, seq_op);
+#endif
+	return single_open(file, pdata->show, pdata->data);
 }
-
