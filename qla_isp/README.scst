@@ -16,10 +16,16 @@ INSTALLATION:
 
 Build driver with command
 $ make 
-Then install isp_mod, isp_scst modules
-$ make install
 
-Other Qlogic drivers can not coexist in system, unload all other qla modules
+Next step depends on you have other QLA modules installed. Note that you can't
+load ISP driver when you build other Qlogic drivers in kernel (kerel oops may
+occur). Other QLA modules are acceptable, but extra care is needed, firs copy
+modules to some directory, ie:
+
+$ mkdir /root/qla_isp
+$ cp linux-2.6/build/*.ko /root/qla_isp
+
+Everytime you want to run qla_isp, unload all other qla modules
 
 $ rmmod qla2x00tgt
 $ rmmod qla2400
@@ -27,12 +33,26 @@ $ rmmod qla2300
 $ rmmod qla2200
 $ rmmod qla2xxx
 
-Load isp modules
+and load ISP modules directly from created directory, ie:
+
+$ insmod /root/qla_isp/isp_scst.ko
+$ insmod /root/qla_isp/isp_mod.ko
+
+If you have no others QLA drivers from SCST (qla2x00tgt) nor kernel (qla2xxx
+and friends) you can install in standard /lib/modules directory:
+
+$ make install
+$ depmod -ea
+
+Then first time load drivers by hand:
 
 $ modprobe isp_scst
 $ modprobe isp_mod
 
-Enable all logical units to work in target mode
+Now anytime the system boot and QLA card is plugged, modules will load
+automatically. 
+
+When driver is loaded, enable all logical units to work in target mode
 
 $ echo 1 > /proc/scsi_tgt/qla_isp/0 
 
