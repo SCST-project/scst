@@ -80,6 +80,8 @@ static struct option const long_options[] =
 /* This will be comfigurable by command line options */
 struct config_operations *cops = &plain_ops;
 
+int init_report_pipe[2];
+
 static void usage(int status)
 {
 	if (status != 0)
@@ -149,38 +151,40 @@ static void create_listen_socket(struct pollfd *array)
 	hints.ai_flags = AI_PASSIVE;
 
 	if (getaddrinfo(server_address, servname, &hints, &res0)) {
-		log_error("unable to get address info (%s)!", strerror(errno));
+		log_error("Unable to get address info (%s)!", strerror(errno));
 		exit(1);
 	}
 
 	for (i = 0, res = res0; res && i < LISTEN_MAX; i++, res = res->ai_next) {
 		sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 		if (sock < 0) {
-			log_error("unable to create server socket (%s) %d %d %d!",
+			log_error("Unable to create server socket (%s) %d %d %d!",
 				  strerror(errno), res->ai_family,
 				  res->ai_socktype, res->ai_protocol);
-			continue;
+			exit(1);
 		}
 
 		sock_set_keepalive(sock, 50);
 		
 		opt = 1;
 		if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)))
-			log_warning("unable to set SO_REUSEADDR on server socket (%s)!",
+			log_warning("Unable to set SO_REUSEADDR on server socket (%s)!",
 				    strerror(errno));
 		opt = 1;
 		if (res->ai_family == AF_INET6 &&
-		    setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt)))
-			continue;
+		    setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt))) {
+		    	log_error("Unable to restrict IPv6 socket (%s)", strerror(errno));
+			exit(1);
+		}
 
 		if (bind(sock, res->ai_addr, res->ai_addrlen)) {
-			log_error("unable to bind server socket (%s)!", strerror(errno));
-			continue;
+			log_error("Unable to bind server socket (%s)!", strerror(errno));
+			exit(1);
 		}
 
 		if (listen(sock, INCOMING_MAX)) {
-			log_error("unable to listen to server socket (%s)!", strerror(errno));
-			continue;
+			log_error("Unable to listen to server socket (%s)!", strerror(errno));
+			exit(1);
 		}
 
 		set_non_blocking(sock);
@@ -439,6 +443,11 @@ static void event_loop(int timeout)
 		incoming[i] = NULL;
 	}
 
+	close(init_report_pipe[0]);
+	res = 0;
+	write(init_report_pipe[1], &res, sizeof(res));
+	close(init_report_pipe[1]);
+
 	while (1) {
 		res = poll(poll_array, POLL_MAX, timeout);
 		if (res == 0) {
@@ -506,6 +515,11 @@ int main(int argc, char **argv)
 	char *isns = NULL;
 	int isns_ac = 0;
 
+	if (pipe(init_report_pipe) == -1) {
+		perror("pipe");
+		exit(-1);
+	}
+
 	while ((ch = getopt_long(argc, argv, "c:fd:s:u:g:a:p:vh", long_options, &longindex)) >= 0) {
 		switch (ch) {
 		case 'c':
@@ -572,8 +586,14 @@ int main(int argc, char **argv)
 		if (pid < 0) {
 			log_error("starting daemon failed");
 			exit(1);
-		} else if (pid)
-			exit(0);
+		} else if (pid) {
+			int res = -1;
+			close(init_report_pipe[1]);
+			if (read(init_report_pipe[0], &res, sizeof(res)) < sizeof(res))
+				exit(-1);
+			else
+				exit(res);
+		}
 
 		chdir("/");
 		if (lockf(fd, F_TLOCK, 0) < 0) {

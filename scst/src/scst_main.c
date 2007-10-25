@@ -139,7 +139,7 @@ MODULE_PARM_DESC(scst_max_cmd_mem, "Maximum memory allowed to be consumed by "
 
 struct scst_dev_type scst_null_devtype = 
 {
-  name:     "null_handler",
+  name:     "none",
 };
 
 int scst_register_target_template(struct scst_tgt_template *vtt)

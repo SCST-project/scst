@@ -37,6 +37,7 @@
 #include <linux/vmalloc.h>
 #include <asm/atomic.h>
 #include <linux/kthread.h>
+#include <linux/sched.h>
 
 #define LOG_PREFIX			"dev_vdisk"
 
