@@ -7,7 +7,7 @@ diff -upr linux-2.6.16.29/include/linux/mm.h linux-2.6.16.29/include/linux/mm.h
  #endif /* WANT_PAGE_VIRTUAL */
 +	/*
 +	 * Used to implement support for notification on zero-copy TCP transfer
-+	 * completeion. Not good to have this field here, it's better to have
++	 * completion. Not good to have this field here, it's better to have
 +	 * it in struct sk_buff, but it would make the code much more
 +	 * complicated and fragile, if maintained as a separate patch, since all
 +	 * skb then would have to contain only pages with the same value in this
@@ -32,7 +32,7 @@ diff -upr linux-2.6.16.29/include/linux/net.h linux-2.6.16.29/include/linux/net.
  extern int net_msg_burst;
  #endif
  
-+/* Support for notification on zero-copy TCP transfer completeion */
++/* Support for notification on zero-copy TCP transfer completion */
 +#define NET_PAGE_CALLBACKS_DEFINED
 +typedef void (*net_get_page_callback_t)(struct page *page);
 +typedef void (*net_put_page_callback_t)(struct page *page);
