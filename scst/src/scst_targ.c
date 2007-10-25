@@ -305,23 +305,20 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 	 */
 
 	if (unlikely(scst_get_cdb_info(cmd->cdb, dev->handler->type, 
-			&cdb_info) != 0)) 
-	{
-		static int t;
-		if (t < 10) {
-			t++;
-			PRINT_INFO_PR("Unknown opcode 0x%02x for %s. "
-				"Should you update scst_scsi_op_table?",
-				cmd->cdb[0], dev->handler->name);
-		}
+			&cdb_info) != 0)) {
+		PRINT_ERROR_PR("Unknown opcode 0x%02x for %s. "
+			"Should you update scst_scsi_op_table?",
+			cmd->cdb[0], dev->handler->name);
+#ifdef USE_EXPECTED_VALUES
 		if (scst_cmd_is_expected_set(cmd)) {
 			TRACE(TRACE_SCSI, "Using initiator supplied values: "
 				"direction %d, transfer_len %d",
 				cmd->expected_data_direction,
 				cmd->expected_transfer_len);
 			cmd->data_direction = cmd->expected_data_direction;
+			
 			cmd->bufflen = cmd->expected_transfer_len;
-			/* Restore (most probably) lost CDB length */
+			/* Restore (likely) lost CDB length */
 			cmd->cdb_len = scst_get_cdb_len(cmd->cdb);
 			if (cmd->cdb_len == -1) {
 				PRINT_ERROR_PR("Unable to get CDB length for "
@@ -333,13 +330,17 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 			}
 		} else {
 			PRINT_ERROR_PR("Unknown opcode 0x%02x for %s and "
-			     "target %s not supplied expected values. "
-			     "Returning INVALID OPCODE.", cmd->cdb[0], 
-			     dev->handler->name, cmd->tgtt->name);
+			     "target %s not supplied expected values",
+			     cmd->cdb[0], dev->handler->name, cmd->tgtt->name);
 			scst_set_cmd_error(cmd,
 				   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 			goto out_xmit;
 		}
+#else
+		scst_set_cmd_error(cmd,
+			   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		goto out_xmit;
+#endif
 	} else {
 		TRACE(TRACE_SCSI, "op_name <%s>, direction=%d (expected %d, "
 			"set %s), transfer_len=%d (expected len %d), flags=%d",
@@ -349,13 +350,25 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 			cdb_info.transfer_len, cmd->expected_transfer_len,
 			cdb_info.flags);
 
-		/* Restore (most probably) lost CDB length */
-		cmd->cdb_len = cdb_info.cdb_len;
-
 		cmd->data_direction = cdb_info.direction;
-		if (!(cdb_info.flags & SCST_UNKNOWN_LENGTH))
+
+		if (unlikely((cdb_info.flags & SCST_UNKNOWN_LENGTH) != 0)) {
+			if (scst_cmd_is_expected_set(cmd)) {
+				/*
+				 * Command data length can't be easily
+				 * determined from the CDB. Get it from
+				 * the supplied expected value, but
+				 * limit it to some reasonable value (50MB).
+				 */
+				cmd->bufflen = min(cmd->expected_transfer_len,
+							50*1024*1024);
+			} else
+				cmd->bufflen = 0;
+		} else
 			cmd->bufflen = cdb_info.transfer_len;
-		/* else cmd->bufflen remained as it was inited in 0 */
+
+		/* Restore (likely) lost CDB length */
+		cmd->cdb_len = cdb_info.cdb_len;
 	}
 
 	if (unlikely(cmd->cdb[cmd->cdb_len - 1] & CONTROL_BYTE_NACA_BIT)) {
@@ -402,25 +415,14 @@ call_parse:
 
 		if (state == SCST_CMD_STATE_DEFAULT)
 			state = SCST_CMD_STATE_PREPARE_SPACE;
-	}
-	else
+	} else
 		state = SCST_CMD_STATE_PREPARE_SPACE;
-
-	if (scst_cmd_is_expected_set(cmd)) {
-		if (cmd->expected_transfer_len < cmd->bufflen) {
-			TRACE(TRACE_SCSI, "cmd->expected_transfer_len(%d) < "
-				"cmd->bufflen(%d), using expected_transfer_len "
-				"instead", cmd->expected_transfer_len,
-				cmd->bufflen);
-			cmd->bufflen = cmd->expected_transfer_len;
-		}
-	}
 
 	if (cmd->data_len == -1)
 		cmd->data_len = cmd->bufflen;
 
-	if (cmd->data_buf_alloced && (orig_bufflen > cmd->bufflen)) {
-		PRINT_ERROR_PR("Target driver supplied data buffer (size %d), "
+	if (cmd->data_buf_alloced && unlikely((orig_bufflen > cmd->bufflen))) {
+		PRINT_ERROR_PR("Dev handler supplied data buffer (size %d), "
 			"is less, than required (size %d)", cmd->bufflen,
 			orig_bufflen);
 		goto out_error;
@@ -447,6 +449,42 @@ call_parse:
 		goto out_error;
 	}
 #endif
+
+	if (scst_cmd_is_expected_set(cmd)) {
+#ifdef USE_EXPECTED_VALUES
+#	ifdef EXTRACHECKS
+		if ((cmd->data_direction != cmd->expected_data_direction) ||
+		    (cmd->bufflen != cmd->expected_transfer_len)) {
+			PRINT_ERROR_PR("Expected values don't match decoded ones: "
+				"data_direction %d, expected_data_direction %d, "
+				"bufflen %d, expected_transfer_len %d",
+				cmd->data_direction, cmd->expected_data_direction,
+				cmd->bufflen, cmd->expected_transfer_len);
+		}
+#	endif
+		cmd->data_direction = cmd->expected_data_direction;
+		cmd->bufflen = cmd->expected_transfer_len;
+#else
+		if (unlikely(cmd->data_direction != cdb_info.direction)) {
+			PRINT_ERROR_PR("Expected data direction %d for opcode "
+				"0x%02x (handler %s, target %s) doesn't match "
+				"decoded value %d", cmd->data_direction,
+				cmd->cdb[0], dev->handler->name,
+				cmd->tgtt->name, cdb_info.direction);
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_invalid_message));
+			goto out_dev_done;
+		}
+		if (unlikely(cmd->bufflen != cmd->expected_transfer_len)) {
+			PRINT_INFO_PR("Warning: expected transfer length %d for "
+				"opcode 0x%02x (handler %s, target %s) doesn't "
+				"match decoded value %d. Faulty initiator?",
+				cmd->expected_transfer_len, cmd->cdb[0],
+				dev->handler->name, cmd->tgtt->name,
+				cmd->bufflen);
+		}
+#endif
+	}
 
 	switch (state) {
 	case SCST_CMD_STATE_PREPARE_SPACE:
@@ -488,6 +526,10 @@ out:
 out_error:
 	/* dev_done() will be called as part of the regular cmd's finish */
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+
+#ifndef USE_EXPECTED_VALUES
+out_dev_done:
+#endif
 	cmd->state = SCST_CMD_STATE_DEV_DONE;
 	res = SCST_CMD_STATE_RES_CONT_SAME;
 	goto out;
@@ -497,8 +539,6 @@ out_xmit:
 	res = SCST_CMD_STATE_RES_CONT_SAME;
 	goto out;
 }
-
-
 
 static int scst_prepare_space(struct scst_cmd *cmd)
 {

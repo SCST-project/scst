@@ -1626,7 +1626,7 @@ static uint32_t get_trans_len_block_limit(const uint8_t *cdb, uint8_t off)
 
 static uint32_t get_trans_len_read_capacity(const uint8_t *cdb, uint8_t off)
 {
-	return 8;
+	return READ_CAP_LEN;
 }
 
 static uint32_t get_trans_len_single(const uint8_t *cdb, uint8_t off)
@@ -1698,7 +1698,7 @@ int scst_get_cdb_info(const uint8_t *cdb_p, int dev_type,
 #ifdef EXTRACHECKS
 	if (unlikely((info_p->transfer_len == 0) &&
 		     (info_p->direction != SCST_DATA_NONE))) {
-		TRACE_DBG("Warning! transfer_len 0, direction %d change on %d",
+		TRACE_MGMT_DBG("Warning! transfer_len 0, direction %d change on %d",
 			info_p->direction, SCST_DATA_NONE);
 		info_p->direction = SCST_DATA_NONE;
 	}
@@ -1846,10 +1846,6 @@ int scst_sbc_generic_parse(struct scst_cmd *cmd,
 	      info_cdb->direction, info_cdb->flags, info_cdb->transfer_len);
 
 	switch (cmd->cdb[0]) {
-	case READ_CAPACITY:
-		cmd->bufflen = READ_CAP_LEN;
-		cmd->data_direction = SCST_DATA_READ;
-		break;
 	case SERVICE_ACTION_IN:
 		if ((cmd->cdb[1] & 0x1f) == SAI_READ_CAPACITY_16) {
 			cmd->bufflen = READ_CAP16_LEN;
@@ -1911,18 +1907,6 @@ int scst_cdrom_generic_parse(struct scst_cmd *cmd,
 	cmd->cdb[1] &= 0x1f;
 
 	switch (cmd->cdb[0]) {
-	case READ_CAPACITY:
-		cmd->bufflen = READ_CAP_LEN;
-		cmd->data_direction = SCST_DATA_READ;
-		break;
-	case GPCMD_SET_STREAMING:
-		cmd->bufflen = (((*(cmd->cdb + 9)) & 0xff) << 8) +
-		    ((*(cmd->cdb + 10)) & 0xff);
-		cmd->bufflen &= 0xffff;
-		break;
-	case GPCMD_READ_CD:
-		cmd->bufflen = cmd->bufflen >> 8;
-		break;
 	case VERIFY_6:
 	case VERIFY:
 	case VERIFY_12:
@@ -1972,18 +1956,6 @@ int scst_modisk_generic_parse(struct scst_cmd *cmd,
 	cmd->cdb[1] &= 0x1f;
 
 	switch (cmd->cdb[0]) {
-	case READ_CAPACITY:
-		cmd->bufflen = READ_CAP_LEN;
-		cmd->data_direction = SCST_DATA_READ;
-		break;
-	case 0xB6 /* SET_STREAMING */ :
-		cmd->bufflen = (((*(cmd->cdb + 9)) & 0xff) << 8) +
-		    ((*(cmd->cdb + 10)) & 0xff);
-		cmd->bufflen &= 0xffff;
-		break;
-	case 0xBE /* READ_CD */ :
-		cmd->bufflen = cmd->bufflen >> 8;
-		break;
 	case VERIFY_6:
 	case VERIFY:
 	case VERIFY_12:

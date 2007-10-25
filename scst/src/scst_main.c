@@ -606,8 +606,13 @@ static int scst_dev_handler_check(struct scst_dev_type *dev_handler)
 		goto out;
 	}
 
-	if (dev_handler->exec == NULL)
+	if (dev_handler->exec == NULL) {
+#ifdef ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
 		dev_handler->exec_atomic = 1;
+#else
+		dev_handler->exec_atomic = 0;
+#endif
+	}
 
 	if (dev_handler->dev_done == NULL)
 		dev_handler->dev_done_atomic = 1;

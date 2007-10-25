@@ -126,6 +126,8 @@ static inline int scst_get_context(void) {
 	return SCST_CONTEXT_DIRECT;
 }
 
+extern unsigned long scst_max_cmd_mem;
+
 #define SCST_MGMT_CMD_CACHE_STRING "scst_mgmt_cmd"
 extern struct kmem_cache *scst_mgmt_cachep;
 extern mempool_t *scst_mgmt_mempool;

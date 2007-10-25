@@ -172,34 +172,66 @@ Compilation options
 There are the following compilation options, that could be commented
 in/out in Makefile:
 
- - DEBUG - turns on some debugging code, including some logging. Makes
-   the driver considerably bigger and slower, producing large amount of
-   log data.
+ - DEBUG - if defined, turns on some debugging code, including some
+   logging. Makes the driver considerably bigger and slower, producing
+   large amount of log data.
 
- - TRACING - turns on ability to log events. Makes the driver considerably
-   bigger and lead to some performance loss.
+ - TRACING - if defined, turns on ability to log events. Makes the
+   driver considerably bigger and lead to some performance loss.
 
- - EXTRACHECKS - adds extra validity checks in the various places.
+ - EXTRACHECKS - if defined, adds extra validity checks in the various
+   places.
 
- - DEBUG_TM - turns on task management functions debugging, when on
-   LUN 0 in the default access control group some of the commands will
-   be delayed for about 60 sec., so making the remote initiator send TM
-   functions, eg ABORT TASK and TARGET RESET. Also set TM_DBG_GO_OFFLINE
-   symbol in the Makefile to 1 if you want that the device eventually
-   become completely unresponsive, or to 0 otherwise to circle around
-   ABORTs and RESETs code. Needs DEBUG turned on.
+ - USE_EXPECTED_VALUES - if not defined (default), initiator supplied
+   expected data transfer length and direction will be used only for
+   verification purposes to return error or warn in case if one of them
+   is invalid. Instead, locally decoded from SCSI command values will be
+   used. This is necessary for security reasons, because otherwise a
+   faulty initiator can crash target by supplying invalid value in one
+   of those parameters. This is especially important in case of
+   pass-through mode. If USE_EXPECTED_VALUES is defined, initiator
+   supplied expected data transfer length and direction will override
+   the locally decoded values. This might be necessary if internal SCST
+   commands translation table doesn't contain SCSI command, which is
+   used in your environment. You can know that if you have messages like
+   "Unknown opcode XX for YY. Should you update scst_scsi_op_table?" in
+   your kernel log and your initiator returns an error. Also report
+   those messages in the SCST mailing list
+   scst-devel@lists.sourceforge.net. Note, that not all SCSI transports
+   support supplying expected values.
 
- - STRICT_SERIALIZING - makes SCST send all commands to underlying SCSI
-   device synchronously, one after one. This makes task management more
-   reliable, with cost of some performance penalty. This is mostly
-   actual for stateful SCSI devices like tapes, where the result of
-   command's execution depends from device's settings set by previous
-   commands. Disk and RAID devices are stateless in the most cases. The
-   current SCSI core in Linux doesn't allow to abort all commands
-   reliably if they sent asynchronously to a stateful device. Turned off
-   by default, turn it on if you use stateful device(s) and need as much
-   error recovery reliability as possible. As a side effect, no kernel
-   patching is necessary.
+ - DEBUG_TM - if defined, turns on task management functions debugging,
+   when on LUN 0 in the default access control group some of the
+   commands will be delayed for about 60 sec., so making the remote
+   initiator send TM functions, eg ABORT TASK and TARGET RESET. Also
+   define TM_DBG_GO_OFFLINE symbol in the Makefile to 1 if you want that
+   the device eventually become completely unresponsive, or to 0
+   otherwise to circle around ABORTs and RESETs code. Needs DEBUG turned
+   on.
+
+ - STRICT_SERIALIZING - if defined, makes SCST send all commands to
+   underlying SCSI device synchronously, one after one. This makes task
+   management more reliable, with cost of some performance penalty. This
+   is mostly actual for stateful SCSI devices like tapes, where the
+   result of command's execution depends from device's settings defined
+   by previous commands. Disk and RAID devices are stateless in the most
+   cases. The current SCSI core in Linux doesn't allow to abort all
+   commands reliably if they sent asynchronously to a stateful device.
+   Turned off by default, turn it on if you use stateful device(s) and
+   need as much error recovery reliability as possible. As a side
+   effect, no kernel patching is necessary.
+
+ - ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ - if defined, it will be allowed
+   to submit pass-through commands to real SCSI devices via the SCSI
+   middle layer using scsi_execute_async() function from soft IRQ
+   context (tasklets). This used to be the default, but currently it
+   seems the SCSI middle layer starts expecting only thread context on
+   the IO submit path, so it is disabled now by default. Enabling it
+   will decrease amount of context switches and improve performance. It
+   is more or less safe, in the worst case, if in your configuration the
+   SCSI middle layer really doesn't expect SIRQ context in
+   scsi_execute_async() function, you will get a warning message in the
+   kernel log.
 
  - SCST_HIGHMEM - if defined on HIGHMEM systems with 2.6 kernels, it
    allows SCST to use HIGHMEM. This is very experimental feature, which
@@ -216,8 +248,8 @@ in/out in Makefile:
 HIGHMEM kernel configurations are fully supported, but not recommended
 for performance reasons, except for scst_user, where they are not
 supported, because this module deals with user supplied memory on a
-zero-copy manner. Consider change VMSPLIT option or use 64-bit system
-configuration instead.
+zero-copy manner. If you need to use it, consider change VMSPLIT option
+or use 64-bit system configuration instead.
 
 For changing VMSPLIT option (CONFIG_VMSPLIT to be precise) you should in
 "make menuconfig" command set the following variables:
@@ -437,15 +469,23 @@ IMPORTANT: By default for performance reasons VDISK FILEIO devices use write
 	   workloads write through caching might perform better, than
 	   write back one with the barrier protection turned on.
 
-IMPORTANT: Many disk and partition table management utilities don't support
+IMPORTANT: Some disk and partition table management utilities don't support
 =========  block sizes >512 bytes, therefore make sure that your favorite one
-           supports it. Also, if you export disk file or device with
-	   some block size, different from one, with which it was
-	   already divided on partitions, you could get various weird
+           supports it. Currently only cfdisk is known to work only with
+	   512 bytes blocks, other utilities like fdisk on Linux or
+	   standard disk manager on Windows are proved to work well with
+	   non-512 bytes blocks. Note, if you export a disk file or
+	   device with some block size, different from one, with which
+	   it was already partitioned, you could get various weird
 	   things like utilities hang up or other unexpected behavior.
-	   Hence, to be sure, zero the exported file or device before the
-	   first access to it from the remote initiator with another
-	   block size.
+	   Hence, to be sure, zero the exported file or device before
+	   the first access to it from the remote initiator with another
+	   block size. On Window initiator make sure you "Set Signature"
+	   in the disk manager on the imported from the target drive
+	   before doing any other partitioning on it. After you
+	   successfully mounted a file system over non-512 bytes block
+	   size device, the block size stops matter, any program will
+	   work with files on such file system.
 
 BLOCKIO VDISK mode
 ------------------
@@ -465,9 +505,10 @@ which prefer or demand direct IO access and, because of the nature of
 their data access, can actually see worse performance with
 non-discriminate caching.
 
-4) Multiple layers of targets were the secondary/triary layers need to
-have a consistent view of the primary targets in order to preserve data
-integrity which a page cache backed IO type might not provide reliably.
+4) Multiple layers of targets were the secondary and above layers need
+to have a consistent view of the primary targets in order to preserve
+data integrity which a page cache backed IO type might not provide
+reliably.
 
 Also it has an advantage over FILEIO that it doesn't copy data between
 the system cache and the commands data buffers, so it saves a
@@ -533,6 +574,8 @@ II. In order to get the maximum performance you should:
  - Disable in Makefile STRICT_SERIALIZING, EXTRACHECKS, TRACING, DEBUG*,
    SCST_STRICT_SECURITY, SCST_HIGHMEM
 
+ - For pass-through devices enable ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ.
+
 2. For target drivers:
 
  - Disable in Makefiles EXTRACHECKS, TRACING, DEBUG*
@@ -552,7 +595,8 @@ IMPORTANT: Some of the compilation options enabled by default, i.e. SCST
            than for performance.
 
 If you use SCST version taken directly from its SVN repository, you can
-set the above options using debug2perf script file.
+set the above options, except ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ, using
+debug2perf script file.
 
 4. For kernel:
 

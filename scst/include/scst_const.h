@@ -121,6 +121,7 @@ enum scst_cmd_queue_type
 #define scst_sense_read_error			MEDIUM_ERROR,    0x11, 0
 #define scst_sense_write_error			MEDIUM_ERROR,    0x03, 0
 #define scst_sense_not_ready			NOT_READY,       0x04, 0x10
+#define scst_sense_invalid_message		ILLEGAL_REQUEST, 0x49, 0
 
 /************************************************************* 
  * SCSI opcodes not listed anywhere else
