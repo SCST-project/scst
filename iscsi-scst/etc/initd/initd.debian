@@ -4,7 +4,7 @@
 # description: Starts and stops the iSCSI target
 # debianized start-stop script
 
-PID_FILE=/var/run/iscsi-scst.pid
+PID_FILE=/var/run/iscsi-scstd.pid
 CONFIG_FILE=/etc/iscsi-scstd.conf
 DAEMON=/usr/local/sbin/iscsi-scstd
 
