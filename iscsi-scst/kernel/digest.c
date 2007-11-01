@@ -31,7 +31,7 @@ void digest_alg_available(unsigned int *val)
 #endif
 
 	if ((*val & DIGEST_CRC32C) && !crc32c) {
-		PRINT_ERROR_PR("%s", "CRC32C digest algorithm not available "
+		PRINT_ERROR("%s", "CRC32C digest algorithm not available "
 			"in kernel");
 		*val |= ~DIGEST_CRC32C;
 	}
@@ -70,7 +70,7 @@ static u32 evaluate_crc32_from_sg(struct scatterlist *sg, int total,
 
 #ifdef DEBUG_DIGEST_FAILURES
 	if (((scst_random() % 100000) == 752)) {
-		PRINT_INFO_PR("%s", "Simulating digest failure");
+		PRINT_INFO("%s", "Simulating digest failure");
 		return 0;
 	}
 #endif
@@ -143,7 +143,7 @@ int digest_rx_header(struct iscsi_cmnd *cmnd)
 
 	crc = digest_header(&cmnd->pdu);
 	if (crc != cmnd->hdigest) {
-		PRINT_ERROR_PR("%s", "RX header digest failed");
+		PRINT_ERROR("%s", "RX header digest failed");
 		return -EIO;
 	} else
 		TRACE_DBG("RX header digest OK for cmd %p", cmnd);
@@ -184,7 +184,7 @@ int digest_rx_data(struct iscsi_cmnd *cmnd)
 	crc = digest_data(req, cmnd->pdu.datasize, offset);
 
 	if (crc != cmnd->ddigest) {
-		PRINT_ERROR_PR("%s", "RX data digest failed");
+		PRINT_ERROR("%s", "RX data digest failed");
 		res = -EIO;
 	} else
 		TRACE_DBG("RX data digest OK for cmd %p", cmnd);

@@ -106,7 +106,7 @@ static int do_parse(struct vdisk_cmd *vcmd)
 	vcmd->reply->subcode = vcmd->cmd->subcode;
 
 	if (cmd->expected_values_set == 0) {
-		PRINT_ERROR_PR("%s", "Oops, expected values are not set");
+		PRINT_ERROR("%s", "Oops, expected values are not set");
 		reply->bufflen = -1; /* invalid value */
 		goto out;
 	}
@@ -289,7 +289,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 		vcmd->cmd->cmd_h, cmd->pbuf, lba_start, (uint64_t)loff,
 		(uint64_t)data_len);
 	if ((loff < 0) || (data_len < 0) || ((loff + data_len) > dev->file_size)) {
-	    	PRINT_INFO_PR("Access beyond the end of the device "
+	    	PRINT_INFO("Access beyond the end of the device "
 			"(%lld of %lld, len %Ld)", (uint64_t)loff, 
 			(uint64_t)dev->file_size, (uint64_t)data_len);
 		set_cmd_error(vcmd, SCST_LOAD_SENSE(
@@ -328,7 +328,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 
 			tgt_dev = find_tgt_dev(dev, cmd->sess_h);
 			if (tgt_dev == NULL) {
-				PRINT_ERROR_PR("Session %Lx not found",
+				PRINT_ERROR("Session %Lx not found",
 					cmd->sess_h);
 				set_cmd_error(vcmd,
 				    SCST_LOAD_SENSE(scst_sense_hardw_error));
@@ -367,7 +367,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 
 			tgt_dev = find_tgt_dev(dev, cmd->sess_h);
 			if (tgt_dev == NULL) {
-				PRINT_ERROR_PR("Session %Lx not found",
+				PRINT_ERROR("Session %Lx not found",
 					cmd->sess_h);
 				set_cmd_error(vcmd,
 				    SCST_LOAD_SENSE(scst_sense_hardw_error));
@@ -587,7 +587,7 @@ static int do_sess(struct vdisk_cmd *vcmd)
 
 	if (cmd->subcode == SCST_USER_ATTACH_SESS) {
 		if (tgt_dev != NULL) {
-			PRINT_ERROR_PR("Session %Lx already exists)",
+			PRINT_ERROR("Session %Lx already exists)",
 				cmd->sess.sess_h);
 			res = EEXIST;
 			goto reply;
@@ -595,7 +595,7 @@ static int do_sess(struct vdisk_cmd *vcmd)
 
 		tgt_dev = find_empty_tgt_dev(vcmd->dev);
 		if (tgt_dev == NULL) {
-			PRINT_ERROR_PR("Too many initiators, session %Lx refused)",
+			PRINT_ERROR("Too many initiators, session %Lx refused)",
 				cmd->sess.sess_h);
 			res = ENOMEM;
 			goto reply;
@@ -604,19 +604,19 @@ static int do_sess(struct vdisk_cmd *vcmd)
 		tgt_dev->sess_h = cmd->sess.sess_h;
 		tgt_dev->last_write_cmd_queue_type = SCST_CMD_QUEUE_SIMPLE;
 
-		PRINT_INFO_PR("Session from initiator %s attached (LUN %Lx, "
+		PRINT_INFO("Session from initiator %s attached (LUN %Lx, "
 			"threads_num %d, rd_only %d, sess_h %Lx)",
 			cmd->sess.initiator_name, cmd->sess.lun,
 			cmd->sess.threads_num, cmd->sess.rd_only,
 			cmd->sess.sess_h);
 	} else {
 		if (tgt_dev == NULL) {
-			PRINT_ERROR_PR("Session %Lx not found)", cmd->sess.sess_h);
+			PRINT_ERROR("Session %Lx not found)", cmd->sess.sess_h);
 			res = ESRCH;
 			goto reply;
 		}
 		tgt_dev->sess_h = 0;
-		PRINT_INFO_PR("Session detached (sess_h %Lx)", cmd->sess.sess_h);
+		PRINT_INFO("Session detached (sess_h %Lx)", cmd->sess.sess_h);
 	}
 
 reply:
@@ -664,7 +664,7 @@ void *main_loop(void *arg)
 	vcmd.fd = open_dev_fd(dev);
 	if (vcmd.fd < 0) {
 		res = -errno;
-		PRINT_ERROR_PR("Unable to open file %s (%s)", dev->file_name,
+		PRINT_ERROR("Unable to open file %s (%s)", dev->file_name,
 			strerror(-res));
 		goto out;
 	}
@@ -709,7 +709,7 @@ void *main_loop(void *arg)
 				else
 					continue;
 			default:
-				PRINT_ERROR_PR("SCST_USER_REPLY_AND_GET_CMD failed: "
+				PRINT_ERROR("SCST_USER_REPLY_AND_GET_CMD failed: "
 					"%s (%d)", strerror(res), res);
 				goto out_close;
 			}
@@ -730,7 +730,7 @@ again_poll:
 						"(%s)", res, strerror(res));
 					goto again_poll;
 				default:
-					PRINT_ERROR_PR("poll() failed: %s", strerror(res));
+					PRINT_ERROR("poll() failed: %s", strerror(res));
 					goto out_close;
 				}
 			}
@@ -795,7 +795,7 @@ again_poll:
 
 		default:
 err:
-			PRINT_ERROR_PR("Unknown or wrong cmd subcode %x",
+			PRINT_ERROR("Unknown or wrong cmd subcode %x",
 				cmd.subcode);
 			goto out_close;
 		}
@@ -811,7 +811,7 @@ out_close:
 	close(vcmd.fd);
 
 out:
-	PRINT_INFO_PR("Thread %d exiting (res=%d)", gettid(), res);
+	PRINT_INFO("Thread %d exiting (res=%d)", gettid(), res);
 
 	TRACE_EXIT_RES(res);
 	return (void*)res;
@@ -844,7 +844,7 @@ void *prio_loop(void *arg)
 				cmd.preply = 0;
 				continue;
 			default:
-				PRINT_ERROR_PR("SCST_USER_REPLY_AND_GET_PRIO_CMD failed: "
+				PRINT_ERROR("SCST_USER_REPLY_AND_GET_PRIO_CMD failed: "
 					"%s (%d)", strerror(res), res);
 				goto out_close;
 			}
@@ -868,7 +868,7 @@ void *prio_loop(void *arg)
 			break;
 
 		default:
-			PRINT_ERROR_PR("Unknown or wrong prio cmd subcode %x",
+			PRINT_ERROR("Unknown or wrong prio cmd subcode %x",
 				cmd.subcode);
 			goto out_close;
 		}
@@ -883,7 +883,7 @@ void *prio_loop(void *arg)
 out_close:
 	close(vcmd.fd);
 
-	PRINT_INFO_PR("Prio thread %d exited (res=%d)", gettid(), res);
+	PRINT_INFO("Prio thread %d exited (res=%d)", gettid(), res);
 
 	TRACE_EXIT_RES(res);
 	return (void*)res;
@@ -1276,7 +1276,7 @@ static void exec_mode_select(struct vdisk_cmd *vcmd)
 	mselect_6 = (MODE_SELECT == cmd->cdb[0]);
 
 	if (!(cmd->cdb[1] & PF) || (cmd->cdb[1] & SP)) {
-		PRINT_ERROR_PR("MODE SELECT: PF and/or SP are wrongly set "
+		PRINT_ERROR("MODE SELECT: PF and/or SP are wrongly set "
 			"(cdb[1]=%x)", cmd->cdb[1]);
 		set_cmd_error(vcmd,
 		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
@@ -1292,7 +1292,7 @@ static void exec_mode_select(struct vdisk_cmd *vcmd)
 	if (address[offset - 1] == 8) {
 		offset += 8;
 	} else if (address[offset - 1] != 0) {
-		PRINT_ERROR_PR("%s", "MODE SELECT: Wrong parameters list "
+		PRINT_ERROR("%s", "MODE SELECT: Wrong parameters list "
 			"lenght");
 		set_cmd_error(vcmd,
 		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
@@ -1301,14 +1301,14 @@ static void exec_mode_select(struct vdisk_cmd *vcmd)
 
 	while (length > offset + 2) {
 		if (address[offset] & PS) {
-			PRINT_ERROR_PR("%s", "MODE SELECT: Illegal PS bit");
+			PRINT_ERROR("%s", "MODE SELECT: Illegal PS bit");
 			set_cmd_error(vcmd, SCST_LOAD_SENSE(
 			    	scst_sense_invalid_field_in_parm_list));
 			goto out;
 		}
 		if ((address[offset] & 0x3f) == 0x8) {	/* Caching page */
 			if (address[offset + 1] != 18) {
-				PRINT_ERROR_PR("%s", "MODE SELECT: Invalid "
+				PRINT_ERROR("%s", "MODE SELECT: Invalid "
 					"caching page request");
 				set_cmd_error(vcmd, SCST_LOAD_SENSE(
 				    	scst_sense_invalid_field_in_parm_list));
@@ -1430,14 +1430,14 @@ static void exec_read_toc(struct vdisk_cmd *vcmd)
 	TRACE_ENTRY();
 
 	if (dev->type != TYPE_ROM) {
-		PRINT_ERROR_PR("%s", "READ TOC for non-CDROM device");
+		PRINT_ERROR("%s", "READ TOC for non-CDROM device");
 		set_cmd_error(vcmd,
 			SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		goto out;
 	}
 
 	if (cmd->cdb[2] & 0x0e/*Format*/) {
-		PRINT_ERROR_PR("%s", "READ TOC: invalid requested data format");
+		PRINT_ERROR("%s", "READ TOC: invalid requested data format");
 		set_cmd_error(vcmd,
 			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 		goto out;
@@ -1445,7 +1445,7 @@ static void exec_read_toc(struct vdisk_cmd *vcmd)
 
 	if ((cmd->cdb[6] != 0 && (cmd->cdb[2] & 0x01)) ||
 	    (cmd->cdb[6] > 1 && cmd->cdb[6] != 0xAA)) {
-		PRINT_ERROR_PR("READ TOC: invalid requested track number %x",
+		PRINT_ERROR("READ TOC: invalid requested track number %x",
 			cmd->cdb[6]);
 		set_cmd_error(vcmd,
 			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
@@ -1504,7 +1504,7 @@ static void exec_prevent_allow_medium_removal(struct vdisk_cmd *vcmd)
 		dev->prevent_allow_medium_removal = 
 			cmd->cdb[4] & 0x01 ? 1 : 0;
 	else {
-		PRINT_ERROR_PR("%s", "Prevent allow medium removal for "
+		PRINT_ERROR("%s", "Prevent allow medium removal for "
 			"non-CDROM device");
 		set_cmd_error(vcmd,
 			SCST_LOAD_SENSE(scst_sense_invalid_opcode));
@@ -1551,7 +1551,7 @@ static void exec_read(struct vdisk_cmd *vcmd, loff_t loff)
 		/* SEEK */	
 		err = lseek64(fd, loff, 0/*SEEK_SET*/);
 		if (err != loff) {
-			PRINT_ERROR_PR("lseek trouble %Ld != %Ld (errno %d)",
+			PRINT_ERROR("lseek trouble %Ld != %Ld (errno %d)",
 				(uint64_t)err, (uint64_t)loff, errno);
 			set_cmd_error(vcmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 			goto out;
@@ -1561,7 +1561,7 @@ static void exec_read(struct vdisk_cmd *vcmd, loff_t loff)
 	}
 
 	if ((err < 0) || (err < length)) {
-		PRINT_ERROR_PR("read() returned %Ld from %d (errno %d)",
+		PRINT_ERROR("read() returned %Ld from %d (errno %d)",
 			(uint64_t)err, length, errno);
 		if (err == -EAGAIN)
 			set_busy(reply);
@@ -1600,7 +1600,7 @@ restart:
 		/* SEEK */
 		err = lseek64(fd, loff, 0/*SEEK_SET*/);
 		if (err != loff) {
-			PRINT_ERROR_PR("lseek trouble %Ld != %Ld (errno %d)",
+			PRINT_ERROR("lseek trouble %Ld != %Ld (errno %d)",
 				(uint64_t)err, (uint64_t)loff, errno);
 			set_cmd_error(vcmd,
 			    SCST_LOAD_SENSE(scst_sense_hardw_error));
@@ -1612,7 +1612,7 @@ restart:
 	}
 
 	if (err < 0) {
-		PRINT_ERROR_PR("write() returned %Ld from %zd (errno %d, cmd_h "
+		PRINT_ERROR("write() returned %Ld from %zd (errno %d, cmd_h "
 			"%x)", (uint64_t)err, length, errno, vcmd->cmd->cmd_h);
 		if (err == -EAGAIN)
 			set_busy(reply);
@@ -1628,7 +1628,7 @@ restart:
 		 */
 		TRACE_MGMT_DBG("write() returned %d from %d", (int)err, length);
 		if (err == 0) {
-			PRINT_INFO_PR("Suspicious: write() returned 0 from "
+			PRINT_INFO("Suspicious: write() returned 0 from "
 				"%d", length);
 		}
 		length -= err;
@@ -1669,7 +1669,7 @@ static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
 	if (!dev->nullio) {
 		err = lseek64(fd, loff, 0/*SEEK_SET*/);
 		if (err != loff) {
-			PRINT_ERROR_PR("lseek trouble %Ld != %Ld (errno %d)",
+			PRINT_ERROR("lseek trouble %Ld != %Ld (errno %d)",
 				(uint64_t)err, (uint64_t)loff, errno);
 			set_cmd_error(vcmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 			goto out;
@@ -1692,7 +1692,7 @@ static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
 		else
 			err = len_mem;
 		if ((err < 0) || (err < len_mem)) {
-			PRINT_ERROR_PR("read() returned %Ld from %d (errno %d)",
+			PRINT_ERROR("read() returned %Ld from %d (errno %d)",
 				(uint64_t)err, len_mem, errno);
 			if (err == -EAGAIN)
 				set_busy(reply);
@@ -1713,7 +1713,7 @@ static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
 	}
 
 	if (length < 0) {
-		PRINT_ERROR_PR("Failure: %d", length);
+		PRINT_ERROR("Failure: %d", length);
 		set_cmd_error(vcmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 	}
 

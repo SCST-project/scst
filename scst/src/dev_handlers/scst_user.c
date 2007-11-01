@@ -236,7 +236,7 @@ static inline int is_need_offs_page(unsigned long buf, int len)
 
 static void __dev_user_not_reg(void)
 {
-	PRINT_ERROR_PR("%s", "Device not registered");
+	PRINT_ERROR("%s", "Device not registered");
 	return;
 }
 
@@ -728,7 +728,7 @@ out:
 	return res;
 
 out_invalid:
-	PRINT_ERROR_PR("PARSE failed (ucmd %p, rc %d, invalid %d)", ucmd, rc,
+	PRINT_ERROR("PARSE failed (ucmd %p, rc %d, invalid %d)", ucmd, rc,
 		info_cdb->flags & SCST_INFO_INVALID);
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 
@@ -942,7 +942,7 @@ static void dev_user_add_to_ready(struct scst_user_cmd *ucmd)
 						"active (ucmd %p)", ucmd);
 					break;
 				} else {
-					TRACE(TRACE_MGMT, "Pre unreg sess %p "
+					TRACE_MGMT_DBG("Pre unreg sess %p "
 						"active (ucmd %p)", found, ucmd);
 				}
 			}
@@ -1047,7 +1047,7 @@ out_err:
 	goto out;
 
 out_unmap:
-	PRINT_ERROR_PR("Failed to get %d user pages (rc %d)",
+	PRINT_ERROR("Failed to get %d user pages (rc %d)",
 		ucmd->num_data_pages, rc);
 	if (rc > 0) {
 		for(i = 0; i < rc; i++)
@@ -1074,7 +1074,7 @@ static int dev_user_process_reply_alloc(struct scst_user_cmd *ucmd,
 		int pages;
 		if (ucmd->buff_cached) {
 			if (unlikely((reply->alloc_reply.pbuf & ~PAGE_MASK) != 0)) {
-				PRINT_ERROR_PR("Supplied pbuf %Lx isn't "
+				PRINT_ERROR("Supplied pbuf %Lx isn't "
 					"page aligned", reply->alloc_reply.pbuf);
 				goto out_hwerr;
 			}
@@ -1141,7 +1141,7 @@ out_process:
 	return res;
 
 out_inval:
-	PRINT_ERROR_PR("%s", "Invalid parse_reply parameter(s)");
+	PRINT_ERROR("%s", "Invalid parse_reply parameter(s)");
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 	res = -EINVAL;
 	goto out_process;
@@ -1220,7 +1220,7 @@ static int dev_user_process_reply_exec(struct scst_user_cmd *ucmd,
 				goto out_busy;
 			if (ucmd->buff_cached) {
 				if (unlikely((ereply->pbuf & ~PAGE_MASK) != 0)) {
-					PRINT_ERROR_PR("Supplied pbuf %Lx isn't "
+					PRINT_ERROR("Supplied pbuf %Lx isn't "
 						"page aligned", ereply->pbuf);
 					goto out_hwerr;
 				}
@@ -1252,7 +1252,7 @@ static int dev_user_process_reply_exec(struct scst_user_cmd *ucmd,
 			min(sizeof(cmd->sense_buffer),
 				(unsigned int)ereply->sense_len));
 		if (res < 0) {
-			PRINT_ERROR_PR("%s", "Unable to get sense data");
+			PRINT_ERROR("%s", "Unable to get sense data");
 			goto out_hwerr_res_set;
 		}
 	}
@@ -1267,7 +1267,7 @@ out:
 	return res;
 
 out_inval:
-	PRINT_ERROR_PR("%s", "Invalid exec_reply parameter(s)");
+	PRINT_ERROR("%s", "Invalid exec_reply parameter(s)");
 
 out_hwerr:
 	res = -EINVAL;
@@ -1374,7 +1374,7 @@ out:
 	return res;
 
 out_wrong_state:
-	PRINT_ERROR_PR("Command's %p subcode %x doesn't match internal "
+	PRINT_ERROR("Command's %p subcode %x doesn't match internal "
 		"command's state %x or reply->subcode (%x) != ucmd->subcode "
 		"(%x)", ucmd, _IOC_NR(reply->subcode), ucmd->state,
 		reply->subcode, ucmd->user_cmd.subcode);
@@ -1761,7 +1761,7 @@ static long dev_user_ioctl(struct file *file, unsigned int cmd,
 		break;
 
 	default:
-		PRINT_ERROR_PR("Invalid ioctl cmd %x", cmd);
+		PRINT_ERROR("Invalid ioctl cmd %x", cmd);
 		res = -EINVAL;
 		goto out;
 	}
@@ -1923,7 +1923,7 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 	}
 
 	default:
-		PRINT_ERROR_PR("Wrong ucmd state %x", state);
+		PRINT_ERROR("Wrong ucmd state %x", state);
 		sBUG();
 		break;
 	}
@@ -2129,7 +2129,7 @@ static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 
 	spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
 	if (dev->internal_reset_active) {
-		PRINT_ERROR_PR("Loosing TM cmd %d, because there are other "
+		PRINT_ERROR("Loosing TM cmd %d, because there are other "
 			"unprocessed TM commands", mcmd->fn);
 		res = SCST_MGMT_STATUS_FAILED;
 		goto out_locked_free;
@@ -2138,7 +2138,7 @@ static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 		 * We are going to miss some TM commands, so replace it
 		 * by the hardest one.
 		 */
-		PRINT_ERROR_PR("Replacing TM cmd %d by TARGET_RESET, because "
+		PRINT_ERROR("Replacing TM cmd %d by TARGET_RESET, because "
 			"there is another unprocessed TM command", mcmd->fn);
 		ucmd->user_cmd.tm_cmd.fn = SCST_TARGET_RESET;
 		ucmd->internal_reset_tm = 1;
@@ -2159,7 +2159,7 @@ static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	if (rc > 0)
 		res = ucmd->result;
 	else {
-		PRINT_ERROR_PR("Task management command %p timeout", ucmd);
+		PRINT_ERROR("Task management command %p timeout", ucmd);
 		res = SCST_MGMT_STATUS_FAILED;
 	}
 
@@ -2196,7 +2196,7 @@ static int dev_user_attach(struct scst_device *sdev)
 	}
 	spin_unlock(&dev_list_lock);
 	if (dev == NULL) {
-		PRINT_ERROR_PR("Device %s not found", sdev->virt_name);
+		PRINT_ERROR("Device %s not found", sdev->virt_name);
 		res = -EINVAL;
 		goto out;
 	}
@@ -2205,7 +2205,7 @@ static int dev_user_attach(struct scst_device *sdev)
 
 	sdev->dh_priv = dev;
 
-	PRINT_INFO_PR("Attached user space SCSI target virtual device \"%s\"",
+	PRINT_INFO("Attached user space SCSI target virtual device \"%s\"",
 		dev->name);
 
 out:
@@ -2221,7 +2221,7 @@ static void dev_user_detach(struct scst_device *sdev)
 
 	TRACE_DBG("virt_id %d", sdev->virt_id);
 
-	PRINT_INFO_PR("Detached user space SCSI target virtual device \"%s\"",
+	PRINT_INFO("Detached user space SCSI target virtual device \"%s\"",
 		dev->name);
 
 	/* dev will be freed by the caller */
@@ -2306,7 +2306,7 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 
 	spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
 	if (dev->attach_cmd_active) {
-		PRINT_ERROR_PR("%s", "ATTACH_SESS command failed, because "
+		PRINT_ERROR("%s", "ATTACH_SESS command failed, because "
 			"there is another unprocessed ATTACH_SESS command");
 		res = -EBUSY;
 		goto out_locked_free;
@@ -2321,7 +2321,7 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 	if (rc > 0)
 		res = ucmd->result;
 	else {
-		PRINT_ERROR_PR("%s", "ATTACH_SESS command timeout");
+		PRINT_ERROR("%s", "ATTACH_SESS command timeout");
 		res = -EFAULT;
 	}
 
@@ -2512,7 +2512,7 @@ static void dev_user_setup_functions(struct scst_user_dev *dev)
 			break;
 
 		default:
-			PRINT_INFO_PR("Unknown SCSI type %x, using PARSE_CALL "
+			PRINT_INFO("Unknown SCSI type %x, using PARSE_CALL "
 				"for it", dev->devtype.type);
 			dev->parse_type = SCST_USER_PARSE_CALL;
 			break;
@@ -2536,7 +2536,7 @@ static int dev_user_register_dev(struct file *file,
 	TRACE_ENTRY();
 
 	if (dev_desc->version != DEV_USER_VERSION) {
-		PRINT_ERROR_PR("Version mismatch (requested %d, required %d)",
+		PRINT_ERROR("Version mismatch (requested %d, required %d)",
 			dev_desc->version, DEV_USER_VERSION);
 		res = -EINVAL;
 		goto out;
@@ -2547,7 +2547,7 @@ static int dev_user_register_dev(struct file *file,
 	case TYPE_ROM:
 	case TYPE_MOD:
 		if (dev_desc->block_size == 0) {
-			PRINT_ERROR_PR("Wrong block size %d", dev_desc->block_size);
+			PRINT_ERROR("Wrong block size %d", dev_desc->block_size);
 			res = -EINVAL;
 			goto out;
 		}
@@ -2563,7 +2563,7 @@ static int dev_user_register_dev(struct file *file,
 	}
 
 	if (!try_module_get(THIS_MODULE)) {
-		PRINT_ERROR_PR("%s", "Fail to get module");
+		PRINT_ERROR("%s", "Fail to get module");
 		goto out;
 	}
 
@@ -2632,7 +2632,7 @@ static int dev_user_register_dev(struct file *file,
 
 	list_for_each_entry(d, &dev_list, dev_list_entry) {
 		if (strcmp(d->name, dev->name) == 0) {
-			PRINT_ERROR_PR("Device %s already exist",
+			PRINT_ERROR("Device %s already exist",
 				dev->name);
 			res = -EEXIST;
 			spin_unlock(&dev_list_lock);
@@ -2660,7 +2660,7 @@ static int dev_user_register_dev(struct file *file,
 	mutex_lock(&dev_priv_mutex);
 	if (file->private_data != NULL) {
 		mutex_unlock(&dev_priv_mutex);
-		PRINT_ERROR_PR("%s", "Device already registered");
+		PRINT_ERROR("%s", "Device already registered");
 		res = -EINVAL;
 		goto out_unreg_drv;
 	}
@@ -2709,7 +2709,7 @@ static int __dev_user_set_opt(struct scst_user_dev *dev,
 	    (opt->memory_reuse_type > SCST_USER_MAX_MEM_REUSE_OPT) ||
 	    (opt->prio_queue_type > SCST_USER_MAX_PRIO_QUEUE_OPT) ||
 	    (opt->partial_transfers_type > SCST_USER_MAX_PARTIAL_TRANSFERS_OPT)) {
-		PRINT_ERROR_PR("%s", "Invalid option");
+		PRINT_ERROR("%s", "Invalid option");
 		res = -EINVAL;
 		goto out;
 	}
@@ -2913,7 +2913,7 @@ static void dev_user_process_cleanup(struct scst_user_dev *dev)
 		struct list_head *head = &dev->ucmd_hash[i];
 		struct scst_user_cmd *ucmd, *t;
 		list_for_each_entry_safe(ucmd, t, head, hash_list_entry) {
-			PRINT_ERROR_PR("Lost ucmd %p (state %x, ref %d)", ucmd,
+			PRINT_ERROR("Lost ucmd %p (state %x, ref %d)", ucmd,
 				ucmd->state, atomic_read(&ucmd->ucmd_ref));
 			ucmd_put(ucmd);
 		}
@@ -2990,7 +2990,7 @@ static int __init init_scst_user(void)
 	TRACE_ENTRY();
 
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
-	PRINT_ERROR_PR("%s", "HIGHMEM kernel configurations are not supported. "
+	PRINT_ERROR("%s", "HIGHMEM kernel configurations are not supported. "
 		"Consider change VMSPLIT option or use 64-bit "
 		"configuration instead. See README file for details.");
 	res = -EINVAL;
@@ -3039,7 +3039,7 @@ static int __init init_scst_user(void)
 		"scst_usr_cleanupd");
 	if (IS_ERR(cleanup_thread)) {
 		res = PTR_ERR(cleanup_thread);
-		PRINT_ERROR_PR("kthread_create() failed: %d", res);
+		PRINT_ERROR("kthread_create() failed: %d", res);
 		goto out_dev;
 	}
 

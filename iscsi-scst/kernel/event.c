@@ -113,7 +113,7 @@ int __init event_init(void)
 		THIS_MODULE);
 #endif
 	if (!nl) {
-		PRINT_ERROR_PR("%s", "netlink_kernel_create() failed");
+		PRINT_ERROR("%s", "netlink_kernel_create() failed");
 		return -ENOMEM;
 	} else
 		return 0;

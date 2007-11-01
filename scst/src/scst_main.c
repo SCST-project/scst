@@ -153,28 +153,28 @@ int scst_register_target_template(struct scst_tgt_template *vtt)
 	INIT_LIST_HEAD(&vtt->tgt_list);
 
 	if (!vtt->detect) {
-		PRINT_ERROR_PR("Target driver %s doesn't have a "
+		PRINT_ERROR("Target driver %s doesn't have a "
 			"detect() method.", vtt->name);
 		res = -EINVAL;
 		goto out_err;
 	}
 	
 	if (!vtt->release) {
-		PRINT_ERROR_PR("Target driver %s doesn't have a "
+		PRINT_ERROR("Target driver %s doesn't have a "
 			"release() method.", vtt->name);
 		res = -EINVAL;
 		goto out_err;
 	}
 
 	if (!vtt->xmit_response) {
-		PRINT_ERROR_PR("Target driver %s doesn't have a "
+		PRINT_ERROR("Target driver %s doesn't have a "
 			"xmit_response() method.", vtt->name);
 		res = -EINVAL;
 		goto out_err;
 	}
 
 	if (vtt->threads_num < 0) {
-		PRINT_ERROR_PR("Wrong threads_num value %d for "
+		PRINT_ERROR("Wrong threads_num value %d for "
 			"target \"%s\"", vtt->threads_num,
 			vtt->name);
 		res = -EINVAL;
@@ -197,7 +197,7 @@ int scst_register_target_template(struct scst_tgt_template *vtt)
 		goto out_m_up;
 	list_for_each_entry(t, &scst_template_list, scst_template_list_entry) {
 		if (strcmp(t->name, vtt->name) == 0) {
-			PRINT_ERROR_PR("Target driver %s already registered",
+			PRINT_ERROR("Target driver %s already registered",
 				vtt->name);
 			mutex_unlock(&scst_mutex);
 			goto out_cleanup;
@@ -209,7 +209,7 @@ int scst_register_target_template(struct scst_tgt_template *vtt)
 	res = vtt->detect(vtt);
 	TRACE_DBG("Target driver's detect() returned %d", res);
 	if (res < 0) {
-		PRINT_ERROR_PR("%s", "The detect() routine failed");
+		PRINT_ERROR("%s", "The detect() routine failed");
 		res = -EINVAL;
 		goto out_cleanup;
 	}
@@ -220,7 +220,7 @@ int scst_register_target_template(struct scst_tgt_template *vtt)
 
 	res = 0;
 
-	PRINT_INFO_PR("Target template %s registered successfully", vtt->name);
+	PRINT_INFO("Target template %s registered successfully", vtt->name);
 
 	mutex_unlock(&m);
 
@@ -235,7 +235,7 @@ out_cleanup:
 	scst_cleanup_proc_target_dir_entries(vtt);
 
 out_err:
-	PRINT_ERROR_PR("Failed to register target template %s", vtt->name);
+	PRINT_ERROR("Failed to register target template %s", vtt->name);
 	goto out;
 }
 
@@ -256,7 +256,7 @@ void scst_unregister_target_template(struct scst_tgt_template *vtt)
 		}
 	}
 	if (!found) {
-		PRINT_ERROR_PR("Target driver %s isn't registered", vtt->name);
+		PRINT_ERROR("Target driver %s isn't registered", vtt->name);
 		goto out_up;
 	}
 
@@ -269,7 +269,7 @@ restart:
 	}
 	list_del(&vtt->scst_template_list_entry);
 
-	PRINT_INFO_PR("Target template %s unregistered successfully", vtt->name);
+	PRINT_INFO("Target template %s unregistered successfully", vtt->name);
 
 out_up:
 	mutex_unlock(&scst_mutex);
@@ -329,7 +329,7 @@ struct scst_tgt *scst_register(struct scst_tgt_template *vtt,
 	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
 
-	PRINT_INFO_PR("Target %s (%p) for template %s registered successfully",
+	PRINT_INFO("Target %s (%p) for template %s registered successfully",
 		target_name, tgt, vtt->name);
 
 out:
@@ -348,7 +348,7 @@ out_free_err:
 	tgt = NULL;
 
 out_err:
-	PRINT_ERROR_PR("Failed to register target %s for template %s",
+	PRINT_ERROR("Failed to register target %s for template %s",
 		target_name, vtt->name);
 	goto out;
 }
@@ -398,7 +398,7 @@ void scst_unregister(struct scst_tgt *tgt)
 
 	del_timer_sync(&tgt->retry_timer);
 
-	PRINT_INFO_PR("Target %p for template %s unregistered successfully",
+	PRINT_INFO("Target %p for template %s unregistered successfully",
 		tgt, vtt->name);
 
 	kfree(tgt);
@@ -524,13 +524,13 @@ out_up:
 	scst_resume_activity();
 
 	if (res == 0) {
-		PRINT_INFO_PR("Attached SCSI target mid-level at "
+		PRINT_INFO("Attached SCSI target mid-level at "
 		    "scsi%d, channel %d, id %d, lun %d, type %d", 
 		    scsidp->host->host_no, scsidp->channel, scsidp->id, 
 		    scsidp->lun, scsidp->type);
 	} 
 	else {
-		PRINT_ERROR_PR("Failed to attach SCSI target mid-level "
+		PRINT_ERROR("Failed to attach SCSI target mid-level "
 		    "at scsi%d, channel %d, id %d, lun %d, type %d", 
 		    scsidp->host->host_no, scsidp->channel, scsidp->id, 
 		    scsidp->lun, scsidp->type);
@@ -566,7 +566,7 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 		}
 	}
 	if (dev == NULL) {
-		PRINT_ERROR_PR("%s", "Target device not found");
+		PRINT_ERROR("%s", "Target device not found");
 		goto out_unblock;
 	}
 
@@ -583,7 +583,7 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 	put_disk(dev->rq_disk);
 	scst_free_device(dev);
 
-	PRINT_INFO_PR("Detached SCSI target mid-level from scsi%d, channel %d, "
+	PRINT_INFO("Detached SCSI target mid-level from scsi%d, channel %d, "
 		"id %d, lun %d, type %d", scsidp->host->host_no,
 		scsidp->channel, scsidp->id, scsidp->lun, scsidp->type);
 
@@ -600,7 +600,7 @@ static int scst_dev_handler_check(struct scst_dev_type *dev_handler)
 	int res = 0;
 
 	if (dev_handler->parse == NULL) {
-		PRINT_ERROR_PR("scst dev_type driver %s doesn't have a "
+		PRINT_ERROR("scst dev_type driver %s doesn't have a "
 			"parse() method.", dev_handler->name);
 		res = -EINVAL;
 		goto out;
@@ -631,14 +631,14 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 	TRACE_ENTRY();
 	
 	if (dev_handler == NULL) {
-		PRINT_ERROR_PR("%s: valid device handler must be supplied", 
+		PRINT_ERROR("%s: valid device handler must be supplied", 
 			__FUNCTION__);
 		res = -EINVAL;
 		goto out;
 	}
 	
 	if (dev_name == NULL) {
-		PRINT_ERROR_PR("%s: device name must be non-NULL", __FUNCTION__);
+		PRINT_ERROR("%s: device name must be non-NULL", __FUNCTION__);
 		res = -EINVAL;
 		goto out;
 	}
@@ -680,11 +680,11 @@ out_resume:
 
 out:
 	if (res > 0) {
-		PRINT_INFO_PR("Attached SCSI target mid-level to virtual "
+		PRINT_INFO("Attached SCSI target mid-level to virtual "
 		    "device %s (id %d)", dev_name, dev->virt_id);
 	} 
 	else {
-		PRINT_INFO_PR("Failed to attach SCSI target mid-level to "
+		PRINT_INFO("Failed to attach SCSI target mid-level to "
 		    "virtual device %s", dev_name);
 	}
 
@@ -715,7 +715,7 @@ void scst_unregister_virtual_device(int id)
 		}
 	}
 	if (dev == NULL) {
-		PRINT_ERROR_PR("%s", "Target device not found");
+		PRINT_ERROR("%s", "Target device not found");
 		goto out_unblock;
 	}
 
@@ -729,7 +729,7 @@ void scst_unregister_virtual_device(int id)
 
 	scst_assign_dev_handler(dev, &scst_null_devtype);
 
-	PRINT_INFO_PR("Detached SCSI target mid-level from virtual device %s "
+	PRINT_INFO("Detached SCSI target mid-level from virtual device %s "
 		"(id %d)", dev->virt_name, dev->virt_id);
 
 	scst_free_device(dev);
@@ -757,7 +757,7 @@ int scst_register_dev_driver(struct scst_dev_type *dev_type)
 
 #if !defined(SCSI_EXEC_REQ_FIFO_DEFINED) && !defined(STRICT_SERIALIZING)
 	if (dev_type->exec == NULL) {
-		PRINT_ERROR_PR("Pass-through dev handlers (handler \"%s\") not "
+		PRINT_ERROR("Pass-through dev handlers (handler \"%s\") not "
 			"supported. Consider applying on your kernel patch "
 			"scst_exec_req_fifo-<kernel-version>.patch or define "
 			"STRICT_SERIALIZING", dev_type->name);
@@ -775,7 +775,7 @@ int scst_register_dev_driver(struct scst_dev_type *dev_type)
 	exist = 0;
 	list_for_each_entry(dt, &scst_dev_type_list, dev_type_list_entry) {
 		if (strcmp(dt->name, dev_type->name) == 0) {
-			PRINT_ERROR_PR("Device type handler \"%s\" already "
+			PRINT_ERROR("Device type handler \"%s\" already "
 				"exist", dt->name);
 			exist = 1;
 			break;
@@ -802,7 +802,7 @@ int scst_register_dev_driver(struct scst_dev_type *dev_type)
 	scst_resume_activity();
 
 	if (res == 0) {
-		PRINT_INFO_PR("Device handler \"%s\" for type %d registered "
+		PRINT_INFO("Device handler \"%s\" for type %d registered "
 			"successfully", dev_type->name, dev_type->type);
 	}
 
@@ -817,7 +817,7 @@ out_err_res:
 	scst_resume_activity();
 
 out_error:
-	PRINT_ERROR_PR("Failed to register device handler \"%s\" for type %d",
+	PRINT_ERROR("Failed to register device handler \"%s\" for type %d",
 		dev_type->name, dev_type->type);
 	goto out;
 }
@@ -840,7 +840,7 @@ void scst_unregister_dev_driver(struct scst_dev_type *dev_type)
 		}
 	}
 	if (!found) {
-		PRINT_ERROR_PR("Dev handler \"%s\" isn't registered",
+		PRINT_ERROR("Dev handler \"%s\" isn't registered",
 			dev_type->name);
 		goto out_up;
 	}
@@ -859,7 +859,7 @@ void scst_unregister_dev_driver(struct scst_dev_type *dev_type)
 
 	scst_cleanup_proc_dev_handler_dir_entries(dev_type);
 
-	PRINT_INFO_PR("Device handler \"%s\" for type %d unloaded",
+	PRINT_INFO("Device handler \"%s\" for type %d unloaded",
 		   dev_type->name, dev_type->type);
 
 out:
@@ -889,11 +889,11 @@ int scst_register_virtual_dev_driver(struct scst_dev_type *dev_type)
 	}
 
 	if (dev_type->type != -1) {
-		PRINT_INFO_PR("Virtual device handler %s for type %d "
+		PRINT_INFO("Virtual device handler %s for type %d "
 			"registered successfully", dev_type->name,
 			dev_type->type);
 	} else {
-		PRINT_INFO_PR("Virtual device handler \"%s\" registered "
+		PRINT_INFO("Virtual device handler \"%s\" registered "
 			"successfully", dev_type->name);
 	}
 
@@ -902,7 +902,7 @@ out:
 	return res;
 
 out_err:
-	PRINT_ERROR_PR("Failed to register virtual device handler \"%s\"",
+	PRINT_ERROR("Failed to register virtual device handler \"%s\"",
 		dev_type->name);
 	goto out;
 }
@@ -914,7 +914,7 @@ void scst_unregister_virtual_dev_driver(struct scst_dev_type *dev_type)
 	if (!dev_type->no_proc)
 		scst_cleanup_proc_dev_handler_dir_entries(dev_type);
 
-	PRINT_INFO_PR("Device handler \"%s\" unloaded", dev_type->name);
+	PRINT_INFO("Device handler \"%s\" unloaded", dev_type->name);
 
 	TRACE_EXIT();
 	return;
@@ -938,7 +938,7 @@ int scst_add_dev_threads(struct scst_device *dev, int num)
 		thr = kmalloc(sizeof(*thr), GFP_KERNEL);
 		if (!thr) {
 			res = -ENOMEM;
-			PRINT_ERROR_PR("Failed to allocate thr %d", res);
+			PRINT_ERROR("Failed to allocate thr %d", res);
 			goto out;
 		}
 		strncpy(nm, dev->handler->name, ARRAY_SIZE(nm)-1);
@@ -947,7 +947,7 @@ int scst_add_dev_threads(struct scst_device *dev, int num)
 			&dev->cmd_lists, "%sd%d_%d", nm, dev->dev_num, n++);
 		if (IS_ERR(thr->cmd_thread)) {
 			res = PTR_ERR(thr->cmd_thread);
-			PRINT_ERROR_PR("kthread_create() failed: %d", res);
+			PRINT_ERROR("kthread_create() failed: %d", res);
 			kfree(thr);
 			goto out;
 		}
@@ -1083,7 +1083,7 @@ int scst_assign_dev_handler(struct scst_device *dev,
 		res = handler->attach(dev);
 		TRACE_DBG("New dev handler's attach() returned %d", res);
 		if (res != 0) {
-			PRINT_ERROR_PR("New device handler's %s attach() "
+			PRINT_ERROR("New device handler's %s attach() "
 				"failed: %d", handler->name, res);
 		}
 		goto out_thr_null;
@@ -1097,7 +1097,7 @@ int scst_assign_dev_handler(struct scst_device *dev,
 			res = handler->attach_tgt(tgt_dev);
 			TRACE_DBG("%s", "Dev handler's attach_tgt() returned");
 			if (res != 0) {
-				PRINT_ERROR_PR("Device handler's %s attach_tgt() "
+				PRINT_ERROR("Device handler's %s attach_tgt() "
 				    "failed: %d", handler->name, res);
 				goto out_err_detach_tgt;
 			}
@@ -1165,7 +1165,7 @@ void __scst_del_cmd_threads(int num)
 
 	i = scst_threads_info.nr_cmd_threads;
 	if (num <= 0 || num > i) {
-		PRINT_ERROR_PR("can not del %d cmd threads from %d", num, i);
+		PRINT_ERROR("can not del %d cmd threads from %d", num, i);
 		return;
 	}
 
@@ -1203,7 +1203,7 @@ int __scst_add_cmd_threads(int num)
 		thr = kmalloc(sizeof(*thr), GFP_KERNEL);
 		if (!thr) {
 			res = -ENOMEM;
-			PRINT_ERROR_PR("fail to allocate thr %d", res);
+			PRINT_ERROR("fail to allocate thr %d", res);
 			goto out_error;
 		}
 		thr->cmd_thread = kthread_run(scst_cmd_thread,
@@ -1211,7 +1211,7 @@ int __scst_add_cmd_threads(int num)
 			scst_thread_num++);
 		if (IS_ERR(thr->cmd_thread)) {
 			res = PTR_ERR(thr->cmd_thread);
-			PRINT_ERROR_PR("kthread_create() failed: %d", res);
+			PRINT_ERROR("kthread_create() failed: %d", res);
 			kfree(thr);
 			goto out_error;
 		}
@@ -1290,7 +1290,7 @@ static int scst_start_all_threads(int num)
                 NULL, "scsi_tgt_init");
         if (IS_ERR(scst_threads_info.init_cmd_thread)) {
 		res = PTR_ERR(scst_threads_info.init_cmd_thread);
-                PRINT_ERROR_PR("kthread_create() for init cmd failed: %d", res);
+                PRINT_ERROR("kthread_create() for init cmd failed: %d", res);
                 scst_threads_info.init_cmd_thread = NULL;
                 goto out;
         }
@@ -1299,7 +1299,7 @@ static int scst_start_all_threads(int num)
                 NULL, "scsi_tgt_mc");
         if (IS_ERR(scst_threads_info.mgmt_cmd_thread)) {
 		res = PTR_ERR(scst_threads_info.mgmt_cmd_thread);
-                PRINT_ERROR_PR("kthread_create() for mcmd failed: %d", res);
+                PRINT_ERROR("kthread_create() for mcmd failed: %d", res);
                 scst_threads_info.mgmt_cmd_thread = NULL;
                 goto out;
         }
@@ -1308,7 +1308,7 @@ static int scst_start_all_threads(int num)
                 NULL, "scsi_tgt_mgmt");
         if (IS_ERR(scst_threads_info.mgmt_thread)) {
 		res = PTR_ERR(scst_threads_info.mgmt_thread);
-                PRINT_ERROR_PR("kthread_create() for mgmt failed: %d", res);
+                PRINT_ERROR("kthread_create() for mgmt failed: %d", res);
                 scst_threads_info.mgmt_thread = NULL;
                 goto out;
         }
@@ -1416,7 +1416,7 @@ static int __init init_scst(void)
 		scst_threads = scst_num_cpus;
 		
 	if (scst_threads < scst_num_cpus) {
-		PRINT_ERROR_PR("%s", "scst_threads can not be less than "
+		PRINT_ERROR("%s", "scst_threads can not be less than "
 			"CPUs count");
 		scst_threads = scst_num_cpus;
 	}
@@ -1498,7 +1498,7 @@ static int __init init_scst(void)
 		goto out_thread_free;
 
 
-	PRINT_INFO_PR("SCST version %s loaded successfully (max mem for "
+	PRINT_INFO("SCST version %s loaded successfully (max mem for "
 		"commands %ld Mb)", SCST_VERSION_STRING, scst_max_cmd_mem >> 20);
 
 out:
@@ -1577,7 +1577,7 @@ static void __exit exit_scst(void)
 	DEINIT_CACHEP(scst_tgtd_cachep);
 	DEINIT_CACHEP(scst_acgd_cachep);
 
-	PRINT_INFO_PR("%s", "SCST unloaded");
+	PRINT_INFO("%s", "SCST unloaded");
 
 	TRACE_EXIT();
 	return;

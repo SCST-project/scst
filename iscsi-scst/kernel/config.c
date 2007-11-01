@@ -32,6 +32,7 @@ static struct scst_proc_log iscsi_proc_local_trace_tbl[] =
     { TRACE_CONN_OC,		"conn" },
     { TRACE_D_IOV,		"iov" },
     { TRACE_D_DUMP_PDU,		"pdu" },
+    { TRACE_NET_PG,		"net_page" },
     { 0,			NULL }
 };
 
@@ -113,7 +114,7 @@ static __init int iscsi_proc_log_entry_build(struct scst_tgt_template *templ)
 		p = scst_create_proc_entry(root, ISCSI_PROC_VERSION_NAME,
 					 &iscsi_version_proc_data);
 		if (p == NULL) {
-			PRINT_ERROR_PR("Not enough memory to register "
+			PRINT_ERROR("Not enough memory to register "
 			     "target driver %s entry %s in /proc",
 			      templ->name, ISCSI_PROC_VERSION_NAME);
 			res = -ENOMEM;
@@ -126,7 +127,7 @@ static __init int iscsi_proc_log_entry_build(struct scst_tgt_template *templ)
 		p = scst_create_proc_entry(root, ISCSI_PROC_LOG_ENTRY_NAME,
 					&iscsi_log_proc_data);
 		if (p == NULL) {
-			PRINT_ERROR_PR("Not enough memory to register "
+			PRINT_ERROR("Not enough memory to register "
 			     "target driver %s entry %s in /proc",
 			      templ->name, ISCSI_PROC_LOG_ENTRY_NAME);
 			res = -ENOMEM;
@@ -390,7 +391,7 @@ static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	if (cmd == ADD_TARGET)
 		if (target) {
 			err = -EEXIST;
-			PRINT_ERROR_PR("Target %u already exist!", id);
+			PRINT_ERROR("Target %u already exist!", id);
 			goto out_unlock;
 		}
 
@@ -401,7 +402,7 @@ static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	}
 
 	if (!target) {
-		PRINT_ERROR_PR("can't find the target %u", id);
+		PRINT_ERROR("can't find the target %u", id);
 		err = -EINVAL;
 		goto out_unlock;
 	}
@@ -442,7 +443,7 @@ static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		break;
 	
 	default:
-		PRINT_ERROR_PR("invalid ioctl cmd %x", cmd);
+		PRINT_ERROR("invalid ioctl cmd %x", cmd);
 		err = -EINVAL;
 	}
 
@@ -457,6 +458,7 @@ out:
 
 static int release(struct inode *inode, struct file *filp)
 {
+	TRACE(TRACE_MGMT, "%s", "Releasing allocated resources");
 	target_del_all();
 	return 0;
 }

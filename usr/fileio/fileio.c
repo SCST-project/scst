@@ -33,7 +33,6 @@
 #include <pthread.h>
 
 char *app_name;
-#define LOG_PREFIX	app_name
 
 #include "common.h"
 
@@ -54,7 +53,7 @@ char *app_name;
 #else /* DEBUG */
 
 # ifdef TRACING
-#define DEFAULT_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MINOR | TRACE_PID | \
+#define DEFAULT_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MINOR | \
 	TRACE_TIME | TRACE_SPECIAL)
 # else
 #define DEFAULT_LOG_FLAGS 0
@@ -137,7 +136,7 @@ static int scst_calc_block_shift(int sector_size)
 		block_shift++;
 	}
 	if (block_shift < 9) {
-		PRINT_ERROR_PR("Wrong sector size %d", sector_size);
+		PRINT_ERROR("Wrong sector size %d", sector_size);
 		block_shift = -1;
 	} 
 
@@ -278,7 +277,7 @@ int main(int argc, char **argv)
 	fd = open(dev.file_name, O_RDONLY|O_LARGEFILE);
 	if (fd < 0) {
 		res = -errno;
-		PRINT_ERROR_PR("Unable to open file %s (%s)", dev.file_name,
+		PRINT_ERROR("Unable to open file %s (%s)", dev.file_name,
 			strerror(-res));
 		goto out_done;
 	}
@@ -288,7 +287,7 @@ int main(int argc, char **argv)
 
 	close(fd);
 
-	PRINT_INFO_PR("Virtual device \"%s\", path \"%s\", size %LdMb, "
+	PRINT_INFO("Virtual device \"%s\", path \"%s\", size %LdMb, "
 		"block size %d, nblocks %Ld, options:", dev.name, dev.file_name,
 		dev.file_size/1024/1024, dev.block_size, dev.nblocks);
 	if (dev.rd_only_flag)
@@ -369,7 +368,7 @@ int main(int argc, char **argv)
 		(dev.non_blocking ? O_NONBLOCK : 0));
 	if (dev.scst_usr_fd < 0) {
 		res = -errno;
-		PRINT_ERROR_PR("Unable to open SCST device %s (%s)",
+		PRINT_ERROR("Unable to open SCST device %s (%s)",
 			DEV_USER_PATH DEV_USER_NAME, strerror(-res));
 		goto out_done;
 	}
@@ -392,7 +391,7 @@ int main(int argc, char **argv)
 	res = ioctl(dev.scst_usr_fd, SCST_USER_REGISTER_DEVICE, &desc);
 	if (res != 0) {
 		res = errno;
-		PRINT_ERROR_PR("Unable to register device: %s", strerror(res));
+		PRINT_ERROR("Unable to register device: %s", strerror(res));
 		goto out_close;
 	}
 
@@ -404,7 +403,7 @@ int main(int argc, char **argv)
 		res = ioctl(dev.scst_usr_fd, SCST_USER_GET_OPTIONS, &opt);
 		if (res != 0) {
 			res = errno;
-			PRINT_ERROR_PR("Unable to get options: %s", strerror(res));
+			PRINT_ERROR("Unable to get options: %s", strerror(res));
 			goto out_close;
 		}
 
@@ -419,7 +418,7 @@ int main(int argc, char **argv)
 		res = ioctl(dev.scst_usr_fd, SCST_USER_SET_OPTIONS, &opt);
 		if (res != 0) {
 			res = errno;
-			PRINT_ERROR_PR("Unable to get options: %s", strerror(res));
+			PRINT_ERROR("Unable to get options: %s", strerror(res));
 			goto out_close;
 		}
 	}
@@ -428,7 +427,7 @@ int main(int argc, char **argv)
 	res = pthread_mutex_init(&dev.dev_mutex, NULL);
 	if (res != 0) {
 		res = errno;
-		PRINT_ERROR_PR("pthread_mutex_init() failed: %s", strerror(res));
+		PRINT_ERROR("pthread_mutex_init() failed: %s", strerror(res));
 		goto out_close;
 	}
 
@@ -441,7 +440,7 @@ int main(int argc, char **argv)
 			rc = pthread_create(&thread[i], NULL, main_loop, &dev);
 			if (rc != 0) {
 				res = errno;
-				PRINT_ERROR_PR("pthread_create() failed: %s",
+				PRINT_ERROR("pthread_create() failed: %s",
 					strerror(res));
 				break;
 			}
@@ -451,7 +450,7 @@ int main(int argc, char **argv)
 			rc = pthread_create(&prio, NULL, prio_loop, &dev);
 			if (rc != 0) {
 				res = errno;
-				PRINT_ERROR_PR("Prio pthread_create() failed: %s",
+				PRINT_ERROR("Prio pthread_create() failed: %s",
 					strerror(res));
 				dev.prio_thr = 0;
 			}
@@ -462,7 +461,7 @@ int main(int argc, char **argv)
 			rc = pthread_join(thread[i], &rc1);
 			if (rc != 0) {
 				res = errno;
-				PRINT_ERROR_PR("pthread_join() failed: %s",
+				PRINT_ERROR("pthread_join() failed: %s",
 					strerror(res));
 			} else if (rc1 != NULL) {
 				res = (int)rc1;
@@ -474,7 +473,7 @@ int main(int argc, char **argv)
 			rc = pthread_join(prio, &rc1);
 			if (rc != 0) {
 				res = errno;
-				PRINT_ERROR_PR("Prio pthread_join() failed: %s",
+				PRINT_ERROR("Prio pthread_join() failed: %s",
 					strerror(res));
 			} else if (rc1 != NULL) {
 				res = (int)rc1;

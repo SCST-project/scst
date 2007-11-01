@@ -84,7 +84,7 @@ static int iscsi_session_alloc(struct iscsi_target *target, struct session_info 
 	session->scst_sess = scst_register_session(target->scst_tgt, 0,
 		name, NULL, NULL);
 	if (session->scst_sess == NULL) {
-		PRINT_ERROR_PR("%s", "scst_register_session() failed");
+		PRINT_ERROR("%s", "scst_register_session() failed");
 		err = -ENOMEM;
 		goto err;
 	}
@@ -151,7 +151,7 @@ int session_del(struct iscsi_target *target, u64 sid)
 		return -ENOENT;
 
 	if (!list_empty(&session->conn_list)) {
-		PRINT_ERROR_PR("%llu still have connections",
+		PRINT_ERROR("%llu still have connections",
 			(unsigned long long)session->sid);
 		return -EBUSY;
 	}

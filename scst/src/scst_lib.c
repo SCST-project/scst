@@ -31,7 +31,6 @@
 #include <linux/highmem.h>
 #endif
 
-#include "scst_debug.h"
 #include "scsi_tgt.h"
 #include "scst_priv.h"
 #include "scst_mem.h"
@@ -191,7 +190,7 @@ void scst_free_device(struct scst_device *dev)
 	if (!list_empty(&dev->dev_tgt_dev_list) || 
 	    !list_empty(&dev->dev_acg_dev_list))
 	{
-		PRINT_ERROR_PR("%s: dev_tgt_dev_list or dev_acg_dev_list "
+		PRINT_ERROR("%s: dev_tgt_dev_list or dev_acg_dev_list "
 			"is not empty!", __FUNCTION__);
 		sBUG();
 	}
@@ -284,7 +283,7 @@ int scst_destroy_acg(struct scst_acg *acg)
 	TRACE_ENTRY();
 
 	if (!list_empty(&acg->acg_sess_list)) {
-		PRINT_ERROR_PR("%s: acg_sess_list is not empty!", __FUNCTION__);
+		PRINT_ERROR("%s: acg_sess_list is not empty!", __FUNCTION__);
 		res = -EBUSY;
 		goto out;
 	}
@@ -458,7 +457,7 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 		rc = dev->handler->attach_tgt(tgt_dev);
 		TRACE_DBG("%s", "Dev handler's attach_tgt() returned");
 		if (rc != 0) {
-			PRINT_ERROR_PR("Device handler's %s attach_tgt() "
+			PRINT_ERROR("Device handler's %s attach_tgt() "
 			    "failed: %d", dev->handler->name, rc);
 			goto out_thr_free;
 		}
@@ -635,7 +634,7 @@ int scst_acg_add_dev(struct scst_acg *acg, struct scst_device *dev, lun_t lun,
 #ifdef EXTRACHECKS
 	list_for_each_entry(acg_dev, &acg->acg_dev_list, acg_dev_list_entry) {
 		if (acg_dev->dev == dev) {
-			PRINT_ERROR_PR("Device is already in group %s", 
+			PRINT_ERROR("Device is already in group %s", 
 				acg->acg_name);
 			res = -EINVAL;
 			goto out;
@@ -669,10 +668,10 @@ int scst_acg_add_dev(struct scst_acg *acg, struct scst_device *dev, lun_t lun,
 out:
 	if (res == 0) {
 		if (dev->virt_name != NULL) {
-			PRINT_INFO_PR("Added device %s to group %s",
+			PRINT_INFO("Added device %s to group %s",
 				dev->virt_name, acg->acg_name);
 		} else {
-			PRINT_INFO_PR("Added device %d:%d:%d:%d to group %s",
+			PRINT_INFO("Added device %d:%d:%d:%d to group %s",
 				dev->scsi_dev->host->host_no,
 				dev->scsi_dev->channel,	dev->scsi_dev->id,
 				dev->scsi_dev->lun, acg->acg_name);
@@ -708,7 +707,7 @@ int scst_acg_remove_dev(struct scst_acg *acg, struct scst_device *dev)
 	}
 	
 	if (acg_dev == NULL) {
-		PRINT_ERROR_PR("Device is not found in group %s", acg->acg_name);
+		PRINT_ERROR("Device is not found in group %s", acg->acg_name);
 		res = -EINVAL;
 		goto out;
 	}
@@ -724,10 +723,10 @@ int scst_acg_remove_dev(struct scst_acg *acg, struct scst_device *dev)
 out:
 	if (res == 0) {
 		if (dev->virt_name != NULL) {
-			PRINT_INFO_PR("Removed device %s from group %s",
+			PRINT_INFO("Removed device %s from group %s",
 				dev->virt_name, acg->acg_name);
 		} else {
-			PRINT_INFO_PR("Removed device %d:%d:%d:%d from group %s",
+			PRINT_INFO("Removed device %d:%d:%d:%d from group %s",
 				dev->scsi_dev->host->host_no,
 				dev->scsi_dev->channel,	dev->scsi_dev->id,
 				dev->scsi_dev->lun, acg->acg_name);
@@ -751,7 +750,7 @@ int scst_acg_add_name(struct scst_acg *acg, const char *name)
 	list_for_each_entry(n, &acg->acn_list, acn_list_entry) 
 	{
 		if (strcmp(n->name, name) == 0) {
-			PRINT_ERROR_PR("Name %s already exists in group %s",
+			PRINT_ERROR("Name %s already exists in group %s",
 				name, acg->acg_name);
 			res = -EINVAL;
 			goto out;
@@ -760,7 +759,7 @@ int scst_acg_add_name(struct scst_acg *acg, const char *name)
 	
 	n = kmalloc(sizeof(*n), GFP_KERNEL);
 	if (n == NULL) {
-		PRINT_ERROR_PR("%s", "Unable to allocate scst_acn");
+		PRINT_ERROR("%s", "Unable to allocate scst_acn");
 		res = -ENOMEM;
 		goto out;
 	}
@@ -768,7 +767,7 @@ int scst_acg_add_name(struct scst_acg *acg, const char *name)
 	len = strlen(name);
 	nm = kmalloc(len + 1, GFP_KERNEL);
 	if (nm == NULL) {
-		PRINT_ERROR_PR("%s", "Unable to allocate scst_acn->name");
+		PRINT_ERROR("%s", "Unable to allocate scst_acn->name");
 		res = -ENOMEM;
 		goto out_free;
 	}
@@ -780,7 +779,7 @@ int scst_acg_add_name(struct scst_acg *acg, const char *name)
 
 out:
 	if (res == 0) {
-		PRINT_INFO_PR("Added name %s to group %s", name, acg->acg_name);
+		PRINT_INFO("Added name %s to group %s", name, acg->acg_name);
 	}
 
 	TRACE_EXIT_RES(res);
@@ -811,10 +810,10 @@ int scst_acg_remove_name(struct scst_acg *acg, const char *name)
 	}
 	
 	if (res == 0) {
-		PRINT_INFO_PR("Removed name %s from group %s", name,
+		PRINT_INFO("Removed name %s from group %s", name,
 			acg->acg_name);
 	} else {
-		PRINT_ERROR_PR("Unable to find name %s in group %s", name,
+		PRINT_ERROR("Unable to find name %s in group %s", name,
 			acg->acg_name);
 	}
 
@@ -929,7 +928,7 @@ struct scst_cmd *scst_complete_request_sense(struct scst_cmd *cmd)
 			((int)sizeof(orig_cmd->sense_buffer) > len) ?
 				len : (int)sizeof(orig_cmd->sense_buffer));
 	} else {
-		PRINT_ERROR_PR("%s", "Unable to get the sense via "
+		PRINT_ERROR("%s", "Unable to get the sense via "
 			"REQUEST SENSE, returning HARDWARE ERROR");
 		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 	}
@@ -977,7 +976,7 @@ static void scst_send_release(struct scst_tgt_dev *tgt_dev)
 
 	req = scsi_allocate_request(scsi_dev, GFP_KERNEL);
 	if (req == NULL) {
-		PRINT_ERROR_PR("Allocation of scsi_request failed: unable "
+		PRINT_ERROR("Allocation of scsi_request failed: unable "
 			    "to RELEASE device %d:%d:%d:%d",
 			    scsi_dev->host->host_no, scsi_dev->channel,
 			    scsi_dev->id, scsi_dev->lun);
@@ -1034,7 +1033,7 @@ static void scst_send_release(struct scst_tgt_dev *tgt_dev)
 	rc = scsi_execute(scsi_dev, cdb, SCST_DATA_NONE, NULL, 0,
 			sense, SCST_DEFAULT_TIMEOUT, 3, GFP_KERNEL);
 	if (rc) {
-		PRINT_INFO_PR("scsi_execute() failed: %d", rc);
+		PRINT_INFO("scsi_execute() failed: %d", rc);
 		goto out_free;
 	}
 
@@ -1088,7 +1087,7 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, int gfp_mask,
 	len = strlen(initiator_name);
 	nm = kmalloc(len + 1, gfp_mask);
 	if (nm == NULL) {
-		PRINT_ERROR_PR("%s", "Unable to allocate sess->initiator_name");
+		PRINT_ERROR("%s", "Unable to allocate sess->initiator_name");
 		goto out_free;
 	}
 	
@@ -1236,7 +1235,7 @@ void scst_free_cmd(struct scst_cmd *cmd)
 
 #if defined(EXTRACHECKS) && (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18))
 	if (cmd->scsi_req) {
-		PRINT_ERROR_PR("%s: %s", __FUNCTION__, "Cmd with unfreed "
+		PRINT_ERROR("%s: %s", __FUNCTION__, "Cmd with unfreed "
 			"scsi_req!");
 		scst_release_request(cmd);
 	}
@@ -1286,7 +1285,7 @@ void scst_free_cmd(struct scst_cmd *cmd)
 	if (likely(cmd->tgt_dev != NULL)) {
 #ifdef EXTRACHECKS
 		if (unlikely(!cmd->sent_to_midlev)) {
-			PRINT_ERROR_PR("Finishing not executed cmd %p (opcode "
+			PRINT_ERROR("Finishing not executed cmd %p (opcode "
 			     "%d, target %s, lun %Ld, sn %ld, expected_sn %ld)",
 			     cmd, cmd->cdb[0], cmd->tgtt->name, (uint64_t)cmd->lun,
 			     cmd->sn, cmd->tgt_dev->expected_sn);
@@ -1381,7 +1380,7 @@ struct scst_mgmt_cmd *scst_alloc_mgmt_cmd(int gfp_mask)
 
 	mcmd = mempool_alloc(scst_mgmt_mempool, gfp_mask);
 	if (mcmd == NULL) {
-		PRINT_ERROR_PR("%s", "Allocation of management command "
+		PRINT_ERROR("%s", "Allocation of management command "
 			"failed, some commands and their data could leak");
 		goto out;
 	}
@@ -1697,8 +1696,9 @@ int scst_get_cdb_info(const uint8_t *cdb_p, int dev_type,
 
 #ifdef EXTRACHECKS
 	if (unlikely((info_p->transfer_len == 0) &&
-		     (info_p->direction != SCST_DATA_NONE))) {
-		TRACE_MGMT_DBG("Warning! transfer_len 0, direction %d change on %d",
+		     (info_p->direction != SCST_DATA_NONE)) &&
+	    !(info_p->flags & SCST_UNKNOWN_LENGTH)) {
+		PRINT_ERROR("transfer_len 0, direction %d change on %d",
 			info_p->direction, SCST_DATA_NONE);
 		info_p->direction = SCST_DATA_NONE;
 	}
@@ -1725,7 +1725,7 @@ lun_t scst_unpack_lun(const uint8_t *lun, int len)
 	TRACE_BUFF_FLAG(TRACE_DEBUG, "Raw LUN", lun, len);
 
 	if (len < 2) {
-		PRINT_ERROR_PR("Illegal lun length %d, expected 2 bytes or "
+		PRINT_ERROR("Illegal lun length %d, expected 2 bytes or "
 			"more", len);
 		goto out;
 	}
@@ -1757,7 +1757,7 @@ lun_t scst_unpack_lun(const uint8_t *lun, int len)
 	case 0:	/* peripheral device addressing method */
 #if 0 /* Looks like it's legal to use it as flat space addressing method as well */
 		if (*lun) {
-			PRINT_ERROR_PR("Illegal BUS INDENTIFIER in LUN "
+			PRINT_ERROR("Illegal BUS INDENTIFIER in LUN "
 			     "peripheral device addressing method 0x%02x, "
 			     "expected 0", *lun);
 			break;
@@ -1774,13 +1774,13 @@ lun_t scst_unpack_lun(const uint8_t *lun, int len)
 
 	case 2:	/* logical unit addressing method */
 		if (*lun & 0x3f) {
-			PRINT_ERROR_PR("Illegal BUS NUMBER in LUN logical unit "
+			PRINT_ERROR("Illegal BUS NUMBER in LUN logical unit "
 				    "addressing method 0x%02x, expected 0",
 				    *lun & 0x3f);
 			break;
 		}
 		if (*(lun + 1) & 0xe0) {
-			PRINT_ERROR_PR("Illegal TARGET in LUN logical unit "
+			PRINT_ERROR("Illegal TARGET in LUN logical unit "
 				    "addressing method 0x%02x, expected 0",
 				    (*(lun + 1) & 0xf8) >> 5);
 			break;
@@ -1790,7 +1790,7 @@ lun_t scst_unpack_lun(const uint8_t *lun, int len)
 
 	case 3:	/* extended logical unit addressing method */
 	default:
-		PRINT_ERROR_PR("Unimplemented LUN addressing method %u",
+		PRINT_ERROR("Unimplemented LUN addressing method %u",
 			    address_method);
 		break;
 	}
@@ -1800,7 +1800,7 @@ out:
 	return res;
 
 out_err:
-	PRINT_ERROR_PR("%s", "Multi-level LUN unimplemented");
+	PRINT_ERROR("%s", "Multi-level LUN unimplemented");
 	goto out;
 }
 
@@ -1820,7 +1820,7 @@ int scst_calc_block_shift(int sector_size)
 		block_shift++;
 	}
 	if (block_shift < 9) {
-		PRINT_ERROR_PR("Wrong sector size %d", sector_size);
+		PRINT_ERROR("Wrong sector size %d", sector_size);
 		block_shift = -1;
 	} 
 
@@ -2096,7 +2096,7 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 
 			buffer_size = scst_get_buf_first(cmd, &buffer);
 			if (unlikely(buffer_size <= 0)) {
-				PRINT_ERROR_PR("%s: Unable to get the buffer "
+				PRINT_ERROR("%s: Unable to get the buffer "
 					"(%d)",	__FUNCTION__, buffer_size);
 				goto out;
 			}
@@ -2148,7 +2148,7 @@ int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 	case MODE_SELECT:
 		buffer_size = scst_get_buf_first(cmd, &buffer);
 		if (unlikely(buffer_size <= 0)) {
-			PRINT_ERROR_PR("%s: Unable to get the buffer (%d)",
+			PRINT_ERROR("%s: Unable to get the buffer (%d)",
 				__FUNCTION__, buffer_size);
 			goto out;
 		}
@@ -2330,7 +2330,7 @@ void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
 
 	UA_entry = mempool_alloc(scst_ua_mempool, GFP_ATOMIC);
 	if (UA_entry == NULL) {
-		PRINT_ERROR_PR("%s", "UNIT ATTENTION memory "
+		PRINT_ERROR("%s", "UNIT ATTENTION memory "
 		     "allocation failed. The UNIT ATTENTION "
 		     "on some sessions will be missed");
 		goto out;

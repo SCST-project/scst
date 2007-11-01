@@ -30,6 +30,8 @@
 #include <scsi/scsi_request.h>
 #endif
 
+#define LOG_PREFIX "scst"
+
 #include "scst_debug.h"
 
 #define SCST_MAJOR              177
@@ -40,8 +42,6 @@
 #define TRACE_RECV_TOP		0x01000000 
 #define TRACE_SEND_BOT		0x08000000 /** bottom being the edge toward the interupt */
 #define TRACE_RECV_BOT		0x04000000
-
-#define LOG_PREFIX "scst"
 
 #if defined(DEBUG) || defined(TRACING)
 #define trace_flag scst_trace_flag
@@ -63,8 +63,7 @@ extern unsigned long scst_trace_flag;
 #else /* DEBUG */
 
 # ifdef TRACING
-#define SCST_DEFAULT_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MINOR | TRACE_PID | \
-	TRACE_SPECIAL)
+#define SCST_DEFAULT_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MINOR | TRACE_SPECIAL)
 # else
 #define SCST_DEFAULT_LOG_FLAGS 0
 # endif

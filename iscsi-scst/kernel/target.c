@@ -88,12 +88,12 @@ static int iscsi_target_create(struct target_info *info, u32 tid)
 	TRACE_MGMT_DBG("Creating target tid %u, name %s", tid, name);
 
 	if (!(len = strlen(name))) {
-		PRINT_ERROR_PR("The length of the target name is zero %u", tid);
+		PRINT_ERROR("The length of the target name is zero %u", tid);
 		goto out;
 	}
 
 	if (!try_module_get(THIS_MODULE)) {
-		PRINT_ERROR_PR("Fail to get module %u", tid);
+		PRINT_ERROR("Fail to get module %u", tid);
 		goto out;
 	}
 
@@ -118,7 +118,7 @@ static int iscsi_target_create(struct target_info *info, u32 tid)
 
 	target->scst_tgt = scst_register(&iscsi_template, target->name);
 	if (!target->scst_tgt) {
-		PRINT_ERROR_PR("%s", "scst_register() failed");
+		PRINT_ERROR("%s", "scst_register() failed");
 		goto out_free;
 	}
 
@@ -216,7 +216,7 @@ void target_del_all(void)
 
 	TRACE_ENTRY();
 
-	TRACE(TRACE_MGMT, "%s", "Deleting all targets");
+	TRACE_MGMT_DBG("%s", "Deleting all targets");
 
 	/* Complete brain damage, ToDo */
 	while(1) {

@@ -39,8 +39,8 @@ pid_t gettid (void)
 static char trace_buf[TRACE_BUF_SIZE];
 static pthread_spinlock_t trace_buf_lock;
 
-int debug_print_prefix(unsigned long trace_flag, const char *func, 
-			int line)
+int debug_print_prefix(unsigned long trace_flag, const char *prefix,
+	const char *func, int line)
 {
 	int i = 0;
 
@@ -57,6 +57,8 @@ int debug_print_prefix(unsigned long trace_flag, const char *func,
 	if (trace_flag & TRACE_PID)
 		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE, "[%d]: ",
 			      gettid());
+	if (prefix != NULL)
+		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "%s:", prefix);
 	if (trace_flag & TRACE_FUNCTION)
 		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "%s:", func);
 	if (trace_flag & TRACE_LINE)
@@ -131,7 +133,7 @@ int debug_init(void)
 	res = pthread_spin_init(&trace_buf_lock, PTHREAD_PROCESS_PRIVATE);
 	if (res != 0) {
 		res = errno;
-		PRINT_ERROR_PR("pthread_spin_init() failed: %s", strerror(res));
+		PRINT_ERROR("pthread_spin_init() failed: %s", strerror(res));
 	}
 
 	return res;

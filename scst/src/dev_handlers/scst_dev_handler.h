@@ -18,7 +18,8 @@
         TRACE_LINE | TRACE_FUNCTION | TRACE_MGMT | TRACE_MINOR | \
         TRACE_MGMT_DEBUG | TRACE_SPECIAL)
 #else
-#define SCST_DEFAULT_DEV_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_MINOR)
+#define SCST_DEFAULT_DEV_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MGMT | \
+	TRACE_MINOR | TRACE_SPECIAL)
 #endif
 
 static unsigned long dh_trace_flag = SCST_DEFAULT_DEV_LOG_FLAGS; 
@@ -72,7 +73,7 @@ static int scst_dev_handler_build_std_proc(struct scst_dev_type *dev_type)
 		p = scst_create_proc_entry(root, DEV_HANDLER_LOG_ENTRY_NAME,
 					   &dev_handler_log_proc_data);
 		if (p == NULL) {
-			PRINT_ERROR_PR("Not enough memory to register dev "
+			PRINT_ERROR("Not enough memory to register dev "
 			     "handler %s entry %s in /proc",
 			      dev_type->name, DEV_HANDLER_LOG_ENTRY_NAME);
 			res = -ENOMEM;

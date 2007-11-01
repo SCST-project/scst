@@ -175,7 +175,7 @@ static void iscsi_state_change(struct sock *sk)
 
 	if (sk->sk_state != TCP_ESTABLISHED) {
 		if (!conn->closing) {
-			PRINT_ERROR_PR("Connection with initiator %s (%p) "
+			PRINT_ERROR("Connection with initiator %s (%p) "
 				"unexpectedly closed!",
 				conn->session->initiator_name, conn);
 			mark_conn_closed(conn);
@@ -238,7 +238,7 @@ static int iscsi_socket_bind(struct iscsi_conn *conn)
 	conn->sock = SOCKET_I(conn->file->f_dentry->d_inode);
 
 	if (conn->sock->ops->sendpage == NULL) {
-		PRINT_ERROR_PR("Socket for sid %llu doesn't support sendpage()",
+		PRINT_ERROR("Socket for sid %llu doesn't support sendpage()",
 			session->sid);
 		res = -EINVAL;
 		goto out;
@@ -385,7 +385,7 @@ int conn_del(struct iscsi_session *session, struct conn_info *info)
 	if (!conn)
 		return err;
 
-	PRINT_INFO_PR("Deleting connection with initiator %s (%p)",
+	PRINT_INFO("Deleting connection with initiator %s (%p)",
 		conn->session->initiator_name, conn);
 
 	mark_conn_closed(conn);

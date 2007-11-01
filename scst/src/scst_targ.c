@@ -62,7 +62,7 @@ struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
 
 #ifdef EXTRACHECKS
 	if (unlikely(sess->shut_phase != SCST_SESS_SPH_READY)) {
-		PRINT_ERROR_PR("%s", "New cmd while shutting down the session");
+		PRINT_ERROR("%s", "New cmd while shutting down the session");
 		sBUG();
 	}
 #endif
@@ -180,7 +180,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context)
 	if (unlikely(in_irq()) && ((pref_context == SCST_CONTEXT_DIRECT) ||
 			 (pref_context == SCST_CONTEXT_DIRECT_ATOMIC)))
 	{
-		PRINT_ERROR_PR("Wrong context %d in IRQ from target %s, use "
+		PRINT_ERROR("Wrong context %d in IRQ from target %s, use "
 			"SCST_CONTEXT_TASKLET instead\n", pref_context,
 			cmd->tgtt->name);
 		pref_context = SCST_CONTEXT_TASKLET;
@@ -216,7 +216,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context)
 	spin_unlock_irqrestore(&sess->sess_list_lock, flags);
 
 	if (unlikely(cmd->lun == (lun_t)-1)) {
-		PRINT_ERROR_PR("Wrong LUN %d, finishing cmd", -1);
+		PRINT_ERROR("Wrong LUN %d, finishing cmd", -1);
 		scst_set_cmd_error(cmd,
 		   	SCST_LOAD_SENSE(scst_sense_lun_not_supported));
 		cmd->state = SCST_CMD_STATE_XMIT_RESP;
@@ -224,7 +224,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context)
 	}
 
 	if (unlikely(cmd->cdb_len == 0)) {
-		PRINT_ERROR_PR("Wrong CDB len %d, finishing cmd", 0);
+		PRINT_ERROR("Wrong CDB len %d, finishing cmd", 0);
 		scst_set_cmd_error(cmd,
 			   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		cmd->state = SCST_CMD_STATE_XMIT_RESP;
@@ -251,7 +251,7 @@ active:
 		break;
 
 	default:
-		PRINT_ERROR_PR("Context %x is undefined, using the thread one",
+		PRINT_ERROR("Context %x is undefined, using the thread one",
 			pref_context);
 		/* go through */
 	case SCST_CONTEXT_THREAD:
@@ -306,7 +306,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 
 	if (unlikely(scst_get_cdb_info(cmd->cdb, dev->handler->type, 
 			&cdb_info) != 0)) {
-		PRINT_ERROR_PR("Unknown opcode 0x%02x for %s. "
+		PRINT_ERROR("Unknown opcode 0x%02x for %s. "
 			"Should you update scst_scsi_op_table?",
 			cmd->cdb[0], dev->handler->name);
 #ifdef USE_EXPECTED_VALUES
@@ -321,7 +321,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 			/* Restore (likely) lost CDB length */
 			cmd->cdb_len = scst_get_cdb_len(cmd->cdb);
 			if (cmd->cdb_len == -1) {
-				PRINT_ERROR_PR("Unable to get CDB length for "
+				PRINT_ERROR("Unable to get CDB length for "
 					"opcode 0x%02x. Returning INVALID "
 					"OPCODE", cmd->cdb[0]);
 				scst_set_cmd_error(cmd,
@@ -329,7 +329,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 				goto out_xmit;
 			}
 		} else {
-			PRINT_ERROR_PR("Unknown opcode 0x%02x for %s and "
+			PRINT_ERROR("Unknown opcode 0x%02x for %s and "
 			     "target %s not supplied expected values",
 			     cmd->cdb[0], dev->handler->name, cmd->tgtt->name);
 			scst_set_cmd_error(cmd,
@@ -372,7 +372,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 	}
 
 	if (unlikely(cmd->cdb[cmd->cdb_len - 1] & CONTROL_BYTE_NACA_BIT)) {
-		PRINT_ERROR_PR("NACA bit in control byte CDB is not supported "
+		PRINT_ERROR("NACA bit in control byte CDB is not supported "
 			    "(opcode 0x%02x)", cmd->cdb[0]);
 		scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
@@ -380,7 +380,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 	}
 
 	if (unlikely(cmd->cdb[cmd->cdb_len - 1] & CONTROL_BYTE_LINK_BIT)) {
-		PRINT_ERROR_PR("Linked commands are not supported "
+		PRINT_ERROR("Linked commands are not supported "
 			    "(opcode 0x%02x)", cmd->cdb[0]);
 		scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
@@ -422,7 +422,7 @@ call_parse:
 		cmd->data_len = cmd->bufflen;
 
 	if (cmd->data_buf_alloced && unlikely((orig_bufflen > cmd->bufflen))) {
-		PRINT_ERROR_PR("Dev handler supplied data buffer (size %d), "
+		PRINT_ERROR("Dev handler supplied data buffer (size %d), "
 			"is less, than required (size %d)", cmd->bufflen,
 			orig_bufflen);
 		goto out_error;
@@ -440,7 +440,7 @@ call_parse:
 	    ((cmd->bufflen != 0) && (cmd->sg == NULL) &&
 	    	(state > SCST_CMD_STATE_PREPARE_SPACE))))
 	{
-		PRINT_ERROR_PR("Dev handler %s parse() returned "
+		PRINT_ERROR("Dev handler %s parse() returned "
 			       "invalid cmd data_direction %d, "
 			       "bufflen %d or state %d (opcode 0x%x)",
 			       dev->handler->name, 
@@ -455,7 +455,7 @@ call_parse:
 #	ifdef EXTRACHECKS
 		if ((cmd->data_direction != cmd->expected_data_direction) ||
 		    (cmd->bufflen != cmd->expected_transfer_len)) {
-			PRINT_ERROR_PR("Expected values don't match decoded ones: "
+			PRINT_ERROR("Expected values don't match decoded ones: "
 				"data_direction %d, expected_data_direction %d, "
 				"bufflen %d, expected_transfer_len %d",
 				cmd->data_direction, cmd->expected_data_direction,
@@ -466,7 +466,7 @@ call_parse:
 		cmd->bufflen = cmd->expected_transfer_len;
 #else
 		if (unlikely(cmd->data_direction != cdb_info.direction)) {
-			PRINT_ERROR_PR("Expected data direction %d for opcode "
+			PRINT_ERROR("Expected data direction %d for opcode "
 				"0x%02x (handler %s, target %s) doesn't match "
 				"decoded value %d", cmd->data_direction,
 				cmd->cdb[0], dev->handler->name,
@@ -476,7 +476,7 @@ call_parse:
 			goto out_dev_done;
 		}
 		if (unlikely(cmd->bufflen != cmd->expected_transfer_len)) {
-			PRINT_INFO_PR("Warning: expected transfer length %d for "
+			PRINT_INFO("Warning: expected transfer length %d for "
 				"opcode 0x%02x (handler %s, target %s) doesn't "
 				"match decoded value %d. Faulty initiator?",
 				cmd->expected_transfer_len, cmd->cdb[0],
@@ -501,11 +501,11 @@ call_parse:
 
 	default:
 		if (state >= 0) {
-			PRINT_ERROR_PR("Dev handler %s parse() returned "
+			PRINT_ERROR("Dev handler %s parse() returned "
 			     "invalid cmd state %d (opcode %d)", 
 			     dev->handler->name, state, cmd->cdb[0]);
 		} else {
-			PRINT_ERROR_PR("Dev handler %s parse() returned "
+			PRINT_ERROR("Dev handler %s parse() returned "
 				"error %d (opcode %d)", dev->handler->name, 
 				state, cmd->cdb[0]);
 		}
@@ -560,7 +560,7 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 		else if (r == 0) {
 			cmd->data_buf_alloced = 1;
 			if (unlikely(orig_bufflen < cmd->bufflen)) {
-				PRINT_ERROR_PR("Target driver allocated data "
+				PRINT_ERROR("Target driver allocated data "
 					"buffer (size %d), is less, than "
 					"required (size %d)", orig_bufflen,
 					cmd->bufflen);
@@ -657,7 +657,7 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status, int pref_context)
 	if (in_irq() && ((pref_context == SCST_CONTEXT_DIRECT) ||
 			 (pref_context == SCST_CONTEXT_DIRECT_ATOMIC)))
 	{
-		PRINT_ERROR_PR("Wrong context %d in IRQ from target %s, use "
+		PRINT_ERROR("Wrong context %d in IRQ from target %s, use "
 			"SCST_CONTEXT_TASKLET instead\n", pref_context,
 			cmd->tgtt->name);
 		pref_context = SCST_CONTEXT_TASKLET;
@@ -705,7 +705,7 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status, int pref_context)
 		break;
 
 	default:
-		PRINT_ERROR_PR("%s() received unknown status %x", __func__,
+		PRINT_ERROR("%s() received unknown status %x", __func__,
 			status);
 		cmd->state = SCST_CMD_STATE_DEV_DONE;
 		break;
@@ -834,10 +834,10 @@ out:
 
 out_error_rc:
 	if (rc == SCST_TGT_RES_FATAL_ERROR) {
-		PRINT_ERROR_PR("Target driver %s rdy_to_xfer() returned "
+		PRINT_ERROR("Target driver %s rdy_to_xfer() returned "
 		     "fatal error", cmd->tgtt->name);
 	} else {
-		PRINT_ERROR_PR("Target driver %s rdy_to_xfer() returned invalid "
+		PRINT_ERROR("Target driver %s rdy_to_xfer() returned invalid "
 			    "value %d", cmd->tgtt->name, rc);
 	}
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
@@ -867,7 +867,7 @@ void scst_proccess_redirect_cmd(struct scst_cmd *cmd, int context,
 		break;
 
 	default:
-		PRINT_ERROR_PR("Context %x is unknown, using the thread one",
+		PRINT_ERROR("Context %x is unknown, using the thread one",
 			    context);
 		/* go through */
 	case SCST_CONTEXT_THREAD:
@@ -907,7 +907,7 @@ void scst_rx_data(struct scst_cmd *cmd, int status, int pref_context)
 	if (in_irq() && ((pref_context == SCST_CONTEXT_DIRECT) ||
 			 (pref_context == SCST_CONTEXT_DIRECT_ATOMIC)))
 	{
-		PRINT_ERROR_PR("Wrong context %d in IRQ from target %s, use "
+		PRINT_ERROR("Wrong context %d in IRQ from target %s, use "
 			"SCST_CONTEXT_TASKLET instead\n", pref_context,
 			cmd->tgtt->name);
 		pref_context = SCST_CONTEXT_TASKLET;
@@ -940,7 +940,7 @@ void scst_rx_data(struct scst_cmd *cmd, int status, int pref_context)
 		break;
 
 	default:
-		PRINT_ERROR_PR("scst_rx_data() received unknown status %x",
+		PRINT_ERROR("scst_rx_data() received unknown status %x",
 			status);
 		cmd->state = SCST_CMD_STATE_DEV_DONE;
 		break;
@@ -1027,7 +1027,7 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 	if (unlikely(resid != 0)) {
 #ifdef EXTRACHECKS
 		if ((resid < 0) || (resid > cmd->resp_data_len)) {
-			PRINT_ERROR_PR("Wrong resid %d (cmd->resp_data_len=%d)",
+			PRINT_ERROR("Wrong resid %d (cmd->resp_data_len=%d)",
 				resid, cmd->resp_data_len);
 		} else
 #endif
@@ -1064,7 +1064,7 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 		length = scst_get_buf_first(cmd, &address);
 		TRACE_DBG("length %d", length);
 		if (unlikely(length <= 0)) {
-			PRINT_ERROR_PR("%s: scst_get_buf_first() failed",
+			PRINT_ERROR("%s: scst_get_buf_first() failed",
 				__func__);
 			goto out;
 		}
@@ -1105,7 +1105,7 @@ static inline struct scst_cmd *scst_get_cmd(struct scsi_cmnd *scsi_cmd,
 		cmd = (struct scst_cmd *)(*req)->upper_private_data;
 
 	if (cmd == NULL) {
-		PRINT_ERROR_PR("%s", "Request with NULL cmd");
+		PRINT_ERROR("%s", "Request with NULL cmd");
 		if (*req)
 			scsi_release_request(*req);
 	}
@@ -1206,7 +1206,7 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state)
 	    (next_state != SCST_CMD_STATE_XMIT_RESP) &&
 	    (next_state != SCST_CMD_STATE_FINISHED)) 
 	{
-		PRINT_ERROR_PR("scst_cmd_done_local() received invalid cmd "
+		PRINT_ERROR("scst_cmd_done_local() received invalid cmd "
 			    "state %d (opcode %d)", next_state, cmd->cdb[0]);
 		scst_set_cmd_error(cmd,
 				   SCST_LOAD_SENSE(scst_sense_hardw_error));
@@ -1244,7 +1244,7 @@ static int scst_report_luns_local(struct scst_cmd *cmd)
 	cmd->driver_status = 0;
 
 	if ((cmd->cdb[2] != 0) && (cmd->cdb[2] != 2)) {
-		PRINT_ERROR_PR("Unsupported SELECT REPORT value %x in REPORT "
+		PRINT_ERROR("Unsupported SELECT REPORT value %x in REPORT "
 			"LUNS command", cmd->cdb[2]);
 		goto out_err;
 	}
@@ -1278,7 +1278,7 @@ static int scst_report_luns_local(struct scst_cmd *cmd)
 					}
 				}
 				if ((buffer_size - offs) < 8) {
-					PRINT_ERROR_PR("Buffer allocated for REPORT "
+					PRINT_ERROR("Buffer allocated for REPORT "
 						"LUNS command doesn't allow to fit 8 "
 						"byte entry (buffer_size=%d)",
 						buffer_size);
@@ -1381,7 +1381,7 @@ static int scst_reserve_local(struct scst_cmd *cmd)
 	}
 
 	if ((cmd->cdb[0] == RESERVE_10) && (cmd->cdb[2] & SCST_RES_3RDPTY)) {
-		PRINT_ERROR_PR("RESERVE_10: 3rdPty RESERVE not implemented "
+		PRINT_ERROR("RESERVE_10: 3rdPty RESERVE not implemented "
 		     "(lun=%Ld)", (uint64_t)cmd->lun);
 		scst_set_cmd_error(cmd,
 		   	SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
@@ -1711,7 +1711,7 @@ static int scst_do_send_to_midlev(struct scst_cmd *cmd)
 	TRACE_DBG("Sending cmd %p to SCSI mid-level", cmd);
 	
 	if (unlikely(cmd->dev->scsi_dev == NULL)) {
-		PRINT_ERROR_PR("Command for virtual device must be "
+		PRINT_ERROR("Command for virtual device must be "
 			"processed by device handler (lun %Ld)!",
 			(uint64_t)cmd->lun);
 		goto out_error;
@@ -1727,7 +1727,7 @@ static int scst_do_send_to_midlev(struct scst_cmd *cmd)
 			rc = SCST_EXEC_NEED_THREAD;
 			goto out_clear;
 		} else {
-			PRINT_INFO_PR("%s", "Unable to allocate request, "
+			PRINT_INFO("%s", "Unable to allocate request, "
 				"sending BUSY status");
 			goto out_busy;
 		}
@@ -1747,7 +1747,7 @@ static int scst_do_send_to_midlev(struct scst_cmd *cmd)
 			rc = SCST_EXEC_NEED_THREAD;
 			goto out_clear;
 		} else {
-			PRINT_INFO_PR("scst_exec_req() failed: %d", rc);
+			PRINT_INFO("scst_exec_req() failed: %d", rc);
 			goto out_error;
 		}
 	}
@@ -1766,7 +1766,7 @@ out_clear:
 	goto out;
 
 out_rc_error:
-	PRINT_ERROR_PR("Dev handler %s exec() or scst_local_exec() returned "
+	PRINT_ERROR("Dev handler %s exec() or scst_local_exec() returned "
 		    "invalid code %d", cmd->dev->handler->name, rc);
 	/* go through */
 
@@ -2096,7 +2096,7 @@ static int scst_done_cmd_check(struct scst_cmd *cmd, int *pres)
 		if (cmd->internal)
 			cmd = scst_complete_request_sense(cmd);
 	} else if (unlikely(scst_check_auto_sense(cmd))) {
-		PRINT_INFO_PR("Command finished with CHECK CONDITION, but "
+		PRINT_INFO("Command finished with CHECK CONDITION, but "
 			    "without sense data (opcode 0x%x), issuing "
 			    "REQUEST SENSE", cmd->cdb[0]);
 		rc = scst_prepare_request_sense(cmd);
@@ -2105,7 +2105,7 @@ static int scst_done_cmd_check(struct scst_cmd *cmd, int *pres)
 			res = 1;
 			goto out;
 		} else {
-			PRINT_ERROR_PR("%s", "Unable to issue REQUEST SENSE, "
+			PRINT_ERROR("%s", "Unable to issue REQUEST SENSE, "
 				    "returning HARDWARE ERROR");
 			scst_set_cmd_error(cmd,
 				SCST_LOAD_SENSE(scst_sense_hardw_error));
@@ -2152,7 +2152,7 @@ static int scst_done_cmd_check(struct scst_cmd *cmd, int *pres)
 			if (buflen > SCST_INQ_BYTE3) {
 #ifdef EXTRACHECKS
 				if (buffer[SCST_INQ_BYTE3] & SCST_INQ_NORMACA_BIT) {
-					PRINT_INFO_PR("NormACA set for device: "
+					PRINT_INFO("NormACA set for device: "
 					    "lun=%Ld, type 0x%02x", 
 					    (uint64_t)cmd->lun, buffer[0]);
 				}
@@ -2277,11 +2277,11 @@ static int scst_dev_done(struct scst_cmd *cmd)
 
 	default:
 		if (state >= 0) {
-			PRINT_ERROR_PR("Dev handler %s dev_done() returned "
+			PRINT_ERROR("Dev handler %s dev_done() returned "
 				"invalid cmd state %d", 
 				cmd->dev->handler->name, state);
 		} else {
-			PRINT_ERROR_PR("Dev handler %s dev_done() returned "
+			PRINT_ERROR("Dev handler %s dev_done() returned "
 				"error %d", cmd->dev->handler->name, 
 				state);
 		}
@@ -2470,10 +2470,10 @@ out:
 
 out_error:
 	if (rc == SCST_TGT_RES_FATAL_ERROR) {
-		PRINT_ERROR_PR("Target driver %s xmit_response() returned "
+		PRINT_ERROR("Target driver %s xmit_response() returned "
 			"fatal error", cmd->tgtt->name);
 	} else {
-		PRINT_ERROR_PR("Target driver %s xmit_response() returned "
+		PRINT_ERROR("Target driver %s xmit_response() returned "
 			"invalid value %d", cmd->tgtt->name, rc);
 	}
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
@@ -2591,7 +2591,7 @@ ordered:
 		goto out;
 
 	default:
-		PRINT_ERROR_PR("Unsupported queue type %d, treating it as "
+		PRINT_ERROR("Unsupported queue type %d, treating it as "
 			"ORDERED", cmd->queue_type);
 		cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
 		goto ordered;
@@ -2637,7 +2637,7 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 				TRACE_DBG("tgt_dev %p found", tgt_dev);
 
 				if (unlikely(tgt_dev->dev->handler == &scst_null_devtype)) {
-					PRINT_INFO_PR("Dev handler for device "
+					PRINT_INFO("Dev handler for device "
 					  "%Ld is NULL, the device will not be "
 					  "visible remotely", (uint64_t)cmd->lun);
 					break;
@@ -2900,7 +2900,7 @@ void scst_process_active_cmd(struct scst_cmd *cmd, int context)
 			break;
 
 		default:
-			PRINT_ERROR_PR("cmd (%p) in state %d, but shouldn't be",
+			PRINT_ERROR("cmd (%p) in state %d, but shouldn't be",
 			       cmd, cmd->state);
 			sBUG();
 			res = SCST_CMD_STATE_RES_CONT_NEXT;
@@ -2929,7 +2929,7 @@ void scst_process_active_cmd(struct scst_cmd *cmd, int context)
 		/* not very valid commands */
 		case SCST_CMD_STATE_DEFAULT:
 		case SCST_CMD_STATE_NEED_THREAD_CTX:
-			PRINT_ERROR_PR("cmd %p is in state %d, not putting on "
+			PRINT_ERROR("cmd %p is in state %d, not putting on "
 				"useful list (left on scst cmd list)", cmd, 
 				cmd->state);
 			spin_unlock_irq(&cmd->cmd_lists->cmd_list_lock);
@@ -3439,14 +3439,14 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 			cmd->sn, cmd->sn_set, cmd->queue_type);
 		mcmd->cmd_to_abort = cmd;
 		if (mcmd->lun_set && (mcmd->lun != cmd->lun)) {
-			PRINT_ERROR_PR("ABORT TASK: LUN mismatch: mcmd LUN %Lx, "
+			PRINT_ERROR("ABORT TASK: LUN mismatch: mcmd LUN %Lx, "
 				"cmd LUN %Lx, cmd tag %Lu", mcmd->lun, cmd->lun,
 				mcmd->tag);
 			mcmd->status = SCST_MGMT_STATUS_REJECTED;
 		} else if (mcmd->cmd_sn_set && 
 		           (scst_sn_before(mcmd->cmd_sn, cmd->tgt_sn) ||
 			    (mcmd->cmd_sn == cmd->tgt_sn))) {
-			PRINT_ERROR_PR("ABORT TASK: SN mismatch: mcmd SN %x, "
+			PRINT_ERROR("ABORT TASK: SN mismatch: mcmd SN %x, "
 				"cmd SN %x, cmd tag %Lu", mcmd->cmd_sn,
 				cmd->tgt_sn, mcmd->tag);
 			mcmd->status = SCST_MGMT_STATUS_REJECTED;
@@ -3468,7 +3468,7 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 	default:
 		rc = scst_mgmt_translate_lun(mcmd);
 		if (rc < 0) {
-			PRINT_ERROR_PR("Corresponding device for lun %Ld not "
+			PRINT_ERROR("Corresponding device for lun %Ld not "
 				"found", (uint64_t)mcmd->lun);
 			mcmd->status = SCST_MGMT_STATUS_LUN_NOT_EXIST;
 			mcmd->state = SCST_MGMT_CMD_STATE_DONE;
@@ -3770,7 +3770,7 @@ static int scst_mgmt_cmd_exec(struct scst_mgmt_cmd *mcmd)
 		goto out_done;
 
 	default:
-		PRINT_ERROR_PR("Unknown task management function %d", mcmd->fn);
+		PRINT_ERROR("Unknown task management function %d", mcmd->fn);
 		mcmd->status = SCST_MGMT_STATUS_REJECTED;
 		goto out_done;
 	}
@@ -3890,7 +3890,7 @@ static int scst_process_mgmt_cmd(struct scst_mgmt_cmd *mcmd)
 			break;
 
 		default:
-			PRINT_ERROR_PR("Unknown state %d of management command",
+			PRINT_ERROR("Unknown state %d of management command",
 				    mcmd->state);
 			res = -1;
 			/* go through */
@@ -3990,7 +3990,7 @@ static struct scst_mgmt_cmd *scst_pre_rx_mgmt_cmd(struct scst_session
 	TRACE_ENTRY();
 
 	if (unlikely(sess->tgt->tgtt->task_mgmt_fn_done == NULL)) {
-		PRINT_ERROR_PR("New mgmt cmd, but task_mgmt_fn_done() is NULL "
+		PRINT_ERROR("New mgmt cmd, but task_mgmt_fn_done() is NULL "
 			    "(target %s)", sess->tgt->tgtt->name);
 		goto out;
 	}
@@ -4026,7 +4026,7 @@ static int scst_post_rx_mgmt_cmd(struct scst_session *sess,
 
 #ifdef EXTRACHECKS
 	if (unlikely(sess->shut_phase != SCST_SESS_SPH_READY)) {
-		PRINT_ERROR_PR("%s",
+		PRINT_ERROR("%s",
 			"New mgmt cmd while shutting down the session");
 		sBUG();
 	}
@@ -4200,7 +4200,7 @@ static int scst_init_session(struct scst_session *sess)
 	if (acg == NULL)
 		acg = scst_default_acg;
 
-	PRINT_INFO_PR("Using security group \"%s\" for initiator \"%s\"",
+	PRINT_INFO("Using security group \"%s\" for initiator \"%s\"",
 		acg->acg_name, sess->initiator_name);
 
 	sess->acg = acg;
@@ -4456,7 +4456,7 @@ int scst_mgmt_thread(void *arg)
 			if (sess->init_phase == SCST_SESS_IPH_INITING)
 				scst_init_session(sess);
 			else {
-				PRINT_ERROR_PR("session %p is in "
+				PRINT_ERROR("session %p is in "
 					"scst_sess_init_list, but in unknown "
 					"init phase %x", sess,
 					sess->init_phase);
@@ -4483,7 +4483,7 @@ int scst_mgmt_thread(void *arg)
 				scst_free_session_callback(sess);
 				break;
 			default:
-				PRINT_ERROR_PR("session %p is in "
+				PRINT_ERROR("session %p is in "
 					"scst_sess_shut_list, but in unknown "
 					"shut phase %lx", sess,
 					sess->shut_phase);

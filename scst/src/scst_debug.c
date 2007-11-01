@@ -28,8 +28,8 @@
 static char trace_buf[TRACE_BUF_SIZE];
 static spinlock_t trace_buf_lock = SPIN_LOCK_UNLOCKED;
 
-int debug_print_prefix(unsigned long trace_flag, const char *func, 
-			int line)
+int debug_print_prefix(unsigned long trace_flag, const char *prefix,
+	const char *func, int line)
 {
 	int i = 0;
 	unsigned long flags;
@@ -39,6 +39,8 @@ int debug_print_prefix(unsigned long trace_flag, const char *func,
 	if (trace_flag & TRACE_PID)
 		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE, "[%d]: ",
 			      current->pid);
+	if (prefix != NULL)
+		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "%s: ", prefix);
 	if (trace_flag & TRACE_FUNCTION)
 		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "%s:", func);
 	if (trace_flag & TRACE_LINE)

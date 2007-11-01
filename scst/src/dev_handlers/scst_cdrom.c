@@ -80,7 +80,7 @@ int cdrom_attach(struct scst_device *dev)
 
 	if (dev->scsi_dev == NULL ||
 	    dev->scsi_dev->type != dev->handler->type) {
-		PRINT_ERROR_PR("%s", "SCSI device not define or illegal type");
+		PRINT_ERROR("%s", "SCSI device not define or illegal type");
 		res = -ENODEV;
 		goto out;
 	}
@@ -123,7 +123,7 @@ int cdrom_attach(struct scst_device *dev)
 			break;
 		}
 		if (!--retries) {
-			PRINT_ERROR_PR("UA not clear after %d retries",
+			PRINT_ERROR("UA not clear after %d retries",
 				SCST_DEV_UA_RETRIES);
 			params->block_shift = CDROM_DEF_BLOCK_SHIFT;
 //			res = -ENODEV;

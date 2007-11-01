@@ -21,7 +21,7 @@ do {									\
 	if (!info->partial || (info->partial & 1 << key_##word))	\
 		if (iparam[key_##word] < min ||				\
 			iparam[key_##word] > max) {			\
-			PRINT_ERROR_PR("%s: %u is out of range (%u %u)",\
+			PRINT_ERROR("%s: %u is out of range (%u %u)",\
 				#word, iparam[key_##word], min, max);	\
 			iparam[key_##word] = min;			\
 		}							\
@@ -63,21 +63,21 @@ static const char *get_digest_name(int val)
 
 static void log_params(struct iscsi_sess_param *param)
 {
-	PRINT_INFO_PR("Negotiated parameters: InitialR2T %s, ImmediateData %s, "
+	PRINT_INFO("Negotiated parameters: InitialR2T %s, ImmediateData %s, "
 		"MaxConnections %d, MaxRecvDataSegmentLength %d, "
 		"MaxXmitDataSegmentLength %d, ", get_bool_name(param->initial_r2t),
 		get_bool_name(param->immediate_data), param->max_connections,
 		param->max_recv_data_length, param->max_xmit_data_length);
-	PRINT_INFO_PR("    MaxBurstLength %d, FirstBurstLength %d, "
+	PRINT_INFO("    MaxBurstLength %d, FirstBurstLength %d, "
 		"DefaultTime2Wait %d, DefaultTime2Retain %d, ",
 		param->max_burst_length, param->first_burst_length,
 		param->default_wait_time, param->default_retain_time);
-	PRINT_INFO_PR("    MaxOutstandingR2T %d, DataPDUInOrder %s, "
+	PRINT_INFO("    MaxOutstandingR2T %d, DataPDUInOrder %s, "
 		"DataSequenceInOrder %s, ErrorRecoveryLevel %d, ",
 		param->max_outstanding_r2t, get_bool_name(param->data_pdu_inorder),
 		get_bool_name(param->data_sequence_inorder),
 		param->error_recovery_level);
-	PRINT_INFO_PR("    HeaderDigest %s, DataDigest %s, OFMarker %s, "
+	PRINT_INFO("    HeaderDigest %s, DataDigest %s, OFMarker %s, "
 		"IFMarker %s, OFMarkInt %d, IFMarkInt %d",
 		get_digest_name(param->header_digest),
 		get_digest_name(param->data_digest),
@@ -191,7 +191,7 @@ static int trgt_param(struct iscsi_target *target, struct iscsi_param_info *info
 		trgt_param_set(target, info);
 
 		prm = &target->trgt_param;
-		PRINT_INFO_PR("Target parameter changed: queued_cmnds %d",
+		PRINT_INFO("Target parameter changed: queued_cmnds %d",
 			prm->queued_cmnds);
 	} else
 		trgt_param_get(&target->trgt_param, info);

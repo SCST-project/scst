@@ -266,7 +266,7 @@ int scst_proc_log_entry_write(struct file *file, const char *buf,
 		if (p[strlen(p) - 1] == '\n') {
 			p[strlen(p) - 1] = '\0';
 		}
-		PRINT_ERROR_PR("Unknown action \"%s\"", p);
+		PRINT_ERROR("Unknown action \"%s\"", p);
 		res = -EINVAL;
 		goto out_free;
 	}
@@ -313,7 +313,7 @@ int scst_proc_log_entry_write(struct file *file, const char *buf,
 			}
 		}
 		if (level == 0) {
-			PRINT_ERROR_PR("Unknown token \"%s\"", p);
+			PRINT_ERROR("Unknown token \"%s\"", p);
 			res = -EINVAL;
 			goto out_free;
 		}
@@ -387,7 +387,7 @@ static int __init scst_proc_init_module_log(void)
 					 SCST_PROC_LOG_ENTRY_NAME,
 					 &scst_log_proc_data);
 	if (!generic) {
-		PRINT_ERROR_PR("cannot init /proc/%s/%s",
+		PRINT_ERROR("cannot init /proc/%s/%s",
 			    SCST_PROC_ENTRY_NAME, SCST_PROC_LOG_ENTRY_NAME);
 		res = -ENOMEM;
 	}
@@ -417,7 +417,7 @@ int scst_proc_group_add_tree(struct scst_acg *acg, const char *name)
 
 	acg->acg_proc_root = proc_mkdir(name, scst_proc_groups_root);
 	if (acg->acg_proc_root == NULL) {
-		PRINT_ERROR_PR("Not enough memory to register %s entry in "
+		PRINT_ERROR("Not enough memory to register %s entry in "
 			       "/proc/%s/%s", name, SCST_PROC_ENTRY_NAME,
 			       SCST_PROC_GROUPS_ENTRY_NAME);
 		goto out;
@@ -428,7 +428,7 @@ int scst_proc_group_add_tree(struct scst_acg *acg, const char *name)
 					 SCST_PROC_GROUPS_DEVICES_ENTRY_NAME,
 					 &scst_groups_devices_proc_data);
 	if (!generic) {
-		PRINT_ERROR_PR("cannot init /proc/%s/%s/%s/%s",
+		PRINT_ERROR("cannot init /proc/%s/%s/%s/%s",
 			       SCST_PROC_ENTRY_NAME,
 			       SCST_PROC_GROUPS_ENTRY_NAME,
 			       name, SCST_PROC_GROUPS_DEVICES_ENTRY_NAME);
@@ -441,7 +441,7 @@ int scst_proc_group_add_tree(struct scst_acg *acg, const char *name)
 					 SCST_PROC_GROUPS_USERS_ENTRY_NAME,
 					 &scst_groups_names_proc_data);
 	if (!generic) {
-		PRINT_ERROR_PR("cannot init /proc/%s/%s/%s/%s",
+		PRINT_ERROR("cannot init /proc/%s/%s/%s/%s",
 			       SCST_PROC_ENTRY_NAME,
 			       SCST_PROC_GROUPS_ENTRY_NAME,
 			       name, SCST_PROC_GROUPS_USERS_ENTRY_NAME);
@@ -494,7 +494,7 @@ static int scst_proc_group_add(const char *p)
 
 	acg = scst_alloc_add_acg(name);
 	if (acg == NULL) {
-		PRINT_ERROR_PR("scst_alloc_add_acg() (name %s) failed", name);
+		PRINT_ERROR("scst_alloc_add_acg() (name %s) failed", name);
 		goto out_free;
 	}
 
@@ -550,7 +550,7 @@ static int __init scst_proc_init_groups(void)
 	scst_proc_groups_root = proc_mkdir(SCST_PROC_GROUPS_ENTRY_NAME,
 					   scst_proc_scsi_tgt);
 	if (scst_proc_groups_root == NULL) {
-		PRINT_ERROR_PR("Not enough memory to register %s entry in "
+		PRINT_ERROR("Not enough memory to register %s entry in "
 			       "/proc/%s", SCST_PROC_GROUPS_ENTRY_NAME,
 			       SCST_PROC_ENTRY_NAME);
 		goto out_nomem;
@@ -603,7 +603,7 @@ static int __init scst_proc_init_sgv(void)
 
 	pr = scst_create_proc_entry(scst_proc_scsi_tgt, "sgv", &scst_sgv_proc_data);
 	if (pr == NULL) {
-		PRINT_ERROR_PR("%s", "cannot create sgv /proc entry");
+		PRINT_ERROR("%s", "cannot create sgv /proc entry");
 		res = -ENOMEM;
 	}
 
@@ -627,7 +627,7 @@ int __init scst_proc_init_module(void)
 
 	scst_proc_scsi_tgt = proc_mkdir(SCST_PROC_ENTRY_NAME, 0);
 	if (!scst_proc_scsi_tgt) {
-		PRINT_ERROR_PR("cannot init /proc/%s", SCST_PROC_ENTRY_NAME);
+		PRINT_ERROR("cannot init /proc/%s", SCST_PROC_ENTRY_NAME);
 		goto out_nomem;
 	}
 
@@ -635,7 +635,7 @@ int __init scst_proc_init_module(void)
 					 SCST_PROC_ENTRY_NAME,
 					 &scst_tgt_proc_data);
 	if (!generic) {
-		PRINT_ERROR_PR("cannot init /proc/%s/%s",
+		PRINT_ERROR("cannot init /proc/%s/%s",
 			    SCST_PROC_ENTRY_NAME, SCST_PROC_ENTRY_NAME);
 		goto out_remove;
 	}
@@ -643,7 +643,7 @@ int __init scst_proc_init_module(void)
 	generic = scst_create_proc_entry(scst_proc_scsi_tgt, SCST_PROC_VERSION_NAME,
 					 &scst_version_proc_data);
 	if (!generic) {
-		PRINT_ERROR_PR("cannot init /proc/%s/%s",
+		PRINT_ERROR("cannot init /proc/%s/%s",
 			    SCST_PROC_ENTRY_NAME, SCST_PROC_VERSION_NAME);
 		goto out_remove1;
 	}
@@ -651,7 +651,7 @@ int __init scst_proc_init_module(void)
 	generic = scst_create_proc_entry(scst_proc_scsi_tgt, SCST_PROC_SESSIONS_NAME,
 					 &scst_sessions_proc_data);
 	if (!generic) {
-		PRINT_ERROR_PR("cannot init /proc/%s/%s",
+		PRINT_ERROR("cannot init /proc/%s/%s",
 			    SCST_PROC_ENTRY_NAME, SCST_PROC_SESSIONS_NAME);
 		goto out_remove2;
 	}
@@ -659,7 +659,7 @@ int __init scst_proc_init_module(void)
 	generic = scst_create_proc_entry(scst_proc_scsi_tgt, SCST_PROC_HELP_NAME,
 					 &scst_help_proc_data);
 	if (!generic) {
-		PRINT_ERROR_PR("cannot init /proc/%s/%s",
+		PRINT_ERROR("cannot init /proc/%s/%s",
 			    SCST_PROC_ENTRY_NAME, SCST_PROC_HELP_NAME);
 		goto out_remove3;
 	}
@@ -668,7 +668,7 @@ int __init scst_proc_init_module(void)
 					 SCST_PROC_THREADS_NAME,
 					 &scst_threads_proc_data);
 	if (!generic) {
-		PRINT_ERROR_PR("cannot init /proc/%s/%s",
+		PRINT_ERROR("cannot init /proc/%s/%s",
 			    SCST_PROC_ENTRY_NAME, SCST_PROC_THREADS_NAME);
 		goto out_remove4;
 	}
@@ -779,7 +779,7 @@ static ssize_t scst_proc_threads_write(struct file *file, const char __user *buf
 	oldtn = scst_threads_info.nr_cmd_threads;
 	newtn = simple_strtoul(buffer, NULL, 0);
 	if (newtn <= 0) {
-		PRINT_ERROR_PR("Illegal threads num value %d", newtn);
+		PRINT_ERROR("Illegal threads num value %d", newtn);
 		res = -EINVAL;
 		goto out_up_thr_free;
 	}
@@ -789,7 +789,7 @@ static ssize_t scst_proc_threads_write(struct file *file, const char __user *buf
 	else
 		__scst_add_cmd_threads(delta);
 
-	PRINT_INFO_PR("Changed cmd threads num: old %d, new %d", oldtn, newtn);
+	PRINT_INFO("Changed cmd threads num: old %d, new %d", oldtn, newtn);
 
 out_up_thr_free:
 	mutex_unlock(&scst_threads_info.cmd_threads_mutex);
@@ -812,7 +812,7 @@ int scst_build_proc_target_dir_entries(struct scst_tgt_template *vtt)
 	/* create the proc directory entry for the device */
 	vtt->proc_tgt_root = proc_mkdir(vtt->name, scst_proc_scsi_tgt);
 	if (vtt->proc_tgt_root == NULL) {
-		PRINT_ERROR_PR("Not enough memory to register SCSI target %s "
+		PRINT_ERROR("Not enough memory to register SCSI target %s "
 		    "in /proc/%s", vtt->name, SCST_PROC_ENTRY_NAME);
 		goto out_nomem;
 	}
@@ -853,7 +853,7 @@ int scst_build_proc_target_entries(struct scst_tgt *vtt)
 					   name,
 					   &scst_scsi_tgt_proc_data);
 		if (p == NULL) {
-			PRINT_ERROR_PR("Not enough memory to register SCSI "
+			PRINT_ERROR("Not enough memory to register SCSI "
 			     "target entry %s in /proc/%s/%s", name,
 			     SCST_PROC_ENTRY_NAME, vtt->tgtt->name);
 			res = -ENOMEM;
@@ -954,7 +954,7 @@ int scst_build_proc_dev_handler_dir_entries(struct scst_dev_type *dev_type)
 	dev_type->proc_dev_type_root = proc_mkdir(dev_type->name,
 						  scst_proc_scsi_tgt);
 	if (dev_type->proc_dev_type_root == NULL) {
-		PRINT_ERROR_PR("Not enough memory to register dev handler dir "
+		PRINT_ERROR("Not enough memory to register dev handler dir "
 		    "%s in /proc/%s", dev_type->name, SCST_PROC_ENTRY_NAME);
 		goto out_nomem;
 	}
@@ -965,7 +965,7 @@ int scst_build_proc_dev_handler_dir_entries(struct scst_dev_type *dev_type)
 				   SCST_PROC_DEV_HANDLER_TYPE_ENTRY_NAME,
 				   &scst_dev_handler_type_proc_data);
 		if (p == NULL) {
-			PRINT_ERROR_PR("Not enough memory to register dev "
+			PRINT_ERROR("Not enough memory to register dev "
 			     "handler entry %s in /proc/%s/%s",
 			     SCST_PROC_DEV_HANDLER_TYPE_ENTRY_NAME,
 			     SCST_PROC_ENTRY_NAME, dev_type->name);
@@ -980,7 +980,7 @@ int scst_build_proc_dev_handler_dir_entries(struct scst_dev_type *dev_type)
 					   dev_type->name,
 					   &scst_dev_handler_proc_data);
 		if (p == NULL) {
-			PRINT_ERROR_PR("Not enough memory to register dev "
+			PRINT_ERROR("Not enough memory to register dev "
 			     "handler entry %s in /proc/%s/%s", dev_type->name,
 			     SCST_PROC_ENTRY_NAME, dev_type->name);
 			goto out_remove1;
@@ -1135,7 +1135,7 @@ static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file, const char __user
 		p += 10;
 		action = SCST_PROC_ACTION_DEL_GROUP;
 	} else {
-		PRINT_ERROR_PR("Unknown action \"%s\"", p);
+		PRINT_ERROR("Unknown action \"%s\"", p);
 		res = -EINVAL;
 		goto out_free;
 	}
@@ -1151,7 +1151,7 @@ static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file, const char __user
 	case SCST_PROC_ACTION_ADD_GROUP:
 	case SCST_PROC_ACTION_DEL_GROUP:
 		if (strcmp(p, SCST_DEFAULT_ACG_NAME) == 0) {
-			PRINT_ERROR_PR("Attempt to add/delete predefined "
+			PRINT_ERROR("Attempt to add/delete predefined "
 				"group \"%s\"", p);
 			res = -EINVAL;
 			goto out_up_free;
@@ -1167,7 +1167,7 @@ static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file, const char __user
 		switch (action) {
 		case SCST_PROC_ACTION_ADD_GROUP:
 			if (acg) {
-				PRINT_ERROR_PR("acg name %s exist", p);
+				PRINT_ERROR("acg name %s exist", p);
 				res = -EINVAL;
 				goto out_up_free;
 			}
@@ -1175,7 +1175,7 @@ static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file, const char __user
 			break;
 		case SCST_PROC_ACTION_DEL_GROUP:
 			if (acg == NULL) {
-				PRINT_ERROR_PR("acg name %s not found", p);
+				PRINT_ERROR("acg name %s not found", p);
 				res = -EINVAL;
 				goto out_up_free;
 			}
@@ -1264,7 +1264,7 @@ static int scst_proc_assign_handler(char *buf)
 	}
 
 	if (dev == NULL) {
-		PRINT_ERROR_PR("Device %ld:%ld:%ld:%ld not found",
+		PRINT_ERROR("Device %ld:%ld:%ld:%ld not found",
 			       host, channel, id, lun);
 		res = -EINVAL;
 		goto out;
@@ -1280,13 +1280,13 @@ static int scst_proc_assign_handler(char *buf)
 	}
 
 	if (handler == NULL) {
-		PRINT_ERROR_PR("Handler %s not found", e);
+		PRINT_ERROR("Handler %s not found", e);
 		res = -EINVAL;
 		goto out;
 	}
 
 	if (dev->scsi_dev->type != handler->type) {
-		PRINT_ERROR_PR("Type %d of device %s differs from type "
+		PRINT_ERROR("Type %d of device %s differs from type "
 			"%d of dev handler %s", dev->handler->type, 
 			dev->handler->name, handler->type, handler->name);
 		res = -EINVAL;
@@ -1300,7 +1300,7 @@ out:
 	return res;
 
 out_synt_err:
-	PRINT_ERROR_PR("Syntax error on %s", p);
+	PRINT_ERROR("Syntax error on %s", p);
 	res = -EINVAL;
 	goto out;
 }
@@ -1359,7 +1359,7 @@ static ssize_t scst_proc_groups_devices_write(struct file *file, const char __us
 		p += 4;
 		action = SCST_PROC_ACTION_DEL;
 	} else {
-		PRINT_ERROR_PR("Unknown action \"%s\"", p);
+		PRINT_ERROR("Unknown action \"%s\"", p);
 		res = -EINVAL;
 		goto out_free;
 	}
@@ -1416,9 +1416,9 @@ static ssize_t scst_proc_groups_devices_write(struct file *file, const char __us
 		}
 		if (dev == NULL) {
 			if (virt) {
-				PRINT_ERROR_PR("Virt device %s not found", p);
+				PRINT_ERROR("Virt device %s not found", p);
 			} else {
-				PRINT_ERROR_PR("Device %d:%d:%d:%d not found",
+				PRINT_ERROR("Device %d:%d:%d:%d not found",
 					       host, channel, id, lun);
 			}
 			res = -EINVAL;
@@ -1453,21 +1453,21 @@ static ssize_t scst_proc_groups_devices_write(struct file *file, const char __us
 		}
 		if (acg_dev) {
 			acg_dev = acg_dev_tmp;
-			PRINT_ERROR_PR("virt lun %d exist in group %s",
+			PRINT_ERROR("virt lun %d exist in group %s",
 				       virt_lun, acg->acg_name);
 			res = -EINVAL;
 			goto out_free_up;
 		}
 		rc = scst_acg_add_dev(acg, dev, virt_lun, read_only);
 		if (rc) {
-			PRINT_ERROR_PR("scst_acg_add_dev() returned %d", rc);
+			PRINT_ERROR("scst_acg_add_dev() returned %d", rc);
 			res = rc;
 		}
 		break;
 	case SCST_PROC_ACTION_DEL:
 		rc = scst_acg_remove_dev(acg, dev);
 		if (rc) {
-			PRINT_ERROR_PR("scst_acg_remove_dev() returned %d", rc);
+			PRINT_ERROR("scst_acg_remove_dev() returned %d", rc);
 			res = rc;
 		}
 		break;
@@ -1477,7 +1477,7 @@ static ssize_t scst_proc_groups_devices_write(struct file *file, const char __us
 					 acg_dev_list_entry) {
 			rc = scst_acg_remove_dev(acg, acg_dev->dev);
 			if (rc) {
-				PRINT_ERROR_PR("scst_acg_remove_dev() "
+				PRINT_ERROR("scst_acg_remove_dev() "
 					       "return %d", rc);
 				res = rc;
 			}
@@ -1550,7 +1550,7 @@ static ssize_t scst_proc_groups_names_write(struct file *file, const char __user
 		p += 4;
 		action = SCST_PROC_ACTION_DEL;
 	} else {
-		PRINT_ERROR_PR("Unknown action \"%s\"", p);
+		PRINT_ERROR("Unknown action \"%s\"", p);
 		res = -EINVAL;
 		goto out_free;
 	}
@@ -1991,7 +1991,7 @@ struct proc_dir_entry *scst_create_proc_entry(struct proc_dir_entry * root,
 		mode  = S_IFREG | S_IRUGO | ((pdata->seq_op.write) ? S_IWUSR : 0);
 		p = create_proc_entry(name, mode, root);
 		if (p == NULL) {
-			PRINT_ERROR_PR("Fail to create entry %s in /proc", name);
+			PRINT_ERROR("Fail to create entry %s in /proc", name);
 		} else {
 			p->proc_fops = &pdata->seq_op;
 			p->data = pdata->data;

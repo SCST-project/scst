@@ -125,9 +125,16 @@
 #define PRINT(log_flag, format, args...)  printk(log_flag format "\n", ## args);
 #define PRINTN(log_flag, format, args...) printk(log_flag format, ## args);
 
+#ifdef LOG_PREFIX
+#define __LOG_PREFIX	LOG_PREFIX
+#else
+#define __LOG_PREFIX	NULL
+#endif
+
 #if defined(DEBUG) || defined(TRACING)
 
-extern int debug_print_prefix(unsigned long trace_flag, const char *func, int line);
+extern int debug_print_prefix(unsigned long trace_flag, const char *prefix,
+		const char *func, int line);
 extern void debug_print_buffer(const void *data, int len);
 
 #define TRACE(trace, format, args...)                               \
@@ -135,7 +142,8 @@ do {                                                                \
   if (trace_flag & (trace))                                         \
   {                                                                 \
     char *__tflag = LOG_FLAG;                                       \
-    if (debug_print_prefix(trace_flag, __FUNCTION__, __LINE__) > 0) \
+    if (debug_print_prefix(trace_flag, __LOG_PREFIX, __FUNCTION__,  \
+                            __LINE__) > 0)                          \
     {                                                               \
       __tflag = NO_FLAG;                                            \
     }                                                               \
@@ -148,7 +156,8 @@ do {                                                                \
   char *__tflag = log_flag;                                         \
   if (trace_flag & (trace))                                         \
   {                                                                 \
-    if (debug_print_prefix(trace_flag, __FUNCTION__, __LINE__) > 0) \
+    if (debug_print_prefix(trace_flag, __LOG_PREFIX, __FUNCTION__,  \
+                            __LINE__) > 0)                          \
     {                                                               \
       __tflag = NO_FLAG;                                            \
     }                                                               \
@@ -161,7 +170,8 @@ do {                                                                \
   if (trace_flag & TRACE_BUFF)                                      \
   {                                                                 \
     char *__tflag = LOG_FLAG;                                       \
-    if (debug_print_prefix(trace_flag, __FUNCTION__, __LINE__) > 0) \
+    if (debug_print_prefix(trace_flag, __LOG_PREFIX, __FUNCTION__,  \
+                            __LINE__) > 0)                          \
     {                                                               \
       __tflag = NO_FLAG;                                            \
     }                                                               \
@@ -175,7 +185,8 @@ do {                                                                \
   if (trace_flag & (flag))                                          \
   {                                                                 \
     char *__tflag = LOG_FLAG;                                       \
-    if (debug_print_prefix(trace_flag, __FUNCTION__, __LINE__) > 0) \
+    if (debug_print_prefix(trace_flag, __LOG_PREFIX, __FUNCTION__,  \
+                            __LINE__) > 0)                          \
     {                                                               \
       __tflag = NO_FLAG;                                            \
     }                                                               \
@@ -199,7 +210,8 @@ do {                                                                \
   if (trace_flag & TRACE_MEMORY)                                    \
   {                                                                 \
     char *__tflag = LOG_FLAG;                                       \
-    if (debug_print_prefix(trace_flag, __FUNCTION__, __LINE__) > 0) \
+    if (debug_print_prefix(trace_flag, __LOG_PREFIX, __FUNCTION__,  \
+                            __LINE__) > 0)                          \
     {                                                               \
       __tflag = NO_FLAG;                                            \
     }                                                               \
@@ -212,7 +224,8 @@ do {                                                                \
   if (trace_flag & TRACE_DEBUG)                                     \
   {                                                                 \
     char *__tflag = LOG_FLAG;                                       \
-    if (debug_print_prefix(trace_flag, __FUNCTION__, __LINE__) > 0) \
+    if (debug_print_prefix(trace_flag, __LOG_PREFIX, __FUNCTION__,  \
+                            __LINE__) > 0)                          \
     {                                                               \
       __tflag = NO_FLAG;                                            \
     }                                                               \
@@ -225,7 +238,8 @@ do {                                                                \
   if (trace_flag & (TRACE_DEBUG|TRACE_SPECIAL))                     \
   {                                                                 \
     char *__tflag = LOG_FLAG;                                       \
-    if (debug_print_prefix(trace_flag, __FUNCTION__, __LINE__) > 0) \
+    if (debug_print_prefix(trace_flag, __LOG_PREFIX, __FUNCTION__,  \
+                            __LINE__) > 0)                          \
     {                                                               \
       __tflag = NO_FLAG;                                            \
     }                                                               \
@@ -238,7 +252,8 @@ do {                                                                \
   if (trace_flag & TRACE_MGMT_DEBUG)                                \
   {                                                                 \
     char *__tflag = LOG_FLAG;                                       \
-    if (debug_print_prefix(trace_flag, __FUNCTION__, __LINE__) > 0) \
+    if (debug_print_prefix(trace_flag, __LOG_PREFIX, __FUNCTION__,  \
+                            __LINE__) > 0)                          \
     {                                                               \
       __tflag = NO_FLAG;                                            \
     }                                                               \
@@ -251,34 +266,13 @@ do {                                                                \
   if (trace_flag & (TRACE_MGMT_DEBUG|TRACE_SPECIAL))                \
   {                                                                 \
     char *__tflag = LOG_FLAG;                                       \
-    if (debug_print_prefix(trace_flag, __FUNCTION__, __LINE__) > 0) \
+    if (debug_print_prefix(trace_flag, __LOG_PREFIX, __FUNCTION__,  \
+                            __LINE__) > 0)                          \
     {                                                               \
       __tflag = NO_FLAG;                                            \
     }                                                               \
     PRINT(NO_FLAG, "%s" format, __tflag, args);                     \
   }                                                                 \
-} while(0)
-
-#define PRINT_ERROR_PR(format, args...)                             \
-do {                                                                \
-  if (ERROR_FLAG != LOG_FLAG)                                       \
-  {                                                                 \
-    TRACE_LOG_FLAG(LOG_FLAG, trace_flag, "%s: ***ERROR*** " format, \
-    	LOG_PREFIX, args);			                    \
-  }                                                                 \
-  TRACE_LOG_FLAG(ERROR_FLAG, trace_flag, "%s: ***ERROR*** " format, \
-  	LOG_PREFIX, args);			                    \
-} while(0)
-
-#define PRINT_INFO_PR(format, args...)          \
-do {                                            \
-  if (INFO_FLAG != LOG_FLAG)                    \
-  {                                             \
-    TRACE_LOG_FLAG(LOG_FLAG, trace_flag, "%s: " \
-    	format, LOG_PREFIX, args);		\
-  }                                             \
-  TRACE_LOG_FLAG(INFO_FLAG, trace_flag, "%s: "	\
-  	format, LOG_PREFIX, args);		\
 } while(0)
 
 #define PRINT_ERROR(format, args...)		                       \
@@ -375,16 +369,20 @@ do {                                                              \
 #define TRACE_EXIT_RES(res) {}
 #define TRACE_EXIT_HRES(res) {}
 
-#define PRINT_INFO_PR(format, args...)               \
+#ifdef LOG_PREFIX
+
+#define PRINT_INFO(format, args...)                  \
 do {                                                 \
   PRINT(INFO_FLAG, "%s: " format, LOG_PREFIX, args); \
 } while(0)
 
-#define PRINT_ERROR_PR(format, args...)         \
+#define PRINT_ERROR(format, args...)            \
 do {                                            \
   PRINT(ERROR_FLAG, "%s: ***ERROR*** "          \
         format, LOG_PREFIX, args);              \
 } while(0)
+
+#else
 
 #define PRINT_INFO(format, args...)           	\
 do {                                            \
@@ -396,6 +394,8 @@ do {                                            \
   PRINT(ERROR_FLAG, "***ERROR*** "              \
         format, args);                          \
 } while(0)
+
+#endif /* LOG_PREFIX */
 
 #endif /* DEBUG */
 
