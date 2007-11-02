@@ -148,35 +148,11 @@
 typedef struct bus bus_t;
 typedef struct initiator ini_t;
 
-/* this is very experimental, need review and tests */
-//#define NO_AUTOSENSE 1
-
 struct initiator {
     ini_t *                 ini_next;
     bus_t *                 ini_bus;        /* backpointer to containing bus */
     uint64_t                ini_iid;        /* initiator identifier */
     struct scst_session *   ini_scst_sess;  /* sesson established by this remote initiator */ 
-#ifdef NO_AUTOSENSE
-    /*
-     * There are cases when Autosense not work for some reason, at least for 24xx chipsets.
-     * This is workaround. Here we do not try to send sense in autosense mode. Insted if 
-     * command terminate with "check status" (FIXME: some other should be attended too?) 
-     * we turn on CA (Contingent allegiance) condition and save sense. In SCSI standarts v2 
-     * (v3 tell autosense must work) CA condition finish when any new command arrive to target, 
-     * but we do differently, we reject  any new command except REQUEST_SENSE with "busy" status. 
-     * All commands returned from upper SCST layer are queued and wait for CA finish. If we get 
-     * REQUEST_SENSE we send saved sense data and finish CA condition. Task management functions
-     * finish CA too. We assume initiator will send REQUEST SENSE command or task management 
-     * functions. Other solution will be limit command queue to 1 and finish CA when any new 
-     * command arrive, but this may degrade performance.
-     */
-    int                     ini_ca_cond;    /* is contingent allegiance condition on */
-    spinlock_t              ini_ca_lock;    
-    tmd_cmd_t *             ini_ca_front;   /* list of finished command by SCST under Contingent Allegiance condition */ 
-    tmd_cmd_t *             ini_ca_tail;    
-    uint8_t                 ini_sense[TMD_SENSELEN]; /* saved sense */
-    struct scatterlist      ini_sense_sg;   /* saved sense passed to low level driver */
-#endif
 };
 
 #define    HASH_WIDTH    16
@@ -189,9 +165,6 @@ struct bus {
     hba_register_t *    unreg_hp;           /* help to synchronize low level and SCST unregistration */
     int                 enable;             /* is target mode enabled in low level driver */
     int                 need_reg;           /* before SCST registration */
-#ifdef NO_AUTOSENSE
-    int                 no_autosense;       /* autosense not work for this hba */
-#endif
 };
 
 #define    SDprintk     if (scsi_tdebug) printk
@@ -365,14 +338,6 @@ add_ini(bus_t *bp, uint64_t iid, ini_t *nptr)
     nptr->ini_bus = (struct bus *) bp;
     nptr->ini_next = *ptrlptr;
 
-#ifdef NO_AUTOSENSE
-    nptr->ini_ca_cond = 0;
-    spin_lock_init(&nptr->ini_ca_lock);
-    nptr->ini_sense_sg.page = virt_to_page(nptr->ini_sense);
-    nptr->ini_sense_sg.offset = offset_in_page(nptr->ini_sense);
-    nptr->ini_sense_sg.length = TMD_SENSELEN;
-#endif
-
     *ptrlptr = nptr;
 }
 
@@ -421,186 +386,6 @@ schedule_unregister_scst(void)
     unregister_scst_flg = 1;
     up(&scsi_thread_sleep_semaphore);
 }
-
-#ifdef NO_AUTOSENSE 
-
-static int
-ca_xmit_response(bus_t *bp, tmd_cmd_t *tmd)
-{
-    if (bp->no_autosense) {
-        ini_t *ini;
-        unsigned long flags;
-
-        ini = ini_from_tmd(bp, tmd);
-        EXTRACHECKS_BUG_ON(!ini);
-        spin_lock_irqsave(&ini->ini_ca_lock, flags);
-        if (ini->ini_ca_cond) {
-            /* we are under Contingent Allegiance condition, save finished command 
-             * with all state: status, data, sense. As long we not call scst_tgt_cmd_done()
-             * scst will keep all data and scst task mgmt functions will work
-             */
-            tmd->cd_hnext = NULL;
-            if (!ini->ini_ca_front) {
-                ini->ini_ca_front = tmd;
-            } else {
-                ini->ini_ca_tail->cd_hnext = tmd;
-            }
-            ini->ini_ca_tail = tmd;
-        
-            spin_unlock_irqrestore(&ini->ini_ca_lock, flags);
-            return (0);
-        } else {
-            if ((tmd->cd_hflags & CDFH_STSVALID) && (tmd->cd_scsi_status == SCSI_CHECK)) {
-                ini->ini_ca_cond = 1; 
-                /* save sense and send only status (check condition) for this command */
-                memcpy(ini->ini_sense, tmd->cd_sense, TMD_SENSELEN);
-                tmd->cd_xfrlen = 0;
-                tmd->cd_hflags &= ~CDFH_DATA_MASK;
-            }
-        }
-        spin_unlock_irqrestore(&ini->ini_ca_lock, flags);
-    
-    } else {
-        if ((tmd->cd_hflags & CDFH_STSVALID) && (tmd->cd_scsi_status == SCSI_CHECK)) {
-            tmd->cd_xfrlen = 0;
-            tmd->cd_hflags &= ~CDFH_DATA_MASK;
-            tmd->cd_hflags |= CDFH_SNSVALID;
-        }
-    }
-    
-    (*bp->h.r_action)(QIN_TMD_CONT, xfr);
-    return (0);
-}
-
-static void
-ca_finish(bus_t *bp, ini_t *ini)
-{
-    tmd_cmd_t *tmd;
-    unsigned long flags;
-
-    if (!bp->no_autosense) {
-        return;
-    }
-
-    spin_lock_irqsave(&ini->ini_ca_lock, flags);
-    while (ini->ini_ca_front && !ini->ini_ca_cond) {
-        tmd = ini->ini_ca_front;
-        ini->ini_ca_front = tmd->cd_hnext;
-        spin_unlock_irqrestore(&ini->ini_ca_lock, flags);
-        
-        ca_xmit_response(bp, tmd);  
-        
-        spin_lock_irqsave(&ini->ini_ca_lock, flags);
-    }   
-
-    if (ini->ini_ca_front == NULL) {
-        ini->ini_ca_tail = NULL;
-    }
-    spin_unlock_irqrestore(&ini->ini_ca_lock, flags);
-}
-
-static void 
-ca_abort_task(bus_t *bp, ini_t *ini, uint64_t tagval)
-{    
-    tmd_cmd_t *tmd, *prev_tmd;
-    unsigned long flags;
-    
-    if (!bp->no_autosense) {
-        return;
-    }
-
-    spin_lock_irqsave(&ini->ini_ca_lock, flags);
-    tmd = ini->ini_ca_front;
-    if (!tmd) {
-        goto out;
-    }
-    
-    if (tmd->cd_tagval == tagval) {
-        ini->ini_ca_front = tmd->cd_hnext;
-        goto out;
-    }
-   
-    while (1) {
-        prev_tmd = tmd;
-        tmd = tmd->cd_hnext;
-        if (!tmd)
-            goto out;
-
-        if (tmd->cd_tagval == tagval) {
-            prev_tmd->cd_hnext = tmd->cd_hnext;
-            goto out;
-        }   
-    } 
-
-out:
-    if (ini->ini_ca_front == NULL) {
-        ini->ini_ca_tail = NULL;
-    }
-    spin_unlock_irqrestore(&ini->ini_ca_lock, flags);
-}
-
-static void
-ca_abort_all_tasks(bus_t *bp, ini_t *ini, uint16_t lun)
-{
-    tmd_cmd_t *tmd, *next_tmd;
-    unsigned long flags;
-
-    if (!bp->no_autosense) {
-        return;
-    }
-   
-    spin_lock_irqsave(&ini->ini_ca_lock, flags);
-    tmd = ini->ini_ca_front;
-    while (tmd && L0LUN_TO_FLATLUN(tmd->cd_lun) == lun) {
-        ini->ini_ca_front = tmd->cd_hnext;
-        tmd->cd_hnext = NULL;
-        tmd = ini->ini_ca_front;
-    }
-
-    if (!tmd) {
-        goto out;
-    }
-
-    next_tmd = tmd->cd_hnext;
-    while (next_tmd) {
-        if (L0LUN_TO_FLATLUN(next_tmd->cd_lun) == lun) {
-            tmd->cd_hnext = next_tmd->cd_hnext;
-            next_tmd->cd_hnext = NULL;
-        } else {
-            tmd = next_tmd;
-            next_tmd = tmd->cd_hnext;
-        }
-    } 
-
-out:
-    if (ini->ini_ca_front == NULL) { 
-        ini->ini_ca_tail = NULL;
-    }
-    spin_unlock_irqrestore(&ini->ini_ca_lock, flags);
-}
-
-#else // NO_AUTOSENSE
-
-static int
-ca_xmit_response(bus_t *bp, tmd_cmd_t *tmd)
-{
-    tmd_xfr_t *xfr = &tmd->cd_xfr;
-
-    if ((xfr->td_hflags & TDFH_STSVALID) && (tmd->cd_scsi_status == SCSI_CHECK)) {
-        xfr->td_xfrlen = 0;
-        xfr->td_hflags &= ~TDFH_DATA_MASK;
-        xfr->td_hflags |= TDFH_SNSVALID;
-    }
-    
-    (*bp->h.r_action)(QIN_TMD_CONT, xfr);
-    return (0);
-}
-
-#define ca_finish(bp, ini)                  do { } while (0)
-#define ca_abort_task(bp, ini, tagval)      do { } while (0)
-#define ca_abort_all_tasks(bp, ini, lun)    do { } while (0)
-
-#endif // NO_AUTOSENSE 
 
 static int    
 scsi_target_rx_cmd(ini_t *ini, tmd_cmd_t *tmd, int from_intr)
@@ -719,33 +504,9 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
         spin_unlock_irqrestore(&scsi_target_lock, flags);
     }
 
-#ifdef NO_AUTOSENSE 
-    if (bp->no_autosense) {
-        spin_lock_irqsave(&ini->ini_ca_lock, flags);    
-        if (ini->ini_ca_cond) {
-            spin_unlock_irqrestore(&ini->ini_ca_lock, flags);
-            // FIXME: other commands which finish contingent allegiance
-            if (tmd->cd_cdb[0] == REQUEST_SENSE) {
-                tmd->cd_data = &ini->ini_sense_sg; 
-                tmd->cd_xfrlen = TMD_SENSELEN; 
-                tmd->cd_hflags |= CDFH_STSVALID | CDFH_DATA_IN;
-                tmd->cd_scsi_status = SCSI_GOOD;
-
-                (*bp->h.r_action)(QIN_TMD_CONT, xfr);
-                return;
-            } else {
-                /* we send bussy in CA, this not conform any version of scsi standard */
-                goto err; 
-            }
-        } else {
-            spin_unlock_irqrestore(&ini->ini_ca_lock, flags);
-        }
+    if (unlikely(tmd->cd_cdb[0] == REQUEST_SENSE)) { 
+        Eprintk("REQUEST SENSE in auto sense mode !?!\n");
     }
-#else
-    if (tmd->cd_cdb[0] == REQUEST_SENSE) { 
-        Eprintk("REQUEST SENSE in auto sense mode !?! Maybe compile with NO_AUTOSENSE flag.\n");
-    }
-#endif
 
     ret = scsi_target_rx_cmd(ini, tmd, from_intr);
     if (ret < 0) 
@@ -769,38 +530,10 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
     struct scst_cmd *scst_cmd;
     tmd_xfr_t *xfr = &tmd->cd_xfr; 
 
-    SDprintk2("scsi_target: TMD_DONE[%llx] %p hf %x lf %x xfrlen %d\n",
-              tmd->cd_tagval, tmd, xfr->td_hflags, xfr->td_lflags, xfr->td_xfrlen);
+    SDprintk2("scsi_target: TMD_DONE[%llx] %p hf %x lf %x xfrlen %d totlen %d moved %d\n",
+              tmd->cd_tagval, tmd, xfr->td_hflags, xfr->td_lflags, xfr->td_xfrlen, tmd->cd_totlen, tmd->cd_moved);
    
     bp = tmd->cd_bus;
-
-#ifdef NO_AUTOSENSE
-    if (bp->no_autosense && tmd->cd_cdb[0] == REQUEST_SENSE) {
-        unsigned long flags;
-        ini_t *ini;
-        
-        if (xfr->td_lflags & TDFL_ERROR) {
-            Eprintk("Transport error when reponse REQUEST_SENSE command");
-            SDprintk("%s: TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
-            (*bp->h.r_action)(QIN_TMD_FIN, tmd);
-            return;
-        }
-            
-        /* sense was transfered, we may exit now from CA */
-        ini = ini_from_tmd(bp, tmd);
-        EXTRACHECKS_BUG_ON(!ini);
-        EXTRACHECKS_BUG_ON(xfr->td_data != &ini->ini_sense_sg);
-        SDprintk("%s: TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
-        (*bp->h.r_action)(QIN_TMD_FIN, tmd);
-                
-        spin_lock_irqsave(&ini->ini_ca_lock, flags);
-        ini->ini_ca_cond = 0;
-        spin_unlock_irqrestore(&ini->ini_ca_lock, flags);
-        ca_finish(bp, ini);
-        return;
-    }
-#endif 
-    
     scst_cmd = tmd->cd_scst_cmd; 
     if (!scst_cmd) {
         /* command returned by us with status BUSY */
@@ -819,15 +552,19 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
     }
    
     if (xfr->td_hflags & TDFH_DATA_OUT) {
-        if (xfr->td_xfrlen) {
-            int rx_status = SCST_RX_STATUS_SUCCESS;
+        if (tmd->cd_totlen == tmd->cd_moved) {
+            if (xfr->td_xfrlen) {
+                int rx_status = SCST_RX_STATUS_SUCCESS;
             
-            if (xfr->td_error) {
-                rx_status = SCST_RX_STATUS_ERROR;
+                if (xfr->td_error) {
+                    rx_status = SCST_RX_STATUS_ERROR;
+                }
+                scst_rx_data(scst_cmd, SCST_RX_STATUS_SUCCESS, SCST_CONTEXT_TASKLET);
+            } else {
+                scst_tgt_cmd_done(scst_cmd);
             }
-            scst_rx_data(scst_cmd, SCST_RX_STATUS_SUCCESS, SCST_CONTEXT_TASKLET);
         } else {
-            scst_tgt_cmd_done(scst_cmd);
+            ; /* we don't have all data, do nothing */  
         }
     } else if (xfr->td_hflags & TDFH_DATA_IN) {
         xfr->td_hflags &= ~TDFH_DATA_MASK;
@@ -871,8 +608,6 @@ scsi_target_notify(tmd_notify_t *np)
             }
             tagval = np->nt_tagval; /* after scst return "np" may not be valid */
             scst_rx_mgmt_fn_tag(ini->ini_scst_sess, SCST_ABORT_TASK, np->nt_tagval, 1, np); 
-            ca_abort_task(bp, ini, tagval);
-            ca_finish(bp, ini);
             return; 
         case NT_ABORT_TASK_SET:
         case NT_CLEAR_TASK_SET:
@@ -917,8 +652,6 @@ scsi_target_notify(tmd_notify_t *np)
     // FIXME: ca_abort_task when LUN_ANY, INI_ANY, TARGET_RESET and so on !!!
     FLATLUN_TO_L0LUN(lunbuf, lun);
     scst_rx_mgmt_fn_lun(ini->ini_scst_sess, fn, lunbuf, sizeof(lunbuf), 1, np);
-    ca_abort_all_tasks(bp, ini, lun);
-    ca_finish(bp, ini);
 }
 
 void
@@ -949,12 +682,6 @@ scsi_target_handler(qact_e action, void *arg)
             break;
         }
         bp->h = *hp;
-#ifdef NO_AUTOSENSE
-        // FIXME: on some 24xx cards autosense may work so this should be user selectable  
-        if (IS_24XX((ispsoftc_t *)hp->r_identity)) {
-            bp->no_autosense = 1;
-        }
-#endif
         bp->need_reg = 1;
         spin_unlock_irqrestore(&scsi_target_lock, flags);
         schedule_register_scst();
@@ -1226,7 +953,14 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
     }
 
 out:
-    return ca_xmit_response(bp, tmd);
+    if ((xfr->td_hflags & TDFH_STSVALID) && (tmd->cd_scsi_status == SCSI_CHECK)) {
+        xfr->td_xfrlen = 0;
+        xfr->td_hflags &= ~TDFH_DATA_MASK;
+        xfr->td_hflags |= TDFH_SNSVALID;
+    }
+    
+    (*bp->h.r_action)(QIN_TMD_CONT, xfr);
+    return (0);
 }
 
 static void
