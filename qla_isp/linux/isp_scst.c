@@ -117,6 +117,7 @@
 /* usefull pointers when data is processed */
 #define cd_scst_cmd      cd_hreserved[0].ptrs[0]
 #define cd_bus           cd_hreserved[1].ptrs[0]
+#define cd_hnext         cd_hreserved[2].ptrs[0]
 
 #ifndef SCSI_GOOD
 #define SCSI_GOOD   0x0
@@ -386,9 +387,9 @@ static __inline void
 scsi_cmd_sched_restart_locked(tmd_cmd_t *tmd, int donotify, const char *msg)
 {
     SDprintk("scsi_cmd_sched_restart[%llx]: %s\n", tmd->cd_tagval, msg);
-    tmd->cd_private = NULL;
+    tmd->cd_hnext = NULL;
     if (p_front) {
-        p_last->cd_private = tmd;
+        p_last->cd_hnext = tmd;
     } else {
         p_front = tmd;
     }
@@ -438,11 +439,11 @@ ca_xmit_response(bus_t *bp, tmd_cmd_t *tmd)
              * with all state: status, data, sense. As long we not call scst_tgt_cmd_done()
              * scst will keep all data and scst task mgmt functions will work
              */
-            tmd->cd_private = NULL;
+            tmd->cd_hnext = NULL;
             if (!ini->ini_ca_front) {
                 ini->ini_ca_front = tmd;
             } else {
-                ini->ini_ca_tail->cd_private = tmd;
+                ini->ini_ca_tail->cd_hnext = tmd;
             }
             ini->ini_ca_tail = tmd;
         
@@ -467,7 +468,7 @@ ca_xmit_response(bus_t *bp, tmd_cmd_t *tmd)
         }
     }
     
-    (*bp->h.r_action)(QIN_TMD_CONT, tmd);
+    (*bp->h.r_action)(QIN_TMD_CONT, xfr);
     return (0);
 }
 
@@ -484,7 +485,7 @@ ca_finish(bus_t *bp, ini_t *ini)
     spin_lock_irqsave(&ini->ini_ca_lock, flags);
     while (ini->ini_ca_front && !ini->ini_ca_cond) {
         tmd = ini->ini_ca_front;
-        ini->ini_ca_front = tmd->cd_private;
+        ini->ini_ca_front = tmd->cd_hnext;
         spin_unlock_irqrestore(&ini->ini_ca_lock, flags);
         
         ca_xmit_response(bp, tmd);  
@@ -515,18 +516,18 @@ ca_abort_task(bus_t *bp, ini_t *ini, uint64_t tagval)
     }
     
     if (tmd->cd_tagval == tagval) {
-        ini->ini_ca_front = tmd->cd_private;
+        ini->ini_ca_front = tmd->cd_hnext;
         goto out;
     }
    
     while (1) {
         prev_tmd = tmd;
-        tmd = tmd->cd_private;
+        tmd = tmd->cd_hnext;
         if (!tmd)
             goto out;
 
         if (tmd->cd_tagval == tagval) {
-            prev_tmd->cd_private = tmd->cd_private;
+            prev_tmd->cd_hnext = tmd->cd_hnext;
             goto out;
         }   
     } 
@@ -551,8 +552,8 @@ ca_abort_all_tasks(bus_t *bp, ini_t *ini, uint16_t lun)
     spin_lock_irqsave(&ini->ini_ca_lock, flags);
     tmd = ini->ini_ca_front;
     while (tmd && L0LUN_TO_FLATLUN(tmd->cd_lun) == lun) {
-        ini->ini_ca_front = tmd->cd_private;
-        tmd->cd_private = NULL;
+        ini->ini_ca_front = tmd->cd_hnext;
+        tmd->cd_hnext = NULL;
         tmd = ini->ini_ca_front;
     }
 
@@ -560,14 +561,14 @@ ca_abort_all_tasks(bus_t *bp, ini_t *ini, uint16_t lun)
         goto out;
     }
 
-    next_tmd = tmd->cd_private;
+    next_tmd = tmd->cd_hnext;
     while (next_tmd) {
         if (L0LUN_TO_FLATLUN(next_tmd->cd_lun) == lun) {
-            tmd->cd_private = next_tmd->cd_private;
-            next_tmd->cd_private = NULL;
+            tmd->cd_hnext = next_tmd->cd_hnext;
+            next_tmd->cd_hnext = NULL;
         } else {
             tmd = next_tmd;
-            next_tmd = tmd->cd_private;
+            next_tmd = tmd->cd_hnext;
         }
     } 
 
@@ -583,13 +584,15 @@ out:
 static int
 ca_xmit_response(bus_t *bp, tmd_cmd_t *tmd)
 {
-    if ((tmd->cd_hflags & CDFH_STSVALID) && (tmd->cd_scsi_status == SCSI_CHECK)) {
-        tmd->cd_xfrlen = 0;
-        tmd->cd_hflags &= ~CDFH_DATA_MASK;
-        tmd->cd_hflags |= CDFH_SNSVALID;
+    tmd_xfr_t *xfr = &tmd->cd_xfr;
+
+    if ((xfr->td_hflags & TDFH_STSVALID) && (tmd->cd_scsi_status == SCSI_CHECK)) {
+        xfr->td_xfrlen = 0;
+        xfr->td_hflags &= ~TDFH_DATA_MASK;
+        xfr->td_hflags |= TDFH_SNSVALID;
     }
     
-    (*bp->h.r_action)(QIN_TMD_CONT, tmd);
+    (*bp->h.r_action)(QIN_TMD_CONT, xfr);
     return (0);
 }
 
@@ -635,9 +638,9 @@ scsi_target_rx_cmd(ini_t *ini, tmd_cmd_t *tmd, int from_intr)
     }
     
     dir = SCST_DATA_UNKNOWN; // bidirectional or no transfer
-    if ((tmd->cd_lflags & CDFL_DATA_OUT) && !(tmd->cd_lflags & CDFL_DATA_IN)) {
+    if ((tmd->cd_flags & CDF_DATA_OUT) && !(tmd->cd_flags & CDF_DATA_IN)) {
         dir = SCST_DATA_WRITE;
-    } else if (tmd->cd_lflags & CDFL_DATA_IN) {
+    } else if (tmd->cd_flags & CDF_DATA_IN) {
         dir = SCST_DATA_READ;
     }
     scst_cmd_set_expected(scst_cmd, dir, tmd->cd_totlen);
@@ -653,13 +656,7 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
     bus_t *bp;
     ini_t *ini;
     int ret;
-
-    tmd->cd_hflags = 0;
-    tmd->cd_scsi_status = SCSI_GOOD;
-    tmd->cd_data = NULL;
-    tmd->cd_xfrlen = 0;
-    tmd->cd_resid = tmd->cd_totlen;
-    tmd->cd_private = NULL;
+    tmd_xfr_t *xfr = &tmd->cd_xfr;
 
     /*
      * First, find the bus.
@@ -734,7 +731,7 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
                 tmd->cd_hflags |= CDFH_STSVALID | CDFH_DATA_IN;
                 tmd->cd_scsi_status = SCSI_GOOD;
 
-                (*bp->h.r_action)(QIN_TMD_CONT, tmd);
+                (*bp->h.r_action)(QIN_TMD_CONT, xfr);
                 return;
             } else {
                 /* we send bussy in CA, this not conform any version of scsi standard */
@@ -758,10 +755,10 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
 
 err:
     tmd->cd_scsi_status = SCSI_BUSY;
-    tmd->cd_hflags |= CDFH_STSVALID;
-    tmd->cd_hflags &= ~CDFH_DATA_MASK;
-    tmd->cd_xfrlen = 0;
-    (*bp->h.r_action)(QIN_TMD_CONT, tmd);
+    xfr->td_hflags |= TDFH_STSVALID;
+    xfr->td_hflags &= ~TDFH_DATA_MASK;
+    xfr->td_xfrlen = 0;
+    (*bp->h.r_action)(QIN_TMD_CONT, xfr);
     return;
 }
 
@@ -770,9 +767,10 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
 {
     bus_t *bp;
     struct scst_cmd *scst_cmd;
+    tmd_xfr_t *xfr = &tmd->cd_xfr; 
 
-    SDprintk2("scsi_target: TMD_DONE[%llx] %p hf %x lf %x xfrlen %d resid %d\n",
-              tmd->cd_tagval, tmd, tmd->cd_hflags, tmd->cd_lflags, tmd->cd_xfrlen, tmd->cd_resid);
+    SDprintk2("scsi_target: TMD_DONE[%llx] %p hf %x lf %x xfrlen %d\n",
+              tmd->cd_tagval, tmd, xfr->td_hflags, xfr->td_lflags, xfr->td_xfrlen);
    
     bp = tmd->cd_bus;
 
@@ -781,7 +779,7 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
         unsigned long flags;
         ini_t *ini;
         
-        if (tmd->cd_lflags & CDFL_ERROR) {
+        if (xfr->td_lflags & TDFL_ERROR) {
             Eprintk("Transport error when reponse REQUEST_SENSE command");
             SDprintk("%s: TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
             (*bp->h.r_action)(QIN_TMD_FIN, tmd);
@@ -791,7 +789,7 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
         /* sense was transfered, we may exit now from CA */
         ini = ini_from_tmd(bp, tmd);
         EXTRACHECKS_BUG_ON(!ini);
-        EXTRACHECKS_BUG_ON(tmd->cd_data != &ini->ini_sense_sg);
+        EXTRACHECKS_BUG_ON(xfr->td_data != &ini->ini_sense_sg);
         SDprintk("%s: TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
         (*bp->h.r_action)(QIN_TMD_FIN, tmd);
                 
@@ -811,33 +809,29 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
         return;
     }
  
-    if (tmd->cd_hflags & CDFH_STSVALID) {
-        if (tmd->cd_hflags & CDFH_DATA_IN) {
-            tmd->cd_hflags &= ~CDFH_DATA_MASK;
-            tmd->cd_xfrlen = 0;
+    if (xfr->td_hflags & TDFH_STSVALID) {
+        if (xfr->td_hflags & TDFH_DATA_IN) {
+            xfr->td_hflags &= ~TDFH_DATA_MASK;
+            xfr->td_xfrlen = 0;
         }
         scst_tgt_cmd_done(scst_cmd);
         return;
     }
    
-    if (tmd->cd_hflags & CDFH_DATA_OUT) {
-        if (tmd->cd_resid == 0) {
-            if (tmd->cd_xfrlen) {
-                int rx_status = SCST_RX_STATUS_SUCCESS;
-
-                if (tmd->cd_lflags & CDFL_ERROR) {
-                    rx_status = SCST_RX_STATUS_ERROR;
-                }
-                scst_rx_data(scst_cmd, SCST_RX_STATUS_SUCCESS, SCST_CONTEXT_TASKLET);
-            } else {
-                scst_tgt_cmd_done(scst_cmd);
+    if (xfr->td_hflags & TDFH_DATA_OUT) {
+        if (xfr->td_xfrlen) {
+            int rx_status = SCST_RX_STATUS_SUCCESS;
+            
+            if (xfr->td_error) {
+                rx_status = SCST_RX_STATUS_ERROR;
             }
+            scst_rx_data(scst_cmd, SCST_RX_STATUS_SUCCESS, SCST_CONTEXT_TASKLET);
         } else {
-            ; /* we don't have all data, do nothing */
+            scst_tgt_cmd_done(scst_cmd);
         }
-    } else if (tmd->cd_hflags & CDFH_DATA_IN) {
-        tmd->cd_hflags &= ~CDFH_DATA_MASK;
-        tmd->cd_xfrlen = 0;
+    } else if (xfr->td_hflags & TDFH_DATA_IN) {
+        xfr->td_hflags &= ~TDFH_DATA_MASK;
+        xfr->td_xfrlen = 0;
         scst_tgt_cmd_done(scst_cmd);
     }
 }
@@ -988,14 +982,18 @@ scsi_target_handler(qact_e action, void *arg)
     {
         tmd_cmd_t *tmd = arg;
         SDprintk2("scsi_target: TMD_START[%llx] %p cdb0=%x\n", tmd->cd_tagval, tmd, tmd->cd_cdb[0] & 0xff);
+        
+        tmd->cd_xfr.td_cmd = tmd;
         scsi_target_start_cmd(arg, 1);
         break;
     }
     case QOUT_TMD_DONE:
     {
-        tmd_cmd_t *tmd = arg;
+        tmd_xfr_t *xfr = arg;
+        tmd_cmd_t *tmd = xfr->td_cmd;
         SDprintk2("scsi_target: TMD_DONE[%llx] %p cdb0=%x\n", tmd->cd_tagval, tmd, tmd->cd_cdb[0] & 0xff);
-        scsi_target_done_cmd(arg, 1);
+      
+        scsi_target_done_cmd(tmd, 1);
         break;
     }
     case QOUT_NOTIFY:
@@ -1068,8 +1066,8 @@ scsi_target_thread(void *arg)
         }
         spin_unlock_irqrestore(&scsi_target_lock, flags);
         while (tp) {
-            tmd_cmd_t *nxt = tp->cd_private;
-            tp->cd_private = NULL;
+            tmd_cmd_t *nxt = tp->cd_hnext;
+            tp->cd_hnext = NULL;
             scsi_target_start_cmd(tp, 0);
             tp = nxt;
         }
@@ -1148,19 +1146,19 @@ isp_release(struct scst_tgt *tgt)
 static int
 isp_rdy_to_xfer(struct scst_cmd *scst_cmd)
 {
-    tmd_cmd_t *tmd;
     bus_t *bp;
     
-    tmd = (tmd_cmd_t *) scst_cmd_get_tgt_priv(scst_cmd);
-
     if (scst_cmd_get_data_direction(scst_cmd) == SCST_DATA_WRITE) {
-        tmd->cd_hflags |= CDFH_DATA_OUT; 
-        tmd->cd_data = scst_cmd_get_sg(scst_cmd);
-        tmd->cd_xfrlen = scst_cmd_get_bufflen(scst_cmd);
+        tmd_cmd_t *tmd = (tmd_cmd_t *) scst_cmd_get_tgt_priv(scst_cmd);
+        tmd_xfr_t *xfr = &tmd->cd_xfr;
+        
+        xfr->td_hflags |= TDFH_DATA_OUT; 
+        xfr->td_data = scst_cmd_get_sg(scst_cmd);
+        xfr->td_xfrlen = scst_cmd_get_bufflen(scst_cmd);
         SDprintk("%s: write nbytes %u\n", __FUNCTION__, scst_cmd_get_bufflen(scst_cmd));
 
         bp = tmd->cd_bus;
-        (*bp->h.r_action)(QIN_TMD_CONT, tmd);
+        (*bp->h.r_action)(QIN_TMD_CONT, xfr);
     }
 
     return (0);
@@ -1181,11 +1179,9 @@ SDprint_sense(const uint8_t *sbuf, uint8_t slen)
 static int
 isp_xmit_response(struct scst_cmd *scst_cmd)
 {   
-    tmd_cmd_t *tmd;
-    bus_t *bp;
-
-    tmd = (tmd_cmd_t *) scst_cmd_get_tgt_priv(scst_cmd);
-    bp = tmd->cd_bus;
+    tmd_cmd_t *tmd = (tmd_cmd_t *) scst_cmd_get_tgt_priv(scst_cmd);
+    bus_t *bp = tmd->cd_bus;
+    tmd_xfr_t *xfr = &tmd->cd_xfr; 
     
     if (scst_cmd_get_data_direction(scst_cmd) == SCST_DATA_READ) {
         unsigned int len = scst_cmd_get_resp_data_len(scst_cmd);
@@ -1194,25 +1190,25 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
             const uint8_t ifailure[TMD_SENSELEN] = { 0xf0, 0, 0x4, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0x44 };
             
             Eprintk("data size too big (totlen %u len %u)\n", tmd->cd_totlen, len);
-            WARN_ON(1);
+            dump_stack();
             
             memcpy(tmd->cd_sense, ifailure, TMD_SENSELEN);
-            tmd->cd_hflags |= CDFH_STSVALID;
+            xfr->td_hflags |= TDFH_STSVALID;
             tmd->cd_scsi_status = SCSI_CHECK; 
             goto out;
         } else {
-            tmd->cd_hflags |= CDFH_DATA_IN;
-            tmd->cd_xfrlen = len;
-            tmd->cd_data = scst_cmd_get_sg(scst_cmd);
+            xfr->td_hflags |= TDFH_DATA_IN;
+            xfr->td_xfrlen = len;
+            xfr->td_data = scst_cmd_get_sg(scst_cmd);
         }
     } else { 
         /* finished write to target or command with no data */
-        tmd->cd_xfrlen = 0;
-        tmd->cd_hflags &= ~CDFH_DATA_MASK;
+        xfr->td_xfrlen = 0;
+        xfr->td_hflags &= ~TDFH_DATA_MASK;
     }
             
     if (scst_cmd_get_tgt_resp_flags(scst_cmd) & SCST_TSC_FLAG_STATUS) {
-        tmd->cd_hflags |= CDFH_STSVALID;
+        xfr->td_hflags |= TDFH_STSVALID;
         tmd->cd_scsi_status = scst_cmd_get_status(scst_cmd);
         
         if (tmd->cd_scsi_status == SCSI_CHECK) {
@@ -1236,14 +1232,12 @@ out:
 static void
 isp_on_free_cmd(struct scst_cmd *scst_cmd)
 {
-    tmd_cmd_t *tmd;
-    bus_t *bp; 
+    tmd_cmd_t *tmd = (tmd_cmd_t *) scst_cmd_get_tgt_priv(scst_cmd);
+    bus_t *bp = tmd->cd_bus;
+    tmd_xfr_t *xfr = &tmd->cd_xfr;
 
-    tmd = (tmd_cmd_t *) scst_cmd_get_tgt_priv(scst_cmd);
-    tmd->cd_data = NULL;
-    
+    xfr->td_data = NULL;
     SDprintk("%s: TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
-    bp = tmd->cd_bus;
     (*bp->h.r_action)(QIN_TMD_FIN, tmd);
 }
 

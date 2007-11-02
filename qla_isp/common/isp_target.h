@@ -1,4 +1,4 @@
-/* $Id: isp_target.h,v 1.53 2007/07/07 23:20:56 mjacob Exp $ */
+/* $Id: isp_target.h,v 1.55 2007/10/29 18:12:02 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -788,10 +788,10 @@ typedef struct {
 #define	CT7_EXPLCT_CONF	0x0020
 #define	CT7_FLAG_MODE0	0x0000
 #define	CT7_FLAG_MODE1	0x0040
-#define	CT7_FLAG_MODE7	0x0080
+#define	CT7_FLAG_MODE2	0x0080
 #define		CT7_FLAG_MMASK	0x00C0
 #define	CT7_FASTPOST	0x0100
-#define	CT7_ATTR_MASK	0x1e00	/* task attributes from atio7 */
+#define	CT7_TASK_ATTR_SHIFT	9
 #define	CT7_CONFIRM	0x2000
 #define	CT7_TERMINATE	0x4000
 #define CT7_SENDSTATUS	0x8000

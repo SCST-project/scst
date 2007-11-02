@@ -1,4 +1,4 @@
-/* $Id: scsi_target.c,v 1.67 2007/08/27 07:25:52 mjacob Exp $ */
+/* $Id: scsi_target.c,v 1.71 2007/10/31 05:28:28 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -56,21 +56,11 @@
  * SCSI Target Mode "toy disk" target device for Linux.
  */
 
-#ifdef  MODULE
-#define EXPORT_SYMTAB
-#else
-#error  "this can only be built as a module"
-#endif
-
 #include <linux/version.h>
 #ifndef KERNEL_VERSION
 #define KERNEL_VERSION(v,p,s)   (((v)<<16)+(p<<8)+s)
 #endif
 #include <linux/autoconf.h>
-#ifdef  CONFIG_SMP
-#define __SMP__ 1
-#endif
-
 #include <linux/module.h>
 #include <linux/autoconf.h>
 #include <linux/init.h>
@@ -113,11 +103,12 @@
 #define cd_dp       cd_hreserved[0].ptrs[0]
 #define cd_nsgelems cd_hreserved[1].longs[0]
 #define cd_off      cd_hreserved[2].llongs[0]
+#define cd_next     cd_hreserved[3].ptrs[0]
 
-#define CDFH_PRIVATE_0      0x8000000   /* small (non page) data allocation */
-#define CDFH_PRIVATE_1      0x4000000   /* page allocation attached */
-#define CDFH_PRIVATE_2      0x2000000   /* sent status already */
-#define CDFH_PRIVATE_3      0x1000000   /* sg list from sg element cache */
+#define CDF_PRIVATE_0       0x8000  /* small (non page) data allocation */
+#define CDF_PRIVATE_1       0x4000  /* page allocation attached */
+#define CDF_PRIVATE_2       0x2000  /* sent status already */
+#define CDF_PRIVATE_3       0x1000  /* sg list from sg element cache */
 #ifndef SCSI_GOOD
 #define SCSI_GOOD   0x0
 #endif
@@ -627,9 +618,9 @@ static __inline void
 scsi_cmd_sched_restart_locked(tmd_cmd_t *tmd, int donotify, const char *msg)
 {
     SDprintk("scsi_cmd_sched_restart[%llx]: %s\n", tmd->cd_tagval, msg);
-    tmd->cd_private = NULL;
+    tmd->cd_next = NULL;
     if (p_front) {
-        p_last->cd_private = tmd;
+        p_last->cd_next = tmd;
     } else {
         p_front = tmd;
     }
@@ -653,18 +644,10 @@ static void
 scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
 {
     unsigned long flags;
+    tmd_xfr_t *xfr = &tmd->cd_xfr;
     bus_t *bp;
     void *addr;
     ini_t *ini;
-
-    tmd->cd_hflags = 0;
-    tmd->cd_scsi_status = SCSI_GOOD;
-    tmd->cd_data = NULL;
-    tmd->cd_xfrlen = 0;
-    tmd->cd_resid = tmd->cd_totlen;
-    tmd->cd_dp = 0;
-    tmd->cd_nsgelems = 0;
-    tmd->cd_off = 0;
 
     /*
      * First, find the bus.
@@ -715,12 +698,11 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
         } else {
             if (nptr == NULL) {
                 spin_unlock_irqrestore(&scsi_target_lock, flags);
-                tmd->cd_xfrlen = 0;
                 tmd->cd_scsi_status = SCSI_BUSY;
-                tmd->cd_hflags |= CDFH_STSVALID;
-                tmd->cd_hflags &= ~CDFH_DATA_MASK;
-                tmd->cd_xfrlen = 0;
-                (*bp->h.r_action)(QIN_TMD_CONT, tmd);
+                xfr->td_hflags |= TDFH_STSVALID;
+                xfr->td_hflags &= ~TDFH_DATA_MASK;
+                xfr->td_xfrlen = 0;
+                (*bp->h.r_action)(QIN_TMD_CONT, xfr);
                 return;
             }
             add_ini(bp, tmd->cd_iid, nptr);
@@ -766,10 +748,7 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
                 return;
             }
             if (tmd->cd_totlen == 0) {
-                tmd->cd_totlen = tmd->cd_cdb[4];
-            }
-            if (tmd->cd_totlen == 0) {
-                tmd->cd_hflags |= CDFH_STSVALID;
+                xfr->td_hflags |= TDFH_STSVALID;
                 goto doit;
             }
             len = min(tmd->cd_totlen, tmd->cd_cdb[4]);
@@ -778,7 +757,7 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
             if (addr == NULL) {
                 printk(KERN_WARNING "scsi_target_alloc: out of memory for inquiry data\n");
                 add_sdata(ini, enomem);
-                tmd->cd_hflags |= CDFH_SNSVALID;
+                xfr->td_hflags |= TDFH_SNSVALID;
                 goto doit;
             }
             buf = addr;
@@ -796,7 +775,8 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
                     len = min(sizeof(vp80data), len);
                     if (len) {
                         memcpy(addr, vp80data, len);
-                        snprintf(&buf[4], sizeof (vp80data) - 4, "FERAL0LUN%06dSER%s", L0LUN_TO_FLATLUN(tmd->cd_lun), SERNO);
+                        snprintf(&buf[4], sizeof (vp80data) - 4, "FERAL_%s%d_LUN%06dSER%s", bp->h.r_name, bp->h.r_inst,
+                            L0LUN_TO_FLATLUN(tmd->cd_lun), SERNO);
                         for (j = 0, i = 4; i < sizeof (vp80data); i++) {
                             if (j == 0) {
                                 if (buf[i] == 0) {
@@ -821,7 +801,7 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
                 default:
                     scsi_target_kfree(addr, SGS_SIZE);
                     add_sdata(ini, invfld);
-                    tmd->cd_hflags |= CDFH_SNSVALID;
+                    xfr->td_hflags |= TDFH_SNSVALID;
                     goto doit;
                 }
             } else {
@@ -832,12 +812,13 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
             }
             if (len == 0) {
                 scsi_target_kfree(addr, SGS_SIZE);
-                tmd->cd_hflags |= CDFH_STSVALID;
+                xfr->td_hflags |= TDFH_STSVALID;
             } else {
                 init_sg_elem(dp, NULL, 0, addr, len);
-                tmd->cd_xfrlen = dp->length;
-                tmd->cd_data = dp;
-                tmd->cd_hflags |= CDFH_DATA_IN|CDFH_STSVALID|CDFH_PRIVATE_0;
+                xfr->td_xfrlen = dp->length;
+                xfr->td_data = dp;
+                xfr->td_hflags |= TDFH_STSVALID|TDFH_DATA_IN;
+                tmd->cd_flags |= CDF_PRIVATE_0;
                 /*
                  * If we're not here, say we aren't here.
                  */
@@ -849,14 +830,17 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
         } else {
             SDprintk2("scsi_target(%s%d): illegal field for inquiry data\n", bp->h.r_name, bp->h.r_inst);
             add_sdata(ini, illfld);
-            tmd->cd_hflags |= CDFH_SNSVALID;
+            xfr->td_hflags |= TDFH_SNSVALID;
         }
         goto doit;
     }
 
     if (tmd->cd_cdb[0] == REQUEST_SENSE) {
         struct scatterlist *dp = NULL;
-        if (tmd->cd_totlen != 0) {
+        xfr->td_xfrlen = TMD_SENSELEN;
+        xfr->td_xfrlen = min(tmd->cd_cdb[4], xfr->td_xfrlen);
+        xfr->td_xfrlen = min(tmd->cd_totlen, xfr->td_xfrlen);
+        if (xfr->td_xfrlen != 0) {
             if (from_intr) {
                 scsi_cmd_sched_restart(tmd, "REQUEST_SENSE");
                 return;
@@ -864,24 +848,26 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
             addr = scsi_target_kzalloc(SGS_SIZE, GFP_KERNEL|GFP_ATOMIC);
             if (addr == NULL) {
                 printk("scsi_target_alloc: out of memory for sense data\n");
-                add_sdata(ini, ifailure);
-                tmd->cd_hflags |= CDFH_SNSVALID;
+                tmd->cd_scsi_status = SCSI_BUSY;
+                xfr->td_xfrlen = 0;
             } else {
                 dp = SGS_SGP(addr);
-                init_sg_elem(dp, NULL, 0, addr, min(TMD_SENSELEN, tmd->cd_totlen));
+                init_sg_elem(dp, NULL, 0, addr, TMD_SENSELEN);
                 if (ini->ini_sdata == NULL) {
-                    add_sdata(ini, nosense);
+                    memcpy(addr, nosense, TMD_SENSELEN);
+                } else {
+                    memcpy(addr, ini->ini_sdata->sdata, TMD_SENSELEN);
+                    rem_sdata(ini);
                 }
-                tmd->cd_xfrlen = dp->length;
-                memcpy(addr, ini->ini_sdata->sdata, TMD_SENSELEN);
-                tmd->cd_data = dp;
-                tmd->cd_hflags |= CDFH_DATA_IN|CDFH_PRIVATE_0;
+                xfr->td_data = dp;
+                xfr->td_hflags |= TDFH_DATA_IN;
+                tmd->cd_flags |= CDF_PRIVATE_0;
                 SDprintk2("sense data in scsi_target for %s%d: %p (%p) len %d, key/asc/ascq 0x%x/0x%x/0x%x\n",
                     bp->h.r_name, bp->h.r_inst, addr, dp, dp->length,
                     ((u8 *)addr)[2]&0xf, ((u8 *)addr)[12]&0xff, ((u8 *)addr)[13]);
             }
         }
-        tmd->cd_hflags |= CDFH_STSVALID;
+        xfr->td_hflags |= TDFH_STSVALID;
         goto doit;
     }
 
@@ -894,7 +880,7 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
                 return;
             }
             add_sdata(ini, nolun);
-            tmd->cd_hflags |= CDFH_SNSVALID;
+            xfr->td_hflags |= TDFH_SNSVALID;
             goto doit;
     }
 
@@ -902,7 +888,7 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
      * All other commands first check for Contingent Allegiance
      */
     if (ini->ini_sdata) {
-        tmd->cd_hflags |= CDFH_SNSVALID;
+        xfr->td_hflags |= TDFH_SNSVALID;
         goto doit;
     }
 
@@ -913,7 +899,7 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
     case SYNCHRONIZE_CACHE:
     case START_STOP:
     case TEST_UNIT_READY:
-        tmd->cd_hflags |= CDFH_STSVALID;
+        xfr->td_hflags |= TDFH_STSVALID;
         break;
     case READ_CAPACITY:
         if (from_intr) {
@@ -957,14 +943,14 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
             return;
         }
         add_sdata(ini, illfld);
-        tmd->cd_hflags |= CDFH_SNSVALID;
+        xfr->td_hflags |= TDFH_SNSVALID;
         break;
     }
 
 doit:
-    if (tmd->cd_hflags & CDFH_SNSVALID) {
+    if (xfr->td_hflags & TDFH_SNSVALID) {
         tmd->cd_scsi_status = SCSI_CHECK;
-        tmd->cd_hflags |= CDFH_STSVALID;
+        xfr->td_hflags |= TDFH_STSVALID;
         if (ini && ini->ini_sdata) {
             memcpy(tmd->cd_sense, ini->ini_sdata->sdata, TMD_SENSELEN);
         } else {
@@ -974,9 +960,9 @@ doit:
             tmd->cd_tagval, tmd->cd_cdb[0] & 0xff, tmd->cd_totlen, tmd->cd_sense[2] & 0xf, tmd->cd_sense[12], tmd->cd_sense[13]);
     } else {
         SDprintk("INI(%#llx)=>LUN %d: [%llx] cdb0=0x%02x tl=%u ssts=%x hf 0x%x\n", tmd->cd_iid, L0LUN_TO_FLATLUN(tmd->cd_lun),
-            tmd->cd_tagval, tmd->cd_cdb[0] & 0xff, tmd->cd_totlen, tmd->cd_scsi_status, tmd->cd_hflags);
+            tmd->cd_tagval, tmd->cd_cdb[0] & 0xff, tmd->cd_totlen, tmd->cd_scsi_status, xfr->td_hflags);
     }
-    (*bp->h.r_action)(QIN_TMD_CONT, tmd);
+    (*bp->h.r_action)(QIN_TMD_CONT, xfr);
 }
 
 static void
@@ -985,6 +971,7 @@ scsi_target_read_capacity_16(tmd_cmd_t *tmd, ini_t *ini)
     bus_t *bp;
     void *addr;
     struct scatterlist *dp;
+    tmd_xfr_t *xfr = &tmd->cd_xfr;
     lun_t *lp;
 
     bp = ini->ini_bus;
@@ -993,7 +980,7 @@ scsi_target_read_capacity_16(tmd_cmd_t *tmd, ini_t *ini)
     if (addr == NULL) {
         printk(KERN_WARNING "scsi_target_read_capacity: alloc failed\n");
         tmd->cd_scsi_status = SCSI_BUSY;
-        tmd->cd_hflags |= CDFH_STSVALID;
+        xfr->td_hflags |= TDFH_STSVALID;
         return;
     }
 
@@ -1015,7 +1002,7 @@ scsi_target_read_capacity_16(tmd_cmd_t *tmd, ini_t *ini)
             tmd->cd_cdb[6] || tmd->cd_cdb[7] || tmd->cd_cdb[8] || tmd->cd_cdb[9]) {
             scsi_target_kfree(addr, SGS_SIZE);
             add_sdata(ini, illfld);
-            tmd->cd_hflags |= CDFH_SNSVALID;
+            xfr->td_hflags |= TDFH_SNSVALID;
             return;
         }
         ((u8 *)addr)[0] = (blks >> 56) & 0xff;
@@ -1032,9 +1019,10 @@ scsi_target_read_capacity_16(tmd_cmd_t *tmd, ini_t *ini)
     ((u8 *)addr)[10] = ((1 << LUN_BLOCK_SHIFT) >>  8) & 0xff;
     ((u8 *)addr)[11] = ((1 << LUN_BLOCK_SHIFT)) & 0xff;
     init_sg_elem(dp, NULL, 0, addr, min(32, tmd->cd_totlen));
-    tmd->cd_xfrlen = dp->length;
-    tmd->cd_data = dp;
-    tmd->cd_hflags |= CDFH_DATA_IN|CDFH_PRIVATE_0|CDFH_STSVALID;
+    xfr->td_xfrlen = dp->length;
+    xfr->td_data = dp;
+    xfr->td_hflags |= TDFH_DATA_IN|TDFH_STSVALID;
+    tmd->cd_flags |= CDF_PRIVATE_0;
 }
 
 static void
@@ -1043,6 +1031,7 @@ scsi_target_read_capacity(tmd_cmd_t *tmd, ini_t *ini)
     bus_t *bp;
     void *addr;
     struct scatterlist *dp;
+    tmd_xfr_t *xfr = &tmd->cd_xfr;
     lun_t *lp;
 
     bp = ini->ini_bus;
@@ -1051,7 +1040,7 @@ scsi_target_read_capacity(tmd_cmd_t *tmd, ini_t *ini)
     if (addr == NULL) {
         printk(KERN_WARNING "scsi_target_read_capacity: alloc failed\n");
         tmd->cd_scsi_status = SCSI_BUSY;
-        tmd->cd_hflags |= CDFH_STSVALID;
+        xfr->td_hflags |= TDFH_STSVALID;
         return;
     }
 
@@ -1068,7 +1057,7 @@ scsi_target_read_capacity(tmd_cmd_t *tmd, ini_t *ini)
         if (tmd->cd_cdb[2] || tmd->cd_cdb[3] || tmd->cd_cdb[4] || tmd->cd_cdb[5]) {
             scsi_target_kfree(addr, SGS_SIZE);
             add_sdata(ini, illfld);
-            tmd->cd_hflags |= CDFH_SNSVALID;
+            xfr->td_hflags |= TDFH_SNSVALID;
             return;
         }
         if (blks < 0xffffffffull) {
@@ -1088,9 +1077,10 @@ scsi_target_read_capacity(tmd_cmd_t *tmd, ini_t *ini)
     ((u8 *)addr)[6] = ((1 << LUN_BLOCK_SHIFT) >>  8) & 0xff;
     ((u8 *)addr)[7] = ((1 << LUN_BLOCK_SHIFT)) & 0xff;
     init_sg_elem(dp, NULL, 0, addr, min(8, tmd->cd_totlen));
-    tmd->cd_xfrlen = dp->length;
-    tmd->cd_data = dp;
-    tmd->cd_hflags |= CDFH_DATA_IN|CDFH_PRIVATE_0|CDFH_STSVALID;
+    xfr->td_xfrlen = dp->length;
+    xfr->td_data = dp;
+    xfr->td_hflags |= TDFH_DATA_IN|TDFH_STSVALID;
+    tmd->cd_flags |= CDF_PRIVATE_0;
 }
 
 static void
@@ -1099,6 +1089,7 @@ scsi_target_modesense(tmd_cmd_t *tmd, ini_t *ini)
     bus_t *bp;
     lun_t *lp;
     int dlen, pgctl, page;
+    tmd_xfr_t *xfr = &tmd->cd_xfr;
     struct scatterlist *dp;
     uint8_t *pgdata;
     uint32_t nblks;
@@ -1121,7 +1112,7 @@ scsi_target_modesense(tmd_cmd_t *tmd, ini_t *ini)
         break;
     default:
         add_sdata(ini, illfld);
-        tmd->cd_hflags |= CDFH_SNSVALID;
+        xfr->td_hflags |= TDFH_SNSVALID;
         return;
     }
 
@@ -1129,7 +1120,7 @@ scsi_target_modesense(tmd_cmd_t *tmd, ini_t *ini)
     if (addr == NULL) {
         printk(KERN_WARNING "scsi_target_modesense: alloc failure\n");
         tmd->cd_scsi_status = SCSI_BUSY;
-        tmd->cd_hflags |= CDFH_STSVALID;
+        xfr->td_hflags |= TDFH_STSVALID;
         return;
     }
     dp = SGS_SGP(addr);
@@ -1256,9 +1247,10 @@ scsi_target_modesense(tmd_cmd_t *tmd, ini_t *ini)
     dlen = min(tmd->cd_cdb[4], tmd->cd_totlen);
     dlen = min(dlen, SGS_PAYLOAD_SIZE);
     init_sg_elem(dp, NULL, 0, addr, dlen);
-    tmd->cd_xfrlen = dp->length;
-    tmd->cd_data = dp;
-    tmd->cd_hflags |= CDFH_DATA_IN|CDFH_PRIVATE_0|CDFH_STSVALID;
+    xfr->td_xfrlen = dp->length;
+    xfr->td_data = dp;
+    xfr->td_hflags |= TDFH_DATA_IN|TDFH_STSVALID;
+    tmd->cd_flags |= CDF_PRIVATE_0;
 }
 
 static int
@@ -1270,6 +1262,7 @@ scsi_target_rdwr(tmd_cmd_t *tmd, ini_t *ini, int from_intr)
     uint64_t lba, devoff;
     uint32_t transfer_count, byte_count, count, first_offset;
     struct scatterlist *dp;
+    tmd_xfr_t *xfr = &tmd->cd_xfr;
     int iswrite, page_idx, list_idx, sgidx;
     unsigned long flags;
 
@@ -1341,7 +1334,7 @@ scsi_target_rdwr(tmd_cmd_t *tmd, ini_t *ini, int from_intr)
             return (-1);
         }
         add_sdata(ini, illfld);
-        tmd->cd_hflags |= CDFH_SNSVALID;
+        xfr->td_hflags |= TDFH_SNSVALID;
         return (0);
     }
 
@@ -1353,13 +1346,13 @@ scsi_target_rdwr(tmd_cmd_t *tmd, ini_t *ini, int from_intr)
         printk(KERN_WARNING "scsi_target: overflow devoff (0x%llx) + count (0x%llx) > limit (0x%llx)\n", (unsigned long long) devoff,
             (unsigned long long)(((uint64_t)transfer_count) << LUN_BLOCK_SHIFT), (unsigned long long) lp->nbytes);
         add_sdata(ini, illfld);
-        tmd->cd_hflags |= CDFH_SNSVALID;
+        xfr->td_hflags |= TDFH_SNSVALID;
         return (0);
     }
 
     if (unlikely(transfer_count == 0)) {
         printk(KERN_WARNING "%s: zero length transfer count\n", __FUNCTION__);
-        tmd->cd_hflags |= CDFH_STSVALID;
+        xfr->td_hflags |= TDFH_STSVALID;
         return (0);
     }
 
@@ -1371,7 +1364,8 @@ scsi_target_rdwr(tmd_cmd_t *tmd, ini_t *ini, int from_intr)
         byte_count = tmd->cd_totlen;
         byte_count &= ~((1 << LUN_BLOCK_SHIFT) - 1);
         if (byte_count == 0) {
-            tmd->cd_hflags |= CDFH_STSVALID;
+            printk(KERN_WARNING "%s: byte count less than a block\n", __FUNCTION__);
+            xfr->td_hflags |= TDFH_STSVALID;
             return (0);
         }
         transfer_count = byte_count >> LUN_BLOCK_SHIFT;
@@ -1399,20 +1393,23 @@ scsi_target_rdwr(tmd_cmd_t *tmd, ini_t *ini, int from_intr)
         if (dp) {
             sg_cache = (struct scatterlist *) dp->page;
             dp->page = NULL;
-            tmd->cd_hflags |= CDFH_PRIVATE_3;
+            tmd->cd_flags |= CDF_PRIVATE_3;
         }
         spin_unlock_irqrestore(&scsi_target_lock, flags);
     }
     if (unlikely(dp == NULL)) {
         if (from_intr) {
-            scsi_cmd_sched_restart(tmd, "no scatterlist");
+            if (tmd->cd_nsgelems < SGELEM_CACHE_SIZE)
+                scsi_cmd_sched_restart(tmd, "scatterlist restart: none available");
+            else
+                scsi_cmd_sched_restart(tmd, "scatterlist restart: large_xfr");
             return (-1);
         }
         dp = scsi_target_kzalloc(tmd->cd_nsgelems * sizeof (struct scatterlist), GFP_KERNEL|GFP_ATOMIC);
         if (dp == NULL) {
             printk(KERN_WARNING "unable to allocate %d entry scatterlist\n", tmd->cd_nsgelems);
             tmd->cd_scsi_status = SCSI_BUSY;
-            tmd->cd_hflags |= CDFH_STSVALID;
+            xfr->td_hflags |= TDFH_STSVALID;
             return (0);
         }
     }
@@ -1436,11 +1433,11 @@ scsi_target_rdwr(tmd_cmd_t *tmd, ini_t *ini, int from_intr)
                     NextPage(pp) = (NextPageType) lp->pagelists;
                     lp->pagelists = (struct page ***) pp;
                 }
-                if (tmd->cd_hflags & CDFH_PRIVATE_3) {
+                if (tmd->cd_flags & CDF_PRIVATE_3) {
                     dp->page = (struct page *) sg_cache;
                     sg_cache = (struct scatterlist *) dp;
                     spin_unlock_irqrestore(&scsi_target_lock, flags);
-                    tmd->cd_hflags ^= CDFH_PRIVATE_3;
+                    tmd->cd_flags ^= CDF_PRIVATE_3;
                 } else {
                     spin_unlock_irqrestore(&scsi_target_lock, flags);
                     scsi_target_kfree(dp, tmd->cd_nsgelems * sizeof (struct scatterlist));
@@ -1488,11 +1485,12 @@ scsi_target_rdwr(tmd_cmd_t *tmd, ini_t *ini, int from_intr)
                 page_idx = 0;
                 if (++list_idx >= lp->npglists) {
                     printk(KERN_WARNING "bad list_idx for block %lld\n", lba);
-                    tmd->cd_data = dp;
+                    xfr->td_data = dp;
                     tmd->cd_dp = dp;
-                    tmd->cd_xfrlen = 0;
+                    xfr->td_xfrlen = 0;
                     add_sdata(ini, ifailure);
-                    tmd->cd_hflags |= CDFH_PRIVATE_1|CDFH_SNSVALID|CDFH_STSVALID;
+                    xfr->td_hflags |= TDFH_SNSVALID|TDFH_STSVALID;
+                    tmd->cd_flags |= CDF_PRIVATE_1;
                     return (0);
                 }
                 pglist = lp->pagelists[list_idx];
@@ -1501,28 +1499,28 @@ scsi_target_rdwr(tmd_cmd_t *tmd, ini_t *ini, int from_intr)
     }
 
 out:
-    tmd->cd_xfrlen = byte_count;
-    tmd->cd_data = dp;
+    xfr->td_xfrlen = byte_count;
+    xfr->td_data = dp;
     tmd->cd_dp = dp;
-    tmd->cd_hflags |= CDFH_PRIVATE_1;
+    tmd->cd_flags |= CDF_PRIVATE_1;
     if (iswrite) {
-            tmd->cd_hflags |= CDFH_DATA_OUT;
+            xfr->td_hflags |= TDFH_DATA_OUT;
             /*
              * WCE is set, or we're *not* an overcommit disk,
              * the command is done as soon as data lands
              * in memory.
              */
             if (/* lp->wce || */ lp->overcommit == 0) {
-                tmd->cd_hflags |= CDFH_STSVALID;
+                xfr->td_hflags |= TDFH_STSVALID;
             }
     } else {
-            tmd->cd_hflags |= CDFH_DATA_IN;
+            xfr->td_hflags |= TDFH_DATA_IN;
             /*
              * If we're an overcommit disk, then we don't do
              * anything with this command yet- we put it on
              * a queue for a user agent to fill. The amount
              * to fill by the user agent is known by the
-             * tmd->cd_xfrlen.
+             * tmd->cd_totlen;
              *
              * When the user agent is done, the command is
              * then released back to move the fetched data
@@ -1530,9 +1528,9 @@ out:
              */
             if (lp->overcommit) {
                 spin_lock_irqsave(&scsi_target_lock, flags);
-                tmd->cd_private = NULL;
+                tmd->cd_next = NULL;
                 if (lp->u_front) {
-                    lp->u_tail->cd_private = tmd;
+                    lp->u_tail->cd_next = tmd;
                 } else {
                     lp->u_front = tmd;
                 }
@@ -1541,33 +1539,34 @@ out:
                 spin_unlock_irqrestore(&scsi_target_lock, flags);
                 return (1);
             } else {
-                tmd->cd_hflags |= CDFH_STSVALID;
+                xfr->td_hflags |= TDFH_STSVALID;
             }
     }
     return (0);
 }
 
 static int
-scsi_target_ldfree(bus_t *bp, tmd_cmd_t *tmd, int from_intr)
+scsi_target_ldfree(bus_t *bp, tmd_xfr_t *xfr, int from_intr)
 {
     int i;
     unsigned long flags;
+    tmd_cmd_t *tmd = xfr->td_cmd;
 
-    if (tmd->cd_hflags & CDFH_PRIVATE_0) {
-        struct scatterlist *dp = tmd->cd_data;
+    if (tmd->cd_flags & CDF_PRIVATE_0) {
+        struct scatterlist *dp = xfr->td_data;
         if (from_intr) {
             goto resched;
         }
-        SDprintk("scsi_target: LDFREE[%llx] %p tmd->cd_data %p\n", tmd->cd_tagval, tmd, dp);
+        SDprintk("scsi_target: LDFREE[%llx] %p xfr->td_data %p\n", tmd->cd_tagval, tmd, dp);
         if (dp) {
             scsi_target_kfree(page_address(dp->page) + dp->offset, SGS_SIZE);
         } else {
             printk(KERN_ERR "scsi_target: LDFREE[%llx] null dp @ line %d\n", tmd->cd_tagval, __LINE__);
             return (0);
         }
-        tmd->cd_data = NULL;
-        tmd->cd_hflags &= ~CDFH_PRIVATE_0;
-    } else if (tmd->cd_hflags & CDFH_PRIVATE_1) {
+        xfr->td_data = NULL;
+        tmd->cd_flags &= ~CDF_PRIVATE_0;
+    } else if (tmd->cd_flags & CDF_PRIVATE_1) {
         struct scatterlist *dp = tmd->cd_dp;
         lun_t *lp = &bp->luns[L0LUN_TO_FLATLUN(tmd->cd_lun)];
 
@@ -1576,7 +1575,7 @@ scsi_target_ldfree(bus_t *bp, tmd_cmd_t *tmd, int from_intr)
             return (0);
         }
 
-        if ((tmd->cd_hflags & CDFH_PRIVATE_3) == 0 && from_intr) {
+        if ((tmd->cd_flags & CDF_PRIVATE_3) == 0 && from_intr) {
             goto resched;
         }
         spin_lock_irqsave(&scsi_target_lock, flags);
@@ -1599,25 +1598,25 @@ scsi_target_ldfree(bus_t *bp, tmd_cmd_t *tmd, int from_intr)
         } else {
             SDprintk("scsi_target: LDFREE[%llx] %s freeing nsgelems %d\n", tmd->cd_tagval, from_intr? "intr" : "task", tmd->cd_nsgelems);
         }
-        if (tmd->cd_hflags & CDFH_PRIVATE_3) {
+        if (tmd->cd_flags & CDF_PRIVATE_3) {
             memset(dp, 0, tmd->cd_nsgelems * sizeof (struct scatterlist));
             dp->page = (struct page *) sg_cache;
             sg_cache = dp;
             spin_unlock_irqrestore(&scsi_target_lock, flags);
-            tmd->cd_hflags &= ~CDFH_PRIVATE_3;
+            tmd->cd_flags &= ~CDF_PRIVATE_3;
         } else {
             spin_unlock_irqrestore(&scsi_target_lock, flags);
             scsi_target_kfree(dp, tmd->cd_nsgelems * sizeof (struct scatterlist));
         }
-        tmd->cd_data = NULL;
-        tmd->cd_hflags &= ~CDFH_PRIVATE_1;
+        xfr->td_data = NULL;
+        tmd->cd_flags &= ~CDF_PRIVATE_1;
     }
     return (1);
 resched:
-    tmd->cd_private = NULL;
+    tmd->cd_next = NULL;
     spin_lock_irqsave(&scsi_target_lock, flags);
     if (q_front) {
-        q_last->cd_private = tmd;
+        q_last->cd_next = tmd;
     } else {
         q_front = tmd;
     }
@@ -1680,13 +1679,17 @@ scsi_target_handler(qact_e action, void *arg)
     case QOUT_TMD_START:
     {
         tmd_cmd_t *tmd = arg;
+
         SDprintk2("scsi_target: TMD_START[%llx] %p cdb0=%x\n", tmd->cd_tagval, tmd, tmd->cd_cdb[0] & 0xff);
-        scsi_target_start_cmd(arg, 1);
+
+        tmd->cd_xfr.td_cmd = tmd;
+        scsi_target_start_cmd(tmd, 1);
         break;
     }
     case QOUT_TMD_DONE:
     {
-        tmd_cmd_t *tmd = arg;
+        tmd_xfr_t *xfr = arg;
+        tmd_cmd_t *tmd = xfr->td_cmd;
         ini_t *nptr;
 
         bp = bus_from_tmd(tmd);
@@ -1695,31 +1698,31 @@ scsi_target_handler(qact_e action, void *arg)
             break;
         }
 
-        SDprintk2("scsi_target: TMD_DONE[%llx] %p hf %x lf %x\n", tmd->cd_tagval, tmd, tmd->cd_hflags, tmd->cd_lflags);
+        SDprintk2("scsi_target: TMD_DONE[%llx] %p hf %x lf %x\n", tmd->cd_tagval, tmd, xfr->td_hflags, xfr->td_lflags);
 
         /*
          * Okay- were we moving data? If so, deal with the result.
          *
          * If so, check to see if we sent it.
          */
-        if (tmd->cd_hflags & CDFH_DATA_OUT) {
+        if (xfr->td_hflags & TDFH_DATA_OUT) {
             lun_t *lp;
-            SDprintk("scsi_target: [%llx] data receive done resid now %d\n", tmd->cd_tagval, tmd->cd_resid);
+            SDprintk("scsi_target: [%llx] data receive done\n", tmd->cd_tagval);
             spin_lock_irqsave(&scsi_target_lock, flags);
             lp = &bp->luns[L0LUN_TO_FLATLUN(tmd->cd_lun)];
             /*
              * If we're an overcommit disk we don't complete the command here.
              *
              * Instead, we give the data to a user agent. It knows how much
-             * to write based upon tmd->cd_xfrlen.
+             * to write based upon tmd->cd_totlen.
              *
              * When the user agent is done, it will clear the cd_xfrlen field and the
-             * CDFH_DATA_OUT flags and send back status for the command.
+             * TDFH_DATA_OUT flags and send back status for the command.
              */
             if (lp->enabled && lp->overcommit) {
-                tmd->cd_private = NULL;
+                tmd->cd_next = NULL;
                 if (lp->u_front) {
-                    lp->u_tail->cd_private = tmd;
+                    lp->u_tail->cd_next = tmd;
                 } else {
                     lp->u_front = tmd;
                 }
@@ -1729,27 +1732,24 @@ scsi_target_handler(qact_e action, void *arg)
                 break;
             }
             spin_unlock_irqrestore(&scsi_target_lock, flags);
-        } else if (tmd->cd_hflags & CDFH_DATA_IN) {
-            SDprintk("scsi_target: [%llx] data transmit done resid %d\n", tmd->cd_tagval, tmd->cd_resid);
+        } else if (xfr->td_hflags & TDFH_DATA_IN) {
+            SDprintk("scsi_target: [%llx] data transmit done\n", tmd->cd_tagval);
         }
-        tmd->cd_hflags &= ~CDFH_DATA_MASK;
-        tmd->cd_xfrlen = 0;
+        xfr->td_hflags &= ~TDFH_DATA_MASK;
+        xfr->td_xfrlen = 0;
 
-        spin_lock_irqsave(&scsi_target_lock, flags);
-        nptr = ini_from_tmd(bp, tmd);
-        spin_unlock_irqrestore(&scsi_target_lock, flags);
 
         /*
          * Did we send status already?
          */
-        if (tmd->cd_hflags & CDFH_STSVALID) {
-            if ((tmd->cd_lflags & CDFL_SENTSTATUS) == 0) {
-                if (tmd->cd_hflags & CDFH_PRIVATE_2) {
+        if (xfr->td_hflags & TDFH_STSVALID) {
+            if ((xfr->td_lflags & TDFL_SENTSTATUS) == 0) {
+                if (tmd->cd_flags & CDF_PRIVATE_2) {
                     printk(KERN_ERR "[%llx] already tried to send status\n", tmd->cd_tagval);
                 } else {
-                    tmd->cd_hflags |= CDFH_PRIVATE_2;
+                    tmd->cd_flags |= CDF_PRIVATE_2;
                     SDprintk("[%llx] sending status\n", tmd->cd_tagval);
-                    (*bp->h.r_action)(QIN_TMD_CONT, tmd);
+                    (*bp->h.r_action)(QIN_TMD_CONT, xfr);
                     break;
                 }
             }
@@ -1758,27 +1758,20 @@ scsi_target_handler(qact_e action, void *arg)
         /*
          * Did we send sense? If so, remove one sense structure.
          */
-        if (tmd->cd_hflags & CDFH_SNSVALID) {
-            if (tmd->cd_lflags & CDFL_SENTSENSE) {
+        if (xfr->td_hflags & TDFH_SNSVALID) {
+            if (xfr->td_lflags & TDFL_SENTSENSE) {
+                spin_lock_irqsave(&scsi_target_lock, flags);
+                nptr = ini_from_tmd(bp, tmd);
+                spin_unlock_irqrestore(&scsi_target_lock, flags);
                 if (nptr) {
                     rem_sdata(nptr);
                 }
             }
         }
 
-        /*
-         * Was this a REQUEST SENSE command? If so,
-         * remove any sense data for this initiator
-         * which we might have sent.
-         */
-        if (tmd->cd_cdb[0] == REQUEST_SENSE) {
-            if (nptr) {
-                rem_sdata(nptr);
-            }
-        }
-        if (scsi_target_ldfree(bp, tmd, 1)) {
+        if (scsi_target_ldfree(bp, xfr, 1)) {
             SDprintk("%s: TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
-            (*bp->h.r_action)(QIN_TMD_FIN, arg);
+            (*bp->h.r_action)(QIN_TMD_FIN, tmd);
         }
         break;
     }
@@ -1797,14 +1790,14 @@ scsi_target_handler(qact_e action, void *arg)
             lun_t *lp = &bp->luns[np->nt_lun];
             int i;
 
-            for (i = 0, tmd = p_front; tmd; tmd = tmd->cd_private, i++) {
+            for (i = 0, tmd = p_front; tmd; tmd = tmd->cd_next, i++) {
                 if (tmd->cd_tagval == np->nt_tagval) {
                     printk(KERN_WARNING "scsi_target: ABORT_TASK[%llx] found %d into global waitq\n", tmd->cd_tagval, i);
                     break;
                 }
             }
             if (tmd == NULL) {
-                for (i = 0, tmd = lp->u_front; tmd; tmd = tmd->cd_private, i++) {
+                for (i = 0, tmd = lp->u_front; tmd; tmd = tmd->cd_next, i++) {
                     if (tmd->cd_tagval == np->nt_tagval) {
                         printk(KERN_WARNING "scsi_target: ABORT_TASK[%llx] found %d into waitq for lun %d\n", tmd->cd_tagval, i, np->nt_lun);
                         break;
@@ -1883,7 +1876,7 @@ scsi_target_thread(void *arg)
         tmd_cmd_t *tp;
 
         SDprintk3("scsi_task_thread sleeping\n");
-        down(&scsi_thread_sleep_semaphore);
+        down_interruptible(&scsi_thread_sleep_semaphore);
         SDprintk3("scsi_task_thread running\n");
 
         spin_lock_irqsave(&scsi_target_lock, flags);
@@ -1892,8 +1885,8 @@ scsi_target_thread(void *arg)
         }
         spin_unlock_irqrestore(&scsi_target_lock, flags);
         while (tp) {
-            tmd_cmd_t *nxt = tp->cd_private;
-            tp->cd_private = NULL;
+            tmd_cmd_t *nxt = tp->cd_next;
+            tp->cd_next = NULL;
             scsi_target_start_cmd(tp, 0);
             tp = nxt;
         }
@@ -1907,13 +1900,13 @@ scsi_target_thread(void *arg)
             tmd_cmd_t *tmd;
 
             tmd = tp;
-            tp = tmd->cd_private;
-            tmd->cd_private = NULL;
+            tp = tmd->cd_next;
+            tmd->cd_next = NULL;
             bp = bus_from_tmd(tmd);
             if (bp == NULL) {
                 printk(KERN_WARNING "lost bus when tring to call TMD_FIN\n");
             } else {
-                if (scsi_target_ldfree(bp, tmd, 0)) {
+                if (scsi_target_ldfree(bp, &tmd->cd_xfr, 0)) {
                     SDprintk("%s: TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
                     (*bp->h.r_action)(QIN_TMD_FIN, tmd);
                 }
@@ -2102,7 +2095,7 @@ scsi_target_start_user_io(sc_io_t *sc)
     }
     spin_lock_irqsave(&scsi_target_lock, flags);
     if ((tmd = lp->u_front) != NULL) {
-        if ((lp->u_front = tmd->cd_private) == NULL) {
+        if ((lp->u_front = tmd->cd_next) == NULL) {
             lp->u_tail = NULL;
         }
     }
@@ -2117,32 +2110,23 @@ scsi_target_start_user_io(sc_io_t *sc)
     /*
      * If data is coming to us, copy it out to user space first.
      */
-    if (tmd->cd_hflags & CDFH_DATA_OUT) {
+    if (tmd->cd_flags & CDF_DATA_OUT) {
         int r;
 
-        /*
-         * We subtract resid here because this is *after* the I/O has happened so resid will have been set to the amount *not* transferred.
-         */
-        sc->amt = tmd->cd_xfrlen - tmd->cd_resid;
+        sc->amt = tmd->cd_totlen;
         if (sc->amt > sc->len) {
-            printk(KERN_ERR "scsi_target: A write to us (%u bytes) that is bigger than the user supplied buffer (%u bytes). Fix!\n", sc->amt, sc->len);
-            memcpy(tmd->cd_sense, ifailure, TMD_SENSELEN);
-            tmd->cd_scsi_status = CHECK_CONDITION;
-            tmd->cd_hflags &= ~CDFH_DATA_MASK;
-            tmd->cd_hflags |= CDFH_SNSVALID|CDFH_STSVALID;
-            tmd->cd_xfrlen = 0;
-            (*bp->h.r_action)(QIN_TMD_CONT, tmd);
-            return (-ERANGE);
+            sc->amt = sc->len;
+            printk(KERN_WARNING "scsi_target: A write to us (%u bytes) that is bigger than the user supplied buffer (%u bytes)\n", sc->amt, sc->len);
         }
         r = scsi_target_copydata(tmd->cd_dp, sc->addr, sc->amt, 0);
         if (r) {
             printk(KERN_ERR "scsi_target: failed to copy data to user space\n");
             memcpy(tmd->cd_sense, ifailure, TMD_SENSELEN);
             tmd->cd_scsi_status = CHECK_CONDITION;
-            tmd->cd_hflags &= ~CDFH_DATA_MASK;
-            tmd->cd_hflags |= CDFH_SNSVALID|CDFH_STSVALID;
-            tmd->cd_xfrlen = 0;
-            (*bp->h.r_action)(QIN_TMD_CONT, tmd);
+            tmd->cd_xfr.td_hflags &= ~TDFH_DATA_MASK;
+            tmd->cd_xfr.td_hflags |= TDFH_SNSVALID|TDFH_STSVALID;
+            tmd->cd_xfr.td_xfrlen = 0;
+            (*bp->h.r_action)(QIN_TMD_CONT, &tmd->cd_xfr);
             return (r);
         }
         sc->read = 0;
@@ -2151,10 +2135,7 @@ scsi_target_start_user_io(sc_io_t *sc)
         }
         SDprintk2("scsi_target: WR->USER [%llx] %p amt %u \n", tmd->cd_tagval, tmd, sc->amt);
     } else {
-        /*
-         * We *don't* subtract resid here because this is *before* the I/O has happened.
-         */
-        sc->amt = tmd->cd_xfrlen;
+        sc->amt = tmd->cd_totlen;
         sc->read = 1;
         SDprintk2("scsi_target: RD->USER [%llx] %p amt %u\n", tmd->cd_tagval, tmd, sc->amt);
     }
@@ -2167,6 +2148,7 @@ scsi_target_end_user_io(sc_io_t *sc)
     bus_t *bp;
     lun_t *lp;
     tmd_cmd_t *tmd;
+    tmd_xfr_t *xfr;
 
     bp = bus_from_name(sc->hba_name_unit);
     if (bp == NULL) {
@@ -2180,30 +2162,32 @@ scsi_target_end_user_io(sc_io_t *sc)
     }
     lp = &bp->luns[sc->lun];
     tmd = sc->tag;
+    xfr = &tmd->cd_xfr;
     SDprintk2("scsi_target: USER->KERN [%llx] %p err %d len %u\n", tmd->cd_tagval, tmd, sc->err, sc->len);
     /*
      * If we had an error, stop right here and return something to the initiator.
      */
     if (sc->err) {
+        printk(KERN_ERR "err %d from user app\n", sc->err);
         memcpy(tmd->cd_sense, mediaerr, TMD_SENSELEN);
  barf:
         tmd->cd_scsi_status = CHECK_CONDITION;
-        tmd->cd_hflags &= ~CDFH_DATA_MASK;
-        tmd->cd_hflags |= CDFH_SNSVALID|CDFH_STSVALID;
-        tmd->cd_xfrlen = 0;
-        (*bp->h.r_action)(QIN_TMD_CONT, tmd);
+        xfr->td_hflags &= ~TDFH_DATA_MASK;
+        xfr->td_hflags |= TDFH_SNSVALID|TDFH_STSVALID;
+        xfr->td_xfrlen = 0;
+        (*bp->h.r_action)(QIN_TMD_CONT, xfr);
         return (0);
     }
 
     /*
      * If we were reading from us to the initiator, copy the data in and set it up for transmit back to the initiator.
      */
-    if (tmd->cd_hflags & CDFH_DATA_IN) {
+    if (tmd->cd_flags & CDF_DATA_IN) {
         /*
          * In this context, a user buffer length that is not equal to what the amount we told the user agent to move is not legal.
          */
-        if (sc->len != tmd->cd_xfrlen) {
-            printk(KERN_ERR "scsi_target: user read length %u not equal to required amount of %u\n", sc->len, tmd->cd_xfrlen);
+        if (sc->len != tmd->cd_totlen) {
+            printk(KERN_ERR "scsi_target: user read length %u not equal to required amount of %u\n", sc->len, tmd->cd_totlen);
             memcpy(tmd->cd_sense, ifailure, TMD_SENSELEN);
             goto barf;
         }
@@ -2212,12 +2196,14 @@ scsi_target_end_user_io(sc_io_t *sc)
             memcpy(tmd->cd_sense, ifailure, TMD_SENSELEN);
             goto barf;
         }
+        xfr->td_xfrlen = sc->len;
+        xfr->td_hflags |= TDFH_DATA_IN;
     } else {
-        tmd->cd_xfrlen = 0;
-        tmd->cd_hflags &= ~CDFH_DATA_MASK;
+        xfr->td_xfrlen = 0;
+        xfr->td_hflags &= ~TDFH_DATA_MASK;
     }
-    tmd->cd_hflags |= CDFH_STSVALID;
-    (*bp->h.r_action)(QIN_TMD_CONT, tmd);
+    xfr->td_hflags |= TDFH_STSVALID;
+    (*bp->h.r_action)(QIN_TMD_CONT, xfr);
     return (0);
 }
 

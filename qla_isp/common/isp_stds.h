@@ -1,4 +1,4 @@
-/* $Id: isp_stds.h,v 1.11 2007/07/07 23:20:56 mjacob Exp $ */
+/* $Id: isp_stds.h,v 1.12 2007/10/29 18:11:08 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -164,8 +164,18 @@ typedef struct {
 } rft_id_t;
 
 /*
+ * FCP Response IU Bits of interest
+ * Source: NCITS T10, Project 1144D, Revision 08 (aka FCP2r08)
+ */
+#define	FCP_CONF_REQ			0x10
+#define	FCP_RESID_UNDERFLOW		0x08
+#define	FCP_RESID_OVERFLOW		0x04
+#define	FCP_SNSLEN_VALID		0x02
+#define	FCP_RSPLEN_VALID		0x01
+
+/*
  * FCP Response Code Definitions
- * Source: NCITS T10, Project 1144D, Revision 07a (aka FCP2r07a)
+ * Source: NCITS T10, Project 1144D, Revision 08 (aka FCP2r08)
  */
 #define	FCP_RSPNS_CODE_OFFSET		3
 

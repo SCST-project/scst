@@ -1,4 +1,4 @@
-/* $Id: isp_linux.h,v 1.138 2007/10/11 22:08:07 mjacob Exp $ */
+/* $Id: isp_linux.h,v 1.139 2007/10/27 18:16:29 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -218,6 +218,8 @@ typedef u_long  vm_offset_t;
 
 #ifdef  ISP_TARGET_MODE
 
+#include "isp_tpublic.h"
+
 #ifndef DEFAULT_DEVICE_TYPE
 #define DEFAULT_DEVICE_TYPE 0
 #endif
@@ -225,27 +227,43 @@ typedef u_long  vm_offset_t;
 #define N_NOTIFIES          256
 #define DEFAULT_INQSIZE     32
 
-#define _WIX(isp, b, ix)    (((b << 6)) | (ix >> 5))
-#define _BIX(isp, ix)       (1 << (ix & 0x1f))
+#define WIX(ix)     (ix >> 5)
+#define BIX(ix)     (1 << (ix & 0x1f))
 
-#define LUN_BTST(isp, b, ix)    (((isp)->isp_osinfo.lunbmap[_WIX(isp, b, ix)] & _BIX(isp, ix)) != 0)
-#define LUN_BSET(isp, b, ix)    isp->isp_osinfo.lunbmap[_WIX(isp, b, ix)] |= _BIX(isp, ix)
-#define LUN_BCLR(isp, b, ix)    isp->isp_osinfo.lunbmap[_WIX(isp, b, ix)] &= ~_BIX(isp, ix)
+#define LUN_BTST(bmap, ix)  ((bmap[WIX(ix)] & BIX(ix)) != 0)
+#define LUN_BSET(bmap, ix)  bmap[WIX(ix)] |= BIX(ix)
+#define LUN_BCLR(bmap, ix)  bmap[WIX(ix)] &= ~BIX(ix)
 
 typedef struct isp_notify isp_notify_t;
 
 #define cd_action   cd_lreserved[0].shorts[0]
 #define cd_oxid     cd_lreserved[0].shorts[1]
-#define cd_next     cd_lreserved[1].ptrs[0]
-#define cd_nphdl    cd_lreserved[2].shorts[0]
-#define cd_nseg     cd_lreserved[2].shorts[1]
-#define cd_portid   cd_lreserved[3].longs[0]
+#define cd_lflags   cd_lreserved[0].shorts[2]
+#define cd_nphdl    cd_lreserved[0].shorts[3]
+#define cd_nseg     cd_lreserved[1].longs[0]
+#define cd_portid   cd_lreserved[1].longs[1]
+#define cd_next     cd_lreserved[2].ptrs[0]
+#define cd_lastoff  cd_lreserved[3].longs[0]
+#define cd_lastsize cd_lreserved[3].longs[1]
 
-#define CDFL_LCL        0x80000000
-#define CDFL_RESRC_FILL 0x40000000
-#define CDFL_CALL_CMPLT 0x20000000
-#define CDFL_ABORTED    0x10000000
-#define CDFL_NEED_CLNUP 0x08000000
+#define CDFL_LCL        0x8000
+#define CDFL_RESRC_FILL 0x4000
+#define CDFL_ABORTED    0x2000
+#define CDFL_NEED_CLNUP 0x1000
+#define CDFL_BUSY       0x0800
+
+typedef struct enalun tgt_enalun_t;
+struct enalun {
+    tgt_enalun_t *  next;
+    uint16_t        lun;
+    uint16_t        bus;
+};
+
+typedef struct {
+    struct scatterlist sg;
+    tmd_xfr_t          xfr;
+} tgt_auxcmd_t;
+#define	N_TGT_AUX	32
 
 #endif  /* ISP_TARGET_MODE */
 
@@ -313,31 +331,14 @@ struct isposinfo {
     unsigned int        device_id;
     isp_thread_action_t t_actions[MAX_THREAD_ACTION];
 #ifdef  ISP_TARGET_MODE
-#define TM_WANTED           0x08
-#define TM_BUSY             0x04
-#define TM_TMODE_ENABLED    0x03
     uint32_t   rollinfo    : 16,
                 rstatus     : 8,
-                            : 1,
+                            : 6,
                 isget       : 1,
-                wildcarded  : 1,
-                hcb         : 1,
-                tmflags     : 4;
+                hcb         : 1;
     struct semaphore    tgt_inisem;
     struct semaphore *  rsemap;
-   /*
-    * This is very inefficient, but is in fact big enough
-    * to cover a complete bitmap for Fibre Channel, as well
-    * as the dual bus SCSI cards. This works out without
-    * overflow easily because the most you can enable
-    * for the SCSI cards is 64 luns (x 2 busses).
-    *
-    * For Fibre Channel, we can run the max luns up to 16384
-    * but we'll default to the minimum we can support here.
-    */
-#define TM_MAX_LUN_FC   64
-#define TM_MAX_LUN_SCSI 64
-    uint32_t                lunbmap[TM_MAX_LUN_FC >> 5];
+    tgt_enalun_t *          luns;       /* enabled { lun, port } tuples */
     struct tmd_cmd *        pending_t;  /* pending list of commands going upstream */
     struct tmd_cmd *        tfreelist;  /* freelist head */
     struct tmd_cmd *        bfreelist;  /* freelist tail */
@@ -345,8 +346,16 @@ struct isposinfo {
     isp_notify_t *          pending_n;  /* pending list of notifies going upstream */
     isp_notify_t *          nfreelist;  /* freelist */
     isp_notify_t *          npool;      /* pool itself */
-    struct scatterlist *    dpwrk;
-    uint8_t *               inqdata;
+    struct tmd_xfr *        pending_x;  /* pending list of xfrs going upstream */
+    /*
+     * When we have inquiry commands that we have to xfer data with
+     * locally we have to have some aux info (scatterlist, tmd_xfr_t)
+     * to manage those commands.
+     */
+    tgt_auxcmd_t            auxinfo[N_TGT_AUX];
+    uint32_t                auxbmap[N_TGT_AUX >> 5];
+    uint8_t                 inqdata[DEFAULT_INQSIZE];
+
     uint64_t                cmds_started;
     uint64_t                cmds_completed;
     struct {
@@ -988,7 +997,8 @@ void isp_deinit_target(ispsoftc_t *);
 void isp_detach_target(ispsoftc_t *);
 int isp_target_async(ispsoftc_t *, int, int);
 int isp_target_notify(ispsoftc_t *, void *, uint32_t *);
-int isp_en_dis_lun(ispsoftc_t *, int, uint16_t, uint64_t, uint16_t);
+int isp_enable_lun(ispsoftc_t *, uint16_t, uint64_t, uint16_t);
+int isp_disable_lun(ispsoftc_t *, uint16_t, uint64_t, uint16_t);
 
 struct isp_notify {
     tmd_notify_t    notify;

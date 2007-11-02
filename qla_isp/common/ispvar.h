@@ -1,4 +1,4 @@
-/* $Id: ispvar.h,v 1.84 2007/10/11 22:08:38 mjacob Exp $ */
+/* $Id: ispvar.h,v 1.85 2007/10/30 01:54:46 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -490,14 +490,14 @@ struct ispsoftc {
 	uint32_t		isp_maxluns;	/* maximum luns supported */
 
 	uint32_t		isp_clock	: 8,	/* input clock */
-						: 5,
+						: 1,
 				isp_port	: 1,	/* 23XX/24XX only */
 				isp_failed	: 1,	/* board failed */
 				isp_open	: 1,	/* opened (ioctl) */
 				isp_bustype	: 1,	/* SBus or PCI */
 				isp_loaded_fw	: 1,	/* loaded firmware */
 				isp_role	: 2,	/* roles supported */
-				isp_dblev	: 12;	/* debug log mask */
+				isp_dblev	: 16;	/* debug log mask */
 
 	uint32_t		isp_confopts;		/* config options */
 
@@ -919,9 +919,10 @@ int isp_async(ispsoftc_t *, ispasync_t, void *);
 #define	ISP_LOGDEBUG2	0x40	/* log most debug messages */
 #define	ISP_LOGDEBUG3	0x80	/* log high frequency debug messages */
 #define	ISP_LOGSANCFG	0x100	/* log SAN configuration */
-#define	ISP_LOGTDEBUG0	0x200	/* log simple debug messages (target mode) */
-#define	ISP_LOGTDEBUG1	0x400	/* log intermediate debug messages (target) */
-#define	ISP_LOGTDEBUG2	0x800	/* log all debug messages (target) */
+#define	ISP_LOGTINFO	0x1000	/* log informational messages (target mode) */
+#define	ISP_LOGTDEBUG0	0x2000	/* log simple debug messages (target mode) */
+#define	ISP_LOGTDEBUG1	0x4000	/* log intermediate debug messages (target) */
+#define	ISP_LOGTDEBUG2	0x8000	/* log all debug messages (target) */
 
 /*
  * Each Platform provides it's own isposinfo substructure of the ispsoftc

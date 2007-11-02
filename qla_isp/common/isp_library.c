@@ -1,4 +1,4 @@
-/* $Id: isp_library.c,v 1.44 2007/07/07 23:20:56 mjacob Exp $ */
+/* $Id: isp_library.c,v 1.46 2007/10/29 18:12:33 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -2049,12 +2049,15 @@ isp_put_ctio7(ispsoftc_t *isp, ct7_entry_t *src, ct7_entry_t *dst)
 		ISP_IOXPUT_32(isp, src->rsp.m0.ds.ds_count,
 		    &dst->rsp.m0.ds.ds_count);
 	} else if ((dst->ct_flags & CT7_FLAG_MMASK) == CT7_FLAG_MODE1) {
+		uint32_t *a, *b;
+
 		ISP_IOXPUT_16(isp, src->rsp.m1.ct_resplen,
 		    &dst->rsp.m1.ct_resplen);
 		ISP_IOXPUT_16(isp, src->rsp.m1.reserved, &dst->rsp.m1.reserved);
-		for (i = 0; i < MAXRESPLEN_24XX; i++) {
-			ISP_IOXPUT_8(isp, src->rsp.m1.ct_resp[i],
-			    &dst->rsp.m1.ct_resp[i]);
+		a = (uint32_t *) src->rsp.m1.ct_resp;
+		b = (uint32_t *) dst->rsp.m1.ct_resp;
+		for (i = 0; i < (ASIZE(src->rsp.m1.ct_resp) >> 2); i++) {
+			*b++ = ISP_SWAP32(isp, *a++);
 		}
 	} else {
 		ISP_IOXPUT_32(isp, src->rsp.m2.reserved0,
@@ -2278,12 +2281,19 @@ isp_get_ctio7(ispsoftc_t *isp, ct7_entry_t *src, ct7_entry_t *dst)
 		ISP_IOXGET_32(isp, &src->rsp.m0.ds.ds_count,
 		    dst->rsp.m0.ds.ds_count);
 	} else if ((dst->ct_flags & CT7_FLAG_MMASK) == CT7_FLAG_MODE1) {
+		uint32_t *a, *b;
+
 		ISP_IOXGET_16(isp, &src->rsp.m1.ct_resplen,
 		    dst->rsp.m1.ct_resplen);
 		ISP_IOXGET_16(isp, &src->rsp.m1.reserved, dst->rsp.m1.reserved);
+		a = (uint32_t *) src->rsp.m1.ct_resp;
+		b = (uint32_t *) dst->rsp.m1.ct_resp;
 		for (i = 0; i < MAXRESPLEN_24XX; i++) {
 			ISP_IOXGET_8(isp, &src->rsp.m1.ct_resp[i],
 			    dst->rsp.m1.ct_resp[i]);
+		}
+		for (i = 0; i < (ASIZE(src->rsp.m1.ct_resp) >> 2); i++) {
+			*b++ = ISP_SWAP32(isp, *a++);
 		}
 	} else {
 		ISP_IOXGET_32(isp, &src->rsp.m2.reserved0,

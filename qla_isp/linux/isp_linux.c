@@ -1,4 +1,4 @@
-/* $Id: isp_linux.c,v 1.203 2007/10/11 22:08:07 mjacob Exp $ */
+/* $Id: isp_linux.c,v 1.206 2007/10/30 01:55:32 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -95,34 +95,38 @@ static char *isp_roles;
 static char *isp_wwpns;
 static char *isp_wwnns;
 
+
 #ifdef    ISP_TARGET_MODE
 #ifndef    ISP_PARENT_TARGET
 #define    ISP_PARENT_TARGET    scsi_target_handler
 #endif
 
-#define    CALL_PARENT_TARGET(hba, cmd, action) \
-    cmd->cd_action = action;                    \
-    cmd->cd_next = hba->isp_osinfo.pending_t;   \
-    hba->isp_osinfo.pending_t = cmd
+#define    CALL_PARENT_TMD(hba, tmd, action)    \
+    tmd->cd_action = action;                    \
+    tmd->cd_next = hba->isp_osinfo.pending_t;   \
+    hba->isp_osinfo.pending_t = tmd
 
 #define    CALL_PARENT_NOTIFY(hba, ins)                         \
     ins->notify.nt_lreserved = hba->isp_osinfo.pending_n;       \
     hba->isp_osinfo.pending_n = ins
+
+#define    CALL_PARENT_XFR(hba, xfr)                \
+    xfr->td_lprivate = hba->isp_osinfo.pending_x;   \
+    hba->isp_osinfo.pending_x = xfr
 
 extern void ISP_PARENT_TARGET (qact_e, void *);
 static __inline tmd_cmd_t *isp_find_tmd(ispsoftc_t *, uint64_t);
 static __inline int isp_find_iid_wwn(ispsoftc_t *, uint32_t, uint64_t *);
 static __inline void isp_clear_iid_wwn(ispsoftc_t *, uint32_t, uint64_t);
 static void isp_taction(qact_e, void *);
-static __inline int nolunsenabled(ispsoftc_t *, int);
-static void isp_target_start_ctio(ispsoftc_t *, tmd_cmd_t *);
+static void isp_target_start_ctio(ispsoftc_t *, tmd_xfr_t *);
 static void isp_handle_platform_atio(ispsoftc_t *, at_entry_t *);
 static void isp_handle_platform_atio2(ispsoftc_t *, at2_entry_t *);
 static void isp_handle_platform_atio7(ispsoftc_t *, at7_entry_t *);
 static int isp_terminate_cmd(ispsoftc_t *, tmd_cmd_t *);
 static void isp_handle_platform_ctio(ispsoftc_t *, void *);
 static int isp_target_putback_atio(ispsoftc_t *, tmd_cmd_t *);
-static void isp_complete_ctio(ispsoftc_t *, tmd_cmd_t *);
+static void isp_complete_ctio(ispsoftc_t *, tmd_xfr_t *);
 static void isp_tgt_tq(ispsoftc_t *);
 #endif
 
@@ -823,7 +827,7 @@ int
 isp_init_target(ispsoftc_t *isp)
 {
     int i;
-    void *pool, *npool, *inqdata, *dpwrk;
+    void *pool, *npool;
     unsigned long flags;
     static const uint8_t inqdsd[DEFAULT_INQSIZE] = {
         0x7f, 0x00, 0x03, 0x02, 0x1c, 0x00, 0x00, 0x00,
@@ -844,21 +848,6 @@ isp_init_target(ispsoftc_t *isp)
         isp_kfree(pool, NTGT_CMDS * TMD_SIZE);
         return (-ENOMEM);
     }
-    inqdata = isp_kalloc(DEFAULT_INQSIZE, GFP_KERNEL|GFP_DMA);
-    if (inqdata == NULL) {
-        isp_prt(isp, ISP_LOGERR, "cannot allocate static Inquiry Data");
-        isp_kfree(pool, NTGT_CMDS * TMD_SIZE);
-        isp_kfree(npool, N_NOTIFIES * sizeof (isp_notify_t));
-        return (-ENOMEM);
-    }
-    dpwrk = isp_kzalloc(NTGT_CMDS * sizeof (struct scatterlist), GFP_KERNEL);
-    if (dpwrk == NULL) {
-        isp_prt(isp, ISP_LOGERR, "cannot allocate static scatterlists");
-        isp_kfree(pool, NTGT_CMDS * TMD_SIZE);
-        isp_kfree(npool, N_NOTIFIES * sizeof (isp_notify_t));
-        isp_kfree(inqdata, DEFAULT_INQSIZE);
-        return (-ENOMEM);
-    }
 
     sema_init(&isp->isp_osinfo.tgt_inisem, 1);
 
@@ -871,9 +860,10 @@ isp_init_target(ispsoftc_t *isp)
     for (i = 0; i < N_NOTIFIES-1; i++) {
         isp->isp_osinfo.npool[i].notify.nt_lreserved = &isp->isp_osinfo.npool[i+1];
     }
-    isp->isp_osinfo.inqdata = inqdata;
+    for (i = 0; i < (N_TGT_AUX >> 5); i++) {
+	isp->isp_osinfo.auxbmap[i] = 0;
+    }
     MEMCPY(isp->isp_osinfo.inqdata, inqdsd, DEFAULT_INQSIZE);
-    isp->isp_osinfo.dpwrk = dpwrk;
     isp->isp_osinfo.pending_t = NULL;
     isp->isp_osinfo.tfreelist = isp->isp_osinfo.pool;
     isp->isp_osinfo.bfreelist = &isp->isp_osinfo.pool[NTGT_CMDS-1];
@@ -887,7 +877,7 @@ isp_attach_target(ispsoftc_t *isp)
 {
     hba_register_t hba;
     hba.r_identity = isp;
-    snprintf(hba.r_name, sizeof (hba.r_name), ISP_NAME);
+    snprintf(hba.r_name, sizeof (hba.r_name), "isp");
     hba.r_inst = isp->isp_unit;
     hba.r_version = QR_VERSION;
     hba.r_action = isp_taction;
@@ -906,7 +896,7 @@ isp_attach_target(ispsoftc_t *isp)
 void
 isp_deinit_target(ispsoftc_t *isp)
 {
-    void *pool, *npool, *inqdata, *dpwrk;
+    void *pool, *npool;
     unsigned long flags;
 
     ISP_LOCK_SOFTC(isp);
@@ -914,22 +904,12 @@ isp_deinit_target(ispsoftc_t *isp)
     isp->isp_osinfo.pool = NULL;
     npool = isp->isp_osinfo.npool;
     isp->isp_osinfo.npool = NULL;
-    inqdata = isp->isp_osinfo.inqdata;
-    isp->isp_osinfo.inqdata = NULL;
-    dpwrk = isp->isp_osinfo.dpwrk;
-    isp->isp_osinfo.dpwrk = NULL;
     ISP_UNLK_SOFTC(isp);
     if (pool) {
         isp_kfree(pool, NTGT_CMDS * TMD_SIZE);
     }
     if (npool) {
         isp_kfree(npool, N_NOTIFIES * sizeof (isp_notify_t));
-    }
-    if (inqdata) {
-        isp_kfree(inqdata, DEFAULT_INQSIZE);
-    }
-    if (dpwrk) {
-        isp_kfree(dpwrk, NTGT_CMDS * sizeof (struct scatterlist));
     }
 }
 
@@ -959,6 +939,7 @@ isp_tgt_tq(ispsoftc_t *isp)
 {
     isp_notify_t *ins;
     tmd_cmd_t *tmd;
+    tmd_xfr_t *xfr;
     unsigned long flags;
 
     ISP_LOCK_SOFTC(isp);
@@ -969,6 +950,10 @@ isp_tgt_tq(ispsoftc_t *isp)
     tmd = isp->isp_osinfo.pending_t;
     if (tmd) {
         isp->isp_osinfo.pending_t = NULL;
+    }
+    xfr = isp->isp_osinfo.pending_x;
+    if (xfr) {
+        isp->isp_osinfo.pending_x = NULL;
     }
     ISP_UNLK_SOFTC(isp);
     while (ins != NULL) {
@@ -982,8 +967,14 @@ isp_tgt_tq(ispsoftc_t *isp)
         tmd_cmd_t *next = tmd->cd_next;
         tmd->cd_next = NULL;
         isp_prt(isp, ISP_LOGTDEBUG2, "isp_tgt_tq[%llx] -> code 0x%x", tmd->cd_tagval, tmd->cd_action);
-        ISP_PARENT_TARGET(tmd->cd_action, tmd);
+	    ISP_PARENT_TARGET(tmd->cd_action, tmd);
         tmd = next;
+    }
+    while (xfr != NULL) {
+        tmd_xfr_t *next = xfr->td_lprivate;
+        xfr->td_lprivate = NULL;
+        ISP_PARENT_TARGET(QOUT_TMD_DONE, xfr);
+        xfr = next;
     }
 }
 
@@ -997,7 +988,7 @@ isp_find_tmd(ispsoftc_t *isp, uint64_t tagval)
         return (NULL);
     }
     for (i = 0; i < NTGT_CMDS; i++) {
-        if (tmd->cd_lflags && tmd->cd_tagval == tagval) {
+        if ((tmd->cd_lflags & CDFL_BUSY) && tmd->cd_tagval == tagval) {
             return (tmd);
         }
         tmd++;
@@ -1181,7 +1172,7 @@ isp_taction(qact_e action, void *arg)
             printk(KERN_ERR "null isp @ %s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
             break;
         }
-        ep->en_error = isp_en_dis_lun(isp, 1, ep->en_chan, ep->en_tgt, ep->en_lun);
+        ep->en_error = isp_enable_lun(isp, ep->en_chan, ep->en_tgt, ep->en_lun);
         ISP_PARENT_TARGET(QOUT_ENABLE, ep);
         break;
 
@@ -1192,7 +1183,7 @@ isp_taction(qact_e action, void *arg)
             printk(KERN_ERR "null isp @ %s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
             break;
         }
-        ep->en_error = isp_en_dis_lun(isp, 0, ep->en_chan, ep->en_tgt, ep->en_lun);
+        ep->en_error = isp_disable_lun(isp, ep->en_chan, ep->en_tgt, ep->en_lun);
         ISP_PARENT_TARGET(QOUT_DISABLE, ep);
         ISP_LOCK_SOFTC(isp);
         (void) isp_target_async(isp, 0, ASYNC_LOOP_DOWN);
@@ -1200,15 +1191,13 @@ isp_taction(qact_e action, void *arg)
         break;
 
     case QIN_TMD_CONT:
-        tmd = (tmd_cmd_t *) arg;
+    {
+        tmd_xfr_t *xfr = arg;
+        tmd = xfr->td_cmd;
         isp = tmd->cd_hba;
-        if (isp == NULL) {
-            printk(KERN_ERR "null isp @ %s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
-            break;
-        }
-        isp_target_start_ctio(isp, tmd);
+        isp_target_start_ctio(isp, arg);
         break;
-
+    }
     case QIN_TMD_FIN:
         tmd = (tmd_cmd_t *) arg;
         isp = tmd->cd_hba;
@@ -1217,18 +1206,7 @@ isp_taction(qact_e action, void *arg)
             break;
         }
         ISP_LOCK_SOFTC(isp);
-#if 0
         isp_prt(isp, ISP_LOGTDEBUG1, "freeing tmd %p [%llx]", tmd, tmd->cd_tagval);
-        if ((isp->isp_osinfo.tmflags & TM_TMODE_ENABLED) == 0) {
-            isp_prt(isp, ISP_LOGTDEBUG1, "FIN with tm disabled");
-            ISP_UNLK_SOFTC(isp);
-            break;
-        }
-#endif
-        if (tmd->cd_lflags & CDFL_CALL_CMPLT) {
-            isp_prt(isp, ISP_LOGWARN, "CALL_CMPLT set for %llx, LFLAGS 0x%x", tmd->cd_tagval, tmd->cd_lflags);
-            tmd->cd_lflags ^= CDFL_CALL_CMPLT;
-        }
         if (tmd->cd_lflags & CDFL_RESRC_FILL) {
             if (isp_target_putback_atio(isp, tmd)) {
                     SEND_THREAD_EVENT(isp, ISP_THREAD_FC_PUTBACK, tmd, 0, __FUNCTION__, __LINE__);
@@ -1240,10 +1218,7 @@ isp_taction(qact_e action, void *arg)
             tmd->cd_lflags &= ~CDFL_NEED_CLNUP;
             (void) isp_terminate_cmd(isp, tmd);
         }
-        tmd->cd_hba = NULL;
-        tmd->cd_lflags = 0;
         tmd->cd_next = NULL;
-        /* don't zero cd_hflags or cd_tagval- it may be being used to catch duplicate frees */
         if (isp->isp_osinfo.tfreelist) {
             isp->isp_osinfo.bfreelist->cd_next = tmd;
         } else {
@@ -1320,11 +1295,7 @@ isp_taction(qact_e action, void *arg)
             up(rsemap);
         }
         ISP_UNLK_SOFTC(isp);
-        /*
-         * force us to not run any queues
-         */
-        isp = NULL;
-        return;
+        break;
     default:
         printk(KERN_ERR "isp_taction: unknown action %x, arg %p\n", action, arg);
         break;
@@ -1334,48 +1305,98 @@ isp_taction(qact_e action, void *arg)
     }
 }
 
-static __inline int
-nolunsenabled(ispsoftc_t *isp, int port)
+static int
+lunenabled(ispsoftc_t *isp, uint16_t bus, uint16_t lun)
 {
-    int i, wbase, wend;
-
-    if (IS_FC(isp)) {
-        wbase = 0;
-        wend = TM_MAX_LUN_FC >> 5;
-    } else {
-        if (port) {
-            wend = TM_MAX_LUN_FC >> 5;
-            wbase = wend >> 1;
-        } else {
-            wend = (TM_MAX_LUN_FC >> 5) >> 1;
-            wbase = 0;
+    tgt_enalun_t *axl = isp->isp_osinfo.luns;
+    while (axl) {
+        if (axl->bus == bus && axl->lun == lun) {
+            return (1);
         }
+        axl = axl->next;
     }
-    for (i = wbase; i < wend; i++) {
-        if (isp->isp_osinfo.lunbmap[i]) {
+    return (0);
+}
+
+static int
+nolunsenabled(ispsoftc_t *isp, uint16_t bus)
+{
+    tgt_enalun_t *axl = isp->isp_osinfo.luns;
+    while (axl) {
+        if (axl->bus == bus) {
             return (0);
         }
+        axl = axl->next;
     }
     return (1);
 }
 
+static int
+addlun(ispsoftc_t *isp, uint16_t bus, uint16_t lun)
+{
+    tgt_enalun_t *axl = isp_kalloc(sizeof (tgt_enalun_t), GFP_KERNEL);
+    unsigned long flags;
+
+    if (axl == NULL) {
+        return (-1);
+    }
+    axl->lun = lun;
+    axl->bus = bus;
+    ISP_LOCK_SOFTC(isp);
+    axl->next = isp->isp_osinfo.luns;
+    isp->isp_osinfo.luns = axl;
+    ISP_UNLK_SOFTC(isp);
+    return (0);
+}
+
+static int
+remlun(ispsoftc_t *isp, uint16_t lun, uint16_t bus)
+{
+    tgt_enalun_t *axl, *axy = NULL;
+    unsigned long flags;
+    ISP_LOCK_SOFTC(isp);
+    axl = isp->isp_osinfo.luns;
+    if (axl->lun == lun && axl->bus == bus) {
+        isp->isp_osinfo.luns = axl->next;
+        axy = axl;
+    } else {
+        while (axl->next) {
+            if (axl->next->lun == lun && axl->next->bus == bus) {
+                axy = axl->next;
+                axl->next = axy->next;
+                break;
+            }
+            axl = axl->next;
+        }
+    }
+    ISP_UNLK_SOFTC(isp);
+    if (axy == NULL) {
+        return (-1);
+    }
+    isp_kfree(axy, sizeof (tgt_enalun_t));
+    return (0);
+}
+
 static void
-isp_target_start_ctio(ispsoftc_t *isp, tmd_cmd_t *tmd)
+isp_target_start_ctio(ispsoftc_t *isp, tmd_xfr_t *xfr)
 {
     void *qe;
     uint32_t handle;
-    uint32_t *rp;
     uint32_t nxti, optr;
     uint8_t local[QENTRY_LEN];
     unsigned long flags;
+    int32_t resid;
+    tmd_cmd_t *tmd = xfr->td_cmd;
+
+    xfr->td_error = 0;
 
     /*
      * Check for commands that are already dead
      */
     if (tmd->cd_lflags & CDFL_ABORTED) {
         isp_prt(isp, ISP_LOGINFO, "[%llx] already ABORTED- not sending a CTIO", tmd->cd_tagval);
-        tmd->cd_error = -ENXIO;
-        tmd->cd_lflags |= CDFL_ERROR;
+        dump_stack();
+        xfr->td_error = -ENXIO;
         goto out;
     }
 
@@ -1384,46 +1405,52 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_cmd_t *tmd)
      * If we're sending data, we have to have one and only one data
      * direction set.
      */
-    if (tmd->cd_xfrlen == 0) {
-        if ((tmd->cd_hflags & CDFH_STSVALID) == 0) {
+    if (xfr->td_xfrlen == 0) {
+        if ((xfr->td_hflags & TDFH_STSVALID) == 0) {
             isp_prt(isp, ISP_LOGERR, "CTIO, no data, and no status is wrong");
-            tmd->cd_error = -EINVAL;
-            tmd->cd_lflags |= CDFL_ERROR;
+            dump_stack();
+            xfr->td_error = -EINVAL;
             goto out;
         }
     } else {
-        if ((tmd->cd_hflags & CDFH_DATA_MASK) == 0) {
+        if ((xfr->td_hflags & TDFH_DATA_MASK) == 0) {
             isp_prt(isp, ISP_LOGERR, "data CTIO with no direction is wrong");
-            tmd->cd_error = -EINVAL;
-            tmd->cd_lflags |= CDFL_ERROR;
+            dump_stack();
+            xfr->td_error = -EINVAL;
             goto out;
         }
-        if ((tmd->cd_hflags & CDFH_DATA_MASK) == CDFH_DATA_MASK) {
-            isp_prt(isp, ISP_LOGERR, "data CTIO with both directions is wrong");
-            tmd->cd_error = -EINVAL;
-            tmd->cd_lflags |= CDFL_ERROR;
+        if ((xfr->td_hflags & TDFH_DATA_MASK) == TDFH_DATA_MASK) {
+            isp_prt(isp, ISP_LOGERR, "data CTIO with both directions is wrong (for now)");
+            dump_stack();
+            xfr->td_error = -EINVAL;
             goto out;
         }
     }
-    tmd->cd_lflags &= ~CDFL_ERROR;
-
 
     MEMZERO(local, QENTRY_LEN);
 
+    /*
+     * Use this lock to protect tmd fields
+     */
     ISP_LOCK_SOFTC(isp);
-    if (isp_getrqentry(isp, &nxti, &optr, &qe)) {
-        isp_prt(isp, ISP_LOGWARN, "%s: request queue overflow", __FUNCTION__);
-        tmd->cd_error = -ENOMEM;
-        tmd->cd_lflags |= CDFL_ERROR;
-        ISP_UNLK_SOFTC(isp);
-        goto out;
-    }
+
+    /*
+     * Pre-increment cd_moved so we know how many bytes are actually in transit. If we actually fail to move
+     * the bytes, we'll subtract things out when we collect status.
+     */
+    tmd->cd_moved += xfr->td_xfrlen;
+
+    /*
+     * Set the residual to be equal to the total length less the amount previously moved plus this transfer size
+     */
+    resid = tmd->cd_totlen - tmd->cd_moved;
 
     /*
      * We're either moving data or completing a command here (or both).
      */
     if (IS_24XX(isp)) {
         ct7_entry_t *cto = (ct7_entry_t *) local;
+        int tattr;
 
         cto->ct_header.rqs_entry_type = RQSTYPE_CTIO7;
         cto->ct_header.rqs_entry_count = 1;
@@ -1434,38 +1461,54 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_cmd_t *tmd)
         cto->ct_oxid = tmd->cd_oxid;
         cto->ct_scsi_status = tmd->cd_scsi_status;
 
-        if (tmd->cd_xfrlen == 0) {
+        switch (tmd->cd_tagtype) {
+        case CD_SIMPLE_TAG:
+            tattr = FCP_CMND_TASK_ATTR_SIMPLE;
+            break;
+        case CD_HEAD_TAG:
+            tattr = FCP_CMND_TASK_ATTR_HEAD;
+            break;
+        case CD_ORDERED_TAG:
+            tattr = FCP_CMND_TASK_ATTR_ORDERED;
+            break;
+        case CD_ACA_TAG:
+            tattr = FCP_CMND_TASK_ATTR_ACA;
+            break;
+        default:
+            tattr = FCP_CMND_TASK_ATTR_UNTAGGED;
+            break;
+        }
+        cto->ct_flags = tattr << CT7_TASK_ATTR_SHIFT;
+
+        if (xfr->td_xfrlen == 0) {
             cto->ct_flags |= CT7_FLAG_MODE1 | CT7_NO_DATA | CT7_SENDSTATUS;
-            if ((tmd->cd_hflags & CDFH_SNSVALID) != 0) {
-                cto->rsp.m1.ct_resplen = min(TMD_SENSELEN, MAXRESPLEN_24XX);
-                MEMCPY(cto->rsp.m1.ct_resp, tmd->cd_sense, cto->rsp.m1.ct_resplen);
+            if ((xfr->td_hflags & TDFH_SNSVALID) != 0) {
+                cto->ct_senselen = min(TMD_SENSELEN, MAXRESPLEN);
+                MEMCPY(cto->rsp.m1.ct_resp, tmd->cd_sense, cto->ct_senselen);
+                cto->ct_scsi_status |= (FCP_SNSLEN_VALID << 8);
             }
         } else {
             cto->ct_flags |= CT7_FLAG_MODE0;
-            if (tmd->cd_hflags & CDFH_DATA_IN) {
+            if (xfr->td_hflags & TDFH_DATA_IN) {
                 cto->ct_flags |= CT7_DATA_IN;
             } else {
                 cto->ct_flags |= CT7_DATA_OUT;
             }
-            if (tmd->cd_hflags & CDFH_STSVALID) {
+            if (xfr->td_hflags & TDFH_STSVALID) {
                 cto->ct_flags |= CT7_SENDSTATUS;
             }
-            /*
-             * We assume we'll transfer what we say we'll transfer.
-             * It should get added back in if we fail.
-             */
-            tmd->cd_resid -= tmd->cd_xfrlen;
         }
-
-        if ((cto->ct_flags & CT7_SENDSTATUS) && tmd->cd_resid) {
-            cto->ct_resid = tmd->cd_resid;
-            cto->ct_scsi_status |= CT2_DATA_UNDER;  /* XXX SHOULD BE IN ISP_STDS.H */
+        if ((cto->ct_flags & CT7_SENDSTATUS) && resid) {
+            cto->ct_resid = resid;
+            if (resid < 0) {
+                cto->ct_scsi_status |= (FCP_RESID_OVERFLOW << 8);
+            } else {
+                cto->ct_scsi_status |= (FCP_RESID_UNDERFLOW << 8);
+            }
         } else {
             cto->ct_resid = 0;
         }
-        isp_prt(isp, ISP_LOGTDEBUG0, "CTIO7[%llx] ssts %x flags %x resid %d", tmd->cd_tagval, tmd->cd_scsi_status, cto->ct_flags, cto->ct_resid);
-        rp = &cto->ct_resid;
-
+        isp_prt(isp, ISP_LOGTDEBUG0, "CTIO7[%llx] scsi sts %x flags %x resid %d offset %u", tmd->cd_tagval, tmd->cd_scsi_status, cto->ct_flags, resid, xfr->td_offset);
     } else if (IS_FC(isp)) {
         ct2_entry_t *cto = (ct2_entry_t *) local;
         uint16_t *ssptr = NULL;
@@ -1485,37 +1528,34 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_cmd_t *tmd)
         cto->ct_rxid = AT2_GET_TAG(tmd->cd_tagval);
         if (cto->ct_rxid == 0) {
             isp_prt(isp, ISP_LOGERR, "a tagval of zero is not acceptable");
-            tmd->cd_error = -EINVAL;
-            tmd->cd_lflags |= CDFL_ERROR;
+            xfr->td_error = -EINVAL;
             ISP_UNLK_SOFTC(isp);
             goto out;
         }
 #if    0
         /*
-         * XXX: I've had problems with this at varying times- dunno why
+         * I've had problems with this at varying times- dunno why
          */
         cto->ct_flags = CT2_FASTPOST;
-#else
-        cto->ct_flags = 0;
 #endif
 
-        if (tmd->cd_xfrlen == 0) {
+        if (xfr->td_xfrlen == 0) {
             cto->ct_flags |= CT2_FLAG_MODE1 | CT2_NO_DATA | CT2_SENDSTATUS;
             ssptr = &cto->rsp.m1.ct_scsi_status;
             *ssptr = tmd->cd_scsi_status;
-            if ((tmd->cd_hflags & CDFH_SNSVALID) != 0) {
+            if ((xfr->td_hflags & TDFH_SNSVALID) != 0) {
                 cto->rsp.m1.ct_senselen = min(TMD_SENSELEN, MAXRESPLEN);
                 MEMCPY(cto->rsp.m1.ct_resp, tmd->cd_sense, cto->rsp.m1.ct_senselen);
                 cto->rsp.m1.ct_scsi_status |= CT2_SNSLEN_VALID;
             }
         } else {
             cto->ct_flags |= CT2_FLAG_MODE0;
-            if (tmd->cd_hflags & CDFH_DATA_IN) {
+            if (xfr->td_hflags & TDFH_DATA_IN) {
                 cto->ct_flags |= CT2_DATA_IN;
             } else {
                 cto->ct_flags |= CT2_DATA_OUT;
             }
-            if (tmd->cd_hflags & CDFH_STSVALID) {
+            if (xfr->td_hflags & TDFH_STSVALID) {
                 ssptr = &cto->rsp.m0.ct_scsi_status;
                 cto->ct_flags |= CT2_SENDSTATUS;
                 cto->rsp.m0.ct_scsi_status = tmd->cd_scsi_status;
@@ -1524,21 +1564,19 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_cmd_t *tmd)
                  * to check for sense data.
                  */
             }
-            /*
-             * We assume we'll transfer what we say we'll transfer.
-             * It should get added back in if we fail.
-             */
-            tmd->cd_resid -= tmd->cd_xfrlen;
         }
 
-        if (ssptr && tmd->cd_resid) {
-            cto->ct_resid = tmd->cd_resid;
-            *ssptr |= CT2_DATA_UNDER;
+        if (ssptr && resid) {
+            cto->ct_resid = resid;
+            if (resid < 0) {
+                *ssptr |= CT2_DATA_OVER;
+            } else {
+                *ssptr |= CT2_DATA_UNDER;
+            }
         } else {
             cto->ct_resid = 0;
         }
-        isp_prt(isp, ISP_LOGTDEBUG0, "CTIO2[%llx] ssts %x flags %x resid %d", tmd->cd_tagval, tmd->cd_scsi_status, cto->ct_flags, cto->ct_resid);
-        rp = &cto->ct_resid;
+        isp_prt(isp, ISP_LOGTDEBUG0, "CTIO2[%llx] scsi sts %x flags %x resid %d", tmd->cd_tagval, tmd->cd_scsi_status, cto->ct_flags, resid);
         if (cto->ct_flags & CT2_SENDSTATUS) {
             cto->ct_flags |= CT2_CCINCR;
         }
@@ -1556,18 +1594,18 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_cmd_t *tmd)
             cto->ct_tag_val = AT_GET_TAG(tmd->cd_tagval);
             cto->ct_flags |= CT_TQAE;
         }
-        if (tmd->cd_lflags & CDFL_NODISC) {
+        if (tmd->cd_flags & CDF_NODISC) {
             cto->ct_flags |= CT_NODISC;
         }
-        if (tmd->cd_xfrlen == 0) {
+        if (xfr->td_xfrlen == 0) {
             cto->ct_flags |= CT_NO_DATA | CT_SENDSTATUS;
             cto->ct_scsi_status = tmd->cd_scsi_status;
             cto->ct_resid = 0;
         } else {
-            if (tmd->cd_hflags & CDFH_STSVALID) {
+            if (xfr->td_hflags & TDFH_STSVALID) {
                 cto->ct_flags |= CT_SENDSTATUS;
             }
-            if (tmd->cd_hflags & CDFH_DATA_IN) {
+            if (xfr->td_hflags & TDFH_DATA_IN) {
                 cto->ct_flags |= CT_DATA_IN;
             } else {
                 cto->ct_flags |= CT_DATA_OUT;
@@ -1576,22 +1614,26 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_cmd_t *tmd)
              * We assume we'll transfer what we say we'll transfer.
              * Otherwise, the command is dead.
              */
-            tmd->cd_resid -= tmd->cd_xfrlen;
-            if (tmd->cd_hflags & CDFH_STSVALID) {
-                cto->ct_resid = tmd->cd_resid;
+            if (xfr->td_hflags & TDFH_STSVALID) {
+                cto->ct_resid = resid;
             }
         }
-        isp_prt(isp, ISP_LOGTDEBUG0, "CTIO[%llx] ssts %x resid %d cd_hflags %x", tmd->cd_tagval, tmd->cd_scsi_status, tmd->cd_resid, tmd->cd_hflags);
-        rp = &cto->ct_resid;
+        isp_prt(isp, ISP_LOGTDEBUG0, "CTIO[%llx] scsi sts %x resid %d cd_lflags %x", tmd->cd_tagval, tmd->cd_scsi_status, resid, xfr->td_hflags);
         if (cto->ct_flags & CT_SENDSTATUS) {
             cto->ct_flags |= CT_CCINCR;
         }
     }
 
-    if (isp_save_xs_tgt(isp, tmd, &handle)) {
+    if (isp_getrqentry(isp, &nxti, &optr, &qe)) {
+        isp_prt(isp, ISP_LOGWARN, "%s: request queue overflow", __FUNCTION__);
+        xfr->td_error = -ENOMEM;
+        ISP_UNLK_SOFTC(isp);
+        goto out;
+    }
+
+    if (isp_save_xs_tgt(isp, xfr, &handle)) {
         isp_prt(isp, ISP_LOGERR, "isp_target_start_ctio: No XFLIST pointers");
-        tmd->cd_error = -ENOMEM;
-        tmd->cd_lflags |= CDFL_ERROR;
+        xfr->td_error = -ENOMEM;
         ISP_UNLK_SOFTC(isp);
         goto out;
     }
@@ -1613,7 +1655,7 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_cmd_t *tmd)
      * format.
      */
 
-    switch (ISP_DMASETUP(isp, (XS_T *)tmd, (ispreq_t *) local, &nxti, optr)) {
+    switch (ISP_DMASETUP(isp, (XS_T *)xfr, (ispreq_t *) local, &nxti, optr)) {
     case CMD_QUEUED:
         ISP_ADD_REQUEST(isp, nxti);
         /*
@@ -1621,34 +1663,30 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_cmd_t *tmd)
          * If the CTIO fails, we still do resource replenish, but handle it at
          * CTIO completion time.
          */
-        if (tmd->cd_hflags & CDFH_STSVALID) {
+        if (xfr->td_hflags & TDFH_STSVALID) {
             tmd->cd_lflags &= ~CDFL_RESRC_FILL;
         }
         ISP_UNLK_SOFTC(isp);
         return;
 
     case CMD_EAGAIN:
-        tmd->cd_error = -ENOMEM;
-        tmd->cd_lflags |= CDFL_ERROR;
+        xfr->td_error = -ENOMEM;
         isp_destroy_tgt_handle(isp, handle);
         break;
 
     case CMD_COMPLETE:
-        tmd->cd_error = *rp;    /* propagated back */
-        tmd->cd_lflags |= CDFL_ERROR;
         isp_destroy_tgt_handle(isp, handle);
         break;
 
     default:
-        tmd->cd_error = -EFAULT;    /* probably dma mapping failure */
-        tmd->cd_lflags |= CDFL_ERROR;
+        xfr->td_error = -EFAULT;    /* probably dma mapping failure */
         isp_destroy_tgt_handle(isp, handle);
         break;
     }
     ISP_UNLK_SOFTC(isp);
 out:
     if ((tmd->cd_lflags & CDFL_LCL) == 0) {
-        CALL_PARENT_TARGET(isp, tmd, QOUT_TMD_DONE);
+        CALL_PARENT_XFR(isp, xfr);
     }
 }
 
@@ -1711,7 +1749,11 @@ isp_handle_platform_atio(ispsoftc_t *isp, at_entry_t *aep)
     }
     if ((isp->isp_osinfo.tfreelist = tmd->cd_next) == NULL) {
         isp->isp_osinfo.bfreelist = NULL;
+    } else {
+        tmd->cd_next = NULL;
     }
+    memset(tmd, 0, sizeof (tmd_cmd_t));
+
     /*
      * Set the local flags to BUSY. Also set the flags
      * to force a resource replenish just in case we never
@@ -1723,20 +1765,17 @@ isp_handle_platform_atio(ispsoftc_t *isp, at_entry_t *aep)
     tmd->cd_tgt = aep->at_tgt;
     FLATLUN_TO_L0LUN(tmd->cd_lun, aep->at_lun);
     if (aep->at_flags & AT_NODISC) {
-        tmd->cd_lflags |= CDFL_NODISC;
+        tmd->cd_flags |= CDF_NODISC;
     }
     if (status & QLTM_SVALID) {
         MEMCPY(tmd->cd_sense, aep->at_sense, QLTM_SENSELEN);
-        tmd->cd_lflags |= CDFL_SNSVALID;
+        tmd->cd_flags |= CDF_SNSVALID;
     }
     MEMCPY(tmd->cd_cdb, aep->at_cdb, min(TMD_CDBLEN, ATIO_CDBLEN));
     AT_MAKE_TAGID(tmd->cd_tagval, tmd->cd_channel, isp->isp_unit, aep);
     tmd->cd_tagtype = aep->at_tag_type;
     tmd->cd_hba = isp;
-    tmd->cd_data = NULL;
-    tmd->cd_totlen = tmd->cd_resid = tmd->cd_xfrlen = tmd->cd_error = 0;
-    tmd->cd_scsi_status = 0;
-    isp_prt(isp, ISP_LOGTDEBUG1, "ATIO[%llx] CDB=0x%x bus %d iid%d->lun%d ttype 0x%x %s", tmd->cd_tagval, aep->at_cdb[0] & 0xff,
+    isp_prt(isp, ISP_LOGTDEBUG0, "ATIO[%llx] CDB=0x%x bus %d iid%d->lun%d ttype 0x%x %s", tmd->cd_tagval, aep->at_cdb[0] & 0xff,
         GET_BUS_VAL(aep->at_iid), GET_IID_VAL(aep->at_iid), aep->at_lun, aep->at_tag_type,
         (aep->at_flags & AT_NODISC)? "nondisc" : "disconnecting");
     if (isp->isp_osinfo.hcb == 0) {
@@ -1749,8 +1788,97 @@ isp_handle_platform_atio(ispsoftc_t *isp, at_entry_t *aep)
         isp->isp_osinfo.bfreelist = tmd;
         isp_endcmd(isp, aep, SCSI_BUSY, 0);
     } else {
-        CALL_PARENT_TARGET(isp, tmd, QOUT_TMD_START);
+        CALL_PARENT_TMD(isp, tmd, QOUT_TMD_START);
     }
+}
+
+static void
+isp_lcl_respond(ispsoftc_t *isp, void *aep, tmd_cmd_t *tmd)
+{
+    uint8_t *cdbp;
+
+    if (IS_24XX(isp)) {
+        cdbp = ((at7_entry_t *)aep)->at_cmnd.cdb_dl.sf.fcp_cmnd_cdb;
+    } else if (IS_FC(isp)) {
+        cdbp = ((at2_entry_t *)aep)->at_cdb;
+    } else {
+        cdbp = ((at_entry_t *)aep)->at_cdb;
+    }
+
+    if (cdbp[0] == INQUIRY && L0LUN_TO_FLATLUN(tmd->cd_lun) == 0) {
+        if (cdbp[1] == 0 && cdbp[2] == 0 && cdbp[3] == 0 && cdbp[5] == 0) {
+            tmd_xfr_t *xfr;
+            struct scatterlist *dp;
+            int amt, i;
+
+            for (i = 0; i < N_TGT_AUX; i++) {
+                if (LUN_BTST(isp->isp_osinfo.auxbmap, i)) {
+                    break;
+                }
+            }
+            if (i == N_TGT_AUX) {
+                isp_endcmd(isp, aep, SCSI_BUSY, 0);
+                return;
+            }
+            LUN_BSET(isp->isp_osinfo.auxbmap, i);
+            xfr = &isp->isp_osinfo.auxinfo[i].xfr;
+            dp = &isp->isp_osinfo.auxinfo[i].sg;
+            MEMZERO(dp, sizeof (*dp));
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
+            dp->address = (char *) isp->isp_osinfo.inqdata;
+#else
+            dp->page = virt_to_page(isp->isp_osinfo.inqdata);
+            dp->offset = offset_in_page(isp->isp_osinfo.inqdata);
+#endif
+            dp->length = DEFAULT_INQSIZE;
+
+            xfr->td_data = dp;
+            xfr->td_xfrlen = min(DEFAULT_INQSIZE, tmd->cd_totlen);
+            if ((amt = cdbp[4]) == 0) {
+                amt = 256;
+            }
+            if (xfr->td_xfrlen > amt) {
+                xfr->td_xfrlen = amt;
+            }
+            xfr->td_hflags |= TDFH_DATA_IN|TDFH_STSVALID;
+            xfr->td_cmd = tmd;
+            xfr->td_offset = 0;
+            xfr->td_error = 0;
+            xfr->td_lflags = 0;
+
+            tmd->cd_scsi_status = 0;
+            tmd->cd_lflags |= CDFL_LCL;
+            ISP_DROP_LK_SOFTC(isp);
+            isp_target_start_ctio(isp, xfr);
+            ISP_IGET_LK_SOFTC(isp);
+            return;
+        }
+        /*
+         * Illegal field in CDB
+         *  0x24 << 24 | 0x5 << 12 | ECMD_SVALID | SCSI_CHECK
+         */
+        isp_endcmd(isp, aep, 0x24005102, 0);
+    } else if (L0LUN_TO_FLATLUN(tmd->cd_lun) == 0) {
+        /*
+         * Not Ready, Cause Not Reportable
+         *
+         *  0x4 << 24 | 0x2 << 12 | ECMD_SVALID | SCSI_CHECK
+         */
+        isp_endcmd(isp, aep, 0x04002102, 0);
+    } else {
+        /*
+         * Logical Unit Not Supported:
+         *     0x25 << 24 | 0x5 << 12 | ECMD_SVALID | SCSI_CHECK
+         */
+        isp_endcmd(isp, aep, 0x25005102, 0);
+    }
+    MEMZERO(tmd, TMD_SIZE);
+    if (isp->isp_osinfo.tfreelist) {
+        isp->isp_osinfo.bfreelist->cd_next = tmd;
+    } else {
+        isp->isp_osinfo.tfreelist = tmd;
+    }
+    isp->isp_osinfo.bfreelist = tmd;
 }
 
 static void
@@ -1799,7 +1927,10 @@ isp_handle_platform_atio2(ispsoftc_t *isp, at2_entry_t *aep)
     }
     if ((isp->isp_osinfo.tfreelist = tmd->cd_next) == NULL) {
         isp->isp_osinfo.bfreelist = NULL;
+    } else {
+        tmd->cd_next = NULL;
     }
+    memset(tmd, 0, sizeof (tmd_cmd_t));
 
     /*
      * Set the local flags to BUSY. Also set the flags
@@ -1813,10 +1944,8 @@ isp_handle_platform_atio2(ispsoftc_t *isp, at2_entry_t *aep)
         (((uint64_t) aep->at_wwpn[2]) << 16) |
         (((uint64_t) aep->at_wwpn[3]) <<  0);
     tmd->cd_nphdl = iid;
-    tmd->cd_nseg = 0;
     tmd->cd_tgt = ISP_PORTWWN(isp);
     FLATLUN_TO_L0LUN(tmd->cd_lun, lun);
-    tmd->cd_channel = 0;
     MEMCPY(tmd->cd_cdb, aep->at_cdb, min(TMD_CDBLEN, ATIO2_CDBLEN));
 
     switch (aep->at_taskflags & ATIO2_TC_ATTR_MASK) {
@@ -1840,13 +1969,13 @@ isp_handle_platform_atio2(ispsoftc_t *isp, at2_entry_t *aep)
 
     switch (aep->at_execodes & (ATIO2_EX_WRITE|ATIO2_EX_READ)) {
     case ATIO2_EX_WRITE:
-        tmd->cd_lflags |= CDFL_DATA_OUT;
+        tmd->cd_flags |= CDF_DATA_OUT;
         break;
     case ATIO2_EX_READ:
-        tmd->cd_lflags |= CDFL_DATA_IN;
+        tmd->cd_flags |= CDF_DATA_IN;
         break;
     case ATIO2_EX_WRITE|ATIO2_EX_READ:
-        tmd->cd_lflags |= CDFL_BIDIR;
+        tmd->cd_flags |= CDF_BIDIR;
         isp_prt(isp, ISP_LOGWARN, "ATIO2 with both read/write set");
         break;
     default:
@@ -1855,24 +1984,21 @@ isp_handle_platform_atio2(ispsoftc_t *isp, at2_entry_t *aep)
 
     AT2_MAKE_TAGID(tmd->cd_tagval, 0, isp->isp_unit, aep);
     tmd->cd_hba = isp;
-    tmd->cd_data = NULL;
-    tmd->cd_hflags = 0;
     tmd->cd_totlen = aep->at_datalen;
-    tmd->cd_resid = tmd->cd_xfrlen = tmd->cd_error = 0;
-    tmd->cd_scsi_status = 0;
     if ((isp->isp_dblev & ISP_LOGTDEBUG0) || isp->isp_osinfo.hcb == 0) {
         const char *sstr;
-        switch (tmd->cd_lflags & CDFL_BIDIR) {
+        switch (tmd->cd_flags & CDF_BIDIR) {
         default:
             sstr = "nodatadir";
             break;
-        case CDFL_DATA_OUT:
+        case CDF_DATA_OUT:
             sstr = "DATA OUT";
             break;
-        case CDFL_DATA_IN:
+        case CDF_DATA_IN:
             sstr = "DATA IN";
             break;
-        case CDFL_DATA_OUT|CDFL_DATA_IN:
+        case CDF_DATA_OUT|CDF_DATA_IN:
+
             sstr = "BIDIR";
             break;
         }
@@ -1881,70 +2007,10 @@ isp_handle_platform_atio2(ispsoftc_t *isp, at2_entry_t *aep)
     }
 
     if (isp->isp_osinfo.hcb == 0) {
-        tmd->cd_next = NULL;
-        if (isp->isp_osinfo.tfreelist) {
-            isp->isp_osinfo.bfreelist->cd_next = tmd;
-        } else {
-            isp->isp_osinfo.tfreelist = tmd;
-        }
-        isp->isp_osinfo.bfreelist = tmd;
-        if (aep->at_cdb[0] == INQUIRY && lun == 0) {
-            if (aep->at_cdb[1] == 0 && aep->at_cdb[2] == 0 && aep->at_cdb[3] == 0 && aep->at_cdb[5] == 0) {
-                struct scatterlist *dp;
-                int amt, idx;
-
-                idx = tmd - isp->isp_osinfo.pool;
-                dp = &isp->isp_osinfo.dpwrk[idx];
-                MEMZERO(dp, sizeof (*dp));
-                dp->page = virt_to_page(isp->isp_osinfo.inqdata);
-                dp->offset = offset_in_page(isp->isp_osinfo.inqdata);
-                dp->length = DEFAULT_INQSIZE;
-                tmd->cd_xfrlen = min(DEFAULT_INQSIZE, tmd->cd_totlen);
-                tmd->cd_data = dp;
-                if ((amt = tmd->cd_cdb[4]) == 0) {
-                    amt = 256;
-                }
-                if (tmd->cd_xfrlen > amt) {
-                    tmd->cd_xfrlen = amt;
-                }
-                tmd->cd_resid = tmd->cd_totlen;
-                tmd->cd_hflags |= CDFH_DATA_IN|CDFH_STSVALID;
-                tmd->cd_lflags |= CDFL_LCL;
-                ISP_DROP_LK_SOFTC(isp);
-                isp_target_start_ctio(isp, tmd);
-                ISP_IGET_LK_SOFTC(isp);
-                return;
-            } else {
-                /*
-                 * Illegal field in CDB
-                 *  0x24 << 24 | 0x5 << 12 | ECMD_SVALID | SCSI_CHECK
-                 */
-                isp_endcmd(isp, aep, 0x24005102, 0);
-            }
-        } else if (lun == 0) {
-            /*
-             * Not Ready, Cause Not Reportable
-             *
-             *  0x4 << 24 | 0x2 << 12 | ECMD_SVALID | SCSI_CHECK
-             */
-            isp_endcmd(isp, aep, 0x04002102, 0);
-        } else {
-            /*
-             * Logical Unit Not Supported:
-             *     0x25 << 24 | 0x5 << 12 | ECMD_SVALID | SCSI_CHECK
-             */
-            isp_endcmd(isp, aep, 0x25005102, 0);
-        }
-        MEMZERO(tmd, TMD_SIZE);
-        if (isp->isp_osinfo.tfreelist) {
-            isp->isp_osinfo.bfreelist->cd_next = tmd;
-        } else {
-            isp->isp_osinfo.tfreelist = tmd;
-        }
-        isp->isp_osinfo.bfreelist = tmd;
-        return;
+        isp_lcl_respond(isp, aep, tmd);
+    } else {
+        CALL_PARENT_TMD(isp, tmd, QOUT_TMD_START);
     }
-    CALL_PARENT_TARGET(isp, tmd, QOUT_TMD_START);
 }
 
 static void
@@ -1980,7 +2046,7 @@ isp_handle_platform_atio7(ispsoftc_t *isp, at7_entry_t *aep)
         hdl = 0xffff;
         for (i = 0; i < TM_CS; i++) {
             if (isp->isp_osinfo.tgt_cache[i].portid == sid) {
-                isp_prt(isp, ISP_LOGTDEBUG0, "[0x%x] assigning NPHDL from target cache", aep->at_rxid);
+                isp_prt(isp, ISP_LOGTDEBUG2, "[0x%x] assigning NPHDL from target cache", aep->at_rxid);
                 hdl = isp->isp_osinfo.tgt_cache[i].nphdl;
                 iid = isp->isp_osinfo.tgt_cache[i].iid;
                 break;
@@ -2000,6 +2066,7 @@ isp_handle_platform_atio7(ispsoftc_t *isp, at7_entry_t *aep)
     if ((isp->isp_osinfo.tfreelist = tmd->cd_next) == NULL) {
         isp->isp_osinfo.bfreelist = NULL;
     }
+    memset(tmd, 0, sizeof (tmd_cmd_t));
 
     /*
      * Set the local flags to BUSY. Also set the flags
@@ -2040,13 +2107,13 @@ isp_handle_platform_atio7(ispsoftc_t *isp, at7_entry_t *aep)
 
     switch (aep->at_cmnd.fcp_cmnd_alen_datadir & FCP_CMND_DATA_DIR_MASK) {
     case FCP_CMND_DATA_WRITE:
-        tmd->cd_lflags |= CDFL_DATA_OUT;
+        tmd->cd_flags |= CDF_DATA_OUT;
         break;
     case FCP_CMND_DATA_READ:
-        tmd->cd_lflags |= CDFL_DATA_IN;
+        tmd->cd_flags |= CDF_DATA_IN;
         break;
     case FCP_CMND_DATA_READ|FCP_CMND_DATA_WRITE:
-        tmd->cd_lflags |= CDFL_BIDIR;
+        tmd->cd_flags |= CDF_BIDIR;
         isp_prt(isp, ISP_LOGINFO, "FCP_CMND_IU with both read/write set");
         break;
     default:
@@ -2063,26 +2130,20 @@ isp_handle_platform_atio7(ispsoftc_t *isp, at7_entry_t *aep)
     /* XXX: bus/vpidx not known at this level! */
     AT2_MAKE_TAGID(tmd->cd_tagval, 0, 0, aep);
     tmd->cd_hba = isp;
-    tmd->cd_data = NULL;
-    tmd->cd_hflags = 0;
-    tmd->cd_resid = 0;
-    tmd->cd_xfrlen = 0;
-    tmd->cd_error = 0;
-    tmd->cd_scsi_status = 0;
     tmd->cd_oxid = aep->at_hdr.ox_id;
     if ((isp->isp_dblev & ISP_LOGTDEBUG0) || isp->isp_osinfo.hcb == 0) {
         const char *sstr;
-        switch (tmd->cd_lflags & CDFL_BIDIR) {
+        switch (tmd->cd_flags & CDF_BIDIR) {
         default:
             sstr = "nodatadir";
             break;
-        case CDFL_DATA_OUT:
+        case CDF_DATA_OUT:
             sstr = "DATA OUT";
             break;
-        case CDFL_DATA_IN:
+        case CDF_DATA_IN:
             sstr = "DATA IN";
             break;
-        case CDFL_DATA_OUT|CDFL_DATA_IN:
+        case CDF_DATA_OUT|CDF_DATA_IN:
             sstr = "BIDIR";
             break;
         }
@@ -2104,77 +2165,14 @@ isp_handle_platform_atio7(ispsoftc_t *isp, at7_entry_t *aep)
     }
 
     if (isp->isp_osinfo.hcb == 0) {
-        tmd->cd_next = NULL;
-        if (isp->isp_osinfo.tfreelist) {
-            isp->isp_osinfo.bfreelist->cd_next = tmd;
-        } else {
-            isp->isp_osinfo.tfreelist = tmd;
-        }
-        isp->isp_osinfo.bfreelist = tmd;
-        if (tmd->cd_cdb[0] == INQUIRY && lun == 0) {
-            if (tmd->cd_cdb[1] == 0 && tmd->cd_cdb[2] == 0 && tmd->cd_cdb[3] == 0 && tmd->cd_cdb[5] == 0) {
-                struct scatterlist *dp;
-                int amt, idx;
-
-                idx = tmd - isp->isp_osinfo.pool;
-                dp = &isp->isp_osinfo.dpwrk[idx];
-                MEMZERO(dp, sizeof (*dp));
-                dp->page = virt_to_page(isp->isp_osinfo.inqdata);
-                dp->offset = offset_in_page(isp->isp_osinfo.inqdata);
-                dp->length = DEFAULT_INQSIZE;
-                tmd->cd_xfrlen = min(DEFAULT_INQSIZE, tmd->cd_totlen);
-                tmd->cd_data = dp;
-                if ((amt = tmd->cd_cdb[4]) == 0) {
-                    amt = 256;
-                }
-                if (tmd->cd_xfrlen > amt) {
-                    tmd->cd_xfrlen = amt;
-                }
-                tmd->cd_resid = tmd->cd_totlen;
-                tmd->cd_hflags |= CDFH_DATA_IN|CDFH_STSVALID;
-                tmd->cd_lflags |= CDFL_LCL;
-                ISP_DROP_LK_SOFTC(isp);
-                isp_target_start_ctio(isp, tmd);
-                ISP_IGET_LK_SOFTC(isp);
-                return;
-            } else {
-                /*
-                 * Illegal field in CDB
-                 *  0x24 << 24 | 0x5 << 12 | ECMD_SVALID | SCSI_CHECK
-                 */
-                aep->at_hdr.seq_id = tmd->cd_nphdl;
-                isp_endcmd(isp, aep, 0x24005102, 0);
-            }
-        } else if (lun == 0) {
-            /*
-             * Not Ready, Cause Not Reportable
-             *
-             *  0x4 << 24 | 0x2 << 12 | ECMD_SVALID | SCSI_CHECK
-             */
-            aep->at_hdr.seq_id = tmd->cd_nphdl;
-            isp_endcmd(isp, aep, 0x04002102, 0);
-        } else {
-            /*
-             * Logical Unit Not Supported:
-             *     0x25 << 24 | 0x5 << 12 | ECMD_SVALID | SCSI_CHECK
-             */
-            aep->at_hdr.seq_id = tmd->cd_nphdl;
-            isp_endcmd(isp, aep, 0x25005102, 0);
-        }
-        MEMZERO(tmd, TMD_SIZE);
-        if (isp->isp_osinfo.tfreelist) {
-            isp->isp_osinfo.bfreelist->cd_next = tmd;
-        } else {
-            isp->isp_osinfo.tfreelist = tmd;
-        }
-        isp->isp_osinfo.bfreelist = tmd;
+        isp_lcl_respond(isp, aep, tmd);
         return;
     }
     if (tmd->cd_iid == INI_ANY) {
         isp_prt(isp, ISP_LOGINFO, "[%llx] asking taskthread to find iid of initiator", tmd->cd_tagval);
         SEND_THREAD_EVENT(isp, ISP_THREAD_FINDIID, tmd, 0, __FUNCTION__, __LINE__);
     } else {
-        CALL_PARENT_TARGET(isp, tmd, QOUT_TMD_START);
+        CALL_PARENT_TMD(isp, tmd, QOUT_TMD_START);
     }
 }
 
@@ -2208,80 +2206,86 @@ isp_terminate_cmd(ispsoftc_t *isp, tmd_cmd_t *tmd)
 static void
 isp_handle_platform_ctio(ispsoftc_t *isp, void *arg)
 {
+    tmd_xfr_t *xfr;
     tmd_cmd_t *tmd;
-    int sentstatus, ok, resid = 0, sts, id;
+    char *ctstr;
+    int sentstatus = 0, ok, resid = 0, id;
+    int status, flags;
 
     /*
      * CTIO, CTIO2, and CTIO7 are close enough....
      */
-    tmd = (tmd_cmd_t *) isp_find_xs_tgt(isp, ((ct_entry_t *)arg)->ct_syshandle);
-    if (tmd == NULL) {
-        isp_prt(isp, ISP_LOGERR, "isp_handle_platform_ctio: null tmd");
-        return;
-    }
-
     if (IS_24XX(isp)) {
         ct7_entry_t *ct = arg;
+        xfr = (tmd_xfr_t *) isp_find_xs_tgt(isp, ct->ct_syshandle);
+        if (xfr == NULL) {
+            isp_prt(isp, ISP_LOGERR, "isp_handle_platform_ctio: null xfr");
+            return;
+        }
+        tmd = xfr->td_cmd;
         isp_destroy_tgt_handle(isp, ct->ct_syshandle);
-        sentstatus = ct->ct_flags & CT7_SENDSTATUS;
-        if (sentstatus) {
-            tmd->cd_lflags |= CDFL_SENTSTATUS;
-        }
-        sts = ct->ct_nphdl;
-        ok = sts == CT7_OK;
-        if (ok && sentstatus && (tmd->cd_hflags & CDFH_SNSVALID)) {
-            tmd->cd_lflags |= CDFL_SENTSENSE;
-        }
-        isp_prt(isp, ISP_LOGTDEBUG1, "CTIO7[%llx] sts 0x%x flg 0x%x sns %d %s", tmd->cd_tagval, ct->ct_nphdl, ct->ct_flags,
-            (tmd->cd_lflags & CDFL_SENTSENSE) != 0, sentstatus? "FIN" : "MID");
+        status = ct->ct_nphdl;
+        flags = ct->ct_flags;
+        sentstatus = (flags & CT7_SENDSTATUS) != 0;
+        ok = status == CT7_OK;
+        ctstr = "CTIO7";
         if ((ct->ct_flags & CT7_DATAMASK) != CT7_NO_DATA) {
             resid = ct->ct_resid;
         }
         id = ct->ct_iid_lo | (ct->ct_iid_hi << 16);
     } else if (IS_FC(isp)) {
         ct2_entry_t *ct = arg;
+        xfr = (tmd_xfr_t *) isp_find_xs_tgt(isp, ct->ct_syshandle);
+        if (xfr == NULL) {
+            isp_prt(isp, ISP_LOGERR, "isp_handle_platform_ctio: null xfr");
+            return;
+        }
+        tmd = xfr->td_cmd;
         isp_destroy_tgt_handle(isp, ct->ct_syshandle);
-        sentstatus = ct->ct_flags & CT2_SENDSTATUS;
-        if (sentstatus) {
-            tmd->cd_lflags |= CDFL_SENTSTATUS;
-        }
-        sts = ct->ct_status & ~QLTM_SVALID;
-        ok = (ct->ct_status & ~QLTM_SVALID) == CT_OK;
-        if (ok && sentstatus && (tmd->cd_hflags & CDFH_SNSVALID)) {
-            tmd->cd_lflags |= CDFL_SENTSENSE;
-        }
-        isp_prt(isp, ISP_LOGTDEBUG1, "CTIO2[%llx] sts 0x%x flg 0x%x sns %d %s", tmd->cd_tagval, ct->ct_status, ct->ct_flags,
-            (tmd->cd_lflags & CDFL_SENTSENSE) != 0, sentstatus? "FIN" : "MID");
+        status = ct->ct_status;
+        flags = ct->ct_flags;
+        sentstatus = (flags & CT2_SENDSTATUS) != 0;
+        ok = (status & ~QLTM_SVALID) == CT_OK;
+        ctstr = "CTIO2";
         if ((ct->ct_flags & CT2_DATAMASK) != CT2_NO_DATA) {
             resid = ct->ct_resid;
         }
         id = ct->ct_iid;
     } else {
         ct_entry_t *ct = arg;
+        xfr = (tmd_xfr_t *) isp_find_xs_tgt(isp, ct->ct_syshandle);
+        if (xfr == NULL) {
+            isp_prt(isp, ISP_LOGERR, "isp_handle_platform_ctio: null xfr");
+            return;
+        }
+        tmd = xfr->td_cmd;
         isp_destroy_tgt_handle(isp, ct->ct_syshandle);
-        sts = ct->ct_status & ~QLTM_SVALID;
-        sentstatus = ct->ct_flags & CT_SENDSTATUS;
-        if (sentstatus) {
-            tmd->cd_lflags |= CDFL_SENTSTATUS;
-        }
-        ok = (ct->ct_status & ~QLTM_SVALID) == CT_OK;
-        if (ok && sentstatus && (tmd->cd_hflags & CDFH_SNSVALID)) {
-            tmd->cd_lflags |= CDFL_SENTSENSE;
-        }
-        isp_prt(isp, ISP_LOGTDEBUG1, "CTIO[%llx] loopid 0x%x tgt %d lun %d sts 0x%x flg %x %s", tmd->cd_tagval, ct->ct_iid, ct->ct_tgt, ct->ct_lun,
-            ct->ct_status, ct->ct_flags, sentstatus? "FIN" : "MID");
+        status = ct->ct_status;
+        flags = ct->ct_flags;
+        sentstatus = (flags & CT_SENDSTATUS) != 0;
+        ok = (status & ~QLTM_SVALID) == CT_OK;
+        ctstr = "CTIO";
         if (ct->ct_status & QLTM_SVALID) {
             char *sp = (char *)ct;
             sp += CTIO_SENSE_OFFSET;
             MEMCPY(tmd->cd_sense, sp, QLTM_SENSELEN);
-            tmd->cd_lflags |= CDFL_SNSVALID;
+            xfr->td_lflags |= CDF_SNSVALID;
         }
         if ((ct->ct_flags & CT_DATAMASK) != CT_NO_DATA) {
             resid = ct->ct_resid;
         }
         id = ct->ct_iid;
     }
-    tmd->cd_resid += resid;
+    if (sentstatus) {
+        xfr->td_lflags |= TDFL_SENTSTATUS;
+    }
+    if (ok && sentstatus && (xfr->td_hflags & TDFH_SNSVALID)) {
+        xfr->td_lflags |= TDFL_SENTSENSE;
+    }
+
+    tmd->cd_moved -= resid;
+
+    isp_prt(isp, ISP_LOGTDEBUG0, "%s[%llx] status 0x%x flg 0x%x %s", ctstr, tmd->cd_tagval, status, flags, sentstatus? "FIN" : "MID");
 
     /*
      * We're here either because intermediate data transfers are done
@@ -2292,7 +2296,7 @@ isp_handle_platform_ctio(ispsoftc_t *isp, void *arg)
      * what to do next, so all we do here is collect status and
      * pass information along.
      */
-    isp_prt(isp, ISP_LOGTDEBUG0, "%s CTIO done (resid %d)", (sentstatus)? "  FINAL " : "MIDTERM ", tmd->cd_resid);
+    isp_prt(isp, ISP_LOGTDEBUG0, "%s CTIO done (moved %u)", (sentstatus)? "  FINAL " : "MIDTERM ", tmd->cd_moved);
 
     if (!ok) {
         const char *cx;
@@ -2303,23 +2307,20 @@ isp_handle_platform_ctio(ispsoftc_t *isp, void *arg)
         } else {
             cx = "O";
         }
-        if (sts == CT_ABORTED) {
+        if ((status & ~QLTM_SVALID) == CT_ABORTED) {
             isp_prt(isp, ISP_LOGINFO, "[%llx] CTI%s aborted", tmd->cd_tagval, cx);
             tmd->cd_lflags |= CDFL_ABORTED;
-        } else if (sts == CT_LOGOUT) {
+        } else if ((status & QLTM_SVALID) == CT_LOGOUT) {
             isp_prt(isp, ISP_LOGINFO, "[%llx] CTI%s killed by Port Logout", tmd->cd_tagval, cx);
         } else {
-            isp_prt(isp, ISP_LOGINFO, "[%llx] CTI%s ended with badstate (0x%x)", tmd->cd_tagval, cx, sts);
+            isp_prt(isp, ISP_LOGINFO, "[%llx] CTI%s ended with badstate (0x%x)", tmd->cd_tagval, cx, status);
         }
-        tmd->cd_lflags |= CDFL_ERROR|CDFL_CALL_CMPLT;
-        tmd->cd_error = -EIO;
+        xfr->td_error = -EIO;
         if (isp_target_putback_atio(isp, tmd)) {
             tmd->cd_lflags |= CDFL_RESRC_FILL;
-            isp_complete_ctio(isp, tmd);
         }
-        if (sts == CT_LOGOUT) {
+        if ((status & ~QLTM_SVALID) == CT_LOGOUT) {
             int i;
-
             for (i = 0; i < MAX_FC_TARG; i++) {
                 if (FCPARAM(isp)->portdb[i].state != FC_PORTDB_STATE_VALID) {
                     continue;
@@ -2337,9 +2338,8 @@ isp_handle_platform_ctio(ispsoftc_t *isp, void *arg)
                 break;
             }
         }
-    } else {
-        isp_complete_ctio(isp, tmd);
     }
+    isp_complete_ctio(isp, xfr);
 }
 
 static int
@@ -2351,9 +2351,6 @@ isp_target_putback_atio(ispsoftc_t *isp, tmd_cmd_t *tmd)
 
     tmd->cd_lflags &= ~CDFL_RESRC_FILL;
     if (IS_24XX(isp)) {
-        if (tmd->cd_lflags & CDFL_CALL_CMPLT) {
-            isp_complete_ctio(isp, tmd);
-        }
         return (0);
     }
     if (isp_getrqentry(isp, &nxti, NULL, &qe)) {
@@ -2394,20 +2391,17 @@ isp_target_putback_atio(ispsoftc_t *isp, tmd_cmd_t *tmd)
     }
     ISP_TDQE(isp, "isp_target_putback_atio", isp->isp_reqidx, qe);
     ISP_ADD_REQUEST(isp, nxti);
-    if (tmd->cd_lflags & CDFL_CALL_CMPLT) {
-        isp_complete_ctio(isp, tmd);
-    }
     return (0);
 }
 
 static void
-isp_complete_ctio(ispsoftc_t *isp, tmd_cmd_t *tmd)
+isp_complete_ctio(ispsoftc_t *isp, tmd_xfr_t *xfr)
 {
+    tmd_cmd_t *tmd = xfr->td_cmd;
     isp->isp_osinfo.cmds_completed++;
-    tmd->cd_lflags &= ~CDFL_CALL_CMPLT;
     if (isp->isp_osinfo.hcb || (tmd->cd_lflags & CDFL_LCL)) {
         if (isp->isp_osinfo.hcb == 0) {
-            isp_prt(isp, ISP_LOGWARN, "nobody to tell about CTIO complete");
+            isp_prt(isp, ISP_LOGWARN, "nobody to tell about CTIO complete, leaking xfr structure");
             MEMZERO(tmd, TMD_SIZE);
             if (isp->isp_osinfo.tfreelist) {
                 isp->isp_osinfo.bfreelist->cd_next = tmd;
@@ -2416,50 +2410,28 @@ isp_complete_ctio(ispsoftc_t *isp, tmd_cmd_t *tmd)
             }
             isp->isp_osinfo.bfreelist = tmd;
         } else {
-            CALL_PARENT_TARGET(isp, tmd, QOUT_TMD_DONE);
+            CALL_PARENT_XFR(isp, xfr);
         }
     }
 }
 
 int
-isp_en_dis_lun(ispsoftc_t *isp, int enable, uint16_t bus, uint64_t tgt, uint16_t lun)
+isp_enable_lun(ispsoftc_t *isp, uint16_t bus, uint64_t tgt, uint16_t lun)
 {
     DECLARE_MUTEX_LOCKED(rsem);
     uint16_t rstat;
-    int rv, enabled, cmd;
+    int rv, cmd;
     unsigned long flags;
 
-    /*
-     * First, we can't do anything unless we have an upper
-     * level target driver to route commands to.
-     */
-    if (isp->isp_osinfo.hcb == 0) {
-        return (-EINVAL);
-    }
 
     /*
-     * Second, check for sanity of enable argument.
+     * Check to see if we're enabling on fibre channel and make sure we have target role set up.
      */
-    enabled = ((isp->isp_osinfo.tmflags & (1 << bus)) != 0);
-    if (enable == 0 && enabled == 0) {
-        return (-EINVAL);
-    }
-
-    if (IS_24XX(isp) && lun != LUN_ANY) {
-        isp_prt(isp, ISP_LOGTDEBUG0, "can only do wildcard luns for 24XX cards");
-        lun = LUN_ANY;
-    }
-
-    /*
-     * Third, check to see if we're enabling on fibre channel
-     * and don't yet have a notion of who the heck we are (no
-     * loop yet).
-     */
-    if (IS_FC(isp) && enable && !enabled) {
+    if (IS_FC(isp)) {
         ISP_LOCK_SOFTC(isp);
         if ((isp->isp_role & ISP_ROLE_TARGET) == 0) {
             isp->isp_role |= ISP_ROLE_TARGET;
-            if (isp_drain_reset(isp, "lun enables")) {
+            if (isp_drain_reset(isp, "lun enable")) {
                 ISP_UNLK_SOFTC(isp);
                 return (-EIO);
             }
@@ -2482,37 +2454,35 @@ isp_en_dis_lun(ispsoftc_t *isp, int enable, uint16_t bus, uint64_t tgt, uint16_t
     }
 
     /*
-     * Do some sanity checking on lun arguments.
-     */
-    if (lun != LUN_ANY) {
-        if (lun >= (IS_FC(isp)? TM_MAX_LUN_FC : TM_MAX_LUN_SCSI)) {
-            return (-EINVAL);
-        }
-    }
-
-    /*
      * Snag the semaphore on the return state value on enables/disables.
      */
     if (down_interruptible(&isp->isp_osinfo.tgt_inisem)) {
         return (-EINTR);
     }
 
-    if (lun == LUN_ANY) {
-        if (enable && LUN_BTST(isp, bus, 0)) {
+    /*
+     * If this lun is enabled on this bus already, that's an error.
+     */
+    if (lunenabled(isp, bus, lun)) {
+        up(&isp->isp_osinfo.tgt_inisem);
+        return (-EEXIST);
+    }
+
+
+    /*
+     * If this bus is wildcarded, we don't allow any further cations.
+     */
+    if (lun != LUN_ANY) {
+        if (lunenabled(isp, bus, LUN_ANY)) {
             up(&isp->isp_osinfo.tgt_inisem);
             return (-EEXIST);
-        }
-    } else {
-        if (enable && LUN_BTST(isp, bus, lun)) {
-            up(&isp->isp_osinfo.tgt_inisem);
-            return (-EEXIST);
-        }
-        if (!enable && !LUN_BTST(isp, bus, lun)) {
-            up(&isp->isp_osinfo.tgt_inisem);
-            return (-ENODEV);
         }
     }
-    if (enable && nolunsenabled(isp, bus)) {
+
+    /*
+     * If this is the first lun being enabled for this bus, tell the chip to be in target mode.
+     */
+    if (nolunsenabled(isp, bus)) {
         int av = (bus << 31) | ENABLE_TARGET_FLAG;
         ISP_LOCK_SOFTC(isp);
         rv = isp_control(isp, ISPCTL_TOGGLE_TMODE, &av);
@@ -2527,8 +2497,7 @@ isp_en_dis_lun(ispsoftc_t *isp, int enable, uint16_t bus, uint64_t tgt, uint16_t
     isp->isp_osinfo.rsemap = &rsem;
     if (IS_24XX(isp)) {
         rstat = LUN_OK;
-    } else if (enable) {
-        uint32_t seq = isp->isp_osinfo.rollinfo++;
+    } else {
         int n, ulun = lun;
 
         cmd = RQSTYPE_ENABLE_LUN;
@@ -2543,11 +2512,10 @@ isp_en_dis_lun(ispsoftc_t *isp, int enable, uint16_t bus, uint64_t tgt, uint16_t
                  * (enabling or modifying) lun 0.
                  */
                 ulun = 0;
-                isp->isp_osinfo.wildcarded = 1;
             }
         }
         rstat = LUN_ERR;
-        if (isp_lun_cmd(isp, cmd, bus, tgt, ulun, DFLT_CMND_CNT, n, seq)) {
+        if (isp_lun_cmd(isp, cmd, bus, tgt, ulun, DFLT_CMND_CNT, n, 0)) {
             isp_prt(isp, ISP_LOGERR, "isp_lun_cmd failed");
             goto out;
         }
@@ -2560,12 +2528,85 @@ isp_en_dis_lun(ispsoftc_t *isp, int enable, uint16_t bus, uint64_t tgt, uint16_t
             isp_prt(isp, ISP_LOGERR, "MODIFY/ENABLE LUN returned 0x%x", rstat);
             goto out;
         }
+    }
+out:
+    ISP_UNLK_SOFTC(isp);
+    if (rstat != LUN_OK) {
+        isp_prt(isp, ISP_LOGERR, "lun %u enable failed", lun);
+        up(&isp->isp_osinfo.tgt_inisem);
+        return (-EIO);
+    }
+    if (addlun(isp, bus, lun)) {
+        isp_prt(isp, ISP_LOGERR, "failed to add lun %u", lun);
+        up(&isp->isp_osinfo.tgt_inisem);
+        return (-EIO);
+    }
+    if (lun == LUN_ANY) {
+        isp_prt(isp, ISP_LOGINFO, "All luns now enabled for target mode on channel %d", bus);
+    } else {
+        isp_prt(isp, ISP_LOGINFO, "lun %u now disabled for target mode on channel %d", lun, bus);
+    }
+
+    /*
+     * Make sure we stay resident while we have a lun enabled
+     */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
+    /*
+     * Stay loaded while we have any enabled luns
+     */
+    MOD_INC_USE_COUNT;
+#else
+    if (try_module_get(isp->isp_osinfo.host->hostt->module)) {
+        isp->isp_osinfo.isget = 1;
+    } else {
+        isp->isp_osinfo.isget = 0;
+    }
+#endif
+    up(&isp->isp_osinfo.tgt_inisem);
+    return (0);
+}
+
+int
+isp_disable_lun(ispsoftc_t *isp, uint16_t bus, uint64_t tgt, uint16_t lun)
+{
+    DECLARE_MUTEX_LOCKED(rsem);
+    uint16_t rstat;
+    int rv, cmd;
+    unsigned long flags;
+
+    /*
+     * If this is a wildcard target, select our initiator
+     * id/loop id for use as what we enable as.
+     */
+
+    if (tgt == TGT_ANY) {
+        if (IS_FC(isp)) {
+            tgt = ((fcparam *)isp->isp_param)->isp_loopid;
+        } else {
+            tgt = ((sdparam *)isp->isp_param)->isp_initiator_id;
+        }
+    }
+
+
+    /*
+     * Snag the semaphore on the return state value on enables/disables.
+     */
+    if (down_interruptible(&isp->isp_osinfo.tgt_inisem)) {
+        return (-EINTR);
+    }
+
+    if (lunenabled(isp, bus, lun) == 0) {
+        up(&isp->isp_osinfo.tgt_inisem);
+        return (-ENODEV);
+    }
+    ISP_LOCK_SOFTC(isp);
+    isp->isp_osinfo.rsemap = &rsem;
+    if (IS_24XX(isp)) {
+        rstat = LUN_OK;
     } else {
         int n, ulun = lun;
-        uint32_t seq;
 
         rstat = LUN_ERR;
-        seq = isp->isp_osinfo.rollinfo++;
         cmd = -RQSTYPE_MODIFY_LUN;
 
         n = DFLT_INOT_CNT;
@@ -2577,7 +2618,7 @@ isp_en_dis_lun(ispsoftc_t *isp, int enable, uint16_t bus, uint64_t tgt, uint16_t
              */
             ulun = 0;
         }
-        if (isp_lun_cmd(isp, cmd, bus, tgt, ulun, DFLT_CMND_CNT, n, seq)) {
+        if (isp_lun_cmd(isp, cmd, bus, tgt, ulun, DFLT_CMND_CNT, n, 0)) {
             isp_prt(isp, ISP_LOGINFO, "isp_lun_cmd failed");
             /* but proceed anyway */
             rstat = LUN_OK;
@@ -2596,12 +2637,11 @@ isp_en_dis_lun(ispsoftc_t *isp, int enable, uint16_t bus, uint64_t tgt, uint16_t
         if (IS_FC(isp) && lun) {
             goto out;
         }
-        seq = isp->isp_osinfo.rollinfo++;
         isp->isp_osinfo.rsemap = &rsem;
 
         rstat = LUN_ERR;
         cmd = -RQSTYPE_ENABLE_LUN;
-        if (isp_lun_cmd(isp, cmd, bus, tgt, lun, 0, 0, seq)) {
+        if (isp_lun_cmd(isp, cmd, bus, tgt, lun, 0, 0, 0)) {
             isp_prt(isp, ISP_LOGERR, "isp_lun_cmd failed");
             goto out;
         }
@@ -2617,69 +2657,49 @@ isp_en_dis_lun(ispsoftc_t *isp, int enable, uint16_t bus, uint64_t tgt, uint16_t
         }
     }
 out:
-
+    ISP_UNLK_SOFTC(isp);
     if (rstat != LUN_OK) {
-        isp_prt(isp, ISP_LOGERR, "lun %d %sable failed", lun, (enable) ? "en" : "dis");
-        ISP_UNLK_SOFTC(isp);
-        up(&isp->isp_osinfo.tgt_inisem);
-        return (-EIO);
+        isp_prt(isp, ISP_LOGERR, "lun %u disable failed", lun);
+        /* but continue anyway */
+    }
+    remlun(isp, bus, lun);
+    if (lun == LUN_ANY) {
+        isp_prt(isp, ISP_LOGINFO, "All luns now disabled for target mode on channel %d", bus);
     } else {
-        if (lun == LUN_ANY) {
-            isp_prt(isp, ISP_LOGINFO, "All luns now %sabled for target mode on channel %d", (enable)? "en" : "dis", bus);
-        } else {
-            isp_prt(isp, ISP_LOGINFO, "lun %d now %sabled for target mode on channel %d", lun, (enable)? "en" : "dis", bus);
+        isp_prt(isp, ISP_LOGINFO, "lun %u now disabled for target mode on channel %d", lun, bus);
+    }
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
+    MOD_DEC_USE_COUNT;
+#else
+    if (isp->isp_osinfo.isget) {
+        isp->isp_osinfo.isget = 0;
+        module_put(isp->isp_osinfo.host->hostt->module);
+    }
+#endif
+    if (nolunsenabled(isp, bus)) {
+        int av = bus << 31;
+        ISP_LOCK_SOFTC(isp);
+        rv = isp_control(isp, ISPCTL_TOGGLE_TMODE, &av);
+        ISP_UNLK_SOFTC(isp);
+        if (rv) {
+            isp_prt(isp, ISP_LOGERR, "failed to disable target mode on channel %d", bus);
+            /* but proceed anyway */
         }
-        if (enable == 0) {
-            if (isp->isp_osinfo.wildcarded) {
-                LUN_BCLR(isp, bus, 0);
-            } else {
-                LUN_BCLR(isp, bus, lun);
-            }
-            if (nolunsenabled(isp, bus)) {
-                int av = bus << 31;
-                rv = isp_control(isp, ISPCTL_TOGGLE_TMODE, &av);
-                if (rv) {
-                    isp_prt(isp, ISP_LOGERR, "failed to disable target mode on channel %d", bus);
-                    /* but proceed anyway */
-                }
-                if (isp->isp_osinfo.isget) {
-                    isp->isp_osinfo.isget = 0;
+        isp->isp_role &= ~ISP_ROLE_TARGET;
+        if (IS_FC(isp)) {
+            ISP_LOCK_SOFTC(isp);
+            if (isp_drain_reset(isp, "lun disables") == 0) {
+                if ((isp->isp_role & ISP_ROLE_INITIATOR) != 0) {
                     ISP_UNLK_SOFTC(isp);
-                    module_put(isp->isp_osinfo.host->hostt->module);
+                    SEND_THREAD_EVENT(isp, ISP_THREAD_FC_RESCAN, NULL, 0, __FUNCTION__, __LINE__);
                     ISP_LOCK_SOFTC(isp);
                 }
-                isp->isp_osinfo.tmflags &= ~(1 << bus);
-                isp->isp_role &= ~ISP_ROLE_TARGET;
-                if (IS_FC(isp)) {
-                    if (isp_drain_reset(isp, "lun disables") == 0) {
-                        if ((isp->isp_role & ISP_ROLE_INITIATOR) != 0) {
-                            ISP_UNLK_SOFTC(isp);
-                            SEND_THREAD_EVENT(isp, ISP_THREAD_FC_RESCAN, NULL, 1, __FUNCTION__, __LINE__);
-                            ISP_LOCK_SOFTC(isp);
-                        }
-                    }
-                }
             }
-        } else {
             ISP_UNLK_SOFTC(isp);
-            if (try_module_get(isp->isp_osinfo.host->hostt->module)) {
-                ISP_LOCK_SOFTC(isp);
-                isp->isp_osinfo.isget = 1;
-            } else {
-                ISP_LOCK_SOFTC(isp);
-                isp->isp_osinfo.isget = 0;
-            }
-            isp->isp_osinfo.tmflags |= (1 << bus);
-            if (isp->isp_osinfo.wildcarded) {
-                LUN_BSET(isp, bus, 0);
-            } else {
-                LUN_BSET(isp, bus, lun);
-            }
         }
-        ISP_UNLK_SOFTC(isp);
-        up(&isp->isp_osinfo.tgt_inisem);
-        return (0);
     }
+    up(&isp->isp_osinfo.tgt_inisem);
+    return (0);
 }
 #endif
 
@@ -4110,7 +4130,7 @@ isp_task_thread(void *arg)
                     tmd->cd_iid = lp->port_wwn;
                     tmd->cd_nphdl = lp->handle;
                     isp_prt(isp, ISP_LOGINFO, "%s: [%llx] found iid (0x%016llx)-sending upstream", __FUNCTION__, tmd->cd_tagval, (unsigned long long)tmd->cd_iid);
-                    CALL_PARENT_TARGET(isp, tmd, QOUT_TMD_START);
+                    CALL_PARENT_TMD(isp, tmd, QOUT_TMD_START);
                     ISP_UNLKU_SOFTC(isp);
                     isp_tgt_tq(isp);
                     break;
@@ -4130,7 +4150,7 @@ isp_task_thread(void *arg)
                     tmd->cd_iid = wwn;
                     isp_prt(isp, ISP_LOGINFO, "[%llx] found iid (0x%016llx) via GET_PORT_NAME- sending upstream", tmd->cd_tagval,
                         (unsigned long long) tmd->cd_iid);
-                    CALL_PARENT_TARGET(isp, tmd, QOUT_TMD_START);
+                    CALL_PARENT_TMD(isp, tmd, QOUT_TMD_START);
                     ISP_UNLKU_SOFTC(isp);
                     isp_tgt_tq(isp);
                 }
@@ -4148,7 +4168,7 @@ isp_task_thread(void *arg)
                 if (isp_find_pdb_sid(isp, tmd->cd_portid, &lp)) {
                     tmd->cd_iid = lp->port_wwn;
                     tmd->cd_nphdl = lp->handle;
-                    CALL_PARENT_TARGET(isp, tmd, QOUT_TMD_START);
+                    CALL_PARENT_TMD(isp, tmd, QOUT_TMD_START);
                     ISP_UNLKU_SOFTC(isp);
                     isp_tgt_tq(isp);
                     break;
@@ -4194,13 +4214,13 @@ isp_task_thread(void *arg)
                     break;
                 }
                 if (tmd->cd_lflags & CDFL_NEED_CLNUP) {
-                    tmd->cd_lflags &= ~CDFL_NEED_CLNUP;
+                    tmd->cd_lflags ^= CDFL_NEED_CLNUP;
                     (void) isp_terminate_cmd(isp, tmd);
                 }
                 tmd->cd_hba = NULL;
-                tmd->cd_lflags = 0;
+                tmd->cd_flags = 0;
                 tmd->cd_next = NULL;
-                /* don't zero cd_hflags or cd_tagval- it may be being used to catch duplicate frees */
+                /* don't zero cd_lflags or cd_tagval- it may be being used to catch duplicate frees */
                 if (isp->isp_osinfo.tfreelist) {
                     isp->isp_osinfo.bfreelist->cd_next = tmd;
                 } else {

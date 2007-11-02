@@ -1,4 +1,4 @@
-/* $Id: isp_tpublic.h,v 1.34 2007/07/07 23:20:56 mjacob Exp $ */
+/* $Id: isp_tpublic.h,v 1.36 2007/10/31 05:28:18 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -68,7 +68,7 @@ typedef enum {
     QOUT_ENABLE,        /* the argument is a pointer to a enadis_t */
     QOUT_DISABLE,       /* the argument is a pointer to a enadis_t */
     QOUT_TMD_START,     /* the argument is a pointer to a tmd_cmd_t */
-    QOUT_TMD_DONE,      /* the argument is a pointer to a tmd_cmd_t */
+    QOUT_TMD_DONE,      /* the argument is a pointer to a tmd_xfr_t */
     QOUT_NOTIFY,        /* the argument is a pointer to a tmd_notify_t */
     QOUT_HBA_UNREG      /* the argument is a pointer to a hba_register_t */
 } tact_e;
@@ -84,7 +84,7 @@ typedef enum {
     QIN_GETDLIST,       /* the argument is a pointer to a fc_dlist_t */
     QIN_ENABLE,         /* the argument is a pointer to a enadis_t */
     QIN_DISABLE,        /* the argument is a pointer to a enadis_t */
-    QIN_TMD_CONT,       /* the argument is a pointer to a tmd_cmd_t */
+    QIN_TMD_CONT,       /* the argument is a pointer to a tmd_xfr_t */
     QIN_TMD_FIN,        /* the argument is a pointer to a tmd_cmd_t */
     QIN_NOTIFY_ACK,     /* the argument is a pointer to a tmd_notify_t */
     QIN_HBA_UNREG,      /* the argument is a pointer to a hba_register_t */
@@ -100,7 +100,7 @@ typedef enum {
  * in, and the external module to call back with a QIN_HBA_REG that
  * passes back the corresponding information.
  */
-#define    QR_VERSION    16
+#define    QR_VERSION    18
 typedef struct {
     /* NB: tags from here to r_version must never change */
     void *                  r_identity;
@@ -193,7 +193,7 @@ typedef struct tmd_notify {
  * with en_hba, en_iid, en_chan, en_tgt and en_lun filled out.
  *
  * If an error occurs in either enabling or disabling the described lun
- * cd_error is set with an appropriate non-zero value.
+ * en_error is set with an appropriate non-zero value.
  */
 typedef struct {
     void *          en_private;     /* for outer layer usage */
@@ -226,13 +226,6 @@ typedef struct {
  * The command structure below is one suggested possible MD command structure,
  * but since the handling of thbis is entirely in the MD layer, there is
  * no explicit or implicit requirement that it be used.
- *
- * The cd_private tag should be used by the MD layer to keep a free list
- * of these structures. Code outside of this driver can then use this
- * to identify it's own unit structures. That is, when not on the MD
- * layer's freelist, the MD layer should shove into it the identifier
- * that the outer layer has for it- passed in on an initial QIN_HBA_REG
- * call (see below).
  *
  * The cd_hba tag is a tag that uniquely identifies the HBA this target
  * mode command is coming from. The outer layer has to pass this back
@@ -287,20 +280,19 @@ typedef struct {
  * layers set to zero and the CDB indicates data should be moved, the outer
  * layer should set it to the amount expected to be moved.
  *
- * The tag cd_resid should be the total residual of data not transferred.
- * The outer layers need to set this at the begining of command processing
- * to equal cd_totlen. As data is successfully moved, this value is decreased.
- * At the end of a command, any nonzero residual indicates the number of bytes
- * requested by the command but not moved.
- *
  * The tag cd_xfrlen is the length of the currently active data transfer.
+ * The tag cd_offset is the current offset within the entire command that
+ * this data transfer starts at (this only makes sense for Fibre Channel).
+ *
  * This allows several interations between any outside software and the
- * MD layer to move data.
+ * MD layer to move data. It is undefined what may occur if the data
+ * segments are transferred out of order.
  *
  * The reason that total length and total residual have to be tracked
- * is to keep track of relative offset.
+ * is to make sure that residual is calculated correctly.
  *
- * The tags cd_sense and cd_scsi_status are pretty obvious.
+ * The tags cd_sense and cd_scsi_status are pretty obvious and only are
+ * valid if CDFS_SNSVALID and CDFS_STSVALID are set.
  *
  * The tag cd_error is to communicate between the MD layer and outer software
  * the current error conditions.
@@ -310,43 +302,70 @@ typedef struct {
  * 
  */
 
-#ifndef    TMD_CDBLEN
-#define    TMD_CDBLEN       16
+#ifndef TMD_CDBLEN
+#define TMD_CDBLEN       16
 #endif
-#ifndef    TMD_SENSELEN
-#define    TMD_SENSELEN     18
+#ifndef TMD_SENSELEN
+#define TMD_SENSELEN     18
 #endif
-#ifndef    QCDS
-#define    QCDS             (sizeof (void *))
+#ifndef QCDS
+#define QCDS             (sizeof (uint64_t))
 #endif
 
-typedef struct tmd_cmd {
-    void *              cd_private; /* private data pointer */
+typedef struct tmd_cmd tmd_cmd_t;
+typedef struct tmd_xfr {
+    tmd_cmd_t *         td_cmd;                 /* cross-referenced tmd_cmd_t */
+    void *              td_data;                /* data descriptor */
+    void *              td_lprivate;            /* private for lower layer */
+    uint32_t            td_xfrlen;              /* size of this data load */
+    uint32_t            td_offset;              /* offset for this data load */
+    int                 td_error;               /* error with this transfer or zero */
+    uint8_t             td_hflags;              /* flags set by caller */
+    uint8_t             td_lflags;              /* flags set by callee */
+} tmd_xfr_t;
+
+#define TDFL_SENTSTATUS     0x01    /* this action sent status */
+#define TDFL_SENTSENSE      0x02    /* this action sent sense data */
+
+#define TDFH_STSVALID       0x01    /* status valid - include it */
+#define TDFH_SNSVALID       0x02    /* sense data (from outer layer) good - include it */
+#define TDFH_DATA_IN        0x04    /* target (us) -> initiator (them) */
+#define TDFH_DATA_OUT       0x08    /* initiator (them) -> target (us) */
+#define TDFH_DATA_MASK      0x0C    /* mask to cover data direction */
+#define TDFH_BUSY           0x40    /* busy */
+#define TDFH_PRIMARY        0x80    /* within tmd */
+
+struct tmd_cmd {
     void *              cd_hba;     /* HBA tag */
-    void *              cd_data;    /* 'pointer' to data */
     uint64_t            cd_iid;     /* initiator ID */
     uint64_t            cd_tgt;     /* target id */
-    uint8_t             cd_lun[8];  /* logical unit */
     uint64_t            cd_tagval;  /* tag value */
-    uint32_t            cd_channel; /* channel index */
-    uint32_t            cd_lflags;  /* flags lower level sets */
-    uint32_t            cd_hflags;  /* flags higher level sets */
+    uint8_t             cd_lun[8];  /* logical unit */
     uint32_t            cd_totlen;  /* total data load */
-    uint32_t            cd_resid;   /* total data residual */
-    uint32_t            cd_xfrlen;  /* current data load */
-    int32_t             cd_error;   /* current error */
+    uint32_t            cd_moved;   /* total data moved so far */
+    uint16_t            cd_channel; /* channel index */
+    uint16_t            cd_flags;   /* flags */
+    uint16_t            cd_req_cnt; /* how many tmd_xfr_t's are active */
+    uint8_t             cd_cdb[TMD_CDBLEN];
     uint8_t             cd_tagtype; /* tag type */
     uint8_t             cd_scsi_status;
     uint8_t             cd_sense[TMD_SENSELEN];
-    uint8_t             cd_cdb[TMD_CDBLEN];
+    tmd_xfr_t           cd_xfr;     /* first or only transfer structure */
     union {
-        void *          ptrs[QCDS / sizeof (void *)];
-        uint64_t        llongs[QCDS / sizeof (uint64_t)];
-        uint32_t        longs[QCDS / sizeof (uint32_t)];
-        uint16_t        shorts[QCDS / sizeof (uint16_t)];
-        uint8_t         bytes[QCDS];
+        void *          ptrs[QCDS / sizeof (void *)];       /* (assume) one pointer */
+        uint64_t        llongs[QCDS / sizeof (uint64_t)];   /* one long long */
+        uint32_t        longs[QCDS / sizeof (uint32_t)];    /* two longs */
+        uint16_t        shorts[QCDS / sizeof (uint16_t)];   /* four shorts */
+        uint8_t         bytes[QCDS];                        /* eight bytes */
     } cd_lreserved[4], cd_hreserved[4];
-} tmd_cmd_t;
+};
+
+#define CDF_NODISC      0x0001  /* disconnects disabled */
+#define CDF_DATA_IN     0x0002  /* target (us) -> initiator (them) */
+#define CDF_DATA_OUT    0x0004  /* initiator (them) -> target (us) */
+#define CDF_BIDIR       0x0006  /* bidirectional data */
+#define CDF_SNSVALID    0x0008  /* sense is set on incoming command */
+#define CDF_PRIVATE     0xff00  /* available for private use in outer layer */
 
 /* defined tags */
 #define CD_UNTAGGED     0
@@ -377,8 +396,6 @@ typedef struct tmd_cmd {
     memset(&(lptr)[2], 0, 6)
 
 /*
- * Note that NODISC (obviously) doesn't apply to non-SPI transport.
- *
  * Note that knowing the data direction and lengh at the time of receipt of
  * a command from the initiator is a feature only of Fibre Channel.
  *
@@ -389,24 +406,6 @@ typedef struct tmd_cmd {
  * be transferred in any QOUT_TMD_CONT call is cd_xfrlen- the
  * flags CDFH_DATA_IN and CDFH_DATA_OUT define which direction.
  */
-#define    CDFL_SNSVALID        0x01            /* sense data (from f/w) good */
-#define    CDFL_SENTSTATUS      0x02            /* last action sent status */
-#define    CDFL_DATA_IN         0x04            /* target (us) -> initiator (them) */
-#define    CDFL_DATA_OUT        0x08            /* initiator (them) -> target (us) */
-#define    CDFL_BIDIR           0x0C            /* bidirectional data */
-#define    CDFL_ERROR           0x10            /* last action ended in error */
-#define    CDFL_NODISC          0x20            /* disconnects disabled */
-#define    CDFL_SENTSENSE       0x40            /* last action sent sense data */
-#define    CDFL_BUSY            0x80            /* this command is not on a free list */
-#define    CDFL_PRIVATE         0xFF000000      /* private layer flags */
-
-#define    CDFH_SNSVALID        0x01            /* sense data (from outer layer) good */
-#define    CDFH_STSVALID        0x02            /* status valid */
-#define    CDFH_DATA_IN         0x04            /* target (us) -> initiator (them) */
-#define    CDFH_DATA_OUT        0x08            /* initiator (them) -> target (us) */
-#define    CDFH_DATA_MASK       0x0C            /* mask to cover data direction */
-#define    CDFH_PRIVATE         0xFF000000      /* private layer flags */
-
 
 /*
  * A word about the START/CONT/DONE/FIN dance:
