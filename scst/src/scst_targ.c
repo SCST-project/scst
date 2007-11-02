@@ -356,12 +356,13 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 			if (scst_cmd_is_expected_set(cmd)) {
 				/*
 				 * Command data length can't be easily
-				 * determined from the CDB. Get it from
+				 * determined from the CDB. ToDo, that should 
+				 * be fixed. Until it's fixed, get it from
 				 * the supplied expected value, but
-				 * limit it to some reasonable value (50MB).
+				 * limit it to some reasonable value (15MB).
 				 */
 				cmd->bufflen = min(cmd->expected_transfer_len,
-							50*1024*1024);
+							15*1024*1024);
 			} else
 				cmd->bufflen = 0;
 		} else
@@ -428,24 +429,18 @@ call_parse:
 		goto out_error;
 	}
 
+	if (unlikely(state == SCST_CMD_STATE_XMIT_RESP))
+		goto set_res;
+
 #ifdef EXTRACHECKS
-	if ((state != SCST_CMD_STATE_XMIT_RESP) &&
-	    (((cmd->data_direction == SCST_DATA_UNKNOWN) &&
-	    	(state != SCST_CMD_STATE_DEV_PARSE)) ||
-	    ((cmd->bufflen != 0) && 
-	    	(cmd->data_direction == SCST_DATA_NONE) &&
-	    	(cmd->status == 0)) ||
-	    ((cmd->bufflen == 0) && 
-	    	(cmd->data_direction != SCST_DATA_NONE)) ||
-	    ((cmd->bufflen != 0) && (cmd->sg == NULL) &&
-	    	(state > SCST_CMD_STATE_PREPARE_SPACE))))
-	{
+	if ((cmd->bufflen != 0) &&
+	    ((cmd->data_direction == SCST_DATA_NONE) ||
+	     ((cmd->sg == NULL) && (state > SCST_CMD_STATE_PREPARE_SPACE)))) {
 		PRINT_ERROR("Dev handler %s parse() returned "
-			       "invalid cmd data_direction %d, "
-			       "bufflen %d or state %d (opcode 0x%x)",
-			       dev->handler->name, 
-			       cmd->data_direction, cmd->bufflen,
-			       state, cmd->cdb[0]);
+			"invalid cmd data_direction %d, bufflen %d, state %d "
+			"or sg %p (opcode 0x%x)", dev->handler->name, 
+			cmd->data_direction, cmd->bufflen, state, cmd->sg,
+			cmd->cdb[0]);
 		goto out_error;
 	}
 #endif
@@ -478,7 +473,8 @@ call_parse:
 		if (unlikely(cmd->bufflen != cmd->expected_transfer_len)) {
 			PRINT_INFO("Warning: expected transfer length %d for "
 				"opcode 0x%02x (handler %s, target %s) doesn't "
-				"match decoded value %d. Faulty initiator?",
+				"match decoded value %d. Faulty initiator or "
+				"scst_scsi_op_table should be updated?",
 				cmd->expected_transfer_len, cmd->cdb[0],
 				dev->handler->name, cmd->tgtt->name,
 				cmd->bufflen);
@@ -486,6 +482,16 @@ call_parse:
 #endif
 	}
 
+	if ((cmd->data_direction == SCST_DATA_UNKNOWN) ||
+	    ((cmd->bufflen == 0) && (cmd->data_direction != SCST_DATA_NONE))) {
+		PRINT_ERROR("Wrong data direction (%d) or/and buffer "
+			"length (%d). Opcode 0x%x, handler %s, target %s",
+			cmd->data_direction, cmd->bufflen, cmd->cdb[0],
+			dev->handler->name, cmd->tgtt->name);
+		goto out_error;
+	}
+
+set_res:
 	switch (state) {
 	case SCST_CMD_STATE_PREPARE_SPACE:
 	case SCST_CMD_STATE_DEV_PARSE:

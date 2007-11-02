@@ -1638,6 +1638,22 @@ static int scst_version_info_show(struct seq_file *seq, void *v)
 	seq_printf(seq, "DEBUG_SN\n");
 #endif
 
+#ifdef USE_EXPECTED_VALUES
+	seq_printf(seq, "USE_EXPECTED_VALUES\n");
+#endif
+
+#ifdef ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
+	seq_printf(seq, "ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ\n");
+#endif
+
+#ifdef SCST_STRICT_SECURITY
+	seq_printf(seq, "SCST_STRICT_SECURITY\n");
+#endif
+
+#ifdef SCST_HIGHMEM
+	seq_printf(seq, "SCST_HIGHMEM\n");
+#endif
+
 	TRACE_EXIT();
 	return 0;
 }

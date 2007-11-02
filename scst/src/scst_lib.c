@@ -1696,10 +1696,10 @@ int scst_get_cdb_info(const uint8_t *cdb_p, int dev_type,
 
 #ifdef EXTRACHECKS
 	if (unlikely((info_p->transfer_len == 0) &&
-		     (info_p->direction != SCST_DATA_NONE)) &&
-	    !(info_p->flags & SCST_UNKNOWN_LENGTH)) {
-		PRINT_ERROR("transfer_len 0, direction %d change on %d",
-			info_p->direction, SCST_DATA_NONE);
+		     (info_p->direction != SCST_DATA_NONE) &&
+	    ((info_p->flags & SCST_UNKNOWN_LENGTH) == 0))) {
+		PRINT_ERROR("transfer_len 0, direction %d, flags %x, changing "
+			"direction on NONE", info_p->direction, info_p->flags);
 		info_p->direction = SCST_DATA_NONE;
 	}
 #endif

@@ -1369,6 +1369,77 @@ static struct class_interface scst_interface = {
 	.remove = scst_remove,
 };
 
+static void __init scst_print_config(void)
+{
+	char buf[128];
+	int i, j;
+
+	i = snprintf(buf, sizeof(buf), "Enabled features: ");
+	j = i;
+
+#ifdef STRICT_SERIALIZING
+	i += snprintf(&buf[i], sizeof(buf) - i, "Strict serializing");
+#endif
+
+#ifdef EXTRACHECKS
+	i += snprintf(&buf[i], sizeof(buf) - i, "%sEXTRACHECKS",
+		(j == i) ? "" : ", ");
+#endif
+
+#ifdef TRACING
+	i += snprintf(&buf[i], sizeof(buf) - i, "%sTRACING",
+		(j == i) ? "" : ", ");
+#endif
+
+#ifdef DEBUG
+	i += snprintf(&buf[i], sizeof(buf) - i, "%sDEBUG",
+		(j == i) ? "" : ", ");
+#endif
+
+#ifdef DEBUG_TM
+	i += snprintf(&buf[i], sizeof(buf) - i, "%sDEBUG_TM",
+		(j == i) ? "" : ", ");
+#endif
+
+#ifdef DEBUG_RETRY
+	i += snprintf(&buf[i], sizeof(buf) - i, "%sDEBUG_RETRY",
+		(j == i) ? "" : ", ");
+#endif
+
+#ifdef DEBUG_OOM
+	i += snprintf(&buf[i], sizeof(buf) - i, "%sDEBUG_OOM",
+		(j == i) ? "" : ", ");
+#endif
+
+#ifdef DEBUG_SN
+	i += snprintf(&buf[i], sizeof(buf) - i, "%sDEBUG_SN",
+		(j == i) ? "" : ", ");
+#endif
+
+#ifdef USE_EXPECTED_VALUES
+	i += snprintf(&buf[i], sizeof(buf) - i, "%sUSE_EXPECTED_VALUES",
+		(j == i) ? "" : ", ");
+#endif
+
+#ifdef ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
+	i += snprintf(&buf[i], sizeof(buf) - i, "%sALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ",
+		(j == i) ? "" : ", ");
+#endif
+
+#ifdef SCST_STRICT_SECURITY
+	i += snprintf(&buf[i], sizeof(buf) - i, "%sSCST_STRICT_SECURITY",
+		(j == i) ? "" : ", ");
+#endif
+
+#ifdef SCST_HIGHMEM
+	i += snprintf(&buf[i], sizeof(buf) - i, "%sSCST_HIGHMEM",
+		(j == i) ? "" : ", ");
+#endif
+
+	if (j != i)
+		PRINT_INFO("%s", buf);
+}
+
 static int __init init_scst(void)
 {
 	int res = 0, i;
@@ -1500,6 +1571,8 @@ static int __init init_scst(void)
 
 	PRINT_INFO("SCST version %s loaded successfully (max mem for "
 		"commands %ld Mb)", SCST_VERSION_STRING, scst_max_cmd_mem >> 20);
+
+	scst_print_config();
 
 out:
 	TRACE_EXIT_RES(res);
