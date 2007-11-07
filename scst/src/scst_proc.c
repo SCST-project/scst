@@ -2027,5 +2027,5 @@ int scst_single_seq_open(struct inode *inode, struct file *file)
 	struct scst_proc_data *pdata = container_of(inode->i_fop,
 		struct scst_proc_data, seq_op);
 #endif
-	return single_open(file, pdata->show, pdata->data);
+	return single_open(file, pdata->show, PDE(inode)->data);
 }
