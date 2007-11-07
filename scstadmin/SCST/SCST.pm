@@ -1,7 +1,8 @@
 package SCST::SCST;
 
 # Author:	Mark R. Buechler
-# Copyright (c) 2005, 2006 Mark R. Buechler
+# License:	GPLv2
+# Copyright (c) 2005-2007 Mark R. Buechler
 
 use 5.005;
 use IO::Handle;
@@ -54,7 +55,7 @@ $IOTYPE_PHYSICAL    = 100;
 $IOTYPE_VIRTUAL     = 101;
 $IOTYPE_PERFORMANCE = 102;
 
-$VERSION = 0.7.2;
+$VERSION = 0.7.3;
 
 my $_SCST_MIN_MAJOR_   = 0;
 my $_SCST_MIN_MINOR_   = 9;
@@ -389,10 +390,10 @@ sub handlerDevices {
 			$options = "";
 		}
 
-		$devices{$vname}->{'OPTIONS'} = $self->cleanupString($options);
-		$devices{$vname}->{'SIZE'} = $self->cleanupString($size);
-		$devices{$vname}->{'PATH'} = $self->cleanupString($path);
-		$devices{$vname}->{'BLOCKSIZE'} = $self->cleanupString($blocksize);
+		$devices{$vname}->{'OPTIONS'} = cleanupString($options);
+		$devices{$vname}->{'SIZE'} = cleanupString($size);
+		$devices{$vname}->{'PATH'} = cleanupString($path);
+		$devices{$vname}->{'BLOCKSIZE'} = cleanupString($blocksize);
 	}
 
 	close $io;
@@ -459,11 +460,11 @@ sub openDevice {
 		return 2;
 	}
 
-	$options = $self->cleanupString($options);
+	$options = cleanupString($options);
 
 	my $cmd = "open $device $path $blocksize $options\n";
 
-	$cmd = $self->cleanupString($cmd);
+	$cmd = cleanupString($cmd);
 
 	my $rc = $self->handler_private($handler_io, $cmd);
 
@@ -967,7 +968,6 @@ sub errorString {
 }
 
 sub cleanupString {
-	my $self = shift;
 	my $string = shift;
 
 	$string =~ s/^\s+//;

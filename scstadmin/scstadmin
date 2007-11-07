@@ -1,9 +1,11 @@
 #!/usr/bin/perl
-$Version  = 'SCST Configurator v0.7.1';
+$Version  = 'SCST Configurator v0.7.3';
 
 # Configures SCST
 #
-# Written by Mark R. Buechler 12/07/04
+# Author:       Mark R. Buechler
+# License:      GPLv2
+# Copyright (c) 2005-2007 Mark R. Buechler
 
 sub usage
   {
@@ -827,6 +829,18 @@ sub applyConfiguration {
 	# Assign new devices to groups..
 	foreach my $group (keys %used_assignments) {
 		if (!defined($GROUPS{$group})) {
+			# Looks like we're lacking a group. We'll create an empty one
+
+			print "\t-> WARNING: Auto-creating an empty group '$group' since none was configured.\n";
+
+			if (addGroup($group)) {
+				$errs++;
+			} else {
+				$changes++;
+			}
+		}
+
+		if (!defined($GROUPS{$group})) {
 			print "\t-> WARNING: Unable to assign to non-existant group '$group'.\n";
 			$errs += 1;
 			next;
@@ -1392,13 +1406,15 @@ sub readConfig {
 		$line = cleanupString($line);
 
 		if ($line =~ /^\[(.*)\]$/) {
-			$last_arg = $arg;
-			$last_section = $section;
 			($section, $arg) = split(/\s+/, $1, 2);
 
-			if ($last_arg && ($last_arg ne $arg) && !$config{$last_section}->{$last_arg}) {
+			if ($last_arg && ($last_section ne $section) &&
+			    !defined($config{$last_section}->{$last_arg})) {
 				$config{$last_section}->{$last_arg} = \%empty;
 			}   
+
+			$last_arg = $arg;
+			$last_section = $section;
 		} elsif ($section && $arg && $line) {
 			my($parameter, $value) = split(/\s+/, $line, 2);
 
