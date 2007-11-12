@@ -155,13 +155,14 @@ static void create_listen_socket(struct pollfd *array)
 		exit(1);
 	}
 
-	for (i = 0, res = res0; res && i < LISTEN_MAX; i++, res = res->ai_next) {
+	i = 0;
+	for (res = res0; res && i < LISTEN_MAX; res = res->ai_next) {
 		sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 		if (sock < 0) {
 			log_error("Unable to create server socket (%s) %d %d %d!",
 				  strerror(errno), res->ai_family,
 				  res->ai_socktype, res->ai_protocol);
-			exit(1);
+			continue;
 		}
 
 		sock_set_keepalive(sock, 50);
@@ -174,26 +175,34 @@ static void create_listen_socket(struct pollfd *array)
 		if (res->ai_family == AF_INET6 &&
 		    setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt))) {
 		    	log_error("Unable to restrict IPv6 socket (%s)", strerror(errno));
-			exit(1);
+			close(sock);
+			continue;
 		}
 
 		if (bind(sock, res->ai_addr, res->ai_addrlen)) {
 			log_error("Unable to bind server socket (%s)!", strerror(errno));
-			exit(1);
+			close(sock);
+			continue;
 		}
 
 		if (listen(sock, INCOMING_MAX)) {
 			log_error("Unable to listen to server socket (%s)!", strerror(errno));
-			exit(1);
+			close(sock);
+			continue;
 		}
 
 		set_non_blocking(sock);
 
 		array[i].fd = sock;
 		array[i].events = POLLIN;
+
+		i++;
 	}
 
 	freeaddrinfo(res0);
+
+	if (i == 0)
+		exit(1);
 }
 
 static void accept_connection(int listen)

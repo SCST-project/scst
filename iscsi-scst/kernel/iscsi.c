@@ -1410,13 +1410,17 @@ static inline int __cmnd_abort(struct iscsi_cmnd *cmnd)
 		goto out;
 
 	TRACE_MGMT_DBG("Aborting cmd %p, scst_cmd %p (scst state %x, "
-		"ref_cnt %d, net_ref_cnt %d, itt %x, op %x, r2t_len %x, "
-		"CDB op %x, size to write %u, is_unsolicited_data %u, "
-		"outstanding_r2t %u)", cmnd, cmnd->scst_cmd, cmnd->scst_state,
-		atomic_read(&cmnd->ref_cnt), atomic_read(&cmnd->net_ref_cnt),
+		"ref_cnt %d, itt %x, op %x, r2t_len %x, CDB op %x, "
+		"size to write %u, is_unsolicited_data %u, "
+		"outstanding_r2t %u)", cmnd, cmnd->scst_cmd,
+		cmnd->scst_state, atomic_read(&cmnd->ref_cnt),
 		cmnd_itt(cmnd), cmnd_opcode(cmnd), cmnd->r2t_length,
 		cmnd_scsicode(cmnd), cmnd_write_size(cmnd),
 		cmnd->is_unsolicited_data, cmnd->outstanding_r2t);
+
+#ifdef NET_PAGE_CALLBACKS_DEFINED
+	TRACE_MGMT_DBG("net_ref_cnt %d", atomic_read(&cmnd->net_ref_cnt));
+#endif
 
 	iscsi_extracheck_is_rd_thread(cmnd->conn);
 

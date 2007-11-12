@@ -59,6 +59,7 @@ iscsi_scstd_start()
 	    echo "succeeded."
 	else
 	    echo "failed."
+	    rmmod iscsi-scst
 	fi
 }
 	

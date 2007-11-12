@@ -67,7 +67,6 @@ start()
 stop()
 {
 	echo -n "Stopping iSCSI target service: "
-#	iscsi-scst-adm --op delete
 	killall iscsi-scstd
 	rmmod -w iscsi-scst
 	RETVAL=$?

@@ -1486,9 +1486,8 @@ static int __init init_scst(void)
 	if (scst_threads == 0)
 		scst_threads = scst_num_cpus;
 		
-	if (scst_threads < scst_num_cpus) {
-		PRINT_ERROR("%s", "scst_threads can not be less than "
-			"CPUs count");
+	if (scst_threads < 1) {
+		PRINT_ERROR("%s", "scst_threads can not be less than 1");
 		scst_threads = scst_num_cpus;
 	}
 

@@ -2076,6 +2076,17 @@ struct blockio_work {
 	struct scst_cmd *cmd;
 };
 
+static inline void blockio_check_finish(struct blockio_work *blockio_work)
+{
+	/* Decrement the bios in processing, and if zero signal completion */
+	if (atomic_dec_and_test(&blockio_work->bios_inflight)) {
+		blockio_work->cmd->completed = 1;
+		blockio_work->cmd->scst_cmd_done(blockio_work->cmd,
+			SCST_CMD_STATE_DEFAULT);
+		kfree(blockio_work);
+	}
+}
+
 static int blockio_endio(struct bio *bio, unsigned int bytes_done, int error)
 {
 	struct blockio_work *blockio_work = bio->bi_private;
@@ -2101,13 +2112,7 @@ static int blockio_endio(struct bio *bio, unsigned int bytes_done, int error)
 				SCST_LOAD_SENSE(scst_sense_read_error));
 	}
 
-	/* Decrement the bios in processing, and if zero signal completion */
-	if (atomic_dec_and_test(&blockio_work->bios_inflight)) {
-		blockio_work->cmd->completed = 1;
-		blockio_work->cmd->scst_cmd_done(blockio_work->cmd,
-			SCST_CMD_STATE_DEFAULT);
-		kfree(blockio_work);
-	}
+	blockio_check_finish(blockio_work);
 
 	bio_put(bio);
 	return 0;
@@ -2154,6 +2159,8 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 		thislen = 0;
 
 		while (len > 0) {
+			int rc;
+
 			if (need_new_bio) {
 				bio = bio_alloc(GFP_KERNEL, max_nr_vecs);
 				if (!bio) {
@@ -2181,7 +2188,9 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 
 			bytes = min_t(unsigned int, len, PAGE_SIZE - off);
 
-			if (bio_add_page(bio, page, bytes, off) < bytes) {
+			rc = bio_add_page(bio, page, bytes, off);
+			if (rc < bytes) {
+				sBUG_ON(rc != 0);
 				need_new_bio = 1;
 				lba_start += thislen >> virt_dev->block_shift;
 				thislen = 0;
@@ -2196,7 +2205,10 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 
 		lba_start += sgl[j].length >> virt_dev->block_shift;
 	}
-	atomic_set(&blockio_work->bios_inflight, bios);
+
+	/* +1 to prevent erroneous too early command completion */
+	atomic_set(&blockio_work->bios_inflight, bios+1);
+	smp_mb();
 
 	while (hbio) {
 		bio = hbio;
@@ -2207,6 +2219,8 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 
 	if (q && q->unplug_fn)
 		q->unplug_fn(q);
+
+	blockio_check_finish(blockio_work);
 
 out:
 	TRACE_EXIT();
