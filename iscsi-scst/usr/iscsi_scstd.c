@@ -624,7 +624,8 @@ int main(int argc, char **argv)
 	if (isns)
 		timeout = isns_init(isns, isns_ac);
 
-	cops->default_load(config);
+	if (cops->default_load(config) != 0)
+		exit(1);
 
 	if (gid && setgid(gid) < 0)
 		perror("setgid\n");

@@ -100,7 +100,7 @@ static int plain_account_init(char *filename)
 	FILE *fp;
 	char buf[BUFSIZE], *p, *q;
 	u32 tid;
-	int idx;
+	int idx, res = 0;
 
 	if (!(fp = fopen(filename, "r")))
 		return -EIO;
@@ -122,14 +122,17 @@ static int plain_account_init(char *filename)
 			name = target_sep_string(&q);
 			pass = target_sep_string(&q);
 
-			if (cops->account_add(tid, idx, name, pass) < 0)
+			res = cops->account_add(tid, idx, name, pass);
+			if (res < 0) {
 				fprintf(stderr, "%s %s\n", name, pass);
+				break;
+			}
 		}
 	}
 
 	fclose(fp);
 
-	return 0;
+	return res;
 }
 
 /* Return the first account if the length of name is zero */
