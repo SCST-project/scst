@@ -1835,9 +1835,10 @@ out:
 	return;
 }
 
-static int scst_send_to_midlev(struct scst_cmd *cmd)
+static int scst_send_to_midlev(struct scst_cmd **active_cmd)
 {
 	int res, rc;
+	struct scst_cmd *cmd = *active_cmd;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
 	struct scst_device *dev = cmd->dev;
 	typeof(tgt_dev->expected_sn) expected_sn;
@@ -1921,6 +1922,7 @@ exec:
 			      "thread context, rescheduling");
 			res = SCST_CMD_STATE_RES_NEED_THREAD;
 			scst_dec_on_dev_cmd(cmd);
+			*active_cmd = cmd;
 			if (count != 0)
 				goto out_unplug;
 			else
@@ -2885,7 +2887,7 @@ void scst_process_active_cmd(struct scst_cmd *cmd, int context)
 					cmd->tag);
 				break;
 			}
-			res = scst_send_to_midlev(cmd);
+			res = scst_send_to_midlev(&cmd);
 			/* !! At this point cmd, sess & tgt_dev can be already freed !! */
 			break;
 
