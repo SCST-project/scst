@@ -54,6 +54,67 @@ enum tx_state {
 	TX_END,
 };
 
+#if defined(NET_PAGE_CALLBACKS_DEFINED)
+static void iscsi_check_closewait(struct iscsi_conn *conn)
+{
+	struct iscsi_cmnd *cmnd;
+
+	TRACE_ENTRY();
+
+	if ((conn->sock->sk->sk_state != TCP_CLOSE_WAIT) &&
+	    (conn->sock->sk->sk_state != TCP_CLOSE)) {
+		TRACE_CONN_CLOSE_DBG("sk_state %d, skipping",
+			conn->sock->sk->sk_state);
+		goto out;
+	}
+
+	/*
+	 * No data are going to be sent, so all being sent buffers can be freed
+	 * now. Strange that TCP doesn't do that itself.
+	 */
+
+again:
+	spin_lock_bh(&conn->cmd_list_lock);
+	list_for_each_entry(cmnd, &conn->cmd_list, cmd_list_entry) {
+		TRACE_CONN_CLOSE_DBG("cmd %p, scst_state %x, data_waiting %d, "
+			"ref_cnt %d, parent_req %p, net_ref_cnt %d, sg %p",
+			cmnd, cmnd->scst_state, cmnd->data_waiting,
+			atomic_read(&cmnd->ref_cnt), cmnd->parent_req,
+			atomic_read(&cmnd->net_ref_cnt), cmnd->sg);
+		sBUG_ON(cmnd->parent_req != NULL);
+		if (cmnd->sg != NULL) {
+			int sg_cnt, i, restart = 0;
+			sg_cnt = get_pgcnt(cmnd->bufflen,
+				cmnd->sg[0].offset);
+			cmnd_get(cmnd);
+			for(i = 0; i < sg_cnt; i++) {
+				TRACE_CONN_CLOSE_DBG("page %p, net_priv %p, _count %d",
+					cmnd->sg[i].page, cmnd->sg[i].page->net_priv,
+					atomic_read(&cmnd->sg[i].page->_count));
+				if (cmnd->sg[i].page->net_priv != NULL) {
+					if (restart == 0) {
+						spin_unlock_bh(&conn->cmd_list_lock);
+						restart = 1;
+					}
+					while(cmnd->sg[i].page->net_priv != NULL)
+						iscsi_put_page_callback(cmnd->sg[i].page);
+				}
+			}
+			cmnd_put(cmnd);
+			if (restart)
+				goto again;
+		}
+	}
+	spin_unlock_bh(&conn->cmd_list_lock);
+
+out:
+	TRACE_EXIT();
+	return;
+}
+#else
+static inline void iscsi_check_closewait(struct iscsi_conn *conn) {};
+#endif
+
 /* No locks */
 static void close_conn(struct iscsi_conn *conn)
 {
@@ -114,19 +175,19 @@ static void close_conn(struct iscsi_conn *conn)
 #endif
 			spin_lock_bh(&conn->cmd_list_lock);
 			list_for_each_entry(cmnd, &conn->cmd_list, cmd_list_entry) {
-				TRACE_DBG("cmd %p, scst_state %x, data_waiting "
+				TRACE_CONN_CLOSE_DBG("cmd %p, scst_state %x, data_waiting "
 					"%d, ref_cnt %d, parent_req %p", cmnd,
 					cmnd->scst_state, cmnd->data_waiting,
 					atomic_read(&cmnd->ref_cnt), cmnd->parent_req);
 #ifdef NET_PAGE_CALLBACKS_DEFINED
-				TRACE_DBG("net_ref_cnt %d, sg %p",
+				TRACE_CONN_CLOSE_DBG("net_ref_cnt %d, sg %p",
 					atomic_read(&cmnd->net_ref_cnt), cmnd->sg);
 				if (cmnd->sg != NULL) {
 					int sg_cnt, i;
 					sg_cnt = get_pgcnt(cmnd->bufflen,
 						cmnd->sg[0].offset);
 					for(i = 0; i < sg_cnt; i++) {
-						TRACE_DBG("page %p, net_priv %p, _count %d",
+						TRACE_CONN_CLOSE_DBG("page %p, net_priv %p, _count %d",
 							cmnd->sg[i].page, cmnd->sg[i].page->net_priv,
 							atomic_read(&cmnd->sg[i].page->_count));
 					}
@@ -136,7 +197,7 @@ static void close_conn(struct iscsi_conn *conn)
 				
 				spin_lock_bh(&cmnd->rsp_cmd_lock);
 				list_for_each_entry(rsp, &cmnd->rsp_cmd_list, rsp_cmd_list_entry) {
-					TRACE_DBG("  rsp %p, ref_cnt %d, net_ref_cnt %d, "
+					TRACE_CONN_CLOSE_DBG("  rsp %p, ref_cnt %d, net_ref_cnt %d, "
 						"sg %p", rsp, atomic_read(&rsp->ref_cnt),
 						atomic_read(&rsp->net_ref_cnt), rsp->sg);
 					if ((rsp->sg != cmnd->sg) && (rsp->sg != NULL)) {
@@ -145,7 +206,7 @@ static void close_conn(struct iscsi_conn *conn)
 							rsp->sg[0].offset);
 						sBUG_ON(rsp->sg_cnt != sg_cnt);
 						for(i = 0; i < sg_cnt; i++) {
-							TRACE_DBG("    page %p, net_priv %p, "
+							TRACE_CONN_CLOSE_DBG("    page %p, net_priv %p, "
 								"_count %d", rsp->sg[i].page,
 								rsp->sg[i].page->net_priv,
 								atomic_read(&rsp->sg[i].page->_count));
@@ -158,6 +219,7 @@ static void close_conn(struct iscsi_conn *conn)
 			spin_unlock_bh(&conn->cmd_list_lock);
 		}
 #endif
+		iscsi_check_closewait(conn);
 	}
 
 	write_lock_bh(&conn->sock->sk->sk_callback_lock);

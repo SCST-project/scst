@@ -30,6 +30,7 @@ static struct scst_proc_log iscsi_proc_local_trace_tbl[] =
     { TRACE_D_READ,		"d_read" },
     { TRACE_D_WRITE,		"d_write" },
     { TRACE_CONN_OC,		"conn" },
+    { TRACE_CONN_OC_DBG,	"conn_dbg" },
     { TRACE_D_IOV,		"iov" },
     { TRACE_D_DUMP_PDU,		"pdu" },
     { TRACE_NET_PG,		"net_page" },

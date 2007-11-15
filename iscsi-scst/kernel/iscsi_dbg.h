@@ -26,6 +26,7 @@
 #define TRACE_D_IOV		0x10000000
 #define TRACE_D_DUMP_PDU	0x08000000
 #define TRACE_NET_PG		0x04000000
+#define TRACE_CONN_OC_DBG	0x02000000
 
 #define TRACE_D_DATA		(TRACE_D_READ | TRACE_D_WRITE)
 
@@ -57,6 +58,20 @@ extern unsigned long iscsi_trace_flag;
 #define TRACE_CONN_CLOSE(format, args...)	                    \
 do {                                                                \
   if (trace_flag & TRACE_CONN_OC) 	                            \
+  {                                                                 \
+    char *__tflag = LOG_FLAG;                                       \
+    if (debug_print_prefix(trace_flag, LOG_PREFIX, __FUNCTION__,    \
+                __LINE__) > 0)                                      \
+    {                                                               \
+      __tflag = NO_FLAG;                                            \
+    }                                                               \
+    PRINT(NO_FLAG, "%s" format, __tflag, args);                     \
+  }                                                                 \
+} while(0)
+
+#define TRACE_CONN_CLOSE_DBG(format, args...)	                    \
+do {                                                                \
+  if (trace_flag & TRACE_CONN_OC_DBG) 	                            \
   {                                                                 \
     char *__tflag = LOG_FLAG;                                       \
     if (debug_print_prefix(trace_flag, LOG_PREFIX, __FUNCTION__,    \
