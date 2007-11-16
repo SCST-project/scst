@@ -1230,7 +1230,7 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state)
 
 static int scst_report_luns_local(struct scst_cmd *cmd)
 {
-	int res = SCST_EXEC_COMPLETED, rc;
+	int rc;
 	int dev_cnt = 0;
 	int buffer_size;
 	int i;
@@ -1323,8 +1323,8 @@ out_done:
 	/* Report the result */
 	scst_cmd_done_local(cmd, SCST_CMD_STATE_DEFAULT);
 
-	TRACE_EXIT_RES(res);
-	return res;
+	TRACE_EXIT();
+	return SCST_EXEC_COMPLETED;
 	
 out_put_err:
 	scst_put_buf(cmd, buffer);
@@ -1360,22 +1360,9 @@ out:
 	return res;
 }
 
-static inline void scst_report_reserved(struct scst_cmd *cmd)
-{
-	TRACE_ENTRY();
-
-	scst_set_cmd_error_status(cmd, SAM_STAT_RESERVATION_CONFLICT);
-	cmd->completed = 1;
-	/* Report the result */
-	scst_cmd_done_local(cmd, SCST_CMD_STATE_DEFAULT);
-
-	TRACE_EXIT();
-	return;
-}
-
 static int scst_reserve_local(struct scst_cmd *cmd)
 {
-	int res = SCST_EXEC_NOT_COMPLETED, rc;
+	int res, rc;
 	struct scst_device *dev;
 	struct scst_tgt_dev *tgt_dev_tmp;
 
@@ -1391,9 +1378,7 @@ static int scst_reserve_local(struct scst_cmd *cmd)
 		     "(lun=%Ld)", (uint64_t)cmd->lun);
 		scst_set_cmd_error(cmd,
 		   	SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
-		cmd->completed = 1;
-		res = SCST_EXEC_COMPLETED;
-		goto out;
+		goto out_compl;
 	}
 
 	dev = cmd->dev;
@@ -1407,10 +1392,9 @@ static int scst_reserve_local(struct scst_cmd *cmd)
 	spin_lock_bh(&dev->dev_lock);
 
 	if (test_bit(SCST_TGT_DEV_RESERVED, &cmd->tgt_dev->tgt_dev_flags)) {
-		scst_report_reserved(cmd);
-		/* !! At this point cmd, sess & tgt_dev can be already freed !! */
-		res = SCST_EXEC_COMPLETED;
-		goto out_unlock;
+		spin_unlock_bh(&dev->dev_lock);
+		scst_set_cmd_error_status(cmd, SAM_STAT_RESERVATION_CONFLICT);
+		goto out_compl;
 	}
 
 	list_for_each_entry(tgt_dev_tmp, &dev->dev_tgt_dev_list,
@@ -1422,23 +1406,27 @@ static int scst_reserve_local(struct scst_cmd *cmd)
 	}
 	dev->dev_reserved = 1;
 
-out_unlock:
+	res = SCST_EXEC_NOT_COMPLETED;
+
 	spin_unlock_bh(&dev->dev_lock);
 	
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 
+out_compl:
+	cmd->completed = 1;
+
 out_done:
-	res = SCST_EXEC_COMPLETED;
 	/* Report the result */
 	scst_cmd_done_local(cmd, SCST_CMD_STATE_DEFAULT);
+	res = SCST_EXEC_COMPLETED;
 	goto out;
 }
 
 static int scst_release_local(struct scst_cmd *cmd)
 {
-	int res = SCST_EXEC_NOT_COMPLETED, rc;
+	int res, rc;
 	struct scst_tgt_dev *tgt_dev_tmp;
 	struct scst_device *dev;
 
@@ -1483,11 +1471,16 @@ static int scst_release_local(struct scst_cmd *cmd)
 	spin_unlock_bh(&dev->dev_lock);
 
 	if (res == SCST_EXEC_COMPLETED)
-		goto out_done;
+		goto out_compl;
+
+	res = SCST_EXEC_NOT_COMPLETED;
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_compl:
+	cmd->completed = 1;
 
 out_done:
 	res = SCST_EXEC_COMPLETED;
@@ -1517,7 +1510,7 @@ int scst_check_local_events(struct scst_cmd *cmd)
 		    (cmd->cdb[0] != ALLOW_MEDIUM_REMOVAL || (cmd->cdb[4] & 3)) &&
 		    (cmd->cdb[0] != LOG_SENSE) && (cmd->cdb[0] != REQUEST_SENSE))
 		{
-			scst_report_reserved(cmd);
+			scst_set_cmd_error_status(cmd, SAM_STAT_RESERVATION_CONFLICT);
 			goto out_complete;
 		}
 	}
@@ -1788,7 +1781,7 @@ out_busy:
 
 out_done:
 	rc = SCST_EXEC_COMPLETED;
-	/* Report the result. The cmd is not completed */
+	/* Report the result */
 	scst_cmd_done_local(cmd, SCST_CMD_STATE_DEFAULT);
 	goto out;
 }
