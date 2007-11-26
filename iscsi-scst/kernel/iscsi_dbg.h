@@ -99,6 +99,7 @@ do {                                                                \
 
 #else /* defined(DEBUG) || defined(TRACING) */
 #define TRACE_CONN_CLOSE(format, args...) {}
+#define TRACE_CONN_CLOSE_DBG(format, args...) {}
 #define TRACE_NET_PAGE(format, args...) {}
 #endif
 

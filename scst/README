@@ -594,9 +594,9 @@ IMPORTANT: Some of the compilation options enabled by default, i.e. SCST
 =========  is optimized currently rather for development and bug hunting,
            than for performance.
 
-If you use SCST version taken directly from its SVN repository, you can
+If you use SCST version taken directly from the SVN repository, you can
 set the above options, except ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ, using
-debug2perf script file.
+debug2perf Makefile target.
 
 4. For kernel:
 

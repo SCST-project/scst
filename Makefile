@@ -64,6 +64,11 @@ help:
 	@echo "		usr_install       : usr target: install"
 	@echo "		usr_uninstall     : usr target: uninstall"
 	@echo ""
+	@echo "		debug2perf        : changes debug state from full debug to full performance"
+	@echo "		debug2release     : changes debug state from full debug to release"
+	@echo "		perf2debug        : changes debug state from full performance to full debug"
+	@echo "		release2debug     : changes debug state from release to full debug"
+	@echo ""
 	@echo "	Note:"
 	@echo "		- install and uninstall may need root privileges"
 
@@ -181,9 +186,38 @@ usr_clean:
 usr_extraclean:
 	cd $(USR_DIR) && $(MAKE) extraclean
 
+debug2perf:
+	echo "Changing current debug state from full debug to full performance"
+	patch -p0 <scst-full_perf.patch
+	patch -p0 <usr-full_perf.patch
+	patch -p0 <qla2x00t-full_perf.patch
+	patch -p0 <iscsi-full_perf.patch
+
+debug2release:
+	echo "Changing current debug state from full debug to release"
+	patch -p0 <scst-release.patch
+	patch -p0 <usr-release.patch
+	patch -p0 <qla2x00t-release.patch
+	patch -p0 <iscsi-release.patch
+
+perf2debug:
+	echo "Changing current debug state from full performance to full debug"
+	patch -p0 -R <scst-full_perf.patch
+	patch -p0 -R <usr-full_perf.patch
+	patch -p0 -R <qla2x00t-full_perf.patch
+	patch -p0 -R <iscsi-full_perf.patch
+
+release2debug:
+	echo "Changing current debug state from release to full debug"
+	patch -p0 -R <scst-release.patch
+	patch -p0 -R <usr-release.patch
+	patch -p0 -R <qla2x00t-release.patch
+	patch -p0 -R <iscsi-release.patch
+
 .PHONY: all install uninstall clean extraclean help \
 	qla qla_install qla_uninstall qla_clean qla_extraclean \
 	lsi lsi_install lsi_uninstall lsi_clean lsi_extraclean \
 	iscsi iscsi_install iscsi_uninstall iscsi_clean iscsi_extraclean \
 	scst scst_install scst_uninstall scst_clean scst_extraclean \
-	usr usr_install usr_uninstall usr_clean usr_extraclean
+	usr usr_install usr_uninstall usr_clean usr_extraclean \
+	debug2perf, debug2release, perf2debug, release2debug
