@@ -39,12 +39,6 @@
 #define PURGE_TIME_AFTER	(15 * HZ)
 #define SHRINK_TIME_AFTER	(1 * HZ)
 
-/* Chosen to have one page per slab for all orders */
-#ifdef CONFIG_DEBUG_SLAB
-#define SGV_MAX_LOCAL_SLAB_ORDER	4
-#else
-#define SGV_MAX_LOCAL_SLAB_ORDER	5
-#endif
 
 static struct scst_sgv_pools_manager sgv_pools_mgr;
 
@@ -261,7 +255,7 @@ out_no_mem:
 	goto out;
 }
 
-static int sgv_alloc_sg_entries(struct sgv_pool_obj *obj,
+static int sgv_alloc_arrays(struct sgv_pool_obj *obj,
 	int pages_to_alloc, int order, unsigned long gfp_mask)
 {
 	int sz, tsz = 0;
@@ -553,20 +547,13 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 				obj->trans_tbl = (struct trans_tbl_ent*)
 					(obj->sg_entries + pages_to_alloc);
 				TRACE_MEM("trans_tbl %p", obj->trans_tbl);
-				/* We want to have all the data on the same page */
-				EXTRACHECKS_WARN_ON_ONCE(((unsigned long)obj->sg_entries & PAGE_MASK) !=
-					((unsigned long)&obj->trans_tbl[pages_to_alloc-1] & PAGE_MASK));
 				/*
 				 * No need to clear trans_tbl, if needed, it will
 				 * be fully rewritten in scst_alloc_sg_entries()
 				 */
-			} else {
-				/* We want to have all the data on the same page */
-				EXTRACHECKS_WARN_ON_ONCE(((unsigned long)obj->sg_entries & PAGE_MASK) !=
-					((unsigned long)&obj->sg_entries[pages_to_alloc-1] & PAGE_MASK));
 			}
 		} else {
-			if (unlikely(sgv_alloc_sg_entries(obj, pages_to_alloc,
+			if (unlikely(sgv_alloc_arrays(obj, pages_to_alloc,
 					order, gfp_mask) != 0))
 				goto out_fail_free;
 		}
@@ -823,17 +810,20 @@ int sgv_pool_init(struct sgv_pool *pool, const char *name, int clustered)
 		atomic_set(&pool->cache_acc[i].total_alloc, 0);
 		atomic_set(&pool->cache_acc[i].hit_alloc, 0);
 
-		/*
-		 * We need one page per SLAB. That's hackish, but is there
-		 * any other choice?
-		 */
-		if (i <= SGV_MAX_LOCAL_SLAB_ORDER) {
-			int pages = 1 << i;
-			size = sizeof(*obj) + pages * 
+		if (i <= sgv_pools_mgr.sgv_max_local_order) {
+			size = sizeof(*obj) + (1 << i) * 
 				(sizeof(obj->sg_entries[0]) +
 				 (clustered ? sizeof(obj->trans_tbl[0]) : 0));
-		} else
-			size = PAGE_SIZE - 96;
+		} else if (i <= sgv_pools_mgr.sgv_max_trans_order) {
+			/* sgv ie sg_entries is allocated outside object but ttbl 
+			is embedded still */
+			size = sizeof(*obj) + (1 << i) * 
+				((clustered ? sizeof(obj->trans_tbl[0]) : 0));		
+		} else {
+			size = sizeof(*obj);
+			
+			/* both sgv and ttbl are kallocated() */
+		}
 
 		TRACE_MEM("pages=%d, size=%d", 1 << i, size);
 
@@ -875,6 +865,34 @@ out_free:
 			break;
 	}
 	goto out;
+}
+
+static void sgv_pool_evaluate_local_order(struct scst_sgv_pools_manager *pmgr)
+{
+	int space4sgv_ttbl = PAGE_SIZE - sizeof(struct sgv_pool_obj);
+
+	pmgr->sgv_max_local_order = get_order(
+		(((space4sgv_ttbl /
+		  (sizeof(struct trans_tbl_ent) + sizeof(struct scatterlist))) *
+			PAGE_SIZE) & PAGE_MASK)) - 1;
+
+	pmgr->sgv_max_trans_order = get_order(
+		(((space4sgv_ttbl /
+		  (sizeof(struct trans_tbl_ent))) * PAGE_SIZE) & PAGE_MASK)) - 1;
+
+	TRACE_MEM("sgv_max_local_order %d, sgv_max_trans_order %d",
+		pmgr->sgv_max_local_order, pmgr->sgv_max_trans_order);
+	TRACE_MEM("max object size with embedded sgv & ttbl %d",
+		(1 << pmgr->sgv_max_local_order) * 
+		(sizeof(struct trans_tbl_ent) + sizeof(struct scatterlist))
+		+ sizeof(struct sgv_pool_obj));
+	TRACE_MEM("max object size with embedded sgv (!clustered) %d",
+		(1 << pmgr->sgv_max_local_order) * 
+		(sizeof(struct scatterlist))
+		+ sizeof(struct sgv_pool_obj));
+	TRACE_MEM("max object size with embedded ttbl %d",
+		(1 << pmgr->sgv_max_trans_order) * sizeof(struct trans_tbl_ent) +
+		sizeof(struct sgv_pool_obj));
 }
 
 void sgv_pool_deinit(struct sgv_pool *pool)
@@ -1047,17 +1065,7 @@ int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 	sgv_pools_mgr.mgr.thr.hi_wmk = mem_hwmark >> PAGE_SHIFT;
 	sgv_pools_mgr.mgr.thr.lo_wmk = mem_lwmark >> PAGE_SHIFT;
 
-	sgv_pools_mgr.sgv_max_local_order = get_order(
-		((((PAGE_SIZE - sizeof(struct sgv_pool_obj)) /
-		  (sizeof(struct trans_tbl_ent) + sizeof(struct scatterlist))) *
-			PAGE_SIZE) & PAGE_MASK)) - 1;
-
-	sgv_pools_mgr.sgv_max_trans_order = get_order(
-		((((PAGE_SIZE - sizeof(struct sgv_pool_obj)) /
-		  (sizeof(struct trans_tbl_ent))) * PAGE_SIZE) & PAGE_MASK)) - 1;
-
-	TRACE_MEM("sgv_max_local_order %d, sgv_max_trans_order %d",
-		sgv_pools_mgr.sgv_max_local_order, sgv_pools_mgr.sgv_max_trans_order);
+	sgv_pool_evaluate_local_order(&sgv_pools_mgr);
 
 	atomic_set(&pools->sgv_other_total_alloc, 0);
 	INIT_LIST_HEAD(&pools->scst_sgv_pool_list);
