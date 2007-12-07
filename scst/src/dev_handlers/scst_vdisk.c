@@ -321,6 +321,12 @@ static char *vcdrom_proc_help_string =
 	"echo \"open|change|close NAME [FILE_NAME]\" "
 	">/proc/scsi_tgt/" VCDROM_NAME "/" VCDROM_NAME "\n";
 
+static int scst_vdisk_ID;
+
+module_param_named(scst_vdisk_ID, scst_vdisk_ID, int, 0);
+MODULE_PARM_DESC(scst_vdisk_ID, "SCST virtual disk subsystem ID");
+
+
 /**************************************************************
  *  Function:  vdisk_open
  *
@@ -1101,6 +1107,9 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			 */
 			dev_id_num ^= ((rv << i) | (rv >> (32 - i)));
 		}
+
+		dev_id_num += scst_vdisk_ID;
+
 		len = scnprintf(dev_id_str, 6, "%d", dev_id_num);
 		TRACE_DBG("num %d, str <%s>, len %d",
 			   dev_id_num, dev_id_str, len);
