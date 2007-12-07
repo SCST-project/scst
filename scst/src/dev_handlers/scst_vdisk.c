@@ -88,6 +88,16 @@ static struct scst_proc_log vdisk_proc_local_trace_tbl[] =
 #define VDISK_NAME			"vdisk"
 #define VCDROM_NAME			"vcdrom"
 
+#define DEF_TST				SCST_CONTR_MODE_SEP_TASK_SETS
+/*
+ * Since we can't control backstorage device's reordering, we have to always
+ * report unrestricted reordering.
+ */
+#define DEF_QUEUE_ALG_WT		SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER
+#define DEF_QUEUE_ALG			SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER
+#define DEF_SWP				0
+#define DEF_TAS				0
+
 #define VDISK_PROC_HELP			"help"
 
 static unsigned int random_values[256] = {
@@ -188,7 +198,8 @@ struct scst_vdisk_dev {
 struct scst_vdisk_tgt_dev {
 	/*
 	 * Used without locking since SCST core ensures that only commands
-	 * of the same type per tgt_dev can be processed simultaneously
+	 * with the same ORDERED type per tgt_dev can be processed
+	 * simultaneously.
 	 */
 	enum scst_cmd_queue_type last_write_cmd_queue_type;
 };
@@ -223,6 +234,7 @@ static void vdisk_exec_verify(struct scst_cmd *cmd,
 static void vdisk_exec_read_capacity(struct scst_cmd *cmd);
 static void vdisk_exec_read_capacity16(struct scst_cmd *cmd);
 static void vdisk_exec_inquiry(struct scst_cmd *cmd);
+static void vdisk_exec_request_sense(struct scst_cmd *cmd);
 static void vdisk_exec_mode_sense(struct scst_cmd *cmd);
 static void vdisk_exec_mode_select(struct scst_cmd *cmd);
 static void vdisk_exec_log(struct scst_cmd *cmd);
@@ -236,6 +248,8 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 static int vcdrom_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type);
 static int vcdrom_write_proc(char *buffer, char **start, off_t offset,
 	int length, int *eof, struct scst_dev_type *dev_type);
+static int vdisk_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
+	struct scst_tgt_dev *tgt_dev);
 
 #define VDISK_TYPE {			\
   name:         VDISK_NAME,		\
@@ -252,6 +266,7 @@ static int vcdrom_write_proc(char *buffer, char **start, off_t offset,
   exec:         vdisk_do_job,		\
   read_proc:    vdisk_read_proc,	\
   write_proc:   vdisk_write_proc,	\
+  task_mgmt_fn: vdisk_task_mgmt_fn,	\
 }
 
 #define VDISK_BLK_TYPE {		\
@@ -262,13 +277,13 @@ static int vcdrom_write_proc(char *buffer, char **start, off_t offset,
   exec_atomic:  0,			\
   dev_done_atomic: 1,			\
   no_proc: 1,				\
-  inc_expected_sn_on_done: 1,		\
   attach:       vdisk_attach,		\
   detach:       vdisk_detach,		\
   attach_tgt:   vdisk_attach_tgt,	\
   detach_tgt:   vdisk_detach_tgt,	\
   parse:        vdisk_parse,		\
   exec:         vdisk_do_job,		\
+  task_mgmt_fn: vdisk_task_mgmt_fn,	\
 }
 
 #define VCDROM_TYPE {			\
@@ -286,6 +301,7 @@ static int vcdrom_write_proc(char *buffer, char **start, off_t offset,
   exec:         vcdrom_exec,		\
   read_proc:    vcdrom_read_proc,	\
   write_proc:   vcdrom_write_proc,	\
+  task_mgmt_fn: vdisk_task_mgmt_fn,	\
 }
 
 static DEFINE_MUTEX(scst_vdisk_mutex);
@@ -468,6 +484,14 @@ static int vdisk_attach(struct scst_device *dev)
 	}
 
 	dev->dh_priv = virt_dev;
+
+	dev->tst = DEF_TST;
+	if (virt_dev->wt_flag)
+		dev->queue_alg = DEF_QUEUE_ALG_WT;
+	else
+		dev->queue_alg = DEF_QUEUE_ALG;
+	dev->swp = DEF_SWP;
+	dev->tas = DEF_TAS;
 
 out:
 	TRACE_EXIT();
@@ -823,7 +847,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 			/* ToDo: BLOCKIO VERIFY */
 			vdisk_exec_write(cmd, thr, loff);
 			/* O_SYNC flag is used for WT devices */
-			if (cmd->status == 0)
+			if (scsi_status_is_good(cmd->status))
 				vdisk_exec_verify(cmd, thr, loff);
 			else if (do_fsync)
 				vdisk_fsync(thr, loff, data_len, cmd);
@@ -889,6 +913,9 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 		break;
 	case INQUIRY:
 		vdisk_exec_inquiry(cmd);
+		break;
+	case REQUEST_SENSE:
+		vdisk_exec_request_sense(cmd);
 		break;
 	case READ_CAPACITY:
 		vdisk_exec_read_capacity(cmd);
@@ -989,7 +1016,7 @@ static int vcdrom_exec(struct scst_cmd *cmd)
 		TRACE_DBG("%s", "CDROM empty");
 		scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_sense_not_ready));
-		goto out_complete;
+		goto out_done;
 	}
 
 	if (virt_dev->media_changed && (cmd->cdb[0] != INQUIRY) && 
@@ -1001,7 +1028,7 @@ static int vcdrom_exec(struct scst_cmd *cmd)
 			scst_set_cmd_error(cmd,
 				SCST_LOAD_SENSE(scst_sense_medium_changed_UA));
 			spin_unlock(&virt_dev->flags_lock);
-			goto out_complete;
+			goto out_done;
 		}
 		spin_unlock(&virt_dev->flags_lock);
 	}
@@ -1012,8 +1039,7 @@ out:
 	TRACE_EXIT();
 	return SCST_EXEC_COMPLETED;
 
-out_complete:
-	cmd->completed = 1;
+out_done:
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);
 	goto out;
 }
@@ -1193,6 +1219,36 @@ out:
 	return;
 }
 
+static void vdisk_exec_request_sense(struct scst_cmd *cmd)
+{
+	int32_t length;
+	uint8_t *address;
+
+	TRACE_ENTRY();
+
+	length = scst_get_buf_first(cmd, &address);
+	TRACE_DBG("length %d", length);
+	if (unlikely(length < SCST_STANDARD_SENSE_LEN)) {
+		PRINT_ERROR("scst_get_buf_first() failed or too small "
+			"requested buffer (returned %d)", length);
+		scst_set_cmd_error(cmd,
+		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
+		if (length > 0)
+			goto out_put;
+		else
+			goto out;
+	}
+
+	scst_set_sense(address, length,	SCST_LOAD_SENSE(scst_sense_no_sense));
+
+out_put:
+	scst_put_buf(cmd, address);
+
+out:
+	TRACE_EXIT();
+	return;
+}
+
 /* 
  * <<Following mode pages info copied from ST318451LW with some corrections>>
  *
@@ -1256,14 +1312,38 @@ static int vdisk_caching_pg(unsigned char *p, int pcontrol,
 static int vdisk_ctrl_m_pg(unsigned char *p, int pcontrol,
 			    struct scst_vdisk_dev *virt_dev)
 { 	/* Control mode page for mode_sense */
-	const unsigned char ctrl_m_pg[] = {0xa, 0xa, 0x20, 0, 0, 0x40, 0, 0,
+	const unsigned char ctrl_m_pg[] = {0xa, 0xa, 0, 0, 0, 0, 0, 0,
 					   0, 0, 0x2, 0x4b};
 
 	memcpy(p, ctrl_m_pg, sizeof(ctrl_m_pg));
-	if (!virt_dev->wt_flag && !virt_dev->nv_cache)
-		p[3] |= 0x10; /* Enable unrestricted reordering */
-	if (1 == pcontrol)
+	switch(pcontrol) {
+	case 0:
+		p[2] |= virt_dev->dev->tst << 5;
+		p[3] |= virt_dev->dev->queue_alg << 4;
+		p[4] |= virt_dev->dev->swp << 3;
+		p[5] |= virt_dev->dev->tas << 6;
+		break;
+	case 1:
 		memset(p + 2, 0, sizeof(ctrl_m_pg) - 2);
+#if 0 /* Too early, see corresponding comment in vdisk_exec_mode_select() */
+		p[2] |= 7 << 5;
+		p[3] |= 0xF << 4;
+		p[4] |= 1 << 3;
+		p[5] |= 1 << 6;
+#endif
+		break;
+	case 2:
+		p[2] |= DEF_TST << 5;
+		if (virt_dev->wt_flag)
+			p[3] |= DEF_QUEUE_ALG_WT << 4;
+		else
+			p[3] |= DEF_QUEUE_ALG << 4;
+		p[4] |= DEF_SWP << 3;
+		p[5] |= DEF_TAS << 6;
+		break;
+	default:
+		sBUG();
+	}
 	return sizeof(ctrl_m_pg);
 }
 
@@ -1519,6 +1599,25 @@ static void vdisk_exec_mode_select(struct scst_cmd *cmd)
 				goto out_put;
 			}
 			break;
+#if 0 /* 
+       * It's too early to implement it, since we can't control the backstorage
+       * device parameters. ToDo
+       */
+		} else if ((address[offset] & 0x3f) == 0xA) {	/* Control page */
+			if (address[offset + 1] != 0xA) {
+				PRINT_ERROR("%s", "MODE SELECT: Invalid "
+					"control page request");
+				scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
+				    	scst_sense_invalid_field_in_parm_list));
+				goto out_put;
+			}
+#endif
+		} else {
+			PRINT_ERROR("MODE SELECT: Invalid request %x", 
+				address[offset] & 0x3f);
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
+			    	scst_sense_invalid_field_in_parm_list));
+			goto out_put;
 		}
 		offset += address[offset + 1];
 	}
@@ -2364,6 +2463,29 @@ static inline struct scst_vdisk_dev *vdisk_alloc_dev(void)
 	spin_lock_init(&dev->flags_lock);
 out:
 	return dev;
+}
+
+static int vdisk_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
+	struct scst_tgt_dev *tgt_dev)
+{
+	TRACE_ENTRY();
+
+	if ((mcmd->fn == SCST_LUN_RESET) || (mcmd->fn == SCST_TARGET_RESET)) {
+		/* Restore default values */
+		struct scst_device *dev = tgt_dev->dev;
+		struct scst_vdisk_dev *virt_dev =
+			(struct scst_vdisk_dev *)dev->dh_priv;
+		dev->tst = DEF_TST;
+		if (virt_dev->wt_flag)
+			dev->queue_alg = DEF_QUEUE_ALG_WT;
+		else
+			dev->queue_alg = DEF_QUEUE_ALG;
+		dev->swp = DEF_SWP;
+		dev->tas = DEF_TAS;
+	}
+
+	TRACE_EXIT();
+	return SCST_DEV_TM_NOT_COMPLETED;
 }
 
 /* 

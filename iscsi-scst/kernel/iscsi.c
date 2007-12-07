@@ -721,7 +721,8 @@ static struct iscsi_cmnd *cmnd_find_hash_get(struct iscsi_session *session,
 
 	spin_lock(&session->cmnd_hash_lock);
 	cmnd = __cmnd_find_hash(session, itt, ttt);
-	cmnd_get(cmnd);
+	if (cmnd)
+		cmnd_get(cmnd);
 	spin_unlock(&session->cmnd_hash_lock);
 
 	return cmnd;
@@ -1296,7 +1297,7 @@ static int data_out_start(struct iscsi_conn *conn, struct iscsi_cmnd *cmnd)
 	cmnd->cmd_req = req = cmnd_find_hash(conn->session, req_hdr->itt,
 					req_hdr->ttt);
 	if (!req) {
-		PRINT_ERROR("unable to find scsi task %x %x",
+		PRINT_ERROR("Unable to find scsi task %x %x",
 			cmnd_itt(cmnd), cmnd_ttt(cmnd));
 		goto skip_pdu;
 	}
@@ -1583,7 +1584,8 @@ static void execute_task_management(struct iscsi_cmnd *req)
 	int err = 0, function = req_hdr->function & ISCSI_FUNCTION_MASK;
 	struct scst_rx_mgmt_params params;
 
-	TRACE(TRACE_MGMT, "TM cmd: req %p, itt %x, fn %d, rtt %x", req, cmnd_itt(req),
+	TRACE((function == ISCSI_FUNCTION_ABORT_TASK) ? TRACE_MGMT_MINOR : TRACE_MGMT,
+		"TM cmd: req %p, itt %x, fn %d, rtt %x", req, cmnd_itt(req),
 		function, req_hdr->rtt);
 
 	memset(&params, 0, sizeof(params));
@@ -2318,7 +2320,9 @@ static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status)
 				(struct iscsi_task_mgt_hdr *)&req->pdu.bhs;
 	struct iscsi_task_rsp_hdr *rsp_hdr;
 
-	TRACE(TRACE_MGMT, "TM req %p finished, status %d", req, status);
+	TRACE((req_hdr->function == ISCSI_FUNCTION_ABORT_TASK) ?
+			 TRACE_MGMT_MINOR : TRACE_MGMT,
+		"TM req %p finished, status %d", req, status);
 
 	rsp = iscsi_cmnd_create_rsp_cmnd(req);
 	rsp_hdr = (struct iscsi_task_rsp_hdr *)&rsp->pdu.bhs;

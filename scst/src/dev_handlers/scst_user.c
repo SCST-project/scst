@@ -59,6 +59,12 @@ struct scst_user_dev
 	unsigned short internal_reset_active:1;
 	unsigned short pre_unreg_sess_active:1; /* just a small optimization */
 
+	unsigned short tst:3;
+	unsigned short queue_alg:4;
+	unsigned short tas:1;
+	unsigned short swp:1;
+	unsigned short has_own_order_mgmt:1;
+
 	unsigned short detach_cmd_count;
 
 	int (*generic_parse)(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb,
@@ -81,6 +87,8 @@ struct scst_user_dev
 	/* Both protected by cmd_lists.cmd_list_lock */
 	unsigned int handle_counter;
 	struct list_head ucmd_hash[1<<DEV_USER_CMD_HASH_ORDER];
+
+	struct scst_device *sdev;
 
 	int virt_id;
 	struct list_head dev_list_entry;
@@ -552,6 +560,14 @@ static int dev_user_alloc_space(struct scst_user_cmd *ucmd)
 
 	TRACE_ENTRY();
 
+	if (unlikely(ucmd->cmd->data_buf_tgt_alloc)) {
+		PRINT_ERROR("Target driver %s requested own memory "
+			"allocation", ucmd->cmd->tgtt->name);
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+		res = SCST_CMD_STATE_PRE_XMIT_RESP;
+		goto out;
+	}
+
 	ucmd->state = UCMD_STATE_BUF_ALLOCING;
 	cmd->data_buf_alloced = 1;
 
@@ -560,7 +576,7 @@ static int dev_user_alloc_space(struct scst_user_cmd *ucmd)
 		goto out;
 	else if (rc < 0) {
 		scst_set_busy(cmd);
-		res = SCST_CMD_STATE_XMIT_RESP;
+		res = SCST_CMD_STATE_PRE_XMIT_RESP;
 		goto out;
 	}
 
@@ -671,16 +687,14 @@ static int dev_user_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 		rc = dev->generic_parse(cmd, info_cdb, dev_user_get_block);
 		if ((rc != 0) || (info_cdb->flags & SCST_INFO_INVALID))
 			goto out_invalid;
-		ucmd->cmd->skip_parse = 1;
 		break;
 
 	case SCST_USER_PARSE_EXCEPTION:
 		TRACE_DBG("PARSE EXCEPTION: ucmd %p", ucmd);
 		rc = dev->generic_parse(cmd, info_cdb, dev_user_get_block);
-		if ((rc == 0) && (!(info_cdb->flags & SCST_INFO_INVALID))) {
-			ucmd->cmd->skip_parse = 1;
+		if ((rc == 0) && (!(info_cdb->flags & SCST_INFO_INVALID)))
 			break;
-		} else if (rc == SCST_CMD_STATE_NEED_THREAD_CTX) {
+		else if (rc == SCST_CMD_STATE_NEED_THREAD_CTX) {
 			TRACE_MEM("Restarting PARSE to thread context "
 				"(ucmd %p)", ucmd);
 			res = SCST_CMD_STATE_NEED_THREAD_CTX;
@@ -691,7 +705,6 @@ static int dev_user_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 	case SCST_USER_PARSE_CALL:
 		TRACE_DBG("Preparing PARSE for user space (ucmd=%p, h=%d, "
 			"bufflen %d)", ucmd, ucmd->h, cmd->bufflen);
-		ucmd->cmd->skip_parse = 1;
 		ucmd->user_cmd.cmd_h = ucmd->h;
 		ucmd->user_cmd.subcode = SCST_USER_PARSE;
 		ucmd->user_cmd.parse_cmd.sess_h = (unsigned long)cmd->tgt_dev;
@@ -733,7 +746,7 @@ out_invalid:
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 
 out_error:
-	res = SCST_CMD_STATE_XMIT_RESP;
+	res = SCST_CMD_STATE_PRE_XMIT_RESP;
 	goto out;
 }
 
@@ -850,6 +863,7 @@ static void dev_user_on_free_cmd(struct scst_cmd *cmd)
 	ucmd->user_cmd.on_free_cmd.buffer_cached = ucmd->buff_cached;
 	ucmd->user_cmd.on_free_cmd.aborted = ucmd->aborted;
 	ucmd->user_cmd.on_free_cmd.status = cmd->status;
+	ucmd->user_cmd.on_free_cmd.delivery_status = cmd->delivery_status;
 
 	ucmd->state = UCMD_STATE_ON_FREEING;
 
@@ -1043,7 +1057,7 @@ out_nomem:
 	/* go through */
 
 out_err:
-	ucmd->cmd->state = SCST_CMD_STATE_XMIT_RESP;
+	ucmd->cmd->state = SCST_CMD_STATE_PRE_XMIT_RESP;
 	goto out;
 
 out_unmap:
@@ -1084,7 +1098,7 @@ static int dev_user_process_reply_alloc(struct scst_user_cmd *ucmd,
 		res = dev_user_map_buf(ucmd, reply->alloc_reply.pbuf, pages);
 	} else {
 		scst_set_busy(ucmd->cmd);
-		ucmd->cmd->state = SCST_CMD_STATE_XMIT_RESP;
+		ucmd->cmd->state = SCST_CMD_STATE_PRE_XMIT_RESP;
 	}
 
 out_process:
@@ -1868,7 +1882,6 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 		if (test_bit(SCST_CMD_ABORTED,	&ucmd->cmd->cmd_flags))
 			ucmd->aborted = 1;
 		else {
-			ucmd->cmd->completed = 1;
 			if (busy)
 				scst_set_busy(ucmd->cmd);
 			else
@@ -2202,8 +2215,14 @@ static int dev_user_attach(struct scst_device *sdev)
 	}
 
 	sdev->p_cmd_lists = &dev->cmd_lists;
-
 	sdev->dh_priv = dev;
+	sdev->tst = dev->tst;
+	sdev->queue_alg = dev->queue_alg;
+	sdev->swp = dev->swp;
+	sdev->tas = dev->tas;
+	sdev->has_own_order_mgmt = dev->has_own_order_mgmt;
+
+	dev->sdev = sdev;
 
 	PRINT_INFO("Attached user space SCSI target virtual device \"%s\"",
 		dev->name);
@@ -2226,6 +2245,7 @@ static void dev_user_detach(struct scst_device *sdev)
 
 	/* dev will be freed by the caller */
 	sdev->dh_priv = NULL;
+	dev->sdev = NULL;
 	
 	TRACE_EXIT();
 	return;
@@ -2610,7 +2630,6 @@ static int dev_user_register_dev(struct file *file,
 	dev->devtype.exec_atomic = 0; /* no point to make it 1 */
 	dev->devtype.dev_done_atomic = 1;
 	dev->devtype.no_proc = 1;
-	dev->devtype.inc_expected_sn_on_done = 1;
 	dev->devtype.attach = dev_user_attach;
 	dev->devtype.detach = dev_user_detach;
 	dev->devtype.attach_tgt = dev_user_attach_tgt;
@@ -2714,6 +2733,18 @@ static int __dev_user_set_opt(struct scst_user_dev *dev,
 		goto out;
 	}
 
+	if (((opt->tst != SCST_CONTR_MODE_ONE_TASK_SET) &&
+	     (opt->tst != SCST_CONTR_MODE_SEP_TASK_SETS)) ||
+	    ((opt->queue_alg != SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER) &&
+	     (opt->queue_alg != SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER)) ||
+	    (opt->swp > 1) || (opt->tas > 1) || (opt->has_own_order_mgmt > 1)) {
+		PRINT_ERROR("Invalid SCSI option (tst %x, queue_alg %x, swp %x, "
+			"tas %x, has_own_order_mgmt %x)", opt->tst,
+			opt->queue_alg, opt->swp, opt->tas, opt->has_own_order_mgmt);
+		res = -EINVAL;
+		goto out;
+	}
+
 	if ((dev->prio_queue_type != opt->prio_queue_type) &&
 	    (opt->prio_queue_type == SCST_USER_PRIO_QUEUE_SINGLE)) {
 		struct scst_user_cmd *u, *t;
@@ -2731,6 +2762,19 @@ static int __dev_user_set_opt(struct scst_user_dev *dev,
 	dev->memory_reuse_type = opt->memory_reuse_type;
 	dev->partial_transfers_type = opt->partial_transfers_type;
 	dev->partial_len = opt->partial_len;
+
+	dev->tst = opt->tst;
+	dev->queue_alg = opt->queue_alg;
+	dev->swp = opt->swp;
+	dev->tas = opt->tas;
+	dev->has_own_order_mgmt = opt->has_own_order_mgmt;
+	if (dev->sdev != NULL) {
+		dev->sdev->tst = opt->tst;
+		dev->sdev->queue_alg = opt->queue_alg;
+		dev->sdev->swp = opt->swp;
+		dev->sdev->tas = opt->tas;
+		dev->sdev->has_own_order_mgmt = opt->has_own_order_mgmt;
+	}
 
 	dev_user_setup_functions(dev);
 
@@ -2791,6 +2835,11 @@ static int dev_user_get_opt(struct file *file, void *arg)
 	opt.prio_queue_type = dev->prio_queue_type;
 	opt.partial_transfers_type = dev->partial_transfers_type;
 	opt.partial_len = dev->partial_len;
+	opt.tst = dev->tst;
+	opt.queue_alg = dev->queue_alg;
+	opt.tas = dev->tas;
+	opt.swp = dev->swp;
+	opt.has_own_order_mgmt = dev->has_own_order_mgmt;
 
 	TRACE_DBG("parse_type %x, on_free_cmd_type %x, memory_reuse_type %x, "
 		"partial_transfers_type %x, partial_len %d", opt.parse_type,

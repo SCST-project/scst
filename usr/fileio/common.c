@@ -32,6 +32,7 @@
 #include "common.h"
 
 static void exec_inquiry(struct vdisk_cmd *vcmd);
+static void exec_request_sense(struct vdisk_cmd *vcmd);
 static void exec_mode_sense(struct vdisk_cmd *vcmd);
 static void exec_mode_select(struct vdisk_cmd *vcmd);
 static void exec_read_capacity(struct vdisk_cmd *vcmd);
@@ -445,6 +446,9 @@ static int do_exec(struct vdisk_cmd *vcmd)
 	case INQUIRY:
 		exec_inquiry(vcmd);
 		break;
+	case REQUEST_SENSE:
+		exec_request_sense(vcmd);
+		break;
 	case READ_CAPACITY:
 		exec_read_capacity(vcmd);
 		break;
@@ -533,6 +537,11 @@ static int do_on_free_cmd(struct vdisk_cmd *vcmd)
 
 	TRACE_ENTRY();
 
+	TRACE_DBG("On free cmd (cmd %d, resp_data_len %d, aborted %d, "
+		"status %d, delivery_status %d)", cmd->cmd_h,
+		cmd->on_free_cmd.resp_data_len, cmd->on_free_cmd.aborted,
+		cmd->on_free_cmd.status, cmd->on_free_cmd.delivery_status);
+
 	TRACE_MEM("On free cmd (cmd %d, buf %Lx, buffer_cached %d)", cmd->cmd_h,
 		cmd->on_free_cmd.pbuf, cmd->on_free_cmd.buffer_cached);
 
@@ -557,8 +566,9 @@ static int do_tm(struct vdisk_cmd *vcmd)
 
 	TRACE_ENTRY();
 
-	TRACE(TRACE_MGMT, "TM fn %d (sess_h %Lx, cmd_h_to_abort %d)",
-		cmd->tm_cmd.fn, cmd->tm_cmd.sess_h, cmd->tm_cmd.cmd_h_to_abort);
+	TRACE((cmd->tm_cmd.fn == SCST_ABORT_TASK) ? TRACE_MGMT_MINOR : TRACE_MGMT,
+		"TM fn %d (sess_h %Lx, cmd_h_to_abort %d)", cmd->tm_cmd.fn,
+		cmd->tm_cmd.sess_h, cmd->tm_cmd.cmd_h_to_abort);
 
 	memset(reply, 0, sizeof(*reply));
 	reply->cmd_h = cmd->cmd_h;
@@ -1019,6 +1029,31 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 	if (length > resp_len)
 		length = resp_len;
 	memcpy(address, buf, length);
+	reply->resp_data_len = length;
+
+out:
+	TRACE_EXIT();
+	return;
+}
+
+static void exec_request_sense(struct vdisk_cmd *vcmd)
+{
+	struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
+	struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
+	int length = cmd->bufflen;
+	uint8_t *address = (uint8_t*)(unsigned long)cmd->pbuf;
+
+	TRACE_ENTRY();
+
+	if (length < SCST_STANDARD_SENSE_LEN) {
+		PRINT_ERROR("too small requested buffer for REQUEST SENSE "
+			"(len %d)", length);
+		set_cmd_error(vcmd,
+		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
+		goto out;
+	}
+
+	set_sense(address, length, SCST_LOAD_SENSE(scst_sense_no_sense));
 	reply->resp_data_len = length;
 
 out:

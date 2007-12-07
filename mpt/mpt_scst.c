@@ -65,8 +65,8 @@ static char *mpt_state_string[] = {
 
 #ifdef DEBUG
 #define SCST_DEFAULT_MPT_LOG_FLAGS (TRACE_FUNCTION | TRACE_PID | \
-        TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_MGMT_DEBUG | \
-        TRACE_MINOR | TRACE_SPECIAL)
+        TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_MGMT_MINOR | \
+        TRACE_MGMT_DEBUG | TRACE_MINOR | TRACE_SPECIAL)
 #else
 # ifdef TRACING
 #define SCST_DEFAULT_MPT_LOG_FLAGS (TRACE_FUNCTION | TRACE_PID | \
@@ -803,6 +803,7 @@ stm_tgt_reply(MPT_ADAPTER *ioc, u32 reply_word)
 				case MPT_STATUS_SENSE_ATTEMPT:
 					atomic_set(&priv->pending_sense[init_index], 
 						MPT_STATUS_SENSE_IDLE);
+					/* ToDo: check and set scst_set_delivery_status(), if necessary */
 					scst_tgt_cmd_done(scst_cmd);
 					break;
 
@@ -813,6 +814,7 @@ stm_tgt_reply(MPT_ADAPTER *ioc, u32 reply_word)
 				case MPT_STATUS_SENSE_NOT_SENT:
 					atomic_set(&priv->pending_sense[init_index], 
 						MPT_STATUS_SENSE_HANDLE_RQ);
+					/* ToDo: check and set scst_set_delivery_status(), if necessary */
 					scst_tgt_cmd_done(scst_cmd);
 					break;
 
@@ -831,10 +833,12 @@ stm_tgt_reply(MPT_ADAPTER *ioc, u32 reply_word)
 				default:
 					/* nothing much to do here, we aren't 
 					 * handling cached sense/status */
+					/* ToDo: check and set scst_set_delivery_status(), if necessary */
 					scst_tgt_cmd_done(scst_cmd);
 					break;
 			}
 		} else {
+			/* ToDo: check and set scst_set_delivery_status(), if necessary */
 			scst_tgt_cmd_done(scst_cmd);
 		}
 
@@ -1674,6 +1678,7 @@ mpt_xmit_response(struct scst_cmd *scst_cmd)
 	return res;
 
  out_tgt_free:
+ 	/* ToDo: check and set scst_set_delivery_status(), if necessary */
 	scst_tgt_cmd_done(scst_cmd);
 	goto out;
 }

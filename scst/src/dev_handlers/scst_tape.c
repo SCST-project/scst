@@ -22,6 +22,7 @@
 
 #include <linux/module.h>
 #include <linux/init.h>
+#include <scsi/scsi_host.h>
 
 #define LOG_PREFIX           "dev_tape"
 
@@ -285,7 +286,7 @@ int tape_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 
 	scst_tape_generic_parse(cmd, info_cdb, tape_get_block_size);
 
-	cmd->retries = 1;
+	cmd->retries = SCST_PASSTHROUGH_RETRIES;
 
 	if (info_cdb->flags & SCST_SMALL_TIMEOUT) {
 		cmd->timeout = TAPE_SMALL_TIMEOUT;

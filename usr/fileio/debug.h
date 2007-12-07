@@ -47,11 +47,12 @@ extern pid_t gettid(void);
 #define TRACE_OUT_OF_MEM     0x00000100
 #define TRACE_MINOR          0x00000200 /* less important events */
 #define TRACE_MGMT           0x00000400
-#define TRACE_MGMT_DEBUG     0x00000800
-#define TRACE_SCSI           0x00001000
-#define TRACE_SPECIAL        0x00002000 /* filtering debug, etc */
-#define TRACE_TIME           0x00004000
-#define TRACE_ORDER          0x00008000
+#define TRACE_MGMT_MINOR     0x00000800
+#define TRACE_MGMT_DEBUG     0x00001000
+#define TRACE_SCSI           0x00002000
+#define TRACE_SPECIAL        0x00004000 /* filtering debug, etc */
+#define TRACE_TIME           0x00008000
+#define TRACE_ORDER          0x00010000
 #define TRACE_ALL            0xffffffff
 
 #define PRINT(format, args...)  fprintf(stdout, format "\n", ## args);
@@ -91,7 +92,7 @@ do {								\
 do {								\
   if (trace_flag & TRACE_BUFF)					\
   {								\
-    debug_print_prefix(trace_flag, __LOG_PREFIX, __FUNCTION__,  \
+    debug_print_prefix(trace_flag, NULL, __FUNCTION__,  \
 			__LINE__);				\
     PRINT("%s:", message);					\
     debug_print_buffer(buff, len);				\
@@ -102,11 +103,17 @@ do {								\
 do {								\
   if (trace_flag & (flag))					\
   {								\
-    debug_print_prefix(trace_flag, __LOG_PREFIX, __FUNCTION__,  \
+    debug_print_prefix(trace_flag, NULL, __FUNCTION__,          \
 			__LINE__);				\
     PRINT("%s:", message);					\
     debug_print_buffer(buff, len);				\
   }								\
+} while(0)
+
+#define PRINT_BUFFER(message, buff, len)			\
+do {								\
+    PRINT("%s:", message);					\
+    debug_print_buffer(buff, len);				\
 } while(0)
 
 #else  /* DEBUG || TRACING */
@@ -114,6 +121,7 @@ do {								\
 #define TRACE(trace, args...) {}
 #define TRACE_BUFFER(message, buff, len) {}
 #define TRACE_BUFF_FLAG(flag, message, buff, len) {}
+#define PRINT_BUFFER(message, buff, len) {}
 
 static inline int debug_init(void) { return 0; }
 static inline void debug_done(void) {}
@@ -128,7 +136,7 @@ static inline void debug_done(void) {}
 do {								\
   if (trace_flag & TRACE_MEMORY)				\
   {								\
-    debug_print_prefix(trace_flag, __LOG_PREFIX, __FUNCTION__,  \
+    debug_print_prefix(trace_flag, NULL, __FUNCTION__,          \
 			__LINE__);				\
     PRINT(format, args);					\
   }								\
@@ -138,7 +146,7 @@ do {								\
 do {								\
   if (trace_flag & TRACE_DEBUG)					\
   {								\
-    debug_print_prefix(trace_flag, __LOG_PREFIX, __FUNCTION__,  \
+    debug_print_prefix(trace_flag, NULL, __FUNCTION__,          \
 			__LINE__);				\
     PRINT(format, args);					\
   }								\
@@ -148,7 +156,7 @@ do {								\
 do {								\
   if (trace_flag & TRACE_MGMT_DEBUG)				\
   {								\
-    debug_print_prefix(trace_flag, __LOG_PREFIX, __FUNCTION__,  \
+    debug_print_prefix(trace_flag, NULL, __FUNCTION__,          \
 			__LINE__);				\
     PRINT(format, args);					\
   }								\
@@ -156,12 +164,16 @@ do {								\
 
 #define PRINT_ERROR(format, args...)				\
 do {								\
-  TRACE(trace_flag, "***ERROR*** " format, args);		\
+  debug_print_prefix(trace_flag, __LOG_PREFIX, __FUNCTION__,    \
+			__LINE__);				\
+  PRINT("***ERROR*** " format, args);			        \
 } while(0)
 
 #define PRINT_INFO(format, args...)				\
 do {								\
-  TRACE(trace_flag, format, args);				\
+  debug_print_prefix(trace_flag, __LOG_PREFIX, __FUNCTION__,    \
+			__LINE__);				\
+  PRINT(format, args);			        		\
 } while(0)
 
 #define TRACE_ENTRY()						\

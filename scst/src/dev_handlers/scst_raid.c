@@ -19,6 +19,8 @@
 
 #define LOG_PREFIX      "dev_raid"
 
+#include <scsi/scsi_host.h>
+
 #include "scsi_tgt.h"
 #include "scst_dev_handler.h"
 
@@ -30,9 +32,9 @@
   parse_atomic:     1,      	\
 /*  dev_done_atomic:  1,*/      \
   attach:   raid_attach, 	\
-/*  detach:   raid_detach,*/ \
+/*  detach:   raid_detach,*/	\
   parse:    raid_parse,  	\
-/*  dev_done: raid_done*/    \
+/*  dev_done: raid_done*/	\
 }
 
 #define RAID_RETRIES       2
@@ -130,7 +132,7 @@ int raid_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 
 	scst_raid_generic_parse(cmd, info_cdb, 0);
 
-	cmd->retries = 1;
+	cmd->retries = SCST_PASSTHROUGH_RETRIES;
 
 	if (info_cdb->flags & SCST_LONG_TIMEOUT) {
 		cmd->timeout = RAID_LONG_TIMEOUT;

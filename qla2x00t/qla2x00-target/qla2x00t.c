@@ -49,8 +49,8 @@
 
 #ifdef DEBUG
 #define Q2T_DEFAULT_LOG_FLAGS (TRACE_FUNCTION | TRACE_PID | \
-	TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_MGMT_DEBUG | \
-	TRACE_MINOR | TRACE_SPECIAL)
+	TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_MGMT_MINOR | \
+	TRACE_MGMT_DEBUG | TRACE_MINOR | TRACE_SPECIAL)
 #else
 # ifdef TRACING
 #define Q2T_DEFAULT_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_MINOR | \
@@ -689,7 +689,7 @@ static int q2t_xmit_response(struct scst_cmd *scst_cmd)
 	if (unlikely(scst_cmd_aborted(scst_cmd))) {
 		scsi_qla_host_t *ha = sess->tgt->ha;
 
-		TRACE(TRACE_MGMT, "qla2x00tgt(%ld): terminating exchange "
+		TRACE(TRACE_MGMT_MINOR, "qla2x00tgt(%ld): terminating exchange "
 			"for aborted scst_cmd=%p (tag=%Ld)",
 			ha->instance, scst_cmd, scst_cmd_get_tag(scst_cmd));
 
@@ -1004,13 +1004,13 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha,
 	handle &= ~CTIO_COMPLETION_HANDLE_MARK;
 
 	if (status != CTIO_SUCCESS) {
+		err = 1;
 		switch (status) {
 		case CTIO_LIP_RESET:
 		case CTIO_TARGET_RESET:
 		case CTIO_ABORTED:
 		case CTIO_TIMEOUT:
 		case CTIO_INVALID_RX_ID:
-			err = 1;
 			/* they are OK */
 			TRACE_MGMT_DBG("qla2x00tgt(%ld): CTIO with status %#x "
 				"received (LIP_RESET=e, ABORTED=2, "
@@ -1020,14 +1020,12 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha,
 
 		case CTIO_PORT_LOGGED_OUT:
 		case CTIO_PORT_UNAVAILABLE:
-			err = 1;
 			PRINT_INFO("qla2x00tgt(%ld): CTIO with PORT LOGGED "
 				"OUT (29) or PORT UNAVAILABLE (28) status %x "
 				"received", ha->instance, status);
 			break;
 
 		default:
-			err = 1;
 			PRINT_ERROR("qla2x00tgt(%ld): CTIO with error status "
 				    "0x%x received", ha->instance, status);
 			break;
@@ -1133,6 +1131,7 @@ out:
 out_free:
 	if (unlikely(err)) {
 		TRACE_MGMT_DBG("%s", "Finishing failed CTIO");
+		scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_FAILED);
 	}
 	scst_tgt_cmd_done(scst_cmd);
 	goto out;
@@ -1359,7 +1358,6 @@ static int q2t_send_cmd_to_scst(scsi_qla_host_t *ha, atio_entry_t *atio)
 		  le16_to_cpu(pn[3]));
 	/*	  le64_to_cpu(*(uint64_t *)(((char *)atio)+0x2c))); */
 	/*le32_to_cpu(*(uint32_t *)atio->initiator_port_name)); */
-
 
 	if (tgt->tgt_shutdown) {
 		TRACE_MGMT_DBG("New command while device %p is shutting "
@@ -1606,8 +1604,9 @@ static void q2t_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 
 	TRACE_ENTRY();
 
-	TRACE(TRACE_MGMT, "scst_mcmd (%p) status %#x state %#x", scst_mcmd, 
-	      scst_mcmd->status, scst_mcmd->state);
+	TRACE((scst_mcmd->fn == SCST_ABORT_TASK) ? TRACE_MGMT_MINOR : TRACE_MGMT,
+		"scst_mcmd (%p) status %#x state %#x", scst_mcmd,
+		scst_mcmd->status, scst_mcmd->state);
 
 	mcmd = scst_mgmt_cmd_get_tgt_priv(scst_mcmd);
 	if (unlikely(mcmd == NULL)) {
@@ -1671,7 +1670,7 @@ static void q2t_handle_imm_notify(scsi_qla_host_t *ha, notify_entry_t *iocb)
 		break;
 
 	case IMM_NTFY_ABORT_TASK:
-		TRACE(TRACE_MGMT, "Abort Task (S %04x I %#x -> L %#x)", 
+		TRACE(TRACE_MGMT_MINOR, "Abort Task (S %04x I %#x -> L %#x)", 
 		      le16_to_cpu(iocb->seq_id), loop_id,
 		      le16_to_cpu(iocb->lun));
 		if (q2t_abort_task(ha, iocb) == 0)

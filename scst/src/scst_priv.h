@@ -56,7 +56,7 @@ extern unsigned long scst_trace_flag;
 */
 #define SCST_DEFAULT_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MINOR | TRACE_PID | \
 	TRACE_LINE | TRACE_FUNCTION | TRACE_SPECIAL | TRACE_MGMT | \
-	TRACE_MGMT_DEBUG | TRACE_RETRY)
+	TRACE_MGMT_MINOR | TRACE_MGMT_DEBUG | TRACE_RETRY)
 
 #define TRACE_SN(args...)	TRACE(TRACE_SCSI_SERIALIZING, args)
 
@@ -103,7 +103,7 @@ extern unsigned long scst_trace_flag;
  ** Maximum count of uncompleted commands that an initiator could 
  ** queue on any device. Then it will start getting TASK QUEUE FULL status.
  **/
-#define SCST_MAX_TGT_DEV_COMMANDS            64
+#define SCST_MAX_TGT_DEV_COMMANDS            32
 
 /**
  ** Maximum count of uncompleted commands that could be queued on any device.
@@ -115,7 +115,8 @@ extern unsigned long scst_trace_flag;
 #define SCST_TGT_RETRY_TIMEOUT               (3/2*HZ)
 #define SCST_CMD_MEM_TIMEOUT                 (120*HZ)
 
-static inline int scst_get_context(void) {
+static inline int scst_get_context(void)
+{
 	if (in_irq())
 		return SCST_CONTEXT_TASKLET;
 	if (irqs_disabled())
@@ -234,6 +235,9 @@ int scst_check_hq_cmd(struct scst_cmd *cmd);
 void scst_unblock_deferred(struct scst_tgt_dev *tgt_dev,
 	struct scst_cmd *cmd_sn);
 
+void scst_on_hq_cmd_response(struct scst_cmd *cmd);
+void scst_xmit_process_aborted_cmd(struct scst_cmd *cmd);
+
 int scst_cmd_thread(void *arg);
 void scst_cmd_tasklet(long p);
 int scst_init_cmd_thread(void *arg);
@@ -254,7 +258,7 @@ void scst_proc_del_acg_tree(struct proc_dir_entry *acg_proc_root,
 
 int scst_sess_alloc_tgt_devs(struct scst_session *sess);
 void scst_sess_free_tgt_devs(struct scst_session *sess);
-void scst_reset_tgt_dev(struct scst_tgt_dev *tgt_dev, int nexus_loss);
+void scst_nexus_loss(struct scst_tgt_dev *tgt_dev);
 
 int scst_acg_add_dev(struct scst_acg *acg, struct scst_device *dev, lun_t lun,
 	int read_only);
@@ -350,23 +354,26 @@ void scst_cleanup_proc_dev_handler_dir_entries(struct scst_dev_type *dev_type);
 
 int scst_get_cdb_len(const uint8_t *cdb);
 
-void __scst_process_UA(struct scst_device *dev, struct scst_cmd *exclude,
-	const uint8_t *sense, int sense_len, int internal);
-static inline void scst_process_UA(struct scst_device *dev,
-	struct scst_cmd *exclude, const uint8_t *sense, int sense_len,
-	int internal)
+int scst_obtain_device_parameters(struct scst_device *dev);
+
+void __scst_dev_check_set_UA(struct scst_device *dev, struct scst_cmd *exclude,
+	const uint8_t *sense, int sense_len);
+static inline void scst_dev_check_set_UA(struct scst_device *dev,
+	struct scst_cmd *exclude, const uint8_t *sense, int sense_len)
 {
 	spin_lock_bh(&dev->dev_lock);
-	__scst_process_UA(dev, exclude, sense, sense_len, internal);
+	__scst_dev_check_set_UA(dev, exclude, sense, sense_len);
 	spin_unlock_bh(&dev->dev_lock);
 	return;
 }
-void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev, const uint8_t *sense,
-	int sense_len);
+void scst_dev_check_set_local_UA(struct scst_device *dev,
+	struct scst_cmd *exclude, const uint8_t *sense, int sense_len);
 void scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
-	const uint8_t *sense, int sense_len);
-int scst_set_pending_UA(struct scst_cmd *cmd);
+	const uint8_t *sense, int sense_len, int head);
+void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev, const uint8_t *sense,
+	int sense_len, int head);
 void scst_free_all_UA(struct scst_tgt_dev *tgt_dev);
+int scst_set_pending_UA(struct scst_cmd *cmd);
 
 void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 	int other_ini, int call_dev_task_mgmt_fn);
@@ -486,19 +493,6 @@ static inline void scst_cmd_put(struct scst_cmd *cmd)
 
 extern void scst_throttle_cmd(struct scst_cmd *cmd);
 extern void scst_unthrottle_cmd(struct scst_cmd *cmd);
-
-static inline void scst_set_sense(uint8_t *buffer, int len, int key,
-	int asc, int ascq)
-{
-	memset(buffer, 0, len);
-	buffer[0] = 0x70;	/* Error Code			*/
-	buffer[2] = key;	/* Sense Key			*/
-	buffer[7] = 0x0a;	/* Additional Sense Length	*/
-	buffer[12] = asc;	/* ASC				*/
-	buffer[13] = ascq;	/* ASCQ				*/
-	TRACE_BUFFER("Sense set", buffer, len);
-	return;
-}
 
 static inline void scst_check_restore_sg_buff(struct scst_cmd *cmd)
 {

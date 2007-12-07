@@ -101,6 +101,7 @@ static struct scst_proc_log scst_proc_trace_tbl[] =
     { TRACE_SPECIAL,		"special" },
     { TRACE_SCSI,		"scsi" },
     { TRACE_MGMT,		"mgmt" },
+    { TRACE_MGMT_MINOR,		"mgmt_minor" },
     { TRACE_MGMT_DEBUG,		"mgmt_dbg" },
     { 0,			NULL }
 };

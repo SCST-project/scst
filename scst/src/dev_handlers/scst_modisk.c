@@ -22,6 +22,7 @@
 
 #include <linux/module.h>
 #include <linux/init.h>
+#include <scsi/scsi_host.h>
 
 #define LOG_PREFIX             "dev_modisk"
 
@@ -297,7 +298,7 @@ int modisk_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 
 	scst_modisk_generic_parse(cmd, info_cdb, modisk_get_block_shift);
 
-	cmd->retries = 1;
+	cmd->retries = SCST_PASSTHROUGH_RETRIES;
 
 	if (info_cdb->flags & SCST_SMALL_TIMEOUT) {
 		cmd->timeout = MODISK_SMALL_TIMEOUT;

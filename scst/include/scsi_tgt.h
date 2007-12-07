@@ -39,74 +39,92 @@
 /* Version numbers, the same as for the kernel */
 #define SCST_VERSION_CODE 0x000906
 #define SCST_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))
-#define SCST_VERSION_STRING "0.9.6-pre3"
+#define SCST_VERSION_STRING "0.9.6-rc1"
 
 /*************************************************************
- ** States of command processing state machine
+ ** States of command processing state machine. At first, 
+ ** "active" states, then - "passive" ones. This is to have
+ ** more efficient generated code of the corresponding
+ ** "switch" statements.
  *************************************************************/
 
-/* A cmd is created, but scst_cmd_init_done() not called */
-#define SCST_CMD_STATE_INIT_WAIT     1
-
-/* LUN translation (cmd->tgt_dev assignment) */
-#define SCST_CMD_STATE_INIT          2
+/* Internal parsing */
+#define SCST_CMD_STATE_PRE_PARSE     0
 
 /* Dev handler's parse() is going to be called */
-#define SCST_CMD_STATE_DEV_PARSE     4
+#define SCST_CMD_STATE_DEV_PARSE     1
 
 /* Allocation of the cmd's data buffer */
-#define SCST_CMD_STATE_PREPARE_SPACE 5
-
-/* Allocation of the cmd's data buffer */
-#define SCST_CMD_STATE_PREPROCESS_DONE 6
+#define SCST_CMD_STATE_PREPARE_SPACE 2
 
 /* Target driver's rdy_to_xfer() is going to be called */
-#define SCST_CMD_STATE_RDY_TO_XFER   7
-
-/* Waiting for data from the initiator (until scst_rx_data() called) */
-#define SCST_CMD_STATE_DATA_WAIT     8
+#define SCST_CMD_STATE_RDY_TO_XFER   3
 
 /* Target driver's pre_exec() is going to be called */
-#define SCST_CMD_STATE_PRE_EXEC      9
+#define SCST_CMD_STATE_TGT_PRE_EXEC  4
 
 /* CDB is going to be sent to SCSI mid-level for execution */
-#define SCST_CMD_STATE_SEND_TO_MIDLEV 10
+#define SCST_CMD_STATE_SEND_TO_MIDLEV 5
 
-/* Waiting for CDB's execution finish */
-#define SCST_CMD_STATE_EXECUTING     11
+/* Internal pos-exec checks */
+#define SCST_CMD_STATE_PRE_DEV_DONE  6
+
+/* Internal MODE SELECT pages related checks */
+#define SCST_CMD_STATE_MODE_SELECT_CHECKS 7
 
 /* Dev handler's dev_done() is going to be called */
-#define SCST_CMD_STATE_DEV_DONE      12
+#define SCST_CMD_STATE_DEV_DONE      8
 
 /* Target driver's xmit_response() is going to be called */
-#define SCST_CMD_STATE_XMIT_RESP     13
+#define SCST_CMD_STATE_PRE_XMIT_RESP 9
 
-/* Waiting for response's transmission finish */
-#define SCST_CMD_STATE_XMIT_WAIT     14
+/* Target driver's xmit_response() is going to be called */
+#define SCST_CMD_STATE_XMIT_RESP     10
 
 /* The cmd finished */
-#define SCST_CMD_STATE_FINISHED      15
+#define SCST_CMD_STATE_FINISHED      11
+
+#define SCST_CMD_STATE_LAST_ACTIVE   (SCST_CMD_STATE_FINISHED+100)
+
+
+/* A cmd is created, but scst_cmd_init_done() not called */
+#define SCST_CMD_STATE_INIT_WAIT     (SCST_CMD_STATE_LAST_ACTIVE+1)
+
+/* LUN translation (cmd->tgt_dev assignment) */
+#define SCST_CMD_STATE_INIT          (SCST_CMD_STATE_LAST_ACTIVE+2)
+
+/* Allocation of the cmd's data buffer */
+#define SCST_CMD_STATE_PREPROCESS_DONE (SCST_CMD_STATE_LAST_ACTIVE+3)
+
+/* Waiting for data from the initiator (until scst_rx_data() called) */
+#define SCST_CMD_STATE_DATA_WAIT     (SCST_CMD_STATE_LAST_ACTIVE+4)
+
+/* Waiting for CDB's execution finish */
+#define SCST_CMD_STATE_EXECUTING     (SCST_CMD_STATE_LAST_ACTIVE+5)
+
+/* Waiting for response's transmission finish */
+#define SCST_CMD_STATE_XMIT_WAIT     (SCST_CMD_STATE_LAST_ACTIVE+6)
 
 /************************************************************* 
- ** Can be retuned instead of cmd's state by dev handlers' 
- ** functions, if the command's state should be set by default
+ * Can be retuned instead of cmd's state by dev handlers' 
+ * functions, if the command's state should be set by default
  *************************************************************/
-#define SCST_CMD_STATE_DEFAULT       0
+#define SCST_CMD_STATE_DEFAULT        500
 
 /************************************************************* 
- ** Can be retuned instead of cmd's state by dev handlers' 
- ** functions, if it is impossible to complete requested
- ** task in atomic context. The cmd will be restarted in thread 
- ** context.
+ * Can be retuned instead of cmd's state by dev handlers' 
+ * functions, if it is impossible to complete requested
+ * task in atomic context. The cmd will be restarted in thread 
+ * context.
  *************************************************************/
-#define SCST_CMD_STATE_NEED_THREAD_CTX       100
+#define SCST_CMD_STATE_NEED_THREAD_CTX 1000
 
 /************************************************************* 
- ** Can be retuned instead of cmd's state by dev handlers' 
- ** parse function, if the cmd processing should be stopped
- ** for now. The cmd will be restarted by dev handlers itself.
+ * Can be retuned instead of cmd's state by dev handlers' 
+ * parse function, if the cmd processing should be stopped
+ * for now. The cmd will be restarted by dev handlers itself.
  *************************************************************/
-#define SCST_CMD_STATE_STOP          101
+#define SCST_CMD_STATE_STOP           1001
 
 /*************************************************************
  ** States of mgmt command processing state machine
@@ -205,6 +223,9 @@
  * but don't call xmit_response()
  */
 #define SCST_PREPROCESS_STATUS_ERROR_FATAL   3
+
+/* Thread context requested */
+#define SCST_PREPROCESS_STATUS_NEED_THREAD   4
 
 /*************************************************************
  ** Allowed return codes for xmit_response(), rdy_to_xfer(), 
@@ -314,22 +335,8 @@
 /* Set if no response should be sent to the target about this cmd */
 #define SCST_CMD_NO_RESP		2
 
-/*
- * Set if the cmd is being executed. Needed to guarantee that 
- * "no further responses from the task are sent to
- * the SCSI initiator port" after response from the TM function is 
- * sent (SAM) as well as correct ABORT TASK status code
- */
-#define SCST_CMD_EXECUTING		3
-
-/*
- * Set if the cmd status/data are being xmitted. The purpose is the
- * same as for SCST_CMD_EXECUTING
- */
-#define SCST_CMD_XMITTING		4
-
 /* Set if the cmd is dead and can be destroyed at any time */
-#define SCST_CMD_CAN_BE_DESTROYED	5
+#define SCST_CMD_CAN_BE_DESTROYED	3
 
 /*************************************************************
  ** Tgt_dev's flags (tgt_dev_flags)
@@ -664,9 +671,6 @@ struct scst_dev_type
 	/* Set, if no /proc files should be automatically created by SCST */
 	unsigned no_proc:1;
 
-	/* Set if increment expected_sn in cmd->scst_cmd_done() */
-	unsigned inc_expected_sn_on_done:1; 
-
 	/* 
 	 * Called to parse CDB from the cmd and initialize 
 	 * cmd->bufflen and cmd->data_direction (both - REQUIRED).
@@ -964,6 +968,9 @@ struct scst_cmd
 	 */
 	unsigned int sent_to_midlev:1;
 
+	/* Set if scst_local_exec() was already called for this cmd */
+	unsigned int local_exec_done:1;
+
 	/* Set if the cmd's action is completed */
 	unsigned int completed:1;
 
@@ -1058,9 +1065,6 @@ struct scst_cmd
 	/* Set if the cmd is deferred HEAD OF QUEUE */
 	unsigned int hq_deferred:1;
 
-	/* Set if the internal parse should be skipped */
-	unsigned int skip_parse:1;
-
 	/*
 	 * Set if increment expected_sn in cmd->scst_cmd_done() (to save
 	 * extra dereferences)
@@ -1074,13 +1078,16 @@ struct scst_cmd
 
 	unsigned long cmd_flags; /* cmd's async flags */
 
+	/* Keeps status of cmd's status/data delivery to remote initiator */
+	int delivery_status;
+
 	struct scst_tgt_template *tgtt;	/* to save extra dereferences */
 	struct scst_tgt *tgt;		/* to save extra dereferences */
 	struct scst_device *dev;	/* to save extra dereferences */
 
-	lun_t lun;			/* LUN for this cmd */
-
 	struct scst_tgt_dev *tgt_dev;	/* corresponding device for this cmd */
+
+	lun_t lun;			/* LUN for this cmd */
 
 	/* The corresponding mgmt cmd, if any, protected by sess_list_lock */
 	struct scst_mgmt_cmd *mgmt_cmnd;
@@ -1276,6 +1283,26 @@ struct scst_device
 
 	/**************************************************************/
 
+	/*************************************************************
+	 ** Dev's control mode page related values. Updates serialized
+	 ** by scst_block_dev(). It's long to not interfere with the
+	 ** above flags.
+	 *************************************************************/
+
+	unsigned long queue_alg:4;
+	unsigned long tst:3;
+	unsigned long tas:1;
+	unsigned long swp:1;
+
+	/*
+	 * Set if device implements own ordered commands management.
+	 * Particularly, if set, expected_sn will be incremented immediately
+	 * after exec() returned.
+	 */
+	unsigned long has_own_order_mgmt:1; 
+
+	/**************************************************************/
+
 	spinlock_t dev_lock;		/* device lock */
 
 	/* 
@@ -1304,8 +1331,8 @@ struct scst_device
 	/* Used to wait for requested amount of "on_dev" commands */
 	wait_queue_head_t on_dev_waitQ;
 
-	/* A list entry used during RESETs, protected by scst_mutex */
-	struct list_head reset_dev_list_entry;
+	/* A list entry used during TM, protected by scst_mutex */
+	struct list_head tm_dev_list_entry;
 
 	/* Virtual device internal ID */
 	int virt_id;
@@ -1411,8 +1438,6 @@ struct scst_tgt_dev
 	
 	/* internal tmp list entry */
 	struct list_head extra_tgt_dev_list_entry;
-
-	
 };
 
 /*
@@ -1692,7 +1717,9 @@ void scst_rx_data(struct scst_cmd *cmd, int status, int pref_context);
 
 /* 
  * Notifies SCST that the driver sent the response and the command
- * can be freed now.
+ * can be freed now. Don't forget to set the delivery status, if it
+ * isn't success, using scst_set_delivery_status() before calling
+ * this function.
  */
 void scst_tgt_cmd_done(struct scst_cmd *cmd);
 
@@ -2135,6 +2162,22 @@ static inline void scst_clear_may_need_dma_sync(struct scst_cmd *cmd)
 }
 
 /*
+ * Get/clear functions for cmd's delivery_status. It is one of
+ * SCST_CMD_DELIVERY_* constants, it specifies the status of the
+ * command's delivery to initiator.
+ */
+static inline int scst_get_delivery_status(struct scst_cmd *cmd)
+{
+	return cmd->delivery_status;
+}
+
+static inline void scst_set_delivery_status(struct scst_cmd *cmd,
+	int delivery_status)
+{
+	cmd->delivery_status = delivery_status;
+}
+
+/*
  * Get/Set function for mgmt cmd's target private data
  */
 static inline void *scst_mgmt_cmd_get_tgt_priv(struct scst_mgmt_cmd *mcmd)
@@ -2314,6 +2357,9 @@ struct proc_dir_entry *scst_create_proc_entry(struct proc_dir_entry * root,
 int scst_add_cmd_threads(int num);
 void scst_del_cmd_threads(int num);
 
+void scst_set_sense(uint8_t *buffer, int len, int key,
+	int asc, int ascq);
+
 void scst_set_cmd_error_sense(struct scst_cmd *cmd, uint8_t *sense, 
 	unsigned int len);
 
@@ -2334,7 +2380,7 @@ void scst_set_resp_data_len(struct scst_cmd *cmd, int resp_data_len);
  * Checks if total memory allocated by commands is less, than defined
  * limit (scst_cur_max_cmd_mem) and returns 0, if it is so. Otherwise,
  * returnes 1 and sets on cmd QUEUE FULL or BUSY status as well as
- * SCST_CMD_STATE_XMIT_RESP state. Target drivers and dev handlers are
+ * SCST_CMD_STATE_PRE_XMIT_RESP state. Target drivers and dev handlers are
  * required to call this function if they allocate data buffers on their
  * own.
  */

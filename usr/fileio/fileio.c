@@ -45,15 +45,15 @@ char *app_name;
 	~TRACE_SCSI & ~TRACE_SCSI_SERIALIZING & ~TRACE_DEBUG)
 */
 #define DEFAULT_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MINOR | TRACE_PID | \
-	TRACE_FUNCTION | TRACE_SPECIAL | TRACE_MGMT | TRACE_MGMT_DEBUG | \
-	TRACE_TIME)
+	TRACE_FUNCTION | TRACE_SPECIAL | TRACE_MGMT | TRACE_MGMT_MINOR | \
+	TRACE_MGMT_DEBUG | TRACE_TIME)
 
 #define TRACE_SN(args...)	TRACE(TRACE_SCSI_SERIALIZING, args)
 
 #else /* DEBUG */
 
 # ifdef TRACING
-#define DEFAULT_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MINOR | \
+#define DEFAULT_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MINOR | TRACE_MGMT \
 	TRACE_TIME | TRACE_SPECIAL)
 # else
 #define DEFAULT_LOG_FLAGS 0
@@ -388,6 +388,9 @@ int main(int argc, char **argv)
 	else
 		desc.opt.prio_queue_type = SCST_USER_PRIO_QUEUE_SINGLE;
 
+	desc.opt.tst = SCST_CONTR_MODE_SEP_TASK_SETS;
+	desc.opt.queue_alg = SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER;
+
 	res = ioctl(dev.scst_usr_fd, SCST_USER_REGISTER_DEVICE, &desc);
 	if (res != 0) {
 		res = errno;
@@ -418,7 +421,7 @@ int main(int argc, char **argv)
 		res = ioctl(dev.scst_usr_fd, SCST_USER_SET_OPTIONS, &opt);
 		if (res != 0) {
 			res = errno;
-			PRINT_ERROR("Unable to get options: %s", strerror(res));
+			PRINT_ERROR("Unable to set options: %s", strerror(res));
 			goto out_close;
 		}
 	}

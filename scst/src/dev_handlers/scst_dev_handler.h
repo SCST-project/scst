@@ -15,8 +15,8 @@
 
 #ifdef DEBUG
 #define SCST_DEFAULT_DEV_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_PID | \
-        TRACE_LINE | TRACE_FUNCTION | TRACE_MGMT | TRACE_MINOR | \
-        TRACE_MGMT_DEBUG | TRACE_SPECIAL)
+        TRACE_LINE | TRACE_FUNCTION | TRACE_MGMT | TRACE_MGMT_MINOR | \
+        TRACE_MINOR | TRACE_MGMT_DEBUG | TRACE_SPECIAL)
 #else
 #define SCST_DEFAULT_DEV_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MGMT | \
 	TRACE_MINOR | TRACE_SPECIAL)
@@ -28,6 +28,8 @@ static unsigned long dh_trace_flag = SCST_DEFAULT_DEV_LOG_FLAGS;
 #ifndef trace_log_tbl
 #define trace_log_tbl	NULL
 #endif
+
+#define SCST_PASSTHROUGH_RETRIES	0
 
 static struct scst_proc_data dev_handler_log_proc_data;
 

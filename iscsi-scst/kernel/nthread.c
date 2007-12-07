@@ -817,6 +817,9 @@ err:
 			(unsigned long long)conn->session->sid, conn->cid,
 			conn->write_cmnd);
 	}
+	if (ref_cmd->scst_cmd != NULL)
+		scst_set_delivery_status(ref_cmd->scst_cmd,
+			SCST_CMD_DELIVERY_FAILED);
 	return res;
 }
 

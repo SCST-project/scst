@@ -17,6 +17,8 @@
  *  GNU General Public License for more details.
  */
 
+#include <scsi/scsi_host.h>
+
 #define LOG_PREFIX      "dev_changer"
 
 #include "scsi_tgt.h"
@@ -130,7 +132,7 @@ int changer_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 
 	scst_changer_generic_parse(cmd, info_cdb, 0);
 
-	cmd->retries = 1;
+	cmd->retries = SCST_PASSTHROUGH_RETRIES;
 
 	if (info_cdb->flags & SCST_LONG_TIMEOUT) {
 		cmd->timeout = CHANGER_LONG_TIMEOUT;

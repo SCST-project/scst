@@ -465,9 +465,19 @@ IMPORTANT: By default for performance reasons VDISK FILEIO devices use write
 	   usually it turned off by default and the status of barriers
 	   usage isn't reported anywhere in the system logs as well as
 	   there is no way to know it on the mounted file system (at
-	   least no known one). Also note that on some real-life
-	   workloads write through caching might perform better, than
-	   write back one with the barrier protection turned on.
+	   least no known one). Windows and, AFAIK, other UNIX'es don't
+	   need any special explicit options and do necessary barrier
+	   actions on write-back caching devices by default. Also note
+	   that on some real-life workloads write through caching might
+	   perform better, than write back one with the barrier
+	   protection turned on.
+	   Also you should realize that Linux doesn't provide a
+	   guarantee that after sync()/fsync() all written data really
+	   hit permanent storage, they can be then in the cache of your
+	   backstorage device and lost on power failure event. Thus,
+	   ever with write-through cache mode, you still need a good UPS
+	   to protect yourself from your data loss (note, data loss, not
+	   the file system integrity).
 
 IMPORTANT: Some disk and partition table management utilities don't support
 =========  block sizes >512 bytes, therefore make sure that your favorite one
@@ -598,10 +608,10 @@ If you use SCST version taken directly from the SVN repository, you can
 set the above options, except ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ, using
 debug2perf Makefile target.
 
-4. For kernel:
+4. For other target and initiator software parts:
 
- - Don't enable debug/hacking features, i.e. use them as they are by
-   default.
+ - Don't enable debug/hacking features in the kernel, i.e. use them as
+   they are by default.
 
  - The default kernel read-ahead and queuing settings are optimized
    for locally attached disks, therefore they are not optimal if they
@@ -639,23 +649,31 @@ debug2perf Makefile target.
    directory, they also affect performance. If you find the best values,
    please share them with us.
 
- - Use on the target deadline IO scheduler with read_expire and
-   write_expire increased on all exported devices to 5000 and 20000
-   correspondingly.
+ - On the target deadline IO scheduler with read_expire and
+   write_expire increased on all exported devices to 5000 and 15000
+   correspondingly used to be the fastest, but currently seems CFQ often
+   outperforms it. So, try on your load and use the best one.
 
  - It is recommended to turn the kernel preemption off, i.e. set
    the kernel preemption model to "No Forced Preemption (Server)".
 
-5. For hardware.
+ - Looks like XFS is the best filesystem on the target to store device
+   files, because it allows considerably better linear write throughput,
+   than ext3.
 
- - Make sure that your target hardware (e.g. target FC card) and underlaying
-   IO hardware (e.g. IO card, like SATA, SCSI or RAID to which your
-   disks connected) stay on different PCI buses. They have to work in
-   parallel, so it will be better if they don't compete for the bus. The
-   problem is not only in the bandwidth, which they have to share, but
-   also in the interaction between cards during that competition. In
-   some cases it could lead up to 5-10 times less performance, than
-   expected.
+5. For hardware on target.
+
+ - Make sure that your target hardware (e.g. target FC or network card)
+   and underlaying IO hardware (e.g. IO card, like SATA, SCSI or RAID to
+   which your disks connected) don't share the same PCI bus. They have
+   to work in parallel, so it will be better if they don't compete for
+   the bus. The problem is not only in the bandwidth, which they have to
+   share, but also in the interaction between cards during that
+   competition. This is very important, because in some cases if target
+   and backend storage controllers share the same PCI bus, it could lead
+   up to 5-10 times less performance, than expected. If you have no
+   choice, but PCI bus sharing, set in the BIOS PCI latency as low as
+   possible.
 
 IMPORTANT: If you use on initiator some versions of Windows (at least W2K)
 =========  you can't get good write performance for VDISK FILEIO devices with

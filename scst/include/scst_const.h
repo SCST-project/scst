@@ -3,7 +3,7 @@
  *  
  *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *  
- *  Contains macroses for execution tracing and error reporting
+ *  Contains common SCST constants.
  * 
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -29,6 +29,13 @@
 /* Max size of sense */
 #define SCST_SENSE_BUFFERSIZE        96
 
+/*************************************************************
+ ** Allowed delivery statuses for cmd's delivery_status
+ *************************************************************/
+
+#define SCST_CMD_DELIVERY_SUCCESS        0
+#define SCST_CMD_DELIVERY_FAILED        -1
+
 /************************************************************* 
  ** Values for task management functions
  *************************************************************/
@@ -48,7 +55,7 @@
  */
 #define SCST_NEXUS_LOSS_SESS         6
 
-/* Aborts all tasks in the corresponding session with TASK_ABORTED status */
+/* Aborts all tasks in the corresponding session */
 #define SCST_ABORT_ALL_TASKS_SESS    7
 
 /* 
@@ -58,7 +65,7 @@
  */
 #define SCST_NEXUS_LOSS              8
 
-/* Aborts all tasks in all sessions of the tgt with TASK_ABORTED status */
+/* Aborts all tasks in all sessions of the tgt */
 #define SCST_ABORT_ALL_TASKS         9
 
 /************************************************************* 
@@ -100,6 +107,11 @@ enum scst_cmd_queue_type
 
 #define SCST_NO_SENSE(sense)         (((uint8_t *)(sense))[2] == 0)
 
+static inline int scst_is_ua_sense(const uint8_t *sense)
+{
+	return SCST_SENSE_VALID(sense) && (sense[2] == UNIT_ATTENTION);
+}
+
 /*************************************************************
  ** Sense data for the appropriate errors. Can be used with
  ** scst_set_cmd_error()
@@ -122,6 +134,9 @@ enum scst_cmd_queue_type
 #define scst_sense_write_error			MEDIUM_ERROR,    0x03, 0
 #define scst_sense_not_ready			NOT_READY,       0x04, 0x10
 #define scst_sense_invalid_message		ILLEGAL_REQUEST, 0x49, 0
+#define scst_sense_cleared_by_another_ini_UA	UNIT_ATTENTION,  0x2F, 0
+
+#define SCST_STANDARD_SENSE_LEN			14
 
 /************************************************************* 
  * SCSI opcodes not listed anywhere else
@@ -230,6 +245,18 @@ enum scst_cmd_queue_type
 #define TCLP_BIT                     4
 #define LONG_BIT                     2
 #define BT_BIT                       1
+
+/*************************************************************
+ ** Values for the control mode page TST field
+ *************************************************************/
+#define SCST_CONTR_MODE_ONE_TASK_SET  0
+#define SCST_CONTR_MODE_SEP_TASK_SETS 1
+
+/*******************************************************************
+ ** Values for the control mode page QUEUE ALGORITHM MODIFIER field
+ *******************************************************************/
+#define SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER   0
+#define SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER 1
 
 /************************************************************* 
  ** Misc SCSI constants

@@ -2,7 +2,7 @@
 
 	  USER SPACE INTERFACE DESCRIPTION.
 
-		   Version 0.9.6/1
+		   Version 0.9.6/2
 
 
 		I. Description.
@@ -62,6 +62,7 @@ struct scst_user_dev_desc
 {
 	uint8_t version;
 	uint8_t type;
+	uint8_t has_own_order_mgmt;
 	struct scst_user_opt opt;
 	uint32_t block_size;
 	char name[SCST_MAX_NAME];
@@ -72,6 +73,10 @@ where:
  - version - is a protocol version, shall be DEV_USER_VERSION
 
  - type - SCSI type of the device
+
+ - has_own_order_mgmt - set it in non-zero, if device implements own
+   ORDERED commands management, i.e. guarantees commands execution order
+   requirements, specified by SAM.
 
  - opt - device options, see SCST_USER_SET_OPTIONS/SCST_USER_GET_OPTIONS below
 
@@ -101,6 +106,11 @@ struct scst_user_opt
 	uint8_t prio_queue_type;
 	uint8_t partial_transfers_type;
 	uint32_t partial_len;
+
+	uint8_t tst;
+	uint8_t queue_alg;
+	uint8_t tas;
+	uint8_t swp;
 },
 
 where:
@@ -180,6 +190,9 @@ where:
 
    * SCST_USER_PARTIAL_TRANSFERS_SUPPORTED - the partial data transfers
      are supported without limitations.
+
+ - tst, queue_alg, tas and swp - set values for TST, QUEUE ALGORITHM MODIFIER,
+   TAS and SWP fields from control mode page correspondingly, see SPC.
 
 Flags parse_type and on_free_cmd_type are designed to improve
 performance by eliminating context switches to the user space handler,
@@ -572,6 +585,7 @@ struct scst_user_scsi_on_free_cmd
 	uint8_t buffer_cached;
 	uint8_t aborted;
 	uint8_t status;
+	uint8_t delivery_status;
 },
 
 where:
@@ -586,7 +600,14 @@ where:
  - aborted - true, if command was aborted
 
  - status - SAM status of the commands execution
+
+ - delivery_status - status of cmd's status/data delivery to remote
+   initiator. Can be:
    
+   * SCST_CMD_DELIVERY_SUCCESS - delivery succeeded
+
+   * SCST_CMD_DELIVERY_FAILED - delivery failed
+
 The user space handler should reply using the corresponding reply
 command. No error code is needed.
 

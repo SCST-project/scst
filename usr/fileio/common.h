@@ -45,9 +45,9 @@
 struct vdisk_tgt_dev {
 	uint64_t sess_h;
 	/*
-	 * last_write_cmd_queue_type accessed without protection since we are
-	 * guaranteed that only commands of the same type per tgt_dev can be
-	 * processed simultaneously
+	 * Used without protection since we are guaranteed by SCST core
+	 * that only commands with the same ORDERED type per tgt_dev can
+	 * be processed simultaneously.
 	 */
 	int last_write_cmd_queue_type;
 };

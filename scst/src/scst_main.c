@@ -509,6 +509,10 @@ static int scst_register_device(struct scsi_device *scsidp)
 	dev->scsi_dev = scsidp;
 
 	list_add_tail(&dev->dev_list_entry, &scst_dev_list);
+
+	res = scst_obtain_device_parameters(dev);
+	if (res != 0)
+		goto out_free;
 	
 	list_for_each_entry(dt, &scst_dev_type_list, dev_type_list_entry) {
 		if (dt->type == scsidp->type) {
@@ -710,12 +714,12 @@ void scst_unregister_virtual_device(int id)
 	list_for_each_entry(d, &scst_dev_list, dev_list_entry) {
 		if (d->virt_id == id) {
 			dev = d;
-			TRACE_DBG("Target device %p found", dev);
+			TRACE_DBG("Target device %p (id %d) found", dev, id);
 			break;
 		}
 	}
 	if (dev == NULL) {
-		PRINT_ERROR("%s", "Target device not found");
+		PRINT_ERROR("Target virtual device (id %d) not found", id);
 		goto out_unblock;
 	}
 
@@ -1672,6 +1676,8 @@ EXPORT_SYMBOL(scst_set_busy);
 EXPORT_SYMBOL(scst_set_cmd_error_status);
 EXPORT_SYMBOL(scst_set_cmd_error);
 EXPORT_SYMBOL(scst_set_resp_data_len);
+EXPORT_SYMBOL(scst_set_sense);
+EXPORT_SYMBOL(scst_set_cmd_error_sense);
 
 EXPORT_SYMBOL(scst_process_active_cmd);
 

@@ -3,7 +3,9 @@
  *  
  *  Copyright (C) 2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *  
- *  Contains macroses for execution tracing and error reporting
+ *  Contains constants and data structures for scst_user module.
+ *  See http://scst.sourceforge.net/doc/scst_user_spec.txt or
+ *  scst_user_spec.txt for description.
  * 
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -23,7 +25,7 @@
 
 #define DEV_USER_NAME                "scst_user"
 #define DEV_USER_PATH			"/dev/"
-#define DEV_USER_VERSION		961
+#define DEV_USER_VERSION		962
 
 /* 
  * Chosen so sizeof(scst_user_sess) <= sizeof(scst_user_scsi_cmd_exec) 
@@ -91,6 +93,14 @@ struct scst_user_opt
 	uint8_t prio_queue_type;
 	uint8_t partial_transfers_type;
 	int32_t partial_len;
+
+	/* SCSI control mode page parameters, see SPC */
+	uint8_t tst;
+	uint8_t queue_alg;
+	uint8_t tas;
+	uint8_t swp;
+
+	uint8_t has_own_order_mgmt;
 };
 
 struct scst_user_dev_desc
@@ -170,6 +180,7 @@ struct scst_user_scsi_on_free_cmd
 	uint8_t buffer_cached;
 	uint8_t aborted;
 	uint8_t status;
+	uint8_t delivery_status;
 };
 
 struct scst_user_on_cached_mem_free
