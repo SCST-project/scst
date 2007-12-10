@@ -547,7 +547,9 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
             xfr->td_hflags &= ~TDFH_DATA_MASK;
             xfr->td_xfrlen = 0;
         }
-        /* ToDo: check and set scst_set_delivery_status(), if necessary */
+        if (xfr->td_error) {
+            scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_FAILED);
+        }
         scst_tgt_cmd_done(scst_cmd);
         return;
     }
@@ -562,7 +564,9 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
                 }
                 scst_rx_data(scst_cmd, SCST_RX_STATUS_SUCCESS, SCST_CONTEXT_TASKLET);
             } else {
-            	/* ToDo: check and set scst_set_delivery_status(), if necessary */
+                if (xfr->td_error) {
+                    scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_FAILED);
+                }
                 scst_tgt_cmd_done(scst_cmd);
             }
         } else {
@@ -571,7 +575,9 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
     } else if (xfr->td_hflags & TDFH_DATA_IN) {
         xfr->td_hflags &= ~TDFH_DATA_MASK;
         xfr->td_xfrlen = 0;
-        /* ToDo: check and set scst_set_delivery_status(), if necessary */
+        if (xfr->td_error) {
+            scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_FAILED);
+        }
         scst_tgt_cmd_done(scst_cmd);
     }
 }
