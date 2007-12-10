@@ -284,7 +284,6 @@ static int scst_pre_parse(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_RES_CONT_SAME;
 	struct scst_device *dev = cmd->dev;
-	struct scst_info_cdb cdb_info;
 
 	TRACE_ENTRY();
 
@@ -300,7 +299,8 @@ static int scst_pre_parse(struct scst_cmd *cmd)
 	 */
 
 	if (unlikely(scst_get_cdb_info(cmd->cdb, dev->handler->type, 
-			&cdb_info) != 0)) {
+			&cmd->op_flags, &cmd->data_direction,
+			&cmd->bufflen, &cmd->cdb_len, &cmd->op_name) != 0)) {
 		PRINT_ERROR("Unknown opcode 0x%02x for %s. "
 			"Should you update scst_scsi_op_table?",
 			cmd->cdb[0], dev->handler->name);
@@ -339,15 +339,12 @@ static int scst_pre_parse(struct scst_cmd *cmd)
 	} else {
 		TRACE(TRACE_SCSI, "op_name <%s>, direction=%d (expected %d, "
 			"set %s), transfer_len=%d (expected len %d), flags=%d",
-			cdb_info.op_name, cdb_info.direction,
+			cmd->op_name, cmd->data_direction,
 			cmd->expected_data_direction,
 			scst_cmd_is_expected_set(cmd) ? "yes" : "no",
-			cdb_info.transfer_len, cmd->expected_transfer_len,
-			cdb_info.flags);
+			cmd->bufflen, cmd->expected_transfer_len, cmd->op_flags);
 
-		cmd->data_direction = cdb_info.direction;
-
-		if (unlikely((cdb_info.flags & SCST_UNKNOWN_LENGTH) != 0)) {
+		if (unlikely((cmd->op_flags & SCST_UNKNOWN_LENGTH) != 0)) {
 			if (scst_cmd_is_expected_set(cmd)) {
 				/*
 				 * Command data length can't be easily
@@ -360,11 +357,7 @@ static int scst_pre_parse(struct scst_cmd *cmd)
 							15*1024*1024);
 			} else
 				cmd->bufflen = 0;
-		} else
-			cmd->bufflen = cdb_info.transfer_len;
-
-		/* Restore (likely) lost CDB length */
-		cmd->cdb_len = cdb_info.cdb_len;
+		}
 	}
 
 	if (unlikely(cmd->cdb[cmd->cdb_len - 1] & CONTROL_BYTE_NACA_BIT)) {
@@ -400,9 +393,9 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 	int res = SCST_CMD_STATE_RES_CONT_SAME;
 	int state;
 	struct scst_device *dev = cmd->dev;
-	struct scst_info_cdb cdb_info;
 	int atomic = scst_cmd_atomic(cmd);
-	int orig_bufflen;
+	int orig_bufflen = cmd->bufflen;
+	scst_data_direction orig_data_direction = cmd->data_direction;
 
 	TRACE_ENTRY();
 
@@ -414,13 +407,11 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 		goto out;
 	}
 
-	orig_bufflen = cmd->bufflen;
-
 	if (likely(!scst_is_cmd_local(cmd))) {
 		TRACE_DBG("Calling dev handler %s parse(%p)",
 		      dev->handler->name, cmd);
 		TRACE_BUFF_FLAG(TRACE_SEND_BOT, "Parsing: ", cmd->cdb, cmd->cdb_len);
-		state = dev->handler->parse(cmd, &cdb_info);
+		state = dev->handler->parse(cmd);
 		/* Caution: cmd can be already dead here */
 		TRACE_DBG("Dev handler %s parse() returned %d",
 			dev->handler->name, state);
@@ -485,12 +476,12 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 		cmd->data_direction = cmd->expected_data_direction;
 		cmd->bufflen = cmd->expected_transfer_len;
 #else
-		if (unlikely(cmd->data_direction != cdb_info.direction)) {
+		if (unlikely(cmd->data_direction != orig_data_direction)) {
 			PRINT_ERROR("Expected data direction %d for opcode "
 				"0x%02x (handler %s, target %s) doesn't match "
 				"decoded value %d", cmd->data_direction,
 				cmd->cdb[0], dev->handler->name,
-				cmd->tgtt->name, cdb_info.direction);
+				cmd->tgtt->name, orig_data_direction);
 			scst_set_cmd_error(cmd,
 				SCST_LOAD_SENSE(scst_sense_invalid_message));
 			goto out_dev_done;

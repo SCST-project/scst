@@ -67,7 +67,7 @@ struct scst_user_dev
 
 	unsigned short detach_cmd_count;
 
-	int (*generic_parse)(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb,
+	int (*generic_parse)(struct scst_cmd *cmd,
 		int (*get_block)(struct scst_cmd *cmd));
 
 	int block;
@@ -154,7 +154,7 @@ static struct scst_user_cmd *dev_user_alloc_ucmd(struct scst_user_dev *dev,
 	int gfp_mask);
 static void dev_user_free_ucmd(struct scst_user_cmd *ucmd);
 
-static int dev_user_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb);
+static int dev_user_parse(struct scst_cmd *cmd);
 static int dev_user_exec(struct scst_cmd *cmd);
 static void dev_user_on_free_cmd(struct scst_cmd *cmd);
 static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd, 
@@ -648,7 +648,7 @@ static int dev_user_get_block(struct scst_cmd *cmd)
 	return dev->block;
 }
 
-static int dev_user_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
+static int dev_user_parse(struct scst_cmd *cmd)
 {
 	int rc, res = SCST_CMD_STATE_DEFAULT;
 	struct scst_user_cmd *ucmd;
@@ -684,15 +684,15 @@ static int dev_user_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 	switch(dev->parse_type) {
 	case SCST_USER_PARSE_STANDARD:
 		TRACE_DBG("PARSE STANDARD: ucmd %p", ucmd);
-		rc = dev->generic_parse(cmd, info_cdb, dev_user_get_block);
-		if ((rc != 0) || (info_cdb->flags & SCST_INFO_INVALID))
+		rc = dev->generic_parse(cmd, dev_user_get_block);
+		if ((rc != 0) || (cmd->op_flags & SCST_INFO_INVALID))
 			goto out_invalid;
 		break;
 
 	case SCST_USER_PARSE_EXCEPTION:
 		TRACE_DBG("PARSE EXCEPTION: ucmd %p", ucmd);
-		rc = dev->generic_parse(cmd, info_cdb, dev_user_get_block);
-		if ((rc == 0) && (!(info_cdb->flags & SCST_INFO_INVALID)))
+		rc = dev->generic_parse(cmd, dev_user_get_block);
+		if ((rc == 0) && (!(cmd->op_flags & SCST_INFO_INVALID)))
 			break;
 		else if (rc == SCST_CMD_STATE_NEED_THREAD_CTX) {
 			TRACE_MEM("Restarting PARSE to thread context "
@@ -742,7 +742,7 @@ out:
 
 out_invalid:
 	PRINT_ERROR("PARSE failed (ucmd %p, rc %d, invalid %d)", ucmd, rc,
-		info_cdb->flags & SCST_INFO_INVALID);
+		cmd->op_flags & SCST_INFO_INVALID);
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 
 out_error:
@@ -2854,7 +2854,7 @@ out:
 	return res;
 }
 
-static int dev_usr_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
+static int dev_usr_parse(struct scst_cmd *cmd)
 {
 	sBUG();
 	return SCST_CMD_STATE_DEFAULT;

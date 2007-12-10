@@ -8,6 +8,7 @@
 #include "scst_debug.h"
 
 #define SCST_DEV_UA_RETRIES 5
+#define SCST_PASSTHROUGH_RETRIES	0
 
 #if defined(DEBUG) || defined(TRACING)
 
@@ -28,8 +29,6 @@ static unsigned long dh_trace_flag = SCST_DEFAULT_DEV_LOG_FLAGS;
 #ifndef trace_log_tbl
 #define trace_log_tbl	NULL
 #endif
-
-#define SCST_PASSTHROUGH_RETRIES	0
 
 static struct scst_proc_data dev_handler_log_proc_data;
 

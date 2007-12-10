@@ -44,7 +44,7 @@
 
 int processor_attach(struct scst_device *);
 void processor_detach(struct scst_device *);
-int processor_parse(struct scst_cmd *, struct scst_info_cdb *);
+int processor_parse(struct scst_cmd *);
 int processor_done(struct scst_cmd *);
 
 static struct scst_dev_type processor_devtype = PROCESSOR_TYPE;
@@ -126,15 +126,15 @@ void processor_detach(struct scst_device *dev)
  *
  *  Note:  Not all states are allowed on return
  ********************************************************************/
-int processor_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
+int processor_parse(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
 
-	scst_processor_generic_parse(cmd, info_cdb, 0);
+	scst_processor_generic_parse(cmd, 0);
 
 	cmd->retries = SCST_PASSTHROUGH_RETRIES;
 
-	if (info_cdb->flags & SCST_LONG_TIMEOUT) {
+	if (cmd->op_flags & SCST_LONG_TIMEOUT) {
 		cmd->timeout = PROCESSOR_LONG_TIMEOUT;
 	} else {
 		cmd->timeout = PROCESSOR_TIMEOUT;

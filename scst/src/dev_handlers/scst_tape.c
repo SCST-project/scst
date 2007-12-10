@@ -75,7 +75,7 @@ struct tape_params
 
 int tape_attach(struct scst_device *);
 void tape_detach(struct scst_device *);
-int tape_parse(struct scst_cmd *, struct scst_info_cdb *);
+int tape_parse(struct scst_cmd *);
 int tape_done(struct scst_cmd *);
 int tape_exec(struct scst_cmd *);
 
@@ -280,21 +280,21 @@ static int tape_get_block_size(struct scst_cmd *cmd)
  *
  *  Note:  Not all states are allowed on return
  ********************************************************************/
-int tape_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
+int tape_parse(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
 
-	scst_tape_generic_parse(cmd, info_cdb, tape_get_block_size);
+	scst_tape_generic_parse(cmd, tape_get_block_size);
 
 	cmd->retries = SCST_PASSTHROUGH_RETRIES;
 
-	if (info_cdb->flags & SCST_SMALL_TIMEOUT) {
-		cmd->timeout = TAPE_SMALL_TIMEOUT;
-	} else if (info_cdb->flags & SCST_LONG_TIMEOUT) {
-		cmd->timeout = TAPE_LONG_TIMEOUT;
-	} else {
+	if ((cmd->op_flags & (SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)) == 0)
 		cmd->timeout = TAPE_REG_TIMEOUT;
-	}
+	else if (cmd->op_flags & SCST_SMALL_TIMEOUT)
+		cmd->timeout = TAPE_SMALL_TIMEOUT;
+	else if (cmd->op_flags & SCST_LONG_TIMEOUT)
+		cmd->timeout = TAPE_LONG_TIMEOUT;
+
 	return res;
 }
 

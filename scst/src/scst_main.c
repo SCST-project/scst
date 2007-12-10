@@ -135,7 +135,7 @@ MODULE_PARM_DESC(scst_threads, "SCSI target threads count");
 
 module_param_named(scst_max_cmd_mem, scst_max_cmd_mem, long, 0);
 MODULE_PARM_DESC(scst_max_cmd_mem, "Maximum memory allowed to be consumed by "
-	"the SCST commands at any given time in Mb");
+	"the SCST commands at any given time in MB");
 
 struct scst_dev_type scst_null_devtype = 
 {
@@ -1768,7 +1768,7 @@ EXPORT_SYMBOL(scst_random);
 module_init(init_scst);
 module_exit(exit_scst);
 
-MODULE_AUTHOR("Vladislav Bolkhovitin & Leonid Stoljar");
+MODULE_AUTHOR("Vladislav Bolkhovitin");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("SCSI target core");
 MODULE_VERSION(SCST_VERSION_STRING);

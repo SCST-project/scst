@@ -1681,7 +1681,8 @@ static uint32_t get_trans_len_none(const uint8_t *cdb, uint8_t off)
 }
 
 int scst_get_cdb_info(const uint8_t *cdb_p, int dev_type,
-		      struct scst_info_cdb *info_p)
+	enum scst_cdb_flags *op_flags, scst_data_direction *direction,
+	unsigned int *transfer_len, int *cdb_len, const char **op_name)
 {
 	int i, res = 0;
 	uint8_t op;
@@ -1725,24 +1726,23 @@ int scst_get_cdb_info(const uint8_t *cdb_p, int dev_type,
 		TRACE(TRACE_SCSI, "Unknown opcode 0x%x for type %d", op,
 		      dev_type);
 		res = -1;
-		memset(info_p, 0, sizeof(*info_p));
-		info_p->flags = SCST_INFO_INVALID;
+		*op_flags = SCST_INFO_INVALID;
 		goto out;
 	}
 
-	info_p->cdb_len = SCST_GET_CDB_LEN(op);
-	info_p->op_name = ptr->op_name;
-	info_p->direction = ptr->direction;
-	info_p->flags = ptr->flags;
-	info_p->transfer_len = (*ptr->get_trans_len)(cdb_p, ptr->off);
+	*cdb_len = SCST_GET_CDB_LEN(op);
+	*op_name = ptr->op_name;
+	*direction = ptr->direction;
+	*op_flags = ptr->flags;
+	*transfer_len = (*ptr->get_trans_len)(cdb_p, ptr->off);
 
 #ifdef EXTRACHECKS
-	if (unlikely((info_p->transfer_len == 0) &&
-		     (info_p->direction != SCST_DATA_NONE) &&
-	    ((info_p->flags & SCST_UNKNOWN_LENGTH) == 0))) {
+	if (unlikely((*transfer_len == 0) &&
+		     (*direction != SCST_DATA_NONE) &&
+	    ((*op_flags & SCST_UNKNOWN_LENGTH) == 0))) {
 		PRINT_ERROR("transfer_len 0, direction %d, flags %x, changing "
-			"direction on NONE", info_p->direction, info_p->flags);
-		info_p->direction = SCST_DATA_NONE;
+			"direction on NONE", *direction, *op_flags);
+		*direction = SCST_DATA_NONE;
 	}
 #endif
 
@@ -1871,7 +1871,6 @@ int scst_calc_block_shift(int sector_size)
 }
 
 int scst_sbc_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb,
 	int (*get_block_shift)(struct scst_cmd *cmd))
 {
 	int res = 0;
@@ -1879,13 +1878,12 @@ int scst_sbc_generic_parse(struct scst_cmd *cmd,
 	TRACE_ENTRY();
 	
 	/*
-	 * SCST sets good defaults for cmd->data_direction and cmd->bufflen
-	 * based on info_cdb, therefore change them only if necessary
+	 * SCST sets good defaults for cmd->data_direction and cmd->bufflen,
+	 * therefore change them only if necessary
 	 */
 
 	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d",
-	      info_cdb->op_name,
-	      info_cdb->direction, info_cdb->flags, info_cdb->transfer_len);
+	      cmd->op_name, cmd->data_direction, cmd->op_flags, cmd->bufflen);
 
 	switch (cmd->cdb[0]) {
 	case SERVICE_ACTION_IN:
@@ -1899,11 +1897,10 @@ int scst_sbc_generic_parse(struct scst_cmd *cmd,
 	case VERIFY_12:
 	case VERIFY_16:
 		if ((cmd->cdb[1] & BYTCHK) == 0) {
-			cmd->data_len = 
-			    info_cdb->transfer_len << get_block_shift(cmd);
+			cmd->data_len = cmd->bufflen << get_block_shift(cmd);
 			cmd->bufflen = 0;
 			cmd->data_direction = SCST_DATA_NONE;
-			info_cdb->flags &= ~SCST_TRANSFER_LEN_TYPE_FIXED;
+			cmd->op_flags &= ~SCST_TRANSFER_LEN_TYPE_FIXED;
 		} else
 			cmd->data_len = 0;
 		break;
@@ -1912,12 +1909,12 @@ int scst_sbc_generic_parse(struct scst_cmd *cmd,
 		break;
 	}
 
-	if (info_cdb->flags & SCST_TRANSFER_LEN_TYPE_FIXED) {
+	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED) {
 		/* 
 		 * No need for locks here, since *_detach() can not be
 		 * called, when there are existing commands.
 		 */
-		cmd->bufflen = info_cdb->transfer_len << get_block_shift(cmd);
+		cmd->bufflen = cmd->bufflen << get_block_shift(cmd);
 	}
 
 	TRACE_DBG("res %d, bufflen %d, data_len %d, direct %d",
@@ -1928,7 +1925,6 @@ int scst_sbc_generic_parse(struct scst_cmd *cmd,
 }
 
 int scst_cdrom_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb,
 	int (*get_block_shift)(struct scst_cmd *cmd))
 {
 	int res = 0;
@@ -1936,15 +1932,12 @@ int scst_cdrom_generic_parse(struct scst_cmd *cmd,
 	TRACE_ENTRY();
 
 	/*
-	 * SCST sets good defaults for cmd->data_direction and cmd->bufflen
-	 * based on info_cdb, therefore change them only if necessary
+	 * SCST sets good defaults for cmd->data_direction and cmd->bufflen,
+	 * therefore change them only if necessary
 	 */
 
-	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d lun %Ld(%d)",
-	      info_cdb->op_name,
-	      info_cdb->direction,
-	      info_cdb->flags,
-	      info_cdb->transfer_len, cmd->lun, (cmd->cdb[1] >> 5) & 7);
+	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d",
+	      cmd->op_name, cmd->data_direction, cmd->op_flags, cmd->bufflen);
 
 	cmd->cdb[1] &= 0x1f;
 
@@ -1954,11 +1947,10 @@ int scst_cdrom_generic_parse(struct scst_cmd *cmd,
 	case VERIFY_12:
 	case VERIFY_16:
 		if ((cmd->cdb[1] & BYTCHK) == 0) {
-			cmd->data_len = 
-			    info_cdb->transfer_len << get_block_shift(cmd);
+			cmd->data_len = cmd->bufflen << get_block_shift(cmd);
 			cmd->bufflen = 0;
 			cmd->data_direction = SCST_DATA_NONE;
-			info_cdb->flags &= ~SCST_TRANSFER_LEN_TYPE_FIXED;
+			cmd->op_flags &= ~SCST_TRANSFER_LEN_TYPE_FIXED;
 		}
 		break;
 	default:
@@ -1966,8 +1958,8 @@ int scst_cdrom_generic_parse(struct scst_cmd *cmd,
 		break;
 	}
 
-	if (info_cdb->flags & SCST_TRANSFER_LEN_TYPE_FIXED)
-		cmd->bufflen = info_cdb->transfer_len << get_block_shift(cmd);
+	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED)
+		cmd->bufflen = cmd->bufflen << get_block_shift(cmd);
 
 	TRACE_DBG("res %d bufflen %d direct %d",
 	      res, cmd->bufflen, cmd->data_direction);
@@ -1977,7 +1969,6 @@ int scst_cdrom_generic_parse(struct scst_cmd *cmd,
 }
 
 int scst_modisk_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb,
 	int (*get_block_shift)(struct scst_cmd *cmd))
 {
 	int res = 0;
@@ -1985,15 +1976,12 @@ int scst_modisk_generic_parse(struct scst_cmd *cmd,
 	TRACE_ENTRY();
 
 	/*
-	 * SCST sets good defaults for cmd->data_direction and cmd->bufflen
-	 * based on info_cdb, therefore change them only if necessary
+	 * SCST sets good defaults for cmd->data_direction and cmd->bufflen,
+	 * therefore change them only if necessary
 	 */
 
-	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d lun %Ld(%d)",
-	      info_cdb->op_name,
-	      info_cdb->direction,
-	      info_cdb->flags,
-	      info_cdb->transfer_len, cmd->lun, (cmd->cdb[1] >> 5) & 7);
+	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d",
+	      cmd->op_name, cmd->data_direction, cmd->op_flags, cmd->bufflen);
 
 	cmd->cdb[1] &= 0x1f;
 
@@ -2003,11 +1991,10 @@ int scst_modisk_generic_parse(struct scst_cmd *cmd,
 	case VERIFY_12:
 	case VERIFY_16:
 		if ((cmd->cdb[1] & BYTCHK) == 0) {
-			cmd->data_len = 
-			    info_cdb->transfer_len << get_block_shift(cmd);
+			cmd->data_len = cmd->bufflen << get_block_shift(cmd);
 			cmd->bufflen = 0;
 			cmd->data_direction = SCST_DATA_NONE;
-			info_cdb->flags &= ~SCST_TRANSFER_LEN_TYPE_FIXED;
+			cmd->op_flags &= ~SCST_TRANSFER_LEN_TYPE_FIXED;
 		}
 		break;
 	default:
@@ -2015,8 +2002,8 @@ int scst_modisk_generic_parse(struct scst_cmd *cmd,
 		break;
 	}
 
-	if (info_cdb->flags & SCST_TRANSFER_LEN_TYPE_FIXED)
-		cmd->bufflen = info_cdb->transfer_len << get_block_shift(cmd);
+	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED)
+		cmd->bufflen = cmd->bufflen << get_block_shift(cmd);
 
 	TRACE_DBG("res %d bufflen %d direct %d",
 	      res, cmd->bufflen, cmd->data_direction);
@@ -2026,7 +2013,6 @@ int scst_modisk_generic_parse(struct scst_cmd *cmd,
 }
 
 int scst_tape_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb,
 	int (*get_block_size)(struct scst_cmd *cmd))
 {
 	int res = 0;
@@ -2034,13 +2020,12 @@ int scst_tape_generic_parse(struct scst_cmd *cmd,
 	TRACE_ENTRY();
 
 	/*
-	 * SCST sets good defaults for cmd->data_direction and cmd->bufflen
-	 * based on info_cdb, therefore change them only if necessary
+	 * SCST sets good defaults for cmd->data_direction and cmd->bufflen,
+	 * therefore change them only if necessary
 	 */
 
 	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d",
-	      info_cdb->op_name,
-	      info_cdb->direction, info_cdb->flags, info_cdb->transfer_len);
+	      cmd->op_name, cmd->data_direction, cmd->op_flags, cmd->bufflen);
 
 	if (cmd->cdb[0] == READ_POSITION) {
 		int tclp = cmd->cdb[1] & TCLP_BIT;
@@ -2057,27 +2042,26 @@ int scst_tape_generic_parse(struct scst_cmd *cmd,
 		}
 	}
 
-	if (info_cdb->flags & SCST_TRANSFER_LEN_TYPE_FIXED & cmd->cdb[1])
-		cmd->bufflen = info_cdb->transfer_len * get_block_size(cmd);
+	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED & cmd->cdb[1])
+		cmd->bufflen = cmd->bufflen * get_block_size(cmd);
 
 	TRACE_EXIT_RES(res);
 	return res;
 }
 
-static int scst_null_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
+static int scst_null_parse(struct scst_cmd *cmd)
 {
 	int res = 0;
 
 	TRACE_ENTRY();
 
 	/*
-	 * SCST sets good defaults for cmd->data_direction and cmd->bufflen
-	 * based on info_cdb, therefore change them only if necessary
+	 * SCST sets good defaults for cmd->data_direction and cmd->bufflen,
+	 * therefore change them only if necessary
 	 */
 
 	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d",
-	      info_cdb->op_name,
-	      info_cdb->direction, info_cdb->flags, info_cdb->transfer_len);
+	      cmd->op_name, cmd->data_direction, cmd->op_flags, cmd->bufflen);
 #if 0
 	switch (cmd->cdb[0]) {
 	default:
@@ -2093,24 +2077,21 @@ static int scst_null_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
 }
 
 int scst_changer_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb,
 	int (*nothing)(struct scst_cmd *cmd))
 {
-	return scst_null_parse(cmd, info_cdb);
+	return scst_null_parse(cmd);
 }
 
 int scst_processor_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb,
 	int (*nothing)(struct scst_cmd *cmd))
 {
-	return scst_null_parse(cmd, info_cdb);
+	return scst_null_parse(cmd);
 }
 
 int scst_raid_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb,
 	int (*nothing)(struct scst_cmd *cmd))
 {
-	return scst_null_parse(cmd, info_cdb);
+	return scst_null_parse(cmd);
 }
 
 int scst_block_generic_dev_done(struct scst_cmd *cmd,
@@ -3020,7 +3001,12 @@ void scst_xmit_process_aborted_cmd(struct scst_cmd *cmd)
 		if (cmd->dev->tas) {
 			scst_set_cmd_error_status(cmd, SAM_STAT_TASK_ABORTED);
 		} else {
-			/* Abort without delivery or notification */
+			/*
+			 * Abort without delivery or notification.
+			 * There is no need to check/requeue possible UA,
+			 * because, if it exists, it will be delivered
+			 * by the "completed" branch.
+			 */
 			clear_bit(SCST_CMD_ABORTED_OTHER,
 				&cmd->cmd_flags);
 		}

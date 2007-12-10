@@ -51,7 +51,7 @@ struct cdrom_params
 
 int cdrom_attach(struct scst_device *);
 void cdrom_detach(struct scst_device *);
-int cdrom_parse(struct scst_cmd *, struct scst_info_cdb *);
+int cdrom_parse(struct scst_cmd *);
 int cdrom_done(struct scst_cmd *);
 
 static struct scst_dev_type cdrom_devtype = CDROM_TYPE;
@@ -205,21 +205,21 @@ static int cdrom_get_block_shift(struct scst_cmd *cmd)
  *
  *  Note:  Not all states are allowed on return
  ********************************************************************/
-int cdrom_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
+int cdrom_parse(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
 
-	scst_cdrom_generic_parse(cmd, info_cdb, cdrom_get_block_shift);
+	scst_cdrom_generic_parse(cmd, cdrom_get_block_shift);
 
 	cmd->retries = SCST_PASSTHROUGH_RETRIES;
 
-	if (info_cdb->flags & SCST_SMALL_TIMEOUT) {
-		cmd->timeout = CDROM_SMALL_TIMEOUT;
-	} else if (info_cdb->flags & SCST_LONG_TIMEOUT) {
-		cmd->timeout = CDROM_LONG_TIMEOUT;
-	} else {
+	if ((cmd->op_flags & (SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)) == 0)
 		cmd->timeout = CDROM_REG_TIMEOUT;
-	}
+	else if (cmd->op_flags & SCST_SMALL_TIMEOUT)
+		cmd->timeout = CDROM_SMALL_TIMEOUT;
+	else if (cmd->op_flags & SCST_LONG_TIMEOUT)
+		cmd->timeout = CDROM_LONG_TIMEOUT;
+
 	return res;
 }
 

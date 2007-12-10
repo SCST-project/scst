@@ -385,7 +385,6 @@ struct scst_mgmt_cmd;
 struct scst_device;
 struct scst_tgt_dev;
 struct scst_dev_type;
-struct scst_info_cdb;
 struct scst_acg;
 struct scst_acg_dev;
 struct scst_acn;
@@ -393,6 +392,15 @@ struct scst_acn;
 typedef uint64_t lun_t;
 
 typedef enum dma_data_direction scst_data_direction;
+
+enum scst_cdb_flags
+{
+	SCST_TRANSFER_LEN_TYPE_FIXED = 0x01, /* must be equviv 1 (FIXED_BIT in cdb) */
+	SCST_SMALL_TIMEOUT = 0x02,
+	SCST_LONG_TIMEOUT = 0x04,
+	SCST_UNKNOWN_LENGTH = 0x08,
+	SCST_INFO_INVALID = 0x10,
+};
 
 /* 
  * Scsi_Target_Template: defines what functions a target driver will
@@ -688,7 +696,7 @@ struct scst_dev_type
 	 *
 	 * MUST HAVE
 	 */
-	int (*parse) (struct scst_cmd *cmd, struct scst_info_cdb *cdb_info);
+	int (*parse) (struct scst_cmd *cmd);
 
 	/* 
 	 * Called to execute CDB. Useful, for instance, to implement 
@@ -1120,6 +1128,9 @@ struct scst_cmd
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
 	int cdb_len;
 
+	enum scst_cdb_flags op_flags;
+	const char *op_name;
+
 	enum scst_cmd_queue_type queue_type;
 
 	int timeout;	/* CDB execution timeout */
@@ -1505,24 +1516,6 @@ struct scst_tgt_dev_UA
 	uint8_t UA_sense_buffer[SCST_SENSE_BUFFERSIZE];
 };
 
-enum scst_cdb_flags
-{
-	SCST_TRANSFER_LEN_TYPE_FIXED = 0x01, /* must be equviv 1 (FIXED_BIT in cdb) */
-	SCST_SMALL_TIMEOUT = 0x02,
-	SCST_LONG_TIMEOUT = 0x04,
-	SCST_UNKNOWN_LENGTH = 0x08,
-	SCST_INFO_INVALID = 0x10,
-};
-
-struct scst_info_cdb
-{
-	enum scst_cdb_flags flags;
-	scst_data_direction direction;
-	unsigned int transfer_len;
-	unsigned short cdb_len;
-	const char *op_name;
-};
-
 #ifndef smp_mb__after_set_bit
 /* There is no smp_mb__after_set_bit() in the kernel */
 #define smp_mb__after_set_bit()                 smp_mb();
@@ -1785,11 +1778,12 @@ static inline int scst_rx_mgmt_fn_lun(struct scst_session *sess, int fn,
  * Parameters:
  *   cdb_p - pointer to CDB
  *   dev_type - SCSI device type
- *   info_p - the result structure (output)
+ *   op_flags, direction, transfer_len, cdb_len, op_name - the result (output)
  * Returns 0 on success, -1 otherwise
  */
 int scst_get_cdb_info(const uint8_t *cdb_p, int dev_type,
-		      struct scst_info_cdb *info_p);
+	enum scst_cdb_flags *op_flags, scst_data_direction *direction,
+	unsigned int *transfer_len, int *cdb_len, const char **op_name);
 
 /* 
  * Set error SCSI status in the command and prepares it for returning it
@@ -2470,37 +2464,30 @@ int scst_calc_block_shift(int sector_size);
 
 /* Generic parse() for SBC (disk) devices */
 int scst_sbc_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb,
 	int (*get_block_shift)(struct scst_cmd *cmd));
 
 /* Generic parse() for MMC (cdrom) devices */
 int scst_cdrom_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb,
 	int (*get_block_shift)(struct scst_cmd *cmd));
 
 /* Generic parse() for MO disk devices */
 int scst_modisk_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb,
 	int (*get_block_shift)(struct scst_cmd *cmd));
 
 /* Generic parse() for tape devices */
 int scst_tape_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb,
 	int (*get_block_size)(struct scst_cmd *cmd));
 
 /* Generic parse() for changer devices */
 int scst_changer_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb,
 	int (*nothing)(struct scst_cmd *cmd));
 
 /* Generic parse() for "processor" devices */
 int scst_processor_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb,
 	int (*nothing)(struct scst_cmd *cmd));
 
 /* Generic parse() for RAID devices */
 int scst_raid_generic_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb,
 	int (*nothing)(struct scst_cmd *cmd));
 
 /**

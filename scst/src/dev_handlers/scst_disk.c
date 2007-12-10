@@ -70,7 +70,7 @@ struct disk_params
 
 int disk_attach(struct scst_device *dev);
 void disk_detach(struct scst_device *dev);
-int disk_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cmd);
+int disk_parse(struct scst_cmd *cmd);
 int disk_done(struct scst_cmd *cmd);
 int disk_exec(struct scst_cmd *cmd);
 
@@ -277,21 +277,20 @@ static int disk_get_block_shift(struct scst_cmd *cmd)
  *
  *  Note:  Not all states are allowed on return
  ********************************************************************/
-int disk_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
+int disk_parse(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
 
-	scst_sbc_generic_parse(cmd, info_cdb, disk_get_block_shift);
+	scst_sbc_generic_parse(cmd, disk_get_block_shift);
 
 	cmd->retries = SCST_PASSTHROUGH_RETRIES;
 
-	if (info_cdb->flags & SCST_SMALL_TIMEOUT) {
-		cmd->timeout = DISK_SMALL_TIMEOUT;
-	} else if (info_cdb->flags & SCST_LONG_TIMEOUT) {
-		cmd->timeout = DISK_LONG_TIMEOUT;
-	} else {
+	if ((cmd->op_flags & (SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)) == 0)
 		cmd->timeout = DISK_REG_TIMEOUT;
-	}
+	else if (cmd->op_flags & SCST_SMALL_TIMEOUT)
+		cmd->timeout = DISK_SMALL_TIMEOUT;
+	else if (cmd->op_flags & SCST_LONG_TIMEOUT)
+		cmd->timeout = DISK_LONG_TIMEOUT;
 
 	return res;
 }

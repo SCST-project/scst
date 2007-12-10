@@ -219,9 +219,9 @@ static int vdisk_attach(struct scst_device *dev);
 static void vdisk_detach(struct scst_device *dev);
 static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev);
 static void vdisk_detach_tgt(struct scst_tgt_dev *tgt_dev);
-static int vdisk_parse(struct scst_cmd *, struct scst_info_cdb *info_cdb);
+static int vdisk_parse(struct scst_cmd *);
 static int vdisk_do_job(struct scst_cmd *cmd);
-static int vcdrom_parse(struct scst_cmd *, struct scst_info_cdb *info_cdb);
+static int vcdrom_parse(struct scst_cmd *);
 static int vcdrom_exec(struct scst_cmd *cmd);
 static void vdisk_exec_read(struct scst_cmd *cmd,
 	struct scst_vdisk_thr *thr, loff_t loff);
@@ -971,10 +971,9 @@ static int vdisk_get_block_shift(struct scst_cmd *cmd)
  *
  *  Note:  Not all states are allowed on return
  ********************************************************************/
-static int vdisk_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb)
+static int vdisk_parse(struct scst_cmd *cmd)
 {
-	scst_sbc_generic_parse(cmd, info_cdb, vdisk_get_block_shift);
+	scst_sbc_generic_parse(cmd, vdisk_get_block_shift);
 	return SCST_CMD_STATE_DEFAULT;
 }
 
@@ -989,10 +988,9 @@ static int vdisk_parse(struct scst_cmd *cmd,
  *
  *  Note:  Not all states are allowed on return
  ********************************************************************/
-static int vcdrom_parse(struct scst_cmd *cmd,
-	struct scst_info_cdb *info_cdb)
+static int vcdrom_parse(struct scst_cmd *cmd)
 {
-	scst_cdrom_generic_parse(cmd, info_cdb, vdisk_get_block_shift);
+	scst_cdrom_generic_parse(cmd, vdisk_get_block_shift);
 	return SCST_CMD_STATE_DEFAULT;
 }
 

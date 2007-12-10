@@ -44,7 +44,7 @@
 
 int raid_attach(struct scst_device *);
 void raid_detach(struct scst_device *);
-int raid_parse(struct scst_cmd *, struct scst_info_cdb *);
+int raid_parse(struct scst_cmd *);
 int raid_done(struct scst_cmd *);
 
 static struct scst_dev_type raid_devtype = RAID_TYPE;
@@ -126,15 +126,15 @@ void raid_detach(struct scst_device *dev)
  *
  *  Note:  Not all states are allowed on return
  ********************************************************************/
-int raid_parse(struct scst_cmd *cmd, struct scst_info_cdb *info_cdb)
+int raid_parse(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
 
-	scst_raid_generic_parse(cmd, info_cdb, 0);
+	scst_raid_generic_parse(cmd, 0);
 
 	cmd->retries = SCST_PASSTHROUGH_RETRIES;
 
-	if (info_cdb->flags & SCST_LONG_TIMEOUT) {
+	if (cmd->op_flags & SCST_LONG_TIMEOUT) {
 		cmd->timeout = RAID_LONG_TIMEOUT;
 	} else {
 		cmd->timeout = RAID_TIMEOUT;
