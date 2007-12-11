@@ -66,8 +66,6 @@ static void q2t_on_free_cmd(struct scst_cmd *scst_cmd);
 static void q2t_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd);
 
 /* Predefs for callbacks handed to qla2xxx(target) */
-static void q2t_host_action(scsi_qla_host_t *ha,
-	qla2x_tgt_host_action_t action);
 static void q2t_response_pkt(scsi_qla_host_t *ha, sts_entry_t *pkt);
 static void q2t_async_event(uint16_t code, scsi_qla_host_t *ha,
 	uint16_t *mailbox);
@@ -396,8 +394,11 @@ static int q2t_target_release(struct scst_tgt *scst_tgt)
 		"sess_count=%d", tgt, list_empty(&tgt->sess_list),
 		tgt->sess_count);
 
+	/* The lock is needed, because we still can get an incoming packet */
+	spin_lock_irqsave(&ha->hardware_lock, flags);
 	scst_tgt_set_tgt_priv(scst_tgt, NULL);
 	ha->tgt = NULL;
+	spin_unlock_irqrestore(&ha->hardware_lock, flags);
 
 	kfree(tgt);
 
@@ -1734,6 +1735,12 @@ static void q2t_response_pkt(scsi_qla_host_t *ha, sts_entry_t *pkt)
 	atio_entry_t *atio;
 
 	TRACE_ENTRY();
+
+	if (unlikely(ha->tgt == NULL)) {
+		TRACE_DBG("response pkt, but no tgt. ha %p tgt_flag %d",
+			ha, ha->flags.enable_target_mode);
+		goto out;
+	}
 	
 	sBUG_ON((ha == NULL) || (pkt == NULL));
 
@@ -1922,7 +1929,7 @@ static void q2t_async_event(uint16_t code, scsi_qla_host_t *ha, uint16_t *mailbo
 
 	sBUG_ON(ha == NULL);
 
-	if (ha->tgt == NULL) {
+	if (unlikely(ha->tgt == NULL)) {
 		TRACE(TRACE_DEBUG|TRACE_MGMT, 
 		      "ASYNC EVENT %#x, but no tgt. ha %p tgt_flag %d",
 		      code, ha, ha->flags.enable_target_mode);
