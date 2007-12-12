@@ -3,7 +3,7 @@ Summary of changes between versions 0.9.5 and 0.9.6
 
  - Support for per-target default security groups added.
 
- - Update to work on the latest kernel (2.6.22.x).
+ - Updateed to work on 2.6.22.x kernels.
 
  - Updated to work with SCST 0.9.6.
 
@@ -38,17 +38,20 @@ Patch vs: qla2xxx v8.01.03-k (in kernels 2.6.15.x+, including 2.6.16-prex)
 
  - Minor cleanups and fixes
 
+
 Summary of changes between versions 0.9.3.7 and 0.9.3.8
 -------------------------------------------------------
 Patch vs: qla2xxx v8.01.03-k (in kernels 2.6.15.x+, including 2.6.16-prex)
 
  - Minor cleanups
 
+
 Summary of changes between versions 0.9.3.6 and 0.9.3.7
 -------------------------------------------------------
 Patch vs: qla2xxx v8.01.03-k (in kernels 2.6.15.x+, including 2.6.16-prex)
 
  - Fix null pointer dereference in do_ctio_complete (thanks to Calvin Morrow)
+
 
 Summary of changes between versions 0.9.3.5 and 0.9.3.6
 -------------------------------------------------------
@@ -60,6 +63,7 @@ Patch vs: qla2xxx v8.01.03-k (in kernels 2.6.15.x+, including 2.6.16-prex)
 
 - Fixed possible race during initial enabling of Target Mode (thanks to 
 Mark Buechler for finding)
+
 	
 Summary of changes between versions 0.9.3.4 and 0.9.3.5
 -------------------------------------------------------
@@ -78,6 +82,7 @@ away w/out telling us (pointed out by Vladislav Bolkhovitin)
 
  - Some minor debugging changes
 
+
 Summary of changes between versions 0.9.3.2 of old driver and 0.9.3.4
 ---------------------------------------------------------------------
 
@@ -91,8 +96,3 @@ having one for each driver type.
  - Target mode can be enabled via a sysfs interface on a per card basis.
 Under the appropriate scsi_host there is now an entry
 target_mode_enabled, which can read and written.
-
-NOTES:
-
-The initiator's req_pkt function has never updated the request queue pointers.
-So the implementation for continuation packets, has never worked correctly.

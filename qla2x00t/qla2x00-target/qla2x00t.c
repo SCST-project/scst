@@ -928,6 +928,11 @@ static void q2t_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
 	SET_TARGET_ID(ha, ctio->target, GET_TARGET_ID(ha, atio));
 	ctio->exchange_id = atio->exchange_id;
 
+	/* Most likely, it isn't needed */
+	ctio->residual = atio->data_length;
+	if (ctio->residual != 0)
+		ctio->scsi_status |= SS_RESIDUAL_UNDER;
+
 	ctio->flags = __constant_cpu_to_le16(OF_FAST_POST | OF_TERM_EXCH |
 			OF_NO_DATA | OF_SS_MODE_1);
 	ctio->flags |= __constant_cpu_to_le16(OF_INC_RC);
@@ -1168,6 +1173,9 @@ static void q2t_send_busy(scsi_qla_host_t *ha, atio_entry_t *atio)
 	ctio->entry_count = 1;
 	ctio->handle = Q2T_BUSY_HANDLE | CTIO_COMPLETION_HANDLE_MARK;
 	ctio->scsi_status = __constant_cpu_to_le16(BUSY << 1);
+	ctio->residual = atio->data_length;
+	if (ctio->residual != 0)
+		ctio->scsi_status |= SS_RESIDUAL_UNDER;
 
 	/* Set IDs */
 	SET_TARGET_ID(ha, ctio->target, GET_TARGET_ID(ha, atio));
@@ -1736,18 +1744,16 @@ static void q2t_response_pkt(scsi_qla_host_t *ha, sts_entry_t *pkt)
 
 	TRACE_ENTRY();
 
+	TRACE(TRACE_SCSI, "pkt %p: T %02x C %02x S %02x handle %#x",
+	      pkt, pkt->entry_type, pkt->entry_count, pkt->entry_status,
+	      pkt->handle);
+
 	if (unlikely(ha->tgt == NULL)) {
 		TRACE_DBG("response pkt, but no tgt. ha %p tgt_flag %d",
 			ha, ha->flags.enable_target_mode);
 		goto out;
 	}
 	
-	sBUG_ON((ha == NULL) || (pkt == NULL));
-
-	TRACE(TRACE_SCSI, "pkt %p: T %02x C %02x S %02x handle %#x",
-	      pkt, pkt->entry_type, pkt->entry_count, pkt->entry_status,
-	      pkt->handle);
-
 	if (pkt->entry_status != 0) {
 		PRINT_ERROR("qla2x00tgt(%ld): Received response packet %x "
 		     "with error status %x", ha->instance, pkt->entry_type,
