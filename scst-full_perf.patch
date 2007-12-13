@@ -1,6 +1,6 @@
 Index: scst/src/Makefile
 ===================================================================
---- scst/src/Makefile	(revision 210)
+--- scst/src/Makefile	(revision 233)
 +++ scst/src/Makefile	(working copy)
 @@ -114,7 +114,7 @@ EXTRA_CFLAGS += -I$(SCST_INC_DIR) -Wextr
  
@@ -11,7 +11,7 @@ Index: scst/src/Makefile
  
  #EXTRA_CFLAGS += -DUSE_EXPECTED_VALUES
  #EXTRA_CFLAGS += -DALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
-@@ -123,7 +123,7 @@ EXTRA_CFLAGS += -DEXTRACHECKS
+@@ -124,7 +124,7 @@ EXTRA_CFLAGS += -DEXTRACHECKS
  
  #EXTRA_CFLAGS += -DTRACING
  
@@ -22,7 +22,7 @@ Index: scst/src/Makefile
  #EXTRA_CFLAGS += -DDEBUG_OOM
 Index: scst/src/dev_handlers/Makefile
 ===================================================================
---- scst/src/dev_handlers/Makefile	(revision 208)
+--- scst/src/dev_handlers/Makefile	(revision 230)
 +++ scst/src/dev_handlers/Makefile	(working copy)
 @@ -68,10 +68,10 @@ endif
  
