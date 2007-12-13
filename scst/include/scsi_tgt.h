@@ -2504,4 +2504,10 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 	void (*set_block_size)(struct scst_cmd *cmd, int block_size));
 
+/*
+ * Issues a MODE SENSE for control mode page data and sets the corresponding
+ * dev's parameter from it. Returns 0 on success and not 0 otherwise.
+ */
+int scst_obtain_device_parameters(struct scst_device *dev);
+
 #endif /* __SCST_H */

@@ -48,9 +48,9 @@ static int iscsi_session_alloc(struct iscsi_target *target, struct session_info 
 	memcpy(&session->sess_param, &target->trgt_sess_param,
 		sizeof(session->sess_param));
 	session->max_queued_cmnds = target->trgt_param.queued_cmnds;
+	atomic_set(&session->active_cmds, 0);
 
 	session->exp_cmd_sn = info->exp_cmd_sn;
-	session->max_cmd_sn = info->max_cmd_sn;
 
 	session->initiator_name = kstrdup(info->initiator_name, GFP_KERNEL);
 	if (!session->initiator_name) {
@@ -127,6 +127,11 @@ int session_free(struct iscsi_session *session)
 		(unsigned long long)session->sid);
 
 	sBUG_ON(!list_empty(&session->conn_list));
+	if (unlikely(atomic_read(&session->active_cmds) != 0)) {
+		PRINT_ERROR("active_cmds not 0 (%d)!!",
+			atomic_read(&session->active_cmds));
+		sBUG();
+	}
 
 	for (i = 0; i < ARRAY_SIZE(session->cmnd_hash); i++)
 		sBUG_ON(!list_empty(&session->cmnd_hash[i]));

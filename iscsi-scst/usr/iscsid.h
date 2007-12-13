@@ -74,7 +74,6 @@ struct connection {
 
 	u32 cmd_sn;
 	u32 exp_cmd_sn;
-	u32 max_cmd_sn;
 
 	struct PDU req;
 	void *req_buffer;
@@ -216,7 +215,7 @@ struct iscsi_kernel_interface {
 	int (*param_set) (u32, u64, int, u32, struct iscsi_param *, int);
 	int (*target_create) (u32 *, char *);
 	int (*target_destroy) (u32);
-	int (*session_create) (u32, u64, u32, u32, char *, char *);
+	int (*session_create) (u32, u64, u32, char *, char *);
 	int (*session_destroy) (u32, u64);
 	int (*conn_create) (u32, u64, u32, u32, u32, int, u32, u32);
 	int (*conn_destroy) (u32 tid, u64 sid, u32 cid);

@@ -510,10 +510,6 @@ static int scst_register_device(struct scsi_device *scsidp)
 
 	list_add_tail(&dev->dev_list_entry, &scst_dev_list);
 
-	res = scst_obtain_device_parameters(dev);
-	if (res != 0)
-		goto out_free;
-	
 	list_for_each_entry(dt, &scst_dev_type_list, dev_type_list_entry) {
 		if (dt->type == scsidp->type) {
 			res = scst_assign_dev_handler(dev, dt);
@@ -1760,6 +1756,7 @@ EXPORT_SYMBOL(scst_tape_generic_dev_done);
 EXPORT_SYMBOL(scst_get_cdb_info);
 EXPORT_SYMBOL(scst_cmd_get_tgt_priv_lock);
 EXPORT_SYMBOL(scst_cmd_set_tgt_priv_lock);
+EXPORT_SYMBOL(scst_obtain_device_parameters);
 
 #ifdef DEBUG
 EXPORT_SYMBOL(scst_random);

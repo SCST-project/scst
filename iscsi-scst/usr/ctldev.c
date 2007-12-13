@@ -377,7 +377,7 @@ static int iscsi_param_set(u32 tid, u64 sid, int type, u32 partial,
 }
 
 static int iscsi_session_create(u32 tid, u64 sid, u32 exp_cmd_sn,
-	u32 max_cmd_sn, char *name, char *user)
+	char *name, char *user)
 {
 	struct session_info info;
 
@@ -386,7 +386,6 @@ static int iscsi_session_create(u32 tid, u64 sid, u32 exp_cmd_sn,
 	info.tid = tid;
 	info.sid = sid;
 	info.exp_cmd_sn = exp_cmd_sn;
-	info.max_cmd_sn = max_cmd_sn;
 	strncpy(info.initiator_name, name, sizeof(info.initiator_name) - 1);
 	strncpy(info.user_name, user, sizeof(info.user_name) - 1);
 

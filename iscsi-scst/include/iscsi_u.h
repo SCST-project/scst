@@ -45,7 +45,6 @@ struct session_info {
 	char initiator_name[ISCSI_NAME_LEN];
 	char user_name[ISCSI_NAME_LEN];
 	u32 exp_cmd_sn;
-	u32 max_cmd_sn;
 };
 
 #define DIGEST_ALL	(DIGEST_NONE | DIGEST_CRC32C)

@@ -3225,7 +3225,9 @@ static int scst_call_dev_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 static inline int scst_is_strict_mgmt_fn(int mgmt_fn)
 {
 	switch(mgmt_fn) {
+#ifdef ABORT_CONSIDER_FINISHED_TASKS_AS_NOT_EXISTING
 		case SCST_ABORT_TASK:
+#endif
 #if 0
 		case SCST_ABORT_TASK_SET:
 		case SCST_CLEAR_TASK_SET:

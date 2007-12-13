@@ -92,12 +92,13 @@ struct iscsi_session {
 	struct list_head pending_list;
 	u32 next_ttt;
 
-	/* Both unprotected, since read-only */
-	u32 max_queued_cmnds; 
-	u32 max_cmd_sn; /* Not used ??, ToDo */
+	u32 max_queued_cmnds; /* unprotected, since read-only */
+	atomic_t active_cmds;
 
 	spinlock_t sn_lock;
 	u32 exp_cmd_sn; /* protected by sn_lock */
+
+	struct iscsi_cmnd *tm_rsp;
 
 	/* read only, if there are connection(s) */
 	struct iscsi_sess_param sess_param;
@@ -238,6 +239,7 @@ struct iscsi_cmnd {
 	unsigned int write_processing_started:1;
 	unsigned int data_waiting:1;
 	unsigned int force_cleanup_done:1;
+	unsigned int dec_active_cmnds:1;
 #ifdef EXTRACHECKS
 	unsigned int release_called:1;
 #endif

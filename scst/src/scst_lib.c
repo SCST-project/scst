@@ -38,7 +38,7 @@
 #include "scst_cdbprobe.h"
 
 static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev);
-int scst_check_internal_sense(struct scst_device *dev, int result,
+static void scst_check_internal_sense(struct scst_device *dev, int result,
 	uint8_t *sense, int sense_len);
 
 void scst_set_cmd_error_status(struct scst_cmd *cmd, int status)
@@ -189,6 +189,7 @@ int scst_alloc_device(int gfp_mask, struct scst_device **out_dev)
 	init_waitqueue_head(&dev->on_dev_waitQ);
 	dev->dev_double_ua_possible = 1;
 	dev->dev_serialized = 1;
+	dev->queue_alg = SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER;
 	dev->dev_num = dev_num++;
 
 	*out_dev = dev;
@@ -1048,9 +1049,8 @@ static void scst_send_release(struct scst_tgt_dev *tgt_dev)
 			PRINT_ERROR("RELEASE failed: %d", rc);
 			TRACE_BUFFER("RELEASE sense", sense,
 				SCST_SENSE_BUFFERSIZE);
-			if (scst_check_internal_sense(tgt_dev->dev, rc,
-					sense, SCST_SENSE_BUFFERSIZE) != 0)
-				break;
+			scst_check_internal_sense(tgt_dev->dev, rc,
+					sense, SCST_SENSE_BUFFERSIZE);
 		}
 	}
 
@@ -2214,20 +2214,23 @@ out:
 	return res;
 }
 
-int scst_check_internal_sense(struct scst_device *dev, int result,
+static void scst_check_internal_sense(struct scst_device *dev, int result,
 	uint8_t *sense, int sense_len)
 {
 	TRACE_ENTRY();
 
 	if (host_byte(result) == DID_RESET) {
+		TRACE(TRACE_MGMT_MINOR, "%s", "DID_RESET received, triggering "
+			"reset UA");
 		scst_set_sense(sense, sense_len,
 			SCST_LOAD_SENSE(scst_sense_reset_UA));
 		scst_dev_check_set_UA(dev, NULL, sense, sense_len);
-	} else if (SCST_SENSE_VALID(sense) && scst_is_ua_sense(sense))
+	} else if ((status_byte(result) == CHECK_CONDITION) &&
+		   SCST_SENSE_VALID(sense) && scst_is_ua_sense(sense))
 		scst_dev_check_set_UA(dev, NULL, sense, sense_len);
 
 	TRACE_EXIT();
-	return 0;
+	return;
 }
 
 int scst_obtain_device_parameters(struct scst_device *dev)
@@ -2294,12 +2297,20 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 
 			goto out;
 		} else {
-			PRINT_ERROR("Internal MODE_SENSE failed: %d", res);
-			TRACE_BUFFER("MODE_SENSE sense", sense_buffer,
-				sizeof(sense_buffer));
-			if (scst_check_internal_sense(dev, res, sense_buffer,
-					sizeof(sense_buffer)) != 0)
-				break;
+			TRACE(TRACE_MGMT_MINOR, "Internal MODE SENSE to device "
+				"%d:%d:%d:%d failed: %x", dev->scsi_dev->host->host_no,
+				dev->scsi_dev->channel,	dev->scsi_dev->id,
+				dev->scsi_dev->lun, res);
+			TRACE_BUFF_FLAG(TRACE_MGMT_MINOR, "MODE SENSE sense",
+				sense_buffer, sizeof(sense_buffer));
+			if ((status_byte(res) == CHECK_CONDITION) &&
+			    SCST_SENSE_VALID(sense_buffer) &&
+			    (sense_buffer[2] == ILLEGAL_REQUEST)) {
+			    	res = 0;
+				goto out;
+			}
+			scst_check_internal_sense(dev, res, sense_buffer,
+					sizeof(sense_buffer));
 		}
 	}
 	res = -ENODEV;

@@ -103,6 +103,14 @@ means name of the target, for example:
 "Default_iqn.2007-05.com.example:storage.disk1.sys1.xyz", and add there
 all necessary LUNs. Check SCST README file for details.
 
+If under high load you experience I/O stalls or see in the kernel log
+abort or reset messages then try to reduce QueuedCommands parameter in
+iscsi-scstd.conf file for the corresponding target. Particularly, it is
+known that the default value 32 sometimes too high if you do intensive
+writes from VMware on a target disk, which use LVM in the snapshot mode.
+In this case value like 16 or even 10 depending of your backstorage
+speed could be more appropriate.
+
 Compilation options
 -------------------
 

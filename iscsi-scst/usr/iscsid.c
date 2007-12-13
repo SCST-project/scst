@@ -582,8 +582,7 @@ static void cmnd_exec_login(struct connection *conn)
 	rsp->sid = conn->sid;
 	rsp->stat_sn = cpu_to_be32(conn->stat_sn++);
 	rsp->exp_cmd_sn = cpu_to_be32(conn->exp_cmd_sn);
-	conn->max_cmd_sn = conn->exp_cmd_sn + 1;
-	rsp->max_cmd_sn = cpu_to_be32(conn->max_cmd_sn);
+	rsp->max_cmd_sn = cpu_to_be32(conn->exp_cmd_sn + 1);
 	return;
 init_err:
 	rsp->flags = 0;
@@ -690,8 +689,7 @@ static void cmnd_exec_text(struct connection *conn)
 
 	rsp->stat_sn = cpu_to_be32(conn->stat_sn++);
 	rsp->exp_cmd_sn = cpu_to_be32(conn->exp_cmd_sn);
-	conn->max_cmd_sn = conn->exp_cmd_sn + 1;
-	rsp->max_cmd_sn = cpu_to_be32(conn->max_cmd_sn);
+	rsp->max_cmd_sn = cpu_to_be32(conn->exp_cmd_sn + 1);
 }
 
 static void cmnd_exec_logout(struct connection *conn)
@@ -709,8 +707,7 @@ static void cmnd_exec_logout(struct connection *conn)
 
 	rsp->stat_sn = cpu_to_be32(conn->stat_sn++);
 	rsp->exp_cmd_sn = cpu_to_be32(conn->exp_cmd_sn);
-	conn->max_cmd_sn = conn->exp_cmd_sn + 1;
-	rsp->max_cmd_sn = cpu_to_be32(conn->max_cmd_sn);
+	rsp->max_cmd_sn = cpu_to_be32(conn->exp_cmd_sn + 1);
 }
 
 int cmnd_execute(struct connection *conn)

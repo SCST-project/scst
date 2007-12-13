@@ -354,8 +354,6 @@ void scst_cleanup_proc_dev_handler_dir_entries(struct scst_dev_type *dev_type);
 
 int scst_get_cdb_len(const uint8_t *cdb);
 
-int scst_obtain_device_parameters(struct scst_device *dev);
-
 void __scst_dev_check_set_UA(struct scst_device *dev, struct scst_cmd *exclude,
 	const uint8_t *sense, int sense_len);
 static inline void scst_dev_check_set_UA(struct scst_device *dev,

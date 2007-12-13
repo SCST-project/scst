@@ -245,6 +245,17 @@ in/out in Makefile:
    and eases CPU load, but could create a security hole (information
    leakage), so enable it, if you have strict security requirements.
 
+ - ABORT_CONSIDER_FINISHED_TASKS_AS_NOT_EXISTING - if defined, in case
+   when TASK MANAGEMENT function ABORT TASK is trying to abort a
+   command, which has already finished, remote initiator, which sent the
+   ABORT TASK request, will receive TASK NOT EXIST (or ABORT FAILED)
+   response for the ABORT TASK request. This is more logical response,
+   since, because the command finished, attempt to abort it failed, but
+   some initiators, particularly VMware iSCSI initiator, consider TASK
+   NOT EXIST response as if the target got crazy and try to RESET it.
+   Then sometimes get crazy itself. So, this option is disabled by
+   default.
+
 HIGHMEM kernel configurations are fully supported, but not recommended
 for performance reasons, except for scst_user, where they are not
 supported, because this module deals with user supplied memory on a

@@ -147,6 +147,10 @@ int cdrom_attach(struct scst_device *dev)
 		goto out_free_buf;
 	}
 
+	res = scst_obtain_device_parameters(dev);
+	if (res != 0)
+		goto out_free_buf;
+
 out_free_buf:
 	kfree(buffer);
 

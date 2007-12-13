@@ -301,7 +301,6 @@ static int get_session_info(struct iscsi_target *target, unsigned long ptr)
 		return -ENOENT;
 
 	info.exp_cmd_sn = session->exp_cmd_sn;
-	info.max_cmd_sn = session->max_cmd_sn;
 
 	if (copy_to_user((void *) ptr, &info, sizeof(info)))
 		return -EFAULT;

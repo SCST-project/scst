@@ -224,11 +224,11 @@ static void accept_connection(int listen)
 
 	if (from.ss_family == AF_INET) {
 		struct sockaddr_in *in = (struct sockaddr_in *)&from;
-		log_info("Connect from %s:%hd", inet_ntoa(in->sin_addr),
+		log_info("Connect from %s:%hu", inet_ntoa(in->sin_addr),
 			ntohs(in->sin_port));
 	} else if (from.ss_family == AF_INET6) {
 		struct sockaddr_in6 *in6 = (struct sockaddr_in6 *)&from;
-		log_info("Connect from %x:%x:%x:%x:%x:%x:%x:%x.%hd",
+		log_info("Connect from %x:%x:%x:%x:%x:%x:%x:%x.%hu",
 			in6->sin6_addr.s6_addr16[7], in6->sin6_addr.s6_addr16[6],
 			in6->sin6_addr.s6_addr16[5], in6->sin6_addr.s6_addr16[4],
 			in6->sin6_addr.s6_addr16[3], in6->sin6_addr.s6_addr16[2],

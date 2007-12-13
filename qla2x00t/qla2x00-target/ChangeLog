@@ -3,7 +3,7 @@ Summary of changes between versions 0.9.5 and 0.9.6
 
  - Support for per-target default security groups added.
 
- - Updateed to work on 2.6.22.x kernels.
+ - Updated to work on 2.6.22.x kernels.
 
  - Updated to work with SCST 0.9.6.
 

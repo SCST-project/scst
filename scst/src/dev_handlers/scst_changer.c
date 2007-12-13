@@ -90,8 +90,14 @@ int changer_attach(struct scst_device *dev)
 					   CHANGER_RETRIES);
 		TRACE_DBG("TEST_UNIT_READY done: %x", res);
 	} while ((--retries > 0) && res);
-	if (res) 
+	if (res) {
 		res = -ENODEV;
+		goto out;
+	}
+
+	res = scst_obtain_device_parameters(dev);
+	if (res != 0)
+		goto out;
 
 out:
 	TRACE_EXIT_HRES(res);
