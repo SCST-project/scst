@@ -676,15 +676,18 @@ debug2perf Makefile target.
 
  - Make sure that your target hardware (e.g. target FC or network card)
    and underlaying IO hardware (e.g. IO card, like SATA, SCSI or RAID to
-   which your disks connected) don't share the same PCI bus. They have
-   to work in parallel, so it will be better if they don't compete for
-   the bus. The problem is not only in the bandwidth, which they have to
-   share, but also in the interaction between cards during that
-   competition. This is very important, because in some cases if target
-   and backend storage controllers share the same PCI bus, it could lead
-   up to 5-10 times less performance, than expected. If you have no
-   choice, but PCI bus sharing, set in the BIOS PCI latency as low as
-   possible.
+   which your disks connected) don't share the same PCI bus. You can
+   check it using lspci utility. They have to work in parallel, so it
+   will be better if they don't compete for the bus. The problem is not
+   only in the bandwidth, which they have to share, but also in the
+   interaction between cards during that competition. This is very
+   important, because in some cases if target and backend storage
+   controllers share the same PCI bus, it could lead up to 5-10 times
+   less performance, than expected. Moreover, some motherboard (by
+   Supermicro, particularly) have serious stability issues if there are
+   several high speed devices on the same bus working in parallel. If
+   you have no choice, but PCI bus sharing, set in the BIOS PCI latency
+   as low as possible.
 
 IMPORTANT: If you use on initiator some versions of Windows (at least W2K)
 =========  you can't get good write performance for VDISK FILEIO devices with

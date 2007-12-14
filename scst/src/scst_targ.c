@@ -1368,8 +1368,7 @@ static int scst_reserve_local(struct scst_cmd *cmd)
 	}
 
 	list_for_each_entry(tgt_dev_tmp, &dev->dev_tgt_dev_list,
-			    dev_tgt_dev_list_entry) 
-	{
+			    dev_tgt_dev_list_entry) {
 		if (cmd->tgt_dev != tgt_dev_tmp)
 			set_bit(SCST_TGT_DEV_RESERVED, 
 				&tgt_dev_tmp->tgt_dev_flags);
@@ -2140,17 +2139,22 @@ static int scst_done_cmd_check(struct scst_cmd *cmd, int *pres)
 			if (!test_bit(SCST_TGT_DEV_RESERVED,
 					&cmd->tgt_dev->tgt_dev_flags)) {
 				struct scst_tgt_dev *tgt_dev_tmp;
+				struct scst_device *dev = cmd->dev;
+
 				TRACE(TRACE_SCSI, "Real RESERVE failed lun=%Ld, status=%x",
 				      (uint64_t)cmd->lun, cmd->status);
 				TRACE_BUFF_FLAG(TRACE_SCSI, "Sense", cmd->sense_buffer,
 					     sizeof(cmd->sense_buffer));
+
 				/* Clearing the reservation */
-				list_for_each_entry(tgt_dev_tmp, &cmd->dev->dev_tgt_dev_list,
+				spin_lock_bh(&dev->dev_lock);
+				list_for_each_entry(tgt_dev_tmp, &dev->dev_tgt_dev_list,
 						    dev_tgt_dev_list_entry) {
 					clear_bit(SCST_TGT_DEV_RESERVED, 
 						&tgt_dev_tmp->tgt_dev_flags);
 				}
-				cmd->dev->dev_reserved = 0;
+				dev->dev_reserved = 0;
+				spin_unlock_bh(&dev->dev_lock);
 			}
 		}
 
@@ -2203,7 +2207,8 @@ static int scst_mode_select_checks(struct scst_cmd *cmd)
 		if (unlikely((cmd->cdb[0] == MODE_SELECT) || 
 		    (cmd->cdb[0] == MODE_SELECT_10) ||
 		    (cmd->cdb[0] == LOG_SELECT))) {
-			if (atomic && (cmd->dev->scsi_dev != NULL)) {
+		    	struct scst_device *dev = cmd->dev;
+			if (atomic && (dev->scsi_dev != NULL)) {
 				TRACE_DBG("%s", "MODE/LOG SELECT: thread "
 					"context required");
 				res = SCST_CMD_STATE_RES_NEED_THREAD;
@@ -2214,7 +2219,8 @@ static int scst_mode_select_checks(struct scst_cmd *cmd)
 				"setting the SELECT UA (lun=%Ld)", 
 				(uint64_t)cmd->lun);
 
-			spin_lock_bh(&scst_temp_UA_lock);
+			spin_lock_bh(&dev->dev_lock);
+			spin_lock(&scst_temp_UA_lock);
 			if (cmd->cdb[0] == LOG_SELECT) {
 				scst_set_sense(scst_temp_UA,
 					sizeof(scst_temp_UA),
@@ -2224,12 +2230,13 @@ static int scst_mode_select_checks(struct scst_cmd *cmd)
 					sizeof(scst_temp_UA),
 					UNIT_ATTENTION, 0x2a, 0x01);
 			}
-			scst_dev_check_set_local_UA(cmd->dev, cmd, scst_temp_UA,
+			scst_dev_check_set_local_UA(dev, cmd, scst_temp_UA,
 				sizeof(scst_temp_UA));
-			spin_unlock_bh(&scst_temp_UA_lock);
+			spin_unlock(&scst_temp_UA_lock);
+			spin_unlock_bh(&dev->dev_lock);
 
-			if (cmd->dev->scsi_dev != NULL)
-				scst_obtain_device_parameters(cmd->dev);
+			if (dev->scsi_dev != NULL)
+				scst_obtain_device_parameters(dev);
 		}
 	} else if ((cmd->status == SAM_STAT_CHECK_CONDITION) && 
 		    SCST_SENSE_VALID(cmd->sense_buffer) &&
@@ -3499,9 +3506,10 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 
 	__scst_abort_task_set(mcmd, mcmd->mcmd_tgt_dev, 0, 0);
 
+	mutex_lock(&scst_mutex);
+
 	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list, 
-		dev_tgt_dev_list_entry) 
-	{
+			dev_tgt_dev_list_entry) {
 		struct scst_session *sess = tgt_dev->sess;
 		struct scst_cmd *cmd;
 		int aborted = 0;
@@ -3527,6 +3535,8 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 			list_add_tail(&tgt_dev->extra_tgt_dev_list_entry,
 					&UA_tgt_devs);
 	}
+
+	mutex_unlock(&scst_mutex);
 
 	scst_unblock_aborted_cmds(0);
 
@@ -3686,8 +3696,7 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 		cont = 0;
 		c = 0;
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
-			dev_tgt_dev_list_entry) 
-		{
+				dev_tgt_dev_list_entry) {
 			cont = 1;
 			rc = scst_call_dev_task_mgmt_fn(mcmd, tgt_dev, 0);
 			if (rc == SCST_DEV_TM_NOT_COMPLETED) 
@@ -4378,7 +4387,6 @@ static int scst_init_session(struct scst_session *sess)
 
 	TRACE_ENTRY();
 
-	scst_suspend_activity();	
 	mutex_lock(&scst_mutex);
 
 	if (sess->initiator_name)
@@ -4401,7 +4409,6 @@ static int scst_init_session(struct scst_session *sess)
 	res = scst_sess_alloc_tgt_devs(sess);
 
 	mutex_unlock(&scst_mutex);
-	scst_resume_activity();
 
 	if (sess->init_result_fn) {
 		TRACE_DBG("Calling init_result_fn(%p)", sess);

@@ -366,6 +366,7 @@ static inline void scst_dev_check_set_UA(struct scst_device *dev,
 }
 void scst_dev_check_set_local_UA(struct scst_device *dev,
 	struct scst_cmd *exclude, const uint8_t *sense, int sense_len);
+
 void scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
 	const uint8_t *sense, int sense_len, int head);
 void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev, const uint8_t *sense,

@@ -1355,8 +1355,8 @@ struct scst_device
 	struct list_head dev_list_entry;
 	
 	/*
-	 * List of tgt_dev's, one per session, protected by scst_mutex and
-	 * suspended activity
+	 * List of tgt_dev's, one per session, protected by scst_mutex or
+	 * dev_lock for reads and both for writes
 	 */
 	struct list_head dev_tgt_dev_list;
 	

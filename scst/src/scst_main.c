@@ -920,7 +920,7 @@ void scst_unregister_virtual_dev_driver(struct scst_dev_type *dev_type)
 	return;
 }
 
-/* Called under scst_mutex and suspended activity */
+/* Called under scst_mutex */
 int scst_add_dev_threads(struct scst_device *dev, int num)
 {
 	int i, res = 0;
@@ -992,7 +992,7 @@ out:
 	return res;
 }
 
-/* Called under scst_mutex and suspended activity */
+/* Called under scst_mutex */
 void scst_del_dev_threads(struct scst_device *dev, int num)
 {
 	struct scst_cmd_thread_t *ct, *tmp;

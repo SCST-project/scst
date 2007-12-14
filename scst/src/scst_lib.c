@@ -206,8 +206,7 @@ void scst_free_device(struct scst_device *dev)
 
 #ifdef EXTRACHECKS
 	if (!list_empty(&dev->dev_tgt_dev_list) || 
-	    !list_empty(&dev->dev_acg_dev_list))
-	{
+	    !list_empty(&dev->dev_acg_dev_list)) {
 		PRINT_ERROR("%s: dev_tgt_dev_list or dev_acg_dev_list "
 			"is not empty!", __FUNCTION__);
 		sBUG();
@@ -311,8 +310,7 @@ int scst_destroy_acg(struct scst_acg *acg)
 	
 	/* Freeing acg_devs */
 	list_for_each_entry_safe(acg_dev, acg_dev_tmp, &acg->acg_dev_list, 
-		acg_dev_list_entry)
-	{
+			acg_dev_list_entry) {
 		struct scst_tgt_dev *tgt_dev, *tt;
 		list_for_each_entry_safe(tgt_dev, tt,
 				 &acg_dev->dev->dev_tgt_dev_list,
@@ -325,8 +323,7 @@ int scst_destroy_acg(struct scst_acg *acg)
 
 	/* Freeing names */
 	list_for_each_entry_safe(n, nn, &acg->acn_list, 
-		acn_list_entry)
-	{
+			acn_list_entry) {
 		list_del(&n->acn_list_entry);
 		kfree(n->name);
 		kfree(n);
@@ -339,10 +336,7 @@ out:
 	return res;
 }
 
-/*
- * No spin locks supposed to be held, scst_mutex - held.
- * The activity is suspended.
- */
+/* scst_mutex supposed to be held, there must not be parallel activity in this sess */
 static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	struct scst_acg_dev *acg_dev)
 {
@@ -479,10 +473,12 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 			goto out_thr_free;
 		}
 	}
-	
+
+	spin_lock_bh(&dev->dev_lock);	
 	list_add_tail(&tgt_dev->dev_tgt_dev_list_entry, &dev->dev_tgt_dev_list);
 	if (dev->dev_reserved)
 		__set_bit(SCST_TGT_DEV_RESERVED, &tgt_dev->tgt_dev_flags);
+	spin_unlock_bh(&dev->dev_lock);
 
 	sess_tgt_dev_list_head = 
 		&sess->sess_tgt_dev_list_hash[HASH_VAL(tgt_dev->lun)];
@@ -508,10 +504,7 @@ out_free:
 
 static void scst_clear_reservation(struct scst_tgt_dev *tgt_dev);
 
-/* 
- * No locks supposed to be held, scst_mutex - held.
- * The activity is suspended.
- */
+/* No locks supposed to be held, scst_mutex - held */
 void scst_nexus_loss(struct scst_tgt_dev *tgt_dev)
 {
 	TRACE_ENTRY();
@@ -533,10 +526,7 @@ void scst_nexus_loss(struct scst_tgt_dev *tgt_dev)
 	return;
 }
 
-/* 
- * No locks supposed to be held, scst_mutex - held.
- * The activity is suspended.
- */
+/* scst_mutex supposed to be held, there must not be parallel activity in this sess */
 static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 {
 	struct scst_device *dev = tgt_dev->dev;
@@ -546,7 +536,10 @@ static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 
 	tm_dbg_deinit_tgt_dev(tgt_dev);
 
+	spin_lock_bh(&dev->dev_lock);
 	list_del(&tgt_dev->dev_tgt_dev_list_entry);
+	spin_unlock_bh(&dev->dev_lock);
+
 	list_del(&tgt_dev->sess_tgt_dev_list_entry);
 
 	scst_clear_reservation(tgt_dev);
@@ -572,7 +565,7 @@ static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 	return;
 }
 
-/* The activity supposed to be suspended and scst_mutex held */
+/* scst_mutex supposed to be held */
 int scst_sess_alloc_tgt_devs(struct scst_session *sess)
 {
 	int res = 0;
@@ -582,8 +575,7 @@ int scst_sess_alloc_tgt_devs(struct scst_session *sess)
 	TRACE_ENTRY();
 
 	list_for_each_entry(acg_dev, &sess->acg->acg_dev_list, 
-		acg_dev_list_entry)
-	{
+			acg_dev_list_entry) {
 		tgt_dev = scst_alloc_add_tgt_dev(sess, acg_dev);
 		if (tgt_dev == NULL) {
 			res = -ENOMEM;
@@ -600,7 +592,7 @@ out_free:
 	goto out;
 }
 
-/* scst_mutex supposed to be held and activity suspended */
+/* scst_mutex supposed to be held, there must not be parallel activity in this sess */
 void scst_sess_free_tgt_devs(struct scst_session *sess)
 {
 	int i;
@@ -1062,15 +1054,17 @@ out:
 }
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18) */
 
+/* scst_mutex supposed to be held */
 static void scst_clear_reservation(struct scst_tgt_dev *tgt_dev)
 {
 	struct scst_device *dev = tgt_dev->dev;
+	int release = 0;
 
 	TRACE_ENTRY();
 
+	spin_lock_bh(&dev->dev_lock);
 	if (dev->dev_reserved &&
-	    !test_bit(SCST_TGT_DEV_RESERVED, &tgt_dev->tgt_dev_flags)) 
-	{
+	    !test_bit(SCST_TGT_DEV_RESERVED, &tgt_dev->tgt_dev_flags)) {
 		/* This is one who holds the reservation */
 		struct scst_tgt_dev *tgt_dev_tmp;
 		list_for_each_entry(tgt_dev_tmp, &dev->dev_tgt_dev_list,
@@ -1079,9 +1073,11 @@ static void scst_clear_reservation(struct scst_tgt_dev *tgt_dev)
 				    &tgt_dev_tmp->tgt_dev_flags);
 		}
 		dev->dev_reserved = 0;
-
-		scst_send_release(tgt_dev);
 	}
+	spin_unlock_bh(&dev->dev_lock);
+
+	if (release)
+		scst_send_release(tgt_dev);
 
 	TRACE_EXIT();
 	return;
@@ -1149,7 +1145,6 @@ void scst_free_session(struct scst_session *sess)
 {
 	TRACE_ENTRY();
 
-	scst_suspend_activity();
 	mutex_lock(&scst_mutex);
 
 	TRACE_DBG("Removing sess %p from the list", sess);
@@ -1162,7 +1157,6 @@ void scst_free_session(struct scst_session *sess)
 	wake_up_all(&sess->tgt->unreg_waitQ);
 
 	mutex_unlock(&scst_mutex);
-	scst_resume_activity();
 
 	kfree(sess->initiator_name);
 	kmem_cache_free(scst_sess_cachep, sess);
@@ -2332,7 +2326,6 @@ void scst_process_reset(struct scst_device *dev,
 
 	/* Clear RESERVE'ation, if necessary */
 	if (dev->dev_reserved) {
-		/* Either scst_mutex held or exclude_cmd non-NULL */
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 				    dev_tgt_dev_list_entry) {
 			TRACE(TRACE_MGMT, "Clearing RESERVE'ation for tgt_dev "
@@ -2452,7 +2445,7 @@ out_unlock:
 	goto out;
 }
 
-/* Called under dev_lock, tgt_dev_lock and BH off */
+/* Called under tgt_dev_lock and BH off */
 void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
 	const uint8_t *sense, int sense_len, int head)
 {
@@ -2515,7 +2508,7 @@ void scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
 	return;
 }
 
-/* No locks, but the activity must not get suspended while inside this function */
+/* Called under dev_lock and BH off */
 void scst_dev_check_set_local_UA(struct scst_device *dev,
 	struct scst_cmd *exclude, const uint8_t *sense, int sense_len)
 {
@@ -2675,11 +2668,6 @@ void scst_dev_del_all_thr_data(struct scst_device *dev)
 	struct scst_tgt_dev *tgt_dev;
 
 	TRACE_ENTRY();
-
-	/* 
-	 * This is read-only function for dev->dev_tgt_dev_list, so
-	 * suspending the activity isn't necessary.
-	 */
 
 	mutex_lock(&scst_mutex);
 
