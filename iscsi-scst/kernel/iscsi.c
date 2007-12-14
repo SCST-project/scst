@@ -1987,8 +1987,13 @@ static void iscsi_session_push_cmnd(struct iscsi_cmnd *cmnd)
 
 			spin_unlock(&session->sn_lock);
 
-			if (unlikely(session->tm_rsp != NULL))
+			if (unlikely(session->tm_rsp != NULL)) {
+				struct iscsi_conn *conn = cmnd->conn;
+				spin_lock_bh(&conn->cmd_list_lock);
+				__cmnd_abort(cmnd);
+				spin_unlock_bh(&conn->cmd_list_lock);
 				iscsi_cond_send_tm_resp(session->tm_rsp, 0);
+			}
 
 			iscsi_cmnd_exec(cmnd);
 
@@ -2370,7 +2375,7 @@ static void iscsi_cond_send_tm_resp(struct iscsi_cmnd *rsp, int force)
 		case ISCSI_FUNCTION_ABORT_TASK_SET:
 		case ISCSI_FUNCTION_CLEAR_TASK_SET:
 		case ISCSI_FUNCTION_CLEAR_ACA:
-			if (after(req_hdr->cmd_sn, sess->exp_cmd_sn)) {
+			if (before(sess->exp_cmd_sn, req_hdr->cmd_sn)) {
 				TRACE_MGMT_DBG("Delaying TM fn %x response, "
 					"because not all affected commands "
 					"received (rsp %p, cmd sn %x, exp sn "

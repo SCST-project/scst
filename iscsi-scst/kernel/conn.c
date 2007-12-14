@@ -302,14 +302,14 @@ static int iscsi_conn_alloc(struct iscsi_session *session, struct conn_info *inf
 	struct iscsi_conn *conn;
 	int res = 0;
 
-	TRACE_MGMT_DBG("Creating connection for sid %#Lx, cid %u",
-		(unsigned long long)session->sid, info->cid);
-
 	conn = kzalloc(sizeof(*conn), GFP_KERNEL);
 	if (!conn) {
 		res = -ENOMEM;
 		goto out_err;
 	}
+
+	TRACE_MGMT_DBG("Creating connection %p for sid %#Lx, cid %u", conn,
+		(unsigned long long)session->sid, info->cid);
 
 	/* Changing it, change ISCSI_CONN_IOV_MAX as well !! */
 	conn->read_iov = (struct iovec *)get_zeroed_page(GFP_KERNEL);

@@ -518,6 +518,7 @@ static int plain_main_init(char *filename)
 	char *p, *q;
 	int idx;
 	u32 tid, val;
+	int res = 0;
 
 	if (!(config = fopen(filename, "r")))
 		return -errno;
@@ -538,27 +539,37 @@ static int plain_main_init(char *filename)
 			;
 		} else if (!((idx = param_index_by_name(p, target_keys)) < 0) && tid) {
 			val = strtol(q, &q, 0);
-			if (param_check_val(target_keys, idx, &val) < 0)
-				log_warning("Wrong value %u for parameter %s\n",
+			if (param_check_val(target_keys, idx, &val) < 0) {
+				log_error("Wrong value %u for parameter %s\n",
 					val, target_keys[idx].name);
+				res = -1;
+				break;
+			}
 			iscsi_param_partial_set(tid, 0, key_target, idx, val);
 		} else if (!((idx = param_index_by_name(p, session_keys)) < 0) && tid) {
 			char *str = target_sep_string(&q);
 			if (param_str_to_val(session_keys, idx, str, &val) < 0) {
-				log_warning("Wrong value %s for parameter %s\n",
+				log_error("Wrong value %s for parameter %s\n",
 					str, session_keys[idx].name);
-				continue;
+				res = -1;
+				break;
 			}
-			if (param_check_val(session_keys, idx, &val) < 0)
-				log_warning("Wrong value %u for parameter %s\n",
+			if (param_check_val(session_keys, idx, &val) < 0) {
+				log_error("Wrong value %u for parameter %s\n",
 					val, session_keys[idx].name);
+				res = -1;
+				break;
+			}
 			iscsi_param_partial_set(tid, 0, key_session, idx, val);
-		} else if (param_index_by_name(p, user_keys) < 0)
+		} else if (param_index_by_name(p, user_keys) < 0) {
 			log_warning("Unknown iscsi-scstd.conf param: %s\n", p);
+			res = -1;
+			break;
+		}
 	}
 
 	fclose(config);
-	return 0;
+	return res;
 }
 
 static int plain_default_load(char *params)

@@ -120,6 +120,9 @@ static void close_conn(struct iscsi_conn *conn)
 {
 	struct iscsi_session *session = conn->session;
 	struct iscsi_target *target = conn->target;
+#ifdef DEBUG
+	unsigned long start_waiting = jiffies;
+#endif
 
 	TRACE_ENTRY();
 
@@ -173,6 +176,9 @@ static void close_conn(struct iscsi_conn *conn)
 #ifdef NET_PAGE_CALLBACKS_DEFINED
 			struct iscsi_cmnd *rsp;
 #endif
+			if (time_after(jiffies, start_waiting+10*HZ))
+				trace_flag |= TRACE_CONN_OC_DBG;
+
 			spin_lock_bh(&conn->cmd_list_lock);
 			list_for_each_entry(cmnd, &conn->cmd_list, cmd_list_entry) {
 				TRACE_CONN_CLOSE_DBG("cmd %p, scst_state %x, data_waiting "
