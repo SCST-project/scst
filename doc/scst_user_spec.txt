@@ -2,7 +2,7 @@
 
 	  USER SPACE INTERFACE DESCRIPTION.
 
-		   Version 0.9.6/2
+		   Version 0.9.6/3
 
 
 		I. Description.
@@ -335,6 +335,8 @@ struct scst_user_scsi_cmd_parse
 	uint8_t expected_values_set;
 	uint8_t expected_data_direction;
 	int32_t expected_transfer_len;
+
+	uint32_t sn;
 },
 
 where:
@@ -361,6 +363,8 @@ where:
    flow direction
 
  - expected_transfer_len - remote initiator supplied transfer length
+
+ - sn - command's SN, which might be used for task management
 
 In the PARSE state of SCSI commands processing the user space device
 handler shall check and provide SCST values for command data buffer
@@ -401,6 +405,8 @@ struct scst_user_scsi_cmd_alloc_mem
 
 	uint8_t queue_type;
 	uint8_t data_direction;
+
+	uint32_t sn;
 },
 
 where:
@@ -417,6 +423,8 @@ where:
 
  - data_direction - command's data flow direction, one of SCST_DATA_*
    constants
+
+ - sn - command's SN, which might be used for task management
 
 Memory allocation, preparation and freeing are ones of the most
 complicated and expensive operations during SCSI commands processing.
@@ -507,6 +515,8 @@ struct scst_user_scsi_cmd_exec
 	uint8_t partial;
 	uint32_t timeout;
 
+	uint32_t sn;
+
 	uint32_t parent_cmd_h;
 	int32_t parent_cmd_data_len;
 	uint32_t partial_offset;
@@ -545,6 +555,8 @@ where:
    * SCST_USER_SUBCOMMAND_FINAL - set if the subcommand is a final one
 
  - timeout - CDB execution timeout
+
+ - sn - command's SN, which might be used for task management
 
  - parent_cmd_h - has the same unique value for all partial data
    transfers subcommands of one original (parent) command
@@ -641,6 +653,8 @@ struct scst_user_tm
 	uint64_t sess_h;
 	uint32_t fn;
 	uint32_t cmd_h_to_abort;
+	uint32_t cmd_sn;
+	uint8_t cmd_sn_set;
 },
 
 where:
@@ -651,6 +665,12 @@ where:
 
  - cmd_h_to_abort - handle of command to abort. Valid only if fn is
    SCST_ABORT_TASK
+
+ - cmd_sn - if cmd_sn_set is set, contains maximum commands SN, which
+   this task management function affects. See iSCSI RFC 3720 10.5.1 for
+   more details.
+
+ - cmd_sn_set - specifies if cmd_sn is valid
    
 After TM function is completed, the user space device handler shall
 reply using "result" field of the corresponding reply command. It isn't

@@ -23,9 +23,9 @@
 
 #include <scst_const.h>
 
-#define DEV_USER_NAME                "scst_user"
+#define DEV_USER_NAME			"scst_user"
 #define DEV_USER_PATH			"/dev/"
-#define DEV_USER_VERSION		962
+#define DEV_USER_VERSION		963
 
 /* 
  * Chosen so sizeof(scst_user_sess) <= sizeof(scst_user_scsi_cmd_exec) 
@@ -137,6 +137,8 @@ struct scst_user_scsi_cmd_parse
 	uint8_t expected_values_set;
 	uint8_t expected_data_direction;
 	int32_t expected_transfer_len;
+
+	uint32_t sn;
 };
 
 struct scst_user_scsi_cmd_alloc_mem
@@ -150,6 +152,8 @@ struct scst_user_scsi_cmd_alloc_mem
 
 	uint8_t queue_type;
 	uint8_t data_direction;
+
+	uint32_t sn;
 };
 
 struct scst_user_scsi_cmd_exec
@@ -167,6 +171,8 @@ struct scst_user_scsi_cmd_exec
 	uint8_t data_direction;
 	uint8_t partial;
 	uint32_t timeout;
+
+	uint32_t sn;
 
 	uint32_t parent_cmd_h;
 	int32_t parent_cmd_data_len;
@@ -193,6 +199,8 @@ struct scst_user_tm
 	aligned_u64 sess_h;
 	uint32_t fn;
 	uint32_t cmd_h_to_abort;
+	uint32_t cmd_sn;
+	uint8_t cmd_sn_set;
 };
 
 struct scst_user_get_cmd

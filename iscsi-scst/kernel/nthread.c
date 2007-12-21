@@ -136,6 +136,22 @@ static void close_conn(struct iscsi_conn *conn)
 
 	conn_abort(conn);
 
+	mutex_lock(&target->target_mutex);
+	spin_lock(&session->sn_lock);
+	if ((session->tm_rsp != NULL) && (session->tm_rsp->conn == conn)) {
+		struct iscsi_cmnd *tm_rsp = session->tm_rsp;
+		TRACE(TRACE_MGMT_MINOR, "Dropping delayed TM rsp %p", tm_rsp);
+		session->tm_rsp = NULL;
+		session->tm_active = 0;
+		spin_unlock(&session->sn_lock);
+		mutex_unlock(&target->target_mutex);
+
+		rsp_cmnd_release(tm_rsp);
+	} else {
+		spin_unlock(&session->sn_lock);
+		mutex_unlock(&target->target_mutex);
+	}
+
 	if (conn->read_state != RX_INIT_BHS) {
 		req_cmnd_release_force(conn->read_cmnd, 0);
 		conn->read_cmnd = NULL;
@@ -181,10 +197,12 @@ static void close_conn(struct iscsi_conn *conn)
 
 			spin_lock_bh(&conn->cmd_list_lock);
 			list_for_each_entry(cmnd, &conn->cmd_list, cmd_list_entry) {
-				TRACE_CONN_CLOSE_DBG("cmd %p, scst_state %x, data_waiting "
-					"%d, ref_cnt %d, parent_req %p", cmnd,
-					cmnd->scst_state, cmnd->data_waiting,
-					atomic_read(&cmnd->ref_cnt), cmnd->parent_req);
+				TRACE_CONN_CLOSE_DBG("cmd %p, scst_state %x, scst_cmd "
+					"state %d, data_waiting %d, ref_cnt %d, "
+					"parent_req %p", cmnd, cmnd->scst_state,
+					(cmnd->scst_cmd != NULL) ? cmnd->scst_cmd->state : -1,
+					cmnd->data_waiting, atomic_read(&cmnd->ref_cnt),
+					cmnd->parent_req);
 #ifdef NET_PAGE_CALLBACKS_DEFINED
 				TRACE_CONN_CLOSE_DBG("net_ref_cnt %d, sg %p",
 					atomic_read(&cmnd->net_ref_cnt), cmnd->sg);
@@ -568,6 +586,8 @@ int istrd(void *arg)
 {
 	TRACE_ENTRY();
 
+	PRINT_INFO("Read thread started, PID %d", current->pid);
+
 	current->flags |= PF_NOFREEZE;
 
 	spin_lock_bh(&iscsi_rd_lock);
@@ -597,6 +617,8 @@ int istrd(void *arg)
 	 * on the module unload, so iscsi_rd_list must be empty.
 	 */
 	sBUG_ON(!list_empty(&iscsi_rd_list));
+
+	PRINT_INFO("Read thread PID %d finished", current->pid);
 
 	TRACE_EXIT();
 	return 0;
@@ -1072,6 +1094,8 @@ int istwr(void *arg)
 {
 	TRACE_ENTRY();
 
+	PRINT_INFO("Write thread started, PID %d", current->pid);
+
 	current->flags |= PF_NOFREEZE;
 
 	spin_lock_bh(&iscsi_wr_lock);
@@ -1101,6 +1125,8 @@ int istwr(void *arg)
 	 * on the module unload, so iscsi_wr_list must be empty.
 	 */
 	sBUG_ON(!list_empty(&iscsi_wr_list));
+
+	PRINT_INFO("Write thread PID %d finished", current->pid);
 
 	TRACE_EXIT();
 	return 0;

@@ -108,7 +108,7 @@ void text_key_add(struct connection *conn, char *key, char *value)
 		}
 		conn->rsp.data = conn->rsp_buffer;
 	}
-	if (conn->rwsize + len > INCOMING_BUFSIZE) {
+	if (conn->rsp.datasize + len > INCOMING_BUFSIZE) {
 		log_warning("Dropping key (%s=%s)", key, value);
 		return;
 	}

@@ -448,6 +448,14 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 	if (unlikely(state == SCST_CMD_STATE_PRE_XMIT_RESP))
 		goto set_res;
 
+	if (unlikely((cmd->bufflen == 0) &&
+	             (cmd->op_flags & SCST_UNKNOWN_LENGTH))) {
+		PRINT_ERROR("Unknown data transfer length for opcode 0x%x "
+			"(handler %s, target %s)", cmd->cdb[0],
+			dev->handler->name, cmd->tgtt->name);
+		goto out_error;
+	}
+
 #ifdef EXTRACHECKS
 	if ((cmd->bufflen != 0) &&
 	    ((cmd->data_direction == SCST_DATA_NONE) ||
@@ -2854,6 +2862,8 @@ int scst_init_cmd_thread(void *arg)
 {
 	TRACE_ENTRY();
 
+	PRINT_INFO("Init thread started, PID %d", current->pid);
+
 	current->flags |= PF_NOFREEZE;
 
 	set_user_nice(current, -20);
@@ -2886,6 +2896,8 @@ int scst_init_cmd_thread(void *arg)
 	 * on the module unload, so scst_init_cmd_list must be empty.
 	 */
 	sBUG_ON(!list_empty(&scst_init_cmd_list));
+
+	PRINT_INFO("Init thread PID %d finished", current->pid);
 
 	TRACE_EXIT();
 	return 0;
@@ -3053,6 +3065,8 @@ int scst_cmd_thread(void *arg)
 
 	TRACE_ENTRY();
 
+	PRINT_INFO("Processing thread started, PID %d", current->pid);
+
 #if 0
 	set_user_nice(current, 10);
 #endif
@@ -3100,6 +3114,8 @@ int scst_cmd_thread(void *arg)
 			 !list_empty(&scst_main_cmd_lists.active_cmd_list));
 	}
 #endif
+
+	PRINT_INFO("Processing thread PID %d finished", current->pid);
 
 	TRACE_EXIT();
 	return 0;
@@ -3659,8 +3675,9 @@ out:
 static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 {
 	int res, rc;
-	struct scst_device *dev, *d;
-	struct scst_tgt_dev *tgt_dev;
+	struct scst_device *dev;
+	struct scst_acg *acg = mcmd->sess->acg;
+	struct scst_acg_dev *acg_dev;
 	int cont, c;
 	LIST_HEAD(host_devs);
 
@@ -3673,20 +3690,12 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 
 	mutex_lock(&scst_mutex);
 
-	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
+	list_for_each_entry(acg_dev, &acg->acg_dev_list, acg_dev_list_entry) {
+		struct scst_device *d;
+		struct scst_tgt_dev *tgt_dev;
 		int found = 0;
 
-		/* Skip local SCSI devices */
-		if (dev->handler == &scst_null_devtype) {
-			 /*
-			  * Generally we shouldn't reset not exported devices,
-			  * but what if a backstorage SCSI disk hung? Let's
-			  * reset it too.
-			  */
-			if ((dev->scsi_dev != NULL) &&
-			    (dev->scsi_dev->type != TYPE_DISK))
-				continue;
-		}
+		dev = acg_dev->dev;
 
 		spin_lock_bh(&dev->dev_lock);
 		__scst_block_dev(dev);
@@ -3744,14 +3753,15 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 #endif
 	}
 
-	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
+	list_for_each_entry(acg_dev, &acg->acg_dev_list, acg_dev_list_entry) {
+		dev = acg_dev->dev;
 		if (dev->scsi_dev != NULL)
 			dev->scsi_dev->was_reset = 0;
 	}
 
 	mutex_unlock(&scst_mutex);
 
-	tm_dbg_task_mgmt("TARGET RESET", 0);
+	tm_dbg_task_mgmt(mcmd->mcmd_tgt_dev, "TARGET RESET", 0);
 	res = scst_set_mcmd_next_state(mcmd);
 
 	TRACE_EXIT_RES(res);
@@ -3792,7 +3802,7 @@ static int scst_lun_reset(struct scst_mgmt_cmd *mcmd)
 	}
 
 out_tm_dbg:
-	tm_dbg_task_mgmt("LUN RESET", 0);
+	tm_dbg_task_mgmt(mcmd->mcmd_tgt_dev, "LUN RESET", 0);
 	res = scst_set_mcmd_next_state(mcmd);
 
 	TRACE_EXIT_RES(res);
@@ -3857,9 +3867,9 @@ static int scst_abort_all_nexus_loss_tgt(struct scst_mgmt_cmd *mcmd,
 	int res;
 	int i;
 	struct scst_tgt *tgt = mcmd->sess->tgt;
+	struct scst_acg *acg = mcmd->sess->acg;
 	struct scst_session *sess;
-	struct scst_device *dev;
-	struct scst_tgt_dev *tgt_dev;
+	struct scst_acg_dev *acg_dev;
 
 	TRACE_ENTRY();
 
@@ -3875,7 +3885,9 @@ static int scst_abort_all_nexus_loss_tgt(struct scst_mgmt_cmd *mcmd,
 
 	mutex_lock(&scst_mutex);
 
-	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
+	list_for_each_entry(acg_dev, &acg->acg_dev_list, acg_dev_list_entry) {
+		struct scst_device *dev = acg_dev->dev;
+
 		spin_lock_bh(&dev->dev_lock);
 		__scst_block_dev(dev);
 		spin_unlock_bh(&dev->dev_lock);
@@ -3885,6 +3897,7 @@ static int scst_abort_all_nexus_loss_tgt(struct scst_mgmt_cmd *mcmd,
 		for(i = 0; i < TGT_DEV_HASH_SIZE; i++) {
 			struct list_head *sess_tgt_dev_list_head =
 				&sess->sess_tgt_dev_list_hash[i];
+			struct scst_tgt_dev *tgt_dev;
 			list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
 					sess_tgt_dev_list_entry) {
 				int rc;
@@ -4020,12 +4033,19 @@ static void scst_mgmt_cmd_send_done(struct scst_mgmt_cmd *mcmd)
 		case SCST_TARGET_RESET:
 		case SCST_ABORT_ALL_TASKS:
 		case SCST_NEXUS_LOSS:
+		{
+			struct scst_acg *acg = mcmd->sess->acg;
+			struct scst_acg_dev *acg_dev;
+
 			mutex_lock(&scst_mutex);
-			list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
+			list_for_each_entry(acg_dev, &acg->acg_dev_list,
+					acg_dev_list_entry) {
+				dev = acg_dev->dev;
 				scst_unblock_dev(dev);
 			}
 			mutex_unlock(&scst_mutex);
 			break;
+		}
 
 		case SCST_NEXUS_LOSS_SESS:
 		case SCST_ABORT_ALL_TASKS_SESS:
@@ -4115,6 +4135,8 @@ int scst_mgmt_cmd_thread(void *arg)
 {
 	TRACE_ENTRY();
 
+	PRINT_INFO("Task management thread started, PID %d", current->pid);
+
 	current->flags |= PF_NOFREEZE;
 
 	set_user_nice(current, -20);
@@ -4173,6 +4195,8 @@ int scst_mgmt_cmd_thread(void *arg)
 	 * on the module unload, so scst_active_mgmt_cmd_list must be empty.
 	 */
 	sBUG_ON(!list_empty(&scst_active_mgmt_cmd_list));
+
+	PRINT_INFO("Task management thread PID %d finished", current->pid);
 
 	TRACE_EXIT();
 	return 0;
@@ -4311,7 +4335,7 @@ int scst_rx_mgmt_fn(struct scst_session *sess,
 
 	TRACE((params->fn == SCST_ABORT_TASK) ? TRACE_MGMT_MINOR : TRACE_MGMT,
 		"sess=%p, fn %x, tag_set %d, tag %Ld, lun_set %d, "
-		"lun=%Ld, cmd_sn_set %d, cmd_sn %x", sess, params->fn,
+		"lun=%Ld, cmd_sn_set %d, cmd_sn %d", sess, params->fn,
 		params->tag_set, params->tag, params->lun_set,
 		(uint64_t)mcmd->lun, params->cmd_sn_set, params->cmd_sn);
 
@@ -4551,7 +4575,7 @@ void scst_unregister_session(struct scst_session *sess, int wait,
 
 	spin_unlock_irqrestore(&scst_mgmt_lock, flags);
 
-	tm_dbg_task_mgmt("UNREGISTER SESSION", 1);
+	tm_dbg_task_mgmt(NULL, "UNREGISTER SESSION", 1);
 
 	scst_sess_put(sess);
 
@@ -4618,6 +4642,8 @@ int scst_mgmt_thread(void *arg)
 	struct scst_session *sess;
 
 	TRACE_ENTRY();
+
+	PRINT_INFO("Management thread started, PID %d", current->pid);
 
 	current->flags |= PF_NOFREEZE;
 
@@ -4699,6 +4725,8 @@ int scst_mgmt_thread(void *arg)
 	 */
 	sBUG_ON(!list_empty(&scst_sess_init_list));
 	sBUG_ON(!list_empty(&scst_sess_shut_list));
+
+	PRINT_INFO("Management thread PID %d finished", current->pid);
 
 	TRACE_EXIT();
 	return 0;

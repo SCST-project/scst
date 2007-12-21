@@ -62,7 +62,7 @@ static LIST_HEAD(iscsi_threads_list);
 static void cmnd_remove_hash(struct iscsi_cmnd *cmnd);
 static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status);
 static void cmnd_prepare_skip_pdu(struct iscsi_cmnd *cmnd);
-static void iscsi_cond_send_tm_resp(struct iscsi_cmnd *rsp, int force);
+static void iscsi_check_send_delayed_tm_resp(struct iscsi_session *sess);
 
 static inline u32 cmnd_write_size(struct iscsi_cmnd *cmnd)
 {
@@ -780,8 +780,10 @@ static int cmnd_insert_hash(struct iscsi_cmnd *cmnd)
 	if (!tmp) {
 		list_add_tail(&cmnd->hash_list_entry, head);
 		cmnd->hashed = 1;
-	} else
+	} else {
+		PRINT_ERROR("Task %x in progress, cmnd %p", itt, cmnd);
 		err = -ISCSI_REASON_TASK_IN_PROGRESS;
+	}
 
 	spin_unlock(&session->cmnd_hash_lock);
 
@@ -965,6 +967,13 @@ static void send_r2t(struct iscsi_cmnd *req)
 	u32 length, offset, burst;
 	LIST_HEAD(send);
 
+	if (unlikely(req->tmfabort)) {
+		TRACE_MGMT_DBG("req %p (scst_cmd %p) aborted on R2T", req,
+			req->scst_cmd);
+		req_cmnd_release_force(req, ISCSI_FORCE_RELEASE_WRITE);
+		goto out;
+	}
+
 	/*
 	 * There is no race with data_out_start() and __cmnd_abort(), since
 	 * all functions called from single read thread
@@ -1009,6 +1018,9 @@ static void send_r2t(struct iscsi_cmnd *req)
 	iscsi_cmnds_init_write(&send, ISCSI_INIT_WRITE_WAKE);
 
 	req->data_waiting = 1;
+
+out:
+	return;
 }
 
 static int iscsi_pre_exec(struct scst_cmd *scst_cmd)
@@ -1333,7 +1345,8 @@ static int data_out_start(struct iscsi_conn *conn, struct iscsi_cmnd *cmnd)
 	cmnd->cmd_req = req = cmnd_find_hash(conn->session, req_hdr->itt,
 					req_hdr->ttt);
 	if (!req) {
-		PRINT_ERROR("Unable to find scsi task %x %x",
+		/* It might happen if req was aborted and then freed */
+		TRACE(TRACE_MGMT_MINOR, "Unable to find scsi task %x %x",
 			cmnd_itt(cmnd), cmnd_ttt(cmnd));
 		goto skip_pdu;
 	}
@@ -1447,12 +1460,12 @@ static inline int __cmnd_abort(struct iscsi_cmnd *cmnd)
 		goto out;
 
 	TRACE_MGMT_DBG("Aborting cmd %p, scst_cmd %p (scst state %x, "
-		"ref_cnt %d, itt %x, op %x, r2t_len %x, CDB op %x, "
+		"ref_cnt %d, itt %x, sn %d, op %x, r2t_len %x, CDB op %x, "
 		"size to write %u, is_unsolicited_data %u, "
 		"outstanding_r2t %u)", cmnd, cmnd->scst_cmd,
 		cmnd->scst_state, atomic_read(&cmnd->ref_cnt),
-		cmnd_itt(cmnd), cmnd_opcode(cmnd), cmnd->r2t_length,
-		cmnd_scsicode(cmnd), cmnd_write_size(cmnd),
+		cmnd_itt(cmnd), cmnd->pdu.bhs.sn, cmnd_opcode(cmnd),
+		cmnd->r2t_length, cmnd_scsicode(cmnd), cmnd_write_size(cmnd),
 		cmnd->is_unsolicited_data, cmnd->outstanding_r2t);
 
 #ifdef NET_PAGE_CALLBACKS_DEFINED
@@ -1615,25 +1628,31 @@ again:
 static void execute_task_management(struct iscsi_cmnd *req)
 {
 	struct iscsi_conn *conn = req->conn;
+	struct iscsi_session *sess = conn->session;
 	struct iscsi_task_mgt_hdr *req_hdr =
 		(struct iscsi_task_mgt_hdr *)&req->pdu.bhs;
 	int err = 0, function = req_hdr->function & ISCSI_FUNCTION_MASK;
 	struct scst_rx_mgmt_params params;
 
 	TRACE((function == ISCSI_FUNCTION_ABORT_TASK) ? TRACE_MGMT_MINOR : TRACE_MGMT,
-		"TM cmd: req %p, itt %x, fn %d, rtt %x", req, cmnd_itt(req),
-		function, req_hdr->rtt);
+		"TM cmd: req %p, itt %x, fn %d, rtt %x, sn %d", req, cmnd_itt(req),
+		function, req_hdr->rtt, req_hdr->cmd_sn);
+
+	spin_lock(&sess->sn_lock);
+	sess->tm_active = 1;
+	sess->tm_sn = req_hdr->cmd_sn;
+	if (sess->tm_rsp != NULL) {
+		struct iscsi_cmnd *tm_rsp = sess->tm_rsp;
+		TRACE(TRACE_MGMT_MINOR, "Dropping delayed TM rsp %p", tm_rsp);
+		sess->tm_rsp = NULL;
+		spin_unlock(&sess->sn_lock);
+		rsp_cmnd_release(tm_rsp);
+	} else
+		spin_unlock(&sess->sn_lock);
 
 	memset(&params, 0, sizeof(params));
 	params.atomic = SCST_NON_ATOMIC;
 	params.tgt_priv = req;
-
-	if (conn->session->tm_rsp != NULL) {
-		struct iscsi_task_rsp_hdr *rsp_hdr = 
-			(struct iscsi_task_rsp_hdr *)&conn->session->tm_rsp->pdu.bhs;
-		rsp_hdr->response = ISCSI_RESPONSE_FUNCTION_REJECTED;
-		iscsi_cond_send_tm_resp(conn->session->tm_rsp, 1);
-	}
 
 	if ((function != ISCSI_FUNCTION_ABORT_TASK) &&
 	    (req_hdr->rtt != ISCSI_RESERVED_TAG)) {
@@ -1697,6 +1716,8 @@ static void execute_task_management(struct iscsi_cmnd *req)
 	case ISCSI_FUNCTION_TARGET_WARM_RESET:
 		target_abort(req, 1);
 		params.fn = SCST_TARGET_RESET;
+		params.cmd_sn = req_hdr->cmd_sn;
+		params.cmd_sn_set = 1;
 		err = scst_rx_mgmt_fn(conn->session->scst_sess,
 			&params);
 		break;
@@ -1706,6 +1727,8 @@ static void execute_task_management(struct iscsi_cmnd *req)
 		params.lun = (uint8_t *)&req_hdr->lun;
 		params.lun_len = sizeof(req_hdr->lun);
 		params.lun_set = 1;
+		params.cmd_sn = req_hdr->cmd_sn;
+		params.cmd_sn_set = 1;
 		err = scst_rx_mgmt_fn(conn->session->scst_sess,
 			&params);
 		break;
@@ -1985,15 +2008,22 @@ static void iscsi_session_push_cmnd(struct iscsi_cmnd *cmnd)
 		while (1) {
 			session->exp_cmd_sn = ++cmd_sn;
 
-			spin_unlock(&session->sn_lock);
+			if (unlikely(session->tm_active)) {
+				if (before(cmd_sn, session->tm_sn)) {
+					struct iscsi_conn *conn = cmnd->conn;
 
-			if (unlikely(session->tm_rsp != NULL)) {
-				struct iscsi_conn *conn = cmnd->conn;
-				spin_lock_bh(&conn->cmd_list_lock);
-				__cmnd_abort(cmnd);
-				spin_unlock_bh(&conn->cmd_list_lock);
-				iscsi_cond_send_tm_resp(session->tm_rsp, 0);
+					spin_unlock(&session->sn_lock);
+
+					spin_lock_bh(&conn->cmd_list_lock);
+					__cmnd_abort(cmnd);
+					spin_unlock_bh(&conn->cmd_list_lock);
+
+					spin_lock(&session->sn_lock);
+				}
+				iscsi_check_send_delayed_tm_resp(session);
 			}
+
+			spin_unlock(&session->sn_lock);
 
 			iscsi_cmnd_exec(cmnd);
 
@@ -2010,13 +2040,13 @@ static void iscsi_session_push_cmnd(struct iscsi_cmnd *cmnd)
 		}
 	} else {
 		cmnd->pending = 1;
-		if (before(cmd_sn, session->exp_cmd_sn)) { /* close the conn */
+		if (before(cmd_sn, session->exp_cmd_sn)) {
 			PRINT_ERROR("unexpected cmd_sn (%u,%u)", cmd_sn,
 				session->exp_cmd_sn);
 		}
 
 		if (after(cmd_sn, session->exp_cmd_sn + iscsi_get_allowed_cmds(session))) {
-			PRINT_ERROR("too large cmd_sn %u (exp_cmd_sn %u, "
+			PRINT_INFO("Suspicious: too large cmd_sn %u (exp_cmd_sn %u, "
 				"max_sn %u)", cmd_sn, session->exp_cmd_sn,
 				iscsi_get_allowed_cmds(session));
 		}
@@ -2360,44 +2390,52 @@ out:
 	return SCST_TGT_RES_SUCCESS;
 }
 
-static void iscsi_cond_send_tm_resp(struct iscsi_cmnd *rsp, int force)
+/* Called under sn_lock */
+static bool iscsi_is_delay_tm_resp(struct iscsi_cmnd *rsp)
 {
+	bool res = 0;
 	struct iscsi_task_mgt_hdr *req_hdr =
-			(struct iscsi_task_mgt_hdr *)&rsp->parent_req->pdu.bhs;
+		(struct iscsi_task_mgt_hdr *)&rsp->parent_req->pdu.bhs;
 	int function = req_hdr->function & ISCSI_FUNCTION_MASK;
 	struct iscsi_session *sess = rsp->conn->session;
 
 	TRACE_ENTRY();
 
-	if (!force) {
-		spin_lock(&sess->sn_lock);
-		switch(function) {
-		case ISCSI_FUNCTION_ABORT_TASK_SET:
-		case ISCSI_FUNCTION_CLEAR_TASK_SET:
-		case ISCSI_FUNCTION_CLEAR_ACA:
-			if (before(sess->exp_cmd_sn, req_hdr->cmd_sn)) {
-				TRACE_MGMT_DBG("Delaying TM fn %x response, "
-					"because not all affected commands "
-					"received (rsp %p, cmd sn %x, exp sn "
-					"%x)", function, rsp, req_hdr->cmd_sn,
-					sess->exp_cmd_sn);
-				sess->tm_rsp = rsp;
-				spin_unlock(&sess->sn_lock);
-				goto out;
-			}
-			break;
-		default:
-			break;
-		}
-		spin_unlock(&sess->sn_lock);
+	switch(function) {
+	default:
+		if (before(sess->exp_cmd_sn, req_hdr->cmd_sn))
+			res = 1;
+		break;
 	}
 
-	if (rsp == sess->tm_rsp) {
-		TRACE_MGMT_DBG("Sending delayed rsp %p (fn %x)", rsp, function);
-		sess->tm_rsp = NULL;
-	}
-	iscsi_cmnd_init_write(rsp,
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/* Called under sn_lock, but might drop it inside, then reaquire */
+static void iscsi_check_send_delayed_tm_resp(struct iscsi_session *sess)
+{
+	struct iscsi_cmnd *tm_rsp = sess->tm_rsp;
+
+	TRACE_ENTRY();
+
+	if (tm_rsp == NULL)
+		goto out;
+
+	if (iscsi_is_delay_tm_resp(tm_rsp))
+		goto out;
+
+	TRACE(TRACE_MGMT_MINOR, "Sending delayed rsp %p", tm_rsp);
+
+	sess->tm_rsp = NULL;
+	sess->tm_active = 0;
+
+	spin_unlock(&sess->sn_lock);
+
+	iscsi_cmnd_init_write(tm_rsp,
 		ISCSI_INIT_WRITE_REMOVE_HASH | ISCSI_INIT_WRITE_WAKE);
+
+	spin_lock(&sess->sn_lock);
 
 out:
 	TRACE_EXIT();
@@ -2410,6 +2448,7 @@ static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status)
 	struct iscsi_task_mgt_hdr *req_hdr =
 				(struct iscsi_task_mgt_hdr *)&req->pdu.bhs;
 	struct iscsi_task_rsp_hdr *rsp_hdr;
+	struct iscsi_session *sess = req->conn->session;
 
 	TRACE_ENTRY();
 
@@ -2429,8 +2468,26 @@ static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status)
 			ISCSI_FUNCTION_TARGET_COLD_RESET)
 		rsp->should_close_conn = 1;
 
-	iscsi_cond_send_tm_resp(rsp, 0);
+	sBUG_ON(sess->tm_rsp != NULL);
 
+	spin_lock(&sess->sn_lock);
+	if (iscsi_is_delay_tm_resp(rsp)) {
+		TRACE(TRACE_MGMT_MINOR, "Delaying TM fn %x response %p "
+			"(req %p), because not all affected commands received "
+			"(cmd sn %d, exp sn %d)",
+			req_hdr->function & ISCSI_FUNCTION_MASK, rsp, req,
+			req_hdr->cmd_sn, sess->exp_cmd_sn);
+		sess->tm_rsp = rsp;
+		spin_unlock(&sess->sn_lock);
+		goto out_release;
+	}
+	sess->tm_active = 0;
+	spin_unlock(&sess->sn_lock);
+
+	iscsi_cmnd_init_write(rsp,
+		ISCSI_INIT_WRITE_REMOVE_HASH | ISCSI_INIT_WRITE_WAKE);
+
+out_release:
 	req_cmnd_release(req);
 
 	TRACE_EXIT();

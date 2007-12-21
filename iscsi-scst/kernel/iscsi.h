@@ -88,7 +88,7 @@ struct iscsi_session {
 	struct iscsi_target *target;
 	struct scst_session *scst_sess;
 
-	/* All 2 unprotected, since accessed only from a single read thread */
+	/* Both unprotected, since accessed only from a single read thread */
 	struct list_head pending_list;
 	u32 next_ttt;
 
@@ -98,6 +98,9 @@ struct iscsi_session {
 	spinlock_t sn_lock;
 	u32 exp_cmd_sn; /* protected by sn_lock */
 
+	/* All 3 protected by sn_lock */
+	unsigned int tm_active:1;
+	u32 tm_sn;
 	struct iscsi_cmnd *tm_rsp;
 
 	/* read only, if there are connection(s) */

@@ -3322,11 +3322,15 @@ void tm_dbg_release_cmd(struct scst_cmd *cmd)
 }
 
 /* No locks */
-void tm_dbg_task_mgmt(const char *fn, int force)
+void tm_dbg_task_mgmt(struct scst_tgt_dev *tgt_dev, const char *fn, int force)
 {
 	unsigned long flags;
 
 	if (!tm_dbg_flags.tm_dbg_active)
+		goto out;
+
+	if ((tgt_dev != NULL) && !test_bit(SCST_TGT_DEV_UNDER_TM_DBG,
+						&tgt_dev->tgt_dev_flags))
 		goto out;
 
 	spin_lock_irqsave(&scst_tm_dbg_lock, flags);

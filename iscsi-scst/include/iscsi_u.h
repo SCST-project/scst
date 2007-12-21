@@ -20,7 +20,7 @@
 #include <sys/uio.h>
 #endif
 
-#define ISCSI_VERSION_STRING	"0.9.6/0.4.15r137"
+#define ISCSI_VERSION_STRING	"0.9.6/0.4.15r145"
 
 /* The maximum length of 223 bytes in the RFC. */
 #define ISCSI_NAME_LEN	256

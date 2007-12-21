@@ -596,6 +596,7 @@ static int dev_user_alloc_space(struct scst_user_cmd *ucmd)
 		(cmd->sg_cnt << PAGE_SHIFT) : cmd->bufflen;
 	ucmd->user_cmd.alloc_cmd.queue_type = cmd->queue_type;
 	ucmd->user_cmd.alloc_cmd.data_direction = cmd->data_direction;
+	ucmd->user_cmd.alloc_cmd.sn = cmd->tgt_sn;
 
 	dev_user_add_to_ready(ucmd);
 
@@ -722,6 +723,7 @@ static int dev_user_parse(struct scst_cmd *cmd)
 					cmd->expected_data_direction;
 		ucmd->user_cmd.parse_cmd.expected_transfer_len =
 					cmd->expected_transfer_len;
+		ucmd->user_cmd.parse_cmd.sn = cmd->tgt_sn;
 		ucmd->state = UCMD_STATE_PARSING;
 		dev_user_add_to_ready(ucmd);
 		res = SCST_CMD_STATE_STOP;
@@ -809,6 +811,7 @@ static int dev_user_exec(struct scst_cmd *cmd)
 	ucmd->user_cmd.exec_cmd.data_direction = cmd->data_direction;
 	ucmd->user_cmd.exec_cmd.partial = 0;
 	ucmd->user_cmd.exec_cmd.timeout = cmd->timeout;
+	ucmd->user_cmd.exec_cmd.sn = cmd->tgt_sn;
 
 	ucmd->state = UCMD_STATE_EXECING;
 
@@ -2126,6 +2129,8 @@ static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	ucmd->user_cmd.subcode = SCST_USER_TASK_MGMT;
 	ucmd->user_cmd.tm_cmd.sess_h = (unsigned long)tgt_dev;
 	ucmd->user_cmd.tm_cmd.fn = mcmd->fn;
+	ucmd->user_cmd.tm_cmd.cmd_sn = mcmd->cmd_sn;
+	ucmd->user_cmd.tm_cmd.cmd_sn_set = mcmd->cmd_sn_set;
 
 	if (mcmd->cmd_to_abort != NULL) {
 		ucmd_to_abort = (struct scst_user_cmd*)mcmd->cmd_to_abort->dh_priv;
@@ -2990,6 +2995,8 @@ static int dev_user_cleanup_thread(void *arg)
 
 	TRACE_ENTRY();
 
+	PRINT_INFO("Cleanup thread started, PID %d", current->pid);
+
 	current->flags |= PF_NOFREEZE;
 
 	spin_lock(&cleanup_lock);
@@ -3026,6 +3033,8 @@ restart:
 	 * on the module unload, so cleanup_list must be empty.
 	 */
 	sBUG_ON(!list_empty(&cleanup_list));
+
+	PRINT_INFO("Cleanup thread PID %d finished", current->pid);
 
 	TRACE_EXIT();
 	return 0;
