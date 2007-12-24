@@ -282,7 +282,7 @@ do {                                                                \
 
 #define PRINT_ERROR(format, args...)		                    \
 do {                                                                \
-  if (ERROR_FLAG != LOG_FLAG)                                       \
+  if (strcmp(ERROR_FLAG, LOG_FLAG))                                 \
   {                                                                 \
     PRINT_LOG_FLAG(LOG_FLAG, "***ERROR*** " format, args);          \
   }                                                                 \
@@ -291,7 +291,7 @@ do {                                                                \
 
 #define PRINT_INFO(format, args...)                   \
 do {                                                  \
-  if (INFO_FLAG != LOG_FLAG)                          \
+  if (strcmp(INFO_FLAG, LOG_FLAG))                    \
   {                                                   \
     PRINT_LOG_FLAG(LOG_FLAG, format, args);           \
   }                                                   \

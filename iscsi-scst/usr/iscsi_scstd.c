@@ -454,7 +454,10 @@ static void event_loop(int timeout)
 
 	close(init_report_pipe[0]);
 	res = 0;
-	write(init_report_pipe[1], &res, sizeof(res));
+
+	if (log_daemon)
+		write(init_report_pipe[1], &res, sizeof(res));
+
 	close(init_report_pipe[1]);
 
 	while (1) {
