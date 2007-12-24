@@ -95,6 +95,14 @@ IMPORTANT: Without loading appropriate device handler, corresponding devices
 	   'echo "scsi add-single-device A 0 0 B" >/proc/scsi/scsi',
 	   where A - is the host number, B - LUN.
 
+IMPORTANT: Working of target and initiator on the same host isn't
+=========  supported. This is a limitation of the Linux memory/cache                      
+           manager, because in this case an OOM deadlock like: system
+	   needs some memory -> it decides to clear some cache -> cache
+	   needs to write on a target exported device -> initiator sends
+	   request to the target -> target needs memory -> problem is
+	   possible.
+
 IMPORTANT: Experience shows that if people work with out of SCST tree target
 =========  drivers, like target driver for Infiniband or in case if they
            downloaded and use the released versions of SCST and target

@@ -111,6 +111,10 @@ writes from VMware on a target disk, which use LVM in the snapshot mode.
 In this case value like 16 or even 10 depending of your backstorage
 speed could be more appropriate.
 
+CAUTION:  Working of target and initiator on the same host isn't
+========  supported. See SCST README file for details.
+
+
 Compilation options
 -------------------
 

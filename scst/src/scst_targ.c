@@ -3729,6 +3729,8 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 		}
 		if (!found)
 			list_add_tail(&dev->tm_dev_list_entry, &host_devs);
+
+		tm_dbg_task_mgmt(dev, "TARGET RESET", 0);
 	}
 
 	/*
@@ -3761,7 +3763,6 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 
 	mutex_unlock(&scst_mutex);
 
-	tm_dbg_task_mgmt(mcmd->mcmd_tgt_dev, "TARGET RESET", 0);
 	res = scst_set_mcmd_next_state(mcmd);
 
 	TRACE_EXIT_RES(res);
@@ -3802,7 +3803,8 @@ static int scst_lun_reset(struct scst_mgmt_cmd *mcmd)
 	}
 
 out_tm_dbg:
-	tm_dbg_task_mgmt(mcmd->mcmd_tgt_dev, "LUN RESET", 0);
+	tm_dbg_task_mgmt(mcmd->mcmd_tgt_dev->dev, "LUN RESET", 0);
+
 	res = scst_set_mcmd_next_state(mcmd);
 
 	TRACE_EXIT_RES(res);

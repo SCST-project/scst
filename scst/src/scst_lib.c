@@ -1893,8 +1893,7 @@ int scst_sbc_generic_parse(struct scst_cmd *cmd,
 		if ((cmd->cdb[1] & BYTCHK) == 0) {
 			cmd->data_len = cmd->bufflen << get_block_shift(cmd);
 			cmd->bufflen = 0;
-			cmd->data_direction = SCST_DATA_NONE;
-			cmd->op_flags &= ~SCST_TRANSFER_LEN_TYPE_FIXED;
+			goto out;
 		} else
 			cmd->data_len = 0;
 		break;
@@ -1911,6 +1910,7 @@ int scst_sbc_generic_parse(struct scst_cmd *cmd,
 		cmd->bufflen = cmd->bufflen << get_block_shift(cmd);
 	}
 
+out:
 	TRACE_DBG("res %d, bufflen %d, data_len %d, direct %d",
 	      res, cmd->bufflen, cmd->data_len, cmd->data_direction);
 
@@ -1943,8 +1943,7 @@ int scst_cdrom_generic_parse(struct scst_cmd *cmd,
 		if ((cmd->cdb[1] & BYTCHK) == 0) {
 			cmd->data_len = cmd->bufflen << get_block_shift(cmd);
 			cmd->bufflen = 0;
-			cmd->data_direction = SCST_DATA_NONE;
-			cmd->op_flags &= ~SCST_TRANSFER_LEN_TYPE_FIXED;
+			goto out;
 		}
 		break;
 	default:
@@ -1955,8 +1954,9 @@ int scst_cdrom_generic_parse(struct scst_cmd *cmd,
 	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED)
 		cmd->bufflen = cmd->bufflen << get_block_shift(cmd);
 
-	TRACE_DBG("res %d bufflen %d direct %d",
-	      res, cmd->bufflen, cmd->data_direction);
+out:
+	TRACE_DBG("res=%d, bufflen=%d, direct=%d", res, cmd->bufflen,
+		cmd->data_direction);
 
 	TRACE_EXIT();
 	return res;
@@ -1987,8 +1987,7 @@ int scst_modisk_generic_parse(struct scst_cmd *cmd,
 		if ((cmd->cdb[1] & BYTCHK) == 0) {
 			cmd->data_len = cmd->bufflen << get_block_shift(cmd);
 			cmd->bufflen = 0;
-			cmd->data_direction = SCST_DATA_NONE;
-			cmd->op_flags &= ~SCST_TRANSFER_LEN_TYPE_FIXED;
+			goto out;
 		}
 		break;
 	default:
@@ -1999,8 +1998,9 @@ int scst_modisk_generic_parse(struct scst_cmd *cmd,
 	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED)
 		cmd->bufflen = cmd->bufflen << get_block_shift(cmd);
 
-	TRACE_DBG("res %d bufflen %d direct %d",
-	      res, cmd->bufflen, cmd->data_direction);
+out:
+	TRACE_DBG("res=%d, bufflen=%d, direct=%d", res, cmd->bufflen,
+		cmd->data_direction);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -2488,7 +2488,7 @@ void scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
 
 	TRACE_ENTRY();
 
-	spin_lock(&tgt_dev->tgt_dev_lock);
+	spin_lock_bh(&tgt_dev->tgt_dev_lock);
 
 	list_for_each_entry(UA_entry_tmp, &tgt_dev->UA_list,
 			    UA_list_entry) {
@@ -2502,7 +2502,7 @@ void scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
 	if (skip_UA == 0)
 		scst_alloc_set_UA(tgt_dev, sense, sense_len, head);
 
-	spin_unlock(&tgt_dev->tgt_dev_lock);
+	spin_unlock_bh(&tgt_dev->tgt_dev_lock);
 
 	TRACE_EXIT();
 	return;
@@ -3321,17 +3321,32 @@ void tm_dbg_release_cmd(struct scst_cmd *cmd)
 	spin_unlock_irqrestore(&scst_tm_dbg_lock, flags);
 }
 
-/* No locks */
-void tm_dbg_task_mgmt(struct scst_tgt_dev *tgt_dev, const char *fn, int force)
+/* Might be called under scst_mutex */
+void tm_dbg_task_mgmt(struct scst_device *dev, const char *fn, int force)
 {
 	unsigned long flags;
 
 	if (!tm_dbg_flags.tm_dbg_active)
 		goto out;
 
-	if ((tgt_dev != NULL) && !test_bit(SCST_TGT_DEV_UNDER_TM_DBG,
-						&tgt_dev->tgt_dev_flags))
-		goto out;
+	if (dev != NULL) {
+		struct scst_tgt_dev *tgt_dev;
+		bool found = 0;
+
+		spin_lock_bh(&dev->dev_lock);
+		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
+					    dev_tgt_dev_list_entry) {
+			if (test_bit(SCST_TGT_DEV_UNDER_TM_DBG,
+					&tgt_dev->tgt_dev_flags)) {
+				found = 1;
+				break;
+			}
+		}
+		spin_unlock_bh(&dev->dev_lock);
+
+		if (!found)
+			goto out;
+	}
 
 	spin_lock_irqsave(&scst_tm_dbg_lock, flags);
 	if ((tm_dbg_state != TM_DBG_STATE_OFFLINE) || force) {

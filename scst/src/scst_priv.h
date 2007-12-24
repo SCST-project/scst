@@ -512,7 +512,7 @@ extern void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev);
 extern void tm_dbg_check_released_cmds(void);
 extern int tm_dbg_check_cmd(struct scst_cmd *cmd);
 extern void tm_dbg_release_cmd(struct scst_cmd *cmd);
-extern void tm_dbg_task_mgmt(struct scst_tgt_dev *tgt_dev, const char *fn,
+extern void tm_dbg_task_mgmt(struct scst_device *dev, const char *fn,
 	int force);
 extern int tm_dbg_is_release(void);
 #else
@@ -525,7 +525,7 @@ static inline int tm_dbg_check_cmd(struct scst_cmd *cmd)
 	return 0;
 }
 static inline void tm_dbg_release_cmd(struct scst_cmd *cmd) {}
-static inline void tm_dbg_task_mgmt(struct scst_tgt_dev *tgt_dev, const char *fn,
+static inline void tm_dbg_task_mgmt(struct scst_device *dev, const char *fn,
 	int force) {}
 static inline int tm_dbg_is_release(void)
 {
