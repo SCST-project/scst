@@ -120,9 +120,7 @@ static void close_conn(struct iscsi_conn *conn)
 {
 	struct iscsi_session *session = conn->session;
 	struct iscsi_target *target = conn->target;
-#ifdef DEBUG
 	unsigned long start_waiting = jiffies;
-#endif
 
 	TRACE_ENTRY();
 
@@ -131,26 +129,12 @@ static void close_conn(struct iscsi_conn *conn)
 
 	iscsi_extracheck_is_rd_thread(conn);
 
+	sBUG_ON(!conn->closing);
+
 	/* We want all our already send operations to complete */
 	conn->sock->ops->shutdown(conn->sock, RCV_SHUTDOWN);
 
 	conn_abort(conn);
-
-	mutex_lock(&target->target_mutex);
-	spin_lock(&session->sn_lock);
-	if ((session->tm_rsp != NULL) && (session->tm_rsp->conn == conn)) {
-		struct iscsi_cmnd *tm_rsp = session->tm_rsp;
-		TRACE(TRACE_MGMT_MINOR, "Dropping delayed TM rsp %p", tm_rsp);
-		session->tm_rsp = NULL;
-		session->tm_active = 0;
-		spin_unlock(&session->sn_lock);
-		mutex_unlock(&target->target_mutex);
-
-		rsp_cmnd_release(tm_rsp);
-	} else {
-		spin_unlock(&session->sn_lock);
-		mutex_unlock(&target->target_mutex);
-	}
 
 	if (conn->read_state != RX_INIT_BHS) {
 		req_cmnd_release_force(conn->read_cmnd, 0);
@@ -162,31 +146,108 @@ static void close_conn(struct iscsi_conn *conn)
 	while(atomic_read(&conn->conn_ref_cnt) != 0) {
 		struct iscsi_cmnd *cmnd;
 
+		mutex_lock(&target->target_mutex);
+		spin_lock(&session->sn_lock);
+		if ((session->tm_rsp != NULL) && (session->tm_rsp->conn == conn)) {
+			struct iscsi_cmnd *tm_rsp = session->tm_rsp;
+			TRACE(TRACE_MGMT_MINOR, "Dropping delayed TM rsp %p",
+				tm_rsp);
+			session->tm_rsp = NULL;
+			session->tm_active = 0;
+			spin_unlock(&session->sn_lock);
+			mutex_unlock(&target->target_mutex);
+
+			rsp_cmnd_release(tm_rsp);
+		} else {
+			spin_unlock(&session->sn_lock);
+			mutex_unlock(&target->target_mutex);
+		}
+
 		if (!list_empty(&session->pending_list)) {
 			struct list_head *pending_list = &session->pending_list;
-	 		struct iscsi_cmnd *tmp;
+	 		int req_freed;
 
 	 		TRACE_CONN_CLOSE("Disposing pending commands on "
 	 			"connection %p (conn_ref_cnt=%d)", conn,
 	 			atomic_read(&conn->conn_ref_cnt));
- 
-			list_for_each_entry_safe(cmnd, tmp, pending_list,
-						pending_list_entry) {
-				if (cmnd->conn == conn) {
-					TRACE_CONN_CLOSE("Freeing pending cmd %p",
-						cmnd);
-					list_del(&cmnd->pending_list_entry);
-					cmnd->pending = 0;
-					req_cmnd_release_force(cmnd, 0);
+
+			/*
+			 * Such complicated approach currently isn't necessary,
+			 * but it will be necessary for MC/S, if we won't want
+			 * to reestablish the whole session on a connection
+			 * failure.
+			 */
+
+			spin_lock(&session->sn_lock);
+			do {
+				req_freed = 0;
+				list_for_each_entry(cmnd, pending_list,
+							pending_list_entry) {
+					TRACE_CONN_CLOSE("Pending cmd %p"
+						"(conn %p, cmd_sn %u, exp_cmd_sn %u)",
+						cmnd, conn, cmnd->pdu.bhs.sn,
+						session->exp_cmd_sn);
+					if ((cmnd->conn == conn) &&
+					    (session->exp_cmd_sn == cmnd->pdu.bhs.sn)) {
+						TRACE_CONN_CLOSE("Freeing pending cmd %p",
+							cmnd);
+
+						list_del(&cmnd->pending_list_entry);
+
+						session->exp_cmd_sn++;
+
+						spin_unlock(&session->sn_lock);
+
+						req_cmnd_release_force(cmnd, 0);
+
+						req_freed = 1;
+						spin_lock(&session->sn_lock);
+						break;
+					}
 				}
+			} while(req_freed);
+			spin_unlock(&session->sn_lock);
+
+			if (time_after(jiffies, start_waiting + 5*HZ)) {
+				TRACE_CONN_CLOSE("%s", "Wait time expired");
+				spin_lock(&session->sn_lock);
+				do {
+					req_freed = 0;
+					list_for_each_entry(cmnd, pending_list,
+							pending_list_entry) {
+						TRACE_CONN_CLOSE("Pending cmd %p"
+							"(conn %p, cmd_sn %u, exp_cmd_sn %u)",
+							cmnd, conn, cmnd->pdu.bhs.sn,
+							session->exp_cmd_sn);
+						if (cmnd->conn == conn) {
+							PRINT_ERROR("Freeing orphaned "
+								"pending cmd %p", cmnd);
+
+							list_del(&cmnd->pending_list_entry);
+
+							if (session->exp_cmd_sn == cmnd->pdu.bhs.sn)
+								session->exp_cmd_sn++;
+
+							spin_unlock(&session->sn_lock);
+
+							req_cmnd_release_force(cmnd, 0);
+
+							req_freed = 1;
+							spin_lock(&session->sn_lock);
+							break;
+						}
+					}
+				} while(req_freed);
+				spin_unlock(&session->sn_lock);
 			}
 		}
 
 		iscsi_make_conn_wr_active(conn);
 		msleep(50);
 
-		TRACE_CONN_CLOSE("conn %p, conn_ref_cnt %d left, wr_state %d",
-			conn, atomic_read(&conn->conn_ref_cnt), conn->wr_state);
+		TRACE_CONN_CLOSE("conn %p, conn_ref_cnt %d left, wr_state %d, "
+			"exp_cmd_sn %u", conn, atomic_read(&conn->conn_ref_cnt),
+			conn->wr_state, session->exp_cmd_sn);
 #ifdef DEBUG
 		{
 #ifdef NET_PAGE_CALLBACKS_DEFINED
@@ -198,11 +259,11 @@ static void close_conn(struct iscsi_conn *conn)
 			spin_lock_bh(&conn->cmd_list_lock);
 			list_for_each_entry(cmnd, &conn->cmd_list, cmd_list_entry) {
 				TRACE_CONN_CLOSE_DBG("cmd %p, scst_state %x, scst_cmd "
-					"state %d, data_waiting %d, ref_cnt %d, "
+					"state %d, data_waiting %d, ref_cnt %d, sn %u, "
 					"parent_req %p", cmnd, cmnd->scst_state,
 					(cmnd->scst_cmd != NULL) ? cmnd->scst_cmd->state : -1,
 					cmnd->data_waiting, atomic_read(&cmnd->ref_cnt),
-					cmnd->parent_req);
+					cmnd->pdu.bhs.sn, cmnd->parent_req);
 #ifdef NET_PAGE_CALLBACKS_DEFINED
 				TRACE_CONN_CLOSE_DBG("net_ref_cnt %d, sg %p",
 					atomic_read(&cmnd->net_ref_cnt), cmnd->sg);
@@ -493,7 +554,7 @@ static int recv(struct iscsi_conn *conn)
 	if (conn->read_state != RX_END)
 		goto out;
 
-	if (conn->read_size) {
+	if (unlikely(conn->read_size)) {
 		PRINT_ERROR("%d %x %d", res, cmnd_opcode(cmnd), conn->read_size);
 		sBUG();
 	}
@@ -742,7 +803,7 @@ retry:
 	}
 
 	sg = write_cmnd->sg;
-	if (sg == NULL) {
+	if (unlikely(sg == NULL)) {
 		PRINT_ERROR("%s", "warning data missing!");
 		return 0;
 	}
@@ -990,7 +1051,7 @@ int iscsi_send(struct iscsi_conn *conn)
 	if (conn->write_state != TX_END)
 		goto out;
 
-	if (conn->write_size) {
+	if (unlikely(conn->write_size)) {
 		PRINT_ERROR("%d %x %u", res, cmnd_opcode(cmnd),
 			conn->write_size);
 		sBUG();

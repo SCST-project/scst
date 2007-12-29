@@ -142,7 +142,7 @@ int digest_rx_header(struct iscsi_cmnd *cmnd)
 	u32 crc;
 
 	crc = digest_header(&cmnd->pdu);
-	if (crc != cmnd->hdigest) {
+	if (unlikely(crc != cmnd->hdigest)) {
 		PRINT_ERROR("%s", "RX header digest failed");
 		return -EIO;
 	} else
@@ -183,7 +183,7 @@ int digest_rx_data(struct iscsi_cmnd *cmnd)
 
 	crc = digest_data(req, cmnd->pdu.datasize, offset);
 
-	if (crc != cmnd->ddigest) {
+	if (unlikely(crc != cmnd->ddigest)) {
 		PRINT_ERROR("%s", "RX data digest failed");
 		res = -EIO;
 	} else

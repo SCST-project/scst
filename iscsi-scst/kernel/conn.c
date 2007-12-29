@@ -173,7 +173,7 @@ static void iscsi_state_change(struct sock *sk)
 
 	TRACE_ENTRY();
 
-	if (sk->sk_state != TCP_ESTABLISHED) {
+	if (unlikely(sk->sk_state != TCP_ESTABLISHED)) {
 		if (!conn->closing) {
 			PRINT_ERROR("Connection with initiator %s (%p) "
 				"unexpectedly closed!",
@@ -392,3 +392,33 @@ int conn_del(struct iscsi_session *session, struct conn_info *info)
 
 	return 0;
 }
+
+#ifdef EXTRACHECKS
+
+void iscsi_extracheck_is_rd_thread(struct iscsi_conn *conn)
+{
+	if (unlikely(current != conn->rd_task)) {
+		while(in_softirq())
+			local_bh_enable();
+		printk(KERN_EMERG "conn %p rd_task != current (%p)", conn, current);
+		printk(KERN_EMERG "rd_task %p", conn->rd_task);
+		printk(KERN_EMERG "current->pid %d, rd_task->pid %d", current->pid,
+			conn->rd_task->pid);
+		sBUG();
+	}
+}
+
+void iscsi_extracheck_is_wr_thread(struct iscsi_conn *conn)
+{
+	if (unlikely(current != conn->wr_task)) {
+		while(in_softirq())
+			local_bh_enable();
+		printk(KERN_EMERG "conn %p wr_task != current (%p)", conn, current);
+		printk(KERN_EMERG "wr_task %p", conn->wr_task);
+		printk(KERN_EMERG "current->pid %d, wr_task->pid %d", current->pid,
+			conn->wr_task->pid);
+		sBUG();
+	}
+}
+
+#endif /* EXTRACHECKS */

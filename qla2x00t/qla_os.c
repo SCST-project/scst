@@ -2230,7 +2230,7 @@ qla2x00_do_dpc(void *data)
 
 	ha = (scsi_qla_host_t *)data;
 
-	set_user_nice(current, -20);
+	set_user_nice(current, -10);
 
 	while (!kthread_should_stop()) {
 		DEBUG3(printk("qla2x00: DPC handler sleeping\n"));

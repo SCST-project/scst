@@ -236,7 +236,6 @@ struct iscsi_cmnd {
 	/* Some flags protected by conn->write_list_lock */
 	unsigned int hashed:1;
 	unsigned int should_close_conn:1;
-	unsigned int pending:1;
 	unsigned int own_sg:1;
 	unsigned int on_write_list:1;
 	unsigned int write_processing_started:1;
@@ -490,8 +489,8 @@ static inline void conn_put(struct iscsi_conn *conn)
 }
 
 #ifdef EXTRACHECKS
-#define iscsi_extracheck_is_rd_thread(conn) sBUG_ON(current != (conn)->rd_task)
-#define iscsi_extracheck_is_wr_thread(conn) sBUG_ON(current != (conn)->wr_task)
+extern void iscsi_extracheck_is_rd_thread(struct iscsi_conn *conn);
+extern void iscsi_extracheck_is_wr_thread(struct iscsi_conn *conn);
 #else
 static inline void iscsi_extracheck_is_rd_thread(struct iscsi_conn *conn) {}
 static inline void iscsi_extracheck_is_wr_thread(struct iscsi_conn *conn) {}

@@ -2866,7 +2866,7 @@ int scst_init_cmd_thread(void *arg)
 
 	current->flags |= PF_NOFREEZE;
 
-	set_user_nice(current, -20);
+	set_user_nice(current, -10);
 
 	spin_lock_irq(&scst_init_lock);
 	while(!kthread_should_stop()) {
@@ -4141,7 +4141,7 @@ int scst_mgmt_cmd_thread(void *arg)
 
 	current->flags |= PF_NOFREEZE;
 
-	set_user_nice(current, -20);
+	set_user_nice(current, -10);
 
 	spin_lock_irq(&scst_mcmd_lock);
 	while(!kthread_should_stop()) {
@@ -4649,7 +4649,7 @@ int scst_mgmt_thread(void *arg)
 
 	current->flags |= PF_NOFREEZE;
 
-	set_user_nice(current, -20);
+	set_user_nice(current, -10);
 
 	spin_lock_irq(&scst_mgmt_lock);
 	while(!kthread_should_stop()) {
