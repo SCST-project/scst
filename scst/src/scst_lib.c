@@ -3013,6 +3013,7 @@ void scst_xmit_process_aborted_cmd(struct scst_cmd *cmd)
 		if ((cmd->tgt_dev != NULL) &&
 		    scst_is_ua_sense(cmd->sense_buffer)) {
  			/* This UA delivery is going to fail, so requeue it */
+			TRACE_MGMT_DBG("Requeuing UA for aborted cmd %p", cmd);
 			scst_check_set_UA(cmd->tgt_dev, cmd->sense_buffer,
 					sizeof(cmd->sense_buffer), 1);
 	 	}

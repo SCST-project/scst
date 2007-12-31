@@ -2558,6 +2558,8 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 		if ((cmd->tgt_dev != NULL) &&
 		    scst_is_ua_sense(cmd->sense_buffer)) {
 			/* This UA delivery failed, so requeue it */
+			TRACE_MGMT_DBG("Requeuing UA for delivery failed cmd "
+				"%p", cmd);
 			scst_check_set_UA(cmd->tgt_dev, cmd->sense_buffer,
 					sizeof(cmd->sense_buffer), 1);
 		}
