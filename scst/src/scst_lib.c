@@ -2291,17 +2291,27 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 
 			goto out;
 		} else {
-			TRACE(TRACE_MGMT_MINOR, "Internal MODE SENSE to device "
-				"%d:%d:%d:%d failed: %x", dev->scsi_dev->host->host_no,
-				dev->scsi_dev->channel,	dev->scsi_dev->id,
-				dev->scsi_dev->lun, res);
-			TRACE_BUFF_FLAG(TRACE_MGMT_MINOR, "MODE SENSE sense",
-				sense_buffer, sizeof(sense_buffer));
 			if ((status_byte(res) == CHECK_CONDITION) &&
 			    SCST_SENSE_VALID(sense_buffer) &&
 			    (sense_buffer[2] == ILLEGAL_REQUEST)) {
+				TRACE(TRACE_MGMT_MINOR, "Device %d:%d:%d:%d "
+					"doesn't support control mode page, using "
+					"defaults: TST %x, QUEUE ALG %x, SWP %x, "
+					"TAS %x, has_own_order_mgmt %d",
+					dev->scsi_dev->host->host_no,
+					dev->scsi_dev->channel,	dev->scsi_dev->id,
+					dev->scsi_dev->lun, dev->tst, dev->queue_alg,
+					dev->swp, dev->tas, dev->has_own_order_mgmt);
 			    	res = 0;
 				goto out;
+			} else {
+				TRACE(TRACE_MGMT_MINOR, "Internal MODE SENSE to "
+					"device %d:%d:%d:%d failed: %x",
+					dev->scsi_dev->host->host_no,
+					dev->scsi_dev->channel,	dev->scsi_dev->id,
+					dev->scsi_dev->lun, res);
+				TRACE_BUFF_FLAG(TRACE_MGMT_MINOR, "MODE SENSE sense",
+					sense_buffer, sizeof(sense_buffer));
 			}
 			scst_check_internal_sense(dev, res, sense_buffer,
 					sizeof(sense_buffer));

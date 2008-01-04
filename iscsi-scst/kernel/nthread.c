@@ -134,13 +134,14 @@ static void close_conn(struct iscsi_conn *conn)
 	/* We want all our already send operations to complete */
 	conn->sock->ops->shutdown(conn->sock, RCV_SHUTDOWN);
 
-	conn_abort(conn);
-
 	if (conn->read_state != RX_INIT_BHS) {
-		req_cmnd_release_force(conn->read_cmnd, 0);
+		struct iscsi_cmnd *cmnd = conn->read_cmnd;
 		conn->read_cmnd = NULL;
 		conn->read_state = RX_INIT_BHS;
+		req_cmnd_release_force(cmnd, 0);
 	}
+
+	conn_abort(conn);
 
 	/* ToDo: not the best way to wait */
 	while(atomic_read(&conn->conn_ref_cnt) != 0) {
@@ -372,6 +373,8 @@ static int do_recv(struct iscsi_conn *conn, int state)
 	struct msghdr msg;
 	int res, first_len;
 
+	sBUG_ON(conn->read_cmnd == NULL);
+
 	if (unlikely(conn->closing)) {
 		res = -EIO;
 		goto out;
@@ -559,12 +562,13 @@ static int recv(struct iscsi_conn *conn)
 		sBUG();
 	}
 
+	conn->read_cmnd = NULL;
+	conn->read_state = RX_INIT_BHS;
+
 	cmnd_rx_end(cmnd);
 
 	sBUG_ON(conn->read_size != 0);
 
-	conn->read_cmnd = NULL;
-	conn->read_state = RX_INIT_BHS;
 	res = 0;
 
 out:

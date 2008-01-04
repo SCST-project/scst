@@ -261,6 +261,8 @@ void req_cmnd_release_force(struct iscsi_cmnd *req, int flags)
 
 	TRACE_DBG("%p", req);
 
+	sBUG_ON(req == conn->read_cmnd);
+
 	if (flags & ISCSI_FORCE_RELEASE_WRITE) {
 		spin_lock(&conn->write_list_lock);
 		list_for_each_entry_safe(rsp, t, &conn->write_list,
@@ -921,7 +923,7 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 		sBUG_ON(sg[idx].page == NULL);
 		addr = page_address(sg[idx].page);
 		sBUG_ON(addr == NULL);
-		conn->read_iov[i].iov_base =  addr + offset;
+		conn->read_iov[i].iov_base = addr + offset;
 		if (offset + size <= PAGE_SIZE) {
 			TRACE_DBG("idx=%d, offset=%u, size=%d, addr=%p",
 				idx, offset, size, addr);
@@ -2477,6 +2479,8 @@ static bool iscsi_is_delay_tm_resp(struct iscsi_cmnd *rsp)
 	struct iscsi_session *sess = rsp->conn->session;
 
 	TRACE_ENTRY();
+
+	/* This should be checked for immediate TM commands as well */
 
 	switch(function) {
 	default:
