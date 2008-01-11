@@ -36,12 +36,12 @@
 
 #define SCST_MAJOR              177
 
-#define TRACE_RETRY             0x80000000
+#define TRACE_RTRY              0x80000000
 #define TRACE_SCSI_SERIALIZING  0x40000000
-#define TRACE_SEND_TOP		0x20000000 /** top being the edge away from the interupt */
-#define TRACE_RECV_TOP		0x01000000 
-#define TRACE_SEND_BOT		0x08000000 /** bottom being the edge toward the interupt */
-#define TRACE_RECV_BOT		0x04000000
+#define TRACE_SND_TOP		0x20000000 /** top being the edge away from the interupt */
+#define TRACE_RCV_TOP		0x01000000 
+#define TRACE_SND_BOT		0x08000000 /** bottom being the edge toward the interupt */
+#define TRACE_RCV_BOT		0x04000000
 
 #if defined(DEBUG) || defined(TRACING)
 #define trace_flag scst_trace_flag
@@ -56,9 +56,14 @@ extern unsigned long scst_trace_flag;
 */
 #define SCST_DEFAULT_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MINOR | TRACE_PID | \
 	TRACE_LINE | TRACE_FUNCTION | TRACE_SPECIAL | TRACE_MGMT | \
-	TRACE_MGMT_MINOR | TRACE_MGMT_DEBUG | TRACE_RETRY)
+	TRACE_MGMT_MINOR | TRACE_MGMT_DEBUG | TRACE_RTRY)
 
-#define TRACE_SN(args...)	TRACE(TRACE_SCSI_SERIALIZING, args)
+#define TRACE_RETRY(args...)		__TRACE(TRACE_RTRY, args)
+#define TRACE_SN(args...)		__TRACE(TRACE_SCSI_SERIALIZING, args)
+#define TRACE_SEND_TOP(args...)		__TRACE(TRACE_SND_TOP, args)
+#define TRACE_RECV_TOP(args...)		__TRACE(TRACE_RCV_TOP, args)
+#define TRACE_SEND_BOT(args...)		__TRACE(TRACE_SND_BOT, args)
+#define TRACE_RECV_BOT(args...)		__TRACE(TRACE_RCV_BOT, args)
 
 #else /* DEBUG */
 
@@ -68,7 +73,12 @@ extern unsigned long scst_trace_flag;
 #define SCST_DEFAULT_LOG_FLAGS 0
 # endif
 
+#define TRACE_RETRY(args...)
 #define TRACE_SN(args...)
+#define TRACE_SEND_TOP(args...)
+#define TRACE_RECV_TOP(args...)
+#define TRACE_SEND_BOT(args...)
+#define TRACE_RECV_BOT(args...)
 
 #endif
 

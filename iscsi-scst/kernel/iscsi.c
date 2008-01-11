@@ -998,7 +998,7 @@ static void send_r2t(struct iscsi_cmnd *req)
 			req->r2t_length = 0;
 		}
 
-		TRACE(TRACE_D_WRITE, "%x %u %u %u %u", cmnd_itt(req),
+		TRACE_WRITE("%x %u %u %u %u", cmnd_itt(req),
 			be32_to_cpu(rsp_hdr->data_length),
 			be32_to_cpu(rsp_hdr->buffer_offset),
 			be32_to_cpu(rsp_hdr->r2t_sn), req->outstanding_r2t);
@@ -1353,7 +1353,7 @@ static int data_out_start(struct iscsi_conn *conn, struct iscsi_cmnd *cmnd)
 		goto out;
 	}
 
-	TRACE(TRACE_D_WRITE, "%u %p %p %u %u", req_hdr->ttt, cmnd, req,
+	TRACE_WRITE("%u %p %p %u %u", req_hdr->ttt, cmnd, req,
 		offset, cmnd->pdu.datasize);
 
 	res = cmnd_prepare_recv_pdu(conn, req, offset, cmnd->pdu.datasize);

@@ -112,7 +112,7 @@
 #define TRACE_ENTRYEXIT      0x00000010
 #define TRACE_BUFF           0x00000020
 #define TRACE_MEMORY         0x00000040
-#define TRACE_SG             0x00000080
+#define TRACE_SG_OP          0x00000080
 #define TRACE_OUT_OF_MEM     0x00000100
 #define TRACE_MINOR          0x00000200 /* less important events */
 #define TRACE_MGMT           0x00000400
@@ -134,13 +134,19 @@
 
 #if defined(DEBUG) || defined(TRACING)
 
+#ifndef DEBUG
+#define ___unlikely(a)		(a)
+#else
+#define ___unlikely(a)		unlikely(a)
+#endif
+
 extern int debug_print_prefix(unsigned long trace_flag, const char *prefix,
 		const char *func, int line);
 extern void debug_print_buffer(const void *data, int len);
 
 #define TRACE(trace, format, args...)                               \
 do {                                                                \
-  if (trace_flag & (trace))                                         \
+  if (___unlikely(trace_flag & (trace)))                            \
   {                                                                 \
     char *__tflag = LOG_FLAG;                                       \
     if (debug_print_prefix(trace_flag, __LOG_PREFIX, __FUNCTION__,  \
@@ -151,6 +157,58 @@ do {                                                                \
     PRINT(NO_FLAG, "%s" format, __tflag, args);                     \
   }                                                                 \
 } while(0)
+
+#define PRINT_BUFFER(message, buff, len)                            \
+do {                                                                \
+    PRINT(NO_FLAG, "%s:", message);                                 \
+    debug_print_buffer(buff, len);                                  \
+} while(0)
+
+#define PRINT_BUFF_FLAG(flag, message, buff, len)                   \
+do {                                                                \
+  if (___unlikely(trace_flag & (flag)))                             \
+  {                                                                 \
+    char *__tflag = LOG_FLAG;                                       \
+    if (debug_print_prefix(trace_flag, NULL, __FUNCTION__,          \
+                            __LINE__) > 0)                          \
+    {                                                               \
+      __tflag = NO_FLAG;                                            \
+    }                                                               \
+    PRINT(NO_FLAG, "%s%s:", __tflag, message);                      \
+    debug_print_buffer(buff, len);                                  \
+  }                                                                 \
+} while(0)
+
+#else  /* DEBUG || TRACING */
+
+#define TRACE(trace, args...) {}
+#define PRINT_BUFFER(message, buff, len) {}
+#define PRINT_BUFF_FLAG(flag, message, buff, len) {}
+
+#endif /* DEBUG || TRACING */
+
+#ifdef DEBUG
+
+#define __TRACE(trace, format, args...)                             \
+do {                                                                \
+  if (trace_flag & (trace))                                         \
+  {                                                                 \
+    char *__tflag = LOG_FLAG;                                       \
+    if (debug_print_prefix(trace_flag, NULL, __FUNCTION__,          \
+                            __LINE__) > 0)                          \
+    {                                                               \
+      __tflag = NO_FLAG;                                            \
+    }                                                               \
+    PRINT(NO_FLAG, "%s" format, __tflag, args);                     \
+  }                                                                 \
+} while(0)
+
+#define TRACE_MEM(args...)		__TRACE(TRACE_MEMORY, args)
+#define TRACE_SG(args...)		__TRACE(TRACE_SG_OP, args)
+#define TRACE_DBG(args...)		__TRACE(TRACE_DEBUG, args)
+#define TRACE_DBG_SPECIAL(args...)	__TRACE((TRACE_DEBUG|TRACE_SPECIAL, args)
+#define TRACE_MGMT_DBG(args...)		__TRACE(TRACE_MGMT_DEBUG, args)
+#define TRACE_MGMT_DBG_SPECIAL(args...)	__TRACE(TRACE_MGMT_DEBUG|TRACE_SPECIAL, args)
 
 #define TRACE_BUFFER(message, buff, len)                            \
 do {                                                                \
@@ -179,93 +237,6 @@ do {                                                                \
     }                                                               \
     PRINT(NO_FLAG, "%s%s:", __tflag, message);                      \
     debug_print_buffer(buff, len);                                  \
-  }                                                                 \
-} while(0)
-
-#define PRINT_BUFFER(message, buff, len)                            \
-do {                                                                \
-    PRINT(NO_FLAG, "%s:", message);                                 \
-    debug_print_buffer(buff, len);                                  \
-} while(0)
-
-#else  /* DEBUG || TRACING */
-
-#define TRACE(trace, args...) {}
-#define TRACE_BUFFER(message, buff, len) {}
-#define TRACE_BUFF_FLAG(flag, message, buff, len) {}
-#define PRINT_BUFFER(message, buff, len) {}
-
-#endif /* DEBUG || TRACING */
-
-#ifdef DEBUG
-
-#define TRACE_MEM(format, args...)		                    \
-do {                                                                \
-  if (trace_flag & TRACE_MEMORY)                                    \
-  {                                                                 \
-    char *__tflag = LOG_FLAG;                                       \
-    if (debug_print_prefix(trace_flag, NULL, __FUNCTION__,          \
-                            __LINE__) > 0)                          \
-    {                                                               \
-      __tflag = NO_FLAG;                                            \
-    }                                                               \
-    PRINT(NO_FLAG, "%s" format, __tflag, args);                     \
-  }                                                                 \
-} while(0)
-
-#define TRACE_DBG(format, args...)		                    \
-do {                                                                \
-  if (trace_flag & TRACE_DEBUG)                                     \
-  {                                                                 \
-    char *__tflag = LOG_FLAG;                                       \
-    if (debug_print_prefix(trace_flag, NULL, __FUNCTION__,          \
-                            __LINE__) > 0)                          \
-    {                                                               \
-      __tflag = NO_FLAG;                                            \
-    }                                                               \
-    PRINT(NO_FLAG, "%s" format, __tflag, args);                     \
-  }                                                                 \
-} while(0)
-
-#define TRACE_DBG_SPECIAL(format, args...)	                    \
-do {                                                                \
-  if (trace_flag & (TRACE_DEBUG|TRACE_SPECIAL))                     \
-  {                                                                 \
-    char *__tflag = LOG_FLAG;                                       \
-    if (debug_print_prefix(trace_flag, NULL, __FUNCTION__,          \
-                            __LINE__) > 0)                          \
-    {                                                               \
-      __tflag = NO_FLAG;                                            \
-    }                                                               \
-    PRINT(NO_FLAG, "%s" format, __tflag, args);                     \
-  }                                                                 \
-} while(0)
-
-#define TRACE_MGMT_DBG(format, args...)		                    \
-do {                                                                \
-  if (trace_flag & TRACE_MGMT_DEBUG)                                \
-  {                                                                 \
-    char *__tflag = LOG_FLAG;                                       \
-    if (debug_print_prefix(trace_flag, NULL, __FUNCTION__,          \
-                            __LINE__) > 0)                          \
-    {                                                               \
-      __tflag = NO_FLAG;                                            \
-    }                                                               \
-    PRINT(NO_FLAG, "%s" format, __tflag, args);                     \
-  }                                                                 \
-} while(0)
-
-#define TRACE_MGMT_DBG_SPECIAL(format, args...)                     \
-do {                                                                \
-  if (trace_flag & (TRACE_MGMT_DEBUG|TRACE_SPECIAL))                \
-  {                                                                 \
-    char *__tflag = LOG_FLAG;                                       \
-    if (debug_print_prefix(trace_flag, NULL, __FUNCTION__,          \
-                            __LINE__) > 0)                          \
-    {                                                               \
-      __tflag = NO_FLAG;                                            \
-    }                                                               \
-    PRINT(NO_FLAG, "%s" format, __tflag, args);                     \
   }                                                                 \
 } while(0)
 
@@ -365,10 +336,13 @@ do {                                                              \
 #else  /* DEBUG */
 
 #define TRACE_MEM(format, args...) {}
+#define TRACE_SG(format, args...) {}
 #define TRACE_DBG(format, args...) {}
 #define TRACE_DBG_SPECIAL(format, args...) {}
 #define TRACE_MGMT_DBG(format, args...) {}
 #define TRACE_MGMT_DBG_SPECIAL(format, args...) {}
+#define TRACE_BUFFER(message, buff, len) {}
+#define TRACE_BUFF_FLAG(flag, message, buff, len) {}
 #define TRACE_ENTRY() {}
 #define TRACE_EXIT() {}
 #define TRACE_EXIT_RES(res) {}

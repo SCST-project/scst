@@ -54,53 +54,22 @@ extern void iscsi_dump_pdu(struct iscsi_pdu *pdu);
 #if defined(DEBUG) || defined(TRACING)
 extern unsigned long iscsi_trace_flag;
 #define trace_flag iscsi_trace_flag
+#endif
 
-#define TRACE_CONN_CLOSE(format, args...)	                    \
-do {                                                                \
-  if (trace_flag & TRACE_CONN_OC) 	                            \
-  {                                                                 \
-    char *__tflag = LOG_FLAG;                                       \
-    if (debug_print_prefix(trace_flag, LOG_PREFIX, __FUNCTION__,    \
-                __LINE__) > 0)                                      \
-    {                                                               \
-      __tflag = NO_FLAG;                                            \
-    }                                                               \
-    PRINT(NO_FLAG, "%s" format, __tflag, args);                     \
-  }                                                                 \
-} while(0)
+#ifdef DEBUG
 
-#define TRACE_CONN_CLOSE_DBG(format, args...)	                    \
-do {                                                                \
-  if (trace_flag & TRACE_CONN_OC_DBG) 	                            \
-  {                                                                 \
-    char *__tflag = LOG_FLAG;                                       \
-    if (debug_print_prefix(trace_flag, LOG_PREFIX, __FUNCTION__,    \
-                __LINE__) > 0)                                      \
-    {                                                               \
-      __tflag = NO_FLAG;                                            \
-    }                                                               \
-    PRINT(NO_FLAG, "%s" format, __tflag, args);                     \
-  }                                                                 \
-} while(0)
+#define TRACE_CONN_CLOSE(args...)	TRACE(TRACE_CONN_OC, args)
+#define TRACE_CONN_CLOSE_DBG(args...)	TRACE(TRACE_CONN_OC_DBG, args)
+#define TRACE_NET_PAGE(args...)		TRACE(TRACE_NET_PG, args)
+#define TRACE_WRITE(args...)		TRACE(TRACE_D_WRITE, args)
+#define TRACE_READ(args...)		TRACE(TRACE_D_READ, args)
 
-#define TRACE_NET_PAGE(format, args...)		                    \
-do {                                                                \
-  if (trace_flag & TRACE_NET_PG) 	                            \
-  {                                                                 \
-    char *__tflag = LOG_FLAG;                                       \
-    if (debug_print_prefix(trace_flag, LOG_PREFIX, __FUNCTION__,    \
-                __LINE__) > 0)                                      \
-    {                                                               \
-      __tflag = NO_FLAG;                                            \
-    }                                                               \
-    PRINT(NO_FLAG, "%s" format, __tflag, args);                     \
-  }                                                                 \
-} while(0)
-
-#else /* defined(DEBUG) || defined(TRACING) */
+#else /* DEBUG */
 #define TRACE_CONN_CLOSE(format, args...) {}
 #define TRACE_CONN_CLOSE_DBG(format, args...) {}
 #define TRACE_NET_PAGE(format, args...) {}
+#define TRACE_WRITE(args...) {}
+#define TRACE_READ(args...) {}
 #endif
 
 #endif

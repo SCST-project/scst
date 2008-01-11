@@ -545,7 +545,7 @@ static void q2t_load_data_segments(struct q2t_prm *prm)
 	prm->pkt->dseg_count = cpu_to_le16(prm->seg_cnt);
 
 	/* If scatter gather */
-	TRACE(TRACE_SG, "%s", "Building S/G data segments...");
+	TRACE_SG("%s", "Building S/G data segments...");
 	/* Load command entry data segments */
 	for (cnt = 0;
 	     (cnt < prm->tgt->datasegs_per_cmd) && prm->seg_cnt;
@@ -560,7 +560,7 @@ static void q2t_load_data_segments(struct q2t_prm *prm)
 		}
 		*dword_ptr++ = cpu_to_le32(sg_dma_len(prm->sg));
 
-		TRACE(TRACE_SG, "S/G Segment phys_addr=%llx:%llx, len=%d",
+		TRACE_SG("S/G Segment phys_addr=%llx:%llx, len=%d",
 		      (long long unsigned int)pci_dma_hi32(sg_dma_address(prm->sg)),
 		      (long long unsigned int)pci_dma_lo32(sg_dma_address(prm->sg)),
 		      (int)sg_dma_len(prm->sg));
@@ -615,9 +615,7 @@ static void q2t_load_data_segments(struct q2t_prm *prm)
 			}
 			*dword_ptr++ = cpu_to_le32(sg_dma_len(prm->sg));
 
-			TRACE(TRACE_SG,
-			      "S/G Segment Cont. phys_addr=%llx:%llx, "
-			      "len=%d",
+			TRACE_SG("S/G Segment Cont. phys_addr=%llx:%llx, len=%d",
 			      (long long unsigned int)pci_dma_hi32(sg_dma_address(prm->sg)),
 			      (long long unsigned int)pci_dma_lo32(sg_dma_address(prm->sg)),
 			      (int)sg_dma_len(prm->sg));
@@ -1781,7 +1779,7 @@ static void q2t_response_pkt(scsi_qla_host_t *ha, sts_entry_t *pkt)
 					    le16_to_cpu(atio->status));
 				break;
 			}
-			TRACE_BUFF_FLAG(TRACE_SCSI, "CDB", atio->cdb,
+			PRINT_BUFF_FLAG(TRACE_SCSI, "CDB", atio->cdb,
 					sizeof(atio->cdb));
 			rc = q2t_send_cmd_to_scst(ha, atio);
 			if (unlikely(rc != 0)) {

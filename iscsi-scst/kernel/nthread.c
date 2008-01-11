@@ -773,8 +773,8 @@ retry:
 		set_fs(KERNEL_DS);
 		res = vfs_writev(file, (struct iovec __user *)iop, count, &off);
 		set_fs(oldfs);
-		TRACE(TRACE_D_WRITE, "%#Lx:%u: %d(%ld)",
-			(unsigned long long) conn->session->sid, conn->cid,
+		TRACE_WRITE("%#Lx:%u: %d(%ld)",
+			(unsigned long long)conn->session->sid, conn->cid,
 			res, (long) iop->iov_len);
 		if (unlikely(res <= 0)) {
 			if (res == -EAGAIN) {
@@ -845,7 +845,7 @@ retry:
 		if (size <= sendsize) {
 retry2:
 			res = sendpage(sock, sg[idx].page, offset, size, flags);
-			TRACE(TRACE_D_WRITE, "%s %#Lx:%u: %d(%lu,%u,%u)",
+			TRACE_WRITE("%s %#Lx:%u: %d(%lu,%u,%u)",
 				sock->ops->sendpage ? "sendpage" : "sock_no_sendpage",
 				(unsigned long long)conn->session->sid, conn->cid,
 				res, sg[idx].page->index, offset, size);
@@ -868,7 +868,7 @@ retry2:
 retry1:
 		res = sendpage(sock, sg[idx].page, offset, sendsize,
 			flags | MSG_MORE);
-		TRACE(TRACE_D_WRITE, "%s %#Lx:%u: %d(%lu,%u,%u)",
+		TRACE_WRITE("%s %#Lx:%u: %d(%lu,%u,%u)",
 			sock->ops->sendpage ? "sendpage" : "sock_no_sendpage",
 			(unsigned long long ) conn->session->sid, conn->cid,
 			res, sg[idx].page->index, offset, sendsize);

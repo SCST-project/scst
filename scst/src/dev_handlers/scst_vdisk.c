@@ -43,15 +43,17 @@
 
 #include "scsi_tgt.h"
 
+#if defined(DEBUG) || defined(TRACING)
+
 #define TRACE_ORDER	0x80000000
 
-#if defined(DEBUG) || defined(TRACING)
 static struct scst_proc_log vdisk_proc_local_trace_tbl[] =
 {
     { TRACE_ORDER,		"order" },
     { 0,			NULL }
 };
 #define trace_log_tbl	vdisk_proc_local_trace_tbl
+
 #endif
 
 #include "scst_dev_handler.h"

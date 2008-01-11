@@ -141,10 +141,12 @@ void scst_set_resp_data_len(struct scst_cmd *cmd, int resp_data_len)
 		l += cmd->sg[i].length;
 		if (l >= resp_data_len) {
 			int left = resp_data_len - (l - cmd->sg[i].length);
-			TRACE(TRACE_SG|TRACE_MEMORY, "cmd %p (tag %llu), "
+#ifdef DEBUG
+			TRACE(TRACE_SG_OP|TRACE_MEMORY, "cmd %p (tag %llu), "
 				"resp_data_len %d, i %d, cmd->sg[i].length %d, "
 				"left %d", cmd, cmd->tag, resp_data_len, i,
 				cmd->sg[i].length, left);
+#endif
 			cmd->orig_sg_cnt = cmd->sg_cnt;
 			cmd->orig_sg_entry = i;
 			cmd->orig_entry_len = cmd->sg[i].length;
@@ -919,7 +921,7 @@ struct scst_cmd *scst_complete_request_sense(struct scst_cmd *cmd)
 	if (scsi_status_is_good(cmd->status) && (len > 0) &&
 	    SCST_SENSE_VALID(buf) && (!SCST_NO_SENSE(buf))) 
 	{
-		TRACE_BUFF_FLAG(TRACE_SCSI, "REQUEST SENSE returned", 
+		PRINT_BUFF_FLAG(TRACE_SCSI, "REQUEST SENSE returned", 
 			buf, len);
 		memcpy(orig_cmd->sense_buffer, buf,
 			((int)sizeof(orig_cmd->sense_buffer) > len) ?
@@ -1039,7 +1041,7 @@ static void scst_send_release(struct scst_tgt_dev *tgt_dev)
 			break;
 		} else {
 			PRINT_ERROR("RELEASE failed: %d", rc);
-			TRACE_BUFFER("RELEASE sense", sense,
+			PRINT_BUFFER("RELEASE sense", sense,
 				SCST_SENSE_BUFFERSIZE);
 			scst_check_internal_sense(tgt_dev->dev, rc,
 					sense, SCST_SENSE_BUFFERSIZE);
@@ -1363,7 +1365,7 @@ void scst_check_retries(struct scst_tgt *tgt)
 		struct scst_cmd *c, *tc;
 		unsigned long flags;
 
-		TRACE(TRACE_RETRY, "Checking retry cmd list (retry_cmds %d)",
+		TRACE_RETRY("Checking retry cmd list (retry_cmds %d)",
 		      tgt->retry_cmds);
 
 		spin_lock_irqsave(&tgt->tgt_lock, flags);
@@ -1372,7 +1374,7 @@ void scst_check_retries(struct scst_tgt *tgt)
 		{
 			tgt->retry_cmds--;
 
-			TRACE(TRACE_RETRY, "Moving retry cmd %p to head of active "
+			TRACE_RETRY("Moving retry cmd %p to head of active "
 				"cmd list (retry_cmds left %d)", c, tgt->retry_cmds);
 			spin_lock(&c->cmd_lists->cmd_list_lock);
 			list_move(&c->cmd_list_entry, &c->cmd_lists->active_cmd_list);
@@ -1395,8 +1397,7 @@ void scst_tgt_retry_timer_fn(unsigned long arg)
 	struct scst_tgt *tgt = (struct scst_tgt*)arg;
 	unsigned long flags;
 
-	TRACE(TRACE_RETRY, "Retry timer expired (retry_cmds %d)",
-		tgt->retry_cmds);
+	TRACE_RETRY("Retry timer expired (retry_cmds %d)", tgt->retry_cmds);
 
 	spin_lock_irqsave(&tgt->tgt_lock, flags);
 	tgt->retry_timer_active = 0;
@@ -2127,7 +2128,7 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 			else
 				sh = 0;
 			set_block_shift(cmd, sh);
-			TRACE(TRACE_SCSI, "block_shift %d", sh);
+			TRACE_DBG("block_shift %d", sh);
 			break;
 		}
 		default:
@@ -2250,7 +2251,7 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 		memset(buffer, 0, sizeof(buffer));
 		memset(sense_buffer, 0, sizeof(sense_buffer));
 
-		TRACE_DBG("%s", "Doing MODE_SENSE");
+		TRACE(TRACE_SCSI, "%s", "Doing internal MODE_SENSE");
 		res = scsi_execute(dev->scsi_dev, cmd, SCST_DATA_READ, buffer, 
 			   sizeof(buffer), sense_buffer, SCST_DEFAULT_TIMEOUT,
 			    0, GFP_KERNEL);
@@ -2260,8 +2261,8 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 		if (scsi_status_is_good(res)) {
 			int q;
 
-			TRACE_BUFFER("Returned control mode page data", buffer,
-				sizeof(buffer));
+			PRINT_BUFF_FLAG(TRACE_SCSI, "Returned control mode page data",
+				buffer,	sizeof(buffer));
 
 			dev->tst = buffer[4+2] >> 5;
 			q = buffer[4+3] >> 4;
@@ -2282,7 +2283,7 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 			 */
 			dev->has_own_order_mgmt = !dev->queue_alg;
 
-			TRACE(TRACE_MGMT_MINOR, "Device %d:%d:%d:%d: TST %x, "
+			TRACE(TRACE_SCSI|TRACE_MGMT_MINOR, "Device %d:%d:%d:%d: TST %x, "
 				"QUEUE ALG %x, SWP %x, TAS %x, has_own_order_mgmt "
 				"%d", dev->scsi_dev->host->host_no,
 				dev->scsi_dev->channel,	dev->scsi_dev->id,
@@ -2294,7 +2295,7 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 			if ((status_byte(res) == CHECK_CONDITION) &&
 			    SCST_SENSE_VALID(sense_buffer) &&
 			    (sense_buffer[2] == ILLEGAL_REQUEST)) {
-				TRACE(TRACE_MGMT_MINOR, "Device %d:%d:%d:%d "
+				TRACE(TRACE_SCSI|TRACE_MGMT_MINOR, "Device %d:%d:%d:%d "
 					"doesn't support control mode page, using "
 					"defaults: TST %x, QUEUE ALG %x, SWP %x, "
 					"TAS %x, has_own_order_mgmt %d",
@@ -2305,13 +2306,13 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 			    	res = 0;
 				goto out;
 			} else {
-				TRACE(TRACE_MGMT_MINOR, "Internal MODE SENSE to "
+				TRACE(TRACE_SCSI|TRACE_MGMT_MINOR, "Internal MODE SENSE to "
 					"device %d:%d:%d:%d failed: %x",
 					dev->scsi_dev->host->host_no,
 					dev->scsi_dev->channel,	dev->scsi_dev->id,
 					dev->scsi_dev->lun, res);
-				TRACE_BUFF_FLAG(TRACE_MGMT_MINOR, "MODE SENSE sense",
-					sense_buffer, sizeof(sense_buffer));
+				PRINT_BUFF_FLAG(TRACE_SCSI|TRACE_MGMT_MINOR, "MODE SENSE "
+					"sense", sense_buffer, sizeof(sense_buffer));
 			}
 			scst_check_internal_sense(dev, res, sense_buffer,
 					sizeof(sense_buffer));

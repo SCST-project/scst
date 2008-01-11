@@ -90,7 +90,7 @@ static struct scst_proc_log scst_proc_trace_tbl[] =
 {
     { TRACE_OUT_OF_MEM,		"out_of_mem" },
     { TRACE_MINOR,		"minor" },
-    { TRACE_SG,			"sg" },
+    { TRACE_SG_OP,		"sg" },
     { TRACE_MEMORY,		"mem" },
     { TRACE_BUFF,		"buff" },
     { TRACE_ENTRYEXIT,		"entryexit" },
@@ -108,12 +108,12 @@ static struct scst_proc_log scst_proc_trace_tbl[] =
 
 static struct scst_proc_log scst_proc_local_trace_tbl[] =
 {
-    { TRACE_RETRY,		"retry" },
+    { TRACE_RTRY,		"retry" },
     { TRACE_SCSI_SERIALIZING,	"scsi_serializing" },
-    { TRACE_RECV_BOT,		"recv_bot" },
-    { TRACE_SEND_BOT,		"send_bot" },
-    { TRACE_RECV_TOP,		"recv_top" },
-    { TRACE_SEND_TOP,		"send_top" },
+    { TRACE_RCV_BOT,		"recv_bot" },
+    { TRACE_SND_BOT,		"send_bot" },
+    { TRACE_RCV_TOP,		"recv_top" },
+    { TRACE_SND_TOP,		"send_top" },
     { 0,			NULL }
 };
 #endif

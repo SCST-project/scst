@@ -172,7 +172,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context)
 	TRACE_DBG("Preferred context: %d (cmd %p)", pref_context, cmd);
 	TRACE(TRACE_SCSI, "tag=%llu, lun=%Ld, CDB len=%d", cmd->tag, 
 		(uint64_t)cmd->lun, cmd->cdb_len);
-	TRACE_BUFF_FLAG(TRACE_SCSI|TRACE_RECV_BOT, "Recieving CDB",
+	PRINT_BUFF_FLAG(TRACE_SCSI|TRACE_RCV_BOT, "Recieving CDB",
 		cmd->cdb, cmd->cdb_len);
 
 #ifdef EXTRACHECKS
@@ -410,7 +410,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 	if (likely(!scst_is_cmd_local(cmd))) {
 		TRACE_DBG("Calling dev handler %s parse(%p)",
 		      dev->handler->name, cmd);
-		TRACE_BUFF_FLAG(TRACE_SEND_BOT, "Parsing: ", cmd->cdb, cmd->cdb_len);
+		TRACE_BUFF_FLAG(TRACE_SND_BOT, "Parsing: ", cmd->cdb, cmd->cdb_len);
 		state = dev->handler->parse(cmd);
 		/* Caution: cmd can be already dead here */
 		TRACE_DBG("Dev handler %s parse() returned %d",
@@ -759,12 +759,12 @@ static int scst_queue_retry_cmd(struct scst_cmd *cmd, int finished_cmds)
 	spin_lock_irqsave(&tgt->tgt_lock, flags);
 	tgt->retry_cmds++;
 	smp_mb();
-	TRACE(TRACE_RETRY, "TGT QUEUE FULL: incrementing retry_cmds %d",
+	TRACE_RETRY("TGT QUEUE FULL: incrementing retry_cmds %d",
 	      tgt->retry_cmds);
 	if (finished_cmds != atomic_read(&tgt->finished_cmds)) {
 		/* At least one cmd finished, so try again */
 		tgt->retry_cmds--;
-		TRACE(TRACE_RETRY, "Some command(s) finished, direct retry "
+		TRACE_RETRY("Some command(s) finished, direct retry "
 		      "(finished_cmds=%d, tgt->finished_cmds=%d, "
 		      "retry_cmds=%d)", finished_cmds,
 		      atomic_read(&tgt->finished_cmds), tgt->retry_cmds);
@@ -772,7 +772,7 @@ static int scst_queue_retry_cmd(struct scst_cmd *cmd, int finished_cmds)
 		goto out_unlock_tgt;
 	}
 
-	TRACE(TRACE_RETRY, "Adding cmd %p to retry cmd list", cmd);
+	TRACE_RETRY("Adding cmd %p to retry cmd list", cmd);
 	list_add_tail(&cmd->cmd_list_entry, &tgt->retry_cmd_list);
 
 	if (!tgt->retry_timer_active) {
@@ -1157,16 +1157,15 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state)
 	if (next_state == SCST_CMD_STATE_DEFAULT)
 		next_state = SCST_CMD_STATE_PRE_DEV_DONE;
 
-#if defined(DEBUG) || defined(TRACING)
+#if defined(DEBUG)
 	if (next_state == SCST_CMD_STATE_PRE_DEV_DONE) {
 		if (cmd->sg) {
 			int i;
 			struct scatterlist *sg = cmd->sg;
-			TRACE(TRACE_RECV_TOP, 
-			      "Exec'd %d S/G(s) at %p sg[0].page at %p",
-			      cmd->sg_cnt, sg, (void*)sg[0].page);
+			TRACE_RECV_TOP("Exec'd %d S/G(s) at %p sg[0].page at "
+				"%p", cmd->sg_cnt, sg, (void*)sg[0].page);
 			for(i = 0; i < cmd->sg_cnt; ++i) {
-				TRACE_BUFF_FLAG(TRACE_RECV_TOP, 
+				TRACE_BUFF_FLAG(TRACE_RCV_TOP, 
 					"Exec'd sg", page_address(sg[i].page),
 					sg[i].length);
 			}
@@ -1664,7 +1663,7 @@ static int scst_do_send_to_midlev(struct scst_cmd *cmd)
 		struct scst_device *dev = cmd->dev;
 		TRACE_DBG("Calling dev handler %s exec(%p)",
 		      dev->handler->name, cmd);
-		TRACE_BUFF_FLAG(TRACE_SEND_TOP, "Execing: ", cmd->cdb, cmd->cdb_len);
+		TRACE_BUFF_FLAG(TRACE_SND_TOP, "Execing: ", cmd->cdb, cmd->cdb_len);
 		cmd->scst_cmd_done = scst_cmd_done_local;
 		rc = dev->handler->exec(cmd);
 		/* !! At this point cmd, sess & tgt_dev can be already freed !! */
@@ -1955,7 +1954,7 @@ static int scst_check_sense(struct scst_cmd *cmd)
 
 	if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION) && 
 	    SCST_SENSE_VALID(cmd->sense_buffer)) {
-		TRACE_BUFF_FLAG(TRACE_SCSI, "Sense", cmd->sense_buffer,
+		PRINT_BUFF_FLAG(TRACE_SCSI, "Sense", cmd->sense_buffer,
 			sizeof(cmd->sense_buffer));
 		/* Check Unit Attention Sense Key */
 		if (scst_is_ua_sense(cmd->sense_buffer)) {
@@ -2153,8 +2152,8 @@ static int scst_done_cmd_check(struct scst_cmd *cmd, int *pres)
 
 				TRACE(TRACE_SCSI, "Real RESERVE failed lun=%Ld, status=%x",
 				      (uint64_t)cmd->lun, cmd->status);
-				TRACE_BUFF_FLAG(TRACE_SCSI, "Sense", cmd->sense_buffer,
-					     sizeof(cmd->sense_buffer));
+				PRINT_BUFF_FLAG(TRACE_SCSI, "Sense", cmd->sense_buffer,
+					sizeof(cmd->sense_buffer));
 
 				/* Clearing the reservation */
 				spin_lock_bh(&dev->dev_lock);
@@ -2461,15 +2460,14 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 
 		TRACE_DBG("Calling xmit_response(%p)", cmd);
 
-#if defined(DEBUG) || defined(TRACING)
+#if defined(DEBUG)
 		if (cmd->sg) {
 			int i;
 			struct scatterlist *sg = cmd->sg;
-			TRACE(TRACE_SEND_BOT,
-			      "Xmitting %d S/G(s) at %p sg[0].page at %p",
+			TRACE_SEND_BOT("Xmitting %d S/G(s) at %p sg[0].page at %p",
 			      cmd->sg_cnt, sg, (void*)sg[0].page);
 			for(i = 0; i < cmd->sg_cnt; ++i) {
-				TRACE_BUFF_FLAG(TRACE_SEND_BOT,
+				TRACE_BUFF_FLAG(TRACE_SND_BOT,
 				    "Xmitting sg", page_address(sg[i].page),
 				    sg[i].length);
 			}

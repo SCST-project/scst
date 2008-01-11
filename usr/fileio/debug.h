@@ -88,28 +88,6 @@ do {								\
   }								\
 } while(0)
 
-#define TRACE_BUFFER(message, buff, len)			\
-do {								\
-  if (trace_flag & TRACE_BUFF)					\
-  {								\
-    debug_print_prefix(trace_flag, NULL, __FUNCTION__,  \
-			__LINE__);				\
-    PRINT("%s:", message);					\
-    debug_print_buffer(buff, len);				\
-  }								\
-} while(0)
-
-#define TRACE_BUFF_FLAG(flag, message, buff, len)		\
-do {								\
-  if (trace_flag & (flag))					\
-  {								\
-    debug_print_prefix(trace_flag, NULL, __FUNCTION__,          \
-			__LINE__);				\
-    PRINT("%s:", message);					\
-    debug_print_buffer(buff, len);				\
-  }								\
-} while(0)
-
 #define PRINT_BUFFER(message, buff, len)			\
 do {								\
     PRINT("%s:", message);					\
@@ -119,8 +97,6 @@ do {								\
 #else  /* DEBUG || TRACING */
 
 #define TRACE(trace, args...) {}
-#define TRACE_BUFFER(message, buff, len) {}
-#define TRACE_BUFF_FLAG(flag, message, buff, len) {}
 #define PRINT_BUFFER(message, buff, len) {}
 
 static inline int debug_init(void) { return 0; }
@@ -159,6 +135,28 @@ do {								\
     debug_print_prefix(trace_flag, NULL, __FUNCTION__,          \
 			__LINE__);				\
     PRINT(format, args);					\
+  }								\
+} while(0)
+
+#define TRACE_BUFFER(message, buff, len)			\
+do {								\
+  if (trace_flag & TRACE_BUFF)					\
+  {								\
+    debug_print_prefix(trace_flag, NULL, __FUNCTION__,  \
+			__LINE__);				\
+    PRINT("%s:", message);					\
+    debug_print_buffer(buff, len);				\
+  }								\
+} while(0)
+
+#define TRACE_BUFF_FLAG(flag, message, buff, len)		\
+do {								\
+  if (trace_flag & (flag))					\
+  {								\
+    debug_print_prefix(trace_flag, NULL, __FUNCTION__,          \
+			__LINE__);				\
+    PRINT("%s:", message);					\
+    debug_print_buffer(buff, len);				\
   }								\
 } while(0)
 
@@ -248,6 +246,8 @@ do {								\
 #define TRACE_MEM(format, args...) {}
 #define TRACE_DBG(format, args...) {}
 #define TRACE_MGMT_DBG(format, args...) {}
+#define TRACE_BUFFER(message, buff, len) {}
+#define TRACE_BUFF_FLAG(flag, message, buff, len) {}
 #define TRACE_ENTRY() {}
 #define TRACE_EXIT() {}
 #define TRACE_EXIT_RES(res) {}
