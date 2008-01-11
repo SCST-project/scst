@@ -1772,14 +1772,16 @@ void scst_inc_expected_sn(struct scst_tgt_dev *tgt_dev, atomic_t *slot)
 
 	TRACE_SN("Slot is 0 (num_free_sn_slots=%d)",
 		tgt_dev->num_free_sn_slots);
-	if (tgt_dev->num_free_sn_slots != ARRAY_SIZE(tgt_dev->sn_slots)) {
+	if (tgt_dev->num_free_sn_slots < (int)ARRAY_SIZE(tgt_dev->sn_slots)-1) {
 		spin_lock_irq(&tgt_dev->sn_lock);
-		if (tgt_dev->num_free_sn_slots != ARRAY_SIZE(tgt_dev->sn_slots)) {
+		if (likely(tgt_dev->num_free_sn_slots < (int)ARRAY_SIZE(tgt_dev->sn_slots)-1)) {
+			if (tgt_dev->num_free_sn_slots < 0)
+				tgt_dev->cur_sn_slot = slot;
+			smp_mb(); /* to be in-sync with SIMPLE case in scst_cmd_set_sn() */
 			tgt_dev->num_free_sn_slots++;
 			TRACE_SN("Incremented num_free_sn_slots (%d)",
 				tgt_dev->num_free_sn_slots);
-			if (tgt_dev->num_free_sn_slots == 0)
-				tgt_dev->cur_sn_slot = slot;
+			
 		}
 		spin_unlock_irq(&tgt_dev->sn_lock);
 	}
@@ -2615,7 +2617,8 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 			
 			tgt_dev->prev_cmd_ordered = 0;
 		} else {
-			TRACE(TRACE_MINOR, "%s", "Not enough SN slots");
+			TRACE(TRACE_MINOR, "***WARNING*** Not enough SN slots "
+				"%d", ARRAY_SIZE(tgt_dev->sn_slots));
 			goto ordered;
 		}
 		break;
@@ -2626,21 +2629,30 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 ordered:
 		if (!tgt_dev->prev_cmd_ordered) {
 			spin_lock_irqsave(&tgt_dev->sn_lock, flags);
-			tgt_dev->num_free_sn_slots--;
-			smp_mb();
-			if ((tgt_dev->num_free_sn_slots >= 0) &&
-			    (atomic_read(tgt_dev->cur_sn_slot) > 0)) {
-			    	do {
-					tgt_dev->cur_sn_slot++;
-					if (tgt_dev->cur_sn_slot == 
-						tgt_dev->sn_slots +
-						ARRAY_SIZE(tgt_dev->sn_slots))
-					    tgt_dev->cur_sn_slot = tgt_dev->sn_slots;
-				} while(atomic_read(tgt_dev->cur_sn_slot) != 0);
-				TRACE_SN("New cur SN slot %zd",
-					tgt_dev->cur_sn_slot-tgt_dev->sn_slots);
-			} else
-				tgt_dev->num_free_sn_slots++;
+			if (tgt_dev->num_free_sn_slots >= 0) {
+				tgt_dev->num_free_sn_slots--;
+				if (tgt_dev->num_free_sn_slots >= 0) {
+					int i = 0;
+					/*
+					 * Commands can finish in any order, so we don't
+					 * know, which slot is empty.
+					 */
+					while(1) {
+						tgt_dev->cur_sn_slot++;
+						if (tgt_dev->cur_sn_slot == tgt_dev->sn_slots +
+								ARRAY_SIZE(tgt_dev->sn_slots))
+							tgt_dev->cur_sn_slot = tgt_dev->sn_slots;
+
+						if (atomic_read(tgt_dev->cur_sn_slot) == 0)
+							break;
+
+						i++;
+						sBUG_ON(i == ARRAY_SIZE(tgt_dev->sn_slots));
+					}
+					TRACE_SN("New cur SN slot %zd",
+						tgt_dev->cur_sn_slot-tgt_dev->sn_slots);
+				}
+			}
 			spin_unlock_irqrestore(&tgt_dev->sn_lock, flags);
 		}
 		tgt_dev->prev_cmd_ordered = 1;

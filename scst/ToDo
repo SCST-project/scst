@@ -8,6 +8,11 @@ To be done
    the page cache (in order to avoid data copy between it and internal
    buffers). Requires modifications of the kernel.
 
+ - Dynamic I/O flow control, when the device queue depth on the target
+   will be dynamically decreased/increased based on how slow/fast the
+   backstorage speed comparing to the target link for current IO
+   pattern.
+
  - Fix in-kernel O_DIRECT mode.
  
  - Close integration with Linux initiator SCSI mil-level, including 

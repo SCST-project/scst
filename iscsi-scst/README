@@ -32,6 +32,10 @@ Installation
 Basically as in README-IET, where file names are changed as specified
 above.
 
+If you experience problems during kernel module load or running, check
+your system and/or kernel logs (or run dmesg command for the few most
+recent kernel messages).
+
 To use full power of TCP zero-copy transmit functions, especially
 dealing with user space supplied via scst_user module memory, iSCSI-SCST
 needs to be notified when Linux networking finished data transmission.
@@ -46,7 +50,7 @@ original IET behavior, when for data transmission:
    handlers) usage of SGV cache on transmit path (READ-type commands)
    will be disabled. The performance hit will be not big, but performance
    will still remain better, than for IET, because SGV cache will remain
-   used on receive path and IET doesn't have such feature.
+   used on receive path while IET doesn't have such feature.
 
  - For user space allocated memory (scst_user handler) all transmitted
    data will be additionally copied into temporary TCP buffers. The
@@ -103,13 +107,12 @@ means name of the target, for example:
 "Default_iqn.2007-05.com.example:storage.disk1.sys1.xyz", and add there
 all necessary LUNs. Check SCST README file for details.
 
+Check SCST README file how to tune for the best performance.
+
 If under high load you experience I/O stalls or see in the kernel log
-abort or reset messages then try to reduce QueuedCommands parameter in
-iscsi-scstd.conf file for the corresponding target. Particularly, it is
-known that the default value 32 sometimes too high if you do intensive
-writes from VMware on a target disk, which use LVM in the snapshot mode.
-In this case value like 16 or even 10 depending of your backstorage
-speed could be more appropriate.
+abort or reset messages, then try to reduce QueuedCommands parameter in
+iscsi-scstd.conf file for the corresponding target. See also SCST README
+file for more details about that issue.
 
 CAUTION:  Working of target and initiator on the same host isn't
 ========  supported. See SCST README file for details.

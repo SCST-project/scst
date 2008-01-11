@@ -1613,8 +1613,7 @@ static void q2t_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 
 	TRACE_ENTRY();
 
-	TRACE((scst_mcmd->fn == SCST_ABORT_TASK) ? TRACE_MGMT_MINOR : TRACE_MGMT,
-		"scst_mcmd (%p) status %#x state %#x", scst_mcmd,
+	TRACE_MGMT_DBG("scst_mcmd (%p) status %#x state %#x", scst_mcmd,
 		scst_mcmd->status, scst_mcmd->state);
 
 	mcmd = scst_mgmt_cmd_get_tgt_priv(scst_mcmd);

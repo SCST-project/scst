@@ -415,7 +415,7 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	INIT_LIST_HEAD(&tgt_dev->deferred_cmd_list);
 	INIT_LIST_HEAD(&tgt_dev->skipped_sn_list);
 	tgt_dev->expected_sn = 1;
-	tgt_dev->num_free_sn_slots = ARRAY_SIZE(tgt_dev->sn_slots);
+	tgt_dev->num_free_sn_slots = ARRAY_SIZE(tgt_dev->sn_slots)-1;
 	tgt_dev->cur_sn_slot = &tgt_dev->sn_slots[0];
 	for(i = 0; i < (int)ARRAY_SIZE(tgt_dev->sn_slots); i++)
 		atomic_set(&tgt_dev->sn_slots[i], 0);

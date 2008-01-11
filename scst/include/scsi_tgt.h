@@ -1427,11 +1427,11 @@ struct scst_tgt_dev
 	 * Set if the prev cmd was ORDERED. Size must allow unprotected
 	 * modifications
 	 */
-	unsigned long prev_cmd_ordered; 
+	unsigned long prev_cmd_ordered;
 
-	int num_free_sn_slots;
+	int num_free_sn_slots; /* if it's <0, then all slots are busy */
 	atomic_t *cur_sn_slot;
-	atomic_t sn_slots[10];
+	atomic_t sn_slots[15];
 
 	/* Used for storage of dev handler private stuff */
 	void *dh_priv;
