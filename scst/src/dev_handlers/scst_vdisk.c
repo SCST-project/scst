@@ -1007,6 +1007,7 @@ static int vcdrom_parse(struct scst_cmd *cmd)
  ********************************************************************/
 static int vcdrom_exec(struct scst_cmd *cmd)
 {
+	int res = SCST_EXEC_COMPLETED;
 	int opcode = cmd->cdb[0];
 	struct scst_vdisk_dev *virt_dev =
 	    (struct scst_vdisk_dev *)cmd->dev->dh_priv;
@@ -1039,11 +1040,11 @@ static int vcdrom_exec(struct scst_cmd *cmd)
 		spin_unlock(&virt_dev->flags_lock);
 	}
 
-	vdisk_do_job(cmd);
+	res = vdisk_do_job(cmd);
 
 out:
-	TRACE_EXIT();
-	return SCST_EXEC_COMPLETED;
+	TRACE_EXIT_RES(res);
+	return res;
 
 out_done:
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);

@@ -162,12 +162,30 @@ out_redirect:
 	goto out;
 }
 
+#ifdef MEASURE_LATENCY
+static inline uint64_t scst_sec_to_nsec(time_t sec)
+{
+	return (uint64_t)sec * 1000000000;
+}
+#endif
+
 void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context)
 {
 	unsigned long flags;
 	struct scst_session *sess = cmd->sess;
 
 	TRACE_ENTRY();
+
+#ifdef MEASURE_LATENCY
+	{
+		struct timespec ts;
+		getnstimeofday(&ts);
+		cmd->start = scst_sec_to_nsec(ts.tv_sec) + ts.tv_nsec;
+		TRACE_DBG("cmd %p (sess %p): start %Ld (tv_sec %ld, "
+			"tv_nsec %ld)", cmd, sess, cmd->start, ts.tv_sec,
+			ts.tv_nsec);
+	}
+#endif
 
 	TRACE_DBG("Preferred context: %d (cmd %p)", pref_context, cmd);
 	TRACE(TRACE_SCSI, "tag=%llu, lun=%Ld, CDB len=%d", cmd->tag, 
@@ -1028,6 +1046,17 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 {
 	TRACE_ENTRY();
 
+#ifdef MEASURE_LATENCY
+	{
+		struct timespec ts;
+		getnstimeofday(&ts);
+		cmd->post_exec_start = scst_sec_to_nsec(ts.tv_sec) + ts.tv_nsec;
+		TRACE_DBG("cmd %p (sess %p): post_exec_start %Ld (tv_sec %ld, "
+			"tv_nsec %ld)", cmd, cmd->sess, cmd->post_exec_start, ts.tv_sec,
+			ts.tv_nsec);
+	}
+#endif
+
 	cmd->status = result & 0xff;
 	cmd->msg_status = msg_byte(result);
 	cmd->host_status = host_byte(result);
@@ -1153,6 +1182,17 @@ out:
 static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state)
 {
 	TRACE_ENTRY();
+
+#ifdef MEASURE_LATENCY
+	{
+		struct timespec ts;
+		getnstimeofday(&ts);
+		cmd->post_exec_start = scst_sec_to_nsec(ts.tv_sec) + ts.tv_nsec;
+		TRACE_DBG("cmd %p (sess %p): post_exec_start %Ld (tv_sec %ld, "
+			"tv_nsec %ld)", cmd, cmd->sess, cmd->post_exec_start, ts.tv_sec,
+			ts.tv_nsec);
+	}
+#endif
 
 	if (next_state == SCST_CMD_STATE_DEFAULT)
 		next_state = SCST_CMD_STATE_PRE_DEV_DONE;
@@ -1829,6 +1869,17 @@ static int scst_send_to_midlev(struct scst_cmd **active_cmd)
 		}
 	}
 
+#ifdef MEASURE_LATENCY
+	if (cmd->pre_exec_finish == 0) {
+		struct timespec ts;
+		getnstimeofday(&ts);
+		cmd->pre_exec_finish = scst_sec_to_nsec(ts.tv_sec) + ts.tv_nsec;
+		TRACE_DBG("cmd %p (sess %p): pre_exec_finish %Ld (tv_sec %ld, "
+			"tv_nsec %ld)", cmd, cmd->sess, cmd->pre_exec_finish, ts.tv_sec,
+			ts.tv_nsec);
+	}
+#endif
+
 	if (unlikely(scst_inc_on_dev_cmd(cmd) != 0))
 		goto out_put;
 
@@ -2421,6 +2472,26 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 	res = SCST_CMD_STATE_RES_CONT_SAME;
 
 out:
+#ifdef MEASURE_LATENCY
+	{
+		struct timespec ts;
+		uint64_t finish, processing_time;
+		struct scst_session *sess = cmd->sess;
+
+		getnstimeofday(&ts);
+		finish = scst_sec_to_nsec(ts.tv_sec) + ts.tv_nsec;
+
+		spin_lock_bh(&sess->meas_lock);
+		processing_time = cmd->pre_exec_finish - cmd->start;
+		processing_time += finish - cmd->post_exec_start;
+		sess->processing_time += processing_time;
+		sess->processed_cmds++;
+		TRACE_DBG("cmd %p (sess %p): finish %Ld (tv_sec %ld, "
+			"tv_nsec %ld), processing_time %Ld", cmd, sess, finish,
+			ts.tv_sec, ts.tv_nsec, processing_time);
+		spin_unlock_bh(&sess->meas_lock);
+	}
+#endif
 	TRACE_EXIT_HRES(res);
 	return res;
 }

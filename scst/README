@@ -267,6 +267,10 @@ in/out in Makefile:
    Then sometimes get crazy itself. So, this option is disabled by
    default.
 
+ - MEASURE_LATENCY - if defined, provides in /proc/scsi_tgt/latency file
+   average commands processing latency. You can clear already measured
+   results by writing 0 in this file.
+
 HIGHMEM kernel configurations are fully supported, but not recommended
 for performance reasons, except for scst_user, where they are not
 supported, because this module deals with user supplied memory on a

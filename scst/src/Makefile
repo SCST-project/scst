@@ -130,6 +130,8 @@ EXTRA_CFLAGS += -DDEBUG -g
 #EXTRA_CFLAGS += -DDEBUG_OOM
 #EXTRA_CFLAGS += -DDEBUG_SN
 
+#EXTRA_CFLAGS += -DMEASURE_LATENCY
+
 # If defined, makes SCST zero allocated data buffers. 
 # Undefining it considerably improves performance and eases CPU load, 
 # but could create a security hole (information leakage), so 

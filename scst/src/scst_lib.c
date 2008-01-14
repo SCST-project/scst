@@ -1123,6 +1123,10 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, int gfp_mask,
 	INIT_LIST_HEAD(&sess->init_deferred_cmd_list);
 	INIT_LIST_HEAD(&sess->init_deferred_mcmd_list);
 
+#ifdef MEASURE_LATENCY
+	spin_lock_init(&sess->meas_lock);
+#endif
+
 	len = strlen(initiator_name);
 	nm = kmalloc(len + 1, gfp_mask);
 	if (nm == NULL) {

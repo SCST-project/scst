@@ -402,7 +402,7 @@ void iscsi_extracheck_is_rd_thread(struct iscsi_conn *conn)
 			local_bh_enable();
 		printk(KERN_EMERG "conn %p rd_task != current %p (pid %d)\n", conn,
 			current, current->pid);
-		printk(KERN_EMERG "wr_state %x\n", conn->rd_state);
+		printk(KERN_EMERG "rd_state %x\n", conn->rd_state);
 		printk(KERN_EMERG "rd_task %p\n", conn->rd_task);
 		printk(KERN_EMERG "rd_task->pid %d\n", conn->rd_task->pid);
 		sBUG();

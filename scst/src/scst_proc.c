@@ -68,6 +68,10 @@ static struct scst_proc_data scst_dev_handler_proc_data;
 #define SCST_PROC_GROUPS_DEVICES_ENTRY_NAME	"devices"
 #define SCST_PROC_GROUPS_USERS_ENTRY_NAME	"names"
 
+#ifdef MEASURE_LATENCY
+#define SCST_PROC_LAT_ENTRY_NAME		"latency"
+#endif
+
 #define SCST_PROC_ACTION_ALL		 1
 #define SCST_PROC_ACTION_NONE		 2
 #define SCST_PROC_ACTION_DEFAULT	 3
@@ -376,14 +380,118 @@ out:
 
 #endif /* defined(DEBUG) || defined(TRACING) */
 
-static int __init scst_proc_init_module_log(void)
+#ifdef MEASURE_LATENCY
+
+static int lat_info_show(struct seq_file *seq, void *v)
 {
 	int res = 0;
-#if defined(DEBUG) || defined(TRACING)
-	struct proc_dir_entry *generic;
+	struct scst_acg *acg;
+	struct scst_session *sess;
 
 	TRACE_ENTRY();
 
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
+		res = -EINTR;
+		goto out;
+	}
+
+	seq_printf(seq, "%-20s %-45s %-35s\n", "Target name", "Initiator name", 
+		       "Processing latency (us)");
+
+	list_for_each_entry(acg, &scst_acg_list, scst_acg_list_entry) {
+		list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
+			unsigned long lat = 0;
+			uint64_t processing_time;
+			uint64_t processed_cmds;
+
+			spin_lock_bh(&sess->meas_lock);
+			processing_time = sess->processing_time;
+			processed_cmds = sess->processed_cmds;
+			spin_unlock_bh(&sess->meas_lock);
+
+			TRACE_DBG("sess %p, processing_time %Ld, "
+				"processed_cmds %Ld", sess, processing_time,
+				processed_cmds);
+
+#if BITS_PER_LONG == 32
+			while((processing_time & 0xFFFFFFFF00000000LL) != 0) {
+				TRACE_DBG("Processing time too big ("
+					"processing_time %Ld, processed_cmds %Ld",
+					processing_time, processed_cmds);
+				processing_time >>= 1;
+				processed_cmds >>= 1;
+			}
+#endif
+
+			if (sess->processed_cmds != 0) {
+				lat = (unsigned long)processing_time /
+					(unsigned long)processed_cmds;
+			}
+
+			seq_printf(seq, "%-20s %-45s %-15ld\n",
+					sess->tgt->tgtt->name,
+					sess->initiator_name,
+					lat);
+		}
+	}
+
+	mutex_unlock(&scst_mutex);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t scst_proc_scsi_tgt_gen_write_lat(struct file *file, const char __user *buf,
+					size_t length, loff_t *off)
+{
+	int res = length;
+	struct scst_acg *acg;
+	struct scst_session *sess;
+
+	TRACE_ENTRY();
+
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
+		res = -EINTR;
+		goto out;
+	}
+
+	list_for_each_entry(acg, &scst_acg_list, scst_acg_list_entry) {
+		list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
+			PRINT_INFO("Zeroing latency statistics for initiator %s",
+				sess->initiator_name);
+			spin_lock_bh(&sess->meas_lock);
+			sess->processing_time = 0;
+			sess->processed_cmds = 0;
+			spin_unlock_bh(&sess->meas_lock);
+		}
+	}
+
+	mutex_unlock(&scst_mutex);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct scst_proc_data scst_lat_proc_data = {
+	SCST_DEF_RW_SEQ_OP(scst_proc_scsi_tgt_gen_write_lat)
+	.show = lat_info_show,
+	.data = "scsi_tgt",
+};
+
+#endif /* MEASURE_LATENCY */
+
+static int __init scst_proc_init_module_log(void)
+{
+	int res = 0;
+#if defined(DEBUG) || defined(TRACING) || defined(MEASURE_LATENCY)
+	struct proc_dir_entry *generic;
+#endif
+
+	TRACE_ENTRY();
+
+#if defined(DEBUG) || defined(TRACING)
 	generic = scst_create_proc_entry(scst_proc_scsi_tgt,
 					 SCST_PROC_LOG_ENTRY_NAME,
 					 &scst_log_proc_data);
@@ -392,21 +500,39 @@ static int __init scst_proc_init_module_log(void)
 			    SCST_PROC_ENTRY_NAME, SCST_PROC_LOG_ENTRY_NAME);
 		res = -ENOMEM;
 	}
+#endif
+
+#ifdef MEASURE_LATENCY
+	if (res == 0) {
+		generic = scst_create_proc_entry(scst_proc_scsi_tgt,
+					 SCST_PROC_LAT_ENTRY_NAME,
+					 &scst_lat_proc_data);
+		if (!generic) {
+			PRINT_ERROR("cannot init /proc/%s/%s",
+				    SCST_PROC_ENTRY_NAME, SCST_PROC_LAT_ENTRY_NAME);
+			res = -ENOMEM;
+		}
+	}
+#endif
 
 	TRACE_EXIT_RES(res);
-#endif
 	return res;
 }
 
 static void __exit scst_proc_cleanup_module_log(void)
 {
-#if defined(DEBUG) || defined(TRACING)
 	TRACE_ENTRY();
 
+#if defined(DEBUG) || defined(TRACING)
 	remove_proc_entry(SCST_PROC_LOG_ENTRY_NAME, scst_proc_scsi_tgt);
+#endif
+
+#ifdef MEASURE_LATENCY
+	remove_proc_entry(SCST_PROC_LAT_ENTRY_NAME, scst_proc_scsi_tgt);
+#endif
 
 	TRACE_EXIT();
-#endif
+	return;
 }
 
 int scst_proc_group_add_tree(struct scst_acg *acg, const char *name)

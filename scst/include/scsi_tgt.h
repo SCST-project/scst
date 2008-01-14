@@ -946,6 +946,12 @@ struct scst_session
 	void (*init_result_fn) (struct scst_session *sess, void *data,
 				int result);
 	void (*unreg_done_fn) (struct scst_session *sess);
+
+#ifdef MEASURE_LATENCY
+	spinlock_t meas_lock;
+	uint64_t processing_time;
+	int processed_cmds;
+#endif
 };
 
 struct scst_cmd_lists
@@ -1201,6 +1207,10 @@ struct scst_cmd
 	struct list_head blocked_cmd_list_entry;
 
 	struct scst_cmd *orig_cmd; /* Used to issue REQUEST SENSE */
+
+#ifdef MEASURE_LATENCY
+	uint64_t start, pre_exec_finish, post_exec_start;
+#endif
 };
 
 struct scst_rx_mgmt_params

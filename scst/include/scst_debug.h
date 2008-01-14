@@ -206,7 +206,7 @@ do {                                                                \
 #define TRACE_MEM(args...)		__TRACE(TRACE_MEMORY, args)
 #define TRACE_SG(args...)		__TRACE(TRACE_SG_OP, args)
 #define TRACE_DBG(args...)		__TRACE(TRACE_DEBUG, args)
-#define TRACE_DBG_SPECIAL(args...)	__TRACE((TRACE_DEBUG|TRACE_SPECIAL, args)
+#define TRACE_DBG_SPECIAL(args...)	__TRACE(TRACE_DEBUG|TRACE_SPECIAL, args)
 #define TRACE_MGMT_DBG(args...)		__TRACE(TRACE_MGMT_DEBUG, args)
 #define TRACE_MGMT_DBG_SPECIAL(args...)	__TRACE(TRACE_MGMT_DEBUG|TRACE_SPECIAL, args)
 
