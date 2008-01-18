@@ -398,28 +398,28 @@ int conn_del(struct iscsi_session *session, struct conn_info *info)
 void iscsi_extracheck_is_rd_thread(struct iscsi_conn *conn)
 {
 	if (unlikely(current != conn->rd_task)) {
-		while(in_softirq())
-			local_bh_enable();
 		printk(KERN_EMERG "conn %p rd_task != current %p (pid %d)\n", conn,
 			current, current->pid);
+		while(in_softirq())
+			local_bh_enable();
 		printk(KERN_EMERG "rd_state %x\n", conn->rd_state);
 		printk(KERN_EMERG "rd_task %p\n", conn->rd_task);
 		printk(KERN_EMERG "rd_task->pid %d\n", conn->rd_task->pid);
-		sBUG();
+		BUG();
 	}
 }
 
 void iscsi_extracheck_is_wr_thread(struct iscsi_conn *conn)
 {
 	if (unlikely(current != conn->wr_task)) {
-		while(in_softirq())
-			local_bh_enable();
 		printk(KERN_EMERG "conn %p wr_task != current %p (pid %d)\n", conn,
 			current, current->pid);
+		while(in_softirq())
+			local_bh_enable();
 		printk(KERN_EMERG "wr_state %x\n", conn->wr_state);
 		printk(KERN_EMERG "wr_task %p\n", conn->wr_task);
 		printk(KERN_EMERG "wr_task->pid %d\n", conn->wr_task->pid);
-		sBUG();
+		BUG();
 	}
 }
 

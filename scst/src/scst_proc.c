@@ -395,43 +395,45 @@ static int lat_info_show(struct seq_file *seq, void *v)
 		goto out;
 	}
 
-	seq_printf(seq, "%-20s %-45s %-35s\n", "Target name", "Initiator name", 
-		       "Processing latency (us)");
+	seq_printf(seq, "%-20s %-45s %-15s %15s\n", "Target name", "Initiator name", 
+		       "SCST latency", "Processing latency (us)");
 
 	list_for_each_entry(acg, &scst_acg_list, scst_acg_list_entry) {
 		list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
-			unsigned long lat = 0;
-			uint64_t processing_time;
-			uint64_t processed_cmds;
+			unsigned long proc_lat = 0, scst_lat = 0;
+			uint64_t proc_time, scst_time;
+			unsigned int processed_cmds;
 
 			spin_lock_bh(&sess->meas_lock);
-			processing_time = sess->processing_time;
+			proc_time = sess->processing_time;
+			scst_time = sess->scst_time;
 			processed_cmds = sess->processed_cmds;
 			spin_unlock_bh(&sess->meas_lock);
 
-			TRACE_DBG("sess %p, processing_time %Ld, "
-				"processed_cmds %Ld", sess, processing_time,
-				processed_cmds);
+			TRACE_DBG("sess %p, scst_time %Ld, proc_time %Ld, "
+				"processed_cmds %d", sess, scst_time,
+				proc_time, processed_cmds);
 
 #if BITS_PER_LONG == 32
-			while((processing_time & 0xFFFFFFFF00000000LL) != 0) {
-				TRACE_DBG("Processing time too big ("
-					"processing_time %Ld, processed_cmds %Ld",
-					processing_time, processed_cmds);
-				processing_time >>= 1;
+			/* Unfortunately, do_div() doesn't work too well */
+			while(((proc_time & 0xFFFFFFFF00000000LL) != 0) ||
+			      ((scst_time & 0xFFFFFFFF00000000LL) != 0)) {
+				TRACE_DBG("%s", "Gathered time too big");
+				proc_time >>= 1;
+				scst_time >>= 1;
 				processed_cmds >>= 1;
 			}
 #endif
 
 			if (sess->processed_cmds != 0) {
-				lat = (unsigned long)processing_time /
-					(unsigned long)processed_cmds;
+				proc_lat = (unsigned long)proc_time / processed_cmds;
+				scst_lat = (unsigned long)scst_time / processed_cmds;
 			}
 
-			seq_printf(seq, "%-20s %-45s %-15ld\n",
+			seq_printf(seq, "%-20s %-45s %-15ld %-15ld\n",
 					sess->tgt->tgtt->name,
 					sess->initiator_name,
-					lat);
+					scst_lat, proc_lat);
 		}
 	}
 
@@ -1837,12 +1839,12 @@ static int scst_sessions_info_show(struct seq_file *seq, void *v)
 		goto out;
 	}
 
-	seq_printf(seq, "%-20s %-35s %-35s %-15s\n", "Target name", "Initiator name", 
+	seq_printf(seq, "%-20s %-45s %-35s %-15s\n", "Target name", "Initiator name", 
 		       "Group name", "Command Count");
 
 	list_for_each_entry(acg, &scst_acg_list, scst_acg_list_entry) {
 		list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
-			seq_printf(seq, "%-20s %-35s %-35s %-15d\n",
+			seq_printf(seq, "%-20s %-45s %-35s %-15d\n",
 					sess->tgt->tgtt->name,
 					sess->initiator_name,
 					acg->acg_name,

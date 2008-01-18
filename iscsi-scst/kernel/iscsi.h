@@ -138,12 +138,6 @@ struct iscsi_conn {
 
 	spinlock_t cmd_list_lock; /* BH lock */
 
-	/*
-	 * IMPORTANT! If you find a cmd in cmd_list and immediately get_cmnd()
-	 * it, it still can be destroyed immediately after you drop
-	 * cmd_list_lock no matter how big is its ref_cnt!
-	 */
-
 	/* Protected by cmd_list_lock */
 	struct list_head cmd_list; /* in/outcoming pdus */
 
@@ -236,6 +230,7 @@ struct iscsi_cmnd {
 	/* Some flags protected by conn->write_list_lock */
 	unsigned int hashed:1;
 	unsigned int should_close_conn:1;
+	unsigned int pending:1;
 	unsigned int own_sg:1;
 	unsigned int on_write_list:1;
 	unsigned int write_processing_started:1;
@@ -243,6 +238,7 @@ struct iscsi_cmnd {
 	unsigned int force_cleanup_done:1;
 	unsigned int dec_active_cmnds:1;
 #ifdef EXTRACHECKS
+	unsigned int on_rx_digest_list:1;
 	unsigned int release_called:1;
 #endif
 
@@ -253,12 +249,6 @@ struct iscsi_cmnd {
 	spinlock_t rsp_cmd_lock; /* BH lock */
 
 	/* Unions are for readability and grepability */
-
-	/*
-	 * IMPORTANT! If you find a cmd in rsp_cmd_list and immediately
-	 * get_cmnd() it, it still can be destroyed immediately after you drop
-	 * rsp_cmd_lock no matter how big is its ref_cnt!
-	 */
 
 	union {
 		/* Protected by rsp_cmd_lock */
@@ -413,6 +403,27 @@ static inline void iscsi_cmnd_set_length(struct iscsi_pdu *pdu)
 
 extern struct scst_tgt_template iscsi_template;
 
+/*
+ * Skip this command if result is not 0. Must be called under
+ * corresponding lock.
+ */
+static inline bool cmnd_get_check(struct iscsi_cmnd *cmnd)
+{
+	int r = atomic_inc_return(&cmnd->ref_cnt);
+	int res;
+	if (unlikely(r == 1)) {
+		TRACE_DBG("cmnd %p is being destroyed", cmnd);
+		atomic_dec(&cmnd->ref_cnt);
+		res = 1;
+		/* Necessary code is serialized by locks in cmnd_done() */
+	} else {
+		TRACE_DBG("cmnd %p, new ref_cnt %d", cmnd,
+			atomic_read(&cmnd->ref_cnt));
+		res = 0;
+	}
+	return res;
+}
+
 static inline void cmnd_get(struct iscsi_cmnd *cmnd)
 {
 	atomic_inc(&cmnd->ref_cnt);
@@ -428,7 +439,7 @@ static inline void cmnd_get_ordered(struct iscsi_cmnd *cmnd)
 
 static inline void cmnd_put(struct iscsi_cmnd *cmnd)
 {
-	TRACE_DBG("cmnd %p, new cmnd->ref_cnt %d", cmnd,
+	TRACE_DBG("cmnd %p, new ref_cnt %d", cmnd,
 		atomic_read(&cmnd->ref_cnt)-1);
 	sBUG_ON(atomic_read(&cmnd->ref_cnt) == 0);
 	if (atomic_dec_and_test(&cmnd->ref_cnt))
@@ -450,6 +461,27 @@ static inline void cmd_del_from_write_list(struct iscsi_cmnd *cmnd)
 	TRACE_DBG("%p", cmnd);
 	list_del(&cmnd->write_list_entry);
 	cmnd->on_write_list = 0;
+}
+
+static inline void cmd_add_on_rx_ddigest_list(struct iscsi_cmnd *req,
+	struct iscsi_cmnd *cmnd)
+{
+	TRACE_DBG("Adding RX ddigest cmd %p to digest list "
+			"of req %p", cmnd, req);
+	list_add_tail(&cmnd->rx_ddigest_cmd_list_entry,
+			&req->rx_ddigest_cmd_list);
+#ifdef EXTRACHECKS
+	cmnd->on_rx_digest_list = 1;
+#endif
+}
+
+static inline void cmd_del_from_rx_ddigest_list(struct iscsi_cmnd *cmnd)
+{
+	TRACE_DBG("Deleting RX digest cmd %p from digest list", cmnd);
+	list_del(&cmnd->rx_ddigest_cmd_list_entry);
+#ifdef EXTRACHECKS
+	cmnd->on_rx_digest_list = 0;
+#endif
 }
 
 static inline int test_write_ready(struct iscsi_conn *conn)
@@ -482,7 +514,7 @@ static inline void conn_put(struct iscsi_conn *conn)
 
 	/* 
 	 * It always ordered to protect from undesired side effects like
-	 * accessing just destroyed obeject because of this *_dec() reordering.
+	 * accessing just destroyed object because of this *_dec() reordering.
 	 */
 	smp_mb__before_atomic_dec();
 	atomic_dec(&conn->conn_ref_cnt);

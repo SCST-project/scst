@@ -2475,21 +2475,27 @@ out:
 #ifdef MEASURE_LATENCY
 	{
 		struct timespec ts;
-		uint64_t finish, processing_time;
+		uint64_t finish, scst_time, proc_time;
 		struct scst_session *sess = cmd->sess;
 
 		getnstimeofday(&ts);
 		finish = scst_sec_to_nsec(ts.tv_sec) + ts.tv_nsec;
 
 		spin_lock_bh(&sess->meas_lock);
-		processing_time = cmd->pre_exec_finish - cmd->start;
-		processing_time += finish - cmd->post_exec_start;
-		sess->processing_time += processing_time;
+
+		scst_time = cmd->pre_exec_finish - cmd->start;
+		scst_time += finish - cmd->post_exec_start;
+		proc_time = finish - cmd->start;
+
+		sess->scst_time += scst_time;
+		sess->processing_time += proc_time;
 		sess->processed_cmds++;
-		TRACE_DBG("cmd %p (sess %p): finish %Ld (tv_sec %ld, "
-			"tv_nsec %ld), processing_time %Ld", cmd, sess, finish,
-			ts.tv_sec, ts.tv_nsec, processing_time);
+
 		spin_unlock_bh(&sess->meas_lock);
+
+		TRACE_DBG("cmd %p (sess %p): finish %Ld (tv_sec %ld, "
+			"tv_nsec %ld), scst_time %Ld, proc_time %Ld", cmd, sess,
+			finish,	ts.tv_sec, ts.tv_nsec, scst_time, proc_time);
 	}
 #endif
 	TRACE_EXIT_HRES(res);
@@ -3389,9 +3395,9 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 		 * we must wait here to be sure that we won't receive
 		 * double commands with the same tag.
 		 */
-		TRACE((mcmd->fn == SCST_ABORT_TASK) ? TRACE_MGMT_MINOR : TRACE_MGMT,
-			"cmd %p (tag %llu) being executed/xmitted (state %d), "
-			"deferring ABORT...", cmd, cmd->tag, cmd->state);
+		TRACE_MGMT_DBG("cmd %p (tag %llu) being executed/xmitted "
+			"(state %d), deferring ABORT...", cmd, cmd->tag,
+			cmd->state);
 #ifdef EXTRACHECKS
 		if (cmd->mgmt_cmnd) {
 			printk(KERN_ALERT "cmd %p (tag %llu, state %d) "
@@ -3706,7 +3712,7 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 		}
 		scst_cmd_get(cmd);
 		spin_unlock_irq(&sess->sess_list_lock);
-		TRACE(TRACE_MGMT_MINOR, "Cmd %p for tag %llu (sn %ld, set %d, "
+		TRACE_MGMT_DBG("Cmd %p for tag %llu (sn %ld, set %d, "
 			"queue_type %x) found, aborting it", cmd, mcmd->tag,
 			cmd->sn, cmd->sn_set, cmd->queue_type);
 		mcmd->cmd_to_abort = cmd;
@@ -4419,8 +4425,10 @@ int scst_rx_mgmt_fn(struct scst_session *sess,
 	mcmd->cmd_sn = params->cmd_sn;
 
 	TRACE((params->fn == SCST_ABORT_TASK) ? TRACE_MGMT_MINOR : TRACE_MGMT,
-		"sess=%p, fn %x, tag_set %d, tag %Ld, lun_set %d, "
-		"lun=%Ld, cmd_sn_set %d, cmd_sn %d", sess, params->fn,
+		"TM fn %x", params->fn);
+
+	TRACE_MGMT_DBG("sess=%p, tag_set %d, tag %Ld, lun_set %d, "
+		"lun=%Ld, cmd_sn_set %d, cmd_sn %d", sess,
 		params->tag_set, params->tag, params->lun_set,
 		(uint64_t)mcmd->lun, params->cmd_sn_set, params->cmd_sn);
 

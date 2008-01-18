@@ -949,8 +949,8 @@ struct scst_session
 
 #ifdef MEASURE_LATENCY
 	spinlock_t meas_lock;
-	uint64_t processing_time;
-	int processed_cmds;
+	uint64_t scst_time, processing_time;
+	unsigned int processed_cmds;
 #endif
 };
 

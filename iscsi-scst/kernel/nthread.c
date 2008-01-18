@@ -76,21 +76,30 @@ static void iscsi_check_closewait(struct iscsi_conn *conn)
 again:
 	spin_lock_bh(&conn->cmd_list_lock);
 	list_for_each_entry(cmnd, &conn->cmd_list, cmd_list_entry) {
+		struct iscsi_cmnd *rsp;
+		int restart = 0;
+
 		TRACE_CONN_CLOSE_DBG("cmd %p, scst_state %x, data_waiting %d, "
 			"ref_cnt %d, parent_req %p, net_ref_cnt %d, sg %p",
 			cmnd, cmnd->scst_state, cmnd->data_waiting,
 			atomic_read(&cmnd->ref_cnt), cmnd->parent_req,
 			atomic_read(&cmnd->net_ref_cnt), cmnd->sg);
+
 		sBUG_ON(cmnd->parent_req != NULL);
+
 		if (cmnd->sg != NULL) {
-			int sg_cnt, i, restart = 0;
+			int sg_cnt, i;
+
 			sg_cnt = get_pgcnt(cmnd->bufflen,
 				cmnd->sg[0].offset);
-			cmnd_get(cmnd);
+
+			if (cmnd_get_check(cmnd))
+				continue;
 			for(i = 0; i < sg_cnt; i++) {
 				TRACE_CONN_CLOSE_DBG("page %p, net_priv %p, _count %d",
 					cmnd->sg[i].page, cmnd->sg[i].page->net_priv,
 					atomic_read(&cmnd->sg[i].page->_count));
+
 				if (cmnd->sg[i].page->net_priv != NULL) {
 					if (restart == 0) {
 						spin_unlock_bh(&conn->cmd_list_lock);
@@ -101,9 +110,49 @@ again:
 				}
 			}
 			cmnd_put(cmnd);
+
 			if (restart)
 				goto again;
 		}
+
+		spin_lock_bh(&cmnd->rsp_cmd_lock);
+		list_for_each_entry(rsp, &cmnd->rsp_cmd_list, rsp_cmd_list_entry) {
+			TRACE_CONN_CLOSE_DBG("  rsp %p, ref_cnt %d, net_ref_cnt %d, "
+				"sg %p", rsp, atomic_read(&rsp->ref_cnt),
+				atomic_read(&rsp->net_ref_cnt), rsp->sg);
+
+			if ((rsp->sg != cmnd->sg) && (rsp->sg != NULL)) {
+				int sg_cnt, i;
+
+				sg_cnt = get_pgcnt(rsp->bufflen,
+					rsp->sg[0].offset);
+				sBUG_ON(rsp->sg_cnt != sg_cnt);
+
+				if (cmnd_get_check(rsp))
+					continue;
+				for(i = 0; i < sg_cnt; i++) {
+					TRACE_CONN_CLOSE_DBG("    page %p, net_priv %p, "
+						"_count %d", rsp->sg[i].page,
+						rsp->sg[i].page->net_priv,
+						atomic_read(&rsp->sg[i].page->_count));
+
+					if (rsp->sg[i].page->net_priv != NULL) {
+						if (restart == 0) {
+							spin_unlock_bh(&cmnd->rsp_cmd_lock);
+							spin_unlock_bh(&conn->cmd_list_lock);
+							restart = 1;
+						}
+						while(rsp->sg[i].page->net_priv != NULL)
+							iscsi_put_page_callback(rsp->sg[i].page);
+					}
+				}
+				cmnd_put(rsp);
+
+				if (restart)
+					goto again;
+			}
+		}
+		spin_unlock_bh(&cmnd->rsp_cmd_lock);
 	}
 	spin_unlock_bh(&conn->cmd_list_lock);
 
@@ -194,6 +243,7 @@ static void close_conn(struct iscsi_conn *conn)
 							cmnd);
 
 						list_del(&cmnd->pending_list_entry);
+						cmnd->pending = 0;
 
 						session->exp_cmd_sn++;
 
@@ -225,6 +275,7 @@ static void close_conn(struct iscsi_conn *conn)
 								"pending cmd %p", cmnd);
 
 							list_del(&cmnd->pending_list_entry);
+							cmnd->pending = 0;
 
 							if (session->exp_cmd_sn == cmnd->pdu.bhs.sn)
 								session->exp_cmd_sn++;
@@ -254,17 +305,20 @@ static void close_conn(struct iscsi_conn *conn)
 #ifdef NET_PAGE_CALLBACKS_DEFINED
 			struct iscsi_cmnd *rsp;
 #endif
+
+#if 0
 			if (time_after(jiffies, start_waiting+10*HZ))
 				trace_flag |= TRACE_CONN_OC_DBG;
+#endif
 
 			spin_lock_bh(&conn->cmd_list_lock);
 			list_for_each_entry(cmnd, &conn->cmd_list, cmd_list_entry) {
 				TRACE_CONN_CLOSE_DBG("cmd %p, scst_state %x, scst_cmd "
 					"state %d, data_waiting %d, ref_cnt %d, sn %u, "
-					"parent_req %p", cmnd, cmnd->scst_state,
+					"parent_req %p, pending %d", cmnd, cmnd->scst_state,
 					(cmnd->scst_cmd != NULL) ? cmnd->scst_cmd->state : -1,
 					cmnd->data_waiting, atomic_read(&cmnd->ref_cnt),
-					cmnd->pdu.bhs.sn, cmnd->parent_req);
+					cmnd->pdu.bhs.sn, cmnd->parent_req, cmnd->pending);
 #ifdef NET_PAGE_CALLBACKS_DEFINED
 				TRACE_CONN_CLOSE_DBG("net_ref_cnt %d, sg %p",
 					atomic_read(&cmnd->net_ref_cnt), cmnd->sg);
@@ -328,6 +382,39 @@ static void close_conn(struct iscsi_conn *conn)
 	if (list_empty(&session->conn_list))
 		session_del(target, session->sid);
 	mutex_unlock(&target->target_mutex);
+
+	TRACE_EXIT();
+	return;
+}
+
+static int close_conn_thr(void *arg)
+{
+	struct iscsi_conn *conn = (struct iscsi_conn *)arg;
+
+	TRACE_ENTRY();
+
+#ifdef EXTRACHECKS
+	conn->rd_task = current;
+#endif
+	close_conn(conn);
+
+	TRACE_EXIT();
+	return 0;
+}
+
+/* No locks */
+static void start_close_conn(struct iscsi_conn *conn)
+{
+	struct task_struct *t;
+
+	TRACE_ENTRY();
+
+	t = kthread_run(close_conn_thr, conn, "iscsi_conn_cleanup");
+	if (IS_ERR(t)) {
+		PRINT_ERROR("kthread_run() failed (%ld), closing conn %p "
+			"directly", PTR_ERR(t), conn);
+		close_conn(conn);
+	}
 
 	TRACE_EXIT();
 	return;
@@ -525,12 +612,8 @@ static int recv(struct iscsi_conn *conn)
 	case RX_CHECK_DDIGEST:
 		conn->read_state = RX_END;
 		if (cmnd_opcode(cmnd) == ISCSI_OP_SCSI_CMD) {
-			TRACE_DBG("Adding RX ddigest cmd %p to digest list "
-				"of self", cmnd);
-			list_add_tail(&cmnd->rx_ddigest_cmd_list_entry,
-				&cmnd->rx_ddigest_cmd_list);
+			cmd_add_on_rx_ddigest_list(cmnd, cmnd);
 			cmnd_get(cmnd);
-			conn->read_state = RX_END;
 		} else if (cmnd_opcode(cmnd) != ISCSI_OP_SCSI_DATA_OUT) {
 			/*
 			 * We could get here only for NOP-Out. ISCSI RFC doesn't
@@ -584,7 +667,7 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 	do {
 		res = recv(conn);
 		if (unlikely(conn->closing)) {
-			close_conn(conn);
+			start_close_conn(conn);
 			*closed = 1;
 			break;
 		}

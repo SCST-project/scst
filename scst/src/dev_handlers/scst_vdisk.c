@@ -732,17 +732,6 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 		lba_start |= ((u64)cdb[5]);
 		data_len = cmd->bufflen;
 		break;
-	case SYNCHRONIZE_CACHE:
-		lba_start |= ((u64)cdb[2]) << 24;
-		lba_start |= ((u64)cdb[3]) << 16;
-		lba_start |= ((u64)cdb[4]) << 8;
-		lba_start |= ((u64)cdb[5]);
-		data_len = ((cdb[7] << (BYTE * 1)) + (cdb[8] << (BYTE * 0))) 
-				<< virt_dev->block_shift;
-		if (data_len == 0)
-			data_len = virt_dev->file_size - 
-				((loff_t)lba_start << virt_dev->block_shift);
-		break;
 	case READ_16:
 	case WRITE_16:
 	case WRITE_VERIFY_16:
@@ -756,6 +745,17 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 		lba_start |= ((u64)cdb[8]) << 8;
 		lba_start |= ((u64)cdb[9]);
 		data_len = cmd->bufflen;
+		break;
+	case SYNCHRONIZE_CACHE:
+		lba_start |= ((u64)cdb[2]) << 24;
+		lba_start |= ((u64)cdb[3]) << 16;
+		lba_start |= ((u64)cdb[4]) << 8;
+		lba_start |= ((u64)cdb[5]);
+		data_len = ((cdb[7] << (BYTE * 1)) + (cdb[8] << (BYTE * 0))) 
+				<< virt_dev->block_shift;
+		if (data_len == 0)
+			data_len = virt_dev->file_size - 
+				((loff_t)lba_start << virt_dev->block_shift);
 		break;
 	}
 

@@ -97,6 +97,32 @@ static inline void iscsi_restart_cmnd(struct iscsi_cmnd *cmnd)
 		SCST_CONTEXT_THREAD);
 }
 
+static inline void iscsi_restart_waiting_cmnd(struct iscsi_cmnd *cmnd)
+{
+	/*
+	 * There is no race with conn_abort(), since all functions
+	 * called from single read thread
+	 */
+	iscsi_extracheck_is_rd_thread(cmnd->conn);
+	cmnd->data_waiting = 0;
+
+	iscsi_restart_cmnd(cmnd);
+}
+
+static inline void iscsi_fail_waiting_cmnd(struct iscsi_cmnd *cmnd)
+{
+	TRACE_DBG("Failing data waiting cmd %p", cmnd);
+
+	/*
+	 * There is no race with conn_abort(), since all functions
+	 * called from single read thread
+	 */
+	iscsi_extracheck_is_rd_thread(cmnd->conn);
+	cmnd->data_waiting = 0;
+
+	req_cmnd_release_force(cmnd, ISCSI_FORCE_RELEASE_WRITE);
+}
+
 struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *conn, struct iscsi_cmnd *parent)
 {
 	struct iscsi_cmnd *cmnd;
@@ -175,9 +201,12 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 			cmnd->parent_req);
 	}
 
+	EXTRACHECKS_BUG_ON(cmnd->on_rx_digest_list);
+
 	if (cmnd->parent_req == NULL) {
 		struct iscsi_conn *conn = cmnd->conn;
 		TRACE_DBG("Deleting req %p from conn %p", cmnd, conn);
+
 		spin_lock_bh(&conn->cmd_list_lock);
 		list_del(&cmnd->cmd_list_entry);
 		spin_unlock_bh(&conn->cmd_list_lock);
@@ -192,14 +221,14 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 		if (cmnd->scst_cmd) {
 			switch(cmnd->scst_state) {
 			case ISCSI_CMD_STATE_AFTER_PREPROC:
-				TRACE_DBG("%s", "AFTER_PREPROC");
+				TRACE_DBG("cmd %p AFTER_PREPROC", cmnd);
 				cmnd->scst_state = ISCSI_CMD_STATE_RESTARTED;
 				scst_restart_cmd(cmnd->scst_cmd,
 					SCST_PREPROCESS_STATUS_ERROR_FATAL,
-					SCST_CONTEXT_THREAD);
+					SCST_CONTEXT_DIRECT);
 				break;
 			case ISCSI_CMD_STATE_PROCESSED:
-				TRACE_DBG("%s", "PROCESSED");
+				TRACE_DBG("cmd %p PROCESSED", cmnd);
 				scst_tgt_cmd_done(cmnd->scst_cmd);
 				break;
 			default:
@@ -211,10 +240,10 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 		}
 	} else {
 		EXTRACHECKS_BUG_ON(cmnd->scst_cmd != NULL);
-
-		spin_lock_bh(&cmnd->parent_req->rsp_cmd_lock);
 		TRACE_DBG("Deleting rsp %p from parent %p", cmnd,
 			cmnd->parent_req);
+
+		spin_lock_bh(&cmnd->parent_req->rsp_cmd_lock);
 		list_del(&cmnd->rsp_cmd_list_entry);
 		spin_unlock_bh(&cmnd->parent_req->rsp_cmd_lock);
 
@@ -285,21 +314,32 @@ void req_cmnd_release_force(struct iscsi_cmnd *req, int flags)
 again_rsp:
 	spin_lock_bh(&req->rsp_cmd_lock);
 	list_for_each_entry_reverse(rsp, &req->rsp_cmd_list, rsp_cmd_list_entry) {
-		/*
-		 * It's OK to check not under write_list_lock, since
-		 * iscsi_cmnds_init_write() can't be called in parallel with us
-		 * and once on_write_list or write_processing_started get set,
-		 * rsp gets out of this function responsibility.
-		 */
-		if (rsp->on_write_list || rsp->write_processing_started ||
-		    rsp->force_cleanup_done)
+		bool r;
+
+		if (rsp->force_cleanup_done)
+			continue;
+
+		rsp->force_cleanup_done = 1;
+
+		if (cmnd_get_check(rsp))
 			continue;
 
 		spin_unlock_bh(&req->rsp_cmd_lock);
 
-		rsp->force_cleanup_done = 1;
+		spin_lock(&conn->write_list_lock);
+		r = rsp->on_write_list || rsp->write_processing_started;
+		spin_unlock(&conn->write_list_lock);
+
 		cmnd_put(rsp);
 
+		if (r)
+			continue;
+
+		/*
+		 * If both on_write_list and write_processing_started not set,
+		 * we can safely put() cmnd
+		 */
+		cmnd_put(rsp);
 		goto again_rsp;
 	}
 	spin_unlock_bh(&req->rsp_cmd_lock);
@@ -336,9 +376,7 @@ void req_cmnd_release(struct iscsi_cmnd *req)
 
 	list_for_each_entry_safe(c, t, &req->rx_ddigest_cmd_list,
 				rx_ddigest_cmd_list_entry) {
-		TRACE_DBG("Deleting RX ddigest cmd %p from digest "
-			"list of req %p", c, req);
-		list_del(&c->rx_ddigest_cmd_list_entry);
+		cmd_del_from_rx_ddigest_list(c);
 		cmnd_put(c);
 	}
 
@@ -390,7 +428,9 @@ void rsp_cmnd_release(struct iscsi_cmnd *cmnd)
  */
 static struct iscsi_cmnd *iscsi_cmnd_create_rsp_cmnd(struct iscsi_cmnd *parent)
 {
-	struct iscsi_cmnd *rsp = cmnd_alloc(parent->conn, parent);
+	struct iscsi_cmnd *rsp;
+
+	rsp = cmnd_alloc(parent->conn, parent);
 
 	spin_lock_bh(&parent->rsp_cmd_lock);
 	TRACE_DBG("Adding rsp %p to parent %p", rsp, parent);
@@ -428,6 +468,7 @@ static void iscsi_cmnds_init_write(struct list_head *send, int flags)
 	 * erroneously rejected as a duplicate.
 	 */
 	if ((flags & ISCSI_INIT_WRITE_REMOVE_HASH) && rsp->parent_req->hashed &&
+	    (rsp->parent_req->r2t_length == 0) &&
 	    (rsp->parent_req->outstanding_r2t == 0))
 		cmnd_remove_hash(rsp->parent_req);
 
@@ -744,8 +785,10 @@ static struct iscsi_cmnd *cmnd_find_hash_get(struct iscsi_session *session,
 
 	spin_lock(&session->cmnd_hash_lock);
 	cmnd = __cmnd_find_hash(session, itt, ttt);
-	if (cmnd)
-		cmnd_get(cmnd);
+	if (cmnd != NULL) {
+		if (unlikely(cmnd_get_check(cmnd)))
+			cmnd = NULL;
+	}
 	spin_unlock(&session->cmnd_hash_lock);
 
 	return cmnd;
@@ -966,12 +1009,12 @@ static void send_r2t(struct iscsi_cmnd *req)
 			"(r2t_length %d, outstanding_r2t %d)", req,
 			req->scst_cmd, req->r2t_length, req->outstanding_r2t);
 		if (req->outstanding_r2t == 0)
-			iscsi_session_push_cmnd(req);
+			iscsi_fail_waiting_cmnd(req);
 		goto out;
 	}
 
 	/*
-	 * There is no race with data_out_start() and __cmnd_abort(), since
+	 * There is no race with data_out_start() and conn_abort(), since
 	 * all functions called from single read thread
 	 */
 	iscsi_extracheck_is_rd_thread(req->conn);
@@ -1041,8 +1084,7 @@ static int iscsi_pre_exec(struct scst_cmd *scst_cmd)
 			 */
 			goto out;
 		}
-		TRACE_DBG("Deleting RX digest cmd %p from digest list", c);
-		list_del(&c->rx_ddigest_cmd_list_entry);
+		cmd_del_from_rx_ddigest_list(c);
 		cmnd_put(c);
 	}
 
@@ -1316,7 +1358,7 @@ static int data_out_start(struct iscsi_conn *conn, struct iscsi_cmnd *cmnd)
 	TRACE_ENTRY();
 
 	/*
-	 * There is no race with send_r2t() and __cmnd_abort(), since
+	 * There is no race with send_r2t() and conn_abort(), since
 	 * all functions called from single read thread
 	 */
 	iscsi_extracheck_is_rd_thread(cmnd->conn);
@@ -1382,10 +1424,7 @@ static void data_out_end(struct iscsi_cmnd *cmnd)
 	iscsi_extracheck_is_rd_thread(cmnd->conn);
 
 	if (!(cmnd->conn->ddigest_type & DIGEST_NONE)) {
-		TRACE_DBG("Adding RX ddigest cmd %p to digest list "
-			"of req %p", cmnd, req);
-		list_add_tail(&cmnd->rx_ddigest_cmd_list_entry,
-			&req->rx_ddigest_cmd_list);
+		cmd_add_on_rx_ddigest_list(req, cmnd);
 		cmnd_get(cmnd);
 	}
 
@@ -1393,9 +1432,11 @@ static void data_out_end(struct iscsi_cmnd *cmnd)
 		TRACE_DBG("ISCSI_RESERVED_TAG, FINAL %x",
 			req_hdr->flags & ISCSI_FLG_FINAL);
 
-		if (req_hdr->flags & ISCSI_FLG_FINAL)
+		if (req_hdr->flags & ISCSI_FLG_FINAL) {
 			req->is_unsolicited_data = 0;
-		else
+			if (req->pending)
+				goto out_put;
+		} else
 			goto out_put;
 	} else {
 		TRACE_DBG("FINAL %x, outstanding_r2t %d, r2t_length %d",
@@ -1419,60 +1460,34 @@ static void data_out_end(struct iscsi_cmnd *cmnd)
 		if (!req->is_unsolicited_data)
 			send_r2t(req);
 	} else
-		iscsi_session_push_cmnd(req);
+		iscsi_restart_waiting_cmnd(req);
 
 out_put:
 	cmnd_put(cmnd);
 	return;
 }
 
-/*
- * Must be called from the read thread. Also called under cmd_list_lock,
- * but may drop it inside.
- *
- * Returns >0 if cmd_list_lock was dropped inside, 0 otherwise.
- */
-static int __cmnd_abort(struct iscsi_cmnd *cmnd)
+static void __cmnd_abort(struct iscsi_cmnd *cmnd)
 {
-	int res = 0;
-	struct iscsi_conn *conn = cmnd->conn;
-
 	TRACE_MGMT_DBG("Aborting cmd %p, scst_cmd %p (scst state %x, "
 		"ref_cnt %d, itt %x, sn %u, op %x, r2t_len %x, CDB op %x, "
 		"size to write %u, is_unsolicited_data %d, "
 		"outstanding_r2t %d, data_waiting %d, sess->exp_cmd_sn %u, "
-		"conn %p)", cmnd, cmnd->scst_cmd, cmnd->scst_state,
+		"conn %p, rd_task %p)", cmnd, cmnd->scst_cmd, cmnd->scst_state,
 		atomic_read(&cmnd->ref_cnt), cmnd_itt(cmnd), cmnd->pdu.bhs.sn,
 		cmnd_opcode(cmnd), cmnd->r2t_length, cmnd_scsicode(cmnd),
 		cmnd_write_size(cmnd), cmnd->is_unsolicited_data,
 		cmnd->outstanding_r2t, cmnd->data_waiting,
-		conn->session->exp_cmd_sn, conn);
+		cmnd->conn->session->exp_cmd_sn, cmnd->conn,
+		cmnd->conn->rd_task);
 
 #ifdef NET_PAGE_CALLBACKS_DEFINED
 	TRACE_MGMT_DBG("net_ref_cnt %d", atomic_read(&cmnd->net_ref_cnt));
 #endif
 
-	iscsi_extracheck_is_rd_thread(conn);
-
 	cmnd->tmfabort = 1;
 
-	if (cmnd->data_waiting && conn->closing) {
-		spin_unlock_bh(&conn->cmd_list_lock);
-
-		res = 1;
-
-		/* ToDo: this is racy for MC/S */
-		TRACE_MGMT_DBG("Pushing data waiting cmd %p", cmnd);
-		iscsi_session_push_cmnd(cmnd);
-
-		/*
-		 * We are in the read thread, so we may not worry that after
-		 * cmnd release conn gets released as well.
-		 */
-		spin_lock_bh(&conn->cmd_list_lock);
-	}
-
-	return res;
+	return;
 }
 
 /* Must be called from the read thread */
@@ -1566,17 +1581,13 @@ static int target_abort(struct iscsi_cmnd *req, int all)
 	list_for_each_entry(session, &target->session_list, session_list_entry) {
 		list_for_each_entry(conn, &session->conn_list, conn_list_entry) {
 			spin_lock_bh(&conn->cmd_list_lock);
-again:
 			list_for_each_entry(cmnd, &conn->cmd_list, cmd_list_entry) {
-				int again = 0;
 				if (cmnd == req)
 					continue;
 				if (all)
-					again = __cmnd_abort(cmnd);
+					__cmnd_abort(cmnd);
 				else if (req_hdr->lun == cmnd_hdr(cmnd)->lun)
-					again = __cmnd_abort(cmnd);
-				if (again)
-					goto again;
+					__cmnd_abort(cmnd);
 			}
 			spin_unlock_bh(&conn->cmd_list_lock);
 		}
@@ -1600,7 +1611,6 @@ static void task_set_abort(struct iscsi_cmnd *req)
 
 	list_for_each_entry(conn, &session->conn_list, conn_list_entry) {
 		spin_lock_bh(&conn->cmd_list_lock);
-again:
 		list_for_each_entry(cmnd, &conn->cmd_list, cmd_list_entry) {
 			struct iscsi_scsi_cmd_hdr *hdr = cmnd_hdr(cmnd);
 			if (cmnd == req)
@@ -1610,8 +1620,7 @@ again:
 			if (before(req_hdr->cmd_sn, hdr->cmd_sn) ||
 			    req_hdr->cmd_sn == hdr->cmd_sn)
 				continue;
-			if (__cmnd_abort(cmnd))
-				goto again;
+			__cmnd_abort(cmnd);
 		}
 		spin_unlock_bh(&conn->cmd_list_lock);
 	}
@@ -1627,13 +1636,36 @@ void conn_abort(struct iscsi_conn *conn)
 
 	TRACE_MGMT_DBG("Aborting conn %p", conn);
 
+	iscsi_extracheck_is_rd_thread(conn);
+
 	spin_lock_bh(&conn->cmd_list_lock);
 again:
 	list_for_each_entry(cmnd, &conn->cmd_list, cmd_list_entry) {
-		if (__cmnd_abort(cmnd))
-			goto again;
+		__cmnd_abort(cmnd);
+		if (cmnd->data_waiting) {
+			if (!cmnd_get_check(cmnd)) {
+				spin_unlock_bh(&conn->cmd_list_lock);
+
+				/* ToDo: this is racy for MC/S */
+				TRACE_MGMT_DBG("Restarting data waiting cmd %p",
+					cmnd);
+				iscsi_fail_waiting_cmnd(cmnd);
+
+				cmnd_put(cmnd);
+
+				/*
+				 * We are in the read thread, so we may not
+				 * worry that after cmnd release conn gets
+				 * released as well.
+				 */
+				spin_lock_bh(&conn->cmd_list_lock);
+				goto again;
+			}
+		}
 	}
 	spin_unlock_bh(&conn->cmd_list_lock);
+
+	return;
 }
 
 static void execute_task_management(struct iscsi_cmnd *req)
@@ -1646,8 +1678,12 @@ static void execute_task_management(struct iscsi_cmnd *req)
 	struct scst_rx_mgmt_params params;
 
 	TRACE((function == ISCSI_FUNCTION_ABORT_TASK) ? TRACE_MGMT_MINOR : TRACE_MGMT,
-		"TM cmd: req %p, itt %x, fn %d, rtt %x, sn %u", req, cmnd_itt(req),
-		function, req_hdr->rtt, req_hdr->cmd_sn);
+		"TM fn %d", function);
+
+	TRACE_MGMT_DBG("TM req %p, itt %x, rtt %x, sn %u, con %p", req,
+		cmnd_itt(req), req_hdr->rtt, req_hdr->cmd_sn, conn);
+
+	iscsi_extracheck_is_rd_thread(conn);
 
 	spin_lock(&sess->sn_lock);
 	sess->tm_active = 1;
@@ -1828,12 +1864,20 @@ static void iscsi_cmnd_exec(struct iscsi_cmnd *cmnd)
 		goto out;
 	}
 
+	iscsi_extracheck_is_rd_thread(cmnd->conn);
+
 	switch (cmnd_opcode(cmnd)) {
+	case ISCSI_OP_SCSI_CMD:
+		if (cmnd->r2t_length != 0) {
+			if (!cmnd->is_unsolicited_data) {
+				send_r2t(cmnd);
+				break;
+			}
+		} else
+			iscsi_restart_cmnd(cmnd);
+		break;
 	case ISCSI_OP_NOOP_OUT:
 		noop_out_exec(cmnd);
-		break;
-	case ISCSI_OP_SCSI_CMD:
-		iscsi_restart_cmnd(cmnd);
 		break;
 	case ISCSI_OP_SCSI_TASK_MGT_MSG:
 		execute_task_management(cmnd);
@@ -2009,12 +2053,6 @@ static void iscsi_session_push_cmnd(struct iscsi_cmnd *cmnd)
 
 	sBUG_ON(cmnd->parent_req != NULL);
 
-	/*
-	 * There is no race with __cmnd_abort(), since all functions
-	 * called from single read thread
-	 */
-	cmnd->data_waiting = 0;
-
 	if (cmnd->pdu.bhs.opcode & ISCSI_OP_IMMEDIATE) {
 		TRACE_DBG("Immediate cmd %p (cmd_sn %u)", cmnd,
 			cmnd->pdu.bhs.sn);
@@ -2056,6 +2094,7 @@ static void iscsi_session_push_cmnd(struct iscsi_cmnd *cmnd)
 				break;
 
 			list_del(&cmnd->pending_list_entry);
+			cmnd->pending = 0;
 
 			TRACE_DBG("Processing pending cmd %p (cmd_sn %u)",
 				cmnd, cmd_sn);
@@ -2129,6 +2168,7 @@ static void iscsi_session_push_cmnd(struct iscsi_cmnd *cmnd)
 		}
 
 		list_add_tail(&cmnd->pending_list_entry, entry);
+		cmnd->pending = 1;
 	}
 out:
 	return;
@@ -2217,12 +2257,6 @@ void cmnd_rx_end(struct iscsi_cmnd *cmnd)
 
 	switch (cmnd_opcode(cmnd)) {
 	case ISCSI_OP_SCSI_CMD:
-		if (cmnd->r2t_length != 0) {
-			if (!cmnd->is_unsolicited_data)
-				send_r2t(cmnd);
-			break;
-		}
-		/* else go through */
 	case ISCSI_OP_SCSI_REJECT:
 	case ISCSI_OP_NOOP_OUT:
 	case ISCSI_OP_SCSI_TASK_MGT_MSG:
@@ -2530,12 +2564,14 @@ static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status)
 				(struct iscsi_task_mgt_hdr *)&req->pdu.bhs;
 	struct iscsi_task_rsp_hdr *rsp_hdr;
 	struct iscsi_session *sess = req->conn->session;
+	int fn = req_hdr->function & ISCSI_FUNCTION_MASK;
 
 	TRACE_ENTRY();
 
+	TRACE_MGMT_DBG("TM req %p finished", req);
 	TRACE((req_hdr->function == ISCSI_FUNCTION_ABORT_TASK) ?
 			 TRACE_MGMT_MINOR : TRACE_MGMT,
-		"TM req %p finished, status %d", req, status);
+		"TM fn %d finished, status %d", fn, status);
 
 	rsp = iscsi_cmnd_create_rsp_cmnd(req);
 	rsp_hdr = (struct iscsi_task_rsp_hdr *)&rsp->pdu.bhs;
@@ -2545,8 +2581,7 @@ static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status)
 	rsp_hdr->itt = req_hdr->itt;
 	rsp_hdr->response = status;
 
-	if ((req_hdr->function & ISCSI_FUNCTION_MASK) ==
-			ISCSI_FUNCTION_TARGET_COLD_RESET)
+	if (fn == ISCSI_FUNCTION_TARGET_COLD_RESET)
 		rsp->should_close_conn = 1;
 
 	sBUG_ON(sess->tm_rsp != NULL);
