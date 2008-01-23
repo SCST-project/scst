@@ -1,0 +1,50 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
+<html>
+<head>
+  <meta http-equiv="content-type"
+ content="text/html; charset=ISO-8859-1">
+  <title>SCST: Generic SCSI Target Middle Level for Linux</title>
+  <meta name="Keywords"
+ content="SCST, Linux, SCSI target, Qlogic, QLA2200, QLA2300, iSCSI, SCSI">
+</head>
+<body>
+<a href="http://stgt.berlios.de/">STGT</a> is alternative, independent
+from SCST implementation of SCSI target framework for Linux. It has
+different architecture, where SCSI target state machine is placed in
+the user space, while in SCST all the processing done in the kernel.
+Such architecture was acknowledged as a "right" one by the Linux SCSI
+subsystem maintainers, so kernel's part of STGT quickly found its way
+to the kernel. But such architecture has two inherent problems, namely
+performance and complexity. See this thread: <a
+ href="http://sourceforge.net/mailarchive/forum.php?thread_name=472F7FA4.7040303%40wpkg.org&amp;forum_name=scst-devel">http://sourceforge.net/mailarchive/forum.php?thread_name=472F7FA4.7040303%40wpkg.org&amp;forum_name=scst-devel</a>
+and this message:&nbsp; <a
+ href="http://thread.gmane.org/gmane.linux.scsi/36417/focus=37273">http://thread.gmane.org/gmane.linux.scsi/36417/focus=37273</a>
+for more details.<br>
+<br>
+See also the following important discussions:<br>
+<ul>
+  <li><a
+ href="http://news.gmane.org/find-root.php?message_id=%3c43987F75.2000301%40vlnb.net%3e">http://news.gmane.org/find-root.php?message_id=%3c43987F75.2000301%40vlnb.net%3e</a>,
+especially pay attention to this message: <a
+ href="http://article.gmane.org/gmane.linux.scsi/21073">http://article.gmane.org/gmane.linux.scsi/21073</a>
+for motivation behind considering STGT's architecture "right".</li>
+  <li><a
+ href="http://news.gmane.org/find-root.php?message_id=%3c463F36AC.3010207%40vlnb.net%3e">http://news.gmane.org/find-root.php?message_id=%3c463F36AC.3010207%40vlnb.net%3e</a></li>
+  <li><a
+ href="http://news.gmane.org/find-root.php?message_id=%3ce2e108260801170127w2937b2afg9bef324efa945e43%40mail.gmail.com%3e">http://news.gmane.org/find-root.php?message_id=%3ce2e108260801170127w2937b2afg9bef324efa945e43%40mail.gmail.com%3e</a>
+for performance comparison.<br>
+  </li>
+</ul>
+Also you shouldn't be deceived by the fact
+that some (small) part of STGT was accepted in the kernel. It doesn't
+mean that STGT has the "kernel quality". In fact, STGT as a whole
+similarly to any other out-of-tree project lives on its own, hence has
+its own quality level, which isn't necessary better, than the quality
+level of SCST. Actually, from such important aspect of quality as
+simplicity, it might be quite contrary: e.g. SCST isn't required to
+support HIGHMEM (nowadays it isn't necessary, but required for all
+in-kernel components), which allowed to simplify memory management a
+lot.<br>
+<br>
+</body>
+</html>

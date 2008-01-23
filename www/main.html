@@ -1,0 +1,199 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
+<html>
+<head>
+  <meta http-equiv="content-type"
+ content="text/html; charset=ISO-8859-1">
+  <title>SCST: Generic SCSI Target Middle Level for Linux</title>
+  <meta name="Keywords"
+ content="SCST, Linux, SCSI target, Qlogic, QLA2200, QLA2300, iSCSI, SCSI">
+</head>
+<body>
+<h1><small>Generic SCSI Target Middle Level for Linux</small><br>
+</h1>
+<p style="text-align: justify;">The SCSI target mid-level subsystem for
+Linux (SCST) is a subsystem of the Linux kernel that provides a
+standard framework for SCSI target drivers development. It is designed
+to
+provide unified, consistent interface between SCSI target drivers and
+Linux kernel and simplify target drivers development as much as
+possible. A system with a SCSI target device is able to share its local
+or virtual devices with other systems on a network with SCSI protocol
+support, e.g. SCSI bus, SAS, Fibre Channel or iSCSI. This is
+commonly used for data storage virtualization.<br>
+</p>
+<p style="text-align: justify;">SCST has the following features:</p>
+<div style="text-align: justify;">
+</div>
+<p style="text-align: justify;">
+</p>
+<div style="text-align: justify;">
+</div>
+<ul style="text-align: justify;">
+  <li>Simple, easy to use interface with target drivers. Particularly,
+SCST performs all required pre- and post- processing of incoming
+requests and all necessary error recovery.</li>
+  <li>Undertakes most problems, related to execution contexts, thus
+practically eliminating one of the most complicated problem in the
+kernel drivers development. For example, a target driver for QLogic
+2200/2300 cards, which has all necessary features, is only ~2000 lines
+of code long.</li>
+  <li> Very low overhead, fine-grained locks and simplest commands
+processing path, which allow to reach maximum possible performance and
+scalability. Particularly, incoming
+requests can be processed in the caller's context or in
+one of the internal SCST's tasklets, therefore no extra context
+switches
+required. <br>
+  </li>
+  <li>Device handlers, i.e. plugins, architecture provides extra
+flexibility by allowing various I/O modes in backstorage handling. For
+example, pass-through device handlers allows to use real SCSI hardware
+and vdisk device
+handler allows to use files as virtual disks.</li>
+  <li>Provides advanced per-initiator device visibility management (LUN
+masking),
+which allows different initiators to see different set of devices
+with different access permissions. For instance, initiator A could see
+exported from
+target T devices Da and Db read-writable, and initiator B from the same
+target T could see devices Db read-only and Dc read-writable.<br>
+  </li>
+  <li> Emulates necessary functionality of SCSI host adapter, because
+from remote initiators point of view SCST acts as a SCSI host with
+its
+own devices. This is especially important in pass-through mode with one
+to many relationship, i.e. when
+multiple initiators can connect to the exported pass-through devices.
+You can find more deep elaboration why it is needed in&nbsp;<a
+ href="http://www.mail-archive.com/linux-scsi@vger.kernel.org/msg06911.html">this</a>
+message in linux-scsi mailing list. Some of the emulated functions are
+the following:
+    <ul>
+      <li> Generation of necessary UNIT ATTENTIONs, their storage and
+delivery to all connected remote initiators. </li>
+      <li> RESERVE/RELEASE functionality. </li>
+      <li> CA/ACA conditions (not implemented yet). </li>
+      <li> All types of RESETs and other task management functions. </li>
+      <li> REPORT LUNS command as well as SCSI address space management
+in order to have consistent address space on all remote initiators,
+since local SCSI devices could not know about each other to report
+via REPORT LUNS command. Additionally, SCST responds with error on
+all commands to non-existing devices and provides access control, so
+different remote initiators could see
+different set of devices. </li>
+      <li> Other necessary functionality (task attributes, etc.) as
+specified in SAM-2, SPC-2, SAM-3, SPC-3 and other SCSI standards. </li>
+    </ul>
+  </li>
+  <li> Multithreaded design and complete SMP support, so all your
+processors will participate in the commands processing.<br>
+  </li>
+  <li>Well documented.<br>
+  </li>
+</ul>
+<div style="text-align: justify;">
+</div>
+<p style="text-align: justify;">Interoperability between SCST and local
+SCSI initiators (i.e. sd, st, etc.) is
+the additional issue that SCST is going to address (it is not
+implemented yet). It is necessary, because local SCSI initiators can
+change the state of the device, for example RESERVE the device, or some
+of its parameters and that could be done behind SCST, which could lead
+to various problems, including data corruption. Thus, RESERVE/RELEASE
+commands, locally generated
+UNIT ATTENTIONs, etc. should be intercepted and processed as if local
+SCSI initiators act as remote SCSI initiators connected to SCST.<br>
+</p>
+<p style="text-align: justify;">Interface between SCST and target
+drivers is based on work, done by <a href="http://www.iol.unh.edu/">University
+of New Hampshire Interoperability Labs (UNH IOL)</a> for the <a
+ href="http://www.iol.unh.edu/consortiums/iscsi/index.html">UNH-iSCSI
+project</a>, which was developed on <a
+ href="http://unh-iscsi.sourceforge.net/">SourceForge.net</a>.<br>
+</p>
+<p style="text-align: justify;">SCST supports the following I/O modes:<br>
+</p>
+<ul>
+  <li>Pass-through mode with one to many relationship, i.e. when
+multiple initiators can connect to the exported pass-through devices,
+for virtually all SCSI devices types: disks
+(type 0), tapes (type 1), processors (type
+3), CDROMs (type 5), MO disks (type 7), medium changers (type 8) and
+RAID controllers (type 0xC)</li>
+  <li>FILEIO mode, which allows to use files on file
+systems or block devices as virtual remotely available SCSI disks or
+CDROMs with benefits of the Linux page cache<br>
+  </li>
+  <li>BLOCKIO mode, which performs direct block IO with a block device,
+bypassing page-cache for all operations. This mode works ideally with
+high-end storage HBAs and for applications that either do not need
+caching between application and disk or need the large block throughput.</li>
+  <li>User space mode using scst_user device handler, which allows to
+implement in the user space virtual SCSI devices in the SCST environment<br>
+  </li>
+  <li>"Performance" device handlers, which provide in pseudo
+pass-through mode a way for direct
+performance measurements without overhead of actual data transferring
+from/to underlying SCSI device<br>
+  </li>
+</ul>
+<p style="text-align: justify;">The latest stable version is 0.9.5.
+Requires Linux kernel 2.6.14 or higher.
+Tested mostly on i386 and x86_64,
+but should also
+work on any other
+supported by Linux platform. More detail information you could find in
+the SCST README file.
+</p>
+Starting from version 0.9.4 2.4 Linux
+kernels are not supported anymore. The latest
+stable
+version of SCST for 2.4 kernels is 0.9.3.1-24.
+<p style="text-align: justify;">If you have any questions you can ask
+them via&nbsp;<a
+ href="http://sourceforge.net/mailarchive/forum.php?forum_name=scst-devel">scst-devel
+mailing list</a> or <a
+ href="http://sourceforge.net/forum/forum.php?forum_id=378683">forum</a>.
+See main SCST page on SF.net for more info how to subscribe on
+scst-devel mailing list.
+</p>
+Documentation: <a href="doc/scst_pg.html">HTML</a>,
+<a href="doc/scst_pg.pdf">PDF</a>, <a href="doc/scst_user_spec.txt">scst_user
+interface description</a><br>
+Some nice SCST call graphs, created by Ming Zhang: <a
+ href="doc/init_scst.png">init_scst</a>, <a
+ href="doc/scst_cmd_thread.png">scst_cmd_thread</a>, <a
+ href="doc/scst_mgmt_cmd_thread.png">scst_mgmt_cmd_thread</a>, <a
+ href="doc/scst_mgmt_thread.png">scst_mgmt_thread</a><br>
+<p>The latest development version of SCST and target drivers is
+available directly from the
+project's SVN. The SCST release policy is to make stable releases once
+or
+twice a year, with the only exception if the current stable version
+contains a critical bug. But every commit in the SVN is carefully
+tested, so you can consider them as mini releases. Therefore on
+practice the development version
+in the SVN
+is usually more stable, than the "stable", i.e. released, one. You can
+access it using
+either <a href="http://scst.svn.sourceforge.net/">web-based SVN
+repository viewer</a> or using anonymous access: </p>
+<p> <tt> svn co https://scst.svn.sourceforge.net/svnroot/scst<br>
+</tt></p>
+<p>More information about accessing SVN repository may be found <a
+ href="http://sourceforge.net/docs/E09">here</a>.<br>
+</p>
+<p>History of the pre-SVN SCST development is available in SCST CVS
+repository, which is accessible using <a
+ href="http://cvs.sourceforge.net/viewcvs.py/scst">web-based CVS
+repository viewer</a> or anonymous CVS access.<br>
+</p>
+<p><a href="http://www.sourceforge.net/projects/scst">Main SCST project
+page on </a><a href="http://www.sourceforge.net/projects/scst">SF.net</a><br>
+<a href="http://sourceforge.net/project/showfiles.php?group_id=110471">Download
+released versions</a><br>
+<a href="ChangeLog.scst">Change Log</a><br>
+<br>
+</p>
+</body>
+</html>

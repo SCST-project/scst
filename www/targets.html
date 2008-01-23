@@ -1,0 +1,171 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
+<html>
+<head>
+  <meta http-equiv="content-type"
+ content="text/html; charset=ISO-8859-1">
+  <title>SCST: Generic SCSI Target Middle Level for Linux</title>
+  <meta name="Keywords"
+ content="SCST, Linux, SCSI target, Qlogic, QLA2200, QLA2300, iSCSI, SCSI">
+</head>
+<body>
+<h1><small><a name="iscsi-scst"></a>ISCSI target driver iSCSI-SCST<br>
+</small></h1>
+<div style="text-align: justify;">
+<p>ISCSI-SCST is a forked (with all respects) version of <a
+ href="http://iscsitarget.sourceforge.net/">IET</a> with
+updates to work over SCST as well as with many improvements and
+bugfixes. The reason of fork is that the necessary changes are
+intrusive and with the current IET merge policy, where only simple
+bugfix-like patches, which doesn't touch the core code, could be
+merged, it is very unlikely that they will be merged in the main IET
+trunk.<br>
+</p>
+<p>ISCSI-SCST has the following major advantages over the mainline IET:<br>
+</p>
+<ul>
+  <li>It uses full SCST power without loosing any existing feature
+(except, maybe, "illegal" from SCSI specifications point of view MPIO).
+Namely, you can use with it:</li>
+</ul>
+<ul style="list-style-type: circle; margin-left: 40px;">
+  <li>Pass-through mode with one to many relationship, i.e. when
+multiple initiators can connect to the exported pass-through devices.
+For instance, you can safely export your parallel SCSI
+tape or tape library on your iSCSI net and multiple initiators can
+share it without risk of data loss because of the shared usage.
+Existing "rawio" patch for IET supports only non-enforced 1:1
+relationship, so it is unsafe to use it in multiple initiators
+environments.<br>
+  </li>
+  <li>More advances devices visibility management, when different
+initiators can see different set of devices with different access
+permissions from the same target.</li>
+  <li>O_DIRECT, i.e. "BLOCKIO on files", mode, which has all advantages
+of BLOCKIO, but also supports files on file systems. Sometimes, in the
+appropriate cases, this mode can make performance difference in 100% or
+even more.</li>
+  <li>With 4KB blocks you can forget about abysmal write performance
+caused by misaligned partitions. All modern OS'es, including Windows
+starting from, at least, Windows 2000, work perfectly with 4KB block
+devices without any additional storage or handling overhead.</li>
+  <li>Virtual CD/DVD-ROMs without necessity for manual patching.</li>
+  <li>Ability to create target devices emulators in the user space.</li>
+  <li>Ability to create multi-transport SCSI targets, which can export
+(possibly, the same) devices over multiple transports.</li>
+</ul>
+<ul>
+  <li>It has many code improvements and cleanups, including stability
+and iSCSI RFC violations fixes. If you are an IET user and consider IET
+problemless, I'm sorry for the bad news. IET works well only on "fast"
+paths and regularly used branches, in many other less used cases IET
+has various problems, from simply ignoring error processing, as it is
+with memory allocations, to crashing itself with BUG() macro, as it is
+for malformed packets from initiators. ChangeLog file lists most
+noticeable fixes, but there were a lot of many other smaller ones.</li>
+</ul>
+<ul>
+  <li>Due to its reworked IO architecture and SCST backend iSCSI-SCST
+has better performance in many cases. In future with upcoming SCST
+improvements, like zero-copy with Linux cache FILEIO, the performance
+difference is going to be even bigger. Currently in tests from a single
+initiator over a single connection on 1GbE hardware over FILEIO vdisk
+iSCSI-SCST with default settings usually outperforms tuned IET a on
+3-10% (by default IET has not too good settings, so it shows
+considerably worse results) or has the similar performance. The bigger
+difference is expected with 10GbE hardware or with higher number of
+initiators, since iSCSI-SCST has less commands processing overhead per
+command, hence has smaller processing latency and puts less load on
+CPU. If you find a case where
+iSCSI-SCST has worse performance, than IET, please report it to SCST
+mailing list, it will be greatly
+appreciated.</li>
+</ul>
+<p>Also, in contrast to IET, iSCSI-SCST is open for any new
+development, modifications and improvements, so people who want to fix
+or implement something new will not have to keep and maintain separate
+patches as it is currently necessary with IET. ISCSI-SCST is going to
+be actively developed and gain in the future new features like support
+for multiple connections per session, error recovery levels &gt;0,
+etc., which eventually make it really "enterprise".<br>
+</p>
+<p>ISCSI-SCST is available for download from the <a
+ href="http://scst.svn.sourceforge.net/">SCST SVN repository</a>. See
+the&nbsp;<a href="main.html">main page</a> how to setup access to it.<br>
+</p>
+<p>If you are an IET user before installation carefully read
+README files of both iSCSI-SCST and the SCST core. Especially pay
+attention that now the LUN information for iSCSI-SCST is configured not
+using iscsi-scstd.conf file in /etc, but using corresponding SCST
+facilities. This is because now the responsibilities are divided (as it
+should be) between the target driver (iSCSI-SCST) and the SCST core:
+target driver is responsible for handling targets and their
+parameters, SCST core is responsible for handling backstorage.<br>
+</p>
+</div>
+<hr
+ style="width: 100%; height: 2px; margin-left: 0px; margin-right: 0px;">
+<h1><small><a name="qla2x00"></a>Target driver for QLogic 22xx/23xx
+cards<br>
+</small></h1>
+<div style="text-align: justify;">
+<p>This is target driver for QLogic 22xx/23xx Fibre Channel cards, but
+24xx and later cards are not supported by it.<br>
+</p>
+<p style="text-align: justify;">The latest version is 0.9.5. Requires
+Linux kernel version 2.6.16.x or higher and SCST version 0.9.5 or
+higher.
+Tested mostly on i386 and
+x86_64, but
+should work on any other supported by Linux platform.
+</p>
+<p style="text-align: justify;">You can find the latest development
+version of this driver in the SCST SVN. See the&nbsp;<a href="main.html">main
+page</a> how to setup access to it.
+</p>
+<p style="text-align: justify;"><a
+ href="http://sourceforge.net/project/showfiles.php?group_id=110471">Download
+released versions</a><br>
+<a href="ChangeLog.qla26">Change Log</a><br>
+</p>
+</div>
+<hr style="width: 100%; height: 2px;">
+<h1><small><a name="qla_isp"></a>Target driver for QLogic ISP chipsets<br>
+</small></h1>
+This is target driver for ISP QLogic chipsets commonly used in many
+SCSI and FC host bus adapters. Supported chipsets are listed in README
+file, incomplete list of supported HBA's is in doc/Hardware.txt. It is
+based on Matthew Jacob's multiplatform driver for ISP chipsets, which
+can be downloaded from <a
+ href="ftp://ftp.feral.com/pub/isp/isp_dist.tgz">ftp://ftp.feral.com/pub/isp/isp_dist.tgz</a>.
+The update for SCST was made and supported by Stanislaw Gruszka.<br>
+<br>
+One major difference of this driver from the above target driver for
+QLogic 2200/2300 cards is that it supports 24xx series of chipsets.<br>
+<br>
+This driver is unstable and on the
+alpha stage. It is available for download from the <a
+ href="http://scst.svn.sourceforge.net/">SCST SVN repository</a>. See
+the&nbsp;<a href="main.html">main page</a> how to setup access to it.<br>
+<br>
+<hr style="width: 100%; height: 2px;">
+<h1><small><a name="srpt"></a>Infiniband SCSI RDMA Protocol (SRP)
+Target driver</small></h1>
+SCSI RDMA Protocol (SRP) target driver is developed
+independently from SCST team. You can find instructions how to download
+and install it on its <a
+ href="https://wiki.openfabrics.org/tiki-index.php?page=SRPT+Installation">wiki
+page</a><br>
+<br>
+<hr style="width: 100%; height: 2px;">
+<h1><small><a name="lsi"></a>Target driver for LSI/MPT cards</small></h1>
+Target driver LSI/MPT cards was originally developed by Hu Gang, then
+Erik Habbinga has continued the development. It supports parallel SCSI
+(SPI), but also should work with SAS and Fibre Channel transports. This
+driver is
+on the
+alpha stage and available for download from the <a
+ href="http://scst.svn.sourceforge.net/">SCST SVN repository</a>. See
+the&nbsp;<a href="main.html">main page</a> how to setup access to it.<br>
+<br>
+</body>
+</html>
