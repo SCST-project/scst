@@ -183,6 +183,15 @@ static void close_conn(struct iscsi_conn *conn)
 	/* We want all our already send operations to complete */
 	conn->sock->ops->shutdown(conn->sock, RCV_SHUTDOWN);
 
+	/*
+	 * We need to call scst_unregister_session() ASAP to make SCST start
+	 * stuck commands recovery.
+	 *
+	 * ToDo: this is incompatible with MC/S
+	 */
+	scst_unregister_session(session->scst_sess, 0, NULL);
+	session->scst_sess = NULL;
+
 	if (conn->read_state != RX_INIT_BHS) {
 		struct iscsi_cmnd *cmnd = conn->read_cmnd;
 		conn->read_cmnd = NULL;
@@ -295,7 +304,7 @@ static void close_conn(struct iscsi_conn *conn)
 		}
 
 		iscsi_make_conn_wr_active(conn);
-		msleep(50);
+		msleep(200);
 
 		TRACE_CONN_CLOSE("conn %p, conn_ref_cnt %d left, wr_state %d, "
 			"exp_cmd_sn %u", conn, atomic_read(&conn->conn_ref_cnt),
@@ -379,8 +388,8 @@ static void close_conn(struct iscsi_conn *conn)
 
 	mutex_lock(&target->target_mutex);
 	conn_free(conn);
-	if (list_empty(&session->conn_list))
-		session_del(target, session->sid);
+	/* ToDo: this is incompatible with MC/S */
+	session_free(session);
 	mutex_unlock(&target->target_mutex);
 
 	TRACE_EXIT();

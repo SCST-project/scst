@@ -136,7 +136,8 @@ int session_free(struct iscsi_session *session)
 	for (i = 0; i < ARRAY_SIZE(session->cmnd_hash); i++)
 		sBUG_ON(!list_empty(&session->cmnd_hash[i]));
 
-	scst_unregister_session(session->scst_sess, 1, NULL);
+	if (session->scst_sess != NULL)
+		scst_unregister_session(session->scst_sess, 1, NULL);
 
 	list_del(&session->session_list_entry);
 

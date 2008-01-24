@@ -1621,13 +1621,23 @@ struct scst_session *scst_register_session(struct scst_tgt *tgt, int atomic,
  *      Parameter:
  *       - sess - session
  *
- * Note: All outstanding commands will be finished regularly. After
- *       scst_unregister_session() returned no new commands must be sent to
- *       SCST via scst_rx_cmd(). Also, the caller must ensure that no
- *       scst_rx_cmd() or scst_rx_mgmt_fn_*() is called in paralell with
- *       scst_unregister_session().
- *       Can be called before result_fn() of scst_register_session() called,
- *       i.e. during the session registration/initialization.
+ * Notes:
+ *
+ * - All outstanding commands will be finished regularly. After
+ *   scst_unregister_session() returned no new commands must be sent to
+ *   SCST via scst_rx_cmd().
+ *
+ * - The caller must ensure that no scst_rx_cmd() or scst_rx_mgmt_fn_*() is
+ *   called in paralell with scst_unregister_session().
+ *
+ * - Can be called before result_fn() of scst_register_session() called,
+ *   i.e. during the session registration/initialization.
+ *
+ * - It is highly recommended to call scst_unregister_session() as soon as it
+ *   gets clear that session will be unregistered and not to wait until all
+ *   related commands finished. This function provides the wait functionality,
+ *   but it also starts recovering stuck commands, if there are any.
+ *   Otherwise, your target driver could wait for those commands forever.
  */
 void scst_unregister_session(struct scst_session *sess, int wait,
 	void (*unreg_done_fn) (struct scst_session *sess));

@@ -351,7 +351,7 @@ static struct file *vdisk_open(const struct scst_vdisk_dev *virt_dev)
 		open_flags |= O_RDWR;
 	if (virt_dev->o_direct_flag)
 		open_flags |= O_DIRECT;
-	if (virt_dev->wt_flag)
+	if (virt_dev->wt_flag && !virt_dev->nv_cache)
 		open_flags |= O_SYNC;
 	TRACE_DBG("Opening file %s, flags 0x%x", virt_dev->file_name, open_flags);
 	fd = filp_open(virt_dev->file_name, O_LARGEFILE | open_flags, 0600);
@@ -494,7 +494,7 @@ static int vdisk_attach(struct scst_device *dev)
 	dev->dh_priv = virt_dev;
 
 	dev->tst = DEF_TST;
-	if (virt_dev->wt_flag)
+	if (virt_dev->wt_flag && !virt_dev->nv_cache)
 		dev->queue_alg = DEF_QUEUE_ALG_WT;
 	else
 		dev->queue_alg = DEF_QUEUE_ALG;
@@ -1313,7 +1313,7 @@ static int vdisk_caching_pg(unsigned char *p, int pcontrol,
 		0xff, 0xff, 0xff, 0xff, 0x80, 0x14, 0, 0, 0, 0, 0, 0};
 
 	memcpy(p, caching_pg, sizeof(caching_pg));
-	p[2] |= !(virt_dev->wt_flag) ? WCE : 0;
+	p[2] |= !(virt_dev->wt_flag || virt_dev->nv_cache) ? WCE : 0;
 	if (1 == pcontrol)
 		memset(p + 2, 0, sizeof(caching_pg) - 2);
 	return sizeof(caching_pg);
@@ -1344,7 +1344,7 @@ static int vdisk_ctrl_m_pg(unsigned char *p, int pcontrol,
 		break;
 	case 2:
 		p[2] |= DEF_TST << 5;
-		if (virt_dev->wt_flag)
+		if (virt_dev->wt_flag || virt_dev->nv_cache)
 			p[3] |= DEF_QUEUE_ALG_WT << 4;
 		else
 			p[3] |= DEF_QUEUE_ALG << 4;
@@ -1529,7 +1529,7 @@ static int vdisk_set_wt(struct scst_vdisk_dev *virt_dev, int wt)
 
 	TRACE_ENTRY();
 
-	if ((virt_dev->wt_flag == wt) || virt_dev->nullio)
+	if ((virt_dev->wt_flag == wt) || virt_dev->nullio || virt_dev->nv_cache)
 		goto out;
 
 	spin_lock(&virt_dev->flags_lock);
@@ -2486,7 +2486,7 @@ static int vdisk_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 		struct scst_vdisk_dev *virt_dev =
 			(struct scst_vdisk_dev *)dev->dh_priv;
 		dev->tst = DEF_TST;
-		if (virt_dev->wt_flag)
+		if (virt_dev->wt_flag && !virt_dev->nv_cache)
 			dev->queue_alg = DEF_QUEUE_ALG_WT;
 		else
 			dev->queue_alg = DEF_QUEUE_ALG;

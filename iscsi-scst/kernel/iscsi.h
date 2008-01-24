@@ -103,7 +103,7 @@ struct iscsi_session {
 	u32 tm_sn;
 	struct iscsi_cmnd *tm_rsp;
 
-	/* read only, if there are connection(s) */
+	/* Read only, if there are connection(s) */
 	struct iscsi_sess_param sess_param;
 
 	spinlock_t cmnd_hash_lock;
@@ -113,7 +113,7 @@ struct iscsi_session {
 
 	struct list_head session_list_entry;
 
-	/* Bot don't need any protection */
+	/* Both don't need any protection */
 	char *initiator_name;
 	u64 sid;
 };

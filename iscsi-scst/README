@@ -102,7 +102,7 @@ should be: the target driver is responsible for handling targets and
 their parameters, SCST core is responsible for handling backstorage.
 
 If you need to configure different LUs for different targets you should
-create for each target group "Default_target_name", where target name
+create for each target group "Default_target_name", where "target_name"
 means name of the target, for example:
 "Default_iqn.2007-05.com.example:storage.disk1.sys1.xyz", and add there
 all necessary LUNs. Check SCST README file for details.
@@ -113,6 +113,15 @@ If under high load you experience I/O stalls or see in the kernel log
 abort or reset messages, then try to reduce QueuedCommands parameter in
 iscsi-scstd.conf file for the corresponding target. See also SCST README
 file for more details about that issue.
+
+Sometimes, when there are communication problems with initiator(s),
+shutting down iSCSI-SCST can take very long time, up to about 10
+minutes. This can happen, because iSCSI-SCST can't be shutdown before
+all already sent to TCP for initiator(s) data will be actually sent
+and/or released by TCP. In case of communication failures this can take
+up to TCP transmit timeout, which is about 10 minutes. In such cases
+using netstat utility you can see that there is/are connection(s) to
+initiator(s) with non-0 "Send-Q".
 
 CAUTION:  Working of target and initiator on the same host isn't
 ========  supported. See SCST README file for details.

@@ -2296,7 +2296,11 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 
 			goto out;
 		} else {
+#if 0 /* 3ware controller is buggy and returns CONDITION_GOOD instead of CHECK_CONDITION */
 			if ((status_byte(res) == CHECK_CONDITION) &&
+#else
+			if (
+#endif
 			    SCST_SENSE_VALID(sense_buffer) &&
 			    (sense_buffer[2] == ILLEGAL_REQUEST)) {
 				TRACE(TRACE_SCSI|TRACE_MGMT_MINOR, "Device %d:%d:%d:%d "
@@ -3103,7 +3107,6 @@ static spinlock_t scst_tm_dbg_lock = SPIN_LOCK_UNLOCKED;
 /* All serialized by scst_tm_dbg_lock */
 struct
 {
-	unsigned int tm_dbg_active:1;
 	unsigned int tm_dbg_release:1;
 	unsigned int tm_dbg_blocked:1;
 } tm_dbg_flags;
@@ -3122,19 +3125,16 @@ void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev,
 {
 	if ((acg_dev->acg == scst_default_acg) && (acg_dev->lun == 0)) {
 	    	unsigned long flags;
+	    	/* Do TM debugging only for LUN 0 */
 	    	spin_lock_irqsave(&scst_tm_dbg_lock, flags);
-	    	if (!tm_dbg_flags.tm_dbg_active) {
-			/* Do TM debugging only for LUN 0 */
-			tm_dbg_p_cmd_list_waitQ = 
-				&tgt_dev->dev->p_cmd_lists->cmd_list_waitQ;
-			tm_dbg_state = INIT_TM_DBG_STATE;
-			tm_dbg_on_state_passes =
-				tm_dbg_on_state_num_passes[tm_dbg_state];
-			__set_bit(SCST_TGT_DEV_UNDER_TM_DBG, &tgt_dev->tgt_dev_flags);
-			PRINT_INFO("LUN 0 connected from initiator %s is under "
-				"TM debugging", tgt_dev->sess->tgt->tgtt->name);
-			tm_dbg_flags.tm_dbg_active = 1;
-		}
+		tm_dbg_p_cmd_list_waitQ = 
+			&tgt_dev->dev->p_cmd_lists->cmd_list_waitQ;
+		tm_dbg_state = INIT_TM_DBG_STATE;
+		tm_dbg_on_state_passes =
+			tm_dbg_on_state_num_passes[tm_dbg_state];
+		__set_bit(SCST_TGT_DEV_UNDER_TM_DBG, &tgt_dev->tgt_dev_flags);
+		PRINT_INFO("LUN 0 connected from initiator %s is under "
+			"TM debugging", tgt_dev->sess->tgt->tgtt->name);
 		spin_unlock_irqrestore(&scst_tm_dbg_lock, flags);
 	}
 }
@@ -3146,7 +3146,6 @@ void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev)
 		del_timer_sync(&tm_dbg_timer);
 		spin_lock_irqsave(&scst_tm_dbg_lock, flags);
 		tm_dbg_p_cmd_list_waitQ = NULL;
-		tm_dbg_flags.tm_dbg_active = 0;
 		spin_unlock_irqrestore(&scst_tm_dbg_lock, flags);
 	}
 }
@@ -3342,9 +3341,6 @@ void tm_dbg_task_mgmt(struct scst_device *dev, const char *fn, int force)
 {
 	unsigned long flags;
 
-	if (!tm_dbg_flags.tm_dbg_active)
-		goto out;
-
 	if (dev != NULL) {
 		struct scst_tgt_dev *tgt_dev;
 		bool found = 0;
@@ -3371,7 +3367,8 @@ void tm_dbg_task_mgmt(struct scst_device *dev, const char *fn, int force)
 		tm_dbg_change_state();
 		tm_dbg_flags.tm_dbg_release = 1;
 		smp_mb();
-		wake_up_all(tm_dbg_p_cmd_list_waitQ);
+		if (tm_dbg_p_cmd_list_waitQ != NULL)
+			wake_up_all(tm_dbg_p_cmd_list_waitQ);
 	} else {
 		TRACE_MGMT_DBG("%s: while OFFLINE state, doing nothing", fn);
 	}

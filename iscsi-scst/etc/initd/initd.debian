@@ -109,23 +109,6 @@ case "$1" in
 		exit 1
 	fi
         ;;
-  dump)
-	DUMP=`tempfile -p iscsi-scstd`
-	RETVAL=$?
-	if [ $RETVAL -ne 0 ]; then
-	    echo "Failed to create dump file $DUMP"
-	    exit 1
-	fi
-        iscsi-scst-adm --mode dump --all >$DUMP
-	RETVAL=$?
-	if [ $RETVAL -ne 0 ]; then
-	    echo "Error dumping config from daemon"
-	    rm $DUMP
-	    exit 1
-	fi
-	mv -u $DUMP $CONFIG_FILE
-	echo "Config dumped to $CONFIG_FILE"
-        ;;
   *)
         echo $"Usage: $0 {start|stop|restart|status|dump}"
         exit 1

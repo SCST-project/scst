@@ -208,9 +208,16 @@ void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context)
 
 	spin_lock_irqsave(&sess->sess_list_lock, flags);
 
-	list_add_tail(&cmd->search_cmd_list_entry, &sess->search_cmd_list);
-
 	if (unlikely(sess->init_phase != SCST_SESS_IPH_READY)) {
+		/*
+		 * We have to always keep command in the search list from the
+		 * very beginning, because otherwise it can be missed during
+		 * TM processing. This check is needed because there might be
+		 * old, i.e. deferred, commands and new, i.e. just coming, ones.
+		 */
+		if (cmd->search_cmd_list_entry.next == NULL)
+			list_add_tail(&cmd->search_cmd_list_entry,
+				&sess->search_cmd_list);
 		switch(sess->init_phase) {
 		case SCST_SESS_IPH_SUCCESS:
 			break;
@@ -228,7 +235,8 @@ void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context)
 		default:
 			sBUG();
 		}
-	}
+	} else
+		list_add_tail(&cmd->search_cmd_list_entry, &sess->search_cmd_list);
 
 	spin_unlock_irqrestore(&sess->sess_list_lock, flags);
 
@@ -1845,6 +1853,7 @@ static int scst_send_to_midlev(struct scst_cmd **active_cmd)
 	struct scst_cmd *cmd = *active_cmd;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
 	struct scst_device *dev = cmd->dev;
+	struct scst_session *sess = cmd->sess;
 	typeof(tgt_dev->expected_sn) expected_sn;
 	int count;
 
@@ -1852,11 +1861,12 @@ static int scst_send_to_midlev(struct scst_cmd **active_cmd)
 
 	res = SCST_CMD_STATE_RES_CONT_NEXT;
 
-	__scst_get(0); /* protect dev & tgt_dev */
+	__scst_get(0); /* protect dev */
+	scst_sess_get(sess); /* protect tgt_dev */
 
 	if (unlikely(cmd->internal || cmd->retry)) {
 		rc = scst_do_send_to_midlev(cmd);
-		/* !! At this point cmd, sess & tgt_dev can be already freed !! */
+		/* !! At this point cmd can be already freed !! */
 		if (rc == SCST_EXEC_NEED_THREAD) {
 			TRACE_DBG("%s", "scst_do_send_to_midlev() requested "
 			      "thread context, rescheduling");
@@ -1875,7 +1885,7 @@ static int scst_send_to_midlev(struct scst_cmd **active_cmd)
 		getnstimeofday(&ts);
 		cmd->pre_exec_finish = scst_sec_to_nsec(ts.tv_sec) + ts.tv_nsec;
 		TRACE_DBG("cmd %p (sess %p): pre_exec_finish %Ld (tv_sec %ld, "
-			"tv_nsec %ld)", cmd, cmd->sess, cmd->pre_exec_finish, ts.tv_sec,
+			"tv_nsec %ld)", cmd, sess, cmd->pre_exec_finish, ts.tv_sec,
 			ts.tv_nsec);
 	}
 #endif
@@ -1960,6 +1970,7 @@ out_unplug:
 		generic_unplug_device(dev->scsi_dev->request_queue);
 
 out_put:
+	scst_sess_put(sess);
 	__scst_put();
 	/* !! At this point sess, dev and tgt_dev can be already freed !! */
 
@@ -2434,6 +2445,19 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
+#ifdef DEBUG_TM
+	if (cmd->tm_dbg_delayed && !test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)) {
+		if (scst_cmd_atomic(cmd)) {
+			TRACE_MGMT_DBG("%s", "DEBUG_TM delayed cmd needs a thread");
+			res = SCST_CMD_STATE_RES_NEED_THREAD;
+			return res;
+		}
+		TRACE_MGMT_DBG("Delaying cmd %p (tag %llu) for 1 second",
+			cmd, cmd->tag);
+		schedule_timeout_uninterruptible(HZ);
+	}
+#endif
+
 	if (cmd->tgt_dev != NULL) {
 		if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))
 			scst_on_hq_cmd_response(cmd);
@@ -2515,19 +2539,6 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 		res = SCST_CMD_STATE_RES_NEED_THREAD;
 		goto out;
 	}
-
-#ifdef DEBUG_TM
-	if (cmd->tm_dbg_delayed && !test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)) {
-		if (atomic && !cmd->tgtt->xmit_response_atomic) {
-			TRACE_MGMT_DBG("%s", "DEBUG_TM delayed cmd needs a thread");
-			res = SCST_CMD_STATE_RES_NEED_THREAD;
-			goto out;
-		}
-		TRACE_MGMT_DBG("Delaying cmd %p (tag %llu) for 1 second",
-			cmd, cmd->tag);
-		schedule_timeout_uninterruptible(HZ);
-	}
-#endif
 
 	while (1) {
 		int finished_cmds = atomic_read(&cmd->sess->tgt->finished_cmds);
@@ -3439,12 +3450,12 @@ static int scst_set_mcmd_next_state(struct scst_mgmt_cmd *mcmd)
 	return res;
 }
 
-static int __scst_check_unblock_aborted_cmd(struct scst_cmd *cmd)
+static bool __scst_check_unblock_aborted_cmd(struct scst_cmd *cmd,
+	struct list_head *list_entry)
 {
-	int res;
+	bool res;
 	if (test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)) {
-		TRACE_MGMT_DBG("Adding aborted blocked cmd %p to active cmd "
-			"list", cmd);
+		list_del(list_entry);
 		spin_lock(&cmd->cmd_lists->cmd_list_lock);
 		list_add_tail(&cmd->cmd_list_entry,
 			&cmd->cmd_lists->active_cmd_list);
@@ -3472,8 +3483,11 @@ static void scst_unblock_aborted_cmds(int scst_mutex_held)
 		local_irq_disable();
 		list_for_each_entry_safe(cmd, tcmd, &dev->blocked_cmd_list,
 					blocked_cmd_list_entry) {
-			if (__scst_check_unblock_aborted_cmd(cmd))
-				list_del(&cmd->blocked_cmd_list_entry);
+			if (__scst_check_unblock_aborted_cmd(cmd,
+					&cmd->blocked_cmd_list_entry)) {
+				TRACE_MGMT_DBG("Unblock aborted blocked cmd %p",
+					cmd);
+			}
 		}
 		local_irq_enable();
 		spin_unlock_bh(&dev->dev_lock);
@@ -3485,11 +3499,11 @@ static void scst_unblock_aborted_cmds(int scst_mutex_held)
 			list_for_each_entry_safe(cmd, tcmd,
 					&tgt_dev->deferred_cmd_list,
 					sn_cmd_list_entry) {
-				if (__scst_check_unblock_aborted_cmd(cmd)) {
-					TRACE_MGMT_DBG("Deleting aborted SN "
-						"cmd %p from SN list", cmd);
+				if (__scst_check_unblock_aborted_cmd(cmd,
+						&cmd->sn_cmd_list_entry)) {
+					TRACE_MGMT_DBG("Unblockd aborted SN "
+						"cmd %p", cmd);
 					tgt_dev->def_cmd_count--;
-					list_del(&cmd->sn_cmd_list_entry);
 				}
 			}
 			spin_unlock(&tgt_dev->sn_lock);
@@ -4105,6 +4119,9 @@ static void scst_mgmt_cmd_send_done(struct scst_mgmt_cmd *mcmd)
 	if (scst_is_strict_mgmt_fn(mcmd->fn) && (mcmd->completed_cmd_count > 0))
 		mcmd->status = SCST_MGMT_STATUS_TASK_NOT_EXIST;
 
+	TRACE(TRACE_MGMT_MINOR, "TM command fn %d finished, status %x",
+		mcmd->fn, mcmd->status);
+
 	if (mcmd->sess->tgt->tgtt->task_mgmt_fn_done) {
 		TRACE_DBG("Calling target %s task_mgmt_fn_done()",
 		      mcmd->sess->tgt->tgtt->name);
@@ -4557,7 +4574,6 @@ restart:
 		TRACE_DBG("Deleting cmd %p from init deferred cmd list", cmd);
 		list_del(&cmd->cmd_list_entry);
 		atomic_dec(&sess->sess_cmd_count);
-		list_del(&cmd->search_cmd_list_entry);
 		spin_unlock_irq(&sess->sess_list_lock);
 		scst_cmd_init_done(cmd, SCST_CONTEXT_THREAD);
 		spin_lock_irq(&sess->sess_list_lock);
@@ -4666,11 +4682,12 @@ void scst_unregister_session(struct scst_session *sess, int wait,
 		 sess->shutdown_compl = NULL;
 #endif
 
+	TRACE_DBG("Adding sess %p to scst_sess_shut_list", sess);
+	list_add_tail(&sess->sess_shut_list_entry, &scst_sess_shut_list);
+
 	spin_unlock_irqrestore(&scst_mgmt_lock, flags);
 
-	tm_dbg_task_mgmt(NULL, "UNREGISTER SESSION", 1);
-
-	scst_sess_put(sess);
+	wake_up(&scst_mgmt_waitQ);
 
 	if (wait) {
 		TRACE_DBG("Waiting for session %p to complete", sess);
@@ -4689,10 +4706,11 @@ static void scst_pre_unreg_sess(struct scst_session *sess)
 {
 	int i;
 	struct scst_tgt_dev *tgt_dev;
-	unsigned long flags;
 
 	TRACE_ENTRY();
 
+	tm_dbg_task_mgmt(NULL, "UNREGISTER SESSION", 1);
+	
 	mutex_lock(&scst_mutex);
 	for(i = 0; i < TGT_DEV_HASH_SIZE; i++) {
 		struct list_head *sess_tgt_dev_list_head =
@@ -4713,10 +4731,7 @@ static void scst_pre_unreg_sess(struct scst_session *sess)
 
 	sess->shut_phase = SCST_SESS_SPH_SHUTDOWN;
 
-	spin_lock_irqsave(&scst_mgmt_lock, flags);
-	TRACE_DBG("Adding sess %p to scst_sess_shut_list", sess);
-	list_add_tail(&sess->sess_shut_list_entry, &scst_sess_shut_list);
-	spin_unlock_irqrestore(&scst_mgmt_lock, flags);
+	scst_sess_put(sess);
 
 	TRACE_EXIT();
 	return;

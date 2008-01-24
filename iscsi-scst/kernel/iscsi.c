@@ -92,6 +92,8 @@ static inline u32 cmnd_read_size(struct iscsi_cmnd *cmnd)
 
 static inline void iscsi_restart_cmnd(struct iscsi_cmnd *cmnd)
 {
+	EXTRACHECKS_BUG_ON(cmnd->data_waiting);
+
 	cmnd->scst_state = ISCSI_CMD_STATE_RESTARTED;
 	scst_restart_cmd(cmnd->scst_cmd, SCST_PREPROCESS_STATUS_SUCCESS,
 		SCST_CONTEXT_THREAD);
@@ -166,6 +168,12 @@ void cmnd_free(struct iscsi_cmnd *cmnd)
 {
 	TRACE_DBG("%p", cmnd);
 
+	if (unlikely(cmnd->tmfabort)) {
+		TRACE_MGMT_DBG("Free aborted cmd %p (scst cmd %p, state %d, "
+			"parent_req %p)", cmnd, cmnd->scst_cmd, cmnd->scst_state,
+			cmnd->parent_req);
+	}
+
 	/* Catch users from cmd_list or rsp_cmd_list */
 	EXTRACHECKS_BUG_ON(atomic_read(&cmnd->ref_cnt) != 0);
 
@@ -221,12 +229,16 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 		if (cmnd->scst_cmd) {
 			switch(cmnd->scst_state) {
 			case ISCSI_CMD_STATE_AFTER_PREPROC:
+			{
+				struct scst_cmd *scst_cmd = cmnd->scst_cmd;
 				TRACE_DBG("cmd %p AFTER_PREPROC", cmnd);
 				cmnd->scst_state = ISCSI_CMD_STATE_RESTARTED;
-				scst_restart_cmd(cmnd->scst_cmd,
+				cmnd->scst_cmd = NULL;
+				scst_restart_cmd(scst_cmd,
 					SCST_PREPROCESS_STATUS_ERROR_FATAL,
-					SCST_CONTEXT_DIRECT);
+					SCST_CONTEXT_THREAD);
 				break;
+			}
 			case ISCSI_CMD_STATE_PROCESSED:
 				TRACE_DBG("cmd %p PROCESSED", cmnd);
 				scst_tgt_cmd_done(cmnd->scst_cmd);
@@ -1300,7 +1312,8 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 	if (dir == SCST_DATA_WRITE) {
 		req->is_unsolicited_data = !(req_hdr->flags & ISCSI_CMD_FINAL);
 		req->r2t_length = be32_to_cpu(req_hdr->data_length) - req->pdu.datasize;
-		req->data_waiting = 1;
+		if (req->r2t_length > 0)
+			req->data_waiting = 1;
 	}
 	req->target_task_tag = get_next_ttt(conn);
 	req->sg = scst_cmd_get_sg(scst_cmd);

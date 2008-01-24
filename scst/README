@@ -426,7 +426,11 @@ subdirectories "vdisk" and "vcdrom". They have similar layout:
       and "FLAGS" are valid only for disk VDISK. The block size must be
       power of 2 and >= 512 bytes. Default is 512. Possible flags:
       
-      - WRITE_THROUGH - write back caching disabled
+      - WRITE_THROUGH - write back caching disabled. Note, this option
+        has sense only if you also *manually* disable write-back cache
+	in *all* your backstorage devices and make sure it's actually
+	disabled, since many devices are known to lie about this mode to
+	get better benchmark results.
       
       - READ_ONLY - read only
       
@@ -439,20 +443,23 @@ subdirectories "vdisk" and "vcdrom". They have similar layout:
         way as "*_perf" handlers.
 
       - NV_CACHE - enables "non-volatile cache" mode. In this mode it is
-        assumed that the target has GOOD UPS and software/hardware bug
-	free, i.e. all data from the target's cache are guaranteed
-	sooner or later to go to the media, hence all data
-	synchronization with media operations, like SYNCHRONIZE_CACHE,
-	are ignored (BTW, so violating SCSI standard) in order to bring
-	a bit more performance. Use with extreme caution, since in this
-	mode after a crash of the target journaled file systems don't
-	guarantee the consistency after journal recovery, therefore
-	manual fsck MUST be ran. The main intent for it is to determine
-	the performance impact caused by the cache synchronization.
-	Note, that since usually the journal barrier protection (see
-	"IMPORTANT" below) turned off, enabling NV_CACHE could change
-	nothing, since no data synchronization with media operations
-	will go from the initiator.
+        assumed that the target has a GOOD UPS with ability to cleanly
+	shutdown target in case of power failure and it is
+	software/hardware bugs free, i.e. all data from the target's
+	cache are guaranteed sooner or later to go to the media. Hence
+	all data synchronization with media operations, like
+	SYNCHRONIZE_CACHE, are ignored in order to bring more
+	performance. Also in this mode target reports to initiators that
+	the corresponding device has write-through cache to disable all
+	write-back cache workarounds used by initiators. Use with
+	extreme caution, since in this mode after a crash of the target
+	journaled file systems don't guarantee the consistency after
+	journal recovery, therefore manual fsck MUST be ran. Note, that
+	since usually the journal barrier protection (see "IMPORTANT"
+	note below) turned off, enabling NV_CACHE could change nothing
+	from data protection point of view, since no data
+	synchronization with media operations will go from the
+	initiator. This option overrides WRITE_THROUGH.
 
       - BLOCKIO - enables block mode, which will perform direct block
         IO with a block device, bypassing page-cache for all operations.
@@ -503,7 +510,7 @@ IMPORTANT: By default for performance reasons VDISK FILEIO devices use write
 	   backstorage device and lost on power failure event. Thus,
 	   ever with write-through cache mode, you still need a good UPS
 	   to protect yourself from your data loss (note, data loss, not
-	   the file system integrity).
+	   the file system integrity corruption).
 
 IMPORTANT: Some disk and partition table management utilities don't support
 =========  block sizes >512 bytes, therefore make sure that your favorite one
