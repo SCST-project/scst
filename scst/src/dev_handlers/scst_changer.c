@@ -196,10 +196,10 @@ static int __init changer_init(void)
 	TRACE_ENTRY();
 	
 	changer_devtype.module = THIS_MODULE;
-	if (scst_register_dev_driver(&changer_devtype) < 0) {
-		res = -ENODEV;
+
+	res = scst_register_dev_driver(&changer_devtype);
+	if (res < 0)
 		goto out;
-	}
 	
 	res = scst_dev_handler_build_std_proc(&changer_devtype);
 	if (res != 0)

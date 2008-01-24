@@ -374,7 +374,7 @@ int main(int argc, char **argv)
 	}
 
 	memset(&desc, 0, sizeof(desc));
-	desc.version = DEV_USER_VERSION;
+	desc.version_str = (unsigned long)DEV_USER_VERSION;
 	strncpy(desc.name, dev.name, sizeof(desc.name)-1);
 	desc.name[sizeof(desc.name)-1] = '\0';
 	desc.type = dev.type;

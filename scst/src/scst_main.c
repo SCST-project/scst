@@ -142,7 +142,8 @@ struct scst_dev_type scst_null_devtype =
   name:     "none",
 };
 
-int scst_register_target_template(struct scst_tgt_template *vtt)
+int __scst_register_target_template(struct scst_tgt_template *vtt,
+	const char *version)
 {
 	int res = 0;
 	struct scst_tgt_template *t;
@@ -151,6 +152,12 @@ int scst_register_target_template(struct scst_tgt_template *vtt)
 	TRACE_ENTRY();
 
 	INIT_LIST_HEAD(&vtt->tgt_list);
+
+	if (strcmp(version, SCST_INTERFACE_VERSION) != 0) {
+		PRINT_ERROR("Incorrect version of target %s", vtt->name);
+		res = -EINVAL;
+		goto out_err;
+	}
 
 	if (!vtt->detect) {
 		PRINT_ERROR("Target driver %s doesn't have a "
@@ -742,7 +749,8 @@ out_unblock:
 	return;
 }
 
-int scst_register_dev_driver(struct scst_dev_type *dev_type)
+int __scst_register_dev_driver(struct scst_dev_type *dev_type,
+	const char *version)
 {
 	struct scst_dev_type *dt;
 	struct scst_device *dev;
@@ -750,6 +758,13 @@ int scst_register_dev_driver(struct scst_dev_type *dev_type)
 	int exist;
 
 	TRACE_ENTRY();
+
+	if (strcmp(version, SCST_INTERFACE_VERSION) != 0) {
+		PRINT_ERROR("Incorrect version of dev handler %s",
+			dev_type->name);
+		res = -EINVAL;
+		goto out_error;
+	}
 
 	res = scst_dev_handler_check(dev_type);
 	if (res != 0)
@@ -872,11 +887,19 @@ out_up:
 	goto out;
 }
 
-int scst_register_virtual_dev_driver(struct scst_dev_type *dev_type)
+int __scst_register_virtual_dev_driver(struct scst_dev_type *dev_type,
+	const char *version)
 {
 	int res;
 
 	TRACE_ENTRY();
+
+	if (strcmp(version, SCST_INTERFACE_VERSION) != 0) {
+		PRINT_ERROR("Incorrect version of virtual dev handler %s",
+			dev_type->name);
+		res = -EINVAL;
+		goto out_err;
+	}
 
 	res = scst_dev_handler_check(dev_type);
 	if (res != 0)
@@ -1658,14 +1681,14 @@ static void __exit exit_scst(void)
 /*
  * Device Handler Side (i.e. scst_vdisk)
  */
-EXPORT_SYMBOL(scst_register_dev_driver);
+EXPORT_SYMBOL(__scst_register_dev_driver);
 EXPORT_SYMBOL(scst_unregister_dev_driver);
 EXPORT_SYMBOL(scst_register);
 EXPORT_SYMBOL(scst_unregister);
 
 EXPORT_SYMBOL(scst_register_virtual_device);
 EXPORT_SYMBOL(scst_unregister_virtual_device);
-EXPORT_SYMBOL(scst_register_virtual_dev_driver);
+EXPORT_SYMBOL(__scst_register_virtual_dev_driver);
 EXPORT_SYMBOL(scst_unregister_virtual_dev_driver);
 
 EXPORT_SYMBOL(scst_set_busy);
@@ -1683,7 +1706,7 @@ EXPORT_SYMBOL(scst_process_active_cmd);
 EXPORT_SYMBOL(scst_register_session);
 EXPORT_SYMBOL(scst_unregister_session);
 
-EXPORT_SYMBOL(scst_register_target_template);
+EXPORT_SYMBOL(__scst_register_target_template);
 EXPORT_SYMBOL(scst_unregister_target_template);
 
 EXPORT_SYMBOL(scst_cmd_init_done);

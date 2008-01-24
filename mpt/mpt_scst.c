@@ -5523,11 +5523,10 @@ static int __init mpt_target_init(void)
 	int res = 0;
 
 	TRACE_ENTRY();
-	
-	if (scst_register_target_template(&tgt_template) < 0) {
-		res = -ENODEV;
+
+	res = scst_register_target_template(&tgt_template);
+	if (res < 0)
 		goto out;
-	}
 
 	res = mpt_proc_log_entry_build(&tgt_template);
 	if (res < 0) {

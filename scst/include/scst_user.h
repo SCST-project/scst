@@ -25,7 +25,8 @@
 
 #define DEV_USER_NAME			"scst_user"
 #define DEV_USER_PATH			"/dev/"
-#define DEV_USER_VERSION		963
+#define DEV_USER_VERSION_NAME		"0.9.6"
+#define DEV_USER_VERSION		DEV_USER_VERSION_NAME "$Revision$" SCST_CONST_VERSION
 
 /* 
  * Chosen so sizeof(scst_user_sess) <= sizeof(scst_user_scsi_cmd_exec) 
@@ -105,7 +106,7 @@ struct scst_user_opt
 
 struct scst_user_dev_desc
 {
-	uint32_t version;
+	aligned_u64 version_str;
 	uint8_t type;
 	struct scst_user_opt opt;
 	uint32_t block_size;

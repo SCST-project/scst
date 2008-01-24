@@ -21,6 +21,8 @@
 
 #include <scsi/scsi.h>
 
+#define SCST_CONST_VERSION "$Revision$"
+
 /*** Shared constants between user and kernel spaces ***/
 
 /* Max size of CDB */

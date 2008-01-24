@@ -195,10 +195,10 @@ static int __init raid_init(void)
 	TRACE_ENTRY();
 
 	raid_devtype.module = THIS_MODULE;
-	if (scst_register_dev_driver(&raid_devtype) < 0) {
-		res = -ENODEV;
+
+	res = scst_register_dev_driver(&raid_devtype);
+	if (res < 0)
 		goto out;
-	}
 	
 	res = scst_dev_handler_build_std_proc(&raid_devtype);
 	if (res != 0)

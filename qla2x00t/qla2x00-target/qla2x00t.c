@@ -2211,11 +2211,10 @@ static int __init q2t_init(void)
 		res = -ENOMEM;
 		goto out;
 	}
-	
-	if (scst_register_target_template(&tgt_template) < 0) {
-		res = -ENODEV;
+
+	res = scst_register_target_template(&tgt_template);
+	if (res < 0)
 		goto out;
-	}
 
 	/* qla2xxx_tgt_register_driver() happens in q2t_target_detect 
 	 * called via scst_register_target_template()

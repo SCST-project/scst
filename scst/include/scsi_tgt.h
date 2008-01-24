@@ -41,9 +41,10 @@ typedef _Bool bool;
 #endif
 
 /* Version numbers, the same as for the kernel */
-#define SCST_VERSION_CODE 0x000906
-#define SCST_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))
+#define SCST_VERSION_CODE 0x00090601
+#define SCST_VERSION(a,b,c,d) (((a) << 24) + ((b) << 16) + ((c) << 8) + d)
 #define SCST_VERSION_STRING "0.9.6-rc1"
+#define SCST_INTERFACE_VERSION SCST_VERSION_STRING "$Revision$" SCST_CONST_VERSION
 
 /*************************************************************
  ** States of command processing state machine. At first, 
@@ -1539,7 +1540,12 @@ struct scst_tgt_dev_UA
  * Registers target template
  * Returns 0 on success or appropriate error code otherwise
  */
-int scst_register_target_template(struct scst_tgt_template *vtt);
+int __scst_register_target_template(struct scst_tgt_template *vtt,
+	const char *version);
+static inline int scst_register_target_template(struct scst_tgt_template *vtt)
+{
+	return __scst_register_target_template(vtt, SCST_INTERFACE_VERSION);
+}
 
 /* 
  * Unregisters target template
@@ -1646,7 +1652,12 @@ void scst_unregister_session(struct scst_session *sess, int wait,
  * Registers dev handler driver
  * Returns 0 on success or appropriate error code otherwise
  */
-int scst_register_dev_driver(struct scst_dev_type *dev_type);
+int __scst_register_dev_driver(struct scst_dev_type *dev_type,
+	const char *version);
+static inline int scst_register_dev_driver(struct scst_dev_type *dev_type)
+{
+	return __scst_register_dev_driver(dev_type, SCST_INTERFACE_VERSION);
+}
 
 /* 
  * Unregisters dev handler driver
@@ -1657,7 +1668,14 @@ void scst_unregister_dev_driver(struct scst_dev_type *dev_type);
  * Registers dev handler driver for virtual devices (eg VDISK)
  * Returns 0 on success or appropriate error code otherwise
  */
-int scst_register_virtual_dev_driver(struct scst_dev_type *dev_type);
+int __scst_register_virtual_dev_driver(struct scst_dev_type *dev_type,
+	const char *version);
+static inline int scst_register_virtual_dev_driver(
+	struct scst_dev_type *dev_type)
+{
+	return __scst_register_virtual_dev_driver(dev_type,
+		SCST_INTERFACE_VERSION);
+}
 
 /* 
  * Unregisters dev handler driver for virtual devices

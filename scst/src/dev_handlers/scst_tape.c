@@ -89,20 +89,20 @@ static int __init init_scst_tape_driver(void)
 	TRACE_ENTRY();
 
 	tape_devtype.module = THIS_MODULE;
-	if (scst_register_dev_driver(&tape_devtype) < 0) {
-		res = -ENODEV;
+
+	res = scst_register_dev_driver(&tape_devtype);
+	if (res < 0)
 		goto out;
-	}
 
 	res = scst_dev_handler_build_std_proc(&tape_devtype);
 	if (res != 0)
 		goto out_unreg1;
 
 	tape_devtype_perf.module = THIS_MODULE;
-	if (scst_register_dev_driver(&tape_devtype_perf) < 0) {
-		res = -ENODEV;
+
+	res = scst_register_dev_driver(&tape_devtype_perf);
+	if (res < 0)
 		goto out_unreg1_err1;
-	}
 
 	res = scst_dev_handler_build_std_proc(&tape_devtype_perf);
 	if (res != 0)

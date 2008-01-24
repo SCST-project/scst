@@ -2768,10 +2768,10 @@ static int __init iscsi_init(void)
 		goto out_event;
 	}
 
-	if (scst_register_target_template(&iscsi_template) < 0) {
-		err = -ENODEV;
+	err = scst_register_target_template(&iscsi_template);
+	if (err < 0)
 		goto out_kmem;
-	}
+
 	iscsi_template_registered = 1;
 
 	if ((err = iscsi_procfs_init()) < 0)

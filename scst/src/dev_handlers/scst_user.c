@@ -1755,6 +1755,7 @@ static long dev_user_ioctl(struct file *file, unsigned int cmd,
 			goto out;
 		}
 		TRACE_BUFFER("dev_desc", dev_desc, sizeof(*dev_desc));
+		dev_desc->name[sizeof(dev_desc->name)-1] = '\0';
 		res = dev_user_register_dev(file, dev_desc);
 		kfree(dev_desc);
 		break;
@@ -2551,6 +2552,31 @@ static void dev_user_setup_functions(struct scst_user_dev *dev)
 	return;
 }
 
+static int dev_user_check_version(const struct scst_user_dev_desc *dev_desc)
+{
+	char ver[sizeof(DEV_USER_VERSION)+1];
+	int res;
+
+	res = copy_from_user(ver, (void*)(unsigned long)dev_desc->version_str,
+				sizeof(ver));
+	if (res < 0) {
+		PRINT_ERROR("%s", "Unable to get version string");
+		goto out;
+	}
+	ver[sizeof(ver)-1] = '\0';
+
+	if (strcmp(ver, DEV_USER_VERSION) != 0) {
+		/* ->name already 0-terminated in dev_user_ioctl() */
+		PRINT_ERROR("Incorrect version of user device %s (%s)",
+			dev_desc->name, ver);
+		res = -EINVAL;
+		goto out;
+	}
+
+out:
+	return res;
+}
+
 static int dev_user_register_dev(struct file *file,
 	const struct scst_user_dev_desc *dev_desc)
 {
@@ -2560,12 +2586,9 @@ static int dev_user_register_dev(struct file *file,
 
 	TRACE_ENTRY();
 
-	if (dev_desc->version != DEV_USER_VERSION) {
-		PRINT_ERROR("Version mismatch (requested %d, required %d)",
-			dev_desc->version, DEV_USER_VERSION);
-		res = -EINVAL;
+	res = dev_user_check_version(dev_desc);
+	if (res != 0)
 		goto out;
-	}
 
 	switch(dev_desc->type) {
 	case TYPE_DISK:
@@ -3062,10 +3085,10 @@ static int __init init_scst_user(void)
 	}
 
 	dev_user_devtype.module = THIS_MODULE;
-	if (scst_register_virtual_dev_driver(&dev_user_devtype) < 0) {
-		res = -ENODEV;
+
+	res = scst_register_virtual_dev_driver(&dev_user_devtype);
+	if (res < 0)
 		goto out_cache;
-	}
 
 	res = scst_dev_handler_build_std_proc(&dev_user_devtype);
 	if (res != 0)

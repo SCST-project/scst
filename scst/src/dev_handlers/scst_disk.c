@@ -84,20 +84,20 @@ static int __init init_scst_disk_driver(void)
 	TRACE_ENTRY();
 
 	disk_devtype.module = THIS_MODULE;
-	if (scst_register_dev_driver(&disk_devtype) < 0) {
-		res = -ENODEV;
+
+	res = scst_register_dev_driver(&disk_devtype);
+	if (res < 0)
 		goto out;
-	}
 
 	res = scst_dev_handler_build_std_proc(&disk_devtype);
 	if (res != 0)
 		goto out_unreg1;
 
 	disk_devtype_perf.module = THIS_MODULE;
-	if (scst_register_dev_driver(&disk_devtype_perf) < 0) {
-		res = -ENODEV;
+
+	res = scst_register_dev_driver(&disk_devtype_perf);
+	if (res < 0)
 		goto out_unreg1_err1;
-	}
 
 	res = scst_dev_handler_build_std_proc(&disk_devtype_perf);
 	if (res != 0)
