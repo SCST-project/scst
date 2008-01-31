@@ -296,7 +296,7 @@ struct scst_tgt *scst_register(struct scst_tgt_template *vtt,
 
 	tgt = kzalloc(sizeof(*tgt), GFP_KERNEL);
 	if (tgt == NULL) {
-		TRACE(TRACE_OUT_OF_MEM, "%s", "kzalloc() failed");
+		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of tgt failed");
 		goto out_err;
 	}
 
@@ -1736,7 +1736,6 @@ EXPORT_SYMBOL(scst_proc_log_entry_write);
 EXPORT_SYMBOL(scst_create_proc_entry);
 EXPORT_SYMBOL(scst_single_seq_open);
 
-EXPORT_SYMBOL(__scst_get_buf);
 EXPORT_SYMBOL(scst_get);
 EXPORT_SYMBOL(scst_put);
 

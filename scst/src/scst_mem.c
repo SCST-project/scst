@@ -75,7 +75,7 @@ static int scst_check_clustering(struct scatterlist *sg, int cur, int hint)
 {
 	int res = -1;
 	int i = hint;
-	unsigned long pfn_cur = page_to_pfn(sg[cur].page);
+	unsigned long pfn_cur = page_to_pfn(sg_page(&sg[cur]));
 	int len_cur = sg[cur].length;
 	unsigned long pfn_cur_next = pfn_cur + (len_cur >> PAGE_SHIFT);
 	int full_page_cur = (len_cur & (PAGE_SIZE - 1)) == 0;
@@ -95,7 +95,7 @@ static int scst_check_clustering(struct scatterlist *sg, int cur, int hint)
 
 	/* check the hint first */
 	if (i >= 0) {
-		pfn = page_to_pfn(sg[i].page);
+		pfn = page_to_pfn(sg_page(&sg[i]));
 		pfn_next = pfn + (sg[i].length >> PAGE_SHIFT);
 		full_page = (sg[i].length & (PAGE_SIZE - 1)) == 0;
 		
@@ -108,7 +108,7 @@ static int scst_check_clustering(struct scatterlist *sg, int cur, int hint)
 
 	/* ToDo: implement more intelligent search */
 	for(i = cur - 1; i >= 0; i--) {
-		pfn = page_to_pfn(sg[i].page);
+		pfn = page_to_pfn(sg_page(&sg[i]));
 		pfn_next = pfn + (sg[i].length >> PAGE_SHIFT);
 		full_page = (sg[i].length & (PAGE_SIZE - 1)) == 0;
 		
@@ -125,15 +125,15 @@ out:
 out_tail:
 	TRACE_MEM("SG segment %d will be tail merged with segment %d", cur, i);
 	sg[i].length += len_cur;
-	memset(&sg[cur], 0, sizeof(sg[cur]));
+	sg_clear(&sg[cur]);
 	res = i;
 	goto out;
 
 out_head:
 	TRACE_MEM("SG segment %d will be head merged with segment %d", cur, i);
-	sg[i].page = sg[cur].page;
+	sg_assign_page(&sg[i], sg_page(&sg[cur]));
 	sg[i].length += len_cur;
-	memset(&sg[cur], 0, sizeof(sg[cur]));
+	sg_clear(&sg[cur]);
 	res = i;
 	goto out;
 }
@@ -146,7 +146,7 @@ static void scst_free_sys_sg_entries(struct scatterlist *sg, int sg_count,
 	TRACE_MEM("sg=%p, sg_count=%d", sg, sg_count);
 
 	for(i = 0; i < sg_count; i++) {
-		struct page *p = sg[i].page;
+		struct page *p = sg_page(&sg[i]);
 		int len = sg[i].length;
 		int pages =
 			(len >> PAGE_SHIFT) + ((len & ~PAGE_MASK) != 0);
@@ -182,15 +182,15 @@ static void scst_free_sys_sg_entries(struct scatterlist *sg, int sg_count,
 static struct page *scst_alloc_sys_pages(struct scatterlist *sg,
 	gfp_t gfp_mask, void *priv)
 {
-	sg->page = alloc_pages(gfp_mask, 0);
-	sg->offset = 0;
-	sg->length = PAGE_SIZE;
-	TRACE_MEM("page=%p, sg=%p, priv=%p", sg->page, sg, priv);
-	if (sg->page == NULL) {
+	struct page *page = alloc_pages(gfp_mask, 0);
+
+	sg_set_page(sg, page, PAGE_SIZE, 0);
+	TRACE_MEM("page=%p, sg=%p, priv=%p", page, sg, priv);
+	if (page == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of "
 			"sg page failed");
 	}
-	return sg->page;
+	return page;
 }
 
 static int scst_alloc_sg_entries(struct scatterlist *sg, int pages,
@@ -265,13 +265,15 @@ static int sgv_alloc_arrays(struct sgv_pool_obj *obj,
 
 	sz = pages_to_alloc * sizeof(obj->sg_entries[0]);
 
-	obj->sg_entries = (struct scatterlist*)kzalloc(sz, gfp_mask);
+	obj->sg_entries = (struct scatterlist*)kmalloc(sz, gfp_mask);
  	if (unlikely(obj->sg_entries == NULL)) {
 		TRACE(TRACE_OUT_OF_MEM, "Allocation of sgv_pool_obj "
 			"SG vector failed (size %d)", sz);
 		res = -ENOMEM;
 		goto out;
  	}
+
+	sg_init_table(obj->sg_entries, pages_to_alloc);
 
 	if (obj->owner_pool->clustered) {
 		if (order <= sgv_pools_mgr.sgv_max_trans_order) {
@@ -528,7 +530,6 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 		if (obj->sg_count != 0) {
 			TRACE_MEM("Cached sgv_obj %p", obj);
 			EXTRACHECKS_BUG_ON(obj->order != order);
-			atomic_inc(&pool->acc.hit_alloc);
 			atomic_inc(&pool->cache_acc[order].hit_alloc);
 			goto success;
 		}
@@ -540,9 +541,8 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 		TRACE_MEM("Brand new sgv_obj %p", obj);
 		if (order <= sgv_pools_mgr.sgv_max_local_order) {
 			obj->sg_entries = obj->sg_entries_data;
+			sg_init_table(obj->sg_entries, pages_to_alloc);
 			TRACE_MEM("sg_entries %p", obj->sg_entries);
-			memset(obj->sg_entries, 0,
-				pages_to_alloc*sizeof(obj->sg_entries[0]));
 			if (pool->clustered) {
 				obj->trans_tbl = (struct trans_tbl_ent*)
 					(obj->sg_entries + pages_to_alloc);
@@ -572,16 +572,19 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 			goto out_return2;
 		cache = NULL;
 		sz = sizeof(*obj) + pages*sizeof(obj->sg_entries[0]);
-		obj = kzalloc(sz, gfp_mask);
+		obj = kmalloc(sz, gfp_mask);
 		if (unlikely(obj == NULL)) {
 			TRACE(TRACE_OUT_OF_MEM, "Allocation of "
 				"sgv_pool_obj failed (size %d)", size);
 			goto out_fail;
 		}
+		memset(obj, 0, sizeof(*obj));
 		obj->owner_pool = pool;
 		obj->order = -1 - order;
-		obj->sg_entries = obj->sg_entries_data;
 		obj->allocator_priv = priv;
+
+		obj->sg_entries = obj->sg_entries_data;
+		sg_init_table(obj->sg_entries, pages);
 		
 		if (sgv_pool_hiwmk_check(pages_to_alloc, no_fail) != 0)
 			goto out_fail_free_sg_entries;
@@ -600,7 +603,6 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 	}
 
 success:
-	atomic_inc(&pool->acc.total_alloc);
 	spin_lock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
 	sgv_pools_mgr.mgr.thr.active_pages_total += 1 << order;
 	spin_unlock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
@@ -728,9 +730,11 @@ struct scatterlist *scst_alloc(int size, unsigned long gfp_mask, int *count)
 		goto out;
 	}
 
-	res = kzalloc(pages*sizeof(*res), gfp_mask);
+	res = kmalloc(pages*sizeof(*res), gfp_mask);
 	if (res == NULL)
 		goto out;
+
+	sg_init_table(res, pages);
 
 	/*
 	 * If we allow use clustering here, we will have troubles in
@@ -791,8 +795,6 @@ int sgv_pool_init(struct sgv_pool *pool, const char *name, int clustered)
 
 	atomic_set(&pool->acc.other_alloc, 0);
 	atomic_set(&pool->acc.big_alloc, 0);
-	atomic_set(&pool->acc.total_alloc, 0);
-	atomic_set(&pool->acc.hit_alloc, 0);
 
 	pool->clustered = clustered;
 	pool->alloc_fns.alloc_pages_fn = scst_alloc_sys_pages;
@@ -1058,8 +1060,8 @@ int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 	int res;
 	struct scst_sgv_pools_manager *pools = &sgv_pools_mgr;
 
-
 	TRACE_ENTRY();
+
 	memset(pools, 0, sizeof(*pools));
 
 	sgv_pools_mgr.mgr.thr.hi_wmk = mem_hwmark >> PAGE_SHIFT;
@@ -1154,11 +1156,15 @@ void scst_sgv_pools_deinit(void)
 
 static void scst_do_sgv_read(struct seq_file *seq, const struct sgv_pool *pool)
 {
-	int i;
+	int i, total = 0, hit = 0;
+ 
+	for(i = 0; i < SGV_POOL_ELEMENTS; i++) {
+		hit += atomic_read(&pool->cache_acc[i].hit_alloc);
+		total += atomic_read(&pool->cache_acc[i].total_alloc);
+	}
 
 	seq_printf(seq, "\n%-30s %-11d %-11d %d/%d (P/O)\n", pool->name,
-		atomic_read(&pool->acc.hit_alloc),
-		atomic_read(&pool->acc.total_alloc),
+		hit, total,
 		pool->acc.cached_pages,
 		pool->acc.cached_entries);
 

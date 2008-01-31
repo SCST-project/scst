@@ -56,13 +56,6 @@ int digest_init(struct iscsi_conn *conn)
 	return 0;
 }
 
-/* Copied from linux-iscsi initiator and slightly adjusted */
-#define SETSG(sg, p, l) do {					\
-	(sg).page = virt_to_page((p));				\
-	(sg).offset = ((unsigned long)(p) & ~PAGE_MASK);	\
-	(sg).length = (l);					\
-} while (0)
-
 static u32 evaluate_crc32_from_sg(struct scatterlist *sg, int total,
 	int pad_bytes)
 {
@@ -80,7 +73,7 @@ static u32 evaluate_crc32_from_sg(struct scatterlist *sg, int total,
 		int d = min(min(total, (int)(sg->length)),
 			(int)(PAGE_SIZE - sg->offset));
 
-		crc = crc32c(crc, page_address(sg->page) + sg->offset, d);
+		crc = crc32c(crc, sg_virt(sg), d);
 		total -= d;
 		sg++;
 	}
@@ -103,9 +96,11 @@ static u32 digest_header(struct iscsi_pdu *pdu)
 	struct scatterlist sg[2];
 	unsigned int nbytes = sizeof(struct iscsi_hdr);
 
-	SETSG(sg[0], &pdu->bhs, nbytes);
+	sg_init_table(sg, 2);
+
+	sg_set_buf(&sg[0], &pdu->bhs, nbytes);
 	if (pdu->ahssize) {
-		SETSG(sg[1], pdu->ahs, pdu->ahssize);
+		sg_set_buf(&sg[1], pdu->ahs, pdu->ahssize);
 		nbytes += pdu->ahssize;
 	}
 	return evaluate_crc32_from_sg(sg, nbytes, 0);

@@ -52,7 +52,6 @@ struct sgv_pool_obj
 
 struct sgv_pool_acc
 {
-	atomic_t total_alloc, hit_alloc;
 	u32 cached_pages, cached_entries;
 	atomic_t big_alloc, other_alloc;
 };

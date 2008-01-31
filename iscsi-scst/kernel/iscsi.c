@@ -531,7 +531,7 @@ static void iscsi_set_datasize(struct iscsi_cmnd *cmnd, u32 offset, u32 size)
 
 	if (cmnd->pdu.datasize & 3) {
 	    	int idx = (offset + cmnd->pdu.datasize) >> PAGE_SHIFT;
-		u8 *p = (u8 *)page_address(cmnd->sg[idx].page) + 
+		u8 *p = (u8 *)page_address(sg_page(&cmnd->sg[idx])) + 
 			((offset + cmnd->pdu.datasize) & ~PAGE_MASK);
 		int i = 4 - (cmnd->pdu.datasize & 3);
 		while (i--) 
@@ -627,7 +627,7 @@ static struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req, int status,
 			/* ToDo(); */
 		}
 		rsp->own_sg = 1;
-		sense = (struct iscsi_sense_data *)page_address(sg[0].page);
+		sense = (struct iscsi_sense_data *)page_address(sg_page(&sg[0]));
 		sense->length = cpu_to_be16(sense_len);
 		memcpy(sense->data, sense_buf, sense_len);
 		rsp->pdu.datasize = sizeof(struct iscsi_sense_data) + sense_len;
@@ -686,7 +686,7 @@ static void iscsi_cmnd_reject(struct iscsi_cmnd *req, int reason)
 		/* ToDo(); */
 	}
 	rsp->own_sg = 1;
-	addr = page_address(sg[0].page);
+	addr = page_address(sg_page(&sg[0]));
 	clear_page(addr);
 	memcpy(addr, &req->pdu.bhs, sizeof(struct iscsi_hdr));
 	rsp->bufflen = rsp->pdu.datasize = sizeof(struct iscsi_hdr);
@@ -817,6 +817,8 @@ static int cmnd_insert_hash(struct iscsi_cmnd *cmnd)
 	TRACE_DBG("%p:%x", cmnd, itt);
 	if (unlikely(itt == ISCSI_RESERVED_TAG)) {
 		PRINT_ERROR("%s", "ITT is RESERVED_TAG");
+		PRINT_BUFFER("Incorrect BHS", &cmnd->pdu.bhs,
+			sizeof(cmnd->pdu.bhs));
 		err = -ISCSI_REASON_PROTOCOL_ERROR;
 		goto out;
 	}
@@ -894,7 +896,7 @@ static void cmnd_prepare_skip_pdu(struct iscsi_cmnd *cmnd)
 		cmnd->bufflen = PAGE_SIZE;
 	}
 
-	addr = page_address(sg[0].page);
+	addr = page_address(sg_page(&sg[0]));
 	sBUG_ON(addr == NULL);
 	size = (size + 3) & -4;
 	conn->read_size = size;
@@ -975,8 +977,7 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 
 	i = 0;
 	while (1) {
-		sBUG_ON(sg[idx].page == NULL);
-		addr = page_address(sg[idx].page);
+		addr = page_address(sg_page(&sg[idx]));
 		sBUG_ON(addr == NULL);
 		conn->read_iov[i].iov_base = addr + offset;
 		if (offset + size <= PAGE_SIZE) {
@@ -1162,7 +1163,7 @@ static int noop_out_start(struct iscsi_cmnd *cmnd)
 
 			for (i = 0; i < cmnd->sg_cnt; i++) {
 				conn->read_iov[i].iov_base =
-					page_address(sg[i].page);
+					page_address(sg_page(&sg[i]));
 				tmp = min_t(u32, size, PAGE_SIZE);
 				conn->read_iov[i].iov_len = tmp;
 				conn->read_size += tmp;

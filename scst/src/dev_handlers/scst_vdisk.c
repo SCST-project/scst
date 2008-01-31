@@ -2196,12 +2196,18 @@ static inline void blockio_check_finish(struct blockio_work *blockio_work)
 	}
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24)
 static int blockio_endio(struct bio *bio, unsigned int bytes_done, int error)
+#else
+static void blockio_endio(struct bio *bio, int error)
+#endif
 {
 	struct blockio_work *blockio_work = bio->bi_private;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24)
 	if (bio->bi_size)
 		return 1;
+#endif
 
 	error = test_bit(BIO_UPTODATE, &bio->bi_flags) ? error : -EIO;
 
@@ -2224,7 +2230,11 @@ static int blockio_endio(struct bio *bio, unsigned int bytes_done, int error)
 	blockio_check_finish(blockio_work);
 
 	bio_put(bio);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24)
 	return 0;
+#else
+	return;
+#endif
 }
 
 static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
@@ -2233,10 +2243,10 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 	struct scst_vdisk_dev *virt_dev = thr->virt_dev;
 	struct block_device *bdev = thr->bdev;
 	struct request_queue *q = bdev_get_queue(bdev);
-	int j, max_nr_vecs = 0;
+	int length, max_nr_vecs = 0;
+	uint8_t *address;
 	struct bio *bio = NULL, *hbio = NULL, *tbio = NULL;
 	int need_new_bio;
-	struct scatterlist *sgl = cmd->sg;
 	struct blockio_work *blockio_work;
 	int bios = 0;
 
@@ -2258,24 +2268,27 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 		max_nr_vecs = 1;
 
 	need_new_bio = 1;
-	for (j = 0; j < cmd->sg_cnt; ++j) {
-		int len, bytes, off, thislen;
-		struct page *page;
 
-		page = sgl[j].page;
-		off = sgl[j].offset;
-		len = sgl[j].length;
+	length = scst_get_buf_first(cmd, &address);
+	while(length > 0) {
+		int len, bytes, off, thislen;
+		uint8_t *addr;
+
+		addr = address;
+		off = offset_in_page(addr);
+		len = length;
 		thislen = 0;
 
 		while (len > 0) {
 			int rc;
+			struct page *page = virt_to_page(addr);
 
 			if (need_new_bio) {
 				bio = bio_alloc(GFP_KERNEL, max_nr_vecs);
 				if (!bio) {
 					PRINT_ERROR("Failed to create bio "
-						       "for data segment= %d "
-						       "cmd %p", j, cmd);
+						"for data segment= %d cmd %p",
+						cmd->get_sg_buf_entry_num, cmd);
 					goto out_no_bio;
 				}
 
@@ -2306,13 +2319,16 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 				continue;
 			}
 
-			page++;
+			addr += PAGE_SIZE;
 			thislen += bytes;
 			len -= bytes;
 			off = 0;
 		}
 
-		lba_start += sgl[j].length >> virt_dev->block_shift;
+		lba_start += length >> virt_dev->block_shift;
+
+		scst_put_buf(cmd, address);
+		length = scst_get_buf_next(cmd, &address);
 	}
 
 	/* +1 to prevent erroneous too early command completion */

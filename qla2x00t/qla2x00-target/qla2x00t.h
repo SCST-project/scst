@@ -69,10 +69,10 @@
 #define NOTIFY_ACK_TM_RESP_CODE_VALID BIT_4
 
 /* Command's states */
-#define Q2T_STATE_NEW               0	/* New command and SCST processes it */
+#define Q2T_STATE_NEW               0	/* New command and SCST processing it */
 #define Q2T_STATE_PROCESSED         1	/* SCST done processing */
-#define Q2T_STATE_NEED_DATA         2	/* SCST needs data to process */
-#define Q2T_STATE_DATA_IN           3	/* Data arrived and SCST processes it */
+#define Q2T_STATE_NEED_DATA         2	/* SCST needs data to continue */
+#define Q2T_STATE_DATA_IN           3	/* Data arrived and SCST processing them */
 #define Q2T_STATE_ABORTED           4	/* Command aborted */
 
 /* Misc */

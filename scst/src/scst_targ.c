@@ -1211,10 +1211,10 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state)
 			int i;
 			struct scatterlist *sg = cmd->sg;
 			TRACE_RECV_TOP("Exec'd %d S/G(s) at %p sg[0].page at "
-				"%p", cmd->sg_cnt, sg, (void*)sg[0].page);
+				"%p", cmd->sg_cnt, sg, (void*)sg_page(&sg[0]));
 			for(i = 0; i < cmd->sg_cnt; ++i) {
 				TRACE_BUFF_FLAG(TRACE_RCV_TOP, 
-					"Exec'd sg", page_address(sg[i].page),
+					"Exec'd sg", sg_virt(&sg[i]),
 					sg[i].length);
 			}
 		}
@@ -2553,10 +2553,10 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 			int i;
 			struct scatterlist *sg = cmd->sg;
 			TRACE_SEND_BOT("Xmitting %d S/G(s) at %p sg[0].page at %p",
-			      cmd->sg_cnt, sg, (void*)sg[0].page);
+			      cmd->sg_cnt, sg, (void*)sg_page(&sg[0]));
 			for(i = 0; i < cmd->sg_cnt; ++i) {
 				TRACE_BUFF_FLAG(TRACE_SND_BOT,
-				    "Xmitting sg", page_address(sg[i].page),
+				    "Xmitting sg", sg_virt(&sg[i]),
 				    sg[i].length);
 			}
 		}

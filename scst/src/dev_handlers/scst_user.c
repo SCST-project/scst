@@ -346,17 +346,16 @@ static struct page *dev_user_alloc_pages(struct scatterlist *sg,
 	if (ucmd->cur_data_page >= ucmd->num_data_pages)
 		goto out;
 
-	sg->page = ucmd->data_pages[ucmd->cur_data_page];
-	sg->length = PAGE_SIZE - sg->offset;
-
+	sg_set_page(sg, ucmd->data_pages[ucmd->cur_data_page],
+		PAGE_SIZE - sg->offset, 0);
 	ucmd->cur_data_page++;
 
-	TRACE_MEM("page=%p, length=%d", sg->page, sg->length);
-	TRACE_BUFFER("Page data", page_address(sg->page), sg->length);
+	TRACE_MEM("page=%p, length=%d", sg_page(sg), sg->length);
+	TRACE_BUFFER("Page data", sg_virt(sg), sg->length);
 
 out:
 	TRACE_EXIT();
-	return sg->page;
+	return sg_page(sg);
 }
 
 static void dev_user_on_cached_mem_free(struct scst_user_cmd *ucmd)

@@ -1016,8 +1016,8 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha,
 		case CTIO_TIMEOUT:
 		case CTIO_INVALID_RX_ID:
 			/* they are OK */
-			TRACE_MGMT_DBG("qla2x00tgt(%ld): CTIO with status %#x "
-				"received (LIP_RESET=e, ABORTED=2, "
+			TRACE(TRACE_MGMT_MINOR, "qla2x00tgt(%ld): CTIO with "
+				"status %#x received (LIP_RESET=e, ABORTED=2, "
 				"TARGET_RESET=17, TIMEOUT=b, "
 				"INVALID_RX_ID=8)", ha->instance, status);
 			break;
@@ -1052,7 +1052,7 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha,
 			goto out;
 		}
 		if (unlikely(err)) {
-			PRINT_INFO("Found by handle failed CTIO scst_cmd "
+			TRACE_MGMT_DBG("Found by handle failed CTIO scst_cmd "
 				"%p (op %x)", scst_cmd, scst_cmd->cdb[0]);
 		}
 	} else if (ctio != NULL) {
@@ -1075,7 +1075,7 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha,
 			goto out;
 		}
 		if (unlikely(err)) {
-			PRINT_INFO("Found by ctio failed CTIO scst_cmd %p "
+			TRACE_MGMT_DBG("Found by ctio failed CTIO scst_cmd %p "
 				"(op %x)", scst_cmd, scst_cmd->cdb[0]);
 		}
 
@@ -1085,7 +1085,8 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha,
 
 	cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
 	if (unlikely(err)) {
-		PRINT_INFO("Failed CTIO state %d", cmd->state);
+		TRACE(TRACE_MGMT_MINOR, "Failed CTIO state %d (err %x)",
+			cmd->state, status);
 	}
 
 	if (cmd->state == Q2T_STATE_PROCESSED) {
@@ -1120,7 +1121,7 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha,
 
 		scst_rx_data(scst_cmd, rx_status, context);
 	} else if (cmd->state == Q2T_STATE_ABORTED) {
-		TRACE_DBG("Aborted command %p finished", cmd);
+		TRACE_MGMT_DBG("Aborted command %p finished", cmd);
 		goto out_free;
 	} else {
 		PRINT_ERROR("qla2x00tgt(%ld): A command in state (%d) should "

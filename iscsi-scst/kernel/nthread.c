@@ -96,17 +96,18 @@ again:
 			if (cmnd_get_check(cmnd))
 				continue;
 			for(i = 0; i < sg_cnt; i++) {
-				TRACE_CONN_CLOSE_DBG("page %p, net_priv %p, _count %d",
-					cmnd->sg[i].page, cmnd->sg[i].page->net_priv,
-					atomic_read(&cmnd->sg[i].page->_count));
+				struct page *page = sg_page(&cmnd->sg[i]);
+				TRACE_CONN_CLOSE_DBG("page %p, net_priv %p, "
+					"_count %d", page, page->net_priv,
+					atomic_read(&page->_count));
 
-				if (cmnd->sg[i].page->net_priv != NULL) {
+				if (page->net_priv != NULL) {
 					if (restart == 0) {
 						spin_unlock_bh(&conn->cmd_list_lock);
 						restart = 1;
 					}
-					while(cmnd->sg[i].page->net_priv != NULL)
-						iscsi_put_page_callback(cmnd->sg[i].page);
+					while(page->net_priv != NULL)
+						iscsi_put_page_callback(page);
 				}
 			}
 			cmnd_put(cmnd);
@@ -131,19 +132,19 @@ again:
 				if (cmnd_get_check(rsp))
 					continue;
 				for(i = 0; i < sg_cnt; i++) {
+					struct page *page = sg_page(&rsp->sg[i]);
 					TRACE_CONN_CLOSE_DBG("    page %p, net_priv %p, "
-						"_count %d", rsp->sg[i].page,
-						rsp->sg[i].page->net_priv,
-						atomic_read(&rsp->sg[i].page->_count));
+						"_count %d", page, page->net_priv,
+						atomic_read(&page->_count));
 
-					if (rsp->sg[i].page->net_priv != NULL) {
+					if (page->net_priv != NULL) {
 						if (restart == 0) {
 							spin_unlock_bh(&cmnd->rsp_cmd_lock);
 							spin_unlock_bh(&conn->cmd_list_lock);
 							restart = 1;
 						}
-						while(rsp->sg[i].page->net_priv != NULL)
-							iscsi_put_page_callback(rsp->sg[i].page);
+						while(page->net_priv != NULL)
+							iscsi_put_page_callback(page);
 					}
 				}
 				cmnd_put(rsp);
@@ -336,9 +337,10 @@ static void close_conn(struct iscsi_conn *conn)
 					sg_cnt = get_pgcnt(cmnd->bufflen,
 						cmnd->sg[0].offset);
 					for(i = 0; i < sg_cnt; i++) {
+						struct page *page = sg_page(&cmnd->sg[i]);
 						TRACE_CONN_CLOSE_DBG("page %p, net_priv %p, _count %d",
-							cmnd->sg[i].page, cmnd->sg[i].page->net_priv,
-							atomic_read(&cmnd->sg[i].page->_count));
+							page, page->net_priv,
+							atomic_read(&page->_count));
 					}
 				}
 
@@ -356,9 +358,9 @@ static void close_conn(struct iscsi_conn *conn)
 						sBUG_ON(rsp->sg_cnt != sg_cnt);
 						for(i = 0; i < sg_cnt; i++) {
 							TRACE_CONN_CLOSE_DBG("    page %p, net_priv %p, "
-								"_count %d", rsp->sg[i].page,
-								rsp->sg[i].page->net_priv,
-								atomic_read(&rsp->sg[i].page->_count));
+								"_count %d", sg_page(&rsp->sg[i]),
+								sg_page(&rsp->sg[i])->net_priv,
+								atomic_read(&sg_page(&rsp->sg[i])->_count));
 						}
 					}
 				}
@@ -809,8 +811,8 @@ void iscsi_put_page_callback(struct page *page)
 	if (atomic_dec_and_test(&cmd->net_ref_cnt)) {
 		int i, sg_cnt = get_pgcnt(cmd->bufflen,	cmd->sg[0].offset);
 		for(i = 0; i < sg_cnt; i++) {
-			TRACE_NET_PAGE("Clearing page %p", cmd->sg[i].page);
-			cmd->sg[i].page->net_priv = NULL;
+			TRACE_NET_PAGE("Clearing page %p", sg_page(&cmd->sg[i]));
+			sg_page(&cmd->sg[i])->net_priv = NULL;
 		}
 		cmnd_put(cmd);
 	}
@@ -923,31 +925,31 @@ retry:
 
 	while (1) {
 #ifdef NET_PAGE_CALLBACKS_DEFINED
-		if (unlikely((sg[idx].page->net_priv != NULL) &&
-				(sg[idx].page->net_priv != ref_cmd))) {
+		if (unlikely((sg_page(&sg[idx])->net_priv != NULL) &&
+				(sg_page(&sg[idx])->net_priv != ref_cmd))) {
 			PRINT_ERROR("net_priv isn't NULL and != ref_cmd "
 				"(write_cmnd %p, ref_cmd %p, sg %p, idx %d, "
 				"net_priv %p)", write_cmnd, ref_cmd, sg, idx,
-				sg[idx].page->net_priv);
+				sg_page(&sg[idx])->net_priv);
 			sBUG();
 		}
-		sg[idx].page->net_priv = ref_cmd;
+		sg_page(&sg[idx])->net_priv = ref_cmd;
 #endif
 		sendsize = PAGE_SIZE - offset;
 		if (size <= sendsize) {
 retry2:
-			res = sendpage(sock, sg[idx].page, offset, size, flags);
+			res = sendpage(sock, sg_page(&sg[idx]), offset, size, flags);
 			TRACE_WRITE("%s %#Lx:%u: %d(%lu,%u,%u)",
 				sock->ops->sendpage ? "sendpage" : "sock_no_sendpage",
 				(unsigned long long)conn->session->sid, conn->cid,
-				res, sg[idx].page->index, offset, size);
+				res, sg_page(&sg[idx])->index, offset, size);
 			if (unlikely(res <= 0)) {
 				if (res == -EINTR)
 					goto retry2;
 				else
 					goto out_res;
 			}
-			check_net_priv(ref_cmd, sg[idx].page);
+			check_net_priv(ref_cmd, sg_page(&sg[idx]));
 			if (res == size) {
 				conn->write_size = 0;
 				return saved_size;
@@ -958,19 +960,19 @@ retry2:
 		}
 
 retry1:
-		res = sendpage(sock, sg[idx].page, offset, sendsize,
+		res = sendpage(sock, sg_page(&sg[idx]), offset, sendsize,
 			flags | MSG_MORE);
 		TRACE_WRITE("%s %#Lx:%u: %d(%lu,%u,%u)",
 			sock->ops->sendpage ? "sendpage" : "sock_no_sendpage",
 			(unsigned long long ) conn->session->sid, conn->cid,
-			res, sg[idx].page->index, offset, sendsize);
+			res, sg_page(&sg[idx])->index, offset, sendsize);
 		if (unlikely(res <= 0)) {
 			if (res == -EINTR)
 				goto retry1;
 			else
 				goto out_res;
 		}
-		check_net_priv(ref_cmd, sg[idx].page);
+		check_net_priv(ref_cmd, sg_page(&sg[idx]));
 		if (res == sendsize) {
 			idx++;
 			offset = 0;
@@ -988,7 +990,7 @@ out_iov:
 	return saved_size - size;
 
 out_res:
-	check_net_priv(ref_cmd, sg[idx].page);
+	check_net_priv(ref_cmd, sg_page(&sg[idx]));
 	if (res == -EAGAIN)
 		goto out;
 	/* else go through */

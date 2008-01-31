@@ -1567,44 +1567,6 @@ out:
 	return;
 }
 
-int __scst_get_buf(struct scst_cmd *cmd, uint8_t **buf)
-{
-	int res = 0;
-	struct scatterlist *sg = cmd->sg;
-	int i = cmd->get_sg_buf_entry_num;
-	
-	TRACE_ENTRY();
-	
-	*buf = NULL;
-	
-	if ((i >= cmd->sg_cnt) || unlikely(sg == NULL))
-		goto out;
-#ifdef SCST_HIGHMEM
-	/* 
-	 * HIGHMEM pages not merged (clustered), so if it's 
-	 * not HIGHMEM page, kmap() is the same as page_address()
-	 */
-	if (scst_cmd_atomic(cmd)) {
-		enum km_type km;
-		if (in_softirq())
-			km = KM_SOFTIRQ0;
-		else
-			km = KM_USER0;
-		*buf = kmap_atomic(sg[i].page, km);
-	} else
-		*buf = kmap(sg[i].page);
-#else
-	*buf = page_address(sg[i].page);
-#endif
-	*buf += sg[i].offset;
-	res = sg[i].length;
-	cmd->get_sg_buf_entry_num++;
-	
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
 static const int SCST_CDB_LENGTH[8] = { 6, 10, 10, -1, 16, 12, -1, -1 };
 
 #define SCST_CDB_GROUP(opcode)   ((opcode >> 5) & 0x7)

@@ -36,6 +36,10 @@
 
 #include <scst_const.h>
 
+#ifndef DECLARE_MUTEX_LOCKED
+#define DECLARE_MUTEX_LOCKED(name)	__DECLARE_SEMAPHORE_GENERIC(name, 0)
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
 typedef _Bool bool;
 #endif
@@ -2235,6 +2239,52 @@ static inline int scst_mgmt_cmd_get_status(struct scst_mgmt_cmd *mcmd)
 	return mcmd->status;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24)
+
+static inline struct page *sg_page(struct scatterlist *sg)
+{
+	return sg->page;
+}
+
+static inline void *sg_virt(struct scatterlist *sg)
+{
+	return page_address(sg_page(sg)) + sg->offset;
+}
+
+static inline void sg_init_table(struct scatterlist *sgl, unsigned int nents)
+{
+	memset(sgl, 0, sizeof(*sgl) * nents);
+}
+
+static inline void sg_assign_page(struct scatterlist *sg, struct page *page)
+{
+	sg->page = page;
+}
+
+static inline void sg_set_page(struct scatterlist *sg, struct page *page,
+			       unsigned int len, unsigned int offset)
+{
+	sg_assign_page(sg, page);
+	sg->offset = offset;
+	sg->length = len;
+}
+
+static inline void sg_set_buf(struct scatterlist *sg, const void *buf,
+			      unsigned int buflen)
+{
+	sg_set_page(sg, virt_to_page(buf), buflen, offset_in_page(buf));
+}
+
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24) */
+
+static inline void sg_clear(struct scatterlist *sg)
+{
+	memset(sg, 0, sizeof(*sg));
+#ifdef CONFIG_DEBUG_SG
+	sg->sg_magic = SG_MAGIC;
+#endif
+}
+
 /*
  * Functions for access to the commands data (SG) buffer,
  * including HIGHMEM environment. Should be used instead of direct
@@ -2245,7 +2295,41 @@ static inline int scst_mgmt_cmd_get_status(struct scst_mgmt_cmd *mcmd)
  *
  * The "put" function unmaps the buffer.
  */
-int __scst_get_buf(struct scst_cmd *cmd, uint8_t **buf);
+static inline int __scst_get_buf(struct scst_cmd *cmd, uint8_t **buf)
+{
+	int res = 0;
+	struct scatterlist *sg = cmd->sg;
+	int i = cmd->get_sg_buf_entry_num;
+	
+	*buf = NULL;
+	
+	if ((i >= cmd->sg_cnt) || unlikely(sg == NULL))
+		goto out;
+#ifdef SCST_HIGHMEM /* HIGHMEM isn't currently supported */
+	/* 
+	 * HIGHMEM pages not merged (clustered), so if it's 
+	 * not HIGHMEM page, kmap() is the same as page_address()
+	 */
+	if (scst_cmd_atomic(cmd)) {
+		enum km_type km;
+		if (in_softirq())
+			km = KM_SOFTIRQ0;
+		else
+			km = KM_USER0;
+		*buf = kmap_atomic(sg[i].page, km);
+	} else
+		*buf = kmap(sg[i].page);
+#else
+	*buf = page_address(sg_page(&sg[i]));
+#endif
+	*buf += sg[i].offset;
+	res = sg[i].length;
+	cmd->get_sg_buf_entry_num++;
+	
+out:
+	return res;
+}
+
 static inline int scst_get_buf_first(struct scst_cmd *cmd, uint8_t **buf)
 {
 	cmd->get_sg_buf_entry_num = 0;
@@ -2260,7 +2344,7 @@ static inline int scst_get_buf_next(struct scst_cmd *cmd, uint8_t **buf)
 
 static inline void scst_put_buf(struct scst_cmd *cmd, void *buf)
 {
-#ifdef SCST_HIGHMEM
+#ifdef SCST_HIGHMEM /* HIGHMEM isn't currently supported */
 	if (cmd->sg_cnt) {
 		if (scst_cmd_atomic(cmd)) {
 			enum km_type km;

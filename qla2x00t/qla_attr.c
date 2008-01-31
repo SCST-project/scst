@@ -61,14 +61,14 @@ qla2x00_store_tgt_enabled(struct class_device *cdev,
 	case '0' : 
 		if ((ha->flags.enable_target_mode) || force) {
 			qla_target.tgt_host_action(ha, DISABLE_TARGET_MODE);
+			msleep_interruptible(10*1000);
 		}
-		msleep_interruptible(3*1000);
 		break;
 	case '1' :
 		if ((ha->flags.enable_target_mode == 0) || force) {
 			qla_target.tgt_host_action(ha, ENABLE_TARGET_MODE);
+			msleep_interruptible(10*1000);
 		}
-		msleep_interruptible(3*1000);
 		break;
 	default:
 		printk("%s: Requested action not understood: %s\n",
