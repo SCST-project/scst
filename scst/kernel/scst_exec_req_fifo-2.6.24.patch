@@ -1,0 +1,109 @@
+diff -upkr linux-2.6.24/drivers/scsi/scsi_lib.c linux-2.6.24/drivers/scsi/scsi_lib.c
+--- linux-2.6.24/drivers/scsi/scsi_lib.c	2008-01-25 01:58:37.000000000 +0300
++++ linux-2.6.24/drivers/scsi/scsi_lib.c	2008-01-28 11:10:30.000000000 +0300
+@@ -361,7 +361,7 @@ free_bios:
+ }
+ 
+ /**
+- * scsi_execute_async - insert request
++ * __scsi_execute_async - insert request
+  * @sdev:	scsi device
+  * @cmd:	scsi command
+  * @cmd_len:	length of scsi cdb
+@@ -372,11 +372,14 @@ free_bios:
+  * @timeout:	request timeout in seconds
+  * @retries:	number of times to retry request
+  * @flags:	or into request flags
++ * @at_head:	insert request at head or tail of queue
+  **/
+-int scsi_execute_async(struct scsi_device *sdev, const unsigned char *cmd,
++static inline int __scsi_execute_async(struct scsi_device *sdev,
++		       const unsigned char *cmd,
+ 		       int cmd_len, int data_direction, void *buffer, unsigned bufflen,
+ 		       int use_sg, int timeout, int retries, void *privdata,
+-		       void (*done)(void *, char *, int, int), gfp_t gfp)
++		       void (*done)(void *, char *, int, int), gfp_t gfp,
++		       int at_head)
+ {
+ 	struct request *req;
+ 	struct scsi_io_context *sioc;
+@@ -413,7 +416,7 @@ int scsi_execute_async(struct scsi_devic
+ 	sioc->data = privdata;
+ 	sioc->done = done;
+ 
+-	blk_execute_rq_nowait(req->q, NULL, req, 1, scsi_end_async);
++	blk_execute_rq_nowait(req->q, NULL, req, at_head, scsi_end_async);
+ 	return 0;
+ 
+ free_req:
+@@ -422,8 +425,53 @@ free_sense:
+ 	kmem_cache_free(scsi_io_context_cache, sioc);
+ 	return DRIVER_ERROR << 24;
+ }
++
++/**
++ * scsi_execute_async - insert request
++ * @sdev:	scsi device
++ * @cmd:	scsi command
++ * @cmd_len:	length of scsi cdb
++ * @data_direction: data direction
++ * @buffer:	data buffer (this can be a kernel buffer or scatterlist)
++ * @bufflen:	len of buffer
++ * @use_sg:	if buffer is a scatterlist this is the number of elements
++ * @timeout:	request timeout in seconds
++ * @retries:	number of times to retry request
++ * @flags:	or into request flags
++ **/
++int scsi_execute_async(struct scsi_device *sdev, const unsigned char *cmd,
++		       int cmd_len, int data_direction, void *buffer, unsigned bufflen,
++		       int use_sg, int timeout, int retries, void *privdata,
++		       void (*done)(void *, char *, int, int), gfp_t gfp)
++{
++	return __scsi_execute_async(sdev, cmd, cmd_len, data_direction, buffer,
++		bufflen, use_sg, timeout, retries, privdata, done, gfp, 1);
++}
+ EXPORT_SYMBOL_GPL(scsi_execute_async);
+ 
++/**
++ * scsi_execute_async_fifo - insert request at tail, in FIFO order
++ * @sdev:	scsi device
++ * @cmd:	scsi command
++ * @cmd_len:	length of scsi cdb
++ * @data_direction: data direction
++ * @buffer:	data buffer (this can be a kernel buffer or scatterlist)
++ * @bufflen:	len of buffer
++ * @use_sg:	if buffer is a scatterlist this is the number of elements
++ * @timeout:	request timeout in seconds
++ * @retries:	number of times to retry request
++ * @flags:	or into request flags
++ **/
++int scsi_execute_async_fifo(struct scsi_device *sdev, const unsigned char *cmd,
++		       int cmd_len, int data_direction, void *buffer, unsigned bufflen,
++		       int use_sg, int timeout, int retries, void *privdata,
++		       void (*done)(void *, char *, int, int), gfp_t gfp)
++{
++	return __scsi_execute_async(sdev, cmd, cmd_len, data_direction, buffer,
++		bufflen, use_sg, timeout, retries, privdata, done, gfp, 0);
++}
++EXPORT_SYMBOL_GPL(scsi_execute_async_fifo);
++
+ /*
+  * Function:    scsi_init_cmd_errh()
+  *
+diff -upkr linux-2.6.24/include/scsi/scsi_device.h linux-2.6.24/include/scsi/scsi_device.h
+--- linux-2.6.24/include/scsi/scsi_device.h	2008-01-25 01:58:37.000000000 +0300
++++ linux-2.6.24/include/scsi/scsi_device.h	2008-01-28 11:10:30.000000000 +0300
+@@ -331,6 +331,13 @@ extern int scsi_execute_async(struct scs
+ 			      int timeout, int retries, void *privdata,
+ 			      void (*done)(void *, char *, int, int),
+ 			      gfp_t gfp);
++#define SCSI_EXEC_REQ_FIFO_DEFINED
++extern int scsi_execute_async_fifo(struct scsi_device *sdev,
++			      const unsigned char *cmd, int cmd_len, int data_direction,
++			      void *buffer, unsigned bufflen, int use_sg,
++			      int timeout, int retries, void *privdata,
++			      void (*done)(void *, char *, int, int),
++			      gfp_t gfp);
+ 
+ static inline int __must_check scsi_device_reprobe(struct scsi_device *sdev)
+ {
