@@ -602,6 +602,23 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 			goto out_fail_free_sg_entries;
 	}
 
+	if (cache) {
+		atomic_add(pages_to_alloc - obj->sg_count,
+			&pool->cache_acc[order].merged);
+	} else {
+		if (no_cached) {
+			atomic_add(pages_to_alloc,
+				&pool->acc.other_pages);
+			atomic_add(pages_to_alloc - obj->sg_count,
+				&pool->acc.other_merged);
+		} else {
+			atomic_add(pages_to_alloc,
+				&pool->acc.big_pages);
+			atomic_add(pages_to_alloc - obj->sg_count,
+				&pool->acc.big_merged);
+		}
+	}
+
 success:
 	spin_lock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
 	sgv_pools_mgr.mgr.thr.active_pages_total += 1 << order;
@@ -795,6 +812,10 @@ int sgv_pool_init(struct sgv_pool *pool, const char *name, int clustered)
 
 	atomic_set(&pool->acc.other_alloc, 0);
 	atomic_set(&pool->acc.big_alloc, 0);
+	atomic_set(&pool->acc.other_pages, 0);
+	atomic_set(&pool->acc.big_pages, 0);
+	atomic_set(&pool->acc.other_merged, 0);
+	atomic_set(&pool->acc.big_merged, 0);
 
 	pool->clustered = clustered;
 	pool->alloc_fns.alloc_pages_fn = scst_alloc_sys_pages;
@@ -811,6 +832,7 @@ int sgv_pool_init(struct sgv_pool *pool, const char *name, int clustered)
 
 		atomic_set(&pool->cache_acc[i].total_alloc, 0);
 		atomic_set(&pool->cache_acc[i].hit_alloc, 0);
+		atomic_set(&pool->cache_acc[i].merged, 0);
 
 		if (i <= sgv_pools_mgr.sgv_max_local_order) {
 			size = sizeof(*obj) + (1 << i) * 
@@ -1156,27 +1178,48 @@ void scst_sgv_pools_deinit(void)
 
 static void scst_do_sgv_read(struct seq_file *seq, const struct sgv_pool *pool)
 {
-	int i, total = 0, hit = 0;
+	int i, total = 0, hit = 0, merged = 0, allocated = 0;
+	int oa, om;
  
 	for(i = 0; i < SGV_POOL_ELEMENTS; i++) {
+		int t;
+
 		hit += atomic_read(&pool->cache_acc[i].hit_alloc);
 		total += atomic_read(&pool->cache_acc[i].total_alloc);
+
+		t = atomic_read(&pool->cache_acc[i].total_alloc) -
+			atomic_read(&pool->cache_acc[i].hit_alloc);
+		allocated += t * (1 << i);
+		merged += atomic_read(&pool->cache_acc[i].merged);
 	}
 
-	seq_printf(seq, "\n%-30s %-11d %-11d %d/%d (P/O)\n", pool->name,
-		hit, total,
-		pool->acc.cached_pages,
-		pool->acc.cached_entries);
+	seq_printf(seq, "\n%-30s %-11d %-11d %-11d %d/%d (P/O)\n", pool->name,
+		hit, total, (allocated != 0) ? merged*100/allocated : 0,
+		pool->acc.cached_pages, pool->acc.cached_entries);
 
 	for(i = 0; i < SGV_POOL_ELEMENTS; i++) {
-		seq_printf(seq, "  %-28s %-11d %-11d\n", pool->cache_names[i], 
+		int t = atomic_read(&pool->cache_acc[i].total_alloc) -
+			atomic_read(&pool->cache_acc[i].hit_alloc);
+		allocated = t * (1 << i);
+		merged = atomic_read(&pool->cache_acc[i].merged);
+
+		seq_printf(seq, "  %-28s %-11d %-11d %d\n",
+			pool->cache_names[i],
 			atomic_read(&pool->cache_acc[i].hit_alloc),
-			atomic_read(&pool->cache_acc[i].total_alloc));
+			atomic_read(&pool->cache_acc[i].total_alloc),
+			(allocated != 0) ? merged*100/allocated : 0);
 	}
 
-	seq_printf(seq, "  %-28s %-11d %-11d\n", "big/other",
-		atomic_read(&pool->acc.big_alloc),
-		atomic_read(&pool->acc.other_alloc));
+	allocated = atomic_read(&pool->acc.big_pages);
+	merged = atomic_read(&pool->acc.big_merged);
+	oa = atomic_read(&pool->acc.other_pages);
+	om = atomic_read(&pool->acc.other_merged);
+
+	seq_printf(seq, "  %-40s %d/%-9d %d/%d\n", "big/other",
+ 		atomic_read(&pool->acc.big_alloc),
+		atomic_read(&pool->acc.other_alloc),
+		(allocated != 0) ? merged*100/allocated : 0,
+		(oa != 0) ? om/oa : 0);
 
 	return;
 }
@@ -1196,8 +1239,8 @@ int sgv_pool_procinfo_show(struct seq_file *seq, void *v)
 		sgv_pools_mgr.mgr.thr.releases_on_hiwmk,
 		sgv_pools_mgr.mgr.thr.releases_failed);
 
-	seq_printf(seq, "%-30s %-11s %-11s %-11s", "Name", "Hit", "Total",
-		"Cached");
+	seq_printf(seq, "%-30s %-11s %-11s %-11s %-11s", "Name", "Hit", "Total",
+		"% merged", "Cached");
 
 	mutex_lock(&sgv_pools_mgr.scst_sgv_pool_mutex);
 	list_for_each_entry(pool, &sgv_pools_mgr.scst_sgv_pool_list,

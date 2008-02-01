@@ -54,11 +54,14 @@ struct sgv_pool_acc
 {
 	u32 cached_pages, cached_entries;
 	atomic_t big_alloc, other_alloc;
+	atomic_t big_pages, other_pages;
+	atomic_t big_merged, other_merged;
 };
 
 struct sgv_pool_cache_acc
 {
-	atomic_t total_alloc, hit_alloc; 
+	atomic_t total_alloc, hit_alloc;
+	atomic_t merged;
 };
 
 struct sgv_pool_alloc_fns
