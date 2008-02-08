@@ -44,7 +44,7 @@ When removing devices, users or groups from the config file keep in mind that
 "scstadmin -config" will NOT remove those configurations from the running system unless
 you use the -ForceConfig flag. Also, using the init script to reload the configuration
 
-#> /etc/init.d/scst -reload-config
+#> /etc/init.d/scst reload-config
 
 will also not remove configurations from a running system.
 
