@@ -1,4 +1,4 @@
-/* $Id: isp_linux.c,v 1.222 2008/01/18 20:19:04 mjacob Exp $ */
+/* $Id: isp_linux.c,v 1.223 2008/01/19 02:08:48 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -1025,7 +1025,7 @@ isp_add_wwn_entry(ispsoftc_t *isp, int chan, uint64_t ini, uint16_t nphdl, uint3
             isp_prt(isp, i, "%s: Chan %d IID 0x%016llx N-Port Handle 0x%02x Port ID 0x%06x reentered", __FUNCTION__, chan,
                 (unsigned long long) lp->port_wwn, lp->handle, lp->portid);
         } else {
-            isp_prt(isp, i, "%s: Chan %d IID 0x%016llx NP-Handle 0x%02x Port ID 0x%06x overwrites IID 0x%016llx N-Port Handle 0x%02x Port Id 0x%06x",
+            isp_prt(isp, i, "%s: Chan %d IID 0x%016llx N-Port Handle 0x%02x Port ID 0x%06x overwrites IID 0x%016llx N-Port Handle 0x%02x Port Id 0x%06x",
                 __FUNCTION__, chan, (unsigned long long) ini, nphdl, s_id, (unsigned long long) lp->port_wwn, lp->handle, lp->portid);
         }
         lp->portid = s_id;
@@ -1140,6 +1140,27 @@ isp_find_pdb_by_sid(ispsoftc_t *isp, int chan, uint32_t sid, fcportdb_t **lptr)
         }
     }
     return (0);
+}
+
+static void
+isp_tgt_dump_pdb(ispsoftc_t *isp, int chan)
+{
+    fcparam *fcp;
+    int i;
+
+    if (chan >= isp->isp_nchan) {
+        return;
+    }
+
+    fcp = FCPARAM(isp, chan);
+    for (i = MAX_FC_TARG-1; i >= 0; i--) {
+        fcportdb_t *lp = &fcp->portdb[i];
+
+        if (lp->target_mode == 0) {
+            continue;
+        }
+        isp_prt(isp, ISP_LOGTINFO, "PDB[%d]: Chan %d 0x%016llx Port-ID 0x%06x N-Port Handle 0x%04x", i, chan, (unsigned long long) lp->port_wwn, lp->portid, lp->handle);
+    }
 }
 
 static void
@@ -2152,7 +2173,7 @@ isp_handle_platform_atio7(ispsoftc_t *isp, at7_entry_t *aep)
          * It's Hackaroni time...
          * It's Hackaroni time...
          */
-        if ((tmd = isp->isp_osinfo.tfreelist) == NULL) {
+        if ((tmd = isp->isp_osinfo.tfreelist) == NULL || ++aep->at_count == 250) {
             isp_prt(isp, ISP_LOGWARN, "%s: [RX_ID 0x%x] D_ID %x not found on any channel- dropping", __FUNCTION__, aep->at_rxid, did);
             return;
         }
@@ -2160,9 +2181,11 @@ isp_handle_platform_atio7(ispsoftc_t *isp, at7_entry_t *aep)
             isp->isp_osinfo.bfreelist = NULL;
         }
         MEMCPY(tmd, aep, sizeof (at7_entry_t));
+        /* we should be safe here ... */
         tmd->cd_lflags = CDFL_BUSY;
-        isp_prt(isp, ISP_LOGTDEBUG0, "%s: [RX_ID 0x%x] D_ID 0x%06x not found on any channel- punting", __FUNCTION__, aep->at_rxid, did);
-        ISP_THREAD_EVENT(isp, ISP_THREAD_RESTART_AT7, tmd, 0, __FUNCTION__, __LINE__);
+        tmd->cd_next = isp->isp_osinfo.waiting_t;
+        isp->isp_osinfo.waiting_t = tmd;
+        tmd->cd_lastoff = 1;
         return;
     }
     isp_prt(isp, ISP_LOGTDEBUG0, "%s: [RX_ID 0x%x] D_ID 0x%06x found on Chan %d for S_ID 0x%06x", __FUNCTION__, aep->at_rxid, did, chan, sid);
@@ -2170,6 +2193,12 @@ isp_handle_platform_atio7(ispsoftc_t *isp, at7_entry_t *aep)
     if (isp_find_pdb_by_sid(isp, chan, sid, &lp)) {
         nphdl = lp->handle;
         iid = lp->port_wwn;
+    } else {
+        /*
+         * If we're not in the port database, do a tentative entry.
+         */
+        isp_prt(isp, ISP_LOGTINFO, "%s: [RX_ID 0x%x] D_ID 0x%06x found on Chan %d for S_ID 0x%06x wasn't in PDB already", __FUNCTION__, aep->at_rxid, did, chan, sid);
+        isp_add_wwn_entry(isp, chan, INI_NONE, NIL_HANDLE, sid);
     }
 
     /*
@@ -3899,7 +3928,11 @@ isplinux_timer(unsigned long arg)
         while ((wt = isp->isp_osinfo.waiting_t) != NULL) {
             isp->isp_osinfo.waiting_t = wt->cd_next;
             wt->cd_next = NULL;
-            ISP_THREAD_EVENT(isp, ISP_THREAD_FINDIID, wt, 0, __FUNCTION__, __LINE__);
+            if (wt->cd_lastoff == 0) {
+                ISP_THREAD_EVENT(isp, ISP_THREAD_FINDIID, wt, 0, __FUNCTION__, __LINE__);
+            } else {
+                ISP_THREAD_EVENT(isp, ISP_THREAD_RESTART_AT7, wt, 0, __FUNCTION__, __LINE__);
+            }
         }
     }
 #endif
@@ -4614,6 +4647,36 @@ isp_task_thread(void *arg)
                 ISP_LOCKU_SOFTC(isp);
                 if (isp_find_pdb_by_sid(isp, tmd->cd_channel, tmd->cd_portid, &lp)) {
                     if (!VALID_INI(lp->port_wwn)) {
+                        if (lp->handle == NIL_HANDLE) {
+                            /*
+                             * Ooops- all we have is the port id.
+                             */
+                            uint16_t nphdl, max;
+                            isp_pdb_t pdb;
+
+                            if (IS_24XX(isp)) {
+                                max = NPH_MAX_2K;
+                            } else {
+                                max = NPH_MAX;
+                            }
+                            for (nphdl = 0; nphdl != max; nphdl++) {
+                                if (isp_control(isp, ISPCTL_GET_PDB, tmd->cd_channel, nphdl, &pdb)) {
+                                    continue;
+                                }
+                                isp_prt(isp, ISP_LOGTINFO, "%s: nphdl 0x%04x has portid 0x%06x", __FUNCTION__, nphdl, pdb.portid);
+                                if (pdb.portid == tmd->cd_portid) {
+                                    lp->handle = nphdl;
+                                    break;
+                                }
+                            }
+                            if (nphdl == max) {
+                                ISP_UNLKU_SOFTC(isp);
+                                isp_prt(isp, ISP_LOGTINFO, "[0x%llx] asking thread to terminate cmd [0x%02x] because because we can't find the N-Port handle", tmd->cd_tagval, tmd->cd_cdb[0] & 0xff);
+                                isp_tgt_dump_pdb(isp, tmd->cd_channel);
+                                ISP_THREAD_EVENT(isp, ISP_THREAD_TERMINATE, tmd, 0, __FUNCTION__, __LINE__);
+                                break;
+                            }
+                        }
                         if (isp_control(isp, ISPCTL_GET_NAMES, tmd->cd_channel, lp->handle, NULL, &lp->port_wwn) == 0) {
                             nphdl = lp->handle;
                             iid = lp->port_wwn;
@@ -4630,7 +4693,8 @@ isp_task_thread(void *arg)
                      * has cleared it out. The command is probably already dead due to initiator port logout.
                      */
                     ISP_UNLKU_SOFTC(isp);
-                    isp_prt(isp, ISP_LOGTINFO, "[0x%llx] asking thread to terminate command because PortID 0x%06x no longer in port database", tmd->cd_tagval, tmd->cd_portid);
+                    isp_prt(isp, ISP_LOGTINFO, "[0x%llx] asking thread to terminate cmd [0x%02x] because PortID 0x%06x no longer in port database", tmd->cd_tagval, tmd->cd_cdb[0] & 0xff, tmd->cd_portid);
+                    isp_tgt_dump_pdb(isp, tmd->cd_channel);
                     ISP_THREAD_EVENT(isp, ISP_THREAD_TERMINATE, tmd, 0, __FUNCTION__, __LINE__);
                     break;
                 }
@@ -4638,6 +4702,7 @@ isp_task_thread(void *arg)
                     isp_prt(isp, ISP_LOGTDEBUG0, "%s: [0x%llx] trying to find IID again...", __FUNCTION__, tmd->cd_tagval);
                     tmd->cd_next = isp->isp_osinfo.waiting_t;
                     isp->isp_osinfo.waiting_t = tmd;
+                    tmd->cd_lastoff = 0;
                     ISP_UNLKU_SOFTC(isp);
                     break;
                 }
