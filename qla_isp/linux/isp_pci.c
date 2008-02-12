@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.150 2007/12/26 22:37:25 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.151 2008/01/11 22:41:51 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -597,12 +597,14 @@ isplinux_pci_init_one(struct Scsi_Host *host)
 
     /* PCI Rev 2.3 changes */
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP6312 || pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2322) {
+        /* enable PCI-INTX */
         pci_intx(pdev, 1);
     }
 
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2422 || pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2432) {
         int reg;
 
+        /* enable PCI-INTX */
         pci_intx(pdev, 1);
 
         /*
@@ -611,12 +613,9 @@ isplinux_pci_init_one(struct Scsi_Host *host)
         reg = pci_find_capability(pdev, PCI_CAP_ID_PCIX);
         if (reg) {
             uint16_t pxcmd;
-
-            reg += 0x2;
-            pci_read_config_word(pdev, reg, &pxcmd);
-            pxcmd &= ~PCI_X_CMD_MAX_READ;
-            pxcmd |= 0x8;
-            pci_write_config_word(pdev, reg, pxcmd);
+            pci_read_config_word(pdev, reg + PCI_X_CMD, &pxcmd);
+            pxcmd |= PCI_X_CMD_MAX_READ;    /* 4K READ BURST */
+            pci_write_config_word(pdev, reg + PCI_X_CMD, pxcmd);
         }
 
         /*
@@ -627,10 +626,10 @@ isplinux_pci_init_one(struct Scsi_Host *host)
             uint16_t pectl;
 
             reg += 0x8;
-            pci_read_config_word(pdev, reg, &pectl);
-            pectl &= ~0x7000;
-            pectl |= 0x4000;
-            pci_write_config_word(pdev, reg, pectl);
+            pci_read_config_word(pdev, reg + PCI_EXP_DEVCTL, &pectl);
+            pectl &= ~PCI_EXP_DEVCTL_READRQ;
+            pectl |= (5 << 12); /* 4K READ BURST */
+            pci_write_config_word(pdev, reg + PCI_EXP_DEVCTL, pectl);
         }
     }
 
