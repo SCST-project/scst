@@ -1,4 +1,4 @@
-/* $Id: isp_ioctl.h,v 1.23 2007/07/19 01:58:40 mjacob Exp $ */
+/* $Id: isp_ioctl.h,v 1.24 2007/12/02 22:02:06 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -138,7 +138,8 @@ typedef struct {
  */
 struct isp_fc_device {
     uint32_t    loopid;     /* 0..255/2048 */
-    uint32_t        : 6,
+    uint32_t
+            chan    : 6,
             role    : 2,
             portid  : 24;   /* 24 bit Port ID */
     uint64_t    node_wwn;
@@ -157,20 +158,17 @@ struct isp_fc_device {
  * topology and capabilities.
  */
 struct isp_hba_device {
-    uint32_t
-                            : 8,
-                            : 4,
+    uint32_t                : 8,
         fc_speed            : 4,    /* Gbps */
-                            : 2,
-        fc_class2           : 1,
-        fc_ip_supported     : 1,
-        fc_scsi_supported   : 1,
+                            : 1,
         fc_topology         : 3,
-        fc_loopid           : 8;
-    uint8_t     fc_fw_major;
-    uint8_t     fc_fw_minor;
-    uint8_t     fc_fw_micro;
-    uint8_t     reserved;
+        fc_channel          : 8,    /* channel selector */
+        fc_loopid           : 16;   /* loop id selector */
+    uint8_t     fc_fw_major;    /* firmware major version */
+    uint8_t     fc_fw_minor;    /* firmware minor version */
+    uint8_t     fc_fw_micro;    /* firmware micro version */
+    uint8_t     fc_nchannels;   /* number of supported channels */
+    uint16_t    fc_nports;      /* number of supported ports */
     uint64_t    nvram_node_wwn;
     uint64_t    nvram_port_wwn;
     uint64_t    active_node_wwn;
@@ -183,7 +181,9 @@ struct isp_hba_device {
 #define ISP_TOPO_NPORT      3   /* N-port */
 #define ISP_TOPO_FPORT      4   /* F-port */
 
-#define ISP_FC_GETHINFO     (ISP_IOC|12)
+/* do not use this one any more */
+/* #define ISP_FC_GETHINFO     (ISP_IOC|12) */
+#define ISP_FC_GETHINFO     (ISP_IOC|13)
 
 /*
  * Set Active WWNN/WWPN
@@ -217,13 +217,13 @@ struct isp_fc_tsk_mgmt {
  */
 typedef struct {
     uint16_t count;
-    uint16_t reserved;
+    uint16_t channel;
     struct wwnpair {
         uint64_t wwnn;
         uint64_t wwpn;
     } wwns[1];
 } isp_dlist_t;
-/* don't recycle 22 */
+/* do not recycle 22 */
 #define ISP_FC_GETDLIST     (ISP_IOC | 23)
 /*
  * vim:ts=4:sw=4:expandtab

@@ -54,7 +54,7 @@ tools:
 	cd ../linux && $(MAKE) tools
 
 tags:	FRC
-	@ctags --recurse --append=no --exclude=Makefile --exclude=freebsd --exclude=solaris ../
+	@ctags --recurse --append=no --exclude=linux-2.6 --exclude=Makefile --exclude=freebsd --exclude=solaris ../
 
 FRC:
 

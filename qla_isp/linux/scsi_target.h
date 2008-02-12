@@ -1,4 +1,4 @@
-/* $Id: scsi_target.h,v 1.27 2007/07/07 23:20:56 mjacob Exp $ */
+/* $Id: scsi_target.h,v 1.28 2007/12/02 22:02:07 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -63,7 +63,7 @@
  * Ioctl Definitions File.
  */
 
-#define _SI             ('e' << 8)
+#define _SI             ('j' << 8)
 
 /*
  * Set new debugging level (get previous) (int argument).
@@ -74,10 +74,11 @@
  * Enable/Disable lun
  */
 typedef struct {
-    char    hba_name_unit[16];  /* e.g., "isp0" */
-    uint64_t nbytes;            /* disk size, in bytes */
-    uint16_t lun;               /* lun to map it to */
-    uint16_t flags;             /* flags */
+    char        hba_name_unit[16];  /* e.g., "isp0" */
+    uint64_t    nbytes;             /* disk size, in bytes */
+    uint16_t    lun;                /* lun to map it to */
+    uint8_t     channel;            /* channel */
+    uint8_t     flags;
 } sc_enable_t;
 #define SC_EF_OVERCOMMIT        0x01    /* allow overcommit */
 
@@ -91,7 +92,8 @@ typedef struct {
 typedef struct {
     char        hba_name_unit[16];  /* e.g., "isp0" */
     uint16_t    lun;                /* lun */
-    uint16_t            :   14,
+    uint8_t     channel;
+    uint8_t             :   6,
                 sync    :   1,      /* (implied) sync after write */
                 read    :   1;      /* read (from target to initiator) flag */
     void *      tag;                /* id tag for this command */

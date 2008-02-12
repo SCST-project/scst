@@ -1,4 +1,4 @@
-/* $Id: isp_target.h,v 1.55 2007/10/29 18:12:02 mjacob Exp $ */
+/* $Id: isp_target.h,v 1.56 2007/12/02 22:02:04 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -458,7 +458,7 @@ typedef struct {
 
 #define	AT2_HAS_TAG(val)	1
 #define	AT2_GET_TAG(val)	((val) & 0xffffffff)
-#define	AT2_GET_INST(val)	((val) >> 32)
+#define	AT2_GET_INST(val)	(((val) >> 32) & 0xffff)
 #define	AT2_GET_HANDLE		AT2_GET_TAG
 #define	AT2_GET_BUS(val)	(((val) >> 48) & 0xff)
 
@@ -473,7 +473,7 @@ typedef struct {
 	tid |= (((uint64_t)(bus & 0xff)) << 48)
 
 #define	FC_TAG_INSERT_INST(tid, inst)					\
-	tid &= ~0xffff00000000ull;					\
+	tid &= ~0x0000ffff00000000ull;					\
 	tid |= (((uint64_t)inst) << 32)
 
 /*
@@ -501,6 +501,7 @@ typedef struct {
 	fc_hdr_t	at_hdr;
 	fcp_cmnd_iu_t	at_cmnd;
 } at7_entry_t;
+#define	AT7_NORESRC_RXID	0xffffffff
 
 
 /*
@@ -936,11 +937,11 @@ void isp_notify_ack(ispsoftc_t *, void *);
 
 /*
  * Enable/Disable/Modify a logical unit.
- * (softc, cmd, bus, tgt, lun, cmd_cnt, inotify_cnt, opaque)
+ * (softc, cmd, bus, tgt, lun, cmd_cnt, inotify_cnt)
  */
 #define	DFLT_CMND_CNT	0xfe	/* unmonitored */
 #define	DFLT_INOT_CNT	0xfe	/* unmonitored */
-int isp_lun_cmd(ispsoftc_t *, int, int, int, int, int, int, uint32_t);
+int isp_lun_cmd(ispsoftc_t *, int, int, int, int, int);
 
 /*
  * General request queue 'put' routine for target mode entries.
@@ -959,7 +960,7 @@ int isp_target_put_atio(ispsoftc_t *, void *);
  * General routine to send a final CTIO for a command- used mostly for
  * local responses.
  */
-int isp_endcmd(ispsoftc_t *, void *, uint32_t, uint32_t);
+int isp_endcmd(ispsoftc_t *, ...);
 #define	ECMD_SVALID	0x100
 
 /*

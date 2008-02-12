@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.144 2007/11/27 17:58:04 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.145 2007/12/02 22:02:06 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -357,7 +357,7 @@ static struct ispmdvec mdvec_2400 = {
 /*
  * Encapsulating softc... Order of elements is important. The tag
  * pci_isp must come first because of multiple structure punning
- * (Scsi_Host * == struct isp_pcisoftc * == struct ispsofct *).
+ * (Scsi_Host == struct isp_pcisoftc == ispsoftc_t).
  */
 struct isp_pcisoftc {
     ispsoftc_t          pci_isp;
@@ -367,7 +367,6 @@ struct isp_pcisoftc {
     void *              vaddr;      /* Mapped Memory Address */
     vm_offset_t         voff;
     vm_offset_t         poff[_NREG_BLKS];
-    union pstore        params;
 };
 
 /*
@@ -426,8 +425,8 @@ map_isp_io(struct isp_pcisoftc *isp_pci, u_short cmd, vm_offset_t io_base)
 void
 isplinux_pci_release(struct Scsi_Host *host)
 {
-    ispsoftc_t *isp = (ispsoftc_t *) host->hostdata;
-    struct isp_pcisoftc *pcs = (struct isp_pcisoftc *) host->hostdata;
+    ispsoftc_t *isp = ISP_HOST2ISP(host);
+    struct isp_pcisoftc *pcs = (struct isp_pcisoftc *) isp;
     int i;
 
     pci_disable_device(pcs->pci_dev);
@@ -458,12 +457,24 @@ isplinux_pci_release(struct Scsi_Host *host)
         isp->isp_result = NULL;
     }
     if (IS_FC(isp)) {
-        if (FCPARAM(isp)->isp_scratch) {
-            pci_free_consistent(pcs->pci_dev, ISP2100_SCRLEN, FCPARAM(isp)->isp_scratch, FCPARAM(isp)->isp_scdma);
-            FCPARAM(isp)->isp_scratch = NULL;
+        for (i = 0; i < isp->isp_nchan; i++) {
+            fcparam *fcp = FCPARAM(isp, i);
+            if (fcp->isp_scratch) {
+                pci_free_consistent(pcs->pci_dev, ISP_FC_SCRLEN, fcp->isp_scratch, fcp->isp_scdma);
+                fcp->isp_scratch = NULL;
+            }
         }
     }
     pci_release_regions(pcs->pci_dev);
+
+    if (isp->isp_param) {
+        isp_kfree(isp->isp_param, isp->isp_osinfo.param_amt);
+        isp->isp_param = NULL;
+    }
+    if (isp->isp_osinfo.storep) {
+        isp_kfree(isp->isp_osinfo.storep, isp->isp_osinfo.storep_amt);
+        isp->isp_osinfo.storep = NULL;
+    }
 
     /*
      * Pull ourselves off the global list
@@ -512,7 +523,7 @@ isplinux_pci_init_one(struct Scsi_Host *host)
     struct pci_dev *pdev;
     ispsoftc_t *isp;
 
-    isp_pci = (struct isp_pcisoftc *) host->hostdata;
+    isp_pci = (struct isp_pcisoftc *) ISP_HOST2ISP(host);
     pdev = isp_pci->pci_dev;
     isp = (ispsoftc_t *) isp_pci;
 
@@ -544,15 +555,18 @@ isplinux_pci_init_one(struct Scsi_Host *host)
     isp_pci->poff[SXP_BLOCK >> _BLK_REG_SHFT] = PCI_SXP_REGS_OFF;
     isp_pci->poff[RISC_BLOCK >> _BLK_REG_SHFT] = PCI_RISC_REGS_OFF;
     isp_pci->poff[DMA_BLOCK >> _BLK_REG_SHFT] = DMA_REGS_OFF;
+    isp->isp_nchan = 1;
 
     switch (pdev->device) {
     case PCI_DEVICE_ID_QLOGIC_ISP1020:
         break;
-    case PCI_DEVICE_ID_QLOGIC_ISP1080:
+    case PCI_DEVICE_ID_QLOGIC_ISP12160:
     case PCI_DEVICE_ID_QLOGIC_ISP1240:
+        isp->isp_nchan = 2;
+        /* FALLTHROUGH */
+    case PCI_DEVICE_ID_QLOGIC_ISP1080:
     case PCI_DEVICE_ID_QLOGIC_ISP1280:
     case PCI_DEVICE_ID_QLOGIC_ISP10160:
-    case PCI_DEVICE_ID_QLOGIC_ISP12160:
         isp_pci->poff[DMA_BLOCK >> _BLK_REG_SHFT] = ISP1080_DMA_REGS_OFF;
         break;
     case PCI_DEVICE_ID_QLOGIC_ISP2200:
@@ -573,6 +587,7 @@ isplinux_pci_init_one(struct Scsi_Host *host)
     case PCI_DEVICE_ID_QLOGIC_ISP2432:
         isp->isp_port = PCI_FUNC(pdev->devfn);
         isp_pci->poff[MBOX_BLOCK >> _BLK_REG_SHFT] = PCI_MBOX_REGS2400_OFF;
+        isp->isp_nchan += isp_vports;
         break;
     default:
         isp_prt(isp, ISP_LOGERR, "Device ID 0x%04x is not a known Qlogic Device", pdev->device);
@@ -658,6 +673,7 @@ isplinux_pci_init_one(struct Scsi_Host *host)
         host->io_port = isp_pci->port;
     }
     host->irq = 0;
+    host->max_channel = isp->isp_nchan - 1;
     isp_pci->pci_isp.isp_revision = rev;
 #ifndef    ISP_DISABLE_1020_SUPPORT
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP1020) {
@@ -736,7 +752,22 @@ isplinux_pci_init_one(struct Scsi_Host *host)
     }
     host->irq = pdev->irq;
 
-    isp->isp_param = &isp_pci->params;
+    /*
+     * Get parameter area set up
+     */
+    isp->isp_osinfo.storep_amt = sizeof (isp_data) * isp->isp_nchan;
+    if (IS_FC(isp)) {
+        isp->isp_osinfo.param_amt = sizeof (fcparam) * isp->isp_nchan;
+    } else {
+        isp->isp_osinfo.param_amt = sizeof (sdparam) * isp->isp_nchan;
+    }
+    isp->isp_param = isp_kzalloc(isp->isp_osinfo.param_amt, GFP_KERNEL);
+    isp->isp_osinfo.storep = isp_kzalloc(isp->isp_osinfo.storep_amt, GFP_KERNEL);
+    if (isp->isp_param == NULL || isp->isp_osinfo.storep == NULL) {
+        isp_prt(isp, ISP_LOGERR, "unable to allocate data structures");
+        goto bad;
+    }
+
     /*
      * All PCI QLogic cards really can do full 32 bit PCI transactions,
      * at least. But the older cards (1020s) have a 24 bit segment limit
@@ -780,6 +811,14 @@ isplinux_pci_init_one(struct Scsi_Host *host)
     CREATE_ISP_DEV(isp);
     return (0);
 bad:
+    if (isp->isp_param) {
+        isp_kfree(isp->isp_param, isp->isp_osinfo.param_amt);
+        isp->isp_param = NULL;
+    }
+    if (isp->isp_osinfo.storep) {
+        isp_kfree(isp->isp_osinfo.storep, isp->isp_osinfo.storep_amt);
+        isp->isp_osinfo.storep = NULL;
+    }
     if (host->irq) {
         ISP_DISABLE_INTS(isp);
         free_irq(host->irq, isp_pci);
@@ -1006,10 +1045,10 @@ isp_pci_rd_reg_2400(ispsoftc_t *isp, int regoff)
     case BIU2400_REQOUTP:
     case BIU2400_RSPINP:
     case BIU2400_RSPOUTP:
-    case BIU2400_PRI_RQINP:
-    case BIU2400_PRI_RSPINP:
+    case BIU2400_PRI_REQINP:
+    case BIU2400_PRI_REQOUTP:
     case BIU2400_ATIO_RSPINP:
-    case BIU2400_ATIO_REQINP:
+    case BIU2400_ATIO_RSPOUTP:
     case BIU2400_HCCR:
     case BIU2400_GPIOD:
     case BIU2400_GPIOE:
@@ -1067,10 +1106,10 @@ isp_pci_wr_reg_2400(ispsoftc_t *isp, int regoff, uint32_t val)
     case BIU2400_REQOUTP:
     case BIU2400_RSPINP:
     case BIU2400_RSPOUTP:
-    case BIU2400_PRI_RQINP:
-    case BIU2400_PRI_RSPINP:
+    case BIU2400_PRI_REQINP:
+    case BIU2400_PRI_REQOUTP:
     case BIU2400_ATIO_RSPINP:
-    case BIU2400_ATIO_REQINP:
+    case BIU2400_ATIO_RSPOUTP:
     case BIU2400_HCCR:
     case BIU2400_GPIOD:
     case BIU2400_GPIOE:
@@ -1259,6 +1298,8 @@ isp_pci_wr_reg_1080(ispsoftc_t *isp, int regoff, uint32_t val)
 static int
 isp_pci_mbxdma(ispsoftc_t *isp)
 {
+    fcparam *fcp;
+    int i;
     struct isp_pcisoftc *pcs;
 
     if (isp->isp_xflist) {
@@ -1332,19 +1373,21 @@ isp_pci_mbxdma(ispsoftc_t *isp)
     }
 
     if (IS_FC(isp)) {
-        fcparam *fcp = isp->isp_param;
-        if (fcp->isp_scratch == NULL) {
-            dma_addr_t busaddr;
-            fcp->isp_scratch = pci_alloc_consistent(pcs->pci_dev, ISP2100_SCRLEN, &busaddr);
+        for (i = 0; i < isp->isp_nchan; i++) {
+            fcp = FCPARAM(isp, i);
             if (fcp->isp_scratch == NULL) {
-                isp_prt(isp, ISP_LOGERR, "unable to allocate scratch space");
-                goto bad;
-            }
-            fcp->isp_scdma = busaddr;
-            MEMZERO(fcp->isp_scratch, ISP2100_SCRLEN);
-            if (fcp->isp_scdma & 0x7) {
-                isp_prt(isp, ISP_LOGERR, "scratch space not 8 byte aligned");
-                goto bad;
+                dma_addr_t busaddr;
+                fcp->isp_scratch = pci_alloc_consistent(pcs->pci_dev, ISP_FC_SCRLEN, &busaddr);
+                if (fcp->isp_scratch == NULL) {
+                    isp_prt(isp, ISP_LOGERR, "unable to allocate scratch space");
+                    goto bad;
+                }
+                fcp->isp_scdma = busaddr;
+                MEMZERO(fcp->isp_scratch, ISP_FC_SCRLEN);
+                if (fcp->isp_scdma & 0x7) {
+                    isp_prt(isp, ISP_LOGERR, "scratch space not 8 byte aligned");
+                    goto bad;
+                }
             }
         }
     }
@@ -1377,10 +1420,15 @@ bad:
         isp->isp_result = NULL;
         isp->isp_result_dma = 0;
     }
-    if (IS_FC(isp) && FCPARAM(isp)->isp_scratch) {
-        pci_free_consistent(pcs->pci_dev, ISP2100_SCRLEN, FCPARAM(isp)->isp_scratch, FCPARAM(isp)->isp_scdma);
-        FCPARAM(isp)->isp_scratch = NULL;
-        FCPARAM(isp)->isp_scdma = 0;
+    if (IS_FC(isp)) {
+        for (i = 0; i < isp->isp_nchan; i++) {
+            fcp = FCPARAM(isp, i);
+            if (fcp->isp_scratch) {
+                    pci_free_consistent(pcs->pci_dev, ISP_FC_SCRLEN, fcp->isp_scratch, fcp->isp_scdma);
+                    fcp->isp_scratch = NULL;
+                    fcp->isp_scdma = 0;
+            }
+        }
     }
     ISP_IGET_LK_SOFTC(isp);
     return (1);
@@ -1441,6 +1489,9 @@ tdma_mk(ispsoftc_t *isp, tmd_xact_t *xact, ct_entry_t *cto, uint32_t *nxtip, uin
         isp_prt(isp, ISP_LOGTDEBUG1, ctx, cto->ct_fwhandle, L0LUN_TO_FLATLUN(tmd->cd_lun), (int) cto->ct_iid, cto->ct_flags, cto->ct_status,
             cto->ct_scsi_status, cto->ct_resid, "<END>");
         isp_put_ctio(isp, cto, qe);
+        if (cto->ct_flags & CT_CCINCR) {
+            tmd->cd_flags &= ~CDFL_RESRC_FILL;
+        }
         return (CMD_QUEUED);
     }
 
@@ -1662,6 +1713,9 @@ tdma_mk(ispsoftc_t *isp, tmd_xact_t *xact, ct_entry_t *cto, uint32_t *nxtip, uin
     }
     *nxtip = nxti;
     isp_prt(isp, ISP_LOGTDEBUG2, "[%llx]: map %d segments at %p for handle 0x%x", tmd->cd_tagval, new_seg_cnt, xact->td_data, cto->ct_syshandle);
+    if (sflags & CT_CCINCR) {
+        tmd->cd_flags &= ~CDFL_RESRC_FILL;
+    }
     return (CMD_QUEUED);
 }
 
@@ -1729,11 +1783,13 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xact_t *xact, ct7_entry_t *cto, uint32_t *nxti
     if (xact->td_xfrlen == 0) {
         cto->ct_header.rqs_entry_count = 1;
         cto->ct_header.rqs_seqno = 1;
+
         /* ct_syshandle contains the synchronization handle set by caller */
         isp_put_ctio7(isp, cto, qe);
         ISP_TDQE(isp, "tdma_mk_2400[no data]", curi, qe);
         return (CMD_QUEUED);
     }
+
     if (xact->td_xfrlen <= 1024) {
         nseg = 0;
     } else if (xact->td_xfrlen <= 4096) {
@@ -1752,6 +1808,7 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xact_t *xact, ct7_entry_t *cto, uint32_t *nxti
         nseg = 7;
     }
     isp->isp_osinfo.bins[nseg]++;
+
     /*
      * First, count and map all S/G segments
      *
@@ -1818,17 +1875,11 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xact_t *xact, ct7_entry_t *cto, uint32_t *nxti
         cto2->ct_flags |= CT7_NO_DATA|CT7_NO_DATA|CT7_FLAG_MODE1;
         cto2->ct_seg_count = 0;
         MEMZERO(&cto2->rsp, sizeof (cto2->rsp));
+        cto2->ct_scsi_status = swd;
         if ((swd & 0xff) == SCSI_CHECK && (xact->td_hflags & TDFH_SNSVALID)) {
-            swd |= CT2_SNSLEN_VALID;
             cto2->rsp.m1.ct_resplen = min(TMD_SENSELEN, MAXRESPLEN_24XX);
             MEMCPY(cto2->rsp.m1.ct_resp, tmd->cd_sense, cto2->rsp.m1.ct_resplen);
         }
-        if (cto2->ct_resid > 0) {
-            swd |= CT2_DATA_UNDER;
-        } else if (cto2->ct_resid < 0) {
-            swd |= CT2_DATA_OVER;
-        }
-        cto2->ct_scsi_status = swd;
 #else
         cto->ct_flags &= ~CT7_SENDSTATUS;
         cto->ct_resid = 0;
@@ -1849,35 +1900,27 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xact_t *xact, ct7_entry_t *cto, uint32_t *nxti
     last_synthetic_count = 0;
     last_synthetic_addr = 0;
     cto->ct_seg_count = 1;
+    seg = 1;
 
-    for (seg = 0; seg < cto->ct_seg_count; seg++) {
-        bc = min(sg_dma_len(sg), xfcnt);
-        addr = sg_dma_address(sg);
-#ifdef    ISP_DAC_SUPPORTED
-        cto->rsp.m0.ds.ds_base = LOWD(addr);
-        cto->rsp.m0.ds.ds_basehi = HIWD(addr);
-        if (!SAME_4G(addr, bc)) {
-            isp_prt(isp, ISP_LOGTDEBUG1, "seg0[%d]%x%08x:%u (TRUNC'd)", seg, (uint32_t) HIWD(addr), (uint32_t)LOWD(addr), bc);
-            cto->rsp.m0.ds.ds_count = (unsigned int) (FOURG_SEG(addr + bc) - addr);
-            addr += cto->rsp.m0.ds.ds_count;
-            bc -= cto->rsp.m0.ds.ds_count;
-            last_synthetic_count = bc;
-            last_synthetic_addr = addr;
-        } else {
-            cto->rsp.m0.ds.ds_count = bc;
-            isp_prt(isp, ISP_LOGTDEBUG1, "%s: seg0[%d]%lx%08lx:%u", __FUNCTION__, seg,
-                (unsigned long)cto->rsp.m0.ds.ds_basehi, (unsigned long)cto->rsp.m0.ds.ds_base, bc);
-        }
-#else
-        cto->rsp.m0.ds.ds_base = addr;
-        cto->rsp.m0.ds.ds_basehi = 0;
+    bc = min(sg_dma_len(sg), xfcnt);
+    addr = sg_dma_address(sg);
+    cto->rsp.m0.ds.ds_base = LOWD(addr);
+    cto->rsp.m0.ds.ds_basehi = HIWD(addr);
+    if (!SAME_4G(addr, bc)) {
+        isp_prt(isp, ISP_LOGTDEBUG1, "seg0[%d]%x%08x:%u (TRUNC'd)", seg, (uint32_t) HIWD(addr), (uint32_t)LOWD(addr), bc);
+        cto->rsp.m0.ds.ds_count = (unsigned int) (FOURG_SEG(addr + bc) - addr);
+        addr += cto->rsp.m0.ds.ds_count;
+        bc -= cto->rsp.m0.ds.ds_count;
+        last_synthetic_count = bc;
+        last_synthetic_addr = addr;
+    } else {
         cto->rsp.m0.ds.ds_count = bc;
-        isp_prt(isp, ISP_LOGTDEBUG1, "%s: seg0[%d]%lx:%u", __FUNCTION__, seg, (unsigned long) cto->rsp.m0.ds.ds_base, bc);
-#endif
-        cto->rsp.m0.ct_xfrlen += bc;
-        xfcnt -= bc;
-        sg++;
+        isp_prt(isp, ISP_LOGTDEBUG1, "%s: seg0[%d]%lx%08lx:%u", __FUNCTION__, seg,
+            (unsigned long)cto->rsp.m0.ds.ds_basehi, (unsigned long)cto->rsp.m0.ds.ds_base, bc);
     }
+    cto->rsp.m0.ct_xfrlen += bc;
+    xfcnt -= bc;
+    sg++;
 
 
     if (seg == nseg && last_synthetic_count == 0) {
@@ -2008,7 +2051,7 @@ tdma_mkfc(ispsoftc_t *isp, tmd_xact_t *xact, ct2_entry_t *cto, uint32_t *nxtip, 
     uint32_t curi, nxti;
     uint32_t bc, last_synthetic_count;
     long xfcnt;    /* must be signed */
-    int nseg, seg, ovseg, seglim, new_seg_cnt;
+    int nseg, seg, ovseg, seglim, new_seg_cnt, ccincr = 0;
 #ifdef ALLOW_SYNTHETIC_CTIO
     ct2_entry_t *cto2 = NULL, ct2;
 #endif 
@@ -2037,6 +2080,9 @@ tdma_mkfc(ispsoftc_t *isp, tmd_xact_t *xact, ct2_entry_t *cto, uint32_t *nxtip, 
             isp_prt(isp, ISP_LOGTDEBUG1, "[%x] faspost (0x%x)", cto->ct_rxid, tmd->cd_cdb[0]);
         }
         ISP_TDQE(isp, "tdma_mkfc[no data]", curi, qe);
+        if (cto->ct_flags & CT2_CCINCR) {
+            tmd->cd_flags &= ~CDFL_RESRC_FILL;
+        }
         return (CMD_QUEUED);
     }
 
@@ -2129,6 +2175,9 @@ tdma_mkfc(ispsoftc_t *isp, tmd_xact_t *xact, ct2_entry_t *cto, uint32_t *nxtip, 
             swd |= CT2_DATA_OVER;
         }
         cto2->rsp.m1.ct_scsi_status = swd;
+        if (cto2->ct_flags & CT2_CCINCR) {
+            ccincr = 1;
+        }
 #else
         cto->ct_flags &= ~(CT2_SENDSTATUS|CT2_CCINCR|CT2_FASTPOST);
         cto->ct_resid = 0;
@@ -2377,6 +2426,9 @@ mbxsync:
     }
     ISP_TDQE(isp, "tdma_mkfc", isp->isp_reqidx, cto);
     *nxtip = nxti;
+    if (ccincr) {
+        tmd->cd_flags &= ~CDFL_RESRC_FILL;
+    }
     return (CMD_QUEUED);
 }
 #endif
@@ -2696,12 +2748,12 @@ mbxsync:
     }
 
     if (rq->req_header.rqs_entry_type == RQSTYPE_T3RQS) {
-        if (FCPARAM(isp)->isp_2klogin)
+        if (ISP_CAP_2KLOGIN(isp))
             isp_put_request_t3e(isp, (ispreqt3e_t *) rq, (ispreqt3e_t *) h);
         else
             isp_put_request_t3(isp, (ispreqt3_t *) rq, (ispreqt3_t *) h);
     } else if (rq->req_header.rqs_entry_type == RQSTYPE_T2RQS) {
-        if (FCPARAM(isp)->isp_2klogin)
+        if (ISP_CAP_2KLOGIN(isp))
             isp_put_request_t2e(isp, (ispreqt2e_t *) rq, (ispreqt2e_t *) h);
         else
             isp_put_request_t2(isp, (ispreqt2_t *) rq, (ispreqt2_t *) h);
@@ -3137,12 +3189,11 @@ isplinux_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
         pci_disable_device(pdev);
         return (-ENOMEM);
     }
-    pci_isp = (struct isp_pcisoftc *) host->hostdata;
+    pci_isp = (struct isp_pcisoftc *) ISP_HOST2ISP(host);
     pci_set_drvdata(pdev, pci_isp);
     pci_isp->pci_dev = pdev;
     isp = (ispsoftc_t *) pci_isp;
     isp->isp_host = host;
-    isp->isp_osinfo.storep = &pci_isp->params;
     isp->isp_osinfo.device = pdev;
     host->unique_id = isp_unit_seed++;
     sprintf(isp->isp_name, "%s%d", ISP_NAME, isp->isp_unit);
@@ -3180,7 +3231,6 @@ isplinux_pci_remove(struct pci_dev *pdev)
     struct isp_pcisoftc *pci_isp = pci_get_drvdata(pdev);
     unsigned long flags;
     ispsoftc_t *isp;
-    int i;
     struct Scsi_Host *host;
 
     isp = (ispsoftc_t *) pci_isp;
@@ -3190,14 +3240,11 @@ isplinux_pci_remove(struct pci_dev *pdev)
 #ifdef    ISP_TARGET_MODE
     isp_detach_target(isp);
 #endif
-    if (isp->isp_osinfo.task_thread) {
-        SEND_THREAD_EVENT(isp, ISP_THREAD_EXIT, NULL, 1, __FUNCTION__, __LINE__);
-    }
+    ISP_THREAD_KILL(isp);
     ISP_LOCKU_SOFTC(isp);
     isp_shutdown(isp);
     isp->dogactive = 0;
     del_timer(&isp->isp_osinfo.timer);
-    isp->isp_role = ISP_ROLE_NONE;
     ISP_DISABLE_INTS(isp);
     ISP_UNLKU_SOFTC(isp);
     isplinux_pci_release(host);
@@ -3219,12 +3266,6 @@ isplinux_pci_remove(struct pci_dev *pdev)
 #endif
     scsi_host_put(host);
     pci_set_drvdata(pdev, NULL);
-    for (i = 0; i < MAX_ISP; i++) {
-        if (isplist[i] == isp) {
-            isplist[i] = NULL;
-            break;
-        }
-    }
 }
 
 static struct pci_driver isplinux_pci_driver = {

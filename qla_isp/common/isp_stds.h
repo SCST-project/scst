@@ -1,4 +1,4 @@
-/* $Id: isp_stds.h,v 1.12 2007/10/29 18:11:08 mjacob Exp $ */
+/* $Id: isp_stds.h,v 1.13 2007/12/02 22:02:04 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -213,7 +213,10 @@ typedef struct {
 #define	ABTX			0x06
 #define	PRLI			0x20
 #define	PRLO			0x21
+#define	SCN			0x22
 #define	TPRLO			0x24
+#define	PDISC			0x50
+#define	ADISC			0x52
 #define	RNC			0x53
 
 /*

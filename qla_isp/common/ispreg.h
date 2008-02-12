@@ -1,4 +1,4 @@
-/* $Id: ispreg.h,v 1.26 2007/07/07 23:20:56 mjacob Exp $ */
+/* $Id: ispreg.h,v 1.27 2007/12/02 22:02:04 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -389,11 +389,12 @@
 #define	BIU2400_REQOUTP		(BIU_BLOCK+0x20) /* Request Queue Out */
 #define	BIU2400_RSPINP		(BIU_BLOCK+0x24) /* Response Queue In */
 #define	BIU2400_RSPOUTP		(BIU_BLOCK+0x28) /* Response Queue Out */
-#define	BIU2400_PRI_RQINP 	(BIU_BLOCK+0x2C) /* Priority Request Q In */
-#define	BIU2400_PRI_RSPINP 	(BIU_BLOCK+0x30) /* Priority Request Q Out */
 
-#define	BIU2400_ATIO_RSPINP	(BIU_BLOCK+0x3C)	/* ATIO Queue In */
-#define	BIU2400_ATIO_REQINP	(BIU_BLOCK+0x40)	/* ATIO Queue Out */
+#define	BIU2400_PRI_REQINP 	(BIU_BLOCK+0x2C) /* Priority Request Q In */
+#define	BIU2400_PRI_REQOUTP 	(BIU_BLOCK+0x30) /* Priority Request Q Out */
+
+#define	BIU2400_ATIO_RSPINP	(BIU_BLOCK+0x3C) /* ATIO Queue In */
+#define	BIU2400_ATIO_RSPOUTP	(BIU_BLOCK+0x40) /* ATIO Queue Out */
 
 #define	BIU2400_R2HSTSLO	(BIU_BLOCK+0x44)
 #define	BIU2400_R2HSTSHI	(BIU_BLOCK+0x46)

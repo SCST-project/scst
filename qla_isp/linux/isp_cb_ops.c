@@ -1,4 +1,4 @@
-/* $Id: isp_cb_ops.c,v 1.77 2007/08/29 20:37:08 mjacob Exp $ */
+/* $Id: isp_cb_ops.c,v 1.78 2007/12/02 22:02:06 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -60,12 +60,6 @@
 #include "isp_linux.h"
 #include "isp_ioctl.h"
 #include "exioct.h"
-
-#if __GNUC__ >= 4
-#define BAD_COMPILER    1
-#else
-#define BAD_COMPILER    0
-#endif
 
 #ifdef  CONFIG_PROC_FS
 
@@ -164,7 +158,9 @@ isplinux_proc_info(struct Scsi_Host *shp, char *buf, char **st, off_t off, int l
             io = len;
         } else if (strncmp(buf, "rescan", 6) == 0) {
             if (IS_FC(isp)) {
-                SEND_THREAD_EVENT(isp, ISP_THREAD_FC_RESCAN, NULL, 1, __FUNCTION__, __LINE__);
+                for (io = 0; io < isp->isp_nchan; io++) {
+                    ISP_THREAD_EVENT(isp, ISP_THREAD_FC_RESCAN, FCPARAM(isp, io), 1, __FUNCTION__, __LINE__);
+                }
                 io = len;
             }
         } else if (strncmp(buf, "lip", 3) == 0) {
@@ -182,7 +178,7 @@ isplinux_proc_info(struct Scsi_Host *shp, char *buf, char **st, off_t off, int l
                 return (-EINVAL);
             }
             ISP_LOCKU_SOFTC(isp);
-            (void) isp_control(isp, ISPCTL_RESET_BUS, &bus);
+            (void) isp_control(isp, ISPCTL_RESET_BUS, bus);
             ISP_UNLKU_SOFTC(isp);
             io = len;
         } else if (strncmp(buf, "devreset=", 9) == 0) {
@@ -194,30 +190,17 @@ isplinux_proc_info(struct Scsi_Host *shp, char *buf, char **st, off_t off, int l
             }
             /* always bus 0 */
             ISP_LOCKU_SOFTC(isp);
-            (void) isp_control(isp, ISPCTL_RESET_DEV, &dev);
+            (void) isp_control(isp, ISPCTL_RESET_DEV, 0, dev);
             ISP_UNLKU_SOFTC(isp);
             io = len;
         } else if (strncmp(buf, "reset", 5) == 0) {
             ISP_LOCKU_SOFTC(isp);
-            io = isp_drain_reset(isp, "proc_reset");
+            isp_reinit(isp);
             ISP_UNLKU_SOFTC(isp);
-            if (io == 0) {
-                io = len;
-            } else {
-                io = -EIO;
-            }
-        } else if (strncmp(buf, "drain", 5) == 0) {
-            ISP_LOCKU_SOFTC(isp);
-            io = isp_drain(isp, "proc_reset");
-            ISP_UNLKU_SOFTC(isp);
-            if (io == 0) {
-                io = len;
-            } else {
-                io = -EIO;
-            }
+            io = len;
         } else if (strncmp(buf, "bins", 4) == 0) {
             ISP_LOCKU_SOFTC(isp);
-            memset(isp->isp_osinfo.bins, 0, sizeof (isp->isp_osinfo.bins));
+            MEMZERO(isp->isp_osinfo.bins, sizeof (isp->isp_osinfo.bins));
             ISP_UNLKU_SOFTC(isp);
             io = len;
         }
@@ -225,7 +208,7 @@ isplinux_proc_info(struct Scsi_Host *shp, char *buf, char **st, off_t off, int l
         else if (strncmp(buf, "fwcrash", 7) == 0) {
             if (IS_FC(isp)) {
                 ISP_LOCKU_SOFTC(isp);
-                SEND_THREAD_EVENT(isp, ISP_THREAD_FW_CRASH_DUMP, NULL, 0, __FUNCTION__, __LINE__);
+                ISP_THREAD_EVENT(isp, ISP_THREAD_FW_CRASH_DUMP, NULL, 0, __FUNCTION__, __LINE__);
                 ISP_UNLKU_SOFTC(isp);
                 io = len;
             }
@@ -247,7 +230,7 @@ isplinux_proc_info(struct Scsi_Host *shp, char *buf, char **st, off_t off, int l
 #ifdef  HBA_VERSION
     copy_info(&info, "\n HBA Version %s, built %s, %s", HBA_VERSION, __DATE__, __TIME__);
 #endif
-    copy_info(&info, "\n DEVID %x role %d\n", isp->isp_osinfo.device_id, isp->isp_role);
+    copy_info(&info, "\n DEVID %x\n", isp->isp_osinfo.device_id);
     copy_info(&info,
         " Interrupt Stats:\n"
         "  total=0x%016llx bogus=0x%016llx\n"
@@ -295,7 +278,7 @@ isplinux_proc_info(struct Scsi_Host *shp, char *buf, char **st, off_t off, int l
         }
         copy_info(&info, "\n");
     }
-    copy_info(&info, "blocked %d draining %d qfdelay %d\n", isp->isp_blocked, isp->isp_draining, isp->isp_qfdelay);
+//    copy_info(&info, "blocked %d qfdelay %d\n", isp->isp_blocked, isp->isp_qfdelay);
 
     copy_info(&info, "\nxfer bins:\n");
     copy_info(&info, " <=1024   4096  32768  65536 131072 262144 524288  >0.5M\n");
@@ -313,24 +296,27 @@ isplinux_proc_info(struct Scsi_Host *shp, char *buf, char **st, off_t off, int l
 #endif
 
     if (IS_FC(isp)) {
-        fcparam *fcp = FCPARAM(isp);
-        copy_info(&info,
-            "Self:\nHandle ID 0x%x PortID 0x%06x FW State 0x%x Loop State 0x%x\n",
-            fcp->isp_loopid, fcp->isp_portid, fcp->isp_fwstate, fcp->isp_loopstate);
-        copy_info(&info, "Port WWN 0x%016llx Node WWN 0x%016llx\n\n", ISP_PORTWWN(isp), ISP_NODEWWN(isp));
-        copy_info(&info, "FC devices in port database:\n");
-        for (i = 0; i < MAX_FC_TARG; i++) {
-            if (fcp->portdb[i].state != FC_PORTDB_STATE_VALID) {
-                continue;
-            }
-            if (fcp->portdb[i].ini_map_idx) {
-                copy_info(&info, "\tdbidx %d handle 0x%x PortID 0x%06x role %s (target %d)\n\tPort WWN 0x%016llx Node WWN 0x%016llx\n\n",
-                    i, fcp->portdb[i].handle, fcp->portdb[i].portid, class3_roles[fcp->portdb[i].roles],
-                    fcp->portdb[i].ini_map_idx - 1, fcp->portdb[i].port_wwn, fcp->portdb[i].node_wwn);
-            } else {
-                copy_info(&info, "\tdbidx %d handle 0x%x PortID 0x%06x role %s\n\tPort WWN 0x%016llx Node WWN 0x%016llx\n\n",
-                    i, fcp->portdb[i].handle, fcp->portdb[i].portid, class3_roles[fcp->portdb[i].roles],
-                    fcp->portdb[i].port_wwn, fcp->portdb[i].node_wwn);
+        int chan;
+        for (chan = 0; chan < isp->isp_nchan; chan++) {
+            fcparam *fcp = FCPARAM(isp, chan);
+            copy_info(&info,
+                "Self Channel %d:\nHandle ID 0x%x PortID 0x%06x FW State 0x%x Loop State 0x%x\n", chan,
+                fcp->isp_loopid, fcp->isp_portid, fcp->isp_fwstate, fcp->isp_loopstate);
+            copy_info(&info, "Port WWN 0x%016llx Node WWN 0x%016llx\n\n", fcp->isp_wwpn, fcp->isp_wwnn);
+            copy_info(&info, "FC devices in port database:\n");
+            for (i = 0; i < MAX_FC_TARG; i++) {
+                if (fcp->portdb[i].state != FC_PORTDB_STATE_VALID) {
+                    continue;
+                }
+                if (fcp->portdb[i].ini_map_idx) {
+                    copy_info(&info, "\tdbidx %d handle 0x%x PortID 0x%06x role %s (target %d)\n\tPort WWN 0x%016llx Node WWN 0x%016llx\n\n",
+                        i, fcp->portdb[i].handle, fcp->portdb[i].portid, isp_class3_roles[fcp->portdb[i].roles],
+                        fcp->portdb[i].ini_map_idx - 1, fcp->portdb[i].port_wwn, fcp->portdb[i].node_wwn);
+                } else {
+                    copy_info(&info, "\tdbidx %d handle 0x%x PortID 0x%06x role %s\n\tPort WWN 0x%016llx Node WWN 0x%016llx\n\n",
+                        i, fcp->portdb[i].handle, fcp->portdb[i].portid, isp_class3_roles[fcp->portdb[i].roles],
+                        fcp->portdb[i].port_wwn, fcp->portdb[i].node_wwn);
+                }
             }
         }
     } else {
@@ -417,9 +403,9 @@ static int
 isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
 {
     ispsoftc_t *isp = fp->private_data;
-    int rv, inarg, outarg;
+    int i, rv, inarg, outarg;
     fcparam *fcp;
-    uint16_t loopid;
+    uint16_t loopid, chan;
     mbreg_t mbs;
     unsigned long flags;
 
@@ -531,24 +517,44 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
     case ISP_RESCAN:
         if (IS_FC(isp)) {
             ISP_LOCKU_SOFTC(isp);
-            SEND_THREAD_EVENT(isp, ISP_THREAD_FC_RESCAN, NULL, 0, __FUNCTION__, __LINE__)
+            for (i = 0; i < isp->isp_nchan; i++) {
+                ISP_THREAD_EVENT(isp, ISP_THREAD_FC_RESCAN, FCPARAM(isp, i), 1, __FUNCTION__, __LINE__);
+            }
             ISP_UNLKU_SOFTC(isp);
         }
         break;
 
     case ISP_GETROLE:
-        outarg = isp->isp_role;
+        if (COPYIN((void *)arg, &inarg, sizeof (inarg))) {
+            rv = -EFAULT;
+            break;
+        }
+        chan = inarg >> 16;
+        if (chan >= isp->isp_nchan) {
+            rv = -ENXIO;
+            break;
+        }
+        if (IS_FC(isp)) {
+            outarg = FCPARAM(isp, chan)->role;
+        } else {
+            outarg = SDPARAM(isp, chan)->role;
+        }
         if (COPYOUT(&outarg, (void *)arg, sizeof (outarg))) {
             rv = -EFAULT;
             break;
         }
         break;
-
     case ISP_SETROLE:
         if (COPYIN((void *)arg, &inarg, sizeof (inarg))) {
             rv = -EFAULT;
             break;
         }
+        chan = inarg >> 16;
+        if (chan >= isp->isp_nchan) {
+            rv = -ENXIO;
+            break;
+        }
+        inarg &= 0xffff;
         if (inarg & ~(ISP_ROLE_INITIATOR|ISP_ROLE_TARGET)) {
             rv = -EINVAL;
             break;
@@ -556,37 +562,40 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
         /*
          * Check to see if we're already in that role.
          */
-        if (isp->isp_role == inarg) {
-            outarg = isp->isp_role;
+        if (IS_FC(isp)) {
+            if (FCPARAM(isp, chan)->role == inarg) {
+                break;
+            }
+            outarg = FCPARAM(isp, chan)->role;
             if (COPYOUT(&outarg, (void *)arg, sizeof (outarg))) {
                 rv = -EFAULT;
+                break;
             }
-            break;
+            FCPARAM(isp, chan)->role = inarg;
+            SET_DEFAULT_ROLE(isp, chan, FCPARAM(isp, chan)->role);
+        } else {
+            if (SDPARAM(isp, chan)->role == inarg) {
+                break;
+            }
+            outarg = SDPARAM(isp, chan)->role;
+            if (COPYOUT(&outarg, (void *)arg, sizeof (outarg))) {
+                rv = -EFAULT;
+                break;
+            }
+            SDPARAM(isp, chan)->role = inarg;
+            SET_DEFAULT_ROLE(isp, chan, SDPARAM(isp, chan)->role);
         }
-        /*FALLTHROUGH*/
+        break;
     case ISP_RESETHBA:
     {
         ISP_LOCK_SOFTC(isp);
-        if (c == ISP_SETROLE) {
-            outarg = isp->isp_role;
-            isp->isp_role = inarg;
-        }
-        if (isp_drain_reset(isp, "isp_ioctl")) {
-            ISP_UNLK_SOFTC(isp);
-            rv = -EIO;
-            break;
-        }
-        isp_async(isp, ISPASYNC_FW_RESTARTED, NULL);
+        isp_reset(isp);
         ISP_UNLK_SOFTC(isp);
-        if (c == ISP_SETROLE &&  COPYOUT(&outarg, (void *)arg, sizeof (outarg))) {
-            rv = -EFAULT;
-            break;
-        }
         break;
     }
     case ISP_FC_LIP:
         ISP_LOCK_SOFTC(isp);
-        if (isp_control(isp, ISPCTL_SEND_LIP, NULL)) {
+        if (isp_control(isp, ISPCTL_SEND_LIP, 0)) {
             rv = -EIO;
         }
         ISP_UNLK_SOFTC(isp);
@@ -601,29 +610,32 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
             break;
         }
         if (COPYIN((void *)arg, ifc, sizeof (*ifc))) {
-            rv = EFAULT;
+            rv = -EFAULT;
             break;
         }
-        if (ifc->loopid < 0 || ifc->loopid >= MAX_FC_TARG) {
-            rv = EINVAL;
+        if (ifc->chan >= isp->isp_nchan) {
+            rv = -EINVAL;
+            break;
+        }
+        if (ifc->loopid >= MAX_FC_TARG) {
+            rv = -EINVAL;
             break;
         }
         ISP_LOCK_SOFTC(isp);
-        lp = &FCPARAM(isp)->portdb[ifc->loopid];
+        lp = &FCPARAM(isp, ifc->chan)->portdb[ifc->loopid];
         if (lp->state == FC_PORTDB_STATE_VALID) {
             ifc->role = lp->roles;
             ifc->loopid = lp->handle;
             ifc->portid = lp->portid;
             ifc->node_wwn = lp->node_wwn;
             ifc->port_wwn = lp->port_wwn;
-            rv = 0;
         } else {
-            rv = ENODEV;
+            rv = -ENODEV;
         }
         ISP_UNLK_SOFTC(isp);
         if (rv == 0) {
             if (COPYOUT((void *)ifc, (void *)arg, sizeof (*ifc))) {
-                rv = EFAULT;
+                rv = -EFAULT;
             }
         }
         break;
@@ -631,22 +643,31 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
     case ISP_FC_GETHINFO:
     {
         struct isp_hba_device local, *hba = &local;
-        MEMZERO(hba, sizeof (*hba));
+        if (COPYIN((void *)arg, hba, sizeof (*hba))) {
+            rv = -EFAULT;
+            break;
+        }
+        chan = hba->fc_channel;
+        if (chan >= isp->isp_nchan) {
+            rv = -EINVAL;
+            break;
+        }
         ISP_LOCK_SOFTC(isp);
+        hba->fc_nchannels = isp->isp_nchan;
+        hba->fc_nports = ISP_CAP_2KLOGIN(isp)? 2048 : 256;
         hba->fc_fw_major = ISP_FW_MAJORX(isp->isp_fwrev);
         hba->fc_fw_minor = ISP_FW_MINORX(isp->isp_fwrev);
         hba->fc_fw_micro = ISP_FW_MICROX(isp->isp_fwrev);
-        hba->fc_speed = FCPARAM(isp)->isp_gbspeed;
-        hba->fc_scsi_supported = 1;
-        hba->fc_topology = FCPARAM(isp)->isp_topo + 1;
-        hba->fc_loopid = FCPARAM(isp)->isp_loopid;
-        hba->nvram_node_wwn = FCPARAM(isp)->isp_wwnn_nvram;
-        hba->nvram_port_wwn = FCPARAM(isp)->isp_wwpn_nvram;
-        hba->active_node_wwn = ISP_NODEWWN(isp);
-        hba->active_port_wwn = ISP_PORTWWN(isp);
+        hba->fc_speed = FCPARAM(isp, chan)->isp_gbspeed;
+        hba->fc_topology = FCPARAM(isp, chan)->isp_topo + 1;
+        hba->fc_loopid = FCPARAM(isp, chan)->isp_loopid;
+        hba->nvram_node_wwn = FCPARAM(isp, chan)->isp_wwnn_nvram;
+        hba->nvram_port_wwn = FCPARAM(isp, chan)->isp_wwpn_nvram;
+        hba->active_node_wwn = FCPARAM(isp, chan)->isp_wwnn;
+        hba->active_port_wwn = FCPARAM(isp, chan)->isp_wwpn;
         ISP_UNLK_SOFTC(isp);
         if (COPYOUT(hba, (void *)arg, sizeof (*hba))) {
-            rv = EFAULT;
+            rv = -EFAULT;
             break;
         }
         break;
@@ -657,19 +678,19 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
         struct isp_fc_tsk_mgmt local, *fct = (struct isp_fc_tsk_mgmt *) &local;
 
         if (IS_SCSI(isp)) {
-            rv = EINVAL;
+            rv = -EINVAL;
             break;
         }
 
         if (COPYIN((void *)arg, fct, sizeof (*fct))) {
-            rv = EFAULT;
+            rv = -EFAULT;
             break;
         }
 
         MEMZERO(&mbs, sizeof (mbs));
-        needmarker = rv = 0;
+        needmarker = 0;
         loopid = fct->loopid;
-        if (FCPARAM(isp)->isp_2klogin == 0) {
+        if (ISP_CAP_2KLOGIN(isp) == 0) {
             loopid <<= 8;
         }
         switch (fct->action) {
@@ -702,7 +723,7 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
             needmarker = 1;
             break;
         default:
-            rv = EINVAL;
+            rv = -EINVAL;
             break;
         }
         if (rv == 0) {
@@ -710,12 +731,12 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
             mbs.timeout = 2000000;
             ISP_LOCKU_SOFTC(isp);
             if (needmarker) {
-                isp->isp_sendmarker |= 1;
+                ISP_SET_SENDMARKER(isp, 0, 1);
             }
             rv = isp_control(isp, ISPCTL_RUN_MBOXCMD, &mbs);
             ISP_UNLKU_SOFTC(isp);
             if (rv) {
-                rv = EIO;
+                rv = -EIO;
             }
         }
         break;
@@ -723,11 +744,11 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
     case ISP_FC_GETDLIST:
     {
         isp_dlist_t *ua;
-        uint16_t nph, nphs, nphe, lim, count;
+        uint16_t nph, nphs, nphe, count, chan, lim;
         struct wwnpair pair, *uptr;
 
         if (IS_SCSI(isp)) {
-            rv = EINVAL;
+            rv = -EINVAL;
             break;
         }
 
@@ -735,14 +756,19 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
         uptr = &ua->wwns[0];
 
         if (COPYIN((void *)&ua->count, &lim, sizeof (lim))) {
-            rv = EFAULT;
+            rv = -EFAULT;
             break;
         }
 
-        if (FCPARAM(isp)->isp_2klogin == 0) {
-            nphe = NPH_MAX;
-        } else {
+        if (COPYIN((void *)&ua->channel, &chan, sizeof (chan))) {
+            rv = -EFAULT;
+            break;
+        }
+
+        if (ISP_CAP_2KLOGIN(isp)) {
             nphe = NPH_MAX_2K;
+        } else {
+            nphe = NPH_MAX;
         }
         if (IS_24XX(isp)) {
             nphs = 1;
@@ -751,38 +777,30 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
         }
         for (count = 0, nph = nphs; count < lim && nph != nphe; nph++) {
             ISP_LOCKU_SOFTC(isp);
-            pair.wwnn = nph;
-            if (isp_control(isp, ISPCTL_GET_NODENAME, &pair.wwnn)) {
-                ISP_UNLKU_SOFTC(isp);
-                continue;
-            }
-            pair.wwpn = nph;
-            if (isp_control(isp, ISPCTL_GET_PORTNAME, &pair.wwpn)) {
-                ISP_UNLKU_SOFTC(isp);
-                continue;
-            }
+            rv = isp_control(isp, ISPCTL_GET_NAMES, chan, nph, &pair.wwnn, &pair.wwpn);
             ISP_UNLKU_SOFTC(isp);
-            if (pair.wwnn == 0 || pair.wwpn == 0) {
+            if (rv || (pair.wwpn == INI_NONE && pair.wwnn == INI_NONE)) {
+                rv = 0;
                 continue;
             }
-            count++;
             if (COPYOUT(&pair, (void *)uptr++, sizeof (pair))) {
-                rv = EFAULT;
+                rv = -EFAULT;
                 break;
             }
+            count++;
         }
         if (rv == 0) {
             if (COPYOUT(&count, (void *)&ua->count, sizeof (count))) {
-                rv = EFAULT;
+                rv = -EFAULT;
             }
         }
         break;
     }
     default:
-        rv = EINVAL;
+        rv = -EINVAL;
         break;
     }
-    return(rv? -rv : 0);
+    return (rv);
 }
 
 /*
@@ -792,21 +810,18 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
 static int isp_exti_query(EXT_IOCTL *);
 static int isp_exti_setinstance(EXT_IOCTL *);
 static int isp_exti_fcct_passthru(EXT_IOCTL *);
-static int isp_exti_discover_luns(ispsoftc_t *, UINT64, UINT64, UINT16 *);
+static int isp_exti_discover_luns(ispsoftc_t *, int, UINT64, UINT64, UINT16 *);
 static void *isp_exti_usrptr(UINT64, UINT16);
 static int isp_exti_passthru(EXT_IOCTL *);
 static int isp_run_cmd(ispsoftc_t *, isp_xcmd_t *);
 
-static int
+int
 isp_qlogic_ext_ioctl(struct inode *ip, struct file *fp, unsigned int cmd, unsigned long arg)
 {
     EXT_IOCTL ext;
     EXT_IOCTL *uext = (EXT_IOCTL *) arg;
     int rval;
 
-    if (BAD_COMPILER) {
-        return (-EINVAL);
-    }
     rval = 0;
 
     if (COPYIN(uext, &ext, sizeof (ext))) {
@@ -849,7 +864,6 @@ isp_qlogic_ext_ioctl(struct inode *ip, struct file *fp, unsigned int cmd, unsign
         ext.Status = EXT_STATUS_UNSUPPORTED_VERSION;
         goto out;
     }
-
     /*
      * We only count FC adapters.
      */
@@ -914,6 +928,7 @@ isp_exti_setinstance(EXT_IOCTL *ext)
     }
     api_isp = isplist[index];
     ext->HbaSelect = api_isp->isp_unit;
+    api_channel = 0;    /* XXXXXXXXXXXXXXXXXXXXXXX */
     return (0);
 }
     
@@ -932,9 +947,9 @@ isp_exti_query(EXT_IOCTL *pext)
         return (0);
     }
     ISP_LOCKU_SOFTC(isp);
-    fcp = FCPARAM(isp);
+    fcp = FCPARAM(isp, api_channel);
     if (fcp->isp_fwstate != FW_READY || fcp->isp_loopstate < LOOP_LSCAN_DONE) {
-        if (isp_fc_runstate(isp, 1000000) < 0) {
+        if (isp_fc_runstate(isp, api_channel, 1000000) < 0) {
             ISP_UNLKU_SOFTC(isp);
             pext->Status = EXT_STATUS_PENDING;
             return (0);
@@ -971,16 +986,16 @@ isp_exti_query(EXT_IOCTL *pext)
         EXT_HBA_PORT hbp;
 
         MEMZERO(&hbp, sizeof (hbp));
-        MAKE_NODE_NAME_FROM_WWN(hbp.WWPN, ISP_PORTWWN(isp));
+        MAKE_NODE_NAME_FROM_WWN(hbp.WWPN, FCPARAM(isp, 0)->isp_wwpn);
         hbp.Id[1] = (fcp->isp_portid >> 16)  & 0xff;
         hbp.Id[2] = (fcp->isp_portid >> 8) & 0xff;
         hbp.Id[3] = fcp->isp_portid & 0xff;
 
-        if (isp->isp_role & ISP_ROLE_TARGET) {
+        if (FCPARAM(isp, 0)->role & ISP_ROLE_TARGET) {
             hbp.Type |= EXT_DEF_TARGET_DEV;
         }
 
-        if (isp->isp_role & ISP_ROLE_INITIATOR) {
+        if (FCPARAM(isp, 0)->role & ISP_ROLE_INITIATOR) {
             hbp.Type |= EXT_DEF_INITIATOR_DEV;
         }
 
@@ -1015,9 +1030,9 @@ isp_exti_query(EXT_IOCTL *pext)
         hbp.PortActiveFC4Types = EXT_DEF_FC4_TYPE_SCSI;
         hbp.PortSupportedSpeed = EXT_DEF_PORTSPEED_1GBIT;
         if (IS_23XX(isp)) {
-            hbp.PortSupportedSpeed = EXT_DEF_PORTSPEED_2GBIT;
+            hbp.PortSupportedSpeed |= EXT_DEF_PORTSPEED_2GBIT;
         } else if (IS_24XX(isp)) {
-            hbp.PortSupportedSpeed = EXT_DEF_PORTSPEED_4GBIT;
+            hbp.PortSupportedSpeed |= EXT_DEF_PORTSPEED_2GBIT|EXT_DEF_PORTSPEED_4GBIT;
         }
         cl = min(pext->ResponseLen, sizeof (hbp));
         if (COPYOUT(&hbp, outaddr, cl)) {
@@ -1141,7 +1156,7 @@ isp_exti_query(EXT_IOCTL *pext)
         wwpn = rlp->port_wwn;
         wwnn = rlp->node_wwn;
         ISP_UNLKU_SOFTC(isp);
-        rval = isp_exti_discover_luns(isp, wwpn, wwnn, &tgt.LunCount);
+        rval = isp_exti_discover_luns(isp, api_channel, wwpn, wwnn, &tgt.LunCount);
         if (rval) {
             break;
         }
@@ -1185,16 +1200,16 @@ isp_exti_query(EXT_IOCTL *pext)
 
 
 #define IGPOFF  0                                   /* place CT Request itself is put */
-#define OGPOFF  (ISP2100_SCRLEN >> 1)               /* place CT Response itself is put */
-#define ZTXOFF  (ISP2100_SCRLEN - (1 * QENTRY_LEN)) /* place where status entry for CT passthru request ends up */
-#define CTXOFF  (ISP2100_SCRLEN - (2 * QENTRY_LEN)) /* place where CT passthru request is put */
+#define OGPOFF  (ISP_FC_SCRLEN >> 1)                /* place CT Response itself is put */
+#define ZTXOFF  (ISP_FC_SCRLEN - (1 * QENTRY_LEN))  /* place where status entry for CT passthru request ends up */
+#define CTXOFF  (ISP_FC_SCRLEN - (2 * QENTRY_LEN))  /* place where CT passthru request is put */
 
 static int
 isp_exti_fcct_passthru(EXT_IOCTL *pext)
 {
     ispsoftc_t *isp = api_isp;
     isp_plcmd_t p;
-    fcparam *fcp = FCPARAM(isp);
+    fcparam *fcp = FCPARAM(isp, 0);
     mbreg_t mbs;
     uint8_t qe[QENTRY_LEN], *scp;
     uint16_t handle;
@@ -1209,11 +1224,11 @@ isp_exti_fcct_passthru(EXT_IOCTL *pext)
         return (0);
     }
 
-    if (pext->RequestLen > (ISP2100_SCRLEN >> 1)) {
+    if (pext->RequestLen > (ISP_FC_SCRLEN >> 1)) {
         pext->Status = EXT_STATUS_NO_MEMORY;
         return (0);
     }
-    if (pext->ResponseLen > ((ISP2100_SCRLEN >> 1) - (2 * QENTRY_LEN))) {
+    if (pext->ResponseLen > ((ISP_FC_SCRLEN >> 1) - (2 * QENTRY_LEN))) {
         pext->Status = EXT_STATUS_NO_MEMORY;
         return (0);
     }
@@ -1247,6 +1262,7 @@ isp_exti_fcct_passthru(EXT_IOCTL *pext)
     /*
      * Login into the Management Server
      */
+    p.channel = api_channel;
     p.handle = NIL_HANDLE;
     p.portid = MANAGEMENT_PORT_ID;
     p.flags = PLOGX_FLG_CMD_PLOGI;
@@ -1263,7 +1279,7 @@ isp_exti_fcct_passthru(EXT_IOCTL *pext)
      * Acquire Scratch
      */
     MEMZERO(qe, QENTRY_LEN);
-    FC_SCRATCH_ACQUIRE(isp);
+    FC_SCRATCH_ACQUIRE(isp, 0);
     scp = fcp->isp_scratch;
 
     MEMCPY(&scp[IGPOFF], localmem, pext->RequestLen);
@@ -1328,7 +1344,7 @@ isp_exti_fcct_passthru(EXT_IOCTL *pext)
         ms->ms_header.rqs_entry_count = 1;
         ms->ms_header.rqs_entry_type = RQSTYPE_MS_PASSTHRU;
         ms->ms_handle = 0xffffffff;
-        if (FCPARAM(isp)->isp_2klogin) {
+        if (ISP_CAP_2KLOGIN(isp)) {
             ms->ms_nphdl = handle;
         } else {
             ms->ms_nphdl = handle << 8;
@@ -1376,11 +1392,12 @@ out1:
     /*
      * Release Scratch
      */
-    FC_SCRATCH_RELEASE(isp);
+    FC_SCRATCH_RELEASE(isp, 0);
 
     /*
      * Log out of the Management Server
      */
+    p.channel = api_channel;
     p.handle = handle;
     p.portid = MANAGEMENT_PORT_ID;
     p.flags = PLOGX_FLG_CMD_LOGO|PLOGX_FLG_EXPLICIT_LOGO;
@@ -1493,7 +1510,7 @@ isp_exti_passthru(EXT_IOCTL *pext)
         MAKE_WWN_FROM_NODE_NAME(wwnn, fcx.FCScsiAddr.DestAddr.WWNN);
     } else if (fcx.FCScsiAddr.DestType == EXT_DEF_DESTTYPE_WWPN) {
         MAKE_WWN_FROM_NODE_NAME(wwpn, fcx.FCScsiAddr.DestAddr.WWPN);
-    } else if (fcx.FCScsiAddr.DestType == EXT_DEF_DESTTYPE_WWNN) {
+    } else if (fcx.FCScsiAddr.DestType == EXT_DEF_DESTTYPE_PORTID) {
         portid = (fcx.FCScsiAddr.DestAddr.Id[1] << 16) | (fcx.FCScsiAddr.DestAddr.Id[2] << 8) | (fcx.FCScsiAddr.DestAddr.Id[3]);
     }
     /*
@@ -1501,7 +1518,7 @@ isp_exti_passthru(EXT_IOCTL *pext)
      * so we know how to send the command.
      */
     ISP_LOCKU_SOFTC(isp);
-    for (lp = &FCPARAM(isp)->portdb[0]; lp < &FCPARAM(isp)->portdb[MAX_FC_TARG]; lp++) {
+    for (lp = &FCPARAM(isp, api_channel)->portdb[0]; lp < &FCPARAM(isp, api_channel)->portdb[MAX_FC_TARG]; lp++) {
         if (lp->state != FC_PORTDB_STATE_VALID) {
             continue;
         }
@@ -1519,7 +1536,7 @@ isp_exti_passthru(EXT_IOCTL *pext)
             }
         }
     }
-    if (lp == &FCPARAM(isp)->portdb[MAX_FC_TARG]) {
+    if (lp == &FCPARAM(isp, api_channel)->portdb[MAX_FC_TARG]) {
         ISP_UNLKU_SOFTC(isp);
         pext->Status = EXT_STATUS_DEV_NOT_FOUND;
         if (bufp) {
@@ -1531,6 +1548,7 @@ isp_exti_passthru(EXT_IOCTL *pext)
     wwpn = lp->port_wwn;
     cmd.handle = lp->handle;
     cmd.portid = lp->portid;
+    cmd.channel = api_channel;
     ISP_UNLKU_SOFTC(isp);
 
     MEMCPY(cmd.fcd.beg.cdb, fcx.Cdb, min(EXT_DEF_SCSI_PASSTHRU_CDB_LENGTH, sizeof (cmd.fcd.beg.cdb)));
@@ -1572,17 +1590,18 @@ isp_exti_passthru(EXT_IOCTL *pext)
 #define RPT_LUN_SIZE    1024
 
 static int
-isp_exti_discover_luns(ispsoftc_t *isp, UINT64 wwpn, UINT64 wwnn, UINT16 *nluns)
+isp_exti_discover_luns(ispsoftc_t *isp, int chan, UINT64 wwpn, UINT64 wwnn, UINT16 *nluns)
 {
     isp_xcmd_t cmd;
     int status, nent, i, hilun;
     unsigned long flags;
+    fcparam *fcp = FCPARAM(isp, chan);
     fcportdb_t *lp;
     uint8_t *bufp;
 
     MEMZERO(&cmd, sizeof (isp_xcmd_t));
     ISP_LOCKU_SOFTC(isp);
-    for (lp = &FCPARAM(isp)->portdb[0]; lp < &FCPARAM(isp)->portdb[MAX_FC_TARG]; lp++) {
+    for (lp = &fcp->portdb[0]; lp < &fcp->portdb[MAX_FC_TARG]; lp++) {
         if (lp->state != FC_PORTDB_STATE_VALID) {
             continue;
         }
@@ -1590,7 +1609,7 @@ isp_exti_discover_luns(ispsoftc_t *isp, UINT64 wwpn, UINT64 wwnn, UINT16 *nluns)
             break;
         }
     }
-    if (lp == &FCPARAM(isp)->portdb[MAX_FC_TARG]) {
+    if (lp == &fcp->portdb[MAX_FC_TARG]) {
         ISP_UNLKU_SOFTC(isp);
         return (-ENODEV);
     }
@@ -1731,10 +1750,10 @@ isp_run_cmd(ispsoftc_t *isp, isp_xcmd_t *cmd)
         reqp->req_header.rqs_entry_type = RQSTYPE_T2RQS;
         t2->req_flags = REQFLAG_STAG;
 
-        if (FCPARAM(isp)->isp_2klogin) {
+        if (ISP_CAP_2KLOGIN(isp)) {
             ((ispreqt2e_t *)reqp)->req_target = cmd->handle;
             ((ispreqt2e_t *)reqp)->req_scclun = cmd->lun;
-        } else if (FCPARAM(isp)->isp_sccfw) {
+        } else if (ISP_CAP_SCCFW(isp)) {
             t2->req_target = cmd->handle;
             t2->req_scclun = cmd->lun;
         } else {

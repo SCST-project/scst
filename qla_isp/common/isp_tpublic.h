@@ -1,4 +1,4 @@
-/* $Id: isp_tpublic.h,v 1.37 2007/11/13 01:25:50 mjacob Exp $ */
+/* $Id: isp_tpublic.h,v 1.38 2007/12/02 22:02:04 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -114,7 +114,7 @@ typedef enum {
  *
  * The r_version tag defines the version of this API.
  */
-#define    QR_VERSION    18
+#define    QR_VERSION    19
 typedef struct {
     /* NB: structure tags from here to r_version must never change */
     void *                  r_identity;
@@ -165,6 +165,7 @@ typedef struct {
  * as notifications to the outer layer. It should be pretty self-explanatory.
  */
 typedef enum {
+    NT_UNKNOWN=0x999,
     NT_ABORT_TASK=0x1000,
     NT_ABORT_TASK_SET,
     NT_CLEAR_ACA,
@@ -194,7 +195,6 @@ typedef struct tmd_notify {
 } tmd_notify_t;
 #define LUN_ANY     0xffff
 #define TGT_ANY     ((uint64_t) -1)
-#define INI_ANY     ((uint64_t) -1)
 #define TAG_ANY     ((uint64_t) 0)
 #define MATCH_TMD(tmd, iid, lun, tag)                   \
     (                                                   \
@@ -208,7 +208,9 @@ typedef struct tmd_notify {
  * Lun ENABLE/DISABLE
  *
  * A word about ENABLE/DISABLE: the argument is a pointer to a enadis_t
- * with en_hba, en_iid, en_chan, en_tgt and en_lun filled out.
+ * with en_hba, en_chan and en_lun filled out. We used to have an iid
+ * and target pair, but this just gets silly so we made initiator id
+ * and target id something you set, once, elsewhere.
  *
  * If an error occurs in either enabling or disabling the described lun
  * en_error is set with an appropriate non-zero value.
@@ -216,8 +218,6 @@ typedef struct tmd_notify {
 typedef struct {
     void *          en_private;     /* for outer layer usage */
     void *          en_hba;         /* HBA tag */
-    uint64_t        en_iid;         /* initiator ID */
-    uint64_t        en_tgt;         /* target identifier */
     uint16_t        en_lun;         /* logical unit */
     uint16_t        en_chan;        /* channel on card */
     int             en_error;

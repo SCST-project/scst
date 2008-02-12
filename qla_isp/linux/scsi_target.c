@@ -1,4 +1,4 @@
-/* $Id: scsi_target.c,v 1.74 2007/11/27 17:57:26 mjacob Exp $ */
+/* $Id: scsi_target.c,v 1.75 2007/12/02 22:02:06 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -259,7 +259,7 @@ struct initiator {
 };
 
 #define    HASH_WIDTH    16
-#define    INI_HASH_LISTP(busp, ini_id)    busp->list[ini_id & (HASH_WIDTH - 1)]
+#define    INI_HASH_LISTP(busp, chan, ini_id)    busp->bchan[chan].list[ini_id & (HASH_WIDTH - 1)]
 
 /*
  * We maintain a reasonable cache of large sized (8MB) scatterlists
@@ -303,10 +303,14 @@ typedef struct {
 } lun_t;
 #define LUN_BLOCK_SHIFT 9
 
-struct bus {
-    hba_register_t  h;                  /* must be first */
+struct bus_chan {
     ini_t *         list[HASH_WIDTH];   /* hash list of known initiators */
-    lun_t           luns[MAX_LUN];      /* luns */
+    lun_t           luns[MAX_LUN];      /* per-channel lun arrays */
+};
+
+struct bus {
+    hba_register_t  h;                      /* must be first */
+    struct bus_chan *bchan;
 };
 
 #define    SDprintk     if (scsi_tdebug) printk
@@ -333,12 +337,12 @@ static void scsi_target_read_capacity(tmd_cmd_t *, ini_t *);
 static void scsi_target_modesense(tmd_cmd_t *, ini_t *);
 static int scsi_target_rdwr(tmd_cmd_t *, ini_t *, int);
 static int scsi_target_thread(void *);
-static int scsi_alloc_disk(bus_t *, int, int, uint64_t);
-static void scsi_free_disk(bus_t *, int);
+static int scsi_alloc_disk(bus_t *, int, int, int, uint64_t);
+static void scsi_free_disk(bus_t *, int, int);
 static int scsi_target_copydata(struct scatterlist *, void *, uint32_t, int);
 static int scsi_target_start_user_io(sc_io_t *);
 static int scsi_target_end_user_io(sc_io_t *);
-static int scsi_target_endis(char *, uint64_t, int, int);
+static int scsi_target_endis(char *, uint64_t, int, int, int);
 
 /*
  * Local Declarations
@@ -423,7 +427,7 @@ scsi_target_ioctl(struct inode *ip, struct file *fp, unsigned int cmd, unsigned 
             rv = -EFAULT;
             break;
         }
-        rv = scsi_target_endis(sc->hba_name_unit, sc->nbytes, sc->lun, (cmd == SC_ENABLE_LUN)?((sc->flags == SC_EF_OVERCOMMIT)? 2 : 1) : 0);
+        rv = scsi_target_endis(sc->hba_name_unit, sc->nbytes, sc->channel, sc->lun, (cmd == SC_ENABLE_LUN)? ((sc->flags & SC_EF_OVERCOMMIT)? 2 : 1) : 0);
         break;
     }
     case SC_PUT_IO:
@@ -512,7 +516,7 @@ bus_from_name(char *name)
 static __inline ini_t *
 ini_from_tmd(bus_t *bp, tmd_cmd_t *tmd)
 {
-   ini_t *ptr = INI_HASH_LISTP(bp, tmd->cd_iid);
+   ini_t *ptr = INI_HASH_LISTP(bp, tmd->cd_channel, tmd->cd_iid);
    if (ptr) {
         do {
             if (ptr->ini_iid == tmd->cd_iid) {
@@ -543,9 +547,9 @@ bus_from_notify(tmd_notify_t *np)
  * Make an initiator structure
  */
 static void
-add_ini(bus_t *bp, uint64_t iid, ini_t *nptr)
+add_ini(bus_t *bp, int chan, uint64_t iid, ini_t *nptr)
 {
-   ini_t **ptrlptr = &INI_HASH_LISTP(bp, iid);
+   ini_t **ptrlptr = &INI_HASH_LISTP(bp, chan, iid);
 
    nptr->ini_iid = iid;
    nptr->ini_bus = (struct bus *) bp;
@@ -714,7 +718,7 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
                 (*bp->h.r_action)(QIN_TMD_CONT, xact);
                 return;
             }
-            add_ini(bp, tmd->cd_iid, nptr);
+            add_ini(bp, tmd->cd_channel, tmd->cd_iid, nptr);
             spin_unlock_irqrestore(&scsi_target_lock, flags);
             ini = nptr;
             /*
@@ -784,8 +788,7 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
                     len = min(sizeof(vp80data), len);
                     if (len) {
                         memcpy(addr, vp80data, len);
-                        snprintf(&buf[4], sizeof (vp80data) - 4, "FERAL_%s%d_LUN%06dSER%s", bp->h.r_name, bp->h.r_inst,
-                            L0LUN_TO_FLATLUN(tmd->cd_lun), SERNO);
+                        snprintf(&buf[4], sizeof (vp80data) - 4, "FERAL0LUN%06dSER%s", L0LUN_TO_FLATLUN(tmd->cd_lun), SERNO);
                         for (j = 0, i = 4; i < sizeof (vp80data); i++) {
                             if (j == 0) {
                                 if (buf[i] == 0) {
@@ -831,7 +834,7 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
                 /*
                  * If we're not here, say we aren't here.
                  */
-                if (L0LUN_TO_FLATLUN(tmd->cd_lun) >= MAX_LUN || bp->luns[L0LUN_TO_FLATLUN(tmd->cd_lun)].enabled == 0) {
+                if (L0LUN_TO_FLATLUN(tmd->cd_lun) >= MAX_LUN || bp->bchan[tmd->cd_channel].luns[L0LUN_TO_FLATLUN(tmd->cd_lun)].enabled == 0) {
                     ((u8 *)addr)[0] = 0x7f;
                 }
                 SDprintk2("scsi_target(%s%d): %p (%p) length %d byte0 0x%x\n", bp->h.r_name, bp->h.r_inst, addr, dp, dp->length, ((u8 *)addr)[0]);
@@ -901,7 +904,7 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
 
                 spin_lock_irqsave(&scsi_target_lock, flags);
                 for (nluns = i = 0; i < MAX_LUN; i++) {
-                    lun_t *lp = &bp->luns[i];
+                    lun_t *lp = &bp->bchan[tmd->cd_channel].luns[i];
                     if (lp->enabled) {
                         uint8_t *ptr = &rpa[8 + (nluns << 3)];
                         if (i >= 256) {
@@ -999,7 +1002,7 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
     /*
      * Make sure we have a legal and open lun
      */
-    if (L0LUN_TO_FLATLUN(tmd->cd_lun) >= MAX_LUN || bp->luns[L0LUN_TO_FLATLUN(tmd->cd_lun)].enabled == 0) {
+    if (L0LUN_TO_FLATLUN(tmd->cd_lun) >= MAX_LUN || bp->bchan[tmd->cd_channel].luns[L0LUN_TO_FLATLUN(tmd->cd_lun)].enabled == 0) {
             if (from_intr) {
                 scsi_cmd_sched_restart(tmd, "bad or disabled lun");
                 return;
@@ -1081,10 +1084,10 @@ doit:
         } else {
             memset(tmd->cd_sense, 0, TMD_SENSELEN);
         }
-        printk("INI(%#llx)=>LUN %d: [%llx] cdb0=0x%02x tl=%u CHECK (0x%x 0x%x 0x%x)\n", tmd->cd_iid, L0LUN_TO_FLATLUN(tmd->cd_lun),
+        printk("%s%d: INI(%#llx)=>LUN %d: [%llx] cdb0=0x%02x tl=%u CHECK (0x%x 0x%x 0x%x)\n", bp->h.r_name, bp->h.r_inst, tmd->cd_iid, L0LUN_TO_FLATLUN(tmd->cd_lun),
             tmd->cd_tagval, tmd->cd_cdb[0] & 0xff, tmd->cd_totlen, tmd->cd_sense[2] & 0xf, tmd->cd_sense[12], tmd->cd_sense[13]);
     } else {
-        SDprintk("INI(%#llx)=>LUN %d: [%llx] cdb0=0x%02x tl=%u ssts=%x hf 0x%x\n", tmd->cd_iid, L0LUN_TO_FLATLUN(tmd->cd_lun),
+        SDprintk("%s%d: INI(%#llx)=>LUN %d: [%llx] cdb0=0x%02x tl=%u ssts=%x hf 0x%x\n", bp->h.r_name, bp->h.r_inst, tmd->cd_iid, L0LUN_TO_FLATLUN(tmd->cd_lun),
             tmd->cd_tagval, tmd->cd_cdb[0] & 0xff, tmd->cd_totlen, tmd->cd_scsi_status, xact->td_hflags);
     }
     (*bp->h.r_action)(QIN_TMD_CONT, xact);
@@ -1109,7 +1112,7 @@ scsi_target_read_capacity_16(tmd_cmd_t *tmd, ini_t *ini)
         return;
     }
 
-    lp = &bp->luns[L0LUN_TO_FLATLUN(tmd->cd_lun)];
+    lp = &bp->bchan[tmd->cd_channel].luns[L0LUN_TO_FLATLUN(tmd->cd_lun)];
 
     dp = SGS_SGP(addr);
     if (tmd->cd_cdb[14] & 0x1) { /* PMI */
@@ -1169,7 +1172,7 @@ scsi_target_read_capacity(tmd_cmd_t *tmd, ini_t *ini)
         return;
     }
 
-    lp = &bp->luns[L0LUN_TO_FLATLUN(tmd->cd_lun)];
+    lp = &bp->bchan[tmd->cd_channel].luns[L0LUN_TO_FLATLUN(tmd->cd_lun)];
 
     dp = SGS_SGP(addr);
     if (tmd->cd_cdb[8] & 0x1) { /* PMI */
@@ -1221,7 +1224,7 @@ scsi_target_modesense(tmd_cmd_t *tmd, ini_t *ini)
     void *addr;
 
     bp = ini->ini_bus;
-    lp = &bp->luns[L0LUN_TO_FLATLUN(tmd->cd_lun)];
+    lp = &bp->bchan[tmd->cd_channel].luns[L0LUN_TO_FLATLUN(tmd->cd_lun)];
     pgctl = tmd->cd_cdb[2] & MODE_PGCTL_MASK;
     page = tmd->cd_cdb[2] & MODE_ALL_PAGES;
 
@@ -1392,7 +1395,7 @@ scsi_target_rdwr(tmd_cmd_t *tmd, ini_t *ini, int from_intr)
     unsigned long flags;
 
     bp = ini->ini_bus;
-    lp = &bp->luns[L0LUN_TO_FLATLUN(tmd->cd_lun)];
+    lp = &bp->bchan[tmd->cd_channel].luns[L0LUN_TO_FLATLUN(tmd->cd_lun)];
     iswrite = 0;
 
     switch (tmd->cd_cdb[0]) {
@@ -1693,7 +1696,7 @@ scsi_target_ldfree(bus_t *bp, tmd_xact_t *xact, int from_intr)
         tmd->cd_flags &= ~CDF_PRIVATE_0;
     } else if (tmd->cd_flags & CDF_PRIVATE_1) {
         struct scatterlist *dp = tmd->cd_dp;
-        lun_t *lp = &bp->luns[L0LUN_TO_FLATLUN(tmd->cd_lun)];
+        lun_t *lp = &bp->bchan[tmd->cd_channel].luns[L0LUN_TO_FLATLUN(tmd->cd_lun)];
 
         if (dp == NULL) {
             printk(KERN_ERR "scsi_target: LDFREE[%llx] null dp @ line %d\n", tmd->cd_tagval, __LINE__);
@@ -1761,7 +1764,11 @@ scsi_target_handler(qact_e action, void *arg)
     switch (action) {
     case QOUT_HBA_REG:
     {
-        hba_register_t *hp;
+        hba_register_t *hp = arg;
+
+        /*
+         * Make sure we can allocate an adequate number of lun structures
+         */
         spin_lock_irqsave(&scsi_target_lock, flags);
         for (bp = busses; bp < &busses[MAX_BUS]; bp++) {
             if (bp->h.r_action == NULL) {
@@ -1773,7 +1780,6 @@ scsi_target_handler(qact_e action, void *arg)
             printk("scsi_target: cannot register any more SCSI busses\n");
             break;
         }
-        hp = arg;
         if (hp->r_version != QR_VERSION) {
             spin_unlock_irqrestore(&scsi_target_lock, flags);
             printk("scsi_target: version mismatch- compiled with %d, got %d\n", QR_VERSION, hp->r_version);
@@ -1781,7 +1787,13 @@ scsi_target_handler(qact_e action, void *arg)
         }
         bp->h = *hp;
         spin_unlock_irqrestore(&scsi_target_lock, flags);
-        printk("scsi_target: registering %s%d\n", hp->r_name, hp->r_inst);
+        bp->bchan = scsi_target_kzalloc(bp->h.r_nchannels * sizeof (struct bus_chan), GFP_KERNEL);
+        if (bp->bchan == NULL) {
+            memset(&bp->h, 0, sizeof (hba_register_t));
+            printk("scsi_target: cannot allocate buschan for %s%d\n", hp->r_name, hp->r_inst);
+        } else {
+            printk("scsi_target: registering %s%d\n", hp->r_name, hp->r_inst);
+        }
         (hp->r_action)(QIN_HBA_REG, arg);
         break;
     }
@@ -1834,7 +1846,7 @@ scsi_target_handler(qact_e action, void *arg)
             lun_t *lp;
             SDprintk("scsi_target: [%llx] data receive done\n", tmd->cd_tagval);
             spin_lock_irqsave(&scsi_target_lock, flags);
-            lp = &bp->luns[L0LUN_TO_FLATLUN(tmd->cd_lun)];
+            lp = &bp->bchan[tmd->cd_channel].luns[L0LUN_TO_FLATLUN(tmd->cd_lun)];
             /*
              * If we're an overcommit disk we don't complete the command here.
              *
@@ -1911,7 +1923,7 @@ scsi_target_handler(qact_e action, void *arg)
         }
         if (np->nt_ncode == NT_ABORT_TASK) {
             tmd_cmd_t *tmd;
-            lun_t *lp = &bp->luns[np->nt_lun];
+            lun_t *lp = &bp->bchan[np->nt_channel].luns[np->nt_lun];
             int i;
 
             for (i = 0, tmd = p_front; tmd; tmd = tmd->cd_next, i++) {
@@ -1942,7 +1954,7 @@ scsi_target_handler(qact_e action, void *arg)
     case QOUT_HBA_UNREG:
     {
         hba_register_t *hp = arg;
-        int j;
+        int j, k;
 
         spin_lock_irqsave(&scsi_target_lock, flags);
         for (bp = busses; bp < &busses[MAX_BUS]; bp++) {
@@ -1955,26 +1967,32 @@ scsi_target_handler(qact_e action, void *arg)
         }
         if (bp == &busses[MAX_BUS]) {
             spin_unlock_irqrestore(&scsi_target_lock, flags);
-            printk(KERN_WARNING "%s: HBA_UNREG cannot find busp)\n", __FUNCTION__);
+            printk(KERN_WARNING "%s: HBA_UNREG cannot find bus\n", __FUNCTION__);
             break;
         }
         spin_unlock_irqrestore(&scsi_target_lock, flags);
-        for (j = 0; j < HASH_WIDTH; j++) {
-            ini_t *nptr = bp->list[j];
-            while (nptr) {
-                ini_t *next = nptr->ini_next;
-                free_sdata_chain(nptr->ini_sdata);
-                scsi_target_kfree(nptr, sizeof (ini_t));
-                nptr = next;
+        for (j = 0; j < bp->h.r_nchannels; j++) {
+            for (k = 0; k < HASH_WIDTH; k++) {
+                ini_t *nptr = bp->bchan[j].list[k];
+                while (nptr) {
+                    ini_t *next = nptr->ini_next;
+                    free_sdata_chain(nptr->ini_sdata);
+                    scsi_target_kfree(nptr, sizeof (ini_t));
+                    nptr = next;
+                }
             }
         }
-        for (j = 0; j < MAX_BUS; j++) {
-            if (bp->luns[j].enabled) {
-                printk("scsi_target: %s%d had lun %d enabled\n", bp->h.r_name, bp->h.r_inst, j);
-                scsi_free_disk(bp, j);
+        for (j = 0; j < bp->h.r_nchannels; j++) {
+            for (k = 0; k < MAX_LUN; k++) {
+                if (bp->bchan[j].luns[k].enabled) {
+                    printk("scsi_target: %s%d chan %d had lun %d enabled\n", bp->h.r_name, bp->h.r_inst, j, k);
+                    scsi_free_disk(bp, j, k);
+                }
             }
         }
-        printk("scsi_target: unregistering %s%d\n", bp->h.r_name, bp->h.r_inst);
+        scsi_target_kfree(bp->bchan, sizeof (struct bus_chan) * bp->h.r_nchannels);
+        memset(bp, 0, sizeof (*bp));
+        printk("scsi_target: unregistering %s%d\n", hp->r_name, hp->r_inst);
         (hp->r_action)(QIN_HBA_UNREG, arg);
         break;
     }
@@ -2043,7 +2061,7 @@ scsi_target_thread(void *arg)
 }
 
 static int
-scsi_alloc_disk(bus_t *bp, int lun, int overcommit, uint64_t nbytes)
+scsi_alloc_disk(bus_t *bp, int chan, int lun, int overcommit, uint64_t nbytes)
 {
     int i;
     lun_t *lp;
@@ -2061,7 +2079,7 @@ scsi_alloc_disk(bus_t *bp, int lun, int overcommit, uint64_t nbytes)
         nbytes = rusz;
     }
 
-    lp = &bp->luns[lun];
+    lp = &bp->bchan[chan].luns[lun];
     lp->nbytes = nbytes;
 
     if (overcommit) {
@@ -2117,14 +2135,14 @@ scsi_alloc_disk(bus_t *bp, int lun, int overcommit, uint64_t nbytes)
     return (0);
 
 fail:
-    scsi_free_disk(bp, lun);
+    scsi_free_disk(bp, chan, lun);
     return (-ENOMEM);
 }
 
 static void
-scsi_free_disk(bus_t *bp, int lun)
+scsi_free_disk(bus_t *bp, int chan, int lun)
 {
-    lun_t *lp = &bp->luns[lun];
+    lun_t *lp = &bp->bchan[chan].luns[lun];
 
     if (lp->overcommit) {
         while (lp->pagelists) {
@@ -2207,11 +2225,15 @@ scsi_target_start_user_io(sc_io_t *sc)
         return (-ENXIO);
     }
 
+    if (sc->channel >= bp->h.r_nchannels) {
+        SDprintk("%s: bad chan (%d)\n", __FUNCTION__, sc->channel);
+        return (-EINVAL);
+    }
     if (sc->lun >= MAX_LUN) {
         SDprintk("%s: bad lun (%d)\n", __FUNCTION__, sc->lun);
         return (-EINVAL);
     }
-    lp = &bp->luns[sc->lun];
+    lp = &bp->bchan[sc->channel].luns[sc->lun];
 
     SDprintk2("%s: waiting for a R/W IO operation\n", __FUNCTION__);
     if (down_interruptible(&lp->sema)) {
@@ -2280,11 +2302,15 @@ scsi_target_end_user_io(sc_io_t *sc)
         return (-ENXIO);
     }
 
+    if (sc->channel >= bp->h.r_nchannels) {
+        SDprintk("%s: bad chan (%d)\n", __FUNCTION__, sc->channel);
+        return (-EINVAL);
+    }
     if (sc->lun >= MAX_LUN) {
         SDprintk("%s: bad lun (%d)\n", __FUNCTION__, sc->lun);
         return (-EINVAL);
     }
-    lp = &bp->luns[sc->lun];
+    lp = &bp->bchan[sc->channel].luns[sc->lun];
     tmd = sc->tag;
     xact = &tmd->cd_xact;
     SDprintk2("scsi_target: USER->KERN [%llx] %p err %d len %u\n", tmd->cd_tagval, tmd, sc->err, sc->len);
@@ -2332,11 +2358,12 @@ scsi_target_end_user_io(sc_io_t *sc)
 }
 
 static int
-scsi_target_endis(char *hba_name_unit, uint64_t nbytes, int lun, int en)
+scsi_target_endis(char *hba_name_unit, uint64_t nbytes, int chan, int lun, int en)
 {
     DECLARE_MUTEX_LOCKED(rsem);
     unsigned long flags;
     enadis_t ec;
+    info_t info;
     lun_t *lp;
     bus_t *bp;
     int rv, i;
@@ -2353,18 +2380,22 @@ scsi_target_endis(char *hba_name_unit, uint64_t nbytes, int lun, int en)
         return (-ENXIO);
     }
 
+    if (chan < 0 || chan >= bp->h.r_nchannels) {
+        SDprintk("%s: bad chan (%d)\n", __FUNCTION__, chan);
+        return (-EINVAL);
+    }
     if (lun < 0 || lun >= MAX_LUN) {
         SDprintk("%s: bad lun (%d)\n", __FUNCTION__, lun);
         return (-EINVAL);
     }
-    lp = &bp->luns[lun];
+    lp = &bp->bchan[chan].luns[lun];
 
     if (en) {
-        if (bp->luns[lun].enabled) {
+        if (lp->enabled) {
             printk("%s: lun %d already enabled\n", __FUNCTION__, lun);
             return (-EBUSY);
         }
-        rv = scsi_alloc_disk(bp, lun, en == 2, nbytes);
+        rv = scsi_alloc_disk(bp, chan, lun, en == 2, nbytes);
         if (rv) {
             return (rv);
         }
@@ -2372,10 +2403,21 @@ scsi_target_endis(char *hba_name_unit, uint64_t nbytes, int lun, int en)
         lp->enabled = 0;
     }
 
+    memset(&info, 0, sizeof (info));
+    info.i_identity = bp->h.r_identity;
+    info.i_channel = chan;
+    (*bp->h.r_action)(QIN_GETINFO, &info);
+    if (info.i_error) {
+        return (info.i_error);
+    }
     memset(&ec, 0, sizeof (ec));
     ec.en_hba = bp->h.r_identity;
-    ec.en_tgt = TGT_ANY;
-    ec.en_lun = lun;
+    if (bp->h.r_type == R_FC) {
+        ec.en_lun = LUN_ANY;
+    } else {
+        ec.en_lun = lun;
+    }
+    ec.en_chan = chan;
     ec.en_private = &rsem;
 
     (*bp->h.r_action)(en? QIN_ENABLE : QIN_DISABLE, &ec);
@@ -2383,13 +2425,13 @@ scsi_target_endis(char *hba_name_unit, uint64_t nbytes, int lun, int en)
 
     if (ec.en_error) {
         SDprintk("%s: HBA returned %d for %s action\n", __FUNCTION__, ec.en_error, en? "enable" : "disable");
-        scsi_free_disk(bp, lun);
+        scsi_free_disk(bp, chan, lun);
         return (ec.en_error);
     }
 
     spin_lock_irqsave(&scsi_target_lock, flags);
     for (i = 0; i < HASH_WIDTH; i++) {
-        ini_t *ini = bp->list[i];
+        ini_t *ini = bp->bchan[chan].list[i];
         while (ini) {
             spin_unlock_irqrestore(&scsi_target_lock, flags);
             add_sdata(ini, invchg);
@@ -2400,7 +2442,7 @@ scsi_target_endis(char *hba_name_unit, uint64_t nbytes, int lun, int en)
     spin_unlock_irqrestore(&scsi_target_lock, flags);
     
     if (en == 0) {
-        scsi_free_disk(bp, lun);
+        scsi_free_disk(bp, chan, lun);
     } else {
         lp->u_tail = lp->u_front = NULL;
         sema_init(&lp->sema, 0);
