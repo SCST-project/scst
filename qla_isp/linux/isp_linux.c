@@ -1,4 +1,4 @@
-/* $Id: isp_linux.c,v 1.209 2007/12/02 22:02:06 mjacob Exp $ */
+/* $Id: isp_linux.c,v 1.210 2007/12/03 04:31:52 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -1677,10 +1677,10 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xact_t *xact)
         } else {
             cto->ct_resid = 0;
         }
-        isp_prt(isp, ISP_LOGTDEBUG0, "CTIO2[%llx] scsi sts %x flags %x resid %d", tmd->cd_tagval, tmd->cd_scsi_status, cto->ct_flags, resid);
         if (cto->ct_flags & CT2_SENDSTATUS) {
             cto->ct_flags |= CT2_CCINCR;
         }
+        isp_prt(isp, ISP_LOGTDEBUG0, "CTIO2[%llx] scsi sts %x flags %x resid %d", tmd->cd_tagval, tmd->cd_scsi_status, cto->ct_flags, resid);
     } else {
         ct_entry_t *cto = (ct_entry_t *) local;
 
@@ -1720,10 +1720,10 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xact_t *xact)
                 cto->ct_resid = resid;
             }
         }
-        isp_prt(isp, ISP_LOGTDEBUG0, "CTIO[%llx] scsi sts %x resid %d cd_lflags %x", tmd->cd_tagval, tmd->cd_scsi_status, resid, xact->td_hflags);
         if (cto->ct_flags & CT_SENDSTATUS) {
             cto->ct_flags |= CT_CCINCR;
         }
+        isp_prt(isp, ISP_LOGTDEBUG0, "CTIO[%llx] scsi sts %x resid %d cd_lflags %x", tmd->cd_tagval, tmd->cd_scsi_status, resid, xact->td_hflags);
     }
 
     if (isp_getrqentry(isp, &nxti, &optr, &qe)) {
@@ -2387,7 +2387,7 @@ isp_handle_platform_ctio(ispsoftc_t *isp, void *arg)
             char *sp = (char *)ct;
             sp += CTIO_SENSE_OFFSET;
             MEMCPY(tmd->cd_sense, sp, QLTM_SENSELEN);
-            xact->td_lflags |= CDF_SNSVALID;
+            tmd->cd_flags |= CDF_SNSVALID;
         }
         if ((ct->ct_flags & CT_DATAMASK) != CT_NO_DATA) {
             resid = ct->ct_resid;
@@ -2475,7 +2475,7 @@ isp_target_putback_atio(ispsoftc_t *isp, tmd_cmd_t *tmd)
         isp_prt(isp, ISP_LOGWARN, "%s: Request Queue Overflow", __FUNCTION__);
         return (-ENOMEM);
     }
-    isp_prt(isp, ISP_LOGINFO, "[%llx] resource putback being sent", tmd->cd_tagval);
+    isp_prt(isp, ISP_LOGTDEBUG0, "[%llx] resource putback being sent", tmd->cd_tagval);
     MEMZERO(local, sizeof (local));
     if (IS_FC(isp)) {
         at2_entry_t *at = (at2_entry_t *) local;

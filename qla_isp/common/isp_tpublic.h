@@ -1,4 +1,4 @@
-/* $Id: isp_tpublic.h,v 1.38 2007/12/02 22:02:04 mjacob Exp $ */
+/* $Id: isp_tpublic.h,v 1.39 2007/12/03 18:29:46 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -195,6 +195,12 @@ typedef struct tmd_notify {
 } tmd_notify_t;
 #define LUN_ANY     0xffff
 #define TGT_ANY     ((uint64_t) -1)
+#ifdef  INI_ANY
+#define INI_ANY     ((uint64_t) -1)
+#endif
+#ifndef INI_NONE
+#define INI_NONE    ((uint64_t) 0)
+#endif
 #define TAG_ANY     ((uint64_t) 0)
 #define MATCH_TMD(tmd, iid, lun, tag)                   \
     (                                                   \

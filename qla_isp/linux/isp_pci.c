@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.145 2007/12/02 22:02:06 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.146 2007/12/03 04:31:52 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -1490,7 +1490,7 @@ tdma_mk(ispsoftc_t *isp, tmd_xact_t *xact, ct_entry_t *cto, uint32_t *nxtip, uin
             cto->ct_scsi_status, cto->ct_resid, "<END>");
         isp_put_ctio(isp, cto, qe);
         if (cto->ct_flags & CT_CCINCR) {
-            tmd->cd_flags &= ~CDFL_RESRC_FILL;
+            tmd->cd_lflags &= ~CDFL_RESRC_FILL;
         }
         return (CMD_QUEUED);
     }
@@ -1714,7 +1714,7 @@ tdma_mk(ispsoftc_t *isp, tmd_xact_t *xact, ct_entry_t *cto, uint32_t *nxtip, uin
     *nxtip = nxti;
     isp_prt(isp, ISP_LOGTDEBUG2, "[%llx]: map %d segments at %p for handle 0x%x", tmd->cd_tagval, new_seg_cnt, xact->td_data, cto->ct_syshandle);
     if (sflags & CT_CCINCR) {
-        tmd->cd_flags &= ~CDFL_RESRC_FILL;
+        tmd->cd_lflags &= ~CDFL_RESRC_FILL;
     }
     return (CMD_QUEUED);
 }
@@ -2051,7 +2051,7 @@ tdma_mkfc(ispsoftc_t *isp, tmd_xact_t *xact, ct2_entry_t *cto, uint32_t *nxtip, 
     uint32_t curi, nxti;
     uint32_t bc, last_synthetic_count;
     long xfcnt;    /* must be signed */
-    int nseg, seg, ovseg, seglim, new_seg_cnt, ccincr = 0;
+    int nseg, seg, ovseg, seglim, new_seg_cnt;
 #ifdef ALLOW_SYNTHETIC_CTIO
     ct2_entry_t *cto2 = NULL, ct2;
 #endif 
@@ -2081,7 +2081,7 @@ tdma_mkfc(ispsoftc_t *isp, tmd_xact_t *xact, ct2_entry_t *cto, uint32_t *nxtip, 
         }
         ISP_TDQE(isp, "tdma_mkfc[no data]", curi, qe);
         if (cto->ct_flags & CT2_CCINCR) {
-            tmd->cd_flags &= ~CDFL_RESRC_FILL;
+            tmd->cd_lflags &= ~CDFL_RESRC_FILL;
         }
         return (CMD_QUEUED);
     }
@@ -2160,7 +2160,7 @@ tdma_mkfc(ispsoftc_t *isp, tmd_xact_t *xact, ct2_entry_t *cto, uint32_t *nxtip, 
          * Reset fields in the second CTIO2 as appropriate.
          */
         cto2->ct_flags &= ~(CT2_FLAG_MMASK|CT2_DATAMASK|CT2_FASTPOST);
-        cto2->ct_flags |= CT2_NO_DATA|CT2_NO_DATA|CT2_FLAG_MODE1;
+        cto2->ct_flags |= CT2_NO_DATA|CT2_FLAG_MODE1;
         cto2->ct_seg_count = 0;
         cto2->ct_reloff = 0;
         MEMZERO(&cto2->rsp, sizeof (cto2->rsp));
@@ -2176,13 +2176,15 @@ tdma_mkfc(ispsoftc_t *isp, tmd_xact_t *xact, ct2_entry_t *cto, uint32_t *nxtip, 
         }
         cto2->rsp.m1.ct_scsi_status = swd;
         if (cto2->ct_flags & CT2_CCINCR) {
-            ccincr = 1;
+            tmd->cd_lflags &= ~CDFL_RESRC_FILL;
         }
 #else
         cto->ct_flags &= ~(CT2_SENDSTATUS|CT2_CCINCR|CT2_FASTPOST);
         cto->ct_resid = 0;
         cto->rsp.m0.ct_scsi_status = 0;
 #endif
+    } else if ((cto->ct_flags & (CT2_SENDSTATUS|CT2_CCINCR)) == (CT2_SENDSTATUS|CT2_CCINCR)) {
+        tmd->cd_lflags &= ~CDFL_RESRC_FILL;
     }
 
     /*
@@ -2426,9 +2428,6 @@ mbxsync:
     }
     ISP_TDQE(isp, "tdma_mkfc", isp->isp_reqidx, cto);
     *nxtip = nxti;
-    if (ccincr) {
-        tmd->cd_flags &= ~CDFL_RESRC_FILL;
-    }
     return (CMD_QUEUED);
 }
 #endif
