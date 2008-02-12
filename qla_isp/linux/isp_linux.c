@@ -1,4 +1,4 @@
-/* $Id: isp_linux.c,v 1.207 2007/11/13 01:25:50 mjacob Exp $ */
+/* $Id: isp_linux.c,v 1.208 2007/11/15 18:24:54 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -96,9 +96,9 @@ static char *isp_wwpns;
 static char *isp_wwnns;
 
 
-#ifdef    ISP_TARGET_MODE
-#ifndef    ISP_PARENT_TARGET
-#define    ISP_PARENT_TARGET    scsi_target_handler
+#ifdef  ISP_TARGET_MODE
+#ifndef ISP_PARENT_TARGET
+#define ISP_PARENT_TARGET   scsi_target_handler
 #endif
 
 #define    CALL_PARENT_TMD(hba, tmd, action)    \
@@ -861,7 +861,7 @@ isp_init_target(ispsoftc_t *isp)
         isp->isp_osinfo.npool[i].notify.nt_lreserved = &isp->isp_osinfo.npool[i+1];
     }
     for (i = 0; i < (N_TGT_AUX >> 5); i++) {
-	isp->isp_osinfo.auxbmap[i] = 0;
+        isp->isp_osinfo.auxbmap[i] = 0;
     }
     MEMCPY(isp->isp_osinfo.inqdata, inqdsd, DEFAULT_INQSIZE);
     isp->isp_osinfo.pending_t = NULL;
