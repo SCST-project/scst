@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.153 2008/01/14 00:25:53 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.154 2008/01/16 16:46:30 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -667,87 +667,101 @@ isplinux_pci_init_one(struct Scsi_Host *host)
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP1020) {
         isp->isp_mdvec = &mdvec;
         isp->isp_type = ISP_HA_SCSI_UNKNOWN;
-        fwname = "ql1020_fw.bin";
+        if (isp->isp_mdvec->dv_ispfw == NULL)
+            fwname = "ql1020_fw.bin";
     } 
 #endif
 #ifndef    ISP_DISABLE_1080_SUPPORT
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP1080) {
         isp->isp_mdvec = &mdvec_1080;
         isp->isp_type = ISP_HA_SCSI_1080;
-        fwname = "ql1080_fw.bin";
+        if (isp->isp_mdvec->dv_ispfw == NULL)
+            fwname = "ql1080_fw.bin";
     }
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP1240) {
         isp->isp_mdvec = &mdvec_1080;
         isp->isp_type = ISP_HA_SCSI_1240;
         host->max_channel = 1;
-        fwname = "ql1080_fw.bin";
+        if (isp->isp_mdvec->dv_ispfw == NULL)
+            fwname = "ql1080_fw.bin";
     }
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP1280) {
         isp->isp_mdvec = &mdvec_1080;
         isp->isp_type = ISP_HA_SCSI_1280;
         host->max_channel = 1;
-        fwname = "ql1080_fw.bin";
+        if (isp->isp_mdvec->dv_ispfw == NULL)
+            fwname = "ql1080_fw.bin";
     }
 #endif
 #ifndef    ISP_DISABLE_12160_SUPPORT
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP10160) {
         isp->isp_mdvec = &mdvec_12160;
         isp->isp_type = ISP_HA_SCSI_12160;
-        fwname = "ql12160_fw.bin";
+        if (isp->isp_mdvec->dv_ispfw == NULL)
+            fwname = "ql12160_fw.bin";
     }
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP12160) {
         isp->isp_mdvec = &mdvec_12160;
         isp->isp_type = ISP_HA_SCSI_12160;
         host->max_channel = 1;
-        fwname = "ql12160_fw.bin";
+        if (isp->isp_mdvec->dv_ispfw == NULL)
+            fwname = "ql12160_fw.bin";
     }
 #endif
 #ifndef    ISP_DISABLE_2100_SUPPORT
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2100) {
         isp->isp_mdvec = &mdvec_2100;
         isp->isp_type = ISP_HA_FC_2100;
-        fwname = "ql2100_fw.bin";
+        if (isp->isp_mdvec->dv_ispfw == NULL)
+            fwname = "ql2100_fw.bin";
     }
 #endif
 #ifndef    ISP_DISABLE_2200_SUPPORT
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2200) {
         isp->isp_mdvec = &mdvec_2200;
         isp->isp_type = ISP_HA_FC_2200;
-        fwname = "ql2200_fw.bin";
+        if (isp->isp_mdvec->dv_ispfw == NULL)
+            fwname = "ql2200_fw.bin";
     }
 #endif
 #ifndef    ISP_DISABLE_2300_SUPPORT
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2300) {
         isp->isp_mdvec = &mdvec_2300;
         isp->isp_type = ISP_HA_FC_2300;
-        fwname = "ql2300_fw.bin";
+        if (isp->isp_mdvec->dv_ispfw == NULL)
+            fwname = "ql2300_fw.bin";
     }
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2312) {
         isp->isp_mdvec = &mdvec_2300;
         isp->isp_type = ISP_HA_FC_2312;
-        fwname = "ql2300_fw.bin";
+        if (isp->isp_mdvec->dv_ispfw == NULL)
+            fwname = "ql2300_fw.bin";
     }
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP6312) {
         isp->isp_mdvec = &mdvec_2300;
         isp->isp_type = ISP_HA_FC_2312;
-        fwname = "ql2300_fw.bin";
+        if (isp->isp_mdvec->dv_ispfw == NULL)
+            fwname = "ql2300_fw.bin";
     }
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2322) {
         isp->isp_mdvec = &mdvec_2322;
         isp->isp_type = ISP_HA_FC_2322;
-        fwname = "ql2322_fw.bin";
+        if (isp->isp_mdvec->dv_ispfw == NULL)
+            fwname = "ql2322_fw.bin";
     }
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP6322) {
         isp->isp_mdvec = &mdvec_2300;
         isp->isp_type = ISP_HA_FC_2322;
-        fwname = "ql2322_fw.bin";
+        if (isp->isp_mdvec->dv_ispfw == NULL)
+            fwname = "ql2322_fw.bin";
     }
 #endif
 #ifndef    ISP_DISABLE_2400_SUPPORT
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2422 || pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2432) {
         isp->isp_mdvec = &mdvec_2400;
         isp->isp_type = ISP_HA_FC_2400;
-        fwname = "ql2400_fw.bin";
+        if (isp->isp_mdvec->dv_ispfw == NULL)
+            fwname = "ql2400_fw.bin";
     }
 #endif
 

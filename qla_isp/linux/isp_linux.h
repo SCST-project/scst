@@ -1,4 +1,4 @@
-/* $Id: isp_linux.h,v 1.151 2008/01/14 17:28:09 mjacob Exp $ */
+/* $Id: isp_linux.h,v 1.152 2008/01/16 20:33:48 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -264,6 +264,7 @@ typedef struct {
         ISP_THREAD_FW_CRASH_DUMP,
         ISP_THREAD_LOGOUT,
         ISP_THREAD_FINDIID,
+        ISP_THREAD_FINDPORTID,
         ISP_THREAD_TERMINATE,
         ISP_THREAD_RESTART_AT7,
         ISP_THREAD_FC_PUTBACK,

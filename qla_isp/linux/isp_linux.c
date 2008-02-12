@@ -1,4 +1,4 @@
-/* $Id: isp_linux.c,v 1.220 2008/01/13 21:18:01 mjacob Exp $ */
+/* $Id: isp_linux.c,v 1.221 2008/01/16 20:33:48 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -117,8 +117,8 @@ extern void ISP_PARENT_TARGET (qact_e, void *);
 static inline tmd_cmd_t *isp_find_tmd(ispsoftc_t *, uint64_t);
 static void isp_add_wwn_entry(ispsoftc_t *, int, uint64_t, uint16_t, uint32_t);
 static void isp_del_wwn_entry(ispsoftc_t *, int, uint64_t, uint16_t, uint32_t);
-static inline int isp_find_loopid_wwn(ispsoftc_t *, int, uint32_t, uint64_t *);
-static inline void isp_clear_loopid_wwn(ispsoftc_t *, int, uint32_t, uint64_t);
+static inline int isp_find_pdb_by_loopid(ispsoftc_t *, int, uint32_t, fcportdb_t **);
+static inline int isp_find_pdb_by_sid(ispsoftc_t *, int, uint32_t, fcportdb_t **);
 static void isp_taction(qact_e, void *);
 static void isp_target_start_ctio(ispsoftc_t *, tmd_xact_t *);
 static void isp_handle_platform_atio(ispsoftc_t *, at_entry_t *);
@@ -1004,10 +1004,10 @@ isp_add_wwn_entry(ispsoftc_t *isp, int chan, uint64_t ini, uint16_t nphdl, uint3
         if (lp->target_mode == 0) {
             continue;
         }
-        if (lp->handle == nphdl) {
+        if (nphdl != NIL_HANDLE && lp->handle == nphdl) {
             break;
         }
-        if (lp->portid == s_id) {
+        if (s_id != PORT_NONE && lp->portid == s_id) {
             break;
         }
         if (VALID_INI(ini) && lp->port_wwn == ini) {
@@ -1022,9 +1022,10 @@ isp_add_wwn_entry(ispsoftc_t *isp, int chan, uint64_t ini, uint16_t nphdl, uint3
             i = ISP_LOGTINFO;
         }
         if (lp->portid == s_id && VALID_INI(lp->port_wwn) && (lp->port_wwn == ini || ini == INI_NONE) && lp->handle == nphdl) {
-            isp_prt(isp, i, "%s: Chan %d IID 0x%016llx N-Port Handle 0x%02x Port ID 0x%06x reentered", __FUNCTION__, chan, (unsigned long long) lp->port_wwn, lp->handle, lp->portid);
+            isp_prt(isp, i, "%s: Chan %d IID 0x%016llx N-Port Handle 0x%02x Port ID 0x%06x reentered", __FUNCTION__, chan,
+                (unsigned long long) lp->port_wwn, lp->handle, lp->portid);
         } else {
-            isp_prt(isp, i, "%s: Chan %d IID 0x%016llx N-Port Handle 0x%02x Port ID 0x%06x overwrites IID 0x%016llx N-Port Handle 0x%02x Port Id 0x%06x",
+            isp_prt(isp, i, "%s: Chan %d IID 0x%016llx NP-Handle 0x%02x Port ID 0x%06x overwrites IID 0x%016llx N-Port Handle 0x%02x Port Id 0x%06x",
                 __FUNCTION__, chan, (unsigned long long) ini, nphdl, s_id, (unsigned long long) lp->port_wwn, lp->handle, lp->portid);
         }
         lp->portid = s_id;
@@ -1089,24 +1090,6 @@ isp_del_wwn_entry(ispsoftc_t *isp, int chan, uint64_t ini, uint16_t nphdl, uint3
         isp_prt(isp, ISP_LOGTINFO, "%s: Chan %d IID 0x%016llx N-Port Handle 0x%x Port ID 0x%06x cannot be found to be cleared",
             __FUNCTION__, chan, (unsigned long long) lp->port_wwn, nphdl, lp->portid);
     } else {
-#if 0
-        int j;
-        /*
-         * We have to take any commands from this initiator that are still in play and mark them as needing cleanup.
-         */
-        for (j = 0; j < NTGT_CMDS; j++) {
-            tmd_cmd_t *tmd = &isp->isp_osinfo.pool[j];
-            if (tmd->cd_lflags & CDFL_BUSY) {
-                if (tmd->cd_channel != chan) {
-                    continue;
-                }
-                if (tmd->cd_iid == ini || tmd->cd_portid == s_id) {
-                    isp_prt(isp, ISP_LOGINFO, "%s: Chan %d [0x%llx] aborted by WWN deletion (LOGO)", __FUNCTION__, chan, (unsigned long long) tmd->cd_tagval);
-                    tmd->cd_lflags |= CDFL_ABORTED|CDFL_NEED_CLNUP;
-                }
-            }
-        }
-#endif
         isp_prt(isp, ISP_LOGTINFO, "%s: Chan %d IID 0x%016llx N-Port Handle 0x%x Port ID 0x%06x cleared",
             __FUNCTION__, chan, (unsigned long long) lp->port_wwn, nphdl, lp->portid);
         MEMZERO(&fcp->portdb[i], sizeof (fcportdb_t));
@@ -1114,20 +1097,20 @@ isp_del_wwn_entry(ispsoftc_t *isp, int chan, uint64_t ini, uint16_t nphdl, uint3
 }
 
 static inline int
-isp_find_loopid_wwn(ispsoftc_t *isp, int chan, uint32_t loopid, uint64_t *wwnp)
+isp_find_pdb_by_loopid(ispsoftc_t *isp, int chan, uint32_t loopid, fcportdb_t **lptr)
 {
     fcparam *fcp;
     int i;
 
     fcp = FCPARAM(isp, chan);
-    for (i = 0; i < MAX_FC_TARG; i++) {
+    for (i = MAX_FC_TARG-1; i >= 0; i--) {
         fcportdb_t *lp = &fcp->portdb[i];
 
         if (lp->target_mode == 0) {
             continue;
         }
         if (lp->handle == loopid) {
-            *wwnp = lp->port_wwn;
+            *lptr = lp;
             return (1);
         }
     }
@@ -1135,7 +1118,7 @@ isp_find_loopid_wwn(ispsoftc_t *isp, int chan, uint32_t loopid, uint64_t *wwnp)
 }
 
 static inline int
-isp_find_pdb_sid(ispsoftc_t *isp, int chan, uint32_t sid, fcportdb_t **lptr)
+isp_find_pdb_by_sid(ispsoftc_t *isp, int chan, uint32_t sid, fcportdb_t **lptr)
 {
     fcparam *fcp;
     int i;
@@ -1145,45 +1128,18 @@ isp_find_pdb_sid(ispsoftc_t *isp, int chan, uint32_t sid, fcportdb_t **lptr)
     }
 
     fcp = FCPARAM(isp, chan);
-    for (i = 0; i < MAX_FC_TARG; i++) {
+    for (i = MAX_FC_TARG-1; i >= 0; i--) {
         fcportdb_t *lp = &fcp->portdb[i];
 
         if (lp->target_mode == 0) {
             continue;
         }
-
         if (lp->portid == sid) {
             *lptr = lp;
             return (1);
         }
     }
     return (0);
-}
-
-static inline void
-isp_clear_loopid_wwn(ispsoftc_t *isp, int chan, uint32_t iid, uint64_t wwpn)
-{
-    int i, lo, hi;
-
-    if (IS_SCSI(isp)) {
-        return;
-    }
-    if (wwpn == INI_ANY) {
-        lo = 0;
-        hi = MAX_FC_TARG;
-    } else if (iid >= MAX_FC_TARG) {
-        return;
-    } else {
-        lo = iid;
-        hi = lo + 1;
-    }
-    for (i = lo; i < hi; i++) {
-        fcportdb_t *lp = &FCPARAM(isp, chan)->portdb[i];
-        if (lp->state == FC_PORTDB_STATE_VALID && (wwpn == INI_ANY || wwpn == lp->port_wwn)) {
-            isp_prt(isp, ISP_LOGINFO, "Clearing pordb %u validity for WWN 0x%016llx", iid, lp->port_wwn);
-            lp->state = FC_PORTDB_STATE_NIL;
-        }
-    }
 }
 
 static void
@@ -1369,7 +1325,7 @@ isp_taction(qact_e action, void *arg)
                 uint16_t nphdl;
 
                 sid = (aep->at_hdr.s_id[0] << 16) | (aep->at_hdr.s_id[1] << 8) | aep->at_hdr.s_id[2];
-                if (isp_find_pdb_sid(isp, ins->notify.nt_channel, sid, &lp)) {
+                if (isp_find_pdb_by_sid(isp, ins->notify.nt_channel, sid, &lp)) {
                     nphdl = lp->handle;
                 } else {
                     nphdl = NIL_HANDLE;
@@ -2005,7 +1961,6 @@ isp_handle_platform_atio(ispsoftc_t *isp, at_entry_t *aep)
     }
 }
 
-
 static void
 isp_handle_platform_atio2(ispsoftc_t *isp, at2_entry_t *aep)
 {
@@ -2039,7 +1994,7 @@ isp_handle_platform_atio2(ispsoftc_t *isp, at2_entry_t *aep)
     }
 
     /*
-     * If we're out of resources, just send a QFULL status back.
+     * If we're out of resources, just send a BUSY status back.
      */
     if ((tmd = isp->isp_osinfo.tfreelist) == NULL) {
         if (isp->isp_osinfo.out_of_tmds == 0) {
@@ -2070,6 +2025,7 @@ isp_handle_platform_atio2(ispsoftc_t *isp, at2_entry_t *aep)
         (((uint64_t) aep->at_wwpn[1]) << 32) |
         (((uint64_t) aep->at_wwpn[2]) << 16) |
         (((uint64_t) aep->at_wwpn[3]) <<  0);
+    tmd->cd_oxid = aep->at_oxid;
     tmd->cd_nphdl = loopid;
     tmd->cd_tgt = FCPARAM(isp, 0)->isp_wwpn;
     FLATLUN_TO_L0LUN(tmd->cd_lun, lun);
@@ -2136,7 +2092,15 @@ isp_handle_platform_atio2(ispsoftc_t *isp, at2_entry_t *aep)
     if (isp->isp_osinfo.hcb == 0) {
         isp_lcl_respond(isp, aep, tmd);
     } else {
-        CALL_PARENT_TMD(isp, tmd, QOUT_TMD_START);
+        fcportdb_t *lp;
+        if (isp_find_pdb_by_loopid(isp, 0, tmd->cd_nphdl, &lp)) {
+            tmd->cd_portid = lp->portid;
+            CALL_PARENT_TMD(isp, tmd, QOUT_TMD_START);
+        } else {
+            tmd->cd_portid = PORT_NONE;
+            isp_add_wwn_entry(isp, 0, tmd->cd_iid, tmd->cd_nphdl, PORT_NONE);
+            (void) ISP_THREAD_EVENT(isp, ISP_THREAD_FINDPORTID, tmd, 0, __FUNCTION__, __LINE__);
+        }
     }
 }
 
@@ -2203,7 +2167,7 @@ isp_handle_platform_atio7(ispsoftc_t *isp, at7_entry_t *aep)
     }
     isp_prt(isp, ISP_LOGTDEBUG0, "%s: [RX_ID 0x%x] D_ID 0x%06x found on Chan %d for S_ID 0x%06x", __FUNCTION__, aep->at_rxid, did, chan, sid);
 
-    if (isp_find_pdb_sid(isp, chan, sid, &lp)) {
+    if (isp_find_pdb_by_sid(isp, chan, sid, &lp)) {
         nphdl = lp->handle;
         iid = lp->port_wwn;
     }
@@ -3238,7 +3202,6 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
         mp = &ins->notify;
 
         if (IS_24XX(isp)) {
-            fcportdb_t *lp;
             at7_entry_t *aep = mp->nt_lreserved;
             uint32_t sid;
             int i;
@@ -3268,7 +3231,7 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
                 }
                 /* FALLTHROUGH */
             default:
-                if (isp_find_pdb_sid(isp, mp->nt_channel, sid, &lp)) {
+                if (isp_find_pdb_by_sid(isp, mp->nt_channel, sid, &lp)) {
                     mp->nt_iid = lp->port_wwn;
                 }
                 break;
@@ -3293,10 +3256,12 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
                 ins->notify.nt_iid = INI_NONE;
                 break;
             default:
-                if (isp_find_loopid_wwn(isp, mp->nt_channel, loopid, &ins->notify.nt_iid) == 0) {
+                if (isp_find_pdb_by_loopid(isp, mp->nt_channel, loopid, &lp) == 0) {
                     isp_prt(isp, ISP_LOGTINFO, "cannot find WWN for loopid 0x%x for notify action 0x%x", loopid, mp->nt_ncode);
                     ins->notify.nt_iid = INI_NONE;
-		}
+                } else {
+                    ins->notify.nt_iid = lp->port_wwn;
+                }
                 break;
             }
             /*
@@ -3388,7 +3353,7 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
             isp->isp_osinfo.nfreelist = ins->notify.nt_lreserved;
             MEMZERO(&ins->notify, sizeof (tmd_notify_t));
             for (chan = 0; chan < isp->isp_nchan; chan++) {
-                if (isp_find_loopid_wwn(isp, chan, abts->abts_nphdl, &ins->notify.nt_iid)) {
+                if (isp_find_pdb_by_loopid(isp, chan, abts->abts_nphdl, &lp)) {
                     break;
                 }
             }
@@ -3396,6 +3361,7 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
                 isp_prt(isp, ISP_LOGTINFO, "cannot find WWN for N-port handle 0x%x for ABTS", abts->abts_nphdl);
                 ins->notify.nt_iid = INI_ANY;
             }
+            ins->notify.nt_iid = lp->port_wwn;
             MEMCPY(ins->qentry, qe, QENTRY_LEN);
             ins->qevalid = 1;
             ins->notify.nt_hba = isp;
@@ -3559,19 +3525,20 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
                     }
                     isp->isp_osinfo.nfreelist = ins->notify.nt_lreserved;
                     MEMZERO(ins, sizeof (*ins));
-                    if (isp_find_loopid_wwn(isp, inot->in_vpindex, nphdl, &ins->notify.nt_iid) == 0) {
+                    if (isp_find_pdb_by_loopid(isp, inot->in_vpindex, nphdl, &lp) == 0) {
                         isp_prt(isp, ISP_LOGWARN, "cannot find WWN for N-port handle 0x%x for ABORT TASK", nphdl);
                         isp_notify_ack(isp, qe);
                         ins->notify.nt_lreserved = isp->isp_osinfo.nfreelist;
                         isp->isp_osinfo.nfreelist = ins;
                         break;
                     }
+                    ins->notify.nt_iid = lp->port_wwn;
                     MEMCPY(ins->qentry, qe, QENTRY_LEN);
                     ins->qevalid = 1;
                     ins->notify.nt_hba = isp;
                     ins->notify.nt_ncode = NT_LOGOUT;
-                    isp_prt(isp, ISP_LOGTINFO, "%s: isp_del_wwn being called on Chan %d because of PC/PL(0x%x) for 0x%016llx loopid 0x%02x", __FUNCTION__,
-                        inot->in_vpindex, status, (unsigned long long) ins->notify.nt_iid, nphdl);
+                    isp_prt(isp, ISP_LOGTINFO, "%s: isp_del_wwn being called on Chan %d because of PC/PL(0x%x) for 0x%016llx loopid 0x%02x",
+                        __FUNCTION__, inot->in_vpindex, status, (unsigned long long) ins->notify.nt_iid, nphdl);
                     isp_del_wwn_entry(isp, inot->in_vpindex, ins->notify.nt_iid, nphdl, portid);
                     ins->notify.nt_tagval = seqid;
                     isp_prt(isp, ISP_LOGINFO, "PORT %s [%llx] from 0x%016llx", status == IN24XX_PORT_CHANGED? "CHANGED" : "LOGOUT",
@@ -3625,9 +3592,11 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
                 }
 
                 if (status == IN_ABORT_TASK) {
-                    if (isp_find_loopid_wwn(isp, 0, nphdl, &ins->notify.nt_iid) == 0) {
+                    if (isp_find_pdb_by_loopid(isp, 0, nphdl, &lp) == 0) {
                         isp_prt(isp, ISP_LOGINFO, "cannot find WWN for loopid 0x%x for ABORT TASK", nphdl);
                         ins->notify.nt_iid = INI_NONE;
+                    } else {
+                        ins->notify.nt_iid = lp->port_wwn;
                     }
                     ins->notify.nt_channel = 0;
                     ins->notify.nt_tgt = FCPARAM(isp, 0)->isp_wwpn;
@@ -3643,7 +3612,8 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
                     /*
                      * The port specified by the loop id listed in nphdl has logged out. We need to tell our upstream listener about it.
                      */
-                    if (isp_find_loopid_wwn(isp, 0, nphdl, &ins->notify.nt_iid)) {
+                    if (isp_find_pdb_by_loopid(isp, 0, nphdl, &lp)) {
+                        ins->notify.nt_iid = lp->port_wwn;
                         ins->notify.nt_ncode = NT_LOGOUT;
                         isp_prt(isp, ISP_LOGTINFO, "%s: isp_del_wwn called for 0x%016llx due to PORT_LOGOUT", __FUNCTION__, (unsigned long long)ins->notify.nt_iid);
                         isp_del_wwn_entry(isp, 0, ins->notify.nt_iid, nphdl, PORT_ANY);
@@ -4168,10 +4138,6 @@ isplinux_common_init(ispsoftc_t *isp)
     int retval, chan;
     unsigned long flags;
 
-    /*
-     * Set up config options, etc...
-     */
-
     if (isp_nofwreload & (1 << isp->isp_unit)) {
         isp->isp_confopts |= ISP_CFG_NORELOAD;
     }
@@ -4644,7 +4610,7 @@ isp_task_thread(void *arg)
                     break;
                 }
                 ISP_LOCKU_SOFTC(isp);
-                if (isp_find_pdb_sid(isp, tmd->cd_channel, tmd->cd_portid, &lp)) {
+                if (isp_find_pdb_by_sid(isp, tmd->cd_channel, tmd->cd_portid, &lp)) {
                     if (!VALID_INI(lp->port_wwn)) {
                         if (isp_control(isp, ISPCTL_GET_NAMES, tmd->cd_channel, lp->handle, NULL, &lp->port_wwn) == 0) {
                             nphdl = lp->handle;
@@ -4676,8 +4642,35 @@ isp_task_thread(void *arg)
                 tmd->cd_tgt = FCPARAM(isp, tmd->cd_channel)->isp_wwpn;
                 tmd->cd_nphdl = nphdl;
                 tmd->cd_iid = iid;
-                isp_prt(isp, ISP_LOGTDEBUG0, "%s: [0x%llx] Chan %d found initiator @ IID 0x%016llx N-Port Handle 0x%02x Port ID 0x%06x", __FUNCTION__, tmd->cd_tagval, tmd->cd_channel,
-                    (unsigned long long)tmd->cd_iid, tmd->cd_nphdl, tmd->cd_portid);
+                isp_prt(isp, ISP_LOGTINFO, "%s: [0x%llx] Chan %d found initiator @ IID 0x%016llx N-Port Handle 0x%02x Port ID 0x%06x", __FUNCTION__,
+                    tmd->cd_tagval, tmd->cd_channel, (unsigned long long)tmd->cd_iid, tmd->cd_nphdl, tmd->cd_portid);
+                CALL_PARENT_TMD(isp, tmd, QOUT_TMD_START);
+                ISP_UNLKU_SOFTC(isp);
+                isp_tgt_tq(isp);
+                break;
+            }
+            case ISP_THREAD_FINDPORTID:
+            {
+                tmd_cmd_t *tmd = tap->arg;
+                fcportdb_t *lp;
+
+                ISP_LOCKU_SOFTC(isp);
+                if (isp_find_pdb_by_loopid(isp, tmd->cd_channel, tmd->cd_nphdl, &lp)) {
+                    if (lp->portid == PORT_NONE) {
+                        isp_pdb_t pdb;
+                        if (isp_control(isp, ISPCTL_GET_PDB, tmd->cd_channel, tmd->cd_nphdl, &pdb) == 0) {
+                            tmd->cd_portid = lp->portid = pdb.portid;
+                        }
+                    } else {
+                        tmd->cd_portid = lp->portid;
+                    }
+                } else {
+                    isp_prt(isp, ISP_LOGTINFO, "[0x%llx] not in port database at all any more", tmd->cd_tagval);
+                }
+                if (tmd->cd_portid != PORT_NONE) {
+                    isp_prt(isp, ISP_LOGTINFO, "%s: [0x%llx] Chan %d found initiator @ IID 0x%016llx N-Port Handle 0x%02x Port ID 0x%06x", __FUNCTION__,
+                        tmd->cd_tagval, tmd->cd_channel, (unsigned long long)tmd->cd_iid, tmd->cd_nphdl, tmd->cd_portid);
+                }
                 CALL_PARENT_TMD(isp, tmd, QOUT_TMD_START);
                 ISP_UNLKU_SOFTC(isp);
                 isp_tgt_tq(isp);
@@ -4689,7 +4682,7 @@ isp_task_thread(void *arg)
                 tmd_cmd_t *tmd = tap->arg;
 
                 ISP_LOCKU_SOFTC(isp);
-                if (isp_find_pdb_sid(isp, tmd->cd_channel, tmd->cd_portid, &lp)) {
+                if (isp_find_pdb_by_sid(isp, tmd->cd_channel, tmd->cd_portid, &lp)) {
                     tmd->cd_iid = lp->port_wwn;
                     tmd->cd_nphdl = lp->handle;
                     CALL_PARENT_TMD(isp, tmd, QOUT_TMD_START);
