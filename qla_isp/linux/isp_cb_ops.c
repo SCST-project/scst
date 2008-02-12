@@ -1,4 +1,4 @@
-/* $Id: isp_cb_ops.c,v 1.79 2007/12/11 22:18:05 mjacob Exp $ */
+/* $Id: isp_cb_ops.c,v 1.81 2007/12/26 22:53:45 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -594,8 +594,11 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
         break;
     }
     case ISP_FC_LIP:
+        if (COPYIN((void *)arg, &chan, sizeof (chan))) {
+            chan = 0;
+        }
         ISP_LOCK_SOFTC(isp);
-        if (isp_control(isp, ISPCTL_SEND_LIP, 0)) {
+        if (isp_control(isp, ISPCTL_SEND_LIP, chan)) {
             rv = -EIO;
         }
         ISP_UNLK_SOFTC(isp);

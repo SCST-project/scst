@@ -1,4 +1,4 @@
-/* $Id: isp_ioctl.h,v 1.24 2007/12/02 22:02:06 mjacob Exp $ */
+/* $Id: isp_ioctl.h,v 1.25 2007/12/26 22:38:42 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -81,6 +81,8 @@
  * This ioctl performs a reset and then will set the adapter to the
  * role that was passed in (the old role will be returned). It almost
  * goes w/o saying: use with caution.
+ *
+ * Channel selector stored in bits 8..32 as input to driver.
  */
 #define ISP_SETROLE     (ISP_IOC | 4)
 
@@ -94,6 +96,7 @@
 
 /*
  * Get the current adapter role
+ * Channel selector passed in first argument.
  */
 #define ISP_GETROLE     (ISP_IOC | 5)
 
@@ -200,17 +203,20 @@ struct isp_wwn {
  * Various Reset Goodies
  */
 struct isp_fc_tsk_mgmt {
-	uint32_t	loopid;		/* 0..255/2048 */
-	uint32_t	lun;
-	enum {
+    uint32_t    loopid;		/* 0..255/2048 */
+    uint16_t    lun;
+    uint16_t    chan;
+    enum {
         IPT_CLEAR_ACA,
         IPT_TARGET_RESET,
         IPT_LUN_RESET,
         IPT_CLEAR_TASK_SET,
         IPT_ABORT_TASK_SET
-	} action;
+    } action;
 };
-#define	ISP_TSK_MGMT		(ISP_IOC | 21)
+/* don't use 21 anymore */
+/* #define	ISP_TSK_MGMT		(ISP_IOC | 21) */
+#define	ISP_TSK_MGMT		(ISP_IOC | 22)
 
 /*
  * Just gimme a list of WWPNs that are logged into us.

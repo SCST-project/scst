@@ -1,4 +1,4 @@
-/* $Id: isp.c,v 1.184 2007/12/20 18:26:18 mjacob Exp $ */
+/* $Id: isp.c,v 1.185 2007/12/26 22:38:03 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -5801,6 +5801,13 @@ isp_parse_async(ispsoftc_t *isp, uint16_t mbox)
 		FCPARAM(isp, chan)->isp_loopstate = LOOP_LIP_RCVD;
 		break;
 
+	case ASYNC_RCV_ERR:
+		if (IS_24XX(isp)) {
+			isp_prt(isp, ISP_LOGWARN, "Receive Error");
+		} else {
+			isp_prt(isp, ISP_LOGWARN, "Unknown Async Code 0x%x", mbox);
+		}
+		break;
 	case ASYNC_RJT_SENT:	/* same as ASYNC_QFULL_SENT */
 		if (IS_24XX(isp)) {
 			isp_prt(isp, ISP_LOGTDEBUG0, "LS_RJT sent");
