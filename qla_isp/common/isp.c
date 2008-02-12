@@ -1,4 +1,4 @@
-/* $Id: isp.c,v 1.187 2007/12/29 04:48:46 mjacob Exp $ */
+/* $Id: isp.c,v 1.188 2007/12/30 20:48:14 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -1894,9 +1894,12 @@ isp_fibre_init_2400(ispsoftc_t *isp)
 	if (icbp->icb_hardaddr >= LOCAL_LOOP_LIM) {
 		icbp->icb_hardaddr = 0;
 	}
-	if (isp->isp_confopts & ISP_CFG_OWNLOOPID) {
-		icbp->icb_fwoptions1 |= ICB2400_OPT1_HARD_ADDRESS;
-	}
+
+	/*
+	 * Force this on.
+	 */
+	icbp->icb_fwoptions1 |= ICB2400_OPT1_HARD_ADDRESS;
+
 	icbp->icb_fwoptions2 = fcp->isp_xfwoptions;
 	switch(isp->isp_confopts & ISP_CFG_PORT_PREF) {
 	case ISP_CFG_NPORT:
@@ -3859,7 +3862,7 @@ isp_scan_fabric(ispsoftc_t *isp, int chan)
 			lp->new_roles = nr;
 			lp->state = FC_PORTDB_STATE_NEW;
 			isp_prt(isp, ISP_LOGSANCFG,
-			    "Chan %d Fabric Port 0x%06x is New Entry",
+			    "Chan %d Fabric Port 0x%06x is a New Entry",
 			    chan, portid);
 			continue;
 		}

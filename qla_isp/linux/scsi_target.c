@@ -1,4 +1,4 @@
-/* $Id: scsi_target.c,v 1.77 2007/12/12 21:19:04 mjacob Exp $ */
+/* $Id: scsi_target.c,v 1.78 2007/12/30 20:23:18 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -396,6 +396,9 @@ static uint8_t nosense[TMD_SENSELEN] = {
 };
 static uint8_t invchg[TMD_SENSELEN] = {
     0xf0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x3f, 0x0e
+};
+static uint8_t parity[TMD_SENSELEN] = {
+    0xf0, 0, 0xb, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0x47, 0x02
 };
 
 static bus_t busses[MAX_BUS];
@@ -1887,25 +1890,31 @@ scsi_target_handler(qact_e action, void *arg)
         SDprintk2("scsi_target: TMD_DONE[%llx] %p hf %x lf %x\n", tmd->cd_tagval, tmd, xact->td_hflags, xact->td_lflags);
 
         if (xact->td_lflags & TDFL_ERROR) {
+            ini_t *ini;
             printk("scsi_target: [%llx] ended in error (%d)\n", tmd->cd_tagval, xact->td_error);
-            if (xact->td_error != -ENOMEM) {
-                xact->td_hflags &= ~TDFH_DATA_MASK;
-                xact->td_hflags |= TDFH_STSVALID|TDFH_SNSVALID;
-                xact->td_xfrlen = 0;
-                memcpy(tmd->cd_sense, ua, TMD_SENSELEN);
-                tmd->cd_scsi_status = SCSI_CHECK;
+            if (xact->td_error == -ENOMEM) {
+                spin_lock_irqsave(&scsi_target_lock, flags);
+                tmd->cd_next = NULL;
+                if (r_front) {
+                    r_last->cd_next = tmd;
+                } else {
+                    r_front = tmd;
+                }
+                r_last = tmd;
+                spin_unlock_irqrestore(&scsi_target_lock, flags);
+                up(&scsi_thread_sleep_semaphore);
+                return;
             }
+            /*
+             * This command is dead. Mark CA for Parity Error and drive on.
+             */
             spin_lock_irqsave(&scsi_target_lock, flags);
-            tmd->cd_next = NULL;
-            if (r_front) {
-                r_last->cd_next = tmd;
-            } else {
-                r_front = tmd;
-            }
-            r_last = tmd;
+            ini = ini_from_tmd(bp, tmd);
             spin_unlock_irqrestore(&scsi_target_lock, flags);
-            up(&scsi_thread_sleep_semaphore);
-            return;
+            if (ini) {
+                add_sdata(ini, parity);
+            }
+            xact->td_hflags &= ~(TDFH_DATA_OUT|TDFH_DATA_IN|TDFH_STSVALID|TDFH_SNSVALID);
         }
 
         /*
