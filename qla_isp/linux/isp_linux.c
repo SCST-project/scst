@@ -1,4 +1,4 @@
-/* $Id: isp_linux.c,v 1.211 2007/12/04 22:20:44 mjacob Exp $ */
+/* $Id: isp_linux.c,v 1.212 2007/12/09 00:05:43 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -1524,6 +1524,10 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xact_t *xact)
         }
     }
 
+    if ((xact->td_hflags & TDFH_STSVALID) && tmd->cd_scsi_status == SCSI_CHECK && (xact->td_hflags & TDFH_SNSVALID) && tmd->cd_sense[0] == 0) {
+        isp_prt(isp, ISP_LOGWARN, "[%llx] cdb0 0x%02x CHECK CONDITION but bogus sense 0x%x/0x%x/0x%x", tmd->cd_tagval, tmd->cd_cdb[0], tmd->cd_sense[0], tmd->cd_sense[12], tmd->cd_sense[13]);
+    }
+
     MEMZERO(local, QENTRY_LEN);
 
     /*
@@ -1605,8 +1609,6 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xact_t *xact)
             } else {
                 cto->ct_scsi_status |= (FCP_RESID_UNDERFLOW << 8);
             }
-        } else {
-            cto->ct_resid = 0;
         }
         isp_prt(isp, ISP_LOGTDEBUG0, "CTIO7[%llx] scsi sts %x flags %x resid %d offset %u", tmd->cd_tagval, tmd->cd_scsi_status, cto->ct_flags, resid, xact->td_offset);
     } else if (IS_FC(isp)) {
@@ -1622,8 +1624,6 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xact_t *xact)
         }
         if (ISP_CAP_SCCFW(isp)) {
             cto->ct_lun = L0LUN_TO_FLATLUN(tmd->cd_lun);
-        } else {
-            cto->ct_lun = 0;
         }
         cto->ct_rxid = AT2_GET_TAG(tmd->cd_tagval);
         if (cto->ct_rxid == 0) {
@@ -1674,8 +1674,6 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xact_t *xact)
             } else {
                 *ssptr |= CT2_DATA_UNDER;
             }
-        } else {
-            cto->ct_resid = 0;
         }
         if (cto->ct_flags & CT2_SENDSTATUS) {
             cto->ct_flags |= CT2_CCINCR;
@@ -1689,7 +1687,6 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xact_t *xact)
         cto->ct_iid = tmd->cd_iid;
         cto->ct_tgt = tmd->cd_tgt;
         cto->ct_lun = L0LUN_TO_FLATLUN(tmd->cd_lun);
-        cto->ct_flags = 0;
         cto->ct_fwhandle = AT_GET_HANDLE(tmd->cd_tagval);
         cto->ct_timeout = ISP_CT_TIMEOUT;
         if (AT_HAS_TAG(tmd->cd_tagval)) {
@@ -1702,7 +1699,6 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xact_t *xact)
         if (xact->td_xfrlen == 0) {
             cto->ct_flags |= CT_NO_DATA | CT_SENDSTATUS;
             cto->ct_scsi_status = tmd->cd_scsi_status;
-            cto->ct_resid = 0;
         } else {
             if (xact->td_hflags & TDFH_STSVALID) {
                 cto->ct_flags |= CT_SENDSTATUS;

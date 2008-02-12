@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.146 2007/12/03 04:31:52 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.147 2007/12/09 00:08:24 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -1464,7 +1464,8 @@ static int tdma_mkfc(ispsoftc_t *, tmd_xact_t *, ct2_entry_t *, uint32_t *, uint
 static int
 tdma_mk(ispsoftc_t *isp, tmd_xact_t *xact, ct_entry_t *cto, uint32_t *nxtip, uint32_t optr)
 {
-    static const char ctx[] = "CTIO[%x] lun %d for iid%d flgs 0x%x sts 0x%x ssts 0x%x res %u %s";
+    static const char ctx[] = "CTIO[%x] cdb0 0x%02x lun %u for iid %u flags 0x%x SSTS 0x%02x resid %u <END>";
+    static const char mid[] = "CTIO[%x] cdb0 0x%02x lun %u for iid %u flags 0x%x xfr %u moved %u/%u <MID>";
     struct isp_pcisoftc *pcs = (struct isp_pcisoftc *) isp;
     struct scatterlist *sg;
     ct_entry_t *qe;
@@ -1479,6 +1480,20 @@ tdma_mk(ispsoftc_t *isp, tmd_xact_t *xact, ct_entry_t *cto, uint32_t *nxtip, uin
     curi = isp->isp_reqidx;
     qe = (ct_entry_t *) ISP_QUEUE_ENTRY(isp->isp_rquest, isp->isp_reqidx);
 
+    if (cto->ct_flags & CT_SENDSTATUS) {
+        int level;
+        if (cto->ct_resid || cto->ct_scsi_status) {
+            level = ISP_LOGTINFO;
+        } else {
+            level = ISP_LOGTDEBUG0;
+        }
+        isp_prt(isp, level, ctx, cto->ct_fwhandle, tmd->cd_cdb[0], L0LUN_TO_FLATLUN(tmd->cd_lun), cto->ct_iid, cto->ct_flags,
+            cto->ct_scsi_status, cto->ct_resid);
+    } else {
+        isp_prt(isp, ISP_LOGTDEBUG0, mid, tmd->cd_cdb[0], cto->ct_fwhandle, L0LUN_TO_FLATLUN(tmd->cd_lun), cto->ct_iid, cto->ct_flags,
+            xact->td_xfrlen, tmd->cd_moved, tmd->cd_totlen);
+    }
+
     cto->ct_xfrlen = 0;
     cto->ct_seg_count = 0;
     cto->ct_header.rqs_entry_count = 1;
@@ -1486,8 +1501,6 @@ tdma_mk(ispsoftc_t *isp, tmd_xact_t *xact, ct_entry_t *cto, uint32_t *nxtip, uin
 
     if (xact->td_xfrlen == 0) {
         ISP_TDQE(isp, "tdma_mk[no data]", curi, cto);
-        isp_prt(isp, ISP_LOGTDEBUG1, ctx, cto->ct_fwhandle, L0LUN_TO_FLATLUN(tmd->cd_lun), (int) cto->ct_iid, cto->ct_flags, cto->ct_status,
-            cto->ct_scsi_status, cto->ct_resid, "<END>");
         isp_put_ctio(isp, cto, qe);
         if (cto->ct_flags & CT_CCINCR) {
             tmd->cd_lflags &= ~CDFL_RESRC_FILL;
@@ -1651,13 +1664,6 @@ tdma_mk(ispsoftc_t *isp, tmd_xact_t *xact, ct_entry_t *cto, uint32_t *nxtip, uin
                 cto->ct_flags |= sflags;
                 cto->ct_resid = resid;
             }
-            if (send_status) {
-                isp_prt(isp, ISP_LOGTDEBUG1, ctx, cto->ct_fwhandle, L0LUN_TO_FLATLUN(tmd->cd_lun), (int) cto->ct_iid, cto->ct_flags,
-                    cto->ct_status, cto->ct_scsi_status, cto->ct_resid, "<END>");
-            } else {
-                isp_prt(isp, ISP_LOGTDEBUG1, ctx, cto->ct_fwhandle, L0LUN_TO_FLATLUN(tmd->cd_lun), (int) cto->ct_iid, cto->ct_flags,
-                    cto->ct_status, cto->ct_scsi_status, cto->ct_resid, "<MID>");
-            }
             isp_put_ctio(isp, cto, qe);
             ISP_TDQE(isp, "last tdma_mk", curi, cto);
             if (nctios > 1) {
@@ -1751,7 +1757,8 @@ static int
 tdma_mk_2400(ispsoftc_t *isp, tmd_xact_t *xact, ct7_entry_t *cto, uint32_t *nxtip, uint32_t optr)
 {
     struct isp_pcisoftc *pcs = (struct isp_pcisoftc *) isp;
-    static const char ctx[] = "CTIO7[%llx] cdb0 0x%02x lun %u nphdl 0x%x flgs 0x%x ssts 0x%x xfr %u moved %u/%u resid %d %s";
+    static const char ctx[] = "CTIO7[%llx] cdb0 0x%02x lun %u nphdl 0x%x flgs 0x%x ssts 0x%x xfr %u moved %u/%u resid %d <END>";
+    static const char mid[] = "CTIO7[%llx] cdb0 0x%02x lun %u nphdl 0x%x flgs 0x%x xfr %u moved %u/%u <MID>";
     XS_DMA_ADDR_T addr, last_synthetic_addr;
     tmd_cmd_t *tmd = xact->td_cmd;
     struct scatterlist *sg;
@@ -1760,7 +1767,7 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xact_t *xact, ct7_entry_t *cto, uint32_t *nxti
     uint32_t curi, nxti;
     uint32_t bc, last_synthetic_count;
     long xfcnt;    /* must be signed */
-    int nseg, seg, ovseg, seglim, new_seg_cnt, level;
+    int nseg, seg, ovseg, seglim, new_seg_cnt;
 #ifdef ALLOW_SYNTHETIC_CTIO
     ct7_entry_t *cto2 = NULL, ct2;
 #endif 
@@ -1769,13 +1776,19 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xact_t *xact, ct7_entry_t *cto, uint32_t *nxti
     curi = isp->isp_reqidx;
     qe = ISP_QUEUE_ENTRY(isp->isp_rquest, curi);
 
-    if (cto->ct_resid || cto->ct_scsi_status) {
-        level = ISP_LOGTDEBUG0;
+    if (cto->ct_flags & CT7_SENDSTATUS) {
+        int level;
+        if (cto->ct_resid || cto->ct_scsi_status) {
+            level = ISP_LOGTINFO;
+        } else {
+            level = ISP_LOGTDEBUG0;
+        }
+        isp_prt(isp, level, ctx, (unsigned long long) tmd->cd_tagval, tmd->cd_cdb[0], L0LUN_TO_FLATLUN(tmd->cd_lun), cto->ct_nphdl, cto->ct_flags,
+            cto->ct_scsi_status, xact->td_xfrlen, tmd->cd_moved, tmd->cd_totlen, cto->ct_resid);
     } else {
-        level = ISP_LOGTDEBUG1;
+        isp_prt(isp, ISP_LOGTDEBUG0, mid, (unsigned long long) tmd->cd_tagval, tmd->cd_cdb[0], L0LUN_TO_FLATLUN(tmd->cd_lun), cto->ct_nphdl, cto->ct_flags,
+            xact->td_xfrlen, tmd->cd_moved, tmd->cd_totlen);
     }
-    isp_prt(isp, level, ctx, (unsigned long long) tmd->cd_tagval, tmd->cd_cdb[0], L0LUN_TO_FLATLUN(tmd->cd_lun), cto->ct_nphdl, cto->ct_flags,
-        cto->ct_scsi_status, xact->td_xfrlen, tmd->cd_moved, tmd->cd_totlen, cto->ct_resid, "<END>");
 
     /*
      * Handle commands that transfer no data right away.
@@ -2042,7 +2055,8 @@ static int
 tdma_mkfc(ispsoftc_t *isp, tmd_xact_t *xact, ct2_entry_t *cto, uint32_t *nxtip, uint32_t optr)
 {
     struct isp_pcisoftc *pcs = (struct isp_pcisoftc *) isp;
-    static const char ctx[] = "CTIO2[%x] lun %d for iid %d flgs 0x%x sts 0x%x ssts 0x%x res %d %s";
+    static const char ctx[] = "CTIO2[%x] cdb0 0x%02x lun %u for 0x%016llx flags 0x%x SSTS 0x%04x resid %u <END>";
+    static const char mid[] = "CTIO2[%x] cdb0 0x%02x lun %u for 0x%016llx flags 0x%x xfr %u moved %u/%u <MID>";
     XS_DMA_ADDR_T addr, last_synthetic_addr;
     tmd_cmd_t *tmd = xact->td_cmd;
     struct scatterlist *sg;
@@ -2059,6 +2073,29 @@ tdma_mkfc(ispsoftc_t *isp, tmd_xact_t *xact, ct2_entry_t *cto, uint32_t *nxtip, 
     nxti = *nxtip;
     curi = isp->isp_reqidx;
     qe = ISP_QUEUE_ENTRY(isp->isp_rquest, curi);
+
+    
+    if (cto->ct_flags & CT2_SENDSTATUS) {
+        int level;
+        if ((cto->ct_flags & CT2_FLAG_MMASK) == CT2_FLAG_MODE0) {
+            swd = cto->rsp.m0.ct_scsi_status;
+        } else if ((cto->ct_flags & CT2_FLAG_MMASK) == CT2_FLAG_MODE1) {
+            swd = cto->rsp.m1.ct_scsi_status;
+        } else {
+            swd = 0;
+        }
+        if (cto->ct_resid || swd) {
+            level = ISP_LOGTINFO;
+        } else {
+            level = ISP_LOGTDEBUG0;
+        }
+        isp_prt(isp, level, ctx, cto->ct_rxid, tmd->cd_cdb[0], L0LUN_TO_FLATLUN(tmd->cd_lun), (unsigned long long) tmd->cd_iid, cto->ct_flags, swd, cto->ct_resid);
+    } else {
+        isp_prt(isp, ISP_LOGTDEBUG0, mid, cto->ct_rxid, tmd->cd_cdb[0], L0LUN_TO_FLATLUN(tmd->cd_lun), (unsigned long long) tmd->cd_iid, cto->ct_flags,
+            xact->td_xfrlen, tmd->cd_moved, tmd->cd_totlen);
+        swd = 0;
+    }
+
     if (cto->ct_flags & CT2_FASTPOST) {
         if ((xact->td_hflags & (TDFH_STSVALID|TDFH_SNSVALID)) != TDFH_STSVALID) {
             cto->ct_flags &= ~CT2_FASTPOST;
@@ -2074,7 +2111,6 @@ tdma_mkfc(ispsoftc_t *isp, tmd_xact_t *xact, ct2_entry_t *cto, uint32_t *nxtip, 
         /* ct_syshandle contains the synchronization handle set by caller */
         cto->ct_seg_count = 0;
         cto->ct_reloff = 0;
-        isp_prt(isp, ISP_LOGTDEBUG1, ctx, cto->ct_rxid, L0LUN_TO_FLATLUN(tmd->cd_lun), cto->ct_iid, cto->ct_flags, cto->ct_status, cto->rsp.m1.ct_scsi_status, cto->ct_resid, "<END>");
         isp_put_ctio2(isp, cto, qe);
         if (cto->ct_flags & CT2_FASTPOST) {
             isp_prt(isp, ISP_LOGTDEBUG1, "[%x] faspost (0x%x)", cto->ct_rxid, tmd->cd_cdb[0]);
@@ -2138,7 +2174,6 @@ tdma_mkfc(ispsoftc_t *isp, tmd_xact_t *xact, ct2_entry_t *cto, uint32_t *nxtip, 
     /*
      * Second, figure out whether we'll need to send a separate status CTIO.
      */
-    swd = cto->rsp.m0.ct_scsi_status;
 
     if ((cto->ct_flags & CT2_SENDSTATUS) && ((swd & 0xff) || cto->ct_resid)) {
 #ifdef  ALLOW_SYNTHETIC_CTIO
