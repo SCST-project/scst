@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.139 2007/10/30 01:55:10 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.141 2007/11/13 20:20:04 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -416,13 +416,12 @@ static __inline int
 map_isp_io(struct isp_pcisoftc *isp_pci, u_short cmd, vm_offset_t io_base)
 {
     if ((cmd & PCI_COMMAND_IO) && (io_base & 3) == 1) {
-       isp_pci->port = io_base & PCI_BASE_ADDRESS_IO_MASK;
+        isp_pci->port = io_base & PCI_BASE_ADDRESS_IO_MASK;
         request_region(isp_pci->port, 0xff, ISP_NAME);
         return (1);
     }
     return (0);
 }
-
 
 void
 isplinux_pci_release(struct Scsi_Host *host)
@@ -1388,8 +1387,8 @@ bad:
 }
 
 #ifdef    ISP_TARGET_MODE
-static int tdma_mk(ispsoftc_t *, tmd_xfr_t *, ct_entry_t *, uint32_t *, uint32_t);
-static int tdma_mkfc(ispsoftc_t *, tmd_xfr_t *, ct2_entry_t *, uint32_t *, uint32_t);
+static int tdma_mk(ispsoftc_t *, tmd_xact_t *, ct_entry_t *, uint32_t *, uint32_t);
+static int tdma_mkfc(ispsoftc_t *, tmd_xact_t *, ct2_entry_t *, uint32_t *, uint32_t);
 
 #define ALLOW_SYNTHETIC_CTIO    1
 #ifndef ALLOW_SYNTHETIC_CTIO
@@ -1415,7 +1414,7 @@ static int tdma_mkfc(ispsoftc_t *, tmd_xfr_t *, ct2_entry_t *, uint32_t *, uint3
  */
     
 static int
-tdma_mk(ispsoftc_t *isp, tmd_xfr_t *xfr, ct_entry_t *cto, uint32_t *nxtip, uint32_t optr)
+tdma_mk(ispsoftc_t *isp, tmd_xact_t *xact, ct_entry_t *cto, uint32_t *nxtip, uint32_t optr)
 {
     static const char ctx[] = "CTIO[%x] lun %d for iid%d flgs 0x%x sts 0x%x ssts 0x%x res %u %s";
     struct isp_pcisoftc *pcs = (struct isp_pcisoftc *) isp;
@@ -1428,7 +1427,7 @@ tdma_mk(ispsoftc_t *isp, tmd_xfr_t *xfr, ct_entry_t *cto, uint32_t *nxtip, uint3
     tmd_cmd_t *tmd;
     int nth_ctio, nctios, send_status, nseg, new_seg_cnt;
 
-    tmd = xfr->td_cmd;
+    tmd = xact->td_cmd;
     curi = isp->isp_reqidx;
     qe = (ct_entry_t *) ISP_QUEUE_ENTRY(isp->isp_rquest, isp->isp_reqidx);
 
@@ -1437,7 +1436,7 @@ tdma_mk(ispsoftc_t *isp, tmd_xfr_t *xfr, ct_entry_t *cto, uint32_t *nxtip, uint3
     cto->ct_header.rqs_entry_count = 1;
     MEMZERO(cto->ct_dataseg, sizeof (cto->ct_dataseg));
 
-    if (xfr->td_xfrlen == 0) {
+    if (xact->td_xfrlen == 0) {
         ISP_TDQE(isp, "tdma_mk[no data]", curi, cto);
         isp_prt(isp, ISP_LOGTDEBUG1, ctx, cto->ct_fwhandle, L0LUN_TO_FLATLUN(tmd->cd_lun), (int) cto->ct_iid, cto->ct_flags, cto->ct_status,
             cto->ct_scsi_status, cto->ct_resid, "<END>");
@@ -1445,28 +1444,28 @@ tdma_mk(ispsoftc_t *isp, tmd_xfr_t *xfr, ct_entry_t *cto, uint32_t *nxtip, uint3
         return (CMD_QUEUED);
     }
 
-    if (xfr->td_xfrlen <= 1024) {
+    if (xact->td_xfrlen <= 1024) {
         nseg = 0;
-    } else if (xfr->td_xfrlen <= 4096) {
+    } else if (xact->td_xfrlen <= 4096) {
         nseg = 1;
-    } else if (xfr->td_xfrlen <= 32768) {
+    } else if (xact->td_xfrlen <= 32768) {
         nseg = 2;
-    } else if (xfr->td_xfrlen <= 65536) {
+    } else if (xact->td_xfrlen <= 65536) {
         nseg = 3;
-    } else if (xfr->td_xfrlen <= 131372) {
+    } else if (xact->td_xfrlen <= 131372) {
         nseg = 4;
-    } else if (xfr->td_xfrlen <= 262144) {
+    } else if (xact->td_xfrlen <= 262144) {
         nseg = 5;
-    } else if (xfr->td_xfrlen <= 524288) {
+    } else if (xact->td_xfrlen <= 524288) {
         nseg = 6;
     } else {
         nseg = 7;
     }
     isp->isp_osinfo.bins[nseg]++;
 
-    sg = xfr->td_data;
+    sg = xact->td_data;
     nseg = 0;
-    resid = (int32_t) xfr->td_xfrlen;
+    resid = (int32_t) xact->td_xfrlen;
     while (resid > 0) {
         if (sg->length == 0) {
             isp_prt(isp, ISP_LOGWARN, "%s: zero length segment #%d for tag %llx\n", __FUNCTION__, nseg, tmd->cd_tagval);
@@ -1477,7 +1476,7 @@ tdma_mk(ispsoftc_t *isp, tmd_xfr_t *xfr, ct_entry_t *cto, uint32_t *nxtip, uint3
         resid -= sg->length;
         sg++;
     }
-    sg = xfr->td_data;
+    sg = xact->td_data;
 
     new_seg_cnt = pci_map_sg(pcs->pci_dev, sg, nseg, (cto->ct_flags & CT_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
 
@@ -1553,7 +1552,7 @@ tdma_mk(ispsoftc_t *isp, tmd_xfr_t *xfr, ct_entry_t *cto, uint32_t *nxtip, uint3
                 if (ISP_A64 && IS_HIGH_ISP_ADDR(addr)) {
                     isp_prt(isp, ISP_LOGERR, "%s: 64 bit tgt mode not supported", __FUNCTION__);
                     cto->ct_resid = -EFAULT;
-                    pci_unmap_sg(pcs->pci_dev, xfr->td_data, nseg, (cto->ct_flags & CT_DATA_IN)? PCI_DMA_TODEVICE: PCI_DMA_FROMDEVICE);
+                    pci_unmap_sg(pcs->pci_dev, xact->td_data, nseg, (cto->ct_flags & CT_DATA_IN)? PCI_DMA_TODEVICE: PCI_DMA_FROMDEVICE);
                     return (CMD_COMPLETE);
                 }
                 /*
@@ -1662,7 +1661,7 @@ tdma_mk(ispsoftc_t *isp, tmd_xfr_t *xfr, ct_entry_t *cto, uint32_t *nxtip, uint3
         }
     }
     *nxtip = nxti;
-    isp_prt(isp, ISP_LOGTDEBUG2, "[%llx]: map %d segments at %p for handle 0x%x", tmd->cd_tagval, new_seg_cnt, xfr->td_data, cto->ct_syshandle);
+    isp_prt(isp, ISP_LOGTDEBUG2, "[%llx]: map %d segments at %p for handle 0x%x", tmd->cd_tagval, new_seg_cnt, xact->td_data, cto->ct_syshandle);
     return (CMD_QUEUED);
 }
 
@@ -1693,14 +1692,14 @@ tdma_mk(ispsoftc_t *isp, tmd_xfr_t *xfr, ct_entry_t *cto, uint32_t *nxtip, uint3
  * has been left unchanged.
  */
 #ifndef    ISP_DISABLE_2400_SUPPORT
-static int tdma_mk_2400(ispsoftc_t *, tmd_xfr_t *, ct7_entry_t *, uint32_t *, uint32_t);
+static int tdma_mk_2400(ispsoftc_t *, tmd_xact_t *, ct7_entry_t *, uint32_t *, uint32_t);
 static int
-tdma_mk_2400(ispsoftc_t *isp, tmd_xfr_t *xfr, ct7_entry_t *cto, uint32_t *nxtip, uint32_t optr)
+tdma_mk_2400(ispsoftc_t *isp, tmd_xact_t *xact, ct7_entry_t *cto, uint32_t *nxtip, uint32_t optr)
 {
     struct isp_pcisoftc *pcs = (struct isp_pcisoftc *) isp;
     static const char ctx[] = "CTIO7[%llx] cdb0 0x%02x lun %u nphdl 0x%x flgs 0x%x ssts 0x%x xfr %u moved %u/%u resid %d %s";
     XS_DMA_ADDR_T addr, last_synthetic_addr;
-    tmd_cmd_t *tmd = xfr->td_cmd;
+    tmd_cmd_t *tmd = xact->td_cmd;
     struct scatterlist *sg;
     void *qe;
     uint16_t swd;
@@ -1717,17 +1716,17 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xfr_t *xfr, ct7_entry_t *cto, uint32_t *nxtip,
     qe = ISP_QUEUE_ENTRY(isp->isp_rquest, curi);
 
     if (cto->ct_resid || cto->ct_scsi_status) {
-        level = ISP_LOGTINFO;
+        level = ISP_LOGTDEBUG0;
     } else {
         level = ISP_LOGTDEBUG1;
     }
     isp_prt(isp, level, ctx, (unsigned long long) tmd->cd_tagval, tmd->cd_cdb[0], L0LUN_TO_FLATLUN(tmd->cd_lun), cto->ct_nphdl, cto->ct_flags,
-        cto->ct_scsi_status, xfr->td_xfrlen, tmd->cd_moved, tmd->cd_totlen, cto->ct_resid, "<END>");
+        cto->ct_scsi_status, xact->td_xfrlen, tmd->cd_moved, tmd->cd_totlen, cto->ct_resid, "<END>");
 
     /*
      * Handle commands that transfer no data right away.
      */
-    if (xfr->td_xfrlen == 0) {
+    if (xact->td_xfrlen == 0) {
         cto->ct_header.rqs_entry_count = 1;
         cto->ct_header.rqs_seqno = 1;
         /* ct_syshandle contains the synchronization handle set by caller */
@@ -1735,19 +1734,19 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xfr_t *xfr, ct7_entry_t *cto, uint32_t *nxtip,
         ISP_TDQE(isp, "tdma_mk_2400[no data]", curi, qe);
         return (CMD_QUEUED);
     }
-    if (xfr->td_xfrlen <= 1024) {
+    if (xact->td_xfrlen <= 1024) {
         nseg = 0;
-    } else if (xfr->td_xfrlen <= 4096) {
+    } else if (xact->td_xfrlen <= 4096) {
         nseg = 1;
-    } else if (xfr->td_xfrlen <= 32768) {
+    } else if (xact->td_xfrlen <= 32768) {
         nseg = 2;
-    } else if (xfr->td_xfrlen <= 65536) {
+    } else if (xact->td_xfrlen <= 65536) {
         nseg = 3;
-    } else if (xfr->td_xfrlen <= 131372) {
+    } else if (xact->td_xfrlen <= 131372) {
         nseg = 4;
-    } else if (xfr->td_xfrlen <= 262144) {
+    } else if (xact->td_xfrlen <= 262144) {
         nseg = 5;
-    } else if (xfr->td_xfrlen <= 524288) {
+    } else if (xact->td_xfrlen <= 524288) {
         nseg = 6;
     } else {
         nseg = 7;
@@ -1760,9 +1759,9 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xfr_t *xfr, ct7_entry_t *cto, uint32_t *nxtip,
      * we can have descriptors that are, in fact,
      * longer than our data transfer count.
      */
-    sg = xfr->td_data;
+    sg = xact->td_data;
     nseg = 0;
-    xfcnt = xfr->td_xfrlen;
+    xfcnt = xact->td_xfrlen;
     while (xfcnt > 0) {
         if (sg->length == 0) {
             isp_prt(isp, ISP_LOGWARN, "%s: zero length segment #%d for tag %llx\n", __FUNCTION__, nseg, tmd->cd_tagval);
@@ -1773,7 +1772,7 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xfr_t *xfr, ct7_entry_t *cto, uint32_t *nxtip,
         xfcnt -= sg->length;
         sg++;
     }
-    sg = xfr->td_data;
+    sg = xact->td_data;
     new_seg_cnt = pci_map_sg(pcs->pci_dev, sg, nseg, (cto->ct_flags & CT2_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
     if (new_seg_cnt == 0) {
         isp_prt(isp, ISP_LOGWARN, "%s: unable to dma map request", __FUNCTION__);
@@ -1785,11 +1784,11 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xfr_t *xfr, ct7_entry_t *cto, uint32_t *nxtip,
     /*
      * Check for sequential ordering of data frames
      */
-    if (tmd->cd_lastoff + tmd->cd_lastsize != xfr->td_offset) {
-        isp_prt(isp, ISP_LOGWARN, "%s: [0x%llx] lastoff %u lastsize %u but curoff %u (totlen %u)", __FUNCTION__, (unsigned long long) tmd->cd_tagval, tmd->cd_lastoff, tmd->cd_lastsize, xfr->td_offset, tmd->cd_totlen);
+    if (tmd->cd_lastoff + tmd->cd_lastsize != xact->td_offset) {
+        isp_prt(isp, ISP_LOGWARN, "%s: [0x%llx] lastoff %u lastsize %u but curoff %u (totlen %u)", __FUNCTION__, (unsigned long long) tmd->cd_tagval, tmd->cd_lastoff, tmd->cd_lastsize, xact->td_offset, tmd->cd_totlen);
     }
-    tmd->cd_lastsize = xfr->td_xfrlen;
-    tmd->cd_lastoff = xfr->td_offset;
+    tmd->cd_lastsize = xact->td_xfrlen;
+    tmd->cd_lastoff = xact->td_offset;
 
     /*
      * Second, figure out whether we'll need to send a separate status CTIO.
@@ -1819,7 +1818,7 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xfr_t *xfr, ct7_entry_t *cto, uint32_t *nxtip,
         cto2->ct_flags |= CT7_NO_DATA|CT7_NO_DATA|CT7_FLAG_MODE1;
         cto2->ct_seg_count = 0;
         MEMZERO(&cto2->rsp, sizeof (cto2->rsp));
-        if ((swd & 0xff) == SCSI_CHECK && (xfr->td_hflags & TDFH_SNSVALID)) {
+        if ((swd & 0xff) == SCSI_CHECK && (xact->td_hflags & TDFH_SNSVALID)) {
             swd |= CT2_SNSLEN_VALID;
             cto2->rsp.m1.ct_resplen = min(TMD_SENSELEN, MAXRESPLEN_24XX);
             MEMCPY(cto2->rsp.m1.ct_resp, tmd->cd_sense, cto2->rsp.m1.ct_resplen);
@@ -1841,12 +1840,9 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xfr_t *xfr, ct7_entry_t *cto, uint32_t *nxtip,
      * Third, fill in the data segments in the first CTIO2 itself.
      * This is also a good place to set the relative offset.
      */
-    xfcnt = xfr->td_xfrlen;
+    xfcnt = xact->td_xfrlen;
 
-    /*
-     * cd_resid was already decremented by cd_xfrlen in isp_target_start_ctio
-     */
-    cto->rsp.m0.reloff = xfr->td_offset;
+    cto->rsp.m0.reloff = xact->td_offset;
 
     seglim = 1;
 
@@ -1900,7 +1896,7 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xfr_t *xfr, ct7_entry_t *cto, uint32_t *nxtip,
         qep = (ispcontreq_t *) ISP_QUEUE_ENTRY(isp->isp_rquest, curip);
         nxti = ISP_NXT_QENTRY((curip), RQUEST_QUEUE_LEN(isp));
         if (nxti == optr) {
-            pci_unmap_sg(pcs->pci_dev, xfr->td_data, nseg, (cto->ct_flags & CT2_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
+            pci_unmap_sg(pcs->pci_dev, xact->td_data, nseg, (cto->ct_flags & CT2_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
             isp_prt(isp, ISP_LOGTDEBUG0, "%s: out of space for continuations (%d of %d segs done)", __FUNCTION__, cto->ct_seg_count, nseg);
             return (CMD_EAGAIN);
         }
@@ -1964,7 +1960,7 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xfr_t *xfr, ct7_entry_t *cto, uint32_t *nxtip,
         }
     } while (seg < nseg || last_synthetic_count);
 
-    isp_prt(isp, ISP_LOGTDEBUG2, "[%llx]: map %d segments at %p for handle 0x%x", tmd->cd_tagval, new_seg_cnt, xfr->td_data, cto->ct_syshandle);
+    isp_prt(isp, ISP_LOGTDEBUG2, "[%llx]: map %d segments at %p for handle 0x%x", tmd->cd_tagval, new_seg_cnt, xact->td_data, cto->ct_syshandle);
 
 mbxsync:
 
@@ -1978,7 +1974,7 @@ mbxsync:
         curi = nxti;
         nxti = ISP_NXT_QENTRY(curi, RQUEST_QUEUE_LEN(isp));
         if (nxti == optr) {
-            pci_unmap_sg(pcs->pci_dev, xfr->td_data, nseg, (cto->ct_flags & CT7_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
+            pci_unmap_sg(pcs->pci_dev, xact->td_data, nseg, (cto->ct_flags & CT7_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
             isp_prt(isp, ISP_LOGTDEBUG0, "%s: request queue overflow", __FUNCTION__);
             cto->ct_resid = -EAGAIN;
             return (CMD_COMPLETE);
@@ -2000,12 +1996,12 @@ mbxsync:
 #endif
 
 static int
-tdma_mkfc(ispsoftc_t *isp, tmd_xfr_t *xfr, ct2_entry_t *cto, uint32_t *nxtip, uint32_t optr)
+tdma_mkfc(ispsoftc_t *isp, tmd_xact_t *xact, ct2_entry_t *cto, uint32_t *nxtip, uint32_t optr)
 {
     struct isp_pcisoftc *pcs = (struct isp_pcisoftc *) isp;
     static const char ctx[] = "CTIO2[%x] lun %d for iid %d flgs 0x%x sts 0x%x ssts 0x%x res %d %s";
     XS_DMA_ADDR_T addr, last_synthetic_addr;
-    tmd_cmd_t *tmd = xfr->td_cmd;
+    tmd_cmd_t *tmd = xact->td_cmd;
     struct scatterlist *sg;
     void *qe;
     uint16_t swd;
@@ -2021,7 +2017,7 @@ tdma_mkfc(ispsoftc_t *isp, tmd_xfr_t *xfr, ct2_entry_t *cto, uint32_t *nxtip, ui
     curi = isp->isp_reqidx;
     qe = ISP_QUEUE_ENTRY(isp->isp_rquest, curi);
     if (cto->ct_flags & CT2_FASTPOST) {
-        if ((xfr->td_hflags & (TDFH_STSVALID|TDFH_SNSVALID)) != TDFH_STSVALID) {
+        if ((xact->td_hflags & (TDFH_STSVALID|TDFH_SNSVALID)) != TDFH_STSVALID) {
             cto->ct_flags &= ~CT2_FASTPOST;
         }
     }
@@ -2029,7 +2025,7 @@ tdma_mkfc(ispsoftc_t *isp, tmd_xfr_t *xfr, ct2_entry_t *cto, uint32_t *nxtip, ui
     /*
      * Handle commands that transfer no data right away.
      */
-    if (xfr->td_xfrlen == 0) {
+    if (xact->td_xfrlen == 0) {
         cto->ct_header.rqs_entry_count = 1;
         cto->ct_header.rqs_seqno = 1;
         /* ct_syshandle contains the synchronization handle set by caller */
@@ -2044,19 +2040,19 @@ tdma_mkfc(ispsoftc_t *isp, tmd_xfr_t *xfr, ct2_entry_t *cto, uint32_t *nxtip, ui
         return (CMD_QUEUED);
     }
 
-    if (xfr->td_xfrlen <= 1024) {
+    if (xact->td_xfrlen <= 1024) {
         nseg = 0;
-    } else if (xfr->td_xfrlen <= 4096) {
+    } else if (xact->td_xfrlen <= 4096) {
         nseg = 1;
-    } else if (xfr->td_xfrlen <= 32768) {
+    } else if (xact->td_xfrlen <= 32768) {
         nseg = 2;
-    } else if (xfr->td_xfrlen <= 65536) {
+    } else if (xact->td_xfrlen <= 65536) {
         nseg = 3;
-    } else if (xfr->td_xfrlen <= 131372) {
+    } else if (xact->td_xfrlen <= 131372) {
         nseg = 4;
-    } else if (xfr->td_xfrlen <= 262144) {
+    } else if (xact->td_xfrlen <= 262144) {
         nseg = 5;
-    } else if (xfr->td_xfrlen <= 524288) {
+    } else if (xact->td_xfrlen <= 524288) {
         nseg = 6;
     } else {
         nseg = 7;
@@ -2071,9 +2067,9 @@ tdma_mkfc(ispsoftc_t *isp, tmd_xfr_t *xfr, ct2_entry_t *cto, uint32_t *nxtip, ui
      * we can have descriptors that are, in fact,
      * longer than our data transfer count.
      */
-    sg = xfr->td_data;
+    sg = xact->td_data;
     nseg = 0;
-    xfcnt = xfr->td_xfrlen;
+    xfcnt = xact->td_xfrlen;
     while (xfcnt > 0) {
         if (sg->length == 0) {
             isp_prt(isp, ISP_LOGWARN, "%s: zero length segment #%d for tag %llx\n", __FUNCTION__, nseg, tmd->cd_tagval);
@@ -2084,7 +2080,7 @@ tdma_mkfc(ispsoftc_t *isp, tmd_xfr_t *xfr, ct2_entry_t *cto, uint32_t *nxtip, ui
         xfcnt -= sg->length;
         sg++;
     }
-    sg = xfr->td_data;
+    sg = xact->td_data;
     new_seg_cnt = pci_map_sg(pcs->pci_dev, sg, nseg, (cto->ct_flags & CT2_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
     if (new_seg_cnt == 0) {
         isp_prt(isp, ISP_LOGWARN, "%s: unable to dma map request", __FUNCTION__);
@@ -2144,8 +2140,8 @@ tdma_mkfc(ispsoftc_t *isp, tmd_xfr_t *xfr, ct2_entry_t *cto, uint32_t *nxtip, ui
      * Third, fill in the data segments in the first CTIO2 itself.
      * This is also a good place to set the relative offset.
      */
-    xfcnt = xfr->td_xfrlen;
-    cto->ct_reloff = xfr->td_offset;
+    xfcnt = xact->td_xfrlen;
+    cto->ct_reloff = xact->td_offset;
 
     /*
      * This is a good place to return to if we need to redo this with
@@ -2181,9 +2177,9 @@ again:
                 if (cto2) {
                     cto2->ct_header.rqs_entry_type = RQSTYPE_CTIO3;
                 }
-                xfcnt = xfr->td_xfrlen;
+                xfcnt = xact->td_xfrlen;
                 cto->rsp.m0.ct_xfrlen = 0;
-                sg = xfr->td_data;
+                sg = xact->td_data;
                 seglim = ISP_RQDSEG_T3;
                 isp_prt(isp, ISP_LOGTDEBUG2, "%s: found hi page", __FUNCTION__);
                 goto again;
@@ -2254,7 +2250,7 @@ again:
         qep = (ispcontreq_t *) ISP_QUEUE_ENTRY(isp->isp_rquest, curip);
         nxti = ISP_NXT_QENTRY((curip), RQUEST_QUEUE_LEN(isp));
         if (nxti == optr) {
-            pci_unmap_sg(pcs->pci_dev, xfr->td_data, nseg, (cto->ct_flags & CT2_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
+            pci_unmap_sg(pcs->pci_dev, xact->td_data, nseg, (cto->ct_flags & CT2_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
             isp_prt(isp, ISP_LOGTDEBUG0, "%s: out of space for continuations (%d of %d segs done)", __FUNCTION__, cto->ct_seg_count, nseg);
             return (CMD_EAGAIN);
         }
@@ -2325,13 +2321,13 @@ again:
             if (ISP_A64 && IS_HIGH_ISP_ADDR(addr)) {
                 nxti = *nxtip;
                 cto->ct_header.rqs_entry_count = 1;
-                xfcnt = xfr->td_xfrlen;
+                xfcnt = xact->td_xfrlen;
                 cto->ct_header.rqs_entry_type = RQSTYPE_CTIO3;
                 if (cto2) {
                     cto2->ct_header.rqs_entry_type = RQSTYPE_CTIO3;
                 }
                 cto->rsp.m0.ct_xfrlen = 0;
-                sg = xfr->td_data;
+                sg = xact->td_data;
                 seglim = ISP_RQDSEG_T3;
                 isp_prt(isp, ISP_LOGTDEBUG1, "%s: found hi page in continuation, restarting", __FUNCTION__);
                 goto again;
@@ -2350,7 +2346,7 @@ again:
         }
     } while (seg < nseg || last_synthetic_count);
 
-    isp_prt(isp, ISP_LOGTDEBUG2, "[%llx]: map %d segments at %p for handle 0x%x", tmd->cd_tagval, new_seg_cnt, xfr->td_data, cto->ct_syshandle);
+    isp_prt(isp, ISP_LOGTDEBUG2, "[%llx]: map %d segments at %p for handle 0x%x", tmd->cd_tagval, new_seg_cnt, xact->td_data, cto->ct_syshandle);
 
 mbxsync:
 
@@ -2364,7 +2360,7 @@ mbxsync:
         curi = nxti;
         nxti = ISP_NXT_QENTRY(curi, RQUEST_QUEUE_LEN(isp));
         if (nxti == optr) {
-            pci_unmap_sg(pcs->pci_dev, xfr->td_data, nseg, (cto->ct_flags & CT2_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
+            pci_unmap_sg(pcs->pci_dev, xact->td_data, nseg, (cto->ct_flags & CT2_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
             isp_prt(isp, ISP_LOGTDEBUG0, "%s: request queue overflow", __FUNCTION__);
             cto->ct_resid = -EAGAIN;
             return (CMD_COMPLETE);
@@ -2400,9 +2396,9 @@ isp_pci_dmasetup(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, ispreq_t *rq, uint32_t *nxi, 
             rq->req_header.rqs_entry_type == RQSTYPE_CTIO3) {
         int s;
         if (IS_FC(isp)) {
-            s = tdma_mkfc(isp, (tmd_xfr_t *)Cmnd, (ct2_entry_t *)rq, nxi, optr);
+            s = tdma_mkfc(isp, (tmd_xact_t *)Cmnd, (ct2_entry_t *)rq, nxi, optr);
         } else {
-            s = tdma_mk(isp, (tmd_xfr_t *)Cmnd, (ct_entry_t *)rq, nxi, optr);
+            s = tdma_mk(isp, (tmd_xact_t *)Cmnd, (ct_entry_t *)rq, nxi, optr);
         }
         return (s);
    }
@@ -2730,7 +2726,7 @@ isp_pci_2400_dmasetup(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, ispreq_t *orig_rq, uint3
 
 #ifdef    ISP_TARGET_MODE
     if (orig_rq->req_header.rqs_entry_type == RQSTYPE_CTIO7) {
-        return tdma_mk_2400(isp, (tmd_xfr_t *)Cmnd, (ct7_entry_t *)orig_rq, nxi, optr);
+        return tdma_mk_2400(isp, (tmd_xact_t *)Cmnd, (ct7_entry_t *)orig_rq, nxi, optr);
    }
 #endif
     rq = (ispreqt7_t *) orig_rq;
@@ -2922,12 +2918,12 @@ isp_pci_dmateardown(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, uint32_t handle)
      * safest way to keep the two w/o redoing our internal apis.
      */
     if (IS_TARGET_HANDLE(handle)) {
-        tmd_xfr_t *xfr = (tmd_xfr_t *) Cmnd;
-        tmd_cmd_t *tmd = xfr? xfr->td_cmd : NULL;
+        tmd_xact_t *xact = (tmd_xact_t *) Cmnd;
+        tmd_cmd_t *tmd = xact? xact->td_cmd : NULL;
         int nseg = tmd? tmd->cd_nseg :  0;
-        if (nseg && xfr->td_data) {
-            isp_prt(isp, ISP_LOGTDEBUG2, "[%llx]: pci_unmap %d segments at %p for handle 0x%x", tmd->cd_tagval, nseg, xfr->td_data, handle);
-            pci_unmap_sg(pcs->pci_dev, xfr->td_data, nseg, (xfr->td_hflags & TDFH_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
+        if (nseg && xact->td_data) {
+            isp_prt(isp, ISP_LOGTDEBUG2, "[%llx]: pci_unmap %d segments at %p for handle 0x%x", tmd->cd_tagval, nseg, xact->td_data, handle);
+            pci_unmap_sg(pcs->pci_dev, xact->td_data, nseg, (xact->td_hflags & TDFH_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
         }
     } else
 #endif

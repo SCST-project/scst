@@ -1,4 +1,4 @@
-/* $Id: isp_linux.h,v 1.139 2007/10/27 18:16:29 mjacob Exp $ */
+/* $Id: isp_linux.h,v 1.142 2007/11/13 20:20:04 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -261,7 +261,7 @@ struct enalun {
 
 typedef struct {
     struct scatterlist sg;
-    tmd_xfr_t          xfr;
+    tmd_xact_t         xact;
 } tgt_auxcmd_t;
 #define	N_TGT_AUX	32
 
@@ -346,10 +346,10 @@ struct isposinfo {
     isp_notify_t *          pending_n;  /* pending list of notifies going upstream */
     isp_notify_t *          nfreelist;  /* freelist */
     isp_notify_t *          npool;      /* pool itself */
-    struct tmd_xfr *        pending_x;  /* pending list of xfrs going upstream */
+    struct tmd_xact *       pending_x;  /* pending list of xacts going upstream */
     /*
      * When we have inquiry commands that we have to xfer data with
-     * locally we have to have some aux info (scatterlist, tmd_xfr_t)
+     * locally we have to have some aux info (scatterlist, tmd_xact_t)
      * to manage those commands.
      */
     tgt_auxcmd_t            auxinfo[N_TGT_AUX];

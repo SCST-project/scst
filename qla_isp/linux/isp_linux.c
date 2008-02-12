@@ -1,4 +1,4 @@
-/* $Id: isp_linux.c,v 1.206 2007/10/30 01:55:32 mjacob Exp $ */
+/* $Id: isp_linux.c,v 1.207 2007/11/13 01:25:50 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -110,23 +110,23 @@ static char *isp_wwnns;
     ins->notify.nt_lreserved = hba->isp_osinfo.pending_n;       \
     hba->isp_osinfo.pending_n = ins
 
-#define    CALL_PARENT_XFR(hba, xfr)                \
-    xfr->td_lprivate = hba->isp_osinfo.pending_x;   \
-    hba->isp_osinfo.pending_x = xfr
+#define    CALL_PARENT_XFR(hba, xact)               \
+    xact->td_lprivate = hba->isp_osinfo.pending_x;  \
+    hba->isp_osinfo.pending_x = xact
 
 extern void ISP_PARENT_TARGET (qact_e, void *);
 static __inline tmd_cmd_t *isp_find_tmd(ispsoftc_t *, uint64_t);
 static __inline int isp_find_iid_wwn(ispsoftc_t *, uint32_t, uint64_t *);
 static __inline void isp_clear_iid_wwn(ispsoftc_t *, uint32_t, uint64_t);
 static void isp_taction(qact_e, void *);
-static void isp_target_start_ctio(ispsoftc_t *, tmd_xfr_t *);
+static void isp_target_start_ctio(ispsoftc_t *, tmd_xact_t *);
 static void isp_handle_platform_atio(ispsoftc_t *, at_entry_t *);
 static void isp_handle_platform_atio2(ispsoftc_t *, at2_entry_t *);
 static void isp_handle_platform_atio7(ispsoftc_t *, at7_entry_t *);
 static int isp_terminate_cmd(ispsoftc_t *, tmd_cmd_t *);
 static void isp_handle_platform_ctio(ispsoftc_t *, void *);
 static int isp_target_putback_atio(ispsoftc_t *, tmd_cmd_t *);
-static void isp_complete_ctio(ispsoftc_t *, tmd_xfr_t *);
+static void isp_complete_ctio(ispsoftc_t *, tmd_xact_t *);
 static void isp_tgt_tq(ispsoftc_t *);
 #endif
 
@@ -939,7 +939,7 @@ isp_tgt_tq(ispsoftc_t *isp)
 {
     isp_notify_t *ins;
     tmd_cmd_t *tmd;
-    tmd_xfr_t *xfr;
+    tmd_xact_t *xact;
     unsigned long flags;
 
     ISP_LOCK_SOFTC(isp);
@@ -951,8 +951,8 @@ isp_tgt_tq(ispsoftc_t *isp)
     if (tmd) {
         isp->isp_osinfo.pending_t = NULL;
     }
-    xfr = isp->isp_osinfo.pending_x;
-    if (xfr) {
+    xact = isp->isp_osinfo.pending_x;
+    if (xact) {
         isp->isp_osinfo.pending_x = NULL;
     }
     ISP_UNLK_SOFTC(isp);
@@ -970,11 +970,11 @@ isp_tgt_tq(ispsoftc_t *isp)
 	    ISP_PARENT_TARGET(tmd->cd_action, tmd);
         tmd = next;
     }
-    while (xfr != NULL) {
-        tmd_xfr_t *next = xfr->td_lprivate;
-        xfr->td_lprivate = NULL;
-        ISP_PARENT_TARGET(QOUT_TMD_DONE, xfr);
-        xfr = next;
+    while (xact != NULL) {
+        tmd_xact_t *next = xact->td_lprivate;
+        xact->td_lprivate = NULL;
+        ISP_PARENT_TARGET(QOUT_TMD_DONE, xact);
+        xact = next;
     }
 }
 
@@ -1192,8 +1192,8 @@ isp_taction(qact_e action, void *arg)
 
     case QIN_TMD_CONT:
     {
-        tmd_xfr_t *xfr = arg;
-        tmd = xfr->td_cmd;
+        tmd_xact_t *xact = arg;
+        tmd = xact->td_cmd;
         isp = tmd->cd_hba;
         isp_target_start_ctio(isp, arg);
         break;
@@ -1378,7 +1378,7 @@ remlun(ispsoftc_t *isp, uint16_t lun, uint16_t bus)
 }
 
 static void
-isp_target_start_ctio(ispsoftc_t *isp, tmd_xfr_t *xfr)
+isp_target_start_ctio(ispsoftc_t *isp, tmd_xact_t *xact)
 {
     void *qe;
     uint32_t handle;
@@ -1386,9 +1386,9 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xfr_t *xfr)
     uint8_t local[QENTRY_LEN];
     unsigned long flags;
     int32_t resid;
-    tmd_cmd_t *tmd = xfr->td_cmd;
+    tmd_cmd_t *tmd = xact->td_cmd;
 
-    xfr->td_error = 0;
+    xact->td_error = 0;
 
     /*
      * Check for commands that are already dead
@@ -1396,7 +1396,7 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xfr_t *xfr)
     if (tmd->cd_lflags & CDFL_ABORTED) {
         isp_prt(isp, ISP_LOGINFO, "[%llx] already ABORTED- not sending a CTIO", tmd->cd_tagval);
         dump_stack();
-        xfr->td_error = -ENXIO;
+        xact->td_error = -ENXIO;
         goto out;
     }
 
@@ -1405,24 +1405,24 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xfr_t *xfr)
      * If we're sending data, we have to have one and only one data
      * direction set.
      */
-    if (xfr->td_xfrlen == 0) {
-        if ((xfr->td_hflags & TDFH_STSVALID) == 0) {
+    if (xact->td_xfrlen == 0) {
+        if ((xact->td_hflags & TDFH_STSVALID) == 0) {
             isp_prt(isp, ISP_LOGERR, "CTIO, no data, and no status is wrong");
             dump_stack();
-            xfr->td_error = -EINVAL;
+            xact->td_error = -EINVAL;
             goto out;
         }
     } else {
-        if ((xfr->td_hflags & TDFH_DATA_MASK) == 0) {
+        if ((xact->td_hflags & TDFH_DATA_MASK) == 0) {
             isp_prt(isp, ISP_LOGERR, "data CTIO with no direction is wrong");
             dump_stack();
-            xfr->td_error = -EINVAL;
+            xact->td_error = -EINVAL;
             goto out;
         }
-        if ((xfr->td_hflags & TDFH_DATA_MASK) == TDFH_DATA_MASK) {
+        if ((xact->td_hflags & TDFH_DATA_MASK) == TDFH_DATA_MASK) {
             isp_prt(isp, ISP_LOGERR, "data CTIO with both directions is wrong (for now)");
             dump_stack();
-            xfr->td_error = -EINVAL;
+            xact->td_error = -EINVAL;
             goto out;
         }
     }
@@ -1438,7 +1438,7 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xfr_t *xfr)
      * Pre-increment cd_moved so we know how many bytes are actually in transit. If we actually fail to move
      * the bytes, we'll subtract things out when we collect status.
      */
-    tmd->cd_moved += xfr->td_xfrlen;
+    tmd->cd_moved += xact->td_xfrlen;
 
     /*
      * Set the residual to be equal to the total length less the amount previously moved plus this transfer size
@@ -1480,21 +1480,21 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xfr_t *xfr)
         }
         cto->ct_flags = tattr << CT7_TASK_ATTR_SHIFT;
 
-        if (xfr->td_xfrlen == 0) {
+        if (xact->td_xfrlen == 0) {
             cto->ct_flags |= CT7_FLAG_MODE1 | CT7_NO_DATA | CT7_SENDSTATUS;
-            if ((xfr->td_hflags & TDFH_SNSVALID) != 0) {
+            if ((xact->td_hflags & TDFH_SNSVALID) != 0) {
                 cto->ct_senselen = min(TMD_SENSELEN, MAXRESPLEN);
                 MEMCPY(cto->rsp.m1.ct_resp, tmd->cd_sense, cto->ct_senselen);
                 cto->ct_scsi_status |= (FCP_SNSLEN_VALID << 8);
             }
         } else {
             cto->ct_flags |= CT7_FLAG_MODE0;
-            if (xfr->td_hflags & TDFH_DATA_IN) {
+            if (xact->td_hflags & TDFH_DATA_IN) {
                 cto->ct_flags |= CT7_DATA_IN;
             } else {
                 cto->ct_flags |= CT7_DATA_OUT;
             }
-            if (xfr->td_hflags & TDFH_STSVALID) {
+            if (xact->td_hflags & TDFH_STSVALID) {
                 cto->ct_flags |= CT7_SENDSTATUS;
             }
         }
@@ -1508,7 +1508,7 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xfr_t *xfr)
         } else {
             cto->ct_resid = 0;
         }
-        isp_prt(isp, ISP_LOGTDEBUG0, "CTIO7[%llx] scsi sts %x flags %x resid %d offset %u", tmd->cd_tagval, tmd->cd_scsi_status, cto->ct_flags, resid, xfr->td_offset);
+        isp_prt(isp, ISP_LOGTDEBUG0, "CTIO7[%llx] scsi sts %x flags %x resid %d offset %u", tmd->cd_tagval, tmd->cd_scsi_status, cto->ct_flags, resid, xact->td_offset);
     } else if (IS_FC(isp)) {
         ct2_entry_t *cto = (ct2_entry_t *) local;
         uint16_t *ssptr = NULL;
@@ -1528,7 +1528,7 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xfr_t *xfr)
         cto->ct_rxid = AT2_GET_TAG(tmd->cd_tagval);
         if (cto->ct_rxid == 0) {
             isp_prt(isp, ISP_LOGERR, "a tagval of zero is not acceptable");
-            xfr->td_error = -EINVAL;
+            xact->td_error = -EINVAL;
             ISP_UNLK_SOFTC(isp);
             goto out;
         }
@@ -1539,23 +1539,23 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xfr_t *xfr)
         cto->ct_flags = CT2_FASTPOST;
 #endif
 
-        if (xfr->td_xfrlen == 0) {
+        if (xact->td_xfrlen == 0) {
             cto->ct_flags |= CT2_FLAG_MODE1 | CT2_NO_DATA | CT2_SENDSTATUS;
             ssptr = &cto->rsp.m1.ct_scsi_status;
             *ssptr = tmd->cd_scsi_status;
-            if ((xfr->td_hflags & TDFH_SNSVALID) != 0) {
+            if ((xact->td_hflags & TDFH_SNSVALID) != 0) {
                 cto->rsp.m1.ct_senselen = min(TMD_SENSELEN, MAXRESPLEN);
                 MEMCPY(cto->rsp.m1.ct_resp, tmd->cd_sense, cto->rsp.m1.ct_senselen);
                 cto->rsp.m1.ct_scsi_status |= CT2_SNSLEN_VALID;
             }
         } else {
             cto->ct_flags |= CT2_FLAG_MODE0;
-            if (xfr->td_hflags & TDFH_DATA_IN) {
+            if (xact->td_hflags & TDFH_DATA_IN) {
                 cto->ct_flags |= CT2_DATA_IN;
             } else {
                 cto->ct_flags |= CT2_DATA_OUT;
             }
-            if (xfr->td_hflags & TDFH_STSVALID) {
+            if (xact->td_hflags & TDFH_STSVALID) {
                 ssptr = &cto->rsp.m0.ct_scsi_status;
                 cto->ct_flags |= CT2_SENDSTATUS;
                 cto->rsp.m0.ct_scsi_status = tmd->cd_scsi_status;
@@ -1597,15 +1597,15 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xfr_t *xfr)
         if (tmd->cd_flags & CDF_NODISC) {
             cto->ct_flags |= CT_NODISC;
         }
-        if (xfr->td_xfrlen == 0) {
+        if (xact->td_xfrlen == 0) {
             cto->ct_flags |= CT_NO_DATA | CT_SENDSTATUS;
             cto->ct_scsi_status = tmd->cd_scsi_status;
             cto->ct_resid = 0;
         } else {
-            if (xfr->td_hflags & TDFH_STSVALID) {
+            if (xact->td_hflags & TDFH_STSVALID) {
                 cto->ct_flags |= CT_SENDSTATUS;
             }
-            if (xfr->td_hflags & TDFH_DATA_IN) {
+            if (xact->td_hflags & TDFH_DATA_IN) {
                 cto->ct_flags |= CT_DATA_IN;
             } else {
                 cto->ct_flags |= CT_DATA_OUT;
@@ -1614,11 +1614,11 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xfr_t *xfr)
              * We assume we'll transfer what we say we'll transfer.
              * Otherwise, the command is dead.
              */
-            if (xfr->td_hflags & TDFH_STSVALID) {
+            if (xact->td_hflags & TDFH_STSVALID) {
                 cto->ct_resid = resid;
             }
         }
-        isp_prt(isp, ISP_LOGTDEBUG0, "CTIO[%llx] scsi sts %x resid %d cd_lflags %x", tmd->cd_tagval, tmd->cd_scsi_status, resid, xfr->td_hflags);
+        isp_prt(isp, ISP_LOGTDEBUG0, "CTIO[%llx] scsi sts %x resid %d cd_lflags %x", tmd->cd_tagval, tmd->cd_scsi_status, resid, xact->td_hflags);
         if (cto->ct_flags & CT_SENDSTATUS) {
             cto->ct_flags |= CT_CCINCR;
         }
@@ -1626,14 +1626,14 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xfr_t *xfr)
 
     if (isp_getrqentry(isp, &nxti, &optr, &qe)) {
         isp_prt(isp, ISP_LOGWARN, "%s: request queue overflow", __FUNCTION__);
-        xfr->td_error = -ENOMEM;
+        xact->td_error = -ENOMEM;
         ISP_UNLK_SOFTC(isp);
         goto out;
     }
 
-    if (isp_save_xs_tgt(isp, xfr, &handle)) {
+    if (isp_save_xs_tgt(isp, xact, &handle)) {
         isp_prt(isp, ISP_LOGERR, "isp_target_start_ctio: No XFLIST pointers");
-        xfr->td_error = -ENOMEM;
+        xact->td_error = -ENOMEM;
         ISP_UNLK_SOFTC(isp);
         goto out;
     }
@@ -1655,7 +1655,7 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xfr_t *xfr)
      * format.
      */
 
-    switch (ISP_DMASETUP(isp, (XS_T *)xfr, (ispreq_t *) local, &nxti, optr)) {
+    switch (ISP_DMASETUP(isp, (XS_T *)xact, (ispreq_t *) local, &nxti, optr)) {
     case CMD_QUEUED:
         ISP_ADD_REQUEST(isp, nxti);
         /*
@@ -1663,14 +1663,14 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xfr_t *xfr)
          * If the CTIO fails, we still do resource replenish, but handle it at
          * CTIO completion time.
          */
-        if (xfr->td_hflags & TDFH_STSVALID) {
+        if (xact->td_hflags & TDFH_STSVALID) {
             tmd->cd_lflags &= ~CDFL_RESRC_FILL;
         }
         ISP_UNLK_SOFTC(isp);
         return;
 
     case CMD_EAGAIN:
-        xfr->td_error = -ENOMEM;
+        xact->td_error = -ENOMEM;
         isp_destroy_tgt_handle(isp, handle);
         break;
 
@@ -1679,14 +1679,14 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xfr_t *xfr)
         break;
 
     default:
-        xfr->td_error = -EFAULT;    /* probably dma mapping failure */
+        xact->td_error = -EFAULT;    /* probably dma mapping failure */
         isp_destroy_tgt_handle(isp, handle);
         break;
     }
     ISP_UNLK_SOFTC(isp);
 out:
     if ((tmd->cd_lflags & CDFL_LCL) == 0) {
-        CALL_PARENT_XFR(isp, xfr);
+        CALL_PARENT_XFR(isp, xact);
     }
 }
 
@@ -1807,7 +1807,7 @@ isp_lcl_respond(ispsoftc_t *isp, void *aep, tmd_cmd_t *tmd)
 
     if (cdbp[0] == INQUIRY && L0LUN_TO_FLATLUN(tmd->cd_lun) == 0) {
         if (cdbp[1] == 0 && cdbp[2] == 0 && cdbp[3] == 0 && cdbp[5] == 0) {
-            tmd_xfr_t *xfr;
+            tmd_xact_t *xact;
             struct scatterlist *dp;
             int amt, i;
 
@@ -1821,7 +1821,7 @@ isp_lcl_respond(ispsoftc_t *isp, void *aep, tmd_cmd_t *tmd)
                 return;
             }
             LUN_BSET(isp->isp_osinfo.auxbmap, i);
-            xfr = &isp->isp_osinfo.auxinfo[i].xfr;
+            xact = &isp->isp_osinfo.auxinfo[i].xact;
             dp = &isp->isp_osinfo.auxinfo[i].sg;
             MEMZERO(dp, sizeof (*dp));
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
@@ -1832,24 +1832,24 @@ isp_lcl_respond(ispsoftc_t *isp, void *aep, tmd_cmd_t *tmd)
 #endif
             dp->length = DEFAULT_INQSIZE;
 
-            xfr->td_data = dp;
-            xfr->td_xfrlen = min(DEFAULT_INQSIZE, tmd->cd_totlen);
+            xact->td_data = dp;
+            xact->td_xfrlen = min(DEFAULT_INQSIZE, tmd->cd_totlen);
             if ((amt = cdbp[4]) == 0) {
                 amt = 256;
             }
-            if (xfr->td_xfrlen > amt) {
-                xfr->td_xfrlen = amt;
+            if (xact->td_xfrlen > amt) {
+                xact->td_xfrlen = amt;
             }
-            xfr->td_hflags |= TDFH_DATA_IN|TDFH_STSVALID;
-            xfr->td_cmd = tmd;
-            xfr->td_offset = 0;
-            xfr->td_error = 0;
-            xfr->td_lflags = 0;
+            xact->td_hflags |= TDFH_DATA_IN|TDFH_STSVALID;
+            xact->td_cmd = tmd;
+            xact->td_offset = 0;
+            xact->td_error = 0;
+            xact->td_lflags = 0;
 
             tmd->cd_scsi_status = 0;
             tmd->cd_lflags |= CDFL_LCL;
             ISP_DROP_LK_SOFTC(isp);
-            isp_target_start_ctio(isp, xfr);
+            isp_target_start_ctio(isp, xact);
             ISP_IGET_LK_SOFTC(isp);
             return;
         }
@@ -2206,7 +2206,7 @@ isp_terminate_cmd(ispsoftc_t *isp, tmd_cmd_t *tmd)
 static void
 isp_handle_platform_ctio(ispsoftc_t *isp, void *arg)
 {
-    tmd_xfr_t *xfr;
+    tmd_xact_t *xact;
     tmd_cmd_t *tmd;
     char *ctstr;
     int sentstatus = 0, ok, resid = 0, id;
@@ -2217,12 +2217,12 @@ isp_handle_platform_ctio(ispsoftc_t *isp, void *arg)
      */
     if (IS_24XX(isp)) {
         ct7_entry_t *ct = arg;
-        xfr = (tmd_xfr_t *) isp_find_xs_tgt(isp, ct->ct_syshandle);
-        if (xfr == NULL) {
-            isp_prt(isp, ISP_LOGERR, "isp_handle_platform_ctio: null xfr");
+        xact = (tmd_xact_t *) isp_find_xs_tgt(isp, ct->ct_syshandle);
+        if (xact == NULL) {
+            isp_prt(isp, ISP_LOGERR, "isp_handle_platform_ctio: null xact");
             return;
         }
-        tmd = xfr->td_cmd;
+        tmd = xact->td_cmd;
         isp_destroy_tgt_handle(isp, ct->ct_syshandle);
         status = ct->ct_nphdl;
         flags = ct->ct_flags;
@@ -2235,12 +2235,12 @@ isp_handle_platform_ctio(ispsoftc_t *isp, void *arg)
         id = ct->ct_iid_lo | (ct->ct_iid_hi << 16);
     } else if (IS_FC(isp)) {
         ct2_entry_t *ct = arg;
-        xfr = (tmd_xfr_t *) isp_find_xs_tgt(isp, ct->ct_syshandle);
-        if (xfr == NULL) {
-            isp_prt(isp, ISP_LOGERR, "isp_handle_platform_ctio: null xfr");
+        xact = (tmd_xact_t *) isp_find_xs_tgt(isp, ct->ct_syshandle);
+        if (xact == NULL) {
+            isp_prt(isp, ISP_LOGERR, "isp_handle_platform_ctio: null xact");
             return;
         }
-        tmd = xfr->td_cmd;
+        tmd = xact->td_cmd;
         isp_destroy_tgt_handle(isp, ct->ct_syshandle);
         status = ct->ct_status;
         flags = ct->ct_flags;
@@ -2253,12 +2253,12 @@ isp_handle_platform_ctio(ispsoftc_t *isp, void *arg)
         id = ct->ct_iid;
     } else {
         ct_entry_t *ct = arg;
-        xfr = (tmd_xfr_t *) isp_find_xs_tgt(isp, ct->ct_syshandle);
-        if (xfr == NULL) {
-            isp_prt(isp, ISP_LOGERR, "isp_handle_platform_ctio: null xfr");
+        xact = (tmd_xact_t *) isp_find_xs_tgt(isp, ct->ct_syshandle);
+        if (xact == NULL) {
+            isp_prt(isp, ISP_LOGERR, "isp_handle_platform_ctio: null xact");
             return;
         }
-        tmd = xfr->td_cmd;
+        tmd = xact->td_cmd;
         isp_destroy_tgt_handle(isp, ct->ct_syshandle);
         status = ct->ct_status;
         flags = ct->ct_flags;
@@ -2269,7 +2269,7 @@ isp_handle_platform_ctio(ispsoftc_t *isp, void *arg)
             char *sp = (char *)ct;
             sp += CTIO_SENSE_OFFSET;
             MEMCPY(tmd->cd_sense, sp, QLTM_SENSELEN);
-            xfr->td_lflags |= CDF_SNSVALID;
+            xact->td_lflags |= CDF_SNSVALID;
         }
         if ((ct->ct_flags & CT_DATAMASK) != CT_NO_DATA) {
             resid = ct->ct_resid;
@@ -2277,10 +2277,10 @@ isp_handle_platform_ctio(ispsoftc_t *isp, void *arg)
         id = ct->ct_iid;
     }
     if (sentstatus) {
-        xfr->td_lflags |= TDFL_SENTSTATUS;
+        xact->td_lflags |= TDFL_SENTSTATUS;
     }
-    if (ok && sentstatus && (xfr->td_hflags & TDFH_SNSVALID)) {
-        xfr->td_lflags |= TDFL_SENTSENSE;
+    if (ok && sentstatus && (xact->td_hflags & TDFH_SNSVALID)) {
+        xact->td_lflags |= TDFL_SENTSENSE;
     }
 
     tmd->cd_moved -= resid;
@@ -2315,7 +2315,7 @@ isp_handle_platform_ctio(ispsoftc_t *isp, void *arg)
         } else {
             isp_prt(isp, ISP_LOGINFO, "[%llx] CTI%s ended with badstate (0x%x)", tmd->cd_tagval, cx, status);
         }
-        xfr->td_error = -EIO;
+        xact->td_error = -EIO;
         if (isp_target_putback_atio(isp, tmd)) {
             tmd->cd_lflags |= CDFL_RESRC_FILL;
         }
@@ -2339,7 +2339,7 @@ isp_handle_platform_ctio(ispsoftc_t *isp, void *arg)
             }
         }
     }
-    isp_complete_ctio(isp, xfr);
+    isp_complete_ctio(isp, xact);
 }
 
 static int
@@ -2395,13 +2395,13 @@ isp_target_putback_atio(ispsoftc_t *isp, tmd_cmd_t *tmd)
 }
 
 static void
-isp_complete_ctio(ispsoftc_t *isp, tmd_xfr_t *xfr)
+isp_complete_ctio(ispsoftc_t *isp, tmd_xact_t *xact)
 {
-    tmd_cmd_t *tmd = xfr->td_cmd;
+    tmd_cmd_t *tmd = xact->td_cmd;
     isp->isp_osinfo.cmds_completed++;
     if (isp->isp_osinfo.hcb || (tmd->cd_lflags & CDFL_LCL)) {
         if (isp->isp_osinfo.hcb == 0) {
-            isp_prt(isp, ISP_LOGWARN, "nobody to tell about CTIO complete, leaking xfr structure");
+            isp_prt(isp, ISP_LOGWARN, "nobody to tell about CTIO complete, leaking xact structure");
             MEMZERO(tmd, TMD_SIZE);
             if (isp->isp_osinfo.tfreelist) {
                 isp->isp_osinfo.bfreelist->cd_next = tmd;
@@ -2410,7 +2410,7 @@ isp_complete_ctio(ispsoftc_t *isp, tmd_xfr_t *xfr)
             }
             isp->isp_osinfo.bfreelist = tmd;
         } else {
-            CALL_PARENT_XFR(isp, xfr);
+            CALL_PARENT_XFR(isp, xact);
         }
     }
 }

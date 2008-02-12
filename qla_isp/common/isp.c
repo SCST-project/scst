@@ -1,4 +1,4 @@
-/* $Id: isp.c,v 1.178 2007/10/11 22:08:38 mjacob Exp $ */
+/* $Id: isp.c,v 1.179 2007/11/14 01:20:38 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -6089,7 +6089,7 @@ isp_fastpost_complete(ispsoftc_t *isp, uint16_t fph)
 	}
 	xs = isp_find_xs(isp, fph);
 	if (xs == NULL) {
-		isp_prt(isp, ISP_LOGDEBUG1,
+		isp_prt(isp, ISP_LOGWARN,
 		    "Command for fast post handle 0x%x not found", fph);
 		return;
 	}

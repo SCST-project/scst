@@ -441,7 +441,7 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
     bus_t *bp;
     ini_t *ini;
     int ret;
-    tmd_xfr_t *xfr = &tmd->cd_xfr;
+    tmd_xact_t *xact = &tmd->cd_xact;
 
     /*
      * First, find the bus.
@@ -516,10 +516,10 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
 
 err:
     tmd->cd_scsi_status = SCSI_BUSY;
-    xfr->td_hflags |= TDFH_STSVALID;
-    xfr->td_hflags &= ~TDFH_DATA_MASK;
-    xfr->td_xfrlen = 0;
-    (*bp->h.r_action)(QIN_TMD_CONT, xfr);
+    xact->td_hflags |= TDFH_STSVALID;
+    xact->td_hflags &= ~TDFH_DATA_MASK;
+    xact->td_xfrlen = 0;
+    (*bp->h.r_action)(QIN_TMD_CONT, xact);
     return;
 }
 
@@ -528,10 +528,10 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
 {
     bus_t *bp;
     struct scst_cmd *scst_cmd;
-    tmd_xfr_t *xfr = &tmd->cd_xfr; 
+    tmd_xact_t *xact = &tmd->cd_xact; 
 
     SDprintk2("scsi_target: TMD_DONE[%llx] %p hf %x lf %x xfrlen %d totlen %d moved %d\n",
-              tmd->cd_tagval, tmd, xfr->td_hflags, xfr->td_lflags, xfr->td_xfrlen, tmd->cd_totlen, tmd->cd_moved);
+              tmd->cd_tagval, tmd, xact->td_hflags, xact->td_lflags, xact->td_xfrlen, tmd->cd_totlen, tmd->cd_moved);
    
     bp = tmd->cd_bus;
     scst_cmd = tmd->cd_scst_cmd; 
@@ -542,29 +542,29 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
         return;
     }
  
-    if (xfr->td_hflags & TDFH_STSVALID) {
-        if (xfr->td_hflags & TDFH_DATA_IN) {
-            xfr->td_hflags &= ~TDFH_DATA_MASK;
-            xfr->td_xfrlen = 0;
+    if (xact->td_hflags & TDFH_STSVALID) {
+        if (xact->td_hflags & TDFH_DATA_IN) {
+            xact->td_hflags &= ~TDFH_DATA_MASK;
+            xact->td_xfrlen = 0;
         }
-        if (xfr->td_error) {
+        if (xact->td_error) {
             scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_FAILED);
         }
         scst_tgt_cmd_done(scst_cmd);
         return;
     }
    
-    if (xfr->td_hflags & TDFH_DATA_OUT) {
+    if (xact->td_hflags & TDFH_DATA_OUT) {
         if (tmd->cd_totlen == tmd->cd_moved) {
-            if (xfr->td_xfrlen) {
+            if (xact->td_xfrlen) {
                 int rx_status = SCST_RX_STATUS_SUCCESS;
             
-                if (xfr->td_error) {
+                if (xact->td_error) {
                     rx_status = SCST_RX_STATUS_ERROR;
                 }
                 scst_rx_data(scst_cmd, SCST_RX_STATUS_SUCCESS, SCST_CONTEXT_TASKLET);
             } else {
-                if (xfr->td_error) {
+                if (xact->td_error) {
                     scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_FAILED);
                 }
                 scst_tgt_cmd_done(scst_cmd);
@@ -572,10 +572,10 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
         } else {
             ; /* we don't have all data, do nothing */  
         }
-    } else if (xfr->td_hflags & TDFH_DATA_IN) {
-        xfr->td_hflags &= ~TDFH_DATA_MASK;
-        xfr->td_xfrlen = 0;
-        if (xfr->td_error) {
+    } else if (xact->td_hflags & TDFH_DATA_IN) {
+        xact->td_hflags &= ~TDFH_DATA_MASK;
+        xact->td_xfrlen = 0;
+        if (xact->td_error) {
             scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_FAILED);
         }
         scst_tgt_cmd_done(scst_cmd);
@@ -719,14 +719,14 @@ scsi_target_handler(qact_e action, void *arg)
         tmd_cmd_t *tmd = arg;
         SDprintk2("scsi_target: TMD_START[%llx] %p cdb0=%x\n", tmd->cd_tagval, tmd, tmd->cd_cdb[0] & 0xff);
         
-        tmd->cd_xfr.td_cmd = tmd;
+        tmd->cd_xact.td_cmd = tmd;
         scsi_target_start_cmd(arg, 1);
         break;
     }
     case QOUT_TMD_DONE:
     {
-        tmd_xfr_t *xfr = arg;
-        tmd_cmd_t *tmd = xfr->td_cmd;
+        tmd_xact_t *xact = arg;
+        tmd_cmd_t *tmd = xact->td_cmd;
         SDprintk2("scsi_target: TMD_DONE[%llx] %p cdb0=%x\n", tmd->cd_tagval, tmd, tmd->cd_cdb[0] & 0xff);
       
         scsi_target_done_cmd(tmd, 1);
@@ -886,15 +886,15 @@ isp_rdy_to_xfer(struct scst_cmd *scst_cmd)
     
     if (scst_cmd_get_data_direction(scst_cmd) == SCST_DATA_WRITE) {
         tmd_cmd_t *tmd = (tmd_cmd_t *) scst_cmd_get_tgt_priv(scst_cmd);
-        tmd_xfr_t *xfr = &tmd->cd_xfr;
+        tmd_xact_t *xact = &tmd->cd_xact;
         
-        xfr->td_hflags |= TDFH_DATA_OUT; 
-        xfr->td_data = scst_cmd_get_sg(scst_cmd);
-        xfr->td_xfrlen = scst_cmd_get_bufflen(scst_cmd);
+        xact->td_hflags |= TDFH_DATA_OUT; 
+        xact->td_data = scst_cmd_get_sg(scst_cmd);
+        xact->td_xfrlen = scst_cmd_get_bufflen(scst_cmd);
         SDprintk("%s: write nbytes %u\n", __FUNCTION__, scst_cmd_get_bufflen(scst_cmd));
 
         bp = tmd->cd_bus;
-        (*bp->h.r_action)(QIN_TMD_CONT, xfr);
+        (*bp->h.r_action)(QIN_TMD_CONT, xact);
     }
 
     return (0);
@@ -917,7 +917,7 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
 {   
     tmd_cmd_t *tmd = (tmd_cmd_t *) scst_cmd_get_tgt_priv(scst_cmd);
     bus_t *bp = tmd->cd_bus;
-    tmd_xfr_t *xfr = &tmd->cd_xfr; 
+    tmd_xact_t *xact = &tmd->cd_xact; 
     
     if (scst_cmd_get_data_direction(scst_cmd) == SCST_DATA_READ) {
         unsigned int len = scst_cmd_get_resp_data_len(scst_cmd);
@@ -929,22 +929,22 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
             dump_stack();
             
             memcpy(tmd->cd_sense, ifailure, TMD_SENSELEN);
-            xfr->td_hflags |= TDFH_STSVALID;
+            xact->td_hflags |= TDFH_STSVALID;
             tmd->cd_scsi_status = SCSI_CHECK; 
             goto out;
         } else {
-            xfr->td_hflags |= TDFH_DATA_IN;
-            xfr->td_xfrlen = len;
-            xfr->td_data = scst_cmd_get_sg(scst_cmd);
+            xact->td_hflags |= TDFH_DATA_IN;
+            xact->td_xfrlen = len;
+            xact->td_data = scst_cmd_get_sg(scst_cmd);
         }
     } else { 
         /* finished write to target or command with no data */
-        xfr->td_xfrlen = 0;
-        xfr->td_hflags &= ~TDFH_DATA_MASK;
+        xact->td_xfrlen = 0;
+        xact->td_hflags &= ~TDFH_DATA_MASK;
     }
             
     if (scst_cmd_get_tgt_resp_flags(scst_cmd) & SCST_TSC_FLAG_STATUS) {
-        xfr->td_hflags |= TDFH_STSVALID;
+        xact->td_hflags |= TDFH_STSVALID;
         tmd->cd_scsi_status = scst_cmd_get_status(scst_cmd);
         
         if (tmd->cd_scsi_status == SCSI_CHECK) {
@@ -962,13 +962,13 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
     }
 
 out:
-    if ((xfr->td_hflags & TDFH_STSVALID) && (tmd->cd_scsi_status == SCSI_CHECK)) {
-        xfr->td_xfrlen = 0;
-        xfr->td_hflags &= ~TDFH_DATA_MASK;
-        xfr->td_hflags |= TDFH_SNSVALID;
+    if ((xact->td_hflags & TDFH_STSVALID) && (tmd->cd_scsi_status == SCSI_CHECK)) {
+        xact->td_xfrlen = 0;
+        xact->td_hflags &= ~TDFH_DATA_MASK;
+        xact->td_hflags |= TDFH_SNSVALID;
     }
     
-    (*bp->h.r_action)(QIN_TMD_CONT, xfr);
+    (*bp->h.r_action)(QIN_TMD_CONT, xact);
     return (0);
 }
 
@@ -977,9 +977,9 @@ isp_on_free_cmd(struct scst_cmd *scst_cmd)
 {
     tmd_cmd_t *tmd = (tmd_cmd_t *) scst_cmd_get_tgt_priv(scst_cmd);
     bus_t *bp = tmd->cd_bus;
-    tmd_xfr_t *xfr = &tmd->cd_xfr;
+    tmd_xact_t *xact = &tmd->cd_xact;
 
-    xfr->td_data = NULL;
+    xact->td_data = NULL;
     SDprintk("%s: TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
     (*bp->h.r_action)(QIN_TMD_FIN, tmd);
 }
