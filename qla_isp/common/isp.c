@@ -1,4 +1,4 @@
-/* $Id: isp.c,v 1.179 2007/11/14 01:20:38 mjacob Exp $ */
+/* $Id: isp.c,v 1.180 2007/11/18 17:45:07 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -1658,6 +1658,14 @@ isp_fibre_init(ispsoftc_t *isp)
 			break;
 		}
 		if (IS_2200(isp)) {
+			/*
+			 * There seems to just be too much breakage here
+			 * with RIO and Fast Posting- it probably actually
+			 * works okay but this driver is messing it up.
+			 * This card is really ancient by now, so let's
+			 * just opt for safety and not use the feature.
+			 */
+#if	0
 			if (ISP_FW_NEWER_THAN(isp, 1, 17, 0)) {
 				icbp->icb_xfwoptions |= ICBXOPT_RIO_16BIT;
 				icbp->icb_fwoptions &= ~ICBOPT_FAST_POST;
@@ -1666,6 +1674,10 @@ isp_fibre_init(ispsoftc_t *isp)
 			} else {
 				icbp->icb_fwoptions |= ICBOPT_FAST_POST;
 			}
+#else
+			icbp->icb_xfwoptions &= ~ICBXOPT_RIO_16BIT;
+			icbp->icb_fwoptions &= ~ICBOPT_FAST_POST;
+#endif
 		} else {
 			/*
 			 * QLogic recommends that FAST Posting be turned
