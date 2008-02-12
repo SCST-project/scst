@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.154 2008/01/16 16:46:30 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.155 2008/01/25 22:23:15 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -349,6 +349,7 @@ struct isp_pcisoftc {
     void *              vaddr;      /* Mapped Memory Address */
     vm_offset_t         voff;
     vm_offset_t         poff[_NREG_BLKS];
+    int                 msi_enable;
 };
 
 /*
@@ -448,7 +449,10 @@ isplinux_pci_release(struct Scsi_Host *host)
         }
     }
     pci_release_regions(pcs->pci_dev);
-
+    if (pcs->msi_enable) {
+        pcs->msi_enable = 0;
+        pci_disable_msi(pcs->pci_dev);
+    }
     if (isp->isp_param) {
         isp_kfree(isp->isp_param, isp->isp_osinfo.param_amt);
         isp->isp_param = NULL;
@@ -594,6 +598,11 @@ isplinux_pci_init_one(struct Scsi_Host *host)
 
         /* enable PCI-INTX */
         pci_intx(pdev, 1);
+
+        /* enable MSI */
+        if (pci_enable_msi(pdev) == 0) {
+            isp_pci->msi_enable = 1;
+        }
 
         /*
          * Is this a PCI-X card? If so, set max read byte count.
@@ -3297,6 +3306,10 @@ isplinux_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     ret = scsi_add_host(host, &pdev->dev);
     if (ret) {
         scsi_host_put(host);
+        if (pci_isp->msi_enable) {
+            pci_isp->msi_enable = 0;
+            pci_disable_msi(pdev);
+        }
         pci_disable_device(pdev);
         return (ret);
     }

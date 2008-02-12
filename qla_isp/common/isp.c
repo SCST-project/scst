@@ -1,4 +1,4 @@
-/* $Id: isp.c,v 1.194 2008/01/09 18:57:21 mjacob Exp $ */
+/* $Id: isp.c,v 1.195 2008/01/25 22:20:15 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -2437,20 +2437,11 @@ isp_getpdb(ispsoftc_t *isp, int chan, uint16_t id, isp_pdb_t *pdb, int dolock)
 	MEMZERO(&mbs, sizeof (mbs));
 	mbs.param[0] = MBOX_GET_PORT_DB;
 	if (IS_24XX(isp)) {
-		mbs.ibits = (1 << 9) | (1 << 10);
+		mbs.ibits = (1 << 9);
 		mbs.param[1] = id;
 		mbs.param[9] = chan;
-		if (id == NPH_FL_ID) {
-			mbs.param[4] = FL_ID;
-			mbs.param[10] = 1;
-		}
 	} else if (ISP_CAP_2KLOGIN(isp)) {
 		mbs.param[1] = id;
-		mbs.ibits = (1 << 10);
-		if (id == NPH_FL_ID) {
-			mbs.param[4] = FL_ID;
-			mbs.param[10] = 1;
-		}
 	} else {
 		mbs.param[1] = id << 8;
 	}

@@ -1,4 +1,4 @@
-/* $Id: isp_linux.h,v 1.152 2008/01/16 20:33:48 mjacob Exp $ */
+/* $Id: isp_linux.h,v 1.153 2008/01/25 22:22:47 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -638,7 +638,7 @@ typedef struct {
         blocked                 :   1,
         deadloop                :   1,
         role                    :   2;
-    unsigned int downcount;
+    unsigned long downcount;
     unsigned int qfdelay;
 } isp_data;
 

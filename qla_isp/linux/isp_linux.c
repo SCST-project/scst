@@ -1,4 +1,4 @@
-/* $Id: isp_linux.c,v 1.223 2008/01/19 02:08:48 mjacob Exp $ */
+/* $Id: isp_linux.c,v 1.224 2008/01/25 22:22:47 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -82,7 +82,7 @@ int isp_maxluns = 8;
 int isp_fcduplex = 0;
 int isp_nport_only = 0;
 int isp_loop_only = 0;
-int isp_deadloop_time = 30;    /* how long to wait before assume loop dead */
+int isp_deadloop_time = 10;    /* how long to wait before assume loop dead */
 int isp_fc_id = 111;
 int isp_spi_id = 7;
 int isp_own_id = 0;
@@ -4558,10 +4558,13 @@ isp_task_thread(void *arg)
                     ISP_DATA(isp, chan)->blocked = 0;
                     isplinux_runwaitq(isp);
                 } else {
+                    if (ISP_DATA(isp, chan)->downcount == 0) {
+                        ISP_DATA(isp, chan)->downcount = jiffies;
+                    }
                     /*
                      * Try again in a little while.
                      */
-                    if (++(ISP_DATA(isp, chan)->downcount) == isp_deadloop_time) {
+                    if ((jiffies - ISP_DATA(isp, chan)->downcount) > (isp_deadloop_time * HZ)) {
                         fcp->loop_seen_once = 0;
                         ISP_DATA(isp, chan)->deadloop = 1;
                         ISP_DATA(isp, chan)->downcount = 0;
