@@ -1,4 +1,4 @@
-/* $Id: isp.c,v 1.185 2007/12/26 22:38:03 mjacob Exp $ */
+/* $Id: isp.c,v 1.186 2007/12/28 21:28:39 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -1180,9 +1180,6 @@ isp_reset(ispsoftc_t *isp)
 void
 isp_init(ispsoftc_t *isp)
 {
-	/*
-	 * If we have no role (neither target nor initiator), don't init.
-	 */
 	if (IS_FC(isp)) {
 		if (IS_24XX(isp)) {
 			isp_fibre_init_2400(isp);
