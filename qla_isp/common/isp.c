@@ -1,4 +1,4 @@
-/* $Id: isp.c,v 1.192 2008/01/08 22:14:29 mjacob Exp $ */
+/* $Id: isp.c,v 1.194 2008/01/09 18:57:21 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -1544,6 +1544,7 @@ isp_fibre_init(ispsoftc_t *isp)
 	 */
 	fcp = FCPARAM(isp, 0);
 	if (fcp->role == ISP_ROLE_NONE) {
+		isp->isp_state = ISP_INITSTATE;
 		return;
 	}
 
@@ -1824,12 +1825,13 @@ isp_fibre_init_2400(ispsoftc_t *isp)
 	}
 	if (chan == isp->isp_nchan) {
 		isp_prt(isp, ISP_LOGDEBUG0, "all channels with role 'none'");
+		isp->isp_state = ISP_INITSTATE;
 		return;
 	}
 
 	if (ISP_CAP_MULTI_ID(isp) == 0 && isp->isp_nchan > 1) {
 		isp_prt(isp, ISP_LOGWARN,
-		    "non-MULTIID firmware loaded, only can enable 1 of %d channels",
+		    "non-MULTIID f/w loaded, only can enable 1 of %d channels",
 		    isp->isp_nchan);
 		nchan = 1;
 	} else {

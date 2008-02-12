@@ -1,4 +1,4 @@
-/* $Id: isp_linux.h,v 1.146 2007/12/11 22:19:07 mjacob Exp $ */
+/* $Id: isp_linux.h,v 1.149 2008/01/09 05:41:45 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -294,7 +294,6 @@ struct isposinfo {
     u16                 wqcnt;
     u16                 wqhiwater;
     u16                 hiwater;
-    int                 role;
     struct timer_list   timer;
     struct timer_list   mbtimer;
     struct semaphore    mbox_sem;
