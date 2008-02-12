@@ -1,4 +1,4 @@
-/* $Id: isp_cb_ops.c,v 1.82 2007/12/29 04:50:47 mjacob Exp $ */
+/* $Id: isp_cb_ops.c,v 1.83 2008/01/07 19:07:32 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -399,6 +399,8 @@ isp_close(struct inode *ip, struct file *fp)
     return (0);
 }
 
+static int isp_tur_test(ispsoftc_t *, isp_turtst_t *);
+
 static int
 isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
 {
@@ -791,6 +793,17 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
                 rv = -EFAULT;
             }
         }
+        break;
+    }
+    case ISP_FC_TURTST:
+    {
+        isp_turtst_t local, *tt = &local;
+
+        if (COPYIN((void *)arg, tt, sizeof (*tt))) {
+            rv = -EFAULT;
+            break;
+        }
+        rv = isp_tur_test(isp, tt);
         break;
     }
     default:
@@ -1742,6 +1755,7 @@ isp_run_cmd(ispsoftc_t *isp, isp_xcmd_t *cmd)
         MEMCPY(t7->req_cdb, cmd->fcd.beg.cdb, min(sizeof (t7->req_cdb), sizeof (cmd->fcd.beg.cdb)));
         Cmnd->cmd_len = sizeof(t7->req_cdb);
         t7->req_time = time;
+        t7->req_vpidx = cmd->channel;
     } else if (IS_FC(isp)) {
         ispreqt2_t *t2 = (ispreqt2_t *) local;
         reqp->req_header.rqs_entry_type = RQSTYPE_T2RQS;
@@ -1816,6 +1830,152 @@ isp_run_cmd(ispsoftc_t *isp, isp_xcmd_t *cmd)
     }
     isp_destroy_handle(isp, handle);
     ISP_UNLKU_SOFTC(isp);
+out:
+    if (dev) {
+        isp_kfree(dev, sizeof (struct scsi_device));
+    }
+    isp_kfree(Cmnd, sizeof (Scsi_Cmnd));
+    return (result);
+}
+
+static int
+isp_tur_test(ispsoftc_t *isp, isp_turtst_t *tt)
+{
+    struct scsi_device *dev = NULL;
+    Scsi_Cmnd *Cmnd = NULL;
+    fcportdb_t *lp;
+    struct Scsi_Host *host = NULL;
+    uint32_t nxti, optr, handle;
+    uint8_t local[QENTRY_LEN];
+    ispreq_t *reqp = (ispreq_t *) local;
+    int result = 0, i;
+    void *qep, *qel = local;
+    DECLARE_MUTEX_LOCKED(rsem);
+    unsigned long flags;
+
+    if (tt->target < 0 || tt->target >= MAX_FC_TARG) {
+        return (-ENODEV);
+    }
+    if (tt->channel < 0 || tt->channel >= isp->isp_nchan) {
+        return (-ENODEV);
+    }
+
+    i = FCPARAM(isp, tt->channel)->isp_ini_map[tt->target] - 1;
+    if (i < 0 || i >= MAX_FC_TARG) {
+        return (-ENXIO);
+    }
+    lp = &FCPARAM(isp, tt->channel)->portdb[i];
+    if (lp->state != FC_PORTDB_STATE_VALID) {
+        return (-ENXIO);
+    }
+
+    MEMZERO(local, sizeof (local));
+    Cmnd = isp_kzalloc(sizeof (Scsi_Cmnd), GFP_KERNEL);
+    if (Cmnd == NULL) {
+        return (-ENOMEM);
+    }
+    host = isp->isp_osinfo.host;
+    dev = isp_kzalloc(sizeof (struct scsi_device), GFP_KERNEL);
+    if (dev == NULL) {
+        isp_kfree(Cmnd, sizeof (Scsi_Cmnd));
+        return (-ENOMEM);
+    }
+    Cmnd->device = dev;
+    dev->host = host;
+    Cmnd->scsi_done = isp_run_cmd_done;
+    Cmnd->request_buffer = &rsem;
+    Cmnd->cmd_len = 6;
+    Cmnd->sc_data_direction = SCSI_DATA_NONE;
+
+    reqp->req_header.rqs_entry_count = 1;
+    if (IS_24XX(isp)) {
+        ispreqt7_t *t7 = (ispreqt7_t *) local;
+
+        reqp->req_header.rqs_entry_type = RQSTYPE_T7RQS;
+        t7->req_task_attribute = FCP_CMND_TASK_ATTR_SIMPLE;
+        t7->req_nphdl = lp->handle;
+        t7->req_tidlo = lp->portid;
+        t7->req_tidhi = lp->portid >> 16;
+        if (tt->lun > 256) {
+            t7->req_lun[0] = tt->lun >> 8;
+            t7->req_lun[0] |= 0x40;
+        }
+        t7->req_lun[1] = tt->lun & 0xff;
+        t7->req_time = 30;
+        t7->req_seg_count = 0;
+        t7->req_vpidx = tt->channel;
+        MEMZERO(t7->req_cdb, sizeof (t7->req_cdb));
+    } else if (IS_FC(isp)) {
+        ispreqt2_t *t2 = (ispreqt2_t *) local;
+
+        reqp->req_header.rqs_entry_type = RQSTYPE_T2RQS;
+        t2->req_flags = REQFLAG_STAG;
+
+        if (ISP_CAP_2KLOGIN(isp)) {
+            ((ispreqt2e_t *)reqp)->req_target = lp->handle;
+            ((ispreqt2e_t *)reqp)->req_scclun = tt->lun;
+        } else if (ISP_CAP_SCCFW(isp)) {
+            t2->req_target = lp->handle;
+            t2->req_scclun = tt->lun;
+        } else {
+            t2->req_target = lp->handle;
+            t2->req_lun_trn = tt->lun;
+        }
+        MEMZERO(t2->req_cdb, sizeof (t2->req_cdb));
+        t2->req_time = 30;
+    } else {
+        reqp->req_header.rqs_entry_type = RQSTYPE_REQUEST;
+        reqp->req_flags = REQFLAG_STAG;
+        reqp->req_target = tt->target;
+        reqp->req_target |= (tt->channel << 7);
+        reqp->req_lun_trn = tt->lun;
+        reqp->req_cdblen = 6;
+        MEMZERO(reqp->req_cdb, sizeof (reqp->req_cdb));
+        reqp->req_time = 30;
+    }
+
+    for (i = 0; i < tt->count; i++) {
+        ISP_LOCKU_SOFTC(isp);
+        if (isp_getrqentry(isp, &nxti, &optr, (void *)&qep)) {
+            ISP_UNLKU_SOFTC(isp);
+            __set_current_state(TASK_UNINTERRUPTIBLE);
+            (void) schedule_timeout(1);
+            i -= 1;
+            continue;
+        }
+        if (i == tt->count - 1) {
+            if (isp_save_xs(isp, Cmnd, &handle)) {
+                ISP_UNLKU_SOFTC(isp);
+                isp_prt(isp, ISP_LOGERR, "out of xflist pointers");
+                result = -ENOMEM;
+                goto out;
+            }
+        } else {
+            handle = ISP_SPCL_HANDLE;
+        }
+        reqp->req_handle = handle;
+        if (IS_24XX(isp)) {
+            isp_put_request_t7(isp, qel, qep);
+        } else if (IS_FC(isp)) {
+            if (ISP_CAP_2KLOGIN(isp)) {
+                isp_put_request_t2e(isp, qel, qep);
+            } else {
+                isp_put_request_t2(isp, qel, qep);
+            }
+        } else {
+            isp_put_request(isp, qel, qep);
+        }
+        ISP_ADD_REQUEST(isp, nxti);
+        if (handle != ISP_SPCL_HANDLE) {
+            isp->isp_nactive++;
+            ISP_UNLKU_SOFTC(isp);
+            down(&rsem);
+            ISP_LOCKU_SOFTC(isp);
+            ISP_DMAFREE(isp, Cmnd, handle);
+            isp_destroy_handle(isp, handle);
+        } 
+        ISP_UNLKU_SOFTC(isp);
+    }
 out:
     if (dev) {
         isp_kfree(dev, sizeof (struct scsi_device));

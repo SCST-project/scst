@@ -1,4 +1,4 @@
-/* $Id: ispmbox.h,v 1.69 2008/01/04 17:46:10 mjacob Exp $ */
+/* $Id: ispmbox.h,v 1.70 2008/01/07 19:07:07 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -284,6 +284,11 @@
  * All IOCB Queue entries are this size
  */
 #define	QENTRY_LEN			64
+
+/*
+ * Special Internal Handle for IOCBs
+ */
+#define	ISP_SPCL_HANDLE			0xa5dead5a
 
 /*
  * Command Structure Definitions
@@ -1618,7 +1623,7 @@ typedef struct {
 } els_t;
 
 /*
- * A handy package structure for running FC-SCSI commands via RUN IOCB A64.
+ * A handy package structure for running FC-SCSI commands internally
  */
 typedef struct {
 	uint16_t	handle;
@@ -1630,8 +1635,9 @@ typedef struct {
 	union {
 		struct {
 			uint32_t data_length;
-			uint8_t do_read;
-			uint8_t pad[3];
+			uint32_t 
+				no_wait : 1,
+				do_read : 1;
 			uint8_t cdb[16];
 			void *data_ptr;
 		} beg;

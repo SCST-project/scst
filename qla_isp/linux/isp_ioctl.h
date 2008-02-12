@@ -1,4 +1,4 @@
-/* $Id: isp_ioctl.h,v 1.25 2007/12/26 22:38:42 mjacob Exp $ */
+/* $Id: isp_ioctl.h,v 1.26 2008/01/07 19:07:32 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -230,7 +230,15 @@ typedef struct {
     } wwns[1];
 } isp_dlist_t;
 /* do not recycle 22 */
+
 #define ISP_FC_GETDLIST     (ISP_IOC | 23)
+/*
+ * This is a trigger for a performance test.
+ */
+#define ISP_FC_TURTST       (ISP_IOC | 44)
+typedef struct {
+    uint32_t channel, target, lun, count;
+} isp_turtst_t;
 /*
  * vim:ts=4:sw=4:expandtab
  */

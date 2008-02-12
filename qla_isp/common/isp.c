@@ -1,4 +1,4 @@
-/* $Id: isp.c,v 1.189 2008/01/04 17:54:54 mjacob Exp $ */
+/* $Id: isp.c,v 1.190 2008/01/07 19:07:06 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -5304,7 +5304,8 @@ again:
 			}
 		}
 
-		if (sp->req_handle > isp->isp_maxcmds || sp->req_handle < 1) {
+		if ((sp->req_handle != ISP_SPCL_HANDLE) &&
+		    (sp->req_handle > isp->isp_maxcmds || sp->req_handle < 1)) {
 			isp_prt(isp, ISP_LOGERR,
 			    "bad request handle %d (type 0x%x)",
 			    sp->req_handle, etype);
@@ -5323,7 +5324,8 @@ again:
 				isp_prt(isp, ISP_LOGERR,
 				    "cannot find handle 0x%x (type 0x%x)",
 				    sp->req_handle, etype);
-			} else if (ts != RQCS_ABORTED) {
+			} else if (ts != RQCS_ABORTED &&
+			    sp->req_handle != ISP_SPCL_HANDLE) {
 				isp_prt(isp, ISP_LOGERR,
 				    "cannot find handle 0x%x (status 0x%x)",
 				    sp->req_handle, ts);
