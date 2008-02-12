@@ -1,4 +1,4 @@
-/* $Id: isp_linux.c,v 1.210 2007/12/03 04:31:52 mjacob Exp $ */
+/* $Id: isp_linux.c,v 1.211 2007/12/04 22:20:44 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -3413,6 +3413,7 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
                 break;
             } else if (IS_24XX(isp)) {
                 in_fcentry_24xx_t *inot = qe;
+                uint64_t wwn;
 
                 nphdl = inot->in_nphdl;
                 if (nphdl != NIL_HANDLE) {
@@ -3432,14 +3433,42 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
                     switch (inot->in_status_subcode) {
                     case LOGO:
                         msg = "LOGO";
-                        isp_del_wwn_entry(isp, inot->in_vpindex, INI_ANY, nphdl, portid);
+                        if (ISP_FW_NEWER_THAN(isp, 4, 0, 25)) {
+                            uint8_t *ptr = qe;  /* point to unswizzled entry! */
+                            wwn =
+                                (((uint64_t) ptr[IN24XX_LOGO_WWPN_OFF])   << 56) |
+                                (((uint64_t) ptr[IN24XX_LOGO_WWPN_OFF+1]) << 48) |
+                                (((uint64_t) ptr[IN24XX_LOGO_WWPN_OFF+2]) << 40) |
+                                (((uint64_t) ptr[IN24XX_LOGO_WWPN_OFF+3]) << 32) |
+                                (((uint64_t) ptr[IN24XX_LOGO_WWPN_OFF+4]) << 24) |
+                                (((uint64_t) ptr[IN24XX_LOGO_WWPN_OFF+5]) << 16) |
+                                (((uint64_t) ptr[IN24XX_LOGO_WWPN_OFF+6]) <<  8) |
+                                (((uint64_t) ptr[IN24XX_LOGO_WWPN_OFF+7]));
+                        } else {
+                            wwn = INI_ANY;
+                        }
+                        isp_del_wwn_entry(isp, inot->in_vpindex, wwn, nphdl, portid);
                         break;
                     case PRLO:
                         msg = "PRLO";
                         break;
                     case PLOGI:
                         msg = "PLOGI";
-                        isp_add_wwn_entry(isp, inot->in_vpindex, INI_NONE, nphdl, portid);
+                        if (ISP_FW_NEWER_THAN(isp, 4, 0, 25)) {
+                            uint8_t *ptr = qe;  /* point to unswizzled entry! */
+                            wwn =
+                                (((uint64_t) ptr[IN24XX_PLOGI_WWPN_OFF])   << 56) |
+                                (((uint64_t) ptr[IN24XX_PLOGI_WWPN_OFF+1]) << 48) |
+                                (((uint64_t) ptr[IN24XX_PLOGI_WWPN_OFF+2]) << 40) |
+                                (((uint64_t) ptr[IN24XX_PLOGI_WWPN_OFF+3]) << 32) |
+                                (((uint64_t) ptr[IN24XX_PLOGI_WWPN_OFF+4]) << 24) |
+                                (((uint64_t) ptr[IN24XX_PLOGI_WWPN_OFF+5]) << 16) |
+                                (((uint64_t) ptr[IN24XX_PLOGI_WWPN_OFF+6]) <<  8) |
+                                (((uint64_t) ptr[IN24XX_PLOGI_WWPN_OFF+7]));
+                        } else {
+                            wwn = INI_NONE;
+                        }
+                        isp_add_wwn_entry(isp, inot->in_vpindex, wwn, nphdl, portid);
                         break;
                     case PRLI:
                         msg = "PRLI";

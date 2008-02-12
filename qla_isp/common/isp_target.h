@@ -1,4 +1,4 @@
-/* $Id: isp_target.h,v 1.56 2007/12/02 22:02:04 mjacob Exp $ */
+/* $Id: isp_target.h,v 1.57 2007/12/04 22:19:15 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -196,19 +196,40 @@ typedef struct {
 	uint16_t	in_srr_reloff_hi;
 	uint16_t	in_srr_iu;
 	uint16_t	in_srr_oxid;
-	uint8_t		in_reserved3[18];
-	uint8_t		in_reserved4;
+	/*
+	 * If bit 2 is set in in_flags, the following
+	 * two tags are valid. If the received ELS is
+	 * a LOGO, then these tags contain the N Port ID
+	 * from the LOGO payload. If the received ELS
+	 * request is TPRLO, these tags contain the
+	 * Third Party Originator N Port ID.
+	 */
+	uint16_t	in_nport_id_hi;
+	uint8_t		in_nport_id_lo;
+	uint8_t		in_reserved3;
+	/*
+	 * If bit 2 is set in in_flags, the following
+	 * tag is valid. If the received ELS is a LOGO,
+	 * then this tag contains the n-port handle
+	 * from the LOGO payload. If the received ELS
+	 * request is TPRLO, this tag contain the
+	 * n-port handle for the Third Party Originator.
+	 */
+	uint16_t	in_np_handle;
+	uint8_t		in_reserved4[12];
+	uint8_t		in_reserved5;
 	uint8_t		in_vpindex;
-	uint32_t	in_reserved5;
+	uint32_t	in_reserved6;
 	uint16_t	in_portid_lo;
 	uint8_t		in_portid_hi;
-	uint8_t		in_reserved6;
-	uint16_t	in_reserved7;
+	uint8_t		in_reserved7;
+	uint16_t	in_reserved8;
 	uint16_t	in_oxid;
 } in_fcentry_24xx_t;
 
 #define	IN24XX_FLAG_PUREX_IOCB		0x1
 #define	IN24XX_FLAG_GLOBAL_LOGOUT	0x2
+#define	IN24XX_FLAG_NPHDL_VALID		0x4
 
 #define	IN24XX_LIP_RESET	0x0E
 #define	IN24XX_LINK_RESET	0x0F
@@ -220,6 +241,21 @@ typedef struct {
 					 * login-affectin ELS received- check
 					 * subcode for specific opcode
 					 */
+
+/*
+ * For f/w > 4.0.25, these offsets in the Immediate Notify contain
+ * the WWNN/WWPN if the ELS is PLOGI, PDISC or ADISC. The WWN is in
+ * Big Endian format.
+ */
+#define	IN24XX_PLOGI_WWNN_OFF	0x20
+#define	IN24XX_PLOGI_WWPN_OFF	0x28
+
+/*
+ * For f/w > 4.0.25, this offset in the Immediate Notify contain
+ * the WWPN if the ELS is LOGO. The WWN is in Big Endian format.
+ */
+#define	IN24XX_LOGO_WWPN_OFF	0x28
+
 /*
  * Notify Acknowledge Entry structure
  */

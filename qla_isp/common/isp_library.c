@@ -1,4 +1,4 @@
-/* $Id: isp_library.c,v 1.47 2007/12/02 22:02:04 mjacob Exp $ */
+/* $Id: isp_library.c,v 1.48 2007/12/04 22:19:21 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -2690,16 +2690,20 @@ isp_put_notify_24xx(ispsoftc_t *isp, in_fcentry_24xx_t *src,
 	ISP_IOXPUT_16(isp, src->in_srr_reloff_lo, &dst->in_srr_reloff_lo);
 	ISP_IOXPUT_16(isp, src->in_srr_iu, &dst->in_srr_iu);
 	ISP_IOXPUT_16(isp, src->in_srr_oxid, &dst->in_srr_oxid);
-	for (i = 0; i < 18; i++) {
-		ISP_IOXPUT_8(isp, src->in_reserved3[i], &dst->in_reserved3[i]);
+	ISP_IOXPUT_16(isp, src->in_nport_id_hi, &dst->in_nport_id_hi);
+	ISP_IOXPUT_8(isp, src->in_nport_id_lo, &dst->in_nport_id_lo);
+	ISP_IOXPUT_8(isp, src->in_reserved3, &dst->in_reserved3);
+	ISP_IOXPUT_16(isp, src->in_np_handle, &dst->in_np_handle);
+	for (i = 0; i < ASIZE(src->in_reserved4); i++) {
+		ISP_IOXPUT_8(isp, src->in_reserved4[i], &dst->in_reserved4[i]);
 	}
-	ISP_IOXPUT_8(isp, src->in_reserved4, &dst->in_reserved4);
+	ISP_IOXPUT_8(isp, src->in_reserved5, &dst->in_reserved5);
 	ISP_IOXPUT_8(isp, src->in_vpindex, &dst->in_vpindex);
-	ISP_IOXPUT_32(isp, src->in_reserved5, &dst->in_reserved5);
+	ISP_IOXPUT_32(isp, src->in_reserved6, &dst->in_reserved6);
 	ISP_IOXPUT_16(isp, src->in_portid_lo, &dst->in_portid_lo);
 	ISP_IOXPUT_8(isp, src->in_portid_hi, &dst->in_portid_hi);
-	ISP_IOXPUT_8(isp, src->in_reserved6, &dst->in_reserved6);
-	ISP_IOXPUT_16(isp, src->in_reserved7, &dst->in_reserved7);
+	ISP_IOXPUT_8(isp, src->in_reserved7, &dst->in_reserved7);
+	ISP_IOXPUT_16(isp, src->in_reserved8, &dst->in_reserved8);
 	ISP_IOXPUT_16(isp, src->in_oxid, &dst->in_oxid);
 }
 
@@ -2752,16 +2756,20 @@ isp_get_notify_24xx(ispsoftc_t *isp, in_fcentry_24xx_t *src,
 	ISP_IOXGET_16(isp, &src->in_srr_reloff_lo, dst->in_srr_reloff_lo);
 	ISP_IOXGET_16(isp, &src->in_srr_iu, dst->in_srr_iu);
 	ISP_IOXGET_16(isp, &src->in_srr_oxid, dst->in_srr_oxid);
-	for (i = 0; i < 18; i++) {
-		ISP_IOXGET_8(isp, &src->in_reserved3[i], dst->in_reserved3[i]);
+	ISP_IOXGET_16(isp, &src->in_nport_id_hi, dst->in_nport_id_hi);
+	ISP_IOXGET_8(isp, &src->in_nport_id_lo, dst->in_nport_id_lo);
+	ISP_IOXGET_8(isp, &src->in_reserved3, dst->in_reserved3);
+	ISP_IOXGET_16(isp, &src->in_np_handle, dst->in_np_handle);
+	for (i = 0; i < ASIZE(src->in_reserved4); i++) {
+		ISP_IOXGET_8(isp, &src->in_reserved4[i], dst->in_reserved4[i]);
 	}
-	ISP_IOXGET_8(isp, &src->in_reserved4, dst->in_reserved4);
+	ISP_IOXGET_8(isp, &src->in_reserved5, dst->in_reserved5);
 	ISP_IOXGET_8(isp, &src->in_vpindex, dst->in_vpindex);
-	ISP_IOXGET_32(isp, &src->in_reserved5, dst->in_reserved5);
+	ISP_IOXGET_32(isp, &src->in_reserved6, dst->in_reserved6);
 	ISP_IOXGET_16(isp, &src->in_portid_lo, dst->in_portid_lo);
 	ISP_IOXGET_8(isp, &src->in_portid_hi, dst->in_portid_hi);
-	ISP_IOXGET_8(isp, &src->in_reserved6, dst->in_reserved6);
-	ISP_IOXGET_16(isp, &src->in_reserved7, dst->in_reserved7);
+	ISP_IOXGET_8(isp, &src->in_reserved7, dst->in_reserved7);
+	ISP_IOXGET_16(isp, &src->in_reserved8, dst->in_reserved8);
 	ISP_IOXGET_16(isp, &src->in_oxid, dst->in_oxid);
 }
 

@@ -1,4 +1,4 @@
-/* $Id: isp.c,v 1.181 2007/12/02 22:02:04 mjacob Exp $ */
+/* $Id: isp.c,v 1.182 2007/12/04 22:18:16 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -5711,13 +5711,23 @@ isp_parse_async(ispsoftc_t *isp, uint16_t mbox)
 		break;
 
 	case ASYNC_CHANGE_NOTIFY:
+	{
+		int lochan, hichan;
 
 		if (IS_SCSI(isp)) {
 			isp_prt(isp, ISP_LOGWARN,
 			    "bad CHANGE NOTIFY event for SCSI cards");
 			break;
 		}
-		for (chan = 0; chan < isp->isp_nchan; chan++) {
+		if (ISP_FW_NEWER_THAN(isp, 4, 0, 25) && ISP_CAP_MULTI_ID(isp)) {
+			GET_24XX_BUS(isp, chan, "ASYNC_CHANGE_NOTIFY");
+			lochan = chan;
+			hichan = chan + 1;
+		} else {
+			lochan = 0;
+			hichan = isp->isp_nchan;
+		}
+		for (chan = lochan; chan < hichan; chan++) {
 			fcparam *fcp = FCPARAM(isp, chan);
 
 			if (fcp->role == ISP_ROLE_NONE) {
@@ -5734,6 +5744,7 @@ isp_parse_async(ispsoftc_t *isp, uint16_t mbox)
 			    ISPASYNC_CHANGE_SNS);
 		}
 		break;
+	}
 
 	case ASYNC_CONNMODE:
 		/*
