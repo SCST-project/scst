@@ -1,4 +1,4 @@
-/* $Id: isp_linux.c,v 1.214 2007/12/12 21:14:55 mjacob Exp $ */
+/* $Id: isp_linux.c,v 1.215 2007/12/20 18:28:00 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -1357,15 +1357,14 @@ isp_taction(qact_e action, void *arg)
             if (isp->isp_state != ISP_RUNSTATE) {
                 isp_prt(isp, ISP_LOGINFO, "[%llx] Notify Code 0x%x (qevalid=%d) acked- h/w not ready (dropping)",
                     ins->notify.nt_tagval, ins->notify.nt_ncode, ins->qevalid);
-            } else if (IS_24XX(isp) && ins->qevalid && ((isphdr_t *)ins->qentry)->rqs_entry_type == RQSTYPE_ABTS_RCVD) {
+            } else if (IS_24XX(isp) && ins->qevalid && ((isphdr_t *)ins->qentry)->rqs_entry_type == RQSTYPE_ABTS_RSP) {
                 abts_t *abt = (abts_t *)ins->qentry;
                 abts_rsp_t *rsp = (abts_rsp_t *)ins->qentry;
                 uint16_t rx_id, ox_id;
 
-                isp_prt(isp, ISP_LOGINFO, "ABTS for 0x%x being BA_ACC'd", rsp->abts_rsp_rxid_abts);
+                isp_prt(isp, ISP_LOGTINFO, "ABTS for 0x%x being BA_ACC'd", rsp->abts_rsp_rxid_abts);
                 rx_id = abt->abts_rx_id;
                 ox_id = abt->abts_ox_id;
-                rsp->abts_rsp_header.rqs_entry_type = RQSTYPE_ABTS_RSP;
                 rsp->abts_rsp_handle = rsp->abts_rsp_rxid_abts;
                 rsp->abts_rsp_r_ctl = BA_ACC;
                 MEMZERO(&rsp->abts_rsp_payload.ba_acc, sizeof (rsp->abts_rsp_payload.ba_acc));
@@ -3253,7 +3252,7 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
                 break;
             default:
                 if (isp_find_loopid_wwn(isp, mp->nt_channel, loopid, &ins->notify.nt_iid) == 0) {
-                    isp_prt(isp, ISP_LOGINFO, "cannot find WWN for loopid 0x%x for notify action 0x%x", loopid, mp->nt_ncode);
+                    isp_prt(isp, ISP_LOGTINFO, "cannot find WWN for loopid 0x%x for notify action 0x%x", loopid, mp->nt_ncode);
                     ins->notify.nt_iid = INI_NONE;
 		}
                 break;
@@ -3265,7 +3264,7 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
         } else {
             TAG_INSERT_INST(mp->nt_tagval, isp->isp_unit);
         }
-        isp_prt(isp, ISP_LOGDEBUG0, "Notify Code 0x%x iid 0x%016llx tgt 0x%016llx lun %u tag %llx",
+        isp_prt(isp, ISP_LOGTINFO, "Notify Code 0x%x iid 0x%016llx tgt 0x%016llx lun %u tag %llx",
             mp->nt_ncode, (unsigned long long) mp->nt_iid, (unsigned long long) mp->nt_tgt,
             mp->nt_lun, mp->nt_tagval);
         CALL_PARENT_NOTIFY(isp, ins);
@@ -3309,18 +3308,37 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
             abts_t *abts = qe;
             abts_rsp_t *rsp = qe;
             int chan, i;
+            uint32_t sid;
+
+            rsp->abts_rsp_header.rqs_entry_type = RQSTYPE_ABTS_RSP;
+            sid = (abts->abts_sid_hi << 16) | abts->abts_sid_lo;
 
             if (isp->isp_osinfo.hcb == 0) {
                 isp_prt(isp, ISP_LOGINFO, "RQSTYPE_ABTS_RCVD: with no upstream listener");
-                rsp->abts_rsp_handle = rsp->abts_rsp_rxid_abts;
+                rsp->abts_rsp_ctl_flags = ISP24XX_ABTS_RSP_TERMINATE;
+                isp_notify_ack(isp, qe);
+                break;
+            }
+            if (abts->abts_rxid_task == ISP24XX_NO_TASK) {
+                isp_prt(isp, ISP_LOGTINFO, "ABTS from N-Port handle 0x%x Port 0x%06x has no task id (rx_id 0x%04x ox_id 0x%04x)",
+                    abts->abts_nphdl, sid, abts->abts_rx_id, abts->abts_ox_id);
+                for (i = 0; i < NTGT_CMDS; i++) {
+                    tmd_cmd_t *tmd = &isp->isp_osinfo.pool[i];
+                    if (tmd->cd_lflags & CDFL_BUSY) {
+                        if (AT2_GET_TAG(tmd->cd_tagval) == abts->abts_rx_id && tmd->cd_oxid == abts->abts_ox_id) {
+                            isp_prt(isp, ISP_LOGTINFO, "... but found tmd to to mark as aborted");
+                            tmd->cd_lflags |= CDFL_ABORTED|CDFL_NEED_CLNUP;
+                            break;
+                        }
+                    }
+                }
                 rsp->abts_rsp_ctl_flags = ISP24XX_ABTS_RSP_TERMINATE;
                 isp_notify_ack(isp, qe);
                 break;
             }
             ins = isp->isp_osinfo.nfreelist;
             if (ins == NULL) {
-                isp_prt(isp, ISP_LOGINFO, "out of TMD NOTIFY structs for RQSTYPE_ABTS_RCVD!");
-                rsp->abts_rsp_handle = rsp->abts_rsp_rxid_abts;
+                isp_prt(isp, ISP_LOGTINFO, "out of TMD NOTIFY structs for RQSTYPE_ABTS_RCVD");
                 rsp->abts_rsp_ctl_flags = ISP24XX_ABTS_RSP_TERMINATE;
                 isp_notify_ack(isp, qe);
                 break;
@@ -3333,13 +3351,8 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
                 }
             }
             if (chan == isp->isp_nchan) {
-                isp_prt(isp, ISP_LOGINFO, "cannot find WWN for N-port handle 0x%x for ABTS", abts->abts_nphdl);
-                rsp->abts_rsp_handle = rsp->abts_rsp_rxid_abts;
-                rsp->abts_rsp_ctl_flags = ISP24XX_ABTS_RSP_TERMINATE;
-                isp_notify_ack(isp, qe);
-                ins->notify.nt_lreserved = isp->isp_osinfo.nfreelist;
-                isp->isp_osinfo.nfreelist = ins;
-                break;
+                isp_prt(isp, ISP_LOGTINFO, "cannot find WWN for N-port handle 0x%x for ABTS", abts->abts_nphdl);
+                ins->notify.nt_iid = INI_ANY;
             }
             MEMCPY(ins->qentry, qe, QENTRY_LEN);
             ins->qevalid = 1;
@@ -3347,6 +3360,7 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
             ins->notify.nt_tgt = FCPARAM(isp, chan)->isp_wwpn;
             ins->notify.nt_lun = LUN_ANY;
             ins->notify.nt_tagval = abts->abts_rxid_task;
+            FC_TAG_INSERT_INST(ins->notify.nt_tagval, isp->isp_unit);
             ins->notify.nt_ncode = NT_ABORT_TASK;
             ins->notify.nt_need_ack = 1;
             ins->notify.nt_channel = chan;
@@ -3362,21 +3376,8 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
                     }
                 }
             }
-            if (ins->notify.nt_tagval == 0xffffffff) {
-                abts_rsp_t *rsp = (abts_rsp_t *)ins->qentry;
-                rsp->abts_rsp_header.rqs_entry_type = RQSTYPE_ABTS_RSP;
-                rsp->abts_rsp_handle = rsp->abts_rsp_rxid_abts;
-                rsp->abts_rsp_r_ctl = BA_RJT;
-                MEMZERO(&rsp->abts_rsp_payload.ba_rjt, sizeof (rsp->abts_rsp_payload.ba_rjt));
-                rsp->abts_rsp_payload.ba_rjt.reason = 9;        /* unable to perform request */
-                rsp->abts_rsp_payload.ba_rjt.explanation = 3;   /* invalid ox_id/rx_id combo */
-                isp_notify_ack(isp, ins->qentry);
-                ins->notify.nt_lreserved = isp->isp_osinfo.nfreelist;
-                isp->isp_osinfo.nfreelist = ins;
-            } else {
-                isp_prt(isp, ISP_LOGINFO, "ABTS [%llx] from 0x%016llx", ins->notify.nt_tagval, ins->notify.nt_iid);
-                CALL_PARENT_NOTIFY(isp, ins);
-            }
+            isp_prt(isp, ISP_LOGTINFO, "ABTS [%llx] from 0x%016llx", ins->notify.nt_tagval, ins->notify.nt_iid);
+            CALL_PARENT_NOTIFY(isp, ins);
             break;
         }
         case RQSTYPE_NOTIFY:

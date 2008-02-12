@@ -1,4 +1,4 @@
-/* $Id: ispvar.h,v 1.88 2007/12/11 07:17:56 mjacob Exp $ */
+/* $Id: ispvar.h,v 1.89 2007/12/20 18:26:46 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -561,7 +561,8 @@ struct ispsoftc {
 	 */
 
 	volatile uint32_t	:	8,
-				:	4,
+				:	3,
+		isp_in_intr	:	1,
 		isp_mboxbsy	:	1,	/* mailbox command active */
 		isp_state	:	3,
 		isp_nactive	:	16;	/* how many commands active */
@@ -569,7 +570,6 @@ struct ispsoftc {
 	volatile uint32_t	isp_reqidx;	/* index of next request */
 	volatile uint32_t	isp_residx;	/* index of next result */
 	volatile uint32_t	isp_resodx;	/* index of next result */
-	volatile uint32_t	isp_rspbsy;
 	volatile uint32_t	isp_lasthdls;	/* last handle seed */
 	volatile uint32_t	isp_obits;	/* mailbox command output */
 	volatile uint16_t	isp_mboxtmp[MAILBOX_STORAGE];

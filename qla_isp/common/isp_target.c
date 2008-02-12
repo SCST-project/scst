@@ -1,4 +1,4 @@
-/* $Id: isp_target.c,v 1.72 2007/12/11 22:19:21 mjacob Exp $ */
+/* $Id: isp_target.c,v 1.73 2007/12/20 18:23:45 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -1429,7 +1429,7 @@ isp_handle_ctio(ispsoftc_t *isp, ct_entry_t *ct)
 	case CT_TIMEOUT:
 		if (fmsg == NULL)
 			fmsg = "Command";
-		isp_prt(isp, ISP_LOGERR, "Firmware timed out on %s", fmsg);
+		isp_prt(isp, ISP_LOGWARN, "Firmware timed out on %s", fmsg);
 		break;
 
 	case	CT_PANIC:
@@ -1570,7 +1570,7 @@ isp_handle_ctio2(ispsoftc_t *isp, ct2_entry_t *ct)
 	case CT_TIMEOUT:
 		if (fmsg == NULL)
 			fmsg = "command";
-		isp_prt(isp, ISP_LOGERR, "Firmware timed out on %s", fmsg);
+		isp_prt(isp, ISP_LOGWARN, "Firmware timed out on %s", fmsg);
 		break;
 
 	case CT_ERR:
@@ -1712,7 +1712,7 @@ isp_handle_ctio7(ispsoftc_t *isp, ct7_entry_t *ct)
 		if (fmsg == NULL) {
 			fmsg = "command";
 		}
-		isp_prt(isp, ISP_LOGERR, "Firmware timed out on %s", fmsg);
+		isp_prt(isp, ISP_LOGWARN, "Firmware timed out on %s", fmsg);
 		break;
 
 	case CT7_ERR:

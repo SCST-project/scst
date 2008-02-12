@@ -1,4 +1,4 @@
-/* $Id: isp.c,v 1.183 2007/12/05 00:42:02 mjacob Exp $ */
+/* $Id: isp.c,v 1.184 2007/12/20 18:26:18 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -688,10 +688,10 @@ isp_reset(ispsoftc_t *isp)
 	/*
 	 * Wait for everything to finish firing up.
 	 *
-	 * Avoid doing this on the 2312 because you can generate a PCI
+	 * Avoid doing this on early 2312s because you can generate a PCI
 	 * parity error (chip breakage).
 	 */
-	if (IS_2312(isp)) {
+	if (IS_2312(isp) && isp->isp_revision < 2) {
 		USEC_DELAY(100);
 	} else {
 		loops = MBOX_DELAY_COUNT;
@@ -1068,7 +1068,7 @@ isp_reset(ispsoftc_t *isp)
 		isp->isp_fwrev[2] = mbs.param[3];
 	}
 
-	isp_prt(isp, ISP_LOGALL,
+	isp_prt(isp, ISP_LOGCONFIG,
 	    "Board Type %s, Chip Revision 0x%x, %s F/W Revision %d.%d.%d",
 	    btype, isp->isp_revision, dodnld? "loaded" : "resident",
 	    isp->isp_fwrev[0], isp->isp_fwrev[1], isp->isp_fwrev[2]);
@@ -1919,6 +1919,9 @@ isp_fibre_init_2400(ispsoftc_t *isp)
 		icbp->icb_fwoptions2 |= ICB2400_OPT2_LOOP_2_PTP;
 		break;
 	}
+
+	/* force this on for now */
+	icbp->icb_fwoptions2 |= ICB2400_OPT2_ZIO;
 
 	switch (icbp->icb_fwoptions2 & ICB2400_OPT2_TIMER_MASK) {
 	case ICB2400_OPT2_ZIO:
@@ -4750,6 +4753,11 @@ isp_intr(ispsoftc_t *isp, uint32_t isr, uint16_t sema, uint16_t mbox)
 	uint32_t iptr, optr, junk;
 	int i, nlooked = 0, ndone = 0;
 
+	if (isp->isp_in_intr) {
+		isp_prt(isp, ISP_LOGERR, "recursive isp_intr!");
+		return;
+	}
+	isp->isp_in_intr = 1;
 again:
 	optr = isp->isp_residx;
 	/*
@@ -4772,6 +4780,7 @@ again:
 				}
 				if (isp->isp_mbxwrk0) {
 					if (isp_mbox_continue(isp) == 0) {
+						isp->isp_in_intr = 0;
 						return;
 					}
 				}
@@ -4781,6 +4790,7 @@ again:
 				    "mailbox cmd (0x%x) with no waiters", mbox);
 			}
 		} else if (isp_parse_async(isp, mbox) < 0) {
+			isp->isp_in_intr = 0;
 			return;
 		}
 		if ((IS_FC(isp) && mbox != ASYNC_RIO_RESP) ||
@@ -4817,11 +4827,10 @@ again:
 	/*
 	 * Check for ATIO Queue entries.
 	 */
-	if (isp->isp_rspbsy == 0 && IS_24XX(isp)) {
+	if (IS_24XX(isp)) {
 		iptr = ISP_READ(isp, BIU2400_ATIO_RSPINP);
 		optr = ISP_READ(isp, BIU2400_ATIO_RSPOUTP);
 
-		isp->isp_rspbsy = 1;
 		while (optr != iptr) {
 			uint8_t qe[QENTRY_LEN];
 			isphdr_t *hp;
@@ -4846,7 +4855,6 @@ again:
 			optr = ISP_NXT_QENTRY(oop, RESULT_QUEUE_LEN(isp));
 			ISP_WRITE(isp, BIU2400_ATIO_RSPOUTP, optr);
 		}
-		isp->isp_rspbsy = 0;
 		optr = isp->isp_residx;
 	}
 #endif
@@ -4932,11 +4940,6 @@ again:
 	}
 	isp->isp_resodx = iptr;
 
-
-	if (isp->isp_rspbsy) {
-		goto out;
-	}
-	isp->isp_rspbsy = 1;
 	while (optr != iptr) {
 		uint8_t qe[QENTRY_LEN];
 		ispstatusreq_t *sp = (ispstatusreq_t *) qe;
@@ -5292,7 +5295,6 @@ out:
 	}
 
 	isp->isp_residx = optr;
-	isp->isp_rspbsy = 0;
 	for (i = 0; i < ndone; i++) {
 		xs = complist[i];
 		if (xs) {
@@ -5300,6 +5302,7 @@ out:
 			isp_done(xs);
 		}
 	}
+	isp->isp_in_intr = 0;
 }
 
 /*

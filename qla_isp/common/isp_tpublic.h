@@ -1,4 +1,4 @@
-/* $Id: isp_tpublic.h,v 1.39 2007/12/03 18:29:46 mjacob Exp $ */
+/* $Id: isp_tpublic.h,v 1.40 2007/12/20 18:27:06 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -288,6 +288,7 @@ typedef struct tmd_xact {
 
 #define TDFL_SENTSTATUS 0x01    /* this transaction sent status */
 #define TDFL_SENTSENSE  0x02    /* this transaction sent sense data */
+#define TDFL_ERROR      0x04    /* this transaction had an error */
 #define TDFL_PRIVATE    0xF0    /* private inner layer usage */
 
 /*

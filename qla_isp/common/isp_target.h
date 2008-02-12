@@ -1,4 +1,4 @@
-/* $Id: isp_target.h,v 1.57 2007/12/04 22:19:15 mjacob Exp $ */
+/* $Id: isp_target.h,v 1.58 2007/12/20 18:24:40 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -786,7 +786,7 @@ typedef struct {
 	uint8_t		ct_iid_hi;	/* hi 8 bits of portid */
 	uint8_t		ct_reserved;
 	uint32_t	ct_rxid;
-	uint16_t	ct_senselen;	/* mode 0 only */
+	uint16_t	ct_senselen;	/* mode 1 only */
 	uint16_t	ct_flags;
 	int32_t		ct_resid;	/* residual length */
 	uint16_t	ct_oxid;
@@ -946,6 +946,8 @@ typedef struct {
 #define	ISP24XX_ABTS_RSP_INVXID		0x08
 #define	ISP24XX_ABTS_RSP_LOGOUT		0x29
 #define	ISP24XX_ABTS_RSP_SUBCODE	0x31
+
+#define	ISP24XX_NO_TASK			0xffffffff
 
 /*
  * Debug macros
