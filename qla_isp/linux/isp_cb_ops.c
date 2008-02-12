@@ -1,4 +1,4 @@
-/* $Id: isp_cb_ops.c,v 1.81 2007/12/26 22:53:45 mjacob Exp $ */
+/* $Id: isp_cb_ops.c,v 1.82 2007/12/29 04:50:47 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -516,11 +516,10 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
 
     case ISP_RESCAN:
         if (IS_FC(isp)) {
-            ISP_LOCKU_SOFTC(isp);
             for (i = 0; i < isp->isp_nchan; i++) {
-                ISP_THREAD_EVENT(isp, ISP_THREAD_FC_RESCAN, FCPARAM(isp, i), 1, __FUNCTION__, __LINE__);
+                FCPARAM(isp, i)->isp_loopstate = LOOP_PDB_RCVD;
+                ISP_THREAD_EVENT(isp, ISP_THREAD_FC_RESCAN, FCPARAM(isp, i), 0, __FUNCTION__, __LINE__);
             }
-            ISP_UNLKU_SOFTC(isp);
         }
         break;
 

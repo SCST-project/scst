@@ -1,4 +1,4 @@
-/* $Id: isp.c,v 1.186 2007/12/28 21:28:39 mjacob Exp $ */
+/* $Id: isp.c,v 1.187 2007/12/29 04:48:46 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -2545,7 +2545,8 @@ isp_fclink_test(ispsoftc_t *isp, int chan, int usdelay)
 
 	fcp = FCPARAM(isp, chan);
 
-	isp_prt(isp, ISP_LOGSANCFG|ISP_LOGDEBUG0, "Chan %d FC Link Test Entry", chan);
+	isp_prt(isp, ISP_LOGSANCFG|ISP_LOGDEBUG0,
+	    "Chan %d FC Link Test Entry", chan);
 	ISP_MARK_PORTDB(isp, chan, 1);
 
 	/*
@@ -2675,7 +2676,8 @@ isp_fclink_test(ispsoftc_t *isp, int chan, int usdelay)
 
 	/*
 	 * Check to make sure we got a valid loopid
-	 * The 24XX seems to mess this up.
+	 * The 24XX seems to mess this up for multiple
+	 * channels.
 	 */
 	if (fcp->isp_topo == TOPO_FL_PORT ||
 	    fcp->isp_topo == TOPO_NL_PORT) {
@@ -2692,10 +2694,12 @@ isp_fclink_test(ispsoftc_t *isp, int chan, int usdelay)
 					break;
 				}
 			}
-			if (alpa_map[i] && fcp->isp_loopid != alpa) {
-				isp_prt(isp, ISP_LOGDEBUG0, "Chan %d deriving "
-				    "loopid 0x%x from AL_PA and ignoring retur"
-				    "ned value %d", chan, i, fcp->isp_loopid);
+			if (alpa_map[i] && fcp->isp_loopid != i) {
+				isp_prt(isp, ISP_LOGSANCFG|ISP_LOGDEBUG0,
+				    "Chan %d deriving loopid %d from AL_PA map "
+				    " (AL_PA 0x%x) and ignoring returned value "
+				    "%d (AL_PA 0x%x)", chan, i, alpa_map[i],
+				    fcp->isp_loopid, alpa);
 				fcp->isp_loopid = i;
 			}
 		}
@@ -3044,20 +3048,13 @@ isp_scan_loop(ispsoftc_t *isp, int chan)
 	 */
 	for (handle = 0; handle < lim; handle++) {
 		/*
-		 * Don't try to scan for ourselves...
-	 	 */
-		if (handle == fcp->isp_loopid) {
-			continue;
-		}
-
-		/*
 		 * Don't scan "special" ids.
 		 */
-		if (handle >= FL_ID || handle <= SNS_ID) {
+		if (handle >= FL_ID && handle <= SNS_ID) {
 			continue;
 		}
 		if (ISP_CAP_2KLOGIN(isp)) {
-			if (handle >= NPH_RESERVED || handle <= NPH_FL_ID) {
+			if (handle >= NPH_RESERVED && handle <= NPH_FL_ID) {
 				continue;
 			}
 		}
@@ -5709,12 +5706,23 @@ isp_parse_async(ispsoftc_t *isp, uint16_t mbox)
 			    "bad PDB CHANGED event for SCSI cards");
 			break;
 		}
-		GET_24XX_BUS(isp, chan, "ASYNC_PDB_CHANGED");
-		ISP_SET_SENDMARKER(isp, chan, 1);
-		FCPARAM(isp, chan)->isp_loopstate = LOOP_PDB_RCVD;
-		ISP_MARK_PORTDB(isp, chan, 1);
-		isp_async(isp, ISPASYNC_CHANGE_NOTIFY, chan,
-		    ISPASYNC_CHANGE_PDB);
+		/*
+		 * We *should* get a channel out of the 24XX, but we don't seem
+		 * to get more than a PDB CHANGED on channel 0, so turn it into
+		 * a broadcast event.
+		 */
+		for (chan = 0; chan < isp->isp_nchan; chan++) {
+			fcparam *fcp = FCPARAM(isp, chan);
+
+			if (fcp->role == ISP_ROLE_NONE) {
+				continue;
+			}
+			ISP_SET_SENDMARKER(isp, chan, 1);
+			fcp->isp_loopstate = LOOP_PDB_RCVD;
+			ISP_MARK_PORTDB(isp, chan, 1);
+			isp_async(isp, ISPASYNC_CHANGE_NOTIFY, chan,
+			    ISPASYNC_CHANGE_PDB);
+		}
 		break;
 
 	case ASYNC_CHANGE_NOTIFY:
