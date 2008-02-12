@@ -1,4 +1,4 @@
-/* $Id: scsi_target.c,v 1.73 2007/11/14 18:19:29 mjacob Exp $ */
+/* $Id: scsi_target.c,v 1.74 2007/11/27 17:57:26 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -1928,7 +1928,7 @@ scsi_target_handler(qact_e action, void *arg)
                     }
                 }
                 if (tmd == NULL) {
-                    printk(KERN_WARNING "scsi_target: ABORT_TASK[%llx] cannot find tmd\n", tmd->cd_tagval);
+                    printk(KERN_WARNING "scsi_target: ABORT_TASK[%llx] cannot find tmd\n", np->nt_tagval);
                 }
             }
             spin_unlock_irqrestore(&scsi_target_lock, flags);

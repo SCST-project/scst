@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.142 2007/11/14 18:19:36 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.144 2007/11/27 17:58:04 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -3180,6 +3180,7 @@ isplinux_pci_remove(struct pci_dev *pdev)
     struct isp_pcisoftc *pci_isp = pci_get_drvdata(pdev);
     unsigned long flags;
     ispsoftc_t *isp;
+    int i;
     struct Scsi_Host *host;
 
     isp = (ispsoftc_t *) pci_isp;
@@ -3218,6 +3219,12 @@ isplinux_pci_remove(struct pci_dev *pdev)
 #endif
     scsi_host_put(host);
     pci_set_drvdata(pdev, NULL);
+    for (i = 0; i < MAX_ISP; i++) {
+        if (isplist[i] == isp) {
+            isplist[i] = NULL;
+            break;
+        }
+    }
 }
 
 static struct pci_driver isplinux_pci_driver = {
