@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.158 2008/01/26 00:14:12 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.159 2008/01/27 01:10:42 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -349,8 +349,8 @@ struct isp_pcisoftc {
     void *              vaddr;      /* Mapped Memory Address */
     vm_offset_t         voff;
     vm_offset_t         poff[_NREG_BLKS];
-    u32     msix_vector     : 16,
-                            : 13,
+    u16     msix_vector[3];
+    u8                      : 5,
             msix_enabled    : 2,
             msi_enabled     : 1;
 };
@@ -427,7 +427,9 @@ isplinux_pci_release(struct Scsi_Host *host)
     }
     if (isp_pci->msix_enabled) {
         if (isp_pci->msix_enabled > 1) {
-            free_irq(isp_pci->msix_vector, isp_pci);
+            free_irq(isp_pci->msix_vector[0], isp_pci);
+            free_irq(isp_pci->msix_vector[1], isp_pci);
+            free_irq(isp_pci->msix_vector[2], isp_pci);
         }
         pci_disable_msix(isp_pci->pci_dev);
         isp_pci->msix_enabled = 0;
@@ -528,7 +530,6 @@ isplinux_pci_init_one(struct Scsi_Host *host)
     struct pci_dev *pdev;
     ispsoftc_t *isp;
     const char *fwname = NULL;
-    struct msix_entry isp_msix;
 
     isp_pci = (struct isp_pcisoftc *) ISP_HOST2ISP(host);
     pdev = isp_pci->pci_dev;
@@ -613,19 +614,27 @@ isplinux_pci_init_one(struct Scsi_Host *host)
         pci_intx(pdev, 1);
     }
 
-    isp_msix.vector = 0;
-    isp_msix.entry = 0;
 
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2422 || pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2432) {
+        struct msix_entry isp_msix[3];
         int reg;
+
+        isp_msix[0].vector = 0;
+        isp_msix[0].entry = 0;
+        isp_msix[1].vector = 1;
+        isp_msix[1].entry = 1;
+        isp_msix[2].vector = 2;
+        isp_msix[2].entry = 2;
 
         /* enable PCI-INTX */
         pci_intx(pdev, 1);
 
         /* enable MSI-X or MSI-X */
-        if (pci_enable_msix(pdev, &isp_msix, 1) == 0) {
+        if (pci_enable_msix(pdev, isp_msix, 3) == 0) {
             isp_pci->msix_enabled = 1;
-            isp_pci->msix_vector = isp_msix.vector;
+            isp_pci->msix_vector[0] = isp_msix[0].vector;
+            isp_pci->msix_vector[1] = isp_msix[1].vector;
+            isp_pci->msix_vector[2] = isp_msix[2].vector;
         } else if (pci_enable_msi(pdev) == 0) {
             isp_pci->msi_enabled = 1;
         }
@@ -800,8 +809,19 @@ isplinux_pci_init_one(struct Scsi_Host *host)
     }
 #endif
     if (isp_pci->msix_enabled) {
-        if (request_irq(isp_pci->msix_vector, isplinux_intr, 0, isp->isp_name, isp_pci)) {
-            isp_prt(isp, ISP_LOGWARN, "unable to request MSI-X vector %u", isp_pci->msix_vector);
+        if (request_irq(isp_pci->msix_vector[0], isplinux_intr, 0, "isp_general", isp_pci)) {
+            isp_prt(isp, ISP_LOGWARN, "unable to request MSI-X vector 0");
+            pci_disable_msix(pdev);
+            isp_pci->msix_enabled = 0;
+        } else if (request_irq(isp_pci->msix_vector[1], isplinux_intr, 0, "isp_resp_q", isp_pci)) {
+            isp_prt(isp, ISP_LOGWARN, "unable to request MSI-X vector 1");
+            free_irq(isp_pci->msix_vector[0], isp_pci);
+            pci_disable_msix(pdev);
+            isp_pci->msix_enabled = 0;
+        } else if (request_irq(isp_pci->msix_vector[2], isplinux_intr, 0, "isp_atio_q", isp_pci)) {
+            isp_prt(isp, ISP_LOGWARN, "unable to request MSI-X vector 2");
+            free_irq(isp_pci->msix_vector[0], isp_pci);
+            free_irq(isp_pci->msix_vector[1], isp_pci);
             pci_disable_msix(pdev);
             isp_pci->msix_enabled = 0;
         } else {
@@ -809,6 +829,11 @@ isplinux_pci_init_one(struct Scsi_Host *host)
         }
     }
     if (isp_pci->msix_enabled == 0) {
+        if (isp_pci->msi_enabled == 0) {
+            if (pci_enable_msi(pdev) == 0) {
+                isp_pci->msi_enabled = 1;
+            }
+        }
         if (request_irq(pdev->irq, isplinux_intr, ISP_IRQ_FLAGS, isp->isp_name, isp_pci)) {
             isp_prt(isp, ISP_LOGERR, "could not snag irq %u (0x%x)", pdev->irq, pdev->irq);
             goto bad;
@@ -921,7 +946,9 @@ bad:
     }
     if (isp_pci->msix_enabled) {
         if (isp_pci->msix_enabled > 1) {
-            free_irq(isp_pci->msix_vector, isp_pci);
+            free_irq(isp_pci->msix_vector[0], isp_pci);
+            free_irq(isp_pci->msix_vector[1], isp_pci);
+            free_irq(isp_pci->msix_vector[2], isp_pci);
         }
         pci_disable_msix(isp_pci->pci_dev);
         isp_pci->msix_enabled = 0;
@@ -3355,7 +3382,9 @@ isplinux_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
         scsi_host_put(host);
         if (pci_isp->msix_enabled) {
             if (pci_isp->msix_enabled > 1) {
-                free_irq(pci_isp->msix_vector, pci_isp);
+                free_irq(pci_isp->msix_vector[0], pci_isp);
+                free_irq(pci_isp->msix_vector[1], pci_isp);
+                free_irq(pci_isp->msix_vector[2], pci_isp);
             }
             pci_disable_msix(pci_isp->pci_dev);
             pci_isp->msix_enabled = 0;
