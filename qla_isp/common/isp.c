@@ -1,4 +1,4 @@
-/* $Id: isp.c,v 1.182 2007/12/04 22:18:16 mjacob Exp $ */
+/* $Id: isp.c,v 1.183 2007/12/05 00:42:02 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -2734,6 +2734,13 @@ isp_fclink_test(ispsoftc_t *isp, int chan, int usdelay)
 		lp->new_portid = lp->portid;
 		lp->new_roles = lp->roles;
 		if (IS_24XX(isp)) {
+			fcp->inorder = (mbs.param[7] & ISP24XX_INORDER) != 0;
+			if (ISP_FW_NEWER_THAN(isp, 4, 0, 27)) {
+				fcp->npiv_fabric = (mbs.param[7] & ISP24XX_NPIV_SAN) != 0;
+				if (fcp->npiv_fabric) {
+					isp_prt(isp, ISP_LOGCONFIG, "fabric supports N-Port virtualization");
+				}
+			}
 			if (chan) {
 				fcp->isp_sns_hdl = NPH_SNS_HDLBASE + chan;
 				r = isp_plogx(isp, chan, fcp->isp_sns_hdl,

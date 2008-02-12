@@ -1,4 +1,4 @@
-/* $Id: isp_linux.h,v 1.144 2007/12/02 22:02:06 mjacob Exp $ */
+/* $Id: isp_linux.h,v 1.145 2007/12/05 00:41:42 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -73,10 +73,6 @@
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0) || LINUX_VERSION_CODE >=  KERNEL_VERSION(2,7,0)
 #error  "Only Linux 2.5/2.6 kernels are supported with this driver"
-#endif
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,23)
-#error  "There are problems with 2.6.23 and later kernels at present"
 #endif
 
 #ifndef UNUSED_PARAMETER

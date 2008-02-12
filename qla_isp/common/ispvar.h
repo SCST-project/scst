@@ -1,4 +1,4 @@
-/* $Id: ispvar.h,v 1.86 2007/12/02 22:02:04 mjacob Exp $ */
+/* $Id: ispvar.h,v 1.87 2007/12/05 00:42:02 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -409,7 +409,9 @@ typedef struct {
  */
 
 typedef struct {
-	uint32_t				: 13,
+	uint32_t				: 11,
+				npiv_fabric	: 1,
+				inorder		: 1,
 				sendmarker	: 1,
 				role		: 2,
 				isp_gbspeed	: 4,

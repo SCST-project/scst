@@ -1,4 +1,4 @@
-/* $Id: ispmbox.h,v 1.67 2007/12/02 22:02:04 mjacob Exp $ */
+/* $Id: ispmbox.h,v 1.68 2007/12/05 00:42:02 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -148,6 +148,12 @@
 
 /* These are for the ISP2X00 FC cards */
 #define	MBOX_GET_LOOP_ID		0x0020
+/* for 24XX cards, outgoing mailbox 7 has these values for F or FL topologies */
+#define		ISP24XX_INORDER		0x0100
+#define		ISP24XX_NPIV_SAN	0x0400
+#define		ISP24XX_VSAN_SAN	0x1000
+#define		ISP24XX_FC_SP_SAN	0x2000
+
 #define	MBOX_GET_FIRMWARE_OPTIONS	0x0028
 #define	MBOX_SET_FIRMWARE_OPTIONS	0x0038
 #define	MBOX_GET_RESOURCE_COUNT		0x0042
@@ -1102,6 +1108,8 @@ typedef struct {
 #define	ICB2400_VPINFO_PORT_OFF(chan)		\
     ICB2400_VPINFO_OFF + 			\
     sizeof (isp_icb_2400_vpinfo_t) + ((chan - 1) * ICB2400_VPOPT_WRITE_SIZE)
+
+#define	ICB2400_VPGOPT_MID_DISABLE	0x02
 
 typedef struct {
 	isphdr_t	vp_ctrl_hdr;
