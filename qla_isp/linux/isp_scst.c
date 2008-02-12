@@ -845,7 +845,7 @@ scsi_target_enadis(bus_t *bp, int en)
  
     memset(&ec, 0, sizeof (ec));
     ec.en_hba = bp->h.r_identity;
-    ec.en_tgt = TGT_ANY;
+    ec.en_chan = 0;
     if (bp->h.r_type == R_FC) {
         SDprintk("%s: ANY LUN acceptable\n", __FUNCTION__);
         ec.en_lun = LUN_ANY;
