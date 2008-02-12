@@ -1,4 +1,4 @@
-/* $Id: isp.c,v 1.190 2008/01/07 19:07:06 mjacob Exp $ */
+/* $Id: isp.c,v 1.192 2008/01/08 22:14:29 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -210,6 +210,11 @@ isp_reset(ispsoftc_t *isp)
 	static const char dcrc[] = "Downloaded RISC Code Checksum Failure";
 
 	isp->isp_state = ISP_NILSTATE;
+	if (isp->isp_dead) {
+		isp_shutdown(isp);
+		ISP_DISABLE_INTS(isp);
+		return;
+	}
 
 	/*
 	 * Basic types (SCSI, FibreChannel and PCI or SBus)
@@ -222,6 +227,7 @@ isp_reset(ispsoftc_t *isp)
 	 */
 
 	ISP_DISABLE_INTS(isp);
+
 
 	/*
 	 * Pick an initial maxcmds value which will be used
@@ -1118,6 +1124,11 @@ isp_reset(ispsoftc_t *isp)
 	for (i = 0; i < isp->isp_nchan; i++) {
 		isp_fw_state(isp, i);
 	}
+	if (isp->isp_dead) {
+		isp_shutdown(isp);
+		ISP_DISABLE_INTS(isp);
+		return;
+	}
 
 	isp->isp_state = ISP_RESETSTATE;
 
@@ -1902,10 +1913,15 @@ isp_fibre_init_2400(ispsoftc_t *isp)
 
 	icbp->icb_fwoptions2 = fcp->isp_xfwoptions;
 	switch(isp->isp_confopts & ISP_CFG_PORT_PREF) {
+#if	0
 	case ISP_CFG_NPORT:
+		/*
+		 * XXX: This causes the f/w to crash.
+		 */
 		icbp->icb_fwoptions2 &= ~ICB2400_OPT2_TOPO_MASK;
 		icbp->icb_fwoptions2 |= ICB2400_OPT2_PTP_2_LOOP;
 		break;
+#endif
 	case ISP_CFG_NPORT_ONLY:
 		icbp->icb_fwoptions2 &= ~ICB2400_OPT2_TOPO_MASK;
 		icbp->icb_fwoptions2 |= ICB2400_OPT2_PTP_ONLY;
@@ -5581,6 +5597,7 @@ isp_parse_async(ispsoftc_t *isp, uint16_t mbox)
 		isp_async(isp, ISPASYNC_BUS_RESET, chan);
 		break;
 	case ASYNC_SYSTEM_ERROR:
+		isp->isp_dead = 1;
 		isp->isp_state = ISP_CRASHED;
 		if (IS_FC(isp)) {
 			FCPARAM(isp, chan)->isp_loopstate = LOOP_NIL;
@@ -6034,6 +6051,8 @@ isp_parse_async(ispsoftc_t *isp, uint16_t mbox)
 			    "Point-to-Point -> Loop mode (BAD LIP)");
 			break;
 		case ISP_CONN_FATAL:
+			isp->isp_dead = 1;
+			isp->isp_state = ISP_CRASHED;
 			isp_prt(isp, ISP_LOGERR, "FATAL CONNECTION ERROR");
 			isp_async(isp, ISPASYNC_FW_CRASH);
 			return (-1);
@@ -7937,7 +7956,6 @@ isp_reinit(ispsoftc_t *isp)
 		isp_done(xs);
 	}
 #ifdef	ISP_TARGET_MODE
-/* XXXXXXXXX NOT SUFFICCIENT XXXXXXXXX */
 	MEMZERO(isp->isp_tgtlist, isp->isp_maxcmds * sizeof (void **));
 #endif
 }

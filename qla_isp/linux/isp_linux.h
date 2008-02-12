@@ -140,20 +140,6 @@ typedef struct scsi_host_template Scsi_Host_Template;
 #endif
 
 /*
- * These bits and pieces of keeping track of Linux versions
- * and some of the various foo items for locking/unlocking
- * gratefully borrowed from (amongst others) Doug Ledford
- * and Gerard Roudier.
- */
-
-#define PWRB(p, o, r)   pci_write_config_byte(p->pci_dev, o, r)
-#define PWRW(p, o, r)   pci_write_config_word(p->pci_dev, o, r)
-#define PWRL(p, o, r)   pci_write_config_dword(p->pci_dev, o, r)
-#define PRDW(p, o, r)   pci_read_config_word(p->pci_dev, o, r)
-#define PRDD(p, o, r)   pci_read_config_dword(p->pci_dev, o, r)
-#define PRDB(p, o, r)   pci_read_config_byte(p->pci_dev, o, r)
-
-/*
  * Efficiency- get rid of SBus code && tests unless we need them.
  */
 #if defined(__sparcv9__ ) || defined(__sparc__)
@@ -743,9 +729,6 @@ extern int api_channel;
 #endif
 #ifndef roundup
 #define roundup(x, y)   ((((x)+((y)-1))/(y))*(y))
-#endif
-#ifndef ARGSUSED
-#define ARGSUSED(x) x = x
 #endif
 
 /*

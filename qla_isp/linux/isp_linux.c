@@ -1,4 +1,4 @@
-/* $Id: isp_linux.c,v 1.216 2008/01/04 18:00:20 mjacob Exp $ */
+/* $Id: isp_linux.c,v 1.219 2008/01/08 22:15:01 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -181,7 +181,7 @@ isplinux_append_to_waitq(ispsoftc_t *isp, Scsi_Cmnd *Cmnd)
      * If we're a fibre channel card and we consider the loop to be
      * down, we just finish the command here and now.
      */
-    if (IS_FC(isp) && ISP_DATA(isp, XS_CHANNEL(Cmnd))->deadloop) {
+    if ((IS_FC(isp) && ISP_DATA(isp, XS_CHANNEL(Cmnd))->deadloop) || isp->isp_dead) {
         XS_INITERR(Cmnd);
         XS_SETERR(Cmnd, DID_NO_CONNECT);
         /*
@@ -2705,8 +2705,9 @@ isp_enable_lun(ispsoftc_t *isp, uint16_t bus, uint16_t lun)
     }
 
     /*
-     * Validity check with our enable ruleset. We can't enable busses > 1
-     * without enabling bus 0 first in some kind of role.
+     * Validity check with our enable ruleset.
+     * We can't enable busses > 1 without enabling bus 0
+     * first in some kind of role.
      */
     if (IS_FC(isp) && bus != 0 && (((FCPARAM(isp, 0)->role & ISP_ROLE_TARGET) && nolunsenabled(isp, 0)) || (FCPARAM(isp, 0)->role == ISP_ROLE_NONE))) {
         isp_prt(isp, ISP_LOGWARN, "%s: must enable Chan 0 before Chan %u", __FUNCTION__, bus);
@@ -3770,21 +3771,13 @@ isplinux_get_default_id(ispsoftc_t *isp, int chan)
 int
 isplinux_get_default_role(ispsoftc_t *isp, int chan)
 {
-    if (IS_FC(isp)) {
-        return (ISP_DATA(isp, chan)->role);
-    } else {
-        return (isp->isp_osinfo.role);
-    }
+    return (ISP_DATA(isp, chan)->role);
 }
 
 void
 isplinux_set_default_role(ispsoftc_t *isp, int chan, int role)
 {
-    if (IS_FC(isp)) {
-        ISP_DATA(isp, chan)->role = role;
-    } else {
-        isp->isp_osinfo.role = role;
-    }
+    ISP_DATA(isp, chan)->role = role;
 }
 
 /*
@@ -3896,14 +3889,16 @@ isplinux_timer(unsigned long arg)
     ISP_ILOCK_SOFTC(isp);
     isp->isp_osinfo.dogcnt++;
 
-    if (ISP_READ_ISR(isp, &isr, &sema, &mbox)) {
-        isp_intr(isp, isr, sema, mbox);
-        if (isp->intsok) {
-            ISP_ENABLE_INTS(isp);
-        }
+    if (isp->isp_dead == 0) {
+        if (ISP_READ_ISR(isp, &isr, &sema, &mbox)) {
+            isp_intr(isp, isr, sema, mbox);
+            if (isp->intsok) {
+                ISP_ENABLE_INTS(isp);
+            }
 #ifdef  ISP_TARGET_MODE
-        didintr = 1;
+            didintr = 1;
 #endif
+        }
     }
     for (i = 0; i < isp->isp_nchan; i++) {
         if (ISP_DATA(isp, i)->qfdelay) {
@@ -4021,7 +4016,7 @@ isplinux_intr(int irq, void *arg PTARG)
  * roles=DEVID=role[,...]
  */
 static int
-isp_parse_rolearg(ispsoftc_t *isp, char *roles)
+isp_parse_rolearg(ispsoftc_t *isp, int chan, char *roles)
 {
     char *role = roles;
 
@@ -4190,14 +4185,12 @@ isplinux_common_init(ispsoftc_t *isp)
     }
 
     if (IS_FC(isp)) {
-        if (IS_2200(isp) || IS_2300(isp)) {
-            if (isp_nport_only & (1 << isp->isp_unit)) {
-                isp->isp_confopts |= ISP_CFG_NPORT_ONLY;
-            } else if (isp_loop_only & (1 << isp->isp_unit)) {
-                isp->isp_confopts |= ISP_CFG_LPORT_ONLY;
-            } else {
-                isp->isp_confopts |= ISP_CFG_NPORT;
-            }
+        if (isp_nport_only & (1 << isp->isp_unit)) {
+            isp->isp_confopts |= ISP_CFG_NPORT_ONLY;
+        } else if (isp_loop_only & (1 << isp->isp_unit)) {
+            isp->isp_confopts |= ISP_CFG_LPORT_ONLY;
+        } else {
+            isp->isp_confopts |= ISP_CFG_NPORT;
         }
         isp->isp_osinfo.host->this_id = MAX_FC_TARG+1;
 #ifdef    ISP_FW_CRASH_DUMP
@@ -4228,7 +4221,6 @@ isplinux_common_init(ispsoftc_t *isp)
         }
         isp->isp_osinfo.host->max_id = MAX_FC_TARG; 
         isp->isp_osinfo.host->max_cmd_len = 16;
-        isp->isp_osinfo.role = isp_parse_rolearg(isp, isp_roles);
 
         for (chan = 0; chan < isp->isp_nchan; chan++) {
             isp_data *fc = ISP_DATA(isp, chan);
@@ -4247,12 +4239,17 @@ isplinux_common_init(ispsoftc_t *isp)
             } else {
                 DEFAULT_EXEC_THROTTLE(isp) = ICB_DFLT_THROTTLE;
             }
-            fc->role = isp->isp_osinfo.role;
+            fc->role = isp_parse_rolearg(isp, chan, isp_roles);
+            SET_DEFAULT_ROLE(isp, chan, fc->role);
         }
     } else {
         isp->isp_osinfo.host->max_id = MAX_TARGETS;
         isp->isp_osinfo.host->max_cmd_len = 12;
         isp->isp_osinfo.host->this_id = 7;    /* temp default */
+        for (chan = 0; chan < isp->isp_nchan; chan++) {
+            SDPARAM(isp, chan)->role = isp_parse_rolearg(isp, chan, isp_roles);
+            SET_DEFAULT_ROLE(isp, chan, SDPARAM(isp, chan)->role);
+        }
     }
 
     if (isp_own_id) {
@@ -4342,6 +4339,7 @@ isplinux_reinit(ispsoftc_t *isp)
     }
     isp->isp_osinfo.host->max_lun = min(maxluns, ISP_MAX_LUNS(isp));
 
+#if 0
     /*
      * If we're not taking a role, set some 'defaults' and turn off lasers (for FC cards).
      */
@@ -4353,6 +4351,12 @@ isplinux_reinit(ispsoftc_t *isp)
         isp_shutdown(isp);
         return (0);
     }
+#else
+    isp->isp_osinfo.host->can_queue = 16;
+    isp->isp_osinfo.host->can_queue = 1;
+    isp->isp_osinfo.host->cmd_per_lun = 1;
+    isp->isp_osinfo.host->this_id = IS_FC(isp)? MAX_FC_TARG : 7;
+#endif
 
     isp_init(isp);
     if (isp->isp_state != ISP_INITSTATE) {
@@ -4525,23 +4529,25 @@ isp_task_thread(void *arg)
                 break;
 #endif
             case ISP_THREAD_REINIT:
-            {
-                int level;
-
                 ISP_LOCKU_SOFTC(isp);
-                level = (isp->isp_osinfo.role == ISP_ROLE_NONE)? ISP_RESETSTATE : ISP_INITSTATE;
-                isp_reinit(isp);
-                for (i = 0; i < isp->isp_nchan; i++) {
-                    ISP_DATA(isp, i)->blocked = 0;
+                if (isp->isp_dead) {
+                    isp_prt(isp, ISP_LOGERR, "chip marked dead- not restarting");
+                    isp_shutdown(isp);
+                    ISP_DISABLE_INTS(isp);
+                    ISP_UNLKU_SOFTC(isp);
+                    break;
                 }
-                if (isp->isp_state >= level) {
+                isp_reinit(isp);
+                if (isp->isp_state == ISP_RUNSTATE) {
+                    for (i = 0; i < isp->isp_nchan; i++) {
+                        ISP_DATA(isp, i)->blocked = 0;
+                    }
                     isp_async(isp, ISPASYNC_FW_RESTARTED);
                 } else {
                     isp_prt(isp, ISP_LOGERR, "unable to restart chip");
                 }
                 ISP_UNLKU_SOFTC(isp);
                 break;
-            }
             case ISP_THREAD_FC_RESCAN:
             {
                 fcparam *fcp = tap->arg;

@@ -1,4 +1,4 @@
-/* $Id: ispvar.h,v 1.90 2008/01/04 16:46:10 mjacob Exp $ */
+/* $Id: ispvar.h,v 1.91 2008/01/08 20:40:22 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -563,7 +563,8 @@ struct ispsoftc {
 	 */
 
 	volatile uint32_t	:	8,
-				:	3,
+				:	2,
+		isp_dead	:	1,
 		isp_in_intr	:	1,
 		isp_mboxbsy	:	1,	/* mailbox command active */
 		isp_state	:	3,

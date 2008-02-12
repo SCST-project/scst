@@ -1,4 +1,4 @@
-/* $Id: isp_cb_ops.c,v 1.83 2008/01/07 19:07:32 mjacob Exp $ */
+/* $Id: isp_cb_ops.c,v 1.84 2008/01/08 18:31:21 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -399,7 +399,7 @@ isp_close(struct inode *ip, struct file *fp)
     return (0);
 }
 
-static int isp_tur_test(ispsoftc_t *, isp_turtst_t *);
+static int isp_perf_test(ispsoftc_t *, isp_perftst_t *);
 
 static int
 isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
@@ -795,15 +795,15 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
         }
         break;
     }
-    case ISP_FC_TURTST:
+    case ISP_FC_PERFTST:
     {
-        isp_turtst_t local, *tt = &local;
+        isp_perftst_t local, *tt = &local;
 
         if (COPYIN((void *)arg, tt, sizeof (*tt))) {
             rv = -EFAULT;
             break;
         }
-        rv = isp_tur_test(isp, tt);
+        rv = isp_perf_test(isp, tt);
         break;
     }
     default:
@@ -1839,7 +1839,7 @@ out:
 }
 
 static int
-isp_tur_test(ispsoftc_t *isp, isp_turtst_t *tt)
+isp_perf_test(ispsoftc_t *isp, isp_perftst_t *tt)
 {
     struct scsi_device *dev = NULL;
     Scsi_Cmnd *Cmnd = NULL;
@@ -1847,19 +1847,35 @@ isp_tur_test(ispsoftc_t *isp, isp_turtst_t *tt)
     struct Scsi_Host *host = NULL;
     uint32_t nxti, optr, handle;
     uint8_t local[QENTRY_LEN];
-    ispreq_t *reqp = (ispreq_t *) local;
-    int result = 0, i;
+    int result = 0, i, iswrite, amt;
     void *qep, *qel = local;
     DECLARE_MUTEX_LOCKED(rsem);
     unsigned long flags;
 
+    if (IS_SCSI(isp)) {
+        return (-ENODEV);
+    }
     if (tt->target < 0 || tt->target >= MAX_FC_TARG) {
         return (-ENODEV);
     }
+
     if (tt->channel < 0 || tt->channel >= isp->isp_nchan) {
         return (-ENODEV);
     }
 
+    iswrite = 0;
+    if (tt->ioszdir) {
+        amt = tt->ioszdir;
+        if (amt < 0) {
+            iswrite = 1;
+            amt = -amt;
+        }
+        if (amt > ISP_FC_SCRLEN) {
+            return (-ENOMEM);
+        }
+    } else {
+        amt = 0;
+    }
     i = FCPARAM(isp, tt->channel)->isp_ini_map[tt->target] - 1;
     if (i < 0 || i >= MAX_FC_TARG) {
         return (-ENXIO);
@@ -1880,6 +1896,7 @@ isp_tur_test(ispsoftc_t *isp, isp_turtst_t *tt)
         isp_kfree(Cmnd, sizeof (Scsi_Cmnd));
         return (-ENOMEM);
     }
+
     Cmnd->device = dev;
     dev->host = host;
     Cmnd->scsi_done = isp_run_cmd_done;
@@ -1887,11 +1904,11 @@ isp_tur_test(ispsoftc_t *isp, isp_turtst_t *tt)
     Cmnd->cmd_len = 6;
     Cmnd->sc_data_direction = SCSI_DATA_NONE;
 
-    reqp->req_header.rqs_entry_count = 1;
     if (IS_24XX(isp)) {
         ispreqt7_t *t7 = (ispreqt7_t *) local;
 
-        reqp->req_header.rqs_entry_type = RQSTYPE_T7RQS;
+        t7->req_header.rqs_entry_type = RQSTYPE_T7RQS;
+        t7->req_header.rqs_entry_count = 1;
         t7->req_task_attribute = FCP_CMND_TASK_ATTR_SIMPLE;
         t7->req_nphdl = lp->handle;
         t7->req_tidlo = lp->portid;
@@ -1902,36 +1919,56 @@ isp_tur_test(ispsoftc_t *isp, isp_turtst_t *tt)
         }
         t7->req_lun[1] = tt->lun & 0xff;
         t7->req_time = 30;
-        t7->req_seg_count = 0;
-        t7->req_vpidx = tt->channel;
-        MEMZERO(t7->req_cdb, sizeof (t7->req_cdb));
-    } else if (IS_FC(isp)) {
-        ispreqt2_t *t2 = (ispreqt2_t *) local;
-
-        reqp->req_header.rqs_entry_type = RQSTYPE_T2RQS;
-        t2->req_flags = REQFLAG_STAG;
-
-        if (ISP_CAP_2KLOGIN(isp)) {
-            ((ispreqt2e_t *)reqp)->req_target = lp->handle;
-            ((ispreqt2e_t *)reqp)->req_scclun = tt->lun;
-        } else if (ISP_CAP_SCCFW(isp)) {
-            t2->req_target = lp->handle;
-            t2->req_scclun = tt->lun;
+        if (amt) {
+            t7->req_seg_count = 1;
+            if (iswrite) {
+                t7->req_alen_datadir = FCP_CMND_DATA_WRITE;
+                t7->req_cdb[0] = 0xa;
+            } else {
+                t7->req_alen_datadir = FCP_CMND_DATA_READ;
+                t7->req_cdb[0] = 0x8;
+            }
+            t7->req_cdb[4] = amt >> 9;
+            t7->req_dl = amt;
+            t7->req_dataseg.ds_base = DMA_LO32(FCPARAM(isp, tt->channel)->isp_scdma);
+            t7->req_dataseg.ds_basehi = DMA_HI32(FCPARAM(isp, tt->channel)->isp_scdma);
+            t7->req_dataseg.ds_count = amt;
         } else {
-            t2->req_target = lp->handle;
-            t2->req_lun_trn = tt->lun;
+            t7->req_seg_count = 0;
         }
-        MEMZERO(t2->req_cdb, sizeof (t2->req_cdb));
-        t2->req_time = 30;
+        t7->req_vpidx = tt->channel;
     } else {
-        reqp->req_header.rqs_entry_type = RQSTYPE_REQUEST;
-        reqp->req_flags = REQFLAG_STAG;
-        reqp->req_target = tt->target;
-        reqp->req_target |= (tt->channel << 7);
-        reqp->req_lun_trn = tt->lun;
-        reqp->req_cdblen = 6;
-        MEMZERO(reqp->req_cdb, sizeof (reqp->req_cdb));
-        reqp->req_time = 30;
+        ispreqt3_t *t3 = (ispreqt3_t *) local;
+
+        t3->req_header.rqs_entry_type = RQSTYPE_T3RQS;
+        t3->req_header.rqs_entry_count = 1;
+        t3->req_flags = REQFLAG_STAG;
+
+        if (amt) {
+            if (iswrite) {
+                t3->req_flags |= REQFLAG_DATA_OUT;
+                t3->req_cdb[0] = 0xa;
+            } else {
+                t3->req_flags |= REQFLAG_DATA_IN;
+                t3->req_cdb[0] = 0x8;
+            }
+            t3->req_cdb[4] = amt >> 9;
+            t3->req_dataseg[0].ds_base = DMA_LO32(FCPARAM(isp, tt->channel)->isp_scdma);
+            t3->req_dataseg[0].ds_basehi = DMA_HI32(FCPARAM(isp, tt->channel)->isp_scdma);
+            t3->req_dataseg[0].ds_count = amt;
+            t3->req_totalcnt = amt;
+        }
+        if (ISP_CAP_2KLOGIN(isp)) {
+            ((ispreqt3e_t *)t3)->req_target = lp->handle;
+            ((ispreqt3e_t *)t3)->req_scclun = tt->lun;
+        } else if (ISP_CAP_SCCFW(isp)) {
+            t3->req_target = lp->handle;
+            t3->req_scclun = tt->lun;
+        } else {
+            t3->req_target = lp->handle;
+            t3->req_lun_trn = tt->lun;
+        }
+        t3->req_time = 30;
     }
 
     for (i = 0; i < tt->count; i++) {
@@ -1953,17 +1990,15 @@ isp_tur_test(ispsoftc_t *isp, isp_turtst_t *tt)
         } else {
             handle = ISP_SPCL_HANDLE;
         }
-        reqp->req_handle = handle;
+        ((ispreq_t *)local)->req_handle = handle;
         if (IS_24XX(isp)) {
             isp_put_request_t7(isp, qel, qep);
-        } else if (IS_FC(isp)) {
+        } else {
             if (ISP_CAP_2KLOGIN(isp)) {
                 isp_put_request_t2e(isp, qel, qep);
             } else {
                 isp_put_request_t2(isp, qel, qep);
             }
-        } else {
-            isp_put_request(isp, qel, qep);
         }
         ISP_ADD_REQUEST(isp, nxti);
         if (handle != ISP_SPCL_HANDLE) {
