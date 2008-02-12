@@ -1,4 +1,4 @@
-/* $Id: ispvar.h,v 1.87 2007/12/05 00:42:02 mjacob Exp $ */
+/* $Id: ispvar.h,v 1.88 2007/12/11 07:17:56 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -272,7 +272,9 @@ typedef struct {
 #define	NPH_RESERVED		0x7F0	/* begin of reserved N-port handles */
 #define	NPH_MGT_ID		0x7FA	/* Management Server Special ID */
 #define	NPH_SNS_ID		0x7FC	/* SNS Server Special ID */
-#define	NPH_FL_ID		0x7FE	/* FL Port Special ID */
+#define	NPH_FABRIC_CTLR		0x7FD	/* Fabric Controller (0xFFFFFD) */
+#define	NPH_FL_ID		0x7FE	/* F Port Special ID (0xFFFFFE) */
+#define	NPH_IP_BCST		0x7ff	/* IP Broadcast Special ID (0xFFFFFF) */
 #define	NPH_MAX_2K		0x800
 
 /*

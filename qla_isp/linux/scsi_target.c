@@ -1,4 +1,4 @@
-/* $Id: scsi_target.c,v 1.75 2007/12/02 22:02:06 mjacob Exp $ */
+/* $Id: scsi_target.c,v 1.76 2007/12/11 22:16:38 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -413,64 +413,6 @@ static struct file_operations scsi_target_fops = {
     .owner  =   THIS_MODULE,
 };
 
-static int
-scsi_target_ioctl(struct inode *ip, struct file *fp, unsigned int cmd, unsigned long arg)
-{
-    int rv = 0;
-
-    switch(cmd) {
-    case SC_ENABLE_LUN:
-    case SC_DISABLE_LUN:
-    {
-        sc_enable_t local, *sc = &local;
-        if (COPYIN((void *)arg, (void *)sc, sizeof (*sc))) {
-            rv = -EFAULT;
-            break;
-        }
-        rv = scsi_target_endis(sc->hba_name_unit, sc->nbytes, sc->channel, sc->lun, (cmd == SC_ENABLE_LUN)? ((sc->flags & SC_EF_OVERCOMMIT)? 2 : 1) : 0);
-        break;
-    }
-    case SC_PUT_IO:
-    case SC_GET_IO:
-    {
-        sc_io_t sc;
-
-        if (COPYIN((void *)arg, (void *)&sc, sizeof (sc))) {
-            rv = -EFAULT;
-            break;
-        }
-        if (cmd == SC_PUT_IO) {
-            rv = scsi_target_end_user_io(&sc);
-        } else {
-            rv = scsi_target_start_user_io(&sc);
-        }
-        if (COPYOUT((void *)&sc, (void *)arg, sizeof (sc))) {
-            if (rv == 0) {
-                rv = EFAULT;
-            }
-        }
-        break;
-    }
-    case SC_DEBUG:
-    {
-        int odebug = scsi_tdebug;
-        if (COPYIN((void *)arg, (void *)&scsi_tdebug, sizeof (int))) {
-            rv = EFAULT;
-            break;
-        }
-        if (COPYOUT((void *)&odebug, (void *)arg, sizeof (int))) {
-            rv = EFAULT;
-            break;
-        }
-        break;
-    }
-    default:
-        rv = -EINVAL;
-        break;
-    }
-    return (rv);
-}
-
 static __inline int
 validate_bus_pointer(bus_t *bp, void *identity)
 {
@@ -542,6 +484,107 @@ bus_from_notify(tmd_notify_t *np)
     return (NULL);
 }
 
+static int
+scsi_target_ioctl(struct inode *ip, struct file *fp, unsigned int cmd, unsigned long arg)
+{
+    int rv = 0;
+
+    switch(cmd) {
+    case SC_ENABLE_LUN:
+    case SC_DISABLE_LUN:
+    {
+        sc_enable_t local, *sc = &local;
+        if (COPYIN((void *)arg, (void *)sc, sizeof (*sc))) {
+            rv = -EFAULT;
+            break;
+        }
+        rv = scsi_target_endis(sc->hba_name_unit, sc->nbytes, sc->channel, sc->lun, (cmd == SC_ENABLE_LUN)? ((sc->flags & SC_EF_OVERCOMMIT)? 2 : 1) : 0);
+        break;
+    }
+    case SC_PUT_IO:
+    case SC_GET_IO:
+    {
+        sc_io_t sc;
+
+        if (COPYIN((void *)arg, (void *)&sc, sizeof (sc))) {
+            rv = -EFAULT;
+            break;
+        }
+        if (cmd == SC_PUT_IO) {
+            rv = scsi_target_end_user_io(&sc);
+        } else {
+            rv = scsi_target_start_user_io(&sc);
+        }
+        if (COPYOUT((void *)&sc, (void *)arg, sizeof (sc))) {
+            if (rv == 0) {
+                rv = EFAULT;
+            }
+        }
+        break;
+    }
+    case SC_DEBUG:
+    {
+        int odebug = scsi_tdebug;
+        if (COPYIN((void *)arg, (void *)&scsi_tdebug, sizeof (int))) {
+            rv = EFAULT;
+            break;
+        }
+        if (COPYOUT((void *)&odebug, (void *)arg, sizeof (int))) {
+            rv = EFAULT;
+            break;
+        }
+        break;
+    }
+    case SC_INJECT_UA:
+    {
+        sc_inject_ua_t local, *sc = &local;
+        bus_t *bp;
+        struct bus_chan *bc;
+        unsigned long flags;
+        int i, n;
+
+        if (COPYIN((void *)arg, (void *)sc, sizeof (sc))) {
+            rv = -EFAULT;
+            break;
+        }
+        spin_lock_irqsave(&scsi_target_lock, flags);
+        bp = bus_from_name(sc->hba_name_unit);
+        if (bp == NULL) {
+            spin_unlock_irqrestore(&scsi_target_lock, flags);
+            rv = -ENXIO;
+            break;
+        }
+        for (rv = n = 0; n < bp->h.r_nchannels && rv == 0; n++) {
+            bc = &bp->bchan[n];
+            for (i = 0; i < HASH_WIDTH && rv == 0; i++) {
+                ini_t *ini;
+                for (ini = bc->list[i]; ini; ini = ini->ini_next) {
+                    sdata_t *t = sdp;
+                    if (t == NULL) {
+                        rv = -ENOMEM;
+                        break;
+                    }
+                    sdp = t->next;
+                    t->next = NULL;
+                    memcpy(t->sdata, ua, sizeof (ua));
+                    if (ini->ini_sdata == NULL) {
+                        ini->ini_sdata = t;
+                    } else {
+                        ini->ini_sdata_tail->next = t;
+                    }
+                    ini->ini_sdata_tail = t;
+                }
+            }
+        }
+        spin_unlock_irqrestore(&scsi_target_lock, flags);
+        break;
+    }
+    default:
+        rv = -EINVAL;
+        break;
+    }
+    return (rv);
+}
 
 /*
  * Make an initiator structure
@@ -1081,8 +1124,14 @@ doit:
         xact->td_hflags |= TDFH_STSVALID;
         if (ini && ini->ini_sdata) {
             memcpy(tmd->cd_sense, ini->ini_sdata->sdata, TMD_SENSELEN);
+            rem_sdata(ini);
         } else {
-            memset(tmd->cd_sense, 0, TMD_SENSELEN);
+            if (ini == NULL) {
+                printk("%s%d: no initiator structure for sense data\n",  bp->h.r_name, bp->h.r_inst);
+            } else {
+                printk("%s%d: no sense data available\n",  bp->h.r_name, bp->h.r_inst);
+            }
+            memcpy(tmd->cd_sense, nosense, TMD_SENSELEN);
         }
         printk("%s%d: INI(%#llx)=>LUN %d: [%llx] cdb0=0x%02x tl=%u CHECK (0x%x 0x%x 0x%x)\n", bp->h.r_name, bp->h.r_inst, tmd->cd_iid, L0LUN_TO_FLATLUN(tmd->cd_lun),
             tmd->cd_tagval, tmd->cd_cdb[0] & 0xff, tmd->cd_totlen, tmd->cd_sense[2] & 0xf, tmd->cd_sense[12], tmd->cd_sense[13]);
@@ -1827,7 +1876,6 @@ scsi_target_handler(qact_e action, void *arg)
     {
         tmd_xact_t *xact = arg;
         tmd_cmd_t *tmd = xact->td_cmd;
-        ini_t *nptr;
 
         bp = bus_from_tmd(tmd);
         if (bp == NULL) {
@@ -1895,13 +1943,8 @@ scsi_target_handler(qact_e action, void *arg)
          * Did we send sense? If so, remove one sense structure.
          */
         if (xact->td_hflags & TDFH_SNSVALID) {
-            if (xact->td_lflags & TDFL_SENTSENSE) {
-                spin_lock_irqsave(&scsi_target_lock, flags);
-                nptr = ini_from_tmd(bp, tmd);
-                spin_unlock_irqrestore(&scsi_target_lock, flags);
-                if (nptr) {
-                    rem_sdata(nptr);
-                }
+            if ((xact->td_lflags & TDFL_SENTSENSE) == 0) {
+                printk(KERN_WARNING "%s: oops, lost sense data\n", __FUNCTION__);
             }
         }
 

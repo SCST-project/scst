@@ -1,4 +1,4 @@
-/* $Id: scsi_target_ctl.c,v 1.20 2007/12/02 22:02:07 mjacob Exp $ */
+/* $Id: scsi_target_ctl.c,v 1.21 2007/12/11 22:16:55 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -76,7 +76,8 @@
 const char usage[] = "usage: %s\n\
  scsi_target_ctl debug level\n\
  scsi_target_ctl enable hba-name-unit channel lun nbytes [ overcommit-file ]\n\
- scsi_target_ctl disable hba-name-unit channel lun\n";
+ scsi_target_ctl disable hba-name-unit channel lun\n\
+ scsi_target_ctl ua hba-name-unit\n";
 
 static uint64_t szarg(char *);
 static void ioloop(int, int, char *, uint16_t);
@@ -88,6 +89,7 @@ main(int a, char **v)
     union {
         sc_enable_t _x;
         int         _y;
+        sc_inject_ua_t _u;
     } x;
     int iofd = -1, fd, action, dd = 0;
     char *progname;
@@ -142,6 +144,12 @@ main(int a, char **v)
         }
         action = SC_DEBUG;
         dd = x._y = atoi(v[2]);
+    } else if (strcmp(v[1], "ua") == 0) {
+        if (a != 3) {
+            goto usage;
+        }
+        strncpy(x._u.hba_name_unit, v[2], sizeof (x._u.hba_name_unit));
+        action = SC_INJECT_UA;
     } else {
         goto usage;
     }

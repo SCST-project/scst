@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.5 2007/03/10 02:27:53 mjacob Exp $
+# $Id: Makefile,v 1.9 2007/12/11 22:19:39 mjacob Exp $
 #
 # Makefile
 #
@@ -46,6 +46,9 @@ clean:
 
 install:
 	@$(MAKE) -C ${LINUX} M=${CURDIR}/build modules_install
+
+install_host_progs:
+	@$(MAKE) -C build $@
 
 links:
 	@$(MAKE) -C build make_links

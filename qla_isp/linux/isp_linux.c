@@ -1,4 +1,4 @@
-/* $Id: isp_linux.c,v 1.212 2007/12/09 00:05:43 mjacob Exp $ */
+/* $Id: isp_linux.c,v 1.213 2007/12/11 22:19:07 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -1918,22 +1918,18 @@ isp_handle_platform_atio(ispsoftc_t *isp, at_entry_t *aep)
     }
 
     if ((tmd = isp->isp_osinfo.tfreelist) == NULL) {
-        /*
-         * We're out of resources.
-         *
-         * Because we can't autofeed sense data back with a command for
-         * parallel SCSI, we can't give back a CHECK CONDITION. We'll give
-         * back a QUEUE FULL or BUSY status instead.
-         */
-        isp_prt(isp, ISP_LOGWARN, "Chan %d is out of TMDs for command from initiator %d for lun %u",
-            GET_BUS_VAL(aep->at_iid), GET_IID_VAL(aep->at_iid), aep->at_lun);
-        if (aep->at_flags & AT_TQAE) {
-            isp_endcmd(isp, aep, SCSI_QFULL, 0);
-        } else {
-            isp_endcmd(isp, aep, SCSI_BUSY, 0);
+        if (isp->isp_osinfo.out_of_tmds == 0) {
+            isp_prt(isp, ISP_LOGWARN, "out of TMDs");
+            isp->isp_osinfo.out_of_tmds = jiffies;
+        }
+        isp_endcmd(isp, aep, SCSI_BUSY, 0);
+        if (jiffies - isp->isp_osinfo.out_of_tmds > 30 * HZ) {
+            isp_prt(isp, ISP_LOGERR, "out of TMDs too long: disabling port");
+            ISP_THREAD_EVENT(isp, ISP_THREAD_REINIT, NULL, 0, __FUNCTION__, __LINE__);
         }
         return;
     }
+    isp->isp_osinfo.out_of_tmds = 0;
     if ((isp->isp_osinfo.tfreelist = tmd->cd_next) == NULL) {
         isp->isp_osinfo.bfreelist = NULL;
     }
@@ -2014,14 +2010,18 @@ isp_handle_platform_atio2(ispsoftc_t *isp, at2_entry_t *aep)
      * If we're out of resources, just send a QFULL status back.
      */
     if ((tmd = isp->isp_osinfo.tfreelist) == NULL) {
-        isp_prt(isp, ISP_LOGWARN, "out of TMDs for command from 0x%016llx to lun %u",
-            (((uint64_t) aep->at_wwpn[0]) << 48) |
-            (((uint64_t) aep->at_wwpn[1]) << 32) |
-            (((uint64_t) aep->at_wwpn[2]) << 16) |
-            (((uint64_t) aep->at_wwpn[3]) <<  0), lun);
-        isp_endcmd(isp, aep, SCSI_QFULL, 0);
+        if (isp->isp_osinfo.out_of_tmds == 0) {
+            isp_prt(isp, ISP_LOGWARN, "out of TMDs");
+            isp->isp_osinfo.out_of_tmds = jiffies;
+        }
+        isp_endcmd(isp, aep, SCSI_BUSY, 0);
+        if (jiffies - isp->isp_osinfo.out_of_tmds > 30 * HZ) {
+            isp_prt(isp, ISP_LOGERR, "out of TMDs too long: disabling port");
+            ISP_THREAD_EVENT(isp, ISP_THREAD_REINIT, NULL, 0, __FUNCTION__, __LINE__);
+        }
         return;
     }
+    isp->isp_osinfo.out_of_tmds = 0;
     if ((isp->isp_osinfo.tfreelist = tmd->cd_next) == NULL) {
         isp->isp_osinfo.bfreelist = NULL;
     }
@@ -2177,23 +2177,29 @@ isp_handle_platform_atio7(ispsoftc_t *isp, at7_entry_t *aep)
     }
 
     /*
-     * If the f/w is out of resources, just send a QUFLL status back.
+     * If the f/w is out of resources, just send a BUSY status back.
      */
     if (aep->at_rxid == AT7_NORESRC_RXID) {
-        isp_prt(isp, ISP_LOGWARN, "%s: Chan %d F/W out of resources for command from 0x%016llxx/0x%06x to lun %u", __FUNCTION__, chan, (unsigned long long)iid, sid, lun);
-        isp_endcmd(isp, aep, nphdl, chan, SCSI_QFULL, 0);
+        isp_endcmd(isp, aep, nphdl, chan, SCSI_BUSY, 0);
         return;
     }
 
     /*
      * If we're out of resources, just send a BUSY status back.
      */
-    if ((tmd = isp->isp_osinfo.tfreelist) == NULL || aep->at_rxid == AT7_NORESRC_RXID) {
-        isp_prt(isp, ISP_LOGWARN, "%s: [RX_ID 0x%x] Chan %d out of TMDs for command from 0x%016llxx/0x%06x to lun %u", __FUNCTION__, aep->at_rxid, chan,
-            (unsigned long long)iid, sid, lun);
-        isp_endcmd(isp, aep, nphdl, chan, SCSI_BUSY, 0);
+    if ((tmd = isp->isp_osinfo.tfreelist) == NULL) {
+        if (isp->isp_osinfo.out_of_tmds == 0) {
+            isp_prt(isp, ISP_LOGWARN, "out of TMDs");
+            isp->isp_osinfo.out_of_tmds = jiffies;
+        }
+        isp_endcmd(isp, aep, chan, SCSI_BUSY, 0);
+        if (jiffies - isp->isp_osinfo.out_of_tmds > 30 * HZ) {
+            isp_prt(isp, ISP_LOGERR, "out of TMDs too long: disabling port");
+            ISP_THREAD_EVENT(isp, ISP_THREAD_REINIT, NULL, 0, __FUNCTION__, __LINE__);
+        }
         return;
     }
+    isp->isp_osinfo.out_of_tmds = 0;
     if ((isp->isp_osinfo.tfreelist = tmd->cd_next) == NULL) {
         isp->isp_osinfo.bfreelist = NULL;
     }
@@ -2286,7 +2292,16 @@ isp_handle_platform_atio7(ispsoftc_t *isp, at7_entry_t *aep)
         CALL_PARENT_TMD(isp, tmd, QOUT_TMD_START);
     } else {
         isp_prt(isp, ISP_LOGTDEBUG0, "[0x%llx] asking taskthread to find iid of initiator", (unsigned long long) tmd->cd_tagval);
-        ISP_THREAD_EVENT(isp, ISP_THREAD_FINDIID, tmd, 0, __FUNCTION__, __LINE__);
+        if (ISP_THREAD_EVENT(isp, ISP_THREAD_FINDIID, tmd, 0, __FUNCTION__, __LINE__)) {
+            isp_endcmd(isp, aep, nphdl, chan, SCSI_BUSY, 0);
+            MEMZERO(tmd, TMD_SIZE);
+            if (isp->isp_osinfo.tfreelist) {
+                isp->isp_osinfo.bfreelist->cd_next = tmd;
+            } else {
+                isp->isp_osinfo.tfreelist = tmd;
+            }
+            isp->isp_osinfo.bfreelist = tmd;
+        }
     }
 }
 
@@ -4337,7 +4352,7 @@ isplinux_reinit(ispsoftc_t *isp)
     return (0);
 }
 
-void
+int
 isp_thread_event(ispsoftc_t *isp, int action, void *a, int dowait, const char *file, const int line)
 {
     DECLARE_MUTEX_LOCKED(sem);
@@ -4349,7 +4364,7 @@ isp_thread_event(ispsoftc_t *isp, int action, void *a, int dowait, const char *f
     if (isp->isp_osinfo.task_active == 0) {
         spin_unlock_irqrestore(&isp->isp_osinfo.tlock, flags);
         isp_prt(isp, ISP_LOGERR, "thread event %d from %s:%d sent when thread gone", action, file, line);
-        return;
+        return (-1);
     }
 
     /*
@@ -4361,13 +4376,13 @@ isp_thread_event(ispsoftc_t *isp, int action, void *a, int dowait, const char *f
             tap->count++;
             spin_unlock_irqrestore(&isp->isp_osinfo.tlock, flags);
             isp_prt(isp, ISP_LOGDEBUG1, "async thread event %d from %s:%d now has count %d", action, file, line, tap->count);
-            return;
+            return (0);
         }
     }
     if (isp->isp_osinfo.nt_actions >= MAX_THREAD_ACTION) {
         spin_unlock_irqrestore(&isp->isp_osinfo.tlock, flags);
         isp_prt(isp, ISP_LOGERR, "thread event %d from %s:%d sent with thread overflow", action, file, line);
-        return;
+        return (-1);
     }
     tap = &isp->isp_osinfo.t_actions[isp->isp_osinfo.nt_actions++];
     tap->count = 1;
@@ -4388,6 +4403,7 @@ isp_thread_event(ispsoftc_t *isp, int action, void *a, int dowait, const char *f
         spin_unlock_irqrestore(&isp->isp_osinfo.tlock, flags);
         isp_prt(isp, ISP_LOGDEBUG1, "action %d from %s:%d sent", action, file, line);
     }
+    return (0);
 }
 
 static int

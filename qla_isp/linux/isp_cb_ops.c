@@ -1,4 +1,4 @@
-/* $Id: isp_cb_ops.c,v 1.78 2007/12/02 22:02:06 mjacob Exp $ */
+/* $Id: isp_cb_ops.c,v 1.79 2007/12/11 22:18:05 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -744,7 +744,7 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
     case ISP_FC_GETDLIST:
     {
         isp_dlist_t *ua;
-        uint16_t nph, nphs, nphe, count, chan, lim;
+        uint16_t nph, nphe, count, chan, lim;
         struct wwnpair pair, *uptr;
 
         if (IS_SCSI(isp)) {
@@ -770,12 +770,7 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
         } else {
             nphe = NPH_MAX;
         }
-        if (IS_24XX(isp)) {
-            nphs = 1;
-        } else {
-            nphs = 0;
-        }
-        for (count = 0, nph = nphs; count < lim && nph != nphe; nph++) {
+        for (count = 0, nph = 0; count < lim && nph != nphe; nph++) {
             ISP_LOCKU_SOFTC(isp);
             rv = isp_control(isp, ISPCTL_GET_NAMES, chan, nph, &pair.wwnn, &pair.wwpn);
             ISP_UNLKU_SOFTC(isp);

@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.147 2007/12/09 00:08:24 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.148 2007/12/11 22:17:34 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -3341,6 +3341,7 @@ isplinux_pci_init(void)
     }
     ret = pci_register_driver(&isplinux_pci_driver);
     if (ret < 0) {
+	printk(KERN_ERR "%s: unable to register driver (return value %d)", __FUNCTION__, ret);
         unregister_chrdev_region(isp_dev, MAX_ISP);
         return (ret);
     }

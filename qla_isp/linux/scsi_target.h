@@ -1,4 +1,4 @@
-/* $Id: scsi_target.h,v 1.28 2007/12/02 22:02:07 mjacob Exp $ */
+/* $Id: scsi_target.h,v 1.29 2007/12/11 22:16:09 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -105,6 +105,15 @@ typedef struct {
 } sc_io_t;
 #define SC_GET_IO       (_SI | 3)
 #define SC_PUT_IO       (_SI | 4)
+
+/*
+ * Inject a UNIT ATTENTION error on the next command for this device
+ */
+typedef struct {
+    char        hba_name_unit[16];
+} sc_inject_ua_t;
+#define SC_INJECT_UA    (_SI | 21)
+
 /*
  * vim:ts=4:sw=4:expandtab
  */

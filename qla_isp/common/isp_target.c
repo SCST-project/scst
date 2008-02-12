@@ -1,4 +1,4 @@
-/* $Id: isp_target.c,v 1.71 2007/12/02 22:02:04 mjacob Exp $ */
+/* $Id: isp_target.c,v 1.72 2007/12/11 22:19:21 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -1378,7 +1378,7 @@ isp_handle_ctio(ispsoftc_t *isp, ct_entry_t *ct)
 		 * Bus Device Reset message received or the SCSI Bus has
 		 * been Reset; the firmware has gone to Bus Free.
 		 *
-		 * The firmware generates an async mailbox interupt to
+		 * The firmware generates an async mailbox interrupt to
 		 * notify us of this and returns outstanding CTIOs with this
 		 * status. These CTIOs are handled in that same way as
 		 * CT_ABORTED ones, so just fall through here.
@@ -1532,7 +1532,7 @@ isp_handle_ctio2(ispsoftc_t *isp, ct2_entry_t *ct)
 		/*
 		 * Target Reset function received.
 		 *
-		 * The firmware generates an async mailbox interupt to
+		 * The firmware generates an async mailbox interrupt to
 		 * notify us of this and returns outstanding CTIOs with this
 		 * status. These CTIOs are handled in that same way as
 		 * CT_ABORTED ones, so just fall through here.

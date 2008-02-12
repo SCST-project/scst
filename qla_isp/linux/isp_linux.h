@@ -1,4 +1,4 @@
-/* $Id: isp_linux.h,v 1.145 2007/12/05 00:41:42 mjacob Exp $ */
+/* $Id: isp_linux.h,v 1.146 2007/12/11 22:19:07 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -361,6 +361,7 @@ struct isposinfo {
 
     u64                     cmds_started;
     u64                     cmds_completed;
+    unsigned long           out_of_tmds;
 #endif
 };
 #define mbtimer         isp_osinfo.mbtimer
@@ -678,7 +679,7 @@ void isplinux_undo_proc(ispsoftc_t *);
 int isplinux_reinit(ispsoftc_t *);
 void isplinux_sqd(struct Scsi_Host *, struct scsi_device *);
 
-void isp_thread_event(ispsoftc_t *, int, void *, int, const char *, const int line);
+int isp_thread_event(ispsoftc_t *, int, void *, int, const char *, const int line);
 
 static inline uint64_t _isp_microtime_sub(struct timeval *, struct timeval *);
 static inline void _isp_usec_delay(unsigned int);
