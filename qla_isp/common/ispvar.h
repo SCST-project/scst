@@ -1,4 +1,4 @@
-/* $Id: ispvar.h,v 1.89 2007/12/20 18:26:46 mjacob Exp $ */
+/* $Id: ispvar.h,v 1.90 2008/01/04 16:46:10 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -302,6 +302,8 @@ typedef struct {
 #define	FABRIC_PORT_ID		0xFFFFFE
 #define	PORT_ANY		0xFFFFFF
 #define	PORT_NONE		0
+#define	DOMAIN_CONTROLLER_BASE	0xFFFC00
+#define	DOMAIN_CONTROLLER_END	0xFFFCFF
 
 
 /*

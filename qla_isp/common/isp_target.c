@@ -1,4 +1,4 @@
-/* $Id: isp_target.c,v 1.73 2007/12/20 18:23:45 mjacob Exp $ */
+/* $Id: isp_target.c,v 1.74 2008/01/04 16:47:18 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -812,7 +812,7 @@ isp_target_async(ispsoftc_t *isp, int bus, int event)
 			ct->ct_header.rqs_entry_type = RQSTYPE_CTIO7;
 			ct->ct_nphdl = CT7_OK;
 			ct->ct_syshandle = bus;
-			ct->ct_flags = CT7_SENDSTATUS|CT7_FASTPOST;
+			ct->ct_flags = CT7_SENDSTATUS;
 		} else if (IS_FC(isp)) {
             		/* This should also suffice for 2K login code */
 			ct2_entry_t *ct = (ct2_entry_t *) storage;

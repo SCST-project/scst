@@ -1,4 +1,4 @@
-/* $Id: isp_library.h,v 1.26 2007/12/02 22:02:04 mjacob Exp $ */
+/* $Id: isp_library.h,v 1.27 2008/01/04 16:48:57 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -81,6 +81,7 @@ void isp_put_request_t3(ispsoftc_t *, ispreqt3_t *, ispreqt3_t *);
 void isp_put_request_t3e(ispsoftc_t *, ispreqt3e_t *, ispreqt3e_t *);
 void isp_put_extended_request(ispsoftc_t *, ispextreq_t *, ispextreq_t *);
 void isp_put_request_t7(ispsoftc_t *, ispreqt7_t *, ispreqt7_t *);
+void isp_put_24xx_tmf(ispsoftc_t *, isp24xx_tmf_t *, isp24xx_tmf_t *);
 void isp_put_24xx_abrt(ispsoftc_t *, isp24xx_abrt_t *, isp24xx_abrt_t *);
 void isp_put_cont_req(ispsoftc_t *, ispcontreq_t *, ispcontreq_t *);
 void isp_put_cont64_req(ispsoftc_t *, ispcontreq64_t *, ispcontreq64_t *);

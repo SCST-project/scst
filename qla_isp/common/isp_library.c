@@ -1,4 +1,4 @@
-/* $Id: isp_library.c,v 1.48 2007/12/04 22:19:21 mjacob Exp $ */
+/* $Id: isp_library.c,v 1.49 2008/01/04 16:48:57 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -649,6 +649,40 @@ isp_put_request_t7(ispsoftc_t *isp, ispreqt7_t *src, ispreqt7_t *dst)
 	    &dst->req_dataseg.ds_basehi);
 	ISP_IOXPUT_32(isp, src->req_dataseg.ds_count,
 	    &dst->req_dataseg.ds_count);
+}
+
+void
+isp_put_24xx_tmf(ispsoftc_t *isp, isp24xx_tmf_t *src, isp24xx_tmf_t *dst)
+{
+	int i;
+	uint32_t *a, *b;
+
+	isp_put_hdr(isp, &src->tmf_header, &dst->tmf_header);
+	ISP_IOXPUT_32(isp, src->tmf_handle, &dst->tmf_handle);
+	ISP_IOXPUT_16(isp, src->tmf_nphdl, &dst->tmf_nphdl);
+	ISP_IOXPUT_16(isp, src->tmf_delay, &dst->tmf_delay);
+	ISP_IOXPUT_16(isp, src->tmf_timeout, &dst->tmf_timeout);
+	for (i = 0; i < ASIZE(src->tmf_reserved0); i++) {
+		ISP_IOXPUT_8(isp, src->tmf_reserved0[i],
+		    &dst->tmf_reserved0[i]);
+	}
+	a = (uint32_t *) src->tmf_lun;
+	b = (uint32_t *) dst->tmf_lun;
+	for (i = 0; i < (ASIZE(src->tmf_lun) >> 2); i++ ) {
+		*b++ = ISP_SWAP32(isp, *a++);
+	}
+	ISP_IOXPUT_32(isp, src->tmf_flags, &dst->tmf_flags);
+	for (i = 0; i < ASIZE(src->tmf_reserved1); i++) {
+		ISP_IOXPUT_8(isp, src->tmf_reserved1[i],
+		    &dst->tmf_reserved1[i]);
+	}
+	ISP_IOXPUT_16(isp, src->tmf_tidlo, &dst->tmf_tidlo);
+	ISP_IOXPUT_8(isp, src->tmf_tidhi, &dst->tmf_tidhi);
+	ISP_IOXPUT_8(isp, src->tmf_vpidx, &dst->tmf_vpidx);
+	for (i = 0; i < ASIZE(src->tmf_reserved2); i++) {
+		ISP_IOXPUT_8(isp, src->tmf_reserved2[i],
+		    &dst->tmf_reserved2[i]);
+	}
 }
 
 void

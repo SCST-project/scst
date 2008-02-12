@@ -1,4 +1,4 @@
-/* $Id: ispmbox.h,v 1.68 2007/12/05 00:42:02 mjacob Exp $ */
+/* $Id: ispmbox.h,v 1.69 2008/01/04 17:46:10 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -572,6 +572,31 @@ typedef struct {
 	ispds64_t	req_dataseg;
 } ispreqt7_t;
 
+/* Task Management Request Function */
+typedef struct {
+	isphdr_t	tmf_header;
+	uint32_t	tmf_handle;
+	uint16_t	tmf_nphdl;
+	uint8_t		tmf_reserved0[2];
+	uint16_t	tmf_delay;
+	uint16_t	tmf_timeout;
+	uint8_t		tmf_lun[8];
+	uint32_t	tmf_flags;
+	uint8_t		tmf_reserved1[20];
+	uint16_t	tmf_tidlo;
+	uint8_t		tmf_tidhi;
+	uint8_t		tmf_vpidx;
+	uint8_t		tmf_reserved2[12];
+} isp24xx_tmf_t;
+
+#define	ISP24XX_TMF_NOSEND		0x80000000
+
+#define	ISP24XX_TMF_LUN_RESET		0x00000010
+#define	ISP24XX_TMF_ABORT_TASK_SET	0x00000008
+#define	ISP24XX_TMF_CLEAR_TASK_SET	0x00000004
+#define	ISP24XX_TMF_TARGET_RESET	0x00000002
+#define	ISP24XX_TMF_CLEAR_ACA		0x00000001
+
 /* I/O Abort Structure */
 typedef struct {
 	isphdr_t	abrt_header;
@@ -585,7 +610,9 @@ typedef struct {
 	uint8_t		abrt_vpidx;
 	uint8_t		abrt_reserved1[12];
 } isp24xx_abrt_t;
-#define	ISP24XX_ABRT_NO_ABTS	0x01	/* don't actually send an ABTS */
+
+#define	ISP24XX_ABRT_NOSEND	0x01	/* don't actually send ABTS */
+#define	ISP24XX_ABRT_OKAY	0x00	/* in nphdl on return */
 #define	ISP24XX_ABRT_ENXIO	0x31	/* in nphdl on return */
 
 #define	ISP_CDSEG	7
@@ -1258,6 +1285,14 @@ typedef struct {
 #define	PDB2400_CLASS2		0x0010
 #define	PDB2400_ADDR_VALID	0x0002
 
+#define	PDB2400_STATE_PLOGI_PEND	0x03
+#define	PDB2400_STATE_PLOGI_DONE	0x04
+#define	PDB2400_STATE_PRLI_PEND		0x05
+#define	PDB2400_STATE_LOGGED_IN		0x06
+#define	PDB2400_STATE_PORT_UNAVAIL	0x07
+#define	PDB2400_STATE_PRLO_PEND		0x09
+#define	PDB2400_STATE_LOGO_PEND		0x0B
+
 /*
  * Common elements from the above two structures that are actually useful to us.
  */
@@ -1269,6 +1304,35 @@ typedef struct {
 	uint8_t		portname[8];
 	uint8_t		nodename[8];
 } isp_pdb_t;
+
+/*
+ * Port Database Changed Async Event information for 24XX cards
+ */
+#define	PDB24XX_AE_OK		0x00
+#define	PDB24XX_AE_IMPL_LOGO_1	0x01
+#define	PDB24XX_AE_IMPL_LOGO_2	0x02
+#define	PDB24XX_AE_IMPL_LOGO_3	0x03
+#define	PDB24XX_AE_PLOGI_RCVD	0x04
+#define	PDB24XX_AE_PLOGI_RJT	0x05
+#define	PDB24XX_AE_PRLI_RCVD	0x06
+#define	PDB24XX_AE_PRLI_RJT	0x07
+#define	PDB24XX_AE_TPRLO	0x08
+#define	PDB24XX_AE_TPRLO_RJT	0x09
+#define	PDB24XX_AE_PRLO_RCVD	0x0a
+#define	PDB24XX_AE_LOGO_RCVD	0x0b
+#define	PDB24XX_AE_TOPO_CHG	0x0c
+#define	PDB24XX_AE_NPORT_CHG	0x0d
+#define	PDB24XX_AE_FLOGI_RJT	0x0e
+#define	PDB24XX_AE_BAD_FANN	0x0f
+#define	PDB24XX_AE_FLOGI_TIMO	0x10
+#define	PDB24XX_AE_ABX_LOGO	0x11
+#define	PDB24XX_AE_PLOGI_DONE	0x12
+#define	PDB24XX_AE_PRLI_DONJE	0x13
+#define	PDB24XX_AE_OPN_1	0x14
+#define	PDB24XX_AE_OPN_2	0x15
+#define	PDB24XX_AE_TXERR	0x16
+#define	PDB24XX_AE_FORCED_LOGO	0x17
+#define	PDB24XX_AE_DISC_TIMO	0x18
 
 /*
  * Genericized Port Login/Logout software structure

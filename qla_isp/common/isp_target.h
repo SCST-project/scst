@@ -1,4 +1,4 @@
-/* $Id: isp_target.h,v 1.58 2007/12/20 18:24:40 mjacob Exp $ */
+/* $Id: isp_target.h,v 1.59 2008/01/04 16:47:18 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -827,7 +827,7 @@ typedef struct {
 #define	CT7_FLAG_MODE1	0x0040
 #define	CT7_FLAG_MODE2	0x0080
 #define		CT7_FLAG_MMASK	0x00C0
-#define	CT7_FASTPOST	0x0100
+#define	CT7_NOACK	0x0100
 #define	CT7_TASK_ATTR_SHIFT	9
 #define	CT7_CONFIRM	0x2000
 #define	CT7_TERMINATE	0x4000
