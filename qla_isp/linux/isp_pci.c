@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.155 2008/01/25 22:23:15 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.158 2008/01/26 00:14:12 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -349,8 +349,17 @@ struct isp_pcisoftc {
     void *              vaddr;      /* Mapped Memory Address */
     vm_offset_t         voff;
     vm_offset_t         poff[_NREG_BLKS];
-    int                 msi_enable;
+    u32     msix_vector     : 16,
+                            : 13,
+            msix_enabled    : 2,
+            msi_enabled     : 1;
 };
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,8)
+#define pci_enable_msi(x)   -ENXIO
+#define pci_enable_msix(x)  -ENXIO
+#define pci_disable_msi(x)  do { ; } while(0)
+#define pci_disable_msix(x) do { ; } while(0)
+#endif
 
 /*
  * Gratefully borrowed from Gerard Roudier's sym53c8xx driver
@@ -409,20 +418,33 @@ void
 isplinux_pci_release(struct Scsi_Host *host)
 {
     ispsoftc_t *isp = ISP_HOST2ISP(host);
-    struct isp_pcisoftc *pcs = (struct isp_pcisoftc *) isp;
+    struct isp_pcisoftc *isp_pci = (struct isp_pcisoftc *) isp;
     int i;
 
-    pci_disable_device(pcs->pci_dev);
-    free_irq(host->irq, pcs);
-    if (pcs->vaddr != 0) {
-        unmap_pci_mem(pcs, 0xff);
-        pcs->vaddr = 0;
-    } else if (pcs->port) {
-        release_region(pcs->port, 0xff);
-        pcs->port = 0;
+    if (host->irq) {
+        free_irq(host->irq, isp_pci);
+        host->irq = 0;
+    }
+    if (isp_pci->msix_enabled) {
+        if (isp_pci->msix_enabled > 1) {
+            free_irq(isp_pci->msix_vector, isp_pci);
+        }
+        pci_disable_msix(isp_pci->pci_dev);
+        isp_pci->msix_enabled = 0;
+    }
+    if (isp_pci->msi_enabled) {
+        pci_disable_msi(isp_pci->pci_dev);
+        isp_pci->msi_enabled = 0;
+    }
+    if (isp_pci->vaddr != 0) {
+        unmap_pci_mem(isp_pci, 0xff);
+        isp_pci->vaddr = 0;
+    } else if (isp_pci->port) {
+        release_region(isp_pci->port, 0xff);
+        isp_pci->port = 0;
     }
     if (isp->isp_rquest) {
-        pci_free_consistent(pcs->pci_dev, RQUEST_QUEUE_LEN(isp) * QENTRY_LEN, isp->isp_rquest, isp->isp_rquest_dma);
+        pci_free_consistent(isp_pci->pci_dev, RQUEST_QUEUE_LEN(isp) * QENTRY_LEN, isp->isp_rquest, isp->isp_rquest_dma);
         isp->isp_rquest = NULL;
     }
     if (isp->isp_xflist) {
@@ -436,23 +458,19 @@ isplinux_pci_release(struct Scsi_Host *host)
     }
 #endif
     if (isp->isp_result) {
-        pci_free_consistent(pcs->pci_dev, RESULT_QUEUE_LEN(isp) * QENTRY_LEN, isp->isp_result, isp->isp_result_dma);
+        pci_free_consistent(isp_pci->pci_dev, RESULT_QUEUE_LEN(isp) * QENTRY_LEN, isp->isp_result, isp->isp_result_dma);
         isp->isp_result = NULL;
     }
     if (IS_FC(isp)) {
         for (i = 0; i < isp->isp_nchan; i++) {
             fcparam *fcp = FCPARAM(isp, i);
             if (fcp->isp_scratch) {
-                pci_free_consistent(pcs->pci_dev, ISP_FC_SCRLEN, fcp->isp_scratch, fcp->isp_scdma);
+                pci_free_consistent(isp_pci->pci_dev, ISP_FC_SCRLEN, fcp->isp_scratch, fcp->isp_scdma);
                 fcp->isp_scratch = NULL;
             }
         }
     }
-    pci_release_regions(pcs->pci_dev);
-    if (pcs->msi_enable) {
-        pcs->msi_enable = 0;
-        pci_disable_msi(pcs->pci_dev);
-    }
+    pci_release_regions(isp_pci->pci_dev);
     if (isp->isp_param) {
         isp_kfree(isp->isp_param, isp->isp_osinfo.param_amt);
         isp->isp_param = NULL;
@@ -461,6 +479,7 @@ isplinux_pci_release(struct Scsi_Host *host)
         isp_kfree(isp->isp_osinfo.storep, isp->isp_osinfo.storep_amt);
         isp->isp_osinfo.storep = NULL;
     }
+    pci_disable_device(isp_pci->pci_dev);
 
     /*
      * Pull ourselves off the global list
@@ -509,6 +528,7 @@ isplinux_pci_init_one(struct Scsi_Host *host)
     struct pci_dev *pdev;
     ispsoftc_t *isp;
     const char *fwname = NULL;
+    struct msix_entry isp_msix;
 
     isp_pci = (struct isp_pcisoftc *) ISP_HOST2ISP(host);
     pdev = isp_pci->pci_dev;
@@ -593,15 +613,21 @@ isplinux_pci_init_one(struct Scsi_Host *host)
         pci_intx(pdev, 1);
     }
 
+    isp_msix.vector = 0;
+    isp_msix.entry = 0;
+
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2422 || pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2432) {
         int reg;
 
         /* enable PCI-INTX */
         pci_intx(pdev, 1);
 
-        /* enable MSI */
-        if (pci_enable_msi(pdev) == 0) {
-            isp_pci->msi_enable = 1;
+        /* enable MSI-X or MSI-X */
+        if (pci_enable_msix(pdev, &isp_msix, 1) == 0) {
+            isp_pci->msix_enabled = 1;
+            isp_pci->msix_vector = isp_msix.vector;
+        } else if (pci_enable_msi(pdev) == 0) {
+            isp_pci->msi_enabled = 1;
         }
 
         /*
@@ -773,12 +799,22 @@ isplinux_pci_init_one(struct Scsi_Host *host)
             fwname = "ql2400_fw.bin";
     }
 #endif
-
-    if (request_irq(pdev->irq, isplinux_intr, ISP_IRQ_FLAGS, isp->isp_name, isp_pci)) {
-        isp_prt(isp, ISP_LOGERR, "could not snag irq %u (0x%x)", pdev->irq, pdev->irq);
-        goto bad;
+    if (isp_pci->msix_enabled) {
+        if (request_irq(isp_pci->msix_vector, isplinux_intr, 0, isp->isp_name, isp_pci)) {
+            isp_prt(isp, ISP_LOGWARN, "unable to request MSI-X vector %u", isp_pci->msix_vector);
+            pci_disable_msix(pdev);
+            isp_pci->msix_enabled = 0;
+        } else {
+            isp_pci->msix_enabled++;
+        }
     }
-    host->irq = pdev->irq;
+    if (isp_pci->msix_enabled == 0) {
+        if (request_irq(pdev->irq, isplinux_intr, ISP_IRQ_FLAGS, isp->isp_name, isp_pci)) {
+            isp_prt(isp, ISP_LOGERR, "could not snag irq %u (0x%x)", pdev->irq, pdev->irq);
+            goto bad;
+        }
+        host->irq = pdev->irq;
+    }
 
     /*
      * Get parameter area set up
@@ -878,10 +914,21 @@ bad:
         release_firmware(isp->isp_osinfo.fwp);
         isp->isp_osinfo.fwp = NULL;
     }
+    ISP_DISABLE_INTS(isp);
     if (host->irq) {
-        ISP_DISABLE_INTS(isp);
         free_irq(host->irq, isp_pci);
         host->irq = 0;
+    }
+    if (isp_pci->msix_enabled) {
+        if (isp_pci->msix_enabled > 1) {
+            free_irq(isp_pci->msix_vector, isp_pci);
+        }
+        pci_disable_msix(isp_pci->pci_dev);
+        isp_pci->msix_enabled = 0;
+    }
+    if (isp_pci->msi_enabled) {
+        isp_pci->msi_enabled = 0;
+        pci_disable_msi(isp_pci->pci_dev);
     }
     if (isp_pci->vaddr != 0) {
         unmap_pci_mem(isp_pci, 0xff);
@@ -3306,8 +3353,15 @@ isplinux_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     ret = scsi_add_host(host, &pdev->dev);
     if (ret) {
         scsi_host_put(host);
-        if (pci_isp->msi_enable) {
-            pci_isp->msi_enable = 0;
+        if (pci_isp->msix_enabled) {
+            if (pci_isp->msix_enabled > 1) {
+                free_irq(pci_isp->msix_vector, pci_isp);
+            }
+            pci_disable_msix(pci_isp->pci_dev);
+            pci_isp->msix_enabled = 0;
+        }
+        if (pci_isp->msi_enabled) {
+            pci_isp->msi_enabled = 0;
             pci_disable_msi(pdev);
         }
         pci_disable_device(pdev);
