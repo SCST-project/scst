@@ -1,4 +1,4 @@
-/* $Id: scsi_target.c,v 1.72 2007/11/13 01:25:50 mjacob Exp $ */
+/* $Id: scsi_target.c,v 1.73 2007/11/14 18:19:29 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -139,6 +139,9 @@
 #endif
 #ifndef WRITE_16
 #define WRITE_16                0x8a
+#endif
+#ifndef REPORT_LUNS
+#define REPORT_LUNS             0xa0
 #endif
 #ifndef REPORT_LUNS
 #define REPORT_LUNS             0xa0
@@ -871,6 +874,64 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
                 SDprintk2("sense data in scsi_target for %s%d: %p (%p) len %d, key/asc/ascq 0x%x/0x%x/0x%x\n",
                     bp->h.r_name, bp->h.r_inst, addr, dp, dp->length,
                     ((u8 *)addr)[2]&0xf, ((u8 *)addr)[12]&0xff, ((u8 *)addr)[13]);
+            }
+        }
+        xact->td_hflags |= TDFH_STSVALID;
+        goto doit;
+    }
+
+    if (tmd->cd_cdb[0] == REPORT_LUNS) {
+        struct scatterlist *dp = NULL;
+        if (tmd->cd_totlen != 0) {
+            if (from_intr) {
+                scsi_cmd_sched_restart(tmd, "REPORT_LUNS");
+                return;
+            }
+            addr = scsi_target_kzalloc(SGS_SIZE, GFP_KERNEL|GFP_ATOMIC);
+            if (addr == NULL) {
+                printk("scsi_target_alloc: out of memory for report luns\n");
+                tmd->cd_scsi_status = SCSI_BUSY;
+                xact->td_xfrlen = 0;
+            } else {
+                int i;
+                uint32_t lim, nluns;
+                uint8_t *rpa = addr;
+
+                lim = (tmd->cd_cdb[6] << 24) | (tmd->cd_cdb[7] << 16) | (tmd->cd_cdb[8] << 8) | tmd->cd_cdb[9];
+
+                spin_lock_irqsave(&scsi_target_lock, flags);
+                for (nluns = i = 0; i < MAX_LUN; i++) {
+                    lun_t *lp = &bp->luns[i];
+                    if (lp->enabled) {
+                        uint8_t *ptr = &rpa[8 + (nluns << 3)];
+                        if (i >= 256) {
+                            ptr[0] = 0x40 | ((i >> 8) & 0x3f);
+                        }
+                        ptr[1] = i;
+                        nluns++;
+                    }
+                }
+                spin_unlock_irqrestore(&scsi_target_lock, flags);
+
+                /*
+                 * Make sure we always have *one* (lun 0) enabled
+                 */
+                if (nluns == 0) {
+                    nluns = 1;
+                }
+                rpa[0] = (nluns << 3) >> 24;
+                rpa[1] = (nluns << 3) >> 16;
+                rpa[2] = (nluns << 3) >> 8;
+                rpa[3] = (nluns << 3);
+
+                dp = SGS_SGP(addr);
+                lim = min(lim, tmd->cd_totlen);
+                lim = min(lim, (nluns << 3) + 8);
+                init_sg_elem(dp, NULL, 0, addr, lim);
+                xact->td_xfrlen = dp->length;
+                xact->td_data = dp;
+                xact->td_hflags |= TDFH_DATA_IN;
+                tmd->cd_flags |= CDF_PRIVATE_0;
             }
         }
         xact->td_hflags |= TDFH_STSVALID;
