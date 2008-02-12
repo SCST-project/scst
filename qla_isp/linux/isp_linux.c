@@ -1,4 +1,4 @@
-/* $Id: isp_linux.c,v 1.213 2007/12/11 22:19:07 mjacob Exp $ */
+/* $Id: isp_linux.c,v 1.214 2007/12/12 21:14:55 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -1485,6 +1485,7 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xact_t *xact)
     int32_t resid;
     tmd_cmd_t *tmd = xact->td_cmd;
 
+    xact->td_lflags &= ~TDFL_ERROR;
     xact->td_error = 0;
 
     /*
@@ -1586,7 +1587,7 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xact_t *xact)
         if (xact->td_xfrlen == 0) {
             cto->ct_flags |= CT7_FLAG_MODE1 | CT7_NO_DATA | CT7_SENDSTATUS;
             if ((xact->td_hflags & TDFH_SNSVALID) != 0) {
-                cto->ct_senselen = min(TMD_SENSELEN, MAXRESPLEN);
+                cto->rsp.m1.ct_resplen = cto->ct_senselen = min(TMD_SENSELEN, MAXRESPLEN_24XX);
                 MEMCPY(cto->rsp.m1.ct_resp, tmd->cd_sense, cto->ct_senselen);
                 cto->ct_scsi_status |= (FCP_SNSLEN_VALID << 8);
             }
@@ -1775,6 +1776,9 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xact_t *xact)
     }
     ISP_UNLK_SOFTC(isp);
 out:
+    if (xact->td_error) {
+        xact->td_lflags |= TDFL_ERROR;
+    }
     if ((tmd->cd_lflags & CDFL_LCL) == 0) {
         CALL_PARENT_XFR(isp, xact);
     }

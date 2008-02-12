@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.148 2007/12/11 22:17:34 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.149 2007/12/12 21:19:04 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -1892,6 +1892,7 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xact_t *xact, ct7_entry_t *cto, uint32_t *nxti
         if ((swd & 0xff) == SCSI_CHECK && (xact->td_hflags & TDFH_SNSVALID)) {
             cto2->rsp.m1.ct_resplen = min(TMD_SENSELEN, MAXRESPLEN_24XX);
             MEMCPY(cto2->rsp.m1.ct_resp, tmd->cd_sense, cto2->rsp.m1.ct_resplen);
+            cto2->ct_scsi_status |= (FCP_SNSLEN_VALID << 8);
         }
 #else
         cto->ct_flags &= ~CT7_SENDSTATUS;

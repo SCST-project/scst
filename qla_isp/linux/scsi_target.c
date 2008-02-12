@@ -1,4 +1,4 @@
-/* $Id: scsi_target.c,v 1.76 2007/12/11 22:16:38 mjacob Exp $ */
+/* $Id: scsi_target.c,v 1.77 2007/12/12 21:19:04 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -405,6 +405,7 @@ DECLARE_MUTEX_LOCKED(scsi_thread_sleep_semaphore);
 DECLARE_MUTEX_LOCKED(scsi_thread_entry_exit_semaphore);
 static tmd_cmd_t *p_front = NULL, *p_last = NULL;
 static tmd_cmd_t *q_front = NULL, *q_last = NULL;
+static tmd_cmd_t *r_front = NULL, *r_last = NULL;
 static spinlock_t scsi_target_lock = SPIN_LOCK_UNLOCKED;
 static int scsi_target_thread_exit = 0;
 
@@ -1885,6 +1886,28 @@ scsi_target_handler(qact_e action, void *arg)
 
         SDprintk2("scsi_target: TMD_DONE[%llx] %p hf %x lf %x\n", tmd->cd_tagval, tmd, xact->td_hflags, xact->td_lflags);
 
+        if (xact->td_lflags & TDFL_ERROR) {
+            printk("scsi_target: [%llx] ended in error (%d)\n", tmd->cd_tagval, xact->td_error);
+            if (xact->td_error != -ENOMEM) {
+                xact->td_hflags &= ~TDFH_DATA_MASK;
+                xact->td_hflags |= TDFH_STSVALID|TDFH_SNSVALID;
+                xact->td_xfrlen = 0;
+                memcpy(tmd->cd_sense, ua, TMD_SENSELEN);
+                tmd->cd_scsi_status = SCSI_CHECK;
+            }
+            spin_lock_irqsave(&scsi_target_lock, flags);
+            tmd->cd_next = NULL;
+            if (r_front) {
+                r_last->cd_next = tmd;
+            } else {
+                r_front = tmd;
+            }
+            r_last = tmd;
+            spin_unlock_irqrestore(&scsi_target_lock, flags);
+            up(&scsi_thread_sleep_semaphore);
+            return;
+        }
+
         /*
          * Okay- were we moving data? If so, deal with the result.
          *
@@ -2058,44 +2081,61 @@ scsi_target_thread(void *arg)
     SDprintk("scsi_target_thread starting\n");
 
     while (scsi_target_thread_exit == 0) {
-        tmd_cmd_t *tp;
-
-        SDprintk3("scsi_task_thread sleeping\n");
-        down_interruptible(&scsi_thread_sleep_semaphore);
-        SDprintk3("scsi_task_thread running\n");
+        tmd_cmd_t *pending_start, *pending_free, *pending_restart;
 
         spin_lock_irqsave(&scsi_target_lock, flags);
-        if ((tp = p_front) != NULL) {
-            p_last = p_front = NULL;
+        if (p_front == NULL && q_front == NULL && r_front == NULL) {
+            spin_unlock_irqrestore(&scsi_target_lock, flags);
+            SDprintk3("scsi_task_thread sleeping\n");
+            down_interruptible(&scsi_thread_sleep_semaphore);
+            SDprintk3("scsi_task_thread running\n");
+            spin_lock_irqsave(&scsi_target_lock, flags);
         }
-        spin_unlock_irqrestore(&scsi_target_lock, flags);
-        while (tp) {
-            tmd_cmd_t *nxt = tp->cd_next;
-            tp->cd_next = NULL;
-            scsi_target_start_cmd(tp, 0);
-            tp = nxt;
+
+        if ((pending_start = p_front) != NULL) {
+            if ((p_front = pending_start->cd_next) == NULL) {
+                p_last = p_front = NULL;
+            }
         }
-        spin_lock_irqsave(&scsi_target_lock, flags);
-        if ((tp = q_front) != NULL) {
+        if ((pending_free = q_front) != NULL) {
             q_last = q_front = NULL;
         }
+        if ((pending_restart = r_front) != NULL) {
+            r_last = r_front = NULL;
+        }
         spin_unlock_irqrestore(&scsi_target_lock, flags);
-        while (tp) {
+        while (pending_start) {
+            tmd_cmd_t *next = pending_start->cd_next;
+            pending_start->cd_next = NULL;
+            scsi_target_start_cmd(pending_start, 0);
+            pending_start = next;
+        }
+        while (pending_free) {
             bus_t *bp;
-            tmd_cmd_t *tmd;
+            tmd_cmd_t *active;
 
-            tmd = tp;
-            tp = tmd->cd_next;
-            tmd->cd_next = NULL;
-            bp = bus_from_tmd(tmd);
+            active = pending_free;
+            pending_free = active->cd_next;
+            active->cd_next = NULL;
+            bp = bus_from_tmd(active);
             if (bp == NULL) {
                 printk(KERN_WARNING "lost bus when tring to call TMD_FIN\n");
             } else {
-                if (scsi_target_ldfree(bp, &tmd->cd_xact, 0)) {
-                    SDprintk("%s: TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
-                    (*bp->h.r_action)(QIN_TMD_FIN, tmd);
+                if (scsi_target_ldfree(bp, &active->cd_xact, 0)) {
+                    SDprintk("%s: TMD_FIN[%llx]\n", __FUNCTION__, active->cd_tagval);
+                    (*bp->h.r_action)(QIN_TMD_FIN, active);
                 }
             }
+        }
+        while (pending_restart) {
+            bus_t *bp;
+            tmd_cmd_t *active;
+
+            active = pending_restart;
+            pending_restart = active->cd_next;
+            active->cd_next = NULL;
+            bp = bus_from_tmd(active);
+            (*bp->h.r_action)(QIN_TMD_CONT, active);
         }
     }
     SDprintk("scsi_target_thread exiting\n");
