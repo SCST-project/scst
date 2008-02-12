@@ -1,4 +1,4 @@
-/* $Id: isp_cb_ops.c,v 1.84 2008/01/08 18:31:21 mjacob Exp $ */
+/* $Id: isp_cb_ops.c,v 1.85 2008/01/14 18:39:10 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -627,7 +627,7 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
         }
         ISP_LOCK_SOFTC(isp);
         lp = &FCPARAM(isp, ifc->chan)->portdb[ifc->loopid];
-        if (lp->state == FC_PORTDB_STATE_VALID) {
+        if (lp->state == FC_PORTDB_STATE_VALID || lp->target_mode) {
             ifc->role = lp->roles;
             ifc->loopid = lp->handle;
             ifc->portid = lp->portid;

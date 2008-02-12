@@ -1,4 +1,4 @@
-/* $Id: isp_linux.h,v 1.150 2008/01/13 21:18:01 mjacob Exp $ */
+/* $Id: isp_linux.h,v 1.151 2008/01/14 17:28:09 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -447,7 +447,7 @@ struct isposinfo {
 #define MAXISPREQUEST(isp)  ((IS_FC(isp) || IS_ULTRA2(isp))? 1024 : 256)
 
 #if   defined(__powerpc__)
-#define`MEMORYBARRIER(isp, type, offset, size)  __asm__ __volatile__("eieio" ::: "memory")
+#define MEMORYBARRIER(isp, type, offset, size)  __asm__ __volatile__("eieio" ::: "memory")
 #else
 #  ifdef mb
 #    define MEMORYBARRIER(isp, type, offset, size)  mb()

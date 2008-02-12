@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.152 2008/01/13 21:18:01 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.153 2008/01/14 00:25:53 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -737,9 +737,9 @@ isplinux_pci_init_one(struct Scsi_Host *host)
         isp->isp_type = ISP_HA_FC_2322;
         fwname = "ql2322_fw.bin";
     }
-    if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP6312) {
+    if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP6322) {
         isp->isp_mdvec = &mdvec_2300;
-        isp->isp_type = ISP_HA_FC_2312;
+        isp->isp_type = ISP_HA_FC_2322;
         fwname = "ql2322_fw.bin";
     }
 #endif
