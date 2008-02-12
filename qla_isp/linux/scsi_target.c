@@ -1,4 +1,4 @@
-/* $Id: scsi_target.c,v 1.78 2007/12/30 20:23:18 mjacob Exp $ */
+/* $Id: scsi_target.c,v 1.80 2008/01/18 20:18:02 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -73,6 +73,7 @@
 #include <linux/stat.h>
 #include <linux/pci.h>
 #include <linux/slab.h>
+#include <linux/vmalloc.h>
 #include <scsi/scsi.h>
 #include <asm/dma.h>
 #include <asm/io.h>

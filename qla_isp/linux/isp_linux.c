@@ -1,4 +1,4 @@
-/* $Id: isp_linux.c,v 1.221 2008/01/16 20:33:48 mjacob Exp $ */
+/* $Id: isp_linux.c,v 1.222 2008/01/18 20:19:04 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -3352,16 +3352,18 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
             }
             isp->isp_osinfo.nfreelist = ins->notify.nt_lreserved;
             MEMZERO(&ins->notify, sizeof (tmd_notify_t));
+            lp = NULL;
             for (chan = 0; chan < isp->isp_nchan; chan++) {
                 if (isp_find_pdb_by_loopid(isp, chan, abts->abts_nphdl, &lp)) {
                     break;
                 }
             }
-            if (chan == isp->isp_nchan) {
+            if (lp == NULL) {
                 isp_prt(isp, ISP_LOGTINFO, "cannot find WWN for N-port handle 0x%x for ABTS", abts->abts_nphdl);
                 ins->notify.nt_iid = INI_ANY;
+            } else {
+                ins->notify.nt_iid = lp->port_wwn;
             }
-            ins->notify.nt_iid = lp->port_wwn;
             MEMCPY(ins->qentry, qe, QENTRY_LEN);
             ins->qevalid = 1;
             ins->notify.nt_hba = isp;
