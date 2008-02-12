@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.151 2008/01/11 22:41:51 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.152 2008/01/13 21:18:01 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -56,6 +56,8 @@
  * Qlogic ISP Host Adapter PCI specific probe and attach routines
  */
 #include "isp_linux.h"
+#include <linux/firmware.h>
+
 static int isp_pci_mapmem = 0xffffffff;
 #if    defined(__sparc__)
 #undef  ioremap_nocache
@@ -111,60 +113,40 @@ static void isp_pci_dumpregs(ispsoftc_t *, const char *);
 static int isplinux_pci_exclude(struct pci_dev *);
 
 
+#define ISP_1040_RISC_CODE  NULL
+#define ISP_1080_RISC_CODE  NULL
+#define ISP_12160_RISC_CODE NULL
+#define ISP_2100_RISC_CODE  NULL
+#define ISP_2200_RISC_CODE  NULL
+#define ISP_2300_RISC_CODE  NULL
+#define ISP_2322_RISC_CODE  NULL
+#define ISP_2400_RISC_CODE  NULL
+
+#if !(defined(CONFIG_FW_LOADER) || defined(CONFIG_FW_LOADER_MODULE))
 #ifndef    ISP_DISABLE_1020_SUPPORT
 #include "asm_1040.h"
-#define ISP_1040_RISC_CODE    (void *) isp_1040_risc_code
-#else
-#define ISP_1040_RISC_CODE    NULL
 #endif
-
 #ifndef    ISP_DISABLE_1080_SUPPORT
 #include "asm_1080.h"
-#define ISP_1080_RISC_CODE    (void *) isp_1080_risc_code
-#else
-#define ISP_1080_RISC_CODE    NULL
 #endif
-
 #ifndef    ISP_DISABLE_12160_SUPPORT
 #include "asm_12160.h"
-#define ISP_12160_RISC_CODE    (void *) isp_12160_risc_code
-#else
-#define ISP_12160_RISC_CODE    NULL
 #endif
-
 #ifndef    ISP_DISABLE_2100_SUPPORT
 #include "asm_2100.h"
-#define ISP_2100_RISC_CODE    (void *) isp_2100_risc_code
-#else
-#define ISP_2100_RISC_CODE    NULL
 #endif
-
 #ifndef    ISP_DISABLE_2200_SUPPORT
 #include "asm_2200.h"
-#define ISP_2200_RISC_CODE    (void *) isp_2200_risc_code
-#else
-#define ISP_2200_RISC_CODE    NULL
 #endif
-
 #ifndef    ISP_DISABLE_2300_SUPPORT
 #include "asm_2300.h"
-#define ISP_2300_RISC_CODE    (void *) isp_2300_risc_code
-#else
-#define ISP_2300_RISC_CODE    NULL
 #endif
-
 #ifndef    ISP_DISABLE_2300_SUPPORT
 #include "asm_2322.h"
-#define ISP_2322_RISC_CODE    (void *) isp_2322_risc_code
-#else
-#define ISP_2322_RISC_CODE    NULL
 #endif
-
 #ifndef    ISP_DISABLE_2400_SUPPORT
 #include "asm_2400.h"
-#define ISP_2400_RISC_CODE    (void *) isp_2400_risc_code
-#else
-#define ISP_2400_RISC_CODE    NULL
+#endif
 #endif
 
 #ifndef    ISP_DISABLE_1020_SUPPORT
@@ -522,10 +504,16 @@ isplinux_pci_init_one(struct Scsi_Host *host)
     struct isp_pcisoftc *isp_pci;
     struct pci_dev *pdev;
     ispsoftc_t *isp;
+    const char *fwname = NULL;
 
     isp_pci = (struct isp_pcisoftc *) ISP_HOST2ISP(host);
     pdev = isp_pci->pci_dev;
     isp = (ispsoftc_t *) isp_pci;
+    if (isp_debug) {
+        isp->isp_dblev = isp_debug;
+    } else {
+        isp->isp_dblev = ISP_LOGCONFIG|ISP_LOGINFO|ISP_LOGWARN|ISP_LOGERR;
+    }
 
     pci_read_config_word(pdev, PCI_COMMAND, &cmd);
     pci_read_config_dword(pdev, PCI_CLASS_REVISION, &rev);
@@ -673,75 +661,93 @@ isplinux_pci_init_one(struct Scsi_Host *host)
     }
     host->irq = 0;
     host->max_channel = isp->isp_nchan - 1;
-    isp_pci->pci_isp.isp_revision = rev;
+    fwname = NULL;
+    isp->isp_revision = rev;
 #ifndef    ISP_DISABLE_1020_SUPPORT
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP1020) {
-        isp_pci->pci_isp.isp_mdvec = &mdvec;
-        isp_pci->pci_isp.isp_type = ISP_HA_SCSI_UNKNOWN;
+        isp->isp_mdvec = &mdvec;
+        isp->isp_type = ISP_HA_SCSI_UNKNOWN;
+        fwname = "ql1020_fw.bin";
     } 
 #endif
 #ifndef    ISP_DISABLE_1080_SUPPORT
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP1080) {
-        isp_pci->pci_isp.isp_mdvec = &mdvec_1080;
-        isp_pci->pci_isp.isp_type = ISP_HA_SCSI_1080;
+        isp->isp_mdvec = &mdvec_1080;
+        isp->isp_type = ISP_HA_SCSI_1080;
+        fwname = "ql1080_fw.bin";
     }
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP1240) {
-        isp_pci->pci_isp.isp_mdvec = &mdvec_1080;
-        isp_pci->pci_isp.isp_type = ISP_HA_SCSI_1240;
+        isp->isp_mdvec = &mdvec_1080;
+        isp->isp_type = ISP_HA_SCSI_1240;
         host->max_channel = 1;
+        fwname = "ql1080_fw.bin";
     }
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP1280) {
-        isp_pci->pci_isp.isp_mdvec = &mdvec_1080;
-        isp_pci->pci_isp.isp_type = ISP_HA_SCSI_1280;
+        isp->isp_mdvec = &mdvec_1080;
+        isp->isp_type = ISP_HA_SCSI_1280;
         host->max_channel = 1;
+        fwname = "ql1080_fw.bin";
     }
 #endif
 #ifndef    ISP_DISABLE_12160_SUPPORT
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP10160) {
-        isp_pci->pci_isp.isp_mdvec = &mdvec_12160;
-        isp_pci->pci_isp.isp_type = ISP_HA_SCSI_12160;
+        isp->isp_mdvec = &mdvec_12160;
+        isp->isp_type = ISP_HA_SCSI_12160;
+        fwname = "ql12160_fw.bin";
     }
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP12160) {
-        isp_pci->pci_isp.isp_mdvec = &mdvec_12160;
-        isp_pci->pci_isp.isp_type = ISP_HA_SCSI_12160;
+        isp->isp_mdvec = &mdvec_12160;
+        isp->isp_type = ISP_HA_SCSI_12160;
         host->max_channel = 1;
+        fwname = "ql12160_fw.bin";
     }
 #endif
 #ifndef    ISP_DISABLE_2100_SUPPORT
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2100) {
-        isp_pci->pci_isp.isp_mdvec = &mdvec_2100;
-        isp_pci->pci_isp.isp_type = ISP_HA_FC_2100;
+        isp->isp_mdvec = &mdvec_2100;
+        isp->isp_type = ISP_HA_FC_2100;
+        fwname = "ql2100_fw.bin";
     }
 #endif
 #ifndef    ISP_DISABLE_2200_SUPPORT
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2200) {
-        isp_pci->pci_isp.isp_mdvec = &mdvec_2200;
-        isp_pci->pci_isp.isp_type = ISP_HA_FC_2200;
+        isp->isp_mdvec = &mdvec_2200;
+        isp->isp_type = ISP_HA_FC_2200;
+        fwname = "ql2200_fw.bin";
     }
 #endif
 #ifndef    ISP_DISABLE_2300_SUPPORT
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2300) {
-        isp_pci->pci_isp.isp_mdvec = &mdvec_2300;
-        isp_pci->pci_isp.isp_type = ISP_HA_FC_2300;
+        isp->isp_mdvec = &mdvec_2300;
+        isp->isp_type = ISP_HA_FC_2300;
+        fwname = "ql2300_fw.bin";
     }
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2312) {
-        isp_pci->pci_isp.isp_mdvec = &mdvec_2300;
-        isp_pci->pci_isp.isp_type = ISP_HA_FC_2312;
-    }
-    if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2322) {
-        isp_pci->pci_isp.isp_mdvec = &mdvec_2322;
-        isp_pci->pci_isp.isp_type = ISP_HA_FC_2322;
+        isp->isp_mdvec = &mdvec_2300;
+        isp->isp_type = ISP_HA_FC_2312;
+        fwname = "ql2300_fw.bin";
     }
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP6312) {
-        isp_pci->pci_isp.isp_mdvec = &mdvec_2300;
-        isp_pci->pci_isp.isp_type = ISP_HA_FC_2312;
+        isp->isp_mdvec = &mdvec_2300;
+        isp->isp_type = ISP_HA_FC_2312;
+        fwname = "ql2300_fw.bin";
     }
-
+    if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2322) {
+        isp->isp_mdvec = &mdvec_2322;
+        isp->isp_type = ISP_HA_FC_2322;
+        fwname = "ql2322_fw.bin";
+    }
+    if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP6312) {
+        isp->isp_mdvec = &mdvec_2300;
+        isp->isp_type = ISP_HA_FC_2312;
+        fwname = "ql2322_fw.bin";
+    }
 #endif
 #ifndef    ISP_DISABLE_2400_SUPPORT
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2422 || pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2432) {
-        isp_pci->pci_isp.isp_mdvec = &mdvec_2400;
-        isp_pci->pci_isp.isp_type = ISP_HA_FC_2400;
+        isp->isp_mdvec = &mdvec_2400;
+        isp->isp_type = ISP_HA_FC_2400;
+        fwname = "ql2400_fw.bin";
     }
 #endif
 
@@ -794,12 +800,39 @@ isplinux_pci_init_one(struct Scsi_Host *host)
                 goto bad;
             }
         } else {
-            isp_prt(isp, ISP_LOGCONFIG, "eanbling 64 bit DMA");
+            isp_prt(isp, ISP_LOGCONFIG, "enabling 64 bit DMA");
         }
     } else {
         if (pci_set_dma_mask(pdev, (u64)0xffffffff)) {
             isp_prt(isp, ISP_LOGERR, "cannot set 32 bit dma mask");
             goto bad;
+        }
+    }
+
+    if (fwname) {
+        if (request_firmware(&isp->isp_osinfo.fwp, fwname, &pdev->dev) == 0) {
+            isp->isp_mdvec->dv_ispfw = isp->isp_osinfo.fwp->data;
+            isp_prt(isp, ISP_LOGCONFIG, "using loaded firmware set \"%s\"", fwname);
+            /*
+             * On little endian machines convert a byte stream of firmware to native 16 or 32 bit format.
+             */
+#if BYTE_ORDER == LITTLE_ENDIAN
+            if (IS_24XX(isp)) {
+                uint32_t *ptr = (uint32_t *)isp->isp_osinfo.fwp->data;
+                int i;
+                for (i = 0; i < isp->isp_osinfo.fwp->size >> 2; i++) {
+                    ptr[i] = ISP_SWAP32(isp, ptr[i]);
+                }
+            } else {
+                uint16_t *ptr = (uint16_t *)isp->isp_osinfo.fwp->data;
+                int i;
+                for (i = 0; i < isp->isp_osinfo.fwp->size >> 1; i++) {
+                    ptr[i] = ISP_SWAP16(isp, ptr[i]);
+                }
+            }
+#endif
+        } else {
+            isp_prt(isp, ISP_LOGCONFIG, "unable to load firmware set \"%s\"", fwname);
         }
     }
 
@@ -817,6 +850,10 @@ bad:
     if (isp->isp_osinfo.storep) {
         isp_kfree(isp->isp_osinfo.storep, isp->isp_osinfo.storep_amt);
         isp->isp_osinfo.storep = NULL;
+    }
+    if (isp->isp_osinfo.fwp) {
+        release_firmware(isp->isp_osinfo.fwp);
+        isp->isp_osinfo.fwp = NULL;
     }
     if (host->irq) {
         ISP_DISABLE_INTS(isp);
@@ -3299,6 +3336,10 @@ isplinux_pci_remove(struct pci_dev *pdev)
     isp_deinit_target(isp);
 #endif
     scsi_host_put(host);
+    if (isp->isp_osinfo.fwp) {
+        release_firmware(isp->isp_osinfo.fwp);
+        isp->isp_osinfo.fwp = NULL;
+    }
     pci_set_drvdata(pdev, NULL);
 }
 

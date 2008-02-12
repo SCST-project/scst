@@ -1,4 +1,4 @@
-/* $Id: isp_linux.c,v 1.219 2008/01/08 22:15:01 mjacob Exp $ */
+/* $Id: isp_linux.c,v 1.220 2008/01/13 21:18:01 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -4171,11 +4171,6 @@ isplinux_common_init(ispsoftc_t *isp)
     /*
      * Set up config options, etc...
      */
-    if (isp_debug) {
-        isp->isp_dblev = isp_debug;
-    } else {
-        isp->isp_dblev = ISP_LOGCONFIG|ISP_LOGINFO|ISP_LOGWARN|ISP_LOGERR;
-    }
 
     if (isp_nofwreload & (1 << isp->isp_unit)) {
         isp->isp_confopts |= ISP_CFG_NORELOAD;

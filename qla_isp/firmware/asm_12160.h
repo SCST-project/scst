@@ -1,4 +1,4 @@
-/* $Id: asm_12160.h,v 1.9 2006/07/03 05:45:01 mjacob Exp $ */
+/* $Id: asm_12160.h,v 1.10 2008/01/13 21:16:37 mjacob Exp $ */
 /*
  * Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000 Qlogic, Inc.
  * All rights reserved.
@@ -4336,3 +4336,7 @@ static const uint16_t isp_12160_risc_code[] = {
 	0x7021, 0x0014, 0xa300, 0xa8ca, 0x0000, 0x7a3c
 };
 #endif
+#ifdef	ISP_12160_RISC_CODE
+#undef	ISP_12160_RISC_CODE
+#endif
+#define	ISP_12160_RISC_CODE (const uint16_t *) isp_12160_risc_code

@@ -1,4 +1,4 @@
-/* $Id: asm_1080.h,v 1.7 2006/07/03 05:45:01 mjacob Exp $ */
+/* $Id: asm_1080.h,v 1.8 2008/01/13 21:16:36 mjacob Exp $ */
 /*
  * Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000 Qlogic, Inc.
  * All rights reserved.
@@ -4552,3 +4552,7 @@ static const uint16_t isp_1080_risc_code[] = {
 	0x0000, 0xd27a
 };
 #endif
+#ifdef	ISP_1080_RISC_CODE
+#undef	ISP_1080_RISC_CODE
+#endif
+#define	ISP_1080_RISC_CODE (const uint16_t *) isp_1080_risc_code

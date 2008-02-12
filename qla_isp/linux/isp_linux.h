@@ -1,4 +1,4 @@
-/* $Id: isp_linux.h,v 1.149 2008/01/09 05:41:45 mjacob Exp $ */
+/* $Id: isp_linux.h,v 1.150 2008/01/13 21:18:01 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
@@ -286,6 +286,7 @@ struct isposinfo {
     void *              storep;
     size_t              storep_amt;
     size_t              param_amt;
+    const struct firmware *fwp;
 #ifdef  CONFIG_PROC_FS
     struct proc_dir_entry *pdp;
 #endif

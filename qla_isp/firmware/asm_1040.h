@@ -1,4 +1,4 @@
-/* $Id: asm_1040.h,v 1.7 2006/07/03 05:45:01 mjacob Exp $ */
+/* $Id: asm_1040.h,v 1.8 2008/01/13 21:16:36 mjacob Exp $ */
 /*
  * Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000 Qlogic, Inc.
  * All rights reserved.
@@ -3543,3 +3543,7 @@ static const uint16_t isp_1040_risc_code[] = {
 	0x300c, 0x817e, 0x872b, 0x8772, 0xa8a8, 0x0000, 0xdf21
 };
 #endif
+#ifdef	ISP_1040_RISC_CODE
+#undef	ISP_1040_RISC_CODE
+#endif
+#define	ISP_1040_RISC_CODE (const uint16_t *) isp_1040_risc_code
