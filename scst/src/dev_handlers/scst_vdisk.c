@@ -873,13 +873,12 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 			"loff=%Ld, data_len=%Ld, immed=%d", (uint64_t)loff,
 			(uint64_t)data_len, immed);
 		if (immed) {
-			scst_get();
+			scst_cmd_get(cmd);
 			cmd->completed = 1;
 			cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);
-			/* cmd is dead here */
 			vdisk_fsync(thr, loff, data_len, NULL);
 			/* ToDo: vdisk_fsync() error processing */
-			scst_put();
+			scst_cmd_put(cmd);
 			goto out;
 		} else {
 			vdisk_fsync(thr, loff, data_len, cmd);
@@ -2333,7 +2332,7 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 
 	/* +1 to prevent erroneous too early command completion */
 	atomic_set(&blockio_work->bios_inflight, bios+1);
-	smp_mb();
+	smp_wmb();
 
 	while (hbio) {
 		bio = hbio;

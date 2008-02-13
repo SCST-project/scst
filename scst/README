@@ -711,10 +711,14 @@ debug2perf Makefile target.
    you have no choice, but PCI bus sharing, set in the BIOS PCI latency
    as low as possible.
 
+6. If you use VDISK IO module in FILEIO mode, NV_CACHE option will
+provide you the best performance. But using it make sure you use a good
+UPS with ability to shutdown the target on the power failure.
+
 IMPORTANT: If you use on initiator some versions of Windows (at least W2K)
 =========  you can't get good write performance for VDISK FILEIO devices with
            default 512 bytes block sizes. You could get about 10% of the
-	   expected one. This is because of partition alignment, which
+	   expected one. This is because of the partition alignment, which
 	   is (simplifying) incompatible with how Linux page cache
 	   works, so for each write the corresponding block must be read
 	   first. Use 4096 bytes block sizes for VDISK devices and you
@@ -732,31 +736,38 @@ What if target's backstorage is too slow
 
 If under high load you experience I/O stalls or see in the kernel log on
 the target abort or reset messages, then your backstorage is too slow
-for your target link speed and amount of simultaneously queued commands.
-Simply processing of one or more commands takes too long, so initiator
-decides that they are stuck on the target and tries to recover.
-Particularly, it is known that the default amount of simultaneously
-queued commands (48) is sometimes too high if you do intensive writes
-from VMware on a target disk, which uses LVM in the snapshot mode. In
-this case value like 16 or even 10 depending of your backstorage speed
-could be more appropriate.
+comparing with your target link speed and amount of simultaneously
+queued commands. On some seek intensive workloads even fast disks or
+RAIDs, which able to serve continuous data stream on 500+ MB/s speed,
+can be as slow as 0.3 MB/s. So, simply processing of one or more
+commands takes too long time, hence initiator decides that they are
+stuck on the target and tries to recover. Particularly, it is known that
+the default amount of simultaneously queued commands (48) is sometimes
+too high if you do intensive writes from VMware on a target disk, which
+uses LVM in the snapshot mode. In this case value like 16 or even 8-10
+depending of your backstorage speed could be more appropriate.
 
 Unfortunately, currently SCST lacks dynamic I/O flow control, when the
 queue depth on the target is dynamically decreased/increased based on
 how slow/fast the backstorage speed comparing to the target link. So,
-there are only 4 possible actions, which you can do to workaround or fix
+there are only 5 possible actions, which you can do to workaround or fix
 this issue:
 
 1. Ignore incoming task management (TM) commands. It's fine if there are
-not too many of them, i.e. if the backstorage isn't too slow.
+not too many of them, so average performance isn't hurt and the
+corresponding device isn't put offline, i.e. if the backstorage isn't
+too much slow.
 
 2. Decrease /sys/block/sdX/device/queue_depth on the initiator in case
-if it's Linux (see below how) and/or SCST_MAX_TGT_DEV_COMMANDS constant
-in scst_priv.h file until you stop seeing incoming TM commands. 
+if it's Linux (see below how) or/and SCST_MAX_TGT_DEV_COMMANDS constant
+in scst_priv.h file until you stop seeing incoming TM commands.
+ISCSI-SCST driver also has its own iSCSI specific parameter for that.
 
-3. Insrease speed of the target's backstorage.
+3. Try to avoid such seek intensive workloads.
 
-4. Implement in SCST the dynamic I/O flow control. 
+4. Insrease speed of the target's backstorage.
+
+5. Implement in SCST the dynamic I/O flow control. 
 
 To decrease device queue depth on Linux initiators run command:
 

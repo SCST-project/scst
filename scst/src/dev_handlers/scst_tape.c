@@ -340,30 +340,29 @@ int tape_done(struct scst_cmd *cmd)
 	if ((status == SAM_STAT_GOOD) || (status == SAM_STAT_CONDITION_MET)) {
 		res = scst_tape_generic_dev_done(cmd, tape_set_block_size);
 	} else if ((status == SAM_STAT_CHECK_CONDITION) && 
-		   SCST_SENSE_VALID(cmd->sense_buffer)) 
+		   SCST_SENSE_VALID(cmd->sense)) 
 	{
 		struct tape_params *params;
 		TRACE_DBG("%s", "Extended sense");
 		if (opcode == READ_6 && !(cmd->cdb[1] & SILI_BIT) &&
-		    (cmd->sense_buffer[2] & 0xe0)) {	/* EOF, EOM, or ILI */
+		    (cmd->sense[2] & 0xe0)) {	/* EOF, EOM, or ILI */
 			int TransferLength, Residue = 0;
-			if ((cmd->sense_buffer[2] & 0x0f) == BLANK_CHECK) {
-				cmd->sense_buffer[2] &= 0xcf;	/* No need for EOM in this case */
+			if ((cmd->sense[2] & 0x0f) == BLANK_CHECK) {
+				cmd->sense[2] &= 0xcf;	/* No need for EOM in this case */
 			}
 			TransferLength = ((cmd->cdb[2] << 16) |
 					  (cmd->cdb[3] << 8) | cmd->cdb[4]);
 			/* Compute the residual count */
-			if ((cmd->sense_buffer[0] & 0x80) != 0) {
-				Residue = ((cmd->sense_buffer[3] << 24) |
-					   (cmd->sense_buffer[4] << 16) |
-					   (cmd->sense_buffer[5] << 8) |
-					   cmd->sense_buffer[6]);
+			if ((cmd->sense[0] & 0x80) != 0) {
+				Residue = ((cmd->sense[3] << 24) |
+					   (cmd->sense[4] << 16) |
+					   (cmd->sense[5] << 8) |
+					   cmd->sense[6]);
 			}
 			TRACE_DBG("Checking the sense key "
 			      "sn[2]=%x cmd->cdb[0,1]=%x,%x TransLen/Resid %d/%d",
-			      (int) cmd->sense_buffer[2],
-			      cmd->cdb[0], cmd->cdb[1], TransferLength,
-			      Residue);
+			      (int) cmd->sense[2], cmd->cdb[0], cmd->cdb[1],
+			      TransferLength, Residue);
 			if (TransferLength > Residue) {
 				int resp_data_len = TransferLength - Residue;
 				if (cmd->cdb[1] & SCST_TRANSFER_LEN_TYPE_FIXED) {

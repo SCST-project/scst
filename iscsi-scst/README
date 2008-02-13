@@ -111,8 +111,9 @@ Check SCST README file how to tune for the best performance.
 
 If under high load you experience I/O stalls or see in the kernel log
 abort or reset messages, then try to reduce QueuedCommands parameter in
-iscsi-scstd.conf file for the corresponding target. See also SCST README
-file for more details about that issue.
+iscsi-scstd.conf file for the corresponding target to some lower value,
+like 8 (default is 32). See also SCST README file for more details about
+that issue.
 
 Sometimes, when there are communication problems with initiator(s),
 shutting down iSCSI-SCST can take very long time, up to about 10

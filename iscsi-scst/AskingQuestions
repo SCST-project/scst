@@ -1,0 +1,316 @@
+Before asking any questions to me directly or scst-devel mailing list
+make sure that you read *ALL* relevant documentation files (at least, 2
+README files: one for SCST and one for target driver you are using) and
+*understood* *ALL* written there. I personally very much like working
+with people who understand what they are doing and hate when somebody
+tries to use me as a replacement of his brain and to save his time on
+expense of mine. So, in such cases don't be surprised if your question
+will be ignored or answered in the RTFM style.
+
+Particularly, I will refuse to answer on any questions about low
+performance if you don't *explicitly* write in your question that you
+don't use the debug build and ensured (write from what) that your target
+and backstorage devices don't share the same PCI bus.
+
+Another too FAQ area is "What are those aborts and resets, which your
+target from time to time logging, mean and what to do with them?", "Do
+they relate to I/O stalls I sometimes experience" and "Why after them my
+device was put offline?".
+
+Sorry, if the above might sound too harsh. Unfortunately, I have a
+limited power and can't waste it keeping explaining basic concepts and
+answering on the same questions.
+
+Example of a really bad question:
+
+======================================================================
+
+In our user space driver , i use epoll_wait to wait on multiple file
+descriptors for multiple devices. Apparently when i wait on the ioctl in
+blocking mode , everything works well , but when i wait on epoll , and
+try to  attach a target device , i get immediately a "Bad address" error
+value from the epoll.
+
+What is the reason ?
+
+======================================================================
+
+It is bad, because, apparently, the author was doing something wrong
+with epoll, but instead of checking the source code to find out when
+"Bad address" error can be returned and understand possible reasons for
+it, he expected me to do that for him. He even didn't bothered to look
+in the kernel log, where, very probably, the reason for the error was
+logged.
+
+
+Here are three examples of good questions:
+
+======================================================================
+
+I'm looking for a help in understanding of SCST internal architecture
+and operation. The problem I'm experiencing now is that SCST seems to
+process deferred commands incorrectly in some cases. More specifically,
+I'm confused with the 'while' loop in scst_send_to_midlev function.
+
+As far as I understand, the basic execution path consists of a call to
+scst_do_send_midlev followed by taking of a decision on this command
+(continue with this command, reschedule it, or move to the next one),
+the decision is stored in 'int res', which is then returned from the
+function.
+
+However, if there are deferred commands on the device, the function does
+not return but makes another call to scst_do_send_to_midlev, analyzes
+the return code again and stores the decision in 'int res' thereby
+erasing the decision for the previous command. If scst_send_to_midlev
+exits now, it will return the _new_ decision (for the deferred command)
+whereas the scst_process_active_cmd will think that it is the decision
+for the command that was originally passed to scst_send_to_midlev.
+
+For example, this will cause problems in the following situation:
+1. scst_send_to_midlev is called with cmd == 0x80000100
+2. scst_do_send_to_midlev is called with cmd == 0x8000100
+3. scst_do_send_to_midlev returns with SCST_EXEC_COMPLETED
+   (in certain scenarios the command is already destroyed at this point)
+4. scst_check_deferred_commands finds the defferred cmd == 0x80000200
+5. scst_do_send_to_midlev is called with cmd == 0x80000200
+6. scst_do_send_to_midlev returns with SCST_EXEC_NEED_THREAD
+7. scst_send_to_midlev returns with SCST_CMD_STATE_RES_NEED_THREAD
+8. Now, the scst_process_active_cmd will try to reschedule command 0x8000100
+   which is already destroyed at this point !
+   
+Can anyone on the list confirm my guess? Or, this situation should never
+happen because of some other condition which I may have missed? Right
+now I can't think of any of simple methods to work around the issue,
+i.e. any of my ideas require rewriting significant part of the code.
+
+======================================================================
+
+Hello,
+
+I have two machines (SCST targets) with the following parameters:
+- two dual core Xeon CPUs
+- QLA2342 FC HBA
+- Areca SATA RAID HBA
+- Linux 2.6.21.3, running in 64 bit mode with 16G RAM
+- SCST trunk version
+
+On the client side there is a Solaris 10 U3 machine, with the same (chip 
+wise) Qlogic controller.
+
+There is an FC switch between the three machines, and each of the 
+targets are zoned to the client's port in a one-by-one manner, so HBA 
+port 1 sees only target 1 and port 2 sees only target 2.
+
+The targets are configured with two large sparse files on XFS (8 TB 
+each, with dd if=/dev/zero of=file bs=1M count=0 seek=8388608).
+
+In Solaris I do various tests with SVM (Sun's built in volume manager) 
+and multiterabyte UFS. Occasionally, there are some strange write
+errors, where the volume  manager drops its volumes and without a VM, a
+simple UFS fs write can  fail too.
+
+I see various errors logged by the kernel (Solaris'), these are some 
+examples, both with and without SVM:
+Jun 21 10:42:14 solaris fctl: [ID 517869 kern.warning] WARNING: 
+fp(1)::GPN_ID for D_ID=621200 failed
+Jun 21 10:42:14 solaris fctl: [ID 517869 kern.warning] WARNING: 
+fp(1)::N_x Port with D_ID=621200, PWWN=210000e08b944419 disappeared from 
+fabric
+Jun 21 10:42:53 solaris scsi: [ID 107833 kern.warning] WARNING: 
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0 
+(sd1):
+Jun 21 10:42:53 solaris         SCSI transport failed: reason 
+'tran_err': retrying command
+Jun 21 10:43:06 solaris scsi: [ID 107833 kern.warning] WARNING: 
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0 
+(sd1):
+Jun 21 10:43:06 solaris         SCSI transport failed: reason 'timeout': 
+retrying command
+Jun 21 10:43:13 solaris scsi: [ID 107833 kern.notice]   Device is gone
+Jun 21 10:43:13 solaris scsi: [ID 107833 kern.warning] WARNING: 
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0 
+(sd1):
+Jun 21 10:43:13 solaris         transport rejected fatal error
+Jun 21 10:43:13 solaris md_stripe: [ID 641072 kern.warning] WARNING: md: 
+d10: write error on /dev/dsk/c2t210000E08B944419d0s6
+Jun 21 10:43:13 solaris last message repeated 9 times
+Jun 21 10:43:13 solaris scsi: [ID 243001 kern.info] 
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0 (fcp1):
+Jun 21 10:43:13 solaris         offlining lun=0 (trace=0), target=621200 
+(trace=2800004)
+Jun 21 10:43:13 solaris ufs: [ID 702911 kern.warning] WARNING: Error 
+writing master during ufs log roll
+Jun 21 10:43:13 solaris ufs: [ID 127457 kern.warning] WARNING: ufs log 
+for /mnt changed state to Error
+Jun 21 10:43:13 solaris ufs: [ID 616219 kern.warning] WARNING: Please 
+umount(1M) /mnt and run fsck(1M)
+Jun 21 11:08:55 solaris scsi: [ID 107833 kern.warning] WARNING: 
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0 
+(sd1):
+Jun 21 11:08:55 solaris         offline or reservation conflict
+Jun 21 11:09:41 solaris scsi: [ID 107833 kern.warning] WARNING: 
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0 
+(sd1):
+Jun 21 11:09:41 solaris         offline or reservation conflict
+Jun 21 11:09:41 solaris scsi: [ID 107833 kern.warning] WARNING: 
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0 
+(sd1):
+Jun 21 11:09:41 solaris         offline or reservation conflict
+Jun 21 11:09:41 solaris scsi: [ID 107833 kern.warning] WARNING: 
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0 
+(sd1):
+Jun 21 11:09:41 solaris         i/o to invalid geometry
+Jun 21 11:09:41 solaris scsi: [ID 107833 kern.warning] WARNING: 
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0 
+(sd1):
+Jun 21 11:09:41 solaris         offline or reservation conflict
+Jun 21 11:09:41 solaris scsi: [ID 107833 kern.warning] WARNING: 
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0 
+(sd1):
+Jun 21 11:09:41 solaris         i/o to invalid geometry
+Jun 21 11:09:41 solaris scsi: [ID 107833 kern.warning] WARNING: 
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0 
+(sd1):
+Jun 21 11:09:41 solaris         offline or reservation conflict
+Jun 21 11:09:41 solaris scsi: [ID 107833 kern.warning] WARNING: 
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0 
+(sd1):
+Jun 21 11:09:41 solaris         i/o to invalid geometry
+Jun 21 11:09:43 solaris scsi: [ID 107833 kern.warning] WARNING: 
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0 
+(sd1):
+Jun 21 11:09:43 solaris         offline or reservation conflict
+Jun 21 11:09:43 solaris scsi: [ID 107833 kern.warning] WARNING: 
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0 
+(sd1):
+Jun 21 11:09:43 solaris         SYNCHRONIZE CACHE command failed (5)
+
+I don't see anything in the dmesg on the target side.
+
+After these errors SCST seems to be dead. I can't unload its modules and 
+can't communicate it via /proc.
+A simple cat vdisk just waits and waits.
+
+Could you please help? What should I set/collect/send in this case to 
+help resolving this issue?
+
+======================================================================
+
+Hello,
+
+I am trying to get scst working on an Opteron machine.
+
+After some hours, playing with different kernel versions and different
+missing functions, I've sticked with a 2.6.15 and a
+drivers/scsi/scsi_lib.c hack from 2.6.14, which contains the
+scsi_wait_req. (Linux is a mess, each point release changes something.
+How can developers keep up with this?)
+
+Now everything seems to be OK, I could load the modules and such.
+
+I have a setup of two machines connected to each other in an FC-P2P
+manner. The two machines has two 2G links between them. On the initiator
+side I have FreeBSD, because I know that better and this is what I did
+some target mode tests.
+
+The strange thing is that the loop seems to be only running at 1 Gbps:
+[   61.731265] QLogic Fibre Channel HBA Driver
+[   61.731454] GSI 21 sharing vector 0xD1 and IRQ 21
+[   61.731563] ACPI: PCI Interrupt 0000:06:01.0[A] -> GSI 36 (level, low) -> IRQ 21
+[   61.731821] qla2300 0000:06:01.0: Found an ISP2312, irq 21, iobase 0xffffc200
+00014000
+[   61.732194] qla2300 0000:06:01.0: Configuring PCI space...
+[   61.732441] qla2300 0000:06:01.0: Configure NVRAM parameters...
+[   61.816885] qla2300 0000:06:01.0: Verifying loaded RISC code...
+[   61.852177] qla2300 0000:06:01.0: Extended memory detected (512 KB)...
+[   61.852294] qla2300 0000:06:01.0: Resizing request queue depth (2048 -> 4096)
+...
+[   61.852604] qla2300 0000:06:01.0: LIP reset occured (f8e8).
+[   61.852740] qla2300 0000:06:01.0: Waiting for LIP to complete...
+[   62.865911] qla2300 0000:06:01.0: LIP occured (f7f7).
+[   62.866042] qla2300 0000:06:01.0: LOOP UP detected (1 Gbps).
+[   62.866269] qla2300 0000:06:01.0: Topology - (Loop), Host Loop address 0x0
+[   62.868285] scsi0 : qla2xxx
+[   62.868507] qla2300 0000:06:01.0:
+[   62.868507]  QLogic Fibre Channel HBA Driver: 8.01.03-k
+[   62.868508]   QLogic QLA2312 -
+[   62.868509]   ISP2312: PCI-X (100 MHz) @ 0000:06:01.0 hdma+, host#=0, fw=3.03.18 IPX
+
+
+I did the following:
+modprobe qla2x00tgt:
+
+[  104.988170] qla2x00tgt: no version for "scst_unregister" found: kernel tainted.
+
+echo "open lun0 /data/lun0" >/proc/scsi_tgt/disk_fileio/disk_fileio"
+[  169.102877] scst: Device handler disk_fileio for type 0 loaded successfully
+[  169.103002] scst: Device handler cdrom_fileio for type 5 loaded successfully
+[  191.261000] dev_fileio: Attached SCSI target virtual disk lun0 (file="/data/l
+un0", fs=1000001MB, bs=512, nblocks=2048002048, cyln=1000001)
+[  191.261191] scst: Attached SCSI target mid-level to virtual device lun0 (id 1
+)
+
+and
+echo "add lun0 0" > /proc/scsi_tgt/groups/Default/devices
+
+On the other side a camcontrol rescan all (SCSI rescan) gives me the following with a verbose logging kernel:
+Mar 29 18:09:17 blade2 kernel: pass1: <SCST_FIO lun0 093> Fixed Direct Access SCSI-4 device
+Mar 29 18:09:17 blade2 kernel: pass1: Serial Number 383
+Mar 29 18:09:17 blade2 kernel: pass1: 100.000MB/s transfers
+Mar 29 18:09:17 blade2 kernel: da1 at isp0 bus 0 target 0 lun 0
+Mar 29 18:09:17 blade2 kernel: da1: <SCST_FIO lun0 093> Fixed Direct Access SCSI-4 device
+Mar 29 18:09:17 blade2 kernel: da1: Serial Number 383
+Mar 29 18:09:17 blade2 kernel: da1: 100.000MB/s transfers
+Mar 29 18:09:17 blade2 kernel: da1: 1024MB (2097152 512 byte sectors: 64H 32S/T 1024C)
+Mar 29 18:09:17 blade2 kernel: (probe0:isp0:0:0:1): error 6
+Mar 29 18:09:17 blade2 kernel: (probe0:isp0:0:0:1): Unretryable Error
+Mar 29 18:09:17 blade2 kernel: isp0: data overrun for command on 0.0.0
+Mar 29 18:09:17 blade2 kernel: (da1:isp0:0:0:0): Data Overrun
+Mar 29 18:09:17 blade2 kernel: (da1:isp0:0:0:0): Retrying Command
+Mar 29 18:09:18 blade2 kernel: (probe0:isp0:0:0:2): error 6
+Mar 29 18:09:18 blade2 kernel: (probe0:isp0:0:0:2): Unretryable Error
+Mar 29 18:09:18 blade2 kernel: isp0: data overrun for command on 0.0.0
+Mar 29 18:09:18 blade2 kernel: (da1:isp0:0:0:0): Data Overrun
+Mar 29 18:09:18 blade2 kernel: (da1:isp0:0:0:0): Retrying Command
+Mar 29 18:09:18 blade2 kernel: (probe0:isp0:0:0:3): error 6
+Mar 29 18:09:18 blade2 kernel: (probe0:isp0:0:0:3): Unretryable Error
+Mar 29 18:09:18 blade2 kernel: isp0: data overrun for command on 0.0.0
+Mar 29 18:09:18 blade2 kernel: (da1:isp0:0:0:0): Data Overrun
+Mar 29 18:09:18 blade2 kernel: (da1:isp0:0:0:0): Retrying Command
+Mar 29 18:09:18 blade2 kernel: (probe0:isp0:0:0:4): error 6
+Mar 29 18:09:18 blade2 kernel: (probe0:isp0:0:0:4): Unretryable Error
+Mar 29 18:09:18 blade2 kernel: isp0: data overrun for command on 0.0.0
+Mar 29 18:09:18 blade2 kernel: (da1:isp0:0:0:0): Data Overrun
+Mar 29 18:09:18 blade2 kernel: (da1:isp0:0:0:0): Retrying Command
+Mar 29 18:09:18 blade2 kernel: (probe0:isp0:0:0:5): error 6
+Mar 29 18:09:18 blade2 kernel: (probe0:isp0:0:0:5): Unretryable Error
+Mar 29 18:09:18 blade2 kernel: isp0: data overrun for command on 0.0.0
+Mar 29 18:09:18 blade2 kernel: (da1:isp0:0:0:0): Data Overrun
+Mar 29 18:09:18 blade2 kernel: (da1:isp0:0:0:0): error 5
+Mar 29 18:09:18 blade2 kernel: (da1:isp0:0:0:0): Retries Exausted
+Mar 29 18:09:18 blade2 kernel: (probe0:isp0:0:0:6): error 6
+Mar 29 18:09:18 blade2 kernel: (probe0:isp0:0:0:6): Unretryable Error
+Mar 29 18:09:19 blade2 kernel: (probe0:isp0:0:0:7): error 6
+Mar 29 18:09:19 blade2 kernel: (probe0:isp0:0:0:7): Unretryable Error
+
+
+The device is there, but I cannot use it.
+
+BTW, the target mode machine (Linux) runs on a dual Opteron in 64 bit
+mode, with 8GB of RAM. I've lowered it with mem=800M, but the effect is
+the same.
+
+Assuming that mixed 2.6.14-.15 kernel is the fault, could you please
+tell me what version should I use, for which all of the patches will
+work?
+
+======================================================================
+
+So, as a bottom line, if you want me to be friendly, don't ask questions
+answers on which you can find out yourself by a simple documentation
+reading and minimal thinking effort.
+
+Also it is very desirable if you attach to your question full kernel log
+from target since it's booted.
+
+Vladislav Bolkhovitin <vst@vlnb.net>, http://scst.sourceforge.net

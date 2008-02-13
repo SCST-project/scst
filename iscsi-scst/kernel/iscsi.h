@@ -237,6 +237,7 @@ struct iscsi_cmnd {
 	unsigned int data_waiting:1;
 	unsigned int force_cleanup_done:1;
 	unsigned int dec_active_cmnds:1;
+	unsigned int ddigest_checked:1;
 #ifdef EXTRACHECKS
 	unsigned int on_rx_digest_list:1;
 	unsigned int release_called:1;

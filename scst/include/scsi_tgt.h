@@ -1097,6 +1097,9 @@ struct scst_cmd
 	/* Set if tgt_sn field is valid */
 	unsigned int tgt_sn_set:1;
 
+	/* Set if cmd is finished */
+	unsigned int finished:1;
+
 	/**************************************************************/
 
 	unsigned long cmd_flags; /* cmd's async flags */
@@ -1194,6 +1197,8 @@ struct scst_cmd
 	uint8_t host_status;	/* set by low-level driver to indicate status */
 	uint8_t driver_status;	/* set by mid-level */
 
+	uint8_t *sense;		/* pointer to sense buffer */
+
 	/* Used for storage of target driver private stuff */
 	void *tgt_priv;
 
@@ -1205,8 +1210,6 @@ struct scst_cmd
 	 * scst_set_resp_data_len()
 	 */
 	int orig_sg_cnt, orig_sg_entry, orig_entry_len;
-
-	uint8_t sense_buffer[SCST_SENSE_BUFFERSIZE];	/* sense buffer */
 
 	/* List entry for dev's blocked_cmd_list */
 	struct list_head blocked_cmd_list_entry;
@@ -2051,13 +2054,13 @@ static inline uint8_t scst_cmd_get_driver_status(struct scst_cmd *cmd)
 /* Returns pointer to cmd's sense buffer */
 static inline uint8_t *scst_cmd_get_sense_buffer(struct scst_cmd *cmd)
 {
-	return cmd->sense_buffer;
+	return cmd->sense;
 }
 
 /* Returns cmd's sense buffer length */
 static inline int scst_cmd_get_sense_buffer_len(struct scst_cmd *cmd)
 {
-	return sizeof(cmd->sense_buffer);
+	return SCST_SENSE_BUFFERSIZE;
 }
 
 /*
@@ -2477,6 +2480,10 @@ struct proc_dir_entry *scst_create_proc_entry(struct proc_dir_entry * root,
 int scst_add_cmd_threads(int num);
 void scst_del_cmd_threads(int num);
 
+int scst_alloc_sense(struct scst_cmd *cmd, int atomic);
+int scst_alloc_set_sense(struct scst_cmd *cmd, int atomic,
+	const uint8_t *sense, unsigned int len);
+
 void scst_set_sense(uint8_t *buffer, int len, int key,
 	int asc, int ascq);
 
@@ -2512,6 +2519,12 @@ int scst_check_mem(struct scst_cmd *cmd);
  */
 void scst_get(void);
 void scst_put(void);
+
+/* 
+ * Cmd ref counters
+ */
+void scst_cmd_get(struct scst_cmd *cmd);
+void scst_cmd_put(struct scst_cmd *cmd);
 
 /*
  * Allocates and returns pointer to SG vector with data size "size".

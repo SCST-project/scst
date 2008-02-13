@@ -454,12 +454,14 @@ static struct iscsi_cmnd *iscsi_cmnd_create_rsp_cmnd(struct iscsi_cmnd *parent)
 
 static inline struct iscsi_cmnd *get_rsp_cmnd(struct iscsi_cmnd *req)
 {
-	struct iscsi_cmnd *res;
+	struct iscsi_cmnd *res = NULL;
 
 	/* Currently this lock isn't needed, but just in case.. */
 	spin_lock_bh(&req->rsp_cmd_lock);
-	res = list_entry(req->rsp_cmd_list.prev, struct iscsi_cmnd,
-		rsp_cmd_list_entry);
+	if (!list_empty(&req->rsp_cmd_list)) {
+		res = list_entry(req->rsp_cmd_list.prev, struct iscsi_cmnd,
+			rsp_cmd_list_entry);
+	}
 	spin_unlock_bh(&req->rsp_cmd_lock);
 
 	return res;
@@ -471,6 +473,8 @@ static void iscsi_cmnds_init_write(struct list_head *send, int flags)
 						write_list_entry);
 	struct iscsi_conn *conn = rsp->conn;
 	struct list_head *pos, *next;
+
+	sBUG_ON(list_empty(send));
 
 	/*
 	 * If we don't remove hashed req cmd from the hash list here, before
@@ -618,8 +622,8 @@ static struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req, int status,
 	rsp_hdr->cmd_status = status;
 	rsp_hdr->itt = cmnd_hdr(req)->itt;
 
-	if (status == SAM_STAT_CHECK_CONDITION) {
-		TRACE_DBG("%s", "CHECK_CONDITION");
+	if (SCST_SENSE_VALID(sense_buf)) {
+		TRACE_DBG("%s", "SENSE VALID");
 		/* ToDo: __GFP_NOFAIL ?? */
 		sg = rsp->sg = scst_alloc(PAGE_SIZE, GFP_KERNEL|__GFP_NOFAIL,
 					&rsp->sg_cnt);
@@ -920,11 +924,12 @@ static void cmnd_prepare_skip_pdu_set_resid(struct iscsi_cmnd *req)
 	TRACE_DBG("%p", req);
 
 	rsp = get_rsp_cmnd(req);
+	if (rsp == NULL)
+		goto skip;
+
 	rsp_hdr = (struct iscsi_scsi_rsp_hdr *)&rsp->pdu.bhs;
-	if (unlikely(cmnd_opcode(rsp) != ISCSI_OP_SCSI_RSP)) {
-		PRINT_ERROR("Unexpected response command %u", cmnd_opcode(rsp));
-		return;
-	}
+
+	sBUG_ON(cmnd_opcode(rsp) != ISCSI_OP_SCSI_RSP);
 
 	size = cmnd_write_size(req);
 	if (size) {
@@ -941,6 +946,8 @@ static void cmnd_prepare_skip_pdu_set_resid(struct iscsi_cmnd *req)
 			rsp_hdr->residual_count = cpu_to_be32(size);
 		}
 	}
+
+skip:
 	req->pdu.bhs.opcode =
 		(req->pdu.bhs.opcode & ~ISCSI_OPCODE_MASK) | ISCSI_OP_SCSI_REJECT;
 
@@ -1285,7 +1292,6 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 	if (unlikely(req->scst_state != ISCSI_CMD_STATE_AFTER_PREPROC)) {
 		TRACE_DBG("req %p is in %x state", req, req->scst_state);
 		if (req->scst_state == ISCSI_CMD_STATE_PROCESSED) {
-			/* Response is already prepared */
 			cmnd_prepare_skip_pdu_set_resid(req);
 			goto out;
 		}
@@ -1437,7 +1443,8 @@ static void data_out_end(struct iscsi_cmnd *cmnd)
 
 	iscsi_extracheck_is_rd_thread(cmnd->conn);
 
-	if (!(cmnd->conn->ddigest_type & DIGEST_NONE)) {
+	if (!(cmnd->conn->ddigest_type & DIGEST_NONE) &&
+	    !cmnd->ddigest_checked) {
 		cmd_add_on_rx_ddigest_list(req, cmnd);
 		cmnd_get(cmnd);
 	}
@@ -1900,12 +1907,16 @@ static void iscsi_cmnd_exec(struct iscsi_cmnd *cmnd)
 		logout_exec(cmnd);
 		break;
 	case ISCSI_OP_SCSI_REJECT:
-		TRACE_MGMT_DBG("REJECT cmnd %p (scst_cmd %p)", cmnd,
-			cmnd->scst_cmd);
-		iscsi_cmnd_init_write(get_rsp_cmnd(cmnd),
-			ISCSI_INIT_WRITE_REMOVE_HASH | ISCSI_INIT_WRITE_WAKE);
+	{
+		struct iscsi_cmnd *rsp = get_rsp_cmnd(cmnd);
+		TRACE_MGMT_DBG("REJECT cmnd %p (scst_cmd %p), rsp %p", cmnd,
+			cmnd->scst_cmd, rsp);
+		if (rsp != NULL)
+			iscsi_cmnd_init_write(rsp, ISCSI_INIT_WRITE_REMOVE_HASH |
+							 ISCSI_INIT_WRITE_WAKE);
 		req_cmnd_release(cmnd);
 		break;
+	}
 	default:
 		PRINT_ERROR("unexpected cmnd op %x", cmnd_opcode(cmnd));
 		req_cmnd_release(cmnd);
@@ -2281,10 +2292,14 @@ void cmnd_rx_end(struct iscsi_cmnd *cmnd)
 		data_out_end(cmnd);
 		break;
 	case ISCSI_OP_PDU_REJECT:
-		iscsi_cmnd_init_write(get_rsp_cmnd(cmnd),
-			ISCSI_INIT_WRITE_REMOVE_HASH | ISCSI_INIT_WRITE_WAKE);
+	{
+		struct iscsi_cmnd *rsp = get_rsp_cmnd(cmnd);
+		if (rsp != NULL)
+			iscsi_cmnd_init_write(rsp, ISCSI_INIT_WRITE_REMOVE_HASH |
+							ISCSI_INIT_WRITE_WAKE);
 		req_cmnd_release(cmnd);
 		break;
+	}
 	case ISCSI_OP_DATA_REJECT:
 		req_cmnd_release(cmnd);
 		break;

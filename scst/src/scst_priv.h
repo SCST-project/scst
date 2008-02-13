@@ -138,24 +138,13 @@ static inline int scst_get_context(void)
 
 extern unsigned long scst_max_cmd_mem;
 
-#define SCST_MGMT_CMD_CACHE_STRING "scst_mgmt_cmd"
-extern struct kmem_cache *scst_mgmt_cachep;
 extern mempool_t *scst_mgmt_mempool;
-
-#define SCST_UA_CACHE_STRING "scst_ua"
-extern struct kmem_cache *scst_ua_cachep;
 extern mempool_t *scst_ua_mempool;
+extern mempool_t *scst_sense_mempool;
 
-#define SCST_CMD_CACHE_STRING "scst_cmd"
 extern struct kmem_cache *scst_cmd_cachep;
-
-#define SCST_SESSION_CACHE_STRING "scst_session"
 extern struct kmem_cache *scst_sess_cachep;
-
-#define SCST_TGT_DEV_CACHE_STRING "scst_tgt_dev"
 extern struct kmem_cache *scst_tgtd_cachep;
-
-#define SCST_ACG_DEV_CACHE_STRING "scst_acg_dev"
 extern struct kmem_cache *scst_acgd_cachep;
 
 extern spinlock_t scst_main_lock;
@@ -489,12 +478,12 @@ static inline void scst_sess_put(struct scst_session *sess)
 		scst_sched_session_free(sess);
 }
 
-static inline void scst_cmd_get(struct scst_cmd *cmd)
+static inline void __scst_cmd_get(struct scst_cmd *cmd)
 {
 	atomic_inc(&cmd->cmd_ref);
 }
 
-static inline void scst_cmd_put(struct scst_cmd *cmd)
+static inline void __scst_cmd_put(struct scst_cmd *cmd)
 {
 	if (atomic_dec_and_test(&cmd->cmd_ref))
 		scst_free_cmd(cmd);

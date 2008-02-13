@@ -1611,7 +1611,7 @@ mpt_xmit_response(struct scst_cmd *scst_cmd)
 
 	TRACE_DBG("rq_result=%x, resp_flags=%x, %x, %d", prm.rq_result, 
 			resp_flags, prm.bufflen, prm.sense_buffer_len);
-	if (prm.rq_result != 0)
+	if ((prm.rq_result != 0) && (prm.sense_buffer != NULL))
 		TRACE_BUFFER("Sense", prm.sense_buffer, prm.sense_buffer_len);
 
 	if ((resp_flags & SCST_TSC_FLAG_STATUS) == 0) {

@@ -52,6 +52,12 @@
 	handlers will not be supported.
 #endif
 
+/**
+ ** SCST global variables. They are all uninitialized to have their layout in
+ ** memory be exactly as specified. Otherwise compiler puts zero-initialized
+ ** variable separately from nonzero-initialized ones.
+ **/
+
 /*
  * All targets, devices and dev_types management is done under this mutex.
  *
@@ -60,40 +66,42 @@
  * scst_user detach_tgt(), which is called under scst_mutex and calls
  * flush_scheduled_work().
  */
-DEFINE_MUTEX(scst_mutex);
+struct mutex scst_mutex;
 
-LIST_HEAD(scst_template_list);
-LIST_HEAD(scst_dev_list);
-LIST_HEAD(scst_dev_type_list);
+struct list_head scst_template_list;
+struct list_head scst_dev_list;
+struct list_head scst_dev_type_list;
 
-spinlock_t scst_main_lock = SPIN_LOCK_UNLOCKED;
+spinlock_t scst_main_lock;
 
 struct kmem_cache *scst_mgmt_cachep;
 mempool_t *scst_mgmt_mempool;
 struct kmem_cache *scst_ua_cachep;
 mempool_t *scst_ua_mempool;
+struct kmem_cache *scst_sense_cachep;
+mempool_t *scst_sense_mempool;
 struct kmem_cache *scst_tgtd_cachep;
 struct kmem_cache *scst_sess_cachep;
 struct kmem_cache *scst_acgd_cachep;
 
-LIST_HEAD(scst_acg_list);
+struct list_head scst_acg_list;
 struct scst_acg *scst_default_acg;
 
-spinlock_t scst_init_lock = SPIN_LOCK_UNLOCKED;
-DECLARE_WAIT_QUEUE_HEAD(scst_init_cmd_list_waitQ);
-LIST_HEAD(scst_init_cmd_list);
+spinlock_t scst_init_lock;
+wait_queue_head_t scst_init_cmd_list_waitQ;
+struct list_head scst_init_cmd_list;
 unsigned int scst_init_poll_cnt;
 
 struct kmem_cache *scst_cmd_cachep;
 
 #if defined(DEBUG) || defined(TRACING)
-unsigned long scst_trace_flag = SCST_DEFAULT_LOG_FLAGS;
+unsigned long scst_trace_flag;
 #endif
 
 unsigned long scst_flags;
-atomic_t scst_cmd_count = ATOMIC_INIT(0);
+atomic_t scst_cmd_count;
 
-spinlock_t scst_cmd_mem_lock = SPIN_LOCK_UNLOCKED;
+spinlock_t scst_cmd_mem_lock;
 unsigned long scst_cur_cmd_mem, scst_cur_max_cmd_mem;
 unsigned long scst_max_cmd_mem;
 
@@ -101,33 +109,33 @@ struct scst_cmd_lists scst_main_cmd_lists;
 
 struct scst_tasklet scst_tasklets[NR_CPUS];
 
-spinlock_t scst_mcmd_lock = SPIN_LOCK_UNLOCKED;
-LIST_HEAD(scst_active_mgmt_cmd_list);
-LIST_HEAD(scst_delayed_mgmt_cmd_list);
-DECLARE_WAIT_QUEUE_HEAD(scst_mgmt_cmd_list_waitQ);
+spinlock_t scst_mcmd_lock;
+struct list_head scst_active_mgmt_cmd_list;
+struct list_head scst_delayed_mgmt_cmd_list;
+wait_queue_head_t scst_mgmt_cmd_list_waitQ;
 
-DECLARE_WAIT_QUEUE_HEAD(scst_mgmt_waitQ);
-spinlock_t scst_mgmt_lock = SPIN_LOCK_UNLOCKED;
-LIST_HEAD(scst_sess_init_list);
-LIST_HEAD(scst_sess_shut_list);
+wait_queue_head_t scst_mgmt_waitQ;
+spinlock_t scst_mgmt_lock;
+struct list_head scst_sess_init_list;
+struct list_head scst_sess_shut_list;
 
-DECLARE_WAIT_QUEUE_HEAD(scst_dev_cmd_waitQ);
+wait_queue_head_t scst_dev_cmd_waitQ;
 
-DEFINE_MUTEX(scst_suspend_mutex);
-LIST_HEAD(scst_cmd_lists_list); /* protected by scst_suspend_mutex */
+struct mutex scst_suspend_mutex;
+struct list_head scst_cmd_lists_list;
 
 static int scst_threads;
 struct scst_threads_info_t scst_threads_info;
 
 static int suspend_count;
 
-int scst_virt_dev_last_id = 1; /* protected by scst_mutex */
+static int scst_virt_dev_last_id; /* protected by scst_mutex */
 
 /* 
  * This buffer and lock are intended to avoid memory allocation, which
  * could fail in improper places.
  */
-spinlock_t scst_temp_UA_lock = SPIN_LOCK_UNLOCKED;
+spinlock_t scst_temp_UA_lock;
 uint8_t scst_temp_UA[SCST_SENSE_BUFFERSIZE];
 
 module_param_named(scst_threads, scst_threads, int, 0);
@@ -235,11 +243,11 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 
-out_m_up:
-	mutex_unlock(&m);
-
 out_cleanup:
 	scst_cleanup_proc_target_dir_entries(vtt);
+
+out_m_up:
+	mutex_unlock(&m);
 
 out_err:
 	PRINT_ERROR("Failed to register target template %s", vtt->name);
@@ -1466,7 +1474,6 @@ static void __init scst_print_config(void)
 static int __init init_scst(void)
 {
 	int res = 0, i;
-	struct scst_cmd *cmd;
 	int scst_num_cpus;
 
 	TRACE_ENTRY();
@@ -1474,14 +1481,13 @@ static int __init init_scst(void)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
 	{
 		struct scsi_request *req;
-		BUILD_BUG_ON(sizeof(cmd->sense_buffer) !=
+		BUILD_BUG_ON(SCST_SENSE_BUFFERSIZE !=
 			sizeof(req->sr_sense_buffer));
 	}
 #else
 	{
 		struct scsi_sense_hdr *shdr;
-		BUILD_BUG_ON((sizeof(cmd->sense_buffer) < sizeof(*shdr)) &&
-			(sizeof(cmd->sense_buffer) >= SCST_SENSE_BUFFERSIZE));
+		BUILD_BUG_ON(SCST_SENSE_BUFFERSIZE < sizeof(*shdr));
 	}
 #endif
 	{
@@ -1495,6 +1501,34 @@ static int __init init_scst(void)
 	BUILD_BUG_ON(SCST_DATA_WRITE != DMA_TO_DEVICE);
 	BUILD_BUG_ON(SCST_DATA_READ != DMA_FROM_DEVICE);
 	BUILD_BUG_ON(SCST_DATA_NONE != DMA_NONE);
+
+	mutex_init(&scst_mutex);
+	INIT_LIST_HEAD(&scst_template_list);
+	INIT_LIST_HEAD(&scst_dev_list);
+	INIT_LIST_HEAD(&scst_dev_type_list);
+	spin_lock_init(&scst_main_lock);
+	INIT_LIST_HEAD(&scst_acg_list);
+	spin_lock_init(&scst_init_lock);
+	init_waitqueue_head(&scst_init_cmd_list_waitQ);
+	INIT_LIST_HEAD(&scst_init_cmd_list);
+#if defined(DEBUG) || defined(TRACING)
+	scst_trace_flag = SCST_DEFAULT_LOG_FLAGS;
+#endif
+	atomic_set(&scst_cmd_count, 0);
+	spin_lock_init(&scst_cmd_mem_lock);
+	spin_lock_init(&scst_mcmd_lock);
+	INIT_LIST_HEAD(&scst_active_mgmt_cmd_list);
+	INIT_LIST_HEAD(&scst_delayed_mgmt_cmd_list);
+	init_waitqueue_head(&scst_mgmt_cmd_list_waitQ);
+	init_waitqueue_head(&scst_mgmt_waitQ);
+	spin_lock_init(&scst_mgmt_lock);
+	INIT_LIST_HEAD(&scst_sess_init_list);
+	INIT_LIST_HEAD(&scst_sess_shut_list);
+	init_waitqueue_head(&scst_dev_cmd_waitQ);
+	mutex_init(&scst_suspend_mutex);
+	INIT_LIST_HEAD(&scst_cmd_lists_list);
+	scst_virt_dev_last_id = 1;
+	spin_lock_init(&scst_temp_UA_lock);
 
 	spin_lock_init(&scst_main_cmd_lists.cmd_list_lock);
 	INIT_LIST_HEAD(&scst_main_cmd_lists.active_cmd_list);
@@ -1525,7 +1559,11 @@ static int __init init_scst(void)
 	  
 	INIT_CACHEP(scst_mgmt_cachep, scst_mgmt_cmd, out);
 	INIT_CACHEP(scst_ua_cachep, scst_tgt_dev_UA, out_destroy_mgmt_cache);
-	INIT_CACHEP(scst_cmd_cachep, scst_cmd, out_destroy_ua_cache);
+	{
+		struct scst_sense { uint8_t s[SCST_SENSE_BUFFERSIZE]; };
+		INIT_CACHEP(scst_sense_cachep, scst_sense, out_destroy_ua_cache);
+	}
+	INIT_CACHEP(scst_cmd_cachep, scst_cmd, out_destroy_sense_cache);
 	INIT_CACHEP(scst_sess_cachep, scst_session, out_destroy_cmd_cache);
 	INIT_CACHEP(scst_tgtd_cachep, scst_tgt_dev, out_destroy_sess_cache);
 	INIT_CACHEP(scst_acgd_cachep, scst_acg_dev, out_destroy_tgt_cache);
@@ -1544,6 +1582,14 @@ static int __init init_scst(void)
 		goto out_destroy_mgmt_mempool;
 	}
 
+	/* Loosing sense may have fatal consequences, so let's have a big pool */
+	scst_sense_mempool = mempool_create(128, mempool_alloc_slab,
+		mempool_free_slab, scst_sense_cachep);
+	if (scst_sense_mempool == NULL) {
+		res = -ENOMEM;
+		goto out_destroy_ua_mempool;
+	}
+
 	if (scst_max_cmd_mem == 0) {
 		struct sysinfo si;
 		si_meminfo(&si);
@@ -1558,7 +1604,7 @@ static int __init init_scst(void)
 
 	res = scst_sgv_pools_init(scst_max_cmd_mem, 0);
 	if (res != 0)
-		goto out_destroy_ua_mempool;
+		goto out_destroy_sense_mempool;
 
 	scst_default_acg = scst_alloc_add_acg(SCST_DEFAULT_ACG_NAME);
 	if (scst_default_acg == NULL) {
@@ -1611,6 +1657,9 @@ out_free_acg:
 out_destroy_sgv_pool:
 	scst_sgv_pools_deinit();
 
+out_destroy_sense_mempool:
+	mempool_destroy(scst_sense_mempool);
+
 out_destroy_ua_mempool:
 	mempool_destroy(scst_ua_mempool);
 
@@ -1628,6 +1677,9 @@ out_destroy_sess_cache:
 
 out_destroy_cmd_cache:
 	kmem_cache_destroy(scst_cmd_cachep);
+
+out_destroy_sense_cache:
+	kmem_cache_destroy(scst_sense_cachep);
 
 out_destroy_ua_cache:
 	kmem_cache_destroy(scst_ua_cachep);
@@ -1664,9 +1716,11 @@ static void __exit exit_scst(void)
 
 	mempool_destroy(scst_mgmt_mempool);
 	mempool_destroy(scst_ua_mempool);
+	mempool_destroy(scst_sense_mempool);
 
 	DEINIT_CACHEP(scst_mgmt_cachep);
 	DEINIT_CACHEP(scst_ua_cachep);
+	DEINIT_CACHEP(scst_sense_cachep);
 	DEINIT_CACHEP(scst_cmd_cachep);
 	DEINIT_CACHEP(scst_sess_cachep);
 	DEINIT_CACHEP(scst_tgtd_cachep);
@@ -1695,6 +1749,8 @@ EXPORT_SYMBOL(scst_set_busy);
 EXPORT_SYMBOL(scst_set_cmd_error_status);
 EXPORT_SYMBOL(scst_set_cmd_error);
 EXPORT_SYMBOL(scst_set_resp_data_len);
+EXPORT_SYMBOL(scst_alloc_sense);
+EXPORT_SYMBOL(scst_alloc_set_sense);
 EXPORT_SYMBOL(scst_set_sense);
 EXPORT_SYMBOL(scst_set_cmd_error_sense);
 
@@ -1738,6 +1794,9 @@ EXPORT_SYMBOL(scst_single_seq_open);
 
 EXPORT_SYMBOL(scst_get);
 EXPORT_SYMBOL(scst_put);
+
+EXPORT_SYMBOL(scst_cmd_get);
+EXPORT_SYMBOL(scst_cmd_put);
 
 EXPORT_SYMBOL(scst_alloc);
 EXPORT_SYMBOL(scst_free);

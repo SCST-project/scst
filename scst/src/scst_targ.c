@@ -106,7 +106,10 @@ static int scst_init_cmd(struct scst_cmd *cmd, int context)
 		TRACE_MGMT_DBG("%s", "init cmd list busy");
 		goto out_redirect;
 	}
-	smp_rmb();
+	/*
+	 * Memory barrier isn't necessary here, because CPU appears to
+	 * be self-consistent
+	 */
 
 	rc = __scst_init_cmd(cmd);
 	if (unlikely(rc > 0))
@@ -1080,13 +1083,8 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 			scst_set_resp_data_len(cmd, cmd->resp_data_len - resid);
 	}
 
-	/* 
-	 * We checked that rq_sense_len < sizeof(cmd->sense_buffer)
-	 * in init_scst()
-	 */
-	memcpy(cmd->sense_buffer, rq_sense, rq_sense_len);
-	memset(&cmd->sense_buffer[rq_sense_len], 0,
-		sizeof(cmd->sense_buffer) - rq_sense_len);
+	if (cmd->status == SAM_STAT_CHECK_CONDITION)
+		scst_alloc_set_sense(cmd, in_irq(), rq_sense, rq_sense_len);
 
 	TRACE(TRACE_SCSI, "result=%x, cmd->status=%x, resid=%d, "
 	      "cmd->msg_status=%x, cmd->host_status=%x, "
@@ -1549,7 +1547,6 @@ int scst_check_local_events(struct scst_cmd *cmd)
 					   SCST_LOAD_SENSE(scst_sense_reset_UA));
 				/* It looks like it is safe to clear was_reset here */
 				dev->scsi_dev->was_reset = 0;
-				smp_mb();
 				done = 1;
 			}
 			spin_unlock_bh(&dev->dev_lock);
@@ -1666,6 +1663,7 @@ static inline int scst_local_exec(struct scst_cmd *cmd)
 	return res;
 }
 
+/* cmd must be additionally referenced to not die inside */
 static int scst_do_send_to_midlev(struct scst_cmd *cmd)
 {
 	int rc = SCST_EXEC_NOT_COMPLETED;
@@ -1686,7 +1684,6 @@ static int scst_do_send_to_midlev(struct scst_cmd *cmd)
 	cmd->scst_cmd_done = scst_cmd_done_local;
 
 	rc = scst_pre_exec(cmd);
-	/* !! At this point cmd, sess & tgt_dev can be already freed !! */
 	if (rc != SCST_EXEC_NOT_COMPLETED) {
 		if (rc == SCST_EXEC_COMPLETED)
 			goto out;
@@ -1697,7 +1694,6 @@ static int scst_do_send_to_midlev(struct scst_cmd *cmd)
 	}
 
 	rc = scst_local_exec(cmd);
-	/* !! At this point cmd, sess & tgt_dev can be already freed !! */
 	if (rc != SCST_EXEC_NOT_COMPLETED) {
 		if (rc == SCST_EXEC_COMPLETED)
 			goto out;
@@ -1714,7 +1710,6 @@ static int scst_do_send_to_midlev(struct scst_cmd *cmd)
 		TRACE_BUFF_FLAG(TRACE_SND_TOP, "Execing: ", cmd->cdb, cmd->cdb_len);
 		cmd->scst_cmd_done = scst_cmd_done_local;
 		rc = dev->handler->exec(cmd);
-		/* !! At this point cmd, sess & tgt_dev can be already freed !! */
 		TRACE_DBG("Dev handler %s exec() returned %d",
 		      dev->handler->name, rc);
 		if (rc == SCST_EXEC_COMPLETED)
@@ -1847,13 +1842,39 @@ out:
 	return;
 }
 
+static int scst_process_internal_cmd(struct scst_cmd *cmd)
+{
+	int res = SCST_CMD_STATE_RES_CONT_NEXT, rc;
+
+	TRACE_ENTRY();
+
+	__scst_cmd_get(cmd);
+
+	rc = scst_do_send_to_midlev(cmd);
+	if (rc == SCST_EXEC_NEED_THREAD) {
+		TRACE_DBG("%s", "scst_do_send_to_midlev() requested "
+		      "thread context, rescheduling");
+		res = SCST_CMD_STATE_RES_NEED_THREAD;
+	} else {
+		struct scst_device *dev = cmd->dev;
+		sBUG_ON(rc != SCST_EXEC_COMPLETED);
+		if (dev->scsi_dev != NULL)
+			generic_unplug_device(dev->scsi_dev->request_queue);
+	}
+
+	__scst_cmd_put(cmd);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 static int scst_send_to_midlev(struct scst_cmd **active_cmd)
 {
 	int res, rc;
 	struct scst_cmd *cmd = *active_cmd;
+	struct scst_cmd *ref_cmd;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
 	struct scst_device *dev = cmd->dev;
-	struct scst_session *sess = cmd->sess;
 	typeof(tgt_dev->expected_sn) expected_sn;
 	int count;
 
@@ -1861,22 +1882,9 @@ static int scst_send_to_midlev(struct scst_cmd **active_cmd)
 
 	res = SCST_CMD_STATE_RES_CONT_NEXT;
 
-	__scst_get(0); /* protect dev */
-	scst_sess_get(sess); /* protect tgt_dev */
-
 	if (unlikely(cmd->internal || cmd->retry)) {
-		rc = scst_do_send_to_midlev(cmd);
-		/* !! At this point cmd can be already freed !! */
-		if (rc == SCST_EXEC_NEED_THREAD) {
-			TRACE_DBG("%s", "scst_do_send_to_midlev() requested "
-			      "thread context, rescheduling");
-			res = SCST_CMD_STATE_RES_NEED_THREAD;
-			scst_dec_on_dev_cmd(cmd);
-			goto out_put;
-		} else {
-			sBUG_ON(rc != SCST_EXEC_COMPLETED);
-			goto out_unplug;
-		}
+		res = scst_process_internal_cmd(cmd);
+		goto out;
 	}
 
 #ifdef MEASURE_LATENCY
@@ -1891,7 +1899,10 @@ static int scst_send_to_midlev(struct scst_cmd **active_cmd)
 #endif
 
 	if (unlikely(scst_inc_on_dev_cmd(cmd) != 0))
-		goto out_put;
+		goto out;
+
+	ref_cmd = cmd;
+	__scst_cmd_get(ref_cmd);
 
 	if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))
 		goto exec;
@@ -1902,9 +1913,10 @@ static int scst_send_to_midlev(struct scst_cmd **active_cmd)
 	/* Optimized for lockless fast path */
 	if ((cmd->sn != expected_sn) || (tgt_dev->hq_cmd_count > 0)) {
 		spin_lock_irq(&tgt_dev->sn_lock);
+
 		tgt_dev->def_cmd_count++;
 		smp_mb();
-		barrier(); /* to reread expected_sn & hq_cmd_count */
+
 		expected_sn = tgt_dev->expected_sn;
 		if ((cmd->sn != expected_sn) || (tgt_dev->hq_cmd_count > 0)) {
 			/* We are under IRQ lock, but dev->dev_lock is BH one */
@@ -1924,8 +1936,9 @@ static int scst_send_to_midlev(struct scst_cmd **active_cmd)
 					      &tgt_dev->deferred_cmd_list);
 			}
 			spin_unlock_irq(&tgt_dev->sn_lock);
-			/* !! At this point cmd can be already freed !! */
+
 			__scst_dec_on_dev_cmd(dev, cmd_blocking);
+
 			goto out_put;
 		} else {
 			TRACE_SN("Somebody incremented expected_sn %ld, "
@@ -1941,6 +1954,7 @@ exec:
 		atomic_t *slot = cmd->sn_slot;
 		int inc_expected_sn = !cmd->inc_expected_sn_on_done &&
 				      cmd->sn_set;
+
 		rc = scst_do_send_to_midlev(cmd);
 		if (rc == SCST_EXEC_NEED_THREAD) {
 			TRACE_DBG("%s", "scst_do_send_to_midlev() requested "
@@ -1954,15 +1968,22 @@ exec:
 				goto out_put;
 		}
 		sBUG_ON(rc != SCST_EXEC_COMPLETED);
-		/* !! At this point cmd can be already freed !! */
+
 		count++;
+
 		if (inc_expected_sn)
 			scst_inc_expected_sn(tgt_dev, slot);
+
 		cmd = scst_check_deferred_commands(tgt_dev);
 		if (cmd == NULL)
 			break;
+
 		if (unlikely(scst_inc_on_dev_cmd(cmd) != 0))
 			break;
+
+		__scst_cmd_put(ref_cmd);
+		ref_cmd = cmd;
+		__scst_cmd_get(ref_cmd);
 	}
 
 out_unplug:
@@ -1970,10 +1991,10 @@ out_unplug:
 		generic_unplug_device(dev->scsi_dev->request_queue);
 
 out_put:
-	scst_sess_put(sess);
-	__scst_put();
+	__scst_cmd_put(ref_cmd);
 	/* !! At this point sess, dev and tgt_dev can be already freed !! */
 
+out:
 	TRACE_EXIT_HRES(res);
 	return res;
 }
@@ -1999,7 +2020,6 @@ static int scst_check_sense(struct scst_cmd *cmd)
 		cmd->ua_ignore = 0;
 		/* It looks like it is safe to clear was_reset here */
 		dev->scsi_dev->was_reset = 0;
-		smp_mb();
 	}
 
 	dbl_ua_possible = dev->dev_double_ua_possible;
@@ -2015,12 +2035,12 @@ static int scst_check_sense(struct scst_cmd *cmd)
 	}
 
 	if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION) && 
-	    SCST_SENSE_VALID(cmd->sense_buffer)) {
-		PRINT_BUFF_FLAG(TRACE_SCSI, "Sense", cmd->sense_buffer,
-			sizeof(cmd->sense_buffer));
+	    SCST_SENSE_VALID(cmd->sense)) {
+		PRINT_BUFF_FLAG(TRACE_SCSI, "Sense", cmd->sense,
+			SCST_SENSE_BUFFERSIZE);
 		/* Check Unit Attention Sense Key */
-		if (scst_is_ua_sense(cmd->sense_buffer)) {
-			if (cmd->sense_buffer[12] == SCST_SENSE_ASC_UA_RESET) {
+		if (scst_is_ua_sense(cmd->sense)) {
+			if (cmd->sense[12] == SCST_SENSE_ASC_UA_RESET) {
 				if (dbl_ua_possible) {
 					if (ua_sent) {
 						TRACE(TRACE_MGMT_MINOR, "%s", 
@@ -2032,8 +2052,8 @@ static int scst_check_sense(struct scst_cmd *cmd)
 						cmd->msg_status = 0;
 						cmd->host_status = DID_OK;
 						cmd->driver_status = 0;
-						memset(cmd->sense_buffer, 0,
-							sizeof(cmd->sense_buffer));
+						mempool_free(cmd->sense, scst_sense_mempool);
+						cmd->sense = NULL;
 						cmd->retry = 1;
 						cmd->state = SCST_CMD_STATE_SEND_TO_MIDLEV;
 						res = 1;
@@ -2053,12 +2073,12 @@ static int scst_check_sense(struct scst_cmd *cmd)
 			if (cmd->ua_ignore == 0) {
 				if (unlikely(dbl_ua_possible)) {
 					__scst_dev_check_set_UA(dev, cmd,
-						cmd->sense_buffer,
-						sizeof(cmd->sense_buffer));
+						cmd->sense,
+						SCST_SENSE_BUFFERSIZE);
 				} else {
 					scst_dev_check_set_UA(dev, cmd,
-						cmd->sense_buffer,
-						sizeof(cmd->sense_buffer));
+						cmd->sense,
+						SCST_SENSE_BUFFERSIZE);
 				}
 			}
 		}
@@ -2090,8 +2110,8 @@ static int scst_check_auto_sense(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION) &&
-	    (!SCST_SENSE_VALID(cmd->sense_buffer) ||
-	     SCST_NO_SENSE(cmd->sense_buffer))) {
+	    (!SCST_SENSE_VALID(cmd->sense) ||
+	     SCST_NO_SENSE(cmd->sense))) {
 		TRACE(TRACE_SCSI|TRACE_MINOR, "CHECK_CONDITION, but no sense: "
 		      "cmd->status=%x, cmd->msg_status=%x, "
 		      "cmd->host_status=%x, cmd->driver_status=%x", cmd->status,
@@ -2212,10 +2232,10 @@ static int scst_done_cmd_check(struct scst_cmd *cmd, int *pres)
 				struct scst_tgt_dev *tgt_dev_tmp;
 				struct scst_device *dev = cmd->dev;
 
-				TRACE(TRACE_SCSI, "Real RESERVE failed lun=%Ld, status=%x",
-				      (uint64_t)cmd->lun, cmd->status);
-				PRINT_BUFF_FLAG(TRACE_SCSI, "Sense", cmd->sense_buffer,
-					sizeof(cmd->sense_buffer));
+				TRACE(TRACE_SCSI, "Real RESERVE failed lun=%Ld, "
+					"status=%x", (uint64_t)cmd->lun, cmd->status);
+				PRINT_BUFF_FLAG(TRACE_SCSI, "Sense", cmd->sense,
+					SCST_SENSE_BUFFERSIZE);
 
 				/* Clearing the reservation */
 				spin_lock_bh(&dev->dev_lock);
@@ -2232,10 +2252,9 @@ static int scst_done_cmd_check(struct scst_cmd *cmd, int *pres)
 		/* Check for MODE PARAMETERS CHANGED UA */
 		if ((cmd->dev->scsi_dev != NULL) &&
 		    (cmd->status == SAM_STAT_CHECK_CONDITION) && 
-		    SCST_SENSE_VALID(cmd->sense_buffer) &&
-		    scst_is_ua_sense(cmd->sense_buffer) &&
-		    (cmd->sense_buffer[12] == 0x2a) &&
-		    (cmd->sense_buffer[13] == 0x01)) {
+		    SCST_SENSE_VALID(cmd->sense) &&
+		    scst_is_ua_sense(cmd->sense) &&
+		    (cmd->sense[12] == 0x2a) && (cmd->sense[13] == 0x01)) {
 			TRACE(TRACE_SCSI, "MODE PARAMETERS CHANGED UA (lun %Ld)",
 				(uint64_t)cmd->lun);
 			cmd->state = SCST_CMD_STATE_MODE_SELECT_CHECKS;
@@ -2255,6 +2274,9 @@ static int scst_pre_dev_done(struct scst_cmd *cmd)
 	int res = SCST_CMD_STATE_RES_CONT_SAME, rc;
 
 	TRACE_ENTRY();
+
+	atomic_dec(&cmd->tgt_dev->tgt_dev_cmd_count);
+	atomic_dec(&cmd->dev->dev_cmd_count);
 
 	rc = scst_done_cmd_check(cmd, &res);
 	if (rc)
@@ -2310,10 +2332,9 @@ static int scst_mode_select_checks(struct scst_cmd *cmd)
 				scst_obtain_device_parameters(dev);
 		}
 	} else if ((cmd->status == SAM_STAT_CHECK_CONDITION) && 
-		    SCST_SENSE_VALID(cmd->sense_buffer) &&
-		    scst_is_ua_sense(cmd->sense_buffer) &&
-		    (cmd->sense_buffer[12] == 0x2a) &&
-		    (cmd->sense_buffer[13] == 0x01)) {
+		    SCST_SENSE_VALID(cmd->sense) &&
+		    scst_is_ua_sense(cmd->sense) &&
+		    (cmd->sense[12] == 0x2a) && (cmd->sense[13] == 0x01)) {
 		if (atomic) {
 			TRACE_DBG("%s", "MODE PARAMETERS CHANGED UA: thread "
 				"context required");
@@ -2636,24 +2657,34 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 
 	atomic_dec(&cmd->sess->sess_cmd_count);
 
+	cmd->finished = 1;
+	smp_mb(); /* to sync with scst_abort_cmd() */
+
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
+		unsigned long flags;
+
 		TRACE_MGMT_DBG("Aborted cmd %p finished (cmd_ref %d, "
 			"scst_cmd_count %d)", cmd, atomic_read(&cmd->cmd_ref),
 			atomic_read(&scst_cmd_count));
+
+		spin_lock_irqsave(&scst_mcmd_lock, flags);
+		if (cmd->mgmt_cmnd)
+			scst_complete_cmd_mgmt(cmd, cmd->mgmt_cmnd);
+		spin_unlock_irqrestore(&scst_mcmd_lock, flags);
 	}
 
 	if (unlikely(cmd->delivery_status != SCST_CMD_DELIVERY_SUCCESS)) {
 		if ((cmd->tgt_dev != NULL) &&
-		    scst_is_ua_sense(cmd->sense_buffer)) {
+		    scst_is_ua_sense(cmd->sense)) {
 			/* This UA delivery failed, so requeue it */
 			TRACE_MGMT_DBG("Requeuing UA for delivery failed cmd "
 				"%p", cmd);
-			scst_check_set_UA(cmd->tgt_dev, cmd->sense_buffer,
-					sizeof(cmd->sense_buffer), 1);
+			scst_check_set_UA(cmd->tgt_dev, cmd->sense,
+					SCST_SENSE_BUFFERSIZE, 1);
 		}
 	}
 
-	scst_cmd_put(cmd);
+	__scst_cmd_put(cmd);
 
 	res = SCST_CMD_STATE_RES_CONT_NEXT;
 
@@ -2693,6 +2724,10 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 			goto ordered;
 #endif
 		if (likely(tgt_dev->num_free_sn_slots >= 0)) {
+			/*
+			 * atomic_inc_return() implies memory barrier to sync
+			 * with scst_inc_expected_sn()
+			 */
 			if (atomic_inc_return(tgt_dev->cur_sn_slot) == 1) {
 				tgt_dev->curr_sn++;
 				TRACE_SN("Incremented curr_sn %ld",
@@ -2888,6 +2923,10 @@ static void scst_do_job_init(void)
 	TRACE_ENTRY();
 
 restart:
+	/*
+	 * There is no need for read barrier here, because we don't care where
+	 * this check will be done.
+	 */
 	susp = test_bit(SCST_FLAG_SUSPENDED, &scst_flags);
 	if (scst_init_poll_cnt > 0)
 		scst_init_poll_cnt--;
@@ -2924,6 +2963,7 @@ restart:
 		 * in case of simultaneous such calls anyway.
 		 */
 		TRACE_MGMT_DBG("Deleting cmd %p from init cmd list", cmd);
+		smp_wmb();
 		list_del(&cmd->cmd_list_entry);
 		spin_unlock(&scst_init_lock);
 
@@ -2942,6 +2982,7 @@ restart:
 		goto restart;
 	}
 
+	/* It isn't really needed, but let's keep it */
 	if (susp != test_bit(SCST_FLAG_SUSPENDED, &scst_flags))
 		goto restart;
 
@@ -3018,6 +3059,8 @@ void scst_process_active_cmd(struct scst_cmd *cmd, int context)
 		switch (cmd->state) {
 		case SCST_CMD_STATE_PRE_PARSE:
 			res = scst_pre_parse(cmd);
+			EXTRACHECKS_BUG_ON(res ==
+				SCST_CMD_STATE_RES_NEED_THREAD);
 			break;
 
 		case SCST_CMD_STATE_DEV_PARSE:
@@ -3050,6 +3093,8 @@ void scst_process_active_cmd(struct scst_cmd *cmd, int context)
 
 		case SCST_CMD_STATE_PRE_DEV_DONE:
 			res = scst_pre_dev_done(cmd);
+			EXTRACHECKS_BUG_ON(res ==
+				SCST_CMD_STATE_RES_NEED_THREAD);
 			break;
 
 		case SCST_CMD_STATE_MODE_SELECT_CHECKS:
@@ -3062,6 +3107,8 @@ void scst_process_active_cmd(struct scst_cmd *cmd, int context)
 
 		case SCST_CMD_STATE_PRE_XMIT_RESP:
 			res = scst_pre_xmit_response(cmd);
+			EXTRACHECKS_BUG_ON(res ==
+				SCST_CMD_STATE_RES_NEED_THREAD);
 			break;
 
 		case SCST_CMD_STATE_XMIT_RESP:
@@ -3070,6 +3117,8 @@ void scst_process_active_cmd(struct scst_cmd *cmd, int context)
 
 		case SCST_CMD_STATE_FINISHED:
 			res = scst_finish_cmd(cmd);
+			EXTRACHECKS_BUG_ON(res ==
+				SCST_CMD_STATE_RES_NEED_THREAD);
 			break;
 
 		default:
@@ -3281,12 +3330,10 @@ out:
 	return res;
 }
 
-/* No locks */
+/* scst_mcmd_lock supposed to be held and IRQ off */
 void scst_complete_cmd_mgmt(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd)
 {
 	TRACE_ENTRY();
-
-	spin_lock_irq(&scst_mcmd_lock);
 
 	TRACE_MGMT_DBG("cmd %p completed (tag %llu, mcmd %p, "
 		"mcmd->cmd_wait_count %d)", cmd, cmd->tag, mcmd,
@@ -3312,8 +3359,6 @@ void scst_complete_cmd_mgmt(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd)
 		list_add_tail(&mcmd->mgmt_cmd_list_entry,
 			&scst_active_mgmt_cmd_list);
 	}
-
-	spin_unlock_irq(&scst_mcmd_lock);
 
 	wake_up(&scst_mgmt_cmd_list_waitQ);
 
@@ -3368,6 +3413,8 @@ static inline int scst_is_strict_mgmt_fn(int mgmt_fn)
 void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 	int other_ini, int call_dev_task_mgmt_fn)
 {
+	unsigned long flags;
+
 	TRACE_ENTRY();
 
 	TRACE(((mcmd != NULL) && (mcmd->fn == SCST_ABORT_TASK)) ? TRACE_MGMT_MINOR : TRACE_MGMT,
@@ -3381,7 +3428,8 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 		clear_bit(SCST_CMD_ABORTED_OTHER, &cmd->cmd_flags);
 	}
 	set_bit(SCST_CMD_ABORTED, &cmd->cmd_flags);
-	smp_mb__after_set_bit();
+	/* To sync with cmd->finished set in scst_finish_cmd() */
+	smp_mb__after_set_bit(); 
 
 	if (cmd->tgt_dev == NULL) {
 		unsigned long flags;
@@ -3396,8 +3444,8 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 		scst_call_dev_task_mgmt_fn(mcmd, cmd->tgt_dev, 1);
 	}
 
-	if (mcmd) {
-		unsigned long flags;
+	spin_lock_irqsave(&scst_mcmd_lock, flags);
+	if ((mcmd != NULL) && !cmd->finished) {
 		/*
 		 * Delay the response until the command's finish in
 		 * order to guarantee that "no further responses from
@@ -3418,12 +3466,16 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 		}
 #endif
 		sBUG_ON(cmd->mgmt_cmnd);
-		spin_lock_irqsave(&scst_mcmd_lock, flags);
+
 		mcmd->cmd_wait_count++;
-		spin_unlock_irqrestore(&scst_mcmd_lock, flags);
-		/* cmd can't die here or sess_list_lock already taken */
+
+		/*
+		 * cmd can't die here or sess_list_lock already taken and cmd is
+		 * in the search list
+		 */
 		cmd->mgmt_cmnd = mcmd;
 	}
+	spin_unlock_irqrestore(&scst_mcmd_lock, flags);
 
 	tm_dbg_release_cmd(cmd);
 
@@ -3724,7 +3776,7 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 			spin_unlock_irq(&sess->sess_list_lock);
 			goto out;
 		}
-		scst_cmd_get(cmd);
+		__scst_cmd_get(cmd);
 		spin_unlock_irq(&sess->sess_list_lock);
 		TRACE_MGMT_DBG("Cmd %p for tag %llu (sn %ld, set %d, "
 			"queue_type %x) found, aborting it", cmd, mcmd->tag,
@@ -3748,7 +3800,7 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 		}
 		res = scst_set_mcmd_next_state(mcmd);
 		mcmd->cmd_to_abort = NULL; /* just in case */
-		scst_cmd_put(cmd);
+		__scst_cmd_put(cmd);
 		break;
 	}
 
@@ -4673,10 +4725,8 @@ void scst_unregister_session(struct scst_session *sess, int wait,
 	spin_lock_irqsave(&scst_mgmt_lock, flags);
 
 	sess->unreg_done_fn = unreg_done_fn;
-	if (wait) {
+	if (wait)
 		sess->shutdown_compl = pc;
-		smp_mb();
-	}
 #ifdef CONFIG_LOCKDEP
 	else
 		 sess->shutdown_compl = NULL;

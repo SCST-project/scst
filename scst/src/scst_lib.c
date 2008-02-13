@@ -41,6 +41,51 @@ static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev);
 static void scst_check_internal_sense(struct scst_device *dev, int result,
 	uint8_t *sense, int sense_len);
 
+int scst_alloc_sense(struct scst_cmd *cmd, int atomic)
+{
+	int res = 0;
+	unsigned long gfp_mask = atomic ? GFP_ATOMIC : (GFP_KERNEL|__GFP_NOFAIL);
+
+	TRACE_ENTRY();
+
+	sBUG_ON(cmd->sense != NULL);
+
+	cmd->sense = mempool_alloc(scst_sense_mempool, gfp_mask);
+	if (cmd->sense == NULL) {
+		PRINT_ERROR("FATAL!!! Sense memory allocation failed (op %x). "
+			"The sense data will be lost!!", cmd->cdb[0]);
+		res = -ENOMEM;
+		goto out;
+	}
+
+	memset(cmd->sense, 0, SCST_SENSE_BUFFERSIZE);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+int scst_alloc_set_sense(struct scst_cmd *cmd, int atomic,
+	const uint8_t *sense, unsigned int len)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	res = scst_alloc_sense(cmd, atomic);
+	if (res != 0) {
+		PRINT_BUFFER("Lost sense", sense, len);
+		goto out;
+	}
+
+	memcpy(cmd->sense, sense, min((int)len, (int)SCST_SENSE_BUFFERSIZE));
+	TRACE_BUFFER("Sense set", cmd->sense, SCST_SENSE_BUFFERSIZE);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 void scst_set_cmd_error_status(struct scst_cmd *cmd, int status)
 {
 	TRACE_ENTRY();
@@ -60,13 +105,23 @@ void scst_set_cmd_error_status(struct scst_cmd *cmd, int status)
 
 void scst_set_cmd_error(struct scst_cmd *cmd, int key, int asc, int ascq)
 {
+	int rc;
+
 	TRACE_ENTRY();
 
 	scst_set_cmd_error_status(cmd, SAM_STAT_CHECK_CONDITION);
-	scst_set_sense(cmd->sense_buffer, sizeof(cmd->sense_buffer),
-		key, asc, ascq);
-	TRACE_BUFFER("Sense set", cmd->sense_buffer, sizeof(cmd->sense_buffer));
 
+	rc = scst_alloc_sense(cmd, 1);
+	if (rc != 0) {
+		PRINT_ERROR("Lost sense data (key %x, asc %x, ascq %x)",
+			key, asc, ascq);
+		goto out;
+	}
+
+	scst_set_sense(cmd->sense, SCST_SENSE_BUFFERSIZE, key, asc, ascq);
+	TRACE_BUFFER("Sense set", cmd->sense, SCST_SENSE_BUFFERSIZE);
+
+out:
 	TRACE_EXIT();
 	return;
 }
@@ -90,11 +145,7 @@ void scst_set_cmd_error_sense(struct scst_cmd *cmd, uint8_t *sense,
 	TRACE_ENTRY();
 
 	scst_set_cmd_error_status(cmd, SAM_STAT_CHECK_CONDITION);
-
-	memset(cmd->sense_buffer, 0, sizeof(cmd->sense_buffer));
-	memcpy(cmd->sense_buffer, sense, min((unsigned long)len, 
-		(unsigned long)sizeof(cmd->sense_buffer)));
-	TRACE_BUFFER("Sense set", cmd->sense_buffer, sizeof(cmd->sense_buffer));
+	scst_alloc_set_sense(cmd, 1, sense, len);
 
 	TRACE_EXIT();
 	return;
@@ -857,7 +908,7 @@ void scst_free_internal_cmd(struct scst_cmd *cmd)
 {
 	TRACE_ENTRY();
 
-	scst_cmd_put(cmd);
+	__scst_cmd_put(cmd);
 
 	TRACE_EXIT();
 	return;
@@ -897,35 +948,33 @@ out_error:
 #undef sbuf_size
 }
 
-struct scst_cmd *scst_complete_request_sense(struct scst_cmd *cmd)
+struct scst_cmd *scst_complete_request_sense(struct scst_cmd *req_cmd)
 {
-	struct scst_cmd *orig_cmd = cmd->orig_cmd;
+	struct scst_cmd *orig_cmd = req_cmd->orig_cmd;
 	uint8_t *buf;
 	int len;
 
 	TRACE_ENTRY();
 
-	if (cmd->dev->handler->dev_done != NULL) {
+	if (req_cmd->dev->handler->dev_done != NULL) {
 		int rc;
 		TRACE_DBG("Calling dev handler %s dev_done(%p)",
-		      cmd->dev->handler->name, cmd);
-		rc = cmd->dev->handler->dev_done(cmd);
+		      req_cmd->dev->handler->name, req_cmd);
+		rc = req_cmd->dev->handler->dev_done(req_cmd);
 		TRACE_DBG("Dev handler %s dev_done() returned %d",
-		      cmd->dev->handler->name, rc);
+		      req_cmd->dev->handler->name, rc);
 	}
 
 	sBUG_ON(orig_cmd);
 
-	len = scst_get_buf_first(cmd, &buf);
+	len = scst_get_buf_first(req_cmd, &buf);
 
-	if (scsi_status_is_good(cmd->status) && (len > 0) &&
-	    SCST_SENSE_VALID(buf) && (!SCST_NO_SENSE(buf))) 
-	{
+	if (scsi_status_is_good(req_cmd->status) && (len > 0) &&
+	    SCST_SENSE_VALID(buf) && (!SCST_NO_SENSE(buf))) {
 		PRINT_BUFF_FLAG(TRACE_SCSI, "REQUEST SENSE returned", 
 			buf, len);
-		memcpy(orig_cmd->sense_buffer, buf,
-			((int)sizeof(orig_cmd->sense_buffer) > len) ?
-				len : (int)sizeof(orig_cmd->sense_buffer));
+		scst_alloc_set_sense(orig_cmd, scst_cmd_atomic(req_cmd), buf,
+			len);
 	} else {
 		PRINT_ERROR("%s", "Unable to get the sense via "
 			"REQUEST SENSE, returning HARDWARE ERROR");
@@ -934,9 +983,9 @@ struct scst_cmd *scst_complete_request_sense(struct scst_cmd *cmd)
 	}
 
 	if (len > 0)
-		scst_put_buf(cmd, buf);
+		scst_put_buf(req_cmd, buf);
 
-	scst_free_internal_cmd(cmd);
+	scst_free_internal_cmd(req_cmd);
 
 	TRACE_EXIT_HRES((unsigned long)orig_cmd);
 	return orig_cmd;
@@ -1212,6 +1261,16 @@ void scst_sched_session_free(struct scst_session *sess)
 	return;
 }
 
+void scst_cmd_get(struct scst_cmd *cmd)
+{
+	__scst_cmd_get(cmd);
+}
+
+void scst_cmd_put(struct scst_cmd *cmd)
+{
+	__scst_cmd_put(cmd);
+}
+
 struct scst_cmd *scst_alloc_cmd(int gfp_mask)
 {
 	struct scst_cmd *cmd;
@@ -1283,19 +1342,6 @@ void scst_free_cmd(struct scst_cmd *cmd)
 	}
 #endif
 
-	if (likely(cmd->tgt_dev != NULL)) {
-		atomic_dec(&cmd->tgt_dev->tgt_dev_cmd_count);
-		atomic_dec(&cmd->dev->dev_cmd_count);
-	}
-
-	/* 
-	 * cmd->mgmt_cmnd can't being changed here, since for that it either
-	 * must be on search_cmd_list, or cmd_ref must be taken. Both are
-	 * false here.
-	 */
-	if (unlikely(cmd->mgmt_cmnd))
-		scst_complete_cmd_mgmt(cmd, cmd->mgmt_cmnd);
-
 	scst_check_restore_sg_buff(cmd);
 
 	if (unlikely(cmd->internal)) {
@@ -1323,6 +1369,12 @@ void scst_free_cmd(struct scst_cmd *cmd)
 	}
 
 	scst_release_space(cmd);
+
+	if (unlikely(cmd->sense != NULL)) {
+		TRACE_MEM("Releasing sense %p (cmd %p)", cmd->sense, cmd);
+		mempool_free(cmd->sense, scst_sense_mempool);
+		cmd->sense = NULL;
+	}
 
 	if (likely(cmd->tgt_dev != NULL)) {
 #ifdef EXTRACHECKS
@@ -2446,8 +2498,8 @@ void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
 	if (sense_len > (int)sizeof(UA_entry->UA_sense_buffer))
 		sense_len = sizeof(UA_entry->UA_sense_buffer);
 	memcpy(UA_entry->UA_sense_buffer, sense, sense_len);
+
 	set_bit(SCST_TGT_DEV_UA_PENDING, &tgt_dev->tgt_dev_flags);
-	smp_mb__after_set_bit();
 
 	TRACE_MGMT_DBG("Adding new UA to tgt_dev %p", tgt_dev);
 
@@ -2692,6 +2744,9 @@ void scst_block_dev(struct scst_device *dev, int outstanding)
 	spin_lock_bh(&dev->dev_lock);
 	__scst_block_dev(dev);
 	spin_unlock_bh(&dev->dev_lock);
+
+	/* spin_unlock_bh() doesn't provide the necessary memory barrier */
+	smp_mb();
 
 	TRACE_MGMT_DBG("Waiting during blocking outstanding %d (on_dev_count "
 		"%d)", outstanding, atomic_read(&dev->on_dev_count));
@@ -2971,6 +3026,7 @@ void scst_xmit_process_aborted_cmd(struct scst_cmd *cmd)
 {
 	TRACE_ENTRY();
 
+	smp_rmb();
 	if (test_bit(SCST_CMD_ABORTED_OTHER, &cmd->cmd_flags)) {
 		if (cmd->completed) {
 			/* It's completed and it's OK to return its result */
@@ -2992,11 +3048,13 @@ void scst_xmit_process_aborted_cmd(struct scst_cmd *cmd)
 		}
 	} else {
 		if ((cmd->tgt_dev != NULL) &&
-		    scst_is_ua_sense(cmd->sense_buffer)) {
+		    scst_is_ua_sense(cmd->sense)) {
  			/* This UA delivery is going to fail, so requeue it */
 			TRACE_MGMT_DBG("Requeuing UA for aborted cmd %p", cmd);
-			scst_check_set_UA(cmd->tgt_dev, cmd->sense_buffer,
-					sizeof(cmd->sense_buffer), 1);
+			scst_check_set_UA(cmd->tgt_dev, cmd->sense,
+					SCST_SENSE_BUFFERSIZE, 1);
+			mempool_free(cmd->sense, scst_sense_mempool);
+			cmd->sense = NULL;
 	 	}
 	}
 
@@ -3116,7 +3174,7 @@ static void tm_dbg_timer_fn(unsigned long arg)
 {
 	TRACE_MGMT_DBG("%s", "delayed cmd timer expired");
 	tm_dbg_flags.tm_dbg_release = 1;
-	smp_mb();
+	smp_wmb();
 	wake_up_all(tm_dbg_p_cmd_list_waitQ);
 }
 
@@ -3328,7 +3386,7 @@ void tm_dbg_task_mgmt(struct scst_device *dev, const char *fn, int force)
 			tm_dbg_delayed_cmds_count);
 		tm_dbg_change_state();
 		tm_dbg_flags.tm_dbg_release = 1;
-		smp_mb();
+		smp_wmb();
 		if (tm_dbg_p_cmd_list_waitQ != NULL)
 			wake_up_all(tm_dbg_p_cmd_list_waitQ);
 	} else {

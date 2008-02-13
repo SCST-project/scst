@@ -622,7 +622,17 @@ static int recv(struct iscsi_conn *conn)
 			break;
 	case RX_CHECK_DDIGEST:
 		conn->read_state = RX_END;
-		if (cmnd_opcode(cmnd) == ISCSI_OP_SCSI_CMD) {
+		if (cmnd->pdu.datasize <= 16*1024) {
+			/* It's cache hot, so let's compute it inline */
+			TRACE_DBG("cmnd %p, opcode %x: checking RX "
+				"ddigest inline", cmnd, cmnd_opcode(cmnd));
+			cmnd->ddigest_checked = 1;
+			rc = digest_rx_data(cmnd);
+			if (unlikely(rc != 0)) {
+				mark_conn_closed(conn);
+				goto out;
+			}
+		} else if (cmnd_opcode(cmnd) == ISCSI_OP_SCSI_CMD) {
 			cmd_add_on_rx_ddigest_list(cmnd, cmnd);
 			cmnd_get(cmnd);
 		} else if (cmnd_opcode(cmnd) != ISCSI_OP_SCSI_DATA_OUT) {
@@ -631,12 +641,12 @@ static int recv(struct iscsi_conn *conn)
 			 * specify how to deal with digest errors in this case.
 			 * Is closing connection correct?
 			 */
-			TRACE_DBG("cmnd %p, opcode %x: checking RX "
-				"ddigest inline", cmnd, cmnd_opcode(cmnd));
+			TRACE_DBG("cmnd %p, opcode %x: checking NOP RX "
+				"ddigest", cmnd, cmnd_opcode(cmnd));
 			rc = digest_rx_data(cmnd);
 			if (unlikely(rc != 0)) {
-				conn->read_state = RX_CHECK_DDIGEST;
 				mark_conn_closed(conn);
+				goto out;
 			}
 		}
 		break;

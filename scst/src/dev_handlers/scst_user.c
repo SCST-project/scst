@@ -1263,9 +1263,12 @@ static int dev_user_process_reply_exec(struct scst_user_cmd *ucmd,
 
 	cmd->status = ereply->status;
 	if (ereply->sense_len != 0) {
-		res = copy_from_user(cmd->sense_buffer,
+		res = scst_alloc_sense(cmd, 0);
+		if (res != 0)
+			goto out_compl;
+		res = copy_from_user(cmd->sense,
 			(void*)(unsigned long)ereply->psense_buffer,
-			min(sizeof(cmd->sense_buffer),
+			min((unsigned int)SCST_SENSE_BUFFERSIZE,
 				(unsigned int)ereply->sense_len));
 		if (res < 0) {
 			PRINT_ERROR("%s", "Unable to get sense data");
@@ -1478,9 +1481,12 @@ again:
 	u = NULL;
 	if (!list_empty(cmd_list)) {
 		u = list_entry(cmd_list->next, typeof(*u), ready_cmd_list_entry);
+
 		TRACE_DBG("Found ready ucmd %p", u);
 		list_del(&u->ready_cmd_list_entry);
+
 		EXTRACHECKS_BUG_ON(u->state & UCMD_STATE_JAMMED_MASK);
+
 		if (u->cmd != NULL) {
 			if (u->state == UCMD_STATE_EXECING) {
 				struct scst_user_dev *dev = u->dev;
