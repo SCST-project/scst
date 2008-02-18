@@ -316,7 +316,8 @@ static int scst_pre_parse(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	cmd->inc_expected_sn_on_done = !dev->has_own_order_mgmt;
+	cmd->inc_expected_sn_on_done = !dev->has_own_order_mgmt &&
+		(dev->queue_alg == SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER);
 
 	sBUG_ON(cmd->internal);
 
@@ -2710,8 +2711,14 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 
 	scst_check_debug_sn(cmd);
 
-	if (cmd->dev->queue_alg == SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER)
+	if (cmd->dev->queue_alg == SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER) {
+		/*
+		 * Not the best way, but well enough until there will be a
+		 * possibility to specify queue type during pass-through
+		 * commands submission.
+		 */
 		cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
+	}
 
 	switch(cmd->queue_type) {
 	case SCST_CMD_QUEUE_SIMPLE:

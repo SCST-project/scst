@@ -1328,11 +1328,11 @@ struct scst_device
 	unsigned long swp:1;
 
 	/*
-	 * Set if device implements own ordered commands management.
-	 * Particularly, if set, expected_sn will be incremented immediately
-	 * after exec() returned.
+	 * Set if device implements own ordered commands management. If not set
+	 * and queue_alg is SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER,
+	 * expected_sn will be incremented only after commands finished.
 	 */
-	unsigned long has_own_order_mgmt:1; 
+	unsigned long has_own_order_mgmt:1;
 
 	/**************************************************************/
 

@@ -622,7 +622,7 @@ static int recv(struct iscsi_conn *conn)
 			break;
 	case RX_CHECK_DDIGEST:
 		conn->read_state = RX_END;
-		if (cmnd->pdu.datasize <= 16*1024) {
+		if (cmnd->pdu.datasize <= 256*1024) {
 			/* It's cache hot, so let's compute it inline */
 			TRACE_DBG("cmnd %p, opcode %x: checking RX "
 				"ddigest inline", cmnd, cmnd_opcode(cmnd));
