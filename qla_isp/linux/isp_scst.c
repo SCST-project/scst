@@ -58,8 +58,6 @@
  * Copyright 2007 by Stanislaw Gruszka <stanislawg1@open-e.com> 
  */
 
-#error This driver is broken now
-
 #ifndef  MODULE
 #error  "this can only be built as a module"
 #endif
