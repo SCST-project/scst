@@ -165,7 +165,7 @@ struct bus {
     ini_t *             list[HASH_WIDTH];   /* hash list of known initiators */
     struct scst_tgt *   scst_tgt;
     hba_register_t *    unreg_hp;           /* help to synchronize low level and SCST unregistration */
-    int                 enable;             /* is target mode enabled in low level driver */
+    int                 enable;             /* is target mode enabled in low level driver, one bit per channel */
     int                 need_reg;           /* before SCST registration */
 };
 
@@ -188,7 +188,7 @@ static __inline ini_t *ini_from_notify(bus_t *, tmd_notify_t *);
 static void scsi_target_start_cmd(tmd_cmd_t *, int);
 static void scsi_target_done_cmd(tmd_cmd_t *, int);
 static int scsi_target_thread(void *);
-static int scsi_target_enadis(bus_t *, int);
+static int scsi_target_enadis(bus_t *, int, int);
 
 static bus_t busses[MAX_BUS];
 
@@ -647,7 +647,6 @@ scsi_target_notify(tmd_notify_t *np)
             return;
     
     }
-    
     if (ini == NULL) {
         Eprintk("TMD_NOTIFY cannot find initiator 0x%016llx\n", np->nt_iid);
         (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
@@ -692,6 +691,12 @@ scsi_target_handler(qact_e action, void *arg)
             Eprintk("version mismatch - compiled with %d, got %d\n", QR_VERSION, hp->r_version);
             break;
         }
+        /* enable bitmap size constrained */
+	    if (hp->r_nchannels > 32) {
+            spin_unlock_irqrestore(&scsi_target_lock, flags);
+	        Eprintk("isp_scst not support more than 32 channels\n");
+	        break;
+	    }
         bp->h = *hp;
         bp->need_reg = 1;
         spin_unlock_irqrestore(&scsi_target_lock, flags);
@@ -826,10 +831,12 @@ scsi_target_thread(void *arg)
 }
 
 static int
-scsi_target_enadis(bus_t *bp, int en)
+scsi_target_enadis(bus_t *bp, int chan, int en)
 {
     DECLARE_MUTEX_LOCKED(rsem);
     enadis_t ec;
+    info_t info;
+    int old_en, err;
 
     /*
      * XXX: yes, there is a race condition here where the bus can
@@ -842,8 +849,19 @@ scsi_target_enadis(bus_t *bp, int en)
         return (-ENXIO);
     }
     
-    if (bp->enable == en)
+    old_en = test_bit(chan, &bp->enable); 
+    if (old_en == en) {
         return (0);
+    }
+    
+    memset(&info, 0, sizeof (info));
+    info.i_identity = bp->h.r_identity;
+    info.i_channel = chan;
+    (*bp->h.r_action)(QIN_GETINFO, &info);
+    if (info.i_error) {
+        err = info.i_error;	
+	    goto failed;
+    }
  
     memset(&ec, 0, sizeof (ec));
     ec.en_hba = bp->h.r_identity;
@@ -860,12 +878,15 @@ scsi_target_enadis(bus_t *bp, int en)
     down(&rsem);
 
     if (ec.en_error) {
-        SDprintk("%s: HBA returned %d for %s action\n", __FUNCTION__, ec.en_error, en? "enable" : "disable");
-        return (ec.en_error);
+       err = ec.en_error;
+       goto failed;	
     }
-
-    bp->enable = en; 
+    change_bit(chan, &bp->enable);
     return (0);
+
+failed:
+    Eprintk("%s%d: %s channel %d failed with error %d\n", bp->h.r_name, bp->h.r_inst, en ? "enable" : "disable", chan, err);
+    return (err);
 }
 
 static int
@@ -1001,40 +1022,49 @@ static int
 isp_read_proc(struct seq_file *seq, struct scst_tgt *tgt)
 {
     bus_t *bp;
-   
-    SDprintk("%s\n", __FUNCTION__);
-    
+    int chan;
+
     bp = tgt->tgt_priv;
-    if (!bp)
-        return -ENODEV;
-    
-    seq_printf(seq, "%d\n", bp->enable);
-    return 0;
+    if (!bp) {
+        return (-ENODEV);
+    } 
+    for (chan = 0; chan < bp->h.r_nchannels; chan++) {
+         seq_printf(seq, "%d:%d\n", chan, test_bit(chan, &bp->enable) ? 1 : 0);
+    } 
+    return (0);
 }
 
 static int
 isp_write_proc(char *buf, char **start, off_t offset, int len, int *eof, struct scst_tgt *tgt)
 {
     bus_t *bp;
-    int ret, en;
+    char *end = buf + len;
+    int ret, en, chan;
 
-    SDprintk("%s\n", __FUNCTION__);
-    
     bp = tgt->tgt_priv;
-    if (!bp)
+    if (!bp) {
         return (-ENODEV);
-
-    if (len != 2 && len != 3)    
+    }
+    if (len < 3) {
         return (-EINVAL);
-    
+    }
+    chan = simple_strtoul(buf, &buf, 0);
+    if (chan < 0 || chan > bp->h.r_nchannels || *buf != ':') {
+    	return (-EINVAL);
+    }
+    buf++;
+    if (buf >= end) {
+       return (-EINVAL);
+    }
     en = buf[0] - '0';
-    if (en < 0 || en > 1)
+    if (en < 0 || en > 1) {
         return (-EINVAL);
-
-    ret = scsi_target_enadis(bp, en);
-    if (ret < 0)
+    }
+    ret = scsi_target_enadis(bp, chan, en);
+    if (ret < 0) {
         return (ret);
-
+    }
+    *eof = 1;
     return (len);
 }
 
