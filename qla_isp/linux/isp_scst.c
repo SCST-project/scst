@@ -120,6 +120,10 @@
 #define cd_scst_cmd      cd_hreserved[0].ptrs[0]
 #define cd_bus           cd_hreserved[1].ptrs[0]
 #define cd_hnext         cd_hreserved[2].ptrs[0]
+#define cd_ini           cd_hreserved[3].ptrs[0]
+
+/* command private flags */
+#define CDF_PRIVATE_ABORTED     0x1000
 
 #ifndef SCSI_GOOD
 #define SCSI_GOOD   0x0
@@ -161,12 +165,16 @@ struct initiator {
 #define    INI_HASH_LISTP(busp, ini_id)    busp->list[ini_id & (HASH_WIDTH - 1)]
 
 struct bus {
-    hba_register_t      h;                  /* must be first */
-    ini_t *             list[HASH_WIDTH];   /* hash list of known initiators */
-    struct scst_tgt *   scst_tgt;
-    hba_register_t *    unreg_hp;           /* help to synchronize low level and SCST unregistration */
-    int                 enable;             /* is target mode enabled in low level driver, one bit per channel */
-    int                 need_reg;           /* before SCST registration */
+    hba_register_t           h;                  /* must be first */
+    ini_t *                  list[HASH_WIDTH];   /* hash list of known initiators */
+    struct scst_tgt *        scst_tgt;
+    hba_register_t *         unreg_hp;           /* help to synchronize low level and SCST unregistration */
+    int                      enable;             /* is target mode enabled in low level driver, one bit per channel */
+    int                      need_reg;           /* before SCST registration */
+    struct tasklet_struct    tasklet;
+    spinlock_t               tmds_lock;
+    tmd_cmd_t *              tmds_front;
+    tmd_cmd_t *              tmds_tail;
 };
 
 #define    SDprintk     if (scsi_tdebug) printk
@@ -194,12 +202,21 @@ static bus_t busses[MAX_BUS];
 
 DECLARE_MUTEX_LOCKED(scsi_thread_sleep_semaphore);
 DECLARE_MUTEX_LOCKED(scsi_thread_entry_exit_semaphore);
-static tmd_cmd_t *p_front = NULL, *p_last = NULL;
 
 static spinlock_t scsi_target_lock = SPIN_LOCK_UNLOCKED;
 static int scsi_target_thread_exit = 0;
-static int register_scst_flg = 0;
-static int unregister_scst_flg = 0; 
+
+static int schedule_flags = 0;
+#define SF_ADD_INITIATORS  0
+#define SF_REGISTER_SCST   1
+#define SF_UNREGISTER_SCST 2
+
+static __inline void
+schedule_scsi_thread(int flag)
+{
+    set_bit(flag, &schedule_flags);
+    up(&scsi_thread_sleep_semaphore);
+}
 
 static __inline int
 validate_bus_pointer(bus_t *bp, void *identity)
@@ -350,55 +367,51 @@ free_ini(ini_t *ini)
     kfree(ini);
 }
 
-static __inline void
-scsi_cmd_sched_restart_locked(tmd_cmd_t *tmd, int donotify, const char *msg)
+static void
+tasklet_rx_cmds(unsigned long data)
 {
-    SDprintk("scsi_cmd_sched_restart[%llx]: %s\n", tmd->cd_tagval, msg);
-    tmd->cd_hnext = NULL;
-    if (p_front) {
-        p_last->cd_hnext = tmd;
-    } else {
-        p_front = tmd;
-    }
-    p_last = tmd;
-    if (donotify) {
-        up(&scsi_thread_sleep_semaphore);
-    }
-}
-
-static __inline void
-scsi_cmd_sched_restart(tmd_cmd_t *tmd, const char *msg)
-{
-    unsigned long flags;
-    spin_lock_irqsave(&scsi_target_lock, flags);
-    scsi_cmd_sched_restart_locked(tmd, 1, msg);
-    spin_unlock_irqrestore(&scsi_target_lock, flags);
-}
-
-static __inline void
-schedule_register_scst(void)
-{
-    register_scst_flg = 1;
-    up(&scsi_thread_sleep_semaphore);
-}
-
-static __inline void
-schedule_unregister_scst(void)
-{
-    unregister_scst_flg = 1;
-    up(&scsi_thread_sleep_semaphore);
-}
-
-static int    
-scsi_target_rx_cmd(ini_t *ini, tmd_cmd_t *tmd, int from_intr)
-{
+    bus_t *bp = (bus_t *) data;
+    ini_t *ini;
+    tmd_cmd_t *tmd;
+    tmd_xact_t *xact;
     struct scst_cmd *scst_cmd;
     scst_data_direction dir;
+    
+rx_loop:
+    spin_lock_irq(&bp->tmds_lock);
+    tmd = bp->tmds_front;
+    if (tmd == NULL || tmd->cd_ini == NULL) {
+        spin_unlock_irq(&bp->tmds_lock);
+        return;
+    }
+    
+    /* remove from queue */ 
+    bp->tmds_front = tmd->cd_hnext;
+    if (bp->tmds_front == NULL) {
+        bp->tmds_tail = NULL;
+    }
+    
+    /* free command if aborted */
+    if (tmd->cd_flags & CDF_PRIVATE_ABORTED) {
+        spin_unlock_irq(&bp->tmds_lock); 
+        SDprintk("%s: ABORTED TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
+        (*bp->h.r_action)(QIN_TMD_FIN, tmd);	
+        goto rx_loop;
+    }
 
-    scst_cmd = scst_rx_cmd(ini->ini_scst_sess, tmd->cd_lun, sizeof(tmd->cd_lun), tmd->cd_cdb, sizeof(tmd->cd_cdb), from_intr);
-    if (!scst_cmd)
-        return (-ENOMEM);
- 
+    ini = tmd->cd_ini;
+    scst_cmd = scst_rx_cmd(ini->ini_scst_sess, tmd->cd_lun, sizeof(tmd->cd_lun), tmd->cd_cdb, sizeof(tmd->cd_cdb), 1);
+    if (scst_cmd == NULL) {
+        spin_unlock_irq(&bp->tmds_lock); 
+        tmd->cd_scsi_status = SCSI_BUSY;
+        xact = &tmd->cd_xact;
+        xact->td_hflags |= TDFH_STSVALID;
+        xact->td_hflags &= ~TDFH_DATA_MASK;
+        xact->td_xfrlen = 0;
+        (*bp->h.r_action)(QIN_TMD_CONT, xact);
+        goto rx_loop;
+    }      
+    
     scst_cmd_set_tgt_priv(scst_cmd, tmd);
     scst_cmd_set_tag(scst_cmd, tmd->cd_tagval);   
     tmd->cd_scst_cmd = scst_cmd;
@@ -423,17 +436,19 @@ scsi_target_rx_cmd(ini_t *ini, tmd_cmd_t *tmd, int from_intr)
             scst_cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
             break;
     }
-    
-    dir = SCST_DATA_UNKNOWN; // bidirectional or no transfer
+
+    /* bidirectional or no transfer */
+    dir = SCST_DATA_UNKNOWN;
     if ((tmd->cd_flags & CDF_DATA_OUT) && !(tmd->cd_flags & CDF_DATA_IN)) {
         dir = SCST_DATA_WRITE;
     } else if (tmd->cd_flags & CDF_DATA_IN) {
         dir = SCST_DATA_READ;
     }
     scst_cmd_set_expected(scst_cmd, dir, tmd->cd_totlen);
+    scst_cmd_init_done(scst_cmd, SCST_CONTEXT_TASKLET);
+    spin_unlock_irq(&bp->tmds_lock); 
     
-    scst_cmd_init_done(scst_cmd, SCST_CONTEXT_TASKLET); 
-    return (0);
+    goto rx_loop;
 }
 
 static void
@@ -441,13 +456,8 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
 {
     unsigned long flags;
     bus_t *bp;
-    ini_t *ini;
-    int ret;
-    tmd_xact_t *xact = &tmd->cd_xact;
 
-    /*
-     * First, find the bus.
-     */
+    /* first, find the bus */
     spin_lock_irqsave(&scsi_target_lock, flags);
     bp = bus_from_tmd(tmd);
     if (bp == NULL || bp->scst_tgt == NULL) {
@@ -455,74 +465,89 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
         Eprintk("cannot find %s for incoming command\n", (bp == NULL) ? "bus" : "SCST target");
         return;
     } 
+    spin_unlock_irqrestore(&scsi_target_lock, flags);
+
     tmd->cd_bus = bp;
-    tmd->cd_scst_cmd = NULL;
-
-    /*
-     * Next check if we have commands pending on the front
-     * queue and we're coming in at interrupt level. In order
-     * to preserve ordering, we force commands to come in at thread
-     * level if there are commands already at thread level
-     */
-    if (from_intr && p_front) {
-        scsi_cmd_sched_restart_locked(tmd, 1, "from_intr && p_front");
-        spin_unlock_irqrestore(&scsi_target_lock, flags);
-        return;
-    }
-
-    ini = ini_from_tmd(bp, tmd);
-    if (ini == NULL) {
-        ini_t *nptr;
-
-        if (from_intr) {
-            scsi_cmd_sched_restart_locked(tmd, 1, "had to make ini");
-            spin_unlock_irqrestore(&scsi_target_lock, flags);
-            return;
-        }
-
-        spin_unlock_irqrestore(&scsi_target_lock, flags);
-        nptr = alloc_ini(bp, tmd->cd_iid);
-        spin_lock_irqsave(&scsi_target_lock, flags);
-
-        /*
-         * Check again to see if it showed while we were allocating...
-         */
-        ini = ini_from_tmd(bp, tmd);
-        if (ini) {
-            spin_unlock_irqrestore(&scsi_target_lock, flags);
-            if (nptr) {
-                free_ini(nptr);
-            }
-        } else {
-            if (nptr == NULL) {
-                spin_unlock_irqrestore(&scsi_target_lock, flags);
-                goto err;
-            }
-            add_ini(bp, tmd->cd_iid, nptr);
-            spin_unlock_irqrestore(&scsi_target_lock, flags);
-            ini = nptr;
-        }
+    tmd->cd_ini = ini_from_tmd(bp, tmd);
+    tmd->cd_hnext = NULL;
+    
+    /* then, add commands to queue */
+    spin_lock_irqsave(&bp->tmds_lock, flags);
+    if (bp->tmds_front == NULL) {
+       bp->tmds_front = tmd; 
     } else {
-        spin_unlock_irqrestore(&scsi_target_lock, flags);
+       bp->tmds_tail->cd_hnext = tmd;
     }
+    bp->tmds_tail = tmd;
+    spin_unlock_irqrestore(&bp->tmds_lock, flags); 
 
+    /* finally, shedule proper action */
+    if (unlikely(tmd->cd_ini == NULL)) {
+    	schedule_scsi_thread(SF_ADD_INITIATORS);
+    } else {
+    	tasklet_schedule(&bp->tasklet);
+    }
+ 
+    /* old bug warrning */ 
     if (unlikely(tmd->cd_cdb[0] == REQUEST_SENSE)) { 
         Eprintk("REQUEST SENSE in auto sense mode !?!\n");
     }
+}
 
-    ret = scsi_target_rx_cmd(ini, tmd, from_intr);
-    if (ret < 0) 
-        goto err;
-    
-    return;
+static void
+add_initiators(void) 
+{
+    bus_t *bp;
+    ini_t *ini;
+    tmd_cmd_t *tmd;
+    tmd_cmd_t *prev_tmd = NULL;
+    tmd_xact_t *xact;
+   
+    /* check registered busses */
+    for (bp = busses; bp < &busses[MAX_BUS]; bp++) {
+        spin_lock_irq(&scsi_target_lock);
+        if (bp->h.r_action == NULL) {
+            spin_unlock_irq(&scsi_target_lock);
+            continue;
+        }
+	    spin_unlock_irq(&scsi_target_lock);
 
-err:
-    tmd->cd_scsi_status = SCSI_BUSY;
-    xact->td_hflags |= TDFH_STSVALID;
-    xact->td_hflags &= ~TDFH_DATA_MASK;
-    xact->td_xfrlen = 0;
-    (*bp->h.r_action)(QIN_TMD_CONT, xact);
-    return;
+        /* iterate over queue and find any commands not assigned to initiator */
+        spin_lock_irq(&bp->tmds_lock);	
+        tmd = bp->tmds_front;
+	    while (tmd) {
+	        spin_unlock_irq(&bp->tmds_lock);
+	        if (tmd->cd_ini == NULL) {
+           	    ini = alloc_ini(bp, tmd->cd_iid);
+           	    if (ini != NULL) {
+	  	            tmd->cd_ini = ini;
+	                add_ini(bp, tmd->cd_iid, ini);	
+		        } 
+	        }
+	        spin_lock_irq(&bp->tmds_lock);
+	        if (tmd->cd_ini == NULL) {
+	            /* fail to alloc initiator, remove from queue and send busy */
+	            if (prev_tmd == NULL) {
+                    bp->tmds_front = tmd->cd_hnext;
+	            } else {
+	                prev_tmd->cd_hnext = tmd->cd_hnext;
+	            }
+	            if (bp->tmds_tail == tmd) {
+                    bp->tmds_tail = prev_tmd; 
+	            }
+	            // FIXME: spin unlock/lock 
+                tmd->cd_scsi_status = SCSI_BUSY;
+	            xact = &tmd->cd_xact;
+                xact->td_hflags |= TDFH_STSVALID;
+                xact->td_hflags &= ~TDFH_DATA_MASK;
+                xact->td_xfrlen = 0;
+                (*bp->h.r_action)(QIN_TMD_CONT, xact);
+	        }
+	        prev_tmd = tmd;
+	        tmd = tmd->cd_hnext;
+        }
+	    spin_unlock_irq(&bp->tmds_lock);
+    }
 }
 
 static void 
@@ -584,6 +609,37 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
     }
 }
 
+static int 
+abort_task(bus_t *bp, uint64_t tagval)
+{
+    unsigned long flags;
+    tmd_cmd_t *tmd;
+ 
+    spin_lock_irqsave(&bp->tmds_lock, flags);
+    for (tmd = bp->tmds_front; tmd; tmd = tmd->cd_hnext) {
+        if (tmd->cd_tagval == tagval) {
+            tmd->cd_flags |= CDF_PRIVATE_ABORTED; 
+            spin_unlock_irqrestore(&bp->tmds_lock, flags);
+	        return 1;
+        }
+    }
+    spin_unlock_irqrestore(&bp->tmds_lock, flags);
+    return 0;
+}
+	
+static void 
+abort_all_tasks(bus_t *bp)
+{
+    unsigned long flags;
+    tmd_cmd_t *tmd;
+
+    spin_lock_irqsave(&bp->tmds_lock, flags);
+    for (tmd = bp->tmds_front; tmd; tmd = tmd->cd_hnext) {
+        tmd->cd_flags |= CDF_PRIVATE_ABORTED;
+    }
+    spin_unlock_irqrestore(&bp->tmds_lock, flags); 
+}
+
 static void 
 scsi_target_notify(tmd_notify_t *np)
 {
@@ -591,13 +647,14 @@ scsi_target_notify(tmd_notify_t *np)
     ini_t *ini;
     int fn;
     uint16_t lun;
-    uint64_t tagval;
     uint8_t lunbuf[8];
     unsigned long flags;
 
     // FIXME: if scst mgmt fail we can't give info to isp driver via tpublic
     // FIXME: interface, but seems low level stuff is capable to handle error case 
-    // FIXME: now smile and assume mgmt_fn not fail 
+    // FIXME: now smile and assume mgmt_fn not fail
+    
+    // FIXME: SCST need some initiator for mgmt, what about INI_ANY, TGT_ANY !?! 
 
     spin_lock_irqsave(&scsi_target_lock, flags);
     bp = bus_from_notify(np);
@@ -612,17 +669,25 @@ scsi_target_notify(tmd_notify_t *np)
     
     switch (np->nt_ncode) {
         case NT_ABORT_TASK:
-            if (ini == NULL) {
+            if (abort_task(bp, np->nt_tagval)) {
+                SDprintk("TMD_NOTIFY abort task [%llx]\n", np->nt_tagval);
+                (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
+	            return;
+	        }
+	        if (ini == NULL) {
                 Eprintk("TMD_NOTIFY cannot find initiator 0x%016llx\n", np->nt_iid);
                 (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
                 return;
             }
-            tagval = np->nt_tagval; /* after scst return "np" may not be valid */
             scst_rx_mgmt_fn_tag(ini->ini_scst_sess, SCST_ABORT_TASK, np->nt_tagval, 1, np); 
             return; 
         case NT_ABORT_TASK_SET:
+	        abort_all_tasks(bp);
+	        fn = SCST_ABORT_TASK_SET;
+	        break;
         case NT_CLEAR_TASK_SET:
-            fn = SCST_ABORT_TASK_SET;
+            abort_all_tasks(bp);
+	        fn = SCST_CLEAR_TASK_SET;
             break;
         case NT_CLEAR_ACA: // FIXME: does we support this?
             fn = SCST_CLEAR_ACA;
@@ -639,27 +704,24 @@ scsi_target_notify(tmd_notify_t *np)
         case NT_LINK_UP:
         case NT_LINK_DOWN:
         case NT_LOGOUT:
+	        // FIXME: LOGOUT implementation
             /* only ack, we don't care about bus/lip resets and link up/down */
             (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
             return;
         default:
             Eprintk("Unknown notify 0x%x\n", np->nt_ncode);
             return;
-    
     }
     if (ini == NULL) {
         Eprintk("TMD_NOTIFY cannot find initiator 0x%016llx\n", np->nt_iid);
         (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
         return;
     }
-    /* save lun, after scst return "np" may not be valid */
     if (np->nt_lun == LUN_ANY) {
-        /* SCST don't support LUN_ANY, lun 0 should be ok */
         lun = 0;
     } else {
         lun = np->nt_lun;
     }
-    // FIXME: ca_abort_task when LUN_ANY, INI_ANY, TARGET_RESET and so on !!!
     FLATLUN_TO_L0LUN(lunbuf, lun);
     scst_rx_mgmt_fn_lun(ini->ini_scst_sess, fn, lunbuf, sizeof(lunbuf), 1, np);
 }
@@ -700,7 +762,7 @@ scsi_target_handler(qact_e action, void *arg)
         bp->h = *hp;
         bp->need_reg = 1;
         spin_unlock_irqrestore(&scsi_target_lock, flags);
-        schedule_register_scst();
+        schedule_scsi_thread(SF_REGISTER_SCST);
         Iprintk("registering %s%d\n", hp->r_name, hp->r_inst);
         (hp->r_action)(QIN_HBA_REG, arg);
         break;
@@ -767,7 +829,7 @@ scsi_target_handler(qact_e action, void *arg)
         memset(&bp->h, 0, sizeof (hba_register_t));
         bp->unreg_hp = hp;
         spin_unlock_irqrestore(&scsi_target_lock, flags);
-        schedule_unregister_scst();
+        schedule_scsi_thread(SF_UNREGISTER_SCST);
         break;
     }
     default:
@@ -782,46 +844,25 @@ static void unregister_scst(void);
 static int
 scsi_target_thread(void *arg)
 {
-    unsigned long flags;
-
     siginitsetinv(&current->blocked, 0);
     lock_kernel();
-#if    LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-    daemonize();
-    snprintf(current->comm, sizeof (current->comm), "scsi_target_thread");
-#else
     daemonize("scsi_target_thread");
-#endif
     unlock_kernel();
     up(&scsi_thread_entry_exit_semaphore);
     SDprintk("scsi_target_thread starting\n");
 
     while (scsi_target_thread_exit == 0) {
-        tmd_cmd_t *tp;
-
         SDprintk3("scsi_task_thread sleeping\n");
         down(&scsi_thread_sleep_semaphore);
         SDprintk3("scsi_task_thread running\n");
 
-        spin_lock_irqsave(&scsi_target_lock, flags);
-        if ((tp = p_front) != NULL) {
-            p_last = p_front = NULL;
-        }
-        spin_unlock_irqrestore(&scsi_target_lock, flags);
-        while (tp) {
-            tmd_cmd_t *nxt = tp->cd_hnext;
-            tp->cd_hnext = NULL;
-            scsi_target_start_cmd(tp, 0);
-            tp = nxt;
-        }
-        
-        if (register_scst_flg) {
-            register_scst_flg = 0;
+        if (test_and_clear_bit(SF_REGISTER_SCST, &schedule_flags)) {
             register_scst();
         }
-        
-        if (unregister_scst_flg) {
-            unregister_scst_flg = 0;
+        if (test_and_clear_bit(SF_ADD_INITIATORS, &schedule_flags)) {
+	    add_initiators();
+	}
+        if (test_and_clear_bit(SF_UNREGISTER_SCST, &schedule_flags)) {
             unregister_scst();  
         }
     }
@@ -892,7 +933,7 @@ failed:
 static int
 isp_detect(struct scst_tgt_template *tgt_template)
 {
-    schedule_register_scst();
+    schedule_scsi_thread(SF_REGISTER_SCST);
     return (0);
 }
 
@@ -941,6 +982,10 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
     tmd_cmd_t *tmd = (tmd_cmd_t *) scst_cmd_get_tgt_priv(scst_cmd);
     bus_t *bp = tmd->cd_bus;
     tmd_xact_t *xact = &tmd->cd_xact; 
+    
+    if (unlikely(scst_cmd_aborted(scst_cmd))) {
+        return 0; 
+    }
     
     if (scst_cmd_get_data_direction(scst_cmd) == SCST_DATA_READ) {
         unsigned int len = scst_cmd_get_resp_data_len(scst_cmd);
@@ -1168,7 +1213,7 @@ unregister_scst(void)
         struct scst_tgt *scst_tgt;
         ini_t *list[HASH_WIDTH];
         hba_register_t *unreg_hp;
-
+	
         spin_lock_irq(&scsi_target_lock);
         if (bp->h.r_action != NULL || bp->unreg_hp == NULL) {
             spin_unlock_irq(&scsi_target_lock);
@@ -1180,6 +1225,8 @@ unregister_scst(void)
         memcpy(list, bp->list, sizeof(bp->list));
         unreg_hp = bp->unreg_hp;
         memset(bp, 0, sizeof(bus_t));
+        spin_lock_init(&bp->tmds_lock);
+        tasklet_init(&bp->tasklet, tasklet_rx_cmds, (unsigned long) bp);
         spin_unlock_irq(&scsi_target_lock);   
 
         /* remove existing initiators */
@@ -1194,8 +1241,9 @@ unregister_scst(void)
             }
         }
         
-        if (scst_tgt)    
+        if (scst_tgt) {
             scst_unregister(scst_tgt);
+        }
         /* now no one will call low level functions */
         Iprintk("unregistering %s%d\n", unreg_hp->r_name, unreg_hp->r_inst);
         (unreg_hp->r_action)(QIN_HBA_UNREG, unreg_hp);
@@ -1231,7 +1279,13 @@ stop_scsi_target_thread(void)
 int init_module(void)
 {
     int ret;
+    bus_t *bp;
 
+    for (bp = busses; bp < &busses[MAX_BUS]; bp++) {
+        tasklet_init(&bp->tasklet, tasklet_rx_cmds, (unsigned long) bp);
+        spin_lock_init(&bp->tmds_lock);
+    } 
+ 
     spin_lock_init(&scsi_target_lock);
     start_scsi_target_thread();
 
