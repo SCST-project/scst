@@ -167,7 +167,7 @@ struct bus {
     ini_t *                  list[HASH_WIDTH];   /* hash list of known initiators */
     struct scst_tgt *        scst_tgt;
     hba_register_t *         unreg_hp;           /* help to synchronize low level and SCST unregistration */
-    int                      enable;             /* is target mode enabled in low level driver, one bit per channel */
+    unsigned long            enable;             /* is target mode enabled in low level driver, one bit per channel */
     int                      need_reg;           /* before SCST registration */
     struct tasklet_struct    tasklet;
     spinlock_t               tmds_lock;
@@ -204,7 +204,7 @@ DECLARE_MUTEX_LOCKED(scsi_thread_entry_exit_semaphore);
 static spinlock_t scsi_target_lock = SPIN_LOCK_UNLOCKED;
 static int scsi_target_thread_exit = 0;
 
-static int schedule_flags = 0;
+static unsigned long schedule_flags = 0;
 #define SF_ADD_INITIATORS  0
 #define SF_REGISTER_SCST   1
 #define SF_UNREGISTER_SCST 2

@@ -544,7 +544,7 @@ isplinux_scsi_probe_done(Scsi_Cmnd *Cmnd)
             } else {
                 struct scatterlist *sg;
                 sg = (struct scatterlist *) Cmnd->request_buffer;
-                iqd = page_address(sg->page) + sg->offset;
+                iqd = page_address(sg_page(sg)) + sg->offset;
             }
             sdp->isp_devparam[XS_TGT(Cmnd)].goal_flags &= ~(DPARM_TQING|DPARM_SYNC|DPARM_WIDE);
             if (iqd[7] & 0x2) {
@@ -1826,7 +1826,7 @@ isp_lcl_respond(ispsoftc_t *isp, void *aep, tmd_cmd_t *tmd)
             xact = &isp->isp_osinfo.auxinfo[i].xact;
             dp = &isp->isp_osinfo.auxinfo[i].sg;
             MEMZERO(dp, sizeof (*dp));
-            dp->page = virt_to_page(isp->isp_osinfo.inqdata);
+            sg_assign_page(dp, virt_to_page(isp->isp_osinfo.inqdata));
             dp->offset = offset_in_page(isp->isp_osinfo.inqdata);
             dp->length = DEFAULT_INQSIZE;
 

@@ -350,7 +350,7 @@ static int isp_qlogic_ext_ioctl(struct inode *, struct file *, unsigned int, uns
 
 dev_t isp_dev;
 struct cdev isp_cdev = {
-    .kobj   =   { .name = ISP_NAME, } ,
+    .kobj   =   { .k_name = ISP_NAME, } ,
     .owner  =   THIS_MODULE
 };
 ISP_CLASS *isp_class;

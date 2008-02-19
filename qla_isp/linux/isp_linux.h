@@ -183,6 +183,14 @@ typedef struct scsi_host_template Scsi_Host_Template;
 #undef  max
 #endif
 
+#ifndef DECLARE_MUTEX_LOCKED
+#define DECLARE_MUTEX_LOCKED(name) __DECLARE_SEMAPHORE_GENERIC(name,0)
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24)
+#define sg_page(_sg) ((_sg)->page)
+#define sg_assign_page(_sg, _pg) ((_sg)->page = (_pg))
+#endif
 
 /*
  * Normally this should be taken care of by typedefs,
