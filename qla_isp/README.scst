@@ -17,6 +17,10 @@ INSTALLATION:
 Build driver with command
 $ make 
 
+Copy proper firmware image for your HBA from Qlogic FTP server
+ftp://ftp.qlogic.com/outgoing/linux/firmware/ to one of linux firmware loader
+directories (see udev/hotplug documentation for your distribution)
+
 Next step depends on you have other QLA modules installed. Note that you can't
 load ISP driver when you build other Qlogic drivers in kernel (kerel oops may
 occur). Other QLA modules are acceptable, but extra care is needed, firs copy
@@ -52,13 +56,20 @@ $ modprobe isp_mod
 Now anytime the system boot and QLA card is plugged, modules will load
 automatically. 
 
-When driver is loaded, enable all logical units to work in target mode
+When driver is loaded, enable all logical units for each channel to work in
+target mode. You need to write string in form "channel:enable" to procfs
+configuration file, ie:
 
-$ echo 1 > /proc/scsi_tgt/qla_isp/0 
+$ echo 0:1 > /proc/scsi_tgt/qla_isp/0 
 
-(to unload isp_mod.ko module you must write 0 to this file).  
-This is not switching target/initiator role. If you have more then one device,
-role of each you can set using isp_roles parameter, like in example:
+To unload isp_mod.ko module you must disable target mode for all channels ie:
+
+$ echo 0:0 > /proc/scsi_tgt/qla_isp/0
+$ echo 1:0 > /proc/scsi_tgt/qla_isp/0
+
+Enable/disable target mode is not the same as switching target/initiator role.
+If you have more then one device, role of each you can set using isp_roles
+parameter, like in example:
 
 $ modprobe isp_mode isp_roles="b0300=initiator"
 
