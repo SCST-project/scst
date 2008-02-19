@@ -374,6 +374,7 @@ tasklet_rx_cmds(unsigned long data)
     tmd_xact_t *xact;
     struct scst_cmd *scst_cmd;
     scst_data_direction dir;
+    int len;
     
 rx_loop:
     spin_lock_irq(&bp->tmds_lock);
@@ -441,8 +442,12 @@ rx_loop:
         dir = SCST_DATA_WRITE;
     } else if (tmd->cd_flags & CDF_DATA_IN) {
         dir = SCST_DATA_READ;
+    } 
+    len = tmd->cd_totlen;
+    if (tmd->cd_cdb[0] == INQUIRY) {
+        len = min(len, tmd->cd_cdb[4]); 
     }
-    scst_cmd_set_expected(scst_cmd, dir, tmd->cd_totlen);
+    scst_cmd_set_expected(scst_cmd, dir, len);
     scst_cmd_init_done(scst_cmd, SCST_CONTEXT_TASKLET);
     spin_unlock_irq(&bp->tmds_lock); 
     
