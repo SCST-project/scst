@@ -179,7 +179,7 @@ void cmnd_free(struct iscsi_cmnd *cmnd)
 
 	kfree(cmnd->pdu.ahs);
 
-	if (unlikely(cmnd->on_write_list)) {
+	if (unlikely(cmnd->on_write_list || cmnd->on_written_list)) {
 		struct iscsi_scsi_cmd_hdr *req = cmnd_hdr(cmnd);
 
 		PRINT_ERROR("cmnd %p still on some list?, %x, %x, %x, %x, %x, %x, %x",
@@ -210,6 +210,16 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 	}
 
 	EXTRACHECKS_BUG_ON(cmnd->on_rx_digest_list);
+
+	if (cmnd->on_written_list) {
+		struct iscsi_conn *conn = cmnd->conn;
+		TRACE_DBG("Deleting cmd %p from conn %p written_list", cmnd,
+			conn);
+		spin_lock_bh(&conn->write_list_lock);
+		list_del(&cmnd->write_list_entry);
+		cmnd->on_written_list = 0;
+		spin_unlock_bh(&conn->write_list_lock);
+	}
 
 	if (cmnd->parent_req == NULL) {
 		struct iscsi_conn *conn = cmnd->conn;
@@ -305,7 +315,7 @@ void req_cmnd_release_force(struct iscsi_cmnd *req, int flags)
 	sBUG_ON(req == conn->read_cmnd);
 
 	if (flags & ISCSI_FORCE_RELEASE_WRITE) {
-		spin_lock(&conn->write_list_lock);
+		spin_lock_bh(&conn->write_list_lock);
 		list_for_each_entry_safe(rsp, t, &conn->write_list,
 						write_list_entry) {
 			if (rsp->parent_req != req)
@@ -315,7 +325,7 @@ void req_cmnd_release_force(struct iscsi_cmnd *req, int flags)
 
 			list_add_tail(&rsp->write_list_entry, &cmds_list);
 		}
-		spin_unlock(&conn->write_list_lock);
+		spin_unlock_bh(&conn->write_list_lock);
 
 		list_for_each_entry_safe(rsp, t, &cmds_list, write_list_entry) {
 			list_del(&rsp->write_list_entry);
@@ -338,18 +348,18 @@ again_rsp:
 
 		spin_unlock_bh(&req->rsp_cmd_lock);
 
-		spin_lock(&conn->write_list_lock);
+		spin_lock_bh(&conn->write_list_lock);
 		r = rsp->on_write_list || rsp->write_processing_started;
-		spin_unlock(&conn->write_list_lock);
+		spin_unlock_bh(&conn->write_list_lock);
 
 		cmnd_put(rsp);
 
 		if (r)
-			continue;
+			goto again_rsp;
 
 		/*
 		 * If both on_write_list and write_processing_started not set,
-		 * we can safely put() cmnd
+		 * we can safely put() rsp.
 		 */
 		cmnd_put(rsp);
 		goto again_rsp;
@@ -488,6 +498,20 @@ static void iscsi_cmnds_init_write(struct list_head *send, int flags)
 	    (rsp->parent_req->outstanding_r2t == 0))
 		cmnd_remove_hash(rsp->parent_req);
 
+	if (!(conn->ddigest_type & DIGEST_NONE)) {
+		list_for_each(pos, send) {
+			rsp = list_entry(pos, struct iscsi_cmnd,
+						write_list_entry);
+
+			if (rsp->pdu.datasize != 0) {
+				TRACE_DBG("Doing data digest (%p:%x)", rsp,
+					cmnd_opcode(rsp));
+				digest_tx_data(rsp);
+			}
+		}
+	}
+
+	spin_lock_bh(&conn->write_list_lock);
 	list_for_each_safe(pos, next, send) {
 		rsp = list_entry(pos, struct iscsi_cmnd, write_list_entry);
 
@@ -495,16 +519,10 @@ static void iscsi_cmnds_init_write(struct list_head *send, int flags)
 
 		sBUG_ON(conn != rsp->conn);
 
-		if (!(conn->ddigest_type & DIGEST_NONE) &&
-		    (rsp->pdu.datasize != 0))
-			digest_tx_data(rsp);
-
 		list_del(&rsp->write_list_entry);
-
-		spin_lock(&conn->write_list_lock);
 		cmd_add_on_write_list(conn, rsp);
-		spin_unlock(&conn->write_list_lock);
 	}
+	spin_unlock_bh(&conn->write_list_lock);
 
 	if (flags & ISCSI_INIT_WRITE_WAKE)
 		iscsi_make_conn_wr_active(conn);
@@ -1089,6 +1107,17 @@ static int iscsi_pre_exec(struct scst_cmd *scst_cmd)
 	TRACE_ENTRY();
 
 	EXTRACHECKS_BUG_ON(scst_cmd_atomic(scst_cmd));
+
+	if (scst_cmd_get_data_direction(scst_cmd) == SCST_DATA_READ) {
+		if (!(req->conn->ddigest_type & DIGEST_NONE))
+			scst_set_long_xmit(scst_cmd);
+#ifndef NET_PAGE_CALLBACKS_DEFINED
+		else if (cmnd_hdr(req)->data_length > 8*1024)
+			scst_set_long_xmit(scst_cmd);
+#endif
+		EXTRACHECKS_BUG_ON(!list_empty(&req->rx_ddigest_cmd_list));
+		goto out;
+	}
 
 	/* If data digest isn't used this list will be empty */
 	list_for_each_entry_safe(c, t, &req->rx_ddigest_cmd_list,
@@ -2366,7 +2395,8 @@ static void iscsi_preprocessing_done(struct scst_cmd *scst_cmd)
  * upon entrance in this function, because otherwise it could be destroyed
  * inside as a result of iscsi_send(), which releases sent commands.
  */
-static void iscsi_try_local_processing(struct iscsi_conn *conn)
+static void iscsi_try_local_processing(struct iscsi_conn *conn,
+	bool single_only)
 {
 	int local;
 
@@ -2395,7 +2425,7 @@ static void iscsi_try_local_processing(struct iscsi_conn *conn)
 		int rc = 1;
 		while(test_write_ready(conn)) {
 			rc = iscsi_send(conn);
-			if (rc <= 0) {
+			if ((rc <= 0) || single_only) {
 				break;
 			}
 		}
@@ -2427,6 +2457,7 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 	u8 *sense = scst_cmd_get_sense_buffer(scst_cmd);
 	int sense_len = scst_cmd_get_sense_buffer_len(scst_cmd);
 	int old_state = req->scst_state;
+	bool single_only = !scst_get_long_xmit(scst_cmd);
 
 	scst_cmd_set_tgt_priv(scst_cmd, NULL);
 
@@ -2525,7 +2556,7 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 
 	conn_get_ordered(conn);
 	req_cmnd_release(req);
-	iscsi_try_local_processing(conn);
+	iscsi_try_local_processing(conn, single_only);
 	conn_put(conn);
 
 out:
@@ -2667,12 +2698,15 @@ static void iscsi_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 				scst_mgmt_cmd_get_tgt_priv(scst_mcmd);
 	int status = iscsi_get_mgmt_response(scst_mgmt_cmd_get_status(scst_mcmd));
 
-	TRACE_MGMT_DBG("req %p, scst_mcmd %p, scst status %d", req, scst_mcmd, 
+	TRACE_MGMT_DBG("req %p, scst_mcmd %p, fn %d, scst status %d",
+		req, scst_mcmd, scst_mgmt_cmd_get_fn(scst_mcmd),
 		scst_mgmt_cmd_get_status(scst_mcmd));
 
 	iscsi_send_task_mgmt_resp(req, status);
 
 	scst_mgmt_cmd_set_tgt_priv(scst_mcmd, NULL);
+
+	return;
 }
 
 static int iscsi_target_detect(struct scst_tgt_template *templ)

@@ -140,13 +140,16 @@ typedef _Bool bool;
  *************************************************************/
 
 /* LUN translation (mcmd->tgt_dev assignment) */
-#define SCST_MGMT_CMD_STATE_INIT     1
+#define SCST_MGMT_CMD_STATE_INIT     0
 
 /* Mgmt cmd is ready for processing */
-#define SCST_MGMT_CMD_STATE_READY    2
+#define SCST_MGMT_CMD_STATE_READY    1
 
 /* Mgmt cmd is being executing */
-#define SCST_MGMT_CMD_STATE_EXECUTING 3
+#define SCST_MGMT_CMD_STATE_EXECUTING 2
+
+/* Reservations are going to be cleared, if necessary */
+#define SCST_MGMT_CMD_STATE_CHECK_NEXUS_LOSS 3
 
 /* Target driver's task_mgmt_fn_done() is going to be called */
 #define SCST_MGMT_CMD_STATE_DONE     4
@@ -167,21 +170,29 @@ typedef _Bool bool;
 
 /* 
  * Direct cmd's processing (i.e. regular function calls in the current 
- * context), sleeping is allowed, no restrictions
+ * context) sleeping is not allowed
  */
-#define SCST_CONTEXT_DIRECT          0
+#define SCST_CONTEXT_DIRECT_ATOMIC   0
 
 /* 
  * Direct cmd's processing (i.e. regular function calls in the current 
- * context) sleeping is not allowed
+ * context), sleeping is allowed, no restrictions
  */
-#define SCST_CONTEXT_DIRECT_ATOMIC   1
+#define SCST_CONTEXT_DIRECT          1
 
 /* Tasklet or thread context required for cmd's processing */
 #define SCST_CONTEXT_TASKLET         2
 
 /* Thread context required for cmd's processing */
 #define SCST_CONTEXT_THREAD          3
+
+/*
+ * SCST internal flag, which specifies that context is processable, i.e. the
+ * next command in the active list will be processed after the current one.
+ *
+ * Target drivers must never use it!!
+ */
+#define SCST_CONTEXT_PROCESSABLE     0x100
 
 /************************************************************* 
  ** Values for status parameter of scst_rx_data() 
@@ -677,6 +688,9 @@ struct scst_tgt_template
 
 struct scst_dev_type
 {
+	/* SCSI type of the supported device. MUST HAVE */
+	int type;
+
 	/*
 	 * True, if corresponding function supports execution in
 	 * the atomic (non-sleeping) context
@@ -687,6 +701,9 @@ struct scst_dev_type
 
 	/* Set, if no /proc files should be automatically created by SCST */
 	unsigned no_proc:1;
+
+	/* Set, if exec() is synchronous */
+	unsigned exec_sync:1;
 
 	/* 
 	 * Called to parse CDB from the cmd and initialize 
@@ -720,6 +737,10 @@ struct scst_dev_type
 	 * Pay attention to "atomic" attribute of the cmd, which can be get
 	 * by scst_cmd_atomic(): it is true if the function called in the
 	 * atomic (non-sleeping) context.
+	 *
+	 * If this function provides sync execution, you must set above
+	 * exec_sync flag and should consider to setup dedicated threads by
+	 * setting threads_num > 0.
 	 *
 	 * !! If this function is implemented, scst_check_local_events() shall !!
 	 * !! be called inside it just before the actual command's execution.  !!
@@ -807,9 +828,6 @@ struct scst_dev_type
 
 	/* Name of the dev handler. Must be unique. MUST HAVE */
 	char name[15];
-
-	/* SCSI type of the supported device. MUST HAVE */
-	int type;
 
 	/*
 	 * Number of dedicated threads. If 0 - no dedicated threads will 
@@ -951,8 +969,9 @@ struct scst_session
 	void (*init_result_fn) (struct scst_session *sess, void *data,
 				int result);
 	void (*unreg_done_fn) (struct scst_session *sess);
+	void (*unreg_cmds_done_fn) (struct scst_session *sess);
 
-#ifdef MEASURE_LATENCY
+#ifdef MEASURE_LATENCY /* must be last */
 	spinlock_t meas_lock;
 	uint64_t scst_time, processing_time;
 	unsigned int processed_cmds;
@@ -1002,6 +1021,12 @@ struct scst_cmd
 
 	/* Set if cmd is being processed in atomic context */
 	unsigned int atomic:1;
+
+	/*
+	 * Set if the cmd is being processed in the processable context. See
+	 * comment for SCST_CONTEXT_PROCESSABLE for what it means.
+	 */
+	unsigned int context_processable:1;
 
 	/* Set if cmd is internally generated */
 	unsigned int internal:1;
@@ -1085,17 +1110,24 @@ struct scst_cmd
 	/* Set if the cmd was done or aborted out of its SN */
 	unsigned int out_of_sn:1;
 
-	/* Set if the cmd is deferred HEAD OF QUEUE */
-	unsigned int hq_deferred:1;
+	/* Set if increment expected_sn in cmd->scst_cmd_done() */
+	unsigned int inc_expected_sn_on_done:1;
 
 	/*
-	 * Set if increment expected_sn in cmd->scst_cmd_done() (to save
-	 * extra dereferences)
+	 * Set if xmit_response() is going to need a considerable processing
+	 * time. Processing time is considerable, if it's > context switch time
+	 * (about 1 usec on modern systems). It's needed to trigger other
+	 * threads to start processing other outstanding commands without
+	 * waiting XMIT for the current one to finish. E.g., it should be set
+	 * if iSCSI data digest used and cmd has READ direction.
 	 */
-	unsigned int inc_expected_sn_on_done:1; 
+	unsigned int long_xmit:1;
 
 	/* Set if tgt_sn field is valid */
 	unsigned int tgt_sn_set:1;
+
+	/* Set if cmd is done */
+	unsigned int done:1;
 
 	/* Set if cmd is finished */
 	unsigned int finished:1;
@@ -1114,9 +1146,6 @@ struct scst_cmd
 	struct scst_tgt_dev *tgt_dev;	/* corresponding device for this cmd */
 
 	lun_t lun;			/* LUN for this cmd */
-
-	/* The corresponding mgmt cmd, if any, protected by sess_list_lock */
-	struct scst_mgmt_cmd *mgmt_cmnd;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
 	struct scsi_request *scsi_req;	/* SCSI request */
@@ -1211,12 +1240,15 @@ struct scst_cmd
 	 */
 	int orig_sg_cnt, orig_sg_entry, orig_entry_len;
 
+	/* List corresponding mgmt cmd, if any, protected by sess_list_lock */
+	struct list_head mgmt_cmd_list;
+
 	/* List entry for dev's blocked_cmd_list */
 	struct list_head blocked_cmd_list_entry;
 
 	struct scst_cmd *orig_cmd; /* Used to issue REQUEST SENSE */
 
-#ifdef MEASURE_LATENCY
+#ifdef MEASURE_LATENCY /* must be last */
 	uint64_t start, pre_exec_finish, post_exec_start;
 #endif
 };
@@ -1233,6 +1265,14 @@ struct scst_rx_mgmt_params
 	unsigned char tag_set;
 	unsigned char lun_set;
 	unsigned char cmd_sn_set;
+};
+
+struct scst_mgmt_cmd_stub
+{
+	struct scst_mgmt_cmd *mcmd;
+
+	/* List entry in cmd->mgmt_cmd_list */
+	struct list_head cmd_mgmt_cmd_list_entry;
 };
 
 struct scst_mgmt_cmd
@@ -1253,12 +1293,20 @@ struct scst_mgmt_cmd
 	unsigned int needs_unblocking:1;
 	unsigned int lun_set:1;		/* set, if lun field is valid */
 	unsigned int cmd_sn_set:1;	/* set, if cmd_sn field is valid */
+	unsigned int nexus_loss_check_active:1; /* set, if nexus loss check is active */
+	unsigned int nexus_loss_check_done:1; /* set, if nexus loss check is done */
 
 	/*
-	 * Number of commands to complete before sending response,
+	 * Number of commands to finish before sending response,
 	 * protected by scst_mcmd_lock
 	 */
-	int cmd_wait_count;
+	int cmd_finish_wait_count;
+
+	/*
+	 * Number of commands to complete (done) before resetting reservation,
+	 * protected by scst_mcmd_lock
+	 */
+	int cmd_done_wait_count;
 
 	/* Number of completed commands, protected by scst_mcmd_lock */
 	int completed_cmd_count;
@@ -1633,6 +1681,11 @@ struct scst_session *scst_register_session(struct scst_tgt *tgt, int atomic,
  *      the session is about to be completely freed. Can be NULL. 
  *      Parameter:
  *       - sess - session
+ *   unreg_cmds_done_fn - pointer to the function that will be 
+ *      asynchronously called when the last session's command completes, i.e.
+ *      goes to XMIT stage. Can be NULL. 
+ *      Parameter:
+ *       - sess - session
  *
  * Notes:
  *
@@ -1652,8 +1705,15 @@ struct scst_session *scst_register_session(struct scst_tgt *tgt, int atomic,
  *   but it also starts recovering stuck commands, if there are any.
  *   Otherwise, your target driver could wait for those commands forever.
  */
-void scst_unregister_session(struct scst_session *sess, int wait,
-	void (*unreg_done_fn) (struct scst_session *sess));
+void scst_unregister_session_ex(struct scst_session *sess, int wait,
+	void (*unreg_done_fn) (struct scst_session *sess),
+	void (*unreg_cmds_done_fn) (struct scst_session *sess));
+
+static inline void scst_unregister_session(struct scst_session *sess, int wait,
+	void (*unreg_done_fn) (struct scst_session *sess))
+{
+	scst_unregister_session_ex(sess, wait, unreg_done_fn, NULL);
+}
 
 /* 
  * Registers dev handler driver
@@ -2221,6 +2281,24 @@ static inline void scst_set_delivery_status(struct scst_cmd *cmd,
 }
 
 /*
+ * Get/set/clear functions for cmd's long XMIT flag.
+ */
+static inline int scst_get_long_xmit(struct scst_cmd *cmd)
+{
+	return cmd->long_xmit;
+}
+
+static inline void scst_set_long_xmit(struct scst_cmd *cmd)
+{
+	cmd->long_xmit = 1;
+}
+
+static inline void scst_clear_long_xmit(struct scst_cmd *cmd)
+{
+	cmd->long_xmit = 0;
+}
+
+/*
  * Get/Set function for mgmt cmd's target private data
  */
 static inline void *scst_mgmt_cmd_get_tgt_priv(struct scst_mgmt_cmd *mcmd)
@@ -2240,6 +2318,14 @@ static inline void scst_mgmt_cmd_set_tgt_priv(struct scst_mgmt_cmd *mcmd,
 static inline int scst_mgmt_cmd_get_status(struct scst_mgmt_cmd *mcmd)
 {
 	return mcmd->status;
+}
+
+/*
+ * Returns mgmt cmd's TM fn
+ */
+static inline int scst_mgmt_cmd_get_fn(struct scst_mgmt_cmd *mcmd)
+{
+	return mcmd->fn;
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24)
@@ -2390,7 +2476,8 @@ void scst_resume_activity(void);
 /*
  * Main SCST commands processing routing. Must be used only by dev handlers.
  * Argument context sets the execution context, only SCST_CONTEXT_DIRECT and
- * SCST_CONTEXT_DIRECT_ATOMIC are allowed.
+ * SCST_CONTEXT_DIRECT_ATOMIC with optional SCST_CONTEXT_PROCESSABLE flag
+ * are allowed.
  */
 void scst_process_active_cmd(struct scst_cmd *cmd, int context);
 

@@ -96,9 +96,6 @@ extern unsigned long scst_trace_flag;
 /* Set if new commands initialization is suspended for a while */
 #define SCST_FLAG_SUSPENDED		     1
 
-/* Set if a TM command is being performed */
-#define SCST_FLAG_TM_ACTIVE                  2
-
 /** 
  ** Return codes for cmd state process functions 
  **/
@@ -139,6 +136,7 @@ static inline int scst_get_context(void)
 extern unsigned long scst_max_cmd_mem;
 
 extern mempool_t *scst_mgmt_mempool;
+extern mempool_t *scst_mgmt_stub_mempool;
 extern mempool_t *scst_ua_mempool;
 extern mempool_t *scst_sense_mempool;
 
@@ -226,6 +224,28 @@ static inline struct scst_cmd *scst_check_deferred_commands(
 		return NULL;
 	else
 		return __scst_check_deferred_commands(tgt_dev);
+}
+
+static inline void scst_make_deferred_commands_active(
+	struct scst_tgt_dev *tgt_dev, struct scst_cmd *curr_cmd)
+{
+	struct scst_cmd *c;
+
+	c = __scst_check_deferred_commands(tgt_dev);
+	if (c != NULL) {
+		TRACE_SN("Adding cmd %p to active cmd list", c);
+
+		EXTRACHECKS_BUG_ON(c->cmd_lists != curr_cmd->cmd_lists);
+
+		spin_lock_irq(&c->cmd_lists->cmd_list_lock);
+		list_add_tail(&c->cmd_list_entry,
+			&c->cmd_lists->active_cmd_list);
+		if (!curr_cmd->context_processable || curr_cmd->long_xmit)
+			wake_up(&c->cmd_lists->cmd_list_waitQ);
+		spin_unlock_irq(&c->cmd_lists->cmd_list_lock);
+	}
+
+	return;
 }
 
 void scst_inc_expected_sn(struct scst_tgt_dev *tgt_dev, atomic_t *slot);
@@ -339,7 +359,7 @@ struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,
 
 struct scst_mgmt_cmd *scst_alloc_mgmt_cmd(int gfp_mask);
 void scst_free_mgmt_cmd(struct scst_mgmt_cmd *mcmd);
-void scst_complete_cmd_mgmt(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd);
+void scst_done_cmd_mgmt(struct scst_cmd *cmd);
 
 /* /proc support */
 int scst_proc_init_module(void);

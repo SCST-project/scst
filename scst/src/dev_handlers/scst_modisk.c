@@ -392,15 +392,17 @@ int modisk_exec(struct scst_cmd *cmd)
 	case READ_12:
 	case READ_16:
 		cmd->completed = 1;
-		break;
+		goto out_done;
 	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 
 out_done:
 	res = SCST_EXEC_COMPLETED;
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);
-
-	TRACE_EXIT_RES(res);
-	return res;
+	goto out;
 }
 
 MODULE_AUTHOR("Vladislav Bolkhovitin & Leonid Stoljar");

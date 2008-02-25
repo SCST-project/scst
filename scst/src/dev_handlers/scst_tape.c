@@ -416,15 +416,17 @@ int tape_exec(struct scst_cmd *cmd)
 	case WRITE_6:
 	case READ_6:
 		cmd->completed = 1;
-		break;
+		goto out_done;
 	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 
 out_done:
 	res = SCST_EXEC_COMPLETED;
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);
-
-	TRACE_EXIT_RES(res);
-	return res;
+	goto out;
 }
 
 MODULE_AUTHOR("Vladislav Bolkhovitin & Leonid Stoljar");

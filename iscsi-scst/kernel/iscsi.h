@@ -100,6 +100,7 @@ struct iscsi_session {
 
 	/* All 3 protected by sn_lock */
 	unsigned int tm_active:1;
+	unsigned int shutting_down:1; /* Let's save some cache footprint by putting it here */
 	u32 tm_sn;
 	struct iscsi_cmnd *tm_rsp;
 
@@ -112,6 +113,8 @@ struct iscsi_session {
 	struct list_head conn_list; /* protected by target_mutex */
 
 	struct list_head session_list_entry;
+
+	struct completion unreg_compl;
 
 	/* Both don't need any protection */
 	char *initiator_name;
@@ -145,7 +148,11 @@ struct iscsi_conn {
 
 	spinlock_t write_list_lock;
 	/* List of data pdus to be sent, protected by write_list_lock */
-	struct list_head write_list; 
+	struct list_head write_list;
+	/* List of data pdus being sent, protected by write_list_lock */
+	struct list_head written_list;
+
+	struct timer_list rsp_timer;
 
 	/* All 2 protected by iscsi_wr_lock */
 	unsigned short wr_state;
@@ -182,6 +189,7 @@ struct iscsi_conn {
 	unsigned short rd_state;
 	unsigned short rd_data_ready:1;
 	unsigned short closing:1; /* Let's save some cache footprint by putting it here */
+	unsigned short force_close:1; /* Let's save some cache footprint by putting it here */
 
 	struct list_head rd_list_entry;
 
@@ -238,6 +246,7 @@ struct iscsi_cmnd {
 	unsigned int force_cleanup_done:1;
 	unsigned int dec_active_cmnds:1;
 	unsigned int ddigest_checked:1;
+	unsigned int on_written_list:1;
 #ifdef EXTRACHECKS
 	unsigned int on_rx_digest_list:1;
 	unsigned int release_called:1;
@@ -261,6 +270,8 @@ struct iscsi_cmnd {
 		struct list_head pending_list_entry;
 		struct list_head write_list_entry;
 	};
+
+	unsigned long write_timeout;
 
 	/*
 	 * Unprotected, since could be accessed from only a single 
@@ -306,6 +317,8 @@ struct iscsi_cmnd {
 /* Flags for req_cmnd_release_force() */
 #define ISCSI_FORCE_RELEASE_WRITE	1
 
+#define ISCSI_RSP_TIMEOUT	(7*HZ)
+
 extern struct mutex target_mgmt_mutex;
 
 extern struct file_operations ctr_fops;
@@ -336,6 +349,7 @@ extern struct iscsi_conn *conn_lookup(struct iscsi_session *, u16);
 extern int conn_add(struct iscsi_session *, struct conn_info *);
 extern int conn_del(struct iscsi_session *, struct conn_info *);
 extern int conn_free(struct iscsi_conn *);
+extern void __mark_conn_closed(struct iscsi_conn *, bool);
 extern void mark_conn_closed(struct iscsi_conn *);
 extern void iscsi_make_conn_wr_active(struct iscsi_conn *);
 extern void conn_info_show(struct seq_file *, struct iscsi_session *);
@@ -447,7 +461,7 @@ static inline void cmnd_put(struct iscsi_cmnd *cmnd)
 		cmnd_done(cmnd);
 }
 
-/* conn->write_list_lock supposed to be locked */
+/* conn->write_list_lock supposed to be locked and BHs off */
 static inline void cmd_add_on_write_list(struct iscsi_conn *conn,
 	struct iscsi_cmnd *cmnd)
 {
@@ -456,7 +470,7 @@ static inline void cmd_add_on_write_list(struct iscsi_conn *conn,
 	cmnd->on_write_list = 1;
 }
 
-/* conn->write_list_lock supposed to be locked */
+/* conn->write_list_lock supposed to be locked and BHs off */
 static inline void cmd_del_from_write_list(struct iscsi_cmnd *cmnd)
 {
 	TRACE_DBG("%p", cmnd);

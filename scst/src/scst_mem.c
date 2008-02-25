@@ -493,7 +493,7 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 {
 	struct sgv_pool_obj *obj;
 	int order, pages, cnt;
-	struct scatterlist *res;
+	struct scatterlist *res = NULL;
 	int pages_to_alloc;
 	struct kmem_cache *cache;
 	int no_cached = flags & SCST_POOL_ALLOC_NO_CACHED;
@@ -501,7 +501,8 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 
 	TRACE_ENTRY();
 
-	sBUG_ON(size == 0);
+	if (unlikely(size == 0))
+		goto out;
 
 	pages = ((size + PAGE_SIZE - 1) >> PAGE_SHIFT);
 	order = get_order(size);

@@ -70,6 +70,14 @@
 /* Aborts all tasks in all sessions of the tgt */
 #define SCST_ABORT_ALL_TASKS         9
 
+/*
+ * Internal TM command issued by SCST in scst_unregister_session(). It is the
+ * same as SCST_NEXUS_LOSS_SESS, except it calls unreg_cmds_done_fn().
+ *
+ * Target driver shall NEVER use it!!
+ */
+#define SCST_UNREG_SESS_TM           10
+
 /************************************************************* 
  ** Values for mgmt cmd's status field. Codes taken from iSCSI
  *************************************************************/

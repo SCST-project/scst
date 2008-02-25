@@ -22,7 +22,7 @@ struct iscsi_session *session_lookup(struct iscsi_target *target, u64 sid)
 	struct iscsi_session *session;
 
 	list_for_each_entry(session, &target->session_list, session_list_entry) {
-		if (session->sid == sid)
+		if ((session->sid == sid) && !session->shutting_down)
 			return session;
 	}
 	return NULL;
@@ -34,9 +34,6 @@ static int iscsi_session_alloc(struct iscsi_target *target, struct session_info 
 	int err, i;
 	struct iscsi_session *session;
 	char *name = NULL;
-
-	TRACE_MGMT_DBG("Creating session: target %p, tid %u, sid %#Lx",
-		target, target->tid, (unsigned long long) info->sid);
 
 	if (!(session = kzalloc(sizeof(*session), GFP_KERNEL)))
 		return -ENOMEM;
@@ -91,7 +88,13 @@ static int iscsi_session_alloc(struct iscsi_target *target, struct session_info 
 
 	kfree(name);
 
+	scst_sess_set_tgt_priv(session->scst_sess, session);
+	init_completion(&session->unreg_compl);
+
 	list_add(&session->session_list_entry, &target->session_list);
+
+	TRACE_MGMT_DBG("Session %p created: target %p, tid %u, sid %#Lx",
+		session, target, target->tid, (unsigned long long) info->sid);
 
 	return 0;
 err:
@@ -110,8 +113,11 @@ int session_add(struct iscsi_target *target, struct session_info *info)
 	int err = -EEXIST;
 
 	session = session_lookup(target, info->sid);
-	if (session)
+	if (session) {
+		PRINT_ERROR("Attempt to add session with existing SID %Lx",
+			info->sid);
 		return err;
+	}
 
 	err = iscsi_session_alloc(target, info);
 

@@ -1463,7 +1463,8 @@ static int dev_user_process_scst_commands(struct scst_user_dev *dev)
 		TRACE_DBG("Deleting cmd %p from active cmd list", cmd);
 		list_del(&cmd->cmd_list_entry);
 		spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
-		scst_process_active_cmd(cmd, SCST_CONTEXT_DIRECT);
+		scst_process_active_cmd(cmd, SCST_CONTEXT_DIRECT |
+						 SCST_CONTEXT_PROCESSABLE);
 		spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
 		res++;
 	}
@@ -3101,16 +3102,15 @@ static int __init init_scst_user(void)
 
 	dev_user_sysfs_class = class_create(THIS_MODULE, DEV_USER_NAME);
 	if (IS_ERR(dev_user_sysfs_class)) {
-		printk(KERN_ERR "Unable create sysfs class for SCST user "
-			"space handler\n");
+		PRINT_ERROR("%s", "Unable create sysfs class for SCST user "
+			"space handler");
 		res = PTR_ERR(dev_user_sysfs_class);
 		goto out_proc;
 	}
 
 	res = register_chrdev(DEV_USER_MAJOR, DEV_USER_NAME, &dev_user_fops);
 	if (res) {
-		printk(KERN_ERR "Unable to get major %d for SCSI tapes\n",
-		       DEV_USER_MAJOR);
+		PRINT_ERROR("Unable to get major %d for SCSI tapes", DEV_USER_MAJOR);
 		goto out_class;
 	}
 

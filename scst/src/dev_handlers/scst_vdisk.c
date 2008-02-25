@@ -256,6 +256,7 @@ static int vdisk_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 #define VDISK_TYPE {			\
   name:         VDISK_NAME,		\
   type:         TYPE_DISK,		\
+  exec_sync:	1,			\
   threads_num:	-1,			\
   parse_atomic: 1,			\
   exec_atomic:  0,			\
@@ -291,6 +292,7 @@ static int vdisk_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 #define VCDROM_TYPE {			\
   name:         VCDROM_NAME,		\
   type:         TYPE_ROM,		\
+  exec_sync:	1,			\
   threads_num:	-1,			\
   parse_atomic: 1,			\
   exec_atomic:  0,			\
@@ -1563,8 +1565,9 @@ static void vdisk_exec_mode_select(struct scst_cmd *cmd)
 	}
 
 	if (!(cmd->cdb[1] & PF) || (cmd->cdb[1] & SP)) {
-		PRINT_ERROR("MODE SELECT: PF and/or SP are wrongly set "
-			"(cdb[1]=%x)", cmd->cdb[1]);
+		TRACE(TRACE_MINOR|TRACE_SCSI, "MODE SELECT: Unsupported "
+			"value(s) of PF and/or SP bits (cdb[1]=%x)",
+			cmd->cdb[1]);
 		scst_set_cmd_error(cmd,
 		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 		goto out_put;
@@ -1852,17 +1855,12 @@ static void vdisk_exec_prevent_allow_medium_removal(struct scst_cmd *cmd)
 
 	TRACE_DBG("PERSIST/PREVENT 0x%02x", cmd->cdb[4]);
 
-	spin_lock(&virt_dev->flags_lock);
-	if (cmd->dev->handler->type == TYPE_ROM)
+	if (cmd->dev->handler->type == TYPE_ROM) {
+		spin_lock(&virt_dev->flags_lock);
 		virt_dev->prevent_allow_medium_removal = 
 			cmd->cdb[4] & 0x01 ? 1 : 0;
-	else {
-		PRINT_ERROR("%s", "Prevent allow medium removal for "
-			"non-CDROM device");
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		spin_unlock(&virt_dev->flags_lock);
 	}
-	spin_unlock(&virt_dev->flags_lock);
 
 	return;
 }

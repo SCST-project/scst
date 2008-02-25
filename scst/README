@@ -471,8 +471,11 @@ subdirectories "vdisk" and "vcdrom". They have similar layout:
 
     * "change NAME [PATH]" - changes a virtual CD in the VDISK CDROM.
 
+By default, if neither BLOCKIO, nor NULLIO option is supplied, FILEIO
+mode is used.
+
 For example, "echo "open disk1 /vdisks/disk1" >/proc/scsi_tgt/vdisk/vdisk"
-will open file /vdisks/disk1 as virtual VDISK disk with name "disk1".
+will open file /vdisks/disk1 as virtual FILEIO disk with name "disk1".
 
 IMPORTANT: By default for performance reasons VDISK FILEIO devices use write
 =========  back caching policy. This is generally safe from the consistence of

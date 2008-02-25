@@ -76,6 +76,8 @@ spinlock_t scst_main_lock;
 
 struct kmem_cache *scst_mgmt_cachep;
 mempool_t *scst_mgmt_mempool;
+struct kmem_cache *scst_mgmt_stub_cachep;
+mempool_t *scst_mgmt_stub_mempool;
 struct kmem_cache *scst_ua_cachep;
 mempool_t *scst_ua_mempool;
 struct kmem_cache *scst_sense_cachep;
@@ -1558,7 +1560,10 @@ static int __init init_scst(void)
 	} while (0)
 	  
 	INIT_CACHEP(scst_mgmt_cachep, scst_mgmt_cmd, out);
-	INIT_CACHEP(scst_ua_cachep, scst_tgt_dev_UA, out_destroy_mgmt_cache);
+	INIT_CACHEP(scst_mgmt_stub_cachep, scst_mgmt_cmd_stub,
+			out_destroy_mgmt_cache);
+	INIT_CACHEP(scst_ua_cachep, scst_tgt_dev_UA,
+			out_destroy_mgmt_stub_cache);
 	{
 		struct scst_sense { uint8_t s[SCST_SENSE_BUFFERSIZE]; };
 		INIT_CACHEP(scst_sense_cachep, scst_sense, out_destroy_ua_cache);
@@ -1568,18 +1573,25 @@ static int __init init_scst(void)
 	INIT_CACHEP(scst_tgtd_cachep, scst_tgt_dev, out_destroy_sess_cache);
 	INIT_CACHEP(scst_acgd_cachep, scst_acg_dev, out_destroy_tgt_cache);
 
-	scst_mgmt_mempool = mempool_create(10, mempool_alloc_slab,
+	scst_mgmt_mempool = mempool_create(64, mempool_alloc_slab,
 		mempool_free_slab, scst_mgmt_cachep);
 	if (scst_mgmt_mempool == NULL) {
 		res = -ENOMEM;
 		goto out_destroy_acg_cache;
 	}
 
-	scst_ua_mempool = mempool_create(25, mempool_alloc_slab,
+	scst_mgmt_stub_mempool = mempool_create(1024, mempool_alloc_slab,
+		mempool_free_slab, scst_mgmt_stub_cachep);
+	if (scst_mgmt_stub_mempool == NULL) {
+		res = -ENOMEM;
+		goto out_destroy_mgmt_mempool;
+	}
+
+	scst_ua_mempool = mempool_create(64, mempool_alloc_slab,
 		mempool_free_slab, scst_ua_cachep);
 	if (scst_ua_mempool == NULL) {
 		res = -ENOMEM;
-		goto out_destroy_mgmt_mempool;
+		goto out_destroy_mgmt_stub_mempool;
 	}
 
 	/* Loosing sense may have fatal consequences, so let's have a big pool */
@@ -1663,6 +1675,9 @@ out_destroy_sense_mempool:
 out_destroy_ua_mempool:
 	mempool_destroy(scst_ua_mempool);
 
+out_destroy_mgmt_stub_mempool:
+	mempool_destroy(scst_mgmt_stub_mempool);
+
 out_destroy_mgmt_mempool:
 	mempool_destroy(scst_mgmt_mempool);
 
@@ -1683,6 +1698,9 @@ out_destroy_sense_cache:
 
 out_destroy_ua_cache:
 	kmem_cache_destroy(scst_ua_cachep);
+
+out_destroy_mgmt_stub_cache:
+	kmem_cache_destroy(scst_mgmt_stub_cachep);
 
 out_destroy_mgmt_cache:
 	kmem_cache_destroy(scst_mgmt_cachep);
@@ -1715,10 +1733,12 @@ static void __exit exit_scst(void)
 	} while (0)
 
 	mempool_destroy(scst_mgmt_mempool);
+	mempool_destroy(scst_mgmt_stub_mempool);
 	mempool_destroy(scst_ua_mempool);
 	mempool_destroy(scst_sense_mempool);
 
 	DEINIT_CACHEP(scst_mgmt_cachep);
+	DEINIT_CACHEP(scst_mgmt_stub_cachep);
 	DEINIT_CACHEP(scst_ua_cachep);
 	DEINIT_CACHEP(scst_sense_cachep);
 	DEINIT_CACHEP(scst_cmd_cachep);
@@ -1760,7 +1780,7 @@ EXPORT_SYMBOL(scst_process_active_cmd);
  * Target Driver Side (i.e. HBA)
  */
 EXPORT_SYMBOL(scst_register_session);
-EXPORT_SYMBOL(scst_unregister_session);
+EXPORT_SYMBOL(scst_unregister_session_ex);
 
 EXPORT_SYMBOL(__scst_register_target_template);
 EXPORT_SYMBOL(scst_unregister_target_template);

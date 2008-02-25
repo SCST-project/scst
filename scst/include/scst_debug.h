@@ -93,7 +93,6 @@
 #ifdef DEBUG
 //#  define LOG_FLAG KERN_DEBUG
 #  define LOG_FLAG KERN_INFO
-
 #  define INFO_FLAG KERN_INFO
 #  define ERROR_FLAG KERN_INFO
 #else
@@ -101,6 +100,8 @@
 # define INFO_FLAG KERN_INFO
 # define ERROR_FLAG KERN_ERR
 #endif
+
+#define CRIT_FLAG KERN_CRIT
 
 #define NO_FLAG ""
 
@@ -260,6 +261,16 @@ do {                                                                \
   PRINT_LOG_FLAG(ERROR_FLAG, "***ERROR*** " format, args);          \
 } while(0)
 
+#define PRINT_CRIT_ERROR(format, args...)		            \
+do {                                                                \
+  if (strcmp(CRIT_FLAG, LOG_FLAG))                                  \
+  {                                                                 \
+    PRINT_LOG_FLAG(LOG_FLAG, "***CRITICAL ERROR*** " format, args); \
+  }                                                                 \
+  PRINT_LOG_FLAG(CRIT_FLAG, "***CRITICAL ERROR*** " format, args);  \
+} while(0)
+
+
 #define PRINT_INFO(format, args...)                   \
 do {                                                  \
   if (strcmp(INFO_FLAG, LOG_FLAG))                    \
@@ -361,6 +372,12 @@ do {                                            \
         format, LOG_PREFIX, args);              \
 } while(0)
 
+#define PRINT_CRIT_ERROR(format, args...)       \
+do {                                            \
+  PRINT(CRIT_FLAG, "%s: ***CRITICAL ERROR*** "  \
+        format, LOG_PREFIX, args);              \
+} while(0)
+
 #else
 
 #define PRINT_INFO(format, args...)           	\
@@ -371,6 +388,12 @@ do {                                            \
 #define PRINT_ERROR(format, args...)          	\
 do {                                            \
   PRINT(ERROR_FLAG, "***ERROR*** "              \
+        format, args);                          \
+} while(0)
+
+#define PRINT_CRIT_ERROR(format, args...)       \
+do {                                            \
+  PRINT(CRIT_FLAG, "***CRITICAL ERROR*** "      \
         format, args);                          \
 } while(0)
 

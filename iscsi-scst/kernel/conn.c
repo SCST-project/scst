@@ -158,13 +158,19 @@ void iscsi_make_conn_wr_active(struct iscsi_conn *conn)
 	return;
 }
 
-void mark_conn_closed(struct iscsi_conn *conn)
+void __mark_conn_closed(struct iscsi_conn *conn, bool force)
 {
 	spin_lock_bh(&iscsi_rd_lock);
 	conn->closing = 1;
+	conn->force_close = force;
 	spin_unlock_bh(&iscsi_rd_lock);
 
 	iscsi_make_conn_rd_active(conn);
+}
+
+void mark_conn_closed(struct iscsi_conn *conn)
+{
+	__mark_conn_closed(conn, 0);
 }
 
 static void iscsi_state_change(struct sock *sk)
@@ -178,7 +184,7 @@ static void iscsi_state_change(struct sock *sk)
 			PRINT_ERROR("Connection with initiator %s (%p) "
 				"unexpectedly closed!",
 				conn->session->initiator_name, conn);
-			mark_conn_closed(conn);
+			__mark_conn_closed(conn, 1);
 		}
 	} else
 		iscsi_make_conn_rd_active(conn);
@@ -221,6 +227,45 @@ static void iscsi_write_space_ready(struct sock *sk)
 	spin_unlock_bh(&iscsi_wr_lock);
 
 	conn->old_write_space(sk);
+
+	TRACE_EXIT();
+	return;
+}
+
+static void conn_rsp_timer_fn(unsigned long arg)
+{
+	struct iscsi_conn *conn = (struct iscsi_conn *)arg;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("Timer (conn %p)", conn);
+
+	spin_lock_bh(&conn->write_list_lock);
+
+	if (!list_empty(&conn->written_list)) {
+		struct iscsi_cmnd *wr_cmd = list_entry(conn->written_list.next,
+				struct iscsi_cmnd, write_list_entry);
+
+		if (unlikely(time_after_eq(jiffies, wr_cmd->write_timeout))) {
+			if (!conn->closing) {
+				PRINT_ERROR("Timeout sending data to initiator "
+					"%s (SID %Lx), closing connection",
+					conn->session->initiator_name,
+					conn->session->sid);
+				__mark_conn_closed(conn, 1);
+			}
+		} else {
+			TRACE_DBG("Restarting timer on %ld (conn %p)",
+				wr_cmd->write_timeout, conn);
+			/*
+			 * Timer might have been restarted while we were
+			 * entering here.
+			 */
+			mod_timer(&conn->rsp_timer, wr_cmd->write_timeout);
+		}
+	}
+
+	spin_unlock_bh(&conn->write_list_lock);
 
 	TRACE_EXIT();
 	return;
@@ -278,6 +323,8 @@ int conn_free(struct iscsi_conn *conn)
 	TRACE_MGMT_DBG("Freeing conn %p (sess=%p, %#Lx %u)", conn,
 		conn->session, (unsigned long long)conn->session->sid,
 		conn->cid);
+
+	del_timer_sync(&conn->rsp_timer);
 
 	sBUG_ON(atomic_read(&conn->conn_ref_cnt) != 0);
 	sBUG_ON(!list_empty(&conn->cmd_list));
@@ -337,6 +384,8 @@ static int iscsi_conn_alloc(struct iscsi_session *session, struct conn_info *inf
 	INIT_LIST_HEAD(&conn->cmd_list);
 	spin_lock_init(&conn->write_list_lock);
 	INIT_LIST_HEAD(&conn->write_list);
+	INIT_LIST_HEAD(&conn->written_list);
+	setup_timer(&conn->rsp_timer, conn_rsp_timer_fn, (unsigned long)conn);
 
 	conn->file = fget(info->fd);
 

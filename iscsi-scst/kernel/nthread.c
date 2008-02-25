@@ -165,6 +165,22 @@ out:
 static inline void iscsi_check_closewait(struct iscsi_conn *conn) {};
 #endif
 
+static void iscsi_unreg_cmds_done_fn(struct scst_session *scst_sess)
+{
+	struct iscsi_session *sess =
+		(struct iscsi_session *)scst_sess_get_tgt_priv(scst_sess);
+
+	TRACE_ENTRY();
+
+	TRACE_CONN_CLOSE("sess %p (scst_sess %p)", sess, scst_sess);
+
+	sess->shutting_down = 1;
+	complete_all(&sess->unreg_compl);
+
+	TRACE_EXIT();
+	return;
+}
+
 /* No locks */
 static void close_conn(struct iscsi_conn *conn)
 {
@@ -181,8 +197,13 @@ static void close_conn(struct iscsi_conn *conn)
 
 	sBUG_ON(!conn->closing);
 
-	/* We want all our already send operations to complete */
-	conn->sock->ops->shutdown(conn->sock, RCV_SHUTDOWN);
+	if (conn->force_close) {
+		conn->sock->ops->shutdown(conn->sock,
+			RCV_SHUTDOWN|SEND_SHUTDOWN);
+	} else {
+		/* We want all our already send operations to complete */
+		conn->sock->ops->shutdown(conn->sock, RCV_SHUTDOWN);
+	}
 
 	/*
 	 * We need to call scst_unregister_session() ASAP to make SCST start
@@ -190,7 +211,8 @@ static void close_conn(struct iscsi_conn *conn)
 	 *
 	 * ToDo: this is incompatible with MC/S
 	 */
-	scst_unregister_session(session->scst_sess, 0, NULL);
+	scst_unregister_session_ex(session->scst_sess, 0,
+		NULL, iscsi_unreg_cmds_done_fn);
 	session->scst_sess = NULL;
 
 	if (conn->read_state != RX_INIT_BHS) {
@@ -269,8 +291,8 @@ static void close_conn(struct iscsi_conn *conn)
 			} while(req_freed);
 			spin_unlock(&session->sn_lock);
 
-			if (time_after(jiffies, start_waiting + 5*HZ)) {
-				TRACE_CONN_CLOSE("%s", "Wait time expired");
+			if (time_after(jiffies, start_waiting + 10*HZ)) {
+				TRACE_CONN_CLOSE("%s", "Pending wait time expired");
 				spin_lock(&session->sn_lock);
 				do {
 					req_freed = 0;
@@ -305,6 +327,12 @@ static void close_conn(struct iscsi_conn *conn)
 		}
 
 		iscsi_make_conn_wr_active(conn);
+
+		if (time_after(jiffies, start_waiting + 7*HZ)) {
+			TRACE_CONN_CLOSE("%s", "Wait time expired");
+			conn->sock->ops->shutdown(conn->sock, SEND_SHUTDOWN);
+		}
+
 		msleep(200);
 
 		TRACE_CONN_CLOSE("conn %p, conn_ref_cnt %d left, wr_state %d, "
@@ -388,6 +416,8 @@ static void close_conn(struct iscsi_conn *conn)
 	TRACE_CONN_CLOSE("Notifying user space about closing connection %p", conn);
 	event_send(target->tid, session->sid, conn->cid, E_CONN_CLOSE, 0);
 
+	wait_for_completion(&session->unreg_compl);
+
 	mutex_lock(&target->target_mutex);
 	conn_free(conn);
 	/* ToDo: this is incompatible with MC/S */
@@ -453,14 +483,14 @@ static struct iscsi_cmnd *iscsi_get_send_cmnd(struct iscsi_conn *conn)
 {
 	struct iscsi_cmnd *cmnd = NULL;
 
-	spin_lock(&conn->write_list_lock);
+	spin_lock_bh(&conn->write_list_lock);
 	if (!list_empty(&conn->write_list)) {
 		cmnd = list_entry(conn->write_list.next, struct iscsi_cmnd,
 				write_list_entry);
 		cmd_del_from_write_list(cmnd);
 		cmnd->write_processing_started = 1;
 	}
-	spin_unlock(&conn->write_list_lock);
+	spin_unlock_bh(&conn->write_list_lock);
 
 	return cmnd;
 }
@@ -861,6 +891,28 @@ static int write_data(struct iscsi_conn *conn)
 		ref_cmd = write_cmnd->parent_req;
 	else
 		ref_cmd = write_cmnd;
+
+	if (!ref_cmd->on_written_list) {
+		TRACE_DBG("Adding cmd %p to conn %p written_list", ref_cmd,
+			conn);
+		spin_lock_bh(&conn->write_list_lock);
+		ref_cmd->on_written_list = 1;
+		ref_cmd->write_timeout = jiffies + ISCSI_RSP_TIMEOUT;
+		list_add_tail(&ref_cmd->write_list_entry, &conn->written_list);
+		spin_unlock_bh(&conn->write_list_lock);
+	}
+
+	if (!timer_pending(&conn->rsp_timer)) {
+		sBUG_ON(!ref_cmd->write_timeout);
+		spin_lock_bh(&conn->write_list_lock);
+		if (likely(!timer_pending(&conn->rsp_timer))) {
+			TRACE_DBG("Starting timer on %ld (conn %p)",
+				ref_cmd->write_timeout, conn);
+			conn->rsp_timer.expires = ref_cmd->write_timeout;
+			add_timer(&conn->rsp_timer);
+		}
+		spin_unlock_bh(&conn->write_list_lock);
+	}
 
 	file = conn->file;
 	saved_size = size = conn->write_size;

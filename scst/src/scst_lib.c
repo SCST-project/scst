@@ -52,7 +52,7 @@ int scst_alloc_sense(struct scst_cmd *cmd, int atomic)
 
 	cmd->sense = mempool_alloc(scst_sense_mempool, gfp_mask);
 	if (cmd->sense == NULL) {
-		PRINT_ERROR("FATAL!!! Sense memory allocation failed (op %x). "
+		PRINT_CRIT_ERROR("Sense memory allocation failed (op %x). "
 			"The sense data will be lost!!", cmd->cdb[0]);
 		res = -ENOMEM;
 		goto out;
@@ -1010,7 +1010,7 @@ static void scst_req_done(struct scsi_cmnd *scsi_cmd)
 	return;
 }
 
-static void scst_send_release(struct scst_tgt_dev *tgt_dev)
+static void scst_send_release(struct scst_device *dev)
 {
 	struct scsi_request *req;
 	struct scsi_device *scsi_dev;
@@ -1018,10 +1018,10 @@ static void scst_send_release(struct scst_tgt_dev *tgt_dev)
 
 	TRACE_ENTRY();
 	
-	if (tgt_dev->dev->scsi_dev == NULL)
+	if (dev->scsi_dev == NULL)
 		goto out;
 
-	scsi_dev = tgt_dev->dev->scsi_dev;
+	scsi_dev = dev->scsi_dev;
 
 	req = scsi_allocate_request(scsi_dev, GFP_KERNEL);
 	if (req == NULL) {
@@ -1042,7 +1042,7 @@ static void scst_send_release(struct scst_tgt_dev *tgt_dev)
 	req->sr_use_sg = 0;
 	req->sr_bufflen = 0;
 	req->sr_buffer = NULL;
-	req->sr_request->rq_disk = tgt_dev->dev->rq_disk;
+	req->sr_request->rq_disk = dev->rq_disk;
 	req->sr_sense_buffer[0] = 0;
 
 	TRACE(TRACE_DEBUG | TRACE_SCSI, "Sending RELEASE req %p to SCSI "
@@ -1055,7 +1055,7 @@ out:
 	return;
 }
 #else /* LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18) */
-static void scst_send_release(struct scst_tgt_dev *tgt_dev)
+static void scst_send_release(struct scst_device *dev)
 {
 	struct scsi_device *scsi_dev;
 	unsigned char cdb[6];
@@ -1064,13 +1064,13 @@ static void scst_send_release(struct scst_tgt_dev *tgt_dev)
 
 	TRACE_ENTRY();
 	
-	if (tgt_dev->dev->scsi_dev == NULL)
+	if (dev->scsi_dev == NULL)
 		goto out;
 
 	/* We can't afford missing RELEASE due to memory shortage */
 	sense = kmalloc(SCST_SENSE_BUFFERSIZE, GFP_KERNEL|__GFP_NOFAIL);
 
-	scsi_dev = tgt_dev->dev->scsi_dev;
+	scsi_dev = dev->scsi_dev;
 
 	for(i = 0; i < 5; i++) {
 		memset(cdb, 0, sizeof(cdb));
@@ -1092,7 +1092,7 @@ static void scst_send_release(struct scst_tgt_dev *tgt_dev)
 			PRINT_ERROR("RELEASE failed: %d", rc);
 			PRINT_BUFFER("RELEASE sense", sense,
 				SCST_SENSE_BUFFERSIZE);
-			scst_check_internal_sense(tgt_dev->dev, rc,
+			scst_check_internal_sense(dev, rc,
 					sense, SCST_SENSE_BUFFERSIZE);
 		}
 	}
@@ -1124,11 +1124,12 @@ static void scst_clear_reservation(struct scst_tgt_dev *tgt_dev)
 				    &tgt_dev_tmp->tgt_dev_flags);
 		}
 		dev->dev_reserved = 0;
+		release = 1;
 	}
 	spin_unlock_bh(&dev->dev_lock);
 
 	if (release)
-		scst_send_release(tgt_dev);
+		scst_send_release(dev);
 
 	TRACE_EXIT();
 	return;
@@ -1293,6 +1294,7 @@ struct scst_cmd *scst_alloc_cmd(int gfp_mask)
 	cmd->state = SCST_CMD_STATE_INIT_WAIT;
 	atomic_set(&cmd->cmd_ref, 1);
 	cmd->cmd_lists = &scst_main_cmd_lists;
+	INIT_LIST_HEAD(&cmd->mgmt_cmd_list);
 	cmd->queue_type = SCST_CMD_QUEUE_SIMPLE;
 	cmd->timeout = SCST_DEFAULT_TIMEOUT;
 	cmd->retries = 0;
@@ -1473,7 +1475,7 @@ struct scst_mgmt_cmd *scst_alloc_mgmt_cmd(int gfp_mask)
 
 	mcmd = mempool_alloc(scst_mgmt_mempool, gfp_mask);
 	if (mcmd == NULL) {
-		PRINT_ERROR("%s", "Allocation of management command "
+		PRINT_CRIT_ERROR("%s", "Allocation of management command "
 			"failed, some commands and their data could leak");
 		goto out;
 	}
@@ -1555,6 +1557,7 @@ int scst_alloc_space(struct scst_cmd *cmd)
 	int atomic = scst_cmd_atomic(cmd);
 	int flags;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
+	int bufflen = cmd->bufflen;
 
 	TRACE_ENTRY();
 
@@ -1563,7 +1566,21 @@ int scst_alloc_space(struct scst_cmd *cmd)
 	flags = atomic ? SCST_POOL_NO_ALLOC_ON_CACHE_MISS : 0;
 	if (cmd->no_sgv)
 		flags |= SCST_POOL_ALLOC_NO_CACHED;
-	cmd->sg = sgv_pool_alloc(tgt_dev->pool, cmd->bufflen, gfp_mask, flags,
+
+	if (unlikely(cmd->bufflen == 0)) {
+		TRACE(TRACE_MGMT_MINOR, "Data direction %d or/and zero buffer "
+			"length. Opcode 0x%x, handler %s, target %s",
+			cmd->data_direction, cmd->cdb[0],
+			cmd->dev->handler->name, cmd->tgtt->name);
+		/*
+		 * Be on the safe side and alloc stub buffer. Neither target
+		 * drivers, nor user space will touch it, since bufflen
+		 * remains 0.
+		 */
+		bufflen = PAGE_SIZE;
+	}
+
+	cmd->sg = sgv_pool_alloc(tgt_dev->pool, bufflen, gfp_mask, flags,
 			&cmd->sg_cnt, &cmd->sgv, NULL);
 	if (cmd->sg == NULL)
 		goto out;
@@ -1748,16 +1765,6 @@ int scst_get_cdb_info(const uint8_t *cdb_p, int dev_type,
 	*direction = ptr->direction;
 	*op_flags = ptr->flags;
 	*transfer_len = (*ptr->get_trans_len)(cdb_p, ptr->off);
-
-#ifdef EXTRACHECKS
-	if (unlikely((*transfer_len == 0) &&
-		     (*direction != SCST_DATA_NONE) &&
-	    ((*op_flags & SCST_UNKNOWN_LENGTH) == 0))) {
-		PRINT_ERROR("transfer_len 0, direction %d, flags %x, changing "
-			"direction on NONE", *direction, *op_flags);
-		*direction = SCST_DATA_NONE;
-	}
-#endif
 
 out:
 	TRACE_EXIT();
@@ -2488,9 +2495,10 @@ void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
 
 	UA_entry = mempool_alloc(scst_ua_mempool, GFP_ATOMIC);
 	if (UA_entry == NULL) {
-		PRINT_ERROR("%s", "UNIT ATTENTION memory "
+		PRINT_CRIT_ERROR("%s", "UNIT ATTENTION memory "
 		     "allocation failed. The UNIT ATTENTION "
 		     "on some sessions will be missed");
+		PRINT_BUFFER("Lost UA", sense, sense_len);
 		goto out;
 	}
 	memset(UA_entry, 0, sizeof(*UA_entry));
@@ -2608,6 +2616,9 @@ struct scst_cmd *__scst_check_deferred_commands(struct scst_tgt_dev *tgt_dev)
 	typeof(tgt_dev->expected_sn) expected_sn = tgt_dev->expected_sn;
 
 	spin_lock_irq(&tgt_dev->sn_lock);
+
+	if (unlikely(tgt_dev->hq_cmd_count != 0))
+		goto out_unlock;
 
 restart:
 	list_for_each_entry_safe(cmd, t, &tgt_dev->deferred_cmd_list,
@@ -2935,16 +2946,14 @@ void scst_unblock_cmds(struct scst_device *dev)
 	return;
 }
 
-static struct scst_cmd *__scst_unblock_deferred(
-	struct scst_tgt_dev *tgt_dev, struct scst_cmd *out_of_sn_cmd)
+static void __scst_unblock_deferred(struct scst_tgt_dev *tgt_dev,
+	struct scst_cmd *out_of_sn_cmd)
 {
-	struct scst_cmd *res = NULL;
-
 	EXTRACHECKS_BUG_ON(!out_of_sn_cmd->sn_set);
 
 	if (out_of_sn_cmd->sn == tgt_dev->expected_sn) {
 		scst_inc_expected_sn(tgt_dev, out_of_sn_cmd->sn_slot);
-		res = scst_check_deferred_commands(tgt_dev);
+		scst_make_deferred_commands_active(tgt_dev, out_of_sn_cmd);
 	} else {
 		out_of_sn_cmd->out_of_sn = 1;
 		spin_lock_irq(&tgt_dev->sn_lock);
@@ -2957,14 +2966,12 @@ static struct scst_cmd *__scst_unblock_deferred(
 		spin_unlock_irq(&tgt_dev->sn_lock);
 	}
 
-	return res;
+	return;
 }
 
 void scst_unblock_deferred(struct scst_tgt_dev *tgt_dev,
 	struct scst_cmd *out_of_sn_cmd)
 {
-	struct scst_cmd *cmd;
-
 	TRACE_ENTRY();
 
 	if (!out_of_sn_cmd->sn_set) {
@@ -2972,16 +2979,7 @@ void scst_unblock_deferred(struct scst_tgt_dev *tgt_dev,
 		goto out;
 	}
 
-	cmd = __scst_unblock_deferred(tgt_dev, out_of_sn_cmd);
-	if (cmd != NULL) {
-		unsigned long flags;
-		spin_lock_irqsave(&cmd->cmd_lists->cmd_list_lock, flags);
-		TRACE_SN("cmd %p with sn %ld added to the head of active cmd "
-			"list", cmd, cmd->sn);
-		list_add(&cmd->cmd_list_entry, &cmd->cmd_lists->active_cmd_list);
-		wake_up(&cmd->cmd_lists->cmd_list_waitQ);
-		spin_unlock_irqrestore(&cmd->cmd_lists->cmd_list_lock, flags);
-	}
+	__scst_unblock_deferred(tgt_dev, out_of_sn_cmd);
 
 out:
 	TRACE_EXIT();
@@ -3005,18 +3003,8 @@ void scst_on_hq_cmd_response(struct scst_cmd *cmd)
 	 * non-locked state. In the worst case we will only have
 	 * unneeded run of the deferred commands.
 	 */
-	if (tgt_dev->hq_cmd_count == 0) {
-		struct scst_cmd *c =
-			scst_check_deferred_commands(tgt_dev);
-		if (c != NULL) {
-			spin_lock_irq(&c->cmd_lists->cmd_list_lock);
-			TRACE_SN("Adding cmd %p to active cmd list", c);
-			list_add_tail(&c->cmd_list_entry,
-				&c->cmd_lists->active_cmd_list);
-			wake_up(&c->cmd_lists->cmd_list_waitQ);
-			spin_unlock_irq(&c->cmd_lists->cmd_list_lock);
-		}
-	}
+	if (tgt_dev->hq_cmd_count == 0)
+		scst_make_deferred_commands_active(tgt_dev, cmd);
 
 	TRACE_EXIT();
 	return;
@@ -3025,6 +3013,12 @@ void scst_on_hq_cmd_response(struct scst_cmd *cmd)
 void scst_xmit_process_aborted_cmd(struct scst_cmd *cmd)
 {
 	TRACE_ENTRY();
+
+	TRACE_MGMT_DBG("Aborted cmd %p done (cmd_ref %d, "
+		"scst_cmd_count %d)", cmd, atomic_read(&cmd->cmd_ref),
+		atomic_read(&scst_cmd_count));
+
+	scst_done_cmd_mgmt(cmd);
 
 	smp_rmb();
 	if (test_bit(SCST_CMD_ABORTED_OTHER, &cmd->cmd_flags)) {

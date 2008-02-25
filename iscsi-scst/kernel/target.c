@@ -264,6 +264,8 @@ void target_del_all(void)
 
 	mutex_unlock(&target_mgmt_mutex);
 
+	TRACE_MGMT_DBG("%s", "Deleting all targets finished");
+
 	TRACE_EXIT();
 	return;
 }
