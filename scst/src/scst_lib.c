@@ -260,7 +260,7 @@ void scst_free_device(struct scst_device *dev)
 #ifdef EXTRACHECKS
 	if (!list_empty(&dev->dev_tgt_dev_list) || 
 	    !list_empty(&dev->dev_acg_dev_list)) {
-		PRINT_ERROR("%s: dev_tgt_dev_list or dev_acg_dev_list "
+		PRINT_CRIT_ERROR("%s: dev_tgt_dev_list or dev_acg_dev_list "
 			"is not empty!", __FUNCTION__);
 		sBUG();
 	}

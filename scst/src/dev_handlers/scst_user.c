@@ -1946,7 +1946,7 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 	}
 
 	default:
-		PRINT_ERROR("Wrong ucmd state %x", state);
+		PRINT_CRIT_ERROR("Wrong ucmd state %x", state);
 		sBUG();
 		break;
 	}

@@ -329,6 +329,7 @@ int conn_free(struct iscsi_conn *conn)
 	sBUG_ON(atomic_read(&conn->conn_ref_cnt) != 0);
 	sBUG_ON(!list_empty(&conn->cmd_list));
 	sBUG_ON(!list_empty(&conn->write_list));
+	sBUG_ON(!list_empty(&conn->written_list));
 
 	list_del(&conn->conn_list_entry);
 

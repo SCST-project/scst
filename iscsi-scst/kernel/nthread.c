@@ -63,7 +63,7 @@ static void iscsi_check_closewait(struct iscsi_conn *conn)
 
 	if ((conn->sock->sk->sk_state != TCP_CLOSE_WAIT) &&
 	    (conn->sock->sk->sk_state != TCP_CLOSE)) {
-		TRACE_CONN_CLOSE_DBG("sk_state %d, skipping",
+		TRACE_CONN_CLOSE("sk_state %d, skipping",
 			conn->sock->sk->sk_state);
 		goto out;
 	}
@@ -407,7 +407,16 @@ static void close_conn(struct iscsi_conn *conn)
 	conn->sock->sk->sk_write_space = conn->old_write_space;
 	write_unlock_bh(&conn->sock->sk->sk_callback_lock);
 
-	while(conn->wr_state != ISCSI_CONN_WR_STATE_IDLE) {
+	while(1) {
+		bool t;
+
+		spin_lock_bh(&iscsi_wr_lock);
+		t = (conn->wr_state == ISCSI_CONN_WR_STATE_IDLE);
+		spin_unlock_bh(&iscsi_wr_lock);
+
+		if (t && (atomic_read(&conn->conn_ref_cnt) == 0))
+			break;
+
 		TRACE_CONN_CLOSE("Waiting for wr thread (conn %p), wr_state %x",
 			conn, conn->wr_state);
 		msleep(50);
@@ -417,6 +426,8 @@ static void close_conn(struct iscsi_conn *conn)
 	event_send(target->tid, session->sid, conn->cid, E_CONN_CLOSE, 0);
 
 	wait_for_completion(&session->unreg_compl);
+
+	sBUG_ON(!session->shutting_down);
 
 	mutex_lock(&target->target_mutex);
 	conn_free(conn);
@@ -681,7 +692,7 @@ static int recv(struct iscsi_conn *conn)
 		}
 		break;
 	default:
-		PRINT_ERROR("%d %x", conn->read_state, cmnd_opcode(cmnd));
+		PRINT_CRIT_ERROR("%d %x", conn->read_state, cmnd_opcode(cmnd));
 		sBUG();
 	}
 
@@ -692,7 +703,8 @@ static int recv(struct iscsi_conn *conn)
 		goto out;
 
 	if (unlikely(conn->read_size)) {
-		PRINT_ERROR("%d %x %d", res, cmnd_opcode(cmnd), conn->read_size);
+		PRINT_CRIT_ERROR("%d %x %d", res, cmnd_opcode(cmnd),
+			conn->read_size);
 		sBUG();
 	}
 
@@ -903,7 +915,7 @@ static int write_data(struct iscsi_conn *conn)
 	}
 
 	if (!timer_pending(&conn->rsp_timer)) {
-		sBUG_ON(!ref_cmd->write_timeout);
+		sBUG_ON(!ref_cmd->on_written_list);
 		spin_lock_bh(&conn->write_list_lock);
 		if (likely(!timer_pending(&conn->rsp_timer))) {
 			TRACE_DBG("Starting timer on %ld (conn %p)",
@@ -989,7 +1001,7 @@ retry:
 #ifdef NET_PAGE_CALLBACKS_DEFINED
 		if (unlikely((sg_page(&sg[idx])->net_priv != NULL) &&
 				(sg_page(&sg[idx])->net_priv != ref_cmd))) {
-			PRINT_ERROR("net_priv isn't NULL and != ref_cmd "
+			PRINT_CRIT_ERROR("net_priv isn't NULL and != ref_cmd "
 				"(write_cmnd %p, ref_cmd %p, sg %p, idx %d, "
 				"net_priv %p)", write_cmnd, ref_cmd, sg, idx,
 				sg_page(&sg[idx])->net_priv);
@@ -1200,7 +1212,7 @@ int iscsi_send(struct iscsi_conn *conn)
 		res = tx_ddigest(cmnd, TX_END);
 		break;
 	default:
-		PRINT_ERROR("%d %d %x", res, conn->write_state,
+		PRINT_CRIT_ERROR("%d %d %x", res, conn->write_state,
 			cmnd_opcode(cmnd));
 		sBUG();
 	}
@@ -1212,7 +1224,7 @@ int iscsi_send(struct iscsi_conn *conn)
 		goto out;
 
 	if (unlikely(conn->write_size)) {
-		PRINT_ERROR("%d %x %u", res, cmnd_opcode(cmnd),
+		PRINT_CRIT_ERROR("%d %x %u", res, cmnd_opcode(cmnd),
 			conn->write_size);
 		sBUG();
 	}

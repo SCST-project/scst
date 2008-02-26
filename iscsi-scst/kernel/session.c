@@ -134,7 +134,7 @@ int session_free(struct iscsi_session *session)
 
 	sBUG_ON(!list_empty(&session->conn_list));
 	if (unlikely(atomic_read(&session->active_cmds) != 0)) {
-		PRINT_ERROR("active_cmds not 0 (%d)!!",
+		PRINT_CRIT_ERROR("active_cmds not 0 (%d)!!",
 			atomic_read(&session->active_cmds));
 		sBUG();
 	}

@@ -113,7 +113,7 @@ static inline void iscsi_restart_waiting_cmnd(struct iscsi_cmnd *cmnd)
 
 static inline void iscsi_fail_waiting_cmnd(struct iscsi_cmnd *cmnd)
 {
-	TRACE_DBG("Failing data waiting cmd %p", cmnd);
+	TRACE_MGMT_DBG("Failing data waiting cmd %p", cmnd);
 
 	/*
 	 * There is no race with conn_abort(), since all functions
@@ -182,7 +182,7 @@ void cmnd_free(struct iscsi_cmnd *cmnd)
 	if (unlikely(cmnd->on_write_list || cmnd->on_written_list)) {
 		struct iscsi_scsi_cmd_hdr *req = cmnd_hdr(cmnd);
 
-		PRINT_ERROR("cmnd %p still on some list?, %x, %x, %x, %x, %x, %x, %x",
+		PRINT_CRIT_ERROR("cmnd %p still on some list?, %x, %x, %x, %x, %x, %x, %x",
 			cmnd, req->opcode, req->scb[0], req->flags, req->itt,
 			be32_to_cpu(req->data_length),
 			req->cmd_sn, be32_to_cpu(cmnd->pdu.datasize));
@@ -190,7 +190,7 @@ void cmnd_free(struct iscsi_cmnd *cmnd)
 		if (unlikely(cmnd->parent_req)) {
 			struct iscsi_scsi_cmd_hdr *req =
 					cmnd_hdr(cmnd->parent_req);
-			PRINT_ERROR("%p %x %u", req, req->opcode, req->scb[0]);
+			PRINT_CRIT_ERROR("%p %x %u", req, req->opcode, req->scb[0]);
 		}
 		sBUG();
 	}
@@ -254,7 +254,7 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 				scst_tgt_cmd_done(cmnd->scst_cmd);
 				break;
 			default:
-				PRINT_ERROR("Unexpected cmnd scst state %d",
+				PRINT_CRIT_ERROR("Unexpected cmnd scst state %d",
 					cmnd->scst_state);
 				sBUG();
 				break;
@@ -290,6 +290,13 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 			"new value %d)", cmnd, sess,
 			atomic_read(&sess->active_cmds)-1);
 		atomic_dec(&sess->active_cmds);
+#ifdef EXTRACHECKS
+		if (unlikely(atomic_read(&sess->active_cmds) < 0)) {
+			PRINT_CRIT_ERROR("active_cmds < 0 (%d)!!",
+				atomic_read(&sess->active_cmds));
+			sBUG();
+		}
+#endif
 	}
 
 	cmnd_free(cmnd);
@@ -310,7 +317,7 @@ void req_cmnd_release_force(struct iscsi_cmnd *req, int flags)
 
 	TRACE_ENTRY();
 
-	TRACE_DBG("%p", req);
+	TRACE_MGMT_DBG("%p", req);
 
 	sBUG_ON(req == conn->read_cmnd);
 
@@ -328,6 +335,7 @@ void req_cmnd_release_force(struct iscsi_cmnd *req, int flags)
 		spin_unlock_bh(&conn->write_list_lock);
 
 		list_for_each_entry_safe(rsp, t, &cmds_list, write_list_entry) {
+			TRACE_MGMT_DBG("Putting write rsp %p", rsp);
 			list_del(&rsp->write_list_entry);
 			cmnd_put(rsp);
 		}
@@ -361,6 +369,7 @@ again_rsp:
 		 * If both on_write_list and write_processing_started not set,
 		 * we can safely put() rsp.
 		 */
+		TRACE_MGMT_DBG("Putting rsp %p", rsp);
 		cmnd_put(rsp);
 		goto again_rsp;
 	}
@@ -412,6 +421,13 @@ void req_cmnd_release(struct iscsi_cmnd *req)
 			atomic_read(&sess->active_cmds)-1);
 		atomic_dec(&sess->active_cmds);
 		req->dec_active_cmnds = 0;
+#ifdef EXTRACHECKS
+		if (unlikely(atomic_read(&sess->active_cmds) < 0)) {
+			PRINT_CRIT_ERROR("active_cmds < 0 (%d)!!",
+				atomic_read(&sess->active_cmds));
+			sBUG();
+		}
+#endif
 	}
 
 	cmnd_put(req);
@@ -533,7 +549,7 @@ static void iscsi_cmnd_init_write(struct iscsi_cmnd *rsp, int flags)
 	LIST_HEAD(head);
 
 	if (unlikely(rsp->on_write_list)) {
-		PRINT_ERROR("cmd already on write list (%x %x %x %x %u %u "
+		PRINT_CRIT_ERROR("cmd already on write list (%x %x %x %x %u %u "
 			"%u %u %u %u %u %d %d",
 			cmnd_itt(rsp), cmnd_ttt(rsp), cmnd_opcode(rsp),
 			cmnd_scsicode(rsp), rsp->r2t_sn,
@@ -1605,8 +1621,10 @@ static int cmnd_abort(struct iscsi_cmnd *req)
 
 		cmnd_put(cmnd);
 		err = 0;
-	} else
+	} else {
+		TRACE_MGMT_DBG("cmd RTT %x not found", req_hdr->rtt);
 		err = ISCSI_RESPONSE_UNKNOWN_TASK;
+	}
 
 out:
 	return err;
@@ -1834,6 +1852,7 @@ static void execute_task_management(struct iscsi_cmnd *req)
 			ISCSI_RESPONSE_FUNCTION_UNSUPPORTED);
 		break;
 	default:
+		PRINT_ERROR("Unknown TM function %d", function);
 		iscsi_send_task_mgmt_resp(req,
 			ISCSI_RESPONSE_FUNCTION_REJECTED);
 		break;
@@ -2076,7 +2095,7 @@ void cmnd_tx_end(struct iscsi_cmnd *cmnd)
 	case ISCSI_OP_LOGOUT_RSP:
 		break;
 	default:
-		PRINT_ERROR("unexpected cmnd op %x", cmnd_opcode(cmnd));
+		PRINT_CRIT_ERROR("unexpected cmnd op %x", cmnd_opcode(cmnd));
 		sBUG();
 		break;
 	}
@@ -2497,7 +2516,7 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 
 	if (unlikely((req->bufflen != 0) &&
 		     !(resp_flags & SCST_TSC_FLAG_STATUS))) {
-		PRINT_ERROR("%s", "Sending DATA without STATUS is unsupported");
+		PRINT_CRIT_ERROR("%s", "Sending DATA without STATUS is unsupported");
 		scst_set_cmd_error(scst_cmd,
 			SCST_LOAD_SENSE(scst_sense_hardw_error));
 		resp_flags = scst_cmd_get_tgt_resp_flags(scst_cmd);

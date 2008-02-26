@@ -235,7 +235,10 @@ typedef void (iscsi_show_info_t)(struct seq_file *seq, struct iscsi_target *targ
 struct iscsi_cmnd {
 	struct iscsi_conn *conn;
 
-	/* Some flags protected by conn->write_list_lock */
+	/*
+	 * Some flags protected by conn->write_list_lock, but all modified only
+	 * from single read thread or when there are no references to cmd.
+	 */
 	unsigned int hashed:1;
 	unsigned int should_close_conn:1;
 	unsigned int pending:1;
@@ -246,7 +249,6 @@ struct iscsi_cmnd {
 	unsigned int force_cleanup_done:1;
 	unsigned int dec_active_cmnds:1;
 	unsigned int ddigest_checked:1;
-	unsigned int on_written_list:1;
 #ifdef EXTRACHECKS
 	unsigned int on_rx_digest_list:1;
 	unsigned int release_called:1;
@@ -271,6 +273,8 @@ struct iscsi_cmnd {
 		struct list_head write_list_entry;
 	};
 
+	/* Both modified only from single write thread */
+	unsigned int on_written_list:1;
 	unsigned long write_timeout;
 
 	/*

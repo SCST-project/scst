@@ -118,7 +118,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{0x03, "MMMMMMMMMMMMMMMM", "REQUEST SENSE",
 	 SCST_DATA_READ, SCST_SMALL_TIMEOUT, 4, get_trans_len_1},
 	{0x04, "M    O O        ", "FORMAT UNIT",
-	 SCST_DATA_NONE, SCST_LONG_TIMEOUT, 0, get_trans_len_none},
+	 SCST_DATA_WRITE, SCST_LONG_TIMEOUT|SCST_UNKNOWN_LENGTH, 0, get_trans_len_none},
 	{0x04, "  O             ", "FORMAT",
 	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
 	{0x05, "VMVVVV  V       ", "READ BLOCK LIMITS",

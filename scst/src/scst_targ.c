@@ -63,7 +63,7 @@ struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
 
 #ifdef EXTRACHECKS
 	if (unlikely(sess->shut_phase != SCST_SESS_SPH_READY)) {
-		PRINT_ERROR("%s", "New cmd while shutting down the session");
+		PRINT_CRIT_ERROR("%s", "New cmd while shutting down the session");
 		sBUG();
 	}
 #endif
@@ -381,13 +381,15 @@ static int scst_pre_parse(struct scst_cmd *cmd)
 			if (scst_cmd_is_expected_set(cmd)) {
 				/*
 				 * Command data length can't be easily
-				 * determined from the CDB. ToDo, that should 
-				 * be fixed. Until it's fixed, get it from
-				 * the supplied expected value, but
-				 * limit it to some reasonable value (15MB).
+				 * determined from the CDB. ToDo, all such
+				 * commands should be fixed. Until they are
+				 * fixed, get it from the supplied expected
+				 * value, but limit it to some reasonable
+				 * value (15MB).
 				 */
 				cmd->bufflen = min(cmd->expected_transfer_len,
 							15*1024*1024);
+				cmd->op_flags &= ~SCST_UNKNOWN_LENGTH;
 			} else
 				cmd->bufflen = 0;
 		}
@@ -3136,8 +3138,8 @@ void scst_process_active_cmd(struct scst_cmd *cmd, int context)
 			break;
 
 		default:
-			PRINT_ERROR("cmd (%p) in state %d, but shouldn't be",
-			       cmd, cmd->state);
+			PRINT_CRIT_ERROR("cmd (%p) in state %d, but shouldn't "
+				"be", cmd, cmd->state);
 			sBUG();
 			res = SCST_CMD_STATE_RES_CONT_NEXT;
 			break;
@@ -3169,7 +3171,7 @@ void scst_process_active_cmd(struct scst_cmd *cmd, int context)
 		/* not very valid commands */
 		case SCST_CMD_STATE_DEFAULT:
 		case SCST_CMD_STATE_NEED_THREAD_CTX:
-			PRINT_ERROR("cmd %p is in state %d, not putting on "
+			PRINT_CRIT_ERROR("cmd %p is in state %d, not putting on "
 				"useful list (left on scst cmd list)", cmd, 
 				cmd->state);
 			spin_unlock_irq(&cmd->cmd_lists->cmd_list_lock);
@@ -4575,7 +4577,7 @@ static int scst_post_rx_mgmt_cmd(struct scst_session *sess,
 	scst_sess_get(sess);
 
 	if (unlikely(sess->shut_phase != SCST_SESS_SPH_READY)) {
-		PRINT_ERROR("New mgmt cmd while shutting down the session %p "
+		PRINT_CRIT_ERROR("New mgmt cmd while shutting down the session %p "
 			"shut_phase %ld", sess, sess->shut_phase);
 		sBUG();
 	}
@@ -5024,7 +5026,7 @@ int scst_mgmt_thread(void *arg)
 			if (sess->init_phase == SCST_SESS_IPH_INITING)
 				scst_init_session(sess);
 			else {
-				PRINT_ERROR("session %p is in "
+				PRINT_CRIT_ERROR("session %p is in "
 					"scst_sess_init_list, but in unknown "
 					"init phase %x", sess,
 					sess->init_phase);
@@ -5051,7 +5053,7 @@ int scst_mgmt_thread(void *arg)
 				scst_free_session_callback(sess);
 				break;
 			default:
-				PRINT_ERROR("session %p is in "
+				PRINT_CRIT_ERROR("session %p is in "
 					"scst_sess_shut_list, but in unknown "
 					"shut phase %lx", sess,
 					sess->shut_phase);
