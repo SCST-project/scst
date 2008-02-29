@@ -1742,7 +1742,7 @@ static void execute_task_management(struct iscsi_cmnd *req)
 	struct iscsi_session *sess = conn->session;
 	struct iscsi_task_mgt_hdr *req_hdr =
 		(struct iscsi_task_mgt_hdr *)&req->pdu.bhs;
-	int err = 0, function = req_hdr->function & ISCSI_FUNCTION_MASK;
+	int rc, status, function = req_hdr->function & ISCSI_FUNCTION_MASK;
 	struct scst_rx_mgmt_params params;
 
 	TRACE((function == ISCSI_FUNCTION_ABORT_TASK) ? TRACE_MGMT_MINOR : TRACE_MGMT,
@@ -1754,13 +1754,20 @@ static void execute_task_management(struct iscsi_cmnd *req)
 	iscsi_extracheck_is_rd_thread(conn);
 
 	spin_lock(&sess->sn_lock);
-	sess->tm_active = 1;
+	sess->tm_active++;
 	sess->tm_sn = req_hdr->cmd_sn;
 	if (sess->tm_rsp != NULL) {
 		struct iscsi_cmnd *tm_rsp = sess->tm_rsp;
+
 		TRACE(TRACE_MGMT_MINOR, "Dropping delayed TM rsp %p", tm_rsp);
+
 		sess->tm_rsp = NULL;
+		sess->tm_active--;
+
 		spin_unlock(&sess->sn_lock);
+
+		sBUG_ON(sess->tm_active < 0);
+
 		rsp_cmnd_release(tm_rsp);
 	} else
 		spin_unlock(&sess->sn_lock);
@@ -1773,7 +1780,8 @@ static void execute_task_management(struct iscsi_cmnd *req)
 	    (req_hdr->rtt != ISCSI_RESERVED_TAG)) {
 		PRINT_ERROR("Invalid RTT %x (TM fn %x)", req_hdr->rtt,
 			function);
-		err = -1;
+		rc = -1;
+		status = ISCSI_RESPONSE_FUNCTION_REJECTED;
 		goto reject;
 	}
 
@@ -1781,8 +1789,9 @@ static void execute_task_management(struct iscsi_cmnd *req)
 
 	switch (function) {
 	case ISCSI_FUNCTION_ABORT_TASK:
-		err = cmnd_abort(req);
-		if (err == 0) {
+		rc = -1;
+		status = cmnd_abort(req);
+		if (status == 0) {
 			params.fn = SCST_ABORT_TASK;
 			params.tag = req_hdr->rtt;
 			params.tag_set = 1;
@@ -1791,8 +1800,9 @@ static void execute_task_management(struct iscsi_cmnd *req)
 			params.lun_set = 1;
 			params.cmd_sn = req_hdr->cmd_sn;
 			params.cmd_sn_set = 1;
-			err = scst_rx_mgmt_fn(conn->session->scst_sess,
+			rc = scst_rx_mgmt_fn(conn->session->scst_sess,
 				&params);
+			status = ISCSI_RESPONSE_FUNCTION_REJECTED;
 		}
 		break;
 	case ISCSI_FUNCTION_ABORT_TASK_SET:
@@ -1803,8 +1813,9 @@ static void execute_task_management(struct iscsi_cmnd *req)
 		params.lun_set = 1;
 		params.cmd_sn = req_hdr->cmd_sn;
 		params.cmd_sn_set = 1;
-		err = scst_rx_mgmt_fn(conn->session->scst_sess,
+		rc = scst_rx_mgmt_fn(conn->session->scst_sess,
 			&params);
+		status = ISCSI_RESPONSE_FUNCTION_REJECTED;
 		break;
 	case ISCSI_FUNCTION_CLEAR_TASK_SET:
 		task_set_abort(req);
@@ -1814,8 +1825,9 @@ static void execute_task_management(struct iscsi_cmnd *req)
 		params.lun_set = 1;
 		params.cmd_sn = req_hdr->cmd_sn;
 		params.cmd_sn_set = 1;
-		err = scst_rx_mgmt_fn(conn->session->scst_sess,
+		rc = scst_rx_mgmt_fn(conn->session->scst_sess,
 			&params);
+		status = ISCSI_RESPONSE_FUNCTION_REJECTED;
 		break;
 	case ISCSI_FUNCTION_CLEAR_ACA:
 		params.fn = SCST_CLEAR_ACA;
@@ -1824,8 +1836,9 @@ static void execute_task_management(struct iscsi_cmnd *req)
 		params.lun_set = 1;
 		params.cmd_sn = req_hdr->cmd_sn;
 		params.cmd_sn_set = 1;
-		err = scst_rx_mgmt_fn(conn->session->scst_sess,
+		rc = scst_rx_mgmt_fn(conn->session->scst_sess,
 			&params);
+		status = ISCSI_RESPONSE_FUNCTION_REJECTED;
 		break;
 	case ISCSI_FUNCTION_TARGET_COLD_RESET:
 	case ISCSI_FUNCTION_TARGET_WARM_RESET:
@@ -1833,8 +1846,9 @@ static void execute_task_management(struct iscsi_cmnd *req)
 		params.fn = SCST_TARGET_RESET;
 		params.cmd_sn = req_hdr->cmd_sn;
 		params.cmd_sn_set = 1;
-		err = scst_rx_mgmt_fn(conn->session->scst_sess,
+		rc = scst_rx_mgmt_fn(conn->session->scst_sess,
 			&params);
+		status = ISCSI_RESPONSE_FUNCTION_REJECTED;
 		break;
 	case ISCSI_FUNCTION_LOGICAL_UNIT_RESET:
 		target_abort(req, 0);
@@ -1844,25 +1858,26 @@ static void execute_task_management(struct iscsi_cmnd *req)
 		params.lun_set = 1;
 		params.cmd_sn = req_hdr->cmd_sn;
 		params.cmd_sn_set = 1;
-		err = scst_rx_mgmt_fn(conn->session->scst_sess,
+		rc = scst_rx_mgmt_fn(conn->session->scst_sess,
 			&params);
+		status = ISCSI_RESPONSE_FUNCTION_REJECTED;
 		break;
 	case ISCSI_FUNCTION_TASK_REASSIGN:
-		iscsi_send_task_mgmt_resp(req, 
-			ISCSI_RESPONSE_FUNCTION_UNSUPPORTED);
+		rc = -1;
+		status = ISCSI_RESPONSE_FUNCTION_UNSUPPORTED;
 		break;
 	default:
 		PRINT_ERROR("Unknown TM function %d", function);
-		iscsi_send_task_mgmt_resp(req,
-			ISCSI_RESPONSE_FUNCTION_REJECTED);
+		rc = -1;
+		status = ISCSI_RESPONSE_FUNCTION_REJECTED;
 		break;
 	}
 
 reject:
-	if (err != 0) {
-		iscsi_send_task_mgmt_resp(req,
-			ISCSI_RESPONSE_FUNCTION_REJECTED);
-	}
+	if (rc != 0)
+		iscsi_send_task_mgmt_resp(req, status);
+
+	return;
 }
 
 static void noop_out_exec(struct iscsi_cmnd *req)
@@ -2140,7 +2155,7 @@ static void iscsi_session_push_cmnd(struct iscsi_cmnd *cmnd)
 		while (1) {
 			session->exp_cmd_sn = ++cmd_sn;
 
-			if (unlikely(session->tm_active)) {
+			if (unlikely(session->tm_active > 0)) {
 				if (before(cmd_sn, session->tm_sn)) {
 					struct iscsi_conn *conn = cmnd->conn;
 
@@ -2476,7 +2491,11 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 	u8 *sense = scst_cmd_get_sense_buffer(scst_cmd);
 	int sense_len = scst_cmd_get_sense_buffer_len(scst_cmd);
 	int old_state = req->scst_state;
+#if 0 /* temp. ToDo */
 	bool single_only = !scst_get_long_xmit(scst_cmd);
+#else
+	bool single_only = 0;
+#endif
 
 	scst_cmd_set_tgt_priv(scst_cmd, NULL);
 
@@ -2622,9 +2641,11 @@ static void iscsi_check_send_delayed_tm_resp(struct iscsi_session *sess)
 	TRACE(TRACE_MGMT_MINOR, "Sending delayed rsp %p", tm_rsp);
 
 	sess->tm_rsp = NULL;
-	sess->tm_active = 0;
+	sess->tm_active--;
 
 	spin_unlock(&sess->sn_lock);
+
+	sBUG_ON(sess->tm_active < 0);
 
 	iscsi_cmnd_init_write(tm_rsp,
 		ISCSI_INIT_WRITE_REMOVE_HASH | ISCSI_INIT_WRITE_WAKE);
@@ -2676,8 +2697,10 @@ static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status)
 		spin_unlock(&sess->sn_lock);
 		goto out_release;
 	}
-	sess->tm_active = 0;
+	sess->tm_active--;
 	spin_unlock(&sess->sn_lock);
+
+	sBUG_ON(sess->tm_active < 0);
 
 	iscsi_cmnd_init_write(rsp,
 		ISCSI_INIT_WRITE_REMOVE_HASH | ISCSI_INIT_WRITE_WAKE);

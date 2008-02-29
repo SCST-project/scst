@@ -719,13 +719,15 @@ int scst_acg_add_dev(struct scst_acg *acg, struct scst_device *dev, lun_t lun,
 out:
 	if (res == 0) {
 		if (dev->virt_name != NULL) {
-			PRINT_INFO("Added device %s to group %s",
-				dev->virt_name, acg->acg_name);
+			PRINT_INFO("Added device %s to group %s (LUN %Ld, "
+				"rd_only %d)", dev->virt_name, acg->acg_name,
+				lun, read_only);
 		} else {
-			PRINT_INFO("Added device %d:%d:%d:%d to group %s",
-				dev->scsi_dev->host->host_no,
+			PRINT_INFO("Added device %d:%d:%d:%d to group %s (LUN "
+				"%Ld, rd_only %d)", dev->scsi_dev->host->host_no,
 				dev->scsi_dev->channel,	dev->scsi_dev->id,
-				dev->scsi_dev->lun, acg->acg_name);
+				dev->scsi_dev->lun, acg->acg_name, lun,
+				read_only);
 		}
 	}
 
@@ -1568,9 +1570,9 @@ int scst_alloc_space(struct scst_cmd *cmd)
 		flags |= SCST_POOL_ALLOC_NO_CACHED;
 
 	if (unlikely(cmd->bufflen == 0)) {
-		TRACE(TRACE_MGMT_MINOR, "Data direction %d or/and zero buffer "
-			"length. Opcode 0x%x, handler %s, target %s",
-			cmd->data_direction, cmd->cdb[0],
+		TRACE(TRACE_MGMT_MINOR, "Warning: data direction %d or/and "
+			"zero buffer length. Opcode 0x%x, handler %s, target "
+			"%s", cmd->data_direction, cmd->cdb[0],
 			cmd->dev->handler->name, cmd->tgtt->name);
 		/*
 		 * Be on the safe side and alloc stub buffer. Neither target

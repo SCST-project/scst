@@ -61,16 +61,17 @@ static void iscsi_check_closewait(struct iscsi_conn *conn)
 
 	TRACE_ENTRY();
 
-	if ((conn->sock->sk->sk_state != TCP_CLOSE_WAIT) &&
-	    (conn->sock->sk->sk_state != TCP_CLOSE)) {
-		TRACE_CONN_CLOSE("sk_state %d, skipping",
-			conn->sock->sk->sk_state);
+	TRACE_CONN_CLOSE("conn %p, sk_state %d", conn, conn->sock->sk->sk_state);
+
+	if (conn->sock->sk->sk_state != TCP_CLOSE) {
+		TRACE_CONN_CLOSE_DBG("conn %p, skipping", conn);
 		goto out;
 	}
 
 	/*
-	 * No data are going to be sent, so all being sent buffers can be freed
-	 * now. Strange that TCP doesn't do that itself.
+	 * No data are going to be sent, so all queued buffers can be freed
+	 * now. In many cases TCP does that only in close(), but we can't rely
+	 * on user space on calling it.
 	 */
 
 again:
@@ -235,7 +236,8 @@ static void close_conn(struct iscsi_conn *conn)
 			TRACE(TRACE_MGMT_MINOR, "Dropping delayed TM rsp %p",
 				tm_rsp);
 			session->tm_rsp = NULL;
-			session->tm_active = 0;
+			session->tm_active--;
+			WARN_ON(session->tm_active < 0);
 			spin_unlock(&session->sn_lock);
 			mutex_unlock(&target->target_mutex);
 
@@ -329,8 +331,16 @@ static void close_conn(struct iscsi_conn *conn)
 		iscsi_make_conn_wr_active(conn);
 
 		if (time_after(jiffies, start_waiting + 7*HZ)) {
-			TRACE_CONN_CLOSE("%s", "Wait time expired");
+			TRACE_CONN_CLOSE("Wait time expired (conn %p, "
+				"sk_state %d)", conn, conn->sock->sk->sk_state);
 			conn->sock->ops->shutdown(conn->sock, SEND_SHUTDOWN);
+		}
+
+		if (time_after(jiffies, start_waiting + 15*HZ)) {
+			TRACE_CONN_CLOSE("Wait time after shutdown expired "
+				"(conn %p, sk_state %d)", conn,
+				conn->sock->sk->sk_state);
+			conn->sock->sk->sk_prot->disconnect(conn->sock->sk, 0);
 		}
 
 		msleep(200);
@@ -914,6 +924,7 @@ static int write_data(struct iscsi_conn *conn)
 		spin_unlock_bh(&conn->write_list_lock);
 	}
 
+#if 0 /* temp. ToDo */
 	if (!timer_pending(&conn->rsp_timer)) {
 		sBUG_ON(!ref_cmd->on_written_list);
 		spin_lock_bh(&conn->write_list_lock);
@@ -925,6 +936,7 @@ static int write_data(struct iscsi_conn *conn)
 		}
 		spin_unlock_bh(&conn->write_list_lock);
 	}
+#endif
 
 	file = conn->file;
 	saved_size = size = conn->write_size;

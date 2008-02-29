@@ -476,6 +476,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 		PRINT_ERROR("Dev handler supplied data buffer (size %d), "
 			"is less, than required (size %d)", cmd->bufflen,
 			orig_bufflen);
+		PRINT_BUFFER("Failed CDB", cmd->cdb, cmd->cdb_len);
 		goto out_error;
 	}
 
@@ -487,6 +488,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 		PRINT_ERROR("Unknown data transfer length for opcode 0x%x "
 			"(handler %s, target %s)", cmd->cdb[0],
 			dev->handler->name, cmd->tgtt->name);
+		PRINT_BUFFER("Failed CDB", cmd->cdb, cmd->cdb_len);
 		goto out_error;
 	}
 
@@ -499,6 +501,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 			"or sg %p (opcode 0x%x)", dev->handler->name, 
 			cmd->data_direction, cmd->bufflen, state, cmd->sg,
 			cmd->cdb[0]);
+		PRINT_BUFFER("Failed CDB", cmd->cdb, cmd->cdb_len);
 		goto out_error;
 	}
 #endif
@@ -513,20 +516,27 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 				"bufflen %d, expected_transfer_len %d",
 				cmd->data_direction, cmd->expected_data_direction,
 				cmd->bufflen, cmd->expected_transfer_len);
+			PRINT_BUFFER("Failed CDB", cmd->cdb, cmd->cdb_len);
 		}
 #	endif
 		cmd->data_direction = cmd->expected_data_direction;
 		cmd->bufflen = cmd->expected_transfer_len;
 #else
 		if (unlikely(cmd->data_direction != cmd->expected_data_direction)) {
-			PRINT_ERROR("Expected data direction %d for opcode "
-				"0x%02x (handler %s, target %s) doesn't match "
-				"decoded value %d", cmd->data_direction,
-				cmd->cdb[0], dev->handler->name,
-				cmd->tgtt->name, cmd->expected_data_direction);
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_invalid_message));
-			goto out_dev_done;
+			if (((cmd->expected_data_direction != SCST_DATA_NONE) ||
+			    (cmd->bufflen != 0)) &&
+			    /* Crazy VMware people sometimes do TUR with READ direction */
+			    !(cmd->cdb[0] == TEST_UNIT_READY)) {
+				PRINT_ERROR("Expected data direction %d for opcode "
+					"0x%02x (handler %s, target %s) doesn't match "
+					"decoded value %d", cmd->expected_data_direction,
+					cmd->cdb[0], dev->handler->name,
+					cmd->tgtt->name, cmd->data_direction);
+				PRINT_BUFFER("Failed CDB", cmd->cdb, cmd->cdb_len);
+				scst_set_cmd_error(cmd,
+					SCST_LOAD_SENSE(scst_sense_invalid_message));
+				goto out_dev_done;
+			}
 		}
 		if (unlikely(cmd->bufflen != cmd->expected_transfer_len)) {
 			TRACE(TRACE_MINOR, "Warning: expected transfer length "
@@ -547,6 +557,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 		PRINT_ERROR("Unknown data direction. Opcode 0x%x, handler %s, "
 			"target %s", cmd->cdb[0], dev->handler->name,
 			cmd->tgtt->name);
+		PRINT_BUFFER("Failed CDB", cmd->cdb, cmd->cdb_len);
 		goto out_error;
 	}
 
@@ -1418,7 +1429,8 @@ static int scst_reserve_local(struct scst_cmd *cmd)
 
 	dev = cmd->dev;
 
-	scst_block_dev_cmd(cmd, 1);
+	if (dev->tst == SCST_CONTR_MODE_ONE_TASK_SET)
+		scst_block_dev_cmd(cmd, 1);
 
 	rc = scst_check_local_events(cmd);
 	if (unlikely(rc != 0))
@@ -1473,7 +1485,8 @@ static int scst_release_local(struct scst_cmd *cmd)
 
 	dev = cmd->dev;
 
-	scst_block_dev_cmd(cmd, 1);
+	if (dev->tst == SCST_CONTR_MODE_ONE_TASK_SET)
+		scst_block_dev_cmd(cmd, 1);
 
 	rc = scst_check_local_events(cmd);
 	if (unlikely(rc != 0))
@@ -3497,7 +3510,7 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 	TRACE_ENTRY();
 
 	TRACE(((mcmd != NULL) && (mcmd->fn == SCST_ABORT_TASK)) ? TRACE_MGMT_MINOR : TRACE_MGMT,
-		"Aborting cmd %p (tag %llu)", cmd, cmd->tag);
+		"Aborting cmd %p (tag %llu, op %x)", cmd, cmd->tag, cmd->cdb[0]);
 
 	if (other_ini) {
 		set_bit(SCST_CMD_ABORTED_OTHER, &cmd->cmd_flags);
@@ -3890,11 +3903,17 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 	}
 
 	case SCST_TARGET_RESET:
-	case SCST_ABORT_ALL_TASKS:
+	case SCST_NEXUS_LOSS_SESS:
+	case SCST_ABORT_ALL_TASKS_SESS:
 	case SCST_NEXUS_LOSS:
+	case SCST_ABORT_ALL_TASKS:
+	case SCST_UNREG_SESS_TM:
 		break;
 
-	default:
+	case SCST_ABORT_TASK_SET:
+	case SCST_CLEAR_ACA:
+	case SCST_CLEAR_TASK_SET:
+	case SCST_LUN_RESET:
 		rc = scst_mgmt_translate_lun(mcmd);
 		if (rc < 0) {
 			PRINT_ERROR("Corresponding device for lun %Ld not "
@@ -3904,6 +3923,9 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 		} else if (rc != 0)
 			res = rc;
 		break;
+
+	default:
+		sBUG();
 	}
 
 out:
@@ -4315,9 +4337,13 @@ static int scst_mgmt_cmd_check_nexus_loss(struct scst_mgmt_cmd *mcmd)
 	if ((mcmd->fn == SCST_UNREG_SESS_TM) &&
 	    (mcmd->sess->unreg_cmds_done_fn != NULL)) {
 		struct scst_session *sess = mcmd->sess;
+
 		TRACE_MGMT_DBG("Calling unreg_cmds_done_fn(%p)", sess);
 		sess->unreg_cmds_done_fn(sess);
 		TRACE_MGMT_DBG("task_mgmt_all_cmds_done(%p) returned", sess);
+
+		/* To prevent scst_mgmt_cmd_send_done() to call it again */
+		sess->unreg_cmds_done_fn = NULL;
 	}
 
 	mcmd->nexus_loss_check_done = 1;
@@ -4332,6 +4358,7 @@ static void scst_mgmt_cmd_send_done(struct scst_mgmt_cmd *mcmd)
 {
 	struct scst_device *dev;
 	struct scst_tgt_dev *tgt_dev;
+	struct scst_session *sess = mcmd->sess;
 
 	TRACE_ENTRY();
 
@@ -4342,13 +4369,20 @@ static void scst_mgmt_cmd_send_done(struct scst_mgmt_cmd *mcmd)
 	TRACE(TRACE_MGMT_MINOR, "TM command fn %d finished, status %x",
 		mcmd->fn, mcmd->status);
 
-	if (mcmd->sess->tgt->tgtt->task_mgmt_fn_done &&
-	    (mcmd->fn != SCST_UNREG_SESS_TM)) {
-		TRACE_DBG("Calling target %s task_mgmt_fn_done()",
-		      mcmd->sess->tgt->tgtt->name);
-		mcmd->sess->tgt->tgtt->task_mgmt_fn_done(mcmd);
-		TRACE_MGMT_DBG("Target's %s task_mgmt_fn_done() returned",
-		      mcmd->sess->tgt->tgtt->name);
+	if (mcmd->fn == SCST_UNREG_SESS_TM) {
+		if (sess->unreg_cmds_done_fn != NULL) {
+			TRACE_MGMT_DBG("Calling unreg_cmds_done_fn(%p)", sess);
+			sess->unreg_cmds_done_fn(sess);
+			TRACE_MGMT_DBG("task_mgmt_all_cmds_done(%p) returned", sess);
+		}
+	} else {
+		if (sess->tgt->tgtt->task_mgmt_fn_done) {
+			TRACE_DBG("Calling target %s task_mgmt_fn_done(%p)",
+				sess->tgt->tgtt->name, sess);
+			sess->tgt->tgtt->task_mgmt_fn_done(mcmd);
+			TRACE_MGMT_DBG("Target's %s task_mgmt_fn_done() "
+				"returned", sess->tgt->tgtt->name);
+		}
 	}
 
 	if (mcmd->needs_unblocking) {

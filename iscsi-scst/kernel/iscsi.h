@@ -99,8 +99,7 @@ struct iscsi_session {
 	u32 exp_cmd_sn; /* protected by sn_lock */
 
 	/* All 3 protected by sn_lock */
-	unsigned int tm_active:1;
-	unsigned int shutting_down:1; /* Let's save some cache footprint by putting it here */
+	int tm_active;
 	u32 tm_sn;
 	struct iscsi_cmnd *tm_rsp;
 
@@ -118,6 +117,7 @@ struct iscsi_session {
 
 	/* Both don't need any protection */
 	char *initiator_name;
+	unsigned int shutting_down:1;
 	u64 sid;
 };
 

@@ -240,7 +240,9 @@ static inline void scst_make_deferred_commands_active(
 		spin_lock_irq(&c->cmd_lists->cmd_list_lock);
 		list_add_tail(&c->cmd_list_entry,
 			&c->cmd_lists->active_cmd_list);
+#if 0 /* temp. ToDo */
 		if (!curr_cmd->context_processable || curr_cmd->long_xmit)
+#endif
 			wake_up(&c->cmd_lists->cmd_list_waitQ);
 		spin_unlock_irq(&c->cmd_lists->cmd_list_lock);
 	}

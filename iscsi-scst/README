@@ -115,15 +115,6 @@ iscsi-scstd.conf file for the corresponding target to some lower value,
 like 8 (default is 32). See also SCST README file for more details about
 that issue.
 
-Sometimes, when there are communication problems with initiator(s),
-shutting down iSCSI-SCST can take very long time, up to about 10
-minutes. This can happen, because iSCSI-SCST can't be shutdown before
-all already sent to TCP for initiator(s) data will be actually sent
-and/or released by TCP. In case of communication failures this can take
-up to TCP transmit timeout, which is about 10 minutes. In such cases
-using netstat utility you can see that there is/are connection(s) to
-initiator(s) with non-0 "Send-Q".
-
 CAUTION:  Working of target and initiator on the same host isn't
 ========  supported. See SCST README file for details.
 

@@ -2571,6 +2571,43 @@ out:
 	return res;
 }
 
+static void vdisk_report_registering(const char *type,
+	const struct scst_vdisk_dev *virt_dev)
+{
+	char buf[128];
+	int i, j;
+
+	i = snprintf(buf, sizeof(buf), "Registering virtual %s device %s",
+		type, virt_dev->name);
+	j = i;
+
+	if (virt_dev->wt_flag)
+		i += snprintf(&buf[i], sizeof(buf) - i, " (WRITE_THROUGH");
+
+	if (virt_dev->nv_cache)
+		i += snprintf(&buf[i], sizeof(buf) - i, "%sNV_CACHE",
+			(j == i) ? "(" : ", ");
+
+	if (virt_dev->rd_only_flag)
+		i += snprintf(&buf[i], sizeof(buf) - i, "%sREAD_ONLY",
+			(j == i) ? "(" : ", ");
+
+	if (virt_dev->o_direct_flag)
+		i += snprintf(&buf[i], sizeof(buf) - i, "%sO_DIRECT",
+			(j == i) ? "(" : ", ");
+
+	if (virt_dev->nullio)
+		i += snprintf(&buf[i], sizeof(buf) - i, "%sNULLIO",
+			(j == i) ? "(" : ", ");
+
+	if (j == i)
+		PRINT_INFO("%s", buf);
+	else
+		PRINT_INFO("%s)", buf);
+
+	return;
+}
+
 /* 
  * Called when a file in the /proc/VDISK_NAME/VDISK_NAME is written
  */
@@ -2753,14 +2790,17 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 		list_add_tail(&virt_dev->vdisk_dev_list_entry,
 				  &vdisk_dev_list);
 
-		if (virt_dev->blockio)
+		if (virt_dev->blockio) {
+			vdisk_report_registering("BLOCKIO", virt_dev);
 			virt_dev->virt_id =
 				scst_register_virtual_device(&vdisk_blk_devtype,
 							 virt_dev->name);
-		else
+		} else {
+			vdisk_report_registering("FILEIO", virt_dev);
 			virt_dev->virt_id =
 				scst_register_virtual_device(&vdisk_devtype,
 							 virt_dev->name);
+		}
 		if (virt_dev->virt_id < 0) {
 			res = virt_dev->virt_id;
 			goto out_free_vpath;
@@ -2879,6 +2919,8 @@ static int vcdrom_open(char *p, char *name)
 
 	list_add_tail(&virt_dev->vdisk_dev_list_entry,
 		      &vcdrom_dev_list);
+
+	PRINT_INFO("Registering virtual CDROM %s", name);
 
 	virt_dev->virt_id =
 	    scst_register_virtual_device(&vcdrom_devtype,
