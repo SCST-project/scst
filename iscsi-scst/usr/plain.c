@@ -102,8 +102,9 @@ static int plain_account_init(char *filename)
 	u32 tid;
 	int idx, res = 0;
 
-	if (!(fp = fopen(filename, "r")))
-		return -EIO;
+	if (!(fp = fopen(filename, "r"))) {
+		return errno == ENOENT ? 0 : -errno;
+	}
 
 	tid = 0;
 	while (fgets(buf, sizeof(buf), fp)) {
@@ -520,8 +521,9 @@ static int plain_main_init(char *filename)
 	u32 tid, val;
 	int res = 0;
 
-	if (!(config = fopen(filename, "r")))
-		return -errno;
+	if (!(config = fopen(filename, "r"))) {
+		return errno == ENOENT ? 0 : -errno;
+	}
 
 	tid = 0;
 	while (fgets(buf, BUFSIZE, config)) {

@@ -1077,12 +1077,6 @@ struct scst_cmd
 	unsigned int sg_buff_modified:1;
 
 	/*
-	 * Set if the cmd's memory requirements are checked and found
-	 * acceptable
-	 */
-	unsigned int mem_checked:1;
-
-	/*
 	 * Set if scst_cmd_init_stage1_done() called and the target
 	 * want that preprocessing_done() will be called
 	 */
@@ -1146,6 +1140,8 @@ struct scst_cmd
 	struct scst_tgt_dev *tgt_dev;	/* corresponding device for this cmd */
 
 	lun_t lun;			/* LUN for this cmd */
+
+	unsigned long start_time;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
 	struct scsi_request *scsi_req;	/* SCSI request */

@@ -16,31 +16,34 @@
 #include "iscsi.h"
 #include "digest.h"
 
-#define	CHECK_PARAM(info, iparam, word, min, max)			\
-do {									\
-	if (!info->partial || (info->partial & 1 << key_##word))	\
-		if (iparam[key_##word] < min ||				\
-			iparam[key_##word] > max) {			\
-			PRINT_ERROR("%s: %u is out of range (%u %u)",\
-				#word, iparam[key_##word], min, max);	\
-			iparam[key_##word] = min;			\
-		}							\
+#define	CHECK_PARAM(info, iparam, word, min, max)				\
+do {										\
+	if (!(info)->partial || ((info)->partial & 1 << key_##word))		\
+		if ((iparam)[key_##word] < (min) ||				\
+			(iparam)[key_##word] > (max)) {				\
+			PRINT_ERROR("%s: %u is out of range (%u %u)",		\
+				#word, (iparam)[key_##word], (min), (max));	\
+			if ((iparam)[key_##word] < (min))			\
+				(iparam)[key_##word] = (min);			\
+			else							\
+				(iparam)[key_##word] = (max);			\
+		}								\
 } while (0)
 
-#define	SET_PARAM(param, info, iparam, word)				\
-({									\
-	int changed = 0;						\
-	if (!info->partial || (info->partial & 1 << key_##word)) {	\
-		if (param->word != iparam[key_##word])			\
-			changed = 1;					\
-		param->word = iparam[key_##word];			\
-	}								\
-	changed;							\
+#define	SET_PARAM(param, info, iparam, word)					\
+({										\
+	int changed = 0;							\
+	if (!(info)->partial || ((info)->partial & 1 << key_##word)) {		\
+		if ((param)->word != (iparam)[key_##word])			\
+			changed = 1;						\
+		(param)->word = (iparam)[key_##word];				\
+	}									\
+	changed;								\
 })
 
-#define	GET_PARAM(param, info, iparam, word)				\
-do {									\
-	iparam[key_##word] = param->word;				\
+#define	GET_PARAM(param, info, iparam, word)					\
+do {										\
+	(iparam)[key_##word] = (param)->word;					\
 } while (0)
 
 static const char *get_bool_name(int val)
@@ -191,7 +194,7 @@ static int trgt_param(struct iscsi_target *target, struct iscsi_param_info *info
 		trgt_param_set(target, info);
 
 		prm = &target->trgt_param;
-		PRINT_INFO("Target parameter changed: queued_cmnds %d",
+		PRINT_INFO("Target parameter changed: QueuedCommands %d",
 			prm->queued_cmnds);
 	} else
 		trgt_param_get(&target->trgt_param, info);

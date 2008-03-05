@@ -119,18 +119,17 @@ int cdrom_attach(struct scst_device *dev)
 
 		TRACE_DBG("READ_CAPACITY done: %x", res);
 
-		if (!res || (sbuff[12] != 0x28 && sbuff[12] != 0x29))
-		{
+		if ((res == 0) || (sbuff[2] != UNIT_ATTENTION))
 			break;
-		}
+
 		if (!--retries) {
-			PRINT_ERROR("UA not clear after %d retries",
+			PRINT_ERROR("UA not cleared after %d retries",
 				SCST_DEV_UA_RETRIES);
 			params->block_shift = CDROM_DEF_BLOCK_SHIFT;
-//			res = -ENODEV;
 			goto out_free_buf;
 		}
 	}
+
 	if (res == 0) {
 		int sector_size = ((buffer[4] << 24) | (buffer[5] << 16) |
 				      (buffer[6] << 8) | (buffer[7] << 0));
@@ -143,8 +142,6 @@ int cdrom_attach(struct scst_device *dev)
 	} else {
 		TRACE_BUFFER("Sense set", sbuff, SCST_SENSE_BUFFERSIZE);
 		params->block_shift = CDROM_DEF_BLOCK_SHIFT;
-//		res = -ENODEV;
-		goto out_free_buf;
 	}
 
 	res = scst_obtain_device_parameters(dev);

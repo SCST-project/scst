@@ -76,6 +76,8 @@ struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
 	cmd->tgt = sess->tgt;
 	cmd->tgtt = sess->tgt->tgtt;
 
+	cmd->start_time = jiffies;
+
 	/* 
 	 * For both wrong lun and CDB defer the error reporting for
 	 * scst_cmd_init_done()
@@ -3566,9 +3568,10 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 		 * we must wait here to be sure that we won't receive
 		 * double commands with the same tag.
 		 */
-		TRACE_MGMT_DBG("cmd %p (tag %llu) being executed/"
-			"xmitted (state %d), deferring ABORT...",
-			cmd, cmd->tag, cmd->state);
+		TRACE_MGMT_DBG("cmd %p (tag %llu) being executed/xmitted "
+			"(state %d, proc time %ld sec.), deferring ABORT...",
+			cmd, cmd->tag, cmd->state,
+			(long)(jiffies - cmd->start_time)/HZ);
 
 		mcmd->cmd_finish_wait_count++;
 
@@ -4346,7 +4349,9 @@ static int scst_mgmt_cmd_check_nexus_loss(struct scst_mgmt_cmd *mcmd)
 		sess->unreg_cmds_done_fn = NULL;
 	}
 
+	spin_lock_irq(&scst_mcmd_lock);
 	mcmd->nexus_loss_check_done = 1;
+	spin_unlock_irq(&scst_mcmd_lock);
 
 	res = scst_set_mcmd_next_state(mcmd);
 
