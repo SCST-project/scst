@@ -21,16 +21,17 @@
 #define __SCST_CDBPROBE_H
 
 /* get_trans_len_x extract x bytes from cdb as length starting from off */
-static uint32_t get_trans_len_1(const uint8_t *cdb, uint8_t off);
-static uint32_t get_trans_len_2(const uint8_t *cdb, uint8_t off);
-static uint32_t get_trans_len_3(const uint8_t *cdb, uint8_t off);
-static uint32_t get_trans_len_4(const uint8_t *cdb, uint8_t off);
+static int get_trans_len_1(struct scst_cmd *cmd, uint8_t off);
+static int get_trans_len_2(struct scst_cmd *cmd, uint8_t off);
+static int get_trans_len_3(struct scst_cmd *cmd, uint8_t off);
+static int get_trans_len_4(struct scst_cmd *cmd, uint8_t off);
 
 /* for special commands */
-static uint32_t get_trans_len_block_limit(const uint8_t *cdb, uint8_t off);
-static uint32_t get_trans_len_read_capacity(const uint8_t *cdb, uint8_t off);
-static uint32_t get_trans_len_single(const uint8_t *cdb, uint8_t off);
-static uint32_t get_trans_len_none(const uint8_t *cdb, uint8_t off);
+static int get_trans_len_block_limit(struct scst_cmd *cmd, uint8_t off);
+static int get_trans_len_read_capacity(struct scst_cmd *cmd, uint8_t off);
+static int get_trans_len_single(struct scst_cmd *cmd, uint8_t off);
+static int get_trans_len_none(struct scst_cmd *cmd, uint8_t off);
+static int get_trans_len_read_pos(struct scst_cmd *cmd, uint8_t off);
 
 /*
 +=====================================-============-======-
@@ -80,7 +81,7 @@ struct scst_sdbops
 				 */
 	uint8_t flags;		/* opcode --  various flags */
 	uint8_t off;		/* length offset in cdb */
-	uint32_t (*get_trans_len)(const uint8_t *cdb, uint8_t off) __attribute__ ((aligned));
+	int (*get_trans_len)(struct scst_cmd *cmd, uint8_t off) __attribute__ ((aligned));
 }  __attribute__((packed));
 
 static int scst_scsi_op_list[256];
@@ -252,7 +253,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{0x33, "O   OO O        ", "SET LIMITS(10)",
 	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
 	{0x34, " O              ", "READ POSITION",
-	 SCST_DATA_READ, SCST_SMALL_TIMEOUT, 7, get_trans_len_2},
+	 SCST_DATA_READ, SCST_SMALL_TIMEOUT, 7, get_trans_len_read_pos},
 	{0x34, "      O         ", "GET DATA BUFFER STATUS",
 	 SCST_DATA_READ, FLAG_NONE, 7, get_trans_len_2},
 	{0x34, "O   OO O        ", "PRE-FETCH",

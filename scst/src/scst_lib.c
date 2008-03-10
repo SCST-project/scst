@@ -1650,79 +1650,132 @@ int scst_get_cdb_len(const uint8_t *cdb)
 
 /* get_trans_len_x extract x bytes from cdb as length starting from off */
 
-static uint32_t get_trans_len_1(const uint8_t *cdb, uint8_t off)
-{
-	u32 len;
-
-	len = (u32)cdb[off];
-	return len;
-}
-
-static uint32_t get_trans_len_2(const uint8_t *cdb, uint8_t off)
-{
-	const uint8_t *p = cdb + off;
-	u32 len = 0;
-
-	len |= ((u32)p[0]) << 8;
-	len |= ((u32)p[1]);
-	return len;
-}
-
-static uint32_t get_trans_len_3(const uint8_t *cdb, uint8_t off)
-{
-	const uint8_t *p = cdb + off;
-	u32 len = 0;
-
-	len |= ((u32)p[0]) << 16;
-	len |= ((u32)p[1]) << 8;
-	len |= ((u32)p[2]);
-	return len;
-}
-
-static uint32_t get_trans_len_4(const uint8_t *cdb, uint8_t off)
-{
-	const uint8_t *p = cdb + off;
-	u32 len = 0;
-
-	len |= ((u32)p[0]) << 24;
-	len |= ((u32)p[1]) << 16;
-	len |= ((u32)p[2]) << 8;
-	len |= ((u32)p[3]);
-	return len;
-}
-
 /* for special commands */
-static uint32_t get_trans_len_block_limit(const uint8_t *cdb, uint8_t off)
+static int get_trans_len_block_limit(struct scst_cmd *cmd, uint8_t off)
 {
-	return 6;
-}
-
-static uint32_t get_trans_len_read_capacity(const uint8_t *cdb, uint8_t off)
-{
-	return READ_CAP_LEN;
-}
-
-static uint32_t get_trans_len_single(const uint8_t *cdb, uint8_t off)
-{
-	return 1;
-}
-
-static uint32_t get_trans_len_none(const uint8_t *cdb, uint8_t off)
-{
+	cmd->bufflen = 6;
 	return 0;
 }
 
-int scst_get_cdb_info(const uint8_t *cdb_p, int dev_type,
-	enum scst_cdb_flags *op_flags, scst_data_direction *direction,
-	unsigned int *transfer_len, int *cdb_len, const char **op_name)
+static int get_trans_len_read_capacity(struct scst_cmd *cmd, uint8_t off)
 {
+	cmd->bufflen = READ_CAP_LEN;
+	return 0;
+}
+
+static int get_trans_len_single(struct scst_cmd *cmd, uint8_t off)
+{
+	cmd->bufflen = 1;
+	return 0;
+}
+
+static int get_trans_len_read_pos(struct scst_cmd *cmd, uint8_t off)
+{
+	uint8_t *p = (uint8_t *)cmd->cdb + off;
+	int res = 0;
+
+	cmd->bufflen = 0;
+	cmd->bufflen |= ((u32)p[0]) << 8;
+	cmd->bufflen |= ((u32)p[1]);
+	
+	switch (cmd->cdb[1] & 0x1f) {
+	case 0:
+	case 1:
+	case 6:
+		if (cmd->bufflen != 0) {
+			PRINT_ERROR("READ POSITION: Invalid non-zero (%d) "
+				"allocation length for service action %x",
+				cmd->bufflen, cmd->cdb[1] & 0x1f);
+			goto out_inval;
+		}
+		break;
+	}
+
+	switch (cmd->cdb[1] & 0x1f) {
+	case 0:
+	case 1:
+		cmd->bufflen = 20;
+		break;
+	case 6:
+		cmd->bufflen = 32;
+		break;
+	case 8:
+		cmd->bufflen = max(28, cmd->bufflen);
+		break;
+	default:
+		PRINT_ERROR("READ POSITION: Invalid service action %x",
+			cmd->cdb[1] & 0x1f);
+		goto out_inval;
+	}
+
+out:
+	return res;
+
+out_inval:
+	scst_set_cmd_error(cmd,
+		SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+	res = 1;
+	goto out;
+}
+
+static int get_trans_len_1(struct scst_cmd *cmd, uint8_t off)
+{
+	cmd->bufflen = (u32)cmd->cdb[off];
+	return 0;
+}
+
+static int get_trans_len_2(struct scst_cmd *cmd, uint8_t off)
+{
+	const uint8_t *p = cmd->cdb + off;
+
+	cmd->bufflen = 0;
+	cmd->bufflen |= ((u32)p[0]) << 8;
+	cmd->bufflen |= ((u32)p[1]);
+
+	return 0;
+}
+
+static int get_trans_len_3(struct scst_cmd *cmd, uint8_t off)
+{
+	const uint8_t *p = cmd->cdb + off;
+
+	cmd->bufflen = 0;
+	cmd->bufflen |= ((u32)p[0]) << 16;
+	cmd->bufflen |= ((u32)p[1]) << 8;
+	cmd->bufflen |= ((u32)p[2]);
+
+	return 0;
+}
+
+static int get_trans_len_4(struct scst_cmd *cmd, uint8_t off)
+{
+	const uint8_t *p = cmd->cdb + off;
+
+	cmd->bufflen = 0;
+	cmd->bufflen |= ((u32)p[0]) << 24;
+	cmd->bufflen |= ((u32)p[1]) << 16;
+	cmd->bufflen |= ((u32)p[2]) << 8;
+	cmd->bufflen |= ((u32)p[3]);
+
+	return 0;
+}
+
+static int get_trans_len_none(struct scst_cmd *cmd, uint8_t off)
+{
+	cmd->bufflen = 0;
+	return 0;
+}
+
+int scst_get_cdb_info(struct scst_cmd *cmd)
+{
+	int dev_type = cmd->dev->handler->type;
 	int i, res = 0;
 	uint8_t op;
 	const struct scst_sdbops *ptr = NULL;
 
 	TRACE_ENTRY();
 
-	op = *cdb_p;	/* get clear opcode */
+	op = cmd->cdb[0];	/* get clear opcode */
 
 	TRACE_DBG("opcode=%02x, cdblen=%d bytes, tblsize=%d, "
 		"dev_type=%d", op, SCST_GET_CDB_LEN(op), SCST_CDB_TBL_SIZE,
@@ -1758,15 +1811,15 @@ int scst_get_cdb_info(const uint8_t *cdb_p, int dev_type,
 		TRACE(TRACE_SCSI, "Unknown opcode 0x%x for type %d", op,
 		      dev_type);
 		res = -1;
-		*op_flags = SCST_INFO_INVALID;
+		cmd->op_flags = SCST_INFO_INVALID;
 		goto out;
 	}
 
-	*cdb_len = SCST_GET_CDB_LEN(op);
-	*op_name = ptr->op_name;
-	*direction = ptr->direction;
-	*op_flags = ptr->flags;
-	*transfer_len = (*ptr->get_trans_len)(cdb_p, ptr->off);
+	cmd->cdb_len = SCST_GET_CDB_LEN(op);
+	cmd->op_name = ptr->op_name;
+	cmd->data_direction = ptr->direction;
+	cmd->op_flags = ptr->flags;
+	res = (*ptr->get_trans_len)(cmd, ptr->off);
 
 out:
 	TRACE_EXIT();
@@ -1788,7 +1841,7 @@ lun_t scst_unpack_lun(const uint8_t *lun, int len)
 
 	TRACE_BUFF_FLAG(TRACE_DEBUG, "Raw LUN", lun, len);
 
-	if (len < 2) {
+	if (unlikely(len < 2)) {
 		PRINT_ERROR("Illegal lun length %d, expected 2 bytes or "
 			"more", len);
 		goto out;
@@ -1797,12 +1850,10 @@ lun_t scst_unpack_lun(const uint8_t *lun, int len)
 	if (len > 2) {
 		switch(len) {
 		case 8:
-		{
 			if ((*((uint64_t*)lun) & 
 			  __constant_cpu_to_be64(0x0000FFFFFFFFFFFFLL)) != 0)
 				goto out_err;
 			break;
-		}
 		case 4:
 			if (*((uint16_t*)&lun[2]) != 0)
 				goto out_err;

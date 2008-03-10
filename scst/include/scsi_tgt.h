@@ -1284,7 +1284,6 @@ struct scst_mgmt_cmd
 	int fn;
 
 	unsigned int completed:1;	/* set, if the mcmd is completed */
-	unsigned int active:1;		/* set, if the mcmd is active */
 	/* Set if device(s) should be unblocked after mcmd's finish */
 	unsigned int needs_unblocking:1;
 	unsigned int lun_set:1;		/* set, if lun field is valid */
@@ -1884,11 +1883,9 @@ static inline int scst_rx_mgmt_fn_lun(struct scst_session *sess, int fn,
  *   cdb_p - pointer to CDB
  *   dev_type - SCSI device type
  *   op_flags, direction, transfer_len, cdb_len, op_name - the result (output)
- * Returns 0 on success, -1 otherwise
+ * Returns: 0 on success, <0 if command is unknown, >0 if command is invalid.
  */
-int scst_get_cdb_info(const uint8_t *cdb_p, int dev_type,
-	enum scst_cdb_flags *op_flags, scst_data_direction *direction,
-	unsigned int *transfer_len, int *cdb_len, const char **op_name);
+int scst_get_cdb_info(struct scst_cmd *cmd);
 
 /* 
  * Set error SCSI status in the command and prepares it for returning it

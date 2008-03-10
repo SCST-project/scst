@@ -316,6 +316,7 @@ static int scst_pre_parse(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_RES_CONT_SAME;
 	struct scst_device *dev = cmd->dev;
+	int rc;
 
 	TRACE_ENTRY();
 
@@ -333,12 +334,16 @@ static int scst_pre_parse(struct scst_cmd *cmd)
 	 * transfer data.
 	 */
 
-	if (unlikely(scst_get_cdb_info(cmd->cdb, dev->handler->type, 
-			&cmd->op_flags, &cmd->data_direction,
-			&cmd->bufflen, &cmd->cdb_len, &cmd->op_name) != 0)) {
+	rc = scst_get_cdb_info(cmd);
+	if (unlikely(rc != 0)) {
+		if (rc > 0) {
+			PRINT_BUFFER("Failed CDB", cmd->cdb, cmd->cdb_len);
+			goto out_xmit;
+		}
 		PRINT_ERROR("Unknown opcode 0x%02x for %s. "
 			"Should you update scst_scsi_op_table?",
 			cmd->cdb[0], dev->handler->name);
+		PRINT_BUFFER("Failed CDB", cmd->cdb, cmd->cdb_len);
 #ifdef USE_EXPECTED_VALUES
 		if (scst_cmd_is_expected_set(cmd)) {
 			TRACE(TRACE_SCSI, "Using initiator supplied values: "
@@ -3615,7 +3620,6 @@ static int scst_set_mcmd_next_state(struct scst_mgmt_cmd *mcmd)
 		res = -1;
 	}
 
-	mcmd->nexus_loss_check_active = 0;
 	mcmd->completed = 1;
 
 out_unlock:
@@ -4349,9 +4353,8 @@ static int scst_mgmt_cmd_check_nexus_loss(struct scst_mgmt_cmd *mcmd)
 		sess->unreg_cmds_done_fn = NULL;
 	}
 
-	spin_lock_irq(&scst_mcmd_lock);
 	mcmd->nexus_loss_check_done = 1;
-	spin_unlock_irq(&scst_mcmd_lock);
+	mcmd->nexus_loss_check_active = 0;
 
 	res = scst_set_mcmd_next_state(mcmd);
 
