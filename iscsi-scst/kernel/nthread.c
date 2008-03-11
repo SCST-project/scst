@@ -61,7 +61,8 @@ static void iscsi_check_closewait(struct iscsi_conn *conn)
 
 	TRACE_ENTRY();
 
-	TRACE_CONN_CLOSE("conn %p, sk_state %d", conn, conn->sock->sk->sk_state);
+	TRACE_CONN_CLOSE_DBG("conn %p, sk_state %d", conn,
+		conn->sock->sk->sk_state);
 
 	if (conn->sock->sk->sk_state != TCP_CLOSE) {
 		TRACE_CONN_CLOSE_DBG("conn %p, skipping", conn);
@@ -173,7 +174,7 @@ static void iscsi_unreg_cmds_done_fn(struct scst_session *scst_sess)
 
 	TRACE_ENTRY();
 
-	TRACE_CONN_CLOSE("sess %p (scst_sess %p)", sess, scst_sess);
+	TRACE_CONN_CLOSE_DBG("sess %p (scst_sess %p)", sess, scst_sess);
 
 	sess->shutting_down = 1;
 	complete_all(&sess->unreg_compl);
@@ -188,6 +189,8 @@ static void close_conn(struct iscsi_conn *conn)
 	struct iscsi_session *session = conn->session;
 	struct iscsi_target *target = conn->target;
 	unsigned long start_waiting = jiffies;
+	unsigned long shut_start_waiting = start_waiting;
+	bool pending_reported = 0, wait_expired = 0, shut_expired = 0;
 
 	TRACE_ENTRY();
 
@@ -198,12 +201,12 @@ static void close_conn(struct iscsi_conn *conn)
 
 	sBUG_ON(!conn->closing);
 
-	if (conn->force_close) {
-		conn->sock->ops->shutdown(conn->sock,
-			RCV_SHUTDOWN|SEND_SHUTDOWN);
-	} else {
+	if (conn->active_close) {
 		/* We want all our already send operations to complete */
 		conn->sock->ops->shutdown(conn->sock, RCV_SHUTDOWN);
+	} else {
+		conn->sock->ops->shutdown(conn->sock,
+			RCV_SHUTDOWN|SEND_SHUTDOWN);
 	}
 
 	/*
@@ -251,7 +254,7 @@ static void close_conn(struct iscsi_conn *conn)
 			struct list_head *pending_list = &session->pending_list;
 	 		int req_freed;
 
-	 		TRACE_CONN_CLOSE("Disposing pending commands on "
+	 		TRACE_CONN_CLOSE_DBG("Disposing pending commands on "
 	 			"connection %p (conn_ref_cnt=%d)", conn,
 	 			atomic_read(&conn->conn_ref_cnt));
 
@@ -267,13 +270,13 @@ static void close_conn(struct iscsi_conn *conn)
 				req_freed = 0;
 				list_for_each_entry(cmnd, pending_list,
 							pending_list_entry) {
-					TRACE_CONN_CLOSE("Pending cmd %p"
+					TRACE_CONN_CLOSE_DBG("Pending cmd %p"
 						"(conn %p, cmd_sn %u, exp_cmd_sn %u)",
 						cmnd, conn, cmnd->pdu.bhs.sn,
 						session->exp_cmd_sn);
 					if ((cmnd->conn == conn) &&
 					    (session->exp_cmd_sn == cmnd->pdu.bhs.sn)) {
-						TRACE_CONN_CLOSE("Freeing pending cmd %p",
+						TRACE_CONN_CLOSE_DBG("Freeing pending cmd %p",
 							cmnd);
 
 						list_del(&cmnd->pending_list_entry);
@@ -294,13 +297,16 @@ static void close_conn(struct iscsi_conn *conn)
 			spin_unlock(&session->sn_lock);
 
 			if (time_after(jiffies, start_waiting + 10*HZ)) {
-				TRACE_CONN_CLOSE("%s", "Pending wait time expired");
+				if (!pending_reported) {
+					TRACE_CONN_CLOSE("%s", "Pending wait time expired");
+					pending_reported = 1;
+				}
 				spin_lock(&session->sn_lock);
 				do {
 					req_freed = 0;
 					list_for_each_entry(cmnd, pending_list,
 							pending_list_entry) {
-						TRACE_CONN_CLOSE("Pending cmd %p"
+						TRACE_CONN_CLOSE_DBG("Pending cmd %p"
 							"(conn %p, cmd_sn %u, exp_cmd_sn %u)",
 							cmnd, conn, cmnd->pdu.bhs.sn,
 							session->exp_cmd_sn);
@@ -330,22 +336,28 @@ static void close_conn(struct iscsi_conn *conn)
 
 		iscsi_make_conn_wr_active(conn);
 
-		if (time_after(jiffies, start_waiting + 7*HZ)) {
+		if (time_after(jiffies, start_waiting + 10*HZ) && !wait_expired) {
 			TRACE_CONN_CLOSE("Wait time expired (conn %p, "
 				"sk_state %d)", conn, conn->sock->sk->sk_state);
 			conn->sock->ops->shutdown(conn->sock, SEND_SHUTDOWN);
+			wait_expired = 1;
+			shut_start_waiting = jiffies;
 		}
 
-		if (time_after(jiffies, start_waiting + 15*HZ)) {
-			TRACE_CONN_CLOSE("Wait time after shutdown expired "
-				"(conn %p, sk_state %d)", conn,
-				conn->sock->sk->sk_state);
-			conn->sock->sk->sk_prot->disconnect(conn->sock->sk, 0);
-		}
+		if (conn->deleting) {
+			if (wait_expired && !shut_expired &&
+			    time_after(jiffies, shut_start_waiting + 10*HZ)) {
+				TRACE_CONN_CLOSE("Wait time after shutdown expired "
+					"(conn %p, sk_state %d)", conn,
+					conn->sock->sk->sk_state);
+				conn->sock->sk->sk_prot->disconnect(conn->sock->sk, 0);
+				shut_expired = 1;
+			}
+			msleep(200);
+		} else
+			msleep(1000);
 
-		msleep(200);
-
-		TRACE_CONN_CLOSE("conn %p, conn_ref_cnt %d left, wr_state %d, "
+		TRACE_CONN_CLOSE_DBG("conn %p, conn_ref_cnt %d left, wr_state %d, "
 			"exp_cmd_sn %u", conn, atomic_read(&conn->conn_ref_cnt),
 			conn->wr_state, session->exp_cmd_sn);
 #ifdef DEBUG
@@ -427,8 +439,8 @@ static void close_conn(struct iscsi_conn *conn)
 		if (t && (atomic_read(&conn->conn_ref_cnt) == 0))
 			break;
 
-		TRACE_CONN_CLOSE("Waiting for wr thread (conn %p), wr_state %x",
-			conn, conn->wr_state);
+		TRACE_CONN_CLOSE_DBG("Waiting for wr thread (conn %p), "
+			"wr_state %x", conn, conn->wr_state);
 		msleep(50);
 	}
 

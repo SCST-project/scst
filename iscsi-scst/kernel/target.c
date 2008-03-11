@@ -240,7 +240,8 @@ void target_del_all(void)
 								conn_list_entry) {
 							TRACE_MGMT_DBG("Mark conn %p "
 								"closing", conn);
-							mark_conn_closed(conn);
+							__mark_conn_closed(conn,
+								ISCSI_CONN_ACTIVE_CLOSE|ISCSI_CONN_DELETING);
 						}
 					} else {
 						TRACE_MGMT_DBG("Freeing session %p "

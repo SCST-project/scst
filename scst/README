@@ -477,6 +477,13 @@ mode is used.
 For example, "echo "open disk1 /vdisks/disk1" >/proc/scsi_tgt/vdisk/vdisk"
 will open file /vdisks/disk1 as virtual FILEIO disk with name "disk1".
 
+CAUTION: If you partitioned/formatted your device with block size X, *NEVER*
+======== ever try to export and then mount it (even accidentally) with another
+         block size. Otherwise you can *instantly* damage it pretty
+	 badly as well as all your data on it. Messages on initiator like:
+	 "attempt to access beyond end of device" is the sign of such
+	 damage.
+
 IMPORTANT: By default for performance reasons VDISK FILEIO devices use write
 =========  back caching policy. This is generally safe from the consistence of
            journaled file systems, laying over them, point of view, but
@@ -743,13 +750,17 @@ the target abort or reset messages, then your backstorage is too slow
 comparing with your target link speed and amount of simultaneously
 queued commands. On some seek intensive workloads even fast disks or
 RAIDs, which able to serve continuous data stream on 500+ MB/s speed,
-can be as slow as 0.3 MB/s. So, simply processing of one or more
-commands takes too long time, hence initiator decides that they are
-stuck on the target and tries to recover. Particularly, it is known that
-the default amount of simultaneously queued commands (48) is sometimes
-too high if you do intensive writes from VMware on a target disk, which
-uses LVM in the snapshot mode. In this case value like 16 or even 8-10
-depending of your backstorage speed could be more appropriate.
+can be as slow as 0.3 MB/s. Another possible cause for that can be
+MD/LVM/RAID on your target as in http://lkml.org/lkml/2008/2/27/96
+(check the whole thread as well).
+
+Thus, in such situations simply processing of one or more commands takes
+too long time, hence initiator decides that they are stuck on the target
+and tries to recover. Particularly, it is known that the default amount
+of simultaneously queued commands (48) is sometimes too high if you do
+intensive writes from VMware on a target disk, which uses LVM in the
+snapshot mode. In this case value like 16 or even 8-10 depending of your
+backstorage speed could be more appropriate.
 
 Unfortunately, currently SCST lacks dynamic I/O flow control, when the
 queue depth on the target is dynamically decreased/increased based on

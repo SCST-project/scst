@@ -115,7 +115,7 @@ struct iscsi_session {
 
 	struct completion unreg_compl;
 
-	/* Both don't need any protection */
+	/* All don't need any protection */
 	char *initiator_name;
 	unsigned int shutting_down:1;
 	u64 sid;
@@ -185,11 +185,13 @@ struct iscsi_conn {
 	int hdigest_type;
 	int ddigest_type;
 
-	/* All 4 protected by iscsi_rd_lock */
+	/* All 5 protected by iscsi_rd_lock */
 	unsigned short rd_state;
 	unsigned short rd_data_ready:1;
-	unsigned short closing:1; /* Let's save some cache footprint by putting it here */
-	unsigned short force_close:1; /* Let's save some cache footprint by putting it here */
+	/* Let's save some cache footprint by putting them here */
+	unsigned short closing:1;
+	unsigned short active_close:1;
+	unsigned short deleting:1;
 
 	struct list_head rd_list_entry;
 
@@ -353,7 +355,11 @@ extern struct iscsi_conn *conn_lookup(struct iscsi_session *, u16);
 extern int conn_add(struct iscsi_session *, struct conn_info *);
 extern int conn_del(struct iscsi_session *, struct conn_info *);
 extern int conn_free(struct iscsi_conn *);
-extern void __mark_conn_closed(struct iscsi_conn *, bool);
+
+#define ISCSI_CONN_ACTIVE_CLOSE		1
+#define ISCSI_CONN_DELETING		2
+extern void __mark_conn_closed(struct iscsi_conn *, int);
+
 extern void mark_conn_closed(struct iscsi_conn *);
 extern void iscsi_make_conn_wr_active(struct iscsi_conn *);
 extern void conn_info_show(struct seq_file *, struct iscsi_session *);

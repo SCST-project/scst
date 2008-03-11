@@ -1288,7 +1288,6 @@ struct scst_mgmt_cmd
 	unsigned int needs_unblocking:1;
 	unsigned int lun_set:1;		/* set, if lun field is valid */
 	unsigned int cmd_sn_set:1;	/* set, if cmd_sn field is valid */
-	unsigned int nexus_loss_check_active:1; /* set, if nexus loss check is active */
 	unsigned int nexus_loss_check_done:1; /* set, if nexus loss check is done */
 
 	/*

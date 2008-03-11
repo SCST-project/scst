@@ -3399,7 +3399,7 @@ void scst_done_cmd_mgmt(struct scst_cmd *cmd)
 
 		if (mcmd->completed) {
 			sBUG_ON(mcmd->nexus_loss_check_done);
-			mcmd->nexus_loss_check_active = 1;
+			mcmd->completed = 0;
 			mcmd->state = SCST_MGMT_CMD_STATE_CHECK_NEXUS_LOSS;
 			TRACE_MGMT_DBG("Adding mgmt cmd %p to active mgmt cmd "
 				"list", mcmd);
@@ -3451,7 +3451,7 @@ static void scst_finish_cmd_mgmt(struct scst_cmd *cmd)
 			continue;
 		}
 
-		if (mcmd->completed && !mcmd->nexus_loss_check_active) {
+		if (mcmd->completed) {
 			mcmd->state = SCST_MGMT_CMD_STATE_DONE;
 			TRACE_MGMT_DBG("Adding mgmt cmd %p to active mgmt cmd "
 				"list",	mcmd);
@@ -4354,7 +4354,6 @@ static int scst_mgmt_cmd_check_nexus_loss(struct scst_mgmt_cmd *mcmd)
 	}
 
 	mcmd->nexus_loss_check_done = 1;
-	mcmd->nexus_loss_check_active = 0;
 
 	res = scst_set_mcmd_next_state(mcmd);
 

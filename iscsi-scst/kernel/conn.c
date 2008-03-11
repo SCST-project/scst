@@ -158,11 +158,14 @@ void iscsi_make_conn_wr_active(struct iscsi_conn *conn)
 	return;
 }
 
-void __mark_conn_closed(struct iscsi_conn *conn, bool force)
+void __mark_conn_closed(struct iscsi_conn *conn, int flags)
 {
 	spin_lock_bh(&iscsi_rd_lock);
 	conn->closing = 1;
-	conn->force_close = force;
+	if (flags & ISCSI_CONN_ACTIVE_CLOSE)
+		conn->active_close = 1;
+	if (flags & ISCSI_CONN_DELETING)
+		conn->deleting = 1;
 	spin_unlock_bh(&iscsi_rd_lock);
 
 	iscsi_make_conn_rd_active(conn);
@@ -170,7 +173,7 @@ void __mark_conn_closed(struct iscsi_conn *conn, bool force)
 
 void mark_conn_closed(struct iscsi_conn *conn)
 {
-	__mark_conn_closed(conn, 0);
+	__mark_conn_closed(conn, ISCSI_CONN_ACTIVE_CLOSE);
 }
 
 static void iscsi_state_change(struct sock *sk)
@@ -184,7 +187,7 @@ static void iscsi_state_change(struct sock *sk)
 			PRINT_ERROR("Connection with initiator %s (%p) "
 				"unexpectedly closed!",
 				conn->session->initiator_name, conn);
-			__mark_conn_closed(conn, 1);
+			__mark_conn_closed(conn, 0);
 		}
 	} else
 		iscsi_make_conn_rd_active(conn);
@@ -252,7 +255,7 @@ static void conn_rsp_timer_fn(unsigned long arg)
 					"%s (SID %Lx), closing connection",
 					conn->session->initiator_name,
 					conn->session->sid);
-				__mark_conn_closed(conn, 1);
+				mark_conn_closed(conn);
 			}
 		} else {
 			TRACE_DBG("Restarting timer on %ld (conn %p)",
@@ -438,7 +441,7 @@ int conn_del(struct iscsi_session *session, struct conn_info *info)
 	PRINT_INFO("Deleting connection with initiator %s (%p)",
 		conn->session->initiator_name, conn);
 
-	mark_conn_closed(conn);
+	__mark_conn_closed(conn, ISCSI_CONN_ACTIVE_CLOSE|ISCSI_CONN_DELETING);
 
 	return 0;
 }

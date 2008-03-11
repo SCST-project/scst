@@ -177,8 +177,9 @@ static void iscsi_session_info_show(struct seq_file *seq, struct iscsi_target *t
 	struct iscsi_session *session;
 
 	list_for_each_entry(session, &target->session_list, session_list_entry) {
-		seq_printf(seq, "\tsid:%llu initiator:%s\n",
-			   (unsigned long long) session->sid, session->initiator_name);
+		seq_printf(seq, "\tsid:%llu initiator:%s shutting down %d\n",
+			   (unsigned long long)session->sid,
+			   session->initiator_name, session->shutting_down);
 		conn_info_show(seq, session);
 	}
 }
