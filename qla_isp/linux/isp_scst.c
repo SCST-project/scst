@@ -471,11 +471,11 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
     spin_unlock_irqrestore(&scsi_target_lock, flags);
 
     tmd->cd_bus = bp;
-    tmd->cd_ini = ini_from_tmd(bp, tmd);
     tmd->cd_hnext = NULL;
     
     /* then, add commands to queue */
     spin_lock_irqsave(&bp->tmds_lock, flags);
+    tmd->cd_ini = ini_from_tmd(bp, tmd);
     if (bp->tmds_front == NULL) {
        bp->tmds_front = tmd; 
     } else {
@@ -519,35 +519,47 @@ add_initiators(void)
         spin_lock_irq(&bp->tmds_lock);	
         tmd = bp->tmds_front;
 	    while (tmd) {
-	        spin_unlock_irq(&bp->tmds_lock);
-	        if (tmd->cd_ini == NULL) {
-           	    ini = alloc_ini(bp, tmd->cd_iid);
+	        if (tmd->cd_ini != NULL) {
+                /* ini assigned, go to the next command */ 
+                prev_tmd = tmd;
+                tmd = tmd->cd_hnext;
+            } else {
+                /* check if proper initiator exist already */
+                ini = ini_from_tmd(bp, tmd);
            	    if (ini != NULL) {
-	  	            tmd->cd_ini = ini;
-	                add_ini(bp, tmd->cd_iid, ini);	
-		        } 
-	        }
-	        spin_lock_irq(&bp->tmds_lock);
-	        if (tmd->cd_ini == NULL) {
-	            /* fail to alloc initiator, remove from queue and send busy */
-	            if (prev_tmd == NULL) {
-                    bp->tmds_front = tmd->cd_hnext;
-	            } else {
-	                prev_tmd->cd_hnext = tmd->cd_hnext;
-	            }
-	            if (bp->tmds_tail == tmd) {
-                    bp->tmds_tail = prev_tmd; 
-	            }
-	            // FIXME: spin unlock/lock 
-                tmd->cd_scsi_status = SCSI_BUSY;
-	            xact = &tmd->cd_xact;
-                xact->td_hflags |= TDFH_STSVALID;
-                xact->td_hflags &= ~TDFH_DATA_MASK;
-                xact->td_xfrlen = 0;
-                (*bp->h.r_action)(QIN_TMD_CONT, xact);
-	        }
-	        prev_tmd = tmd;
-	        tmd = tmd->cd_hnext;
+                    tmd->cd_ini = ini;
+                } else {
+	                spin_unlock_irq(&bp->tmds_lock);
+                    
+                    ini = alloc_ini(bp, tmd->cd_iid);
+           	        
+                    spin_lock_irq(&bp->tmds_lock);  
+                    if (ini != NULL) {
+	  	                tmd->cd_ini = ini;
+	                    add_ini(bp, tmd->cd_iid, ini);	
+		            } else {
+        	            /* fail to alloc initiator, remove from queue and send busy */
+	                    if (prev_tmd == NULL) {
+                            bp->tmds_front = tmd->cd_hnext;
+	                    } else {
+	                        prev_tmd->cd_hnext = tmd->cd_hnext;
+	                    }
+	                    if (bp->tmds_tail == tmd) {
+                            bp->tmds_tail = prev_tmd; 
+	                    }
+	                    // FIXME: spin unlock/lock ?
+                        tmd->cd_scsi_status = SCSI_BUSY;
+                        xact = &tmd->cd_xact;
+                        xact->td_hflags |= TDFH_STSVALID;
+                        xact->td_hflags &= ~TDFH_DATA_MASK;
+                        xact->td_xfrlen = 0;
+                        (*bp->h.r_action)(QIN_TMD_CONT, xact);
+                        
+                        /* iterate to the next command, previous is not changed */
+                        tmd = tmd->cd_hnext;  
+                    } 
+                } 
+            }
         }
 	    spin_unlock_irq(&bp->tmds_lock);
     }
@@ -666,10 +678,13 @@ scsi_target_notify(tmd_notify_t *np)
         Eprintk("TMD_NOTIFY cannot find bus\n");
         return;
     }
-    ini = ini_from_notify(bp, np);
     spin_unlock_irqrestore(&scsi_target_lock, flags);
     SDprintk("scsi_target: MGT code %x from %s%d iid 0x%016llx\n", np->nt_ncode, bp->h.r_name, bp->h.r_inst, np->nt_iid);
     
+    spin_lock_irqsave(&bp->tmds_lock, flags);
+    ini = ini_from_notify(bp, np);
+    spin_unlock_irqrestore(&bp->tmds_lock, flags);
+
     switch (np->nt_ncode) {
         case NT_ABORT_TASK:
             if (abort_task(bp, np->nt_tagval)) {
@@ -863,8 +878,8 @@ scsi_target_thread(void *arg)
             register_scst();
         }
         if (test_and_clear_bit(SF_ADD_INITIATORS, &schedule_flags)) {
-	    add_initiators();
-	}
+	        add_initiators();
+	    }
         if (test_and_clear_bit(SF_UNREGISTER_SCST, &schedule_flags)) {
             unregister_scst();  
         }
