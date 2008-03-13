@@ -561,7 +561,9 @@ add_initiators(void)
                 } 
             }
         }
-	    spin_unlock_irq(&bp->tmds_lock);
+        spin_unlock_irq(&bp->tmds_lock);
+        /* now we can run queue and pass commands to scst */ 
+        tasklet_schedule(&bp->tasklet);
     }
 }
 
@@ -924,7 +926,7 @@ scsi_target_enadis(bus_t *bp, int chan, int en)
  
     memset(&ec, 0, sizeof (ec));
     ec.en_hba = bp->h.r_identity;
-    ec.en_chan = 0;
+    ec.en_chan = chan;
     if (bp->h.r_type == R_FC) {
         SDprintk("%s: ANY LUN acceptable\n", __FUNCTION__);
         ec.en_lun = LUN_ANY;
