@@ -2312,9 +2312,6 @@ static int scst_pre_dev_done(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	atomic_dec(&cmd->tgt_dev->tgt_dev_cmd_count);
-	atomic_dec(&cmd->dev->dev_cmd_count);
-
 	rc = scst_done_cmd_check(cmd, &res);
 	if (rc)
 		goto out;
@@ -2505,7 +2502,10 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 	}
 #endif
 
-	if (cmd->tgt_dev != NULL) {
+	if (likely(cmd->tgt_dev != NULL)) {
+		atomic_dec(&cmd->tgt_dev->tgt_dev_cmd_count);
+		atomic_dec(&cmd->dev->dev_cmd_count);
+
 		if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))
 			scst_on_hq_cmd_response(cmd);
 
