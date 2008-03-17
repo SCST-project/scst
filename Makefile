@@ -23,6 +23,7 @@ QLA_INI_DIR=qla2x00t
 QLA_DIR=qla2x00t/qla2x00-target
 LSI_DIR=mpt
 USR_DIR=usr/fileio
+SRP_DIR=srpt
 
 ISCSI_DIR=iscsi-scst
 #ISCSI_DISTDIR=../../../iscsi_scst_inst
@@ -58,6 +59,12 @@ help:
 	@echo "		lsi_install       : lsi target: install"
 	@echo "		lsi_uninstall     : lsi target: uninstall"
 	@echo ""
+	@echo "		srpt              : make SRP target"
+	@echo "		srpt_clean        : srp target: clean "
+	@echo "		srpt_extraclean   : srp target: clean + clean dependencies"
+	@echo "		srpt_install      : srp target: install"
+	@echo "		srpt_uninstall    : srp target: uninstall"
+	@echo ""
 	@echo "		usr               : make user space fileio_tgt target"
 	@echo "		usr_clean         : usr target: clean "
 	@echo "		usr_extraclean    : usr target: clean + clean dependencies"
@@ -76,6 +83,7 @@ all:
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
+	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 
@@ -83,6 +91,7 @@ install:
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
+	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) DISTDIR=$(ISCSI_DISTDIR) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 
@@ -90,6 +99,7 @@ uninstall:
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
+	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 
@@ -98,6 +108,7 @@ clean:
 	@if [ -d $(QLA_INI_DIR) ]; then cd $(QLA_INI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
+	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 
@@ -106,6 +117,7 @@ extraclean:
 	@if [ -d $(QLA_INI_DIR) ]; then cd $(QLA_INI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
+	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 
@@ -170,6 +182,21 @@ lsi_clean:
 
 lsi_extraclean:
 	cd $(LSI_DIR) && $(MAKE) extraclean
+
+srpt:
+	cd $(SRP_DIR) && $(MAKE)
+
+srpt_install:
+	cd $(SRP_DIR) && $(MAKE) install
+
+srpt_uninstall:
+	cd $(SRP_DIR) && $(MAKE) uninstall
+
+srpt_clean: 
+	cd $(SRP_DIR) && $(MAKE) clean
+
+srpt_extraclean:
+	cd $(SRP_DIR) && $(MAKE) extraclean
 
 usr:
 	cd $(USR_DIR) && $(MAKE)

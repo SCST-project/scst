@@ -1,0 +1,106 @@
+SCSI RDMA Protocol (SRP) Target driver for Linux
+=================================================
+
+SRP Target driver is designed to work directly on top of OpenFabrics
+OFED-1.x software stack (http://www.openfabrics.org) or Infiniband
+drivers in Linux kernel tree (kernel.org). It also interfaces with 
+Generic SCSI target mid-level driver - SCST (http://scst.sourceforge.net)
+
+NOTES: This SRP Target driver can only compile and work with IB driver
+       in Linux vanilla kernel. It does not compile and work with IB
+       driver in OFED-1.x packages
+
+       If you want to work with IB driver in OFED-1.x package, you should
+       read and follow instruction in README.ofed file
+
+
+Installation
+------------
+$ make 
+$ make install
+
+To minimize QUEUEFULL conditions, please apply scst_increase_max_tgt_cmds
+patch and recompile scst
+
+$ cd ~scst/trunk
+$ patch -p0 < srpt/patches/scst_increasa_max_tgt_cmds.patch
+$ make scst scst_install srpt srpt_install
+
+
+How-to run
+-----------
+A. On srp target machine
+1. Please refer to SCST's README for loading scst driver and its
+dev_handlers drivers (scst_disk, scst_vdisk block or file IO mode, nullio, ...)
+
+Example 1: working with real back-end scsi disks
+a. modprobe scst
+b. modprobe scst_disk
+c. cat /proc/scsi_tgt/scsi_tgt
+
+ibstor00:~ # cat /proc/scsi_tgt/scsi_tgt 
+Device (host:ch:id:lun or name)                             Device handler
+0:0:0:0                                                     dev_disk
+4:0:0:0                                                     dev_disk
+5:0:0:0                                                     dev_disk
+6:0:0:0                                                     dev_disk
+7:0:0:0                                                     dev_disk
+
+Now you want to exclude the first scsi disk and expose the last 4 scsi disks as
+IB/SRP luns for I/O
+echo "add 4:0:0:0 0" >/proc/scsi_tgt/groups/Default/devices
+echo "add 5:0:0:0 1" >/proc/scsi_tgt/groups/Default/devices
+echo "add 6:0:0:0 2" >/proc/scsi_tgt/groups/Default/devices
+echo "add 7:0:0:0 3" >/proc/scsi_tgt/groups/Default/devices
+
+Example 2: working with VDISK FILEIO mode (using md0 device and file 10G-file)
+a. modprobe scst
+b. modprobe scst_vdisk
+c. echo "open vdisk0 /dev/md0" > /proc/scsi_tgt/vdisk/vdisk
+d. echo "open vdisk1 /10G-file" > /proc/scsi_tgt/vdisk/vdisk
+e. echo "add vdisk0 0" >/proc/scsi_tgt/groups/Default/devices
+f. echo "add vdisk1 1" >/proc/scsi_tgt/groups/Default/devices
+
+Example 3: working with VDISK BLOCKIO mode (using md0 device, sda, and cciss/c1d0)
+a. modprobe scst
+b. modprobe scst_vdisk
+c. echo "open vdisk0 /dev/md0 BLOCKIO" > /proc/scsi_tgt/vdisk/vdisk
+d. echo "open vdisk1 /dev/sda BLOCKIO" > /proc/scsi_tgt/vdisk/vdisk
+e. echo "open vdisk2 /dev/cciss/c1d0 BLOCKIO" > /proc/scsi_tgt/vdisk/vdisk
+f. echo "add vdisk0 0" >/proc/scsi_tgt/groups/Default/devices
+g. echo "add vdisk1 1" >/proc/scsi_tgt/groups/Default/devices
+h. echo "add vdisk2 2" >/proc/scsi_tgt/groups/Default/devices
+
+2. modprobe ib_srpt
+
+
+B. On initiator machines you can manualy do the following steps:
+1. modprobe ib_srp
+2. ipsrpdm -c (to discover new SRP target)
+3. echo <new target info> > /sys/class/infiniband_srp/srp-mthca0-1/add_target
+4. fdisk -l (will show new discovered scsi disks)
+
+Example:
+Assume that you use port 1 of first HCA in the system ie. mthca0
+
+[root@lab104 ~]# ibsrpdm -c -d /dev/infiniband/umad0
+id_ext=0002c90200226cf4,ioc_guid=0002c90200226cf4,
+dgid=fe800000000000000002c90200226cf5,pkey=ffff,service_id=0002c90200226cf4
+[root@lab104 ~]# echo id_ext=0002c90200226cf4,ioc_guid=0002c90200226cf4,
+dgid=fe800000000000000002c90200226cf5,pkey=ffff,service_id=0002c90200226cf4 >
+/sys/class/infiniband_srp/srp-mthca0-1/add_target
+
+OR
+
++ You can edit /etc/infiniband/openib.conf to load srp driver and srp HA daemon
+automatically ie. set SRP_LOAD=yes, and SRPHA_ENABLE=yes
++ To set up and use high availability feature you need dm-multipath driver
+and multipath tool
++ Please refer to OFED-1.x SRP's user manual for more in-details instructions
+on how-to enable/use HA feature
+
+
+TO DO
+------
++ Stress test and stabilize the code
++ Performance tuning

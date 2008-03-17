@@ -1,0 +1,4 @@
+EXTRA_CFLAGS += -Idrivers/infiniband/include
+EXTRA_CFLAGS += -I/usr/local/include/scst
+
+obj-$(CONFIG_INFINIBAND_SRPT)			+= ib_srpt.o

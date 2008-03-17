@@ -1,0 +1,12 @@
+config INFINIBAND_SRPT
+	tristate "InfiniBand SCSI RDMA Protocol Target Mode"
+	depends on INFINIBAND
+	---help---
+	  Support for the SCSI RDMA Protocol Target mode over InfiniBand.
+	  This allows you to turn a standard Linux box to native Infiniband
+	  storage using SRP protocol.
+
+	  You will also need the SCST middle level drivers from
+	  http://scst.sf.net/
+	  The SRP protocol is defined by the INCITS T10 technical
+	  committee.  See <http://www.t10.org/>.
