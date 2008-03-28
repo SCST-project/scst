@@ -1,4 +1,4 @@
-/* $Id: isp.c,v 1.202 2008/03/15 18:17:14 mjacob Exp $ */
+/* $Id: isp.c,v 1.203 2008/03/16 00:34:49 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -5068,11 +5068,6 @@ isp_intr(ispsoftc_t *isp, uint32_t isr, uint16_t sema, uint16_t mbox)
 	uint32_t iptr, optr, junk;
 	int i, nlooked = 0, ndone = 0;
 
-	if (isp->isp_in_intr) {
-		isp_prt(isp, ISP_LOGERR, "recursive isp_intr!");
-		return;
-	}
-	isp->isp_in_intr = 1;
 again:
 	optr = isp->isp_residx;
 	/*
@@ -5095,7 +5090,6 @@ again:
 				}
 				if (isp->isp_mbxwrk0) {
 					if (isp_mbox_continue(isp) == 0) {
-						isp->isp_in_intr = 0;
 						return;
 					}
 				}
@@ -5105,7 +5099,6 @@ again:
 				    "mailbox cmd (0x%x) with no waiters", mbox);
 			}
 		} else if (isp_parse_async(isp, mbox) < 0) {
-			isp->isp_in_intr = 0;
 			return;
 		}
 		if ((IS_FC(isp) && mbox != ASYNC_RIO_RESP) ||
@@ -5629,7 +5622,6 @@ out:
 			isp_done(xs);
 		}
 	}
-	isp->isp_in_intr = 0;
 }
 
 /*
