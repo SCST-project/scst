@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.166 2008/03/21 16:10:23 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.167 2008/03/23 17:05:10 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -87,11 +87,17 @@ static int isp_pci_mbxdma(ispsoftc_t *);
 static int isp_pci_dmasetup(ispsoftc_t *, XS_T *, ispreq_t *, uint32_t *, uint32_t);
 static void isp_pci_dmateardown(ispsoftc_t *, XS_T *, uint32_t);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,6)
+#define DMA_64BIT_MASK  0xffffffffffffffffULL
+#define DMA_32BIT_MASK  0x00000000ffffffffULL
+#endif
+
 #define SIXTEENM_SEG(x)             (((u64) (x)) & 0xffffffff00000000ULL)
 #define SAME_SIXTEENM(addr, cnt)    (SIXTEENM_SEG(addr) == SIXTEENM_SEG(addr + cnt - 1))
 
 #define FOURG_SEG(x)                (((u64) (x)) & 0xffffffff00000000ULL)
 #define SAME_4G(addr, cnt)          (FOURG_SEG(addr) == FOURG_SEG(addr + cnt - 1))
+
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
 #define ISP_IRQ_FLAGS   SA_INTERRUPT | SA_SHIRQ
@@ -102,7 +108,7 @@ static void isp_pci_dmateardown(ispsoftc_t *, XS_T *, uint32_t);
 #ifdef    ISP_DAC_SUPPORTED
 #define ISP_A64                 1
 #define HIWD(x)                 ((x) >> 32)
-#define IS_HIGH_ISP_ADDR(addr)  ((u64) addr > ((u64) 0xffffffffLL))
+#define IS_HIGH_ISP_ADDR(addr)  (((u64) addr) > DMA_32BIT_MASK)
 #else
 #define ISP_A64                 0
 #define HIWD(x)                 0
@@ -880,23 +886,18 @@ isplinux_pci_init_one(struct Scsi_Host *host)
      * CONFIG_HIGHMEM64G defined.
      */
 
-/*    if (isp->isp_type < ISP_HA_SCSI_1240) {
-        if (pci_set_dma_mask(pdev, (u64)0x00ffffff)) {
-            isp_prt(isp, ISP_LOGERR, "cannot set 24 bit dma mask");
-            goto bad;
-        }
-    } else */ if (ISP_A64) {
-        if (pci_set_dma_mask(pdev, (u64) 0xffffffffffffffffULL)) {
-            if (pci_set_dma_mask(pdev, (u64) 0xffffffff)) {
-                isp_prt(isp, ISP_LOGERR, "cannot set 32 bit dma mask");
+    if (ISP_A64) {
+        if (pci_set_dma_mask(pdev, DMA_64BIT_MASK)) {
+            if (pci_set_dma_mask(pdev, DMA_32BIT_MASK)) {
+                isp_prt(isp, ISP_LOGERR, "cannot even set 32 bit dma mask");
                 goto bad;
             }
         } else {
             isp_prt(isp, ISP_LOGCONFIG, "enabling 64 bit DMA");
         }
     } else {
-        if (pci_set_dma_mask(pdev, (u64)0xffffffff)) {
-            isp_prt(isp, ISP_LOGERR, "cannot set 32 bit dma mask");
+        if (pci_set_dma_mask(pdev, DMA_32BIT_MASK)) {
+            isp_prt(isp, ISP_LOGERR, "cannot even set 32 bit dma mask");
             goto bad;
         }
     }

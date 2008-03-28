@@ -1,4 +1,4 @@
-/* $Id: ispvar.h,v 1.96 2008/03/16 00:34:49 mjacob Exp $ */
+/* $Id: ispvar.h,v 1.97 2008/03/23 04:56:30 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -735,6 +735,7 @@ struct ispsoftc {
 #define	ISP_HA_FC_2400		0x60
 
 #define	IS_SCSI(isp)	(isp->isp_type & ISP_HA_SCSI)
+#define	IS_1020(isp)	(isp->isp_type < ISP_HA_SCSI_1240)
 #define	IS_1240(isp)	(isp->isp_type == ISP_HA_SCSI_1240)
 #define	IS_1080(isp)	(isp->isp_type == ISP_HA_SCSI_1080)
 #define	IS_1280(isp)	(isp->isp_type == ISP_HA_SCSI_1280)
