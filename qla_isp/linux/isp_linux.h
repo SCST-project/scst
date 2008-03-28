@@ -1,4 +1,4 @@
-/* $Id: isp_linux.h,v 1.159 2008/03/03 01:42:01 mjacob Exp $ */
+/* $Id: isp_linux.h,v 1.160 2008/03/15 18:16:47 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -323,7 +323,7 @@ struct isposinfo {
         intsok          : 1;
     u16                 frame_size;
     u16                 exec_throttle;
-    struct semaphore    trq;
+    wait_queue_head_t   trq;
     struct semaphore    tcs;
     spinlock_t          tlock;
     unsigned int        nt_actions;
@@ -376,16 +376,17 @@ struct isposinfo {
     kernel_thread(isp_task_thread, (x), 0); \
     down(&isp->isp_osinfo.tcs)
 
-#define ISP_THREAD_IACK(x)                  \
-    sema_init(&(x)->isp_osinfo.trq, 0);     \
-    (x)->isp_osinfo.task_active = 1;        \
+#define ISP_THREAD_IACK(x)                      \
+    init_waitqueue_head(&(x)->isp_osinfo.trq);  \
+    (x)->isp_osinfo.task_active = 1;            \
     up(&(x)->isp_osinfo.tcs)
 
-#define ISP_THREAD_WAIT(x)          down_interruptible(&(x)->isp_osinfo.trq)
-
+#define ISP_THREAD_WAIT(x)  \
+     wait_event_interruptible((x)->isp_osinfo.trq, (((x)->isp_osinfo.task_active == 0) || ((x)->isp_osinfo.nt_actions != 0)))
+ 
 #define ISP_THREAD_EVENT            isp_thread_event
 
-#define ISP_THREAD_WAKE(x)          up(&(x)->isp_osinfo.trq)
+#define ISP_THREAD_WAKE(x)          wake_up_all(&(x)->isp_osinfo.trq)
 
 #define ISP_THREAD_KILL(x)                                          \
     {                                                               \
@@ -394,7 +395,7 @@ struct isposinfo {
         if ((x)->isp_osinfo.task_active) {                          \
             sema_init(&(x)->isp_osinfo.tcs, 0);                     \
             (x)->isp_osinfo.task_active = 0;                        \
-            up(&(x)->isp_osinfo.trq);                               \
+            wake_up_all(&(x)->isp_osinfo.trq);                      \
             spin_unlock_irqrestore(&(x)->isp_osinfo.tlock, _fl);    \
             down(&(x)->isp_osinfo.tcs);                             \
         } else {                                                    \
@@ -476,26 +477,9 @@ struct isposinfo {
     isp->mboxcmd_done = 1
 #define MBOX_RELEASE(isp)   up(&isp->mbox_sem)
 
-#define FC_SCRATCH_ACQUIRE(isp, chan)                   \
-    /*                                                  \
-     * Try and acquire semaphore the easy way first-    \
-     * with our lock already held.                      \
-     */                                                 \
-    if (ISP_ATOMIC()) {                                 \
-        while (down_trylock(&isp->fcs_sem)) {           \
-            ISP_DROP_LK_SOFTC(isp);                     \
-            USEC_DELAY(5000);                           \
-            ISP_IGET_LK_SOFTC(isp);                     \
-        }                                               \
-    } else {                                            \
-        ISP_DROP_LK_SOFTC(isp);                         \
-        down(&isp->fcs_sem);                            \
-        ISP_IGET_LK_SOFTC(isp);                         \
-    }
-
-#define FC_SCRATCH_RELEASE(isp, chan)   up(&isp->fcs_sem)
-
-
+#define FC_SCRATCH_ACQUIRE              fc_scratch_acquire
+#define FC_SCRATCH_RELEASE(isp, chan)   ISP_DATA(isp, chan)->scratch_busy = 0
+ 
 #ifndef SCSI_GOOD
 #define SCSI_GOOD   0x0
 #endif
@@ -628,6 +612,14 @@ void isp_prt(ispsoftc_t *, int level, const char *, ...) __attribute__((__format
 void isp_prt(ispsoftc_t *, int level, const char *, ...);
 #endif
 
+#ifndef DECLARE_MUTEX_LOCKED
+#define DECLARE_MUTEX_LOCKED(name) __DECLARE_SEMAPHORE_GENERIC(name,0)
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24)
+#define sg_page(_sg) ((_sg)->page)
+#define sg_assign_page(_sg, _pg) ((_sg)->page = (_pg))
+#endif
 
 /*
  * isp_osinfo definitions, extensions and shorthand.
@@ -644,6 +636,7 @@ typedef struct {
                                 :   10,
         fcrswdog                :   1,
                                 :   1,
+        scratch_busy            :   1,
         blocked                 :   1,
         deadloop                :   1,
         role                    :   2;
@@ -918,6 +911,15 @@ mbox_wait_complete(ispsoftc_t *isp, mbreg_t *mbp)
     }
 }
 
+static inline int
+fc_scratch_acquire(ispsoftc_t *isp, int chan)
+{
+    if (ISP_DATA(isp, chan)->scratch_busy) {
+        return (-1);    
+    }
+    ISP_DATA(isp, chan)->scratch_busy = 1;
+    return (0);
+}
 
 /*
  * Note that these allocators aren't interrupt safe

@@ -1,4 +1,4 @@
-/* $Id: scsi_target.c,v 1.82 2008/02/27 21:01:12 mjacob Exp $ */
+/* $Id: scsi_target.c,v 1.83 2008/03/15 18:16:47 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -93,6 +93,15 @@
 #define roundup(x, y)   ((((x)+((y)-1))/(y))*(y))
 #endif
 
+#ifndef DECLARE_MUTEX_LOCKED
+#define DECLARE_MUTEX_LOCKED(name) __DECLARE_SEMAPHORE_GENERIC(name,0)
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24)
+#define sg_page(_sg) ((_sg)->page)
+#define sg_assign_page(_sg, _pg) ((_sg)->page = (_pg))
+#endif
+
 #include "isp_tpublic.h"
 #include "linux/smp_lock.h"
 
@@ -180,8 +189,8 @@
 #define SGS0                (roundup(sizeof (struct scatterlist), sizeof (void *)))
 #define SGS_PAYLOAD_SIZE    (SGS_SIZE - SGS0)
 #define SGS_SGP(x)          ((struct scatterlist *)&((u8 *)(x))[SGS_PAYLOAD_SIZE])
-#define COPYIN(u, k, n)     copy_from_user((void*)(k), (const void*)(u), (n))
-#define COPYOUT(k, u, n)    copy_to_user((void*)(u), (const void*)(k), (n))
+#define COPYIN(uarg, karg, amt)     copy_from_user(karg, uarg, amt)
+#define COPYOUT(karg, uarg, amt)    copy_to_user(uarg, karg, amt)
 
 static __inline void *  scsi_target_kalloc(size_t, int);
 static __inline void    scsi_target_kfree(void *, size_t);
@@ -226,10 +235,10 @@ init_sg_elem(struct scatterlist *sgp, struct page *p, int offset, void *addr, si
 {
     sgp->length = length;
     if (p) {
-        sgp->page = p;
+        sg_assign_page(sgp, p);
         sgp->offset = offset;
     } else {
-        sgp->page = virt_to_page(addr);
+        sg_assign_page(sgp, virt_to_page(addr));
         sgp->offset = offset_in_page(addr);
     }
 }
@@ -1573,8 +1582,8 @@ scsi_target_rdwr(tmd_cmd_t *tmd, ini_t *ini, int from_intr)
         spin_lock_irqsave(&scsi_target_lock, flags);
         dp = sg_cache;
         if (dp) {
-            sg_cache = (struct scatterlist *) dp->page;
-            dp->page = NULL;
+            sg_cache = (struct scatterlist *) sg_page(dp);
+            sg_assign_page(dp, NULL);
             tmd->cd_flags |= CDF_PRIVATE_3;
         }
         spin_unlock_irqrestore(&scsi_target_lock, flags);
@@ -1606,17 +1615,17 @@ scsi_target_rdwr(tmd_cmd_t *tmd, ini_t *ini, int from_intr)
         spin_lock_irqsave(&scsi_target_lock, flags);
         while (count < byte_count) {
             struct page *pp;
-            dp[sgidx].page = (struct page *) lp->pagelists;
-            if (dp[sgidx].page == NULL) {
+            sg_assign_page(&dp[sgidx], (struct page *) lp->pagelists);
+            if (sg_page(&dp[sgidx]) == NULL) {
                 lp->outtagas = 1;
                 scsi_cmd_sched_restart_locked(tmd, 0, "out of pages");
                 while (--sgidx >= 0) {
-                    struct page *pp = dp[sgidx].page;
+                    struct page *pp = sg_page(&dp[sgidx]);
                     NextPage(pp) = (NextPageType) lp->pagelists;
                     lp->pagelists = (struct page ***) pp;
                 }
                 if (tmd->cd_flags & CDF_PRIVATE_3) {
-                    dp->page = (struct page *) sg_cache;
+                    sg_assign_page(dp, (struct page *) sg_cache);
                     sg_cache = (struct scatterlist *) dp;
                     spin_unlock_irqrestore(&scsi_target_lock, flags);
                     tmd->cd_flags ^= CDF_PRIVATE_3;
@@ -1628,7 +1637,7 @@ scsi_target_rdwr(tmd_cmd_t *tmd, ini_t *ini, int from_intr)
             }
             dp[sgidx].length = min(PAGE_SIZE, byte_count - count);
             count += dp[sgidx].length;
-            pp = dp[sgidx].page;
+            pp = sg_page(&dp[sgidx]);
             lp->pagelists = (struct page ***) NextPage(pp);
             lp->npglists -= 1;
             SDprintk2("scsi_target: [%llx] dp[%d]:off %u len %u\n", tmd->cd_tagval, sgidx, dp[sgidx].offset, dp[sgidx].length);
@@ -1660,7 +1669,7 @@ scsi_target_rdwr(tmd_cmd_t *tmd, ini_t *ini, int from_intr)
             dp[sgidx].length = min(PAGE_SIZE, byte_count - count);
         }
         SDprintk2(" dp[%d]:off %u len %u %u:%u\n", sgidx, dp[sgidx].offset, dp[sgidx].length, list_idx, page_idx);
-        dp[sgidx].page = pglist[page_idx++];
+        sg_assign_page(&dp[sgidx], pglist[page_idx++]);
         count += dp[sgidx++].length;
         if (count != byte_count) {
             if (page_idx == PG_PER_LIST) {
@@ -1741,7 +1750,7 @@ scsi_target_ldfree(bus_t *bp, tmd_xact_t *xact, int from_intr)
         }
         SDprintk("scsi_target: LDFREE[%llx] %p xact->td_data %p\n", tmd->cd_tagval, tmd, dp);
         if (dp) {
-            scsi_target_kfree(page_address(dp->page) + dp->offset, SGS_SIZE);
+            scsi_target_kfree(page_address(sg_page(dp)) + dp->offset, SGS_SIZE);
         } else {
             printk(KERN_ERR "scsi_target: LDFREE[%llx] null dp @ line %d\n", tmd->cd_tagval, __LINE__);
             return (0);
@@ -1767,7 +1776,7 @@ scsi_target_ldfree(bus_t *bp, tmd_xact_t *xact, int from_intr)
         }
         if (lp->overcommit) {
             for (i = 0; i < tmd->cd_nsgelems; i++) {
-                struct page *pp = dp[i].page;
+                struct page *pp = sg_page(&dp[i]);
                 if (pp == NULL) {
                     printk(KERN_ERR "%s: LDFREE[%llx] whoa! nullpage at index %d of %d for command 0x%x\n", __FUNCTION__, tmd->cd_tagval, i, tmd->cd_nsgelems - 1, tmd->cd_cdb[0] & 0xff);
                     continue;
@@ -1782,7 +1791,7 @@ scsi_target_ldfree(bus_t *bp, tmd_xact_t *xact, int from_intr)
         }
         if (tmd->cd_flags & CDF_PRIVATE_3) {
             memset(dp, 0, tmd->cd_nsgelems * sizeof (struct scatterlist));
-            dp->page = (struct page *) sg_cache;
+            sg_assign_page(dp, (struct page *) sg_cache);
             sg_cache = dp;
             spin_unlock_irqrestore(&scsi_target_lock, flags);
             tmd->cd_flags &= ~CDF_PRIVATE_3;
@@ -2280,7 +2289,7 @@ scsi_target_copydata(struct scatterlist *dp, void *ubuf, uint32_t len, int from_
     idx = count = 0;
     uva = ubuf;
     while (count < len) {
-        pp = dp[idx].page;
+        pp = sg_page(&dp[idx]);
         kva = kmap(pp);
         if (kva == NULL) {
             return (-EFAULT);
@@ -2580,7 +2589,7 @@ int init_module(void)
         if (sg == NULL) {
             break;
         }
-        sg->page = (struct page *) sg_cache;
+        sg_assign_page(sg, (struct page *) sg_cache);
         sg_cache = sg;
     }
     printk(KERN_INFO "Allocated %d cached sg elements\n", i);
@@ -2597,7 +2606,7 @@ void cleanup_module(void)
     down(&scsi_thread_entry_exit_semaphore);
     free_sdata_chain(sdp);
     while (sg_cache) {
-        struct scatterlist *sg = (struct scatterlist *) sg_cache->page;
+        struct scatterlist *sg = (struct scatterlist *) sg_page(sg_cache);
         scsi_target_kfree(sg_cache, SGELEM_CACHE_SIZE * sizeof (struct scatterlist));
         sg_cache = sg;
     }

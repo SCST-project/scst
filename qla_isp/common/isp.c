@@ -1,4 +1,4 @@
-/* $Id: isp.c,v 1.201 2008/03/12 22:58:39 mjacob Exp $ */
+/* $Id: isp.c,v 1.202 2008/03/15 18:17:14 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -122,6 +122,8 @@ static const char bun[] =
     "bad underrun for %d.%d (count %d, resid %d, status %s)";
 static const char lipd[] =
     "Chan %d LIP destroyed %d active commands";
+static const char sacq[] =
+    "unable to acquire scratch area";
 
 static const uint8_t alpa_map[] = {
 	0xef, 0xe8, 0xe4, 0xe2, 0xe1, 0xe0, 0xdc, 0xda,
@@ -1770,11 +1772,14 @@ isp_fibre_init(ispsoftc_t *isp)
 	icbp->icb_respaddr[RQRSP_ADDR3247] = DMA_WD2(isp->isp_result_dma);
 	icbp->icb_respaddr[RQRSP_ADDR4863] = DMA_WD3(isp->isp_result_dma);
 
+	if (FC_SCRATCH_ACQUIRE(isp, 0)) {
+		isp_prt(isp, ISP_LOGERR, sacq);
+		return;
+	}
 	isp_prt(isp, ISP_LOGDEBUG0,
 	    "isp_fibre_init: fwopt 0x%x xfwopt 0x%x zfwopt 0x%x",
 	    icbp->icb_fwoptions, icbp->icb_xfwoptions, icbp->icb_zfwoptions);
 
-	FC_SCRATCH_ACQUIRE(isp, 0);
 	isp_put_icb(isp, icbp, (isp_icb_t *)fcp->isp_scratch);
 
 	/*
@@ -2058,7 +2063,10 @@ isp_fibre_init_2400(ispsoftc_t *isp)
 		    icbp);
 	}
 
-	FC_SCRATCH_ACQUIRE(isp, 0);
+	if (FC_SCRATCH_ACQUIRE(isp, 0)) {
+		isp_prt(isp, ISP_LOGERR, sacq);
+		return;
+	}
 	MEMZERO(fcp->isp_scratch, ISP_FC_SCRLEN);
 	isp_put_icb_2400(isp, icbp, fcp->isp_scratch);
 
@@ -2232,7 +2240,10 @@ isp_plogx(ispsoftc_t *isp, int chan, uint16_t handle, uint32_t portid,
 	}
 
 	if (gs == 0) {
-		FC_SCRATCH_ACQUIRE(isp, chan);
+		if (FC_SCRATCH_ACQUIRE(isp, chan)) {
+			isp_prt(isp, ISP_LOGERR, sacq);
+			return (-1);
+		}
 	}
 	fcp = FCPARAM(isp, chan);
 	scp = fcp->isp_scratch;
@@ -2458,7 +2469,10 @@ isp_getpdb(ispsoftc_t *isp, int chan, uint16_t id, isp_pdb_t *pdb, int dolock)
 	mbs.timeout = 250000;
 	mbs.logval = MBLOGALL & ~MBOX_COMMAND_PARAM_ERROR;
 	if (dolock) {
-		FC_SCRATCH_ACQUIRE(isp, chan);
+		if (FC_SCRATCH_ACQUIRE(isp, chan)) {
+			isp_prt(isp, ISP_LOGERR, sacq);
+			return (-1);
+		}
 	}
 	MEMORYBARRIER(isp, SYNC_SFORDEV, 0, sizeof (un));
 	isp_mboxcmd(isp, &mbs);
@@ -3562,7 +3576,11 @@ isp_scan_fabric(ispsoftc_t *isp, int chan)
 	}
 
 	fcp->isp_loopstate = LOOP_SCANNING_FABRIC;
-	FC_SCRATCH_ACQUIRE(isp, chan);
+	if (FC_SCRATCH_ACQUIRE(isp, chan)) {
+		isp_prt(isp, ISP_LOGERR, sacq);
+		ISP_MARK_PORTDB(isp, chan, 1);
+		return (-1);
+	}
 	if (fcp->isp_loopstate < LOOP_SCANNING_FABRIC) {
 		FC_SCRATCH_RELEASE(isp, chan);
 		ISP_MARK_PORTDB(isp, chan, 1);
@@ -4175,7 +4193,10 @@ isp_register_fc4_type(ispsoftc_t *isp, int chan)
 	reqp->snscb_data[4] = fcp->isp_portid & 0xffff;
 	reqp->snscb_data[5] = (fcp->isp_portid >> 16) & 0xff;
 	reqp->snscb_data[6] = (1 << FC4_SCSI);
-	FC_SCRATCH_ACQUIRE(isp, chan);
+	if (FC_SCRATCH_ACQUIRE(isp, chan)) {
+		isp_prt(isp, ISP_LOGERR, sacq);
+		return (-1);
+	}
 	isp_put_sns_request(isp, reqp, (sns_screq_t *) fcp->isp_scratch);
 	MEMZERO(&mbs, sizeof (mbs));
 	mbs.param[0] = MBOX_SEND_SNS;
@@ -4211,7 +4232,10 @@ isp_register_fc4_type_24xx(ispsoftc_t *isp, int chan)
 	rft_id_t *rp;
 	uint8_t *scp = fcp->isp_scratch;
 
-	FC_SCRATCH_ACQUIRE(isp, chan);
+	if (FC_SCRATCH_ACQUIRE(isp, chan)) {
+		isp_prt(isp, ISP_LOGERR, sacq);
+		return (-1);
+	}
 
 	/*
 	 * Build a Passthrough IOCB in memory.
@@ -4722,7 +4746,10 @@ isp_control(ispsoftc_t *isp, ispctl_t ctl, ...)
 			mbs.timeout = 5000000;
 			mbs.logval = MBLOGALL;
 
-			FC_SCRATCH_ACQUIRE(isp, chan);
+			if (FC_SCRATCH_ACQUIRE(isp, chan)) {
+				isp_prt(isp, ISP_LOGERR, sacq);
+				break;
+			}
 			isp_put_24xx_tmf(isp, tmf, fcp->isp_scratch);
 			MEMORYBARRIER(isp, SYNC_SFORDEV, 0, QENTRY_LEN);
 			fcp->sendmarker = 1;
@@ -4823,7 +4850,10 @@ isp_control(ispsoftc_t *isp, ispctl_t ctl, ...)
 			mbs.timeout = 5000000;
 			mbs.logval = MBLOGALL;
 
-			FC_SCRATCH_ACQUIRE(isp, chan);
+			if (FC_SCRATCH_ACQUIRE(isp, chan)) {
+				isp_prt(isp, ISP_LOGERR, sacq);
+				break;
+			}
 			isp_put_24xx_abrt(isp, ab, fcp->isp_scratch);
 			ab2 = (isp24xx_abrt_t *)
 			    &((uint8_t *)fcp->isp_scratch)[QENTRY_LEN];
@@ -5536,7 +5566,7 @@ again:
 			ISP_DMAFREE(isp, xs, sp->req_handle);
 		}
 
-		if (((isp->isp_dblev & (ISP_LOGDEBUG2|ISP_LOGDEBUG3))) ||
+		if (((isp->isp_dblev & (ISP_LOGDEBUG1|ISP_LOGDEBUG2|ISP_LOGDEBUG3))) ||
 		    ((isp->isp_dblev & ISP_LOGDEBUG0) && ((!XS_NOERR(xs)) ||
 		    (*XS_STSP(xs) != SCSI_GOOD)))) {
 			char skey;
@@ -7502,6 +7532,7 @@ isp_mboxcmd(ispsoftc_t *isp, mbreg_t *mbp)
 	 * Did the command time out?
 	 */
 	if (mbp->param[0] == MBOX_TIMEOUT) {
+		isp->isp_mboxbsy = 0;
 		MBOX_RELEASE(isp);
 		goto out;
 	}
@@ -7517,9 +7548,9 @@ isp_mboxcmd(ispsoftc_t *isp, mbreg_t *mbp)
 		}
 	}
 
+	isp->isp_mboxbsy = 0;
 	MBOX_RELEASE(isp);
  out:
-	isp->isp_mboxbsy = 0;
 	if (mbp->logval == 0 || opcode == MBOX_EXEC_FIRMWARE) {
 		return;
 	}

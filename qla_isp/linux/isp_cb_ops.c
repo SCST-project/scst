@@ -1,4 +1,4 @@
-/* $Id: isp_cb_ops.c,v 1.87 2008/03/10 17:55:51 mjacob Exp $ */
+/* $Id: isp_cb_ops.c,v 1.88 2008/03/15 18:16:47 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -1251,7 +1251,12 @@ isp_exti_fcct_passthru(EXT_IOCTL *pext)
      * Acquire Scratch
      */
     MEMZERO(qe, QENTRY_LEN);
-    FC_SCRATCH_ACQUIRE(isp, 0);
+    if (FC_SCRATCH_ACQUIRE(isp, 0)) {
+        ISP_UNLKU_SOFTC(isp);
+        isp_prt(isp, ISP_LOGWARN, "failed to get FC scratch area");
+        pext->Status = EXT_STATUS_BUSY;
+        goto out;
+    }
     scp = fcp->isp_scratch;
 
     MEMCPY(&scp[IGPOFF], localmem, pext->RequestLen);

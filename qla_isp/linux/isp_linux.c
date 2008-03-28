@@ -1,4 +1,4 @@
-/* $Id: isp_linux.c,v 1.228 2008/03/10 17:55:51 mjacob Exp $ */
+/* $Id: isp_linux.c,v 1.229 2008/03/15 18:16:47 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -2593,7 +2593,10 @@ isp_fc_change_role(ispsoftc_t *isp, int chan, int new_role)
         MEMZERO(qe, QENTRY_LEN);
         /* Acquire Scratch */
 
-        FC_SCRATCH_ACQUIRE(isp, chan);
+        if (FC_SCRATCH_ACQUIRE(isp, chan)) {
+            ISP_DATA(isp, chan)->blocked = 0;
+            return (-EBUSY);
+        }
         scp = fcp->isp_scratch;
 
         /*
@@ -3112,9 +3115,11 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
             }
         }
         if (lp->ini_map_idx) {
+            unsigned long arg;
             tgt = lp->ini_map_idx - 1;
             isp_prt(isp, ISP_LOGCONFIG, prom2, bus, lp->portid, lp->handle, isp_class3_roles[lp->roles], "arrived at", tgt, lp->node_wwn, lp->port_wwn);
-            ISP_THREAD_EVENT(isp, ISP_THREAD_SCSI_SCAN, 0, 0, __FUNCTION__, __LINE__);
+            arg = tgt | (bus << 16);
+            ISP_THREAD_EVENT(isp, ISP_THREAD_SCSI_SCAN, (void *)arg, 0, __FUNCTION__, __LINE__);
         } else {
             isp_prt(isp, ISP_LOGCONFIG, prom0, bus, lp->portid, lp->handle, isp_class3_roles[lp->roles], "arrived", lp->node_wwn, lp->port_wwn);
         }
@@ -3155,12 +3160,14 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
         va_end(ap);
         fcp = FCPARAM(isp, bus);
         if (lp->ini_map_idx) {
+            unsigned long arg;
             tgt = lp->ini_map_idx - 1;
             fcp->isp_ini_map[tgt] = 0;
             lp->state = FC_PORTDB_STATE_NIL;
             lp->ini_map_idx = 0;
             isp_prt(isp, ISP_LOGCONFIG, prom2, bus, lp->portid, lp->handle, isp_class3_roles[lp->roles], "departed", tgt, lp->node_wwn, lp->port_wwn);
-            ISP_THREAD_EVENT(isp, ISP_THREAD_SCSI_SCAN, 0, 0, __FUNCTION__, __LINE__);
+            arg = tgt | (bus << 16) | (1 << 31);
+            ISP_THREAD_EVENT(isp, ISP_THREAD_SCSI_SCAN, (void *)arg, 0, __FUNCTION__, __LINE__);
         } else if (lp->reserved == 0) {
             isp_prt(isp, ISP_LOGCONFIG, prom0, bus, lp->portid, lp->handle, isp_class3_roles[lp->roles], "departed", lp->node_wwn, lp->port_wwn);
         }
@@ -4483,8 +4490,18 @@ isp_task_thread(void *arg)
             case ISP_THREAD_NIL:
                 break;
             case ISP_THREAD_SCSI_SCAN:
-                scsi_scan_host(isp->isp_osinfo.host);
+            {
+                /* this gets pegged in isplinux_queuecommand, even for async scanning */
+#if 0
+                unsigned long arg = (unsigned long) tap->arg;
+                int tgt, chan, rescan;
+                tgt = arg & 0xffff;
+                chan = (arg >> 16) & 0xff;
+                rescan = (arg >> 31) & 1;
+                scsi_scan_target(&isp->isp_osinfo.host->shost_gendev, chan, tgt, SCAN_WILD_CARD, rescan);
+#endif
                 break;
+            }
             case ISP_THREAD_REINIT:
                 ISP_LOCKU_SOFTC(isp);
                 if (isp->isp_dead) {

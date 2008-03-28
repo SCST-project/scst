@@ -1,4 +1,4 @@
-/* $Id: ispvar.h,v 1.94 2008/03/12 22:57:24 mjacob Exp $ */
+/* $Id: ispvar.h,v 1.95 2008/03/15 18:17:15 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -964,6 +964,7 @@ void isp_async(ispsoftc_t *, ispasync_t, ...);
  *	MBOX_RELEASE(ispsoftc_t *)		release lock on mailbox regs
  *
  *	FC_SCRATCH_ACQUIRE(ispsoftc_t *, chan)	acquire lock on FC scratch area
+ *						return -1 if you cannot
  *	FC_SCRATCH_RELEASE(ispsoftc_t *, chan)	acquire lock on FC scratch area
  *
  *	SCSI_GOOD	SCSI 'Good' Status
