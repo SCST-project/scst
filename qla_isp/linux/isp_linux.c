@@ -1,4 +1,4 @@
-/* $Id: isp_linux.c,v 1.226 2008/02/12 00:40:51 mjacob Exp $ */
+/* $Id: isp_linux.c,v 1.227 2008/02/27 21:02:34 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -3114,6 +3114,7 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
         if (lp->ini_map_idx) {
             tgt = lp->ini_map_idx - 1;
             isp_prt(isp, ISP_LOGCONFIG, prom2, bus, lp->portid, lp->handle, isp_class3_roles[lp->roles], "arrived at", tgt, lp->node_wwn, lp->port_wwn);
+            ISP_THREAD_EVENT(isp, ISP_THREAD_SCSI_SCAN, 0, 0, __FUNCTION__, __LINE__);
         } else {
             isp_prt(isp, ISP_LOGCONFIG, prom0, bus, lp->portid, lp->handle, isp_class3_roles[lp->roles], "arrived", lp->node_wwn, lp->port_wwn);
         }
@@ -3159,6 +3160,7 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
             lp->state = FC_PORTDB_STATE_NIL;
             lp->ini_map_idx = 0;
             isp_prt(isp, ISP_LOGCONFIG, prom2, bus, lp->portid, lp->handle, isp_class3_roles[lp->roles], "departed", tgt, lp->node_wwn, lp->port_wwn);
+            ISP_THREAD_EVENT(isp, ISP_THREAD_SCSI_SCAN, 0, 0, __FUNCTION__, __LINE__);
         } else if (lp->reserved == 0) {
             isp_prt(isp, ISP_LOGCONFIG, prom0, bus, lp->portid, lp->handle, isp_class3_roles[lp->roles], "departed", lp->node_wwn, lp->port_wwn);
         }
@@ -4333,25 +4335,9 @@ isplinux_reinit(ispsoftc_t *isp)
         }
     }
     isp->isp_osinfo.host->max_lun = min(maxluns, ISP_MAX_LUNS(isp));
-
-#if 0
-    /*
-     * If we're not taking a role, set some 'defaults' and turn off lasers (for FC cards).
-     */
-    if (isp->isp_osinfo.role == ISP_ROLE_NONE) {
-        isp->isp_osinfo.host->can_queue = 16;
-        isp->isp_osinfo.host->can_queue = 1;
-        isp->isp_osinfo.host->cmd_per_lun = 1;
-        isp->isp_osinfo.host->this_id = IS_FC(isp)? MAX_FC_TARG : 7;
-        isp_shutdown(isp);
-        return (0);
-    }
-#else
-    isp->isp_osinfo.host->can_queue = 16;
     isp->isp_osinfo.host->can_queue = 1;
     isp->isp_osinfo.host->cmd_per_lun = 1;
     isp->isp_osinfo.host->this_id = IS_FC(isp)? MAX_FC_TARG : 7;
-#endif
 
     isp_init(isp);
     if (isp->isp_state != ISP_INITSTATE) {
@@ -4512,6 +4498,9 @@ isp_task_thread(void *arg)
             isp_prt(isp, ISP_LOGDEBUG1, "isp_task_thread[%d]: action %d (%p)", action, tap->thread_action, tap->thread_waiter);
             switch (tap->thread_action) {
             case ISP_THREAD_NIL:
+                break;
+            case ISP_THREAD_SCSI_SCAN:
+                scsi_scan_host(isp->isp_osinfo.host);
                 break;
 #ifdef    ISP_FW_CRASH_DUMP
             case ISP_THREAD_FW_CRASH_DUMP:

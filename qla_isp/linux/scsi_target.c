@@ -1,4 +1,4 @@
-/* $Id: scsi_target.c,v 1.81 2008/02/11 23:59:06 mjacob Exp $ */
+/* $Id: scsi_target.c,v 1.82 2008/02/27 21:01:12 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -297,7 +297,7 @@ typedef struct {
                         wce         :   1,
                         overcommit  :   1,
                         enabled     :   1;
-    struct semaphore    sema;
+    wait_queue_head_t   whook;
     tmd_cmd_t *         u_front;
     tmd_cmd_t *         u_tail;
     uint64_t            nbytes;
@@ -1717,8 +1717,8 @@ out:
                     lp->u_front = tmd;
                 }
                 lp->u_tail = tmd;
-                up(&lp->sema);
                 spin_unlock_irqrestore(&scsi_target_lock, flags);
+                wake_up_all(&lp->whook);
                 return (1);
             } else {
                 xact->td_hflags |= TDFH_STSVALID;
@@ -1945,7 +1945,7 @@ scsi_target_handler(qact_e action, void *arg)
                 }
                 lp->u_tail = tmd;
                 spin_unlock_irqrestore(&scsi_target_lock, flags);
-                up(&lp->sema);
+                wake_up_all(&lp->whook);
                 break;
             }
             spin_unlock_irqrestore(&scsi_target_lock, flags);
@@ -2329,7 +2329,7 @@ scsi_target_start_user_io(sc_io_t *sc)
     lp = &bp->bchan[sc->channel].luns[sc->lun];
 
     SDprintk2("%s: waiting for a R/W IO operation\n", __FUNCTION__);
-    if (down_interruptible(&lp->sema)) {
+    if (wait_event_interruptible(lp->whook, (lp->u_front != NULL))) {
         return (-EINTR);
     }
     spin_lock_irqsave(&scsi_target_lock, flags);
@@ -2538,7 +2538,7 @@ scsi_target_endis(char *hba_name_unit, uint64_t nbytes, int chan, int lun, int e
         scsi_free_disk(bp, chan, lun);
     } else {
         lp->u_tail = lp->u_front = NULL;
-        sema_init(&lp->sema, 0);
+        init_waitqueue_head(&lp->whook);
         lp->wce = 1;
         lp->enabled = 1;
     }

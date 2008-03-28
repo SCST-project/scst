@@ -276,6 +276,7 @@ typedef struct {
         ISP_THREAD_TERMINATE,
         ISP_THREAD_RESTART_AT7,
         ISP_THREAD_FC_PUTBACK,
+        ISP_THREAD_SCSI_SCAN,
     }   thread_action;
     void * arg;
     struct semaphore *  thread_waiter;

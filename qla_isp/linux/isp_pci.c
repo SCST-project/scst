@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.161 2008/02/12 00:40:51 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.162 2008/02/27 21:03:06 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -509,16 +509,16 @@ isplinux_pci_release(struct Scsi_Host *host)
 static void
 pci_intx(struct pci_dev *pdev, int enable)
 {
-	u16 pci_command, new;
-	pci_read_config_word(pdev, PCI_COMMAND, &pci_command);
-	if (enable) {
-		new = pci_command & ~PCI_COMMAND_INTX_DISABLE;
-	} else {
-		new = pci_command | PCI_COMMAND_INTX_DISABLE;
-	}
-	if (new != pci_command) {
-		pci_write_config_word(pdev, PCI_COMMAND, new);
-	}
+    u16 pci_command, new;
+    pci_read_config_word(pdev, PCI_COMMAND, &pci_command);
+    if (enable) {
+        new = pci_command & ~PCI_COMMAND_INTX_DISABLE;
+    } else {
+        new = pci_command | PCI_COMMAND_INTX_DISABLE;
+    }
+    if (new != pci_command) {
+        pci_write_config_word(pdev, PCI_COMMAND, new);
+    }
 }
 #endif
 
@@ -898,6 +898,7 @@ isplinux_pci_init_one(struct Scsi_Host *host)
         }
     }
 
+#ifdef  CONFIG_FW_LOADER
     if (fwname) {
         if (request_firmware(&isp->isp_osinfo.fwp, fwname, &pdev->dev) == 0) {
             isp->isp_mdvec->dv_ispfw = isp->isp_osinfo.fwp->data;
@@ -924,6 +925,7 @@ isplinux_pci_init_one(struct Scsi_Host *host)
             isp_prt(isp, ISP_LOGCONFIG, "unable to load firmware set \"%s\"", fwname);
         }
     }
+#endif
 
     if (isplinux_common_init(isp)) {
         isp_prt(isp, ISP_LOGERR, "isplinux_common_init failed");
@@ -940,10 +942,12 @@ bad:
         isp_kfree(isp->isp_osinfo.storep, isp->isp_osinfo.storep_amt);
         isp->isp_osinfo.storep = NULL;
     }
+#ifdef  CONFIG_FW_LOADER
     if (isp->isp_osinfo.fwp) {
         release_firmware(isp->isp_osinfo.fwp);
         isp->isp_osinfo.fwp = NULL;
     }
+#endif
     ISP_DISABLE_INTS(isp);
     if (host->irq) {
         free_irq(host->irq, isp_pci);
@@ -3453,10 +3457,12 @@ isplinux_pci_remove(struct pci_dev *pdev)
     isp_deinit_target(isp);
 #endif
     scsi_host_put(host);
+#ifdef  CONFIG_FW_LOADER
     if (isp->isp_osinfo.fwp) {
         release_firmware(isp->isp_osinfo.fwp);
         isp->isp_osinfo.fwp = NULL;
     }
+#endif
     pci_set_drvdata(pdev, NULL);
 }
 
@@ -3499,7 +3505,7 @@ isplinux_pci_init(void)
     }
     ret = pci_register_driver(&isplinux_pci_driver);
     if (ret < 0) {
-	    printk(KERN_ERR "%s: unable to register driver (return value %d)", __FUNCTION__, ret);
+        printk(KERN_ERR "%s: unable to register driver (return value %d)", __FUNCTION__, ret);
         unregister_chrdev_region(isp_dev, MAX_ISP);
         return (ret);
     }

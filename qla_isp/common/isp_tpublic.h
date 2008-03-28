@@ -1,4 +1,4 @@
-/* $Id: isp_tpublic.h,v 1.41 2008/02/11 23:59:06 mjacob Exp $ */
+/* $Id: isp_tpublic.h,v 1.42 2008/02/27 21:00:26 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -360,6 +360,12 @@ typedef struct tmd_xact {
 #ifndef QCDS
 #define QCDS             (sizeof (uint64_t))
 #endif
+#ifndef TMD_PRIV_LO
+#define TMD_PRIV_LO 4
+#endif
+#ifndef TMD_PRIV_HI
+#define TMD_PRIV_HI 4
+#endif
 
 struct tmd_cmd {
     void *              cd_hba;     /* HBA tag */
@@ -383,7 +389,7 @@ struct tmd_cmd {
         uint32_t        longs[QCDS / sizeof (uint32_t)];    /* two longs */
         uint16_t        shorts[QCDS / sizeof (uint16_t)];   /* four shorts */
         uint8_t         bytes[QCDS];                        /* eight bytes */
-    } cd_lreserved[4], cd_hreserved[4];
+    } cd_lreserved[TMD_PRIV_LO], cd_hreserved[TMD_PRIV_HI];
 };
 
 #define CDF_NODISC      0x0001  /* disconnects disabled */
