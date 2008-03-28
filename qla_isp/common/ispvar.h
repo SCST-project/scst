@@ -1,4 +1,4 @@
-/* $Id: ispvar.h,v 1.93 2008/03/06 01:40:11 mjacob Exp $ */
+/* $Id: ispvar.h,v 1.94 2008/03/12 22:57:24 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -1005,10 +1005,6 @@ void isp_async(ispsoftc_t *, ispasync_t, ...);
  *	XS_INITERR(xs)	initialize error state
  *
  *	XS_SAVE_SENSE(xs, sp, len)	save sense data
- *
- *	XS_SET_STATE_STAT(isp, sp, xs)	platform dependent interpreter of
- *					response queue entry status bits
- *
  *
  *	DEFAULT_FRAMESIZE(ispsoftc_t *)		Default Frame Size
  *	DEFAULT_EXEC_THROTTLE(ispsoftc_t *)	Default Execution Throttle

@@ -1,4 +1,4 @@
-/* $Id: ispmbox.h,v 1.71 2008/02/11 23:59:06 mjacob Exp $ */
+/* $Id: ispmbox.h,v 1.72 2008/03/12 22:57:37 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -314,15 +314,6 @@ typedef struct {
 } ispdslist_t;
 
 
-/*
- * These elements get swizzled around for SBus instances.
- */
-#define	ISP_SWAP8(a, b)	{		\
-	uint8_t tmp;			\
-	tmp = a;			\
-	a = b;				\
-	b = tmp;			\
-}
 typedef struct {
 	uint8_t		rqs_entry_type;
 	uint8_t		rqs_entry_count;

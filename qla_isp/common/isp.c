@@ -1,4 +1,4 @@
-/* $Id: isp.c,v 1.200 2008/03/10 18:03:07 mjacob Exp $ */
+/* $Id: isp.c,v 1.201 2008/03/12 22:58:39 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -5296,7 +5296,8 @@ again:
 			 * may have updated the response queue pointers for
 			 * us, so we reload our goal index.
 			 */
-			int r, tsto = oop;
+			int r;
+			uint32_t tsto = oop;
 			r = isp_handle_other_response(isp, etype, hp, &tsto);
 			if (r < 0) {
 				goto read_again;
@@ -5445,7 +5446,6 @@ again:
 
 		switch (etype) {
 		case RQSTYPE_RESPONSE:
-			XS_SET_STATE_STAT(isp, xs, sp);
 			if (resp && rlen >= 4 &&
 			    resp[FCP_RSPNS_CODE_OFFSET] != 0) {
 				isp_prt(isp, ISP_LOGWARN,
@@ -5556,8 +5556,9 @@ again:
 			    *XS_STSP(xs), skey, XS_ERR(xs));
 		}
 
-		if (isp->isp_nactive > 0)
+		if (isp->isp_nactive > 0) {
 		    isp->isp_nactive--;
+		}
 		complist[ndone++] = xs;	/* defer completion call until later */
 		MEMZERO(hp, QENTRY_LEN);	/* PERF */
 		if (ndone == MAX_REQUESTQ_COMPLETIONS) {
@@ -6826,14 +6827,14 @@ isp_fastpost_complete(ispsoftc_t *isp, uint16_t fph)
 	 * we must believe that SCSI status is zero and
 	 * that all data transferred.
 	 */
-	XS_SET_STATE_STAT(isp, xs, NULL);
 	XS_RESID(xs) = 0;
 	*XS_STSP(xs) = SCSI_GOOD;
 	if (XS_XFRLEN(xs)) {
 		ISP_DMAFREE(isp, xs, fph);
 	}
-	if (isp->isp_nactive)
+	if (isp->isp_nactive) {
 		isp->isp_nactive--;
+	}
 	isp->isp_fphccmplt++;
 	isp_done(xs);
 }
@@ -7468,7 +7469,7 @@ isp_mboxcmd(ispsoftc_t *isp, mbreg_t *mbp)
 
 	for (box = 0; box < MAX_MAILBOX(isp); box++) {
 		if (ibits & (1 << box)) {
-			isp_prt(isp, ISP_LOGDEBUG1, "IN mbox %d = 0x%04x", box,
+			isp_prt(isp, ISP_LOGDEBUG3, "IN mbox %d = 0x%04x", box,
 			    mbp->param[box]);
 			ISP_WRITE(isp, MBOX_OFF(box), mbp->param[box]);
 		}
@@ -7511,7 +7512,7 @@ isp_mboxcmd(ispsoftc_t *isp, mbreg_t *mbp)
 	for (box = 0; box < MAX_MAILBOX(isp); box++) {
 		if (obits & (1 << box)) {
 			mbp->param[box] = isp->isp_mboxtmp[box];
-			isp_prt(isp, ISP_LOGDEBUG1, "OUT mbox %d = 0x%04x", box,
+			isp_prt(isp, ISP_LOGDEBUG3, "OUT mbox %d = 0x%04x", box,
 			    mbp->param[box]);
 		}
 	}
