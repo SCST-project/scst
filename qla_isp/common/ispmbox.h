@@ -1,6 +1,6 @@
-/* $Id: ispmbox.h,v 1.70 2008/01/07 19:07:07 mjacob Exp $ */
+/* $Id: ispmbox.h,v 1.71 2008/02/11 23:59:06 mjacob Exp $ */
 /*-
- *  Copyright (c) 1997-2007 by Matthew Jacob
+ *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
  * 
  *  Redistribution and use in source and binary forms, with or without

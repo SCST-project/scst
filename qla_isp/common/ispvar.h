@@ -1,6 +1,6 @@
-/* $Id: ispvar.h,v 1.91 2008/01/08 20:40:22 mjacob Exp $ */
+/* $Id: ispvar.h,v 1.92 2008/02/11 23:59:06 mjacob Exp $ */
 /*-
- *  Copyright (c) 1997-2007 by Matthew Jacob
+ *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
  * 
  *  Redistribution and use in source and binary forms, with or without

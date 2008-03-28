@@ -1,6 +1,6 @@
-/* $Id: isp_linux.c,v 1.224 2008/01/25 22:22:47 mjacob Exp $ */
+/* $Id: isp_linux.c,v 1.226 2008/02/12 00:40:51 mjacob Exp $ */
 /*
- *  Copyright (c) 1997-2007 by Matthew Jacob
+ *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
  * 
  *  Redistribution and use in source and binary forms, with or without
@@ -1498,7 +1498,6 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xact_t *xact)
      */
     if (tmd->cd_lflags & CDFL_ABORTED) {
         isp_prt(isp, ISP_LOGINFO, "[%llx] already ABORTED- not sending a CTIO", tmd->cd_tagval);
-        dump_stack();
         xact->td_error = -ENXIO;
         goto out;
     }

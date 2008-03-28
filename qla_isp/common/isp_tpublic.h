@@ -1,6 +1,6 @@
-/* $Id: isp_tpublic.h,v 1.40 2007/12/20 18:27:06 mjacob Exp $ */
+/* $Id: isp_tpublic.h,v 1.41 2008/02/11 23:59:06 mjacob Exp $ */
 /*-
- *  Copyright (c) 1997-2007 by Matthew Jacob
+ *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
  * 
  *  Redistribution and use in source and binary forms, with or without

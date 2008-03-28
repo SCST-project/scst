@@ -1,6 +1,6 @@
-/* $Id: scsi_target.h,v 1.29 2007/12/11 22:16:09 mjacob Exp $ */
+/* $Id: scsi_target.h,v 1.30 2008/02/11 23:59:06 mjacob Exp $ */
 /*
- *  Copyright (c) 1997-2007 by Matthew Jacob
+ *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
  * 
  *  Redistribution and use in source and binary forms, with or without

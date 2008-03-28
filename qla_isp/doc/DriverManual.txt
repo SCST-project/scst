@@ -1,5 +1,5 @@
-$Id: DriverManual.txt,v 1.6 2006/02/17 22:53:44 mjacob Exp $
-Copyright (c) 1997-2004 by Matthew Jacob
+$Id: DriverManual.txt,v 1.7 2008/02/11 23:59:06 mjacob Exp $
+Copyright (c) 1997-2008 by Matthew Jacob
 All rights reserved.
 
 		Driver Theory of Operation Manual

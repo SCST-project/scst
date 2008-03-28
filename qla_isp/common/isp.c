@@ -1,6 +1,6 @@
-/* $Id: isp.c,v 1.195 2008/01/25 22:20:15 mjacob Exp $ */
+/* $Id: isp.c,v 1.197 2008/02/11 23:59:06 mjacob Exp $ */
 /*-
- *  Copyright (c) 1997-2007 by Matthew Jacob
+ *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
  * 
  *  Redistribution and use in source and binary forms, with or without
@@ -2318,7 +2318,7 @@ isp_plogx(ispsoftc_t *isp, int chan, uint16_t handle, uint32_t portid,
 		SNPRINTF(buf, sizeof (buf),
 		    "already logged in with N-Port handle 0x%x", parm1);
 		msg = buf;
-		rval = MBOX_PORT_ID_USED | (handle << 16);
+		rval = MBOX_PORT_ID_USED | (parm1 << 16);
 		break;
 	case PLOGX_IOCBERR_HNDLUSED:
 		lev = ISP_LOGSANCFG|ISP_LOGDEBUG0;
@@ -2437,7 +2437,7 @@ isp_getpdb(ispsoftc_t *isp, int chan, uint16_t id, isp_pdb_t *pdb, int dolock)
 	MEMZERO(&mbs, sizeof (mbs));
 	mbs.param[0] = MBOX_GET_PORT_DB;
 	if (IS_24XX(isp)) {
-		mbs.ibits = (1 << 9);
+		mbs.ibits = (1 << 9)|(1 << 10);
 		mbs.param[1] = id;
 		mbs.param[9] = chan;
 	} else if (ISP_CAP_2KLOGIN(isp)) {
@@ -6691,6 +6691,7 @@ isp_parse_status_24xx(ispsoftc_t *isp, isp24xx_statusreq_t *sp,
 
 		isp_prt(isp, ISP_LOGINFO, "Chan %d port %s for target %d",
 		    chan, reason, XS_TGT(xs));
+
 		/*
 		 * There is no MBOX_INIT_LIP for the 24XX.
 		 */

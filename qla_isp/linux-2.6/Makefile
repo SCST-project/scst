@@ -1,8 +1,8 @@
-# $Id: Makefile,v 1.9 2007/12/11 22:19:39 mjacob Exp $
+# $Id: Makefile,v 1.10 2008/02/11 23:59:06 mjacob Exp $
 #
 # Makefile
 #
-# Copyright (c) 2006-2007 by Matthew Jacob
+# Copyright (c) 2006-2008 by Matthew Jacob
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of The Version 2 GNU General Public License as published

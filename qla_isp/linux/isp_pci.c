@@ -1,6 +1,6 @@
-/* $Id: isp_pci.c,v 1.159 2008/01/27 01:10:42 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.161 2008/02/12 00:40:51 mjacob Exp $ */
 /*
- *  Copyright (c) 1997-2007 by Matthew Jacob
+ *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
  * 
  *  Redistribution and use in source and binary forms, with or without
@@ -74,7 +74,7 @@ static void isp_pci_wr_reg_1080(ispsoftc_t *, int, uint32_t);
     defined(ISP_DISABLE_2100_SUPPORT) && defined(ISP_DISABLE_2200_SUPPORT))
 static int isp_pci_rd_isr(ispsoftc_t *, uint32_t *, uint16_t *, uint16_t *);
 #endif
-#ifndef    ISP_DISABLE_2300_SUPPORT
+#if !(defined(ISP_DISABLE_2300_SUPPORT) && defined(ISP_DISABLE_2322_SUPPORT))
 static int isp_pci_rd_isr_2300(ispsoftc_t *, uint32_t *, uint16_t *, uint16_t *);
 #endif
 #ifndef    ISP_DISABLE_2400_SUPPORT
@@ -122,7 +122,8 @@ static int isplinux_pci_exclude(struct pci_dev *);
 #define ISP_2322_RISC_CODE  NULL
 #define ISP_2400_RISC_CODE  NULL
 
-#if !(defined(CONFIG_FW_LOADER) || defined(CONFIG_FW_LOADER_MODULE))
+#define DISABLE_FW_LOADER 1
+#if defined(DISABLE_FW_LOADER) ||  !(defined(CONFIG_FW_LOADER) || defined(CONFIG_FW_LOADER_MODULE))
 #ifndef    ISP_DISABLE_1020_SUPPORT
 #include "asm_1040.h"
 #endif
@@ -141,7 +142,7 @@ static int isplinux_pci_exclude(struct pci_dev *);
 #ifndef    ISP_DISABLE_2300_SUPPORT
 #include "asm_2300.h"
 #endif
-#ifndef    ISP_DISABLE_2300_SUPPORT
+#ifndef    ISP_DISABLE_2322_SUPPORT
 #include "asm_2322.h"
 #endif
 #ifndef    ISP_DISABLE_2400_SUPPORT
@@ -240,6 +241,8 @@ static struct ispmdvec mdvec_2300 = {
     isp_pci_dumpregs,
     ISP_2300_RISC_CODE
 };
+#endif
+#ifndef    ISP_DISABLE_2322_SUPPORT
 static struct ispmdvec mdvec_2322 = {
     isp_pci_rd_isr_2300,
     isp_pci_rd_reg,
@@ -787,6 +790,8 @@ isplinux_pci_init_one(struct Scsi_Host *host)
         if (isp->isp_mdvec->dv_ispfw == NULL)
             fwname = "ql2300_fw.bin";
     }
+#endif
+#ifndef    ISP_DISABLE_2322_SUPPORT
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2322) {
         isp->isp_mdvec = &mdvec_2322;
         isp->isp_type = ISP_HA_FC_2322;
@@ -1050,7 +1055,7 @@ isp_pci_rd_isr(ispsoftc_t *isp, uint32_t *isrp, uint16_t *semap, uint16_t *mbp)
 }
 #endif
 
-#if !(defined(ISP_DISABLE_2300_SUPPORT) && defined(ISP_DISABLE_2400_SUPPORT))
+#if !(defined(ISP_DISABLE_2300_SUPPORT) && defined(ISP_DISASBLE_2322_SUPPORT) && defined(ISP_DISABLE_2400_SUPPORT))
 static __inline uint32_t
 ispregrd32(struct isp_pcisoftc *pcs, vm_offset_t offset)
 {
@@ -1066,7 +1071,7 @@ ispregrd32(struct isp_pcisoftc *pcs, vm_offset_t offset)
 }
 #endif
 
-#ifndef ISP_DISABLE_2300_SUPPORT
+#if !(defined(ISP_DISABLE_2300_SUPPORT) && defined(ISP_DISABLE_2322_SUPPORT))
 static int
 isp_pci_rd_isr_2300(ispsoftc_t *isp, uint32_t *isrp, uint16_t *semap, uint16_t *mbox0p)
 {
@@ -3314,8 +3319,10 @@ static struct pci_device_id isp_pci_tbl[] __devinitdata = {
 #ifndef    ISP_DISABLE_2300_SUPPORT
         { PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2300) },
         { PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2312) },
-        { PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2322) },
+#endif
+#ifndef    ISP_DISABLE_2322_SUPPORT
         { PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP6312) },
+        { PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2322) },
         { PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP6322) },
 #endif
 #ifndef    ISP_DISABLE_2400_SUPPORT
