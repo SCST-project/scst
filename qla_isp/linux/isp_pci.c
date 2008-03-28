@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.162 2008/02/27 21:03:06 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.163 2008/02/28 17:53:18 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -3158,12 +3158,10 @@ isp_pci_dmateardown(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, uint32_t handle)
 #endif
     if (Cmnd->sc_data_direction != SCSI_DATA_NONE) {
         if (Cmnd->use_sg) {
-            pci_unmap_sg(pcs->pci_dev, (struct scatterlist *)Cmnd->request_buffer,
-            Cmnd->use_sg, scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
+            pci_unmap_sg(pcs->pci_dev, (struct scatterlist *)Cmnd->request_buffer, Cmnd->use_sg, scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
         } else if (Cmnd->request_bufflen) {
             XS_DMA_ADDR_T dhandle = (XS_DMA_ADDR_T) QLA_HANDLE(Cmnd);
-            pci_unmap_single(pcs->pci_dev, dhandle, Cmnd->request_bufflen,
-            scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
+            pci_unmap_single(pcs->pci_dev, dhandle, Cmnd->request_bufflen, scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
         }
     }
 }
