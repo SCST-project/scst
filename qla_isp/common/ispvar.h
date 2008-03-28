@@ -1,4 +1,4 @@
-/* $Id: ispvar.h,v 1.92 2008/02/11 23:59:06 mjacob Exp $ */
+/* $Id: ispvar.h,v 1.93 2008/03/06 01:40:11 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -469,12 +469,6 @@ typedef struct {
 	 */
 	void *			isp_scratch;
 	XS_DMA_ADDR_T		isp_scdma;
-#ifdef	ISP_FW_CRASH_DUMP
-	/*
-	 * This is only present in channel zero's fcparam
-	 */
-	uint16_t *		isp_dump_data;
-#endif
 } fcparam;
 
 #define	FW_CONFIG_WAIT		0
@@ -794,13 +788,6 @@ void isp_init(ispsoftc_t *);
  */
 void isp_reinit(ispsoftc_t *);
 
-#ifdef	ISP_FW_CRASH_DUMP
-/*
- * Dump firmware entry point.
- */
-void isp_fw_dump(ispsoftc_t *isp);
-#endif
-
 /*
  * Internal Interrupt Service Routine
  *
@@ -903,9 +890,8 @@ typedef enum {
 	ISPASYNC_DEV_GONE,		/* FC Device Departure */
 	ISPASYNC_TARGET_NOTIFY,		/* All target async notification */
 	ISPASYNC_TARGET_ACTION,		/* All target action requested */
-	ISPASYNC_FW_CRASH,		/* FC Firmware has crashed */
-	ISPASYNC_FW_DUMPED,		/* FC Firmware crashdump taken */
-	ISPASYNC_FW_RESTARTED		/* FC Firmware has been restarted */
+	ISPASYNC_FW_CRASH,		/* All Firmware has crashed */
+	ISPASYNC_FW_RESTARTED		/* All Firmware has been restarted */
 } ispasync_t;
 void isp_async(ispsoftc_t *, ispasync_t, ...);
 

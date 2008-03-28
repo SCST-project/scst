@@ -1,4 +1,4 @@
-/* $Id: isp.c,v 1.198 2008/02/22 20:02:13 mjacob Exp $ */
+/* $Id: isp.c,v 1.199 2008/03/06 01:41:06 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -943,15 +943,15 @@ isp_reset(ispsoftc_t *isp)
 		union {
 			const uint16_t *cp;
 			uint16_t *np;
-		} u;
-		u.cp = isp->isp_mdvec->dv_ispfw;
-		isp->isp_mbxworkp = &u.np[1];
-		isp->isp_mbxwrk0 = u.np[3] - 1;
+		} ucd;
+		ucd.cp = isp->isp_mdvec->dv_ispfw;
+		isp->isp_mbxworkp = &ucd.np[1];
+		isp->isp_mbxwrk0 = ucd.np[3] - 1;
 		isp->isp_mbxwrk1 = code_org + 1;
 		MEMZERO(&mbs, sizeof (mbs));
 		mbs.param[0] = MBOX_WRITE_RAM_WORD;
 		mbs.param[1] = code_org;
-		mbs.param[2] = u.np[0];
+		mbs.param[2] = ucd.np[0];
 		mbs.logval = MBLOGNONE;
 		isp_mboxcmd(isp, &mbs);
 		if (mbs.param[0] != MBOX_COMMAND_COMPLETE) {
@@ -2150,8 +2150,8 @@ isp_mark_portdb(ispsoftc_t *isp, int chan, int disposition)
 		if (fcp->portdb[i].target_mode) {
 			if (disposition < 0) {
 				isp_prt(isp, ISP_LOGTINFO,
-				    "%s: Chan %d zeroing handle 0x%02x port "
-				    "0x%06x", __FUNCTION__, chan,
+				    "isp_mark_portdb: Chan %d zeroing handle 0x"
+				    "%02x port 0x%06x", chan,
 				    fcp->portdb[i].handle,
 				    fcp->portdb[i].portid);
 				MEMZERO(&fcp->portdb[i], sizeof (fcportdb_t));
@@ -7901,7 +7901,7 @@ isp_reinit(ispsoftc_t *isp)
 
 	if (isp->isp_state != ISP_RUNSTATE) {
 #ifndef	ISP_TARGET_MODE
-		isp_prt(isp, ISP_LOGINFO, "%s: not at runstate", __FUNCTION__);
+		isp_prt(isp, ISP_LOGINFO, "isp_reinit: not at runstate");
 #endif
 		ISP_DISABLE_INTS(isp);
 		if (IS_FC(isp)) {
@@ -8578,324 +8578,3 @@ isp_parse_nvram_2400(ispsoftc_t *isp, uint8_t *nvram_data)
 	fcp->isp_xfwoptions = ISP2400_NVRAM_FIRMWARE_OPTIONS2(nvram_data);
 	fcp->isp_zfwoptions = ISP2400_NVRAM_FIRMWARE_OPTIONS3(nvram_data);
 }
-
-#ifdef	ISP_FW_CRASH_DUMP
-static void isp2200_fw_dump(ispsoftc_t *);
-static void isp2300_fw_dump(ispsoftc_t *);
-
-static void
-isp2200_fw_dump(ispsoftc_t *isp)
-{
-	int i, j;
-	mbreg_t mbs;
-	uint16_t *ptr;
-
-	MEMZERO(&mbs, sizeof (mbs));
-	ptr = FCPARAM(isp, 0)->isp_dump_data;
-	if (ptr == NULL) {
-		isp_prt(isp, ISP_LOGERR,
-		   "No place to dump RISC registers and SRAM");
-		return;
-	}
-	if (*ptr++) {
-		isp_prt(isp, ISP_LOGERR,
-		   "dump area for RISC registers and SRAM already used");
-		return;
-	}
-	ISP_WRITE(isp, HCCR, HCCR_CMD_PAUSE);
-	for (i = 0; i < 100; i++) {
-		USEC_DELAY(100);
-		if (ISP_READ(isp, HCCR) & HCCR_PAUSE) {
-			break;
-		}
-	}
-	if (ISP_READ(isp, HCCR) & HCCR_PAUSE) {
-		/*
-		 * PBIU Registers
-		 */
-		for (i = 0; i < 8; i++) {
-			*ptr++ = ISP_READ(isp, BIU_BLOCK + (i << 1));
-		}
-
-		/*
-		 * Mailbox Registers
-		 */
-		for (i = 0; i < 8; i++) {
-			*ptr++ = ISP_READ(isp, MBOX_BLOCK + (i << 1));
-		}
-
-		/*
-		 * DMA Registers
-		 */
-		for (i = 0; i < 48; i++) {
-			*ptr++ = ISP_READ(isp, DMA_BLOCK + 0x20 + (i << 1));
-		}
-
-		/*
-		 * RISC H/W Registers
-		 */
-		ISP_WRITE(isp, BIU2100_CSR, 0);
-		for (i = 0; i < 16; i++) {
-			*ptr++ = ISP_READ(isp, BIU_BLOCK + 0xA0 + (i << 1));
-		}
-
-		/*
-		 * RISC GP Registers
-		 */
-		for (j = 0; j < 8; j++) {
-			ISP_WRITE(isp, BIU_BLOCK + 0xA4, 0x2000 + (j << 8));
-			for (i = 0; i < 16; i++) {
-				*ptr++ =
-				    ISP_READ(isp, BIU_BLOCK + 0x80 + (i << 1));
-			}
-		}
-
-		/*
-		 * Frame Buffer Hardware Registers
-		 */
-		ISP_WRITE(isp, BIU2100_CSR, 0x10);
-		for (i = 0; i < 16; i++) {
-			*ptr++ = ISP_READ(isp, BIU_BLOCK + 0x80 + (i << 1));
-		}
-
-		/*
-		 * Fibre Protocol Module 0 Hardware Registers
-		 */
-		ISP_WRITE(isp, BIU2100_CSR, 0x20);
-		for (i = 0; i < 64; i++) {
-			*ptr++ = ISP_READ(isp, BIU_BLOCK + 0x80 + (i << 1));
-		}
-
-		/*
-		 * Fibre Protocol Module 1 Hardware Registers
-		 */
-		ISP_WRITE(isp, BIU2100_CSR, 0x30);
-		for (i = 0; i < 64; i++) {
-			*ptr++ = ISP_READ(isp, BIU_BLOCK + 0x80 + (i << 1));
-		}
-	} else {
-		isp_prt(isp, ISP_LOGERR, "RISC Would Not Pause");
-		return;
-	}
-	isp_prt(isp, ISP_LOGALL,
-	   "isp_fw_dump: RISC registers dumped successfully");
-	ISP_WRITE(isp, BIU2100_CSR, BIU2100_SOFT_RESET);
-	for (i = 0; i < 100; i++) {
-		USEC_DELAY(100);
-		if (ISP_READ(isp, OUTMAILBOX0) == 0) {
-			break;
-		}
-	}
-	if (ISP_READ(isp, OUTMAILBOX0) != 0) {
-		isp_prt(isp, ISP_LOGERR, "Board Would Not Reset");
-		return;
-	}
-	ISP_WRITE(isp, HCCR, HCCR_CMD_PAUSE);
-	for (i = 0; i < 100; i++) {
-		USEC_DELAY(100);
-		if (ISP_READ(isp, HCCR) & HCCR_PAUSE) {
-			break;
-		}
-	}
-	if ((ISP_READ(isp, HCCR) & HCCR_PAUSE) == 0) {
-		isp_prt(isp, ISP_LOGERR, "RISC Would Not Pause After Reset");
-		return;
-	}
-	ISP_WRITE(isp, RISC_EMB, 0xf2);
-	ISP_WRITE(isp, HCCR, HCCR_CMD_RELEASE);
-	for (i = 0; i < 100; i++) {
-		USEC_DELAY(100);
-		if ((ISP_READ(isp, HCCR) & HCCR_PAUSE) == 0) {
-			break;
-		}
-	}
-	ISP_ENABLE_INTS(isp);
-	mbs.param[0] = MBOX_READ_RAM_WORD;
-	mbs.param[1] = 0x1000;
-	isp->isp_mbxworkp = (void *) ptr;
-	isp->isp_mbxwrk0 = 0xefff;	/* continuation count */
-	isp->isp_mbxwrk1 = 0x1001;	/* next SRAM address */
-	isp_control(isp, ISPCTL_RUN_MBOXCMD, &mbs);
-	if (mbs.param[0] != MBOX_COMMAND_COMPLETE) {
-		isp_prt(isp, ISP_LOGWARN,
-		    "RAM DUMP FAILED @ WORD %x", isp->isp_mbxwrk1);
-		return;
-	}
-	ptr = isp->isp_mbxworkp;	/* finish fetch of final word */
-	*ptr++ = isp->isp_mboxtmp[2];
-	isp_prt(isp, ISP_LOGALL, "isp_fw_dump: SRAM dumped successfully");
-	FCPARAM(isp, 0)->isp_dump_data[0] = isp->isp_type; /* now used */
-	isp_async(isp, ISPASYNC_FW_DUMPED);
-}
-
-static void
-isp2300_fw_dump(ispsoftc_t *isp)
-{
-	int i, j;
-	mbreg_t mbs;
-	uint16_t *ptr;
-
-	MEMZERO(&mbs, sizeof (mbs));
-	ptr = FCPARAM(isp, 0)->isp_dump_data;
-	if (ptr == NULL) {
-		isp_prt(isp, ISP_LOGERR,
-		   "No place to dump RISC registers and SRAM");
-		return;
-	}
-	if (*ptr++) {
-		isp_prt(isp, ISP_LOGERR,
-		   "dump area for RISC registers and SRAM already used");
-		return;
-	}
-	ISP_WRITE(isp, HCCR, HCCR_CMD_PAUSE);
-	for (i = 0; i < 100; i++) {
-		USEC_DELAY(100);
-		if (ISP_READ(isp, HCCR) & HCCR_PAUSE) {
-			break;
-		}
-	}
-	if (ISP_READ(isp, HCCR) & HCCR_PAUSE) {
-		/*
-		 * PBIU registers
-		 */
-		for (i = 0; i < 8; i++) {
-			*ptr++ = ISP_READ(isp, BIU_BLOCK + (i << 1));
-		}
-
-		/*
-		 * ReqQ-RspQ-Risc2Host Status registers
-		 */
-		for (i = 0; i < 8; i++) {
-			*ptr++ = ISP_READ(isp, BIU_BLOCK + 0x10 + (i << 1));
-		}
-
-		/*
-		 * Mailbox Registers
-		 */
-		for (i = 0; i < 32; i++) {
-			*ptr++ =
-			    ISP_READ(isp, PCI_MBOX_REGS2300_OFF + (i << 1));
-		}
-
-		/*
-		 * Auto Request Response DMA registers
-		 */
-		ISP_WRITE(isp, BIU2100_CSR, 0x40);
-		for (i = 0; i < 32; i++) {
-			*ptr++ = ISP_READ(isp, BIU_BLOCK + 0x80 + (i << 1));
-		}
-
-		/*
-		 * DMA registers
-		 */
-		ISP_WRITE(isp, BIU2100_CSR, 0x50);
-		for (i = 0; i < 48; i++) {
-			*ptr++ = ISP_READ(isp, BIU_BLOCK + 0x80 + (i << 1));
-		}
-
-		/*
-		 * RISC hardware registers
-		 */
-		ISP_WRITE(isp, BIU2100_CSR, 0);
-		for (i = 0; i < 16; i++) {
-			*ptr++ = ISP_READ(isp, BIU_BLOCK + 0xA0 + (i << 1));
-		}
-
-		/*
-		 * RISC GP? registers
-		 */
-		for (j = 0; j < 8; j++) {
-			ISP_WRITE(isp, BIU_BLOCK + 0xA4, 0x2000 + (j << 9));
-			for (i = 0; i < 16; i++) {
-				*ptr++ =
-				    ISP_READ(isp, BIU_BLOCK + 0x80 + (i << 1));
-			}
-		}
-
-		/*
-		 * frame buffer hardware registers
-		 */
-		ISP_WRITE(isp, BIU2100_CSR, 0x10);
-		for (i = 0; i < 64; i++) {
-			*ptr++ = ISP_READ(isp, BIU_BLOCK + 0x80 + (i << 1));
-		}
-
-		/*
-		 * FPM B0 hardware registers
-		 */
-		ISP_WRITE(isp, BIU2100_CSR, 0x20);
-		for (i = 0; i < 64; i++) {
-			*ptr++ = ISP_READ(isp, BIU_BLOCK + 0x80 + (i << 1));
-		}
-
-		/*
-		 * FPM B1 hardware registers
-		 */
-		ISP_WRITE(isp, BIU2100_CSR, 0x30);
-		for (i = 0; i < 64; i++) {
-			*ptr++ = ISP_READ(isp, BIU_BLOCK + 0x80 + (i << 1));
-		}
-	} else {
-		isp_prt(isp, ISP_LOGERR, "RISC Would Not Pause");
-		return;
-	}
-	isp_prt(isp, ISP_LOGALL,
-	   "isp_fw_dump: RISC registers dumped successfully");
-	ISP_WRITE(isp, BIU2100_CSR, BIU2100_SOFT_RESET);
-	for (i = 0; i < 100; i++) {
-		USEC_DELAY(100);
-		if (ISP_READ(isp, OUTMAILBOX0) == 0) {
-			break;
-		}
-	}
-	if (ISP_READ(isp, OUTMAILBOX0) != 0) {
-		isp_prt(isp, ISP_LOGERR, "Board Would Not Reset");
-		return;
-	}
-	ISP_ENABLE_INTS(isp);
-	MEMZERO(&mbs, sizeof (mbs));
-	mbs.param[0] = MBOX_READ_RAM_WORD;
-	mbs.param[1] = 0x800;
-	isp->isp_mbxworkp = (void *) ptr;
-	isp->isp_mbxwrk0 = 0xf7ff;	/* continuation count */
-	isp->isp_mbxwrk1 = 0x801;	/* next SRAM address */
-	isp_control(isp, ISPCTL_RUN_MBOXCMD, &mbs);
-	if (mbs.param[0] != MBOX_COMMAND_COMPLETE) {
-		isp_prt(isp, ISP_LOGWARN,
-		    "RAM DUMP FAILED @ WORD %x", isp->isp_mbxwrk1);
-		return;
-	}
-	ptr = isp->isp_mbxworkp;	/* finish fetch of final word */
-	*ptr++ = isp->isp_mboxtmp[2];
-	MEMZERO(&mbs, sizeof (mbs));
-	mbs.param[0] = MBOX_READ_RAM_WORD_EXTENDED;
-	mbs.param[8] = 1;
-	isp->isp_mbxworkp = (void *) ptr;
-	isp->isp_mbxwrk0 = 0xffff;	/* continuation count */
-	isp->isp_mbxwrk1 = 0x1;		/* next SRAM address */
-	isp->isp_mbxwrk8 = 0x1;
-	isp_control(isp, ISPCTL_RUN_MBOXCMD, &mbs);
-	if (mbs.param[0] != MBOX_COMMAND_COMPLETE) {
-		isp_prt(isp, ISP_LOGWARN,
-		    "RAM DUMP FAILED @ WORD %x", 0x10000 + isp->isp_mbxwrk1);
-		return;
-	}
-	ptr = isp->isp_mbxworkp;	/* finish final word */
-	*ptr++ = mbs.param[2];
-	isp_prt(isp, ISP_LOGALL, "isp_fw_dump: SRAM dumped successfully");
-	FCPARAM(isp, 0)->isp_dump_data[0] = isp->isp_type; /* now used */
-	isp_async(isp, ISPASYNC_FW_DUMPED);
-}
-
-void
-isp_fw_dump(ispsoftc_t *isp)
-{
-	if (IS_2200(isp))
-		isp2200_fw_dump(isp);
-	else if (IS_23XX(isp))
-		isp2300_fw_dump(isp);
-	else if (IS_24XX(isp))
-		isp_prt(isp, ISP_LOGERR, "24XX dump method undefined");
-
-}
-#endif
