@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.165 2008/03/10 17:55:51 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.166 2008/03/21 16:10:23 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -87,8 +87,11 @@ static int isp_pci_mbxdma(ispsoftc_t *);
 static int isp_pci_dmasetup(ispsoftc_t *, XS_T *, ispreq_t *, uint32_t *, uint32_t);
 static void isp_pci_dmateardown(ispsoftc_t *, XS_T *, uint32_t);
 
-#define FOURG_SEG(x)        (((u64) (x)) & 0xffffffff00000000ULL)
-#define SAME_4G(addr, cnt)    (FOURG_SEG(addr) == FOURG_SEG(addr + cnt - 1))
+#define SIXTEENM_SEG(x)             (((u64) (x)) & 0xffffffff00000000ULL)
+#define SAME_SIXTEENM(addr, cnt)    (SIXTEENM_SEG(addr) == SIXTEENM_SEG(addr + cnt - 1))
+
+#define FOURG_SEG(x)                (((u64) (x)) & 0xffffffff00000000ULL)
+#define SAME_4G(addr, cnt)          (FOURG_SEG(addr) == FOURG_SEG(addr + cnt - 1))
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
 #define ISP_IRQ_FLAGS   SA_INTERRUPT | SA_SHIRQ
@@ -877,12 +880,12 @@ isplinux_pci_init_one(struct Scsi_Host *host)
      * CONFIG_HIGHMEM64G defined.
      */
 
-    if (isp->isp_type < ISP_HA_SCSI_1240) {
+/*    if (isp->isp_type < ISP_HA_SCSI_1240) {
         if (pci_set_dma_mask(pdev, (u64)0x00ffffff)) {
             isp_prt(isp, ISP_LOGERR, "cannot set 24 bit dma mask");
             goto bad;
         }
-    } else if (ISP_A64) {
+    } else */ if (ISP_A64) {
         if (pci_set_dma_mask(pdev, (u64) 0xffffffffffffffffULL)) {
             if (pci_set_dma_mask(pdev, (u64) 0xffffffff)) {
                 isp_prt(isp, ISP_LOGERR, "cannot set 32 bit dma mask");
@@ -2621,8 +2624,7 @@ isp_pci_dmasetup(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, ispreq_t *rq, uint32_t *nxi, 
     uint32_t nxti;
 
 #ifdef    ISP_TARGET_MODE
-    if (rq->req_header.rqs_entry_type == RQSTYPE_CTIO || rq->req_header.rqs_entry_type == RQSTYPE_CTIO2 ||
-            rq->req_header.rqs_entry_type == RQSTYPE_CTIO3) {
+    if (rq->req_header.rqs_entry_type == RQSTYPE_CTIO || rq->req_header.rqs_entry_type == RQSTYPE_CTIO2 || rq->req_header.rqs_entry_type == RQSTYPE_CTIO3) {
         int s;
         if (IS_FC(isp)) {
             s = tdma_mkfc(isp, (tmd_xact_t *)Cmnd, (ct2_entry_t *)rq, nxi, optr);
@@ -2708,7 +2710,7 @@ isp_pci_dmasetup(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, ispreq_t *rq, uint32_t *nxi, 
     if (segcnt == 0) {
         isp_prt(isp, ISP_LOGWARN, "%s: unable to dma map request", __FUNCTION__);
         XS_SETERR(Cmnd, HBA_BOTCH);
-        return (CMD_EAGAIN);
+        return (CMD_COMPLETE);
     }
     savesg = sg;
 
@@ -2778,11 +2780,15 @@ again:
             rq6->req_dataseg[rq6->req_seg_count].ds_base = LOWD(addr);
             rq6->req_dataseg[rq6->req_seg_count].ds_basehi = HIWD(addr);
             /*
-             * Make sure we don't cross a 4GB boundary.
+             * Make sure we don't cross a dma boundary.
              */
-            if (!SAME_4G(addr, length)) {
+            if (!SAME_4G(addr, length) || (IS_1020(isp) && !SAME_SIXTEENM(addr, length))) {
                 isp_prt(isp, ISP_LOGDEBUG1, "seg0[%d]%llx:%u (TRUNC'd)", rq->req_seg_count, (long long)addr, length);
-                rq6->req_dataseg[rq6->req_seg_count].ds_count = (unsigned int) (FOURG_SEG(addr + length) - addr);
+                if (IS_1020(isp) && !SAME_SIXTEENM(addr, length)) {
+                    rq6->req_dataseg[rq6->req_seg_count].ds_count = (unsigned int) (SIXTEENM_SEG(addr + length) - addr);
+                } else {
+                    rq6->req_dataseg[rq6->req_seg_count].ds_count = (unsigned int) (FOURG_SEG(addr + length) - addr);
+                }
                 addr += rq6->req_dataseg[rq6->req_seg_count].ds_count;
                 length -= rq6->req_dataseg[rq6->req_seg_count].ds_count;
                 /*
@@ -2790,7 +2796,7 @@ again:
                  */
                 if (rq6->req_seg_count == seglim - 1) {
                     last_synthetic_count = length;
-                    last_synthetic_addr = LOWD(addr);
+                    last_synthetic_addr = addr;
                 } else {
                     rq6->req_seg_count++;
                     rq6->req_dataseg[rq6->req_seg_count].ds_count = length;
@@ -2802,6 +2808,22 @@ again:
             ispreqt2_t *rq2 = (ispreqt2_t *)rq;
             rq2->req_dataseg[rq2->req_seg_count].ds_count = length;
             rq2->req_dataseg[rq2->req_seg_count].ds_base = addr;
+        } else if (IS_1020(isp) && !SAME_SIXTEENM(addr, length)) {
+            isp_prt(isp, ISP_LOGDEBUG1, "seg0[%d]%llx:%u (TRUNC'd)", rq->req_seg_count, (long long)addr, length);
+            rq->req_dataseg[rq->req_seg_count].ds_count = (unsigned int) (SIXTEENM_SEG(addr + length) - addr);
+            addr += rq->req_dataseg[rq->req_seg_count].ds_count;
+            length -= rq->req_dataseg[rq->req_seg_count].ds_count;
+            /*
+             * Do we have space to split it here?
+             */
+            if (rq->req_seg_count == seglim - 1) {
+                last_synthetic_count = length;
+                last_synthetic_addr = addr;
+            } else {
+                rq->req_seg_count++;
+                rq->req_dataseg[rq->req_seg_count].ds_count = length;
+                rq->req_dataseg[rq->req_seg_count].ds_base = LOWD(addr);
+            }
         } else {
             rq->req_dataseg[rq->req_seg_count].ds_count = length;
             rq->req_dataseg[rq->req_seg_count].ds_base = addr;
@@ -2910,7 +2932,7 @@ again:
             crq->req_dataseg[ovseg].ds_base = addr;
         }
         if (isp->isp_dblev & ISP_LOGDEBUG1) {
-            isp_print_qentry(isp, "tdma_mkfc: continuation", curip, crq);
+            isp_print_qentry(isp, "isp_pci_dmasetup: continuation", curip, crq);
         }
         MEMORYBARRIER(isp, SYNC_REQUEST, curip, QENTRY_LEN);
         if (crq->req_header.rqs_entry_type == RQSTYPE_A64_CONT) {
