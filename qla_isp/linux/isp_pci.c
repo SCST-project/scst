@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.163 2008/02/28 17:53:18 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.164 2008/03/03 01:42:01 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -931,7 +931,7 @@ isplinux_pci_init_one(struct Scsi_Host *host)
         isp_prt(isp, ISP_LOGERR, "isplinux_common_init failed");
         goto bad;
     }
-    CREATE_ISP_DEV(isp);
+    CREATE_ISP_DEV(isp, isp_class);
     return (0);
 bad:
     if (isp->isp_param) {

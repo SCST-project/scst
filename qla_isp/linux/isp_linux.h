@@ -1,4 +1,4 @@
-/* $Id: isp_linux.h,v 1.154 2008/02/11 23:59:06 mjacob Exp $ */
+/* $Id: isp_linux.h,v 1.159 2008/03/03 01:42:01 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -117,8 +117,8 @@
 #define ISP_CLASS           struct class_simple
 #define CREATE_ISP_CLASS    class_simple_create
 #define DESTROY_ISP_CLASS   class_simple_destroy
-#define CREATE_ISP_DEV(isp)     \
-    class_simple_device_add(isp_class, MKDEV(MAJOR(isp_dev), isp->isp_unit), NULL, "%s%d", ISP_NAME, isp->isp_unit),     \
+#define CREATE_ISP_DEV(isp, class)     \
+    class_simple_device_add(class, MKDEV(MAJOR(isp_dev), isp->isp_unit), NULL, "%s%d", ISP_NAME, isp->isp_unit),     \
     devfs_mk_cdev(MKDEV(MAJOR(isp_dev), isp->isp_unit), S_IFCHR | S_IRUGO | S_IWUGO, "%s%d", ISP_NAME, isp->isp_unit)
 #define DESTROY_ISP_DEV(isp)    \
     devfs_remove("%s%d", ISP_NAME, isp->isp_unit), class_simple_device_remove(MKDEV(MAJOR(isp_dev), isp->isp_unit))
@@ -126,8 +126,8 @@
 #define ISP_CLASS struct class
 #define CREATE_ISP_CLASS    class_create
 #define DESTROY_ISP_CLASS   class_destroy
-#define CREATE_ISP_DEV(isp)     \
-    class_device_create(isp_class, NULL, MKDEV(MAJOR(isp_dev), isp->isp_unit), NULL, "%s%d", ISP_NAME, isp->isp_unit)
+#define CREATE_ISP_DEV(isp, class)     \
+    class_device_create(class, NULL, MKDEV(MAJOR(isp_dev), isp->isp_unit), NULL, "%s%d", ISP_NAME, isp->isp_unit)
 #define DESTROY_ISP_DEV(isp)    \
     class_device_destroy(isp_class, MKDEV(MAJOR(isp_dev), (isp)->isp_unit));
 #endif
