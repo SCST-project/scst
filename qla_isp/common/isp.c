@@ -1,4 +1,4 @@
-/* $Id: isp.c,v 1.197 2008/02/11 23:59:06 mjacob Exp $ */
+/* $Id: isp.c,v 1.198 2008/02/22 20:02:13 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -3665,7 +3665,6 @@ isp_scan_fabric(ispsoftc_t *isp, int chan)
 
 	for (portidx = 0; portidx < portlim; portidx++) {
 		fcportdb_t *lp;
-		isp_pdb_t pdb;
 		uint64_t wwnn, wwpn;
 		int dbidx, nr;
 
