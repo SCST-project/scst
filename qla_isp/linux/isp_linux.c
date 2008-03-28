@@ -1,4 +1,4 @@
-/* $Id: isp_linux.c,v 1.227 2008/02/27 21:02:34 mjacob Exp $ */
+/* $Id: isp_linux.c,v 1.228 2008/03/10 17:55:51 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -3708,12 +3708,6 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
         }
         isp_prt(isp, ISP_LOGERR, "Internal F/W Error on bus %d @ RISC Address 0x%x", mbox6, mbox1);
         ISP_DATA(isp, mbox6)->blocked = 1;
-#ifdef    ISP_FW_CRASH_DUMP
-        if (IS_FC(isp)) {
-            ISP_THREAD_EVENT(isp, ISP_THREAD_FW_CRASH_DUMP, NULL, 0, __FUNCTION__, __LINE__);
-            break;
-        }
-#endif
         ISP_RESET0(isp);
         isp_shutdown(isp);
         ISP_THREAD_EVENT(isp, ISP_THREAD_REINIT, NULL, 0, __FUNCTION__, __LINE__);
@@ -4190,17 +4184,6 @@ isplinux_common_init(ispsoftc_t *isp)
             isp->isp_confopts |= ISP_CFG_NPORT;
         }
         isp->isp_osinfo.host->this_id = MAX_FC_TARG+1;
-#ifdef    ISP_FW_CRASH_DUMP
-        if (IS_2200(isp)) {
-            FCPARAM(isp, 0)->isp_dump_data = isp_kalloc(QLA2200_RISC_IMAGE_DUMP_SIZE, GFP_KERNEL);
-        } else if (IS_23XX(isp)) {
-            FCPARAM(isp, 0)->isp_dump_data = isp_kalloc(QLA2300_RISC_IMAGE_DUMP_SIZE, GFP_KERNEL);
-        }
-        if (FCPARAM(isp, 0)->isp_dump_data) {
-            isp_prt(isp, ISP_LOGCONFIG, "f/w crash dump area allocated");
-            FCPARAM(isp, 0)->isp_dump_data[0] = 0;
-        }
-#endif
         if (isp_default_frame_size) {
             if (isp_default_frame_size != 512 && isp_default_frame_size != 1024 && isp_default_frame_size != 2048) {
                 isp_prt(isp, ISP_LOGERR, "bad frame size (%d), defaulting to (%d)", isp_default_frame_size, ICB_DFLT_FRMLEN);
@@ -4502,16 +4485,6 @@ isp_task_thread(void *arg)
             case ISP_THREAD_SCSI_SCAN:
                 scsi_scan_host(isp->isp_osinfo.host);
                 break;
-#ifdef    ISP_FW_CRASH_DUMP
-            case ISP_THREAD_FW_CRASH_DUMP:
-                ISP_LOCKU_SOFTC(isp);
-                FCPARAM(isp, 0)->isp_fwstate = FW_CONFIG_WAIT;
-                FCPARAM(isp, 0)->isp_loopstate = LOOP_NIL;
-                isp_fw_dump(isp);
-                ISP_THREAD_EVENT(isp, ISP_THREAD_REINIT, NULL, 0, __FUNCTION__, __LINE__);
-                ISP_UNLKU_SOFTC(isp);
-                break;
-#endif
             case ISP_THREAD_REINIT:
                 ISP_LOCKU_SOFTC(isp);
                 if (isp->isp_dead) {

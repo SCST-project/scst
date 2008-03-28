@@ -1,4 +1,4 @@
-/* $Id: isp_library.c,v 1.50 2008/02/11 23:59:06 mjacob Exp $ */
+/* $Id: isp_library.c,v 1.51 2008/03/10 18:03:08 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -271,7 +271,7 @@ isp_fc_runstate(ispsoftc_t *isp, int chan, int tval)
 }
 
 /*
- * Fibre Channel Support- get the port database for the id.
+ * Fibre Channel Support routines
  */
 void
 isp_dump_portdb(ispsoftc_t *isp, int chan)
@@ -305,8 +305,8 @@ isp_dump_portdb(ispsoftc_t *isp, int chan)
 		} else {
 			SNPRINTF(mb, sizeof (mb), "---");
 		}
-		isp_prt(isp, ISP_LOGALL, "Chan %d [%d]: hdl 0x%x %s al%d tgt %s "
-		    "%s 0x%06x =>%s 0x%06x; WWNN 0x%08x%08x WWPN 0x%08x%08x",
+		isp_prt(isp, ISP_LOGALL, "Chan %d [%d]: hdl 0x%x %s al%d tgt %s"
+		    " %s 0x%06x =>%s 0x%06x; WWNN 0x%08x%08x WWPN 0x%08x%08x",
 		    chan, i, lp->handle, dbs[lp->state], lp->autologin, mb,
 		    roles[lp->roles], lp->portid,
 		    roles[lp->new_roles], lp->new_portid,

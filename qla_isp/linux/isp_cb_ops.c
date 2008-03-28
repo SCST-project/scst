@@ -1,4 +1,4 @@
-/* $Id: isp_cb_ops.c,v 1.86 2008/02/11 23:59:06 mjacob Exp $ */
+/* $Id: isp_cb_ops.c,v 1.87 2008/03/10 17:55:51 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -204,16 +204,6 @@ isplinux_proc_info(struct Scsi_Host *shp, char *buf, char **st, off_t off, int l
             ISP_UNLKU_SOFTC(isp);
             io = len;
         }
-#ifdef  ISP_FW_CRASH_DUMP
-        else if (strncmp(buf, "fwcrash", 7) == 0) {
-            if (IS_FC(isp)) {
-                ISP_LOCKU_SOFTC(isp);
-                ISP_THREAD_EVENT(isp, ISP_THREAD_FW_CRASH_DUMP, NULL, 0, __FUNCTION__, __LINE__);
-                ISP_UNLKU_SOFTC(isp);
-                io = len;
-            }
-        }
-#endif
         return (io);
     }
 
@@ -474,35 +464,7 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
         isp->isp_fpcchiwater = 0;
         ISP_UNLK_SOFTC(isp);
         break;
-#ifdef  ISP_FW_CRASH_DUMP
-    case ISP_GET_FW_CRASH_DUMP:
-    {
-        uint16_t *ptr = fcp->isp_dump_data;
-        size_t sz;
-        if (IS_2200(isp))
-            sz = QLA2200_RISC_IMAGE_DUMP_SIZE;
-        else
-            sz = QLA2300_RISC_IMAGE_DUMP_SIZE;
-        ISP_LOCK_SOFTC(isp);
-        if (ptr && *ptr) {
-            if (COPYOUT(ptr, (void *)arg, sz)) {
-                rv = -EFAULT;
-            } else {
-                *ptr = 0;
-            }
-        } else {
-            rv = -ENXIO;
-        }
-        ISP_UNLK_SOFTC(isp);
-        break;
-    }
 
-    case ISP_FORCE_CRASH_DUMP:
-        ISP_LOCK_SOFTC(isp);
-        isp_async(isp, ISPASYNC_FW_CRASH, NULL);
-        ISP_UNLK_SOFTC(isp);
-        break;
-#endif
     case ISP_SDBLEV:
         if (COPYIN((void *)arg, &inarg, sizeof (inarg))) {
             rv = -EFAULT;

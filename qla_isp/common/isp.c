@@ -1,4 +1,4 @@
-/* $Id: isp.c,v 1.199 2008/03/06 01:41:06 mjacob Exp $ */
+/* $Id: isp.c,v 1.200 2008/03/10 18:03:07 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -101,8 +101,8 @@ __FBSDID("$FreeBSD$");
  * Local static data
  */
 static const char fconf[] =
-    "Chan %d PortDB[%d] changed:\n current =(0x%x@0x%06x 0x%08x%08x 0x%08x%08x)\n"
-    " database=(0x%x@0x%06x 0x%08x%08x 0x%08x%08x)";
+    "Chan %d PortDB[%d] changed:\n current =(0x%x@0x%06x 0x%08x%08x 0x%08x%08x)"
+    "\n database=(0x%x@0x%06x 0x%08x%08x 0x%08x%08x)";
 static const char notresp[] =
   "Not RESPONSE in RESPONSE Queue (type 0x%x) @ idx %d (next %d) nlooked %d";
 static const char xact1[] =
@@ -163,6 +163,7 @@ static int isp_plogx(ispsoftc_t *, int, uint16_t, uint32_t, int, int);
 static int isp_port_login(ispsoftc_t *, uint16_t, uint32_t);
 static int isp_port_logout(ispsoftc_t *, uint16_t, uint32_t);
 static int isp_getpdb(ispsoftc_t *, int, uint16_t, isp_pdb_t *, int);
+static void isp_dump_chip_portdb(ispsoftc_t *, int, int);
 static uint64_t isp_get_wwn(ispsoftc_t *, int, int, int);
 static int isp_fclink_test(ispsoftc_t *, int, int);
 static const char *ispfc_fw_statename(int);
@@ -171,7 +172,8 @@ static int isp_scan_loop(ispsoftc_t *, int);
 static int isp_gid_ft_sns(ispsoftc_t *, int);
 static int isp_gid_ft_ct_passthru(ispsoftc_t *, int);
 static int isp_scan_fabric(ispsoftc_t *, int);
-static int isp_login_device(ispsoftc_t *, int, uint32_t, isp_pdb_t *, uint16_t *);
+static int
+isp_login_device(ispsoftc_t *, int, uint32_t, isp_pdb_t *, uint16_t *);
 static int isp_register_fc4_type(ispsoftc_t *, int);
 static int isp_register_fc4_type_24xx(ispsoftc_t *, int);
 static uint16_t isp_nxt_handle(ispsoftc_t *, int, uint16_t);
@@ -2084,13 +2086,17 @@ isp_fibre_init_2400(ispsoftc_t *isp)
 			if (fcp2->role != ISP_ROLE_NONE) {
 				pi.vp_port_options = ICB2400_VPOPT_ENABLED;
 				if (fcp2->role & ISP_ROLE_INITIATOR) {
-					pi.vp_port_options |= ICB2400_VPOPT_INI_ENABLE;
+					pi.vp_port_options |=
+					    ICB2400_VPOPT_INI_ENABLE;
 				}
 				if ((fcp2->role & ISP_ROLE_TARGET) == 0) {
-					pi.vp_port_options |= ICB2400_VPOPT_TGT_DISABLE;
+					pi.vp_port_options |=
+					    ICB2400_VPOPT_TGT_DISABLE;
 				}
-				MAKE_NODE_NAME_FROM_WWN(pi.vp_port_portname, fcp2->isp_wwpn);
-				MAKE_NODE_NAME_FROM_WWN(pi.vp_port_nodename, fcp2->isp_wwnn);
+				MAKE_NODE_NAME_FROM_WWN(pi.vp_port_portname,
+				    fcp2->isp_wwpn);
+				MAKE_NODE_NAME_FROM_WWN(pi.vp_port_nodename,
+				    fcp2->isp_wwnn);
 			}
 			off = fcp->isp_scratch;
 			off += ICB2400_VPINFO_PORT_OFF(chan);
@@ -2495,6 +2501,29 @@ isp_getpdb(ispsoftc_t *isp, int chan, uint16_t id, isp_pdb_t *pdb, int dolock)
 	return (0);
 }
 
+static void
+isp_dump_chip_portdb(ispsoftc_t *isp, int chan, int dolock)
+{
+	isp_pdb_t pdb;
+	int lim, loopid;
+
+	if (ISP_CAP_2KLOGIN(isp)) {
+		lim = NPH_MAX_2K;
+	} else {
+		lim = NPH_MAX;
+	}
+	for (loopid = 0; loopid != lim; loopid++) {
+		if (isp_getpdb(isp, chan, loopid, &pdb, dolock)) {
+			continue;
+		}
+		isp_prt(isp, ISP_LOGSANCFG|ISP_LOGINFO, "Chan %d Loopid 0x%04x "
+		    "PortID 0x%06x WWPN 0x%02x%02x%02x%02x%02x%02x%02x%02x",
+		    chan, loopid, pdb.portid, pdb.portname[0], pdb.portname[1],
+		    pdb.portname[2], pdb.portname[3], pdb.portname[4],
+		    pdb.portname[5], pdb.portname[6], pdb.portname[7]);
+	}
+}
+
 static uint64_t
 isp_get_wwn(ispsoftc_t *isp, int chan, int loopid, int nodename)
 {
@@ -2568,7 +2597,7 @@ isp_fclink_test(ispsoftc_t *isp, int chan, int usdelay)
 		"F Port (no FLOGI_ACC response)"
 	};
 	mbreg_t mbs;
-	int count, check_for_fabric;
+	int count, check_for_fabric, r;
 	uint8_t lwfs;
 	int loopid;
 	fcparam *fcp;
@@ -2743,9 +2772,18 @@ isp_fclink_test(ispsoftc_t *isp, int chan, int usdelay)
 	} else {
 		loopid = FL_ID;
 	}
-
-	if (check_for_fabric && isp_getpdb(isp, chan, loopid, &pdb, 1) == 0) {
-		int r;
+	if (check_for_fabric) {
+		r = isp_getpdb(isp, chan, loopid, &pdb, 1);
+		if (r && (fcp->isp_topo == TOPO_F_PORT ||
+		    fcp->isp_topo == TOPO_FL_PORT)) {
+			isp_prt(isp, ISP_LOGWARN, "fabric topology but cannot "
+			    "get info about fabric controller (0x%x)", r);
+			fcp->isp_topo = TOPO_PTP_STUB;
+		}
+	} else {
+		r = -1;
+	}
+	if (r == 0) {
 		if (IS_2100(isp)) {
 			fcp->isp_topo = TOPO_FL_PORT;
 		}
@@ -2772,9 +2810,11 @@ isp_fclink_test(ispsoftc_t *isp, int chan, int usdelay)
 		if (IS_24XX(isp)) {
 			fcp->inorder = (mbs.param[7] & ISP24XX_INORDER) != 0;
 			if (ISP_FW_NEWER_THAN(isp, 4, 0, 27)) {
-				fcp->npiv_fabric = (mbs.param[7] & ISP24XX_NPIV_SAN) != 0;
+				fcp->npiv_fabric =
+				    (mbs.param[7] & ISP24XX_NPIV_SAN) != 0;
 				if (fcp->npiv_fabric) {
-					isp_prt(isp, ISP_LOGCONFIG, "fabric supports N-Port virtualization");
+					isp_prt(isp, ISP_LOGCONFIG,
+					   "fabric supports NP-IV");
 				}
 			}
 			if (chan) {
@@ -2818,13 +2858,16 @@ not_on_fabric:
 		isp_mboxcmd(isp, &mbs);
 		if (mbs.param[0] == MBOX_COMMAND_COMPLETE) {
 			if (mbs.param[1] == MBGSD_FOURGB) {
-				isp_prt(isp, ISP_LOGINFO, "Chan %d 4Gb link speed", chan);
+				isp_prt(isp, ISP_LOGINFO,
+				    "Chan %d 4Gb link speed", chan);
 				fcp->isp_gbspeed = 4;
 			} else if (mbs.param[1] == MBGSD_TWOGB) {
-				isp_prt(isp, ISP_LOGINFO, "Chan %d 2Gb link speed", chan);
+				isp_prt(isp, ISP_LOGINFO,
+				    "Chan %d 2Gb link speed", chan);
 				fcp->isp_gbspeed = 2;
 			} else if (mbs.param[1] == MBGSD_ONEGB) {
-				isp_prt(isp, ISP_LOGINFO, "Chan %d 1Gb link speed", chan);
+				isp_prt(isp, ISP_LOGINFO,
+				    "Chan %d 1Gb link speed", chan);
 				fcp->isp_gbspeed = 1;
 			}
 		}
@@ -2836,7 +2879,8 @@ not_on_fabric:
 	isp_prt(isp, ISP_LOGSANCFG|ISP_LOGCONFIG, topology, chan,
 	    (uint32_t) (fcp->isp_wwpn >> 32), (uint32_t) fcp->isp_wwpn,
 	    fcp->isp_portid, fcp->isp_loopid, toponames[fcp->isp_topo]);
-	isp_prt(isp, ISP_LOGSANCFG|ISP_LOGDEBUG0, "Chan %d FC Link Test Complete", chan);
+	isp_prt(isp, ISP_LOGSANCFG|ISP_LOGDEBUG0,
+	    "Chan %d FC Link Test Complete", chan);
 	return (0);
 }
 
@@ -2950,7 +2994,8 @@ isp_pdb_sync(ispsoftc_t *isp, int chan)
 			lp->state = FC_PORTDB_STATE_NIL;
 			isp_async(isp, ISPASYNC_DEV_GONE, chan, lp);
 			if (lp->autologin == 0) {
-				(void) isp_plogx(isp, chan, lp->handle, lp->portid,
+				(void) isp_plogx(isp, chan, lp->handle,
+				    lp->portid,
 				    PLOGX_FLG_CMD_LOGO |
 				    PLOGX_FLG_IMPLICIT |
 				    PLOGX_FLG_FREE_NPHDL, 0);
@@ -3199,7 +3244,8 @@ isp_scan_loop(ispsoftc_t *isp, int chan)
 		for (i = 0; i < MAX_FC_TARG; i++) {
 			lp = &fcp->portdb[i];
 
-			if (lp->state == FC_PORTDB_STATE_NIL || lp->target_mode) {
+			if (lp->state == FC_PORTDB_STATE_NIL ||
+			    lp->target_mode) {
 				continue;
 			}
 			if (lp->node_wwn != tmp.node_wwn) {
@@ -3242,8 +3288,8 @@ isp_scan_loop(ispsoftc_t *isp, int chan)
 				lp->new_roles = tmp.roles;
 				lp->state = FC_PORTDB_STATE_PENDING_VALID;
 				isp_prt(isp, ISP_LOGSANCFG|ISP_LOGDEBUG0,
-				    "Chan %d Loop Port 0x%02x@0x%x Pending Valid",
-				    chan, tmp.portid, tmp.handle);
+				    "Chan %d Loop Port 0x%02x@0x%x Pending "
+				    "Valid", chan, tmp.portid, tmp.handle);
 				break;
 			}
 		
@@ -3526,12 +3572,16 @@ isp_scan_fabric(ispsoftc_t *isp, int chan)
 	/*
 	 * Make sure we still are logged into the fabric controller.
 	 */
-	if (IS_24XX(isp)) {
+	if (IS_24XX(isp)) {	/* XXX SHOULDN'T THIS BE TRUE FOR 2K F/W? XXX */
 		loopid = NPH_FL_ID;
 	} else {
 		loopid = FL_ID;
 	}
-	if (isp_getpdb(isp, chan, loopid, &pdb, 0)) {
+	r = isp_getpdb(isp, chan, loopid, &pdb, 0);
+	if (r == MBOX_NOT_LOGGED_IN) {
+		isp_dump_chip_portdb(isp, chan, 0);
+	}
+	if (r) {
 		fcp->isp_loopstate = LOOP_PDB_RCVD;
 		FC_SCRATCH_RELEASE(isp, chan);
 		ISP_MARK_PORTDB(isp, chan, 1);
@@ -3714,7 +3764,8 @@ isp_scan_fabric(ispsoftc_t *isp, int chan)
 		for (dbidx = 0; dbidx < MAX_FC_TARG; dbidx++) {
 			lp = &fcp->portdb[dbidx];
 
-			if (lp->state != FC_PORTDB_STATE_PROBATIONAL || lp->target_mode) {
+			if (lp->state != FC_PORTDB_STATE_PROBATIONAL ||
+			    lp->target_mode) {
 				continue;
 			}
 			if (lp->portid == portid) {
@@ -3804,7 +3855,8 @@ isp_scan_fabric(ispsoftc_t *isp, int chan)
 					}
 					continue;
 				}
-				if (fcp->isp_loopstate != LOOP_SCANNING_FABRIC) {
+				if (fcp->isp_loopstate !=
+				    LOOP_SCANNING_FABRIC) {
 					FC_SCRATCH_RELEASE(isp, chan);
 					ISP_MARK_PORTDB(isp, chan, 1);
 					return (-1);
@@ -3890,8 +3942,8 @@ isp_scan_fabric(ispsoftc_t *isp, int chan)
 		}
 
 		if (lp < &fcp->portdb[MAX_FC_TARG]) {
-			isp_prt(isp, ISP_LOGWARN,
-			    "Chan %d PortID 0x%06x already at %d handle %d state %d",
+			isp_prt(isp, ISP_LOGWARN, "Chan %d PortID 0x%06x "
+			    "already at %d handle %d state %d",
 			    chan, portid, dbidx, lp->handle, lp->state);
 			continue;
 		}
@@ -4021,7 +4073,8 @@ isp_scan_fabric(ispsoftc_t *isp, int chan)
  * Find an unused handle and try and use to login to a port.
  */
 static int
-isp_login_device(ispsoftc_t *isp, int chan, uint32_t portid, isp_pdb_t *p, uint16_t *ohp)
+isp_login_device(ispsoftc_t *isp, int chan, uint32_t portid, isp_pdb_t *p,
+    uint16_t *ohp)
 {
 	int lim, i, r;
 	uint16_t handle;
@@ -4052,7 +4105,8 @@ isp_login_device(ispsoftc_t *isp, int chan, uint32_t portid, isp_pdb_t *p, uint1
 		/*
 		 * Now try and log into the device
 		 */
-		r = isp_plogx(isp, chan, handle, portid, PLOGX_FLG_CMD_PLOGI, 1);
+		r = isp_plogx(isp, chan, handle, portid,
+		    PLOGX_FLG_CMD_PLOGI, 1);
 		if (FCPARAM(isp, chan)->isp_loopstate != LOOP_SCANNING_FABRIC) {
 			return (-1);
 		}
@@ -4289,7 +4343,8 @@ isp_nxt_handle(ispsoftc_t *isp, int chan, uint16_t handle)
 		return (isp_nxt_handle(isp, chan, handle));
 	}
 	for (i = 0; i < MAX_FC_TARG; i++) {
-		if (FCPARAM(isp, chan)->portdb[i].state == FC_PORTDB_STATE_NIL) {
+		if (FCPARAM(isp, chan)->portdb[i].state ==
+		    FC_PORTDB_STATE_NIL) {
 			continue;
 		}
 		if (FCPARAM(isp, chan)->portdb[i].handle == handle) {
@@ -4747,8 +4802,8 @@ isp_control(ispsoftc_t *isp, ispctl_t ctl, ...)
 				break;
 			}
 			isp_prt(isp, ISP_LOGALL,
-			    "Chan %d Abort Cmd for N-Port 0x%04x @ Port 0x%06x %p",
-			    chan, lp->handle, lp->portid, xs);
+			    "Chan %d Abort Cmd for N-Port 0x%04x @ Port "
+			    "0x%06x %p", chan, lp->handle, lp->portid, xs);
 			MEMZERO(ab, QENTRY_LEN);
 			ab->abrt_header.rqs_entry_type = RQSTYPE_ABORT_IO;
 			ab->abrt_header.rqs_entry_count = 1;
@@ -5251,7 +5306,8 @@ again:
 			 * optr to be one more than the updated amount.
 			 */
 			while (tsto != oop) {
-				optr = ISP_NXT_QENTRY(tsto, RESULT_QUEUE_LEN(isp));
+				optr = ISP_NXT_QENTRY(tsto,
+				    RESULT_QUEUE_LEN(isp));
 			}
 			if (r > 0) {
 				ISP_WRITE(isp, isp->isp_respoutrp, optr);
@@ -5417,7 +5473,8 @@ again:
 				 */
 				if (req_status_flags & RQSTF_NEGOTIATION) {
 					int t = XS_TGT(xs);
-					sdparam *sdp = SDPARAM(isp, XS_CHANNEL(xs));
+					sdparam *sdp =
+					    SDPARAM(isp, XS_CHANNEL(xs));
 					sdp->isp_devparam[t].dev_refresh = 1;
 					sdp->update = 1;
 				}
@@ -5628,7 +5685,8 @@ isp_parse_async(ispsoftc_t *isp, uint16_t mbox)
 		}
 #endif
 		if (IS_FC(isp)) {
-			isp_prt(isp, ISP_LOGWARN, "ILLEGAL ASYNC_QWAKEUP for FC card");
+			isp_prt(isp, ISP_LOGWARN,
+			    "ILLEGAL ASYNC_QWAKEUP for FC card");
 			break;
 		}
 		/*
@@ -5641,7 +5699,8 @@ isp_parse_async(ispsoftc_t *isp, uint16_t mbox)
 
 	case ASYNC_TIMEOUT_RESET:
 		if (IS_FC(isp)) {
-			isp_prt(isp, ISP_LOGWARN, "ILLEGAL ASYNC_TIMEOUT_RESET for FC card");
+			isp_prt(isp, ISP_LOGWARN,
+			    "ILLEGAL ASYNC_TIMEOUT_RESET for FC card");
 			break;
 		}
 		isp_prt(isp, ISP_LOGWARN,
@@ -5656,7 +5715,8 @@ isp_parse_async(ispsoftc_t *isp, uint16_t mbox)
 
 	case ASYNC_DEVICE_RESET:
 		if (IS_FC(isp)) {
-			isp_prt(isp, ISP_LOGWARN, "ILLEGAL DEVICE_RESET for FC card");
+			isp_prt(isp, ISP_LOGWARN,
+			    "ILLEGAL DEVICE_RESET for FC card");
 			break;
 		}
 		isp_prt(isp, ISP_LOGINFO, "device reset on chan %d", chan);
@@ -5670,7 +5730,8 @@ isp_parse_async(ispsoftc_t *isp, uint16_t mbox)
 
 	case ASYNC_EXTMSG_UNDERRUN:
 		if (IS_FC(isp)) {
-			isp_prt(isp, ISP_LOGWARN, "ILLEGAL ASYNC_EXTMSG_UNDERRUN for FC card");
+			isp_prt(isp, ISP_LOGWARN,
+			    "ILLEGAL ASYNC_EXTMSG_UNDERRUN for FC card");
 			break;
 		}
 		isp_prt(isp, ISP_LOGWARN, "extended message underrun");
@@ -5678,7 +5739,8 @@ isp_parse_async(ispsoftc_t *isp, uint16_t mbox)
 
 	case ASYNC_SCAM_INT:
 		if (IS_FC(isp)) {
-			isp_prt(isp, ISP_LOGWARN, "ILLEGAL ASYNC_SCAM_INT for FC card");
+			isp_prt(isp, ISP_LOGWARN,
+			    "ILLEGAL ASYNC_SCAM_INT for FC card");
 			break;
 		}
 		isp_prt(isp, ISP_LOGINFO, "SCAM interrupt");
@@ -5686,7 +5748,8 @@ isp_parse_async(ispsoftc_t *isp, uint16_t mbox)
 
 	case ASYNC_HUNG_SCSI:
 		if (IS_FC(isp)) {
-			isp_prt(isp, ISP_LOGWARN, "ILLEGAL ASYNC_HUNG_SCSI for FC card");
+			isp_prt(isp, ISP_LOGWARN,
+			    "ILLEGAL ASYNC_HUNG_SCSI for FC card");
 			break;
 		}
 		isp_prt(isp, ISP_LOGERR,
@@ -5696,7 +5759,8 @@ isp_parse_async(ispsoftc_t *isp, uint16_t mbox)
 
 	case ASYNC_KILLED_BUS:
 		if (IS_FC(isp)) {
-			isp_prt(isp, ISP_LOGWARN, "ILLEGAL ASYNC_KILLED_BUS for FC card");
+			isp_prt(isp, ISP_LOGWARN,
+			    "ILLEGAL ASYNC_KILLED_BUS for FC card");
 			break;
 		}
 		isp_prt(isp, ISP_LOGERR, "SCSI Bus reset after DATA Overrun");
@@ -5704,7 +5768,8 @@ isp_parse_async(ispsoftc_t *isp, uint16_t mbox)
 
 	case ASYNC_BUS_TRANSIT:
 		if (IS_FC(isp)) {
-			isp_prt(isp, ISP_LOGWARN, "ILLEGAL ASYNC_BUS_TRANSIT for FC card");
+			isp_prt(isp, ISP_LOGWARN,
+			    "ILLEGAL ASYNC_BUS_TRANSIT for FC card");
 			break;
 		}
 		mbox = ISP_READ(isp, OUTMAILBOX2);
@@ -6068,7 +6133,8 @@ isp_parse_async(ispsoftc_t *isp, uint16_t mbox)
 		if (IS_24XX(isp)) {
 			isp_prt(isp, ISP_LOGWARN, "Receive Error");
 		} else {
-			isp_prt(isp, ISP_LOGWARN, "Unknown Async Code 0x%x", mbox);
+			isp_prt(isp, ISP_LOGWARN,
+			    "Unknown Async Code 0x%x", mbox);
 		}
 		break;
 	case ASYNC_RJT_SENT:	/* same as ASYNC_QFULL_SENT */
@@ -6710,7 +6776,8 @@ isp_parse_status_24xx(ispsoftc_t *isp, isp24xx_statusreq_t *sp,
 
 	case RQCS_24XX_ENOMEM:	/* f/w resource unavailable */
 		isp_prt(isp, ISP_LOGWARN,
-		    "f/w resource unavailable for target %d chan %d", XS_TGT(xs), chan);
+		    "f/w resource unavailable for target %d chan %d",
+		    XS_TGT(xs), chan);
 		if (XS_NOERR(xs)) {
 			*XS_STSP(xs) = SCSI_BUSY;
 			XS_SETERR(xs, HBA_TGTBSY);
@@ -6719,8 +6786,8 @@ isp_parse_status_24xx(ispsoftc_t *isp, isp24xx_statusreq_t *sp,
 
 	case RQCS_24XX_TMO:	/* task management overrun */
 		isp_prt(isp, ISP_LOGWARN,
-		    "command for target %d overlapped task management for chan %d",
-		    XS_TGT(xs), chan);
+		    "command for target %d overlapped task management for "
+		    "chan %d", XS_TGT(xs), chan);
 		if (XS_NOERR(xs)) {
 			*XS_STSP(xs) = SCSI_BUSY;
 			XS_SETERR(xs, HBA_TGTBSY);
@@ -8481,7 +8548,8 @@ isp_parse_nvram_2100(ispsoftc_t *isp, uint8_t *nvram_data)
 
 	fcp->isp_maxalloc = ISP2100_NVRAM_MAXIOCBALLOCATION(nvram_data);
 	if ((isp->isp_confopts & ISP_CFG_OWNFSZ) == 0) {
-		DEFAULT_FRAMESIZE(isp) = ISP2100_NVRAM_MAXFRAMELENGTH(nvram_data);
+		DEFAULT_FRAMESIZE(isp) =
+		    ISP2100_NVRAM_MAXFRAMELENGTH(nvram_data);
 	}
 	fcp->isp_retry_delay = ISP2100_NVRAM_RETRY_DELAY(nvram_data);
 	fcp->isp_retry_count = ISP2100_NVRAM_RETRY_COUNT(nvram_data);
@@ -8495,8 +8563,10 @@ isp_parse_nvram_2100(ispsoftc_t *isp, uint8_t *nvram_data)
 	fcp->isp_fwoptions = ISP2100_NVRAM_OPTIONS(nvram_data);
 	isp_prt(isp, ISP_LOGDEBUG0,
 	    "NVRAM 0x%08x%08x 0x%08x%08x maxalloc %d maxframelen %d",
-	    (uint32_t) (fcp->isp_wwnn_nvram >> 32), (uint32_t) fcp->isp_wwnn_nvram,
-	    (uint32_t) (fcp->isp_wwpn_nvram >> 32), (uint32_t) fcp->isp_wwpn_nvram,
+	    (uint32_t) (fcp->isp_wwnn_nvram >> 32),
+	    (uint32_t) fcp->isp_wwnn_nvram,
+	    (uint32_t) (fcp->isp_wwpn_nvram >> 32),
+	    (uint32_t) fcp->isp_wwpn_nvram,
 	    ISP2100_NVRAM_MAXIOCBALLOCATION(nvram_data),
 	    ISP2100_NVRAM_MAXFRAMELENGTH(nvram_data));
 	isp_prt(isp, ISP_LOGDEBUG0,
@@ -8565,7 +8635,8 @@ isp_parse_nvram_2400(ispsoftc_t *isp, uint8_t *nvram_data)
 		fcp->isp_maxalloc = ISP2400_NVRAM_EXCHANGE_COUNT(nvram_data);
 	}
 	if ((isp->isp_confopts & ISP_CFG_OWNFSZ) == 0) {
-		DEFAULT_FRAMESIZE(isp) = ISP2400_NVRAM_MAXFRAMELENGTH(nvram_data);
+		DEFAULT_FRAMESIZE(isp) =
+		    ISP2400_NVRAM_MAXFRAMELENGTH(nvram_data);
 	}
 	if ((isp->isp_confopts & ISP_CFG_OWNLOOPID) == 0) {
 		fcp->isp_loopid = ISP2400_NVRAM_HARDLOOPID(nvram_data);

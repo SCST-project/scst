@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.164 2008/03/03 01:42:01 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.165 2008/03/10 17:55:51 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -898,7 +898,7 @@ isplinux_pci_init_one(struct Scsi_Host *host)
         }
     }
 
-#ifdef  CONFIG_FW_LOADER
+#if !defined(DISABLE_FW_LOADER) && (defined(CONFIG_FW_LOADER) || defined(CONFIG_FW_LOADER_MODULE))
     if (fwname) {
         if (request_firmware(&isp->isp_osinfo.fwp, fwname, &pdev->dev) == 0) {
             isp->isp_mdvec->dv_ispfw = isp->isp_osinfo.fwp->data;
@@ -922,7 +922,7 @@ isplinux_pci_init_one(struct Scsi_Host *host)
             }
 #endif
         } else {
-            isp_prt(isp, ISP_LOGCONFIG, "unable to load firmware set \"%s\"", fwname);
+            isp_prt(isp, ISP_LOGWARN, "unable to load firmware set \"%s\"", fwname);
         }
     }
 #endif
@@ -3438,19 +3438,6 @@ isplinux_pci_remove(struct pci_dev *pdev)
     ISP_DISABLE_INTS(isp);
     ISP_UNLKU_SOFTC(isp);
     isplinux_pci_release(host);
-#ifdef    ISP_FW_CRASH_DUMP
-    if (FCPARAM(isp)->isp_dump_data) {
-        size_t amt;
-        if (IS_2200(isp)) {
-            amt = QLA2200_RISC_IMAGE_DUMP_SIZE;
-        } else {
-            amt = QLA2200_RISC_IMAGE_DUMP_SIZE;
-        }
-        isp_prt(isp, ISP_LOGCONFIG, "freeing crash dump area");
-        isp_kfree(FCPARAM(isp)->isp_dump_data, amt);
-        FCPARAM(isp)->isp_dump_data = 0;
-    }
-#endif
 #ifdef    ISP_TARGET_MODE
     isp_deinit_target(isp);
 #endif
