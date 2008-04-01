@@ -55,7 +55,8 @@
 
 /*
  * Qlogic ISP target driver for SCST.
- * Copyright 2007 by Stanislaw Gruszka <stanislawg1@open-e.com> 
+ * Copyright (c) 2007 Stanislaw Gruszka 
+ * Copyright (c) 2007, 2008 Open-E Inc
  */
 
 #ifndef  MODULE
@@ -164,11 +165,11 @@ struct bus {
     tmd_cmd_t *              tmds_tail;
 };
 
-#define    SDprintk     if (scsi_tdebug) printk
-#define    SDprintk2    if (scsi_tdebug > 1) printk
-#define    SDprintk3    if (scsi_tdebug > 2) printk
+#define    SDprintk     if (debug) printk
+#define    SDprintk2    if (debug > 1) printk
+#define    SDprintk3    if (debug > 2) printk
 
-static int scsi_tdebug = 0;
+static int debug = 0;
 
 #define    Eprintk(fmt, args...) printk(KERN_ERR "isp_scst(%s): " fmt, __FUNCTION__, ##args)
 #define    Iprintk(fmt, args...) printk(KERN_INFO "isp_scst(%s): " fmt, __FUNCTION__, ##args)
@@ -976,7 +977,7 @@ isp_rdy_to_xfer(struct scst_cmd *scst_cmd)
 static void 
 SDprint_sense(const uint8_t *sbuf, uint8_t slen)
 {
-    if (scsi_tdebug) {
+    if (debug) {
         uint8_t key, asc, ascq;
         key = (slen >= 2) ? sbuf[2] : 0;
         asc = (slen >= 12) ? sbuf[12] : 0;
@@ -1260,7 +1261,8 @@ unregister_scst(void)
 }
 
 EXPORT_SYMBOL(scsi_target_handler);
-module_param(scsi_tdebug, int, 0);
+module_param(debug, int, 0);
+
 #ifdef    MODULE_LICENSE
 MODULE_LICENSE("Dual BSD/GPL");
 #endif
