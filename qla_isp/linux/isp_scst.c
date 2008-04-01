@@ -63,21 +63,10 @@
 #endif
 
 #include <linux/version.h>
-#ifndef KERNEL_VERSION
-#define KERNEL_VERSION(v,p,s)   (((v)<<16)+(p<<8)+s)
-#endif
-#include <linux/autoconf.h>
-#ifdef  CONFIG_SMP
-#define __SMP__ 1
-#endif
-
 #include <linux/module.h>
 #include <linux/autoconf.h>
 #include <linux/init.h>
 #include <linux/types.h>
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-#include <linux/blk.h>
-#endif
 #include <linux/blkdev.h>
 #include <linux/delay.h>
 #include <linux/ioport.h>
@@ -1270,13 +1259,8 @@ unregister_scst(void)
     }
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-EXPORT_SYMBOL_NOVERS(scsi_target_handler);
-MODULE_PARM(scsi_tdebug, "i");
-#else
 EXPORT_SYMBOL(scsi_target_handler);
 module_param(scsi_tdebug, int, 0);
-#endif
 #ifdef    MODULE_LICENSE
 MODULE_LICENSE("Dual BSD/GPL");
 #endif
