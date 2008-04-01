@@ -1297,9 +1297,9 @@ isp_taction(qact_e action, void *arg)
         isp_prt(isp, ISP_LOGTDEBUG1, "freeing tmd %p [%llx]", tmd, tmd->cd_tagval);
         if (tmd->cd_lflags & CDFL_RESRC_FILL) {
             if (isp_target_putback_atio(isp, tmd)) {
-                    ISP_THREAD_EVENT(isp, ISP_THREAD_FC_PUTBACK, tmd, 0, __FUNCTION__, __LINE__);
-                    ISP_UNLK_SOFTC(isp);
-                    break;
+                ISP_THREAD_EVENT(isp, ISP_THREAD_FC_PUTBACK, tmd, 0, __FUNCTION__, __LINE__);
+                ISP_UNLK_SOFTC(isp);
+                break;
             }
         }
         if (tmd->cd_lflags & CDFL_NEED_CLNUP) {
@@ -1379,7 +1379,7 @@ isp_taction(qact_e action, void *arg)
                 rsp->abts_rsp_payload.ba_acc.high_seq_cnt = 0xffff;
                 isp_notify_ack(isp, ins->qentry);
             } else if (ins->notify.nt_need_ack) {
-                isp_prt(isp, ISP_LOGDEBUG0, "[%llx] Notify Code 0x%x (qevalid=%d) being acked", ins->notify.nt_tagval, ins->notify.nt_ncode, ins->qevalid);
+                isp_prt(isp, ISP_LOGINFO, "[%llx] Notify Code 0x%x (qevalid=%d) being acked", ins->notify.nt_tagval, ins->notify.nt_ncode, ins->qevalid);
                 if (ins->qevalid) {
                     isp_notify_ack(isp, ins->qentry);
                 } else {

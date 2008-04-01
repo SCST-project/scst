@@ -112,7 +112,7 @@
 #include <scsi/scsi_device.h>
 
 #include <linux/cdev.h>
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,13)
 #include <linux/devfs_fs_kernel.h>
 #define ISP_CLASS           struct class_simple
 #define CREATE_ISP_CLASS    class_simple_create
@@ -382,8 +382,8 @@ struct isposinfo {
     up(&(x)->isp_osinfo.tcs)
 
 #define ISP_THREAD_WAIT(x)  \
-     wait_event_interruptible((x)->isp_osinfo.trq, (((x)->isp_osinfo.task_active == 0) || ((x)->isp_osinfo.nt_actions != 0)))
- 
+    wait_event_interruptible((x)->isp_osinfo.trq, (((x)->isp_osinfo.task_active == 0) || ((x)->isp_osinfo.nt_actions != 0)))
+
 #define ISP_THREAD_EVENT            isp_thread_event
 
 #define ISP_THREAD_WAKE(x)          wake_up_all(&(x)->isp_osinfo.trq)
@@ -455,7 +455,7 @@ struct isposinfo {
 #define GET_NANOSEC(x)      ((uint64_t) ((((uint64_t)(x)->tv_sec) * 1000000 + (x)->tv_usec)))
 #define NANOTIME_SUB        _isp_microtime_sub
 
-#define MAXISPREQUEST(isp)  ((IS_FC(isp) || IS_ULTRA2(isp))? 1024 : 256)
+#define MAXISPREQUEST(isp)  (IS_24XX(isp)? 2048 : ((IS_FC(isp) || IS_ULTRA2(isp))? 1024 : 256))
 
 #if   defined(__powerpc__)
 #define MEMORYBARRIER(isp, type, offset, size)  __asm__ __volatile__("eieio" ::: "memory")
@@ -479,7 +479,8 @@ struct isposinfo {
 
 #define FC_SCRATCH_ACQUIRE              fc_scratch_acquire
 #define FC_SCRATCH_RELEASE(isp, chan)   ISP_DATA(isp, chan)->scratch_busy = 0
- 
+
+
 #ifndef SCSI_GOOD
 #define SCSI_GOOD   0x0
 #endif
@@ -612,14 +613,6 @@ void isp_prt(ispsoftc_t *, int level, const char *, ...) __attribute__((__format
 void isp_prt(ispsoftc_t *, int level, const char *, ...);
 #endif
 
-#ifndef DECLARE_MUTEX_LOCKED
-#define DECLARE_MUTEX_LOCKED(name) __DECLARE_SEMAPHORE_GENERIC(name,0)
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24)
-#define sg_page(_sg) ((_sg)->page)
-#define sg_assign_page(_sg, _pg) ((_sg)->page = (_pg))
-#endif
 
 /*
  * isp_osinfo definitions, extensions and shorthand.

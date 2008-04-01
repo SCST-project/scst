@@ -131,8 +131,7 @@ static int isplinux_pci_exclude(struct pci_dev *);
 #define ISP_2322_RISC_CODE  NULL
 #define ISP_2400_RISC_CODE  NULL
 
-#define DISABLE_FW_LOADER 1
-#if defined(DISABLE_FW_LOADER) ||  !(defined(CONFIG_FW_LOADER) || defined(CONFIG_FW_LOADER_MODULE))
+#if defined(DISABLE_FW_LOADER) || !(defined(CONFIG_FW_LOADER) || defined(CONFIG_FW_LOADER_MODULE))
 #ifndef    ISP_DISABLE_1020_SUPPORT
 #include "asm_1040.h"
 #endif
