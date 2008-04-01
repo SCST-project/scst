@@ -983,18 +983,6 @@ isp_rdy_to_xfer(struct scst_cmd *scst_cmd)
     return (0);
 }
 
-static void 
-SDprint_sense(const uint8_t *sbuf, uint8_t slen)
-{
-    if (debug) {
-        uint8_t key, asc, ascq;
-        key = (slen >= 2) ? sbuf[2] : 0;
-        asc = (slen >= 12) ? sbuf[12] : 0;
-        ascq = (slen >= 13) ? sbuf[13] : 0;
-        SDprintk("%s: key 0x%02x asc 0x%02x ascq 0x%02x\n", __FUNCTION__, key, asc, ascq);
-    }
-}
-
 static int
 isp_xmit_response(struct scst_cmd *scst_cmd)
 {   
@@ -1035,15 +1023,25 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
         tmd->cd_scsi_status = scst_cmd_get_status(scst_cmd);
         
         if (tmd->cd_scsi_status == SCSI_CHECK) {
+            int prt = 0;
             uint8_t *sbuf = scst_cmd_get_sense_buffer(scst_cmd);
             unsigned int slen = scst_cmd_get_sense_buffer_len(scst_cmd);
-            if (slen > TMD_SENSELEN) {
-                // FIXME: maybe increase TMD_SENSELEN ?
-                // Eprintk("sense data too big (totlen %u len %u)\n", TMD_SENSELEN, slen);
+            if (unlikely(slen > TMD_SENSELEN)) {
+                /* 18 bytes sense code not cover vendor specific sense data,
+                 * we can't send more than 18 bytes through low level driver,
+                 * so print error on this very unlikely situation */
+                Eprintk("sense data too big (totlen %u len %u)\n", TMD_SENSELEN, slen);
                 slen = TMD_SENSELEN;
+                prt = 1;
             }
             memcpy(tmd->cd_sense, sbuf, slen);
-            SDprint_sense(sbuf, slen);
+            if (unlikely(prt || debug)) {
+                uint8_t key, asc, ascq;
+                key = (slen >= 2) ? sbuf[2] : 0;
+                asc = (slen >= 12) ? sbuf[12] : 0;
+                ascq = (slen >= 13) ? sbuf[13] : 0;
+                Eprintk("sense code: key 0x%02x asc 0x%02x ascq 0x%02x\n", key, asc, ascq);
+            }
         }
         SDprintk2("%s: status %d\n", __FUNCTION__, scst_cmd_get_status(scst_cmd));
     }
