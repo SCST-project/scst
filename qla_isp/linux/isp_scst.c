@@ -172,7 +172,6 @@ struct bus {
 
 #define    SDprintk     if (debug) printk
 #define    SDprintk2    if (debug > 1) printk
-#define    SDprintk3    if (debug > 2) printk
 
 static int debug = 0;
 
@@ -318,6 +317,8 @@ alloc_ini(bus_chan_t *bc, uint64_t iid)
 {
     ini_t *nptr;
     char ini_name[24];
+
+    SDprintk("scsi_target: alloc initiator 0x%016llx\n", iid);
 
     nptr = kmalloc(sizeof(ini_t), GFP_KERNEL);
     if (!nptr) {
@@ -512,6 +513,8 @@ bus_chan_add_initiators(bus_t *bp, int chan)
     tmd_cmd_t *prev_tmd = NULL;
     tmd_xact_t *xact;
 
+    SDprintk("scsi_target: searching new initiators for %s%d Chan %d\n", bp->h.r_name, bp->h.r_inst, chan);
+
     /* iterate over queue and find any commands not assigned to initiator */
     spin_lock_irq(&bc->tmds_lock);
     tmd = bc->tmds_front;
@@ -600,7 +603,7 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
     scst_cmd = tmd->cd_scst_cmd;
     if (!scst_cmd) {
         /* command returned by us with status BUSY */
-        SDprintk("%s: TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
+        SDprintk("%s: BUSY TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
         (*bp->h.r_action)(QIN_TMD_FIN, tmd);
         return;
     }
@@ -821,7 +824,6 @@ scsi_target_handler(qact_e action, void *arg)
     {
         tmd_cmd_t *tmd = arg;
         SDprintk2("scsi_target: TMD_START[%llx] %p cdb0=%x\n", tmd->cd_tagval, tmd, tmd->cd_cdb[0] & 0xff);
-
         tmd->cd_xact.td_cmd = tmd;
         scsi_target_start_cmd(arg, 1);
         break;
@@ -830,15 +832,13 @@ scsi_target_handler(qact_e action, void *arg)
     {
         tmd_xact_t *xact = arg;
         tmd_cmd_t *tmd = xact->td_cmd;
-        SDprintk2("scsi_target: TMD_DONE[%llx] %p cdb0=%x\n", tmd->cd_tagval, tmd, tmd->cd_cdb[0] & 0xff);
-
         scsi_target_done_cmd(tmd, 1);
         break;
     }
     case QOUT_NOTIFY:
     {
         tmd_notify_t *np = arg;
-        SDprintk2("scsi_target: TMD_NOTIFY %p code=0x%x\n", np, np->nt_ncode);
+        SDprintk("scsi_target: TMD_NOTIFY %p code=0x%x\n", np, np->nt_ncode);
         scsi_target_notify(np);
         break;
     }
@@ -885,9 +885,9 @@ scsi_target_thread(void *arg)
     SDprintk("scsi_target_thread starting\n");
 
     while (scsi_target_thread_exit == 0) {
-        SDprintk3("scsi_task_thread sleeping\n");
+        SDprintk2("scsi_task_thread sleeping\n");
         down(&scsi_thread_sleep_semaphore);
-        SDprintk3("scsi_task_thread running\n");
+        SDprintk2("scsi_task_thread running\n");
 
         if (test_and_clear_bit(SF_REGISTER_SCST, &schedule_flags)) {
             register_scst();
@@ -979,7 +979,7 @@ isp_rdy_to_xfer(struct scst_cmd *scst_cmd)
         xact->td_hflags |= TDFH_DATA_OUT;
         xact->td_data = scst_cmd_get_sg(scst_cmd);
         xact->td_xfrlen = scst_cmd_get_bufflen(scst_cmd);
-        SDprintk("%s: write nbytes %u\n", __FUNCTION__, scst_cmd_get_bufflen(scst_cmd));
+        SDprintk2("%s: write nbytes %u\n", __FUNCTION__, scst_cmd_get_bufflen(scst_cmd));
 
         bp = tmd->cd_bus;
         (*bp->h.r_action)(QIN_TMD_CONT, xact);
@@ -1028,24 +1028,22 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
         tmd->cd_scsi_status = scst_cmd_get_status(scst_cmd);
 
         if (tmd->cd_scsi_status == SCSI_CHECK) {
-            int prt = 0;
             uint8_t *sbuf = scst_cmd_get_sense_buffer(scst_cmd);
             unsigned int slen = scst_cmd_get_sense_buffer_len(scst_cmd);
             if (unlikely(slen > TMD_SENSELEN)) {
                 /* 18 bytes sense code not cover vendor specific sense data,
                  * we can't send more than 18 bytes through low level driver,
                  * so print error on this very unlikely situation */
-                Eprintk("sense data too big (totlen %u len %u)\n", TMD_SENSELEN, slen);
+                SDprintk("sense data too big (totlen %u len %u)\n", TMD_SENSELEN, slen);
                 slen = TMD_SENSELEN;
-                prt = 1;
             }
             memcpy(tmd->cd_sense, sbuf, slen);
-            if (unlikely(prt || debug)) {
+            if (unlikely(debug > 0)) {
                 uint8_t key, asc, ascq;
                 key = (slen >= 2) ? sbuf[2] : 0;
                 asc = (slen >= 12) ? sbuf[12] : 0;
                 ascq = (slen >= 13) ? sbuf[13] : 0;
-                Eprintk("sense code: key 0x%02x asc 0x%02x ascq 0x%02x\n", key, asc, ascq);
+                SDprintk("sense code: key 0x%02x asc 0x%02x ascq 0x%02x\n", key, asc, ascq);
             }
         }
         SDprintk2("%s: status %d\n", __FUNCTION__, scst_cmd_get_status(scst_cmd));
@@ -1070,7 +1068,7 @@ isp_on_free_cmd(struct scst_cmd *scst_cmd)
     tmd_xact_t *xact = &tmd->cd_xact;
 
     xact->td_data = NULL;
-    SDprintk("%s: TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
+    SDprintk2("%s: TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
     (*bp->h.r_action)(QIN_TMD_FIN, tmd);
 }
 
