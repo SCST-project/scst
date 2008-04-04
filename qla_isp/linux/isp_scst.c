@@ -860,7 +860,6 @@ scsi_target_handler(qact_e action, void *arg)
             Eprintk("HBA_UNREG cannot find bus\n");
             break;
         }
-        memset(&bp->h, 0, sizeof (hba_register_t));
         bp->unreg_hp = hp;
         spin_unlock_irqrestore(&scsi_target_lock, flags);
         schedule_scsi_thread(SF_UNREGISTER_SCST);
@@ -917,7 +916,6 @@ scsi_target_enadis(bus_chan_t *bc, int en)
     if (en == bc->enable) {
         return (0);
     }
-
     bp = bc->bus;
     chan = (bc - bp->bchan) / sizeof (bus_chan_t);
 
@@ -1102,17 +1100,15 @@ isp_read_proc(struct seq_file *seq, struct scst_tgt *tgt)
 static int
 isp_write_proc(char *buf, char **start, off_t offset, int len, int *eof, struct scst_tgt *tgt)
 {
-    bus_chan_t *bc;
+    bus_chan_t *bc = tgt->tgt_priv;
     int ret, en;
 
-    bc = tgt->tgt_priv;
     if (!bc) {
         return (-ENODEV);
     }
-    if (len < 3) {
+    if (len < 2 || len > 3) {
         return (-EINVAL);
     }
-
     en = buf[0] - '0';
     if (en < 0 || en > 1) {
         return (-EINVAL);
@@ -1163,14 +1159,14 @@ register_hba(bus_t *bp)
         goto err_free_bus;
     }
 
-    info.i_identity = bp->h.r_identity;
-    if (bp->h.r_type == R_FC) {
-        info.i_type = I_FC;
-    } else {
-        info.i_type = I_SPI;
-    }
-
     for (chan = 0; chan < bp->h.r_nchannels; chan++) {
+        memset(&info, 0, sizeof(info_t));
+        info.i_identity = bp->h.r_identity;
+        if (bp->h.r_type == R_FC) {
+            info.i_type = I_FC;
+        } else {
+            info.i_type = I_SPI;
+        }
         info.i_channel = chan;
         (*bp->h.r_action)(QIN_GETINFO, &info);
         if (info.i_error) {
@@ -1190,7 +1186,7 @@ register_hba(bus_t *bp)
         }
 
         scst_tgt = scst_register(&isp_tgt_template, name);
-        if (scst_tgt) {
+        if (scst_tgt == NULL) {
             Eprintk("cannot register scst device %s for %s%d\n", name, bp->h.r_name, bp->h.r_inst);
             goto err_free_chan;
         }
@@ -1246,13 +1242,13 @@ unregister_hba(bus_t *bp, hba_register_t *unreg_hp)
         if (bp->bchan[chan].scst_tgt) {
             scst_unregister(bp->bchan[chan].scst_tgt);
         }
-
-        /* it's safe now to reinit bp */
-        kfree(bp->bchan);
-        spin_lock_irq(&scsi_target_lock);
-        memset(bp, 0, sizeof(bus_t));
-        spin_unlock_irq(&scsi_target_lock);
     }
+
+    /* it's safe now to reinit bp */
+    kfree(bp->bchan);
+    spin_lock_irq(&scsi_target_lock);
+    memset(bp, 0, sizeof(bus_t));
+    spin_unlock_irq(&scsi_target_lock);
 
     Iprintk("unregistering %s%d\n", unreg_hp->r_name, unreg_hp->r_inst);
     (unreg_hp->r_action)(QIN_HBA_UNREG, unreg_hp);
@@ -1266,7 +1262,7 @@ register_scst(void)
 
     for (bp = busses; bp < &busses[MAX_BUS]; bp++) {
         spin_lock_irq(&scsi_target_lock);
-        if (bp->h.r_action == NULL || bp->need_reg == 0) {
+        if (bp->need_reg == 0) {
             spin_unlock_irq(&scsi_target_lock);
             continue;
         }
@@ -1286,7 +1282,7 @@ unregister_scst(void)
 
     for (bp = busses; bp < &busses[MAX_BUS]; bp++) {
         spin_lock_irq(&scsi_target_lock);
-        if (bp->h.r_action != NULL || bp->unreg_hp == NULL) {
+        if (bp->unreg_hp == NULL) {
             spin_unlock_irq(&scsi_target_lock);
             continue;
         }
