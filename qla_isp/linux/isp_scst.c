@@ -917,7 +917,8 @@ scsi_target_enadis(bus_chan_t *bc, int en)
         return (0);
     }
     bp = bc->bus;
-    chan = (bc - bp->bchan) / sizeof (bus_chan_t);
+    chan = (bc - bp->bchan);
+    BUG_ON(bp == NULL || chan >= bp->h.r_nchannels);
 
     memset(&info, 0, sizeof (info));
     info.i_identity = bp->h.r_identity;
