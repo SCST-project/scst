@@ -997,11 +997,11 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
     if (scst_cmd_get_data_direction(scst_cmd) == SCST_DATA_READ) {
         unsigned int len = scst_cmd_get_resp_data_len(scst_cmd);
         if (len > tmd->cd_totlen) { 
-            /* this shouldn't happen */
+            /* some broken initiators may send SCSI commands with data load
+             * larger than underlaying transport specified */
             const uint8_t ifailure[TMD_SENSELEN] = { 0xf0, 0, 0x4, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0x44 };
             
             Eprintk("data size too big (totlen %u len %u)\n", tmd->cd_totlen, len);
-            dump_stack();
             
             memcpy(tmd->cd_sense, ifailure, TMD_SENSELEN);
             xact->td_hflags |= TDFH_STSVALID;
