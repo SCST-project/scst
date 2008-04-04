@@ -156,9 +156,9 @@ struct bus {
     hba_register_t           h;                  /* must be first */
     ini_t *                  list[HASH_WIDTH];   /* hash list of known initiators */
     struct scst_tgt *        scst_tgt;
-    hba_register_t *         unreg_hp;           /* help to synchronize low level and SCST unregistration */
+    hba_register_t *         reg_hp;             /* helpers for registration / unregistration */
+    hba_register_t *         unreg_hp;           
     unsigned long            enable;             /* is target mode enabled in low level driver, one bit per channel */
-    int                      need_reg;           /* before SCST registration */
     struct tasklet_struct    tasklet;
     spinlock_t               tmds_lock;
     tmd_cmd_t *              tmds_front;
@@ -779,11 +779,9 @@ scsi_target_handler(qact_e action, void *arg)
 	        break;
 	    }
         bp->h = *hp;
-        bp->need_reg = 1;
+        bp->reg_hp = hp;
         spin_unlock_irqrestore(&scsi_target_lock, flags);
         schedule_scsi_thread(SF_REGISTER_SCST);
-        Iprintk("registering %s%d\n", hp->r_name, hp->r_inst);
-        (hp->r_action)(QIN_HBA_REG, arg);
         break;
     }
     case QOUT_ENABLE:
@@ -857,7 +855,7 @@ scsi_target_handler(qact_e action, void *arg)
     }
 }
 
-static int register_scst(void);
+static void register_scst(void);
 static void unregister_scst(void);
 
 static int
@@ -898,17 +896,6 @@ scsi_target_enadis(bus_t *bp, int chan, int en)
     info_t info;
     int old_en, err;
 
-    /*
-     * XXX: yes, there is a race condition here where the bus can
-     * XXX: go away. But in order to solve it, we have to make the
-     * XXX: bus structure stay around while we call into the HBA
-     * XXX: anyway, so fooey,.
-     */
-    if (bp == NULL) {
-        SDprintk("%s: cannot find bus\n", __FUNCTION__);
-        return (-ENXIO);
-    }
-    
     old_en = test_bit(chan, &bp->enable); 
     if (old_en == en) {
         return (0);
@@ -1153,70 +1140,108 @@ static struct scst_tgt_template isp_tgt_template =
     .write_proc = isp_write_proc,
 };
 
+static void
+register_hba(bus_t *bp, hba_register_t *reg_hp)
+{   
+    char name[32];
+    info_t info;
+    struct scst_tgt *scst_tgt;
+
+    info.i_identity = bp->h.r_identity;
+    if (bp->h.r_type == R_FC) {
+        info.i_type = I_FC;
+    } else {
+        info.i_type = I_SPI;
+    }
+    info.i_channel = 0;
+    (*bp->h.r_action)(QIN_GETINFO, &info);
+    if (info.i_error) {
+        Eprintk("cannot get device name from %s%d!\n", bp->h.r_name, bp->h.r_inst);
+        goto err_free_bus; 
+    }
+    
+    if (info.i_type == I_FC) {
+       #define GET(byte) (uint8_t) ((info.i_id.fc.wwpn >> 8*byte) & 0xff)
+       snprintf(name, sizeof(name), "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
+                GET(7), GET(6), GET(5) , GET(4), GET(3), GET(2), GET(1), GET(0));
+       #undef GET
+    } else { // SPI
+       #define GET(byte) (uint8_t) ((info.i_id.spi.iid >> 8*byte) & 0xff)
+       snprintf(name, sizeof(name), "%02x:%02x:%02x:%02x", GET(3), GET(2), GET(1), GET(0));
+       #undef GET
+    }
+    
+    scst_tgt = scst_register(&isp_tgt_template, name);
+    if (scst_tgt) {
+        Eprintk("cannot register scst device %s for %s%d\n", name, bp->h.r_name, bp->h.r_inst);
+        goto err_free_bus;
+    }
+
+    spin_lock_irq(&scsi_target_lock);
+    bp->scst_tgt = scst_tgt;
+    bp->scst_tgt->tgt_priv = bp;
+    spin_unlock_irq(&scsi_target_lock);
+    Iprintk("registering %s%d\n", reg_hp->r_name, reg_hp->r_inst);
+    (reg_hp->r_action)(QIN_HBA_REG, reg_hp);
+    return;
+
+err_free_bus:
+    spin_lock_irq(&scsi_target_lock);
+    memset(&bp->h, 0, sizeof (hba_register_t));
+    spin_unlock_irq(&scsi_target_lock);
+}
+
+static void
+unregister_hba(bus_t *bp, hba_register_t *unreg_hp)
+{
+    int i;
+ 
+    /* remove existing initiators */
+    for (i = 0; i < HASH_WIDTH; i++) {
+        ini_t *ini_next;
+        ini_t *ptr = bp->list[i];
+        if (ptr) {
+            do {
+                ini_next = ptr->ini_next;
+                free_ini(ptr);
+            } while ((ptr = ini_next) != NULL);
+        }
+    }
+        
+    if (bp->scst_tgt) {
+        scst_unregister(bp->scst_tgt);
+    }
+    
+    /* it's safe now to reinit bp */
+    spin_lock_irq(&scsi_target_lock);
+    memset(bp, 0, sizeof(bus_t));
+    spin_lock_init(&bp->tmds_lock);
+    tasklet_init(&bp->tasklet, tasklet_rx_cmds, (unsigned long) bp);
+    spin_unlock_irq(&scsi_target_lock);
+
+    Iprintk("unregistering %s%d\n", unreg_hp->r_name, unreg_hp->r_inst);
+    (unreg_hp->r_action)(QIN_HBA_UNREG, unreg_hp);
+}
+
 /* Register SCST target, must be called in process context */
-static int 
+static void 
 register_scst(void)
 {
     bus_t *bp;
-    int ntgts = 0;
+    hba_register_t *reg_hp;
     
     for (bp = busses; bp < &busses[MAX_BUS]; bp++) {
-        char name[32];
-        info_t info;
-        struct scst_tgt *scst_tgt;
-
         spin_lock_irq(&scsi_target_lock);
-        if (bp->h.r_action == NULL || !bp->need_reg) {
+        if (bp->h.r_action == NULL || bp->reg_hp == NULL) {
             spin_unlock_irq(&scsi_target_lock);
             continue;
         }
-        bp->need_reg = 0;
+        reg_hp = bp->reg_hp;
+        bp->reg_hp = NULL;
         spin_unlock_irq(&scsi_target_lock);
-        
-        info.i_identity = bp->h.r_identity;
-        if (bp->h.r_type == R_FC) {
-            info.i_type = I_FC;
-        } else if (bp->h.r_type == R_SPI) {
-            info.i_type = I_SPI;
-        } else {
-            Eprintk("Unknown type of bus!\n");
-            continue;
-        }
-        info.i_channel = 0;
-        (*bp->h.r_action)(QIN_GETINFO, &info);
-        if (info.i_error) {
-            Eprintk("Cannot get device name from %s%d!\n", bp->h.r_name, bp->h.r_inst);
-            continue;
-        }
-
-        if (info.i_type == I_FC) {
-            #define GET(byte) (uint8_t) ((info.i_id.fc.wwpn >> 8*byte) & 0xff)
-            snprintf(name, sizeof(name), "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
-                GET(7), GET(6), GET(5) , GET(4), GET(3), GET(2), GET(1), GET(0));
-            #undef GET
-        } else { // SPI
-            #define GET(byte) (uint8_t) ((info.i_id.spi.iid >> 8*byte) & 0xff)
-            snprintf(name, sizeof(name), "%02x:%02x:%02x:%02x", GET(3), GET(2), GET(1), GET(0));
-            #undef GET
-        }
-
-        // FIXME: we curently can not pass error to low level driver by tpublic interface 
-        // FIXME: we reject tmd's when scst_tgt is NULL
-        scst_tgt = scst_register(&isp_tgt_template, name);
-        if (scst_tgt) {
-            SDprintk("%s: device %s\n", __FUNCTION__ ,name);
-            spin_lock_irq(&scsi_target_lock);
-            bp->scst_tgt = scst_tgt;
-            bp->scst_tgt->tgt_priv = bp;
-            /* now we can receive tmd's */
-            spin_unlock_irq(&scsi_target_lock);
-            ntgts++;
-        } else {
-            Eprintk("cannot register scst device %s\n", name); 
-        }
-    }
-
-    return (ntgts);
+ 
+        register_hba(bp, reg_hp);     
+   } 
 }
 
 /* Unregister SCST target, must be called in process context */
@@ -1224,46 +1249,19 @@ static void
 unregister_scst(void)
 {
     bus_t *bp;
+    hba_register_t *unreg_hp;
 
     for (bp = busses; bp < &busses[MAX_BUS]; bp++) {
-        int i;
-        struct scst_tgt *scst_tgt;
-        ini_t *list[HASH_WIDTH];
-        hba_register_t *unreg_hp;
-	
         spin_lock_irq(&scsi_target_lock);
         if (bp->h.r_action != NULL || bp->unreg_hp == NULL) {
             spin_unlock_irq(&scsi_target_lock);
             continue;
-            
         }
-        /* make bp ready for next registration */
-        scst_tgt = bp->scst_tgt;
-        memcpy(list, bp->list, sizeof(bp->list));
         unreg_hp = bp->unreg_hp;
-        memset(bp, 0, sizeof(bus_t));
-        spin_lock_init(&bp->tmds_lock);
-        tasklet_init(&bp->tasklet, tasklet_rx_cmds, (unsigned long) bp);
+        bp->unreg_hp = NULL;
         spin_unlock_irq(&scsi_target_lock);   
-
-        /* remove existing initiators */
-        for (i = 0; i < HASH_WIDTH; i++) {
-            ini_t *ini_next;
-            ini_t *ptr = list[i];
-            if (ptr) {
-                do {
-                    ini_next = ptr->ini_next;
-                    free_ini(ptr);
-                } while ((ptr = ini_next) != NULL);
-            }
-        }
         
-        if (scst_tgt) {
-            scst_unregister(scst_tgt);
-        }
-        /* now no one will call low level functions */
-        Iprintk("unregistering %s%d\n", unreg_hp->r_name, unreg_hp->r_inst);
-        (unreg_hp->r_action)(QIN_HBA_UNREG, unreg_hp);
+        unregister_hba(bp, unreg_hp);
     }
 }
 
