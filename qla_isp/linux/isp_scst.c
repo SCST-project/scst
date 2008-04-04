@@ -1,17 +1,17 @@
 /*
  *  Copyright (c) 1997-2007 by Matthew Jacob
  *  All rights reserved.
- * 
+ *
  *  Redistribution and use in source and binary forms, with or without
  *  modification, are permitted provided that the following conditions
  *  are met:
- * 
+ *
  *  1. Redistributions of source code must retain the above copyright
  *     notice, this list of conditions and the following disclaimer.
  *  2. Redistributions in binary form must reproduce the above copyright
  *     notice, this list of conditions and the following disclaimer in the
  *     documentation and/or other materials provided with the distribution.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  *  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -23,39 +23,39 @@
  *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  *  OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  *  SUCH DAMAGE.
- * 
- * 
+ *
+ *
  *  Alternatively, this software may be distributed under the terms of the
  *  the GNU Public License ("GPL") with platforms where the prevalant license
  *  is the GNU Public License:
- * 
+ *
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of The Version 2 GNU General Public License as published
  *    by the Free Software Foundation.
- * 
+ *
  *   This program is distributed in the hope that it will be useful,
  *   but WITHOUT ANY WARRANTY; without even the implied warranty of
  *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *   GNU General Public License for more details.
- *  
+ *
  *   You should have received a copy of the GNU General Public License
  *   along with this program; if not, write to the Free Software
  *   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
- * 
- * 
+ *
+ *
  *  Matthew Jacob
  *  Feral Software
  *  421 Laurel Avenue
  *  Menlo Park, CA 94025
  *  USA
- * 
+ *
  *  gplbsd at feral com
  *
  */
 
 /*
  * Qlogic ISP target driver for SCST.
- * Copyright (c) 2007 Stanislaw Gruszka 
+ * Copyright (c) 2007 Stanislaw Gruszka
  * Copyright (c) 2007, 2008 Open-E Inc
  */
 
@@ -146,7 +146,7 @@ typedef struct initiator ini_t;
 struct initiator {
     ini_t *                 ini_next;
     uint64_t                ini_iid;        /* initiator identifier */
-    struct scst_session *   ini_scst_sess;  /* sesson established by this remote initiator */ 
+    struct scst_session *   ini_scst_sess;  /* sesson established by this remote initiator */
 };
 
 #define    HASH_WIDTH    16
@@ -162,7 +162,7 @@ struct bus_chan {
     int                      enable;             /* is target mode enabled in low level driver */
     bus_t *                  bus;                /* back pointer */
 };
-  
+
 struct bus {
     hba_register_t           h;                  /* must be first */
     int                      need_reg;           /* helpers for registration / unregistration */
@@ -330,13 +330,13 @@ alloc_ini(bus_chan_t *bc, uint64_t iid)
     snprintf(ini_name, sizeof(ini_name), "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
              GET(7), GET(6), GET(5) , GET(4), GET(3), GET(2), GET(1), GET(0));
     #undef GET
-    
-    nptr->ini_scst_sess = scst_register_session(bc->scst_tgt, 0, ini_name, NULL, NULL);    
+
+    nptr->ini_scst_sess = scst_register_session(bc->scst_tgt, 0, ini_name, NULL, NULL);
     if (!nptr->ini_scst_sess) {
         Eprintk("cannot register SCST session\n");
-        kfree(nptr); 
+        kfree(nptr);
         return (NULL);
-    } 
+    }
 
     return (nptr);
 }
@@ -368,7 +368,7 @@ tasklet_rx_cmds(unsigned long data)
     tmd_cmd_t *tmd;
     tmd_xact_t *xact;
     struct scst_cmd *scst_cmd;
-    
+
 rx_loop:
     spin_lock_irq(&bc->tmds_lock);
     tmd = bc->tmds_front;
@@ -376,25 +376,25 @@ rx_loop:
         spin_unlock_irq(&bc->tmds_lock);
         return;
     }
-    
+
     /* remove from queue */
     bc->tmds_front = tmd->cd_hnext;
     if (bc->tmds_front == NULL) {
         bc->tmds_tail = NULL;
     }
-    
+
     /* free command if aborted */
     if (tmd->cd_flags & CDF_PRIVATE_ABORTED) {
-        spin_unlock_irq(&bc->tmds_lock); 
+        spin_unlock_irq(&bc->tmds_lock);
         SDprintk("%s: ABORTED TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
-        (*bp->h.r_action)(QIN_TMD_FIN, tmd);	
+        (*bp->h.r_action)(QIN_TMD_FIN, tmd);
         goto rx_loop;
     }
 
     ini = tmd->cd_ini;
     scst_cmd = scst_rx_cmd(ini->ini_scst_sess, tmd->cd_lun, sizeof(tmd->cd_lun), tmd->cd_cdb, sizeof(tmd->cd_cdb), 1);
     if (scst_cmd == NULL) {
-        spin_unlock_irq(&bc->tmds_lock); 
+        spin_unlock_irq(&bc->tmds_lock);
         tmd->cd_scsi_status = SCSI_BUSY;
         xact = &tmd->cd_xact;
         xact->td_hflags |= TDFH_STSVALID;
@@ -403,16 +403,16 @@ rx_loop:
         (*bp->h.r_action)(QIN_TMD_CONT, xact);
         goto rx_loop;
     }
-    
+
     scst_cmd_set_tgt_priv(scst_cmd, tmd);
-    scst_cmd_set_tag(scst_cmd, tmd->cd_tagval);   
+    scst_cmd_set_tag(scst_cmd, tmd->cd_tagval);
     tmd->cd_scst_cmd = scst_cmd;
-    
-    switch (tmd->cd_tagtype) { 
+
+    switch (tmd->cd_tagtype) {
         case CD_UNTAGGED:
             scst_cmd->queue_type = SCST_CMD_QUEUE_UNTAGGED;
             break;
-        case CD_SIMPLE_TAG: 
+        case CD_SIMPLE_TAG:
             scst_cmd->queue_type = SCST_CMD_QUEUE_SIMPLE;
             break;
         case CD_ORDERED_TAG:
@@ -430,31 +430,31 @@ rx_loop:
     }
 
     /*
-     * XXX: For some commands like INQUIRY, SYNCHRONIZE_CACHE, VERIFY, ... 
-     * XXX: we can not get good direction and transfer length values 
+     * XXX: For some commands like INQUIRY, SYNCHRONIZE_CACHE, VERIFY, ...
+     * XXX: we can not get good direction and transfer length values
      * XXX: from low level driver. As long as we could not assure
      * XXX: proper things, we stop setting exected values for SCST
      */
     if (0) {
         scst_data_direction dir;
         int len;
-  
+
         /* bidirectional or no transfer */
         dir = SCST_DATA_UNKNOWN;
         if ((tmd->cd_flags & CDF_DATA_OUT) && !(tmd->cd_flags & CDF_DATA_IN)) {
             dir = SCST_DATA_WRITE;
         } else if (tmd->cd_flags & CDF_DATA_IN) {
             dir = SCST_DATA_READ;
-        } 
+        }
         len = tmd->cd_totlen;
         if (tmd->cd_cdb[0] == INQUIRY) {
-            len = min(len, tmd->cd_cdb[4]); 
+            len = min(len, tmd->cd_cdb[4]);
         }
         scst_cmd_set_expected(scst_cmd, dir, len);
-    } 
+    }
     scst_cmd_init_done(scst_cmd, SCST_CONTEXT_TASKLET);
-    spin_unlock_irq(&bc->tmds_lock); 
-    
+    spin_unlock_irq(&bc->tmds_lock);
+
     goto rx_loop;
 }
 
@@ -472,7 +472,7 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
         spin_unlock_irqrestore(&scsi_target_lock, flags);
         Eprintk("cannot find %s for incoming command\n", (bp == NULL) ? "bus" : "channel");
         return;
-    } 
+    }
     spin_unlock_irqrestore(&scsi_target_lock, flags);
 
     tmd->cd_bus = bp;
@@ -483,22 +483,22 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
     spin_lock_irqsave(&bc->tmds_lock, flags);
     tmd->cd_ini = ini_from_tmd(bc, tmd);
     if (bc->tmds_front == NULL) {
-       bc->tmds_front = tmd; 
+        bc->tmds_front = tmd;
     } else {
-       bc->tmds_tail->cd_hnext = tmd;
+        bc->tmds_tail->cd_hnext = tmd;
     }
     bc->tmds_tail = tmd;
-    spin_unlock_irqrestore(&bc->tmds_lock, flags); 
+    spin_unlock_irqrestore(&bc->tmds_lock, flags);
 
     /* finally, shedule proper action */
     if (unlikely(tmd->cd_ini == NULL)) {
-    	schedule_scsi_thread(SF_ADD_INITIATORS);
+        schedule_scsi_thread(SF_ADD_INITIATORS);
     } else {
-    	tasklet_schedule(&bc->tasklet);
+        tasklet_schedule(&bc->tasklet);
     }
- 
-    /* old bug warrning */ 
-    if (unlikely(tmd->cd_cdb[0] == REQUEST_SENSE)) { 
+
+    /* old bug warrning */
+    if (unlikely(tmd->cd_cdb[0] == REQUEST_SENSE)) {
         Eprintk("REQUEST SENSE in auto sense mode !?!\n");
     }
 }
@@ -511,100 +511,100 @@ bus_chan_add_initiators(bus_t *bp, int chan)
     tmd_cmd_t *tmd;
     tmd_cmd_t *prev_tmd = NULL;
     tmd_xact_t *xact;
-    
+
     /* iterate over queue and find any commands not assigned to initiator */
     spin_lock_irq(&bc->tmds_lock);
     tmd = bc->tmds_front;
-	while (tmd) {
+    while (tmd) {
         BUG_ON(tmd->cd_channel != chan);
         if (tmd->cd_ini != NULL) {
-            /* ini assigned, go to the next command */ 
+            /* ini assigned, go to the next command */
             prev_tmd = tmd;
             tmd = tmd->cd_hnext;
         } else {
             /* check if proper initiator exist already */
             ini = ini_from_tmd(bc, tmd);
-           	if (ini != NULL) {
+            if (ini != NULL) {
                 tmd->cd_ini = ini;
             } else {
-	            spin_unlock_irq(&bc->tmds_lock);
-                    
+                spin_unlock_irq(&bc->tmds_lock);
+
                 ini = alloc_ini(bc, tmd->cd_iid);
-           	        
-                spin_lock_irq(&bc->tmds_lock);  
+
+                spin_lock_irq(&bc->tmds_lock);
                 if (ini != NULL) {
-	  	            tmd->cd_ini = ini;
-	                add_ini(bc, tmd->cd_iid, ini);	
-		        } else {
-        	        /* fail to alloc initiator, remove from queue and send busy */
-	                if (prev_tmd == NULL) {
+                    tmd->cd_ini = ini;
+                    add_ini(bc, tmd->cd_iid, ini);
+                } else {
+                    /* fail to alloc initiator, remove from queue and send busy */
+                    if (prev_tmd == NULL) {
                         bc->tmds_front = tmd->cd_hnext;
-	                } else {
-	                    prev_tmd->cd_hnext = tmd->cd_hnext;
-	                }
+                    } else {
+                        prev_tmd->cd_hnext = tmd->cd_hnext;
+                    }
                     if (bc->tmds_tail == tmd) {
                         bc->tmds_tail = prev_tmd;
-	                }
-	                spin_unlock_irq(&bc->tmds_lock);
-                    
+                    }
+                    spin_unlock_irq(&bc->tmds_lock);
+
                     tmd->cd_scsi_status = SCSI_BUSY;
                     xact = &tmd->cd_xact;
                     xact->td_hflags |= TDFH_STSVALID;
                     xact->td_hflags &= ~TDFH_DATA_MASK;
                     xact->td_xfrlen = 0;
                     (*bp->h.r_action)(QIN_TMD_CONT, xact);
-                    
+
                     spin_lock_irq(&bc->tmds_lock);
                     /* iterate to the next command, previous is not changed */
-                    tmd = tmd->cd_hnext;  
-                } 
-            } 
+                    tmd = tmd->cd_hnext;
+                }
+            }
         }
     }
     spin_unlock_irq(&bc->tmds_lock);
-    /* now we can run queue and pass commands to scst */ 
+    /* now we can run queue and pass commands to scst */
     tasklet_schedule(&bc->tasklet);
 }
 
 static void
-bus_add_initiators(void) 
+bus_add_initiators(void)
 {
     bus_t *bp;
     int chan;
-  
+
     for (bp = busses; bp < &busses[MAX_BUS]; bp++) {
         spin_lock_irq(&scsi_target_lock);
         if (bp->h.r_action == NULL) {
             spin_unlock_irq(&scsi_target_lock);
             continue;
         }
-	    spin_unlock_irq(&scsi_target_lock);
-    
+        spin_unlock_irq(&scsi_target_lock);
+
         for (chan = 0; chan < bp->h.r_nchannels; chan++) {
             bus_chan_add_initiators(bp, chan);
         }
     }
 }
 
-static void 
+static void
 scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
 {
     bus_t *bp;
     struct scst_cmd *scst_cmd;
-    tmd_xact_t *xact = &tmd->cd_xact; 
+    tmd_xact_t *xact = &tmd->cd_xact;
 
     SDprintk2("scsi_target: TMD_DONE[%llx] %p hf %x lf %x xfrlen %d totlen %d moved %d\n",
               tmd->cd_tagval, tmd, xact->td_hflags, xact->td_lflags, xact->td_xfrlen, tmd->cd_totlen, tmd->cd_moved);
-   
+
     bp = tmd->cd_bus;
-    scst_cmd = tmd->cd_scst_cmd; 
+    scst_cmd = tmd->cd_scst_cmd;
     if (!scst_cmd) {
         /* command returned by us with status BUSY */
         SDprintk("%s: TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
         (*bp->h.r_action)(QIN_TMD_FIN, tmd);
         return;
     }
- 
+
     if (xact->td_hflags & TDFH_STSVALID) {
         if (xact->td_hflags & TDFH_DATA_IN) {
             xact->td_hflags &= ~TDFH_DATA_MASK;
@@ -616,12 +616,12 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
         scst_tgt_cmd_done(scst_cmd);
         return;
     }
-   
+
     if (xact->td_hflags & TDFH_DATA_OUT) {
         if (tmd->cd_totlen == tmd->cd_moved) {
             if (xact->td_xfrlen) {
                 int rx_status = SCST_RX_STATUS_SUCCESS;
-            
+
                 if (xact->td_error) {
                     rx_status = SCST_RX_STATUS_ERROR;
                 }
@@ -633,7 +633,7 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
                 scst_tgt_cmd_done(scst_cmd);
             }
         } else {
-            ; /* we don't have all data, do nothing */  
+            ; /* we don't have all data, do nothing */
         }
     } else if (xact->td_hflags & TDFH_DATA_IN) {
         xact->td_hflags &= ~TDFH_DATA_MASK;
@@ -645,25 +645,25 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
     }
 }
 
-static int 
+static int
 abort_task(bus_chan_t *bc, uint64_t tagval)
 {
     unsigned long flags;
     tmd_cmd_t *tmd;
- 
+
     spin_lock_irqsave(&bc->tmds_lock, flags);
     for (tmd = bc->tmds_front; tmd; tmd = tmd->cd_hnext) {
         if (tmd->cd_tagval == tagval) {
-            tmd->cd_flags |= CDF_PRIVATE_ABORTED; 
+            tmd->cd_flags |= CDF_PRIVATE_ABORTED;
             spin_unlock_irqrestore(&bc->tmds_lock, flags);
-	        return 1;
+            return 1;
         }
     }
     spin_unlock_irqrestore(&bc->tmds_lock, flags);
     return 0;
 }
-	
-static void 
+
+static void
 abort_all_tasks(bus_chan_t *bc)
 {
     unsigned long flags;
@@ -673,10 +673,10 @@ abort_all_tasks(bus_chan_t *bc)
     for (tmd = bc->tmds_front; tmd; tmd = tmd->cd_hnext) {
         tmd->cd_flags |= CDF_PRIVATE_ABORTED;
     }
-    spin_unlock_irqrestore(&bc->tmds_lock, flags); 
+    spin_unlock_irqrestore(&bc->tmds_lock, flags);
 }
 
-static void 
+static void
 scsi_target_notify(tmd_notify_t *np)
 {
     bus_t *bp;
@@ -688,10 +688,10 @@ scsi_target_notify(tmd_notify_t *np)
     unsigned long flags;
 
     // FIXME: if scst mgmt fail we can't give info to isp driver via tpublic
-    // FIXME: interface, but seems low level stuff is capable to handle error case 
+    // FIXME: interface, but seems low level stuff is capable to handle error case
     // FIXME: now smile and assume mgmt_fn not fail
-    
-    // FIXME: SCST need some initiator for mgmt, what about INI_ANY, TGT_ANY !?! 
+
+    // FIXME: SCST need some initiator for mgmt, what about INI_ANY, TGT_ANY !?!
 
     spin_lock_irqsave(&scsi_target_lock, flags);
     bp = bus_from_notify(np);
@@ -702,8 +702,8 @@ scsi_target_notify(tmd_notify_t *np)
     }
     spin_unlock_irqrestore(&scsi_target_lock, flags);
     SDprintk("scsi_target: MGT code %x from %s%d iid 0x%016llx\n", np->nt_ncode, bp->h.r_name, bp->h.r_inst, np->nt_iid);
-    
-    bc = &bp->bchan[np->nt_channel]; 
+
+    bc = &bp->bchan[np->nt_channel];
     spin_lock_irqsave(&bc->tmds_lock, flags);
     ini = ini_from_notify(bc, np);
     spin_unlock_irqrestore(&bc->tmds_lock, flags);
@@ -713,26 +713,26 @@ scsi_target_notify(tmd_notify_t *np)
             if (abort_task(bc, np->nt_tagval)) {
                 SDprintk("TMD_NOTIFY abort task [%llx]\n", np->nt_tagval);
                 (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
-	            return;
-	        }
-	        if (ini == NULL) {
+                return;
+            }
+            if (ini == NULL) {
                 Eprintk("TMD_NOTIFY cannot find initiator 0x%016llx\n", np->nt_iid);
                 (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
                 return;
             }
-            scst_rx_mgmt_fn_tag(ini->ini_scst_sess, SCST_ABORT_TASK, np->nt_tagval, 1, np); 
-            return; 
+            scst_rx_mgmt_fn_tag(ini->ini_scst_sess, SCST_ABORT_TASK, np->nt_tagval, 1, np);
+            return;
         case NT_ABORT_TASK_SET:
-	        abort_all_tasks(bc);
-	        fn = SCST_ABORT_TASK_SET;
-	        break;
+            abort_all_tasks(bc);
+            fn = SCST_ABORT_TASK_SET;
+            break;
         case NT_CLEAR_TASK_SET:
             abort_all_tasks(bc);
-	        fn = SCST_CLEAR_TASK_SET;
+            fn = SCST_CLEAR_TASK_SET;
             break;
         case NT_CLEAR_ACA: // FIXME: does we support this?
             fn = SCST_CLEAR_ACA;
-            break; 
+            break;
         case NT_LUN_RESET:
             fn = SCST_LUN_RESET;
             break;
@@ -745,7 +745,7 @@ scsi_target_notify(tmd_notify_t *np)
         case NT_LINK_UP:
         case NT_LINK_DOWN:
         case NT_LOGOUT:
-	        // FIXME: LOGOUT implementation
+            // FIXME: LOGOUT implementation
             /* only ack, we don't care about bus/lip resets and link up/down */
             (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
             return;
@@ -777,7 +777,7 @@ scsi_target_handler(qact_e action, void *arg)
     case QOUT_HBA_REG:
     {
         hba_register_t *hp;
-        
+
         spin_lock_irqsave(&scsi_target_lock, flags);
         for (bp = busses; bp < &busses[MAX_BUS]; bp++) {
             if (bp->h.r_action == NULL) {
@@ -821,7 +821,7 @@ scsi_target_handler(qact_e action, void *arg)
     {
         tmd_cmd_t *tmd = arg;
         SDprintk2("scsi_target: TMD_START[%llx] %p cdb0=%x\n", tmd->cd_tagval, tmd, tmd->cd_cdb[0] & 0xff);
-        
+
         tmd->cd_xact.td_cmd = tmd;
         scsi_target_start_cmd(arg, 1);
         break;
@@ -831,7 +831,7 @@ scsi_target_handler(qact_e action, void *arg)
         tmd_xact_t *xact = arg;
         tmd_cmd_t *tmd = xact->td_cmd;
         SDprintk2("scsi_target: TMD_DONE[%llx] %p cdb0=%x\n", tmd->cd_tagval, tmd, tmd->cd_cdb[0] & 0xff);
-      
+
         scsi_target_done_cmd(tmd, 1);
         break;
     }
@@ -894,10 +894,10 @@ scsi_target_thread(void *arg)
             register_scst();
         }
         if (test_and_clear_bit(SF_ADD_INITIATORS, &schedule_flags)) {
-	        bus_add_initiators();
-	    }
+            bus_add_initiators();
+        }
         if (test_and_clear_bit(SF_UNREGISTER_SCST, &schedule_flags)) {
-            unregister_scst();  
+            unregister_scst();
         }
     }
     SDprintk("scsi_target_thread exiting\n");
@@ -917,19 +917,19 @@ scsi_target_enadis(bus_chan_t *bc, int en)
     if (en == bc->enable) {
         return (0);
     }
-    
+
     bp = bc->bus;
-    chan = (bc - bp->bchan) / sizeof (bus_chan_t); 
-    
+    chan = (bc - bp->bchan) / sizeof (bus_chan_t);
+
     memset(&info, 0, sizeof (info));
     info.i_identity = bp->h.r_identity;
     info.i_channel = chan;
     (*bp->h.r_action)(QIN_GETINFO, &info);
     if (info.i_error) {
-        err = info.i_error;	
-	    goto failed;
+        err = info.i_error;
+        goto failed;
     }
- 
+
     memset(&ec, 0, sizeof (ec));
     ec.en_hba = bp->h.r_identity;
     ec.en_chan = chan;
@@ -946,7 +946,7 @@ scsi_target_enadis(bus_chan_t *bc, int en)
        err = ec.en_error;
        goto failed;
     }
-    
+
     bc->enable = en;
     return (0);
 
@@ -962,7 +962,7 @@ isp_detect(struct scst_tgt_template *tgt_template)
     return (0);
 }
 
-static int 
+static int
 isp_release(struct scst_tgt *tgt)
 {
     return (0);
@@ -972,12 +972,12 @@ static int
 isp_rdy_to_xfer(struct scst_cmd *scst_cmd)
 {
     bus_t *bp;
-    
+
     if (scst_cmd_get_data_direction(scst_cmd) == SCST_DATA_WRITE) {
         tmd_cmd_t *tmd = (tmd_cmd_t *) scst_cmd_get_tgt_priv(scst_cmd);
         tmd_xact_t *xact = &tmd->cd_xact;
-        
-        xact->td_hflags |= TDFH_DATA_OUT; 
+
+        xact->td_hflags |= TDFH_DATA_OUT;
         xact->td_data = scst_cmd_get_sg(scst_cmd);
         xact->td_xfrlen = scst_cmd_get_bufflen(scst_cmd);
         SDprintk("%s: write nbytes %u\n", __FUNCTION__, scst_cmd_get_bufflen(scst_cmd));
@@ -991,43 +991,43 @@ isp_rdy_to_xfer(struct scst_cmd *scst_cmd)
 
 static int
 isp_xmit_response(struct scst_cmd *scst_cmd)
-{   
+{
     tmd_cmd_t *tmd = (tmd_cmd_t *) scst_cmd_get_tgt_priv(scst_cmd);
     bus_t *bp = tmd->cd_bus;
-    tmd_xact_t *xact = &tmd->cd_xact; 
-    
+    tmd_xact_t *xact = &tmd->cd_xact;
+
     if (unlikely(scst_cmd_aborted(scst_cmd))) {
-        return 0; 
+        return 0;
     }
-    
+
     if (scst_cmd_get_data_direction(scst_cmd) == SCST_DATA_READ) {
         unsigned int len = scst_cmd_get_resp_data_len(scst_cmd);
-        if (len > tmd->cd_totlen) { 
+        if (len > tmd->cd_totlen) {
             /* some broken initiators may send SCSI commands with data load
              * larger than underlaying transport specified */
             const uint8_t ifailure[TMD_SENSELEN] = { 0xf0, 0, 0x4, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0x44 };
-            
+
             Eprintk("data size too big (totlen %u len %u)\n", tmd->cd_totlen, len);
-            
+
             memcpy(tmd->cd_sense, ifailure, TMD_SENSELEN);
             xact->td_hflags |= TDFH_STSVALID;
-            tmd->cd_scsi_status = SCSI_CHECK; 
+            tmd->cd_scsi_status = SCSI_CHECK;
             goto out;
         } else {
             xact->td_hflags |= TDFH_DATA_IN;
             xact->td_xfrlen = len;
             xact->td_data = scst_cmd_get_sg(scst_cmd);
         }
-    } else { 
+    } else {
         /* finished write to target or command with no data */
         xact->td_xfrlen = 0;
         xact->td_hflags &= ~TDFH_DATA_MASK;
     }
-            
+
     if (scst_cmd_get_tgt_resp_flags(scst_cmd) & SCST_TSC_FLAG_STATUS) {
         xact->td_hflags |= TDFH_STSVALID;
         tmd->cd_scsi_status = scst_cmd_get_status(scst_cmd);
-        
+
         if (tmd->cd_scsi_status == SCSI_CHECK) {
             int prt = 0;
             uint8_t *sbuf = scst_cmd_get_sense_buffer(scst_cmd);
@@ -1058,7 +1058,7 @@ out:
         xact->td_hflags &= ~TDFH_DATA_MASK;
         xact->td_hflags |= TDFH_SNSVALID;
     }
-    
+
     (*bp->h.r_action)(QIN_TMD_CONT, xact);
     return (0);
 }
@@ -1075,7 +1075,7 @@ isp_on_free_cmd(struct scst_cmd *scst_cmd)
     (*bp->h.r_action)(QIN_TMD_FIN, tmd);
 }
 
-static void 
+static void
 isp_task_mgmt_fn_done(struct scst_mgmt_cmd *mgmt_cmd)
 {
     tmd_notify_t *np = mgmt_cmd->tgt_priv;
@@ -1094,7 +1094,7 @@ isp_read_proc(struct seq_file *seq, struct scst_tgt *tgt)
     bc = tgt->tgt_priv;
     if (!bc) {
         return (-ENODEV);
-    } 
+    }
     seq_printf(seq, "%d\n", bc->enable);
     return (0);
 }
@@ -1112,7 +1112,7 @@ isp_write_proc(char *buf, char **start, off_t offset, int len, int *eof, struct 
     if (len < 3) {
         return (-EINVAL);
     }
-    
+
     en = buf[0] - '0';
     if (en < 0 || en > 1) {
         return (-EINVAL);
@@ -1125,16 +1125,16 @@ isp_write_proc(char *buf, char **start, off_t offset, int len, int *eof, struct 
     return (len);
 }
 
-static struct scst_tgt_template isp_tgt_template = 
+static struct scst_tgt_template isp_tgt_template =
 {
-    .sg_tablesize = SG_ALL, // FIXME do this depending of hardware ? 
+    .sg_tablesize = SG_ALL, // FIXME do this depending of hardware ?
     .name = "qla_isp",
     .unchecked_isa_dma = 0,
     .use_clustering = 1,
     .xmit_response_atomic = 1,
     .rdy_to_xfer_atomic = 1,
     //.report_aen_atomic = 0,
-    
+
     .detect = isp_detect,
     .release = isp_release,
 
@@ -1142,7 +1142,7 @@ static struct scst_tgt_template isp_tgt_template =
     .rdy_to_xfer = isp_rdy_to_xfer,
     .on_free_cmd = isp_on_free_cmd,
     .task_mgmt_fn_done = isp_task_mgmt_fn_done,
-    
+
     //.report_aen = isp_report_aen,
     .read_proc = isp_read_proc,
     .write_proc = isp_write_proc,
@@ -1150,7 +1150,7 @@ static struct scst_tgt_template isp_tgt_template =
 
 static void
 register_hba(bus_t *bp)
-{   
+{
     char name[32];
     info_t info;
     int chan;
@@ -1162,14 +1162,14 @@ register_hba(bus_t *bp)
         Eprintk("cannot allocate %d channels for %s%d\n", bp->h.r_nchannels, bp->h.r_name, bp->h.r_inst);
         goto err_free_bus;
     }
-    
+
     info.i_identity = bp->h.r_identity;
     if (bp->h.r_type == R_FC) {
         info.i_type = I_FC;
     } else {
         info.i_type = I_SPI;
     }
- 
+
     for (chan = 0; chan < bp->h.r_nchannels; chan++) {
         info.i_channel = chan;
         (*bp->h.r_action)(QIN_GETINFO, &info);
@@ -1177,7 +1177,7 @@ register_hba(bus_t *bp)
             Eprintk("cannot get device name from %s%d!\n", bp->h.r_name, bp->h.r_inst);
             goto err_free_chan;
         }
-    
+
         if (info.i_type == I_FC) {
             #define GET(byte) (uint8_t) ((info.i_id.fc.wwpn >> 8*byte) & 0xff)
             snprintf(name, sizeof(name), "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
@@ -1188,13 +1188,13 @@ register_hba(bus_t *bp)
             snprintf(name, sizeof(name), "%02x:%02x:%02x:%02x", GET(3), GET(2), GET(1), GET(0));
             #undef GET
         }
-   
+
         scst_tgt = scst_register(&isp_tgt_template, name);
         if (scst_tgt) {
             Eprintk("cannot register scst device %s for %s%d\n", name, bp->h.r_name, bp->h.r_inst);
             goto err_free_chan;
         }
-        
+
         bc = &bchan[chan];
         spin_lock_init(&bc->tmds_lock);
         tasklet_init(&bc->tasklet, tasklet_rx_cmds, (unsigned long) bc);
@@ -1202,7 +1202,7 @@ register_hba(bus_t *bp)
         bc->scst_tgt = scst_tgt;
         scst_tgt->tgt_priv = bc;
     }
-    
+
     spin_lock_irq(&scsi_target_lock);
     bp->bchan = bchan;
     spin_unlock_irq(&scsi_target_lock);
@@ -1210,7 +1210,7 @@ register_hba(bus_t *bp)
     Iprintk("registering %s%d\n", bp->h.r_name, bp->h.r_inst);
     (bp->h.r_action)(QIN_HBA_REG, &bp->h);
     return;
-    
+
 err_free_chan:
     for ( ; chan >= 0; chan--) {
         if (bchan[chan].scst_tgt) {
@@ -1229,7 +1229,7 @@ static void
 unregister_hba(bus_t *bp, hba_register_t *unreg_hp)
 {
     int i, chan;
-    
+
     for (chan = 0; chan < bp->h.r_nchannels; chan++) {
         /* remove existing initiators */
         for (i = 0; i < HASH_WIDTH; i++) {
@@ -1242,11 +1242,11 @@ unregister_hba(bus_t *bp, hba_register_t *unreg_hp)
                 } while ((ptr = ini_next) != NULL);
             }
         }
-        
+
         if (bp->bchan[chan].scst_tgt) {
             scst_unregister(bp->bchan[chan].scst_tgt);
         }
-    
+
         /* it's safe now to reinit bp */
         kfree(bp->bchan);
         spin_lock_irq(&scsi_target_lock);
@@ -1259,11 +1259,11 @@ unregister_hba(bus_t *bp, hba_register_t *unreg_hp)
 }
 
 /* Register SCST target, must be called in process context */
-static void 
+static void
 register_scst(void)
 {
     bus_t *bp;
-    
+
     for (bp = busses; bp < &busses[MAX_BUS]; bp++) {
         spin_lock_irq(&scsi_target_lock);
         if (bp->h.r_action == NULL || bp->need_reg == 0) {
@@ -1272,9 +1272,9 @@ register_scst(void)
         }
         bp->need_reg = 0;
         spin_unlock_irq(&scsi_target_lock);
- 
-        register_hba(bp);     
-   } 
+
+        register_hba(bp);
+   }
 }
 
 /* Unregister SCST target, must be called in process context */
@@ -1292,8 +1292,8 @@ unregister_scst(void)
         }
         unreg_hp = bp->unreg_hp;
         bp->unreg_hp = NULL;
-        spin_unlock_irq(&scsi_target_lock);   
-        
+        spin_unlock_irq(&scsi_target_lock);
+
         unregister_hba(bp, unreg_hp);
     }
 }
