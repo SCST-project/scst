@@ -435,7 +435,7 @@ rx_loop:
         int len;
 
         dir = SCST_DATA_NONE;
-        if (tmd->cd_flags & CDF_BIDIR) {
+        if ((tmd->cd_flags & CDF_BIDIR) == CDF_BIDIR) {
             dir = SCST_DATA_UNKNOWN;
         } else if (tmd->cd_flags & CDF_DATA_OUT) {
             dir = SCST_DATA_WRITE;
