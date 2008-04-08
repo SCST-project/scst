@@ -429,20 +429,15 @@ rx_loop:
             scst_cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
             break;
     }
-
-    /*
-     * XXX: For some commands like INQUIRY, SYNCHRONIZE_CACHE, VERIFY, ...
-     * XXX: we can not get good direction and transfer length values
-     * XXX: from low level driver. As long as we could not assure
-     * XXX: proper things, we stop setting exected values for SCST
-     */
-    if (0) {
+  
+    if (bp->h.r_type == R_FC) {
         scst_data_direction dir;
         int len;
 
-        /* bidirectional or no transfer */
-        dir = SCST_DATA_UNKNOWN;
-        if ((tmd->cd_flags & CDF_DATA_OUT) && !(tmd->cd_flags & CDF_DATA_IN)) {
+        dir = SCST_DATA_NONE;
+        if (tmd->cd_flags & CDF_BIDIR) {
+            dir = SCST_DATA_UNKNOWN;
+        } else if (tmd->cd_flags & CDF_DATA_OUT) {
             dir = SCST_DATA_WRITE;
         } else if (tmd->cd_flags & CDF_DATA_IN) {
             dir = SCST_DATA_READ;
