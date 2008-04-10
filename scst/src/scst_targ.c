@@ -2725,10 +2725,14 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
 	unsigned long flags;
 
+	TRACE_ENTRY();
+
 	if (scst_is_implicit_hq(cmd)) {
 		TRACE(TRACE_SCSI|TRACE_SCSI_SERIALIZING, "Implicit HQ cmd %p", cmd);
 		cmd->queue_type = SCST_CMD_QUEUE_HEAD_OF_QUEUE;
 	}
+
+	EXTRACHECKS_BUG_ON(cmd->sn_set || cmd->hq_cmd_inced);
 
 	/* Optimized for lockless fast path */
 
@@ -2817,6 +2821,7 @@ ordered:
 		spin_lock_irqsave(&tgt_dev->sn_lock, flags);
 		tgt_dev->hq_cmd_count++;
 		spin_unlock_irqrestore(&tgt_dev->sn_lock, flags);
+		cmd->hq_cmd_inced = 1;
 		goto out;
 
 	default:
@@ -2833,6 +2838,7 @@ ordered:
 	cmd->sn_set = 1;
 
 out:
+	TRACE_EXIT();
 	return;
 }
 

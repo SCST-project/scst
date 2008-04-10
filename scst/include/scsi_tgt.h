@@ -1082,8 +1082,11 @@ struct scst_cmd
 	 */
 	unsigned int preprocessing_only:1;
 
-	/* Set if scst_cmd_set_sn() was called */
+	/* Set if cmd's SN was set */
 	unsigned int sn_set:1;
+
+	/* Set if hq_cmd_count was incremented */
+	unsigned int hq_cmd_inced:1;
 
 	/*
 	 * Set if scst_cmd_init_stage1_done() called and the target wants

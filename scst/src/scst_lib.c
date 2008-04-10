@@ -3045,6 +3045,9 @@ void scst_on_hq_cmd_response(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
+	if (!cmd->hq_cmd_inced)
+		goto out;
+
 	spin_lock_irq(&tgt_dev->sn_lock);
 	tgt_dev->hq_cmd_count--;
 	spin_unlock_irq(&tgt_dev->sn_lock);
@@ -3059,6 +3062,7 @@ void scst_on_hq_cmd_response(struct scst_cmd *cmd)
 	if (tgt_dev->hq_cmd_count == 0)
 		scst_make_deferred_commands_active(tgt_dev, cmd);
 
+out:
 	TRACE_EXIT();
 	return;
 }
