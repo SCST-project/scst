@@ -356,12 +356,8 @@ tasklet_rx_cmds(unsigned long data)
     tmd_cmd_t *tmd;
     tmd_xact_t *xact;
     struct scst_cmd *scst_cmd;
-    int nloops=4;
 
 rx_loop:
-    if (nloops-- <= 0)
-        return;
-
     spin_lock_irq(&bc->tmds_lock);
     tmd = bc->tmds_front;
     if (tmd == NULL || tmd->cd_ini == NULL) {
