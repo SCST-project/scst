@@ -269,26 +269,13 @@ ini_from_tmd(bus_chan_t *bc, tmd_cmd_t *tmd)
 static __inline ini_t *
 ini_from_notify(bus_chan_t *bc, tmd_notify_t *np)
 {
-    ini_t *ptr = NULL;
-    int i;
-
-    if (np->nt_iid == INI_ANY) {
-        /* SCST task mgmt need to be related with some session */
-        for (i = 0; i < HASH_WIDTH; i++) {
-            ini_t *ptr = bc->list[i];
-            if (ptr) {
+    ini_t *ptr = INI_HASH_LISTP(bc, np->nt_iid);
+    if (ptr) {
+        do {
+            if (ptr->ini_iid == np->nt_iid) {
                 return (ptr);
             }
-        }
-    } else {
-        ptr = INI_HASH_LISTP(bc, np->nt_iid);
-        if (ptr) {
-            do {
-                if (ptr->ini_iid == np->nt_iid) {
-                    return (ptr);
-                }
-            } while ((ptr = ptr->ini_next) != NULL);
-        }
+        } while ((ptr = ptr->ini_next) != NULL);
     }
     return (ptr);
 }
@@ -369,8 +356,12 @@ tasklet_rx_cmds(unsigned long data)
     tmd_cmd_t *tmd;
     tmd_xact_t *xact;
     struct scst_cmd *scst_cmd;
+    int nloops=4;
 
 rx_loop:
+    if (nloops-- <= 0)
+        return;
+
     spin_lock_irq(&bc->tmds_lock);
     tmd = bc->tmds_front;
     if (tmd == NULL || tmd->cd_ini == NULL) {
@@ -429,7 +420,7 @@ rx_loop:
             scst_cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
             break;
     }
-  
+
     if (bp->h.r_type == R_FC) {
         scst_data_direction dir;
         int len;
@@ -644,34 +635,38 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
 }
 
 static int
-abort_task(bus_chan_t *bc, uint64_t tagval)
+abort_task(bus_chan_t *bc, uint64_t iid, uint64_t tagval)
 {
     unsigned long flags;
     tmd_cmd_t *tmd;
 
     spin_lock_irqsave(&bc->tmds_lock, flags);
     for (tmd = bc->tmds_front; tmd; tmd = tmd->cd_hnext) {
-        if (tmd->cd_tagval == tagval) {
+        if (tmd->cd_tagval == tagval && tmd->cd_iid == iid) {
             tmd->cd_flags |= CDF_PRIVATE_ABORTED;
             spin_unlock_irqrestore(&bc->tmds_lock, flags);
-            return 1;
+            tasklet_schedule(&bc->tasklet);
+            return (1);
         }
     }
     spin_unlock_irqrestore(&bc->tmds_lock, flags);
-    return 0;
+    return (0);
 }
 
 static void
-abort_all_tasks(bus_chan_t *bc)
+abort_all_tasks(bus_chan_t *bc, uint64_t iid)
 {
     unsigned long flags;
     tmd_cmd_t *tmd;
 
     spin_lock_irqsave(&bc->tmds_lock, flags);
     for (tmd = bc->tmds_front; tmd; tmd = tmd->cd_hnext) {
-        tmd->cd_flags |= CDF_PRIVATE_ABORTED;
+        if (tmd->cd_iid == iid) {
+            tmd->cd_flags |= CDF_PRIVATE_ABORTED;
+        }
     }
     spin_unlock_irqrestore(&bc->tmds_lock, flags);
+    tasklet_schedule(&bc->tasklet);
 }
 
 static void
@@ -681,88 +676,123 @@ scsi_target_notify(tmd_notify_t *np)
     bus_chan_t *bc;
     ini_t *ini;
     int fn;
+    char *tmf = NULL;
     uint16_t lun;
     uint8_t lunbuf[8];
     unsigned long flags;
 
-    // FIXME: if scst mgmt fail we can't give info to isp driver via tpublic
-    // FIXME: interface, but seems low level stuff is capable to handle error case
-    // FIXME: now smile and assume mgmt_fn not fail
-
-    // FIXME: SCST need some initiator for mgmt, what about INI_ANY, TGT_ANY !?!
+    /*
+     * XXX If task management fail we can't give info to isp driver via tpublic
+     * XXX notifies interface. FC stuff is capable to handle errors in TM.
+     * XXX But TM is rare and TM errors are even more rare, so we can ignore errors
+     * XXX now. Maybe tpublic API change, than we could uncomment passing errors to
+     * XXX low level driver.
+     */
 
     spin_lock_irqsave(&scsi_target_lock, flags);
     bp = bus_from_notify(np);
     if (unlikely(bp == NULL || bp->bchan == NULL)) {
         spin_unlock_irqrestore(&scsi_target_lock, flags);
-        Eprintk("TMD_NOTIFY cannot find %s\n", bp == NULL ? "bus" : "channel");
+        Eprintk("cannot find %s for incoming notify\n", bp == NULL ? "bus" : "channel");
         return;
     }
     spin_unlock_irqrestore(&scsi_target_lock, flags);
+
     SDprintk("scsi_target: MGT code %x from %s%d iid 0x%016llx\n", np->nt_ncode, bp->h.r_name, bp->h.r_inst, np->nt_iid);
 
     bc = &bp->bchan[np->nt_channel];
+
     spin_lock_irqsave(&bc->tmds_lock, flags);
     ini = ini_from_notify(bc, np);
     spin_unlock_irqrestore(&bc->tmds_lock, flags);
 
     switch (np->nt_ncode) {
         case NT_ABORT_TASK:
-            if (abort_task(bc, np->nt_tagval)) {
-                SDprintk("TMD_NOTIFY abort task [%llx]\n", np->nt_tagval);
-                (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
-                return;
-            }
+            tmf = "ABORT TASK";
             if (ini == NULL) {
-                Eprintk("TMD_NOTIFY cannot find initiator 0x%016llx\n", np->nt_iid);
-                (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
-                return;
+               goto err_no_ini;
             }
-            scst_rx_mgmt_fn_tag(ini->ini_scst_sess, SCST_ABORT_TASK, np->nt_tagval, 1, np);
+            if (abort_task(bc, np->nt_iid, np->nt_tagval)) {
+                SDprintk("TMD_NOTIFY abort task [%llx]\n", np->nt_tagval);
+                goto notify_ack;
+            }
+            if (scst_rx_mgmt_fn_tag(ini->ini_scst_sess, SCST_ABORT_TASK, np->nt_tagval, 1, np) < 0) {
+                //np->nt_error = NT_FAILED;
+                goto notify_ack;
+            }
+            /* wait for SCST now */
             return;
         case NT_ABORT_TASK_SET:
-            abort_all_tasks(bc);
+            tmf = "ABORT TASK SET";
+            if (ini == NULL) {
+                goto err_no_ini;
+            }
+            abort_all_tasks(bc, np->nt_iid);
             fn = SCST_ABORT_TASK_SET;
             break;
         case NT_CLEAR_TASK_SET:
-            abort_all_tasks(bc);
+            tmf = "CLEAR TASK SET";
+            if (ini == NULL) {
+                goto err_no_ini;
+            }
+            abort_all_tasks(bc, np->nt_iid);
             fn = SCST_CLEAR_TASK_SET;
             break;
-        case NT_CLEAR_ACA: // FIXME: does we support this?
+        case NT_CLEAR_ACA:
+            tmf = "CLEAR ACA";
             fn = SCST_CLEAR_ACA;
             break;
         case NT_LUN_RESET:
+            tmf = "LUN RESET";
+            if (np->nt_lun == LUN_ANY) {
+                //np->nt_error = NT_REJECT;
+                goto notify_ack;
+            }
             fn = SCST_LUN_RESET;
+            break;
+        case NT_TARGET_RESET:
+            tmf = "TARGET RESET";
+            fn = SCST_TARGET_RESET;
             break;
         case NT_BUS_RESET:
         case NT_HBA_RESET:
-        case NT_TARGET_RESET:
-            fn = SCST_TARGET_RESET;
-            break;
+            //schedule_reset();
+            return;
         case NT_LIP_RESET:
         case NT_LINK_UP:
         case NT_LINK_DOWN:
+            /* we don't care about lip resets and link up/down */
+            goto notify_ack;
         case NT_LOGOUT:
-            // FIXME: LOGOUT implementation
-            /* only ack, we don't care about bus/lip resets and link up/down */
-            (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
-            return;
+            //schedule_logout();
+            goto notify_ack;
         default:
-            Eprintk("Unknown notify 0x%x\n", np->nt_ncode);
+            Eprintk("unknown notify 0x%x\n", np->nt_ncode);
             return;
     }
-    if (ini == NULL) {
-        Eprintk("TMD_NOTIFY cannot find initiator 0x%016llx\n", np->nt_iid);
-        (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
-        return;
+
+    if (tmf) {
+        if (ini == NULL) {
+            goto err_no_ini;
+        }
+        if (np->nt_lun == LUN_ANY) {
+            lun = 0;
+        } else {
+            lun = np->nt_lun;
+        }
+        FLATLUN_TO_L0LUN(lunbuf, lun);
+        if (scst_rx_mgmt_fn_lun(ini->ini_scst_sess, fn, lunbuf, sizeof(lunbuf), 1, np) < 0) {
+            //np->nt_error = NT_FAILED;
+            goto notify_ack;
+        }
     }
-    if (np->nt_lun == LUN_ANY) {
-        lun = 0;
-    } else {
-        lun = np->nt_lun;
-    }
-    FLATLUN_TO_L0LUN(lunbuf, lun);
-    scst_rx_mgmt_fn_lun(ini->ini_scst_sess, fn, lunbuf, sizeof(lunbuf), 1, np);
+    return;
+
+err_no_ini:
+    Eprintk("cannot find initiator 0x%016llx for %s\n", np->nt_iid, tmf);
+    //np->nt_error = NT_REJECT;
+notify_ack:
+    (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
 }
 
 void
@@ -991,6 +1021,7 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
     tmd_xact_t *xact = &tmd->cd_xact;
 
     if (unlikely(scst_cmd_aborted(scst_cmd))) {
+        scst_tgt_cmd_done(scst_cmd);
         return 0;
     }
 
