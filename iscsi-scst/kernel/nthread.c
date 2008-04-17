@@ -90,14 +90,12 @@ again:
 		sBUG_ON(cmnd->parent_req != NULL);
 
 		if (cmnd->sg != NULL) {
-			int sg_cnt, i;
-
-			sg_cnt = get_pgcnt(cmnd->bufflen,
-				cmnd->sg[0].offset);
+			int i;
 
 			if (cmnd_get_check(cmnd))
 				continue;
-			for(i = 0; i < sg_cnt; i++) {
+
+			for(i = 0; i < cmnd->sg_cnt; i++) {
 				struct page *page = sg_page(&cmnd->sg[i]);
 				TRACE_CONN_CLOSE_DBG("page %p, net_priv %p, "
 					"_count %d", page, page->net_priv,
@@ -125,15 +123,12 @@ again:
 				atomic_read(&rsp->net_ref_cnt), rsp->sg);
 
 			if ((rsp->sg != cmnd->sg) && (rsp->sg != NULL)) {
-				int sg_cnt, i;
-
-				sg_cnt = get_pgcnt(rsp->bufflen,
-					rsp->sg[0].offset);
-				sBUG_ON(rsp->sg_cnt != sg_cnt);
+				int i;
 
 				if (cmnd_get_check(rsp))
 					continue;
-				for(i = 0; i < sg_cnt; i++) {
+
+				for(i = 0; i < rsp->sg_cnt; i++) {
 					struct page *page = sg_page(&rsp->sg[i]);
 					TRACE_CONN_CLOSE_DBG("    page %p, net_priv %p, "
 						"_count %d", page, page->net_priv,
@@ -383,10 +378,8 @@ static void close_conn(struct iscsi_conn *conn)
 				TRACE_CONN_CLOSE_DBG("net_ref_cnt %d, sg %p",
 					atomic_read(&cmnd->net_ref_cnt), cmnd->sg);
 				if (cmnd->sg != NULL) {
-					int sg_cnt, i;
-					sg_cnt = get_pgcnt(cmnd->bufflen,
-						cmnd->sg[0].offset);
-					for(i = 0; i < sg_cnt; i++) {
+					int i;
+					for(i = 0; i < cmnd->sg_cnt; i++) {
 						struct page *page = sg_page(&cmnd->sg[i]);
 						TRACE_CONN_CLOSE_DBG("page %p, net_priv %p, _count %d",
 							page, page->net_priv,
@@ -402,11 +395,8 @@ static void close_conn(struct iscsi_conn *conn)
 						"sg %p", rsp, atomic_read(&rsp->ref_cnt),
 						atomic_read(&rsp->net_ref_cnt), rsp->sg);
 					if ((rsp->sg != cmnd->sg) && (rsp->sg != NULL)) {
-						int sg_cnt, i;
-						sg_cnt = get_pgcnt(rsp->bufflen,
-							rsp->sg[0].offset);
-						sBUG_ON(rsp->sg_cnt != sg_cnt);
-						for(i = 0; i < sg_cnt; i++) {
+						int i;
+						for(i = 0; i < rsp->sg_cnt; i++) {
 							TRACE_CONN_CLOSE_DBG("    page %p, net_priv %p, "
 								"_count %d", sg_page(&rsp->sg[i]),
 								sg_page(&rsp->sg[i])->net_priv,
@@ -858,19 +848,44 @@ int istrd(void *arg)
 }
 
 #ifdef NET_PAGE_CALLBACKS_DEFINED
-void iscsi_get_page_callback(struct page *page)
+static inline void __iscsi_get_page_callback(struct iscsi_cmnd *cmd)
 {
-	struct iscsi_cmnd *cmd = (struct iscsi_cmnd*)page->net_priv;
 	int v;
 
-	TRACE_NET_PAGE("cmd %p, page %p, _count %d, new net_ref_cnt %d",
-		cmd, page, atomic_read(&page->_count),
-		atomic_read(&cmd->net_ref_cnt)+1);
+	TRACE_NET_PAGE("cmd %p, new net_ref_cnt %d",
+		cmd, atomic_read(&cmd->net_ref_cnt)+1);
 
 	v = atomic_inc_return(&cmd->net_ref_cnt);
 	if (v == 1) {
-		TRACE_NET_PAGE("getting cmd %p for page %p", cmd, page);
+		TRACE_NET_PAGE("getting cmd %p", cmd);
 		cmnd_get(cmd);
+	}
+}
+
+void iscsi_get_page_callback(struct page *page)
+{
+	struct iscsi_cmnd *cmd = (struct iscsi_cmnd*)page->net_priv;
+
+	TRACE_NET_PAGE("page %p, _count %d", page,
+		atomic_read(&page->_count));
+
+	__iscsi_get_page_callback(cmd);
+}
+
+static inline void __iscsi_put_page_callback(struct iscsi_cmnd *cmd)
+{
+	TRACE_NET_PAGE("cmd %p, new net_ref_cnt %d", cmd,
+		atomic_read(&cmd->net_ref_cnt)-1);
+
+	if (atomic_dec_and_test(&cmd->net_ref_cnt)) {
+		int i, sg_cnt = cmd->sg_cnt;
+		for(i = 0; i < sg_cnt; i++) {
+			struct page *page = sg_page(&cmd->sg[i]);
+			TRACE_NET_PAGE("Clearing page %p", page);
+			if (page->net_priv == cmd)
+				page->net_priv = NULL;
+		}
+		cmnd_put(cmd);
 	}
 }
 
@@ -878,25 +893,17 @@ void iscsi_put_page_callback(struct page *page)
 {
 	struct iscsi_cmnd *cmd = (struct iscsi_cmnd*)page->net_priv;
 
-	TRACE_NET_PAGE("cmd %p, page %p, _count %d, new net_ref_cnt %d",
-		cmd, page, atomic_read(&page->_count),
-		atomic_read(&cmd->net_ref_cnt)-1);
+	TRACE_NET_PAGE("page %p, _count %d", page,
+		atomic_read(&page->_count));
 
-	if (atomic_dec_and_test(&cmd->net_ref_cnt)) {
-		int i, sg_cnt = get_pgcnt(cmd->bufflen,	cmd->sg[0].offset);
-		for(i = 0; i < sg_cnt; i++) {
-			TRACE_NET_PAGE("Clearing page %p", sg_page(&cmd->sg[i]));
-			sg_page(&cmd->sg[i])->net_priv = NULL;
-		}
-		cmnd_put(cmd);
-	}
+	__iscsi_put_page_callback(cmd);
 }
 
 static void check_net_priv(struct iscsi_cmnd *cmd, struct page *page)
 {
-	if (atomic_read(&cmd->net_ref_cnt) == 0) {
-		TRACE_DBG("%s", "sendpage() not called get_page(), "
-			"zeroing net_priv");
+	if ((atomic_read(&cmd->net_ref_cnt) == 1) && (page->net_priv == cmd)) {
+		TRACE_DBG("sendpage() not called get_page(), zeroing net_priv "
+			"%p (page %p)", page->net_priv, page);
 		page->net_priv = NULL;
 	}
 }
@@ -910,6 +917,7 @@ static int write_data(struct iscsi_conn *conn)
 	mm_segment_t oldfs;
 	struct file *file;
 	struct socket *sock;
+	ssize_t (*sock_sendpage)(struct socket *, struct page *, int, size_t, int);
 	ssize_t (*sendpage)(struct socket *, struct page *, int, size_t, int);
 	struct iscsi_cmnd *write_cmnd = conn->write_cmnd;
 	struct iscsi_cmnd *ref_cmd;
@@ -918,6 +926,9 @@ static int write_data(struct iscsi_conn *conn)
 	int saved_size, size, sendsize;
 	int offset, idx;
 	int flags, res, count;
+	bool do_put = false;
+
+	TRACE_ENTRY();
 
 	iscsi_extracheck_is_wr_thread(conn);
 
@@ -967,7 +978,7 @@ retry:
 		set_fs(oldfs);
 		TRACE_WRITE("%#Lx:%u: %d(%ld)",
 			(unsigned long long)conn->session->sid, conn->cid,
-			res, (long) iop->iov_len);
+			res, (long)iop->iov_len);
 		if (unlikely(res <= 0)) {
 			if (res == -EAGAIN) {
 				conn->write_iop = iop;
@@ -975,7 +986,7 @@ retry:
 				goto out_iov;
 			} else if (res == -EINTR)
 				goto retry;
-			goto err;
+			goto out_err;
 		}
 
 		rest = res;
@@ -1000,58 +1011,86 @@ retry:
 
 	sg = write_cmnd->sg;
 	if (unlikely(sg == NULL)) {
-		PRINT_ERROR("%s", "warning data missing!");
-		return 0;
+		PRINT_INFO("WARNING: Data missed (cmd %p)!", write_cmnd);
+		res = 0;
+		goto out;
 	}
-	offset = conn->write_offset;
+
+	/* To protect from too early transfer completion race */
+	__iscsi_get_page_callback(ref_cmd);
+	do_put = true;
+
+	offset = conn->write_offset + sg[0].offset;
 	idx = offset >> PAGE_SHIFT;
 	offset &= ~PAGE_MASK;
 
 	sock = conn->sock;
 
 #ifdef NET_PAGE_CALLBACKS_DEFINED
-	sendpage = sock->ops->sendpage;
+	sock_sendpage = sock->ops->sendpage;
 #else
 	if ((write_cmnd->parent_req->scst_cmd != NULL) &&
 	    scst_cmd_get_data_buff_alloced(write_cmnd->parent_req->scst_cmd))
-		sendpage = sock_no_sendpage;
+		sock_sendpage = sock_no_sendpage;
 	else
-		sendpage = sock->ops->sendpage;
+		sock_sendpage = sock->ops->sendpage;
 #endif
 
 	flags = MSG_DONTWAIT;
 
 	while (1) {
+		sendpage = sock_sendpage;
+
 #ifdef NET_PAGE_CALLBACKS_DEFINED
-		if (unlikely((sg_page(&sg[idx])->net_priv != NULL) &&
-				(sg_page(&sg[idx])->net_priv != ref_cmd))) {
-			PRINT_CRIT_ERROR("net_priv isn't NULL and != ref_cmd "
-				"(write_cmnd %p, ref_cmd %p, sg %p, idx %d, "
-				"net_priv %p)", write_cmnd, ref_cmd, sg, idx,
-				sg_page(&sg[idx])->net_priv);
-			sBUG();
+		{
+			static spinlock_t net_priv_lock = SPIN_LOCK_UNLOCKED;
+			spin_lock(&net_priv_lock);
+			if (sg_page(&sg[idx])->net_priv != NULL) {
+				if (sg_page(&sg[idx])->net_priv != ref_cmd) {
+					/*
+					 * This might happen if user space supplies
+					 * to scst_user the same pages in different
+					 * commands or in case of zero-copy FILEIO,
+					 * when several initiators request the same
+					 * data simultaneously.
+					 */
+					TRACE_DBG("net_priv isn't NULL and != "
+						"ref_cmd (write_cmnd %p, ref_cmd %p, "
+						"sg %p, idx %d, page %p, net_priv %p)",
+						write_cmnd, ref_cmd, sg, idx,
+						sg_page(&sg[idx]),
+						sg_page(&sg[idx])->net_priv);
+					sendpage = sock_no_sendpage;
+				}
+			} else
+				sg_page(&sg[idx])->net_priv = ref_cmd;
+			spin_unlock(&net_priv_lock);
 		}
-		sg_page(&sg[idx])->net_priv = ref_cmd;
 #endif
 		sendsize = PAGE_SIZE - offset;
 		if (size <= sendsize) {
 retry2:
 			res = sendpage(sock, sg_page(&sg[idx]), offset, size, flags);
-			TRACE_WRITE("%s %#Lx:%u: %d(%lu,%u,%u)",
-				sock->ops->sendpage ? "sendpage" : "sock_no_sendpage",
+			TRACE_WRITE("Final %s %#Lx:%u: %d(%lu,%u,%u, cmd %p, page %p)",
+				(sendpage != sock_no_sendpage) ? "sendpage" : 
+								 "sock_no_sendpage",
 				(unsigned long long)conn->session->sid, conn->cid,
-				res, sg_page(&sg[idx])->index, offset, size);
+				res, sg_page(&sg[idx])->index, offset, size,
+				write_cmnd, sg_page(&sg[idx]));
 			if (unlikely(res <= 0)) {
 				if (res == -EINTR)
 					goto retry2;
 				else
 					goto out_res;
 			}
+
 			check_net_priv(ref_cmd, sg_page(&sg[idx]));
 			if (res == size) {
 				conn->write_size = 0;
-				return saved_size;
+				res = saved_size;
+				goto out_put;
 			}
+
 			offset += res;
 			size -= res;
 			continue;
@@ -1060,40 +1099,55 @@ retry2:
 retry1:
 		res = sendpage(sock, sg_page(&sg[idx]), offset, sendsize,
 			flags | MSG_MORE);
-		TRACE_WRITE("%s %#Lx:%u: %d(%lu,%u,%u)",
-			sock->ops->sendpage ? "sendpage" : "sock_no_sendpage",
-			(unsigned long long ) conn->session->sid, conn->cid,
-			res, sg_page(&sg[idx])->index, offset, sendsize);
+		TRACE_WRITE("%s %#Lx:%u: %d(%lu,%u,%u, cmd %p, page %p)",
+			(sendpage != sock_no_sendpage) ? "sendpage" : 
+							 "sock_no_sendpage",
+			(unsigned long long)conn->session->sid, conn->cid,
+			res, sg_page(&sg[idx])->index, offset, sendsize,
+			write_cmnd, sg_page(&sg[idx]));
 		if (unlikely(res <= 0)) {
 			if (res == -EINTR)
 				goto retry1;
 			else
 				goto out_res;
 		}
+
 		check_net_priv(ref_cmd, sg_page(&sg[idx]));
 		if (res == sendsize) {
 			idx++;
 			offset = 0;
+			EXTRACHECKS_BUG_ON(idx >= ref_cmd->sg_cnt);
 		} else
 			offset += res;
+
 		size -= res;
 	}
-out:
-	conn->write_offset = (idx << PAGE_SHIFT) + offset;
+
+out_off:
+	conn->write_offset = (idx << PAGE_SHIFT) + offset - sg[0].offset;
+
 out_iov:
 	conn->write_size = size;
 	if ((saved_size == size) && res == -EAGAIN)
-		return res;
+		goto out_put;
 
-	return saved_size - size;
+	res = saved_size - size;
+
+out_put:
+	if (do_put)
+		__iscsi_put_page_callback(ref_cmd);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 
 out_res:
 	check_net_priv(ref_cmd, sg_page(&sg[idx]));
 	if (res == -EAGAIN)
-		goto out;
+		goto out_off;
 	/* else go through */
 
-err:
+out_err:
 #ifndef DEBUG
 	if (!conn->closing)
 #endif
@@ -1105,7 +1159,7 @@ err:
 	if (ref_cmd->scst_cmd != NULL)
 		scst_set_delivery_status(ref_cmd->scst_cmd,
 			SCST_CMD_DELIVERY_FAILED);
-	return res;
+	goto out_put;
 }
 
 static int exit_tx(struct iscsi_conn *conn, int res)

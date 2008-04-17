@@ -328,6 +328,7 @@ static struct page *dev_user_alloc_pages(struct scatterlist *sg,
 	gfp_t gfp_mask, void *priv)
 {
 	struct scst_user_cmd *ucmd = (struct scst_user_cmd*)priv;
+	int offset = 0;
 
 	TRACE_ENTRY();
 
@@ -339,7 +340,7 @@ static struct page *dev_user_alloc_pages(struct scatterlist *sg,
 	if (ucmd->cur_data_page == 0) {
 		TRACE_MEM("ucmd->first_page_offset %d",
 			ucmd->first_page_offset);
-		sg->offset = ucmd->first_page_offset;
+		offset = ucmd->first_page_offset;
 		ucmd_get(ucmd, 0);
 	}
 
@@ -347,10 +348,11 @@ static struct page *dev_user_alloc_pages(struct scatterlist *sg,
 		goto out;
 
 	sg_set_page(sg, ucmd->data_pages[ucmd->cur_data_page],
-		PAGE_SIZE - sg->offset, 0);
+		PAGE_SIZE - offset, offset);
 	ucmd->cur_data_page++;
 
-	TRACE_MEM("page=%p, length=%d", sg_page(sg), sg->length);
+	TRACE_MEM("page=%p, length=%d, offset=%d", sg_page(sg), sg->length,
+		sg->offset);
 	TRACE_BUFFER("Page data", sg_virt(sg), sg->length);
 
 out:
@@ -498,10 +500,6 @@ static int dev_user_alloc_sg(struct scst_user_cmd *ucmd, int cached_buff)
 		ucmd->ubuff = buf_ucmd->ubuff;
 		ucmd->buf_ucmd = buf_ucmd;
 
-		TRACE_MEM("Buf alloced (ucmd %p, cached_buff %d, ubuff %lx, "
-			"last_len %d, l %d)", ucmd, cached_buff, ucmd->ubuff,
-			last_len, cmd->sg[cmd->sg_cnt-1].length);
-
 		EXTRACHECKS_BUG_ON((ucmd->data_pages != NULL) &&
 				   (ucmd != buf_ucmd));
 
@@ -509,6 +507,10 @@ static int dev_user_alloc_sg(struct scst_user_cmd *ucmd, int cached_buff)
 			/* We don't use clustering, so the assignment is safe */
 			cmd->sg[cmd->sg_cnt-1].length = last_len;
 		}
+
+		TRACE_MEM("Buf alloced (ucmd %p, cached_buff %d, ubuff %lx, "
+			"last_len %d, l %d)", ucmd, cached_buff, ucmd->ubuff,
+			last_len, cmd->sg[cmd->sg_cnt-1].length);
 
 		if (unlikely(cmd->sg_cnt > cmd->tgt_dev->max_sg_cnt)) {
 			static int ll;

@@ -106,9 +106,9 @@ static u32 digest_header(struct iscsi_pdu *pdu)
 	return evaluate_crc32_from_sg(sg, nbytes, 0);
 }
 
-static u32 digest_data(struct iscsi_cmnd *req, u32 osize, u32 offset)
+static u32 digest_data(struct iscsi_cmnd *cmd, u32 osize, u32 offset)
 {
-	struct scatterlist *sg = req->sg;
+	struct scatterlist *sg = cmd->sg;
 	int idx, count;
 	struct scatterlist saved_sg;
 	u32 size = (osize + 3) & ~3;
@@ -119,7 +119,10 @@ static u32 digest_data(struct iscsi_cmnd *req, u32 osize, u32 offset)
 	offset &= ~PAGE_MASK;
 	
 	count = get_pgcnt(size, offset);
-	sBUG_ON(idx + count > get_pgcnt(req->bufflen, 0));
+
+	TRACE_DBG("req %p, idx %d, count %d, sg_cnt %d, size %d, "
+		"offset %d", cmd, idx, count, cmd->sg_cnt, size, offset);
+	sBUG_ON(idx + count > cmd->sg_cnt);
 	sBUG_ON(count > ISCSI_CONN_IOV_MAX);
 
 	saved_sg = sg[idx];

@@ -302,6 +302,7 @@ struct iscsi_cmnd {
 	struct iscsi_pdu pdu;
 
 	struct scatterlist *sg;
+	int sg_cnt;
 	int bufflen;
 	u32 r2t_sn;
 	u32 r2t_length;
@@ -312,7 +313,6 @@ struct iscsi_cmnd {
 	u32 hdigest;
 	u32 ddigest;
 
-	int sg_cnt; /* valid only if own_sg is 1 */
 	struct list_head cmd_list_entry;
 };
 

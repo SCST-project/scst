@@ -28,8 +28,18 @@
 static char trace_buf[TRACE_BUF_SIZE];
 static spinlock_t trace_buf_lock = SPIN_LOCK_UNLOCKED;
 
-int debug_print_prefix(unsigned long trace_flag, const char *prefix,
-	const char *func, int line)
+static inline int get_current_tid(void)
+{
+	/* Code should be the same as in sys_gettid() */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24)
+	return current->pid;
+#else
+	return task_pid_vnr(current);
+#endif
+}
+
+int debug_print_prefix(unsigned long trace_flag, const char *log_level,
+	const char *prefix, const char *func, int line)
 {
 	int i = 0;
 	unsigned long flags;
@@ -38,7 +48,7 @@ int debug_print_prefix(unsigned long trace_flag, const char *prefix,
 
 	if (trace_flag & TRACE_PID)
 		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE, "[%d]: ",
-			      current->pid);
+			      get_current_tid());
 	if (prefix != NULL)
 		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "%s: ", prefix);
 	if (trace_flag & TRACE_FUNCTION)
@@ -47,14 +57,14 @@ int debug_print_prefix(unsigned long trace_flag, const char *prefix,
 		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "%i:", line);
 
 	if (i > 0)
-		PRINTN(LOG_FLAG, "%s", trace_buf);
+		PRINTN(log_level, "%s", trace_buf);
 
 	spin_unlock_irqrestore(&trace_buf_lock, flags);
 
 	return i;
 }
 
-void debug_print_buffer(const void *data, int len)
+void debug_print_buffer(const char *log_level, const void *data, int len)
 {
 	int z, z1, i;
 	const unsigned char *buf = (const unsigned char *) data;
@@ -100,7 +110,7 @@ void debug_print_buffer(const void *data, int len)
 	}
 	trace_buf[i] = '\0';
 	if (f) {
-		PRINT(LOG_FLAG, "%s", trace_buf)
+		PRINT(log_level, "%s", trace_buf)
 	} else {
 		PRINT(NO_FLAG, "%s", trace_buf);
 	}

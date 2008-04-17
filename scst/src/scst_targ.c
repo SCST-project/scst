@@ -658,7 +658,10 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 	}
 
 alloc:
-	r = scst_alloc_space(cmd);
+	if (!cmd->data_buf_alloced)
+		r = scst_alloc_space(cmd);
+	else
+		TRACE_MEM("%s", "data_buf_alloced set, returning");
 	
 check:
 	if (r != 0) {

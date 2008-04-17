@@ -567,12 +567,13 @@ static void iscsi_set_datasize(struct iscsi_cmnd *cmnd, u32 offset, u32 size)
 {
 	cmnd->pdu.datasize = size;
 
-	if (cmnd->pdu.datasize & 3) {
-	    	int idx = (offset + cmnd->pdu.datasize) >> PAGE_SHIFT;
-		u8 *p = (u8 *)page_address(sg_page(&cmnd->sg[idx])) + 
-			((offset + cmnd->pdu.datasize) & ~PAGE_MASK);
-		int i = 4 - (cmnd->pdu.datasize & 3);
-		while (i--) 
+	if (size & 3) {
+		u32 last_off = offset + size;
+		int idx = last_off >> PAGE_SHIFT;
+		u8 *p = (u8*)page_address(sg_page(&cmnd->sg[idx])) +
+			(last_off & ~PAGE_MASK);
+		int i = 4 - (size & 3);
+		while(i--) 
 		    *p++ = 0;
 	}
 }
@@ -586,16 +587,18 @@ static void send_data_rsp(struct iscsi_cmnd *req, u8 status, int send_status)
 	LIST_HEAD(send);
 
 	TRACE_DBG("req %p", req);
+
 	pdusize = req->conn->session->sess_param.max_xmit_data_length;
 	expsize = cmnd_read_size(req);
 	size = min(expsize, (u32)req->bufflen);
 	offset = 0;
 	sn = 0;
 
-	while (1) {
+	while(1) {
 		rsp = iscsi_cmnd_create_rsp_cmnd(req);
 		TRACE_DBG("rsp %p", rsp);
 		rsp->sg = req->sg;
+		rsp->sg_cnt = req->sg_cnt;
 		rsp->bufflen = req->bufflen;
 		rsp_hdr = (struct iscsi_data_in_hdr *)&rsp->pdu.bhs;
 
@@ -606,6 +609,7 @@ static void send_data_rsp(struct iscsi_cmnd *req, u8 status, int send_status)
 		rsp_hdr->data_sn = cpu_to_be32(sn);
 
 		if (size <= pdusize) {
+			TRACE_DBG("offset %d, size %d", offset, size);
 			iscsi_set_datasize(rsp, offset, size);
 			if (send_status) {
 				TRACE_DBG("status %x", status);
@@ -626,6 +630,9 @@ static void send_data_rsp(struct iscsi_cmnd *req, u8 status, int send_status)
 			list_add_tail(&rsp->write_list_entry, &send);
 			break;
 		}
+
+		TRACE_DBG("pdusize %d, offset %d, size %d", pdusize, offset,
+			size);
 
 		iscsi_set_datasize(rsp, offset, pdusize);
 
@@ -1369,6 +1376,7 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 	}
 	req->target_task_tag = get_next_ttt(conn);
 	req->sg = scst_cmd_get_sg(scst_cmd);
+	req->sg_cnt = scst_cmd_get_sg_cnt(scst_cmd);
 	req->bufflen = scst_cmd_get_bufflen(scst_cmd);
 	if (unlikely(req->r2t_length > req->bufflen)) {
 		PRINT_ERROR("req->r2t_length %d > req->bufflen %d",
@@ -1903,10 +1911,12 @@ static void noop_out_exec(struct iscsi_cmnd *req)
 
 		if (req->sg) {
 			rsp->sg = req->sg;
+			rsp->sg_cnt = req->sg_cnt;
 			rsp->bufflen = req->bufflen;
 		}
 
 		sBUG_ON(get_pgcnt(req->pdu.datasize, 0) > ISCSI_CONN_IOV_MAX);
+
 		rsp->pdu.datasize = req->pdu.datasize;
 		iscsi_cmnd_init_write(rsp,
 			ISCSI_INIT_WRITE_REMOVE_HASH | ISCSI_INIT_WRITE_WAKE);
@@ -2529,9 +2539,11 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 
 	req->bufflen = scst_cmd_get_resp_data_len(scst_cmd);
 	req->sg = scst_cmd_get_sg(scst_cmd);
+	req->sg_cnt = scst_cmd_get_sg_cnt(scst_cmd);
 
-	TRACE_DBG("req %p, resp_flags=%x, req->bufflen=%d, req->sg=%p", req,
-		resp_flags, req->bufflen, req->sg);
+	TRACE_DBG("req %p, resp_flags=%x, req->bufflen=%d, req->sg=%p, "
+		"req->sg_cnt %d", req, resp_flags, req->bufflen, req->sg,
+		req->sg_cnt);
 
 	if (unlikely((req->bufflen != 0) &&
 		     !(resp_flags & SCST_TSC_FLAG_STATUS))) {
