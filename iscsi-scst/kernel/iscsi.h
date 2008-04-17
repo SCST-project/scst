@@ -23,7 +23,7 @@
 #include <linux/net.h>
 #include <net/sock.h>
 
-#include <scsi_tgt.h>
+#include <scst.h>
 
 #include "iscsi_hdr.h"
 #include "iscsi_u.h"

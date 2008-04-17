@@ -21,7 +21,7 @@
 
 #define LOG_PREFIX "dev_processor"
 
-#include "scsi_tgt.h"
+#include "scst.h"
 #include "scst_dev_handler.h"
 
 #define PROCESSOR_NAME	"dev_processor"

@@ -26,7 +26,7 @@
 
 #define LOG_PREFIX           "dev_tape"
 
-#include "scsi_tgt.h"
+#include "scst.h"
 #include "scst_dev_handler.h"
 
 # define TAPE_NAME           "dev_tape"

@@ -26,7 +26,7 @@
 
 #define LOG_PREFIX             "dev_modisk"
 
-#include "scsi_tgt.h"
+#include "scst.h"
 #include "scst_dev_handler.h"
 
 # define MODISK_NAME           "dev_modisk"

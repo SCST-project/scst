@@ -45,7 +45,7 @@
 
 #include <scsi/srp.h>
 
-#include <scsi_tgt.h>
+#include <scst.h>
 
 #include "ib_dm_mad.h"
 

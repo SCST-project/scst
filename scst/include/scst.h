@@ -1,5 +1,5 @@
 /*
- *  include/scsi_tgt.h
+ *  include/scst.h
  *  
  *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar

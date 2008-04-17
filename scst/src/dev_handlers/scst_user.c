@@ -22,7 +22,7 @@
 
 #define LOG_PREFIX		DEV_USER_NAME
 
-#include "scsi_tgt.h"
+#include "scst.h"
 #include "scst_user.h"
 #include "scst_dev_handler.h"
 

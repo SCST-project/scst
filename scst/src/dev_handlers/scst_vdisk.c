@@ -41,7 +41,7 @@
 
 #define LOG_PREFIX			"dev_vdisk"
 
-#include "scsi_tgt.h"
+#include "scst.h"
 
 #if defined(DEBUG) || defined(TRACING)
 

@@ -31,7 +31,7 @@
 #include <linux/highmem.h>
 #endif
 
-#include "scsi_tgt.h"
+#include "scst.h"
 #include "scst_priv.h"
 #include "scst_mem.h"
 

@@ -36,7 +36,7 @@
 #include <linux/pci.h>
 #endif
 
-#include "scsi_tgt.h"
+#include "scst.h"
 
 #include <scst_debug.h>
 

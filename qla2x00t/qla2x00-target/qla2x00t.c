@@ -31,7 +31,7 @@
 #include <linux/seq_file.h>
 #include <linux/list.h>
 
-#include <scsi_tgt.h>
+#include <scst.h>
 
 /* Necessary to have equal structures with the initiator */
 #if defined(FC_IP_SUPPORT)

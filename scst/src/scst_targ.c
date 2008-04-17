@@ -28,7 +28,7 @@
 #include <linux/kthread.h>
 #include <linux/delay.h>
 
-#include "scsi_tgt.h"
+#include "scst.h"
 #include "scst_priv.h"
 
 static void scst_cmd_set_sn(struct scst_cmd *cmd);
@@ -1672,7 +1672,7 @@ static inline int scst_local_exec(struct scst_cmd *cmd)
 
 	/*
 	 * Adding new commands here don't forget to update
-	 * scst_is_cmd_local() in scsi_tgt.h, if necessary
+	 * scst_is_cmd_local() in scst.h, if necessary
 	 */
 
 	switch (cmd->cdb[0]) {
@@ -2721,7 +2721,7 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 
 /*
  * No locks, but it must be externally serialized (see comment for
- * scst_cmd_init_done() in scsi_tgt.h)
+ * scst_cmd_init_done() in scst.h)
  */
 static void scst_cmd_set_sn(struct scst_cmd *cmd)
 {

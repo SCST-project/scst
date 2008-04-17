@@ -22,7 +22,7 @@
 
 #define LOG_PREFIX	"dev_cdrom"
 
-#include "scsi_tgt.h"
+#include "scst.h"
 #include "scst_dev_handler.h"
 
 #define CDROM_NAME	"dev_cdrom"

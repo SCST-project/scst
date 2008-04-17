@@ -88,7 +88,7 @@
 #include <linux/seq_file.h>
 
 #include <scsi/scsi_host.h>
-#include <scsi_tgt.h>
+#include <scst.h>
 #include <scst_debug.h>
 
 #ifdef  min

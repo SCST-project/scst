@@ -20,7 +20,7 @@
 #include <linux/module.h>
 #include <linux/init.h>
 
-#include <scsi_tgt.h>
+#include <scst.h>
 
 static int __init init_this_scst_driver(void)
 {

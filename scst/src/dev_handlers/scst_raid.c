@@ -21,7 +21,7 @@
 
 #include <scsi/scsi_host.h>
 
-#include "scsi_tgt.h"
+#include "scst.h"
 #include "scst_dev_handler.h"
 
 #define RAID_NAME	"dev_raid"

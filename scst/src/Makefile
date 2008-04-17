@@ -69,7 +69,7 @@ install: all
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_DEV=m \
 		modules_install
 	install -d $(INSTALL_DIR_H)
-	install -m 644 ../include/scsi_tgt.h $(INSTALL_DIR_H)
+	install -m 644 ../include/scst.h $(INSTALL_DIR_H)
 	install -m 644 ../include/scst_debug.h $(INSTALL_DIR_H)
 	install -m 644 ../include/scst_user.h $(INSTALL_DIR_H)
 	install -m 644 ../include/scst_const.h $(INSTALL_DIR_H)

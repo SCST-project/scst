@@ -99,7 +99,7 @@ Interface between SCST and the target drivers is based on work, done by
 University of New Hampshire Interoperability Labs (UNH IOL).
 
 All described below data structures and function could be found in
-<bf/scsi_tgt.h/. The SCST's Internet page is
+<bf/scst.h/. The SCST's Internet page is
 <url url="http://scst.sourceforge.net">.
 
 <sect>Terms and Definitions
