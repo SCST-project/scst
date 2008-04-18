@@ -319,4 +319,27 @@ extern void qla2x00_free_sysfs_attr(scsi_qla_host_t *);
 extern void qla2x00_init_host_attr(scsi_qla_host_t *);
 extern void qla2x00_alloc_sysfs_attr(scsi_qla_host_t *);
 extern void qla2x00_free_sysfs_attr(scsi_qla_host_t *);
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23)
+static inline void scsi_set_resid(struct scsi_cmnd *cmd, int resid)
+{
+	cmd->resid = resid;
+}
+
+static inline struct scatterlist *scsi_sglist(struct scsi_cmnd *cmd)
+{
+	return (struct scatterlist *)cmd->request_buffer;
+}
+
+static inline unsigned scsi_bufflen(struct scsi_cmnd *cmd)
+{
+	return cmd->request_bufflen;
+}
+
+static inline unsigned scsi_sg_count(struct scsi_cmnd *cmd)
+{
+	return cmd->use_sg;
+}
+#endif
+
 #endif /* _QLA_GBL_H */

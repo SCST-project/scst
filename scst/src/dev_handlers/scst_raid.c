@@ -87,7 +87,12 @@ int raid_attach(struct scst_device *dev)
 	do {
 		TRACE_DBG("%s", "Doing TEST_UNIT_READY");
 		res = scsi_test_unit_ready(dev->scsi_dev, RAID_TIMEOUT, 
-					   RAID_RETRIES);
+					   RAID_RETRIES
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
+					  );
+#else
+					  , NULL);
+#endif
 		TRACE_DBG("TEST_UNIT_READY done: %x", res);
 	} while ((--retries > 0) && res);
 	if (res) {

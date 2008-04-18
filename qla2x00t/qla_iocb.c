@@ -162,7 +162,7 @@ void qla2x00_build_scsi_iocbs_32(srb_t *sp, cmd_entry_t *cmd_pkt,
 	    __constant_cpu_to_le32(COMMAND_TYPE);
 
 	/* No data transfer */
-	if (cmd->request_bufflen == 0 || cmd->sc_data_direction == DMA_NONE) {
+	if (scsi_bufflen(cmd) == 0 || cmd->sc_data_direction == DMA_NONE) {
 		cmd_pkt->byte_count = __constant_cpu_to_le32(0);
 		return;
 	}
@@ -176,11 +176,11 @@ void qla2x00_build_scsi_iocbs_32(srb_t *sp, cmd_entry_t *cmd_pkt,
 	cur_dsd = (uint32_t *)&cmd_pkt->dseg_0_address;
 
 	/* Load data segments */
-	if (cmd->use_sg != 0) {
+	if (scsi_sg_count(cmd) != 0) {
 		struct	scatterlist *cur_seg;
 		struct	scatterlist *end_seg;
 
-		cur_seg = (struct scatterlist *)cmd->request_buffer;
+		cur_seg = scsi_sglist(cmd);
 		end_seg = cur_seg + tot_dsds;
 		while (cur_seg < end_seg) {
 			cont_entry_t	*cont_pkt;
@@ -204,7 +204,7 @@ void qla2x00_build_scsi_iocbs_32(srb_t *sp, cmd_entry_t *cmd_pkt,
 		}
 	} else {
 		*cur_dsd++ = cpu_to_le32(sp->dma_handle);
-		*cur_dsd++ = cpu_to_le32(cmd->request_bufflen);
+		*cur_dsd++ = cpu_to_le32(scsi_bufflen(cmd));
 	}
 }
 
@@ -231,7 +231,7 @@ void qla2x00_build_scsi_iocbs_64(srb_t *sp, cmd_entry_t *cmd_pkt,
 	    __constant_cpu_to_le32(COMMAND_A64_TYPE);
 
 	/* No data transfer */
-	if (cmd->request_bufflen == 0 || cmd->sc_data_direction == DMA_NONE) {
+	if (scsi_bufflen(cmd) == 0 || cmd->sc_data_direction == DMA_NONE) {
 		cmd_pkt->byte_count = __constant_cpu_to_le32(0);
 		return;
 	}
@@ -245,11 +245,11 @@ void qla2x00_build_scsi_iocbs_64(srb_t *sp, cmd_entry_t *cmd_pkt,
 	cur_dsd = (uint32_t *)&cmd_pkt->dseg_0_address;
 
 	/* Load data segments */
-	if (cmd->use_sg != 0) {
+	if (scsi_sg_count(cmd) != 0) {
 		struct	scatterlist *cur_seg;
 		struct	scatterlist *end_seg;
 
-		cur_seg = (struct scatterlist *)cmd->request_buffer;
+		cur_seg = scsi_sglist(cmd);
 		end_seg = cur_seg + tot_dsds;
 		while (cur_seg < end_seg) {
 			dma_addr_t	sle_dma;
@@ -277,7 +277,7 @@ void qla2x00_build_scsi_iocbs_64(srb_t *sp, cmd_entry_t *cmd_pkt,
 	} else {
 		*cur_dsd++ = cpu_to_le32(LSD(sp->dma_handle));
 		*cur_dsd++ = cpu_to_le32(MSD(sp->dma_handle));
-		*cur_dsd++ = cpu_to_le32(cmd->request_bufflen);
+		*cur_dsd++ = cpu_to_le32(scsi_bufflen(cmd));
 	}
 }
 
@@ -336,17 +336,17 @@ qla2x00_start_scsi(srb_t *sp)
 		goto queuing_error;
 
 	/* Map the sg table so we have an accurate count of sg entries needed */
-	if (cmd->use_sg) {
-		sg = (struct scatterlist *) cmd->request_buffer;
-		tot_dsds = pci_map_sg(ha->pdev, sg, cmd->use_sg,
+	if (scsi_sg_count(cmd)) {
+		sg = scsi_sglist(cmd);
+		tot_dsds = pci_map_sg(ha->pdev, sg, scsi_sg_count(cmd),
 		    cmd->sc_data_direction);
 		if (tot_dsds == 0)
 			goto queuing_error;
-	} else if (cmd->request_bufflen) {
+	} else if (scsi_bufflen(cmd)) {
 		dma_addr_t	req_dma;
 
-		req_dma = pci_map_single(ha->pdev, cmd->request_buffer,
-		    cmd->request_bufflen, cmd->sc_data_direction);
+		req_dma = pci_map_single(ha->pdev, scsi_sglist(cmd),
+		    scsi_bufflen(cmd), cmd->sc_data_direction);
 		if (dma_mapping_error(req_dma))
 			goto queuing_error;
 
@@ -390,7 +390,7 @@ qla2x00_start_scsi(srb_t *sp)
 
 	/* Load SCSI command packet. */
 	memcpy(cmd_pkt->scsi_cdb, cmd->cmnd, cmd->cmd_len);
-	cmd_pkt->byte_count = cpu_to_le32((uint32_t)cmd->request_bufflen);
+	cmd_pkt->byte_count = cpu_to_le32((uint32_t)scsi_bufflen(cmd));
 
 	/* Build IOCB segments */
 	ha->isp_ops.build_iocbs(sp, cmd_pkt, tot_dsds);
@@ -427,13 +427,13 @@ qla2x00_start_scsi(srb_t *sp)
 	return (QLA_SUCCESS);
 
 queuing_error:
-	if (cmd->use_sg && tot_dsds) {
-		sg = (struct scatterlist *) cmd->request_buffer;
-		pci_unmap_sg(ha->pdev, sg, cmd->use_sg,
+	if (scsi_sg_count(cmd) && tot_dsds) {
+		sg = scsi_sglist(cmd);
+		pci_unmap_sg(ha->pdev, sg, scsi_sg_count(cmd),
 		    cmd->sc_data_direction);
 	} else if (tot_dsds) {
 		pci_unmap_single(ha->pdev, sp->dma_handle,
-		    cmd->request_bufflen, cmd->sc_data_direction);
+		    scsi_bufflen(cmd), cmd->sc_data_direction);
 	}
 	spin_unlock_irqrestore(&ha->hardware_lock, flags);
 
@@ -653,7 +653,7 @@ qla24xx_build_scsi_iocbs(srb_t *sp, struct cmd_type_7 *cmd_pkt,
 	    __constant_cpu_to_le32(COMMAND_TYPE_7);
 
 	/* No data transfer */
-	if (cmd->request_bufflen == 0 || cmd->sc_data_direction == DMA_NONE) {
+	if (scsi_bufflen(cmd) == 0 || cmd->sc_data_direction == DMA_NONE) {
 		cmd_pkt->byte_count = __constant_cpu_to_le32(0);
 		return;
 	}
@@ -673,11 +673,11 @@ qla24xx_build_scsi_iocbs(srb_t *sp, struct cmd_type_7 *cmd_pkt,
 	cur_dsd = (uint32_t *)&cmd_pkt->dseg_0_address;
 
 	/* Load data segments */
-	if (cmd->use_sg != 0) {
+	if (scsi_sg_count(cmd) != 0) {
 		struct	scatterlist *cur_seg;
 		struct	scatterlist *end_seg;
 
-		cur_seg = (struct scatterlist *)cmd->request_buffer;
+		cur_seg = scsi_sglist(cmd);
 		end_seg = cur_seg + tot_dsds;
 		while (cur_seg < end_seg) {
 			dma_addr_t	sle_dma;
@@ -705,7 +705,7 @@ qla24xx_build_scsi_iocbs(srb_t *sp, struct cmd_type_7 *cmd_pkt,
 	} else {
 		*cur_dsd++ = cpu_to_le32(LSD(sp->dma_handle));
 		*cur_dsd++ = cpu_to_le32(MSD(sp->dma_handle));
-		*cur_dsd++ = cpu_to_le32(cmd->request_bufflen);
+		*cur_dsd++ = cpu_to_le32(scsi_bufflen(cmd));
 	}
 }
 
@@ -765,17 +765,17 @@ qla24xx_start_scsi(srb_t *sp)
 		goto queuing_error;
 
 	/* Map the sg table so we have an accurate count of sg entries needed */
-	if (cmd->use_sg) {
-		sg = (struct scatterlist *) cmd->request_buffer;
-		tot_dsds = pci_map_sg(ha->pdev, sg, cmd->use_sg,
+	if (scsi_sg_count(cmd)) {
+		sg = scsi_sglist(cmd);
+		tot_dsds = pci_map_sg(ha->pdev, sg, scsi_sg_count(cmd),
 		    cmd->sc_data_direction);
 		if (tot_dsds == 0)
 			goto queuing_error;
-	} else if (cmd->request_bufflen) {
+	} else if (scsi_bufflen(cmd)) {
 		dma_addr_t      req_dma;
 
-		req_dma = pci_map_single(ha->pdev, cmd->request_buffer,
-		    cmd->request_bufflen, cmd->sc_data_direction);
+		req_dma = pci_map_single(ha->pdev, scsi_sglist(cmd),
+		    scsi_bufflen(cmd), cmd->sc_data_direction);
 		if (dma_mapping_error(req_dma))
 			goto queuing_error;
 
@@ -824,7 +824,7 @@ qla24xx_start_scsi(srb_t *sp)
 	memcpy(cmd_pkt->fcp_cdb, cmd->cmnd, cmd->cmd_len);
 	host_to_fcp_swap(cmd_pkt->fcp_cdb, sizeof(cmd_pkt->fcp_cdb));
 
-	cmd_pkt->byte_count = cpu_to_le32((uint32_t)cmd->request_bufflen);
+	cmd_pkt->byte_count = cpu_to_le32((uint32_t)scsi_bufflen(cmd));
 
 	/* Build IOCB segments */
 	qla24xx_build_scsi_iocbs(sp, cmd_pkt, tot_dsds);
@@ -861,13 +861,13 @@ qla24xx_start_scsi(srb_t *sp)
 	return QLA_SUCCESS;
 
 queuing_error:
-	if (cmd->use_sg && tot_dsds) {
-		sg = (struct scatterlist *) cmd->request_buffer;
-		pci_unmap_sg(ha->pdev, sg, cmd->use_sg,
+	if (scsi_sg_count(cmd) && tot_dsds) {
+		sg = scsi_sglist(cmd);
+		pci_unmap_sg(ha->pdev, sg, scsi_sg_count(cmd),
 		    cmd->sc_data_direction);
 	} else if (tot_dsds) {
 		pci_unmap_single(ha->pdev, sp->dma_handle,
-		    cmd->request_bufflen, cmd->sc_data_direction);
+		    scsi_bufflen(cmd), cmd->sc_data_direction);
 	}
 	spin_unlock_irqrestore(&ha->hardware_lock, flags);
 

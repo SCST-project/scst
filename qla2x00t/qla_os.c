@@ -2453,12 +2453,12 @@ qla2x00_sp_free_dma(scsi_qla_host_t *ha, srb_t *sp)
 	struct scsi_cmnd *cmd = sp->cmd;
 
 	if (sp->flags & SRB_DMA_VALID) {
-		if (cmd->use_sg) {
-			dma_unmap_sg(&ha->pdev->dev, cmd->request_buffer,
-			    cmd->use_sg, cmd->sc_data_direction);
-		} else if (cmd->request_bufflen) {
+		if (scsi_sg_count(cmd)) {
+			dma_unmap_sg(&ha->pdev->dev, scsi_sglist(cmd),
+			    scsi_sg_count(cmd), cmd->sc_data_direction);
+		} else if (scsi_bufflen(cmd)) {
 			dma_unmap_single(&ha->pdev->dev, sp->dma_handle,
-			    cmd->request_bufflen, cmd->sc_data_direction);
+			    scsi_bufflen(cmd), cmd->sc_data_direction);
 		}
 		sp->flags &= ~SRB_DMA_VALID;
 	}
