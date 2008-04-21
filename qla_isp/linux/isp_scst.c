@@ -84,8 +84,11 @@
 #include <linux/spinlock.h>
 #include <asm/scatterlist.h>
 #include <asm/system.h>
+#include <linux/ctype.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
+
+#define LOG_PREFIX "qla_isp"
 
 #include <scsi/scsi_host.h>
 #include <scst.h>
@@ -160,7 +163,7 @@ struct bus_chan {
     tmd_cmd_t *              tmds_tail;
     struct tasklet_struct    tasklet;
     struct scst_tgt *        scst_tgt;
-    int                      enable;             /* is target mode enabled in low level driver */
+    uint64_t                 enable;             /* is target mode enabled in low level driver, one bit per lun */
     bus_t *                  bus;                /* back pointer */
 };
 
@@ -169,6 +172,7 @@ struct bus {
     int                      need_reg;           /* helpers for registration / unregistration */
     hba_register_t *         unreg_hp;
     bus_chan_t *             bchan;              /* channels */
+    struct scst_proc_data    proc_data;
 };
 
 #define    SDprintk     if (debug) printk
@@ -187,7 +191,7 @@ static __inline bus_t *bus_from_name(const char *);
 static void scsi_target_start_cmd(tmd_cmd_t *, int);
 static void scsi_target_done_cmd(tmd_cmd_t *, int);
 static int scsi_target_thread(void *);
-static int scsi_target_enadis(bus_chan_t *, int);
+static int scsi_target_enadis(bus_t *, uint64_t, int, int);
 
 static bus_t busses[MAX_BUS];
 
@@ -991,28 +995,39 @@ scsi_target_thread(void *arg)
 }
 
 static int
-scsi_target_enadis(bus_chan_t *bc, int en)
+scsi_target_enadis(bus_t *bp, uint64_t en, int chan, int lun)
 {
     DECLARE_MUTEX_LOCKED(rsem);
     enadis_t ec;
     info_t info;
-    int chan, err;
-    bus_t *bp;
+    bus_chan_t *bc;
+    uint64_t mask;
 
-    if (en == bc->enable) {
-        return (0);
+    BUG_ON(chan < 0 || chan >= bp->h.r_nchannels);
+    BUG_ON(lun != LUN_ANY && (lun < 0 || lun >= MAX_LUN));
+    bc = &bp->bchan[chan];
+
+    if (bp->h.r_type == R_FC) {
+        if (en == bc->enable) {
+            return (0);
+        }
+    } else {
+        if (lun == LUN_ANY) {
+            return (-EINVAL);
+        } else {
+            mask = ~(1 << lun);
+            if ((en << lun) == (bc->enable & mask)) {
+                return (0);
+            }
+        }
     }
-    bp = bc->bus;
-    chan = (bc - bp->bchan);
-    BUG_ON(bp == NULL || chan >= bp->h.r_nchannels);
 
     memset(&info, 0, sizeof (info));
     info.i_identity = bp->h.r_identity;
     info.i_channel = chan;
     (*bp->h.r_action)(QIN_GETINFO, &info);
     if (info.i_error) {
-        err = info.i_error;
-        goto failed;
+        return (info.i_error);
     }
 
     memset(&ec, 0, sizeof (ec));
@@ -1021,23 +1036,24 @@ scsi_target_enadis(bus_chan_t *bc, int en)
     if (bp->h.r_type == R_FC) {
         ec.en_lun = LUN_ANY;
     } else {
-        ec.en_lun = 0;
+        ec.en_lun = lun;
     }
-    ec.en_private = &rsem;
 
+    ec.en_private = &rsem;
     (*bp->h.r_action)(en ? QIN_ENABLE : QIN_DISABLE, &ec);
     down(&rsem);
     if (ec.en_error) {
-       err = ec.en_error;
-       goto failed;
+        return (ec.en_error);
     }
 
-    bc->enable = en;
+    if (bp->h.r_type == R_FC) {
+        bc->enable = en;
+    } else {
+        mask = ~(1 << lun);
+        bc->enable &= mask;
+        bc->enable |= (en << lun);
+    }
     return (0);
-
-failed:
-    Eprintk("%s%d: %s channel %d failed with error %d\n", bp->h.r_name, bp->h.r_inst, en ? "enable" : "disable", chan, err);
-    return (err);
 }
 
 static int
@@ -1171,41 +1187,203 @@ isp_task_mgmt_fn_done(struct scst_mgmt_cmd *mgmt_cmd)
     (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
 }
 
-static int
-isp_read_proc(struct seq_file *seq, struct scst_tgt *tgt)
-{
-    bus_chan_t *bc;
+static DEFINE_MUTEX(proc_mutex);
 
-    bc = tgt->tgt_priv;
-    if (!bc) {
+static int
+isp_read_proc(struct seq_file *seq, void *v)
+{
+    bus_t *bp = seq->private;
+    bus_chan_t *bc;
+    int chan;
+
+    if (bp == NULL || bp->bchan == NULL) {
         return (-ENODEV);
     }
-    seq_printf(seq, "%d\n", bc->enable);
+
+    if (mutex_lock_interruptible(&proc_mutex)) {
+        return (-ERESTARTSYS);
+    }
+
+    seq_printf(seq, "%s HBA %s%d DEVID %x\n", bp->h.r_type == R_FC ? "FC" : "SPI", bp->h.r_name, bp->h.r_inst, bp->h.r_locator);
+    for (chan = 0; chan < bp->h.r_nchannels; chan++) {
+        bc = &bp->bchan[chan];
+        if (bp->h.r_type == R_FC) {
+            seq_printf(seq, "%-2d: %d\n", chan, bc->enable ? 1 : 0);
+        } else {
+            seq_printf(seq, "%-2d: 0x%llx\n", chan, bc->enable);
+        }
+    }
+
+    mutex_unlock(&proc_mutex);
     return (0);
 }
 
 static int
-isp_write_proc(char *buf, char **start, off_t offset, int len, int *eof, struct scst_tgt *tgt)
+isp_write_proc(struct file *file, const char __user *buf, size_t len, loff_t *off)
 {
-    bus_chan_t *bc = tgt->tgt_priv;
-    int ret, en;
+    char *ptr, *p, *old;
+    enum { DISABLE = 0, ENABLE = 1, TEST } action;
+    int en = -1, res = -EINVAL;
+    int all_channels = 0, all_luns = 0;
+    int lun, chan;
+    bus_t *bp = PDE(file->f_dentry->d_inode)->data;
 
-    if (!bc) {
+    if (bp == NULL || bp->bchan == NULL) {
         return (-ENODEV);
     }
-    if (len < 2 || len > 3) {
-        return (-EINVAL);
+    if (!buf) {
+        goto out;
     }
-    en = buf[0] - '0';
-    if (en < 0 || en > 1) {
-        return (-EINVAL);
+    ptr = (char *)__get_free_page(GFP_KERNEL);
+    if (ptr == NULL) {
+        res = -ENOMEM;
+        goto out;
     }
-    ret = scsi_target_enadis(bc, en);
-    if (ret < 0) {
-        return (ret);
+    if (copy_from_user(ptr, buf, len)) {
+        res = -EFAULT;
+        goto out_free;
     }
-    *eof = 1;
-    return (len);
+    if (len < PAGE_SIZE) {
+        ptr[len] = '\0';
+    } else if (ptr[PAGE_SIZE-1]) {
+        goto out_free;
+    }
+
+    /*
+     * Usage: echo "enable|disable chan lun" > /proc/scsi_tgt/qla_isp/N
+     *   or   echo "test" > /proc/scsi_tgt/qla_isp/N
+     */
+    p = ptr;
+    if (p[strlen(p) - 1] == '\n') {
+        p[strlen(p) - 1] = '\0';
+    }
+    if (!strncasecmp("enable", p, 6)) {
+        p += 6;
+        action = ENABLE;
+    } else if (!strncasecmp("disable", p, 7)) {
+        p += 7;
+        action = DISABLE;
+    } else if (!strncasecmp("test", p, 4)) {
+        action = TEST;
+    } else {
+        PRINT_ERROR("unknown action \"%s\"", p);
+        goto out_free;
+    }
+
+    switch (action) {
+    case ENABLE:
+    case DISABLE:
+        if (!isspace(*p)) {
+            PRINT_ERROR("cannot parse arguments for action \"%s\"", action == DISABLE ? "disable" : "enable");
+            goto out_free;
+        }
+
+        /* get channel */
+        while (isspace(*p) && *p != '\0') {
+            p++;
+        }
+        old = p;
+        chan = simple_strtoul(p, &p, 0);
+        if (old == p) {
+            if (!strncasecmp("all", p, 3)) {
+                all_channels = 1;
+            } else {
+                PRINT_ERROR("cannot parse channel for action \"%s\"", action == DISABLE ? "disable" : "enable");
+                goto out_free;
+            }
+        } else if (chan < 0 || chan >= bp->h.r_nchannels) {
+            PRINT_ERROR("bad channel number %d", chan);
+            goto out_free;
+        }
+
+        /* get lun */
+        if (bp->h.r_type == R_SPI) {
+            while (isspace(*p) && *p != '\0') {
+                p++;
+            }
+            old = p;
+            lun = simple_strtoul(p, &p, 0);
+            if (old == p) {
+                if (!strncasecmp("all", p, 3)) {
+                    all_luns = 1;
+                } else {
+                    PRINT_ERROR("cannot parse lun for action \"%s\"", action == DISABLE ? "disable" : "enable");
+                    goto out_free;
+                }
+            } else if (lun < 0 && lun >= MAX_LUN) {
+                PRINT_ERROR("bad lun %d", lun);
+                goto out_free;
+            }
+        } else {
+            lun = LUN_ANY;
+        }
+
+        en = action;
+        break;
+    case TEST:
+        printk("%s test\n", __FUNCTION__);
+        res = len;
+        break;
+    }
+
+    if (en == 0 || en == 1) {
+        /*
+         * channel 0 must be enabled first and disabled last, so when enabling all
+         * channels do it in ascending order and when disabling all in descending order
+         */
+        int chan_srt, chan_end, chan_inc;
+        int lun_srt, lun_end;
+
+        if (all_channels) {
+            if (en) {
+                chan_srt = 0;
+                chan_end = bp->h.r_nchannels;
+                chan_inc = 1;
+            } else {
+                chan_srt = bp->h.r_nchannels - 1;
+                chan_end = -1;
+                chan_inc = -1;
+            }
+        } else {
+            chan_srt = chan;
+            chan_end = chan + 1;
+            chan_inc = 1;
+        }
+
+        if (bp->h.r_type == R_FC) {
+            lun_srt = LUN_ANY;
+            lun_end = LUN_ANY + 1;
+        } else {
+            if (all_luns) {
+                 lun_srt = 0;
+                 lun_end = MAX_LUN;
+            } else {
+                lun_srt = lun;
+                lun_end = lun + 1;
+            }
+        }
+
+        if (mutex_lock_interruptible(&proc_mutex)) {
+            res = -ERESTARTSYS;
+            goto out_free;
+        }
+        for (chan = chan_srt; chan != chan_end; chan += chan_inc) {
+            for (lun = lun_srt; lun != lun_end; lun++) {
+               res = scsi_target_enadis(bp, en, chan, lun);
+                if (res < 0) {
+                    PRINT_ERROR("%s channel %d failed with error %d", en ? "enable" : "disable", chan, res);
+                     /* processed anyway */
+                }
+            }
+        }
+        res = len;
+        mutex_unlock(&proc_mutex);
+    }
+
+out_free:
+    free_page((unsigned long)ptr);
+out:
+    return (res);
 }
 
 static struct scst_tgt_template isp_tgt_template =
@@ -1227,9 +1405,18 @@ static struct scst_tgt_template isp_tgt_template =
     .task_mgmt_fn_done = isp_task_mgmt_fn_done,
 
     //.report_aen = isp_report_aen,
-    .read_proc = isp_read_proc,
-    .write_proc = isp_write_proc,
 };
+
+static void
+bus_set_proc_data(bus_t *bp)
+{
+    const struct scst_proc_data proc_data = {
+        SCST_DEF_RW_SEQ_OP(isp_write_proc)
+        .show = isp_read_proc,
+    };
+    bp->proc_data = proc_data;
+    bp->proc_data.data = bp;
+}
 
 static void
 register_hba(bus_t *bp)
@@ -1239,6 +1426,7 @@ register_hba(bus_t *bp)
     int chan;
     bus_chan_t *bchan, *bc;
     struct scst_tgt *scst_tgt;
+    struct proc_dir_entry *pde;
 
     bchan = kzalloc(bp->h.r_nchannels * sizeof(bus_chan_t), GFP_KERNEL);
     if (bchan == NULL) {
@@ -1286,6 +1474,14 @@ register_hba(bus_t *bp)
         scst_tgt->tgt_priv = bc;
     }
 
+    snprintf(name, sizeof(name), "%d", ((ispsoftc_t *)bp->h.r_identity)->isp_osinfo.host->host_no);
+    bus_set_proc_data(bp);
+    pde = scst_create_proc_entry(scst_proc_get_tgt_root(&isp_tgt_template), name, &bp->proc_data);
+    if (pde == NULL) {
+        Eprintk("cannot create entry %s in /proc\n", name);
+        goto err_free_chan;
+    }
+
     spin_lock_irq(&scsi_target_lock);
     bp->bchan = bchan;
     spin_unlock_irq(&scsi_target_lock);
@@ -1312,6 +1508,7 @@ static void
 unregister_hba(bus_t *bp, hba_register_t *unreg_hp)
 {
     int i, chan;
+    char name[32];
 
     for (chan = 0; chan < bp->h.r_nchannels; chan++) {
         /* remove existing initiators */
@@ -1325,11 +1522,13 @@ unregister_hba(bus_t *bp, hba_register_t *unreg_hp)
                 } while ((ptr = ini_next) != NULL);
             }
         }
-
         if (bp->bchan[chan].scst_tgt) {
             scst_unregister(bp->bchan[chan].scst_tgt);
         }
     }
+
+    snprintf(name, sizeof(name), "%d", ((ispsoftc_t *)bp->h.r_identity)->isp_osinfo.host->host_no);
+    remove_proc_entry(name, scst_proc_get_tgt_root(&isp_tgt_template));
 
     /* it's safe now to reinit bp */
     kfree(bp->bchan);

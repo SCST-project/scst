@@ -56,15 +56,15 @@ $ modprobe isp_mod
 Now anytime the system boot and QLA card is plugged, modules will load
 automatically. 
 
-When driver is loaded, enable all logical units for each HBA to work in
-target mode. You need to write string "1" to procfs configuration file, ie:
+When driver is loaded, enable all channels for each HBA to work in
+target mode. You need to write string "enable all" to procfs configuration file, ie:
 
-$ echo 1 > /proc/scsi_tgt/qla_isp/0 
+$ echo "enable all" > /proc/scsi_tgt/qla_isp/3
 
 To unload isp_mod.ko module you must disable target mode for all cards ie:
 
-$ echo 0 > /proc/scsi_tgt/qla_isp/0
-$ echo 0 > /proc/scsi_tgt/qla_isp/1
+$ echo "disable all" > /proc/scsi_tgt/qla_isp/3
+$ echo "disable all" > /proc/scsi_tgt/qla_isp/4
 
 Enable/disable target mode is not the same as switching target/initiator role.
 If you have more then one device, role of each you can set using isp_roles
