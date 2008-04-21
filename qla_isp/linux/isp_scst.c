@@ -87,6 +87,7 @@
 #include <linux/ctype.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
+#include <linux/kthread.h>
 
 #define LOG_PREFIX "qla_isp"
 
@@ -190,27 +191,26 @@ static __inline bus_t *bus_from_name(const char *);
 
 static void scsi_target_start_cmd(tmd_cmd_t *, int);
 static void scsi_target_done_cmd(tmd_cmd_t *, int);
-static int scsi_target_thread(void *);
 static int scsi_target_enadis(bus_t *, uint64_t, int, int);
 
 static bus_t busses[MAX_BUS];
 
-DECLARE_MUTEX_LOCKED(scsi_thread_sleep_semaphore);
-DECLARE_MUTEX_LOCKED(scsi_thread_entry_exit_semaphore);
-
 static spinlock_t scsi_target_lock = SPIN_LOCK_UNLOCKED;
-static int scsi_target_thread_exit = 0;
 
-static unsigned long schedule_flags = 0;
+DECLARE_COMPLETION(qlaispd_start);
+DECLARE_WAIT_QUEUE_HEAD(qlaispd_waitq);
+struct task_struct *qlaispd_task;
+
+static unsigned long qlaispd_flags = 0;
 #define SF_ADD_INITIATORS  0
 #define SF_REGISTER_SCST   1
 #define SF_UNREGISTER_SCST 2
 
 static __inline void
-schedule_scsi_thread(int flag)
+schedule_qlaispd(int flag)
 {
-    set_bit(flag, &schedule_flags);
-    up(&scsi_thread_sleep_semaphore);
+    set_bit(flag, &qlaispd_flags);
+    wake_up(&qlaispd_waitq);
 }
 
 static __inline int
@@ -527,7 +527,7 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
 
     /* finally, shedule proper action */
     if (unlikely(tmd->cd_ini == NULL)) {
-        schedule_scsi_thread(SF_ADD_INITIATORS);
+        schedule_qlaispd(SF_ADD_INITIATORS);
     } else {
         tasklet_schedule(&bc->tasklet);
     }
@@ -891,7 +891,7 @@ scsi_target_handler(qact_e action, void *arg)
         bp->h = *hp;
         bp->need_reg = 1;
         spin_unlock_irqrestore(&scsi_target_lock, flags);
-        schedule_scsi_thread(SF_REGISTER_SCST);
+        schedule_qlaispd(SF_REGISTER_SCST);
         break;
     }
     case QOUT_ENABLE:
@@ -952,7 +952,7 @@ scsi_target_handler(qact_e action, void *arg)
         }
         bp->unreg_hp = hp;
         spin_unlock_irqrestore(&scsi_target_lock, flags);
-        schedule_scsi_thread(SF_UNREGISTER_SCST);
+        schedule_qlaispd(SF_UNREGISTER_SCST);
         break;
     }
     default:
@@ -965,32 +965,25 @@ static void register_scst(void);
 static void unregister_scst(void);
 
 static int
-scsi_target_thread(void *arg)
+qlaispd_function(void *arg)
 {
-    siginitsetinv(&current->blocked, 0);
-    lock_kernel();
-    daemonize("scsi_target_thread");
-    unlock_kernel();
-    up(&scsi_thread_entry_exit_semaphore);
-    SDprintk("scsi_target_thread starting\n");
+    SDprintk("qlaispd starting\n");
+    while (!kthread_should_stop()) {
+        SDprintk("qlaispd sleeping\n");
+        wait_event(qlaispd_waitq, qlaispd_flags || kthread_should_stop());
+        SDprintk("qlaispd running\n");
 
-    while (scsi_target_thread_exit == 0) {
-        SDprintk2("scsi_task_thread sleeping\n");
-        down(&scsi_thread_sleep_semaphore);
-        SDprintk2("scsi_task_thread running\n");
-
-        if (test_and_clear_bit(SF_REGISTER_SCST, &schedule_flags)) {
+        if (test_and_clear_bit(SF_REGISTER_SCST, &qlaispd_flags)) {
             register_scst();
         }
-        if (test_and_clear_bit(SF_ADD_INITIATORS, &schedule_flags)) {
+        if (test_and_clear_bit(SF_ADD_INITIATORS, &qlaispd_flags)) {
             bus_add_initiators();
         }
-        if (test_and_clear_bit(SF_UNREGISTER_SCST, &schedule_flags)) {
+        if (test_and_clear_bit(SF_UNREGISTER_SCST, &qlaispd_flags)) {
             unregister_scst();
         }
     }
-    SDprintk("scsi_target_thread exiting\n");
-    up(&scsi_thread_entry_exit_semaphore);
+    SDprintk("qlaispd exiting\n");
     return (0);
 }
 
@@ -1059,7 +1052,7 @@ scsi_target_enadis(bus_t *bp, uint64_t en, int chan, int lun)
 static int
 isp_detect(struct scst_tgt_template *tgt_template)
 {
-    schedule_scsi_thread(SF_REGISTER_SCST);
+    schedule_qlaispd(SF_REGISTER_SCST);
     return (0);
 }
 
@@ -1587,32 +1580,20 @@ module_param(debug, int, 0);
 MODULE_LICENSE("Dual BSD/GPL");
 #endif
 
-static void
-start_scsi_target_thread(void)
-{
-    kernel_thread(scsi_target_thread, NULL, 0);
-    down(&scsi_thread_entry_exit_semaphore);
-}
-
-static void
-stop_scsi_target_thread(void)
-{
-    scsi_target_thread_exit = 1;
-    up(&scsi_thread_sleep_semaphore);
-    down(&scsi_thread_entry_exit_semaphore);
-}
-
 int init_module(void)
 {
     int ret;
 
-    spin_lock_init(&scsi_target_lock);
-    start_scsi_target_thread();
+    qlaispd_task = kthread_run(qlaispd_function, NULL, "qlaispd");
+    if (IS_ERR(qlaispd_task)) {
+        Eprintk("running qlaispd failed\n");
+        return PTR_ERR(qlaispd_task);
+    }
 
     ret = scst_register_target_template(&isp_tgt_template);
     if (ret < 0) {
         Eprintk("cannot register scst target template\n");
-        stop_scsi_target_thread();
+        kthread_stop(qlaispd_task);
     }
     return (ret);
 }
@@ -1622,7 +1603,7 @@ int init_module(void)
  */
 void cleanup_module(void)
 {
-    stop_scsi_target_thread();
+    kthread_stop(qlaispd_task);
     scst_unregister_target_template(&isp_tgt_template);
 }
 /*
