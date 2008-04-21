@@ -1180,7 +1180,7 @@ isp_read_proc(struct seq_file *seq, void *v)
     return (0);
 }
 
-static int
+static ssize_t
 isp_write_proc(struct file *file, const char __user *buf, size_t len, loff_t *off)
 {
     char *ptr, *p, *old;
