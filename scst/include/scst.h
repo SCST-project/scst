@@ -2353,12 +2353,6 @@ static inline void sg_set_page(struct scatterlist *sg, struct page *page,
 	sg->length = len;
 }
 
-static inline void sg_set_buf(struct scatterlist *sg, const void *buf,
-			      unsigned int buflen)
-{
-	sg_set_page(sg, virt_to_page(buf), buflen, offset_in_page(buf));
-}
-
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24) */
 
 static inline void sg_clear(struct scatterlist *sg)

@@ -16,7 +16,7 @@
  */
 
 #include <asm/types.h>
-#include <asm/scatterlist.h>
+#include <linux/scatterlist.h>
 
 #include "iscsi.h"
 #include "digest.h"
