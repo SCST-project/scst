@@ -1386,7 +1386,7 @@ out:
 
 static struct scst_tgt_template isp_tgt_template =
 {
-    .sg_tablesize = SG_ALL, // FIXME do this depending of hardware ?
+    .sg_tablesize = SG_ALL, /* we set this value lately based on hardware */
     .name = "qla_isp",
     .unchecked_isa_dma = 0,
     .use_clustering = 1,
@@ -1404,6 +1404,37 @@ static struct scst_tgt_template isp_tgt_template =
 
     //.report_aen = isp_report_aen,
 };
+
+#ifdef ISP_DAC_SUPPORTED
+#define ISP_A64 1
+#else
+#define ISP_A64 0
+#endif
+
+static int
+get_sg_tablesize(ispsoftc_t *isp)
+{
+    // FIXME: check if this is correct?
+    // FIXME: move to the low level driver and export via tpublic API
+    int rq_seglim, ct_seglim;
+    int nctios = (isp->isp_maxcmds < 4) ? 0 : isp->isp_maxcmds - 4;
+
+    if (IS_24XX(isp)) {
+        rq_seglim = 1;
+        ct_seglim = ISP_CDSEG64;
+    } else if (IS_2322(isp) || ISP_A64) {
+        rq_seglim = ISP_RQDSEG_T3;
+        ct_seglim = ISP_CDSEG64;
+    } else if (IS_FC(isp)) {
+        rq_seglim = ISP_RQDSEG_T2;
+        ct_seglim = ISP_CDSEG;
+    } else { // SPI
+        rq_seglim = ISP_RQDSEG;
+        ct_seglim = ISP_RQDSEG;
+    }
+
+    return rq_seglim + nctios * ct_seglim;
+}
 
 static void
 bus_set_proc_data(bus_t *bp)
@@ -1458,6 +1489,7 @@ register_hba(bus_t *bp)
             #undef GET
         }
 
+        isp_tgt_template.sg_tablesize = get_sg_tablesize(bp->h.r_identity);
         scst_tgt = scst_register(&isp_tgt_template, name);
         if (scst_tgt == NULL) {
             Eprintk("cannot register scst device %s for %s%d\n", name, bp->h.r_name, bp->h.r_inst);
