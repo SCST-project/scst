@@ -65,25 +65,7 @@
 
 #include <linux/version.h>
 #include <linux/module.h>
-#include <linux/autoconf.h>
-#include <linux/init.h>
-#include <linux/types.h>
-#include <linux/blkdev.h>
-#include <linux/delay.h>
-#include <linux/ioport.h>
-#include <linux/mm.h>
-#include <linux/sched.h>
-#include <linux/stat.h>
-#include <linux/pci.h>
-#include <linux/slab.h>
-#include <scsi/scsi.h>
-#include <asm/dma.h>
-#include <asm/io.h>
-#include <asm/irq.h>
-#include <linux/smp.h>
-#include <linux/spinlock.h>
-#include <asm/scatterlist.h>
-#include <asm/system.h>
+#include <linux/kernel.h>
 #include <linux/ctype.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
@@ -92,19 +74,14 @@
 #define LOG_PREFIX "qla_isp"
 
 #include <scsi/scsi_host.h>
+#include <scsi/scsi.h>
 #include <scst.h>
 #include <scst_debug.h>
-
-#ifdef  min
-#undef  min
-#endif
-#define min(a,b) (((a)<(b))?(a):(b))
 
 #include "isp_tpublic.h"
 #include "isp_linux.h"
 #include "linux/smp_lock.h"
 
-#define DEFAULT_DEVICE_TYPE 0       /* DISK */
 #define MAX_BUS             8
 #define MAX_LUN             64
 
@@ -128,19 +105,6 @@
 #endif
 #ifndef SCSI_QFULL
 #define SCSI_QFULL  0x28
-#endif
-
-#ifndef SERVICE_ACTION_IN
-#define SERVICE_ACTION_IN       0x9e
-#endif
-#ifndef SAI_READ_CAPACITY_16
-#define SAI_READ_CAPACITY_16    0x10
-#endif
-
-#include "scsi_target.h"
-
-#ifndef SERNO
-#define SERNO   "000000"
 #endif
 
 typedef struct bus bus_t;
