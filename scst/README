@@ -466,7 +466,10 @@ subdirectories "vdisk" and "vcdrom". They have similar layout:
 	This mode works ideally with high-end storage HBAs and for
 	applications that either do not need caching between application
 	and disk or need the large block throughput. See also below.
-    
+
+      - REMOVABLE - with this flag set the device is reported to remote
+        initiators as removable.
+ 
     * "close NAME" - closes device "NAME".
 
     * "change NAME [PATH]" - changes a virtual CD in the VDISK CDROM.

@@ -188,6 +188,7 @@ struct scst_vdisk_dev {
 	unsigned int nullio:1;
 	unsigned int blockio:1;
 	unsigned int cdrom_empty:1;
+	unsigned int removable:1;
 	int virt_id;
 	char name[16+1];	/* Name of virtual device,
 				   must be <= SCSI Model + 1 */
@@ -1094,7 +1095,7 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 
 	memset(buf, 0, sizeof(buf));
 	buf[0] = cmd->dev->handler->type;      /* type dev */
-	if (buf[0] == TYPE_ROM)
+	if ((buf[0] == TYPE_ROM) || virt_dev->removable)
 		buf[1] = 0x80;      /* removable */
 	/* Vital Product */
 	if (cmd->cdb[1] & EVPD) {
@@ -2559,6 +2560,10 @@ static int vdisk_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
 			seq_printf(seq, "BIO ");
 			c += 4;
 		}
+		if (virt_dev->removable) {
+			seq_printf(seq, "RM ");
+			c += 4;
+		}
 		while (c < 16) {
 			seq_printf(seq, " ");
 			c++;
@@ -2577,7 +2582,7 @@ static void vdisk_report_registering(const char *type,
 	char buf[128];
 	int i, j;
 
-	i = snprintf(buf, sizeof(buf), "Registering virtual %s device %s",
+	i = snprintf(buf, sizeof(buf), "Registering virtual %s device %s ",
 		type, virt_dev->name);
 	j = i;
 
@@ -2598,6 +2603,14 @@ static void vdisk_report_registering(const char *type,
 
 	if (virt_dev->nullio)
 		i += snprintf(&buf[i], sizeof(buf) - i, "%sNULLIO",
+			(j == i) ? "(" : ", ");
+
+	if (virt_dev->blockio)
+		i += snprintf(&buf[i], sizeof(buf) - i, "%sBLOCKIO",
+			(j == i) ? "(" : ", ");
+
+	if (virt_dev->removable)
+		i += snprintf(&buf[i], sizeof(buf) - i, "%sREMOVABLE",
 			(j == i) ? "(" : ", ");
 
 	if (j == i)
@@ -2759,6 +2772,10 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 				p += 7;
 				virt_dev->blockio = 1;
 				TRACE_DBG("%s", "BLOCKIO");
+			} else if (!strncmp("REMOVABLE", p, 9)) {
+				p += 9;
+				virt_dev->removable = 1;
+				TRACE_DBG("%s", "REMOVABLE");
 			} else {
 				PRINT_ERROR("Unknown flag \"%s\"", p);
 				res = -EINVAL;
