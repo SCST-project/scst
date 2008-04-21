@@ -650,7 +650,7 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
             xact->td_hflags &= ~TDFH_DATA_MASK;
             xact->td_xfrlen = 0;
         }
-        if (xact->td_error) {
+        if (unlikely(xact->td_error)) {
             scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_FAILED);
         }
         scst_tgt_cmd_done(scst_cmd);
@@ -658,16 +658,15 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
     }
 
     if (xact->td_hflags & TDFH_DATA_OUT) {
-        if (tmd->cd_totlen == tmd->cd_moved) {
+        if (likely(tmd->cd_totlen == tmd->cd_moved) || unlikely(xact->td_error)) {
             if (xact->td_xfrlen) {
                 int rx_status = SCST_RX_STATUS_SUCCESS;
-
-                if (xact->td_error) {
+                if (unlikely(xact->td_error)) {
                     rx_status = SCST_RX_STATUS_ERROR;
                 }
-                scst_rx_data(scst_cmd, SCST_RX_STATUS_SUCCESS, SCST_CONTEXT_TASKLET);
+                scst_rx_data(scst_cmd, rx_status, SCST_CONTEXT_TASKLET);
             } else {
-                if (xact->td_error) {
+                if (unlikely(xact->td_error)) {
                     scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_FAILED);
                 }
                 scst_tgt_cmd_done(scst_cmd);
@@ -678,10 +677,13 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
     } else if (xact->td_hflags & TDFH_DATA_IN) {
         xact->td_hflags &= ~TDFH_DATA_MASK;
         xact->td_xfrlen = 0;
-        if (xact->td_error) {
+        if (unlikely(xact->td_error)) {
             scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_FAILED);
         }
         scst_tgt_cmd_done(scst_cmd);
+    } else {
+        Eprintk("don't know what to do with TMD_DONE[%llx] cdb0 %x hf %x lf %x xfrlen %d totlen %d moved %d\n",
+                tmd->cd_tagval, tmd->cd_cdb[0], xact->td_hflags, xact->td_lflags, xact->td_xfrlen, tmd->cd_totlen, tmd->cd_moved);
     }
 }
 
@@ -1065,18 +1067,19 @@ isp_release(struct scst_tgt *tgt)
 static int
 isp_rdy_to_xfer(struct scst_cmd *scst_cmd)
 {
-    bus_t *bp;
-
     if (scst_cmd_get_data_direction(scst_cmd) == SCST_DATA_WRITE) {
         tmd_cmd_t *tmd = (tmd_cmd_t *) scst_cmd_get_tgt_priv(scst_cmd);
         tmd_xact_t *xact = &tmd->cd_xact;
+        bus_t *bp = tmd->cd_bus;
+        int len = scst_cmd_get_bufflen(scst_cmd);
 
         xact->td_hflags |= TDFH_DATA_OUT;
         xact->td_data = scst_cmd_get_sg(scst_cmd);
-        xact->td_xfrlen = scst_cmd_get_bufflen(scst_cmd);
-        SDprintk2("%s: write nbytes %u\n", __FUNCTION__, scst_cmd_get_bufflen(scst_cmd));
-
-        bp = tmd->cd_bus;
+        xact->td_xfrlen = len;
+        if (bp->h.r_type == R_SPI) {
+            tmd->cd_totlen = len;
+        }
+        SDprintk2("%s: TMD[%llx] write nbytes %u\n", __FUNCTION__, tmd->cd_tagval, scst_cmd_get_bufflen(scst_cmd));
         (*bp->h.r_action)(QIN_TMD_CONT, xact);
     }
 
@@ -1092,13 +1095,16 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
 
     if (unlikely(scst_cmd_aborted(scst_cmd))) {
         scst_tgt_cmd_done(scst_cmd);
-        return 0;
+        return (0);
     }
 
     if (scst_cmd_get_data_direction(scst_cmd) == SCST_DATA_READ) {
         unsigned int len = scst_cmd_get_resp_data_len(scst_cmd);
-        if (len > tmd->cd_totlen) {
-            /* some broken initiators may send SCSI commands with data load
+        if (bp->h.r_type == R_SPI) {
+            tmd->cd_totlen = len;
+        }
+        if (unlikely(len > tmd->cd_totlen)) {
+            /* some broken FC initiators may send SCSI commands with data load
              * larger than underlaying transport specified */
             const uint8_t ifailure[TMD_SENSELEN] = { 0xf0, 0, 0x4, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0x44 };
 
@@ -1126,11 +1132,10 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
         if (tmd->cd_scsi_status == SCSI_CHECK) {
             uint8_t *sbuf = scst_cmd_get_sense_buffer(scst_cmd);
             unsigned int slen = scst_cmd_get_sense_buffer_len(scst_cmd);
-            if (unlikely(slen > TMD_SENSELEN)) {
+            if (likely(slen > TMD_SENSELEN)) {
                 /* 18 bytes sense code not cover vendor specific sense data,
                  * we can't send more than 18 bytes through low level driver,
-                 * so print error on this very unlikely situation */
-                SDprintk("sense data too big (totlen %u len %u)\n", TMD_SENSELEN, slen);
+                 * however SCST give us 96 bytes, so truncate */
                 slen = TMD_SENSELEN;
             }
             memcpy(tmd->cd_sense, sbuf, slen);
@@ -1142,7 +1147,7 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
                 SDprintk("sense code: key 0x%02x asc 0x%02x ascq 0x%02x\n", key, asc, ascq);
             }
         }
-        SDprintk2("%s: status %d\n", __FUNCTION__, scst_cmd_get_status(scst_cmd));
+        SDprintk2("%s: TMD[%llx] status %d\n", __FUNCTION__, tmd->cd_tagval, scst_cmd_get_status(scst_cmd));
     }
 
 out:
