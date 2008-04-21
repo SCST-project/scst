@@ -147,6 +147,7 @@ struct initiator {
     ini_t *                 ini_next;
     uint64_t                ini_iid;        /* initiator identifier */
     struct scst_session *   ini_scst_sess;  /* sesson established by this remote initiator */
+    int                     ini_refcnt;     /* reference counter, protected by bus_chan_t::tmds_lock */
 };
 
 #define    HASH_WIDTH    16
@@ -182,8 +183,6 @@ static void scsi_target_handler(qact_e, void *);
 
 static __inline bus_t *bus_from_tmd(tmd_cmd_t *);
 static __inline bus_t *bus_from_name(const char *);
-static __inline ini_t *ini_from_tmd(bus_chan_t *, tmd_cmd_t *);
-static __inline ini_t *ini_from_notify(bus_chan_t *, tmd_notify_t *);
 
 static void scsi_target_start_cmd(tmd_cmd_t *, int);
 static void scsi_target_done_cmd(tmd_cmd_t *, int);
@@ -252,34 +251,6 @@ bus_from_name(const char *name)
     return (NULL);
 }
 
-static __inline ini_t *
-ini_from_tmd(bus_chan_t *bc, tmd_cmd_t *tmd)
-{
-   ini_t *ptr = INI_HASH_LISTP(bc, tmd->cd_iid);
-   if (ptr) {
-        do {
-            if (ptr->ini_iid == tmd->cd_iid) {
-                return (ptr);
-            }
-        } while ((ptr = ptr->ini_next) != NULL);
-   }
-   return (ptr);
-}
-
-static __inline ini_t *
-ini_from_notify(bus_chan_t *bc, tmd_notify_t *np)
-{
-    ini_t *ptr = INI_HASH_LISTP(bc, np->nt_iid);
-    if (ptr) {
-        do {
-            if (ptr->ini_iid == np->nt_iid) {
-                return (ptr);
-            }
-        } while ((ptr = ptr->ini_next) != NULL);
-    }
-    return (ptr);
-}
-
 static __inline bus_t *
 bus_from_notify(tmd_notify_t *np)
 {
@@ -295,9 +266,19 @@ bus_from_notify(tmd_notify_t *np)
     return (NULL);
 }
 
-/*
- * Make an initiator structure
- */
+static __inline ini_t *
+ini_from_iid(bus_chan_t *bc, uint64_t iid)
+{
+   ini_t *ptr = INI_HASH_LISTP(bc, iid);
+   if (ptr) {
+        do {
+            if (ptr->ini_iid == iid) {
+                return (ptr);
+            }
+        } while ((ptr = ptr->ini_next) != NULL);
+   }
+   return (ptr);
+}
 
 static ini_t *
 alloc_ini(bus_chan_t *bc, uint64_t iid)
@@ -330,21 +311,86 @@ alloc_ini(bus_chan_t *bc, uint64_t iid)
 }
 
 static void
+free_ini(ini_t *ini, int wait)
+{
+    scst_unregister_session(ini->ini_scst_sess, wait, NULL);
+    kfree(ini);
+}
+
+static void
 add_ini(bus_chan_t *bc, uint64_t iid, ini_t *nptr)
 {
     ini_t **ptrlptr = &INI_HASH_LISTP(bc, iid);
 
     nptr->ini_iid = iid;
     nptr->ini_next = *ptrlptr;
-
+    nptr->ini_refcnt = 0;
     *ptrlptr = nptr;
 }
 
 static void
-free_ini(ini_t *ini)
+del_ini(bus_chan_t *bc, uint64_t iid)
 {
-    scst_unregister_session(ini->ini_scst_sess, 0, NULL);
-    kfree(ini);
+    ini_t *ptr, *prev;
+    ini_t **ptrlptr = &INI_HASH_LISTP(bc, iid);
+
+    ptr = *ptrlptr;
+    if (ptr == NULL) {
+        return;
+    }
+    if (ptr->ini_iid == iid) {
+        *ptrlptr = ptr->ini_next;
+        ptr->ini_next = NULL;
+    } else {
+        while (1) {
+            prev = ptr;
+            ptr = ptr->ini_next;
+            if (ptr == NULL) {
+                break;
+            }
+            if (ptr->ini_iid == iid) {
+                prev->ini_next = ptr->ini_next;
+                ptr->ini_next = NULL;
+                break;
+            }
+        }
+    }
+}
+
+static __inline void
+__ini_get(ini_t *ini)
+{
+    if (ini != NULL) {
+        ini->ini_refcnt++;
+        SDprintk2("ini 0x%016llx ++refcnt (%d)\n", ini->ini_iid, ini->ini_refcnt);
+    }
+}
+
+static __inline void
+ini_get(bus_chan_t *bc, ini_t *ini)
+{
+    unsigned long flags;
+    spin_lock_irqsave(&bc->tmds_lock, flags);
+    __ini_get(ini);
+    spin_unlock_irqrestore(&bc->tmds_lock, flags);
+}
+
+static __inline void
+__ini_put(ini_t *ini)
+{
+    if (ini != NULL) {
+        ini->ini_refcnt--;
+        SDprintk2("ini 0x%016llx --refcnt (%d)\n", ini->ini_iid, ini->ini_refcnt);
+    }
+}
+
+static __inline void
+ini_put(bus_chan_t *bc, ini_t *ini)
+{
+    unsigned long flags;
+    spin_lock_irqsave(&bc->tmds_lock, flags);
+    __ini_put(ini);
+    spin_unlock_irqrestore(&bc->tmds_lock, flags);
 }
 
 static void
@@ -373,6 +419,7 @@ rx_loop:
 
     /* free command if aborted */
     if (tmd->cd_flags & CDF_PRIVATE_ABORTED) {
+        __ini_put(tmd->cd_ini);
         spin_unlock_irq(&bc->tmds_lock);
         SDprintk("%s: ABORTED TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
         (*bp->h.r_action)(QIN_TMD_FIN, tmd);
@@ -464,7 +511,8 @@ scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
 
     /* then, add commands to queue */
     spin_lock_irqsave(&bc->tmds_lock, flags);
-    tmd->cd_ini = ini_from_tmd(bc, tmd);
+    tmd->cd_ini = ini_from_iid(bc, tmd->cd_iid);
+    __ini_get(tmd->cd_ini);
     if (bc->tmds_front == NULL) {
         bc->tmds_front = tmd;
     } else {
@@ -508,9 +556,10 @@ bus_chan_add_initiators(bus_t *bp, int chan)
             tmd = tmd->cd_hnext;
         } else {
             /* check if proper initiator exist already */
-            ini = ini_from_tmd(bc, tmd);
+            ini = ini_from_iid(bc, tmd->cd_iid);
             if (ini != NULL) {
                 tmd->cd_ini = ini;
+                __ini_get(ini);
             } else {
                 spin_unlock_irq(&bc->tmds_lock);
 
@@ -520,6 +569,7 @@ bus_chan_add_initiators(bus_t *bp, int chan)
                 if (ini != NULL) {
                     tmd->cd_ini = ini;
                     add_ini(bc, tmd->cd_iid, ini);
+                    __ini_get(ini);
                 } else {
                     /* fail to alloc initiator, remove from queue and send busy */
                     if (prev_tmd == NULL) {
@@ -586,6 +636,7 @@ scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
     if (!scst_cmd) {
         /* command returned by us with status BUSY */
         SDprintk("%s: BUSY TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
+        ini_put(&bp->bchan[tmd->cd_channel], tmd->cd_ini);
         (*bp->h.r_action)(QIN_TMD_FIN, tmd);
         return;
     }
@@ -699,7 +750,8 @@ scsi_target_notify(tmd_notify_t *np)
     bc = &bp->bchan[np->nt_channel];
 
     spin_lock_irqsave(&bc->tmds_lock, flags);
-    ini = ini_from_notify(bc, np);
+    ini = ini_from_iid(bc, np->nt_iid);
+    __ini_get(ini);
     spin_unlock_irqrestore(&bc->tmds_lock, flags);
 
     switch (np->nt_ncode) {
@@ -752,6 +804,7 @@ scsi_target_notify(tmd_notify_t *np)
             break;
         case NT_BUS_RESET:
         case NT_HBA_RESET:
+            ini_put(bc, ini);
             //schedule_reset();
             return;
         case NT_LIP_RESET:
@@ -760,10 +813,21 @@ scsi_target_notify(tmd_notify_t *np)
             /* we don't care about lip resets and link up/down */
             goto notify_ack;
         case NT_LOGOUT:
-            //schedule_logout();
+            spin_lock_irqsave(&bc->tmds_lock, flags);
+            /* check if current notify is only pending request for initiator */
+            if (ini != NULL && ini->ini_refcnt <= 1) {
+                /* if so, we can delete initiator */
+                del_ini(bc, np->nt_iid);
+                free_ini(ini, 0);
+                ini = NULL;
+            } else {
+                Eprintk("cannot logout initiator 0x%016llx\n", np->nt_iid);
+            }
+            spin_unlock_irqrestore(&bc->tmds_lock, flags);
             goto notify_ack;
         default:
             Eprintk("unknown notify 0x%x\n", np->nt_ncode);
+            ini_put(bc, ini);
             return;
     }
 
@@ -788,6 +852,7 @@ err_no_ini:
     Eprintk("cannot find initiator 0x%016llx for %s\n", np->nt_iid, tmf);
     //np->nt_error = NT_REJECT;
 notify_ack:
+    ini_put(bc, ini);
     (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
 }
 
@@ -1090,6 +1155,7 @@ isp_on_free_cmd(struct scst_cmd *scst_cmd)
     tmd_xact_t *xact = &tmd->cd_xact;
 
     xact->td_data = NULL;
+    ini_put(&bp->bchan[tmd->cd_channel], tmd->cd_ini);
     SDprintk2("%s: TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
     (*bp->h.r_action)(QIN_TMD_FIN, tmd);
 }
@@ -1255,7 +1321,7 @@ unregister_hba(bus_t *bp, hba_register_t *unreg_hp)
             if (ptr) {
                 do {
                     ini_next = ptr->ini_next;
-                    free_ini(ptr);
+                    free_ini(ptr, 1);
                 } while ((ptr = ini_next) != NULL);
             }
         }
