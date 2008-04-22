@@ -2591,7 +2591,7 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 			goto out;
 
 		/* Restore the previous state */
-		cmd->state = SCST_CMD_STATE_PRE_XMIT_RESP;
+		cmd->state = SCST_CMD_STATE_XMIT_RESP;
 
 		switch (rc) {
 		case SCST_TGT_RES_QUEUE_FULL:
