@@ -24,6 +24,7 @@
 #include <stdint.h>
 #include <getopt.h>
 #include <malloc.h>
+#include <inttypes.h>
 
 #include <sys/types.h>
 #include <sys/user.h>
@@ -287,9 +288,10 @@ int main(int argc, char **argv)
 
 	close(fd);
 
-	PRINT_INFO("Virtual device \"%s\", path \"%s\", size %LdMb, "
-		"block size %d, nblocks %Ld, options:", dev.name, dev.file_name,
-		dev.file_size/1024/1024, dev.block_size, dev.nblocks);
+	PRINT_INFO("Virtual device \"%s\", path \"%s\", size %"PRId64"Mb, "
+		"block size %d, nblocks %"PRId64", options:", dev.name,
+		dev.file_name, (uint64_t)dev.file_size/1024/1024,
+		dev.block_size, (uint64_t)dev.nblocks);
 	if (dev.rd_only_flag)
 		PRINT_INFO("	%s", "READ ONLY");
 	if (dev.wt_flag)
@@ -467,8 +469,9 @@ int main(int argc, char **argv)
 				PRINT_ERROR("pthread_join() failed: %s",
 					strerror(res));
 			} else if (rc1 != NULL) {
-				res = (int)rc1;
-				PRINT_INFO("Thread %d exited, res %x", i, res);
+				res = (long)rc1;
+				PRINT_INFO("Thread %d exited, res %lx", i,
+					(long)rc1);
 			} else
 				PRINT_INFO("Thread %d exited", i);
 		}
@@ -479,8 +482,9 @@ int main(int argc, char **argv)
 				PRINT_ERROR("Prio pthread_join() failed: %s",
 					strerror(res));
 			} else if (rc1 != NULL) {
-				res = (int)rc1;
-				PRINT_INFO("Prio thread %d exited, res %x", i, res);
+				res = (long)rc1;
+				PRINT_INFO("Prio thread %d exited, res %lx", i,
+					(long)rc1);
 			} else
 				PRINT_INFO("Prio thread %d exited", i);
 		}

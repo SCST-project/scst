@@ -118,7 +118,6 @@ that issue.
 CAUTION:  Working of target and initiator on the same host isn't
 ========  supported. See SCST README file for details.
 
-
 Compilation options
 -------------------
 
@@ -135,6 +134,19 @@ in/out in the kernel's module Makefile:
  - EXTRACHECKS - adds extra validity checks in the various places.
 
  - DEBUG_DIGEST_FAILURES - simulates digest failures in random places.
+
+Known issues
+------------
+
+Currently some iscsi-scst-adm functionality is broken. But, from one
+side, at the moment I don't have time to look at it and and, from other
+side, in contrast to IET, in iSCSI-SCST this utility doesn't worth much,
+since all devices management is done using SCST's /proc interface.
+What's remained for iscsi-scst-adm is managing iSCSI targets and their
+parameters, but in any case changing of any negotiable iSCSI parameter
+needs renegotiation, i.e. the corresponding session restart, i.e.
+iSCSI-SCST restart. But, if you decide to fix iscsi-scst-adm, I will
+appreciate your patches.
 
 Creating version of put_page_callback patch for your kernel
 -----------------------------------------------------------

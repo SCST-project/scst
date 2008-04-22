@@ -435,18 +435,9 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 	int res = SCST_CMD_STATE_RES_CONT_SAME;
 	int state;
 	struct scst_device *dev = cmd->dev;
-	int atomic = scst_cmd_atomic(cmd);
 	int orig_bufflen = cmd->bufflen;
 
 	TRACE_ENTRY();
-
-	if (atomic && !dev->handler->parse_atomic) {
-		TRACE_DBG("Dev handler %s parse() can not be "
-		      "called in atomic context, rescheduling to the thread",
-		      dev->handler->name);
-		res = SCST_CMD_STATE_RES_NEED_THREAD;
-		goto out;
-	}
 
 	if (likely(!scst_is_cmd_local(cmd))) {
 		TRACE_DBG("Calling dev handler %s parse(%p)",
@@ -676,15 +667,6 @@ check:
 
 prep_done:
 	if (cmd->preprocessing_only) {
-		if (scst_cmd_atomic(cmd) && 
-		    !cmd->tgtt->preprocessing_done_atomic) {
-			TRACE_DBG("%s", "preprocessing_done() can not be "
-			      "called in atomic context, rescheduling to "
-			      "the thread");
-			res = SCST_CMD_STATE_RES_NEED_THREAD;
-			goto out;
-		}
-
 		if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
 			TRACE_MGMT_DBG("ABORTED set, returning ABORTED for "
 				"cmd %p", cmd);
@@ -741,8 +723,7 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status, int pref_context)
 
 #ifdef EXTRACHECKS
 	if (in_irq() && ((pref_context == SCST_CONTEXT_DIRECT) ||
-			 (pref_context == SCST_CONTEXT_DIRECT_ATOMIC)))
-	{
+			 (pref_context == SCST_CONTEXT_DIRECT_ATOMIC))) {
 		PRINT_ERROR("Wrong context %d in IRQ from target %s, use "
 			"SCST_CONTEXT_TASKLET instead\n", pref_context,
 			cmd->tgtt->name);
@@ -847,7 +828,6 @@ out_unlock_tgt:
 static int scst_rdy_to_xfer(struct scst_cmd *cmd)
 {
 	int res, rc;
-	int atomic = scst_cmd_atomic(cmd);
 
 	TRACE_ENTRY();
 
@@ -859,13 +839,6 @@ static int scst_rdy_to_xfer(struct scst_cmd *cmd)
 	if (cmd->tgtt->rdy_to_xfer == NULL) {
 		cmd->state = SCST_CMD_STATE_TGT_PRE_EXEC;
 		res = SCST_CMD_STATE_RES_CONT_SAME;
-		goto out;
-	}
-
-	if (atomic && !cmd->tgtt->rdy_to_xfer_atomic) {
-		TRACE_DBG("%s", "rdy_to_xfer() can not be "
-		      "called in atomic context, rescheduling to the thread");
-		res = SCST_CMD_STATE_RES_NEED_THREAD;
 		goto out;
 	}
 
@@ -1707,15 +1680,6 @@ static int scst_do_send_to_midlev(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	/* Check here to let an out of SN cmd be queued w/o context switch */
-	if (scst_cmd_atomic(cmd) && !handler->exec_atomic) {
-		TRACE_DBG("Dev handler %s exec() can not be "
-		      "called in atomic context, rescheduling to the thread",
-		      handler->name);
-		rc = SCST_EXEC_NEED_THREAD;
-		goto out;
-	}
-
 	cmd->sent_to_midlev = 1;
 	cmd->state = SCST_CMD_STATE_EXECUTING;
 	cmd->scst_cmd_done = scst_cmd_done_local;
@@ -1771,6 +1735,16 @@ static int scst_do_send_to_midlev(struct scst_cmd *cmd)
 	rc = scst_check_local_events(cmd);
 	if (unlikely(rc != 0))
 		goto out_done;
+
+#ifndef ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
+	if (scst_cmd_atomic(cmd)) {
+		TRACE_DBG("Pass-through exec() can not be called in atomic "
+			"context, rescheduling to the thread (handler %s)",
+			handler->name);
+		rc = SCST_EXEC_NEED_THREAD;
+		goto out_clear;
+	}
+#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)	
 	if (unlikely(scst_alloc_request(cmd) != 0)) {
@@ -2207,7 +2181,8 @@ static int scst_done_cmd_check(struct scst_cmd *cmd, int *pres)
 
 	if (likely(scsi_status_is_good(cmd->status))) {
 		unsigned char type = cmd->dev->handler->type;
-		if ((cmd->cdb[0] == MODE_SENSE || cmd->cdb[0] == MODE_SENSE_10) &&
+		if (unlikely((cmd->cdb[0] == MODE_SENSE ||
+			      cmd->cdb[0] == MODE_SENSE_10)) &&
 		    cmd->tgt_dev->acg_dev->rd_only_flag &&
 		    (type == TYPE_DISK || type == TYPE_WORM || type == TYPE_MOD ||
 		     type == TYPE_TAPE)) {
@@ -2228,7 +2203,7 @@ static int scst_done_cmd_check(struct scst_cmd *cmd, int *pres)
 		 * Check and clear NormACA option for the device, if necessary,
 		 * since we don't support ACA
 		 */
-		if ((cmd->cdb[0] == INQUIRY) &&
+		if (unlikely((cmd->cdb[0] == INQUIRY)) &&
 		    !(cmd->cdb[1] & SCST_INQ_EVPD/* Std INQUIRY data (no EVPD) */) &&
 		    (cmd->resp_data_len > SCST_INQ_BYTE3)) {
 			uint8_t *buffer;
@@ -2371,16 +2346,20 @@ static int scst_mode_select_checks(struct scst_cmd *cmd)
 	} else if ((cmd->status == SAM_STAT_CHECK_CONDITION) && 
 		    SCST_SENSE_VALID(cmd->sense) &&
 		    scst_is_ua_sense(cmd->sense) &&
-		    (cmd->sense[12] == 0x2a) && (cmd->sense[13] == 0x01)) {
+		    (((cmd->sense[12] == 0x2a) && (cmd->sense[13] == 0x01)) ||
+		     (cmd->sense[12] == 0x29) /* reset */ ||
+		     (cmd->sense[12] == 0x28) /* medium changed */ ||
+		     (cmd->sense[12] == 0x2F) /* cleared by another ini (just in case) */)) {
 		if (atomic) {
-			TRACE_DBG("%s", "MODE PARAMETERS CHANGED UA: thread "
-				"context required");
+			TRACE_DBG("Possible parameters changed UA %x: "
+				"thread context required", cmd->sense[12]);
 			res = SCST_CMD_STATE_RES_NEED_THREAD;
 			goto out;
 		}
 
-		TRACE(TRACE_SCSI, "MODE PARAMETERS CHANGED UA (lun %Ld): "
-			"getting new parameters", (uint64_t)cmd->lun);
+		TRACE(TRACE_SCSI, "Possible parameters changed UA %x "
+			"(lun %Ld): getting new parameters", cmd->sense[12],
+			(uint64_t)cmd->lun);
 
 		scst_obtain_device_parameters(cmd->dev);
 	} else
@@ -2405,17 +2384,8 @@ static int scst_dev_done(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_RES_CONT_SAME;
 	int state;
-	int atomic = scst_cmd_atomic(cmd);
 
 	TRACE_ENTRY();
-
-	if (atomic && !cmd->dev->handler->dev_done_atomic) {
-		TRACE_DBG("Dev handler %s dev_done() can not be "
-		      "called in atomic context, rescheduling to the thread",
-		      cmd->dev->handler->name);
-		res = SCST_CMD_STATE_RES_NEED_THREAD;
-		goto out;
-	}
 
 	state = SCST_CMD_STATE_PRE_XMIT_RESP;
 	if (likely(!scst_is_cmd_local(cmd)) && 
@@ -2481,7 +2451,6 @@ static int scst_dev_done(struct scst_cmd *cmd)
 	if (cmd->inc_expected_sn_on_done && cmd->sent_to_midlev)
 		scst_inc_check_expected_sn(cmd);
 
-out:
 	TRACE_EXIT_HRES(res);
 	return res;
 }
@@ -2508,6 +2477,9 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 	if (likely(cmd->tgt_dev != NULL)) {
 		atomic_dec(&cmd->tgt_dev->tgt_dev_cmd_count);
 		atomic_dec(&cmd->dev->dev_cmd_count);
+		/* If expected values not set, expected direction is UNKNOWN */
+		if (cmd->expected_data_direction == SCST_DATA_WRITE)
+			atomic_dec(&cmd->dev->write_cmd_count);
 
 		if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))
 			scst_on_hq_cmd_response(cmd);
@@ -2582,16 +2554,8 @@ out:
 static int scst_xmit_response(struct scst_cmd *cmd)
 {
 	int res, rc;
-	int atomic = scst_cmd_atomic(cmd);
 
 	TRACE_ENTRY();
-
-	if (atomic && !cmd->tgtt->xmit_response_atomic) {
-		TRACE_DBG("%s", "xmit_response() can not be "
-		      "called in atomic context, rescheduling to the thread");
-		res = SCST_CMD_STATE_RES_NEED_THREAD;
-		goto out;
-	}
 
 	while (1) {
 		int finished_cmds = atomic_read(&cmd->sess->tgt->finished_cmds);
@@ -2755,7 +2719,8 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 	case SCST_CMD_QUEUE_UNTAGGED:
 #if 1 /* temporary, ToDo */
 		if (scst_cmd_is_expected_set(cmd)) {
-			if (cmd->expected_data_direction == SCST_DATA_READ)
+			if ((cmd->expected_data_direction == SCST_DATA_READ) &&
+			    (atomic_read(&cmd->dev->write_cmd_count) == 0))
 				goto ordered;
 		} else
 			goto ordered;
@@ -2776,7 +2741,7 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 			tgt_dev->prev_cmd_ordered = 0;
 		} else {
 			TRACE(TRACE_MINOR, "***WARNING*** Not enough SN slots "
-				"%d", ARRAY_SIZE(tgt_dev->sn_slots));
+				"%zd", ARRAY_SIZE(tgt_dev->sn_slots));
 			goto ordered;
 		}
 		break;
@@ -2917,23 +2882,38 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 	res = scst_translate_lun(cmd);
 	if (likely(res == 0)) {
 		int cnt;
+		bool failure = false;
+
 		cmd->state = SCST_CMD_STATE_PRE_PARSE;
+
 		cnt = atomic_inc_return(&cmd->tgt_dev->tgt_dev_cmd_count);
 		if (unlikely(cnt > SCST_MAX_TGT_DEV_COMMANDS)) {
 			TRACE(TRACE_MGMT_MINOR, "Too many pending commands (%d) in "
 				"session, returning BUSY to initiator \"%s\"",
 				cnt, (cmd->sess->initiator_name[0] == '\0') ?
 				  "Anonymous" : cmd->sess->initiator_name);
-			goto out_busy;
+			failure = true;
 		}
+
 		cnt = atomic_inc_return(&cmd->dev->dev_cmd_count);
 		if (unlikely(cnt > SCST_MAX_DEV_COMMANDS)) {
-			TRACE(TRACE_MGMT_MINOR, "Too many pending device commands "
-				"(%d), returning BUSY to initiator \"%s\"",
-				cnt, (cmd->sess->initiator_name[0] == '\0') ?
-				  "Anonymous" : cmd->sess->initiator_name);
-			goto out_busy;
+			if (!failure) {
+				TRACE(TRACE_MGMT_MINOR, "Too many pending device "
+					"commands (%d), returning BUSY to "
+					"initiator \"%s\"", cnt,
+					(cmd->sess->initiator_name[0] == '\0') ?
+					  "Anonymous" : cmd->sess->initiator_name);
+				failure = true;
+			}
 		}
+
+		/* If expected values not set, expected direction is UNKNOWN */
+		if (cmd->expected_data_direction == SCST_DATA_WRITE)
+			atomic_inc(&cmd->dev->write_cmd_count);
+
+		if (unlikely(failure))
+			goto out_busy;
+
 		if (!cmd->set_sn_on_restart_cmd)
 			scst_cmd_set_sn(cmd);
 	} else if (res < 0) {

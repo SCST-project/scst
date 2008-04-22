@@ -35,10 +35,9 @@
 #include "scst_priv.h"
 #include "scst_mem.h"
 
-#define PURGE_INTERVAL		(15 * HZ)
-#define PURGE_TIME_AFTER	(15 * HZ)
+#define PURGE_INTERVAL		(60 * HZ)
+#define PURGE_TIME_AFTER	PURGE_INTERVAL
 #define SHRINK_TIME_AFTER	(1 * HZ)
-
 
 static struct scst_sgv_pools_manager sgv_pools_mgr;
 
@@ -342,8 +341,7 @@ static struct sgv_pool_obj *sgv_pool_cached_get(struct sgv_pool *pool,
 		sgv_pools_mgr.mgr.thr.inactive_pages_total -= 1 << order;
 		spin_unlock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
 		EXTRACHECKS_BUG_ON(obj->order != order);
-		
-		return obj;
+		goto out;
 	}
 
 	pool->acc.cached_entries++;
@@ -364,20 +362,43 @@ static struct sgv_pool_obj *sgv_pool_cached_get(struct sgv_pool *pool,
 		spin_unlock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
 	}
 
+out:
 	return obj;	
 }
 
 static void sgv_pool_cached_put(struct sgv_pool_obj *sgv)
 {
 	struct sgv_pool *owner = sgv->owner_pool;
+	struct list_head *entry;
+	struct list_head *list = &owner->recycling_lists[sgv->order];
 	int sched = 0;
 
 	spin_lock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
 
-	list_add(&sgv->recycle_entry.recycling_list_entry,
-		&owner->recycling_lists[sgv->order]);
+	TRACE_MEM("sgv %p, order %d, sg_count %d", sgv, sgv->order,
+		sgv->sg_count);
+
+	if (owner->clustered) {
+		/* Make objects with less entries more preferred */
+		__list_for_each(entry, list) {
+			struct sgv_pool_obj *tmp = list_entry(entry,
+				struct sgv_pool_obj,
+				recycle_entry.recycling_list_entry);
+			TRACE_DBG("tmp %p, order %d, sg_count %d", tmp,
+				tmp->order, tmp->sg_count);
+			if (sgv->sg_count <= tmp->sg_count)
+				break;
+		}
+		entry = entry->prev;
+	} else
+		entry = list;
+
+	TRACE_DBG("Adding in %p (list %p)", entry, list);
+	list_add(&sgv->recycle_entry.recycling_list_entry, entry);
+
 	list_add_tail(&sgv->recycle_entry.sorted_recycling_list_entry,
 		&sgv_pools_mgr.mgr.sorted_recycling_list);
+
 	sgv->recycle_entry.time_stamp = jiffies;
 	
 	sgv_pools_mgr.mgr.thr.inactive_pages_total += 1 << sgv->order;
@@ -457,7 +478,7 @@ static int sgv_pool_hiwmk_check(int pages_to_alloc, int no_fail)
 
 	spin_lock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
 
-	pages += sgv_pools_mgr.mgr.thr.active_pages_total;
+	pages += atomic_read(&sgv_pools_mgr.mgr.thr.active_pages_total);
 	pages += sgv_pools_mgr.mgr.thr.inactive_pages_total;
 
 	if (unlikely((u32)pages > sgv_pools_mgr.mgr.thr.hi_wmk)) {
@@ -497,7 +518,7 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 	int pages_to_alloc;
 	struct kmem_cache *cache;
 	int no_cached = flags & SCST_POOL_ALLOC_NO_CACHED;
-	int no_fail = ((gfp_mask & __GFP_NOFAIL) == __GFP_NOFAIL);
+	bool no_fail = ((gfp_mask & __GFP_NOFAIL) == __GFP_NOFAIL);
 
 	TRACE_ENTRY();
 
@@ -621,9 +642,7 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 	}
 
 success:
-	spin_lock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
-	sgv_pools_mgr.mgr.thr.active_pages_total += 1 << order;
-	spin_unlock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
+	atomic_add(1 << order, &sgv_pools_mgr.mgr.thr.active_pages_total);
 
 	if (cache) {
 		int sg;
@@ -725,9 +744,7 @@ void sgv_pool_free(struct sgv_pool_obj *sgv)
 		kfree(sgv);
 	}
 
-	spin_lock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
-	sgv_pools_mgr.mgr.thr.active_pages_total -= pages;
-	spin_unlock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
+	atomic_sub(pages, &sgv_pools_mgr.mgr.thr.active_pages_total);
 	return;
 }
 
@@ -764,9 +781,7 @@ struct scatterlist *scst_alloc(int size, unsigned long gfp_mask, int *count)
 	if (*count <= 0)
 		goto out_free;
 
-	spin_lock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
-	sgv_pools_mgr.mgr.thr.active_pages_total += pages;
-	spin_unlock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
+	atomic_add(pages, &sgv_pools_mgr.mgr.thr.active_pages_total);
 
 out:
 	TRACE_MEM("Alloced sg %p (count %d)", res, *count);
@@ -784,9 +799,7 @@ void scst_free(struct scatterlist *sg, int count)
 {
 	TRACE_MEM("Freeing sg=%p", sg);
 
-	spin_lock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
-	sgv_pools_mgr.mgr.thr.active_pages_total -= count;
-	spin_unlock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
+	atomic_sub(count, &sgv_pools_mgr.mgr.thr.active_pages_total);
 
 	scst_free_sys_sg_entries(sg, count, NULL);
 	kfree(sg);
@@ -907,15 +920,15 @@ static void sgv_pool_evaluate_local_order(struct scst_sgv_pools_manager *pmgr)
 
 	TRACE_MEM("sgv_max_local_order %d, sgv_max_trans_order %d",
 		pmgr->sgv_max_local_order, pmgr->sgv_max_trans_order);
-	TRACE_MEM("max object size with embedded sgv & ttbl %d",
+	TRACE_MEM("max object size with embedded sgv & ttbl %zd",
 		(1 << pmgr->sgv_max_local_order) * 
 		(sizeof(struct trans_tbl_ent) + sizeof(struct scatterlist))
 		+ sizeof(struct sgv_pool_obj));
-	TRACE_MEM("max object size with embedded sgv (!clustered) %d",
+	TRACE_MEM("max object size with embedded sgv (!clustered) %zd",
 		(1 << pmgr->sgv_max_local_order) * 
 		(sizeof(struct scatterlist))
 		+ sizeof(struct sgv_pool_obj));
-	TRACE_MEM("max object size with embedded ttbl %d",
+	TRACE_MEM("max object size with embedded ttbl %zd",
 		(1 << pmgr->sgv_max_trans_order) * sizeof(struct trans_tbl_ent) +
 		sizeof(struct sgv_pool_obj));
 }
@@ -1087,6 +1100,8 @@ int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 
 	memset(pools, 0, sizeof(*pools));
 
+	atomic_set(&sgv_pools_mgr.mgr.thr.active_pages_total, 0);
+
 	sgv_pools_mgr.mgr.thr.hi_wmk = mem_hwmark >> PAGE_SHIFT;
 	sgv_pools_mgr.mgr.thr.lo_wmk = mem_lwmark >> PAGE_SHIFT;
 
@@ -1234,7 +1249,7 @@ int sgv_pool_procinfo_show(struct seq_file *seq, void *v)
 	seq_printf(seq, "%-42s %d/%d\n%-42s %d/%d\n%-42s %d/%d\n\n",
 		"Inactive/active pages",
 		sgv_pools_mgr.mgr.thr.inactive_pages_total,
-		sgv_pools_mgr.mgr.thr.active_pages_total,
+		atomic_read(&sgv_pools_mgr.mgr.thr.active_pages_total),
 		"Hi/lo watermarks [pages]", sgv_pools_mgr.mgr.thr.hi_wmk,
 		sgv_pools_mgr.mgr.thr.lo_wmk, "Hi watermark releases/failures",
 		sgv_pools_mgr.mgr.thr.releases_on_hiwmk,

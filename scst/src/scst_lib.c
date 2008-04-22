@@ -94,7 +94,7 @@ void scst_set_cmd_error_status(struct scst_cmd *cmd, int status)
 	cmd->host_status = DID_OK;
 
 	cmd->data_direction = SCST_DATA_NONE;
-	cmd->tgt_resp_flags = SCST_TSC_FLAG_STATUS;
+	cmd->is_send_status = 1;
 	cmd->resp_data_len = 0;
 
 	cmd->completed = 1;
@@ -233,6 +233,7 @@ int scst_alloc_device(int gfp_mask, struct scst_device **out_dev)
 	dev->handler = &scst_null_devtype;
 	dev->p_cmd_lists = &scst_main_cmd_lists;
 	atomic_set(&dev->dev_cmd_count, 0);
+	atomic_set(&dev->write_cmd_count, 0);
 	spin_lock_init(&dev->dev_lock);
 	atomic_set(&dev->on_dev_count, 0);
 	INIT_LIST_HEAD(&dev->blocked_cmd_list);
@@ -474,16 +475,18 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 		atomic_set(&tgt_dev->sn_slots[i], 0);
 
 	if (dev->handler->parse_atomic && 
-	    sess->tgt->tgtt->preprocessing_done_atomic) {
-	    	if (sess->tgt->tgtt->rdy_to_xfer_atomic)
+	    (sess->tgt->tgtt->preprocessing_done == NULL)) {
+	    	if (sess->tgt->tgtt->rdy_to_xfer_atomic ||
+	    	    (sess->tgt->tgtt->rdy_to_xfer == NULL))
 			__set_bit(SCST_TGT_DEV_AFTER_INIT_WR_ATOMIC,
 				&tgt_dev->tgt_dev_flags);
-		if (dev->handler->exec_atomic)
+		if (dev->handler->exec_atomic || (dev->handler->exec == NULL))
 			__set_bit(SCST_TGT_DEV_AFTER_INIT_OTH_ATOMIC,
 				&tgt_dev->tgt_dev_flags);
 	}
-	if (dev->handler->exec_atomic) {
-		if (sess->tgt->tgtt->rdy_to_xfer_atomic)
+	if (dev->handler->exec_atomic || (dev->handler->exec == NULL)) {
+		if (sess->tgt->tgtt->rdy_to_xfer_atomic ||
+		    (sess->tgt->tgtt->rdy_to_xfer == NULL))
 			__set_bit(SCST_TGT_DEV_AFTER_RESTART_WR_ATOMIC,
 				&tgt_dev->tgt_dev_flags);
 		__set_bit(SCST_TGT_DEV_AFTER_RESTART_OTH_ATOMIC,
@@ -491,7 +494,8 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 		__set_bit(SCST_TGT_DEV_AFTER_RX_DATA_ATOMIC,
 			&tgt_dev->tgt_dev_flags);
 	}
-	if (dev->handler->dev_done_atomic && 
+	if ((dev->handler->dev_done_atomic ||
+	     (dev->handler->dev_done == NULL)) &&
 	    sess->tgt->tgtt->xmit_response_atomic) {
 		__set_bit(SCST_TGT_DEV_AFTER_EXEC_ATOMIC,
 			&tgt_dev->tgt_dev_flags);
@@ -1301,7 +1305,7 @@ struct scst_cmd *scst_alloc_cmd(int gfp_mask)
 	cmd->timeout = SCST_DEFAULT_TIMEOUT;
 	cmd->retries = 0;
 	cmd->data_len = -1;
-	cmd->tgt_resp_flags = SCST_TSC_FLAG_STATUS;
+	cmd->is_send_status = 1;
 	cmd->resp_data_len = -1;
 
 out:
@@ -1677,7 +1681,7 @@ static int get_trans_len_read_pos(struct scst_cmd *cmd, uint8_t off)
 	cmd->bufflen = 0;
 	cmd->bufflen |= ((u32)p[0]) << 8;
 	cmd->bufflen |= ((u32)p[1]);
-	
+
 	switch (cmd->cdb[1] & 0x1f) {
 	case 0:
 	case 1:
@@ -2177,7 +2181,7 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 	TRACE_ENTRY();
 
 	/*
-	 * SCST sets good defaults for cmd->tgt_resp_flags and cmd->resp_data_len
+	 * SCST sets good defaults for cmd->is_send_status and cmd->resp_data_len
 	 * based on cmd->status and cmd->data_direction, therefore change
 	 * them only if necessary
 	 */
@@ -2215,8 +2219,8 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 		}
 	}
 
-	TRACE_DBG("cmd->tgt_resp_flags=%x, cmd->resp_data_len=%d, "
-	      "res=%d", cmd->tgt_resp_flags, cmd->resp_data_len, res);
+	TRACE_DBG("cmd->is_send_status=%x, cmd->resp_data_len=%d, "
+	      "res=%d", cmd->is_send_status, cmd->resp_data_len, res);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -2234,7 +2238,7 @@ int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 	TRACE_ENTRY();
 
 	/*
-	 * SCST sets good defaults for cmd->tgt_resp_flags and cmd->resp_data_len
+	 * SCST sets good defaults for cmd->is_send_status and cmd->resp_data_len
 	 * based on cmd->status and cmd->data_direction, therefore change
 	 * them only if necessary
 	 */
@@ -2375,18 +2379,27 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 #else
 			if (
 #endif
-			    SCST_SENSE_VALID(sense_buffer) &&
-			    (sense_buffer[2] == ILLEGAL_REQUEST)) {
-				TRACE(TRACE_SCSI|TRACE_MGMT_MINOR, "Device %d:%d:%d:%d "
-					"doesn't support control mode page, using "
-					"defaults: TST %x, QUEUE ALG %x, SWP %x, "
-					"TAS %x, has_own_order_mgmt %d",
-					dev->scsi_dev->host->host_no,
-					dev->scsi_dev->channel,	dev->scsi_dev->id,
-					dev->scsi_dev->lun, dev->tst, dev->queue_alg,
-					dev->swp, dev->tas, dev->has_own_order_mgmt);
-			    	res = 0;
-				goto out;
+			    SCST_SENSE_VALID(sense_buffer)) {
+				if (sense_buffer[2] == ILLEGAL_REQUEST) {
+					TRACE(TRACE_SCSI|TRACE_MGMT_MINOR, "Device "
+						"%d:%d:%d:%d doesn't support control "
+						"mode page, using defaults: TST "
+						"%x, QUEUE ALG %x, SWP %x, TAS %x, "
+						"has_own_order_mgmt %d",
+						dev->scsi_dev->host->host_no,
+						dev->scsi_dev->channel,	dev->scsi_dev->id,
+						dev->scsi_dev->lun, dev->tst, dev->queue_alg,
+						dev->swp, dev->tas, dev->has_own_order_mgmt);
+				    	res = 0;
+					goto out;
+				} else if (sense_buffer[2] == NOT_READY) {
+					TRACE(TRACE_SCSI, "Device %d:%d:%d:%d not ready",
+						dev->scsi_dev->host->host_no,
+						dev->scsi_dev->channel,	dev->scsi_dev->id,
+						dev->scsi_dev->lun);
+				    	res = 0;
+					goto out;
+				}
 			} else {
 				TRACE(TRACE_SCSI|TRACE_MGMT_MINOR, "Internal MODE SENSE to "
 					"device %d:%d:%d:%d failed: %x",

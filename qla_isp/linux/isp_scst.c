@@ -1089,7 +1089,7 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
         xact->td_hflags &= ~TDFH_DATA_MASK;
     }
 
-    if (scst_cmd_get_tgt_resp_flags(scst_cmd) & SCST_TSC_FLAG_STATUS) {
+    if (scst_cmd_get_is_send_status(scst_cmd)) {
         xact->td_hflags |= TDFH_STSVALID;
         tmd->cd_scsi_status = scst_cmd_get_status(scst_cmd);
 

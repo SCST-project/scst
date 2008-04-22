@@ -384,8 +384,8 @@ int tape_done(struct scst_cmd *cmd)
 		}
 	}
 
-	TRACE_DBG("cmd->tgt_resp_flags=%x, cmd->resp_data_len=%d, "
-	      "res=%d", cmd->tgt_resp_flags, cmd->resp_data_len, res);
+	TRACE_DBG("cmd->is_send_status=%x, cmd->resp_data_len=%d, "
+	      "res=%d", cmd->is_send_status, cmd->resp_data_len, res);
 
 	TRACE_EXIT_RES(res);
 	return res;

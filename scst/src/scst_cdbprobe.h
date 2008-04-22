@@ -197,7 +197,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{0x1B, "O   OO O    O   ", "STOP START UNIT",
 	 SCST_DATA_NONE, SCST_LONG_TIMEOUT, 0, get_trans_len_none},
 	{0x1C, "OOOOOOOOOOOOOOOO", "RECEIVE DIAGNOSTIC RESULTS",
-	 SCST_DATA_READ, FLAG_NONE, 4, get_trans_len_1},
+	 SCST_DATA_READ, FLAG_NONE, 3, get_trans_len_2},
 	{0x1D, "MMMMMMMMMMMMMMMM", "SEND DIAGNOSTIC",
 	 SCST_DATA_WRITE, FLAG_NONE, 4, get_trans_len_1},
 	{0x1E, "OOOOOOOOOOOOOOOO", "PREVENT ALLOW MEDIUM REMOVAL",

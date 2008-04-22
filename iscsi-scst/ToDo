@@ -21,6 +21,8 @@
    for adding support for ranges in the negotiation keys, so it needs to
    be fixed as well.
 
+ - Fix iscsi-scst-adm.
+
  - Fix SNACK command handling. Currently it violates iSCSI RFC.
 
  - Consider better integration with TCP internals on receive path to

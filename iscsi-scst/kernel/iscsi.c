@@ -1036,7 +1036,7 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 			break;
 		}
 		conn->read_iov[i].iov_len = PAGE_SIZE - offset;
-		TRACE_DBG("idx=%d, offset=%u, size=%d, iov_len=%d, addr=%p",
+		TRACE_DBG("idx=%d, offset=%u, size=%d, iov_len=%zd, addr=%p",
 			idx, offset, size, conn->read_iov[i].iov_len, addr);
 		size -= conn->read_iov[i].iov_len;
 		offset = 0;
@@ -1050,7 +1050,7 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 		}
 		idx++;
 	}
-	TRACE_DBG("msg_iov=%p, msg_iovlen=%d",
+	TRACE_DBG("msg_iov=%p, msg_iovlen=%zd",
 		conn->read_msg.msg_iov, conn->read_msg.msg_iovlen);
 
 out:
@@ -1244,7 +1244,7 @@ static int noop_out_start(struct iscsi_cmnd *cmnd)
 		}
 		sBUG_ON(size == 0);
 		conn->read_msg.msg_iovlen = i;
-		TRACE_DBG("msg_iov=%p, msg_iovlen=%d", conn->read_msg.msg_iov,
+		TRACE_DBG("msg_iov=%p, msg_iovlen=%zd", conn->read_msg.msg_iov,
 			conn->read_msg.msg_iovlen);
 	}
 out:
@@ -2493,7 +2493,7 @@ static void iscsi_try_local_processing(struct iscsi_conn *conn,
 
 static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 {
-	int resp_flags = scst_cmd_get_tgt_resp_flags(scst_cmd);
+	int is_send_status = scst_cmd_get_is_send_status(scst_cmd);
 	struct iscsi_cmnd *req = (struct iscsi_cmnd*)
 					scst_cmd_get_tgt_priv(scst_cmd);
 	struct iscsi_conn *conn = req->conn;
@@ -2506,6 +2506,9 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 #else
 	bool single_only = 0;
 #endif
+
+	if (scst_cmd_atomic(scst_cmd))
+		return SCST_TGT_RES_NEED_THREAD_CTX;
 
 	scst_cmd_set_tgt_priv(scst_cmd, NULL);
 
@@ -2541,34 +2544,31 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 	req->sg = scst_cmd_get_sg(scst_cmd);
 	req->sg_cnt = scst_cmd_get_sg_cnt(scst_cmd);
 
-	TRACE_DBG("req %p, resp_flags=%x, req->bufflen=%d, req->sg=%p, "
-		"req->sg_cnt %d", req, resp_flags, req->bufflen, req->sg,
+	TRACE_DBG("req %p, is_send_status=%x, req->bufflen=%d, req->sg=%p, "
+		"req->sg_cnt %d", req, is_send_status, req->bufflen, req->sg,
 		req->sg_cnt);
 
-	if (unlikely((req->bufflen != 0) &&
-		     !(resp_flags & SCST_TSC_FLAG_STATUS))) {
+	if (unlikely((req->bufflen != 0) && !is_send_status)) {
 		PRINT_CRIT_ERROR("%s", "Sending DATA without STATUS is unsupported");
 		scst_set_cmd_error(scst_cmd,
 			SCST_LOAD_SENSE(scst_sense_hardw_error));
-		resp_flags = scst_cmd_get_tgt_resp_flags(scst_cmd);
 		sBUG();
 	}
 
 	if (req->bufflen != 0) {
 		/* 
-		 * Check above makes sure that SCST_TSC_FLAG_STATUS is set,
+		 * Check above makes sure that is_send_status is set,
 		 * so status is valid here, but in future that could change.
 		 * ToDo
 		 */
 		if (status != SAM_STAT_CHECK_CONDITION) {
-			send_data_rsp(req, status,
-				resp_flags & SCST_TSC_FLAG_STATUS);
+			send_data_rsp(req, status, is_send_status);
 		} else {
 			struct iscsi_cmnd *rsp;
 			struct iscsi_scsi_rsp_hdr *rsp_hdr;
 			int resid;
 			send_data_rsp(req, 0, 0);
-			if (resp_flags & SCST_TSC_FLAG_STATUS) {
+			if (is_send_status) {
 				rsp = create_status_rsp(req, status, sense,
 					sense_len);
 				rsp_hdr = (struct iscsi_scsi_rsp_hdr *)&rsp->pdu.bhs;
@@ -2586,7 +2586,7 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 					ISCSI_INIT_WRITE_REMOVE_HASH);
 			}
 		}
-	} else if (resp_flags & SCST_TSC_FLAG_STATUS) {
+	} else if (is_send_status) {
 		struct iscsi_cmnd *rsp;
 		struct iscsi_scsi_rsp_hdr *rsp_hdr;
 		u32 resid;
@@ -2781,7 +2781,6 @@ struct scst_tgt_template iscsi_template = {
 	.threads_num = 0,
 	.no_clustering = 1,
 	.xmit_response_atomic = 0,
-	.preprocessing_done_atomic = 1,
 	.detect = iscsi_target_detect,
 	.release = iscsi_target_release,
 	.xmit_response = iscsi_xmit_response,

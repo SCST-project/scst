@@ -281,7 +281,7 @@ static int iscsi_socket_bind(struct iscsi_conn *conn)
 	mm_segment_t oldfs;
 	struct iscsi_session *session = conn->session;
 
-	TRACE_DBG("%llu", (unsigned long long) session->sid);
+	TRACE_DBG("%llu", session->sid);
 
 	conn->sock = SOCKET_I(conn->file->f_dentry->d_inode);
 
@@ -324,8 +324,7 @@ out:
 int conn_free(struct iscsi_conn *conn)
 {
 	TRACE_MGMT_DBG("Freeing conn %p (sess=%p, %#Lx %u)", conn,
-		conn->session, (unsigned long long)conn->session->sid,
-		conn->cid);
+		conn->session, conn->session->sid, conn->cid);
 
 	del_timer_sync(&conn->rsp_timer);
 
@@ -360,7 +359,7 @@ static int iscsi_conn_alloc(struct iscsi_session *session, struct conn_info *inf
 	}
 
 	TRACE_MGMT_DBG("Creating connection %p for sid %#Lx, cid %u", conn,
-		(unsigned long long)session->sid, info->cid);
+		session->sid, info->cid);
 
 	/* Changing it, change ISCSI_CONN_IOV_MAX as well !! */
 	conn->read_iov = (struct iovec *)get_zeroed_page(GFP_KERNEL);

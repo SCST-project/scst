@@ -204,9 +204,6 @@ int __scst_register_target_template(struct scst_tgt_template *vtt,
 			goto out_err;
 	}
 
-	if (vtt->preprocessing_done == NULL)
-		vtt->preprocessing_done_atomic = 1;
-
 	if (mutex_lock_interruptible(&m) != 0)
 		goto out_err;
 

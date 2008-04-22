@@ -183,9 +183,14 @@ static void close_conn(struct iscsi_conn *conn)
 {
 	struct iscsi_session *session = conn->session;
 	struct iscsi_target *target = conn->target;
-	unsigned long start_waiting = jiffies;
-	unsigned long shut_start_waiting = start_waiting;
+	typeof(jiffies) start_waiting = jiffies;
+	typeof(jiffies) shut_start_waiting = start_waiting;
 	bool pending_reported = 0, wait_expired = 0, shut_expired = 0;
+
+#define CONN_PENDING_TIMEOUT	((typeof(jiffies))10*HZ)
+#define CONN_WAIT_TIMEOUT	((typeof(jiffies))10*HZ)
+#define CONN_REG_SHUT_TIMEOUT	((typeof(jiffies))125*HZ)
+#define CONN_DEL_SHUT_TIMEOUT	((typeof(jiffies))10*HZ)
 
 	TRACE_ENTRY();
 
@@ -291,7 +296,7 @@ static void close_conn(struct iscsi_conn *conn)
 			} while(req_freed);
 			spin_unlock(&session->sn_lock);
 
-			if (time_after(jiffies, start_waiting + 10*HZ)) {
+			if (time_after(jiffies, start_waiting + CONN_PENDING_TIMEOUT)) {
 				if (!pending_reported) {
 					TRACE_CONN_CLOSE("%s", "Pending wait time expired");
 					pending_reported = 1;
@@ -331,7 +336,9 @@ static void close_conn(struct iscsi_conn *conn)
 
 		iscsi_make_conn_wr_active(conn);
 
-		if (time_after(jiffies, start_waiting + 10*HZ) && !wait_expired) {
+		/* That's for active close only, actually */
+		if (time_after(jiffies, start_waiting + CONN_WAIT_TIMEOUT) &&
+		    !wait_expired) {
 			TRACE_CONN_CLOSE("Wait time expired (conn %p, "
 				"sk_state %d)", conn, conn->sock->sk->sk_state);
 			conn->sock->ops->shutdown(conn->sock, SEND_SHUTDOWN);
@@ -339,17 +346,20 @@ static void close_conn(struct iscsi_conn *conn)
 			shut_start_waiting = jiffies;
 		}
 
-		if (conn->deleting) {
-			if (wait_expired && !shut_expired &&
-			    time_after(jiffies, shut_start_waiting + 10*HZ)) {
-				TRACE_CONN_CLOSE("Wait time after shutdown expired "
-					"(conn %p, sk_state %d)", conn,
-					conn->sock->sk->sk_state);
-				conn->sock->sk->sk_prot->disconnect(conn->sock->sk, 0);
-				shut_expired = 1;
-			}
+		if (wait_expired && !shut_expired &&
+		    time_after(jiffies, shut_start_waiting +
+				conn->deleting ? CONN_DEL_SHUT_TIMEOUT :
+						 CONN_REG_SHUT_TIMEOUT)) {
+			TRACE_CONN_CLOSE("Wait time after shutdown expired "
+				"(conn %p, sk_state %d)", conn,
+				conn->sock->sk->sk_state);
+			conn->sock->sk->sk_prot->disconnect(conn->sock->sk, 0);
+			shut_expired = 1;
+		}
+
+		if (conn->deleting)
 			msleep(200);
-		} else
+		else
 			msleep(1000);
 
 		TRACE_CONN_CLOSE_DBG("conn %p, conn_ref_cnt %d left, wr_state %d, "
@@ -362,7 +372,7 @@ static void close_conn(struct iscsi_conn *conn)
 #endif
 
 #if 0
-			if (time_after(jiffies, start_waiting+10*HZ))
+			if (time_after(jiffies, start_waiting + 10*HZ))
 				trace_flag |= TRACE_CONN_OC_DBG;
 #endif
 
@@ -924,7 +934,7 @@ static int write_data(struct iscsi_conn *conn)
 	struct scatterlist *sg;
 	struct iovec *iop;
 	int saved_size, size, sendsize;
-	int offset, idx;
+	int offset, idx, sg_offset;
 	int flags, res, count;
 	bool do_put = false;
 
@@ -947,7 +957,6 @@ static int write_data(struct iscsi_conn *conn)
 		spin_unlock_bh(&conn->write_list_lock);
 	}
 
-#if 0 /* temp. ToDo */
 	if (!timer_pending(&conn->rsp_timer)) {
 		sBUG_ON(!ref_cmd->on_written_list);
 		spin_lock_bh(&conn->write_list_lock);
@@ -959,7 +968,6 @@ static int write_data(struct iscsi_conn *conn)
 		}
 		spin_unlock_bh(&conn->write_list_lock);
 	}
-#endif
 
 	file = conn->file;
 	saved_size = size = conn->write_size;
@@ -976,8 +984,7 @@ retry:
 		set_fs(KERNEL_DS);
 		res = vfs_writev(file, (struct iovec __user *)iop, count, &off);
 		set_fs(oldfs);
-		TRACE_WRITE("%#Lx:%u: %d(%ld)",
-			(unsigned long long)conn->session->sid, conn->cid,
+		TRACE_WRITE("%#Lx:%u: %d(%ld)", conn->session->sid, conn->cid,
 			res, (long)iop->iov_len);
 		if (unlikely(res <= 0)) {
 			if (res == -EAGAIN) {
@@ -1020,7 +1027,8 @@ retry:
 	__iscsi_get_page_callback(ref_cmd);
 	do_put = true;
 
-	offset = conn->write_offset + sg[0].offset;
+	sg_offset = sg[0].offset;
+	offset = conn->write_offset + sg_offset;
 	idx = offset >> PAGE_SHIFT;
 	offset &= ~PAGE_MASK;
 
@@ -1074,7 +1082,7 @@ retry2:
 			TRACE_WRITE("Final %s %#Lx:%u: %d(%lu,%u,%u, cmd %p, page %p)",
 				(sendpage != sock_no_sendpage) ? "sendpage" : 
 								 "sock_no_sendpage",
-				(unsigned long long)conn->session->sid, conn->cid,
+				conn->session->sid, conn->cid,
 				res, sg_page(&sg[idx])->index, offset, size,
 				write_cmnd, sg_page(&sg[idx]));
 			if (unlikely(res <= 0)) {
@@ -1124,7 +1132,7 @@ retry1:
 	}
 
 out_off:
-	conn->write_offset = (idx << PAGE_SHIFT) + offset - sg[0].offset;
+	conn->write_offset = (idx << PAGE_SHIFT) + offset - sg_offset;
 
 out_iov:
 	conn->write_size = size;
@@ -1153,8 +1161,7 @@ out_err:
 #endif
 	{
 		PRINT_ERROR("error %d at sid:cid %#Lx:%u, cmnd %p", res,
-			(unsigned long long)conn->session->sid, conn->cid,
-			conn->write_cmnd);
+			conn->session->sid, conn->cid, conn->write_cmnd);
 	}
 	if (ref_cmd->scst_cmd != NULL)
 		scst_set_delivery_status(ref_cmd->scst_cmd,

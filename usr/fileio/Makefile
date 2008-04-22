@@ -41,10 +41,10 @@ CFLAGS += -DDEBUG -g
 all: $(PROGS)
 
 fileio_tgt: .depend_f $(OBJS_F)
-	$(CC) $(OBJS_F) $(LIBS) -o $@
+	$(CC) $(OBJS_F) $(LIBS) $(LOCAL_LD_FLAGS) -o $@
 
 #cdrom_tgt: .depend_c  $(OBJS_C)
-#	$(CC) $(OBJS_C) $(LIBS) -o $@
+#	$(CC) $(OBJS_C) $(LIBS) $(LOCAL_LD_FLAGS) -o $@
 
 ifeq (.depend_f,$(wildcard .depend_f))
 -include .depend_f

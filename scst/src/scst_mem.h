@@ -106,7 +106,7 @@ struct scst_sgv_pools_manager
 
 		struct sgv_mem_throttling {
 			u32 inactive_pages_total; 
-			u32 active_pages_total;
+			atomic_t active_pages_total;
 		
 			u32 hi_wmk; /* compared against inactive_pages_total + active_pages_total */
 			u32 lo_wmk; /* compared against inactive_pages_total only */

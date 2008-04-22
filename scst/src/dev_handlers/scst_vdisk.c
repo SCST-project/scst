@@ -666,7 +666,7 @@ static inline int vdisk_need_pre_sync(enum scst_cmd_queue_type cur,
 
 static int vdisk_do_job(struct scst_cmd *cmd)
 {
-	int rc;
+	int rc, res;
 	uint64_t lba_start = 0;
 	loff_t data_len = 0;
 	uint8_t *cdb = cmd->cdb;
@@ -680,6 +680,13 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	int fua = 0;
 
 	TRACE_ENTRY();
+
+	if (scst_cmd_atomic(cmd)) {
+		TRACE_DBG("%s", "vdisk exec() can not be done in atomic "
+			"context, requesting thread context");
+		res = SCST_EXEC_NEED_THREAD;
+		goto out;
+	}
 
 	switch(cmd->queue_type) {
 	case SCST_CMD_QUEUE_ORDERED:
@@ -795,7 +802,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	case READ_16:
 		if (virt_dev->blockio) {
 			blockio_exec_rw(cmd, thr, lba_start, 0);
-			goto out;
+			goto out_thr;
 		} else
 			vdisk_exec_read(cmd, thr, loff);
 		break;
@@ -822,7 +829,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 			}
 			if (virt_dev->blockio) {
 				blockio_exec_rw(cmd, thr, lba_start, 1);
-				goto out;
+				goto out_thr;
 			} else
 				vdisk_exec_write(cmd, thr, loff);
 			/* O_SYNC flag is used for WT devices */
@@ -882,7 +889,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 			vdisk_fsync(thr, loff, data_len, NULL);
 			/* ToDo: vdisk_fsync() error processing */
 			scst_cmd_put(cmd);
-			goto out;
+			goto out_thr;
 		} else {
 			vdisk_fsync(thr, loff, data_len, cmd);
 			break;
@@ -949,12 +956,15 @@ out_compl:
 out_done:
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);
 
-out:
+out_thr:
 	if (likely(thr != NULL))
 		scst_thr_data_put(&thr->hdr);
 
-	TRACE_EXIT();
-	return SCST_EXEC_COMPLETED;
+	res = SCST_EXEC_COMPLETED;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 static int vdisk_get_block_shift(struct scst_cmd *cmd)

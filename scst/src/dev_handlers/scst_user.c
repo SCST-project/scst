@@ -278,7 +278,7 @@ static inline struct scst_user_cmd *__ucmd_find_hash(struct scst_user_dev *dev,
 	return NULL;
 }
 
-static void cmnd_insert_hash(struct scst_user_cmd *ucmd)
+static void cmd_insert_hash(struct scst_user_cmd *ucmd)
 {
 	struct list_head *head;
 	struct scst_user_dev *dev = ucmd->dev;
@@ -298,7 +298,7 @@ static void cmnd_insert_hash(struct scst_user_cmd *ucmd)
 	return;
 }
 
-static inline void cmnd_remove_hash(struct scst_user_cmd *ucmd)
+static inline void cmd_remove_hash(struct scst_user_cmd *ucmd)
 {
 	unsigned long flags;
 	spin_lock_irqsave(&ucmd->dev->cmd_lists.cmd_list_lock, flags);
@@ -315,7 +315,7 @@ static void dev_user_free_ucmd(struct scst_user_cmd *ucmd)
 
 	TRACE_MEM("Freeing ucmd %p", ucmd);
 
-	cmnd_remove_hash(ucmd);
+	cmd_remove_hash(ucmd);
 	EXTRACHECKS_BUG_ON(ucmd->cmd != NULL);
 
 	kmem_cache_free(user_cmd_cachep, ucmd);
@@ -630,7 +630,7 @@ static struct scst_user_cmd *dev_user_alloc_ucmd(struct scst_user_dev *dev,
 	ucmd->dev = dev;
 	atomic_set(&ucmd->ucmd_ref, 1);
 
-	cmnd_insert_hash(ucmd);
+	cmd_insert_hash(ucmd);
 
 	TRACE_MEM("ucmd %p allocated", ucmd);
 
@@ -784,8 +784,21 @@ out:
 static int dev_user_exec(struct scst_cmd *cmd)
 {
 	struct scst_user_cmd *ucmd = (struct scst_user_cmd*)cmd->dh_priv;
+	int res = SCST_EXEC_COMPLETED;
 
 	TRACE_ENTRY();
+
+#if 0 /* We set exec_atomic in 0 to let SCST core know that we need a thread
+       * context to complete the necessary actions, but all we are going to
+       * do in this function is, in fact, atomic, so let's skip this check.
+       */
+	if (scst_cmd_atomic(cmd)) {
+		TRACE_DBG("%s", "User exec() can not be called in atomic "
+			"context, rescheduling to the thread");
+		res = SCST_EXEC_NEED_THREAD;
+		goto out;
+	}
+#endif
 
 	TRACE_DBG("Preparing EXEC for user space (ucmd=%p, h=%d, "
 		"bufflen %d, data_len %d, ubuff %lx)", ucmd, ucmd->h,
@@ -818,8 +831,8 @@ static int dev_user_exec(struct scst_cmd *cmd)
 
 	dev_user_add_to_ready(ucmd);
 
-	TRACE_EXIT();
-	return SCST_EXEC_COMPLETED;
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 static void dev_user_free_sgv(struct scst_user_cmd *ucmd)
@@ -2920,6 +2933,8 @@ static int dev_user_release(struct inode *inode, struct file *file)
 	}
 	file->private_data = NULL;
 
+	TRACE(TRACE_MGMT, "Releasing dev %s", dev->name);
+
 	spin_lock(&dev_list_lock);
 	list_del(&dev->dev_list_entry);
 	spin_unlock(&dev_list_lock);
@@ -2927,8 +2942,6 @@ static int dev_user_release(struct inode *inode, struct file *file)
 	mutex_unlock(&dev_priv_mutex);
 
 	down_write(&dev->dev_rwsem);
-
-	TRACE_DBG("Releasing dev %p", dev);
 
 	spin_lock(&cleanup_lock);
 	list_add_tail(&dev->cleanup_list_entry, &cleanup_list);

@@ -672,7 +672,7 @@ static int q2t_xmit_response(struct scst_cmd *scst_cmd)
 {
 	int res = SCST_TGT_RES_SUCCESS;
 	struct q2t_sess *sess;
-	int resp_flags;
+	int is_send_status;
 	unsigned long flags = 0;
 	struct q2t_prm prm = { 0 };
 	int data_sense_flag = 0;
@@ -680,6 +680,11 @@ static int q2t_xmit_response(struct scst_cmd *scst_cmd)
 
 	TRACE_ENTRY();
 	TRACE(TRACE_SCSI, "tag=%Ld", scst_cmd_get_tag(scst_cmd));
+
+#ifdef DEBUG_WORK_IN_THREAD
+	if (scst_cmd_atomic(scst_cmd))
+		return SCST_TGT_RES_NEED_THREAD_CTX;
+#endif
 
 	prm.cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
 	sess = (struct q2t_sess *)
@@ -709,15 +714,17 @@ static int q2t_xmit_response(struct scst_cmd *scst_cmd)
 	prm.tgt = sess->tgt;
 	prm.seg_cnt = 0;
 	prm.req_cnt = 1;
-	resp_flags = scst_cmd_get_tgt_resp_flags(scst_cmd);
+	is_send_status = scst_cmd_get_is_send_status(scst_cmd);
 
-	TRACE_DBG("rq_result=%x, resp_flags=%x", prm.rq_result, resp_flags);
+	TRACE_DBG("rq_result=%x, is_send_status=%x", prm.rq_result,
+		is_send_status);
+
 	if (prm.rq_result != 0)
 		TRACE_BUFFER("Sense", prm.sense_buffer, prm.sense_buffer_len);
 
-	if ((resp_flags & SCST_TSC_FLAG_STATUS) == 0) {
+	if (!is_send_status) {
 		/* ToDo, after it's done in SCST */
-		PRINT_ERROR("qla2x00tgt(%ld): SCST_TSC_FLAG_STATUS not set: "
+		PRINT_ERROR("qla2x00tgt(%ld): is_send_status not set: "
 		     "feature not implemented", prm.tgt->ha->instance);
 		res = SCST_TGT_RES_FATAL_ERROR;
 		goto out;
@@ -826,6 +833,11 @@ static int q2t_rdy_to_xfer(struct scst_cmd *scst_cmd)
 
 	TRACE_ENTRY();
 	TRACE(TRACE_SCSI, "tag=%Ld", scst_cmd_get_tag(scst_cmd));
+
+#ifdef DEBUG_WORK_IN_THREAD
+	if (scst_cmd_atomic(scst_cmd))
+		return SCST_TGT_RES_NEED_THREAD_CTX;
+#endif
 
 	prm.cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
 	sess = (struct q2t_sess *)
@@ -2134,8 +2146,8 @@ static int q2t_log_info_show(struct seq_file *seq, void *v)
 	return res;
 }
 
-static int q2t_proc_log_entry_write(struct file *file, const char __user *buf,
-					 size_t length, loff_t *off)
+static ssize_t q2t_proc_log_entry_write(struct file *file,
+	const char __user *buf, size_t length, loff_t *off)
 {
 	int res = 0;
 
@@ -2147,7 +2159,6 @@ static int q2t_proc_log_entry_write(struct file *file, const char __user *buf,
 	TRACE_EXIT_RES(res);
 	return res;
 }
-
 
 static struct scst_proc_data q2t_log_proc_data = {
 	SCST_DEF_RW_SEQ_OP(q2t_proc_log_entry_write)

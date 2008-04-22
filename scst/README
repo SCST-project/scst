@@ -106,16 +106,6 @@ IMPORTANT: Working of target and initiator on the same host isn't
 	   request to the target -> target needs memory -> problem is
 	   possible.
 
-IMPORTANT: Experience shows that if people work with out of SCST tree target
-=========  drivers, like target driver for Infiniband or in case if they
-           downloaded and use the released versions of SCST and target
-	   drivers, they are too often (actually, almost always) after
-	   upgrading SCST core forget to rebuild their target drivers,
-	   which then immediately after load crash in the hard to trace
-	   manner. So, after you reinstalled SCST core don't forget to
-	   rebuild and reinstall all your target drivers, custom dev
-	   handlers and necessary user space applications.
-
 IMPORTANT: In the current version simultaneous access to local SCSI devices
 =========  via standard high-level SCSI drivers (sd, st, sg, etc.) and
            SCST's target drivers is unsupported. Especially it is
@@ -395,6 +385,9 @@ following files and directories under /proc/scsi_tgt:
   
   - "clear" to /proc/scsi_tgt/groups/GROUP/names clears the list of names
     for group "GROUP"
+
+There must be LUN 0 in each security group, i.e. LUs numeration must not
+start from, e.g., 1.
 
 Examples:
 

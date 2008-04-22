@@ -30,7 +30,7 @@
 #define SCSI_ID_LEN	24
 
 #ifndef aligned_u64
-#define aligned_u64 unsigned long long __attribute__((aligned(8)))
+#define aligned_u64 uint64_t __attribute__((aligned(8)))
 #endif
 
 struct target_info {

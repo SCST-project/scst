@@ -293,16 +293,12 @@ typedef _Bool bool;
  *************************************************************/
 #define SCST_DEFAULT_TIMEOUT         (30*HZ)
 
-/*************************************************************
- ** Flags of cmd->tgt_resp_flags
- *************************************************************/
-
 /* 
  * Set if cmd is finished and there is status/sense to be sent. 
  * The status should be not sent (i.e. the flag not set) if the 
  * possibility to perform a command in "chunks" (i.e. with multiple 
- * xmit_response()/rdy_to_xfer()) is used (not implemented and,
- * probably, will never be).
+ * xmit_response()/rdy_to_xfer()) is used (not implemented yet).
+ * Obsolete, use scst_cmd_get_is_send_status() instead.
  */
 #define SCST_TSC_FLAG_STATUS         0x2
 
@@ -472,7 +468,6 @@ struct scst_tgt_template
 	 */
 	unsigned xmit_response_atomic:1;
 	unsigned rdy_to_xfer_atomic:1;
-	unsigned preprocessing_done_atomic:1;
 
 	/* True, if the template doesn't need the entry in /proc */
 	unsigned no_proc_entry:1;
@@ -752,7 +747,7 @@ struct scst_dev_type
 
 	/* 
 	 * Called to notify dev handler about the result of cmd execution
-	 * and perform some post processing. Cmd's fields tgt_resp_flags and
+	 * and perform some post processing. Cmd's fields is_send_status and
 	 * resp_data_len should be set by this function, but SCST offers good
 	 * defaults.
 	 * Returns the command's next state or SCST_CMD_STATE_DEFAULT, 
@@ -1022,6 +1017,9 @@ struct scst_cmd
 	/* Set if cmd is being processed in atomic context */
 	unsigned int atomic:1;
 
+	/* Set if this command contains status */
+	unsigned int is_send_status:1;
+
 	/*
 	 * Set if the cmd is being processed in the processable context. See
 	 * comment for SCST_CONTEXT_PROCESSABLE for what it means.
@@ -1208,12 +1206,6 @@ struct scst_cmd
 	/* scst_get_sg_buf_[first,next]() support */
 	int get_sg_buf_entry_num;
 
-	/*
-	 * The following two fields should be corrected by the dev_done(),
-	 * if necessary
-	 */
-	int tgt_resp_flags;	/* response flags (SCST_TSC_FLAG_* constants) */
-
 	/* 
 	 * Response data length in data buffer. This field must not be set
 	 * directly, use scst_set_resp_data_len() for that
@@ -1339,6 +1331,9 @@ struct scst_device
 
 	/* How many cmds alive on this dev */
 	atomic_t dev_cmd_count; 
+
+	/* How many write cmds alive on this dev. Temporary, ToDo */
+	atomic_t write_cmd_count; 
 
 	unsigned short type;	/* SCSI type of the device */
 
@@ -2029,10 +2024,19 @@ static inline int scst_cmd_get_resp_data_len(struct scst_cmd *cmd)
 	return cmd->resp_data_len;
 }
 
-/* Returns cmd's response flags (SCST_TSC_FLAG_* constants) */
-static inline int scst_cmd_get_tgt_resp_flags(struct scst_cmd *cmd)
+/*
+ * Returns cmd's response flags (SCST_TSC_FLAG_* constants). Obsolete, use
+ * scst_cmd_get_is_send_status() instead.
+ */
+static inline __deprecated int scst_cmd_get_tgt_resp_flags(struct scst_cmd *cmd)
 {
-	return cmd->tgt_resp_flags;
+	return cmd->is_send_status ? SCST_TSC_FLAG_STATUS : 0;
+}
+
+/* Returns if status should be sent for cmd */
+static inline int scst_cmd_get_is_send_status(struct scst_cmd *cmd)
+{
+	return cmd->is_send_status;
 }
 
 /*

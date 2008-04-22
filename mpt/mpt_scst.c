@@ -1588,11 +1588,17 @@ mpt_xmit_response(struct scst_cmd *scst_cmd)
 	int res = SCST_TGT_RES_SUCCESS;
 	struct mpt_sess *sess;
 	struct mpt_prm prm = { 0 };
-	int resp_flags;
+	int is_send_status;
 	//uint16_t full_req_cnt;
 	//int data_sense_flag = 0;
 
 	TRACE_ENTRY();
+
+#ifdef DEBUG_WORK_IN_THREAD
+	if (scst_cmd_atomic(scst_cmd))
+		return SCST_TGT_RES_NEED_THREAD_CTX;
+#endif
+
 	prm.cmd = (struct mpt_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
 	sess = (struct mpt_sess *)
 		scst_sess_get_tgt_priv(scst_cmd_get_session(scst_cmd));
@@ -1607,16 +1613,16 @@ mpt_xmit_response(struct scst_cmd *scst_cmd)
 	prm.sense_buffer_len = scst_cmd_get_sense_buffer_len(scst_cmd);
 	prm.tgt = sess->tgt;
 	prm.seg_cnt = 0;
-	resp_flags = scst_cmd_get_tgt_resp_flags(scst_cmd);
+	is_send_status = scst_cmd_get_is_send_status(scst_cmd);
 
-	TRACE_DBG("rq_result=%x, resp_flags=%x, %x, %d", prm.rq_result, 
-			resp_flags, prm.bufflen, prm.sense_buffer_len);
+	TRACE_DBG("rq_result=%x, is_send_status=%x, %x, %d", prm.rq_result, 
+			is_send_status, prm.bufflen, prm.sense_buffer_len);
 	if ((prm.rq_result != 0) && (prm.sense_buffer != NULL))
 		TRACE_BUFFER("Sense", prm.sense_buffer, prm.sense_buffer_len);
 
-	if ((resp_flags & SCST_TSC_FLAG_STATUS) == 0) {
+	if (!is_send_status) {
 		/* ToDo, after it's done in SCST */
-		PRINT_ERROR(MYNAM ": SCST_TSC_FLAG_STATUS not set: "
+		PRINT_ERROR(MYNAM ": is_send_status not set: "
 			    "feature not implemented %p", scst_cmd);
 		res = SCST_TGT_RES_FATAL_ERROR;
 		goto out_tgt_free;
@@ -1740,6 +1746,12 @@ static int mpt_rdy_to_xfer(struct scst_cmd *scst_cmd)
 	struct mpt_prm prm = { 0 };
 
 	TRACE_ENTRY();
+
+#ifdef DEBUG_WORK_IN_THREAD
+	if (scst_cmd_atomic(scst_cmd))
+		return SCST_TGT_RES_NEED_THREAD_CTX;
+#endif
+
 	prm.cmd = (struct mpt_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
 	sess = (struct mpt_sess *)
 		scst_sess_get_tgt_priv(scst_cmd_get_session(scst_cmd));

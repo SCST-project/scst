@@ -176,7 +176,7 @@ int raid_done(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	/*
-	 * SCST sets good defaults for cmd->tgt_resp_flags and cmd->resp_data_len
+	 * SCST sets good defaults for cmd->is_send_status and cmd->resp_data_len
 	 * based on cmd->status and cmd->data_direction, therefore change
 	 * them only if necessary
 	 */

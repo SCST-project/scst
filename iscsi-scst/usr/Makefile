@@ -28,10 +28,10 @@ LIBS = -lcrypto
 all: $(PROGRAMS)
 
 iscsi-scstd: .depend_d $(OBJS_D)
-	$(CC) $(OBJS_D) $(LIBS) -o $@
+	$(CC) $(OBJS_D) $(LIBS) $(LOCAL_LD_FLAGS) -o $@
 
 iscsi-scst-adm: .depend_adm  $(OBJS_ADM)
-	$(CC) $(OBJS_ADM) $(LIBS) -o $@
+	$(CC) $(OBJS_ADM) $(LIBS) $(LOCAL_LD_FLAGS) -o $@
 
 ifeq (.depend_d,$(wildcard .depend_d))
 -include .depend_d
