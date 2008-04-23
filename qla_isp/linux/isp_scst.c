@@ -129,6 +129,7 @@ struct bus_chan {
     struct tasklet_struct    tasklet;
     struct scst_tgt *        scst_tgt;
     uint64_t                 enable;             /* is target mode enabled in low level driver, one bit per lun */
+    struct rw_semaphore      disable_sem;        /* help to synchronize when disabling target mode */
     bus_t *                  bus;                /* back pointer */
 };
 
@@ -156,6 +157,7 @@ static __inline bus_t *bus_from_name(const char *);
 static void scsi_target_start_cmd(tmd_cmd_t *, int);
 static void scsi_target_done_cmd(tmd_cmd_t *, int);
 static int scsi_target_enadis(bus_t *, uint64_t, int, int);
+static void bus_chan_unregister_sessions(bus_chan_t *bc, int wait);
 
 static bus_t busses[MAX_BUS];
 
@@ -998,10 +1000,15 @@ scsi_target_enadis(bus_t *bp, uint64_t en, int chan, int lun)
         ec.en_lun = lun;
     }
 
+    SDprintk("%s: Chan %d before down_write disable_sem\n", __FUNCTION__, chan);
+    down_write(&bc->disable_sem);
+    SDprintk("%s: Chan %d after down_write disable_sem\n", __FUNCTION__, chan);
+
     ec.en_private = &rsem;
     (*bp->h.r_action)(en ? QIN_ENABLE : QIN_DISABLE, &ec);
     down(&rsem);
     if (ec.en_error) {
+        up_write(&bc->disable_sem);
         return (ec.en_error);
     }
 
@@ -1012,6 +1019,17 @@ scsi_target_enadis(bus_t *bp, uint64_t en, int chan, int lun)
         bc->enable &= mask;
         bc->enable |= (en << lun);
     }
+
+    if (bc->enable == 0) {
+        SDprintk("%s: Chan %d unregister sessions\n", __FUNCTION__, chan);
+        /* If no lun is active on channel - logoff from SCST. At this point no new
+         * commands and notifies come from low level driver. Pending commands are
+         * serialized by disable_sem to avoid parallel calling scst_rx_cmd() with
+         * with scst_unregister_sesion(). Waiting for unregister could lead to deadlock
+         * with disable_sem sleepres, so use no-wait option */
+        bus_chan_unregister_sessions(bc, 0);
+    }
+    up_write(&bc->disable_sem);
     return (0);
 }
 
@@ -1031,10 +1049,14 @@ isp_release(struct scst_tgt *tgt)
 static int
 isp_rdy_to_xfer(struct scst_cmd *scst_cmd)
 {
+    /* don't need to check against aborted, low level driver handle
+     * this and call us back with error */
+
     if (scst_cmd_get_data_direction(scst_cmd) == SCST_DATA_WRITE) {
         tmd_cmd_t *tmd = (tmd_cmd_t *) scst_cmd_get_tgt_priv(scst_cmd);
         tmd_xact_t *xact = &tmd->cd_xact;
         bus_t *bp = tmd->cd_bus;
+        bus_chan_t *bc = &bp->bchan[tmd->cd_channel];
         int len = scst_cmd_get_bufflen(scst_cmd);
 
         xact->td_hflags |= TDFH_DATA_OUT;
@@ -1043,8 +1065,26 @@ isp_rdy_to_xfer(struct scst_cmd *scst_cmd)
         if (bp->h.r_type == R_SPI) {
             tmd->cd_totlen = len;
         }
+
+        if (unlikely(down_read_trylock(&bc->disable_sem) != 1)) {
+            SDprintk("%s: TMD[%llx] Chan %d disable_sem trylock failed, atomic %d\n",
+                     __FUNCTION__, tmd->cd_tagval, tmd->cd_channel, scst_cmd_atomic(scst_cmd));
+            if (scst_cmd_atomic(scst_cmd)) {
+                return (SCST_TGT_RES_NEED_THREAD_CTX);
+            }
+            down_read(&bc->disable_sem);
+        }
+
+        if (unlikely(bc->enable == 0)) {
+            SDprintk("%s: TMD[%llx] Chan %d not enabled\n", __FUNCTION__, tmd->cd_tagval, tmd->cd_channel);
+            up_read(&bc->disable_sem);
+            scst_rx_data(scst_cmd, SCST_RX_STATUS_ERROR, SCST_CONTEXT_TASKLET);
+            return (0);
+        }
+
         SDprintk2("%s: TMD[%llx] write nbytes %u\n", __FUNCTION__, tmd->cd_tagval, scst_cmd_get_bufflen(scst_cmd));
         (*bp->h.r_action)(QIN_TMD_CONT, xact);
+        up_read(&bc->disable_sem);
     }
 
     return (0);
@@ -1055,6 +1095,7 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
 {
     tmd_cmd_t *tmd = (tmd_cmd_t *) scst_cmd_get_tgt_priv(scst_cmd);
     bus_t *bp = tmd->cd_bus;
+    bus_chan_t *bc = &bp->bchan[tmd->cd_channel];
     tmd_xact_t *xact = &tmd->cd_xact;
 
     if (unlikely(scst_cmd_aborted(scst_cmd))) {
@@ -1121,7 +1162,26 @@ out:
         xact->td_hflags |= TDFH_SNSVALID;
     }
 
+    if (unlikely(down_read_trylock(&bc->disable_sem) != 1)) {
+        SDprintk("%s: TMD[%llx] Chan %d disable_sem trylock failed, atomic %d\n",
+                 __FUNCTION__, tmd->cd_tagval, tmd->cd_channel, scst_cmd_atomic(scst_cmd));
+        if (scst_cmd_atomic(scst_cmd)) {
+            return (SCST_TGT_RES_NEED_THREAD_CTX);
+        }
+        down_read(&bc->disable_sem);
+    }
+
+    if (unlikely(bc->enable == 0)) {
+        SDprintk("%s: TMD[%llx] Chan %d not enabled\n", __FUNCTION__, tmd->cd_tagval, tmd->cd_channel);
+        up_read(&bc->disable_sem);
+        scst_tgt_cmd_done(scst_cmd);
+        return (0);
+    }
+
+    SDprintk2("%s: TMD[%llx] %p hf %x lf %x xfrlen %d totlen %d moved %d\n",
+              __FUNCTION__, tmd->cd_tagval, tmd, xact->td_hflags, xact->td_lflags, xact->td_xfrlen, tmd->cd_totlen, tmd->cd_moved);
     (*bp->h.r_action)(QIN_TMD_CONT, xact);
+    up_read(&bc->disable_sem);
     return (0);
 }
 
@@ -1378,7 +1438,7 @@ static struct scst_tgt_template isp_tgt_template =
 static int
 get_sg_tablesize(ispsoftc_t *isp)
 {
-    // FIXME: check if this is correct?
+    // FIXME: check if this is correct? What about multichannel ?
     // FIXME: move to the low level driver and export via tpublic API
     int rq_seglim, ct_seglim;
     int nctios = (isp->isp_maxcmds < 4) ? 0 : isp->isp_maxcmds - 4;
@@ -1463,6 +1523,7 @@ register_hba(bus_t *bp)
         bc = &bchan[chan];
         spin_lock_init(&bc->tmds_lock);
         tasklet_init(&bc->tasklet, tasklet_rx_cmds, (unsigned long) bc);
+        init_rwsem(&bc->disable_sem);
         bc->bus = bp;
         bc->scst_tgt = scst_tgt;
         scst_tgt->tgt_priv = bc;
@@ -1485,7 +1546,7 @@ register_hba(bus_t *bp)
     return;
 
 err_free_chan:
-    for ( ; chan >= 0; chan--) {
+    for (bp->h.r_nchannels -1; chan >= 0; chan--) {
         if (bchan[chan].scst_tgt) {
             scst_unregister(bchan[chan].scst_tgt);
         }
@@ -1499,32 +1560,39 @@ err_free_bus:
 }
 
 static void
+bus_chan_unregister_sessions(bus_chan_t *bc, int wait)
+{
+    int i;
+
+    for (i = 0; i < HASH_WIDTH; i++) {
+        ini_t *ini_next;
+        ini_t *ptr = bc->list[i];
+        if (ptr) {
+            do {
+                ini_next = ptr->ini_next;
+                free_ini(ptr, wait);
+            } while ((ptr = ini_next) != NULL);
+        }
+        bc->list[i] = NULL;
+    }
+}
+
+static void
 unregister_hba(bus_t *bp, hba_register_t *unreg_hp)
 {
-    int i, chan;
+    int chan;
     char name[32];
-
-    for (chan = 0; chan < bp->h.r_nchannels; chan++) {
-        /* remove existing initiators */
-        for (i = 0; i < HASH_WIDTH; i++) {
-            ini_t *ini_next;
-            ini_t *ptr = bp->bchan[chan].list[i];
-            if (ptr) {
-                do {
-                    ini_next = ptr->ini_next;
-                    free_ini(ptr, 1);
-                } while ((ptr = ini_next) != NULL);
-            }
-        }
-        if (bp->bchan[chan].scst_tgt) {
-            scst_unregister(bp->bchan[chan].scst_tgt);
-        }
-    }
 
     snprintf(name, sizeof(name), "%d", ((ispsoftc_t *)bp->h.r_identity)->isp_osinfo.host->host_no);
     remove_proc_entry(name, scst_proc_get_tgt_root(&isp_tgt_template));
 
-    /* it's safe now to reinit bp */
+    /* it's safe now to unregister and reinit bp */
+    for (chan = 0; chan < bp->h.r_nchannels; chan++) {
+        bus_chan_unregister_sessions(&bp->bchan[chan], 1);
+        if (bp->bchan[chan].scst_tgt) {
+            scst_unregister(bp->bchan[chan].scst_tgt);
+        }
+    }
     kfree(bp->bchan);
     spin_lock_irq(&scsi_target_lock);
     memset(bp, 0, sizeof(bus_t));
