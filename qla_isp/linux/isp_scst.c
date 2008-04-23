@@ -161,8 +161,8 @@ static void scsi_target_handler(qact_e, void *);
 static __inline bus_t *bus_from_tmd(tmd_cmd_t *);
 static __inline bus_t *bus_from_name(const char *);
 
-static void scsi_target_start_cmd(tmd_cmd_t *, int);
-static void scsi_target_done_cmd(tmd_cmd_t *, int);
+static void scsi_target_start_cmd(tmd_cmd_t *);
+static void scsi_target_done_cmd(tmd_cmd_t *);
 static int scsi_target_enadis(bus_t *, uint64_t, int, int);
 static void bus_chan_unregister_sessions(bus_chan_t *bc, int wait);
 
@@ -170,7 +170,6 @@ static bus_t busses[MAX_BUS];
 
 static spinlock_t scsi_target_lock = SPIN_LOCK_UNLOCKED;
 
-DECLARE_COMPLETION(qlaispd_start);
 DECLARE_WAIT_QUEUE_HEAD(qlaispd_waitq);
 struct task_struct *qlaispd_task;
 
@@ -466,7 +465,7 @@ rx_loop:
 }
 
 static void
-scsi_target_start_cmd(tmd_cmd_t *tmd, int from_intr)
+scsi_target_start_cmd(tmd_cmd_t *tmd)
 {
     unsigned long flags;
     bus_t *bp;
@@ -599,7 +598,7 @@ bus_add_initiators(void)
 }
 
 static void
-scsi_target_done_cmd(tmd_cmd_t *tmd, int from_intr)
+scsi_target_done_cmd(tmd_cmd_t *tmd)
 {
     bus_t *bp;
     struct scst_cmd *scst_cmd;
@@ -890,14 +889,14 @@ scsi_target_handler(qact_e action, void *arg)
         tmd_cmd_t *tmd = arg;
         SDprintk2("scsi_target: TMD_START[%llx] %p cdb0=%x\n", tmd->cd_tagval, tmd, tmd->cd_cdb[0] & 0xff);
         tmd->cd_xact.td_cmd = tmd;
-        scsi_target_start_cmd(arg, 1);
+        scsi_target_start_cmd(arg);
         break;
     }
     case QOUT_TMD_DONE:
     {
         tmd_xact_t *xact = arg;
         tmd_cmd_t *tmd = xact->td_cmd;
-        scsi_target_done_cmd(tmd, 1);
+        scsi_target_done_cmd(tmd);
         break;
     }
     case QOUT_NOTIFY:
