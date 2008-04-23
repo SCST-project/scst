@@ -141,10 +141,17 @@ struct bus {
     struct scst_proc_data    proc_data;
 };
 
+#define DEBUG 1
+
+#ifdef DEBUG
 #define    SDprintk     if (debug) printk
 #define    SDprintk2    if (debug > 1) printk
-
 static int debug = 0;
+module_param(debug, int, 0);
+#else
+#define    SDprintk(fmt, args...)
+#define    SDprintk2(fmt, args...) 
+#endif
 
 #define    Eprintk(fmt, args...) printk(KERN_ERR "isp_scst(%s): " fmt, __FUNCTION__, ##args)
 #define    Iprintk(fmt, args...) printk(KERN_INFO "isp_scst(%s): " fmt, __FUNCTION__, ##args)
@@ -1144,6 +1151,7 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
                 slen = TMD_SENSELEN;
             }
             memcpy(tmd->cd_sense, sbuf, slen);
+#ifdef DEBUG
             if (unlikely(debug > 0)) {
                 uint8_t key, asc, ascq;
                 key = (slen >= 2) ? sbuf[2] : 0;
@@ -1151,6 +1159,7 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
                 ascq = (slen >= 13) ? sbuf[13] : 0;
                 SDprintk("sense code: key 0x%02x asc 0x%02x ascq 0x%02x\n", key, asc, ascq);
             }
+#endif
         }
         SDprintk2("%s: TMD[%llx] status %d\n", __FUNCTION__, tmd->cd_tagval, scst_cmd_get_status(scst_cmd));
     }
@@ -1546,7 +1555,7 @@ register_hba(bus_t *bp)
     return;
 
 err_free_chan:
-    for (bp->h.r_nchannels -1; chan >= 0; chan--) {
+    for (chan = bp->h.r_nchannels -1; chan >= 0; chan--) {
         if (bchan[chan].scst_tgt) {
             scst_unregister(bchan[chan].scst_tgt);
         }
@@ -1643,7 +1652,6 @@ unregister_scst(void)
 }
 
 EXPORT_SYMBOL(scsi_target_handler);
-module_param(debug, int, 0);
 
 #ifdef    MODULE_LICENSE
 MODULE_LICENSE("Dual BSD/GPL");
