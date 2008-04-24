@@ -1,4 +1,4 @@
-/* $Id: scsi_target.c,v 1.83 2008/03/15 18:16:47 mjacob Exp $ */
+/* $Id: scsi_target.c,v 1.84 2008/04/15 22:41:03 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -57,33 +57,15 @@
  */
 
 #include <linux/version.h>
-#ifndef KERNEL_VERSION
-#define KERNEL_VERSION(v,p,s)   (((v)<<16)+(p<<8)+s)
-#endif
 #include <linux/autoconf.h>
 #include <linux/module.h>
 #include <linux/autoconf.h>
-#include <linux/init.h>
 #include <linux/types.h>
 #include <linux/blkdev.h>
-#include <linux/delay.h>
-#include <linux/ioport.h>
-#include <linux/mm.h>
-#include <linux/sched.h>
-#include <linux/stat.h>
-#include <linux/pci.h>
-#include <linux/slab.h>
-#include <linux/vmalloc.h>
-#include <scsi/scsi.h>
-#include <asm/dma.h>
-#include <asm/io.h>
-#include <asm/irq.h>
-#include <linux/smp.h>
-#include <linux/spinlock.h>
-#include <asm/scatterlist.h>
-#include <asm/system.h>
+#include <linux/kthread.h>
 #include <linux/proc_fs.h>
-#include <asm/uaccess.h>
+#include <scsi/scsi.h>
+#include <scsi/scsi_cmnd.h>
 
 #ifdef  min
 #undef  min

@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.167 2008/03/23 17:05:10 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.168 2008/04/15 22:41:03 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -506,7 +506,7 @@ isplinux_pci_release(struct Scsi_Host *host)
 }
 
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,14)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,7) && LINUX_VERSION_CODE < KERNEL_VERSION(2,6,14)
 /**
  * pci_intx - enables/disables PCI INTx for device dev
  * @pdev: the PCI device to operate on
@@ -619,13 +619,7 @@ isplinux_pci_init_one(struct Scsi_Host *host)
         return (1);
     }
 
-    /* PCI Rev 2.3 changes */
-    if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP6312 || pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2322) {
-        /* enable PCI-INTX */
-        pci_intx(pdev, 1);
-    }
-
-
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,7)
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2422 || pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2432) {
         struct msix_entry isp_msix[3];
         int reg;
@@ -674,7 +668,12 @@ isplinux_pci_init_one(struct Scsi_Host *host)
             pectl |= (5 << 12); /* 4K READ BURST */
             pci_write_config_word(pdev, reg + PCI_EXP_DEVCTL, pectl);
         }
+    } else
+#elif LINUX_VERSION_CODE > KERNEL_VERSION(2,6,0)
+    if (pci_enable_msi(pdev) == 0) {
+        isp_pci->msi_enabled = 1;
     }
+#endif
 
     /*
      * Disable the ROM.
@@ -2845,7 +2844,7 @@ again:
         nxti = ISP_NXT_QENTRY((curip), RQUEST_QUEUE_LEN(isp));
         if (nxti == optr) {
             isp_pci_dmateardown(isp, Cmnd, 0);
-            isp_prt(isp, ISP_LOGDEBUG0, "%s: out of space for continuations (%d of %d done)", __FUNCTION__, seg, segcnt);
+            isp_prt(isp, ISP_LOGDEBUG0, "%s: Chan %d out of space for continuations (did %d of %d segments)", __FUNCTION__, XS_CHANNEL(Cmnd), seg, segcnt);
             XS_SETERR(Cmnd, HBA_BOTCH);
             return (CMD_EAGAIN);
         }
@@ -3088,7 +3087,7 @@ isp_pci_2400_dmasetup(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, ispreq_t *orig_rq, uint3
         nxti = ISP_NXT_QENTRY((curip), RQUEST_QUEUE_LEN(isp));
         if (nxti == optr) {
             isp_pci_dmateardown(isp, Cmnd, 0);
-            isp_prt(isp, ISP_LOGWARN, "out of space for continuations (did %d of %d segments)", seg, segcnt);
+            isp_prt(isp, ISP_LOGDEBUG0, "%s: Chan %d out of space for continuations (did %d of %d segments)", __FUNCTION__, XS_CHANNEL(Cmnd), seg, segcnt);
             XS_SETERR(Cmnd, HBA_BOTCH);
             return (CMD_EAGAIN);
         }
@@ -3396,7 +3395,7 @@ isplinux_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     isp->isp_osinfo.device = pdev;
     host->unique_id = isp_unit_seed++;
     sprintf(isp->isp_name, "%s%d", ISP_NAME, isp->isp_unit);
-    isp->isp_osinfo.device_id = ((pdev->bus->number) << 16) | (PCI_SLOT(pdev->devfn) << 8) | (PCI_FUNC(pdev->devfn));
+    isp->isp_osinfo.device_id = (pci_domain_nr(pdev->bus) << 16) | ((pdev->bus->number) << 8) | (PCI_SLOT(pdev->devfn) << 3) | (PCI_FUNC(pdev->devfn));
     if (isp_disable & (1 << isp->isp_unit)) {
         printk("%s: disabled at user request\n", isp->isp_name);
         scsi_host_put(host);
@@ -3452,7 +3451,11 @@ isplinux_pci_remove(struct pci_dev *pdev)
 #ifdef    ISP_TARGET_MODE
     isp_detach_target(isp);
 #endif
-    ISP_THREAD_KILL(isp);
+    if (isp->isp_osinfo.thread_task) {
+        wake_up(&isp->isp_osinfo.trq);
+        kthread_stop(isp->isp_osinfo.thread_task);
+        isp->isp_osinfo.thread_task = NULL;
+    }
     ISP_LOCKU_SOFTC(isp);
     isp_shutdown(isp);
     isp->dogactive = 0;

@@ -1,4 +1,4 @@
-/* $Id: isp.c,v 1.203 2008/03/16 00:34:49 mjacob Exp $ */
+/* $Id: isp.c,v 1.204 2008/04/15 22:40:52 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -5406,13 +5406,14 @@ again:
 			uint8_t ts = completion_status & 0xff;
 			/*
 			 * Only whine if this isn't the expected fallout of
-			 * aborting the command.
+			 * aborting the command or resetting the target.
 			 */
 			if (etype != RQSTYPE_RESPONSE) {
 				isp_prt(isp, ISP_LOGERR,
 				    "cannot find handle 0x%x (type 0x%x)",
 				    sp->req_handle, etype);
 			} else if (ts != RQCS_ABORTED &&
+			    ts != RQCS_RESET_OCCURRED &&
 			    sp->req_handle != ISP_SPCL_HANDLE) {
 				isp_prt(isp, ISP_LOGERR,
 				    "cannot find handle 0x%x (status 0x%x)",

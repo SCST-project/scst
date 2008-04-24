@@ -150,7 +150,7 @@ static int debug = 0;
 module_param(debug, int, 0);
 #else
 #define    SDprintk(fmt, args...)
-#define    SDprintk2(fmt, args...) 
+#define    SDprintk2(fmt, args...)
 #endif
 
 #define    Eprintk(fmt, args...) printk(KERN_ERR "isp_scst(%s): " fmt, __FUNCTION__, ##args)

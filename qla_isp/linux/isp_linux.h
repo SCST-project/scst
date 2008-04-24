@@ -1,4 +1,4 @@
-/* $Id: isp_linux.h,v 1.160 2008/03/15 18:16:47 mjacob Exp $ */
+/* $Id: isp_linux.h,v 1.161 2008/04/15 22:41:03 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -94,6 +94,7 @@
 #include <linux/mm.h>
 #include <linux/vmalloc.h>
 #include <linux/sched.h>
+#include <linux/kthread.h>
 #include <linux/stat.h>
 #include <linux/pci.h>
 #include <asm/dma.h>
@@ -264,7 +265,9 @@ typedef struct {
 #define ISP_CT_TIMEOUT  120
 #endif  /* ISP_TARGET_MODE */
 
-typedef struct {
+typedef struct isp_thread_action isp_thread_action_t;
+struct isp_thread_action {
+    isp_thread_action_t *next;
     enum {
         ISP_THREAD_NIL=1,
         ISP_THREAD_FC_RESCAN,
@@ -279,9 +282,12 @@ typedef struct {
         ISP_THREAD_SCSI_SCAN,
     }   thread_action;
     void * arg;
-    struct semaphore *  thread_waiter;
-    int count;
-} isp_thread_action_t;
+    wait_queue_head_t thread_waiter;
+    uint32_t
+        waiting :   1,
+        done    :   1,
+        count   :   30;
+};
 #define MAX_THREAD_ACTION   128
 #define MAX_FC_CHAN         128
 
@@ -289,6 +295,7 @@ typedef struct {
 
 struct isposinfo {
     struct Scsi_Host *  host;
+    unsigned int        device_id;
     u32                 mcorig;     /* original maxcmds */
     void                *device;    /* hardware device structure */
     Scsi_Cmnd           *wqnext, *wqtail;
@@ -309,13 +316,12 @@ struct isposinfo {
     struct timer_list   mbtimer;
     struct semaphore    mbox_sem;
     struct semaphore    mbox_c_sem;
-    struct semaphore    fcs_sem;
     spinlock_t          slock;
     unsigned volatile int
                         : 20,
         dogcnt          : 5,
         isopen          : 1,
-        task_active     : 1,
+                        : 1,
         dogactive       : 1,
         mboxcmd_done    : 1,
         mbox_waiting    : 1,
@@ -323,12 +329,12 @@ struct isposinfo {
         intsok          : 1;
     u16                 frame_size;
     u16                 exec_throttle;
+    struct task_struct *thread_task;
     wait_queue_head_t   trq;
-    struct semaphore    tcs;
     spinlock_t          tlock;
-    unsigned int        nt_actions;
-    unsigned int        device_id;
     isp_thread_action_t t_actions[MAX_THREAD_ACTION];
+    isp_thread_action_t *t_free;
+    isp_thread_action_t *t_busy, *t_busy_t;
 #ifdef  ISP_TARGET_MODE
     u32         isget       : 16,
                 rstatus     : 8,
@@ -364,46 +370,11 @@ struct isposinfo {
 #define dogactive       isp_osinfo.dogactive
 #define mbox_sem        isp_osinfo.mbox_sem
 #define mbox_c_sem      isp_osinfo.mbox_c_sem
-#define fcs_sem         isp_osinfo.fcs_sem
 #define mbintsok        isp_osinfo.mbintsok
 #define intsok          isp_osinfo.intsok
 #define mbox_waiting    isp_osinfo.mbox_waiting
 #define mboxcmd_done    isp_osinfo.mboxcmd_done
 #define isp_isopen      isp_osinfo.isopen
-
-#define ISP_THREAD_EXEC(x)                  \
-    sema_init(&(x)->isp_osinfo.tcs, 0);     \
-    kernel_thread(isp_task_thread, (x), 0); \
-    down(&isp->isp_osinfo.tcs)
-
-#define ISP_THREAD_IACK(x)                      \
-    init_waitqueue_head(&(x)->isp_osinfo.trq);  \
-    (x)->isp_osinfo.task_active = 1;            \
-    up(&(x)->isp_osinfo.tcs)
-
-#define ISP_THREAD_WAIT(x)  \
-    wait_event_interruptible((x)->isp_osinfo.trq, (((x)->isp_osinfo.task_active == 0) || ((x)->isp_osinfo.nt_actions != 0)))
-
-#define ISP_THREAD_EVENT            isp_thread_event
-
-#define ISP_THREAD_WAKE(x)          wake_up_all(&(x)->isp_osinfo.trq)
-
-#define ISP_THREAD_KILL(x)                                          \
-    {                                                               \
-        unsigned long _fl;                                          \
-        spin_lock_irqsave(&(x)->isp_osinfo.tlock, _fl);             \
-        if ((x)->isp_osinfo.task_active) {                          \
-            sema_init(&(x)->isp_osinfo.tcs, 0);                     \
-            (x)->isp_osinfo.task_active = 0;                        \
-            wake_up_all(&(x)->isp_osinfo.trq);                      \
-            spin_unlock_irqrestore(&(x)->isp_osinfo.tlock, _fl);    \
-            down(&(x)->isp_osinfo.tcs);                             \
-        } else {                                                    \
-            spin_unlock_irqrestore(&(x)->isp_osinfo.tlock, _fl);    \
-        }                                                           \
-    }
-
-#define ISP_THREAD_XACK(x)          up(&(x)->isp_osinfo.tcs)
 
 /*
  * Locking macros...
@@ -467,7 +438,7 @@ struct isposinfo {
 #  endif
 #endif
 
-#define MBOX_ACQUIRE        mbox_acquire
+#define MBOX_ACQUIRE(isp)   down_trylock(&isp->mbox_sem)
 #define MBOX_WAIT_COMPLETE  mbox_wait_complete
 #define MBOX_NOTIFY_COMPLETE(isp)   \
     if (isp->mbox_waiting) {        \
@@ -668,7 +639,6 @@ static inline void _isp_usec_delay(unsigned int);
 static inline unsigned long _usec_to_jiffies(unsigned int);
 static inline unsigned long _jiffies_to_usec(unsigned long);
 static inline int isplinux_tagtype(Scsi_Cmnd *);
-static inline int mbox_acquire(ispsoftc_t *);
 static inline void mbox_wait_complete(ispsoftc_t *, mbreg_t *);
 
 int isplinux_proc_info(struct Scsi_Host *, char *, char **, off_t, int, int);
@@ -822,25 +792,6 @@ isplinux_tagtype(Scsi_Cmnd *Cmnd)
     default:
         return (REQFLAG_STAG);
     }
-}
-
-static inline int
-mbox_acquire(ispsoftc_t *isp)
-{
-    /*
-     * Try and acquire semaphore the easy way first-
-     * with our lock already held.k
-     */
-    if (down_trylock(&isp->mbox_sem)) {
-        if (ISP_ATOMIC()) {
-            isp_prt(isp, ISP_LOGERR, "cannot acquire MBOX sema");
-            return (1);
-        }
-        ISP_DROP_LK_SOFTC(isp);
-        down(&isp->mbox_sem);
-        ISP_IGET_LK_SOFTC(isp);
-    }
-    return (0);
 }
 
 static inline void

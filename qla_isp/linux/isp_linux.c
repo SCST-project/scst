@@ -1,4 +1,4 @@
-/* $Id: isp_linux.c,v 1.229 2008/03/15 18:16:47 mjacob Exp $ */
+/* $Id: isp_linux.c,v 1.230 2008/04/15 22:41:03 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -313,7 +313,7 @@ isplinux_runwaitq(ispsoftc_t *isp)
              */
             if (IS_FC(isp)) {
                 if (result == CMD_RQLATER && ISP_DATA(isp, XS_CHANNEL(f))->deadloop == 0) {
-                    ISP_THREAD_EVENT(isp, ISP_THREAD_FC_RESCAN, FCPARAM(isp, chan), 0, __FUNCTION__, __LINE__);
+                    isp_thread_event(isp, ISP_THREAD_FC_RESCAN, FCPARAM(isp, chan), 0, __FUNCTION__, __LINE__);
                 }
             }
 
@@ -485,7 +485,7 @@ isplinux_queuecommand(Scsi_Cmnd *Cmnd, void (*donecmd)(Scsi_Cmnd *))
          */
         isplinux_append_to_waitq(isp, Cmnd);
         if (IS_FC(isp) && ISP_DATA(isp, XS_CHANNEL(Cmnd))->deadloop == 0) {
-            ISP_THREAD_EVENT(isp, ISP_THREAD_FC_RESCAN, FCPARAM(isp, XS_CHANNEL(Cmnd)), 0, __FUNCTION__, __LINE__);
+            isp_thread_event(isp, ISP_THREAD_FC_RESCAN, FCPARAM(isp, XS_CHANNEL(Cmnd)), 0, __FUNCTION__, __LINE__);
         }
         result = 0;
     } else if (result == CMD_COMPLETE) {
@@ -1190,19 +1190,21 @@ isp_taction(qact_e action, void *arg)
     {
         info_t *ip = arg;
         isp = ip->i_identity;
-        if (ip->i_type == I_FC) {
+        if (ip->i_channel >= isp->isp_nchan) {
+            ip->i_error = -ENODEV;
+        } else if (IS_FC(isp)) {
             fcparam *fcp = FCPARAM(isp, ip->i_channel);
+            ip->i_type = I_FC;
             ip->i_id.fc.wwnn_nvram = fcp->isp_wwnn_nvram;
             ip->i_id.fc.wwpn_nvram = fcp->isp_wwpn_nvram;
             ip->i_id.fc.wwnn = fcp->isp_wwnn;
             ip->i_id.fc.wwpn = fcp->isp_wwpn;
             ip->i_error = 0;
-        } else if (ip->i_type == I_SPI) {
+        } else {
             sdparam *sdp = SDPARAM(isp, ip->i_channel);
+            ip->i_type = I_SPI;
             ip->i_id.spi.iid = sdp->isp_initiator_id;
             ip->i_error = 0;
-        } else {
-            ip->i_error = -EINVAL;
         }
         break;
     }
@@ -1297,7 +1299,7 @@ isp_taction(qact_e action, void *arg)
         isp_prt(isp, ISP_LOGTDEBUG1, "freeing tmd %p [%llx]", tmd, tmd->cd_tagval);
         if (tmd->cd_lflags & CDFL_RESRC_FILL) {
             if (isp_target_putback_atio(isp, tmd)) {
-                ISP_THREAD_EVENT(isp, ISP_THREAD_FC_PUTBACK, tmd, 0, __FUNCTION__, __LINE__);
+                isp_thread_event(isp, ISP_THREAD_FC_PUTBACK, tmd, 0, __FUNCTION__, __LINE__);
                 ISP_UNLK_SOFTC(isp);
                 break;
             }
@@ -1933,7 +1935,7 @@ isp_handle_platform_atio(ispsoftc_t *isp, at_entry_t *aep)
         isp_endcmd(isp, aep, SCSI_BUSY, 0);
         if (jiffies - isp->isp_osinfo.out_of_tmds > 30 * HZ) {
             isp_prt(isp, ISP_LOGERR, "out of TMDs too long: disabling port");
-            ISP_THREAD_EVENT(isp, ISP_THREAD_REINIT, NULL, 0, __FUNCTION__, __LINE__);
+            isp_thread_event(isp, ISP_THREAD_REINIT, NULL, 0, __FUNCTION__, __LINE__);
         }
         return;
     }
@@ -2024,7 +2026,7 @@ isp_handle_platform_atio2(ispsoftc_t *isp, at2_entry_t *aep)
         isp_endcmd(isp, aep, SCSI_BUSY, 0);
         if (jiffies - isp->isp_osinfo.out_of_tmds > 30 * HZ) {
             isp_prt(isp, ISP_LOGERR, "out of TMDs too long: disabling port");
-            ISP_THREAD_EVENT(isp, ISP_THREAD_REINIT, NULL, 0, __FUNCTION__, __LINE__);
+            isp_thread_event(isp, ISP_THREAD_REINIT, NULL, 0, __FUNCTION__, __LINE__);
         }
         return;
     }
@@ -2119,7 +2121,7 @@ isp_handle_platform_atio2(ispsoftc_t *isp, at2_entry_t *aep)
         } else {
             tmd->cd_portid = PORT_NONE;
             isp_add_wwn_entry(isp, 0, tmd->cd_iid, tmd->cd_nphdl, PORT_NONE);
-            (void) ISP_THREAD_EVENT(isp, ISP_THREAD_FINDPORTID, tmd, 0, __FUNCTION__, __LINE__);
+            (void) isp_thread_event(isp, ISP_THREAD_FINDPORTID, tmd, 0, __FUNCTION__, __LINE__);
         }
     }
 }
@@ -2219,7 +2221,7 @@ isp_handle_platform_atio7(ispsoftc_t *isp, at7_entry_t *aep)
         isp_endcmd(isp, aep, chan, SCSI_BUSY, 0);
         if (jiffies - isp->isp_osinfo.out_of_tmds > 30 * HZ) {
             isp_prt(isp, ISP_LOGERR, "out of TMDs too long: disabling port");
-            ISP_THREAD_EVENT(isp, ISP_THREAD_REINIT, NULL, 0, __FUNCTION__, __LINE__);
+            isp_thread_event(isp, ISP_THREAD_REINIT, NULL, 0, __FUNCTION__, __LINE__);
         }
         return;
     }
@@ -2316,7 +2318,7 @@ isp_handle_platform_atio7(ispsoftc_t *isp, at7_entry_t *aep)
         CALL_PARENT_TMD(isp, tmd, QOUT_TMD_START);
     } else {
         isp_prt(isp, ISP_LOGTDEBUG0, "[0x%llx] asking taskthread to find iid of initiator", (unsigned long long) tmd->cd_tagval);
-        if (ISP_THREAD_EVENT(isp, ISP_THREAD_FINDIID, tmd, 0, __FUNCTION__, __LINE__)) {
+        if (isp_thread_event(isp, ISP_THREAD_FINDIID, tmd, 0, __FUNCTION__, __LINE__)) {
             isp_endcmd(isp, aep, nphdl, chan, SCSI_BUSY, 0);
             MEMZERO(tmd, TMD_SIZE);
             if (isp->isp_osinfo.tfreelist) {
@@ -2487,7 +2489,7 @@ isp_handle_platform_ctio(ispsoftc_t *isp, void *arg)
                         continue;
                     }
                 }
-                ISP_THREAD_EVENT(isp, ISP_THREAD_LOGOUT, &FCPARAM(isp, tmd->cd_channel)->portdb[i], 0, __FUNCTION__, __LINE__);
+                isp_thread_event(isp, ISP_THREAD_LOGOUT, &FCPARAM(isp, tmd->cd_channel)->portdb[i], 0, __FUNCTION__, __LINE__);
                 break;
             }
         }
@@ -3119,7 +3121,7 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
             tgt = lp->ini_map_idx - 1;
             isp_prt(isp, ISP_LOGCONFIG, prom2, bus, lp->portid, lp->handle, isp_class3_roles[lp->roles], "arrived at", tgt, lp->node_wwn, lp->port_wwn);
             arg = tgt | (bus << 16);
-            ISP_THREAD_EVENT(isp, ISP_THREAD_SCSI_SCAN, (void *)arg, 0, __FUNCTION__, __LINE__);
+            isp_thread_event(isp, ISP_THREAD_SCSI_SCAN, (void *)arg, 0, __FUNCTION__, __LINE__);
         } else {
             isp_prt(isp, ISP_LOGCONFIG, prom0, bus, lp->portid, lp->handle, isp_class3_roles[lp->roles], "arrived", lp->node_wwn, lp->port_wwn);
         }
@@ -3167,7 +3169,7 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
             lp->ini_map_idx = 0;
             isp_prt(isp, ISP_LOGCONFIG, prom2, bus, lp->portid, lp->handle, isp_class3_roles[lp->roles], "departed", tgt, lp->node_wwn, lp->port_wwn);
             arg = tgt | (bus << 16) | (1 << 31);
-            ISP_THREAD_EVENT(isp, ISP_THREAD_SCSI_SCAN, (void *)arg, 0, __FUNCTION__, __LINE__);
+            isp_thread_event(isp, ISP_THREAD_SCSI_SCAN, (void *)arg, 0, __FUNCTION__, __LINE__);
         } else if (lp->reserved == 0) {
             isp_prt(isp, ISP_LOGCONFIG, prom0, bus, lp->portid, lp->handle, isp_class3_roles[lp->roles], "departed", lp->node_wwn, lp->port_wwn);
         }
@@ -3201,7 +3203,7 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
             isp_prt(isp, ISP_LOGINFO, "Chan %d Other Change Notify occurred", bus);
         }
         if (isp->isp_state >= ISP_INITSTATE) {
-            ISP_THREAD_EVENT(isp, ISP_THREAD_FC_RESCAN, fcp, 0, __FUNCTION__, __LINE__);
+            isp_thread_event(isp, ISP_THREAD_FC_RESCAN, fcp, 0, __FUNCTION__, __LINE__);
         }
         break;
     }
@@ -3411,6 +3413,7 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
             ins->notify.nt_ncode = NT_ABORT_TASK;
             ins->notify.nt_need_ack = 1;
             ins->notify.nt_channel = chan;
+            ins->notify.nt_tmd = NULL;
             /*
              * Find the command if possible and mark it aborted and needing cleanup
              */
@@ -3420,6 +3423,7 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
                     if (ins->notify.nt_tagval == tmd->cd_tagval && ins->notify.nt_channel == tmd->cd_channel) {
                         isp_prt(isp, ISP_LOGTINFO, "[0x%llx] marked as aborted", (unsigned long long) tmd->cd_tagval);
                         tmd->cd_lflags |= CDFL_ABORTED|CDFL_NEED_CLNUP;
+                        ins->notify.nt_tmd = tmd;
                         break;
                     }
                 }
@@ -3717,7 +3721,7 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
         ISP_DATA(isp, mbox6)->blocked = 1;
         ISP_RESET0(isp);
         isp_shutdown(isp);
-        ISP_THREAD_EVENT(isp, ISP_THREAD_REINIT, NULL, 0, __FUNCTION__, __LINE__);
+        isp_thread_event(isp, ISP_THREAD_REINIT, NULL, 0, __FUNCTION__, __LINE__);
         break;
     }
     case ISPASYNC_FW_RESTARTED:
@@ -3725,7 +3729,7 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
         if (IS_FC(isp)) {
             int i;
             for (i = 0; i < isp->isp_nchan; i++) {
-                ISP_THREAD_EVENT(isp, ISP_THREAD_FC_RESCAN, FCPARAM(isp, i), 0, __FUNCTION__, __LINE__);
+                isp_thread_event(isp, ISP_THREAD_FC_RESCAN, FCPARAM(isp, i), 0, __FUNCTION__, __LINE__);
             }
         }
         break;
@@ -3913,7 +3917,7 @@ isplinux_timer(unsigned long arg)
             fcparam *fcp = FCPARAM(isp, i);
             if (fcp->role != ISP_ROLE_NONE && ISP_DATA(isp, i)->fcrswdog && ISP_DATA(isp, i)->deadloop == 0) {
                 ISP_DATA(isp, i)->fcrswdog = 1;
-                ISP_THREAD_EVENT(isp, ISP_THREAD_FC_RESCAN, fcp, 0, __FUNCTION__, __LINE__);
+                isp_thread_event(isp, ISP_THREAD_FC_RESCAN, fcp, 0, __FUNCTION__, __LINE__);
             }
         }
     }
@@ -3931,9 +3935,9 @@ isplinux_timer(unsigned long arg)
             isp->isp_osinfo.waiting_t = wt->cd_next;
             wt->cd_next = NULL;
             if (wt->cd_lastoff == 0) {
-                ISP_THREAD_EVENT(isp, ISP_THREAD_FINDIID, wt, 0, __FUNCTION__, __LINE__);
+                isp_thread_event(isp, ISP_THREAD_FINDIID, wt, 0, __FUNCTION__, __LINE__);
             } else {
-                ISP_THREAD_EVENT(isp, ISP_THREAD_RESTART_AT7, wt, 0, __FUNCTION__, __LINE__);
+                isp_thread_event(isp, ISP_THREAD_RESTART_AT7, wt, 0, __FUNCTION__, __LINE__);
             }
         }
     }
@@ -4172,7 +4176,7 @@ isp_parse_wwnarg(ispsoftc_t *isp, int chan, char *wwns)
 int
 isplinux_common_init(ispsoftc_t *isp)
 {
-    int retval, chan;
+    int retval, chan, i;
     unsigned long flags;
 
     if (isp_nofwreload & (1 << isp->isp_unit)) {
@@ -4250,7 +4254,17 @@ isplinux_common_init(ispsoftc_t *isp)
     ISP_TLOCK_INIT(isp);
     sema_init(&isp->mbox_sem, 1);
     sema_init(&isp->mbox_c_sem, 0);
-    sema_init(&isp->fcs_sem, 1);
+
+    init_waitqueue_head(&isp->isp_osinfo.trq);
+    for (i = 0; i < MAX_THREAD_ACTION; i++) {
+        init_waitqueue_head(&isp->isp_osinfo.t_actions[i].thread_waiter);
+        if (i < MAX_THREAD_ACTION - 1) {
+            isp->isp_osinfo.t_actions[i].next = &isp->isp_osinfo.t_actions[i+1];
+        }
+    }
+    isp->isp_osinfo.t_busy = NULL;
+    isp->isp_osinfo.t_busy_t = NULL;
+    isp->isp_osinfo.t_free = isp->isp_osinfo.t_actions;
 
 #ifdef ISP_TARGET_MODE
     /*
@@ -4264,7 +4278,14 @@ isplinux_common_init(ispsoftc_t *isp)
      * Start watchdog timer, create FC handler thread and reinit hardware.
      */
     if (IS_FC(isp)) {
-        ISP_THREAD_EXEC(isp);
+        isp->isp_osinfo.thread_task = kthread_run(isp_task_thread, isp, "isp%d_fc", isp->isp_unit);
+        if (IS_ERR(isp->isp_osinfo.thread_task)) {
+            isp_prt(isp, ISP_LOGERR, "unable to start FC task thread");
+#ifdef ISP_TARGET_MODE
+            isp_deinit_target(isp);
+#endif
+            isp->isp_osinfo.thread_task = NULL;
+        }
 
     }
     ISP_LOCK_SOFTC(isp);
@@ -4278,14 +4299,14 @@ isplinux_common_init(ispsoftc_t *isp)
     retval = isplinux_reinit(isp);
 
     if (retval) {
-        isp_prt(isp, ISP_LOGWARN, "failed to init HBA port (%d): skipping it", retval);
+        isp_prt(isp, ISP_LOGERR, "failed to init HBA port (%d): skipping it", retval);
         del_timer(&isp->isp_osinfo.timer);
         isp->dogactive = 0;
         ISP_UNLK_SOFTC(isp);
 #ifdef ISP_TARGET_MODE
         isp_deinit_target(isp);
 #endif
-        ISP_THREAD_KILL(isp);
+        kthread_stop(isp->isp_osinfo.thread_task);
         return (-1);
     }
     ISP_UNLK_SOFTC(isp);
@@ -4391,23 +4412,14 @@ isplinux_reinit(ispsoftc_t *isp)
 int
 isp_thread_event(ispsoftc_t *isp, int action, void *a, int dowait, const char *file, const int line)
 {
-    DECLARE_MUTEX_LOCKED(sem);
-    int i;
     isp_thread_action_t *tap;
     unsigned long flags;
 
     spin_lock_irqsave(&isp->isp_osinfo.tlock, flags);
-    if (isp->isp_osinfo.task_active == 0) {
-        spin_unlock_irqrestore(&isp->isp_osinfo.tlock, flags);
-        isp_prt(isp, ISP_LOGERR, "thread event %d from %s:%d sent when thread gone", action, file, line);
-        return (-1);
-    }
-
     /*
      * Check for duplicates
      */
-    for (i = 0; i < isp->isp_osinfo.nt_actions; i++) {
-        tap = &isp->isp_osinfo.t_actions[i];
+    for (tap = isp->isp_osinfo.t_busy; tap != NULL; tap = tap->next) {
         if (tap->thread_action == action && tap->arg == a && dowait == 0) {
             tap->count++;
             spin_unlock_irqrestore(&isp->isp_osinfo.tlock, flags);
@@ -4415,29 +4427,49 @@ isp_thread_event(ispsoftc_t *isp, int action, void *a, int dowait, const char *f
             return (0);
         }
     }
-    if (isp->isp_osinfo.nt_actions >= MAX_THREAD_ACTION) {
+    if ((tap = isp->isp_osinfo.t_free) == NULL) {
         spin_unlock_irqrestore(&isp->isp_osinfo.tlock, flags);
         isp_prt(isp, ISP_LOGERR, "thread event %d from %s:%d sent with thread overflow", action, file, line);
         return (-1);
     }
-    tap = &isp->isp_osinfo.t_actions[isp->isp_osinfo.nt_actions++];
+    isp->isp_osinfo.t_free = tap->next;
+    tap->next = NULL;
     tap->count = 1;
     tap->thread_action = action;
     tap->arg = a;
+    tap->done = 0;
     if (dowait) {
-        tap->thread_waiter = &sem;
+        tap->waiting = 1;
+        isp_prt(isp, ISP_LOGDEBUG0, "action %d sending from %s:%d and now waiting", action, file, line);
     } else {
-        tap->thread_waiter = 0;
+        tap->waiting = 0;
+        isp_prt(isp, ISP_LOGDEBUG0, "action %d from %s:%d sending", action, file, line);
     }
-    ISP_THREAD_WAKE(isp);
-    if (dowait) {
-        isp_prt(isp, ISP_LOGDEBUG1, "action %d sent from %s:%d and now waiting", action, file, line);
-        spin_unlock_irqrestore(&isp->isp_osinfo.tlock, flags);
-        down(&sem);
-        isp_prt(isp, ISP_LOGDEBUG1, "action %d done", action);
+    if (isp->isp_osinfo.t_busy) {
+        isp->isp_osinfo.t_busy_t->next = tap;
     } else {
+        isp->isp_osinfo.t_busy = tap;
+    }
+    isp->isp_osinfo.t_busy_t = tap;
+    spin_unlock_irqrestore(&isp->isp_osinfo.tlock, flags);
+    wake_up(&isp->isp_osinfo.trq);
+    if (dowait) {
+        while (wait_event_interruptible_timeout(tap->thread_waiter, (tap->done == 1), 100)) {
+            if (kthread_should_stop()) {
+                break;
+            }
+        }
+        if (kthread_should_stop()) {
+            tap->waiting = 0;
+            return (-1);
+        }
+        spin_lock_irqsave(&isp->isp_osinfo.tlock, flags);
+        tap->waiting = 0;
+        tap->next = isp->isp_osinfo.t_free;
+        isp->isp_osinfo.t_free = tap;
+        tap->next = NULL;
         spin_unlock_irqrestore(&isp->isp_osinfo.tlock, flags);
-        isp_prt(isp, ISP_LOGDEBUG1, "action %d from %s:%d sent", action, file, line);
+        isp_prt(isp, ISP_LOGDEBUG0, "action %d from %s:%d done", action, file, line);
     }
     return (0);
 }
@@ -4446,372 +4478,362 @@ static int
 isp_task_thread(void *arg)
 {
     ispsoftc_t *isp = arg;
+    isp_thread_action_t *tap;
     unsigned long flags;
-    int action, nactions, i;
-    isp_thread_action_t curactions[MAX_THREAD_ACTION];
+    int i;
 
-    lock_kernel();
-    daemonize("%s_thrd%d", ISP_NAME, isp->isp_unit);
-    unlock_kernel();
-    siginitsetinv(&current->blocked, 0);
-    ISP_THREAD_IACK(isp);
+    isp_prt(isp, ISP_LOGDEBUG0, "isp_task_thread starting");
 
-
-    isp_prt(isp, ISP_LOGDEBUG1, "isp_task_thread starting");
-
-    for (;;) {
-        isp_prt(isp, ISP_LOGDEBUG1, "isp_task_thread sleeping");
-        ISP_THREAD_WAIT(isp);
-        isp_prt(isp, ISP_LOGDEBUG1, "isp_task_thread running");
-        spin_lock_irqsave(&isp->isp_osinfo.tlock, flags);
-        if (signal_pending(current)) {
-            isp_prt(isp, ISP_LOGALL, "%s received signal (%d)", current->comm, signal_pending(current));
-            flush_signals(current);
-            if (isp->isp_osinfo.task_active) {
-                spin_unlock_irqrestore(&isp->isp_osinfo.tlock, flags);
-                continue;
-            }
+    while (!kthread_should_stop()) {
+        isp_prt(isp, ISP_LOGDEBUG0, "isp_task_thread sleeping");
+        if (wait_event_interruptible(isp->isp_osinfo.trq, (isp->isp_osinfo.t_busy || kthread_should_stop()))) {
+            continue;
         }
-        if (isp->isp_osinfo.task_active == 0) {
-            spin_unlock_irqrestore(&isp->isp_osinfo.tlock, flags);
+        isp_prt(isp, ISP_LOGDEBUG0, "isp_task_thread running");
+        if (kthread_should_stop()) {
             break;
         }
-        nactions = isp->isp_osinfo.nt_actions;
-        isp->isp_osinfo.nt_actions = 0;
-        for (action = 0; action < nactions; action++) {
-            curactions[action] = isp->isp_osinfo.t_actions[action];
+        spin_lock_irqsave(&isp->isp_osinfo.tlock, flags);
+        if ((tap = isp->isp_osinfo.t_busy) != NULL) {
+            if ((isp->isp_osinfo.t_busy = tap->next) == NULL) {
+                isp->isp_osinfo.t_busy_t = NULL;
+            }
         }
         spin_unlock_irqrestore(&isp->isp_osinfo.tlock, flags);
-
-        for (action = 0; action < nactions; action++) {
-            isp_thread_action_t *tap = &curactions[action];
-            isp_prt(isp, ISP_LOGDEBUG1, "isp_task_thread[%d]: action %d (%p)", action, tap->thread_action, tap->thread_waiter);
-            switch (tap->thread_action) {
-            case ISP_THREAD_NIL:
-                break;
-            case ISP_THREAD_SCSI_SCAN:
-            {
+        if (tap == NULL) {
+            continue;
+        }
+        isp_prt(isp, ISP_LOGDEBUG0, "isp_task_thread: action %d", tap->thread_action);
+        switch (tap->thread_action) {
+        case ISP_THREAD_NIL:
+            break;
+        case ISP_THREAD_SCSI_SCAN:
+        {
                 /* this gets pegged in isplinux_queuecommand, even for async scanning */
 #if 0
-                unsigned long arg = (unsigned long) tap->arg;
-                int tgt, chan, rescan;
-                tgt = arg & 0xffff;
-                chan = (arg >> 16) & 0xff;
-                rescan = (arg >> 31) & 1;
-                scsi_scan_target(&isp->isp_osinfo.host->shost_gendev, chan, tgt, SCAN_WILD_CARD, rescan);
+            unsigned long arg = (unsigned long) tap->arg;
+            int tgt, chan, rescan;
+            tgt = arg & 0xffff;
+            chan = (arg >> 16) & 0xff;
+            rescan = (arg >> 31) & 1;
+            scsi_scan_target(&isp->isp_osinfo.host->shost_gendev, chan, tgt, SCAN_WILD_CARD, rescan);
 #endif
-                break;
-            }
-            case ISP_THREAD_REINIT:
-                ISP_LOCKU_SOFTC(isp);
-                if (isp->isp_dead) {
-                    isp_prt(isp, ISP_LOGERR, "chip marked dead- not restarting");
-                    isp_shutdown(isp);
-                    ISP_DISABLE_INTS(isp);
-                    ISP_UNLKU_SOFTC(isp);
-                    break;
-                }
-                isp_reinit(isp);
-                if (isp->isp_state == ISP_RUNSTATE) {
-                    for (i = 0; i < isp->isp_nchan; i++) {
-                        ISP_DATA(isp, i)->blocked = 0;
-                    }
-                    isp_async(isp, ISPASYNC_FW_RESTARTED);
-                } else {
-                    isp_prt(isp, ISP_LOGERR, "unable to restart chip");
-                }
+            break;
+        }
+        case ISP_THREAD_REINIT:
+            ISP_LOCKU_SOFTC(isp);
+            if (isp->isp_dead) {
+                isp_prt(isp, ISP_LOGERR, "chip marked dead- not restarting");
+                isp_shutdown(isp);
+                ISP_DISABLE_INTS(isp);
                 ISP_UNLKU_SOFTC(isp);
                 break;
-            case ISP_THREAD_FC_RESCAN:
-            {
-                fcparam *fcp = tap->arg;
-                int chan = fcp - FCPARAM(isp, 0);
+            }
+            isp_reinit(isp);
+            if (isp->isp_state == ISP_RUNSTATE) {
+                for (i = 0; i < isp->isp_nchan; i++) {
+                    ISP_DATA(isp, i)->blocked = 0;
+                }
+                isp_async(isp, ISPASYNC_FW_RESTARTED);
+            } else {
+                isp_prt(isp, ISP_LOGERR, "unable to restart chip");
+            }
+            ISP_UNLKU_SOFTC(isp);
+            break;
+        case ISP_THREAD_FC_RESCAN:
+        {
+            fcparam *fcp = tap->arg;
+            int chan = fcp - FCPARAM(isp, 0);
 
-                fcp = FCPARAM(isp, chan);
-                ISP_LOCKU_SOFTC(isp);
-                ISP_DATA(isp, chan)->fcrswdog = 0;
-                if (isp_fc_runstate(isp, chan, 250000) == 0) {
-                    ISP_DATA(isp, chan)->deadloop = 0;
+            fcp = FCPARAM(isp, chan);
+            ISP_LOCKU_SOFTC(isp);
+            ISP_DATA(isp, chan)->fcrswdog = 0;
+            if (isp_fc_runstate(isp, chan, 250000) == 0) {
+                ISP_DATA(isp, chan)->deadloop = 0;
+                ISP_DATA(isp, chan)->downcount = 0;
+                ISP_DATA(isp, chan)->blocked = 0;
+                isplinux_runwaitq(isp);
+            } else {
+                if (ISP_DATA(isp, chan)->downcount == 0) {
+                    ISP_DATA(isp, chan)->downcount = jiffies;
+                }
+                /*
+                 * Try again in a little while.
+                 */
+                if ((jiffies - ISP_DATA(isp, chan)->downcount) > (isp_deadloop_time * HZ)) {
+                    fcp->loop_seen_once = 0;
+                    ISP_DATA(isp, chan)->deadloop = 1;
                     ISP_DATA(isp, chan)->downcount = 0;
                     ISP_DATA(isp, chan)->blocked = 0;
-                    isplinux_runwaitq(isp);
+                    isp_prt(isp, ISP_LOGWARN, "Chan %d assuming loop is dead", chan);
+                    isplinux_flushwaitq(isp);
                 } else {
-                    if (ISP_DATA(isp, chan)->downcount == 0) {
-                        ISP_DATA(isp, chan)->downcount = jiffies;
-                    }
-                    /*
-                     * Try again in a little while.
-                     */
-                    if ((jiffies - ISP_DATA(isp, chan)->downcount) > (isp_deadloop_time * HZ)) {
-                        fcp->loop_seen_once = 0;
-                        ISP_DATA(isp, chan)->deadloop = 1;
-                        ISP_DATA(isp, chan)->downcount = 0;
-                        ISP_DATA(isp, chan)->blocked = 0;
-                        isp_prt(isp, ISP_LOGWARN, "Chan %d assuming loop is dead", chan);
-                        isplinux_flushwaitq(isp);
-                    } else {
-                        ISP_DATA(isp, chan)->fcrswdog = 1;
-                    }
+                    ISP_DATA(isp, chan)->fcrswdog = 1;
                 }
-                ISP_UNLKU_SOFTC(isp);
-                break;
             }
+            ISP_UNLKU_SOFTC(isp);
+            break;
+        }
 #ifdef  ISP_TARGET_MODE
-            case ISP_THREAD_LOGOUT:
-            {
-                mbreg_t mbs;
-                union {
-                    isp_pdb_t pdb;
-                    int id;
-                } u;
-                fcportdb_t *lp = tap->arg;
+        case ISP_THREAD_LOGOUT:
+        {
+            mbreg_t mbs;
+            union {
+                isp_pdb_t pdb;
+                int id;
+            } u;
+            fcportdb_t *lp = tap->arg;
 
-                ISP_LOCKU_SOFTC(isp);
-                if (lp->state != FC_PORTDB_STATE_VALID) {
-                    isp_prt(isp, ISP_LOGALL, "target entry no longer valid");
-                    ISP_UNLKU_SOFTC(isp);
-                    break;
-                }
-                MEMZERO(&u, sizeof (u));
-                u.id = lp->handle;
-                isp_prt(isp, ISP_LOGALL, "Doing Port Logout repair for 0x%016llx@0x%x (loop id) %u",
-                    lp->port_wwn, lp->portid, lp->handle);
-                MEMZERO(&mbs, sizeof (mbs));
-                mbs.param[0] = MBOX_FABRIC_LOGOUT;
-                if (ISP_CAP_2KLOGIN(isp)) {
-                        mbs.param[1] = lp->handle;
-                        mbs.obits |= (1 << 10);
-                } else {
-                        mbs.param[1] = lp->handle << 8;
-                }
-                mbs.logval = MBLOGNONE;
-                (void) isp_control(isp, ISPCTL_RUN_MBOXCMD, &mbs);
-                if (mbs.param[0] != MBOX_COMMAND_COMPLETE) {
-                    isp_prt(isp, ISP_LOGERR, "failed to get logout loop id %u", lp->handle);
-                    lp->state = FC_PORTDB_STATE_PROBATIONAL;
-                    ISP_UNLKU_SOFTC(isp);
-                    break;
-                }
-                MEMZERO(&mbs, sizeof (mbs));
-                mbs.param[0] = MBOX_FABRIC_LOGIN;
-                if (ISP_CAP_2KLOGIN(isp)) {
-                        mbs.param[1] = lp->handle;
-                        mbs.obits |= (1 << 10);
-                } else {
-                        mbs.param[1] = lp->handle << 8;
-                }
-                mbs.param[2] = lp->portid >> 16;
-                mbs.param[3] = lp->portid & 0xffff;
-                (void) isp_control(isp, ISPCTL_RUN_MBOXCMD, &mbs);
-                if (mbs.param[0] != MBOX_COMMAND_COMPLETE) {
-                    isp_prt(isp, ISP_LOGERR, "failed to get login port id %x at loop id %u", lp->portid, lp->handle);
-                    lp->state = FC_PORTDB_STATE_PROBATIONAL;
-                    ISP_UNLKU_SOFTC(isp);
-                    break;
-                }
-                lp->state = FC_PORTDB_STATE_VALID;
+            ISP_LOCKU_SOFTC(isp);
+            if (lp->state != FC_PORTDB_STATE_VALID) {
+                isp_prt(isp, ISP_LOGTINFO, "target mode entry no longer valid");
                 ISP_UNLKU_SOFTC(isp);
                 break;
             }
-            case ISP_THREAD_FINDIID:
-            {
-                tmd_cmd_t *tmd = tap->arg;
-                fcportdb_t *lp = NULL;
-                uint64_t iid = INI_NONE;
-                uint16_t nphdl = NIL_HANDLE;
+            MEMZERO(&u, sizeof (u));
+            u.id = lp->handle;
+            isp_prt(isp, ISP_LOGTINFO, "Doing Port Logout repair for 0x%016llx@0x%x (loop id) %u",
+                lp->port_wwn, lp->portid, lp->handle);
+            MEMZERO(&mbs, sizeof (mbs));
+            mbs.param[0] = MBOX_FABRIC_LOGOUT;
+            if (ISP_CAP_2KLOGIN(isp)) {
+                    mbs.param[1] = lp->handle;
+                    mbs.obits |= (1 << 10);
+            } else {
+                    mbs.param[1] = lp->handle << 8;
+            }
+            mbs.logval = MBLOGNONE;
+            (void) isp_control(isp, ISPCTL_RUN_MBOXCMD, &mbs);
+            if (mbs.param[0] != MBOX_COMMAND_COMPLETE) {
+                isp_prt(isp, ISP_LOGERR, "failed to get logout loop id %u", lp->handle);
+                lp->state = FC_PORTDB_STATE_PROBATIONAL;
+                ISP_UNLKU_SOFTC(isp);
+                break;
+            }
+            MEMZERO(&mbs, sizeof (mbs));
+            mbs.param[0] = MBOX_FABRIC_LOGIN;
+            if (ISP_CAP_2KLOGIN(isp)) {
+                    mbs.param[1] = lp->handle;
+                    mbs.obits |= (1 << 10);
+            } else {
+                    mbs.param[1] = lp->handle << 8;
+            }
+            mbs.param[2] = lp->portid >> 16;
+            mbs.param[3] = lp->portid & 0xffff;
+            (void) isp_control(isp, ISPCTL_RUN_MBOXCMD, &mbs);
+            if (mbs.param[0] != MBOX_COMMAND_COMPLETE) {
+                isp_prt(isp, ISP_LOGERR, "failed to get login port id %x at loop id %u", lp->portid, lp->handle);
+                lp->state = FC_PORTDB_STATE_PROBATIONAL;
+                ISP_UNLKU_SOFTC(isp);
+                break;
+            }
+            lp->state = FC_PORTDB_STATE_VALID;
+            ISP_UNLKU_SOFTC(isp);
+            break;
+        }
+        case ISP_THREAD_FINDIID:
+        {
+            tmd_cmd_t *tmd = tap->arg;
+            fcportdb_t *lp = NULL;
+            uint64_t iid = INI_NONE;
+            uint16_t nphdl = NIL_HANDLE;
 
-                if (tmd->cd_lflags & CDFL_ABORTED) {
-                    isp_prt(isp, ISP_LOGTINFO, "[%llx] asking thread to terminate because it was marked aborted", (unsigned long long) tmd->cd_tagval);
-                    ISP_THREAD_EVENT(isp, ISP_THREAD_TERMINATE, tmd, 0, __FUNCTION__, __LINE__);
-                    break;
-                }
-                ISP_LOCKU_SOFTC(isp);
-                if (isp_find_pdb_by_sid(isp, tmd->cd_channel, tmd->cd_portid, &lp)) {
-                    if (!VALID_INI(lp->port_wwn)) {
-                        if (lp->handle == NIL_HANDLE) {
-                            /*
-                             * Ooops- all we have is the port id.
-                             */
-                            uint16_t nphdl, max;
-                            isp_pdb_t pdb;
+            if (tmd->cd_lflags & CDFL_ABORTED) {
+                isp_prt(isp, ISP_LOGTINFO, "[%llx] asking thread to terminate because it was marked aborted", (unsigned long long) tmd->cd_tagval);
+                isp_thread_event(isp, ISP_THREAD_TERMINATE, tmd, 0, __FUNCTION__, __LINE__);
+                break;
+            }
+            ISP_LOCKU_SOFTC(isp);
+            if (isp_find_pdb_by_sid(isp, tmd->cd_channel, tmd->cd_portid, &lp)) {
+                if (!VALID_INI(lp->port_wwn)) {
+                    if (lp->handle == NIL_HANDLE) {
+                        /*
+                         * Ooops- all we have is the port id.
+                         */
+                        uint16_t nphdl, max;
+                        isp_pdb_t pdb;
 
-                            if (IS_24XX(isp)) {
-                                max = NPH_MAX_2K;
-                            } else {
-                                max = NPH_MAX;
+                        if (IS_24XX(isp)) {
+                            max = NPH_MAX_2K;
+                        } else {
+                            max = NPH_MAX;
+                        }
+                        for (nphdl = 0; nphdl != max; nphdl++) {
+                            if (isp_control(isp, ISPCTL_GET_PDB, tmd->cd_channel, nphdl, &pdb)) {
+                                continue;
                             }
-                            for (nphdl = 0; nphdl != max; nphdl++) {
-                                if (isp_control(isp, ISPCTL_GET_PDB, tmd->cd_channel, nphdl, &pdb)) {
-                                    continue;
-                                }
-                                isp_prt(isp, ISP_LOGTINFO, "%s: nphdl 0x%04x has portid 0x%06x", __FUNCTION__, nphdl, pdb.portid);
-                                if (pdb.portid == tmd->cd_portid) {
-                                    lp->handle = nphdl;
-                                    break;
-                                }
-                            }
-                            if (nphdl == max) {
-                                ISP_UNLKU_SOFTC(isp);
-                                isp_prt(isp, ISP_LOGTINFO, "[0x%llx] asking thread to terminate cmd [0x%02x] because because we can't find the N-Port handle", tmd->cd_tagval, tmd->cd_cdb[0] & 0xff);
-                                isp_tgt_dump_pdb(isp, tmd->cd_channel);
-                                ISP_THREAD_EVENT(isp, ISP_THREAD_TERMINATE, tmd, 0, __FUNCTION__, __LINE__);
+                            isp_prt(isp, ISP_LOGTINFO, "%s: nphdl 0x%04x has portid 0x%06x", __FUNCTION__, nphdl, pdb.portid);
+                            if (pdb.portid == tmd->cd_portid) {
+                                lp->handle = nphdl;
                                 break;
                             }
                         }
-                        if (isp_control(isp, ISPCTL_GET_NAMES, tmd->cd_channel, lp->handle, NULL, &lp->port_wwn) == 0) {
-                            nphdl = lp->handle;
-                            iid = lp->port_wwn;
-                        } else {
-                            isp_prt(isp, ISP_LOGALL, "%s: Chan %d [0x%llx] failed to get name for handle 0x%02x for portid 0x%06x", __FUNCTION__, tmd->cd_channel, tmd->cd_tagval, lp->handle, tmd->cd_portid);
+                        if (nphdl == max) {
+                            ISP_UNLKU_SOFTC(isp);
+                            isp_prt(isp, ISP_LOGTINFO, "[0x%llx] asking thread to terminate cmd [0x%02x] because because we can't find the N-Port handle", tmd->cd_tagval, tmd->cd_cdb[0] & 0xff);
+                            isp_tgt_dump_pdb(isp, tmd->cd_channel);
+                            isp_thread_event(isp, ISP_THREAD_TERMINATE, tmd, 0, __FUNCTION__, __LINE__);
+                            break;
                         }
-                    } else {
+                    }
+                    if (isp_control(isp, ISPCTL_GET_NAMES, tmd->cd_channel, lp->handle, NULL, &lp->port_wwn) == 0) {
                         nphdl = lp->handle;
                         iid = lp->port_wwn;
+                    } else {
+                        isp_prt(isp, ISP_LOGALL, "%s: Chan %d [0x%llx] failed to get name for handle 0x%02x for portid 0x%06x", __FUNCTION__, tmd->cd_channel, tmd->cd_tagval, lp->handle, tmd->cd_portid);
                     }
                 } else {
-                    /*
-                     * If it's no longer in the port database, then some event between the receipt of the command and now
-                     * has cleared it out. The command is probably already dead due to initiator port logout.
-                     */
-                    ISP_UNLKU_SOFTC(isp);
-                    isp_prt(isp, ISP_LOGTINFO, "[0x%llx] asking thread to terminate cmd [0x%02x] because PortID 0x%06x no longer in port database", tmd->cd_tagval, tmd->cd_cdb[0] & 0xff, tmd->cd_portid);
-                    isp_tgt_dump_pdb(isp, tmd->cd_channel);
-                    ISP_THREAD_EVENT(isp, ISP_THREAD_TERMINATE, tmd, 0, __FUNCTION__, __LINE__);
-                    break;
+                    nphdl = lp->handle;
+                    iid = lp->port_wwn;
                 }
-                if (iid == INI_NONE) {
-                    isp_prt(isp, ISP_LOGTDEBUG0, "%s: [0x%llx] trying to find IID again...", __FUNCTION__, tmd->cd_tagval);
-                    tmd->cd_next = isp->isp_osinfo.waiting_t;
-                    isp->isp_osinfo.waiting_t = tmd;
-                    tmd->cd_lastoff = 0;
-                    ISP_UNLKU_SOFTC(isp);
-                    break;
+            } else {
+                /*
+                 * If it's no longer in the port database, then some event between the receipt of the command and now
+                 * has cleared it out. The command is probably already dead due to initiator port logout.
+                 */
+                ISP_UNLKU_SOFTC(isp);
+                isp_prt(isp, ISP_LOGTINFO, "[0x%llx] asking thread to terminate cmd [0x%02x] because PortID 0x%06x no longer in port database", tmd->cd_tagval, tmd->cd_cdb[0] & 0xff, tmd->cd_portid);
+                isp_tgt_dump_pdb(isp, tmd->cd_channel);
+                isp_thread_event(isp, ISP_THREAD_TERMINATE, tmd, 0, __FUNCTION__, __LINE__);
+                break;
+            }
+            if (iid == INI_NONE) {
+                isp_prt(isp, ISP_LOGTDEBUG0, "%s: [0x%llx] trying to find IID again...", __FUNCTION__, tmd->cd_tagval);
+                tmd->cd_next = isp->isp_osinfo.waiting_t;
+                isp->isp_osinfo.waiting_t = tmd;
+                tmd->cd_lastoff = 0;
+                ISP_UNLKU_SOFTC(isp);
+                break;
+            }
+            tmd->cd_tgt = FCPARAM(isp, tmd->cd_channel)->isp_wwpn;
+            tmd->cd_nphdl = nphdl;
+            tmd->cd_iid = iid;
+            isp_prt(isp, ISP_LOGTINFO, "%s: [0x%llx] Chan %d found initiator @ IID 0x%016llx N-Port Handle 0x%02x Port ID 0x%06x", __FUNCTION__,
+                tmd->cd_tagval, tmd->cd_channel, (unsigned long long)tmd->cd_iid, tmd->cd_nphdl, tmd->cd_portid);
+            CALL_PARENT_TMD(isp, tmd, QOUT_TMD_START);
+            ISP_UNLKU_SOFTC(isp);
+            isp_tgt_tq(isp);
+            break;
+        }
+        case ISP_THREAD_FINDPORTID:
+        {
+            tmd_cmd_t *tmd = tap->arg;
+            fcportdb_t *lp;
+
+            ISP_LOCKU_SOFTC(isp);
+            if (isp_find_pdb_by_loopid(isp, tmd->cd_channel, tmd->cd_nphdl, &lp)) {
+                if (lp->portid == PORT_NONE) {
+                    isp_pdb_t pdb;
+                    if (isp_control(isp, ISPCTL_GET_PDB, tmd->cd_channel, tmd->cd_nphdl, &pdb) == 0) {
+                        tmd->cd_portid = lp->portid = pdb.portid;
+                    }
+                } else {
+                    tmd->cd_portid = lp->portid;
                 }
-                tmd->cd_tgt = FCPARAM(isp, tmd->cd_channel)->isp_wwpn;
-                tmd->cd_nphdl = nphdl;
-                tmd->cd_iid = iid;
+            } else {
+                isp_prt(isp, ISP_LOGTINFO, "[0x%llx] not in port database at all any more", tmd->cd_tagval);
+            }
+            if (tmd->cd_portid != PORT_NONE) {
                 isp_prt(isp, ISP_LOGTINFO, "%s: [0x%llx] Chan %d found initiator @ IID 0x%016llx N-Port Handle 0x%02x Port ID 0x%06x", __FUNCTION__,
                     tmd->cd_tagval, tmd->cd_channel, (unsigned long long)tmd->cd_iid, tmd->cd_nphdl, tmd->cd_portid);
+            }
+            CALL_PARENT_TMD(isp, tmd, QOUT_TMD_START);
+            ISP_UNLKU_SOFTC(isp);
+            isp_tgt_tq(isp);
+            break;
+        }
+        case ISP_THREAD_TERMINATE:
+        {
+            fcportdb_t *lp;
+            tmd_cmd_t *tmd = tap->arg;
+
+            ISP_LOCKU_SOFTC(isp);
+            if (isp_find_pdb_by_sid(isp, tmd->cd_channel, tmd->cd_portid, &lp)) {
+                tmd->cd_iid = lp->port_wwn;
+                tmd->cd_nphdl = lp->handle;
                 CALL_PARENT_TMD(isp, tmd, QOUT_TMD_START);
                 ISP_UNLKU_SOFTC(isp);
                 isp_tgt_tq(isp);
+                isp_prt(isp, ISP_LOGINFO, "Chan %d [%llx] reprieved", (int) AT2_GET_BUS(tmd->cd_tagval), (unsigned long long) tmd->cd_tagval);
                 break;
             }
-            case ISP_THREAD_FINDPORTID:
-            {
-                tmd_cmd_t *tmd = tap->arg;
-                fcportdb_t *lp;
 
-                ISP_LOCKU_SOFTC(isp);
-                if (isp_find_pdb_by_loopid(isp, tmd->cd_channel, tmd->cd_nphdl, &lp)) {
-                    if (lp->portid == PORT_NONE) {
-                        isp_pdb_t pdb;
-                        if (isp_control(isp, ISPCTL_GET_PDB, tmd->cd_channel, tmd->cd_nphdl, &pdb) == 0) {
-                            tmd->cd_portid = lp->portid = pdb.portid;
-                        }
-                    } else {
-                        tmd->cd_portid = lp->portid;
-                    }
-                } else {
-                    isp_prt(isp, ISP_LOGTINFO, "[0x%llx] not in port database at all any more", tmd->cd_tagval);
-                }
-                if (tmd->cd_portid != PORT_NONE) {
-                    isp_prt(isp, ISP_LOGTINFO, "%s: [0x%llx] Chan %d found initiator @ IID 0x%016llx N-Port Handle 0x%02x Port ID 0x%06x", __FUNCTION__,
-                        tmd->cd_tagval, tmd->cd_channel, (unsigned long long)tmd->cd_iid, tmd->cd_nphdl, tmd->cd_portid);
-                }
-                CALL_PARENT_TMD(isp, tmd, QOUT_TMD_START);
+            isp_prt(isp, ISP_LOGTINFO, "%s now terminating [%llx] from 0x%06x", __FUNCTION__, (unsigned long long) tmd->cd_tagval, tmd->cd_portid);
+            if (isp_terminate_cmd(isp, tmd)) {
                 ISP_UNLKU_SOFTC(isp);
-                isp_tgt_tq(isp);
+                isp_thread_event(isp, ISP_THREAD_TERMINATE, tmd, 0, __FUNCTION__, __LINE__);
                 break;
             }
-            case ISP_THREAD_TERMINATE:
-            {
-                fcportdb_t *lp;
-                tmd_cmd_t *tmd = tap->arg;
-
-                ISP_LOCKU_SOFTC(isp);
-                if (isp_find_pdb_by_sid(isp, tmd->cd_channel, tmd->cd_portid, &lp)) {
-                    tmd->cd_iid = lp->port_wwn;
-                    tmd->cd_nphdl = lp->handle;
-                    CALL_PARENT_TMD(isp, tmd, QOUT_TMD_START);
-                    ISP_UNLKU_SOFTC(isp);
-                    isp_tgt_tq(isp);
-                    isp_prt(isp, ISP_LOGINFO, "Chan %d [%llx] reprieved", (int) AT2_GET_BUS(tmd->cd_tagval), (unsigned long long) tmd->cd_tagval);
-                    break;
-                }
-
-                isp_prt(isp, ISP_LOGTINFO, "%s now terminating [%llx] from 0x%06x", __FUNCTION__, (unsigned long long) tmd->cd_tagval, tmd->cd_portid);
-                if (isp_terminate_cmd(isp, tmd)) {
-                    ISP_UNLKU_SOFTC(isp);
-                    ISP_THREAD_EVENT(isp, ISP_THREAD_TERMINATE, tmd, 0, __FUNCTION__, __LINE__);
-                    break;
-                }
-                tmd->cd_next = NULL;
-                if (isp->isp_osinfo.tfreelist) {
-                    isp->isp_osinfo.bfreelist->cd_next = tmd;
-                } else {
-                    isp->isp_osinfo.tfreelist = tmd;
-                }
-                isp->isp_osinfo.bfreelist = tmd;
+            tmd->cd_next = NULL;
+            if (isp->isp_osinfo.tfreelist) {
+                isp->isp_osinfo.bfreelist->cd_next = tmd;
+            } else {
+                isp->isp_osinfo.tfreelist = tmd;
+            }
+            isp->isp_osinfo.bfreelist = tmd;
+            ISP_UNLKU_SOFTC(isp);
+            break;
+        }
+        case ISP_THREAD_RESTART_AT7:
+        {
+            at7_entry_t at;
+            tmd_cmd_t *tmd = tap->arg;
+            MEMCPY(&at, tmd, sizeof (at7_entry_t));
+            ISP_LOCKU_SOFTC(isp);
+            MEMZERO(tmd, sizeof (tmd_cmd_t));
+            if (isp->isp_osinfo.tfreelist) {
+                isp->isp_osinfo.bfreelist->cd_next = tmd;
+            } else {
+                isp->isp_osinfo.tfreelist = tmd;
+            }
+            isp->isp_osinfo.bfreelist = tmd; /* remember to move the list tail pointer */
+            isp_handle_platform_atio7(isp, &at);
+            ISP_UNLKU_SOFTC(isp);
+            break;
+        }
+        case ISP_THREAD_FC_PUTBACK:
+        {
+            tmd_cmd_t *tmd = tap->arg;
+            ISP_LOCKU_SOFTC(isp);
+            isp_prt(isp, ISP_LOGTINFO, "%s: [%llx] calling putback", __FUNCTION__, tmd->cd_tagval);
+            if (isp_target_putback_atio(isp, tmd)) {
                 ISP_UNLKU_SOFTC(isp);
+                isp_thread_event(isp, ISP_THREAD_FC_PUTBACK, tmd, 0, __FUNCTION__, __LINE__);
                 break;
             }
-            case ISP_THREAD_RESTART_AT7:
-            {
-                at7_entry_t at;
-                tmd_cmd_t *tmd = tap->arg;
-                MEMCPY(&at, tmd, sizeof (at7_entry_t));
-                ISP_LOCKU_SOFTC(isp);
-                MEMZERO(tmd, sizeof (tmd_cmd_t));
-                if (isp->isp_osinfo.tfreelist) {
-                    isp->isp_osinfo.bfreelist->cd_next = tmd;
-                } else {
-                    isp->isp_osinfo.tfreelist = tmd;
-                }
-                isp->isp_osinfo.bfreelist = tmd; /* remember to move the list tail pointer */
-                isp_handle_platform_atio7(isp, &at);
-                ISP_UNLKU_SOFTC(isp);
-                break;
+            if (tmd->cd_lflags & CDFL_NEED_CLNUP) {
+                tmd->cd_lflags ^= CDFL_NEED_CLNUP;
+                isp_prt(isp, ISP_LOGTINFO, "Terminating %llx too", (unsigned long long) tmd->cd_tagval);
+                (void) isp_terminate_cmd(isp, tmd);
             }
-            case ISP_THREAD_FC_PUTBACK:
-            {
-                tmd_cmd_t *tmd = tap->arg;
-                ISP_LOCKU_SOFTC(isp);
-                isp_prt(isp, ISP_LOGTINFO, "%s: [%llx] calling putback", __FUNCTION__, tmd->cd_tagval);
-                if (isp_target_putback_atio(isp, tmd)) {
-                    ISP_UNLKU_SOFTC(isp);
-                    ISP_THREAD_EVENT(isp, ISP_THREAD_FC_PUTBACK, tmd, 0, __FUNCTION__, __LINE__);
-                    break;
-                }
-                if (tmd->cd_lflags & CDFL_NEED_CLNUP) {
-                    tmd->cd_lflags ^= CDFL_NEED_CLNUP;
-                    isp_prt(isp, ISP_LOGTINFO, "Terminating %llx too", (unsigned long long) tmd->cd_tagval);
-                    (void) isp_terminate_cmd(isp, tmd);
-                }
-                MEMZERO(tmd, sizeof (tmd_cmd_t));
-                if (isp->isp_osinfo.tfreelist) {
-                    isp->isp_osinfo.bfreelist->cd_next = tmd;
-                } else {
-                    isp->isp_osinfo.tfreelist = tmd;
-                }
-                isp->isp_osinfo.bfreelist = tmd; /* remember to move the list tail pointer */
-                isp_prt(isp, ISP_LOGTDEBUG0, "DONE freeing tmd %p [%llx] after retry", tmd, tmd->cd_tagval);
-                ISP_UNLKU_SOFTC(isp);
-                break;
+            MEMZERO(tmd, sizeof (tmd_cmd_t));
+            if (isp->isp_osinfo.tfreelist) {
+                isp->isp_osinfo.bfreelist->cd_next = tmd;
+            } else {
+                isp->isp_osinfo.tfreelist = tmd;
             }
+            isp->isp_osinfo.bfreelist = tmd; /* remember to move the list tail pointer */
+            isp_prt(isp, ISP_LOGTDEBUG0, "DONE freeing tmd %p [%llx] after retry", tmd, tmd->cd_tagval);
+            ISP_UNLKU_SOFTC(isp);
+            break;
+        }
 #endif
-            default:
-                break;
-            }
-
-            if (tap->thread_waiter) {
-                isp_prt(isp, ISP_LOGDEBUG1, "isp_task_thread signalling %p", tap->thread_waiter);
-                up(tap->thread_waiter);
-            }
+        default:
+            break;
+        }
+        tap->done = 0;
+        if (tap->waiting) {
+            isp_prt(isp, ISP_LOGDEBUG0, "isp_task_thread signalling");
+            tap->waiting = 0;
+            wake_up(&tap->thread_waiter);
+        } else {
+            spin_lock_irqsave(&isp->isp_osinfo.tlock, flags);
+            tap->next = isp->isp_osinfo.t_free;
+            isp->isp_osinfo.t_free = tap;
+            spin_unlock_irqrestore(&isp->isp_osinfo.tlock, flags);
         }
     }
-    isp_prt(isp, ISP_LOGDEBUG1, "isp_task_thread exiting");
-    ISP_THREAD_XACK(isp);
+    isp_prt(isp, ISP_LOGDEBUG0, "isp_task_thread exiting");
     return (0);
 }
 

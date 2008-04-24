@@ -1,4 +1,4 @@
-/* $Id: isp_cb_ops.c,v 1.88 2008/03/15 18:16:47 mjacob Exp $ */
+/* $Id: isp_cb_ops.c,v 1.89 2008/04/15 22:41:03 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -159,7 +159,7 @@ isplinux_proc_info(struct Scsi_Host *shp, char *buf, char **st, off_t off, int l
         } else if (strncmp(buf, "rescan", 6) == 0) {
             if (IS_FC(isp)) {
                 for (io = 0; io < isp->isp_nchan; io++) {
-                    ISP_THREAD_EVENT(isp, ISP_THREAD_FC_RESCAN, FCPARAM(isp, io), 1, __FUNCTION__, __LINE__);
+                    isp_thread_event(isp, ISP_THREAD_FC_RESCAN, FCPARAM(isp, io), 1, __FUNCTION__, __LINE__);
                 }
                 io = len;
             }
@@ -482,7 +482,7 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
         if (IS_FC(isp)) {
             for (i = 0; i < isp->isp_nchan; i++) {
                 FCPARAM(isp, i)->isp_loopstate = LOOP_PDB_RCVD;
-                ISP_THREAD_EVENT(isp, ISP_THREAD_FC_RESCAN, FCPARAM(isp, i), 0, __FUNCTION__, __LINE__);
+                isp_thread_event(isp, ISP_THREAD_FC_RESCAN, FCPARAM(isp, i), 0, __FUNCTION__, __LINE__);
             }
         }
         break;
