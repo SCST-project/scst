@@ -90,6 +90,7 @@
 #define cd_bus           cd_hreserved[1].ptrs[0]
 #define cd_hnext         cd_hreserved[2].ptrs[0]
 #define cd_ini           cd_hreserved[3].ptrs[0]
+#define nt_ini           nt_hreserved
 
 /* command private flags */
 #define CDF_PRIVATE_ABORTED     0x1000
@@ -723,13 +724,15 @@ scsi_target_notify(tmd_notify_t *np)
     }
     spin_unlock_irqrestore(&scsi_target_lock, flags);
 
-    SDprintk("scsi_target: MGT code %x from %s%d iid 0x%016llx\n", np->nt_ncode, bp->h.r_name, bp->h.r_inst, np->nt_iid);
+    SDprintk("scsi_target: MGT code %x from %s%d iid 0x%016llx tag %llx\n",
+             np->nt_ncode, bp->h.r_name, bp->h.r_inst, np->nt_iid, np->nt_tagval);
 
     bc = &bp->bchan[np->nt_channel];
 
     spin_lock_irqsave(&bc->tmds_lock, flags);
     ini = ini_from_iid(bc, np->nt_iid);
-    __ini_get(ini);
+    np->nt_ini = ini;
+    __ini_get(np->nt_ini);
     spin_unlock_irqrestore(&bc->tmds_lock, flags);
 
     switch (np->nt_ncode) {
@@ -1210,9 +1213,9 @@ static void
 isp_task_mgmt_fn_done(struct scst_mgmt_cmd *mgmt_cmd)
 {
     tmd_notify_t *np = mgmt_cmd->tgt_priv;
-    bus_t *bp;
+    bus_t *bp = bus_from_notify(np);
 
-    bp = bus_from_notify(np);
+    ini_put(&bp->bchan[np->nt_channel], np->nt_ini);
     SDprintk("%s: NOTIFY_ACK[%llx]\n", __FUNCTION__, np->nt_tagval);
     (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
 }
