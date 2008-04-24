@@ -59,6 +59,18 @@
  * Copyright (c) 2007, 2008 Open-E Inc
  */
 
+/*
+ * This file connects tpublic API from the low level ISP driver (see common/isp_tpublic.h)
+ * with the SCST target driver API. Such a design does have certain disadvantages as
+ * opposed to using SCST target API directly in the low level driver:
+ * - we need to maintain duplicate data structures which are already maintained in the low
+ *   level driver (commands queue, initiator data),
+ * - processing takes additional cpu time for calling procedures and processing data.
+ * However, the performance/memory cost is not so big, and such a design is flexible, as we
+ * don't need to worry about low level details (e.g. if there is support for a new chipset
+ * added to the low level ISP driver this code will not need to be changed).
+ */
+
 #ifndef  MODULE
 #error  "this can only be built as a module"
 #endif
