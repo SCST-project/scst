@@ -1234,6 +1234,24 @@ isp_task_mgmt_fn_done(struct scst_mgmt_cmd *mgmt_cmd)
 
 static DEFINE_MUTEX(proc_mutex);
 
+/*
+ * Many procfs things is taken from scst/src/scst_proc.c
+ */
+
+#if !defined(CONFIG_PPC) && (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22))
+
+static int strncasecmp(const char *s1, const char *s2, size_t n)
+{
+	int c1, c2;
+	do {
+		c1 = tolower(*s1++);
+		c2 = tolower(*s2++);
+	} while ((--n > 0) && c1 == c2 && c1 != 0);
+	return c1 - c2;
+}
+
+#endif
+
 static int
 isp_read_proc(struct seq_file *seq, void *v)
 {
