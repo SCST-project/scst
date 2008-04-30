@@ -144,6 +144,8 @@ struct bus_chan {
     uint64_t                 enable;             /* is target mode enabled in low level driver, one bit per lun */
     struct rw_semaphore      disable_sem;        /* help to synchronize when disabling target mode */
     bus_t *                  bus;                /* back pointer */
+    wait_queue_head_t        unreg_waitq;
+    atomic_t                 sess_count;
 };
 
 struct bus {
@@ -275,8 +277,6 @@ alloc_ini(bus_chan_t *bc, uint64_t iid)
     ini_t *nptr;
     char ini_name[24];
 
-    SDprintk("scsi_target: alloc initiator 0x%016llx\n", iid);
-
     nptr = kmalloc(sizeof(ini_t), GFP_KERNEL);
     if (!nptr) {
         Eprintk("cannot allocate initiator data\n");
@@ -295,15 +295,20 @@ alloc_ini(bus_chan_t *bc, uint64_t iid)
         kfree(nptr);
         return (NULL);
     }
-
+    atomic_inc(&bc->sess_count);
+    SDprintk("scsi_target: alloc initiator 0x%016llx, ++sess_count %d\n", iid, atomic_read(&bc->sess_count));
     return (nptr);
 }
 
 static void
-free_ini(ini_t *ini, int wait)
+free_ini(bus_chan_t *bc, ini_t *ini, int wait)
 {
+    SDprintk("scsi_target: free initiator 0x%016llx, sess_count-- %d, wait %d\n", ini->ini_iid, atomic_read(&bc->sess_count), wait);
     scst_unregister_session(ini->ini_scst_sess, wait, NULL);
+    /* no wait call is only when there are no pending commands, so we can free stuff here */
     kfree(ini);
+    atomic_dec(&bc->sess_count);
+    wake_up(&bc->unreg_waitq);
 }
 
 static void
@@ -317,7 +322,7 @@ add_ini(bus_chan_t *bc, uint64_t iid, ini_t *nptr)
     *ptrlptr = nptr;
 }
 
-static void
+static int
 del_ini(bus_chan_t *bc, uint64_t iid)
 {
     ini_t *ptr, *prev;
@@ -325,7 +330,7 @@ del_ini(bus_chan_t *bc, uint64_t iid)
 
     ptr = *ptrlptr;
     if (ptr == NULL) {
-        return;
+        return (0);
     }
     if (ptr->ini_iid == iid) {
         *ptrlptr = ptr->ini_next;
@@ -335,7 +340,7 @@ del_ini(bus_chan_t *bc, uint64_t iid)
             prev = ptr;
             ptr = ptr->ini_next;
             if (ptr == NULL) {
-                break;
+                return (0);
             }
             if (ptr->ini_iid == iid) {
                 prev->ini_next = ptr->ini_next;
@@ -344,6 +349,7 @@ del_ini(bus_chan_t *bc, uint64_t iid)
             }
         }
     }
+    return (1);
 }
 
 static __inline void
@@ -365,11 +371,14 @@ ini_get(bus_chan_t *bc, ini_t *ini)
 }
 
 static __inline void
-__ini_put(ini_t *ini)
+__ini_put(bus_chan_t *bc, ini_t *ini)
 {
     if (ini != NULL) {
         ini->ini_refcnt--;
         SDprintk2("ini 0x%016llx --refcnt (%d)\n", ini->ini_iid, ini->ini_refcnt);
+        if (ini->ini_refcnt < 0) {
+            free_ini(bc, ini, 0);
+        }
     }
 }
 
@@ -378,7 +387,7 @@ ini_put(bus_chan_t *bc, ini_t *ini)
 {
     unsigned long flags;
     spin_lock_irqsave(&bc->tmds_lock, flags);
-    __ini_put(ini);
+    __ini_put(bc, ini);
     spin_unlock_irqrestore(&bc->tmds_lock, flags);
 }
 
@@ -408,7 +417,7 @@ rx_loop:
 
     /* free command if aborted */
     if (tmd->cd_flags & CDF_PRIVATE_ABORTED) {
-        __ini_put(tmd->cd_ini);
+        __ini_put(bc, tmd->cd_ini);
         spin_unlock_irq(&bc->tmds_lock);
         SDprintk("%s: ABORTED TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
         (*bp->h.r_action)(QIN_TMD_FIN, tmd);
@@ -807,12 +816,12 @@ scsi_target_notify(tmd_notify_t *np)
             goto notify_ack;
         case NT_LOGOUT:
             spin_lock_irqsave(&bc->tmds_lock, flags);
-            /* check if current notify is only pending request for initiator */
-            if (ini != NULL && ini->ini_refcnt <= 1) {
-                /* if so, we can delete initiator */
-                del_ini(bc, np->nt_iid);
-                free_ini(ini, 0);
-                ini = NULL;
+            /* If someone disable target during this notify, reference to initiator
+             * is currently dropped, so we need to check if IID is still in initiators
+             * table to avoid double free */
+            if (del_ini(bc, np->nt_iid)) {
+                SDprintk("droping reference to initiator 0x%016llx\n", np->nt_iid);
+                __ini_put(bc, ini);
             } else {
                 Eprintk("cannot logout initiator 0x%016llx\n", np->nt_iid);
             }
@@ -1021,6 +1030,9 @@ scsi_target_enadis(bus_t *bp, uint64_t en, int chan, int lun)
         ec.en_lun = lun;
     }
 
+    /* Locking disable_sem prevent moving pending commands to low level driver
+     * during disabling luns, as we can't get them back, what leads to SCST
+     * commands leakage */
     SDprintk("%s: Chan %d before down_write disable_sem\n", __FUNCTION__, chan);
     down_write(&bc->disable_sem);
     SDprintk("%s: Chan %d after down_write disable_sem\n", __FUNCTION__, chan);
@@ -1042,12 +1054,11 @@ scsi_target_enadis(bus_t *bp, uint64_t en, int chan, int lun)
     }
 
     if (bc->enable == 0) {
-        SDprintk("%s: Chan %d unregister sessions\n", __FUNCTION__, chan);
-        /* If no lun is active on channel - logoff from SCST. At this point no new
-         * commands and notifies come from low level driver. Pending commands are
-         * serialized by disable_sem to avoid parallel calling scst_rx_cmd() with
-         * with scst_unregister_sesion(). Waiting for unregister could lead to deadlock
-         * with disable_sem sleepres, so use no-wait option */
+        SDprintk("%s: Chan %d drop all initiators references\n", __FUNCTION__, chan);
+        /* If no lun is active on channel we want to logoff from SCST. At this point no new
+         * commands and notifies come from low level driver, but we need to care on pendgin
+         * ones. We just drop reference to initiators. When last command/notify finish
+         * for initiator, we will unregister session from SCST */
         bus_chan_unregister_sessions(bc, 0);
     }
     up_write(&bc->disable_sem);
@@ -1565,6 +1576,8 @@ register_hba(bus_t *bp)
         spin_lock_init(&bc->tmds_lock);
         tasklet_init(&bc->tasklet, tasklet_rx_cmds, (unsigned long) bc);
         init_rwsem(&bc->disable_sem);
+        init_waitqueue_head(&bc->unreg_waitq);
+        atomic_set(&bc->sess_count, 0);
         bc->bus = bp;
         bc->scst_tgt = scst_tgt;
         scst_tgt->tgt_priv = bc;
@@ -1604,17 +1617,24 @@ static void
 bus_chan_unregister_sessions(bus_chan_t *bc, int wait)
 {
     int i;
+    ini_t *ini_next, *ptr;
 
     for (i = 0; i < HASH_WIDTH; i++) {
-        ini_t *ini_next;
-        ini_t *ptr = bc->list[i];
+        spin_lock_irq(&bc->tmds_lock);
+        ptr = bc->list[i];
+        bc->list[i] = NULL;
+        spin_unlock_irq(&bc->tmds_lock);
+
         if (ptr) {
             do {
                 ini_next = ptr->ini_next;
-                free_ini(ptr, wait);
+                if (wait) {
+                    free_ini(bc, ptr, 1);
+                } else {
+                    ini_put(bc, ptr);
+                }
             } while ((ptr = ini_next) != NULL);
         }
-        bc->list[i] = NULL;
     }
 }
 
@@ -1623,15 +1643,20 @@ unregister_hba(bus_t *bp, hba_register_t *unreg_hp)
 {
     int chan;
     char name[32];
+    bus_chan_t *bc;
 
     snprintf(name, sizeof(name), "%d", ((ispsoftc_t *)bp->h.r_identity)->isp_osinfo.host->host_no);
     remove_proc_entry(name, scst_proc_get_tgt_root(&isp_tgt_template));
 
     /* it's safe now to unregister and reinit bp */
     for (chan = 0; chan < bp->h.r_nchannels; chan++) {
-        bus_chan_unregister_sessions(&bp->bchan[chan], 1);
-        if (bp->bchan[chan].scst_tgt) {
-            scst_unregister(bp->bchan[chan].scst_tgt);
+        bc = &bp->bchan[chan];
+        bus_chan_unregister_sessions(bc, 1);
+        if (bc->scst_tgt) {
+            SDprintk("%s: waiting for finishing %d sessions\n", __FUNCTION__, atomic_read(&bc->sess_count));
+            wait_event(bc->unreg_waitq, atomic_read(&bc->sess_count) == 0);
+            SDprintk("%s: all sessions finished\n", __FUNCTION__);
+            scst_unregister(bc->scst_tgt);
         }
     }
     kfree(bp->bchan);
