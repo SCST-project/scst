@@ -925,6 +925,7 @@ isplinux_pci_init_one(struct Scsi_Host *host)
 #endif
         } else {
             isp_prt(isp, ISP_LOGWARN, "unable to load firmware set \"%s\"", fwname);
+            isp->isp_osinfo.fwp = NULL;
         }
     }
 #endif
