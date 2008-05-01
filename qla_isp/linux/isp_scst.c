@@ -519,16 +519,11 @@ scsi_target_start_cmd(tmd_cmd_t *tmd)
     bc->tmds_tail = tmd;
     spin_unlock_irqrestore(&bc->tmds_lock, flags);
 
-    /* finally, shedule proper action */
+    /* finally, schedule proper action */
     if (unlikely(tmd->cd_ini == NULL)) {
         schedule_qlaispd(SF_ADD_INITIATORS);
     } else {
         tasklet_schedule(&bc->tasklet);
-    }
-
-    /* old bug warrning */
-    if (unlikely(tmd->cd_cdb[0] == REQUEST_SENSE)) {
-        Eprintk("REQUEST SENSE in auto sense mode !?!\n");
     }
 }
 
