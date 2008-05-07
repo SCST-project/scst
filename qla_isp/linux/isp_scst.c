@@ -1126,6 +1126,7 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
     tmd_xact_t *xact = &tmd->cd_xact;
 
     if (unlikely(scst_cmd_aborted(scst_cmd))) {
+        scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_ABORTED);
         scst_tgt_cmd_done(scst_cmd);
         return (0);
     }

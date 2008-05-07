@@ -37,7 +37,6 @@ $ cp linux-2.6/build/*.ko /root/qla_isp
 Each time you want to run qla_isp, unload all other qla modules
 
 $ rmmod qla2x00tgt
-$ rmmod qla2x00tgt
 $ rmmod qla2400
 $ rmmod qla2300
 $ rmmod qla2200

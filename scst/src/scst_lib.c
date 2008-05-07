@@ -3096,30 +3096,23 @@ void scst_xmit_process_aborted_cmd(struct scst_cmd *cmd)
 			/* It's completed and it's OK to return its result */
 			goto out;
 		}
-		TRACE_MGMT_DBG("Flag ABORTED OTHER set for cmd %p (tag %llu)",
-			cmd, cmd->tag);
+		
 		if (cmd->dev->tas) {
+			TRACE_MGMT_DBG("Flag ABORTED OTHER set for cmd %p "
+				"(tag %llu), returning TASK ABORTED ", cmd,
+				cmd->tag);
 			scst_set_cmd_error_status(cmd, SAM_STAT_TASK_ABORTED);
 		} else {
+			TRACE_MGMT_DBG("Flag ABORTED OTHER set for cmd %p "
+				"(tag %llu), aborting without delivery or "
+				"notification", cmd, cmd->tag);
 			/*
-			 * Abort without delivery or notification.
 			 * There is no need to check/requeue possible UA,
 			 * because, if it exists, it will be delivered
-			 * by the "completed" branch.
+			 * by the "completed" branch above.
 			 */
-			clear_bit(SCST_CMD_ABORTED_OTHER,
-				&cmd->cmd_flags);
+			clear_bit(SCST_CMD_ABORTED_OTHER, &cmd->cmd_flags);
 		}
-	} else {
-		if ((cmd->tgt_dev != NULL) &&
-		    scst_is_ua_sense(cmd->sense)) {
- 			/* This UA delivery is going to fail, so requeue it */
-			TRACE_MGMT_DBG("Requeuing UA for aborted cmd %p", cmd);
-			scst_check_set_UA(cmd->tgt_dev, cmd->sense,
-					SCST_SENSE_BUFFERSIZE, 1);
-			mempool_free(cmd->sense, scst_sense_mempool);
-			cmd->sense = NULL;
-	 	}
 	}
 
 out:
@@ -3402,6 +3395,7 @@ void tm_dbg_release_cmd(struct scst_cmd *cmd)
 				c, c->tag, tm_dbg_delayed_cmds_count);
 
 			if (!test_bit(SCST_CMD_ABORTED_OTHER, &cmd->cmd_flags)) {
+				/* Test how completed commands handled */
 				if (((scst_random() % 10) == 5)) {
 					scst_set_cmd_error(cmd,
 					   SCST_LOAD_SENSE(scst_sense_hardw_error));

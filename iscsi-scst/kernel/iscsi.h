@@ -230,6 +230,11 @@ typedef void (iscsi_show_info_t)(struct seq_file *seq, struct iscsi_target *targ
 #define ISCSI_CMD_STATE_RESTARTED         3	/* scst_restart_cmd() called and SCST processing it */
 #define ISCSI_CMD_STATE_PROCESSED         4	/* SCST done processing */
 
+/* Command's reject reasons */
+#define ISCSI_REJECT_SCSI_CMD             1
+#define ISCSI_REJECT_CMD                  2
+#define ISCSI_REJECT_DATA                 3
+
 /* 
  * Most of the fields don't need any protection, since accessed from only a
  * single thread, except where noted.
@@ -251,12 +256,14 @@ struct iscsi_cmnd {
 	unsigned int force_cleanup_done:1;
 	unsigned int dec_active_cmnds:1;
 	unsigned int ddigest_checked:1;
+	unsigned int rejected:1;
+	unsigned int reject_reason:2;
 #ifdef EXTRACHECKS
 	unsigned int on_rx_digest_list:1;
 	unsigned int release_called:1;
 #endif
 
-	unsigned long tmfabort; /* it's async. with the above flags */
+	volatile unsigned int tm_aborted; /* it's async. with the above flags */
 
 	struct list_head hash_list_entry;
 
@@ -289,8 +296,6 @@ struct iscsi_cmnd {
 	struct iscsi_cmnd *parent_req;
 	struct iscsi_cmnd *cmd_req;
 
-	struct iscsi_target *target;
-
 	wait_queue_head_t scst_waitQ;
 	int scst_state;
 	struct scst_cmd *scst_cmd;
@@ -315,10 +320,6 @@ struct iscsi_cmnd {
 
 	struct list_head cmd_list_entry;
 };
-
-#define ISCSI_OP_SCSI_REJECT	ISCSI_OP_VENDOR1_CMD
-#define ISCSI_OP_PDU_REJECT	ISCSI_OP_VENDOR2_CMD
-#define ISCSI_OP_DATA_REJECT	ISCSI_OP_VENDOR3_CMD
 
 /* Flags for req_cmnd_release_force() */
 #define ISCSI_FORCE_RELEASE_WRITE	1

@@ -697,6 +697,8 @@ static int q2t_xmit_response(struct scst_cmd *scst_cmd)
 			"for aborted scst_cmd=%p (tag=%Ld)",
 			ha->instance, scst_cmd, scst_cmd_get_tag(scst_cmd));
 
+		scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_ABORTED);
+
 		prm.cmd->state = Q2T_STATE_ABORTED;
 
 		q2t_send_term_exchange(ha, prm.cmd, &prm.cmd->atio, 0);

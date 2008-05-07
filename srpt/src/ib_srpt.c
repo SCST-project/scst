@@ -1821,8 +1821,10 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 		else if (ch->state == RDMA_CHANNEL_CONNECTING)
 			ret = SCST_TGT_RES_QUEUE_FULL;
 
-		if (unlikely(scst_cmd_aborted(scmnd)))
+		if (unlikely(scst_cmd_aborted(scmnd))) {
+			scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_ABORTED);
 			ret = SCST_TGT_RES_SUCCESS;
+		}
 
 		goto out;
 	}
@@ -1836,6 +1838,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 		printk(KERN_ERR PFX
 		       "%s[%d] tag= %lld already get aborted\n",
 		       __FUNCTION__, __LINE__, (unsigned long long)tag);
+		scst_set_delivery_status(ioctx->scmnd, SCST_CMD_DELIVERY_ABORTED);
 		scst_tgt_cmd_done(ioctx->scmnd);
 		goto out;
 	}

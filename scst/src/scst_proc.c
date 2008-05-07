@@ -521,7 +521,7 @@ static int __init scst_proc_init_module_log(void)
 	return res;
 }
 
-static void __exit scst_proc_cleanup_module_log(void)
+static void scst_proc_cleanup_module_log(void)
 {
 	TRACE_ENTRY();
 
@@ -702,7 +702,7 @@ out_nomem:
 	goto out;
 }
 
-static void __exit scst_proc_cleanup_groups(void)
+static void scst_proc_cleanup_groups(void)
 {
 	struct scst_acg *acg_tmp, *acg;
 

@@ -62,11 +62,6 @@ struct iscsi_hdr {
 #define ISCSI_OP_LOGOUT_CMD		0x06
 #define ISCSI_OP_SNACK_CMD		0x10
 
-#define ISCSI_OP_VENDOR1_CMD		0x1c
-#define ISCSI_OP_VENDOR2_CMD		0x1d
-#define ISCSI_OP_VENDOR3_CMD		0x1e
-#define ISCSI_OP_VENDOR4_CMD		0x1f
-
 /* Server to Client Message Opcode values */
 #define ISCSI_OP_NOOP_IN		0x20
 #define ISCSI_OP_SCSI_RSP		0x21

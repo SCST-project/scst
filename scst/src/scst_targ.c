@@ -3502,20 +3502,32 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 	int other_ini, int call_dev_task_mgmt_fn)
 {
 	unsigned long flags;
+	static spinlock_t other_ini_lock = SPIN_LOCK_UNLOCKED;
 
 	TRACE_ENTRY();
 
 	TRACE(((mcmd != NULL) && (mcmd->fn == SCST_ABORT_TASK)) ? TRACE_MGMT_MINOR : TRACE_MGMT,
 		"Aborting cmd %p (tag %llu, op %x)", cmd, cmd->tag, cmd->cdb[0]);
 
+	/* To protect from concurrent aborts */
+	spin_lock_irqsave(&other_ini_lock, flags);
+
 	if (other_ini) {
-		set_bit(SCST_CMD_ABORTED_OTHER, &cmd->cmd_flags);
-		smp_mb__after_set_bit();
+		/* Might be necessary if command aborted several times */
+		if (!test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)) {
+			set_bit(SCST_CMD_ABORTED_OTHER, &cmd->cmd_flags);
+			smp_mb__after_set_bit();
+		}
 	} else {
 		/* Might be necessary if command aborted several times */
 		clear_bit(SCST_CMD_ABORTED_OTHER, &cmd->cmd_flags);
 	}
+
 	set_bit(SCST_CMD_ABORTED, &cmd->cmd_flags);
+
+	spin_unlock_irqrestore(&other_ini_lock, flags);
+
+	
 	/* 
 	 * To sync with cmd->finished/done set in
 	 * scst_finish_cmd()/scst_pre_xmit_response()

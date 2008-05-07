@@ -42,6 +42,8 @@
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
 typedef _Bool bool;
+#define true  1
+#define false 0
 #endif
 
 /* Version numbers, the same as for the kernel */
@@ -373,7 +375,7 @@ typedef _Bool bool;
 #define SCST_TGT_DEV_AFTER_EXEC_ATOMIC		10
 
 #ifdef DEBUG_TM
-#define SCST_TGT_DEV_UNDER_TM_DBG	20
+#define SCST_TGT_DEV_UNDER_TM_DBG		20
 #endif
 
 /*************************************************************
@@ -2080,12 +2082,6 @@ static inline scst_data_direction scst_cmd_get_data_direction(
 	return cmd->data_direction;
 }
 
-/* Returns cmd's relative data offset */
-static inline unsigned int scst_cmd_get_offset(struct scst_cmd *cmd)
-{
-	return 0;
-}
-
 /* Returns cmd's status byte from host device */
 static inline uint8_t scst_cmd_get_status(struct scst_cmd *cmd)
 {
@@ -2207,7 +2203,6 @@ static inline void scst_cmd_set_tgt_sn(struct scst_cmd *cmd, uint32_t tgt_sn)
 	cmd->tgt_sn_set = 1;
 	cmd->tgt_sn = tgt_sn;
 }
-
 
 /*
  * Returns 1 if the cmd was aborted, so its status is invalid and no

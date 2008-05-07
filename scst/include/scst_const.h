@@ -35,8 +35,9 @@
  ** Allowed delivery statuses for cmd's delivery_status
  *************************************************************/
 
-#define SCST_CMD_DELIVERY_SUCCESS        0
-#define SCST_CMD_DELIVERY_FAILED        -1
+#define SCST_CMD_DELIVERY_SUCCESS	0
+#define SCST_CMD_DELIVERY_FAILED	-1
+#define SCST_CMD_DELIVERY_ABORTED	-2
 
 /************************************************************* 
  ** Values for task management functions

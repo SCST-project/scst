@@ -349,8 +349,8 @@ or "Default" group, depending from either "Default_target_name" exists
 or not. In "Default_target_name" target name means name of the target.
 
 In /proc/scsi_tgt each group represented as "groups/GROUP_NAME/"
-subdirectory. In it there are files "devices" and "users". File
-"devices" lists all devices and their LUNs in the group, file "users"
+subdirectory. In it there are files "devices" and "names". File
+"devices" lists all devices and their LUNs in the group, file "names"
 lists all names that should be bound to this group.
 
 To configure access and devices visibility management SCST provides the
@@ -789,6 +789,13 @@ imported device letter, like 'a' for sda device. There are no special
 limitations for Y value, it can be any value from 1 to possible maximum
 (usually, 32), so start from dividing the current value on 2, i.e. set
 16, if /sys/block/sdX/device/queue_depth contains 32.
+
+Note, that logged messages about QUEUE_FULL status are quite different
+by nature. This is a normal work, just SCSI flow control in action.
+Simply don't enable "mgmt_minor" logging level, or, alternatively, if
+you are confident in the worst case performance of your back-end
+storage, you can increase SCST_MAX_TGT_DEV_COMMANDS in scst_priv.h to
+64. Usually initiators don't try to push more commands on the target.
 
 Credits
 -------

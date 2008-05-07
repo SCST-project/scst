@@ -919,6 +919,8 @@ static void check_net_priv(struct iscsi_cmnd *cmd, struct page *page)
 }
 #else
 static inline void check_net_priv(struct iscsi_cmnd *cmd, struct page *page) {}
+static inline void __iscsi_get_page_callback(struct iscsi_cmnd *cmd) {}
+static inline void __iscsi_put_page_callback(struct iscsi_cmnd *cmd) {}
 #endif
 
 /* This is partially taken from the Ardis code. */

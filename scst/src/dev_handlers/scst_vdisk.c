@@ -1103,7 +1103,6 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 		goto out_put;
 	}
 
-	memset(buf, 0, sizeof(buf));
 	buf[0] = cmd->dev->handler->type;      /* type dev */
 	if ((buf[0] == TYPE_ROM) || virt_dev->removable)
 		buf[1] = 0x80;      /* removable */
@@ -3352,7 +3351,7 @@ out_unreg:
 	goto out;
 }
 
-static void __exit exit_scst_vdisk(struct scst_dev_type *devtype,
+static void exit_scst_vdisk(struct scst_dev_type *devtype,
 	struct list_head *vdisk_dev_list)
 {
 	TRACE_ENTRY();

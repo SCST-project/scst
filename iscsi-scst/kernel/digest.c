@@ -162,17 +162,15 @@ int digest_rx_data(struct iscsi_cmnd *cmnd)
 	u32 offset, crc;
 	int res = 0;
 
+	if (unlikely(cmnd->rejected))
+		goto out;
+
 	switch (cmnd_opcode(cmnd)) {
 	case ISCSI_OP_SCSI_DATA_OUT:
 		req = cmnd->cmd_req;
 		req_hdr = (struct iscsi_data_out_hdr *)&cmnd->pdu.bhs;
 		offset = be32_to_cpu(req_hdr->buffer_offset);
 		break;
-
-	case ISCSI_OP_SCSI_REJECT:
-	case ISCSI_OP_PDU_REJECT:
-	case ISCSI_OP_DATA_REJECT:
-		goto out;
 
 	default:
 		req = cmnd;
