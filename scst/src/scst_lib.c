@@ -1089,7 +1089,7 @@ static void scst_send_release(struct scst_device *dev)
 		TRACE(TRACE_DEBUG | TRACE_SCSI, "%s", "Sending RELEASE req to "
 			"SCSI mid-level");
 		rc = scsi_execute(scsi_dev, cdb, SCST_DATA_NONE, NULL, 0,
-				sense, SCST_DEFAULT_TIMEOUT, 0, GFP_KERNEL);
+				sense, SCST_DEFAULT_TIMEOUT, 0, 0);
 		TRACE_DBG("MODE_SENSE done: %x", rc);
 
 		if (scsi_status_is_good(rc)) {
@@ -2336,7 +2336,7 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 		TRACE(TRACE_SCSI, "%s", "Doing internal MODE_SENSE");
 		res = scsi_execute(dev->scsi_dev, cmd, SCST_DATA_READ, buffer, 
 			   sizeof(buffer), sense_buffer, SCST_DEFAULT_TIMEOUT,
-			    0, GFP_KERNEL);
+			    0, 0);
 
 		TRACE_DBG("MODE_SENSE done: %x", res);
 

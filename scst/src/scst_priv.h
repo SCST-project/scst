@@ -133,6 +133,11 @@ static inline int scst_get_context(void)
 	return SCST_CONTEXT_DIRECT;
 }
 
+static inline bool scst_is_context_gfp_atomic(void)
+{
+	return  irqs_disabled() || in_atomic() || in_interrupt();
+}
+
 extern unsigned long scst_max_cmd_mem;
 
 extern mempool_t *scst_mgmt_mempool;

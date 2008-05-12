@@ -1086,7 +1086,8 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 	}
 
 	if (cmd->status == SAM_STAT_CHECK_CONDITION)
-		scst_alloc_set_sense(cmd, in_irq(), rq_sense, rq_sense_len);
+		scst_alloc_set_sense(cmd, scst_is_context_gfp_atomic(),
+					rq_sense, rq_sense_len);
 
 	TRACE(TRACE_SCSI, "result=%x, cmd->status=%x, resid=%d, "
 	      "cmd->msg_status=%x, cmd->host_status=%x, "
