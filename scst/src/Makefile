@@ -144,7 +144,8 @@ EXTRA_CFLAGS += -DDEBUG -g
 #EXTRA_CFLAGS += -DSCST_HIGHMEM
 
 clean:
-	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend Modules.symvers Module.symvers
+	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend Modules.symvers \
+		Module.symvers Module.markers modules.order
 	rm -rf .tmp_versions
 	cd $(DEV_HANDLERS_DIR) && $(MAKE) $@
 

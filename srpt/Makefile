@@ -50,7 +50,8 @@ endif
 
 clean:
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src clean
-	rm -f src/Modules.symvers src/Module.symvers
+	rm -f src/Modules.symvers src/Module.symvers src/Module.markers \
+		src/modules.order
 
 extraclean: clean
 

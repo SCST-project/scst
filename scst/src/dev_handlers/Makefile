@@ -74,7 +74,8 @@ EXTRA_CFLAGS += -DEXTRACHECKS
 EXTRA_CFLAGS += -DDEBUG -g
 
 clean:
-	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend Modules.symvers Module.symvers
+	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend Modules.symvers \
+		Module.symvers Module.markers modules.order
 	rm -rf .tmp_versions
 
 extraclean: clean

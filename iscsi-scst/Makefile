@@ -69,7 +69,8 @@ endif
 clean:
 	$(MAKE) -C usr clean
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/kernel clean
-	rm -f kernel/Modules.symvers kernel/Module.symvers
+	rm -f kernel/Modules.symvers kernel/Module.symvers \
+		kernel/Module.markers kernel/modules.order
 
 extraclean: clean
 

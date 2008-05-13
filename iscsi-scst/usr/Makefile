@@ -22,7 +22,8 @@ SRCS_ADM = iscsi_adm.c param.c
 OBJS_ADM = $(SRCS_ADM:.c=.o)
 
 CFLAGS += -O2 -fno-inline -Wall -Wstrict-prototypes -g -I../include
-PROGRAMS = iscsi-scstd iscsi-scst-adm
+PROGRAMS = iscsi-scstd
+# iscsi-scst-adm
 LIBS = -lcrypto
 
 all: $(PROGRAMS)
