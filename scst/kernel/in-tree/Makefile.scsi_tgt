@@ -1,19 +1,11 @@
+EXTRA_CFLAGS += -Iinclude/scsi_tgt -Wextra -Wno-unused-parameter
 
-EXTRA_CFLAGS		+= -Iinclude/scsi
+scst-y        += scst_main.o
+scst-y        += scst_targ.o
+scst-y        += scst_lib.o
+scst-y        += scst_proc.o
+scst-y        += scst_mem.o
+scst-y        += scst_debug.o
 
-scsi_tgt-y				+= scst.o
-scsi_tgt-y				+= scst_targ.o
-scsi_tgt-y				+= scst_lib.o
-scsi_tgt-y				+= scst_proc.o
-scsi_tgt-y				+= scst_mem.o
+obj-$(CONFIG_SCSI_TARGET)   += scst.o dev_handlers/
 
-obj-$(CONFIG_SCSI_TARGET)		+= scsi_tgt.o
-obj-$(CONFIG_SCSI_TARGET_DISK)		+= scst_disk.o
-obj-$(CONFIG_SCSI_TARGET_TAPE)		+= scst_tape.o
-obj-$(CONFIG_SCSI_TARGET_CDROM)		+= scst_cdrom.o
-obj-$(CONFIG_SCSI_TARGET_MODISK)	+= scst_modisk.o
-obj-$(CONFIG_SCSI_TARGET_CHANGER)	+= scst_changer.o
-obj-$(CONFIG_SCSI_TARGET_RAID)		+= scst_raid.o
-obj-$(CONFIG_SCSI_TARGET_PROCESSOR)	+= scst_processor.o
-obj-$(CONFIG_SCSI_TARGET_VDISK)		+= scst_vdisk.o
-obj-$(CONFIG_SCSI_TARGET_USER)		+= scst_user.o

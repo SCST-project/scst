@@ -1,0 +1,181 @@
+#!/bin/bash
+
+############################################################################
+#
+# Script for converting the SCST source tree as it exists in the Subversion
+# repository to a Linux kernel patch.
+#
+# Copyright (C) 2008 Bart Van Assche <bart.vanassche@gmail.com>
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, version 2
+# of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+############################################################################
+
+########################
+# Function definitions #
+########################
+
+# Convert an existing patch.
+# $1: path of patch to be added.
+# $2: path in kernel tree of file to be patched.
+function add_patch {
+  if [ ! -e "$1" ]; then
+    echo "Error: could not find $1."
+    exit 1
+  fi
+
+  sed -e "s:^--- [^ ]*:--- orig/$2:" -e "s:^+++ [^ ]*:+++ $2:" < "$1"
+}
+
+# Generate a patch for a file to be added to the kernel source tree.
+# $1: path of file to be added.
+# $2: path in kernel tree where file should be added.
+function add_file {
+  local a b
+
+  if [ ! -e "$1" ]; then
+    echo "Error: could not find $1."
+    exit 1
+  fi
+
+  cat <<EOF
+diff -uprN orig/$2 $2
+--- orig/$2
++++ $2
+@@ -0,0 +1,$(wc -l "$1" | { read a b; echo $a; }) @@
+EOF
+  sed "s/^/+/" <"$1"
+}
+
+
+#########################
+# Argument verification #
+#########################
+
+if [ ! -e scst -o ! -e iscsi-scst -o ! -e srpt ]; then
+  echo "Please run this script from inside the SCST subversion source tree."
+  exit 1
+fi
+
+if [ $# != 1 ]; then
+  echo "Usage: $0 <kernel version>."
+  exit 1
+fi
+
+####################
+# Patch Generation #
+####################
+
+kernel_version="$1"
+kpatch=(                                                                \
+  "scst/kernel/scst_exec_req_fifo-${kernel_version}.patch"              \
+  "iscsi-scst/kernel/patches/put_page_callback-${kernel_version}.patch" \
+)
+
+for p in "${kpatch[@]}"
+do
+  if [ ! -e "$p" ]; then
+    echo "Error: kernel version ${kernel_version} is not supported by SCST."
+    echo "(could not find file $p)."
+    exit 1
+  fi
+done
+
+
+# Kernel patches for other directories than drivers/scsi/scsi_tgt/.
+
+for p in "${kpatch[@]}"
+do
+  cat "$p"
+  echo ''
+  echo ''
+done
+
+add_patch "scst/kernel/in-tree/Kconfig.scsi.Linux-${kernel_version}.patch" \
+          "linux-${kernel_version}/drivers/scsi/Kconfig"
+
+add_patch "scst/kernel/in-tree/Makefile.scsi.Linux-${kernel_version}.patch" \
+          "linux-${kernel_version}/drivers/scsi/Makefile"
+
+
+# Directory include/scsi_tgt/
+
+for f in scst/include/*h
+do
+  add_file "${f}" "linux-${kernel_version}/include/scsi_tgt/${f#scst/include/}"
+done
+
+
+# Directory drivers/scsi/scsi_tgt/
+
+add_file "scst/kernel/in-tree/Kconfig.scsi_tgt" \
+         "drivers/scsi/scsi_tgt/Kconfig"
+add_file "scst/kernel/in-tree/Makefile.scsi_tgt" \
+         "drivers/scsi/scsi_tgt/Makefile"
+
+
+for f in scst/src/*[ch]
+do
+  add_file ${f} linux-${kernel_version}/drivers/scsi/scsi_tgt/${f#scst/src/}
+  echo ''
+  echo ''
+done
+
+
+# Directory drivers/scsi/scsi_tgt/dev_handlers/
+
+add_file "scst/kernel/in-tree/Makefile.dev_handlers" \
+         "linux-${kernel_version}/drivers/scsi/scsi_tgt/dev_handlers/Makefile"
+
+for f in scst/src/dev_handlers/*.[ch]
+do
+  add_file ${f} linux-${kernel_version}/drivers/scsi/scsi_tgt/dev_handlers/${f#scst/src/dev_handlers/}
+  echo ''
+  echo ''
+done
+
+
+# Directory drivers/infiniband/ulp/srpt/
+
+cat <<'EOF'
+diff -uprN orig/linux-2.6.24/drivers/infiniband/Kconfig linux-2.6.24/drivers/infiniband/Kconfig
+--- orig/linux-2.6.24/drivers/infiniband/Kconfig        2008-01-24 23:58:37.000000000 +0100
++++ linux-2.6.24/drivers/infiniband/Kconfig     2008-05-09 13:55:27.000000000 +0200
+@@ -51,6 +51,8 @@
+
+ source "drivers/infiniband/ulp/srp/Kconfig"
+
++source "drivers/infiniband/ulp/srpt/Kconfig"
++
+ source "drivers/infiniband/ulp/iser/Kconfig"
+
+ endif # INFINIBAND
+diff -uprN orig/linux-2.6.24/drivers/infiniband/Makefile linux-2.6.24/drivers/infiniband/Makefile
+--- orig/linux-2.6.24/drivers/infiniband/Makefile	2008-01-24 23:58:37.000000000 +0100
++++ linux-2.6.24/drivers/infiniband/Makefile	2008-05-09 13:57:00.000000000 +0200
+@@ -7,4 +7,5 @@
+ obj-$(CONFIG_MLX4_INFINIBAND)		+= hw/mlx4/
+ obj-$(CONFIG_INFINIBAND_IPOIB)		+= ulp/ipoib/
+ obj-$(CONFIG_INFINIBAND_SRP)		+= ulp/srp/
++obj-$(CONFIG_INFINIBAND_SRPT)		+= ulp/srpt/
+ obj-$(CONFIG_INFINIBAND_ISER)		+= ulp/iser/
+EOF
+
+add_file "srpt/src/Kconfig" "drivers/infiniband/ulp/srpt/Kconfig"
+
+add_file "srpt/src/Makefile.in_kernel" "drivers/infiniband/ulp/srpt/Makefile"
+
+for f in srpt/src/*[ch]
+do
+  add_file ${f} linux-${kernel_version}/drivers/infiniband/ulp/srpt/${f#srpt/src/}
+  echo ''
+  echo ''
+done

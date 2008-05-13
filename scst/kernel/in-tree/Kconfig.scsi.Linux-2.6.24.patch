@@ -1,0 +1,11 @@
+--- orig/linux-2.6.24/drivers/scsi/Kconfig	2008-01-24 23:58:37.000000000 +0100
++++ linux-2.6.24/drivers/scsi/Kconfig	2008-05-09 13:25:39.000000000 +0200
+@@ -1351,6 +1351,8 @@ config SCSI_QLOGICPTI
+ source "drivers/scsi/qla2xxx/Kconfig"
+ source "drivers/scsi/qla4xxx/Kconfig"
+ 
++source "drivers/scsi/scsi_tgt/Kconfig"
++
+ config SCSI_LPFC
+ 	tristate "Emulex LightPulse Fibre Channel Support"
+ 	depends on PCI && SCSI
