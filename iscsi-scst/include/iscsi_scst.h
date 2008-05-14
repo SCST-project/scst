@@ -13,21 +13,22 @@
  *  GNU General Public License for more details.
  */
 
-#ifndef _ISCSI_U_H
-#define _ISCSI_U_H
+#ifndef _ISCSI_SCST_U_H
+#define _ISCSI_SCST_U_H
 
 #ifndef __KERNEL__
 #include <sys/uio.h>
 #endif
 
-#define ISCSI_VERSION_STRING	"0.9.6/0.4.15r148"
+#include "iscsi_scst_ver.h"
+#include "iscsi_scst_itf_ver.h"
 
 /* The maximum length of 223 bytes in the RFC. */
-#define ISCSI_NAME_LEN	256
+#define ISCSI_NAME_LEN		256
 
 #define ISCSI_LISTEN_PORT	3260
 
-#define SCSI_ID_LEN	24
+#define SCSI_ID_LEN		24
 
 #ifndef aligned_u64
 #define aligned_u64 uint64_t __attribute__((aligned(8)))
@@ -47,7 +48,7 @@ struct session_info {
 	u32 exp_cmd_sn;
 };
 
-#define DIGEST_ALL	(DIGEST_NONE | DIGEST_CRC32C)
+#define DIGEST_ALL		(DIGEST_NONE | DIGEST_CRC32C)
 #define DIGEST_NONE		(1 << 0)
 #define DIGEST_CRC32C           (1 << 1)
 
@@ -126,16 +127,17 @@ struct iscsi_event {
 
 #define NETLINK_ISCSI_SCST	25
 
-#define ADD_TARGET _IOW('i', 0, struct target_info)
-#define DEL_TARGET _IOW('i', 1, struct target_info)
-#define ADD_SESSION _IOW('i', 2, struct session_info)
-#define DEL_SESSION _IOW('i', 3, struct session_info)
-#define GET_SESSION_INFO _IOWR('i', 4, struct session_info)
-#define ADD_CONN _IOW('i', 5, struct conn_info)
-#define DEL_CONN _IOW('i', 6, struct conn_info)
-#define GET_CONN_INFO _IOWR('i', 7, struct conn_info)
-#define ISCSI_PARAM_SET _IOW('i', 8, struct iscsi_param_info)
-#define ISCSI_PARAM_GET _IOWR('i', 9, struct iscsi_param_info)
+#define REGISTER_USERD		_IOW('s', 0, const char*)
+#define ADD_TARGET		_IOW('s', 1, struct target_info)
+#define DEL_TARGET		_IOW('s', 2, struct target_info)
+#define ADD_SESSION		_IOW('s', 3, struct session_info)
+#define DEL_SESSION		_IOW('s', 4, struct session_info)
+#define GET_SESSION_INFO	_IOWR('s', 5, struct session_info)
+#define ADD_CONN		_IOW('s', 6, struct conn_info)
+#define DEL_CONN		_IOW('s', 7, struct conn_info)
+#define GET_CONN_INFO		_IOWR('s', 8, struct conn_info)
+#define ISCSI_PARAM_SET		_IOW('s', 9, struct iscsi_param_info)
+#define ISCSI_PARAM_GET		_IOWR('s', 10, struct iscsi_param_info)
 
 static inline int iscsi_is_key_declarative(int key)
 {

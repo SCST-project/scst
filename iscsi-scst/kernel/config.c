@@ -369,11 +369,39 @@ static int add_target(unsigned long ptr)
 	return err;
 }
 
+static int iscsi_check_version(unsigned long arg)
+{
+	char ver[sizeof(ISCSI_SCST_INTERFACE_VERSION)+1];
+	int res;
+
+	res = copy_from_user(ver, (void*)arg, sizeof(ver));
+	if (res < 0) {
+		PRINT_ERROR("%s", "Unable to get version string");
+		goto out;
+	}
+	ver[sizeof(ver)-1] = '\0';
+
+	if (strcmp(ver, ISCSI_SCST_INTERFACE_VERSION) != 0) {
+		PRINT_ERROR("Incorrect version of user space %s (needed %s)",
+			ver, ISCSI_SCST_INTERFACE_VERSION);
+		res = -EINVAL;
+		goto out;
+	}
+
+out:
+	return res;
+}
+
 static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct iscsi_target *target = NULL;
 	long err;
 	u32 id;
+
+	if (cmd == REGISTER_USERD) {
+		err = iscsi_check_version(arg);
+		goto out;
+	}
 
 	if ((err = get_user(id, (u32 *) arg)) != 0)
 		goto out;
@@ -441,10 +469,11 @@ static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case GET_CONN_INFO:
 		err = get_conn_info(target, arg);
 		break;
-	
+
 	default:
 		PRINT_ERROR("invalid ioctl cmd %x", cmd);
 		err = -EINVAL;
+		break;
 	}
 
 	mutex_unlock(&target->target_mutex);

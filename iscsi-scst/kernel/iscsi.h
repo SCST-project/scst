@@ -26,7 +26,7 @@
 #include <scst.h>
 
 #include "iscsi_hdr.h"
-#include "iscsi_u.h"
+#include "iscsi_scst.h"
 
 #include "iscsi_dbg.h"
 

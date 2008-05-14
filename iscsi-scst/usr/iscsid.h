@@ -22,7 +22,7 @@
 
 #include "types.h"
 #include "iscsi_hdr.h"
-#include "iscsi_u.h"
+#include "iscsi_scst.h"
 #include "param.h"
 #include "config.h"
 #include "misc.h"

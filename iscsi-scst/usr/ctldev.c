@@ -40,11 +40,12 @@ static int ctrdev_open(void)
 	char devname[256];
 	char buf[256];
 	int devn;
-	int ctlfd;
+	int ctlfd = -1;
+	int err;
 
 	if (!(f = fopen("/proc/devices", "r"))) {
 		perror("Cannot open control path to the driver\n");
-		return -1;
+		goto out;
 	}
 
 	devn = 0;
@@ -63,24 +64,32 @@ static int ctrdev_open(void)
 
 	fclose(f);
 	if (!devn) {
-		printf
-		    ("cannot find iscsictl in /proc/devices - "
+		printf("cannot find iscsictl in /proc/devices - "
 		     "make sure the module is loaded\n");
-		return -1;
+		goto out;
 	}
 
 	unlink(CTL_DEVICE);
 	if (mknod(CTL_DEVICE, (S_IFCHR | 0600), (devn << 8))) {
 		printf("cannot create %s %d\n", CTL_DEVICE, errno);
-		return -1;
+		goto out;
 	}
 
 	ctlfd = open(CTL_DEVICE, O_RDWR);
 	if (ctlfd < 0) {
 		printf("cannot open %s %d\n", CTL_DEVICE, errno);
-		return -1;
+		goto out;
 	}
 
+	err = ioctl(ctlfd, REGISTER_USERD, ISCSI_SCST_INTERFACE_VERSION);
+	if (err < 0) {
+		log_error("Unable to register: %s\n", strerror(errno));
+		close(ctlfd);
+		ctlfd = -1;
+		goto out;
+	}
+
+out:
 	return ctlfd;
 }
 

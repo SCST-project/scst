@@ -18,7 +18,7 @@
  */
 
 #include <net/tcp.h>
-#include "iscsi_u.h"
+#include "iscsi_scst.h"
 #include "iscsi.h"
 
 static struct sock *nl;
