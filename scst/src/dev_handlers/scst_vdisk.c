@@ -2280,11 +2280,13 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 	while(length > 0) {
 		int len, bytes, off, thislen;
 		uint8_t *addr;
+		u64 lba_start0;
 
 		addr = address;
 		off = offset_in_page(addr);
 		len = length;
 		thislen = 0;
+		lba_start0 = lba_start;
 
 		while (len > 0) {
 			int rc;
@@ -2302,7 +2304,7 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 				bios++;
 				need_new_bio = 0;
 				bio->bi_end_io = blockio_endio;
-				bio->bi_sector = lba_start << 
+				bio->bi_sector = lba_start0 << 
 					(virt_dev->block_shift - 9);
 				bio->bi_bdev = bdev;
 				bio->bi_private = blockio_work;
@@ -2321,7 +2323,7 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 			if (rc < bytes) {
 				sBUG_ON(rc != 0);
 				need_new_bio = 1;
-				lba_start += thislen >> virt_dev->block_shift;
+				lba_start0 += thislen >> virt_dev->block_shift;
 				thislen = 0;
 				continue;
 			}
