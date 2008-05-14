@@ -1,0 +1,9 @@
+diff -uprN orig/linux-2.6.24/drivers/infiniband/Makefile linux-2.6.24/drivers/infiniband/Makefile
+--- orig/linux-2.6.24/drivers/infiniband/Makefile	2008-01-24 23:58:37.000000000 +0100
++++ linux-2.6.24/drivers/infiniband/Makefile	2008-05-09 13:57:00.000000000 +0200
+@@ -7,4 +7,5 @@
+ obj-$(CONFIG_MLX4_INFINIBAND)		+= hw/mlx4/
+ obj-$(CONFIG_INFINIBAND_IPOIB)		+= ulp/ipoib/
+ obj-$(CONFIG_INFINIBAND_SRP)		+= ulp/srp/
++obj-$(CONFIG_INFINIBAND_SRPT)		+= ulp/srpt/
+ obj-$(CONFIG_INFINIBAND_ISER)		+= ulp/iser/

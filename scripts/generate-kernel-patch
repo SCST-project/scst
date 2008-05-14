@@ -145,29 +145,11 @@ done
 
 # Directory drivers/infiniband/ulp/srpt/
 
-cat <<'EOF'
-diff -uprN orig/linux-2.6.24/drivers/infiniband/Kconfig linux-2.6.24/drivers/infiniband/Kconfig
---- orig/linux-2.6.24/drivers/infiniband/Kconfig        2008-01-24 23:58:37.000000000 +0100
-+++ linux-2.6.24/drivers/infiniband/Kconfig     2008-05-09 13:55:27.000000000 +0200
-@@ -51,6 +51,8 @@
+add_patch "srpt/src/Kconfig.infiniband.Linux-${kernel_version}.patch"  \
+          "linux-${kernel_version}/drivers/infiniband/Kconfig"
 
- source "drivers/infiniband/ulp/srp/Kconfig"
-
-+source "drivers/infiniband/ulp/srpt/Kconfig"
-+
- source "drivers/infiniband/ulp/iser/Kconfig"
-
- endif # INFINIBAND
-diff -uprN orig/linux-2.6.24/drivers/infiniband/Makefile linux-2.6.24/drivers/infiniband/Makefile
---- orig/linux-2.6.24/drivers/infiniband/Makefile	2008-01-24 23:58:37.000000000 +0100
-+++ linux-2.6.24/drivers/infiniband/Makefile	2008-05-09 13:57:00.000000000 +0200
-@@ -7,4 +7,5 @@
- obj-$(CONFIG_MLX4_INFINIBAND)		+= hw/mlx4/
- obj-$(CONFIG_INFINIBAND_IPOIB)		+= ulp/ipoib/
- obj-$(CONFIG_INFINIBAND_SRP)		+= ulp/srp/
-+obj-$(CONFIG_INFINIBAND_SRPT)		+= ulp/srpt/
- obj-$(CONFIG_INFINIBAND_ISER)		+= ulp/iser/
-EOF
+add_patch "srpt/src/Makefile.infiniband.Linux-${kernel_version}.patch" \
+          "linux-${kernel_version}/drivers/infiniband/Makefile"
 
 add_file "srpt/src/Kconfig" "drivers/infiniband/ulp/srpt/Kconfig"
 
