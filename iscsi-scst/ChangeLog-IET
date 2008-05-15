@@ -1,3 +1,29 @@
+Summary of changes from v0.4.15 to v0.4.16
+=================================
+
+Arne Redlich
+  o fix overzealous assert() in digest_data()
+  o add checking on return value of ISCSI_PARAM_GET
+  o 2.6.22, 2.6.23 and 2.6.24 compile fixes
+  o add conn->rwsize check
+  o avoid potential NULL-ptr dereferences in rx and tx buffer 
+  o fix the shell syntax in init scripts
+
+Dave Jiang
+  o fix digest endieness on LE archs
+
+FUJITA Tomonori
+  o fix SPARC alignement issues (based on a patch from joel.bertrand@systella.fr)
+
+Ross S. W. Walker
+  o fix DISTDIR in Makefile for /etc install
+  o add support to nullio for volumes > 2TB
+  o remove init.d memory size adjustment
+  o add error code reporting to blockio_open_path
+  o blockio gen_scsiid bug fix
+  o add verbosity to kernel output and task management
+
+
 Summary of changes from v0.4.14 to v0.4.15
 =================================
 

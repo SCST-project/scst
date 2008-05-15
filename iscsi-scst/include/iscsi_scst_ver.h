@@ -13,4 +13,4 @@
  *  GNU General Public License for more details.
  */
 
-#define ISCSI_VERSION_STRING	"0.9.6/0.4.15r148"
+#define ISCSI_VERSION_STRING	"0.9.6/0.4.16r151"
