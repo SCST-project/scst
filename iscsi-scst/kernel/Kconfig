@@ -1,0 +1,5 @@
+config SCST_ISCSI
+	tristate "SCST iSCSI Support"
+	depends on SCSI
+	---help---
+	iSCSI target support. The iSCSI protocol has been defined in RFC 3720.
