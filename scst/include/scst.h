@@ -1973,6 +1973,19 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 void scst_unregister_virtual_device(int id);
 
 /*
+ * Get/Set functions for tgt's sg_tablesize
+ */
+static inline int scst_tgt_get_sg_tablesize(struct scst_tgt *tgt)
+{
+	return tgt->sg_tablesize;
+}
+
+static inline void scst_tgt_set_sg_tablesize(struct scst_tgt *tgt, int val)
+{
+	tgt->sg_tablesize = val;
+}
+
+/*
  * Get/Set functions for tgt's target private data
  */
 static inline void *scst_tgt_get_tgt_priv(struct scst_tgt *tgt)

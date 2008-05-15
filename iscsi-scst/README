@@ -145,7 +145,7 @@ Known issues
 ------------
 
 Currently some iscsi-scst-adm functionality is broken. But, from one
-side, at the moment I don't have time to look at it and and, from other
+side, at the moment I don't have time to look at it and, from other
 side, in contrast to IET, in iSCSI-SCST this utility doesn't worth much,
 since all devices management is done using SCST's /proc interface.
 What's remained for iscsi-scst-adm is managing iSCSI targets and their

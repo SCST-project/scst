@@ -85,22 +85,22 @@ unsigned long q2t_trace_flag = Q2T_DEFAULT_LOG_FLAGS;
 #endif
 
 struct scst_tgt_template tgt_template = {
-      name:"qla2x00tgt",
-      sg_tablesize:0,
-      use_clustering:1,
+	name: "qla2x00tgt",
+	sg_tablesize: 0,
+	use_clustering: 1,
 #ifdef DEBUG_WORK_IN_THREAD
-      xmit_response_atomic:0,
-      rdy_to_xfer_atomic:0,
+	xmit_response_atomic: 0,
+	rdy_to_xfer_atomic: 0,
 #else
-      xmit_response_atomic:1,
-      rdy_to_xfer_atomic:1,
+	xmit_response_atomic: 1,
+	rdy_to_xfer_atomic: 1,
 #endif
-      detect:q2t_target_detect,
-      release:q2t_target_release,
-      xmit_response:q2t_xmit_response,
-      rdy_to_xfer:q2t_rdy_to_xfer,
-      on_free_cmd:q2t_on_free_cmd,
-      task_mgmt_fn_done:q2t_task_mgmt_fn_done,
+	detect: q2t_target_detect,
+	release: q2t_target_release,
+	xmit_response: q2t_xmit_response,
+	rdy_to_xfer: q2t_rdy_to_xfer,
+	on_free_cmd: q2t_on_free_cmd,
+	task_mgmt_fn_done: q2t_task_mgmt_fn_done,
 };
 
 struct kmem_cache *q2t_cmd_cachep = NULL;
@@ -2028,14 +2028,18 @@ static void q2t_host_action(scsi_qla_host_t *ha,
 {
 	struct q2t_tgt *tgt = NULL;
 	unsigned long flags = 0;
-	char *wwn;
+	
 
 	TRACE_ENTRY();
 
 	sBUG_ON(ha == NULL);
 
 	switch (action) {
-	case ENABLE_TARGET_MODE :
+	case ENABLE_TARGET_MODE:
+	{
+		char *wwn;
+		int sg_tablesize;
+
 		tgt = kzalloc(sizeof(*tgt), GFP_KERNEL);
 		if (tgt == NULL) {
 			TRACE(TRACE_OUT_OF_MEM, "%s",
@@ -2053,17 +2057,15 @@ static void q2t_host_action(scsi_qla_host_t *ha,
 				   "Addressing Enabled", ha->instance);
 			tgt->tgt_enable_64bit_addr = 1;
 			/* 3 is reserved */
-			tgt_template.sg_tablesize = 
+			sg_tablesize = 
 				QLA_MAX_SG64(ha->request_q_length - 3);
 			tgt->datasegs_per_cmd = DATASEGS_PER_COMMAND64;
 			tgt->datasegs_per_cont = DATASEGS_PER_CONT64;
 		} else {
 			PRINT_INFO("qla2x00tgt(%ld): Using 32 Bit "
 				   "PCI Addressing", ha->instance);
-			if (tgt_template.sg_tablesize == 0) {
-				tgt_template.sg_tablesize =
-					QLA_MAX_SG32(ha->request_q_length - 3);
-			}
+			sg_tablesize =
+				QLA_MAX_SG32(ha->request_q_length - 3);
 			tgt->datasegs_per_cmd = DATASEGS_PER_COMMAND32;
 			tgt->datasegs_per_cont = DATASEGS_PER_CONT32;
 		}
@@ -2082,7 +2084,8 @@ static void q2t_host_action(scsi_qla_host_t *ha,
 			kfree(tgt);
 			goto out;
 		}
-		
+
+		scst_tgt_set_sg_tablesize(tgt->scst_tgt, sg_tablesize);
 		scst_tgt_set_tgt_priv(tgt->scst_tgt, tgt);
 		
 		spin_lock_irqsave(&ha->hardware_lock, flags);
@@ -2094,7 +2097,8 @@ static void q2t_host_action(scsi_qla_host_t *ha,
 		tgt_data.enable_lun(ha);
 		
 		break;
-	case DISABLE_TARGET_MODE :
+	}
+	case DISABLE_TARGET_MODE:
 		spin_lock_irqsave(&ha->hardware_lock, flags);
 		if (ha->tgt == NULL) {
 			/* ensure target mode is marked as off */
@@ -2114,15 +2118,16 @@ static void q2t_host_action(scsi_qla_host_t *ha,
 		TRACE_DBG("Shutting down host %ld(%ld,%p)",
 			  ha->host_no, ha->instance, ha);
 		scst_unregister(tgt->scst_tgt);
-		/* free of tgt happens via callback q2t_target_release
+		/*
+		 * Free of tgt happens via callback q2t_target_release
 		 * called from scst_unregister, so we shouldn't touch it again 
 		 */
 		tgt = NULL;
 		break;
 
-	default :
-		printk("%s: Reached default case of enumish switch statment %d",
-		       __func__, action);
+	default:
+		PRINT_ERROR("Unknown action %d", action);
+		break;
 	}
 
 out:
@@ -2175,8 +2180,8 @@ static int q2t_proc_log_entry_build(struct scst_tgt_template *templ)
 	struct proc_dir_entry *p, *root;
 
 	TRACE_ENTRY();
-	root = scst_proc_get_tgt_root(templ);
 
+	root = scst_proc_get_tgt_root(templ);
 	if (root) {
 		/* create the proc file entry for the device */
 		q2t_log_proc_data.data = (void *)templ->name;
@@ -2206,12 +2211,13 @@ static void q2t_proc_log_entry_clean(struct scst_tgt_template *templ)
 	TRACE_ENTRY();
 
 	root = scst_proc_get_tgt_root(templ);
-
 	if (root) {
 		remove_proc_entry(Q2T_PROC_LOG_ENTRY_NAME, root);
 	}
+
 	TRACE_EXIT();
 #endif
+	return;
 }
 
 static int __init q2t_init(void)
@@ -2228,16 +2234,16 @@ static int __init q2t_init(void)
 
 	res = scst_register_target_template(&tgt_template);
 	if (res < 0)
-		goto out;
+		goto out_free_kmem;
 
-	/* qla2xxx_tgt_register_driver() happens in q2t_target_detect 
+	/*
+	 * qla2xxx_tgt_register_driver() happens in q2t_target_detect 
 	 * called via scst_register_target_template()
 	 */
 
 	res = q2t_proc_log_entry_build(&tgt_template);
-	if (res < 0) {
+	if (res < 0)
 		goto out_unreg_target;
-	}
 
 out:
 	TRACE_EXIT();
@@ -2245,6 +2251,10 @@ out:
 
 out_unreg_target:
 	scst_unregister_target_template(&tgt_template);
+
+out_free_kmem:
+	kmem_cache_destroy(q2t_cmd_cachep);
+ 
 	qla2xxx_tgt_unregister_driver();
 	goto out;
 }
