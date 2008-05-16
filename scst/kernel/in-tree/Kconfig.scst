@@ -68,7 +68,7 @@ config SCSI_TARGET_VDISK
 config SCSI_TARGET_USER
 	tristate "SCSI user space virtual target devices support"
 	default SCSI_TARGET
-	depends on SCSI && PROC_FS && SCSI_TARGET
+	depends on SCSI && PROC_FS && SCSI_TARGET && ! HIGHMEM
 	---help---
 	  SCSI TARGET handler for virtual user space device.
 
