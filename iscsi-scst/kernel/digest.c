@@ -4,11 +4,11 @@
  *  Copyright (C) 2004 - 2006 Xiranet Communications GmbH <arne.redlich@xiranet.com>
  *  Copyright (C) 2007 Vladislav Bolkhovitin
  *  Copyright (C) 2007 CMS Distribution Limited
- * 
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -117,7 +117,7 @@ static u32 digest_data(struct iscsi_cmnd *cmd, u32 osize, u32 offset)
 	offset += sg[0].offset;
 	idx = offset >> PAGE_SHIFT;
 	offset &= ~PAGE_MASK;
-	
+
 	count = get_pgcnt(size, offset);
 
 	TRACE_DBG("req %p, idx %d, count %d, sg_cnt %d, size %d, "
@@ -209,7 +209,7 @@ void digest_tx_data(struct iscsi_cmnd *cmnd)
 		offset = 0;
 	}
 
-	/* 
+	/*
 	 * cmnd is used here regardless of its sg comes from parent or was
 	 * allocated for this cmnd only, see cmnd_send_pdu()
 	 */

@@ -1,17 +1,17 @@
 /*
  *  include/scst_user.h
- *  
+ *
  *  Copyright (C) 2007 Vladislav Bolkhovitin <vst@vlnb.net>
- *  
+ *
  *  Contains constants and data structures for scst_user module.
  *  See http://scst.sourceforge.net/doc/scst_user_spec.txt or
  *  scst_user_spec.txt for description.
- * 
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation, version 2
  *  of the License.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -28,8 +28,8 @@
 #define DEV_USER_VERSION_NAME		"0.9.6"
 #define DEV_USER_VERSION		DEV_USER_VERSION_NAME "$Revision$" SCST_CONST_VERSION
 
-/* 
- * Chosen so sizeof(scst_user_sess) <= sizeof(scst_user_scsi_cmd_exec) 
+/*
+ * Chosen so sizeof(scst_user_sess) <= sizeof(scst_user_scsi_cmd_exec)
  * (the largest one)
  */
 #define SCST_MAX_NAME			45
@@ -62,7 +62,7 @@
 #define aligned_u64 uint64_t __attribute__((aligned(8)))
 #endif
 
-/************************************************************* 
+/*************************************************************
  ** Private ucmd states
  *************************************************************/
 #define UCMD_STATE_NEW			0

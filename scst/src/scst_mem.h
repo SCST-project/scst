@@ -1,13 +1,13 @@
 /*
  *  scst_mem.h
- *  
+ *
  *  Copyright (C) 2006-2007 Vladislav Bolkhovitin <vst@vlnb.net>
- *  
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation, version 2
  *  of the License.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -20,7 +20,7 @@
 
 #define SGV_POOL_ELEMENTS	11
 
-/* 
+/*
  * sg_num is indexed by the page number, pg_count is indexed by the sg number.
  * Made in one entry to simplify the code (eg all sizeof(*) parts) and save
  * some CPU cache for non-clustered case.
@@ -33,7 +33,7 @@ struct trans_tbl_ent {
 struct sgv_pool_obj
 {
 	int order;
-	
+
 	struct {
 		unsigned long time_stamp; /* jiffies, protected by pool_mgr_lock */
 		struct list_head recycling_list_entry;
@@ -102,25 +102,25 @@ struct scst_sgv_pools_manager
 	struct sgv_pool_mgr {
 		spinlock_t pool_mgr_lock;
 		struct list_head sorted_recycling_list; /* protected by pool_mgr_lock */
-		int pitbool_running:1;		/* protected by pool_mgr_lock */		
+		int pitbool_running:1;		/* protected by pool_mgr_lock */
 
 		struct sgv_mem_throttling {
-			u32 inactive_pages_total; 
+			u32 inactive_pages_total;
 			atomic_t active_pages_total;
-		
+
 			u32 hi_wmk; /* compared against inactive_pages_total + active_pages_total */
 			u32 lo_wmk; /* compared against inactive_pages_total only */
-			
+
 			u32 releases_on_hiwmk;
 			u32 releases_failed;
 		} thr; /* protected by pool_mgr_lock */
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))		
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
 		struct shrinker *sgv_shrinker;
 #else
 		struct shrinker sgv_shrinker;
 #endif
-		
+
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20))
 		struct delayed_work apit_pool;
 #else
@@ -129,13 +129,13 @@ struct scst_sgv_pools_manager
 	} mgr;
 
 	int sgv_max_local_order, sgv_max_trans_order;
-	
+
 	atomic_t sgv_other_total_alloc;
 	struct mutex scst_sgv_pool_mutex;
 	struct list_head scst_sgv_pool_list;
 };
 
-int sgv_pool_init(struct sgv_pool *pool, const char *name, 
+int sgv_pool_init(struct sgv_pool *pool, const char *name,
 	int clustered);
 void sgv_pool_deinit(struct sgv_pool *pool);
 

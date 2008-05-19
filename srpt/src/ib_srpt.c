@@ -1144,13 +1144,13 @@ static int srpt_release_channel(struct srpt_rdma_ch *ch, int destroy_cmid)
 		       "%s: Release sess= %p sess_name= %s active_cmd= %d\n",
 		       __FUNCTION__, ch->scst_sess, ch->sess_name,
 		       ch->active_scmnd_cnt);
-		
+
 		list_for_each_entry_safe(ioctx, ioctx_tmp,
 					 &ch->active_scmnd_list, scmnd_list) {
 			list_del(&ioctx->scmnd_list);
 			ch->active_scmnd_cnt--;
 		}
-		
+
 		scst_unregister_session(ch->scst_sess, 0, NULL);
 		ch->scst_sess = NULL;
 	}
@@ -2245,7 +2245,7 @@ static void srpt_remove_one(struct ib_device *device)
 	sdev = ib_get_client_data(device, &srpt_client);
 	if (!sdev)
 		return;
-	
+
 	wait_for_completion(&sdev->scst_released);
 
 	ib_unregister_event_handler(&sdev->event_handler);

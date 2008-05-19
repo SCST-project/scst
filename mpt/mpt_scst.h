@@ -241,7 +241,7 @@ typedef struct _MPT_STM_PRIV
 #define FWVersion_0101 Reserved_0101_FWVersion
 #define EventDataSasPhyLinkStatus_t MpiEventDataSasPhyLinkStatus_t
 
-#ifndef MPI_FCPORTPAGE1_FLAGS_FORCE_USE_NOSEEPROM_WWNS 
+#ifndef MPI_FCPORTPAGE1_FLAGS_FORCE_USE_NOSEEPROM_WWNS
 #define MPI_FCPORTPAGE1_FLAGS_FORCE_USE_NOSEEPROM_WWNS  (0x02000000)
 #endif
 
@@ -337,7 +337,7 @@ typedef struct _MPT_STM_PRIV
 #define MPT_STATUS_SENSE_NOT_SENT  2 /* sense couldn't be sent with status */
 #define MPT_STATUS_SENSE_HANDLE_RQ 3 /* REQUEST SENSE handled with cached sense */
 
-struct mpt_cmd 
+struct mpt_cmd
 {
 	struct mpt_sess *sess;
 	struct scst_cmd *scst_cmd;
@@ -349,7 +349,7 @@ struct mpt_cmd
 	dma_addr_t dma_handle;
 };
 
-struct mpt_sess 
+struct mpt_sess
 {
 	struct scst_session *scst_sess;
 	struct mpt_tgt *tgt;
@@ -375,5 +375,5 @@ struct mpt_mgmt_cmd
 	struct mpt_sess *sess;
 	int task_mgmt;
 };
-	
+
 #endif

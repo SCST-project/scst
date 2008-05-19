@@ -1,19 +1,19 @@
 /*
  *  qla2x00t.h
- *  
+ *
  *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                          Leonid Stoljar
  *                          Nathaniel Clark <nate@misrule.us>
  *
- *  Significant modification 2006 by Nathaniel Clark <nate@misrule.us> 
+ *  Significant modification 2006 by Nathaniel Clark <nate@misrule.us>
  *
  *  Qlogic 2x00 SCSI target driver.
- *  
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation, version 2
  *  of the License.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -163,10 +163,10 @@ struct q2t_prm
 };
 
 /* ha->hardware_lock supposed to be held on entry (to protect tgt->sess_list) */
-static inline struct q2t_sess *q2t_find_sess_by_lid(struct q2t_tgt *tgt, 
-						    uint16_t lid) 
+static inline struct q2t_sess *q2t_find_sess_by_lid(struct q2t_tgt *tgt,
+						    uint16_t lid)
 {
-	struct q2t_sess *sess, *sess_tmp;	
+	struct q2t_sess *sess, *sess_tmp;
 	sBUG_ON(tgt == NULL);
 	list_for_each_entry_safe(sess, sess_tmp, &tgt->sess_list, list) {
 		if (lid == (sess->loop_id))

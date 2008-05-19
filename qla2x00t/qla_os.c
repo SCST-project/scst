@@ -804,7 +804,7 @@ qla2xxx_eh_device_reset(struct scsi_cmnd *cmd)
 			   "%s: failed while waiting for commands\n", __func__);
 	} else {
 		qla_printk(KERN_INFO, ha,
-			   "scsi(%ld:%d:%d): DEVICE RESET SUCCEEDED.\n", 
+			   "scsi(%ld:%d:%d): DEVICE RESET SUCCEEDED.\n",
 			   ha->host_no, id, lun);
 	}
 
@@ -1680,7 +1680,7 @@ void qla2x00_remove_one(struct pci_dev *pdev)
 
 #if defined(FC_TARGET_SUPPORT)
 	ha->flags.host_shutting_down = 1;
-	if (qla_target.tgt_host_action != NULL) 
+	if (qla_target.tgt_host_action != NULL)
 		qla_target.tgt_host_action(ha, DISABLE_TARGET_MODE);
 #endif
 

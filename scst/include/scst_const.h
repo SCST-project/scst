@@ -1,15 +1,15 @@
 /*
  *  include/scst_const.h
- *  
+ *
  *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
- *  
+ *
  *  Contains common SCST constants.
- * 
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation, version 2
  *  of the License.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -39,7 +39,7 @@
 #define SCST_CMD_DELIVERY_FAILED	-1
 #define SCST_CMD_DELIVERY_ABORTED	-2
 
-/************************************************************* 
+/*************************************************************
  ** Values for task management functions
  *************************************************************/
 #define SCST_ABORT_TASK              0
@@ -51,7 +51,7 @@
 
 /** SCST extensions **/
 
-/* 
+/*
  * Notifies about I_T nexus loss event in the corresponding session.
  * Aborts all tasks there, resets the reservation, if any, and sets
  * up the I_T Nexus loss UA.
@@ -61,7 +61,7 @@
 /* Aborts all tasks in the corresponding session */
 #define SCST_ABORT_ALL_TASKS_SESS    7
 
-/* 
+/*
  * Notifies about I_T nexus loss event. Aborts all tasks in all sessions
  * of the tgt, resets the reservations, if any,  and sets up the I_T Nexus
  * loss UA.
@@ -79,7 +79,7 @@
  */
 #define SCST_UNREG_SESS_TM           10
 
-/************************************************************* 
+/*************************************************************
  ** Values for mgmt cmd's status field. Codes taken from iSCSI
  *************************************************************/
 #define SCST_MGMT_STATUS_SUCCESS		0
@@ -89,7 +89,7 @@
 #define SCST_MGMT_STATUS_REJECTED		-255
 #define SCST_MGMT_STATUS_FAILED			-129
 
-/************************************************************* 
+/*************************************************************
  ** SCSI task attribute queue types
  *************************************************************/
 enum scst_cmd_queue_type
@@ -101,8 +101,8 @@ enum scst_cmd_queue_type
 	SCST_CMD_QUEUE_ACA
 };
 
-/************************************************************* 
- ** Data direction aliases 
+/*************************************************************
+ ** Data direction aliases
  *************************************************************/
 #define SCST_DATA_UNKNOWN			0
 #define SCST_DATA_WRITE				1
@@ -151,7 +151,7 @@ static inline int scst_is_ua_sense(const uint8_t *sense)
 
 #define SCST_STANDARD_SENSE_LEN			14
 
-/************************************************************* 
+/*************************************************************
  * SCSI opcodes not listed anywhere else
  *************************************************************/
 #ifndef REPORT_DEVICE_IDENTIFIER
@@ -271,7 +271,7 @@ static inline int scst_is_ua_sense(const uint8_t *sense)
 #define SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER   0
 #define SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER 1
 
-/************************************************************* 
+/*************************************************************
  ** Misc SCSI constants
  *************************************************************/
 #define SCST_SENSE_ASC_UA_RESET      0x29

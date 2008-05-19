@@ -35,15 +35,15 @@
  * Rev. 1	March 2, 2000
  * RLU	- Updated with latest definitions.  Added more comments.
  *
- * Rev. 2	May 16, 2000		    
+ * Rev. 2	May 16, 2000
  * SP	- Updated definitions and changed structures (March 27, 2000)
- * SP   - Addded structures 
+ * SP   - Addded structures
  *
- * Rev. 3	June 1, 2000		     
+ * Rev. 3	June 1, 2000
  * THL	- Made major changes to include all changes talked in our meeting.
  *
  * Rev. 4	June 5, 2000
- * RLU	- Added new definitions/structures for SDM_GET_AEN and SDM_REG_AEN 
+ * RLU	- Added new definitions/structures for SDM_GET_AEN and SDM_REG_AEN
  *	  functions.
  *	- Major definition/structure name changes as discussed in meetings.
  *	- Deleted duplicated command code and structure definitions.
@@ -68,7 +68,7 @@
  * Rev. 4.5     August 15, 2000
  * SP   - Rolled back some changes made by Todd R.
  *	  Kept new status code SDM_STATUS_NO_MEMORY
- *	  Port types fabric and tape device 
+ *	  Port types fabric and tape device
  *
  * Rev. 4.7     Sep 6, 2000
  * YPL  - Replace SDM_ with EXT_, _ISP with _CHIP.
@@ -89,7 +89,7 @@
  *
  * Rev. 5.3     Sep 29, 2000
  * THL  - Add access mode for NVRAM.
- * 
+ *
  * Rev. 5.4     Oct 03, 2000
  * THL  - Add EXT_SC_GET_FC_STATISTICS.
  *
@@ -109,55 +109,55 @@
  *
  * Rev. 5.8 Oct 25, 2000
  * BN   - Added EXT_CC_DRIVER_PROP define
- * 
+ *
  * Rev. 5.9 Oct 26, 2000
  * BN   - Sync with UnixApi project
- * 
+ *
  * Rev. 5.10 Oct 30, 2000
  * BN   - Remove not needed #define for EXT_CC_DRIVER_PROP
  *	- Add EXT_ to IS_LUN_BIT_SET, SET_LUN_BIT, CLR_LUN_BIT
- * 
+ *
  * Rev. 5.11 Nov 1, 2000
  * BN   - Increased [1] of EXT_DEVICEDATA to [EXT_MAX_TARGET]
  * TLE  - Decreased [EXT_MAX_TARGET] of EXT_DEVICEDATA to [1]
- * 
+ *
  * Rev. 5.12	Nov 7, 2000
  * RLU	- Deleted EXT_DEF_MAX_LUNS define and changed all references
  *	  to it to use EXT_MAX_LUN.
  *	- Changed the revision numbers for the last 2 revisions down
  *	  to use 5.x.
- * 
+ *
  * Rev. 5.13	Nov 14, 2000
  * WTR	- Fixed pointer referencing problem in the LUN_BIT_MASK macros.
  *	  Updated comment at bit mask definition.
  *
  * Rev. 5.14	Dec 6, 2000
  * THL	- Added Local and LoopID to discovered port/target property.
- * 
+ *
  * Rev. 5.15	Dec 24, 2000
  * YPL	- Enhance port connection modes and driver attrib
- * 
+ *
  * Rev. 5.16	Dec 27, 2000
  * TLE  - Add BufferHandle member to _EXT_ASYNC_EVENT data structure for
  *	  SCTP support
- * 
+ *
  * Rev. 5.17	Jan 10, 2001
  * YPL  - Add edtov, ratov & fabric name in port property
- * 
+ *
  * Rev. 5.18	Feb 28, 2001
  * YPL  - Remove SCTP fields and add fabric parameter flags in port property
- * 
+ *
  * Rev. 5.19	Mar 08, 2001
  * YPL  - Remove SCTP fields from hba port prop
- * 
+ *
  * Rev. 5.20	June 11, 2001
  * YPL  - Change to reserved fields and add fabric name field in port property
- * 
+ *
  * Rev. 5.21	June 29, 2001
  * YPL  - Merge in changes decided long time ago (use _DEF_ for defines) &
  *	  reserved some EXT_CC for legacy ioctls, plus add RNID dataformat
  *	  values definition
- * 
+ *
  * Rev. 5.21    Sep 18, 2001
  * SP   - Added New return status codes
  *
@@ -412,14 +412,14 @@ typedef struct {
 
 
 /* Reserved command codes. */
-#define	EXT_CC_RESERVED0A		EXT_CC_RESERVED0A_OS    
-#define	EXT_CC_RESERVED0B		EXT_CC_RESERVED0B_OS    
-#define	EXT_CC_RESERVED0C		EXT_CC_RESERVED0C_OS    
-#define	EXT_CC_RESERVED0D		EXT_CC_RESERVED0D_OS    
-#define	EXT_CC_RESERVED0E		EXT_CC_RESERVED0E_OS    
-#define	EXT_CC_RESERVED0F		EXT_CC_RESERVED0F_OS    
-#define	EXT_CC_RESERVED0G		EXT_CC_RESERVED0G_OS    
-#define	EXT_CC_RESERVED0H		EXT_CC_RESERVED0H_OS    
+#define	EXT_CC_RESERVED0A		EXT_CC_RESERVED0A_OS
+#define	EXT_CC_RESERVED0B		EXT_CC_RESERVED0B_OS
+#define	EXT_CC_RESERVED0C		EXT_CC_RESERVED0C_OS
+#define	EXT_CC_RESERVED0D		EXT_CC_RESERVED0D_OS
+#define	EXT_CC_RESERVED0E		EXT_CC_RESERVED0E_OS
+#define	EXT_CC_RESERVED0F		EXT_CC_RESERVED0F_OS
+#define	EXT_CC_RESERVED0G		EXT_CC_RESERVED0G_OS
+#define	EXT_CC_RESERVED0H		EXT_CC_RESERVED0H_OS
 #define	EXT_CC_RESERVED0I		EXT_CC_RESERVED0I_OS
 #define	EXT_CC_RESERVED0J		EXT_CC_RESERVED0J_OS
 #define	EXT_CC_RESERVED0Z		EXT_CC_RESERVED0Z_OS
@@ -474,8 +474,8 @@ typedef struct {
 #define	EXT_SC_GET_DR_DUMP_BUF		5	/* Currently Not Supported */
 #define	EXT_SC_GET_RISC_CODE		6	/* Currently Not Supported */
 #define	EXT_SC_GET_FLASH_RAM		7	/* for backward compatible */
-#define	EXT_SC_GET_BEACON_STATE		8	
-#define	EXT_SC_GET_FC4_STATISTICS	9	
+#define	EXT_SC_GET_BEACON_STATE		8
+#define	EXT_SC_GET_FC4_STATISTICS	9
 #define EXT_SC_GET_LUN_BY_Q		10
 
 /* 100 - 199 FC_INTF_TYPE */
@@ -487,7 +487,7 @@ typedef struct {
 #define	EXT_SC_GET_PORT_SUMMARY		106
 #define	EXT_SC_GET_POSITION_MAP		107
 #define	EXT_SC_GET_RETRY_CNT		108	/* Currently Not Supported */
-#define	EXT_SC_GET_RNID			109	
+#define	EXT_SC_GET_RNID			109
 #define	EXT_SC_GET_RTIN			110	/* Currently Not Supported */
 #define	EXT_SC_GET_FC_LUN_BITMASK	111
 #define	EXT_SC_GET_FC_STATISTICS	112	/* for backward compatible */
@@ -496,7 +496,7 @@ typedef struct {
 #define	EXT_SC_GET_SEL_TIMEOUT		201	/* Currently Not Supported */
 
 
-/* 
+/*
  * Sub codes for Set Data.
  * Use in combination with EXT_SET_DATA as the ioctl code
  */
@@ -507,7 +507,7 @@ typedef struct {
 
 /* 100 - 199 FC_INTF_TYPE */
 #define	EXT_SC_SET_LUN_BITMASK		103
-#define	EXT_SC_SET_RNID			109	
+#define	EXT_SC_SET_RNID			109
 #define	EXT_SC_SET_FC_LUN_BITMASK	111
 #define	EXT_SC_RESERVED_BC112	112
 #define	EXT_SC_RESERVED_BC113	113
@@ -638,9 +638,9 @@ typedef struct _EXT_DISC_PORT {
 	UINT16    TargetId;			/* 2 */
 	UINT8     Local;			/* 1; Local or Remote */
 	UINT8     ReservedByte[1];		/* 1 */
-	
+
 	UINT16    LoopID;			/* 2; Loop ID */
-	
+
 	UINT32    Reserved[7];			/* 28 */
 } EXT_DISC_PORT, *PEXT_DISC_PORT;		/* 60 */
 
@@ -662,9 +662,9 @@ typedef struct _EXT_DISC_TARGET {
 
 	UINT8     Local;			/* 1; Local or Remote */
 	UINT8     ReservedByte[1];		/* 1 */
-	
+
 	UINT16    LoopID;			/* 2; Loop ID */
-	
+
 	UINT16    Reserved[13];			/* 26 */
 } EXT_DISC_TARGET, *PEXT_DISC_TARGET;		/* 60 */
 
@@ -945,7 +945,7 @@ typedef struct _EXT_DEVICEDATAENTRY
 	EXT_SCSI_ADDR	TargetAddress;	/* scsi address */
 	UINT32		DeviceFlags;	/* Flags for device */
 	UINT16		LoopID;		/* Loop ID */
-	UINT16		BaseLunNumber;  
+	UINT16		BaseLunNumber;
 	UINT32		Reserved[32];
 } EXT_DEVICEDATAENTRY, *PEXT_DEVICEDATAENTRY;
 
@@ -1068,7 +1068,7 @@ typedef struct _EXT_ELS_PT_REQ {
 
 typedef struct _EXT_BEACON_CONTROL {
 	UINT32	State;				/* 4  */
-	UINT32	Reserved[3];			/* 12 */	
+	UINT32	Reserved[3];			/* 12 */
 } EXT_BEACON_CONTROL , *PEXT_BEACON_CONTROL ;	/* 16 */
 
 #ifndef EXTERNAL_LUN_COUNT

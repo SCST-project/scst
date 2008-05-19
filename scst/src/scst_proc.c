@@ -1,14 +1,14 @@
 /*
  *  scst_proc.c
- *  
+ *
  *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
- *  
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation, version 2
  *  of the License.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -52,9 +52,9 @@ static struct scst_proc_data scst_threads_proc_data;
 static struct scst_proc_data scst_scsi_tgt_proc_data;
 static struct scst_proc_data scst_dev_handler_proc_data;
 
-/* 
- * Must be less than 4K page size, since our output routines 
- * use some slack for overruns 
+/*
+ * Must be less than 4K page size, since our output routines
+ * use some slack for overruns
  */
 #define SCST_PROC_BLOCK_SIZE (PAGE_SIZE - 512)
 
@@ -395,7 +395,7 @@ static int lat_info_show(struct seq_file *seq, void *v)
 		goto out;
 	}
 
-	seq_printf(seq, "%-20s %-45s %-15s %15s\n", "Target name", "Initiator name", 
+	seq_printf(seq, "%-20s %-45s %-15s %15s\n", "Target name", "Initiator name",
 		       "SCST latency", "Processing latency (us)");
 
 	list_for_each_entry(acg, &scst_acg_list, scst_acg_list_entry) {
@@ -685,7 +685,7 @@ static int __init scst_proc_init_groups(void)
 		goto out_nomem;
 	}
 
-	res = scst_proc_group_add_tree(scst_default_acg, 
+	res = scst_proc_group_add_tree(scst_default_acg,
 					SCST_DEFAULT_ACG_NAME);
 	if (res != 0)
 		goto out_remove;
@@ -716,7 +716,7 @@ static void scst_proc_cleanup_groups(void)
 
 	scst_proc_del_acg_tree(scst_default_acg->acg_proc_root,
 				SCST_DEFAULT_ACG_NAME);
-	TRACE_DBG("remove_proc_entry(%s, %p)", 
+	TRACE_DBG("remove_proc_entry(%s, %p)",
 		  SCST_PROC_GROUPS_ENTRY_NAME, scst_proc_scsi_tgt);
 	remove_proc_entry(SCST_PROC_GROUPS_ENTRY_NAME, scst_proc_scsi_tgt);
 
@@ -1416,7 +1416,7 @@ static int scst_proc_assign_handler(char *buf)
 
 	if (dev->scsi_dev->type != handler->type) {
 		PRINT_ERROR("Type %d of device %s differs from type "
-			"%d of dev handler %s", dev->handler->type, 
+			"%d of dev handler %s", dev->handler->type,
 			dev->handler->name, handler->type, handler->name);
 		res = -EINVAL;
 		goto out;
@@ -1521,7 +1521,7 @@ static ssize_t scst_proc_groups_devices_write(struct file *file, const char __us
 			}
 			*e = 0;
 		}
-		
+
 		list_for_each_entry(d, &scst_dev_list, dev_list_entry) {
 			if (virt) {
 				if (d->virt_id && !strcmp(d->virt_name, p)) {
@@ -1711,7 +1711,7 @@ static ssize_t scst_proc_groups_names_write(struct file *file, const char __user
 		scst_acg_remove_name(acg, p);
 		break;
 	case SCST_PROC_ACTION_CLEAR:
-		list_for_each_entry_safe(n, nn, &acg->acn_list, 
+		list_for_each_entry_safe(n, nn, &acg->acn_list,
 					 acn_list_entry) {
 			list_del(&n->acn_list_entry);
 			kfree(n->name);
@@ -1839,7 +1839,7 @@ static int scst_sessions_info_show(struct seq_file *seq, void *v)
 		goto out;
 	}
 
-	seq_printf(seq, "%-20s %-45s %-35s %-15s\n", "Target name", "Initiator name", 
+	seq_printf(seq, "%-20s %-45s %-35s %-15s\n", "Target name", "Initiator name",
 		       "Group name", "Command Count");
 
 	list_for_each_entry(acg, &scst_acg_list, scst_acg_list_entry) {
@@ -1951,7 +1951,7 @@ static struct scst_proc_data scst_groups_devices_proc_data = {
 
 #if defined(DEBUG) || defined(TRACING)
 
-int scst_proc_read_tlb(const struct scst_proc_log *tbl, struct seq_file *seq, 
+int scst_proc_read_tlb(const struct scst_proc_log *tbl, struct seq_file *seq,
 	unsigned long log_level, int *first)
 {
 	const struct scst_proc_log *t = tbl;

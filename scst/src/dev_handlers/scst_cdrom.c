@@ -1,16 +1,16 @@
 /*
  *  scst_cdrom.c
- *  
+ *
  *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
  *
  *  SCSI CDROM (type 5) dev handler
- *  
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation, version 2
  *  of the License.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -59,11 +59,11 @@ static struct scst_dev_type cdrom_devtype = CDROM_TYPE;
 /**************************************************************
  *  Function:  cdrom_attach
  *
- *  Argument:  
+ *  Argument:
  *
  *  Returns :  1 if attached, error code otherwise
  *
- *  Description:  
+ *  Description:
  *************************************************************/
 int cdrom_attach(struct scst_device *dev)
 {
@@ -113,8 +113,8 @@ int cdrom_attach(struct scst_device *dev)
 		sbuff = sense_buffer;
 
 		TRACE_DBG("%s", "Doing READ_CAPACITY");
-		res = scsi_execute(dev->scsi_dev, cmd, data_dir, buffer, 
-				   buffer_size, sbuff, 
+		res = scsi_execute(dev->scsi_dev, cmd, data_dir, buffer,
+				   buffer_size, sbuff,
 				   CDROM_REG_TIMEOUT, 3, 0);
 
 		TRACE_DBG("READ_CAPACITY done: %x", res);
@@ -170,7 +170,7 @@ out:
 /************************************************************
  *  Function:  cdrom_detach
  *
- *  Argument: 
+ *  Argument:
  *
  *  Returns :  None
  *
@@ -193,7 +193,7 @@ void cdrom_detach(struct scst_device *dev)
 static int cdrom_get_block_shift(struct scst_cmd *cmd)
 {
 	struct cdrom_params *params = (struct cdrom_params *)cmd->dev->dh_priv;
-	/* 
+	/*
 	 * No need for locks here, since *_detach() can not be
 	 * called, when there are existing commands.
 	 */
@@ -203,7 +203,7 @@ static int cdrom_get_block_shift(struct scst_cmd *cmd)
 /********************************************************************
  *  Function:  cdrom_parse
  *
- *  Argument:  
+ *  Argument:
  *
  *  Returns :  The state of the command
  *
@@ -232,7 +232,7 @@ int cdrom_parse(struct scst_cmd *cmd)
 static void cdrom_set_block_shift(struct scst_cmd *cmd, int block_shift)
 {
 	struct cdrom_params *params = (struct cdrom_params *)cmd->dev->dh_priv;
-	/* 
+	/*
 	 * No need for locks here, since *_detach() can not be
 	 * called, when there are existing commands.
 	 */
@@ -246,13 +246,13 @@ static void cdrom_set_block_shift(struct scst_cmd *cmd, int block_shift)
 /********************************************************************
  *  Function:  cdrom_done
  *
- *  Argument:  
+ *  Argument:
  *
- *  Returns :  
+ *  Returns :
  *
  *  Description:  This is the completion routine for the command,
  *                it is used to extract any necessary information
- *                about a command. 
+ *                about a command.
  ********************************************************************/
 int cdrom_done(struct scst_cmd *cmd)
 {
@@ -271,7 +271,7 @@ static int __init cdrom_init(void)
 	int res = 0;
 
 	TRACE_ENTRY();
-	
+
 	cdrom_devtype.module = THIS_MODULE;
 
 	res = scst_register_dev_driver(&cdrom_devtype);

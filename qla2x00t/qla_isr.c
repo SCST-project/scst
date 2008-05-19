@@ -601,8 +601,8 @@ qla2x00_async_event(scsi_qla_host_t *ha, uint16_t *mb)
 		    ha->flags.init_done && mb[1] != 0xffff &&
 #ifndef FC_TARGET_SUPPORT
 		    ((ha->operating_mode == P2P && mb[1] != 0) ||
-		     (ha->operating_mode != P2P && 
-		      mb[1] != SNS_FIRST_LOOP_ID)) && 
+		     (ha->operating_mode != P2P &&
+		      mb[1] != SNS_FIRST_LOOP_ID)) &&
 #endif
 		    (mb[2] == 6 || mb[2] == 7)) {
 			int rval;
@@ -651,8 +651,8 @@ qla2x00_async_event(scsi_qla_host_t *ha, uint16_t *mb)
 			    mb[2], mb[3]));
 #ifdef FC_TARGET_SUPPORT
 			DEBUG2(printk("scsi(%ld): ha state %d init_done %d "
-				      "oper_mode %d topo %d\n", 
-				      ha->host_no, 
+				      "oper_mode %d topo %d\n",
+				      ha->host_no,
 				      atomic_read(&ha->loop_state),
 				      ha->flags.init_done,
 				      ha->operating_mode,
@@ -845,14 +845,14 @@ qla2x00_process_response_queue(struct scsi_qla_host *ha)
 		case STATUS_TYPE_21:
 			handle_cnt = ((sts21_entry_t *)pkt)->handle_count;
 			for (cnt = 0; cnt < handle_cnt; cnt++) {
-				qla2x00_process_completed_request(ha, 
+				qla2x00_process_completed_request(ha,
 					((sts21_entry_t *)pkt)->handle[cnt]);
 			}
 			break;
 		case STATUS_TYPE_22:
 			handle_cnt = ((sts22_entry_t *)pkt)->handle_count;
 			for (cnt = 0; cnt < handle_cnt; cnt++) {
-				qla2x00_process_completed_request(ha, 
+				qla2x00_process_completed_request(ha,
 					((sts22_entry_t *)pkt)->handle[cnt]);
 			}
 			break;
@@ -866,10 +866,10 @@ qla2x00_process_response_queue(struct scsi_qla_host *ha)
                 case ACCEPT_TGT_IO_TYPE:
                 case CONTINUE_TGT_IO_TYPE:
                 case CTIO_A64_TYPE:
-                case IMMED_NOTIFY_TYPE: 
+                case IMMED_NOTIFY_TYPE:
                 case NOTIFY_ACK_TYPE:
                 case ENABLE_LUN_TYPE:
-                case MODIFY_LUN_TYPE: 
+                case MODIFY_LUN_TYPE:
 			DEBUG4(printk(KERN_WARNING
 				      "qla2x00_response_pkt: "
 				      "calling tgt_response_pkt %p "
@@ -880,7 +880,7 @@ qla2x00_process_response_queue(struct scsi_qla_host *ha)
 			{
 				qla_target.tgt_response_pkt(ha, pkt);
 			}
-			break;		    
+			break;
 #endif /* FC_TARGET_SUPPORT */
 		case MBX_IOCB_TYPE:
 			if (!IS_QLA2100(ha) && !IS_QLA2200(ha) &&
@@ -1541,7 +1541,7 @@ qla24xx_process_response_queue(struct scsi_qla_host *ha)
                 case IMMED_NOTIFY_TYPE: /* always send these responses if we can */
                 case NOTIFY_ACK_TYPE:
                 case ENABLE_LUN_TYPE:
-                case MODIFY_LUN_TYPE: 
+                case MODIFY_LUN_TYPE:
 			DEBUG4(printk(KERN_WARNING
 				      "qla2x00_response_pkt: "
 				      "calling tgt_response_pkt %p "
@@ -1550,10 +1550,10 @@ qla24xx_process_response_queue(struct scsi_qla_host *ha)
 				      pkt->entry_type););
 			if (qla_target.tgt_response_pkt)
 			{
-				qla_target.tgt_response_pkt(ha, 
+				qla_target.tgt_response_pkt(ha,
 					(sts_entry_t *)pkt);
 			}
-			break;		    
+			break;
 #endif /* FC_TARGET_SUPPORT */
 		default:
 			/* Type Not Supported. */

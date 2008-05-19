@@ -29,7 +29,7 @@ qla2x00_show_tgt_enabled(struct class_device *cdev, char *buffer)
 	ulong max_size = PAGE_SIZE;
 	ulong size;
 
-	size = snprintf(buffer, max_size, "%d\n", 
+	size = snprintf(buffer, max_size, "%d\n",
 			ha->flags.enable_target_mode);
 
 	return size;
@@ -58,7 +58,7 @@ qla2x00_store_tgt_enabled(struct class_device *cdev,
 	}
 
 	switch (buffer[0]) {
-	case '0' : 
+	case '0' :
 		if ((ha->flags.enable_target_mode) || force) {
 			qla_target.tgt_host_action(ha, DISABLE_TARGET_MODE);
 			msleep_interruptible(10*1000);
@@ -79,12 +79,12 @@ qla2x00_store_tgt_enabled(struct class_device *cdev,
 	if ((size > 2) && (buffer[2] == 'r')) {
 		set_bit(ISP_ABORT_NEEDED, &ha->dpc_flags);
 	}
-	
+
 	return size;
 }
 
-static CLASS_DEVICE_ATTR(target_mode_enabled, 
-			 S_IRUGO|S_IWUSR, 
+static CLASS_DEVICE_ATTR(target_mode_enabled,
+			 S_IRUGO|S_IWUSR,
 			 qla2x00_show_tgt_enabled,
 			 qla2x00_store_tgt_enabled);
 
@@ -106,13 +106,13 @@ qla2x00_show_resource_counts(struct class_device *cdev, char *buffer)
 	rval = qla2x00_mailbox_command(ha, &mc);
 
 	if (rval != QLA_SUCCESS) {
-		size = snprintf(buffer, max_size, 
-				"Mailbox Command failed %d, mb %#x", 
+		size = snprintf(buffer, max_size,
+				"Mailbox Command failed %d, mb %#x",
 				rval, mc.mb[0]);
 		goto out;
 	}
 
-	size = snprintf(buffer, max_size, 
+	size = snprintf(buffer, max_size,
 			"immed_notify\t%d\ncommand\t\t%d\n",
 			mc.mb[2], mc.mb[1]);
 
@@ -143,7 +143,7 @@ qla2x00_show_port_database(struct class_device *cdev, char *buffer)
 	dma_addr_t pmap_dma;
 	port_data_t *pmap;
 	ulong dma_size = 0x100*sizeof(*pmap);
-	pmap = (port_data_t*)dma_alloc_coherent(&ha->pdev->dev, dma_size, 
+	pmap = (port_data_t*)dma_alloc_coherent(&ha->pdev->dev, dma_size,
 						&pmap_dma, GFP_KERNEL);
 	if (pmap == NULL) {
 		size = snprintf(buffer, max_size, "DMA Alloc failed of %ld",
@@ -165,30 +165,30 @@ qla2x00_show_port_database(struct class_device *cdev, char *buffer)
 	rval = qla2x00_mailbox_command(ha, &mc);
 
 	if (rval != QLA_SUCCESS) {
-		size = snprintf(buffer, max_size, 
-				"Mailbox Command failed %d, mb0 %#x mb1 %#x\n", 
+		size = snprintf(buffer, max_size,
+				"Mailbox Command failed %d, mb0 %#x mb1 %#x\n",
 				rval, mc.mb[0], mc.mb[1]);
 		goto out_free;
 	}
 
 	entries = le16_to_cpu(mc.mb[1])/sizeof(*pmap);
-	
-	size += snprintf(buffer+size, max_size-size, 
+
+	size += snprintf(buffer+size, max_size-size,
 			 "Port Name List (%#04x) returned %d bytes\nL_ID WWPN\n",
 			 MBC_PORT_NODE_NAME_LIST, le16_to_cpu(mc.mb[1]));
 
 	for (i = 0; (i < entries) && (size < max_size); ++i) {
-		size += snprintf(buffer+size, max_size-size, 
+		size += snprintf(buffer+size, max_size-size,
 				 "%04x %02x%02x%02x%02x%02x%02x%02x%02x\n",
 				 le16_to_cpu(pmap[i].loop_id),
-				 pmap[i].port_name[7], pmap[i].port_name[6], 
-				 pmap[i].port_name[5], pmap[i].port_name[4], 
-				 pmap[i].port_name[3], pmap[i].port_name[2], 
+				 pmap[i].port_name[7], pmap[i].port_name[6],
+				 pmap[i].port_name[5], pmap[i].port_name[4],
+				 pmap[i].port_name[3], pmap[i].port_name[2],
 				 pmap[i].port_name[1], pmap[i].port_name[0]);
 	}
 
 out_free:
-	dma_free_coherent(&ha->pdev->dev, dma_size, pmap, pmap_dma);	
+	dma_free_coherent(&ha->pdev->dev, dma_size, pmap, pmap_dma);
 
 
 	if (size < max_size) {
@@ -204,17 +204,17 @@ out_free:
 		rval = qla2x00_get_id_list(ha, ha->gid_list, ha->gid_list_dma,
 					   &entries);
 		if (rval != QLA_SUCCESS) {
-			size += snprintf(buffer+size, max_size-size, 
+			size += snprintf(buffer+size, max_size-size,
 					 "qla2x00_get_id_list failed: %d",
 					rval);
 			goto get_id_failed;
 		}
-		
-		size += snprintf(buffer+size, max_size-size, 
+
+		size += snprintf(buffer+size, max_size-size,
 				 "\nGet ID List (0x007C) returned %d entries\n"
 				 "L_ID PortID\n",
 				 entries);
-		
+
 		id_iter = (char *)ha->gid_list;
 		for (i = 0; (i < entries) && (size < max_size); ++i) {
 			gid = (struct gid_list_info *)id_iter;
@@ -234,7 +234,7 @@ out_free:
 						 gid->area,
 						 gid->al_pa,
 						 gid->loop_id_2100);
-				
+
 			}
 			id_iter += ha->gid_list_info_size;
 		}
@@ -245,8 +245,8 @@ get_id_failed:
 		fc_port_t *fcport;
 		char * state;
 		char port_type[] = "URSBIT";
-		
-		size += snprintf(buffer+size, max_size-size, 
+
+		size += snprintf(buffer+size, max_size-size,
 				 "\nfc_ports database\n");
 
 		list_for_each_entry(fcport, &ha->fcports, list) {
@@ -262,8 +262,8 @@ get_id_failed:
 			case FCS_FAILOVER_FAILED : state = "Failover Failed"; break;
 			default: state = "Unknown"; break;
 			}
-			
-			size += snprintf(buffer+size, max_size-size, 
+
+			size += snprintf(buffer+size, max_size-size,
 					 "%04x %02x%02x%02x "
 					 "%02x%02x%02x%02x%02x%02x%02x%02x "
 					 "%c %s\n",
@@ -271,9 +271,9 @@ get_id_failed:
 					 fcport->d_id.b.domain,
 					 fcport->d_id.b.area,
 					 fcport->d_id.b.al_pa,
-					 fcport->port_name[0], fcport->port_name[1], 
-					 fcport->port_name[2], fcport->port_name[3], 
-					 fcport->port_name[4], fcport->port_name[5], 
+					 fcport->port_name[0], fcport->port_name[1],
+					 fcport->port_name[2], fcport->port_name[3],
+					 fcport->port_name[4], fcport->port_name[5],
 					 fcport->port_name[6], fcport->port_name[7],
 					 port_type[fcport->port_type], state);
 		}
@@ -291,7 +291,7 @@ qla2x00_update_portdb(struct class_device *cdev, const char *buffer, size_t size
 {
 	scsi_qla_host_t *ha = to_qla_host(class_to_shost(cdev));
 	unsigned char reading = '0';
-	
+
 	switch (reading) {
 	case '2':
 		qla2x00_configure_loop(ha);
@@ -385,7 +385,7 @@ qla2x00_sysfs_write_fw_dump(struct kobject *kobj, struct bin_attribute *attr,
 		break;
 	case 1:
 		if ((ha->fw_dump == NULL) && (ha->isp_ops.fw_dump != NULL))
-			ha->isp_ops.fw_dump(ha, 0);	
+			ha->isp_ops.fw_dump(ha, 0);
 
 		if ((ha->fw_dump || ha->fw_dumped) && !ha->fw_dump_reading) {
 			ha->fw_dump_reading = 1;
@@ -1031,7 +1031,7 @@ struct class_device_attribute *qla2x00_host_attrs[] = {
 #if defined(FC_TARGET_SUPPORT)
 	&class_device_attr_target_mode_enabled,
 	&class_device_attr_resource_counts,
-	&class_device_attr_port_database,	
+	&class_device_attr_port_database,
 #endif
 	NULL,
 };

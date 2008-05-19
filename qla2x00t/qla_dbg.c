@@ -542,7 +542,7 @@ qla2300_ascii_fw_dump(scsi_qla_host_t *ha)
 			qla_uprintf(&uiter, "\t");
 			for (cnt2 = 8; cnt2 > 0 && cnt2 <= 8; --cnt2) {
 #define PRINTC(c) ((c > 0x20 && c < 0x7e) ?c :'.')
-				qla_uprintf(&uiter, "%c", 
+				qla_uprintf(&uiter, "%c",
 					    PRINTC(fw->risc_ram[cnt-cnt2]));
 #undef PRINTC
 			}
@@ -948,7 +948,7 @@ qla2100_ascii_fw_dump(scsi_qla_host_t *ha)
 			qla_uprintf(&uiter, "\t");
 			for (cnt2 = 8; cnt2 > 0 && cnt2 <= 8; --cnt2) {
 #define PRINTC(c) ((c > 0x20 && c < 0x7e) ?c :'.')
-				qla_uprintf(&uiter, "%c", 
+				qla_uprintf(&uiter, "%c",
 					    PRINTC(fw->risc_ram[cnt-cnt2]));
 #undef PRINTC
 			}

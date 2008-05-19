@@ -2,17 +2,17 @@
 /*-
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
- * 
+ *
  *  Redistribution and use in source and binary forms, with or without
  *  modification, are permitted provided that the following conditions
  *  are met:
- * 
+ *
  *  1. Redistributions of source code must retain the above copyright
  *     notice, this list of conditions and the following disclaimer.
  *  2. Redistributions in binary form must reproduce the above copyright
  *     notice, this list of conditions and the following disclaimer in the
  *     documentation and/or other materials provided with the distribution.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  *  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -24,32 +24,32 @@
  *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  *  OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  *  SUCH DAMAGE.
- * 
- * 
+ *
+ *
  *  Alternatively, this software may be distributed under the terms of the
  *  the GNU Public License ("GPL") with platforms where the prevalant license
  *  is the GNU Public License:
- * 
+ *
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of The Version 2 GNU General Public License as published
  *   by the Free Software Foundation.
- * 
+ *
  *   This program is distributed in the hope that it will be useful,
  *   but WITHOUT ANY WARRANTY; without even the implied warranty of
  *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *   GNU General Public License for more details.
- *  
+ *
  *   You should have received a copy of the GNU General Public License
  *   along with this program; if not, write to the Free Software
  *   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
- * 
- * 
+ *
+ *
  *  Matthew Jacob
  *  Feral Software
  *  421 Laurel Avenue
  *  Menlo Park, CA 94025
  *  USA
- * 
+ *
  *  gplbsd at feral com
  */
 /*
@@ -399,7 +399,7 @@ typedef struct {
 	uint16_t	mrk_lun;
 	uint8_t		mrk_reserved1[48];
 } isp_marker_t;
-	
+
 typedef struct {
 	isphdr_t	mrk_header;
 	uint32_t	mrk_handle;
@@ -412,7 +412,7 @@ typedef struct {
 	uint8_t		mrk_lun[8];
 	uint8_t		mrk_reserved3[40];
 } isp_marker_24xx_t;
-	
+
 
 #define SYNC_DEVICE	0
 #define SYNC_TARGET	1
@@ -666,7 +666,7 @@ typedef struct {
 	uint8_t		req_rsp_sense[28];
 } isp24xx_statusreq_t;
 
-/* 
+/*
  * For Qlogic 2X00, the high order byte of SCSI status has
  * additional meaning.
  */
@@ -719,7 +719,7 @@ typedef struct {
 	ispds64_t	ms_dataseg[2];
 } isp_ms_t;
 
-/* 
+/*
  * Completion Status Codes.
  */
 #define RQCS_COMPLETE			0x0000
@@ -771,7 +771,7 @@ typedef struct {
 
 
 /*
- * 1X00 specific State Flags 
+ * 1X00 specific State Flags
  */
 #define RQSF_GOT_BUS			0x0100
 #define RQSF_GOT_TARGET			0x0200
@@ -952,7 +952,7 @@ typedef struct {
 #define	ICBXOPT_RIO_32BIT	2
 #define	ICBXOPT_RIO_16BIT_IOCB	3
 #define	ICBXOPT_RIO_32BIT_IOCB	4
-#define	ICBXOPT_ZIO		5	
+#define	ICBXOPT_ZIO		5
 #define	ICBXOPT_TIMER_MASK	0x7
 
 #define	ICBZOPT_RATE_MASK	0xC000
@@ -1045,7 +1045,7 @@ typedef struct {
 	uint16_t	icb_prqstqlen;
 	uint16_t	icb_rqstaddr[4];
 	uint16_t	icb_respaddr[4];
-	uint16_t	icb_priaddr[4];	
+	uint16_t	icb_priaddr[4];
 	uint16_t	icb_reserved1[4];
 	uint16_t	icb_atio_in;
 	uint16_t	icb_atioqlen;
@@ -1619,14 +1619,14 @@ typedef struct {
 typedef struct {
 	uint16_t	handle;
 	uint16_t	lun;
-	uint32_t	
+	uint32_t
 		channel : 8,
 		portid	: 24;
 	uint32_t	timeout;
 	union {
 		struct {
 			uint32_t data_length;
-			uint32_t 
+			uint32_t
 				no_wait : 1,
 				do_read : 1;
 			uint8_t cdb[16];

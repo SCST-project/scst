@@ -75,41 +75,41 @@
    Rev 12    January 20, 2003	RL
              - Added EXT_DEF_USE_HBASELECT definition for use by
                the SETINSTANCE command.
- 
+
    Rev 11    December 10, 2002	RL
              - Added EXT_CC_SEND_ELS_PASSTHRU_OS definition.
- 
+
    Rev 10    October 26, 2001	RL
              - Corrected MAX_HBA, MAX_TARGET and MAX_LUN values to 255.
- 
+
    Rev 9     July 26, 2001	RL
              - Added definition of signed types.
- 
+
    Rev 8     July 05, 2001	RL
              - Redefined ioctl command values.
- 
+
    Rev 7     Nov 06, 2000   BN
              - Added EXT_DEF_MAX_AEN_QUEUE_OS define
              - Added define for handle_hba_t
- 
+
    Rev 6     Oct 25, 2000   BN
              - Added EXT_CC_DRIVER_PROP_OS define
- 
+
    Rev 5     Oct 25, 2000   BN
              - Redo the copyright header and add AEN details
- 
+
    Rev 4     Oct 23, 2000   BN
              - Added definition for BOOLEAN
- 
+
    Rev 3     Oct 23, 2000   BN
              - Added definitions for EXT_ADDR_MODE_OS
                and also include of <linux/ioctl.h>
- 
+
    Rev 2     Oct 18, 2000   BN
              - Enable API Exention support
- 
+
    Rev 1     Original version Sep 7, 2000   BN
- 
+
 */
 
 
@@ -225,7 +225,7 @@
 /***************************************************************
  * These are regular/external command codes, starting from 0.
  * The regular command code end index must be updated whenever
- * adding new commands. 
+ * adding new commands.
  ***************************************************************/
 #define EXT_DEF_LN_REG_CC_START_IDX	0x00	/* reg cmd start index */
 

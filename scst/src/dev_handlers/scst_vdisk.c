@@ -1,26 +1,26 @@
 /*
  *  scst_vdisk.c
- *  
+ *
  *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
  *            (C) 2007 Ming Zhang <blackmagic02881 at gmail dot com>
  *            (C) 2007 Ross Walker <rswwalker at hotmail dot com>
  *
- *  SCSI disk (type 0) and CDROM (type 5) dev handler using files 
+ *  SCSI disk (type 0) and CDROM (type 5) dev handler using files
  *  on file systems or block devices (VDISK)
- *  
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation, version 2
  *  of the License.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  *  GNU General Public License for more details.
  */
 
-#include <asm/uaccess.h>  
+#include <asm/uaccess.h>
 #include <linux/file.h>
 #include <linux/fs.h>
 #include <linux/string.h>
@@ -319,7 +319,7 @@ static struct scst_dev_type vcdrom_devtype = VCDROM_TYPE;
 
 static char *vdisk_proc_help_string =
 	"echo \"open|close NAME [FILE_NAME [BLOCK_SIZE] [WRITE_THROUGH "
-	"READ_ONLY O_DIRECT NULLIO NV_CACHE BLOCKIO]]\" >/proc/scsi_tgt/" 
+	"READ_ONLY O_DIRECT NULLIO NV_CACHE BLOCKIO]]\" >/proc/scsi_tgt/"
 	VDISK_NAME "/" VDISK_NAME "\n";
 
 static char *vcdrom_proc_help_string =
@@ -335,11 +335,11 @@ MODULE_PARM_DESC(scst_vdisk_ID, "SCST virtual disk subsystem ID");
 /**************************************************************
  *  Function:  vdisk_open
  *
- *  Argument:  
+ *  Argument:
  *
  *  Returns :  fd, use IS_ERR(fd) to get error status
  *
- *  Description:  
+ *  Description:
  *************************************************************/
 static struct file *vdisk_open(const struct scst_vdisk_dev *virt_dev)
 {
@@ -366,11 +366,11 @@ static struct file *vdisk_open(const struct scst_vdisk_dev *virt_dev)
 /**************************************************************
  *  Function:  vdisk_attach
  *
- *  Argument:  
+ *  Argument:
  *
  *  Returns :  1 if attached, error code otherwise
  *
- *  Description:  
+ *  Description:
  *************************************************************/
 static int vdisk_attach(struct scst_device *dev)
 {
@@ -390,12 +390,12 @@ static int vdisk_attach(struct scst_device *dev)
 		goto out;
 	}
 
-	vd = (dev->handler->type == TYPE_DISK) ? 
+	vd = (dev->handler->type == TYPE_DISK) ?
 				&vdisk_dev_list :
 				&vcdrom_dev_list;
 
-	/* 
-	 * scst_vdisk_mutex must be already taken before 
+	/*
+	 * scst_vdisk_mutex must be already taken before
 	 * scst_register_virtual_device()
 	 */
 	list_for_each_entry(vv, vd, vdisk_dev_list_entry) {
@@ -404,7 +404,7 @@ static int vdisk_attach(struct scst_device *dev)
 			break;
 		}
 	}
-	
+
 	if (virt_dev == NULL) {
 		PRINT_ERROR("Device %s not found", dev->virt_name);
 		res = -EINVAL;
@@ -431,10 +431,10 @@ static int vdisk_attach(struct scst_device *dev)
 			}
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
-			if ((fd->f_op == NULL) || (fd->f_op->readv == NULL) || 
+			if ((fd->f_op == NULL) || (fd->f_op->readv == NULL) ||
 			    (fd->f_op->writev == NULL))
 #else
-			if ((fd->f_op == NULL) || (fd->f_op->aio_read == NULL) || 
+			if ((fd->f_op == NULL) || (fd->f_op->aio_read == NULL) ||
 			    (fd->f_op->aio_write == NULL))
 #endif
 			{
@@ -444,7 +444,7 @@ static int vdisk_attach(struct scst_device *dev)
 				filp_close(fd, NULL);
 				goto out;
 			}
-		
+
 			inode = fd->f_dentry->d_inode;
 
 			if (virt_dev->blockio && !S_ISBLK(inode->i_mode)) {
@@ -465,7 +465,7 @@ static int vdisk_attach(struct scst_device *dev)
 				goto out;
  			}
 			err = inode->i_size;
- 
+
 			filp_close(fd, NULL);
 		}
 		virt_dev->file_size = err;
@@ -512,7 +512,7 @@ out:
 /************************************************************
  *  Function:  vdisk_detach
  *
- *  Argument: 
+ *  Argument:
  *
  *  Returns :  None
  *
@@ -532,7 +532,7 @@ static void vdisk_detach(struct scst_device *dev)
 
 	/* virt_dev will be freed by the caller */
 	dev->dh_priv = NULL;
-	
+
 	TRACE_EXIT();
 	return;
 }
@@ -622,7 +622,7 @@ static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev)
 	}
 
 	tgt_dev->dh_priv = ftgt_dev;
-	
+
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -630,7 +630,7 @@ out:
 
 static void vdisk_detach_tgt(struct scst_tgt_dev *tgt_dev)
 {
-	struct scst_vdisk_tgt_dev *ftgt_dev = 
+	struct scst_vdisk_tgt_dev *ftgt_dev =
 		(struct scst_vdisk_tgt_dev *)tgt_dev->dh_priv;
 
 	TRACE_ENTRY();
@@ -761,10 +761,10 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 		lba_start |= ((u64)cdb[3]) << 16;
 		lba_start |= ((u64)cdb[4]) << 8;
 		lba_start |= ((u64)cdb[5]);
-		data_len = ((cdb[7] << (BYTE * 1)) + (cdb[8] << (BYTE * 0))) 
+		data_len = ((cdb[7] << (BYTE * 1)) + (cdb[8] << (BYTE * 0)))
 				<< virt_dev->block_shift;
 		if (data_len == 0)
-			data_len = virt_dev->file_size - 
+			data_len = virt_dev->file_size -
 				((loff_t)lba_start << virt_dev->block_shift);
 		break;
 	}
@@ -775,7 +775,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	if (unlikely(loff < 0) || unlikely(data_len < 0) ||
 	    unlikely((loff + data_len) > virt_dev->file_size)) {
 	    	PRINT_INFO("Access beyond the end of the device "
-			"(%lld of %lld, len %Ld)", (uint64_t)loff, 
+			"(%lld of %lld, len %Ld)", (uint64_t)loff,
 			(uint64_t)virt_dev->file_size, (uint64_t)data_len);
 		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
 					scst_sense_block_out_range_error));
@@ -977,7 +977,7 @@ static int vdisk_get_block_shift(struct scst_cmd *cmd)
 /********************************************************************
  *  Function:  vdisk_parse
  *
- *  Argument:  
+ *  Argument:
  *
  *  Returns :  The state of the command
  *
@@ -994,7 +994,7 @@ static int vdisk_parse(struct scst_cmd *cmd)
 /********************************************************************
  *  Function:  vcdrom_parse
  *
- *  Argument:  
+ *  Argument:
  *
  *  Returns :  The state of the command
  *
@@ -1011,11 +1011,11 @@ static int vcdrom_parse(struct scst_cmd *cmd)
 /********************************************************************
  *  Function:  vcdrom_exec
  *
- *  Argument:  
+ *  Argument:
  *
- *  Returns :  
+ *  Returns :
  *
- *  Description:  
+ *  Description:
  ********************************************************************/
 static int vcdrom_exec(struct scst_cmd *cmd)
 {
@@ -1038,7 +1038,7 @@ static int vcdrom_exec(struct scst_cmd *cmd)
 		goto out_done;
 	}
 
-	if (virt_dev->media_changed && (cmd->cdb[0] != INQUIRY) && 
+	if (virt_dev->media_changed && (cmd->cdb[0] != INQUIRY) &&
 	    (cmd->cdb[0] != REQUEST_SENSE) && (cmd->cdb[0] != REPORT_LUNS)) {
 		spin_lock(&virt_dev->flags_lock);
 		if (virt_dev->media_changed) {
@@ -1080,7 +1080,7 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	buf = kzalloc(INQ_BUF_SZ, 
+	buf = kzalloc(INQ_BUF_SZ,
 		scst_cmd_atomic(cmd) ? GFP_ATOMIC : GFP_KERNEL);
 	if (buf == NULL) {
 		scst_set_busy(cmd);
@@ -1110,7 +1110,7 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 	if (cmd->cdb[1] & EVPD) {
 		int dev_id_num;
 		char dev_id_str[6];
-		
+
 		for (dev_id_num = 0, i = 0; i < (int)strlen(virt_dev->name); i++) {
 			unsigned int rv = random_values[(int)(virt_dev->name[i])];
 			/*
@@ -1270,7 +1270,7 @@ out:
 	return;
 }
 
-/* 
+/*
  * <<Following mode pages info copied from ST318451LW with some corrections>>
  *
  * ToDo: revise them
@@ -1405,7 +1405,7 @@ static void vdisk_exec_mode_sense(struct scst_cmd *cmd)
 	virt_dev = (struct scst_vdisk_dev *)cmd->dev->dh_priv;
 	blocksize = virt_dev->block_size;
 	nblocks = virt_dev->nblocks;
-	
+
 	type = cmd->dev->handler->type;    /* type dev */
 	dbd = cmd->cdb[1] & DBD;
 	pcontrol = (cmd->cdb[2] & 0xc0) >> 6;
@@ -1621,7 +1621,7 @@ static void vdisk_exec_mode_select(struct scst_cmd *cmd)
 				goto out_put;
 			}
 			break;
-#if 0 /* 
+#if 0 /*
        * It's too early to implement it, since we can't control the backstorage
        * device parameters. ToDo
        */
@@ -1635,7 +1635,7 @@ static void vdisk_exec_mode_select(struct scst_cmd *cmd)
 			}
 #endif
 		} else {
-			PRINT_ERROR("MODE SELECT: Invalid request %x", 
+			PRINT_ERROR("MODE SELECT: Invalid request %x",
 				address[offset] & 0x3f);
 			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
 			    	scst_sense_invalid_field_in_parm_list));
@@ -1696,7 +1696,7 @@ static void vdisk_exec_read_capacity(struct scst_cmd *cmd)
 	buffer[5] = (blocksize >> (BYTE * 2)) & 0xFF;
 	buffer[6] = (blocksize >> (BYTE * 1)) & 0xFF;
 	buffer[7] = (blocksize >> (BYTE * 0)) & 0xFF;
-	
+
 	length = scst_get_buf_first(cmd, &address);
 	if (unlikely(length <= 0)) {
 		PRINT_ERROR("scst_get_buf_first() failed: %d", length);
@@ -1777,7 +1777,7 @@ static void vdisk_exec_read_toc(struct scst_cmd *cmd)
 	uint8_t *address;
 	struct scst_vdisk_dev *virt_dev;
 	uint32_t nblocks;
-	uint8_t buffer[4+8+8] = { 0x00, 0x0a, 0x01, 0x01, 0x00, 0x14, 
+	uint8_t buffer[4+8+8] = { 0x00, 0x0a, 0x01, 0x01, 0x00, 0x14,
 				  0x01, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
 	TRACE_ENTRY();
@@ -1867,7 +1867,7 @@ static void vdisk_exec_prevent_allow_medium_removal(struct scst_cmd *cmd)
 
 	if (cmd->dev->handler->type == TYPE_ROM) {
 		spin_lock(&virt_dev->flags_lock);
-		virt_dev->prevent_allow_medium_removal = 
+		virt_dev->prevent_allow_medium_removal =
 			cmd->cdb[4] & 0x01 ? 1 : 0;
 		spin_unlock(&virt_dev->flags_lock);
 	}
@@ -1915,7 +1915,7 @@ static struct iovec *vdisk_alloc_iv(struct scst_cmd *cmd,
 	struct scst_vdisk_thr *thr)
 {
 	int iv_count;
-	
+
 	iv_count = scst_get_buf_count(cmd);
 	if (iv_count > thr->iv_count) {
 		if (thr->iv != NULL)
@@ -1989,11 +1989,11 @@ static void vdisk_exec_read(struct scst_cmd *cmd,
 	int iv_count, i;
 
 	TRACE_ENTRY();
-	
+
 	iv = vdisk_alloc_iv(cmd, thr);
 	if (iv == NULL)
 		goto out;
-	
+
 	iv_count = 0;
 	full_len = 0;
 	i = -1;
@@ -2020,14 +2020,14 @@ static void vdisk_exec_read(struct scst_cmd *cmd,
 	if (virt_dev->nullio)
 		err = full_len;
 	else {
-		/* SEEK */	
+		/* SEEK */
 		if (fd->f_op->llseek) {
 			err = fd->f_op->llseek(fd, loff, 0/*SEEK_SET*/);
 		} else {
 			err = default_llseek(fd, loff, 0/*SEEK_SET*/);
 		}
 		if (err != loff) {
-			PRINT_ERROR("lseek trouble %Ld != %Ld", (uint64_t)err, 
+			PRINT_ERROR("lseek trouble %Ld != %Ld", (uint64_t)err,
 				(uint64_t)loff);
 			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 			goto out_set_fs;
@@ -2041,7 +2041,7 @@ static void vdisk_exec_read(struct scst_cmd *cmd,
 	}
 
 	if ((err < 0) || (err < full_len)) {
-		PRINT_ERROR("readv() returned %Ld from %zd", (uint64_t)err, 
+		PRINT_ERROR("readv() returned %Ld from %zd", (uint64_t)err,
 			full_len);
 		if (err == -EAGAIN)
 			scst_set_busy(cmd);
@@ -2054,11 +2054,11 @@ static void vdisk_exec_read(struct scst_cmd *cmd,
 
 out_set_fs:
 	set_fs(old_fs);
-	
-out_put:	
+
+out_put:
 	for(; i >= 0; i--)
 		scst_put_buf(cmd, iv[i].iov_base);
-	
+
 out:
 	TRACE_EXIT();
 	return;
@@ -2082,7 +2082,7 @@ static void vdisk_exec_write(struct scst_cmd *cmd,
 	iv = vdisk_alloc_iv(cmd, thr);
 	if (iv == NULL)
 		goto out;
-	
+
 	iv_count = 0;
 	full_len = 0;
 	length = scst_get_buf_first(cmd, &address);
@@ -2118,7 +2118,7 @@ restart:
 			err = default_llseek(fd, loff, 0 /*SEEK_SET */ );
 		}
 		if (err != loff) {
-			PRINT_ERROR("lseek trouble %Ld != %Ld", (uint64_t)err, 
+			PRINT_ERROR("lseek trouble %Ld != %Ld", (uint64_t)err,
 				(uint64_t)loff);
 			scst_set_cmd_error(cmd,
 			    SCST_LOAD_SENSE(scst_sense_hardw_error));
@@ -2129,13 +2129,13 @@ restart:
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
 		err = fd->f_op->writev(fd, eiv, eiv_count, &fd->f_pos);
 #else
-		err = do_sync_readv_writev(fd, iv, iv_count, full_len, &fd->f_pos, 
+		err = do_sync_readv_writev(fd, iv, iv_count, full_len, &fd->f_pos,
 									fd->f_op->aio_write);
 #endif
 	}
 
 	if (err < 0) {
-		PRINT_ERROR("write() returned %Ld from %zd", 
+		PRINT_ERROR("write() returned %Ld from %zd",
 			(uint64_t)err, full_len);
 		if (err == -EAGAIN)
 			scst_set_busy(cmd);
@@ -2145,7 +2145,7 @@ restart:
 		}
 		goto out_set_fs;
 	} else if (err < full_len) {
-		/* 
+		/*
 		 * Probably that's wrong, but sometimes write() returns
 		 * value less, than requested. Let's restart.
 		 */
@@ -2164,7 +2164,7 @@ restart:
 				eiv++;
 				eiv_count--;
 			} else {
-				eiv->iov_base = 
+				eiv->iov_base =
 					(uint8_t*)eiv->iov_base + err;
 				eiv->iov_len -= err;
 				break;
@@ -2176,7 +2176,7 @@ restart:
 out_set_fs:
 	set_fs(old_fs);
 
-out_put:	
+out_put:
 	while (iv_count > 0) {
 		scst_put_buf(cmd, iv[iv_count-1].iov_base);
 		iv_count--;
@@ -2221,7 +2221,7 @@ static void blockio_endio(struct bio *bio, int error)
 	if (unlikely(error != 0)) {
 		PRINT_ERROR("cmd %p returned error %d", blockio_work->cmd,
 			error);
-		/* 
+		/*
 		 * The race with other such bio's doesn't matter, since all
 		 * scst_set_cmd_error() calls do the same local to this cmd
 		 * operations.
@@ -2266,7 +2266,7 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 	blockio_work = kmalloc(sizeof (*blockio_work), GFP_KERNEL);
 	if (blockio_work == NULL)
 		goto out_no_mem;
-	
+
 	blockio_work->cmd = cmd;
 
 	if (q)
@@ -2304,7 +2304,7 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 				bios++;
 				need_new_bio = 0;
 				bio->bi_end_io = blockio_endio;
-				bio->bi_sector = lba_start0 << 
+				bio->bi_sector = lba_start0 <<
 					(virt_dev->block_shift - 9);
 				bio->bi_bdev = bdev;
 				bio->bi_private = blockio_work;
@@ -2373,7 +2373,7 @@ out_no_mem:
 	goto out;
 }
 
-static void vdisk_exec_verify(struct scst_cmd *cmd, 
+static void vdisk_exec_verify(struct scst_cmd *cmd,
 	struct scst_vdisk_thr *thr, loff_t loff)
 {
 	mm_segment_t old_fs;
@@ -2391,7 +2391,7 @@ static void vdisk_exec_verify(struct scst_cmd *cmd,
 	if (vdisk_fsync(thr, loff, cmd->bufflen, cmd) != 0)
 		goto out;
 
-	/* 
+	/*
 	 * Until the cache is cleared prior the verifying, there is not
          * much point in this code. ToDo.
 	 *
@@ -2410,7 +2410,7 @@ static void vdisk_exec_verify(struct scst_cmd *cmd,
 			err = default_llseek(fd, loff, 0/*SEEK_SET*/);
 		}
 		if (err != loff) {
-			PRINT_ERROR("lseek trouble %Ld != %Ld", (uint64_t)err, 
+			PRINT_ERROR("lseek trouble %Ld != %Ld", (uint64_t)err,
 				(uint64_t)loff);
 			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 			goto out_set_fs;
@@ -2523,7 +2523,7 @@ static int vdisk_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	return SCST_DEV_TM_NOT_COMPLETED;
 }
 
-/* 
+/*
  * Called when a file in the /proc/VDISK_NAME/VDISK_NAME is read
  */
 static int vdisk_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
@@ -2532,12 +2532,12 @@ static int vdisk_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
-	
+
 	if (mutex_lock_interruptible(&scst_vdisk_mutex) != 0) {
 		res = -EINTR;
 		goto out;
 	}
-	
+
 	seq_printf(seq, "%-17s %-11s %-11s %-15s %s\n",
 			   "Name", "Size(MB)", "Block size", "Options", "File name");
 
@@ -2632,7 +2632,7 @@ static void vdisk_report_registering(const char *type,
 	return;
 }
 
-/* 
+/*
  * Called when a file in the /proc/VDISK_NAME/VDISK_NAME is written
  */
 static int vdisk_write_proc(char *buffer, char **start, off_t offset,
@@ -2646,12 +2646,12 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 	size_t len;
 
 	TRACE_ENTRY();
-	
+
 	/* VERY UGLY code. You can rewrite it if you want */
 
 	if (buffer[0] == '\0')
 		goto out;
-	
+
 	if (mutex_lock_interruptible(&scst_vdisk_mutex) != 0) {
 		res = -EINTR;
 		goto out;
@@ -2750,7 +2750,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 		}
 		virt_dev->block_size = block_size;
 		virt_dev->block_shift = block_shift;
-		
+
 		while (*p != '\0') {
 			if (!strncmp("WRITE_THROUGH", p, 13)) {
 				p += 13;
@@ -2767,7 +2767,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 			} else if (!strncmp("O_DIRECT", p, 8)) {
 				p += 8;
 		#if 0
-				
+
 				virt_dev->o_direct_flag = 1;
 				TRACE_DBG("%s", "O_DIRECT");
 		#else
@@ -2854,7 +2854,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 			goto out_up;
 		}
 		scst_unregister_virtual_device(virt_dev->virt_id);
-		PRINT_INFO("Virtual device %s unregistered", 
+		PRINT_INFO("Virtual device %s unregistered",
 			virt_dev->name);
 		TRACE_DBG("virt_id %d unregister", virt_dev->virt_id);
 
@@ -2995,7 +2995,7 @@ static int vcdrom_close(char *name)
 		goto out;
 	}
 	scst_unregister_virtual_device(virt_dev->virt_id);
-	PRINT_INFO("Virtual device %s unregistered", 
+	PRINT_INFO("Virtual device %s unregistered",
 		virt_dev->name);
 	TRACE_DBG("virt_id %d unregister", virt_dev->virt_id);
 
@@ -3158,7 +3158,7 @@ out_free_resume:
 	goto out_resume;
 }
 
-/* 
+/*
  * Called when a file in the /proc/VCDROM_NAME/VCDROM_NAME is read
  */
 static int vcdrom_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
@@ -3172,10 +3172,10 @@ static int vcdrom_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type
 		res = -EINTR;
 		goto out;
 	}
-	
+
 	seq_printf(seq, "%-17s %-9s %s\n", "Name", "Size(MB)", "File name");
 
-	list_for_each_entry(virt_dev, &vcdrom_dev_list, 
+	list_for_each_entry(virt_dev, &vcdrom_dev_list,
 		vdisk_dev_list_entry) {
 		seq_printf(seq, "%-17s %-9d %s\n", virt_dev->name,
 			(uint32_t)(virt_dev->file_size >> 20),
@@ -3189,8 +3189,8 @@ out:
 	return res;
 }
 
-/* 
- * Called when a file in the /proc/VCDROM_NAME/VCDROM_NAME is written 
+/*
+ * Called when a file in the /proc/VCDROM_NAME/VCDROM_NAME is written
  */
 static int vcdrom_write_proc(char *buffer, char **start, off_t offset,
 	int length, int *eof, struct scst_dev_type *dev_type)
@@ -3205,7 +3205,7 @@ static int vcdrom_write_proc(char *buffer, char **start, off_t offset,
 		res = -EINTR;
 		goto out;
 	}
-	
+
 	p = buffer;
 	if (p[strlen(p) - 1] == '\n') {
 		p[strlen(p) - 1] = '\0';
@@ -3290,7 +3290,7 @@ static int vdisk_proc_help_build(struct scst_dev_type *dev_type)
 	TRACE_ENTRY();
 
 	root = scst_proc_get_dev_type_root(dev_type);
-	vdisk_help_proc_data.data = (dev_type->type == TYPE_DISK) ? 
+	vdisk_help_proc_data.data = (dev_type->type == TYPE_DISK) ?
 					vdisk_proc_help_string :
 					vcdrom_proc_help_string;
 	p = scst_create_proc_entry(root, VDISK_PROC_HELP, &vdisk_help_proc_data);
@@ -3364,7 +3364,7 @@ static void exit_scst_vdisk(struct scst_dev_type *devtype,
 
 		if (list_empty(vdisk_dev_list))
 			break;
-		
+
 		virt_dev = list_entry(vdisk_dev_list->next, typeof(*virt_dev),
 				vdisk_dev_list_entry);
 

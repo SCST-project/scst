@@ -1,6 +1,6 @@
 /*
  *  scst_disk.c
- *  
+ *
  *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
  *
@@ -8,12 +8,12 @@
  *  &
  *  SCSI disk (type 0) "performance" device handler (skip all READ and WRITE
  *   operations).
- *  
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation, version 2
  *  of the License.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -135,11 +135,11 @@ module_exit(exit_scst_disk_driver);
 /**************************************************************
  *  Function:  disk_attach
  *
- *  Argument:  
+ *  Argument:
  *
  *  Returns :  1 if attached, error code otherwise
  *
- *  Description:  
+ *  Description:
  *************************************************************/
 int disk_attach(struct scst_device *dev)
 {
@@ -189,13 +189,13 @@ int disk_attach(struct scst_device *dev)
 		sbuff = sense_buffer;
 
 		TRACE_DBG("%s", "Doing READ_CAPACITY");
-		res = scsi_execute(dev->scsi_dev, cmd, data_dir, buffer, 
-				   buffer_size, sbuff, 
+		res = scsi_execute(dev->scsi_dev, cmd, data_dir, buffer,
+				   buffer_size, sbuff,
 				   DISK_REG_TIMEOUT, 3, 0);
 
 		TRACE_DBG("READ_CAPACITY done: %x", res);
 
-		if (!res || (sbuff[12] != 0x28 && sbuff[12] != 0x29)) 
+		if (!res || (sbuff[12] != 0x28 && sbuff[12] != 0x29))
 		{
 			break;
 		}
@@ -245,7 +245,7 @@ out:
 /************************************************************
  *  Function:  disk_detach
  *
- *  Argument: 
+ *  Argument:
  *
  *  Returns :  None
  *
@@ -268,7 +268,7 @@ void disk_detach(struct scst_device *dev)
 static int disk_get_block_shift(struct scst_cmd *cmd)
 {
 	struct disk_params *params = (struct disk_params *)cmd->dev->dh_priv;
-	/* 
+	/*
 	 * No need for locks here, since *_detach() can not be
 	 * called, when there are existing commands.
 	 */
@@ -278,7 +278,7 @@ static int disk_get_block_shift(struct scst_cmd *cmd)
 /********************************************************************
  *  Function:  disk_parse
  *
- *  Argument:  
+ *  Argument:
  *
  *  Returns :  The state of the command
  *
@@ -307,7 +307,7 @@ int disk_parse(struct scst_cmd *cmd)
 static void disk_set_block_shift(struct scst_cmd *cmd, int block_shift)
 {
 	struct disk_params *params = (struct disk_params *)cmd->dev->dh_priv;
-	/* 
+	/*
 	 * No need for locks here, since *_detach() can not be
 	 * called, when there are existing commands.
 	 */
@@ -321,13 +321,13 @@ static void disk_set_block_shift(struct scst_cmd *cmd, int block_shift)
 /********************************************************************
  *  Function:  disk_done
  *
- *  Argument:  
+ *  Argument:
  *
- *  Returns :  
+ *  Returns :
  *
  *  Description:  This is the completion routine for the command,
  *                it is used to extract any necessary information
- *                about a command. 
+ *                about a command.
  ********************************************************************/
 int disk_done(struct scst_cmd *cmd)
 {
@@ -344,9 +344,9 @@ int disk_done(struct scst_cmd *cmd)
 /********************************************************************
  *  Function:  disk_exec
  *
- *  Argument:  
+ *  Argument:
  *
- *  Returns :  
+ *  Returns :
  *
  *  Description:  Make SCST do nothing for data READs and WRITES.
  *                Intended for raw line performance testing

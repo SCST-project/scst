@@ -1,16 +1,16 @@
 /*
  *  scst_changer.c
- *  
+ *
  *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
  *
  *  SCSI medium changer (type 8) dev handler
- *  
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation, version 2
  *  of the License.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -52,11 +52,11 @@ static struct scst_dev_type changer_devtype = CHANGER_TYPE;
 /**************************************************************
  *  Function:  changer_attach
  *
- *  Argument:  
+ *  Argument:
  *
  *  Returns :  1 if attached, error code otherwise
  *
- *  Description:  
+ *  Description:
  *************************************************************/
 int changer_attach(struct scst_device *dev)
 {
@@ -86,7 +86,7 @@ int changer_attach(struct scst_device *dev)
 	retries = SCST_DEV_UA_RETRIES;
 	do {
 		TRACE_DBG("%s", "Doing TEST_UNIT_READY");
-		res = scsi_test_unit_ready(dev->scsi_dev, CHANGER_TIMEOUT, 
+		res = scsi_test_unit_ready(dev->scsi_dev, CHANGER_TIMEOUT,
 					   CHANGER_RETRIES
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
 					  );
@@ -117,7 +117,7 @@ out:
 /************************************************************
  *  Function:  changer_detach
  *
- *  Argument: 
+ *  Argument:
  *
  *  Returns :  None
  *
@@ -134,7 +134,7 @@ void changer_detach(struct scst_device *dev)
 /********************************************************************
  *  Function:  changer_parse
  *
- *  Argument:  
+ *  Argument:
  *
  *  Returns :  The state of the command
  *
@@ -162,13 +162,13 @@ int changer_parse(struct scst_cmd *cmd)
 /********************************************************************
  *  Function:  changer_done
  *
- *  Argument:  
+ *  Argument:
  *
- *  Returns :  
+ *  Returns :
  *
  *  Description:  This is the completion routine for the command,
  *                it is used to extract any necessary information
- *                about a command. 
+ *                about a command.
  ********************************************************************/
 int changer_done(struct scst_cmd *cmd)
 {
@@ -199,13 +199,13 @@ static int __init changer_init(void)
 	int res = 0;
 
 	TRACE_ENTRY();
-	
+
 	changer_devtype.module = THIS_MODULE;
 
 	res = scst_register_dev_driver(&changer_devtype);
 	if (res < 0)
 		goto out;
-	
+
 	res = scst_dev_handler_build_std_proc(&changer_devtype);
 	if (res != 0)
 		goto out_err;

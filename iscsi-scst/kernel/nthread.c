@@ -4,11 +4,11 @@
  *  Copyright (C) 2004 - 2005 FUJITA Tomonori <tomof@acm.org>
  *  Copyright (C) 2007 Vladislav Bolkhovitin
  *  Copyright (C) 2007 CMS Distribution Limited
- * 
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -398,7 +398,7 @@ static void close_conn(struct iscsi_conn *conn)
 				}
 
 				sBUG_ON(cmnd->parent_req != NULL);
-				
+
 				spin_lock_bh(&cmnd->rsp_cmd_lock);
 				list_for_each_entry(rsp, &cmnd->rsp_cmd_list, rsp_cmd_list_entry) {
 					TRACE_CONN_CLOSE_DBG("  rsp %p, ref_cnt %d, net_ref_cnt %d, "
@@ -1012,7 +1012,7 @@ retry:
 				break;
 			goto out_iov;
 		}
-		sBUG_ON(iop > conn->write_iov + 
+		sBUG_ON(iop > conn->write_iov +
 			sizeof(conn->write_iov)/sizeof(conn->write_iov[0]));
 		iop->iov_base += rest;
 		iop->iov_len -= rest;
@@ -1082,7 +1082,7 @@ retry:
 retry2:
 			res = sendpage(sock, sg_page(&sg[idx]), offset, size, flags);
 			TRACE_WRITE("Final %s %#Lx:%u: %d(%lu,%u,%u, cmd %p, page %p)",
-				(sendpage != sock_no_sendpage) ? "sendpage" : 
+				(sendpage != sock_no_sendpage) ? "sendpage" :
 								 "sock_no_sendpage",
 				conn->session->sid, conn->cid,
 				res, sg_page(&sg[idx])->index, offset, size,
@@ -1110,7 +1110,7 @@ retry1:
 		res = sendpage(sock, sg_page(&sg[idx]), offset, sendsize,
 			flags | MSG_MORE);
 		TRACE_WRITE("%s %#Lx:%u: %d(%lu,%u,%u, cmd %p, page %p)",
-			(sendpage != sock_no_sendpage) ? "sendpage" : 
+			(sendpage != sock_no_sendpage) ? "sendpage" :
 							 "sock_no_sendpage",
 			(unsigned long long)conn->session->sid, conn->cid,
 			res, sg_page(&sg[idx])->index, offset, sendsize,
@@ -1257,7 +1257,7 @@ static int iscsi_do_send(struct iscsi_conn *conn, int state)
 	return res;
 }
 
-/* 
+/*
  * No locks, conn is wr processing.
  *
  * IMPORTANT! Connection conn must be protected by additional conn_get()
@@ -1288,7 +1288,7 @@ int iscsi_send(struct iscsi_conn *conn)
 		    init_tx_hdigest(cmnd);
 		conn->write_state = TX_BHS_DATA;
 	case TX_BHS_DATA:
-		res = iscsi_do_send(conn, ddigest && cmnd->pdu.datasize ? 
+		res = iscsi_do_send(conn, ddigest && cmnd->pdu.datasize ?
 					TX_INIT_DDIGEST : TX_END);
 		if (res <= 0 || conn->write_state != TX_INIT_DDIGEST)
 			break;

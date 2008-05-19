@@ -1,6 +1,6 @@
 /*
  *  scst_modisk.c
- *  
+ *
  *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
  *
@@ -8,12 +8,12 @@
  *  &
  *  SCSI MO disk (type 7) "performance" device handler (skip all READ and WRITE
  *   operations).
- *  
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation, version 2
  *  of the License.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -93,7 +93,7 @@ static int __init init_scst_modisk_driver(void)
 	if (res != 0)
 		goto out_unreg1;
 
-	modisk_devtype_perf.module = THIS_MODULE;         
+	modisk_devtype_perf.module = THIS_MODULE;
 
 	res = scst_register_dev_driver(&modisk_devtype_perf);
 	if (res < 0)
@@ -115,7 +115,7 @@ out_unreg1_err1:
 
 out_unreg1:
 	scst_unregister_dev_driver(&modisk_devtype);
-	goto out;	
+	goto out;
 }
 
 static void __exit exit_scst_modisk_driver(void)
@@ -135,11 +135,11 @@ module_exit(exit_scst_modisk_driver);
 /**************************************************************
  *  Function:  modisk_attach
  *
- *  Argument:  
+ *  Argument:
  *
  *  Returns :  1 if attached, error code otherwise
  *
- *  Description:  
+ *  Description:
  *************************************************************/
 int modisk_attach(struct scst_device *dev)
 {
@@ -201,8 +201,8 @@ int modisk_attach(struct scst_device *dev)
 		sbuff = sense_buffer;
 
 		TRACE_DBG("%s", "Doing READ_CAPACITY");
-		res = scsi_execute(dev->scsi_dev, cmd, data_dir, buffer, 
-				   buffer_size, sbuff, 
+		res = scsi_execute(dev->scsi_dev, cmd, data_dir, buffer,
+				   buffer_size, sbuff,
 				   MODISK_REG_TIMEOUT, 3, 0);
 
 		TRACE_DBG("READ_CAPACITY done: %x", res);
@@ -228,7 +228,7 @@ int modisk_attach(struct scst_device *dev)
 		      sector_size, dev->scsi_dev->scsi_level, SCSI_2);
 	} else {
 		TRACE_BUFFER("Sense set", sbuff, SCST_SENSE_BUFFERSIZE);
-			     
+
 		if (sbuff[2] != NOT_READY) {
 			res = -ENODEV;
 			goto out_free_buf;
@@ -261,7 +261,7 @@ out:
 /************************************************************
  *  Function:  modisk_detach
  *
- *  Argument: 
+ *  Argument:
  *
  *  Returns :  None
  *
@@ -284,7 +284,7 @@ void modisk_detach(struct scst_device *dev)
 static int modisk_get_block_shift(struct scst_cmd *cmd)
 {
 	struct modisk_params *params = (struct modisk_params *)cmd->dev->dh_priv;
-	/* 
+	/*
 	 * No need for locks here, since *_detach() can not be
 	 * called, when there are existing commands.
 	 */
@@ -294,7 +294,7 @@ static int modisk_get_block_shift(struct scst_cmd *cmd)
 /********************************************************************
  *  Function:  modisk_parse
  *
- *  Argument:  
+ *  Argument:
  *
  *  Returns :  The state of the command
  *
@@ -323,7 +323,7 @@ int modisk_parse(struct scst_cmd *cmd)
 static void modisk_set_block_shift(struct scst_cmd *cmd, int block_shift)
 {
 	struct modisk_params *params = (struct modisk_params *)cmd->dev->dh_priv;
-	/* 
+	/*
 	 * No need for locks here, since *_detach() can not be
 	 * called, when there are existing commands.
 	 */
@@ -337,13 +337,13 @@ static void modisk_set_block_shift(struct scst_cmd *cmd, int block_shift)
 /********************************************************************
  *  Function:  modisk_done
  *
- *  Argument:  
+ *  Argument:
  *
- *  Returns :  
+ *  Returns :
  *
  *  Description:  This is the completion routine for the command,
  *                it is used to extract any necessary information
- *                about a command. 
+ *                about a command.
  ********************************************************************/
 int modisk_done(struct scst_cmd *cmd)
 {
@@ -360,9 +360,9 @@ int modisk_done(struct scst_cmd *cmd)
 /********************************************************************
  *  Function:  modisk_exec
  *
- *  Argument:  
+ *  Argument:
  *
- *  Returns :  
+ *  Returns :
  *
  *  Description:  Make SCST do nothing for data READs and WRITES.
  *                Intended for raw line performance testing

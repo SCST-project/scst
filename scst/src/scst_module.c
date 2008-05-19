@@ -1,16 +1,16 @@
 /*
  *  scst_module.c
- *  
+ *
  *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
  *
  *  Support for loading target modules. The usage is similar to scsi_module.c
- *  
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation, version 2
  *  of the License.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -27,7 +27,7 @@ static int __init init_this_scst_driver(void)
 	int res;
 
 	TRACE_ENTRY();
-	
+
 	res = scst_register_target_template(&driver_target_template);
 	TRACE_DBG("scst_register_target_template() returned %d", res);
 	if (res < 0)
@@ -59,7 +59,7 @@ static void __exit exit_this_scst_driver(void)
 #endif
 
 	scst_unregister_target_template(&driver_target_template);
-	
+
 	TRACE_EXIT();
 	return;
 }

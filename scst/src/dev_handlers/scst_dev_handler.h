@@ -23,7 +23,7 @@
 	TRACE_MINOR | TRACE_SPECIAL)
 #endif
 
-static unsigned long dh_trace_flag = SCST_DEFAULT_DEV_LOG_FLAGS; 
+static unsigned long dh_trace_flag = SCST_DEFAULT_DEV_LOG_FLAGS;
 #define trace_flag dh_trace_flag
 
 #ifndef trace_log_tbl

@@ -2,11 +2,11 @@
  *  Copyright (C) 2004 - 2005 FUJITA Tomonori <tomof@acm.org>
  *  Copyright (C) 2007 Vladislav Bolkhovitin
  *  Copyright (C) 2007 CMS Distribution Limited
- * 
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -208,7 +208,7 @@ static int proc_session_parse(int fd, struct session_file_operations *ops,
 					goto out;
 		} else
 			log_error("Unknown %s string: %s\n", PROC_SESSION, p);
-			
+
 		done = 1;
 	}
 
@@ -414,7 +414,7 @@ static int iscsi_session_destroy(u32 tid, u64 sid)
 	do {
 		res = ioctl(ctrl_fd, DEL_SESSION, &info);
 	} while (res < 0 && errno == EINTR);
-	
+
 	return res;
 }
 

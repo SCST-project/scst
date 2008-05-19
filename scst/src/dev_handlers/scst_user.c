@@ -1,15 +1,15 @@
 /*
  *  scst_user.c
- *  
+ *
  *  Copyright (C) 2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *
  *  SCSI virtual user space device handler
- *  
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation, version 2
  *  of the License.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -119,7 +119,7 @@ struct scst_user_cmd
 {
 	struct scst_cmd *cmd;
 	struct scst_user_dev *dev;
-	
+
 	atomic_t ucmd_ref;
 
 	unsigned int buff_cached:1;
@@ -157,7 +157,7 @@ static void dev_user_free_ucmd(struct scst_user_cmd *ucmd);
 static int dev_user_parse(struct scst_cmd *cmd);
 static int dev_user_exec(struct scst_cmd *cmd);
 static void dev_user_on_free_cmd(struct scst_cmd *cmd);
-static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd, 
+static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	struct scst_tgt_dev *tgt_dev);
 
 static int dev_user_disk_done(struct scst_cmd *cmd);
@@ -238,7 +238,7 @@ static inline int calc_num_pg(unsigned long buf, int len)
 
 static inline int is_need_offs_page(unsigned long buf, int len)
 {
-	return ((buf & ~PAGE_MASK) != 0) && 
+	return ((buf & ~PAGE_MASK) != 0) &&
 		((buf & PAGE_MASK) != ((buf+len-1) & PAGE_MASK));
 }
 
@@ -590,10 +590,10 @@ static int dev_user_alloc_space(struct scst_user_cmd *ucmd)
 	ucmd->user_cmd.cmd_h = ucmd->h;
 	ucmd->user_cmd.subcode = SCST_USER_ALLOC_MEM;
 	ucmd->user_cmd.alloc_cmd.sess_h = (unsigned long)cmd->tgt_dev;
-	memcpy(ucmd->user_cmd.alloc_cmd.cdb, cmd->cdb, 
+	memcpy(ucmd->user_cmd.alloc_cmd.cdb, cmd->cdb,
 		min(sizeof(ucmd->user_cmd.alloc_cmd.cdb), sizeof(cmd->cdb)));
 	ucmd->user_cmd.alloc_cmd.cdb_len = cmd->cdb_len;
-	ucmd->user_cmd.alloc_cmd.alloc_len = ucmd->buff_cached ? 
+	ucmd->user_cmd.alloc_cmd.alloc_len = ucmd->buff_cached ?
 		(cmd->sg_cnt << PAGE_SHIFT) : cmd->bufflen;
 	ucmd->user_cmd.alloc_cmd.queue_type = cmd->queue_type;
 	ucmd->user_cmd.alloc_cmd.data_direction = cmd->data_direction;
@@ -642,7 +642,7 @@ out:
 static int dev_user_get_block(struct scst_cmd *cmd)
 {
 	struct scst_user_dev *dev = (struct scst_user_dev*)cmd->dev->dh_priv;
-	/* 
+	/*
 	 * No need for locks here, since *_detach() can not be
 	 * called, when there are existing commands.
 	 */
@@ -710,7 +710,7 @@ static int dev_user_parse(struct scst_cmd *cmd)
 		ucmd->user_cmd.cmd_h = ucmd->h;
 		ucmd->user_cmd.subcode = SCST_USER_PARSE;
 		ucmd->user_cmd.parse_cmd.sess_h = (unsigned long)cmd->tgt_dev;
-		memcpy(ucmd->user_cmd.parse_cmd.cdb, cmd->cdb, 
+		memcpy(ucmd->user_cmd.parse_cmd.cdb, cmd->cdb,
 			min(sizeof(ucmd->user_cmd.parse_cmd.cdb),
 			    sizeof(cmd->cdb)));
 		ucmd->user_cmd.parse_cmd.cdb_len = cmd->cdb_len;
@@ -769,7 +769,7 @@ static void dev_user_flush_dcache(struct scst_user_cmd *ucmd)
 		page = buf_ucmd->data_pages[i];
 #ifdef ARCH_HAS_FLUSH_ANON_PAGE
 		struct vm_area_struct *vma = find_vma(current->mm, start);
-		if (vma != NULL) 
+		if (vma != NULL)
 			flush_anon_page(vma, page, start);
 #endif
 		flush_dcache_page(page);
@@ -810,7 +810,7 @@ static int dev_user_exec(struct scst_cmd *cmd)
 	ucmd->user_cmd.cmd_h = ucmd->h;
 	ucmd->user_cmd.subcode = SCST_USER_EXEC;
 	ucmd->user_cmd.exec_cmd.sess_h = (unsigned long)cmd->tgt_dev;
-	memcpy(ucmd->user_cmd.exec_cmd.cdb, cmd->cdb, 
+	memcpy(ucmd->user_cmd.exec_cmd.cdb, cmd->cdb,
 		min(sizeof(ucmd->user_cmd.exec_cmd.cdb),
 		    sizeof(cmd->cdb)));
 	ucmd->user_cmd.exec_cmd.cdb_len = cmd->cdb_len;
@@ -818,7 +818,7 @@ static int dev_user_exec(struct scst_cmd *cmd)
 	ucmd->user_cmd.exec_cmd.data_len = cmd->data_len;
 	ucmd->user_cmd.exec_cmd.pbuf = ucmd->ubuff;
 	if ((ucmd->ubuff == 0) && (cmd->data_direction != SCST_DATA_NONE)) {
-		ucmd->user_cmd.exec_cmd.alloc_len = ucmd->buff_cached ? 
+		ucmd->user_cmd.exec_cmd.alloc_len = ucmd->buff_cached ?
 			(cmd->sg_cnt << PAGE_SHIFT) : cmd->bufflen;
 	}
 	ucmd->user_cmd.exec_cmd.queue_type = cmd->queue_type;
@@ -894,7 +894,7 @@ out:
 static void dev_user_set_block(struct scst_cmd *cmd, int block)
 {
 	struct scst_user_dev *dev = (struct scst_user_dev*)cmd->dev->dh_priv;
-	/* 
+	/*
 	 * No need for locks here, since *_detach() can not be
 	 * called, when there are existing commands.
 	 */
@@ -938,7 +938,7 @@ static void dev_user_add_to_ready(struct scst_user_cmd *ucmd)
 
 	TRACE_ENTRY();
 
-	do_wake = (in_interrupt() || 
+	do_wake = (in_interrupt() ||
 		   (ucmd->state == UCMD_STATE_ON_CACHE_FREEING));
 	if (ucmd->cmd)
 		do_wake |= ucmd->cmd->preprocessing_only;
@@ -1134,7 +1134,7 @@ static int dev_user_process_reply_parse(struct scst_user_cmd *ucmd,
 	struct scst_user_reply_cmd *reply)
 {
 	int res = 0;
-	struct scst_user_scsi_cmd_reply_parse *preply = 
+	struct scst_user_scsi_cmd_reply_parse *preply =
 		&reply->parse_reply;
 	struct scst_cmd *cmd = ucmd->cmd;
 
@@ -1381,7 +1381,7 @@ unlock_process:
 	case UCMD_STATE_EXECING:
 		res = dev_user_process_reply_exec(ucmd, reply);
 		break;
-	
+
 	case UCMD_STATE_ON_FREEING:
 		res = dev_user_process_reply_on_free(ucmd);
 		break;
@@ -1512,9 +1512,9 @@ again:
 				if (unlikely(rc != 0)) {
 					u->cmd->scst_cmd_done(u->cmd,
 						SCST_CMD_STATE_DEFAULT);
-					/* 
+					/*
 					 * !! At this point cmd & u can be !!
-					 * !! already freed		   !! 
+					 * !! already freed		   !!
 					 */
 					spin_lock_irq(
 						&dev->cmd_lists.cmd_list_lock);
@@ -1901,7 +1901,7 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 			spin_unlock_irqrestore(&dev->cmd_lists.cmd_list_lock, *flags);
 		else
 			spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
-		
+
 		TRACE_MGMT_DBG("EXEC: unjamming ucmd %p", ucmd);
 
 		if (test_bit(SCST_CMD_ABORTED,	&ucmd->cmd->cmd_flags))
@@ -2040,7 +2040,7 @@ repeat:
 			if (ucmd->state & UCMD_STATE_SENT_MASK) {
 				int st = ucmd->state & ~UCMD_STATE_SENT_MASK;
 				if (tgt_dev != NULL) {
-					if (__unjam_check_tgt_dev(ucmd, st, 
+					if (__unjam_check_tgt_dev(ucmd, st,
 							tgt_dev) == 0)
 						continue;
 				} else if (tm) {
@@ -2131,7 +2131,7 @@ static int dev_user_process_reply_tm_exec(struct scst_user_cmd *ucmd,
 	return res;
 }
 
-static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd, 
+static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	struct scst_tgt_dev *tgt_dev)
 {
 	int res, rc;
@@ -2273,7 +2273,7 @@ static void dev_user_detach(struct scst_device *sdev)
 	/* dev will be freed by the caller */
 	sdev->dh_priv = NULL;
 	dev->sdev = NULL;
-	
+
 	TRACE_EXIT();
 	return;
 }

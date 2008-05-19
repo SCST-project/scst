@@ -1,13 +1,13 @@
 /*
  *  common.c
- *  
+ *
  *  Copyright (C) 2007 Vladislav Bolkhovitin <vst@vlnb.net>
- *  
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation, version 2
  *  of the License.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -266,10 +266,10 @@ static int do_exec(struct vdisk_cmd *vcmd)
 		lba_start |= ((uint64_t)cdb[3]) << 16;
 		lba_start |= ((uint64_t)cdb[4]) << 8;
 		lba_start |= ((uint64_t)cdb[5]);
-		data_len = ((cdb[7] << (BYTE * 1)) + (cdb[8] << (BYTE * 0))) 
+		data_len = ((cdb[7] << (BYTE * 1)) + (cdb[8] << (BYTE * 0)))
 				<< dev->block_shift;
 		if (data_len == 0)
-			data_len = dev->file_size - 
+			data_len = dev->file_size -
 				((loff_t)lba_start << dev->block_shift);
 		break;
 	case READ_16:
@@ -932,7 +932,7 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 	if (cmd->cdb[1] & EVPD) {
 		int dev_id_num;
 		char dev_id_str[6];
-		
+
 		for (dev_id_num = 0, i = 0; i < strlen(dev->name); i++) {
 			dev_id_num += dev->name[i];
 		}
@@ -1066,7 +1066,7 @@ out:
 	return;
 }
 
-/* 
+/*
  * <<Following mode pages info copied from ST318451LW with some corrections>>
  *
  * ToDo: revise them
@@ -1168,7 +1168,7 @@ static void exec_mode_sense(struct vdisk_cmd *vcmd)
 
 	blocksize = dev->block_size;
 	nblocks = dev->nblocks;
-	
+
 	type = dev->type;    /* type dev */
 	dbd = cmd->cdb[1] & DBD;
 	pcontrol = (cmd->cdb[2] & 0xc0) >> 6;
@@ -1178,7 +1178,7 @@ static void exec_mode_sense(struct vdisk_cmd *vcmd)
 	dev_spec = (dev->rd_only_flag ? WP : 0) | DPOFUA;
 
 	memset(buf, 0, sizeof(buf));
-	
+
 	if (0x3 == pcontrol) {
 		TRACE_DBG("%s", "MODE SENSE: Saving values not supported");
 		set_cmd_error(vcmd,
@@ -1403,7 +1403,7 @@ static void exec_read_capacity(struct vdisk_cmd *vcmd)
 	buffer[5] = (blocksize >> (BYTE * 2)) & 0xFF;
 	buffer[6] = (blocksize >> (BYTE * 1)) & 0xFF;
 	buffer[7] = (blocksize >> (BYTE * 0)) & 0xFF;
-	
+
 	if (length > READ_CAP_LEN)
 		length = READ_CAP_LEN;
 	memcpy(address, buffer, length);
@@ -1464,7 +1464,7 @@ static void exec_read_toc(struct vdisk_cmd *vcmd)
 	int length = cmd->bufflen;
 	uint8_t *address = (uint8_t*)(unsigned long)cmd->pbuf;
 	uint32_t nblocks;
-	uint8_t buffer[4+8+8] = { 0x00, 0x0a, 0x01, 0x01, 0x00, 0x14, 
+	uint8_t buffer[4+8+8] = { 0x00, 0x0a, 0x01, 0x01, 0x00, 0x14,
 				  0x01, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
 	TRACE_ENTRY();
@@ -1541,7 +1541,7 @@ static void exec_prevent_allow_medium_removal(struct vdisk_cmd *vcmd)
 
 	pthread_mutex_lock(&dev->dev_mutex);
 	if (dev->type == TYPE_ROM)
-		dev->prevent_allow_medium_removal = 
+		dev->prevent_allow_medium_removal =
 			cmd->cdb[4] & 0x01 ? 1 : 0;
 	else {
 		PRINT_ERROR("%s", "Prevent allow medium removal for "
@@ -1583,12 +1583,12 @@ static void exec_read(struct vdisk_cmd *vcmd, loff_t loff)
 	loff_t err;
 
 	TRACE_ENTRY();
-	
+
 	TRACE_DBG("reading off %"PRId64", len %d", loff, length);
 	if (dev->nullio)
 		err = length;
 	else {
-		/* SEEK */	
+		/* SEEK */
 		err = lseek64(fd, loff, 0/*SEEK_SET*/);
 		if (err != loff) {
 			PRINT_ERROR("lseek trouble %"PRId64" != %"PRId64
@@ -1664,7 +1664,7 @@ restart:
 		}
 		goto out;
 	} else if (err < length) {
-		/* 
+		/*
 		 * Probably that's wrong, but sometimes write() returns
 		 * value less, than requested. Let's restart.
 		 */
@@ -1699,7 +1699,7 @@ static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
 	if (exec_fsync(vcmd) != 0)
 		goto out;
 
-	/* 
+	/*
 	 * Until the cache is cleared prior the verifying, there is not
          * much point in this code. ToDo.
 	 *

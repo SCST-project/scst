@@ -1,16 +1,16 @@
 /*
  *  qla2x_tgt.h
- *  
+ *
  *  Copyright (C) 2004-2005 Vladislav Bolkhovitin <vst@vlnb.net>
  *		   and Leonid Stoljar
  *
  *  Additional file for the target driver support.
- *  
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation; either version 2
  *  of the License, or (at your option) any later version.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -49,7 +49,7 @@ extern request_t *qla2x00_req_pkt(scsi_qla_host_t *ha);
  */
 /* Caller MUST have hardware lock held */
 static inline void
-__qla2x00_en_dis_lun(scsi_qla_host_t *ha, int enable) 
+__qla2x00_en_dis_lun(scsi_qla_host_t *ha, int enable)
 {
 	elun_entry_t *pkt;
 
@@ -66,7 +66,7 @@ __qla2x00_en_dis_lun(scsi_qla_host_t *ha, int enable)
 			pkt->immed_notify_count = 0;
 			pkt->timeout = 0;
 		}
-		DEBUG2(printk(KERN_DEBUG 
+		DEBUG2(printk(KERN_DEBUG
 			      "scsi%lu:ENABLE_LUN IOCB imm %u cmd %u timeout %u\n",
 			      ha->host_no, pkt->immed_notify_count,
 			      pkt->command_count, pkt->timeout));

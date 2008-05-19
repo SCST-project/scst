@@ -2,12 +2,12 @@
  *  Copyright (C) 2002-2003 Ardis Technolgies <roman@ardistech.com>
  *  Copyright (C) 2007 Vladislav Bolkhovitin
  *  Copyright (C) 2007 CMS Distribution Limited
- * 
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation, version 2
  *  of the License.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -123,14 +123,14 @@ static void sock_set_keepalive(int sock, int timeout)
 
 		if (setsockopt(sock, SOL_TCP, TCP_KEEPCNT, &opt, sizeof(opt)))
 			log_warning("unable to set TCP_KEEPCNT on server socket (%s)!", strerror(errno));
-	
+
 		if (setsockopt(sock, SOL_TCP, TCP_KEEPIDLE, &timeout, sizeof(timeout)))
 			log_warning("unable to set TCP_KEEPIDLE on server socket (%s)!", strerror(errno));
-	
+
 		opt = 3;
 		if (setsockopt(sock, SOL_TCP, TCP_KEEPINTVL, &opt, sizeof(opt)))
 			log_warning("unable to set KEEPINTVL on server socket (%s)!", strerror(errno));
-	
+
 		opt = 1;
 		if (setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, &opt, sizeof(opt)))
 			log_warning("unable to set SO_KEEPALIVE on server socket (%s)!", strerror(errno));
@@ -166,7 +166,7 @@ static void create_listen_socket(struct pollfd *array)
 		}
 
 		sock_set_keepalive(sock, 50);
-		
+
 		opt = 1;
 		if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)))
 			log_warning("Unable to set SO_REUSEADDR on server socket (%s)!",
@@ -422,7 +422,7 @@ out:
 void wait_4_iscsi_event(int timeout)
 {
 	int res;
-    
+
 	do {
 		res = poll(&poll_array[POLL_NL], 1, timeout);
 	} while (res < 0 && errno == EINTR);
@@ -497,12 +497,12 @@ static void event_loop(int timeout)
 		for (i = 0; i < INCOMING_MAX; i++) {
 			struct connection *conn = incoming[i];
 			struct pollfd *pollfd = &poll_array[POLL_INCOMING + i];
-			
+
 			if (!conn || !pollfd->revents)
 				continue;
 
 			pollfd->revents = 0;
-			
+
 			event_conn(conn, pollfd);
 
 			if (conn->state == STATE_CLOSE) {

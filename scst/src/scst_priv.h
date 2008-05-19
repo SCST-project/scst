@@ -1,14 +1,14 @@
 /*
  *  scst_priv.h
- *  
+ *
  *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
- *  
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation, version 2
  *  of the License.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -39,7 +39,7 @@
 #define TRACE_RTRY              0x80000000
 #define TRACE_SCSI_SERIALIZING  0x40000000
 #define TRACE_SND_TOP		0x20000000 /** top being the edge away from the interupt */
-#define TRACE_RCV_TOP		0x01000000 
+#define TRACE_RCV_TOP		0x01000000
 #define TRACE_SND_BOT		0x08000000 /** bottom being the edge toward the interupt */
 #define TRACE_RCV_BOT		0x04000000
 
@@ -83,10 +83,10 @@ extern unsigned long scst_trace_flag;
 #endif
 
 /**
- ** Bits for scst_flags 
+ ** Bits for scst_flags
  **/
 
-/* 
+/*
  * Set if new commands initialization is being suspended for a while.
  * Used to let TM commands execute while preparing the suspend, since
  * RESET or ABORT could be necessary to free SCSI commands.
@@ -96,8 +96,8 @@ extern unsigned long scst_trace_flag;
 /* Set if new commands initialization is suspended for a while */
 #define SCST_FLAG_SUSPENDED		     1
 
-/** 
- ** Return codes for cmd state process functions 
+/**
+ ** Return codes for cmd state process functions
  **/
 #define SCST_CMD_STATE_RES_CONT_SAME         0
 #define SCST_CMD_STATE_RES_CONT_NEXT         1
@@ -107,7 +107,7 @@ extern unsigned long scst_trace_flag;
 #define SCST_DEFAULT_ACG_NAME                "Default"
 
 /**
- ** Maximum count of uncompleted commands that an initiator could 
+ ** Maximum count of uncompleted commands that an initiator could
  ** queue on any device. Then it will start getting TASK QUEUE FULL status.
  **/
 #define SCST_MAX_TGT_DEV_COMMANDS            48
@@ -299,7 +299,7 @@ void scst_free_internal_cmd(struct scst_cmd *cmd);
 int scst_prepare_request_sense(struct scst_cmd *orig_cmd);
 struct scst_cmd *scst_complete_request_sense(struct scst_cmd *cmd);
 
-int scst_assign_dev_handler(struct scst_device *dev, 
+int scst_assign_dev_handler(struct scst_device *dev,
 	struct scst_dev_type *handler);
 
 struct scst_session *scst_alloc_session(struct scst_tgt *tgt, int gfp_mask,
@@ -324,8 +324,8 @@ void scst_tgt_retry_timer_fn(unsigned long arg);
 int scst_alloc_request(struct scst_cmd *cmd);
 void scst_release_request(struct scst_cmd *cmd);
 
-static inline void scst_do_req(struct scsi_request *sreq, 
-	const void *cmnd, void *buffer, unsigned bufflen, 
+static inline void scst_do_req(struct scsi_request *sreq,
+	const void *cmnd, void *buffer, unsigned bufflen,
 	void (*done)(struct scsi_cmnd *), int timeout, int retries)
 {
     #ifdef STRICT_SERIALIZING
@@ -361,7 +361,7 @@ void scst_scsi_op_list_init(void);
 
 lun_t scst_unpack_lun(const uint8_t *lun, int len);
 
-struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess, 
+struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,
 	uint64_t tag);
 
 struct scst_mgmt_cmd *scst_alloc_mgmt_cmd(int gfp_mask);
@@ -408,7 +408,7 @@ void scst_process_reset(struct scst_device *dev,
 
 static inline int scst_is_ua_command(struct scst_cmd *cmd)
 {
-	return ((cmd->cdb[0] != INQUIRY) && 
+	return ((cmd->cdb[0] != INQUIRY) &&
 		(cmd->cdb[0] != REQUEST_SENSE) &&
 		(cmd->cdb[0] != REPORT_LUNS));
 }
@@ -425,8 +425,8 @@ static inline int scst_is_implicit_hq(struct scst_cmd *cmd)
 
 /*
  * Some notes on devices "blocking". Blocking means that no
- * commands will go from SCST to underlying SCSI device until it 
- * is unblocked. But we don't care about all commands that 
+ * commands will go from SCST to underlying SCSI device until it
+ * is unblocked. But we don't care about all commands that
  * already on the device.
  */
 

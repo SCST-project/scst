@@ -2,17 +2,17 @@
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
- * 
+ *
  *  Redistribution and use in source and binary forms, with or without
  *  modification, are permitted provided that the following conditions
  *  are met:
- * 
+ *
  *  1. Redistributions of source code must retain the above copyright
  *     notice, this list of conditions and the following disclaimer.
  *  2. Redistributions in binary form must reproduce the above copyright
  *     notice, this list of conditions and the following disclaimer in the
  *     documentation and/or other materials provided with the distribution.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  *  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -24,32 +24,32 @@
  *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  *  OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  *  SUCH DAMAGE.
- * 
- * 
+ *
+ *
  *  Alternatively, this software may be distributed under the terms of the
  *  the GNU Public License ("GPL") with platforms where the prevalant license
  *  is the GNU Public License:
- * 
+ *
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of The Version 2 GNU General Public License as published
  *   by the Free Software Foundation.
- * 
+ *
  *   This program is distributed in the hope that it will be useful,
  *   but WITHOUT ANY WARRANTY; without even the implied warranty of
  *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *   GNU General Public License for more details.
- *  
+ *
  *   You should have received a copy of the GNU General Public License
  *   along with this program; if not, write to the Free Software
  *   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
- * 
- * 
+ *
+ *
  *  Matthew Jacob
  *  Feral Software
  *  421 Laurel Avenue
  *  Menlo Park, CA 94025
  *  USA
- * 
+ *
  *  gplbsd at feral com
  */
 /*
@@ -64,7 +64,7 @@
 #ifdef  CONFIG_PROC_FS
 
 /*
- * 'safe' proc pretty print code 
+ * 'safe' proc pretty print code
  */
 struct info_str {
     char *buffer;
@@ -215,7 +215,7 @@ isplinux_proc_info(struct Scsi_Host *shp, char *buf, char **st, off_t off, int l
     info.length = len;
     info.offset = off;
     info.pos    = 0;
-    
+
     copy_info(&info, (char *)isplinux_info(isp->isp_host));
 #ifdef  HBA_VERSION
     copy_info(&info, "\n HBA Version %s, built %s, %s", HBA_VERSION, __DATE__, __TIME__);
@@ -903,7 +903,7 @@ isp_exti_setinstance(EXT_IOCTL *ext)
     api_channel = 0;    /* XXXXXXXXXXXXXXXXXXXXXXX */
     return (0);
 }
-    
+
 static int
 isp_exti_query(EXT_IOCTL *pext)
 {
@@ -1975,7 +1975,7 @@ isp_perf_test(ispsoftc_t *isp, isp_perftst_t *tt)
             ISP_LOCKU_SOFTC(isp);
             ISP_DMAFREE(isp, Cmnd, handle);
             isp_destroy_handle(isp, handle);
-        } 
+        }
         ISP_UNLKU_SOFTC(isp);
     }
 out:

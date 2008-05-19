@@ -1,17 +1,17 @@
 /*
  *  qla2x_tgt_def.h
- *  
+ *
  *  Copyright (C) 2004-2005 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
  *
  *  Additional file for the target driver support. Intended to define
  *  for 2200 and 2300 thier own exported symbols with unique names.
- *  
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation; either version 2
  *  of the License, or (at your option) any later version.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -47,7 +47,7 @@
 
 #define QLA_EXTENDED_LUN 1
 
-/* 
+/*
  * Used to mark which completion handles (for RIO Status's) are for CTIO's
  * vs. regular (non-target) info.
  */
@@ -330,9 +330,9 @@ typedef struct
  * Type Definitions used by initiator & target halves
 \********************************************************************/
 
-typedef enum { 
-	DISABLE_TARGET_MODE = 0, 
-	ENABLE_TARGET_MODE = 1 
+typedef enum {
+	DISABLE_TARGET_MODE = 0,
+	ENABLE_TARGET_MODE = 1
 } qla2x_tgt_host_action_t;
 
 struct qla2x_tgt_initiator
@@ -349,7 +349,7 @@ struct qla2x_tgt_initiator
 struct qla2x_tgt_target
 {
 	int magic;
-	
+
 	/* Callbacks - H/W lock MUST be held while calling any*/
 	request_t *(*req_pkt)(scsi_qla_host_t *ha);
 	void (*isp_cmd)(scsi_qla_host_t *ha);
@@ -360,7 +360,7 @@ struct qla2x_tgt_target
 	int (*get_counts)(scsi_qla_host_t *ha, uint8_t *cmd, uint8_t *imm);
 };
 
-int qla2xxx_tgt_register_driver(/* IN */  struct qla2x_tgt_initiator *tgt, 
+int qla2xxx_tgt_register_driver(/* IN */  struct qla2x_tgt_initiator *tgt,
 				/* OUT */ struct qla2x_tgt_target *init);
 
 void qla2xxx_tgt_unregister_driver(void);

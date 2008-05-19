@@ -1,13 +1,13 @@
 /*
  *  fileio.c
- *  
+ *
  *  Copyright (C) 2007 Vladislav Bolkhovitin <vst@vlnb.net>
- *  
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation, version 2
  *  of the License.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -139,7 +139,7 @@ static int scst_calc_block_shift(int sector_size)
 	if (block_shift < 9) {
 		PRINT_ERROR("Wrong sector size %d", sector_size);
 		block_shift = -1;
-	} 
+	}
 
 out:
 	TRACE_EXIT_RES(block_shift);
@@ -366,7 +366,7 @@ int main(int argc, char **argv)
 	PRINT_INFO("trace_flag %lx", trace_flag);
 #endif
 
-	dev.scst_usr_fd = open(DEV_USER_PATH DEV_USER_NAME, O_RDWR | 
+	dev.scst_usr_fd = open(DEV_USER_PATH DEV_USER_NAME, O_RDWR |
 		(dev.non_blocking ? O_NONBLOCK : 0));
 	if (dev.scst_usr_fd < 0) {
 		res = -errno;

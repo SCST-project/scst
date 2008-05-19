@@ -2,17 +2,17 @@
 /*-
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
- * 
+ *
  *  Redistribution and use in source and binary forms, with or without
  *  modification, are permitted provided that the following conditions
  *  are met:
- * 
+ *
  *  1. Redistributions of source code must retain the above copyright
  *     notice, this list of conditions and the following disclaimer.
  *  2. Redistributions in binary form must reproduce the above copyright
  *     notice, this list of conditions and the following disclaimer in the
  *     documentation and/or other materials provided with the distribution.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  *  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -24,32 +24,32 @@
  *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  *  OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  *  SUCH DAMAGE.
- * 
- * 
+ *
+ *
  *  Alternatively, this software may be distributed under the terms of the
  *  the GNU Public License ("GPL") with platforms where the prevalant license
  *  is the GNU Public License:
- * 
+ *
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of The Version 2 GNU General Public License as published
  *   by the Free Software Foundation.
- * 
+ *
  *   This program is distributed in the hope that it will be useful,
  *   but WITHOUT ANY WARRANTY; without even the implied warranty of
  *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *   GNU General Public License for more details.
- *  
+ *
  *   You should have received a copy of the GNU General Public License
  *   along with this program; if not, write to the Free Software
  *   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
- * 
- * 
+ *
+ *
  *  Matthew Jacob
  *  Feral Software
  *  421 Laurel Avenue
  *  Menlo Park, CA 94025
  *  USA
- * 
+ *
  *  gplbsd at feral com
  */
 
@@ -530,7 +530,7 @@ isp_reset(ispsoftc_t *isp)
 			if ((val & BIU2400_DMA_ACTIVE) == 0) {
 				break;
 			}
-		} 
+		}
 		if (val & BIU2400_DMA_ACTIVE) {
 			ISP_RESET0(isp);
 			isp_prt(isp, ISP_LOGERR, "DMA Failed to Stop on Reset");
@@ -624,7 +624,7 @@ isp_reset(ispsoftc_t *isp)
 		ISP_WRITE(isp, BIU_SEMA, 0);
 	}
 
-	
+
 	/*
 	 * Post-RISC Reset stuff.
 	 */
@@ -851,7 +851,7 @@ isp_reset(ispsoftc_t *isp)
 				break;
 			}
 			ptr += ptr[3];
-		} 
+		}
 		isp->isp_loaded_fw = 1;
 	} else if (dodnld && IS_23XX(isp)) {
 		const uint16_t *ptr = isp->isp_mdvec->dv_ispfw;
@@ -874,7 +874,7 @@ isp_reset(ispsoftc_t *isp)
 			while (wi < ptr[3]) {
 				uint16_t *cp;
 				uint32_t nw;
-				
+
 				nw = ISP_QUEUE_SIZE(RQUEST_QUEUE_LEN(isp)) >> 1;
 				if (nw > wl) {
 					nw = wl;
@@ -1071,7 +1071,7 @@ isp_reset(ispsoftc_t *isp)
 			isp->isp_fwrev[1] = 37;
 #endif
 			isp->isp_fwrev[2] = 0;
-		} 
+		}
 	} else {
 		isp->isp_fwrev[0] = mbs.param[1];
 		isp->isp_fwrev[1] = mbs.param[2];
@@ -1640,7 +1640,7 @@ isp_fibre_init(ispsoftc_t *isp)
 	/*
 	 * Right now we just set extended options to prefer point-to-point
 	 * over loop based upon some soft config options.
-	 * 
+	 *
 	 * NB: for the 2300, ICBOPT_EXTENDED is required.
 	 */
 	if (IS_2200(isp) || IS_23XX(isp)) {
@@ -2331,7 +2331,7 @@ isp_plogx(ispsoftc_t *isp, int chan, uint16_t handle, uint32_t portid,
 		msg = buf;
 		break;
 	case PLOGX_IOCBERR_PORTUSED:
-		lev = ISP_LOGSANCFG|ISP_LOGDEBUG0;	
+		lev = ISP_LOGSANCFG|ISP_LOGDEBUG0;
 		SNPRINTF(buf, sizeof (buf),
 		    "already logged in with N-Port handle 0x%x", parm1);
 		msg = buf;
@@ -3306,7 +3306,7 @@ isp_scan_loop(ispsoftc_t *isp, int chan)
 				    "Valid", chan, tmp.portid, tmp.handle);
 				break;
 			}
-		
+
 			/*
 			 * We can wipe out the old handle value
 			 * here because it's no longer valid.
@@ -3387,7 +3387,7 @@ isp_scan_loop(ispsoftc_t *isp, int chan)
  */
 
 /*
- * Take less than half of our scratch area to store Port IDs 
+ * Take less than half of our scratch area to store Port IDs
  */
 #define	GIDLEN	((ISP_FC_SCRLEN >> 1) - 16 - SNS_GID_FT_REQ_SIZE)
 #define	NGENT	((GIDLEN - 16) >> 2)
@@ -3856,10 +3856,10 @@ isp_scan_fabric(ispsoftc_t *isp, int chan)
 				/*
 				 * Try to re-login to this device using a
 				 * new handle. If that fails, mark it dead.
-				 * 
+				 *
 				 * isp_login_device will check for handle and
 				 * portid consistency after re-login.
-				 * 
+				 *
 				 */
 				if (isp_login_device(isp, chan, portid, &pdb,
 				    &oldhandle)) {
@@ -3932,7 +3932,7 @@ isp_scan_fabric(ispsoftc_t *isp, int chan)
 		 * with the same port id. While we're at it, mark where the
 		 * last free entry was.
 		 */
-	
+
 		dbidx = MAX_FC_TARG;
 		for (lp = fcp->portdb; lp < &fcp->portdb[MAX_FC_TARG]; lp++) {
 			if (lp >= &fcp->portdb[FL_ID] &&
@@ -5865,7 +5865,7 @@ isp_parse_async(ispsoftc_t *isp, uint16_t mbox)
 			break;
 		}
 		handle =
-		    (ISP_READ(isp, OUTMAILBOX2) << 16) | 
+		    (ISP_READ(isp, OUTMAILBOX2) << 16) |
 		    (ISP_READ(isp, OUTMAILBOX1));
 		if (isp_target_async(isp, handle, mbox)) {
 			rval = -1;
@@ -6736,7 +6736,7 @@ isp_parse_status_24xx(ispsoftc_t *isp, isp24xx_statusreq_t *sp,
 	case RQCS_DATA_UNDERRUN:
 		ru_marked = (sp->req_scsi_status & RQCS_RU) != 0;
 		/*
-		 * We can get an underrun w/o things being marked 
+		 * We can get an underrun w/o things being marked
 		 * if we got a non-zero status.
 		 */
 		sv_marked = (sp->req_scsi_status & (RQCS_SV|RQCS_RV)) != 0;
@@ -7265,7 +7265,7 @@ static const uint32_t mbpfc[] = {
 /*
  * Footnotes
  *
- * (1): this sets bits 21..16 in mailbox register #8, which we nominally 
+ * (1): this sets bits 21..16 in mailbox register #8, which we nominally
  *	do not access at this time in the core driver. The caller is
  *	responsible for setting this register first (Gross!). The assumption
  *	is that we won't overflow.
@@ -7866,7 +7866,7 @@ isp_setdfltsdparm(ispsoftc_t *isp)
 					return;
 				}
 			}
-			
+
 		}
 		MEMZERO(&mbs, sizeof (mbs));
 		mbs.param[0] = MBOX_GET_ACT_NEG_STATE;
@@ -8127,13 +8127,13 @@ isp_read_nvram_2400(ispsoftc_t *isp, uint8_t *nvram_data)
 {
 	int retval = 0;
 	uint32_t addr, csum, lwrds, *dptr;
-	
+
 	if (isp->isp_port) {
 		addr = ISP2400_NVRAM_PORT1_ADDR;
 	} else {
 		addr = ISP2400_NVRAM_PORT0_ADDR;
 	}
-	
+
 	dptr = (uint32_t *) nvram_data;
 	for (lwrds = 0; lwrds < ISP2400_NVRAM_SIZE >> 2; lwrds++) {
 		isp_rd_2400_nvram(isp, addr++, dptr++);
@@ -8173,7 +8173,7 @@ isp_rdnvram_word(ispsoftc_t *isp, int wo, uint16_t *rp)
 	USEC_DELAY(10);
 
 	if (IS_FC(isp)) {
-		wo &= ((ISP2100_NVRAM_SIZE >> 1) - 1); 
+		wo &= ((ISP2100_NVRAM_SIZE >> 1) - 1);
 		if (IS_2312(isp) && isp->isp_port) {
 			wo += 128;
 		}
@@ -8582,7 +8582,7 @@ isp_parse_nvram_2100(ispsoftc_t *isp, uint8_t *nvram_data)
 		fcp->isp_loopid = ISP2100_NVRAM_HARDLOOPID(nvram_data);
 	}
 	if ((isp->isp_confopts & ISP_CFG_OWNEXCTHROTTLE) == 0) {
-		DEFAULT_EXEC_THROTTLE(isp) = 
+		DEFAULT_EXEC_THROTTLE(isp) =
 			ISP2100_NVRAM_EXECUTION_THROTTLE(nvram_data);
 	}
 	fcp->isp_fwoptions = ISP2100_NVRAM_OPTIONS(nvram_data);
@@ -8667,7 +8667,7 @@ isp_parse_nvram_2400(ispsoftc_t *isp, uint8_t *nvram_data)
 		fcp->isp_loopid = ISP2400_NVRAM_HARDLOOPID(nvram_data);
 	}
 	if ((isp->isp_confopts & ISP_CFG_OWNEXCTHROTTLE) == 0) {
-		DEFAULT_EXEC_THROTTLE(isp) = 
+		DEFAULT_EXEC_THROTTLE(isp) =
 			ISP2400_NVRAM_EXECUTION_THROTTLE(nvram_data);
 	}
 	fcp->isp_fwoptions = ISP2400_NVRAM_FIRMWARE_OPTIONS1(nvram_data);

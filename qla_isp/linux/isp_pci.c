@@ -2,17 +2,17 @@
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
- * 
+ *
  *  Redistribution and use in source and binary forms, with or without
  *  modification, are permitted provided that the following conditions
  *  are met:
- * 
+ *
  *  1. Redistributions of source code must retain the above copyright
  *     notice, this list of conditions and the following disclaimer.
  *  2. Redistributions in binary form must reproduce the above copyright
  *     notice, this list of conditions and the following disclaimer in the
  *     documentation and/or other materials provided with the distribution.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  *  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -24,32 +24,32 @@
  *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  *  OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  *  SUCH DAMAGE.
- * 
- * 
+ *
+ *
  *  Alternatively, this software may be distributed under the terms of the
  *  the GNU Public License ("GPL") with platforms where the prevalant license
  *  is the GNU Public License:
- * 
+ *
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of The Version 2 GNU General Public License as published
  *   by the Free Software Foundation.
- * 
+ *
  *   This program is distributed in the hope that it will be useful,
  *   but WITHOUT ANY WARRANTY; without even the implied warranty of
  *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *   GNU General Public License for more details.
- *  
+ *
  *   You should have received a copy of the GNU General Public License
  *   along with this program; if not, write to the Free Software
  *   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
- * 
- * 
+ *
+ *
  *  Matthew Jacob
  *  Feral Software
  *  421 Laurel Avenue
  *  Menlo Park, CA 94025
  *  USA
- * 
+ *
  *  gplbsd at feral com
  */
 /*
@@ -402,7 +402,7 @@ void unmap_pci_mem(struct isp_pcisoftc *isp_pci, unsigned long size)
     }
 }
 
-static __inline int 
+static __inline int
 map_isp_mem(struct isp_pcisoftc *isp_pci, u_short cmd, vm_offset_t mem_base)
 {
     if (cmd & PCI_COMMAND_MEMORY) {
@@ -414,7 +414,7 @@ map_isp_mem(struct isp_pcisoftc *isp_pci, u_short cmd, vm_offset_t mem_base)
     return (0);
 }
 
-static __inline int 
+static __inline int
 map_isp_io(struct isp_pcisoftc *isp_pci, u_short cmd, vm_offset_t io_base)
 {
     if ((cmd & PCI_COMMAND_IO) && (io_base & 3) == 1) {
@@ -723,7 +723,7 @@ isplinux_pci_init_one(struct Scsi_Host *host)
         isp->isp_type = ISP_HA_SCSI_UNKNOWN;
         if (isp->isp_mdvec->dv_ispfw == NULL)
             fwname = "ql1020_fw.bin";
-    } 
+    }
 #endif
 #ifndef    ISP_DISABLE_1080_SUPPORT
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP1080) {
@@ -1592,7 +1592,7 @@ static int tdma_mkfc(ispsoftc_t *, tmd_xact_t *, ct2_entry_t *, uint32_t *, uint
 
 /*
  * We need to handle DMA for target mode differently from initiator mode.
- * 
+ *
  * DMA mapping and construction and submission of CTIO Request Entries
  * and rendevous for completion are very tightly coupled because we start
  * out by knowing (per platform) how much data we have to move, but we
@@ -1605,7 +1605,7 @@ static int tdma_mkfc(ispsoftc_t *, tmd_xact_t *, ct2_entry_t *, uint32_t *, uint
  * for the DMA mapping routines comes here instead with a pointer to a
  * partially filled in already allocated request queue entry.
  */
-    
+
 static int
 tdma_mk(ispsoftc_t *isp, tmd_xact_t *xact, ct_entry_t *cto, uint32_t *nxtip, uint32_t optr)
 {
@@ -1915,7 +1915,7 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xact_t *xact, ct7_entry_t *cto, uint32_t *nxti
     int nseg, seg, ovseg, seglim, new_seg_cnt;
 #ifdef ALLOW_SYNTHETIC_CTIO
     ct7_entry_t *cto2 = NULL, ct2;
-#endif 
+#endif
 
     nxti = *nxtip;
     curi = isp->isp_reqidx;
@@ -2214,13 +2214,13 @@ tdma_mkfc(ispsoftc_t *isp, tmd_xact_t *xact, ct2_entry_t *cto, uint32_t *nxtip, 
     int nseg, seg, ovseg, seglim, new_seg_cnt;
 #ifdef ALLOW_SYNTHETIC_CTIO
     ct2_entry_t *cto2 = NULL, ct2;
-#endif 
+#endif
 
     nxti = *nxtip;
     curi = isp->isp_reqidx;
     qe = ISP_QUEUE_ENTRY(isp->isp_rquest, curi);
 
-    
+
     if (cto->ct_flags & CT2_SENDSTATUS) {
         int level;
         if ((cto->ct_flags & CT2_FLAG_MMASK) == CT2_FLAG_MODE0) {
@@ -3210,7 +3210,7 @@ isp_pci_reset1(ispsoftc_t *isp)
 static void
 isp_pci_dumpregs(ispsoftc_t *isp, const char *msg)
 {
-    struct isp_pcisoftc *pcs = (struct isp_pcisoftc *) isp;    
+    struct isp_pcisoftc *pcs = (struct isp_pcisoftc *) isp;
     uint16_t csr;
 
     pci_read_config_word(pcs->pci_dev, PCI_COMMAND, &csr);
@@ -3258,7 +3258,7 @@ isplinux_pci_exclude(struct pci_dev *dev)
     while (wrk && *wrk) {
         unsigned int id;
         char *commatok, *p, *q;
-    
+
         commatok = strchr(wrk, ',');
         if (commatok) {
             *commatok = 0;

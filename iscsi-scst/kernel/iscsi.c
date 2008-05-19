@@ -2,12 +2,12 @@
  *  Copyright (C) 2002-2003 Ardis Technolgies <roman@ardistech.com>
  *  Copyright (C) 2007 Vladislav Bolkhovitin
  *  Copyright (C) 2007 CMS Distribution Limited
- * 
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation, version 2
  *  of the License.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -148,7 +148,7 @@ struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *conn, struct iscsi_cmnd *parent
 
 #ifdef NET_PAGE_CALLBACKS_DEFINED
 		atomic_set(&cmnd->net_ref_cnt, 0);
-#endif		
+#endif
 		spin_lock_init(&cmnd->rsp_cmd_lock);
 		INIT_LIST_HEAD(&cmnd->rsp_cmd_list);
 		INIT_LIST_HEAD(&cmnd->rx_ddigest_cmd_list);
@@ -382,7 +382,7 @@ again_rsp:
 
 /*
  * Corresponding conn may also gets destroyed atfer this function, except only
- * if it's called from the read thread! 
+ * if it's called from the read thread!
  */
 void req_cmnd_release(struct iscsi_cmnd *req)
 {
@@ -437,7 +437,7 @@ void req_cmnd_release(struct iscsi_cmnd *req)
 
 /*
  * Corresponding conn may also gets destroyed atfer this function, except only
- * if it's called from the read thread! 
+ * if it's called from the read thread!
  */
 void rsp_cmnd_release(struct iscsi_cmnd *cmnd)
 {
@@ -458,7 +458,7 @@ void rsp_cmnd_release(struct iscsi_cmnd *cmnd)
 /**
  * create a new command used as response.
  *
- * iscsi_cmnd_create_rsp_cmnd - 
+ * iscsi_cmnd_create_rsp_cmnd -
  * @cmnd: ptr to request command
  *
  * @return    ptr to response command or NULL
@@ -494,7 +494,7 @@ static inline struct iscsi_cmnd *get_rsp_cmnd(struct iscsi_cmnd *req)
 
 static void iscsi_cmnds_init_write(struct list_head *send, int flags)
 {
-	struct iscsi_cmnd *rsp = list_entry(send->next, struct iscsi_cmnd, 
+	struct iscsi_cmnd *rsp = list_entry(send->next, struct iscsi_cmnd,
 						write_list_entry);
 	struct iscsi_conn *conn = rsp->conn;
 	struct list_head *pos, *next;
@@ -572,7 +572,7 @@ static void iscsi_set_datasize(struct iscsi_cmnd *cmnd, u32 offset, u32 size)
 		u8 *p = (u8*)page_address(sg_page(&cmnd->sg[idx])) +
 			(last_off & ~PAGE_MASK);
 		int i = 4 - (size & 3);
-		while(i--) 
+		while(i--)
 		    *p++ = 0;
 	}
 }
@@ -679,7 +679,7 @@ static struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req, int status,
 		if (rsp->bufflen - rsp->pdu.datasize) {
 		    int i = rsp->pdu.datasize;
 		    u8 *p = (u8 *)sense + i;
-		    
+
 		    while (i < rsp->bufflen) {
 			*p ++ = 0;
 			i++;
@@ -747,7 +747,7 @@ static void iscsi_cmnd_reject(struct iscsi_cmnd *req, int reason)
 
 static inline int iscsi_get_allowed_cmds(struct iscsi_session *sess)
 {
-	int res = max(-1, (int)sess->max_queued_cmnds - 
+	int res = max(-1, (int)sess->max_queued_cmnds -
 				atomic_read(&sess->active_cmds)-1);
 	TRACE_DBG("allowed cmds %d (sess %p, active_cmds %d)", res,
 		sess, atomic_read(&sess->active_cmds));
@@ -1165,7 +1165,7 @@ static int iscsi_pre_exec(struct scst_cmd *scst_cmd)
 				SCST_LOAD_SENSE(iscsi_sense_crc_error));
 			res = SCST_PREPROCESS_STATUS_ERROR_SENSE_SET;
 			/*
-			 * The rest of rx_ddigest_cmd_list will be freed 
+			 * The rest of rx_ddigest_cmd_list will be freed
 			 * in req_cmnd_release()
 			 */
 			goto out;
@@ -1562,7 +1562,7 @@ static void __cmnd_abort(struct iscsi_cmnd *cmnd)
 	/*
 	 * Here, if cmnd is data_waiting, we should iscsi_fail_waiting_cmnd()
 	 * it. But, since this function can be called from any thread, not only
-	 * from the read one, we at the moment can't do that, because of 
+	 * from the read one, we at the moment can't do that, because of
 	 * absence of appropriate locking protection. But this isn't a stuff
 	 * for 0.9.6. So, currently a misbehaving initiator, not sending
 	 * data in R2T state for a sharing between targets device, for which
@@ -2479,7 +2479,7 @@ static void iscsi_preprocessing_done(struct scst_cmd *scst_cmd)
 	return;
 }
 
-/* 
+/*
  * No locks.
  *
  * IMPORTANT! Connection conn must be protected by additional conn_get()
@@ -2611,7 +2611,7 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 	}
 
 	if (req->bufflen != 0) {
-		/* 
+		/*
 		 * Check above makes sure that is_send_status is set,
 		 * so status is valid here, but in future that could change.
 		 * ToDo
@@ -2967,7 +2967,7 @@ out_reg:
 out_callb:
 #ifdef NET_PAGE_CALLBACKS_DEFINED
 	net_set_get_put_page_callbacks(NULL, NULL);
-#endif	
+#endif
 	goto out;
 }
 

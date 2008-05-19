@@ -2,12 +2,12 @@
  *  Copyright (C) 2002-2003 Ardis Technolgies <roman@ardistech.com>
  *  Copyright (C) 2007 Vladislav Bolkhovitin
  *  Copyright (C) 2007 CMS Distribution Limited
- * 
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation, version 2
  *  of the License.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -394,7 +394,7 @@ static void login_start(struct connection *conn)
 			rsp->status_detail = ISCSI_STATUS_SVC_UNAVAILABLE;
 			conn->state = STATE_EXIT;
 		}
-		conn->session_param[key_max_recv_data_length].exec_val = 
+		conn->session_param[key_max_recv_data_length].exec_val =
 			conn->session_param[key_max_recv_data_length].local_val;
 	}
 	conn->exp_cmd_sn = be32_to_cpu(req->cmd_sn);

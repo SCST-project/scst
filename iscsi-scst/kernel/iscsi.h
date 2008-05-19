@@ -2,12 +2,12 @@
  *  Copyright (C) 2002-2003 Ardis Technolgies <roman@ardistech.com>
  *  Copyright (C) 2007 Vladislav Bolkhovitin
  *  Copyright (C) 2007 CMS Distribution Limited
- * 
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation, version 2
  *  of the License.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -124,7 +124,7 @@ struct iscsi_session {
 #define ISCSI_CONN_IOV_MAX			(PAGE_SIZE/sizeof(struct iovec))
 
 #define ISCSI_CONN_RD_STATE_IDLE		0
-#define ISCSI_CONN_RD_STATE_IN_LIST		1		
+#define ISCSI_CONN_RD_STATE_IN_LIST		1
 #define ISCSI_CONN_RD_STATE_PROCESSING		2
 
 #define ISCSI_CONN_WR_STATE_IDLE		0
@@ -137,7 +137,7 @@ struct iscsi_conn {
 
 	/* Both protected by session->sn_lock */
 	u32 stat_sn;
-	u32 exp_stat_sn;	
+	u32 exp_stat_sn;
 
 	spinlock_t cmd_list_lock; /* BH lock */
 
@@ -235,7 +235,7 @@ typedef void (iscsi_show_info_t)(struct seq_file *seq, struct iscsi_target *targ
 #define ISCSI_REJECT_CMD                  2
 #define ISCSI_REJECT_DATA                 3
 
-/* 
+/*
  * Most of the fields don't need any protection, since accessed from only a
  * single thread, except where noted.
  */
@@ -287,7 +287,7 @@ struct iscsi_cmnd {
 	unsigned long write_timeout;
 
 	/*
-	 * Unprotected, since could be accessed from only a single 
+	 * Unprotected, since could be accessed from only a single
 	 * thread at time
 	 */
 	struct list_head rx_ddigest_cmd_list;
@@ -538,7 +538,7 @@ static inline void conn_put(struct iscsi_conn *conn)
 		atomic_read(&conn->conn_ref_cnt)-1);
 	sBUG_ON(atomic_read(&conn->conn_ref_cnt) == 0);
 
-	/* 
+	/*
 	 * It always ordered to protect from undesired side effects like
 	 * accessing just destroyed object because of this *_dec() reordering.
 	 */

@@ -1,19 +1,19 @@
 /*
  *  scst_tape.c
- *  
+ *
  *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
  *
- *  SCSI tape (type 1) dev handler 
+ *  SCSI tape (type 1) dev handler
  *  &
  *  SCSI tape (type 1) "performance" device handler (skip all READ and WRITE
  *   operations).
- *  
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation, version 2
  *  of the License.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -140,11 +140,11 @@ module_exit(exit_scst_tape_driver);
 /**************************************************************
  *  Function:  tape_attach
  *
- *  Argument:  
+ *  Argument:
  *
  *  Returns :  1 if attached, error code otherwise
  *
- *  Description:  
+ *  Description:
  *************************************************************/
 int tape_attach(struct scst_device *dev)
 {
@@ -182,7 +182,7 @@ int tape_attach(struct scst_device *dev)
 	retries = SCST_DEV_UA_RETRIES;
 	do {
 		TRACE_DBG("%s", "Doing TEST_UNIT_READY");
-		res = scsi_test_unit_ready(dev->scsi_dev, TAPE_SMALL_TIMEOUT, 
+		res = scsi_test_unit_ready(dev->scsi_dev, TAPE_SMALL_TIMEOUT,
 					   TAPE_RETRIES
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
 					  );
@@ -197,10 +197,10 @@ int tape_attach(struct scst_device *dev)
 	}
 
 	TRACE_DBG("%s", "Doing MODE_SENSE");
-	res = scsi_mode_sense(dev->scsi_dev, 
+	res = scsi_mode_sense(dev->scsi_dev,
 			      ((dev->scsi_dev->scsi_level <= SCSI_2) ?
 			       ((dev->scsi_dev->lun << 5) & 0xe0) : 0),
-			      0 /* Mode Page 0 */, 
+			      0 /* Mode Page 0 */,
 			      buffer, buffer_size,
 			      TAPE_SMALL_TIMEOUT, TAPE_RETRIES,
 			      &data, NULL);
@@ -253,7 +253,7 @@ out:
 /************************************************************
  *  Function:  tape_detach
  *
- *  Argument: 
+ *  Argument:
  *
  *  Returns :  None
  *
@@ -276,7 +276,7 @@ void tape_detach(struct scst_device *dev)
 static int tape_get_block_size(struct scst_cmd *cmd)
 {
 	struct tape_params *params = (struct tape_params *)cmd->dev->dh_priv;
-	/* 
+	/*
 	 * No need for locks here, since *_detach() can not be called,
 	 * when there are existing commands.
 	 */
@@ -286,7 +286,7 @@ static int tape_get_block_size(struct scst_cmd *cmd)
 /********************************************************************
  *  Function:  tape_parse
  *
- *  Argument:  
+ *  Argument:
  *
  *  Returns :  The state of the command
  *
@@ -315,7 +315,7 @@ int tape_parse(struct scst_cmd *cmd)
 static void tape_set_block_size(struct scst_cmd *cmd, int block_size)
 {
 	struct tape_params *params = (struct tape_params *)cmd->dev->dh_priv;
-	/* 
+	/*
 	 * No need for locks here, since *_detach() can not be called, when
 	 * there are existing commands.
 	 */
@@ -326,13 +326,13 @@ static void tape_set_block_size(struct scst_cmd *cmd, int block_size)
 /********************************************************************
  *  Function:  tape_done
  *
- *  Argument:  
+ *  Argument:
  *
- *  Returns :  
+ *  Returns :
  *
  *  Description:  This is the completion routine for the command,
  *                it is used to extract any necessary information
- *                about a command. 
+ *                about a command.
  ********************************************************************/
 int tape_done(struct scst_cmd *cmd)
 {
@@ -344,8 +344,8 @@ int tape_done(struct scst_cmd *cmd)
 
 	if ((status == SAM_STAT_GOOD) || (status == SAM_STAT_CONDITION_MET)) {
 		res = scst_tape_generic_dev_done(cmd, tape_set_block_size);
-	} else if ((status == SAM_STAT_CHECK_CONDITION) && 
-		   SCST_SENSE_VALID(cmd->sense)) 
+	} else if ((status == SAM_STAT_CHECK_CONDITION) &&
+		   SCST_SENSE_VALID(cmd->sense))
 	{
 		struct tape_params *params;
 		TRACE_DBG("%s", "Extended sense");
@@ -371,8 +371,8 @@ int tape_done(struct scst_cmd *cmd)
 			if (TransferLength > Residue) {
 				int resp_data_len = TransferLength - Residue;
 				if (cmd->cdb[1] & SCST_TRANSFER_LEN_TYPE_FIXED) {
-					/* 
-					 * No need for locks here, since 
+					/*
+					 * No need for locks here, since
 					 * *_detach() can not be called, when
 					 * there are existing commands.
 					 */
@@ -394,9 +394,9 @@ int tape_done(struct scst_cmd *cmd)
 /********************************************************************
  *  Function:  tape_exec
  *
- *  Argument:  
+ *  Argument:
  *
- *  Returns :  
+ *  Returns :
  *
  *  Description:  Make SCST do nothing for data READs and WRITES.
  *                Intended for raw line performance testing

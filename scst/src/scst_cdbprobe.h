@@ -1,20 +1,20 @@
 /*
  *  scst_cdbprobe.h
- *  
+ *
  *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
- *  
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation, version 2
  *  of the License.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  *  GNU General Public License for more details.
  */
- 
+
 /* Must be included in only one .c file in the project!! */
 
 #ifndef __SCST_CDBPROBE_H
@@ -42,7 +42,7 @@ static int get_trans_len_read_pos(struct scst_cmd *cmd, uint8_t off);
 +=========================================================+
 |Key:  M = command implementation is mandatory.           |
 |      O = command implementation is optional.            |
-|      V = Vendor-specific                                | 
+|      V = Vendor-specific                                |
 |      R = Reserved                                       |
 |     ' '= DON'T use for this device                      |
 +=========================================================+

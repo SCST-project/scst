@@ -1,15 +1,15 @@
 /*
  *  scst_mem.c
- *  
+ *
  *  Copyright (C) 2006-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2007 Krzysztof Blaszkowski <kb@sysmikro.com.pl>
  *  Copyright (C) 2007 CMS Distribution Limited
- *  
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation, version 2
  *  of the License.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -97,7 +97,7 @@ static int scst_check_clustering(struct scatterlist *sg, int cur, int hint)
 		pfn = page_to_pfn(sg_page(&sg[i]));
 		pfn_next = pfn + (sg[i].length >> PAGE_SHIFT);
 		full_page = (sg[i].length & (PAGE_SIZE - 1)) == 0;
-		
+
 		if ((pfn == pfn_cur_next) && full_page_cur)
 			goto out_head;
 
@@ -110,7 +110,7 @@ static int scst_check_clustering(struct scatterlist *sg, int cur, int hint)
 		pfn = page_to_pfn(sg_page(&sg[i]));
 		pfn_next = pfn + (sg[i].length >> PAGE_SHIFT);
 		full_page = (sg[i].length & (PAGE_SIZE - 1)) == 0;
-		
+
 		if ((pfn == pfn_cur_next) && full_page_cur)
 			goto out_head;
 
@@ -150,13 +150,13 @@ static void scst_free_sys_sg_entries(struct scatterlist *sg, int sg_count,
 		int pages =
 			(len >> PAGE_SHIFT) + ((len & ~PAGE_MASK) != 0);
 
-		TRACE_MEM("page %lx, len %d, pages %d", 
+		TRACE_MEM("page %lx, len %d, pages %d",
 			(unsigned long)p, len, pages);
 
 		while(pages > 0) {
 			int order = 0;
 
-/* 
+/*
  * __free_pages() doesn't like freeing pages with not that order with
  * which they were allocated, so disable this small optimization.
  */
@@ -321,7 +321,7 @@ static void sgv_dtor_and_free(struct sgv_pool_obj *obj)
 		}
 		kfree(obj->sg_entries);
 	}
-	
+
 	kmem_cache_free(obj->owner_pool->caches[obj->order], obj);
 	return;
 }
@@ -363,7 +363,7 @@ static struct sgv_pool_obj *sgv_pool_cached_get(struct sgv_pool *pool,
 	}
 
 out:
-	return obj;	
+	return obj;
 }
 
 static void sgv_pool_cached_put(struct sgv_pool_obj *sgv)
@@ -400,13 +400,13 @@ static void sgv_pool_cached_put(struct sgv_pool_obj *sgv)
 		&sgv_pools_mgr.mgr.sorted_recycling_list);
 
 	sgv->recycle_entry.time_stamp = jiffies;
-	
+
 	sgv_pools_mgr.mgr.thr.inactive_pages_total += 1 << sgv->order;
 	if (!sgv_pools_mgr.mgr.pitbool_running) {
 		sgv_pools_mgr.mgr.pitbool_running = 1;
 		sched = 1;
 	}
-	
+
 	spin_unlock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
 
 	if (sched)
@@ -579,11 +579,11 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 					order, gfp_mask) != 0))
 				goto out_fail_free;
 		}
-		
-		if ((flags & SCST_POOL_NO_ALLOC_ON_CACHE_MISS) && 
+
+		if ((flags & SCST_POOL_NO_ALLOC_ON_CACHE_MISS) &&
 		    (flags & SCST_POOL_RETURN_OBJ_ON_ALLOC_FAIL))
 			goto out_return;
-			
+
 		obj->allocator_priv = priv;
 		if (sgv_pool_hiwmk_check(pages_to_alloc, no_fail) != 0)
 			goto out_fail_free_sg_entries;
@@ -607,10 +607,10 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 
 		obj->sg_entries = obj->sg_entries_data;
 		sg_init_table(obj->sg_entries, pages);
-		
+
 		if (sgv_pool_hiwmk_check(pages_to_alloc, no_fail) != 0)
 			goto out_fail_free_sg_entries;
-		TRACE_MEM("Big or no_cached sgv_obj %p (size %d)", obj,	sz);		
+		TRACE_MEM("Big or no_cached sgv_obj %p (size %d)", obj,	sz);
 	}
 
 	obj->sg_count = scst_alloc_sg_entries(obj->sg_entries,
@@ -655,7 +655,7 @@ success:
 		obj->orig_sg = sg;
 		obj->orig_length = obj->sg_entries[sg].length;
 		if (pool->clustered) {
-			obj->sg_entries[sg].length = 
+			obj->sg_entries[sg].length =
 				(pages - obj->trans_tbl[sg].pg_count) << PAGE_SHIFT;
 		}
 	} else {
@@ -727,7 +727,7 @@ void *sgv_get_priv(struct sgv_pool_obj *sgv)
 void sgv_pool_free(struct sgv_pool_obj *sgv)
 {
 	int order = sgv->order, pages;
-	
+
 	TRACE_MEM("Freeing sgv_obj %p, order %d, sg_entries %p, "
 		"sg_count %d, allocator_priv %p", sgv, order,
 		sgv->sg_entries, sgv->sg_count, sgv->allocator_priv);
@@ -849,17 +849,17 @@ int sgv_pool_init(struct sgv_pool *pool, const char *name, int clustered)
 		atomic_set(&pool->cache_acc[i].merged, 0);
 
 		if (i <= sgv_pools_mgr.sgv_max_local_order) {
-			size = sizeof(*obj) + (1 << i) * 
+			size = sizeof(*obj) + (1 << i) *
 				(sizeof(obj->sg_entries[0]) +
 				 (clustered ? sizeof(obj->trans_tbl[0]) : 0));
 		} else if (i <= sgv_pools_mgr.sgv_max_trans_order) {
-			/* sgv ie sg_entries is allocated outside object but ttbl 
+			/* sgv ie sg_entries is allocated outside object but ttbl
 			is embedded still */
-			size = sizeof(*obj) + (1 << i) * 
-				((clustered ? sizeof(obj->trans_tbl[0]) : 0));		
+			size = sizeof(*obj) + (1 << i) *
+				((clustered ? sizeof(obj->trans_tbl[0]) : 0));
 		} else {
 			size = sizeof(*obj);
-			
+
 			/* both sgv and ttbl are kallocated() */
 		}
 
@@ -867,7 +867,7 @@ int sgv_pool_init(struct sgv_pool *pool, const char *name, int clustered)
 
 		scnprintf(pool->cache_names[i], sizeof(pool->cache_names[i]),
 			"%s-%luK", name, (PAGE_SIZE >> 10) << i);
-		pool->caches[i] = kmem_cache_create(pool->cache_names[i], 
+		pool->caches[i] = kmem_cache_create(pool->cache_names[i],
 			size, 0, SCST_SLAB_FLAGS, NULL
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
 			, NULL);
@@ -921,11 +921,11 @@ static void sgv_pool_evaluate_local_order(struct scst_sgv_pools_manager *pmgr)
 	TRACE_MEM("sgv_max_local_order %d, sgv_max_trans_order %d",
 		pmgr->sgv_max_local_order, pmgr->sgv_max_trans_order);
 	TRACE_MEM("max object size with embedded sgv & ttbl %zd",
-		(1 << pmgr->sgv_max_local_order) * 
+		(1 << pmgr->sgv_max_local_order) *
 		(sizeof(struct trans_tbl_ent) + sizeof(struct scatterlist))
 		+ sizeof(struct sgv_pool_obj));
 	TRACE_MEM("max object size with embedded sgv (!clustered) %zd",
-		(1 << pmgr->sgv_max_local_order) * 
+		(1 << pmgr->sgv_max_local_order) *
 		(sizeof(struct scatterlist))
 		+ sizeof(struct sgv_pool_obj));
 	TRACE_MEM("max object size with embedded ttbl %zd",
@@ -945,13 +945,13 @@ void sgv_pool_deinit(struct sgv_pool *pool)
 
 	for(i = 0; i < SGV_POOL_ELEMENTS; i++) {
 		struct sgv_pool_obj *e;
-		
-		spin_lock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);		
+
+		spin_lock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
 		while(!list_empty(&pool->recycling_lists[i])) {
 			e = list_entry(pool->recycling_lists[i].next,
 				 struct sgv_pool_obj,
 				recycle_entry.recycling_list_entry);
-		
+
 			__sgv_pool_cached_purge(e);
 			spin_unlock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
 
@@ -961,7 +961,7 @@ void sgv_pool_deinit(struct sgv_pool *pool)
 			spin_lock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
 		}
 		spin_unlock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
-	
+
 		if (pool->caches[i])
 			kmem_cache_destroy(pool->caches[i]);
 		pool->caches[i] = NULL;
@@ -1021,11 +1021,11 @@ static int sgv_pool_cached_shrinker(int nr, gfp_t gfpm)
 	TRACE_ENTRY();
 
 	spin_lock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
-	
+
 	if (nr > 0) {
 		struct sgv_pool_obj *e;
 		unsigned long rt = jiffies;
-		
+
 		while(!list_empty(&sgv_pools_mgr.mgr.sorted_recycling_list)) {
 			e = list_entry(
 				sgv_pools_mgr.mgr.sorted_recycling_list.next,
@@ -1037,14 +1037,14 @@ static int sgv_pool_cached_shrinker(int nr, gfp_t gfpm)
 				spin_unlock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
 				sgv_dtor_and_free(e);
 				spin_lock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
-			} else 
+			} else
 				break;
-			
-			if (nr <= 0) 
+
+			if (nr <= 0)
 				break;
 		}
 	}
-	
+
 	nr = sgv_pools_mgr.mgr.thr.inactive_pages_total;
 
 	spin_unlock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
@@ -1074,19 +1074,19 @@ static void sgv_pool_cached_pitbool(void *p)
 			spin_unlock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
 			sgv_dtor_and_free(e);
 			spin_lock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
-		} else 
+		} else
 			break;
 	}
-		
+
 	total_pages = sgv_pools_mgr.mgr.thr.inactive_pages_total;
 
 	spin_unlock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
-	
+
 	if (total_pages) {
 		schedule_delayed_work(&sgv_pools_mgr.mgr.apit_pool,
 			PURGE_INTERVAL);
 	}
-		
+
 	TRACE_EXIT();
 	return;
 }
@@ -1110,7 +1110,7 @@ int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 	atomic_set(&pools->sgv_other_total_alloc, 0);
 	INIT_LIST_HEAD(&pools->scst_sgv_pool_list);
 	mutex_init(&pools->scst_sgv_pool_mutex);
-	
+
 	INIT_LIST_HEAD(&pools->mgr.sorted_recycling_list);
 	spin_lock_init(&pools->mgr.pool_mgr_lock);
 
@@ -1196,7 +1196,7 @@ static void scst_do_sgv_read(struct seq_file *seq, const struct sgv_pool *pool)
 {
 	int i, total = 0, hit = 0, merged = 0, allocated = 0;
 	int oa, om;
- 
+
 	for(i = 0; i < SGV_POOL_ELEMENTS; i++) {
 		int t;
 

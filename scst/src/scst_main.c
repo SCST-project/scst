@@ -1,14 +1,14 @@
 /*
  *  scst_main.c
- *  
+ *
  *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
- *  
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation, version 2
  *  of the License.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -133,7 +133,7 @@ static int suspend_count;
 
 static int scst_virt_dev_last_id; /* protected by scst_mutex */
 
-/* 
+/*
  * This buffer and lock are intended to avoid memory allocation, which
  * could fail in improper places.
  */
@@ -147,7 +147,7 @@ module_param_named(scst_max_cmd_mem, scst_max_cmd_mem, long, 0);
 MODULE_PARM_DESC(scst_max_cmd_mem, "Maximum memory allowed to be consumed by "
 	"the SCST commands at any given time in MB");
 
-struct scst_dev_type scst_null_devtype = 
+struct scst_dev_type scst_null_devtype =
 {
   name:     "none",
 };
@@ -175,7 +175,7 @@ int __scst_register_target_template(struct scst_tgt_template *vtt,
 		res = -EINVAL;
 		goto out_err;
 	}
-	
+
 	if (!vtt->release) {
 		PRINT_ERROR("Target driver %s doesn't have a "
 			"release() method.", vtt->name);
@@ -539,14 +539,14 @@ out_up:
 
 	if (res == 0) {
 		PRINT_INFO("Attached SCSI target mid-level at "
-		    "scsi%d, channel %d, id %d, lun %d, type %d", 
-		    scsidp->host->host_no, scsidp->channel, scsidp->id, 
+		    "scsi%d, channel %d, id %d, lun %d, type %d",
+		    scsidp->host->host_no, scsidp->channel, scsidp->id,
 		    scsidp->lun, scsidp->type);
-	} 
+	}
 	else {
 		PRINT_ERROR("Failed to attach SCSI target mid-level "
-		    "at scsi%d, channel %d, id %d, lun %d, type %d", 
-		    scsidp->host->host_no, scsidp->channel, scsidp->id, 
+		    "at scsi%d, channel %d, id %d, lun %d, type %d",
+		    scsidp->host->host_no, scsidp->channel, scsidp->id,
 		    scsidp->lun, scsidp->type);
 	}
 
@@ -568,7 +568,7 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 	struct scst_acg_dev *acg_dev, *aa;
 
 	TRACE_ENTRY();
-	
+
 	scst_suspend_activity();
 	mutex_lock(&scst_mutex);
 
@@ -585,9 +585,9 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 	}
 
 	list_del(&dev->dev_list_entry);
-	
+
 	list_for_each_entry_safe(acg_dev, aa, &dev->dev_acg_dev_list,
-				 dev_acg_dev_list_entry) 
+				 dev_acg_dev_list_entry)
 	{
 		scst_acg_remove_dev(acg_dev->acg, dev);
 	}
@@ -636,21 +636,21 @@ out:
 	return res;
 }
 
-int scst_register_virtual_device(struct scst_dev_type *dev_handler, 
+int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 	const char *dev_name)
 {
 	int res, rc;
 	struct scst_device *dev = NULL;
 
 	TRACE_ENTRY();
-	
+
 	if (dev_handler == NULL) {
-		PRINT_ERROR("%s: valid device handler must be supplied", 
+		PRINT_ERROR("%s: valid device handler must be supplied",
 			__FUNCTION__);
 		res = -EINVAL;
 		goto out;
 	}
-	
+
 	if (dev_name == NULL) {
 		PRINT_ERROR("%s: device name must be non-NULL", __FUNCTION__);
 		res = -EINVAL;
@@ -696,7 +696,7 @@ out:
 	if (res > 0) {
 		PRINT_INFO("Attached SCSI target mid-level to virtual "
 		    "device %s (id %d)", dev_name, dev->virt_id);
-	} 
+	}
 	else {
 		PRINT_INFO("Failed to attach SCSI target mid-level to "
 		    "virtual device %s", dev_name);
@@ -734,9 +734,9 @@ void scst_unregister_virtual_device(int id)
 	}
 
 	list_del(&dev->dev_list_entry);
-	
+
 	list_for_each_entry_safe(acg_dev, aa, &dev->dev_acg_dev_list,
-				 dev_acg_dev_list_entry) 
+				 dev_acg_dev_list_entry)
 	{
 		scst_acg_remove_dev(acg_dev->acg, dev);
 	}
@@ -1068,22 +1068,22 @@ out:
 }
 
 /* The activity supposed to be suspended and scst_mutex held */
-int scst_assign_dev_handler(struct scst_device *dev, 
+int scst_assign_dev_handler(struct scst_device *dev,
 	struct scst_dev_type *handler)
 {
 	int res = 0;
 	struct scst_tgt_dev *tgt_dev;
 	LIST_HEAD(attached_tgt_devs);
-	
+
 	TRACE_ENTRY();
 
 	sBUG_ON(handler == NULL);
-	
+
 	if (dev->handler == handler)
 		goto out;
-	
+
 	if (dev->handler && dev->handler->detach_tgt) {
-		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list, 
+		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 				dev_tgt_dev_list_entry) {
 			TRACE_DBG("Calling dev handler's detach_tgt(%p)",
 				tgt_dev);
@@ -1118,9 +1118,9 @@ int scst_assign_dev_handler(struct scst_device *dev,
 		}
 		goto out_thr_null;
 	}
-	
+
 	if (handler && handler->attach_tgt) {
-		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list, 
+		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 				dev_tgt_dev_list_entry) {
 			TRACE_DBG("Calling dev handler's attach_tgt(%p)",
 				tgt_dev);
@@ -1143,7 +1143,7 @@ out_thr_null:
 out_null:
 	if (res != 0)
 		dev->handler = &scst_null_devtype;
-	
+
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -1151,7 +1151,7 @@ out:
 out_err_detach_tgt:
 	if (handler && handler->detach_tgt) {
 		list_for_each_entry(tgt_dev, &attached_tgt_devs,
-				 extra_tgt_dev_list_entry) 
+				 extra_tgt_dev_list_entry)
 		{
 			TRACE_DBG("Calling handler's detach_tgt(%p)",
 				tgt_dev);
@@ -1224,7 +1224,7 @@ int __scst_add_cmd_threads(int num)
 {
 	int res = 0, i;
 	static int scst_thread_num = 0;
-	
+
 	TRACE_ENTRY();
 
 	for (i = 0; i < num; i++) {
@@ -1311,7 +1311,7 @@ static int scst_start_all_threads(int num)
 
 	TRACE_ENTRY();
 
-	mutex_lock(&scst_threads_info.cmd_threads_mutex);		
+	mutex_lock(&scst_threads_info.cmd_threads_mutex);
         res = __scst_add_cmd_threads(num);
         if (res < 0)
                 goto out;
@@ -1346,7 +1346,7 @@ static int scst_start_all_threads(int num)
 out:
 	mutex_unlock(&scst_threads_info.cmd_threads_mutex);
 	TRACE_EXIT_RES(res);
-	return res;	
+	return res;
 }
 
 void scst_get(void)
@@ -1369,7 +1369,7 @@ static int scst_add(struct class_device *cdev, struct class_interface *intf)
 	int res = 0;
 
 	TRACE_ENTRY();
-	
+
 	scsidp = to_scsi_device(cdev->dev);
 	res = scst_register_device(scsidp);
 
@@ -1538,10 +1538,10 @@ static int __init init_scst(void)
 	scst_num_cpus = num_online_cpus();
 
 	/* ToDo: register_cpu_notifier() */
-	
+
 	if (scst_threads == 0)
 		scst_threads = scst_num_cpus;
-		
+
 	if (scst_threads < 1) {
 		PRINT_ERROR("%s", "scst_threads can not be less than 1");
 		scst_threads = scst_num_cpus;
@@ -1555,7 +1555,7 @@ static int __init init_scst(void)
 			  sizeof(struct s));				\
 		if (p == NULL) { res = -ENOMEM; goto o; }		\
 	} while (0)
-	  
+
 	INIT_CACHEP(scst_mgmt_cachep, scst_mgmt_cmd, out);
 	INIT_CACHEP(scst_mgmt_stub_cachep, scst_mgmt_cmd_stub,
 			out_destroy_mgmt_cache);
@@ -1620,7 +1620,7 @@ static int __init init_scst(void)
 		res = -ENOMEM;
 		goto out_destroy_sgv_pool;
 	}
-	
+
 	res = scsi_register_interface(&scst_interface);
 	if (res != 0)
 		goto out_free_acg;
@@ -1712,7 +1712,7 @@ static void __exit exit_scst(void)
 	DECLARE_MUTEX_LOCKED(shm);
 
 	TRACE_ENTRY();
-	
+
 	/* ToDo: unregister_cpu_notifier() */
 
 	scst_proc_cleanup_module();

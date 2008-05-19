@@ -690,10 +690,10 @@ qla2x00_chip_diag(scsi_qla_host_t *ha)
 			data = RD_REG_WORD(&reg->ctrl_status);
 			barrier();
 		}
-		
+
 		if (!cnt)
 			goto chip_diag_failed;
-		
+
 		DEBUG3(printk("scsi(%ld): Reset register cleared by chip reset\n",
 			      ha->host_no));
 
@@ -1432,7 +1432,7 @@ qla2x00_nvram_config(scsi_qla_host_t *ha)
 	    nv->id[2] != 'P' || nv->id[3] != ' ' || nv->nvram_version < 1) {
 		/* Reset NVRAM data. */
 		qla_printk(KERN_WARNING, ha, "Inconsistent NVRAM detected: "
-			   "checksum=0x%x nv=%p id=%c version=0x%x.\n", chksum, nv, 
+			   "checksum=0x%x nv=%p id=%c version=0x%x.\n", chksum, nv,
 			   nv->id[0], nv->nvram_version);
 		qla_printk(KERN_WARNING, ha, "Falling back to functioning (yet "
 		    "invalid -- WWPN) defaults.\n");
@@ -1510,7 +1510,7 @@ qla2x00_nvram_config(scsi_qla_host_t *ha)
 #ifdef FC_TARGET_SUPPORT
 	if (ha->flags.enable_target_mode)
 		nv->firmware_options[0] |= BIT_4;
-	else 
+	else
 #endif /* FC_TARGET_SUPPORT */
 		nv->firmware_options[0] &= ~BIT_4;
 	nv->firmware_options[1] |= (BIT_5 | BIT_0);
@@ -1520,7 +1520,7 @@ qla2x00_nvram_config(scsi_qla_host_t *ha)
 		nv->firmware_options[0] |= BIT_2;
 		nv->firmware_options[0] &= ~BIT_3;
 		nv->add_firmware_options[1] |= BIT_5 | BIT_4;
-		
+
 		if (IS_QLA2300(ha)) {
 			if (ha->fb_rev == FPM_2310) {
 				strcpy(ha->model_number, "QLA2310");
@@ -4001,7 +4001,7 @@ __qla2x00_host_reset(scsi_qla_host_t *ha)
 {
 	int ret = FAILED;
 
-	qla_printk(KERN_INFO, ha, "scsi(%ld): ADAPTER RESET ISSUED.\n", 
+	qla_printk(KERN_INFO, ha, "scsi(%ld): ADAPTER RESET ISSUED.\n",
 		   ha->host_no);
 
 	if (qla2x00_wait_for_hba_online(ha) != QLA_SUCCESS)
@@ -4022,7 +4022,7 @@ __qla2x00_host_reset(scsi_qla_host_t *ha)
 	/* Waiting for our command in done_queue to be returned to OS.*/
 	if (qla2x00_eh_wait_for_pending_commands(ha))
 		ret = SUCCESS;
-	
+
 out:
 	qla_printk(KERN_INFO, ha, "%s: reset %s\n", __func__,
 	    (ret == FAILED) ? "failed" : "succeded");
@@ -4035,7 +4035,7 @@ out:
  * host_reset, bring up w/ Target Mode Enabled
  */
 void
-__qla2x00_enable_lun(scsi_qla_host_t *ha) 
+__qla2x00_enable_lun(scsi_qla_host_t *ha)
 {
 	unsigned long flags = 0;
 
@@ -4052,9 +4052,9 @@ __qla2x00_enable_lun(scsi_qla_host_t *ha)
  *
  * Disable Target Mode and reset the adapter
  */
-void 
-__qla2x00_disable_lun(scsi_qla_host_t *ha) 
-{ 
+void
+__qla2x00_disable_lun(scsi_qla_host_t *ha)
+{
 	unsigned long flags = 0;
 
 	spin_lock_irqsave(&ha->hardware_lock, flags);
@@ -4087,7 +4087,7 @@ __qla2x00_issue_marker(scsi_qla_host_t *ha)
 int
 qla2x00_mailbox_command(scsi_qla_host_t *ha, mbx_cmd_t *mcp);
 
-int 
+int
 qla2x00_get_resource_counts(scsi_qla_host_t *ha, uint8_t *cmd, uint8_t *imm)
 {
 	mbx_cmd_t mc;
@@ -4099,9 +4099,9 @@ qla2x00_get_resource_counts(scsi_qla_host_t *ha, uint8_t *cmd, uint8_t *imm)
 	mc.in_mb = MBX_0|MBX_1|MBX_2;
 	mc.tov = 30;
 	mc.flags = 0;
-	
+
 	rval = qla2x00_mailbox_command(ha, &mc);
-		
+
 	*cmd = mc.mb[1];
 	*imm = mc.mb[2];
 
@@ -4134,16 +4134,16 @@ int qla2xxx_tgt_register_driver(struct qla2x_tgt_initiator *tgt_data,
 	int res = 0;
 
 	ENTER(__func__);
-	
+
 	if ((tgt_data == NULL) || (tgt_data->magic != QLA2X_TARGET_MAGIC)) {
 		printk("***ERROR*** Wrong version of the target driver: %d\n",
 			tgt_data->magic);
 		res = -EINVAL;
 		goto out;
 	}
-	
+
 	memcpy(&qla_target, tgt_data, sizeof(qla_target));
-	
+
 	init_data->magic = QLA2X_INITIATOR_MAGIC;
 	init_data->req_pkt = qla2x00_req_pkt;
 	init_data->isp_cmd = qla2x00_isp_cmd;
@@ -4153,7 +4153,7 @@ int qla2xxx_tgt_register_driver(struct qla2x_tgt_initiator *tgt_data,
 	init_data->req_cont_pkt = qla2x00_req_cont_pkt;
 	init_data->get_counts = qla2x00_get_resource_counts;
 	/* ... */
-	
+
 out:
 	LEAVE(__func__);
 	return res;

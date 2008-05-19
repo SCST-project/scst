@@ -1,14 +1,14 @@
 /*
  *  scst_targ.c
- *  
+ *
  *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
  *                 and Leonid Stoljar
- *  
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation, version 2
  *  of the License.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -49,8 +49,8 @@ static inline void scst_schedule_tasklet(struct scst_cmd *cmd)
 	tasklet_schedule(&t->tasklet);
 }
 
-/* 
- * Must not be called in parallel with scst_unregister_session_ex() for the 
+/*
+ * Must not be called in parallel with scst_unregister_session_ex() for the
  * same sess
  */
 struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
@@ -78,7 +78,7 @@ struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
 
 	cmd->start_time = jiffies;
 
-	/* 
+	/*
 	 * For both wrong lun and CDB defer the error reporting for
 	 * scst_cmd_init_done()
 	 */
@@ -122,7 +122,7 @@ static int scst_init_cmd(struct scst_cmd *cmd, int context)
 
 	/* Small context optimization */
 	if (((context == SCST_CONTEXT_TASKLET) ||
-	     (context == SCST_CONTEXT_DIRECT_ATOMIC)) && 
+	     (context == SCST_CONTEXT_DIRECT_ATOMIC)) &&
 	    scst_cmd_is_expected_set(cmd)) {
 		if (cmd->expected_data_direction == SCST_DATA_WRITE) {
 			if ( !test_bit(SCST_TGT_DEV_AFTER_INIT_WR_ATOMIC,
@@ -142,7 +142,7 @@ out:
 out_redirect:
 	if (cmd->preprocessing_only) {
 		/*
-		 * Poor man solution for single threaded targets, where 
+		 * Poor man solution for single threaded targets, where
 		 * blocking receiver at least sometimes means blocking all.
 		 */
 		sBUG_ON(context != SCST_CONTEXT_DIRECT);
@@ -194,7 +194,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context)
 #endif
 
 	TRACE_DBG("Preferred context: %d (cmd %p)", pref_context, cmd);
-	TRACE(TRACE_SCSI, "tag=%llu, lun=%Ld, CDB len=%d", cmd->tag, 
+	TRACE(TRACE_SCSI, "tag=%llu, lun=%Ld, CDB len=%d", cmd->tag,
 		(uint64_t)cmd->lun, cmd->cdb_len);
 	PRINT_BUFF_FLAG(TRACE_SCSI|TRACE_RCV_BOT, "Recieving CDB",
 		cmd->cdb, cmd->cdb_len);
@@ -229,7 +229,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context)
 			break;
 		case SCST_SESS_IPH_INITING:
 			TRACE_DBG("Adding cmd %p to init deferred cmd list", cmd);
-			list_add_tail(&cmd->cmd_list_entry, 
+			list_add_tail(&cmd->cmd_list_entry,
 				&sess->init_deferred_cmd_list);
 			spin_unlock_irqrestore(&sess->sess_list_lock, flags);
 			goto out;
@@ -351,7 +351,7 @@ static int scst_pre_parse(struct scst_cmd *cmd)
 				cmd->expected_data_direction,
 				cmd->expected_transfer_len);
 			cmd->data_direction = cmd->expected_data_direction;
-			
+
 			cmd->bufflen = cmd->expected_transfer_len;
 			/* Restore (likely) lost CDB length */
 			cmd->cdb_len = scst_get_cdb_len(cmd->cdb);
@@ -496,7 +496,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 	     ((cmd->sg == NULL) && (state > SCST_CMD_STATE_PREPARE_SPACE)))) {
 		PRINT_ERROR("Dev handler %s parse() returned "
 			"invalid cmd data_direction %d, bufflen %d, state %d "
-			"or sg %p (opcode 0x%x)", dev->handler->name, 
+			"or sg %p (opcode 0x%x)", dev->handler->name,
 			cmd->data_direction, cmd->bufflen, state, cmd->sg,
 			cmd->cdb[0]);
 		PRINT_BUFFER("Failed CDB", cmd->cdb, cmd->cdb_len);
@@ -579,11 +579,11 @@ set_res:
 	default:
 		if (state >= 0) {
 			PRINT_ERROR("Dev handler %s parse() returned "
-			     "invalid cmd state %d (opcode %d)", 
+			     "invalid cmd state %d (opcode %d)",
 			     dev->handler->name, state, cmd->cdb[0]);
 		} else {
 			PRINT_ERROR("Dev handler %s parse() returned "
-				"error %d (opcode %d)", dev->handler->name, 
+				"error %d (opcode %d)", dev->handler->name,
 				state, cmd->cdb[0]);
 		}
 		goto out_error;
@@ -595,7 +595,7 @@ set_res:
 		else
 			 cmd->resp_data_len = 0;
 	}
-	
+
 out:
 	TRACE_EXIT_HRES(res);
 	return res;
@@ -653,7 +653,7 @@ alloc:
 		r = scst_alloc_space(cmd);
 	else
 		TRACE_MEM("%s", "data_buf_alloced set, returning");
-	
+
 check:
 	if (r != 0) {
 		if (scst_cmd_atomic(cmd)) {
@@ -744,7 +744,7 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status, int pref_context)
 		if (cmd->set_sn_on_restart_cmd)
 			scst_cmd_set_sn(cmd);
 		/* Small context optimization */
-		if ((pref_context == SCST_CONTEXT_TASKLET) || 
+		if ((pref_context == SCST_CONTEXT_TASKLET) ||
 		    (pref_context == SCST_CONTEXT_DIRECT_ATOMIC)) {
 		    	if (cmd->data_direction == SCST_DATA_WRITE) {
 				if ( !test_bit(SCST_TGT_DEV_AFTER_RESTART_WR_ATOMIC,
@@ -975,9 +975,9 @@ void scst_rx_data(struct scst_cmd *cmd, int status, int pref_context)
 	case SCST_RX_STATUS_SUCCESS:
 		cmd->state = SCST_CMD_STATE_TGT_PRE_EXEC;
 		/* Small context optimization */
-		if ((pref_context == SCST_CONTEXT_TASKLET) || 
+		if ((pref_context == SCST_CONTEXT_TASKLET) ||
 		    (pref_context == SCST_CONTEXT_DIRECT_ATOMIC)) {
-			if ( !test_bit(SCST_TGT_DEV_AFTER_RX_DATA_ATOMIC, 
+			if ( !test_bit(SCST_TGT_DEV_AFTER_RX_DATA_ATOMIC,
 					&cmd->tgt_dev->tgt_dev_flags))
 				pref_context = SCST_CONTEXT_THREAD;
 		}
@@ -1104,9 +1104,9 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 static inline int scst_optimize_post_exec_context(struct scst_cmd *cmd,
 	int context)
 {
-	if ((context == SCST_CONTEXT_TASKLET) || 
+	if ((context == SCST_CONTEXT_TASKLET) ||
 	    (context == SCST_CONTEXT_DIRECT_ATOMIC)) {
-		if ( !test_bit(SCST_TGT_DEV_AFTER_EXEC_ATOMIC, 
+		if ( !test_bit(SCST_TGT_DEV_AFTER_EXEC_ATOMIC,
 				&cmd->tgt_dev->tgt_dev_flags))
 			context = SCST_CONTEXT_THREAD;
 	}
@@ -1216,7 +1216,7 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state)
 			TRACE_RECV_TOP("Exec'd %d S/G(s) at %p sg[0].page at "
 				"%p", cmd->sg_cnt, sg, (void*)sg_page(&sg[0]));
 			for(i = 0; i < cmd->sg_cnt; ++i) {
-				TRACE_BUFF_FLAG(TRACE_RCV_TOP, 
+				TRACE_BUFF_FLAG(TRACE_RCV_TOP,
 					"Exec'd sg", sg_virt(&sg[i]),
 					sg[i].length);
 			}
@@ -1228,7 +1228,7 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state)
 #ifdef EXTRACHECKS
 	if ((next_state != SCST_CMD_STATE_PRE_DEV_DONE) &&
 	    (next_state != SCST_CMD_STATE_PRE_XMIT_RESP) &&
-	    (next_state != SCST_CMD_STATE_FINISHED)) 
+	    (next_state != SCST_CMD_STATE_FINISHED))
 	{
 		PRINT_ERROR("scst_cmd_done_local() received invalid cmd "
 			    "state %d (opcode %d)", next_state, cmd->cdb[0]);
@@ -1345,7 +1345,7 @@ out_done:
 
 	TRACE_EXIT();
 	return SCST_EXEC_COMPLETED;
-	
+
 out_put_err:
 	scst_put_buf(cmd, buffer);
 
@@ -1431,13 +1431,13 @@ static int scst_reserve_local(struct scst_cmd *cmd)
 	list_for_each_entry(tgt_dev_tmp, &dev->dev_tgt_dev_list,
 			    dev_tgt_dev_list_entry) {
 		if (cmd->tgt_dev != tgt_dev_tmp)
-			set_bit(SCST_TGT_DEV_RESERVED, 
+			set_bit(SCST_TGT_DEV_RESERVED,
 				&tgt_dev_tmp->tgt_dev_flags);
 	}
 	dev->dev_reserved = 1;
 
 	spin_unlock_bh(&dev->dev_lock);
-	
+
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -1478,9 +1478,9 @@ static int scst_release_local(struct scst_cmd *cmd)
 
 	spin_lock_bh(&dev->dev_lock);
 
-	/* 
-	 * The device could be RELEASED behind us, if RESERVING session 
-	 * is closed (see scst_free_tgt_dev()), but this actually doesn't 
+	/*
+	 * The device could be RELEASED behind us, if RESERVING session
+	 * is closed (see scst_free_tgt_dev()), but this actually doesn't
 	 * matter, so use lock and no retest for DEV_RESERVED bits again
 	 */
 	if (test_bit(SCST_TGT_DEV_RESERVED, &cmd->tgt_dev->tgt_dev_flags)) {
@@ -1494,7 +1494,7 @@ static int scst_release_local(struct scst_cmd *cmd)
 		list_for_each_entry(tgt_dev_tmp,
 				    &dev->dev_tgt_dev_list,
 				    dev_tgt_dev_list_entry) {
-			clear_bit(SCST_TGT_DEV_RESERVED, 
+			clear_bit(SCST_TGT_DEV_RESERVED,
 				&tgt_dev_tmp->tgt_dev_flags);
 		}
 		dev->dev_reserved = 0;
@@ -1565,7 +1565,7 @@ int scst_check_local_events(struct scst_cmd *cmd)
 		}
 	}
 
-	if (unlikely(test_bit(SCST_TGT_DEV_UA_PENDING, 
+	if (unlikely(test_bit(SCST_TGT_DEV_UA_PENDING,
 			&cmd->tgt_dev->tgt_dev_flags))) {
 		if (scst_is_ua_command(cmd)) {
 			rc = scst_set_pending_UA(cmd);
@@ -1590,9 +1590,9 @@ out_uncomplete:
 	goto out;
 }
 
-/* 
- * The result of cmd execution, if any, should be reported 
- * via scst_cmd_done_local() 
+/*
+ * The result of cmd execution, if any, should be reported
+ * via scst_cmd_done_local()
  */
 static int scst_pre_exec(struct scst_cmd *cmd)
 {
@@ -1634,9 +1634,9 @@ out_done:
 	goto out;
 }
 
-/* 
- * The result of cmd execution, if any, should be reported 
- * via scst_cmd_done_local() 
+/*
+ * The result of cmd execution, if any, should be reported
+ * via scst_cmd_done_local()
  */
 static inline int scst_local_exec(struct scst_cmd *cmd)
 {
@@ -1725,7 +1725,7 @@ static int scst_do_send_to_midlev(struct scst_cmd *cmd)
 	}
 
 	TRACE_DBG("Sending cmd %p to SCSI mid-level", cmd);
-	
+
 	if (unlikely(dev->scsi_dev == NULL)) {
 		PRINT_ERROR("Command for virtual device must be "
 			"processed by device handler (lun %Ld)!",
@@ -1747,7 +1747,7 @@ static int scst_do_send_to_midlev(struct scst_cmd *cmd)
 	}
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)	
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
 	if (unlikely(scst_alloc_request(cmd) != 0)) {
 		if (scst_cmd_atomic(cmd)) {
 			rc = SCST_EXEC_NEED_THREAD;
@@ -1758,7 +1758,7 @@ static int scst_do_send_to_midlev(struct scst_cmd *cmd)
 			goto out_busy;
 		}
 	}
-	
+
 	scst_do_req(cmd->scsi_req, (void *)cmd->cdb,
 		    (void *)cmd->scsi_req->sr_buffer,
 		    cmd->scsi_req->sr_bufflen, scst_cmd_done, cmd->timeout,
@@ -1799,7 +1799,7 @@ out_rc_error:
 out_error:
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)	
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
 out_busy:
 	scst_set_busy(cmd);
 	/* go through */
@@ -1837,14 +1837,14 @@ void scst_inc_expected_sn(struct scst_tgt_dev *tgt_dev, atomic_t *slot)
 			tgt_dev->num_free_sn_slots++;
 			TRACE_SN("Incremented num_free_sn_slots (%d)",
 				tgt_dev->num_free_sn_slots);
-			
+
 		}
 		spin_unlock_irq(&tgt_dev->sn_lock);
 	}
 
 inc:
 	/*
-	 * No locks is needed, because only one thread at time can 
+	 * No locks is needed, because only one thread at time can
 	 * be here (serialized by sn). Also it is supposed that there
 	 * could not be half-incremented halves.
 	 */
@@ -2049,7 +2049,7 @@ static int scst_check_sense(struct scst_cmd *cmd)
 			spin_unlock_bh(&dev->dev_lock);
 	}
 
-	if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION) && 
+	if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION) &&
 	    SCST_SENSE_VALID(cmd->sense)) {
 		PRINT_BUFF_FLAG(TRACE_SCSI, "Sense", cmd->sense,
 			SCST_SENSE_BUFFERSIZE);
@@ -2058,7 +2058,7 @@ static int scst_check_sense(struct scst_cmd *cmd)
 			if (cmd->sense[12] == SCST_SENSE_ASC_UA_RESET) {
 				if (dbl_ua_possible) {
 					if (ua_sent) {
-						TRACE(TRACE_MGMT_MINOR, "%s", 
+						TRACE(TRACE_MGMT_MINOR, "%s",
 							"Double UA detected");
 						/* Do retry */
 						TRACE(TRACE_MGMT_MINOR, "Retrying cmd %p "
@@ -2072,7 +2072,7 @@ static int scst_check_sense(struct scst_cmd *cmd)
 						cmd->retry = 1;
 						cmd->state = SCST_CMD_STATE_SEND_TO_MIDLEV;
 						res = 1;
-						/* 
+						/*
 						 * Dev is still blocked by this cmd, so
 						 * it's OK to clear SCST_DEV_SERIALIZED
 						 * here.
@@ -2200,7 +2200,7 @@ static int scst_done_cmd_check(struct scst_cmd *cmd, int *pres)
 			scst_put_buf(cmd, address);
 		}
 
-		/* 
+		/*
 		 * Check and clear NormACA option for the device, if necessary,
 		 * since we don't support ACA
 		 */
@@ -2216,7 +2216,7 @@ static int scst_done_cmd_check(struct scst_cmd *cmd, int *pres)
 #ifdef EXTRACHECKS
 				if (buffer[SCST_INQ_BYTE3] & SCST_INQ_NORMACA_BIT) {
 					PRINT_INFO("NormACA set for device: "
-					    "lun=%Ld, type 0x%02x", 
+					    "lun=%Ld, type 0x%02x",
 					    (uint64_t)cmd->lun, buffer[0]);
 				}
 #endif
@@ -2231,7 +2231,7 @@ static int scst_done_cmd_check(struct scst_cmd *cmd, int *pres)
 				scst_put_buf(cmd, buffer);
 		}
 
-		if (unlikely((cmd->cdb[0] == MODE_SELECT) || 
+		if (unlikely((cmd->cdb[0] == MODE_SELECT) ||
 		    (cmd->cdb[0] == MODE_SELECT_10) ||
 		    (cmd->cdb[0] == LOG_SELECT))) {
 			TRACE(TRACE_SCSI, "MODE/LOG SELECT succeeded (LUN %Ld)",
@@ -2257,7 +2257,7 @@ static int scst_done_cmd_check(struct scst_cmd *cmd, int *pres)
 				spin_lock_bh(&dev->dev_lock);
 				list_for_each_entry(tgt_dev_tmp, &dev->dev_tgt_dev_list,
 						    dev_tgt_dev_list_entry) {
-					clear_bit(SCST_TGT_DEV_RESERVED, 
+					clear_bit(SCST_TGT_DEV_RESERVED,
 						&tgt_dev_tmp->tgt_dev_flags);
 				}
 				dev->dev_reserved = 0;
@@ -2267,7 +2267,7 @@ static int scst_done_cmd_check(struct scst_cmd *cmd, int *pres)
 
 		/* Check for MODE PARAMETERS CHANGED UA */
 		if ((cmd->dev->scsi_dev != NULL) &&
-		    (cmd->status == SAM_STAT_CHECK_CONDITION) && 
+		    (cmd->status == SAM_STAT_CHECK_CONDITION) &&
 		    SCST_SENSE_VALID(cmd->sense) &&
 		    scst_is_ua_sense(cmd->sense) &&
 		    (cmd->sense[12] == 0x2a) && (cmd->sense[13] == 0x01)) {
@@ -2310,7 +2310,7 @@ static int scst_mode_select_checks(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	if (likely(scsi_status_is_good(cmd->status))) {
-		if (unlikely((cmd->cdb[0] == MODE_SELECT) || 
+		if (unlikely((cmd->cdb[0] == MODE_SELECT) ||
 		    (cmd->cdb[0] == MODE_SELECT_10) ||
 		    (cmd->cdb[0] == LOG_SELECT))) {
 		    	struct scst_device *dev = cmd->dev;
@@ -2322,7 +2322,7 @@ static int scst_mode_select_checks(struct scst_cmd *cmd)
 			}
 
 			TRACE(TRACE_SCSI, "MODE/LOG SELECT succeeded, "
-				"setting the SELECT UA (lun=%Ld)", 
+				"setting the SELECT UA (lun=%Ld)",
 				(uint64_t)cmd->lun);
 
 			spin_lock_bh(&dev->dev_lock);
@@ -2344,7 +2344,7 @@ static int scst_mode_select_checks(struct scst_cmd *cmd)
 			if (dev->scsi_dev != NULL)
 				scst_obtain_device_parameters(dev);
 		}
-	} else if ((cmd->status == SAM_STAT_CHECK_CONDITION) && 
+	} else if ((cmd->status == SAM_STAT_CHECK_CONDITION) &&
 		    SCST_SENSE_VALID(cmd->sense) &&
 		    scst_is_ua_sense(cmd->sense) &&
 		    (((cmd->sense[12] == 0x2a) && (cmd->sense[13] == 0x01)) ||
@@ -2389,7 +2389,7 @@ static int scst_dev_done(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	state = SCST_CMD_STATE_PRE_XMIT_RESP;
-	if (likely(!scst_is_cmd_local(cmd)) && 
+	if (likely(!scst_is_cmd_local(cmd)) &&
 	    likely(cmd->dev->handler->dev_done != NULL))
 	{
 		int rc;
@@ -2429,11 +2429,11 @@ static int scst_dev_done(struct scst_cmd *cmd)
 	default:
 		if (state >= 0) {
 			PRINT_ERROR("Dev handler %s dev_done() returned "
-				"invalid cmd state %d", 
+				"invalid cmd state %d",
 				cmd->dev->handler->name, state);
 		} else {
 			PRINT_ERROR("Dev handler %s dev_done() returned "
-				"error %d", cmd->dev->handler->name, 
+				"error %d", cmd->dev->handler->name,
 				state);
 		}
 		scst_set_cmd_error(cmd,
@@ -2738,7 +2738,7 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 			}
 			cmd->sn_slot = tgt_dev->cur_sn_slot;
 			cmd->sn = tgt_dev->curr_sn;
-			
+
 			tgt_dev->prev_cmd_ordered = 0;
 		} else {
 			TRACE(TRACE_MINOR, "***WARNING*** Not enough SN slots "
@@ -2800,7 +2800,7 @@ ordered:
 	TRACE_SN("cmd(%p)->sn: %ld (tgt_dev %p, *cur_sn_slot %d, "
 		"num_free_sn_slots %d, prev_cmd_ordered %ld, "
 		"cur_sn_slot %zd)", cmd, cmd->sn, tgt_dev,
-		atomic_read(tgt_dev->cur_sn_slot), 
+		atomic_read(tgt_dev->cur_sn_slot),
 		tgt_dev->num_free_sn_slots, tgt_dev->prev_cmd_ordered,
 		tgt_dev->cur_sn_slot-tgt_dev->sn_slots);
 
@@ -2844,7 +2844,7 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 					  "visible remotely", (uint64_t)cmd->lun);
 					break;
 				}
-				
+
 				cmd->cmd_lists = tgt_dev->dev->p_cmd_lists;
 				cmd->tgt_dev = tgt_dev;
 				cmd->dev = tgt_dev->dev;
@@ -3182,7 +3182,7 @@ void scst_process_active_cmd(struct scst_cmd *cmd, int context)
 		case SCST_CMD_STATE_DEFAULT:
 		case SCST_CMD_STATE_NEED_THREAD_CTX:
 			PRINT_CRIT_ERROR("cmd %p is in state %d, not putting on "
-				"useful list (left on scst cmd list)", cmd, 
+				"useful list (left on scst cmd list)", cmd,
 				cmd->state);
 			spin_unlock_irq(&cmd->cmd_lists->cmd_list_lock);
 			sBUG();
@@ -3210,7 +3210,7 @@ static void scst_do_job_active(struct list_head *cmd_list,
 #ifdef EXTRACHECKS
 	{
 		int c = context & ~SCST_CONTEXT_PROCESSABLE;
-		sBUG_ON((c != SCST_CONTEXT_DIRECT_ATOMIC) && 
+		sBUG_ON((c != SCST_CONTEXT_DIRECT_ATOMIC) &&
 			(c != SCST_CONTEXT_DIRECT));
 	}
 #endif
@@ -3377,7 +3377,7 @@ void scst_done_cmd_mgmt(struct scst_cmd *cmd)
 			cmd_mgmt_cmd_list_entry) {
 		struct scst_mgmt_cmd *mcmd = mstb->mcmd;
 
-		TRACE_MGMT_DBG("mcmd %p, mcmd->cmd_done_wait_count %d", 
+		TRACE_MGMT_DBG("mcmd %p, mcmd->cmd_done_wait_count %d",
 			mcmd, mcmd->cmd_done_wait_count);
 
 		mcmd->cmd_done_wait_count--;
@@ -3425,7 +3425,7 @@ static void scst_finish_cmd_mgmt(struct scst_cmd *cmd)
 			cmd_mgmt_cmd_list_entry) {
 		struct scst_mgmt_cmd *mcmd = mstb->mcmd;
 
-		TRACE_MGMT_DBG("mcmd %p, mcmd->cmd_finish_wait_count %d", 
+		TRACE_MGMT_DBG("mcmd %p, mcmd->cmd_finish_wait_count %d",
 			mcmd, mcmd->cmd_finish_wait_count);
 
 		list_del(&mstb->cmd_mgmt_cmd_list_entry);
@@ -3495,7 +3495,7 @@ static inline int scst_is_strict_mgmt_fn(int mgmt_fn)
 	}
 }
 
-/* 
+/*
  * Might be called under sess_list_lock and IRQ off + BHs also off
  * Returns -1 if command is being executed (ABORT failed), 0 otherwise
  */
@@ -3528,12 +3528,12 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 
 	spin_unlock_irqrestore(&other_ini_lock, flags);
 
-	
-	/* 
+
+	/*
 	 * To sync with cmd->finished/done set in
 	 * scst_finish_cmd()/scst_pre_xmit_response()
 	 */
-	smp_mb__after_set_bit(); 
+	smp_mb__after_set_bit();
 
 	if (cmd->tgt_dev == NULL) {
 		unsigned long flags;
@@ -3708,10 +3708,10 @@ static void __scst_abort_task_set(struct scst_mgmt_cmd *mcmd,
 	spin_lock_irq(&sess->sess_list_lock);
 
 	TRACE_DBG("Searching in search cmd list (sess=%p)", sess);
- 	list_for_each_entry(cmd, &sess->search_cmd_list, 
+ 	list_for_each_entry(cmd, &sess->search_cmd_list,
  			search_cmd_list_entry) {
  		if ((cmd->tgt_dev == tgt_dev) ||
- 		    ((cmd->tgt_dev == NULL) && 
+ 		    ((cmd->tgt_dev == NULL) &&
 		     (cmd->lun == tgt_dev->lun))) {
 			if (mcmd->cmd_sn_set) {
 				sBUG_ON(!cmd->tgt_sn_set);
@@ -3807,7 +3807,7 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 
 	mutex_lock(&scst_mutex);
 
-	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list, 
+	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 			dev_tgt_dev_list_entry) {
 		struct scst_session *sess = tgt_dev->sess;
 		struct scst_cmd *cmd;
@@ -3819,10 +3819,10 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 		spin_lock_irq(&sess->sess_list_lock);
 
 		TRACE_DBG("Searching in search cmd list (sess=%p)", sess);
- 		list_for_each_entry(cmd, &sess->search_cmd_list, 
+ 		list_for_each_entry(cmd, &sess->search_cmd_list,
  				search_cmd_list_entry) {
 	 		if ((cmd->dev == dev) ||
- 			    ((cmd->dev == NULL) && 
+ 			    ((cmd->dev == NULL) &&
 			     scst_is_cmd_belongs_to_dev(cmd, dev))) {
 				scst_abort_cmd(cmd, mcmd, 1, 0);
 				aborted = 1;
@@ -3857,7 +3857,7 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 	return res;
 }
 
-/* Returns 0 if the command processing should be continued, 
+/* Returns 0 if the command processing should be continued,
  * >0, if it should be requeued, <0 otherwise */
 static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 {
@@ -3894,7 +3894,7 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 				"cmd LUN %Lx, cmd tag %Lu", mcmd->lun, cmd->lun,
 				mcmd->tag);
 			mcmd->status = SCST_MGMT_STATUS_REJECTED;
-		} else if (mcmd->cmd_sn_set && 
+		} else if (mcmd->cmd_sn_set &&
 		           (scst_sn_before(mcmd->cmd_sn, cmd->tgt_sn) ||
 			    (mcmd->cmd_sn == cmd->tgt_sn))) {
 			PRINT_ERROR("ABORT TASK: SN mismatch: mcmd SN %x, "
@@ -3979,7 +3979,7 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 				dev_tgt_dev_list_entry) {
 			cont = 1;
 			rc = scst_call_dev_task_mgmt_fn(mcmd, tgt_dev, 0);
-			if (rc == SCST_DEV_TM_NOT_COMPLETED) 
+			if (rc == SCST_DEV_TM_NOT_COMPLETED)
 				c = 1;
 			else if ((rc < 0) &&
 				 (mcmd->status == SCST_MGMT_STATUS_SUCCESS))
@@ -3987,7 +3987,7 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 		}
 		if (cont && !c)
 			continue;
-		
+
 		if (dev->scsi_dev == NULL)
 			continue;
 
@@ -4145,12 +4145,12 @@ static int scst_abort_all_nexus_loss_sess(struct scst_mgmt_cmd *mcmd,
 				__scst_block_dev(dev);
 				spin_unlock_bh(&dev->dev_lock);
 			}
-	
+
 			__scst_abort_task_set(mcmd, tgt_dev, 0);
-	
+
 			rc = scst_call_dev_task_mgmt_fn(mcmd, tgt_dev, 0);
 			if ((rc < 0) && (mcmd->status == SCST_MGMT_STATUS_SUCCESS))
-				mcmd->status = rc;		
+				mcmd->status = rc;
 		}
 	}
 
@@ -4234,7 +4234,7 @@ static int scst_abort_all_nexus_loss_tgt(struct scst_mgmt_cmd *mcmd,
 
 				if (nexus_loss)
 					scst_nexus_loss(tgt_dev);
-	
+
 				rc = scst_call_dev_task_mgmt_fn(mcmd, tgt_dev, 0);
 				if ((rc < 0) &&
 				    (mcmd->status == SCST_MGMT_STATUS_SUCCESS))
@@ -4426,7 +4426,7 @@ static void scst_mgmt_cmd_send_done(struct scst_mgmt_cmd *mcmd)
 
 			mutex_lock(&scst_mutex);
 			for(i = 0; i < TGT_DEV_HASH_SIZE; i++) {
-				struct list_head *sess_tgt_dev_list_head = 
+				struct list_head *sess_tgt_dev_list_head =
 					&mcmd->sess->sess_tgt_dev_list_hash[i];
 				list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
 						sess_tgt_dev_list_entry) {
@@ -4554,7 +4554,7 @@ int scst_mgmt_cmd_thread(void *arg)
 				    !test_bit(SCST_FLAG_SUSPENDING, &scst_flags)) {
 					TRACE_MGMT_DBG("Adding mgmt cmd %p to head "
 						"of delayed mgmt cmd list", mcmd);
-					list_add(&mcmd->mgmt_cmd_list_entry, 
+					list_add(&mcmd->mgmt_cmd_list_entry,
 						&scst_delayed_mgmt_cmd_list);
 				} else {
 					TRACE_MGMT_DBG("Adding mgmt cmd %p to head "
@@ -4635,7 +4635,7 @@ static int scst_post_rx_mgmt_cmd(struct scst_session *sess,
 		case SCST_SESS_IPH_INITING:
 			TRACE_DBG("Adding mcmd %p to init deferred mcmd list",
 				mcmd);
-			list_add_tail(&mcmd->mgmt_cmd_list_entry, 
+			list_add_tail(&mcmd->mgmt_cmd_list_entry,
 				&sess->init_deferred_mcmd_list);
 			goto out_unlock;
 		case SCST_SESS_IPH_SUCCESS:
@@ -4669,8 +4669,8 @@ out_unlock:
 	goto out;
 }
 
-/* 
- * Must not be called in parallel with scst_unregister_session_ex() for the 
+/*
+ * Must not be called in parallel with scst_unregister_session_ex() for the
  * same sess
  */
 int scst_rx_mgmt_fn(struct scst_session *sess,
@@ -4742,13 +4742,13 @@ static struct scst_acg *scst_find_acg(const char *initiator_name)
 	struct scst_acn *n;
 
 	TRACE_ENTRY();
-	
+
 	list_for_each_entry(acg, &scst_acg_list, scst_acg_list_entry) {
-		list_for_each_entry(n, &acg->acn_list, 
-			acn_list_entry) 
+		list_for_each_entry(n, &acg->acn_list,
+			acn_list_entry)
 		{
 			if (strcmp(n->name, initiator_name) == 0) {
-				TRACE_DBG("Access control group %s found", 
+				TRACE_DBG("Access control group %s found",
 					acg->acg_name);
 				res = acg;
 				goto out;
@@ -4756,7 +4756,7 @@ static struct scst_acg *scst_find_acg(const char *initiator_name)
 		}
 	}
 
-out:	
+out:
 	TRACE_EXIT_HRES(res);
 	return res;
 }
@@ -4767,17 +4767,17 @@ static struct scst_acg *scst_find_acg_by_name(const char *acg_name)
 	struct scst_acg *acg, *res = NULL;
 
 	TRACE_ENTRY();
-	
+
 	list_for_each_entry(acg, &scst_acg_list, scst_acg_list_entry) {
 		if (strcmp(acg->acg_name, acg_name) == 0) {
-			TRACE_DBG("Access control group %s found", 
+			TRACE_DBG("Access control group %s found",
 				acg->acg_name);
 			res = acg;
 			goto out;
 		}
 	}
 
-out:	
+out:
 	TRACE_EXIT_HRES(res);
 	return res;
 }
@@ -4916,8 +4916,8 @@ out_free:
 	goto out;
 }
 
-/* 
- * Must not be called in parallel with scst_rx_cmd() or 
+/*
+ * Must not be called in parallel with scst_rx_cmd() or
  * scst_rx_mgmt_fn_*() for the same sess
  */
 void scst_unregister_session_ex(struct scst_session *sess, int wait,
@@ -4992,7 +4992,7 @@ static void scst_pre_unreg_sess(struct scst_session *sess)
 	TRACE_ENTRY();
 
 	tm_dbg_task_mgmt(NULL, "UNREGISTER SESSION", 1);
-	
+
 	mutex_lock(&scst_mutex);
 	for(i = 0; i < TGT_DEV_HASH_SIZE; i++) {
 		struct list_head *sess_tgt_dev_list_head =
@@ -5133,7 +5133,7 @@ struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess, uint64_t tag)
 
 	TRACE_DBG("%s (sess=%p, tag=%llu)", "Searching in search cmd list",
 		sess, tag);
-	list_for_each_entry(cmd, &sess->search_cmd_list, 
+	list_for_each_entry(cmd, &sess->search_cmd_list,
 			search_cmd_list_entry) {
 		if (cmd->tag == tag)
 			goto out;
@@ -5159,7 +5159,7 @@ struct scst_cmd *scst_find_cmd(struct scst_session *sess, void *data,
 	spin_lock_irqsave(&sess->sess_list_lock, flags);
 
 	TRACE_DBG("Searching in search cmd list (sess=%p)", sess);
-	list_for_each_entry(cmd, &sess->search_cmd_list, 
+	list_for_each_entry(cmd, &sess->search_cmd_list,
 			search_cmd_list_entry) {
 		if (cmp_fn(cmd, data))
 			goto out_unlock;

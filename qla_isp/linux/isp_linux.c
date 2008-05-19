@@ -2,17 +2,17 @@
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
- * 
+ *
  *  Redistribution and use in source and binary forms, with or without
  *  modification, are permitted provided that the following conditions
  *  are met:
- * 
+ *
  *  1. Redistributions of source code must retain the above copyright
  *     notice, this list of conditions and the following disclaimer.
  *  2. Redistributions in binary form must reproduce the above copyright
  *     notice, this list of conditions and the following disclaimer in the
  *     documentation and/or other materials provided with the distribution.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  *  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -24,32 +24,32 @@
  *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  *  OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  *  SUCH DAMAGE.
- * 
- * 
+ *
+ *
  *  Alternatively, this software may be distributed under the terms of the
  *  the GNU Public License ("GPL") with platforms where the prevalant license
  *  is the GNU Public License:
- * 
+ *
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of The Version 2 GNU General Public License as published
  *   by the Free Software Foundation.
- * 
+ *
  *   This program is distributed in the hope that it will be useful,
  *   but WITHOUT ANY WARRANTY; without even the implied warranty of
  *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *   GNU General Public License for more details.
- *  
+ *
  *   You should have received a copy of the GNU General Public License
  *   along with this program; if not, write to the Free Software
  *   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
- * 
- * 
+ *
+ *
  *  Matthew Jacob
  *  Feral Software
  *  421 Laurel Avenue
  *  Menlo Park, CA 94025
  *  USA
- * 
+ *
  *  gplbsd at feral com
  */
 /*
@@ -341,7 +341,7 @@ static inline void
 isplinux_flushwaitq(ispsoftc_t *isp)
 {
     Scsi_Cmnd *Cmnd, *Ncmnd;
-   
+
     if ((Cmnd = isp->isp_osinfo.wqnext) == NULL) {
         return;
     }
@@ -2136,7 +2136,7 @@ isp_handle_platform_atio7(ispsoftc_t *isp, at7_entry_t *aep)
     fcportdb_t *lp;
     fcparam *fcp;
     tmd_cmd_t *tmd;
-    
+
     isp->isp_osinfo.cmds_started++;
     tattr = aep->at_ta_len >> 12;
     iulen = aep->at_ta_len & 0xffffff;
@@ -3851,7 +3851,7 @@ isplinux_default_wwn(ispsoftc_t *isp, int chan, int isactive, int iswwnn)
          * The type 2 NAA fields for QLogic cards appear be laid out thusly:
          *
          * bits 63..60  NAA == 2
-         * bits 59..57  unused/zero  
+         * bits 59..57  unused/zero
          * bit  56      port (1) or node (0) WWN distinguishor
          * bit  48      physical port on dual-port chips (23XX/24XX)
          *
@@ -4034,7 +4034,7 @@ isp_parse_rolearg(ispsoftc_t *isp, int chan, char *roles)
     while (role && *role) {
         unsigned int id;
         char *eqtok, *commatok, *p, *q;
-    
+
         eqtok = role;
         eqtok = strchr(role, '=');
         if (eqtok == NULL) {
@@ -4109,7 +4109,7 @@ isp_parse_wwnarg(ispsoftc_t *isp, int chan, char *wwns)
         unsigned int id;
         int thischan;
         char *eqtok, *commatok, *colontok, *wwnstart, *p, *q;
-    
+
         eqtok = wwnt;
         eqtok = strchr(wwnt, '=');
         if (eqtok == NULL) {
@@ -4210,7 +4210,7 @@ isplinux_common_init(ispsoftc_t *isp)
         if (isp_fcduplex & (1 << isp->isp_unit)) {
             isp->isp_confopts |= ISP_CFG_FULL_DUPLEX;
         }
-        isp->isp_osinfo.host->max_id = MAX_FC_TARG; 
+        isp->isp_osinfo.host->max_id = MAX_FC_TARG;
         isp->isp_osinfo.host->max_cmd_len = 16;
 
         for (chan = 0; chan < isp->isp_nchan; chan++) {
@@ -4326,13 +4326,13 @@ isplinux_reinit(ispsoftc_t *isp)
     if (isp->isp_state != ISP_RESETSTATE) {
         isp_prt(isp, ISP_LOGERR, "failed to enter RESET state");
         return (-1);
-    } 
+    }
 
     /*
      * Until the midlayer starts using REPORT LUNS to dertermine how many
      * luns there are for SCSI-3 devices and sets a reasonable limit for
      * SCSI-2 devices, we'll follow this ruleset:
-     * 
+     *
      *     If our isp_maxluns parameter is unchanged from its default, we
      *     limit ourselves to 8 luns for parallel SCSI, 256 for FC-SCSI.
      *
