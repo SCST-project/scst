@@ -27,10 +27,10 @@
 #include "scst_dev_handler.h"
 
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
-#warning HIGHMEM kernel configurations are not supported by this module, \
+#warning "HIGHMEM kernel configurations are not supported by this module, \
 	because nowadays it doesn't worth the effort. Consider change \
 	VMSPLIT option or use 64-bit configuration instead. See README file \
-	for details.
+	for details."
 #endif
 
 #define DEV_USER_MAJOR			237
@@ -2910,10 +2910,10 @@ static int dev_usr_parse(struct scst_cmd *cmd)
 }
 
 /* Needed only for /proc support */
-#define USR_TYPE {		\
-  name:     DEV_USER_NAME,	\
-  type:     -1,			\
-  parse:    dev_usr_parse,	\
+#define USR_TYPE {			\
+	.name =		DEV_USER_NAME,	\
+	.type =		-1,		\
+	.parse =	dev_usr_parse,	\
 }
 
 static struct scst_dev_type dev_user_devtype = USR_TYPE;

@@ -27,15 +27,15 @@
 
 #define CDROM_NAME	"dev_cdrom"
 
-#define CDROM_TYPE {          \
-  name:     CDROM_NAME,       \
-  type:     TYPE_ROM,         \
-  parse_atomic:     1,        \
-  dev_done_atomic:  1,        \
-  attach:   cdrom_attach,     \
-  detach:   cdrom_detach,     \
-  parse:    cdrom_parse,      \
-  dev_done: cdrom_done,       \
+#define CDROM_TYPE {				\
+	.name = 		CDROM_NAME,	\
+	.type =			TYPE_ROM,	\
+	.parse_atomic =		1,		\
+	.dev_done_atomic = 	1,		\
+	.attach = 		cdrom_attach,	\
+	.detach = 		cdrom_detach,	\
+	.parse = 		cdrom_parse,	\
+	.dev_done = 		cdrom_done,	\
 }
 
 #define CDROM_SMALL_TIMEOUT  (3 * HZ)

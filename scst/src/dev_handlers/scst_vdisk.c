@@ -254,59 +254,59 @@ static int vcdrom_write_proc(char *buffer, char **start, off_t offset,
 static int vdisk_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	struct scst_tgt_dev *tgt_dev);
 
-#define VDISK_TYPE {			\
-  name:         VDISK_NAME,		\
-  type:         TYPE_DISK,		\
-  exec_sync:	1,			\
-  threads_num:	-1,			\
-  parse_atomic: 1,			\
-  exec_atomic:  0,			\
-  dev_done_atomic: 1,			\
-  attach:       vdisk_attach,		\
-  detach:       vdisk_detach,		\
-  attach_tgt:   vdisk_attach_tgt,	\
-  detach_tgt:   vdisk_detach_tgt,	\
-  parse:        vdisk_parse,		\
-  exec:         vdisk_do_job,		\
-  read_proc:    vdisk_read_proc,	\
-  write_proc:   vdisk_write_proc,	\
-  task_mgmt_fn: vdisk_task_mgmt_fn,	\
+#define VDISK_TYPE {					\
+	.name =			VDISK_NAME,		\
+	.type =			TYPE_DISK,		\
+	.exec_sync =		1,			\
+	.threads_num =		-1,			\
+	.parse_atomic =		1,			\
+	.exec_atomic =		0,			\
+	.dev_done_atomic =	1,			\
+	.attach =		vdisk_attach,		\
+	.detach =		vdisk_detach,		\
+	.attach_tgt =		vdisk_attach_tgt,	\
+	.detach_tgt =		vdisk_detach_tgt,	\
+	.parse =		vdisk_parse,		\
+	.exec =			vdisk_do_job,		\
+	.read_proc =		vdisk_read_proc,	\
+	.write_proc =		vdisk_write_proc,	\
+	.task_mgmt_fn =		vdisk_task_mgmt_fn,	\
 }
 
-#define VDISK_BLK_TYPE {		\
-  name:         VDISK_NAME "_blk",	\
-  type:         TYPE_DISK,		\
-  threads_num:	0,			\
-  parse_atomic: 1,			\
-  exec_atomic:  0,			\
-  dev_done_atomic: 1,			\
-  no_proc: 1,				\
-  attach:       vdisk_attach,		\
-  detach:       vdisk_detach,		\
-  attach_tgt:   vdisk_attach_tgt,	\
-  detach_tgt:   vdisk_detach_tgt,	\
-  parse:        vdisk_parse,		\
-  exec:         vdisk_do_job,		\
-  task_mgmt_fn: vdisk_task_mgmt_fn,	\
+#define VDISK_BLK_TYPE {				\
+	.name =			VDISK_NAME "_blk",	\
+	.type =			TYPE_DISK,		\
+	.threads_num =		0,			\
+	.parse_atomic =		1,			\
+	.exec_atomic =		0,			\
+	.dev_done_atomic =	1,			\
+	.no_proc =		1,			\
+	.attach =		vdisk_attach,		\
+	.detach =		vdisk_detach,		\
+	.attach_tgt =		vdisk_attach_tgt,	\
+	.detach_tgt =		vdisk_detach_tgt,	\
+	.parse =		vdisk_parse,		\
+	.exec =			vdisk_do_job,		\
+	.task_mgmt_fn =		vdisk_task_mgmt_fn,	\
 }
 
-#define VCDROM_TYPE {			\
-  name:         VCDROM_NAME,		\
-  type:         TYPE_ROM,		\
-  exec_sync:	1,			\
-  threads_num:	-1,			\
-  parse_atomic: 1,			\
-  exec_atomic:  0,			\
-  dev_done_atomic: 1,			\
-  attach:       vdisk_attach,		\
-  detach:       vdisk_detach,		\
-  attach_tgt:   vdisk_attach_tgt,	\
-  detach_tgt:   vdisk_detach_tgt,	\
-  parse:        vcdrom_parse,		\
-  exec:         vcdrom_exec,		\
-  read_proc:    vcdrom_read_proc,	\
-  write_proc:   vcdrom_write_proc,	\
-  task_mgmt_fn: vdisk_task_mgmt_fn,	\
+#define VCDROM_TYPE {					\
+	.name =			VCDROM_NAME,		\
+	.type =			TYPE_ROM,		\
+	.exec_sync =		1,			\
+	.threads_num =		-1,			\
+	.parse_atomic =		1,			\
+	.exec_atomic =		0,			\
+	.dev_done_atomic =	1,			\
+	.attach =		vdisk_attach,		\
+	.detach =		vdisk_detach,		\
+	.attach_tgt =		vdisk_attach_tgt,	\
+	.detach_tgt =		vdisk_detach_tgt,	\
+	.parse =		vcdrom_parse,		\
+	.exec =			vcdrom_exec,		\
+	.read_proc =		vcdrom_read_proc,	\
+	.write_proc =		vcdrom_write_proc,	\
+	.task_mgmt_fn =		vdisk_task_mgmt_fn,	\
 }
 
 static DEFINE_MUTEX(scst_vdisk_mutex);

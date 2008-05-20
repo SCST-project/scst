@@ -26,15 +26,15 @@
 
 #define CHANGER_NAME	"dev_changer"
 
-#define CHANGER_TYPE {		\
-  name:     CHANGER_NAME,   	\
-  type:     TYPE_MEDIUM_CHANGER,\
-  parse_atomic:     1,      	\
-/*  dev_done_atomic:  1,*/      \
-  attach:   changer_attach, 	\
-/*  detach:   changer_detach,*/ \
-  parse:    changer_parse,  	\
-/*  dev_done: changer_done*/    \
+#define CHANGER_TYPE {				\
+	.name =	CHANGER_NAME,   		\
+	.type =	TYPE_MEDIUM_CHANGER,		\
+	.parse_atomic =	1,      		\
+/*	.dev_done_atomic =	1, */		\
+	.attach =	changer_attach, 	\
+/*	.detach =	changer_detach, */	\
+	.parse =	changer_parse,  	\
+/*	.dev_done =	changer_done */		\
 }
 
 #define CHANGER_RETRIES       2

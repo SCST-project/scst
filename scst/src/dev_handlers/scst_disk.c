@@ -32,29 +32,29 @@
 # define DISK_NAME           "dev_disk"
 # define DISK_PERF_NAME      "dev_disk_perf"
 
-#define DISK_TYPE {          \
-  name:     DISK_NAME,	     \
-  type:     TYPE_DISK,       \
-  parse_atomic:     1,       \
-  dev_done_atomic:  1,       \
-  exec_atomic:      1,       \
-  attach:   disk_attach,     \
-  detach:   disk_detach,     \
-  parse:    disk_parse,      \
-  dev_done: disk_done,       \
+#define DISK_TYPE {          				\
+	.name =			DISK_NAME,		\
+	.type =			TYPE_DISK,		\
+	.parse_atomic =		1,       		\
+	.dev_done_atomic =	1,       		\
+	.exec_atomic =		1,       		\
+	.attach =		disk_attach,		\
+	.detach =		disk_detach,		\
+	.parse =		disk_parse,		\
+	.dev_done =		disk_done,		\
 }
 
-#define DISK_PERF_TYPE {     \
-  name:     DISK_PERF_NAME,  \
-  type:     TYPE_DISK,       \
-  parse_atomic:     1,       \
-  dev_done_atomic:  1,       \
-  exec_atomic:      1,       \
-  attach:   disk_attach,     \
-  detach:   disk_detach,     \
-  parse:    disk_parse,      \
-  dev_done: disk_done,       \
-  exec:     disk_exec,       \
+#define DISK_PERF_TYPE {     				\
+	.name =			DISK_PERF_NAME,		\
+	.type =			TYPE_DISK,		\
+	.parse_atomic =		1,       		\
+	.dev_done_atomic =	1,       		\
+	.exec_atomic =		1,       		\
+	.attach =		disk_attach,		\
+	.detach =		disk_detach,		\
+	.parse =		disk_parse,		\
+	.dev_done =		disk_done,		\
+	.exec =			disk_exec,		\
 }
 
 #define DISK_SMALL_TIMEOUT  (3 * HZ)

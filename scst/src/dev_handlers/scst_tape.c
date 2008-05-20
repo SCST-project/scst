@@ -32,29 +32,29 @@
 # define TAPE_NAME           "dev_tape"
 # define TAPE_PERF_NAME      "dev_tape_perf"
 
-#define TAPE_TYPE {         \
-  name:     TAPE_NAME,	    \
-  type:     TYPE_TAPE,      \
-  parse_atomic:     1,      \
-  dev_done_atomic:  1,      \
-  exec_atomic:      1,      \
-  attach:   tape_attach,    \
-  detach:   tape_detach,    \
-  parse:    tape_parse,     \
-  dev_done: tape_done,      \
+#define TAPE_TYPE {				\
+	.name =			TAPE_NAME,	\
+	.type =			TYPE_TAPE,	\
+	.parse_atomic =		1,		\
+	.dev_done_atomic =	1,		\
+	.exec_atomic =		1,		\
+	.attach =		tape_attach,	\
+	.detach =		tape_detach,	\
+	.parse =		tape_parse,	\
+	.dev_done =		tape_done,	\
 }
 
-#define TAPE_PERF_TYPE {    \
-  name:     TAPE_PERF_NAME, \
-  type:     TYPE_TAPE,      \
-  parse_atomic:     1,      \
-  dev_done_atomic:  1,      \
-  exec_atomic:      1,      \
-  attach:   tape_attach,    \
-  detach:   tape_detach,    \
-  parse:    tape_parse,     \
-  dev_done: tape_done,      \
-  exec:     tape_exec,      \
+#define TAPE_PERF_TYPE {			\
+	.name =			TAPE_PERF_NAME,	\
+	.type =			TYPE_TAPE,	\
+	.parse_atomic =		1,		\
+	.dev_done_atomic =	1,		\
+	.exec_atomic =		1,		\
+	.attach =		tape_attach,	\
+	.detach =		tape_detach,	\
+	.parse =		tape_parse,	\
+	.dev_done =		tape_done,	\
+	.exec =			tape_exec,	\
 }
 
 #define TAPE_RETRIES        2

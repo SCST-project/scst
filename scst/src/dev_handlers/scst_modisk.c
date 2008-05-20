@@ -32,29 +32,29 @@
 # define MODISK_NAME           "dev_modisk"
 # define MODISK_PERF_NAME      "dev_modisk_perf"
 
-#define MODISK_TYPE {          \
-  name:     MODISK_NAME,       \
-  type:     TYPE_MOD,          \
-  parse_atomic:     1,         \
-  dev_done_atomic:  1,         \
-  exec_atomic:      1,         \
-  attach:   modisk_attach,     \
-  detach:   modisk_detach,     \
-  parse:    modisk_parse,      \
-  dev_done: modisk_done,       \
+#define MODISK_TYPE {				\
+	.name =			MODISK_NAME,	\
+	.type =			TYPE_MOD,	\
+	.parse_atomic =		1,		\
+	.dev_done_atomic =	1,		\
+	.exec_atomic =		1,		\
+	.attach =		modisk_attach,	\
+	.detach =		modisk_detach,	\
+	.parse =		modisk_parse,	\
+	.dev_done =		modisk_done,	\
 }
 
-#define MODISK_PERF_TYPE {     \
-  name:     MODISK_PERF_NAME,  \
-  type:     TYPE_MOD,          \
-  parse_atomic:     1,         \
-  dev_done_atomic:  1,         \
-  exec_atomic:      1,         \
-  attach:   modisk_attach,     \
-  detach:   modisk_detach,     \
-  parse:    modisk_parse,      \
-  dev_done: modisk_done,       \
-  exec:     modisk_exec,       \
+#define MODISK_PERF_TYPE {				\
+	.name =			MODISK_PERF_NAME,	\
+	.type =			TYPE_MOD,		\
+	.parse_atomic =		1,			\
+	.dev_done_atomic =	1,			\
+	.exec_atomic =		1,			\
+	.attach =		modisk_attach,		\
+	.detach =		modisk_detach,		\
+	.parse =		modisk_parse,		\
+	.dev_done =		modisk_done,		\
+	.exec =			modisk_exec,		\
 }
 
 #define MODISK_SMALL_TIMEOUT  (3 * HZ)

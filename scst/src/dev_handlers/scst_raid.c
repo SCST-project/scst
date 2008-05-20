@@ -26,15 +26,15 @@
 
 #define RAID_NAME	"dev_raid"
 
-#define RAID_TYPE {		\
-  name:     RAID_NAME,   	\
-  type:     TYPE_RAID,          \
-  parse_atomic:     1,      	\
-/*  dev_done_atomic:  1,*/      \
-  attach:   raid_attach, 	\
-/*  detach:   raid_detach,*/	\
-  parse:    raid_parse,  	\
-/*  dev_done: raid_done*/	\
+#define RAID_TYPE {				\
+	.name =			RAID_NAME,	\
+	.type =			TYPE_RAID,	\
+	.parse_atomic =		1,		\
+/*	.dev_done_atomic =	1,*/		\
+	.attach =		raid_attach,	\
+/*	.detach =		raid_detach,*/	\
+	.parse =		raid_parse,	\
+/*	.dev_done =		raid_done*/	\
 }
 
 #define RAID_RETRIES       2

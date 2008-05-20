@@ -26,15 +26,15 @@
 
 #define PROCESSOR_NAME	"dev_processor"
 
-#define PROCESSOR_TYPE {	\
-  name:     PROCESSOR_NAME,   	\
-  type:     TYPE_PROCESSOR,	\
-  parse_atomic:     1,      	\
-/*  dev_done_atomic:  1,*/		\
-  attach:   processor_attach, 	\
-/*  detach:   processor_detach,*/ \
-  parse:    processor_parse,  	\
-/*  dev_done: processor_done*/	\
+#define PROCESSOR_TYPE {				\
+	.name =			PROCESSOR_NAME,   	\
+	.type =			TYPE_PROCESSOR,		\
+	.parse_atomic =		1,      		\
+/*	.dev_done_atomic =	1,*/			\
+	.attach =		processor_attach, 	\
+/*	.detach =		processor_detach,*/	\
+	.parse =		processor_parse,	\
+/*	.dev_done =		processor_done*/	\
 }
 
 #define PROCESSOR_RETRIES       2
