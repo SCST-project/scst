@@ -1312,36 +1312,36 @@ static int scst_start_all_threads(int num)
 	TRACE_ENTRY();
 
 	mutex_lock(&scst_threads_info.cmd_threads_mutex);
-        res = __scst_add_cmd_threads(num);
-        if (res < 0)
-                goto out;
+	res = __scst_add_cmd_threads(num);
+	if (res < 0)
+		goto out;
 
 	scst_threads_info.init_cmd_thread = kthread_run(scst_init_cmd_thread,
-                NULL, "scsi_tgt_init");
-        if (IS_ERR(scst_threads_info.init_cmd_thread)) {
+		NULL, "scsi_tgt_init");
+	if (IS_ERR(scst_threads_info.init_cmd_thread)) {
 		res = PTR_ERR(scst_threads_info.init_cmd_thread);
-                PRINT_ERROR("kthread_create() for init cmd failed: %d", res);
-                scst_threads_info.init_cmd_thread = NULL;
-                goto out;
-        }
+		PRINT_ERROR("kthread_create() for init cmd failed: %d", res);
+		scst_threads_info.init_cmd_thread = NULL;
+		goto out;
+	}
 
-        scst_threads_info.mgmt_cmd_thread = kthread_run(scst_mgmt_cmd_thread,
-                NULL, "scsi_tgt_mc");
-        if (IS_ERR(scst_threads_info.mgmt_cmd_thread)) {
+	scst_threads_info.mgmt_cmd_thread = kthread_run(scst_mgmt_cmd_thread,
+		NULL, "scsi_tgt_mc");
+	if (IS_ERR(scst_threads_info.mgmt_cmd_thread)) {
 		res = PTR_ERR(scst_threads_info.mgmt_cmd_thread);
-                PRINT_ERROR("kthread_create() for mcmd failed: %d", res);
-                scst_threads_info.mgmt_cmd_thread = NULL;
-                goto out;
-        }
+		PRINT_ERROR("kthread_create() for mcmd failed: %d", res);
+		scst_threads_info.mgmt_cmd_thread = NULL;
+		goto out;
+	}
 
-        scst_threads_info.mgmt_thread = kthread_run(scst_mgmt_thread,
-                NULL, "scsi_tgt_mgmt");
-        if (IS_ERR(scst_threads_info.mgmt_thread)) {
+	scst_threads_info.mgmt_thread = kthread_run(scst_mgmt_thread,
+		NULL, "scsi_tgt_mgmt");
+	if (IS_ERR(scst_threads_info.mgmt_thread)) {
 		res = PTR_ERR(scst_threads_info.mgmt_thread);
-                PRINT_ERROR("kthread_create() for mgmt failed: %d", res);
-                scst_threads_info.mgmt_thread = NULL;
-                goto out;
-        }
+		PRINT_ERROR("kthread_create() for mgmt failed: %d", res);
+		scst_threads_info.mgmt_thread = NULL;
+		goto out;
+	}
 
 out:
 	mutex_unlock(&scst_threads_info.cmd_threads_mutex);
