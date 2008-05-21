@@ -103,6 +103,16 @@ do
 done
 
 
+# Redirect the output of all subsequent commands to the specialize-patch script
+
+trap "rm -f ${fifo}" EXIT
+fifo=/tmp/generate-kernel-patch-fifo.$$
+rm -f "${fifo}"
+mkfifo "${fifo}"
+"$(dirname $0)/specialize-patch" -v kernel_version="${kernel_version}" \
+  < "${fifo}" &
+exec >"${fifo}"
+
 # General kernel patches.
 
 cat "${kpatch[@]}"

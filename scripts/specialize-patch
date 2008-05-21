@@ -1,0 +1,168 @@
+#!/usr/bin/gawk -f
+
+############################################################################
+#
+# Script that removes preprocessor checks on the kernel version. Somewhat
+# related to the v4l-scripts-gentree.pl script.
+#
+# Copyright (C) 2008 Bart Van Assche <bart.vanassche@gmail.com>
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, version 2
+# of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+############################################################################
+
+# Usage:
+# * Specify the kernel version code as follows: -v kernel_version=...
+# * Provide the patch to be processed to stdin.
+#
+# The output of this script will be a patch that is specialized for the
+# specified kernel version.
+
+
+# Convert a kernel version in the x.y.z format into numeric form, just like
+# the KERNEL_VERSION() macro.
+
+function version_code(kver) {
+  match(kver, "([0-9]+).([0-9]+).([0-9]+)", array)
+  return 65536*array[1] + 256*array[2] + array[3]
+}
+
+
+# Evaluate a preprocessor statement via repeated substitutions.
+# Mathematicians call this 'term rewriting'.
+
+function evaluate(stmnt) {
+  gsub(" *\\/\\*[^*]*\\*\\/ *", "", stmnt)
+
+  gsub("^+ *#", "+#", stmnt)
+
+  gsub("LINUX_VERSION_CODE", LINUX_VERSION_CODE, stmnt)
+
+  pattern="KERNEL_VERSION\\(([0-9]+) *, *([0-9]+) *, *([0-9]+) *\\)"
+  while (match(stmnt, pattern, ver) != 0)
+  {
+    sub(pattern, ver[1]*65536+ver[2]*256+ver[3], stmnt)
+  }
+
+  pattern="([0-9]+) *(<|<=|>|>=|==) *([0-9]+)"
+  while (match(stmnt, pattern, op) != 0)
+  {
+    result="error"
+    if      (op[2] == "<" ) result = op[1] <  op[3]
+    else if (op[2] == "<=") result = op[1] <= op[3]
+    else if (op[2] == ">" ) result = op[1] >  op[3]
+    else if (op[2] == ">=") result = op[1] >= op[3]
+    else if (op[2] == "==") result = op[1] == op[3]
+    sub(pattern, result, stmnt)
+  }
+
+  pattern="([0-9]+) *\\&\\& *([0-9]+)"
+  while (match(stmnt, pattern, op) != 0)
+  {
+    sub(pattern, op[1] && op[3], stmnt)
+  }
+
+  pattern="([0-9]+) *\\|\\| *([0-9]+)"
+  while (match(stmnt, pattern, op) != 0)
+  {
+    sub(pattern, op[1] || op[3], stmnt)
+  }
+
+  return stmnt
+}
+
+
+# Decide whetheror not to print the preprocessor statement $0.
+
+function process_preprocessor_statement() {
+  last_if_nesting_level = if_nesting_level
+  evaluated = evaluate($0)
+  condition = 1
+  if (evaluated ~ "^+#if")
+  {
+    output_array[if_nesting_level] = output
+    if_nesting_level++
+    decision[if_nesting_level] = evaluated
+    output = evaluated != "+#if 0"
+  }
+  else if (evaluated ~ "^+#elif")
+  {
+    decision[if_nesting_level] = evaluated
+    output = evaluated != "+#elif 0"
+    sub("^+#elif ", "+#if ", decision[if_nesting_level])
+  }
+  else if (evaluated ~ "^+#else")
+  {
+    output = decision[if_nesting_level] != "+#if 1"
+  }
+  else if (evaluated ~ "^+#endif")
+  {
+    if_nesting_level--
+    if (if_nesting_level >= 0)
+    {
+      output = output_array[if_nesting_level]
+    }
+    else
+    {
+      output = 1
+    }
+  }
+  else
+  {
+    condition = 0
+  }
+  if (evaluated ~ "^+#if [01]$"                             \
+      || condition                                          \
+         && evaluated !~ "^+#if"                            \
+         && last_if_nesting_level >= 0			    \
+         && decision[last_if_nesting_level] ~ "+#if [01]$"  \
+      || ! condition                                        \
+         && last_if_nesting_level >= 0			    \
+         && decision[last_if_nesting_level] == "+#if 0")
+  {
+    print "+"
+  }
+  else
+  {
+    print $0
+  }
+}
+
+
+BEGIN {
+  # Verify arguments.
+  if (kernel_version == "")
+  {
+    printf "Error: kernel_version was not specified.\n"
+    exit 1
+  }
+  LINUX_VERSION_CODE = version_code(kernel_version)
+  if (LINUX_VERSION_CODE < 2*65536 || LINUX_VERSION_CODE > 3*65536)
+  {
+    printf "Error: kernel version (%s) is out of range.\n", kernel_version
+    exit 1
+  }
+
+  # Variable initialization.
+  output = 1
+  if_nesting_level = -1
+}
+
+
+{
+  if (match($0, "^+ *#"))
+    process_preprocessor_statement()
+  else if (output)
+    print $0
+  else
+    print "+"
+}
+
