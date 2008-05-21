@@ -145,7 +145,7 @@ static void srpt_qp_event(struct ib_event *event, void *ctx)
 	}
 }
 
-static void srpt_set_ioc(u8 * c_list, u32 slot, u8 value)
+static void srpt_set_ioc(u8 *c_list, u32 slot, u8 value)
 {
 	u16 id;
 	u8 tmp;

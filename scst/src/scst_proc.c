@@ -2123,7 +2123,7 @@ static struct scst_proc_data scst_dev_handler_proc_data = {
 	.show = scst_dev_handler_info_show,
 };
 
-struct proc_dir_entry *scst_create_proc_entry(struct proc_dir_entry * root,
+struct proc_dir_entry *scst_create_proc_entry(struct proc_dir_entry *root,
 	const char *name, struct scst_proc_data *pdata)
 {
 	struct proc_dir_entry *p = NULL;

@@ -2548,7 +2548,7 @@ struct scst_proc_data {
 
 int scst_single_seq_open(struct inode *inode, struct file *file);
 
-struct proc_dir_entry *scst_create_proc_entry(struct proc_dir_entry * root,
+struct proc_dir_entry *scst_create_proc_entry(struct proc_dir_entry *root,
 	const char *name, struct scst_proc_data *pdata);
 
 #define SCST_DEF_RW_SEQ_OP(x)                          \
