@@ -115,13 +115,13 @@ struct scst_sgv_pools_manager
 			u32 releases_failed;
 		} thr; /* protected by pool_mgr_lock */
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23))
 		struct shrinker *sgv_shrinker;
 #else
 		struct shrinker sgv_shrinker;
 #endif
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20))
 		struct delayed_work apit_pool;
 #else
 		struct work_struct apit_pool;

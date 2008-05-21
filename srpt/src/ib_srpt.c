@@ -837,7 +837,7 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 		} else
 			dir = SCST_DATA_NONE;
 
-		scmnd = scst_rx_cmd(ch->scst_sess, (u8 *) & srp_cmd->lun,
+		scmnd = scst_rx_cmd(ch->scst_sess, (u8 *) &srp_cmd->lun,
 				    sizeof srp_cmd->lun, srp_cmd->cdb, 16,
 				    thread ? SCST_NON_ATOMIC : SCST_ATOMIC);
 		if (!scmnd) {
@@ -913,7 +913,7 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 		case SRP_TSK_ABORT_TASK_SET:
 			ret = scst_rx_mgmt_fn_lun(ch->scst_sess,
 						  SCST_ABORT_TASK_SET,
-						  (u8 *) & srp_tsk->lun,
+						  (u8 *) &srp_tsk->lun,
 						  sizeof srp_tsk->lun,
 						  thread ? SCST_NON_ATOMIC : SCST_ATOMIC,
 						  mgmt_ioctx);
@@ -921,7 +921,7 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 		case SRP_TSK_CLEAR_TASK_SET:
 			ret = scst_rx_mgmt_fn_lun(ch->scst_sess,
 						  SCST_CLEAR_TASK_SET,
-						  (u8 *) & srp_tsk->lun,
+						  (u8 *) &srp_tsk->lun,
 						  sizeof srp_tsk->lun,
 						  thread ? SCST_NON_ATOMIC : SCST_ATOMIC,
 						  mgmt_ioctx);
@@ -930,7 +930,7 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 		case SRP_TSK_LUN_RESET:
 			ret = scst_rx_mgmt_fn_lun(ch->scst_sess,
 						  SCST_LUN_RESET,
-						  (u8 *) & srp_tsk->lun,
+						  (u8 *) &srp_tsk->lun,
 						  sizeof srp_tsk->lun,
 						  thread ? SCST_NON_ATOMIC : SCST_ATOMIC,
 						  mgmt_ioctx);
@@ -939,7 +939,7 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 		case SRP_TSK_CLEAR_ACA:
 			ret = scst_rx_mgmt_fn_lun(ch->scst_sess,
 						  SCST_CLEAR_ACA,
-						  (u8 *) & srp_tsk->lun,
+						  (u8 *) &srp_tsk->lun,
 						  sizeof srp_tsk->lun,
 						  thread ? SCST_NON_ATOMIC : SCST_ATOMIC,
 						  mgmt_ioctx);
@@ -1054,7 +1054,7 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 		return -ENOMEM;
 
 	cqe = SRPT_RQ_SIZE + SRPT_SQ_SIZE - 1;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 	ch->cq = ib_create_cq(sdev->device, srpt_completion, NULL, ch, cqe);
 #else
 	ch->cq = ib_create_cq(sdev->device, srpt_completion, NULL, ch, cqe, 0);
@@ -1908,7 +1908,7 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 
 	printk(KERN_WARNING PFX
 	       "%s[%d] tsk_mgmt_done for tag= %lld status=%d\n",
-	       __FUNCTION__, __LINE__,(unsigned long long)mgmt_ioctx->tag,
+	       __FUNCTION__, __LINE__, (unsigned long long)mgmt_ioctx->tag,
 	       scst_mgmt_cmd_get_status(mcmnd));
 
 	srpt_build_tskmgmt_rsp(ch, ioctx,
@@ -1942,13 +1942,13 @@ static void srpt_on_free_cmd(struct scst_cmd *scmnd)
 	scst_cmd_set_tgt_priv(scmnd, NULL);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 static void srpt_refresh_port_work(void *ctx)
 #else
 static void srpt_refresh_port_work(struct work_struct *work)
 #endif
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 	struct srpt_port *sport = (struct srpt_port *)ctx;
 #else
 	struct srpt_port *sport = container_of(work, struct srpt_port, work);
@@ -1976,7 +1976,7 @@ static int srpt_detect(struct scst_tgt_template *tp)
 			sport = &sdev->port[i - 1];
 			sport->sdev = sdev;
 			sport->port = i;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 			INIT_WORK(&sport->work, srpt_refresh_port_work, sport);
 #else
 			INIT_WORK(&sport->work, srpt_refresh_port_work);
@@ -2027,11 +2027,11 @@ int srpt_ioctx_thread(void *arg)
 	current->flags |= PF_NOFREEZE;
 
 	spin_lock_irq(&srpt_thread.thread_lock);
-	while(!kthread_should_stop()) {
+	while (!kthread_should_stop()) {
 		wait_queue_t wait;
 		init_waitqueue_entry(&wait, current);
 
-		if(!srpt_test_ioctx_list()) {
+		if (!srpt_test_ioctx_list()) {
 			add_wait_queue_exclusive(&ioctx_list_waitQ, &wait);
 
 			for (;;) {
@@ -2046,7 +2046,7 @@ int srpt_ioctx_thread(void *arg)
 			remove_wait_queue(&ioctx_list_waitQ, &wait);
 		}
 
-		while(!list_empty(&srpt_thread.thread_ioctx_list)) {
+		while (!list_empty(&srpt_thread.thread_ioctx_list)) {
 			ioctx = list_entry(srpt_thread.thread_ioctx_list.next,
 					   struct srpt_ioctx, comp_list);
 
@@ -2176,7 +2176,7 @@ static void srpt_add_one(struct ib_device *device)
 
 	printk(KERN_DEBUG PFX "%s[%d] create SRQ #wr= %d max_allow=%d dev= %s\n",
 	       __FUNCTION__, __LINE__, srq_attr.attr.max_wr,
-	      sdev->dev_attr.max_srq_wr,device->name);
+	      sdev->dev_attr.max_srq_wr, device->name);
 
 	if (!mellanox_ioc_guid)
 		mellanox_ioc_guid = be64_to_cpu(device->node_guid);

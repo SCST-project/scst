@@ -430,7 +430,7 @@ static int vdisk_attach(struct scst_device *dev)
 				goto out;
 			}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 			if ((fd->f_op == NULL) || (fd->f_op->readv == NULL) ||
 			    (fd->f_op->writev == NULL))
 #else
@@ -463,7 +463,7 @@ static int vdisk_attach(struct scst_device *dev)
 				res = -EINVAL;
 				filp_close(fd, NULL);
 				goto out;
- 			}
+			}
 			err = inode->i_size;
 
 			filp_close(fd, NULL);
@@ -565,7 +565,7 @@ static struct scst_vdisk_thr *vdisk_init_thr_data(
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
 	res = kmem_cache_alloc(vdisk_thr_cachep, GFP_KERNEL);
 	if (res != NULL)
 		memset(res, 0, sizeof(*res));
@@ -646,7 +646,7 @@ static void vdisk_detach_tgt(struct scst_tgt_dev *tgt_dev)
 
 static inline int vdisk_sync_queue_type(enum scst_cmd_queue_type qt)
 {
-	switch(qt) {
+	switch (qt) {
 		case SCST_CMD_QUEUE_ORDERED:
 		case SCST_CMD_QUEUE_HEAD_OF_QUEUE:
 			return 1;
@@ -688,7 +688,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 		goto out;
 	}
 
-	switch(cmd->queue_type) {
+	switch (cmd->queue_type) {
 	case SCST_CMD_QUEUE_ORDERED:
 		TRACE(TRACE_ORDER, "ORDERED cmd %p", cmd);
 		break;
@@ -774,7 +774,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 		lba_start, (uint64_t)loff, (uint64_t)data_len);
 	if (unlikely(loff < 0) || unlikely(data_len < 0) ||
 	    unlikely((loff + data_len) > virt_dev->file_size)) {
-	    	PRINT_INFO("Access beyond the end of the device "
+		PRINT_INFO("Access beyond the end of the device "
 			"(%lld of %lld, len %Ld)", (uint64_t)loff,
 			(uint64_t)virt_dev->file_size, (uint64_t)data_len);
 		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
@@ -819,11 +819,11 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 				ftgt_dev->last_write_cmd_queue_type;
 			ftgt_dev->last_write_cmd_queue_type = cmd->queue_type;
 			if (vdisk_need_pre_sync(cmd->queue_type, last_queue_type)) {
-			    	TRACE(TRACE_ORDER, "ORDERED "
-			    		"WRITE(%d): loff=%Ld, data_len=%Ld",
-			    		cmd->queue_type, (uint64_t)loff,
-			    		(uint64_t)data_len);
-			    	do_fsync = 1;
+				TRACE(TRACE_ORDER, "ORDERED "
+				      "WRITE(%d): loff=%Ld, data_len=%Ld",
+				      cmd->queue_type, (uint64_t)loff,
+				      (uint64_t)data_len);
+				do_fsync = 1;
 				if (vdisk_fsync(thr, 0, 0, cmd) != 0)
 					goto out_compl;
 			}
@@ -837,9 +837,9 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 				vdisk_fsync(thr, loff, data_len, cmd);
 		} else {
 			TRACE(TRACE_MINOR, "Attempt to write to read-only "
-				"device %s", virt_dev->name);
+			      "device %s", virt_dev->name);
 			scst_set_cmd_error(cmd,
-		    		SCST_LOAD_SENSE(scst_sense_data_protect));
+				   SCST_LOAD_SENSE(scst_sense_data_protect));
 		}
 		break;
 	case WRITE_VERIFY:
@@ -854,11 +854,11 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 				ftgt_dev->last_write_cmd_queue_type;
 			ftgt_dev->last_write_cmd_queue_type = cmd->queue_type;
 			if (vdisk_need_pre_sync(cmd->queue_type, last_queue_type)) {
-			    	TRACE(TRACE_ORDER, "ORDERED "
-			    		"WRITE_VERIFY(%d): loff=%Ld, data_len=%Ld",
-			    		cmd->queue_type, (uint64_t)loff,
-			    		(uint64_t)data_len);
-			    	do_fsync = 1;
+				TRACE(TRACE_ORDER, "ORDERED "
+				      "WRITE_VERIFY(%d): loff=%Ld, data_len=%Ld",
+				      cmd->queue_type, (uint64_t)loff,
+				      (uint64_t)data_len);
+				do_fsync = 1;
 				if (vdisk_fsync(thr, 0, 0, cmd) != 0)
 					goto out_compl;
 			}
@@ -873,7 +873,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 			TRACE(TRACE_MINOR, "Attempt to write to read-only "
 				"device %s", virt_dev->name);
 			scst_set_cmd_error(cmd,
-		    		SCST_LOAD_SENSE(scst_sense_data_protect));
+				SCST_LOAD_SENSE(scst_sense_data_protect));
 		}
 		break;
 	case SYNCHRONIZE_CACHE:
@@ -937,7 +937,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	case READ_CAPACITY:
 		vdisk_exec_read_capacity(cmd);
 		break;
-        case SERVICE_ACTION_IN:
+	case SERVICE_ACTION_IN:
 		if ((cmd->cdb[1] & 0x1f) == SAI_READ_CAPACITY_16) {
 			vdisk_exec_read_capacity16(cmd);
 			break;
@@ -1307,14 +1307,14 @@ static int vdisk_format_pg(unsigned char *p, int pcontrol,
 					   0, 0, 0, 0, 0, 0, 0, 0,
 					   0, 0, 0, 0, 0x40, 0, 0, 0};
 
-        memcpy(p, format_pg, sizeof(format_pg));
-        p[10] = (DEF_SECTORS_PER >> 8) & 0xff;
-        p[11] = DEF_SECTORS_PER & 0xff;
-        p[12] = (virt_dev->block_size >> 8) & 0xff;
-        p[13] = virt_dev->block_size & 0xff;
-        if (1 == pcontrol)
-                memset(p + 2, 0, sizeof(format_pg) - 2);
-        return sizeof(format_pg);
+	memcpy(p, format_pg, sizeof(format_pg));
+	p[10] = (DEF_SECTORS_PER >> 8) & 0xff;
+	p[11] = DEF_SECTORS_PER & 0xff;
+	p[12] = (virt_dev->block_size >> 8) & 0xff;
+	p[13] = virt_dev->block_size & 0xff;
+	if (1 == pcontrol)
+		memset(p + 2, 0, sizeof(format_pg) - 2);
+	return sizeof(format_pg);
 }
 
 static int vdisk_caching_pg(unsigned char *p, int pcontrol,
@@ -1337,7 +1337,7 @@ static int vdisk_ctrl_m_pg(unsigned char *p, int pcontrol,
 					   0, 0, 0x2, 0x4b};
 
 	memcpy(p, ctrl_m_pg, sizeof(ctrl_m_pg));
-	switch(pcontrol) {
+	switch (pcontrol) {
 	case 0:
 		p[2] |= virt_dev->dev->tst << 5;
 		p[3] |= virt_dev->dev->queue_alg << 4;
@@ -1372,7 +1372,7 @@ static int vdisk_iec_m_pg(unsigned char *p, int pcontrol,
 			   struct scst_vdisk_dev *virt_dev)
 {	/* Informational Exceptions control mode page for mode_sense */
 	const unsigned char iec_m_pg[] = {0x1c, 0xa, 0x08, 0, 0, 0, 0, 0,
-				          0, 0, 0x0, 0x0};
+					  0, 0, 0x0, 0x0};
 	memcpy(p, iec_m_pg, sizeof(iec_m_pg));
 	if (1 == pcontrol)
 		memset(p + 2, 0, sizeof(iec_m_pg) - 2);
@@ -1479,10 +1479,10 @@ static void vdisk_exec_mode_sense(struct scst_cmd *cmd)
 		len = vdisk_disconnect_pg(bp, pcontrol, virt_dev);
 		offset += len;
 		break;
-        case 0x3:       /* Format device page, direct access */
-                len = vdisk_format_pg(bp, pcontrol, virt_dev);
-                offset += len;
-                break;
+	case 0x3:       /* Format device page, direct access */
+		len = vdisk_format_pg(bp, pcontrol, virt_dev);
+		offset += len;
+		break;
 	case 0x8:	/* Caching page, direct access */
 		len = vdisk_caching_pg(bp, pcontrol, virt_dev);
 		offset += len;
@@ -1524,7 +1524,7 @@ static void vdisk_exec_mode_sense(struct scst_cmd *cmd)
 out_put:
 	scst_put_buf(cmd, address);
 	if (offset < cmd->resp_data_len)
-                scst_set_resp_data_len(cmd, offset);
+		scst_set_resp_data_len(cmd, offset);
 
 out_free:
 	kfree(buf);
@@ -1603,7 +1603,7 @@ static void vdisk_exec_mode_select(struct scst_cmd *cmd)
 		if (address[offset] & PS) {
 			PRINT_ERROR("%s", "MODE SELECT: Illegal PS bit");
 			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
-			    	scst_sense_invalid_field_in_parm_list));
+				scst_sense_invalid_field_in_parm_list));
 			goto out_put;
 		}
 		if ((address[offset] & 0x3f) == 0x8) {	/* Caching page */
@@ -1611,7 +1611,7 @@ static void vdisk_exec_mode_select(struct scst_cmd *cmd)
 				PRINT_ERROR("%s", "MODE SELECT: Invalid "
 					"caching page request");
 				scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
-				    	scst_sense_invalid_field_in_parm_list));
+				    scst_sense_invalid_field_in_parm_list));
 				goto out_put;
 			}
 			if (vdisk_set_wt(virt_dev,
@@ -1630,7 +1630,7 @@ static void vdisk_exec_mode_select(struct scst_cmd *cmd)
 				PRINT_ERROR("%s", "MODE SELECT: Invalid "
 					"control page request");
 				scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
-				    	scst_sense_invalid_field_in_parm_list));
+				    scst_sense_invalid_field_in_parm_list));
 				goto out_put;
 			}
 #endif
@@ -1638,7 +1638,7 @@ static void vdisk_exec_mode_select(struct scst_cmd *cmd)
 			PRINT_ERROR("MODE SELECT: Invalid request %x",
 				address[offset] & 0x3f);
 			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
-			    	scst_sense_invalid_field_in_parm_list));
+			    scst_sense_invalid_field_in_parm_list));
 			goto out_put;
 		}
 		offset += address[offset + 1];
@@ -1823,15 +1823,15 @@ static void vdisk_exec_read_toc(struct scst_cmd *cmd)
 	buffer[3] = 0x01;    /* Last Track/Session */
 	off = 4;
 	if (cmd->cdb[6] <= 1)
-        {
+	{
 		/* Fistr TOC Track Descriptor */
 		buffer[off+1] = 0x14; /* ADDR    0x10 - Q Sub-channel encodes current position data
 					 CONTROL 0x04 - Data track, recoreded uninterrupted */
 		buffer[off+2] = 0x01; /* Track Number */
 		off += 8;
-        }
+	}
 	if (!(cmd->cdb[2] & 0x01))
-        {
+	{
 		/* Lead-out area TOC Track Descriptor */
 		buffer[off+1] = 0x14;
 		buffer[off+2] = 0xAA;     /* Track Number */
@@ -1840,7 +1840,7 @@ static void vdisk_exec_read_toc(struct scst_cmd *cmd)
 		buffer[off+6] = (nblocks >> (BYTE * 1)) & 0xFF;
 		buffer[off+7] = (nblocks >> (BYTE * 0)) & 0xFF;
 		off += 8;
-        }
+	}
 
 	buffer[1] = off - 2;    /* Data  Length */
 
@@ -1851,7 +1851,7 @@ static void vdisk_exec_read_toc(struct scst_cmd *cmd)
 	scst_put_buf(cmd, address);
 
 	if (off < cmd->resp_data_len)
-                scst_set_resp_data_len(cmd, off);
+		scst_set_resp_data_len(cmd, off);
 
 out:
 	TRACE_EXIT();
@@ -1936,7 +1936,7 @@ out:
 /*
  * copied from <ksrc>/fs/read_write.*
  */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,19)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19)
 static void wait_on_retry_sync_kiocb(struct kiocb *iocb)
 {
 	set_current_state(TASK_UNINTERRUPTIBLE);
@@ -2033,7 +2033,7 @@ static void vdisk_exec_read(struct scst_cmd *cmd,
 			goto out_set_fs;
 		}
 		/* READ */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 		err = fd->f_op->readv(fd, iv, iv_count, &fd->f_pos);
 #else
 		err = do_sync_readv_writev(fd, iv, iv_count, full_len, &fd->f_pos, fd->f_op->aio_read);
@@ -2056,7 +2056,7 @@ out_set_fs:
 	set_fs(old_fs);
 
 out_put:
-	for(; i >= 0; i--)
+	for (; i >= 0; i--)
 		scst_put_buf(cmd, iv[i].iov_base);
 
 out:
@@ -2113,9 +2113,9 @@ restart:
 	else {
 		/* SEEK */
 		if (fd->f_op->llseek) {
-			err = fd->f_op->llseek(fd, loff, 0 /*SEEK_SET */ );
+			err = fd->f_op->llseek(fd, loff, 0 /*SEEK_SET */);
 		} else {
-			err = default_llseek(fd, loff, 0 /*SEEK_SET */ );
+			err = default_llseek(fd, loff, 0 /*SEEK_SET */);
 		}
 		if (err != loff) {
 			PRINT_ERROR("lseek trouble %Ld != %Ld", (uint64_t)err,
@@ -2126,7 +2126,7 @@ restart:
 		}
 
 		/* WRITE */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 		err = fd->f_op->writev(fd, eiv, eiv_count, &fd->f_pos);
 #else
 		err = do_sync_readv_writev(fd, iv, iv_count, full_len, &fd->f_pos,
@@ -2158,7 +2158,7 @@ restart:
 				"%zd (iv_count=%d)", full_len, eiv_count);
 		}
 		full_len -= err;
-		for(i = 0; i < e; i++) {
+		for (i = 0; i < e; i++) {
 			if (eiv->iov_len < err) {
 				err -= eiv->iov_len;
 				eiv++;
@@ -2203,7 +2203,7 @@ static inline void blockio_check_finish(struct blockio_work *blockio_work)
 	}
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 static int blockio_endio(struct bio *bio, unsigned int bytes_done, int error)
 #else
 static void blockio_endio(struct bio *bio, int error)
@@ -2211,7 +2211,7 @@ static void blockio_endio(struct bio *bio, int error)
 {
 	struct blockio_work *blockio_work = bio->bi_private;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 	if (bio->bi_size)
 		return 1;
 #endif
@@ -2237,7 +2237,7 @@ static void blockio_endio(struct bio *bio, int error)
 	blockio_check_finish(blockio_work);
 
 	bio_put(bio);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 	return 0;
 #else
 	return;
@@ -2263,7 +2263,7 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 		goto out;
 
 	/* Allocate and initialize blockio_work struct */
-	blockio_work = kmalloc(sizeof (*blockio_work), GFP_KERNEL);
+	blockio_work = kmalloc(sizeof(*blockio_work), GFP_KERNEL);
 	if (blockio_work == NULL)
 		goto out_no_mem;
 
@@ -2277,7 +2277,7 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 	need_new_bio = 1;
 
 	length = scst_get_buf_first(cmd, &address);
-	while(length > 0) {
+	while (length > 0) {
 		int len, bytes, off, thislen;
 		uint8_t *addr;
 		u64 lba_start0;
@@ -2311,10 +2311,10 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 #if 0 /* It could be win, but could be not, so a performance study is needed */
 				bio->bi_rw |= 1 << BIO_RW_SYNC;
 #endif
-		 		if (!hbio)
-				 	hbio = tbio = bio;
-				 else
-		 			tbio = tbio->bi_next = bio;
+				if (!hbio)
+					hbio = tbio = bio;
+				else
+					tbio = tbio->bi_next = bio;
 			}
 
 			bytes = min_t(unsigned int, len, PAGE_SIZE - off);
@@ -2393,7 +2393,7 @@ static void vdisk_exec_verify(struct scst_cmd *cmd,
 
 	/*
 	 * Until the cache is cleared prior the verifying, there is not
-         * much point in this code. ToDo.
+	 * much point in this code. ToDo.
 	 *
 	 * Nevertherless, this code is valuable if the data have not read
 	 * from the file/disk yet.
@@ -2422,7 +2422,7 @@ static void vdisk_exec_verify(struct scst_cmd *cmd,
 		PRINT_ERROR("Unable to allocate memory %d for verify",
 			       LEN_MEM);
 		scst_set_cmd_error(cmd,
-			           SCST_LOAD_SENSE(scst_sense_hardw_error));
+				   SCST_LOAD_SENSE(scst_sense_hardw_error));
 		goto out_set_fs;
 	}
 
@@ -3075,7 +3075,7 @@ static int vcdrom_change(char *p, char *name)
 				       virt_dev->file_name, res);
 			goto out_free;
 		}
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 		if ((fd->f_op == NULL) || (fd->f_op->readv == NULL)) {
 #else
 		if ((fd->f_op == NULL) || (fd->f_op->aio_read == NULL)) {

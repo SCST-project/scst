@@ -80,7 +80,7 @@
 #define KERNEL_VERSION(v,p,s)   (((v)<<16)+(p<<8)+s)
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0) || LINUX_VERSION_CODE >=  KERNEL_VERSION(2,7,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 5, 0) || LINUX_VERSION_CODE >=  KERNEL_VERSION(2, 7, 0)
 #error  "Only Linux 2.5/2.6 kernels are supported with this driver"
 #endif
 
@@ -122,7 +122,7 @@
 #include <scsi/scsi_device.h>
 
 #include <linux/cdev.h>
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,13)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 13)
 #include <linux/devfs_fs_kernel.h>
 #define ISP_CLASS           struct class_simple
 #define CREATE_ISP_CLASS    class_simple_create
@@ -197,7 +197,7 @@ typedef struct scsi_host_template Scsi_Host_Template;
 #define DECLARE_MUTEX_LOCKED(name) __DECLARE_SEMAPHORE_GENERIC(name,0)
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 #define sg_page(_sg) ((_sg)->page)
 #define sg_assign_page(_sg, _pg) ((_sg)->page = (_pg))
 #endif
@@ -395,8 +395,8 @@ struct isposinfo {
 #define ISP_IUNLK_SOFTC             ISP_UNLK_SOFTC
 #define ISP_IGET_LK_SOFTC(isp)      spin_lock_irq(&isp->isp_osinfo.slock)
 #define ISP_DROP_LK_SOFTC(isp)      spin_unlock_irq(&isp->isp_osinfo.slock)
-#define ISP_LOCK_SCSI_DONE(isp)     do { } while(0)
-#define ISP_UNLK_SCSI_DONE(isp)     do { } while(0)
+#define ISP_LOCK_SCSI_DONE(isp)     do { } while (0)
+#define ISP_UNLK_SCSI_DONE(isp)     do { } while (0)
 #define ISP_LOCKU_SOFTC             ISP_ILOCK_SOFTC
 #define ISP_UNLKU_SOFTC             ISP_IUNLK_SOFTC
 #define ISP_TLOCK_INIT(isp)         spin_lock_init(&isp->isp_osinfo.tlock)
@@ -628,7 +628,7 @@ typedef struct {
  */
 void isplinux_timer(unsigned long);
 void isplinux_mbtimer(unsigned long);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 irqreturn_t isplinux_intr(int, void *, struct pt_regs *);
 #else
 irqreturn_t isplinux_intr(int, void *);

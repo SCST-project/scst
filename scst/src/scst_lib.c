@@ -188,7 +188,7 @@ void scst_set_resp_data_len(struct scst_cmd *cmd, int resp_data_len)
 		goto out;
 
 	l = 0;
-	for(i = 0; i < cmd->sg_cnt; i++) {
+	for (i = 0; i < cmd->sg_cnt; i++) {
 		l += cmd->sg[i].length;
 		if (l >= resp_data_len) {
 			int left = resp_data_len - (l - cmd->sg[i].length);
@@ -280,7 +280,7 @@ struct scst_acg_dev *scst_alloc_acg_dev(struct scst_acg *acg,
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
 	res = kmem_cache_alloc(scst_acgd_cachep, GFP_KERNEL);
 #else
 	res = kmem_cache_zalloc(scst_acgd_cachep, GFP_KERNEL);
@@ -289,7 +289,7 @@ struct scst_acg_dev *scst_alloc_acg_dev(struct scst_acg *acg,
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of scst_acg_dev failed");
 		goto out;
 	}
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
 	memset(res, 0, sizeof(*res));
 #endif
 
@@ -403,7 +403,7 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
 	tgt_dev = kmem_cache_alloc(scst_tgtd_cachep, GFP_KERNEL);
 #else
 	tgt_dev = kmem_cache_zalloc(scst_tgtd_cachep, GFP_KERNEL);
@@ -413,7 +413,7 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 		      "Allocation of scst_tgt_dev failed");
 		goto out;
 	}
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
 	memset(tgt_dev, 0, sizeof(*tgt_dev));
 #endif
 
@@ -471,13 +471,13 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	tgt_dev->expected_sn = 1;
 	tgt_dev->num_free_sn_slots = ARRAY_SIZE(tgt_dev->sn_slots)-1;
 	tgt_dev->cur_sn_slot = &tgt_dev->sn_slots[0];
-	for(i = 0; i < (int)ARRAY_SIZE(tgt_dev->sn_slots); i++)
+	for (i = 0; i < (int)ARRAY_SIZE(tgt_dev->sn_slots); i++)
 		atomic_set(&tgt_dev->sn_slots[i], 0);
 
 	if (dev->handler->parse_atomic &&
 	    (sess->tgt->tgtt->preprocessing_done == NULL)) {
-	    	if (sess->tgt->tgtt->rdy_to_xfer_atomic ||
-	    	    (sess->tgt->tgtt->rdy_to_xfer == NULL))
+		if (sess->tgt->tgtt->rdy_to_xfer_atomic ||
+		    (sess->tgt->tgtt->rdy_to_xfer == NULL))
 			__set_bit(SCST_TGT_DEV_AFTER_INIT_WR_ATOMIC,
 				&tgt_dev->tgt_dev_flags);
 		if (dev->handler->exec_atomic || (dev->handler->exec == NULL))
@@ -658,7 +658,7 @@ void scst_sess_free_tgt_devs(struct scst_session *sess)
 	TRACE_ENTRY();
 
 	/* The session is going down, no users, so no locks */
-	for(i = 0; i < TGT_DEV_HASH_SIZE; i++) {
+	for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
 		struct list_head *sess_tgt_dev_list_head =
 			&sess->sess_tgt_dev_list_hash[i];
 		list_for_each_entry_safe(tgt_dev, t, sess_tgt_dev_list_head,
@@ -858,8 +858,8 @@ int scst_acg_remove_name(struct scst_acg *acg, const char *name)
 	{
 		if (strcmp(n->name, name) == 0) {
 			list_del(&n->acn_list_entry);
-		        kfree(n->name);
-		        kfree(n);
+			kfree(n->name);
+			kfree(n);
 			res = 0;
 			break;
 		}
@@ -997,7 +997,7 @@ struct scst_cmd *scst_complete_request_sense(struct scst_cmd *req_cmd)
 	return orig_cmd;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
 static void scst_req_done(struct scsi_cmnd *scsi_cmd)
 {
 	struct scsi_request *req;
@@ -1060,7 +1060,7 @@ out:
 	TRACE_EXIT();
 	return;
 }
-#else /* LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18) */
+#else /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18) */
 static void scst_send_release(struct scst_device *dev)
 {
 	struct scsi_device *scsi_dev;
@@ -1078,7 +1078,7 @@ static void scst_send_release(struct scst_device *dev)
 
 	scsi_dev = dev->scsi_dev;
 
-	for(i = 0; i < 5; i++) {
+	for (i = 0; i < 5; i++) {
 		memset(cdb, 0, sizeof(cdb));
 		cdb[0] = RELEASE;
 		cdb[1] = (scsi_dev->scsi_level <= SCSI_2) ?
@@ -1109,7 +1109,7 @@ out:
 	TRACE_EXIT();
 	return;
 }
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18) */
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18) */
 
 /* scst_mutex supposed to be held */
 static void scst_clear_reservation(struct scst_tgt_dev *tgt_dev)
@@ -1151,7 +1151,7 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, int gfp_mask,
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
 	sess = kmem_cache_alloc(scst_sess_cachep, gfp_mask);
 #else
 	sess = kmem_cache_zalloc(scst_sess_cachep, gfp_mask);
@@ -1161,14 +1161,14 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, int gfp_mask,
 		      "Allocation of scst_session failed");
 		goto out;
 	}
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
 	memset(sess, 0, sizeof(*sess));
 #endif
 
 	sess->init_phase = SCST_SESS_IPH_INITING;
 	sess->shut_phase = SCST_SESS_SPH_READY;
 	atomic_set(&sess->refcnt, 0);
-	for(i = 0; i < TGT_DEV_HASH_SIZE; i++) {
+	for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
 		struct list_head *sess_tgt_dev_list_head =
 			 &sess->sess_tgt_dev_list_hash[i];
 		INIT_LIST_HEAD(sess_tgt_dev_list_head);
@@ -1284,7 +1284,7 @@ struct scst_cmd *scst_alloc_cmd(int gfp_mask)
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
 	cmd = kmem_cache_alloc(scst_cmd_cachep, gfp_mask);
 #else
 	cmd = kmem_cache_zalloc(scst_cmd_cachep, gfp_mask);
@@ -1293,7 +1293,7 @@ struct scst_cmd *scst_alloc_cmd(int gfp_mask)
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of scst_cmd failed");
 		goto out;
 	}
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
 	memset(cmd, 0, sizeof(*cmd));
 #endif
 
@@ -1342,7 +1342,7 @@ void scst_free_cmd(struct scst_cmd *cmd)
 	sBUG_ON(cmd->inc_blocking || cmd->needs_unblocking ||
 		cmd->dec_on_dev_needed);
 
-#if defined(EXTRACHECKS) && (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18))
+#if defined(EXTRACHECKS) && (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18))
 	if (cmd->scsi_req) {
 		PRINT_ERROR("%s: %s", __FUNCTION__, "Cmd with unfreed "
 			"scsi_req!");
@@ -1513,7 +1513,7 @@ void scst_free_mgmt_cmd(struct scst_mgmt_cmd *mcmd)
 	return;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
 int scst_alloc_request(struct scst_cmd *cmd)
 {
 	int res = 0;
@@ -1852,7 +1852,7 @@ lun_t scst_unpack_lun(const uint8_t *lun, int len)
 	}
 
 	if (len > 2) {
-		switch(len) {
+		switch (len) {
 		case 8:
 			if ((*((uint64_t*)lun) &
 			  __constant_cpu_to_be64(0x0000FFFFFFFFFFFFLL)) != 0)
@@ -1932,7 +1932,7 @@ int scst_calc_block_shift(int sector_size)
 		sector_size = 512;
 
 	t = sector_size;
-	while(1) {
+	while (1) {
 		if ((t & 1) != 0)
 			break;
 		t >>= 1;
@@ -2322,7 +2322,7 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 	sBUG_ON(in_interrupt() || in_atomic());
 	EXTRACHECKS_BUG_ON(dev->scsi_dev == NULL);
 
-	for(i = 0; i < 5; i++) {
+	for (i = 0; i < 5; i++) {
 		/* Get control mode page */
 		memset(cmd, 0, sizeof(cmd));
 		cmd[0] = MODE_SENSE;
@@ -2390,14 +2390,14 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 						dev->scsi_dev->channel,	dev->scsi_dev->id,
 						dev->scsi_dev->lun, dev->tst, dev->queue_alg,
 						dev->swp, dev->tas, dev->has_own_order_mgmt);
-				    	res = 0;
+					res = 0;
 					goto out;
 				} else if (sense_buffer[2] == NOT_READY) {
 					TRACE(TRACE_SCSI, "Device %d:%d:%d:%d not ready",
 						dev->scsi_dev->host->host_no,
 						dev->scsi_dev->channel,	dev->scsi_dev->id,
 						dev->scsi_dev->lun);
-				    	res = 0;
+					res = 0;
 					goto out;
 				}
 			} else {
@@ -3201,9 +3201,9 @@ void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev,
 	struct scst_acg_dev *acg_dev)
 {
 	if ((acg_dev->acg == scst_default_acg) && (acg_dev->lun == 0)) {
-	    	unsigned long flags;
-	    	/* Do TM debugging only for LUN 0 */
-	    	spin_lock_irqsave(&scst_tm_dbg_lock, flags);
+		unsigned long flags;
+		/* Do TM debugging only for LUN 0 */
+		spin_lock_irqsave(&scst_tm_dbg_lock, flags);
 		tm_dbg_p_cmd_list_waitQ =
 			&tgt_dev->dev->p_cmd_lists->cmd_list_waitQ;
 		tm_dbg_state = INIT_TM_DBG_STATE;
@@ -3238,7 +3238,7 @@ static void tm_dbg_timer_fn(unsigned long arg)
 /* Called under scst_tm_dbg_lock and IRQs off */
 static void tm_dbg_delay_cmd(struct scst_cmd *cmd)
 {
-	switch(tm_dbg_state) {
+	switch (tm_dbg_state) {
 	case TM_DBG_STATE_ABORT:
 		if (tm_dbg_delayed_cmds_count == 0) {
 			unsigned long d = 58*HZ + (scst_random() % (4*HZ));
@@ -3308,7 +3308,7 @@ static void tm_dbg_change_state(void)
 {
 	tm_dbg_flags.tm_dbg_blocked = 0;
 	if (--tm_dbg_on_state_passes == 0) {
-		switch(tm_dbg_state) {
+		switch (tm_dbg_state) {
 		case TM_DBG_STATE_ABORT:
 			TRACE_MGMT_DBG("%s", "Changing "
 			    "tm_dbg_state to RESET");
@@ -3481,7 +3481,7 @@ void scst_check_debug_sn(struct scst_cmd *cmd)
 				type = SCST_CMD_QUEUE_ORDERED;
 			do {
 				cnt = scst_random() % 10;
-			} while(cnt == 0);
+			} while (cnt == 0);
 		} else
 			goto out_unlock;
 	}

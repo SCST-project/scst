@@ -3973,7 +3973,7 @@ isplinux_mbtimer(unsigned long arg)
     ISP_IUNLK_SOFTC(isp);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 #define PTARG                   , struct pt_regs *pt
 #else
 #define PTARG

@@ -26,7 +26,7 @@
 #include <scsi/scsi_device.h>
 #include <scsi/scsi_host.h>
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
 #include <scsi/scsi_request.h>
 #endif
 
@@ -320,7 +320,7 @@ void scst_proccess_redirect_cmd(struct scst_cmd *cmd, int context,
 void scst_check_retries(struct scst_tgt *tgt);
 void scst_tgt_retry_timer_fn(unsigned long arg);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
 int scst_alloc_request(struct scst_cmd *cmd);
 void scst_release_request(struct scst_cmd *cmd);
 
@@ -328,13 +328,13 @@ static inline void scst_do_req(struct scsi_request *sreq,
 	const void *cmnd, void *buffer, unsigned bufflen,
 	void (*done)(struct scsi_cmnd *), int timeout, int retries)
 {
-    #ifdef STRICT_SERIALIZING
+#ifdef STRICT_SERIALIZING
 	scsi_do_req(sreq, cmnd, buffer, bufflen, done, timeout, retries);
-    #elif !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
-    	sBUG();
-    #else
+#elif !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
+	sBUG();
+#else
 	scsi_do_req_fifo(sreq, cmnd, buffer, bufflen, done, timeout, retries);
-    #endif
+#endif
 }
 #else
 static inline int scst_exec_req(struct scsi_device *sdev,
@@ -342,16 +342,16 @@ static inline int scst_exec_req(struct scsi_device *sdev,
 	void *buffer, unsigned bufflen,	int use_sg, int timeout, int retries,
 	void *privdata, void (*done)(void *, char *, int, int), gfp_t gfp)
 {
-    #ifdef STRICT_SERIALIZING
+#ifdef STRICT_SERIALIZING
 	return scsi_execute_async(sdev, cmd, cmd_len, data_direction, buffer,
-		bufflen, use_sg, timeout, retries, privdata, done, gfp);
-    #elif !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
-    	sBUG();
-    	return -1;
-    #else
-    	return scsi_execute_async_fifo(sdev, cmd, cmd_len, data_direction,
-    		buffer,	bufflen, use_sg, timeout, retries, privdata, done, gfp);
-    #endif
+		    bufflen, use_sg, timeout, retries, privdata, done, gfp);
+#elif !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
+	sBUG();
+	return -1;
+#else
+	return scsi_execute_async_fifo(sdev, cmd, cmd_len, data_direction,
+	    buffer, bufflen, use_sg, timeout, retries, privdata, done, gfp);
+#endif
 }
 #endif
 
@@ -571,7 +571,7 @@ static inline void scst_check_debug_sn(struct scst_cmd *cmd) {}
  */
 static inline int scst_sn_before(__u32 seq1, __u32 seq2)
 {
-        return (__s32)(seq1-seq2) < 0;
+	return (__s32)(seq1-seq2) < 0;
 }
 
 #endif /* __SCST_PRIV_H */

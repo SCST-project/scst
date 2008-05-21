@@ -1240,7 +1240,7 @@ static int q2t_do_send_cmd_to_scst(scsi_qla_host_t *ha, struct q2t_cmd *cmd)
 	scst_cmd_set_expected(cmd->scst_cmd, dir,
 		le32_to_cpu(cmd->atio.data_length));
 
-	switch(cmd->atio.task_codes) {
+	switch (cmd->atio.task_codes) {
 	case ATIO_SIMPLE_QUEUE:
 		cmd->scst_cmd->queue_type = SCST_CMD_QUEUE_SIMPLE;
 		break;
@@ -1388,7 +1388,7 @@ static int q2t_send_cmd_to_scst(scsi_qla_host_t *ha, atio_entry_t *atio)
 		goto out;
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
 	cmd =  kmem_cache_alloc(q2t_cmd_cachep, GFP_ATOMIC);
 #else
 	cmd =  kmem_cache_zalloc(q2t_cmd_cachep, GFP_ATOMIC);
@@ -1398,7 +1398,7 @@ static int q2t_send_cmd_to_scst(scsi_qla_host_t *ha, atio_entry_t *atio)
 		res = -ENOMEM;
 		goto out;
 	}
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
 	memset(cmd, 0, sizeof(*cmd));
 #endif
 

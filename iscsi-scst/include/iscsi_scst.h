@@ -141,7 +141,7 @@ struct iscsi_event {
 
 static inline int iscsi_is_key_declarative(int key)
 {
-	switch(key)
+	switch (key)
 	{
 	case key_max_xmit_data_length:
 		return 1;

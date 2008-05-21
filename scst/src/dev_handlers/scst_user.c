@@ -107,7 +107,7 @@ struct scst_user_pre_unreg_sess_obj
 	unsigned int active:1;
 	unsigned int exit:1;
 	struct list_head pre_unreg_sess_list_entry;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 	struct work_struct pre_unreg_sess_work;
 #else
 	struct delayed_work pre_unreg_sess_work;
@@ -166,7 +166,7 @@ static int dev_user_tape_done(struct scst_cmd *cmd);
 static struct page *dev_user_alloc_pages(struct scatterlist *sg,
 	gfp_t gfp_mask, void *priv);
 static void dev_user_free_sg_entries(struct scatterlist *sg, int sg_count,
-        void *priv);
+				     void *priv);
 
 static void dev_user_add_to_ready(struct scst_user_cmd *ucmd);
 
@@ -289,7 +289,7 @@ static void cmd_insert_hash(struct scst_user_cmd *ucmd)
 	do {
 		ucmd->h = dev->handle_counter++;
 		u = __ucmd_find_hash(dev, ucmd->h);
-	} while(u != NULL);
+	} while (u != NULL);
 	head = &dev->ucmd_hash[scst_user_cmd_hashfn(ucmd->h)];
 	list_add_tail(&ucmd->hash_list_entry, head);
 	spin_unlock_irqrestore(&dev->cmd_lists.cmd_list_lock, flags);
@@ -388,7 +388,7 @@ static void dev_user_unmap_buf(struct scst_user_cmd *ucmd)
 	TRACE_MEM("Unmapping data pages (ucmd %p, ubuff %lx, num %d)", ucmd,
 		ucmd->ubuff, ucmd->num_data_pages);
 
-	for(i = 0; i < ucmd->num_data_pages; i++) {
+	for (i = 0; i < ucmd->num_data_pages; i++) {
 		struct page *page = ucmd->data_pages[i];
 
 		if (ucmd->buf_dirty)
@@ -535,7 +535,7 @@ static int dev_user_alloc_sg(struct scst_user_cmd *ucmd, int cached_buff)
 			sBUG_ON(ucmd->sgv != NULL);
 			res = -1;
 		} else {
-			switch(ucmd->state & ~UCMD_STATE_MASK) {
+			switch (ucmd->state & ~UCMD_STATE_MASK) {
 			case UCMD_STATE_BUF_ALLOCING:
 				res = 1;
 				break;
@@ -615,7 +615,7 @@ static struct scst_user_cmd *dev_user_alloc_ucmd(struct scst_user_dev *dev,
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
 	ucmd = kmem_cache_alloc(user_cmd_cachep, gfp_mask);
 	if (ucmd != NULL)
 		memset(ucmd, 0, sizeof(*ucmd));
@@ -683,7 +683,7 @@ static int dev_user_parse(struct scst_cmd *cmd)
 	if (ucmd->state != UCMD_STATE_NEW)
 		goto alloc;
 
-	switch(dev->parse_type) {
+	switch (dev->parse_type) {
 	case SCST_USER_PARSE_STANDARD:
 		TRACE_DBG("PARSE STANDARD: ucmd %p", ucmd);
 		rc = dev->generic_parse(cmd, dev_user_get_block);
@@ -764,7 +764,7 @@ static void dev_user_flush_dcache(struct scst_user_cmd *ucmd)
 	if (start == 0)
 		goto out;
 
-	for(i = 0; i < buf_ucmd->num_data_pages; i++) {
+	for (i = 0; i < buf_ucmd->num_data_pages; i++) {
 		struct page *page;
 		page = buf_ucmd->data_pages[i];
 #ifdef ARCH_HAS_FLUSH_ANON_PAGE
@@ -951,7 +951,7 @@ static void dev_user_add_to_ready(struct scst_user_cmd *ucmd)
 	if (unlikely(dev->attach_cmd_active || dev->tm_cmd_active ||
 		     dev->internal_reset_active || dev->pre_unreg_sess_active ||
 		     (dev->detach_cmd_count != 0))) {
-		switch(ucmd->state) {
+		switch (ucmd->state) {
 		case UCMD_STATE_PARSING:
 		case UCMD_STATE_BUF_ALLOCING:
 		case UCMD_STATE_EXECING:
@@ -989,8 +989,8 @@ static void dev_user_add_to_ready(struct scst_user_cmd *ucmd)
 	    unlikely(ucmd->state == UCMD_STATE_ATTACH_SESS) ||
 	    unlikely(ucmd->state == UCMD_STATE_DETACH_SESS)) {
 		if (dev->prio_queue_type == SCST_USER_PRIO_QUEUE_SEPARATE) {
-		    	TRACE_MGMT_DBG("Adding mgmt ucmd %p to prio ready cmd "
-		    		"list", ucmd);
+			TRACE_MGMT_DBG("Adding mgmt ucmd %p to prio ready cmd "
+				       "list", ucmd);
 			list_add_tail(&ucmd->ready_cmd_list_entry,
 				&dev->prio_ready_cmd_list);
 			wake_up(&dev->prio_cmd_list_waitQ);
@@ -1081,7 +1081,7 @@ out_unmap:
 	PRINT_ERROR("Failed to get %d user pages (rc %d)",
 		ucmd->num_data_pages, rc);
 	if (rc > 0) {
-		for(i = 0; i < rc; i++)
+		for (i = 0; i < rc; i++)
 			page_cache_release(ucmd->data_pages[i]);
 	}
 	kfree(ucmd->data_pages);
@@ -1369,7 +1369,7 @@ static int dev_user_process_reply(struct scst_user_dev *dev,
 unlock_process:
 	spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
 
-	switch(state) {
+	switch (state) {
 	case UCMD_STATE_PARSING:
 		res = dev_user_process_reply_parse(ucmd, reply);
 		break;
@@ -1527,7 +1527,7 @@ again:
 				spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
 			} else if (unlikely(test_bit(SCST_CMD_ABORTED,
 					&u->cmd->cmd_flags))) {
-				switch(u->state) {
+				switch (u->state) {
 				case UCMD_STATE_PARSING:
 				case UCMD_STATE_BUF_ALLOCING:
 					TRACE_MGMT_DBG("Aborting ucmd %p", u);
@@ -1563,7 +1563,7 @@ static int dev_user_get_next_cmd(struct scst_user_dev *dev,
 
 	init_waitqueue_entry(&wait, current);
 
-	while(1) {
+	while (1) {
 		if (!test_cmd_lists(dev)) {
 			add_wait_queue_exclusive(&dev->cmd_lists.cmd_list_waitQ,
 				&wait);
@@ -1629,7 +1629,7 @@ static int dev_user_get_next_prio_cmd(struct scst_user_dev *dev,
 
 	init_waitqueue_entry(&wait, current);
 
-	while(1) {
+	while (1) {
 		if (!test_prio_cmd_list(dev)) {
 			add_wait_queue_exclusive(&dev->prio_cmd_list_waitQ,
 				&wait);
@@ -1878,7 +1878,7 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 
 	ucmd->state = state | UCMD_STATE_JAMMED_MASK;
 
-	switch(state) {
+	switch (state) {
 	case UCMD_STATE_PARSING:
 	case UCMD_STATE_BUF_ALLOCING:
 		if (test_bit(SCST_CMD_ABORTED, &ucmd->cmd->cmd_flags))
@@ -1934,7 +1934,7 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 		else
 			spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
 
-		switch(state) {
+		switch (state) {
 		case UCMD_STATE_ON_FREEING:
 			dev_user_process_reply_on_free(ucmd);
 			break;
@@ -1982,7 +1982,7 @@ static int __unjam_check_tgt_dev(struct scst_user_cmd *ucmd, int state,
 	if (ucmd->cmd->tgt_dev != tgt_dev)
 		goto out;
 
-	switch(state & ~UCMD_STATE_MASK) {
+	switch (state & ~UCMD_STATE_MASK) {
 	case UCMD_STATE_PARSING:
 	case UCMD_STATE_BUF_ALLOCING:
 	case UCMD_STATE_EXECING:
@@ -2000,7 +2000,7 @@ static int __unjam_check_tm(struct scst_user_cmd *ucmd, int state)
 {
 	int res = 0;
 
-	switch(state & ~UCMD_STATE_MASK) {
+	switch (state & ~UCMD_STATE_MASK) {
 	case UCMD_STATE_PARSING:
 	case UCMD_STATE_BUF_ALLOCING:
 	case UCMD_STATE_EXECING:
@@ -2032,7 +2032,7 @@ static void dev_user_unjam_dev(struct scst_user_dev *dev, int tm,
 	spin_lock_irqsave(&dev->cmd_lists.cmd_list_lock, flags);
 
 repeat:
-	for(i = 0; i < (int)ARRAY_SIZE(dev->ucmd_hash); i++) {
+	for (i = 0; i < (int)ARRAY_SIZE(dev->ucmd_hash); i++) {
 		struct list_head *head = &dev->ucmd_hash[i];
 		list_for_each_entry(ucmd, head, hash_list_entry) {
 			TRACE_DBG("ALL: ucmd %p, state %x, scst_cmd %p",
@@ -2394,13 +2394,13 @@ out_nomem:
 	goto out;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 static void dev_user_pre_unreg_sess_work_fn(void *p)
 #else
 static void dev_user_pre_unreg_sess_work_fn(struct work_struct *work)
 #endif
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 	struct scst_user_pre_unreg_sess_obj *pd = (struct scst_user_pre_unreg_sess_obj*)p;
 #else
 	struct scst_user_pre_unreg_sess_obj *pd = container_of(
@@ -2442,7 +2442,7 @@ static void dev_user_pre_unreg_sess(struct scst_tgt_dev *tgt_dev)
 	pd = kzalloc(sizeof(*pd), GFP_KERNEL|__GFP_NOFAIL);
 
 	pd->tgt_dev = tgt_dev;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 	INIT_WORK(&pd->pre_unreg_sess_work, dev_user_pre_unreg_sess_work_fn, pd);
 #else
 	INIT_DELAYED_WORK(&pd->pre_unreg_sess_work, dev_user_pre_unreg_sess_work_fn);
@@ -2525,7 +2525,7 @@ static void dev_user_setup_functions(struct scst_user_dev *dev)
 	dev->devtype.dev_done = NULL;
 
 	if (dev->parse_type != SCST_USER_PARSE_CALL) {
-		switch(dev->devtype.type) {
+		switch (dev->devtype.type) {
 		case TYPE_DISK:
 			dev->generic_parse = scst_sbc_generic_parse;
 			dev->devtype.dev_done = dev_user_disk_done;
@@ -2611,7 +2611,7 @@ static int dev_user_register_dev(struct file *file,
 	if (res != 0)
 		goto out;
 
-	switch(dev_desc->type) {
+	switch (dev_desc->type) {
 	case TYPE_DISK:
 	case TYPE_ROM:
 	case TYPE_MOD:
@@ -2988,7 +2988,7 @@ static void dev_user_process_cleanup(struct scst_user_dev *dev)
 	dev->cleaning = 1;
 	dev->blocking = 1;
 
-	while(1) {
+	while (1) {
 		TRACE_DBG("Cleanuping dev %p", dev);
 
 		dev_user_unjam_dev(dev, 0, NULL);
@@ -3007,7 +3007,7 @@ static void dev_user_process_cleanup(struct scst_user_dev *dev)
 #ifdef EXTRACHECKS
 {
 	int i;
-	for(i = 0; i < (int)ARRAY_SIZE(dev->ucmd_hash); i++) {
+	for (i = 0; i < (int)ARRAY_SIZE(dev->ucmd_hash); i++) {
 		struct list_head *head = &dev->ucmd_hash[i];
 		struct scst_user_cmd *ucmd, *t;
 		list_for_each_entry_safe(ucmd, t, head, hash_list_entry) {
@@ -3044,7 +3044,7 @@ static int dev_user_cleanup_thread(void *arg)
 	current->flags |= PF_NOFREEZE;
 
 	spin_lock(&cleanup_lock);
-	while(!kthread_should_stop()) {
+	while (!kthread_should_stop()) {
 		wait_queue_t wait;
 		init_waitqueue_entry(&wait, current);
 

@@ -2,7 +2,7 @@
 #define __MPT_SCST_H
 
 #if defined(MODULE) && !defined(__GENKSYMS__)
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19))
 #include <linux/config.h>
 #else
 #include <linux/autoconf.h>

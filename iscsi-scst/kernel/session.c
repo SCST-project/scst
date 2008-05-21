@@ -57,7 +57,7 @@ static int iscsi_session_alloc(struct iscsi_target *target, struct session_info 
 
 	name = kmalloc(strlen(info->user_name) + strlen(info->initiator_name) +
 			1, GFP_KERNEL);
-	if (name == NULL){
+	if (name == NULL) {
 		err = -ENOMEM;
 		goto err;
 	}

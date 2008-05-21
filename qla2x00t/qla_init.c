@@ -1725,13 +1725,13 @@ out:
 }
 
 static void
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 qla2x00_rport_add(void *data)
 #else
 qla2x00_rport_add(struct work_struct *work)
 #endif
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 	fc_port_t *fcport = data;
 #else
 	fc_port_t *fcport = container_of(work, struct fc_port, rport_add_work);
@@ -1741,13 +1741,13 @@ qla2x00_rport_add(struct work_struct *work)
 }
 
 static void
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 qla2x00_rport_del(void *data)
 #else
 qla2x00_rport_del(struct work_struct *work)
 #endif
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 	fc_port_t *fcport = data;
 #else
 	fc_port_t *fcport = container_of(work, struct fc_port, rport_del_work);
@@ -1790,7 +1790,7 @@ qla2x00_alloc_fcport(scsi_qla_host_t *ha, gfp_t flags)
 	fcport->flags = FCF_RLC_SUPPORT;
 	fcport->supported_classes = FC_COS_UNSPECIFIED;
 	spin_lock_init(&fcport->rport_lock);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 	INIT_WORK(&fcport->rport_add_work, qla2x00_rport_add, fcport);
 	INIT_WORK(&fcport->rport_del_work, qla2x00_rport_del, fcport);
 #else
@@ -2137,7 +2137,7 @@ qla2x00_reg_remote_port(scsi_qla_host_t *ha, fc_port_t *fcport)
 	unsigned long flags;
 
 	if (fcport->drport)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 		qla2x00_rport_del(fcport);
 #else
 		qla2x00_rport_del(&fcport->rport_del_work);
@@ -3056,7 +3056,7 @@ qla2x00_update_fcports(scsi_qla_host_t *ha)
 	/* Go with deferred removal of rport references. */
 	list_for_each_entry(fcport, &ha->fcports, list)
 		if (fcport->drport)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 			qla2x00_rport_del(fcport);
 #else
 			qla2x00_rport_del(&fcport->rport_del_work);

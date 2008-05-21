@@ -126,26 +126,26 @@
 #endif
 
 #if defined(QL_DEBUG_LEVEL_11)
-#define DEBUG11(x)      do{x;} while(0);
+#define DEBUG11(x)      do{x;} while (0);
 #if !defined(DEBUG2_11)
-#define DEBUG2_11(x)    do{x;} while(0);
+#define DEBUG2_11(x)    do{x;} while (0);
 #endif
 #if !defined(DEBUG2_3_11)
-#define DEBUG2_3_11(x)  do{x;} while(0);
+#define DEBUG2_3_11(x)  do{x;} while (0);
 #endif
 #if !defined(DEBUG3_11)
-#define DEBUG3_11(x)    do{x;} while(0);
+#define DEBUG3_11(x)    do{x;} while (0);
 #endif
 #else
-#define DEBUG11(x)	do{} while(0);
+#define DEBUG11(x)	do{} while (0);
   #if !defined(QL_DEBUG_LEVEL_2)
-  #define DEBUG2_11(x)	do{} while(0);
+  #define DEBUG2_11(x)	do{} while (0);
     #if !defined(QL_DEBUG_LEVEL_3)
-    #define DEBUG2_3_11(x) do{} while(0);
+    #define DEBUG2_3_11(x) do{} while (0);
     #endif
   #endif
   #if !defined(QL_DEBUG_LEVEL_3)
-  #define DEBUG3_11(x)	do{} while(0);
+  #define DEBUG3_11(x)	do{} while (0);
   #endif
 #endif
 
@@ -158,12 +158,12 @@
 #if defined(QL_DEBUG_LEVEL_13)
 #define DEBUG13(x)      do {x;} while (0)
 #if !defined(DEBUG2_13)
-#define DEBUG2_13(x)    do {x;} while(0)
+#define DEBUG2_13(x)    do {x;} while (0)
 #endif
 #else
 #define DEBUG13(x)	do {} while (0)
 #if !defined(QL_DEBUG_LEVEL_2)
-#define DEBUG2_13(x)	do {} while(0)
+#define DEBUG2_13(x)	do {} while (0)
 #endif
 #endif
 

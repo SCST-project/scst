@@ -155,7 +155,7 @@ int target_add(struct target_info *info)
 		do {
 			if (!++next_target_id)
 				++next_target_id;
-		} while(target_lookup_by_id(next_target_id));
+		} while (target_lookup_by_id(next_target_id));
 
 		tid = next_target_id;
 	}
@@ -219,7 +219,7 @@ void target_del_all(void)
 	TRACE_MGMT_DBG("%s", "Deleting all targets");
 
 	/* Complete brain damage, ToDo */
-	while(1) {
+	while (1) {
 		mutex_lock(&target_mgmt_mutex);
 
 		if (list_empty(&target_list))

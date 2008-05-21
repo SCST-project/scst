@@ -39,7 +39,7 @@ static int event_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 	return 0;
 }
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24))
 static int event_recv_skb(struct sk_buff *skb)
 #else
 static void event_recv_skb(struct sk_buff *skb)
@@ -64,14 +64,14 @@ static void event_recv_skb(struct sk_buff *skb)
 	}
 
 out:
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24))
 	return 0;
 #else
 	return;
 #endif
 }
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24))
 static void event_recv(struct sock *sk, int length)
 {
 	struct sk_buff *skb;
@@ -118,17 +118,17 @@ int event_send(u32 tid, u64 sid, u32 cid, u32 state, int atomic)
 
 int __init event_init(void)
 {
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22))
 	nl = netlink_kernel_create(NETLINK_ISCSI_SCST, 1, event_recv,
 		THIS_MODULE);
 #else
-  #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24))
-  	nl = netlink_kernel_create(NETLINK_ISCSI_SCST, 1, event_recv, NULL,
-		THIS_MODULE);
-  #else
+#  if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24))
+	nl = netlink_kernel_create(NETLINK_ISCSI_SCST, 1, event_recv, NULL,
+				   THIS_MODULE);
+#  else
 	nl = netlink_kernel_create(&init_net, NETLINK_ISCSI_SCST, 1,
-		event_recv_skb, NULL, THIS_MODULE);
-  #endif
+				   event_recv_skb, NULL, THIS_MODULE);
+#  endif
 #endif
 	if (!nl) {
 		PRINT_ERROR("%s", "netlink_kernel_create() failed");

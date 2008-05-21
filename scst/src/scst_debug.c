@@ -31,7 +31,7 @@ static spinlock_t trace_buf_lock = SPIN_LOCK_UNLOCKED;
 static inline int get_current_tid(void)
 {
 	/* Code should be the same as in sys_gettid() */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 	return current->pid;
 #else
 	return task_pid_vnr(current);

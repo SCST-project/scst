@@ -130,7 +130,7 @@ struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *conn, struct iscsi_cmnd *parent
 	struct iscsi_cmnd *cmnd;
 
 	/* ToDo: __GFP_NOFAIL?? */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
 	cmnd = kmem_cache_alloc(iscsi_cmnd_cache, GFP_KERNEL|__GFP_NOFAIL);
 	memset(cmnd, 0, sizeof(*cmnd));
 #else
@@ -236,7 +236,7 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 		/* Order between above and below code is important! */
 
 		if (cmnd->scst_cmd) {
-			switch(cmnd->scst_state) {
+			switch (cmnd->scst_state) {
 			case ISCSI_CMD_STATE_PROCESSED:
 				TRACE_DBG("cmd %p PROCESSED", cmnd);
 				scst_tgt_cmd_done(cmnd->scst_cmd);
@@ -254,7 +254,7 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 			}
 			default:
 				PRINT_CRIT_ERROR("Unexpected cmnd scst state %d",
-					cmnd->scst_state);
+						 cmnd->scst_state);
 				sBUG();
 				break;
 			}
@@ -572,7 +572,7 @@ static void iscsi_set_datasize(struct iscsi_cmnd *cmnd, u32 offset, u32 size)
 		u8 *p = (u8*)page_address(sg_page(&cmnd->sg[idx])) +
 			(last_off & ~PAGE_MASK);
 		int i = 4 - (size & 3);
-		while(i--)
+		while (i--)
 		    *p++ = 0;
 	}
 }
@@ -593,7 +593,7 @@ static void send_data_rsp(struct iscsi_cmnd *req, u8 status, int send_status)
 	offset = 0;
 	sn = 0;
 
-	while(1) {
+	while (1) {
 		rsp = iscsi_cmnd_create_rsp_cmnd(req);
 		TRACE_DBG("rsp %p", rsp);
 		rsp->sg = req->sg;
@@ -681,7 +681,7 @@ static struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req, int status,
 		    u8 *p = (u8 *)sense + i;
 
 		    while (i < rsp->bufflen) {
-			*p ++ = 0;
+			*p++ = 0;
 			i++;
 		    }
 		}
@@ -1126,7 +1126,7 @@ static void send_r2t(struct iscsi_cmnd *req)
 		if (++req->outstanding_r2t >= session->sess_param.max_outstanding_r2t)
 			break;
 
-	} while(req->r2t_length != 0);
+	} while (req->r2t_length != 0);
 
 	iscsi_cmnds_init_write(&send, ISCSI_INIT_WRITE_WAKE);
 
@@ -1322,7 +1322,7 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 		dir = SCST_DATA_NONE;
 	scst_cmd_set_expected(scst_cmd, dir, be32_to_cpu(req_hdr->data_length));
 
-	switch(req_hdr->flags & ISCSI_CMD_ATTR_MASK) {
+	switch (req_hdr->flags & ISCSI_CMD_ATTR_MASK) {
 	case ISCSI_CMD_SIMPLE:
 		scst_cmd->queue_type = SCST_CMD_QUEUE_SIMPLE;
 		break;
@@ -1621,8 +1621,8 @@ static int cmnd_abort(struct iscsi_cmnd *req)
 
 		if (req_hdr->lun != hdr->lun) {
 			 PRINT_ERROR("ABORT TASK: LUN mismatch: req LUN "
-			 	"%Lx, cmd LUN %Lx, rtt %u", req_hdr->lun,
-			 	hdr->lun, req_hdr->rtt);
+				     "%Lx, cmd LUN %Lx, rtt %u", req_hdr->lun,
+				     hdr->lun, req_hdr->rtt);
 			err = ISCSI_RESPONSE_FUNCTION_REJECTED;
 			goto out_put;
 		}
@@ -2494,7 +2494,7 @@ static void iscsi_try_local_processing(struct iscsi_conn *conn,
 	TRACE_ENTRY();
 
 	spin_lock_bh(&iscsi_wr_lock);
-	switch(conn->wr_state) {
+	switch (conn->wr_state) {
 	case ISCSI_CONN_WR_STATE_IN_LIST:
 		list_del(&conn->wr_list_entry);
 		/* go through */
@@ -2514,7 +2514,7 @@ static void iscsi_try_local_processing(struct iscsi_conn *conn,
 
 	if (local) {
 		int rc = 1;
-		while(test_write_ready(conn)) {
+		while (test_write_ready(conn)) {
 			rc = iscsi_send(conn);
 			if ((rc <= 0) || single_only) {
 				break;
@@ -2581,7 +2581,7 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 
 		create_status_rsp(req, status, sense, sense_len);
 
-		switch(old_state) {
+		switch (old_state) {
 		case ISCSI_CMD_STATE_RX_CMD:
 		case ISCSI_CMD_STATE_AFTER_PREPROC:
 			break;
@@ -2681,7 +2681,7 @@ static bool iscsi_is_delay_tm_resp(struct iscsi_cmnd *rsp)
 
 	/* This should be checked for immediate TM commands as well */
 
-	switch(function) {
+	switch (function) {
 	default:
 		if (before(sess->exp_cmd_sn, req_hdr->cmd_sn))
 			res = 1;
@@ -2781,7 +2781,7 @@ out_release:
 
 static inline int iscsi_get_mgmt_response(int status)
 {
-	switch(status) {
+	switch (status) {
 	case SCST_MGMT_STATUS_SUCCESS:
 		return ISCSI_RESPONSE_FUNCTION_COMPLETE;
 

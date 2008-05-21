@@ -33,23 +33,23 @@
 #include "scst_mem.h"
 
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
-#warning HIGHMEM kernel configurations are fully supported, but not \
+#warning "HIGHMEM kernel configurations are fully supported, but not \
 	recommended for performance reasons. Consider change VMSPLIT \
 	option or use 64-bit configuration instead. See README file for \
-	details.
+	details."
 #endif
 
 #ifdef SCST_HIGHMEM
-#error SCST_HIGHMEM configuration isn't supported and broken, because there \
+#error "SCST_HIGHMEM configuration isn't supported and broken, because there \
 	is no real point to support it, at least it definitely doesn't worth \
 	the effort. Better use no-HIGHMEM kernel with VMSPLIT option \
-	or in 64-bit configuration instead. See README file for details.
+	or in 64-bit configuration instead. See README file for details."
 #endif
 
 #if !defined(SCSI_EXEC_REQ_FIFO_DEFINED) && !defined(STRICT_SERIALIZING)
-#warning Patch scst_exec_req_fifo-<kernel-version>.patch was not applied on \
+#warning "Patch scst_exec_req_fifo-<kernel-version>.patch was not applied on \
 	your kernel and STRICT_SERIALIZING isn't defined. Pass-through dev \
-	handlers will not be supported.
+	handlers will not be supported."
 #endif
 
 /**
@@ -1038,7 +1038,7 @@ void scst_del_dev_threads(struct scst_device *dev, int num)
 		}
 		list_del(&ct->thread_list_entry);
 		kfree(ct);
-		if ((num >0) && (++i >= num))
+		if ((num > 0) && (++i >= num))
 			break;
 	}
 
@@ -1359,7 +1359,7 @@ void scst_put(void)
 	__scst_put();
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,15)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 15)
 static int scst_add(struct class_device *cdev)
 #else
 static int scst_add(struct class_device *cdev, struct class_interface *intf)
@@ -1377,7 +1377,7 @@ static int scst_add(struct class_device *cdev, struct class_interface *intf)
 	return res;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,15)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 15)
 static void scst_remove(struct class_device *cdev)
 #else
 static void scst_remove(struct class_device *cdev, struct class_interface *intf)
@@ -1477,7 +1477,7 @@ static int __init init_scst(void)
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
 	{
 		struct scsi_request *req;
 		BUILD_BUG_ON(SCST_SENSE_BUFFERSIZE !=

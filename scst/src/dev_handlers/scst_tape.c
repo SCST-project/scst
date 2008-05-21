@@ -184,7 +184,7 @@ int tape_attach(struct scst_device *dev)
 		TRACE_DBG("%s", "Doing TEST_UNIT_READY");
 		res = scsi_test_unit_ready(dev->scsi_dev, TAPE_SMALL_TIMEOUT,
 					   TAPE_RETRIES
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 					  );
 #else
 					  , NULL);

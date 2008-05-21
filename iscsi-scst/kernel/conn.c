@@ -30,7 +30,7 @@ static void print_conn_state(char *p, size_t size, struct iscsi_conn *conn)
 		return;
 	}
 
-	switch(conn->rd_state) {
+	switch (conn->rd_state) {
 	case ISCSI_CONN_RD_STATE_PROCESSING:
 		snprintf(p, size, "%s", "read_processing ");
 		printed = 1;
@@ -41,7 +41,7 @@ static void print_conn_state(char *p, size_t size, struct iscsi_conn *conn)
 		break;
 	}
 
-	switch(conn->wr_state) {
+	switch (conn->wr_state) {
 	case ISCSI_CONN_WR_STATE_PROCESSING:
 		snprintf(p, size, "%s", "write_processing ");
 		printed = 1;
@@ -452,7 +452,7 @@ void iscsi_extracheck_is_rd_thread(struct iscsi_conn *conn)
 	if (unlikely(current != conn->rd_task)) {
 		printk(KERN_EMERG "conn %p rd_task != current %p (pid %d)\n", conn,
 			current, current->pid);
-		while(in_softirq())
+		while (in_softirq())
 			local_bh_enable();
 		printk(KERN_EMERG "rd_state %x\n", conn->rd_state);
 		printk(KERN_EMERG "rd_task %p\n", conn->rd_task);
@@ -466,7 +466,7 @@ void iscsi_extracheck_is_wr_thread(struct iscsi_conn *conn)
 	if (unlikely(current != conn->wr_task)) {
 		printk(KERN_EMERG "conn %p wr_task != current %p (pid %d)\n", conn,
 			current, current->pid);
-		while(in_softirq())
+		while (in_softirq())
 			local_bh_enable();
 		printk(KERN_EMERG "wr_state %x\n", conn->wr_state);
 		printk(KERN_EMERG "wr_task %p\n", conn->wr_task);

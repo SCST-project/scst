@@ -40,7 +40,7 @@
 #define DECLARE_MUTEX_LOCKED(name)	__DECLARE_SEMAPHORE_GENERIC(name, 0)
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 typedef _Bool bool;
 #define true  1
 #define false 0
@@ -48,7 +48,7 @@ typedef _Bool bool;
 
 /* Version numbers, the same as for the kernel */
 #define SCST_VERSION_CODE 0x00090601
-#define SCST_VERSION(a,b,c,d) (((a) << 24) + ((b) << 16) + ((c) << 8) + d)
+#define SCST_VERSION(a, b, c, d) (((a) << 24) + ((b) << 16) + ((c) << 8) + d)
 #define SCST_VERSION_STRING "0.9.6-rc1"
 #define SCST_INTERFACE_VERSION SCST_VERSION_STRING "$Revision$" SCST_CONST_VERSION
 
@@ -1146,7 +1146,7 @@ struct scst_cmd
 
 	unsigned long start_time;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
 	struct scsi_request *scsi_req;	/* SCSI request */
 #endif
 
@@ -2335,7 +2335,7 @@ static inline int scst_mgmt_cmd_get_fn(struct scst_mgmt_cmd *mcmd)
 	return mcmd->fn;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 
 static inline struct page *sg_page(struct scatterlist *sg)
 {
@@ -2365,7 +2365,7 @@ static inline void sg_set_page(struct scatterlist *sg, struct page *page,
 	sg->length = len;
 }
 
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24) */
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24) */
 
 static inline void sg_clear(struct scatterlist *sg)
 {
@@ -2549,7 +2549,7 @@ struct scst_proc_data {
 int scst_single_seq_open(struct inode *inode, struct file *file);
 
 struct proc_dir_entry *scst_create_proc_entry(struct proc_dir_entry * root,
-        const char *name, struct scst_proc_data *pdata);
+	const char *name, struct scst_proc_data *pdata);
 
 #define SCST_DEF_RW_SEQ_OP(x)                          \
 	.seq_op = {                                    \

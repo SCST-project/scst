@@ -32,7 +32,7 @@ static void qla24xx_ms_entry(scsi_qla_host_t *, struct ct_entry_24xx *);
  *
  * Returns handled flag.
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 irqreturn_t
 qla2100_intr_handler(int irq, void *dev_id, struct pt_regs *regs)
 #else
@@ -117,7 +117,7 @@ qla2100_intr_handler(int irq, void *dev_id)
  *
  * Returns handled flag.
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 irqreturn_t
 qla2300_intr_handler(int irq, void *dev_id, struct pt_regs *regs)
 #else
@@ -1581,7 +1581,7 @@ qla24xx_process_response_queue(struct scsi_qla_host *ha)
  *
  * Returns handled flag.
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 irqreturn_t
 qla24xx_intr_handler(int irq, void *dev_id, struct pt_regs *regs)
 #else

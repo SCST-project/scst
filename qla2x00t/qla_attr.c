@@ -321,7 +321,7 @@ static CLASS_DEVICE_ATTR(port_database,
 			 qla2x00_update_portdb);
 #endif
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23))
 static ssize_t
 qla2x00_sysfs_read_fw_dump(struct kobject *kobj, char *buf, loff_t off,
     size_t count)
@@ -346,7 +346,7 @@ qla2x00_sysfs_read_fw_dump(struct kobject *kobj, struct bin_attribute *attr,
 	return (count);
 }
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23))
 static ssize_t
 qla2x00_sysfs_write_fw_dump(struct kobject *kobj, char *buf, loff_t off,
     size_t count)
@@ -431,7 +431,7 @@ static struct bin_attribute sysfs_fw_dump_attr = {
 	.write = qla2x00_sysfs_write_fw_dump,
 };
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23))
 static ssize_t
 qla2x00_sysfs_read_nvram(struct kobject *kobj, char *buf, loff_t off,
     size_t count)
@@ -457,7 +457,7 @@ qla2x00_sysfs_read_nvram(struct kobject *kobj, struct bin_attribute *attr,
 	return ha->nvram_size;
 }
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23))
 static ssize_t
 qla2x00_sysfs_write_nvram(struct kobject *kobj, char *buf, loff_t off,
     size_t count)
@@ -517,7 +517,7 @@ static struct bin_attribute sysfs_nvram_attr = {
 	.write = qla2x00_sysfs_write_nvram,
 };
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23))
 static ssize_t
 qla2x00_sysfs_read_optrom(struct kobject *kobj, char *buf, loff_t off,
     size_t count)
@@ -542,7 +542,7 @@ qla2x00_sysfs_read_optrom(struct kobject *kobj, struct bin_attribute *attr,
 	return count;
 }
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23))
 static ssize_t
 qla2x00_sysfs_write_optrom(struct kobject *kobj, char *buf, loff_t off,
     size_t count)
@@ -578,7 +578,7 @@ static struct bin_attribute sysfs_optrom_attr = {
 	.write = qla2x00_sysfs_write_optrom,
 };
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23))
 static ssize_t
 qla2x00_sysfs_write_optrom_ctl(struct kobject *kobj, char *buf, loff_t off,
     size_t count)
@@ -664,7 +664,7 @@ static struct bin_attribute sysfs_optrom_ctl_attr = {
 	.write = qla2x00_sysfs_write_optrom_ctl,
 };
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23))
 static ssize_t
 qla2x00_sysfs_read_vpd(struct kobject *kobj, char *buf, loff_t off,
     size_t count)
@@ -692,7 +692,7 @@ qla2x00_sysfs_read_vpd(struct kobject *kobj, struct bin_attribute *attr,
 	return ha->vpd_size;
 }
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23))
 static ssize_t
 qla2x00_sysfs_write_vpd(struct kobject *kobj, char *buf, loff_t off,
     size_t count)
@@ -1239,7 +1239,7 @@ struct fc_function_template qla2xxx_transport_functions = {
 	.set_rport_dev_loss_tmo = qla2x00_set_rport_loss_tmo,
 	.show_rport_dev_loss_tmo = 1,
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,15)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 15)
 	.issue_fc_host_lip = qla2x00_issue_lip,
 	.get_fc_host_stats = qla2x00_get_fc_host_stats,
 #endif

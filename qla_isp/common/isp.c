@@ -381,7 +381,7 @@ isp_reset(ispsoftc_t *isp)
 			sdp = SDPARAM(isp, 1);
 			l = ISP_READ(isp, SXP_PINS_DIFF|SXP_BANK1_SELECT);
 			l &= ISP1080_MODE_MASK;
-			switch(l) {
+			switch (l) {
 			case ISP1080_LVD_MODE:
 				sdp->isp_lvdmode = 1;
 				isp_prt(isp, ISP_LOGCONFIG, m, 1, "LVD");
@@ -1648,7 +1648,7 @@ isp_fibre_init(ispsoftc_t *isp)
 		/*
 		 * Prefer or force Point-To-Point instead Loop?
 		 */
-		switch(isp->isp_confopts & ISP_CFG_PORT_PREF) {
+		switch (isp->isp_confopts & ISP_CFG_PORT_PREF) {
 		case ISP_CFG_NPORT:
 			icbp->icb_xfwoptions |= ICBXOPT_PTP_2_LOOP;
 			break;
@@ -1921,7 +1921,7 @@ isp_fibre_init_2400(ispsoftc_t *isp)
 	icbp->icb_fwoptions1 |= ICB2400_OPT1_HARD_ADDRESS;
 
 	icbp->icb_fwoptions2 = fcp->isp_xfwoptions;
-	switch(isp->isp_confopts & ISP_CFG_PORT_PREF) {
+	switch (isp->isp_confopts & ISP_CFG_PORT_PREF) {
 #if	0
 	case ISP_CFG_NPORT:
 		/*
@@ -2901,7 +2901,7 @@ not_on_fabric:
 static const char *
 ispfc_fw_statename(int state)
 {
-	switch(state) {
+	switch (state) {
 	case FW_CONFIG_WAIT:	return "Config Wait";
 	case FW_WAIT_AL_PA:	return "Waiting for AL_PA";
 	case FW_WAIT_LOGIN:	return "Wait Login";

@@ -347,7 +347,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{0x5E, "OOOOO OOOO      ", "PERSISTENT_RESERV_IN",
 	 SCST_DATA_READ, FLAG_NONE, 5, get_trans_len_4},
 	{0x5F, "OOOOO OOOO      ", "PERSISTENT_RESERV_OUT",
-         SCST_DATA_WRITE, FLAG_NONE, 5, get_trans_len_4},
+	 SCST_DATA_WRITE, FLAG_NONE, 5, get_trans_len_4},
 
 	/* 16-bytes length CDB */
 	{0x80, "O   OO O        ", "XDWRITE EXTENDED",

@@ -843,7 +843,7 @@ isp_qlogic_ext_ioctl(struct inode *ip, struct file *fp, unsigned int cmd, unsign
         unsigned int i;
 
         ext.Instance = 0;
-        for(i = 0; i < MAX_ISP; i++) {
+        for (i = 0; i < MAX_ISP; i++) {
             if (isplist[i] && IS_FC(isplist[i])) {
                 ext.Instance++;
             }

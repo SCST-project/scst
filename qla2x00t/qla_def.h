@@ -2124,7 +2124,7 @@ struct isp_operations {
 	char * (*pci_info_str) (struct scsi_qla_host *, char *);
 	char * (*fw_version_str) (struct scsi_qla_host *, char *);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 	irqreturn_t (*intr_handler) (int, void *, struct pt_regs *);
 #else
 	irq_handler_t intr_handler;

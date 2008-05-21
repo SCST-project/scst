@@ -87,7 +87,7 @@ static int isp_pci_mbxdma(ispsoftc_t *);
 static int isp_pci_dmasetup(ispsoftc_t *, XS_T *, ispreq_t *, uint32_t *, uint32_t);
 static void isp_pci_dmateardown(ispsoftc_t *, XS_T *, uint32_t);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,6)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 6)
 #define DMA_64BIT_MASK  0xffffffffffffffffULL
 #define DMA_32BIT_MASK  0x00000000ffffffffULL
 #endif
@@ -99,7 +99,7 @@ static void isp_pci_dmateardown(ispsoftc_t *, XS_T *, uint32_t);
 #define SAME_4G(addr, cnt)          (FOURG_SEG(addr) == FOURG_SEG(addr + cnt - 1))
 
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
 #define ISP_IRQ_FLAGS   SA_INTERRUPT | SA_SHIRQ
 #else
 #define ISP_IRQ_FLAGS   IRQF_SHARED
@@ -365,11 +365,11 @@ struct isp_pcisoftc {
             msix_enabled    : 2,
             msi_enabled     : 1;
 };
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,8)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 8)
 #define pci_enable_msi(x)   -ENXIO
 #define pci_enable_msix(x)  -ENXIO
-#define pci_disable_msi(x)  do { ; } while(0)
-#define pci_disable_msix(x) do { ; } while(0)
+#define pci_disable_msi(x)  do { ; } while (0)
+#define pci_disable_msix(x) do { ; } while (0)
 #endif
 
 /*
@@ -506,7 +506,7 @@ isplinux_pci_release(struct Scsi_Host *host)
 }
 
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,7) && LINUX_VERSION_CODE < KERNEL_VERSION(2,6,14)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 7) && LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 14)
 /**
  * pci_intx - enables/disables PCI INTx for device dev
  * @pdev: the PCI device to operate on
@@ -619,7 +619,7 @@ isplinux_pci_init_one(struct Scsi_Host *host)
         return (1);
     }
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,7)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 7)
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2422 || pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2432) {
         struct msix_entry isp_msix[3];
         int reg;
@@ -669,7 +669,7 @@ isplinux_pci_init_one(struct Scsi_Host *host)
             pci_write_config_word(pdev, reg + PCI_EXP_DEVCTL, pectl);
         }
     } else
-#elif LINUX_VERSION_CODE > KERNEL_VERSION(2,6,0)
+#elif LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 0)
     if (pci_enable_msi(pdev) == 0) {
         isp_pci->msi_enabled = 1;
     }
@@ -3479,7 +3479,7 @@ isplinux_pci_remove(struct pci_dev *pdev)
 
 static struct pci_driver isplinux_pci_driver = {
         .name           = ISP_NAME,
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,9)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 9)
         .driver         = {
             .owner      = THIS_MODULE,
         },

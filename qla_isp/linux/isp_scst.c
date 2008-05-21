@@ -1245,7 +1245,7 @@ static DEFINE_MUTEX(proc_mutex);
  * Many procfs things is taken from scst/src/scst_proc.c
  */
 
-#if !defined(CONFIG_PPC) && (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22))
+#if !defined(CONFIG_PPC) && (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22))
 
 static int strncasecmp(const char *s1, const char *s2, size_t n)
 {

@@ -32,7 +32,7 @@
 #include <linux/seq_file.h>
 #include <scsi/scsi_host.h>
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2,5,0)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 5, 0)
 #include <linux/pci.h>
 #endif
 
@@ -155,7 +155,7 @@ mpt_target_show(struct seq_file *seq, void *v)
 			ioc->prod_name,
 			tgt->target_enable ? "True" : "False");
 
-#if (LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,15))
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 15))
   	if (ioc->bus_type == SCSI) {
 #else
 	if (ioc->bus_type == SPI) {

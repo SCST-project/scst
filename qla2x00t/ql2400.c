@@ -78,7 +78,7 @@ static struct pci_device_id qla24xx_pci_tbl[] = {
 		.subdevice	= PCI_ANY_ID,
 		.driver_data	= (unsigned long)&qla_board_tbl[1],
 	},
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,17)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
 	{
 		.vendor		= PCI_VENDOR_ID_QLOGIC,
 		.device		= PCI_DEVICE_ID_QLOGIC_ISP5422,

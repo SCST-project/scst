@@ -104,7 +104,7 @@ static __inline__ void qla2x00_poll(scsi_qla_host_t *);
 static inline void
 qla2x00_poll(scsi_qla_host_t *ha)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 	ha->isp_ops.intr_handler(0, ha, NULL);
 #else
 	ha->isp_ops.intr_handler(0, ha);

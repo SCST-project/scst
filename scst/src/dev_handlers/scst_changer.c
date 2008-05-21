@@ -88,7 +88,7 @@ int changer_attach(struct scst_device *dev)
 		TRACE_DBG("%s", "Doing TEST_UNIT_READY");
 		res = scsi_test_unit_ready(dev->scsi_dev, CHANGER_TIMEOUT,
 					   CHANGER_RETRIES
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 					  );
 #else
 					  , NULL);

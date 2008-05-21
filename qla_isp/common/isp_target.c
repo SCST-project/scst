@@ -200,7 +200,7 @@ isp_target_notify(ispsoftc_t *isp, void *vptr, uint32_t *optrp)
 
 	ISP_TDQE(isp, "isp_target_notify", (int) *optrp, vptr);
 
-	switch(type) {
+	switch (type) {
 	case RQSTYPE_ATIO:
 		if (IS_24XX(isp)) {
 			int len;
@@ -1182,7 +1182,7 @@ isp_handle_atio(ispsoftc_t *isp, at_entry_t *aep)
 	 * about this so it's ignored.
 	 */
 
-	switch(aep->at_status & ~QLTM_SVALID) {
+	switch (aep->at_status & ~QLTM_SVALID) {
 	case AT_PATH_INVALID:
 		/*
 		 * ATIO rejected by the firmware due to disabled lun.
@@ -1275,7 +1275,7 @@ isp_handle_atio2(ispsoftc_t *isp, at2_entry_t *aep)
 	 * about this so it's ignored.
 	 */
 
-	switch(aep->at_status & ~QLTM_SVALID) {
+	switch (aep->at_status & ~QLTM_SVALID) {
 	case AT_PATH_INVALID:
 		/*
 		 * ATIO rejected by the firmware due to disabled lun.
@@ -1351,7 +1351,7 @@ isp_handle_ctio(ispsoftc_t *isp, ct_entry_t *ct)
 		xs = NULL;
 	}
 
-	switch(ct->ct_status & ~QLTM_SVALID) {
+	switch (ct->ct_status & ~QLTM_SVALID) {
 	case CT_OK:
 		/*
 		 * There are generally 3 possibilities as to why we'd get
@@ -1512,7 +1512,7 @@ isp_handle_ctio2(ispsoftc_t *isp, ct2_entry_t *ct)
 		xs = NULL;
 	}
 
-	switch(ct->ct_status & ~QLTM_SVALID) {
+	switch (ct->ct_status & ~QLTM_SVALID) {
 	case CT_BUS_ERROR:
 		isp_prt(isp, ISP_LOGERR, "PCI DMA Bus Error");
 		/* FALL Through */
@@ -1674,7 +1674,7 @@ isp_handle_ctio7(ispsoftc_t *isp, ct7_entry_t *ct)
 		xs = NULL;
 	}
 
-	switch(ct->ct_nphdl) {
+	switch (ct->ct_nphdl) {
 	case CT7_BUS_ERROR:
 		isp_prt(isp, ISP_LOGERR, "PCI DMA Bus Error");
 		/* FALL Through */

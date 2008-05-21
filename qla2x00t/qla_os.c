@@ -1198,7 +1198,7 @@ qla2x00_set_isp_flags(scsi_qla_host_t *ha)
 		ha->device_type |= DT_ISP2432;
 		ha->device_type |= DT_ZIO_SUPPORTED;
 		break;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,17)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
 	case PCI_DEVICE_ID_QLOGIC_ISP5422:
 		ha->device_type |= DT_ISP5422;
 		break;
@@ -2181,7 +2181,7 @@ qla2x00_allocate_sp_pool(scsi_qla_host_t *ha)
 	int      rval;
 
 	rval = QLA_SUCCESS;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,17)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
 	ha->srb_mempool = mempool_create_slab_pool(SRB_MIN_REQ, srb_cachep);
 #else
 	ha->srb_mempool = mempool_create(SRB_MIN_REQ, mempool_alloc_slab,
@@ -2402,7 +2402,7 @@ qla2x00_do_dpc(void *data)
 			ha->isp_ops.beacon_blink(ha);
 
 		ha->dpc_active = 0;
-	} /* End of while(1) */
+	} /* End of while (1) */
 
 	DEBUG(printk("scsi(%ld): DPC handler exiting\n", ha->host_no));
 
@@ -2719,7 +2719,7 @@ static struct pci_device_id qla2xxx_pci_tbl[] = {
 		PCI_ANY_ID, PCI_ANY_ID, },
 	{ PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2432,
 		PCI_ANY_ID, PCI_ANY_ID, },
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,17)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
 	{ PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP5422,
 		PCI_ANY_ID, PCI_ANY_ID, },
 	{ PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP5432,
@@ -2776,7 +2776,7 @@ qla2x00_module_init(void)
 	/* Allocate cache for SRBs. */
 	srb_cachep = kmem_cache_create("qla2xxx_srbs", sizeof(srb_t), 0,
 	    SLAB_HWCACHE_ALIGN, NULL
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23))
 	    , NULL);
 #else
 	    );

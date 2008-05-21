@@ -172,7 +172,7 @@ static DEFINE_MUTEX(scst_proc_mutex);
 
 #include <linux/ctype.h>
 
-#if !defined(CONFIG_PPC) && (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22))
+#if !defined(CONFIG_PPC) && (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22))
 
 #if defined(DEBUG) || defined(TRACING)
 static int strcasecmp(const char *s1, const char *s2)
@@ -196,7 +196,7 @@ static int strncasecmp(const char *s1, const char *s2, int n)
 	return c1 - c2;
 }
 
-#endif /* !CONFIG_PPC && (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22)) */
+#endif /* !CONFIG_PPC && (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)) */
 
 #if defined(DEBUG) || defined(TRACING)
 
@@ -416,8 +416,8 @@ static int lat_info_show(struct seq_file *seq, void *v)
 
 #if BITS_PER_LONG == 32
 			/* Unfortunately, do_div() doesn't work too well */
-			while(((proc_time & 0xFFFFFFFF00000000LL) != 0) ||
-			      ((scst_time & 0xFFFFFFFF00000000LL) != 0)) {
+			while (((proc_time & 0xFFFFFFFF00000000LL) != 0) ||
+			       ((scst_time & 0xFFFFFFFF00000000LL) != 0)) {
 				TRACE_DBG("%s", "Gathered time too big");
 				proc_time >>= 1;
 				scst_time >>= 1;
@@ -1873,7 +1873,7 @@ static struct scst_proc_data scst_sgv_proc_data = {
 static int scst_groups_names_show(struct seq_file *seq, void *v)
 {
 	int res = 0;
-        struct scst_acg *acg = (struct scst_acg *)seq->private;
+	struct scst_acg *acg = (struct scst_acg *)seq->private;
 	struct scst_acn *name;
 
 	TRACE_ENTRY();
@@ -2149,7 +2149,7 @@ struct proc_dir_entry *scst_create_proc_entry(struct proc_dir_entry * root,
 
 int scst_single_seq_open(struct inode *inode, struct file *file)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,23)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 23)
 	struct scst_proc_data *pdata = container_of(PDE(inode)->proc_fops,
 		struct scst_proc_data, seq_op);
 #else

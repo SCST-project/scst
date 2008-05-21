@@ -79,7 +79,7 @@
 #define DECLARE_MUTEX_LOCKED(name) __DECLARE_SEMAPHORE_GENERIC(name,0)
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 #define sg_page(_sg) ((_sg)->page)
 #define sg_assign_page(_sg, _pg) ((_sg)->page = (_pg))
 #endif
@@ -482,7 +482,7 @@ scsi_target_ioctl(struct inode *ip, struct file *fp, unsigned int cmd, unsigned 
 {
     int rv = 0;
 
-    switch(cmd) {
+    switch (cmd) {
     case SC_ENABLE_LUN:
     case SC_DISABLE_LUN:
     {
