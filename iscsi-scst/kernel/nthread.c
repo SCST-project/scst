@@ -874,7 +874,7 @@ static inline void __iscsi_get_page_callback(struct iscsi_cmnd *cmd)
 
 void iscsi_get_page_callback(struct page *page)
 {
-	struct iscsi_cmnd *cmd = (struct iscsi_cmnd*)page->net_priv;
+	struct iscsi_cmnd *cmd = (struct iscsi_cmnd *)page->net_priv;
 
 	TRACE_NET_PAGE("page %p, _count %d", page,
 		atomic_read(&page->_count));
@@ -901,7 +901,7 @@ static inline void __iscsi_put_page_callback(struct iscsi_cmnd *cmd)
 
 void iscsi_put_page_callback(struct page *page)
 {
-	struct iscsi_cmnd *cmd = (struct iscsi_cmnd*)page->net_priv;
+	struct iscsi_cmnd *cmd = (struct iscsi_cmnd *)page->net_priv;
 
 	TRACE_NET_PAGE("page %p, _count %d", page,
 		atomic_read(&page->_count));

@@ -977,7 +977,7 @@ int scst_build_proc_target_entries(struct scst_tgt *vtt)
 	if (vtt->tgtt->read_proc || vtt->tgtt->write_proc) {
 		/* create the proc file entry for the device */
 		scnprintf(name, sizeof(name), "%d", vtt->tgtt->proc_dev_num);
-		scst_scsi_tgt_proc_data.data = (void*)vtt;
+		scst_scsi_tgt_proc_data.data = (void *)vtt;
 		p = scst_create_proc_entry(vtt->tgtt->proc_tgt_root,
 					   name,
 					   &scst_scsi_tgt_proc_data);

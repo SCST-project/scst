@@ -569,7 +569,7 @@ static void iscsi_set_datasize(struct iscsi_cmnd *cmnd, u32 offset, u32 size)
 	if (size & 3) {
 		u32 last_off = offset + size;
 		int idx = last_off >> PAGE_SHIFT;
-		u8 *p = (u8*)page_address(sg_page(&cmnd->sg[idx])) +
+		u8 *p = (u8 *)page_address(sg_page(&cmnd->sg[idx])) +
 			(last_off & ~PAGE_MASK);
 		int i = 4 - (size & 3);
 		while (i--)
@@ -1137,7 +1137,7 @@ out:
 static int iscsi_pre_exec(struct scst_cmd *scst_cmd)
 {
 	int res = SCST_PREPROCESS_STATUS_SUCCESS;
-	struct iscsi_cmnd *req = (struct iscsi_cmnd*)
+	struct iscsi_cmnd *req = (struct iscsi_cmnd *)
 		scst_cmd_get_tgt_priv(scst_cmd);
 	struct iscsi_cmnd *c, *t;
 
@@ -1299,7 +1299,7 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 	req->dec_active_cmnds = 1;
 
 	scst_cmd = scst_rx_cmd(session->scst_sess,
-		(uint8_t*)&req_hdr->lun, sizeof(req_hdr->lun),
+		(uint8_t *)&req_hdr->lun, sizeof(req_hdr->lun),
 		req_hdr->scb, sizeof(req_hdr->scb), SCST_NON_ATOMIC);
 	if (scst_cmd == NULL) {
 		create_status_rsp(req, SAM_STAT_BUSY, NULL, 0);
@@ -2468,7 +2468,7 @@ static inline void iscsi_set_state_wake_up(struct iscsi_cmnd *req,
 
 static void iscsi_preprocessing_done(struct scst_cmd *scst_cmd)
 {
-	struct iscsi_cmnd *req = (struct iscsi_cmnd*)
+	struct iscsi_cmnd *req = (struct iscsi_cmnd *)
 				scst_cmd_get_tgt_priv(scst_cmd);
 
 	TRACE_DBG("req %p", req);
@@ -2541,7 +2541,7 @@ static void iscsi_try_local_processing(struct iscsi_conn *conn,
 static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 {
 	int is_send_status = scst_cmd_get_is_send_status(scst_cmd);
-	struct iscsi_cmnd *req = (struct iscsi_cmnd*)
+	struct iscsi_cmnd *req = (struct iscsi_cmnd *)
 					scst_cmd_get_tgt_priv(scst_cmd);
 	struct iscsi_conn *conn = req->conn;
 	int status = scst_cmd_get_status(scst_cmd);
@@ -2803,7 +2803,7 @@ static inline int iscsi_get_mgmt_response(int status)
 
 static void iscsi_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 {
-	struct iscsi_cmnd *req = (struct iscsi_cmnd*)
+	struct iscsi_cmnd *req = (struct iscsi_cmnd *)
 				scst_mgmt_cmd_get_tgt_priv(scst_mcmd);
 	int status = iscsi_get_mgmt_response(scst_mgmt_cmd_get_status(scst_mcmd));
 

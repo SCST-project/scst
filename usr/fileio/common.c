@@ -521,7 +521,7 @@ static int do_cached_mem_free(struct vdisk_cmd *vcmd)
 	TRACE_MEM("Cached mem free (cmd %d, buf %"PRIx64")", cmd->cmd_h,
 		cmd->on_cached_mem_free.pbuf);
 
-	free((void*)(unsigned long)cmd->on_cached_mem_free.pbuf);
+	free((void *)(unsigned long)cmd->on_cached_mem_free.pbuf);
 
 	memset(reply, 0, sizeof(*reply));
 	reply->cmd_h = cmd->cmd_h;
@@ -550,7 +550,7 @@ static int do_on_free_cmd(struct vdisk_cmd *vcmd)
 
 	if (!cmd->on_free_cmd.buffer_cached && (cmd->on_free_cmd.pbuf != 0)) {
 		TRACE_MEM("Freeing buf %"PRIx64, cmd->on_free_cmd.pbuf);
-		free((void*)(unsigned long)cmd->on_free_cmd.pbuf);
+		free((void *)(unsigned long)cmd->on_free_cmd.pbuf);
 	}
 
 	memset(reply, 0, sizeof(*reply));
@@ -667,7 +667,7 @@ static int open_dev_fd(struct vdisk_dev *dev)
 void *main_loop(void *arg)
 {
 	int res = 0;
-	struct vdisk_dev *dev = (struct vdisk_dev*)arg;
+	struct vdisk_dev *dev = (struct vdisk_dev *)arg;
 	struct scst_user_get_cmd cmd;
 	struct scst_user_reply_cmd reply;
 	struct vdisk_cmd vcmd = { -1, &cmd, dev, &reply, {0}};
@@ -757,7 +757,7 @@ again_poll:
 		case SCST_USER_EXEC:
 			if (cmd.exec_cmd.data_direction == SCST_DATA_WRITE) {
 				TRACE_BUFFER("Received cmd data",
-					(void*)(unsigned long)cmd.exec_cmd.pbuf,
+					(void *)(unsigned long)cmd.exec_cmd.pbuf,
 					cmd.exec_cmd.bufflen);
 			}
 			res = do_exec(&vcmd);
@@ -769,7 +769,7 @@ again_poll:
 #endif
 			if (reply.exec_reply.resp_data_len != 0) {
 				TRACE_BUFFER("Reply data",
-					(void*)(unsigned long)reply.exec_reply.pbuf,
+					(void *)(unsigned long)reply.exec_reply.pbuf,
 					reply.exec_reply.resp_data_len);
 			}
 			break;
@@ -829,13 +829,13 @@ out:
 	PRINT_INFO("Thread %d exiting (res=%d)", gettid(), res);
 
 	TRACE_EXIT_RES(res);
-	return (void*)(long)res;
+	return (void *)(long)res;
 }
 
 void *prio_loop(void *arg)
 {
 	int res = 0;
-	struct vdisk_dev *dev = (struct vdisk_dev*)arg;
+	struct vdisk_dev *dev = (struct vdisk_dev *)arg;
 	struct scst_user_get_cmd cmd;
 	struct scst_user_reply_cmd reply;
 	struct vdisk_cmd vcmd = { -1, &cmd, dev, &reply, {0}};
@@ -901,7 +901,7 @@ out_close:
 	PRINT_INFO("Prio thread %d exited (res=%d)", gettid(), res);
 
 	TRACE_EXIT_RES(res);
-	return (void*)(long)res;
+	return (void *)(long)res;
 }
 
 static void exec_inquiry(struct vdisk_cmd *vcmd)
@@ -958,7 +958,7 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 				else
 					usn_len = len;
 				buf[3] = usn_len;
-				strncpy((char*)&buf[4], dev->usn, usn_len);
+				strncpy((char *)&buf[4], dev->usn, usn_len);
 			}
 			resp_len = buf[3] + 4;
 		} else if (0x83 == cmd->cdb[2]) { /* device identification */
@@ -1731,7 +1731,7 @@ static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
 		TRACE_DBG("Verify: length %d - len_mem %d", length, len_mem);
 
 		if (!dev->nullio)
-			err = read(fd, (char*)mem_verify, len_mem);
+			err = read(fd, (char *)mem_verify, len_mem);
 		else
 			err = len_mem;
 		if ((err < 0) || (err < len_mem)) {

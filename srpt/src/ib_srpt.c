@@ -815,7 +815,7 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 			if (ret) {
 				srpt_build_cmd_rsp(ch, ioctx, NO_SENSE,
 						   NO_ADD_SENSE, srp_cmd->tag);
-				((struct srp_rsp*)ioctx->buf)->status =
+				((struct srp_rsp *)ioctx->buf)->status =
 					SAM_STAT_TASK_SET_FULL;
 				goto send_rsp;
 			}
@@ -823,7 +823,7 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 			if (indirect_desc) {
 				srpt_build_cmd_rsp(ch, ioctx, NO_SENSE,
 						   NO_ADD_SENSE, srp_cmd->tag);
-				((struct srp_rsp*)ioctx->buf)->status =
+				((struct srp_rsp *)ioctx->buf)->status =
 					SAM_STAT_TASK_SET_FULL;
 				goto send_rsp;
 			}
@@ -843,7 +843,7 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 		if (!scmnd) {
 			srpt_build_cmd_rsp(ch, ioctx, NO_SENSE,
 					   NO_ADD_SENSE, srp_cmd->tag);
-			((struct srp_rsp*)ioctx->buf)->status =
+			((struct srp_rsp *)ioctx->buf)->status =
 				SAM_STAT_TASK_SET_FULL;
 			goto send_rsp;
 		}

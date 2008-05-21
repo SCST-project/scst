@@ -1458,7 +1458,7 @@ void scst_check_retries(struct scst_tgt *tgt)
 
 void scst_tgt_retry_timer_fn(unsigned long arg)
 {
-	struct scst_tgt *tgt = (struct scst_tgt*)arg;
+	struct scst_tgt *tgt = (struct scst_tgt *)arg;
 	unsigned long flags;
 
 	TRACE_RETRY("Retry timer expired (retry_cmds %d)", tgt->retry_cmds);
@@ -1854,16 +1854,16 @@ lun_t scst_unpack_lun(const uint8_t *lun, int len)
 	if (len > 2) {
 		switch (len) {
 		case 8:
-			if ((*((uint64_t*)lun) &
+			if ((*((uint64_t *)lun) &
 			  __constant_cpu_to_be64(0x0000FFFFFFFFFFFFLL)) != 0)
 				goto out_err;
 			break;
 		case 4:
-			if (*((uint16_t*)&lun[2]) != 0)
+			if (*((uint16_t *)&lun[2]) != 0)
 				goto out_err;
 			break;
 		case 6:
-			if (*((uint32_t*)&lun[2]) != 0)
+			if (*((uint32_t *)&lun[2]) != 0)
 				goto out_err;
 			break;
 		default:

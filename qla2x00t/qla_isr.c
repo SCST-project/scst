@@ -1373,7 +1373,7 @@ qla2x00_error_entry(scsi_qla_host_t *ha, sts_entry_t *pkt)
 #if defined(QL_DEBUG_LEVEL_2)
 	if (pkt->entry_status & RF_INV_E_ORDER) {
 		qla_printk(KERN_ERR, ha, "%s: Invalid Entry Order:\n", __func__);
-		qla2x00_dump_buffer((void*)pkt, sizeof(*pkt));
+		qla2x00_dump_buffer((void *)pkt, sizeof(*pkt));
 	} else if (pkt->entry_status & RF_INV_E_COUNT)
 		qla_printk(KERN_ERR, ha, "%s: Invalid Entry Count\n", __func__);
 	else if (pkt->entry_status & RF_INV_E_PARAM)

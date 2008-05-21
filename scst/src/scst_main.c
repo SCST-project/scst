@@ -1630,7 +1630,7 @@ static int __init init_scst(void)
 	for (i = 0; i < (int)ARRAY_SIZE(scst_tasklets); i++) {
 		spin_lock_init(&scst_tasklets[i].tasklet_lock);
 		INIT_LIST_HEAD(&scst_tasklets[i].tasklet_cmd_list);
-		tasklet_init(&scst_tasklets[i].tasklet, (void*)scst_cmd_tasklet,
+		tasklet_init(&scst_tasklets[i].tasklet, (void *)scst_cmd_tasklet,
 			(unsigned long)&scst_tasklets[i]);
 	}
 

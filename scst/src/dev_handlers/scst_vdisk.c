@@ -813,7 +813,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 		if (likely(!virt_dev->rd_only_flag)) {
 			int do_fsync = vdisk_sync_queue_type(cmd->queue_type);
 			struct scst_vdisk_tgt_dev *ftgt_dev =
-				(struct scst_vdisk_tgt_dev*)
+				(struct scst_vdisk_tgt_dev *)
 					cmd->tgt_dev->dh_priv;
 			enum scst_cmd_queue_type last_queue_type =
 				ftgt_dev->last_write_cmd_queue_type;
@@ -848,7 +848,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 		if (likely(!virt_dev->rd_only_flag)) {
 			int do_fsync = vdisk_sync_queue_type(cmd->queue_type);
 			struct scst_vdisk_tgt_dev *ftgt_dev =
-				(struct scst_vdisk_tgt_dev*)
+				(struct scst_vdisk_tgt_dev *)
 					cmd->tgt_dev->dh_priv;
 			enum scst_cmd_queue_type last_queue_type =
 				ftgt_dev->last_write_cmd_queue_type;
@@ -2165,7 +2165,7 @@ restart:
 				eiv_count--;
 			} else {
 				eiv->iov_base =
-					(uint8_t*)eiv->iov_base + err;
+					(uint8_t *)eiv->iov_base + err;
 				eiv->iov_len -= err;
 				break;
 			}
@@ -2439,7 +2439,7 @@ static void vdisk_exec_verify(struct scst_cmd *cmd,
 		TRACE_DBG("Verify: length %zd - len_mem %zd", length, len_mem);
 
 		if (!virt_dev->nullio)
-			err = fd->f_op->read(fd, (char*)mem_verify, len_mem, &fd->f_pos);
+			err = fd->f_op->read(fd, (char *)mem_verify, len_mem, &fd->f_pos);
 		else
 			err = len_mem;
 		if ((err < 0) || (err < len_mem)) {
@@ -3267,7 +3267,7 @@ out:
 
 static int vdisk_help_info_show(struct seq_file *seq, void *v)
 {
-	char *s = (char*)seq->private;
+	char *s = (char *)seq->private;
 
 	TRACE_ENTRY();
 

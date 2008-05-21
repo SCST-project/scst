@@ -143,7 +143,7 @@ qla2x00_show_port_database(struct class_device *cdev, char *buffer)
 	dma_addr_t pmap_dma;
 	port_data_t *pmap;
 	ulong dma_size = 0x100*sizeof(*pmap);
-	pmap = (port_data_t*)dma_alloc_coherent(&ha->pdev->dev, dma_size,
+	pmap = (port_data_t *)dma_alloc_coherent(&ha->pdev->dev, dma_size,
 						&pmap_dma, GFP_KERNEL);
 	if (pmap == NULL) {
 		size = snprintf(buffer, max_size, "DMA Alloc failed of %ld",

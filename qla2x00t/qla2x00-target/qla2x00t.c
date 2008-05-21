@@ -914,7 +914,7 @@ static void q2t_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
 		goto out_unlock;
 	}
 
-	ctio = (ctio_ret_entry_t*)tgt_data.req_pkt(ha);
+	ctio = (ctio_ret_entry_t *)tgt_data.req_pkt(ha);
 	if (ctio == NULL) {
 		PRINT_ERROR("qla2x00tgt(%ld): %s failed: unable to allocate "
 			"request packet", ha->instance, __func__);

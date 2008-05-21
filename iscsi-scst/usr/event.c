@@ -49,7 +49,7 @@ static int nl_write(int fd, void *data, int len)
 	nlh.nlmsg_type = 0;
 
 	memset(&msg, 0, sizeof(msg));
-	msg.msg_name= (void*)&dest_addr;
+	msg.msg_name= (void *)&dest_addr;
 	msg.msg_namelen = sizeof(dest_addr);
 	msg.msg_iov = iov;
 	msg.msg_iovlen = 2;
@@ -69,7 +69,7 @@ static int nl_read(int fd, void *data, int len)
 	iov[1].iov_len = len;
 
 	memset(&msg, 0, sizeof(msg));
-	msg.msg_name= (void*)&src_addr;
+	msg.msg_name= (void *)&src_addr;
 	msg.msg_namelen = sizeof(src_addr);
 	msg.msg_iov = iov;
 	msg.msg_iovlen = 2;

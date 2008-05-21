@@ -264,7 +264,7 @@ static int sgv_alloc_arrays(struct sgv_pool_obj *obj,
 
 	sz = pages_to_alloc * sizeof(obj->sg_entries[0]);
 
-	obj->sg_entries = (struct scatterlist*)kmalloc(sz, gfp_mask);
+	obj->sg_entries = (struct scatterlist *)kmalloc(sz, gfp_mask);
 	if (unlikely(obj->sg_entries == NULL)) {
 		TRACE(TRACE_OUT_OF_MEM, "Allocation of sgv_pool_obj "
 			"SG vector failed (size %d)", sz);
@@ -276,14 +276,14 @@ static int sgv_alloc_arrays(struct sgv_pool_obj *obj,
 
 	if (obj->owner_pool->clustered) {
 		if (order <= sgv_pools_mgr.sgv_max_trans_order) {
-			obj->trans_tbl = (struct trans_tbl_ent*)obj->sg_entries_data;
+			obj->trans_tbl = (struct trans_tbl_ent *)obj->sg_entries_data;
 			/*
 			 * No need to clear trans_tbl, if needed, it will be
 			 * fully rewritten in scst_alloc_sg_entries()
 			 */
 		} else {
 			tsz = pages_to_alloc * sizeof(obj->trans_tbl[0]);
-			obj->trans_tbl = (struct trans_tbl_ent*)kzalloc(tsz, gfp_mask);
+			obj->trans_tbl = (struct trans_tbl_ent *)kzalloc(tsz, gfp_mask);
 			if (unlikely(obj->trans_tbl == NULL)) {
 				TRACE(TRACE_OUT_OF_MEM, "Allocation of trans_tbl "
 					"failed (size %d)", tsz);
@@ -314,7 +314,7 @@ static void sgv_dtor_and_free(struct sgv_pool_obj *obj)
 			obj->sg_count, obj->allocator_priv);
 	}
 	if (obj->sg_entries != obj->sg_entries_data) {
-		if (obj->trans_tbl != (struct trans_tbl_ent*)obj->sg_entries_data) {
+		if (obj->trans_tbl != (struct trans_tbl_ent *)obj->sg_entries_data) {
 			/* kfree() handles NULL parameter */
 			kfree(obj->trans_tbl);
 			obj->trans_tbl = NULL;
@@ -566,7 +566,7 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 			sg_init_table(obj->sg_entries, pages_to_alloc);
 			TRACE_MEM("sg_entries %p", obj->sg_entries);
 			if (pool->clustered) {
-				obj->trans_tbl = (struct trans_tbl_ent*)
+				obj->trans_tbl = (struct trans_tbl_ent *)
 					(obj->sg_entries + pages_to_alloc);
 				TRACE_MEM("trans_tbl %p", obj->trans_tbl);
 				/*
@@ -696,7 +696,7 @@ out_return2:
 
 out_fail_free_sg_entries:
 	if (obj->sg_entries != obj->sg_entries_data) {
-		if (obj->trans_tbl != (struct trans_tbl_ent*)obj->sg_entries_data) {
+		if (obj->trans_tbl != (struct trans_tbl_ent *)obj->sg_entries_data) {
 			/* kfree() handles NULL parameter */
 			kfree(obj->trans_tbl);
 			obj->trans_tbl = NULL;

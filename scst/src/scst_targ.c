@@ -1214,7 +1214,7 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state)
 			int i;
 			struct scatterlist *sg = cmd->sg;
 			TRACE_RECV_TOP("Exec'd %d S/G(s) at %p sg[0].page at "
-				"%p", cmd->sg_cnt, sg, (void*)sg_page(&sg[0]));
+				"%p", cmd->sg_cnt, sg, (void *)sg_page(&sg[0]));
 			for (i = 0; i < cmd->sg_cnt; ++i) {
 				TRACE_BUFF_FLAG(TRACE_RCV_TOP,
 					"Exec'd sg", sg_virt(&sg[i]),
@@ -2571,7 +2571,7 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 			int i;
 			struct scatterlist *sg = cmd->sg;
 			TRACE_SEND_BOT("Xmitting %d S/G(s) at %p sg[0].page at %p",
-			      cmd->sg_cnt, sg, (void*)sg_page(&sg[0]));
+			      cmd->sg_cnt, sg, (void *)sg_page(&sg[0]));
 			for (i = 0; i < cmd->sg_cnt; ++i) {
 				TRACE_BUFF_FLAG(TRACE_SND_BOT,
 				    "Xmitting sg", sg_virt(&sg[i]),
@@ -3239,7 +3239,7 @@ static inline int test_cmd_lists(struct scst_cmd_lists *p_cmd_lists)
 
 int scst_cmd_thread(void *arg)
 {
-	struct scst_cmd_lists *p_cmd_lists = (struct scst_cmd_lists*)arg;
+	struct scst_cmd_lists *p_cmd_lists = (struct scst_cmd_lists *)arg;
 
 	TRACE_ENTRY();
 
@@ -3302,7 +3302,7 @@ int scst_cmd_thread(void *arg)
 
 void scst_cmd_tasklet(long p)
 {
-	struct scst_tasklet *t = (struct scst_tasklet*)p;
+	struct scst_tasklet *t = (struct scst_tasklet *)p;
 
 	TRACE_ENTRY();
 
@@ -4947,7 +4947,7 @@ void scst_unregister_session_ex(struct scst_session *sess, int wait,
 	/* Abort all outstanding commands and clear reservation, if necessary */
 	lun = 0;
 	rc = scst_rx_mgmt_fn_lun(sess, SCST_UNREG_SESS_TM,
-		(uint8_t*)&lun, sizeof(lun), SCST_ATOMIC, NULL);
+		(uint8_t *)&lun, sizeof(lun), SCST_ATOMIC, NULL);
 	if (rc != 0) {
 		PRINT_ERROR("SCST_UNREG_SESS_TM failed %d (sess %p)",
 			rc, sess);

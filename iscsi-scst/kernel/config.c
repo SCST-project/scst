@@ -374,7 +374,7 @@ static int iscsi_check_version(unsigned long arg)
 	char ver[sizeof(ISCSI_SCST_INTERFACE_VERSION)+1];
 	int res;
 
-	res = copy_from_user(ver, (void*)arg, sizeof(ver));
+	res = copy_from_user(ver, (void *)arg, sizeof(ver));
 	if (res < 0) {
 		PRINT_ERROR("%s", "Unable to get version string");
 		goto out;
