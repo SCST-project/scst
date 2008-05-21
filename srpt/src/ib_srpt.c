@@ -346,9 +346,9 @@ static void srpt_mad_recv_handler(struct ib_mad_agent *mad_agent,
 
 	ib_free_send_mad(rsp);
 
-      err_rsp:
+err_rsp:
 	ib_destroy_ah(ah);
-      err:
+err:
 	ib_free_recv_mad(mad_wc);
 }
 
@@ -398,13 +398,13 @@ static int srpt_refresh_port(struct srpt_port *sport)
 
 	return 0;
 
-      err_query_port:
+err_query_port:
 
 	port_modify.set_port_cap_mask = 0;
 	port_modify.clr_port_cap_mask = IB_PORT_DEVICE_MGMT_SUP;
 	ib_modify_port(sport->sdev->device, sport->port, 0, &port_modify);
 
-      err_mod_port:
+err_mod_port:
 
 	return ret;
 }
@@ -428,11 +428,11 @@ static struct srpt_ioctx *srpt_alloc_ioctx(struct srpt_device *sdev)
 
 	return ioctx;
 
-      out_free_buf:
+out_free_buf:
 	kfree(ioctx->buf);
-      out_free_ioctx:
+out_free_ioctx:
 	kfree(ioctx);
-      out:
+out:
 	return NULL;
 }
 
@@ -462,7 +462,7 @@ static int srpt_alloc_ioctx_ring(struct srpt_device *sdev)
 
 	return 0;
 
-      err:
+err:
 	while (--i > 0) {
 		srpt_free_ioctx(sdev, sdev->ioctx_ring[i]);
 		sdev->ioctx_ring[i] = NULL;
@@ -552,7 +552,7 @@ static int srpt_get_desc_tbl(struct srpt_ioctx *ioctx, struct srp_cmd *srp_cmd,
 		memcpy(ioctx->rbufs, db, ioctx->n_rbuf * sizeof *db);
 		ioctx->data_len = be32_to_cpu(idb->len);
 	}
-      out:
+out:
 	return 0;
 }
 
@@ -602,7 +602,7 @@ static int srpt_ch_qp_rtr_rts(struct srpt_rdma_ch *ch, struct ib_qp *qp,
 
 	ret = ib_modify_qp(qp, qp_attr, attr_mask);
 
-      out:
+out:
 	kfree(qp_attr);
 	return ret;
 }
@@ -967,7 +967,7 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 
 	return;
 
-      send_rsp:
+send_rsp:
 	if (ch->state != RDMA_CHANNEL_LIVE ||
 	    srpt_post_send(ch, ioctx,
 			   sizeof(struct srp_rsp) +
@@ -1098,7 +1098,7 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	}
 
 	atomic_set(&ch->req_lim_delta, SRPT_RQ_SIZE);
-      out:
+out:
 	kfree(qp_init);
 	return ret;
 }
@@ -1374,14 +1374,14 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 
 	goto out;
 
-      destroy_ib:
+destroy_ib:
 	ib_destroy_qp(ch->qp);
 	ib_destroy_cq(ch->cq);
 
-      free_ch:
+free_ch:
 	kfree(ch);
 
-      reject:
+reject:
 	rej->opcode = SRP_LOGIN_REJ;
 	rej->tag = req->tag;
 	rej->buf_fmt =
@@ -1390,7 +1390,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	ret = ib_send_cm_rej(cm_id, IB_CM_REJ_CONSUMER_DEFINED, NULL, 0,
 			     (void *)rej, sizeof *rej);
 
-      out:
+out:
 	kfree(rep_param);
 	kfree(rsp);
 	kfree(rej);
@@ -1697,7 +1697,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 
 	return 0;
 
-      free_mem:
+free_mem:
 	while (ioctx->n_rdma)
 		kfree(ioctx->rdma_ius[ioctx->n_rdma--].sge);
 
@@ -1770,7 +1770,7 @@ static int srpt_xfer_data(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 
 	ret = SCST_TGT_RES_SUCCESS;
 
-      out:
+out:
 	return ret;
 }
 
@@ -1887,7 +1887,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 		ret = SCST_TGT_RES_FATAL_ERROR;
 	}
 
-      out:
+out:
 	return ret;
 }
 
@@ -1990,7 +1990,7 @@ static int srpt_detect(struct scst_tgt_template *tp)
 
 		++count;
 	}
-      out:
+out:
 	return count;
 }
 
@@ -2221,19 +2221,19 @@ static void srpt_add_one(struct ib_device *device)
 
 	return;
 
-      err_event:
+err_event:
 	ib_unregister_event_handler(&sdev->event_handler);
-      err_cm:
+err_cm:
 	ib_destroy_cm_id(sdev->cm_id);
-      err_srq:
+err_srq:
 	ib_destroy_srq(sdev->srq);
-      err_mr:
+err_mr:
 	ib_dereg_mr(sdev->mr);
-      err_pd:
+err_pd:
 	ib_dealloc_pd(sdev->pd);
-      err_class:
+err_class:
 	class_device_unregister(&sdev->class_dev);
-      free_dev:
+free_dev:
 	kfree(sdev);
 }
 
@@ -2300,9 +2300,9 @@ static int __init srpt_init_module(void)
 
 	return 0;
 
-      ib_out:
+ib_out:
 	ib_unregister_client(&srpt_client);
-      mem_out:
+mem_out:
 	class_unregister(&srpt_class);
 	return ret;
 }
