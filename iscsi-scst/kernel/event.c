@@ -56,9 +56,9 @@ static void event_recv_skb(struct sk_buff *skb)
 		rlen = NLMSG_ALIGN(nlh->nlmsg_len);
 		if (rlen > skb->len)
 			rlen = skb->len;
-		if ((err = event_recv_msg(skb, nlh))) {
+		if ((err = event_recv_msg(skb, nlh)))
 			netlink_ack(skb, nlh, -err);
-		} else if (nlh->nlmsg_flags & NLM_F_ACK)
+		else if (nlh->nlmsg_flags & NLM_F_ACK)
 			netlink_ack(skb, nlh, 0);
 		skb_pull(skb, rlen);
 	}

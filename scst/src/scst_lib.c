@@ -438,9 +438,8 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	tgt_dev->max_sg_cnt = min(ini_sg, sess->tgt->sg_tablesize);
 
 	if ((sess->tgt->tgtt->use_clustering || ini_use_clustering) &&
-	    !sess->tgt->tgtt->no_clustering) {
+	    !sess->tgt->tgtt->no_clustering)
 		scst_sgv_pool_use_norm_clust(tgt_dev);
-	}
 
 	if (sess->tgt->tgtt->unchecked_isa_dma || ini_unchecked_isa_dma) {
 		scst_sgv_pool_use_dma(tgt_dev);
@@ -455,8 +454,7 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 		      "SCST lun=%Ld", dev->scsi_dev->host->host_no,
 		      dev->scsi_dev->channel, dev->scsi_dev->id,
 		      dev->scsi_dev->lun, (uint64_t)tgt_dev->lun);
-	}
-	else {
+	} else {
 		TRACE_MGMT_DBG("Virtual device %s on SCST lun=%Ld",
 			dev->virt_name, (uint64_t)tgt_dev->lun);
 	}
@@ -834,9 +832,8 @@ int scst_acg_add_name(struct scst_acg *acg, const char *name)
 	list_add_tail(&n->acn_list_entry, &acg->acn_list);
 
 out:
-	if (res == 0) {
+	if (res == 0)
 		PRINT_INFO("Added name %s to group %s", name, acg->acg_name);
-	}
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -1424,8 +1421,7 @@ void scst_check_retries(struct scst_tgt *tgt)
 	 */
 	atomic_inc(&tgt->finished_cmds);
 	smp_mb__after_atomic_inc();
-	if (unlikely(tgt->retry_cmds > 0))
-	{
+	if (unlikely(tgt->retry_cmds > 0)) {
 		struct scst_cmd *c, *tc;
 		unsigned long flags;
 
@@ -2729,9 +2725,8 @@ restart:
 			list_del(&cmd->sn_cmd_list_entry);
 			spin_unlock_irq(&tgt_dev->sn_lock);
 			if (test_and_set_bit(SCST_CMD_CAN_BE_DESTROYED,
-					&cmd->cmd_flags)) {
+					     &cmd->cmd_flags))
 				scst_destroy_put_cmd(cmd);
-			}
 			scst_inc_expected_sn(tgt_dev, slot);
 			expected_sn = tgt_dev->expected_sn;
 			spin_lock_irq(&tgt_dev->sn_lock);
@@ -3163,7 +3158,8 @@ unsigned long scst_random(void)
 	hi = rv / 127773;
 	lo = rv % 127773;
 	rv = 16807 * lo - 2836 * hi;
-	if (rv <= 0) rv += 2147483647;
+	if (rv <= 0)
+		rv += 2147483647;
 	RandomValue = rv;
 	spin_unlock_irqrestore(&lock, flags);
 	return rv;
@@ -3182,8 +3178,7 @@ static void tm_dbg_timer_fn(unsigned long arg);
 
 static spinlock_t scst_tm_dbg_lock = SPIN_LOCK_UNLOCKED;
 /* All serialized by scst_tm_dbg_lock */
-struct
-{
+struct {
 	unsigned int tm_dbg_release:1;
 	unsigned int tm_dbg_blocked:1;
 } tm_dbg_flags;

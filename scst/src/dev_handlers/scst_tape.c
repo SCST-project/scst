@@ -68,8 +68,7 @@
 /* The fixed bit in READ/WRITE/VERIFY */
 #define SILI_BIT            2
 
-struct tape_params
-{
+struct tape_params {
 	int block_size;
 };
 
@@ -342,19 +341,18 @@ int tape_done(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	if ((status == SAM_STAT_GOOD) || (status == SAM_STAT_CONDITION_MET)) {
+	if ((status == SAM_STAT_GOOD) || (status == SAM_STAT_CONDITION_MET))
 		res = scst_tape_generic_dev_done(cmd, tape_set_block_size);
-	} else if ((status == SAM_STAT_CHECK_CONDITION) &&
-		   SCST_SENSE_VALID(cmd->sense))
-	{
+	else if ((status == SAM_STAT_CHECK_CONDITION) &&
+		   SCST_SENSE_VALID(cmd->sense)) {
 		struct tape_params *params;
 		TRACE_DBG("%s", "Extended sense");
 		if (opcode == READ_6 && !(cmd->cdb[1] & SILI_BIT) &&
-		    (cmd->sense[2] & 0xe0)) {	/* EOF, EOM, or ILI */
+		    (cmd->sense[2] & 0xe0)) {
+			/* EOF, EOM, or ILI */
 			int TransferLength, Residue = 0;
-			if ((cmd->sense[2] & 0x0f) == BLANK_CHECK) {
+			if ((cmd->sense[2] & 0x0f) == BLANK_CHECK)
 				cmd->sense[2] &= 0xcf;	/* No need for EOM in this case */
-			}
 			TransferLength = ((cmd->cdb[2] << 16) |
 					  (cmd->cdb[3] << 8) | cmd->cdb[4]);
 			/* Compute the residual count */

@@ -109,11 +109,10 @@ void debug_print_buffer(const char *log_level, const void *data, int len)
 			trace_buf[i++] = '.';
 	}
 	trace_buf[i] = '\0';
-	if (f) {
-		PRINT(log_level, "%s", trace_buf)
-	} else {
+	if (f)
+		PRINT(log_level, "%s", trace_buf);
+	else
 		PRINT(NO_FLAG, "%s", trace_buf);
-	}
 
 	spin_unlock_irqrestore(&trace_buf_lock, flags);
 	return;

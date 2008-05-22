@@ -92,8 +92,7 @@
 /*************************************************************
  ** SCSI task attribute queue types
  *************************************************************/
-enum scst_cmd_queue_type
-{
+enum scst_cmd_queue_type {
 	SCST_CMD_QUEUE_UNTAGGED = 0,
 	SCST_CMD_QUEUE_SIMPLE,
 	SCST_CMD_QUEUE_ORDERED,

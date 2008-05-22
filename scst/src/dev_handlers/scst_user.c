@@ -40,8 +40,7 @@
 #define DEV_USER_DETACH_TIMEOUT		(5*HZ)
 #define DEV_USER_PRE_UNREG_POLL_TIME	(HZ/10)
 
-struct scst_user_dev
-{
+struct scst_user_dev {
 	struct rw_semaphore dev_rwsem;
 
 	struct scst_cmd_lists cmd_lists;
@@ -101,8 +100,7 @@ struct scst_user_dev
 	struct completion cleanup_cmpl;
 };
 
-struct scst_user_pre_unreg_sess_obj
-{
+struct scst_user_pre_unreg_sess_obj {
 	struct scst_tgt_dev *tgt_dev;
 	unsigned int active:1;
 	unsigned int exit:1;
@@ -115,8 +113,7 @@ struct scst_user_pre_unreg_sess_obj
 };
 
 /* Most fields are unprotected, since only one thread at time can access them */
-struct scst_user_cmd
-{
+struct scst_user_cmd {
 	struct scst_cmd *cmd;
 	struct scst_user_dev *dev;
 
@@ -444,9 +441,9 @@ static inline int is_buff_cached(struct scst_user_cmd *ucmd)
 	    ((ucmd->cmd->data_direction == SCST_DATA_READ) &&
 	     (mem_reuse_type == SCST_USER_MEM_REUSE_READ)) ||
 	    ((ucmd->cmd->data_direction == SCST_DATA_WRITE) &&
-	     (mem_reuse_type == SCST_USER_MEM_REUSE_WRITE))) {
+	     (mem_reuse_type == SCST_USER_MEM_REUSE_WRITE)))
 		return 1;
-	} else
+	else
 		return 0;
 }
 
@@ -3175,9 +3172,8 @@ static void __exit exit_scst_user(void)
 	TRACE_ENTRY();
 
 	rc = kthread_stop(cleanup_thread);
-	if (rc < 0) {
+	if (rc < 0)
 		TRACE_MGMT_DBG("kthread_stop() failed: %d", rc);
-	}
 
 	unregister_chrdev(DEV_USER_MAJOR, DEV_USER_NAME);
 	class_device_destroy(dev_user_sysfs_class, MKDEV(DEV_USER_MAJOR, 0));

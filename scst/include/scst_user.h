@@ -86,8 +86,7 @@
 					 UCMD_STATE_RECV_MASK | \
 					 UCMD_STATE_JAMMED_MASK)
 
-struct scst_user_opt
-{
+struct scst_user_opt {
 	uint8_t parse_type;
 	uint8_t on_free_cmd_type;
 	uint8_t memory_reuse_type;
@@ -104,8 +103,7 @@ struct scst_user_opt
 	uint8_t has_own_order_mgmt;
 };
 
-struct scst_user_dev_desc
-{
+struct scst_user_dev_desc {
 	aligned_u64 version_str;
 	uint8_t type;
 	struct scst_user_opt opt;
@@ -113,8 +111,7 @@ struct scst_user_dev_desc
 	char name[SCST_MAX_NAME];
 };
 
-struct scst_user_sess
-{
+struct scst_user_sess {
 	aligned_u64 sess_h;
 	aligned_u64 lun;
 	uint16_t threads_num;
@@ -122,8 +119,7 @@ struct scst_user_sess
 	char initiator_name[SCST_MAX_NAME];
 };
 
-struct scst_user_scsi_cmd_parse
-{
+struct scst_user_scsi_cmd_parse {
 	aligned_u64 sess_h;
 
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
@@ -142,8 +138,7 @@ struct scst_user_scsi_cmd_parse
 	uint32_t sn;
 };
 
-struct scst_user_scsi_cmd_alloc_mem
-{
+struct scst_user_scsi_cmd_alloc_mem {
 	aligned_u64 sess_h;
 
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
@@ -157,8 +152,7 @@ struct scst_user_scsi_cmd_alloc_mem
 	uint32_t sn;
 };
 
-struct scst_user_scsi_cmd_exec
-{
+struct scst_user_scsi_cmd_exec {
 	aligned_u64 sess_h;
 
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
@@ -180,8 +174,7 @@ struct scst_user_scsi_cmd_exec
 	uint32_t partial_offset;
 };
 
-struct scst_user_scsi_on_free_cmd
-{
+struct scst_user_scsi_on_free_cmd {
 	aligned_u64 pbuf;
 	int32_t resp_data_len;
 	uint8_t buffer_cached;
@@ -190,13 +183,11 @@ struct scst_user_scsi_on_free_cmd
 	uint8_t delivery_status;
 };
 
-struct scst_user_on_cached_mem_free
-{
+struct scst_user_on_cached_mem_free {
 	aligned_u64 pbuf;
 };
 
-struct scst_user_tm
-{
+struct scst_user_tm {
 	aligned_u64 sess_h;
 	uint32_t fn;
 	uint32_t cmd_h_to_abort;
@@ -204,8 +195,7 @@ struct scst_user_tm
 	uint8_t cmd_sn_set;
 };
 
-struct scst_user_get_cmd
-{
+struct scst_user_get_cmd {
 	aligned_u64 preply;
 	uint32_t cmd_h;
 	uint32_t subcode;
@@ -220,21 +210,18 @@ struct scst_user_get_cmd
 	};
 };
 
-struct scst_user_scsi_cmd_reply_parse
-{
+struct scst_user_scsi_cmd_reply_parse {
 	uint8_t queue_type;
 	uint8_t data_direction;
 	int32_t data_len;
 	int32_t bufflen;
 };
 
-struct scst_user_scsi_cmd_reply_alloc_mem
-{
+struct scst_user_scsi_cmd_reply_alloc_mem {
 	aligned_u64 pbuf;
 };
 
-struct scst_user_scsi_cmd_reply_exec
-{
+struct scst_user_scsi_cmd_reply_exec {
 	int32_t resp_data_len;
 	aligned_u64 pbuf;
 
@@ -247,8 +234,7 @@ struct scst_user_scsi_cmd_reply_exec
 	aligned_u64 psense_buffer;
 };
 
-struct scst_user_reply_cmd
-{
+struct scst_user_reply_cmd {
 	uint32_t cmd_h;
 	uint32_t subcode;
 	union {

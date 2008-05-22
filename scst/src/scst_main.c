@@ -147,8 +147,7 @@ module_param_named(scst_max_cmd_mem, scst_max_cmd_mem, long, 0);
 MODULE_PARM_DESC(scst_max_cmd_mem, "Maximum memory allowed to be consumed by "
 	"the SCST commands at any given time in MB");
 
-struct scst_dev_type scst_null_devtype =
-{
+struct scst_dev_type scst_null_devtype = {
 	.name = "none",
 };
 
@@ -542,8 +541,7 @@ out_up:
 		    "scsi%d, channel %d, id %d, lun %d, type %d",
 		    scsidp->host->host_no, scsidp->channel, scsidp->id,
 		    scsidp->lun, scsidp->type);
-	}
-	else {
+	} else {
 		PRINT_ERROR("Failed to attach SCSI target mid-level "
 		    "at scsi%d, channel %d, id %d, lun %d, type %d",
 		    scsidp->host->host_no, scsidp->channel, scsidp->id,
@@ -696,8 +694,7 @@ out:
 	if (res > 0) {
 		PRINT_INFO("Attached SCSI target mid-level to virtual "
 		    "device %s (id %d)", dev_name, dev->virt_id);
-	}
-	else {
+	} else {
 		PRINT_INFO("Failed to attach SCSI target mid-level to "
 		    "virtual device %s", dev_name);
 	}
@@ -807,9 +804,8 @@ int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 		goto out_up;
 
 	res = scst_build_proc_dev_handler_dir_entries(dev_type);
-	if (res < 0) {
+	if (res < 0)
 		goto out_up;
-	}
 
 	list_add_tail(&dev_type->dev_type_list_entry, &scst_dev_type_list);
 
@@ -1033,9 +1029,8 @@ void scst_del_dev_threads(struct scst_device *dev, int num)
 	list_for_each_entry_safe(ct, tmp, &dev->threads_list,
 				thread_list_entry) {
 		int rc = kthread_stop(ct->cmd_thread);
-		if (rc < 0) {
+		if (rc < 0)
 			TRACE_MGMT_DBG("kthread_stop() failed: %d", rc);
-		}
 		list_del(&ct->thread_list_entry);
 		kfree(ct);
 		if ((num > 0) && (++i >= num))
@@ -1204,9 +1199,8 @@ void __scst_del_cmd_threads(int num)
 		int res;
 
 		res = kthread_stop(ct->cmd_thread);
-		if (res < 0) {
+		if (res < 0)
 			TRACE_MGMT_DBG("kthread_stop() failed: %d", res);
-		}
 		list_del(&ct->thread_list_entry);
 		kfree(ct);
 		scst_threads_info.nr_cmd_threads--;
@@ -1553,7 +1547,10 @@ static int __init init_scst(void)
 		p = KMEM_CACHE(s, SCST_SLAB_FLAGS);			\
 		TRACE_MEM("Slab create: %s at %p size %zd", #s, p,	\
 			  sizeof(struct s));				\
-		if (p == NULL) { res = -ENOMEM; goto o; }		\
+		if (p == NULL) {					\
+			res = -ENOMEM;					\
+			goto o;						\
+		}							\
 	} while (0)
 
 	INIT_CACHEP(scst_mgmt_cachep, scst_mgmt_cmd, out);

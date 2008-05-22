@@ -63,8 +63,7 @@
 
 #define MODISK_DEF_BLOCK_SHIFT    10
 
-struct modisk_params
-{
+struct modisk_params {
 	int block_shift;
 };
 
@@ -175,8 +174,7 @@ int modisk_attach(struct scst_device *dev)
 	 * If the device is offline, don't try to read capacity or any
 	 * of the other stuff
 	 */
-	if (dev->scsi_dev->sdev_state == SDEV_OFFLINE)
-	{
+	if (dev->scsi_dev->sdev_state == SDEV_OFFLINE) {
 		TRACE_DBG("%s", "Device is offline");
 		res = -ENODEV;
 		goto out_free_params;

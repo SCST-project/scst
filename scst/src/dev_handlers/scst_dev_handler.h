@@ -96,9 +96,8 @@ static void scst_dev_handler_destroy_std_proc(struct scst_dev_type *dev_type)
 	TRACE_ENTRY();
 
 	root = scst_proc_get_dev_type_root(dev_type);
-	if (root) {
+	if (root)
 		remove_proc_entry(DEV_HANDLER_LOG_ENTRY_NAME, root);
-	}
 
 	TRACE_EXIT();
 #endif

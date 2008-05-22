@@ -63,8 +63,7 @@
 
 #define DISK_DEF_BLOCK_SHIFT	9
 
-struct disk_params
-{
+struct disk_params {
 	int block_shift;
 };
 
@@ -196,9 +195,7 @@ int disk_attach(struct scst_device *dev)
 		TRACE_DBG("READ_CAPACITY done: %x", res);
 
 		if (!res || (sbuff[12] != 0x28 && sbuff[12] != 0x29))
-		{
 			break;
-		}
 		if (!--retries) {
 			PRINT_ERROR("UA not clear after %d retries",
 				SCST_DEV_UA_RETRIES);

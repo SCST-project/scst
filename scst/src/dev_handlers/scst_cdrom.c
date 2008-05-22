@@ -44,8 +44,7 @@
 
 #define CDROM_DEF_BLOCK_SHIFT	11
 
-struct cdrom_params
-{
+struct cdrom_params {
 	int block_shift;
 };
 

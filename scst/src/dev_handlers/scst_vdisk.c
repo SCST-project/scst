@@ -1125,13 +1125,15 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 		len = scnprintf(dev_id_str, 6, "%d", dev_id_num);
 		TRACE_DBG("num %d, str <%s>, len %d",
 			   dev_id_num, dev_id_str, len);
-		if (0 == cmd->cdb[2]) { /* supported vital product data pages */
+		if (0 == cmd->cdb[2]) {
+			/* supported vital product data pages */
 			buf[3] = 3;
 			buf[4] = 0x0; /* this page */
 			buf[5] = 0x80; /* unit serial number */
 			buf[6] = 0x83; /* device identification */
 			resp_len = buf[3] + 4;
-		} else if (0x80 == cmd->cdb[2]) { /* unit serial number */
+		} else if (0x80 == cmd->cdb[2]) {
+			/* unit serial number */
 			buf[1] = 0x80;
 			if (virt_dev->usn == NULL) {
 				buf[3] = MAX_USN_LEN;
@@ -1147,7 +1149,8 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 				strncpy(&buf[4], virt_dev->usn, usn_len);
 			}
 			resp_len = buf[3] + 4;
-		} else if (0x83 == cmd->cdb[2]) { /* device identification */
+		} else if (0x83 == cmd->cdb[2]) {
+			/* device identification */
 			int num = 4;
 
 			buf[1] = 0x83;
@@ -1439,7 +1442,8 @@ static void vdisk_exec_mode_sense(struct scst_cmd *cmd)
 		offset = 8;
 	}
 
-	if (0 != subpcode) { /* TODO: Control Extension page */
+	if (0 != subpcode) {
+		/* TODO: Control Extension page */
 		TRACE_DBG("%s", "MODE SENSE: Only subpage 0 is supported");
 		scst_set_cmd_error(cmd,
 		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
@@ -1583,11 +1587,10 @@ static void vdisk_exec_mode_select(struct scst_cmd *cmd)
 		goto out_put;
 	}
 
-	if (mselect_6) {
+	if (mselect_6)
 		offset = 4;
-	} else {
+	else
 		offset = 8;
-	}
 
 	if (address[offset - 1] == 8) {
 		offset += 8;
@@ -1606,7 +1609,8 @@ static void vdisk_exec_mode_select(struct scst_cmd *cmd)
 				scst_sense_invalid_field_in_parm_list));
 			goto out_put;
 		}
-		if ((address[offset] & 0x3f) == 0x8) {	/* Caching page */
+		if ((address[offset] & 0x3f) == 0x8) {
+			/* Caching page */
 			if (address[offset + 1] != 18) {
 				PRINT_ERROR("%s", "MODE SELECT: Invalid "
 					"caching page request");
@@ -1625,7 +1629,8 @@ static void vdisk_exec_mode_select(struct scst_cmd *cmd)
        * It's too early to implement it, since we can't control the backstorage
        * device parameters. ToDo
        */
-		} else if ((address[offset] & 0x3f) == 0xA) {	/* Control page */
+		} else if ((address[offset] & 0x3f) == 0xA) {
+			/* Control page */
 			if (address[offset + 1] != 0xA) {
 				PRINT_ERROR("%s", "MODE SELECT: Invalid "
 					"control page request");
@@ -1742,7 +1747,7 @@ static void vdisk_exec_read_capacity16(struct scst_cmd *cmd)
 	buffer[4] = (nblocks >> 24) & 0xFF;
 	buffer[5] = (nblocks >> 16) & 0xFF;
 	buffer[6] = (nblocks >> 8) & 0xFF;
-	buffer[7] = nblocks& 0xFF;
+	buffer[7] = nblocks & 0xFF;
 
 	buffer[8] = (blocksize >> (BYTE * 3)) & 0xFF;
 	buffer[9] = (blocksize >> (BYTE * 2)) & 0xFF;
@@ -1822,16 +1827,14 @@ static void vdisk_exec_read_toc(struct scst_cmd *cmd)
 	buffer[2] = 0x01;    /* First Track/Session */
 	buffer[3] = 0x01;    /* Last Track/Session */
 	off = 4;
-	if (cmd->cdb[6] <= 1)
-	{
+	if (cmd->cdb[6] <= 1) {
 		/* Fistr TOC Track Descriptor */
 		buffer[off+1] = 0x14; /* ADDR    0x10 - Q Sub-channel encodes current position data
 					 CONTROL 0x04 - Data track, recoreded uninterrupted */
 		buffer[off+2] = 0x01; /* Track Number */
 		off += 8;
 	}
-	if (!(cmd->cdb[2] & 0x01))
-	{
+	if (!(cmd->cdb[2] & 0x01)) {
 		/* Lead-out area TOC Track Descriptor */
 		buffer[off+1] = 0x14;
 		buffer[off+2] = 0xAA;     /* Track Number */
@@ -2021,11 +2024,10 @@ static void vdisk_exec_read(struct scst_cmd *cmd,
 		err = full_len;
 	else {
 		/* SEEK */
-		if (fd->f_op->llseek) {
+		if (fd->f_op->llseek)
 			err = fd->f_op->llseek(fd, loff, 0/*SEEK_SET*/);
-		} else {
+		else
 			err = default_llseek(fd, loff, 0/*SEEK_SET*/);
-		}
 		if (err != loff) {
 			PRINT_ERROR("lseek trouble %Ld != %Ld", (uint64_t)err,
 				(uint64_t)loff);
@@ -2112,11 +2114,10 @@ restart:
 		err = full_len;
 	else {
 		/* SEEK */
-		if (fd->f_op->llseek) {
+		if (fd->f_op->llseek)
 			err = fd->f_op->llseek(fd, loff, 0 /*SEEK_SET */);
-		} else {
+		else
 			err = default_llseek(fd, loff, 0 /*SEEK_SET */);
-		}
 		if (err != loff) {
 			PRINT_ERROR("lseek trouble %Ld != %Ld", (uint64_t)err,
 				(uint64_t)loff);
@@ -2404,11 +2405,10 @@ static void vdisk_exec_verify(struct scst_cmd *cmd,
 	set_fs(get_ds());
 
 	if (!virt_dev->nullio) {
-		if (fd->f_op->llseek) {
+		if (fd->f_op->llseek)
 			err = fd->f_op->llseek(fd, loff, 0/*SEEK_SET*/);
-		} else {
+		else
 			err = default_llseek(fd, loff, 0/*SEEK_SET*/);
-		}
 		if (err != loff) {
 			PRINT_ERROR("lseek trouble %Ld != %Ld", (uint64_t)err,
 				(uint64_t)loff);
@@ -2658,9 +2658,8 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 	}
 
 	p = buffer;
-	if (p[strlen(p) - 1] == '\n') {
+	if (p[strlen(p) - 1] == '\n')
 		p[strlen(p) - 1] = '\0';
-	}
 	if (!strncmp("close ", p, 6)) {
 		p += 6;
 		action = 0;
@@ -2690,7 +2689,8 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 		goto out_up;
 	}
 
-	if (action) {                      /* open */
+	if (action) {
+		/* open */
 		virt_dev = NULL;
 		list_for_each_entry(vv, &vdisk_dev_list,
 					vdisk_dev_list_entry)
@@ -3089,11 +3089,10 @@ static int vcdrom_change(char *p, char *name)
 		/* seek to end */
 		old_fs = get_fs();
 		set_fs(get_ds());
-		if (fd->f_op->llseek) {
+		if (fd->f_op->llseek)
 			err = fd->f_op->llseek(fd, 0, 2/*SEEK_END*/);
-		} else {
+		else
 			err = default_llseek(fd, 0, 2/*SEEK_END*/);
-		}
 		set_fs(old_fs);
 		filp_close(fd, NULL);
 		if (err < 0) {
@@ -3207,9 +3206,8 @@ static int vcdrom_write_proc(char *buffer, char **start, off_t offset,
 	}
 
 	p = buffer;
-	if (p[strlen(p) - 1] == '\n') {
+	if (p[strlen(p) - 1] == '\n')
 		p[strlen(p) - 1] = '\0';
-	}
 	if (!strncmp("close ", p, 6)) {
 		p += 6;
 		action = 0;
@@ -3242,15 +3240,18 @@ static int vcdrom_write_proc(char *buffer, char **start, off_t offset,
 		goto out_up;
 	}
 
-	if (action == 2) {                      /* open */
+	if (action == 2) {
+		/* open */
 		res = vcdrom_open(p, name);
 		if (res != 0)
 			goto out_up;
-	} else if (action == 1) {          /* change */
+	} else if (action == 1) {
+		/* change */
 		res = vcdrom_change(p, name);
 		if (res != 0)
 			goto out_up;
-	} else {                           /* close */
+	} else {
+		/* close */
 		res = vcdrom_close(name);
 		if (res != 0)
 			goto out_up;

@@ -181,8 +181,7 @@ extern struct list_head scst_active_mgmt_cmd_list;
 extern struct list_head scst_delayed_mgmt_cmd_list;
 extern wait_queue_head_t scst_mgmt_cmd_list_waitQ;
 
-struct scst_tasklet
-{
+struct scst_tasklet {
 	spinlock_t tasklet_lock;
 	struct list_head tasklet_cmd_list;
 	struct tasklet_struct tasklet;

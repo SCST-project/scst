@@ -76,8 +76,7 @@ int changer_attach(struct scst_device *dev)
 	 * If the device is offline, don't try to read capacity or any
 	 * of the other stuff
 	 */
-	if (dev->scsi_dev->sdev_state == SDEV_OFFLINE)
-	{
+	if (dev->scsi_dev->sdev_state == SDEV_OFFLINE) {
 		TRACE_DBG("%s", "Device is offline");
 		res = -ENODEV;
 		goto out;
@@ -150,11 +149,10 @@ int changer_parse(struct scst_cmd *cmd)
 
 	cmd->retries = SCST_PASSTHROUGH_RETRIES;
 
-	if (cmd->op_flags & SCST_LONG_TIMEOUT) {
+	if (cmd->op_flags & SCST_LONG_TIMEOUT)
 		cmd->timeout = CHANGER_LONG_TIMEOUT;
-	} else {
+	else
 		cmd->timeout = CHANGER_TIMEOUT;
-	}
 
 	return res;
 }

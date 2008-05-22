@@ -148,12 +148,10 @@ extern void debug_print_buffer(const char *log_level, const void *data,
 
 #define TRACE(trace, format, args...)					  \
 do {									  \
-	if (___unlikely(trace_flag & (trace)))				  \
-	{								  \
+	if (___unlikely(trace_flag & (trace))) {			  \
 		char *__tflag = LOG_FLAG;				  \
 		if (debug_print_prefix(trace_flag, __tflag, __LOG_PREFIX, \
-				__FUNCTION__, __LINE__) > 0)	  \
-		{							  \
+				       __FUNCTION__, __LINE__) > 0) {	  \
 			__tflag = NO_FLAG;				  \
 		}							  \
 		PRINT(NO_FLAG, "%s" format, __tflag, args);		  \
@@ -168,12 +166,10 @@ do {                                                                \
 
 #define PRINT_BUFF_FLAG(flag, message, buff, len)			\
 do {									\
-	if (___unlikely(trace_flag & (flag)))				\
-	{								\
+	if (___unlikely(trace_flag & (flag))) {				\
 		char *__tflag = INFO_FLAG;				\
 		if (debug_print_prefix(trace_flag, __tflag, NULL, __FUNCTION__,\
-				__LINE__) > 0)			\
-		{							\
+				       __LINE__) > 0) {			\
 			__tflag = NO_FLAG;				\
 		}							\
 		PRINT(NO_FLAG, "%s%s:", __tflag, message);		\
@@ -193,12 +189,10 @@ do {									\
 
 #define __TRACE(trace, format, args...)					\
 do {									\
-	if (trace_flag & (trace))					\
-	{								\
+	if (trace_flag & (trace)) {						\
 		char *__tflag = LOG_FLAG;				\
 		if (debug_print_prefix(trace_flag, __tflag, NULL, __FUNCTION__,\
-				__LINE__) > 0)			\
-		{							\
+				       __LINE__) > 0) {			\
 			__tflag = NO_FLAG;				\
 		}							\
 		PRINT(NO_FLAG, "%s" format, __tflag, args);		\
@@ -214,12 +208,10 @@ do {									\
 
 #define TRACE_BUFFER(message, buff, len)				\
 do {									\
-	if (trace_flag & TRACE_BUFF)					\
-	{								\
+	if (trace_flag & TRACE_BUFF) {					\
 		char *__tflag = LOG_FLAG;				\
 		if (debug_print_prefix(trace_flag, __tflag, NULL, __FUNCTION__, \
-				 __LINE__) > 0)				\
-		{							\
+				       __LINE__) > 0) {			\
 			__tflag = NO_FLAG;				\
 		}							\
 		PRINT(NO_FLAG, "%s%s:", __tflag, message);		\
@@ -229,12 +221,10 @@ do {									\
 
 #define TRACE_BUFF_FLAG(flag, message, buff, len)			\
 do {									\
-	if (trace_flag & (flag))					\
-	{								\
+	if (trace_flag & (flag)) {						\
 		char *__tflag = LOG_FLAG;				\
 		if (debug_print_prefix(trace_flag, __tflag, NULL, __FUNCTION__, \
-				__LINE__) > 0)				\
-		{							\
+				       __LINE__) > 0) {			\
 			__tflag = NO_FLAG;				\
 		}							\
 		PRINT(NO_FLAG, "%s%s:", __tflag, message);		\
@@ -246,8 +236,7 @@ do {									\
 do {									\
 	char *__tflag = log_flag;					\
 	if (debug_print_prefix(trace_flag, __tflag, __LOG_PREFIX,	\
-			__FUNCTION__, __LINE__) > 0)			\
-	{								\
+			       __FUNCTION__, __LINE__) > 0) {		\
 		__tflag = NO_FLAG;					\
 	}								\
 	PRINT(NO_FLAG, "%s" format, __tflag, args);			\
@@ -255,8 +244,7 @@ do {									\
 
 #define PRINT_ERROR(format, args...)					\
 do {									\
-	if (strcmp(ERROR_FLAG, LOG_FLAG))				\
-	{								\
+	if (strcmp(ERROR_FLAG, LOG_FLAG)) {				\
 		PRINT_LOG_FLAG(LOG_FLAG, "***ERROR*** " format, args);	\
 	}								\
 	PRINT_LOG_FLAG(ERROR_FLAG, "***ERROR*** " format, args);	\
@@ -273,8 +261,7 @@ do {									\
 
 #define PRINT_INFO(format, args...)			\
 do {							\
-	if (strcmp(INFO_FLAG, LOG_FLAG))		\
-	{						\
+	if (strcmp(INFO_FLAG, LOG_FLAG)) {		\
 		PRINT_LOG_FLAG(LOG_FLAG, format, args);	\
 	}						\
 	PRINT_LOG_FLAG(INFO_FLAG, format, args);	\
@@ -282,14 +269,12 @@ do {							\
 
 #define TRACE_ENTRY()							\
 do {									\
-	if (trace_flag & TRACE_ENTRYEXIT)				\
-	{								\
-		if (trace_flag & TRACE_PID)				\
-		{							\
+	if (trace_flag & TRACE_ENTRYEXIT) {				\
+		if (trace_flag & TRACE_PID) {				\
 			PRINT(LOG_FLAG, "[%d]: ENTRY %s", current->pid, \
 				__FUNCTION__);				\
 		}							\
-		else							\
+		else {							\
 		{							\
 			PRINT(LOG_FLAG, "ENTRY %s", __FUNCTION__);	\
 		}							\
@@ -298,15 +283,12 @@ do {									\
 
 #define TRACE_EXIT()							\
 do {									\
-	if (trace_flag & TRACE_ENTRYEXIT)				\
-	{								\
-		if (trace_flag & TRACE_PID)				\
-		{							\
+	if (trace_flag & TRACE_ENTRYEXIT) {				\
+		if (trace_flag & TRACE_PID) {				\
 			PRINT(LOG_FLAG, "[%d]: EXIT %s", current->pid,	\
 				__FUNCTION__);				\
 		}							\
-		else							\
-		{							\
+		else {							\
 			PRINT(LOG_FLAG, "EXIT %s", __FUNCTION__);	\
 		}							\
 	}								\
@@ -314,15 +296,12 @@ do {									\
 
 #define TRACE_EXIT_RES(res)						\
 do {									\
-	if (trace_flag & TRACE_ENTRYEXIT)				\
-	{								\
-		if (trace_flag & TRACE_PID)				\
-		{							\
+	if (trace_flag & TRACE_ENTRYEXIT) {				\
+		if (trace_flag & TRACE_PID) {				\
 			PRINT(LOG_FLAG, "[%d]: EXIT %s: %ld", current->pid, \
 				__FUNCTION__, (long)(res));		\
 		}							\
-		else							\
-		{							\
+		else {							\
 			PRINT(LOG_FLAG, "EXIT %s: %ld", __FUNCTION__, (long)(res)); \
 		}							\
 	}                                                               \
@@ -330,15 +309,12 @@ do {									\
 
 #define TRACE_EXIT_HRES(res)						\
 do {									\
-	if (trace_flag & TRACE_ENTRYEXIT)				\
-	{								\
-		if (trace_flag & TRACE_PID)				\
-		{							\
+	if (trace_flag & TRACE_ENTRYEXIT) {				\
+		if (trace_flag & TRACE_PID) {				\
 			PRINT(LOG_FLAG, "[%d]: EXIT %s: 0x%lx", current->pid, \
 				__FUNCTION__, (long)(res));		\
 		}							\
-		else							\
-		{							\
+		else {							\
 			PRINT(LOG_FLAG, "EXIT %s: %lx", __FUNCTION__, (long)(res)); \
 		}							\
 	}                                                               \

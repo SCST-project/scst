@@ -30,8 +30,7 @@ struct trans_tbl_ent {
 	unsigned short pg_count;
 };
 
-struct sgv_pool_obj
-{
+struct sgv_pool_obj {
 	int order;
 
 	struct {
@@ -50,30 +49,26 @@ struct sgv_pool_obj
 	struct scatterlist sg_entries_data[0];
 };
 
-struct sgv_pool_acc
-{
+struct sgv_pool_acc {
 	u32 cached_pages, cached_entries;
 	atomic_t big_alloc, other_alloc;
 	atomic_t big_pages, other_pages;
 	atomic_t big_merged, other_merged;
 };
 
-struct sgv_pool_cache_acc
-{
+struct sgv_pool_cache_acc {
 	atomic_t total_alloc, hit_alloc;
 	atomic_t merged;
 };
 
-struct sgv_pool_alloc_fns
-{
+struct sgv_pool_alloc_fns {
 	struct page *(*alloc_pages_fn)(struct scatterlist *sg, gfp_t gfp_mask,
 		void *priv);
 	void (*free_pages_fn)(struct scatterlist *sg, int sg_count,
 		void *priv);
 };
 
-struct sgv_pool
-{
+struct sgv_pool {
 	unsigned int clustered;
 	struct sgv_pool_alloc_fns alloc_fns;
 	/* 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048 */
@@ -89,8 +84,7 @@ struct sgv_pool
 	struct list_head sgv_pool_list_entry;
 };
 
-struct scst_sgv_pools_manager
-{
+struct scst_sgv_pools_manager {
 	struct {
 		struct sgv_pool norm_clust, norm;
 		struct sgv_pool dma;

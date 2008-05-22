@@ -201,8 +201,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context)
 
 #ifdef EXTRACHECKS
 	if (unlikely(in_irq()) && ((pref_context == SCST_CONTEXT_DIRECT) ||
-			 (pref_context == SCST_CONTEXT_DIRECT_ATOMIC)))
-	{
+			 (pref_context == SCST_CONTEXT_DIRECT_ATOMIC))) {
 		PRINT_ERROR("Wrong context %d in IRQ from target %s, use "
 			"SCST_CONTEXT_TASKLET instead\n", pref_context,
 			cmd->tgtt->name);
@@ -962,8 +961,7 @@ void scst_rx_data(struct scst_cmd *cmd, int status, int pref_context)
 
 #ifdef EXTRACHECKS
 	if (in_irq() && ((pref_context == SCST_CONTEXT_DIRECT) ||
-			 (pref_context == SCST_CONTEXT_DIRECT_ATOMIC)))
-	{
+			 (pref_context == SCST_CONTEXT_DIRECT_ATOMIC))) {
 		PRINT_ERROR("Wrong context %d in IRQ from target %s, use "
 			"SCST_CONTEXT_TASKLET instead\n", pref_context,
 			cmd->tgtt->name);
@@ -1228,8 +1226,7 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state)
 #ifdef EXTRACHECKS
 	if ((next_state != SCST_CMD_STATE_PRE_DEV_DONE) &&
 	    (next_state != SCST_CMD_STATE_PRE_XMIT_RESP) &&
-	    (next_state != SCST_CMD_STATE_FINISHED))
-	{
+	    (next_state != SCST_CMD_STATE_FINISHED)) {
 		PRINT_ERROR("scst_cmd_done_local() received invalid cmd "
 			    "state %d (opcode %d)", next_state, cmd->cdb[0]);
 		scst_set_cmd_error(cmd,
@@ -2390,8 +2387,7 @@ static int scst_dev_done(struct scst_cmd *cmd)
 
 	state = SCST_CMD_STATE_PRE_XMIT_RESP;
 	if (likely(!scst_is_cmd_local(cmd)) &&
-	    likely(cmd->dev->handler->dev_done != NULL))
-	{
+	    likely(cmd->dev->handler->dev_done != NULL)) {
 		int rc;
 		TRACE_DBG("Calling dev handler %s dev_done(%p)",
 		      cmd->dev->handler->name, cmd);

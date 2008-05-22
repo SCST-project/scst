@@ -54,8 +54,7 @@ static int get_trans_len_read_pos(struct scst_cmd *cmd, uint8_t off);
 #define SCST_CDB_RESERVED   'R'	/* reserved  */
 #define SCST_CDB_NOTSUPP    ' '	/* don't use */
 
-struct scst_sdbops
-{
+struct scst_sdbops {
 	uint8_t ops;		/* SCSI-2 op codes */
 	uint8_t devkey[16];	/* Key for every device type M,O,V,R
 				 * type_disk      devkey[0]

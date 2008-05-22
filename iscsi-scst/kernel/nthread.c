@@ -253,18 +253,18 @@ static void close_conn(struct iscsi_conn *conn)
 		if (!list_empty(&session->pending_list)) {
 			struct list_head *pending_list = &session->pending_list;
 			int req_freed;
-			
+
 			TRACE_CONN_CLOSE_DBG("Disposing pending commands on "
 					     "connection %p (conn_ref_cnt=%d)", conn,
 					     atomic_read(&conn->conn_ref_cnt));
-			
+
 			/*
 			 * Such complicated approach currently isn't necessary,
 			 * but it will be necessary for MC/S, if we won't want
 			 * to reestablish the whole session on a connection
 			 * failure.
 			 */
-		
+
 			spin_lock(&session->sn_lock);
 			do {
 				req_freed = 0;
@@ -976,46 +976,51 @@ static int write_data(struct iscsi_conn *conn)
 	iop = conn->write_iop;
 	count = conn->write_iop_used;
 
-	if (iop) while (1) {
-		loff_t off = 0;
-		int rest;
+	if (iop) {
+		while (1) {
+			loff_t off = 0;
+			int rest;
 
-		sBUG_ON(count > sizeof(conn->write_iov)/sizeof(conn->write_iov[0]));
-retry:
-		oldfs = get_fs();
-		set_fs(KERNEL_DS);
-		res = vfs_writev(file, (struct iovec __user *)iop, count, &off);
-		set_fs(oldfs);
-		TRACE_WRITE("%#Lx:%u: %d(%ld)", conn->session->sid, conn->cid,
-			res, (long)iop->iov_len);
-		if (unlikely(res <= 0)) {
-			if (res == -EAGAIN) {
-				conn->write_iop = iop;
-				conn->write_iop_used = count;
+			sBUG_ON(count > sizeof(conn->write_iov)
+					/ sizeof(conn->write_iov[0]));
+ retry:
+			oldfs = get_fs();
+			set_fs(KERNEL_DS);
+			res = vfs_writev(file, (struct iovec __user *)iop,
+					 count, &off);
+			set_fs(oldfs);
+			TRACE_WRITE("%#Lx:%u: %d(%ld)", conn->session->sid,
+				    conn->cid,
+				    res, (long)iop->iov_len);
+			if (unlikely(res <= 0)) {
+				if (res == -EAGAIN) {
+					conn->write_iop = iop;
+					conn->write_iop_used = count;
+					goto out_iov;
+				} else if (res == -EINTR)
+					goto retry;
+				goto out_err;
+			}
+
+			rest = res;
+			size -= res;
+			while (iop->iov_len <= rest && rest) {
+				rest -= iop->iov_len;
+				iop++;
+				count--;
+			}
+			if (count == 0) {
+				conn->write_iop = NULL;
+				conn->write_iop_used = 0;
+				if (size)
+					break;
 				goto out_iov;
-			} else if (res == -EINTR)
-				goto retry;
-			goto out_err;
+			}
+			sBUG_ON(iop > conn->write_iov + sizeof(conn->write_iov)
+						  /sizeof(conn->write_iov[0]));
+			iop->iov_base += rest;
+			iop->iov_len -= rest;
 		}
-
-		rest = res;
-		size -= res;
-		while (iop->iov_len <= rest && rest) {
-			rest -= iop->iov_len;
-			iop++;
-			count--;
-		}
-		if (count == 0) {
-			conn->write_iop = NULL;
-			conn->write_iop_used = 0;
-			if (size)
-				break;
-			goto out_iov;
-		}
-		sBUG_ON(iop > conn->write_iov +
-			sizeof(conn->write_iov)/sizeof(conn->write_iov[0]));
-		iop->iov_base += rest;
-		iop->iov_len -= rest;
 	}
 
 	sg = write_cmnd->sg;

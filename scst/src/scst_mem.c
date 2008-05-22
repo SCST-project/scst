@@ -809,9 +809,8 @@ void scst_free(struct scatterlist *sg, int count)
 static void sgv_pool_cached_init(struct sgv_pool *pool)
 {
 	int i;
-	for (i = 0; i < SGV_POOL_ELEMENTS; i++) {
+	for (i = 0; i < SGV_POOL_ELEMENTS; i++)
 		INIT_LIST_HEAD(&pool->recycling_lists[i]);
-	}
 }
 
 int sgv_pool_init(struct sgv_pool *pool, const char *name, int clustered)

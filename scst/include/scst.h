@@ -411,8 +411,7 @@ typedef uint64_t lun_t;
 
 typedef enum dma_data_direction scst_data_direction;
 
-enum scst_cdb_flags
-{
+enum scst_cdb_flags {
 	SCST_TRANSFER_LEN_TYPE_FIXED = 0x01, /* must be equviv 1 (FIXED_BIT in cdb) */
 	SCST_SMALL_TIMEOUT = 0x02,
 	SCST_LONG_TIMEOUT = 0x04,
@@ -438,8 +437,7 @@ enum scst_cdb_flags
  * SCST_TGT_RES_NEED_THREAD_CTX, and it will be recalled in the thread context,
  * where sleeping is allowed.
  */
-struct scst_tgt_template
-{
+struct scst_tgt_template {
 	/* public: */
 
 	/*
@@ -683,8 +681,7 @@ struct scst_tgt_template
 	int proc_dev_num;
 };
 
-struct scst_dev_type
-{
+struct scst_dev_type {
 	/* SCSI type of the supported device. MUST HAVE */
 	int type;
 
@@ -843,8 +840,7 @@ struct scst_dev_type
 	struct proc_dir_entry *proc_dev_type_root;
 };
 
-struct scst_tgt
-{
+struct scst_tgt {
 	/* List of remote sessions per target, protected by scst_mutex */
 	struct list_head sess_list;
 
@@ -889,8 +885,7 @@ struct scst_tgt
 #define	TGT_DEV_HASH_SIZE	(1<<TGT_DEV_HASH_SHIFT)
 #define	HASH_VAL(_val)		(_val & (TGT_DEV_HASH_SIZE - 1))
 
-struct scst_session
-{
+struct scst_session {
 	/*
 	 * Initialization phase, one of SCST_SESS_IPH_* constants, protected by
 	 * sess_list_lock
@@ -975,16 +970,14 @@ struct scst_session
 #endif
 };
 
-struct scst_cmd_lists
-{
+struct scst_cmd_lists {
 	spinlock_t cmd_list_lock;
 	struct list_head active_cmd_list;
 	wait_queue_head_t cmd_list_waitQ;
 	struct list_head lists_list_entry;
 };
 
-struct scst_cmd
-{
+struct scst_cmd {
 	/* List entry for below *_cmd_lists */
 	struct list_head cmd_list_entry;
 
@@ -1246,8 +1239,7 @@ struct scst_cmd
 #endif
 };
 
-struct scst_rx_mgmt_params
-{
+struct scst_rx_mgmt_params {
 	int fn;
 	uint64_t tag;
 	const uint8_t *lun;
@@ -1260,16 +1252,14 @@ struct scst_rx_mgmt_params
 	unsigned char cmd_sn_set;
 };
 
-struct scst_mgmt_cmd_stub
-{
+struct scst_mgmt_cmd_stub {
 	struct scst_mgmt_cmd *mcmd;
 
 	/* List entry in cmd->mgmt_cmd_list */
 	struct list_head cmd_mgmt_cmd_list_entry;
 };
 
-struct scst_mgmt_cmd
-{
+struct scst_mgmt_cmd {
 	/* List entry for *_mgmt_cmd_list */
 	struct list_head mgmt_cmd_list_entry;
 
@@ -1321,8 +1311,7 @@ struct scst_mgmt_cmd
 	void *tgt_priv;
 };
 
-struct scst_device
-{
+struct scst_device {
 	struct scst_dev_type *handler;	/* corresponding dev handler */
 
 	/* Pointer to lists of commands with the lock */
@@ -1437,8 +1426,7 @@ struct scst_device
 /*
  * Used to store threads local tgt_dev specific data
  */
-struct scst_thr_data_hdr
-{
+struct scst_thr_data_hdr {
 	/* List entry in tgt_dev->thr_data_list */
 	struct list_head thr_data_list_entry;
 	pid_t pid; /* PID of the owner thread */
@@ -1450,8 +1438,7 @@ struct scst_thr_data_hdr
 /*
  * Used to store per-session specific device information
  */
-struct scst_tgt_dev
-{
+struct scst_tgt_dev {
 	/* List entry in sess->sess_tgt_dev_list_hash */
 	struct list_head sess_tgt_dev_list_entry;
 
@@ -1518,8 +1505,7 @@ struct scst_tgt_dev
 /*
  * Used to store ACG-specific device information, like LUN
  */
-struct scst_acg_dev
-{
+struct scst_acg_dev {
 	struct scst_device *dev; /* corresponding device */
 	lun_t lun;		/* device's LUN in this acg */
 	unsigned int rd_only_flag:1; /* if != 0, then read only */
@@ -1536,8 +1522,7 @@ struct scst_acg_dev
  * ACG - access control group. Used to store group related
  * control information.
  */
-struct scst_acg
-{
+struct scst_acg {
 	/* List of acg_dev's in this acg, protected by scst_mutex */
 	struct list_head acg_dev_list;
 
@@ -1561,8 +1546,7 @@ struct scst_acg
  * ACN - access control name. Used to store names, by which
  * incoming sessions will be assigned to appropriate ACG.
  */
-struct scst_acn
-{
+struct scst_acn {
 	/* Initiator's name */
 	const char *name;
 	/* List entry in acg->acn_list */
@@ -1572,8 +1556,7 @@ struct scst_acn
 /*
  * Used to store per-session UNIT ATTENTIONs
  */
-struct scst_tgt_dev_UA
-{
+struct scst_tgt_dev_UA {
 	/* List entry in tgt_dev->UA_list */
 	struct list_head UA_list_entry;
 	/* Unit Attention sense */

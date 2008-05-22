@@ -268,9 +268,8 @@ int scst_proc_log_entry_write(struct file *file, const char *buf,
 		p += 6;
 		action = SCST_PROC_ACTION_VALUE;
 	} else {
-		if (p[strlen(p) - 1] == '\n') {
+		if (p[strlen(p) - 1] == '\n')
 			p[strlen(p) - 1] = '\0';
-		}
 		PRINT_ERROR("Unknown action \"%s\"", p);
 		res = -EINVAL;
 		goto out_free;
@@ -289,13 +288,11 @@ int scst_proc_log_entry_write(struct file *file, const char *buf,
 	case SCST_PROC_ACTION_SET:
 	case SCST_PROC_ACTION_ADD:
 	case SCST_PROC_ACTION_DEL:
-		while (isspace(*p) && *p != '\0') {
+		while (isspace(*p) && *p != '\0')
 			p++;
-		}
 		e = p;
-		while (!isspace(*e) && *e != '\0') {
+		while (!isspace(*e) && *e != '\0')
 			e++;
-		}
 		*e = 0;
 		if (tbl) {
 			t = tbl;
@@ -324,9 +321,8 @@ int scst_proc_log_entry_write(struct file *file, const char *buf,
 		}
 		break;
 	case SCST_PROC_ACTION_VALUE:
-		while (isspace(*p) && *p != '\0') {
+		while (isspace(*p) && *p != '\0')
 			p++;
-		}
 		level = simple_strtoul(p, NULL, 0);
 		break;
 	}
@@ -802,17 +798,14 @@ int __init scst_proc_init_module(void)
 		goto out_remove4;
 	}
 
-	if (scst_proc_init_module_log() < 0) {
+	if (scst_proc_init_module_log() < 0)
 		goto out_remove5;
-	}
 
-	if (scst_proc_init_groups() < 0) {
+	if (scst_proc_init_groups() < 0)
 		goto out_remove6;
-	}
 
-	if (scst_proc_init_sgv() < 0) {
+	if (scst_proc_init_sgv() < 0)
 		goto out_remove7;
-	}
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1251,9 +1244,8 @@ static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file, const char __user
 	 *   or   echo "assign H:C:I:L HANDLER_NAME" >/proc/scsi_tgt/scsi_tgt
 	 */
 	p = buffer;
-	if (p[strlen(p) - 1] == '\n') {
+	if (p[strlen(p) - 1] == '\n')
 		p[strlen(p) - 1] = '\0';
-	}
 	if (!strncasecmp("assign ", p, 7)) {
 		p += 7;
 		action = SCST_PROC_ACTION_ASSIGN;
@@ -1345,9 +1337,8 @@ static int scst_proc_assign_handler(char *buf)
 
 	TRACE_ENTRY();
 
-	while (isspace(*p) && *p != '\0') {
+	while (isspace(*p) && *p != '\0')
 		p++;
-	}
 
 	host = simple_strtoul(p, &p, 0);
 	if ((host == ULONG_MAX) || (*p != ':'))
@@ -1367,13 +1358,11 @@ static int scst_proc_assign_handler(char *buf)
 
 	e = p;
 	e++;
-	while (isspace(*e) && *e != '\0') {
+	while (isspace(*e) && *e != '\0')
 		e++;
-	}
 	ee = e;
-	while (!isspace(*ee) && *ee != '\0') {
+	while (!isspace(*ee) && *ee != '\0')
 		ee++;
-	}
 	*ee = '\0';
 
 	TRACE_DBG("Dev %ld:%ld:%ld:%ld, handler %s", host, channel, id, lun, e);
@@ -1383,8 +1372,7 @@ static int scst_proc_assign_handler(char *buf)
 		    d->scsi_dev->host->host_no == host &&
 		    d->scsi_dev->channel == channel &&
 		    d->scsi_dev->id == id &&
-		    d->scsi_dev->lun == lun)
-		{
+		    d->scsi_dev->lun == lun) {
 			dev = d;
 			TRACE_DBG("Dev %p (%ld:%ld:%ld:%ld) found",
 				  dev, host, channel, id, lun);
@@ -1476,9 +1464,8 @@ static ssize_t scst_proc_groups_devices_write(struct file *file, const char __us
 	 *   or   echo "clear" >/proc/scsi_tgt/groups/GROUP/devices
 	 */
 	p = buffer;
-	if (p[strlen(p) - 1] == '\n') {
+	if (p[strlen(p) - 1] == '\n')
 		p[strlen(p) - 1] = '\0';
-	}
 	if (!strncasecmp("clear", p, 5)) {
 		action = SCST_PROC_ACTION_CLEAR;
 	} else if (!strncasecmp("add ", p, 4)) {
@@ -1503,9 +1490,8 @@ static ssize_t scst_proc_groups_devices_write(struct file *file, const char __us
 	switch (action) {
 	case SCST_PROC_ACTION_ADD:
 	case SCST_PROC_ACTION_DEL:
-		while (isspace(*p) && *p != '\0') {
+		while (isspace(*p) && *p != '\0')
 			p++;
-		}
 		e = p; /* save p */
 		host = simple_strtoul(p, &p, 0);
 		if (*p == ':') {
@@ -1516,9 +1502,8 @@ static ssize_t scst_proc_groups_devices_write(struct file *file, const char __us
 		} else {
 			virt++;
 			p = e; /* restore p */
-			while (!isspace(*e) && *e != '\0') {
+			while (!isspace(*e) && *e != '\0')
 				e++;
-			}
 			*e = 0;
 		}
 
@@ -1561,17 +1546,14 @@ static ssize_t scst_proc_groups_devices_write(struct file *file, const char __us
 	switch (action) {
 	case SCST_PROC_ACTION_ADD:
 		e++;
-		while (isspace(*e) && *e != '\0') {
+		while (isspace(*e) && *e != '\0')
 			e++;
-		}
 		virt_lun = simple_strtoul(e, &e, 0);
 
-		while (isspace(*e) && *e != '\0') {
+		while (isspace(*e) && *e != '\0')
 			e++;
-		}
-		if (!strncasecmp("READ_ONLY", e, 9)) {
+		if (!strncasecmp("READ_ONLY", e, 9))
 			read_only = 1;
-		}
 
 		list_for_each_entry(acg_dev_tmp, &acg->acg_dev_list,
 				    acg_dev_list_entry) {
@@ -1667,9 +1649,8 @@ static ssize_t scst_proc_groups_names_write(struct file *file, const char __user
 	 *   or   echo "clear" >/proc/scsi_tgt/groups/GROUP/names
 	 */
 	p = buffer;
-	if (p[strlen(p) - 1] == '\n') {
+	if (p[strlen(p) - 1] == '\n')
 		p[strlen(p) - 1] = '\0';
-	}
 	if (!strncasecmp("clear", p, 5)) {
 		action = SCST_PROC_ACTION_CLEAR;
 	} else if (!strncasecmp("add ", p, 4)) {
@@ -1687,13 +1668,11 @@ static ssize_t scst_proc_groups_names_write(struct file *file, const char __user
 	switch (action) {
 	case SCST_PROC_ACTION_ADD:
 	case SCST_PROC_ACTION_DEL:
-		while (isspace(*p) && *p != '\0') {
+		while (isspace(*p) && *p != '\0')
 			p++;
-		}
 		e = p;
-		while (!isspace(*e) && *e != '\0') {
+		while (!isspace(*e) && *e != '\0')
 			e++;
-		}
 		*e = 0;
 		break;
 	}
@@ -1976,9 +1955,8 @@ int scst_proc_log_entry_read(struct seq_file *seq, unsigned long log_level,
 
 	scst_proc_read_tlb(scst_proc_trace_tbl, seq, log_level, &first);
 
-	if (tbl) {
+	if (tbl)
 		scst_proc_read_tlb(tbl, seq, log_level, &first);
-	}
 
 	seq_printf(seq, "%s\n", first ? "none" : "");
 
