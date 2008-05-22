@@ -121,7 +121,7 @@ cat "${kpatch[@]}"
 # Directory include/scst/
 
 # Make sure the file iscsi-scst/iscsi_scst_itf_ver.h is up to date.
-make -C iscsi-scst include/iscsi_scst_itf_ver.h
+make -s -C iscsi-scst include/iscsi_scst_itf_ver.h
 
 for f in scst/include/*h
 do

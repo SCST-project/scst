@@ -1,4 +1,4 @@
-#!/usr/bin/gawk -f
+#!/usr/bin/awk -f
 
 ############################################################################
 #
@@ -42,45 +42,93 @@ function version_code(kver) {
 function evaluate(stmnt) {
   gsub(" *\\/\\*[^*]*\\*\\/ *", "", stmnt)
 
-  gsub("^+ *#", "+#", stmnt)
+  gsub("^+ *# *", "+#", stmnt)
 
   gsub("LINUX_VERSION_CODE", LINUX_VERSION_CODE, stmnt)
 
-  pattern="KERNEL_VERSION\\(([0-9]+) *, *([0-9]+) *, *([0-9]+) *\\)"
-  while (match(stmnt, pattern, ver) != 0)
+  do
   {
-    sub(pattern, ver[1]*65536+ver[2]*256+ver[3], stmnt)
-  }
+    last_stmnt = stmnt
 
-  pattern="([0-9]+) *(<|<=|>|>=|==) *([0-9]+)"
-  while (match(stmnt, pattern, op) != 0)
-  {
-    result="error"
-    if      (op[2] == "<" ) result = op[1] <  op[3]
-    else if (op[2] == "<=") result = op[1] <= op[3]
-    else if (op[2] == ">" ) result = op[1] >  op[3]
-    else if (op[2] == ">=") result = op[1] >= op[3]
-    else if (op[2] == "==") result = op[1] == op[3]
-    sub(pattern, result, stmnt)
-  }
-
-  pattern="([0-9]+) *\\&\\& *([0-9]+)"
-  while (match(stmnt, pattern, op) != 0)
-  {
-    sub(pattern, op[1] && op[3], stmnt)
-  }
-
-  pattern="([0-9]+) *\\|\\| *([0-9]+)"
-  while (match(stmnt, pattern, op) != 0)
-  {
-    sub(pattern, op[1] || op[3], stmnt)
-  }
+    pattern = "! ([0-9]+)"
+    while (match(stmnt, pattern, op) != 0)
+    {
+      sub(pattern, op[1] == 0, stmnt)
+    }
+    
+    pattern="KERNEL_VERSION\\(([0-9]+) *, *([0-9]+) *, *([0-9]+) *\\)"
+    while (match(stmnt, pattern, op) != 0)
+    {
+      sub(pattern, op[1] * 65536 + op[2] * 256 + op[3], stmnt)
+    }
+  
+    pattern="([0-9]+) *(<|<=|>|>=|==) *([0-9]+)"
+    while (match(stmnt, pattern, op) != 0)
+    {
+      result="error"
+      if      (op[2] == "<" ) result = op[1] <  op[3]
+      else if (op[2] == "<=") result = op[1] <= op[3]
+      else if (op[2] == ">" ) result = op[1] >  op[3]
+      else if (op[2] == ">=") result = op[1] >= op[3]
+      else if (op[2] == "==") result = op[1] == op[3]
+      sub(pattern, result, stmnt)
+    }
+  
+    pattern="([0-9]+) *\\&\\& *([0-9]+)"
+    while (match(stmnt, pattern, op) != 0)
+    {
+      sub(pattern, op[1] && op[3], stmnt)
+    }
+  
+    pattern="([0-9]+) *\\|\\| *([0-9]+)"
+    while (match(stmnt, pattern, op) != 0)
+    {
+      sub(pattern, op[1] || op[3], stmnt)
+    }
+  
+    pattern="\\(([0-9]+)\\)"
+    while (match(stmnt, pattern, op) != 0)
+    {
+      sub(pattern, op[1], stmnt)
+    }
+  } while (stmnt != last_stmnt)
 
   return stmnt
 }
 
 
-# Decide whetheror not to print the preprocessor statement $0.
+# Evaluate ! stmnt
+function invert(stmnt) {
+  sub("^+#if ", "+#if ! ", stmnt)
+  return evaluate(stmnt)
+}
+
+
+# Handle #if or #elif
+
+function handle_if()
+{
+  # Only act on preprocessor conditional expressions with regard to the Linux
+  # kernel version, and do not interpret other expressions.
+  if ($0 ~ "LINUX_VERSION_CODE")
+  {
+    $0 = evaluated
+  }
+  else
+  {
+    evaluated = "+#if undecided"
+  }
+  #printf "%s -> %s\n", $0, evaluated
+  if (evaluated ~ "^+#elif")
+  {
+    sub("^+#elif ", "+#if ! " + decision[if_nesting_level] + " && ", evaluated)
+    evaluated = evaluate(evaluated)
+  }
+  decision[if_nesting_level] = evaluated
+}
+
+
+# Decide whether or not to print the preprocessor statement $0.
 
 function process_preprocessor_statement() {
   last_if_nesting_level = if_nesting_level
@@ -88,36 +136,32 @@ function process_preprocessor_statement() {
   condition = 1
   if (evaluated ~ "^+#if")
   {
-    output_array[if_nesting_level] = output
     if_nesting_level++
-    decision[if_nesting_level] = evaluated
-    output = evaluated != "+#if 0"
+    handle_if()
   }
   else if (evaluated ~ "^+#elif")
   {
-    decision[if_nesting_level] = evaluated
-    output = evaluated != "+#elif 0"
-    sub("^+#elif ", "+#if ", decision[if_nesting_level])
+    handle_if()
   }
   else if (evaluated ~ "^+#else")
   {
-    output = decision[if_nesting_level] != "+#if 1"
+    decision[if_nesting_level] = invert(decision[if_nesting_level])
   }
   else if (evaluated ~ "^+#endif")
   {
     if_nesting_level--
-    if (if_nesting_level >= 0)
-    {
-      output = output_array[if_nesting_level]
-    }
-    else
-    {
-      output = 1
-    }
   }
   else
   {
     condition = 0
+  }
+  if (condition)
+  {
+    output = 1
+    for (i = if_nesting_level; i >= 0; i--)
+    {
+      output = output && decision[i] != "+#if 0"
+    }
   }
   if (evaluated ~ "^+#if [01]$"                             \
       || condition                                          \
