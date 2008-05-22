@@ -1,0 +1,10 @@
+--- orig/Kconfig	2008-01-24 15:58:37.000000000 -0700
++++ Kconfig	2008-02-02 16:28:34.000000000 -0700
+@@ -120,4 +120,7 @@
+ 	  There are various debug levels that can be found in the source:
+ 	  file:drivers/message/fusion/mptdebug.h
+ 
++config FUSION_SCST
++	source "drivers/message/fusion/mpt_scst/Kconfig"
++
+ endif # FUSION
