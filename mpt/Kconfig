@@ -1,4 +1,3 @@
-
 config FUSION_SCST
 	tristate "Fusion MPT SCST driver"
 	depends on FUSION

@@ -1,32 +1,5 @@
-#  This program is free software; you can redistribute it and/or
-#  modify it under the terms of the GNU General Public License
-#  as published by the Free Software Foundation, version 2
-#  of the License.
-# 
-#  This program is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-#  GNU General Public License for more details.
-#
-#
-# Main targets:
-#    all (the default) : make all
-#    clean             : clean files
-#    extraclean        : clean + clean dependencies
-#    install           : install 
-#    uninstall         : uninstall 
-#
-# Notes :
-#    - install and uninstall must be made as root
-#
-
-#SCST_INC_DIR := /usr/local/include/scst
-#SCST_DIR := $(SCST_INC_DIR)
-SCST_INC_DIR := $(SUBDIRS)/../scst/include
-SCST_DIR := $(shell pwd)/../scst/src
-
+SCST_INC_DIR := include/scst
 FUSION_INC_DIR := drivers/message/fusion
-
 EXTRA_CFLAGS += -I$(SCST_INC_DIR) -I$(FUSION_INC_DIR) -Iinclude/scsi
 
 EXTRA_CFLAGS += -DEXTRACHECKS 
@@ -34,61 +7,5 @@ EXTRA_CFLAGS += -DEXTRACHECKS
 EXTRA_CFLAGS += -DDEBUG
 #EXTRA_CFLAGS += -DDEBUG_WORK_IN_THREAD
 
-ifeq ($(KVER),)
-  ifeq ($(KDIR),)
-    KDIR := /lib/modules/$(shell uname -r)/build
-  endif
-else
-  KDIR := /lib/modules/$(KVER)/build
-endif
-
-LSI_INC_DIR := $(KDIR)/drivers/message/fusion
-EXTRA_CFLAGS += -I$(LSI_INC_DIR)
-
-ifneq ($(KERNELRELEASE),)
 obj-$(CONFIG_FUSION_SCST) += mpt_scst.o
-#obj-m += mpt_scst.o
 
-else
-
-all: Modules.symvers Module.symvers
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m
-
-tgt: Modules.symvers Module.symvers
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=n
-
-install: all
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
-		modules_install
-	-depmod -a
-
-SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Modules.symvers 2>/dev/null)
-ifneq ($(SCST_MOD_VERS),)
-Modules.symvers: $(SCST_DIR)/Modules.symvers
-	cp $(SCST_DIR)/Modules.symvers .
-else
-.PHONY: Modules.symvers
-endif
-
-# It's renamed in 2.6.18
-SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Module.symvers 2>/dev/null)
-ifneq ($(SCST_MOD_VERS),)
-Module.symvers: $(SCST_DIR)/Module.symvers
-	cp $(SCST_DIR)/Module.symvers .
-else
-.PHONY: Module.symvers
-endif
-
-uninstall:
-	rm -f $(INSTALL_DIR)/mpt_scst.ko
-	-/sbin/depmod -a
-endif
-
-clean:
-	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend *~ Modules.symvers \
-		Module.symvers Module.markers modules.order
-	rm -rf .tmp_versions
-
-extraclean: clean
-
-.PHONY: all tgt install uninstall clean extraclean

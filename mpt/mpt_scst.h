@@ -20,6 +20,8 @@
 #include <linux/proc_fs.h>
 #include <linux/smp_lock.h>
 #include <linux/highmem.h>
+#include <linux/version.h>
+#include <scsi/scsi_device.h>
 
 #include <asm/uaccess.h>
 #include <asm/io.h>
@@ -34,7 +36,6 @@
 #define MPT_STM_64_BIT_DMA 1
 #endif
 
-#include "linux_compat.h"
 #include "mptbase.h"
 
 #ifndef MPI_IOCLOGINFO_FC_LINK_ALREADY_INITIALIZED

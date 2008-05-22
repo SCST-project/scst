@@ -380,7 +380,7 @@ mptstm_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     atomic_set(&tgt->sess_count, 0);
     init_waitqueue_head(&tgt->waitQ);
 
-    tgt->scst_tgt = scst_register(&tgt_template, NULL);
+    tgt->scst_tgt = scst_register(&tgt_template, MYNAM);
     if (tgt->scst_tgt == NULL) {
 	    PRINT_ERROR(MYNAM ": scst_register() "
 			"failed for host %p", pdev);
@@ -779,7 +779,7 @@ stm_tgt_reply(MPT_ADAPTER *ioc, u32 reply_word)
 		 *  command buffer
 		 */
 		*io_state &= ~IO_STATE_STATUS_SENT;
-		mpt_msg_frame_free(priv, index);
+		mpt_free_msg_frame(_HANDLE_IOC_ID, priv->current_mf[index]);
 		if (*io_state & IO_STATE_DATA_SENT) {
 			*io_state &= ~IO_STATE_DATA_SENT;
 			stm_data_done(ioc, reply_word, scst_cmd, cmd, index);
@@ -851,7 +851,7 @@ stm_tgt_reply(MPT_ADAPTER *ioc, u32 reply_word)
 	 */
 	if (*io_state & IO_STATE_DATA_SENT) {
 		*io_state &= ~IO_STATE_DATA_SENT;
-		mpt_msg_frame_free(priv, index);
+		mpt_free_msg_frame(_HANDLE_IOC_ID, priv->current_mf[index]);
 		stm_data_done(ioc, reply_word, scst_cmd, cmd, index);
 		if (*io_state & IO_STATE_STATUS_DEFERRED) {
 			*io_state &= ~IO_STATE_STATUS_DEFERRED;
@@ -1072,9 +1072,9 @@ mpt_dump_sge(MPT_SGE *sge, struct scatterlist *sg)
 	}
 	if (sg) {
 		TRACE_DBG("sg %p, page %p, %p, offset %d, dma address %x, len %d",
-				sg, sg->page, page_address(sg->page),
+				sg, sg_page(sg), page_address(sg_page(sg)),
 				sg->offset, sg->dma_address, sg->length);
-		TRACE_BUFFER("sg data", page_address(sg->page), (u32)0x10);
+		TRACE_BUFFER("sg data", page_address(sg_page(sg)), (u32)0x10);
 	}
 }
 
@@ -1537,9 +1537,10 @@ stmapp_pending_sense(struct mpt_cmd *mpt_cmd)
 					prm.bufflen = min(prm.bufflen,
 						(size_t)(priv->pending_sense_buffer[init_index][7]
 							 + 8));
-					sg.page = virt_to_page(priv->pending_sense_buffer[init_index]);
-					sg.offset = offset_in_page(priv->pending_sense_buffer[init_index]);
-					sg.length = prm.bufflen;
+					sg_set_page(&sg,
+						virt_to_page(priv->pending_sense_buffer[init_index]),
+						prm.bufflen,
+						offset_in_page(priv->pending_sense_buffer[init_index]));
 					prm.buffer = &sg;
 					prm.use_sg = 1;
 					prm.data_direction = SCST_DATA_READ;
@@ -2334,7 +2335,7 @@ stm_tgt_reply_high_pri(MPT_ADAPTER *ioc, TargetCmdBufferPostErrorReply_t *rep)
 		int		tag;
 
 		priv->io_state[index] &= ~IO_STATE_POSTED;
-		cmd = &priv->hw->cmd_buf[index];
+		cmd = priv->hw->cmd_buf + index;
 		if (IsScsi(priv)) {
 			SCSI_CMD	*scsi_cmd = (SCSI_CMD *)cmd->cmd;
 
@@ -2872,7 +2873,7 @@ stm_cmd_buf_post(MPT_STM_PRIV *priv, int index)
     /*
      *  get a free message frame, and post a command buffer
      */
-    req = (TargetCmdBufferPostRequest_t *)mpt_msg_frame_alloc(ioc,index);
+    req = (TargetCmdBufferPostRequest_t *)mpt_msg_frame_alloc(ioc,-1);
     memset(req, 0, sizeof(*req));
 
 #ifdef CMD_BUFFER_POST_FLAGS_HIGH_PRIORITY
@@ -2886,7 +2887,7 @@ stm_cmd_buf_post(MPT_STM_PRIV *priv, int index)
     req->BufferCount = 1;
     req->Function = MPI_FUNCTION_TARGET_CMD_BUFFER_POST;
     req->BufferLength = sizeof(priv->hw->cmd_buf[index].cmd);
-    req->Buffer[0].IoIndex = (u16)cpu_to_le16(index);
+    req->Buffer[0].IoIndex = cpu_to_le16(index);
     dma_addr = priv->hw_dma +
 	((u8 *)priv->hw->cmd_buf[index].cmd - (u8 *)priv->hw);
     req->Buffer[0].u.PhysicalAddress64.Low = cpu_to_le32(dma_addr);
@@ -2910,7 +2911,6 @@ stm_cmd_buf_post(MPT_STM_PRIV *priv, int index)
 	}
 #endif
 
-	priv->current_mf[index] = NULL;
 	if (priv->io_state[index] & IO_STATE_HIGH_PRIORITY) {
 		priv->io_state[index] &= ~IO_STATE_HIGH_PRIORITY;
 		mpt_send_handshake_request(stm_context, _IOC_ID,
@@ -2940,9 +2940,9 @@ stm_cmd_buf_post_base(MPT_STM_PRIV *priv,
 	req->BufferPostFlags = CMD_BUFFER_POST_BASE_FLAGS_AUTO_POST_ALL;
     }
     req->Function = MPI_FUNCTION_TARGET_CMD_BUF_BASE_POST;
-    req->TotalCmdBuffers = (u16)priv->num_cmd_buffers;
-    req->CmdBufferLength = sizeof(priv->hw->cmd_buf[0].cmd);
-    req->NextCmdBufferOffset = sizeof(priv->hw->cmd_buf[0]);
+    req->TotalCmdBuffers = cpu_to_le16(priv->num_cmd_buffers);
+    req->CmdBufferLength = cpu_to_le16(sizeof(priv->hw->cmd_buf[0].cmd));
+    req->NextCmdBufferOffset = cpu_to_le16(sizeof(priv->hw->cmd_buf[0]));
     dma_addr = priv->hw_dma +
 	((u8 *)priv->hw->cmd_buf[0].cmd - (u8 *)priv->hw);
     req->BaseAddressLow = cpu_to_le32(dma_addr);
@@ -2984,12 +2984,12 @@ stm_cmd_buf_post_list(MPT_STM_PRIV *priv,
     TargetCmdBufferPostListRequest_t	*req;
 
 	TRACE_ENTRY();
-    req = (TargetCmdBufferPostListRequest_t *)mpt_msg_frame_alloc(ioc,index);
+    req = (TargetCmdBufferPostListRequest_t *)mpt_msg_frame_alloc(ioc,-1);
     memset(req, 0, sizeof(*req));
 
     req->Function = MPI_FUNCTION_TARGET_CMD_BUF_LIST_POST;
-    req->CmdBufferCount = 1;
-    req->IoIndex[0] = (u16)cpu_to_le16(index);
+    req->CmdBufferCount = cpu_to_le16(1);
+    req->IoIndex[0] = cpu_to_le16(index);
 
     priv->io_state[index] |= IO_STATE_POSTED;
 
@@ -3022,7 +3022,7 @@ stm_link_serv_buf_post(MPT_STM_PRIV *priv, int index)
     dma_addr_t				dma_addr;
 
 	TRACE_ENTRY();
-    req = (LinkServiceBufferPostRequest_t *)mpt_msg_frame_alloc(ioc,index);
+    req = (LinkServiceBufferPostRequest_t *)mpt_msg_frame_alloc(ioc,-1);
     memset(req, 0, sizeof(*req));
 
     req->BufferCount = 1;
@@ -3057,7 +3057,6 @@ stm_link_serv_buf_post(MPT_STM_PRIV *priv, int index)
 		}
 	}
 #endif
-	priv->current_mf[index] = NULL;
     mpt_put_msg_frame(stm_context, _IOC_ID, (MPT_FRAME_HDR *)req);
 	TRACE_EXIT();
 }
@@ -3075,12 +3074,8 @@ stm_send_target_status(MPT_STM_PRIV *priv,
     int				status;
     int				init_index;
     dma_addr_t			dma_addr;
-    MPT_FRAME_HDR *mf = priv->current_mf[index];
 
     TRACE_ENTRY();
-    if (priv->io_state[index] & IO_STATE_DATA_SENT) {
-		priv->current_mf[index] = NULL;
-	}
     req = (TargetStatusSendRequest_t *)mpt_msg_frame_alloc(ioc,index);
     memset(req, 0, sizeof(*req));
 
@@ -3103,7 +3098,7 @@ stm_send_target_status(MPT_STM_PRIV *priv,
 	}*/
     }
 
-    cmd = &priv->hw->cmd_buf[index];
+    cmd = priv->hw->cmd_buf + index;
 
     if (flags & TARGET_STATUS_SEND_FLAGS_AUTO_GOOD_STATUS) {
 	length = 0;
@@ -3208,7 +3203,6 @@ stm_send_target_status(MPT_STM_PRIV *priv,
      *  wait for it to finish before we send the target status
      */
     if (priv->io_state[index] & IO_STATE_DATA_SENT) {
-	    priv->current_mf[index] = mf;
 	    priv->status_deferred_mf[index] = (MPT_FRAME_HDR *)req;
 	    priv->io_state[index] |= IO_STATE_STATUS_DEFERRED;
 	    TRACE_EXIT_RES(1);
@@ -3253,7 +3247,7 @@ stm_send_els(MPT_STM_PRIV *priv,
     dma_addr_t			dma_addr;
 
 	TRACE_ENTRY();
-    req = (LinkServiceRspRequest_t *)mpt_msg_frame_alloc(ioc,index);
+    req = (LinkServiceRspRequest_t *)mpt_msg_frame_alloc(ioc,-1);
     memset(req, 0, sizeof(*req));
 
     req->RspLength = (u8)length;
@@ -3286,7 +3280,6 @@ stm_send_els(MPT_STM_PRIV *priv,
 		}
 	}
 #endif
-	priv->current_mf[index] = NULL;
     mpt_put_msg_frame(stm_context, _IOC_ID, (MPT_FRAME_HDR *)req);
 	TRACE_EXIT();
 }
@@ -3325,7 +3318,7 @@ stm_target_mode_abort_command(MPT_STM_PRIV *priv,
     TargetModeAbort_t	*req;
 
 	TRACE_ENTRY();
-    req = (TargetModeAbort_t *)mpt_msg_frame_alloc(ioc,index);
+    req = (TargetModeAbort_t *)mpt_msg_frame_alloc(ioc,-1);
     memset(req, 0, sizeof(*req));
 
     req->AbortType = TARGET_MODE_ABORT_TYPE_EXACT_IO;
@@ -3356,7 +3349,7 @@ stm_target_mode_abort_request(MPT_STM_PRIV *priv,
     TargetModeAbort_t	*req;
 
 	TRACE_ENTRY();
-    req = (TargetModeAbort_t *)mpt_msg_frame_alloc(ioc,index);
+    req = (TargetModeAbort_t *)mpt_msg_frame_alloc(ioc,-1);
     memset(req, 0, sizeof(*req));
 
     req->AbortType = TARGET_MODE_ABORT_TYPE_EXACT_IO_REQUEST;
@@ -3520,7 +3513,7 @@ stm_login_port(MPT_STM_PRIV *priv, int port_id, int sleep)
     dma_addr_t			dma_addr;
 
 	TRACE_ENTRY();
-    req = (ExLinkServiceSendRequest_t *)mpt_msg_frame_alloc(ioc,index);
+    req = (ExLinkServiceSendRequest_t *)mpt_msg_frame_alloc(ioc,-1);
     memset(req, 0, sizeof(*req));
 
     req->Function = MPI_FUNCTION_FC_EX_LINK_SRVC_SEND;
@@ -3562,7 +3555,7 @@ stm_login_port(MPT_STM_PRIV *priv, int port_id, int sleep)
     if (stm_wait_for(priv, &priv->ex_link_service_send_pending, 5, sleep) < 0)
 	return (-1);
 
-    req = (ExLinkServiceSendRequest_t *)mpt_msg_frame_alloc(ioc,index);
+    req = (ExLinkServiceSendRequest_t *)mpt_msg_frame_alloc(ioc,-1);
     memset(req, 0, sizeof(*req));
 
     req->Function = MPI_FUNCTION_FC_EX_LINK_SRVC_SEND;
@@ -3621,7 +3614,7 @@ stm_logout_port(MPT_STM_PRIV *priv,
     dma_addr_t			dma_addr;
 
 	TRACE_ENTRY();
-    req = (ExLinkServiceSendRequest_t *)mpt_msg_frame_alloc(ioc,index);
+    req = (ExLinkServiceSendRequest_t *)mpt_msg_frame_alloc(ioc,-1);
     memset(req, 0, sizeof(*req));
 
     req->Function = MPI_FUNCTION_FC_EX_LINK_SRVC_SEND;
@@ -3679,7 +3672,7 @@ stm_process_logout_port(MPT_STM_PRIV *priv,
     dma_addr_t			dma_addr;
 
 	TRACE_ENTRY();
-    req = (ExLinkServiceSendRequest_t *)mpt_msg_frame_alloc(ioc,index);
+    req = (ExLinkServiceSendRequest_t *)mpt_msg_frame_alloc(ioc,-1);
     memset(req, 0, sizeof(*req));
 
     req->Function = MPI_FUNCTION_FC_EX_LINK_SRVC_SEND;
@@ -3739,7 +3732,7 @@ stm_get_hard_address(MPT_STM_PRIV *priv, int port_id, int *hard_address,
     dma_addr_t			dma_addr;
 
 	TRACE_ENTRY();
-    req = (ExLinkServiceSendRequest_t *)mpt_msg_frame_alloc(ioc,index);
+    req = (ExLinkServiceSendRequest_t *)mpt_msg_frame_alloc(ioc,-1);
     memset(req, 0, sizeof(*req));
 
     req->Function = MPI_FUNCTION_FC_EX_LINK_SRVC_SEND;
@@ -3844,12 +3837,20 @@ stm_scsi_configuration(MPT_STM_PRIV *priv,
 	int wide = 0;
 	SCSIDevicePage1_t *ScsiDevice1 = &priv->SCSIDevicePage1[i];
 	sync = ScsiPort2->DeviceSettings[i].SyncFactor;
+	if (ioc->facts.FWVersion.Word >= 0x01032900) {
+		/* these firmware versions don't send the correct
+		 * amount of data except at the slowest transfer
+		 * factors */
+		sync = max(0x32, sync);
+		printk("forcing FAST-5 negotiation due to broken fw 0x%08X\n",
+				ioc->facts.FWVersion.Word);
+	}
 	flags = le16_to_cpu(ScsiPort2->DeviceSettings[i].DeviceFlags);
 	if (flags & MPI_SCSIPORTPAGE2_DEVICE_WIDE_DISABLE)
 	    cap = ncap;
 	else {
 	    cap = wcap;
-		wide = 1;
+	    wide = 1;
 	}
 	/*cap &= ~MPI_SCSIDEVPAGE1_RP_IU;
 	cap &= ~MPI_SCSIDEVPAGE1_RP_DT;
@@ -4214,7 +4215,7 @@ stm_get_config_page(MPT_STM_PRIV *priv, int type, int number, int address,
 
     ioc_status = le16_to_cpu(rep->IOCStatus) & MPI_IOCSTATUS_MASK;
     if (type > MPI_CONFIG_PAGETYPE_EXTENDED) {
-	length = rep->ExtPageLength;
+	length = le16_to_cpu(rep->ExtPageLength);
     } else {
 	length = rep->Header.PageLength;
     }
@@ -4237,7 +4238,7 @@ stm_get_config_page(MPT_STM_PRIV *priv, int type, int number, int address,
     if (i) {
 	if (!priv->in_reset) {
 	    printk(KERN_ERR MYNAM
-		   ":%s timed out getting config page\n", ioc->name);
+		   ":%s timed out getting config page = %d\n", ioc->name, type);
 	}
 	return (-1);
     }
@@ -4250,7 +4251,7 @@ stm_get_config_page(MPT_STM_PRIV *priv, int type, int number, int address,
 
     ioc_status = le16_to_cpu(rep->IOCStatus) & MPI_IOCSTATUS_MASK;
     if (ioc_status != MPI_IOCSTATUS_SUCCESS) {
-	if (type == 6 && number == 0) {
+	if ((type == 6 && number == 0) || (type == 18 && number == 0)) {
 	    /* no error messages, please! */
 	} else {
 	    printk(KERN_ERR MYNAM
@@ -4320,7 +4321,7 @@ stm_set_config_page(MPT_STM_PRIV *priv,
 
     ioc_status = le16_to_cpu(rep->IOCStatus) & MPI_IOCSTATUS_MASK;
     if (type > MPI_CONFIG_PAGETYPE_EXTENDED) {
-	length = rep->ExtPageLength;
+	length = le16_to_cpu(rep->ExtPageLength);
     } else {
 	length = rep->Header.PageLength;
     }
@@ -4440,7 +4441,7 @@ stm_do_config_action(MPT_STM_PRIV *priv, int action,
 	if (type > MPI_CONFIG_PAGETYPE_EXTENDED) {
 	    req->Header.PageType = MPI_CONFIG_PAGETYPE_EXTENDED;
 	    req->ExtPageType = (u8)type;
-	    req->ExtPageLength = (u16)length;
+	    req->ExtPageLength = cpu_to_le16(length);
 	} else {
 	    req->Header.PageType = (u8)type;
 	}
@@ -4575,7 +4576,6 @@ _mpt_stm_init(void)
 
 	TRACE_DBG(": assigned context of %d", stm_context);
 
-	mpt_stm_index = stm_context;
 	TRACE_EXIT();
 
 	return 0;
@@ -4610,6 +4610,9 @@ mpt_stm_adapter_install(MPT_ADAPTER *ioc)
 	priv->num_cmd_buffers = NUM_CMD_BUFFERS;
 	if (priv->num_cmd_buffers > ioc->pfacts[0].MaxPostedCmdBuffers) {
 		priv->num_cmd_buffers = ioc->pfacts[0].MaxPostedCmdBuffers;
+	}
+	if (priv->num_cmd_buffers > ioc->req_depth - 16) {
+		priv->num_cmd_buffers = ioc->req_depth - 16;
 	}
 	priv->num_els_buffers = NUM_ELS_BUFFERS;
 
@@ -4772,7 +4775,6 @@ _mpt_stm_exit(void)
 		stm_context = 0;
 	}
 
-    mpt_stm_index = 0;
 	TRACE_EXIT();
 }
 
@@ -4852,7 +4854,7 @@ stmapp_abts_process(MPT_STM_PRIV *priv,
 		return;
 	}
 
-	cmd = &priv->hw->cmd_buf[rx_id];
+	cmd = priv->hw->cmd_buf + rx_id;
 
 	TRACE_DBG("%s index %d: io_state = %x",
 			ioc->name, rx_id, *io_state);
@@ -4922,7 +4924,7 @@ stmapp_srr_process(MPT_STM_PRIV *priv, int rx_id, int r_ctl, u32 offset,
 	return;
     }
 
-    cmd = &priv->hw->cmd_buf[rx_id];
+    cmd = priv->hw->cmd_buf + rx_id;
 
     TRACE_DBG("%s index %d: r_ctl = %x, io_state = %x",
 	    ioc->name, rx_id, r_ctl, *io_state);
@@ -5041,7 +5043,7 @@ stmapp_srr_convert_ta_to_tss(MPT_STM_PRIV *priv, int index)
 	TRACE_ENTRY();
     io_state = priv->io_state + index;
 
-    cmd = &priv->hw->cmd_buf[index];
+    cmd = priv->hw->cmd_buf + index;
 
     reply_word = cmd->reply_word;
     lun = cmd->lun;
@@ -5079,7 +5081,7 @@ stmapp_srr_adjust_offset(MPT_STM_PRIV *priv, int index)
     int				n;
 
 	TRACE_ENTRY();
-    cmd = &priv->hw->cmd_buf[index];
+    cmd = priv->hw->cmd_buf + index;
     req = (TargetAssistRequest_t *)priv->current_mf[index];
 
     old_offset = le32_to_cpu(req->RelativeOffset);
@@ -5180,11 +5182,11 @@ stmapp_target_error_prioprity_io(MPT_STM_PRIV *priv,
 	mpt_cmd = (struct mpt_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
 	mpt_cmd->state = MPT_STATE_PROCESSED;
 
-	mpt_msg_frame_free(priv, index);
-	/* stm_target_cleanup(priv, index); */
+	stm_target_cleanup(priv, index);
 	*io_state = IO_STATE_HIGH_PRIORITY;
+printk(KERN_ERR MYNAM ": HIGH_PRIORITY %s\n", __FUNCTION__);
 
-	cmd = &priv->hw->cmd_buf[index];
+	cmd = priv->hw->cmd_buf + index;
 	memset(cmd->rsp, 0, sizeof(cmd->rsp));
 
 	switch (reason) {
@@ -5308,7 +5310,7 @@ stmapp_target_error(MPT_STM_PRIV *priv,
 	stm_target_cleanup(priv, index);
 	*io_state = 0;
 
-	cmd = &priv->hw->cmd_buf[index];
+	cmd = priv->hw->cmd_buf + index;
 	memset(cmd->rsp, 0, sizeof(cmd->rsp));
 
 	switch (status) {
@@ -5438,9 +5440,11 @@ stmapp_set_sense_info(MPT_STM_PRIV *priv,
 	    info += be32_to_cpu(rsp->FcpResponseLength);
 	}
     }
+
     info[0] = 0x70;
     info[2] = (u8)sense_key;
     info[7] = 6;
+
     info[12] = (u8)asc;
     info[13] = (u8)ascq;
 	TRACE_EXIT();
