@@ -210,7 +210,7 @@ extern int iscsi_adm_request_handle(int accept_fd);
 
 /* ctldev.c */
 struct iscsi_kernel_interface {
-	int (*ctldev_open) (void);
+	int (*ctldev_open) (int);
 	int (*param_get) (u32, u64, int, struct iscsi_param *, int);
 	int (*param_set) (u32, u64, int, u32, struct iscsi_param *, int);
 	int (*target_create) (u32 *, char *);

@@ -2907,8 +2907,6 @@ static int __init iscsi_init(void)
 		"degraded mode. Refer README file for details");
 #endif
 
-	BUILD_BUG_ON(MAX_DATA_SEG_LEN != (ISCSI_CONN_IOV_MAX<<PAGE_SHIFT));
-
 	if ((ctr_major = register_chrdev(0, ctr_name, &ctr_fops)) < 0) {
 		PRINT_ERROR("failed to register the control device %d", ctr_major);
 		err = ctr_major;

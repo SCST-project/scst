@@ -518,6 +518,42 @@ static void event_loop(int timeout)
 	}
 }
 
+int init_max_data_seg_len(void)
+{
+	int page_size = getpagesize();
+	int max_data_seg_len = page_size / sizeof(struct iovec) * page_size;
+
+	if ((session_keys[3].local_def != -1) ||
+	    (session_keys[3].max != -1) ||
+	    (session_keys[4].local_def != -1) ||
+	    (session_keys[4].max != -1) ||
+	    (session_keys[5].local_def != -1) ||
+	    (session_keys[5].max != -1) ||
+	    (session_keys[6].local_def != -1) ||
+	    (session_keys[6].max != -1)) {
+		log_error("Wrong session_keys initialization");
+		exit(-1);
+	}
+
+	/* MaxRecvDataSegmentLength */
+	session_keys[3].local_def = max_data_seg_len;
+	session_keys[3].max = max_data_seg_len;
+
+	/* MaxXmitDataSegmentLength */
+	session_keys[4].local_def = max_data_seg_len;
+	session_keys[4].max = max_data_seg_len;
+
+	/* MaxBurstLength */
+	session_keys[5].local_def = max_data_seg_len;
+	session_keys[5].max = max_data_seg_len;
+
+	/* FirstBurstLength */
+	session_keys[6].local_def = max_data_seg_len;
+	session_keys[6].max = max_data_seg_len;
+
+	return max_data_seg_len;
+}
+
 int main(int argc, char **argv)
 {
 	int ch, longindex, timeout = -1;
@@ -526,6 +562,7 @@ int main(int argc, char **argv)
 	gid_t gid = 0;
 	char *isns = NULL;
 	int isns_ac = 0;
+	int max_data_seg_len;
 
 	if (pipe(init_report_pipe) == -1) {
 		perror("pipe");
@@ -573,7 +610,9 @@ int main(int argc, char **argv)
 		exit(-1);
 	};
 
-	if ((ctrl_fd = ki->ctldev_open()) < 0)
+	max_data_seg_len = init_max_data_seg_len();
+
+	if ((ctrl_fd = ki->ctldev_open(max_data_seg_len)) < 0)
 		exit(-1);
 
 	if ((ipc_fd = iscsi_adm_request_listen()) < 0) {

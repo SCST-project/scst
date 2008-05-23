@@ -371,10 +371,18 @@ static int add_target(unsigned long ptr)
 
 static int iscsi_check_version(unsigned long arg)
 {
+	struct iscsi_register_info reg;
 	char ver[sizeof(ISCSI_SCST_INTERFACE_VERSION)+1];
-	int res;
+	int res, max_data_seg_len;
 
-	res = copy_from_user(ver, (void *)arg, sizeof(ver));
+	res = copy_from_user(&reg, (void *)arg, sizeof(reg));
+	if (res < 0) {
+		PRINT_ERROR("%s", "Unable to get register info");
+		goto out;
+	}
+
+	res = copy_from_user(ver, (void *)(unsigned long)reg.version,
+				sizeof(ver));
 	if (res < 0) {
 		PRINT_ERROR("%s", "Unable to get version string");
 		goto out;
@@ -382,8 +390,16 @@ static int iscsi_check_version(unsigned long arg)
 	ver[sizeof(ver)-1] = '\0';
 
 	if (strcmp(ver, ISCSI_SCST_INTERFACE_VERSION) != 0) {
-		PRINT_ERROR("Incorrect version of user space %s (needed %s)",
+		PRINT_ERROR("Incorrect version of user space %s (expected %s)",
 			ver, ISCSI_SCST_INTERFACE_VERSION);
+		res = -EINVAL;
+		goto out;
+	}
+
+	max_data_seg_len = ISCSI_CONN_IOV_MAX << PAGE_SHIFT;
+	if (reg.max_data_seg_len != max_data_seg_len) {
+		PRINT_ERROR("Incorrect max_data_seg_len %d (expected %d)",
+			reg.max_data_seg_len, max_data_seg_len);
 		res = -EINVAL;
 		goto out;
 	}

@@ -34,7 +34,7 @@ struct session_file_operations {
 	int (*connection_op) (int fd, u32 tid, u64 sid, u32 cid, void *arg);
 };
 
-static int ctrdev_open(void)
+static int ctrdev_open(int max_data_seg_len)
 {
 	FILE *f;
 	char devname[256];
@@ -42,6 +42,7 @@ static int ctrdev_open(void)
 	int devn;
 	int ctlfd = -1;
 	int err;
+	struct iscsi_register_info reg = { 0 };
 
 	if (!(f = fopen("/proc/devices", "r"))) {
 		perror("Cannot open control path to the driver\n");
@@ -81,9 +82,12 @@ static int ctrdev_open(void)
 		goto out;
 	}
 
-	err = ioctl(ctlfd, REGISTER_USERD, ISCSI_SCST_INTERFACE_VERSION);
+	reg.version = ISCSI_SCST_INTERFACE_VERSION;
+	reg.max_data_seg_len = max_data_seg_len;
+	err = ioctl(ctlfd, REGISTER_USERD, &reg);
 	if (err < 0) {
-		log_error("Unable to register: %s\n", strerror(errno));
+		log_error("Unable to register: %s. Incompatible version of the "
+			"kernel module?\n", strerror(errno));
 		close(ctlfd);
 		ctlfd = -1;
 		goto out;

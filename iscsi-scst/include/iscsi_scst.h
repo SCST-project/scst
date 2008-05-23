@@ -119,15 +119,18 @@ struct iscsi_event {
 	u32 state;
 };
 
+struct iscsi_register_info {
+	aligned_u64 version;
+	u32 max_data_seg_len;
+};
+
 #define	DEFAULT_NR_QUEUED_CMNDS	32
 #define	MIN_NR_QUEUED_CMNDS	1
 #define	MAX_NR_QUEUED_CMNDS	256
 
-#define MAX_DATA_SEG_LEN	(4096/sizeof(struct iovec)*4096)
-
 #define NETLINK_ISCSI_SCST	25
 
-#define REGISTER_USERD		_IOW('s', 0, const char*)
+#define REGISTER_USERD		_IOW('s', 0, struct iscsi_register_info)
 #define ADD_TARGET		_IOW('s', 1, struct target_info)
 #define DEL_TARGET		_IOW('s', 2, struct target_info)
 #define ADD_SESSION		_IOW('s', 3, struct session_info)
