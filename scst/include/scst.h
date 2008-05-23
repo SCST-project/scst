@@ -1565,7 +1565,7 @@ struct scst_tgt_dev_UA {
 
 #ifndef smp_mb__after_set_bit
 /* There is no smp_mb__after_set_bit() in the kernel */
-#define smp_mb__after_set_bit()                 smp_mb();
+#define smp_mb__after_set_bit()                 smp_mb()
 #endif
 
 /*

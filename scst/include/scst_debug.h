@@ -124,8 +124,8 @@
 #define TRACE_ALL            0xffffffff
 /* Flags 0xXXXX0000 are local for users */
 
-#define PRINT(log_flag, format, args...)  printk("%s" format "\n", log_flag, ## args);
-#define PRINTN(log_flag, format, args...) printk("%s" format, log_flag, ## args);
+#define PRINT(log_flag, format, args...)  printk("%s" format "\n", log_flag, ## args)
+#define PRINTN(log_flag, format, args...) printk("%s" format, log_flag, ## args)
 
 #ifdef LOG_PREFIX
 #define __LOG_PREFIX	LOG_PREFIX
@@ -189,7 +189,7 @@ do {									\
 
 #define __TRACE(trace, format, args...)					\
 do {									\
-	if (trace_flag & (trace)) {						\
+	if (trace_flag & (trace)) {					\
 		char *__tflag = LOG_FLAG;				\
 		if (debug_print_prefix(trace_flag, __tflag, NULL, __FUNCTION__,\
 				       __LINE__) > 0) {			\
@@ -221,7 +221,7 @@ do {									\
 
 #define TRACE_BUFF_FLAG(flag, message, buff, len)			\
 do {									\
-	if (trace_flag & (flag)) {						\
+	if (trace_flag & (flag)) {					\
 		char *__tflag = LOG_FLAG;				\
 		if (debug_print_prefix(trace_flag, __tflag, NULL, __FUNCTION__, \
 				       __LINE__) > 0) {			\
@@ -275,7 +275,6 @@ do {									\
 				__FUNCTION__);				\
 		}							\
 		else {							\
-		{							\
 			PRINT(LOG_FLAG, "ENTRY %s", __FUNCTION__);	\
 		}							\
 	}								\
