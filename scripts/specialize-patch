@@ -119,12 +119,17 @@ function handle_if()
     evaluated = "+#if undecided"
   }
   #printf "%s -> %s\n", $0, evaluated
-  if (evaluated ~ "^+#elif")
+  if (evaluated ~ "^+#if")
+  {
+    if_stmnt[if_nesting_level] = evaluated
+  }
+  else
   {
     sub("^+#elif ", "+#if ! " + decision[if_nesting_level] + " && ", evaluated)
     evaluated = evaluate(evaluated)
   }
   decision[if_nesting_level] = evaluated
+  matching_if = if_stmnt[if_nesting_level]
 }
 
 
@@ -145,10 +150,12 @@ function process_preprocessor_statement() {
   }
   else if (evaluated ~ "^+#else")
   {
+    matching_if = if_stmnt[if_nesting_level]
     decision[if_nesting_level] = invert(decision[if_nesting_level])
   }
   else if (evaluated ~ "^+#endif")
   {
+    matching_if = if_stmnt[if_nesting_level]
     if_nesting_level--
   }
   else
@@ -163,20 +170,13 @@ function process_preprocessor_statement() {
       output = output && decision[i] != "+#if 0"
     }
   }
-  if (evaluated ~ "^+#if [01]$"                             \
-      || condition                                          \
-         && evaluated !~ "^+#if"                            \
-         && last_if_nesting_level >= 0			    \
-         && decision[last_if_nesting_level] ~ "+#if [01]$"  \
-      || ! condition                                        \
-         && last_if_nesting_level >= 0			    \
-         && decision[last_if_nesting_level] == "+#if 0")
+  if (output && (! condition || condition && matching_if !~ "^+#if [01]"))
   {
-    print "+"
+    print $0
   }
   else
   {
-    print $0
+    print "+"
   }
 }
 
