@@ -644,13 +644,13 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 
 	if (dev_handler == NULL) {
 		PRINT_ERROR("%s: valid device handler must be supplied",
-			__FUNCTION__);
+			    __func__);
 		res = -EINVAL;
 		goto out;
 	}
 
 	if (dev_name == NULL) {
-		PRINT_ERROR("%s: device name must be non-NULL", __FUNCTION__);
+		PRINT_ERROR("%s: device name must be non-NULL", __func__);
 		res = -EINVAL;
 		goto out;
 	}

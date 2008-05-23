@@ -642,7 +642,7 @@ static void text_scan_text(struct connection *conn)
 			if (ss.ss_family == AF_INET6 && suppress_ip6) {
 				if (strstr(p, "::ffff:") != p) {
 					log_error("%s, %s:%d.", __FILE__,
-						  __FUNCTION__, __LINE__);
+						  __func__, __LINE__);
 					suppress_ip6 = 0;
 				} else
 					addr += 7;

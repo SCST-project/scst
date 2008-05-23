@@ -141,7 +141,7 @@ static int isns_connect(void)
 		return -1;
 	}
 
-	log_error("%s %d: new connection %d", __FUNCTION__, __LINE__, fd);
+	log_error("%s %d: new connection %d", __func__, __LINE__, fd);
 
 	if (!strlen(eid)) {
 		err = isns_get_ip(fd);
@@ -210,7 +210,7 @@ static int isns_scn_deregister(char *name)
 
 	err = write(isns_fd, buf, length + sizeof(struct isns_hdr));
 	if (err < 0)
-		log_error("%s %d: %s", __FUNCTION__, __LINE__, strerror(errno));
+		log_error("%s %d: %s", __func__, __LINE__, strerror(errno));
 
 	return 0;
 }
@@ -269,7 +269,7 @@ static int isns_scn_register(void)
 
 	err = write(isns_fd, buf, length + sizeof(struct isns_hdr));
 	if (err < 0)
-		log_error("%s %d: %s", __FUNCTION__, __LINE__, strerror(errno));
+		log_error("%s %d: %s", __func__, __LINE__, strerror(errno));
 
 	return 0;
 }
@@ -323,7 +323,7 @@ static int isns_attr_query(char *name)
 
 	err = write(isns_fd, buf, length + sizeof(struct isns_hdr));
 	if (err < 0)
-		log_error("%s %d: %s", __FUNCTION__, __LINE__, strerror(errno));
+		log_error("%s %d: %s", __func__, __LINE__, strerror(errno));
 
 	return 0;
 }
@@ -361,7 +361,7 @@ static int isns_deregister(void)
 
 	err = write(isns_fd, buf, length + sizeof(struct isns_hdr));
 	if (err < 0)
-		log_error("%s %d: %s", __FUNCTION__, __LINE__, strerror(errno));
+		log_error("%s %d: %s", __func__, __LINE__, strerror(errno));
 	return 0;
 }
 
@@ -423,7 +423,7 @@ int isns_target_register(char *name)
 
 	err = write(isns_fd, buf, length + sizeof(struct isns_hdr));
 	if (err < 0)
-		log_error("%s %d: %s", __FUNCTION__, __LINE__, strerror(errno));
+		log_error("%s %d: %s", __func__, __LINE__, strerror(errno));
 
 	if (scn_listen_port)
 		isns_scn_register();
@@ -493,7 +493,7 @@ int isns_target_deregister(char *name)
 
 	err = write(isns_fd, buf, length + sizeof(struct isns_hdr));
 	if (err < 0)
-		log_error("%s %d: %s", __FUNCTION__, __LINE__, strerror(errno));
+		log_error("%s %d: %s", __func__, __LINE__, strerror(errno));
 
 	return 0;
 }
@@ -587,7 +587,7 @@ static int recv_pdu(int fd, struct isns_io *rx, struct isns_hdr *hdr)
 	get_hdr_param(hdr, function, length, flags, transaction,	\
 		      sequence)						\
 	log_error("%s %d: unknown function %x %u %x %u %u",		\
-		  __FUNCTION__, __LINE__,				\
+		  __func__, __LINE__,				\
 		  function, length, flags, transaction, sequence);	\
 }
 
@@ -644,28 +644,28 @@ static void qry_rsp_handle(struct isns_hdr *hdr)
 	}
 
 	log_error("%s %d: transaction not found %u",
-		  __FUNCTION__, __LINE__, transaction);
+		  __func__, __LINE__, transaction);
 
 	return;
 found:
 
 	if (status) {
 		log_error("%s %d: error response %u",
-			  __FUNCTION__, __LINE__, status);
+			  __func__, __LINE__, status);
 
 		goto free_qry_mgmt;
 	}
 
 	if (!strlen(mgmt->name)) {
 		log_debug(1, "%s %d: skip %u",
-			  __FUNCTION__, __LINE__, transaction);
+			  __func__, __LINE__, transaction);
 		goto free_qry_mgmt;
 	}
 
 	target = target_lookup_by_name(mgmt->name);
 	if (!target) {
 		log_error("%s %d: invalid tid %s",
-			  __FUNCTION__, __LINE__, mgmt->name);
+			  __func__, __LINE__, mgmt->name);
 		goto free_qry_mgmt;
 	}
 
@@ -684,7 +684,7 @@ found:
 			break;
 		case ISNS_ATTR_ISCSI_NODE_TYPE:
 			if (ntohl(*(tlv->value)) == ISNS_NODE_INITIATOR && name) {
-				log_error("%s %d: %s", __FUNCTION__, __LINE__,
+				log_error("%s %d: %s", __func__, __LINE__,
 					  (char *) name);
 				ini = malloc(sizeof(*ini));
 				if (!ini)
@@ -723,7 +723,7 @@ int isns_handle(int is_timeout, int *timeout)
 	if (err) {
 		if (err == -EAGAIN)
 			return err;
-		log_debug(1, "%s %d: close connection %d", __FUNCTION__, __LINE__,
+		log_debug(1, "%s %d: close connection %d", __func__, __LINE__,
 			  isns_fd);
 		close(isns_fd);
 		isns_fd = 0;
@@ -746,7 +746,7 @@ int isns_handle(int is_timeout, int *timeout)
 	case ISNS_FUNC_SCN:
 		name = print_scn_pdu(hdr);
 		if (name) {
-			log_error("%s %d: %s", __FUNCTION__, __LINE__, name);
+			log_error("%s %d: %s", __func__, __LINE__, name);
 			isns_attr_query(name);
 		}
 		break;
@@ -766,7 +766,7 @@ static int scn_accept_connection(void)
 	slen = sizeof(from);
 	fd = accept(scn_listen_fd, (struct sockaddr *) &from, &slen);
 	if (fd < 0) {
-		log_error("%s %d: accept error %s", __FUNCTION__, __LINE__,
+		log_error("%s %d: accept error %s", __func__, __LINE__,
 			  strerror(errno));
 		return -errno;
 	}
@@ -774,7 +774,7 @@ static int scn_accept_connection(void)
 
 	err = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
 	if (err)
-		log_error("%s %d: %s\n", __FUNCTION__, __LINE__,
+		log_error("%s %d: %s\n", __func__, __LINE__,
 			  strerror(errno));
 	/* not critical, so ignore. */
 
@@ -804,7 +804,7 @@ static void send_scn_rsp(char *name, uint16_t transaction)
 
 	err = write(scn_fd, buf, length + sizeof(struct isns_hdr));
 	if (err < 0)
-		log_error("%s %d: %s", __FUNCTION__, __LINE__, strerror(errno));
+		log_error("%s %d: %s", __func__, __LINE__, strerror(errno));
 }
 
 int isns_scn_handle(int is_accept)
@@ -815,7 +815,7 @@ int isns_scn_handle(int is_accept)
 	uint16_t function, length, flags, transaction, sequence;
 	char *name = NULL;
 
-	log_error("%s %d: %d", __FUNCTION__, __LINE__, is_accept);
+	log_error("%s %d: %d", __func__, __LINE__, is_accept);
 
 	if (is_accept)
 		return scn_accept_connection();
@@ -824,7 +824,7 @@ int isns_scn_handle(int is_accept)
 	if (err) {
 		if (err == -EAGAIN)
 			return err;
-		log_debug(1, "%s %d: close connection %d", __FUNCTION__, __LINE__,
+		log_debug(1, "%s %d: close connection %d", __func__, __LINE__,
 			  scn_fd);
 		close(scn_fd);
 		scn_fd = 0;
@@ -858,7 +858,7 @@ static int scn_init(char *addr)
 
 	fd = socket(ss.ss_family, SOCK_STREAM, IPPROTO_TCP);
 	if (fd < 0) {
-		log_error("%s %d: %s\n", __FUNCTION__, __LINE__, strerror(errno));
+		log_error("%s %d: %s\n", __func__, __LINE__, strerror(errno));
 		return -errno;
 	}
 
@@ -866,21 +866,21 @@ static int scn_init(char *addr)
 	if (ss.ss_family == AF_INET6) {
 		err = setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt));
 		if (err)
-			log_error("%s %d: %s\n", __FUNCTION__, __LINE__,
+			log_error("%s %d: %s\n", __func__, __LINE__,
 				  strerror(errno));
 		goto out;
 	}
 
 	err = listen(fd, 5);
 	if (err) {
-		log_error("%s %d: %s\n", __FUNCTION__, __LINE__, strerror(errno));
+		log_error("%s %d: %s\n", __func__, __LINE__, strerror(errno));
 		goto out;
 	}
 
 	slen = sizeof(lss);
 	err = getsockname(fd, (struct sockaddr *) &lss, &slen);
 	if (err) {
-		log_error("%s %d: %s\n", __FUNCTION__, __LINE__, strerror(errno));
+		log_error("%s %d: %s\n", __func__, __LINE__, strerror(errno));
 		goto out;
 	}
 

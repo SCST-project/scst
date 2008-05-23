@@ -137,7 +137,7 @@ static int iscsid_request_send(int fd, struct iscsi_adm_req *req)
 
 	if (ret != sizeof(*req)) {
 		err = (ret < 0) ? -errno : -EIO;
-		fprintf(stderr, "%s %d %d %d\n", __FUNCTION__, __LINE__, ret,
+		fprintf(stderr, "%s %d %d %d\n", __func__, __LINE__, ret,
 			err);
 	} else
 		err = 0;
@@ -162,7 +162,7 @@ static int iscsid_response_recv(int fd, struct iscsi_adm_req *req)
 
 	if (ret != sizeof(rsp) + sizeof(*req)) {
 		err = (ret < 0) ? -errno : -EIO;
-		fprintf(stderr, "%s %d %d %d\n", __FUNCTION__, __LINE__, ret,
+		fprintf(stderr, "%s %d %d %d\n", __func__, __LINE__, ret,
 			err);
 	} else
 		err = rsp.err;

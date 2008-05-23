@@ -262,7 +262,7 @@ void scst_free_device(struct scst_device *dev)
 	if (!list_empty(&dev->dev_tgt_dev_list) ||
 	    !list_empty(&dev->dev_acg_dev_list)) {
 		PRINT_CRIT_ERROR("%s: dev_tgt_dev_list or dev_acg_dev_list "
-			"is not empty!", __FUNCTION__);
+			"is not empty!", __func__);
 		sBUG();
 	}
 #endif
@@ -354,7 +354,7 @@ int scst_destroy_acg(struct scst_acg *acg)
 	TRACE_ENTRY();
 
 	if (!list_empty(&acg->acg_sess_list)) {
-		PRINT_ERROR("%s: acg_sess_list is not empty!", __FUNCTION__);
+		PRINT_ERROR("%s: acg_sess_list is not empty!", __func__);
 		res = -EBUSY;
 		goto out;
 	}
@@ -1341,7 +1341,7 @@ void scst_free_cmd(struct scst_cmd *cmd)
 
 #if defined(EXTRACHECKS) && (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18))
 	if (cmd->scsi_req) {
-		PRINT_ERROR("%s: %s", __FUNCTION__, "Cmd with unfreed "
+		PRINT_ERROR("%s: %s", __func__, "Cmd with unfreed "
 			"scsi_req!");
 		scst_release_request(cmd);
 	}
@@ -2193,7 +2193,7 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 			buffer_size = scst_get_buf_first(cmd, &buffer);
 			if (unlikely(buffer_size <= 0)) {
 				PRINT_ERROR("%s: Unable to get the buffer "
-					"(%d)",	__FUNCTION__, buffer_size);
+					"(%d)",	__func__, buffer_size);
 				goto out;
 			}
 
@@ -2245,7 +2245,7 @@ int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 		buffer_size = scst_get_buf_first(cmd, &buffer);
 		if (unlikely(buffer_size <= 0)) {
 			PRINT_ERROR("%s: Unable to get the buffer (%d)",
-				__FUNCTION__, buffer_size);
+				__func__, buffer_size);
 			goto out;
 		}
 		break;

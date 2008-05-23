@@ -195,7 +195,7 @@ void digest_tx_data(struct iscsi_cmnd *cmnd)
 	u32 offset;
 
 	TRACE_DBG("%s:%d req %p, own_sg %d, sg %p, sgcnt %d cmnd %p, "
-		"own_sg %d, sg %p, sgcnt %d", __FUNCTION__, __LINE__,
+		"own_sg %d, sg %p, sgcnt %d", __func__, __LINE__,
 		cmnd->parent_req, cmnd->parent_req->own_sg,
 		cmnd->parent_req->sg, cmnd->parent_req->sg_cnt,
 		cmnd, cmnd->own_sg, cmnd->sg, cmnd->sg_cnt);

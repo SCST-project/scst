@@ -96,7 +96,7 @@ int target_del(u32 tid)
 	remque(&target->tlist);
 
 	if (!list_empty(&target->sessions_list)) {
-		log_error("%s still have sessions %d\n", __FUNCTION__, tid);
+		log_error("%s still have sessions %d\n", __func__, tid);
 		exit(-1);
 	}
 
