@@ -23,6 +23,10 @@
 # Function definitions #
 ########################
 
+function usage {
+  echo "Usage: $0 [-m] [-q] <kernel version>."
+}
+
 # Convert an existing patch.
 # $1: path of patch to be added.
 # $2: path in kernel tree of file to be patched.
@@ -72,13 +76,27 @@ EOF
 # Argument verification #
 #########################
 
+mpt_scst="false"
+qla2x00t="false"
+
 if [ ! -e scst -o ! -e iscsi-scst -o ! -e srpt ]; then
   echo "Please run this script from inside the SCST subversion source tree."
   exit 1
 fi
 
+set -- $(/usr/bin/getopt mq "$@")
+while [ "$1" != "${1#-}" ]
+do
+  case "$1" in
+    '-m') mpt_scst="true"; shift;;
+    '-q') qla2x00t="true"; shift;;
+    '--') shift;;
+    *)    usage; exit 1;;
+  esac
+done
+
 if [ $# != 1 ]; then
-  echo "Usage: $0 <kernel version>."
+  usage
   exit 1
 fi
 
@@ -185,24 +203,24 @@ done
 
 # Directory drivers/scst/qla2x00-target/
 
-if false; then
+if [ "${qla2x00t}" = "true" ]; then
 
-add_file "qla2x00t/qla2x00-target/Makefile.in-kernel" \
-         "drivers/scst/qla2x00-target/Makefile"
+  #add_file "qla2x00t/qla2x00-target/Makefile.in-kernel" \
+  #         "drivers/scst/qla2x00-target/Makefile"
 
-add_file "qla2x00t/qla2x00-target/Kconfig" \
-         "drivers/scst/qla2x00-target/Kconfig"
+  #add_file "qla2x00t/qla2x00-target/Kconfig" \
+  #         "drivers/scst/qla2x00-target/Kconfig"
 
-add_file "qla2x00t/qla2x_tgt_def.h" \
-         "drivers/scst/qla2x00-target/qla2x_tgt_def.h"
+  add_file "qla2x00t/qla2x_tgt_def.h" \
+           "drivers/scst/qla2x00-target/qla2x_tgt_def.h"
 
-add_file "qla2x00t/qla2x00-target/README" \
-         "Documentation/scst/README.qla2x00t"
+  add_file "qla2x00t/qla2x00-target/README" \
+           "Documentation/scst/README.qla2x00t"
 
-for f in qla2x00t/qla2x00-target/*.[ch]
-do
-  add_file "${f}" "drivers/scst/qla2x00-target/${f#qla2x00t/qla2x00-target/}"
-done
+  for f in qla2x00t/qla2x00-target/*.[ch]
+  do
+    add_file "${f}" "drivers/scst/qla2x00-target/${f#qla2x00t/qla2x00-target/}"
+  done
 
 fi
 
@@ -225,3 +243,23 @@ for f in srpt/src/*.[ch]
 do
   add_file "${f}" "drivers/infiniband/ulp/srpt/${f#srpt/src/}"
 done
+
+
+# Directory drivers/message/fusion/mpt_scst
+
+if [ "$mpt_scst" = "true" ]; then
+
+  add_patch "mpt/in-tree/Kconfig-2.6.24.diff" "drivers/message/fusion/Kconfig"
+
+  add_patch "mpt/in-tree/Makefile.diff"       "drivers/message/fusion/Makefile"
+
+  add_file  "mpt/Makefile" "drivers/message/fusion/mpt_scst/Makefile"
+
+  add_file  "mpt/Kconfig"  "drivers/message/fusion/mpt_scst/Kconfig"
+
+  for f in mpt/*.[ch]
+  do
+    add_file "${f}" "drivers/message/fusion/mpt_scst/${f#mpt/}"
+  done
+
+fi
