@@ -945,7 +945,7 @@ bad:
         isp_kfree(isp->isp_osinfo.storep, isp->isp_osinfo.storep_amt);
         isp->isp_osinfo.storep = NULL;
     }
-#ifdef  CONFIG_FW_LOADER
+#if !defined(DISABLE_FW_LOADER) && (defined(CONFIG_FW_LOADER) || defined(CONFIG_FW_LOADER_MODULE))
     if (isp->isp_osinfo.fwp) {
         release_firmware(isp->isp_osinfo.fwp);
         isp->isp_osinfo.fwp = NULL;
@@ -3468,7 +3468,7 @@ isplinux_pci_remove(struct pci_dev *pdev)
     isp_deinit_target(isp);
 #endif
     scsi_host_put(host);
-#ifdef  CONFIG_FW_LOADER
+#if !defined(DISABLE_FW_LOADER) && (defined(CONFIG_FW_LOADER) || defined(CONFIG_FW_LOADER_MODULE))
     if (isp->isp_osinfo.fwp) {
         release_firmware(isp->isp_osinfo.fwp);
         isp->isp_osinfo.fwp = NULL;
