@@ -129,7 +129,8 @@ int session_free(struct iscsi_session *session)
 {
 	int i;
 
-	TRACE_MGMT_DBG("Freeing session %p:%#Lx", session, session->sid);
+	TRACE_MGMT_DBG("Freeing session %p:%#Lx",
+		session, (long long unsigned int)session->sid);
 
 	sBUG_ON(!list_empty(&session->conn_list));
 	if (unlikely(atomic_read(&session->active_cmds) != 0)) {
@@ -162,7 +163,8 @@ int session_del(struct iscsi_target *target, u64 sid)
 		return -ENOENT;
 
 	if (!list_empty(&session->conn_list)) {
-		PRINT_ERROR("%llu still have connections", session->sid);
+		PRINT_ERROR("%llu still have connections",
+			    (long long unsigned int)session->sid);
 		return -EBUSY;
 	}
 
@@ -176,7 +178,8 @@ static void iscsi_session_info_show(struct seq_file *seq, struct iscsi_target *t
 
 	list_for_each_entry(session, &target->session_list, session_list_entry) {
 		seq_printf(seq, "\tsid:%llu initiator:%s shutting down %d\n",
-			session->sid, session->initiator_name,
+			(long long unsigned int)session->sid,
+			session->initiator_name,
 			session->shutting_down);
 		conn_info_show(seq, session);
 	}

@@ -456,7 +456,7 @@ static inline int scst_pre_dec_on_dev_cmd(struct scst_cmd *cmd)
 	int cmd_blocking = cmd->inc_blocking;
 	if (cmd_blocking) {
 		TRACE_MGMT_DBG("cmd %p (tag %llu): unblocking dev %p", cmd,
-			cmd->tag, cmd->dev);
+			       (long long unsigned int)cmd->tag, cmd->dev);
 		cmd->inc_blocking = 0;
 	}
 	cmd->dec_on_dev_needed = 0;

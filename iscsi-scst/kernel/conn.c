@@ -254,7 +254,7 @@ static void conn_rsp_timer_fn(unsigned long arg)
 				PRINT_ERROR("Timeout sending data to initiator "
 					"%s (SID %Lx), closing connection",
 					conn->session->initiator_name,
-					conn->session->sid);
+					(long long unsigned int)conn->session->sid);
 				mark_conn_closed(conn);
 			}
 		} else {
@@ -281,13 +281,13 @@ static int iscsi_socket_bind(struct iscsi_conn *conn)
 	mm_segment_t oldfs;
 	struct iscsi_session *session = conn->session;
 
-	TRACE_DBG("%llu", session->sid);
+	TRACE_DBG("%llu", (long long unsigned int)session->sid);
 
 	conn->sock = SOCKET_I(conn->file->f_dentry->d_inode);
 
 	if (conn->sock->ops->sendpage == NULL) {
 		PRINT_ERROR("Socket for sid %llu doesn't support sendpage()",
-			session->sid);
+			    (long long unsigned int)session->sid);
 		res = -EINVAL;
 		goto out;
 	}
@@ -324,7 +324,9 @@ out:
 int conn_free(struct iscsi_conn *conn)
 {
 	TRACE_MGMT_DBG("Freeing conn %p (sess=%p, %#Lx %u)", conn,
-		conn->session, conn->session->sid, conn->cid);
+		       conn->session,
+		       (long long unsigned int)conn->session->sid,
+		       conn->cid);
 
 	del_timer_sync(&conn->rsp_timer);
 
@@ -359,7 +361,7 @@ static int iscsi_conn_alloc(struct iscsi_session *session, struct conn_info *inf
 	}
 
 	TRACE_MGMT_DBG("Creating connection %p for sid %#Lx, cid %u", conn,
-		session->sid, info->cid);
+		       (long long unsigned int)session->sid, info->cid);
 
 	/* Changing it, change ISCSI_CONN_IOV_MAX as well !! */
 	conn->read_iov = (struct iovec *)get_zeroed_page(GFP_KERNEL);

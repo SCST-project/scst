@@ -1689,7 +1689,7 @@ static int dev_user_reply_get_cmd(struct file *file, unsigned long arg,
 	if (res < 0)
 		goto out_up;
 
-	TRACE_DBG("ureply %Ld", ureply);
+	TRACE_DBG("ureply %Ld", (long long unsigned int)ureply);
 
 	cmd = kzalloc(max(sizeof(*cmd), sizeof(*reply)), GFP_KERNEL);
 	if (cmd == NULL) {

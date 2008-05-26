@@ -989,7 +989,8 @@ static int write_data(struct iscsi_conn *conn)
 			res = vfs_writev(file, (struct iovec __user *)iop,
 					 count, &off);
 			set_fs(oldfs);
-			TRACE_WRITE("%#Lx:%u: %d(%ld)", conn->session->sid,
+			TRACE_WRITE("%#Lx:%u: %d(%ld)",
+				    (long long unsigned int)conn->session->sid,
 				    conn->cid,
 				    res, (long)iop->iov_len);
 			if (unlikely(res <= 0)) {
@@ -1089,7 +1090,8 @@ retry2:
 			TRACE_WRITE("Final %s %#Lx:%u: %d(%lu,%u,%u, cmd %p, page %p)",
 				(sendpage != sock_no_sendpage) ? "sendpage" :
 								 "sock_no_sendpage",
-				conn->session->sid, conn->cid,
+				(long long unsigned int)conn->session->sid,
+				conn->cid,
 				res, sg_page(&sg[idx])->index, offset, size,
 				write_cmnd, sg_page(&sg[idx]));
 			if (unlikely(res <= 0)) {
@@ -1168,7 +1170,8 @@ out_err:
 #endif
 	{
 		PRINT_ERROR("error %d at sid:cid %#Lx:%u, cmnd %p", res,
-			conn->session->sid, conn->cid, conn->write_cmnd);
+			    (long long unsigned int)conn->session->sid,
+			    conn->cid, conn->write_cmnd);
 	}
 	if (ref_cmd->scst_cmd != NULL)
 		scst_set_delivery_status(ref_cmd->scst_cmd,

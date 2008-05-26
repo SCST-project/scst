@@ -195,7 +195,9 @@ void scst_set_resp_data_len(struct scst_cmd *cmd, int resp_data_len)
 #ifdef DEBUG
 			TRACE(TRACE_SG_OP|TRACE_MEMORY, "cmd %p (tag %llu), "
 				"resp_data_len %d, i %d, cmd->sg[i].length %d, "
-				"left %d", cmd, cmd->tag, resp_data_len, i,
+				"left %d",
+				cmd, (long long unsigned int)cmd->tag,
+				resp_data_len, i,
 				cmd->sg[i].length, left);
 #endif
 			cmd->orig_sg_cnt = cmd->sg_cnt;
@@ -453,10 +455,12 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 		TRACE_MGMT_DBG("host=%d, channel=%d, id=%d, lun=%d, "
 		      "SCST lun=%Ld", dev->scsi_dev->host->host_no,
 		      dev->scsi_dev->channel, dev->scsi_dev->id,
-		      dev->scsi_dev->lun, (uint64_t)tgt_dev->lun);
+		      dev->scsi_dev->lun,
+		      (long long unsigned int)tgt_dev->lun);
 	} else {
 		TRACE_MGMT_DBG("Virtual device %s on SCST lun=%Ld",
-			dev->virt_name, (uint64_t)tgt_dev->lun);
+			       dev->virt_name,
+			       (long long unsigned int)tgt_dev->lun);
 	}
 
 	spin_lock_init(&tgt_dev->tgt_dev_lock);
@@ -723,12 +727,14 @@ out:
 		if (dev->virt_name != NULL) {
 			PRINT_INFO("Added device %s to group %s (LUN %Ld, "
 				"rd_only %d)", dev->virt_name, acg->acg_name,
-				lun, read_only);
+				(long long unsigned int)lun,
+				read_only);
 		} else {
 			PRINT_INFO("Added device %d:%d:%d:%d to group %s (LUN "
 				"%Ld, rd_only %d)", dev->scsi_dev->host->host_no,
 				dev->scsi_dev->channel,	dev->scsi_dev->id,
-				dev->scsi_dev->lun, acg->acg_name, lun,
+				dev->scsi_dev->lun, acg->acg_name,
+				(long long unsigned int)lun,
 				read_only);
 		}
 	}
@@ -1329,7 +1335,8 @@ void scst_free_cmd(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	TRACE_DBG("Freeing cmd %p (tag %Lu)", cmd, cmd->tag);
+	TRACE_DBG("Freeing cmd %p (tag %Lu)",
+		  cmd, (long long unsigned int)cmd->tag);
 
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
 		TRACE_MGMT_DBG("Freeing aborted cmd %p (scst_cmd_count %d)",
@@ -1339,12 +1346,14 @@ void scst_free_cmd(struct scst_cmd *cmd)
 	sBUG_ON(cmd->inc_blocking || cmd->needs_unblocking ||
 		cmd->dec_on_dev_needed);
 
-#if defined(EXTRACHECKS) && (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18))
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
+#if defined(EXTRACHECKS)
 	if (cmd->scsi_req) {
 		PRINT_ERROR("%s: %s", __func__, "Cmd with unfreed "
 			"scsi_req!");
 		scst_release_request(cmd);
 	}
+#endif
 #endif
 
 	scst_check_restore_sg_buff(cmd);
@@ -1386,7 +1395,8 @@ void scst_free_cmd(struct scst_cmd *cmd)
 		if (unlikely(!cmd->sent_to_midlev)) {
 			PRINT_ERROR("Finishing not executed cmd %p (opcode "
 			     "%d, target %s, lun %Ld, sn %ld, expected_sn %ld)",
-			     cmd, cmd->cdb[0], cmd->tgtt->name, (uint64_t)cmd->lun,
+			     cmd, cmd->cdb[0], cmd->tgtt->name,
+			     (long long unsigned int)cmd->lun,
 			     cmd->sn, cmd->tgt_dev->expected_sn);
 			scst_unblock_deferred(cmd->tgt_dev, cmd);
 		}
@@ -1394,7 +1404,9 @@ void scst_free_cmd(struct scst_cmd *cmd)
 
 		if (unlikely(cmd->out_of_sn)) {
 			TRACE_SN("Out of SN cmd %p (tag %llu, sn %ld), "
-				"destroy=%d", cmd, cmd->tag, cmd->sn, destroy);
+				"destroy=%d", cmd,
+				(long long unsigned int)cmd->tag,
+				cmd->sn, destroy);
 			destroy = test_and_set_bit(SCST_CMD_CAN_BE_DESTROYED,
 					&cmd->cmd_flags);
 		}
@@ -2431,7 +2443,8 @@ void scst_process_reset(struct scst_device *dev,
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 				    dev_tgt_dev_list_entry) {
 			TRACE(TRACE_MGMT, "Clearing RESERVE'ation for tgt_dev "
-				"lun %Ld", tgt_dev->lun);
+			        "lun %Ld",
+			        (long long unsigned int)tgt_dev->lun);
 			clear_bit(SCST_TGT_DEV_RESERVED,
 				  &tgt_dev->tgt_dev_flags);
 		}
@@ -2660,7 +2673,7 @@ void scst_free_all_UA(struct scst_tgt_dev *tgt_dev)
 
 	list_for_each_entry_safe(UA_entry, t, &tgt_dev->UA_list, UA_list_entry) {
 		TRACE_MGMT_DBG("Clearing UA for tgt_dev lun %Ld",
-			tgt_dev->lun);
+			       (long long unsigned int)tgt_dev->lun);
 		list_del(&UA_entry->UA_list_entry);
 		kfree(UA_entry);
 	}
@@ -2720,7 +2733,9 @@ restart:
 			 * !! already destroyed				!!
 			 */
 			TRACE_SN("cmd %p (tag %llu) with skipped sn %ld found",
-				cmd, cmd->tag, cmd->sn);
+				 cmd,
+				 (long long unsigned int)cmd->tag,
+				 cmd->sn);
 			tgt_dev->def_cmd_count--;
 			list_del(&cmd->sn_cmd_list_entry);
 			spin_unlock_irq(&tgt_dev->sn_lock);
@@ -2833,7 +2848,8 @@ void scst_block_dev_cmd(struct scst_cmd *cmd, int outstanding)
 	sBUG_ON(cmd->needs_unblocking);
 
 	cmd->needs_unblocking = 1;
-	TRACE_MGMT_DBG("Needs unblocking cmd %p (tag %llu)", cmd, cmd->tag);
+	TRACE_MGMT_DBG("Needs unblocking cmd %p (tag %llu)",
+		       cmd, (long long unsigned int)cmd->tag);
 
 	scst_block_dev(cmd->dev, outstanding);
 }
@@ -2899,7 +2915,7 @@ repeat:
 			scst_dec_on_dev_cmd(cmd);
 			TRACE_MGMT_DBG("Delaying cmd %p due to blocking or "
 				"serializing (tag %llu, dev %p)", cmd,
-				cmd->tag, dev);
+				(long long unsigned int)cmd->tag, dev);
 			list_add_tail(&cmd->blocked_cmd_list_entry,
 				      &dev->blocked_cmd_list);
 			res = 1;
@@ -2917,7 +2933,7 @@ repeat:
 		if (dev->block_count == 0) {
 			TRACE_MGMT_DBG("cmd %p (tag %llu), blocking further "
 				"cmds due to serializing (dev %p)", cmd,
-				cmd->tag, dev);
+				(long long unsigned int)cmd->tag, dev);
 			__scst_block_dev(dev);
 			cmd->inc_blocking = 1;
 		} else {
@@ -3095,12 +3111,13 @@ void scst_xmit_process_aborted_cmd(struct scst_cmd *cmd)
 		if (cmd->dev->tas) {
 			TRACE_MGMT_DBG("Flag ABORTED OTHER set for cmd %p "
 				"(tag %llu), returning TASK ABORTED ", cmd,
-				cmd->tag);
+				(long long unsigned int)cmd->tag);
 			scst_set_cmd_error_status(cmd, SAM_STAT_TASK_ABORTED);
 		} else {
 			TRACE_MGMT_DBG("Flag ABORTED OTHER set for cmd %p "
 				"(tag %llu), aborting without delivery or "
-				"notification", cmd, cmd->tag);
+				"notification",
+				cmd, (long long unsigned int)cmd->tag);
 			/*
 			 * There is no need to check/requeue possible UA,
 			 * because, if it exists, it will be delivered
