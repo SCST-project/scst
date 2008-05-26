@@ -34,7 +34,7 @@ struct session_file_operations {
 	int (*connection_op) (int fd, u32 tid, u64 sid, u32 cid, void *arg);
 };
 
-static int ctrdev_open(int max_data_seg_len)
+static int ctrdev_open(int *max_data_seg_len)
 {
 	FILE *f;
 	char devname[256];
@@ -82,19 +82,24 @@ static int ctrdev_open(int max_data_seg_len)
 		goto out;
 	}
 
-	reg.version = ISCSI_SCST_INTERFACE_VERSION;
-	reg.max_data_seg_len = max_data_seg_len;
+	reg.version = (uintptr_t)ISCSI_SCST_INTERFACE_VERSION;
 	err = ioctl(ctlfd, REGISTER_USERD, &reg);
 	if (err < 0) {
 		log_error("Unable to register: %s. Incompatible version of the "
 			"kernel module?\n", strerror(errno));
-		close(ctlfd);
-		ctlfd = -1;
-		goto out;
+		goto out_close;
+	} else {
+		log_debug(0, "MAX_DATA_SEG_LEN %d", err);
+		*max_data_seg_len = err;
 	}
 
 out:
 	return ctlfd;
+
+out_close:
+	close(ctlfd);
+	ctlfd = -1;
+	goto out;
 }
 
 static int iscsi_target_create(u32 *tid, char *name)

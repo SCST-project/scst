@@ -373,7 +373,7 @@ static int iscsi_check_version(unsigned long arg)
 {
 	struct iscsi_register_info reg;
 	char ver[sizeof(ISCSI_SCST_INTERFACE_VERSION)+1];
-	int res, max_data_seg_len;
+	int res;
 
 	res = copy_from_user(&reg, (void *)arg, sizeof(reg));
 	if (res < 0) {
@@ -396,13 +396,7 @@ static int iscsi_check_version(unsigned long arg)
 		goto out;
 	}
 
-	max_data_seg_len = ISCSI_CONN_IOV_MAX << PAGE_SHIFT;
-	if (reg.max_data_seg_len != max_data_seg_len) {
-		PRINT_ERROR("Incorrect max_data_seg_len %d (expected %d)",
-			reg.max_data_seg_len, max_data_seg_len);
-		res = -EINVAL;
-		goto out;
-	}
+	res = ISCSI_CONN_IOV_MAX << PAGE_SHIFT;
 
 out:
 	return res;

@@ -518,11 +518,8 @@ static void event_loop(int timeout)
 	}
 }
 
-int init_max_data_seg_len(void)
+void init_max_data_seg_len(int max_data_seg_len)
 {
-	int page_size = getpagesize();
-	int max_data_seg_len = page_size / sizeof(struct iovec) * page_size;
-
 	if ((session_keys[3].local_def != -1) ||
 	    (session_keys[3].max != -1) ||
 	    (session_keys[4].local_def != -1) ||
@@ -551,7 +548,7 @@ int init_max_data_seg_len(void)
 	session_keys[6].local_def = max_data_seg_len;
 	session_keys[6].max = max_data_seg_len;
 
-	return max_data_seg_len;
+	return;
 }
 
 int main(int argc, char **argv)
@@ -562,7 +559,7 @@ int main(int argc, char **argv)
 	gid_t gid = 0;
 	char *isns = NULL;
 	int isns_ac = 0;
-	int max_data_seg_len;
+	int max_data_seg_len = -1;
 
 	if (pipe(init_report_pipe) == -1) {
 		perror("pipe");
@@ -578,7 +575,7 @@ int main(int argc, char **argv)
 			log_daemon = 0;
 			break;
 		case 'd':
-			log_level = atoi(optarg);
+			log_level = strtol(optarg, NULL, 0);
 			break;
 		case 'u':
 			uid = strtoul(optarg, NULL, 10);
@@ -610,10 +607,10 @@ int main(int argc, char **argv)
 		exit(-1);
 	};
 
-	max_data_seg_len = init_max_data_seg_len();
-
-	if ((ctrl_fd = ki->ctldev_open(max_data_seg_len)) < 0)
+	if ((ctrl_fd = ki->ctldev_open(&max_data_seg_len)) < 0)
 		exit(-1);
+
+	init_max_data_seg_len(max_data_seg_len);
 
 	if ((ipc_fd = iscsi_adm_request_listen()) < 0) {
 		perror("ipc fd\n");
