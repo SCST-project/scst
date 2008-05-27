@@ -14,7 +14,7 @@
  *  GNU General Public License for more details.
  */
 
-#include <asm/scatterlist.h>
+#include <linux/scatterlist.h>
 #include <linux/workqueue.h>
 #include <linux/seq_file.h>
 

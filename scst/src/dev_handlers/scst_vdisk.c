@@ -20,7 +20,7 @@
  *  GNU General Public License for more details.
  */
 
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 #include <linux/file.h>
 #include <linux/fs.h>
 #include <linux/string.h>

@@ -23,8 +23,8 @@
 #include <linux/slab.h>
 #include <linux/sched.h>
 #include <linux/smp_lock.h>
-#include <asm/unistd.h>
-#include <asm/string.h>
+#include <linux/unistd.h>
+#include <linux/string.h>
 #include <linux/kthread.h>
 #include <linux/delay.h>
 

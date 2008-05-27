@@ -21,7 +21,7 @@
 #define __SCST_DEBUG_H
 
 #include <linux/autoconf.h>	/* for CONFIG_* */
-#include <asm/bug.h>		/* for WARN_ON_ONCE */
+#include <linux/bug.h>		/* for WARN_ON_ONCE */
 
 #if !defined(EXTRACHECKS) && defined(CONFIG_SCSI_TARGET_EXTRACHECKS)
 #define EXTRACHECKS

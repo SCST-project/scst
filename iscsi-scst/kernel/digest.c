@@ -15,7 +15,7 @@
  *  GNU General Public License for more details.
  */
 
-#include <asm/types.h>
+#include <linux/types.h>
 #include <linux/scatterlist.h>
 
 #include "iscsi.h"

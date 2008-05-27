@@ -24,8 +24,8 @@
 #include <linux/sched.h>
 #include <linux/kthread.h>
 #include <linux/cdrom.h>
-#include <asm/unistd.h>
-#include <asm/string.h>
+#include <linux/unistd.h>
+#include <linux/string.h>
 
 #ifdef SCST_HIGHMEM
 #include <linux/highmem.h>
