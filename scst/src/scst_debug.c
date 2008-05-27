@@ -63,6 +63,7 @@ int debug_print_prefix(unsigned long trace_flag, const char *log_level,
 
 	return i;
 }
+EXPORT_SYMBOL(debug_print_prefix);
 
 void debug_print_buffer(const char *log_level, const void *data, int len)
 {
@@ -117,7 +118,6 @@ void debug_print_buffer(const char *log_level, const void *data, int len)
 	spin_unlock_irqrestore(&trace_buf_lock, flags);
 	return;
 }
-
-EXPORT_SYMBOL(debug_print_prefix);
 EXPORT_SYMBOL(debug_print_buffer);
+
 #endif /* DEBUG || TRACING */

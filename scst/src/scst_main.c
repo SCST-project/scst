@@ -251,6 +251,7 @@ out_err:
 	PRINT_ERROR("Failed to register target template %s", vtt->name);
 	goto out;
 }
+EXPORT_SYMBOL(__scst_register_target_template);
 
 void scst_unregister_target_template(struct scst_tgt_template *vtt)
 {
@@ -292,6 +293,7 @@ out_up:
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(scst_unregister_target_template);
 
 struct scst_tgt *scst_register(struct scst_tgt_template *vtt,
 	const char *target_name)
@@ -365,6 +367,7 @@ out_err:
 		target_name, vtt->name);
 	goto out;
 }
+EXPORT_SYMBOL(scst_register);
 
 static inline int test_sess_list(struct scst_tgt *tgt)
 {
@@ -419,6 +422,7 @@ void scst_unregister(struct scst_tgt *tgt)
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(scst_unregister);
 
 void scst_suspend_activity(void)
 {
@@ -454,6 +458,7 @@ out_up:
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(scst_suspend_activity);
 
 void scst_resume_activity(void)
 {
@@ -494,6 +499,7 @@ out_up:
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(scst_resume_activity);
 
 static int scst_register_device(struct scsi_device *scsidp)
 {
@@ -707,6 +713,7 @@ out_free_del:
 	scst_free_device(dev);
 	goto out_up;
 }
+EXPORT_SYMBOL(scst_register_virtual_device);
 
 void scst_unregister_virtual_device(int id)
 {
@@ -752,6 +759,7 @@ out_unblock:
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(scst_unregister_virtual_device);
 
 int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 	const char *version)
@@ -839,6 +847,7 @@ out_error:
 		dev_type->name, dev_type->type);
 	goto out;
 }
+EXPORT_SYMBOL(__scst_register_dev_driver);
 
 void scst_unregister_dev_driver(struct scst_dev_type *dev_type)
 {
@@ -889,6 +898,7 @@ out_up:
 	scst_resume_activity();
 	goto out;
 }
+EXPORT_SYMBOL(scst_unregister_dev_driver);
 
 int __scst_register_virtual_dev_driver(struct scst_dev_type *dev_type,
 	const char *version)
@@ -932,6 +942,7 @@ out_err:
 		dev_type->name);
 	goto out;
 }
+EXPORT_SYMBOL(__scst_register_virtual_dev_driver);
 
 void scst_unregister_virtual_dev_driver(struct scst_dev_type *dev_type)
 {
@@ -945,6 +956,7 @@ void scst_unregister_virtual_dev_driver(struct scst_dev_type *dev_type)
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(scst_unregister_virtual_dev_driver);
 
 /* Called under scst_mutex */
 int scst_add_dev_threads(struct scst_device *dev, int num)
@@ -1268,6 +1280,7 @@ int scst_add_cmd_threads(int num)
 	TRACE_EXIT_RES(res);
 	return res;
 }
+EXPORT_SYMBOL(scst_add_cmd_threads);
 
 void scst_del_cmd_threads(int num)
 {
@@ -1280,6 +1293,7 @@ void scst_del_cmd_threads(int num)
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(scst_del_cmd_threads);
 
 static void scst_stop_all_threads(void)
 {
@@ -1347,11 +1361,13 @@ void scst_get(void)
 {
 	__scst_get(0);
 }
+EXPORT_SYMBOL(scst_get);
 
 void scst_put(void)
 {
 	__scst_put();
 }
+EXPORT_SYMBOL(scst_put);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 15)
 static int scst_add(struct class_device *cdev)
@@ -1746,116 +1762,6 @@ static void __exit exit_scst(void)
 	return;
 }
 
-/*
- * Device Handler Side (i.e. scst_vdisk)
- */
-EXPORT_SYMBOL(__scst_register_dev_driver);
-EXPORT_SYMBOL(scst_unregister_dev_driver);
-EXPORT_SYMBOL(scst_register);
-EXPORT_SYMBOL(scst_unregister);
-
-EXPORT_SYMBOL(scst_register_virtual_device);
-EXPORT_SYMBOL(scst_unregister_virtual_device);
-EXPORT_SYMBOL(__scst_register_virtual_dev_driver);
-EXPORT_SYMBOL(scst_unregister_virtual_dev_driver);
-
-EXPORT_SYMBOL(scst_set_busy);
-EXPORT_SYMBOL(scst_set_cmd_error_status);
-EXPORT_SYMBOL(scst_set_cmd_error);
-EXPORT_SYMBOL(scst_set_resp_data_len);
-EXPORT_SYMBOL(scst_alloc_sense);
-EXPORT_SYMBOL(scst_alloc_set_sense);
-EXPORT_SYMBOL(scst_set_sense);
-EXPORT_SYMBOL(scst_set_cmd_error_sense);
-
-EXPORT_SYMBOL(scst_process_active_cmd);
-
-/*
- * Target Driver Side (i.e. HBA)
- */
-EXPORT_SYMBOL(scst_register_session);
-EXPORT_SYMBOL(scst_unregister_session_ex);
-
-EXPORT_SYMBOL(__scst_register_target_template);
-EXPORT_SYMBOL(scst_unregister_target_template);
-
-EXPORT_SYMBOL(scst_cmd_init_done);
-EXPORT_SYMBOL(scst_tgt_cmd_done);
-EXPORT_SYMBOL(scst_restart_cmd);
-EXPORT_SYMBOL(scst_rx_cmd);
-EXPORT_SYMBOL(scst_rx_data);
-EXPORT_SYMBOL(scst_rx_mgmt_fn);
-
-EXPORT_SYMBOL(scst_find_cmd);
-EXPORT_SYMBOL(scst_find_cmd_by_tag);
-
-/*
- * Global Commands
- */
-EXPORT_SYMBOL(scst_suspend_activity);
-EXPORT_SYMBOL(scst_resume_activity);
-
-EXPORT_SYMBOL(scst_add_cmd_threads);
-EXPORT_SYMBOL(scst_del_cmd_threads);
-
-#if defined(DEBUG) || defined(TRACING)
-EXPORT_SYMBOL(scst_proc_log_entry_read);
-EXPORT_SYMBOL(scst_proc_log_entry_write);
-#endif
-
-EXPORT_SYMBOL(scst_create_proc_entry);
-EXPORT_SYMBOL(scst_single_seq_open);
-
-EXPORT_SYMBOL(scst_get);
-EXPORT_SYMBOL(scst_put);
-
-EXPORT_SYMBOL(scst_cmd_get);
-EXPORT_SYMBOL(scst_cmd_put);
-
-EXPORT_SYMBOL(scst_alloc);
-EXPORT_SYMBOL(scst_free);
-
-EXPORT_SYMBOL(scst_check_local_events);
-
-/* Tgt_dev's threads local storage */
-EXPORT_SYMBOL(scst_add_thr_data);
-EXPORT_SYMBOL(scst_del_all_thr_data);
-EXPORT_SYMBOL(scst_dev_del_all_thr_data);
-EXPORT_SYMBOL(scst_find_thr_data);
-
-/* SGV pool routines */
-EXPORT_SYMBOL(sgv_pool_create);
-EXPORT_SYMBOL(sgv_pool_destroy);
-EXPORT_SYMBOL(sgv_pool_set_allocator);
-EXPORT_SYMBOL(sgv_pool_alloc);
-EXPORT_SYMBOL(sgv_pool_free);
-EXPORT_SYMBOL(sgv_get_priv);
-
-/* Generic parse() routines */
-EXPORT_SYMBOL(scst_calc_block_shift);
-EXPORT_SYMBOL(scst_sbc_generic_parse);
-EXPORT_SYMBOL(scst_cdrom_generic_parse);
-EXPORT_SYMBOL(scst_modisk_generic_parse);
-EXPORT_SYMBOL(scst_tape_generic_parse);
-EXPORT_SYMBOL(scst_changer_generic_parse);
-EXPORT_SYMBOL(scst_processor_generic_parse);
-EXPORT_SYMBOL(scst_raid_generic_parse);
-
-/* Generic dev_done() routines */
-EXPORT_SYMBOL(scst_block_generic_dev_done);
-EXPORT_SYMBOL(scst_tape_generic_dev_done);
-
-/*
- * Other Commands
- */
-EXPORT_SYMBOL(scst_get_cdb_info);
-EXPORT_SYMBOL(scst_cmd_get_tgt_priv_lock);
-EXPORT_SYMBOL(scst_cmd_set_tgt_priv_lock);
-EXPORT_SYMBOL(scst_obtain_device_parameters);
-
-#ifdef DEBUG
-EXPORT_SYMBOL(scst_random);
-#endif
 
 module_init(init_scst);
 module_exit(exit_scst);

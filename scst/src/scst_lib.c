@@ -64,6 +64,7 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
+EXPORT_SYMBOL(scst_alloc_sense);
 
 int scst_alloc_set_sense(struct scst_cmd *cmd, int atomic,
 	const uint8_t *sense, unsigned int len)
@@ -85,6 +86,7 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
+EXPORT_SYMBOL(scst_alloc_set_sense);
 
 void scst_set_cmd_error_status(struct scst_cmd *cmd, int status)
 {
@@ -102,6 +104,7 @@ void scst_set_cmd_error_status(struct scst_cmd *cmd, int status)
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(scst_set_cmd_error_status);
 
 void scst_set_cmd_error(struct scst_cmd *cmd, int key, int asc, int ascq)
 {
@@ -125,6 +128,7 @@ out:
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(scst_set_cmd_error);
 
 void scst_set_sense(uint8_t *buffer, int len, int key,
 	int asc, int ascq)
@@ -138,6 +142,7 @@ void scst_set_sense(uint8_t *buffer, int len, int key,
 	TRACE_BUFFER("Sense set", buffer, len);
 	return;
 }
+EXPORT_SYMBOL(scst_set_sense);
 
 void scst_set_cmd_error_sense(struct scst_cmd *cmd, uint8_t *sense,
 	unsigned int len)
@@ -150,6 +155,7 @@ void scst_set_cmd_error_sense(struct scst_cmd *cmd, uint8_t *sense,
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(scst_set_cmd_error_sense);
 
 void scst_set_busy(struct scst_cmd *cmd)
 {
@@ -174,6 +180,7 @@ void scst_set_busy(struct scst_cmd *cmd)
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(scst_set_busy);
 
 void scst_set_resp_data_len(struct scst_cmd *cmd, int resp_data_len)
 {
@@ -214,6 +221,7 @@ out:
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(scst_set_resp_data_len);
 
 /* Called under scst_mutex and suspended activity */
 int scst_alloc_device(int gfp_mask, struct scst_device **out_dev)
@@ -1275,11 +1283,13 @@ void scst_cmd_get(struct scst_cmd *cmd)
 {
 	__scst_cmd_get(cmd);
 }
+EXPORT_SYMBOL(scst_cmd_get);
 
 void scst_cmd_put(struct scst_cmd *cmd)
 {
 	__scst_cmd_put(cmd);
 }
+EXPORT_SYMBOL(scst_cmd_put);
 
 struct scst_cmd *scst_alloc_cmd(int gfp_mask)
 {
@@ -1837,6 +1847,7 @@ out:
 	TRACE_EXIT();
 	return res;
 }
+EXPORT_SYMBOL(scst_get_cdb_info);
 
 /*
  * Routine to extract a lun number from an 8-byte LUN structure
@@ -1954,6 +1965,7 @@ int scst_calc_block_shift(int sector_size)
 	TRACE_EXIT_RES(block_shift);
 	return block_shift;
 }
+EXPORT_SYMBOL(scst_calc_block_shift);
 
 int scst_sbc_generic_parse(struct scst_cmd *cmd,
 	int (*get_block_shift)(struct scst_cmd *cmd))
@@ -2008,6 +2020,7 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
+EXPORT_SYMBOL(scst_sbc_generic_parse);
 
 int scst_cdrom_generic_parse(struct scst_cmd *cmd,
 	int (*get_block_shift)(struct scst_cmd *cmd))
@@ -2052,6 +2065,7 @@ out:
 	TRACE_EXIT();
 	return res;
 }
+EXPORT_SYMBOL(scst_cdrom_generic_parse);
 
 int scst_modisk_generic_parse(struct scst_cmd *cmd,
 	int (*get_block_shift)(struct scst_cmd *cmd))
@@ -2096,6 +2110,7 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
+EXPORT_SYMBOL(scst_modisk_generic_parse);
 
 int scst_tape_generic_parse(struct scst_cmd *cmd,
 	int (*get_block_size)(struct scst_cmd *cmd))
@@ -2133,6 +2148,7 @@ int scst_tape_generic_parse(struct scst_cmd *cmd,
 	TRACE_EXIT_RES(res);
 	return res;
 }
+EXPORT_SYMBOL(scst_tape_generic_parse);
 
 static int scst_null_parse(struct scst_cmd *cmd)
 {
@@ -2166,18 +2182,21 @@ int scst_changer_generic_parse(struct scst_cmd *cmd,
 {
 	return scst_null_parse(cmd);
 }
+EXPORT_SYMBOL(scst_changer_generic_parse);
 
 int scst_processor_generic_parse(struct scst_cmd *cmd,
 	int (*nothing)(struct scst_cmd *cmd))
 {
 	return scst_null_parse(cmd);
 }
+EXPORT_SYMBOL(scst_processor_generic_parse);
 
 int scst_raid_generic_parse(struct scst_cmd *cmd,
 	int (*nothing)(struct scst_cmd *cmd))
 {
 	return scst_null_parse(cmd);
 }
+EXPORT_SYMBOL(scst_raid_generic_parse);
 
 int scst_block_generic_dev_done(struct scst_cmd *cmd,
 	void (*set_block_shift)(struct scst_cmd *cmd, int block_shift))
@@ -2234,6 +2253,7 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
+EXPORT_SYMBOL(scst_block_generic_dev_done);
 
 int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 	void (*set_block_size)(struct scst_cmd *cmd, int block_shift))
@@ -2298,6 +2318,7 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
+EXPORT_SYMBOL(scst_tape_generic_dev_done);
 
 static void scst_check_internal_sense(struct scst_device *dev, int result,
 	uint8_t *sense, int sense_len)
@@ -2427,6 +2448,7 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
+EXPORT_SYMBOL(scst_obtain_device_parameters);
 
 /* Called under dev_lock and BH off */
 void scst_process_reset(struct scst_device *dev,
@@ -2766,6 +2788,7 @@ void scst_add_thr_data(struct scst_tgt_dev *tgt_dev,
 	list_add_tail(&data->thr_data_list_entry, &tgt_dev->thr_data_list);
 	spin_unlock(&tgt_dev->thr_data_lock);
 }
+EXPORT_SYMBOL(scst_add_thr_data);
 
 void scst_del_all_thr_data(struct scst_tgt_dev *tgt_dev)
 {
@@ -2782,6 +2805,7 @@ void scst_del_all_thr_data(struct scst_tgt_dev *tgt_dev)
 	spin_unlock(&tgt_dev->thr_data_lock);
 	return;
 }
+EXPORT_SYMBOL(scst_del_all_thr_data);
 
 void scst_dev_del_all_thr_data(struct scst_device *dev)
 {
@@ -2801,6 +2825,7 @@ void scst_dev_del_all_thr_data(struct scst_device *dev)
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(scst_dev_del_all_thr_data);
 
 struct scst_thr_data_hdr *scst_find_thr_data(struct scst_tgt_dev *tgt_dev)
 {
@@ -2817,6 +2842,7 @@ struct scst_thr_data_hdr *scst_find_thr_data(struct scst_tgt_dev *tgt_dev)
 	spin_unlock(&tgt_dev->thr_data_lock);
 	return res;
 }
+EXPORT_SYMBOL(scst_find_thr_data);
 
 /* dev_lock supposed to be held and BH disabled */
 void __scst_block_dev(struct scst_device *dev)
@@ -3181,6 +3207,7 @@ unsigned long scst_random(void)
 	spin_unlock_irqrestore(&lock, flags);
 	return rv;
 }
+EXPORT_SYMBOL(scst_random);
 #endif
 
 #ifdef DEBUG_TM

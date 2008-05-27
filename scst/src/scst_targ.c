@@ -97,6 +97,7 @@ out:
 	TRACE_EXIT();
 	return cmd;
 }
+EXPORT_SYMBOL(scst_rx_cmd);
 
 static int scst_init_cmd(struct scst_cmd *cmd, int context)
 {
@@ -312,6 +313,7 @@ out:
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(scst_cmd_init_done);
 
 static int scst_pre_parse(struct scst_cmd *cmd)
 {
@@ -786,6 +788,7 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status, int pref_context)
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(scst_restart_cmd);
 
 /* No locks */
 static int scst_queue_retry_cmd(struct scst_cmd *cmd, int finished_cmds)
@@ -1012,6 +1015,7 @@ void scst_rx_data(struct scst_cmd *cmd, int status, int pref_context)
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(scst_rx_data);
 
 static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 {
@@ -1592,6 +1596,7 @@ out_uncomplete:
 	res = -1;
 	goto out;
 }
+EXPORT_SYMBOL(scst_check_local_events);
 
 /*
  * The result of cmd execution, if any, should be reported
@@ -2653,6 +2658,7 @@ void scst_tgt_cmd_done(struct scst_cmd *cmd)
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(scst_tgt_cmd_done);
 
 static int scst_finish_cmd(struct scst_cmd *cmd)
 {
@@ -3209,6 +3215,7 @@ void scst_process_active_cmd(struct scst_cmd *cmd, int context)
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(scst_process_active_cmd);
 
 /* Called under cmd_list_lock and IRQs disabled */
 static void scst_do_job_active(struct list_head *cmd_list,
@@ -4756,6 +4763,7 @@ out_free:
 	mcmd = NULL;
 	goto out;
 }
+EXPORT_SYMBOL(scst_rx_mgmt_fn);
 
 /* scst_mutex supposed to be held */
 static struct scst_acg *scst_find_acg(const char *initiator_name)
@@ -4937,6 +4945,7 @@ out_free:
 	sess = NULL;
 	goto out;
 }
+EXPORT_SYMBOL(scst_register_session);
 
 /*
  * Must not be called in parallel with scst_rx_cmd() or
@@ -5005,6 +5014,7 @@ void scst_unregister_session_ex(struct scst_session *sess, int wait,
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(scst_unregister_session_ex);
 
 static void scst_pre_unreg_sess(struct scst_session *sess)
 {
@@ -5196,6 +5206,7 @@ out:
 	TRACE_EXIT();
 	return cmd;
 }
+EXPORT_SYMBOL(scst_find_cmd);
 
 struct scst_cmd *scst_find_cmd_by_tag(struct scst_session *sess,
 	uint64_t tag)
@@ -5207,6 +5218,7 @@ struct scst_cmd *scst_find_cmd_by_tag(struct scst_session *sess,
 	spin_unlock_irqrestore(&sess->sess_list_lock, flags);
 	return cmd;
 }
+EXPORT_SYMBOL(scst_find_cmd_by_tag);
 
 void *scst_cmd_get_tgt_priv_lock(struct scst_cmd *cmd)
 {
@@ -5217,6 +5229,7 @@ void *scst_cmd_get_tgt_priv_lock(struct scst_cmd *cmd)
 	spin_unlock_irqrestore(&scst_main_lock, flags);
 	return res;
 }
+EXPORT_SYMBOL(scst_cmd_get_tgt_priv_lock);
 
 void scst_cmd_set_tgt_priv_lock(struct scst_cmd *cmd, void *val)
 {
@@ -5225,3 +5238,4 @@ void scst_cmd_set_tgt_priv_lock(struct scst_cmd *cmd, void *val)
 	cmd->tgt_priv = val;
 	spin_unlock_irqrestore(&scst_main_lock, flags);
 }
+EXPORT_SYMBOL(scst_cmd_set_tgt_priv_lock);

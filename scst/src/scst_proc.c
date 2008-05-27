@@ -351,6 +351,7 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
+EXPORT_SYMBOL(scst_proc_log_entry_write);
 
 static ssize_t scst_proc_scsi_tgt_gen_write_log(struct file *file, const char __user *buf,
 					size_t length, loff_t *off)
@@ -1964,6 +1965,7 @@ int scst_proc_log_entry_read(struct seq_file *seq, unsigned long log_level,
 	TRACE_EXIT_RES(res);
 	return res;
 }
+EXPORT_SYMBOL(scst_proc_log_entry_read);
 
 static int log_info_show(struct seq_file *seq, void *v)
 {
@@ -2125,6 +2127,7 @@ struct proc_dir_entry *scst_create_proc_entry(struct proc_dir_entry *root,
 	TRACE_EXIT();
 	return p;
 }
+EXPORT_SYMBOL(scst_create_proc_entry);
 
 int scst_single_seq_open(struct inode *inode, struct file *file)
 {
@@ -2137,3 +2140,4 @@ int scst_single_seq_open(struct inode *inode, struct file *file)
 #endif
 	return single_open(file, pdata->show, PDE(inode)->data);
 }
+EXPORT_SYMBOL(scst_single_seq_open);

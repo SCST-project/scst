@@ -718,11 +718,13 @@ out_fail:
 	TRACE_MEM("%s", "Allocation failed");
 	goto out;
 }
+EXPORT_SYMBOL(sgv_pool_alloc);
 
 void *sgv_get_priv(struct sgv_pool_obj *sgv)
 {
 	return sgv->allocator_priv;
 }
+EXPORT_SYMBOL(sgv_get_priv);
 
 void sgv_pool_free(struct sgv_pool_obj *sgv)
 {
@@ -747,6 +749,7 @@ void sgv_pool_free(struct sgv_pool_obj *sgv)
 	atomic_sub(pages, &sgv_pools_mgr.mgr.thr.active_pages_total);
 	return;
 }
+EXPORT_SYMBOL(sgv_pool_free);
 
 struct scatterlist *scst_alloc(int size, unsigned long gfp_mask, int *count)
 {
@@ -794,6 +797,7 @@ out_free:
 	res = NULL;
 	goto out;
 }
+EXPORT_SYMBOL(scst_alloc);
 
 void scst_free(struct scatterlist *sg, int count)
 {
@@ -805,6 +809,7 @@ void scst_free(struct scatterlist *sg, int count)
 	kfree(sg);
 	return;
 }
+EXPORT_SYMBOL(scst_free);
 
 static void sgv_pool_cached_init(struct sgv_pool *pool)
 {
@@ -977,6 +982,7 @@ void sgv_pool_set_allocator(struct sgv_pool *pool,
 	pool->alloc_fns.free_pages_fn = free_pages_fn;
 	return;
 }
+EXPORT_SYMBOL(sgv_pool_set_allocator);
 
 struct sgv_pool *sgv_pool_create(const char *name, int clustered)
 {
@@ -1004,6 +1010,7 @@ out_free:
 	pool = NULL;
 	goto out;
 }
+EXPORT_SYMBOL(sgv_pool_create);
 
 void sgv_pool_destroy(struct sgv_pool *pool)
 {
@@ -1014,6 +1021,7 @@ void sgv_pool_destroy(struct sgv_pool *pool)
 
 	TRACE_EXIT();
 }
+EXPORT_SYMBOL(sgv_pool_destroy);
 
 static int sgv_pool_cached_shrinker(int nr, gfp_t gfpm)
 {
