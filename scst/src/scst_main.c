@@ -1217,7 +1217,7 @@ void __scst_del_cmd_threads(int num)
 int __scst_add_cmd_threads(int num)
 {
 	int res = 0, i;
-	static int scst_thread_num = 0;
+	static int scst_thread_num;
 
 	TRACE_ENTRY();
 

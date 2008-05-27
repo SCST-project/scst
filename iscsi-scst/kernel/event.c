@@ -89,7 +89,7 @@ static int notify(void *data, int len, int gfp_mask)
 {
 	struct sk_buff *skb;
 	struct nlmsghdr *nlh;
-	static u32 seq = 0;
+	static u32 seq;
 
 	if (!(skb = alloc_skb(NLMSG_SPACE(len), gfp_mask)))
 		return -ENOMEM;

@@ -60,7 +60,7 @@ struct srpt_thread {
 	struct task_struct *thread;
 };
 
-static u64 mellanox_ioc_guid = 0;
+static u64 mellanox_ioc_guid;
 static struct list_head srpt_devices;
 static int thread = 1;
 static struct srpt_thread srpt_thread;

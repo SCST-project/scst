@@ -648,11 +648,11 @@ static void vdisk_detach_tgt(struct scst_tgt_dev *tgt_dev)
 static inline int vdisk_sync_queue_type(enum scst_cmd_queue_type qt)
 {
 	switch (qt) {
-		case SCST_CMD_QUEUE_ORDERED:
-		case SCST_CMD_QUEUE_HEAD_OF_QUEUE:
-			return 1;
-		default:
-			return 0;
+	case SCST_CMD_QUEUE_ORDERED:
+	case SCST_CMD_QUEUE_HEAD_OF_QUEUE:
+		return 1;
+	default:
+		return 0;
 	}
 }
 

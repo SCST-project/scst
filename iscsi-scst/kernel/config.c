@@ -526,7 +526,7 @@ void iscsi_dump_iov(struct msghdr *msg)
 static void iscsi_dump_char(int ch)
 {
 	static unsigned char text[16];
-	static int i = 0;
+	static int i;
 
 	if (ch < 0) {
 		while ((i % 16) != 0) {

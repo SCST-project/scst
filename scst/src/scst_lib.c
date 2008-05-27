@@ -2443,8 +2443,8 @@ void scst_process_reset(struct scst_device *dev,
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 				    dev_tgt_dev_list_entry) {
 			TRACE(TRACE_MGMT, "Clearing RESERVE'ation for tgt_dev "
-			        "lun %Ld",
-			        (long long unsigned int)tgt_dev->lun);
+				"lun %Ld",
+				(long long unsigned int)tgt_dev->lun);
 			clear_bit(SCST_TGT_DEV_RESERVED,
 				  &tgt_dev->tgt_dev_flags);
 		}
