@@ -264,7 +264,7 @@ static int sgv_alloc_arrays(struct sgv_pool_obj *obj,
 
 	sz = pages_to_alloc * sizeof(obj->sg_entries[0]);
 
-	obj->sg_entries = (struct scatterlist *)kmalloc(sz, gfp_mask);
+	obj->sg_entries = kmalloc(sz, gfp_mask);
 	if (unlikely(obj->sg_entries == NULL)) {
 		TRACE(TRACE_OUT_OF_MEM, "Allocation of sgv_pool_obj "
 			"SG vector failed (size %d)", sz);
@@ -283,7 +283,7 @@ static int sgv_alloc_arrays(struct sgv_pool_obj *obj,
 			 */
 		} else {
 			tsz = pages_to_alloc * sizeof(obj->trans_tbl[0]);
-			obj->trans_tbl = (struct trans_tbl_ent *)kzalloc(tsz, gfp_mask);
+			obj->trans_tbl = kzalloc(tsz, gfp_mask);
 			if (unlikely(obj->trans_tbl == NULL)) {
 				TRACE(TRACE_OUT_OF_MEM, "Allocation of trans_tbl "
 					"failed (size %d)", tsz);

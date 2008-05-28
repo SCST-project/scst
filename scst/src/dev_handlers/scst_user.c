@@ -204,10 +204,10 @@ static struct file_operations dev_user_fops = {
 
 static struct class *dev_user_sysfs_class;
 
-static spinlock_t dev_list_lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(dev_list_lock);
 static LIST_HEAD(dev_list);
 
-static spinlock_t cleanup_lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(cleanup_lock);
 static LIST_HEAD(cleanup_list);
 static DECLARE_WAIT_QUEUE_HEAD(cleanup_list_waitQ);
 static struct task_struct *cleanup_thread;

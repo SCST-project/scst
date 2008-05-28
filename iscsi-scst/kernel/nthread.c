@@ -496,7 +496,7 @@ static void start_close_conn(struct iscsi_conn *conn)
 
 static inline void iscsi_conn_init_read(struct iscsi_conn *conn, void *data, size_t len)
 {
-	len = (len + 3) & -4; // XXX ???
+	len = (len + 3) & -4; /* XXX ??? */
 	conn->read_iov[0].iov_base = data;
 	conn->read_iov[0].iov_len = len;
 	conn->read_msg.msg_iov = conn->read_iov;
@@ -1059,7 +1059,7 @@ static int write_data(struct iscsi_conn *conn)
 
 #ifdef NET_PAGE_CALLBACKS_DEFINED
 		{
-			static spinlock_t net_priv_lock = SPIN_LOCK_UNLOCKED;
+			static DEFINE_SPINLOCK(net_priv_lock);
 			spin_lock(&net_priv_lock);
 			if (sg_page(&sg[idx])->net_priv != NULL) {
 				if (sg_page(&sg[idx])->net_priv != ref_cmd) {

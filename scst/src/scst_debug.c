@@ -26,7 +26,7 @@
 #define TRACE_BUF_SIZE    512
 
 static char trace_buf[TRACE_BUF_SIZE];
-static spinlock_t trace_buf_lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(trace_buf_lock);
 
 static inline int get_current_tid(void)
 {

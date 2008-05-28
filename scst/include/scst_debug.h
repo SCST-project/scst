@@ -91,7 +91,7 @@
 #endif
 
 #ifdef DEBUG
-//#  define LOG_FLAG KERN_DEBUG
+/*#  define LOG_FLAG KERN_DEBUG*/
 #  define LOG_FLAG KERN_INFO
 #  define INFO_FLAG KERN_INFO
 #  define ERROR_FLAG KERN_INFO

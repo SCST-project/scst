@@ -42,11 +42,11 @@ unsigned long iscsi_trace_flag = ISCSI_DEFAULT_LOG_FLAGS;
 
 static struct kmem_cache *iscsi_cmnd_cache;
 
-spinlock_t iscsi_rd_lock = SPIN_LOCK_UNLOCKED;
+DEFINE_SPINLOCK(iscsi_rd_lock);
 LIST_HEAD(iscsi_rd_list);
 DECLARE_WAIT_QUEUE_HEAD(iscsi_rd_waitQ);
 
-spinlock_t iscsi_wr_lock = SPIN_LOCK_UNLOCKED;
+DEFINE_SPINLOCK(iscsi_wr_lock);
 LIST_HEAD(iscsi_wr_list);
 DECLARE_WAIT_QUEUE_HEAD(iscsi_wr_waitQ);
 
@@ -700,7 +700,7 @@ static struct iscsi_cmnd *create_sense_rsp(struct iscsi_cmnd *req,
 	memset(sense, 0, sizeof(sense));
 	sense[0] = 0xf0;
 	sense[2] = sense_key;
-	sense[7] = 6;	// Additional sense length
+	sense[7] = 6;	/* Additional sense length */
 	sense[12] = asc;
 	sense[13] = ascq;
 	return create_status_rsp(req, SAM_STAT_CHECK_CONDITION, sense,
@@ -784,7 +784,7 @@ static void __update_stat_sn(struct iscsi_cmnd *cmnd)
 	TRACE_DBG("%x,%x", cmnd_opcode(cmnd), exp_stat_sn);
 	if ((int)(exp_stat_sn - conn->exp_stat_sn) > 0 &&
 	    (int)(exp_stat_sn - conn->stat_sn) <= 0) {
-		// free pdu resources
+		/* free pdu resources */
 		cmnd->conn->exp_stat_sn = exp_stat_sn;
 	}
 }
@@ -2139,7 +2139,7 @@ void cmnd_tx_start(struct iscsi_cmnd *cmnd)
 		break;
 	}
 
-	// move this?
+	/* move this? */
 	conn->write_size = (conn->write_size + 3) & -4;
 	iscsi_dump_pdu(&cmnd->pdu);
 }

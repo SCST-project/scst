@@ -3185,7 +3185,7 @@ unsigned long scst_random(void)
 {
 	static int Inited;
 	static unsigned long RandomValue;
-	static spinlock_t lock = SPIN_LOCK_UNLOCKED;
+	static DEFINE_SPINLOCK(lock);
 	/* cycles pseudo-randomly through all values between 1 and 2^31 - 2 */
 	register long rv;
 	register long lo;
@@ -3220,7 +3220,7 @@ EXPORT_SYMBOL(scst_random);
 
 static void tm_dbg_timer_fn(unsigned long arg);
 
-static spinlock_t scst_tm_dbg_lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(scst_tm_dbg_lock);
 /* All serialized by scst_tm_dbg_lock */
 struct {
 	unsigned int tm_dbg_release:1;
@@ -3504,7 +3504,7 @@ int tm_dbg_is_release(void)
 #ifdef DEBUG_SN
 void scst_check_debug_sn(struct scst_cmd *cmd)
 {
-	static spinlock_t lock = SPIN_LOCK_UNLOCKED;
+	static DEFINE_SPINLOCK(lock);
 	static int type;
 	static int cnt;
 	unsigned long flags;

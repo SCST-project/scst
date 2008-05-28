@@ -183,7 +183,7 @@ static void bus_chan_unregister_sessions(bus_chan_t *bc, int wait);
 
 static bus_t busses[MAX_BUS];
 
-static spinlock_t scsi_target_lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(scsi_target_lock);
 
 DECLARE_WAIT_QUEUE_HEAD(qlaispd_waitq);
 struct task_struct *qlaispd_task;

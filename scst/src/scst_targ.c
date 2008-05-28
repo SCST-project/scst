@@ -3521,7 +3521,7 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 	int other_ini, int call_dev_task_mgmt_fn)
 {
 	unsigned long flags;
-	static spinlock_t other_ini_lock = SPIN_LOCK_UNLOCKED;
+	static DEFINE_SPINLOCK(other_ini_lock);
 
 	TRACE_ENTRY();
 

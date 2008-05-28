@@ -398,7 +398,7 @@ DECLARE_MUTEX_LOCKED(scsi_thread_entry_exit_semaphore);
 static tmd_cmd_t *p_front = NULL, *p_last = NULL;
 static tmd_cmd_t *q_front = NULL, *q_last = NULL;
 static tmd_cmd_t *r_front = NULL, *r_last = NULL;
-static spinlock_t scsi_target_lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(scsi_target_lock);
 static int scsi_target_thread_exit = 0;
 
 static struct file_operations scsi_target_fops = {
