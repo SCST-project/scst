@@ -614,14 +614,12 @@ static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 	if (ioctx->n_rdma_ius > 0 && ioctx->rdma_ius) {
 		struct rdma_iu *riu = ioctx->rdma_ius;
 
-		for (i = 0; i < ioctx->n_rdma_ius; ++i, ++riu) {
-			if (riu->sge)
-				kfree(riu->sge);
-		}
+		for (i = 0; i < ioctx->n_rdma_ius; ++i, ++riu)
+			kfree(riu->sge);
 		kfree(ioctx->rdma_ius);
 	}
 
-	if (ioctx->n_rbuf > 1 && ioctx->rbufs)
+	if (ioctx->n_rbuf > 1)
 		kfree(ioctx->rbufs);
 
 	if (srpt_post_recv(ch->sport->sdev, ioctx))

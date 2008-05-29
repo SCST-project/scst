@@ -4592,8 +4592,7 @@ mpt_stm_adapter_install(MPT_ADAPTER *ioc)
 	if (priv == NULL) {
 		printk(KERN_ERR MYNAM
 				":%s failed to allocate private structure\n", ioc->name);
-		if (priv != NULL)
-			kfree(priv);
+		kfree(priv);
 		return (-1);
 	}
 	memset(priv, 0, sizeof(*priv));

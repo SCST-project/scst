@@ -352,8 +352,7 @@ out:
 	return tgt;
 
 out_free_name:
-	if (tgt->default_group_name)
-		kfree(tgt->default_group_name);
+	kfree(tgt->default_group_name);
 
 out_free_err:
 	mutex_unlock(&scst_mutex);
@@ -406,8 +405,7 @@ void scst_unregister(struct scst_tgt *tgt)
 
 	scst_cleanup_proc_target_entries(tgt);
 
-	if (tgt->default_group_name)
-		kfree(tgt->default_group_name);
+	kfree(tgt->default_group_name);
 
 	mutex_unlock(&scst_mutex);
 	scst_resume_activity();

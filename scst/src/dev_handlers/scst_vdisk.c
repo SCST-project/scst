@@ -548,8 +548,7 @@ static void vdisk_free_thr_data(struct scst_thr_data_hdr *d)
 	if (thr->fd)
 		filp_close(thr->fd, NULL);
 
-	if (thr->iv != NULL)
-		kfree(thr->iv);
+	kfree(thr->iv);
 
 	kmem_cache_free(vdisk_thr_cachep, thr);
 
@@ -1926,8 +1925,7 @@ static struct iovec *vdisk_alloc_iv(struct scst_cmd *cmd,
 
 	iv_count = scst_get_buf_count(cmd);
 	if (iv_count > thr->iv_count) {
-		if (thr->iv != NULL)
-			kfree(thr->iv);
+		kfree(thr->iv);
 		thr->iv = kmalloc(sizeof(*thr->iv) * iv_count, GFP_KERNEL);
 		if (thr->iv == NULL) {
 			PRINT_ERROR("Unable to allocate iv (%d)", iv_count);
@@ -3011,8 +3009,7 @@ static int vcdrom_close(char *name)
 
 	list_del(&virt_dev->vdisk_dev_list_entry);
 
-	if (virt_dev->file_name)
-		kfree(virt_dev->file_name);
+	kfree(virt_dev->file_name);
 	kfree(virt_dev);
 
 out:
@@ -3148,8 +3145,7 @@ static int vcdrom_change(char *p, char *name)
 			virt_dev->name);
 	}
 
-	if (old_fn)
-		kfree(old_fn);
+	kfree(old_fn);
 
 out_resume:
 	scst_resume_activity();
