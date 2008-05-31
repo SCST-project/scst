@@ -2,7 +2,7 @@
 
 	  USER SPACE INTERFACE DESCRIPTION.
 
-		   Version 0.9.6/3
+		   Version 0.9.6/4
 
 
 		I. Description.
@@ -103,7 +103,6 @@ struct scst_user_opt
 	uint8_t parse_type;
 	uint8_t on_free_cmd_type;
 	uint8_t memory_reuse_type;
-	uint8_t prio_queue_type;
 	uint8_t partial_transfers_type;
 	uint32_t partial_len;
 
@@ -155,18 +154,6 @@ where:
      handler will each time allocate a dedicated data buffer
 
    * SCST_USER_MEM_REUSE_ALL - unlimited memory reuse is possible.
-
- - prio_queue_type - defines if the user space handler need to receive
-   all management subcommands from a separate PRIO queue using
-   SCST_USER_REPLY_AND_GET_PRIO_CMD command. Management subcommands are:
-   SCST_USER_ATTACH_SESS, SCST_USER_DETACH_SESS and SCST_USER_TASK_MGMT.
-   Possible values are:
-
-   * SCST_USER_PRIO_QUEUE_SINGLE - a single queue is used for regular
-     and management subcommands
-
-   * SCST_USER_PRIO_QUEUE_SEPARATE - a separate PRIO queue is used for
-     management subcommands
 
  - partial_transfers_type - defines if the user space handler supports
    partial data transfers, when a SCSI command, which required big data
@@ -312,7 +299,7 @@ SCST_USER_PARSE returns SCSI command on PARSE state of the SCST
 processing. The PARSE state is intended to check validity of the
 command, determine data transfer type and the necessary data buffer
 size. This subcommand is returned only if SCST_USER_SET_OPTIONS
-parse_type isn'e set to SCST_USER_PARSE_STANDARD. In this case the
+parse_type isn't set to SCST_USER_PARSE_STANDARD. In this case the
 standard SCST internal parser for this SCSI device type will do all the
 job.
 
@@ -715,23 +702,8 @@ Possible return values are:
  - SCST_MGMT_STATUS_FAILED - task management function failed
 
 
-		5. SCST_USER_REPLY_AND_GET_PRIO_CMD
 
-SCST_USER_REPLY_AND_GET_PRIO_CMD is the same as
-SCST_USER_REPLY_AND_GET_CMD, except that it returns management (i.e.
-priority) subcommands from priority queue, if usage of a separate PRIO
-was configured. 
-
-Management subcommands are: SCST_USER_ATTACH_SESS, SCST_USER_DETACH_SESS
-and SCST_USER_TASK_MGMT.
-
-PRIO queue is always blocking, because poll() doesn't support, when
-different threads wait with different events mask. Only one thread is
-woken up on each event and if it isn't interested in such events,
-another (interested) one will not be woken up.
-
-
-		6. SCST_USER_REPLY_CMD
+		5. SCST_USER_REPLY_CMD
 
 SCST_USER_REPLY_CMD IOCTL function allows the user space handler to
 return the result of a command's execution. Its argument is defined as:
@@ -841,8 +813,8 @@ involve data transfer from target to initiator) and WRITE-type (i.e.
 which involve data transfer from initiator to target) commands. So the
 device is configured with parse_type SCST_USER_PARSE_STANDARD,
 on_free_cmd_type SCST_USER_ON_FREE_CMD_IGNORE, memory_reuse_type
-SCST_USER_MEM_REUSE_ALL, prio_queue_type SCST_USER_PRIO_QUEUE_SINGLE and
-partial_transfers_type SCST_USER_PARTIAL_TRANSFERS_NOT_SUPPORTED.
+SCST_USER_MEM_REUSE_ALL and partial_transfers_type
+SCST_USER_PARTIAL_TRANSFERS_NOT_SUPPORTED.
 
 Then it prepares struct scst_user_get_cmd with reply set to 0, calls
 SCST_USER_REPLY_AND_GET_CMD ioctl() and waits until some initiator

@@ -210,7 +210,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 #endif
 
 #ifdef DEBUG_TM_IGNORE
-	if (dev->debug_tm_ignore && (random() % 200000) == 75) {
+	if (dev->debug_tm_ignore && (random() % 10000) == 75) {
 		TRACE_MGMT_DBG("Ignore cmd op %x (h=%d)", cdb[0],
 			vcmd->cmd->cmd_h);
 		res = 150;
@@ -726,7 +726,11 @@ void *main_loop(void *arg)
 			default:
 				PRINT_ERROR("SCST_USER_REPLY_AND_GET_CMD failed: "
 					"%s (%d)", strerror(res), res);
+#if 1
+				continue;
+#else
 				goto out_close;
+#endif
 			}
 again_poll:
 			res = poll(&pl, 1, 2000);
@@ -746,7 +750,11 @@ again_poll:
 					goto again_poll;
 				default:
 					PRINT_ERROR("poll() failed: %s", strerror(res));
+#if 1
+					goto again_poll;
+#else
 					goto out_close;
+#endif
 				}
 			}
 		}
@@ -791,8 +799,6 @@ again_poll:
 			break;
 
 		case SCST_USER_TASK_MGMT:
-			if (dev->prio_thr)
-				goto err;
 			res = do_tm(&vcmd);
 #if DEBUG_TM_FN_IGNORE
 			if (dev->debug_tm_ignore) {
@@ -803,13 +809,10 @@ again_poll:
 
 		case SCST_USER_ATTACH_SESS:
 		case SCST_USER_DETACH_SESS:
-			if (dev->prio_thr)
-				goto err;
 			res = do_sess(&vcmd);
 			break;
 
 		default:
-err:
 			PRINT_ERROR("Unknown or wrong cmd subcode %x",
 				cmd.subcode);
 			goto out_close;
@@ -827,78 +830,6 @@ out_close:
 
 out:
 	PRINT_INFO("Thread %d exiting (res=%d)", gettid(), res);
-
-	TRACE_EXIT_RES(res);
-	return (void *)(long)res;
-}
-
-void *prio_loop(void *arg)
-{
-	int res = 0;
-	struct vdisk_dev *dev = (struct vdisk_dev *)arg;
-	struct scst_user_get_cmd cmd;
-	struct scst_user_reply_cmd reply;
-	struct vdisk_cmd vcmd = { -1, &cmd, dev, &reply, {0}};
-	int scst_usr_fd = dev->scst_usr_fd;
-
-	TRACE_ENTRY();
-
-	cmd.preply = 0;
-
-	while(1) {
-		res = ioctl(scst_usr_fd, SCST_USER_REPLY_AND_GET_PRIO_CMD, &cmd);
-		if (res != 0) {
-			res = errno;
-			switch(res) {
-			case ESRCH:
-			case EBUSY:
-			case EINTR:
-			case EAGAIN:
-				TRACE_MGMT_DBG("SCST_USER_REPLY_AND_GET_PRIO_CMD returned "
-					"%d (%s)", res, strerror(res));
-				cmd.preply = 0;
-				continue;
-			default:
-				PRINT_ERROR("SCST_USER_REPLY_AND_GET_PRIO_CMD failed: "
-					"%s (%d)", strerror(res), res);
-				goto out_close;
-			}
-		}
-
-		TRACE_BUFFER("Received cmd", &cmd, sizeof(cmd));
-
-		switch(cmd.subcode) {
-		case SCST_USER_TASK_MGMT:
-			res = do_tm(&vcmd);
-#if DEBUG_TM_FN_IGNORE
-			if (dev->debug_tm_ignore) {
-				sleep(15);
-			}
-#endif
-			break;
-
-		case SCST_USER_ATTACH_SESS:
-		case SCST_USER_DETACH_SESS:
-			res = do_sess(&vcmd);
-			break;
-
-		default:
-			PRINT_ERROR("Unknown or wrong prio cmd subcode %x",
-				cmd.subcode);
-			goto out_close;
-		}
-
-		if (res != 0)
-			goto out_close;
-
-		cmd.preply = (unsigned long)&reply;
-		TRACE_BUFFER("Sending reply", &reply, sizeof(reply));
-	}
-
-out_close:
-	close(vcmd.fd);
-
-	PRINT_INFO("Prio thread %d exited (res=%d)", gettid(), res);
 
 	TRACE_EXIT_RES(res);
 	return (void *)(long)res;

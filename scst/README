@@ -42,10 +42,18 @@ of devices with different access permissions. See below for details.
 
 This is quite stable (but still beta) version.
 
-Tested mostly on "vanilla" 2.6.21.1 kernel from kernel.org.
-
 Installation
 ------------
+
+Only vanilla kernels from kernel.org are supported, but it should work
+on vendors' kernels, if you manage to successfully compile on them. The
+main problem with vendor's kernels is that they often contain patches,
+which will appear only in the next version of the vanilla kernel,
+therefore it's quite hard to track such changes. Thus, if during
+compilation for some vendor kernel your compiler complains about
+redefinition of some symbol, you should either switch to vanilla kernel,
+or change as necessary the corresponding to that symbol "#if
+LINUX_VERSION_CODE" statement.
 
 At first, make sure that the link "/lib/modules/`you_kernel_version`/build" 
 points to the source code for your currently running kernel.
@@ -476,9 +484,23 @@ will open file /vdisks/disk1 as virtual FILEIO disk with name "disk1".
 CAUTION: If you partitioned/formatted your device with block size X, *NEVER*
 ======== ever try to export and then mount it (even accidentally) with another
          block size. Otherwise you can *instantly* damage it pretty
-	 badly as well as all your data on it. Messages on initiator like:
-	 "attempt to access beyond end of device" is the sign of such
-	 damage.
+	 badly as well as all your data on it. Messages on initiator
+	 like: "attempt to access beyond end of device" is the sign of
+	 such damage.
+
+	 Moreover, if you want to compare how well different block sizes
+	 work for you, you **MUST** EVERY TIME AFTER CHANGING BLOCK SIZE
+	 **COMPLETELY** **WIPE OFF** ALL THE DATA FROM THE DEVICE. In
+	 other words, THE **WHOLE** DEVICE **MUST** HAVE ONLY **ZEROES**
+	 AS THE DATA AFTER YOU SWITCH TO NEW BLOCK SIZE. Switching block
+	 sizes isn't like switching between FILEIO and BLOCKIO, after
+	 changing block size all previously written with another block
+	 size data MUST BE ERASED. Otherwise you will have a full set of
+	 very weird behaviors, because blocks addressing will be
+	 changed, but initiators in most cases will not have a
+	 possibility to detect that old addresses written on the device
+	 in, e.g., partition table, don't refer anymore to what they are
+	 intended to refer.
 
 IMPORTANT: By default for performance reasons VDISK FILEIO devices use write
 =========  back caching policy. This is generally safe from the consistence of
@@ -834,5 +856,7 @@ Thanks to:
 
  * Jianxi Chen <pacers@users.sourceforge.net> for fixing problem with
    devices >2TB in size
+
+ * Bart Van Assche <bart.vanassche@gmail.com> for a lot of help
 
 Vladislav Bolkhovitin <vst@vlnb.net>, http://scst.sourceforge.net

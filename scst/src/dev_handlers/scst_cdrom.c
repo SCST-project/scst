@@ -38,10 +38,6 @@
 	.dev_done = 		cdrom_done,	\
 }
 
-#define CDROM_SMALL_TIMEOUT  (3 * HZ)
-#define CDROM_REG_TIMEOUT    (900 * HZ)
-#define CDROM_LONG_TIMEOUT   (14000 * HZ)
-
 #define CDROM_DEF_BLOCK_SHIFT	11
 
 struct cdrom_params {
@@ -114,7 +110,7 @@ int cdrom_attach(struct scst_device *dev)
 		TRACE_DBG("%s", "Doing READ_CAPACITY");
 		res = scsi_execute(dev->scsi_dev, cmd, data_dir, buffer,
 				   buffer_size, sbuff,
-				   CDROM_REG_TIMEOUT, 3, 0);
+				   SCST_GENERIC_CDROM_REG_TIMEOUT, 3, 0);
 
 		TRACE_DBG("READ_CAPACITY done: %x", res);
 
@@ -217,13 +213,6 @@ int cdrom_parse(struct scst_cmd *cmd)
 	scst_cdrom_generic_parse(cmd, cdrom_get_block_shift);
 
 	cmd->retries = SCST_PASSTHROUGH_RETRIES;
-
-	if ((cmd->op_flags & (SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)) == 0)
-		cmd->timeout = CDROM_REG_TIMEOUT;
-	else if (cmd->op_flags & SCST_SMALL_TIMEOUT)
-		cmd->timeout = CDROM_SMALL_TIMEOUT;
-	else if (cmd->op_flags & SCST_LONG_TIMEOUT)
-		cmd->timeout = CDROM_LONG_TIMEOUT;
 
 	return res;
 }

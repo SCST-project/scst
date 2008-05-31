@@ -408,8 +408,26 @@ static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	long err;
 	u32 id;
 
-	if (cmd == REGISTER_USERD) {
+	switch (cmd) {
+	case ADD_TARGET:
+	case DEL_TARGET:
+	case ADD_SESSION:
+	case DEL_SESSION:
+	case GET_SESSION_INFO:
+	case ISCSI_PARAM_SET:
+	case ISCSI_PARAM_GET:
+	case ADD_CONN:
+	case DEL_CONN:
+	case GET_CONN_INFO:
+		break;
+
+	case REGISTER_USERD:
 		err = iscsi_check_version(arg);
+		goto out;
+
+	default:
+		PRINT_ERROR("Invalid ioctl cmd %x", cmd);
+		err = -EINVAL;
 		goto out;
 	}
 
@@ -440,7 +458,7 @@ static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	}
 
 	if (!target) {
-		PRINT_ERROR("can't find the target %u", id);
+		PRINT_ERROR("Can't find the target %u", id);
 		err = -EINVAL;
 		goto out_unlock;
 	}
@@ -481,8 +499,7 @@ static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		break;
 
 	default:
-		PRINT_ERROR("invalid ioctl cmd %x", cmd);
-		err = -EINVAL;
+		sBUG();
 		break;
 	}
 

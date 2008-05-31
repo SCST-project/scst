@@ -119,6 +119,7 @@ static int iscsi_target_create(struct target_info *info, u32 tid)
 	target->scst_tgt = scst_register(&iscsi_template, target->name);
 	if (!target->scst_tgt) {
 		PRINT_ERROR("%s", "scst_register() failed");
+		err = -EBUSY;
 		goto out_free;
 	}
 

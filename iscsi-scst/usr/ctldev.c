@@ -83,6 +83,7 @@ static int ctrdev_open(int *max_data_seg_len)
 	}
 
 	reg.version = (uintptr_t)ISCSI_SCST_INTERFACE_VERSION;
+
 	err = ioctl(ctlfd, REGISTER_USERD, &reg);
 	if (err < 0) {
 		log_error("Unable to register: %s. Incompatible version of the "

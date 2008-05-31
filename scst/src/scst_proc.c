@@ -1209,7 +1209,7 @@ out:
 static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file, const char __user *buf,
 					size_t length, loff_t *off)
 {
-	int res = length, rc = 0, action;
+	int res, rc = 0, action;
 	char *buffer, *p;
 	struct scst_acg *a, *acg = NULL;
 
@@ -1262,12 +1262,16 @@ static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file, const char __user
 		goto out_free;
 	}
 
-	scst_suspend_activity();
+	res = scst_suspend_activity(true);
+	if (res != 0)
+		goto out_free;
 
 	if (mutex_lock_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
 		goto out_free_resume;
 	}
+
+	res = length;
 
 	switch (action) {
 	case SCST_PROC_ACTION_ADD_GROUP:
@@ -1426,7 +1430,7 @@ out_synt_err:
 static ssize_t scst_proc_groups_devices_write(struct file *file, const char __user *buf,
 					  size_t length, loff_t *off)
 {
-	int res = length, action, virt = 0, rc, read_only = 0;
+	int res, action, virt = 0, rc, read_only = 0;
 	char *buffer, *p, *e = NULL;
 	unsigned int host, channel = 0, id = 0, lun = 0, virt_lun;
 	struct scst_acg *acg = (struct scst_acg *)PDE(file->f_dentry->d_inode)->data;
@@ -1481,12 +1485,16 @@ static ssize_t scst_proc_groups_devices_write(struct file *file, const char __us
 		goto out_free;
 	}
 
-	scst_suspend_activity();
+	res = scst_suspend_activity(true);
+	if (res != 0)
+		goto out_free;
 
 	if (mutex_lock_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
 		goto out_free_resume;
 	}
+
+	res = length;
 
 	switch (action) {
 	case SCST_PROC_ACTION_ADD:
@@ -1565,7 +1573,7 @@ static ssize_t scst_proc_groups_devices_write(struct file *file, const char __us
 		}
 		if (acg_dev) {
 			acg_dev = acg_dev_tmp;
-			PRINT_ERROR("virt lun %d exist in group %s",
+			PRINT_ERROR("virt lun %d already exists in group %s",
 				       virt_lun, acg->acg_name);
 			res = -EINVAL;
 			goto out_free_up;

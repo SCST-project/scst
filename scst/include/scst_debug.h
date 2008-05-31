@@ -242,6 +242,15 @@ do {									\
 	PRINT(NO_FLAG, "%s" format, __tflag, args);			\
 } while (0)
 
+#define PRINT_WARNING(format, args...)					\
+do {									\
+	if (strcmp(INFO_FLAG, LOG_FLAG))				\
+	{								\
+		PRINT_LOG_FLAG(LOG_FLAG, "***WARNING*** " format, args); \
+	}								\
+	PRINT_LOG_FLAG(INFO_FLAG, "***WARNING*** " format, args);	\
+} while (0)
+
 #define PRINT_ERROR(format, args...)					\
 do {									\
 	if (strcmp(ERROR_FLAG, LOG_FLAG)) {				\
@@ -341,6 +350,12 @@ do {								\
 	PRINT(INFO_FLAG, "%s: " format, LOG_PREFIX, args);	\
 } while (0)
 
+#define PRINT_WARNING(format, args...)          \
+do {                                            \
+	PRINT(INFO_FLAG, "%s: ***WARNING*** "	\
+	      format, LOG_PREFIX, args);	\
+} while (0)
+
 #define PRINT_ERROR(format, args...)            \
 do {                                            \
 	PRINT(ERROR_FLAG, "%s: ***ERROR*** "	\
@@ -358,6 +373,12 @@ do {                                            \
 #define PRINT_INFO(format, args...)           	\
 do {                                            \
 	PRINT(INFO_FLAG, format, args);		\
+} while (0)
+
+#define PRINT_WARNING(format, args...)          \
+do {                                            \
+	PRINT(INFO_FLAG, "***WARNING*** "	\
+		format, args);			\
 } while (0)
 
 #define PRINT_ERROR(format, args...)          	\

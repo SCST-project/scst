@@ -15,15 +15,23 @@ simultaneously, is supported as well.
 
 This version is compatible with SCST version 0.9.5 and higher.
 
-Tested on stable kernels from http://www.kernel.org. The original
-initiator driver was taken from kernel version 2.6.17.8, but it should
-also work on other versions, including 2.6.18.x and 2.6.16.x.
+The original initiator driver was taken from the kernel 2.6.17.8.
 
 See also "ToDo" file for list of known issues and unimplemented 
 features.
 
 Installation
 ------------
+
+Only vanilla kernels from kernel.org are supported, but it should work
+on vendors' kernels, if you manage to successfully compile on them. The
+main problem with vendor's kernels is that they often contain patches,
+which will appear only in the next version of the vanilla kernel,
+therefore it's quite hard to track such changes. Thus, if during
+compilation for some vendor kernel your compiler complains about
+redefinition of some symbol, you should either switch to vanilla kernel,
+or change as necessary the corresponding to that symbol "#if
+LINUX_VERSION_CODE" statement.
 
 At first, make sure that the link "/lib/modules/`you_kernel_version`/build" 
 points to the source code for your currently running kernel.

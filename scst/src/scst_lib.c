@@ -95,9 +95,12 @@ void scst_set_cmd_error_status(struct scst_cmd *cmd, int status)
 	cmd->status = status;
 	cmd->host_status = DID_OK;
 
+	cmd->dbl_ua_orig_resp_data_len = cmd->resp_data_len;
+	cmd->dbl_ua_orig_data_direction = cmd->data_direction;
+
 	cmd->data_direction = SCST_DATA_NONE;
-	cmd->is_send_status = 1;
 	cmd->resp_data_len = 0;
+	cmd->is_send_status = 1;
 
 	cmd->completed = 1;
 
@@ -1065,7 +1068,7 @@ static void scst_send_release(struct scst_device *dev)
 	TRACE(TRACE_DEBUG | TRACE_SCSI, "Sending RELEASE req %p to SCSI "
 		"mid-level", req);
 	scst_do_req(req, req->sr_cmnd, (void *)req->sr_buffer, req->sr_bufflen,
-		    scst_req_done, SCST_DEFAULT_TIMEOUT, 3);
+		    scst_req_done, 15, 3);
 
 out:
 	TRACE_EXIT();
@@ -1100,7 +1103,7 @@ static void scst_send_release(struct scst_device *dev)
 		TRACE(TRACE_DEBUG | TRACE_SCSI, "%s", "Sending RELEASE req to "
 			"SCSI mid-level");
 		rc = scsi_execute(scsi_dev, cdb, SCST_DATA_NONE, NULL, 0,
-				sense, SCST_DEFAULT_TIMEOUT, 0, 0);
+				sense, 15, 0, 0);
 		TRACE_DBG("MODE_SENSE done: %x", rc);
 
 		if (scsi_status_is_good(rc)) {
@@ -1320,6 +1323,8 @@ struct scst_cmd *scst_alloc_cmd(int gfp_mask)
 	cmd->data_len = -1;
 	cmd->is_send_status = 1;
 	cmd->resp_data_len = -1;
+	cmd->dbl_ua_orig_resp_data_len = -1;
+	cmd->dbl_ua_orig_data_direction = SCST_DATA_UNKNOWN;
 
 out:
 	TRACE_EXIT();
@@ -1996,7 +2001,7 @@ int scst_sbc_generic_parse(struct scst_cmd *cmd,
 		if ((cmd->cdb[1] & BYTCHK) == 0) {
 			cmd->data_len = cmd->bufflen << get_block_shift(cmd);
 			cmd->bufflen = 0;
-			goto out;
+			goto set_timeout;
 		} else
 			cmd->data_len = 0;
 		break;
@@ -2013,7 +2018,14 @@ int scst_sbc_generic_parse(struct scst_cmd *cmd,
 		cmd->bufflen = cmd->bufflen << get_block_shift(cmd);
 	}
 
-out:
+set_timeout:
+	if ((cmd->op_flags & (SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)) == 0)
+		cmd->timeout = SCST_GENERIC_DISK_REG_TIMEOUT;
+	else if (cmd->op_flags & SCST_SMALL_TIMEOUT)
+		cmd->timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT;
+	else if (cmd->op_flags & SCST_LONG_TIMEOUT)
+		cmd->timeout = SCST_GENERIC_DISK_LONG_TIMEOUT;
+
 	TRACE_DBG("res %d, bufflen %d, data_len %d, direct %d",
 	      res, cmd->bufflen, cmd->data_len, cmd->data_direction);
 
@@ -2047,7 +2059,7 @@ int scst_cdrom_generic_parse(struct scst_cmd *cmd,
 		if ((cmd->cdb[1] & BYTCHK) == 0) {
 			cmd->data_len = cmd->bufflen << get_block_shift(cmd);
 			cmd->bufflen = 0;
-			goto out;
+			goto set_timeout;
 		}
 		break;
 	default:
@@ -2058,7 +2070,14 @@ int scst_cdrom_generic_parse(struct scst_cmd *cmd,
 	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED)
 		cmd->bufflen = cmd->bufflen << get_block_shift(cmd);
 
-out:
+set_timeout:
+	if ((cmd->op_flags & (SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)) == 0)
+		cmd->timeout = SCST_GENERIC_CDROM_REG_TIMEOUT;
+	else if (cmd->op_flags & SCST_SMALL_TIMEOUT)
+		cmd->timeout = SCST_GENERIC_CDROM_SMALL_TIMEOUT;
+	else if (cmd->op_flags & SCST_LONG_TIMEOUT)
+		cmd->timeout = SCST_GENERIC_CDROM_LONG_TIMEOUT;
+
 	TRACE_DBG("res=%d, bufflen=%d, direct=%d", res, cmd->bufflen,
 		cmd->data_direction);
 
@@ -2092,7 +2111,7 @@ int scst_modisk_generic_parse(struct scst_cmd *cmd,
 		if ((cmd->cdb[1] & BYTCHK) == 0) {
 			cmd->data_len = cmd->bufflen << get_block_shift(cmd);
 			cmd->bufflen = 0;
-			goto out;
+			goto set_timeout;
 		}
 		break;
 	default:
@@ -2103,7 +2122,14 @@ int scst_modisk_generic_parse(struct scst_cmd *cmd,
 	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED)
 		cmd->bufflen = cmd->bufflen << get_block_shift(cmd);
 
-out:
+set_timeout:
+	if ((cmd->op_flags & (SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)) == 0)
+		cmd->timeout = SCST_GENERIC_MODISK_REG_TIMEOUT;
+	else if (cmd->op_flags & SCST_SMALL_TIMEOUT)
+		cmd->timeout = SCST_GENERIC_MODISK_SMALL_TIMEOUT;
+	else if (cmd->op_flags & SCST_LONG_TIMEOUT)
+		cmd->timeout = SCST_GENERIC_MODISK_LONG_TIMEOUT;
+
 	TRACE_DBG("res=%d, bufflen=%d, direct=%d", res, cmd->bufflen,
 		cmd->data_direction);
 
@@ -2145,6 +2171,13 @@ int scst_tape_generic_parse(struct scst_cmd *cmd,
 	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED & cmd->cdb[1])
 		cmd->bufflen = cmd->bufflen * get_block_size(cmd);
 
+	if ((cmd->op_flags & (SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)) == 0)
+		cmd->timeout = SCST_GENERIC_TAPE_REG_TIMEOUT;
+	else if (cmd->op_flags & SCST_SMALL_TIMEOUT)
+		cmd->timeout = SCST_GENERIC_TAPE_SMALL_TIMEOUT;
+	else if (cmd->op_flags & SCST_LONG_TIMEOUT)
+		cmd->timeout = SCST_GENERIC_TAPE_LONG_TIMEOUT;
+
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -2180,21 +2213,42 @@ static int scst_null_parse(struct scst_cmd *cmd)
 int scst_changer_generic_parse(struct scst_cmd *cmd,
 	int (*nothing)(struct scst_cmd *cmd))
 {
-	return scst_null_parse(cmd);
+	int res = scst_null_parse(cmd);
+
+	if (cmd->op_flags & SCST_LONG_TIMEOUT)
+		cmd->timeout = SCST_GENERIC_CHANGER_LONG_TIMEOUT;
+	else
+		cmd->timeout = SCST_GENERIC_CHANGER_TIMEOUT;
+
+	return res;
 }
 EXPORT_SYMBOL(scst_changer_generic_parse);
 
 int scst_processor_generic_parse(struct scst_cmd *cmd,
 	int (*nothing)(struct scst_cmd *cmd))
 {
-	return scst_null_parse(cmd);
+	int res = scst_null_parse(cmd);
+
+	if (cmd->op_flags & SCST_LONG_TIMEOUT)
+		cmd->timeout = SCST_GENERIC_PROCESSOR_LONG_TIMEOUT;
+	else
+		cmd->timeout = SCST_GENERIC_PROCESSOR_TIMEOUT;
+
+	return res;
 }
 EXPORT_SYMBOL(scst_processor_generic_parse);
 
 int scst_raid_generic_parse(struct scst_cmd *cmd,
 	int (*nothing)(struct scst_cmd *cmd))
 {
-	return scst_null_parse(cmd);
+	int res = scst_null_parse(cmd);
+
+	if (cmd->op_flags & SCST_LONG_TIMEOUT)
+		cmd->timeout = SCST_GENERIC_RAID_LONG_TIMEOUT;
+	else
+		cmd->timeout = SCST_GENERIC_RAID_TIMEOUT;
+
+	return res;
 }
 EXPORT_SYMBOL(scst_raid_generic_parse);
 
@@ -2364,8 +2418,7 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 
 		TRACE(TRACE_SCSI, "%s", "Doing internal MODE_SENSE");
 		res = scsi_execute(dev->scsi_dev, cmd, SCST_DATA_READ, buffer,
-			   sizeof(buffer), sense_buffer, SCST_DEFAULT_TIMEOUT,
-			    0, 0);
+				sizeof(buffer), sense_buffer, 15, 0, 0);
 
 		TRACE_DBG("MODE_SENSE done: %x", res);
 

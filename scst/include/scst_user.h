@@ -49,10 +49,6 @@
 #define SCST_USER_MEM_REUSE_ALL		3
 #define SCST_USER_MAX_MEM_REUSE_OPT	SCST_USER_MEM_REUSE_ALL
 
-#define SCST_USER_PRIO_QUEUE_SINGLE	0
-#define SCST_USER_PRIO_QUEUE_SEPARATE	1
-#define SCST_USER_MAX_PRIO_QUEUE_OPT	SCST_USER_PRIO_QUEUE_SEPARATE
-
 #define SCST_USER_PARTIAL_TRANSFERS_NOT_SUPPORTED	0
 #define SCST_USER_PARTIAL_TRANSFERS_SUPPORTED_ORDERED	1
 #define SCST_USER_PARTIAL_TRANSFERS_SUPPORTED		2
@@ -77,20 +73,10 @@
 #define UCMD_STATE_ATTACH_SESS		0x20
 #define UCMD_STATE_DETACH_SESS		0x21
 
-/* Must be changed under cmd_lists.cmd_list_lock */
-#define UCMD_STATE_SENT_MASK		0x10000
-#define UCMD_STATE_RECV_MASK		0x20000
-#define UCMD_STATE_JAMMED_MASK		0x40000
-
-#define UCMD_STATE_MASK			(UCMD_STATE_SENT_MASK | \
-					 UCMD_STATE_RECV_MASK | \
-					 UCMD_STATE_JAMMED_MASK)
-
 struct scst_user_opt {
 	uint8_t parse_type;
 	uint8_t on_free_cmd_type;
 	uint8_t memory_reuse_type;
-	uint8_t prio_queue_type;
 	uint8_t partial_transfers_type;
 	int32_t partial_len;
 
@@ -125,7 +111,7 @@ struct scst_user_scsi_cmd_parse {
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
 	int32_t cdb_len;
 
-	uint32_t timeout;
+	int32_t timeout;
 	int32_t bufflen;
 
 	uint8_t queue_type;
@@ -165,7 +151,7 @@ struct scst_user_scsi_cmd_exec {
 	uint8_t queue_type;
 	uint8_t data_direction;
 	uint8_t partial;
-	uint32_t timeout;
+	int32_t timeout;
 
 	uint32_t sn;
 
@@ -249,8 +235,7 @@ struct scst_user_reply_cmd {
 #define SCST_USER_SET_OPTIONS		_IOW('u', 3, struct scst_user_opt)
 #define SCST_USER_GET_OPTIONS		_IOR('u', 4, struct scst_user_opt)
 #define SCST_USER_REPLY_AND_GET_CMD	_IOWR('u', 5, struct scst_user_get_cmd)
-#define SCST_USER_REPLY_AND_GET_PRIO_CMD _IOWR('u', 6, struct scst_user_get_cmd)
-#define SCST_USER_REPLY_CMD		_IOW('u', 7, struct scst_user_reply_cmd)
+#define SCST_USER_REPLY_CMD		_IOW('u', 6, struct scst_user_reply_cmd)
 
 /* Values for scst_user_get_cmd.subcode */
 #define SCST_USER_ATTACH_SESS		_IOR('s', UCMD_STATE_ATTACH_SESS, struct scst_user_sess)

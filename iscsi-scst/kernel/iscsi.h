@@ -467,7 +467,9 @@ static inline void cmnd_put(struct iscsi_cmnd *cmnd)
 {
 	TRACE_DBG("cmnd %p, new ref_cnt %d", cmnd,
 		atomic_read(&cmnd->ref_cnt)-1);
-	sBUG_ON(atomic_read(&cmnd->ref_cnt) == 0);
+
+	EXTRACHECKS_BUG_ON(atomic_read(&cmnd->ref_cnt) == 0);
+
 	if (atomic_dec_and_test(&cmnd->ref_cnt))
 		cmnd_done(cmnd);
 }

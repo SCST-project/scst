@@ -57,10 +57,6 @@
 	.exec =			modisk_exec,		\
 }
 
-#define MODISK_SMALL_TIMEOUT  (3 * HZ)
-#define MODISK_REG_TIMEOUT    (900 * HZ)
-#define MODISK_LONG_TIMEOUT   (14000 * HZ)
-
 #define MODISK_DEF_BLOCK_SHIFT    10
 
 struct modisk_params {
@@ -201,7 +197,7 @@ int modisk_attach(struct scst_device *dev)
 		TRACE_DBG("%s", "Doing READ_CAPACITY");
 		res = scsi_execute(dev->scsi_dev, cmd, data_dir, buffer,
 				   buffer_size, sbuff,
-				   MODISK_REG_TIMEOUT, 3, 0);
+				   SCST_GENERIC_MODISK_REG_TIMEOUT, 3, 0);
 
 		TRACE_DBG("READ_CAPACITY done: %x", res);
 
@@ -307,13 +303,6 @@ int modisk_parse(struct scst_cmd *cmd)
 	scst_modisk_generic_parse(cmd, modisk_get_block_shift);
 
 	cmd->retries = SCST_PASSTHROUGH_RETRIES;
-
-	if ((cmd->op_flags & (SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)) == 0)
-		cmd->timeout = MODISK_REG_TIMEOUT;
-	else if (cmd->op_flags & SCST_SMALL_TIMEOUT)
-		cmd->timeout = MODISK_SMALL_TIMEOUT;
-	else if (cmd->op_flags & SCST_LONG_TIMEOUT)
-		cmd->timeout = MODISK_LONG_TIMEOUT;
 
 	return res;
 }

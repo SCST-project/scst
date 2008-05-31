@@ -1956,7 +1956,7 @@ static void wait_on_retry_sync_kiocb(struct kiocb *iocb)
 typedef ssize_t (*iov_fn_t)(struct kiocb *, const struct iovec *,
 				unsigned long, loff_t);
 
-ssize_t do_sync_readv_writev(struct file *filp, const struct iovec *iov,
+static ssize_t do_sync_readv_writev(struct file *filp, const struct iovec *iov,
 		unsigned long nr_segs, size_t len, loff_t *ppos, iov_fn_t fn)
 {
 	struct kiocb kiocb;
@@ -3115,7 +3115,9 @@ static int vcdrom_change(char *p, char *name)
 		virt_dev->file_name = fn;
 	}
 
-	scst_suspend_activity();
+	res = scst_suspend_activity(true);
+	if (res != 0)
+		goto out_free;
 
 	if (virt_dev->prevent_allow_medium_removal) {
 		PRINT_ERROR("Prevent medium removal for "

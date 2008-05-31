@@ -38,8 +38,6 @@
 }
 
 #define CHANGER_RETRIES       2
-#define CHANGER_TIMEOUT      (3 * HZ)
-#define CHANGER_LONG_TIMEOUT (14000 * HZ)
 #define READ_CAP_LEN          8
 
 int changer_attach(struct scst_device *);
@@ -85,8 +83,8 @@ int changer_attach(struct scst_device *dev)
 	retries = SCST_DEV_UA_RETRIES;
 	do {
 		TRACE_DBG("%s", "Doing TEST_UNIT_READY");
-		res = scsi_test_unit_ready(dev->scsi_dev, CHANGER_TIMEOUT,
-					   CHANGER_RETRIES
+		res = scsi_test_unit_ready(dev->scsi_dev,
+			SCST_GENERIC_CHANGER_TIMEOUT, CHANGER_RETRIES
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 					  );
 #else
@@ -148,11 +146,6 @@ int changer_parse(struct scst_cmd *cmd)
 	scst_changer_generic_parse(cmd, 0);
 
 	cmd->retries = SCST_PASSTHROUGH_RETRIES;
-
-	if (cmd->op_flags & SCST_LONG_TIMEOUT)
-		cmd->timeout = CHANGER_LONG_TIMEOUT;
-	else
-		cmd->timeout = CHANGER_TIMEOUT;
 
 	return res;
 }

@@ -109,7 +109,16 @@ void text_key_add(struct connection *conn, char *key, char *value)
 		conn->rsp.data = conn->rsp_buffer;
 	}
 	if (conn->rsp.datasize + len > INCOMING_BUFSIZE) {
-		log_warning("Dropping key (%s=%s)", key, value);
+		/* ToDo: multi-PDU replies */
+		log_warning("Dropping key (%s=%s) due to INCOMING_BUFSIZE "
+			"limit %d and because only single PDU replies during "
+			"discovery session are implemented. If you have "
+			"a lot of targets, you can increase INCOMING_BUFSIZE, "
+			"but, since it will be against iSCSI RFC required "
+			"not-negotiated PDU limit, not all initiators might "
+			"work with it. Alternatively, you can decrease names "
+			"of your targets so they will fit to INCOMING_BUFSIZE "
+			"limit", key, value, INCOMING_BUFSIZE);
 		return;
 	}
 

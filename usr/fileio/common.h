@@ -72,7 +72,6 @@ struct vdisk_dev {
 	unsigned int nullio:1;
 	unsigned int cdrom_empty:1;
 	unsigned int non_blocking:1;
-	unsigned int prio_thr:1;
 #if defined(DEBUG_TM_IGNORE) || defined(DEBUG_TM_IGNORE_ALL)
 	unsigned int debug_tm_ignore:1;
 #if defined(DEBUG_TM_IGNORE_ALL)
@@ -118,4 +117,3 @@ struct vdisk_cmd
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
 void *main_loop(void *arg);
-void *prio_loop(void *arg);

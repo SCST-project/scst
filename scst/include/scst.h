@@ -289,12 +289,6 @@ typedef _Bool bool;
  */
 #define SCST_EXEC_NEED_THREAD        2
 
-/*************************************************************
- ** Default timeout for cmd's CDB execution
- ** by SCSI mid-level (cmd's "timeout" field).
- *************************************************************/
-#define SCST_DEFAULT_TIMEOUT         (30*HZ)
-
 /*
  * Set if cmd is finished and there is status/sense to be sent.
  * The status should be not sent (i.e. the flag not set) if the
@@ -334,11 +328,8 @@ typedef _Bool bool;
 /* Set if session is initialized and ready */
 #define SCST_SESS_SPH_READY          0
 
-/* Set if session is on calling pre_unreg_sess() phase */
-#define SCST_SESS_SPH_PRE_UNREG      1
-
 /* Set if session is shutting down */
-#define SCST_SESS_SPH_SHUTDOWN       2
+#define SCST_SESS_SPH_SHUTDOWN       1
 
 /*************************************************************
  ** Cmd's async (atomic) flags
@@ -382,6 +373,11 @@ typedef _Bool bool;
  ** Name of the entry in /proc
  *************************************************************/
 #define SCST_PROC_ENTRY_NAME         "scsi_tgt"
+
+/*************************************************************
+ ** Activities suspending timeout
+ *************************************************************/
+#define SCST_SUSPENDING_TIMEOUT			(90 * HZ)
 
 /*************************************************************
  ** Kernel cache creation helper
@@ -773,7 +769,7 @@ struct scst_dev_type {
 	 *  - SCST_MGMT_STATUS_SUCCESS - the command is done with success,
 	 *	no firther actions required
 	 *  - The SCST_MGMT_STATUS_* error code if the command is failed and
-	 *	no firther actions required
+	 *	no further actions required
 	 *  - SCST_DEV_TM_NOT_COMPLETED - regular standard actions for the command
 	 *	should be done
 	 *
@@ -796,15 +792,6 @@ struct scst_dev_type {
 	 * Returns 0 on success, error code otherwise.
 	 */
 	int (*attach_tgt) (struct scst_tgt_dev *tgt_dev);
-
-	/*
-	 * Called when a session, corresponding to a tgt_dev, is about to be
-	 * unregistered and the tgt_dev - detached. Supposed to be used to
-	 * clean out "stalled" commands, which otherwise could prevent SCST
-	 * from entering into the suspended activity state and, so,
-	 * unregistering the device.
-	 */
-	void (*pre_unreg_sess) (struct scst_tgt_dev *tgt_dev);
 
 	/* Called when tgt_dev (session) is detaching from the dev handler */
 	void (*detach_tgt) (struct scst_tgt_dev *tgt_dev);
@@ -1172,7 +1159,7 @@ struct scst_cmd {
 
 	enum scst_cmd_queue_type queue_type;
 
-	int timeout;	/* CDB execution timeout */
+	int timeout;	/* CDB execution timeout in seconds */
 	int retries;	/* Amount of retries that will be done by SCSI mid-level */
 
 	/* SCSI data direction, one of SCST_DATA_* constants */
@@ -1225,6 +1212,9 @@ struct scst_cmd {
 	 * scst_set_resp_data_len()
 	 */
 	int orig_sg_cnt, orig_sg_entry, orig_entry_len;
+
+	/* Used to retry commands in case of double UA */
+	int dbl_ua_orig_resp_data_len, dbl_ua_orig_data_direction;
 
 	/* List corresponding mgmt cmd, if any, protected by sess_list_lock */
 	struct list_head mgmt_cmd_list;
@@ -2302,21 +2292,29 @@ static inline void scst_mgmt_cmd_set_tgt_priv(struct scst_mgmt_cmd *mcmd,
 	mcmd->tgt_priv = val;
 }
 
-/*
- * Returns mgmt cmd's completition status (SCST_MGMT_STATUS_* constants)
- */
+/* Returns mgmt cmd's completition status (SCST_MGMT_STATUS_* constants) */
 static inline int scst_mgmt_cmd_get_status(struct scst_mgmt_cmd *mcmd)
 {
 	return mcmd->status;
 }
 
-/*
- * Returns mgmt cmd's TM fn
- */
+/* Returns mgmt cmd's TM fn */
 static inline int scst_mgmt_cmd_get_fn(struct scst_mgmt_cmd *mcmd)
 {
 	return mcmd->fn;
 }
+
+/*
+ * Called by dev handler's task_mgmt_fn() to notify SCST core that mcmd
+ * is going to complete asynchronously.
+ */
+void scst_prepare_async_mcmd(struct scst_mgmt_cmd *mcmd);
+
+/*
+ * Called by dev handler to notify SCST core that async. mcmd is completed
+ * with status "status".
+ */
+void scst_async_mcmd_completed(struct scst_mgmt_cmd *mcmd, int status);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 
@@ -2450,11 +2448,16 @@ static inline int scst_get_buf_count(struct scst_cmd *cmd)
 
 /*
  * Suspends and resumes any activity.
- * scst_suspend_activity() doesn't return until there are any
- * active commands (state after SCST_CMD_STATE_INIT). New arriving
- * commands stay in that state until scst_resume_activity() is called.
+ * Function scst_suspend_activity() doesn't return 0, until there are any
+ * active commands (state after SCST_CMD_STATE_INIT). If "interruptible"
+ * is true, it returns after SCST_SUSPENDING_TIMEOUT or if it was interrupted
+ * by a signal with the coresponding error status < 0. If "interruptible"
+ * is false, it will wait virtually forever.
+ *
+ * New arriving commands stay in that state until scst_resume_activity()
+ * is called.
  */
-void scst_suspend_activity(void);
+int scst_suspend_activity(bool interruptible);
 void scst_resume_activity(void);
 
 /*

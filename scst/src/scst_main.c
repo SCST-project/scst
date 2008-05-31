@@ -151,6 +151,8 @@ struct scst_dev_type scst_null_devtype = {
 	.name = "none",
 };
 
+static void __scst_resume_activity(void);
+
 int __scst_register_target_template(struct scst_tgt_template *vtt,
 	const char *version)
 {
@@ -299,12 +301,14 @@ struct scst_tgt *scst_register(struct scst_tgt_template *vtt,
 	const char *target_name)
 {
 	struct scst_tgt *tgt;
+	int rc = 0;
 
 	TRACE_ENTRY();
 
 	tgt = kzalloc(sizeof(*tgt), GFP_KERNEL);
 	if (tgt == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of tgt failed");
+		rc = -ENOMEM;
 		goto out_err;
 	}
 
@@ -319,8 +323,14 @@ struct scst_tgt *scst_register(struct scst_tgt_template *vtt,
 	tgt->retry_timer.data = (unsigned long)tgt;
 	tgt->retry_timer.function = scst_tgt_retry_timer_fn;
 
-	scst_suspend_activity();
-	mutex_lock(&scst_mutex);
+	rc = scst_suspend_activity(true);
+	if (rc != 0)
+		goto out_free_tgt_err;
+
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
+		rc = -EINTR;
+		goto out_resume_free;
+	}
 
 	if (target_name != NULL) {
 		int len = strlen(target_name) + 1 +
@@ -330,13 +340,15 @@ struct scst_tgt *scst_register(struct scst_tgt_template *vtt,
 		if (tgt->default_group_name == NULL) {
 			TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of default "
 				"group name failed");
-			goto out_free_err;
+			rc = -ENOMEM;
+			goto out_unlock_resume;
 		}
 		sprintf(tgt->default_group_name, "%s_%s", SCST_DEFAULT_ACG_NAME,
 			target_name);
 	}
 
-	if (scst_build_proc_target_entries(tgt) < 0)
+	rc = scst_build_proc_target_entries(tgt);
+	if (rc < 0)
 		goto out_free_name;
 	else
 		list_add_tail(&tgt->tgt_list_entry, &vtt->tgt_list);
@@ -354,16 +366,19 @@ out:
 out_free_name:
 	kfree(tgt->default_group_name);
 
-out_free_err:
+out_unlock_resume:
 	mutex_unlock(&scst_mutex);
+
+out_resume_free:
 	scst_resume_activity();
 
+out_free_tgt_err:
 	kfree(tgt);
 	tgt = NULL;
 
 out_err:
-	PRINT_ERROR("Failed to register target %s for template %s",
-		target_name, vtt->name);
+	PRINT_ERROR("Failed to register target %s for template %s (error %d)",
+		target_name, vtt->name, rc);
 	goto out;
 }
 EXPORT_SYMBOL(scst_register);
@@ -398,7 +413,7 @@ void scst_unregister(struct scst_tgt *tgt)
 	wait_event(tgt->unreg_waitQ, test_sess_list(tgt));
 	TRACE_DBG("%s", "wait_event() returned");
 
-	scst_suspend_activity();
+	scst_suspend_activity(false);
 	mutex_lock(&scst_mutex);
 
 	list_del(&tgt->tgt_list_entry);
@@ -422,11 +437,44 @@ void scst_unregister(struct scst_tgt *tgt)
 }
 EXPORT_SYMBOL(scst_unregister);
 
-void scst_suspend_activity(void)
+static int scst_susp_wait(bool interruptible)
 {
+	int res = 0;
+
 	TRACE_ENTRY();
 
-	mutex_lock(&scst_suspend_mutex);
+	if (interruptible) {
+		res = wait_event_interruptible_timeout(scst_dev_cmd_waitQ,
+			(atomic_read(&scst_cmd_count) == 0),
+			SCST_SUSPENDING_TIMEOUT);
+		if (res <= 0) {
+			__scst_resume_activity();
+			if (res == 0)
+				res = -EBUSY;
+		} else
+			res = 0;
+	} else
+		wait_event(scst_dev_cmd_waitQ, atomic_read(&scst_cmd_count) == 0);
+
+	TRACE_MGMT_DBG("wait_event() returned %d", res);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+int scst_suspend_activity(bool interruptible)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	if (interruptible) {
+		if (mutex_lock_interruptible(&scst_suspend_mutex) != 0) {
+			res = -EINTR;
+			goto out;
+		}
+	} else
+		mutex_lock(&scst_suspend_mutex);
 
 	TRACE_MGMT_DBG("suspend_count %d", suspend_count);
 	suspend_count++;
@@ -437,39 +485,63 @@ void scst_suspend_activity(void)
 	set_bit(SCST_FLAG_SUSPENDED, &scst_flags);
 	smp_mb__after_set_bit();
 
-	TRACE_MGMT_DBG("Waiting for %d active commands to complete",
-	      atomic_read(&scst_cmd_count));
-	wait_event(scst_dev_cmd_waitQ, atomic_read(&scst_cmd_count) == 0);
-	TRACE_MGMT_DBG("%s", "wait_event() returned");
+	/*
+	 * See comment in scst_user.c::dev_user_task_mgmt_fn() for more
+	 * information about scst_user behavior.
+	 *
+	 * ToDo: make the global suspending unneeded (Switch to per-device
+	 * reference counting? That would mean to switch off from lockless
+	 * implementation of scst_translate_lun().. )
+	 */
+	PRINT_INFO("Waiting for %d active commands to complete... This might "
+		"take few minutes for disks or few hours for tapes, if you "
+		"use long executed commands, like REWIND or FORMAT. In case, "
+		"if you have a hung user space device (i.e. made using "
+		"scst_user module) not responding to any commands, if might "
+		"take virtually forever until the corresponding user space "
+		"program recovers and starts responding or gets killed.",
+		atomic_read(&scst_cmd_count));
+
+	res = scst_susp_wait(interruptible);
+	if (res != 0)
+		goto out_clear;
 
 	clear_bit(SCST_FLAG_SUSPENDING, &scst_flags);
 	smp_mb__after_clear_bit();
 
 	TRACE_MGMT_DBG("Waiting for %d active commands finally to complete",
-	      atomic_read(&scst_cmd_count));
-	wait_event(scst_dev_cmd_waitQ, atomic_read(&scst_cmd_count) == 0);
-	TRACE_MGMT_DBG("%s", "wait_event() returned");
+		atomic_read(&scst_cmd_count));
+
+	res = scst_susp_wait(interruptible);
+	if (res != 0)
+		goto out_clear;
+
+	PRINT_INFO("%s", "All active commands completed");
 
 out_up:
 	mutex_unlock(&scst_suspend_mutex);
 
-	TRACE_EXIT();
-	return;
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_clear:
+	clear_bit(SCST_FLAG_SUSPENDING, &scst_flags);
+	smp_mb__after_clear_bit();
+	goto out_up;
 }
 EXPORT_SYMBOL(scst_suspend_activity);
 
-void scst_resume_activity(void)
+static void __scst_resume_activity(void)
 {
 	struct scst_cmd_lists *l;
 
 	TRACE_ENTRY();
 
-	mutex_lock(&scst_suspend_mutex);
-
 	suspend_count--;
 	TRACE_MGMT_DBG("suspend_count %d left", suspend_count);
 	if (suspend_count > 0)
-		goto out_up;
+		goto out;
 
 	clear_bit(SCST_FLAG_SUSPENDED, &scst_flags);
 	smp_mb__after_clear_bit();
@@ -491,7 +563,17 @@ void scst_resume_activity(void)
 	spin_unlock_irq(&scst_mcmd_lock);
 	wake_up_all(&scst_mgmt_cmd_list_waitQ);
 
-out_up:
+out:
+	TRACE_EXIT();
+	return;
+}
+
+void scst_resume_activity(void)
+{
+	TRACE_ENTRY();
+
+	mutex_lock(&scst_suspend_mutex);
+	__scst_resume_activity();
 	mutex_unlock(&scst_suspend_mutex);
 
 	TRACE_EXIT();
@@ -507,8 +589,14 @@ static int scst_register_device(struct scsi_device *scsidp)
 
 	TRACE_ENTRY();
 
-	scst_suspend_activity();
-	mutex_lock(&scst_mutex);
+	res = scst_suspend_activity(true);
+	if (res != 0)
+		goto out_err;
+
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
+		res = -EINTR;
+		goto out_resume;
+	}
 
 	res = scst_alloc_device(GFP_KERNEL, &dev);
 	if (res != 0)
@@ -538,8 +626,11 @@ static int scst_register_device(struct scsi_device *scsidp)
 
 out_up:
 	mutex_unlock(&scst_mutex);
+
+out_resume:
 	scst_resume_activity();
 
+out_err:
 	if (res == 0) {
 		PRINT_INFO("Attached SCSI target mid-level at "
 		    "scsi%d, channel %d, id %d, lun %d, type %d",
@@ -571,7 +662,7 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 
 	TRACE_ENTRY();
 
-	scst_suspend_activity();
+	scst_suspend_activity(false);
 	mutex_lock(&scst_mutex);
 
 	list_for_each_entry(d, &scst_dev_list, dev_list_entry) {
@@ -663,7 +754,10 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 	if (res != 0)
 		goto out;
 
-	scst_suspend_activity();
+	res = scst_suspend_activity(true);
+	if (res != 0)
+		goto out;
+
 	if (mutex_lock_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
 		goto out_resume;
@@ -720,7 +814,7 @@ void scst_unregister_virtual_device(int id)
 
 	TRACE_ENTRY();
 
-	scst_suspend_activity();
+	scst_suspend_activity(false);
 	mutex_lock(&scst_mutex);
 
 	list_for_each_entry(d, &scst_dev_list, dev_list_entry) {
@@ -791,7 +885,10 @@ int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 	}
 #endif
 
-	scst_suspend_activity();
+	res = scst_suspend_activity(true);
+	if (res != 0)
+		goto out_error;
+
 	if (mutex_lock_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
 		goto out_err_res;
@@ -855,7 +952,7 @@ void scst_unregister_dev_driver(struct scst_dev_type *dev_type)
 
 	TRACE_ENTRY();
 
-	scst_suspend_activity();
+	scst_suspend_activity(false);
 	mutex_lock(&scst_mutex);
 
 	list_for_each_entry(dt, &scst_dev_type_list, dev_type_list_entry) {

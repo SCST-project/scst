@@ -280,4 +280,36 @@ static inline int scst_is_ua_sense(const uint8_t *sense)
 #define POSITION_LEN_SHORT           20
 #define POSITION_LEN_LONG            32
 
+/*************************************************************
+ ** Various timeouts
+ *************************************************************/
+#define SCST_DEFAULT_TIMEOUT			(60 * HZ)
+
+#define SCST_GENERIC_CHANGER_TIMEOUT		(3 * HZ)
+#define SCST_GENERIC_CHANGER_LONG_TIMEOUT	(14000 * HZ)
+
+#define SCST_GENERIC_PROCESSOR_TIMEOUT		(3 * HZ)
+#define SCST_GENERIC_PROCESSOR_LONG_TIMEOUT	(14000 * HZ)
+
+#define SCST_GENERIC_TAPE_SMALL_TIMEOUT		(3 * HZ)
+#define SCST_GENERIC_TAPE_REG_TIMEOUT		(900 * HZ)
+#define SCST_GENERIC_TAPE_LONG_TIMEOUT		(14000 * HZ)
+
+#define SCST_GENERIC_MODISK_SMALL_TIMEOUT	(3 * HZ)
+#define SCST_GENERIC_MODISK_REG_TIMEOUT		(900 * HZ)
+#define SCST_GENERIC_MODISK_LONG_TIMEOUT	(14000 * HZ)
+
+#define SCST_GENERIC_DISK_SMALL_TIMEOUT		(3 * HZ)
+#define SCST_GENERIC_DISK_REG_TIMEOUT		(60 * HZ)
+#define SCST_GENERIC_DISK_LONG_TIMEOUT		(3600 * HZ)
+
+#define SCST_GENERIC_RAID_TIMEOUT		(3 * HZ)
+#define SCST_GENERIC_RAID_LONG_TIMEOUT		(14000 * HZ)
+
+#define SCST_GENERIC_CDROM_SMALL_TIMEOUT	(3 * HZ)
+#define SCST_GENERIC_CDROM_REG_TIMEOUT		(900 * HZ)
+#define SCST_GENERIC_CDROM_LONG_TIMEOUT		(14000 * HZ)
+
+#define SCST_MAX_OTHER_TIMEOUT			(14000 * HZ)
+
 #endif /* __SCST_CONST_H */

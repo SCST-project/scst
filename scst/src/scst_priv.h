@@ -120,7 +120,6 @@ extern unsigned long scst_trace_flag;
 #define SCST_MAX_DEV_COMMANDS                256
 
 #define SCST_TGT_RETRY_TIMEOUT               (3/2*HZ)
-#define SCST_CMD_MEM_TIMEOUT                 (120*HZ)
 
 static inline int scst_get_context(void)
 {
@@ -527,6 +526,7 @@ static inline void scst_check_restore_sg_buff(struct scst_cmd *cmd)
 			cmd->orig_sg_cnt);
 		cmd->sg[cmd->orig_sg_entry].length = cmd->orig_entry_len;
 		cmd->sg_cnt = cmd->orig_sg_cnt;
+		cmd->sg_buff_modified = 0;
 	}
 }
 

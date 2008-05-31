@@ -57,10 +57,6 @@
 	.exec =			disk_exec,		\
 }
 
-#define DISK_SMALL_TIMEOUT  (3 * HZ)
-#define DISK_REG_TIMEOUT    (60 * HZ)
-#define DISK_LONG_TIMEOUT   (3600 * HZ)
-
 #define DISK_DEF_BLOCK_SHIFT	9
 
 struct disk_params {
@@ -190,7 +186,7 @@ int disk_attach(struct scst_device *dev)
 		TRACE_DBG("%s", "Doing READ_CAPACITY");
 		res = scsi_execute(dev->scsi_dev, cmd, data_dir, buffer,
 				   buffer_size, sbuff,
-				   DISK_REG_TIMEOUT, 3, 0);
+				   SCST_GENERIC_DISK_REG_TIMEOUT, 3, 0);
 
 		TRACE_DBG("READ_CAPACITY done: %x", res);
 
@@ -290,13 +286,6 @@ int disk_parse(struct scst_cmd *cmd)
 	scst_sbc_generic_parse(cmd, disk_get_block_shift);
 
 	cmd->retries = SCST_PASSTHROUGH_RETRIES;
-
-	if ((cmd->op_flags & (SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)) == 0)
-		cmd->timeout = DISK_REG_TIMEOUT;
-	else if (cmd->op_flags & SCST_SMALL_TIMEOUT)
-		cmd->timeout = DISK_SMALL_TIMEOUT;
-	else if (cmd->op_flags & SCST_LONG_TIMEOUT)
-		cmd->timeout = DISK_LONG_TIMEOUT;
 
 	return res;
 }

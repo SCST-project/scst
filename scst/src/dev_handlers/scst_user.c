@@ -34,37 +34,28 @@
 #endif
 
 #define DEV_USER_MAJOR			237
+
 #define DEV_USER_CMD_HASH_ORDER		6
-#define DEV_USER_TM_TIMEOUT		(10*HZ)
+
 #define DEV_USER_ATTACH_TIMEOUT		(5*HZ)
-#define DEV_USER_DETACH_TIMEOUT		(5*HZ)
-#define DEV_USER_PRE_UNREG_POLL_TIME	(HZ/10)
 
 struct scst_user_dev {
 	struct rw_semaphore dev_rwsem;
 
 	struct scst_cmd_lists cmd_lists;
-	/* All 3 protected by cmd_lists.cmd_list_lock */
+
+	/* Protected by cmd_lists.cmd_list_lock */
 	struct list_head ready_cmd_list;
-	struct list_head prio_ready_cmd_list;
-	wait_queue_head_t prio_cmd_list_waitQ;
 
-	/* All, including detach_cmd_count, protected by cmd_lists.cmd_list_lock */
-	unsigned short blocking:1;
-	unsigned short cleaning:1;
-	unsigned short cleanup_done:1;
-	unsigned short attach_cmd_active:1;
-	unsigned short tm_cmd_active:1;
-	unsigned short internal_reset_active:1;
-	unsigned short pre_unreg_sess_active:1; /* just a small optimization */
-
-	unsigned short tst:3;
-	unsigned short queue_alg:4;
-	unsigned short tas:1;
-	unsigned short swp:1;
-	unsigned short has_own_order_mgmt:1;
-
-	unsigned short detach_cmd_count;
+	/* Protected by dev_rwsem or don't need any protection */
+	unsigned int blocking:1;
+	unsigned int cleanup_done:1;
+	unsigned int cleaning:1;
+	unsigned int tst:3;
+	unsigned int queue_alg:4;
+	unsigned int tas:1;
+	unsigned int swp:1;
+	unsigned int has_own_order_mgmt:1;
 
 	int (*generic_parse)(struct scst_cmd *cmd,
 		int (*get_block)(struct scst_cmd *cmd));
@@ -77,7 +68,6 @@ struct scst_user_dev {
 	uint8_t parse_type;
 	uint8_t on_free_cmd_type;
 	uint8_t memory_reuse_type;
-	uint8_t prio_queue_type;
 	uint8_t partial_transfers_type;
 	uint32_t partial_len;
 
@@ -85,7 +75,7 @@ struct scst_user_dev {
 
 	/* Both protected by cmd_lists.cmd_list_lock */
 	unsigned int handle_counter;
-	struct list_head ucmd_hash[1<<DEV_USER_CMD_HASH_ORDER];
+	struct list_head ucmd_hash[1 << DEV_USER_CMD_HASH_ORDER];
 
 	struct scst_device *sdev;
 
@@ -93,23 +83,11 @@ struct scst_user_dev {
 	struct list_head dev_list_entry;
 	char name[SCST_MAX_NAME];
 
-	/* Protected by cmd_lists.cmd_list_lock */
-	struct list_head pre_unreg_sess_list;
-
+	/* Protected by cleanup_lock */
+	unsigned char in_cleanup_list:1;
 	struct list_head cleanup_list_entry;
+	/* ToDo: make it on-stack */
 	struct completion cleanup_cmpl;
-};
-
-struct scst_user_pre_unreg_sess_obj {
-	struct scst_tgt_dev *tgt_dev;
-	unsigned int active:1;
-	unsigned int exit:1;
-	struct list_head pre_unreg_sess_list_entry;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	struct work_struct pre_unreg_sess_work;
-#else
-	struct delayed_work pre_unreg_sess_work;
-#endif
 };
 
 /* Most fields are unprotected, since only one thread at time can access them */
@@ -122,7 +100,6 @@ struct scst_user_cmd {
 	unsigned int buff_cached:1;
 	unsigned int buf_dirty:1;
 	unsigned int background_exec:1;
-	unsigned int internal_reset_tm:1;
 	unsigned int aborted:1;
 
 	struct scst_user_cmd *buf_ucmd;
@@ -134,6 +111,15 @@ struct scst_user_cmd {
 	struct page **data_pages;
 	struct sgv_pool_obj *sgv;
 
+	/* 
+	 * Special flags, which can be accessed asynchronously (hence "long").
+	 * Protected by cmd_lists.cmd_list_lock.
+	 */
+	unsigned long sent_to_user:1;
+	unsigned long jammed:1;
+	unsigned long this_state_unjammed:1;
+	unsigned long seen_by_user:1; /* here only as a small optimization */
+
 	unsigned int state;
 
 	struct list_head ready_cmd_list_entry;
@@ -143,7 +129,11 @@ struct scst_user_cmd {
 
 	struct scst_user_get_cmd user_cmd;
 
-	struct completion *cmpl;
+	/* cmpl used only by ATTACH_SESS, mcmd used only by TM */
+	union {
+		struct completion *cmpl;
+		struct scst_mgmt_cmd *mcmd;
+	};
 	int result;
 };
 
@@ -169,9 +159,9 @@ static void dev_user_add_to_ready(struct scst_user_cmd *ucmd);
 
 static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 	unsigned long *flags);
-static void dev_user_unjam_dev(struct scst_user_dev *dev, int tm,
-	struct scst_tgt_dev *tgt_dev);
+static void dev_user_unjam_dev(struct scst_user_dev *dev);
 
+static int dev_user_process_reply_on_free(struct scst_user_cmd *ucmd);
 static int dev_user_process_reply_tm_exec(struct scst_user_cmd *ucmd,
 	int status);
 static int dev_user_process_reply_sess(struct scst_user_cmd *ucmd, int status);
@@ -212,7 +202,31 @@ static LIST_HEAD(cleanup_list);
 static DECLARE_WAIT_QUEUE_HEAD(cleanup_list_waitQ);
 static struct task_struct *cleanup_thread;
 
-static inline void ucmd_get(struct scst_user_cmd *ucmd, int barrier)
+/*
+ * Skip this command if result is not 0. Must be called under
+ * cmd_lists.cmd_list_lock and IRQ off.
+ */
+static inline bool ucmd_get_check(struct scst_user_cmd *ucmd)
+{
+	int r = atomic_inc_return(&ucmd->ucmd_ref);
+	int res;
+	if (unlikely(r == 1)) {
+		TRACE_DBG("ucmd %p is being destroyed", ucmd);
+		atomic_dec(&ucmd->ucmd_ref);
+		res = true;
+		/*
+		 * Necessary code is serialized by cmd_list_lock in
+		 * cmd_remove_hash()
+		 */
+	} else {
+		TRACE_DBG("ucmd %p, new ref_cnt %d", ucmd,
+			atomic_read(&ucmd->ucmd_ref));
+		res = false;
+	}
+	return res;
+}
+
+static inline void __ucmd_get(struct scst_user_cmd *ucmd, bool barrier)
 {
 	TRACE_DBG("ucmd %p, ucmd_ref %d", ucmd, atomic_read(&ucmd->ucmd_ref));
 	atomic_inc(&ucmd->ucmd_ref);
@@ -220,9 +234,22 @@ static inline void ucmd_get(struct scst_user_cmd *ucmd, int barrier)
 		smp_mb__after_atomic_inc();
 }
 
+static inline void ucmd_get_ordered(struct scst_user_cmd *ucmd)
+{
+	__ucmd_get(ucmd, true);
+}
+
+static inline void ucmd_get(struct scst_user_cmd *ucmd)
+{
+	__ucmd_get(ucmd, false);
+}
+
 static inline void ucmd_put(struct scst_user_cmd *ucmd)
 {
 	TRACE_DBG("ucmd %p, ucmd_ref %d", ucmd, atomic_read(&ucmd->ucmd_ref));
+
+	EXTRACHECKS_BUG_ON(atomic_read(&ucmd->ucmd_ref) == 0);
+
 	if (atomic_dec_and_test(&ucmd->ucmd_ref))
 		dev_user_free_ucmd(ucmd);
 }
@@ -298,6 +325,7 @@ static void cmd_insert_hash(struct scst_user_cmd *ucmd)
 static inline void cmd_remove_hash(struct scst_user_cmd *ucmd)
 {
 	unsigned long flags;
+
 	spin_lock_irqsave(&ucmd->dev->cmd_lists.cmd_list_lock, flags);
 	list_del(&ucmd->hash_list_entry);
 	spin_unlock_irqrestore(&ucmd->dev->cmd_lists.cmd_list_lock, flags);
@@ -338,7 +366,7 @@ static struct page *dev_user_alloc_pages(struct scatterlist *sg,
 		TRACE_MEM("ucmd->first_page_offset %d",
 			ucmd->first_page_offset);
 		offset = ucmd->first_page_offset;
-		ucmd_get(ucmd, 0);
+		ucmd_get(ucmd);
 	}
 
 	if (ucmd->cur_data_page >= ucmd->num_data_pages)
@@ -393,6 +421,7 @@ static void dev_user_unmap_buf(struct scst_user_cmd *ucmd)
 
 		page_cache_release(page);
 	}
+
 	kfree(ucmd->data_pages);
 	ucmd->data_pages = NULL;
 
@@ -532,7 +561,7 @@ static int dev_user_alloc_sg(struct scst_user_cmd *ucmd, int cached_buff)
 			sBUG_ON(ucmd->sgv != NULL);
 			res = -1;
 		} else {
-			switch (ucmd->state & ~UCMD_STATE_MASK) {
+			switch (ucmd->state) {
 			case UCMD_STATE_BUF_ALLOCING:
 				res = 1;
 				break;
@@ -711,7 +740,7 @@ static int dev_user_parse(struct scst_cmd *cmd)
 			min(sizeof(ucmd->user_cmd.parse_cmd.cdb),
 			    sizeof(cmd->cdb)));
 		ucmd->user_cmd.parse_cmd.cdb_len = cmd->cdb_len;
-		ucmd->user_cmd.parse_cmd.timeout = cmd->timeout;
+		ucmd->user_cmd.parse_cmd.timeout = cmd->timeout / HZ;
 		ucmd->user_cmd.parse_cmd.bufflen = cmd->bufflen;
 		ucmd->user_cmd.parse_cmd.queue_type = cmd->queue_type;
 		ucmd->user_cmd.parse_cmd.data_direction = cmd->data_direction;
@@ -821,7 +850,7 @@ static int dev_user_exec(struct scst_cmd *cmd)
 	ucmd->user_cmd.exec_cmd.queue_type = cmd->queue_type;
 	ucmd->user_cmd.exec_cmd.data_direction = cmd->data_direction;
 	ucmd->user_cmd.exec_cmd.partial = 0;
-	ucmd->user_cmd.exec_cmd.timeout = cmd->timeout;
+	ucmd->user_cmd.exec_cmd.timeout = cmd->timeout / HZ;
 	ucmd->user_cmd.exec_cmd.sn = cmd->tgt_sn;
 
 	ucmd->state = UCMD_STATE_EXECING;
@@ -839,7 +868,7 @@ static void dev_user_free_sgv(struct scst_user_cmd *ucmd)
 		ucmd->sgv = NULL;
 	} else if (ucmd->data_pages != NULL) {
 		/* We mapped pages, but for some reason didn't allocate them */
-		ucmd_get(ucmd, 0);
+		ucmd_get(ucmd);
 		__dev_user_free_sg_entries(ucmd);
 	}
 	return;
@@ -864,9 +893,13 @@ static void dev_user_on_free_cmd(struct scst_cmd *cmd)
 	if (ucmd->dev->on_free_cmd_type == SCST_USER_ON_FREE_CMD_IGNORE) {
 		ucmd->state = UCMD_STATE_ON_FREE_SKIPPED;
 		/* The state assignment must be before freeing sgv! */
-		dev_user_free_sgv(ucmd);
-		ucmd_put(ucmd);
-		goto out;
+		goto out_reply;
+	}
+
+	if (unlikely(!ucmd->seen_by_user)) {
+		TRACE_MGMT_DBG("Not seen by user ucmd %p", ucmd);
+		sBUG_ON((ucmd->sgv != NULL) || (ucmd->data_pages != NULL));
+		goto out_reply;
 	}
 
 	ucmd->user_cmd.cmd_h = ucmd->h;
@@ -886,6 +919,10 @@ static void dev_user_on_free_cmd(struct scst_cmd *cmd)
 out:
 	TRACE_EXIT();
 	return;
+
+out_reply:
+	dev_user_process_reply_on_free(ucmd);
+	goto out;
 }
 
 static void dev_user_set_block(struct scst_cmd *cmd, int block)
@@ -940,68 +977,37 @@ static void dev_user_add_to_ready(struct scst_user_cmd *ucmd)
 	if (ucmd->cmd)
 		do_wake |= ucmd->cmd->preprocessing_only;
 
-	EXTRACHECKS_BUG_ON(ucmd->state & UCMD_STATE_JAMMED_MASK);
-
 	spin_lock_irqsave(&dev->cmd_lists.cmd_list_lock, flags);
 
-	/* Hopefully, compiler will make it as a single test/jmp */
-	if (unlikely(dev->attach_cmd_active || dev->tm_cmd_active ||
-		     dev->internal_reset_active || dev->pre_unreg_sess_active ||
-		     (dev->detach_cmd_count != 0))) {
-		switch (ucmd->state) {
-		case UCMD_STATE_PARSING:
-		case UCMD_STATE_BUF_ALLOCING:
-		case UCMD_STATE_EXECING:
-			if (dev->pre_unreg_sess_active &&
-			    !(dev->attach_cmd_active || dev->tm_cmd_active ||
-			      dev->internal_reset_active ||
-			      (dev->detach_cmd_count != 0))) {
-				struct scst_user_pre_unreg_sess_obj *p, *found = NULL;
-				list_for_each_entry(p, &dev->pre_unreg_sess_list,
-					pre_unreg_sess_list_entry) {
-					if (p->tgt_dev == ucmd->cmd->tgt_dev) {
-						if (p->active)
-							found = p;
-						break;
-					}
-				}
-				if (found == NULL) {
-					TRACE_MGMT_DBG("No pre unreg sess "
-						"active (ucmd %p)", ucmd);
-					break;
-				} else {
-					TRACE_MGMT_DBG("Pre unreg sess %p "
-						"active (ucmd %p)", found, ucmd);
-				}
-			}
-			TRACE(TRACE_MGMT, "Mgmt cmd active, returning BUSY for "
-				"ucmd %p", ucmd);
-			dev_user_unjam_cmd(ucmd, 1, &flags);
-			spin_unlock_irqrestore(&dev->cmd_lists.cmd_list_lock, flags);
-			goto out;
-		}
-	}
+	ucmd->this_state_unjammed = 0;
 
-	if (unlikely(ucmd->state == UCMD_STATE_TM_EXECING) ||
-	    unlikely(ucmd->state == UCMD_STATE_ATTACH_SESS) ||
-	    unlikely(ucmd->state == UCMD_STATE_DETACH_SESS)) {
-		if (dev->prio_queue_type == SCST_USER_PRIO_QUEUE_SEPARATE) {
-			TRACE_MGMT_DBG("Adding mgmt ucmd %p to prio ready cmd "
-				       "list", ucmd);
-			list_add_tail(&ucmd->ready_cmd_list_entry,
-				&dev->prio_ready_cmd_list);
-			wake_up(&dev->prio_cmd_list_waitQ);
-			do_wake = 0;
-		} else {
-			TRACE_MGMT_DBG("Adding mgmt ucmd %p to ready cmd "
-				"list", ucmd);
-			list_add_tail(&ucmd->ready_cmd_list_entry,
-				&dev->ready_cmd_list);
-			do_wake = 1;
-		}
+	if ((ucmd->state == UCMD_STATE_PARSING) ||
+	    (ucmd->state == UCMD_STATE_BUF_ALLOCING)) {
+	    	/*
+	    	 * If we don't put such commands in the queue head, then under
+	    	 * high load we might delay threads, waiting for memory
+	    	 * allocations, for too long and start loosing NOPs, which
+	    	 * would lead to consider us by remote initiators as
+	    	 * unresponsive and stuck => broken connections, etc. If none
+	    	 * of our commands completed in NOP timeout to allow the head
+	    	 * commands to go, then we are really overloaded and/or stuck.
+	    	 */
+		TRACE_DBG("Adding ucmd %p (state %d) to head of ready "
+			"cmd list", ucmd, ucmd->state);
+		list_add(&ucmd->ready_cmd_list_entry,
+			&dev->ready_cmd_list);
+		do_wake = 1;
+	} else if (unlikely(ucmd->state == UCMD_STATE_TM_EXECING) ||
+		   unlikely(ucmd->state == UCMD_STATE_ATTACH_SESS) ||
+		   unlikely(ucmd->state == UCMD_STATE_DETACH_SESS)) {
+		TRACE_MGMT_DBG("Adding mgmt ucmd %p (state %d) to head of "
+			"ready cmd list", ucmd, ucmd->state);
+		list_add(&ucmd->ready_cmd_list_entry,
+			&dev->ready_cmd_list);
+		do_wake = 1;
 	} else if ((ucmd->cmd != NULL) &&
-	    unlikely((ucmd->cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))) {
-		TRACE_DBG("Adding ucmd %p to head ready cmd list", ucmd);
+		   unlikely((ucmd->cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))) {
+		TRACE_DBG("Adding HQ ucmd %p to head of ready cmd list", ucmd);
 		list_add(&ucmd->ready_cmd_list_entry, &dev->ready_cmd_list);
 	} else {
 		TRACE_DBG("Adding ucmd %p to ready cmd list", ucmd);
@@ -1015,7 +1021,19 @@ static void dev_user_add_to_ready(struct scst_user_cmd *ucmd)
 
 	spin_unlock_irqrestore(&dev->cmd_lists.cmd_list_lock, flags);
 
-out:
+	smp_mb();
+	if (unlikely(dev->cleaning)) {
+		spin_lock_irqsave(&cleanup_lock, flags);
+		if (!dev->in_cleanup_list) {
+			TRACE_DBG("Adding dev %p to the cleanup list (ucmd %p)",
+				dev, ucmd);
+			list_add_tail(&dev->cleanup_list_entry, &cleanup_list);
+			dev->in_cleanup_list = 1;
+			wake_up(&cleanup_list_waitQ);
+		}
+		spin_unlock_irqrestore(&cleanup_lock, flags);
+	}
+
 	TRACE_EXIT();
 	return;
 }
@@ -1123,6 +1141,7 @@ out_process:
 
 out_hwerr:
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+	ucmd->cmd->state = SCST_CMD_STATE_PRE_XMIT_RESP;
 	res = -EINVAL;
 	goto out_process;
 }
@@ -1169,8 +1188,11 @@ out_process:
 	return res;
 
 out_inval:
-	PRINT_ERROR("%s", "Invalid parse_reply parameter(s)");
+	PRINT_ERROR("Invalid parse_reply parameters (LUN %lld, op %x, cmd %p)",
+		(long long unsigned int)cmd->lun, cmd->cdb[0], cmd);
+	PRINT_BUFFER("Invalid parse_reply", reply, sizeof(*reply));
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+	cmd->state = SCST_CMD_STATE_PRE_XMIT_RESP;
 	res = -EINVAL;
 	goto out_process;
 }
@@ -1231,7 +1253,7 @@ static int dev_user_process_reply_exec(struct scst_user_cmd *ucmd,
 		if (unlikely((cmd->data_direction == SCST_DATA_READ) ||
 			     (cmd->resp_data_len != 0)))
 			goto out_inval;
-		ucmd_get(ucmd, 1);
+		ucmd_get_ordered(ucmd);
 		ucmd->background_exec = 1;
 		TRACE_DBG("Background ucmd %p", ucmd);
 		goto out_compl;
@@ -1298,7 +1320,9 @@ out:
 	return res;
 
 out_inval:
-	PRINT_ERROR("%s", "Invalid exec_reply parameter(s)");
+	PRINT_ERROR("Invalid exec_reply parameters (LUN %lld, op %x, cmd %p)",
+		(long long unsigned int)cmd->lun, cmd->cdb[0], cmd);
+	PRINT_BUFFER("Invalid exec_reply", reply, sizeof(*reply));
 
 out_hwerr:
 	res = -EINVAL;
@@ -1329,8 +1353,14 @@ static int dev_user_process_reply(struct scst_user_dev *dev,
 	spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
 
 	ucmd = __ucmd_find_hash(dev, reply->cmd_h);
-	if (ucmd == NULL) {
+	if (unlikely(ucmd == NULL)) {
 		TRACE_MGMT_DBG("cmd_h %d not found", reply->cmd_h);
+		res = -ESRCH;
+		goto out_unlock;
+	}
+
+	if (unlikely(ucmd_get_check(ucmd))) {
+		TRACE_MGMT_DBG("Found being destroyed cmd_h %d", reply->cmd_h);
 		res = -ESRCH;
 		goto out_unlock;
 	}
@@ -1340,28 +1370,27 @@ static int dev_user_process_reply(struct scst_user_dev *dev,
 		goto unlock_process;
 	}
 
-	if (unlikely(!(ucmd->state & UCMD_STATE_SENT_MASK))) {
-		if (ucmd->state & UCMD_STATE_JAMMED_MASK) {
-			TRACE_MGMT_DBG("Reply on jammed ucmd %p, ignoring",
-				ucmd);
-		} else {
-			TRACE_MGMT_DBG("Ucmd %p isn't in the sent to user "
-				"state %x", ucmd, ucmd->state);
-			res = -EBUSY;
-		}
-		goto out_unlock;
+	if (unlikely(ucmd->this_state_unjammed)) {
+		TRACE_MGMT_DBG("Reply on unjammed ucmd %p, ignoring",
+			ucmd);
+		goto out_unlock_put;
+	}
+
+	if (unlikely(!ucmd->sent_to_user)) {
+		TRACE_MGMT_DBG("Ucmd %p isn't in the sent to user "
+			"state %x", ucmd, ucmd->state);
+		res = -EINVAL;
+		goto out_unlock_put;
 	}
 
 	if (unlikely(reply->subcode != ucmd->user_cmd.subcode))
 		goto out_wrong_state;
 
-	if (unlikely(_IOC_NR(reply->subcode) !=
-			(ucmd->state & ~UCMD_STATE_SENT_MASK)))
+	if (unlikely(_IOC_NR(reply->subcode) != ucmd->state))
 		goto out_wrong_state;
 
-	ucmd->state &= ~UCMD_STATE_SENT_MASK;
 	state = ucmd->state;
-	ucmd->state |= UCMD_STATE_RECV_MASK;
+	ucmd->sent_to_user = 0;
 
 unlock_process:
 	spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
@@ -1400,6 +1429,10 @@ unlock_process:
 		sBUG();
 		break;
 	}
+
+out_put:
+	ucmd_put(ucmd);
+
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -1411,6 +1444,10 @@ out_wrong_state:
 		reply->subcode, ucmd->user_cmd.subcode);
 	res = -EINVAL;
 	dev_user_unjam_cmd(ucmd, 0, NULL);
+
+out_unlock_put:
+	spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+	goto out_put;
 
 out_unlock:
 	spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
@@ -1498,13 +1535,17 @@ again:
 		TRACE_DBG("Found ready ucmd %p", u);
 		list_del(&u->ready_cmd_list_entry);
 
-		EXTRACHECKS_BUG_ON(u->state & UCMD_STATE_JAMMED_MASK);
+		EXTRACHECKS_BUG_ON(u->this_state_unjammed);
 
 		if (u->cmd != NULL) {
 			if (u->state == UCMD_STATE_EXECING) {
 				struct scst_user_dev *dev = u->dev;
 				int rc;
+
+				EXTRACHECKS_BUG_ON(u->jammed);
+
 				spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+
 				rc = scst_check_local_events(u->cmd);
 				if (unlikely(rc != 0)) {
 					u->cmd->scst_cmd_done(u->cmd,
@@ -1517,10 +1558,7 @@ again:
 						&dev->cmd_lists.cmd_list_lock);
 					goto again;
 				}
-				/*
-				 * There is no real need to lock again here, but
-				 * let's do it for simplicity.
-				 */
+
 				spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
 			} else if (unlikely(test_bit(SCST_CMD_ABORTED,
 					&u->cmd->cmd_flags))) {
@@ -1535,7 +1573,8 @@ again:
 				}
 			}
 		}
-		u->state |= UCMD_STATE_SENT_MASK;
+		u->sent_to_user = 1;
+		u->seen_by_user = 1;
 	}
 	return u;
 }
@@ -1600,71 +1639,7 @@ static int dev_user_get_next_cmd(struct scst_user_dev *dev,
 	return res;
 }
 
-static inline int test_prio_cmd_list(struct scst_user_dev *dev)
-{
-	/*
-	 * Prio queue is always blocking, because poll() seems doesn't
-	 * support, when different threads wait with different events
-	 * mask. Only one thread is woken up on each event and if it
-	 * isn't interested in such events, another (interested) one
-	 * will not be woken up. Does't know if it's a bug or feature.
-	 */
-	int res = !list_empty(&dev->prio_ready_cmd_list) ||
-		  dev->cleaning || dev->cleanup_done ||
-		  signal_pending(current);
-	return res;
-}
-
-/* Called under cmd_lists.cmd_list_lock and IRQ off */
-static int dev_user_get_next_prio_cmd(struct scst_user_dev *dev,
-	struct scst_user_cmd **ucmd)
-{
-	int res = 0;
-	wait_queue_t wait;
-
-	TRACE_ENTRY();
-
-	init_waitqueue_entry(&wait, current);
-
-	while (1) {
-		if (!test_prio_cmd_list(dev)) {
-			add_wait_queue_exclusive(&dev->prio_cmd_list_waitQ,
-				&wait);
-			for (;;) {
-				set_current_state(TASK_INTERRUPTIBLE);
-				if (test_prio_cmd_list(dev))
-					break;
-				spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
-				schedule();
-				spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
-			}
-			set_current_state(TASK_RUNNING);
-			remove_wait_queue(&dev->prio_cmd_list_waitQ, &wait);
-		}
-
-		*ucmd = __dev_user_get_next_cmd(&dev->prio_ready_cmd_list);
-		if (*ucmd != NULL)
-			break;
-
-		if (dev->cleaning || dev->cleanup_done) {
-			res = -EAGAIN;
-			TRACE_DBG("No ready commands, returning %d", res);
-			break;
-		}
-
-		if (signal_pending(current)) {
-			res = -EINTR;
-			TRACE_DBG("Signal pending, returning %d", res);
-			break;
-		}
-	}
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static int dev_user_reply_get_cmd(struct file *file, unsigned long arg,
-	int prio)
+static int dev_user_reply_get_cmd(struct file *file, unsigned long arg)
 {
 	int res = 0;
 	struct scst_user_dev *dev;
@@ -1712,10 +1687,7 @@ static int dev_user_reply_get_cmd(struct file *file, unsigned long arg,
 	}
 
 	spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
-	if (prio && (dev->prio_queue_type == SCST_USER_PRIO_QUEUE_SEPARATE))
-		res = dev_user_get_next_prio_cmd(dev, &ucmd);
-	else
-		res = dev_user_get_next_cmd(dev, &ucmd);
+	res = dev_user_get_next_cmd(dev, &ucmd);
 	if (res == 0) {
 		*cmd = ucmd->user_cmd;
 		spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
@@ -1745,17 +1717,12 @@ static long dev_user_ioctl(struct file *file, unsigned int cmd,
 	switch (cmd) {
 	case SCST_USER_REPLY_AND_GET_CMD:
 		TRACE_DBG("%s", "REPLY_AND_GET_CMD");
-		res = dev_user_reply_get_cmd(file, arg, 0);
+		res = dev_user_reply_get_cmd(file, arg);
 		break;
 
 	case SCST_USER_REPLY_CMD:
 		TRACE_DBG("%s", "REPLY_CMD");
 		res = dev_user_reply_cmd(file, arg);
-		break;
-
-	case SCST_USER_REPLY_AND_GET_PRIO_CMD:
-		TRACE_DBG("%s", "REPLY_AND_GET_PRIO_CMD");
-		res = dev_user_reply_get_cmd(file, arg, 1);
 		break;
 
 	case SCST_USER_REGISTER_DEVICE:
@@ -1862,18 +1829,20 @@ out:
 static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 	unsigned long *flags)
 {
-	int state = ucmd->state & ~UCMD_STATE_MASK;
+	int state = ucmd->state;
 	struct scst_user_dev *dev = ucmd->dev;
 
 	TRACE_ENTRY();
 
-	if (ucmd->state & UCMD_STATE_JAMMED_MASK)
+	if (ucmd->this_state_unjammed)
 		goto out;
 
 	TRACE_MGMT_DBG("Unjamming ucmd %p (busy %d, state %x)", ucmd, busy,
-		ucmd->state);
+		state);
 
-	ucmd->state = state | UCMD_STATE_JAMMED_MASK;
+	ucmd->jammed = 1;
+	ucmd->this_state_unjammed = 1;
+	ucmd->sent_to_user = 0;
 
 	switch (state) {
 	case UCMD_STATE_PARSING:
@@ -1887,6 +1856,9 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 				scst_set_cmd_error(ucmd->cmd,
 					SCST_LOAD_SENSE(scst_sense_hardw_error));
 		}
+
+		ucmd->cmd->state = SCST_CMD_STATE_PRE_XMIT_RESP;
+
 		TRACE_MGMT_DBG("Adding ucmd %p to active list", ucmd);
 		list_add(&ucmd->cmd->cmd_list_entry,
 			&ucmd->cmd->cmd_lists->active_cmd_list);
@@ -1912,7 +1884,7 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 		}
 
 		ucmd->cmd->scst_cmd_done(ucmd->cmd, SCST_CMD_STATE_DEFAULT);
-		/* !! At this point cmd ans ucmd can be already freed !! */
+		/* !! At this point cmd and ucmd can be already freed !! */
 
 		if (flags != NULL)
 			spin_lock_irqsave(&dev->cmd_lists.cmd_list_lock, *flags);
@@ -1968,55 +1940,7 @@ out:
 	return;
 }
 
-static int __unjam_check_tgt_dev(struct scst_user_cmd *ucmd, int state,
-	struct scst_tgt_dev *tgt_dev)
-{
-	int res = 0;
-
-	if (ucmd->cmd == NULL)
-		goto out;
-
-	if (ucmd->cmd->tgt_dev != tgt_dev)
-		goto out;
-
-	switch (state & ~UCMD_STATE_MASK) {
-	case UCMD_STATE_PARSING:
-	case UCMD_STATE_BUF_ALLOCING:
-	case UCMD_STATE_EXECING:
-		break;
-	default:
-		goto out;
-	}
-
-	res = 1;
-out:
-	return res;
-}
-
-static int __unjam_check_tm(struct scst_user_cmd *ucmd, int state)
-{
-	int res = 0;
-
-	switch (state & ~UCMD_STATE_MASK) {
-	case UCMD_STATE_PARSING:
-	case UCMD_STATE_BUF_ALLOCING:
-	case UCMD_STATE_EXECING:
-		if ((ucmd->cmd != NULL) &&
-		    (!test_bit(SCST_CMD_ABORTED,
-				&ucmd->cmd->cmd_flags)))
-			goto out;
-		break;
-	default:
-		goto out;
-	}
-
-	res = 1;
-out:
-	return res;
-}
-
-static void dev_user_unjam_dev(struct scst_user_dev *dev, int tm,
-	struct scst_tgt_dev *tgt_dev)
+static void dev_user_unjam_dev(struct scst_user_dev *dev)
 {
 	int i;
 	unsigned long flags;
@@ -2031,41 +1955,24 @@ static void dev_user_unjam_dev(struct scst_user_dev *dev, int tm,
 repeat:
 	for (i = 0; i < (int)ARRAY_SIZE(dev->ucmd_hash); i++) {
 		struct list_head *head = &dev->ucmd_hash[i];
-		list_for_each_entry(ucmd, head, hash_list_entry) {
-			TRACE_DBG("ALL: ucmd %p, state %x, scst_cmd %p",
-				ucmd, ucmd->state, ucmd->cmd);
-			if (ucmd->state & UCMD_STATE_SENT_MASK) {
-				int st = ucmd->state & ~UCMD_STATE_SENT_MASK;
-				if (tgt_dev != NULL) {
-					if (__unjam_check_tgt_dev(ucmd, st,
-							tgt_dev) == 0)
-						continue;
-				} else if (tm) {
-					if (__unjam_check_tm(ucmd, st) == 0)
-						continue;
-				}
-				dev_user_unjam_cmd(ucmd, 0, &flags);
-				goto repeat;
-			}
-		}
-	}
+		bool repeat = false;
 
-	if ((tgt_dev != NULL) || tm) {
-		list_for_each_entry(ucmd, &dev->ready_cmd_list,
-				ready_cmd_list_entry) {
-			TRACE_DBG("READY: ucmd %p, state %x, scst_cmd %p",
+		list_for_each_entry(ucmd, head, hash_list_entry) {
+			if (ucmd_get_check(ucmd))
+				continue;
+
+			TRACE_DBG("ucmd %p, state %x, scst_cmd %p",
 				ucmd, ucmd->state, ucmd->cmd);
-			if (tgt_dev != NULL) {
-				if (__unjam_check_tgt_dev(ucmd, ucmd->state,
-						tgt_dev) == 0)
-					continue;
-			} else if (tm) {
-				if (__unjam_check_tm(ucmd, ucmd->state) == 0)
-					continue;
+
+			if (ucmd->sent_to_user) {
+				dev_user_unjam_cmd(ucmd, 0, &flags);
+				repeat = true;
 			}
-			list_del(&ucmd->ready_cmd_list_entry);
-			dev_user_unjam_cmd(ucmd, 0, &flags);
-			goto repeat;
+
+			ucmd_put(ucmd);
+
+			if (repeat)
+				goto repeat;
 		}
 	}
 
@@ -2078,49 +1985,28 @@ repeat:
 	return;
 }
 
-/**
- ** In order to deal with user space handler hangups we rely on remote
- ** initiators, which in case if a command doesn't respond for too long
- ** supposed to issue a task management command, so on that event we can
- ** "unjam" the command. In order to prevent TM command from stalling, we
- ** use a timer. In order to prevent too many queued TM commands, we
- ** enqueue only 2 of them, the first one with the requested TM function,
- ** the second - with TARGET_RESET as the most comprehensive function.
- **
- ** The only exception here is DETACH_SESS subcode, where there are no TM
- ** commands could be expected, so we need manually after a timeout "unjam"
- ** all the commands on the device.
- **
- ** We also don't queue >1 ATTACH_SESS commands and after timeout fail it.
- **/
-
 static int dev_user_process_reply_tm_exec(struct scst_user_cmd *ucmd,
 	int status)
 {
 	int res = 0;
-	unsigned long flags;
 
 	TRACE_ENTRY();
 
 	TRACE_MGMT_DBG("TM reply (ucmd %p, fn %d, status %d)", ucmd,
 		ucmd->user_cmd.tm_cmd.fn, status);
 
-	ucmd->result = status;
-
-	spin_lock_irqsave(&ucmd->dev->cmd_lists.cmd_list_lock, flags);
-
-	if (ucmd->internal_reset_tm) {
-		TRACE_MGMT_DBG("Internal TM ucmd %p finished", ucmd);
-		ucmd->dev->internal_reset_active = 0;
-	} else {
-		TRACE_MGMT_DBG("TM ucmd %p finished", ucmd);
-		ucmd->dev->tm_cmd_active = 0;
+	if (status == SCST_MGMT_STATUS_TASK_NOT_EXIST) {
+		/*
+		 * It is possible that user space seen TM cmd before cmd
+		 * to abort or will never see it at all, because it was
+		 * aborted on the way there. So, it is safe to return
+		 * success instead, because, if there is the TM cmd at this
+		 * point, then the cmd to abort apparrently does exist.
+		 */
+		status = SCST_MGMT_STATUS_SUCCESS;
 	}
 
-	if (ucmd->cmpl != NULL)
-		complete_all(ucmd->cmpl);
-
-	spin_unlock_irqrestore(&ucmd->dev->cmd_lists.cmd_list_lock, flags);
+	scst_async_mcmd_completed(ucmd->mcmd, status);
 
 	ucmd_put(ucmd);
 
@@ -2128,21 +2014,87 @@ static int dev_user_process_reply_tm_exec(struct scst_user_cmd *ucmd,
 	return res;
 }
 
+static void dev_user_abort_ready_commands(struct scst_user_dev *dev)
+{
+	struct scst_user_cmd *ucmd;
+	unsigned long flags;
+
+	TRACE_ENTRY();
+
+	spin_lock_irqsave(&dev->cmd_lists.cmd_list_lock, flags);
+again:
+	list_for_each_entry(ucmd, &dev->ready_cmd_list, ready_cmd_list_entry) {
+		if ((ucmd->cmd != NULL) && !ucmd->seen_by_user &&
+		    test_bit(SCST_CMD_ABORTED, &ucmd->cmd->cmd_flags)) {
+			switch (ucmd->state) {
+			case UCMD_STATE_PARSING:
+			case UCMD_STATE_BUF_ALLOCING:
+			case UCMD_STATE_EXECING:
+				TRACE_MGMT_DBG("Aborting ready ucmd %p", ucmd);
+				list_del(&ucmd->ready_cmd_list_entry);
+				dev_user_unjam_cmd(ucmd, 0, &flags);
+				goto again;
+			}
+		}
+	}
+
+	spin_unlock_irqrestore(&dev->cmd_lists.cmd_list_lock, flags);
+
+	TRACE_EXIT();
+	return;
+}
+
 static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	struct scst_tgt_dev *tgt_dev)
 {
-	int res, rc;
 	struct scst_user_cmd *ucmd;
 	struct scst_user_dev *dev = (struct scst_user_dev *)tgt_dev->dev->dh_priv;
 	struct scst_user_cmd *ucmd_to_abort = NULL;
 
 	TRACE_ENTRY();
 
+	/*
+	 * In the used approach we don't do anything with hung devices, which
+	 * stopped responding and/or have stuck commands. We forcedly abort such
+	 * commands only if they not yet sent to the user space or if the device
+	 * is getting unloaded, e.g. if its handler program gets killed. This is
+	 * because it's pretty hard to distinguish between stuck and temporary
+	 * overloaded states of the device. There are several reasons for that:
+	 *
+	 * 1. Some commands need a lot of time to complete (several hours),
+	 *    so for an impatient user such command(s) will always look as
+	 *    stuck.
+	 *
+	 * 2. If we forcedly abort, i.e. abort before it's actually completed
+	 *    in the user space, just one command, we will have to put the whole
+	 *    device offline until we are sure that no more previously aborted
+	 *    commands will get executed. Otherwise, we might have a possibility
+	 *    for data corruption, when aborted and reported as completed
+	 *    command actually gets executed *after* new commands sent
+	 *    after the force abort was done. Many journaling file systems and
+	 *    databases use "provide required commands order via queue draining"
+	 *    approach and not putting the whole device offline after the forced
+	 *    abort will break it. This makes our decision, if a command stuck
+	 *    or not, cost a lot.
+	 *
+	 * So, we leave policy definition if a device stuck or not to
+	 * the user space and simply let all commands live until they are
+	 * completed or their devices get closed/killed. This approach is very
+	 * much OK, but can affect management commands, which need activity
+	 * suspending via scst_suspend_activity() function such as devices or
+	 * targets registration/removal. But during normal life such commands
+	 * should be rare. Plus, when possible, scst_suspend_activity() will
+	 * return after timeout EBUSY status to allow caller to not stuck
+	 * forever as well.
+	 *
+	 * But, anyway, ToDo, we should reimplement that in the SCST core, so
+	 * stuck commands would affect only related devices.
+	 */
+
+	dev_user_abort_ready_commands(dev);
+
 	/* We can't afford missing TM command due to memory shortage */
 	ucmd = dev_user_alloc_ucmd(dev, GFP_KERNEL|__GFP_NOFAIL);
-	ucmd->cmpl = kmalloc(sizeof(*ucmd->cmpl), GFP_KERNEL|__GFP_NOFAIL);
-
-	init_completion(ucmd->cmpl);
 
 	ucmd->user_cmd.cmd_h = ucmd->h;
 	ucmd->user_cmd.subcode = SCST_USER_TASK_MGMT;
@@ -2162,59 +2114,15 @@ static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 		mcmd->fn, mcmd->cmd_to_abort, ucmd_to_abort,
 		ucmd->user_cmd.tm_cmd.cmd_h_to_abort);
 
+	ucmd->mcmd = mcmd;
 	ucmd->state = UCMD_STATE_TM_EXECING;
 
-	spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
-	if (dev->internal_reset_active) {
-		PRINT_ERROR("Loosing TM cmd %d, because there are other "
-			"unprocessed TM commands", mcmd->fn);
-		res = SCST_MGMT_STATUS_FAILED;
-		goto out_locked_free;
-	} else if (dev->tm_cmd_active) {
-		/*
-		 * We are going to miss some TM commands, so replace it
-		 * by the hardest one.
-		 */
-		PRINT_ERROR("Replacing TM cmd %d by TARGET_RESET, because "
-			"there is another unprocessed TM command", mcmd->fn);
-		ucmd->user_cmd.tm_cmd.fn = SCST_TARGET_RESET;
-		ucmd->internal_reset_tm = 1;
-		dev->internal_reset_active = 1;
-	} else
-		dev->tm_cmd_active = 1;
-	spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+	scst_prepare_async_mcmd(mcmd);
 
-	ucmd_get(ucmd, 0);
 	dev_user_add_to_ready(ucmd);
 
-	/*
-	 * Since the user space handler should not wait for affecting tasks to
-	 * complete it shall complete the TM request ASAP, otherwise the device
-	 * will be considered stalled.
-	 */
-	rc = wait_for_completion_timeout(ucmd->cmpl, DEV_USER_TM_TIMEOUT);
-	if (rc > 0)
-		res = ucmd->result;
-	else {
-		PRINT_ERROR("Task management command %p timeout", ucmd);
-		res = SCST_MGMT_STATUS_FAILED;
-	}
-
-	sBUG_ON(irqs_disabled());
-
-	spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
-
-out_locked_free:
-	kfree(ucmd->cmpl);
-	ucmd->cmpl = NULL;
-	spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
-
-	dev_user_unjam_dev(ucmd->dev, 1, NULL);
-
-	ucmd_put(ucmd);
-
 	TRACE_EXIT();
-	return res;
+	return SCST_DEV_TM_NOT_COMPLETED;
 }
 
 static int dev_user_attach(struct scst_device *sdev)
@@ -2286,15 +2194,11 @@ static int dev_user_process_reply_sess(struct scst_user_cmd *ucmd, int status)
 
 	spin_lock_irqsave(&ucmd->dev->cmd_lists.cmd_list_lock, flags);
 
-	if ((ucmd->state & ~UCMD_STATE_MASK) ==
-			UCMD_STATE_ATTACH_SESS) {
+	if (ucmd->state == UCMD_STATE_ATTACH_SESS) {
 		TRACE_MGMT_DBG("%s", "ATTACH_SESS finished");
 		ucmd->result = status;
-		ucmd->dev->attach_cmd_active = 0;
-	} else if ((ucmd->state & ~UCMD_STATE_MASK) ==
-			UCMD_STATE_DETACH_SESS) {
+	} else if (ucmd->state == UCMD_STATE_DETACH_SESS) {
 		TRACE_MGMT_DBG("%s", "DETACH_SESS finished");
-		ucmd->dev->detach_cmd_count--;
 	} else
 		sBUG();
 
@@ -2348,17 +2252,8 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 
 	ucmd->state = UCMD_STATE_ATTACH_SESS;
 
-	spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
-	if (dev->attach_cmd_active) {
-		PRINT_ERROR("%s", "ATTACH_SESS command failed, because "
-			"there is another unprocessed ATTACH_SESS command");
-		res = -EBUSY;
-		goto out_locked_free;
-	}
-	dev->attach_cmd_active = 1;
-	spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+	ucmd_get(ucmd);
 
-	ucmd_get(ucmd, 0);
 	dev_user_add_to_ready(ucmd);
 
 	rc = wait_for_completion_timeout(ucmd->cmpl, DEV_USER_ATTACH_TIMEOUT);
@@ -2372,7 +2267,6 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 	sBUG_ON(irqs_disabled());
 
 	spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
-out_locked_free:
 	kfree(ucmd->cmpl);
 	ucmd->cmpl = NULL;
 	spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
@@ -2391,105 +2285,19 @@ out_nomem:
 	goto out;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void dev_user_pre_unreg_sess_work_fn(void *p)
-#else
-static void dev_user_pre_unreg_sess_work_fn(struct work_struct *work)
-#endif
-{
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	struct scst_user_pre_unreg_sess_obj *pd = (struct scst_user_pre_unreg_sess_obj *)p;
-#else
-	struct scst_user_pre_unreg_sess_obj *pd = container_of(
-		(struct delayed_work *)work, struct scst_user_pre_unreg_sess_obj,
-		pre_unreg_sess_work);
-#endif
-	struct scst_user_dev *dev =
-		(struct scst_user_dev *)pd->tgt_dev->dev->dh_priv;
-
-	TRACE_ENTRY();
-
-	TRACE_MGMT_DBG("Unreg sess: unjaming dev %p (tgt_dev %p)", dev,
-		pd->tgt_dev);
-
-	pd->active = 1;
-
-	dev_user_unjam_dev(dev, 0, pd->tgt_dev);
-
-	if (!pd->exit) {
-		TRACE_MGMT_DBG("Rescheduling pre_unreg_sess work %p (dev %p, "
-			"tgt_dev %p)", pd, dev, pd->tgt_dev);
-		schedule_delayed_work(&pd->pre_unreg_sess_work,
-			DEV_USER_PRE_UNREG_POLL_TIME);
-	}
-
-	TRACE_EXIT();
-	return;
-}
-
-static void dev_user_pre_unreg_sess(struct scst_tgt_dev *tgt_dev)
-{
-	struct scst_user_dev *dev =
-		(struct scst_user_dev *)tgt_dev->dev->dh_priv;
-	struct scst_user_pre_unreg_sess_obj *pd;
-
-	TRACE_ENTRY();
-
-	/* We can't afford missing DETACH command due to memory shortage */
-	pd = kzalloc(sizeof(*pd), GFP_KERNEL|__GFP_NOFAIL);
-
-	pd->tgt_dev = tgt_dev;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	INIT_WORK(&pd->pre_unreg_sess_work, dev_user_pre_unreg_sess_work_fn, pd);
-#else
-	INIT_DELAYED_WORK(&pd->pre_unreg_sess_work, dev_user_pre_unreg_sess_work_fn);
-#endif
-
-	spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
-	dev->pre_unreg_sess_active = 1;
-	list_add_tail(&pd->pre_unreg_sess_list_entry, &dev->pre_unreg_sess_list);
-	spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
-
-	TRACE_MGMT_DBG("Scheduling pre_unreg_sess work %p (dev %p, tgt_dev %p)",
-		pd, dev, pd->tgt_dev);
-
-	schedule_delayed_work(&pd->pre_unreg_sess_work, DEV_USER_DETACH_TIMEOUT);
-
-	TRACE_EXIT();
-	return;
-}
-
 static void dev_user_detach_tgt(struct scst_tgt_dev *tgt_dev)
 {
 	struct scst_user_dev *dev =
 		(struct scst_user_dev *)tgt_dev->dev->dh_priv;
 	struct scst_user_cmd *ucmd;
-	struct scst_user_pre_unreg_sess_obj *pd = NULL, *p;
 
 	TRACE_ENTRY();
 
-	spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
-	list_for_each_entry(p, &dev->pre_unreg_sess_list,
-			pre_unreg_sess_list_entry) {
-		if (p->tgt_dev == tgt_dev) {
-			list_del(&p->pre_unreg_sess_list_entry);
-			if (list_empty(&dev->pre_unreg_sess_list))
-				dev->pre_unreg_sess_active = 0;
-			pd = p;
-			break;
-		}
-	}
-	spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
-
-	if (pd != NULL) {
-		pd->exit = 1;
-		TRACE_MGMT_DBG("Canceling pre unreg work %p", pd);
-		cancel_delayed_work(&pd->pre_unreg_sess_work);
-		flush_scheduled_work();
-		kfree(pd);
-	}
-
-	ucmd = dev_user_alloc_ucmd(dev, GFP_KERNEL);
+	/*
+	 * We can't miss TM command due to memory shortage, because it might
+	 * lead to a memory leak in the user space handler.
+	 */
+	ucmd = dev_user_alloc_ucmd(dev, GFP_KERNEL|__GFP_NOFAIL);
 	if (ucmd == NULL)
 		goto out;
 
@@ -2499,10 +2307,6 @@ static void dev_user_detach_tgt(struct scst_tgt_dev *tgt_dev)
 	ucmd->user_cmd.cmd_h = ucmd->h;
 	ucmd->user_cmd.subcode = SCST_USER_DETACH_SESS;
 	ucmd->user_cmd.sess.sess_h = (unsigned long)tgt_dev;
-
-	spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
-	dev->detach_cmd_count++;
-	spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
 
 	ucmd->state = UCMD_STATE_DETACH_SESS;
 
@@ -2642,8 +2446,6 @@ static int dev_user_register_dev(struct file *file,
 	INIT_LIST_HEAD(&dev->cmd_lists.active_cmd_list);
 	init_waitqueue_head(&dev->cmd_lists.cmd_list_waitQ);
 	INIT_LIST_HEAD(&dev->ready_cmd_list);
-	INIT_LIST_HEAD(&dev->prio_ready_cmd_list);
-	init_waitqueue_head(&dev->prio_cmd_list_waitQ);
 	if (file->f_flags & O_NONBLOCK) {
 		TRACE_DBG("%s", "Non-blocking operations");
 		dev->blocking = 0;
@@ -2651,7 +2453,6 @@ static int dev_user_register_dev(struct file *file,
 		dev->blocking = 1;
 	for (i = 0; i < (int)ARRAY_SIZE(dev->ucmd_hash); i++)
 		INIT_LIST_HEAD(&dev->ucmd_hash[i]);
-	INIT_LIST_HEAD(&dev->pre_unreg_sess_list);
 
 	strncpy(dev->name, dev_desc->name, sizeof(dev->name)-1);
 	dev->name[sizeof(dev->name)-1] = '\0';
@@ -2679,7 +2480,6 @@ static int dev_user_register_dev(struct file *file,
 	dev->devtype.attach = dev_user_attach;
 	dev->devtype.detach = dev_user_detach;
 	dev->devtype.attach_tgt = dev_user_attach_tgt;
-	dev->devtype.pre_unreg_sess = dev_user_pre_unreg_sess;
 	dev->devtype.detach_tgt = dev_user_detach_tgt;
 	dev->devtype.exec = dev_user_exec;
 	dev->devtype.on_free_cmd = dev_user_on_free_cmd;
@@ -2687,7 +2487,7 @@ static int dev_user_register_dev(struct file *file,
 
 	init_completion(&dev->cleanup_cmpl);
 	dev->block = block;
-	dev->def_block = dev->block;
+	dev->def_block = block;
 
 	res = __dev_user_set_opt(dev, &dev_desc->opt);
 
@@ -2772,7 +2572,6 @@ static int __dev_user_set_opt(struct scst_user_dev *dev,
 	if ((opt->parse_type > SCST_USER_MAX_PARSE_OPT) ||
 	    (opt->on_free_cmd_type > SCST_USER_MAX_ON_FREE_CMD_OPT) ||
 	    (opt->memory_reuse_type > SCST_USER_MAX_MEM_REUSE_OPT) ||
-	    (opt->prio_queue_type > SCST_USER_MAX_PRIO_QUEUE_OPT) ||
 	    (opt->partial_transfers_type > SCST_USER_MAX_PARTIAL_TRANSFERS_OPT)) {
 		PRINT_ERROR("%s", "Invalid option");
 		res = -EINVAL;
@@ -2791,18 +2590,6 @@ static int __dev_user_set_opt(struct scst_user_dev *dev,
 		goto out;
 	}
 
-	if ((dev->prio_queue_type != opt->prio_queue_type) &&
-	    (opt->prio_queue_type == SCST_USER_PRIO_QUEUE_SINGLE)) {
-		struct scst_user_cmd *u, *t;
-		/* No need for lock, the activity is suspended */
-		list_for_each_entry_safe(u, t, &dev->prio_ready_cmd_list,
-				ready_cmd_list_entry) {
-			list_move_tail(&u->ready_cmd_list_entry,
-				&dev->ready_cmd_list);
-		}
-	}
-
-	dev->prio_queue_type = opt->prio_queue_type;
 	dev->parse_type = opt->parse_type;
 	dev->on_free_cmd_type = opt->on_free_cmd_type;
 	dev->memory_reuse_type = opt->memory_reuse_type;
@@ -2843,14 +2630,18 @@ static int dev_user_set_opt(struct file *file, const struct scst_user_opt *opt)
 		mutex_unlock(&dev_priv_mutex);
 		goto out;
 	}
-	down_read(&dev->dev_rwsem);
+	down_write(&dev->dev_rwsem);
 	mutex_unlock(&dev_priv_mutex);
 
-	scst_suspend_activity();
+	res = scst_suspend_activity(true);
+	if (res != 0)
+		goto out;
+
 	res = __dev_user_set_opt(dev, opt);
+
 	scst_resume_activity();
 
-	up_read(&dev->dev_rwsem);
+	up_write(&dev->dev_rwsem);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -2878,7 +2669,6 @@ static int dev_user_get_opt(struct file *file, void *arg)
 	opt.parse_type = dev->parse_type;
 	opt.on_free_cmd_type = dev->on_free_cmd_type;
 	opt.memory_reuse_type = dev->memory_reuse_type;
-	opt.prio_queue_type = dev->prio_queue_type;
 	opt.partial_transfers_type = dev->partial_transfers_type;
 	opt.partial_len = dev->partial_len;
 	opt.tst = dev->tst;
@@ -2940,12 +2730,18 @@ static int dev_user_release(struct inode *inode, struct file *file)
 
 	down_write(&dev->dev_rwsem);
 
-	spin_lock(&cleanup_lock);
+	spin_lock_irq(&cleanup_lock);
+
+	dev->cleaning = 1;
+	smp_mb(); /* pair to dev_user_add_to_ready() */
+
+	sBUG_ON(dev->in_cleanup_list);
 	list_add_tail(&dev->cleanup_list_entry, &cleanup_list);
-	spin_unlock(&cleanup_lock);
+	dev->in_cleanup_list = 1;
+
+	spin_unlock_irq(&cleanup_lock);
 
 	wake_up(&cleanup_list_waitQ);
-	wake_up(&dev->prio_cmd_list_waitQ);
 	wake_up(&dev->cmd_lists.cmd_list_waitQ);
 
 	scst_unregister_virtual_device(dev->virt_id);
@@ -2956,9 +2752,18 @@ static int dev_user_release(struct inode *inode, struct file *file)
 	TRACE_DBG("Unregistering finished (dev %p)", dev);
 
 	dev->cleanup_done = 1;
+	smp_mb(); /* just in case */
+
+	spin_lock_irq(&cleanup_lock);
+	if (!dev->in_cleanup_list) {
+		list_add_tail(&dev->cleanup_list_entry, &cleanup_list);
+		dev->in_cleanup_list = 1;
+	}
+	spin_unlock_irq(&cleanup_lock);
+
 	wake_up(&cleanup_list_waitQ);
-	wake_up(&dev->prio_cmd_list_waitQ);
 	wake_up(&dev->cmd_lists.cmd_list_waitQ);
+
 	wait_for_completion(&dev->cleanup_cmpl);
 
 	up_write(&dev->dev_rwsem); /* to make the debug check happy */
@@ -2981,24 +2786,30 @@ static void dev_user_process_cleanup(struct scst_user_dev *dev)
 
 	TRACE_ENTRY();
 
-	dev->prio_queue_type = SCST_USER_PRIO_QUEUE_SINGLE;
-	dev->cleaning = 1;
-	dev->blocking = 1;
+	dev->blocking = 0;
 
 	while (1) {
 		TRACE_DBG("Cleanuping dev %p", dev);
 
-		dev_user_unjam_dev(dev, 0, NULL);
+		dev_user_unjam_dev(dev);
 
 		spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
-		rc = dev_user_get_next_prio_cmd(dev, &ucmd);
-		if (rc != 0)
-			rc = dev_user_get_next_cmd(dev, &ucmd);
+		smp_mb(); /* just in case, pair for dev_user_release()
+			   * cleanup_done assignment.
+			   */
+		rc = dev_user_get_next_cmd(dev, &ucmd);
 		if (rc == 0)
 			dev_user_unjam_cmd(ucmd, 1, NULL);
 		spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
-		if ((rc == -EAGAIN) && dev->cleanup_done)
-			break;
+
+		if (rc == -EAGAIN) {
+			if (dev->cleanup_done)
+				break;
+			else {
+				TRACE_DBG("No more commands (dev %p)", dev);
+				goto out;
+			}
+		}
 	}
 
 #ifdef EXTRACHECKS
@@ -3006,11 +2817,13 @@ static void dev_user_process_cleanup(struct scst_user_dev *dev)
 	int i;
 	for (i = 0; i < (int)ARRAY_SIZE(dev->ucmd_hash); i++) {
 		struct list_head *head = &dev->ucmd_hash[i];
-		struct scst_user_cmd *ucmd, *t;
-		list_for_each_entry_safe(ucmd, t, head, hash_list_entry) {
+		struct scst_user_cmd *ucmd;
+again:
+		list_for_each_entry(ucmd, head, hash_list_entry) {
 			PRINT_ERROR("Lost ucmd %p (state %x, ref %d)", ucmd,
 				ucmd->state, atomic_read(&ucmd->ucmd_ref));
 			ucmd_put(ucmd);
+			goto again;
 		}
 	}
 }
@@ -3019,6 +2832,7 @@ static void dev_user_process_cleanup(struct scst_user_dev *dev)
 	TRACE_DBG("Cleanuping done (dev %p)", dev);
 	complete_all(&dev->cleanup_cmpl);
 
+out:
 	TRACE_EXIT();
 	return;
 }
@@ -3040,7 +2854,7 @@ static int dev_user_cleanup_thread(void *arg)
 
 	current->flags |= PF_NOFREEZE;
 
-	spin_lock(&cleanup_lock);
+	spin_lock_irq(&cleanup_lock);
 	while (!kthread_should_stop()) {
 		wait_queue_t wait;
 		init_waitqueue_entry(&wait, current);
@@ -3051,23 +2865,27 @@ static int dev_user_cleanup_thread(void *arg)
 				set_current_state(TASK_INTERRUPTIBLE);
 				if (test_cleanup_list())
 					break;
-				spin_unlock(&cleanup_lock);
+				spin_unlock_irq(&cleanup_lock);
 				schedule();
-				spin_lock(&cleanup_lock);
+				spin_lock_irq(&cleanup_lock);
 			}
 			set_current_state(TASK_RUNNING);
 			remove_wait_queue(&cleanup_list_waitQ, &wait);
 		}
-restart:
-		list_for_each_entry(dev, &cleanup_list, cleanup_list_entry) {
+
+		while (!list_empty(&cleanup_list)) {
+			dev = list_entry(cleanup_list.next, typeof(*dev),
+				cleanup_list_entry);
 			list_del(&dev->cleanup_list_entry);
-			spin_unlock(&cleanup_lock);
+			dev->in_cleanup_list = 0;
+			spin_unlock_irq(&cleanup_lock);
+
 			dev_user_process_cleanup(dev);
-			spin_lock(&cleanup_lock);
-			goto restart;
+
+			spin_lock_irq(&cleanup_lock);
 		}
 	}
-	spin_unlock(&cleanup_lock);
+	spin_unlock_irq(&cleanup_lock);
 
 	/*
 	 * If kthread_should_stop() is true, we are guaranteed to be

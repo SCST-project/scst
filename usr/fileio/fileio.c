@@ -80,7 +80,6 @@ static struct option const long_options[] =
 	{"parse", required_argument, 0, 'p'},
 	{"on_free", required_argument, 0, 'f'},
 	{"mem_reuse", required_argument, 0, 'm'},
-	{"prio_thread", no_argument, 0, 's'},
 	{"non_blocking", no_argument, 0, 'l'},
 #if defined(DEBUG) || defined(TRACING)
 	{"debug", required_argument, 0, 'd'},
@@ -110,7 +109,6 @@ static void usage(void)
 		"(default) or \"call\"\n");
 	printf("  -m, --mem_reuse=type	Memory reuse type, one of \"all\" "
 		"(default), \"read\", \"write\" or \"none\"\n");
-	printf("  -s, --prio_thread	Use separate thread for mgmt (prio) commands\n");
 	printf("  -l, --non_blocking	Use non-blocking operations\n");
 #if defined(DEBUG) || defined(TRACING)
 	printf("  -d, --debug=level	Debug tracing level\n");
@@ -178,7 +176,7 @@ int main(int argc, char **argv)
 	dev.type = TYPE_DISK;
 	dev.alloc_fn = align_alloc;
 
-	while ((ch = getopt_long(argc, argv, "+b:e:tronsglcp:f:m:d:vh", long_options,
+	while ((ch = getopt_long(argc, argv, "+b:e:tronglcp:f:m:d:vh", long_options,
 				&longindex)) >= 0) {
 		switch (ch) {
 		case 'b':
@@ -244,9 +242,6 @@ int main(int argc, char **argv)
 				memory_reuse_type = SCST_USER_MEM_NO_REUSE;
 			else
 				goto out_usage;
-			break;
-		case 's':
-			dev.prio_thr = 1;
 			break;
 		case 'l':
 			dev.non_blocking = 1;
@@ -352,10 +347,6 @@ int main(int argc, char **argv)
 		dev.alloc_fn = malloc;
 	}
 
-	if (dev.prio_thr) {
-		PRINT_INFO("	%s", "Using separate prio thread");
-	}
-
 #if defined(DEBUG_TM_IGNORE) || defined(DEBUG_TM_IGNORE_ALL)
 	if (dev.debug_tm_ignore) {
 		PRINT_INFO("	%s", "DEBUG_TM_IGNORE");
@@ -385,10 +376,6 @@ int main(int argc, char **argv)
 	desc.opt.parse_type = parse_type;
 	desc.opt.on_free_cmd_type = on_free_cmd_type;
 	desc.opt.memory_reuse_type = memory_reuse_type;
-	if (dev.prio_thr)
-		desc.opt.prio_queue_type = SCST_USER_PRIO_QUEUE_SEPARATE;
-	else
-		desc.opt.prio_queue_type = SCST_USER_PRIO_QUEUE_SINGLE;
 
 	desc.opt.tst = SCST_CONTR_MODE_SEP_TASK_SETS;
 	desc.opt.queue_alg = SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER;
@@ -415,10 +402,6 @@ int main(int argc, char **argv)
 		opt.parse_type = parse_type;
 		opt.on_free_cmd_type = on_free_cmd_type;
 		opt.memory_reuse_type = memory_reuse_type;
-		if (dev.prio_thr)
-			opt.prio_queue_type = SCST_USER_PRIO_QUEUE_SEPARATE;
-		else
-			opt.prio_queue_type = SCST_USER_PRIO_QUEUE_SINGLE;
 
 		res = ioctl(dev.scst_usr_fd, SCST_USER_SET_OPTIONS, &opt);
 		if (res != 0) {
@@ -438,9 +421,9 @@ int main(int argc, char **argv)
 
 	{
 		pthread_t thread[threads];
-		pthread_t prio;
 		int i, j, rc;
 		void *rc1;
+
 		for(i = 0; i < threads; i++) {
 			rc = pthread_create(&thread[i], NULL, main_loop, &dev);
 			if (rc != 0) {
@@ -448,16 +431,6 @@ int main(int argc, char **argv)
 				PRINT_ERROR("pthread_create() failed: %s",
 					strerror(res));
 				break;
-			}
-		}
-
-		if (dev.prio_thr) {
-			rc = pthread_create(&prio, NULL, prio_loop, &dev);
-			if (rc != 0) {
-				res = errno;
-				PRINT_ERROR("Prio pthread_create() failed: %s",
-					strerror(res));
-				dev.prio_thr = 0;
 			}
 		}
 
@@ -474,19 +447,6 @@ int main(int argc, char **argv)
 					(long)rc1);
 			} else
 				PRINT_INFO("Thread %d exited", i);
-		}
-		if (dev.prio_thr) {
-			rc = pthread_join(prio, &rc1);
-			if (rc != 0) {
-				res = errno;
-				PRINT_ERROR("Prio pthread_join() failed: %s",
-					strerror(res));
-			} else if (rc1 != NULL) {
-				res = (long)rc1;
-				PRINT_INFO("Prio thread %d exited, res %lx", i,
-					(long)rc1);
-			} else
-				PRINT_INFO("Prio thread %d exited", i);
 		}
 	}
 

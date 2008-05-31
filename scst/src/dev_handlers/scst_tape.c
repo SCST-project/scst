@@ -59,10 +59,6 @@
 
 #define TAPE_RETRIES        2
 
-#define TAPE_SMALL_TIMEOUT  (3 * HZ)
-#define TAPE_REG_TIMEOUT    (900 * HZ)
-#define TAPE_LONG_TIMEOUT   (14000 * HZ)
-
 #define TAPE_DEF_BLOCK_SIZE	512
 
 /* The fixed bit in READ/WRITE/VERIFY */
@@ -181,8 +177,8 @@ int tape_attach(struct scst_device *dev)
 	retries = SCST_DEV_UA_RETRIES;
 	do {
 		TRACE_DBG("%s", "Doing TEST_UNIT_READY");
-		res = scsi_test_unit_ready(dev->scsi_dev, TAPE_SMALL_TIMEOUT,
-					   TAPE_RETRIES
+		res = scsi_test_unit_ready(dev->scsi_dev,
+			SCST_GENERIC_TAPE_SMALL_TIMEOUT, TAPE_RETRIES
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 					  );
 #else
@@ -201,7 +197,7 @@ int tape_attach(struct scst_device *dev)
 			       ((dev->scsi_dev->lun << 5) & 0xe0) : 0),
 			      0 /* Mode Page 0 */,
 			      buffer, buffer_size,
-			      TAPE_SMALL_TIMEOUT, TAPE_RETRIES,
+			      SCST_GENERIC_TAPE_SMALL_TIMEOUT, TAPE_RETRIES,
 			      &data, NULL);
 	TRACE_DBG("MODE_SENSE done: %x", res);
 
@@ -300,13 +296,6 @@ int tape_parse(struct scst_cmd *cmd)
 	scst_tape_generic_parse(cmd, tape_get_block_size);
 
 	cmd->retries = SCST_PASSTHROUGH_RETRIES;
-
-	if ((cmd->op_flags & (SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)) == 0)
-		cmd->timeout = TAPE_REG_TIMEOUT;
-	else if (cmd->op_flags & SCST_SMALL_TIMEOUT)
-		cmd->timeout = TAPE_SMALL_TIMEOUT;
-	else if (cmd->op_flags & SCST_LONG_TIMEOUT)
-		cmd->timeout = TAPE_LONG_TIMEOUT;
 
 	return res;
 }

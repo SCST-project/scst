@@ -38,8 +38,6 @@
 }
 
 #define RAID_RETRIES       2
-#define RAID_TIMEOUT      (3 * HZ)
-#define RAID_LONG_TIMEOUT (14000 * HZ)
 #define READ_CAP_LEN          8
 
 int raid_attach(struct scst_device *);
@@ -85,8 +83,8 @@ int raid_attach(struct scst_device *dev)
 	retries = SCST_DEV_UA_RETRIES;
 	do {
 		TRACE_DBG("%s", "Doing TEST_UNIT_READY");
-		res = scsi_test_unit_ready(dev->scsi_dev, RAID_TIMEOUT,
-					   RAID_RETRIES
+		res = scsi_test_unit_ready(dev->scsi_dev,
+			SCST_GENERIC_RAID_TIMEOUT, RAID_RETRIES
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 					  );
 #else
@@ -149,10 +147,6 @@ int raid_parse(struct scst_cmd *cmd)
 
 	cmd->retries = SCST_PASSTHROUGH_RETRIES;
 
-	if (cmd->op_flags & SCST_LONG_TIMEOUT)
-		cmd->timeout = RAID_LONG_TIMEOUT;
-	else
-		cmd->timeout = RAID_TIMEOUT;
 	return res;
 }
 
