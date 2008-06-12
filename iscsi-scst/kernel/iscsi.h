@@ -324,7 +324,7 @@ struct iscsi_cmnd {
 /* Flags for req_cmnd_release_force() */
 #define ISCSI_FORCE_RELEASE_WRITE	1
 
-#define ISCSI_RSP_TIMEOUT	(7*HZ)
+#define ISCSI_RSP_TIMEOUT		(30 * HZ)
 
 extern struct mutex target_mgmt_mutex;
 

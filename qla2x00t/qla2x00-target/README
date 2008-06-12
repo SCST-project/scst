@@ -1,8 +1,8 @@
 Target driver for Qlogic 2200/2300 Fibre Channel cards
 ======================================================
 
-Version 0.9.6, XX XXX 200X
---------------------------
+Version 1.0.0, XX June 2008
+---------------------------
 
 This driver has all required features and looks to be quite stable (for
 beta) and useful. It consists from two parts: the target mode driver
@@ -13,7 +13,7 @@ all necessary callbacks, but it's still capable to work as initiator
 only. Mode, when a host acts as the initiator and the target
 simultaneously, is supported as well.
 
-This version is compatible with SCST version 0.9.5 and higher.
+This version is compatible with SCST version 1.0.0 and higher.
 
 The original initiator driver was taken from the kernel 2.6.17.8.
 

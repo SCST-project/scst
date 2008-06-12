@@ -33,7 +33,8 @@ struct trans_tbl_ent {
 };
 
 struct sgv_pool_obj {
-	int order;
+	/* if <0 - pages, >0 - order */
+	int order_or_pages;
 
 	struct {
 		unsigned long time_stamp; /* jiffies, protected by pool_mgr_lock */
@@ -102,14 +103,14 @@ struct scst_sgv_pools_manager {
 
 		struct sgv_mem_throttling {
 			u32 inactive_pages_total;
-			atomic_t active_pages_total;
+			u32 active_pages_total;
 
 			u32 hi_wmk; /* compared against inactive_pages_total + active_pages_total */
 			u32 lo_wmk; /* compared against inactive_pages_total only */
 
 			u32 releases_on_hiwmk;
 			u32 releases_failed;
-		} thr; /* protected by pool_mgr_lock */
+		} throttle; /* protected by pool_mgr_lock */
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23))
 		struct shrinker *sgv_shrinker;

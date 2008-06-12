@@ -186,6 +186,56 @@ void scst_set_busy(struct scst_cmd *cmd)
 }
 EXPORT_SYMBOL(scst_set_busy);
 
+int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	switch(cmd->state) {
+	case SCST_CMD_STATE_INIT_WAIT:
+	case SCST_CMD_STATE_INIT:
+	case SCST_CMD_STATE_PRE_PARSE:
+	case SCST_CMD_STATE_DEV_PARSE:
+		res = SCST_CMD_STATE_PRE_XMIT_RESP;
+		break;
+
+	default:
+		res = SCST_CMD_STATE_PRE_DEV_DONE;
+		break;
+	}
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+EXPORT_SYMBOL(scst_get_cmd_abnormal_done_state);
+
+void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
+{
+	TRACE_ENTRY();
+
+#ifdef EXTRACHECKS
+	switch(cmd->state) {
+	case SCST_CMD_STATE_PRE_XMIT_RESP:
+	case SCST_CMD_STATE_XMIT_RESP:
+	case SCST_CMD_STATE_FINISHED:
+	case SCST_CMD_STATE_XMIT_WAIT:
+		PRINT_CRIT_ERROR("Wrong cmd state %x (cmd %p, op %x)",
+			cmd->state, cmd, cmd->cdb[0]);
+		sBUG();
+	}
+#endif
+
+	cmd->state = scst_get_cmd_abnormal_done_state(cmd);
+
+	EXTRACHECKS_BUG_ON((cmd->state != SCST_CMD_STATE_PRE_XMIT_RESP) &&
+			   (cmd->tgt_dev == NULL));
+
+	TRACE_EXIT();
+	return;
+}
+EXPORT_SYMBOL(scst_set_cmd_abnormal_done_state);
+
 void scst_set_resp_data_len(struct scst_cmd *cmd, int resp_data_len)
 {
 	int i, l;
@@ -248,6 +298,7 @@ int scst_alloc_device(int gfp_mask, struct scst_device **out_dev)
 	dev->p_cmd_lists = &scst_main_cmd_lists;
 	atomic_set(&dev->dev_cmd_count, 0);
 	atomic_set(&dev->write_cmd_count, 0);
+	scst_init_mem_lim(&dev->dev_mem_lim);
 	spin_lock_init(&dev->dev_lock);
 	atomic_set(&dev->on_dev_count, 0);
 	INIT_LIST_HEAD(&dev->blocked_cmd_list);
@@ -286,6 +337,14 @@ void scst_free_device(struct scst_device *dev)
 	TRACE_EXIT();
 	return;
 }
+
+void scst_init_mem_lim(struct scst_mem_lim *mem_lim)
+{
+	atomic_set(&mem_lim->alloced_pages, 0);
+	mem_lim->max_allowed_pages =
+		((uint64_t)scst_max_dev_cmd_mem << 10) >> (PAGE_SHIFT - 10);
+}
+EXPORT_SYMBOL(scst_init_mem_lim);
 
 struct scst_acg_dev *scst_alloc_acg_dev(struct scst_acg *acg,
 	struct scst_device *dev, lun_t lun)
@@ -1611,7 +1670,7 @@ int scst_alloc_space(struct scst_cmd *cmd)
 	}
 
 	cmd->sg = sgv_pool_alloc(tgt_dev->pool, bufflen, gfp_mask, flags,
-			&cmd->sg_cnt, &cmd->sgv, NULL);
+			&cmd->sg_cnt, &cmd->sgv, &cmd->dev->dev_mem_lim, NULL);
 	if (cmd->sg == NULL)
 		goto out;
 
@@ -1634,7 +1693,7 @@ out:
 	return res;
 
 out_sg_free:
-	sgv_pool_free(cmd->sgv);
+	sgv_pool_free(cmd->sgv, &cmd->dev->dev_mem_lim);
 	cmd->sgv = NULL;
 	cmd->sg = NULL;
 	cmd->sg_cnt = 0;
@@ -1653,7 +1712,7 @@ void scst_release_space(struct scst_cmd *cmd)
 		goto out;
 	}
 
-	sgv_pool_free(cmd->sgv);
+	sgv_pool_free(cmd->sgv, &cmd->dev->dev_mem_lim);
 
 	cmd->sgv = NULL;
 	cmd->sg_cnt = 0;

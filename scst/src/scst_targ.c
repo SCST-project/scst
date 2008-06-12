@@ -149,7 +149,7 @@ out_redirect:
 		 */
 		sBUG_ON(context != SCST_CONTEXT_DIRECT);
 		scst_set_busy(cmd);
-		cmd->state = SCST_CMD_STATE_PRE_XMIT_RESP;
+		scst_set_cmd_abnormal_done_state(cmd);
 		/* Keep initiator away from too many BUSY commands */
 		if (!in_interrupt() && !in_atomic())
 			msleep(50);
@@ -239,7 +239,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context)
 		case SCST_SESS_IPH_FAILED:
 			spin_unlock_irqrestore(&sess->sess_list_lock, flags);
 			scst_set_busy(cmd);
-			cmd->state = SCST_CMD_STATE_PRE_XMIT_RESP;
+			scst_set_cmd_abnormal_done_state(cmd);
 			goto active;
 		default:
 			sBUG();
@@ -253,7 +253,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context)
 		PRINT_ERROR("Wrong LUN %d, finishing cmd", -1);
 		scst_set_cmd_error(cmd,
 			   SCST_LOAD_SENSE(scst_sense_lun_not_supported));
-		cmd->state = SCST_CMD_STATE_PRE_XMIT_RESP;
+		scst_set_cmd_abnormal_done_state(cmd);
 		goto active;
 	}
 
@@ -261,7 +261,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context)
 		PRINT_ERROR("Wrong CDB len %d, finishing cmd", 0);
 		scst_set_cmd_error(cmd,
 			   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
-		cmd->state = SCST_CMD_STATE_PRE_XMIT_RESP;
+		scst_set_cmd_abnormal_done_state(cmd);
 		goto active;
 	}
 
@@ -269,7 +269,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context)
 		PRINT_ERROR("Unsupported queue type %d", cmd->queue_type);
 		scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_sense_invalid_message));
-		cmd->state = SCST_CMD_STATE_PRE_XMIT_RESP;
+		scst_set_cmd_abnormal_done_state(cmd);
 		goto active;
 	}
 
@@ -393,10 +393,10 @@ static int scst_pre_parse(struct scst_cmd *cmd)
 				/*
 				 * Command data length can't be easily
 				 * determined from the CDB. ToDo, all such
-				 * commands should be fixed. Until they are
-				 * fixed, get it from the supplied expected
-				 * value, but limit it to some reasonable
-				 * value (15MB).
+				 * commands processing should be fixed. Until
+				 * it's done, get the length from the supplied
+				 * expected value, but limit it to some
+				 * reasonable value (15MB).
 				 */
 				cmd->bufflen = min(cmd->expected_transfer_len,
 							15*1024*1024);
@@ -429,7 +429,7 @@ out:
 	return res;
 
 out_xmit:
-	cmd->state = SCST_CMD_STATE_PRE_XMIT_RESP;
+	scst_set_cmd_abnormal_done_state(cmd);
 	res = SCST_CMD_STATE_RES_CONT_SAME;
 	goto out;
 }
@@ -684,7 +684,7 @@ prep_done:
 		if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
 			TRACE_MGMT_DBG("ABORTED set, returning ABORTED for "
 				"cmd %p", cmd);
-			cmd->state = SCST_CMD_STATE_PRE_DEV_DONE;
+			scst_set_cmd_abnormal_done_state(cmd);
 			res = SCST_CMD_STATE_RES_CONT_SAME;
 			goto out;
 		}
@@ -717,13 +717,13 @@ out_no_space:
 	TRACE(TRACE_OUT_OF_MEM, "Unable to allocate or build requested buffer "
 		"(size %d), sending BUSY or QUEUE FULL status", cmd->bufflen);
 	scst_set_busy(cmd);
-	cmd->state = SCST_CMD_STATE_PRE_DEV_DONE;
+	scst_set_cmd_abnormal_done_state(cmd);
 	res = SCST_CMD_STATE_RES_CONT_SAME;
 	goto out;
 
 out_error:
 	scst_set_cmd_error(cmd,	SCST_LOAD_SENSE(scst_sense_hardw_error));
-	cmd->state = SCST_CMD_STATE_PRE_DEV_DONE;
+	scst_set_cmd_abnormal_done_state(cmd);
 	res = SCST_CMD_STATE_RES_CONT_SAME;
 	goto out;
 }
@@ -775,7 +775,7 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status, int pref_context)
 		break;
 
 	case SCST_PREPROCESS_STATUS_ERROR_SENSE_SET:
-		cmd->state = SCST_CMD_STATE_PRE_DEV_DONE;
+		scst_set_cmd_abnormal_done_state(cmd);
 		break;
 
 	case SCST_PREPROCESS_STATUS_ERROR_FATAL:
@@ -784,13 +784,13 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status, int pref_context)
 	case SCST_PREPROCESS_STATUS_ERROR:
 		scst_set_cmd_error(cmd,
 			   SCST_LOAD_SENSE(scst_sense_hardw_error));
-		cmd->state = SCST_CMD_STATE_PRE_DEV_DONE;
+		scst_set_cmd_abnormal_done_state(cmd);
 		break;
 
 	default:
 		PRINT_ERROR("%s() received unknown status %x", __func__,
 			status);
-		cmd->state = SCST_CMD_STATE_PRE_DEV_DONE;
+		scst_set_cmd_abnormal_done_state(cmd);
 		break;
 	}
 
@@ -915,7 +915,7 @@ out_error_rc:
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 
 out_dev_done:
-	cmd->state = SCST_CMD_STATE_PRE_DEV_DONE;
+	scst_set_cmd_abnormal_done_state(cmd);
 	res = SCST_CMD_STATE_RES_CONT_SAME;
 	goto out;
 }
@@ -1002,7 +1002,7 @@ void scst_rx_data(struct scst_cmd *cmd, int status, int pref_context)
 		break;
 
 	case SCST_RX_STATUS_ERROR_SENSE_SET:
-		cmd->state = SCST_CMD_STATE_PRE_DEV_DONE;
+		scst_set_cmd_abnormal_done_state(cmd);
 		break;
 
 	case SCST_RX_STATUS_ERROR_FATAL:
@@ -1011,13 +1011,13 @@ void scst_rx_data(struct scst_cmd *cmd, int status, int pref_context)
 	case SCST_RX_STATUS_ERROR:
 		scst_set_cmd_error(cmd,
 			   SCST_LOAD_SENSE(scst_sense_hardw_error));
-		cmd->state = SCST_CMD_STATE_PRE_DEV_DONE;
+		scst_set_cmd_abnormal_done_state(cmd);
 		break;
 
 	default:
 		PRINT_ERROR("scst_rx_data() received unknown status %x",
 			status);
-		cmd->state = SCST_CMD_STATE_PRE_DEV_DONE;
+		scst_set_cmd_abnormal_done_state(cmd);
 		break;
 	}
 
@@ -1046,7 +1046,7 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 	if (unlikely(rc != SCST_PREPROCESS_STATUS_SUCCESS)) {
 		switch (rc) {
 		case SCST_PREPROCESS_STATUS_ERROR_SENSE_SET:
-			cmd->state = SCST_CMD_STATE_PRE_DEV_DONE;
+			scst_set_cmd_abnormal_done_state(cmd);
 			break;
 		case SCST_PREPROCESS_STATUS_ERROR_FATAL:
 			set_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags);
@@ -1054,7 +1054,7 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 		case SCST_PREPROCESS_STATUS_ERROR:
 			scst_set_cmd_error(cmd,
 				   SCST_LOAD_SENSE(scst_sense_hardw_error));
-			cmd->state = SCST_CMD_STATE_PRE_DEV_DONE;
+			scst_set_cmd_abnormal_done_state(cmd);
 			break;
 		case SCST_PREPROCESS_STATUS_NEED_THREAD:
 			TRACE_DBG("Target driver's %s pre_exec() requested "
@@ -1243,6 +1243,7 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state)
 	}
 #endif
 
+	cmd->state = next_state;
 
 #ifdef EXTRACHECKS
 	if ((next_state != SCST_CMD_STATE_PRE_DEV_DONE) &&
@@ -1252,11 +1253,9 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state)
 			    "state %d (opcode %d)", next_state, cmd->cdb[0]);
 		scst_set_cmd_error(cmd,
 				   SCST_LOAD_SENSE(scst_sense_hardw_error));
-		next_state = SCST_CMD_STATE_PRE_DEV_DONE;
+		scst_set_cmd_abnormal_done_state(cmd);
 	}
 #endif
-	cmd->state = next_state;
-
 	context = scst_optimize_post_exec_context(cmd, scst_get_context());
 	if (cmd->context_processable)
 		context |= SCST_CONTEXT_PROCESSABLE;
@@ -1960,7 +1959,7 @@ static int scst_send_to_midlev(struct scst_cmd **active_cmd)
 					       cmd,
 					       (long long unsigned)cmd->tag);
 				tgt_dev->def_cmd_count--;
-				cmd->state = SCST_CMD_STATE_PRE_DEV_DONE;
+				scst_set_cmd_abnormal_done_state(cmd);
 				res = SCST_CMD_STATE_RES_CONT_SAME;
 			} else {
 				TRACE_SN("Deferring cmd %p (sn=%ld, set %d, "
@@ -2472,7 +2471,7 @@ static int scst_dev_done(struct scst_cmd *cmd)
 		}
 		scst_set_cmd_error(cmd,
 			   SCST_LOAD_SENSE(scst_sense_hardw_error));
-		cmd->state = SCST_CMD_STATE_PRE_XMIT_RESP;
+		scst_set_cmd_abnormal_done_state(cmd);
 		res = SCST_CMD_STATE_RES_CONT_SAME;
 		break;
 	}
@@ -2957,7 +2956,7 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 		TRACE_DBG("Finishing cmd %p", cmd);
 		scst_set_cmd_error(cmd,
 			   SCST_LOAD_SENSE(scst_sense_lun_not_supported));
-		cmd->state = SCST_CMD_STATE_PRE_XMIT_RESP;
+		scst_set_cmd_abnormal_done_state(cmd);
 	} else
 		goto out;
 
@@ -2967,7 +2966,7 @@ out:
 
 out_busy:
 	scst_set_busy(cmd);
-	cmd->state = SCST_CMD_STATE_PRE_XMIT_RESP;
+	scst_set_cmd_abnormal_done_state(cmd);
 	goto out;
 }
 
@@ -3003,7 +3002,7 @@ restart:
 		} else {
 			TRACE_MGMT_DBG("Aborting not inited cmd %p (tag %llu)",
 				       cmd, (long long unsigned int)cmd->tag);
-			cmd->state = SCST_CMD_STATE_PRE_XMIT_RESP;
+			scst_set_cmd_abnormal_done_state(cmd);
 		}
 
 		/*
@@ -3676,9 +3675,11 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 		 * after this TM command completed.
 		 */
 		TRACE_MGMT_DBG("cmd %p (tag %llu) being executed/xmitted "
-			"(state %d, proc time %ld sec.), deferring ABORT...",
-			cmd, (long long unsigned int)cmd->tag, cmd->state,
-			(long)(jiffies - cmd->start_time)/HZ);
+			"(state %d, op %x, proc time %ld sec., timeout %d "
+			"sec.), deferring ABORT...", cmd,
+			(long long unsigned int)cmd->tag, cmd->state,
+			cmd->cdb[0], (long)(jiffies - cmd->start_time) / HZ,
+			cmd->timeout / HZ);
 
 		mcmd->cmd_finish_wait_count++;
 

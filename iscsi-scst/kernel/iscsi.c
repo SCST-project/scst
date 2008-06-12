@@ -1569,7 +1569,7 @@ static void __cmnd_abort(struct iscsi_cmnd *cmnd)
 	 * it. But, since this function can be called from any thread, not only
 	 * from the read one, we at the moment can't do that, because of
 	 * absence of appropriate locking protection. But this isn't a stuff
-	 * for 0.9.6. So, currently a misbehaving initiator, not sending
+	 * for 1.0.0. So, currently a misbehaving initiator, not sending
 	 * data in R2T state for a sharing between targets device, for which
 	 * for some reason an aborting TM command, e.g. TARGET RESET, from
 	 * another initiator is issued, can block response for this TM command

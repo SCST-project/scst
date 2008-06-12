@@ -50,7 +50,7 @@ typedef _Bool bool;
 /* Version numbers, the same as for the kernel */
 #define SCST_VERSION_CODE 0x00090601
 #define SCST_VERSION(a, b, c, d) (((a) << 24) + ((b) << 16) + ((c) << 8) + d)
-#define SCST_VERSION_STRING "0.9.6-rc1"
+#define SCST_VERSION_STRING "1.0.0-rc1"
 #define SCST_INTERFACE_VERSION SCST_VERSION_STRING "$Revision$" SCST_CONST_VERSION
 
 /*************************************************************
@@ -97,7 +97,6 @@ typedef _Bool bool;
 #define SCST_CMD_STATE_FINISHED      11
 
 #define SCST_CMD_STATE_LAST_ACTIVE   (SCST_CMD_STATE_FINISHED+100)
-
 
 /* A cmd is created, but scst_cmd_init_done() not called */
 #define SCST_CMD_STATE_INIT_WAIT     (SCST_CMD_STATE_LAST_ACTIVE+1)
@@ -1302,6 +1301,17 @@ struct scst_mgmt_cmd {
 	void *tgt_priv;
 };
 
+struct scst_mem_lim {
+	/* How much memory allocated under this object */
+	atomic_t alloced_pages;
+
+	/*
+	 * How much memory allowed to allocated under this object. Put here
+	 * mostly to save a possible cache miss accessing scst_max_dev_cmd_mem.
+	 */
+	unsigned int max_allowed_pages;
+};
+
 struct scst_device {
 	struct scst_dev_type *handler;	/* corresponding dev handler */
 
@@ -1316,6 +1326,8 @@ struct scst_device {
 
 	/* How many write cmds alive on this dev. Temporary, ToDo */
 	atomic_t write_cmd_count;
+
+	struct scst_mem_lim dev_mem_lim;
 
 	unsigned short type;	/* SCSI type of the device */
 
@@ -2481,6 +2493,18 @@ void scst_process_active_cmd(struct scst_cmd *cmd, int context);
 int scst_check_local_events(struct scst_cmd *cmd);
 
 /*
+ * Returns the next state of the SCSI target state machine in case if command's
+ * completed abnormally.
+ */
+int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd);
+
+/*
+ * Sets state of the SCSI target state machine in case if command's completed
+ * abnormally.
+ */
+void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd);
+
+/*
  * Returns target driver's root entry in SCST's /proc hierarchy.
  * The driver can create own files/directoryes here, which should
  * be deleted in the driver's release().
@@ -2566,8 +2590,8 @@ void scst_set_cmd_error_sense(struct scst_cmd *cmd, uint8_t *sense,
 	unsigned int len);
 
 /*
- * Returnes a pseudo-random number for debugging purposes. Available only with
- * DEBUG on
+ * Returnes a pseudo-random number for debugging purposes. Available only in
+ * the DEBUG build.
  */
 unsigned long scst_random(void);
 
@@ -2577,16 +2601,6 @@ unsigned long scst_random(void);
  * using this function. Value of resp_data_len must be <= cmd->bufflen.
  */
 void scst_set_resp_data_len(struct scst_cmd *cmd, int resp_data_len);
-
-/*
- * Checks if total memory allocated by commands is less, than defined
- * limit (scst_cur_max_cmd_mem) and returns 0, if it is so. Otherwise,
- * returnes 1 and sets on cmd QUEUE FULL or BUSY status as well as
- * SCST_CMD_STATE_PRE_XMIT_RESP state. Target drivers and dev handlers are
- * required to call this function if they allocate data buffers on their
- * own.
- */
-int scst_check_mem(struct scst_cmd *cmd);
 
 /*
  * Get/put global ref counter that prevents from entering into suspended
@@ -2661,11 +2675,13 @@ void sgv_pool_set_allocator(struct sgv_pool *pool,
 	void (*free_pages_fn)(struct scatterlist *, int, void *));
 
 struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
-	unsigned long gfp_mask, int atomic, int *count,
-	struct sgv_pool_obj **sgv, void *priv);
-void sgv_pool_free(struct sgv_pool_obj *sgv);
+	unsigned long gfp_mask, int flags, int *count,
+	struct sgv_pool_obj **sgv, struct scst_mem_lim *mem_lim, void *priv);
+void sgv_pool_free(struct sgv_pool_obj *sgv, struct scst_mem_lim *mem_lim);
 
 void *sgv_get_priv(struct sgv_pool_obj *sgv);
+
+void scst_init_mem_lim(struct scst_mem_lim *mem_lim);
 
 /**
  ** Generic parse() support routines.

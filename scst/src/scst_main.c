@@ -104,10 +104,6 @@ unsigned long scst_trace_flag;
 unsigned long scst_flags;
 atomic_t scst_cmd_count;
 
-spinlock_t scst_cmd_mem_lock;
-unsigned long scst_cur_cmd_mem, scst_cur_max_cmd_mem;
-unsigned long scst_max_cmd_mem;
-
 struct scst_cmd_lists scst_main_cmd_lists;
 
 struct scst_tasklet scst_tasklets[NR_CPUS];
@@ -141,12 +137,19 @@ static int scst_virt_dev_last_id; /* protected by scst_mutex */
 spinlock_t scst_temp_UA_lock;
 uint8_t scst_temp_UA[SCST_SENSE_BUFFERSIZE];
 
+unsigned int scst_max_cmd_mem;
+unsigned int scst_max_dev_cmd_mem;
+
 module_param_named(scst_threads, scst_threads, int, 0);
 MODULE_PARM_DESC(scst_threads, "SCSI target threads count");
 
-module_param_named(scst_max_cmd_mem, scst_max_cmd_mem, long, 0);
+module_param_named(scst_max_cmd_mem, scst_max_cmd_mem, int, 0);
 MODULE_PARM_DESC(scst_max_cmd_mem, "Maximum memory allowed to be consumed by "
-	"the SCST commands at any given time in MB");
+	"all SCSI commands of all devices at any given time in MB");
+
+module_param_named(scst_max_dev_cmd_mem, scst_max_dev_cmd_mem, int, 0);
+MODULE_PARM_DESC(scst_max_dev_cmd_mem, "Maximum memory allowed to be consumed "
+	"by all SCSI commands of a device at any given time in MB");
 
 struct scst_dev_type scst_null_devtype = {
 	.name = "none",
@@ -1620,7 +1623,6 @@ static int __init init_scst(void)
 	scst_trace_flag = SCST_DEFAULT_LOG_FLAGS;
 #endif
 	atomic_set(&scst_cmd_count, 0);
-	spin_lock_init(&scst_cmd_mem_lock);
 	spin_lock_init(&scst_mcmd_lock);
 	INIT_LIST_HEAD(&scst_active_mgmt_cmd_list);
 	INIT_LIST_HEAD(&scst_delayed_mgmt_cmd_list);
@@ -1712,15 +1714,27 @@ static int __init init_scst(void)
 		struct sysinfo si;
 		si_meminfo(&si);
 #if BITS_PER_LONG == 32
-		scst_max_cmd_mem = min(((uint64_t)si.totalram << PAGE_SHIFT) >> 2,
-					(uint64_t)1 << 30);
+		scst_max_cmd_mem = min(
+			(((uint64_t)si.totalram << PAGE_SHIFT) >> 20) >> 2,
+			(uint64_t)1 << 30);
 #else
-		scst_max_cmd_mem = (si.totalram << PAGE_SHIFT) >> 2;
+		scst_max_cmd_mem = ((si.totalram << PAGE_SHIFT) >> 20) >> 2;
 #endif
-	} else
-		scst_max_cmd_mem <<= 20;
+	}
 
-	res = scst_sgv_pools_init(scst_max_cmd_mem, 0);
+	if (scst_max_dev_cmd_mem != 0) {
+		if (scst_max_dev_cmd_mem > scst_max_cmd_mem) {
+			PRINT_ERROR("scst_max_dev_cmd_mem (%d) > "
+				"scst_max_cmd_mem (%d)",
+				scst_max_dev_cmd_mem,
+				scst_max_cmd_mem);
+			scst_max_dev_cmd_mem = scst_max_cmd_mem;
+		}
+	} else
+		scst_max_dev_cmd_mem = scst_max_cmd_mem * 2 / 5;
+
+	res = scst_sgv_pools_init(
+		((uint64_t)scst_max_cmd_mem << 10) >> (PAGE_SHIFT - 10), 0);
 	if (res != 0)
 		goto out_destroy_sense_mempool;
 
@@ -1756,7 +1770,8 @@ static int __init init_scst(void)
 
 
 	PRINT_INFO("SCST version %s loaded successfully (max mem for "
-		"commands %ld Mb)", SCST_VERSION_STRING, scst_max_cmd_mem >> 20);
+		"commands %dMB, per device %dMB)", SCST_VERSION_STRING,
+		scst_max_cmd_mem, scst_max_dev_cmd_mem);
 
 	scst_print_config();
 

@@ -138,7 +138,8 @@ static inline bool scst_is_context_gfp_atomic(void)
 	return  irqs_disabled() || in_atomic() || in_interrupt();
 }
 
-extern unsigned long scst_max_cmd_mem;
+extern unsigned int scst_max_cmd_mem;
+extern unsigned int scst_max_dev_cmd_mem;
 
 extern mempool_t *scst_mgmt_mempool;
 extern mempool_t *scst_mgmt_stub_mempool;
@@ -273,7 +274,7 @@ int scst_add_dev_threads(struct scst_device *dev, int num);
 void scst_del_dev_threads(struct scst_device *dev, int num);
 
 int scst_alloc_device(int gfp_mask, struct scst_device **out_dev);
-void scst_free_device(struct scst_device *tgt_dev);
+void scst_free_device(struct scst_device *dev);
 
 struct scst_acg *scst_alloc_add_acg(const char *acg_name);
 int scst_destroy_acg(struct scst_acg *acg);
