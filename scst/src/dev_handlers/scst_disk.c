@@ -165,7 +165,7 @@ int disk_attach(struct scst_device *dev)
 		goto out;
 	}
 
-	buffer = kzalloc(buffer_size, GFP_KERNEL);
+	buffer = kmalloc(buffer_size, GFP_KERNEL);
 	if (!buffer) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Memory allocation failure");
 		res = -ENOMEM;
