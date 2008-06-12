@@ -1085,7 +1085,7 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	}
 
 	printk(KERN_DEBUG PFX "%s[%d] max_cqe= %d max_sge= %d cm_id= %p\n",
-	       __FUNCTION__, __LINE__, ch->cq->cqe, qp_init->cap.max_send_sge,
+	       __func__, __LINE__, ch->cq->cqe, qp_init->cap.max_send_sge,
 	       ch->cm_id);
 
 	ret = srpt_init_ch_qp(ch, ch->qp);
@@ -1127,7 +1127,7 @@ static int srpt_release_channel(struct srpt_rdma_ch *ch, int destroy_cmid)
 
 	if (ch->cm_id && destroy_cmid) {
 		printk(KERN_WARNING PFX
-		       "%s Destroy cm_id= %p\n", __FUNCTION__, ch->cm_id);
+		       "%s Destroy cm_id= %p\n", __func__, ch->cm_id);
 		ib_destroy_cm_id(ch->cm_id);
 		ch->cm_id = NULL;
 	}
@@ -1140,7 +1140,7 @@ static int srpt_release_channel(struct srpt_rdma_ch *ch, int destroy_cmid)
 
 		printk(KERN_WARNING PFX
 		       "%s: Release sess= %p sess_name= %s active_cmd= %d\n",
-		       __FUNCTION__, ch->scst_sess, ch->sess_name,
+		       __func__, ch->scst_sess, ch->sess_name,
 		       ch->active_scmnd_cnt);
 
 		list_for_each_entry_safe(ioctx, ioctx_tmp,
@@ -1172,7 +1172,7 @@ static void srpt_register_channel_done(struct scst_session *scst_sess,
 		}
 		printk(KERN_ERR PFX
 		       "%s[%d] Failed to establish sess= %p status= %d\n",
-		       __FUNCTION__, __LINE__, scst_sess, status);
+		       __func__, __LINE__, scst_sess, status);
 	}
 
 	complete(&ch->scst_sess_done);
@@ -1410,7 +1410,7 @@ static int srpt_find_and_release_channel(struct ib_cm_id *cm_id)
 static int srpt_cm_rej_recv(struct ib_cm_id *cm_id)
 {
 	printk(KERN_DEBUG PFX "%s[%d] cm_id= %p\n",
-	       __FUNCTION__, __LINE__, cm_id);
+	       __func__, __LINE__, cm_id);
 	return srpt_find_and_release_channel(cm_id);
 }
 
@@ -1443,7 +1443,7 @@ static int srpt_cm_rtu_recv(struct ib_cm_id *cm_id)
 
 	if (ret) {
 		printk(KERN_ERR PFX "%s[%d] cm_id= %p sess_name= %s state= %d\n",
-		       __FUNCTION__, __LINE__, cm_id, ch->sess_name, ch->state);
+		       __func__, __LINE__, cm_id, ch->sess_name, ch->state);
 		srpt_disconnect_channel(ch, 1);
 	}
 
@@ -1453,14 +1453,14 @@ static int srpt_cm_rtu_recv(struct ib_cm_id *cm_id)
 static int srpt_cm_timewait_exit(struct ib_cm_id *cm_id)
 {
 	printk(KERN_DEBUG PFX "%s[%d] cm_id= %p\n",
-	       __FUNCTION__, __LINE__, cm_id);
+	       __func__, __LINE__, cm_id);
 	return srpt_find_and_release_channel(cm_id);
 }
 
 static int srpt_cm_rep_error(struct ib_cm_id *cm_id)
 {
 	printk(KERN_DEBUG PFX "%s[%d] cm_id= %p\n",
-	       __FUNCTION__, __LINE__, cm_id);
+	       __func__, __LINE__, cm_id);
 	return srpt_find_and_release_channel(cm_id);
 }
 
@@ -1475,7 +1475,7 @@ static int srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
 		return -EINVAL;
 
 	printk(KERN_DEBUG PFX "%s[%d] cm_id= %p ch->state= %d\n",
-		 __FUNCTION__, __LINE__, cm_id, ch->state);
+		 __func__, __LINE__, cm_id, ch->state);
 
 	switch (ch->state) {
 	case RDMA_CHANNEL_LIVE:
@@ -1493,7 +1493,7 @@ static int srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
 static int srpt_cm_drep_recv(struct ib_cm_id *cm_id)
 {
 	printk(KERN_DEBUG PFX "%s[%d] cm_id= %p\n",
-		 __FUNCTION__, __LINE__, cm_id);
+		 __func__, __LINE__, cm_id);
 	return srpt_find_and_release_channel(cm_id);
 }
 
@@ -1749,7 +1749,7 @@ static int srpt_xfer_data(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 
 	ret = srpt_map_sg_to_ib_sge(ch, ioctx, scmnd);
 	if (ret) {
-		printk(KERN_ERR PFX "%s[%d] ret= %d\n", __FUNCTION__, __LINE__,
+		printk(KERN_ERR PFX "%s[%d] ret= %d\n", __func__, __LINE__,
 		       ret);
 		ret = SCST_TGT_RES_QUEUE_FULL;
 		goto out;
@@ -1758,7 +1758,7 @@ static int srpt_xfer_data(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 	ret = srpt_perform_rdmas(ch, ioctx, scst_cmd_get_data_direction(scmnd));
 	if (ret) {
 		printk(KERN_ERR PFX "%s[%d] ret= %d\n",
-		       __FUNCTION__, __LINE__, ret);
+		       __func__, __LINE__, ret);
 		if (ret == -EAGAIN || ret == -ENOMEM)
 			ret = SCST_TGT_RES_QUEUE_FULL;
 		else
@@ -1812,7 +1812,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	if (ch->state != RDMA_CHANNEL_LIVE) {
 		printk(KERN_ERR PFX
 		       "%s[%d] tag= %lld channel in bad state %d\n",
-		       __FUNCTION__, __LINE__, (unsigned long long)tag, ch->state);
+		       __func__, __LINE__, (unsigned long long)tag, ch->state);
 
 		if (ch->state == RDMA_CHANNEL_DISCONNECTING)
 			ret = SCST_TGT_RES_FATAL_ERROR;
@@ -1835,7 +1835,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	if (unlikely(scst_cmd_aborted(scmnd))) {
 		printk(KERN_ERR PFX
 		       "%s[%d] tag= %lld already get aborted\n",
-		       __FUNCTION__, __LINE__, (unsigned long long)tag);
+		       __func__, __LINE__, (unsigned long long)tag);
 		scst_set_delivery_status(ioctx->scmnd, SCST_CMD_DELIVERY_ABORTED);
 		scst_tgt_cmd_done(ioctx->scmnd);
 		goto out;
@@ -1871,7 +1871,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 		if (ret != SCST_TGT_RES_SUCCESS) {
 			printk(KERN_ERR PFX
 			       "%s[%d] tag= %lld xfer_data failed\n",
-			       __FUNCTION__, __LINE__, (unsigned long long)tag);
+			       __func__, __LINE__, (unsigned long long)tag);
 			goto out;
 		}
 	}
@@ -1880,7 +1880,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 			   sizeof *srp_rsp +
 			   be32_to_cpu(srp_rsp->sense_data_len))) {
 		printk(KERN_ERR PFX "%s[%d] ch->state= %d tag= %lld\n",
-		       __FUNCTION__, __LINE__, ch->state,
+		       __func__, __LINE__, ch->state,
 		       (unsigned long long)tag);
 		ret = SCST_TGT_RES_FATAL_ERROR;
 	}
@@ -1906,7 +1906,7 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 
 	printk(KERN_WARNING PFX
 	       "%s[%d] tsk_mgmt_done for tag= %lld status=%d\n",
-	       __FUNCTION__, __LINE__, (unsigned long long)mgmt_ioctx->tag,
+	       __func__, __LINE__, (unsigned long long)mgmt_ioctx->tag,
 	       scst_mgmt_cmd_get_status(mcmnd));
 
 	srpt_build_tskmgmt_rsp(ch, ioctx,
@@ -2173,7 +2173,7 @@ static void srpt_add_one(struct ib_device *device)
 		goto err_mr;
 
 	printk(KERN_DEBUG PFX "%s[%d] create SRQ #wr= %d max_allow=%d dev= %s\n",
-	       __FUNCTION__, __LINE__, srq_attr.attr.max_wr,
+	       __func__, __LINE__, srq_attr.attr.max_wr,
 	      sdev->dev_attr.max_srq_wr, device->name);
 
 	if (!mellanox_ioc_guid)
