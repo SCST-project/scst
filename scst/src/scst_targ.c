@@ -2177,15 +2177,18 @@ static int scst_check_auto_sense(struct scst_cmd *cmd)
 	return res;
 }
 
-static int scst_done_cmd_check(struct scst_cmd *cmd, int *pres)
+static int scst_done_cmd_check(struct scst_cmd **pcmd, int *pres)
 {
 	int res = 0, rc;
+	struct scst_cmd *cmd = *pcmd;
 
 	TRACE_ENTRY();
 
 	if (unlikely(cmd->cdb[0] == REQUEST_SENSE)) {
-		if (cmd->internal)
+		if (cmd->internal) {
 			cmd = scst_complete_request_sense(cmd);
+			*pcmd = cmd;
+		}
 	} else if (unlikely(scst_check_auto_sense(cmd))) {
 		PRINT_INFO("Command finished with CHECK CONDITION, but "
 			    "without sense data (opcode 0x%x), issuing "
@@ -2323,7 +2326,7 @@ static int scst_pre_dev_done(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	rc = scst_done_cmd_check(cmd, &res);
+	rc = scst_done_cmd_check(&cmd, &res);
 	if (rc)
 		goto out;
 

@@ -906,7 +906,7 @@ struct scst_cmd *scst_create_prepare_internal_cmd(
 
 	res->cmd_lists = orig_cmd->cmd_lists;
 	res->sess = orig_cmd->sess;
-	res->state = SCST_CMD_STATE_DEV_PARSE;
+	res->state = SCST_CMD_STATE_PRE_PARSE;
 	res->atomic = scst_cmd_atomic(orig_cmd);
 	res->internal = 1;
 	res->tgtt = orig_cmd->tgtt;
