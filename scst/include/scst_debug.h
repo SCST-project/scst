@@ -21,7 +21,10 @@
 #define __SCST_DEBUG_H
 
 #include <linux/autoconf.h>	/* for CONFIG_* */
+
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 19)
 #include <linux/bug.h>		/* for WARN_ON_ONCE */
+#endif
 
 #if !defined(EXTRACHECKS) && defined(CONFIG_SCSI_TARGET_EXTRACHECKS)
 #define EXTRACHECKS
