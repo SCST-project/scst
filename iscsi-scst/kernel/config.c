@@ -235,7 +235,8 @@ static int get_conn_info(struct iscsi_target *target, unsigned long ptr)
 	struct conn_info info;
 	struct iscsi_conn *conn;
 
-	if ((err = copy_from_user(&info, (void *) ptr, sizeof(info))) < 0)
+	err = copy_from_user(&info, (void *) ptr, sizeof(info));
+	if (err < 0)
 		return err;
 
 	session = session_lookup(target, info.sid);
@@ -260,10 +261,12 @@ static int add_conn(struct iscsi_target *target, unsigned long ptr)
 	struct iscsi_session *session;
 	struct conn_info info;
 
-	if ((err = copy_from_user(&info, (void *) ptr, sizeof(info))) < 0)
+	err = copy_from_user(&info, (void *) ptr, sizeof(info));
+	if (err < 0)
 		return err;
 
-	if (!(session = session_lookup(target, info.sid)))
+	session = session_lookup(target, info.sid);
+	if (!session)
 		return -ENOENT;
 
 	return conn_add(session, &info);
@@ -276,10 +279,12 @@ static int del_conn(struct iscsi_target *target, unsigned long ptr)
 	struct iscsi_session *session;
 	struct conn_info info;
 
-	if ((err = copy_from_user(&info, (void *) ptr, sizeof(info))) < 0)
+	err = copy_from_user(&info, (void *) ptr, sizeof(info));
+	if (err < 0)
 		return err;
 
-	if (!(session = session_lookup(target, info.sid)))
+	session = session_lookup(target, info.sid);
+	if (!session)
 		return -ENOENT;
 
 	return conn_del(session, &info);
@@ -292,7 +297,8 @@ static int get_session_info(struct iscsi_target *target, unsigned long ptr)
 	struct iscsi_session *session;
 	struct session_info info;
 
-	if ((err = copy_from_user(&info, (void *) ptr, sizeof(info))) < 0)
+	err = copy_from_user(&info, (void *) ptr, sizeof(info));
+	if (err < 0)
 		return err;
 
 	session = session_lookup(target, info.sid);
@@ -314,7 +320,8 @@ static int add_session(struct iscsi_target *target, unsigned long ptr)
 	int err;
 	struct session_info info;
 
-	if ((err = copy_from_user(&info, (void *) ptr, sizeof(info))) < 0)
+	err = copy_from_user(&info, (void *) ptr, sizeof(info));
+	if (err < 0)
 		return err;
 
 	info.initiator_name[ISCSI_NAME_LEN-1] = '\0';
@@ -329,7 +336,8 @@ static int del_session(struct iscsi_target *target, unsigned long ptr)
 	int err;
 	struct session_info info;
 
-	if ((err = copy_from_user(&info, (void *) ptr, sizeof(info))) < 0)
+	err = copy_from_user(&info, (void *) ptr, sizeof(info));
+	if (err < 0)
 		return err;
 
 	return session_del(target, info.sid);
@@ -341,10 +349,12 @@ static int iscsi_param_config(struct iscsi_target *target, unsigned long ptr, in
 	int err;
 	struct iscsi_param_info info;
 
-	if ((err = copy_from_user(&info, (void *) ptr, sizeof(info))) < 0)
+	err = copy_from_user(&info, (void *) ptr, sizeof(info));
+	if (err < 0)
 		goto out;
 
-	if ((err = iscsi_param_set(target, &info, set)) < 0)
+	err = iscsi_param_set(target, &info, set);
+	if (err < 0)
 		goto out;
 
 	if (!set)
@@ -360,10 +370,12 @@ static int add_target(unsigned long ptr)
 	int err;
 	struct target_info info;
 
-	if ((err = copy_from_user(&info, (void *) ptr, sizeof(info))) < 0)
+	err = copy_from_user(&info, (void *) ptr, sizeof(info));
+	if (err < 0)
 		return err;
 
-	if (!(err = target_add(&info)))
+	err = target_add(&info);
+	if (!err)
 		err = copy_to_user((void *) ptr, &info, sizeof(info));
 
 	return err;
@@ -431,10 +443,12 @@ static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		goto out;
 	}
 
-	if ((err = get_user(id, (u32 *) arg)) != 0)
+	err = get_user(id, (u32 *) arg);
+	if (err != 0)
 		goto out;
 
-	if ((err = mutex_lock_interruptible(&target_mgmt_mutex)) < 0)
+	err = mutex_lock_interruptible(&target_mgmt_mutex);
+	if (err < 0)
 		goto out;
 
 	if (cmd == DEL_TARGET) {

@@ -35,7 +35,8 @@ static int iscsi_session_alloc(struct iscsi_target *target, struct session_info 
 	struct iscsi_session *session;
 	char *name = NULL;
 
-	if (!(session = kzalloc(sizeof(*session), GFP_KERNEL)))
+	session = kzalloc(sizeof(*session), GFP_KERNEL);
+	if (!session)
 		return -ENOMEM;
 
 	session->target = target;

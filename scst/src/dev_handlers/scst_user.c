@@ -111,7 +111,7 @@ struct scst_user_cmd {
 	struct page **data_pages;
 	struct sgv_pool_obj *sgv;
 
-	/* 
+	/*
 	 * Special flags, which can be accessed asynchronously (hence "long").
 	 * Protected by cmd_lists.cmd_list_lock.
 	 */
@@ -983,15 +983,15 @@ static void dev_user_add_to_ready(struct scst_user_cmd *ucmd)
 
 	if ((ucmd->state == UCMD_STATE_PARSING) ||
 	    (ucmd->state == UCMD_STATE_BUF_ALLOCING)) {
-	    	/*
-	    	 * If we don't put such commands in the queue head, then under
-	    	 * high load we might delay threads, waiting for memory
-	    	 * allocations, for too long and start loosing NOPs, which
-	    	 * would lead to consider us by remote initiators as
-	    	 * unresponsive and stuck => broken connections, etc. If none
-	    	 * of our commands completed in NOP timeout to allow the head
-	    	 * commands to go, then we are really overloaded and/or stuck.
-	    	 */
+		/*
+		 * If we don't put such commands in the queue head, then under
+		 * high load we might delay threads, waiting for memory
+		 * allocations, for too long and start loosing NOPs, which
+		 * would lead to consider us by remote initiators as
+		 * unresponsive and stuck => broken connections, etc. If none
+		 * of our commands completed in NOP timeout to allow the head
+		 * commands to go, then we are really overloaded and/or stuck.
+		 */
 		TRACE_DBG("Adding ucmd %p (state %d) to head of ready "
 			"cmd list", ucmd, ucmd->state);
 		list_add(&ucmd->ready_cmd_list_entry,

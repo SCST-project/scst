@@ -541,7 +541,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 		}
 		if (unlikely(cmd->bufflen != cmd->expected_transfer_len)) {
 			static int repd;
-			
+
 			if (repd < 100) {
 				/*
 				 * Intentionally unlocked. Few messages more

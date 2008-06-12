@@ -244,8 +244,7 @@ do {									\
 
 #define PRINT_WARNING(format, args...)					\
 do {									\
-	if (strcmp(INFO_FLAG, LOG_FLAG))				\
-	{								\
+	if (strcmp(INFO_FLAG, LOG_FLAG)) {				\
 		PRINT_LOG_FLAG(LOG_FLAG, "***WARNING*** " format, args); \
 	}								\
 	PRINT_LOG_FLAG(INFO_FLAG, "***WARNING*** " format, args);	\

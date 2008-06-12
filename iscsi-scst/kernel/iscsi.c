@@ -932,7 +932,8 @@ static void cmnd_prepare_get_rejected_cmd_data(struct iscsi_cmnd *cmnd)
 
 	iscsi_extracheck_is_rd_thread(conn);
 
-	if (!(size = cmnd->pdu.datasize))
+	size = cmnd->pdu.datasize;
+	if (!size)
 		return;
 
 	if (sg == NULL) {
@@ -1210,13 +1211,17 @@ static int noop_out_start(struct iscsi_cmnd *cmnd)
 		spin_unlock(&conn->session->sn_lock);
 		if (unlikely(err))
 			goto out;
-	} else if (unlikely((err = cmnd_insert_hash(cmnd)) < 0)) {
-		PRINT_ERROR("Can't insert in hash: ignore this request %x",
-			cmnd_itt(cmnd));
-		goto out;
+	} else {
+		err = cmnd_insert_hash(cmnd);
+		if (unlikely(err < 0)) {
+			PRINT_ERROR("Can't insert in hash: ignore this request %x",
+				    cmnd_itt(cmnd));
+			goto out;
+		}
 	}
 
-	if ((size = cmnd->pdu.datasize)) {
+	size = cmnd->pdu.datasize;
+	if (size) {
 		size = (size + 3) & -4;
 		conn->read_msg.msg_iov = conn->read_iov;
 		if (cmnd->pdu.bhs.itt != cpu_to_be32(ISCSI_RESERVED_TAG)) {
@@ -1615,7 +1620,8 @@ static int cmnd_abort(struct iscsi_cmnd *req)
 		goto out;
 	}
 
-	if ((cmnd = cmnd_find_hash_get(session, req_hdr->rtt, ISCSI_RESERVED_TAG))) {
+	cmnd = cmnd_find_hash_get(session, req_hdr->rtt, ISCSI_RESERVED_TAG);
+	if (cmnd) {
 		struct iscsi_conn *conn = cmnd->conn;
 		struct iscsi_scsi_cmd_hdr *hdr = cmnd_hdr(cmnd);
 
@@ -2909,13 +2915,15 @@ static int __init iscsi_init(void)
 		"degraded mode. Refer README file for details");
 #endif
 
-	if ((ctr_major = register_chrdev(0, ctr_name, &ctr_fops)) < 0) {
+	ctr_major = register_chrdev(0, ctr_name, &ctr_fops);
+	if (ctr_major < 0) {
 		PRINT_ERROR("failed to register the control device %d", ctr_major);
 		err = ctr_major;
 		goto out_callb;
 	}
 
-	if ((err = event_init()) < 0)
+	err = event_init();
+	if (err < 0)
 		goto out_reg;
 
 	iscsi_cmnd_cache = KMEM_CACHE(iscsi_cmnd, SCST_SLAB_FLAGS);
@@ -2930,7 +2938,8 @@ static int __init iscsi_init(void)
 
 	iscsi_template_registered = 1;
 
-	if ((err = iscsi_procfs_init()) < 0)
+	err = iscsi_procfs_init();
+	if (err < 0)
 		goto out_reg_tmpl;
 
 	num = max(num_online_cpus(), 2);

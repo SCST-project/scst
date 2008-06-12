@@ -1171,7 +1171,8 @@ static ssize_t scst_proc_scsi_dev_handler_write(struct file *file, const char __
 		goto out;
 	}
 
-	if (!(buffer = (char *)__get_free_page(GFP_KERNEL))) {
+	buffer = (char *)__get_free_page(GFP_KERNEL);
+	if (!buffer) {
 		res = -ENOMEM;
 		goto out;
 	}

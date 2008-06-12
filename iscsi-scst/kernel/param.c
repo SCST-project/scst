@@ -213,7 +213,8 @@ static int sess_param(struct iscsi_target *target, struct iscsi_param_info *info
 		sess_param_check(info);
 
 	if (info->sid) {
-		if (!(session = session_lookup(target, info->sid)))
+		session = session_lookup(target, info->sid);
+		if (!session)
 			goto out;
 		if (set && !list_empty(&session->conn_list)) {
 			err = -EBUSY;

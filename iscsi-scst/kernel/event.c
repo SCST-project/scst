@@ -56,7 +56,8 @@ static void event_recv_skb(struct sk_buff *skb)
 		rlen = NLMSG_ALIGN(nlh->nlmsg_len);
 		if (rlen > skb->len)
 			rlen = skb->len;
-		if ((err = event_recv_msg(skb, nlh)))
+		err = event_recv_msg(skb, nlh);
+		if (err)
 			netlink_ack(skb, nlh, -err);
 		else if (nlh->nlmsg_flags & NLM_F_ACK)
 			netlink_ack(skb, nlh, 0);
@@ -91,7 +92,8 @@ static int notify(void *data, int len, int gfp_mask)
 	struct nlmsghdr *nlh;
 	static u32 seq;
 
-	if (!(skb = alloc_skb(NLMSG_SPACE(len), gfp_mask)))
+	skb = alloc_skb(NLMSG_SPACE(len), gfp_mask);
+	if (!skb)
 		return -ENOMEM;
 
 	nlh = __nlmsg_put(skb, iscsid_pid, seq++, NLMSG_DONE, len - sizeof(*nlh), 0);

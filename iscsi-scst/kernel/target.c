@@ -87,7 +87,8 @@ static int iscsi_target_create(struct target_info *info, u32 tid)
 
 	TRACE_MGMT_DBG("Creating target tid %u, name %s", tid, name);
 
-	if (!(len = strlen(name))) {
+	len = strlen(name);
+	if (!len) {
 		PRINT_ERROR("The length of the target name is zero %u", tid);
 		goto out;
 	}
@@ -97,7 +98,8 @@ static int iscsi_target_create(struct target_info *info, u32 tid)
 		goto out;
 	}
 
-	if (!(target = kzalloc(sizeof(*target), GFP_KERNEL))) {
+	target = kzalloc(sizeof(*target), GFP_KERNEL);
+	if (!target) {
 		err = -ENOMEM;
 		goto out_put;
 	}
@@ -161,7 +163,8 @@ int target_add(struct target_info *info)
 		tid = next_target_id;
 	}
 
-	if (!(err = iscsi_target_create(info, tid)))
+	err = iscsi_target_create(info, tid);
+	if (!err)
 		nr_targets++;
 out:
 	return err;
@@ -184,7 +187,8 @@ int target_del(u32 id)
 	struct iscsi_target *target;
 	int err;
 
-	if (!(target = target_lookup_by_id(id))) {
+	target = target_lookup_by_id(id);
+	if (!target) {
 		err = -ENOENT;
 		goto out;
 	}
@@ -277,7 +281,8 @@ int iscsi_info_show(struct seq_file *seq, iscsi_show_info_t *func)
 	int err;
 	struct iscsi_target *target;
 
-	if ((err = mutex_lock_interruptible(&target_mgmt_mutex)) < 0)
+	err = mutex_lock_interruptible(&target_mgmt_mutex);
+	if (err < 0)
 		return err;
 
 	list_for_each_entry(target, &target_list, target_list_entry) {
