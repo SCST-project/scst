@@ -1,8 +1,9 @@
 /*
  *  scst_lib.c
  *
- *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
- *                 and Leonid Stoljar
+ *  Copyright (C) 2004 - 2008 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2005 Leonid Stoljar
+ *  Copyright (C) 2007 - 2008 CMS Distribution Limited
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License

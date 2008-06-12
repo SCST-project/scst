@@ -2,9 +2,9 @@
  *  chap.c - support for (mutual) CHAP authentication.
  *
  *  Copyright (C) 2004 Xiranet Communications GmbH <arne.redlich@xiranet.com>
- *  Copyright (C) 2002-2003 Ardis Technolgies <roman@ardistech.com>,
- *  Copyright (C) 2007 Vladislav Bolkhovitin
- *  Copyright (C) 2007 CMS Distribution Limited
+ *  Copyright (C) 2002 - 2003 Ardis Technolgies <roman@ardistech.com>,
+ *  Copyright (C) 2007 - 2008 Vladislav Bolkhovitin
+ *  Copyright (C) 2007 - 2008 CMS Distribution Limited
  *
  *  and code taken from UNH iSCSI software:
  *  Copyright (C) 2001-2003 InterOperability Lab (IOL)

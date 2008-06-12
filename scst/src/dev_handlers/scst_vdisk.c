@@ -1,10 +1,11 @@
 /*
  *  scst_vdisk.c
  *
- *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
- *                 and Leonid Stoljar
- *            (C) 2007 Ming Zhang <blackmagic02881 at gmail dot com>
- *            (C) 2007 Ross Walker <rswwalker at hotmail dot com>
+ *  Copyright (C) 2004 - 2008 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2005 Leonid Stoljar
+ *  Copyright (C) 2007 Ming Zhang <blackmagic02881 at gmail dot com>
+ *  Copyright (C) 2007 Ross Walker <rswwalker at hotmail dot com>
+ *  Copyright (C) 2007 - 2008 CMS Distribution Limited
  *
  *  SCSI disk (type 0) and CDROM (type 5) dev handler using files
  *  on file systems or block devices (VDISK)

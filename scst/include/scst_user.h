@@ -1,7 +1,8 @@
 /*
  *  include/scst_user.h
  *
- *  Copyright (C) 2007 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2007 - 2008 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2007 - 2008 CMS Distribution Limited
  *
  *  Contains constants and data structures for scst_user module.
  *  See http://scst.sourceforge.net/doc/scst_user_spec.txt or

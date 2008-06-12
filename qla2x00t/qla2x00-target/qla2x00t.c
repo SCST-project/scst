@@ -1,9 +1,9 @@
 /*
  *  qla2x00t.c
  *
- *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
- *                          Leonid Stoljar
- *                          Nathaniel Clark <nate@misrule.us>
+ *  Copyright (C) 2004 - 2008 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2005 Leonid Stoljar
+ *  Copyright (C) 2006 Nathaniel Clark <nate@misrule.us>
  *
  *  Qlogic 2x00 SCSI target driver.
  *

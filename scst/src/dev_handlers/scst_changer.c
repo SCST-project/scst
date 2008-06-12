@@ -1,8 +1,9 @@
 /*
  *  scst_changer.c
  *
- *  Copyright (C) 2004-2007 Vladislav Bolkhovitin <vst@vlnb.net>
- *                 and Leonid Stoljar
+ *  Copyright (C) 2004 - 2008 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2005 Leonid Stoljar
+ *  Copyright (C) 2007 - 2008 CMS Distribution Limited
  *
  *  SCSI medium changer (type 8) dev handler
  *

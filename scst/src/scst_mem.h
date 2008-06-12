@@ -1,7 +1,9 @@
 /*
  *  scst_mem.h
  *
- *  Copyright (C) 2006-2007 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2006 - 2008 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2007 Krzysztof Blaszkowski <kb@sysmikro.com.pl>
+ *  Copyright (C) 2007 - 2008 CMS Distribution Limited
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License

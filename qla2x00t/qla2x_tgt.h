@@ -1,8 +1,8 @@
 /*
  *  qla2x_tgt.h
  *
- *  Copyright (C) 2004-2005 Vladislav Bolkhovitin <vst@vlnb.net>
- *		   and Leonid Stoljar
+ *  Copyright (C) 2004 - 2008 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2005 Leonid Stoljar
  *
  *  Additional file for the target driver support.
  *

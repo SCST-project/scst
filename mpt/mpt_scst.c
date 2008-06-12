@@ -4,7 +4,7 @@
  *  Copyright (C) 2005 Beijing Soul Technology Co., Ltd.
  *  Copyright (C) 2002, 2003, 2004 LSI Logic Corporation
  *  Copyright (C) 2004 Vladislav Bolkhovitin <vst@vlnb.net>
- *                and Leonid Stoljar
+ *  Copyright (C) 2004 Leonid Stoljar
  *
  *  MPT SCSI target mode driver for SCST.
  *
