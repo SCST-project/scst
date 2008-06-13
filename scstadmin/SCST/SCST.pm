@@ -55,7 +55,7 @@ $IOTYPE_PHYSICAL    = 100;
 $IOTYPE_VIRTUAL     = 101;
 $IOTYPE_PERFORMANCE = 102;
 
-$VERSION = 0.7.3;
+$VERSION = 0.7.4;
 
 my $_SCST_MIN_MAJOR_   = 0;
 my $_SCST_MIN_MINOR_   = 9;
@@ -116,6 +116,7 @@ my %_AVAILABLE_OPTIONS_ = ('WRITE_THROUGH' => 'WRITE_THROUGH',
 			   'READ_ONLY'     => 'READ_ONLY',
 			   'NULLIO'        => 'NULLIO',
 			   'NV_CACHE'      => 'NV_CACHE',
+			   'NV'            => 'NV_CACHE',
 			   'BLOCKIO'       => 'BLOCKIO',
 			   'BIO'           => 'BLOCKIO');
 

@@ -33,3 +33,7 @@ Changes since 0.9.6-pre2:
 - Fixed device assignment LUN changes
 - Fixed handling of disabled handlers (like dev_disk, dev_cdrom, etc from compile time)
 - Minor bug fixes
+
+Changes since 1.0.0 RC1
+
+- Updated SCST/SCST.pm to add one more option mapping NV -> NV_CACHE.
