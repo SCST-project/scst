@@ -668,7 +668,7 @@ static struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req, int status,
 		sg = rsp->sg = scst_alloc(PAGE_SIZE, GFP_KERNEL|__GFP_NOFAIL,
 					&rsp->sg_cnt);
 		if (sg == NULL) {
-			/* ToDo */
+			;/* ToDo */;
 		}
 		rsp->own_sg = 1;
 		sense = (struct iscsi_sense_data *)page_address(sg_page(&sg[0]));
@@ -731,7 +731,7 @@ static void iscsi_cmnd_reject(struct iscsi_cmnd *req, int reason)
 	sg = rsp->sg = scst_alloc(PAGE_SIZE, GFP_KERNEL|__GFP_NOFAIL,
 				&rsp->sg_cnt);
 	if (sg == NULL) {
-		/* ToDo */
+		;/* ToDo */;
 	}
 	rsp->own_sg = 1;
 	addr = page_address(sg_page(&sg[0]));
@@ -941,7 +941,7 @@ static void cmnd_prepare_get_rejected_cmd_data(struct iscsi_cmnd *cmnd)
 		sg = cmnd->sg = scst_alloc(PAGE_SIZE, GFP_KERNEL|__GFP_NOFAIL,
 					&cmnd->sg_cnt);
 		if (sg == NULL) {
-			/* ToDo */
+			;/* ToDo */;
 		}
 		cmnd->own_sg = 1;
 		cmnd->bufflen = PAGE_SIZE;
@@ -1231,10 +1231,10 @@ static int noop_out_start(struct iscsi_cmnd *cmnd)
 			cmnd->sg = sg = scst_alloc(size,
 				GFP_KERNEL|__GFP_NOFAIL, &cmnd->sg_cnt);
 			if (sg == NULL) {
-				/* ToDo */
+				;/* ToDo */;
 			}
 			if (cmnd->sg_cnt > ISCSI_CONN_IOV_MAX) {
-				/* ToDo */
+				;/* ToDo */;
 			}
 			cmnd->own_sg = 1;
 			cmnd->bufflen = size;
