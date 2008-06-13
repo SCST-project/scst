@@ -2319,17 +2319,17 @@ out:
 	return res;
 }
 
-static int scst_pre_dev_done(struct scst_cmd *cmd)
+static int scst_pre_dev_done(struct scst_cmd **pcmd)
 {
 	int res = SCST_CMD_STATE_RES_CONT_SAME, rc;
 
 	TRACE_ENTRY();
 
-	rc = scst_done_cmd_check(&cmd, &res);
+	rc = scst_done_cmd_check(pcmd, &res);
 	if (rc)
 		goto out;
 
-	cmd->state = SCST_CMD_STATE_DEV_DONE;
+	(*pcmd)->state = SCST_CMD_STATE_DEV_DONE;
 
 out:
 	TRACE_EXIT_HRES(res);
@@ -3153,7 +3153,7 @@ void scst_process_active_cmd(struct scst_cmd *cmd, int context)
 			break;
 
 		case SCST_CMD_STATE_PRE_DEV_DONE:
-			res = scst_pre_dev_done(cmd);
+			res = scst_pre_dev_done(&cmd);
 			EXTRACHECKS_BUG_ON(res ==
 				SCST_CMD_STATE_RES_NEED_THREAD);
 			break;

@@ -2716,9 +2716,9 @@ static int dev_user_release(struct inode *inode, struct file *file)
 
 	down_write(&dev->dev_rwsem);
 
-	spin_lock_irq(&cleanup_lock);
+	spin_lock(&cleanup_lock);
 	list_add_tail(&dev->cleanup_list_entry, &cleanup_list);
-	spin_unlock_irq(&cleanup_lock);
+	spin_unlock(&cleanup_lock);
 
 	wake_up(&cleanup_list_waitQ);
 	wake_up(&dev->cmd_lists.cmd_list_waitQ);
@@ -2823,7 +2823,7 @@ static int dev_user_cleanup_thread(void *arg)
 
 	current->flags |= PF_NOFREEZE;
 
-	spin_lock_irq(&cleanup_lock);
+	spin_lock(&cleanup_lock);
 	while (!kthread_should_stop()) {
 		wait_queue_t wait;
 		init_waitqueue_entry(&wait, current);
@@ -2834,9 +2834,9 @@ static int dev_user_cleanup_thread(void *arg)
 				set_current_state(TASK_INTERRUPTIBLE);
 				if (test_cleanup_list())
 					break;
-				spin_unlock_irq(&cleanup_lock);
+				spin_unlock(&cleanup_lock);
 				schedule();
-				spin_lock_irq(&cleanup_lock);
+				spin_lock(&cleanup_lock);
 			}
 			set_current_state(TASK_RUNNING);
 			remove_wait_queue(&cleanup_list_waitQ, &wait);
@@ -2859,9 +2859,9 @@ static int dev_user_cleanup_thread(void *arg)
 					typeof(*dev), cleanup_list_entry);
 				list_del(&dev->cleanup_list_entry);
 
-				spin_unlock_irq(&cleanup_lock);
+				spin_unlock(&cleanup_lock);
 				rc = dev_user_process_cleanup(dev);
-				spin_lock_irq(&cleanup_lock);
+				spin_lock(&cleanup_lock);
 
 				if (rc != 0)
 					list_add_tail(&dev->cleanup_list_entry,
@@ -2871,9 +2871,9 @@ static int dev_user_cleanup_thread(void *arg)
 			if (list_empty(&cl_devs))
 				break;
 
-			spin_unlock_irq(&cleanup_lock);
+			spin_unlock(&cleanup_lock);
 			msleep(100);
-			spin_lock_irq(&cleanup_lock);
+			spin_lock(&cleanup_lock);
 
 			while (!list_empty(&cl_devs)) {
 				dev = list_entry(cl_devs.next, typeof(*dev),
@@ -2883,7 +2883,7 @@ static int dev_user_cleanup_thread(void *arg)
 			}
 		}
 	}
-	spin_unlock_irq(&cleanup_lock);
+	spin_unlock(&cleanup_lock);
 
 	/*
 	 * If kthread_should_stop() is true, we are guaranteed to be
