@@ -466,11 +466,26 @@ static void event_loop(int timeout)
 			isns_handle(1, &timeout);
 			continue;
 		} else if (res < 0) {
-			if (res < 0 && errno != EINTR) {
-				log_error("%s:poll() %d", __FUNCTION__, errno);
-				exit(1);
-			}
-			continue;
+			if (errno == EINTR)
+				continue;
+			else if (errno == EINVAL)
+				log_error("%s: poll() failed with EINVAL. Should "
+					"you increase RLIMIT_NOFILE (ulimit -n)? "
+					"Or upgrade your kernel? Kernels below 2.6.19 "
+					"have a bug, which doesn't allow poll() "
+					"to work with >256 file descriptors. See "
+					"http://sourceforge.net/mailarchive/forum.php?"
+					"thread_name=9392A06CB0FDC847B3A530B3DC174E7B0"
+					"55F1EF3%40mse10be1.mse10.exchange.ms&forum_"
+					"name=scst-devel for more details. Alternatively, "
+					"you can desrease iscsi_scstd.c::INCOMING_MAX "
+					"constant to a lower value, e.g. 128, then "
+					"recompile and reinstall the user space part "
+					"of iSCSI-SCST.", __FUNCTION__);
+			else
+				log_error("%s: poll() failed: %s", __FUNCTION__,
+					strerror(errno));
+			exit(1);
 		}
 
 		for (i = 0; i < LISTEN_MAX; i++) {
