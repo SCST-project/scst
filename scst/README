@@ -491,7 +491,7 @@ CAUTION: If you partitioned/formatted your device with block size X, *NEVER*
 	 Moreover, if you want to compare how well different block sizes
 	 work for you, you **MUST** EVERY TIME AFTER CHANGING BLOCK SIZE
 	 **COMPLETELY** **WIPE OFF** ALL THE DATA FROM THE DEVICE. In
-	 other words, THE **WHOLE** DEVICE **MUST** HAVE ONLY **ZEROES**
+	 other words, THE **WHOLE** DEVICE **MUST** HAVE ONLY **ZEROS**
 	 AS THE DATA AFTER YOU SWITCH TO NEW BLOCK SIZE. Switching block
 	 sizes isn't like switching between FILEIO and BLOCKIO, after
 	 changing block size all previously written with another block

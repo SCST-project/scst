@@ -2,7 +2,7 @@ Index: scst/src/Makefile
 ===================================================================
 --- scst/src/Makefile	(revision 233)
 +++ scst/src/Makefile	(working copy)
-@@ -114,7 +114,7 @@ EXTRA_CFLAGS += -I$(SCST_INC_DIR) -Wextr
+@@ -115,7 +115,7 @@ EXTRA_CFLAGS += -I$(SCST_INC_DIR) -Wextr
  
  #EXTRA_CFLAGS += -DSTRICT_SERIALIZING
  
@@ -11,7 +11,7 @@ Index: scst/src/Makefile
  
  #EXTRA_CFLAGS += -DUSE_EXPECTED_VALUES
  #EXTRA_CFLAGS += -DALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
-@@ -122,9 +122,9 @@ EXTRA_CFLAGS += -DEXTRACHECKS
+@@ -123,9 +123,9 @@ EXTRA_CFLAGS += -DEXTRACHECKS
  
  #EXTRA_CFLAGS += -fno-inline
  
@@ -27,7 +27,7 @@ Index: scst/src/dev_handlers/Makefile
 ===================================================================
 --- scst/src/dev_handlers/Makefile	(revision 230)
 +++ scst/src/dev_handlers/Makefile	(working copy)
-@@ -68,10 +68,10 @@ endif
+@@ -69,10 +69,10 @@ endif
  
  EXTRA_CFLAGS += -I$(SUBDIRS) -I$(SCST_INC_DIR) -Wextra -Wno-unused-parameter
  
@@ -40,4 +40,4 @@ Index: scst/src/dev_handlers/Makefile
 +#EXTRA_CFLAGS += -DDEBUG -g
  
  clean:
- 	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend Modules.symvers Module.symvers
+ 	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend Modules.symvers \

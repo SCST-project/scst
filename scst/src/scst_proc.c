@@ -27,7 +27,6 @@
 #include <linux/sched.h>
 #include <linux/unistd.h>
 #include <linux/string.h>
-#include <linux/uaccess.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 
@@ -242,9 +241,9 @@ int scst_proc_log_entry_write(struct file *file, const char *buf,
 
 	/*
 	 * Usage:
-	 *   echo "all|none|default" >/proc/scsi_tgt/trace_log_level
-	 *   echo "value DEC|0xHEX|0OCT" >/proc/scsi_tgt/trace_log_level
-	 *   echo "set|add|clear|del TOKEN" >/proc/scsi_tgt/trace_log_level
+	 *   echo "all|none|default" >/proc/scsi_tgt/trace_level
+	 *   echo "value DEC|0xHEX|0OCT" >/proc/scsi_tgt/trace_level
+	 *   echo "set|add|clear|del TOKEN" >/proc/scsi_tgt/trace_level
 	 * where TOKEN is one of [debug,function,line,pid,entryexit,
 	 *                        buff,mem,sg,out_of_mem,retry,
 	 *                        scsi_serializing,special,scsi,mgmt,minor,...]

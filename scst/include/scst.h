@@ -1309,7 +1309,7 @@ struct scst_mem_lim {
 	 * How much memory allowed to allocated under this object. Put here
 	 * mostly to save a possible cache miss accessing scst_max_dev_cmd_mem.
 	 */
-	unsigned int max_allowed_pages;
+	int max_allowed_pages;
 };
 
 struct scst_device {
