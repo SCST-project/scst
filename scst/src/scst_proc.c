@@ -186,7 +186,11 @@ static int strcasecmp(const char *s1, const char *s2)
 }
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
 static int strncasecmp(const char *s1, const char *s2, int n)
+#else
+static int strncasecmp(const char *s1, const char *s2, size_t n)
+#endif
 {
 	int c1, c2;
 	do {
