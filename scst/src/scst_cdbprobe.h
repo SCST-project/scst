@@ -23,6 +23,7 @@
 
 /* get_trans_len_x extract x bytes from cdb as length starting from off */
 static int get_trans_len_1(struct scst_cmd *cmd, uint8_t off);
+static int get_trans_len_1_256(struct scst_cmd *cmd, uint8_t off);
 static int get_trans_len_2(struct scst_cmd *cmd, uint8_t off);
 static int get_trans_len_3(struct scst_cmd *cmd, uint8_t off);
 static int get_trans_len_4(struct scst_cmd *cmd, uint8_t off);
@@ -131,7 +132,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{0x07, "OVV O  OV       ", "REASSIGN BLOCKS",
 	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
 	{0x08, "O               ", "READ(6)",
-	 SCST_DATA_READ, SCST_TRANSFER_LEN_TYPE_FIXED, 4, get_trans_len_1},
+	 SCST_DATA_READ, SCST_TRANSFER_LEN_TYPE_FIXED, 4, get_trans_len_1_256},
 	{0x08, " MV OO OV       ", "READ(6)",
 	 SCST_DATA_READ, SCST_TRANSFER_LEN_TYPE_FIXED, 2, get_trans_len_3},
 	{0x08, "         M      ", "GET MESSAGE(6)",
@@ -141,7 +142,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{0x09, "VVVVVV  V       ", "",
 	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
 	{0x0A, "O               ", "WRITE(6)",
-	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED, 4, get_trans_len_1},
+	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED, 4, get_trans_len_1_256},
 	{0x0A, " M  O  OV       ", "WRITE(6)",
 	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED, 2, get_trans_len_3},
 	{0x0A, "  M             ", "PRINT",

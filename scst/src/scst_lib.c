@@ -1657,6 +1657,7 @@ int scst_alloc_space(struct scst_cmd *cmd)
 		flags |= SCST_POOL_ALLOC_NO_CACHED;
 
 	if (unlikely(cmd->bufflen == 0)) {
+		/* ToDo: remove when 1.0.1 will be started */
 		TRACE(TRACE_MGMT_MINOR, "Warning: data direction %d or/and "
 			"zero buffer length. Opcode 0x%x, handler %s, target "
 			"%s", cmd->data_direction, cmd->cdb[0],
@@ -1811,6 +1812,14 @@ static int get_trans_len_1(struct scst_cmd *cmd, uint8_t off)
 	return 0;
 }
 
+static int get_trans_len_1_256(struct scst_cmd *cmd, uint8_t off)
+{
+	cmd->bufflen = (u32)cmd->cdb[off];
+	if (cmd->bufflen == 0)
+		cmd->bufflen = 256;
+	return 0;
+}
+
 static int get_trans_len_2(struct scst_cmd *cmd, uint8_t off)
 {
 	const uint8_t *p = cmd->cdb + off;
@@ -1907,6 +1916,15 @@ int scst_get_cdb_info(struct scst_cmd *cmd)
 	cmd->data_direction = ptr->direction;
 	cmd->op_flags = ptr->flags;
 	res = (*ptr->get_trans_len)(cmd, ptr->off);
+#if 0 /* ToDo: enable when 1.0.1 will be started and fix all scst_get_buf_first() returns 0 cases */
+	if (unlikely(cmd->bufflen == 0)) {
+		/*
+		 * According to SPC bufflen 0 for data transfer commands isn't
+		 * an error, so we need to fix the transfer direction.
+		 */
+		cmd->data_direction = SCST_DATA_NONE;
+	}
+#endif
 
 out:
 	TRACE_EXIT();

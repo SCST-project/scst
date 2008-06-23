@@ -490,6 +490,12 @@ static int dev_user_alloc_sg(struct scst_user_cmd *ucmd, int cached_buff)
 
 	TRACE_ENTRY();
 
+	/* User space can return from PARSE bufflen 0 and direction non-NONE */
+	if (unlikely(bufflen == 0)) {
+		cmd->data_direction = SCST_DATA_NONE;
+		goto out;
+	}
+
 	gfp_mask = __GFP_NOWARN;
 	gfp_mask |= (scst_cmd_atomic(cmd) ? GFP_ATOMIC : GFP_KERNEL);
 
