@@ -14,7 +14,7 @@
 <div id="wrap"> 
 	<div id="header">	
 		<div class="logoimg"></div><h1 id="logo"><span class="orange"></span></h1>
-		<h2 id="slogan">SCSI Target Middle Level for Linux</h2>	
+		<h2 id="slogan">SCSI Target Middle Level for Linux</h2>
 	</div>		
 		
 	<div id="menu">
@@ -23,7 +23,7 @@
 			<li><a href="http://www.sourceforge.net/projects/scst">Main</a></li>
 			<li id="current"><a href="targets.html">Drivers</a></li>
 			<li><a href="downloads.html">Downloads</a></li>
-			<li><a href="scstvsstgt.html">SCST vs STGT</a></li>		
+			<li><a href="scstvsstgt.html">SCST vs STGT</a></li>				
 		</ul>
 	</div>
 	
@@ -46,22 +46,27 @@
 				</ul>
 			</div>		
 	
-	  		<div id="main">
-				<h1>SCST Target Drivers</h1>
-				
-				<p>SCST has target drivers for:
-					<ul>
-						<li><span>Software iSCSI</span></li>
-						<li><span>Fibre Channel QLogic 22xx/23xx series</span></li>
-						<li><span>Fibre Channel QLogic ISP Chipsets, including 24xx</span></li>
-						<li><span>Infiniband SCSI RDMA Protocol (SRP)</span></li>
-						<li><span>LSI/MPT SCSI</span></li>
-						<li><span>...</span></li>
-					</ul> 				
+	  		<div id="main"> 
+				<h1>Target driver for QLogic ISP chipsets</h1>
+				<p><img src="images/t_qlogic.gif" width="100" height="120" class="float-left" />
+				This is an SCST driver for ISP QLogic chipsets commonly used in many SCSI and FC host bus adapters. 
+				It is based on Matthew Jacob's multiplatform driver for ISP chipsets, which has its own page at 
+				<a href="http://www.feral.com/isp.html">http://www.feral.com/isp.html</a>. The update for SCST was made by 
+				Stanislaw Gruszka for Open-E Inc.</p>
+				<p>Driver operates on the same hardware as the qla2x00 target driver, but has one notable 
+				advantage over it: <strong>support of 24xx series of QLogic adapters</strong>.</p>
+				<p>This driver is in beta stages. You may want to use it in production, but you need to test it for your hardware 
+				configuration. It is available for download from the SCST SVN repository. See the download page how to setup access 
+				to it.</p>
+				<p class="post-footer align-right">					
+					<a href="http://scst.svn.sourceforge.net/" class="readmore">SCST SVN Repository</a>	
 				</p>
-				<p><span><table height="300px" border=0><tr><td>&nbsp;</td></tr></table></span></p>
-	  		</div> 
+				<p><span><table height="250px" border=0><tr><td>&nbsp;</td></tr></table></span></p>								
+	  		</div>
+	<!-- content-wrap ends here -->	
 	</div>
+	
+<!-- wrap ends here -->
 </div>		
 
 <!-- footer starts here -->		
@@ -72,7 +77,7 @@
 			
 			</p>		
 		</div>	
-<!-- footer ends here -->	
+<!-- footer ends here -->
 
 </body>
 </html>

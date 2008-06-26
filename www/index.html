@@ -1,15 +1,148 @@
-<html>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
-  <meta http-equiv="content-type"
- content="text/html; charset=ISO-8859-1">
-  <title>SCST: Generic SCSI Target Middle Level for Linux</title>
-  <meta name="Keywords"
- content="SCST, Linux, SCSI target, Qlogic, QLA2200, QLA2300, iSCSI, SCSI">
+<meta name="Keywords" content="Generic SCSI Target Middle Level for Linux" />
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+<meta name="author" content="Daniel Fernandes"/>
+<meta name="Robots" content="index,follow" />
+<link rel="stylesheet" href="images/Orange.css" type="text/css" />	
+<title>SCST: Generic SCSI Target Middle Level for Linux</title>
 </head>
 
-<frameset rows=* cols=25%,*>
-<frame src="menu.html" />
-<frame src="main.html" name="showframe" />
-</frameset>
+<body>
+<div id="wrap"> 
+	<div id="header">	
+		<div class="logoimg"></div><h1 id="logo"><span class="orange"></span></h1>
+		<h2 id="slogan">SCSI Target Middle Level for Linux</h2>	
+	</div>
+	<div id="menu">
+		<ul>
+			<li id="current"><a href="index.html">Home</a></li>
+			<li><a href="http://www.sourceforge.net/projects/scst">Main</a></li>
+			<li><a href="targets.html">Drivers</a></li>
+			<li><a href="downloads.html">Downloads</a></li>
+			<li><a href="scstvsstgt.html">SCST vs STGT</a></li>			
+		</ul>
+	</div>	
+	<div id="content-wrap">
+	  		<div id="main">
+				<h1>Generic SCSI Target Middle Level for Linux</h1>
+						
+				<p>The <strong>SCSI target mid-level subsystem for Linux (SCST)</strong> is a subsystem of the Linux kernel 
+					that provides a standard framework for SCSI target drivers development.
+					It is designed to provide unified, consistent interface between SCSI target drivers and Linux kernel 
+					and simplify target drivers development as much as possible.</p>
+				<p>A system with a SCSI target device is able to share its local or virtual devices with other systems 
+					on a network with SCSI protocol support, e.g. <strong>SCSI bus, SAS, Fibre Channel or iSCSI</strong>.
+					This is commonly used for data storage virtualization.</p>
 
-</HTML>
+				<p>This project consists from a set of subprojects: <strong>SCST core</strong> itself
+					as well as <strong>target drivers</strong> and <strong>user space utilities</strong>.
+					They are developed more or less independently and have own maintainers.</p>
+				
+				<h1>Features of SCST Core</h1>
+				<ul>					
+					<li><span>Simple, easy to use interface with target drivers. 
+								 Particularly, SCST core performs required pre- and post- processing of incoming requests as well as 
+								 necessary error recovery.</span></li>
+					<li><span>Undertakes most problems, related to execution contexts, thus practically eliminating one of the most 
+								 complicated problem in the kernel drivers development. For example, a target driver for QLogic 
+								 22xx/23xx cards, which has all necessary features, is only about 2000 lines of code long.</span></li>
+					<li><span>Very low overhead, fine-grained locks and simplest commands processing path, which allow to reach 
+								 maximum possible performance and scalability. Particularly, incoming requests can be processed in 
+								 the caller's context or in one of the internal SCST core's tasklets, therefore no extra context switches 
+								 required. </span></li>
+					<li><span>Device handlers, i.e. plugins, architecture provides extra flexibility by allowing various I/O 
+								 modes in backstorage handling. For example, pass-through device handlers allows to use real 
+								 SCSI hardware and vdisk device handler allows to use files as virtual disks.</span></li>
+					<li><span>Provides advanced per-initiator device visibility management (LUN masking), which allows different 
+								 initiators to see different set of devices with different access permissions. For instance, 
+								 initiator A could see exported from target T devices X and Y read-writable, and initiator B from 
+								 the same target T could see devices Y read-only and Z read-writable.</span></li>
+					<li><span>Emulates necessary functionality of SCSI host adapter, because from remote initiators point of view 
+								 SCST acts as a SCSI host with its own devices. This is especially important in pass-through mode with 
+								 one to many relationship, i.e. when multiple initiators can connect to the exported pass-through 
+								 devices. You can find more deep elaboration why it is needed in <a href=http://www.mail-archive.com/linux-scsi@vger.kernel.org/msg06911.html>this</a> 
+								 message in thread "Question for pass-through target design" in linux-scsi mailing list. Some of the emulated functions are the following:
+								 <ul>
+									<li><span>Generation of necessary UNIT ATTENTIONs, their storage and delivery to all connected 
+												 remote initiators.</span></li>								 
+									<li><span>RESERVE/RELEASE functionality.</span></li>
+									<li><span>CA/ACA conditions (not implemented yet).</span></li>
+									<li><span>All types of RESETs and other task management functions.</span></li>
+									<li><span>REPORT LUNS command as well as SCSI address space management in order to have consistent 
+												 address space on all remote initiators, since local SCSI devices could not know about each
+												 other to report via REPORT LUNS command. Additionally, SCST core responds with error on all 
+												 commands to non-existing devices and provides access control, so different remote 
+												 initiators could see different set of devices.</span></li>
+									<li><span>Other necessary functionality (task attributes, etc.) as specified in SAM-2, SPC-2, SAM-3,
+												 SPC-3 and other SCSI standards.</span></li>
+								 </ul>
+								 </span></li>
+					<li><span>Multithreaded design and complete SMP support, so, if necessary, all your processors will participate in the commands
+								 processing.</span></li>
+					<li><span>Well documented.</span></li>							
+				</ul>					
+				<p>Interoperability between SCST core and local SCSI initiators (i.e. sd, st, etc.) is the additional issue that SCST is going to 
+				address (it is not implemented yet). It is necessary, because local SCSI initiators can change the state of the 
+				device, for example RESERVE the device, or some of its parameters and that could be done behind SCST, which could 
+				lead to various problems, including data corruption. Thus, RESERVE/RELEASE commands, locally generated 
+				UNIT ATTENTIONs, etc. should be intercepted and processed as if local SCSI initiators act as remote SCSI 
+				initiators connected to SCST.</p>				
+				<p>Interface between SCST core and target drivers is based on work, done by <a href="http://www.iol.unh.edu/">University
+				 of New Hampshire Interoperability Labs (UNH IOL)</a> for the <a href="http://www.iol.unh.edu/consortiums/iscsi/index.html">
+				 UNH-iSCSI project</a>, which was developed on <a href="http://unh-iscsi.sourceforge.net/">SourceForge.net</a>.</p>				
+								
+				<h1>SCST core supports the following I/O modes</h1>
+				<ul>
+					<li><span><strong>Pass-through mode</strong> with one to many relationship, i.e. when multiple initiators can 
+						connect to the exported pass-through devices, for virtually all SCSI devices types: <strong>disks (type 0), 
+						tapes (type 1), processors (type 3), CDROMs (type 5), MO disks (type 7), medium changers (type 8) and RAID 
+						controllers (type 0xC)</strong></span></li>
+    				<li><span><strong>FILEIO mode</strong>, which allows to use files on file systems or block devices as virtual 
+    					remotely available SCSI disks or CDROMs with benefits of the <strong>Linux page cache</strong></span></li>
+    				<li><span><strong>BLOCKIO mode</strong>, which performs direct block IO with a block device, bypassing 
+    					page-cache for all operations. This mode works ideally with high-end storage HBAs and for applications that 
+    					either do not need caching between application and disk or need the large block throughput.</span></li>
+    				<li><span><strong>User space mode</strong> using scst_user device handler, which allows to implement in the 
+    					user space virtual SCSI devices in the SCST environment</span></li>
+    				<li><span><strong>"Performance" device handlers</strong>, which provide in pseudo pass-through mode a way for 
+    					direct performance measurements without overhead of actual data transferring from/to underlying SCSI device
+    					</span></li>
+				</ul>			
+	  		</div>
+			<div id="rightbar">
+				<h1>Documentation</h1>
+				<p><a href="scst_pg.html">HTML</a></p>
+				<p><a href="scst_pg.pdf">PDF</a></p>
+				<p><a href="scst_user_spec.txt">SCST User Interface Description</a></p>
+				<h1>SCST 0.9.6 graphs</h1>
+				<p><a href=images/init_scst.png>init_scst</a></p>
+				<p><a href=images/scst_cmd_thread.png>scst_cmd_thread</a></p>				
+				<p><a href=images/scst_mgmt_cmd_thread.png>scst_mgmt_cmd_thread</a></p>
+				<p><a href=images/scst_mgmt_thread.png>scst_mgmt_thread</a></p>
+				<p>by Ming Zhang</p>
+				<h1>QUESTIONS</h1>
+				<p>If you have any questions you can ask them via<br><a href=https://lists.sourceforge.net/lists/listinfo/scst-devel>
+					scst-devel mailing list</a><br><br> 
+					See <a href=http://sourceforge.net/mail/?group_id=110471>mailing lists page</a> for more info about SCST mailing 
+					lists.</p>
+				<h1>SourceForge</h1>
+				<p><a href="http://sourceforge.net">
+					<img src="http://sourceforge.net/sflogo.php?group_id=110471&amp;type=2" alt="SourceForge.net Logo" border="0">
+					</a></p>		
+			</div>
+	</div>
+</div>		
+<!-- footer starts here -->		
+		<div id="footer">
+			<p>
+			&copy; Copyright 2008 <strong>SCST (SCSI Target Middle Level for Linux)</strong>&nbsp;&nbsp;  
+			Design by: <b><font color="#EC981F">Daniel Fernandes</font></b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;		
+			
+			</p>		
+		</div>	
+<!-- footer ends here -->	
+
+</body>
+</html>

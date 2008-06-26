@@ -1,0 +1,75 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta name="Keywords" content="Generic SCSI Target Middle Level for Linux" />
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+<meta name="author" content="Daniel Fernandes"/>
+<meta name="Robots" content="index,follow" />
+<link rel="stylesheet" href="images/Orange.css" type="text/css" />	
+<title>SCST: Generic SCSI Target Middle Level for Linux</title>
+</head>
+
+<body>
+<!-- wrap starts here -->
+<div id="wrap"> 
+	<div id="header">	
+		<div class="logoimg"></div><h1 id="logo"><span class="orange"></span></h1>
+		<h2 id="slogan">SCSI Target Middle Level for Linux</h2>	
+	</div>		
+		
+	<div id="menu">
+		<ul>
+			<li><a href="index.html">Home</a></li>
+			<li><a href="http://www.sourceforge.net/projects/scst">Main</a></li>
+			<li><a href="targets.html">Drivers</a></li>
+			<li><a href="downloads.html">Downloads</a></li>
+			<li id="current"><a href="scstvsstgt.html">SCST vs STGT</a></li>		
+		</ul>
+	</div>
+	
+	<!-- content-wrap starts here -->	
+	<div id="content-wrap">  
+			<div id="main">
+				<h1>SCST vs STGT</h1>
+				<p><strong><a href="http://stgt.berlios.de/">STGT</a></strong> is alternative, independent from SCST implementation 
+				of SCSI target framework for Linux. It has different architecture, where SCSI target state machine is placed in 
+				the user space, while in SCST all the processing done in the kernel. Such architecture was acknowledged as a 
+				"right" one by the Linux SCSI subsystem maintainers, so kernel's part of STGT quickly found its way to the kernel. 
+				But such architecture has two inherent problems, namely performance and complexity.
+				See thread <a href="http://sourceforge.net/mailarchive/forum.php?thread_name=472F7FA4.7040303%40wpkg.org&forum_name=scst-devel">
+				"Relationship between SCST and in-kernel SCSI_TGT"</a> and <a href="http://thread.gmane.org/gmane.linux.scsi/36417/focus=37273">
+				this</a> message in thread "Open-FCoE on linux-scsi" for more details.</p>
+				
+				<p>See also the following important discussions:<ul>
+				<li><span><a href="http://news.gmane.org/find-root.php?message_id=%3c43987F75.2000301%40vlnb.net%3e">
+				"Stgt a new version of iscsi target?"</a>, especially pay attention to 
+				this message: <a href="http://article.gmane.org/gmane.linux.scsi/21073">
+				http://article.gmane.org/gmane.linux.scsi/21073</a> for motivation why STGT's architecture was considered "right".
+				</span></li>
+				<li><span><a href="http://news.gmane.org/find-root.php?message_id=%3c463F36AC.3010207%40vlnb.net%3e">
+				"Question for pass-through target design"</a></span></li>				
+				<li><span><a href="http://news.gmane.org/find-root.php?message_id=%3ce2e108260801170127w2937b2afg9bef324efa945e43%40mail.gmail.com%3e">
+				"Performance of SCST versus STGT"</a> for performance comparison.</span></li>
+				</ul></p>
+				<p>Also you shouldn't be deceived by the fact that some (small) part of STGT was accepted in the kernel.<br> 
+				It doesn't mean that STGT has the <strong>"kernel quality"</strong>. In fact, STGT as a whole similarly to any other
+				 out-of-tree project lives on its own, hence has its own quality level, which isn't necessary better, than the 
+				 quality level of <strong>SCST</strong>. Actually, from such important aspect of quality as simplicity, it 
+				 might be quite contrary: e.g. SCST isn't required to support HIGHMEM (nowadays it 
+				 isn't necessary, but required for all in-kernel components), which allowed to simplify memory management a lot.</p>	
+	  		</div> 
+	</div>
+</div>		
+
+<!-- footer starts here -->		
+		<div id="footer">
+			<p>
+			&copy; Copyright 2008 <strong>SCST (SCSI Target Middle Level for Linux)</strong>&nbsp;&nbsp;  
+			Design by: <b><font color="#EC981F">Daniel Fernandes</font></b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;		
+			
+			</p>		
+		</div>	
+<!-- footer ends here -->	
+
+</body>
+</html>

@@ -1,0 +1,1101 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta name="Keywords" content="Generic SCSI Target Middle Level for Linux" />
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+<meta name="author" content="Daniel Fernandes"/>
+<meta name="Robots" content="index,follow" />
+<link rel="stylesheet" href="images/Orange.css" type="text/css" />	
+<title>SCST: Generic SCSI Target Middle Level for Linux</title>
+</head>
+
+<body>
+<!-- wrap starts here -->
+<div id="wrap"> 
+	<div id="header">	
+		<div class="logoimg"></div><h1 id="logo"><span class="orange"></span></h1>
+		<h2 id="slogan">SCSI Target Middle Level for Linux</h2>	
+	</div>
+	<div id="menu">
+		<ul>
+			<li id="current"><a href="index.html">Home</a></li>
+			<li><a href="http://www.sourceforge.net/projects/scst">Main</a></li>
+			<li><a href="targets.html">Drivers</a></li>
+			<li><a href="downloads.html">Downloads</a></li>
+			<li><a href="scstvsstgt.html">SCST vs STGT</a></li>			
+		</ul>
+	</div>	
+	<div id="content-wrap">  
+	  		<div id="main">
+				<h1>Generic SCSI Target Middle Level for Linux</h1>
+				<h3>Vladislav Bolkhovitin</h3>
+				<p>Version 0.9.3-pre4 2006/02/07, actual for SCST 0.9.3-pre4 and later</p>  
+				<blockquote><p>This document describes SCSI target mid-level for Linux (SCST), its architecture and drivers from 
+				the driver writer's point of view.</p></blockquote>
+
+				<h3>1. Introduction</h3>
+				<p>SCST is a SCSI target mid-level subsystem for Linux. It is designed to provide unified, consistent interface 
+				between SCSI target drivers and Linux kernel and simplify target drivers development as much as possible.<br> 
+				It has the following features:
+				<ul>
+					<li><span>Very low overhead, fine-grained locks and simplest commands processing path, which allow to reach 
+					maximum possible performance and scalability that close to theoretical limit.</span></li>
+					<li><span>Incoming requests can be processed in the caller's context or in one of the internal SCST's tasklets, 
+					therefore no extra context switches required.</span></li>
+					<li><span>Complete SMP support.</span></li>
+					<li><span>Undertakes most problems, related to execution contexts, thus practically eliminating one of the most 
+					complicated problem in the kernel drivers development. For example, a target driver for QLogic 22xx/23xx cards, 
+					which has all necessary features, is about 2000 lines of code long, that is at least in several times less, than 
+					the initiator one.</span></li>
+					<li><span>Performs all required pre- and post- processing of incoming requests and all necessary error recovery 
+					functionality.</span></li>
+					<li><span>Emulates necessary functionality of SCSI host adapter, because from a remote initiator's point of view 
+					SCST acts as a SCSI host with its own devices.<br>Some of the emulated functions are the following:
+						<ul>
+							<li><span>Generation of necessary UNIT ATTENTIONs, their storage and delivery to all connected remote 
+							initiators (sessions).</span></li>
+							<li><span>RESERVE/RELEASE functionality.</span></li>
+							<li><span>CA/ACA conditions.</span></li>
+							<li><span>All types of RESETs and other task management functions.</span></li>
+							<li><span>REPORT LUNS command as well as SCSI address space management in order to have consistent address 
+							space on all remote initiators, since local SCSI devices could not know about each other to report via 
+							REPORT LUNS command. Additionally, SCST responds with error on all commands to non-existing devices and 
+							provides access control (not implemented yet), so different remote initiators could see different set of 
+							devices.</span></li>
+							<li><span>Other necessary functionality (task attributes, etc.) as specified in <strong>SAM-2, SPC-2, 
+							SAM-3, SPC-3</strong> and other SCSI standards.</span></li>
+						</ul></span></li>
+					<li><span>Device handlers architecture provides extra reliability and security via verifying all incoming 
+					requests and allows to make any additional requests processing, which is completely independent from target 
+					drivers, for example, data caching or device dependent exceptional conditions treatment.</span></li>
+				</ul></p>
+				<p>Interoperability between SCST and local SCSI initiators (like sd, st) is the additional issue that SCST is going 
+				to address (it is not implemented yet). It is necessary, because local SCSI initiators can change the state of the 
+				device, for example RESERVE the device, or some of its parameters and that would be done behind SCST, which could 
+				lead to various problems. Thus, RESERVE/RELEASE commands, locally generated UNIT ATTENTIONs, etc. should be 
+				intercepted and processed as if local SCSI initiators act as remote SCSI initiators connected to SCST. 
+				This feature requires some the kernel modification. Since in the current version it is not implemented, SCST and 
+				the target drivers are able to work with any unpatched 2.4 kernel version.</p>
+				
+				<p>Interface between SCST and the target drivers is based on work, done by University of New Hampshire 
+				Interoperability Labs (UNH IOL).</p>
+				
+				<p>All described below data structures and function could be found in <strong>scsi_tgt.h</strong>.<br> 
+					The SCST's Internet page is <a href="http://scst.sourceforge.net">http://scst.sourceforge.net</a>.</p>
+					
+				<h3>2. Terms and Definitions</h3>
+				<p><strong>SCSI initiator device</strong><br><br>
+				A SCSI device that originates service and task management requests to be processed by a SCSI target device and 
+				receives device service and task management responses from SCSI target devices.</p>
+				<p><strong>SCSI target device</strong><br><br>
+				A SCSI device that receives device service and task management requests for processing and sends device service 
+				and task management responses to SCSI initiator devices or drivers.</p>
+				<p><strong>SCST session</strong><br><br>
+				SCST session is the object that describes relationship between a remote initiator and SCST via a target driver. 
+				All the commands from the remote initiator is passed to SCST in the session. For example, for connection oriented 
+				protocols, like iSCSI, SCST session could be mapped to the TCP connection. SCST session is the close equivalent of 
+				I_T nexus object.</p>
+				<p><strong>Local SCSI initiator</strong><br><br>
+				A SCSI initiator that is located on the same host as SCST subsystem. Examples are sg and st drivers.</p>				
+				<p><strong>Remote SCSI initiator</strong><br><br>
+				A SCSI initiator that is located on the remote host for SCST subsystem and makes client connections to SCST via 
+				SCSI target drivers.</p>
+				<p><strong>Device handler driver</strong><br><br>
+				Also known as <i>"device type specific driver"</i> or <i>"dev handler"</i>, is plugin for SCST, which helps SCST 
+				to analyze incoming requests and determine parameters, specific to various types of devices as well as perform 
+				some processing. See appropriate section for details.</p>
+				
+				<h3>3. SCST Architecture</h3>
+				<p>SCST accepts commands and passes them to SCSI mid-level at the same way as SCSI high-level drivers (sg, sd, st) 
+				do. Figure 1 shows interaction between SCST, its drivers and Linux SCSI subsystem.<br>
+				<img src="images/fig1.png" /><br></p>
+				<p>Interaction between SCST, its drivers and Linux SCSI subsystem.</p>
+				
+				<h3>4. Target driver registration</h3>
+				<p>To work with SCST a target driver must register its template in SCST by calling scst_register_target_template(). 
+				The template lets SCST know the target driver's entry points. It is defined as the following:</p>
+				<h3>4.1 Structure scst_tgt_template</h3>
+				<p><code>struct scst_tgt_template <br />
+					{<br />
+        			int sg_tablesize;<br />
+        			const char name[15];<br />
+					<br />
+        			unsigned unchecked_isa_dma:1;<br />
+        			unsigned use_clustering:1;<br />
+					<br />
+        			unsigned xmit_response_atomic:1;<br /> 
+        			unsigned rdy_to_xfer_atomic:1;<br />
+        			unsigned report_aen_atomic:1;<br />
+					<br />
+        			int (* detect) (struct scst_tgt_template *tgt_template);<br />
+        			int (* release)(struct scst_tgt *tgt);<br />
+					<br />
+        			int (* xmit_response)(struct scst_cmd *cmd);<br />
+        			int (* rdy_to_xfer)(struct scst_cmd *cmd);<br />
+        			<br />
+        			void (*on_free_cmd) (struct scst_cmd *cmd);<br />
+					<br />
+        			void (* task_mgmt_fn_done)(struct scst_mgmt_cmd *mgmt_cmd);<br />
+        			void (* report_aen)(int mgmt_fn, const uint8_t *lun, int lun_len);<br />
+        			<br />
+        			int (*proc_info) (char *buffer, char **start, off_t offset,<br />
+                int length, int *eof, struct scst_tgt *tgt, int inout);<br />
+					}<br />
+				</code>
+				Where:
+				<ul>
+					<li><span><strong>sg_tablesize</strong> - allows checking whether scatter/gather can be used or not and, if yes, sets the 
+					maximum supported count of scatter/gather entries</span></li>
+					<li><span><strong>name</strong> - the name of the template. Must be unique to identify the template. Must be 
+					defined.</span></li>
+					<li><span><strong>unchecked_isa_dma</strong> - true, if this target adapter uses unchecked DMA onto an ISA bus.
+					</span></li>
+					<li><span><strong>use_clustering</strong> - true, if this target adapter wants to use clustering (i.e. smaller 
+					number of segments).</span></li>
+					<li><span><strong>xmit_response_atomic, rdy_to_xfer_atomic</strong> - true, if the corresponding function supports execution in the atomic (non-sleeping) context.</span></li>
+					<li><span><strong>int (* detect) (struct scst_tgt_template *tgt_template)</strong> - this function is intended 
+					to detect the target adapters that are present in the system. Each found adapter should be registered by calling
+					 <strong>scst_register()</strong>. The function should return a value >= 0 to signify the number of detected 
+					 target adapters. A negative value should be returned whenever there is an error. Must be defined.</span></li>
+					<li><span><strong>int (* release)(struct scst_tgt *tgt)</strong> - this function is intended to free up the resources allocated to the device. The function should return 0 to indicate successful release or a negative value if there are some issues with the release. In the current version of SCST the return value is ignored. Must be defined.</span></li>
+					<li><span><strong>int (* xmit_response)(struct scst_cmd *cmd)</strong> - this function is equivalent to the SCSI queuecommand(). The target should transmit the response data and the status in the struct scst_cmd. See below for details. Must be defined.</span></li>
+					<li><span><strong>int (* rdy_to_xfer)(struct scst_cmd *cmd)</strong> - this function informs the driver that 
+					data buffer corresponding to the said command have now been allocated and it is OK to receive data for this 
+					command. This function is necessary because a SCSI target does not have any control over the commands it 
+					receives. Most lower-level protocols have a corresponding function which informs the initiator that buffers have
+					 been allocated e.g., XFER_RDY in Fibre Channel. After the data is actually received the low-level driver should
+					  call <strong>scst_rx_data()</strong> in order to continue processing this command. Returns one of the 
+					  <strong>SCST_TGT_RES_*</strong> constants, described below. Pay attention to "atomic" attribute of the command,
+					   which can be get via <strong>scst_cmd_atomic()</strong>: it is true if the function called in the atomic 
+					   (non-sleeping) context. Must be defined.</span></li>
+					<li><span><strong>void (*on_free_cmd)(struct scst_cmd *cmd)</strong> - this function called to notify the driver
+					 that the command is about to be freed. Necessary, because for aborted commands <strong>xmit_response()</strong> 
+					 could not be called. Could be used on IRQ context. Must be defined.</span></li>
+					<li><span><strong>void (* task_mgmt_fn_done)(struct scst_mgmt_cmd *mgmt_cmd)</strong> - this function informs 
+					the driver that a received task management function has been completed. Completion status could be get via 
+					<strong>scst_mgmt_cmd_get_status()</strong>. No return value expected. Must be defined, if the target supports 
+					task management functionality.</span></li>
+					<li><span><strong>int (* report_aen)(int mgmt_fn, const uint8_t *lun, int lun_len)</strong> - this function is 
+					used for Asynchronous Event Notification. It is the responsibility of the driver to notify any/all initiators 
+					about the Asynchronous Event reported. Returns one of the <strong>SCST_TGT_RES_*</strong> constants, described 
+					below. Must be defined, if low-level protocol supports AEN. This feature is not implemented yet.</span></li>
+					<li><span><strong>int (*proc_info) (char *buffer, char **start, off_t offset, int length, int *eof, struct scst_tgt *tgt, int inout)</strong>
+					statistics and other information to the world outside the kernel.<br>Parameters:
+					<ol>
+   					<li><span><strong>buffer, start, offset, length, eof</strong> - have the same meaning as for read_proc_t function of the kernel</span></li>
+   					<li><span><strong>tgt</strong> - pointer to the target, for which the function is called</span></li>
+   					<li><span><strong>inout</strong> - read/write direction flag, 0 - for reads, other value - for writes</span></li>
+					</ol>
+					If the driver needs to create additional files in its /proc subdirectory, it can use scst_proc_get_tgt_root() 
+					function to get the root proc_dir_entry.</span></li>
+				</ul>
+				</p>
+				<p>Functions <strong>xmit_response(), rdy_to_xfer()</strong> are expected to be non-blocking, i.e. return 
+				immediately and don't wait for actual data transfer to finish. Blocking in such command could negatively impact on 
+				overall system performance. If blocking is necessary, it is worth to consider creating dedicated thread(s) in 
+				target driver, to which the commands would be passed and which would perform blocking operations instead of SCST. 
+				If the function allowed to sleep or not is defined by "atomic" attribute of the cmd that can be get via 
+				<strong>scst_cmd_atomic()</strong>, which is true, if sleeping is not allowed. In this case, if the function 
+				requires sleeping, it can return <strong>SCST_TGT_RES_NEED_THREAD_CTX</strong> in order to be recalled in the 
+				thread context, where sleeping is allowed.</p>
+				<p>Functions <strong>xmit_response(), rdy_to_xfer()</strong> and <strong>report_aen()</strong> can return the 
+				following error codes:
+				<ul>
+					<li><span><strong>SCST_TGT_RES_SUCCESS</strong> - success.</span></li>
+    				<li><span><strong>SCST_TGT_RES_QUEUE_FULL</strong> - internal device queue is full, retry again later.</span></li>
+    				<li><span><strong>SCST_TGT_RES_NEED_THREAD_CTX</strong> - it is impossible to complete requested task in atomic context. 
+    				The command should be restarted in the thread context as described above.</span></li>
+    				<li><span><strong>SCST_TGT_RES_FATAL_ERROR</strong> - fatal error, i.e. it is unable to perform requested 
+    				operation. If returned by <strong>xmit_response()</strong> the command will be destroyed, if by <strong>rdy_to_xfer()</strong>, 
+    				<strong>xmit_response()</strong> will be called with <strong>HARDWARE ERROR</strong> sense data.</span></li>
+				</ul></p>
+				
+				<p><strong>More about xmit_response()</strong><br>
+				As already written above, function <strong>xmit_response()</strong> should transmit the response data and the 
+				status from the cmd parameter. Either it should transmit the data or the status is defined by bits of the value, 
+				returned by <strong>scst_cmd_get_tgt_resp_flags()</strong>.<br>They are:
+				<ul>
+    				<li><span><strong>SCST_TSC_FLAG_DATA</strong> - set if there are data to be sent</span></li>
+    				<li><span><strong>SCST_TSC_FLAG_STATUS</strong> - set if the command is finished and there is status/sense to be sent
+				</ul></p>
+				<p>If <strong>SCST_TSC_FLAG_DATA</strong> is set, the data contained in the buffer, returned by 
+				<strong>scst_cmd_get_buffer()</strong> (pay attention to <strong>scst_cmd_get_use_sg()</strong> for scatter/gather)
+				 with length, returned by <strong>scst_cmd_get_resp_data_len()</strong>. It is recommended to use 
+				 <strong>scst_get_buf_*</strong>()scst_put_buf()/ family of function instead of direct access to the data buffers, 
+				 because they hide all HIGHMEM and SG/plain buffer issues.</p>
+				<p>If <strong>SCST_TSC_FLAG_STATUS</strong> is set the status could be received by the appropriate 
+				<strong>scst_cmd_get_*_status()</strong> functions (see below).</p>
+				<p>The sense, if any, is contained in the buffer, returned by <strong>scst_cmd_get_sense_buffer()</strong>, with 
+				length, returned by <strong>scst_cmd_get_sense_buffer_len()</strong>. SCST always works in <i>autosense mode</i>. 
+				If a low-level SCSI driver/device doesn't support autosense mode, SCST will issue REQUEST SENSE command, if 
+				necessary. Thus, if CHECK CONDITION established, target driver will always see sense in the sense buffer and 
+				isn't required to request the sense manually.</p>
+				<p>It is possible, that <strong>SCST_TSC_FLAG_DATA</strong> is set, but <strong>SCST_TSC_FLAG_STATUS</strong> is 
+				not set. In this case the driver should only transmit the data, but not finish the command and transmit the status.<br>
+				Function <strong>xmit_response()</strong> will be called again either to transmit the status or data once more.</p>
+				<p>After the response is completely sent, the target should call <strong>scst_tgt_cmd_done()</strong> function in 
+				order to allow SCST to free the command.</p>
+				<p>Function <strong>xmit_response()</strong> returns one of the <strong>SCST_TGT_RES_*</strong> constants, 
+				described above. Pay attention to <i>"atomic"</i> attribute of the cmd, which can be get via 
+				<strong>scst_cmd_atomic()</strong>: it is true if the function called in the atomic (non-sleeping) context.</p>
+				
+				<h3>4.2 Target driver registration functions</h3>
+				<p><strong>scst_register_target_template()</strong><br>Function <strong>scst_register_target_template()</strong> is
+				 defined as the following:</p>
+				 <p><code>int scst_register_target_template(<br />
+        					struct scst_tgt_template *vtt)<br />				 
+				 </code></p>
+				 <p>Where:<ul><li><span><strong>vtt</strong> - pointer to the target driver template</span></li></ul></p>
+				 <p>Returns 0 on success or appropriate error code otherwise.</p>
+				 <p><strong>scst_register()</strong><br>Function <strong>scst_register()</strong> is defined as the following:</p>
+				 <p><code>struct scst_tgt *scst_register(<br />
+        					struct scst_tgt_template *vtt)<br />
+				 </code></p>
+				 <p>Where:<ul><li><span><strong>vtt</strong> - pointer to the target driver template</span></li></ul></p>
+				 <p>Returns target structure based on template vtt or NULL in case of error.</p>
+				 
+				 <h3>5. Target driver unregistration</h3>
+				 <p>In order to unregister itself target driver should at first call <strong>scst_unregister()</strong> for all its
+				  adapters and then call <strong>scst_unregister_target_template()</strong> for its template.</p>
+				 
+				 <h3>5.1 scst_unregister()</h3>
+				 <p>Function <strong>scst_unregister()</strong> is defined as the following:</p>
+				 <p><code>void scst_unregister(<br />
+        				struct scst_tgt *tgt)<br />
+				 </code></p>
+			    <p>Where:<ul><li><span><strong>tgt</strong> - pointer to the target driver structure</span></li></ul></p>
+
+				 <h3>5.2 scst_unregister_target_template()</h3> 				
+				 <p>Function <strong>scst_unregister_target_template()</strong> is defined as the following:</p>
+				 <p><code>void scst_unregister_target_template(<br />
+        				struct scst_tgt_template *vtt)<br />
+				 </code></p>
+				 <p>Where:<ul><li><span><strong>vtt</strong> - pointer to the target driver template</span></li></ul></p>
+				 
+				 <h3>6. SCST session registration</h3>
+				 <p>When target driver determines that it needs to create new SCST session (for example, by receiving new TCP 
+				 connection), it should call <strong>scst_register_session()</strong>, that is defined as the following:</p>
+ 				 <p><code>struct scst_session *scst_register_session(<br />
+        							struct scst_tgt *tgt,<br />
+        							int atomic,<br />
+        							const char *initiator_name,<br />
+        							void *data,<br />
+        							void (*result_fn) (<br />
+                				struct scst_session *sess,<br />
+                				void *data, <br />
+                				int result));<br />
+				 </code></p>
+				 <p>Where:<ul>
+				 	<li><span><strong>tgt</strong> - target</span></li>
+    				<li><span><strong>atomic</strong> - true, if the function called in the atomic context</span></li>
+    				<li><span><strong>initiator_name</strong> - remote initiator's name, any NULL-terminated string, e.g. iSCSI name,
+    				 which used as the key to found appropriate access control group. Could be NULL, then "default" group is used. 
+    				 The groups are set up via /proc interface.</span></li>
+					<li><span><strong>data</strong> - data that will be used as the second parameter for bfresult_fn/()/ function</span></li>
+					<li><span><strong>result_fn</strong> - pointer to the function that will be asynchronously called when session 
+					initialization finishes. Can be NULL. Parameters:<ul>
+          			<li><span><strong>sess</strong> - session</span></li>
+          			<li><span><strong>data</strong> - target driver supplied to <strong>scst_register_session()</strong> data</span></li>
+          			<li><span><strong>result</strong> - session initialization result, 0 on success or appropriate error code otherwise</span></li>
+				 </ul></span></li></ul></p>
+				 <p>A session creation and initialization is a complex task, which requires sleeping state, so it can't be fully 
+				 done in interrupt context. Therefore the "bottom half" of it, if <strong>scst_register_session()</strong> is 
+				 called from atomic context, will be done in SCST thread context. In this case <strong>scst_register_session()</strong> 
+				 will return not completely initialized session, but the target driver can supply commands to this session via 
+				 <strong>scst_rx_cmd()</strong>. Those commands processing will be delayed inside SCST until the session 
+				 initialization is finished, then their processing will be restarted. The target driver will be notified about 
+				 finish of the session initialization by function <strong>result_fn()</strong>. On success the target driver could 
+				 do nothing, but if the initialization fails, the target driver must ensure that no more new commands being sent or
+				  will be sent to SCST after <strong>result_fn()</strong> returns.<br>All already sent to SCST commands for failed 
+				  session will be returned in <strong>xmit_response()</strong> with BUSY status. In case of failure the driver 
+				  shall call <strong>scst_unregister_session()</strong> inside <strong>result_fn()</strong>, it will NOT be called 
+				  automatically. Thus, <strong>scst_register_session()</strong> can be called even on IRQ context.</p>				 
+				 <p>Session registration is illustrated on Figure 2 and Figure 3.</p>
+				 <p><img src="images/fig2.png" /><br>Session registration when <strong>atomic</strong> parameter is false<br>
+				 <img src="images/fig3.png" /><br>Session registration when <strong>atomic</strong> parameter is true</p>
+				 
+				 <h3>7. SCST session unregistration</h3>				 
+				 <p>SCST session unregistration basically is the same, except that instead of atomic parameter there is wait one.</p>
+				 <p><code>void scst_unregister_session(<br />
+        						struct scst_session *sess, <br />
+        						int wait,<br />
+        						void (* unreg_done_fn)(<br />
+                				struct scst_session *sess))<br />
+             </code></p>
+				 <p>Where:<ul>
+					<li><span><strong>sess</strong> - session to be unregistered</span></li>
+					<li><span><strong>wait</strong> - if true, instructs to wait until all commands, which currently executing and belonged 
+					to the session, finished. Otherwise, target driver should be prepared to receive <strong>xmit_response()</strong> 
+					for the session after <strong>scst_unregister_session()</strong> returns.</span></li>
+					<li><span><strong>unreg_done_fn</strong> - pointer to the function that will be asynchronously called when the last session's command finishes and the session is about to be completely freed. Can be NULL. Parameter:</span></li>
+          	 		<ul><li><span><strong>sess</strong> - session</span></li>
+				 </ul></span></li></ul></p>
+				 <p>All outstanding commands will be finished regularly. After <strong>scst_unregister_session()</strong> returned 
+				 no new commands must be sent to SCST via <strong>scst_rx_cmd()</strong>. Also, the caller must ensure that no 
+				 <strong>scst_rx_cmd()</strong> or <strong>scst_rx_mgmt_fn_*()</strong> is called in paralell with 
+				 <strong>scst_unregister_session()</strong>.</p>
+				 <p>Function <strong>scst_unregister_session()</strong> can be called before <strong>result_fn()</strong> of 
+				 <strong>scst_register_session()</strong> called, i.e. during the session registration/initialization.</p>
+				 
+				 <h3>8. The commands processing and interaction between SCST and its drivers</h3>				 
+				 <p>The commands processing by SCST started when target driver calls <strong>scst_rx_cmd()</strong>. This function 
+				 returns SCST's command. Then the target driver finishes the command's initialization, if necessary, for example, 
+				 storing necessary target driver specific data there, and calls <strong>scst_cmd_init_done()</strong> telling SCST 
+				 that it can start the processing. Then SCST translates the command's LUN to local device, determines the command's
+				  data direction and required data buffer size by calling appropriate device handler's <strong>parse()</strong> 
+				 function.<br>Then:<ul>
+					<li><span>If the command required no data transfer, it will be passed to SCSI mid-level directly or 
+					via device handler's <strong>exec()</strong> call.</span></li>
+					<li><span>If the command is <strong>READ</strong> command (data to the target), necessary space will be 
+					allocated and then the command will be passed to SCSI mid-level directly or via device handler's 
+					<strong>exec()</strong> call.</span></li>
+					<li><span>If the command is <strong>WRITE</strong> command (data from the target), necessary space will be 
+					allocated, then the target's <strong>rdy_to_xfer()</strong> function will be called, telling the target that 
+					the space is ready and it can start data transferring. When all the data are read from the target, it will call 
+					<strong>scst_rx_data()</strong>, and the command will be passed to SCSI mid-level directly or via device 
+					handler's <strong>exec()</strong> call.</span></li>
+				 </ul></p>
+				 <p>When the command is finished by SCSI mid-level, device handler's <strong>dev_done()</strong> is called to 
+				 notify it about the command's completion. Then in order to send the response the target's <strong>xmit_response() 
+				 </strong>is called. When the response, including data, if any, is transmitted, the target will call 
+				 <strong>scst_tgt_cmd_done()</strong> telling SCST that it can free the command and its data buffer.</p>
+				 <p>Then during the command's deallocation device handler's and the target's <strong>on_free_cmd()</strong> will be 
+				 called in this order, if set.</p>
+				 <p>This sequence is illustrated on Figure 4. To simplify the picture, sign "..." means SCST's waiting state for 
+				 the corresponding command to complete. During this state SCST and its drivers continue processing of other 
+				 commands, if there are any. One way arrow, for example to <strong>xmit_response()</strong>, means that after this 
+				 function returns, nothing valuable for the current command will be done and SCST goes sleeping or to the next 
+				 command processing until corresponding event happens.</p>
+				 <p><img src="images/fig4.png" /><br>The commands processing flow</p>
+				 <p>Additionally, before calling <strong>scst_cmd_init_done()</strong> the target driver can set the following the 
+				 command's flags or parameters:<ul>
+					<li><span><strong>DATA_BUF_ALLOCED</strong> - set if the data buffer is already allocated. The flag is set via 
+					<strong>scst_cmd_set_data_buff_alloced()</strong> and get via <strong>scst_cmd_get_data_buff_alloced()</strong>.
+					 Useful, for instance, for iSCSI unsolicited data.</span></li>
+					<li><span>Expected transfer length and direction via <strong>scst_cmd_set_expected()</strong> as supplied by 
+					remote initiator, if any. This values will be used only if the command's opcode is unknown for SCST, for example 
+					for vendor-specific commands. If these values not set and opcode isn't known, the command will be completed by 
+					SCST in preprocessing phase with INVALID OPCODE sense.</span></li>
+				</ul></p>
+
+				<h3>8.1 The commands processing functions</h3>
+				<p><strong>scst_rx_cmd()</strong></p>
+				<p>Function <strong>scst_rx_cmd()</strong> creates and sends new command to SCST. Returns the command on success 
+				or NULL otherwise. It is defined as the following:</p>
+				<p><code>struct scst_cmd *scst_rx_cmd(<br />
+        				struct scst_session *sess, <br />
+        				const uint8_t *lun, <br />
+        				int lun_len,<br />
+        				const uint8_t *cdb, <br />
+        				int cdb_len, <br />
+        				int atomic)<br />
+				</code></p>
+				<p>Where:<ul>
+					<li><span><strong>sess</strong> - SCST's session</span></li>
+					<li><span><strong>lun</strong> - pointer to device's LUN as specified in SCSI Architecture Model 2/3 without 
+					any byte order translation. Extended addressing method is not supported.</span></li>
+					<li><span><strong>lun_len</strong> - LUN's length</span></li>
+					<li><span><strong>cdb</strong> - SCSI CDB</span></li>
+					<li><span><strong>cdb_len</strong> - CDB's length</span></li>
+					<li><span><strong>atomic</strong> - if true, the command will be allocated with GFP_ATOMIC flag, otherwise GFP_KERNEL will be used</span></li>
+				</ul></p>
+
+				<p><strong>scst_cmd_init_done()</strong></p>
+				<p>Function <strong>scst_cmd_init_done()</strong> notifies SCST that the driver finished its part of the command 
+				initialization, and the command is ready for execution. It is defined as the following:</p>
+				<p><code>void scst_cmd_init_done(<br />
+        				struct scst_cmd *cmd, <br />
+        				int pref_context)<br />
+				</code></p>
+				<p>Where:<ul>
+    				<li><span><strong>cmd</strong> - the command</span></li>
+					<li><span><strong>pref_context</strong> - preferred command execution context. See <strong>SCST_CONTEXT_*</strong> 
+					constants below for details.</span></li>
+				</ul></p>
+				<p><strong>scst_rx_data()</strong></p>
+				<p>Function <strong>scst_rx_data()</strong> notifies SCST that the driver received all the necessary data and the 
+				command is ready for further processing. It is defined as the following:</p>
+				<p><code>void scst_rx_data(<br />
+        						struct scst_cmd *cmd, <br />
+        						int status,<br />
+        						int pref_context)<br />
+				</code></p>
+				<p>Where:<ul>
+					<li><span><strong>cmd</strong> - the command</span></li>
+					<li><span><strong>status</strong> - completion status, see below.</span></li>
+					<li><span><strong>pref_context</strong> - preferred command execution context. See <strong>SCST_CONTEXT_*</strong> constants below for details.</span></li>
+				</ul></p>
+				<p>Parameter <strong>status</strong> can have one of the following values:<ul>    
+					<li><span><strong>SCST_RX_STATUS_SUCCESS</strong> - success</span></li>
+					<li><span><strong>SCST_RX_STATUS_ERROR</strong> - data receiving finished with error, so SCST should set the sense and finish the command by calling <strong>xmit_response()</strong></span></li>
+					<li><span><strong>SCST_RX_STATUS_ERROR_SENSE_SET</strong> - data receiving finished with error and the sense is set, so SCST should finish the command by calling <strong>xmit_response()</strong></span></li>
+					<li><span><strong>SCST_RX_STATUS_ERROR_FATAL</strong> - data receiving finished with fatal error, so SCST should finish the command, but don't call <strong>xmit_response()</strong>. In this case the driver must free all associated with the command data before calling <strong>scst_rx_data()</strong>.</span></li>
+				</ul></p>
+					
+				<p><strong>scst_tgt_cmd_done()</strong></p>
+				<p>Function <strong>scst_tgt_cmd_done()</strong> notifies SCST that the driver sent the data and/or response. It 
+				must not been called if there are an error and <strong>xmit_response()</strong> returned something other, than 
+				<strong>SCST_TGT_RES_SUCCESS</strong>. It is defined as the following:</p>
+				<p><code>void scst_tgt_cmd_done(<br />
+        				struct scst_cmd *cmd)<br />
+				</code></p>
+				<p>Where:<ul><li><span><strong>cmd</strong> - the command</span></li></ul></p>
+
+				<h3>8.2 The commands processing context</h3>
+				<p>Execution context often is a major problem in the kernel drivers development, because many contexts, like IRQ 
+				one, greatly limit available functionality, therefore require additional complex code in order to pass processing 
+				to more simple context. SCST does its best to undertake most of the context handling.</p>
+				<p>On the initialization time SCST creates for internal command processing as many threads as there are processors 
+				in the system or specified by user via <strong>scst_threads</strong> module parameter. Similarly, as many tasklets 
+				created as there are processors in the system.</p>
+				<p>Each command can be processed in one of four contexts:</p>
+				<p><ol>
+					<li><span>Directly, i.e. in the caller's context, without limitations</span></li>
+					<li><span>Directly atomically, i.e. with sleeping forbidden</span></li>
+					<li><span>In the SCST's internal per processor or per session thread</span></li>
+					<li><span>In the SCST's per processor tasklet</span></li>
+				</ol></p>
+				<p>The target driver sets this context as pref_context parameter for <strong>scst_cmd_init_done()</strong> and 
+				<strong>scst_rx_data()</strong>. Additionally, target's template's <strong>xmit_response_atomic</strong> and 
+				<strong>rdy_to_xfer_atomic</strong> flags have direct influence on the context. If one of them is false, the 
+				corresponding function will never be called in the atomic context and, if necessary, the command will be 
+				rescheduled to one of the SCST's threads.</p>
+				<p>SCST in some circumstances can change preferred context to less restrictive one, for example, for large data 
+				buffer allocation, if there is not enough GFP_ATOMIC memory.</p>
+				<p><strong>Preferred context constants</strong></p>
+				<p>There are the following preferred context constants:</p>
+				<p><ul>
+					<li><span><strong>SCST_CONTEXT_DIRECT</strong> - sets direct command processing (i.e. regular function calls in the current context) sleeping is allowed, no context restrictions. Supposed to be used when calling from thread context where no locks are held and the driver's architecture allows sleeping without performance degradation or anything like that.</span></li>
+					<li><span><strong>SCST_CONTEXT_DIRECT_ATOMIC</strong> - sets direct command processing (i.e. regular function calls in the current context), sleeping is not allowed. Supposed to be used when calling on thread context where there are locks held, when calling on softirq context or the driver's architecture does not allow sleeping without performance degradation or anything like that.</span></li>
+					<li><span><strong>SCST_CONTEXT_TASKLET</strong> - tasklet or thread context required for the command processing. Supposed to be used when calling from IRQ context.</span></li>
+					<li><span><strong>SCST_CONTEXT_THREAD</strong> - thread context required for the command processing. Supposed to be used if the driver's architecture does not allow using any of above.</span></li>
+				</ul></p>
+
+				<h3>9. Task management functions</h3>
+				<p>There are the following task management functions supported:</p>
+				<p><ul>
+					<li><span><strong>SCST_ABORT_TASK</strong> - ABORT_TASK task management function, aborts the specified task (command). Returns completion status via task_mgmt_fn_done() when the command (task) is actually aborted.</span></li>
+					<li><span><strong>SCST_ABORT_TASK_SET</strong> - ABORT_TASK_SET task management function, aborts all tasks (commands) on the specified device. Returns the success via task_mgmt_fn_done() immediately, not waiting for the commands being actually aborted.</span></li>
+					<li><span><strong>SCST_CLEAR_ACA</strong> - CLEAR_ACA task management function, currently does nothing.</span></li>
+					<li><span><strong>SCST_CLEAR_TASK_SET</strong> - CLEAR_TASK_SET task management function, the same as SCST_ABORT_TASK_SET.</span></li>
+					<li><span><strong>SCST_LUN_RESET</strong> - LUN_RESET task management function, implemented via scsi_reset_provider() call for the specified device with SCSI_TRY_RESET_DEVICE parameter.</span></li>
+					<li><span><strong>SCST_TARGET_RESET</strong> - TARGET_RESET task management function, implemented via scsi_reset_provider() call for all the hosts in the system (one device per each host) with SCSI_TRY_RESET_BUS parameter at first and then, if failed, with SCSI_TRY_RESET_HOST.</span></li>
+				</ul></p>
+
+				<h3>9.1 scst_rx_mgmt_fn_tag()</h3>
+				<p>Function <strong>scst_rx_mgmt_fn_tag()</strong> tells SCST to perform the specified task management function, 
+				based on the command's tag. Can be used only for <strong>SCST_ABORT_TASK</strong>.</p>
+				<p>It is defined as the following:</p>
+				<p><code>int scst_rx_mgmt_fn_tag(<br />struct scst_session *sess,<br />int fn,<br />uint32_t tag,<br />
+					int atomic,<br />void *tgt_specific)<br /></code></p>
+				<p>Where:<ul>
+					<li><span><strong>sess</strong> - the session, on which the command should be performed.</span></li>
+					<li><span><strong>fn</strong> - task management function, one of the constants above.</span></li>
+					<li><span><strong>tag</strong> - the command's tag.</span></li>
+					<li><span><strong>atomic</strong> - true, if the function called in the atomic context.</span></li>
+					<li><span><strong>tgt_specific</strong> - pointer to the target driver specific data, can be retrieved in 
+					<strong>task_mgmt_fn_done()</strong> via <strong>scst_mgmt_cmd_get_status()</strong> function.</span></li>
+				</ul>
+				Returns 0 if the command was successfully created and scheduled for execution, error code otherwise. On success, 
+				the completion status of the command will be reported asynchronously via <strong>task_mgmt_fn_done()</strong> 
+				driver's callback.</p>
+				
+				<h3>9.2 scst_rx_mgmt_fn_lun()</h3>
+				<p>Function <strong>scst_rx_mgmt_fn_lun()</strong> tells SCST to perform the specified task management function, 
+				based on the LUN. Currently it can be used for any function, except <strong>SCST_ABORT_TASK</strong>.</p>
+				<p>It is defined as the following:</p>
+				<p><code>int scst_rx_mgmt_fn_lun(<br />struct scst_session *sess,<br />int fn,<br />const uint8_t *lun,<br /> 
+        			int lun_len,<br />int atomic, <br />void *tgt_specific);<br /></code></p>
+
+				<p>Where:<ul><li><span><strong>sess</strong> - the session, on which the command should be performed.</span></li>
+    			 <li><span><strong>fn</strong> - task management function, one of the constants above.</span></li>
+    			 <li><span><strong>lun</strong> - LUN, the format is the same as for <strong>scst_rx_cmd()</strong>.</span></li>
+    			 <li><span><strong>lun_len</strong> - LUN's length.</span></li>
+    			 <li><span><strong>atomic</strong> - true, if the function called in the atomic context.</span></li>
+    			 <li><span><strong>tgt_specific</strong> - pointer to the target driver specific data, can be retrieved in <strong>task_mgmt_fn_done()</strong> via <strong>scst_mgmt_cmd_get_status()</strong> function.</span></li>
+				</ul>
+				Returns 0 if the command was successfully created and scheduled for execution, error code otherwise. On success, 
+				the completion status of the command will be reported asynchronously via <strong>task_mgmt_fn_done()</strong> 
+				driver's callback.</p>
+				
+				<h3>10. Device specific drivers (device handlers)</h3>
+				<p>Device specific drivers are plugins for SCST, which help SCST to analyze incoming requests and determine 
+				parameters, specific to various types of devices. Device handlers are intended for the following:</p>
+				<p><ul>
+    				<li><span>To get data transfer length and direction directly from CDB and current device's configuration exactly as an end-target SCSI device does. This serves two purposes:<ul>
+          			<li><span>Improves security and reliability by not trusting the data supplied by remote initiator via SCSI low-level protocol.</span></li>
+          			<li><span>Some low-level SCSI protocols don't provide data transfer length and direction, so that information can be get only directly from CDB and current device's configuration. For example, for tape devices to get data transfer size it might be necessary to know block size setting.</span></li>
+    				</ul></span></li>
+    				<li><span>To process some exceptional conditions, like ILI on tape devices.</span></li>
+    				<li><span>To initialize incoming commands with some device-specific parameters, like timeout value.</span></li>
+    				<li><span>To allow some additional device-specific commands pre-, post- processing or alternative execution, like copying data from system cache, and do that completely independently from target drivers.</span></li>
+				</ul></p>
+				<p>Device handlers performs very lightweight processing and therefore should not considerably affect performance 
+				or CPU load. They are considered to be part of SCST, so they could directly access any fields in SCST's structures
+				 as well as use the corresponding functions.</p>
+				<p>Without appropriate device handler SCST hides devices of this type from remote initiators and returns 
+				<br><strong>HARDWARE ERROR</strong> sense data to any requests to them.</p>
+				
+				<h3>10.1 Device specific driver registration</h3>
+				<p><strong>scst_register_dev_driver()</strong></p>
+				<p>To work with SCST a device specific driver must register itself in SCST by calling 
+				<strong>scst_register_dev_driver()</strong>. It is defined as the following:</p>
+				<p><code>int scst_register_dev_driver(<br />struct scst_dev_type *dev_type)<br /></code></p>
+
+				<p>Where:<ul><li><span><strong>dev_type</strong> - device specific driver's description structure</span></li></ul>
+				The function returns 0 on success or appropriate error code otherwise.</p>
+				
+				<h3>Structure scst_dev_type</h3>
+				<p>Structure <strong>scst_dev_type</strong> is defined as the following:</p>
+				<p><code>struct scst_dev_type<br />{<br />char name[15];<br />int type;<br /><br />unsigned parse_atomic:1;<br />
+        		unsigned exec_atomic:1;<br />unsigned dev_done_atomic:1;<br /><br />int (*init) (struct scst_dev_type *dev_type);<br />
+        		void (*release) (struct scst_dev_type *dev_type);<br /><br />int (*attach) (struct scst_device *dev);<br />
+        		void (*detach) (struct scst_device *dev);<br /><br />int (*attach_tgt) (struct scst_tgt_device *tgt_dev);<br />
+        		void (*detach_tgt) (struct scst_tgt_device *tgt_dev);<br /><br />int (*parse) (struct scst_cmd *cmd);<br />
+        		int (*exec) (struct scst_cmd *cmd, <br />void (*scst_cmd_done)(struct scsi_cmnd *cmd, int next_state));<br />
+        		int (*dev_done) (struct scst_cmd *cmd);<br />int (*task_mgmt_fn) (struct scst_mgmt_cmd *mgmt_cmd, <br />
+                struct scst_tgt_dev *tgt_dev, struct scst_cmd *cmd_to_abort);<br />int (*on_free_cmd) (struct scst_cmd *cmd);<br /><br />
+        		<br />int (*proc_info) (char *buffer, char **start, off_t offset,<br />
+                int length, int *eof, struct scst_dev_type *dev_type,<br />int inout)<br /><br />struct module *module;<br />
+				}<br />
+				</code></p>
+
+				<p>Where:<ul>
+				 <li><span><strong>name</strong> - the name of the device handler. Must be defined and unique</span></li>
+ 				 <li><span><strong>type</strong> - SCSI type of the supported device. Must be defined.</span></li>
+				 <li><span><strong>parse_atomic, exec_atomic, dev_done_atomic</strong> - true, if corresponding function supports execution in the atomic (non-sleeping) context</span></li>
+				 <li><span><strong>int (*init) (struct scst_dev_type *dev_type)</strong> - called on the device handler load, before the first attach(). Returns 0 on success, error code otherwise.</span></li>
+				 <li><span><strong>void (*release) (struct scst_dev_type *dev_type)</strong> - called on the device handler unload, after final detach()</span></li>
+				 <li><span><strong>int (*attach) (struct scst_device *dev)</strong> - called when new device is attaching to the device handler</span></li>
+				 <li><span><strong>void (*detach) (struct scst_device *dev)</strong> - called when new device is detaching from the device handler</span></li>
+				 <li><span><strong>int (*attach_tgt) (struct scst_tgt_device *tgt_dev)</strong> - called when new tgt_device (session) is attaching to the device handler</span></li>
+				 <li><span><strong>void (*detach_tgt) (struct scst_tgt_device *tgt_dev)</strong> - called when tgt_device (session) is detaching from the device handler</span></li>
+				 <li><span><strong>int (*parse) (struct scst_cmd *cmd, const struct scst_info_cdb *cdb_info)</strong> - called to parse CDB from the command. It should initialize <strong>cmd->bufflen</strong> and <strong>cmd->data_direction</strong> (see below <strong>SCST_DATA_*</strong> constants) if necessary, otherwise defaults based on <strong>cdb_info</strong> will be used. Parameter <strong>cdb_info</strong> provides some info about the CDB (see below). Pay attention to "atomic" attribute of the cmd, which can be via by <strong>scst_cmd_atomic()</strong>: it is true if the function called in the atomic (non-sleeping) context. Returns the command's next state or <strong>SCST_CMD_STATE_DEFAULT</strong>, if the next default state should be used, or <strong>SCST_CMD_STATE_NEED_THREAD_CTX</strong> if the function called in atomic context, but requires sleeping. In the last case, the function will be recalled in the thread context, where sleeping is allowed. Additionally, <strong>SCST_CMD_DATA_BUF_ALLOCED</strong> flag can be set by <strong>parse()</strong> (see above). Must be defined.</span></li>
+				 <li><span><strong>int (*exec) (struct scst_cmd *cmd, void (*scst_cmd_done)( struct scst_cmd *cmd, int next_state))</strong> - called to execute CDB. The result of the CDB execution is reported via <strong>scst_cmd_done()</strong> callback. Pay attention to "atomic" attribute of the command, which can be get via <strong>scst_cmd_atomic()</strong>: it is true if the function called in the atomic (non-sleeping) context. For <strong>scst_cmd_done()</strong> parameter <strong>next_state</strong> is the command's next state or <strong>SCST_CMD_STATE_DEFAULT</strong>, if the next default state should be used. Using this function modules <strong>devdisk_perf</strong> and <strong>devtape_perf</strong> were implemented. These modules in their <strong>exec()</strong> method skip (pretend to execute) all READ and WRITE operations and thus allow direct link performance measurements without overhead of actual data transferring from/to underlying SCSI device. See also <strong>scst_is_cmd_local()</strong> below. Returns:
+    			<ul>
+					<li><span><strong>SCST_EXEC_COMPLETED</strong> - the command is done, go to other ones</span></li>
+				 	<li><span><strong>SCST_EXEC_NEED_THREAD</strong> - thread context is required to execute the command. <strong>Exec()</strong> will be called again in the thread context.</span></li>
+					<li><span><strong>SCST_EXEC_NOT_COMPLETED</strong> - the command should be sent to SCSI mid-level.</span></li>
+				</ul></span></li>
+				<li><span><strong>int (*dev_done) (struct scst_cmd *cmd)</strong> - called to notify device handler about the result of the command's execution and perform some post processing. If <strong>parse()</strong> function is called, <strong>dev_done()</strong> is guaranteed to be called as well. The command's fields <strong>tgt_resp_flags</strong> and <strong>resp_data_len</strong> should be set by this function, but SCST offers good defaults. Pay attention to "atomic" attribute of the command, which can be get via <strong>scst_cmd_atomic()</strong>: it is true if the function called in the atomic (non-sleeping) context. Returns the command's next state or <strong>SCST_CMD_STATE_DEFAULT</strong>, if the next default state should be used, or <strong>SCST_CMD_STATE_NEED_THREAD_CTX</strong> if the function called in atomic context, but requires sleeping. In the last case, the function will be recalled in the thread context, where sleeping is allowed.</span></li>
+				<li><span><strong>int (*task_mgmt_fn) (struct scst_mgmt_cmd *mgmt_cmd, struct scst_tgt_dev *tgt_dev, struct scst_cmd *cmd_to_abort)</strong> - called to execute a task management command. Returns:
+    			<ul>
+          		<li><span><strong>SCST_DEV_TM_COMPLETED_SUCCESS</strong> - the command is done with success, no firther actions required</span></li>
+          		<li><span><strong>SCST_DEV_TM_COMPLETED_FAILED</strong> - the command is failed, no firther actions required</span></li>
+          		<li><span><strong>SCST_DEV_TM_NOT_COMPLETED</strong> - regular standard actions for the command should be done</span></li>
+          	</ul><strong>NOTE</strong>: for <strong>SCST_ABORT_TASK</strong> called under spinlock</span></li>
+				<li><span><strong>void (*on_free_cmd) (struct scst_cmd *cmd)</strong> - called to notify device handler that the command is about to be freed. Could be called on IRQ context.</span></li>
+				<li><span><strong>int (*proc_info) (char *buffer, char **start, off_t offset, int length, int *eof, struct scst_dev_type *dev_type, int inout)</strong> - this function can be used to export the handler's statistics and other information to the world outside the kernel. Parameters:
+				<ol>        
+         	<li><span><strong>buffer, start, offset, length, eof</strong> - have the same meaning as for <strong>read_proc_t</strong> function of the kernel</span></li>
+         	<li><span><strong>dev_type</strong> - pointer to the device handler, for which the function is called</span></li>
+         	<li><span><strong>inout</strong> - read/write direction flag, 0 - for reads, other value - for writes</span></li>
+         	</ol>
+      		If the driver needs to create additional files in its /proc subdirectory, it can use <strong>scst_proc_get_dev_type_root()</strong> function to get the root proc_dir_entry.</span></li>
+				<li><span><strong>struct module *module</strong> - pointer to device handler's module</span></li>
+				</ul></p>				
+				
+				<p>Structure <strong>scst_info_cdb</strong> is defined as the following:</p>
+				<p><code>struct scst_info_cdb<br />{<br />enum scst_cdb_flags flags;<br />scst_data_direction direction;<br />unsigned int transfer_len;<br />
+        		unsigned short cdb_len;<br />const char *op_name;<br />}<br /></code></p>
+        		
+				<p>Where:<ul><li><span><strong>flags</strong> - CDB's flags can be (OR'ed):<ul>
+          		 	<li><span><strong>SCST_TRANSFER_LEN_TYPE_FIXED</strong> - set if data length in CDB set in blocks</span></li>
+          		 	<li><span><strong>SCST_SMALL_TIMEOUT</strong> - set if CDB requires small timeout</span></li>
+          		 	<li><span><strong>SCST_LONG_TIMEOUT</strong> - set if CDB requires long timeout</span></li>
+          		 	</ul></span></li>
+    				 <li><span><strong>direction</strong> - one of the <strong>SCST_DATA_*</strong> constants (see below)</span></li>
+    				 <li><span><strong>transfer_len</strong> - CDB's data length as set in CDB</span></li>
+   				 <li><span><strong>cdb_len</strong> - CDB's length</span></li>
+   				 <li><span><strong>op_name</strong> - the name of the command</span></li>
+   			</ul></p>
+				<p>Field <strong>cmd->data_direction</strong>, set by <strong>parse()</strong>, can have one of the following values:</p>
+				<p><ul>
+					<li><span><strong>SCST_DATA_UNKNOWN</strong> - data flow direction is unknown</span></li>
+					<li><span><strong>SCST_DATA_WRITE</strong> - data flow direction is <strong>WRITE</strong> (from target to initiator)</span></li>
+					<li><span><strong>SCST_DATA_READ</strong> - data flow direction is <strong>READ</strong> (from initiator to target)</span></li>
+					<li><span><strong>SCST_DATA_NONE</strong> - there is no data transfer</span></li>
+    			</ul></p>
+
+
+				<h3>10.2 Device specific driver unregistration</h3>
+				<p>Device specific driver is unregistered by calling <strong>scst_unregister_dev_driver()</strong>. It is defined 
+				as the following:</p>
+				<p><code>void scst_unregister_dev_driver(<br />struct scst_dev_type *dev_type)<br /></code></p>
+				<p>Where:<ul><li><span><strong>dev_type</strong> - device specific driver's description structure</span></li></ul></p>
+
+				<h3>11. SCST commands' states</h3>
+				<p>There are the following states, which a SCST command passes through during execution and which could be 
+				returned by device handler's <strong>parse()</strong> and <strong>dev_done()</strong> (but not all states are 
+				allowed to be returned):</p>
+				<p><ul>
+    			<li><span><strong>SCST_CMD_STATE_INIT_WAIT</strong> - the command is created, but <strong>scst_cmd_init_done()</strong> not called</span></li>
+				<li><span><strong>SCST_CMD_STATE_INIT</strong> - LUN translation (i.e. <strong>cmd->tgt_dev</strong> assignment) state</span></li>
+				<li><span><strong>SCST_CMD_STATE_REINIT</strong> - again LUN translation, used if device handler wants to restart the command on another LUN</span></li>
+				<li><span><strong>SCST_CMD_STATE_DEV_PARSE</strong> - device handler's <strong>parse()</strong> is going to be called</span></li>
+				<li><span><strong>SCST_CMD_STATE_PREPARE_SPACE</strong> - allocation of the command's data buffer</span></li>
+				<li><span><strong>SCST_CMD_STATE_RDY_TO_XFER</strong> - target driver's <strong>rdy_to_xfer()</strong> is going to be called</span></li>
+				<li><span><strong>SCST_CMD_STATE_DATA_WAIT</strong> - waiting for data from the initiator (until <strong>scst_rx_data()</strong> called)</span></li>
+				<li><span><strong>SCST_CMD_STATE_SEND_TO_MIDLEV</strong> - the command is going to be sent to SCSI mid-level for execution</span></li>
+				<li><span><strong>SCST_CMD_STATE_EXECUTING</strong> - waiting for the command's execution finish</span></li>
+				<li><span><strong>SCST_CMD_STATE_DEV_DONE</strong> - device handler's <strong>dev_done()</strong> is going to be called</span></li>
+				<li><span><strong>SCST_CMD_STATE_XMIT_RESP</strong> - target driver's <strong>xmit_response()</strong> is going to be called</span></li>
+				<li><span><strong>SCST_CMD_STATE_XMIT_WAIT</strong> - waiting for data/response's transmission finish (until <strong>scst_tgt_cmd_done()</strong> called)</span></li>
+				<li><span><strong>SCST_CMD_STATE_FINISHED</strong> - the command finished and going to be freed</span></li>
+				</ul></p>
+				
+				<h3>12. SCST's structures manipulation functions</h3>
+				<p>Target drivers must not directly access any fields in SCST's structures, they must use only described below 
+				functions.</p>
+				
+				<h3>12.1 SCST target driver manipulation functions</h3>
+				<p><strong>scst_tgt_get_tgt_specific() and scst_tgt_set_tgt_specific()</strong></p>
+				<p>Function <strong>scst_tgt_get_tgt_specific()</strong> returns pointer to the target driver specific data, set 
+				by <strong>scst_tgt_set_tgt_specific()</strong>. It is defined as the following:</p>
+				<p><code>void *scst_tgt_get_tgt_specific(<br />struct scst_tgt *tgt)<br /></code></p>
+				<p>Function <strong>scst_tgt_set_tgt_specific()</strong> stores the target driver specific data that could be 
+				retrieved later by <strong>scst_tgt_get_tgt_specific()</strong>. It is defined as the following:</p>
+				<p><code>void scst_tgt_set_tgt_specific(<br />struct scst_tgt *tgt,<br />void *val)<br /></code></p>
+				<p>Where:<ul><li><span><strong>tgt</strong> - pointer to the SCST target structure</span></li>
+    					   	 <li><span><strong>val</strong> - pointer to the target driver specific data</span></li></ul></p>
+
+				<h3>12.2 SCST session manipulation functions</h3>
+				<p><strong>scst_sess_get_tgt_specific() and scst_sess_set_tgt_specific()</strong></p>
+				<p>Function <strong>scst_sess_get_tgt_specific()</strong> returns pointer to the target driver specific data, set 
+				by <strong>scst_sess_set_tgt_specific()</strong>. It is defined as the following:</p>
+				<p><code>void *scst_sess_get_tgt_specific(<br />struct scst_session *sess)<br /></code></p>
+				<p>Function <strong>scst_sess_set_tgt_specific()</strong> stores the target driver specific data that could be 
+				retrieved later by <strong>scst_sess_set_tgt_specific()</strong>. It is defined as the following:</p>
+				<p><code>void scst_sess_set_tgt_specific(<br />struct scst_session *sess,<br />void *val)<br /></code></p>
+				<p>Where:<ul><li><span><strong>sess</strong> - pointer to the SCST session structure</span></li>
+    							 <li><span><strong>val</strong> - pointer to the target driver specific data</span></li></ul></p>
+
+				<h3>12.3 SCST command manipulation functions</h3>
+				<p><strong>scst_cmd_atomic()</strong></p>
+				<p>Function <strong>scst_cmd_atomic()</strong> returns true if the command is being executed in the atomic context
+				 or false otherwise. It is defined as the following:</p>
+				<p><code>int scst_cmd_atomic(<br />
+        			struct scst_cmd *cmd)<br />
+				</code></p>
+				<p>Where:<ul><li><span><strong>cmd</strong> - pointer to the command</span></li></ul>
+				
+				<p><strong>scst_cmd_get_session()</strong></p>
+				<p>Function <strong>scst_cmd_get_session()</strong> returns the command's session. It is defined as the following:</p>
+				<p><code>struct scst_session *scst_cmd_get_session(<br />
+        			struct scst_cmd *cmd)<br />
+				</code></p>
+				<p>Where:<ul><li><span><strong>cmd</strong> - pointer to the command</span></li></ul>
+				
+				<p><strong>scst_cmd_get_resp_data_len()</strong></p>
+				<p>Function <strong>scst_cmd_get_resp_data_len()</strong> returns the command's response data length. It is 
+				defined as the following:</p>
+				<p><code>unsigned int scst_cmd_get_resp_data_len(<br />
+        			struct scst_cmd *cmd)<br />
+				</code></p>
+				<p>Where:<ul><li><span><strong>cmd</strong> - pointer to the command</span></li></ul>
+				
+				<p><strong>scst_cmd_get_tgt_resp_flags()</strong></p>
+				<p>Function <strong>scst_cmd_get_tgt_resp_flags()</strong> returns the command's response data response flags 
+				(SCST_TSC_FLAG_* constants). It is defined as the following:</p>
+				
+				<p><code>int scst_cmd_get_tgt_resp_flags(<br />
+        			struct scst_cmd *cmd)<br />
+				</code></p>
+				<p>Where:<ul><li><span><strong>cmd</strong> - pointer to the command</span></li></ul>
+
+				<p><strong>scst_cmd_get_buffer()</strong></p>
+				<p>Function <strong>scst_cmd_get_buffer()</strong> returns the command's data buffer. It is defined as the following:</p>
+				<p><code>void *scst_cmd_get_buffer(<br />
+        				struct scst_cmd *cmd)<br />
+				</code></p>
+				<p>Where:<ul><li><span><strong>cmd</strong> - pointer to the command</span></li></ul>
+
+				<p>It is recommended to use <strong>scst_get_buf_*()scst_put_buf()</strong>/ family of function instead of direct access to the data buffers, because they hide all HIGHMEM and SG/plain buffer issues.</p>
+				<p><strong>scst_cmd_get_bufflen()</strong></p>
+				<p>Function <strong>scst_cmd_get_bufflen()</strong> returns the command's data buffer length. It is defined as the following:</p>
+				<p><code>unsigned int scst_cmd_get_bufflen(<br />
+        			struct scst_cmd *cmd)<br />
+				</code></p>
+				<p>Where:<ul><li><span><strong>cmd</strong> - pointer to the command</span></li></ul>
+
+				<p>It is recommended to use <strong>scst_get_buf_*()scst_put_buf()</strong>/ family of function instead of direct 
+				access to the data buffers, because they hide all HIGHMEM and SG/plain buffer issues.</p>
+
+				<p><strong>scst_cmd_get_use_sg()</strong></p>
+				<p>Function <strong>scst_cmd_get_use_sg()</strong> returns the command's use_sg value. Its meaning is the same as for scsi_cmnd. The function is defined as the following:</p>
+				<p><code>unsigned short scst_cmd_get_use_sg(<br />
+        			struct scst_cmd *cmd)<br />
+				</code></p>
+				<p>Where:<ul><li><span><strong>cmd</strong> - pointer to the command</span></li></ul>
+		
+				<p>It is recommended to use scst_get_buf_*()scst_put_buf()/ family of function instead of direct access to the data buffers, because they hide all HIGHMEM and SG/plain buffer issues.</p>
+				<p><strong>scst_cmd_get_data_direction()</strong></p>
+				<p>Function <strong>scst_cmd_get_data_direction()</strong> returns the command's data direction (SCST_DATA_* 
+				constants). It is defined as the following:</p>
+				<p><code>scst_data_direction scst_cmd_get_data_direction(<br />
+        			struct scst_cmd *cmd)<br />
+				</code></p>
+				<p>Where:<ul><li><span><strong>cmd</strong> - pointer to the command</span></li></ul>
+
+				<p><strong>scst_cmd_get_status()</strong></p>
+				<p>Functions <strong>scst_cmd_get_status()</strong> returns the status byte from host device. It is defined as the following:</p>
+				<p><code>uint8_t scst_cmd_get_status(<br />
+        			struct scst_cmd *cmd)<br />
+				</code></p>
+				<p>Where:<ul><li><span><strong>cmd</strong> - pointer to the command</span></li></ul>
+
+				<p><strong>scst_cmd_get_masked_status()</strong></p>
+				<p>Functions <strong>scst_cmd_get_masked_status()</strong> returns the status byte set from host device by status_byte(). It is defined as the following:</p>
+				<p><code>uint8_t scst_cmd_get_masked_status(<br />
+        			struct scst_cmd *cmd)<br />
+				</code></p>
+				<p>Where:<ul><li><span><strong>cmd</strong> - pointer to the command</span></li></ul>
+				
+				<p><strong>scst_cmd_get_msg_status()</strong></p>
+				<p>Functions <strong>scst_cmd_get_msg_status()</strong> returns the status from host adapter itself. It is defined as the following:</p>
+				<p><code>uint8_t scst_cmd_get_msg_status(<br />
+        			struct scst_cmd *cmd)<br />
+				</code></p>
+				<p>Where:<ul><li><span><strong>cmd</strong> - pointer to the command</span></li></ul>
+
+				<p><strong>scst_cmd_get_host_status()</strong></p>
+				<p>Functions <strong>scst_cmd_get_host_status()</strong> returns the status set by low-level driver to indicate 
+				its status. It is defined as the following:</p>
+				<p><code>uint16_t scst_cmd_get_host_status(<br />
+        			struct scst_cmd *cmd)<br />
+				</code></p>
+				<p>Where:<ul><li><span><strong>cmd</strong> - pointer to the command</span></li></ul>
+				
+				<p><strong>scst_cmd_get_driver_status()</strong></p>
+				<p>Functions <strong>scst_cmd_get_driver_status()</strong> returns the status set by SCSI mid-level. It is defined as 
+				the following:</p>
+				<p><code>uint16_t scst_cmd_get_driver_status(<br />
+        			struct scst_cmd *cmd)<br />
+				</code></p>
+				<p>Where:<ul><li><span><strong>cmd</strong> - pointer to the command</span></li></ul>
+				
+				<p><strong>scst_cmd_get_sense_buffer()</strong></p>
+				<p>Functions <strong>scst_cmd_get_sense_buffer()</strong> returns pointer to the sense buffer. It is defined as the following:</p>
+				<p><code>uint8_t *scst_cmd_get_sense_buffer(<br />
+        			struct scst_cmd *cmd)<br />
+				</code></p>
+				<p>Where:<ul><li><span><strong>cmd</strong> - pointer to the command</span></li></ul>
+
+				<p><strong>scst_cmd_get_sense_buffer_len()</strong></p>
+				<p>Functions <strong>scst_cmd_get_sense_buffer_len()</strong> returns the sense buffer length. It is defined as 
+				the following:</p>
+				<p><code>int scst_cmd_get_sense_buffer_len(<br />
+        			struct scst_cmd *cmd)<br />
+				</code></p>
+				<p>Where:<ul><li><span><strong>cmd</strong> - pointer to the command</span></li></ul>
+
+				<p><strong>scst_cmd_get_tag() and scst_cmd_set_tag()</strong></p>
+				<p>Function <strong>scst_cmd_get_tag()</strong> returns the command's tag, set by <strong>scst_cmd_set_tag()
+				</strong>. It is defined as the following:</p>
+				<p><code>uint32_t scst_cmd_get_tag(<br />
+        			struct scst_cmd *cmd)<br />
+				</code></p>
+				<p>Function <strong>scst_cmd_set_tag()</strong> sets command's tag that could be retrieved later by 
+				<strong>scst_cmd_get_tag()</strong>. It is defined as the following:</p>
+				<p><code>void scst_cmd_set_tag(<br />
+        			struct scst_cmd *cmd, <br />
+        			uint32_t tag)<br />
+				</code></p>
+				<p>Where:<ul>
+				<li><span><strong>cmd</strong> - pointer to the command</span></li>
+    			<li><span><strong>tag</strong> - the tag</span></li>
+				</ul>
+				<p><strong>scst_cmd_get_tgt_specific() and scst_cmd_get_tgt_specific_lock()</strong></p>
+				<p>Functions <strong>scst_cmd_get_tgt_specific()</strong> and <strong>scst_cmd_get_tgt_specific_lock()</strong> 
+				return pointer to the target driver specific data, set by <strong>scst_cmd_set_tgt_specific()</strong> or 
+				<strong>scst_cmd_set_tgt_specific_lock()</strong>. Both function are basically the same, but the later one 
+				additionally takes lock, which helps to prevent some races. See <strong>scst_find_cmd()</strong> below for details.</p>
+				<p>They are defined as the following:</p>
+				<p><code>void *scst_cmd_get_tgt_specific(<br />
+        				struct scst_cmd *cmd)<br />
+					<br />
+					void *scst_cmd_get_tgt_specific_lock(<br />
+        			struct scst_cmd *cmd)<br />
+				</code></p>
+				<p>Where:<ul><li><span><strong>cmd</strong> - pointer to the command</span></li></ul>
+				
+				<p><strong>scst_cmd_set_tgt_specific() and scst_cmd_set_tgt_specific_lock()</strong></p>
+				<p>Functions <strong>scst_cmd_set_tgt_specific()</strong> and <strong>scst_cmd_set_tgt_specific_lock()</strong> 
+				store the target driver specific data, that could be retrieved later by <strong>scst_cmd_get_tgt_specific()</strong>
+				 or <strong>scst_cmd_get_tgt_specific_lock()</strong>. Both function are basically the same, but the later one 
+				 additionally takes lock, which helps to prevent some races. See <strong>scst_find_cmd()</strong> below for details.</p>
+				<p>They are defined as the following:</p>
+				<p><code>void *scst_cmd_set_tgt_specific(<br />
+        			struct scst_cmd *cmd,<br />
+        			void *val)<br />
+					<br />
+					void *scst_cmd_set_tgt_specific_lock(<br />
+        			struct scst_cmd *cmd,<br />
+        			void *val)<br />
+        		</code></p>
+				<p>Where:<ul>
+				<li><span><strong>cmd</strong> - pointer to the command</span></li>
+				<li><span><strong>val</strong> - pointer to the target driver specific data
+				</ul>
+				<p><strong>scst_cmd_get_data_buff_alloced() and scst_cmd_set_data_buff_alloced()</strong></p>
+				<p>Function <strong>scst_cmd_get_data_buff_alloced()</strong> returns the state of the 
+				<strong>SCST_CMD_DATA_BUF_ALLOCED</strong> flag. It is defined as the following:</p>
+				<p><code>int scst_cmd_get_data_buff_alloced(<br />
+        				struct scst_cmd *cmd)<br />
+				</code></p>
+				<p>Function <strong>scst_cmd_set_data_buff_alloced()</strong> tells SCST that the data buffer is alloced by target 
+				driver or device handler by setting the <strong>SCST_CMD_DATA_BUF_ALLOCED</strong> flag on. Could be useful, for 
+				instance, for iSCSI unsolicited data. It is defined as the following:</p>
+				<p><code>void scst_cmd_set_data_buff_alloced(<br />
+        			struct scst_cmd *cmd)<br />
+				</code></p>
+				<p>Where:<ul><li><span><strong>cmd</strong> - pointer to the command</span></li></ul>
+				<p><strong>scst_cmd_set_expected(), scst_cmd_is_expected_set(),scst_cmd_get_expected_data_direction() and scst_cmd_get_expected_transfer_len()</strong></p>
+				<p>Function <strong>scst_cmd_set_expected()</strong> tells SCST expected data transfer direction and its length, 
+				as supplied by remote initiator. It is defined as the following:</p>
+				<p><code>void scst_cmd_set_expected(<br />
+        				struct scst_cmd *cmd,<br />
+        				scst_data_direction expected_data_direction,<br />
+        				unsigned int expected_transfer_len)<br />
+				</code></p>
+				<p>Function <strong>scst_cmd_is_expected_set()</strong> returns true, if the expected values were set by target 
+				driver and false otherwise. It is defined as the following:</p>
+				<p><code>int scst_cmd_is_expected_set(<br />
+        			struct scst_cmd *cmd)<br />
+				</code></p>
+				<p>Function <strong>scst_cmd_get_expected_data_direction()</strong> returns expected data direction set by target 
+				driver, if any. If this value was not set, the return value is undefined. It is defined as the following:</p>
+				<p><code>scst_data_direction scst_cmd_get_expected_data_direction(<br />
+        			struct scst_cmd *cmd)<br />
+				</code></p>
+				<p>Function <strong>scst_cmd_get_expected_transfer_len()</strong> returns expected transfer length set by target 
+				driver, if any. If this value was not set, the return value is undefined. It is defined as the following:</p>
+				<p><code>unsigned int scst_cmd_get_expected_transfer_len(<br />
+        				struct scst_cmd *cmd)<br />
+				</code></p>
+				<p>Where:<ul>
+				<li><span><strong>cmd</strong> - pointer to the command</span></li>
+				<li><span><strong>expected_data_direction</strong> - expected data direction</span></li>
+				<li><span><strong>expected_transfer_len</strong> - expected transfer length</span></li>
+				</ul>
+				<p><strong>scst_get_buf_first(), scst_get_buf_next(),scst_put_buf() and scst_get_buf_count()</strong></p>
+				<p>These functions are designed to simplify and unify access to the commands data (SG vector or plain data buffer)
+				 in all possible conditions, including HIGHMEM environment, and should be used instead of direct access.</p>
+				<p>Function <strong>scst_get_buf_first()</strong> starts access to the data. It is defined as the following:</p>
+				<p><code>int scst_get_buf_first(<br />
+        				struct scst_cmd *cmd, <br />
+        				uint8_t **buf)<br />
+				</code></p>
+				<p>Where:<ul>
+				<li><span><strong>cmd</strong> - pointer to the command</span></li>
+    			<li><span><strong>buf</strong> - pointer, where pointer to the first data chunk will be put</span></li>
+				</ul>
+				<p>Returns the length of the chunk of data for success, 0 for the end of data, negative error code otherwise.</p>
+				<p>Function <strong>scst_get_buf_next()</strong> continues access to the data. It is defined as the following:</p>
+				<p><code>int scst_get_buf_next(<br />
+        			struct scst_cmd *cmd, <br />
+        			uint8_t **buf)<br />
+				</code></p>
+				<p>Where:<ul>
+				<li><span><strong>cmd</strong> - pointer to the command</span></li>
+    			<li><span><strong>buf</strong> - pointer, where pointer to the next data chunk will be put</span></li>
+				</ul>
+				<p>Returns the length of the chunk of data for success, 0 for the end of data, negative error code otherwise.</p>
+				<p>Function <strong>scst_put_buf()</strong> tells SCST that the user of the chunk of data, returned by 
+				<strong>scst_get_buf_first()</strong> or <strong>scst_get_buf_next()</strong>, finished accessing the data. This 
+				function must be called for all chunks of data, returned <strong>by scst_get_buf_first()</strong> or 
+				<strong>scst_get_buf_next()</strong>. It is defined as the following:</p>
+				<p><code>void scst_put_buf(<br />
+        				struct scst_cmd *cmd, <br />
+        				uint8_t *buf)<br />
+				</code></p>
+				<p>Where:<ul>
+				<li><span><strong>cmd</strong> - pointer to the command</span></li>
+				<li><span><strong>buf</strong> - pointer to the data chunk</span></li>
+				</ul>
+				<p>Function <strong>scst_get_buf_count()</strong> returns the approximate higher rounded count of data chunks 
+				that <strong>scst_get_buf_[first|next]()</strong> will return. It is defined as the following:</p>
+				<p><code>int scst_get_buf_count(<br />
+        				struct scst_cmd *cmd)<br />
+				</code></p>
+				<p>Where:<ul>
+				<li><span><strong>cmd</strong> - pointer to the command</span></li>
+				</ul>
+
+				<h3>12.4 SCST task management commands manipulation functions</h3>
+				<p><strong>scst_mgmt_cmd_get_tgt_specific()</strong></p>
+				<p>Function <strong>scst_mgmt_cmd_get_tgt_specific()</strong> returns pointer to the target driver specific data, 
+				set on call of <strong>scst_rx_mgmt_fn_tag()</strong> or <strong>scst_rx_mgmt_fn_lun()</strong>. It is defined as 
+				the following:</p>
+				<p><code>void *scst_mgmt_cmd_get_tgt_specific(<br />
+        				struct scst_mgmt_cmd *mcmd)<br />
+				</code></p>
+				<p>Where:<ul>
+				<li><span><strong>mcmd</strong> - pointer to the task management command</span></li>
+				</ul>
+				
+				<p><strong>scst_mgmt_cmd_get_status()</strong></p>
+				<p>Functions <strong>scst_mgmt_cmd_get_status()</strong> returns task management command's completion status. It 
+				is defined as the following:</p>
+				<p><code>void *scst_mgmt_cmd_get_status(<br />
+        			struct scst_mgmt_cmd *mcmd)<br />
+				</code></p>
+				<p>Where:<ul>
+				<li><span><strong>mcmd</strong> - pointer to the task management command</span></li>
+				</ul>
+				<p>The following status values are possible:</p>
+				<ul>
+    			<li><span>SCST_MGMT_STATUS_SUCCESS - the task management command completed successfully</span></li>
+				<li><span>SCST_MGMT_STATUS_FAILED - the task management command failed.</span></li>
+				</ul>
+
+				<h3>13. Miscellaneous functions</h3>
+				<h3>13.1 scst_find_cmd_by_tag()</h3>
+				<p>Function <strong>scst_find_cmd_by_tag()</strong> is designed to find SCST's command based on the supplied tag 
+				comparing it with one that previously set by <strong>scst_cmd_set_tag()</strong>. This value should be set by the 
+				target driver on the command's initialization time.</p>
+
+				<p>It is defined as the following:</p>
+				<p><code>struct scst_cmd *scst_find_cmd_by_tag(<br />
+        					struct scst_session *sess, <br />
+        					uint32_t tag)<br />
+				</code></p>
+				<p>Where:<ul>
+				<li><span><strong>sess</strong> - session to which the command belongs</span></li>
+				<li><span><strong>tag</strong> - the tag</span></li></ul></p>
+				<p>Returns found command or NULL otherwise.</p>
+
+				<h3>13.2 scst_find_cmd()</h3>
+				<p>Function <strong>scst_find_cmd()</strong> is designed to find SCST's command. For example, it can be used to find 
+				the command by internal serial number that was supplied by a remote target's response.</p>
+				<p>It is defined as the following:</p>
+				<p><code>struct scst_cmd *scst_find_cmd(<br />
+        					struct scst_session *sess, <br />
+        					void *data, <br />
+        					int (*cmp_fn)(struct scst_cmd *cmd, void *data))<br />
+				</code></p>
+				<p>Where:<ul>
+				<li><span><strong>sess</strong> - session to which the command belongs</span></li>
+				<li><span><strong>data</strong> - comparison data that will be passed to <strong>cmp_fn()</strong> as is</span></li>
+				<li><span><strong>cmp_fn</strong> - comparison callback function that will be called for each the session's command. Should return true if the command is found, false otherwise. Parameters:
+          	<ul><li><span><strong>cmd</strong> - the command to compare</span></li>
+					<li><span><strong>data</strong> - comparison data.</span></li></ul>
+				</ul></p>
+				<p>Returns found command or NULL otherwise.</p>
+				<p><strong><i>IMPORTANT</i></strong></p>
+				<p>SCST is designed in a such way that any command is always processed only by one thread at any time, so no locking 
+				is necessary. But there is one exception from that rule, it is <strong>scst_find_cmd()</strong> function. Since it 
+				calls the callback over all commands of the session in the internal lists, despite of the command's current state, 
+				there is a race possibility accessing to target specific data pointer between <strong>scst_cmd_set_tgt_specific()</strong> 
+				caller and <strong>cmp_fn()</strong>, which usually calls <strong>scst_cmd_get_tgt_specific()</strong> from the 
+				different context. The only place, where it is safe to call <strong>scst_cmd_set_tgt_specific()</strong> without the 
+				race probability, is between <strong>scst_rx_cmd()</strong> and <strong>scst_cmd_init_done()</strong>. Thus, if you 
+				call <strong>scst_cmd_set_tgt_specific()</strong> only there, there is nothing to worry, always use the functions 
+				without "lock" suffix. Otherwise, be careful and, if necessary, use "lock" functions. In addition, 
+				<strong>cmp_fn()</strong> is allowed to use only target specific data and forbidden to call any SCST's functions.</p>
+				
+				<h3>13.3 scst_get_cdb_info()</h3>
+				<p>Function <strong>scst_get_cdb_info()</strong> provides various CDB info. It is defined as the following:</p>
+				<p><code>int scst_get_cdb_info(<br />
+        					const uint8_t *cdb_p, <br />
+        					int dev_type, <br />
+        					struct scst_info_cdb *info_p)<br />
+				</code></p>
+				<p>Where:<ul>
+				<li><span><strong>cdb_p</strong> - pointer to CDB</span></li>
+    			<li><span><strong>dev_type</strong> - SCSI device type</span></li>
+    			<li><span><strong>info_p</strong> - the result structure, see description in device handler's <strong>parse()</strong> chapter</span></li>
+				</ul></p>
+				<p>Returns 0 on success, -1 otherwise.</p>
+				
+				<h3>13.4 scst_to_dma_dir()</h3>
+				<p>Function <strong>scst_to_dma_dir()</strong> translates SCST's data direction to DMA one. It is defined as the 
+				following:</p>
+				<p><code>int scst_to_dma_dir(<br />
+        					int scst_dir)<br />
+				</code></p>
+				<p>Where:<ul><li><span><strong>scst_dir</strong> - one of the <strong>SCST_DATA_*</strong> constants</span></li></ul></p>
+				<p>Returns the corresponding <strong>PCI_DMA_*</strong> constant.</p>
+				
+				<h3>13.5 scst_is_cmd_local()</h3>
+				<p>Function <strong>scst_is_cmd_local()</strong> checks if the command is handled by SCST (i.e. locally, as, 
+				e.g., REPORT LUNS command). Intended to be used in device handler's <strong>exec()</strong>, when the device 
+				handler wants to perform all the commands, except ones that should be done by SCST itself.</p>
+				<p>It is defined as the following:</p>
+				<p><code>int scst_is_cmd_local(<br />
+        					struct scst_cmd *cmd)<br />
+				</code></p>
+				<p>Where:<ul><li><span><strong>cmd</strong> - the command, which CDB should be checked</span></li></ul></p>
+				<p>Returns 1, if the command's CDB is locally handled by SCST or 0 otherwise</p>
+				
+				<h3>13.6 scst_register_virtual_device() and scst_unregister_virtual_device()</h3>
+				<p>These functions provide a way for device handlers to register a virtual (emulated) device, which will be 
+				visible only by remote initiators. For example, FILEIO device handler uses files on file system to makes from them
+				 virtual remotely available SCSI disks.</p>
+				<p>Function <strong>scst_register_virtual_device()</strong> registers a virtual device. During the registration 
+				the device handlers functions <strong>init()</strong> and <strong>attach()</strong> will be called, if defined. 
+				The function is defined as the following:</p>
+				<p><code>int scst_register_virtual_device(<br />
+        						struct scst_dev_type *dev_handler)<br />
+				</code></p>
+				<p>Where:<ul><li><span><strong>dev_handler</strong> - device handler's descriptor</span></li></ul></p>
+				<p>Returns assigned to the device ID on success, or negative value otherwise.</p>
+				<p>Function <strong>scst_unregister_virtual_device()</strong> unregisters a virtual device. During the 
+				unregistration the device handlers functions <strong>detach()</strong> and <strong>release()</strong> will be 
+				called, if defined. The function is defined as the following:</p>
+				<p><code>void scst_unregister_virtual_device(<br />
+        					int id)<br />
+				</code></p>
+				<p>Where:<ul><li><span><strong>id</strong> - the device's ID, returned by <strong>scst_register_virtual_device()</strong></span></li></ul></p>
+
+				<h3>13.7 scst_add_threads() and scst_del_threads()</h3>
+				<p>These functions allows to add or delete some SCST threads. For example, if <strong>exec()</strong> function in 
+				your device handler works synchronously, i.e. wait for job's completition, in order to prevent performance loss you 
+				can add for SCST as many threads as there are devices serviced by your device handler.</p>
+				<p>Function <strong>scst_add_threads()</strong> starts requested number of threads. It is defined as the following:</p>
+				<p><code>int scst_add_threads(<br />
+        				int num)<br />
+				</code></p>
+				<p>Where:<ul><li><span><strong>num</strong> - number of the threads to start</span></li></ul></p>
+				<p>Returns 0 on success, error code otherwise.</p>
+				<p>Function <strong>scst_del_threads()</strong> stops requested number of threads. It is defined as the following:</p>
+				<p><code>void scst_del_threads(<br />
+        			int num)<br />
+				</code></p>
+				<p>Where:<ul><li><span><strong>num</strong> - number of the threads to stop</span></li></ul></p>
+			
+				<h3>13.8 scst_proc_get_tgt_root()</h3>
+				<p>Function <strong>scst_proc_get_tgt_root()</strong> returns target driver's root entry in SCST's /proc hierarchy.
+				The driver can create own files/directories here, which should be deleted in the driver's release(). It is 
+				defined as the following:</p>
+				<p><code>struct proc_dir_entry *scst_proc_get_tgt_root(<br />
+        			struct scst_tgt_template *vtt)<br />
+				</code></p>
+				<p>Where:<ul><li><span><strong>vtt</strong> - pointer to the driver's template</span></li></ul></p>
+				<p>Returns proc_dir_entry on success, NULL otherwise.</p>
+				
+				<h3>13.9 scst_proc_get_dev_type_root()</h3>
+				<p>Function <strong>scst_proc_get_dev_type_root()</strong> returns device handler's root entry in SCST's /proc 
+				hierarchy. The driver can create own files/directories here, which should be deleted in the driver's detach() or 
+				release(). It is defined as the following:</p>
+				<p><code>struct proc_dir_entry *scst_proc_get_dev_type_root(<br />
+        			struct scst_dev_type *dtt)<br />
+				</code></p>
+				<p>Where:<ul><li><span><strong>dtt</strong> - pointer to the handler's description structure</span></li></ul></p>
+				<p>Returns proc_dir_entry on success, NULL otherwise.</p>
+	  		</div>
+	</div>
+	
+<!-- wrap ends here -->
+</div>		
+<!-- footer starts here -->		
+		<div id="footer">
+			<p>
+			&copy; Copyright 2008 <strong>SCST (SCSI Target Middle Level for Linux)</strong>&nbsp;&nbsp;  
+			Design by: <b><font color="#EC981F">Daniel Fernandes</font></b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;		
+			
+			</p>		
+		</div>	
+<!-- footer ends here -->	
+</body>
+</html>
