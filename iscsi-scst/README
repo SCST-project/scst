@@ -111,7 +111,8 @@ Usage
 
 ISCSI parameters like iSNS, CHAP and target parameters are configured in
 iscsi-scstd.conf. All LUN information is configured using the regular
-SCST interface. The LUN information in iscsi-scstd.conf will be ignored.
+SCST interface. It is highly recommended to use scstadmin utility for
+that purpose. The LUN information in iscsi-scstd.conf will be ignored.
 This is because now responsibilities are divided (as it should be)
 between the target driver (iSCSI-SCST) and the SCST core as it logically
 should be: the target driver is responsible for handling targets and

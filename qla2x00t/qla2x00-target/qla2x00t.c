@@ -176,7 +176,7 @@ static void q2t_modify_command_count(scsi_qla_host_t *ha, int cmd_count,
 /* ha->hardware_lock supposed to be held on entry */
 static void __q2t_send_notify_ack(scsi_qla_host_t *ha,
 	 uint16_t target_id, uint16_t status, uint16_t task_flags,
-	 uint16_t seq_id, uint32_t add_flags,  uint16_t resp_code,
+	 uint16_t seq_id, uint32_t add_flags, uint16_t resp_code,
 	 int resp_code_valid, uint16_t ox_id)
 {
 	nack_entry_t *ntfy;

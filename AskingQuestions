@@ -313,4 +313,7 @@ reading and minimal thinking effort.
 Also it is very desirable if you attach to your question full kernel log
 from target since it's booted.
 
+If you experience kernel crash, hang, etc., you should follow
+REPORTING-BUGS file from your kernel source tree.
+
 Vladislav Bolkhovitin <vst@vlnb.net>, http://scst.sourceforge.net

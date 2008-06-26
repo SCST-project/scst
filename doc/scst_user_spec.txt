@@ -872,3 +872,5 @@ one - 1M, for it the VTL also will be asked to allocate the buffer.
 Then, if no more 4K commands come for some time, for it
 SCST_USER_ON_CACHED_MEM_FREE subcommand will be returned to the VTL in
 order to ask it to free that buffer.
+
+Vladislav Bolkhovitin

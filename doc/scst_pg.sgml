@@ -5,7 +5,7 @@
 <title>Generic SCSI Target Middle Level for Linux</title>
 
 <author>
-	<name>Vladislav Bolkhovitin &lt;<tt/vst @at@ vlnb .dot. net/&gt;</name>
+	<name>Vladislav Bolkhovitin</name>
 </author>
 
 <date>Version 0.9.5 2006/12/01, actual for SCST 0.9.5 and later</date>
@@ -39,8 +39,8 @@ required.
 
 <item> Undertakes most problems, related to execution contexts, thus
 practically eliminating one of the most complicated problem in the
-kernel drivers development. For example, a target driver for Qlogic
-2200/2300 cards, which has all necessary features, is about 2000
+kernel drivers development. For example, a target driver for QLogic
+22xx/23xx cards, which has all necessary features, is about 2000
 lines of code long, that is at least in several times less, than the
 initiator one.
 

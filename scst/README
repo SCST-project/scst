@@ -95,6 +95,9 @@ Then, to see your devices remotely, you need to add them to at least
 are seen remotely. There must be LUN 0 in each security group, i.e. LUs
 numeration must not start from, e.g., 1.
 
+It is highly recommended to use scstadmin utility for configuring
+devices and security groups.
+
 If you experience problems during modules load or running, check your
 kernel logs (or run dmesg command for the few most recent messages).
 
@@ -343,18 +346,22 @@ Access and devices visibility management (LUN masking)
 ------------------------------------------------------
 
 Access and devices visibility management allows for an initiator or
-group of initiators to have different limited set of LUs/LUNs (security
-group) each with appropriate access permissions. Initiator is
-represented as a SCST session. Session is bound to security group on its
-registration time by character "name" parameter of the registration
-function, which provided by target driver, based on its internal
-authentication. For example, for FC "name" could be WWN or just loop ID.
-For iSCSI this could be iSCSI login credentials or iSCSI initiator name.
-Each security group has set of names assigned to it by system
-administrator. Session is bound to security group with provided name. If
-no such groups found, the session bound to either "Default_target_name",
-or "Default" group, depending from either "Default_target_name" exists
-or not. In "Default_target_name" target name means name of the target.
+group of initiators to have different views of LUs/LUNs (security groups)
+each with appropriate access permissions. It is highly recommended to
+use scstadmin utility for that purpose instead of described in this
+section low level interface.
+
+Initiator is represented as an SCST session. The session is bound to
+security group on its registration time by character "name" parameter of
+the registration function, which provided by target driver, based on its
+internal authentication. For example, for FC "name" could be WWN or just
+loop ID. For iSCSI this could be iSCSI login credentials or iSCSI
+initiator name. Each security group has set of names assigned to it by
+system administrator. Session is bound to security group with provided
+name. If no such groups found, the session bound to either
+"Default_target_name", or "Default" group, depending from either
+"Default_target_name" exists or not. In "Default_target_name" target
+name means name of the target.
 
 In /proc/scsi_tgt each group represented as "groups/GROUP_NAME/"
 subdirectory. In it there are files "devices" and "names". File

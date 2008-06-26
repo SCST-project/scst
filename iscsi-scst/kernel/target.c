@@ -223,7 +223,7 @@ void target_del_all(void)
 
 	TRACE_MGMT_DBG("%s", "Deleting all targets");
 
-	/* Complete brain damage, ToDo */
+	/* Not the best, ToDo */
 	while (1) {
 		mutex_lock(&target_mgmt_mutex);
 

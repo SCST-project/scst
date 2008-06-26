@@ -144,10 +144,6 @@ static int iscsi_conn_destroy(u32 tid, u64 sid, u32 cid)
 	return err;
 }
 
-/**
- ** ToDo: the below code is a brain damage, rewrite it.
- **/
-
 static int __conn_close(int fd, u32 tid, u64 sid, u32 cid, void *arg)
 {
 	return ki->conn_destroy(tid, sid, cid);

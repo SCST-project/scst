@@ -13,7 +13,7 @@ all necessary callbacks, but it's still capable to work as initiator
 only. Mode, when a host acts as the initiator and the target
 simultaneously, is supported as well.
 
-This version is compatible with SCST version 1.0.0 and higher.
+This version is compatible with SCST core version 1.0.0 and higher.
 
 The original initiator driver was taken from the kernel 2.6.17.8.
 
@@ -62,11 +62,17 @@ subdirectory. The target driver will be installed in
 /lib/modules/`you_kernel_version`/extra. To uninstall it, type 'make
 uninstall'.
 
-After the drivers are loaded, the target mode should be enabled via a
-sysfs interface on a per card basis. Under the appropriate scsi_host
-there is an entry target_mode_enabled, where you should write "1", like:
+After the drivers are loaded and adapters successfully initialized by
+the initiator driver, including firmware image load, the target mode
+should be enabled via a sysfs interface on a per card basis. Under the
+appropriate scsi_host there is an entry target_mode_enabled, where you
+should write "1", like:
 
 echo "1" >/sys/class/scsi_host/host0/target_mode_enabled
+
+Then you should configure exported devices using the corresponding
+interface of SCST core. It is highly recommended to use scstadmin
+utility for that purpose.
 
 Compilation options
 -------------------

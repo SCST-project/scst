@@ -4,11 +4,13 @@ as the following:
 
 1. SCST core in scst/ subdirectory
 
-2. Target drivers in own subdirectories qla2x00t/, iscsi-scst/, etc.
+2. Administration utility for SCST core scstadmin in scstadmin/
 
-3. User space programs in usr/ subdirectory, like fileio_tgt.
+3. Target drivers in own subdirectories qla2x00t/, iscsi-scst/, etc.
 
-4. Some various docs in doc/ subdirectory.
+4. User space programs in usr/ subdirectory, like fileio_tgt.
+
+5. Some various docs in doc/ subdirectory.
 
 Those subprojects are in most cases independent from each other,
 although some of them depend from the SCST core. They put in the single

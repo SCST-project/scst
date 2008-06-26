@@ -497,14 +497,18 @@ int scst_suspend_activity(bool interruptible)
 	 * reference counting? That would mean to switch off from lockless
 	 * implementation of scst_translate_lun().. )
 	 */
-	PRINT_INFO("Waiting for %d active commands to complete... This might "
-		"take few minutes for disks or few hours for tapes, if you "
-		"use long executed commands, like REWIND or FORMAT. In case, "
-		"if you have a hung user space device (i.e. made using "
-		"scst_user module) not responding to any commands, if might "
-		"take virtually forever until the corresponding user space "
-		"program recovers and starts responding or gets killed.",
-		atomic_read(&scst_cmd_count));
+
+	if (atomic_read(&scst_cmd_count) != 0) {
+		PRINT_INFO("Waiting for %d active commands to complete... This "
+			"might take few minutes for disks or few hours for "
+			"tapes, if you use long executed commands, like "
+			"REWIND or FORMAT. In case, if you have a hung user "
+			"space device (i.e. made using scst_user module) not "
+			"responding to any commands, if might take virtually "
+			"forever until the corresponding user space "
+			"program recovers and starts responding or gets "
+			"killed.", atomic_read(&scst_cmd_count));
+	}
 
 	res = scst_susp_wait(interruptible);
 	if (res != 0)

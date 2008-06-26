@@ -54,7 +54,9 @@ $(SOURCE_NAME).rtf: $(SOURCE)
 	$(COMMAND)rtf $(SOURCE)
 
 clean:
+	@mv scst_user_spec.txt scst_user_spec.tx
 	rm -f *.txt *.html *.tex *.dvi *.ps *.pdf *.info *.lyx *.rtf
+	@mv scst_user_spec.tx scst_user_spec.txt
 
 extraclean: clean
 
