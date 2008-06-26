@@ -1424,7 +1424,7 @@ static void exec_read_toc(struct vdisk_cmd *vcmd)
 		goto out;
 	}
 
-	/* FIXME when you have > 8TB ROM device. */
+	/* ToDo when you have > 8TB ROM device. */
 	nblocks = (uint32_t)dev->nblocks;
 
 	/* Header */

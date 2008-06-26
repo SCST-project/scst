@@ -550,7 +550,7 @@ static int recv_pdu(int fd, struct isns_io *rx, struct isns_hdr *hdr)
 		  transaction, sequence);
 
 	if (length + sizeof(*hdr) > BUFSIZE) {
-		log_error("FIXME we cannot handle this yet %u!", length);
+		log_error("ToDo: we cannot handle this yet %u!", length);
 		return -1;
 	}
 

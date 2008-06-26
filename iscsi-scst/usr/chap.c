@@ -360,7 +360,7 @@ static int chap_initiator_auth_create_challenge(struct connection *conn)
 	text_key_add(conn, "CHAP_I", text);
 
 	/*
-	 * FIXME: does a random challenge length provide any benefits security-
+	 * ToDo: does a random challenge length provide any benefits security-
 	 * wise, or should we rather always use the max. allowed length of
 	 * 1024 for the (unencoded) challenge?
 	 */
@@ -578,7 +578,7 @@ static int chap_target_auth_create_response(struct connection *conn)
 	if (challenge_len == conn->auth.chap.challenge_size) {
 		if (!memcmp(challenge, conn->auth.chap.challenge,
 			    challenge_len)) {
-			//FIXME: RFC 3720 demands to close TCP conn.
+			/* ToDo: RFC 3720 demands to close TCP conn */
 			log_warning("CHAP target auth.: "
 				    "initiator %s reflected our challenge",
 				    conn->initiator);

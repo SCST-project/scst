@@ -1094,9 +1094,11 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 	length = scst_get_buf_first(cmd, &address);
 	TRACE_DBG("length %d", length);
 	if (unlikely(length <= 0)) {
-		PRINT_ERROR("scst_get_buf_first() failed: %d", length);
-		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_hardw_error));
+		if (length < 0) {
+			PRINT_ERROR("scst_get_buf_first() failed: %d", length);
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_hardw_error));
+		}
 		goto out_free;
 	}
 
@@ -1257,10 +1259,13 @@ static void vdisk_exec_request_sense(struct scst_cmd *cmd)
 	length = scst_get_buf_first(cmd, &address);
 	TRACE_DBG("length %d", length);
 	if (unlikely(length < SCST_STANDARD_SENSE_LEN)) {
-		PRINT_ERROR("scst_get_buf_first() failed or too small "
-			"requested buffer (returned %d)", length);
-		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
+		if (length != 0) {
+			PRINT_ERROR("scst_get_buf_first() failed or too small "
+				"requested buffer (returned %d)", length);
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(
+					scst_sense_invalid_field_in_parm_list));
+		}
 		if (length > 0)
 			goto out_put;
 		else
@@ -1423,9 +1428,11 @@ static void vdisk_exec_mode_sense(struct scst_cmd *cmd)
 
 	length = scst_get_buf_first(cmd, &address);
 	if (unlikely(length <= 0)) {
-		PRINT_ERROR("scst_get_buf_first() failed: %d", length);
-		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_hardw_error));
+		if (length < 0) {
+			PRINT_ERROR("scst_get_buf_first() failed: %d", length);
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_hardw_error));
+		}
 		goto out_free;
 	}
 
@@ -1576,9 +1583,11 @@ static void vdisk_exec_mode_select(struct scst_cmd *cmd)
 
 	length = scst_get_buf_first(cmd, &address);
 	if (unlikely(length <= 0)) {
-		PRINT_ERROR("scst_get_buf_first() failed: %d", length);
-		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_hardw_error));
+		if (length < 0) {
+			PRINT_ERROR("scst_get_buf_first() failed: %d", length);
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_hardw_error));
+		}
 		goto out;
 	}
 
@@ -1708,9 +1717,11 @@ static void vdisk_exec_read_capacity(struct scst_cmd *cmd)
 
 	length = scst_get_buf_first(cmd, &address);
 	if (unlikely(length <= 0)) {
-		PRINT_ERROR("scst_get_buf_first() failed: %d", length);
-		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_hardw_error));
+		if (length < 0) {
+			PRINT_ERROR("scst_get_buf_first() failed: %d", length);
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_hardw_error));
+		}
 		goto out;
 	}
 
@@ -1760,9 +1771,11 @@ static void vdisk_exec_read_capacity16(struct scst_cmd *cmd)
 
 	length = scst_get_buf_first(cmd, &address);
 	if (unlikely(length <= 0)) {
-		PRINT_ERROR("scst_get_buf_first() failed: %d", length);
-		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_hardw_error));
+		if (length < 0) {
+			PRINT_ERROR("scst_get_buf_first() failed: %d", length);
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_hardw_error));
+			}
 		goto out;
 	}
 
@@ -1816,14 +1829,16 @@ static void vdisk_exec_read_toc(struct scst_cmd *cmd)
 
 	length = scst_get_buf_first(cmd, &address);
 	if (unlikely(length <= 0)) {
-		PRINT_ERROR("scst_get_buf_first() failed: %d", length);
-		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_hardw_error));
+		if (length < 0) {
+			PRINT_ERROR("scst_get_buf_first() failed: %d", length);
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_hardw_error));
+		}
 		goto out;
 	}
 
 	virt_dev = (struct scst_vdisk_dev *)cmd->dev->dh_priv;
-	/* FIXME when you have > 8TB ROM device. */
+	/* ToDo when you have > 8TB ROM device. */
 	nblocks = (uint32_t)virt_dev->nblocks;
 
 	/* Header */
@@ -2459,7 +2474,8 @@ static void vdisk_exec_verify(struct scst_cmd *cmd,
 				scst_set_cmd_error(cmd,
 				    SCST_LOAD_SENSE(scst_sense_read_error));
 			}
-			scst_put_buf(cmd, address_sav);
+			if (compare)
+				scst_put_buf(cmd, address_sav);
 			goto out_set_fs;
 		}
 		if (compare && memcmp(address, mem_verify, len_mem) != 0) {

@@ -1293,7 +1293,9 @@ static int scst_report_luns_local(struct scst_cmd *cmd)
 	}
 
 	buffer_size = scst_get_buf_first(cmd, &buffer);
-	if (unlikely(buffer_size <= 0))
+	if (unlikely(buffer_size == 0))
+		goto out_compl;
+	else if (unlikely(buffer_size < 0))
 		goto out_err;
 
 	if (buffer_size < 16)
@@ -1340,13 +1342,17 @@ inc_dev_cnt:
 
 	/* Set the response header */
 	buffer_size = scst_get_buf_first(cmd, &buffer);
-	if (unlikely(buffer_size <= 0))
+	if (unlikely(buffer_size == 0))
+		goto out_compl;
+	else if (unlikely(buffer_size < 0))
 		goto out_err;
+
 	dev_cnt *= 8;
 	buffer[0] = (dev_cnt >> 24) & 0xff;
 	buffer[1] = (dev_cnt >> 16) & 0xff;
 	buffer[2] = (dev_cnt >> 8) & 0xff;
 	buffer[3] = dev_cnt & 0xff;
+
 	scst_put_buf(cmd, buffer);
 
 	dev_cnt += 8;
@@ -2220,9 +2226,16 @@ static int scst_done_cmd_check(struct scst_cmd **pcmd, int *pres)
 			uint8_t *address;
 
 			length = scst_get_buf_first(cmd, &address);
-			if (length <= 0)
+			if (length < 0) {
+				PRINT_ERROR("%s", "Unable to get "
+					"MODE_SENSE buffer");
+				scst_set_cmd_error(cmd,
+					SCST_LOAD_SENSE(
+						scst_sense_hardw_error));
 				goto out;
-			if (length > 2 && cmd->cdb[0] == MODE_SENSE)
+			} else if (length == 0) {
+				goto out;
+			} else if (length > 2 && cmd->cdb[0] == MODE_SENSE)
 				address[2] |= 0x80;   /* Write Protect*/
 			else if (length > 3 && cmd->cdb[0] == MODE_SENSE_10)
 				address[3] |= 0x80;   /* Write Protect*/
@@ -2252,12 +2265,13 @@ static int scst_done_cmd_check(struct scst_cmd **pcmd, int *pres)
 				}
 #endif
 				buffer[SCST_INQ_BYTE3] &= ~SCST_INQ_NORMACA_BIT;
-			} else {
+			} else if (buflen != 0) {
 				PRINT_ERROR("%s", "Unable to get INQUIRY "
 				    "buffer");
 				scst_set_cmd_error(cmd,
-				   SCST_LOAD_SENSE(scst_sense_hardw_error));
+					SCST_LOAD_SENSE(scst_sense_hardw_error));
 			}
+
 			if (buflen > 0)
 				scst_put_buf(cmd, buffer);
 		}

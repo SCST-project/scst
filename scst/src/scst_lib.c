@@ -1646,7 +1646,6 @@ int scst_alloc_space(struct scst_cmd *cmd)
 	int atomic = scst_cmd_atomic(cmd);
 	int flags;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
-	int bufflen = cmd->bufflen;
 
 	TRACE_ENTRY();
 
@@ -1656,21 +1655,7 @@ int scst_alloc_space(struct scst_cmd *cmd)
 	if (cmd->no_sgv)
 		flags |= SCST_POOL_ALLOC_NO_CACHED;
 
-	if (unlikely(cmd->bufflen == 0)) {
-		/* ToDo: remove when 1.0.1 will be started */
-		TRACE(TRACE_MGMT_MINOR, "Warning: data direction %d or/and "
-			"zero buffer length. Opcode 0x%x, handler %s, target "
-			"%s", cmd->data_direction, cmd->cdb[0],
-			cmd->dev->handler->name, cmd->tgtt->name);
-		/*
-		 * Be on the safe side and alloc stub buffer. Neither target
-		 * drivers, nor user space will touch it, since bufflen
-		 * remains 0.
-		 */
-		bufflen = PAGE_SIZE;
-	}
-
-	cmd->sg = sgv_pool_alloc(tgt_dev->pool, bufflen, gfp_mask, flags,
+	cmd->sg = sgv_pool_alloc(tgt_dev->pool, cmd->bufflen, gfp_mask, flags,
 			&cmd->sg_cnt, &cmd->sgv, &cmd->dev->dev_mem_lim, NULL);
 	if (cmd->sg == NULL)
 		goto out;
@@ -1916,7 +1901,7 @@ int scst_get_cdb_info(struct scst_cmd *cmd)
 	cmd->data_direction = ptr->direction;
 	cmd->op_flags = ptr->flags;
 	res = (*ptr->get_trans_len)(cmd, ptr->off);
-#if 0 /* ToDo: enable when 1.0.1 will be started and fix all scst_get_buf_first() returns 0 cases */
+
 	if (unlikely(cmd->bufflen == 0)) {
 		/*
 		 * According to SPC bufflen 0 for data transfer commands isn't
@@ -1924,7 +1909,6 @@ int scst_get_cdb_info(struct scst_cmd *cmd)
 		 */
 		cmd->data_direction = SCST_DATA_NONE;
 	}
-#endif
 
 out:
 	TRACE_EXIT();
@@ -2355,8 +2339,10 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 
 			buffer_size = scst_get_buf_first(cmd, &buffer);
 			if (unlikely(buffer_size <= 0)) {
-				PRINT_ERROR("%s: Unable to get the buffer "
-					"(%d)",	__func__, buffer_size);
+				if (buffer_size < 0) {
+					PRINT_ERROR("%s: Unable to get the buffer "
+						"(%d)",	__func__, buffer_size);
+				}
 				goto out;
 			}
 
@@ -2408,8 +2394,10 @@ int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 	case MODE_SELECT:
 		buffer_size = scst_get_buf_first(cmd, &buffer);
 		if (unlikely(buffer_size <= 0)) {
-			PRINT_ERROR("%s: Unable to get the buffer (%d)",
-				__func__, buffer_size);
+			if (buffer_size < 0) {
+				PRINT_ERROR("%s: Unable to get the buffer (%d)",
+					__func__, buffer_size);
+			}
 			goto out;
 		}
 		break;
