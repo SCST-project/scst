@@ -1902,7 +1902,7 @@ int scst_get_cdb_info(struct scst_cmd *cmd)
 	cmd->op_flags = ptr->flags;
 	res = (*ptr->get_trans_len)(cmd, ptr->off);
 
-	if (unlikely(cmd->bufflen == 0)) {
+	if (cmd->bufflen == 0) {
 		/*
 		 * According to SPC bufflen 0 for data transfer commands isn't
 		 * an error, so we need to fix the transfer direction.

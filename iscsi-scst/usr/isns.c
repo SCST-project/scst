@@ -216,7 +216,7 @@ static int isns_scn_deregister(char *name)
 }
 
 #if __BYTE_ORDER == __LITTLE_ENDIAN
-#define set_scn_flag(x)						\
+#define correct_scn_flag_endiannes(x)						\
 {								\
 	x = (x & 0x55555555) << 1 | (x & 0xaaaaaaaa) >> 1;	\
 	x = (x & 0x33333333) << 2 | (x & 0xcccccccc) >> 2;	\
@@ -225,7 +225,7 @@ static int isns_scn_deregister(char *name)
 	x = (x & 0x0000ffff) << 16 | (x & 0xffff0000) >> 16;	\
 }
 #else
-#define set_scn_flag(x) (x)
+#define correct_scn_flag_endiannes(x) { }
 #endif
 
 static int isns_scn_register(void)
@@ -258,7 +258,7 @@ static int isns_scn_register(void)
 
 	scn_flags = ISNS_SCN_FLAG_INITIATOR | ISNS_SCN_FLAG_OBJECT_REMOVE |
 		ISNS_SCN_FLAG_OBJECT_ADDED | ISNS_SCN_FLAG_OBJECT_UPDATED;
-	set_scn_flag(scn_flags);
+	correct_scn_flag_endiannes(scn_flags);
 	scn_flags = htonl(scn_flags);
 
 	length += isns_tlv_set(&tlv, ISNS_ATTR_ISCSI_SCN_BITMAP,
