@@ -22,6 +22,7 @@
 SCST_DIR=scst
 QLA_INI_DIR=qla2x00t
 QLA_DIR=qla2x00t/qla2x00-target
+QLA_ISP_DIR=qla_isp
 LSI_DIR=mpt
 USR_DIR=usr/fileio
 SRP_DIR=srpt
@@ -47,6 +48,12 @@ help:
 	@echo "		qla_extraclean    : 2.6 qla target: clean + clean dependencies"
 	@echo "		qla_install       : 2.6 qla target: install"
 	@echo "		qla_uninstall     : 2.6 qla target: uninstall"
+	@echo ""
+	@echo "		qla_isp           : make ISP Qlogic chipsets target driver"
+	@echo "		qla_isp_clean     : qla ISP target: clean "
+	@echo "		qla_isp_extraclean: qla ISP target: clean + clean dependencies"
+	@echo "		qla_isp_install   : qla ISP target: install"
+	@echo "		qla_isp_uninstall : qla ISP target: uninstall"
 	@echo ""
 	@echo "		iscsi             : make iSCSI target"
 	@echo "		iscsi_clean       : ISCSI target: clean "
@@ -83,6 +90,7 @@ help:
 all:
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
+	@if [ -d $(QLA_ISP_DIR) ]; then cd $(QLA_ISP_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
@@ -91,6 +99,7 @@ all:
 install: 
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
+	@if [ -d $(QLA_ISP_DIR) ]; then cd $(QLA_ISP_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) DISTDIR=$(ISCSI_DISTDIR) $@; fi
@@ -99,6 +108,7 @@ install:
 uninstall: 
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
+	@if [ -d $(QLA_ISP_DIR) ]; then cd $(QLA_ISP_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
@@ -108,6 +118,7 @@ clean:
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(QLA_INI_DIR) ]; then cd $(QLA_INI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
+	@if [ -d $(QLA_ISP_DIR) ]; then cd $(QLA_ISP_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
@@ -117,6 +128,7 @@ extraclean:
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(QLA_INI_DIR) ]; then cd $(QLA_INI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
+	@if [ -d $(QLA_ISP_DIR) ]; then cd $(QLA_ISP_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
@@ -153,6 +165,21 @@ qla_clean:
 qla_extraclean:
 	cd $(QLA_INI_DIR)/.. && $(MAKE) extraclean
 	cd $(QLA_DIR) && $(MAKE) extraclean
+
+qla_isp:
+	cd $(QLA_ISP_DIR) && $(MAKE)
+
+qla_isp_install:
+	cd $(QLA_ISP_DIR) && $(MAKE) install
+
+qla_isp_uninstall:
+	cd $(QLA_ISP_DIR) && $(MAKE) uninstall
+
+qla_isp_clean:
+	cd $(QLA_ISP_DIR) && $(MAKE) clean
+
+qla_isp_extraclean:
+	cd $(QLA_ISP_DIR) && $(MAKE) extraclean
 
 iscsi:
 	cd $(ISCSI_DIR) && $(MAKE)
@@ -244,6 +271,7 @@ release2debug:
 
 .PHONY: all install uninstall clean extraclean help \
 	qla qla_install qla_uninstall qla_clean qla_extraclean \
+	qla_isp qla_isp_install qla_isp_uninstall qla_isp_clean qla_isp_extraclean \
 	lsi lsi_install lsi_uninstall lsi_clean lsi_extraclean \
 	iscsi iscsi_install iscsi_uninstall iscsi_clean iscsi_extraclean \
 	scst scst_install scst_uninstall scst_clean scst_extraclean \
