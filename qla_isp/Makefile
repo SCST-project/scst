@@ -10,6 +10,9 @@ all:
 clean:
 	$(MAKE) -C linux-2.6 clean
 
+extraclean:
+	$(MAKE) -C linux-2.6 extraclean
+
 install:
 	$(MAKE) -C linux-2.6 install
 

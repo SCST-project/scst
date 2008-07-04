@@ -44,6 +44,8 @@ clean:
 	@$(MAKE) -C build clean_links
 	@$(RM) tags
 
+extraclean: clean
+
 install:
 	@$(MAKE) -C ${LINUX} M=${CURDIR}/build modules_install
 
