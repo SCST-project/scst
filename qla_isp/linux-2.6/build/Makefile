@@ -30,12 +30,11 @@ COM_OBJ 		=	isp.o isp_library.o isp_target.o
 LNX_OBJ 		=	isp_cb_ops.o isp_linux.o isp_pci.o
 COM_DIR			=	${TDIR}/common
 LNX_DIR			=	${TDIR}/linux
-SCST_DIR		=	${TDIR}/../scst/include
 
 STG_SRC			=	isp_scst.c
 
-#EXTRA_CFLAGS		+=	-Wall -Werror -Idrivers/scsi -I${COM_DIR} -I${LNX_DIR} -I${TDIR}/firmware -I${SCST_DIR}
-EXTRA_CFLAGS		+=	-Wall -Idrivers/scsi -I${COM_DIR} -I${LNX_DIR} -I${TDIR}/firmware -I${SCST_DIR}
+#EXTRA_CFLAGS		+=	-Wall -Werror -Idrivers/scsi -I${COM_DIR} -I${LNX_DIR} -I${TDIR}/firmware -I${SCST_INC}
+EXTRA_CFLAGS		+=	-Wall -Idrivers/scsi -I${COM_DIR} -I${LNX_DIR} -I${TDIR}/firmware -I${SCST_INC}
 
 clean-files		:=	*.o scsi_target_ctl Module.symvers
 

@@ -33,11 +33,16 @@ else
 LINUX = ${KDIR}
 endif
 
+M			?=	$(CURDIR)
+TDIR			=	$(M)/../
+SCST_INC		=	${TDIR}/../scst/include
+SCST_DIR		=	${TDIR}/../scst/src
+
 all:	links
 	@$(MAKE) -C ${LINUX} M=${CURDIR}/build
 
-tgt:	links
-	@$(MAKE) -C ${LINUX} M=${CURDIR}/build ISP_TARGET_MODE=1
+tgt:	links Modules.symvers Module.symvers
+	@$(MAKE) -C ${LINUX} M=${CURDIR}/build SCST_INC=$(SCST_INC) ISP_TARGET_MODE=1
 
 clean:
 	@$(MAKE) -C ${LINUX} M=${CURDIR}/build clean
@@ -62,4 +67,21 @@ tags:	FRC
 	@ctags --recurse --append=no --exclude=linux-2.6 --exclude=Makefile --exclude=freebsd --exclude=solaris ../
 
 FRC:
+
+SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Modules.symvers 2>/dev/null)
+ifneq ($(SCST_MOD_VERS),)
+Modules.symvers: $(SCST_DIR)/Modules.symvers
+	cp $(SCST_DIR)/Modules.symvers ${CURDIR}/build
+else
+.PHONY: Modules.symvers
+endif
+
+# It's renamed in 2.6.18
+SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Module.symvers 2>/dev/null)
+ifneq ($(SCST_MOD_VERS),)
+Module.symvers: $(SCST_DIR)/Module.symvers
+	cp $(SCST_DIR)/Module.symvers ${CURDIR}/build
+else
+.PHONY: Module.symvers
+endif
 
