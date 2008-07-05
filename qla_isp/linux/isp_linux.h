@@ -84,6 +84,10 @@
 #error  "Only Linux 2.5/2.6 kernels are supported with this driver"
 #endif
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 24)
+#error  "Linux kernels newer than 2.6.24 are not supported with this driver"
+#endif
+
 #ifndef UNUSED_PARAMETER
 #define UNUSED_PARAMETER(x) (void) x
 #endif
