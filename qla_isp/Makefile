@@ -16,3 +16,6 @@ extraclean:
 install:
 	$(MAKE) -C linux-2.6 install
 
+uninstall:
+	$(MAKE) -C linux-2.6 uninstall
+

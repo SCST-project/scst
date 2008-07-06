@@ -85,3 +85,14 @@ else
 .PHONY: Module.symvers
 endif
 
+KVER := $(shell cat ${LINUX}/.kernelrelease 2> /dev/null )
+ifeq ($(KVER),)
+KVER := $(shell cat ${LINUX}/include/config/kernel.release 2> /dev/null )
+endif
+
+uninstall:
+	rm -f /lib/modules/${KVER}/extra/isp_mod.ko
+	rm -f /lib/modules/${KVER}/extra/isp_scst.ko
+	-/sbin/depmod -a ${KVER}
+
+
