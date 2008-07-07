@@ -37,3 +37,4 @@ Changes since 0.9.6-pre2:
 Changes since 1.0.0 RC1
 
 - Updated SCST/SCST.pm to add one more option mapping NV -> NV_CACHE.
+- Install/uninstall added.
