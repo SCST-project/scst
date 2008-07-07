@@ -1,8 +1,8 @@
 iSCSI SCST target driver
 ========================
 
-Version 1.0.0/0.4.16r151, XX June 2008
---------------------------------------
+Version 1.0.0/0.4.16r155, 7 July 2008
+-------------------------------------
 
 This driver is a forked with all respects version of iSCSI Enterprise
 Target (IET) (http://iscsitarget.sourceforge.net/) with updates to work
@@ -135,6 +135,25 @@ that issue.
 CAUTION:  Working of target and initiator on the same host isn't
 ========  supported. See SCST README file for details.
 
+Known issues
+------------
+
+Currently iscsi-scst-adm utility is broken, hence not built. But, in
+contrast to IET, in iSCSI-SCST it isn't needed so much, since all
+devices/LUNs management is done using SCST's /proc interface, e.g. using
+scstadmin utility. What's remained for iscsi-scst-adm is manage of iSCSI
+targets and their parameters. In case of changing any negotiable iSCSI
+parameters renegotiation in all corresponding sessions is required by
+iSCSI standard, i.e. they all must be restarted, which, basically, means
+iSCSI-SCST restart. So, for parameters changing as well as for
+adding/removing targets, the recommended way is to change
+iscsi-scst.conf, then restart iSCSI-SCST. In contrast to IET, this
+operation is safe. Also, as a side effect, your iscsi-scst.conf will
+always be in sync with the running system.
+
+But, if you decide to fix iscsi-scst-adm, your patches will be
+appreciated.
+
 Compilation options
 -------------------
 
@@ -152,19 +171,6 @@ in/out in the kernel's module Makefile:
 
  - DEBUG_DIGEST_FAILURES - simulates digest failures in random places.
 
-Known issues
-------------
-
-Currently some iscsi-scst-adm functionality is broken. But, from one
-side, at the moment I don't have time to look at it and, from other
-side, in contrast to IET, in iSCSI-SCST this utility doesn't worth much,
-since all devices management is done using SCST's /proc interface.
-What's remained for iscsi-scst-adm is managing iSCSI targets and their
-parameters, but in any case changing of any negotiable iSCSI parameter
-needs renegotiation, i.e. the corresponding session restart, i.e.
-iSCSI-SCST restart. But, if you decide to fix iscsi-scst-adm, I will
-appreciate your patches.
-
 Creating version of put_page_callback patch for your kernel
 -----------------------------------------------------------
 
@@ -174,7 +180,7 @@ yourself. This is pretty mechanical work, you don't need to understand
 how it works, you only need to do the following two steps:
 
 1. Apply the closest version of put_page_callback-<kernel-version>.patch
-on your kernel. Resolve only failed hanks from include/ and
+on your kernel. Resolve only failed hunks from include/ and
 net/core/utils.c, ignore other failures.
 
 2. Search net/ in your kernel source for "put_page" and "get_page"

@@ -1,5 +1,60 @@
-Summary of changes between versions 0.9.5 and 0.9.6
+Summary of changes between versions 0.9.5 and 1.0.0
 ---------------------------------------------------
+
+ - Added per-device memory limit and new scst.ko module parameter scst_max_dev_cmd_mem
+
+ - Sending REQUEST SENSE fixed
+
+ - Fixed possible incorrect command's retry if double RESET UA is detected.
+
+ - Fixed __exit misuse, when such functions called from __init functions.
+
+ - "RECEIVE DIAGNOSTIC RESULTS" command handling fixed
+
+ - Obtaining device queue parameters in scst_obtain_device_parameters()
+   changed to handle NOT READY sense
+
+ - Added possibility to create virtual removable devices
+
+ - Updated to work on 2.6.25.x
+
+ - Fixed READ POSITION command handling
+
+ - TM processing made independant from other TM commands (before it was serialized)
+
+ - Sense buffer made dynamic
+
+ - Clustering statistic added
+
+ - Updated to work on 2.6.24.x
+
+ - Version protection added
+
+ - Processing latency measurement facility added
+
+ - Sessions registration/unregistration made independant from other activities
+
+ - Major performance improvements
+
+ - Major task management handling improvements
+
+ - Updated to work on 2.6.23.x
+
+ - Switching between debug<->performance<->release builds added
+
+ - scsi_tgt renamed to scst, scsi_tgt.h renamed to scst.h
+
+ - Updated to work on 2.6.22.x
+
+ - Semaphores converted to mutexes
+
+ - 64-bit platform cleanups
+
+ - Added limit on maximum queued on a device commands
+
+ - Threads made per-device
+
+ - User space device handler added
 
  - New SGV cache low memory management backend with memory flow control
    facility was implemented, thanks to Krzysztof Blaszkowski.
@@ -31,7 +86,7 @@ Summary of changes between versions 0.9.5 and 0.9.6
 
  - Support for CPU cache flushing before doing DMA to target devices added.
 
- - Various cleanups, bug fixes and improvements.
+ - A lot of cleanups, bug fixes and improvements.
 
 Summary of changes between versions 0.9.4 and 0.9.5
 ---------------------------------------------------

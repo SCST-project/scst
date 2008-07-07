@@ -5,7 +5,7 @@
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
  *  Copyright (C) 2006 Nathaniel Clark <nate@misrule.us>
  *
- *  Qlogic 2x00 SCSI target driver.
+ *  QLogic 2x00 SCSI target driver.
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -37,8 +37,8 @@
 
 /* Version numbers, the same as for the kernel */
 #define Q2T_VERSION(a,b,c,d) (((a) << 030) + ((b) << 020) + (c) << 010 + (d))
-#define Q2T_VERSION_CODE Q2T_VERSION(0,9,6,0)
-#define Q2T_VERSION_STRING "1.0.0-rc1"
+#define Q2T_VERSION_CODE Q2T_VERSION(1,0,0,0)
+#define Q2T_VERSION_STRING "1.0.0"
 
 #define Q2T_MAX_CDB_LEN             16
 #define Q2T_TIMEOUT                 10	/* in seconds */

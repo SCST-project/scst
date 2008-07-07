@@ -29,9 +29,9 @@ CFLAGS += -O2 -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes \
 PROGS = fileio_tgt
 LIBS = -lpthread
 
-CFLAGS += -DEXTRACHECKS
-#CFLAGS += -DTRACING
-CFLAGS += -DDEBUG -g
+#CFLAGS += -DEXTRACHECKS
+CFLAGS += -DTRACING
+#CFLAGS += -DDEBUG -g
 
 #CFLAGS += -DDEBUG_NOMEM
 #CFLAGS += -DDEBUG_SENSE

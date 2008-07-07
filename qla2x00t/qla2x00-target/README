@@ -1,8 +1,8 @@
 Target driver for Qlogic 2200/2300 Fibre Channel cards
 ======================================================
 
-Version 1.0.0, XX June 2008
----------------------------
+Version 1.0.0, 7 July 2008
+--------------------------
 
 This driver has all required features and looks to be quite stable (for
 beta) and useful. It consists from two parts: the target mode driver

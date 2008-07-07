@@ -34,5 +34,13 @@ Summary of changes in iSCSI-SCST since it was IET
    were relaced by the proper handling. Hovewer, there is a plenty of work in
    this area left, IET is known to have a lot of weaknesses here.
 
+ - Task management made more robust. Particularly, possible data
+   corruption scenarios were fixed.
+
+ - Implemented SN based iSCSI IO flow control
+
+ - Response data send timeout implemented: now if initiator doesn't
+   accept data for too long (30 sec), target closes connection
+
  - A lot of other bugfixes and code cleanups.
 

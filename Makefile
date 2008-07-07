@@ -20,6 +20,7 @@
 #export KDIR=/usr/src/linux-2.6
 
 SCST_DIR=scst
+SCSTADM_DIR=scstadmin
 QLA_INI_DIR=qla2x00t
 QLA_DIR=qla2x00t/qla2x00-target
 QLA_ISP_DIR=qla_isp
@@ -42,6 +43,9 @@ help:
 	@echo "		scst_extraclean   : scst: clean + clean dependencies"
 	@echo "		scst_install      : scst: install"
 	@echo "		scst_uninstall    : scst: uninstall"
+	@echo ""
+	@echo "		scstadm_install   : scstadmin: install"
+	@echo "		scstadm_uninstall : scstadmin: uninstall"
 	@echo ""
 	@echo "		qla               : make QLA target driver"
 	@echo "		qla_clean         : 2.6 qla target: clean "
@@ -148,6 +152,12 @@ scst_clean:
 
 scst_extraclean: 
 	cd $(SCST_DIR) && $(MAKE) extraclean
+
+scstadm_install: 
+	cd $(SCSTADM_DIR) && $(MAKE) install
+
+scstadm_uninstall: 
+	cd $(SCSTADM_DIR) && $(MAKE) uninstall
 
 qla:
 	cd $(QLA_DIR) && $(MAKE)
@@ -275,5 +285,6 @@ release2debug:
 	lsi lsi_install lsi_uninstall lsi_clean lsi_extraclean \
 	iscsi iscsi_install iscsi_uninstall iscsi_clean iscsi_extraclean \
 	scst scst_install scst_uninstall scst_clean scst_extraclean \
+	scstadm_install scstadm_uninstall \
 	usr usr_install usr_uninstall usr_clean usr_extraclean \
 	debug2perf, debug2release, perf2debug, release2debug

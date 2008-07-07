@@ -5,7 +5,7 @@
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
  *  Copyright (C) 2006 Nathaniel Clark <nate@misrule.us>
  *
- *  Qlogic 2x00 SCSI target driver.
+ *  QLogic 2x00 SCSI target driver.
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License

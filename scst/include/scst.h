@@ -48,9 +48,9 @@ typedef _Bool bool;
 #endif
 
 /* Version numbers, the same as for the kernel */
-#define SCST_VERSION_CODE 0x00090601
+#define SCST_VERSION_CODE 0x01000000
 #define SCST_VERSION(a, b, c, d) (((a) << 24) + ((b) << 16) + ((c) << 8) + d)
-#define SCST_VERSION_STRING "1.0.0-rc2"
+#define SCST_VERSION_STRING "1.0.0"
 #define SCST_INTERFACE_VERSION SCST_VERSION_STRING "$Revision$" SCST_CONST_VERSION
 
 /*************************************************************

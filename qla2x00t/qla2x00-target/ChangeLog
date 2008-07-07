@@ -1,9 +1,30 @@
-Summary of changes between versions 0.9.5 and 0.9.6
+Summary of changes between versions 0.9.5 and 1.0.0
 ---------------------------------------------------
+
+ - Fixed sg_tablesize in qla2x00t to be per target card, not global
+
+ - Updated to work on 2.6.25.x
+
+ - Updated to work on 2.6.24.x
+
+ - Fixed possible crash if tgt module rmmod'ed under load
+
+ - Fixed incorrect residual on internal BUSY replies
+
+ - Updated to work on 2.6.23.x
+
+ - Fixes a race, when an event comes on the driver unload, so DPC thread
+   will try to use already half destroyed data. 
+
+ - Fixed problem with SNS, not advertising target mode.
 
  - Support for per-target default security groups added.
 
  - Updated to work on 2.6.22.x kernels.
+
+ - Updated to work on 2.6.21.x kernels.
+
+ - Updated to work on 2.6.20.x kernels.
 
  - Updated to work with SCST 0.9.6.
 
