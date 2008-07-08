@@ -40,9 +40,10 @@
 					<li><a href="target_fcoe.html">Open-FCoE Target SW</a></li>
 					<li><a href="target_old.html">Old Unsupported</a></li>
 				</ul>
-				<h1>SCST Admin</h1>
+				<h1>User utilities</h1>
 				<ul class="sidemenu">
 					<li><a href="scst_admin.html">SCST Admin Utility</a></li>
+					<li><a href="handler_fileio_tgt.html">FILEIO_TGT handler</a></li>
 				</ul>
 			</div>		
 			
@@ -111,10 +112,14 @@
 				iscsi-scstd.conf file in /etc, but using corresponding SCST facilities. This is because now the responsibilities 
 				are divided (as it should be) between the target driver (iSCSI-SCST) and the SCST core: target driver is 
 				responsible for handling targets and their parameters, SCST core is responsible for handling backstorage.</p>
-				
-				<p class="post-footer align-right">
-					<a href="http://iscsitarget.sourceforge.net/" class="readmore">IET WebPage</a>				
-					<a href="http://scst.svn.sourceforge.net/" class="readmore">SCST SVN Repository</a>	
+
+				<p>The latest stable version is 1.0.0. Requires Linux kernel version 2.6.16.x or higher and SCST version 1.0.0 or higher. 
+				Tested mostly on i386 and x86_64, but should work on any other supported by Linux platform.</p>
+				<p>You can find the latest development version of this driver in the SCST SVN. See the download page how to setup 
+				access to it.</p>
+				<p class="post-footer align-right">					
+					<a href="https://sourceforge.net/project/showfiles.php?group_id=110471&package_id=283228" class="readmore">Download</a>				
+					<a href="http://scst.svn.sourceforge.net/" class="readmore">SCST SVN Repository</a>
 				</p>
 	  		</div> 
 	</div>
