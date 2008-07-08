@@ -548,7 +548,7 @@ isplinux_pci_init_one(struct Scsi_Host *host)
     if (isp_debug) {
         isp->isp_dblev = isp_debug;
     } else {
-        isp->isp_dblev = ISP_LOGCONFIG|ISP_LOGINFO|ISP_LOGWARN|ISP_LOGERR;
+        isp->isp_dblev = ISP_LOGERR;
     }
 
     pci_read_config_word(pdev, PCI_COMMAND, &cmd);

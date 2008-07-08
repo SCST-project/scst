@@ -264,6 +264,7 @@ debug2release:
 	patch -p0 <usr-release.patch
 	patch -p0 <qla2x00t-release.patch
 	patch -p0 <iscsi-release.patch
+	patch -p0 <qla_isp-release.patch
 
 perf2debug:
 	echo "Changing current debug state from full performance to full debug"
@@ -278,6 +279,7 @@ release2debug:
 	patch -p0 -R <usr-release.patch
 	patch -p0 -R <qla2x00t-release.patch
 	patch -p0 -R <iscsi-release.patch
+	patch -p0 -R <qla_isp-release.patch
 
 .PHONY: all install uninstall clean extraclean help \
 	qla qla_install qla_uninstall qla_clean qla_extraclean \
