@@ -20,9 +20,6 @@
 #
 # Note 2! The CFLAGS definitions are now in the main makefile.
 
-#SCST_INC_DIR := /usr/local/include/scst
-SCST_INC_DIR := $(SUBDIRS)/../../scst/include
-
 EXTRA_CFLAGS += -I$(src)/../include -I$(SCST_INC_DIR)
 # -Wextra -Wno-unused-parameter
 

@@ -5,7 +5,11 @@
 # removes any old dependencies. DON'T put your own dependencies here
 # unless it's something special (not a .c file).
 
-SCST_DIR := $(shell pwd)/../scst/src
+SCST_INC_DIR := /usr/local/include/scst
+#SCST_INC_DIR := $(SUBDIRS)/../../scst/include
+SCST_DIR := $(SCST_INC_DIR)
+#SCST_DIR := $(shell pwd)/../scst/src
+
 SUBDIRS := $(shell pwd)
 
 ifeq ($(KVER),)
@@ -22,7 +26,7 @@ endif
 all: include/iscsi_scst_itf_ver.h progs mods
 
 mods: Modules.symvers Module.symvers
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/kernel modules
+	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(shell pwd)/kernel modules
 
 progs:
 	$(MAKE) -C usr

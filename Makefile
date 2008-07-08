@@ -257,6 +257,7 @@ debug2perf:
 	patch -p0 <usr-full_perf.patch
 	patch -p0 <qla2x00t-full_perf.patch
 	patch -p0 <iscsi-full_perf.patch
+	patch -p0 <qla_isp-release.patch
 
 debug2release:
 	echo "Changing current debug state from full debug to release"
@@ -272,6 +273,7 @@ perf2debug:
 	patch -p0 -R <usr-full_perf.patch
 	patch -p0 -R <qla2x00t-full_perf.patch
 	patch -p0 -R <iscsi-full_perf.patch
+	patch -p0 -R <qla_isp-release.patch
 
 release2debug:
 	echo "Changing current debug state from release to full debug"

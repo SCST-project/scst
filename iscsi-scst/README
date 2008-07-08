@@ -109,6 +109,8 @@ or
 Usage
 -----
 
+See in doc/iscsi-scst-howto.txt examples how to configure iSCSI-SCST.
+
 ISCSI parameters like iSNS, CHAP and target parameters are configured in
 iscsi-scstd.conf. All LUN information is configured using the regular
 SCST interface. It is highly recommended to use scstadmin utility for

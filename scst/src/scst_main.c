@@ -469,6 +469,7 @@ static int scst_susp_wait(bool interruptible)
 int scst_suspend_activity(bool interruptible)
 {
 	int res = 0;
+	bool rep = false;
 
 	TRACE_ENTRY();
 
@@ -508,6 +509,7 @@ int scst_suspend_activity(bool interruptible)
 			"forever until the corresponding user space "
 			"program recovers and starts responding or gets "
 			"killed.", atomic_read(&scst_cmd_count));
+		rep = true;
 	}
 
 	res = scst_susp_wait(interruptible);
@@ -524,7 +526,8 @@ int scst_suspend_activity(bool interruptible)
 	if (res != 0)
 		goto out_clear;
 
-	PRINT_INFO("%s", "All active commands completed");
+	if (rep)
+		PRINT_INFO("%s", "All active commands completed");
 
 out_up:
 	mutex_unlock(&scst_suspend_mutex);
