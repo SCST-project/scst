@@ -187,9 +187,9 @@ void cmnd_free(struct iscsi_cmnd *cmnd)
 			req->cmd_sn, be32_to_cpu(cmnd->pdu.datasize));
 
 		if (unlikely(cmnd->parent_req)) {
-			struct iscsi_scsi_cmd_hdr *req =
+			struct iscsi_scsi_cmd_hdr *preq =
 					cmnd_hdr(cmnd->parent_req);
-			PRINT_CRIT_ERROR("%p %x %u", req, req->opcode, req->scb[0]);
+			PRINT_CRIT_ERROR("%p %x %u", preq, preq->opcode, preq->scb[0]);
 		}
 		sBUG();
 	}
