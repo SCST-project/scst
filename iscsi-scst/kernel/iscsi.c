@@ -163,7 +163,7 @@ struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *conn, struct iscsi_cmnd *parent
 }
 
 /* Frees a command. Also frees the additional header. */
-void cmnd_free(struct iscsi_cmnd *cmnd)
+static void cmnd_free(struct iscsi_cmnd *cmnd)
 {
 	TRACE_DBG("%p", cmnd);
 
