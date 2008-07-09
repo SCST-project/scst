@@ -1,8 +1,8 @@
 iSCSI SCST target driver
 ========================
 
-Version 1.0.0/0.4.16r155, 7 July 2008
--------------------------------------
+Version 1.0.1/0.4.16r155, XX XXXX 2008
+--------------------------------------
 
 This driver is a forked with all respects version of iSCSI Enterprise
 Target (IET) (http://iscsitarget.sourceforge.net/) with updates to work

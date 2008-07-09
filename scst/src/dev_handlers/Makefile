@@ -69,10 +69,10 @@ endif
 
 EXTRA_CFLAGS += -I$(SUBDIRS) -I$(SCST_INC_DIR) -Wextra -Wno-unused-parameter
 
-#EXTRA_CFLAGS += -DEXTRACHECKS
+EXTRA_CFLAGS += -DEXTRACHECKS
 
-EXTRA_CFLAGS += -DTRACING
-#EXTRA_CFLAGS += -DDEBUG -g
+#EXTRA_CFLAGS += -DTRACING
+EXTRA_CFLAGS += -DDEBUG -g
 
 clean:
 	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend Modules.symvers \

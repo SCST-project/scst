@@ -156,7 +156,7 @@ struct bus {
     struct scst_proc_data    proc_data;
 };
 
-//#define DEBUG 1
+#define DEBUG 1
 
 #ifdef DEBUG
 #define    SDprintk     if (debug) printk

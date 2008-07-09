@@ -2,7 +2,7 @@ Index: usr/fileio/Makefile
 ===================================================================
 --- usr/fileio/Makefile	(revision 324)
 +++ usr/fileio/Makefile	(working copy)
-@@ -29,9 +29,9 @@ CFLAGS += -O2 -Wall -Wextra -Wno-unused-
+@@ -30,9 +30,9 @@ CFLAGS += -O2 -Wall -Wextra -Wno-unused-
  PROGS = fileio_tgt
  LIBS = -lpthread
  
