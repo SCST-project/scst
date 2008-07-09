@@ -64,9 +64,10 @@ diff -uprN orig/linux-${kernel_version}/$2 linux-${kernel_version}/$2
 @@ -0,0 +1,$(wc -l "$1" | { read a b; echo $a; }) @@
 EOF
     if [ "${2%.[ch]}" != "$2" ]; then
-      sed -e 's/^ \([^ ]*:\)$/\1/' -e 's/^/+/' < "$1"
+      sed -e 's/sBUG(/BUG(/g' -e 's/sBUG_ON(/BUG_ON(/g' -e 's/^/+/' \
+          -e 's/^ \([^ ]*:\)$/\1/' < "$1"
     else
-      sed -e 's/^/+/' < "$1"
+      sed -e 's/sBUG(/BUG(/g' -e 's/sBUG_ON(/BUG_ON(/g' -e 's/^/+/' < "$1"
     fi
   fi
 }

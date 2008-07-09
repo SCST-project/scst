@@ -39,6 +39,7 @@
 #define DEBUG
 #endif
 
+#if !defined(INSIDE_KERNEL_TREE)
 #ifdef DEBUG
 
 #ifndef EXTRACHECKS
@@ -69,8 +70,9 @@
 #define sBUG_ON(p) BUG_ON(p)
 
 #endif
+#endif
 
-#ifndef WARN_ON_ONCE
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 19)
 #define WARN_ON_ONCE(condition) ({				\
 	static int __warned;					\
 	typeof(condition) __ret_warn_once = (condition);	\

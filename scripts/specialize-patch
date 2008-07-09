@@ -46,11 +46,13 @@ function evaluate(stmnt) {
 
   gsub("LINUX_VERSION_CODE", LINUX_VERSION_CODE, stmnt)
 
+  gsub("defined\\(INSIDE_KERNEL_TREE\\)", "1", stmnt)
+
   do
   {
     last_stmnt = stmnt
 
-    pattern = "! ([0-9]+)"
+    pattern = "! *([0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
       sub(pattern, op[1] == 0, stmnt)
@@ -110,7 +112,7 @@ function handle_if()
 {
   # Only act on preprocessor conditional expressions with regard to the Linux
   # kernel version, and do not interpret other expressions.
-  if ($0 ~ "LINUX_VERSION_CODE")
+  if ($0 ~ "LINUX_VERSION_CODE" || $0 ~ "INSIDE_KERNEL_TREE")
   {
     $0 = evaluated
   }
