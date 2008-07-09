@@ -5,12 +5,12 @@
 # removes any old dependencies. DON'T put your own dependencies here
 # unless it's something special (not a .c file).
 
-SCST_INC_DIR := /usr/local/include/scst
-#SCST_INC_DIR := $(SUBDIRS)/../../scst/include
-SCST_DIR := $(SCST_INC_DIR)
-#SCST_DIR := $(shell pwd)/../scst/src
-
 SUBDIRS := $(shell pwd)
+
+#SCST_INC_DIR := /usr/local/include/scst
+SCST_INC_DIR := $(SUBDIRS)/../scst/include
+#SCST_DIR := $(SCST_INC_DIR)
+SCST_DIR := $(shell pwd)/../scst/src
 
 ifeq ($(KVER),)
   ifeq ($(KDIR),)

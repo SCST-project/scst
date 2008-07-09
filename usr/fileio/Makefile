@@ -20,8 +20,8 @@ OBJS_F = $(SRCS_F:.c=.o)
 #SRCS_C = 
 #OBJS_C = $(SRCS_C:.c=.o)
 
-#SCST_INC_DIR := ../../scst/include
-SCST_INC_DIR := /usr/local/include/scst
+SCST_INC_DIR := ../../scst/include
+#SCST_INC_DIR := /usr/local/include/scst
 INSTALL_DIR := /usr/local/bin/scst
 
 CFLAGS += -O2 -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes \
