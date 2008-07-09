@@ -310,7 +310,8 @@ typedef struct _MPT_STM_PRIV
 #define IMM_NTFY_MSG_RX             0x0036
 
 /* Immediate notify task flags */
-#define IMM_NTFY_ABORT_TS           0x01
+#define IMM_NTFY_ABORT_TS1          0x01
+#define IMM_NTFY_ABORT_TS2          0x02
 #define IMM_NTFY_CLEAR_TS           0x04
 #define IMM_NTFY_LUN_RESET1         0x08
 #define IMM_NTFY_LUN_RESET2         0x10

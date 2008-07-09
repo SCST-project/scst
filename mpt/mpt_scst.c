@@ -1842,7 +1842,8 @@ mpt_local_task_mgmt(struct mpt_sess *sess, int task_mgmt, int lun)
 	case IMM_NTFY_LUN_RESET1:
 	case IMM_NTFY_LUN_RESET2:
 	case IMM_NTFY_CLEAR_TS:
-	case IMM_NTFY_ABORT_TS:
+	case IMM_NTFY_ABORT_TS1:
+	case IMM_NTFY_ABORT_TS2:
 		list_for_each_entry_safe(cmd, t, &sess->delayed_cmds,
 					 delayed_cmds_entry)
 			{
@@ -1933,7 +1934,8 @@ mpt_handle_task_mgmt(MPT_STM_PRIV *priv, u32 reply_word,
 					 SCST_ATOMIC, mcmd);
 		break;
 
-	case IMM_NTFY_ABORT_TS:
+	case IMM_NTFY_ABORT_TS1:
+	case IMM_NTFY_ABORT_TS2:
 		TRACE(TRACE_MGMT, "%s", "IMM_NTFY_ABORT_TS received");
 		rc = scst_rx_mgmt_fn_lun(sess->scst_sess, SCST_ABORT_TASK_SET,
 					 (uint8_t *)&lun, sizeof(lun),
