@@ -7,9 +7,7 @@ The perl module SCST::SCST is very generic and tries to handle error checking as
 
 The init script was written for debian but should work on most distributions.
 
-	SCST		This is the SCST Perl module required by scstadmin and scst_db.
-			Copy the SCST directory to your perl5 lib directory:
-				#> cp -r SCST /usr/lib/perl5/
+	scst-0.7.4	This is the SCST Perl module required by scstadmin and scst_db.
 
 	scstadmin	Script which can accept operations on a command line or from
 			a configuration file. See scst.conf. For command help,
@@ -28,7 +26,19 @@ The init script was written for debian but should work on most distributions.
 	init.d/scst	Init script to start SCST on boot which uses scstadmin.
 
 
+Installation:
+=============
+
+Installation is simple.
+
+  #> make
+  #> make install
+
+This installs scstadmin, the init.d script and the perl module.
+
+
 Getting Started:
+================
 
 The scstadmin script is much more functional than scst_db at this point but uses a
 standard text-based config file. The original thought behind scst_db was to write
@@ -38,13 +48,13 @@ client app would then connect to that port.
 Copy scst.conf to /etc and edit it to your liking. if you have an existing configuration
 then have scstadmin write it out to a config file for you:
 
-#> scstadmin -WriteConfig /etc/scst.conf
+  #> scstadmin -WriteConfig /etc/scst.conf
 
 When removing devices, users or groups from the config file keep in mind that
 "scstadmin -config" will NOT remove those configurations from the running system unless
 you use the -ForceConfig flag. Also, using the init script to reload the configuration
 
-#> /etc/init.d/scst reload-config
+  #> /etc/init.d/scst reload-config
 
 will also not remove configurations from a running system.
 
