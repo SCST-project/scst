@@ -1,0 +1,5 @@
+In SVN making tags is too heavyweighted. So, I decided instead keep in
+this file revisions numbers, corresponding to the desired symbolic tags.
+
+Tag					Revision
+1.0.0					439
