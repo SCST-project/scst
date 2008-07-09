@@ -192,7 +192,7 @@ int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	switch(cmd->state) {
+	switch (cmd->state) {
 	case SCST_CMD_STATE_INIT_WAIT:
 	case SCST_CMD_STATE_INIT:
 	case SCST_CMD_STATE_PRE_PARSE:
@@ -215,7 +215,7 @@ void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 #ifdef EXTRACHECKS
-	switch(cmd->state) {
+	switch (cmd->state) {
 	case SCST_CMD_STATE_PRE_XMIT_RESP:
 	case SCST_CMD_STATE_XMIT_RESP:
 	case SCST_CMD_STATE_FINISHED:
@@ -347,7 +347,7 @@ void scst_init_mem_lim(struct scst_mem_lim *mem_lim)
 EXPORT_SYMBOL(scst_init_mem_lim);
 
 struct scst_acg_dev *scst_alloc_acg_dev(struct scst_acg *acg,
-	struct scst_device *dev, lun_t lun)
+					struct scst_device *dev, uint64_t lun)
 {
 	struct scst_acg_dev *res;
 
@@ -746,8 +746,8 @@ void scst_sess_free_tgt_devs(struct scst_session *sess)
 }
 
 /* The activity supposed to be suspended and scst_mutex held */
-int scst_acg_add_dev(struct scst_acg *acg, struct scst_device *dev, lun_t lun,
-	int read_only)
+int scst_acg_add_dev(struct scst_acg *acg, struct scst_device *dev,
+		     uint64_t lun, int read_only)
 {
 	int res = 0;
 	struct scst_acg_dev *acg_dev;
@@ -1922,9 +1922,9 @@ EXPORT_SYMBOL(scst_get_cdb_info);
  * (see SAM-2, Section 4.12.3 page 40)
  * Supports 2 types of lun unpacking: peripheral and logical unit.
  */
-lun_t scst_unpack_lun(const uint8_t *lun, int len)
+uint64_t scst_unpack_lun(const uint8_t *lun, int len)
 {
-	lun_t res = (lun_t)-1;
+	uint64_t res = NO_SUCH_LUN;
 	int address_method;
 
 	TRACE_ENTRY();

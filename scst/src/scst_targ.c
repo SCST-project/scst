@@ -249,7 +249,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context)
 
 	spin_unlock_irqrestore(&sess->sess_list_lock, flags);
 
-	if (unlikely(cmd->lun == (lun_t)-1)) {
+	if (unlikely(cmd->lun == NO_SUCH_LUN)) {
 		PRINT_ERROR("Wrong LUN %d, finishing cmd", -1);
 		scst_set_cmd_error(cmd,
 			   SCST_LOAD_SENSE(scst_sense_lun_not_supported));
@@ -4821,7 +4821,7 @@ int scst_rx_mgmt_fn(struct scst_session *sess,
 
 	if (params->lun_set) {
 		mcmd->lun = scst_unpack_lun(params->lun, params->lun_len);
-		if (mcmd->lun == (lun_t)-1)
+		if (mcmd->lun == NO_SUCH_LUN)
 			goto out_free;
 		mcmd->lun_set = 1;
 	}

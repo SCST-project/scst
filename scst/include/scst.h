@@ -403,7 +403,11 @@ struct scst_acg;
 struct scst_acg_dev;
 struct scst_acn;
 
-typedef uint64_t lun_t;
+/*
+ * SCST uses 64-bit numbers to represent LUN's internally. The value
+ * NO_SUCH_LUN is guaranteed to be different of every valid LUN.
+ */
+#define NO_SUCH_LUN ((uint64_t)-1)
 
 typedef enum dma_data_direction scst_data_direction;
 
@@ -1122,7 +1126,7 @@ struct scst_cmd {
 
 	struct scst_tgt_dev *tgt_dev;	/* corresponding device for this cmd */
 
-	lun_t lun;			/* LUN for this cmd */
+	uint64_t lun;			/* LUN for this cmd */
 
 	unsigned long start_time;
 
@@ -1282,7 +1286,7 @@ struct scst_mgmt_cmd {
 	/* Number of completed commands, protected by scst_mcmd_lock */
 	int completed_cmd_count;
 
-	lun_t lun;	/* LUN for this mgmt cmd */
+	uint64_t lun;	/* LUN for this mgmt cmd */
 	/* or (and for iSCSI) */
 	uint64_t tag;	/* tag of the corresponding cmd */
 
@@ -1446,7 +1450,7 @@ struct scst_tgt_dev {
 	struct list_head sess_tgt_dev_list_entry;
 
 	struct scst_device *dev; /* to save extra dereferences */
-	lun_t lun;		 /* to save extra dereferences */
+	uint64_t lun;		 /* to save extra dereferences */
 
 	/* How many cmds alive on this dev in this session */
 	atomic_t tgt_dev_cmd_count;
@@ -1510,7 +1514,7 @@ struct scst_tgt_dev {
  */
 struct scst_acg_dev {
 	struct scst_device *dev; /* corresponding device */
-	lun_t lun;		/* device's LUN in this acg */
+	uint64_t lun;		/* device's LUN in this acg */
 	unsigned int rd_only_flag:1; /* if != 0, then read only */
 	struct scst_acg *acg;	/* parent acg */
 

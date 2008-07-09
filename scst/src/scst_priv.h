@@ -286,8 +286,8 @@ int scst_sess_alloc_tgt_devs(struct scst_session *sess);
 void scst_sess_free_tgt_devs(struct scst_session *sess);
 void scst_nexus_loss(struct scst_tgt_dev *tgt_dev);
 
-int scst_acg_add_dev(struct scst_acg *acg, struct scst_device *dev, lun_t lun,
-	int read_only);
+int scst_acg_add_dev(struct scst_acg *acg, struct scst_device *dev,
+		     uint64_t lun, int read_only);
 int scst_acg_remove_dev(struct scst_acg *acg, struct scst_device *dev);
 
 int scst_acg_add_name(struct scst_acg *acg, const char *name);
@@ -359,7 +359,7 @@ int scst_alloc_space(struct scst_cmd *cmd);
 void scst_release_space(struct scst_cmd *cmd);
 void scst_scsi_op_list_init(void);
 
-lun_t scst_unpack_lun(const uint8_t *lun, int len);
+uint64_t scst_unpack_lun(const uint8_t *lun, int len);
 
 struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,
 	uint64_t tag);
