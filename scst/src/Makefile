@@ -41,7 +41,7 @@ scst-y        += scst_lib.o
 scst-y        += scst_proc.o
 scst-y        += scst_mem.o
 scst-y        += scst_debug.o
-obj-$(CONFIG_SCSI_TARGET)   += scst.o dev_handlers/
+obj-$(CONFIG_SCST)   += scst.o dev_handlers/
 
 obj-$(BUILD_DEV) += $(DEV_HANDLERS_DIR)/
 
@@ -113,23 +113,23 @@ INSTALL_DIR_H := /usr/local/include/scst
 
 EXTRA_CFLAGS += -I$(SCST_INC_DIR) -Wextra -Wno-unused-parameter
 
-#EXTRA_CFLAGS += -DSTRICT_SERIALIZING
+#EXTRA_CFLAGS += -DCONFIG_SCST_STRICT_SERIALIZING
 
-EXTRA_CFLAGS += -DEXTRACHECKS
+EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
 
-#EXTRA_CFLAGS += -DUSE_EXPECTED_VALUES
+#EXTRA_CFLAGS += -DCONFIG_SCST_USE_EXPECTED_VALUES
 #EXTRA_CFLAGS += -DALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
 #EXTRA_CFLAGS += -DABORT_CONSIDER_FINISHED_TASKS_AS_NOT_EXISTING
 
 #EXTRA_CFLAGS += -fno-inline
 
-#EXTRA_CFLAGS += -DTRACING
+#EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
 
-EXTRA_CFLAGS += -DDEBUG -g
-#EXTRA_CFLAGS += -DDEBUG_TM -DTM_DBG_GO_OFFLINE=0
-#EXTRA_CFLAGS += -DDEBUG_RETRY
-#EXTRA_CFLAGS += -DDEBUG_OOM
-#EXTRA_CFLAGS += -DDEBUG_SN
+EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g
+#EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG_TM -UCONFIG_SCST_TM_DBG_GO_OFFLINE
+#EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG_RETRY
+#EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG_OOM
+#EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG_SN
 
 #EXTRA_CFLAGS += -DMEASURE_LATENCY
 
@@ -142,7 +142,7 @@ EXTRA_CFLAGS += -DDEBUG -g
 # If defined, allows SCST to use HIGHMEM. It's unclear, if it brings
 # something valuable, except performance hit in some cases,
 # so let it be off. Untested and unsupported.
-#EXTRA_CFLAGS += -DSCST_HIGHMEM
+#EXTRA_CFLAGS += -DCONFIG_SCST_HIGHMEM
 
 clean:
 	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend Modules.symvers \

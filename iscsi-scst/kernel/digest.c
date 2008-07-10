@@ -61,7 +61,7 @@ static u32 evaluate_crc32_from_sg(struct scatterlist *sg, int total,
 {
 	u32 crc = ~0;
 
-#ifdef DEBUG_DIGEST_FAILURES
+#ifdef CONFIG_SCST_ISCSI_DEBUG_DIGEST_FAILURES
 	if (((scst_random() % 100000) == 752)) {
 		PRINT_INFO("%s", "Simulating digest failure");
 		return 0;

@@ -64,7 +64,7 @@ new functions scsi_do_req_fifo()/scsi_execute_async_fifo() to be added
 in the kernel. Patch scst_exec_req_fifo.patch from "kernel" directory
 does that. If it doesn't apply to your kernel, apply it manually, it
 only adds one of those functions and nothing more. You may not patch the
-kernel if you don't need pass-through support or STRICT_SERIALIZING is
+kernel if you don't need pass-through support or CONFIG_SCST_STRICT_SERIALIZING is
 defined during the compilation (see description below).
 
 To compile SCST type 'make scst'. It will build SCST itself and its
@@ -184,24 +184,24 @@ Compilation options
 There are the following compilation options, that could be commented
 in/out in Makefile:
 
- - DEBUG - if defined, turns on some debugging code, including some
-   logging. Makes the driver considerably bigger and slower, producing
-   large amount of log data.
+ - CONFIG_SCST_DEBUG - if defined, turns on some debugging code,
+   including some logging. Makes the driver considerably bigger and slower,
+   producing large amount of log data.
 
- - TRACING - if defined, turns on ability to log events. Makes the
-   driver considerably bigger and lead to some performance loss.
+ - CONFIG_SCST_TRACING - if defined, turns on ability to log events. Makes the
+   driver considerably bigger and leads to some performance loss.
 
- - EXTRACHECKS - if defined, adds extra validity checks in the various
-   places.
+ - CONFIG_SCST_EXTRACHECKS - if defined, adds extra validity checks in
+   the various places.
 
- - USE_EXPECTED_VALUES - if not defined (default), initiator supplied
-   expected data transfer length and direction will be used only for
+ - CONFIG_SCST_USE_EXPECTED_VALUES - if not defined (default), initiator
+   supplied expected data transfer length and direction will be used only for
    verification purposes to return error or warn in case if one of them
    is invalid. Instead, locally decoded from SCSI command values will be
    used. This is necessary for security reasons, because otherwise a
    faulty initiator can crash target by supplying invalid value in one
    of those parameters. This is especially important in case of
-   pass-through mode. If USE_EXPECTED_VALUES is defined, initiator
+   pass-through mode. If CONFIG_SCST_USE_EXPECTED_VALUES is defined, initiator
    supplied expected data transfer length and direction will override
    the locally decoded values. This might be necessary if internal SCST
    commands translation table doesn't contain SCSI command, which is
@@ -212,16 +212,16 @@ in/out in Makefile:
    scst-devel@lists.sourceforge.net. Note, that not all SCSI transports
    support supplying expected values.
 
- - DEBUG_TM - if defined, turns on task management functions debugging,
-   when on LUN 0 in the default access control group some of the
+ - CONFIG_SCST_DEBUG_TM - if defined, turns on task management functions
+   debugging, when on LUN 0 in the default access control group some of the
    commands will be delayed for about 60 sec., so making the remote
    initiator send TM functions, eg ABORT TASK and TARGET RESET. Also
-   define TM_DBG_GO_OFFLINE symbol in the Makefile to 1 if you want that
-   the device eventually become completely unresponsive, or to 0
-   otherwise to circle around ABORTs and RESETs code. Needs DEBUG turned
-   on.
+   define CONFIG_SCST_TM_DBG_GO_OFFLINE symbol in the Makefile if you
+   want that the device eventually become completely unresponsive, or
+   otherwise to circle around ABORTs and RESETs code. Needs CONFIG_SCST_DEBUG
+   turned on.
 
- - STRICT_SERIALIZING - if defined, makes SCST send all commands to
+ - CONFIG_SCST_STRICT_SERIALIZING - if defined, makes SCST send all commands to
    underlying SCSI device synchronously, one after one. This makes task
    management more reliable, with cost of some performance penalty. This
    is mostly actual for stateful SCSI devices like tapes, where the
@@ -233,8 +233,8 @@ in/out in Makefile:
    need as much error recovery reliability as possible. As a side
    effect, no kernel patching is necessary.
 
- - ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ - if defined, it will be allowed
-   to submit pass-through commands to real SCSI devices via the SCSI
+ - CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ - if defined, it will be
+   allowed to submit pass-through commands to real SCSI devices via the SCSI
    middle layer using scsi_execute_async() function from soft IRQ
    context (tasklets). This used to be the default, but currently it
    seems the SCSI middle layer starts expecting only thread context on
@@ -245,20 +245,20 @@ in/out in Makefile:
    scsi_execute_async() function, you will get a warning message in the
    kernel log.
 
- - SCST_HIGHMEM - if defined on HIGHMEM systems with 2.6 kernels, it
+ - CONFIG_SCST_HIGHMEM - if defined on HIGHMEM systems with 2.6 kernels, it
    allows SCST to use HIGHMEM. This is very experimental feature, which
    is currently broken and unsupported, since it is unclear, if it
    brings something valuable, except some performance hit. Note, that
-   SCST_HIGHMEM isn't required for HIGHMEM systems and SCST will work
+   CONFIG_SCST_HIGHMEM isn't required for HIGHMEM systems and SCST will work
    fine on them with SCST_HIGHMEM off.
   
- - SCST_STRICT_SECURITY - if defined, makes SCST zero allocated data
+ - CONFIG_SCST_STRICT_SECURITY - if defined, makes SCST zero allocated data
    buffers. Undefining it (default) considerably improves performance
    and eases CPU load, but could create a security hole (information
    leakage), so enable it, if you have strict security requirements.
 
- - ABORT_CONSIDER_FINISHED_TASKS_AS_NOT_EXISTING - if defined, in case
-   when TASK MANAGEMENT function ABORT TASK is trying to abort a
+ - CONFIG_SCST_ABORT_CONSIDER_FINISHED_TASKS_AS_NOT_EXISTING - if defined,
+   in case when TASK MANAGEMENT function ABORT TASK is trying to abort a
    command, which has already finished, remote initiator, which sent the
    ABORT TASK request, will receive TASK NOT EXIST (or ABORT FAILED)
    response for the ABORT TASK request. This is more logical response,
@@ -649,18 +649,20 @@ II. In order to get the maximum performance you should:
 
 1. For SCST:
 
- - Disable in Makefile STRICT_SERIALIZING, EXTRACHECKS, TRACING, DEBUG*,
-   SCST_STRICT_SECURITY, SCST_HIGHMEM
+ - Disable in Makefile CONFIG_SCST_STRICT_SERIALIZING, CONFIG_SCST_EXTRACHECKS,
+   CONFIG_SCST_TRACING, DEBUG*, CONFIG_SCST_STRICT_SECURITY,
+   CONFIG_SCST_HIGHMEM
 
- - For pass-through devices enable ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ.
+ - For pass-through devices enable
+   CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ.
 
 2. For target drivers:
 
- - Disable in Makefiles EXTRACHECKS, TRACING, DEBUG*
+ - Disable in Makefiles CONFIG_SCST_EXTRACHECKS, CONFIG_SCST_TRACING, DEBUG*
 
 3. For device handlers, including VDISK:
 
- - Disable in Makefile TRACING, DEBUG
+ - Disable in Makefile CONFIG_SCST_TRACING and CONFIG_SCST_DEBUG.
 
  - If your initiator(s) use dedicated exported from the target virtual
    SCSI devices and have more or equal amount of memory, than the
@@ -673,7 +675,7 @@ IMPORTANT: Some of the compilation options enabled by default, i.e. SCST
            than for performance.
 
 If you use SCST version taken directly from the SVN repository, you can
-set the above options, except ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ, using
+set the above options, except CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ, using
 debug2perf Makefile target.
 
 4. For other target and initiator software parts:

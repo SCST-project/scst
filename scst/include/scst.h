@@ -27,7 +27,7 @@
 #include <linux/interrupt.h>
 #include <linux/proc_fs.h>
 
-#ifdef SCST_HIGHMEM
+#ifdef CONFIG_SCST_HIGHMEM
 #include <asm/kmap_types.h>
 #endif
 #include <scsi/scsi_cmnd.h>
@@ -365,7 +365,7 @@ typedef _Bool bool;
 #define SCST_TGT_DEV_AFTER_RX_DATA_ATOMIC	9
 #define SCST_TGT_DEV_AFTER_EXEC_ATOMIC		10
 
-#ifdef DEBUG_TM
+#ifdef CONFIG_SCST_DEBUG_TM
 #define SCST_TGT_DEV_UNDER_TM_DBG		20
 #endif
 
@@ -1045,13 +1045,13 @@ struct scst_cmd {
 
 	/*
 	 * Set if the cmd was delayed by task management debugging code.
-	 * Used only if DEBUG_TM is on.
+	 * Used only if CONFIG_SCST_DEBUG_TM is on.
 	 */
 	unsigned int tm_dbg_delayed:1;
 
 	/*
 	 * Set if the cmd must be ignored by task management debugging code.
-	 * Used only if DEBUG_TM is on.
+	 * Used only if CONFIG_SCST_DEBUG_TM is on.
 	 */
 	unsigned int tm_dbg_immut:1;
 
@@ -2006,7 +2006,7 @@ static inline void scst_sess_set_tgt_priv(struct scst_session *sess,
 static inline int scst_cmd_atomic(struct scst_cmd *cmd)
 {
 	int res = cmd->atomic;
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 	if (unlikely(in_atomic() && !res)) {
 		printk(KERN_ERR "ERROR: in_atomic() and non-atomic cmd\n");
 		dump_stack();
@@ -2393,7 +2393,7 @@ static inline int __scst_get_buf(struct scst_cmd *cmd, uint8_t **buf)
 
 	if ((i >= cmd->sg_cnt) || unlikely(sg == NULL))
 		goto out;
-#ifdef SCST_HIGHMEM /* HIGHMEM isn't currently supported */
+#ifdef CONFIG_SCST_HIGHMEM /* HIGHMEM isn't currently supported */
 	/*
 	 * HIGHMEM pages not merged (clustered), so if it's
 	 * not HIGHMEM page, kmap() is the same as page_address()
@@ -2432,7 +2432,7 @@ static inline int scst_get_buf_next(struct scst_cmd *cmd, uint8_t **buf)
 
 static inline void scst_put_buf(struct scst_cmd *cmd, void *buf)
 {
-#ifdef SCST_HIGHMEM /* HIGHMEM isn't currently supported */
+#ifdef CONFIG_SCST_HIGHMEM /* HIGHMEM isn't currently supported */
 	if (cmd->sg_cnt) {
 		if (scst_cmd_atomic(cmd)) {
 			enum km_type km;
@@ -2455,7 +2455,7 @@ static inline void scst_put_buf(struct scst_cmd *cmd, void *buf)
 static inline int scst_get_buf_count(struct scst_cmd *cmd)
 {
 	int res;
-#ifdef SCST_HIGHMEM
+#ifdef CONFIG_SCST_HIGHMEM
 	res = (cmd->bufflen >> PAGE_SHIFT) + 1;
 #else
 	res = (cmd->sg_cnt == 0) ? 1 : cmd->sg_cnt;

@@ -22,7 +22,7 @@
 #include "scst.h"
 #include "scst_debug.h"
 
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 
 #define TRACE_BUF_SIZE    512
 
@@ -128,4 +128,4 @@ void debug_print_buffer(const char *log_level, const void *data, int len)
 }
 EXPORT_SYMBOL(debug_print_buffer);
 
-#endif /* DEBUG || TRACING */
+#endif /* CONFIG_SCST_DEBUG || CONFIG_SCST_TRACING */

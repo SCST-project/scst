@@ -40,16 +40,16 @@
 	details."
 #endif
 
-#ifdef SCST_HIGHMEM
-#error "SCST_HIGHMEM configuration isn't supported and broken, because there \
-	is no real point to support it, at least it definitely doesn't worth \
-	the effort. Better use no-HIGHMEM kernel with VMSPLIT option \
+#ifdef CONFIG_SCST_HIGHMEM
+#error "CONFIG_SCST_HIGHMEM configuration isn't supported and broken, because\
+        there is no real point to support it, at least it definitely isn't   \
+        worth the effort. Better use no-HIGHMEM kernel with VMSPLIT option   \
 	or in 64-bit configuration instead. See README file for details."
 #endif
 
-#if !defined(SCSI_EXEC_REQ_FIFO_DEFINED) && !defined(STRICT_SERIALIZING)
+#if !defined(SCSI_EXEC_REQ_FIFO_DEFINED) && !defined(CONFIG_SCST_STRICT_SERIALIZING)
 #warning "Patch scst_exec_req_fifo-<kernel-version>.patch was not applied on \
-	your kernel and STRICT_SERIALIZING isn't defined. Pass-through dev \
+	your kernel and CONFIG_SCST_STRICT_SERIALIZING isn't defined. Pass-through dev \
 	handlers will not be supported."
 #endif
 
@@ -97,7 +97,7 @@ unsigned int scst_init_poll_cnt;
 
 struct kmem_cache *scst_cmd_cachep;
 
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 unsigned long scst_trace_flag;
 #endif
 
@@ -725,7 +725,7 @@ static int scst_dev_handler_check(struct scst_dev_type *dev_handler)
 	}
 
 	if (dev_handler->exec == NULL) {
-#ifdef ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
+#ifdef CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
 		dev_handler->exec_atomic = 1;
 #else
 		dev_handler->exec_atomic = 0;
@@ -885,12 +885,12 @@ int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 	if (res != 0)
 		goto out_error;
 
-#if !defined(SCSI_EXEC_REQ_FIFO_DEFINED) && !defined(STRICT_SERIALIZING)
+#if !defined(SCSI_EXEC_REQ_FIFO_DEFINED) && !defined(CONFIG_SCST_STRICT_SERIALIZING)
 	if (dev_type->exec == NULL) {
 		PRINT_ERROR("Pass-through dev handlers (handler \"%s\") not "
 			"supported. Consider applying on your kernel patch "
 			"scst_exec_req_fifo-<kernel-version>.patch or define "
-			"STRICT_SERIALIZING", dev_type->name);
+			"CONFIG_SCST_STRICT_SERIALIZING", dev_type->name);
 		res = -EINVAL;
 		goto out;
 	}
@@ -1523,61 +1523,61 @@ static void __init scst_print_config(void)
 	i = snprintf(buf, sizeof(buf), "Enabled features: ");
 	j = i;
 
-#ifdef STRICT_SERIALIZING
+#ifdef CONFIG_SCST_STRICT_SERIALIZING
 	i += snprintf(&buf[i], sizeof(buf) - i, "Strict serializing");
 #endif
 
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 	i += snprintf(&buf[i], sizeof(buf) - i, "%sEXTRACHECKS",
 		(j == i) ? "" : ", ");
 #endif
 
-#ifdef TRACING
+#ifdef CONFIG_SCST_TRACING
 	i += snprintf(&buf[i], sizeof(buf) - i, "%sTRACING",
 		(j == i) ? "" : ", ");
 #endif
 
-#ifdef DEBUG
+#ifdef CONFIG_SCST_DEBUG
 	i += snprintf(&buf[i], sizeof(buf) - i, "%sDEBUG",
 		(j == i) ? "" : ", ");
 #endif
 
-#ifdef DEBUG_TM
+#ifdef CONFIG_SCST_DEBUG_TM
 	i += snprintf(&buf[i], sizeof(buf) - i, "%sDEBUG_TM",
 		(j == i) ? "" : ", ");
 #endif
 
-#ifdef DEBUG_RETRY
+#ifdef CONFIG_SCST_DEBUG_RETRY
 	i += snprintf(&buf[i], sizeof(buf) - i, "%sDEBUG_RETRY",
 		(j == i) ? "" : ", ");
 #endif
 
-#ifdef DEBUG_OOM
+#ifdef CONFIG_SCST_DEBUG_OOM
 	i += snprintf(&buf[i], sizeof(buf) - i, "%sDEBUG_OOM",
 		(j == i) ? "" : ", ");
 #endif
 
-#ifdef DEBUG_SN
+#ifdef CONFIG_SCST_DEBUG_SN
 	i += snprintf(&buf[i], sizeof(buf) - i, "%sDEBUG_SN",
 		(j == i) ? "" : ", ");
 #endif
 
-#ifdef USE_EXPECTED_VALUES
+#ifdef CONFIG_SCST_USE_EXPECTED_VALUES
 	i += snprintf(&buf[i], sizeof(buf) - i, "%sUSE_EXPECTED_VALUES",
 		(j == i) ? "" : ", ");
 #endif
 
-#ifdef ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
+#ifdef CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
 	i += snprintf(&buf[i], sizeof(buf) - i, "%sALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ",
 		(j == i) ? "" : ", ");
 #endif
 
-#ifdef SCST_STRICT_SECURITY
+#ifdef CONFIG_SCST_STRICT_SECURITY
 	i += snprintf(&buf[i], sizeof(buf) - i, "%sSCST_STRICT_SECURITY",
 		(j == i) ? "" : ", ");
 #endif
 
-#ifdef SCST_HIGHMEM
+#ifdef CONFIG_SCST_HIGHMEM
 	i += snprintf(&buf[i], sizeof(buf) - i, "%sSCST_HIGHMEM",
 		(j == i) ? "" : ", ");
 #endif
@@ -1626,7 +1626,7 @@ static int __init init_scst(void)
 	spin_lock_init(&scst_init_lock);
 	init_waitqueue_head(&scst_init_cmd_list_waitQ);
 	INIT_LIST_HEAD(&scst_init_cmd_list);
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	scst_trace_flag = SCST_DEFAULT_LOG_FLAGS;
 #endif
 	atomic_set(&scst_cmd_count, 0);

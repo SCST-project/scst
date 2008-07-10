@@ -47,12 +47,12 @@
 #error "FC_TARGET_SUPPORT is NOT DEFINED"
 #endif
 
-#ifdef DEBUG
+#ifdef CONFIG_SCST_DEBUG
 #define Q2T_DEFAULT_LOG_FLAGS (TRACE_FUNCTION | TRACE_PID | \
 	TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_MGMT_MINOR | \
 	TRACE_MGMT_DEBUG | TRACE_MINOR | TRACE_SPECIAL)
 #else
-# ifdef TRACING
+# ifdef CONFIG_SCST_TRACING
 #define Q2T_DEFAULT_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_MINOR | \
 	TRACE_SPECIAL)
 # endif
@@ -79,7 +79,7 @@ static void q2t_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
  * Global Variables
  */
 
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 #define trace_flag q2t_trace_flag
 unsigned long q2t_trace_flag = Q2T_DEFAULT_LOG_FLAGS;
 #endif
@@ -2135,7 +2135,7 @@ out:
 	return;
 }
 
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 
 #define Q2T_PROC_LOG_ENTRY_NAME     "trace_level"
 
@@ -2176,7 +2176,7 @@ static struct scst_proc_data q2t_log_proc_data = {
 static int q2t_proc_log_entry_build(struct scst_tgt_template *templ)
 {
 	int res = 0;
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	struct proc_dir_entry *p, *root;
 
 	TRACE_ENTRY();
@@ -2205,7 +2205,7 @@ out:
 
 static void q2t_proc_log_entry_clean(struct scst_tgt_template *templ)
 {
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	struct proc_dir_entry *root;
 
 	TRACE_ENTRY();

@@ -43,7 +43,7 @@
 
 #include "scst.h"
 
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 
 #define TRACE_ORDER	0x80000000
 

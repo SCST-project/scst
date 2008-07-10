@@ -2784,7 +2784,7 @@ static int dev_user_process_cleanup(struct scst_user_dev *dev)
 		}
 	}
 
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 {
 	int i;
 	for (i = 0; i < (int)ARRAY_SIZE(dev->ucmd_hash); i++) {

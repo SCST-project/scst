@@ -5,7 +5,7 @@ diff -uprN ../orig/linux-2.6.24/drivers/Makefile linux-2.6.24/drivers/Makefile
  obj-y				+= macintosh/
  obj-$(CONFIG_IDE)		+= ide/
  obj-$(CONFIG_SCSI)		+= scsi/
-+obj-$(CONFIG_SCSI_TARGET)	+= scst/
++obj-$(CONFIG_SCST)		+= scst/
  obj-$(CONFIG_ATA)		+= ata/
  obj-$(CONFIG_FUSION)		+= message/
  obj-$(CONFIG_FIREWIRE)		+= firewire/

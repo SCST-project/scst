@@ -19,7 +19,7 @@
 
 #define ISCSI_PROC_VERSION_NAME		"version"
 
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 
 #define ISCSI_PROC_LOG_ENTRY_NAME	"trace_level"
 
@@ -71,19 +71,19 @@ static int iscsi_version_info_show(struct seq_file *seq, void *v)
 
 	seq_printf(seq, "%s\n", ISCSI_VERSION_STRING);
 
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 	seq_printf(seq, "EXTRACHECKS\n");
 #endif
 
-#ifdef TRACING
+#ifdef CONFIG_SCST_TRACING
 	seq_printf(seq, "TRACING\n");
 #endif
 
-#ifdef DEBUG
+#ifdef CONFIG_SCST_DEBUG
 	seq_printf(seq, "DEBUG\n");
 #endif
 
-#ifdef DEBUG_DIGEST_FAILURES
+#ifdef CONFIG_SCST_ISCSI_DEBUG_DIGEST_FAILURES
 	seq_printf(seq, "DEBUG_DIGEST_FAILURES\n");
 #endif
 
@@ -96,7 +96,7 @@ static struct scst_proc_data iscsi_version_proc_data = {
 	.show = iscsi_version_info_show,
 };
 
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 static struct scst_proc_data iscsi_log_proc_data = {
 	SCST_DEF_RW_SEQ_OP(iscsi_proc_log_entry_write)
 	.show = iscsi_log_info_show,
@@ -122,7 +122,7 @@ static __init int iscsi_proc_log_entry_build(struct scst_tgt_template *templ)
 			goto out;
 		}
 
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 		/* create the proc file entry for the device */
 		iscsi_log_proc_data.data = (void *)templ->name;
 		p = scst_create_proc_entry(root, ISCSI_PROC_LOG_ENTRY_NAME,
@@ -141,7 +141,7 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 out_remove_ver:
 	remove_proc_entry(ISCSI_PROC_VERSION_NAME, root);
 	goto out;
@@ -156,7 +156,7 @@ static void iscsi_proc_log_entry_clean(struct scst_tgt_template *templ)
 
 	root = scst_proc_get_tgt_root(templ);
 	if (root) {
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 		remove_proc_entry(ISCSI_PROC_LOG_ENTRY_NAME, root);
 #endif
 		remove_proc_entry(ISCSI_PROC_VERSION_NAME, root);
@@ -540,7 +540,7 @@ struct file_operations ctr_fops = {
 	.release	= release,
 };
 
-#ifdef DEBUG
+#ifdef CONFIG_SCST_DEBUG
 void iscsi_dump_iov(struct msghdr *msg)
 {
 	if (trace_flag & TRACE_D_IOV) {
@@ -604,4 +604,4 @@ void iscsi_dump_pdu(struct iscsi_pdu *pdu)
 		printk("Data: (%d)\n", pdu->datasize);
 	}
 }
-#endif /* DEBUG */
+#endif /* CONFIG_SCST_DEBUG */

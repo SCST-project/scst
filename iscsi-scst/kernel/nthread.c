@@ -365,7 +365,7 @@ static void close_conn(struct iscsi_conn *conn)
 		TRACE_CONN_CLOSE_DBG("conn %p, conn_ref_cnt %d left, wr_state %d, "
 			"exp_cmd_sn %u", conn, atomic_read(&conn->conn_ref_cnt),
 			conn->wr_state, session->exp_cmd_sn);
-#ifdef DEBUG
+#ifdef CONFIG_SCST_DEBUG
 		{
 #ifdef NET_PAGE_CALLBACKS_DEFINED
 			struct iscsi_cmnd *rsp;
@@ -467,7 +467,7 @@ static int close_conn_thr(void *arg)
 
 	TRACE_ENTRY();
 
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 	conn->rd_task = current;
 #endif
 	close_conn(conn);
@@ -782,7 +782,7 @@ static void scst_do_job_rd(void)
 		sBUG_ON(conn->rd_state == ISCSI_CONN_RD_STATE_PROCESSING);
 		conn->rd_data_ready = 0;
 		conn->rd_state = ISCSI_CONN_RD_STATE_PROCESSING;
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 		conn->rd_task = current;
 #endif
 		spin_unlock_bh(&iscsi_rd_lock);
@@ -794,7 +794,7 @@ static void scst_do_job_rd(void)
 		if (closed)
 			continue;
 
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 		conn->rd_task = NULL;
 #endif
 		if ((rc == 0) || conn->rd_data_ready) {
@@ -1165,7 +1165,7 @@ out_res:
 	/* else go through */
 
 out_err:
-#ifndef DEBUG
+#ifndef CONFIG_SCST_DEBUG
 	if (!conn->closing)
 #endif
 	{
@@ -1189,7 +1189,7 @@ static int exit_tx(struct iscsi_conn *conn, int res)
 		res = 0;
 		break;
 	default:
-#ifndef DEBUG
+#ifndef CONFIG_SCST_DEBUG
 		if (!conn->closing)
 #endif
 		{
@@ -1379,7 +1379,7 @@ static void scst_do_job_wr(void)
 
 		conn->wr_state = ISCSI_CONN_WR_STATE_PROCESSING;
 		conn->wr_space_ready = 0;
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 		conn->wr_task = current;
 #endif
 		spin_unlock_bh(&iscsi_wr_lock);
@@ -1389,7 +1389,7 @@ static void scst_do_job_wr(void)
 		rc = process_write_queue(conn);
 
 		spin_lock_bh(&iscsi_wr_lock);
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 		conn->wr_task = NULL;
 #endif
 		if ((rc == -EAGAIN) && !conn->wr_space_ready) {

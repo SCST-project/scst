@@ -87,7 +87,7 @@ static struct scst_proc_data scst_dev_handler_proc_data;
 static struct proc_dir_entry *scst_proc_scsi_tgt;
 static struct proc_dir_entry *scst_proc_groups_root;
 
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 static struct scst_proc_data scst_log_proc_data;
 
 static struct scst_proc_log scst_proc_trace_tbl[] =
@@ -136,7 +136,7 @@ static char *scst_proc_help_string =
 "   echo \"clear\" >/proc/scsi_tgt/groups/GROUP/names\n"
 "\n"
 "   echo \"DEC|0xHEX|0OCT\" >/proc/scsi_tgt/threads\n"
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 "\n"
 "   echo \"all|none|default\" >/proc/scsi_tgt/[DEV_HANDLER_NAME/]trace_level\n"
 "   echo \"value DEC|0xHEX|0OCT\" >/proc/scsi_tgt/[DEV_HANDLER_NAME/]trace_level\n"
@@ -174,7 +174,7 @@ static DEFINE_MUTEX(scst_proc_mutex);
 
 #if !defined(CONFIG_PPC) && (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22))
 
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 static int strcasecmp(const char *s1, const char *s2)
 {
 	int c1, c2;
@@ -202,7 +202,7 @@ static int strncasecmp(const char *s1, const char *s2, size_t n)
 
 #endif /* !CONFIG_PPC && (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)) */
 
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 
 static DEFINE_MUTEX(scst_log_mutex);
 
@@ -379,7 +379,7 @@ out:
 	return res;
 }
 
-#endif /* defined(DEBUG) || defined(TRACING) */
+#endif /* defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING) */
 
 #ifdef MEASURE_LATENCY
 
@@ -488,13 +488,13 @@ static struct scst_proc_data scst_lat_proc_data = {
 static int __init scst_proc_init_module_log(void)
 {
 	int res = 0;
-#if defined(DEBUG) || defined(TRACING) || defined(MEASURE_LATENCY)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING) || defined(MEASURE_LATENCY)
 	struct proc_dir_entry *generic;
 #endif
 
 	TRACE_ENTRY();
 
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	generic = scst_create_proc_entry(scst_proc_scsi_tgt,
 					 SCST_PROC_LOG_ENTRY_NAME,
 					 &scst_log_proc_data);
@@ -526,7 +526,7 @@ static void scst_proc_cleanup_module_log(void)
 {
 	TRACE_ENTRY();
 
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	remove_proc_entry(SCST_PROC_LOG_ENTRY_NAME, scst_proc_scsi_tgt);
 #endif
 
@@ -1728,51 +1728,51 @@ static int scst_version_info_show(struct seq_file *seq, void *v)
 
 	seq_printf(seq, "%s\n", SCST_VERSION_STRING);
 
-#ifdef STRICT_SERIALIZING
+#ifdef CONFIG_SCST_STRICT_SERIALIZING
 	seq_printf(seq, "Strict serializing enabled\n");
 #endif
 
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 	seq_printf(seq, "EXTRACHECKS\n");
 #endif
 
-#ifdef TRACING
+#ifdef CONFIG_SCST_TRACING
 	seq_printf(seq, "TRACING\n");
 #endif
 
-#ifdef DEBUG
+#ifdef CONFIG_SCST_DEBUG
 	seq_printf(seq, "DEBUG\n");
 #endif
 
-#ifdef DEBUG_TM
+#ifdef CONFIG_SCST_DEBUG_TM
 	seq_printf(seq, "DEBUG_TM\n");
 #endif
 
-#ifdef DEBUG_RETRY
+#ifdef CONFIG_SCST_DEBUG_RETRY
 	seq_printf(seq, "DEBUG_RETRY\n");
 #endif
 
-#ifdef DEBUG_OOM
+#ifdef CONFIG_SCST_DEBUG_OOM
 	seq_printf(seq, "DEBUG_OOM\n");
 #endif
 
-#ifdef DEBUG_SN
+#ifdef CONFIG_SCST_DEBUG_SN
 	seq_printf(seq, "DEBUG_SN\n");
 #endif
 
-#ifdef USE_EXPECTED_VALUES
+#ifdef CONFIG_SCST_USE_EXPECTED_VALUES
 	seq_printf(seq, "USE_EXPECTED_VALUES\n");
 #endif
 
-#ifdef ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
+#ifdef CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
 	seq_printf(seq, "ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ\n");
 #endif
 
-#ifdef SCST_STRICT_SECURITY
+#ifdef CONFIG_SCST_STRICT_SECURITY
 	seq_printf(seq, "SCST_STRICT_SECURITY\n");
 #endif
 
-#ifdef SCST_HIGHMEM
+#ifdef CONFIG_SCST_HIGHMEM
 	seq_printf(seq, "SCST_HIGHMEM\n");
 #endif
 
@@ -1943,7 +1943,7 @@ static struct scst_proc_data scst_groups_devices_proc_data = {
 	.show = scst_groups_devices_show,
 };
 
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 
 int scst_proc_read_tlb(const struct scst_proc_log *tbl, struct seq_file *seq,
 	unsigned long log_level, int *first)

@@ -447,7 +447,7 @@ int conn_del(struct iscsi_session *session, struct conn_info *info)
 	return 0;
 }
 
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 
 void iscsi_extracheck_is_rd_thread(struct iscsi_conn *conn)
 {
@@ -477,4 +477,4 @@ void iscsi_extracheck_is_wr_thread(struct iscsi_conn *conn)
 	}
 }
 
-#endif /* EXTRACHECKS */
+#endif /* CONFIG_SCST_EXTRACHECKS */

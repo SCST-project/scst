@@ -27,7 +27,7 @@
 #include <linux/unistd.h>
 #include <linux/string.h>
 
-#ifdef SCST_HIGHMEM
+#ifdef CONFIG_SCST_HIGHMEM
 #include <linux/highmem.h>
 #endif
 
@@ -61,7 +61,7 @@ void scst_sgv_pool_use_dma(struct scst_tgt_dev *tgt_dev)
 	tgt_dev->pool = &sgv_pools_mgr.default_set.dma;
 }
 
-#ifdef SCST_HIGHMEM
+#ifdef CONFIG_SCST_HIGHMEM
 void scst_sgv_pool_use_highmem(struct scst_tgt_dev *tgt_dev)
 {
 	TRACE_MEM("%s", "Use HIGHMEM");
@@ -80,7 +80,7 @@ static int scst_check_clustering(struct scatterlist *sg, int cur, int hint)
 	int full_page_cur = (len_cur & (PAGE_SIZE - 1)) == 0;
 	unsigned long pfn, pfn_next, full_page;
 
-#ifdef SCST_HIGHMEM
+#ifdef CONFIG_SCST_HIGHMEM
 	if (page >= highmem_start_page) {
 		TRACE_MEM("%s", "HIGHMEM page allocated, no clustering")
 		goto out;
@@ -205,13 +205,13 @@ static int scst_alloc_sg_entries(struct scatterlist *sg, int pages,
 #if 0
 	gfp_mask |= __GFP_COLD;
 #endif
-#ifdef SCST_STRICT_SECURITY
+#ifdef CONFIG_SCST_STRICT_SECURITY
 	gfp_mask |= __GFP_ZERO;
 #endif
 
 	for (pg = 0; pg < pages; pg++) {
 		void *rc;
-#ifdef DEBUG_OOM
+#ifdef CONFIG_SCST_DEBUG_OOM
 		if (((gfp_mask & __GFP_NOFAIL) != __GFP_NOFAIL) &&
 		    ((scst_random() % 10000) == 55))
 			rc = NULL;
@@ -1228,7 +1228,7 @@ int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 	if (res != 0)
 		goto out_free_norm;
 
-#ifdef SCST_HIGHMEM
+#ifdef CONFIG_SCST_HIGHMEM
 	res = sgv_pool_init(&pools->default_set.highmem, "sgv-high", 0);
 	if (res != 0)
 		goto out_free_dma;
@@ -1254,7 +1254,7 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 
-#ifdef SCST_HIGHMEM
+#ifdef CONFIG_SCST_HIGHMEM
 out_free_dma:
 	sgv_pool_deinit(&pools->default_set.dma);
 #endif
@@ -1281,7 +1281,7 @@ void scst_sgv_pools_deinit(void)
 
 	cancel_delayed_work(&pools->mgr.apit_pool);
 
-#ifdef SCST_HIGHMEM
+#ifdef CONFIG_SCST_HIGHMEM
 	sgv_pool_deinit(&pools->default_set.highmem);
 #endif
 	sgv_pool_deinit(&pools->default_set.dma);

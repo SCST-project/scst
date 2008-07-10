@@ -36,7 +36,7 @@ static int ctr_major;
 static char ctr_name[] = "iscsi-scst-ctl";
 static int iscsi_template_registered;
 
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 unsigned long iscsi_trace_flag = ISCSI_DEFAULT_LOG_FLAGS;
 #endif
 
@@ -276,7 +276,7 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 	if (cmnd->own_sg) {
 		TRACE_DBG("%s", "own_sg");
 		scst_free(cmnd->sg, cmnd->sg_cnt);
-#ifdef DEBUG
+#ifdef CONFIG_SCST_DEBUG
 		cmnd->own_sg = 0;
 		cmnd->sg = NULL;
 		cmnd->sg_cnt = -1;
@@ -289,7 +289,7 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 			"new value %d)", cmnd, sess,
 			atomic_read(&sess->active_cmds)-1);
 		atomic_dec(&sess->active_cmds);
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 		if (unlikely(atomic_read(&sess->active_cmds) < 0)) {
 			PRINT_CRIT_ERROR("active_cmds < 0 (%d)!!",
 				atomic_read(&sess->active_cmds));
@@ -392,7 +392,7 @@ void req_cmnd_release(struct iscsi_cmnd *req)
 
 	TRACE_DBG("%p", req);
 
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 	sBUG_ON(req->release_called);
 	req->release_called = 1;
 #endif
@@ -420,7 +420,7 @@ void req_cmnd_release(struct iscsi_cmnd *req)
 			atomic_read(&sess->active_cmds)-1);
 		atomic_dec(&sess->active_cmds);
 		req->dec_active_cmnds = 0;
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 		if (unlikely(atomic_read(&sess->active_cmds) < 0)) {
 			PRINT_CRIT_ERROR("active_cmds < 0 (%d)!!",
 				atomic_read(&sess->active_cmds));
@@ -443,7 +443,7 @@ void rsp_cmnd_release(struct iscsi_cmnd *cmnd)
 {
 	TRACE_DBG("%p", cmnd);
 
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 	sBUG_ON(cmnd->release_called);
 	cmnd->release_called = 1;
 #endif
@@ -2507,7 +2507,7 @@ static void iscsi_try_local_processing(struct iscsi_conn *conn,
 		list_del(&conn->wr_list_entry);
 		/* go through */
 	case ISCSI_CONN_WR_STATE_IDLE:
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 		conn->wr_task = current;
 #endif
 		conn->wr_state = ISCSI_CONN_WR_STATE_PROCESSING;
@@ -2529,7 +2529,7 @@ static void iscsi_try_local_processing(struct iscsi_conn *conn,
 		}
 
 		spin_lock_bh(&iscsi_wr_lock);
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 		conn->wr_task = NULL;
 #endif
 		if ((rc <= 0) || test_write_ready(conn)) {
@@ -2661,7 +2661,7 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 		}
 		iscsi_cmnd_init_write(rsp, ISCSI_INIT_WRITE_REMOVE_HASH);
 	}
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 	else
 		sBUG();
 #endif

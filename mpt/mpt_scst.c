@@ -44,14 +44,14 @@
 
 #define MYNAM "mpt_scst"
 
-#ifdef TRACING
+#ifdef CONFIG_SCST_TRACING
 static int trace_mpi = 0;
 
 #define TRACE_MPI	0x80000000
 
 #endif
 
-#ifdef DEBUG
+#ifdef CONFIG_SCST_DEBUG
 static char *mpt_state_string[] = {
 	"0",
 	"new",
@@ -63,12 +63,12 @@ static char *mpt_state_string[] = {
 };
 #endif
 
-#ifdef DEBUG
+#ifdef CONFIG_SCST_DEBUG
 #define SCST_DEFAULT_MPT_LOG_FLAGS (TRACE_FUNCTION | TRACE_PID | \
         TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_MGMT_MINOR | \
         TRACE_MGMT_DEBUG | TRACE_MINOR | TRACE_SPECIAL)
 #else
-# ifdef TRACING
+# ifdef CONFIG_SCST_TRACING
 #define SCST_DEFAULT_MPT_LOG_FLAGS (TRACE_FUNCTION | TRACE_PID | \
         TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_MINOR | TRACE_SPECIAL)
 # endif
@@ -126,11 +126,11 @@ static void stmapp_srr_process(MPT_STM_PRIV *priv, int rx_id, int r_ctl,
 		u32 offset, LinkServiceBufferPostReply_t *rep, int index);
 static void stm_set_scsi_port_page1(MPT_STM_PRIV *priv, int sleep);
 
-#ifdef DEBUG
+#ifdef CONFIG_SCST_DEBUG
 #define trace_flag mpt_trace_flag
 unsigned long mpt_trace_flag = TRACE_FUNCTION | TRACE_OUT_OF_MEM | TRACE_SPECIAL;
 #else
-# ifdef TRACING
+# ifdef CONFIG_SCST_TRACING
 #define trace_flag mpt_trace_flag
 unsigned long mpt_trace_flag = TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_SPECIAL;
 # endif
@@ -475,7 +475,7 @@ _stm_target_command(MPT_STM_PRIV *priv, int reply_word,
 	CMD *cmd;
 	struct scst_cmd *scst_cmd;
 	struct mpt_sess *sess = mpt_cmd->sess;
-#ifdef DEBUG
+#ifdef CONFIG_SCST_DEBUG
 	MPT_ADAPTER *ioc = priv->ioc;
 #endif
 	/*
@@ -1300,7 +1300,7 @@ mpt_send_tgt_data(MPT_STM_PRIV *priv, u32 reply_word,
 		cpu_to_le32(MPI_SGE_SET_FLAGS(MPI_SGE_FLAGS_LAST_ELEMENT |
 					      MPI_SGE_FLAGS_END_OF_BUFFER |
                      MPI_SGE_FLAGS_END_OF_LIST));
-#ifdef TRACING
+#ifdef CONFIG_SCST_TRACING
 if(trace_mpi)
 {
 	u32 *p = (u32 *)req;
@@ -2793,7 +2793,7 @@ stm_link_service_reply(MPT_ADAPTER *ioc, LinkServiceBufferPostReply_t *rep)
 	}
     }
 
-#ifdef TRACING
+#ifdef CONFIG_SCST_TRACING
 	if(trace_mpi)
 	{
 		u32 *p = (u32 *)rep;
@@ -2900,7 +2900,7 @@ stm_cmd_buf_post(MPT_STM_PRIV *priv, int index)
 
     priv->io_state[index] |= IO_STATE_POSTED;
 
-#ifdef TRACING
+#ifdef CONFIG_SCST_TRACING
 	if(trace_mpi) {
 		u32 *p = (u32 *)req;
 		int i;
@@ -2958,7 +2958,7 @@ stm_cmd_buf_post_base(MPT_STM_PRIV *priv,
 	}
     }
 
-#ifdef TRACING
+#ifdef CONFIG_SCST_TRACING
 	if(trace_mpi)
 	{
 		u32 *p = (u32 *)req;
@@ -2995,7 +2995,7 @@ stm_cmd_buf_post_list(MPT_STM_PRIV *priv,
 
     priv->io_state[index] |= IO_STATE_POSTED;
 
-#ifdef TRACING
+#ifdef CONFIG_SCST_TRACING
 	if(trace_mpi)
 	{
 		u32 *p = (u32 *)req;
@@ -3046,7 +3046,7 @@ stm_link_serv_buf_post(MPT_STM_PRIV *priv, int index)
 	((u8 *)priv->hw->fc_link_serv_buf[index].fc_els - (u8 *)priv->hw);
     stm_set_dma_addr(sge_simple->Address, dma_addr);
 
-#ifdef TRACING
+#ifdef CONFIG_SCST_TRACING
 	if(trace_mpi)
 	{
 		u32 *p = (u32 *)req;
@@ -3212,7 +3212,7 @@ stm_send_target_status(MPT_STM_PRIV *priv,
     }
     priv->io_state[index] |= IO_STATE_STATUS_SENT;
 
-#ifdef TRACING
+#ifdef CONFIG_SCST_TRACING
     if(trace_mpi)
     {
 	    u32 *p = (u32 *)req;
@@ -3269,7 +3269,7 @@ stm_send_els(MPT_STM_PRIV *priv,
     p_index = (int *)(sge_simple + 1);
     *p_index = index;
 
-#ifdef TRACING
+#ifdef CONFIG_SCST_TRACING
 	if(trace_mpi)
 	{
 		u32 *p = (u32 *)req;
@@ -3406,7 +3406,7 @@ stm_target_mode_abort_all(MPT_STM_PRIV *priv)
 static int
 stm_target_mode_abort(MPT_STM_PRIV *priv)
 {
-#ifdef DEBUG
+#ifdef CONFIG_SCST_DEBUG
     MPT_ADAPTER		*ioc = priv->ioc;
 #endif
     int			i;
@@ -3794,7 +3794,7 @@ static int
 stm_scsi_configuration(MPT_STM_PRIV *priv,
 		       int sleep)
 {
-#ifdef DEBUG
+#ifdef CONFIG_SCST_DEBUG
     MPT_ADAPTER		*ioc = priv->ioc;
 #endif
     SCSIPortPage0_t	*ScsiPort0;
@@ -3875,7 +3875,7 @@ stm_scsi_configuration(MPT_STM_PRIV *priv,
 static void
 stm_set_scsi_port_page1(MPT_STM_PRIV *priv, int sleep)
 {
-#ifdef DEBUG
+#ifdef CONFIG_SCST_DEBUG
 	MPT_ADAPTER		*ioc = priv->ioc;
 #endif
 	SCSIPortPage1_t *ScsiPort1;
@@ -4268,7 +4268,7 @@ stm_get_config_page(MPT_STM_PRIV *priv, int type, int number, int address,
 	return (-1);
     }
 
-#ifdef TRACING
+#ifdef CONFIG_SCST_TRACING
 	if(trace_mpi)
 	{
 		u32 *p = (u32 *)priv->hw->config_buf;
@@ -4375,7 +4375,7 @@ stm_set_config_page(MPT_STM_PRIV *priv,
 	return (-1);
     }
 
-#ifdef TRACING
+#ifdef CONFIG_SCST_TRACING
 	if(trace_mpi)
 	{
 		u32 *p = (u32 *)priv->hw->config_buf;
@@ -4837,7 +4837,7 @@ static void
 stmapp_abts_process(MPT_STM_PRIV *priv,
 		    int rx_id, LinkServiceBufferPostReply_t *rep, int index)
 {
-#ifdef DEBUG
+#ifdef CONFIG_SCST_DEBUG
     MPT_ADAPTER		*ioc = priv->ioc;
 #endif
     volatile int	*io_state;
@@ -4886,7 +4886,7 @@ static void
 stmapp_srr_process(MPT_STM_PRIV *priv, int rx_id, int r_ctl, u32 offset,
 		   LinkServiceBufferPostReply_t *rep, int index)
 {
-#ifdef DEBUG
+#ifdef CONFIG_SCST_DEBUG
     MPT_ADAPTER		*ioc = priv->ioc;
 #endif
     FC_ELS		*fc_els_buf;
@@ -5450,7 +5450,7 @@ stmapp_set_sense_info(MPT_STM_PRIV *priv,
 	TRACE_EXIT();
 }
 
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 
 #define MPT_PROC_LOG_ENTRY_NAME "trace_level"
 
@@ -5491,7 +5491,7 @@ static struct scst_proc_data mpt_log_proc_data = {
 static int mpt_proc_log_entry_build(struct scst_tgt_template *templ)
 {
 	int res = 0;
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	struct proc_dir_entry *p, *root;
 
 	TRACE_ENTRY();
@@ -5520,7 +5520,7 @@ out:
 
 static void mpt_proc_log_entry_clean(struct scst_tgt_template *templ)
 {
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	struct proc_dir_entry *root;
 
 	TRACE_ENTRY();

@@ -84,8 +84,8 @@ in/out in Makefile:
    the driver considerably bigger and slower, producing large amount of
    log data.
 
- - TRACING - turns on ability to log events. Makes the driver considerably
-   bigger and lead to some performance loss.
+ - CONFIG_SCST_TRACING - turns on ability to log events. Makes the driver
+   considerably bigger and leads to some performance loss.
 
  - DEBUG_WORK_IN_THREAD - makes SCST process incoming commands and
    call the driver's callbacks in SCST thread context instead of tasklet

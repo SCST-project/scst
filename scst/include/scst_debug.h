@@ -27,24 +27,8 @@
 #include <linux/bug.h>		/* for WARN_ON_ONCE */
 #endif
 
-#if !defined(EXTRACHECKS) && defined(CONFIG_SCSI_TARGET_EXTRACHECKS)
-#define EXTRACHECKS
-#endif
-
-#if !defined(TRACING) && defined(CONFIG_SCSI_TARGET_TRACING)
-#define TRACING
-#endif
-
-#if !defined(DEBUG) && defined(CONFIG_SCSI_TARGET_DEBUG)
-#define DEBUG
-#endif
-
 #if !defined(INSIDE_KERNEL_TREE)
-#ifdef DEBUG
-
-#ifndef EXTRACHECKS
-#define EXTRACHECKS
-#endif
+#ifdef CONFIG_SCST_DEBUG
 
 #ifndef CONFIG_DEBUG_BUGVERBOSE
 #define sBUG() do {						\
@@ -86,7 +70,7 @@
 })
 #endif
 
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 #define EXTRACHECKS_BUG_ON(a)		sBUG_ON(a)
 #define EXTRACHECKS_WARN_ON(a)		WARN_ON(a)
 #define EXTRACHECKS_WARN_ON_ONCE(a)	WARN_ON_ONCE(a)
@@ -96,7 +80,7 @@
 #define EXTRACHECKS_WARN_ON_ONCE(a)
 #endif
 
-#ifdef DEBUG
+#ifdef CONFIG_SCST_DEBUG
 /*#  define LOG_FLAG KERN_DEBUG*/
 #  define LOG_FLAG KERN_INFO
 #  define INFO_FLAG KERN_INFO
@@ -139,9 +123,9 @@
 #define __LOG_PREFIX	NULL
 #endif
 
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 
-#ifndef DEBUG
+#ifndef CONFIG_SCST_DEBUG
 #define ___unlikely(a)		(a)
 #else
 #define ___unlikely(a)		unlikely(a)
@@ -183,15 +167,15 @@ do {									\
 	}								\
 } while (0)
 
-#else  /* DEBUG || TRACING */
+#else  /* CONFIG_SCST_DEBUG || CONFIG_SCST_TRACING */
 
 #define TRACE(trace, args...) {}
 #define PRINT_BUFFER(message, buff, len) {}
 #define PRINT_BUFF_FLAG(flag, message, buff, len) {}
 
-#endif /* DEBUG || TRACING */
+#endif /* CONFIG_SCST_DEBUG || CONFIG_SCST_TRACING */
 
-#ifdef DEBUG
+#ifdef CONFIG_SCST_DEBUG
 
 #define __TRACE(trace, format, args...)					\
 do {									\
@@ -333,7 +317,7 @@ do {									\
 	}                                                               \
 } while (0)
 
-#else  /* DEBUG */
+#else  /* CONFIG_SCST_DEBUG */
 
 #define TRACE_MEM(format, args...) {}
 #define TRACE_SG(format, args...) {}
@@ -400,9 +384,9 @@ do {							\
 
 #endif /* LOG_PREFIX */
 
-#endif /* DEBUG */
+#endif /* CONFIG_SCST_DEBUG */
 
-#if defined(DEBUG) && defined(CONFIG_DEBUG_SLAB)
+#if defined(CONFIG_SCST_DEBUG) && defined(CONFIG_DEBUG_SLAB)
 #define SCST_SLAB_FLAGS (SLAB_RED_ZONE | SLAB_POISON)
 #else
 #define SCST_SLAB_FLAGS 0L

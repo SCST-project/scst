@@ -26,11 +26,8 @@
 #include <qla_def.h>
 #include "qla2x_tgt_def.h"
 
-/* Undefine the initiator driver's own DEBUG symbol */
-#undef DEBUG
-
 #ifdef DEBUG_TGT
-#define DEBUG
+#define CONFIG_SCST_DEBUG
 #endif
 
 #include <scst_debug.h>

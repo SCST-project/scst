@@ -97,7 +97,7 @@ Summary of changes between versions 0.9.4 and 0.9.5
 ---------------------------------------------------
 
  - Fixed many found task management related problems, especially in the
-   RESETs area. DEBUG_TM compilation option added (see README).
+   RESETs area. CONFIG_SCST_DEBUG_TM compilation option added (see README).
 
  - Updated to work on kernels version 2.6.18+.
 
@@ -198,8 +198,8 @@ Summary of changes between versions 0.9.3-pre1 and 0.9.3-pre2
 
  - UA generating after MODE SELECT and LOG SELECT implemented
 
- - STRICT_SERIALIZING compile-time option added for those who need most
-   robust task management and willing to pay some performance cost for
+ - CONFIG_SCST_STRICT_SERIALIZING compile-time option added for those who need
+   the most robust task management and willing to pay some performance cost for
    that (see README)
 
  - IRQ spinlocks were replaced by BH ones, where appropriate.

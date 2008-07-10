@@ -32,7 +32,7 @@
 
 #define TRACE_ALL_NO_DATA	(TRACE_ALL & ~TRACE_D_IOV & ~TRACE_D_DUMP_PDU & ~TRACE_D_DATA)
 
-#ifdef DEBUG
+#ifdef CONFIG_SCST_DEBUG
 #define ISCSI_DEFAULT_LOG_FLAGS (TRACE_FUNCTION | TRACE_LINE | TRACE_PID | \
 	TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_MGMT_MINOR | TRACE_MGMT_DEBUG | \
 	TRACE_MINOR | TRACE_SPECIAL | TRACE_CONN_OC)
@@ -41,7 +41,7 @@
 	TRACE_MINOR | TRACE_SPECIAL)
 #endif
 
-#ifdef DEBUG
+#ifdef CONFIG_SCST_DEBUG
 struct msghdr;
 struct iscsi_pdu;
 extern void iscsi_dump_iov(struct msghdr *msg);
@@ -51,12 +51,12 @@ extern void iscsi_dump_pdu(struct iscsi_pdu *pdu);
 #define iscsi_dump_pdu(x) do {} while (0)
 #endif
 
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 extern unsigned long iscsi_trace_flag;
 #define trace_flag iscsi_trace_flag
 #endif
 
-#ifdef DEBUG
+#ifdef CONFIG_SCST_DEBUG
 
 #define TRACE_CONN_CLOSE(args...)	TRACE(TRACE_CONN_OC, args)
 #define TRACE_CONN_CLOSE_DBG(args...)	TRACE(TRACE_CONN_OC_DBG, args)
@@ -64,7 +64,7 @@ extern unsigned long iscsi_trace_flag;
 #define TRACE_WRITE(args...)		TRACE(TRACE_D_WRITE, args)
 #define TRACE_READ(args...)		TRACE(TRACE_D_READ, args)
 
-#else /* DEBUG */
+#else /* CONFIG_SCST_DEBUG */
 #define TRACE_CONN_CLOSE(format, args...) {}
 #define TRACE_CONN_CLOSE_DBG(format, args...) {}
 #define TRACE_NET_PAGE(format, args...) {}

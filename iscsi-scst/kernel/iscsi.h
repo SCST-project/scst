@@ -160,7 +160,7 @@ struct iscsi_conn {
 
 	struct list_head wr_list_entry;
 
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 	struct task_struct *wr_task;
 #endif
 
@@ -195,7 +195,7 @@ struct iscsi_conn {
 
 	struct list_head rd_list_entry;
 
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 	struct task_struct *rd_task;
 #endif
 
@@ -258,7 +258,7 @@ struct iscsi_cmnd {
 	unsigned int ddigest_checked:1;
 	unsigned int rejected:1;
 	unsigned int reject_reason:2;
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 	unsigned int on_rx_digest_list:1;
 	unsigned int release_called:1;
 #endif
@@ -498,7 +498,7 @@ static inline void cmd_add_on_rx_ddigest_list(struct iscsi_cmnd *req,
 			"of req %p", cmnd, req);
 	list_add_tail(&cmnd->rx_ddigest_cmd_list_entry,
 			&req->rx_ddigest_cmd_list);
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 	cmnd->on_rx_digest_list = 1;
 #endif
 }
@@ -507,7 +507,7 @@ static inline void cmd_del_from_rx_ddigest_list(struct iscsi_cmnd *cmnd)
 {
 	TRACE_DBG("Deleting RX digest cmd %p from digest list", cmnd);
 	list_del(&cmnd->rx_ddigest_cmd_list_entry);
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 	cmnd->on_rx_digest_list = 0;
 #endif
 }
@@ -548,7 +548,7 @@ static inline void conn_put(struct iscsi_conn *conn)
 	atomic_dec(&conn->conn_ref_cnt);
 }
 
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 extern void iscsi_extracheck_is_rd_thread(struct iscsi_conn *conn);
 extern void iscsi_extracheck_is_wr_thread(struct iscsi_conn *conn);
 #else

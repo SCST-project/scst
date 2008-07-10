@@ -30,7 +30,7 @@ To be done
  - HIGHMEM cleanup. Looks like HIGHMEM usage doesn't worth the effort and 
    performance hit, at least until VDISK handler doesn't use the page
    cache directly, so disable it for now, although the code looks ready.
-   To enable it, set SCST_HIGHMEM in 1 in scst_priv.h. HIGHMEM is not 
+   To enable it, set CONFIG_SCST_HIGHMEM in 1 in scst_priv.h. HIGHMEM is not 
    supported on 2.4 and is not going to be.
 
  - Small ToDo's spread all over the code.

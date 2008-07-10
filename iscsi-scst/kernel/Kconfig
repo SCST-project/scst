@@ -1,5 +1,22 @@
 config SCST_ISCSI
 	tristate "SCST iSCSI Support"
 	depends on SCSI
-	---help---
-	iSCSI target support. The iSCSI protocol has been defined in RFC 3720.
+	help
+	  iSCSI target support. The iSCSI protocol has been defined in
+	  RFC 3720.
+
+config SCST_ISCSI_DEBUG_DIGEST_FAILURES
+	bool "Simulate iSCSI digest failures"
+	depends on SCST_ISCSI
+	help
+	  Simulates iSCSI digest failures in random places. Even when iSCSI
+	  traffic is sent over a TCP connection, the 16-bit TCP checksum is too
+	  weak for the requirements of a storage protocol. Furthermore, there
+	  are also instances where the TCP checksum does not protect iSCSI
+	  data, as when data is corrupted while being transferred on a PCI bus
+	  or while in memory. The iSCSI protocol therefore defines a 32-bit CRC
+	  digest on iSCSI packets in order to detect data corruption on an
+	  end-to-end basis. CRCs can be used on iSCSI PDU headers and/or data.
+	  Enabling this option allows to test digest failure recovery in the
+	  iSCSI initiator that is talking to SCST. If unsure, disable this
+	  option.

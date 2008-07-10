@@ -62,7 +62,7 @@ struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
 
 	TRACE_ENTRY();
 
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 	if (unlikely(sess->shut_phase != SCST_SESS_SPH_READY)) {
 		PRINT_CRIT_ERROR("%s", "New cmd while shutting down the session");
 		sBUG();
@@ -203,7 +203,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context)
 	PRINT_BUFF_FLAG(TRACE_SCSI|TRACE_RCV_BOT, "Recieving CDB",
 		cmd->cdb, cmd->cdb_len);
 
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 	if (unlikely(in_irq()) && ((pref_context == SCST_CONTEXT_DIRECT) ||
 			 (pref_context == SCST_CONTEXT_DIRECT_ATOMIC))) {
 		PRINT_ERROR("Wrong context %d in IRQ from target %s, use "
@@ -348,7 +348,7 @@ static int scst_pre_parse(struct scst_cmd *cmd)
 			"Should you update scst_scsi_op_table?",
 			cmd->cdb[0], dev->handler->name);
 		PRINT_BUFFER("Failed CDB", cmd->cdb, cmd->cdb_len);
-#ifdef USE_EXPECTED_VALUES
+#ifdef CONFIG_SCST_USE_EXPECTED_VALUES
 		if (scst_cmd_is_expected_set(cmd)) {
 			TRACE(TRACE_SCSI, "Using initiator supplied values: "
 				"direction %d, transfer_len %d",
@@ -494,7 +494,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 		goto out_error;
 	}
 
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 	if ((cmd->bufflen != 0) &&
 	    ((cmd->data_direction == SCST_DATA_NONE) ||
 	     ((cmd->sg == NULL) && (state > SCST_CMD_STATE_PREPARE_SPACE)))) {
@@ -509,8 +509,8 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 #endif
 
 	if (scst_cmd_is_expected_set(cmd)) {
-#ifdef USE_EXPECTED_VALUES
-#	ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_USE_EXPECTED_VALUES
+#	ifdef CONFIG_SCST_EXTRACHECKS
 		if ((cmd->data_direction != cmd->expected_data_direction) ||
 		    (cmd->bufflen != cmd->expected_transfer_len)) {
 			PRINT_ERROR("Expected values don't match decoded ones: "
@@ -618,7 +618,7 @@ out_error:
 	/* dev_done() will be called as part of the regular cmd's finish */
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 
-#ifndef USE_EXPECTED_VALUES
+#ifndef CONFIG_SCST_USE_EXPECTED_VALUES
 out_dev_done:
 #endif
 	cmd->state = SCST_CMD_STATE_PRE_DEV_DONE;
@@ -737,7 +737,7 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status, int pref_context)
 		  (long long unsigned int)scst_cmd_get_tag(cmd),
 		  status);
 
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 	if (in_irq() && ((pref_context == SCST_CONTEXT_DIRECT) ||
 			 (pref_context == SCST_CONTEXT_DIRECT_ATOMIC))) {
 		PRINT_ERROR("Wrong context %d in IRQ from target %s, use "
@@ -866,7 +866,7 @@ static int scst_rdy_to_xfer(struct scst_cmd *cmd)
 		cmd->state = SCST_CMD_STATE_DATA_WAIT;
 
 		TRACE_DBG("Calling rdy_to_xfer(%p)", cmd);
-#ifdef DEBUG_RETRY
+#ifdef CONFIG_SCST_DEBUG_RETRY
 		if (((scst_random() % 100) == 75))
 			rc = SCST_TGT_RES_QUEUE_FULL;
 		else
@@ -979,7 +979,7 @@ void scst_rx_data(struct scst_cmd *cmd, int status, int pref_context)
 	      (long long unsigned int)scst_cmd_get_tag(cmd),
 	      status);
 
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 	if (in_irq() && ((pref_context == SCST_CONTEXT_DIRECT) ||
 			 (pref_context == SCST_CONTEXT_DIRECT_ATOMIC))) {
 		PRINT_ERROR("Wrong context %d in IRQ from target %s, use "
@@ -1094,7 +1094,7 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 	cmd->host_status = host_byte(result);
 	cmd->driver_status = driver_byte(result);
 	if (unlikely(resid != 0)) {
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 		if ((resid < 0) || (resid > cmd->resp_data_len)) {
 			PRINT_ERROR("Wrong resid %d (cmd->resp_data_len=%d, "
 				"op %x)", resid, cmd->resp_data_len,
@@ -1227,7 +1227,7 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state)
 	if (next_state == SCST_CMD_STATE_DEFAULT)
 		next_state = SCST_CMD_STATE_PRE_DEV_DONE;
 
-#if defined(DEBUG)
+#if defined(CONFIG_SCST_DEBUG)
 	if (next_state == SCST_CMD_STATE_PRE_DEV_DONE) {
 		if (cmd->sg) {
 			int i;
@@ -1245,7 +1245,7 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state)
 
 	cmd->state = next_state;
 
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 	if ((next_state != SCST_CMD_STATE_PRE_DEV_DONE) &&
 	    (next_state != SCST_CMD_STATE_PRE_XMIT_RESP) &&
 	    (next_state != SCST_CMD_STATE_FINISHED)) {
@@ -1761,7 +1761,7 @@ static int scst_do_send_to_midlev(struct scst_cmd *cmd)
 	if (unlikely(rc != 0))
 		goto out_done;
 
-#ifndef ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
+#ifndef CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
 	if (scst_cmd_atomic(cmd)) {
 		TRACE_DBG("Pass-through exec() can not be called in atomic "
 			"context, rescheduling to the thread (handler %s)",
@@ -2255,7 +2255,7 @@ static int scst_done_cmd_check(struct scst_cmd **pcmd, int *pres)
 			/* ToDo: all pages ?? */
 			buflen = scst_get_buf_first(cmd, &buffer);
 			if (buflen > SCST_INQ_BYTE3) {
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 				if (buffer[SCST_INQ_BYTE3] & SCST_INQ_NORMACA_BIT) {
 					PRINT_INFO("NormACA set for device: "
 					    "lun=%Ld, type 0x%02x. Clear it, "
@@ -2509,7 +2509,7 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-#ifdef DEBUG_TM
+#ifdef CONFIG_SCST_DEBUG_TM
 	if (cmd->tm_dbg_delayed && !test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)) {
 		if (scst_cmd_atomic(cmd)) {
 			TRACE_MGMT_DBG("%s", "DEBUG_TM delayed cmd needs a thread");
@@ -2613,7 +2613,7 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 
 		TRACE_DBG("Calling xmit_response(%p)", cmd);
 
-#if defined(DEBUG)
+#if defined(CONFIG_SCST_DEBUG)
 		if (cmd->sg) {
 			int i;
 			struct scatterlist *sg = cmd->sg;
@@ -2627,7 +2627,7 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 		}
 #endif
 
-#ifdef DEBUG_RETRY
+#ifdef CONFIG_SCST_DEBUG_RETRY
 		if (((scst_random() % 100) == 77))
 			rc = SCST_TGT_RES_QUEUE_FULL;
 		else
@@ -3226,7 +3226,7 @@ void scst_process_active_cmd(struct scst_cmd *cmd, int context)
 			list_add(&cmd->cmd_list_entry,
 				&cmd->cmd_lists->active_cmd_list);
 			break;
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 		/* not very valid commands */
 		case SCST_CMD_STATE_DEFAULT:
 		case SCST_CMD_STATE_NEED_THREAD_CTX:
@@ -3257,7 +3257,7 @@ static void scst_do_job_active(struct list_head *cmd_list,
 {
 	TRACE_ENTRY();
 
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 	{
 		int c = context & ~SCST_CONTEXT_PROCESSABLE;
 		sBUG_ON((c != SCST_CONTEXT_DIRECT_ATOMIC) &&
@@ -3332,7 +3332,7 @@ int scst_cmd_thread(void *arg)
 	}
 	spin_unlock_irq(&p_cmd_lists->cmd_list_lock);
 
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 	/*
 	 * If kthread_should_stop() is true, we are guaranteed to be either
 	 * on the module unload, or there must be at least one other thread to
@@ -3595,7 +3595,7 @@ static int scst_call_dev_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 static inline int scst_is_strict_mgmt_fn(int mgmt_fn)
 {
 	switch (mgmt_fn) {
-#ifdef ABORT_CONSIDER_FINISHED_TASKS_AS_NOT_EXISTING
+#ifdef CONFIG_SCST_ABORT_CONSIDER_FINISHED_TASKS_AS_NOT_EXISTING
 	case SCST_ABORT_TASK:
 #endif
 #if 0
@@ -4610,7 +4610,7 @@ static int scst_process_mgmt_cmd(struct scst_mgmt_cmd *mcmd)
 			scst_free_mgmt_cmd(mcmd);
 			goto out;
 
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 		case SCST_MGMT_CMD_STATE_EXECUTING:
 			sBUG();
 #endif

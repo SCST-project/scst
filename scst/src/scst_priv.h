@@ -44,12 +44,12 @@
 #define TRACE_SND_BOT		0x08000000 /** bottom being the edge toward the interupt */
 #define TRACE_RCV_BOT		0x04000000
 
-#if defined(DEBUG) || defined(TRACING)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 #define trace_flag scst_trace_flag
 extern unsigned long scst_trace_flag;
 #endif
 
-#ifdef DEBUG
+#ifdef CONFIG_SCST_DEBUG
 /*#define SCST_DEFAULT_LOG_FLAGS (TRACE_ALL & ~TRACE_MEMORY & ~TRACE_BUFF \
 	 & ~TRACE_FUNCTION)
 #define SCST_DEFAULT_LOG_FLAGS (TRACE_ALL & ~TRACE_MEMORY & ~TRACE_BUFF & \
@@ -66,9 +66,9 @@ extern unsigned long scst_trace_flag;
 #define TRACE_SEND_BOT(args...)		__TRACE(TRACE_SND_BOT, args)
 #define TRACE_RECV_BOT(args...)		__TRACE(TRACE_RCV_BOT, args)
 
-#else /* DEBUG */
+#else /* CONFIG_SCST_DEBUG */
 
-# ifdef TRACING
+# ifdef CONFIG_SCST_TRACING
 #define SCST_DEFAULT_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MINOR | TRACE_SPECIAL)
 # else
 #define SCST_DEFAULT_LOG_FLAGS 0
@@ -328,7 +328,7 @@ static inline void scst_do_req(struct scsi_request *sreq,
 	const void *cmnd, void *buffer, unsigned bufflen,
 	void (*done)(struct scsi_cmnd *), int timeout, int retries)
 {
-#ifdef STRICT_SERIALIZING
+#ifdef CONFIG_SCST_STRICT_SERIALIZING
 	scsi_do_req(sreq, cmnd, buffer, bufflen, done, timeout, retries);
 #elif !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
 	sBUG();
@@ -342,7 +342,7 @@ static inline int scst_exec_req(struct scsi_device *sdev,
 	void *buffer, unsigned bufflen,	int use_sg, int timeout, int retries,
 	void *privdata, void (*done)(void *, char *, int, int), gfp_t gfp)
 {
-#ifdef STRICT_SERIALIZING
+#ifdef CONFIG_SCST_STRICT_SERIALIZING
 	return scsi_execute_async(sdev, cmd, cmd_len, data_direction, buffer,
 		    bufflen, use_sg, timeout, retries, privdata, done, gfp);
 #elif !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
@@ -532,7 +532,7 @@ static inline void scst_check_restore_sg_buff(struct scst_cmd *cmd)
 	}
 }
 
-#ifdef DEBUG_TM
+#ifdef CONFIG_SCST_DEBUG_TM
 extern void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev,
 	struct scst_acg_dev *acg_dev);
 extern void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev);
@@ -558,9 +558,9 @@ static inline int tm_dbg_is_release(void)
 {
 	return 0;
 }
-#endif /* DEBUG_TM */
+#endif /* CONFIG_SCST_DEBUG_TM */
 
-#ifdef DEBUG_SN
+#ifdef CONFIG_SCST_DEBUG_SN
 void scst_check_debug_sn(struct scst_cmd *cmd);
 #else
 static inline void scst_check_debug_sn(struct scst_cmd *cmd) {}

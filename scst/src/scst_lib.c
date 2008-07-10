@@ -28,7 +28,7 @@
 #include <linux/unistd.h>
 #include <linux/string.h>
 
-#ifdef SCST_HIGHMEM
+#ifdef CONFIG_SCST_HIGHMEM
 #include <linux/highmem.h>
 #endif
 
@@ -214,7 +214,7 @@ void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 {
 	TRACE_ENTRY();
 
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 	switch (cmd->state) {
 	case SCST_CMD_STATE_PRE_XMIT_RESP:
 	case SCST_CMD_STATE_XMIT_RESP:
@@ -253,7 +253,7 @@ void scst_set_resp_data_len(struct scst_cmd *cmd, int resp_data_len)
 		l += cmd->sg[i].length;
 		if (l >= resp_data_len) {
 			int left = resp_data_len - (l - cmd->sg[i].length);
-#ifdef DEBUG
+#ifdef CONFIG_SCST_DEBUG
 			TRACE(TRACE_SG_OP|TRACE_MEMORY, "cmd %p (tag %llu), "
 				"resp_data_len %d, i %d, cmd->sg[i].length %d, "
 				"left %d",
@@ -323,7 +323,7 @@ void scst_free_device(struct scst_device *dev)
 {
 	TRACE_ENTRY();
 
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 	if (!list_empty(&dev->dev_tgt_dev_list) ||
 	    !list_empty(&dev->dev_acg_dev_list)) {
 		PRINT_CRIT_ERROR("%s: dev_tgt_dev_list or dev_acg_dev_list "
@@ -517,7 +517,7 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	if (sess->tgt->tgtt->unchecked_isa_dma || ini_unchecked_isa_dma) {
 		scst_sgv_pool_use_dma(tgt_dev);
 	} else {
-#ifdef SCST_HIGHMEM
+#ifdef CONFIG_SCST_HIGHMEM
 		scst_sgv_pool_use_highmem(tgt_dev);
 #endif
 	}
@@ -759,7 +759,7 @@ int scst_acg_add_dev(struct scst_acg *acg, struct scst_device *dev,
 
 	INIT_LIST_HEAD(&tmp_tgt_dev_list);
 
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 	list_for_each_entry(acg_dev, &acg->acg_dev_list, acg_dev_list_entry) {
 		if (acg_dev->dev == dev) {
 			PRINT_ERROR("Device is already in group %s",
@@ -1422,7 +1422,7 @@ void scst_free_cmd(struct scst_cmd *cmd)
 		cmd->dec_on_dev_needed);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
-#if defined(EXTRACHECKS)
+#if defined(CONFIG_SCST_EXTRACHECKS)
 	if (cmd->scsi_req) {
 		PRINT_ERROR("%s: %s", __func__, "Cmd with unfreed "
 			"scsi_req!");
@@ -1466,7 +1466,7 @@ void scst_free_cmd(struct scst_cmd *cmd)
 	}
 
 	if (likely(cmd->tgt_dev != NULL)) {
-#ifdef EXTRACHECKS
+#ifdef CONFIG_SCST_EXTRACHECKS
 		if (unlikely(!cmd->sent_to_midlev)) {
 			PRINT_ERROR("Finishing not executed cmd %p (opcode "
 			     "%d, target %s, lun %Ld, sn %ld, expected_sn %ld)",
@@ -3032,7 +3032,7 @@ int scst_inc_on_dev_cmd(struct scst_cmd *cmd)
 	cmd->dec_on_dev_needed = 1;
 	TRACE_DBG("New on_dev_count %d", atomic_read(&dev->on_dev_count));
 
-#ifdef STRICT_SERIALIZING
+#ifdef CONFIG_SCST_STRICT_SERIALIZING
 	spin_lock_bh(&dev->dev_lock);
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)))
 		goto out_unlock;
@@ -3103,7 +3103,7 @@ out_unlock:
 /* Called under dev_lock */
 void scst_unblock_cmds(struct scst_device *dev)
 {
-#ifdef STRICT_SERIALIZING
+#ifdef CONFIG_SCST_STRICT_SERIALIZING
 	struct scst_cmd *cmd, *t;
 	unsigned long flags;
 
@@ -3140,7 +3140,7 @@ void scst_unblock_cmds(struct scst_device *dev)
 			break;
 	}
 	local_irq_restore(flags);
-#else /* STRICT_SERIALIZING */
+#else /* CONFIG_SCST_STRICT_SERIALIZING */
 	struct scst_cmd *cmd, *tcmd;
 	unsigned long flags;
 
@@ -3162,7 +3162,7 @@ void scst_unblock_cmds(struct scst_device *dev)
 		spin_unlock(&cmd->cmd_lists->cmd_list_lock);
 	}
 	local_irq_restore(flags);
-#endif /* STRICT_SERIALIZING */
+#endif /* CONFIG_SCST_STRICT_SERIALIZING */
 
 	TRACE_EXIT();
 	return;
@@ -3298,7 +3298,7 @@ void __init scst_scsi_op_list_init(void)
 	return;
 }
 
-#ifdef DEBUG
+#ifdef CONFIG_SCST_DEBUG
 /* Original taken from the XFS code */
 unsigned long scst_random(void)
 {
@@ -3329,7 +3329,7 @@ unsigned long scst_random(void)
 EXPORT_SYMBOL(scst_random);
 #endif
 
-#ifdef DEBUG_TM
+#ifdef CONFIG_SCST_DEBUG_TM
 
 #define TM_DBG_STATE_ABORT		0
 #define TM_DBG_STATE_RESET		1
@@ -3476,17 +3476,17 @@ static void tm_dbg_change_state(void)
 			break;
 		case TM_DBG_STATE_RESET:
 		case TM_DBG_STATE_OFFLINE:
-			if (TM_DBG_GO_OFFLINE) {
+#ifdef CONFIG_SCST_TM_DBG_GO_OFFLINE
 			    TRACE_MGMT_DBG("%s", "Changing "
 				    "tm_dbg_state to OFFLINE");
 			    tm_dbg_state =
 				TM_DBG_STATE_OFFLINE;
-			} else {
+#else
 			    TRACE_MGMT_DBG("%s", "Changing "
 				    "tm_dbg_state to ABORT");
 			    tm_dbg_state =
 				TM_DBG_STATE_ABORT;
-			}
+#endif
 			break;
 		default:
 			sBUG();
@@ -3618,9 +3618,9 @@ int tm_dbg_is_release(void)
 {
 	return tm_dbg_flags.tm_dbg_release;
 }
-#endif /* DEBUG_TM */
+#endif /* CONFIG_SCST_DEBUG_TM */
 
-#ifdef DEBUG_SN
+#ifdef CONFIG_SCST_DEBUG_SN
 void scst_check_debug_sn(struct scst_cmd *cmd)
 {
 	static DEFINE_SPINLOCK(lock);
@@ -3661,4 +3661,4 @@ out_unlock:
 	spin_unlock_irqrestore(&lock, flags);
 	return;
 }
-#endif /* DEBUG_SN */
+#endif /* CONFIG_SCST_DEBUG_SN */
