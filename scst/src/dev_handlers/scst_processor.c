@@ -144,7 +144,7 @@ int processor_parse(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
 
-	scst_processor_generic_parse(cmd, 0);
+	scst_processor_generic_parse(cmd, NULL);
 
 	cmd->retries = SCST_PASSTHROUGH_RETRIES;
 
