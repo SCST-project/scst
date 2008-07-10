@@ -1,5 +1,9 @@
+ifndef KVER
+KVER = $(shell uname -r)
+endif
+
 ifndef KDIR
-KDIR := /lib/modules/$(shell uname -r)/build
+KDIR := /lib/modules/$(KVER)/build
 endif
 
 export KDIR

@@ -47,7 +47,7 @@ tgt:	links Modules.symvers Module.symvers
 clean:
 	@$(MAKE) -C ${LINUX} M=${CURDIR}/build clean
 	@$(MAKE) -C build clean_links
-	@$(RM) tags
+	@$(RM) tags Modules.symvers Module.symvers
 
 extraclean: clean
 
