@@ -34,7 +34,9 @@ Installation is simple.
   #> make
   #> make install
 
-This installs scstadmin, the init.d script and the perl module.
+This installs scstadmin, the init.d script and the perl module. If you want SCST to
+startup and configure automatically upon boot, enable SCST using your favorite
+SysV init editor.
 
 
 Getting Started:

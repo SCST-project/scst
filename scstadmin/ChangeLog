@@ -5,6 +5,8 @@ Changes since 1.0.0
 - Renamed Changes to ChangeLog
 - Updated README to include instructions for installing the perl module.
 - Renamed SCST perl module directory tp scst-0.7.4
+- Added init enable instructions to "make install" and README file.
+- Changed VERSION on top-level Makefile to MODULE_VERSION to be more clear.
 
 Changes since 1.0.0 RC1
 
