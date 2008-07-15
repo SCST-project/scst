@@ -168,7 +168,7 @@ static int dev_user_register_dev(struct file *file,
 static int __dev_user_set_opt(struct scst_user_dev *dev,
 	const struct scst_user_opt *opt);
 static int dev_user_set_opt(struct file *file, const struct scst_user_opt *opt);
-static int dev_user_get_opt(struct file *file, void *arg);
+static int dev_user_get_opt(struct file *file, void __user *arg);
 
 static unsigned int dev_user_poll(struct file *filp, poll_table *wait);
 static long dev_user_ioctl(struct file *file, unsigned int cmd,
@@ -1289,7 +1289,7 @@ static int dev_user_process_reply_exec(struct scst_user_cmd *ucmd,
 		if (res != 0)
 			goto out_compl;
 		res = copy_from_user(cmd->sense,
-			(void *)(unsigned long)ereply->psense_buffer,
+			(void __user *)(unsigned long)ereply->psense_buffer,
 			min((unsigned int)SCST_SENSE_BUFFERSIZE,
 				(unsigned int)ereply->sense_len));
 		if (res < 0) {
@@ -1442,7 +1442,7 @@ out_unlock:
 	goto out;
 }
 
-static int dev_user_reply_cmd(struct file *file, unsigned long arg)
+static int dev_user_reply_cmd(struct file *file, void __user *arg)
 {
 	int res = 0;
 	struct scst_user_dev *dev;
@@ -1466,7 +1466,7 @@ static int dev_user_reply_cmd(struct file *file, unsigned long arg)
 		goto out_up;
 	}
 
-	res = copy_from_user(reply, (void *)arg, sizeof(*reply));
+	res = copy_from_user(reply, arg, sizeof(*reply));
 	if (res < 0)
 		goto out_free;
 
@@ -1511,7 +1511,7 @@ static int dev_user_process_scst_commands(struct scst_user_dev *dev)
 }
 
 /* Called under cmd_lists.cmd_list_lock and IRQ off */
-struct scst_user_cmd *__dev_user_get_next_cmd(struct list_head *cmd_list)
+static struct scst_user_cmd *__dev_user_get_next_cmd(struct list_head *cmd_list)
 {
 	struct scst_user_cmd *u;
 
@@ -1627,7 +1627,7 @@ static int dev_user_get_next_cmd(struct scst_user_dev *dev,
 	return res;
 }
 
-static int dev_user_reply_get_cmd(struct file *file, unsigned long arg)
+static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 {
 	int res = 0;
 	struct scst_user_dev *dev;
@@ -1648,7 +1648,7 @@ static int dev_user_reply_get_cmd(struct file *file, unsigned long arg)
 	down_read(&dev->dev_rwsem);
 	mutex_unlock(&dev_priv_mutex);
 
-	res = copy_from_user(&ureply, (void *)arg, sizeof(ureply));
+	res = copy_from_user(&ureply, arg, sizeof(ureply));
 	if (res < 0)
 		goto out_up;
 
@@ -1663,7 +1663,7 @@ static int dev_user_reply_get_cmd(struct file *file, unsigned long arg)
 	if (ureply != 0) {
 		unsigned long u = (unsigned long)ureply;
 		reply = (struct scst_user_reply_cmd *)cmd;
-		res = copy_from_user(reply, (void *)u, sizeof(*reply));
+		res = copy_from_user(reply, (void __user *)u, sizeof(*reply));
 		if (res < 0)
 			goto out_free;
 
@@ -1680,7 +1680,7 @@ static int dev_user_reply_get_cmd(struct file *file, unsigned long arg)
 		*cmd = ucmd->user_cmd;
 		spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
 		TRACE_BUFFER("UCMD", cmd, sizeof(*cmd));
-		res = copy_to_user((void *)arg, cmd, sizeof(*cmd));
+		res = copy_to_user(arg, cmd, sizeof(*cmd));
 	} else
 		spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
 
@@ -1705,12 +1705,12 @@ static long dev_user_ioctl(struct file *file, unsigned int cmd,
 	switch (cmd) {
 	case SCST_USER_REPLY_AND_GET_CMD:
 		TRACE_DBG("%s", "REPLY_AND_GET_CMD");
-		res = dev_user_reply_get_cmd(file, arg);
+		res = dev_user_reply_get_cmd(file, (void __user *)arg);
 		break;
 
 	case SCST_USER_REPLY_CMD:
 		TRACE_DBG("%s", "REPLY_CMD");
-		res = dev_user_reply_cmd(file, arg);
+		res = dev_user_reply_cmd(file, (void __user *)arg);
 		break;
 
 	case SCST_USER_REGISTER_DEVICE:
@@ -1722,7 +1722,7 @@ static long dev_user_ioctl(struct file *file, unsigned int cmd,
 			res = -ENOMEM;
 			goto out;
 		}
-		res = copy_from_user(dev_desc, (void *)arg, sizeof(*dev_desc));
+		res = copy_from_user(dev_desc, (void __user *)arg, sizeof(*dev_desc));
 		if (res < 0) {
 			kfree(dev_desc);
 			goto out;
@@ -1738,7 +1738,7 @@ static long dev_user_ioctl(struct file *file, unsigned int cmd,
 	{
 		struct scst_user_opt opt;
 		TRACE_DBG("%s", "SET_OPTIONS");
-		res = copy_from_user(&opt, (void *)arg, sizeof(opt));
+		res = copy_from_user(&opt, (void __user *)arg, sizeof(opt));
 		if (res < 0)
 			goto out;
 		TRACE_BUFFER("opt", &opt, sizeof(opt));
@@ -1748,7 +1748,7 @@ static long dev_user_ioctl(struct file *file, unsigned int cmd,
 
 	case SCST_USER_GET_OPTIONS:
 		TRACE_DBG("%s", "GET_OPTIONS");
-		res = dev_user_get_opt(file, (void *)arg);
+		res = dev_user_get_opt(file, (void __user *)arg);
 		break;
 
 	default:
@@ -2365,7 +2365,7 @@ static int dev_user_check_version(const struct scst_user_dev_desc *dev_desc)
 	char ver[sizeof(DEV_USER_VERSION)+1];
 	int res;
 
-	res = copy_from_user(ver, (void *)(unsigned long)dev_desc->version_str,
+	res = copy_from_user(ver, (void __user *)(unsigned long)dev_desc->version_str,
 				sizeof(ver));
 	if (res < 0) {
 		PRINT_ERROR("%s", "Unable to get version string");
@@ -2636,7 +2636,7 @@ out:
 	return res;
 }
 
-static int dev_user_get_opt(struct file *file, void *arg)
+static int dev_user_get_opt(struct file *file, void __user *arg)
 {
 	int res = 0;
 	struct scst_user_dev *dev;
