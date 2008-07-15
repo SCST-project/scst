@@ -228,14 +228,14 @@ err:
 }
 
 /* target_mutex supposed to be locked */
-static int get_conn_info(struct iscsi_target *target, unsigned long ptr)
+static int get_conn_info(struct iscsi_target *target, void __user *ptr)
 {
 	int err;
 	struct iscsi_session *session;
 	struct conn_info info;
 	struct iscsi_conn *conn;
 
-	err = copy_from_user(&info, (void *) ptr, sizeof(info));
+	err = copy_from_user(&info, ptr, sizeof(info));
 	if (err < 0)
 		return err;
 
@@ -248,20 +248,20 @@ static int get_conn_info(struct iscsi_target *target, unsigned long ptr)
 	info.stat_sn = conn->stat_sn;
 	info.exp_stat_sn = conn->exp_stat_sn;
 
-	if (copy_to_user((void *) ptr, &info, sizeof(info)))
+	if (copy_to_user(ptr, &info, sizeof(info)))
 		return -EFAULT;
 
 	return 0;
 }
 
 /* target_mutex supposed to be locked */
-static int add_conn(struct iscsi_target *target, unsigned long ptr)
+static int add_conn(struct iscsi_target *target, void __user *ptr)
 {
 	int err;
 	struct iscsi_session *session;
 	struct conn_info info;
 
-	err = copy_from_user(&info, (void *) ptr, sizeof(info));
+	err = copy_from_user(&info, ptr, sizeof(info));
 	if (err < 0)
 		return err;
 
@@ -273,13 +273,13 @@ static int add_conn(struct iscsi_target *target, unsigned long ptr)
 }
 
 /* target_mutex supposed to be locked */
-static int del_conn(struct iscsi_target *target, unsigned long ptr)
+static int del_conn(struct iscsi_target *target, void __user *ptr)
 {
 	int err;
 	struct iscsi_session *session;
 	struct conn_info info;
 
-	err = copy_from_user(&info, (void *) ptr, sizeof(info));
+	err = copy_from_user(&info, ptr, sizeof(info));
 	if (err < 0)
 		return err;
 
@@ -291,13 +291,13 @@ static int del_conn(struct iscsi_target *target, unsigned long ptr)
 }
 
 /* target_mutex supposed to be locked */
-static int get_session_info(struct iscsi_target *target, unsigned long ptr)
+static int get_session_info(struct iscsi_target *target, void __user *ptr)
 {
 	int err;
 	struct iscsi_session *session;
 	struct session_info info;
 
-	err = copy_from_user(&info, (void *) ptr, sizeof(info));
+	err = copy_from_user(&info, ptr, sizeof(info));
 	if (err < 0)
 		return err;
 
@@ -308,19 +308,19 @@ static int get_session_info(struct iscsi_target *target, unsigned long ptr)
 
 	info.exp_cmd_sn = session->exp_cmd_sn;
 
-	if (copy_to_user((void *) ptr, &info, sizeof(info)))
+	if (copy_to_user(ptr, &info, sizeof(info)))
 		return -EFAULT;
 
 	return 0;
 }
 
 /* target_mutex supposed to be locked */
-static int add_session(struct iscsi_target *target, unsigned long ptr)
+static int add_session(struct iscsi_target *target, void __user *ptr)
 {
 	int err;
 	struct session_info info;
 
-	err = copy_from_user(&info, (void *) ptr, sizeof(info));
+	err = copy_from_user(&info, ptr, sizeof(info));
 	if (err < 0)
 		return err;
 
@@ -331,12 +331,12 @@ static int add_session(struct iscsi_target *target, unsigned long ptr)
 }
 
 /* target_mutex supposed to be locked */
-static int del_session(struct iscsi_target *target, unsigned long ptr)
+static int del_session(struct iscsi_target *target, void __user *ptr)
 {
 	int err;
 	struct session_info info;
 
-	err = copy_from_user(&info, (void *) ptr, sizeof(info));
+	err = copy_from_user(&info, ptr, sizeof(info));
 	if (err < 0)
 		return err;
 
@@ -344,12 +344,12 @@ static int del_session(struct iscsi_target *target, unsigned long ptr)
 }
 
 /* target_mutex supposed to be locked */
-static int iscsi_param_config(struct iscsi_target *target, unsigned long ptr, int set)
+static int iscsi_param_config(struct iscsi_target *target, void __user *ptr, int set)
 {
 	int err;
 	struct iscsi_param_info info;
 
-	err = copy_from_user(&info, (void *) ptr, sizeof(info));
+	err = copy_from_user(&info, ptr, sizeof(info));
 	if (err < 0)
 		goto out;
 
@@ -358,42 +358,42 @@ static int iscsi_param_config(struct iscsi_target *target, unsigned long ptr, in
 		goto out;
 
 	if (!set)
-		err = copy_to_user((void *) ptr, &info, sizeof(info));
+		err = copy_to_user(ptr, &info, sizeof(info));
 
 out:
 	return err;
 }
 
 /* target_mgmt_mutex supposed to be locked */
-static int add_target(unsigned long ptr)
+static int add_target(void __user *ptr)
 {
 	int err;
 	struct target_info info;
 
-	err = copy_from_user(&info, (void *) ptr, sizeof(info));
+	err = copy_from_user(&info, ptr, sizeof(info));
 	if (err < 0)
 		return err;
 
 	err = target_add(&info);
 	if (!err)
-		err = copy_to_user((void *) ptr, &info, sizeof(info));
+		err = copy_to_user(ptr, &info, sizeof(info));
 
 	return err;
 }
 
-static int iscsi_check_version(unsigned long arg)
+static int iscsi_check_version(void __user *arg)
 {
 	struct iscsi_register_info reg;
 	char ver[sizeof(ISCSI_SCST_INTERFACE_VERSION)+1];
 	int res;
 
-	res = copy_from_user(&reg, (void *)arg, sizeof(reg));
+	res = copy_from_user(&reg, arg, sizeof(reg));
 	if (res < 0) {
 		PRINT_ERROR("%s", "Unable to get register info");
 		goto out;
 	}
 
-	res = copy_from_user(ver, (void *)(unsigned long)reg.version,
+	res = copy_from_user(ver, (void __user *)(unsigned long)reg.version,
 				sizeof(ver));
 	if (res < 0) {
 		PRINT_ERROR("%s", "Unable to get version string");
@@ -434,7 +434,7 @@ static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		break;
 
 	case REGISTER_USERD:
-		err = iscsi_check_version(arg);
+		err = iscsi_check_version((void __user *) arg);
 		goto out;
 
 	default:
@@ -443,7 +443,7 @@ static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		goto out;
 	}
 
-	err = get_user(id, (u32 *) arg);
+	err = get_user(id, (u32 __user *) arg);
 	if (err != 0)
 		goto out;
 
@@ -467,7 +467,7 @@ static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	switch (cmd) {
 	case ADD_TARGET:
-		err = add_target(arg);
+		err = add_target((void __user *) arg);
 		goto out_unlock;
 	}
 
@@ -481,35 +481,35 @@ static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	switch (cmd) {
 	case ADD_SESSION:
-		err = add_session(target, arg);
+		err = add_session(target, (void __user *) arg);
 		break;
 
 	case DEL_SESSION:
-		err = del_session(target, arg);
+		err = del_session(target, (void __user *) arg);
 		break;
 
 	case GET_SESSION_INFO:
-		err = get_session_info(target, arg);
+		err = get_session_info(target, (void __user *) arg);
 		break;
 
 	case ISCSI_PARAM_SET:
-		err = iscsi_param_config(target, arg, 1);
+		err = iscsi_param_config(target, (void __user *) arg, 1);
 		break;
 
 	case ISCSI_PARAM_GET:
-		err = iscsi_param_config(target, arg, 0);
+		err = iscsi_param_config(target, (void __user *) arg, 0);
 		break;
 
 	case ADD_CONN:
-		err = add_conn(target, arg);
+		err = add_conn(target, (void __user *) arg);
 		break;
 
 	case DEL_CONN:
-		err = del_conn(target, arg);
+		err = del_conn(target, (void __user *) arg);
 		break;
 
 	case GET_CONN_INFO:
-		err = get_conn_info(target, arg);
+		err = get_conn_info(target, (void __user *) arg);
 		break;
 
 	default:
