@@ -2548,7 +2548,7 @@ struct scst_proc_log {
 int scst_proc_log_entry_read(struct seq_file *seq, unsigned long log_level,
 	const struct scst_proc_log *tbl);
 
-int scst_proc_log_entry_write(struct file *file, const char *buf,
+int scst_proc_log_entry_write(struct file *file, const char __user *buf,
 	unsigned long length, unsigned long *log_level,
 	unsigned long default_level, const struct scst_proc_log *tbl);
 

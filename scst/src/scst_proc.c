@@ -206,7 +206,7 @@ static int strncasecmp(const char *s1, const char *s2, size_t n)
 
 static DEFINE_MUTEX(scst_log_mutex);
 
-int scst_proc_log_entry_write(struct file *file, const char *buf,
+int scst_proc_log_entry_write(struct file *file, const char __user *buf,
 	unsigned long length, unsigned long *log_level,
 	unsigned long default_level, const struct scst_proc_log *tbl)
 {
