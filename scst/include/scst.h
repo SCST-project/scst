@@ -1455,7 +1455,7 @@ struct scst_tgt_dev {
 	/* How many cmds alive on this dev in this session */
 	atomic_t tgt_dev_cmd_count;
 
-	int gfp_mask;
+	gfp_t gfp_mask;
 	struct sgv_pool *pool;
 	int max_sg_cnt;
 
@@ -2624,7 +2624,7 @@ void scst_cmd_put(struct scst_cmd *cmd);
  * In *count returned the count of entries in the vector.
  * Returns NULL for failure.
  */
-struct scatterlist *scst_alloc(int size, unsigned long gfp_mask, int *count);
+struct scatterlist *scst_alloc(int size, gfp_t gfp_mask, int *count);
 
 /* Frees SG vector returned by scst_alloc() */
 void scst_free(struct scatterlist *sg, int count);
@@ -2679,7 +2679,7 @@ void sgv_pool_set_allocator(struct sgv_pool *pool,
 	void (*free_pages_fn)(struct scatterlist *, int, void *));
 
 struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
-	unsigned long gfp_mask, int flags, int *count,
+	gfp_t gfp_mask, int flags, int *count,
 	struct sgv_pool_obj **sgv, struct scst_mem_lim *mem_lim, void *priv);
 void sgv_pool_free(struct sgv_pool_obj *sgv, struct scst_mem_lim *mem_lim);
 

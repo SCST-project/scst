@@ -86,7 +86,7 @@ static void event_recv(struct sock *sk, int length)
 }
 #endif
 
-static int notify(void *data, int len, int gfp_mask)
+static int notify(void *data, int len, gfp_t gfp_mask)
 {
 	struct sk_buff *skb;
 	struct nlmsghdr *nlh;

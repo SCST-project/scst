@@ -273,7 +273,7 @@ int scst_mgmt_thread(void *arg);
 int scst_add_dev_threads(struct scst_device *dev, int num);
 void scst_del_dev_threads(struct scst_device *dev, int num);
 
-int scst_alloc_device(int gfp_mask, struct scst_device **out_dev);
+int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev);
 void scst_free_device(struct scst_device *dev);
 
 struct scst_acg *scst_alloc_add_acg(const char *acg_name);
@@ -302,12 +302,12 @@ struct scst_cmd *scst_complete_request_sense(struct scst_cmd *cmd);
 int scst_assign_dev_handler(struct scst_device *dev,
 	struct scst_dev_type *handler);
 
-struct scst_session *scst_alloc_session(struct scst_tgt *tgt, int gfp_mask,
+struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 	const char *initiator_name);
 void scst_free_session(struct scst_session *sess);
 void scst_free_session_callback(struct scst_session *sess);
 
-struct scst_cmd *scst_alloc_cmd(int gfp_mask);
+struct scst_cmd *scst_alloc_cmd(gfp_t gfp_mask);
 void scst_free_cmd(struct scst_cmd *cmd);
 static inline void scst_destroy_cmd(struct scst_cmd *cmd)
 {
@@ -364,7 +364,7 @@ uint64_t scst_unpack_lun(const uint8_t *lun, int len);
 struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,
 	uint64_t tag);
 
-struct scst_mgmt_cmd *scst_alloc_mgmt_cmd(int gfp_mask);
+struct scst_mgmt_cmd *scst_alloc_mgmt_cmd(gfp_t gfp_mask);
 void scst_free_mgmt_cmd(struct scst_mgmt_cmd *mcmd);
 void scst_done_cmd_mgmt(struct scst_cmd *cmd);
 

@@ -45,7 +45,7 @@ static void scst_check_internal_sense(struct scst_device *dev, int result,
 int scst_alloc_sense(struct scst_cmd *cmd, int atomic)
 {
 	int res = 0;
-	unsigned long gfp_mask = atomic ? GFP_ATOMIC : (GFP_KERNEL|__GFP_NOFAIL);
+	gfp_t gfp_mask = atomic ? GFP_ATOMIC : (GFP_KERNEL|__GFP_NOFAIL);
 
 	TRACE_ENTRY();
 
@@ -278,7 +278,7 @@ out:
 EXPORT_SYMBOL(scst_set_resp_data_len);
 
 /* Called under scst_mutex and suspended activity */
-int scst_alloc_device(int gfp_mask, struct scst_device **out_dev)
+int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev)
 {
 	struct scst_device *dev;
 	int res = 0;
@@ -955,7 +955,7 @@ struct scst_cmd *scst_create_prepare_internal_cmd(
 	struct scst_cmd *orig_cmd, int bufsize)
 {
 	struct scst_cmd *res;
-	int gfp_mask = scst_cmd_atomic(orig_cmd) ? GFP_ATOMIC : GFP_KERNEL;
+	gfp_t gfp_mask = scst_cmd_atomic(orig_cmd) ? GFP_ATOMIC : GFP_KERNEL;
 
 	TRACE_ENTRY();
 
@@ -1215,7 +1215,7 @@ static void scst_clear_reservation(struct scst_tgt_dev *tgt_dev)
 	return;
 }
 
-struct scst_session *scst_alloc_session(struct scst_tgt *tgt, int gfp_mask,
+struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 	const char *initiator_name)
 {
 	struct scst_session *sess;
@@ -1354,7 +1354,7 @@ void scst_cmd_put(struct scst_cmd *cmd)
 }
 EXPORT_SYMBOL(scst_cmd_put);
 
-struct scst_cmd *scst_alloc_cmd(int gfp_mask)
+struct scst_cmd *scst_alloc_cmd(gfp_t gfp_mask)
 {
 	struct scst_cmd *cmd;
 
@@ -1556,7 +1556,7 @@ void scst_tgt_retry_timer_fn(unsigned long arg)
 	return;
 }
 
-struct scst_mgmt_cmd *scst_alloc_mgmt_cmd(int gfp_mask)
+struct scst_mgmt_cmd *scst_alloc_mgmt_cmd(gfp_t gfp_mask)
 {
 	struct scst_mgmt_cmd *mcmd;
 
@@ -1641,7 +1641,7 @@ void scst_release_request(struct scst_cmd *cmd)
 
 int scst_alloc_space(struct scst_cmd *cmd)
 {
-	int gfp_mask;
+	gfp_t gfp_mask;
 	int res = -ENOMEM;
 	int atomic = scst_cmd_atomic(cmd);
 	int flags;

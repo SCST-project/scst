@@ -255,7 +255,7 @@ out_no_mem:
 }
 
 static int sgv_alloc_arrays(struct sgv_pool_obj *obj,
-	int pages_to_alloc, int order, unsigned long gfp_mask)
+	int pages_to_alloc, int order, gfp_t gfp_mask)
 {
 	int sz, tsz = 0;
 	int res = 0;
@@ -327,7 +327,7 @@ static void sgv_dtor_and_free(struct sgv_pool_obj *obj)
 }
 
 static struct sgv_pool_obj *sgv_pool_cached_get(struct sgv_pool *pool,
-	int order, unsigned long gfp_mask)
+	int order, gfp_t gfp_mask)
 {
 	struct sgv_pool_obj *obj;
 	int pages = 1 << order;
@@ -561,7 +561,7 @@ static void scst_uncheck_allowed_mem(struct scst_mem_lim *mem_lim, int pages)
 }
 
 struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
-	unsigned long gfp_mask, int flags, int *count,
+	gfp_t gfp_mask, int flags, int *count,
 	struct sgv_pool_obj **sgv, struct scst_mem_lim *mem_lim, void *priv)
 {
 	struct sgv_pool_obj *obj;
@@ -840,7 +840,7 @@ void sgv_pool_free(struct sgv_pool_obj *sgv, struct scst_mem_lim *mem_lim)
 }
 EXPORT_SYMBOL(sgv_pool_free);
 
-struct scatterlist *scst_alloc(int size, unsigned long gfp_mask, int *count)
+struct scatterlist *scst_alloc(int size, gfp_t gfp_mask, int *count)
 {
 	struct scatterlist *res;
 	int pages = (size >> PAGE_SHIFT) + ((size & ~PAGE_MASK) != 0);

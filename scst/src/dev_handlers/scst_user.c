@@ -137,7 +137,7 @@ struct scst_user_cmd {
 };
 
 static struct scst_user_cmd *dev_user_alloc_ucmd(struct scst_user_dev *dev,
-	int gfp_mask);
+	gfp_t gfp_mask);
 static void dev_user_free_ucmd(struct scst_user_cmd *ucmd);
 
 static int dev_user_parse(struct scst_cmd *cmd);
@@ -484,7 +484,8 @@ static int dev_user_alloc_sg(struct scst_user_cmd *ucmd, int cached_buff)
 	int res = 0;
 	struct scst_cmd *cmd = ucmd->cmd;
 	struct scst_user_dev *dev = ucmd->dev;
-	int gfp_mask, flags = 0;
+	gfp_t gfp_mask;
+	int flags = 0;
 	int bufflen = cmd->bufflen;
 	int last_len = 0;
 
@@ -636,7 +637,7 @@ out:
 }
 
 static struct scst_user_cmd *dev_user_alloc_ucmd(struct scst_user_dev *dev,
-	int gfp_mask)
+	gfp_t gfp_mask)
 {
 	struct scst_user_cmd *ucmd = NULL;
 
@@ -683,7 +684,7 @@ static int dev_user_parse(struct scst_cmd *cmd)
 	struct scst_user_cmd *ucmd;
 	int atomic = scst_cmd_atomic(cmd);
 	struct scst_user_dev *dev = (struct scst_user_dev *)cmd->dev->dh_priv;
-	int gfp_mask = atomic ? GFP_ATOMIC : GFP_KERNEL;
+	gfp_t gfp_mask = atomic ? GFP_ATOMIC : GFP_KERNEL;
 
 	TRACE_ENTRY();
 
