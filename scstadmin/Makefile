@@ -23,10 +23,11 @@ perl-module:
 	$(MAKE) -C scst-$(MODULE_VERSION)
 
 clean:
-	$(MAKE) -C scst-$(MODULE_VERSION) clean
+	-$(MAKE) -C scst-$(MODULE_VERSION) clean
 
-distclean:
-	$(MAKE) -C scst-$(MODULE_VERSION) clean
+distclean: clean
 	-rm -f scst-$(MODULE_VERSION)/Makefile.old
 
-.PHONY: all install uninstall
+extraclean: distclean
+
+.PHONY: all install uninstall perl-module clean distclean extraclean

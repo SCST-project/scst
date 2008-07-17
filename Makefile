@@ -153,11 +153,20 @@ scst_clean:
 scst_extraclean: 
 	cd $(SCST_DIR) && $(MAKE) extraclean
 
+scstadm:
+	cd $(SCSTADM_DIR) && $(MAKE)
+
 scstadm_install: 
 	cd $(SCSTADM_DIR) && $(MAKE) install
 
 scstadm_uninstall: 
 	cd $(SCSTADM_DIR) && $(MAKE) uninstall
+
+scstadm_clean:
+	cd $(SCSTADM_DIR) && $(MAKE) clean
+
+scstadm_extraclean:
+	cd $(SCSTADM_DIR) && $(MAKE) extraclean
 
 qla:
 	cd $(QLA_DIR) && $(MAKE)
@@ -289,6 +298,6 @@ release2debug:
 	lsi lsi_install lsi_uninstall lsi_clean lsi_extraclean \
 	iscsi iscsi_install iscsi_uninstall iscsi_clean iscsi_extraclean \
 	scst scst_install scst_uninstall scst_clean scst_extraclean \
-	scstadm_install scstadm_uninstall \
+	scstadm scstadm_install scstadm_uninstall scstadm_clean scstadm_extraclean \
 	usr usr_install usr_uninstall usr_clean usr_extraclean \
 	debug2perf, debug2release, perf2debug, release2debug
