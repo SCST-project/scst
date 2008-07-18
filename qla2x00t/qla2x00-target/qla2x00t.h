@@ -123,7 +123,7 @@ struct q2t_tgt
 	int datasegs_per_cmd, datasegs_per_cont;
 	/* Target's flags, serialized by ha->hardware_lock */
 	unsigned int tgt_shutdown:1;	/* The driver is being released */
-	unsigned int tgt_enable_64bit_addr:1;	/* 64-bits PCI addressing anables */
+	unsigned int tgt_enable_64bit_addr:1;	/* 64-bits PCI addressing enabled */
 	wait_queue_head_t waitQ;
 	int notify_ack_expected;
 	volatile int modify_lun_expected;

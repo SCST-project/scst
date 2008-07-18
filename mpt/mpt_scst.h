@@ -327,7 +327,7 @@ typedef struct _MPT_STM_PRIV
 
 /* Target's flags */
 #define MPT_TGT_SHUTDOWN            0   /* The driver is being released */
-#define MPT_TGT_ENABLE_64BIT_ADDR   1   /* 64-bits PCI addressing anables */
+#define MPT_TGT_ENABLE_64BIT_ADDR   1   /* 64-bits PCI addressing enabled */
 
 /* Session's flags */
 #define MPT_SESS_INITING            0   /* The session is being unregistered */
