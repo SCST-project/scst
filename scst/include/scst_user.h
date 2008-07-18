@@ -197,6 +197,7 @@ struct scst_user_get_cmd {
 	};
 };
 
+/* Be careful adding new members here, this structure is allocated on stack! */
 struct scst_user_scsi_cmd_reply_parse {
 	uint8_t queue_type;
 	uint8_t data_direction;
@@ -204,10 +205,12 @@ struct scst_user_scsi_cmd_reply_parse {
 	int32_t bufflen;
 };
 
+/* Be careful adding new members here, this structure is allocated on stack! */
 struct scst_user_scsi_cmd_reply_alloc_mem {
 	aligned_u64 pbuf;
 };
 
+/* Be careful adding new members here, this structure is allocated on stack! */
 struct scst_user_scsi_cmd_reply_exec {
 	int32_t resp_data_len;
 	aligned_u64 pbuf;
@@ -221,6 +224,7 @@ struct scst_user_scsi_cmd_reply_exec {
 	aligned_u64 psense_buffer;
 };
 
+/* Be careful adding new members here, this structure is allocated on stack! */
 struct scst_user_reply_cmd {
 	uint32_t cmd_h;
 	uint32_t subcode;

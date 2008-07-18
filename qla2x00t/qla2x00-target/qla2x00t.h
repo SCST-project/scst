@@ -118,7 +118,6 @@ struct q2t_cmd
 struct q2t_tgt
 {
 	struct scst_tgt *scst_tgt;
-	uint32_t handle;
 	scsi_qla_host_t *ha;
 	int datasegs_per_cmd, datasegs_per_cont;
 	/* Target's flags, serialized by ha->hardware_lock */
@@ -161,10 +160,10 @@ struct q2t_prm
 static inline struct q2t_sess *q2t_find_sess_by_lid(struct q2t_tgt *tgt,
 						    uint16_t lid)
 {
-	struct q2t_sess *sess, *sess_tmp;
+	struct q2t_sess *sess;
 	sBUG_ON(tgt == NULL);
-	list_for_each_entry_safe(sess, sess_tmp, &tgt->sess_list, list) {
-		if (lid == (sess->loop_id))
+	list_for_each_entry(sess, &tgt->sess_list, list) {
+		if (lid == sess->loop_id)
 			return sess;
 	}
 

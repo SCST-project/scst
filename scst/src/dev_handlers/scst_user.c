@@ -178,6 +178,7 @@ static int dev_user_release(struct inode *inode, struct file *file);
 /** Data **/
 
 static struct kmem_cache *user_cmd_cachep;
+static struct kmem_cache *user_get_cmd_cachep;
 
 static DEFINE_MUTEX(dev_priv_mutex);
 
@@ -1042,7 +1043,7 @@ static int dev_user_map_buf(struct scst_user_cmd *ucmd, unsigned long ubuff,
 
 	ucmd->num_data_pages = num_pg;
 
-	ucmd->data_pages = kzalloc(sizeof(*ucmd->data_pages)*ucmd->num_data_pages,
+	ucmd->data_pages = kmalloc(sizeof(*ucmd->data_pages)*ucmd->num_data_pages,
 		GFP_KERNEL);
 	if (ucmd->data_pages == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "Unable to allocate data_pages array "
@@ -1447,7 +1448,7 @@ static int dev_user_reply_cmd(struct file *file, void __user *arg)
 {
 	int res = 0;
 	struct scst_user_dev *dev;
-	struct scst_user_reply_cmd *reply;
+	struct scst_user_reply_cmd reply;
 
 	TRACE_ENTRY();
 
@@ -1461,24 +1462,15 @@ static int dev_user_reply_cmd(struct file *file, void __user *arg)
 	down_read(&dev->dev_rwsem);
 	mutex_unlock(&dev_priv_mutex);
 
-	reply = kzalloc(sizeof(*reply), GFP_KERNEL);
-	if (reply == NULL) {
-		res = -ENOMEM;
+	res = copy_from_user(&reply, arg, sizeof(reply));
+	if (res < 0)
 		goto out_up;
-	}
 
-	res = copy_from_user(reply, arg, sizeof(*reply));
+	TRACE_BUFFER("Reply", &reply, sizeof(reply));
+
+	res = dev_user_process_reply(dev, &reply);
 	if (res < 0)
-		goto out_free;
-
-	TRACE_BUFFER("Reply", reply, sizeof(*reply));
-
-	res = dev_user_process_reply(dev, reply);
-	if (res < 0)
-		goto out_free;
-
-out_free:
-	kfree(reply);
+		goto out_up;
 
 out_up:
 	up_read(&dev->dev_rwsem);
@@ -1655,7 +1647,7 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 
 	TRACE_DBG("ureply %Ld", (long long unsigned int)ureply);
 
-	cmd = kzalloc(max(sizeof(*cmd), sizeof(*reply)), GFP_KERNEL);
+	cmd = kmem_cache_alloc(user_get_cmd_cachep, GFP_KERNEL);
 	if (cmd == NULL) {
 		res = -ENOMEM;
 		goto out_up;
@@ -1686,7 +1678,7 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 		spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
 
 out_free:
-	kfree(cmd);
+	kmem_cache_free(user_get_cmd_cachep, cmd);
 
 out_up:
 	up_read(&dev->dev_rwsem);
@@ -2206,6 +2198,7 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 		(struct scst_user_dev *)tgt_dev->dev->dh_priv;
 	int res = 0, rc;
 	struct scst_user_cmd *ucmd;
+	DECLARE_COMPLETION_ONSTACK(cmpl);
 
 	TRACE_ENTRY();
 
@@ -2213,11 +2206,7 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 	if (ucmd == NULL)
 		goto out_nomem;
 
-	ucmd->cmpl = kmalloc(sizeof(*ucmd->cmpl), GFP_KERNEL);
-	if (ucmd->cmpl == NULL)
-		goto out_put_nomem;
-
-	init_completion(ucmd->cmpl);
+	ucmd->cmpl = &cmpl;
 
 	ucmd->user_cmd.cmd_h = ucmd->h;
 	ucmd->user_cmd.subcode = SCST_USER_ATTACH_SESS;
@@ -2254,7 +2243,6 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 	sBUG_ON(irqs_disabled());
 
 	spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
-	kfree(ucmd->cmpl);
 	ucmd->cmpl = NULL;
 	spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
 
@@ -2263,9 +2251,6 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
-out_put_nomem:
-	ucmd_put(ucmd);
 
 out_nomem:
 	res = -ENOMEM;
@@ -2904,6 +2889,12 @@ static int __init init_scst_user(void)
 {
 	int res = 0;
 	struct class_device *class_member;
+	struct max_get_reply {
+		union {
+			struct scst_user_get_cmd g;
+			struct scst_user_reply_cmd r;
+		};
+	};
 
 	TRACE_ENTRY();
 
@@ -2921,11 +2912,17 @@ static int __init init_scst_user(void)
 		goto out;
 	}
 
+	user_get_cmd_cachep = KMEM_CACHE(max_get_reply, SCST_SLAB_FLAGS);
+	if (user_get_cmd_cachep == NULL) {
+		res = -ENOMEM;
+		goto out_cache;
+	}
+
 	dev_user_devtype.module = THIS_MODULE;
 
 	res = scst_register_virtual_dev_driver(&dev_user_devtype);
 	if (res < 0)
-		goto out_cache;
+		goto out_cache1;
 
 	res = scst_dev_handler_build_std_proc(&dev_user_devtype);
 	if (res != 0)
@@ -2979,6 +2976,9 @@ out_proc:
 out_unreg:
 	scst_unregister_dev_driver(&dev_user_devtype);
 
+out_cache1:
+	kmem_cache_destroy(user_get_cmd_cachep);
+
 out_cache:
 	kmem_cache_destroy(user_cmd_cachep);
 	goto out;
@@ -3001,6 +3001,7 @@ static void __exit exit_scst_user(void)
 	scst_dev_handler_destroy_std_proc(&dev_user_devtype);
 	scst_unregister_virtual_dev_driver(&dev_user_devtype);
 
+	kmem_cache_destroy(user_get_cmd_cachep);
 	kmem_cache_destroy(user_cmd_cachep);
 
 	TRACE_EXIT();

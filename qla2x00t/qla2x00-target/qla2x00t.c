@@ -287,8 +287,8 @@ static void q2t_free_session_done(struct scst_session *scst_sess)
 	if (tgt == NULL)
 		goto out;
 
-	TRACE_MGMT_DBG("tgt->handle %x empty(sess_list) %d sess_count %d",
-	      tgt->handle, list_empty(&tgt->sess_list), tgt->sess_count);
+	TRACE_MGMT_DBG("tgt %p, empty(sess_list) %d, sess_count %d",
+	      tgt, list_empty(&tgt->sess_list), tgt->sess_count);
 
 	ha = tgt->ha;
 
