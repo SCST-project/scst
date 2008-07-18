@@ -127,7 +127,8 @@ static void srpt_qp_event(struct ib_event *event, void *ctx)
 {
 	struct srpt_rdma_ch *ch = ctx;
 
-	printk(KERN_WARNING PFX "QP event %d on cm_id= %p sess_name= %s state= %d\n",
+	printk(KERN_WARNING PFX
+	       "QP event %d on cm_id=%p sess_name=%s state=%d\n",
 	       event->event, ch->cm_id, ch->sess_name, ch->state);
 
 	switch (event->event) {
@@ -136,7 +137,8 @@ static void srpt_qp_event(struct ib_event *event, void *ctx)
 		break;
 	case IB_EVENT_QP_LAST_WQE_REACHED:
 		if (ch->state == RDMA_CHANNEL_LIVE) {
-			printk(KERN_WARNING PFX "Schedule CM_DISCONNECT_WORK\n");
+			printk(KERN_WARNING PFX
+			       "Schedule CM_DISCONNECT_WORK\n");
 			srpt_disconnect_channel(ch, 1);
 		}
 		break;
@@ -542,7 +544,8 @@ static int srpt_get_desc_tbl(struct srpt_ioctx *ioctx, struct srp_cmd *srp_cmd,
 		if (ioctx->n_rbuf == 1)
 			ioctx->rbufs = &ioctx->single_rbuf;
 		else
-			ioctx->rbufs = kmalloc(ioctx->n_rbuf * sizeof *db, GFP_ATOMIC);
+			ioctx->rbufs =
+				kmalloc(ioctx->n_rbuf * sizeof *db, GFP_ATOMIC);
 		if (!ioctx->rbufs) {
 			ioctx->n_rbuf = 0;
 			return -ENOMEM;
@@ -665,7 +668,8 @@ static void srpt_handle_err_comp(struct srpt_rdma_ch *ch, struct ib_wc *wc)
 					scst_rx_data(scmnd,
 						     SCST_RX_STATUS_ERROR,
 						     SCST_CONTEXT_THREAD);
-				else if (scmnd->state == SCST_CMD_STATE_XMIT_WAIT)
+				else if (scmnd->state ==
+					 SCST_CMD_STATE_XMIT_WAIT)
 					scst_tgt_cmd_done(scmnd);
 			}
 		} else
@@ -678,7 +682,8 @@ static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
 				  struct srpt_ioctx *ioctx)
 {
 	if (ioctx->scmnd) {
-		scst_data_direction dir = scst_cmd_get_data_direction(ioctx->scmnd);
+		scst_data_direction dir =
+			scst_cmd_get_data_direction(ioctx->scmnd);
 
 		if (dir != SCST_DATA_NONE)
 			dma_unmap_sg(ch->sport->sdev->device->dma_device,
@@ -905,7 +910,8 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 			ret = scst_rx_mgmt_fn_tag(ch->scst_sess,
 						  SCST_ABORT_TASK,
 						  srp_tsk->task_tag,
-						  thread ? SCST_NON_ATOMIC : SCST_ATOMIC,
+						  thread ?
+						  SCST_NON_ATOMIC : SCST_ATOMIC,
 						  mgmt_ioctx);
 			break;
 		case SRP_TSK_ABORT_TASK_SET:
@@ -913,7 +919,8 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 						  SCST_ABORT_TASK_SET,
 						  (u8 *) &srp_tsk->lun,
 						  sizeof srp_tsk->lun,
-						  thread ? SCST_NON_ATOMIC : SCST_ATOMIC,
+						  thread ?
+						  SCST_NON_ATOMIC : SCST_ATOMIC,
 						  mgmt_ioctx);
 			break;
 		case SRP_TSK_CLEAR_TASK_SET:
@@ -921,7 +928,8 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 						  SCST_CLEAR_TASK_SET,
 						  (u8 *) &srp_tsk->lun,
 						  sizeof srp_tsk->lun,
-						  thread ? SCST_NON_ATOMIC : SCST_ATOMIC,
+						  thread ?
+						  SCST_NON_ATOMIC : SCST_ATOMIC,
 						  mgmt_ioctx);
 			break;
 #if 0
@@ -930,7 +938,8 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 						  SCST_LUN_RESET,
 						  (u8 *) &srp_tsk->lun,
 						  sizeof srp_tsk->lun,
-						  thread ? SCST_NON_ATOMIC : SCST_ATOMIC,
+						  thread ?
+						  SCST_NON_ATOMIC : SCST_ATOMIC,
 						  mgmt_ioctx);
 			break;
 #endif
@@ -939,7 +948,8 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 						  SCST_CLEAR_ACA,
 						  (u8 *) &srp_tsk->lun,
 						  sizeof srp_tsk->lun,
-						  thread ? SCST_NON_ATOMIC : SCST_ATOMIC,
+						  thread ?
+						  SCST_NON_ATOMIC : SCST_ATOMIC,
 						  mgmt_ioctx);
 			break;
 		default:
@@ -1084,8 +1094,8 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 		goto out;
 	}
 
-	printk(KERN_DEBUG PFX "%s[%d] max_cqe= %d max_sge= %d cm_id= %p\n",
-	       __func__, __LINE__, ch->cq->cqe, qp_init->cap.max_send_sge,
+	printk(KERN_DEBUG PFX "%s: max_cqe= %d max_sge= %d cm_id= %p\n",
+	       __func__, ch->cq->cqe, qp_init->cap.max_send_sge,
 	       ch->cm_id);
 
 	ret = srpt_init_ch_qp(ch, ch->qp);
@@ -1127,7 +1137,7 @@ static int srpt_release_channel(struct srpt_rdma_ch *ch, int destroy_cmid)
 
 	if (ch->cm_id && destroy_cmid) {
 		printk(KERN_WARNING PFX
-		       "%s Destroy cm_id= %p\n", __func__, ch->cm_id);
+		       "%s: destroy cm_id= %p\n", __func__, ch->cm_id);
 		ib_destroy_cm_id(ch->cm_id);
 		ch->cm_id = NULL;
 	}
@@ -1139,7 +1149,7 @@ static int srpt_release_channel(struct srpt_rdma_ch *ch, int destroy_cmid)
 		struct srpt_ioctx *ioctx, *ioctx_tmp;
 
 		printk(KERN_WARNING PFX
-		       "%s: Release sess= %p sess_name= %s active_cmd= %d\n",
+		       "%s: release sess= %p sess_name= %s active_cmd= %d\n",
 		       __func__, ch->scst_sess, ch->sess_name,
 		       ch->active_scmnd_cnt);
 
@@ -1171,8 +1181,8 @@ static void srpt_register_channel_done(struct scst_session *scst_sess,
 			ch->scst_sess = NULL;
 		}
 		printk(KERN_ERR PFX
-		       "%s[%d] Failed to establish sess= %p status= %d\n",
-		       __func__, __LINE__, scst_sess, status);
+		       "%s: Failed to establish sess= %p status= %d\n",
+		       __func__, scst_sess, status);
 	}
 
 	complete(&ch->scst_sess_done);
@@ -1221,13 +1231,16 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 
 	it_iu_len = be32_to_cpu(req->req_it_iu_len);
 
-	printk(KERN_ERR PFX
+	printk(KERN_DEBUG PFX
 	       "Host login i_port_id=0x%llx:0x%llx t_port_id=0x%llx:0x%llx"
 	       " it_iu_len=%d\n",
-	       (unsigned long long)be64_to_cpu(*(u64 *)&req->initiator_port_id[0]),
-	       (unsigned long long)be64_to_cpu(*(u64 *)&req->initiator_port_id[8]),
+	       (unsigned long long)
+	       be64_to_cpu(*(u64 *)&req->initiator_port_id[0]),
+	       (unsigned long long)
+	       be64_to_cpu(*(u64 *)&req->initiator_port_id[8]),
 	       (unsigned long long)be64_to_cpu(*(u64 *)&req->target_port_id[0]),
-	       (unsigned long long)be64_to_cpu(*(u64 *)&req->target_port_id[8]), it_iu_len);
+	       (unsigned long long)be64_to_cpu(*(u64 *)&req->target_port_id[8]),
+	       it_iu_len);
 
 	if (it_iu_len > MAX_MESSAGE_SIZE || it_iu_len < 64) {
 		rej->reason =
@@ -1316,7 +1329,8 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	ret = srpt_ch_qp_rtr_rts(ch, ch->qp, IB_QPS_RTR);
 	if (ret) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		printk(KERN_WARNING PFX "Reject failed qp to rtr/rts ret=%d\n", ret);
+		printk(KERN_WARNING PFX
+		       "Reject failed qp to rtr/rts ret=%d\n", ret);
 		goto destroy_ib;
 	}
 
@@ -1340,7 +1354,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	list_add_tail(&ch->list, &sdev->rch_list);
 	spin_unlock_irq(&sdev->spinlock);
 
-	printk(KERN_DEBUG PFX "Establish connection sess= %p name= %s cm_id= %p\n",
+	printk(KERN_DEBUG PFX "Establish connection sess=%p name=%s cm_id=%p\n",
 	       ch->scst_sess, ch->sess_name, ch->cm_id);
 
 	scst_sess_set_tgt_priv(ch->scst_sess, ch);
@@ -1409,8 +1423,7 @@ static int srpt_find_and_release_channel(struct ib_cm_id *cm_id)
 
 static int srpt_cm_rej_recv(struct ib_cm_id *cm_id)
 {
-	printk(KERN_DEBUG PFX "%s[%d] cm_id= %p\n",
-	       __func__, __LINE__, cm_id);
+	printk(KERN_DEBUG PFX "%s: cm_id=%p\n", __func__, cm_id);
 	return srpt_find_and_release_channel(cm_id);
 }
 
@@ -1442,8 +1455,8 @@ static int srpt_cm_rtu_recv(struct ib_cm_id *cm_id)
 		ret = 0;
 
 	if (ret) {
-		printk(KERN_ERR PFX "%s[%d] cm_id= %p sess_name= %s state= %d\n",
-		       __func__, __LINE__, cm_id, ch->sess_name, ch->state);
+		printk(KERN_ERR PFX "cm_id=%p sess_name=%s state=%d\n",
+		       cm_id, ch->sess_name, ch->state);
 		srpt_disconnect_channel(ch, 1);
 	}
 
@@ -1452,15 +1465,13 @@ static int srpt_cm_rtu_recv(struct ib_cm_id *cm_id)
 
 static int srpt_cm_timewait_exit(struct ib_cm_id *cm_id)
 {
-	printk(KERN_DEBUG PFX "%s[%d] cm_id= %p\n",
-	       __func__, __LINE__, cm_id);
+	printk(KERN_DEBUG PFX "%s: cm_id=%p\n", __func__, cm_id);
 	return srpt_find_and_release_channel(cm_id);
 }
 
 static int srpt_cm_rep_error(struct ib_cm_id *cm_id)
 {
-	printk(KERN_DEBUG PFX "%s[%d] cm_id= %p\n",
-	       __func__, __LINE__, cm_id);
+	printk(KERN_DEBUG PFX "%s: cm_id=%p\n", __func__, cm_id);
 	return srpt_find_and_release_channel(cm_id);
 }
 
@@ -1474,8 +1485,8 @@ static int srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
 	if (!ch)
 		return -EINVAL;
 
-	printk(KERN_DEBUG PFX "%s[%d] cm_id= %p ch->state= %d\n",
-		 __func__, __LINE__, cm_id, ch->state);
+	printk(KERN_DEBUG PFX "%s: cm_id= %p ch->state= %d\n",
+		 __func__, cm_id, ch->state);
 
 	switch (ch->state) {
 	case RDMA_CHANNEL_LIVE:
@@ -1492,8 +1503,7 @@ static int srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
 
 static int srpt_cm_drep_recv(struct ib_cm_id *cm_id)
 {
-	printk(KERN_DEBUG PFX "%s[%d] cm_id= %p\n",
-		 __func__, __LINE__, cm_id);
+	printk(KERN_DEBUG PFX "%s: cm_id=%p\n", __func__, cm_id);
 	return srpt_find_and_release_channel(cm_id);
 }
 
@@ -1664,7 +1674,8 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 			sge->lkey = ch->sport->sdev->mr->lkey;
 
 			if (rsize >= dma_len) {
-				sge->length = (tsize < dma_len) ? tsize : dma_len;
+				sge->length =
+					(tsize < dma_len) ? tsize : dma_len;
 				tsize -= dma_len;
 				rsize -= dma_len;
 
@@ -1672,7 +1683,8 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 					++j;
 					if (j < count) {
 						dma_len = sg_dma_len(&scat[j]);
-						dma_addr = sg_dma_address(&scat[j]);
+						dma_addr =
+						    sg_dma_address(&scat[j]);
 					}
 				}
 			} else {
@@ -1749,16 +1761,14 @@ static int srpt_xfer_data(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 
 	ret = srpt_map_sg_to_ib_sge(ch, ioctx, scmnd);
 	if (ret) {
-		printk(KERN_ERR PFX "%s[%d] ret= %d\n", __func__, __LINE__,
-		       ret);
+		printk(KERN_ERR PFX "%s[%d] ret=%d\n", __func__, __LINE__, ret);
 		ret = SCST_TGT_RES_QUEUE_FULL;
 		goto out;
 	}
 
 	ret = srpt_perform_rdmas(ch, ioctx, scst_cmd_get_data_direction(scmnd));
 	if (ret) {
-		printk(KERN_ERR PFX "%s[%d] ret= %d\n",
-		       __func__, __LINE__, ret);
+		printk(KERN_ERR PFX "%s[%d] ret=%d\n", __func__, __LINE__, ret);
 		if (ret == -EAGAIN || ret == -ENOMEM)
 			ret = SCST_TGT_RES_QUEUE_FULL;
 		else
@@ -1811,8 +1821,8 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 
 	if (ch->state != RDMA_CHANNEL_LIVE) {
 		printk(KERN_ERR PFX
-		       "%s[%d] tag= %lld channel in bad state %d\n",
-		       __func__, __LINE__, (unsigned long long)tag, ch->state);
+		       "%s: tag= %lld channel in bad state %d\n",
+		       __func__, (unsigned long long)tag, ch->state);
 
 		if (ch->state == RDMA_CHANNEL_DISCONNECTING)
 			ret = SCST_TGT_RES_FATAL_ERROR;
@@ -1820,7 +1830,8 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 			ret = SCST_TGT_RES_QUEUE_FULL;
 
 		if (unlikely(scst_cmd_aborted(scmnd))) {
-			scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_ABORTED);
+			scst_set_delivery_status(scmnd,
+						 SCST_CMD_DELIVERY_ABORTED);
 			ret = SCST_TGT_RES_SUCCESS;
 		}
 
@@ -1834,9 +1845,10 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 
 	if (unlikely(scst_cmd_aborted(scmnd))) {
 		printk(KERN_ERR PFX
-		       "%s[%d] tag= %lld already get aborted\n",
-		       __func__, __LINE__, (unsigned long long)tag);
-		scst_set_delivery_status(ioctx->scmnd, SCST_CMD_DELIVERY_ABORTED);
+		       "%s: tag= %lld already get aborted\n",
+		       __func__, (unsigned long long)tag);
+		scst_set_delivery_status(ioctx->scmnd,
+					 SCST_CMD_DELIVERY_ABORTED);
 		scst_tgt_cmd_done(ioctx->scmnd);
 		goto out;
 	}
@@ -1870,8 +1882,8 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 		ret = srpt_xfer_data(ch, ioctx, scmnd);
 		if (ret != SCST_TGT_RES_SUCCESS) {
 			printk(KERN_ERR PFX
-			       "%s[%d] tag= %lld xfer_data failed\n",
-			       __func__, __LINE__, (unsigned long long)tag);
+			       "%s: tag= %lld xfer_data failed\n",
+			       __func__, (unsigned long long)tag);
 			goto out;
 		}
 	}
@@ -1879,8 +1891,8 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	if (srpt_post_send(ch, ioctx,
 			   sizeof *srp_rsp +
 			   be32_to_cpu(srp_rsp->sense_data_len))) {
-		printk(KERN_ERR PFX "%s[%d] ch->state= %d tag= %lld\n",
-		       __func__, __LINE__, ch->state,
+		printk(KERN_ERR PFX "%s: ch->state= %d tag= %lld\n",
+		       __func__, ch->state,
 		       (unsigned long long)tag);
 		ret = SCST_TGT_RES_FATAL_ERROR;
 	}
@@ -1905,14 +1917,15 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 	BUG_ON(!ioctx);
 
 	printk(KERN_WARNING PFX
-	       "%s[%d] tsk_mgmt_done for tag= %lld status=%d\n",
-	       __func__, __LINE__, (unsigned long long)mgmt_ioctx->tag,
+	       "%s: tsk_mgmt_done for tag= %lld status=%d\n",
+	       __func__, (unsigned long long)mgmt_ioctx->tag,
 	       scst_mgmt_cmd_get_status(mcmnd));
 
 	srpt_build_tskmgmt_rsp(ch, ioctx,
 			       (scst_mgmt_cmd_get_status(mcmnd) ==
-				SCST_MGMT_STATUS_SUCCESS) ? SRP_TSK_MGMT_SUCCESS
-			       : SRP_TSK_MGMT_FAILED, mgmt_ioctx->tag);
+				SCST_MGMT_STATUS_SUCCESS) ?
+			       SRP_TSK_MGMT_SUCCESS : SRP_TSK_MGMT_FAILED,
+			       mgmt_ioctx->tag);
 	srpt_post_send(ch, ioctx, sizeof(struct srp_rsp) + 4);
 
 	scst_mgmt_cmd_set_tgt_priv(mcmnd, NULL);
@@ -2109,7 +2122,8 @@ static ssize_t show_login_info(struct class_device *class_dev, char *buf)
 
 		len += sprintf(buf,
 			       "tid_ext=%016llx,ioc_guid=%016llx,pkey=ffff,"
-			       "dgid=%04x%04x%04x%04x%04x%04x%04x%04x,service_id=%016llx\n",
+			       "dgid=%04x%04x%04x%04x%04x%04x%04x%04x,"
+			       "service_id=%016llx\n",
 			       (unsigned long long) mellanox_ioc_guid,
 			       (unsigned long long) mellanox_ioc_guid,
 			       be16_to_cpu(((__be16 *) sport->gid.raw)[0]),
@@ -2144,11 +2158,13 @@ static void srpt_add_one(struct ib_device *device)
 
 	sdev->class_dev.class = &srpt_class;
 	sdev->class_dev.dev = device->dma_device;
-	snprintf(sdev->class_dev.class_id, BUS_ID_SIZE, "srpt-%s", device->name);
+	snprintf(sdev->class_dev.class_id, BUS_ID_SIZE,
+		 "srpt-%s", device->name);
 
 	if (class_device_register(&sdev->class_dev))
 		goto free_dev;
-	if (class_device_create_file(&sdev->class_dev, &class_device_attr_login_info))
+	if (class_device_create_file(&sdev->class_dev,
+				     &class_device_attr_login_info))
 		goto err_class;
 
 	if (ib_query_device(device, &sdev->dev_attr))
@@ -2172,8 +2188,8 @@ static void srpt_add_one(struct ib_device *device)
 	if (IS_ERR(sdev->srq))
 		goto err_mr;
 
-	printk(KERN_DEBUG PFX "%s[%d] create SRQ #wr= %d max_allow=%d dev= %s\n",
-	       __func__, __LINE__, srq_attr.attr.max_wr,
+	printk(KERN_DEBUG PFX "%s: create SRQ #wr= %d max_allow=%d dev= %s\n",
+	       __func__, srq_attr.attr.max_wr,
 	      sdev->dev_attr.max_srq_wr, device->name);
 
 	if (!mellanox_ioc_guid)
@@ -2184,8 +2200,8 @@ static void srpt_add_one(struct ib_device *device)
 		goto err_srq;
 
 	/* print out target login information */
-	printk("Target login info: "
-		"id_ext=%016llx,ioc_guid=%016llx,pkey=ffff,service_id=%016llx\n",
+	printk(KERN_DEBUG PFX "Target login info: id_ext=%016llx,"
+		"ioc_guid=%016llx,pkey=ffff,service_id=%016llx\n",
 		(unsigned long long) mellanox_ioc_guid,
 		(unsigned long long) mellanox_ioc_guid,
 		(unsigned long long) mellanox_ioc_guid);

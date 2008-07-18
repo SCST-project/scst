@@ -7,7 +7,8 @@
 #
 # Note 2! The CFLAGS definitions are now in the main makefile.
 
-SCST_DIR := $(shell pwd)/../scst/src
+#SCST_DIR := $(shell pwd)/../scst/src
+SCST_DIR := /usr/local/include/scst
 SUBDIRS := $(shell pwd)
 
 ifeq ($(KVER),)
