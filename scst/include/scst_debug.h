@@ -169,9 +169,9 @@ do {									\
 
 #else  /* CONFIG_SCST_DEBUG || CONFIG_SCST_TRACING */
 
-#define TRACE(trace, args...) {}
-#define PRINT_BUFFER(message, buff, len) {}
-#define PRINT_BUFF_FLAG(flag, message, buff, len) {}
+#define TRACE(trace, args...) do {} while (0)
+#define PRINT_BUFFER(message, buff, len) do {} while (0)
+#define PRINT_BUFF_FLAG(flag, message, buff, len) do {} while (0)
 
 #endif /* CONFIG_SCST_DEBUG || CONFIG_SCST_TRACING */
 
@@ -319,18 +319,18 @@ do {									\
 
 #else  /* CONFIG_SCST_DEBUG */
 
-#define TRACE_MEM(format, args...) {}
-#define TRACE_SG(format, args...) {}
-#define TRACE_DBG(format, args...) {}
-#define TRACE_DBG_SPECIAL(format, args...) {}
-#define TRACE_MGMT_DBG(format, args...) {}
-#define TRACE_MGMT_DBG_SPECIAL(format, args...) {}
-#define TRACE_BUFFER(message, buff, len) {}
-#define TRACE_BUFF_FLAG(flag, message, buff, len) {}
-#define TRACE_ENTRY() {}
-#define TRACE_EXIT() {}
-#define TRACE_EXIT_RES(res) {}
-#define TRACE_EXIT_HRES(res) {}
+#define TRACE_MEM(format, args...) do {} while (0)
+#define TRACE_SG(format, args...) do {} while (0)
+#define TRACE_DBG(format, args...) do {} while (0)
+#define TRACE_DBG_SPECIAL(format, args...) do {} while (0)
+#define TRACE_MGMT_DBG(format, args...) do {} while (0)
+#define TRACE_MGMT_DBG_SPECIAL(format, args...) do {} while (0)
+#define TRACE_BUFFER(message, buff, len) do {} while (0)
+#define TRACE_BUFF_FLAG(flag, message, buff, len) do {} while (0)
+#define TRACE_ENTRY() do {} while (0)
+#define TRACE_EXIT() do {} while (0)
+#define TRACE_EXIT_RES(res) do {} while (0)
+#define TRACE_EXIT_HRES(res) do {} while (0)
 
 #ifdef LOG_PREFIX
 

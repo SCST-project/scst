@@ -2226,6 +2226,9 @@ static int __init q2t_init(void)
 
 	TRACE_ENTRY();
 
+	PRINT_INFO("Initializing QLogic Fibre Channel HBA Driver target mode "
+		"addon version %s", Q2T_VERSION_STRING);
+
 	q2t_cmd_cachep = KMEM_CACHE(q2t_cmd, SCST_SLAB_FLAGS);
 	if (q2t_cmd_cachep == NULL) {
 		res = -ENOMEM;

@@ -1,6 +1,7 @@
 Summary of changes between versions 1.0.0 and 1.0.1
 ---------------------------------------------------
 
+ - Fixed possible oops in the initiator driver on the module unload
 
 
 Summary of changes between versions 0.9.5 and 1.0.0
