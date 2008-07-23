@@ -1498,6 +1498,8 @@ int qla2x00_probe_one(struct pci_dev *pdev, struct qla_board_info *brd_info)
 	/* load the F/W, read paramaters, and init the H/W */
 	ha->instance = num_hosts;
 
+	spin_lock_init(&ha->dpc_lock);
+
 	init_MUTEX(&ha->mbx_cmd_sem);
 	init_MUTEX_LOCKED(&ha->mbx_intr_sem);
 
@@ -1660,16 +1662,21 @@ EXPORT_SYMBOL_GPL(qla2x00_probe_one);
 static void
 qla2x00_stop_dpc_thread(scsi_qla_host_t *ha)
 {
-	if (ha->dpc_thread) {
-		struct task_struct *t = ha->dpc_thread;
+	struct task_struct *t = NULL;
 
+	spin_lock_irq(&ha->dpc_lock);
+	if (ha->dpc_thread != NULL) {
+		t = ha->dpc_thread;
 		/*
 		 * qla2xxx_wake_dpc checks for ->dpc_thread
 		 * so we need to zero it out.
 		 */
 		ha->dpc_thread = NULL;
-		kthread_stop(t);
 	}
+	spin_unlock_irq(&ha->dpc_lock);
+		
+	if (t != NULL)
+		kthread_stop(t);
 }
 
 void qla2x00_remove_one(struct pci_dev *pdev)
@@ -2417,8 +2424,11 @@ qla2x00_do_dpc(void *data)
 void
 qla2xxx_wake_dpc(scsi_qla_host_t *ha)
 {
+	unsigned long flags;
+	spin_lock_irqsave(&ha->dpc_lock, flags);
 	if (ha->dpc_thread)
 		wake_up_process(ha->dpc_thread);
+	spin_unlock_irqrestore(&ha->dpc_lock, flags);
 }
 
 /*
