@@ -16,7 +16,8 @@ config SCSI_QLA_FC
 	22xx              ql2200_fw.bin
 	2300, 2312, 6312  ql2300_fw.bin
 	2322, 6322        ql2322_fw.bin
-	24xx              ql2400_fw.bin
+	24xx, 54xx        ql2400_fw.bin
+	25xx              ql2500_fw.bin
 
 	Upon request, the driver caches the firmware image until
 	the driver is unloaded.
@@ -24,10 +25,6 @@ config SCSI_QLA_FC
 	Firmware images can be retrieved from:
 
 		ftp://ftp.qlogic.com/outgoing/linux/firmware/
-
-	NOTE: The original method of building firmware-loader
-	modules has been deprecated as the firmware-images will
-	be removed from the kernel sources.
 
 config SCSI_QLA2XXX_TARGET
 	bool "QLogic 2xxx target mode support"
@@ -38,45 +35,6 @@ config SCSI_QLA2XXX_TARGET
 	Once the qla2x00tgt module is loaded, target mode can be enable via a
 	sysfs interface under scsi_host, thus enabling target mode for specific
 	cards.
-	You will also need the SCST middle level drivers from http://scst.sf.net/.
-	
-config SCSI_QLA2XXX_EMBEDDED_FIRMWARE
-	bool "Use firmware-loader modules (DEPRECATED)"
-	depends on SCSI_QLA_FC
-	help
-	  This option offers you the deprecated firmware-loader
-	  modules that have been obsoleted by the usage of the
-	  Firmware Loader interface in the qla2xxx driver.
 
-config SCSI_QLA21XX
-	tristate "Build QLogic ISP2100 firmware-module"
-	depends on SCSI_QLA_FC && SCSI_QLA2XXX_EMBEDDED_FIRMWARE
-	---help---
-	This driver supports the QLogic 21xx (ISP2100) host adapter family.
-
-config SCSI_QLA22XX
-	tristate "Build QLogic ISP2200 firmware-module"
-	depends on SCSI_QLA_FC && SCSI_QLA2XXX_EMBEDDED_FIRMWARE
-	---help---
-	This driver supports the QLogic 22xx (ISP2200) host adapter family.
-
-config SCSI_QLA2300
-	tristate "Build QLogic ISP2300/ISP6312 firmware-module"
-	depends on SCSI_QLA_FC && SCSI_QLA2XXX_EMBEDDED_FIRMWARE
-	---help---
-	This driver supports the QLogic 2300 (ISP2300, ISP2312 and
-	ISP6312) host adapter family.
-
-config SCSI_QLA2322
-	tristate "Build QLogic ISP2322/ISP6322 firmware-module"
-	depends on SCSI_QLA_FC && SCSI_QLA2XXX_EMBEDDED_FIRMWARE
-	---help---
-	This driver supports the QLogic 2322 (ISP2322 and ISP6322) host
-	adapter family.
-
-config SCSI_QLA24XX
-	tristate "Build QLogic ISP24xx firmware-module"
-	depends on SCSI_QLA_FC && SCSI_QLA2XXX_EMBEDDED_FIRMWARE
-	---help---
-	This driver supports the QLogic 24xx (ISP2422 and ISP2432) host
-	adapter family.
+	You will also need to download SCST SCSI middle level drivers from
+	http://scst.sf.net.

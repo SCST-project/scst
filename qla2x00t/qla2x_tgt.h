@@ -24,8 +24,8 @@
 #ifndef __QLA2X_TGT_H
 #define __QLA2X_TGT_H
 
-#ifndef FC_TARGET_SUPPORT
-#error __FILE__ " included without FC_TARGET_SUPPORT"
+#ifndef CONFIG_SCSI_QLA2XXX_TARGET
+#error __FILE__ " included without CONFIG_SCSI_QLA2XXX_TARGET"
 #endif
 
 #include "qla2x_tgt_def.h"

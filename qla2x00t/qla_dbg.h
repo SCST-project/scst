@@ -1,6 +1,6 @@
 /*
  * QLogic Fibre Channel HBA Driver
- * Copyright (c)  2003-2005 QLogic Corporation
+ * Copyright (c)  2003-2008 QLogic Corporation
  *
  * See LICENSE.qla2xxx for copyright and licensing details.
  */
@@ -21,150 +21,93 @@
 /* #define QL_DEBUG_LEVEL_12 */ /* Output IP trace msgs */
 /* #define QL_DEBUG_LEVEL_13 */ /* Output fdmi function trace msgs */
 /* #define QL_DEBUG_LEVEL_14 */ /* Output RSCN trace msgs */
-/*
- *  Local Macro Definitions.
- */
-#if defined(QL_DEBUG_LEVEL_1)  || defined(QL_DEBUG_LEVEL_2) || \
-    defined(QL_DEBUG_LEVEL_3)  || defined(QL_DEBUG_LEVEL_4) || \
-    defined(QL_DEBUG_LEVEL_5)  || defined(QL_DEBUG_LEVEL_6) || \
-    defined(QL_DEBUG_LEVEL_7)  || defined(QL_DEBUG_LEVEL_8) || \
-    defined(QL_DEBUG_LEVEL_9)  || defined(QL_DEBUG_LEVEL_10) || \
-    defined(QL_DEBUG_LEVEL_11) || defined(QL_DEBUG_LEVEL_12) || \
-    defined(QL_DEBUG_LEVEL_13) || defined(QL_DEBUG_LEVEL_14)
-    #define QL_DEBUG_ROUTINES
-#endif
+/* #define QL_DEBUG_LEVEL_15 */ /* Output NPIV trace msgs */
+/* #define QL_DEBUG_LEVEL_16 */ /* Output ISP84XX trace msgs */
 
 /*
 * Macros use for debugging the driver.
 */
-#undef ENTER_TRACE
-#if defined(ENTER_TRACE)
-#define ENTER(x)	do { printk("qla2100 : Entering %s()\n", x); } while (0)
-#define LEAVE(x)	do { printk("qla2100 : Leaving %s()\n", x);  } while (0)
-#define ENTER_INTR(x)	do { printk("qla2100 : Entering %s()\n", x); } while (0)
-#define LEAVE_INTR(x)	do { printk("qla2100 : Leaving %s()\n", x);  } while (0)
-#else
-#define ENTER(x)	do {} while (0)
-#define LEAVE(x)	do {} while (0)
-#define ENTER_INTR(x) 	do {} while (0)
-#define LEAVE_INTR(x)   do {} while (0)
-#endif
 
-#if  DEBUG_QLA2100
-#define DEBUG(x)	do {x;} while (0);
-#else
-#define DEBUG(x)	do {} while (0);
-#endif
+#define DEBUG(x)	do { if (ql2xextended_error_logging) { x; } } while (0)
 
 #if defined(QL_DEBUG_LEVEL_1)
-#define DEBUG1(x)	do {x;} while (0);
+#define DEBUG1(x)	do {x;} while (0)
 #else
-#define DEBUG1(x)	do {} while (0);
+#define DEBUG1(x)	do {} while (0)
 #endif
 
-#if defined(QL_DEBUG_LEVEL_2)
-#define DEBUG2(x)       do {x;} while (0);
-#define DEBUG2_3(x)     do {x;} while (0);
-#define DEBUG2_3_11(x)  do {x;} while (0);
-#define DEBUG2_9_10(x)    do {x;} while (0);
-#define DEBUG2_11(x)    do {x;} while (0);
-#define DEBUG2_13(x)    do {x;} while (0);
-#else
-#define DEBUG2(x)	do {} while (0);
-#endif
+#define DEBUG2(x)	do { if (ql2xextended_error_logging) { x; } } while (0)
+#define DEBUG2_3(x)	do { if (ql2xextended_error_logging) { x; } } while (0)
+#define DEBUG2_3_11(x)	do { if (ql2xextended_error_logging) { x; } } while (0)
+#define DEBUG2_9_10(x)	do { if (ql2xextended_error_logging) { x; } } while (0)
+#define DEBUG2_11(x)	do { if (ql2xextended_error_logging) { x; } } while (0)
+#define DEBUG2_13(x)	do { if (ql2xextended_error_logging) { x; } } while (0)
+#define DEBUG2_16(x)	do { if (ql2xextended_error_logging) { x; } } while (0)
 
 #if defined(QL_DEBUG_LEVEL_3)
-#define DEBUG3(x)	do {x;} while (0);
-#define DEBUG2_3(x)	do {x;} while (0);
-#define DEBUG2_3_11(x)	do {x;} while (0);
-#define DEBUG3_11(x)	do {x;} while (0);
+#define DEBUG3(x)	do {x;} while (0)
+#define DEBUG3_11(x)	do {x;} while (0)
 #else
-#define DEBUG3(x)	do {} while (0);
-  #if !defined(QL_DEBUG_LEVEL_2)
-  #define DEBUG2_3(x)	do {} while (0);
-  #endif
+#define DEBUG3(x)	do {} while (0)
 #endif
 
 #if defined(QL_DEBUG_LEVEL_4)
-#define DEBUG4(x)	do {x;} while (0);
+#define DEBUG4(x)	do {x;} while (0)
 #else
-#define DEBUG4(x)	do {} while (0);
+#define DEBUG4(x)	do {} while (0)
 #endif
 
 #if defined(QL_DEBUG_LEVEL_5)
-#define DEBUG5(x)          do {x;} while (0);
+#define DEBUG5(x)          do {x;} while (0)
 #else
-#define DEBUG5(x)	do {} while (0);
+#define DEBUG5(x)	do {} while (0)
 #endif
 
 #if defined(QL_DEBUG_LEVEL_7)
-#define DEBUG7(x)          do {x;} while (0);
+#define DEBUG7(x)          do {x;} while (0)
 #else
-#define DEBUG7(x)	   do {} while (0);
+#define DEBUG7(x)	   do {} while (0)
 #endif
 
 #if defined(QL_DEBUG_LEVEL_9)
-#define DEBUG9(x)       do {x;} while (0);
-#define DEBUG9_10(x)    do {x;} while (0);
-#define DEBUG2_9_10(x)	do {x;} while (0);
+#define DEBUG9(x)       do {x;} while (0)
+#define DEBUG9_10(x)    do {x;} while (0)
 #else
-#define DEBUG9(x)	do {} while (0);
+#define DEBUG9(x)	do {} while (0)
 #endif
 
 #if defined(QL_DEBUG_LEVEL_10)
-#define DEBUG10(x)      do {x;} while (0);
-#define DEBUG2_9_10(x)	do {x;} while (0);
-#define DEBUG9_10(x)	do {x;} while (0);
+#define DEBUG10(x)      do {x;} while (0)
+#define DEBUG9_10(x)	do {x;} while (0)
 #else
-#define DEBUG10(x)	do {} while (0);
-  #if !defined(DEBUG2_9_10)
-  #define DEBUG2_9_10(x)	do {} while (0);
-  #endif
+#define DEBUG10(x)	do {} while (0)
   #if !defined(DEBUG9_10)
-  #define DEBUG9_10(x)	do {} while (0);
+  #define DEBUG9_10(x)	do {} while (0)
   #endif
 #endif
 
 #if defined(QL_DEBUG_LEVEL_11)
-#define DEBUG11(x)      do{x;} while (0);
-#if !defined(DEBUG2_11)
-#define DEBUG2_11(x)    do{x;} while (0);
-#endif
-#if !defined(DEBUG2_3_11)
-#define DEBUG2_3_11(x)  do{x;} while (0);
-#endif
+#define DEBUG11(x)      do{x;} while(0)
 #if !defined(DEBUG3_11)
-#define DEBUG3_11(x)    do{x;} while (0);
+#define DEBUG3_11(x)    do{x;} while(0)
 #endif
 #else
-#define DEBUG11(x)	do{} while (0);
-  #if !defined(QL_DEBUG_LEVEL_2)
-  #define DEBUG2_11(x)	do{} while (0);
-    #if !defined(QL_DEBUG_LEVEL_3)
-    #define DEBUG2_3_11(x) do{} while (0);
-    #endif
-  #endif
+#define DEBUG11(x)	do{} while(0)
   #if !defined(QL_DEBUG_LEVEL_3)
-  #define DEBUG3_11(x)	do{} while (0);
+  #define DEBUG3_11(x)	do{} while(0)
   #endif
 #endif
 
 #if defined(QL_DEBUG_LEVEL_12)
-#define DEBUG12(x)      do {x;} while (0);
+#define DEBUG12(x)      do {x;} while (0)
 #else
-#define DEBUG12(x)	do {} while (0);
+#define DEBUG12(x)	do {} while (0)
 #endif
 
 #if defined(QL_DEBUG_LEVEL_13)
 #define DEBUG13(x)      do {x;} while (0)
-#if !defined(DEBUG2_13)
-#define DEBUG2_13(x)    do {x;} while (0)
-#endif
 #else
 #define DEBUG13(x)	do {} while (0)
-#if !defined(QL_DEBUG_LEVEL_2)
-#define DEBUG2_13(x)	do {} while (0)
-#endif
 #endif
 
 #if defined(QL_DEBUG_LEVEL_14)
@@ -173,12 +116,21 @@
 #define DEBUG14(x)	do {} while (0)
 #endif
 
+#if defined(QL_DEBUG_LEVEL_15)
+#define DEBUG15(x)      do {x;} while (0)
+#else
+#define DEBUG15(x)	do {} while (0)
+#endif
+
+#if defined(QL_DEBUG_LEVEL_16)
+#define DEBUG16(x)	do {x;} while (0)
+#else
+#define DEBUG16(x)	do {} while (0)
+#endif
+
 /*
  * Firmware Dump structure definition
  */
-#define FW_DUMP_SIZE_128K	0xBC000
-#define FW_DUMP_SIZE_512K	0x2FC000
-#define FW_DUMP_SIZE_1M		0x5FC000
 
 struct qla2300_fw_dump {
 	uint16_t hccr;
@@ -224,8 +176,6 @@ struct qla2100_fw_dump {
 	uint16_t risc_ram[0xf000];
 };
 
-#define FW_DUMP_SIZE_24XX	0x2B0000
-
 struct qla24xx_fw_dump {
 	uint32_t host_status;
 	uint32_t host_reg[32];
@@ -256,4 +206,99 @@ struct qla24xx_fw_dump {
 	uint32_t fb_hdw_reg[176];
 	uint32_t code_ram[0x2000];
 	uint32_t ext_mem[1];
+};
+
+struct qla25xx_fw_dump {
+	uint32_t host_status;
+	uint32_t host_risc_reg[32];
+	uint32_t pcie_regs[4];
+	uint32_t host_reg[32];
+	uint32_t shadow_reg[11];
+	uint32_t risc_io_reg;
+	uint16_t mailbox_reg[32];
+	uint32_t xseq_gp_reg[128];
+	uint32_t xseq_0_reg[48];
+	uint32_t xseq_1_reg[16];
+	uint32_t rseq_gp_reg[128];
+	uint32_t rseq_0_reg[32];
+	uint32_t rseq_1_reg[16];
+	uint32_t rseq_2_reg[16];
+	uint32_t aseq_gp_reg[128];
+	uint32_t aseq_0_reg[32];
+	uint32_t aseq_1_reg[16];
+	uint32_t aseq_2_reg[16];
+	uint32_t cmd_dma_reg[16];
+	uint32_t req0_dma_reg[15];
+	uint32_t resp0_dma_reg[15];
+	uint32_t req1_dma_reg[15];
+	uint32_t xmt0_dma_reg[32];
+	uint32_t xmt1_dma_reg[32];
+	uint32_t xmt2_dma_reg[32];
+	uint32_t xmt3_dma_reg[32];
+	uint32_t xmt4_dma_reg[32];
+	uint32_t xmt_data_dma_reg[16];
+	uint32_t rcvt0_data_dma_reg[32];
+	uint32_t rcvt1_data_dma_reg[32];
+	uint32_t risc_gp_reg[128];
+	uint32_t lmc_reg[128];
+	uint32_t fpm_hdw_reg[192];
+	uint32_t fb_hdw_reg[192];
+	uint32_t code_ram[0x2000];
+	uint32_t ext_mem[1];
+};
+
+#define EFT_NUM_BUFFERS		4
+#define EFT_BYTES_PER_BUFFER	0x4000
+#define EFT_SIZE		((EFT_BYTES_PER_BUFFER) * (EFT_NUM_BUFFERS))
+
+#define FCE_NUM_BUFFERS		64
+#define FCE_BYTES_PER_BUFFER	0x400
+#define FCE_SIZE		((FCE_BYTES_PER_BUFFER) * (FCE_NUM_BUFFERS))
+#define fce_calc_size(b)	((FCE_BYTES_PER_BUFFER) * (b))
+
+struct qla2xxx_fce_chain {
+	uint32_t type;
+	uint32_t chain_size;
+
+	uint32_t size;
+	uint32_t addr_l;
+	uint32_t addr_h;
+	uint32_t eregs[8];
+};
+
+#define DUMP_CHAIN_VARIANT	0x80000000
+#define DUMP_CHAIN_FCE		0x7FFFFAF0
+#define DUMP_CHAIN_LAST		0x80000000
+
+struct qla2xxx_fw_dump {
+	uint8_t signature[4];
+	uint32_t version;
+
+	uint32_t fw_major_version;
+	uint32_t fw_minor_version;
+	uint32_t fw_subminor_version;
+	uint32_t fw_attributes;
+
+	uint32_t vendor;
+	uint32_t device;
+	uint32_t subsystem_vendor;
+	uint32_t subsystem_device;
+
+	uint32_t fixed_size;
+	uint32_t mem_size;
+	uint32_t req_q_size;
+	uint32_t rsp_q_size;
+
+	uint32_t eft_size;
+	uint32_t eft_addr_l;
+	uint32_t eft_addr_h;
+
+	uint32_t header_size;
+
+	union {
+		struct qla2100_fw_dump isp21;
+		struct qla2300_fw_dump isp23;
+		struct qla24xx_fw_dump isp24;
+		struct qla25xx_fw_dump isp25;
+	} isp;
 };

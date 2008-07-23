@@ -1,22 +1,24 @@
 /*
  * QLogic Fibre Channel HBA Driver
- * Copyright (c)  2003-2005 QLogic Corporation
+ * Copyright (c)  2003-2008 QLogic Corporation
  *
  * See LICENSE.qla2xxx for copyright and licensing details.
  */
 #ifndef __QLA_FW_H
 #define __QLA_FW_H
 
-#define RISC_SADDRESS		0x100000
 #define MBS_CHECKSUM_ERROR	0x4010
+#define MBS_INVALID_PRODUCT_KEY	0x4020
 
 /*
  * Firmware Options.
  */
 #define FO1_ENABLE_PUREX	BIT_10
 #define FO1_DISABLE_LED_CTRL	BIT_6
+#define FO1_ENABLE_8016		BIT_0
 #define FO2_ENABLE_SEL_CLASS2	BIT_5
 #define FO3_NO_ABTS_ON_LINKDOWN	BIT_14
+#define FO3_HOLD_STS_IOCB	BIT_12
 
 /*
  * Port Database structure definition for ISP 24xx.
@@ -68,6 +70,16 @@ struct port_database_24xx {
 	uint8_t node_name[WWN_SIZE];
 
 	uint8_t reserved_3[24];
+};
+
+struct vp_database_24xx {
+	uint16_t vp_status;
+	uint8_t  options;
+	uint8_t  id;
+	uint8_t  port_name[WWN_SIZE];
+	uint8_t  node_name[WWN_SIZE];
+	uint16_t port_id_low;
+	uint16_t port_id_high;
 };
 
 struct nvram_24xx {
@@ -142,7 +154,7 @@ struct nvram_24xx {
 	 * BIT 2  = Enable Memory Map BIOS
 	 * BIT 3  = Enable Selectable Boot
 	 * BIT 4  = Disable RISC code load
-	 * BIT 5  =
+	 * BIT 5  = Disable Serdes
 	 * BIT 6  =
 	 * BIT 7  =
 	 *
@@ -279,7 +291,7 @@ struct init_cb_24xx {
 	uint16_t response_q_length;
 	uint16_t request_q_length;
 
-	uint16_t link_down_timeout;		/* Milliseconds. */
+	uint16_t link_down_on_nos;		/* Milliseconds. */
 
 	uint16_t prio_request_q_length;
 
@@ -332,7 +344,9 @@ struct init_cb_24xx {
 	 * BIT 10 = Reserved
 	 * BIT 11 = Enable FC-SP Security
 	 * BIT 12 = FC Tape Enable
-	 * BIT 13-31 = Reserved
+	 * BIT 13 = Reserved
+	 * BIT 14 = Enable Target PRLI Control
+	 * BIT 15-31 = Reserved
 	 */
 	uint32_t firmware_options_2;
 
@@ -354,7 +368,8 @@ struct init_cb_24xx {
 	 * BIT 13 = Data Rate bit 0
 	 * BIT 14 = Data Rate bit 1
 	 * BIT 15 = Data Rate bit 2
-	 * BIT 16-31 = Reserved
+	 * BIT 16 = Enable 75 ohm Termination Select
+	 * BIT 17-31 = Reserved
 	 */
 	uint32_t firmware_options_3;
 
@@ -426,6 +441,7 @@ struct cmd_type_7 {
 #define TMF_LUN_RESET		BIT_12
 #define TMF_CLEAR_TASK_SET	BIT_10
 #define TMF_ABORT_TASK_SET	BIT_9
+#define TMF_DSD_LIST_ENABLE	BIT_2
 #define TMF_READ_DATA		BIT_1
 #define TMF_WRITE_DATA		BIT_0
 
@@ -463,7 +479,7 @@ struct sts_entry_24xx {
 	uint16_t comp_status;		/* Completion status. */
 	uint16_t ox_id;			/* OX_ID used by the firmware. */
 
-	uint32_t residual_len;		/* Residual transfer length. */
+	uint32_t residual_len;		/* FW calc residual transfer length. */
 
 	uint16_t reserved_1;
 	uint16_t state_flags;		/* State flags. */
@@ -580,7 +596,7 @@ struct els_entry_24xx {
 #define EST_SOFI3		(1 << 4)
 #define EST_SOFI2		(3 << 4)
 
-	uint32_t rx_xchg_address[2];	/* Receive exchange address. */
+	uint32_t rx_xchg_address;	/* Receive exchange address. */
 	uint16_t rx_dsd_count;
 
 	uint8_t opcode;
@@ -641,6 +657,7 @@ struct logio_entry_24xx {
 
 	uint16_t control_flags;		/* Control flags. */
 					/* Modifiers. */
+#define LCF_INCLUDE_SNS		BIT_10	/* Include SNS (FFFFFC) during LOGO. */
 #define LCF_FCP2_OVERRIDE	BIT_9	/* Set/Reset word 3 of PRLI. */
 #define LCF_CLASS_2		BIT_8	/* Enable class 2 during PLOGI. */
 #define LCF_FREE_NPORT		BIT_7	/* Release NPORT handle after LOGO. */
@@ -702,7 +719,7 @@ struct tsk_mgmt_entry {
 
 	uint16_t timeout;		/* Command timeout. */
 
-	uint8_t lun[8];			/* FCP LUN (BE). */
+	struct scsi_lun lun;		/* FCP LUN (BE). */
 
 	uint32_t control_flags;		/* Control Flags. */
 #define TCF_NOTMCMD_TO_TARGET	BIT_31
@@ -762,6 +779,8 @@ struct device_reg_24xx {
 #define FA_NVRAM_VPD_SIZE	0x200
 #define FA_NVRAM_VPD0_ADDR	0x00
 #define FA_NVRAM_VPD1_ADDR	0x100
+
+#define FA_BOOT_CODE_ADDR	0x00000
 					/*
 					 * RISC code begins at offset 512KB
 					 * within flash. Consisting of two
@@ -769,6 +788,27 @@ struct device_reg_24xx {
 					 */
 #define FA_RISC_CODE_ADDR	0x20000
 #define FA_RISC_CODE_SEGMENTS	2
+
+#define FA_FW_AREA_ADDR		0x40000
+#define FA_VPD_NVRAM_ADDR	0x48000
+#define FA_FEATURE_ADDR		0x4C000
+#define FA_FLASH_DESCR_ADDR	0x50000
+#define FA_HW_EVENT0_ADDR	0x54000
+#define FA_HW_EVENT1_ADDR	0x54200
+#define FA_HW_EVENT_SIZE	0x200
+#define FA_HW_EVENT_ENTRY_SIZE	4
+/*
+ * Flash Error Log Event Codes.
+ */
+#define HW_EVENT_RESET_ERR	0xF00B
+#define HW_EVENT_ISP_ERR	0xF020
+#define HW_EVENT_PARITY_ERR	0xF022
+#define HW_EVENT_NVRAM_CHKSUM_ERR	0xF023
+#define HW_EVENT_FLASH_FW_ERR	0xF024
+
+#define FA_BOOT_LOG_ADDR	0x58000
+#define FA_FW_DUMP0_ADDR	0x60000
+#define FA_FW_DUMP1_ADDR	0x70000
 
 	uint32_t flash_data;		/* Flash/NVRAM BIOS data. */
 
@@ -850,10 +890,13 @@ struct device_reg_24xx {
 #define HCCRX_CLR_RISC_INT	0xA0000000
 
 	uint32_t gpiod;			/* GPIO Data register. */
+
 					/* LED update mask. */
 #define GPDX_LED_UPDATE_MASK	(BIT_20|BIT_19|BIT_18)
 					/* Data update mask. */
 #define GPDX_DATA_UPDATE_MASK	(BIT_17|BIT_16)
+					/* Data update mask. */
+#define GPDX_DATA_UPDATE_2_MASK	(BIT_28|BIT_27|BIT_26|BIT_17|BIT_16)
 					/* LED control mask. */
 #define GPDX_LED_COLOR_MASK	(BIT_4|BIT_3|BIT_2)
 					/* LED bit values. Color names as
@@ -868,6 +911,8 @@ struct device_reg_24xx {
 	uint32_t gpioe;			/* GPIO Enable register. */
 					/* Enable update mask. */
 #define GPEX_ENABLE_UPDATE_MASK	(BIT_17|BIT_16)
+					/* Enable update mask. */
+#define GPEX_ENABLE_UPDATE_2_MASK (BIT_28|BIT_27|BIT_26|BIT_17|BIT_16)
 					/* Enable. */
 #define GPEX_ENABLE		(BIT_1|BIT_0)
 
@@ -907,11 +952,43 @@ struct device_reg_24xx {
 	uint16_t mailbox29;
 	uint16_t mailbox30;
 	uint16_t mailbox31;
+
+	uint32_t iobase_window;
+	uint32_t iobase_c4;
+	uint32_t iobase_c8;
+	uint32_t unused_4_1[6];		/* Gap. */
+	uint32_t iobase_q;
+	uint32_t unused_5[2];		/* Gap. */
+	uint32_t iobase_select;
+	uint32_t unused_6[2];		/* Gap. */
+	uint32_t iobase_sdata;
 };
+
+/* Trace Control *************************************************************/
+
+#define TC_AEN_DISABLE		0
+
+#define TC_EFT_ENABLE		4
+#define TC_EFT_DISABLE		5
+
+#define TC_FCE_ENABLE		8
+#define TC_FCE_OPTIONS		0
+#define TC_FCE_DEFAULT_RX_SIZE	2112
+#define TC_FCE_DEFAULT_TX_SIZE	2112
+#define TC_FCE_DISABLE		9
+#define TC_FCE_DISABLE_TRACE	BIT_0
 
 /* MID Support ***************************************************************/
 
-#define MAX_MID_VPS	125
+#define MIN_MULTI_ID_FABRIC	64	/* Must be power-of-2. */
+#define MAX_MULTI_ID_FABRIC	256	/* ... */
+
+#define for_each_mapped_vp_idx(_ha, _idx)		\
+	for (_idx = find_next_bit((_ha)->vp_idx_map,	\
+		(_ha)->max_npiv_vports + 1, 1);		\
+	    _idx <= (_ha)->max_npiv_vports;		\
+	    _idx = find_next_bit((_ha)->vp_idx_map,	\
+		(_ha)->max_npiv_vports + 1, _idx + 1))	\
 
 struct mid_conf_entry_24xx {
 	uint16_t reserved_1;
@@ -939,7 +1016,7 @@ struct mid_init_cb_24xx {
 	uint16_t count;
 	uint16_t options;
 
-	struct mid_conf_entry_24xx entries[MAX_MID_VPS];
+	struct mid_conf_entry_24xx entries[MAX_MULTI_ID_FABRIC];
 };
 
 
@@ -959,10 +1036,9 @@ struct mid_db_entry_24xx {
 	uint8_t reserved_1;
 };
 
-struct mid_db_24xx {
-	struct mid_db_entry_24xx entries[MAX_MID_VPS];
-};
-
+/*
+ * Virtual Port Control IOCB
+ */
 #define VP_CTRL_IOCB_TYPE	0x30	/* Vitual Port Control entry. */
 struct vp_ctrl_entry_24xx {
 	uint8_t entry_type;		/* Entry type. */
@@ -975,6 +1051,7 @@ struct vp_ctrl_entry_24xx {
 	uint16_t vp_idx_failed;
 
 	uint16_t comp_status;		/* Completion status. */
+#define CS_VCE_IOCB_ERROR       0x01    /* Error processing IOCB */
 #define CS_VCE_ACQ_ID_ERROR	0x02	/* Error while acquireing ID. */
 #define CS_VCE_BUSY		0x05	/* Firmware not ready to accept cmd. */
 
@@ -983,24 +1060,34 @@ struct vp_ctrl_entry_24xx {
 #define VCE_COMMAND_DISABLE_VPS	0x08	/* Disable VPs. */
 #define VCE_COMMAND_DISABLE_VPS_REINIT	0x09 /* Disable VPs and reinit link. */
 #define VCE_COMMAND_DISABLE_VPS_LOGO	0x0a /* Disable VPs and LOGO ports. */
+#define VCE_COMMAND_DISABLE_VPS_LOGO_ALL        0x0b /* Disable VPs and LOGO ports. */
 
 	uint16_t vp_count;
 
 	uint8_t vp_idx_map[16];
-
-	uint8_t reserved_4[32];
+	uint16_t flags;
+	uint16_t id;
+	uint16_t reserved_4;
+	uint16_t hopct;
+	uint8_t reserved_5[24];
 };
 
+/*
+ * Modify Virtual Port Configuration IOCB
+ */
 #define VP_CONFIG_IOCB_TYPE	0x31	/* Vitual Port Config entry. */
 struct vp_config_entry_24xx {
 	uint8_t entry_type;		/* Entry type. */
 	uint8_t entry_count;		/* Entry count. */
-	uint8_t sys_define;		/* System defined. */
+	uint8_t handle_count;
 	uint8_t entry_status;		/* Entry Status. */
 
 	uint32_t handle;		/* System handle. */
 
-	uint16_t reserved_1;
+	uint16_t flags;
+#define CS_VF_BIND_VPORTS_TO_VF         BIT_0
+#define CS_VF_SET_QOS_OF_VPORTS         BIT_1
+#define CS_VF_SET_HOPS_OF_VPORTS        BIT_2
 
 	uint16_t comp_status;		/* Completion status. */
 #define CS_VCT_STS_ERROR	0x01	/* Specified VPs were not disabled. */
@@ -1010,27 +1097,29 @@ struct vp_config_entry_24xx {
 #define CS_VCT_BUSY		0x05	/* Firmware not ready to accept cmd. */
 
 	uint8_t command;
-#define VCT_COMMAND_MOD_VPS	0x00	/* Enable VPs. */
-#define VCT_COMMAND_MOD_ENABLE_VPS 0x08	/* Disable VPs. */
+#define VCT_COMMAND_MOD_VPS     0x00    /* Modify VP configurations. */
+#define VCT_COMMAND_MOD_ENABLE_VPS 0x01 /* Modify configuration & enable VPs. */
 
 	uint8_t vp_count;
 
-	uint8_t vp_idx1;
-	uint8_t vp_idx2;
+	uint8_t vp_index1;
+	uint8_t vp_index2;
 
 	uint8_t options_idx1;
 	uint8_t hard_address_idx1;
-	uint16_t reserved_2;
+	uint16_t reserved_vp1;
 	uint8_t port_name_idx1[WWN_SIZE];
 	uint8_t node_name_idx1[WWN_SIZE];
 
 	uint8_t options_idx2;
 	uint8_t hard_address_idx2;
-	uint16_t reserved_3;
+	uint16_t reserved_vp2;
 	uint8_t port_name_idx2[WWN_SIZE];
 	uint8_t node_name_idx2[WWN_SIZE];
-
-	uint8_t reserved_4[8];
+	uint16_t id;
+	uint16_t reserved_4;
+	uint16_t hopct;
+	uint8_t reserved_5;
 };
 
 #define VP_RPT_ID_IOCB_TYPE	0x32	/* Report ID Acquisition entry. */
@@ -1055,5 +1144,185 @@ struct vp_rpt_id_entry_24xx {
 	uint8_t reserved_4[32];
 };
 
+#define VF_EVFP_IOCB_TYPE       0x26    /* Exchange Virtual Fabric Parameters entry. */
+struct vf_evfp_entry_24xx {
+        uint8_t entry_type;             /* Entry type. */
+        uint8_t entry_count;            /* Entry count. */
+        uint8_t sys_define;             /* System defined. */
+        uint8_t entry_status;           /* Entry Status. */
+
+        uint32_t handle;                /* System handle. */
+        uint16_t comp_status;           /* Completion status. */
+        uint16_t timeout;               /* timeout */
+        uint16_t adim_tagging_mode;
+
+        uint16_t vfport_id;
+        uint32_t exch_addr;
+
+        uint16_t nport_handle;          /* N_PORT handle. */
+        uint16_t control_flags;
+        uint32_t io_parameter_0;
+        uint32_t io_parameter_1;
+        uint32_t tx_address[2];         /* Data segment 0 address. */
+        uint32_t tx_len;                /* Data segment 0 length. */
+        uint32_t rx_address[2];         /* Data segment 1 address. */
+        uint32_t rx_len;                /* Data segment 1 length. */
+};
+
 /* END MID Support ***********************************************************/
+
+/* Flash Description Table ***************************************************/
+
+struct qla_fdt_layout {
+	uint8_t sig[4];
+	uint16_t version;
+	uint16_t len;
+	uint16_t checksum;
+	uint8_t unused1[2];
+	uint8_t model[16];
+	uint16_t man_id;
+	uint16_t id;
+	uint8_t flags;
+	uint8_t erase_cmd;
+	uint8_t alt_erase_cmd;
+	uint8_t wrt_enable_cmd;
+	uint8_t wrt_enable_bits;
+	uint8_t wrt_sts_reg_cmd;
+	uint8_t unprotect_sec_cmd;
+	uint8_t read_man_id_cmd;
+	uint32_t block_size;
+	uint32_t alt_block_size;
+	uint32_t flash_size;
+	uint32_t wrt_enable_data;
+	uint8_t read_id_addr_len;
+	uint8_t wrt_disable_bits;
+	uint8_t read_dev_id_len;
+	uint8_t chip_erase_cmd;
+	uint16_t read_timeout;
+	uint8_t protect_sec_cmd;
+	uint8_t unused2[65];
+};
+
+/* 84XX Support **************************************************************/
+
+#define MBA_ISP84XX_ALERT	0x800f  /* Alert Notification. */
+#define A84_PANIC_RECOVERY	0x1
+#define A84_OP_LOGIN_COMPLETE	0x2
+#define A84_DIAG_LOGIN_COMPLETE	0x3
+#define A84_GOLD_LOGIN_COMPLETE	0x4
+
+#define MBC_ISP84XX_RESET	0x3a    /* Reset. */
+
+#define FSTATE_REMOTE_FC_DOWN	BIT_0
+#define FSTATE_NSL_LINK_DOWN	BIT_1
+#define FSTATE_IS_DIAG_FW	BIT_2
+#define FSTATE_LOGGED_IN	BIT_3
+#define FSTATE_WAITING_FOR_VERIFY	BIT_4
+
+#define VERIFY_CHIP_IOCB_TYPE	0x1B
+struct verify_chip_entry_84xx {
+	uint8_t entry_type;
+	uint8_t entry_count;
+	uint8_t sys_defined;
+	uint8_t entry_status;
+
+	uint32_t handle;
+
+	uint16_t options;
+#define VCO_DONT_UPDATE_FW	BIT_0
+#define VCO_FORCE_UPDATE	BIT_1
+#define VCO_DONT_RESET_UPDATE	BIT_2
+#define VCO_DIAG_FW		BIT_3
+#define VCO_END_OF_DATA		BIT_14
+#define VCO_ENABLE_DSD		BIT_15
+
+	uint16_t reserved_1;
+
+	uint16_t data_seg_cnt;
+	uint16_t reserved_2[3];
+
+	uint32_t fw_ver;
+	uint32_t exchange_address;
+
+	uint32_t reserved_3[3];
+	uint32_t fw_size;
+	uint32_t fw_seq_size;
+	uint32_t relative_offset;
+
+	uint32_t dseg_address[2];
+	uint32_t dseg_length;
+};
+
+struct verify_chip_rsp_84xx {
+	uint8_t entry_type;
+	uint8_t entry_count;
+	uint8_t sys_defined;
+	uint8_t entry_status;
+
+	uint32_t handle;
+
+	uint16_t comp_status;
+#define CS_VCS_CHIP_FAILURE	0x3
+#define CS_VCS_BAD_EXCHANGE	0x8
+#define CS_VCS_SEQ_COMPLETEi	0x40
+
+	uint16_t failure_code;
+#define VFC_CHECKSUM_ERROR	0x1
+#define VFC_INVALID_LEN		0x2
+#define VFC_ALREADY_IN_PROGRESS	0x8
+
+	uint16_t reserved_1[4];
+
+	uint32_t fw_ver;
+	uint32_t exchange_address;
+
+	uint32_t reserved_2[6];
+};
+
+#define ACCESS_CHIP_IOCB_TYPE	0x2B
+struct access_chip_84xx {
+	uint8_t entry_type;
+	uint8_t entry_count;
+	uint8_t sys_defined;
+	uint8_t entry_status;
+
+	uint32_t handle;
+
+	uint16_t options;
+#define ACO_DUMP_MEMORY		0x0
+#define ACO_LOAD_MEMORY		0x1
+#define ACO_CHANGE_CONFIG_PARAM	0x2
+#define ACO_REQUEST_INFO	0x3
+
+	uint16_t reserved1;
+
+	uint16_t dseg_count;
+	uint16_t reserved2[3];
+
+	uint32_t parameter1;
+	uint32_t parameter2;
+	uint32_t parameter3;
+
+	uint32_t reserved3[3];
+	uint32_t total_byte_cnt;
+	uint32_t reserved4;
+
+	uint32_t dseg_address[2];
+	uint32_t dseg_length;
+};
+
+struct access_chip_rsp_84xx {
+	uint8_t entry_type;
+	uint8_t entry_count;
+	uint8_t sys_defined;
+	uint8_t entry_status;
+
+	uint32_t handle;
+
+	uint16_t comp_status;
+	uint16_t failure_code;
+	uint32_t residual_count;
+
+	uint32_t reserved[12];
+};
 #endif

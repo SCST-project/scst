@@ -27,8 +27,8 @@
 
 #include "qla_def.h"
 
-#ifndef FC_TARGET_SUPPORT
-#error __FILE__ " included without FC_TARGET_SUPPORT"
+#ifndef CONFIG_SCSI_QLA2XXX_TARGET
+#error __FILE__ " included without CONFIG_SCSI_QLA2XXX_TARGET"
 #endif
 
 #ifndef ENTER
@@ -40,7 +40,7 @@
 #endif
 
 #define QLA2X_TARGET_MAGIC	153
-#define QLA2X_INITIATOR_MAGIC   54205
+#define QLA2X_INITIATOR_MAGIC   54207
 
 #define QLA2X00_COMMAND_COUNT_INIT	250
 #define QLA2X00_IMMED_NOTIFY_COUNT_INIT 250
@@ -326,6 +326,12 @@ typedef struct
 }ctio_ret_entry_t;
 #endif
 
+enum nexus_wait_type {
+	WAIT_HOST = 0,
+	WAIT_TARGET,
+	WAIT_LUN,
+};
+
 /********************************************************************\
  * Type Definitions used by initiator & target halves
 \********************************************************************/
@@ -372,6 +378,7 @@ qla2x00_wait_for_loop_ready(scsi_qla_host_t *ha);
 int
 qla2x00_wait_for_hba_online(scsi_qla_host_t *ha);
 int
-qla2x00_eh_wait_for_pending_commands(scsi_qla_host_t *ha);
+qla2x00_eh_wait_for_pending_commands(scsi_qla_host_t *ha, unsigned int t,
+    unsigned int l, enum nexus_wait_type type);
 
 #endif

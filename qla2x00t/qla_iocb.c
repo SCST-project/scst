@@ -1,6 +1,6 @@
 /*
  * QLogic Fibre Channel HBA Driver
- * Copyright (c)  2003-2005 QLogic Corporation
+ * Copyright (c)  2003-2008 QLogic Corporation
  *
  * See LICENSE.qla2xxx for copyright and licensing details.
  */
@@ -11,10 +11,8 @@
 
 #include <scsi/scsi_tcq.h>
 
-static inline uint16_t qla2x00_get_cmd_direction(struct scsi_cmnd *cmd);
-static inline cont_entry_t *qla2x00_prep_cont_type0_iocb(scsi_qla_host_t *);
-static inline cont_a64_entry_t *qla2x00_prep_cont_type1_iocb(scsi_qla_host_t *);
 request_t *qla2x00_req_pkt(scsi_qla_host_t *ha);
+void qla2x00_isp_cmd(scsi_qla_host_t *ha);
 
 /**
  * qla2x00_get_cmd_direction() - Determine control_flag data direction.
@@ -154,6 +152,8 @@ void qla2x00_build_scsi_iocbs_32(srb_t *sp, cmd_entry_t *cmd_pkt,
 	uint32_t	*cur_dsd;
 	scsi_qla_host_t	*ha;
 	struct scsi_cmnd *cmd;
+	struct scatterlist *sg;
+	int i;
 
 	cmd = sp->cmd;
 
@@ -162,7 +162,7 @@ void qla2x00_build_scsi_iocbs_32(srb_t *sp, cmd_entry_t *cmd_pkt,
 	    __constant_cpu_to_le32(COMMAND_TYPE);
 
 	/* No data transfer */
-	if (scsi_bufflen(cmd) == 0 || cmd->sc_data_direction == DMA_NONE) {
+	if (!scsi_bufflen(cmd) || cmd->sc_data_direction == DMA_NONE) {
 		cmd_pkt->byte_count = __constant_cpu_to_le32(0);
 		return;
 	}
@@ -176,35 +176,23 @@ void qla2x00_build_scsi_iocbs_32(srb_t *sp, cmd_entry_t *cmd_pkt,
 	cur_dsd = (uint32_t *)&cmd_pkt->dseg_0_address;
 
 	/* Load data segments */
-	if (scsi_sg_count(cmd) != 0) {
-		struct	scatterlist *cur_seg;
-		struct	scatterlist *end_seg;
+	scsi_for_each_sg(cmd, sg, tot_dsds, i) {
+		cont_entry_t *cont_pkt;
 
-		cur_seg = scsi_sglist(cmd);
-		end_seg = cur_seg + tot_dsds;
-		while (cur_seg < end_seg) {
-			cont_entry_t	*cont_pkt;
-
-			/* Allocate additional continuation packets? */
-			if (avail_dsds == 0) {
-				/*
-				 * Seven DSDs are available in the Continuation
-				 * Type 0 IOCB.
-				 */
-				cont_pkt = qla2x00_prep_cont_type0_iocb(ha);
-				cur_dsd = (uint32_t *)&cont_pkt->dseg_0_address;
-				avail_dsds = 7;
-			}
-
-			*cur_dsd++ = cpu_to_le32(sg_dma_address(cur_seg));
-			*cur_dsd++ = cpu_to_le32(sg_dma_len(cur_seg));
-			avail_dsds--;
-
-			cur_seg++;
+		/* Allocate additional continuation packets? */
+		if (avail_dsds == 0) {
+			/*
+			 * Seven DSDs are available in the Continuation
+			 * Type 0 IOCB.
+			 */
+			cont_pkt = qla2x00_prep_cont_type0_iocb(ha);
+			cur_dsd = (uint32_t *)&cont_pkt->dseg_0_address;
+			avail_dsds = 7;
 		}
-	} else {
-		*cur_dsd++ = cpu_to_le32(sp->dma_handle);
-		*cur_dsd++ = cpu_to_le32(scsi_bufflen(cmd));
+
+		*cur_dsd++ = cpu_to_le32(sg_dma_address(sg));
+		*cur_dsd++ = cpu_to_le32(sg_dma_len(sg));
+		avail_dsds--;
 	}
 }
 
@@ -223,6 +211,8 @@ void qla2x00_build_scsi_iocbs_64(srb_t *sp, cmd_entry_t *cmd_pkt,
 	uint32_t	*cur_dsd;
 	scsi_qla_host_t	*ha;
 	struct scsi_cmnd *cmd;
+	struct scatterlist *sg;
+	int i;
 
 	cmd = sp->cmd;
 
@@ -231,7 +221,7 @@ void qla2x00_build_scsi_iocbs_64(srb_t *sp, cmd_entry_t *cmd_pkt,
 	    __constant_cpu_to_le32(COMMAND_A64_TYPE);
 
 	/* No data transfer */
-	if (scsi_bufflen(cmd) == 0 || cmd->sc_data_direction == DMA_NONE) {
+	if (!scsi_bufflen(cmd) || cmd->sc_data_direction == DMA_NONE) {
 		cmd_pkt->byte_count = __constant_cpu_to_le32(0);
 		return;
 	}
@@ -245,39 +235,26 @@ void qla2x00_build_scsi_iocbs_64(srb_t *sp, cmd_entry_t *cmd_pkt,
 	cur_dsd = (uint32_t *)&cmd_pkt->dseg_0_address;
 
 	/* Load data segments */
-	if (scsi_sg_count(cmd) != 0) {
-		struct	scatterlist *cur_seg;
-		struct	scatterlist *end_seg;
+	scsi_for_each_sg(cmd, sg, tot_dsds, i) {
+		dma_addr_t	sle_dma;
+		cont_a64_entry_t *cont_pkt;
 
-		cur_seg = scsi_sglist(cmd);
-		end_seg = cur_seg + tot_dsds;
-		while (cur_seg < end_seg) {
-			dma_addr_t	sle_dma;
-			cont_a64_entry_t *cont_pkt;
-
-			/* Allocate additional continuation packets? */
-			if (avail_dsds == 0) {
-				/*
-				 * Five DSDs are available in the Continuation
-				 * Type 1 IOCB.
-				 */
-				cont_pkt = qla2x00_prep_cont_type1_iocb(ha);
-				cur_dsd = (uint32_t *)cont_pkt->dseg_0_address;
-				avail_dsds = 5;
-			}
-
-			sle_dma = sg_dma_address(cur_seg);
-			*cur_dsd++ = cpu_to_le32(LSD(sle_dma));
-			*cur_dsd++ = cpu_to_le32(MSD(sle_dma));
-			*cur_dsd++ = cpu_to_le32(sg_dma_len(cur_seg));
-			avail_dsds--;
-
-			cur_seg++;
+		/* Allocate additional continuation packets? */
+		if (avail_dsds == 0) {
+			/*
+			 * Five DSDs are available in the Continuation
+			 * Type 1 IOCB.
+			 */
+			cont_pkt = qla2x00_prep_cont_type1_iocb(ha);
+			cur_dsd = (uint32_t *)cont_pkt->dseg_0_address;
+			avail_dsds = 5;
 		}
-	} else {
-		*cur_dsd++ = cpu_to_le32(LSD(sp->dma_handle));
-		*cur_dsd++ = cpu_to_le32(MSD(sp->dma_handle));
-		*cur_dsd++ = cpu_to_le32(scsi_bufflen(cmd));
+
+		sle_dma = sg_dma_address(sg);
+		*cur_dsd++ = cpu_to_le32(LSD(sle_dma));
+		*cur_dsd++ = cpu_to_le32(MSD(sle_dma));
+		*cur_dsd++ = cpu_to_le32(sg_dma_len(sg));
+		avail_dsds--;
 	}
 }
 
@@ -290,7 +267,7 @@ void qla2x00_build_scsi_iocbs_64(srb_t *sp, cmd_entry_t *cmd_pkt,
 int
 qla2x00_start_scsi(srb_t *sp)
 {
-	int		ret;
+	int		ret, nseg;
 	unsigned long   flags;
 	scsi_qla_host_t	*ha;
 	struct scsi_cmnd *cmd;
@@ -298,7 +275,6 @@ qla2x00_start_scsi(srb_t *sp)
 	uint32_t        index;
 	uint32_t	handle;
 	cmd_entry_t	*cmd_pkt;
-	struct scatterlist *sg;
 	uint16_t	cnt;
 	uint16_t	req_cnt;
 	uint16_t	tot_dsds;
@@ -329,7 +305,7 @@ qla2x00_start_scsi(srb_t *sp)
 		handle++;
 		if (handle == MAX_OUTSTANDING_COMMANDS)
 			handle = 1;
-		if (ha->outstanding_cmds[handle] == 0)
+		if (!ha->outstanding_cmds[handle])
 			break;
 	}
 	if (index == MAX_OUTSTANDING_COMMANDS)
@@ -337,25 +313,17 @@ qla2x00_start_scsi(srb_t *sp)
 
 	/* Map the sg table so we have an accurate count of sg entries needed */
 	if (scsi_sg_count(cmd)) {
-		sg = scsi_sglist(cmd);
-		tot_dsds = pci_map_sg(ha->pdev, sg, scsi_sg_count(cmd),
-		    cmd->sc_data_direction);
-		if (tot_dsds == 0)
+		nseg = dma_map_sg(&ha->pdev->dev, scsi_sglist(cmd),
+		    scsi_sg_count(cmd), cmd->sc_data_direction);
+		if (unlikely(!nseg))
 			goto queuing_error;
-	} else if (scsi_bufflen(cmd)) {
-		dma_addr_t	req_dma;
+	} else
+		nseg = 0;
 
-		req_dma = pci_map_single(ha->pdev, scsi_sglist(cmd),
-		    scsi_bufflen(cmd), cmd->sc_data_direction);
-		if (dma_mapping_error(req_dma))
-			goto queuing_error;
-
-		sp->dma_handle = req_dma;
-		tot_dsds = 1;
-	}
+	tot_dsds = nseg;
 
 	/* Calculate the number of request entries needed. */
-	req_cnt = ha->isp_ops.calc_req_entries(tot_dsds);
+	req_cnt = ha->isp_ops->calc_req_entries(tot_dsds);
 	if (ha->req_q_cnt < (req_cnt + 2)) {
 		cnt = RD_REG_WORD_RELAXED(ISP_REQ_Q_OUT(ha, reg));
 		if (ha->req_ring_index < cnt)
@@ -393,15 +361,11 @@ qla2x00_start_scsi(srb_t *sp)
 	cmd_pkt->byte_count = cpu_to_le32((uint32_t)scsi_bufflen(cmd));
 
 	/* Build IOCB segments */
-	ha->isp_ops.build_iocbs(sp, cmd_pkt, tot_dsds);
+	ha->isp_ops->build_iocbs(sp, cmd_pkt, tot_dsds);
 
 	/* Set total data segment count. */
 	cmd_pkt->entry_count = (uint8_t)req_cnt;
 	wmb();
-
-	DEBUG5(printk("%s(): IOCB data:\n", __func__));
-	DEBUG5(qla2x00_dump_buffer(
-	    (uint8_t *)ha->request_ring_ptr, REQUEST_ENTRY_SIZE));
 
 	/* Adjust ring index. */
 	ha->req_ring_index++;
@@ -412,7 +376,6 @@ qla2x00_start_scsi(srb_t *sp)
 		ha->request_ring_ptr++;
 
 	sp->flags |= SRB_DMA_VALID;
-	sp->state = SRB_ACTIVE_STATE;
 
 	/* Set chip new ring index. */
 	WRT_REG_WORD(ISP_REQ_Q_IN(ha, reg), ha->req_ring_index);
@@ -427,14 +390,9 @@ qla2x00_start_scsi(srb_t *sp)
 	return (QLA_SUCCESS);
 
 queuing_error:
-	if (scsi_sg_count(cmd) && tot_dsds) {
-		sg = scsi_sglist(cmd);
-		pci_unmap_sg(ha->pdev, sg, scsi_sg_count(cmd),
-		    cmd->sc_data_direction);
-	} else if (tot_dsds) {
-		pci_unmap_single(ha->pdev, sp->dma_handle,
-		    scsi_bufflen(cmd), cmd->sc_data_direction);
-	}
+	if (tot_dsds)
+		scsi_dma_unmap(cmd);
+
 	spin_unlock_irqrestore(&ha->hardware_lock, flags);
 
 	return (QLA_FUNCTION_FAILED);
@@ -457,9 +415,10 @@ __qla2x00_marker(scsi_qla_host_t *ha, uint16_t loop_id, uint16_t lun,
 {
 	mrk_entry_t *mrk;
 	struct mrk_entry_24xx *mrk24;
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 
 	mrk24 = NULL;
-	mrk = (mrk_entry_t *)qla2x00_req_pkt(ha);
+	mrk = (mrk_entry_t *)qla2x00_req_pkt(pha);
 	if (mrk == NULL) {
 		DEBUG2_3(printk("%s(%ld): failed to allocate Marker IOCB.\n",
 		    __func__, ha->host_no));
@@ -470,11 +429,13 @@ __qla2x00_marker(scsi_qla_host_t *ha, uint16_t loop_id, uint16_t lun,
 	mrk->entry_type = MARKER_TYPE;
 	mrk->modifier = type;
 	if (type != MK_SYNC_ALL) {
-		if (IS_QLA24XX(ha) || IS_QLA54XX(ha)) {
+		if (IS_FWI2_CAPABLE(ha)) {
 			mrk24 = (struct mrk_entry_24xx *) mrk;
 			mrk24->nport_handle = cpu_to_le16(loop_id);
 			mrk24->lun[1] = LSB(lun);
 			mrk24->lun[2] = MSB(lun);
+			host_to_fcp_swap(mrk24->lun, sizeof(mrk24->lun));
+			mrk24->vp_index = ha->vp_idx;
 		} else {
 			SET_TARGET_ID(ha, mrk->target, loop_id);
 			mrk->lun = cpu_to_le16(lun);
@@ -482,7 +443,7 @@ __qla2x00_marker(scsi_qla_host_t *ha, uint16_t loop_id, uint16_t lun,
 	}
 	wmb();
 
-	qla2x00_isp_cmd(ha);
+	qla2x00_isp_cmd(pha);
 
 	return (QLA_SUCCESS);
 }
@@ -523,7 +484,7 @@ qla2x00_req_pkt(scsi_qla_host_t *ha)
 	for (timer = HZ; timer; timer--) {
 		if ((req_cnt + 2) >= ha->req_q_cnt) {
 			/* Calculate number of free request entries. */
-			if (IS_QLA24XX(ha) || IS_QLA54XX(ha))
+			if (IS_FWI2_CAPABLE(ha))
 				cnt = (uint16_t)RD_REG_DWORD(
 				    &reg->isp24.req_q_out);
 			else
@@ -561,7 +522,7 @@ qla2x00_req_pkt(scsi_qla_host_t *ha)
 
 		/* Check for pending interrupts. */
 		/* During init we issue marker directly */
-		if (!ha->marker_needed)
+		if (!ha->marker_needed && !ha->flags.init_done)
 			qla2x00_poll(ha);
 
 		spin_lock_irq(&ha->hardware_lock);
@@ -597,7 +558,7 @@ qla2x00_isp_cmd(scsi_qla_host_t *ha)
 		ha->request_ring_ptr++;
 
 	/* Set chip new ring index. */
-	if (IS_QLA24XX(ha) || IS_QLA54XX(ha)) {
+	if (IS_FWI2_CAPABLE(ha)) {
 		WRT_REG_DWORD(&reg->isp24.req_q_in, ha->req_ring_index);
 		RD_REG_DWORD_RELAXED(&reg->isp24.req_q_in);
 	} else {
@@ -645,6 +606,8 @@ qla24xx_build_scsi_iocbs(srb_t *sp, struct cmd_type_7 *cmd_pkt,
 	uint32_t	*cur_dsd;
 	scsi_qla_host_t	*ha;
 	struct scsi_cmnd *cmd;
+	struct scatterlist *sg;
+	int i;
 
 	cmd = sp->cmd;
 
@@ -653,7 +616,7 @@ qla24xx_build_scsi_iocbs(srb_t *sp, struct cmd_type_7 *cmd_pkt,
 	    __constant_cpu_to_le32(COMMAND_TYPE_7);
 
 	/* No data transfer */
-	if (scsi_bufflen(cmd) == 0 || cmd->sc_data_direction == DMA_NONE) {
+	if (!scsi_bufflen(cmd) || cmd->sc_data_direction == DMA_NONE) {
 		cmd_pkt->byte_count = __constant_cpu_to_le32(0);
 		return;
 	}
@@ -673,39 +636,27 @@ qla24xx_build_scsi_iocbs(srb_t *sp, struct cmd_type_7 *cmd_pkt,
 	cur_dsd = (uint32_t *)&cmd_pkt->dseg_0_address;
 
 	/* Load data segments */
-	if (scsi_sg_count(cmd) != 0) {
-		struct	scatterlist *cur_seg;
-		struct	scatterlist *end_seg;
 
-		cur_seg = scsi_sglist(cmd);
-		end_seg = cur_seg + tot_dsds;
-		while (cur_seg < end_seg) {
-			dma_addr_t	sle_dma;
-			cont_a64_entry_t *cont_pkt;
+	scsi_for_each_sg(cmd, sg, tot_dsds, i) {
+		dma_addr_t	sle_dma;
+		cont_a64_entry_t *cont_pkt;
 
-			/* Allocate additional continuation packets? */
-			if (avail_dsds == 0) {
-				/*
-				 * Five DSDs are available in the Continuation
-				 * Type 1 IOCB.
-				 */
-				cont_pkt = qla2x00_prep_cont_type1_iocb(ha);
-				cur_dsd = (uint32_t *)cont_pkt->dseg_0_address;
-				avail_dsds = 5;
-			}
-
-			sle_dma = sg_dma_address(cur_seg);
-			*cur_dsd++ = cpu_to_le32(LSD(sle_dma));
-			*cur_dsd++ = cpu_to_le32(MSD(sle_dma));
-			*cur_dsd++ = cpu_to_le32(sg_dma_len(cur_seg));
-			avail_dsds--;
-
-			cur_seg++;
+		/* Allocate additional continuation packets? */
+		if (avail_dsds == 0) {
+			/*
+			 * Five DSDs are available in the Continuation
+			 * Type 1 IOCB.
+			 */
+			cont_pkt = qla2x00_prep_cont_type1_iocb(ha);
+			cur_dsd = (uint32_t *)cont_pkt->dseg_0_address;
+			avail_dsds = 5;
 		}
-	} else {
-		*cur_dsd++ = cpu_to_le32(LSD(sp->dma_handle));
-		*cur_dsd++ = cpu_to_le32(MSD(sp->dma_handle));
-		*cur_dsd++ = cpu_to_le32(scsi_bufflen(cmd));
+
+		sle_dma = sg_dma_address(sg);
+		*cur_dsd++ = cpu_to_le32(LSD(sle_dma));
+		*cur_dsd++ = cpu_to_le32(MSD(sle_dma));
+		*cur_dsd++ = cpu_to_le32(sg_dma_len(sg));
+		avail_dsds--;
 	}
 }
 
@@ -719,7 +670,7 @@ qla24xx_build_scsi_iocbs(srb_t *sp, struct cmd_type_7 *cmd_pkt,
 int
 qla24xx_start_scsi(srb_t *sp)
 {
-	int		ret;
+	int		ret, nseg;
 	unsigned long   flags;
 	scsi_qla_host_t	*ha;
 	struct scsi_cmnd *cmd;
@@ -727,7 +678,6 @@ qla24xx_start_scsi(srb_t *sp)
 	uint32_t        index;
 	uint32_t	handle;
 	struct cmd_type_7 *cmd_pkt;
-	struct scatterlist *sg;
 	uint16_t	cnt;
 	uint16_t	req_cnt;
 	uint16_t	tot_dsds;
@@ -758,7 +708,7 @@ qla24xx_start_scsi(srb_t *sp)
 		handle++;
 		if (handle == MAX_OUTSTANDING_COMMANDS)
 			handle = 1;
-		if (ha->outstanding_cmds[handle] == 0)
+		if (!ha->outstanding_cmds[handle])
 			break;
 	}
 	if (index == MAX_OUTSTANDING_COMMANDS)
@@ -766,22 +716,14 @@ qla24xx_start_scsi(srb_t *sp)
 
 	/* Map the sg table so we have an accurate count of sg entries needed */
 	if (scsi_sg_count(cmd)) {
-		sg = scsi_sglist(cmd);
-		tot_dsds = pci_map_sg(ha->pdev, sg, scsi_sg_count(cmd),
-		    cmd->sc_data_direction);
-		if (tot_dsds == 0)
+		nseg = dma_map_sg(&ha->pdev->dev, scsi_sglist(cmd),
+		    scsi_sg_count(cmd), cmd->sc_data_direction);
+		if (unlikely(!nseg))
 			goto queuing_error;
-	} else if (scsi_bufflen(cmd)) {
-		dma_addr_t      req_dma;
+	} else
+		nseg = 0;
 
-		req_dma = pci_map_single(ha->pdev, scsi_sglist(cmd),
-		    scsi_bufflen(cmd), cmd->sc_data_direction);
-		if (dma_mapping_error(req_dma))
-			goto queuing_error;
-
-		sp->dma_handle = req_dma;
-		tot_dsds = 1;
-	}
+	tot_dsds = nseg;
 
 	req_cnt = qla24xx_calc_iocbs(tot_dsds);
 	if (ha->req_q_cnt < (req_cnt + 2)) {
@@ -816,6 +758,7 @@ qla24xx_start_scsi(srb_t *sp)
 	cmd_pkt->port_id[0] = sp->fcport->d_id.b.al_pa;
 	cmd_pkt->port_id[1] = sp->fcport->d_id.b.area;
 	cmd_pkt->port_id[2] = sp->fcport->d_id.b.domain;
+	cmd_pkt->vp_index = sp->fcport->vp_idx;
 
 	int_to_scsilun(sp->cmd->device->lun, &cmd_pkt->lun);
 	host_to_fcp_swap((uint8_t *)&cmd_pkt->lun, sizeof(cmd_pkt->lun));
@@ -833,10 +776,6 @@ qla24xx_start_scsi(srb_t *sp)
 	cmd_pkt->entry_count = (uint8_t)req_cnt;
 	wmb();
 
-	DEBUG5(printk("%s(): IOCB data:\n", __func__));
-	DEBUG5(qla2x00_dump_buffer(
-	    (uint8_t *)ha->request_ring_ptr, REQUEST_ENTRY_SIZE));
-
 	/* Adjust ring index. */
 	ha->req_ring_index++;
 	if (ha->req_ring_index == ha->request_q_length) {
@@ -846,7 +785,6 @@ qla24xx_start_scsi(srb_t *sp)
 		ha->request_ring_ptr++;
 
 	sp->flags |= SRB_DMA_VALID;
-	sp->state = SRB_ACTIVE_STATE;
 
 	/* Set chip new ring index. */
 	WRT_REG_DWORD(&reg->req_q_in, ha->req_ring_index);
@@ -861,14 +799,9 @@ qla24xx_start_scsi(srb_t *sp)
 	return QLA_SUCCESS;
 
 queuing_error:
-	if (scsi_sg_count(cmd) && tot_dsds) {
-		sg = scsi_sglist(cmd);
-		pci_unmap_sg(ha->pdev, sg, scsi_sg_count(cmd),
-		    cmd->sc_data_direction);
-	} else if (tot_dsds) {
-		pci_unmap_single(ha->pdev, sp->dma_handle,
-		    scsi_bufflen(cmd), cmd->sc_data_direction);
-	}
+	if (tot_dsds)
+		scsi_dma_unmap(cmd);
+
 	spin_unlock_irqrestore(&ha->hardware_lock, flags);
 
 	return QLA_FUNCTION_FAILED;
