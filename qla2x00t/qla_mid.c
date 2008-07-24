@@ -95,7 +95,7 @@ qla2x00_mark_vp_devices_dead(scsi_qla_host_t *vha)
 	fc_port_t *fcport;
 	scsi_qla_host_t *pha = to_qla_parent(vha);
 
-	list_for_each_entry(fcport, &pha->fcports, list) {
+	list_for_each_entry_rcu(fcport, &pha->fcports, list) {
 		if (fcport->vp_idx != vha->vp_idx)
 			continue;
 

@@ -240,8 +240,8 @@ out_free:
 			id_iter += ha->gid_list_info_size;
 		}
 	}
-get_id_failed:
 
+get_id_failed:
 	if (size < max_size) {
 		fc_port_t *fcport;
 		char * state;
@@ -250,7 +250,7 @@ get_id_failed:
 		size += scnprintf(buf+size, max_size-size,
 				 "\nfc_ports database\n");
 
-		list_for_each_entry(fcport, &ha->fcports, list) {
+		list_for_each_entry_rcu(fcport, &ha->fcports, list) {
 			if (size >= max_size)
 				goto out;
 			switch (atomic_read(&fcport->state)) {
@@ -1237,7 +1237,7 @@ qla2x00_get_starget_node_name(struct scsi_target *starget)
 	fc_port_t *fcport;
 	u64 node_name = 0;
 
-	list_for_each_entry(fcport, &ha->fcports, list) {
+	list_for_each_entry_rcu(fcport, &ha->fcports, list) {
 		if (fcport->rport &&
 		    starget->id == fcport->rport->scsi_target_id) {
 			node_name = wwn_to_u64(fcport->node_name);
@@ -1256,7 +1256,7 @@ qla2x00_get_starget_port_name(struct scsi_target *starget)
 	fc_port_t *fcport;
 	u64 port_name = 0;
 
-	list_for_each_entry(fcport, &ha->fcports, list) {
+	list_for_each_entry_rcu(fcport, &ha->fcports, list) {
 		if (fcport->rport &&
 		    starget->id == fcport->rport->scsi_target_id) {
 			port_name = wwn_to_u64(fcport->port_name);
@@ -1275,7 +1275,7 @@ qla2x00_get_starget_port_id(struct scsi_target *starget)
 	fc_port_t *fcport;
 	uint32_t port_id = ~0U;
 
-	list_for_each_entry(fcport, &ha->fcports, list) {
+	list_for_each_entry_rcu(fcport, &ha->fcports, list) {
 		if (fcport->rport &&
 		    starget->id == fcport->rport->scsi_target_id) {
 			port_id = fcport->d_id.b.domain << 16 |

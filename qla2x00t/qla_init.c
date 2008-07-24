@@ -2107,7 +2107,7 @@ qla2x00_configure_local_loop(scsi_qla_host_t *ha)
 	/*
 	 * Mark local devices that were present with FCF_DEVICE_LOST for now.
 	 */
-	list_for_each_entry(fcport, &pha->fcports, list) {
+	list_for_each_entry_rcu(fcport, &pha->fcports, list) {
 		if (fcport->vp_idx != ha->vp_idx)
 			continue;
 
@@ -2172,7 +2172,7 @@ qla2x00_configure_local_loop(scsi_qla_host_t *ha)
 		/* Check for matching device in port list. */
 		found = 0;
 		fcport = NULL;
-		list_for_each_entry(fcport, &pha->fcports, list) {
+		list_for_each_entry_rcu(fcport, &pha->fcports, list) {
 			if (fcport->vp_idx != ha->vp_idx)
 				continue;
 
@@ -2201,7 +2201,7 @@ qla2x00_configure_local_loop(scsi_qla_host_t *ha)
 				list_add_tail(&new_fcport->vp_fcport,
 				    &ha->vp_fcports);
 			}
-			list_add_tail(&new_fcport->list, &pha->fcports);
+			list_add_tail_rcu(&new_fcport->list, &pha->fcports);
 
 			/* Allocate a new replacement fcport. */
 			fcport = new_fcport;
@@ -2441,7 +2441,7 @@ qla2x00_configure_fabric(scsi_qla_host_t *ha)
 		 * Logout all previous fabric devices marked lost, except
 		 * tape devices.
 		 */
-		list_for_each_entry(fcport, &pha->fcports, list) {
+		list_for_each_entry_rcu(fcport, &pha->fcports, list) {
 			if (fcport->vp_idx !=ha->vp_idx)
 				continue;
 
@@ -2475,7 +2475,7 @@ qla2x00_configure_fabric(scsi_qla_host_t *ha)
 		 * Scan through our port list and login entries that need to be
 		 * logged in.
 		 */
-		list_for_each_entry(fcport, &pha->fcports, list) {
+		list_for_each_entry_rcu(fcport, &pha->fcports, list) {
 			if (fcport->vp_idx != ha->vp_idx)
 				continue;
 
@@ -2530,10 +2530,13 @@ qla2x00_configure_fabric(scsi_qla_host_t *ha)
 				fcport->vp_idx = ha->vp_idx;
 				list_add_tail(&fcport->vp_fcport,
 				    &ha->vp_fcports);
-				list_move_tail(&fcport->list,
+				list_del(&fcport->list);
+				list_add_tail_rcu(&fcport->list,
 				    &ha->parent->fcports);
-			} else
-				list_move_tail(&fcport->list, &ha->fcports);
+			} else {
+				list_del(&fcport->list);
+				list_add_tail_rcu(&fcport->list, &ha->fcports);
+			}
 		}
 	} while (0);
 
@@ -2716,7 +2719,7 @@ qla2x00_find_all_fabric_devs(scsi_qla_host_t *ha, struct list_head *new_fcports)
 
 		/* Locate matching device in database. */
 		found = 0;
-		list_for_each_entry(fcport, &pha->fcports, list) {
+		list_for_each_entry_rcu(fcport, &pha->fcports, list) {
 			if (new_fcport->vp_idx != fcport->vp_idx)
 				continue;
 			if (memcmp(new_fcport->port_name, fcport->port_name,
@@ -2846,7 +2849,7 @@ qla2x00_find_new_loop_id(scsi_qla_host_t *ha, fc_port_t *dev)
 		/* Check for loop ID being already in use. */
 		found = 0;
 		fcport = NULL;
-		list_for_each_entry(fcport, &pha->fcports, list) {
+		list_for_each_entry_rcu(fcport, &pha->fcports, list) {
 			if (fcport->loop_id == dev->loop_id && fcport != dev) {
 				/* ID possibly in use */
 				found++;
@@ -2960,7 +2963,7 @@ qla2x00_device_resync(scsi_qla_host_t *ha)
 
 		rval = QLA_SUCCESS;
 
-		list_for_each_entry(fcport, &pha->fcports, list) {
+		list_for_each_entry_rcu(fcport, &pha->fcports, list) {
 			if (fcport->vp_idx != ha->vp_idx)
 				continue;
 
@@ -3255,7 +3258,7 @@ qla2x00_update_fcports(scsi_qla_host_t *ha)
 	fc_port_t *fcport;
 
 	/* Go with deferred removal of rport references. */
-	list_for_each_entry(fcport, &ha->fcports, list)
+	list_for_each_entry_rcu(fcport, &ha->fcports, list)
 		if (fcport->drport)
 			qla2x00_rport_del(fcport);
 }

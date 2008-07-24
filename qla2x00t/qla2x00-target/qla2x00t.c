@@ -1315,7 +1315,7 @@ static char *q2t_find_name(scsi_qla_host_t *ha, int loop_id)
 	}
 
 	/* Find the WWN in the port db given the loop_id */
-	list_for_each_entry(fcl, &ha->fcports, list) {
+	list_for_each_entry_rcu(fcl, &ha->fcports, list) {
 	    if (loop_id == (fcl->loop_id & 0xFF)) {
 		sprintf(wwn_str, "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
 			fcl->port_name[0], fcl->port_name[1],

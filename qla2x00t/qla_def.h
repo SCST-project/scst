@@ -2407,7 +2407,14 @@ typedef struct scsi_qla_host {
 
 	struct list_head	work_list;
 
-	/* Fibre Channel Device List. */
+	/*
+	 * Fibre Channel Device List.
+	 *
+	 * This list can be accessed from many contexts, including concurrently.
+	 * So, although anything never deleted from this list, it needs the
+	 * corresponding protection anyway. Let's do it by making access to
+	 * it using RCU functions.
+	 */
 	struct list_head	fcports;
 
 	/* RSCN queue. */

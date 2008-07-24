@@ -1007,7 +1007,7 @@ qla2x00_loop_reset(scsi_qla_host_t *ha)
 	}
 
 	if (ha->flags.enable_target_reset) {
-		list_for_each_entry(fcport, &ha->fcports, list) {
+		list_for_each_entry_rcu(fcport, &ha->fcports, list) {
 			if (fcport->port_type != FCT_TARGET)
 				continue;
 
@@ -1919,7 +1919,7 @@ qla2x00_mark_all_devices_lost(scsi_qla_host_t *ha, int defer)
 	fc_port_t *fcport;
 	scsi_qla_host_t *pha = to_qla_parent(ha);
 
-	list_for_each_entry(fcport, &pha->fcports, list) {
+	list_for_each_entry_rcu(fcport, &pha->fcports, list) {
 		if (ha->vp_idx != 0 && ha->vp_idx != fcport->vp_idx)
 			continue;
 		/*
@@ -2352,7 +2352,7 @@ qla2x00_do_dpc(void *data)
 			    ha->host_no));
 
 			next_loopid = 0;
-			list_for_each_entry(fcport, &ha->fcports, list) {
+			list_for_each_entry_rcu(fcport, &ha->fcports, list) {
 				/*
 				 * If the port is not ONLINE then try to login
 				 * to it if we haven't run out of retries.
@@ -2528,7 +2528,7 @@ qla2x00_timer(scsi_qla_host_t *ha)
 	 * the port it marked DEAD.
 	 */
 	t = 0;
-	list_for_each_entry(fcport, &ha->fcports, list) {
+	list_for_each_entry_rcu(fcport, &ha->fcports, list) {
 		if (fcport->port_type != FCT_TARGET)
 			continue;
 
