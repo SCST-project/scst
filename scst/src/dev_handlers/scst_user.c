@@ -34,6 +34,24 @@
 	for details."
 #endif
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18))
+#define COMPLETION_INITIALIZER_ONSTACK(work) \
+	({ init_completion(&work); work; })
+	
+/*
+ * Lockdep needs to run a non-constant initializer for on-stack
+ * completions - so we use the _ONSTACK() variant for those that
+ * are on the kernel stack:
+ */
+#ifdef CONFIG_LOCKDEP
+# define DECLARE_COMPLETION_ONSTACK(work) \
+	struct completion work = COMPLETION_INITIALIZER_ONSTACK(work)
+#else
+# define DECLARE_COMPLETION_ONSTACK(work) DECLARE_COMPLETION(work)
+#endif
+
+#endif
+
 #define DEV_USER_MAJOR			237
 
 #define DEV_USER_CMD_HASH_ORDER		6
@@ -318,7 +336,7 @@ static void cmd_insert_hash(struct scst_user_cmd *ucmd)
 	list_add_tail(&ucmd->hash_list_entry, head);
 	spin_unlock_irqrestore(&dev->cmd_lists.cmd_list_lock, flags);
 
-	TRACE_DBG("Inserted ucmd %p, h=%d", ucmd, ucmd->h);
+	TRACE_DBG("Inserted ucmd %p, h=%d (dev %s)", ucmd, ucmd->h, dev->name);
 	return;
 }
 
@@ -1466,6 +1484,8 @@ static int dev_user_reply_cmd(struct file *file, void __user *arg)
 	if (res < 0)
 		goto out_up;
 
+	TRACE_MGMT_DBG("Reply for dev %s", dev->name);
+
 	TRACE_BUFFER("Reply", &reply, sizeof(reply));
 
 	res = dev_user_process_reply(dev, &reply);
@@ -1645,7 +1665,8 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 	if (res < 0)
 		goto out_up;
 
-	TRACE_DBG("ureply %Ld", (long long unsigned int)ureply);
+	TRACE_DBG("ureply %Ld (dev %s)", (long long unsigned int)ureply,
+		dev->name);
 
 	cmd = kmem_cache_alloc(user_get_cmd_cachep, GFP_KERNEL);
 	if (cmd == NULL) {
@@ -1782,9 +1803,9 @@ static unsigned int dev_user_poll(struct file *file, poll_table *wait)
 
 	spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
 
-	TRACE_DBG("Before poll_wait() (dev %p)", dev);
+	TRACE_DBG("Before poll_wait() (dev %s)", dev->name);
 	poll_wait(file, &dev->cmd_lists.cmd_list_waitQ, wait);
-	TRACE_DBG("After poll_wait() (dev %p)", dev);
+	TRACE_DBG("After poll_wait() (dev %s)", dev->name);
 
 	spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
 
@@ -2538,8 +2559,9 @@ static int __dev_user_set_opt(struct scst_user_dev *dev,
 
 	TRACE_ENTRY();
 
-	TRACE_DBG("parse_type %x, on_free_cmd_type %x, memory_reuse_type %x, "
-		"partial_transfers_type %x, partial_len %d", opt->parse_type,
+	TRACE_DBG("dev %s, parse_type %x, on_free_cmd_type %x, "
+		"memory_reuse_type %x, partial_transfers_type %x, "
+		"partial_len %d", dev->name, opt->parse_type,
 		opt->on_free_cmd_type, opt->memory_reuse_type,
 		opt->partial_transfers_type, opt->partial_len);
 
@@ -2651,8 +2673,9 @@ static int dev_user_get_opt(struct file *file, void __user *arg)
 	opt.swp = dev->swp;
 	opt.has_own_order_mgmt = dev->has_own_order_mgmt;
 
-	TRACE_DBG("parse_type %x, on_free_cmd_type %x, memory_reuse_type %x, "
-		"partial_transfers_type %x, partial_len %d", opt.parse_type,
+	TRACE_DBG("dev %s, parse_type %x, on_free_cmd_type %x, "
+		"memory_reuse_type %x, partial_transfers_type %x, "
+		"partial_len %d", dev->name, opt.parse_type,
 		opt.on_free_cmd_type, opt.memory_reuse_type,
 		opt.partial_transfers_type, opt.partial_len);
 
@@ -2888,13 +2911,17 @@ static int dev_user_cleanup_thread(void *arg)
 static int __init init_scst_user(void)
 {
 	int res = 0;
-	struct class_device *class_member;
 	struct max_get_reply {
 		union {
 			struct scst_user_get_cmd g;
 			struct scst_user_reply_cmd r;
 		};
 	};
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
+	struct class_device *class_member;
+#else
+	struct device *dev;
+#endif
 
 	TRACE_ENTRY();
 
@@ -2942,12 +2969,21 @@ static int __init init_scst_user(void)
 		goto out_class;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
 	class_member = class_device_create(dev_user_sysfs_class, NULL,
-		MKDEV(DEV_USER_MAJOR, 0), NULL, DEV_USER_NAME);
+				MKDEV(DEV_USER_MAJOR, 0), NULL, DEV_USER_NAME);
 	if (IS_ERR(class_member)) {
 		res = PTR_ERR(class_member);
 		goto out_chrdev;
 	}
+#else
+	dev = device_create(dev_user_sysfs_class, NULL, MKDEV(DEV_USER_MAJOR, 0),
+				DEV_USER_NAME);
+	if (IS_ERR(dev)) {
+		res = PTR_ERR(dev);
+		goto out_chrdev;
+	}
+#endif
 
 	cleanup_thread = kthread_run(dev_user_cleanup_thread, NULL,
 		"scst_usr_cleanupd");
@@ -2962,7 +2998,11 @@ out:
 	return res;
 
 out_dev:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
 	class_device_destroy(dev_user_sysfs_class, MKDEV(DEV_USER_MAJOR, 0));
+#else
+	device_destroy(dev_user_sysfs_class, MKDEV(DEV_USER_MAJOR, 0));
+#endif
 
 out_chrdev:
 	unregister_chrdev(DEV_USER_MAJOR, DEV_USER_NAME);
@@ -2995,7 +3035,11 @@ static void __exit exit_scst_user(void)
 		TRACE_MGMT_DBG("kthread_stop() failed: %d", rc);
 
 	unregister_chrdev(DEV_USER_MAJOR, DEV_USER_NAME);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
 	class_device_destroy(dev_user_sysfs_class, MKDEV(DEV_USER_MAJOR, 0));
+#else
+	device_destroy(dev_user_sysfs_class, MKDEV(DEV_USER_MAJOR, 0));
+#endif
 	class_destroy(dev_user_sysfs_class);
 
 	scst_dev_handler_destroy_std_proc(&dev_user_devtype);

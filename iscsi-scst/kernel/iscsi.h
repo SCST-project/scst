@@ -300,7 +300,7 @@ struct iscsi_cmnd {
 	int scst_state;
 	struct scst_cmd *scst_cmd;
 	atomic_t ref_cnt;
-#ifdef NET_PAGE_CALLBACKS_DEFINED
+#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	atomic_t net_ref_cnt;
 #endif
 
@@ -367,7 +367,7 @@ extern void conn_info_show(struct seq_file *, struct iscsi_session *);
 
 /* nthread.c */
 extern int iscsi_send(struct iscsi_conn *conn);
-#ifdef NET_PAGE_CALLBACKS_DEFINED
+#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 extern void iscsi_get_page_callback(struct page *page);
 extern void iscsi_put_page_callback(struct page *page);
 #endif

@@ -23,7 +23,7 @@
 #include "iscsi.h"
 #include "digest.h"
 
-#ifndef NET_PAGE_CALLBACKS_DEFINED
+#if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 #warning "Patch put_page_callback-<kernel-version>.patch not applied on your \
 	kernel. ISCSI-SCST will run in the performance degraded mode. Refer \
 	README file for details."
@@ -146,7 +146,7 @@ struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *conn, struct iscsi_cmnd *parent
 	if (parent == NULL) {
 		conn_get(conn);
 
-#ifdef NET_PAGE_CALLBACKS_DEFINED
+#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 		atomic_set(&cmnd->net_ref_cnt, 0);
 #endif
 		spin_lock_init(&cmnd->rsp_cmd_lock);
@@ -1149,7 +1149,7 @@ static int iscsi_pre_exec(struct scst_cmd *scst_cmd)
 	if (scst_cmd_get_data_direction(scst_cmd) == SCST_DATA_READ) {
 		if (!(req->conn->ddigest_type & DIGEST_NONE))
 			scst_set_long_xmit(scst_cmd);
-#ifndef NET_PAGE_CALLBACKS_DEFINED
+#if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 		else if (cmnd_hdr(req)->data_length > 8*1024)
 			scst_set_long_xmit(scst_cmd);
 #endif
@@ -1315,7 +1315,7 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 	req->scst_cmd = scst_cmd;
 	scst_cmd_set_tag(scst_cmd, req_hdr->itt);
 	scst_cmd_set_tgt_priv(scst_cmd, req);
-#ifndef NET_PAGE_CALLBACKS_DEFINED
+#if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	scst_cmd_set_data_buf_tgt_alloc(scst_cmd);
 #endif
 
@@ -1593,7 +1593,7 @@ static void __cmnd_abort(struct iscsi_cmnd *cmnd)
 		cmnd->conn->session->exp_cmd_sn, cmnd->conn,
 		cmnd->conn->rd_task);
 
-#ifdef NET_PAGE_CALLBACKS_DEFINED
+#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	TRACE_MGMT_DBG("net_ref_cnt %d", atomic_read(&cmnd->net_ref_cnt));
 #endif
 
@@ -2441,7 +2441,7 @@ out_rejected:
 	goto out;
 }
 
-#ifndef NET_PAGE_CALLBACKS_DEFINED
+#if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 static int iscsi_alloc_data_buf(struct scst_cmd *cmd)
 {
 	if (scst_cmd_get_data_direction(cmd) == SCST_DATA_READ) {
@@ -2846,7 +2846,7 @@ struct scst_tgt_template iscsi_template = {
 	.detect = iscsi_target_detect,
 	.release = iscsi_target_release,
 	.xmit_response = iscsi_xmit_response,
-#ifndef NET_PAGE_CALLBACKS_DEFINED
+#if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	.alloc_data_buf = iscsi_alloc_data_buf,
 #endif
 	.preprocessing_done = iscsi_preprocessing_done,
@@ -2902,7 +2902,7 @@ static int __init iscsi_init(void)
 
 	PRINT_INFO("iSCSI SCST Target - version %s", ISCSI_VERSION_STRING);
 
-#ifdef NET_PAGE_CALLBACKS_DEFINED
+#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	err = net_set_get_put_page_callbacks(iscsi_get_page_callback,
 			iscsi_put_page_callback);
 	if (err != 0) {
@@ -2972,7 +2972,7 @@ out_reg:
 	unregister_chrdev(ctr_major, ctr_name);
 
 out_callb:
-#ifdef NET_PAGE_CALLBACKS_DEFINED
+#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	net_set_get_put_page_callbacks(NULL, NULL);
 #endif
 	goto out;
@@ -2991,7 +2991,7 @@ static void __exit iscsi_exit(void)
 
 	scst_unregister_target_template(&iscsi_template);
 
-#ifdef NET_PAGE_CALLBACKS_DEFINED
+#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	net_set_get_put_page_callbacks(NULL, NULL);
 #endif
 }

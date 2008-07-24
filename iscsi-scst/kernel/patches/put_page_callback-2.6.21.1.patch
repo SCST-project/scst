@@ -33,7 +33,7 @@ diff -upr linux-2.6.21.1/include/linux/net.h linux-2.6.21.1/include/linux/net.h
  #endif
  
 +/* Support for notification on zero-copy TCP transfer completion */
-+#define NET_PAGE_CALLBACKS_DEFINED
++#define CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION
 +typedef void (*net_get_page_callback_t)(struct page *page);
 +typedef void (*net_put_page_callback_t)(struct page *page);
 +

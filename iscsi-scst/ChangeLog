@@ -1,3 +1,16 @@
+Summary of changes in iSCSI-SCST between versions 1.0.0 and 1.0.1
+-----------------------------------------------------------------
+
+ - Update for 2.6.26
+
+ - Zero-copy feature, introduced by put_page_callback patch made
+   kernel compile time configurable via
+   CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION option. If you
+   upgrade from earlier versions, see the corresponding "[CAUTION]"
+   e-mail in scst-devel mailing list about possible compatibility
+   problems.
+
+
 Summary of changes in iSCSI-SCST since it was IET
 -------------------------------------------------
 

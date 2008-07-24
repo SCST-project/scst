@@ -1475,10 +1475,10 @@ void scst_put(void)
 }
 EXPORT_SYMBOL(scst_put);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 15)
-static int scst_add(struct class_device *cdev)
-#else
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 static int scst_add(struct class_device *cdev, struct class_interface *intf)
+#else
+static int scst_add(struct device *cdev, struct class_interface *intf)
 #endif
 {
 	struct scsi_device *scsidp;
@@ -1486,34 +1486,49 @@ static int scst_add(struct class_device *cdev, struct class_interface *intf)
 
 	TRACE_ENTRY();
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 	scsidp = to_scsi_device(cdev->dev);
+#else
+	scsidp = to_scsi_device(cdev->parent);
+#endif
 	res = scst_register_device(scsidp);
 
 	TRACE_EXIT();
 	return res;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 15)
-static void scst_remove(struct class_device *cdev)
-#else
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 static void scst_remove(struct class_device *cdev, struct class_interface *intf)
+#else
+static void scst_remove(struct device *cdev, struct class_interface *intf)
 #endif
 {
 	struct scsi_device *scsidp;
 
 	TRACE_ENTRY();
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 	scsidp = to_scsi_device(cdev->dev);
+#else
+	scsidp = to_scsi_device(cdev->parent);
+#endif
 	scst_unregister_device(scsidp);
 
 	TRACE_EXIT();
 	return;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 static struct class_interface scst_interface = {
 	.add = scst_add,
 	.remove = scst_remove,
 };
+#else
+static struct class_interface scst_interface = {
+	.add_dev = scst_add,
+	.remove_dev = scst_remove,
+};
+#endif
 
 static void __init scst_print_config(void)
 {

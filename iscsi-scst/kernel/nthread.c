@@ -54,7 +54,7 @@ enum tx_state {
 	TX_END,
 };
 
-#if defined(NET_PAGE_CALLBACKS_DEFINED)
+#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 static void iscsi_check_closewait(struct iscsi_conn *conn)
 {
 	struct iscsi_cmnd *cmnd;
@@ -367,7 +367,7 @@ static void close_conn(struct iscsi_conn *conn)
 			conn->wr_state, session->exp_cmd_sn);
 #ifdef CONFIG_SCST_DEBUG
 		{
-#ifdef NET_PAGE_CALLBACKS_DEFINED
+#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 			struct iscsi_cmnd *rsp;
 #endif
 
@@ -384,7 +384,7 @@ static void close_conn(struct iscsi_conn *conn)
 					(cmnd->scst_cmd != NULL) ? cmnd->scst_cmd->state : -1,
 					cmnd->data_waiting, atomic_read(&cmnd->ref_cnt),
 					cmnd->pdu.bhs.sn, cmnd->parent_req, cmnd->pending);
-#ifdef NET_PAGE_CALLBACKS_DEFINED
+#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 				TRACE_CONN_CLOSE_DBG("net_ref_cnt %d, sg %p",
 					atomic_read(&cmnd->net_ref_cnt), cmnd->sg);
 				if (cmnd->sg != NULL) {
@@ -857,7 +857,7 @@ int istrd(void *arg)
 	return 0;
 }
 
-#ifdef NET_PAGE_CALLBACKS_DEFINED
+#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 static inline void __iscsi_get_page_callback(struct iscsi_cmnd *cmd)
 {
 	int v;
@@ -1042,7 +1042,7 @@ static int write_data(struct iscsi_conn *conn)
 
 	sock = conn->sock;
 
-#ifdef NET_PAGE_CALLBACKS_DEFINED
+#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	sock_sendpage = sock->ops->sendpage;
 #else
 	if ((write_cmnd->parent_req->scst_cmd != NULL) &&
@@ -1057,7 +1057,7 @@ static int write_data(struct iscsi_conn *conn)
 	while (1) {
 		sendpage = sock_sendpage;
 
-#ifdef NET_PAGE_CALLBACKS_DEFINED
+#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 		{
 			static DEFINE_SPINLOCK(net_priv_lock);
 			spin_lock(&net_priv_lock);
