@@ -24,7 +24,10 @@
 ########################
 
 function usage {
-  echo "Usage: $0 [-m] [-q] <kernel version>."
+  echo "Usage: $0 [-q] [-s] [-m] <kernel version>, where: "
+  echo "	-q - add qla2x00t driver"
+  echo "	-s - add srpt driver"
+  echo "	-m - add mpt target driver"
 }
 
 # Convert an existing patch.
@@ -77,8 +80,9 @@ EOF
 # Argument verification #
 #########################
 
-mpt_scst="false"
 qla2x00t="false"
+srpt="false"
+mpt_scst="false"
 
 if [ ! -e scst -o ! -e iscsi-scst -o ! -e srpt ]; then
   echo "Please run this script from inside the SCST subversion source tree."
@@ -89,8 +93,9 @@ set -- $(/usr/bin/getopt mq "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
-    '-m') mpt_scst="true"; shift;;
     '-q') qla2x00t="true"; shift;;
+    '-s') srptt="true"; shift;;
+    '-m') mpt_scst="true"; shift;;
     '--') shift;;
     *)    usage; exit 1;;
   esac
@@ -212,8 +217,8 @@ if [ "${qla2x00t}" = "true" ]; then
   #add_file "qla2x00t/qla2x00-target/Kconfig" \
   #         "drivers/scst/qla2x00-target/Kconfig"
 
-  add_file "qla2x00t/qla2x_tgt_def.h" \
-           "drivers/scst/qla2x00-target/qla2x_tgt_def.h"
+  #add_file "qla2x00t/qla2x_tgt_def.h" \
+  #         "drivers/scst/qla2x00-target/qla2x_tgt_def.h"
 
   add_file "qla2x00t/qla2x00-target/README" \
            "Documentation/scst/README.qla2x00t"
@@ -225,26 +230,28 @@ if [ "${qla2x00t}" = "true" ]; then
 
 fi
 
-
 # Directory drivers/infiniband/ulp/srpt/
 
-add_patch "srpt/src/Kconfig.infiniband.Linux-${kernel_version}.patch" \
+if [ "$srpt" = "true" ]; then
+
+  add_patch "srpt/src/Kconfig.infiniband.Linux-${kernel_version}.patch" \
           "drivers/infiniband/Kconfig"
 
-add_patch "srpt/src/Makefile.infiniband.Linux-${kernel_version}.patch" \
+  add_patch "srpt/src/Makefile.infiniband.Linux-${kernel_version}.patch" \
           "drivers/infiniband/Makefile"
 
-add_file  "srpt/src/Kconfig"            "drivers/infiniband/ulp/srpt/Kconfig"
+  add_file  "srpt/src/Kconfig"            "drivers/infiniband/ulp/srpt/Kconfig"
 
-add_file  "srpt/src/Makefile.in_kernel" "drivers/infiniband/ulp/srpt/Makefile"
+  add_file  "srpt/src/Makefile.in_kernel" "drivers/infiniband/ulp/srpt/Makefile"
 
-add_file  "srpt/README"                 "Documentation/scst/README.srpt"
+  add_file  "srpt/README"                 "Documentation/scst/README.srpt"
 
-for f in srpt/src/*.[ch]
-do
-  add_file "${f}" "drivers/infiniband/ulp/srpt/${f#srpt/src/}"
-done
+  for f in srpt/src/*.[ch]
+  do
+    add_file "${f}" "drivers/infiniband/ulp/srpt/${f#srpt/src/}"
+  done
 
+fi
 
 # Directory drivers/message/fusion/mpt_scst
 

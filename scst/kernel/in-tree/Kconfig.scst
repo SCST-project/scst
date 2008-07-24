@@ -112,7 +112,7 @@ config SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
 	  message in the kernel log. If unsure, leave this option disabled.
 
 config SCST_ABORT_CONSIDER_FINISHED_TASKS_AS_NOT_EXISTING
-	bool "Send back UNKNOWN TASK when an already finished task is aborted."
+	bool "Send back UNKNOWN TASK when an already finished task is aborted"
 	help
 	  Controls which response is sent by SCST to the initiator in case
 	  the initiator attempts to abort (ABORT TASK) an already finished
@@ -155,13 +155,13 @@ config SCST_TRACING
 	  If unsure, leave this option disabled.
 
 config SCST_DEBUG
-	bool "Debugging support."
+	bool "Debugging support"
 	help
 	  Enables support for debugging SCST. This may be helpful for SCST
 	  developers. If unsure, leave this option disabled.
 
 config SCST_DEBUG_OOM
-	bool "Out-of-memory debugging support."
+	bool "Out-of-memory debugging support"
 	help
 	  Let SCST's internal memory allocation function
 	  (scst_alloc_sg_entries()) fail about once in every 10000 calls, at
@@ -171,7 +171,7 @@ config SCST_DEBUG_OOM
 	  option disabled.
 
 config SCST_DEBUG_RETRY
-	bool "SCSI command retry debugging support."
+	bool "SCSI command retry debugging support"
 	help
 	  Let SCST's internal SCSI command transfer function
 	  (scst_rdy_to_xfer()) fail about once in every 100 calls. This allows
@@ -180,7 +180,7 @@ config SCST_DEBUG_RETRY
 	  option disabled.
 
 config SCST_DEBUG_SN
-	bool "SCSI sequence number debugging support."
+	bool "SCSI sequence number debugging support"
 	help
 	  Allows to test SCSI command ordering via sequence numbers by
 	  randomly changing the type of SCSI commands into
@@ -190,7 +190,7 @@ config SCST_DEBUG_SN
 	  option disabled.
 
 config SCST_DEBUG_TM
-	bool "Task management debugging support."
+	bool "Task management debugging support"
 	depends on SCST_DEBUG
 	help
 	  Enables support for debugging of SCST's task management functions.
@@ -201,7 +201,7 @@ config SCST_DEBUG_TM
 	  disabled.
 
 config SCST_TM_DBG_GO_OFFLINE
-	bool "Let devices become completely unresponsive."
+	bool "Let devices become completely unresponsive"
 	depends on SCST_DEBUG_TM
 	help
 	  Enable this option if you want that the device eventually becomes
