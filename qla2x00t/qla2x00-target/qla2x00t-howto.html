@@ -10,8 +10,8 @@ How to configure QLogic target driver for 22xx/23xx cards
                     <div style="text-align: center;"> <strong>ON TARGET</strong></div><br><br>
 
 1: Get the Linux kernel sources for version >= 2.6.16 from kernel.org</br>
-    <br>I've downloaded kernel version 2.6.24</br>
-    <br><a href="ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-2.6.24.tar.bz2">ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-2.6.24.tar.bz2</a></br></br></br>
+    <br>I've downloaded kernel version 2.6.26</br>
+    <br><a href="ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-2.6.26.tar.bz2">ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-2.6.26.tar.bz2</a></br></br></br>
 
 2: Get the appropiate firmware for your QLogic card from<a href="ftp://ftp.qlogic.com/outgoing/linux/firmware">
    ftp://ftp.qlogic.com/outgoing/linux/firmware/</a> and put it under /lib/firmware.
@@ -23,19 +23,19 @@ How to configure QLogic target driver for 22xx/23xx cards
     qla2xxx 0000:13:00.0: Failed to initialize adapter</br>
     &lt snip &gt</br>
 
-    In this case I had to download ql2400_fw.bin</br></br></br>
+    In this case I had to download ql2300_fw.bin</br></br></br>
 
 3: Unzip it under /usr/src/</br>
-    [root@proj src ] bunzip2 /usr/src/linux-2.6.24.tar.bz2</br>
-    [root@server src ] tar -xvf /usr/src/linux-2.6.24.tar</br></br></br>
+    [root@proj src ] bunzip2 /usr/src/linux-2.6.26.tar.bz2</br>
+    [root@server src ] tar -xvf /usr/src/linux-2.6.26.tar</br></br></br>
    
 4: Create symlinks</br>
     [root@proj src ] pwd</br>
     /usr/src</br>
-    [root@proj src ] ln -s /usr/src/linux-2.6.24 linux</br>
-    [root@proj src ] ln -s /usr/src/linux-2.6.24 kernel</br></br></br>
+    [root@proj src ] ln -s /usr/src/linux-2.6.26 linux</br>
+    [root@proj src ] ln -s /usr/src/linux-2.6.26 kernel</br></br></br>
 
-5: Get the SCST code from their SVN code base</br>
+5: Get the SCST code from their SVN code base.</br>
     [root@proj ] svn co https://scst.svn.sourceforge.net/svnroot/scst</br>
     If the command returns successfully then you'll have 'scst'</br>
     directory under your current directory ( here it is /root )</br></br>
@@ -50,13 +50,15 @@ How to configure QLogic target driver for 22xx/23xx cards
     [root@proj trunk]# ls</br>
     AskingQuestions        iscsi-release.patch  mpt                       qla2x00t-release.patch  scripts    scst-full_perf.patch  usr                  www
     doc                    iscsi-scst           qla2x00t                  qla_isp                 scst       scst-release.patch    usr-full_perf.patch
-    iscsi-full_perf.patch  Makefile             qla2x00t-full_perf.patch  README                  scstadmin  srpt                  usr-release.patch</br></br></br>
+    iscsi-full_perf.patch  Makefile             qla2x00t-full_perf.patch  README                  scstadmin  srpt                  usr-release.patch</br></br>
+
+    For kernels < 2.6.26 you should use ~scst/branches/1.0.0.x/ instead, because qla2x00t driver in trunk/ doesn't support those kernels (see its README).</br></br></br>
 
 7:  Patch the kernel (the kernel version you've downloaded in step 1)</br>
-    [root@proj ] cp /root/scst/trunk/scst/kernel/scst_exec_req_fifo-2.6.24.patch /usr/src</br></br>
+    [root@proj ] cp /root/scst/trunk/scst/kernel/scst_exec_req_fifo-2.6.26.patch /usr/src</br></br>
    
     [root@proj ] cd /usr/src</br>
-    [root@proj src] patch -p0 &lt scst_exec_req_fifo-2.6.24.patch</br></br></br>
+    [root@proj src] patch -p0 &lt scst_exec_req_fifo-2.6.26.patch</br></br></br>
 
 8: Replace the QLogic FC driver code in the kernel source tree with the modified version 
     of QLogic FC driver code from scst code base.</br></br>
