@@ -1772,10 +1772,6 @@ static int scst_version_info_show(struct seq_file *seq, void *v)
 	seq_printf(seq, "SCST_STRICT_SECURITY\n");
 #endif
 
-#ifdef CONFIG_SCST_HIGHMEM
-	seq_printf(seq, "SCST_HIGHMEM\n");
-#endif
-
 	TRACE_EXIT();
 	return 0;
 }

@@ -28,10 +28,6 @@
 #include <linux/unistd.h>
 #include <linux/string.h>
 
-#ifdef CONFIG_SCST_HIGHMEM
-#include <linux/highmem.h>
-#endif
-
 #include "scst.h"
 #include "scst_priv.h"
 #include "scst_mem.h"
@@ -516,10 +512,6 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 
 	if (sess->tgt->tgtt->unchecked_isa_dma || ini_unchecked_isa_dma) {
 		scst_sgv_pool_use_dma(tgt_dev);
-	} else {
-#ifdef CONFIG_SCST_HIGHMEM
-		scst_sgv_pool_use_highmem(tgt_dev);
-#endif
 	}
 
 	if (dev->scsi_dev != NULL) {

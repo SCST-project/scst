@@ -40,13 +40,6 @@
 	details."
 #endif
 
-#ifdef CONFIG_SCST_HIGHMEM
-#error "CONFIG_SCST_HIGHMEM configuration isn't supported and broken, because\
-        there is no real point to support it, at least it definitely isn't   \
-        worth the effort. Better use no-HIGHMEM kernel with VMSPLIT option   \
-	or in 64-bit configuration instead. See README file for details."
-#endif
-
 #if !defined(SCSI_EXEC_REQ_FIFO_DEFINED) && !defined(CONFIG_SCST_STRICT_SERIALIZING)
 #warning "Patch scst_exec_req_fifo-<kernel-version>.patch was not applied on \
 	your kernel and CONFIG_SCST_STRICT_SERIALIZING isn't defined. Pass-through dev \
@@ -1589,11 +1582,6 @@ static void __init scst_print_config(void)
 
 #ifdef CONFIG_SCST_STRICT_SECURITY
 	i += snprintf(&buf[i], sizeof(buf) - i, "%sSCST_STRICT_SECURITY",
-		(j == i) ? "" : ", ");
-#endif
-
-#ifdef CONFIG_SCST_HIGHMEM
-	i += snprintf(&buf[i], sizeof(buf) - i, "%sSCST_HIGHMEM",
 		(j == i) ? "" : ", ");
 #endif
 

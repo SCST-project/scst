@@ -27,10 +27,6 @@
 #include <linux/unistd.h>
 #include <linux/string.h>
 
-#ifdef CONFIG_SCST_HIGHMEM
-#include <linux/highmem.h>
-#endif
-
 #include "scst.h"
 #include "scst_priv.h"
 #include "scst_mem.h"
@@ -61,15 +57,6 @@ void scst_sgv_pool_use_dma(struct scst_tgt_dev *tgt_dev)
 	tgt_dev->pool = &sgv_pools_mgr.default_set.dma;
 }
 
-#ifdef CONFIG_SCST_HIGHMEM
-void scst_sgv_pool_use_highmem(struct scst_tgt_dev *tgt_dev)
-{
-	TRACE_MEM("%s", "Use HIGHMEM");
-	tgt_dev->gfp_mask = __GFP_NOWARN | __GFP_HIGHMEM;
-	tgt_dev->pool = &sgv_pools_mgr.default_set.highmem;
-}
-#endif
-
 static int scst_check_clustering(struct scatterlist *sg, int cur, int hint)
 {
 	int res = -1;
@@ -79,13 +66,6 @@ static int scst_check_clustering(struct scatterlist *sg, int cur, int hint)
 	unsigned long pfn_cur_next = pfn_cur + (len_cur >> PAGE_SHIFT);
 	int full_page_cur = (len_cur & (PAGE_SIZE - 1)) == 0;
 	unsigned long pfn, pfn_next, full_page;
-
-#ifdef CONFIG_SCST_HIGHMEM
-	if (page >= highmem_start_page) {
-		TRACE_MEM("%s", "HIGHMEM page allocated, no clustering")
-		goto out;
-	}
-#endif
 
 #if 0
 	TRACE_MEM("pfn_cur %ld, pfn_cur_next %ld, len_cur %d, full_page_cur %d",
@@ -1228,12 +1208,6 @@ int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 	if (res != 0)
 		goto out_free_norm;
 
-#ifdef CONFIG_SCST_HIGHMEM
-	res = sgv_pool_init(&pools->default_set.highmem, "sgv-high", 0);
-	if (res != 0)
-		goto out_free_dma;
-#endif
-
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20))
 	INIT_DELAYED_WORK(&pools->mgr.apit_pool,
 		(void (*)(struct work_struct *))sgv_pool_cached_pitbool);
@@ -1253,11 +1227,6 @@ int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
-#ifdef CONFIG_SCST_HIGHMEM
-out_free_dma:
-	sgv_pool_deinit(&pools->default_set.dma);
-#endif
 
 out_free_norm:
 	sgv_pool_deinit(&pools->default_set.norm);
@@ -1281,9 +1250,6 @@ void scst_sgv_pools_deinit(void)
 
 	cancel_delayed_work(&pools->mgr.apit_pool);
 
-#ifdef CONFIG_SCST_HIGHMEM
-	sgv_pool_deinit(&pools->default_set.highmem);
-#endif
 	sgv_pool_deinit(&pools->default_set.dma);
 	sgv_pool_deinit(&pools->default_set.norm);
 	sgv_pool_deinit(&pools->default_set.norm_clust);

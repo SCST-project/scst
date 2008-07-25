@@ -91,9 +91,6 @@ struct scst_sgv_pools_manager {
 	struct {
 		struct sgv_pool norm_clust, norm;
 		struct sgv_pool dma;
-#ifdef CONFIG_SCST_HIGHMEM
-		struct sgv_pool highmem;
-#endif
 	} default_set;
 
 	struct sgv_pool_mgr {
@@ -148,6 +145,3 @@ extern int sgv_pool_procinfo_show(struct seq_file *seq, void *v);
 void scst_sgv_pool_use_norm(struct scst_tgt_dev *tgt_dev);
 void scst_sgv_pool_use_norm_clust(struct scst_tgt_dev *tgt_dev);
 void scst_sgv_pool_use_dma(struct scst_tgt_dev *tgt_dev);
-#ifdef CONFIG_SCST_HIGHMEM
-void scst_sgv_pool_use_highmem(struct scst_tgt_dev *tgt_dev);
-#endif

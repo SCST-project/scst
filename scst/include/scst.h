@@ -27,9 +27,6 @@
 #include <linux/interrupt.h>
 #include <linux/proc_fs.h>
 
-#ifdef CONFIG_SCST_HIGHMEM
-#include <asm/kmap_types.h>
-#endif
 #include <scsi/scsi_cmnd.h>
 #include <scsi/scsi_device.h>
 #include <scsi/scsi_eh.h>
@@ -2393,24 +2390,10 @@ static inline int __scst_get_buf(struct scst_cmd *cmd, uint8_t **buf)
 
 	if ((i >= cmd->sg_cnt) || unlikely(sg == NULL))
 		goto out;
-#ifdef CONFIG_SCST_HIGHMEM /* HIGHMEM isn't currently supported */
-	/*
-	 * HIGHMEM pages not merged (clustered), so if it's
-	 * not HIGHMEM page, kmap() is the same as page_address()
-	 */
-	if (scst_cmd_atomic(cmd)) {
-		enum km_type km;
-		if (in_softirq())
-			km = KM_SOFTIRQ0;
-		else
-			km = KM_USER0;
-		*buf = kmap_atomic(sg[i].page, km);
-	} else
-		*buf = kmap(sg[i].page);
-#else
+
 	*buf = page_address(sg_page(&sg[i]));
-#endif
 	*buf += sg[i].offset;
+
 	res = sg[i].length;
 	cmd->get_sg_buf_entry_num++;
 
@@ -2432,20 +2415,7 @@ static inline int scst_get_buf_next(struct scst_cmd *cmd, uint8_t **buf)
 
 static inline void scst_put_buf(struct scst_cmd *cmd, void *buf)
 {
-#ifdef CONFIG_SCST_HIGHMEM /* HIGHMEM isn't currently supported */
-	if (cmd->sg_cnt) {
-		if (scst_cmd_atomic(cmd)) {
-			enum km_type km;
-			BUG_ON(in_irq());
-			if (in_softirq())
-				km = KM_SOFTIRQ0;
-			else
-				km = KM_USER0;
-			kunmap_atomic(buf, km);
-		} else
-			kunmap(buf);
-	}
-#endif
+	/* Nothing to do */
 }
 
 /*
@@ -2454,13 +2424,7 @@ static inline void scst_put_buf(struct scst_cmd *cmd, void *buf)
  */
 static inline int scst_get_buf_count(struct scst_cmd *cmd)
 {
-	int res;
-#ifdef CONFIG_SCST_HIGHMEM
-	res = (cmd->bufflen >> PAGE_SHIFT) + 1;
-#else
-	res = (cmd->sg_cnt == 0) ? 1 : cmd->sg_cnt;
-#endif
-	return res;
+	return (cmd->sg_cnt == 0) ? 1 : cmd->sg_cnt;
 }
 
 /*

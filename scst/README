@@ -245,13 +245,6 @@ in/out in Makefile:
    scsi_execute_async() function, you will get a warning message in the
    kernel log.
 
- - CONFIG_SCST_HIGHMEM - if defined on HIGHMEM systems with 2.6 kernels, it
-   allows SCST to use HIGHMEM. This is very experimental feature, which
-   is currently broken and unsupported, since it is unclear, if it
-   brings something valuable, except some performance hit. Note, that
-   CONFIG_SCST_HIGHMEM isn't required for HIGHMEM systems and SCST will work
-   fine on them with SCST_HIGHMEM off.
-  
  - CONFIG_SCST_STRICT_SECURITY - if defined, makes SCST zero allocated data
    buffers. Undefining it (default) considerably improves performance
    and eases CPU load, but could create a security hole (information
@@ -650,8 +643,7 @@ II. In order to get the maximum performance you should:
 1. For SCST:
 
  - Disable in Makefile CONFIG_SCST_STRICT_SERIALIZING, CONFIG_SCST_EXTRACHECKS,
-   CONFIG_SCST_TRACING, DEBUG*, CONFIG_SCST_STRICT_SECURITY,
-   CONFIG_SCST_HIGHMEM
+   CONFIG_SCST_TRACING, DEBUG*, CONFIG_SCST_STRICT_SECURITY
 
  - For pass-through devices enable
    CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ.

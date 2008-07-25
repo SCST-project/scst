@@ -139,11 +139,6 @@ EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g
 # enable it if you have strict security requirements.
 #EXTRA_CFLAGS += -DSCST_STRICT_SECURITY
 
-# If defined, allows SCST to use HIGHMEM. It's unclear, if it brings
-# something valuable, except performance hit in some cases,
-# so let it be off. Untested and unsupported.
-#EXTRA_CFLAGS += -DCONFIG_SCST_HIGHMEM
-
 clean:
 	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend Modules.symvers \
 		Module.symvers Module.markers modules.order
