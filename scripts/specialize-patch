@@ -174,14 +174,22 @@ function process_preprocessor_statement() {
   }
   if (output && (! condition || condition && matching_if !~ "^+#if [01]"))
   {
-    print $0
+    line[lines++]=$0
   }
   else
   {
-    print "+"
+    lines_deleted++
   }
 }
 
+function dump_lines() {
+  if (h[0] != "")
+    printf "@@ -%d,%d +%d,%d @@%s\n",h[1],h[2],h[3],h[4]-lines_deleted,h[5]
+  for (i = 0; i < lines; i++)
+    print line[i]
+  lines = 0
+  lines_deleted = 0
+}
 
 BEGIN {
   # Verify arguments.
@@ -198,17 +206,28 @@ BEGIN {
   }
 
   # Variable initialization.
+  lines = 0
+  lines_deleted = 0
   output = 1
   if_nesting_level = -1
 }
 
 
 {
-  if (match($0, "^+ *#"))
+  if (match($0, "^@@ -([0-9]*),([0-9]*) \\+([0-9]*),([0-9]*) @@(.*)$"))
+  {
+    /* print h[1], h[2], h[3], h[4], h[5] */
+    dump_lines()
+    match($0, "^@@ -([0-9]*),([0-9]*) \\+([0-9]*),([0-9]*) @@(.*)$", h)
+  }
+  else if (match($0, "^+ *#"))
     process_preprocessor_statement()
   else if (output)
-    print $0
+    line[lines++]=$0
   else
-    print "+"
+    lines_deleted++
 }
 
+END {
+  dump_lines()
+}
