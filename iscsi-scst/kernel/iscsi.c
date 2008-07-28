@@ -1913,7 +1913,7 @@ static void execute_task_management(struct iscsi_cmnd *req)
 		break;
 	case ISCSI_FUNCTION_TASK_REASSIGN:
 		rc = -1;
-		status = ISCSI_RESPONSE_FUNCTION_UNSUPPORTED;
+		status = ISCSI_RESPONSE_ALLEGIANCE_REASSIGNMENT_UNSUPPORTED;
 		break;
 	default:
 		PRINT_ERROR("Unknown TM function %d", function);
