@@ -1,4 +1,4 @@
-diff -upkr linux-2.6.26/include/linux/mm_types.h linux-2.6.26/include/linux/mm_types.h
+diff -upr linux-2.6.26/include/linux/mm_types.h linux-2.6.26/include/linux/mm_types.h
 --- linux-2.6.26/include/linux/mm_types.h	2008-07-14 01:51:29.000000000 +0400
 +++ linux-2.6.26/include/linux/mm_types.h	2008-07-22 20:30:21.000000000 +0400
 @@ -91,6 +91,18 @@ struct page {
@@ -20,9 +20,9 @@ diff -upkr linux-2.6.26/include/linux/mm_types.h linux-2.6.26/include/linux/mm_t
  #ifdef CONFIG_CGROUP_MEM_RES_CTLR
  	unsigned long page_cgroup;
  #endif
-diff -upkr linux-2.6.26/include/linux/net.h linux-2.6.26/include/linux/net.h
+diff -upr linux-2.6.26/include/linux/net.h linux-2.6.26/include/linux/net.h
 --- linux-2.6.26/include/linux/net.h	2008-07-14 01:51:29.000000000 +0400
-+++ linux-2.6.26/include/linux/net.h	2008-07-22 20:37:39.000000000 +0400
++++ linux-2.6.26/include/linux/net.h	2008-07-29 20:48:07.000000000 +0400
 @@ -60,6 +60,7 @@ typedef enum {
  #ifdef __KERNEL__
  #include <linux/stringify.h>
@@ -31,7 +31,7 @@ diff -upkr linux-2.6.26/include/linux/net.h linux-2.6.26/include/linux/net.h
  
  #define SOCK_ASYNC_NOSPACE	0
  #define SOCK_ASYNC_WAITDATA	1
-@@ -342,5 +343,40 @@ extern int net_msg_cost;
+@@ -342,5 +343,44 @@ extern int net_msg_cost;
  extern int net_msg_burst;
  #endif
  
@@ -47,6 +47,10 @@ diff -upkr linux-2.6.26/include/linux/net.h linux-2.6.26/include/linux/net.h
 +	net_get_page_callback_t get_callback,
 +	net_put_page_callback_t put_callback);
 +
++/*
++ * See comment for net_set_get_put_page_callbacks() why those functions
++ * don't need any protection.
++ */
 +static inline void net_get_page(struct page *page)
 +{
 +	if (page->net_priv != 0)
@@ -72,7 +76,7 @@ diff -upkr linux-2.6.26/include/linux/net.h linux-2.6.26/include/linux/net.h
 +
  #endif /* __KERNEL__ */
  #endif	/* _LINUX_NET_H */
-diff -upkr linux-2.6.26/net/core/skbuff.c linux-2.6.26/net/core/skbuff.c
+diff -upr linux-2.6.26/net/core/skbuff.c linux-2.6.26/net/core/skbuff.c
 --- linux-2.6.26/net/core/skbuff.c	2008-07-14 01:51:29.000000000 +0400
 +++ linux-2.6.26/net/core/skbuff.c	2008-07-22 20:28:41.000000000 +0400
 @@ -321,7 +321,7 @@ static void skb_release_data(struct sk_b
@@ -138,7 +142,7 @@ diff -upkr linux-2.6.26/net/core/skbuff.c linux-2.6.26/net/core/skbuff.c
  			size = frag->size;
  
  			if (pos < offset) {
-diff -upkr linux-2.6.26/net/ipv4/ip_output.c linux-2.6.26/net/ipv4/ip_output.c
+diff -upr linux-2.6.26/net/ipv4/ip_output.c linux-2.6.26/net/ipv4/ip_output.c
 --- linux-2.6.26/net/ipv4/ip_output.c	2008-07-14 01:51:29.000000000 +0400
 +++ linux-2.6.26/net/ipv4/ip_output.c	2008-07-22 20:28:41.000000000 +0400
 @@ -1009,7 +1009,7 @@ alloc_new_skb:
@@ -159,7 +163,7 @@ diff -upkr linux-2.6.26/net/ipv4/ip_output.c linux-2.6.26/net/ipv4/ip_output.c
  			skb_fill_page_desc(skb, i, page, offset, len);
  		} else {
  			err = -EMSGSIZE;
-diff -upkr linux-2.6.26/net/ipv4/Makefile linux-2.6.26/net/ipv4/Makefile
+diff -upr linux-2.6.26/net/ipv4/Makefile linux-2.6.26/net/ipv4/Makefile
 --- linux-2.6.26/net/ipv4/Makefile	2008-07-14 01:51:29.000000000 +0400
 +++ linux-2.6.26/net/ipv4/Makefile	2008-07-22 20:35:05.000000000 +0400
 @@ -50,6 +50,7 @@ obj-$(CONFIG_TCP_CONG_LP) += tcp_lp.o
@@ -170,7 +174,7 @@ diff -upkr linux-2.6.26/net/ipv4/Makefile linux-2.6.26/net/ipv4/Makefile
  
  obj-$(CONFIG_XFRM) += xfrm4_policy.o xfrm4_state.o xfrm4_input.o \
  		      xfrm4_output.o
-diff -upkr linux-2.6.26/net/ipv4/tcp.c linux-2.6.26/net/ipv4/tcp.c
+diff -upr linux-2.6.26/net/ipv4/tcp.c linux-2.6.26/net/ipv4/tcp.c
 --- linux-2.6.26/net/ipv4/tcp.c	2008-07-14 01:51:29.000000000 +0400
 +++ linux-2.6.26/net/ipv4/tcp.c	2008-07-22 20:28:41.000000000 +0400
 @@ -716,7 +716,7 @@ new_segment:
@@ -203,7 +207,7 @@ diff -upkr linux-2.6.26/net/ipv4/tcp.c linux-2.6.26/net/ipv4/tcp.c
  						TCP_PAGE(sk) = page;
  					}
  				}
-diff -upkr linux-2.6.26/net/ipv4/tcp_output.c linux-2.6.26/net/ipv4/tcp_output.c
+diff -upr linux-2.6.26/net/ipv4/tcp_output.c linux-2.6.26/net/ipv4/tcp_output.c
 --- linux-2.6.26/net/ipv4/tcp_output.c	2008-07-14 01:51:29.000000000 +0400
 +++ linux-2.6.26/net/ipv4/tcp_output.c	2008-07-22 20:28:41.000000000 +0400
 @@ -805,7 +805,7 @@ static void __pskb_trim_head(struct sk_b
@@ -215,10 +219,10 @@ diff -upkr linux-2.6.26/net/ipv4/tcp_output.c linux-2.6.26/net/ipv4/tcp_output.c
  			eat -= skb_shinfo(skb)->frags[i].size;
  		} else {
  			skb_shinfo(skb)->frags[k] = skb_shinfo(skb)->frags[i];
-diff -upkr linux-2.6.26/net/ipv4/tcp_zero_copy.c linux-2.6.26/net/ipv4/tcp_zero_copy.c
+diff -upr linux-2.6.26/net/ipv4/tcp_zero_copy.c linux-2.6.26/net/ipv4/tcp_zero_copy.c
 --- linux-2.6.26/net/ipv4/tcp_zero_copy.c	2008-07-22 20:12:35.000000000 +0400
-+++ linux-2.6.26/net/ipv4/tcp_zero_copy.c	2008-07-22 20:34:21.000000000 +0400
-@@ -0,0 +1,43 @@
++++ linux-2.6.26/net/ipv4/tcp_zero_copy.c	2008-07-29 20:43:46.000000000 +0400
+@@ -0,0 +1,49 @@
 +/*
 + *	Support routines for TCP zero copy transmit
 + *
@@ -234,6 +238,12 @@ diff -upkr linux-2.6.26/net/ipv4/tcp_zero_copy.c linux-2.6.26/net/ipv4/tcp_zero_
 +net_get_page_callback_t net_get_page_callback __read_mostly;
 +net_put_page_callback_t net_put_page_callback __read_mostly;
 +
++/*
++ * Caller of this function must ensure that at the moment when it's called
++ * there are no pages in the system with net_priv field set to non-zero
++ * value. Hence, this function, as well as net_get_page() and net_put_page(),
++ * don't need any protection.
++ */
 +int net_set_get_put_page_callbacks(
 +	net_get_page_callback_t get_callback,
 +	net_put_page_callback_t put_callback)
@@ -262,7 +272,7 @@ diff -upkr linux-2.6.26/net/ipv4/tcp_zero_copy.c linux-2.6.26/net/ipv4/tcp_zero_
 +
 +EXPORT_SYMBOL(net_get_page_callback);
 +EXPORT_SYMBOL(net_put_page_callback);
-diff -upkr linux-2.6.26/net/ipv6/ip6_output.c linux-2.6.26/net/ipv6/ip6_output.c
+diff -upr linux-2.6.26/net/ipv6/ip6_output.c linux-2.6.26/net/ipv6/ip6_output.c
 --- linux-2.6.26/net/ipv6/ip6_output.c	2008-07-14 01:51:29.000000000 +0400
 +++ linux-2.6.26/net/ipv6/ip6_output.c	2008-07-22 20:28:41.000000000 +0400
 @@ -1336,7 +1336,7 @@ alloc_new_skb:
@@ -274,16 +284,17 @@ diff -upkr linux-2.6.26/net/ipv6/ip6_output.c linux-2.6.26/net/ipv6/ip6_output.c
  					skb_fill_page_desc(skb, i, page, sk->sk_sndmsg_off, 0);
  					frag = &skb_shinfo(skb)->frags[i];
  				}
-diff -upkr linux-2.6.26/net/Kconfig linux-2.6.26/net/Kconfig
+diff -upr linux-2.6.26/net/Kconfig linux-2.6.26/net/Kconfig
 --- linux-2.6.26/net/Kconfig	2008-07-14 01:51:29.000000000 +0400
-+++ linux-2.6.26/net/Kconfig	2008-07-22 20:50:41.000000000 +0400
-@@ -62,6 +62,17 @@ config INET
++++ linux-2.6.26/net/Kconfig	2008-07-25 21:44:06.000000000 +0400
+@@ -62,6 +62,18 @@ config INET
  
  	  Short answer: say Y.
  
 +config TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION
 +	bool "TCP/IP zero-copy transfer completion notification"
 +        depends on INET
++        default SCST_ISCSI
 +	---help---
 +	  Adds support for sending a notification upon completion of a
 +          zero-copy TCP/IP transfer. This can speed up certain TCP/IP
