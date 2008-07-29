@@ -20,7 +20,6 @@
  * This should be included only from within qla2xxx module.
  */
 
-
 #ifndef __QLA2X_TGT_H
 #define __QLA2X_TGT_H
 

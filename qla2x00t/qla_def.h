@@ -2616,6 +2616,12 @@ typedef struct scsi_qla_host {
 	struct qla_chip_state_84xx *cs84xx;
 } scsi_qla_host_t;
 
+/* Wait type for qla2x00_eh_wait_for_pending_commands() */
+enum nexus_wait_type {
+	WAIT_HOST = 0,
+	WAIT_TARGET,
+	WAIT_LUN,
+};
 
 /*
  * Macros to help code, maintain, etc.

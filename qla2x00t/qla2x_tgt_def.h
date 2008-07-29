@@ -326,12 +326,6 @@ typedef struct
 }ctio_ret_entry_t;
 #endif
 
-enum nexus_wait_type {
-	WAIT_HOST = 0,
-	WAIT_TARGET,
-	WAIT_LUN,
-};
-
 /********************************************************************\
  * Type Definitions used by initiator & target halves
 \********************************************************************/
@@ -356,7 +350,7 @@ struct qla2x_tgt_target
 {
 	int magic;
 
-	/* Callbacks - H/W lock MUST be held while calling any*/
+	/* Callbacks - H/W lock MUST be held while calling any */
 	request_t *(*req_pkt)(scsi_qla_host_t *ha);
 	void (*isp_cmd)(scsi_qla_host_t *ha);
 	void (*enable_lun)(scsi_qla_host_t *ha);
@@ -370,15 +364,5 @@ int qla2xxx_tgt_register_driver(/* IN */  struct qla2x_tgt_initiator *tgt,
 				/* OUT */ struct qla2x_tgt_target *init);
 
 void qla2xxx_tgt_unregister_driver(void);
-
-
-/* from qla_os.c for __qla2x00_host_reset in qla_init.c*/
-int
-qla2x00_wait_for_loop_ready(scsi_qla_host_t *ha);
-int
-qla2x00_wait_for_hba_online(scsi_qla_host_t *ha);
-int
-qla2x00_eh_wait_for_pending_commands(scsi_qla_host_t *ha, unsigned int t,
-    unsigned int l, enum nexus_wait_type type);
 
 #endif
