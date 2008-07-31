@@ -91,13 +91,13 @@ static void log_params(struct iscsi_sess_param *param)
 /* target_mutex supposed to be locked */
 static void sess_param_check(struct iscsi_param_info *info)
 {
-	u32 *iparam = info->session_param;
+	s32 *iparam = info->session_param;
 
 	CHECK_PARAM(info, iparam, max_connections, 1, 1);
 	CHECK_PARAM(info, iparam, max_recv_data_length, 512,
-		    (u32) (ISCSI_CONN_IOV_MAX * PAGE_SIZE));
+		    (s32) (ISCSI_CONN_IOV_MAX * PAGE_SIZE));
 	CHECK_PARAM(info, iparam, max_xmit_data_length, 512,
-		    (u32) (ISCSI_CONN_IOV_MAX * PAGE_SIZE));
+		    (s32) (ISCSI_CONN_IOV_MAX * PAGE_SIZE));
 	CHECK_PARAM(info, iparam, error_recovery_level, 0, 0);
 	CHECK_PARAM(info, iparam, data_pdu_inorder, 0, 1);
 	CHECK_PARAM(info, iparam, data_sequence_inorder, 0, 1);

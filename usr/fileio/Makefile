@@ -32,7 +32,7 @@ LIBS = -lpthread
 
 CFLAGS += -DEXTRACHECKS
 #CFLAGS += -DTRACING
-CFLAGS += -DDEBUG -g
+CFLAGS += -DDEBUG -g -W -Wno-unused-parameter
 
 #CFLAGS += -DDEBUG_NOMEM
 #CFLAGS += -DDEBUG_SENSE

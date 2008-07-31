@@ -674,7 +674,7 @@ static int q2t_xmit_response(struct scst_cmd *scst_cmd)
 	struct q2t_sess *sess;
 	int is_send_status;
 	unsigned long flags = 0;
-	struct q2t_prm prm = { 0 };
+	struct q2t_prm prm;
 	int data_sense_flag = 0;
 	uint16_t full_req_cnt;
 
@@ -685,6 +685,8 @@ static int q2t_xmit_response(struct scst_cmd *scst_cmd)
 	if (scst_cmd_atomic(scst_cmd))
 		return SCST_TGT_RES_NEED_THREAD_CTX;
 #endif
+
+	memset(&prm, 0, sizeof(prm));
 
 	prm.cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
 	sess = (struct q2t_sess *)
@@ -831,7 +833,7 @@ static int q2t_rdy_to_xfer(struct scst_cmd *scst_cmd)
 	int res = SCST_TGT_RES_SUCCESS;
 	struct q2t_sess *sess;
 	unsigned long flags = 0;
-	struct q2t_prm prm = { 0 };
+	struct q2t_prm prm;
 
 	TRACE_ENTRY();
 	TRACE(TRACE_SCSI, "tag=%Ld", scst_cmd_get_tag(scst_cmd));
@@ -840,6 +842,8 @@ static int q2t_rdy_to_xfer(struct scst_cmd *scst_cmd)
 	if (scst_cmd_atomic(scst_cmd))
 		return SCST_TGT_RES_NEED_THREAD_CTX;
 #endif
+
+	memset(&prm, 0, sizeof(prm));
 
 	prm.cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
 	sess = (struct q2t_sess *)

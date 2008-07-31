@@ -104,8 +104,8 @@ struct iscsi_param_info {
 	u32 param_type;
 	u32 partial;
 
-	u32 session_param[session_key_last];
-	u32 target_param[target_key_last];
+	s32 session_param[session_key_last];
+	s32 target_param[target_key_last];
 };
 
 enum iscsi_event_state {
