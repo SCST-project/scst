@@ -1,6 +1,6 @@
-diff -upkr linux-2.6.26/drivers/scsi/scsi_lib.c linux-2.6.26/drivers/scsi/scsi_lib.c
+diff -upr linux-2.6.26/drivers/scsi/scsi_lib.c linux-2.6.26/drivers/scsi/scsi_lib.c
 --- linux-2.6.26/drivers/scsi/scsi_lib.c	2008-07-14 01:51:29.000000000 +0400
-+++ linux-2.6.26/drivers/scsi/scsi_lib.c	2008-07-22 20:24:44.000000000 +0400
++++ linux-2.6.26/drivers/scsi/scsi_lib.c	2008-07-31 21:20:00.000000000 +0400
 @@ -372,7 +372,7 @@ free_bios:
  }
  
@@ -36,7 +36,7 @@ diff -upkr linux-2.6.26/drivers/scsi/scsi_lib.c linux-2.6.26/drivers/scsi/scsi_l
  	return 0;
  
  free_req:
-@@ -435,8 +438,53 @@ free_sense:
+@@ -435,8 +438,55 @@ free_sense:
  	kmem_cache_free(scsi_io_context_cache, sioc);
  	return DRIVER_ERROR << 24;
  }
@@ -55,8 +55,9 @@ diff -upkr linux-2.6.26/drivers/scsi/scsi_lib.c linux-2.6.26/drivers/scsi/scsi_l
 + * @flags:	or into request flags
 + **/
 +int scsi_execute_async(struct scsi_device *sdev, const unsigned char *cmd,
-+		       int cmd_len, int data_direction, void *buffer, unsigned bufflen,
-+		       int use_sg, int timeout, int retries, void *privdata,
++		       int cmd_len, int data_direction, void *buffer,
++		       unsigned bufflen, int use_sg, int timeout,
++		       int retries, void *privdata,
 +		       void (*done)(void *, char *, int, int), gfp_t gfp)
 +{
 +	return __scsi_execute_async(sdev, cmd, cmd_len, data_direction, buffer,
@@ -78,8 +79,9 @@ diff -upkr linux-2.6.26/drivers/scsi/scsi_lib.c linux-2.6.26/drivers/scsi/scsi_l
 + * @flags:	or into request flags
 + **/
 +int scsi_execute_async_fifo(struct scsi_device *sdev, const unsigned char *cmd,
-+		       int cmd_len, int data_direction, void *buffer, unsigned bufflen,
-+		       int use_sg, int timeout, int retries, void *privdata,
++		       int cmd_len, int data_direction, void *buffer,
++		       unsigned bufflen, int use_sg, int timeout, int retries,
++		       void *privdata,
 +		       void (*done)(void *, char *, int, int), gfp_t gfp)
 +{
 +	return __scsi_execute_async(sdev, cmd, cmd_len, data_direction, buffer,
@@ -90,17 +92,18 @@ diff -upkr linux-2.6.26/drivers/scsi/scsi_lib.c linux-2.6.26/drivers/scsi/scsi_l
  /*
   * Function:    scsi_init_cmd_errh()
   *
-diff -upkr linux-2.6.26/include/scsi/scsi_device.h linux-2.6.26/include/scsi/scsi_device.h
+diff -upr linux-2.6.26/include/scsi/scsi_device.h linux-2.6.26/include/scsi/scsi_device.h
 --- linux-2.6.26/include/scsi/scsi_device.h	2008-07-14 01:51:29.000000000 +0400
-+++ linux-2.6.26/include/scsi/scsi_device.h	2008-07-22 20:24:44.000000000 +0400
-@@ -333,6 +333,13 @@ extern int scsi_execute_async(struct scs
++++ linux-2.6.26/include/scsi/scsi_device.h	2008-07-31 21:20:39.000000000 +0400
+@@ -333,6 +333,14 @@ extern int scsi_execute_async(struct scs
  			      int timeout, int retries, void *privdata,
  			      void (*done)(void *, char *, int, int),
  			      gfp_t gfp);
 +#define SCSI_EXEC_REQ_FIFO_DEFINED
 +extern int scsi_execute_async_fifo(struct scsi_device *sdev,
-+			      const unsigned char *cmd, int cmd_len, int data_direction,
-+			      void *buffer, unsigned bufflen, int use_sg,
++			      const unsigned char *cmd, int cmd_len,
++			      int data_direction, void *buffer,
++			      unsigned bufflen, int use_sg,
 +			      int timeout, int retries, void *privdata,
 +			      void (*done)(void *, char *, int, int),
 +			      gfp_t gfp);

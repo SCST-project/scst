@@ -49,6 +49,10 @@ extern void qla2x00_try_to_stop_firmware(scsi_qla_host_t *);
 
 extern void qla84xx_put_chip(struct scsi_qla_host *);
 
+extern int qla2x00_configure_loop(scsi_qla_host_t *ha);
+extern int qla2x00_configure_local_loop(scsi_qla_host_t *ha);
+extern int qla2x00_configure_fabric(scsi_qla_host_t *ha);
+
 /*
  * Global Data in qla_os.c source file.
  */

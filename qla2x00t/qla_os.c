@@ -1784,7 +1784,7 @@ qla2x00_stop_dpc_thread(scsi_qla_host_t *ha)
 		ha->dpc_thread = NULL;
 	}
 	spin_unlock_irq(&ha->dpc_lock);
-		
+
 	if (t != NULL)
 		kthread_stop(t);
 }

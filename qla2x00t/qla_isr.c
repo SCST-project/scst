@@ -365,7 +365,7 @@ qla2x00_async_event(scsi_qla_host_t *ha, uint16_t *mb)
 		set_bit(RESET_MARKER_NEEDED, &ha->dpc_flags);
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 		if (qla_target.tgt_async_event)
-                        qla_target.tgt_async_event(mb[0], ha, mb);
+			qla_target.tgt_async_event(mb[0], ha, mb);
 #endif
 		break;
 
@@ -394,7 +394,7 @@ qla2x00_async_event(scsi_qla_host_t *ha, uint16_t *mb)
 			set_bit(ISP_ABORT_NEEDED, &ha->dpc_flags);
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 		if (qla_target.tgt_async_event)
-                        qla_target.tgt_async_event(mb[0], ha, mb);
+			qla_target.tgt_async_event(mb[0], ha, mb);
 #endif
 		break;
 
@@ -407,7 +407,7 @@ qla2x00_async_event(scsi_qla_host_t *ha, uint16_t *mb)
 		set_bit(ISP_ABORT_NEEDED, &ha->dpc_flags);
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 		if (qla_target.tgt_async_event)
-                        qla_target.tgt_async_event(mb[0], ha, mb);
+			qla_target.tgt_async_event(mb[0], ha, mb);
 #endif
 		break;
 
@@ -420,7 +420,7 @@ qla2x00_async_event(scsi_qla_host_t *ha, uint16_t *mb)
 		set_bit(ISP_ABORT_NEEDED, &ha->dpc_flags);
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 		if (qla_target.tgt_async_event)
-                        qla_target.tgt_async_event(mb[0], ha, mb);
+			qla_target.tgt_async_event(mb[0], ha, mb);
 #endif
 		break;
 
@@ -429,7 +429,7 @@ qla2x00_async_event(scsi_qla_host_t *ha, uint16_t *mb)
 		    ha->host_no));
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 		if (qla_target.tgt_async_event)
-                        qla_target.tgt_async_event(mb[0], ha, mb);
+			qla_target.tgt_async_event(mb[0], ha, mb);
 #endif
 		break;
 
@@ -456,7 +456,7 @@ qla2x00_async_event(scsi_qla_host_t *ha, uint16_t *mb)
 		qla2x00_post_aen_work(ha, FCH_EVT_LIP, mb[1]);
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 		if (qla_target.tgt_async_event)
-                        qla_target.tgt_async_event(mb[0], ha, mb);
+			qla_target.tgt_async_event(mb[0], ha, mb);
 #endif
 		break;
 
@@ -480,7 +480,7 @@ qla2x00_async_event(scsi_qla_host_t *ha, uint16_t *mb)
 		qla2x00_post_aen_work(ha, FCH_EVT_LINKUP, ha->link_data_rate);
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 		if (qla_target.tgt_async_event)
-                        qla_target.tgt_async_event(mb[0], ha, mb);
+			qla_target.tgt_async_event(mb[0], ha, mb);
 #endif
 		break;
 
@@ -507,7 +507,7 @@ qla2x00_async_event(scsi_qla_host_t *ha, uint16_t *mb)
 		qla2x00_post_aen_work(ha, FCH_EVT_LINKDOWN, 0);
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 		if (qla_target.tgt_async_event)
-                        qla_target.tgt_async_event(mb[0], ha, mb);
+			qla_target.tgt_async_event(mb[0], ha, mb);
 #endif
 		break;
 
@@ -535,7 +535,7 @@ qla2x00_async_event(scsi_qla_host_t *ha, uint16_t *mb)
 		qla2x00_post_aen_work(ha, FCH_EVT_LIPRESET, mb[1]);
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 		if (qla_target.tgt_async_event)
-                        qla_target.tgt_async_event(mb[0], ha, mb);
+			qla_target.tgt_async_event(mb[0], ha, mb);
 #endif
 		break;
 
@@ -573,7 +573,7 @@ qla2x00_async_event(scsi_qla_host_t *ha, uint16_t *mb)
 		ha->flags.management_server_logged_in = 0;
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 		if (qla_target.tgt_async_event)
-                        qla_target.tgt_async_event(mb[0], ha, mb);
+			qla_target.tgt_async_event(mb[0], ha, mb);
 #endif
 		break;
 
@@ -604,7 +604,7 @@ qla2x00_async_event(scsi_qla_host_t *ha, uint16_t *mb)
 		set_bit(LOCAL_LOOP_UPDATE, &ha->dpc_flags);
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 		if (qla_target.tgt_async_event)
-                        qla_target.tgt_async_event(mb[0], ha, mb);
+			qla_target.tgt_async_event(mb[0], ha, mb);
 #endif
 		break;
 
@@ -626,7 +626,7 @@ qla2x00_async_event(scsi_qla_host_t *ha, uint16_t *mb)
 			    mb[2], mb[3]));
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 			if (qla_target.tgt_async_event)
-        	                qla_target.tgt_async_event(mb[0], ha, mb);
+				qla_target.tgt_async_event(mb[0], ha, mb);
 #endif
 			break;
 		}
@@ -650,7 +650,7 @@ qla2x00_async_event(scsi_qla_host_t *ha, uint16_t *mb)
 		set_bit(LOCAL_LOOP_UPDATE, &ha->dpc_flags);
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 		if (qla_target.tgt_async_event)
-                        qla_target.tgt_async_event(mb[0], ha, mb);
+			qla_target.tgt_async_event(mb[0], ha, mb);
 #endif
 		break;
 
@@ -698,7 +698,7 @@ qla2x00_async_event(scsi_qla_host_t *ha, uint16_t *mb)
 		qla2x00_post_aen_work(ha, FCH_EVT_RSCN, rscn_entry);
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 		if (qla_target.tgt_async_event)
-                        qla_target.tgt_async_event(mb[0], ha, mb);
+			qla_target.tgt_async_event(mb[0], ha, mb);
 #endif
 		break;
 
@@ -916,13 +916,13 @@ qla2x00_process_response_queue(struct scsi_qla_host *ha)
 
 		switch (pkt->entry_type) {
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
-                case ACCEPT_TGT_IO_TYPE:
-                case CONTINUE_TGT_IO_TYPE:
-                case CTIO_A64_TYPE:
-                case IMMED_NOTIFY_TYPE:
-                case NOTIFY_ACK_TYPE:
-                case ENABLE_LUN_TYPE:
-                case MODIFY_LUN_TYPE:
+		case ACCEPT_TGT_IO_TYPE:
+		case CONTINUE_TGT_IO_TYPE:
+		case CTIO_A64_TYPE:
+		case IMMED_NOTIFY_TYPE:
+		case NOTIFY_ACK_TYPE:
+		case ENABLE_LUN_TYPE:
+		case MODIFY_LUN_TYPE:
 			DEBUG4(printk(KERN_WARNING
 				      "qla2x00_response_pkt: "
 				      "calling tgt_response_pkt %p "
@@ -930,9 +930,7 @@ qla2x00_process_response_queue(struct scsi_qla_host *ha)
 				      qla_target.tgt_response_pkt,
 				      pkt->entry_type););
 			if (qla_target.tgt_response_pkt)
-			{
 				qla_target.tgt_response_pkt(ha, pkt);
-			}
 			break;
 #endif /* CONFIG_SCSI_QLA2XXX_TARGET */
 		case STATUS_TYPE:

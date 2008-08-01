@@ -12,7 +12,6 @@
 #include <scsi/scsi_tcq.h>
 
 request_t *qla2x00_req_pkt(scsi_qla_host_t *ha);
-void qla2x00_isp_cmd(scsi_qla_host_t *ha);
 
 /**
  * qla2x00_get_cmd_direction() - Determine control_flag data direction.

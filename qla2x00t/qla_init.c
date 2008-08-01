@@ -29,9 +29,6 @@ static void qla2x00_init_response_q_entries(scsi_qla_host_t *);
 static int qla2x00_init_rings(scsi_qla_host_t *);
 static int qla2x00_fw_ready(scsi_qla_host_t *);
 static int qla2x00_configure_hba(scsi_qla_host_t *);
-int qla2x00_configure_loop(scsi_qla_host_t *);
-int qla2x00_configure_local_loop(scsi_qla_host_t *);
-int qla2x00_configure_fabric(scsi_qla_host_t *);
 static int qla2x00_find_all_fabric_devs(scsi_qla_host_t *, struct list_head *);
 static int qla2x00_device_resync(scsi_qla_host_t *);
 static int qla2x00_fabric_dev_login(scsi_qla_host_t *, fc_port_t *, uint16_t *);
@@ -630,8 +627,8 @@ qla2x00_chip_diag(scsi_qla_host_t *ha)
 
 	if (!IS_QLA23XX(ha)) {
 		/*
-		 * We need to have a delay here since the card will not respond while
-		 * in reset causing an MCA on some architectures.
+		 * We need to have a delay here since the card will not respond
+		 * while in reset causing an MCA on some architectures.
 		 */
 		udelay(30);
 		data = qla2x00_debounce_register(&reg->ctrl_status);
@@ -644,8 +641,8 @@ qla2x00_chip_diag(scsi_qla_host_t *ha)
 		if (!cnt)
 			goto chip_diag_failed;
 
-		DEBUG3(printk("scsi(%ld): Reset register cleared by chip reset\n",
-			      ha->host_no));
+		DEBUG3(printk(KERN_INFO "scsi(%ld): Reset register cleared by "
+			"chip reset\n", ha->host_no));
 
 	} else {
 		/*
@@ -4205,13 +4202,13 @@ __qla2x00_disable_lun(scsi_qla_host_t *ha)
 int
 __qla2x00_issue_marker(scsi_qla_host_t *ha)
 {
-        /* Send marker if required */
-        if (ha->marker_needed != 0) {
+	/* Send marker if required */
+	if (ha->marker_needed != 0) {
 		if (__qla2x00_marker(ha, 0, 0, MK_SYNC_ALL) != QLA_SUCCESS)
-			return (QLA_FUNCTION_FAILED);
-                ha->marker_needed = 0;
-        }
-        return (QLA_SUCCESS);
+			return QLA_FUNCTION_FAILED;
+		ha->marker_needed = 0;
+	}
+	return QLA_SUCCESS;
 }
 
 int
@@ -4257,15 +4254,15 @@ qla2x00_req_cont_pkt(scsi_qla_host_t *ha)
 
 int
 qla2xxx_tgt_register_driver(struct qla2x_tgt_initiator *tgt_data,
-				struct qla2x_tgt_target* init_data)
+				struct qla2x_tgt_target *init_data)
 {
 	int res = 0;
 
 	ENTER(__func__);
 
 	if ((tgt_data == NULL) || (tgt_data->magic != QLA2X_TARGET_MAGIC)) {
-		printk("***ERROR*** Wrong version of the target driver: %d\n",
-			tgt_data->magic);
+		printk(KERN_INFO "***ERROR*** Wrong version of the target "
+			"driver: %d\n", tgt_data->magic);
 		res = -EINVAL;
 		goto out;
 	}

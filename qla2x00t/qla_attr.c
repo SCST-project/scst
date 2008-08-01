@@ -42,9 +42,8 @@ qla2x00_store_tgt_enabled(struct device *dev, struct device_attribute *attr,
 	struct scsi_qla_host *ha = shost_priv(class_to_shost(dev));
 	int force = 0;
 
-	if (buf == NULL) {
+	if (buf == NULL)
 		return size;
-	}
 
 	if (qla_target.tgt_host_action == NULL) {
 		printk(KERN_INFO "%s: not acting for lack of target driver\n",
@@ -71,14 +70,13 @@ qla2x00_store_tgt_enabled(struct device *dev, struct device_attribute *attr,
 		}
 		break;
 	default:
-		printk("%s: Requested action not understood: %s\n",
+		printk(KERN_INFO "%s: Requested action not understood: %s\n",
 		       __func__, buf);
 		break;
 	}
 
-	if ((size > 2) && (buf[2] == 'r')) {
+	if ((size > 2) && (buf[2] == 'r'))
 		set_bit(ISP_ABORT_NEEDED, &ha->dpc_flags);
-	}
 
 	return size;
 }
@@ -101,8 +99,8 @@ qla2x00_show_resource_counts(struct device *dev,
 	mc.mb[0] = MBC_GET_RESOURCE_COUNTS;
 	mc.out_mb = MBX_0;
 	mc.in_mb = MBX_0|MBX_1|MBX_2;
-        mc.tov = 30;
-        mc.flags = 0;
+	mc.tov = 30;
+	mc.flags = 0;
 
 	rval = qla2x00_mailbox_command(ha, &mc);
 
@@ -126,11 +124,6 @@ static DEVICE_ATTR(resource_counts,
 			 qla2x00_show_resource_counts,
 			 NULL);
 
-typedef struct {
-	uint8_t port_name[WWN_SIZE];
-	uint16_t loop_id;
-} port_data_t;
-
 static ssize_t
 qla2x00_show_port_database(struct device *dev,
 			 struct device_attribute *attr, char *buf)
@@ -140,12 +133,15 @@ qla2x00_show_port_database(struct device *dev,
 	ulong size = 0;
 	int rval, i;
 	uint16_t entries;
-
 	mbx_cmd_t mc;
 	dma_addr_t pmap_dma;
-	port_data_t *pmap;
+	struct port_data {
+		uint8_t port_name[WWN_SIZE];
+		uint16_t loop_id;
+	} *pmap;
 	ulong dma_size = 0x100*sizeof(*pmap);
-	pmap = (port_data_t *)dma_alloc_coherent(&ha->pdev->dev, dma_size,
+
+	pmap = (struct port_data *)dma_alloc_coherent(&ha->pdev->dev, dma_size,
 						&pmap_dma, GFP_KERNEL);
 	if (pmap == NULL) {
 		size = scnprintf(buf, max_size, "DMA Alloc failed of %ld",
@@ -161,8 +157,8 @@ qla2x00_show_port_database(struct device *dev,
 	mc.mb[7] = LSW(MSD(pmap_dma));
 	mc.out_mb = MBX_0|MBX_1|MBX_2|MBX_3|MBX_6|MBX_7;
 	mc.in_mb = MBX_0|MBX_1;
-        mc.tov = 30;
-        mc.flags = MBX_DMA_IN;
+	mc.tov = 30;
+	mc.flags = MBX_DMA_IN;
 
 	rval = qla2x00_mailbox_command(ha, &mc);
 
@@ -176,8 +172,9 @@ qla2x00_show_port_database(struct device *dev,
 	entries = le16_to_cpu(mc.mb[1])/sizeof(*pmap);
 
 	size += scnprintf(buf+size, max_size-size,
-			 "Port Name List (%#04x) returned %d bytes\nL_ID WWPN\n",
-			 MBC_PORT_NODE_NAME_LIST, le16_to_cpu(mc.mb[1]));
+			  "Port Name List (%#04x) returned %d bytes\n"
+			  "L_ID WWPN\n", MBC_PORT_NODE_NAME_LIST,
+			  le16_to_cpu(mc.mb[1]));
 
 	for (i = 0; (i < entries) && (size < max_size); ++i) {
 		size += scnprintf(buf+size, max_size-size,
@@ -244,7 +241,7 @@ out_free:
 get_id_failed:
 	if (size < max_size) {
 		fc_port_t *fcport;
-		char * state;
+		char *state;
 		char port_type[] = "URSBIT";
 
 		size += scnprintf(buf+size, max_size-size,
@@ -254,38 +251,50 @@ get_id_failed:
 			if (size >= max_size)
 				goto out;
 			switch (atomic_read(&fcport->state)) {
-			case FCS_UNCONFIGURED : state = "Unconfigured"; break;
-			case FCS_DEVICE_DEAD : state = "Dead"; break;
-			case FCS_DEVICE_LOST : state = "Lost"; break;
-			case FCS_ONLINE	: state = "Online"; break;
-			case FCS_NOT_SUPPORTED : state = "Not Supported"; break;
-			case FCS_FAILOVER : state = "Failover"; break;
-			case FCS_FAILOVER_FAILED : state = "Failover Failed"; break;
-			default: state = "Unknown"; break;
+			case FCS_UNCONFIGURED:
+				state = "Unconfigured";
+				break;
+			case FCS_DEVICE_DEAD:
+				state = "Dead";
+				break;
+			case FCS_DEVICE_LOST:
+				state = "Lost";
+				break;
+			case FCS_ONLINE:
+				state = "Online";
+				break;
+			case FCS_NOT_SUPPORTED:
+				state = "Not Supported";
+				break;
+			case FCS_FAILOVER:
+				state = "Failover";
+				break;
+			case FCS_FAILOVER_FAILED:
+				state = "Failover Failed";
+				break;
+			default:
+				state = "Unknown";
+				break;
 			}
 
 			size += scnprintf(buf+size, max_size-size,
-					 "%04x %02x%02x%02x "
-					 "%02x%02x%02x%02x%02x%02x%02x%02x "
-					 "%c %s\n",
-					 fcport->loop_id,
-					 fcport->d_id.b.domain,
-					 fcport->d_id.b.area,
-					 fcport->d_id.b.al_pa,
-					 fcport->port_name[0], fcport->port_name[1],
-					 fcport->port_name[2], fcport->port_name[3],
-					 fcport->port_name[4], fcport->port_name[5],
-					 fcport->port_name[6], fcport->port_name[7],
-					 port_type[fcport->port_type], state);
+				 "%04x %02x%02x%02x "
+				 "%02x%02x%02x%02x%02x%02x%02x%02x "
+				 "%c %s\n",
+				 fcport->loop_id,
+				 fcport->d_id.b.domain,
+				 fcport->d_id.b.area,
+				 fcport->d_id.b.al_pa,
+				 fcport->port_name[0], fcport->port_name[1],
+				 fcport->port_name[2], fcport->port_name[3],
+				 fcport->port_name[4], fcport->port_name[5],
+				 fcport->port_name[6], fcport->port_name[7],
+				 port_type[fcport->port_type], state);
 		}
 	}
 out:
 	return size;
 }
-
-extern int qla2x00_configure_loop(scsi_qla_host_t *);
-extern int qla2x00_configure_local_loop(scsi_qla_host_t *);
-extern int qla2x00_configure_fabric(scsi_qla_host_t *);
 
 static ssize_t
 qla2x00_update_portdb(struct device *dev, struct device_attribute *attr,
@@ -1163,7 +1172,7 @@ struct device_attribute *qla2x00_host_attrs[] = {
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 	&dev_attr_target_mode_enabled,
 	&dev_attr_resource_counts,
-	&dev_attr_port_database,	
+	&dev_attr_port_database,
 #endif
 	NULL,
 };

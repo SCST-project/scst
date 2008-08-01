@@ -2182,7 +2182,7 @@ restart:
 		}
 		full_len -= err;
 		for (i = 0; i < e; i++) {
-			if (eiv->iov_len < err) {
+			if ((long long)eiv->iov_len < err) {
 				err -= eiv->iov_len;
 				eiv++;
 				eiv_count--;
