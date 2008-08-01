@@ -170,7 +170,7 @@ out_redirect:
 	goto out;
 }
 
-#ifdef MEASURE_LATENCY
+#ifdef CONFIG_SCST_MEASURE_LATENCY
 static inline uint64_t scst_sec_to_nsec(time_t sec)
 {
 	return (uint64_t)sec * 1000000000;
@@ -184,7 +184,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context)
 
 	TRACE_ENTRY();
 
-#ifdef MEASURE_LATENCY
+#ifdef CONFIG_SCST_MEASURE_LATENCY
 	{
 		struct timespec ts;
 		getnstimeofday(&ts);
@@ -1078,7 +1078,7 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 {
 	TRACE_ENTRY();
 
-#ifdef MEASURE_LATENCY
+#ifdef CONFIG_SCST_MEASURE_LATENCY
 	{
 		struct timespec ts;
 		getnstimeofday(&ts);
@@ -1213,7 +1213,7 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state)
 
 	TRACE_ENTRY();
 
-#ifdef MEASURE_LATENCY
+#ifdef CONFIG_SCST_MEASURE_LATENCY
 	{
 		struct timespec ts;
 		getnstimeofday(&ts);
@@ -1925,7 +1925,7 @@ static int scst_send_to_midlev(struct scst_cmd **active_cmd)
 		goto out;
 	}
 
-#ifdef MEASURE_LATENCY
+#ifdef CONFIG_SCST_MEASURE_LATENCY
 	if (cmd->pre_exec_finish == 0) {
 		struct timespec ts;
 		getnstimeofday(&ts);
@@ -2569,7 +2569,7 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 	res = SCST_CMD_STATE_RES_CONT_SAME;
 
 out:
-#ifdef MEASURE_LATENCY
+#ifdef CONFIG_SCST_MEASURE_LATENCY
 	{
 		struct timespec ts;
 		uint64_t finish, scst_time, proc_time;

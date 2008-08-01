@@ -131,7 +131,7 @@ EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -W -Wno-unused-parameter
 #EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG_OOM
 #EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG_SN
 
-#EXTRA_CFLAGS += -DMEASURE_LATENCY
+#EXTRA_CFLAGS += -DCONFIG_SCST_MEASURE_LATENCY
 
 # If defined, makes SCST zero allocated data buffers. 
 # Undefining it considerably improves performance and eases CPU load, 

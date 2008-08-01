@@ -33,18 +33,10 @@
 
 #include <scst.h>
 
-/* Necessary to have equal structures with the initiator */
-#if defined(FC_IP_SUPPORT)
-#include <linux/ip.h>
-#include <linux/if_arp.h>
-#include <linux/skbuff.h>
-#include "qla_ip.h"
-#endif
-
 #include "qla2x00t.h"
 
-#ifndef FC_TARGET_SUPPORT
-#error "FC_TARGET_SUPPORT is NOT DEFINED"
+#if !defined(CONFIG_SCSI_QLA2XXX_TARGET)
+#error "CONFIG_SCSI_QLA2XXX_TARGET is NOT DEFINED"
 #endif
 
 #ifdef CONFIG_SCST_DEBUG
@@ -88,7 +80,7 @@ struct scst_tgt_template tgt_template = {
 	name: "qla2x00tgt",
 	sg_tablesize: 0,
 	use_clustering: 1,
-#ifdef DEBUG_WORK_IN_THREAD
+#ifdef CONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
 	xmit_response_atomic: 0,
 	rdy_to_xfer_atomic: 0,
 #else
@@ -681,7 +673,7 @@ static int q2t_xmit_response(struct scst_cmd *scst_cmd)
 	TRACE_ENTRY();
 	TRACE(TRACE_SCSI, "tag=%Ld", scst_cmd_get_tag(scst_cmd));
 
-#ifdef DEBUG_WORK_IN_THREAD
+#ifdef CONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
 	if (scst_cmd_atomic(scst_cmd))
 		return SCST_TGT_RES_NEED_THREAD_CTX;
 #endif
@@ -838,7 +830,7 @@ static int q2t_rdy_to_xfer(struct scst_cmd *scst_cmd)
 	TRACE_ENTRY();
 	TRACE(TRACE_SCSI, "tag=%Ld", scst_cmd_get_tag(scst_cmd));
 
-#ifdef DEBUG_WORK_IN_THREAD
+#ifdef CONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
 	if (scst_cmd_atomic(scst_cmd))
 		return SCST_TGT_RES_NEED_THREAD_CTX;
 #endif
@@ -1125,7 +1117,7 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha,
 		if (status != CTIO_SUCCESS)
 			rx_status = SCST_RX_STATUS_ERROR;
 
-#ifdef DEBUG_WORK_IN_THREAD
+#ifdef CONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
 		context = SCST_CONTEXT_THREAD;
 #endif
 
@@ -1267,7 +1259,7 @@ static int q2t_do_send_cmd_to_scst(scsi_qla_host_t *ha, struct q2t_cmd *cmd)
 		break;
 	}
 
-#ifdef DEBUG_WORK_IN_THREAD
+#ifdef CONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
 	context = SCST_CONTEXT_THREAD;
 #else
 	context = SCST_CONTEXT_TASKLET;

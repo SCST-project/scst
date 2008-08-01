@@ -1,81 +1,81 @@
-menu "SCSI target middle level support"
+menu "SCSI target (SCST) support"
 
 config SCST
-	tristate "SCSI target middle level support"
-	default SCSI
+	tristate "SCSI target (SCST) support"
+	default n
 	depends on SCSI && PROC_FS
 	help
-	  SCSI TARGET is designed to provide unified, consistent interface
-	  between SCSI target drivers and Linux kernel and simplify target
-	  drivers development as much as possible.
+	  SCSI target (SCST) is designed to provide unified, consistent
+	  interface between SCSI target drivers and Linux kernel and
+	  simplify target drivers development as much as possible. Visit
+	  http://scst.sourceforge.net for more info about it.
 
 config SCST_DISK
 	tristate "SCSI target disk support"
 	default SCST
 	depends on SCSI && PROC_FS && SCST
 	help
-	  SCSI TARGET handler for disk device.
+	  SCST pass-through device handler for disk device.
 
 config SCST_TAPE
 	tristate "SCSI target tape support"
 	default SCST
 	depends on SCSI && PROC_FS && SCST
 	help
-	  SCSI TARGET handler for tape device.
+	  SCST pass-through device handler for tape device.
 
 config SCST_CDROM
-	tristate "SCSI target cdrom support"
+	tristate "SCSI target CDROM support"
 	default SCST
 	depends on SCSI && PROC_FS && SCST
 	help
-	  SCSI TARGET handler for cdrom device.
+	  SCST pass-through device handler for CDROM device.
 
 config SCST_MODISK
 	tristate "SCSI target MO disk support"
 	default SCST
 	depends on SCSI && PROC_FS && SCST
 	help
-	  SCSI TARGET handler for MO disk device.
+	  SCST pass-through device handler for MO disk device.
 
 config SCST_CHANGER
 	tristate "SCSI target changer support"
 	default SCST
 	depends on SCSI && PROC_FS && SCST
 	help
-	  SCSI TARGET handler for changer device.
+	  SCST pass-through device handler for changer device.
 
 config SCST_PROCESSOR
 	tristate "SCSI target processor support"
 	default SCST
 	depends on SCSI && PROC_FS && SCST
 	help
-	  SCSI TARGET handler for processor device.
+	  SCST pass-through device handler for processor device.
 
 config SCST_RAID
-	tristate "SCSI target storage array controller (raid) support"
+	tristate "SCSI target storage array controller (RAID) support"
 	default SCST
 	depends on SCSI && PROC_FS && SCST
 	help
-	  SCSI TARGET handler for raid storage array controller (raid) device.
+	  SCST pass-through device handler for raid storage array controller (RAID) device.
 
 config SCST_VDISK
-	tristate "SCSI target virtual disk and/or cdrom support"
+	tristate "SCSI target virtual disk and/or CDROM support"
 	default SCST
 	depends on SCSI && PROC_FS && SCST
 	help
-	  SCSI TARGET handler for virtual disk and/or cdrom device.
+	  SCST device handler for virtual disk and/or CDROM device.
 
 config SCST_USER
 	tristate "SCSI user space virtual target devices support"
 	default SCST
 	depends on SCSI && PROC_FS && SCST && ! HIGHMEM
 	help
-	  SCSI TARGET handler for virtual user space device.
-
-source "drivers/scst/iscsi-scst/Kconfig"
+	  SCST device handler for virtual user space device.
 
 config SCST_STRICT_SERIALIZING
 	bool "Strict serialization"
+	depends on SCST
 	help
 	  Enable strict SCSI command serialization. When enabled, SCST sends
 	  all SCSI commands to the underlying SCSI device synchronously, one
@@ -87,18 +87,22 @@ config SCST_STRICT_SERIALIZING
 	  in Linux doesn't allow to abort all commands reliably if they have
 	  been sent asynchronously to a stateful device.
 	  Enable this option if you use stateful device(s) and need as much
-	  error recovery reliability as possible. If unsure, leave this
-	  option disabled.
+	  error recovery reliability as possible.
+
+	  If unsure, say "N".
 
 config SCST_STRICT_SECURITY
 	bool "Strict security"
+	depends on SCST
 	help
 	  Makes SCST clear (zero-fill) allocated data buffers. Note: this has a
-	  significant performance penalty. If unsure, leave this option
-	  disabled.
+	  significant performance penalty.
+
+	  If unsure, say "N".
 
 config SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
 	bool "Allow pass-through commands to be sent from soft-IRQ context"
+	depends on SCST
 	help
 	  Allows SCST to submit SCSI pass-through commands to real SCSI devices
 	  via the SCSI middle layer using scsi_execute_async() function from
@@ -109,10 +113,13 @@ config SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
 	  performance. It is more or less safe. In the worst case, if in your
 	  configuration the SCSI middle layer really doesn't expect SIRQ
 	  context in scsi_execute_async() function, you will get a warning
-	  message in the kernel log. If unsure, leave this option disabled.
+	  message in the kernel log.
+
+	  If unsure, say "N".
 
 config SCST_ABORT_CONSIDER_FINISHED_TASKS_AS_NOT_EXISTING
 	bool "Send back UNKNOWN TASK when an already finished task is aborted"
+	depends on SCST
 	help
 	  Controls which response is sent by SCST to the initiator in case
 	  the initiator attempts to abort (ABORT TASK) an already finished
@@ -120,10 +127,13 @@ config SCST_ABORT_CONSIDER_FINISHED_TASKS_AS_NOT_EXISTING
 	  sent back to the initiator. However, some initiators, particularly
 	  the VMware iSCSI initiator, interpret the UNKNOWN TASK response as
 	  if the target got crazy and try to RESET it. Then sometimes the
-	  initiator gets crazy itself. If unsure, leave this option disabled.
+	  initiator gets crazy itself.
+
+	  If unsure, say "N".
 
 config SCST_USE_EXPECTED_VALUES
 	bool "Prefer initiator-supplied SCSI command attributes"
+	depends on SCST
 	help
 	  When SCST receives a SCSI command from an initiator, such a SCSI
 	  command has both data transfer length and direction attributes.
@@ -136,58 +146,75 @@ config SCST_USE_EXPECTED_VALUES
 	  message: "Unknown opcode XX for YY. Should you update
 	  scst_scsi_op_table?" and when the initiator complains. Please
 	  report any unrecognized commands to scst-devel@lists.sourceforge.net.
-	  If unsure, leave this option disabled.
+
+	  If unsure, say "N".
 
 config SCST_EXTRACHECKS
 	bool "Extra consistency checks"
+	depends on SCST
 	help
 	  Enable additional consistency checks in the SCSI middle level target
-	  code. This may be helpful for SCST developers. If unsure, leave this
-	  option disabled.
+	  code. This may be helpful for SCST developers. Enable it if you have
+	  any problems.
+
+	  If unsure, say "N".
 
 config SCST_TRACING
 	bool "Tracing support"
+	depends on SCST
+	default y
 	help
 	  Enable SCSI middle level tracing support. Tracing can be controlled
 	  dynamically via /proc/scsi_tgt/trace_level. The traced information
 	  is sent to the kernel log and may be very helpful when analyzing
 	  the cause of a communication problem between initiator and target.
-	  If unsure, leave this option disabled.
+
+	  If unsure, say "Y".
 
 config SCST_DEBUG
 	bool "Debugging support"
+	depends on SCST
+	select DEBUG_BUGVERBOSE
 	help
 	  Enables support for debugging SCST. This may be helpful for SCST
-	  developers. If unsure, leave this option disabled.
+	  developers.
+
+	  If unsure, say "N".
 
 config SCST_DEBUG_OOM
 	bool "Out-of-memory debugging support"
+	depends on SCST
 	help
 	  Let SCST's internal memory allocation function
 	  (scst_alloc_sg_entries()) fail about once in every 10000 calls, at
 	  least if the flag __GFP_NOFAIL has not been set. This allows SCST
 	  developers to test the behavior of SCST in out-of-memory conditions.
-	  This may be helpful for SCST developers. If unsure, leave this
-	  option disabled.
+	  This may be helpful for SCST developers.
+
+	  If unsure, say "N".
 
 config SCST_DEBUG_RETRY
 	bool "SCSI command retry debugging support"
+	depends on SCST
 	help
 	  Let SCST's internal SCSI command transfer function
 	  (scst_rdy_to_xfer()) fail about once in every 100 calls. This allows
 	  SCST developers to test the behavior of SCST when SCSI queues fill
-	  up. This may be helpful for SCST developers. If unsure, leave this
-	  option disabled.
+	  up. This may be helpful for SCST developers.
+
+	  If unsure, say "N".
 
 config SCST_DEBUG_SN
 	bool "SCSI sequence number debugging support"
+	depends on SCST
 	help
 	  Allows to test SCSI command ordering via sequence numbers by
 	  randomly changing the type of SCSI commands into
 	  SCST_CMD_QUEUE_ORDERED, SCST_CMD_QUEUE_HEAD_OF_QUEUE or
 	  SCST_CMD_QUEUE_SIMPLE for about one in 300 SCSI commands.
-	  This may be helpful for SCST developers. If unsure, leave this
-	  option disabled.
+	  This may be helpful for SCST developers.
+
+	  If unsure, say "N".
 
 config SCST_DEBUG_TM
 	bool "Task management debugging support"
@@ -197,8 +224,9 @@ config SCST_DEBUG_TM
 	  When enabled, some of the commands on LUN 0 in the default access
 	  control group will be delayed for about 60 seconds. This will
 	  cause the remote initiator send SCSI task management functions,
-	  e.g. ABORT TASK and TARGET RESET. If unsure, leave this option
-	  disabled.
+	  e.g. ABORT TASK and TARGET RESET.
+
+	  If unsure, say "N".
 
 config SCST_TM_DBG_GO_OFFLINE
 	bool "Let devices become completely unresponsive"
@@ -206,6 +234,22 @@ config SCST_TM_DBG_GO_OFFLINE
 	help
 	  Enable this option if you want that the device eventually becomes
 	  completely unresponsive. When disabled, the device will receive
-	  ABORT and RESET commands. If unsure, leave this option disabled.
+	  ABORT and RESET commands.
+
+config SCST_MEASURE_LATENCY
+	bool "Commands processing latency measurement facility"
+	depends on SCST
+	help
+	  This option enables commands processing latency measurement
+	  facility in SCST. It will provide in /proc/scsi_tgt/latency
+	  file average commands processing latency. You can clear
+	  already measured results by writing 0 in this file. Note, you
+	  need a non-preemtible kernel to have correct results.
+
+	  If unsure, say "N".
+
+source "drivers/scst/iscsi-scst/Kconfig"
+source "drivers/scst/qla2x00-target/Kconfig"
+source "drivers/scst/srpt/Kconfig"
 
 endmenu

@@ -1,5 +1,6 @@
 EXTRA_CFLAGS += -Iinclude/scst
 
-obj-m		:= iscsi-scst.o
-iscsi-scst-objs	:= iscsi.o nthread.o config.o digest.o \
+iscsi-scst-y := iscsi.o nthread.o config.o digest.o \
 	conn.o session.o target.o event.o param.o
+
+obj-$(SCST_ISCSI) += iscsi-scst.o

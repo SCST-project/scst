@@ -144,17 +144,9 @@ cat "${kpatch[@]}"
 
 # Directory include/scst/
 
-# Make sure the file iscsi-scst/iscsi_scst_itf_ver.h is up to date.
-make -s -C iscsi-scst include/iscsi_scst_itf_ver.h
-
 for f in scst/include/*h
 do
   add_file "${f}" "include/scst/${f#scst/include/}"
-done
-
-for f in iscsi-scst/include/*h
-do
-  add_file "${f}" "include/scst/${f#iscsi-scst/include/}"
 done
 
 
@@ -173,7 +165,7 @@ add_file "scst/kernel/in-tree/Kconfig.scst"  "drivers/scst/Kconfig"
 
 add_file "scst/kernel/in-tree/Makefile.scst" "drivers/scst/Makefile"
 
-add_file "scst/README"                       "Documentation/scst/README.scst"
+add_file "scst/README_in-tree"               "Documentation/scst/README.scst"
 
 for f in scst/src/*.[ch]
 do
@@ -194,12 +186,18 @@ done
 
 # Directory drivers/scst/iscsi-scst/
 
+# Make sure the file iscsi-scst/iscsi_scst_itf_ver.h is up to date.
+make -s -C iscsi-scst include/iscsi_scst_itf_ver.h
+
+for f in iscsi-scst/include/*h
+do
+  add_file "${f}" "include/scst/${f#iscsi-scst/include/}"
+done
+
 add_file "iscsi-scst/kernel/Makefile.in-kernel" \
          "drivers/scst/iscsi-scst/Makefile"
 
 add_file "iscsi-scst/kernel/Kconfig"  "drivers/scst/iscsi-scst/Kconfig"
-
-add_file "iscsi-scst/README"          "Documentation/scst/README.iscsi"
 
 for f in iscsi-scst/kernel/*.[ch]
 do
@@ -211,17 +209,17 @@ done
 
 if [ "${qla2x00t}" = "true" ]; then
 
-  #add_file "qla2x00t/qla2x00-target/Makefile.in-kernel" \
-  #         "drivers/scst/qla2x00-target/Makefile"
+  add_file "qla2x00t/qla2x00-target/Makefile_in-tree" \
+           "drivers/scst/qla2x00-target/Makefile"
 
-  #add_file "qla2x00t/qla2x00-target/Kconfig" \
-  #         "drivers/scst/qla2x00-target/Kconfig"
+  add_file "qla2x00t/qla2x00-target/Kconfig" \
+           "drivers/scst/qla2x00-target/Kconfig"
 
   #add_file "qla2x00t/qla2x_tgt_def.h" \
   #         "drivers/scst/qla2x00-target/qla2x_tgt_def.h"
 
-  add_file "qla2x00t/qla2x00-target/README" \
-           "Documentation/scst/README.qla2x00t"
+#  add_file "qla2x00t/qla2x00-target/README" \
+#           "Documentation/scst/README.qla2x00t"
 
   for f in qla2x00t/qla2x00-target/*.[ch]
   do

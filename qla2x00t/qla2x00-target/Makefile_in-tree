@@ -1,0 +1,5 @@
+EXTRA_CFLAGS += -Iinclude/scst
+
+qla2x00tgt-y := qla2x00tgt.o
+
+obj-$(SCST_QLA_TGT_ADDON) += qla2x00tgt.o

@@ -26,10 +26,6 @@
 #include <qla_def.h>
 #include "qla2x_tgt_def.h"
 
-#ifdef DEBUG_TGT
-#define CONFIG_SCST_DEBUG
-#endif
-
 #include <scst_debug.h>
 
 /* Version numbers, the same as for the kernel */

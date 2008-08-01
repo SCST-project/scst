@@ -27,14 +27,11 @@ config SCSI_QLA_FC
 		ftp://ftp.qlogic.com/outgoing/linux/firmware/
 
 config SCSI_QLA2XXX_TARGET
-	bool "QLogic 2xxx target mode support"
-	depends on SCSI_QLA_FC
-	default y
+	bool "QLogic 2XXX target mode support"
+	depends on SCSI_QLA_FC && SCST
+	default SCST
 	---help---
-	This option enables target mode hooks used by the SCST QLA2x00tgt driver.
+	This option enables target mode hooks used by the SCST qla2x00t driver.
 	Once the qla2x00tgt module is loaded, target mode can be enable via a
 	sysfs interface under scsi_host, thus enabling target mode for specific
 	cards.
-
-	You will also need to download SCST SCSI middle level drivers from
-	http://scst.sf.net.

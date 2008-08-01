@@ -951,7 +951,7 @@ struct scst_session {
 	void (*unreg_done_fn) (struct scst_session *sess);
 	void (*unreg_cmds_done_fn) (struct scst_session *sess);
 
-#ifdef MEASURE_LATENCY /* must be last */
+#ifdef CONFIG_SCST_MEASURE_LATENCY /* must be last */
 	spinlock_t meas_lock;
 	uint64_t scst_time, processing_time;
 	unsigned int processed_cmds;
@@ -1225,7 +1225,7 @@ struct scst_cmd {
 
 	struct scst_cmd *orig_cmd; /* Used to issue REQUEST SENSE */
 
-#ifdef MEASURE_LATENCY /* must be last */
+#ifdef CONFIG_SCST_MEASURE_LATENCY /* must be last */
 	uint64_t start, pre_exec_finish, post_exec_start;
 #endif
 };

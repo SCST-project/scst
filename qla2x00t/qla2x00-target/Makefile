@@ -31,14 +31,14 @@
 SCST_INC_DIR := $(SUBDIRS)/../../scst/include
 SCST_DIR := $(shell pwd)/../../scst/src
 
-EXTRA_CFLAGS += -I$(SCST_INC_DIR) -DFC_TARGET_SUPPORT
+EXTRA_CFLAGS += -I$(SCST_INC_DIR)
 
 INSTALL_DIR := /lib/modules/$(shell uname -r)/extra
 
 EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS 
 #EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
-EXTRA_CFLAGS += -DDEBUG_TGT -g -W -Wno-unused-parameter
-#EXTRA_CFLAGS += -DDEBUG_WORK_IN_THREAD
+EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -W -Wno-unused-parameter
+#EXTRA_CFLAGS += -DCONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
 
 ifeq ($(KVER),)
   ifeq ($(KDIR),)

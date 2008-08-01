@@ -86,16 +86,18 @@ Compilation options
 There are the following compilation options, that could be commented
 in/out in Makefile:
 
- - DEBUG_TGT - turns on some debugging code, including some logging. Makes
-   the driver considerably bigger and slower, producing large amount of
+ - CONFIG_SCST_DEBUG - turns on some debugging code, including some logging.
+   Makes the driver considerably bigger and slower, producing large amount of
    log data.
 
  - CONFIG_SCST_TRACING - turns on ability to log events. Makes the driver
    considerably bigger and leads to some performance loss.
 
- - DEBUG_WORK_IN_THREAD - makes SCST process incoming commands and
-   call the driver's callbacks in SCST thread context instead of tasklet
-   one. Useful for debugging and lead to some performance loss.
+ - CONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD - makes SCST process incoming
+   commands from the qla2x00t target driver and call the driver's
+   callbacks in internal SCST threads context instead of SIRQ context,
+   where those commands were received. Useful for debugging and lead to
+   some performance loss.
    
 Credits
 -------

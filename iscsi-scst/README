@@ -26,8 +26,15 @@ This version is compatible with SCST version 1.0.0 and higher.
 Tested on 2.6.21.1 kernel, but it should also work on other versions,
 starting from 2.6.16.x.
 
-Installation
-------------
+
+Installation if your Linux kernel already has iSCSI-SCST built-in
+-----------------------------------------------------------------
+
+Simply run "make all", then "make install".
+
+
+Installation out of Linux kernel tree
+-------------------------------------
 
 Basically as in README-IET, where file names are changed as specified
 above.
@@ -106,6 +113,7 @@ or
  - Unapply this patch and use iSCSI-SCST without it. Also report this
    problem to the SCST mailing list scst-devel@lists.sourceforge.net.
 
+
 Usage
 -----
 
@@ -137,6 +145,7 @@ that issue.
 CAUTION:  Working of target and initiator on the same host isn't
 ========  supported. See SCST README file for details.
 
+
 Known issues
 ------------
 
@@ -156,6 +165,7 @@ always be in sync with the running system.
 But, if you decide to fix iscsi-scst-adm, your patches will be
 appreciated.
 
+
 Compilation options
 -------------------
 
@@ -173,6 +183,7 @@ in/out in the kernel's module Makefile:
 
  - CONFIG_SCST_ISCSI_DEBUG_DIGEST_FAILURES - simulates digest failures in
    random places.
+
 
 Creating version of put_page_callback patch for your kernel
 -----------------------------------------------------------

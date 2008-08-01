@@ -68,7 +68,7 @@ static struct scst_proc_data scst_dev_handler_proc_data;
 #define SCST_PROC_GROUPS_DEVICES_ENTRY_NAME	"devices"
 #define SCST_PROC_GROUPS_USERS_ENTRY_NAME	"names"
 
-#ifdef MEASURE_LATENCY
+#ifdef CONFIG_SCST_MEASURE_LATENCY
 #define SCST_PROC_LAT_ENTRY_NAME		"latency"
 #endif
 
@@ -381,7 +381,7 @@ out:
 
 #endif /* defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING) */
 
-#ifdef MEASURE_LATENCY
+#ifdef CONFIG_SCST_MEASURE_LATENCY
 
 static int lat_info_show(struct seq_file *seq, void *v)
 {
@@ -483,12 +483,12 @@ static struct scst_proc_data scst_lat_proc_data = {
 	.data = "scsi_tgt",
 };
 
-#endif /* MEASURE_LATENCY */
+#endif /* CONFIG_SCST_MEASURE_LATENCY */
 
 static int __init scst_proc_init_module_log(void)
 {
 	int res = 0;
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING) || defined(MEASURE_LATENCY)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING) || defined(CONFIG_SCST_MEASURE_LATENCY)
 	struct proc_dir_entry *generic;
 #endif
 
@@ -505,7 +505,7 @@ static int __init scst_proc_init_module_log(void)
 	}
 #endif
 
-#ifdef MEASURE_LATENCY
+#ifdef CONFIG_SCST_MEASURE_LATENCY
 	if (res == 0) {
 		generic = scst_create_proc_entry(scst_proc_scsi_tgt,
 					 SCST_PROC_LAT_ENTRY_NAME,
@@ -530,7 +530,7 @@ static void scst_proc_cleanup_module_log(void)
 	remove_proc_entry(SCST_PROC_LOG_ENTRY_NAME, scst_proc_scsi_tgt);
 #endif
 
-#ifdef MEASURE_LATENCY
+#ifdef CONFIG_SCST_MEASURE_LATENCY
 	remove_proc_entry(SCST_PROC_LAT_ENTRY_NAME, scst_proc_scsi_tgt);
 #endif
 

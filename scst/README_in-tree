@@ -1,9 +1,6 @@
 Generic SCSI target mid-level for Linux (SCST)
 ==============================================
 
-Version 1.0.1, X XXXX 2008
---------------------------
-
 SCST is designed to provide unified, consistent interface between SCSI
 target drivers and Linux kernel and simplify target drivers development
 as much as possible. Detail description of SCST's features and internals
@@ -40,57 +37,14 @@ In addition, SCST supports advanced per-initiator access and devices
 visibility management, so different initiators could see different set
 of devices with different access permissions. See below for details.
 
+This is quite stable (but still beta) version.
+
 Installation
 ------------
 
-Only vanilla kernels from kernel.org are supported, but it should work
-on vendors' kernels, if you manage to successfully compile on them. The
-main problem with vendor's kernels is that they often contain patches,
-which will appear only in the next version of the vanilla kernel,
-therefore it's quite hard to track such changes. Thus, if during
-compilation for some vendor kernel your compiler complains about
-redefinition of some symbol, you should either switch to vanilla kernel,
-or change as necessary the corresponding to that symbol "#if
-LINUX_VERSION_CODE" statement.
-
-At first, make sure that the link "/lib/modules/`you_kernel_version`/build" 
-points to the source code for your currently running kernel.
-
-Then, since in the mainstream kernels scsi_do_req()/scsi_execute_async()
-work in LIFO order, instead of expected and required FIFO, SCST needs a
-new functions scsi_do_req_fifo()/scsi_execute_async_fifo() to be added
-in the kernel. Patch scst_exec_req_fifo.patch from "kernel" directory
-does that. If it doesn't apply to your kernel, apply it manually, it
-only adds one of those functions and nothing more. You may not patch the
-kernel if you don't need pass-through support or CONFIG_SCST_STRICT_SERIALIZING is
-defined during the compilation (see description below).
-
-To compile SCST type 'make scst'. It will build SCST itself and its
-device handlers. To install them type 'make scst_install'. The driver
-modules will be installed in '/lib/modules/`you_kernel_version`/extra'.
-In addition, scst.h, scst_debug.h as well as Module.symvers or
-Modules.symvers will be copied to '/usr/local/include/scst'. The first
-file contains all SCST's public data definition, which are used by
-target drivers. The other ones support debug messages logging and build
-process.
-
-Then you can load any module by typing 'modprobe module_name'. The names
-are:
-
- - scst - SCST itself
- - scst_disk - device handler for disks (type 0)
- - scst_tape - device handler for tapes (type 1)
- - scst_processor - device handler for processors (type 3)
- - scst_cdrom - device handler for CDROMs (type 5)
- - scst_modisk - device handler for MO disks (type 7)
- - scst_changer - device handler for medium changers (type 8)
- - scst_raid - device handler for storage array controller (e.g. raid) (type C)
- - scst_vdisk - device handler for virtual disks (file, device or ISO CD image).
- - scst_user - user space device handler
-
-Then, to see your devices remotely, you need to add them to at least
-"Default" security group (see below how). By default, no local devices
-are seen remotely. There must be LUN 0 in each security group, i.e. LUs
+To see your devices remotely, you need to add them to at least "Default"
+security group (see below how). By default, no local devices are seen
+remotely. There must be LUN 0 in each security group, i.e. LUs
 numeration must not start from, e.g., 1.
 
 It is highly recommended to use scstadmin utility for configuring
@@ -124,8 +78,6 @@ IMPORTANT: In the current version simultaneous access to local SCSI devices
 	   least related device handler(s) must be restarted. For block
 	   devices READ/WRITE commands using direct disk handler look to
 	   be safe.
-
-To uninstall, type 'make scst_uninstall'.
 
 Device handlers
 ---------------
@@ -174,8 +126,8 @@ NOTE: Since "perf" device handlers on READ operations don't touch the
 Compilation options
 -------------------
 
-There are the following compilation options, that could be commented
-in/out in Makefile:
+There are the following compilation options, that could be change using
+your favorit kernel configuration Makefile target, e.g. "make xconfig":
 
  - CONFIG_SCST_DEBUG - if defined, turns on some debugging code,
    including some logging. Makes the driver considerably bigger and slower,

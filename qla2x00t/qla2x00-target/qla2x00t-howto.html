@@ -245,9 +245,6 @@ How to configure QLogic target driver for 22xx/23xx cards
     But as I've already loaded the device handler(scst_vdisk) on the target, 
     hence I don't need to perform step 17. </br></br>
    
-    [root@initiator ] echo "scsi add-single-device 11 0 0 0" >/proc/scsi/scsi</br>
-    where A: host number</br>
-          B: Lun</br></br></br>
 
 18:After enabling the target mode on the target (see step 16),
    to see new targets and devices you need either to rescan 
@@ -260,9 +257,8 @@ How to configure QLogic target driver for 22xx/23xx cards
    Alternatively, if your initiator already connected to the target and you simply added new devices to it, you can try to run
    a manual rescan by:</br>
 
-   [root@initiator ] echo "scsi add-single-device 11 0 0 B" >/proc/scsi/scsi</br>
-    where A: host number</br>
-          B: Lun</br></br></br>
+   [root@initiator ] echo "- - -" >/sys/class/scsi_host/hostX/scan</br>
+    where X: host number</br></br></br>
  
 </body>
 </html>   		
