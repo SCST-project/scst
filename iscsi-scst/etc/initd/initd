@@ -70,10 +70,14 @@ case "$1" in
 	stop)
 		stop_server
 		;;
+	restart)
+		stop_server
+		start_server
+		;;
 	*)
 		echo "Usage: {start|stop}" >&2
 		exit 1
 		;;
 esac
 
-exit 0
+exit $?
