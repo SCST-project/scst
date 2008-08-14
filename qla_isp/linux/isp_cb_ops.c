@@ -346,15 +346,10 @@ struct cdev isp_cdev = {
 ISP_CLASS *isp_class;
 
 struct file_operations isp_ioctl_operations = {
- owner:     THIS_MODULE,
- open:      isp_open,
- release:   isp_close,
- ioctl:     isp_ioctl,
-};
-
-struct file_operations hba_api_ioctl_operations = {
- owner:     THIS_MODULE,
- ioctl:     isp_qlogic_ext_ioctl,
+ .owner     =   THIS_MODULE,
+ .open      =   isp_open,
+ .release   =   isp_close,
+ .ioctl     =   isp_ioctl,
 };
 
 static int
@@ -787,7 +782,7 @@ static void *isp_exti_usrptr(UINT64, UINT16);
 static int isp_exti_passthru(EXT_IOCTL *);
 static int isp_run_cmd(ispsoftc_t *, isp_xcmd_t *);
 
-int
+static int
 isp_qlogic_ext_ioctl(struct inode *ip, struct file *fp, unsigned int cmd, unsigned long arg)
 {
     EXT_IOCTL ext;

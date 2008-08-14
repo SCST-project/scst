@@ -2571,7 +2571,7 @@ isp_complete_ctio(ispsoftc_t *isp, tmd_xact_t *xact)
 }
 
 
-int
+static int
 isp_fc_change_role(ispsoftc_t *isp, int chan, int new_role)
 {
     fcparam *fcp;

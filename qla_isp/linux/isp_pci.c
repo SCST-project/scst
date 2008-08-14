@@ -425,7 +425,7 @@ map_isp_io(struct isp_pcisoftc *isp_pci, u_short cmd, vm_offset_t io_base)
     return (0);
 }
 
-void
+static void
 isplinux_pci_release(struct Scsi_Host *host)
 {
     ispsoftc_t *isp = ISP_HOST2ISP(host);
@@ -449,9 +449,9 @@ isplinux_pci_release(struct Scsi_Host *host)
         pci_disable_msi(isp_pci->pci_dev);
         isp_pci->msi_enabled = 0;
     }
-    if (isp_pci->vaddr != 0) {
+    if (isp_pci->vaddr != NULL) {
         unmap_pci_mem(isp_pci, 0xff);
-        isp_pci->vaddr = 0;
+        isp_pci->vaddr = NULL;
     } else if (isp_pci->port) {
         release_region(isp_pci->port, 0xff);
         isp_pci->port = 0;
@@ -969,9 +969,9 @@ bad:
         isp_pci->msi_enabled = 0;
         pci_disable_msi(isp_pci->pci_dev);
     }
-    if (isp_pci->vaddr != 0) {
+    if (isp_pci->vaddr != NULL) {
         unmap_pci_mem(isp_pci, 0xff);
-        isp_pci->vaddr = 0;
+        isp_pci->vaddr = NULL;
     } else {
         release_region(isp_pci->port, 0xff);
         isp_pci->port = 0;

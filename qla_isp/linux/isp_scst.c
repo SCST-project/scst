@@ -853,7 +853,7 @@ notify_ack:
     (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
 }
 
-void
+static void
 scsi_target_handler(qact_e action, void *arg)
 {
     unsigned long flags;
