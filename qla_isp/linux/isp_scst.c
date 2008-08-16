@@ -197,7 +197,7 @@ static __inline void
 schedule_qlaispd(int flag)
 {
     set_bit(flag, &qlaispd_flags);
-    wake_up(&qlaispd_waitq);
+    wake_up_interruptible(&qlaispd_waitq);
 }
 
 static __inline int
@@ -963,7 +963,7 @@ qlaispd_function(void *arg)
     SDprintk("qlaispd starting\n");
     while (!kthread_should_stop()) {
         SDprintk("qlaispd sleeping\n");
-        wait_event(qlaispd_waitq, qlaispd_flags || kthread_should_stop());
+        wait_event_interruptible(qlaispd_waitq, qlaispd_flags || kthread_should_stop());
         SDprintk("qlaispd running\n");
 
         if (test_and_clear_bit(SF_REGISTER_SCST, &qlaispd_flags)) {
