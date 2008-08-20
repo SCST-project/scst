@@ -44,7 +44,12 @@ typedef _Bool bool;
 #define false 0
 #endif
 
-/* Version numbers, the same as for the kernel */
+/*
+ * Version numbers, the same as for the kernel.
+ *
+ * Changing it don't forget to change SCST_FIO_REV in scst_vdisk.c
+ * and FIO_REV in usr/fileio/common.h as well.
+ */
 #define SCST_VERSION_CODE 0x01000100
 #define SCST_VERSION(a, b, c, d) (((a) << 24) + ((b) << 16) + ((c) << 8) + d)
 #define SCST_VERSION_STRING "1.0.1"

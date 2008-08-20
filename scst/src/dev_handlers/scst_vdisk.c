@@ -62,7 +62,7 @@ static struct scst_proc_log vdisk_proc_local_trace_tbl[] =
 #define SCST_FIO_VENDOR			"SCST_FIO"
 #define SCST_BIO_VENDOR			"SCST_BIO"
 /* 4 byte ASCII Product Revision Level - left aligned */
-#define SCST_FIO_REV			" 096"
+#define SCST_FIO_REV			" 101"
 
 #define MAX_USN_LEN			20
 
