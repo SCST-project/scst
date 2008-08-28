@@ -1970,9 +1970,9 @@ static void q2t_async_event(uint16_t code, scsi_qla_host_t *ha, uint16_t *mailbo
 #endif
 		break;
 	case MBA_RSCN_UPDATE:
-		TRACE_MGMT_DBG("RSCN Update (%x) N_Port %#06x (fmt %x)",
-		      code, ((mailbox[1]&0xF)<<2)|le16_to_cpu(mailbox[2]),
-		      (mailbox[1]&0xF0)>>1);
+		TRACE_MGMT_DBG("RSCN Update (%x) N_Port %#06x (fmt %x)", code,
+			((mailbox[1] & 0xFF) << 16) | le16_to_cpu(mailbox[2]),
+			(mailbox[1] & 0xFF00) >> 8);
 		break;
 
 	case MBA_PORT_UPDATE:		/* Port database update occurred */
