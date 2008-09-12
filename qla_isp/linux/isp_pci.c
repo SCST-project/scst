@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.168 2008/04/15 22:41:03 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.172 2008/08/20 15:50:56 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -87,7 +87,7 @@ static int isp_pci_mbxdma(ispsoftc_t *);
 static int isp_pci_dmasetup(ispsoftc_t *, XS_T *, ispreq_t *, uint32_t *, uint32_t);
 static void isp_pci_dmateardown(ispsoftc_t *, XS_T *, uint32_t);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 6)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,6)
 #define DMA_64BIT_MASK  0xffffffffffffffffULL
 #define DMA_32BIT_MASK  0x00000000ffffffffULL
 #endif
@@ -99,7 +99,7 @@ static void isp_pci_dmateardown(ispsoftc_t *, XS_T *, uint32_t);
 #define SAME_4G(addr, cnt)          (FOURG_SEG(addr) == FOURG_SEG(addr + cnt - 1))
 
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
 #define ISP_IRQ_FLAGS   SA_INTERRUPT | SA_SHIRQ
 #else
 #define ISP_IRQ_FLAGS   IRQF_SHARED
@@ -365,11 +365,11 @@ struct isp_pcisoftc {
             msix_enabled    : 2,
             msi_enabled     : 1;
 };
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 8)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,8)
 #define pci_enable_msi(x)   -ENXIO
 #define pci_enable_msix(x)  -ENXIO
-#define pci_disable_msi(x)  do { ; } while (0)
-#define pci_disable_msix(x) do { ; } while (0)
+#define pci_disable_msi(x)  do { ; } while(0)
+#define pci_disable_msix(x) do { ; } while(0)
 #endif
 
 /*
@@ -506,7 +506,7 @@ isplinux_pci_release(struct Scsi_Host *host)
 }
 
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 7) && LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 14)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,7) && LINUX_VERSION_CODE < KERNEL_VERSION(2,6,14)
 /**
  * pci_intx - enables/disables PCI INTx for device dev
  * @pdev: the PCI device to operate on
@@ -619,7 +619,7 @@ isplinux_pci_init_one(struct Scsi_Host *host)
         return (1);
     }
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 7)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,7)
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2422 || pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2432) {
         struct msix_entry isp_msix[3];
         int reg;
@@ -669,7 +669,7 @@ isplinux_pci_init_one(struct Scsi_Host *host)
             pci_write_config_word(pdev, reg + PCI_EXP_DEVCTL, pectl);
         }
     } else
-#elif LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 0)
+#elif LINUX_VERSION_CODE > KERNEL_VERSION(2,6,0)
     if (pci_enable_msi(pdev) == 0) {
         isp_pci->msi_enabled = 1;
     }
@@ -945,7 +945,7 @@ bad:
         isp_kfree(isp->isp_osinfo.storep, isp->isp_osinfo.storep_amt);
         isp->isp_osinfo.storep = NULL;
     }
-#if !defined(DISABLE_FW_LOADER) && (defined(CONFIG_FW_LOADER) || defined(CONFIG_FW_LOADER_MODULE))
+#ifdef  CONFIG_FW_LOADER
     if (isp->isp_osinfo.fwp) {
         release_firmware(isp->isp_osinfo.fwp);
         isp->isp_osinfo.fwp = NULL;
@@ -1677,7 +1677,7 @@ tdma_mk(ispsoftc_t *isp, tmd_xact_t *xact, ct_entry_t *cto, uint32_t *nxtip, uin
     resid = (int32_t) xact->td_xfrlen;
     while (resid > 0) {
         if (sg->length == 0) {
-            isp_prt(isp, ISP_LOGWARN, "%s: zero length segment #%d for tag %llx\n", __FUNCTION__, nseg, tmd->cd_tagval);
+            isp_prt(isp, ISP_LOGWARN, "%s: zero length segment #%d for tag %llx\n", __func__, nseg, tmd->cd_tagval);
             cto->ct_resid = -EINVAL;
             return (CMD_COMPLETE);
         }
@@ -1690,7 +1690,7 @@ tdma_mk(ispsoftc_t *isp, tmd_xact_t *xact, ct_entry_t *cto, uint32_t *nxtip, uin
     new_seg_cnt = pci_map_sg(pcs->pci_dev, sg, nseg, (cto->ct_flags & CT_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
 
     if (new_seg_cnt == 0) {
-        isp_prt(isp, ISP_LOGWARN, "%s: unable to dma map request", __FUNCTION__);
+        isp_prt(isp, ISP_LOGWARN, "%s: unable to dma map request", __func__);
         cto->ct_resid = -ENOMEM;
         return (CMD_COMPLETE);
     }
@@ -1759,7 +1759,7 @@ tdma_mk(ispsoftc_t *isp, tmd_xact_t *xact, ct_entry_t *cto, uint32_t *nxtip, uin
                  * pretty unlikely to ever be used.
                  */
                 if (ISP_A64 && IS_HIGH_ISP_ADDR(addr)) {
-                    isp_prt(isp, ISP_LOGERR, "%s: 64 bit tgt mode not supported", __FUNCTION__);
+                    isp_prt(isp, ISP_LOGERR, "%s: 64 bit tgt mode not supported", __func__);
                     cto->ct_resid = -EFAULT;
                     pci_unmap_sg(pcs->pci_dev, xact->td_data, nseg, (cto->ct_flags & CT_DATA_IN)? PCI_DMA_TODEVICE: PCI_DMA_FROMDEVICE);
                     return (CMD_COMPLETE);
@@ -1779,7 +1779,7 @@ tdma_mk(ispsoftc_t *isp, tmd_xact_t *xact, ct_entry_t *cto, uint32_t *nxtip, uin
              * sending an extra CTIO with final status.
              */
             if (send_status == 0) {
-                isp_prt(isp, ISP_LOGERR, "%s: ran out of segments, no status to send", __FUNCTION__);
+                isp_prt(isp, ISP_LOGERR, "%s: ran out of segments, no status to send", __func__);
                 return (CMD_EAGAIN);
             }
         }
@@ -1831,7 +1831,7 @@ tdma_mk(ispsoftc_t *isp, tmd_xact_t *xact, ct_entry_t *cto, uint32_t *nxtip, uin
             qe = (ct_entry_t *) ISP_QUEUE_ENTRY(isp->isp_rquest, nxti);
             nxti = ISP_NXT_QENTRY(nxti, RQUEST_QUEUE_LEN(isp));
             if (nxti == optr) {
-                isp_prt(isp, ISP_LOGERR, "%s: request queue overflow", __FUNCTION__);
+                isp_prt(isp, ISP_LOGERR, "%s: request queue overflow", __func__);
                 return (CMD_EAGAIN);
             }
 
@@ -1979,7 +1979,7 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xact_t *xact, ct7_entry_t *cto, uint32_t *nxti
     xfcnt = xact->td_xfrlen;
     while (xfcnt > 0) {
         if (sg->length == 0) {
-            isp_prt(isp, ISP_LOGWARN, "%s: zero length segment #%d for tag %llx\n", __FUNCTION__, nseg, tmd->cd_tagval);
+            isp_prt(isp, ISP_LOGWARN, "%s: zero length segment #%d for tag %llx\n", __func__, nseg, tmd->cd_tagval);
             cto->ct_resid = -EINVAL;
             return (CMD_COMPLETE);
         }
@@ -1990,7 +1990,7 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xact_t *xact, ct7_entry_t *cto, uint32_t *nxti
     sg = xact->td_data;
     new_seg_cnt = pci_map_sg(pcs->pci_dev, sg, nseg, (cto->ct_flags & CT2_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
     if (new_seg_cnt == 0) {
-        isp_prt(isp, ISP_LOGWARN, "%s: unable to dma map request", __FUNCTION__);
+        isp_prt(isp, ISP_LOGWARN, "%s: unable to dma map request", __func__);
         cto->ct_resid = -ENOMEM;
         return (CMD_COMPLETE);
     }
@@ -2000,7 +2000,7 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xact_t *xact, ct7_entry_t *cto, uint32_t *nxti
      * Check for sequential ordering of data frames
      */
     if (tmd->cd_lastoff + tmd->cd_lastsize != xact->td_offset) {
-        isp_prt(isp, ISP_LOGWARN, "%s: [0x%llx] lastoff %u lastsize %u but curoff %u (totlen %u)", __FUNCTION__, (unsigned long long) tmd->cd_tagval, tmd->cd_lastoff, tmd->cd_lastsize, xact->td_offset, tmd->cd_totlen);
+        isp_prt(isp, ISP_LOGWARN, "%s: [0x%llx] lastoff %u lastsize %u but curoff %u (totlen %u)", __func__, (unsigned long long) tmd->cd_tagval, tmd->cd_lastoff, tmd->cd_lastsize, xact->td_offset, tmd->cd_totlen);
     }
     tmd->cd_lastsize = xact->td_xfrlen;
     tmd->cd_lastoff = xact->td_offset;
@@ -2074,7 +2074,7 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xact_t *xact, ct7_entry_t *cto, uint32_t *nxti
         last_synthetic_addr = addr;
     } else {
         cto->rsp.m0.ds.ds_count = bc;
-        isp_prt(isp, ISP_LOGTDEBUG1, "%s: seg0[%d]%lx%08lx:%u", __FUNCTION__, seg,
+        isp_prt(isp, ISP_LOGTDEBUG1, "%s: seg0[%d]%lx%08lx:%u", __func__, seg,
             (unsigned long)cto->rsp.m0.ds.ds_basehi, (unsigned long)cto->rsp.m0.ds.ds_base, bc);
     }
     cto->rsp.m0.ct_xfrlen += bc;
@@ -2099,7 +2099,7 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xact_t *xact, ct7_entry_t *cto, uint32_t *nxti
         nxti = ISP_NXT_QENTRY((curip), RQUEST_QUEUE_LEN(isp));
         if (nxti == optr) {
             pci_unmap_sg(pcs->pci_dev, xact->td_data, nseg, (cto->ct_flags & CT2_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
-            isp_prt(isp, ISP_LOGTDEBUG0, "%s: out of space for continuations (%d of %d segs done)", __FUNCTION__, cto->ct_seg_count, nseg);
+            isp_prt(isp, ISP_LOGTDEBUG0, "%s: out of space for continuations (%d of %d segs done)", __func__, cto->ct_seg_count, nseg);
             return (CMD_EAGAIN);
         }
         cto->ct_header.rqs_entry_count++;
@@ -2120,7 +2120,7 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xact_t *xact, ct7_entry_t *cto, uint32_t *nxti
                 addr = sg_dma_address(sg);
                 bc = min(sg_dma_len(sg), xfcnt);
             }
-            isp_prt(isp, ISP_LOGTDEBUG1, "%s: seg%d[%d]%llx:%u", __FUNCTION__, cto->ct_header.rqs_entry_count-1, ovseg, (unsigned long long) addr, bc);
+            isp_prt(isp, ISP_LOGTDEBUG1, "%s: seg%d[%d]%llx:%u", __func__, cto->ct_header.rqs_entry_count-1, ovseg, (unsigned long long) addr, bc);
 
             cto->ct_seg_count++;
             cto->rsp.m0.ct_xfrlen += bc;
@@ -2177,7 +2177,7 @@ mbxsync:
         nxti = ISP_NXT_QENTRY(curi, RQUEST_QUEUE_LEN(isp));
         if (nxti == optr) {
             pci_unmap_sg(pcs->pci_dev, xact->td_data, nseg, (cto->ct_flags & CT7_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
-            isp_prt(isp, ISP_LOGTDEBUG0, "%s: request queue overflow", __FUNCTION__);
+            isp_prt(isp, ISP_LOGTDEBUG0, "%s: request queue overflow", __func__);
             cto->ct_resid = -EAGAIN;
             return (CMD_COMPLETE);
         }
@@ -2300,7 +2300,7 @@ tdma_mkfc(ispsoftc_t *isp, tmd_xact_t *xact, ct2_entry_t *cto, uint32_t *nxtip, 
     xfcnt = xact->td_xfrlen;
     while (xfcnt > 0) {
         if (sg->length == 0) {
-            isp_prt(isp, ISP_LOGWARN, "%s: zero length segment #%d for tag %llx\n", __FUNCTION__, nseg, tmd->cd_tagval);
+            isp_prt(isp, ISP_LOGWARN, "%s: zero length segment #%d for tag %llx\n", __func__, nseg, tmd->cd_tagval);
             cto->ct_resid = -EINVAL;
             return (CMD_COMPLETE);
         }
@@ -2311,7 +2311,7 @@ tdma_mkfc(ispsoftc_t *isp, tmd_xact_t *xact, ct2_entry_t *cto, uint32_t *nxtip, 
     sg = xact->td_data;
     new_seg_cnt = pci_map_sg(pcs->pci_dev, sg, nseg, (cto->ct_flags & CT2_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
     if (new_seg_cnt == 0) {
-        isp_prt(isp, ISP_LOGWARN, "%s: unable to dma map request", __FUNCTION__);
+        isp_prt(isp, ISP_LOGWARN, "%s: unable to dma map request", __func__);
         cto->ct_resid = -ENOMEM;
         return (CMD_COMPLETE);
     }
@@ -2413,12 +2413,12 @@ again:
                 cto->rsp.m0.ct_xfrlen = 0;
                 sg = xact->td_data;
                 seglim = ISP_RQDSEG_T3;
-                isp_prt(isp, ISP_LOGTDEBUG2, "%s: found hi page", __FUNCTION__);
+                isp_prt(isp, ISP_LOGTDEBUG2, "%s: found hi page", __func__);
                 goto again;
             }
             cto->rsp.m0.u.ct_dataseg[seg].ds_base = LOWD(addr);
             cto->rsp.m0.u.ct_dataseg[seg].ds_count = bc;
-            isp_prt(isp, ISP_LOGTDEBUG1, "%s: seg0[%d]%x:%u", __FUNCTION__, seg, cto->rsp.m0.u.ct_dataseg[seg].ds_base, bc);
+            isp_prt(isp, ISP_LOGTDEBUG1, "%s: seg0[%d]%x:%u", __func__, seg, cto->rsp.m0.u.ct_dataseg[seg].ds_base, bc);
         } else {
             cto->rsp.m0.u.ct_dataseg64[seg].ds_base = LOWD(addr);
             cto->rsp.m0.u.ct_dataseg64[seg].ds_basehi = HIWD(addr);
@@ -2439,12 +2439,12 @@ again:
                     cto->rsp.m0.u.ct_dataseg64[seg].ds_count = bc;
                     cto->rsp.m0.u.ct_dataseg64[seg].ds_base = LOWD(addr);
                     cto->rsp.m0.u.ct_dataseg64[seg].ds_basehi = HIWD(addr);
-                    isp_prt(isp, ISP_LOGALL, "%s: seg0[%d]%lx%08lx:%u", __FUNCTION__, seg,
+                    isp_prt(isp, ISP_LOGALL, "%s: seg0[%d]%lx%08lx:%u", __func__, seg,
                         (unsigned long)cto->rsp.m0.u.ct_dataseg64[seg].ds_basehi, (unsigned long)cto->rsp.m0.u.ct_dataseg64[seg].ds_base, bc);
                 }
             } else {
                 cto->rsp.m0.u.ct_dataseg64[seg].ds_count = bc;
-                isp_prt(isp, ISP_LOGTDEBUG1, "%s: seg0[%d]%lx%08lx:%u", __FUNCTION__, seg,
+                isp_prt(isp, ISP_LOGTDEBUG1, "%s: seg0[%d]%lx%08lx:%u", __func__, seg,
                     (unsigned long)cto->rsp.m0.u.ct_dataseg64[seg].ds_basehi, (unsigned long)cto->rsp.m0.u.ct_dataseg64[seg].ds_base, bc);
             }
         }
@@ -2452,12 +2452,12 @@ again:
         if (seglim == ISP_RQDSEG_T2) {
             cto->rsp.m0.u.ct_dataseg[seg].ds_base = addr;
             cto->rsp.m0.u.ct_dataseg[seg].ds_count = bc;
-            isp_prt(isp, ISP_LOGTDEBUG1, "%s: seg0[%d]%x:%u", __FUNCTION__, seg, cto->rsp.m0.u.ct_dataseg[seg].ds_base, bc);
+            isp_prt(isp, ISP_LOGTDEBUG1, "%s: seg0[%d]%x:%u", __func__, seg, cto->rsp.m0.u.ct_dataseg[seg].ds_base, bc);
         } else {
             cto->rsp.m0.u.ct_dataseg64[seg].ds_base = addr;
             cto->rsp.m0.u.ct_dataseg64[seg].ds_basehi = 0;
             cto->rsp.m0.u.ct_dataseg64[seg].ds_count = bc;
-            isp_prt(isp, ISP_LOGTDEBUG1, "%s: seg0[%d]%lx:%u", __FUNCTION__, seg, (unsigned long) cto->rsp.m0.u.ct_dataseg64[seg].ds_base, bc);
+            isp_prt(isp, ISP_LOGTDEBUG1, "%s: seg0[%d]%lx:%u", __func__, seg, (unsigned long) cto->rsp.m0.u.ct_dataseg64[seg].ds_base, bc);
         }
 #endif
         cto->rsp.m0.ct_xfrlen += bc;
@@ -2483,7 +2483,7 @@ again:
         nxti = ISP_NXT_QENTRY((curip), RQUEST_QUEUE_LEN(isp));
         if (nxti == optr) {
             pci_unmap_sg(pcs->pci_dev, xact->td_data, nseg, (cto->ct_flags & CT2_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
-            isp_prt(isp, ISP_LOGTDEBUG0, "%s: out of space for continuations (%d of %d segs done)", __FUNCTION__, cto->ct_seg_count, nseg);
+            isp_prt(isp, ISP_LOGTDEBUG0, "%s: out of space for continuations (%d of %d segs done)", __func__, cto->ct_seg_count, nseg);
             return (CMD_EAGAIN);
         }
         cto->ct_header.rqs_entry_count++;
@@ -2508,7 +2508,7 @@ again:
                 addr = sg_dma_address(sg);
                 bc = min(sg_dma_len(sg), xfcnt);
             }
-            isp_prt(isp, ISP_LOGTDEBUG1, "%s: seg%d[%d]%llx:%u", __FUNCTION__, cto->ct_header.rqs_entry_count-1, ovseg, (unsigned long long) addr, bc);
+            isp_prt(isp, ISP_LOGTDEBUG1, "%s: seg%d[%d]%llx:%u", __func__, cto->ct_header.rqs_entry_count-1, ovseg, (unsigned long long) addr, bc);
 
             cto->ct_seg_count++;
             cto->rsp.m0.ct_xfrlen += bc;
@@ -2561,7 +2561,7 @@ again:
                 cto->rsp.m0.ct_xfrlen = 0;
                 sg = xact->td_data;
                 seglim = ISP_RQDSEG_T3;
-                isp_prt(isp, ISP_LOGTDEBUG1, "%s: found hi page in continuation, restarting", __FUNCTION__);
+                isp_prt(isp, ISP_LOGTDEBUG1, "%s: found hi page in continuation, restarting", __func__);
                 goto again;
             }
             crq->req_dataseg[ovseg].ds_count = bc;
@@ -2593,7 +2593,7 @@ mbxsync:
         nxti = ISP_NXT_QENTRY(curi, RQUEST_QUEUE_LEN(isp));
         if (nxti == optr) {
             pci_unmap_sg(pcs->pci_dev, xact->td_data, nseg, (cto->ct_flags & CT2_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
-            isp_prt(isp, ISP_LOGTDEBUG0, "%s: request queue overflow", __FUNCTION__);
+            isp_prt(isp, ISP_LOGTDEBUG0, "%s: request queue overflow", __func__);
             cto->ct_resid = -EAGAIN;
             return (CMD_COMPLETE);
         }
@@ -2617,8 +2617,13 @@ static int
 isp_pci_dmasetup(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, ispreq_t *rq, uint32_t *nxi, uint32_t optr)
 {
     struct scatterlist *sg, *savesg;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
     XS_DMA_ADDR_T one_shot_addr, last_synthetic_addr;
     unsigned int one_shot_length, last_synthetic_count;
+#else
+    XS_DMA_ADDR_T last_synthetic_addr;
+    unsigned int last_synthetic_count;
+#endif
     int segcnt, seg, ovseg, seglim;
     void *h;
     uint32_t nxti;
@@ -2638,24 +2643,24 @@ isp_pci_dmasetup(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, ispreq_t *rq, uint32_t *nxi, 
     nxti = *nxi;
     h = (void *) ISP_QUEUE_ENTRY(isp->isp_rquest, isp->isp_reqidx);
 
-    if (Cmnd->sc_data_direction == SCSI_DATA_NONE || Cmnd->request_bufflen == 0) {
+    if (Cmnd->sc_data_direction == SCSI_DATA_NONE || XS_XFRLEN(Cmnd) == 0) {
         rq->req_seg_count = 1;
         goto mbxsync;
     }
 
-    if (Cmnd->request_bufflen <= 1024) {
+    if (XS_XFRLEN(Cmnd) <= 1024) {
         seg = 0;
-    } else if (Cmnd->request_bufflen <= 4096) {
+    } else if (XS_XFRLEN(Cmnd) <= 4096) {
         seg = 1;
-    } else if (Cmnd->request_bufflen <= 32768) {
+    } else if (XS_XFRLEN(Cmnd) <= 32768) {
         seg = 2;
-    } else if (Cmnd->request_bufflen <= 65536) {
+    } else if (XS_XFRLEN(Cmnd) <= 65536) {
         seg = 3;
-    } else if (Cmnd->request_bufflen <= 131372) {
+    } else if (XS_XFRLEN(Cmnd) <= 131372) {
         seg = 4;
-    } else if (Cmnd->request_bufflen <= 262144) {
+    } else if (XS_XFRLEN(Cmnd) <= 262144) {
         seg = 5;
-    } else if (Cmnd->request_bufflen <= 524288) {
+    } else if (XS_XFRLEN(Cmnd) <= 524288) {
         seg = 6;
     } else {
         seg = 7;
@@ -2664,14 +2669,14 @@ isp_pci_dmasetup(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, ispreq_t *rq, uint32_t *nxi, 
 
     if (IS_FC(isp)) {
         seglim = ISP_RQDSEG_T2;
-        ((ispreqt2_t *)rq)->req_totalcnt = Cmnd->request_bufflen;
+        ((ispreqt2_t *)rq)->req_totalcnt = XS_XFRLEN(Cmnd);
         if (Cmnd->sc_data_direction == SCSI_DATA_WRITE) {
             ((ispreqt2_t *)rq)->req_flags |= REQFLAG_DATA_OUT;
         } else if (Cmnd->sc_data_direction == SCSI_DATA_READ) {
             ((ispreqt2_t *)rq)->req_flags |= REQFLAG_DATA_IN;
         } else {
-            isp_prt(isp, ISP_LOGERR, "%s: unkown data direction (%x) for %d byte request (opcode 0x%x)", __FUNCTION__,
-                Cmnd->sc_data_direction, Cmnd->request_bufflen, Cmnd->cmnd[0]);
+            isp_prt(isp, ISP_LOGERR, "%s: unkown data direction (%x) for %d byte request (opcode 0x%x)", __func__,
+                Cmnd->sc_data_direction, XS_XFRLEN(Cmnd), Cmnd->cmnd[0]);
             XS_SETERR(Cmnd, HBA_BOTCH);
             return (CMD_COMPLETE);
         }
@@ -2686,21 +2691,22 @@ isp_pci_dmasetup(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, ispreq_t *rq, uint32_t *nxi, 
         } else if (Cmnd->sc_data_direction == SCSI_DATA_READ) {
             rq->req_flags |= REQFLAG_DATA_IN;
         } else {
-            isp_prt(isp, ISP_LOGERR, "%s: unkown data direction (%x) for %d byte request (opcode 0x%x)", __FUNCTION__,
-                Cmnd->sc_data_direction, Cmnd->request_bufflen, Cmnd->cmnd[0]);
+            isp_prt(isp, ISP_LOGERR, "%s: unkown data direction (%x) for %d byte request (opcode 0x%x)", __func__,
+                Cmnd->sc_data_direction, XS_XFRLEN(Cmnd), Cmnd->cmnd[0]);
             XS_SETERR(Cmnd, HBA_BOTCH);
             return (CMD_COMPLETE);
         }
     }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
     one_shot_addr = (XS_DMA_ADDR_T) 0;
     one_shot_length = 0;
     if ((segcnt = Cmnd->use_sg) == 0) {
         struct isp_pcisoftc *pcs = (struct isp_pcisoftc *) isp;
         segcnt = 1;
         sg = NULL;
-        one_shot_length = Cmnd->request_bufflen;
-        one_shot_addr = pci_map_single(pcs->pci_dev, Cmnd->request_buffer, Cmnd->request_bufflen, scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
+        one_shot_length = XS_XFRLEN(Cmnd);
+        one_shot_addr = pci_map_single(pcs->pci_dev, Cmnd->request_buffer, XS_XFRLEN(Cmnd), scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
         QLA_HANDLE(Cmnd) = (DMA_HTYPE_T) one_shot_addr;
     } else {
         struct isp_pcisoftc *pcs = (struct isp_pcisoftc *) isp;
@@ -2708,10 +2714,19 @@ isp_pci_dmasetup(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, ispreq_t *rq, uint32_t *nxi, 
         segcnt = pci_map_sg(pcs->pci_dev, sg, Cmnd->use_sg, scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
     }
     if (segcnt == 0) {
-        isp_prt(isp, ISP_LOGWARN, "%s: unable to dma map request", __FUNCTION__);
+        isp_prt(isp, ISP_LOGWARN, "%s: unable to dma map request", __func__);
         XS_SETERR(Cmnd, HBA_BOTCH);
         return (CMD_COMPLETE);
     }
+#else
+    segcnt = scsi_dma_map(Cmnd);
+    if (segcnt <= 0) {
+        isp_prt(isp, ISP_LOGWARN, "%s: unable to dma map request", __func__);
+        XS_SETERR(Cmnd, HBA_BOTCH);
+        return (CMD_COMPLETE);
+    }
+    sg = scsi_sglist(Cmnd);
+#endif
     savesg = sg;
 
 again:
@@ -2721,6 +2736,7 @@ again:
         XS_DMA_ADDR_T addr;
         unsigned int length;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
         if (sg) {
             length = sg_dma_len(sg);
             addr = sg_dma_address(sg);
@@ -2729,6 +2745,11 @@ again:
             length = one_shot_length;
             addr = one_shot_addr;
         }
+#else
+        length = sg_dma_len(sg);
+        addr = sg_dma_address(sg);
+        sg++;
+#endif
 
         if (ISP_A64 && IS_HIGH_ISP_ADDR(addr)) {
             if (IS_FC(isp)) {
@@ -2845,7 +2866,7 @@ again:
         nxti = ISP_NXT_QENTRY((curip), RQUEST_QUEUE_LEN(isp));
         if (nxti == optr) {
             isp_pci_dmateardown(isp, Cmnd, 0);
-            isp_prt(isp, ISP_LOGDEBUG0, "%s: Chan %d out of space for continuations (did %d of %d segments)", __FUNCTION__, XS_CHANNEL(Cmnd), seg, segcnt);
+            isp_prt(isp, ISP_LOGDEBUG0, "%s: Chan %d out of space for continuations (did %d of %d segments)", __func__, XS_CHANNEL(Cmnd), seg, segcnt);
             XS_SETERR(Cmnd, HBA_BOTCH);
             return (CMD_EAGAIN);
         }
@@ -2969,8 +2990,13 @@ isp_pci_2400_dmasetup(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, ispreq_t *orig_rq, uint3
 {
     struct scatterlist *sg, *savesg;
     ispreqt7_t *rq;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
     XS_DMA_ADDR_T addr, one_shot_addr, last_synthetic_addr;
     unsigned int one_shot_length, last_synthetic_count, length;
+#else
+    XS_DMA_ADDR_T addr, last_synthetic_addr;
+    unsigned int last_synthetic_count, length;
+#endif
     int segcnt, seg, ovseg;
     void *h;
     uint32_t nxti;
@@ -2984,31 +3010,31 @@ isp_pci_2400_dmasetup(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, ispreq_t *orig_rq, uint3
     nxti = *nxi;
     h = (void *) ISP_QUEUE_ENTRY(isp->isp_rquest, isp->isp_reqidx);
 
-    if (Cmnd->sc_data_direction == SCSI_DATA_NONE || Cmnd->request_bufflen == 0) {
+    if (Cmnd->sc_data_direction == SCSI_DATA_NONE || XS_XFRLEN(Cmnd) == 0) {
         rq->req_seg_count = 0;
         goto mbxsync;
     }
 
-    if (Cmnd->request_bufflen <= 1024) {
+    if (XS_XFRLEN(Cmnd) <= 1024) {
         seg = 0;
-    } else if (Cmnd->request_bufflen <= 4096) {
+    } else if (XS_XFRLEN(Cmnd) <= 4096) {
         seg = 1;
-    } else if (Cmnd->request_bufflen <= 32768) {
+    } else if (XS_XFRLEN(Cmnd) <= 32768) {
         seg = 2;
-    } else if (Cmnd->request_bufflen <= 65536) {
+    } else if (XS_XFRLEN(Cmnd) <= 65536) {
         seg = 3;
-    } else if (Cmnd->request_bufflen <= 131372) {
+    } else if (XS_XFRLEN(Cmnd) <= 131372) {
         seg = 4;
-    } else if (Cmnd->request_bufflen <= 262144) {
+    } else if (XS_XFRLEN(Cmnd) <= 262144) {
         seg = 5;
-    } else if (Cmnd->request_bufflen <= 524288) {
+    } else if (XS_XFRLEN(Cmnd) <= 524288) {
         seg = 6;
     } else {
         seg = 7;
     }
     isp->isp_osinfo.bins[seg]++;
 
-    rq->req_dl = Cmnd->request_bufflen;
+    rq->req_dl = XS_XFRLEN(Cmnd);
     rq->req_seg_count = 1;
     if (Cmnd->sc_data_direction == SCSI_DATA_WRITE) {
         rq->req_alen_datadir = FCP_CMND_DATA_WRITE;
@@ -3016,19 +3042,20 @@ isp_pci_2400_dmasetup(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, ispreq_t *orig_rq, uint3
         rq->req_alen_datadir = FCP_CMND_DATA_READ;
     } else {
         isp_prt(isp, ISP_LOGERR, "unknown data direction (%x) for %d byte request (opcode 0x%x)",
-            Cmnd->sc_data_direction, Cmnd->request_bufflen, Cmnd->cmnd[0]);
+            Cmnd->sc_data_direction, XS_XFRLEN(Cmnd), Cmnd->cmnd[0]);
         XS_SETERR(Cmnd, HBA_BOTCH);
         return (CMD_COMPLETE);
     }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
     one_shot_addr = (XS_DMA_ADDR_T) 0;
     one_shot_length = 0;
     if ((segcnt = Cmnd->use_sg) == 0) {
         struct isp_pcisoftc *pcs = (struct isp_pcisoftc *) isp;
         segcnt = 1;
         sg = NULL;
-        one_shot_length = Cmnd->request_bufflen;
-        one_shot_addr = pci_map_single(pcs->pci_dev, Cmnd->request_buffer, Cmnd->request_bufflen, scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
+        one_shot_length = XS_XFRLEN(Cmnd);
+        one_shot_addr = pci_map_single(pcs->pci_dev, Cmnd->request_buffer, XS_XFRLEN(Cmnd), scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
         QLA_HANDLE(Cmnd) = (DMA_HTYPE_T) one_shot_addr;
     } else {
         struct isp_pcisoftc *pcs = (struct isp_pcisoftc *) isp;
@@ -3041,12 +3068,22 @@ isp_pci_2400_dmasetup(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, ispreq_t *orig_rq, uint3
         XS_SETERR(Cmnd, HBA_BOTCH);
         return (CMD_EAGAIN);
     }
+#else
+    segcnt = scsi_dma_map(Cmnd);
+    if (segcnt <= 0) {
+        isp_prt(isp, ISP_LOGWARN, "unable to dma map request");
+        XS_SETERR(Cmnd, HBA_BOTCH);
+        return (CMD_EAGAIN);
+    }
+    sg = scsi_sglist(Cmnd);
+#endif
 
     savesg = sg;
 
     last_synthetic_count = 0;
     last_synthetic_addr = 0;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
     if (sg) {
         length = sg_dma_len(sg);
         addr = sg_dma_address(sg);
@@ -3055,6 +3092,11 @@ isp_pci_2400_dmasetup(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, ispreq_t *orig_rq, uint3
         length = one_shot_length;
         addr = one_shot_addr;
     }
+#else
+    length = sg_dma_len(sg);
+    addr = sg_dma_address(sg);
+    sg++;
+#endif
     seg = 1;
 
     rq->req_dataseg.ds_base = LOWD(addr);
@@ -3088,7 +3130,7 @@ isp_pci_2400_dmasetup(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, ispreq_t *orig_rq, uint3
         nxti = ISP_NXT_QENTRY((curip), RQUEST_QUEUE_LEN(isp));
         if (nxti == optr) {
             isp_pci_dmateardown(isp, Cmnd, 0);
-            isp_prt(isp, ISP_LOGDEBUG0, "%s: Chan %d out of space for continuations (did %d of %d segments)", __FUNCTION__, XS_CHANNEL(Cmnd), seg, segcnt);
+            isp_prt(isp, ISP_LOGDEBUG0, "%s: Chan %d out of space for continuations (did %d of %d segments)", __func__, XS_CHANNEL(Cmnd), seg, segcnt);
             XS_SETERR(Cmnd, HBA_BOTCH);
             return (CMD_EAGAIN);
         }
@@ -3162,13 +3204,13 @@ mbxsync:
 static void
 isp_pci_dmateardown(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, uint32_t handle)
 {
-    struct isp_pcisoftc *pcs = (struct isp_pcisoftc *)isp;
 #ifdef    ISP_TARGET_MODE
     /*
      * The argument passed may not be a Cmnd pointer- this is the
      * safest way to keep the two w/o redoing our internal apis.
      */
     if (IS_TARGET_HANDLE(handle)) {
+        struct isp_pcisoftc *pcs = (struct isp_pcisoftc *)isp;
         tmd_xact_t *xact = (tmd_xact_t *) Cmnd;
         tmd_cmd_t *tmd = xact? xact->td_cmd : NULL;
         int nseg = tmd? tmd->cd_nseg :  0;
@@ -3179,12 +3221,17 @@ isp_pci_dmateardown(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, uint32_t handle)
     } else
 #endif
     if (Cmnd->sc_data_direction != SCSI_DATA_NONE) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
+        struct isp_pcisoftc *pcs = (struct isp_pcisoftc *)isp;
         if (Cmnd->use_sg) {
             pci_unmap_sg(pcs->pci_dev, (struct scatterlist *)Cmnd->request_buffer, Cmnd->use_sg, scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
-        } else if (Cmnd->request_bufflen) {
+        } else if (XS_XFRLEN(Cmnd)) {
             XS_DMA_ADDR_T dhandle = (XS_DMA_ADDR_T) QLA_HANDLE(Cmnd);
-            pci_unmap_single(pcs->pci_dev, dhandle, Cmnd->request_bufflen, scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
+            pci_unmap_single(pcs->pci_dev, dhandle, XS_XFRLEN(Cmnd), scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
         }
+#else
+        scsi_dma_unmap(Cmnd);
+#endif
     }
 }
 
@@ -3468,7 +3515,7 @@ isplinux_pci_remove(struct pci_dev *pdev)
     isp_deinit_target(isp);
 #endif
     scsi_host_put(host);
-#if !defined(DISABLE_FW_LOADER) && (defined(CONFIG_FW_LOADER) || defined(CONFIG_FW_LOADER_MODULE))
+#ifdef  CONFIG_FW_LOADER
     if (isp->isp_osinfo.fwp) {
         release_firmware(isp->isp_osinfo.fwp);
         isp->isp_osinfo.fwp = NULL;
@@ -3479,7 +3526,7 @@ isplinux_pci_remove(struct pci_dev *pdev)
 
 static struct pci_driver isplinux_pci_driver = {
         .name           = ISP_NAME,
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 9)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,9)
         .driver         = {
             .owner      = THIS_MODULE,
         },
@@ -3497,12 +3544,12 @@ isplinux_pci_init(void)
     printk(KERN_INFO "Feral Software QLogic SCSI/FC Driver built on %s %s\n", __DATE__, __TIME__);
     ret = alloc_chrdev_region(&isp_dev, 0, MAX_ISP, ISP_NAME);
     if (ret) {
-        printk(KERN_ERR "%s: cannot allocate chrdev region\n", __FUNCTION__);
+        printk(KERN_ERR "%s: cannot allocate chrdev region\n", __func__);
         return (ret);
     }
     cdev_init(&isp_cdev, &isp_ioctl_operations);
     if (cdev_add(&isp_cdev, isp_dev, MAX_ISP)) {
-        printk(KERN_ERR "%s: cannot add cdev\n", __FUNCTION__);
+        printk(KERN_ERR "%s: cannot add cdev\n", __func__);
         kobject_put(&isp_cdev.kobj);
         unregister_chrdev_region(isp_dev, MAX_ISP);
         return (-EIO);
@@ -3516,7 +3563,7 @@ isplinux_pci_init(void)
     }
     ret = pci_register_driver(&isplinux_pci_driver);
     if (ret < 0) {
-        printk(KERN_ERR "%s: unable to register driver (return value %d)", __FUNCTION__, ret);
+        printk(KERN_ERR "%s: unable to register driver (return value %d)", __func__, ret);
         unregister_chrdev_region(isp_dev, MAX_ISP);
         return (ret);
     }

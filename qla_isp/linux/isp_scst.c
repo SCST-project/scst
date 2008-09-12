@@ -1295,7 +1295,7 @@ isp_write_proc(struct file *file, const char __user *buf, size_t len, loff_t *of
     enum { DISABLE = 0, ENABLE = 1, TEST } action;
     int en = -1, res = -EINVAL;
     int all_channels = 0, all_luns = 0;
-    int lun, chan;
+    int lun = 0, chan = 0;
     bus_t *bp = PDE(file->f_dentry->d_inode)->data;
 
     if (bp == NULL || bp->bchan == NULL) {

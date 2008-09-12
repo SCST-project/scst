@@ -1,4 +1,4 @@
-/* $Id: isp.c,v 1.204 2008/04/15 22:40:52 mjacob Exp $ */
+/* $Id: isp.c,v 1.209 2008/09/12 16:01:52 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -116,7 +116,7 @@ static const char pskip[] =
 static const char topology[] =
     "Chan %d WWPN 0x%08x%08x PortID 0x%06x N-Port Handle %d, Connection '%s'";
 static const char finmsg[] =
-    "%d.%d.%d: FIN dl%d resid %d STS 0x%x SKEY %c XS_ERR=0x%x";
+    "%d.%d.%d: FIN dl%d resid %ld STS 0x%x SKEY %c XS_ERR=0x%x";
 static const char sc4[] = "NVRAM";
 static const char bun[] =
     "bad underrun for %d.%d (count %d, resid %d, status %s)";
@@ -500,7 +500,7 @@ isp_reset(ispsoftc_t *isp)
 
 	/*
 	 * Hit the chip over the head with hammer,
-	 * and give the ISP a chance to recover.
+	 * and give it a chance to recover.
 	 */
 
 	if (IS_SCSI(isp)) {
@@ -624,7 +624,6 @@ isp_reset(ispsoftc_t *isp)
 		ISP_WRITE(isp, BIU_SEMA, 0);
 	}
 
-
 	/*
 	 * Post-RISC Reset stuff.
 	 */
@@ -723,16 +722,23 @@ isp_reset(ispsoftc_t *isp)
 	 */
 
 	/*
-	 * Do some sanity checking.
+	 * Do some sanity checking by running a NOP command.
+	 * If it succeeds, the ROM firmware is now running.
 	 */
 	MEMZERO(&mbs, sizeof (mbs));
 	mbs.param[0] = MBOX_NO_OP;
 	mbs.logval = MBLOGALL;
 	isp_mboxcmd(isp, &mbs);
 	if (mbs.param[0] != MBOX_COMMAND_COMPLETE) {
+		isp_prt(isp, ISP_LOGERR, "NOP ommand failed (%x)",
+		    mbs.param[0]);
 		ISP_RESET0(isp);
 		return;
 	}
+
+	/*
+	 * Do some operational tests
+	 */
 
 	if (IS_SCSI(isp) || IS_24XX(isp)) {
 		MEMZERO(&mbs, sizeof (mbs));
@@ -787,13 +793,6 @@ isp_reset(ispsoftc_t *isp)
 
 	if (dodnld && IS_24XX(isp)) {
 		const uint32_t *ptr = isp->isp_mdvec->dv_ispfw;
-
-		/*
-		 * NB: Whatever you do do, do *not* issue the VERIFY FIRMWARE
-		 * NB: command to the 2400 while loading new firmware. This
-		 * NB: causes the new f/w to start and immediately crash back
-		 * NB: to the ROM.
-		 */
 
 		/*
 		 * Keep loading until we run out of f/w.
@@ -909,23 +908,6 @@ isp_reset(ispsoftc_t *isp)
 				la += nw;
 			}
 
-			if (!IS_2322(isp)) {
-				/*
-				 * Verify that it downloaded correctly.
-				 */
-				MEMZERO(&mbs, sizeof (mbs));
-				mbs.param[0] = MBOX_VERIFY_CHECKSUM;
-				mbs.param[1] = code_org;
-				mbs.logval = MBLOGNONE;
-				isp_mboxcmd(isp, &mbs);
-				if (mbs.param[0] != MBOX_COMMAND_COMPLETE) {
-					isp_prt(isp, ISP_LOGERR, dcrc);
-					ISP_RESET0(isp);
-					return;
-				}
-				break;
-			}
-
 			if (++segno == 3) {
 				break;
 			}
@@ -965,23 +947,29 @@ isp_reset(ispsoftc_t *isp)
 			ISP_RESET0(isp);
 			return;
 		}
-		/*
-		 * Verify that it downloaded correctly.
-		 */
+	} else {
+		isp->isp_loaded_fw = 0;
+		isp_prt(isp, ISP_LOGDEBUG2, "skipping f/w download");
+	}
+
+	/*
+	 * If we loaded firmware, verify its checksum
+	 */
+	if (isp->isp_loaded_fw) {
 		MEMZERO(&mbs, sizeof (mbs));
 		mbs.param[0] = MBOX_VERIFY_CHECKSUM;
-		mbs.param[1] = code_org;
-		mbs.logval = MBLOGNONE;
+		if (IS_24XX(isp)) {
+			mbs.param[1] = code_org >> 16;
+			mbs.param[2] = code_org;
+		} else {
+			mbs.param[1] = code_org;
+		}
 		isp_mboxcmd(isp, &mbs);
 		if (mbs.param[0] != MBOX_COMMAND_COMPLETE) {
 			isp_prt(isp, ISP_LOGERR, dcrc);
 			ISP_RESET0(isp);
 			return;
 		}
-		isp->isp_loaded_fw = 1;
-	} else {
-		isp->isp_loaded_fw = 0;
-		isp_prt(isp, ISP_LOGDEBUG2, "skipping f/w download");
 	}
 
 	/*
@@ -1025,33 +1013,43 @@ isp_reset(ispsoftc_t *isp)
 
 	/*
 	 * Give it a chance to finish starting up.
+	 * Give the 24XX more time.
 	 */
-	USEC_DELAY(250000);
-
-	if (IS_SCSI(isp)) {
+	if (IS_24XX(isp)) {
+		USEC_DELAY(500000);
 		/*
-		 * Set CLOCK RATE, but only if asked to.
+		 * Check to see if the 24XX firmware really started.
 		 */
-		if (isp->isp_clock) {
-			mbs.param[0] = MBOX_SET_CLOCK_RATE;
-			mbs.param[1] = isp->isp_clock;
-			mbs.logval = MBLOGNONE;
-			isp_mboxcmd(isp, &mbs);
-			/* we will try not to care if this fails */
+		if (mbs.param[1] == 0xdead) {
+			isp_prt(isp, ISP_LOGERR, "f/w didn't *really* start");
+			ISP_RESET0(isp);
+			return;
+		}
+	} else {
+		USEC_DELAY(250000);
+		if (IS_SCSI(isp)) {
+			/*
+			 * Set CLOCK RATE, but only if asked to.
+			 */
+			if (isp->isp_clock) {
+				mbs.param[0] = MBOX_SET_CLOCK_RATE;
+				mbs.param[1] = isp->isp_clock;
+				mbs.logval = MBLOGNONE;
+				isp_mboxcmd(isp, &mbs);
+				/* we will try not to care if this fails */
+			}
 		}
 	}
 
+	/*
+	 * Ask the chip for the current firmware version.
+	 * This should prove that the new firmware is working.
+	 */
 	MEMZERO(&mbs, sizeof (mbs));
 	mbs.param[0] = MBOX_ABOUT_FIRMWARE;
 	mbs.logval = MBLOGALL;
 	isp_mboxcmd(isp, &mbs);
 	if (mbs.param[0] != MBOX_COMMAND_COMPLETE) {
-		ISP_RESET0(isp);
-		return;
-	}
-
-	if (IS_24XX(isp) && mbs.param[1] == 0xdead) {
-		isp_prt(isp, ISP_LOGERR, "f/w didn't *really* start");
 		ISP_RESET0(isp);
 		return;
 	}
@@ -2390,13 +2388,13 @@ isp_port_login(ispsoftc_t *isp, uint16_t handle, uint32_t portid)
 	switch (mbs.param[0]) {
 	case MBOX_PORT_ID_USED:
 		isp_prt(isp, ISP_LOGDEBUG0,
-		    "isp_plogi_old: portid 0x%06x already logged in as %u",
+		    "isp_port_login: portid 0x%06x already logged in as %u",
 		    portid, mbs.param[1]);
 		return (MBOX_PORT_ID_USED | (mbs.param[1] << 16));
 
 	case MBOX_LOOP_ID_USED:
 		isp_prt(isp, ISP_LOGDEBUG0,
-		    "isp_plogi_old: handle %u in use for port id 0x%02xXXXX",
+		    "isp_port_login: handle %u in use for port id 0x%02xXXXX",
 		    handle, mbs.param[1] & 0xff);
 		return (MBOX_LOOP_ID_USED);
 
@@ -2405,18 +2403,18 @@ isp_port_login(ispsoftc_t *isp, uint16_t handle, uint32_t portid)
 
 	case MBOX_COMMAND_ERROR:
 		isp_prt(isp, ISP_LOGINFO,
-		    "isp_plogi_old: error 0x%x in PLOGI to port 0x%06x",
+		    "isp_port_login: error 0x%x in PLOGI to port 0x%06x",
 		    mbs.param[1], portid);
 		return (MBOX_COMMAND_ERROR);
 
 	case MBOX_ALL_IDS_USED:
 		isp_prt(isp, ISP_LOGINFO,
-		    "isp_plogi_old: all IDs used for fabric login");
+		    "isp_port_login: all IDs used for fabric login");
 		return (MBOX_ALL_IDS_USED);
 
 	default:
 		isp_prt(isp, ISP_LOGINFO,
-		    "isp_plogi_old: error 0x%x on port login of 0x%06x@0x%0x",
+		    "isp_port_login: error 0x%x on port login of 0x%06x@0x%0x",
 		    mbs.param[0], portid, handle);
 		return (mbs.param[0]);
 	}
@@ -4137,6 +4135,8 @@ isp_login_device(ispsoftc_t *isp, int chan, uint32_t portid, isp_pdb_t *p,
 		} else if (r != MBOX_LOOP_ID_USED) {
 			i = lim;
 			break;
+		} else if (r == MBOX_TIMEOUT) {
+			return (-1);
 		} else {
 			*ohp = handle;
 			handle = isp_nxt_handle(isp, chan, *ohp);
@@ -4326,7 +4326,7 @@ isp_register_fc4_type_24xx(ispsoftc_t *isp, int chan)
 	} else if (ct->ct_cmd_resp == LS_ACC) {
 		isp_prt(isp, ISP_LOGSANCFG|ISP_LOGDEBUG0,
 		    "Chan %d Register FC4 Type accepted", chan);
-		return(0);
+		return (0);
 	} else {
 		isp_prt(isp, ISP_LOGWARN,
 		    "Chan %d Register FC4 Type: 0x%x",
@@ -4546,7 +4546,7 @@ isp_start(XS_T *xs)
 		/*
 		 * See comment in isp_intr
 		 */
-		/* XS_RESID(xs) = 0; */
+		/* XS_SET_RESID(xs, 0); */
 
 		/*
 		 * Fibre Channel always requires some kind of tag.
@@ -5010,7 +5010,7 @@ isp_control(ispsoftc_t *isp, ispctl_t ctl, ...)
 		mbr = va_arg(ap, mbreg_t *);
 		va_end(ap);
 		isp_mboxcmd(isp, mbr);
-		return(0);
+		return (0);
 	}
 	case ISPCTL_PLOGX:
 	{
@@ -5489,7 +5489,7 @@ again:
 				XS_SETERR(xs, HBA_TGTBSY);
 			}
 			if (IS_SCSI(isp)) {
-				XS_RESID(xs) = resid;
+				XS_SET_RESID(xs, resid);
 				/*
 				 * A new synchronous rate was negotiated for
 				 * this target. Mark state such that we'll go
@@ -5504,11 +5504,11 @@ again:
 				}
 			} else {
 				if (req_status_flags & RQSF_XFER_COMPLETE) {
-					XS_RESID(xs) = 0;
+					XS_SET_RESID(xs, 0);
 				} else if (scsi_status & RQCS_RESID) {
-					XS_RESID(xs) = resid;
+					XS_SET_RESID(xs, resid);
 				} else {
-					XS_RESID(xs) = 0;
+					XS_SET_RESID(xs, 0);
 				}
 			}
 			if (snsp && slen) {
@@ -5516,7 +5516,7 @@ again:
 			}
 			isp_prt(isp, ISP_LOGDEBUG2,
 			   "asked for %ld got raw resid %ld settled for %ld",
-			    (long) XS_XFRLEN(xs), resid, (long) XS_RESID(xs));
+			    (long) XS_XFRLEN(xs), resid, (long) XS_GET_RESID(xs));
 			break;
 		case RQSTYPE_REQUEST:
 		case RQSTYPE_A64:
@@ -5541,7 +5541,7 @@ again:
 					    QENTRY_LEN, qe);
 				}
 			}
-			XS_RESID(xs) = XS_XFRLEN(xs);
+			XS_SET_RESID(xs, XS_XFRLEN(xs));
 			break;
 		default:
 			isp_print_bytes(isp, "Unhandled Response Type",
@@ -5576,7 +5576,7 @@ again:
 				skey = '.';
 			}
 			isp_prt(isp, ISP_LOGALL, finmsg, XS_CHANNEL(xs),
-			    XS_TGT(xs), XS_LUN(xs), XS_XFRLEN(xs), XS_RESID(xs),
+			    XS_TGT(xs), XS_LUN(xs), XS_XFRLEN(xs), (long) XS_GET_RESID(xs),
 			    *XS_STSP(xs), skey, XS_ERR(xs));
 		}
 
@@ -6392,9 +6392,9 @@ isp_parse_status(ispsoftc_t *isp, ispstatusreq_t *sp, XS_T *xs, long *rp)
 		return;
 
 	case RQCS_DATA_OVERRUN:
-		XS_RESID(xs) = sp->req_resid;
-		isp_prt(isp, ISP_LOGERR, "data overrun for command on %d.%d.%d",
-		    XS_CHANNEL(xs), XS_TGT(xs), XS_LUN(xs));
+		XS_SET_RESID(xs, sp->req_resid);
+		isp_prt(isp, ISP_LOGERR, "data overrun (%ld) for command on %d.%d.%d",
+		    (long) XS_GET_RESID(xs), XS_CHANNEL(xs), XS_TGT(xs), XS_LUN(xs));
 		if (XS_NOERR(xs)) {
 			XS_SETERR(xs, HBA_DATAOVR);
 		}
@@ -6486,7 +6486,7 @@ isp_parse_status(ispsoftc_t *isp, ispstatusreq_t *sp, XS_T *xs, long *rp)
 				return;
 			}
 		}
-		XS_RESID(xs) = sp->req_resid;
+		XS_SET_RESID(xs, sp->req_resid);
 		if (XS_NOERR(xs)) {
 			XS_SETERR(xs, HBA_NOERROR);
 		}
@@ -6706,7 +6706,7 @@ isp_parse_status_24xx(ispsoftc_t *isp, isp24xx_statusreq_t *sp,
 		return;
 
 	case RQCS_DATA_OVERRUN:
-		XS_RESID(xs) = sp->req_resid;
+		XS_SET_RESID(xs, sp->req_resid);
 		isp_prt(isp, ISP_LOGERR,
 		    "data overrun for command on %d.%d.%d",
 		    XS_CHANNEL(xs), XS_TGT(xs), XS_LUN(xs));
@@ -6750,7 +6750,7 @@ isp_parse_status_24xx(ispsoftc_t *isp, isp24xx_statusreq_t *sp,
 			}
 			return;
 		}
-		XS_RESID(xs) = sp->req_resid;
+		XS_SET_RESID(xs, sp->req_resid);
 		isp_prt(isp, ISP_LOGDEBUG0,
 		    "%d.%d.%d data underrun (%d) for command 0x%x",
 		    XS_CHANNEL(xs), XS_TGT(xs), XS_LUN(xs),
@@ -6850,7 +6850,7 @@ isp_fastpost_complete(ispsoftc_t *isp, uint16_t fph)
 	 * we must believe that SCSI status is zero and
 	 * that all data transferred.
 	 */
-	XS_RESID(xs) = 0;
+	XS_SET_RESID(xs, 0);
 	*XS_STSP(xs) = SCSI_GOOD;
 	if (XS_XFRLEN(xs)) {
 		ISP_DMAFREE(isp, xs, fph);
@@ -7141,7 +7141,7 @@ static const uint32_t mbpfc[] = {
 	ISPOPMAP(0x07, 0x07),	/* 0x04: MBOX_WRITE_RAM_WORD */
 	ISPOPMAP(0x03, 0x07),	/* 0x05: MBOX_READ_RAM_WORD */
 	ISPOPMAP(0xff, 0xff),	/* 0x06: MBOX_MAILBOX_REG_TEST */
-	ISPOPMAP(0x03, 0x07),	/* 0x07: MBOX_VERIFY_CHECKSUM	*/
+	ISPOPMAP(0x07, 0x07),	/* 0x07: MBOX_VERIFY_CHECKSUM	*/
 	ISPOPMAP(0x01, 0x4f),	/* 0x08: MBOX_ABOUT_FIRMWARE */
 	ISPOPMAP(0xdf, 0x01),	/* 0x09: MBOX_LOAD_RISC_RAM_2100 */
 	ISPOPMAP(0xdf, 0x01),	/* 0x0a: DUMP RAM */
@@ -7866,7 +7866,6 @@ isp_setdfltsdparm(ispsoftc_t *isp)
 					return;
 				}
 			}
-
 		}
 		MEMZERO(&mbs, sizeof (mbs));
 		mbs.param[0] = MBOX_GET_ACT_NEG_STATE;
@@ -8033,9 +8032,9 @@ isp_reinit(ispsoftc_t *isp)
 		isp_destroy_handle(isp, handle);
 		if (XS_XFRLEN(xs)) {
 			ISP_DMAFREE(isp, xs, handle);
-			XS_RESID(xs) = XS_XFRLEN(xs);
+			XS_SET_RESID(xs, XS_XFRLEN(xs));
 		} else {
-			XS_RESID(xs) = 0;
+			XS_SET_RESID(xs, 0);
 		}
 		XS_SETERR(xs, HBA_BUSRESET);
 		isp_done(xs);

@@ -1,4 +1,4 @@
-/* $Id: ispvar.h,v 1.97 2008/03/23 04:56:30 mjacob Exp $ */
+/* $Id: ispvar.h,v 1.99 2008/06/16 23:53:18 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -104,7 +104,9 @@ struct ispmdvec {
  * Overall parameters
  */
 #define	MAX_TARGETS		16
+#ifndef	MAX_FC_TARG
 #define	MAX_FC_TARG		512
+#endif
 #define	ISP_MAX_TARGETS(isp)	(IS_FC(isp)? MAX_FC_TARG : MAX_TARGETS)
 #define	ISP_MAX_LUNS(isp)	(isp)->isp_maxluns
 
@@ -983,7 +985,8 @@ void isp_async(ispsoftc_t *, ispasync_t, ...);
  *	XS_CDBLEN(xs)	gets the CDB's length ""
  *	XS_XFRLEN(xs)	gets the associated data transfer length ""
  *	XS_TIME(xs)	gets the time (in milliseconds) for this command
- *	XS_RESID(xs)	gets the current residual count
+ *	XS_GET_RESID(xs)	gets the current residual count
+ *	XS_GET_RESID(xs, resid)	sets the current residual count
  *	XS_STSP(xs)	gets a pointer to the SCSI status byte ""
  *	XS_SNSP(xs)	gets a pointer to the associate sense data
  *	XS_SNSLEN(xs)	gets the length of sense data storage

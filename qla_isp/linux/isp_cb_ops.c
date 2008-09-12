@@ -1,4 +1,4 @@
-/* $Id: isp_cb_ops.c,v 1.89 2008/04/15 22:41:03 mjacob Exp $ */
+/* $Id: isp_cb_ops.c,v 1.95 2008/09/12 20:53:44 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -59,10 +59,8 @@
 
 #include "isp_linux.h"
 #include "isp_ioctl.h"
-#include "exioct.h"
 
 #ifdef  CONFIG_PROC_FS
-
 /*
  * 'safe' proc pretty print code
  */
@@ -159,7 +157,7 @@ isplinux_proc_info(struct Scsi_Host *shp, char *buf, char **st, off_t off, int l
         } else if (strncmp(buf, "rescan", 6) == 0) {
             if (IS_FC(isp)) {
                 for (io = 0; io < isp->isp_nchan; io++) {
-                    isp_thread_event(isp, ISP_THREAD_FC_RESCAN, FCPARAM(isp, io), 1, __FUNCTION__, __LINE__);
+                    isp_thread_event(isp, ISP_THREAD_FC_RESCAN, FCPARAM(isp, io), 1, __func__, __LINE__);
                 }
                 io = len;
             }
@@ -227,8 +225,8 @@ isplinux_proc_info(struct Scsi_Host *shp, char *buf, char **st, off_t off, int l
         "  MboxC=0x%016llx async=0x%016llx\n"
         "  CRslt=0x%016llx CPost=0x%016llx\n"
         "  RspnsCHiWater=0x%04x FastPostC_Hiwater=0x%04x\n",
-        (unsigned long long) isp->isp_intcnt, (unsigned long long) isp->isp_intbogus, (unsigned long long) isp->isp_intmboxc,
-        (unsigned long long) isp->isp_intoasync, (unsigned long long) isp->isp_rsltccmplt, (unsigned long long) isp->isp_fphccmplt,
+        (ull) isp->isp_intcnt, (ull) isp->isp_intbogus, (ull) isp->isp_intmboxc,
+        (ull) isp->isp_intoasync, (ull) isp->isp_rsltccmplt, (ull) isp->isp_fphccmplt,
         isp->isp_rscchiwater, isp->isp_fpcchiwater);
     copy_info(&info,
         " Request In %d Request Out %d Result %d Nactv %d"
@@ -251,20 +249,20 @@ isplinux_proc_info(struct Scsi_Host *shp, char *buf, char **st, off_t off, int l
 #endif
     copy_info(&info, "\n");
     if (isp->isp_osinfo.wqnext) {
-        Scsi_Cmnd *f = isp->isp_osinfo.wqnext;
+        struct scsi_cmnd *f = isp->isp_osinfo.wqnext;
         copy_info(&info, "WaitQ(%d)", isp->isp_osinfo.wqcnt);
         while (f) {
             copy_info(&info, "->%p", f);
-            f = (Scsi_Cmnd *) f->host_scribble;
+            f = (struct scsi_cmnd *) f->host_scribble;
         }
         copy_info(&info, "\n");
     }
     if (isp->isp_osinfo.dqnext) {
-        Scsi_Cmnd *f = isp->isp_osinfo.dqnext;
+        struct scsi_cmnd *f = isp->isp_osinfo.dqnext;
         copy_info(&info, "DoneQ");
         while (f) {
             copy_info(&info, "->%p", f);
-            f = (Scsi_Cmnd *) f->host_scribble;
+            f = (struct scsi_cmnd *) f->host_scribble;
         }
         copy_info(&info, "\n");
     }
@@ -292,7 +290,7 @@ isplinux_proc_info(struct Scsi_Host *shp, char *buf, char **st, off_t off, int l
             copy_info(&info,
                 "Self Channel %d:\nHandle ID 0x%x PortID 0x%06x FW State 0x%x Loop State 0x%x\n", chan,
                 fcp->isp_loopid, fcp->isp_portid, fcp->isp_fwstate, fcp->isp_loopstate);
-            copy_info(&info, "Port WWN 0x%016llx Node WWN 0x%016llx\n\n", fcp->isp_wwpn, fcp->isp_wwnn);
+            copy_info(&info, "Port WWN 0x%016llx Node WWN 0x%016llx\n\n", (ull) fcp->isp_wwpn, (ull)fcp->isp_wwnn);
             copy_info(&info, "FC devices in port database:\n");
             for (i = 0; i < MAX_FC_TARG; i++) {
                 if (fcp->portdb[i].state != FC_PORTDB_STATE_VALID) {
@@ -301,11 +299,11 @@ isplinux_proc_info(struct Scsi_Host *shp, char *buf, char **st, off_t off, int l
                 if (fcp->portdb[i].ini_map_idx) {
                     copy_info(&info, "\tdbidx %d handle 0x%x PortID 0x%06x role %s (target %d)\n\tPort WWN 0x%016llx Node WWN 0x%016llx\n\n",
                         i, fcp->portdb[i].handle, fcp->portdb[i].portid, isp_class3_roles[fcp->portdb[i].roles],
-                        fcp->portdb[i].ini_map_idx - 1, fcp->portdb[i].port_wwn, fcp->portdb[i].node_wwn);
+                        fcp->portdb[i].ini_map_idx - 1, (ull) fcp->portdb[i].port_wwn, (ull) fcp->portdb[i].node_wwn);
                 } else {
                     copy_info(&info, "\tdbidx %d handle 0x%x PortID 0x%06x role %s\n\tPort WWN 0x%016llx Node WWN 0x%016llx\n\n",
                         i, fcp->portdb[i].handle, fcp->portdb[i].portid, isp_class3_roles[fcp->portdb[i].roles],
-                        fcp->portdb[i].port_wwn, fcp->portdb[i].node_wwn);
+                        (ull) fcp->portdb[i].port_wwn, (ull) fcp->portdb[i].node_wwn);
                 }
             }
         }
@@ -332,15 +330,17 @@ isplinux_proc_info(struct Scsi_Host *shp, char *buf, char **st, off_t off, int l
     ISP_UNLKU_SOFTC(isp);
     return (info.pos > info.offset ? info.pos - info.offset : 0);
 }
+#endif  /* CONFIG_PROC_FS */
 
 static int isp_open(struct inode *, struct file *);
 static int isp_close(struct inode *, struct file *);
 static int isp_ioctl(struct inode *, struct file *, unsigned int, unsigned long);
-static int isp_qlogic_ext_ioctl(struct inode *, struct file *, unsigned int, unsigned long);
 
 dev_t isp_dev;
 struct cdev isp_cdev = {
-    .kobj   =   { .k_name = ISP_NAME, } ,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
+    .kobj   =   { .k_name = ISP_NAME, },
+#endif
     .owner  =   THIS_MODULE
 };
 ISP_CLASS *isp_class;
@@ -384,8 +384,6 @@ isp_close(struct inode *ip, struct file *fp)
     return (0);
 }
 
-static int isp_perf_test(ispsoftc_t *, isp_perftst_t *);
-
 static int
 isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
 {
@@ -398,10 +396,6 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
 
     if (isp == (ispsoftc_t *)NULL) {
         return -ENXIO;
-    }
-
-    if (((c & _IOC_TYPEMASK) >> _IOC_TYPESHIFT) == QLMULTIPATH_MAGIC) {
-        return (isp_qlogic_ext_ioctl(ip, fp, c, arg));
     }
 
     if (IS_SCSI(isp)) {
@@ -477,7 +471,7 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
         if (IS_FC(isp)) {
             for (i = 0; i < isp->isp_nchan; i++) {
                 FCPARAM(isp, i)->isp_loopstate = LOOP_PDB_RCVD;
-                isp_thread_event(isp, ISP_THREAD_FC_RESCAN, FCPARAM(isp, i), 0, __FUNCTION__, __LINE__);
+                isp_thread_event(isp, ISP_THREAD_FC_RESCAN, FCPARAM(isp, i), 0, __func__, __LINE__);
             }
         }
         break;
@@ -752,17 +746,6 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
         }
         break;
     }
-    case ISP_FC_PERFTST:
-    {
-        isp_perftst_t local, *tt = &local;
-
-        if (COPYIN((void *)arg, tt, sizeof (*tt))) {
-            rv = -EFAULT;
-            break;
-        }
-        rv = isp_perf_test(isp, tt);
-        break;
-    }
     default:
         rv = -EINVAL;
         break;
@@ -770,875 +753,11 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
     return (rv);
 }
 
-/*
- * SDMI Routines
- */
-
-static int isp_exti_query(EXT_IOCTL *);
-static int isp_exti_setinstance(EXT_IOCTL *);
-static int isp_exti_fcct_passthru(EXT_IOCTL *);
-static int isp_exti_discover_luns(ispsoftc_t *, int, UINT64, UINT64, UINT16 *);
-static void *isp_exti_usrptr(UINT64, UINT16);
-static int isp_exti_passthru(EXT_IOCTL *);
-static int isp_run_cmd(ispsoftc_t *, isp_xcmd_t *);
-
-static int
-isp_qlogic_ext_ioctl(struct inode *ip, struct file *fp, unsigned int cmd, unsigned long arg)
-{
-    EXT_IOCTL ext;
-    EXT_IOCTL *uext = (EXT_IOCTL *) arg;
-    int rval;
-
-    rval = 0;
-
-    if (COPYIN(uext, &ext, sizeof (ext))) {
-        ext.Status = EXT_STATUS_COPY_ERR;
-        ext.DetailStatus = 0;
-        goto out;
-    }
-
-    ext.DetailStatus = EXT_STATUS_OK;
-    ext.Status = EXT_STATUS_OK;
-
-    /*
-     * Make sure this is a supported command.
-     */
-    switch (cmd) {
-    case EXT_CC_GET_HBA_CNT:
-    case EXT_CC_SETINSTANCE:
-    case EXT_CC_QUERY:
-    case EXT_SC_QUERY_CHIP:
-    case EXT_CC_SEND_FCCT_PASSTHRU:
-    case EXT_CC_SEND_SCSI_PASSTHRU:
-        break;
-    default:
-        ext.Status = EXT_STATUS_INVALID_REQUEST;
-        ext.DetailStatus = 0;
-        break;
-    }
-    if (ext.Status != EXT_STATUS_OK) {
-        goto out;
-    }
-
-    if (memcmp(&ext.Signature, EXT_DEF_REGULAR_SIGNATURE, strlen(EXT_DEF_REGULAR_SIGNATURE)) != 0) {
-        printk("%s: bad signature\n", __FUNCTION__);
-        ext.Status = EXT_STATUS_INVALID_PARAM;
-        goto out;
-    }
-
-    if (ext.Version != EXT_VERSION) {
-        printk("%s: bad version %d\n", __FUNCTION__, ext.Version);
-        ext.Status = EXT_STATUS_UNSUPPORTED_VERSION;
-        goto out;
-    }
-    /*
-     * We only count FC adapters.
-     */
-    if (cmd == EXT_CC_GET_HBA_CNT) {
-        unsigned int i;
-
-        ext.Instance = 0;
-        for (i = 0; i < MAX_ISP; i++) {
-            if (isplist[i] && IS_FC(isplist[i])) {
-                ext.Instance++;
-            }
-        }
-        if (COPYOUT(&ext.Instance, &uext->Instance, sizeof (uext->Instance))) {
-            ext.Status = EXT_STATUS_COPY_ERR;
-        } else {
-            ext.Status = EXT_STATUS_OK;
-        }
-    } else if (cmd == EXT_CC_SETINSTANCE) {
-        rval = isp_exti_setinstance(&ext);
-        if (rval) {
-            goto out;
-        }
-        if (COPYOUT(&ext.HbaSelect, &uext->HbaSelect, sizeof (uext->HbaSelect))) {
-            ext.Status = EXT_STATUS_COPY_ERR;
-        } else {
-            ext.Status = EXT_STATUS_OK;
-        }
-    } else if (cmd == EXT_CC_QUERY) {
-        rval = isp_exti_query(&ext);
-    } else if (cmd == EXT_CC_SEND_FCCT_PASSTHRU) {
-        rval = isp_exti_fcct_passthru(&ext);
-    } else if (cmd == EXT_CC_SEND_SCSI_PASSTHRU) {
-        rval = isp_exti_passthru(&ext);
-    } else {
-        ext.Status = EXT_STATUS_INVALID_REQUEST;
-    }
-
-out:
-    if (COPYOUT(&ext.Status, &uext->Status, sizeof (ext.Status))) {
-        rval = -EFAULT;
-    } else if (COPYOUT(&ext.DetailStatus, &uext->DetailStatus, sizeof (ext.Status))) {
-        rval = -EFAULT;
-    }
-    return (rval);
-}
-
-static int
-isp_exti_setinstance(EXT_IOCTL *ext)
-{
-    unsigned int inst, index;
-
-    for (inst = index = 0; index < MAX_ISP; index++) {
-        if (isplist[index] && IS_FC(isplist[index])) {
-            if (inst++ == ext->Instance) {
-                break;
-            }
-        }
-    }
-    if (index >= MAX_ISP) {
-        ext->Status = EXT_STATUS_DEV_NOT_FOUND;
-        return (-ENXIO);
-    }
-    api_isp = isplist[index];
-    ext->HbaSelect = api_isp->isp_unit;
-    api_channel = 0;    /* XXXXXXXXXXXXXXXXXXXXXXX */
-    return (0);
-}
-
-static int
-isp_exti_query(EXT_IOCTL *pext)
-{
-    ispsoftc_t *isp = api_isp;
-    int cl, i, rval = 0;
-    void *outaddr;
-    fcparam *fcp;
-    fcportdb_t *lp;
-    unsigned long flags;
-
-    if (isp == NULL) {
-        pext->Status = EXT_STATUS_DEV_NOT_FOUND;
-        return (0);
-    }
-    ISP_LOCKU_SOFTC(isp);
-    fcp = FCPARAM(isp, api_channel);
-    if (fcp->isp_fwstate != FW_READY || fcp->isp_loopstate < LOOP_LSCAN_DONE) {
-        if (isp_fc_runstate(isp, api_channel, 1000000) < 0) {
-            ISP_UNLKU_SOFTC(isp);
-            pext->Status = EXT_STATUS_PENDING;
-            return (0);
-        }
-    }
-
-    outaddr = isp_exti_usrptr(pext->ResponseAdr, pext->AddrMode);
-
-    switch (pext->SubCode) {
-    case EXT_SC_QUERY_HBA_NODE:
-    {
-        EXT_HBA_NODE hba;
-
-        MEMZERO(&hba, sizeof (hba));
-        MAKE_NODE_NAME_FROM_WWN(hba.WWNN, fcp->isp_wwnn_nvram);
-        MEMCPY(hba.SerialNum, &hba.WWNN[5], 3);
-        SNPRINTF((char *)hba.DriverVersion, EXT_DEF_MAX_STR_SIZE, "Linux Version %d.%d; Common Core Code Version %d.%d",
-            ISP_PLATFORM_VERSION_MAJOR, ISP_PLATFORM_VERSION_MINOR,
-            ISP_CORE_VERSION_MAJOR, ISP_CORE_VERSION_MINOR);
-        SNPRINTF((char *)hba.FWVersion, EXT_DEF_MAX_STR_SIZE, "%02d.%02d.%02d", isp->isp_fwrev[0], isp->isp_fwrev[1], isp->isp_fwrev[2]);
-        hba.OptRomVersion[0] = '0';
-        hba.PortCount = 1;
-        hba.InterfaceType = EXT_DEF_FC_INTF_TYPE;
-        ISP_UNLKU_SOFTC(isp);
-        cl = min(pext->ResponseLen, sizeof (hba));
-        if (COPYOUT(&hba, outaddr, cl)) {
-            pext->Status = EXT_STATUS_COPY_ERR;
-            rval = -EFAULT;
-        }
-        break;
-    }
-    case EXT_SC_QUERY_HBA_PORT:
-    {
-        EXT_HBA_PORT hbp;
-
-        MEMZERO(&hbp, sizeof (hbp));
-        MAKE_NODE_NAME_FROM_WWN(hbp.WWPN, FCPARAM(isp, 0)->isp_wwpn);
-        hbp.Id[1] = (fcp->isp_portid >> 16)  & 0xff;
-        hbp.Id[2] = (fcp->isp_portid >> 8) & 0xff;
-        hbp.Id[3] = fcp->isp_portid & 0xff;
-
-        if (FCPARAM(isp, 0)->role & ISP_ROLE_TARGET) {
-            hbp.Type |= EXT_DEF_TARGET_DEV;
-        }
-
-        if (FCPARAM(isp, 0)->role & ISP_ROLE_INITIATOR) {
-            hbp.Type |= EXT_DEF_INITIATOR_DEV;
-        }
-
-        hbp.State = EXT_DEF_HBA_OK;
-
-        if (fcp->isp_topo == TOPO_NL_PORT || fcp->isp_topo == TOPO_FL_PORT) {
-            hbp.Mode = EXT_DEF_LOOP_MODE;
-        } else {
-            hbp.Mode = EXT_DEF_P2P_MODE;
-        }
-            hbp.Type |= EXT_DEF_FABRIC_DEV;
-
-        /*
-         * Count devices in our port database.
-         */
-        for (i = 0; i < MAX_FC_TARG; i++) {
-            lp = &fcp->portdb[i];
-            if (lp->state != FC_PORTDB_STATE_VALID) {
-                continue;
-            }
-            if (lp->portid == fcp->isp_portid) {
-                continue;
-            }
-            hbp.DiscPortCount++;
-            if (lp->roles & (SVC3_TGT_ROLE >> SVC3_ROLE_SHIFT)) {
-                hbp.DiscTargetCount++;
-            }
-        }
-        ISP_UNLKU_SOFTC(isp);
-        hbp.DiscPortNameType = EXT_DEF_USE_PORT_NAME;
-        hbp.PortSupportedFC4Types = EXT_DEF_FC4_TYPE_SCSI;
-        hbp.PortActiveFC4Types = EXT_DEF_FC4_TYPE_SCSI;
-        hbp.PortSupportedSpeed = EXT_DEF_PORTSPEED_1GBIT;
-        if (IS_23XX(isp)) {
-            hbp.PortSupportedSpeed |= EXT_DEF_PORTSPEED_2GBIT;
-        } else if (IS_24XX(isp)) {
-            hbp.PortSupportedSpeed |= EXT_DEF_PORTSPEED_2GBIT|EXT_DEF_PORTSPEED_4GBIT;
-        }
-        cl = min(pext->ResponseLen, sizeof (hbp));
-        if (COPYOUT(&hbp, outaddr, cl)) {
-            pext->Status = EXT_STATUS_COPY_ERR;
-            rval = -EFAULT;
-        }
-        break;
-    }
-    case EXT_SC_QUERY_DISC_PORT:
-    {
-        EXT_DISC_PORT port;
-        fcportdb_t *rlp;
-        int inst;
-
-        MEMZERO(&port, sizeof (port));
-        rlp = NULL;
-        for (inst = i = 0; rlp == NULL && i < MAX_FC_TARG; i++) {
-            lp = &fcp->portdb[i];
-            if (lp->state != FC_PORTDB_STATE_VALID) {
-                continue;
-            }
-            if (lp->portid == fcp->isp_portid) {
-                continue;
-            }
-            if (inst != pext->Instance) {
-                inst++;
-                continue;
-            }
-            rlp = lp;
-        }
-        if (rlp == NULL) {
-            ISP_UNLKU_SOFTC(isp);
-            pext->Status = EXT_STATUS_DEV_NOT_FOUND;
-            break;
-        }
-        MAKE_NODE_NAME_FROM_WWN(port.WWPN, rlp->port_wwn);
-        MAKE_NODE_NAME_FROM_WWN(port.WWNN, rlp->node_wwn);
-        port.Id[1] = (rlp->portid >> 16)  & 0xff;
-        port.Id[2] = (rlp->portid >> 8) & 0xff;
-        port.Id[3] = rlp->portid & 0xff;
-        if (fcp->isp_topo == TOPO_F_PORT || fcp->isp_topo == TOPO_FL_PORT) {
-            port.Type = EXT_DEF_FABRIC_DEV;
-        } else {
-            port.Type = 0;
-        }
-        if (rlp->roles & (SVC3_TGT_ROLE >> SVC3_ROLE_SHIFT)) {
-            port.Type |= EXT_DEF_TARGET_DEV;
-        }
-        if (rlp->roles & (SVC3_INI_ROLE >> SVC3_ROLE_SHIFT)) {
-            port.Type |= EXT_DEF_INITIATOR_DEV;
-        }
-        port.Status = EXT_DEF_HBA_OK;
-        port.Bus = isp->isp_host->host_no;
-        if (rlp->ini_map_idx) {
-            port.TargetId = rlp->ini_map_idx - 1;
-        } else {
-            port.TargetId = 0;
-        }
-        ISP_UNLKU_SOFTC(isp);
-        cl = min(pext->ResponseLen, sizeof (port));
-        if (COPYOUT(&port, outaddr, cl)) {
-            pext->Status = EXT_STATUS_COPY_ERR;
-            rval = -EFAULT;
-        }
-        break;
-    }
-    case EXT_SC_QUERY_DISC_TGT:
-    {
-        EXT_DISC_TARGET tgt;
-        fcportdb_t *rlp;
-        UINT64 wwpn, wwnn;
-        int inst;
-
-        MEMZERO(&tgt, sizeof (tgt));
-        rlp = NULL;
-        for (inst = i = 0; rlp == NULL && i < MAX_FC_TARG; i++) {
-            lp = &fcp->portdb[i];
-            if (lp->state != FC_PORTDB_STATE_VALID) {
-                continue;
-            }
-            if (lp->portid == fcp->isp_portid) {
-                continue;
-            }
-            if ((lp->roles & (SVC3_TGT_ROLE >> SVC3_ROLE_SHIFT)) == 0) {
-                continue;
-            }
-            if (inst != pext->Instance) {
-                inst++;
-                continue;
-            }
-            rlp = lp;
-        }
-        if (rlp == NULL) {
-            ISP_UNLKU_SOFTC(isp);
-            pext->Status = EXT_STATUS_DEV_NOT_FOUND;
-            break;
-        }
-        MAKE_NODE_NAME_FROM_WWN(tgt.WWPN, rlp->port_wwn);
-        MAKE_NODE_NAME_FROM_WWN(tgt.WWNN, rlp->node_wwn);
-        tgt.Id[1] = (rlp->portid >> 16)  & 0xff;
-        tgt.Id[2] = (rlp->portid >> 8) & 0xff;
-        tgt.Id[3] = rlp->portid & 0xff;
-        if (fcp->isp_topo == TOPO_F_PORT || fcp->isp_topo == TOPO_FL_PORT) {
-            tgt.Type = EXT_DEF_FABRIC_DEV;
-        } else {
-            tgt.Type = 0;
-        }
-        if (rlp->roles & (SVC3_TGT_ROLE >> SVC3_ROLE_SHIFT)) {
-            tgt.Type |= EXT_DEF_TARGET_DEV;
-        }
-        if (rlp->roles & (SVC3_INI_ROLE >> SVC3_ROLE_SHIFT)) {
-            tgt.Type |= EXT_DEF_INITIATOR_DEV;
-        }
-        tgt.Status = EXT_DEF_HBA_OK;
-        tgt.Bus = isp->isp_host->host_no;
-        if (rlp->ini_map_idx) {
-            tgt.TargetId = rlp->ini_map_idx - 1;
-        } else {
-            tgt.TargetId = 0;
-        }
-        wwpn = rlp->port_wwn;
-        wwnn = rlp->node_wwn;
-        ISP_UNLKU_SOFTC(isp);
-        rval = isp_exti_discover_luns(isp, api_channel, wwpn, wwnn, &tgt.LunCount);
-        if (rval) {
-            break;
-        }
-        cl = min(pext->ResponseLen, sizeof (tgt));
-        if (COPYOUT(&tgt, outaddr, cl)) {
-            pext->Status = EXT_STATUS_COPY_ERR;
-            rval = -EFAULT;
-        }
-        break;
-    }
-    case EXT_SC_QUERY_CHIP:
-    {
-        EXT_CHIP xc;
-        struct pci_dev *pdev = isp->isp_osinfo.device;
-
-        MEMZERO(&xc, sizeof (xc));
-        xc.VendorId = pdev->vendor;
-        xc.DeviceId = pdev->device;
-        xc.SubVendorId = pdev->subsystem_vendor;
-        xc.SubSystemId = pdev->subsystem_device;
-        xc.PciBusNumber = pdev->bus->number;
-        xc.PciDevFunc = pdev->devfn;
-        xc.PciSlotNumber = PCI_SLOT(pdev->devfn);
-        xc.DomainNr = pci_domain_nr(pdev->bus);
-        xc.InterruptLevel = pdev->irq;
-        cl = min(pext->ResponseLen, sizeof (xc));
-        if (COPYOUT(&xc, outaddr, cl)) {
-            pext->Status = EXT_STATUS_COPY_ERR;
-            rval = -EFAULT;
-        }
-        break;
-    }
-    case EXT_SC_QUERY_DISC_LUN:
-    default:
-        ISP_UNLKU_SOFTC(isp);
-        pext->Status = EXT_STATUS_UNSUPPORTED_SUBCODE;
-        break;
-    }
-    return (rval);
-}
-
-
-#define IGPOFF  0                                   /* place CT Request itself is put */
-#define OGPOFF  (ISP_FC_SCRLEN >> 1)                /* place CT Response itself is put */
-#define ZTXOFF  (ISP_FC_SCRLEN - (1 * QENTRY_LEN))  /* place where status entry for CT passthru request ends up */
-#define CTXOFF  (ISP_FC_SCRLEN - (2 * QENTRY_LEN))  /* place where CT passthru request is put */
-
-static int
-isp_exti_fcct_passthru(EXT_IOCTL *pext)
-{
-    ispsoftc_t *isp = api_isp;
-    isp_plcmd_t p;
-    fcparam *fcp = FCPARAM(isp, 0);
-    mbreg_t mbs;
-    uint8_t qe[QENTRY_LEN], *scp;
-    uint16_t handle;
-    unsigned long flags;
-    void *localmem = NULL;
-    size_t localamt;
-    int r;
-    int rval = 0;
-
-    if (isp == NULL) {
-        pext->Status = EXT_STATUS_DEV_NOT_FOUND;
-        return (0);
-    }
-
-    if (pext->RequestLen > (ISP_FC_SCRLEN >> 1)) {
-        pext->Status = EXT_STATUS_NO_MEMORY;
-        return (0);
-    }
-    if (pext->ResponseLen > ((ISP_FC_SCRLEN >> 1) - (2 * QENTRY_LEN))) {
-        pext->Status = EXT_STATUS_NO_MEMORY;
-        return (0);
-    }
-
-    localamt = pext->RequestLen;
-    if (pext->ResponseLen > localamt) {
-        localamt = pext->ResponseLen;
-    }
-    localmem = isp_kalloc(localamt, GFP_KERNEL);
-    if (localmem == NULL) {
-        pext->Status = EXT_STATUS_NO_MEMORY;
-        return (0);
-    }
-    pext->Status = EXT_STATUS_OK;
-    if (COPYIN(isp_exti_usrptr(pext->RequestAdr, pext->AddrMode), localmem, pext->RequestLen)) {
-        pext->Status = EXT_STATUS_COPY_ERR;
-        rval = -EFAULT;
-        goto out;
-    }
-
-    /*
-     * First- check to see if topology is right and things are right otherwise.
-     */
-    ISP_LOCKU_SOFTC(isp);
-    if (fcp->isp_topo != TOPO_F_PORT && fcp->isp_topo != TOPO_FL_PORT) {
-        ISP_UNLKU_SOFTC(isp);
-        pext->Status = EXT_STATUS_UNSUPPORTED_SUBCODE;
-        goto out;
-    }
-
-    /*
-     * Login into the Management Server
-     */
-    p.channel = api_channel;
-    p.handle = NIL_HANDLE;
-    p.portid = MANAGEMENT_PORT_ID;
-    p.flags = PLOGX_FLG_CMD_PLOGI;
-    r = isp_control(isp, ISPCTL_PLOGX, &p);
-    if (r) {
-        ISP_UNLKU_SOFTC(isp);
-        isp_prt(isp, ISP_LOGWARN, "failed to log into management server (0x%x)", r);
-        pext->Status = EXT_STATUS_MS_NO_RESPONSE;
-        goto out;
-    }
-    handle = p.handle;
-
-    /*
-     * Acquire Scratch
-     */
-    MEMZERO(qe, QENTRY_LEN);
-    if (FC_SCRATCH_ACQUIRE(isp, 0)) {
-        ISP_UNLKU_SOFTC(isp);
-        isp_prt(isp, ISP_LOGWARN, "failed to get FC scratch area");
-        pext->Status = EXT_STATUS_BUSY;
-        goto out;
-    }
-    scp = fcp->isp_scratch;
-
-    MEMCPY(&scp[IGPOFF], localmem, pext->RequestLen);
-    MEMORYBARRIER(isp, SYNC_SFORDEV, IGPOFF, pext->RequestLen);
-
-    /*
-     * Build command we're going to use
-     */
-    if (IS_24XX(isp)) {
-        isp_ct_pt_t *pt;
-
-        /*
-         * Build a Passthrough IOCB in memory.
-         */
-        pt = (isp_ct_pt_t *)qe;
-        pt->ctp_header.rqs_entry_count = 1;
-        pt->ctp_header.rqs_entry_type = RQSTYPE_CT_PASSTHRU;
-        pt->ctp_handle = 0xffffffff;
-        pt->ctp_nphdl = handle;
-        pt->ctp_cmd_cnt = 1;
-        pt->ctp_time = 5;
-        pt->ctp_rsp_cnt = 1;
-        pt->ctp_rsp_bcnt = pext->ResponseLen;
-        pt->ctp_cmd_bcnt = pext->RequestLen;
-        pt->ctp_dataseg[0].ds_base = DMA_LO32(fcp->isp_scdma+IGPOFF);
-        pt->ctp_dataseg[0].ds_basehi = DMA_HI32(fcp->isp_scdma+IGPOFF);
-        pt->ctp_dataseg[0].ds_count = pext->RequestLen;
-        pt->ctp_dataseg[1].ds_base = DMA_LO32(fcp->isp_scdma+OGPOFF);
-        pt->ctp_dataseg[1].ds_basehi = DMA_HI32(fcp->isp_scdma+OGPOFF);
-        pt->ctp_dataseg[1].ds_count = pext->ResponseLen;
-        isp_put_ct_pt(isp, pt, (isp_ct_pt_t *) &scp[CTXOFF]);
-
-        /*
-         * Build a EXEC IOCB A64 command that points to the CT passthru command
-         */
-        MEMZERO(&mbs, sizeof (mbs));
-        mbs.param[0] = MBOX_EXEC_COMMAND_IOCB_A64;
-        mbs.param[1] = QENTRY_LEN;
-        mbs.param[2] = DMA_WD1(fcp->isp_scdma + CTXOFF);
-        mbs.param[3] = DMA_WD0(fcp->isp_scdma + CTXOFF);
-        mbs.param[6] = DMA_WD3(fcp->isp_scdma + CTXOFF);
-        mbs.param[7] = DMA_WD2(fcp->isp_scdma + CTXOFF);
-        mbs.logval = MBLOGALL;
-        MEMORYBARRIER(isp, SYNC_SFORDEV, CTXOFF, 2 * QENTRY_LEN);
-        isp_control(isp, ISPCTL_RUN_MBOXCMD, &mbs);
-        if (mbs.param[0] != MBOX_COMMAND_COMPLETE) {
-            pext->Status = EXT_STATUS_ERR;
-            goto out1;
-        }
-        MEMORYBARRIER(isp, SYNC_SFORCPU, ZTXOFF, QENTRY_LEN);
-        pt = (isp_ct_pt_t *)qe;
-        isp_get_ct_pt(isp, (isp_ct_pt_t *) &scp[ZTXOFF], pt);
-        /*
-         * Let the user application parse any errors
-         */
-    } else {
-        isp_ms_t *ms;
-        /*
-         * Build a Passthrough IOCB in memory.
-         */
-        ms = (isp_ms_t *)qe;
-        ms->ms_header.rqs_entry_count = 1;
-        ms->ms_header.rqs_entry_type = RQSTYPE_MS_PASSTHRU;
-        ms->ms_handle = 0xffffffff;
-        if (ISP_CAP_2KLOGIN(isp)) {
-            ms->ms_nphdl = handle;
-        } else {
-            ms->ms_nphdl = handle << 8;
-        }
-        ms->ms_cmd_cnt = 1;
-        ms->ms_time = 5;
-        ms->ms_tot_cnt = 2;
-        ms->ms_rsp_bcnt = pext->ResponseLen;
-        ms->ms_cmd_bcnt = pext->RequestLen;
-        ms->ms_dataseg[0].ds_base = DMA_LO32(fcp->isp_scdma+IGPOFF);
-        ms->ms_dataseg[0].ds_basehi = DMA_HI32(fcp->isp_scdma+IGPOFF);
-        ms->ms_dataseg[0].ds_count = pext->RequestLen;
-        ms->ms_dataseg[1].ds_base = DMA_LO32(fcp->isp_scdma+OGPOFF);
-        ms->ms_dataseg[1].ds_basehi = DMA_HI32(fcp->isp_scdma+OGPOFF);
-        ms->ms_dataseg[1].ds_count = pext->ResponseLen;
-        isp_put_ms(isp, ms, (isp_ms_t *) &scp[CTXOFF]);
-
-        /*
-         * Build a EXEC IOCB A64 command that points to the MS passthru command
-         */
-        MEMZERO(&mbs, sizeof (mbs));
-        mbs.param[0] = MBOX_EXEC_COMMAND_IOCB_A64;
-        mbs.param[1] = QENTRY_LEN;
-        mbs.param[2] = DMA_WD1(fcp->isp_scdma + CTXOFF);
-        mbs.param[3] = DMA_WD0(fcp->isp_scdma + CTXOFF);
-        mbs.param[6] = DMA_WD3(fcp->isp_scdma + CTXOFF);
-        mbs.param[7] = DMA_WD2(fcp->isp_scdma + CTXOFF);
-        mbs.logval = MBLOGALL;
-        MEMORYBARRIER(isp, SYNC_SFORDEV, CTXOFF, 2 * QENTRY_LEN);
-        isp_control(isp, ISPCTL_RUN_MBOXCMD, &mbs);
-        if (mbs.param[0] != MBOX_COMMAND_COMPLETE) {
-            pext->Status = EXT_STATUS_ERR;
-            goto out1;
-        }
-        MEMORYBARRIER(isp, SYNC_SFORCPU, ZTXOFF, QENTRY_LEN);
-        ms = (isp_ms_t *)qe;
-        isp_get_ms(isp, (isp_ms_t *) &scp[ZTXOFF], ms);
-    }
-
-    MEMORYBARRIER(isp, SYNC_SFORCPU, OGPOFF, pext->ResponseLen);
-    MEMCPY(localmem, &scp[OGPOFF], pext->ResponseLen);
-
-out1:
-
-    /*
-     * Release Scratch
-     */
-    FC_SCRATCH_RELEASE(isp, 0);
-
-    /*
-     * Log out of the Management Server
-     */
-    p.channel = api_channel;
-    p.handle = handle;
-    p.portid = MANAGEMENT_PORT_ID;
-    p.flags = PLOGX_FLG_CMD_LOGO|PLOGX_FLG_EXPLICIT_LOGO;
-    r = isp_control(isp, ISPCTL_PLOGX, &p);
-    if (r) {
-        isp_prt(isp, ISP_LOGWARN, "failed to log out of management server (0x%x)", r);
-    }
-    ISP_UNLKU_SOFTC(isp);
-
-    /*
-     * Copy data
-     */
-out:
-    if (rval == 0) {
-        if (COPYOUT(localmem, isp_exti_usrptr(pext->ResponseAdr, pext->AddrMode), pext->ResponseLen)) {
-            pext->Status = EXT_STATUS_COPY_ERR;
-            rval = -EFAULT;
-        }
-    }
-    if (localmem) {
-        isp_kfree(localmem, localamt);
-    }
-    return (rval);
-}
-
-static void *
-isp_exti_usrptr(UINT64 uaddr, UINT16 mode)
-{
-    void *ptr = NULL;
-
-#if BITS_PER_LONG == 32
-    if (mode == EXT_DEF_ADDR_MODE_32) {
-        UINT32 xaddr = uaddr & 0xffffffff;
-        ptr = (void *) xaddr;
-    }
-#elif   BITS_PER_LONG == 64
-    ptr = (void *) uaddr;
-#endif
-    return (ptr);
-}
-
-static int
-isp_exti_passthru(EXT_IOCTL *pext)
-{
-    ispsoftc_t *isp = api_isp;
-    char *bufp;
-    fcportdb_t *lp;
-    EXT_FC_SCSI_PASSTHRU fcx;
-    uint64_t wwnn = 0LL;
-    uint64_t wwpn = 0LL;
-    uint32_t portid = (uint32_t) -1;
-    isp_xcmd_t cmd;
-    int status;
-    size_t cpyamt;
-    unsigned long flags;
-
-    if (isp == NULL) {
-        pext->Status = EXT_STATUS_DEV_NOT_FOUND;
-        return (0);
-    }
-    if (COPYIN(isp_exti_usrptr(pext->RequestAdr, pext->AddrMode), &fcx, sizeof (fcx))) {
-        pext->Status = EXT_STATUS_COPY_ERR;
-        return (0);
-    }
-
-    if (fcx.FCScsiAddr.DestType == EXT_DEF_DESTTYPE_SCSI || fcx.FCScsiAddr.DestType == EXT_DEF_DESTTYPE_FABRIC) {
-        pext->Status = EXT_STATUS_INVALID_REQUEST;
-        return (0);
-    }
-
-    if (isp == NULL) {
-        pext->Status = EXT_STATUS_DEV_NOT_FOUND;
-        return (0);
-    }
-
-    switch (pext->SubCode) {
-    case EXT_SC_SEND_FC_SCSI_PASSTHRU:
-        break;
-    case EXT_SC_SEND_SCSI_PASSTHRU:
-    case EXT_SC_SCSI3_PASSTHRU:
-    default:
-        pext->Status = EXT_STATUS_UNSUPPORTED_SUBCODE;
-        return (0);
-    }
-
-    MEMZERO(&cmd, sizeof (cmd));
-
-    if (pext->ResponseLen) {
-        bufp = isp_kalloc(pext->ResponseLen, GFP_KERNEL);
-        if (bufp == NULL) {
-            pext->Status = EXT_STATUS_NO_MEMORY;
-            return (0);
-        }
-        if (fcx.Direction == EXT_DEF_SCSI_PASSTHRU_DATA_OUT) {
-            if (COPYIN(isp_exti_usrptr(pext->ResponseAdr, pext->AddrMode), bufp, pext->ResponseLen)) {
-                isp_kfree(bufp, pext->ResponseLen);
-                pext->Status = EXT_STATUS_COPY_ERR;
-                return (0);
-            }
-        } else {
-            cmd.fcd.beg.do_read = 1;
-        }
-        cmd.fcd.beg.data_length = pext->ResponseLen;
-        cmd.fcd.beg.data_ptr = bufp;
-    } else {
-        bufp = NULL;
-    }
-
-    if (fcx.FCScsiAddr.DestType == EXT_DEF_DESTTYPE_WWNN) {
-        MAKE_WWN_FROM_NODE_NAME(wwnn, fcx.FCScsiAddr.DestAddr.WWNN);
-    } else if (fcx.FCScsiAddr.DestType == EXT_DEF_DESTTYPE_WWPN) {
-        MAKE_WWN_FROM_NODE_NAME(wwpn, fcx.FCScsiAddr.DestAddr.WWPN);
-    } else if (fcx.FCScsiAddr.DestType == EXT_DEF_DESTTYPE_PORTID) {
-        portid = (fcx.FCScsiAddr.DestAddr.Id[1] << 16) | (fcx.FCScsiAddr.DestAddr.Id[2] << 8) | (fcx.FCScsiAddr.DestAddr.Id[3]);
-    }
-    /*
-     * Make sure we have an entry for this device (handle, portid)
-     * so we know how to send the command.
-     */
-    ISP_LOCKU_SOFTC(isp);
-    for (lp = &FCPARAM(isp, api_channel)->portdb[0]; lp < &FCPARAM(isp, api_channel)->portdb[MAX_FC_TARG]; lp++) {
-        if (lp->state != FC_PORTDB_STATE_VALID) {
-            continue;
-        }
-        if (fcx.FCScsiAddr.DestType == EXT_DEF_DESTTYPE_WWNN) {
-            if (lp->node_wwn == wwnn) {
-                break;
-            }
-        } else if (fcx.FCScsiAddr.DestType == EXT_DEF_DESTTYPE_WWPN) {
-            if (lp->port_wwn == wwpn) {
-                break;
-            }
-        } else if (fcx.FCScsiAddr.DestType == EXT_DEF_DESTTYPE_PORTID) {
-            if (lp->portid == portid) {
-                break;
-            }
-        }
-    }
-    if (lp == &FCPARAM(isp, api_channel)->portdb[MAX_FC_TARG]) {
-        ISP_UNLKU_SOFTC(isp);
-        pext->Status = EXT_STATUS_DEV_NOT_FOUND;
-        if (bufp) {
-            isp_kfree(bufp, pext->ResponseLen);
-        }
-        return (0);
-    }
-    wwnn = lp->node_wwn;
-    wwpn = lp->port_wwn;
-    cmd.handle = lp->handle;
-    cmd.portid = lp->portid;
-    cmd.channel = api_channel;
-    ISP_UNLKU_SOFTC(isp);
-
-    MEMCPY(cmd.fcd.beg.cdb, fcx.Cdb, min(EXT_DEF_SCSI_PASSTHRU_CDB_LENGTH, sizeof (cmd.fcd.beg.cdb)));
-    cmd.lun = fcx.FCScsiAddr.Lun;
-    cmd.timeout = fcx.Timeout;
-    cpyamt = 0;
-    pext->Status = EXT_STATUS_OK;
-
-    status = isp_run_cmd(isp, &cmd);
-    if (status == 0) {
-        cpyamt = pext->ResponseLen - cmd.fcd.end.data_residual;
-        if (cmd.fcd.end.status == SCSI_CHECK && cmd.fcd.end.sense_length) {
-            fcx.SenseLength = min(cmd.fcd.end.sense_length, sizeof (fcx.SenseData));
-            MEMCPY(fcx.SenseData, cmd.fcd.end.sense_data, fcx.SenseLength);
-        }
-        if ((pext->DetailStatus = cmd.fcd.end.status) != SCSI_GOOD) {
-            pext->Status = EXT_STATUS_SCSI_STATUS;
-        } else if (cpyamt != pext->ResponseLen) {
-            pext->Status = EXT_STATUS_DATA_UNDERRUN;
-        }
-    } else {
-        cpyamt = 0;
-        pext->Status = EXT_STATUS_ERR;
-    }
-
-    if (bufp && fcx.Direction == EXT_DEF_SCSI_PASSTHRU_DATA_IN && cpyamt) {
-        if (cpyamt) {
-            if (COPYOUT(bufp, isp_exti_usrptr(pext->ResponseAdr, pext->AddrMode), cpyamt)) {
-                pext->Status = EXT_STATUS_COPY_ERR;
-            }
-        }
-    }
-    if (bufp) {
-        isp_kfree(bufp, pext->ResponseLen);
-    }
-    return (0);
-}
-
-#define RPT_LUN_SIZE    1024
-
-static int
-isp_exti_discover_luns(ispsoftc_t *isp, int chan, UINT64 wwpn, UINT64 wwnn, UINT16 *nluns)
-{
-    isp_xcmd_t cmd;
-    int status, nent, i, hilun;
-    unsigned long flags;
-    fcparam *fcp = FCPARAM(isp, chan);
-    fcportdb_t *lp;
-    uint8_t *bufp;
-
-    MEMZERO(&cmd, sizeof (isp_xcmd_t));
-    ISP_LOCKU_SOFTC(isp);
-    for (lp = &fcp->portdb[0]; lp < &fcp->portdb[MAX_FC_TARG]; lp++) {
-        if (lp->state != FC_PORTDB_STATE_VALID) {
-            continue;
-        }
-        if (lp->port_wwn == wwpn && lp->node_wwn == wwnn) {
-            break;
-        }
-    }
-    if (lp == &fcp->portdb[MAX_FC_TARG]) {
-        ISP_UNLKU_SOFTC(isp);
-        return (-ENODEV);
-    }
-    if ((lp->roles & (SVC3_TGT_ROLE >> SVC3_ROLE_SHIFT)) == 0) {
-        ISP_UNLKU_SOFTC(isp);
-        *nluns = 0;
-        return (0);
-    }
-    cmd.handle = lp->handle;
-    cmd.portid = lp->portid;
-    ISP_UNLKU_SOFTC(isp);
-    bufp = isp_kzalloc(RPT_LUN_SIZE, GFP_KERNEL);
-    if (bufp == NULL) {
-        return (-ENOMEM);
-    }
-    cmd.fcd.beg.data_ptr = bufp;
-    cmd.fcd.beg.data_length = RPT_LUN_SIZE;
-    cmd.fcd.beg.do_read = 1;
-    cmd.fcd.beg.cdb[0] = REPORT_LUNS;
-    cmd.fcd.beg.cdb[4] = (RPT_LUN_SIZE >> 24) & 0xff;
-    cmd.fcd.beg.cdb[5] = (RPT_LUN_SIZE >> 16) & 0xff;
-    cmd.fcd.beg.cdb[6] = (RPT_LUN_SIZE >>  8) & 0xff;
-    cmd.fcd.beg.cdb[7] = (RPT_LUN_SIZE) & 0xff;
-    cmd.timeout = 30;
-    status = isp_run_cmd(isp, &cmd);
-    if (status) {
-        isp_prt(isp, ISP_LOGWARN, "isp_exti_discover_luns: isp_run_cmd returned %d", status);
-        isp_kfree(bufp, RPT_LUN_SIZE);
-        return (-EIO);
-    }
-    nent = (bufp[2] << 8) | bufp[3];
-
-
-    hilun = 0;
-    /*
-     * This is not *quite* the right way to do this.
-     */
-    for (i = 0; i < nent; i++) {
-        uint8_t *lunptr = bufp + 8 + (8 * i);
-        uint16_t lun;
-        lun = lunptr[1];
-        if (lunptr[0] & 0x40) {
-            lun |= ((lunptr[1] & 0x1f) << 8);
-        }
-        if (hilun < lun) {
-            hilun = lun;
-        }
-    }
-    isp_kfree(bufp, RPT_LUN_SIZE);
-    *nluns = hilun + 1;
-    return (0);
-}
-
+#if 0
 static void
 isp_run_cmd_done(struct scsi_cmnd *Cmnd)
 {
-    struct semaphore *semap = (struct semaphore *) Cmnd->request_buffer;
+    struct semaphore *semap = (struct semaphore *) Cmnd->SCp.ptr;
     up(semap);
 }
 
@@ -1646,7 +765,7 @@ static int
 isp_run_cmd(ispsoftc_t *isp, isp_xcmd_t *cmd)
 {
     struct scsi_device *dev = NULL;
-    Scsi_Cmnd *Cmnd = NULL;
+    struct scsi_cmnd *Cmnd = NULL;
     struct Scsi_Host *host = NULL;
     uint32_t nxti, optr, handle;
     uint8_t local[QENTRY_LEN];
@@ -1663,7 +782,7 @@ isp_run_cmd(ispsoftc_t *isp, isp_xcmd_t *cmd)
         time = 0x1999;
     }
     MEMZERO(local, sizeof (local));
-    Cmnd = isp_kzalloc(sizeof (Scsi_Cmnd), GFP_KERNEL);
+    Cmnd = isp_kzalloc(sizeof (struct scsi_cmnd), GFP_KERNEL);
     if (Cmnd == NULL) {
         result = -ENOMEM;
         goto out;
@@ -1677,12 +796,12 @@ isp_run_cmd(ispsoftc_t *isp, isp_xcmd_t *cmd)
     Cmnd->device = dev;
     dev->host = host;
     Cmnd->scsi_done = isp_run_cmd_done;
-    Cmnd->request_buffer = &rsem;
+    Cmnd->SCp.ptr = (char *)&rsem;
 
     ISP_LOCKU_SOFTC(isp);
     if (isp_getrqentry(isp, &nxti, &optr, (void *)&reqp)) {
         ISP_UNLKU_SOFTC(isp);
-        isp_prt(isp, ISP_LOGDEBUG0, "%s: Request Queue Overflow", __FUNCTION__);
+        isp_prt(isp, ISP_LOGDEBUG0, "%s: Request Queue Overflow", __func__);
         result = -ENOMEM;
         goto out;
     }
@@ -1748,6 +867,7 @@ isp_run_cmd(ispsoftc_t *isp, isp_xcmd_t *cmd)
     }
 
     MEMCPY(Cmnd->cmnd, cmd->fcd.beg.cdb, Cmnd->cmd_len);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
     Cmnd->request_bufflen = cmd->fcd.beg.data_length;
     Cmnd->request_buffer = cmd->fcd.beg.data_ptr;
     if (Cmnd->request_bufflen && Cmnd->request_buffer) {
@@ -1775,14 +895,18 @@ isp_run_cmd(ispsoftc_t *isp, isp_xcmd_t *cmd)
         result = 0;
         break;
     }
+#else
+    isp_prt(isp, ISP_LOGERR, "do not have a kernel map thingie yet");
+    result = -EFAULT;
+#endif
 
     if (result == 0) {
         ISP_UNLKU_SOFTC(isp);
         down(&rsem);
-        cmd->fcd.end.data_residual = Cmnd->resid;
+        cmd->fcd.end.data_residual = XS_GET_RESID(Cmnd);
         cmd->fcd.end.status = Cmnd->SCp.Status;
         if (cmd->fcd.end.status == SCSI_CHECK) {
-            MEMCPY(cmd->fcd.end.sense_data, Cmnd->sense_buffer, min(sizeof(cmd->fcd.end.sense_data), sizeof (Cmnd->sense_buffer)));
+            MEMCPY(cmd->fcd.end.sense_data, XS_SNSP(Cmnd), min(sizeof(cmd->fcd.end.sense_data), XS_SNSLEN(Cmnd)));
         }
         if (host_byte(Cmnd->result) != DID_OK) {
             result = -EIO;
@@ -1796,191 +920,10 @@ out:
     if (dev) {
         isp_kfree(dev, sizeof (struct scsi_device));
     }
-    isp_kfree(Cmnd, sizeof (Scsi_Cmnd));
+    isp_kfree(Cmnd, sizeof (struct scsi_cmnd));
     return (result);
 }
-
-static int
-isp_perf_test(ispsoftc_t *isp, isp_perftst_t *tt)
-{
-    struct scsi_device *dev = NULL;
-    Scsi_Cmnd *Cmnd = NULL;
-    fcportdb_t *lp;
-    struct Scsi_Host *host = NULL;
-    uint32_t nxti, optr, handle;
-    uint8_t local[QENTRY_LEN];
-    int result = 0, i, iswrite, amt;
-    void *qep, *qel = local;
-    DECLARE_MUTEX_LOCKED(rsem);
-    unsigned long flags;
-
-    if (IS_SCSI(isp)) {
-        return (-ENODEV);
-    }
-    if (tt->target < 0 || tt->target >= MAX_FC_TARG) {
-        return (-ENODEV);
-    }
-
-    if (tt->channel < 0 || tt->channel >= isp->isp_nchan) {
-        return (-ENODEV);
-    }
-
-    iswrite = 0;
-    if (tt->ioszdir) {
-        amt = tt->ioszdir;
-        if (amt < 0) {
-            iswrite = 1;
-            amt = -amt;
-        }
-        if (amt > ISP_FC_SCRLEN) {
-            return (-ENOMEM);
-        }
-    } else {
-        amt = 0;
-    }
-    i = FCPARAM(isp, tt->channel)->isp_ini_map[tt->target] - 1;
-    if (i < 0 || i >= MAX_FC_TARG) {
-        return (-ENXIO);
-    }
-    lp = &FCPARAM(isp, tt->channel)->portdb[i];
-    if (lp->state != FC_PORTDB_STATE_VALID) {
-        return (-ENXIO);
-    }
-
-    MEMZERO(local, sizeof (local));
-    Cmnd = isp_kzalloc(sizeof (Scsi_Cmnd), GFP_KERNEL);
-    if (Cmnd == NULL) {
-        return (-ENOMEM);
-    }
-    host = isp->isp_osinfo.host;
-    dev = isp_kzalloc(sizeof (struct scsi_device), GFP_KERNEL);
-    if (dev == NULL) {
-        isp_kfree(Cmnd, sizeof (Scsi_Cmnd));
-        return (-ENOMEM);
-    }
-
-    Cmnd->device = dev;
-    dev->host = host;
-    Cmnd->scsi_done = isp_run_cmd_done;
-    Cmnd->request_buffer = &rsem;
-    Cmnd->cmd_len = 6;
-    Cmnd->sc_data_direction = SCSI_DATA_NONE;
-
-    if (IS_24XX(isp)) {
-        ispreqt7_t *t7 = (ispreqt7_t *) local;
-
-        t7->req_header.rqs_entry_type = RQSTYPE_T7RQS;
-        t7->req_header.rqs_entry_count = 1;
-        t7->req_task_attribute = FCP_CMND_TASK_ATTR_SIMPLE;
-        t7->req_nphdl = lp->handle;
-        t7->req_tidlo = lp->portid;
-        t7->req_tidhi = lp->portid >> 16;
-        if (tt->lun > 256) {
-            t7->req_lun[0] = tt->lun >> 8;
-            t7->req_lun[0] |= 0x40;
-        }
-        t7->req_lun[1] = tt->lun & 0xff;
-        t7->req_time = 30;
-        if (amt) {
-            t7->req_seg_count = 1;
-            if (iswrite) {
-                t7->req_alen_datadir = FCP_CMND_DATA_WRITE;
-                t7->req_cdb[0] = 0xa;
-            } else {
-                t7->req_alen_datadir = FCP_CMND_DATA_READ;
-                t7->req_cdb[0] = 0x8;
-            }
-            t7->req_cdb[4] = amt >> 9;
-            t7->req_dl = amt;
-            t7->req_dataseg.ds_base = DMA_LO32(FCPARAM(isp, tt->channel)->isp_scdma);
-            t7->req_dataseg.ds_basehi = DMA_HI32(FCPARAM(isp, tt->channel)->isp_scdma);
-            t7->req_dataseg.ds_count = amt;
-        } else {
-            t7->req_seg_count = 0;
-        }
-        t7->req_vpidx = tt->channel;
-    } else {
-        ispreqt3_t *t3 = (ispreqt3_t *) local;
-
-        t3->req_header.rqs_entry_type = RQSTYPE_T3RQS;
-        t3->req_header.rqs_entry_count = 1;
-        t3->req_flags = REQFLAG_STAG;
-
-        if (amt) {
-            if (iswrite) {
-                t3->req_flags |= REQFLAG_DATA_OUT;
-                t3->req_cdb[0] = 0xa;
-            } else {
-                t3->req_flags |= REQFLAG_DATA_IN;
-                t3->req_cdb[0] = 0x8;
-            }
-            t3->req_cdb[4] = amt >> 9;
-            t3->req_dataseg[0].ds_base = DMA_LO32(FCPARAM(isp, tt->channel)->isp_scdma);
-            t3->req_dataseg[0].ds_basehi = DMA_HI32(FCPARAM(isp, tt->channel)->isp_scdma);
-            t3->req_dataseg[0].ds_count = amt;
-            t3->req_totalcnt = amt;
-        }
-        if (ISP_CAP_2KLOGIN(isp)) {
-            ((ispreqt3e_t *)t3)->req_target = lp->handle;
-            ((ispreqt3e_t *)t3)->req_scclun = tt->lun;
-        } else if (ISP_CAP_SCCFW(isp)) {
-            t3->req_target = lp->handle;
-            t3->req_scclun = tt->lun;
-        } else {
-            t3->req_target = lp->handle;
-            t3->req_lun_trn = tt->lun;
-        }
-        t3->req_time = 30;
-    }
-
-    for (i = 0; i < tt->count; i++) {
-        ISP_LOCKU_SOFTC(isp);
-        if (isp_getrqentry(isp, &nxti, &optr, (void *)&qep)) {
-            ISP_UNLKU_SOFTC(isp);
-            __set_current_state(TASK_UNINTERRUPTIBLE);
-            (void) schedule_timeout(1);
-            i -= 1;
-            continue;
-        }
-        if (i == tt->count - 1) {
-            if (isp_save_xs(isp, Cmnd, &handle)) {
-                ISP_UNLKU_SOFTC(isp);
-                isp_prt(isp, ISP_LOGERR, "out of xflist pointers");
-                result = -ENOMEM;
-                goto out;
-            }
-        } else {
-            handle = ISP_SPCL_HANDLE;
-        }
-        ((ispreq_t *)local)->req_handle = handle;
-        if (IS_24XX(isp)) {
-            isp_put_request_t7(isp, qel, qep);
-        } else {
-            if (ISP_CAP_2KLOGIN(isp)) {
-                isp_put_request_t2e(isp, qel, qep);
-            } else {
-                isp_put_request_t2(isp, qel, qep);
-            }
-        }
-        ISP_ADD_REQUEST(isp, nxti);
-        if (handle != ISP_SPCL_HANDLE) {
-            isp->isp_nactive++;
-            ISP_UNLKU_SOFTC(isp);
-            down(&rsem);
-            ISP_LOCKU_SOFTC(isp);
-            ISP_DMAFREE(isp, Cmnd, handle);
-            isp_destroy_handle(isp, handle);
-        }
-        ISP_UNLKU_SOFTC(isp);
-    }
-out:
-    if (dev) {
-        isp_kfree(dev, sizeof (struct scsi_device));
-    }
-    isp_kfree(Cmnd, sizeof (Scsi_Cmnd));
-    return (result);
-}
-#endif  /* CONFIG_PROC_FS */
+#endif
 /*
  * vim:ts=4:sw=4:expandtab
  */

@@ -1,4 +1,4 @@
-/* $Id: isp_linux.h,v 1.161 2008/04/15 22:41:03 mjacob Exp $ */
+/* $Id: isp_linux.h,v 1.164 2008/08/20 15:50:56 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -59,15 +59,6 @@
 #ifndef _ISP_LINUX_H
 #define _ISP_LINUX_H
 
-//#define DISABLE_FW_LOADER 1
-//#define ISP_DISABLE_1080_SUPPORT 1
-//#define ISP_DISABLE_12160_SUPPORT 1
-//#define ISP_DISABLE_2100_SUPPORT 1
-//#define ISP_DISABLE_2200_SUPPORT 1
-//#define ISP_DISABLE_2300_SUPPORT 1
-//#define ISP_DISABLE_2322_SUPPORT 1
-//#define ISP_DISABLE_2400_SUPPORT 1
-
 #ifndef ISP_MODULE
 #define __NO_VERSION__
 #endif
@@ -80,12 +71,8 @@
 #define KERNEL_VERSION(v,p,s)   (((v)<<16)+(p<<8)+s)
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 5, 0) || LINUX_VERSION_CODE >=  KERNEL_VERSION(2, 7, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0) || LINUX_VERSION_CODE >=  KERNEL_VERSION(2,7,0)
 #error  "Only Linux 2.5/2.6 kernels are supported with this driver"
-#endif
-
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 24)
-#error  "Linux kernels newer than 2.6.24 are not supported with this driver"
 #endif
 
 #ifndef UNUSED_PARAMETER
@@ -126,24 +113,34 @@
 #include <scsi/scsi_device.h>
 
 #include <linux/cdev.h>
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 13)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,13)
 #include <linux/devfs_fs_kernel.h>
 #define ISP_CLASS           struct class_simple
 #define CREATE_ISP_CLASS    class_simple_create
 #define DESTROY_ISP_CLASS   class_simple_destroy
+
 #define CREATE_ISP_DEV(isp, class)     \
     class_simple_device_add(class, MKDEV(MAJOR(isp_dev), isp->isp_unit), NULL, "%s%d", ISP_NAME, isp->isp_unit),     \
     devfs_mk_cdev(MKDEV(MAJOR(isp_dev), isp->isp_unit), S_IFCHR | S_IRUGO | S_IWUGO, "%s%d", ISP_NAME, isp->isp_unit)
 #define DESTROY_ISP_DEV(isp)    \
     devfs_remove("%s%d", ISP_NAME, isp->isp_unit), class_simple_device_remove(MKDEV(MAJOR(isp_dev), isp->isp_unit))
-#else
-#define ISP_CLASS struct class
-#define CREATE_ISP_CLASS    class_create
-#define DESTROY_ISP_CLASS   class_destroy
+
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2,6,26)
+#define ISP_CLASS               struct class
+#define CREATE_ISP_CLASS        class_create
+#define DESTROY_ISP_CLASS       class_destroy
+
 #define CREATE_ISP_DEV(isp, class)     \
     class_device_create(class, NULL, MKDEV(MAJOR(isp_dev), isp->isp_unit), NULL, "%s%d", ISP_NAME, isp->isp_unit)
 #define DESTROY_ISP_DEV(isp)    \
     class_device_destroy(isp_class, MKDEV(MAJOR(isp_dev), (isp)->isp_unit));
+
+#else
+#define ISP_CLASS               struct class
+#define CREATE_ISP_CLASS        class_create
+#define DESTROY_ISP_CLASS       class_destroy
+#define CREATE_ISP_DEV(i, c)    (void) device_create(c, NULL, MKDEV(MAJOR(isp_dev), (i)->isp_unit), "%s%d", ISP_NAME, (i)->isp_unit);
+#define DESTROY_ISP_DEV(i)      device_destroy(isp_class, MKDEV(MAJOR(isp_dev), (i)->isp_unit));
 #endif
 
 typedef struct scsi_cmnd Scsi_Cmnd;
@@ -163,7 +160,7 @@ typedef struct scsi_host_template Scsi_Host_Template;
 #endif
 
 #define ISP_PLATFORM_VERSION_MAJOR  6
-#define ISP_PLATFORM_VERSION_MINOR  0
+#define ISP_PLATFORM_VERSION_MINOR  1
 
 #ifndef ISP_NAME
 #define ISP_NAME    "isp"
@@ -201,9 +198,11 @@ typedef struct scsi_host_template Scsi_Host_Template;
 #define DECLARE_MUTEX_LOCKED(name) __DECLARE_SEMAPHORE_GENERIC(name,0)
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
-#define sg_page(_sg) ((_sg)->page)
-#define sg_assign_page(_sg, _pg) ((_sg)->page = (_pg))
+#define	ull	unsigned long long
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24)
+#define sg_page(_sg)                ((_sg)->page)
+#define sg_assign_page(_sg, _pg)    ((_sg)->page = (_pg))
 #endif
 
 /*
@@ -399,8 +398,8 @@ struct isposinfo {
 #define ISP_IUNLK_SOFTC             ISP_UNLK_SOFTC
 #define ISP_IGET_LK_SOFTC(isp)      spin_lock_irq(&isp->isp_osinfo.slock)
 #define ISP_DROP_LK_SOFTC(isp)      spin_unlock_irq(&isp->isp_osinfo.slock)
-#define ISP_LOCK_SCSI_DONE(isp)     do { } while (0)
-#define ISP_UNLK_SCSI_DONE(isp)     do { } while (0)
+#define ISP_LOCK_SCSI_DONE(isp)     do { } while(0)
+#define ISP_UNLK_SCSI_DONE(isp)     do { } while(0)
 #define ISP_LOCKU_SOFTC             ISP_ILOCK_SOFTC
 #define ISP_UNLKU_SOFTC             ISP_IUNLK_SOFTC
 #define ISP_TLOCK_INIT(isp)         spin_lock_init(&isp->isp_osinfo.tlock)
@@ -498,13 +497,20 @@ struct isposinfo {
 #define XS_ISP(Cmnd)        ((ispsoftc_t *)XS_HOST(Cmnd)->hostdata)
 #define XS_CDBP(Cmnd)       (Cmnd)->cmnd
 #define XS_CDBLEN(Cmnd)     (Cmnd)->cmd_len
-#define XS_XFRLEN(Cmnd)     (Cmnd)->request_bufflen
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
+#define XS_GET_RESID(Cmnd)          (Cmnd)->SCp.this_residual
+#define XS_SET_RESID(Cmnd, resid)   (Cmnd)->SCp.this_residual = resid
+#define XS_XFRLEN(Cmnd)             (Cmnd)->request_bufflen
+#else
+#define XS_GET_RESID        scsi_get_resid
+#define XS_SET_RESID        scsi_set_resid
+#define XS_XFRLEN           scsi_bufflen
+#endif
 #define XS_TIME(Cmnd)       ((((Cmnd)->timeout_per_command) * HZ)*1000)
-#define XS_RESID(Cmnd)      (Cmnd)->SCp.this_residual
 #define XS_STSP(Cmnd)       (&(Cmnd)->SCp.Status)
 #define XS_SNSP(Cmnd)       (Cmnd)->sense_buffer
-#define XS_SNSLEN(Cmnd)     (sizeof (Cmnd)->sense_buffer)
-#define XS_SNSKEY(Cmnd)     ((Cmnd)->sense_buffer[2] & 0xf)
+#define XS_SNSLEN(Cmnd)     SCSI_SENSE_BUFFERSIZE
+#define XS_SNSKEY(Cmnd)     (XS_SNSP(Cmnd)[2] & 0xf)
 #define XS_TAG_P(Cmnd)      (Cmnd->device->tagged_supported != 0)
 #define XS_TAG_TYPE         isplinux_tagtype
 
@@ -532,8 +538,7 @@ struct isposinfo {
 
 #define XS_INITERR(xs)  (xs)->result = 0, (xs)->SCp.Status = 0
 
-#define XS_SAVE_SENSE(Cmnd, s, l)     \
-    MEMCPY(&Cmnd->sense_buffer, s, min(sizeof Cmnd->sense_buffer, l))
+#define XS_SAVE_SENSE(Cmnd, s, l)   MEMCPY(XS_SNSP(Cmnd), s, min(XS_SNSLEN(Cmnd), l))
 
 #define XS_SET_STATE_STAT(a, b, c)
 
@@ -632,7 +637,7 @@ typedef struct {
  */
 void isplinux_timer(unsigned long);
 void isplinux_mbtimer(unsigned long);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
 irqreturn_t isplinux_intr(int, void *, struct pt_regs *);
 #else
 irqreturn_t isplinux_intr(int, void *);

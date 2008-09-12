@@ -233,13 +233,5 @@ typedef struct {
 
 #define ISP_FC_GETDLIST     (ISP_IOC | 23)
 /*
- * This is a trigger for a performance test.
- */
-#define ISP_FC_PERFTST       (ISP_IOC | 44)
-typedef struct {
-    uint32_t channel, target, lun, count;
-    int32_t ioszdir;
-} isp_perftst_t;
-/*
  * vim:ts=4:sw=4:expandtab
  */
