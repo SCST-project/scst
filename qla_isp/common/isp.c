@@ -789,13 +789,6 @@ isp_reset(ispsoftc_t *isp)
 		const uint32_t *ptr = isp->isp_mdvec->dv_ispfw;
 
 		/*
-		 * NB: Whatever you do do, do *not* issue the VERIFY FIRMWARE
-		 * NB: command to the 2400 while loading new firmware. This
-		 * NB: causes the new f/w to start and immediately crash back
-		 * NB: to the ROM.
-		 */
-
-		/*
 		 * Keep loading until we run out of f/w.
 		 */
 		code_org = ptr[2];	/* 1st load address is our start addr */
@@ -909,23 +902,6 @@ isp_reset(ispsoftc_t *isp)
 				la += nw;
 			}
 
-			if (!IS_2322(isp)) {
-				/*
-				 * Verify that it downloaded correctly.
-				 */
-				MEMZERO(&mbs, sizeof (mbs));
-				mbs.param[0] = MBOX_VERIFY_CHECKSUM;
-				mbs.param[1] = code_org;
-				mbs.logval = MBLOGNONE;
-				isp_mboxcmd(isp, &mbs);
-				if (mbs.param[0] != MBOX_COMMAND_COMPLETE) {
-					isp_prt(isp, ISP_LOGERR, dcrc);
-					ISP_RESET0(isp);
-					return;
-				}
-				break;
-			}
-
 			if (++segno == 3) {
 				break;
 			}
@@ -965,23 +941,29 @@ isp_reset(ispsoftc_t *isp)
 			ISP_RESET0(isp);
 			return;
 		}
-		/*
-		 * Verify that it downloaded correctly.
-		 */
+	} else {
+		isp->isp_loaded_fw = 0;
+		isp_prt(isp, ISP_LOGDEBUG2, "skipping f/w download");
+	}
+
+	/*
+	 * If we loaded firmware, verify its checksum
+	 */
+	if (isp->isp_loaded_fw) {
 		MEMZERO(&mbs, sizeof (mbs));
 		mbs.param[0] = MBOX_VERIFY_CHECKSUM;
-		mbs.param[1] = code_org;
-		mbs.logval = MBLOGNONE;
+		if (IS_24XX(isp)) {
+			mbs.param[1] = code_org >> 16;
+			mbs.param[2] = code_org;
+		} else {
+			mbs.param[1] = code_org;
+		}
 		isp_mboxcmd(isp, &mbs);
 		if (mbs.param[0] != MBOX_COMMAND_COMPLETE) {
 			isp_prt(isp, ISP_LOGERR, dcrc);
 			ISP_RESET0(isp);
 			return;
 		}
-		isp->isp_loaded_fw = 1;
-	} else {
-		isp->isp_loaded_fw = 0;
-		isp_prt(isp, ISP_LOGDEBUG2, "skipping f/w download");
 	}
 
 	/*
@@ -1025,33 +1007,43 @@ isp_reset(ispsoftc_t *isp)
 
 	/*
 	 * Give it a chance to finish starting up.
+	 * Give the 24XX more time.
 	 */
-	USEC_DELAY(250000);
-
-	if (IS_SCSI(isp)) {
+	if (IS_24XX(isp)) {
+		USEC_DELAY(500000);
 		/*
-		 * Set CLOCK RATE, but only if asked to.
+		 * Check to see if the 24XX firmware really started.
 		 */
-		if (isp->isp_clock) {
-			mbs.param[0] = MBOX_SET_CLOCK_RATE;
-			mbs.param[1] = isp->isp_clock;
-			mbs.logval = MBLOGNONE;
-			isp_mboxcmd(isp, &mbs);
-			/* we will try not to care if this fails */
+		if (mbs.param[1] == 0xdead) {
+			isp_prt(isp, ISP_LOGERR, "f/w didn't *really* start");
+			ISP_RESET0(isp);
+			return;
+		}
+	} else {
+		USEC_DELAY(250000);
+		if (IS_SCSI(isp)) {
+			/*
+			 * Set CLOCK RATE, but only if asked to.
+			 */
+			if (isp->isp_clock) {
+				mbs.param[0] = MBOX_SET_CLOCK_RATE;
+				mbs.param[1] = isp->isp_clock;
+				mbs.logval = MBLOGNONE;
+				isp_mboxcmd(isp, &mbs);
+				/* we will try not to care if this fails */
+			}
 		}
 	}
 
+	/*
+	 * Ask the chip for the current firmware version.
+	 * This should prove that the new firmware is working.
+	 */
 	MEMZERO(&mbs, sizeof (mbs));
 	mbs.param[0] = MBOX_ABOUT_FIRMWARE;
 	mbs.logval = MBLOGALL;
 	isp_mboxcmd(isp, &mbs);
 	if (mbs.param[0] != MBOX_COMMAND_COMPLETE) {
-		ISP_RESET0(isp);
-		return;
-	}
-
-	if (IS_24XX(isp) && mbs.param[1] == 0xdead) {
-		isp_prt(isp, ISP_LOGERR, "f/w didn't *really* start");
 		ISP_RESET0(isp);
 		return;
 	}
