@@ -197,7 +197,7 @@ static __inline void
 schedule_qlaispd(int flag)
 {
     set_bit(flag, &qlaispd_flags);
-    wake_up(&qlaispd_waitq);
+    wake_up_interruptible(&qlaispd_waitq);
 }
 
 static __inline int
@@ -853,7 +853,7 @@ notify_ack:
     (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
 }
 
-void
+static void
 scsi_target_handler(qact_e action, void *arg)
 {
     unsigned long flags;
@@ -963,7 +963,7 @@ qlaispd_function(void *arg)
     SDprintk("qlaispd starting\n");
     while (!kthread_should_stop()) {
         SDprintk("qlaispd sleeping\n");
-        wait_event(qlaispd_waitq, qlaispd_flags || kthread_should_stop());
+        wait_event_interruptible(qlaispd_waitq, qlaispd_flags || kthread_should_stop());
         SDprintk("qlaispd running\n");
 
         if (test_and_clear_bit(SF_REGISTER_SCST, &qlaispd_flags)) {
@@ -1295,7 +1295,7 @@ isp_write_proc(struct file *file, const char __user *buf, size_t len, loff_t *of
     enum { DISABLE = 0, ENABLE = 1, TEST } action;
     int en = -1, res = -EINVAL;
     int all_channels = 0, all_luns = 0;
-    int lun, chan;
+    int lun = 0, chan = 0;
     bus_t *bp = PDE(file->f_dentry->d_inode)->data;
 
     if (bp == NULL || bp->bchan == NULL) {
