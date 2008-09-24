@@ -1826,7 +1826,7 @@ isp_handle_24xx_inotify(ispsoftc_t *isp, in_fcentry_24xx_t *inot_24xx)
 		lochan = 0;
 		hichan = isp->isp_nchan;
 	} else {
-		if (chan > isp->isp_nchan) {
+		if (chan >= isp->isp_nchan) {
 			isp_prt(isp, ISP_LOGINFO,
 			    "%s: bad channel %d for status 0x%x",
 			    __FUNCTION__, chan, inot_24xx->in_status);
