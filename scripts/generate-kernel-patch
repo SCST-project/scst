@@ -210,10 +210,10 @@ done
 if [ "${qla2x00t}" = "true" ]; then
 
   add_file "qla2x00t/qla2x00-target/Makefile_in-tree" \
-           "drivers/scst/qla2x00-target/Makefile"
+           "drivers/scst/qla2xxx-target/Makefile"
 
   add_file "qla2x00t/qla2x00-target/Kconfig" \
-           "drivers/scst/qla2x00-target/Kconfig"
+           "drivers/scst/qla2xxx-target/Kconfig"
 
   #add_file "qla2x00t/qla2x_tgt_def.h" \
   #         "drivers/scst/qla2x00-target/qla2x_tgt_def.h"
@@ -223,7 +223,7 @@ if [ "${qla2x00t}" = "true" ]; then
 
   for f in qla2x00t/qla2x00-target/*.[ch]
   do
-    add_file "${f}" "drivers/scst/qla2x00-target/${f#qla2x00t/qla2x00-target/}"
+    add_file "${f}" "drivers/scst/qla2xxx-target/${f#qla2x00t/qla2x00-target/}"
   done
 
 fi

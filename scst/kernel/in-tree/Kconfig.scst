@@ -249,7 +249,7 @@ config SCST_MEASURE_LATENCY
 	  If unsure, say "N".
 
 source "drivers/scst/iscsi-scst/Kconfig"
-source "drivers/scst/qla2x00-target/Kconfig"
+source "drivers/scst/qla2xxx-target/Kconfig"
 source "drivers/scst/srpt/Kconfig"
 
 endmenu

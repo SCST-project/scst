@@ -79,10 +79,12 @@ How to configure QLogic target driver for 22xx/23xx cards
     # CONFIG_HIGHMEM4G is not set</br>
     # CONFIG_HIGHMEM64G is not set</br></br>
    
+   If you have system with more than 1GB of memory, consider to change CONFIG_VMSPLIT option to the correspinding value.
+   </br></br>
     [root@proj linux ] pwd</br>
     /usr/src/linux</br>
-    [root@proj linux ] make</br>
     [root@proj linux ] make menuconfig</br>
+    [root@proj linux ] make bzImage</br>
     [root@proj linux ] make modules</br>
     [root@proj linux ] make modules_install</br>
     [root@proj linux ] make install</br></br></br>

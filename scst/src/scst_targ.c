@@ -1931,8 +1931,8 @@ static int scst_send_to_midlev(struct scst_cmd **active_cmd)
 		getnstimeofday(&ts);
 		cmd->pre_exec_finish = scst_sec_to_nsec(ts.tv_sec) + ts.tv_nsec;
 		TRACE_DBG("cmd %p (sess %p): pre_exec_finish %Ld (tv_sec %ld, "
-			"tv_nsec %ld)", cmd, sess, cmd->pre_exec_finish, ts.tv_sec,
-			ts.tv_nsec);
+			"tv_nsec %ld)", cmd, cmd->sess, cmd->pre_exec_finish,
+			ts.tv_sec, ts.tv_nsec);
 	}
 #endif
 
