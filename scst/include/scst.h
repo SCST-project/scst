@@ -1203,6 +1203,10 @@ struct scst_cmd {
 	 */
 	int resp_data_len;
 
+	/*
+	 * The status fields in case of errors must be set using
+	 * scst_set_cmd_error_status()!
+	 */
 	uint8_t status;		/* status byte from target device */
 	uint8_t msg_status;	/* return status from host adapter itself */
 	uint8_t host_status;	/* set by low-level driver to indicate status */

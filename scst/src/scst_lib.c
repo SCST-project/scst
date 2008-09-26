@@ -1375,8 +1375,9 @@ struct scst_cmd *scst_alloc_cmd(gfp_t gfp_mask)
 	cmd->data_len = -1;
 	cmd->is_send_status = 1;
 	cmd->resp_data_len = -1;
-	cmd->dbl_ua_orig_resp_data_len = -1;
+
 	cmd->dbl_ua_orig_data_direction = SCST_DATA_UNKNOWN;
+	cmd->dbl_ua_orig_resp_data_len = -1;
 
 out:
 	TRACE_EXIT();
