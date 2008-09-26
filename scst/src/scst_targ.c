@@ -1104,9 +1104,14 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 			scst_set_resp_data_len(cmd, cmd->resp_data_len - resid);
 	}
 
-	if (cmd->status == SAM_STAT_CHECK_CONDITION)
+	if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION)) {
+		/* We might have double reset UA here */
+		cmd->dbl_ua_orig_resp_data_len = cmd->resp_data_len;
+		cmd->dbl_ua_orig_data_direction = cmd->data_direction;
+
 		scst_alloc_set_sense(cmd, scst_is_context_gfp_atomic(),
 					rq_sense, rq_sense_len);
+	}
 
 	TRACE(TRACE_SCSI, "result=%x, cmd->status=%x, resid=%d, "
 	      "cmd->msg_status=%x, cmd->host_status=%x, "
