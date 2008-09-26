@@ -1005,6 +1005,9 @@ struct scst_cmd {
 	/* Set if cmd is being processed in atomic context */
 	unsigned int atomic:1;
 
+	/* Set if this command was sent in double UA possible state */
+	unsigned int double_ua_possible:1;
+
 	/* Set if this command contains status */
 	unsigned int is_send_status:1;
 
@@ -1350,9 +1353,6 @@ struct scst_device {
 
 	/* Set if double reset UA is possible */
 	unsigned short dev_double_ua_possible:1;
-
-	/* Set if reset UA sent (to avoid double reset UAs) */
-	unsigned short dev_reset_ua_sent:1;
 
 	/**************************************************************/
 

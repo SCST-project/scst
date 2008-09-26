@@ -2564,7 +2564,7 @@ EXPORT_SYMBOL(scst_obtain_device_parameters);
 /* Called under dev_lock and BH off */
 void scst_process_reset(struct scst_device *dev,
 	struct scst_session *originator, struct scst_cmd *exclude_cmd,
-	struct scst_mgmt_cmd *mcmd)
+	struct scst_mgmt_cmd *mcmd, bool setUA)
 {
 	struct scst_tgt_dev *tgt_dev;
 	struct scst_cmd *cmd, *tcmd;
@@ -2631,13 +2631,15 @@ void scst_process_reset(struct scst_device *dev,
 		}
 	}
 
-	/* BH already off */
-	spin_lock(&scst_temp_UA_lock);
-	scst_set_sense(scst_temp_UA, sizeof(scst_temp_UA),
-		SCST_LOAD_SENSE(scst_sense_reset_UA));
-	scst_dev_check_set_local_UA(dev, exclude_cmd, scst_temp_UA,
-		sizeof(scst_temp_UA));
-	spin_unlock(&scst_temp_UA_lock);
+	if (setUA) {
+		/* BH already off */
+		spin_lock(&scst_temp_UA_lock);
+		scst_set_sense(scst_temp_UA, sizeof(scst_temp_UA),
+			SCST_LOAD_SENSE(scst_sense_reset_UA));
+		scst_dev_check_set_local_UA(dev, exclude_cmd, scst_temp_UA,
+			sizeof(scst_temp_UA));
+		spin_unlock(&scst_temp_UA_lock);
+	}
 
 	TRACE_EXIT();
 	return;
@@ -2789,7 +2791,7 @@ void __scst_dev_check_set_UA(struct scst_device *dev,
 	/* Check for reset UA */
 	if (sense[12] == SCST_SENSE_ASC_UA_RESET)
 		scst_process_reset(dev, (exclude != NULL) ? exclude->sess : NULL,
-			exclude, NULL);
+			exclude, NULL, false);
 
 	scst_dev_check_set_local_UA(dev, exclude, sense, sense_len);
 

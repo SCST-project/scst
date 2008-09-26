@@ -404,7 +404,7 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 	int other_ini, int call_dev_task_mgmt_fn);
 void scst_process_reset(struct scst_device *dev,
 	struct scst_session *originator, struct scst_cmd *exclude_cmd,
-	struct scst_mgmt_cmd *mcmd);
+	struct scst_mgmt_cmd *mcmd, bool setUA);
 
 static inline int scst_is_ua_command(struct scst_cmd *cmd)
 {

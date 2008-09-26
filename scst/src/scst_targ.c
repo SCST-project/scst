@@ -1544,8 +1544,16 @@ int scst_check_local_events(struct scst_cmd *cmd)
 {
 	int res, rc;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
+	struct scst_device *dev = cmd->dev;
 
 	TRACE_ENTRY();
+
+	/*
+	 * There's no race here, because we need to trace commands sent
+	 * *after* dev_double_ua_possible flag was set.
+	 */
+	if (unlikely(dev->dev_double_ua_possible))
+		cmd->double_ua_possible = 1;
 
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
 		TRACE_MGMT_DBG("ABORTED set, aborting cmd %p", cmd);
@@ -1565,10 +1573,9 @@ int scst_check_local_events(struct scst_cmd *cmd)
 	}
 
 	/* If we had internal bus reset, set the command error unit attention */
-	if ((cmd->dev->scsi_dev != NULL) &&
-	    unlikely(cmd->dev->scsi_dev->was_reset)) {
+	if ((dev->scsi_dev != NULL) &&
+	    unlikely(dev->scsi_dev->was_reset)) {
 		if (scst_is_ua_command(cmd)) {
-			struct scst_device *dev = cmd->dev;
 			int done = 0;
 			/* Prevent more than 1 cmd to be triggered by was_reset */
 			spin_lock_bh(&dev->dev_lock);
@@ -2044,9 +2051,11 @@ static int scst_check_sense(struct scst_cmd *cmd)
 {
 	int res = 0;
 	struct scst_device *dev = cmd->dev;
-	int dbl_ua_possible, ua_sent = 0;
 
 	TRACE_ENTRY();
+
+	if (unlikely(cmd->ua_ignore))
+		goto out;
 
 	/* If we had internal bus reset behind us, set the command error UA */
 	if ((dev->scsi_dev != NULL) &&
@@ -2054,91 +2063,68 @@ static int scst_check_sense(struct scst_cmd *cmd)
 	    scst_is_ua_command(cmd)) {
 		TRACE(TRACE_MGMT, "DID_RESET: was_reset=%d host_status=%x",
 		      dev->scsi_dev->was_reset, cmd->host_status);
-		scst_set_cmd_error(cmd,
-		   SCST_LOAD_SENSE(scst_sense_reset_UA));
-		/* just in case */
-		cmd->ua_ignore = 0;
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_reset_UA));
 		/* It looks like it is safe to clear was_reset here */
 		dev->scsi_dev->was_reset = 0;
-	}
-
-	dbl_ua_possible = dev->dev_double_ua_possible;
-	TRACE_DBG("cmd %p dbl_ua_possible %d", cmd, dbl_ua_possible);
-	if (unlikely(dbl_ua_possible)) {
-		spin_lock_bh(&dev->dev_lock);
-		barrier(); /* to reread dev_double_ua_possible */
-		dbl_ua_possible = dev->dev_double_ua_possible;
-		if (dbl_ua_possible)
-			ua_sent = dev->dev_reset_ua_sent;
-		else
-			spin_unlock_bh(&dev->dev_lock);
 	}
 
 	if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION) &&
 	    SCST_SENSE_VALID(cmd->sense)) {
 		PRINT_BUFF_FLAG(TRACE_SCSI, "Sense", cmd->sense,
 			SCST_SENSE_BUFFERSIZE);
+
 		/* Check Unit Attention Sense Key */
 		if (scst_is_ua_sense(cmd->sense)) {
 			if (cmd->sense[12] == SCST_SENSE_ASC_UA_RESET) {
-				if (dbl_ua_possible) {
-					if (ua_sent) {
-						TRACE(TRACE_MGMT_MINOR, "%s",
-							"Double UA detected");
-						/* Do retry */
-						TRACE(TRACE_MGMT_MINOR, "Retrying cmd %p "
-							"(tag %llu)", cmd,
-							(long long unsigned)cmd->tag);
-						cmd->status = 0;
-						cmd->msg_status = 0;
-						cmd->host_status = DID_OK;
-						cmd->driver_status = 0;
-						mempool_free(cmd->sense, scst_sense_mempool);
-						cmd->sense = NULL;
-						sBUG_ON(cmd->dbl_ua_orig_resp_data_len < 0);
-						sBUG_ON(cmd->sg_buff_modified);
-						cmd->data_direction =
-							cmd->dbl_ua_orig_data_direction;
-						cmd->resp_data_len =
-							cmd->dbl_ua_orig_resp_data_len;
-						cmd->retry = 1;
-						cmd->state = SCST_CMD_STATE_SEND_TO_MIDLEV;
-						res = 1;
-						/*
-						 * Dev is still blocked by this cmd, so
-						 * it's OK to clear SCST_DEV_SERIALIZED
-						 * here.
-						 */
-						dev->dev_double_ua_possible = 0;
-						dev->dev_serialized = 0;
-						dev->dev_reset_ua_sent = 0;
-						goto out_unlock;
-					} else
-						dev->dev_reset_ua_sent = 1;
+				if (cmd->double_ua_possible) {
+					TRACE(TRACE_MGMT_MINOR, "Double UA "
+						"detected for device %p", dev);
+					TRACE(TRACE_MGMT_MINOR, "Retrying cmd %p "
+						"(tag %llu)", cmd,
+						(long long unsigned)cmd->tag);
+
+					cmd->status = 0;
+					cmd->msg_status = 0;
+					cmd->host_status = DID_OK;
+					cmd->driver_status = 0;
+
+					mempool_free(cmd->sense, scst_sense_mempool);
+					cmd->sense = NULL;
+
+					scst_check_restore_sg_buff(cmd);
+
+					sBUG_ON(cmd->dbl_ua_orig_resp_data_len < 0);
+					cmd->data_direction =
+						cmd->dbl_ua_orig_data_direction;
+					cmd->resp_data_len =
+						cmd->dbl_ua_orig_resp_data_len;
+
+					cmd->retry = 1;
+					cmd->state = SCST_CMD_STATE_SEND_TO_MIDLEV;
+					res = 1;
+					goto out_unlock;
 				}
 			}
-			if (cmd->ua_ignore == 0) {
-				if (unlikely(dbl_ua_possible)) {
-					__scst_dev_check_set_UA(dev, cmd,
-						cmd->sense,
-						SCST_SENSE_BUFFERSIZE);
-				} else {
-					scst_dev_check_set_UA(dev, cmd,
-						cmd->sense,
-						SCST_SENSE_BUFFERSIZE);
-				}
-			}
+			scst_dev_check_set_UA(dev, cmd,	cmd->sense,
+				SCST_SENSE_BUFFERSIZE);
 		}
 	}
 
-	if (unlikely(dbl_ua_possible)) {
-		if (ua_sent && scst_is_ua_command(cmd)) {
-			TRACE_MGMT_DBG("%s", "Clearing dbl_ua_possible flag");
+	if (unlikely(cmd->double_ua_possible)) {
+		if (scst_is_ua_command(cmd)) {
+			TRACE_MGMT_DBG("Clearing dbl_ua_possible flag (dev %p, "
+				"cmd %p)", dev, cmd);
+			/*
+			 * Lock used to protect other flags in the bitfield
+			 * (just in case, actually). Those 2 flags can't be
+			 * changed in parallel, because the device is
+			 * serialized.
+			 */
+			spin_lock_bh(&dev->dev_lock);
 			dev->dev_double_ua_possible = 0;
 			dev->dev_serialized = 0;
-			dev->dev_reset_ua_sent = 0;
+			spin_unlock_bh(&dev->dev_lock);
 		}
-		spin_unlock_bh(&dev->dev_lock);
 	}
 
 out:
@@ -4090,7 +4076,7 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 
 		spin_lock_bh(&dev->dev_lock);
 		__scst_block_dev(dev);
-		scst_process_reset(dev, mcmd->sess, NULL, mcmd);
+		scst_process_reset(dev, mcmd->sess, NULL, mcmd, true);
 		spin_unlock_bh(&dev->dev_lock);
 
 		cont = 0;
@@ -4178,7 +4164,7 @@ static int scst_lun_reset(struct scst_mgmt_cmd *mcmd)
 
 	spin_lock_bh(&dev->dev_lock);
 	__scst_block_dev(dev);
-	scst_process_reset(dev, mcmd->sess, NULL, mcmd);
+	scst_process_reset(dev, mcmd->sess, NULL, mcmd, true);
 	spin_unlock_bh(&dev->dev_lock);
 
 	rc = scst_call_dev_task_mgmt_fn(mcmd, tgt_dev, 1);
