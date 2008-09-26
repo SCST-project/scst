@@ -1221,21 +1221,30 @@ static int noop_out_start(struct iscsi_cmnd *cmnd)
 	}
 
 	size = cmnd->pdu.datasize;
+
 	if (size) {
 		size = (size + 3) & -4;
 		conn->read_msg.msg_iov = conn->read_iov;
 		if (cmnd->pdu.bhs.itt != cpu_to_be32(ISCSI_RESERVED_TAG)) {
 			struct scatterlist *sg;
 
-			/* ToDo: __GFP_NOFAIL ?? */
-			cmnd->sg = sg = scst_alloc(size,
-				GFP_KERNEL|__GFP_NOFAIL, &cmnd->sg_cnt);
+			cmnd->sg = sg = scst_alloc(size, GFP_KERNEL,
+						&cmnd->sg_cnt);
 			if (sg == NULL) {
-				;/* ToDo */;
+				TRACE(TRACE_OUT_OF_MEM, "Allocating buffer for "
+					"%d NOP-Out payload failed", size);
+				err = -ISCSI_REASON_OUT_OF_RESOURCES;
+				goto out;
 			}
 			if (cmnd->sg_cnt > ISCSI_CONN_IOV_MAX) {
-				;/* ToDo */;
+				PRINT_ERROR("Too big NOP-Out payload: %d "
+					"segments, while only %lu allowed (size "
+					"%d)", cmnd->sg_cnt, ISCSI_CONN_IOV_MAX,
+					size);
+				err = -ISCSI_REASON_INVALID_PDU_FIELD;
+				goto out_free;
 			}
+
 			cmnd->own_sg = 1;
 			cmnd->bufflen = size;
 
@@ -1247,6 +1256,7 @@ static int noop_out_start(struct iscsi_cmnd *cmnd)
 				conn->read_size += tmp;
 				size -= tmp;
 			}
+			sBUG_ON(size != 0);
 		} else {
 			/*
 			 * There are no problems with the safety from concurrent
@@ -1260,14 +1270,28 @@ static int noop_out_start(struct iscsi_cmnd *cmnd)
 				conn->read_size += tmp;
 				size -= tmp;
 			}
+
+			if (size != 0) {
+				PRINT_ERROR("Too big NOP-Out payload: %d "
+					"segments, while only %lu allowed (size "
+					"%d)", i, ISCSI_CONN_IOV_MAX,
+					size + sizeof(dummy_data) * i);
+				err = -ISCSI_REASON_INVALID_PDU_FIELD;
+				goto out;
+			}
 		}
-		sBUG_ON(size == 0);
+
 		conn->read_msg.msg_iovlen = i;
 		TRACE_DBG("msg_iov=%p, msg_iovlen=%zd", conn->read_msg.msg_iov,
 			conn->read_msg.msg_iovlen);
 	}
+
 out:
 	return err;
+
+out_free:
+	scst_free(cmnd->sg, cmnd->sg_cnt);
+	goto out;
 }
 
 static inline u32 get_next_ttt(struct iscsi_conn *conn)
