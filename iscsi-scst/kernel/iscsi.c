@@ -50,7 +50,8 @@ DEFINE_SPINLOCK(iscsi_wr_lock);
 LIST_HEAD(iscsi_wr_list);
 DECLARE_WAIT_QUEUE_HEAD(iscsi_wr_waitQ);
 
-static char dummy_data[1024];
+/* It must be at least PAGE_SIZE big, to match ISCSI_CONN_IOV_MAX */
+static char dummy_data[PAGE_SIZE];
 
 struct iscsi_thread_t {
 	struct task_struct *thr;
@@ -1236,14 +1237,9 @@ static int noop_out_start(struct iscsi_cmnd *cmnd)
 				err = -ISCSI_REASON_OUT_OF_RESOURCES;
 				goto out;
 			}
-			if (cmnd->sg_cnt > ISCSI_CONN_IOV_MAX) {
-				PRINT_ERROR("Too big NOP-Out payload: %d "
-					"segments, while only %lu allowed (size "
-					"%d)", cmnd->sg_cnt, ISCSI_CONN_IOV_MAX,
-					size);
-				err = -ISCSI_REASON_INVALID_PDU_FIELD;
-				goto out_free;
-			}
+
+			/* We already checked it in check_segment_length() */
+			sBUG_ON(cmnd->sg_cnt > ISCSI_CONN_IOV_MAX);
 
 			cmnd->own_sg = 1;
 			cmnd->bufflen = size;
@@ -1271,14 +1267,8 @@ static int noop_out_start(struct iscsi_cmnd *cmnd)
 				size -= tmp;
 			}
 
-			if (size != 0) {
-				PRINT_ERROR("Too big NOP-Out payload: %d "
-					"segments, while only %lu allowed (size "
-					"%d)", i, ISCSI_CONN_IOV_MAX,
-					size + sizeof(dummy_data) * i);
-				err = -ISCSI_REASON_INVALID_PDU_FIELD;
-				goto out;
-			}
+			/* We already checked size in check_segment_length() */
+			sBUG_ON(size != 0);
 		}
 
 		conn->read_msg.msg_iovlen = i;
@@ -1288,10 +1278,6 @@ static int noop_out_start(struct iscsi_cmnd *cmnd)
 
 out:
 	return err;
-
-out_free:
-	scst_free(cmnd->sg, cmnd->sg_cnt);
-	goto out;
 }
 
 static inline u32 get_next_ttt(struct iscsi_conn *conn)
