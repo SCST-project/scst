@@ -305,6 +305,14 @@ div.logoimg {
 	background-color: #F3F3F3; 
 	border-bottom: 4px solid #FFA600;
 }
+#menu ul li#sponsorship a{
+	color: red;
+}
+#menu ul li#sp_current a{
+	color: red;
+	background-color: #F3F3F3; 
+	border-bottom: 4px solid #FFA600;
+}
 
 /* Alignment classes */
 .float-left   { float: left;}
