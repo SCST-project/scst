@@ -528,7 +528,11 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 			if (((cmd->expected_data_direction != SCST_DATA_NONE) ||
 			    (cmd->bufflen != 0)) &&
 			    /* Crazy VMware people sometimes do TUR with READ direction */
-			    !(cmd->cdb[0] == TEST_UNIT_READY)) {
+			    (!(cmd->cdb[0] == TEST_UNIT_READY) &&
+			     /* VERIFY commands with BYTCHK unset shouldn't fail here */
+			     !(((cmd->cdb[0] == VERIFY) || (cmd->cdb[0] == VERIFY_6) ||
+				(cmd->cdb[0] == VERIFY_12) || (cmd->cdb[0] == VERIFY_16)) &&
+				((cmd->cdb[1] & BYTCHK) == 0)))) {
 				PRINT_ERROR("Expected data direction %d for opcode "
 					"0x%02x (handler %s, target %s) doesn't match "
 					"decoded value %d", cmd->expected_data_direction,
