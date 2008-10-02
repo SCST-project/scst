@@ -7,5 +7,5 @@ scst-y        += scst_proc.o
 scst-y        += scst_mem.o
 scst-y        += scst_debug.o
 
-obj-$(CONFIG_SCST)   += scst.o dev_handlers/ iscsi-scst/ qla2xxx-target/
+obj-$(CONFIG_SCST)   += scst.o dev_handlers/ iscsi-scst/ qla2xxx-target/ srpt/
 

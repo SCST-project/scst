@@ -139,7 +139,7 @@ extraclean:
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 
 scst: 
-	cd $(SCST_DIR) && $(MAKE)
+	cd $(SCST_DIR) && $(MAKE) all
 
 scst_install: 
 	cd $(SCST_DIR) && $(MAKE) install
@@ -154,7 +154,7 @@ scst_extraclean:
 	cd $(SCST_DIR) && $(MAKE) extraclean
 
 scstadm:
-	cd $(SCSTADM_DIR) && $(MAKE)
+	cd $(SCSTADM_DIR) && $(MAKE) all
 
 scstadm_install: 
 	cd $(SCSTADM_DIR) && $(MAKE) install
@@ -169,7 +169,7 @@ scstadm_extraclean:
 	cd $(SCSTADM_DIR) && $(MAKE) extraclean
 
 qla:
-	cd $(QLA_DIR) && $(MAKE)
+	cd $(QLA_DIR) && $(MAKE) all
 
 qla_install:
 	cd $(QLA_DIR) && $(MAKE) install
@@ -186,7 +186,7 @@ qla_extraclean:
 	cd $(QLA_DIR) && $(MAKE) extraclean
 
 qla_isp:
-	cd $(QLA_ISP_DIR) && $(MAKE)
+	cd $(QLA_ISP_DIR) && $(MAKE) all
 
 qla_isp_install:
 	cd $(QLA_ISP_DIR) && $(MAKE) install
@@ -201,7 +201,7 @@ qla_isp_extraclean:
 	cd $(QLA_ISP_DIR) && $(MAKE) extraclean
 
 iscsi:
-	cd $(ISCSI_DIR) && $(MAKE)
+	cd $(ISCSI_DIR) && $(MAKE) all
 
 iscsi_install:
 	cd $(ISCSI_DIR) && $(MAKE) DISTDIR=$(ISCSI_DISTDIR) install
@@ -216,7 +216,7 @@ iscsi_extraclean:
 	cd $(ISCSI_DIR) && $(MAKE) extraclean
 
 lsi:
-	cd $(LSI_DIR) && $(MAKE)
+	cd $(LSI_DIR) && $(MAKE) all
 
 lsi_install:
 	cd $(LSI_DIR) && $(MAKE) install
@@ -231,7 +231,7 @@ lsi_extraclean:
 	cd $(LSI_DIR) && $(MAKE) extraclean
 
 srpt:
-	cd $(SRP_DIR) && $(MAKE)
+	cd $(SRP_DIR) && $(MAKE) all
 
 srpt_install:
 	cd $(SRP_DIR) && $(MAKE) install
@@ -299,5 +299,6 @@ release2debug:
 	iscsi iscsi_install iscsi_uninstall iscsi_clean iscsi_extraclean \
 	scst scst_install scst_uninstall scst_clean scst_extraclean \
 	scstadm scstadm_install scstadm_uninstall scstadm_clean scstadm_extraclean \
+	srpt srpt_install srpt_uninstall srpt_clean srpt_extraclean \
 	usr usr_install usr_uninstall usr_clean usr_extraclean \
 	debug2perf, debug2release, perf2debug, release2debug

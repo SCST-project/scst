@@ -94,7 +94,7 @@ while [ "$1" != "${1#-}" ]
 do
   case "$1" in
     '-q') qla2x00t="true"; shift;;
-    '-s') srptt="true"; shift;;
+    '-s') srpt="true"; shift;;
     '-m') mpt_scst="true"; shift;;
     '--') shift;;
     *)    usage; exit 1;;
@@ -232,21 +232,15 @@ fi
 
 if [ "$srpt" = "true" ]; then
 
-  add_patch "srpt/src/Kconfig.infiniband.Linux-${kernel_version}.patch" \
-          "drivers/infiniband/Kconfig"
+  add_file  "srpt/src/Kconfig"            "drivers/scst/srpt/Kconfig"
 
-  add_patch "srpt/src/Makefile.infiniband.Linux-${kernel_version}.patch" \
-          "drivers/infiniband/Makefile"
-
-  add_file  "srpt/src/Kconfig"            "drivers/infiniband/ulp/srpt/Kconfig"
-
-  add_file  "srpt/src/Makefile.in_kernel" "drivers/infiniband/ulp/srpt/Makefile"
+  add_file  "srpt/src/Makefile.in_kernel" "drivers/scst/srpt/Makefile"
 
   add_file  "srpt/README"                 "Documentation/scst/README.srpt"
 
   for f in srpt/src/*.[ch]
   do
-    add_file "${f}" "drivers/infiniband/ulp/srpt/${f#srpt/src/}"
+    add_file "${f}" "drivers/scst/srpt/${f#srpt/src/}"
   done
 
 fi
