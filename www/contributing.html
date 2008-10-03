@@ -1,0 +1,164 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta name="Keywords" content="Generic SCSI Target Middle Level for Linux" />
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+<meta name="author" content="Daniel Fernandes"/>
+<meta name="Robots" content="index,follow" />
+<link rel="stylesheet" href="images/Orange.css" type="text/css" />	
+<title>SCST: Generic SCSI Target Middle Level for Linux</title>
+</head>
+
+<body>
+<div id="wrap"> 
+	<div id="header">	
+		<div class="logoimg"></div><h1 id="logo"><span class="orange"></span></h1>
+		<h2 id="slogan">SCSI Target Middle Level for Linux</h2>	
+	</div>
+	<div id="menu">
+		<ul>
+			<li id="sponsorship"><a href="sponsorship.html">Sponsorship</a></li>
+			<li><a href="index.html">Home</a></li>
+			<li><a href="http://www.sourceforge.net/projects/scst">Main</a></li>
+			<li><a href="targets.html">Drivers</a></li>
+			<li><a href="downloads.html">Downloads</a></li>
+			<li id="current"><a href="contributing.html">Contributing</a></li>
+			<li><a href="scstvsstgt.html">SCST vs STGT</a></li>			
+		</ul>
+	</div>	
+	<div id="content-wrap">  
+	  		<div id="main">
+				<h1>Contributing to SCST</h1>
+
+				<p>If you would like to contribute to SCST development, you can do in many ways:
+
+				<ul>
+				<li><span>By reporting bugs or other problems.</span></li>
+				<li><span>By writing or updating various documentation to keep it complete and up to date.</span></li>
+    				<li><span>By sending patches, which fix bugs or implement new functionality.
+    				          See below a list of possible SCST improvements with some possible 
+    				          implementation ideas.</span></li>
+				<li><span>By sending donations. They would be spent on making SCST even better.
+				</ul>			
+
+				<h1>Possible SCST improvements</h1>
+
+				<h3>Zero-copy FILEIO for READ-direction commands</h3>
+
+				<p>At the moment, SCST in FILEIO mode uses standard Linux read() and write() syscalls paths,
+				which copy data from the page cache to the supplied buffer and back. Zero-copy FILEIO
+				would use page cache data directly. This would be a major performance improvement,
+				especially for fast hardware, like Infiniband, because it would eliminate the data copy
+				latency. This proposal is limited for READs only, because for WRITEs it is a lot harder to
+				implement, so it is worth to do zero-copy for READs and WRITEs separately.
+				
+				<p>The main idea is to add one more flag to filp_open() "flags" parameter
+				(like O_RDONLY, O_DIRECT, etc.) O_ZEROCOPY, which would be available 
+				only if the caller is from the kernel space . In this case fd->f_op->readv(), 
+				do_sync_readv_writev(), etc. would receive as the pointer to data 
+				buffer not a real data buffer, but pointer to an empty SG vector. Then:
+				
+				<ul>
+				<li><span>Generic buffer allocation in SCST would not be used, instead vdisk_parse() 
+				would allocate the SG vector, but wouldn't fill it with actual pages.</span></li>
+				
+				<li><span>In generic_file_aio_read(), if O_ZEROCOPY flag was set,
+				function do_generic_file_read() would be called with the last parameter set
+				to a pointer to new function file_zero_copy_read_actor() instead of file_read_actor().</span></li>
+				
+				<li><span>Function file_zero_copy_read_actor() would be basically the same as
+				file_read_actor(), but, instead of copy data using __copy_to_user*() functions,
+				it would add the supplied page to the appropriate place in the received in
+				desc->arg.buf SG vector and reference, i.e. page_get(), that page.</span></li>
+				
+				<li><span>In vdisk_devtype.on_free_cmd(), which doesn't exist yet, all pages 
+				from the SG vector would be dereferenced, i.e. page_put(). Then the SG vector itself 
+				would be freed.</span></li>
+				</ul>
+				
+				<p>That's all. For WRITEs the current code path would remain unchanged.
+
+				<h3>Zero-copy FILEIO for WRITE-direction commands</h3>
+
+				<p>Implementation should be similar to zero-copy FILEIO for READ commands. All
+				incoming data should be inserted in the page cache, then dereferenced in
+				vdisk_devtype.on_free_cmd(). The main problem is insertion of data pages in the
+				page cache, namely, locking issues related to it. They should be carefully
+				investigated.
+
+				<h3>Persistent reservations</h3>
+
+				<p>Support for PERSISTENT RESERVE IN and PERSISTENT RESERVE OUT is required to
+				work in many cluster environments, e.g. Windows 2003 Cluster.
+				
+				<p>For implementation you should use scst_reserve_local() and 
+				scst_release_local() as a base. You should store all reservation keys 
+				for in files in /var/scst, one file per device 
+				(it would allow to eliminate additional locking), like 
+				/var/scst/boot_disk for device "boot_disk" and load them in memory, when 
+				device would be registered.
+				
+				<p>In the first version it can be done for virtual 
+				devices only and reject PERSISTENT RESERVE IN and OUT commands for 
+				pass-through devices with "COMMAND NOT SUPPORTED" sense data.
+				
+				<h3>Automatic sessions reassignment</h3>
+				
+				<p>At the moment, if security name for an initiator reassigned (moved) to another security
+				group, the existing sessions from that initiator are not automatically reassigned to
+				the new security group, i.e. they remain in the old one. The only ways to reassign them
+				are either sessions restart, or restart of the corresponding target driver. Both in many
+				cases are not options.
+				
+				<p>To implement that you should on event of any group change:
+				<ul>
+				<li><span>Globally suspend all activities by scst_suspend_activity().</span></li>
+				   
+				<li><span>Go over all existing sessions. For each find the corresponding ACG 
+				      (see scst_init_session() as an example) and check if it's the same as the existing 
+				      one. If it's the same, then go to the next session. Otherwise, reassign 
+				      it to the new ACG. For that you should go over all devices in the group/session 
+				      pair (tgt_dev's) and delete not existing in the new ACG tgt_dev's, 
+				      add new ones and keep the existing ones.</span></li>
+				      
+				<li><span>Resume the activities.</span></li>
+				</ul>
+				
+				<h3>Dynamic I/O flow control</h3>
+				
+				<p>At the moment, if an initiator or several initiators simultaneously send to
+				target too many commands, especially in seek intensive workloads, target can get
+				overloaded and not able to finish commands on time. In such cases you can see on
+				the initiator(s) messages about aborting commands or resetting the target. See in SCST core
+				README section "What if target's backstorage is too slow" for more details.
+				To fix this problem it is necessary to implement a dynamic I/O flow control in
+				SCST core.
+				
+				<p>The flow control, generally, is quite simple. Each SCST command has timeout value,
+				which is set by the corresponding dev handler. SCST core should keep device's queue depth
+				at the level that the worst command's execution time, i.e. time between scst_rx_cmd()
+				and scst_finish_cmd(), would be between something like timeout/10 and timeout/5.
+				So, commands execution time should be checked and:
+				
+				<ul>
+				<li><span>If it's > timeout/5, then the new queue depth should be set to max(1, 
+				  cur_depth/2)</span></li>
+				  
+				<li><span>If it's < timeout/10, then new queue depth should be set to min(MAX_DEPTH, 
+				    cur_depth+1). This shouldn't be done too often, once in a few minutes should be
+				    sufficient</span></li>
+				</ul>    
+	</div>
+</div>
+<!-- wrap ends here -->
+<!-- footer starts here -->		
+		<div id="footer">
+			<p>
+			&copy; Copyright 2008 <b><font color="#EC981F">Vladislav Bolkhovitin & others.</font>&nbsp;&nbsp;
+			Design by: <b><font color="#EC981F">Daniel Fernandes</font></b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;		
+			
+			</p>		
+		</div>	
+<!-- footer ends here -->
+</body> 
+</html>

@@ -22,6 +22,7 @@
 			<li><a href="http://www.sourceforge.net/projects/scst">Main</a></li>
 			<li><a href="targets.html">Drivers</a></li>
 			<li><a href="downloads.html">Downloads</a></li>
+			<li><a href="contributing.html">Contributing</a></li>
 			<li><a href="scstvsstgt.html">SCST vs STGT</a></li>			
 		</ul>
 	</div>	
@@ -99,16 +100,16 @@
 					<li><span><strong>Pass-through mode</strong> with one to many relationship, i.e. when multiple initiators can 
 						connect to the exported pass-through devices, for virtually all SCSI devices types: <strong>disks (type 0), 
 						tapes (type 1), processors (type 3), CDROMs (type 5), MO disks (type 7), medium changers (type 8) and RAID 
-						controllers (type 0xC)</strong></span></li>
+						controllers (type 0xC)</strong>.</span></li>
     				<li><span><strong>FILEIO mode</strong>, which allows to use files on file systems or block devices as virtual 
-    					remotely available SCSI disks or CDROMs with benefits of the <strong>Linux page cache</strong></span></li>
+    					remotely available SCSI disks or CDROMs with benefits of the <strong>Linux page cache</strong>.</span></li>
     				<li><span><strong>BLOCKIO mode</strong>, which performs direct block IO with a block device, bypassing 
     					page-cache for all operations. This mode works ideally with high-end storage HBAs and for applications that 
     					either do not need caching between application and disk or need the large block throughput.</span></li>
     				<li><span><strong>User space mode</strong> using scst_user device handler, which allows to implement in the 
-    					user space virtual SCSI devices in the SCST environment</span></li>
+    					user space virtual SCSI devices in the SCST environment.</span></li>
     				<li><span><strong>"Performance" device handlers</strong>, which provide in pseudo pass-through mode a way for 
-    					direct performance measurements without overhead of actual data transferring from/to underlying SCSI device
+    					direct performance measurements without overhead of actual data transferring from/to underlying SCSI device.
     					</span></li>
 				</ul>			
 	  		</div>
@@ -139,12 +140,11 @@
 <!-- footer starts here -->		
 		<div id="footer">
 			<p>
-			&copy; Copyright 2008 <strong>SCST (SCSI Target Middle Level for Linux)</strong>&nbsp;&nbsp;  
+			&copy; Copyright 2008 <b><font color="#EC981F">Vladislav Bolkhovitin & others.</font>&nbsp;&nbsp;
 			Design by: <b><font color="#EC981F">Daniel Fernandes</font></b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;		
 			
 			</p>		
 		</div>	
-<!-- footer ends here -->	
-
+<!-- footer ends here -->
 </body>
 </html>
