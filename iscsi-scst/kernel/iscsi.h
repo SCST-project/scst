@@ -518,7 +518,7 @@ static inline int test_write_ready(struct iscsi_conn *conn)
 	 * No need for write_list protection, in the worst case we will be
 	 * restarted again.
 	 */
-	return (!list_empty(&conn->write_list) || conn->write_cmnd);
+	return !list_empty(&conn->write_list) || conn->write_cmnd;
 }
 
 static inline void conn_get(struct iscsi_conn *conn)

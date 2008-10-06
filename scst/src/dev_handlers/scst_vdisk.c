@@ -432,12 +432,11 @@ static int vdisk_attach(struct scst_device *dev)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 			if ((fd->f_op == NULL) || (fd->f_op->readv == NULL) ||
-			    (fd->f_op->writev == NULL))
+			    (fd->f_op->writev == NULL)) {
 #else
 			if ((fd->f_op == NULL) || (fd->f_op->aio_read == NULL) ||
-			    (fd->f_op->aio_write == NULL))
+			    (fd->f_op->aio_write == NULL)) {
 #endif
-			{
 				PRINT_ERROR("%s", "Wrong f_op or FS doesn't have "
 					"required capabilities");
 					res = -EINVAL;

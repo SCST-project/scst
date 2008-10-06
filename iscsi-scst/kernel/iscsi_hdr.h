@@ -515,7 +515,7 @@ struct iscsi_nop_in_hdr {
 #define cmnd_ttt(cmnd) cpu_to_be32((cmnd)->pdu.bhs.ttt)
 #define cmnd_itt(cmnd) cpu_to_be32((cmnd)->pdu.bhs.itt)
 #define cmnd_opcode(cmnd) ((cmnd)->pdu.bhs.opcode & ISCSI_OPCODE_MASK)
-#define cmnd_scsicode(cmnd) cmnd_hdr(cmnd)->scb[0]
+#define cmnd_scsicode(cmnd) (cmnd_hdr((cmnd))->scb[0])
 
 
 #endif	/* __ISCSI_HDR_H__ */
