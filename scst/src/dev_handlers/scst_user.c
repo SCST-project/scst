@@ -1122,13 +1122,13 @@ static int dev_user_process_reply_alloc(struct scst_user_cmd *ucmd,
 
 	TRACE_ENTRY();
 
-	TRACE_DBG("ucmd %p, pbuf %Lx", ucmd, reply->alloc_reply.pbuf);
+	TRACE_DBG("ucmd %p, pbuf %llx", ucmd, reply->alloc_reply.pbuf);
 
 	if (likely(reply->alloc_reply.pbuf != 0)) {
 		int pages;
 		if (ucmd->buff_cached) {
 			if (unlikely((reply->alloc_reply.pbuf & ~PAGE_MASK) != 0)) {
-				PRINT_ERROR("Supplied pbuf %Lx isn't "
+				PRINT_ERROR("Supplied pbuf %llx isn't "
 					"page aligned", reply->alloc_reply.pbuf);
 				goto out_hwerr;
 			}
@@ -1180,7 +1180,7 @@ static int dev_user_process_reply_parse(struct scst_user_cmd *ucmd,
 		goto out_inval;
 
 	TRACE_DBG("ucmd %p, queue_type %x, data_direction, %x, bufflen %d, "
-		"data_len %d, pbuf %Lx", ucmd, preply->queue_type,
+		"data_len %d, pbuf %llx", ucmd, preply->queue_type,
 		preply->data_direction, preply->bufflen, preply->data_len,
 		reply->alloc_reply.pbuf);
 
@@ -1278,7 +1278,7 @@ static int dev_user_process_reply_exec(struct scst_user_cmd *ucmd,
 				goto out_busy;
 			if (ucmd->buff_cached) {
 				if (unlikely((ereply->pbuf & ~PAGE_MASK) != 0)) {
-					PRINT_ERROR("Supplied pbuf %Lx isn't "
+					PRINT_ERROR("Supplied pbuf %llx isn't "
 						"page aligned", ereply->pbuf);
 					goto out_hwerr;
 				}
@@ -1665,7 +1665,7 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 	if (res < 0)
 		goto out_up;
 
-	TRACE_DBG("ureply %Ld (dev %s)", (long long unsigned int)ureply,
+	TRACE_DBG("ureply %lld (dev %s)", (long long unsigned int)ureply,
 		dev->name);
 
 	cmd = kmem_cache_alloc(user_get_cmd_cachep, GFP_KERNEL);
@@ -2241,7 +2241,7 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 	ucmd->user_cmd.sess.initiator_name[
 		sizeof(ucmd->user_cmd.sess.initiator_name)-1] = '\0';
 
-	TRACE_MGMT_DBG("Preparing ATTACH_SESS %p (h %d, sess_h %Lx, LUN %Lx, "
+	TRACE_MGMT_DBG("Preparing ATTACH_SESS %p (h %d, sess_h %llx, LUN %llx, "
 		"threads_num %d, rd_only_flag %d, initiator %s)", ucmd, ucmd->h,
 		ucmd->user_cmd.sess.sess_h, ucmd->user_cmd.sess.lun,
 		ucmd->user_cmd.sess.threads_num, ucmd->user_cmd.sess.rd_only,
@@ -2294,7 +2294,7 @@ static void dev_user_detach_tgt(struct scst_tgt_dev *tgt_dev)
 	if (ucmd == NULL)
 		goto out;
 
-	TRACE_MGMT_DBG("Preparing DETACH_SESS %p (h %d, sess_h %Lx)", ucmd,
+	TRACE_MGMT_DBG("Preparing DETACH_SESS %p (h %d, sess_h %llx)", ucmd,
 		ucmd->h, ucmd->user_cmd.sess.sess_h);
 
 	ucmd->user_cmd.cmd_h = ucmd->h;

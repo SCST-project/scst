@@ -252,7 +252,7 @@ static void conn_rsp_timer_fn(unsigned long arg)
 		if (unlikely(time_after_eq(jiffies, wr_cmd->write_timeout))) {
 			if (!conn->closing) {
 				PRINT_ERROR("Timeout sending data to initiator "
-					"%s (SID %Lx), closing connection",
+					"%s (SID %llx), closing connection",
 					conn->session->initiator_name,
 					(long long unsigned int)conn->session->sid);
 				mark_conn_closed(conn);

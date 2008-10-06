@@ -189,14 +189,14 @@ void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context)
 		struct timespec ts;
 		getnstimeofday(&ts);
 		cmd->start = scst_sec_to_nsec(ts.tv_sec) + ts.tv_nsec;
-		TRACE_DBG("cmd %p (sess %p): start %Ld (tv_sec %ld, "
+		TRACE_DBG("cmd %p (sess %p): start %lld (tv_sec %ld, "
 			"tv_nsec %ld)", cmd, sess, cmd->start, ts.tv_sec,
 			ts.tv_nsec);
 	}
 #endif
 
 	TRACE_DBG("Preferred context: %d (cmd %p)", pref_context, cmd);
-	TRACE(TRACE_SCSI, "tag=%llu, lun=%Ld, CDB len=%d",
+	TRACE(TRACE_SCSI, "tag=%llu, lun=%lld, CDB len=%d",
 	      (long long unsigned int)cmd->tag,
 	      (long long unsigned int)cmd->lun,
 	      cmd->cdb_len);
@@ -1087,7 +1087,7 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 		struct timespec ts;
 		getnstimeofday(&ts);
 		cmd->post_exec_start = scst_sec_to_nsec(ts.tv_sec) + ts.tv_nsec;
-		TRACE_DBG("cmd %p (sess %p): post_exec_start %Ld (tv_sec %ld, "
+		TRACE_DBG("cmd %p (sess %p): post_exec_start %lld (tv_sec %ld, "
 			"tv_nsec %ld)", cmd, cmd->sess, cmd->post_exec_start, ts.tv_sec,
 			ts.tv_nsec);
 	}
@@ -1227,7 +1227,7 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state)
 		struct timespec ts;
 		getnstimeofday(&ts);
 		cmd->post_exec_start = scst_sec_to_nsec(ts.tv_sec) + ts.tv_nsec;
-		TRACE_DBG("cmd %p (sess %p): post_exec_start %Ld (tv_sec %ld, "
+		TRACE_DBG("cmd %p (sess %p): post_exec_start %lld (tv_sec %ld, "
 			"tv_nsec %ld)", cmd, cmd->sess, cmd->post_exec_start, ts.tv_sec,
 			ts.tv_nsec);
 	}
@@ -1437,7 +1437,7 @@ static int scst_reserve_local(struct scst_cmd *cmd)
 
 	if ((cmd->cdb[0] == RESERVE_10) && (cmd->cdb[2] & SCST_RES_3RDPTY)) {
 		PRINT_ERROR("RESERVE_10: 3rdPty RESERVE not implemented "
-		     "(lun=%Ld)", (long long unsigned int)cmd->lun);
+		     "(lun=%lld)", (long long unsigned int)cmd->lun);
 		scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 		goto out_done;
@@ -1768,7 +1768,7 @@ static int scst_do_send_to_midlev(struct scst_cmd *cmd)
 
 	if (unlikely(dev->scsi_dev == NULL)) {
 		PRINT_ERROR("Command for virtual device must be "
-			"processed by device handler (lun %Ld)!",
+			"processed by device handler (lun %lld)!",
 			(long long unsigned int)cmd->lun);
 		goto out_error;
 	}
@@ -1946,7 +1946,7 @@ static int scst_send_to_midlev(struct scst_cmd **active_cmd)
 		struct timespec ts;
 		getnstimeofday(&ts);
 		cmd->pre_exec_finish = scst_sec_to_nsec(ts.tv_sec) + ts.tv_nsec;
-		TRACE_DBG("cmd %p (sess %p): pre_exec_finish %Ld (tv_sec %ld, "
+		TRACE_DBG("cmd %p (sess %p): pre_exec_finish %lld (tv_sec %ld, "
 			"tv_nsec %ld)", cmd, cmd->sess, cmd->pre_exec_finish,
 			ts.tv_sec, ts.tv_nsec);
 	}
@@ -2253,7 +2253,7 @@ static int scst_done_cmd_check(struct scst_cmd **pcmd, int *pres)
 #ifdef CONFIG_SCST_EXTRACHECKS
 				if (buffer[SCST_INQ_BYTE3] & SCST_INQ_NORMACA_BIT) {
 					PRINT_INFO("NormACA set for device: "
-					    "lun=%Ld, type 0x%02x. Clear it, "
+					    "lun=%lld, type 0x%02x. Clear it, "
 					    "since it's unsupported.",
 					    (long long unsigned int)cmd->lun,
 					    buffer[0]);
@@ -2274,7 +2274,7 @@ static int scst_done_cmd_check(struct scst_cmd **pcmd, int *pres)
 		if (unlikely((cmd->cdb[0] == MODE_SELECT) ||
 		    (cmd->cdb[0] == MODE_SELECT_10) ||
 		    (cmd->cdb[0] == LOG_SELECT))) {
-			TRACE(TRACE_SCSI, "MODE/LOG SELECT succeeded (LUN %Ld)",
+			TRACE(TRACE_SCSI, "MODE/LOG SELECT succeeded (LUN %lld)",
 				(long long unsigned int)cmd->lun);
 			cmd->state = SCST_CMD_STATE_MODE_SELECT_CHECKS;
 			*pres = SCST_CMD_STATE_RES_CONT_SAME;
@@ -2288,7 +2288,7 @@ static int scst_done_cmd_check(struct scst_cmd **pcmd, int *pres)
 				struct scst_tgt_dev *tgt_dev_tmp;
 				struct scst_device *dev = cmd->dev;
 
-				TRACE(TRACE_SCSI, "Real RESERVE failed lun=%Ld, "
+				TRACE(TRACE_SCSI, "Real RESERVE failed lun=%lld, "
 					"status=%x",
 					(long long unsigned int)cmd->lun,
 					cmd->status);
@@ -2314,7 +2314,7 @@ static int scst_done_cmd_check(struct scst_cmd **pcmd, int *pres)
 		    scst_is_ua_sense(cmd->sense) &&
 		    (cmd->sense[12] == 0x2a) && (cmd->sense[13] == 0x01)) {
 			TRACE(TRACE_SCSI,
-			      "MODE PARAMETERS CHANGED UA (lun %Ld)",
+			      "MODE PARAMETERS CHANGED UA (lun %lld)",
 			      (long long unsigned int)cmd->lun);
 			cmd->state = SCST_CMD_STATE_MODE_SELECT_CHECKS;
 			*pres = SCST_CMD_STATE_RES_CONT_SAME;
@@ -2365,7 +2365,7 @@ static int scst_mode_select_checks(struct scst_cmd *cmd)
 			}
 
 			TRACE(TRACE_SCSI, "MODE/LOG SELECT succeeded, "
-				"setting the SELECT UA (lun=%Ld)",
+				"setting the SELECT UA (lun=%lld)",
 				(long long unsigned int)cmd->lun);
 
 			spin_lock_bh(&dev->dev_lock);
@@ -2402,7 +2402,7 @@ static int scst_mode_select_checks(struct scst_cmd *cmd)
 		}
 
 		TRACE(TRACE_SCSI, "Possible parameters changed UA %x "
-			"(lun %Ld): getting new parameters", cmd->sense[12],
+			"(lun %lld): getting new parameters", cmd->sense[12],
 			(long long unsigned int)cmd->lun);
 
 		scst_obtain_device_parameters(cmd->dev);
@@ -2585,8 +2585,8 @@ out:
 
 		spin_unlock_bh(&sess->meas_lock);
 
-		TRACE_DBG("cmd %p (sess %p): finish %Ld (tv_sec %ld, "
-			"tv_nsec %ld), scst_time %Ld, proc_time %Ld", cmd, sess,
+		TRACE_DBG("cmd %p (sess %p): finish %lld (tv_sec %ld, "
+			"tv_nsec %ld), scst_time %lld, proc_time %lld", cmd, sess,
 			finish,	ts.tv_sec, ts.tv_nsec, scst_time, proc_time);
 	}
 #endif
@@ -2873,7 +2873,7 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 	if (likely(!test_bit(SCST_FLAG_SUSPENDED, &scst_flags))) {
 		struct list_head *sess_tgt_dev_list_head =
 			&cmd->sess->sess_tgt_dev_list_hash[HASH_VAL(cmd->lun)];
-		TRACE_DBG("Finding tgt_dev for cmd %p (lun %Ld)", cmd,
+		TRACE_DBG("Finding tgt_dev for cmd %p (lun %lld)", cmd,
 			(long long unsigned int)cmd->lun);
 		res = -1;
 		list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
@@ -2883,7 +2883,7 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 
 				if (unlikely(tgt_dev->dev->handler == &scst_null_devtype)) {
 					PRINT_INFO("Dev handler for device "
-					  "%Ld is NULL, the device will not be "
+					  "%lld is NULL, the device will not be "
 					  "visible remotely",
 					   (long long unsigned int)cmd->lun);
 					break;
@@ -2898,7 +2898,7 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 			}
 		}
 		if (res != 0) {
-			TRACE(TRACE_MINOR, "tgt_dev for lun %Ld not found, command to "
+			TRACE(TRACE_MINOR, "tgt_dev for lun %lld not found, command to "
 				"unexisting LU?", (long long unsigned int)cmd->lun);
 			__scst_put();
 		}
@@ -3373,7 +3373,7 @@ static int scst_mgmt_translate_lun(struct scst_mgmt_cmd *mcmd)
 
 	TRACE_ENTRY();
 
-	TRACE_DBG("Finding tgt_dev for mgmt cmd %p (lun %Ld)", mcmd,
+	TRACE_DBG("Finding tgt_dev for mgmt cmd %p (lun %lld)", mcmd,
 	      (long long unsigned int)mcmd->lun);
 
 	__scst_get(1);
@@ -3845,7 +3845,7 @@ static int scst_abort_task_set(struct scst_mgmt_cmd *mcmd)
 	struct scst_tgt_dev *tgt_dev = mcmd->mcmd_tgt_dev;
 	struct scst_device *dev = tgt_dev->dev;
 
-	TRACE(TRACE_MGMT, "Aborting task set (lun=%Ld, mcmd=%p)",
+	TRACE(TRACE_MGMT, "Aborting task set (lun=%lld, mcmd=%p)",
 	      (long long unsigned int)tgt_dev->lun, mcmd);
 
 	mcmd->needs_unblocking = 1;
@@ -3875,7 +3875,7 @@ static int scst_is_cmd_belongs_to_dev(struct scst_cmd *cmd,
 
 	TRACE_ENTRY();
 
-	TRACE_DBG("Finding match for dev %p and cmd %p (lun %Ld)", dev, cmd,
+	TRACE_DBG("Finding match for dev %p and cmd %p (lun %lld)", dev, cmd,
 	      (long long unsigned int)cmd->lun);
 
 	sess_tgt_dev_list_head =
@@ -3904,7 +3904,7 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 
 	TRACE_ENTRY();
 
-	TRACE(TRACE_MGMT, "Clearing task set (lun=%Ld, mcmd=%p)",
+	TRACE(TRACE_MGMT, "Clearing task set (lun=%lld, mcmd=%p)",
 		(long long unsigned int)mcmd->lun, mcmd);
 
 	mcmd->needs_unblocking = 1;
@@ -4002,8 +4002,8 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 			cmd->sn, cmd->sn_set, cmd->queue_type);
 		mcmd->cmd_to_abort = cmd;
 		if (mcmd->lun_set && (mcmd->lun != cmd->lun)) {
-			PRINT_ERROR("ABORT TASK: LUN mismatch: mcmd LUN %Lx, "
-				"cmd LUN %Lx, cmd tag %Lu",
+			PRINT_ERROR("ABORT TASK: LUN mismatch: mcmd LUN %llx, "
+				"cmd LUN %llx, cmd tag %llu",
 				(long long unsigned int)mcmd->lun,
 				(long long unsigned int)cmd->lun,
 				(long long unsigned int)mcmd->tag);
@@ -4012,7 +4012,7 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 			   (scst_sn_before(mcmd->cmd_sn, cmd->tgt_sn) ||
 			    (mcmd->cmd_sn == cmd->tgt_sn))) {
 			PRINT_ERROR("ABORT TASK: SN mismatch: mcmd SN %x, "
-				"cmd SN %x, cmd tag %Lu", mcmd->cmd_sn,
+				"cmd SN %x, cmd tag %llu", mcmd->cmd_sn,
 				cmd->tgt_sn, (long long unsigned int)mcmd->tag);
 			mcmd->status = SCST_MGMT_STATUS_REJECTED;
 		} else {
@@ -4039,7 +4039,7 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 	case SCST_LUN_RESET:
 		rc = scst_mgmt_translate_lun(mcmd);
 		if (rc < 0) {
-			PRINT_ERROR("Corresponding device for lun %Ld not "
+			PRINT_ERROR("Corresponding device for lun %lld not "
 				    "found",
 				    (long long unsigned int)mcmd->lun);
 			mcmd->status = SCST_MGMT_STATUS_LUN_NOT_EXIST;
@@ -4166,7 +4166,7 @@ static int scst_lun_reset(struct scst_mgmt_cmd *mcmd)
 
 	TRACE_ENTRY();
 
-	TRACE(TRACE_MGMT, "Resetting lun %Ld (mcmd %p)",
+	TRACE(TRACE_MGMT, "Resetting lun %lld (mcmd %p)",
 	      (long long unsigned int)tgt_dev->lun, mcmd);
 
 	mcmd->needs_unblocking = 1;
@@ -4830,8 +4830,8 @@ int scst_rx_mgmt_fn(struct scst_session *sess,
 	TRACE((params->fn == SCST_ABORT_TASK) ? TRACE_MGMT_MINOR : TRACE_MGMT,
 		"TM fn %x", params->fn);
 
-	TRACE_MGMT_DBG("sess=%p, tag_set %d, tag %Ld, lun_set %d, "
-		"lun=%Ld, cmd_sn_set %d, cmd_sn %d, priv %p", sess,
+	TRACE_MGMT_DBG("sess=%p, tag_set %d, tag %lld, lun_set %d, "
+		"lun=%lld, cmd_sn_set %d, cmd_sn %d, priv %p", sess,
 		params->tag_set,
 		(long long unsigned int)params->tag,
 		params->lun_set,

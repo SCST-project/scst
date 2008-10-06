@@ -411,7 +411,7 @@ static int lat_info_show(struct seq_file *seq, void *v)
 			processed_cmds = sess->processed_cmds;
 			spin_unlock_bh(&sess->meas_lock);
 
-			TRACE_DBG("sess %p, scst_time %Ld, proc_time %Ld, "
+			TRACE_DBG("sess %p, scst_time %lld, proc_time %lld, "
 				"processed_cmds %d", sess, scst_time,
 				proc_time, processed_cmds);
 

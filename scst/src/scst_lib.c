@@ -516,12 +516,12 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 
 	if (dev->scsi_dev != NULL) {
 		TRACE_MGMT_DBG("host=%d, channel=%d, id=%d, lun=%d, "
-		      "SCST lun=%Ld", dev->scsi_dev->host->host_no,
+		      "SCST lun=%lld", dev->scsi_dev->host->host_no,
 		      dev->scsi_dev->channel, dev->scsi_dev->id,
 		      dev->scsi_dev->lun,
 		      (long long unsigned int)tgt_dev->lun);
 	} else {
-		TRACE_MGMT_DBG("Virtual device %s on SCST lun=%Ld",
+		TRACE_MGMT_DBG("Virtual device %s on SCST lun=%lld",
 			       dev->virt_name,
 			       (long long unsigned int)tgt_dev->lun);
 	}
@@ -788,13 +788,13 @@ int scst_acg_add_dev(struct scst_acg *acg, struct scst_device *dev,
 out:
 	if (res == 0) {
 		if (dev->virt_name != NULL) {
-			PRINT_INFO("Added device %s to group %s (LUN %Ld, "
+			PRINT_INFO("Added device %s to group %s (LUN %lld, "
 				"rd_only %d)", dev->virt_name, acg->acg_name,
 				(long long unsigned int)lun,
 				read_only);
 		} else {
 			PRINT_INFO("Added device %d:%d:%d:%d to group %s (LUN "
-				"%Ld, rd_only %d)", dev->scsi_dev->host->host_no,
+				"%lld, rd_only %d)", dev->scsi_dev->host->host_no,
 				dev->scsi_dev->channel,	dev->scsi_dev->id,
 				dev->scsi_dev->lun, acg->acg_name,
 				(long long unsigned int)lun,
@@ -1403,7 +1403,7 @@ void scst_free_cmd(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	TRACE_DBG("Freeing cmd %p (tag %Lu)",
+	TRACE_DBG("Freeing cmd %p (tag %llu)",
 		  cmd, (long long unsigned int)cmd->tag);
 
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
@@ -1462,7 +1462,7 @@ void scst_free_cmd(struct scst_cmd *cmd)
 #ifdef CONFIG_SCST_EXTRACHECKS
 		if (unlikely(!cmd->sent_to_midlev)) {
 			PRINT_ERROR("Finishing not executed cmd %p (opcode "
-			     "%d, target %s, lun %Ld, sn %ld, expected_sn %ld)",
+			     "%d, target %s, lun %lld, sn %ld, expected_sn %ld)",
 			     cmd, cmd->cdb[0], cmd->tgtt->name,
 			     (long long unsigned int)cmd->lun,
 			     cmd->sn, cmd->tgt_dev->expected_sn);
@@ -2577,7 +2577,7 @@ void scst_process_reset(struct scst_device *dev,
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 				    dev_tgt_dev_list_entry) {
 			TRACE(TRACE_MGMT, "Clearing RESERVE'ation for tgt_dev "
-				"lun %Ld",
+				"lun %lld",
 				(long long unsigned int)tgt_dev->lun);
 			clear_bit(SCST_TGT_DEV_RESERVED,
 				  &tgt_dev->tgt_dev_flags);
@@ -2808,7 +2808,7 @@ void scst_free_all_UA(struct scst_tgt_dev *tgt_dev)
 	TRACE_ENTRY();
 
 	list_for_each_entry_safe(UA_entry, t, &tgt_dev->UA_list, UA_list_entry) {
-		TRACE_MGMT_DBG("Clearing UA for tgt_dev lun %Ld",
+		TRACE_MGMT_DBG("Clearing UA for tgt_dev lun %lld",
 			       (long long unsigned int)tgt_dev->lun);
 		list_del(&UA_entry->UA_list_entry);
 		kfree(UA_entry);

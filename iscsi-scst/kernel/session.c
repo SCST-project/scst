@@ -115,7 +115,7 @@ int session_add(struct iscsi_target *target, struct session_info *info)
 
 	session = session_lookup(target, info->sid);
 	if (session) {
-		PRINT_ERROR("Attempt to add session with existing SID %Lx",
+		PRINT_ERROR("Attempt to add session with existing SID %llx",
 			info->sid);
 		return err;
 	}

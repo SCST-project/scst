@@ -468,7 +468,7 @@ static int vdisk_attach(struct scst_device *dev)
 			filp_close(fd, NULL);
 		}
 		virt_dev->file_size = err;
-		TRACE_DBG("size of file: %Ld", (long long unsigned int)err);
+		TRACE_DBG("size of file: %lld", (long long unsigned int)err);
 	} else
 		virt_dev->file_size = 0;
 
@@ -482,7 +482,7 @@ static int vdisk_attach(struct scst_device *dev)
 
 	if (!virt_dev->cdrom_empty) {
 		PRINT_INFO("Attached SCSI target virtual %s %s "
-		      "(file=\"%s\", fs=%LdMB, bs=%d, nblocks=%Ld, cyln=%Ld%s)",
+		      "(file=\"%s\", fs=%lldMB, bs=%d, nblocks=%lld, cyln=%lld%s)",
 		      (dev->handler->type == TYPE_DISK) ? "disk" : "cdrom",
 		      virt_dev->name, virt_dev->file_name,
 		      virt_dev->file_size >> 20, virt_dev->block_size,
@@ -769,14 +769,14 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	}
 
 	loff = (loff_t)lba_start << virt_dev->block_shift;
-	TRACE_DBG("cmd %p, lba_start %Ld, loff %Ld, data_len %Ld", cmd,
+	TRACE_DBG("cmd %p, lba_start %lld, loff %lld, data_len %lld", cmd,
 		  (long long unsigned int)lba_start,
 		  (long long unsigned int)loff,
 		  (long long unsigned int)data_len);
 	if (unlikely(loff < 0) || unlikely(data_len < 0) ||
 	    unlikely((loff + data_len) > virt_dev->file_size)) {
 		PRINT_INFO("Access beyond the end of the device "
-			"(%lld of %lld, len %Ld)",
+			"(%lld of %lld, len %lld)",
 			   (long long unsigned int)loff,
 			   (long long unsigned int)virt_dev->file_size,
 			   (long long unsigned int)data_len);
@@ -791,8 +791,8 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	case WRITE_16:
 		fua = (cdb[1] & 0x8);
 		if (fua) {
-			TRACE(TRACE_ORDER, "FUA: loff=%Ld, "
-				"data_len=%Ld", (long long unsigned int)loff,
+			TRACE(TRACE_ORDER, "FUA: loff=%lld, "
+				"data_len=%lld", (long long unsigned int)loff,
 				(long long unsigned int)data_len);
 		}
 		break;
@@ -823,7 +823,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 			ftgt_dev->last_write_cmd_queue_type = cmd->queue_type;
 			if (vdisk_need_pre_sync(cmd->queue_type, last_queue_type)) {
 				TRACE(TRACE_ORDER, "ORDERED "
-				      "WRITE(%d): loff=%Ld, data_len=%Ld",
+				      "WRITE(%d): loff=%lld, data_len=%lld",
 				      cmd->queue_type, (long long unsigned int)loff,
 				      (long long unsigned int)data_len);
 				do_fsync = 1;
@@ -858,7 +858,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 			ftgt_dev->last_write_cmd_queue_type = cmd->queue_type;
 			if (vdisk_need_pre_sync(cmd->queue_type, last_queue_type)) {
 				TRACE(TRACE_ORDER, "ORDERED "
-				      "WRITE_VERIFY(%d): loff=%Ld, data_len=%Ld",
+				      "WRITE_VERIFY(%d): loff=%lld, data_len=%lld",
 				      cmd->queue_type, (long long unsigned int)loff,
 				      (long long unsigned int)data_len);
 				do_fsync = 1;
@@ -883,7 +883,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	{
 		int immed = cdb[1] & 0x2;
 		TRACE(TRACE_ORDER, "SYNCHRONIZE_CACHE: "
-			"loff=%Ld, data_len=%Ld, immed=%d", (long long unsigned int)loff,
+			"loff=%lld, data_len=%lld, immed=%d", (long long unsigned int)loff,
 			(long long unsigned int)data_len, immed);
 		if (immed) {
 			scst_cmd_get(cmd);
@@ -2046,7 +2046,7 @@ static void vdisk_exec_read(struct scst_cmd *cmd,
 		else
 			err = default_llseek(fd, loff, 0/*SEEK_SET*/);
 		if (err != loff) {
-			PRINT_ERROR("lseek trouble %Ld != %Ld",
+			PRINT_ERROR("lseek trouble %lld != %lld",
 				    (long long unsigned int)err,
 				    (long long unsigned int)loff);
 			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
@@ -2061,7 +2061,7 @@ static void vdisk_exec_read(struct scst_cmd *cmd,
 	}
 
 	if ((err < 0) || (err < full_len)) {
-		PRINT_ERROR("readv() returned %Ld from %zd",
+		PRINT_ERROR("readv() returned %lld from %zd",
 			    (long long unsigned int)err,
 			    full_len);
 		if (err == -EAGAIN)
@@ -2138,7 +2138,7 @@ restart:
 		else
 			err = default_llseek(fd, loff, 0 /*SEEK_SET */);
 		if (err != loff) {
-			PRINT_ERROR("lseek trouble %Ld != %Ld",
+			PRINT_ERROR("lseek trouble %lld != %lld",
 				    (long long unsigned int)err,
 				    (long long unsigned int)loff);
 			scst_set_cmd_error(cmd,
@@ -2156,7 +2156,7 @@ restart:
 	}
 
 	if (err < 0) {
-		PRINT_ERROR("write() returned %Ld from %zd",
+		PRINT_ERROR("write() returned %lld from %zd",
 			    (long long unsigned int)err,
 			    full_len);
 		if (err == -EAGAIN)
@@ -2431,7 +2431,7 @@ static void vdisk_exec_verify(struct scst_cmd *cmd,
 		else
 			err = default_llseek(fd, loff, 0/*SEEK_SET*/);
 		if (err != loff) {
-			PRINT_ERROR("lseek trouble %Ld != %Ld",
+			PRINT_ERROR("lseek trouble %lld != %lld",
 				    (long long unsigned int)err,
 				    (long long unsigned int)loff);
 			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
@@ -2465,7 +2465,7 @@ static void vdisk_exec_verify(struct scst_cmd *cmd,
 		else
 			err = len_mem;
 		if ((err < 0) || (err < len_mem)) {
-			PRINT_ERROR("verify() returned %Ld from %zd",
+			PRINT_ERROR("verify() returned %lld from %zd",
 				    (long long unsigned int)err, len_mem);
 			if (err == -EAGAIN)
 				scst_set_busy(cmd);
@@ -3150,7 +3150,7 @@ static int vcdrom_change(char *p, char *name)
 
 	if (!virt_dev->cdrom_empty) {
 		PRINT_INFO("Changed SCSI target virtual cdrom %s "
-			"(file=\"%s\", fs=%LdMB, bs=%d, nblocks=%Ld, cyln=%Ld%s)",
+			"(file=\"%s\", fs=%lldMB, bs=%d, nblocks=%lld, cyln=%lld%s)",
 			virt_dev->name, virt_dev->file_name,
 			virt_dev->file_size >> 20, virt_dev->block_size,
 			(long long unsigned int)virt_dev->nblocks,

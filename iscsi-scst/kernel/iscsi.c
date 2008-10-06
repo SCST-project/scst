@@ -1637,7 +1637,7 @@ static int cmnd_abort(struct iscsi_cmnd *req)
 
 		if (req_hdr->lun != hdr->lun) {
 			 PRINT_ERROR("ABORT TASK: LUN mismatch: req LUN "
-				     "%Lx, cmd LUN %Lx, rtt %u",
+				     "%llx, cmd LUN %llx, rtt %u",
 				     (long long unsigned int)req_hdr->lun,
 				     (long long unsigned int)hdr->lun,
 				     req_hdr->rtt);
