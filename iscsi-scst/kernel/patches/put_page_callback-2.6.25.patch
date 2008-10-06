@@ -138,17 +138,20 @@ diff -upkr linux-2.6.25/net/core/utils.c linux-2.6.25/net/core/utils.c
  #include <net/sock.h>
  
  #include <asm/byteorder.h>
-@@ -36,6 +37,9 @@ int net_msg_burst __read_mostly = 10;
+@@ -36,6 +37,12 @@ int net_msg_burst __read_mostly = 10;
  int net_msg_warn __read_mostly = 1;
  EXPORT_SYMBOL(net_msg_warn);
  
 +net_get_page_callback_t net_get_page_callback __read_mostly;
++EXPORT_SYMBOL(net_get_page_callback);
++
 +net_put_page_callback_t net_put_page_callback __read_mostly;
++EXPORT_SYMBOL(net_put_page_callback);
 +
  /*
   * All net warning printk()s should be guarded by this function.
   */
-@@ -283,6 +287,35 @@ out:
+@@ -283,6 +287,32 @@ out:
  
  EXPORT_SYMBOL(in6_pton);
  
@@ -177,9 +180,6 @@ diff -upkr linux-2.6.25/net/core/utils.c linux-2.6.25/net/core/utils.c
 +	return res;
 +}
 +EXPORT_SYMBOL(net_set_get_put_page_callbacks);
-+
-+EXPORT_SYMBOL(net_get_page_callback);
-+EXPORT_SYMBOL(net_put_page_callback);
 +
  void inet_proto_csum_replace4(__sum16 *sum, struct sk_buff *skb,
  			      __be32 from, __be32 to, int pseudohdr)
