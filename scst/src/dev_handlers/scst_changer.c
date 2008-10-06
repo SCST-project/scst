@@ -41,10 +41,10 @@
 #define CHANGER_RETRIES       2
 #define READ_CAP_LEN          8
 
-int changer_attach(struct scst_device *);
-void changer_detach(struct scst_device *);
-int changer_parse(struct scst_cmd *);
-int changer_done(struct scst_cmd *);
+static int changer_attach(struct scst_device *);
+/* static void changer_detach(struct scst_device *); */
+static int changer_parse(struct scst_cmd *);
+/* static int changer_done(struct scst_cmd *); */
 
 static struct scst_dev_type changer_devtype = CHANGER_TYPE;
 
@@ -121,6 +121,7 @@ out:
  *
  *  Description:  Called to detach this device type driver
  ************************************************************/
+#if 0
 void changer_detach(struct scst_device *dev)
 {
 	TRACE_ENTRY();
@@ -128,6 +129,7 @@ void changer_detach(struct scst_device *dev)
 	TRACE_EXIT();
 	return;
 }
+#endif
 
 /********************************************************************
  *  Function:  changer_parse
@@ -162,6 +164,7 @@ int changer_parse(struct scst_cmd *cmd)
  *                it is used to extract any necessary information
  *                about a command.
  ********************************************************************/
+#if 0
 int changer_done(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
@@ -185,6 +188,7 @@ int changer_done(struct scst_cmd *cmd)
 	TRACE_EXIT();
 	return res;
 }
+#endif
 
 static int __init changer_init(void)
 {

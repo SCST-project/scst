@@ -64,11 +64,11 @@ struct disk_params {
 	int block_shift;
 };
 
-int disk_attach(struct scst_device *dev);
-void disk_detach(struct scst_device *dev);
-int disk_parse(struct scst_cmd *cmd);
-int disk_done(struct scst_cmd *cmd);
-int disk_exec(struct scst_cmd *cmd);
+static int disk_attach(struct scst_device *dev);
+static void disk_detach(struct scst_device *dev);
+static int disk_parse(struct scst_cmd *cmd);
+static int disk_done(struct scst_cmd *cmd);
+static int disk_exec(struct scst_cmd *cmd);
 
 static struct scst_dev_type disk_devtype = DISK_TYPE;
 static struct scst_dev_type disk_devtype_perf = DISK_PERF_TYPE;

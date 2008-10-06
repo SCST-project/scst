@@ -64,11 +64,11 @@ struct modisk_params {
 	int block_shift;
 };
 
-int modisk_attach(struct scst_device *);
-void modisk_detach(struct scst_device *);
-int modisk_parse(struct scst_cmd *);
-int modisk_done(struct scst_cmd *);
-int modisk_exec(struct scst_cmd *);
+static int modisk_attach(struct scst_device *);
+static void modisk_detach(struct scst_device *);
+static int modisk_parse(struct scst_cmd *);
+static int modisk_done(struct scst_cmd *);
+static int modisk_exec(struct scst_cmd *);
 
 static struct scst_dev_type modisk_devtype = MODISK_TYPE;
 static struct scst_dev_type modisk_devtype_perf = MODISK_PERF_TYPE;

@@ -41,10 +41,10 @@
 #define PROCESSOR_RETRIES       2
 #define READ_CAP_LEN          8
 
-int processor_attach(struct scst_device *);
-void processor_detach(struct scst_device *);
-int processor_parse(struct scst_cmd *);
-int processor_done(struct scst_cmd *);
+static int processor_attach(struct scst_device *);
+/*static void processor_detach(struct scst_device *);*/
+static int processor_parse(struct scst_cmd *);
+/*static int processor_done(struct scst_cmd *);*/
 
 static struct scst_dev_type processor_devtype = PROCESSOR_TYPE;
 
@@ -121,6 +121,7 @@ out:
  *
  *  Description:  Called to detach this device type driver
  ************************************************************/
+#if 0
 void processor_detach(struct scst_device *dev)
 {
 	TRACE_ENTRY();
@@ -128,6 +129,7 @@ void processor_detach(struct scst_device *dev)
 	TRACE_EXIT();
 	return;
 }
+#endif
 
 /********************************************************************
  *  Function:  processor_parse
@@ -162,6 +164,7 @@ int processor_parse(struct scst_cmd *cmd)
  *                it is used to extract any necessary information
  *                about a command.
  ********************************************************************/
+#if 0
 int processor_done(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
@@ -185,6 +188,7 @@ int processor_done(struct scst_cmd *cmd)
 	TRACE_EXIT();
 	return res;
 }
+#endif
 
 static int __init processor_init(void)
 {

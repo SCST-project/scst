@@ -45,10 +45,10 @@ struct cdrom_params {
 	int block_shift;
 };
 
-int cdrom_attach(struct scst_device *);
-void cdrom_detach(struct scst_device *);
-int cdrom_parse(struct scst_cmd *);
-int cdrom_done(struct scst_cmd *);
+static int cdrom_attach(struct scst_device *);
+static void cdrom_detach(struct scst_device *);
+static int cdrom_parse(struct scst_cmd *);
+static int cdrom_done(struct scst_cmd *);
 
 static struct scst_dev_type cdrom_devtype = CDROM_TYPE;
 

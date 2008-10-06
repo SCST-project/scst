@@ -69,11 +69,11 @@ struct tape_params {
 	int block_size;
 };
 
-int tape_attach(struct scst_device *);
-void tape_detach(struct scst_device *);
-int tape_parse(struct scst_cmd *);
-int tape_done(struct scst_cmd *);
-int tape_exec(struct scst_cmd *);
+static int tape_attach(struct scst_device *);
+static void tape_detach(struct scst_device *);
+static int tape_parse(struct scst_cmd *);
+static int tape_done(struct scst_cmd *);
+static int tape_exec(struct scst_cmd *);
 
 static struct scst_dev_type tape_devtype = TAPE_TYPE;
 static struct scst_dev_type tape_devtype_perf = TAPE_PERF_TYPE;
