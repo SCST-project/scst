@@ -26,7 +26,7 @@
 function usage {
   echo "Usage: $0 [-q] [-s] [-m] <kernel version>, where: "
   echo "	-q - add qla2x00t driver"
-  echo "	-s - add srpt driver"
+  echo "	-s - exclude srpt driver"
   echo "	-m - add mpt target driver"
 }
 
@@ -81,7 +81,7 @@ EOF
 #########################
 
 qla2x00t="false"
-srpt="false"
+srpt="true"
 mpt_scst="false"
 
 if [ ! -e scst -o ! -e iscsi-scst -o ! -e srpt ]; then
@@ -89,13 +89,14 @@ if [ ! -e scst -o ! -e iscsi-scst -o ! -e srpt ]; then
   exit 1
 fi
 
-set -- $(/usr/bin/getopt mq "$@")
+set -- $(/usr/bin/getopt hmqs "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
-    '-q') qla2x00t="true"; shift;;
-    '-s') srpt="true"; shift;;
+    '-h') usage; exit 1;;
     '-m') mpt_scst="true"; shift;;
+    '-q') qla2x00t="true"; shift;;
+    '-s') srpt="false"; shift;;
     '--') shift;;
     *)    usage; exit 1;;
   esac
