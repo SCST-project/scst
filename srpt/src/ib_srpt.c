@@ -1165,7 +1165,7 @@ static int srpt_release_channel(struct srpt_rdma_ch *ch, int destroy_cmid)
 
 	kfree(ch);
 
-	return (destroy_cmid ? 0 : 1);
+	return destroy_cmid ? 0 : 1;
 }
 
 static void srpt_register_channel_done(struct scst_session *scst_sess,
