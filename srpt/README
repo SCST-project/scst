@@ -1,21 +1,27 @@
 SCSI RDMA Protocol (SRP) Target driver for Linux
 =================================================
 
-SRP Target driver is designed to work directly on top of OpenFabrics
-OFED-1.x software stack (http://www.openfabrics.org) or Infiniband
-drivers in Linux kernel tree (kernel.org). It also interfaces with 
-Generic SCSI target mid-level driver - SCST (http://scst.sourceforge.net)
+The SRP Target driver is designed to work directly on top of the
+OpenFabrics OFED-1.x software stack (http://www.openfabrics.org) or
+the Infiniband drivers in the Linux kernel tree
+(http://www.kernel.org). The SRP target driver also interfaces with
+the generic SCSI target mid-level driver called SCST
+(http://scst.sourceforge.net).
 
-NOTES: This SRP Target driver can only compile and work with IB driver
-       in Linux vanilla kernel. It does not compile and work with IB
-       driver in OFED-1.x packages
+NOTES: This SRP Target driver can only be compiled and will only work
+with the IB drivers in the vanilla Linux kernel. It does not compile
+and work with the IB drivers included in any of the OFED-1.x packages.
 
-       If you want to work with IB driver in OFED-1.x package, you should
-       read and follow instruction in README.ofed file
+If you want to work with the IB drivers in one of the OFED-1.x
+packages, you should read and follow instruction in README.ofed file.
 
 
 Installation
 ------------
+If you have obtained SCST from the SCST SVN repository as an out-of-tree
+kernel subsystem, proceed as follows to compile and install the SRP target
+driver:
+
 $ make 
 $ make install
 
@@ -26,6 +32,10 @@ $ cd ~scst/trunk
 $ patch -p0 < srpt/patches/scst_increasa_max_tgt_cmds.patch
 $ make scst scst_install srpt srpt_install
 
+On the other hand, if you have obtained the SCST source code included
+with the Linux kernel source code, enable and build the SRP target driver
+in the same way as any other kernel module. Make sure to enable SCST itself
+and InfiniBand before attempting to enable the SRP target driver.
 
 How-to run
 -----------

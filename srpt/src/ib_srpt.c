@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2006 Mellanox Technology Inc.  All rights reserved.
+ * Copyright (c) 2006-2008 Mellanox Technology Inc.  All rights reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -44,8 +44,8 @@
 
 #define DRV_NAME		"ib_srpt"
 #define PFX			DRV_NAME ": "
-#define DRV_VERSION		"0.1"
-#define DRV_RELDATE		"January 10, 2007"
+#define DRV_VERSION		"1.0"
+#define DRV_RELDATE		"July 10, 2008"
 
 #define MELLANOX_SRPT_ID_STRING	"Mellanox OFED SRP target"
 
@@ -2100,19 +2100,36 @@ struct scst_tgt_template srpt_template = {
 	.task_mgmt_fn_done = srpt_tsk_mgmt_done
 };
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 static void srpt_release_class_dev(struct class_device *class_dev)
+#else
+static void srpt_release_class_dev(struct device *dev)
+#endif
 {
 }
 
 static struct class srpt_class = {
 	.name = "infiniband_srpt",
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 	.release = srpt_release_class_dev
+#else
+	.dev_release = srpt_release_class_dev
+#endif
 };
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 static ssize_t show_login_info(struct class_device *class_dev, char *buf)
+#else
+static ssize_t show_login_info(struct device *dev,
+			       struct device_attribute *attr, char *buf)
+#endif
 {
 	struct srpt_device *sdev =
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 		container_of(class_dev, struct srpt_device, class_dev);
+#else
+		container_of(dev, struct srpt_device, dev);
+#endif
 	struct srpt_port *sport;
 	int i;
 	int len = 0;
@@ -2141,7 +2158,11 @@ static ssize_t show_login_info(struct class_device *class_dev, char *buf)
 	return len;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 static CLASS_DEVICE_ATTR(login_info, S_IRUGO, show_login_info, NULL);
+#else
+static DEVICE_ATTR(login_info, S_IRUGO, show_login_info, NULL);
+#endif
 
 static void srpt_add_one(struct ib_device *device)
 {
@@ -2156,23 +2177,36 @@ static void srpt_add_one(struct ib_device *device)
 	sdev->device = device;
 	init_completion(&sdev->scst_released);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 	sdev->class_dev.class = &srpt_class;
 	sdev->class_dev.dev = device->dma_device;
 	snprintf(sdev->class_dev.class_id, BUS_ID_SIZE,
 		 "srpt-%s", device->name);
+#else
+	sdev->dev.class = &srpt_class;
+	sdev->dev.parent = device->dma_device;
+	snprintf(sdev->dev.bus_id, BUS_ID_SIZE, "srpt-%s", device->name);
+#endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 	if (class_device_register(&sdev->class_dev))
 		goto free_dev;
 	if (class_device_create_file(&sdev->class_dev,
 				     &class_device_attr_login_info))
-		goto err_class;
+		goto err_dev;
+#else
+	if (device_register(&sdev->dev))
+		goto free_dev;
+	if (device_create_file(&sdev->dev, &dev_attr_login_info))
+		goto err_dev;
+#endif
 
 	if (ib_query_device(device, &sdev->dev_attr))
-		goto err_class;
+		goto err_dev;
 
 	sdev->pd = ib_alloc_pd(device);
 	if (IS_ERR(sdev->pd))
-		goto err_class;
+		goto err_dev;
 
 	sdev->mr = ib_get_dma_mr(sdev->pd, IB_ACCESS_LOCAL_WRITE);
 	if (IS_ERR(sdev->mr))
@@ -2245,8 +2279,12 @@ err_mr:
 	ib_dereg_mr(sdev->mr);
 err_pd:
 	ib_dealloc_pd(sdev->pd);
-err_class:
+err_dev:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 	class_device_unregister(&sdev->class_dev);
+#else
+	device_unregister(&sdev->dev);
+#endif
 free_dev:
 	kfree(sdev);
 }
@@ -2267,7 +2305,11 @@ static void srpt_remove_one(struct ib_device *device)
 	ib_destroy_srq(sdev->srq);
 	ib_dereg_mr(sdev->mr);
 	ib_dealloc_pd(sdev->pd);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 	class_device_unregister(&sdev->class_dev);
+#else
+	device_unregister(&sdev->dev);
+#endif
 
 	for (i = 0; i < SRPT_SRQ_SIZE; ++i)
 		srpt_free_ioctx(sdev, sdev->ioctx_ring[i]);

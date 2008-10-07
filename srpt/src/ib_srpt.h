@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2006 Mellanox Technology Inc.  All rights reserved.
+ * Copyright (c) 2006-2008 Mellanox Technology Inc.  All rights reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -171,7 +171,11 @@ struct srpt_device {
 	struct srpt_port port[2];
 	struct ib_event_handler event_handler;
 	struct completion scst_released;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 	struct class_device class_dev;
+#else
+	struct device dev;
+#endif
 
 	struct scst_tgt *scst_tgt;
 };
