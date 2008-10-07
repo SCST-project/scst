@@ -30,11 +30,14 @@
 	  		<div id="main">
 				<h1>Contributing to SCST</h1>
 
-				<p>If you would like to contribute to SCST development, you can do in many ways:
+				<p>If you would like to contribute to SCST development, you can do in many ways:</p>
 
 				<ul>
 				<li><span>By reporting bugs or other problems.</span></li>
-				<li><span>By writing or updating various documentation to keep it complete and up to date.</span></li>
+				<li><span>By writing or updating various documentation to keep it complete and up to date.
+					For instance, <a href="scst_pg.html">SCST internals description</a> document is
+					in some areas quite outdated. Particularly, many functions were renamed since
+					time, when it was written. It would be good to bring it up to date.</span></li>
     				<li><span>By sending patches, which fix bugs or implement new functionality.
     				          See below a list of possible SCST improvements with some possible 
     				          implementation ideas.</span></li>
@@ -50,13 +53,13 @@
 				would use page cache data directly. This would be a major performance improvement,
 				especially for fast hardware, like Infiniband, because it would eliminate the data copy
 				latency. This proposal is limited for READs only, because for WRITEs it is a lot harder to
-				implement, so it is worth to do zero-copy for READs and WRITEs separately.
+				implement, so it is worth to do zero-copy for READs and WRITEs separately.</p>
 				
 				<p>The main idea is to add one more flag to filp_open() "flags" parameter
 				(like O_RDONLY, O_DIRECT, etc.) O_ZEROCOPY, which would be available 
 				only if the caller is from the kernel space . In this case fd->f_op->readv(), 
 				do_sync_readv_writev(), etc. would receive as the pointer to data 
-				buffer not a real data buffer, but pointer to an empty SG vector. Then:
+				buffer not a real data buffer, but pointer to an empty SG vector. Then:</p>
 				
 				<ul>
 				<li><span>Generic buffer allocation in SCST would not be used, instead vdisk_parse() 
@@ -76,31 +79,31 @@
 				would be freed.</span></li>
 				</ul>
 				
-				<p>That's all. For WRITEs the current code path would remain unchanged.
+				<p>That's all. For WRITEs the current code path would remain unchanged.</p>
 
 				<h3>Zero-copy FILEIO for WRITE-direction commands</h3>
 
-				<p>Implementation should be similar to zero-copy FILEIO for READ commands. All
-				incoming data should be inserted in the page cache, then dereferenced in
+				<p>Implementation should be similar to zero-copy FILEIO for READ commands and should
+				be done after it. All incoming data should be inserted in the page cache, then dereferenced in
 				vdisk_devtype.on_free_cmd(). The main problem is insertion of data pages in the
 				page cache, namely, locking issues related to it. They should be carefully
-				investigated.
+				investigated.</p>
 
 				<h3>Persistent reservations</h3>
 
 				<p>Support for PERSISTENT RESERVE IN and PERSISTENT RESERVE OUT is required to
-				work in many cluster environments, e.g. Windows 2003 Cluster.
+				work in many cluster environments, e.g. Windows 2003 Cluster.</p>
 				
 				<p>For implementation you should use scst_reserve_local() and 
 				scst_release_local() as a base. You should store all reservation keys 
 				for in files in /var/scst, one file per device 
 				(it would allow to eliminate additional locking), like 
 				/var/scst/boot_disk for device "boot_disk" and load them in memory, when 
-				device would be registered.
+				device would be registered.</p>
 				
 				<p>In the first version it can be done for virtual 
 				devices only and reject PERSISTENT RESERVE IN and OUT commands for 
-				pass-through devices with "COMMAND NOT SUPPORTED" sense data.
+				pass-through devices with "COMMAND NOT SUPPORTED" sense data.</p>
 				
 				<h3>Automatic sessions reassignment</h3>
 				
@@ -108,9 +111,9 @@
 				group, the existing sessions from that initiator are not automatically reassigned to
 				the new security group, i.e. they remain in the old one. The only ways to reassign them
 				are either sessions restart, or restart of the corresponding target driver. Both in many
-				cases are not options.
+				cases are not options.</p>
 				
-				<p>To implement that you should on event of any group change:
+				<p>To implement that you should on event of any group change:</p>
 				<ul>
 				<li><span>Globally suspend all activities by scst_suspend_activity().</span></li>
 				   
@@ -132,13 +135,13 @@
 				the initiator(s) messages about aborting commands or resetting the target. See in SCST core
 				README section "What if target's backstorage is too slow" for more details.
 				To fix this problem it is necessary to implement a dynamic I/O flow control in
-				SCST core.
+				SCST core.</p>
 				
 				<p>The flow control, generally, is quite simple. Each SCST command has timeout value,
 				which is set by the corresponding dev handler. SCST core should keep device's queue depth
 				at the level that the worst command's execution time, i.e. time between scst_rx_cmd()
 				and scst_finish_cmd(), would be between something like timeout/10 and timeout/5.
-				So, commands execution time should be checked and:
+				So, commands execution time should be checked and:</p>
 				
 				<ul>
 				<li><span>If it's > timeout/5, then the new queue depth should be set to max(1, 
@@ -148,6 +151,143 @@
 				    cur_depth+1). This shouldn't be done too often, once in a few minutes should be
 				    sufficient</span></li>
 				</ul>    
+
+				<p>The above is, of course, an oversimplification to let you see the idea. 
+				Implementation considering real life cases should be as the following:</p>
+
+				<p>1. There are several parameters:</p>
+				
+				<ul>
+				<li><span>P - load watch period. During this period all the statistic is 
+				gathered and processed.</span></li>
+
+				<li><span>MN - underload ratio divisor, which sets the underload portion of 
+				timeout. If the longest execution time among all commands completed 
+				during period P is below timeout/MN, the corresponding device considered 
+				underloaded.</span></li>
+
+				<li><span>MX - overload ratio divisor, which sets the overload portion of 
+				timeout. If the longest execution time among all commands completed 
+				during period P is above timeout/MX, the corresponding device considered 
+				overloaded.</span></li>
+
+				<li><span>I - step on which device's queue size will be increased if device 
+				considered underloaded.</span></li>
+
+				<li><span>D - divisor on which device's queue size will be decreased if device 
+				considered overloaded.</span></li>
+
+				<li><span>QI - quick fall interval. See description of Q parameter.</span></li>
+
+				<li><span>Q - quick fall ratio divisor. If the longest execution time of a 
+				completed command is above timeout/Q and time from the previous quick 
+				fall is smaller than QI, the corresponding device considered heavily 
+				overloaded. The quick fall is needed to handle cases when load on device 
+				is instantly increased on the way, where it can't handle it properly.</span></li>
+
+				<li><span>QD  - divisor on which device's queue size will be decreased if 
+				device considered heavily overloaded.</span></li>
+				</ul>
+
+				<p>The default values should be something like: P=15 sec., MN=20, MX=10, Q=3, 
+				I=1, D=2, QI=5 sec., QD=10.</p>
+
+				<p>2. There are the following new variables in struct scst_device:</p>
+
+				<ul>
+				<li><span>queue_depth - current queue depth.</span></li>
+
+				<li><span>max_exec_ratio - maximum commands timeout/(execution time).</span></li>
+
+				<li><span>queue_was_full - flag, marking that the queue was at least once full 
+				during period P.</span></li>
+
+				<li><span>quick_fall_time - time of the last quick fall.</span></li>
+
+				<li><span>flow_lock - protects flow control related variables, where needed.</span></li>
+				  
+				<li><span>...</span></li>
+				</ul>
+
+				<p>3. The commands processing path should be as the following:</p>
+
+				<ul>
+				<li><span>In scst_rx_cmd() the start time of the command is recorded (already done).</span></li>
+
+				<li><span>In __scst_init_cmd(), if dev->dev_cmd_count == dev->queue_depth, 
+				dev->queue_was_full set to true.</span></li>
+
+				<li><span>In scst_finish_cmd() dev->max_exec_ratio set to max(dev->max_exec_ratio, 
+				(cmd's exec_time)*100/cmd->timeout).</span></li>
+
+				<li><span>If in scst_finish_cmd() cmd's exec time is above cmd->timeout/Q and 
+				time from the latest quick fall is above QI, then:
+
+					<ul>
+					<li><span>dev->queue_depth set to max(1, dev->queue_depth/QD).</span></li>
+				
+				   	<li><span>Flow control period reset, i.e. started again, including setting 
+					dev->max_exec_ratio to 0 and dev->quick_fall_time to jiffies.</span></li>
+					</ul>
+					</span></li>
+				</ul>
+
+				<p>4. There should be a work, which once in a P seconds will check 
+				dev->max_exec_ratio, then:</p>
+
+				<ul>
+				<li><span>If device neither underloaded, nor overloaded. i.e. max_exec_ratio 
+				between defined by MN and MX, do nothing.</span></li>
+
+				<li><span>If device was underloaded:
+				
+					<ul>
+					<li><span>if dev->queue_was_full is false, then do nothing.</span></li>
+
+				    	<li><span>if dev->queue_was_full is true, then set dev->queue_depth to
+					min(SCST_MAX_DEV_COMMANDS, dev->queue_depth + I).</span></li>
+					</ul>
+					</span></li>
+
+				<li><span>If device was overloaded, then set dev->queue_depth to max(1, 
+				dev->queue_depth/D).</span></li>
+				</ul>
+
+				<p>Then the flow control period is reset, i.e. started again, including 
+				setting dev->max_exec_ratio to 0 and dev->quick_fall_time to jiffies.</p>
+
+				<p>That's all. Then only support for initiators, like iSCSI, 
+				which don't handle QUEUE FULL to decrease amount of queued 
+				commands. Instead they expect target to control it through MAX_SN.</p>
+
+				<p>For such cases at the stage 2 of the dynamic flow control development 
+				the following should be done:</p>
+
+				<ul>
+				<li><span>New callback on_queue_depth_adjustment() added to struct 
+				scst_tgt_template.</span></li>
+
+				<li><span>If target driver defined it, each time after dev->queue_depth changed 
+				on_queue_depth_adjustment() will be called. In this callback target 
+				driver should change internal queue_depth to, e.g. for iSCSI target, set 
+				max_sn in the replies correctly.</span></li>
+				</ul>
+
+				<p>Then, at the latest stage of the development, logic to not schedule the 
+				flow control work on idle devices should be added.</p>
+
+				<h3>Support for O_DIRECT in scst_vdisk handler</h3>
+
+				<p>At the moment, scst_vdisk handler doesn't support O_DIRECT option and possibility to set it
+				was disabled. This limitation caused by Linux kernel expectation that memory supplied to
+				read() and write() functions with O_DIRECT flag is mapped to some user space application.</p>
+				
+				<p>It is relatively easy to remove that limitation. Function dio_refill_pages()
+				should be modified to check before calling get_user_pages() if current->mm is not NULL.
+				If it is NULL, then, instead of calling get_user_pages(), dio->pages should be filled
+				by pages, taken directly from dio->curr_user_address. Each such page should be referenced
+				by page_cache_get(). That's all.</p>
+			</div>
 	</div>
 </div>
 <!-- wrap ends here -->
