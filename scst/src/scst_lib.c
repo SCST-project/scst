@@ -1323,6 +1323,12 @@ void scst_sched_session_free(struct scst_session *sess)
 
 	TRACE_ENTRY();
 
+	if (sess->shut_phase != SCST_SESS_SPH_SHUTDOWN) {
+		PRINT_CRIT_ERROR("session %p is going to shutdown with unknown "
+			"shut phase %lx", sess, sess->shut_phase);
+		sBUG();
+	}
+
 	spin_lock_irqsave(&scst_mgmt_lock, flags);
 	TRACE_DBG("Adding sess %p to scst_sess_shut_list", sess);
 	list_add_tail(&sess->sess_shut_list_entry, &scst_sess_shut_list);

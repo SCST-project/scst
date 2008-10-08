@@ -174,7 +174,9 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{0x12, "MMMMMMMMMMMMMMMM", "INQUIRY",
 	 SCST_DATA_READ, SCST_SMALL_TIMEOUT, 4, get_trans_len_1},
 	{0x13, "VOVVVV          ", "VERIFY(6)",
-	 SCST_DATA_NONE, SCST_TRANSFER_LEN_TYPE_FIXED, 2, get_trans_len_3},
+	 SCST_DATA_NONE, SCST_TRANSFER_LEN_TYPE_FIXED|
+	 		 SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED,
+	 2, get_trans_len_3},
 	{0x14, "VOOVVV          ", "RECOVER BUFFERED DATA",
 	 SCST_DATA_READ, SCST_TRANSFER_LEN_TYPE_FIXED, 2, get_trans_len_3},
 	{0x15, "OMOOOOOOOOOOOOOO", "MODE SELECT(6)",
@@ -250,7 +252,9 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{0x2E, "O   OO O        ", "WRITE AND VERIFY(10)",
 	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED, 7, get_trans_len_2},
 	{0x2F, "O   OO O        ", "VERIFY(10)",
-	 SCST_DATA_NONE, SCST_TRANSFER_LEN_TYPE_FIXED, 7, get_trans_len_2},
+	 SCST_DATA_NONE, SCST_TRANSFER_LEN_TYPE_FIXED|
+	 		 SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED,
+	 7, get_trans_len_2},
 	{0x33, "O   OO O        ", "SET LIMITS(10)",
 	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
 	{0x34, " O              ", "READ POSITION",
@@ -378,7 +382,9 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{0x8E, "O   OO O        ", "WRITE AND VERIFY(16)",
 	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED, 10, get_trans_len_4},
 	{0x8F, "O   OO O        ", "VERIFY(16)",
-	 SCST_DATA_NONE, SCST_TRANSFER_LEN_TYPE_FIXED, 10, get_trans_len_4},
+	 SCST_DATA_NONE, SCST_TRANSFER_LEN_TYPE_FIXED|
+	 		 SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED,
+	 10, get_trans_len_4},
 	{0x90, "O   OO O        ", "PRE-FETCH(16)",
 	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
 	{0x91, "O   OO O        ", "SYNCHRONIZE CACHE(16)",
@@ -442,7 +448,9 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{0xAE, "O   OO O        ", "WRITE AND VERIFY(12)",
 	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED, 6, get_trans_len_4},
 	{0xAF, "O   OO O        ", "VERIFY(12)",
-	 SCST_DATA_NONE, SCST_TRANSFER_LEN_TYPE_FIXED, 6, get_trans_len_4},
+	 SCST_DATA_NONE, SCST_TRANSFER_LEN_TYPE_FIXED|
+	 		 SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED,
+	 6, get_trans_len_4},
 /* No need to support at all.
 	{0xB0, "    OO O        ", "SEARCH DATA HIGH(12)",
 	 SCST_DATA_WRITE, FLAG_NONE, 9, get_trans_len_1},

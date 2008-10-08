@@ -434,6 +434,31 @@ out_xmit:
 	goto out;
 }
 
+#ifndef CONFIG_SCST_USE_EXPECTED_VALUES
+static bool scst_is_allowed_to_mismatch_cmd(struct scst_cmd *cmd)
+{
+	bool res = false;
+
+	switch (cmd->cdb[0]) {
+	case TEST_UNIT_READY:
+		/* Crazy VMware people sometimes do TUR with READ direction */
+		res = true;
+		break;
+	case VERIFY:
+	case VERIFY_6:
+	case VERIFY_12:
+	case VERIFY_16:
+		/* VERIFY commands with BYTCHK unset shouldn't fail here */
+		if (((cmd->op_flags & SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED) != 0) &&
+		    (cmd->cdb[1] & BYTCHK) == 0)
+			res = true;
+		break;
+	}
+
+	return res;
+}
+#endif
+
 static int scst_parse_cmd(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_RES_CONT_SAME;
@@ -513,12 +538,12 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 #	ifdef CONFIG_SCST_EXTRACHECKS
 		if ((cmd->data_direction != cmd->expected_data_direction) ||
 		    (cmd->bufflen != cmd->expected_transfer_len)) {
-			PRINT_ERROR("Expected values don't match decoded ones: "
+			PRINT_WARNING("Expected values don't match decoded ones: "
 				"data_direction %d, expected_data_direction %d, "
 				"bufflen %d, expected_transfer_len %d",
 				cmd->data_direction, cmd->expected_data_direction,
 				cmd->bufflen, cmd->expected_transfer_len);
-			PRINT_BUFFER("Failed CDB", cmd->cdb, cmd->cdb_len);
+			PRINT_BUFFER("Suspicious CDB", cmd->cdb, cmd->cdb_len);
 		}
 #	endif
 		cmd->data_direction = cmd->expected_data_direction;
@@ -526,13 +551,8 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 #else
 		if (unlikely(cmd->data_direction != cmd->expected_data_direction)) {
 			if (((cmd->expected_data_direction != SCST_DATA_NONE) ||
-			    (cmd->bufflen != 0)) &&
-			    /* Crazy VMware people sometimes do TUR with READ direction */
-			    (!(cmd->cdb[0] == TEST_UNIT_READY) &&
-			     /* VERIFY commands with BYTCHK unset shouldn't fail here */
-			     !(((cmd->cdb[0] == VERIFY) || (cmd->cdb[0] == VERIFY_6) ||
-				(cmd->cdb[0] == VERIFY_12) || (cmd->cdb[0] == VERIFY_16)) &&
-				((cmd->cdb[1] & BYTCHK) == 0)))) {
+			     (cmd->bufflen != 0)) &&
+			    !scst_is_allowed_to_mismatch_cmd(cmd)) {
 				PRINT_ERROR("Expected data direction %d for opcode "
 					"0x%02x (handler %s, target %s) doesn't match "
 					"decoded value %d", cmd->expected_data_direction,
@@ -546,7 +566,6 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 		}
 		if (unlikely(cmd->bufflen != cmd->expected_transfer_len)) {
 			static int repd;
-
 			if (repd < 100) {
 				/*
 				 * Intentionally unlocked. Few messages more
