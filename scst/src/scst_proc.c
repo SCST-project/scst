@@ -1566,8 +1566,16 @@ static ssize_t scst_proc_groups_devices_write(struct file *file, const char __us
 
 		while (isspace(*e) && *e != '\0')
 			e++;
-		if (!strncasecmp("READ_ONLY", e, 9))
-			read_only = 1;
+
+		if (*e != '\0') {
+			if (!strncasecmp("READ_ONLY", e, 9))
+				read_only = 1;
+			else {
+				PRINT_ERROR("Unknown option \"%s\"", e);
+				res = -EINVAL;
+				goto out_free_up;
+			}
+		}
 
 		list_for_each_entry(acg_dev_tmp, &acg->acg_dev_list,
 				    acg_dev_list_entry) {
@@ -1901,8 +1909,8 @@ static int scst_groups_devices_show(struct seq_file *seq, void *v)
 		goto out;
 	}
 
-	seq_printf(seq, "%-60s%s  %s\n", "Device (host:ch:id:lun or name)",
-		       "Virtual lun", "Options");
+	seq_printf(seq, "%-60s%-13s%s\n", "Device (host:ch:id:lun or name)",
+		       "LUN", "Options");
 
 	list_for_each_entry(acg_dev, &acg->acg_dev_list, acg_dev_list_entry) {
 		if (acg_dev->dev->virt_id == 0) {
@@ -1915,13 +1923,19 @@ static int scst_groups_devices_show(struct seq_file *seq, void *v)
 					acg_dev->dev->scsi_dev->channel,
 					acg_dev->dev->scsi_dev->id);
 			seq_printf(seq, "%s", conv);
-			sprintf(conv, "%%-%dd%%4d%%12s\n", 60 - size);
-			seq_printf(seq, conv,
+
+			/*
+			 * For some reason the third string argument always
+			 * shown as NULL, so we have to split it on 2 calls.
+			 */
+			sprintf(conv, "%%-%dd%%-13d", 60 - size);
+			size += seq_printf(seq, conv,
 					acg_dev->dev->scsi_dev->lun,
-					acg_dev->lun,
-					acg_dev->rd_only_flag ? "RO" : "");
+					acg_dev->lun);
+			seq_printf(seq, "%s\n",
+				acg_dev->rd_only_flag ? "RO" : "");
 		} else {
-			seq_printf(seq, "%-60s%4Ld%12s\n",
+			seq_printf(seq, "%-60s%-13lld%s\n",
 				       acg_dev->dev->virt_name,
 				       (long long unsigned int)acg_dev->lun,
 				       acg_dev->rd_only_flag ? "RO" : "");

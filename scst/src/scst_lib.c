@@ -541,17 +541,15 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 
 	if (dev->handler->parse_atomic &&
 	    (sess->tgt->tgtt->preprocessing_done == NULL)) {
-		if (sess->tgt->tgtt->rdy_to_xfer_atomic ||
-		    (sess->tgt->tgtt->rdy_to_xfer == NULL))
+		if (sess->tgt->tgtt->rdy_to_xfer_atomic)
 			__set_bit(SCST_TGT_DEV_AFTER_INIT_WR_ATOMIC,
 				&tgt_dev->tgt_dev_flags);
-		if (dev->handler->exec_atomic || (dev->handler->exec == NULL))
+		if (dev->handler->exec_atomic)
 			__set_bit(SCST_TGT_DEV_AFTER_INIT_OTH_ATOMIC,
 				&tgt_dev->tgt_dev_flags);
 	}
-	if (dev->handler->exec_atomic || (dev->handler->exec == NULL)) {
-		if (sess->tgt->tgtt->rdy_to_xfer_atomic ||
-		    (sess->tgt->tgtt->rdy_to_xfer == NULL))
+	if (dev->handler->exec_atomic) {
+		if (sess->tgt->tgtt->rdy_to_xfer_atomic)
 			__set_bit(SCST_TGT_DEV_AFTER_RESTART_WR_ATOMIC,
 				&tgt_dev->tgt_dev_flags);
 		__set_bit(SCST_TGT_DEV_AFTER_RESTART_OTH_ATOMIC,
@@ -559,8 +557,7 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 		__set_bit(SCST_TGT_DEV_AFTER_RX_DATA_ATOMIC,
 			&tgt_dev->tgt_dev_flags);
 	}
-	if ((dev->handler->dev_done_atomic ||
-	     (dev->handler->dev_done == NULL)) &&
+	if (dev->handler->dev_done_atomic &&
 	    sess->tgt->tgtt->xmit_response_atomic) {
 		__set_bit(SCST_TGT_DEV_AFTER_EXEC_ATOMIC,
 			&tgt_dev->tgt_dev_flags);
@@ -957,7 +954,6 @@ struct scst_cmd *scst_create_prepare_internal_cmd(
 
 	res->cmd_lists = orig_cmd->cmd_lists;
 	res->sess = orig_cmd->sess;
-	res->state = SCST_CMD_STATE_PRE_PARSE;
 	res->atomic = scst_cmd_atomic(orig_cmd);
 	res->internal = 1;
 	res->tgtt = orig_cmd->tgtt;
@@ -968,8 +964,9 @@ struct scst_cmd *scst_create_prepare_internal_cmd(
 	res->queue_type = SCST_CMD_QUEUE_HEAD_OF_QUEUE;
 	res->data_direction = SCST_DATA_UNKNOWN;
 	res->orig_cmd = orig_cmd;
-
 	res->bufflen = bufsize;
+
+	res->state = SCST_CMD_STATE_PRE_PARSE;
 
 out:
 	TRACE_EXIT_HRES((unsigned long)res);
@@ -988,7 +985,7 @@ void scst_free_internal_cmd(struct scst_cmd *cmd)
 
 int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
 {
-	int res = SCST_CMD_STATE_RES_CONT_NEXT;
+	int res = 0;
 #define sbuf_size 252
 	static const uint8_t request_sense[6] =
 	    { REQUEST_SENSE, 0, 0, 0, sbuf_size, 0 };
@@ -1003,12 +1000,16 @@ int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
 	memcpy(rs_cmd->cdb, request_sense, sizeof(request_sense));
 	rs_cmd->cdb_len = sizeof(request_sense);
 	rs_cmd->data_direction = SCST_DATA_READ;
+	rs_cmd->expected_data_direction = rs_cmd->data_direction;
+	rs_cmd->expected_transfer_len = sbuf_size;
+	rs_cmd->expected_values_set = 1;
 
 	TRACE(TRACE_MGMT_MINOR, "Adding REQUEST SENSE cmd %p to head of active "
 		"cmd list ", rs_cmd);
 	spin_lock_irq(&rs_cmd->cmd_lists->cmd_list_lock);
 	list_add(&rs_cmd->cmd_list_entry, &rs_cmd->cmd_lists->active_cmd_list);
 	spin_unlock_irq(&rs_cmd->cmd_lists->cmd_list_lock);
+	wake_up(&rs_cmd->cmd_lists->cmd_list_waitQ);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1028,16 +1029,7 @@ struct scst_cmd *scst_complete_request_sense(struct scst_cmd *req_cmd)
 
 	TRACE_ENTRY();
 
-	if (req_cmd->dev->handler->dev_done != NULL) {
-		int rc;
-		TRACE_DBG("Calling dev handler %s dev_done(%p)",
-		      req_cmd->dev->handler->name, req_cmd);
-		rc = req_cmd->dev->handler->dev_done(req_cmd);
-		TRACE_DBG("Dev handler %s dev_done() returned %d",
-		      req_cmd->dev->handler->name, rc);
-	}
-
-	sBUG_ON(orig_cmd);
+	sBUG_ON(orig_cmd == NULL);
 
 	len = scst_get_buf_first(req_cmd, &buf);
 
@@ -1372,6 +1364,7 @@ struct scst_cmd *scst_alloc_cmd(gfp_t gfp_mask)
 #endif
 
 	cmd->state = SCST_CMD_STATE_INIT_WAIT;
+	cmd->start_time = jiffies;
 	atomic_set(&cmd->cmd_ref, 1);
 	cmd->cmd_lists = &scst_main_cmd_lists;
 	INIT_LIST_HEAD(&cmd->mgmt_cmd_list);
@@ -1466,7 +1459,7 @@ void scst_free_cmd(struct scst_cmd *cmd)
 
 	if (likely(cmd->tgt_dev != NULL)) {
 #ifdef CONFIG_SCST_EXTRACHECKS
-		if (unlikely(!cmd->sent_to_midlev)) {
+		if (unlikely(!cmd->sent_for_exec)) {
 			PRINT_ERROR("Finishing not executed cmd %p (opcode "
 			     "%d, target %s, lun %lld, sn %ld, expected_sn %ld)",
 			     cmd, cmd->cdb[0], cmd->tgtt->name,
@@ -3033,6 +3026,14 @@ int scst_inc_on_dev_cmd(struct scst_cmd *cmd)
 	cmd->dec_on_dev_needed = 1;
 	TRACE_DBG("New on_dev_count %d", atomic_read(&dev->on_dev_count));
 
+	if (unlikely(cmd->internal) && (cmd->cdb[0] == REQUEST_SENSE)) {
+		/*
+		 * The original command can already block the device, so
+		 * REQUEST SENSE command should always pass.
+		 */
+		goto out;
+	}
+
 #ifdef CONFIG_SCST_STRICT_SERIALIZING
 	spin_lock_bh(&dev->dev_lock);
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)))
@@ -3119,8 +3120,10 @@ void scst_unblock_cmds(struct scst_device *dev)
 		 * can't change behind us, if the corresponding cmd is in
 		 * blocked_cmd_list, but we could be called before
 		 * scst_inc_expected_sn().
+		 *
+		 * For HQ commands SN is not set.
 		 */
-		if (likely(!cmd->internal && !cmd->retry)) {
+		if (likely(!cmd->internal && cmd->sn_set)) {
 			typeof(cmd->tgt_dev->expected_sn) expected_sn;
 			if (cmd->tgt_dev == NULL)
 				sBUG();
@@ -3176,7 +3179,7 @@ static void __scst_unblock_deferred(struct scst_tgt_dev *tgt_dev,
 
 	if (out_of_sn_cmd->sn == tgt_dev->expected_sn) {
 		scst_inc_expected_sn(tgt_dev, out_of_sn_cmd->sn_slot);
-		scst_make_deferred_commands_active(tgt_dev, out_of_sn_cmd);
+		scst_make_deferred_commands_active(tgt_dev);
 	} else {
 		out_of_sn_cmd->out_of_sn = 1;
 		spin_lock_irq(&tgt_dev->sn_lock);
@@ -3230,7 +3233,7 @@ void scst_on_hq_cmd_response(struct scst_cmd *cmd)
 	 * unneeded run of the deferred commands.
 	 */
 	if (tgt_dev->hq_cmd_count == 0)
-		scst_make_deferred_commands_active(tgt_dev, cmd);
+		scst_make_deferred_commands_active(tgt_dev);
 
 out:
 	TRACE_EXIT();

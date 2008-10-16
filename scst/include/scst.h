@@ -34,16 +34,6 @@
 
 #include <scst_const.h>
 
-#ifndef DECLARE_MUTEX_LOCKED
-#define DECLARE_MUTEX_LOCKED(name)	__DECLARE_SEMAPHORE_GENERIC(name, 0)
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
-typedef _Bool bool;
-#define true  1
-#define false 0
-#endif
-
 /*
  * Version numbers, the same as for the kernel.
  *
@@ -54,6 +44,18 @@ typedef _Bool bool;
 #define SCST_VERSION(a, b, c, d) (((a) << 24) + ((b) << 16) + ((c) << 8) + d)
 #define SCST_VERSION_STRING "1.0.1"
 #define SCST_INTERFACE_VERSION SCST_VERSION_STRING "$Revision$" SCST_CONST_VERSION
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
+typedef _Bool bool;
+#define true  1
+#define false 0
+#endif
+
+#ifndef DECLARE_MUTEX_LOCKED
+#define DECLARE_MUTEX_LOCKED(name)	__DECLARE_SEMAPHORE_GENERIC(name, 0)
+#endif
+
+#define SCST_LOCAL_NAME			"scst_lcl_drvr"
 
 /*************************************************************
  ** States of command processing state machine. At first,
@@ -77,26 +79,32 @@ typedef _Bool bool;
 /* Target driver's pre_exec() is going to be called */
 #define SCST_CMD_STATE_TGT_PRE_EXEC  4
 
-/* CDB is going to be sent to SCSI mid-level for execution */
-#define SCST_CMD_STATE_SEND_TO_MIDLEV 5
+/* Cmd is going to be sent for execution */
+#define SCST_CMD_STATE_SEND_FOR_EXEC 5
 
-/* Internal pos-exec checks */
-#define SCST_CMD_STATE_PRE_DEV_DONE  6
+/* Cmd is being checked if it should be executed locally */
+#define SCST_CMD_STATE_LOCAL_EXEC    6
+
+/* Cmd is ready for execution */
+#define SCST_CMD_STATE_REAL_EXEC     7
+
+/* Internal post-exec checks */
+#define SCST_CMD_STATE_PRE_DEV_DONE  8
 
 /* Internal MODE SELECT pages related checks */
-#define SCST_CMD_STATE_MODE_SELECT_CHECKS 7
+#define SCST_CMD_STATE_MODE_SELECT_CHECKS 9
 
 /* Dev handler's dev_done() is going to be called */
-#define SCST_CMD_STATE_DEV_DONE      8
+#define SCST_CMD_STATE_DEV_DONE      10
 
 /* Target driver's xmit_response() is going to be called */
-#define SCST_CMD_STATE_PRE_XMIT_RESP 9
+#define SCST_CMD_STATE_PRE_XMIT_RESP 11
 
 /* Target driver's xmit_response() is going to be called */
-#define SCST_CMD_STATE_XMIT_RESP     10
+#define SCST_CMD_STATE_XMIT_RESP     12
 
 /* The cmd finished */
-#define SCST_CMD_STATE_FINISHED      11
+#define SCST_CMD_STATE_FINISHED      13
 
 #define SCST_CMD_STATE_LAST_ACTIVE   (SCST_CMD_STATE_FINISHED+100)
 
@@ -113,7 +121,7 @@ typedef _Bool bool;
 #define SCST_CMD_STATE_DATA_WAIT     (SCST_CMD_STATE_LAST_ACTIVE+4)
 
 /* Waiting for CDB's execution finish */
-#define SCST_CMD_STATE_EXECUTING     (SCST_CMD_STATE_LAST_ACTIVE+5)
+#define SCST_CMD_STATE_REAL_EXECUTING (SCST_CMD_STATE_LAST_ACTIVE+5)
 
 /* Waiting for response's transmission finish */
 #define SCST_CMD_STATE_XMIT_WAIT     (SCST_CMD_STATE_LAST_ACTIVE+6)
@@ -989,13 +997,10 @@ struct scst_cmd {
 	 ** Cmd's flags
 	 *************************************************************/
 	/*
-	 * Set if expected_sn was incremented, i.e. cmd was sent to
-	 * SCSI mid-level for execution
+	 * Set if expected_sn should be incremented, i.e. cmd was sent
+	 * for execution
 	 */
-	unsigned int sent_to_midlev:1;
-
-	/* Set if scst_local_exec() was already called for this cmd */
-	unsigned int local_exec_done:1;
+	unsigned int sent_for_exec:1;
 
 	/* Set if the cmd's action is completed */
 	unsigned int completed:1;
@@ -1018,11 +1023,11 @@ struct scst_cmd {
 	 */
 	unsigned int context_processable:1;
 
-	/* Set if cmd is internally generated */
-	unsigned int internal:1;
-
 	/* Set if cmd is being retried */
 	unsigned int retry:1;
+
+	/* Set if cmd is internally generated */
+	unsigned int internal:1;
 
 	/* Set if the device was blocked by scst_inc_on_dev_cmd() (for debug) */
 	unsigned int inc_blocking:1;

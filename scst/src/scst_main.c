@@ -202,6 +202,9 @@ int __scst_register_target_template(struct scst_tgt_template *vtt,
 			goto out_err;
 	}
 
+	if (vtt->rdy_to_xfer == NULL)
+		vtt->rdy_to_xfer_atomic = 1;
+
 	if (mutex_lock_interruptible(&m) != 0)
 		goto out_err;
 
@@ -1484,7 +1487,9 @@ static int scst_add(struct device *cdev, struct class_interface *intf)
 #else
 	scsidp = to_scsi_device(cdev->parent);
 #endif
-	res = scst_register_device(scsidp);
+
+	if (strcmp(scsidp->host->hostt->name, SCST_LOCAL_NAME) != 0)
+		res = scst_register_device(scsidp);
 
 	TRACE_EXIT();
 	return res;
@@ -1505,7 +1510,9 @@ static void scst_remove(struct device *cdev, struct class_interface *intf)
 #else
 	scsidp = to_scsi_device(cdev->parent);
 #endif
-	scst_unregister_device(scsidp);
+
+	if (strcmp(scsidp->host->hostt->name, SCST_LOCAL_NAME) != 0)
+		scst_unregister_device(scsidp);
 
 	TRACE_EXIT();
 	return;

@@ -254,6 +254,11 @@ static int vcdrom_write_proc(char *buffer, char **start, off_t offset,
 static int vdisk_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	struct scst_tgt_dev *tgt_dev);
 
+/*
+ * Name of FILEIO vdisk can't be changed from "vdisk", since it is the name
+ * of the corresponding /proc/scsi_tgt entry, hence a part of user space ABI.
+ */
+
 #define VDISK_TYPE {					\
 	.name =			VDISK_NAME,		\
 	.type =			TYPE_DISK,		\
@@ -290,6 +295,23 @@ static int vdisk_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	.task_mgmt_fn =		vdisk_task_mgmt_fn,	\
 }
 
+#define VDISK_NULL_TYPE {				\
+	.name =			VDISK_NAME "_null",	\
+	.type =			TYPE_DISK,		\
+	.threads_num =		0,			\
+	.parse_atomic =		1,			\
+	.exec_atomic =		1,			\
+	.dev_done_atomic =	1,			\
+	.no_proc =		1,			\
+	.attach =		vdisk_attach,		\
+	.detach =		vdisk_detach,		\
+	.attach_tgt =		vdisk_attach_tgt,	\
+	.detach_tgt =		vdisk_detach_tgt,	\
+	.parse =		vdisk_parse,		\
+	.exec =			vdisk_do_job,		\
+	.task_mgmt_fn =		vdisk_task_mgmt_fn,	\
+}
+
 #define VCDROM_TYPE {					\
 	.name =			VCDROM_NAME,		\
 	.type =			TYPE_ROM,		\
@@ -313,8 +335,9 @@ static DEFINE_MUTEX(scst_vdisk_mutex);
 static LIST_HEAD(vdisk_dev_list);
 static LIST_HEAD(vcdrom_dev_list);
 
-static struct scst_dev_type vdisk_devtype = VDISK_TYPE;
+static struct scst_dev_type vdisk_file_devtype = VDISK_TYPE;
 static struct scst_dev_type vdisk_blk_devtype = VDISK_BLK_TYPE;
+static struct scst_dev_type vdisk_null_devtype = VDISK_NULL_TYPE;
 static struct scst_dev_type vcdrom_devtype = VCDROM_TYPE;
 
 static char *vdisk_proc_help_string =
@@ -539,8 +562,7 @@ static void vdisk_detach(struct scst_device *dev)
 
 static void vdisk_free_thr_data(struct scst_thr_data_hdr *d)
 {
-	struct scst_vdisk_thr *thr = container_of(d, struct scst_vdisk_thr,
-						hdr);
+	struct scst_vdisk_thr *thr = container_of(d, struct scst_vdisk_thr, hdr);
 
 	TRACE_ENTRY();
 
@@ -556,7 +578,7 @@ static void vdisk_free_thr_data(struct scst_thr_data_hdr *d)
 }
 
 static struct scst_vdisk_thr *vdisk_init_thr_data(
-	struct scst_tgt_dev *tgt_dev)
+	struct scst_tgt_dev *tgt_dev, bool atomic)
 {
 	struct scst_vdisk_thr *res;
 	struct scst_vdisk_dev *virt_dev =
@@ -565,11 +587,13 @@ static struct scst_vdisk_thr *vdisk_init_thr_data(
 	TRACE_ENTRY();
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
-	res = kmem_cache_alloc(vdisk_thr_cachep, GFP_KERNEL);
+	res = kmem_cache_alloc(vdisk_thr_cachep,
+				atomic ? GFP_ATOMIC : GFP_KERNEL);
 	if (res != NULL)
 		memset(res, 0, sizeof(*res));
 #else
-	res = kmem_cache_zalloc(vdisk_thr_cachep, GFP_KERNEL);
+	res = kmem_cache_zalloc(vdisk_thr_cachep,
+				atomic ? GFP_ATOMIC : GFP_KERNEL);
 #endif
 	if (res == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Unable to allocate struct "
@@ -680,13 +704,6 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	if (scst_cmd_atomic(cmd)) {
-		TRACE_DBG("%s", "vdisk exec() can not be done in atomic "
-			"context, requesting thread context");
-		res = SCST_EXEC_NEED_THREAD;
-		goto out;
-	}
-
 	switch (cmd->queue_type) {
 	case SCST_CMD_QUEUE_ORDERED:
 		TRACE(TRACE_ORDER, "ORDERED cmd %p", cmd);
@@ -709,7 +726,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 
 	d = scst_find_thr_data(cmd->tgt_dev);
 	if (unlikely(d == NULL)) {
-		thr = vdisk_init_thr_data(cmd->tgt_dev);
+		thr = vdisk_init_thr_data(cmd->tgt_dev, scst_cmd_atomic(cmd));
 		if (thr == NULL) {
 			scst_set_busy(cmd);
 			goto out_compl;
@@ -965,7 +982,6 @@ out_thr:
 
 	res = SCST_EXEC_COMPLETED;
 
-out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -1940,7 +1956,8 @@ static struct iovec *vdisk_alloc_iv(struct scst_cmd *cmd,
 	iv_count = scst_get_buf_count(cmd);
 	if (iv_count > thr->iv_count) {
 		kfree(thr->iv);
-		thr->iv = kmalloc(sizeof(*thr->iv) * iv_count, GFP_KERNEL);
+		thr->iv = kmalloc(sizeof(*thr->iv) * iv_count, 
+			scst_cmd_atomic(cmd) ? GFP_ATOMIC : GFP_KERNEL);
 		if (thr->iv == NULL) {
 			PRINT_ERROR("Unable to allocate iv (%d)", iv_count);
 			scst_set_busy(cmd);
@@ -2846,10 +2863,15 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 			virt_dev->virt_id =
 				scst_register_virtual_device(&vdisk_blk_devtype,
 							 virt_dev->name);
+		} else if (virt_dev->nullio) {
+			vdisk_report_registering("NULLIO", virt_dev);
+			virt_dev->virt_id =
+				scst_register_virtual_device(&vdisk_null_devtype,
+							 virt_dev->name);
 		} else {
 			vdisk_report_registering("FILEIO", virt_dev);
 			virt_dev->virt_id =
-				scst_register_virtual_device(&vdisk_devtype,
+				scst_register_virtual_device(&vdisk_file_devtype,
 							 virt_dev->name);
 		}
 		if (virt_dev->virt_id < 0) {
@@ -3426,10 +3448,10 @@ static int __init init_scst_vdisk_driver(void)
 	}
 
 	num_threads = num_online_cpus() + 2;
-	vdisk_devtype.threads_num = num_threads;
+	vdisk_file_devtype.threads_num = num_threads;
 	vcdrom_devtype.threads_num = num_threads;
 
-	res = init_scst_vdisk(&vdisk_devtype);
+	res = init_scst_vdisk(&vdisk_file_devtype);
 	if (res != 0)
 		goto out_free_slab;
 
@@ -3437,18 +3459,25 @@ static int __init init_scst_vdisk_driver(void)
 	if (res != 0)
 		goto out_free_vdisk;
 
+	res = init_scst_vdisk(&vdisk_null_devtype);
+	if (res != 0)
+		goto out_free_blk;
+
 	res = init_scst_vdisk(&vcdrom_devtype);
 	if (res != 0)
-		goto out_err;
+		goto out_free_null;
 
 out:
 	return res;
 
-out_err:
+out_free_null:
+	exit_scst_vdisk(&vdisk_null_devtype, &vdisk_dev_list);
+
+out_free_blk:
 	exit_scst_vdisk(&vdisk_blk_devtype, &vdisk_dev_list);
 
 out_free_vdisk:
-	exit_scst_vdisk(&vdisk_devtype, &vdisk_dev_list);
+	exit_scst_vdisk(&vdisk_file_devtype, &vdisk_dev_list);
 
 out_free_slab:
 	kmem_cache_destroy(vdisk_thr_cachep);
@@ -3457,8 +3486,9 @@ out_free_slab:
 
 static void __exit exit_scst_vdisk_driver(void)
 {
+	exit_scst_vdisk(&vdisk_null_devtype, &vdisk_dev_list);
 	exit_scst_vdisk(&vdisk_blk_devtype, &vdisk_dev_list);
-	exit_scst_vdisk(&vdisk_devtype, &vdisk_dev_list);
+	exit_scst_vdisk(&vdisk_file_devtype, &vdisk_dev_list);
 	exit_scst_vdisk(&vcdrom_devtype, &vcdrom_dev_list);
 	kmem_cache_destroy(vdisk_thr_cachep);
 }
