@@ -97,7 +97,7 @@ static int __init init_scst_modisk_driver(void)
 
 	res = scst_dev_handler_build_std_proc(&modisk_devtype_perf);
 	if (res != 0)
-	goto out_unreg2;
+		goto out_unreg2;
 
 out:
 	TRACE_EXIT_RES(res);

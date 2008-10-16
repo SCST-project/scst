@@ -574,7 +574,7 @@ static void iscsi_set_datasize(struct iscsi_cmnd *cmnd, u32 offset, u32 size)
 			(last_off & ~PAGE_MASK);
 		int i = 4 - (size & 3);
 		while (i--)
-		    *p++ = 0;
+			*p++ = 0;
 	}
 }
 
@@ -678,13 +678,13 @@ static struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req, int status,
 		rsp->pdu.datasize = sizeof(struct iscsi_sense_data) + sense_len;
 		rsp->bufflen = (rsp->pdu.datasize + 3) & -4;
 		if (rsp->bufflen - rsp->pdu.datasize) {
-		    int i = rsp->pdu.datasize;
-		    u8 *p = (u8 *)sense + i;
+			int i = rsp->pdu.datasize;
+			u8 *p = (u8 *)sense + i;
 
-		    while (i < rsp->bufflen) {
-			*p++ = 0;
-			i++;
-		    }
+			while (i < rsp->bufflen) {
+				*p++ = 0;
+				i++;
+			}
 		}
 	} else {
 		rsp->pdu.datasize = 0;
@@ -1636,11 +1636,11 @@ static int cmnd_abort(struct iscsi_cmnd *req)
 		struct iscsi_scsi_cmd_hdr *hdr = cmnd_hdr(cmnd);
 
 		if (req_hdr->lun != hdr->lun) {
-			 PRINT_ERROR("ABORT TASK: LUN mismatch: req LUN "
-				     "%llx, cmd LUN %llx, rtt %u",
-				     (long long unsigned int)req_hdr->lun,
-				     (long long unsigned int)hdr->lun,
-				     req_hdr->rtt);
+			PRINT_ERROR("ABORT TASK: LUN mismatch: req LUN "
+				    "%llx, cmd LUN %llx, rtt %u",
+				    (long long unsigned int)req_hdr->lun,
+				    (long long unsigned int)hdr->lun,
+				    req_hdr->rtt);
 			err = ISCSI_RESPONSE_FUNCTION_REJECTED;
 			goto out_put;
 		}

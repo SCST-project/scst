@@ -1293,7 +1293,7 @@ int iscsi_send(struct iscsi_conn *conn)
 			goto out;
 		cmnd_tx_start(cmnd);
 		if (!(conn->hdigest_type & DIGEST_NONE))
-		    init_tx_hdigest(cmnd);
+			init_tx_hdigest(cmnd);
 		conn->write_state = TX_BHS_DATA;
 	case TX_BHS_DATA:
 		res = iscsi_do_send(conn, ddigest && cmnd->pdu.datasize ?

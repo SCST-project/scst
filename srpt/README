@@ -22,7 +22,7 @@ If you have obtained SCST from the SCST SVN repository as an out-of-tree
 kernel subsystem, proceed as follows to compile and install the SRP target
 driver:
 
-$ make 
+$ make
 $ make install
 
 To minimize QUEUEFULL conditions, please apply scst_increase_max_tgt_cmds
@@ -48,7 +48,7 @@ a. modprobe scst
 b. modprobe scst_disk
 c. cat /proc/scsi_tgt/scsi_tgt
 
-ibstor00:~ # cat /proc/scsi_tgt/scsi_tgt 
+ibstor00:~ # cat /proc/scsi_tgt/scsi_tgt
 Device (host:ch:id:lun or name)                             Device handler
 0:0:0:0                                                     dev_disk
 4:0:0:0                                                     dev_disk

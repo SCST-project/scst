@@ -32,8 +32,8 @@ struct iscsi_hdr {
 	u8  spec1[2];
 #if defined(__BIG_ENDIAN_BITFIELD)
 	struct {			/* 4 */
-		unsigned ahslength : 8;
-		unsigned datalength : 24;
+		unsigned ahslength:8;
+		unsigned datalength:24;
 	} length;
 #elif defined(__LITTLE_ENDIAN_BITFIELD)
 	u32 length;			/* 4 */
