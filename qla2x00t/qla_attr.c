@@ -192,7 +192,7 @@ out_free:
 	if (size < max_size) {
 		/*id_list_t *pc; */
 		char *id_iter;
-		int flags;
+		unsigned long flags;
 		struct gid_list_info *gid;
 
 		spin_lock_irqsave(&ha->hardware_lock, flags);
