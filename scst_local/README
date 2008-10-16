@@ -1,0 +1,89 @@
+SCST Debug ...
+Richard Sharpe, 24-Sep-2008
+
+This is the SCST Local driver. Its function is to allow you to access devices
+that are exported via SCST directly on the same Linux system that they are
+exported from.
+
+No assumptions are made in the code about the device types on the target, so
+any device handlers that you load in SCST should be visible, including tapes
+and so forth.
+
+To build, simply issue 'make' in the scst-local directory.
+
+Try 'modinfo scst_local.ko' for a listing of module parameters so far.
+
+Here is how I have used it so far:
+
+1. Load up scst:
+
+  modprobe scst
+  modprobe scst_vdisk
+
+2. Create a virtual disk (or your own device handler):
+
+  dd if=/dev/zero of=/some/path/vdisk1.img bs=16384 count=1000000
+#  dd if=/dev/zero of=/some/path/vdisk2.img bs=16384 count=1000000
+  echo "open vm_disk1 /some/path/vdisk1.img" > /proc/scsi_tgt/vdisk/vdisk 
+#  echo "open vm_disk2 /some/path/vdisk2.img" > /proc/scsi_tgt/vdisk/vdisk 
+  echo "add vm_disk1 0" > /proc/scsi_tgt/groups/Default/devices 
+#  echo "add vm_disk2 1" > /proc/scsi_tgt/groups/Default/devices 
+
+3. Load the scst_local driver:
+
+  insmod scst_local.ko
+# insmod scst_local.ko max_luns=8 options=1 # That options prints debug info
+
+4. Check what you have
+
+   cat /proc/scsi/scsi
+  Attached devices:
+  Host: scsi0 Channel: 00 Id: 00 Lun: 00
+    Vendor: ATA      Model: ST9320320AS      Rev: 0303
+    Type:   Direct-Access                    ANSI  SCSI revision: 05
+  Host: scsi4 Channel: 00 Id: 00 Lun: 00
+    Vendor: TSSTcorp Model: CD/DVDW TS-L632D Rev: TO04
+    Type:   CD-ROM                           ANSI  SCSI revision: 05
+  Host: scsi7 Channel: 00 Id: 00 Lun: 00
+    Vendor: SCST_FIO Model: vm_disk1         Rev:  101
+    Type:   Direct-Access                    ANSI  SCSI revision: 04
+
+5. Have fun.
+
+Some of this was coded while in Santa Clara, some in Bangalore, and some in 
+Hyderabad. Noe doubt some will be coded on the way back to Santa Clara.
+
+The code still has bugs, so if you encounter any, email me the fixes at:
+
+   realrichardsharpe@gmail.com
+
+I am thinking of renaming this to something more interesting. 
+
+6. Change log
+
+V0.1 24-Sep-2008 (Hyderabad) Initial coding, pretty chatty and messy, 
+                             but worked.
+
+V0.2 25-Sep-2008 (Hong Kong) Cleaned up the code a lot, reduced the log
+			     chatter, fixed a bug where multiple LUNs did not
+			     work. Also, added logging control. Tested with
+			     five virtual disks. They all came up as /dev/sdb
+			     through /dev/sdf and I could dd to them. Also
+			     fixed a bug preventing multiple adapters.
+
+V0.3 26-Sep-2008 (Santa Clara) Added back a copyright plus cleaned up some
+			       unused functions and structures.
+
+V0.4 5-Oct-2008 (Santa Clara) Changed name to scst_local as suggested, cleaned
+			      up some unused variables (made them used) and
+			      change allocation to a kmem_cache pool.
+
+V0.5 5-Oct-2008 (Santa Clara) Added mgmt commands to handle dev reset and 
+			      aborts. Not sure if aborts works. Also corrected
+			      the version info and renamed readme to README.
+
+V0.6 7-Oct-2008 (Santa Clara) Removed some redundant code and made some
+			      changes suggested by Vladislav.
+
+V0.7 11-Oct-2008 (Santa Clara) Moved into the scst tree. Cleaned up some
+			       unused functions, used TRACE macros etc.

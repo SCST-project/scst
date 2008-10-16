@@ -27,6 +27,7 @@ QLA_ISP_DIR=qla_isp
 LSI_DIR=mpt
 USR_DIR=usr/fileio
 SRP_DIR=srpt
+SCST_LOCAL_DIR=scst_local
 
 ISCSI_DIR=iscsi-scst
 #ISCSI_DISTDIR=../../../iscsi_scst_inst
@@ -77,6 +78,10 @@ help:
 	@echo "		srpt_install      : srp target: install"
 	@echo "		srpt_uninstall    : srp target: uninstall"
 	@echo ""
+	@echo "		scst_local	  : make scst_local target"
+	@echo "		scst_local_install : scst_local target: install"
+	@echo "		scst_local_uninstall : scst_local target: uninstall"
+	@echo ""
 	@echo "		usr               : make user space fileio_tgt target"
 	@echo "		usr_clean         : usr target: clean "
 	@echo "		usr_extraclean    : usr target: clean + clean dependencies"
@@ -99,6 +104,7 @@ all:
 #	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
+	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
 
 install: 
 	cd $(SCST_DIR) && $(MAKE) $@
@@ -108,6 +114,7 @@ install:
 #	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) DISTDIR=$(ISCSI_DISTDIR) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
+	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
 
 uninstall: 
 	cd $(SCST_DIR) && $(MAKE) $@
@@ -117,6 +124,7 @@ uninstall:
 	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
+	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
 
 clean: 
 	cd $(SCST_DIR) && $(MAKE) $@
@@ -127,6 +135,7 @@ clean:
 	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
+	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
 
 extraclean: 
 	cd $(SCST_DIR) && $(MAKE) $@
@@ -137,6 +146,7 @@ extraclean:
 	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
+	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
 
 scst: 
 	cd $(SCST_DIR) && $(MAKE) all
@@ -239,11 +249,26 @@ srpt_install:
 srpt_uninstall:
 	cd $(SRP_DIR) && $(MAKE) uninstall
 
-srpt_clean: 
+srpt_clean:
 	cd $(SRP_DIR) && $(MAKE) clean
 
 srpt_extraclean:
 	cd $(SRP_DIR) && $(MAKE) extraclean
+
+scst_local:
+	cd $(SCST_LOCAL_DIR) && $(MAKE) all
+
+scst_local_install:
+	cd $(SCST_LOCAL_DIR) && $(MAKE) install
+
+scst_local_uninstall:
+	cd $(SCST_LOCAL_DIR) && $(MAKE) uninstall
+
+scst_local_clean:
+	cd $(SCST_LOCAL_DIR) && $(MAKE) clean
+
+scst_local_extraclean:
+	cd $(SCST_LOCAL_DIR) && $(MAKE) extraclean
 
 usr:
 	cd $(USR_DIR) && $(MAKE)
@@ -301,4 +326,5 @@ release2debug:
 	scstadm scstadm_install scstadm_uninstall scstadm_clean scstadm_extraclean \
 	srpt srpt_install srpt_uninstall srpt_clean srpt_extraclean \
 	usr usr_install usr_uninstall usr_clean usr_extraclean \
+	scst_local scst_local_install scst_local_uninstall scst_local_clean scst_local_extraclean \
 	debug2perf, debug2release, perf2debug, release2debug

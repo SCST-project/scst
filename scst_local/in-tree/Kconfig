@@ -1,0 +1,10 @@
+config SCST_LOCAL
+	tristate "SCST Local driver"
+	depends on SCST
+	---help---
+	  This module provides a LLD SCSI driver that connects to 
+	  the SCST target mode subsystem in a loop-back manner.
+	  It allows you to test target-mode device-handlers locally.
+	  You will need the SCST subsystem as well.
+
+	  If unsure whether you really want or need this, say N.

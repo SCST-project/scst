@@ -24,10 +24,11 @@
 ########################
 
 function usage {
-  echo "Usage: $0 [-q] [-s] [-m] <kernel version>, where: "
+  echo "Usage: $0 [-q] [-s] [-m] [-l] <kernel version>, where: "
   echo "	-q - add qla2x00t driver"
   echo "	-s - exclude srpt driver"
   echo "	-m - add mpt target driver"
+  echo "        -l - add scst_local target driver"
 }
 
 # Convert an existing patch.
@@ -83,17 +84,19 @@ EOF
 qla2x00t="false"
 srpt="true"
 mpt_scst="false"
+scst_local="false"
 
-if [ ! -e scst -o ! -e iscsi-scst -o ! -e srpt ]; then
+if [ ! -e scst -o ! -e iscsi-scst -o ! -e srpt -o ! -e scst_local ]; then
   echo "Please run this script from inside the SCST subversion source tree."
   exit 1
 fi
 
-set -- $(/usr/bin/getopt hmqs "$@")
+set -- $(/usr/bin/getopt hlmqs "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
     '-h') usage; exit 1;;
+    '-l') scst_local="true"; shift;;
     '-m') mpt_scst="true"; shift;;
     '-q') qla2x00t="true"; shift;;
     '-s') srpt="false"; shift;;
@@ -262,5 +265,17 @@ if [ "$mpt_scst" = "true" ]; then
   do
     add_file "${f}" "drivers/message/fusion/mpt_scst/${f#mpt/}"
   done
+
+fi
+
+# Directory drivers/scst/scst-local
+
+if [ "$scst_local" = "true" ]; then
+
+  add_file "scst_local/in-tree/Kconfig" "drivers/scst/scst_local/Kconfig"
+
+  add_file "scst_local/in-tree/Makefile" "drivers/scst/scst_local/Makefile"
+
+  add_file "scst_local/scst_local.c" "drivers/scst/scst_local/scst_local.c"
 
 fi
