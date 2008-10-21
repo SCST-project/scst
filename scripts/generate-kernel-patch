@@ -24,11 +24,11 @@
 ########################
 
 function usage {
-  echo "Usage: $0 [-q] [-s] [-m] [-l] <kernel version>, where: "
-  echo "	-q - add qla2x00t driver"
-  echo "	-s - exclude srpt driver"
-  echo "	-m - add mpt target driver"
+  echo "Usage: $0 [-h] [-l] [-m] [-q] [-s] <kernel version>, where: "
+  echo "        -h - show this text"
   echo "        -l - add scst_local target driver"
+  echo "        -m - add mpt target driver"
+  echo "        -q - add qla2x00t driver"
 }
 
 # Convert an existing patch.
@@ -76,6 +76,18 @@ EOF
   fi
 }
 
+function add_empty_file {
+  local a b
+
+  cat <<EOF
+diff -uprN orig/linux-${kernel_version}/$1 linux-${kernel_version}/$1
+--- orig/linux-${kernel_version}/$1
++++ linux-${kernel_version}/$1
+@@ -0,0 +1,1 @@
++
+EOF
+}
+
 
 #########################
 # Argument verification #
@@ -91,7 +103,7 @@ if [ ! -e scst -o ! -e iscsi-scst -o ! -e srpt -o ! -e scst_local ]; then
   exit 1
 fi
 
-set -- $(/usr/bin/getopt hlmqs "$@")
+set -- $(/usr/bin/getopt hlmq "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
@@ -99,7 +111,6 @@ do
     '-l') scst_local="true"; shift;;
     '-m') mpt_scst="true"; shift;;
     '-q') qla2x00t="true"; shift;;
-    '-s') srpt="false"; shift;;
     '--') shift;;
     *)    usage; exit 1;;
   esac
@@ -115,7 +126,13 @@ fi
 # Patch Generation #
 ####################
 
-kernel_version="$1"
+# Strip patch level from the kernel version number.
+if [ "${1#[0-9]*.[0-9]*.[0-9]*.[0-9]*}" != "$1" ]; then
+  kernel_version="${1%.[0-9]*}"
+else
+  kernel_version="$1"
+fi
+
 kpatch=(                                                                \
   "scst/kernel/scst_exec_req_fifo-${kernel_version}.patch"              \
   "iscsi-scst/kernel/patches/put_page_callback-${kernel_version}.patch" \
@@ -219,20 +236,26 @@ if [ "${qla2x00t}" = "true" ]; then
   add_file "qla2x00t/qla2x00-target/Kconfig" \
            "drivers/scst/qla2xxx-target/Kconfig"
 
-  #add_file "qla2x00t/qla2x_tgt_def.h" \
-  #         "drivers/scst/qla2x00-target/qla2x_tgt_def.h"
+  add_file "qla2x00t/qla2x_tgt_def.h" \
+           "drivers/scst/qla2x00-target/qla2x_tgt_def.h"
 
-#  add_file "qla2x00t/qla2x00-target/README" \
-#           "Documentation/scst/README.qla2x00t"
+  add_file "qla2x00t/qla2x00-target/README" \
+           "Documentation/scst/README.qla2x00t"
 
   for f in qla2x00t/qla2x00-target/*.[ch]
   do
     add_file "${f}" "drivers/scst/qla2xxx-target/${f#qla2x00t/qla2x00-target/}"
   done
 
+else
+
+  add_empty_file "drivers/scst/qla2xxx-target/Makefile"
+
+  add_empty_file "drivers/scst/qla2xxx-target/Kconfig"
+
 fi
 
-# Directory drivers/infiniband/ulp/srpt/
+# Directory drivers/scst/srpt
 
 if [ "$srpt" = "true" ]; then
 
@@ -246,6 +269,12 @@ if [ "$srpt" = "true" ]; then
   do
     add_file "${f}" "drivers/scst/srpt/${f#srpt/src/}"
   done
+
+else
+
+  add_empty_file "drivers/scst/srpt/Kconfig"
+
+  add_empty_file "drivers/scst/srpt/Makefile"
 
 fi
 
@@ -266,6 +295,12 @@ if [ "$mpt_scst" = "true" ]; then
     add_file "${f}" "drivers/message/fusion/mpt_scst/${f#mpt/}"
   done
 
+else
+
+  add_empty_file "drivers/message/fusion/Kconfig"
+
+  add_empty_file "drivers/message/fusion/Makefile"
+
 fi
 
 # Directory drivers/scst/scst-local
@@ -277,5 +312,11 @@ if [ "$scst_local" = "true" ]; then
   add_file "scst_local/in-tree/Makefile" "drivers/scst/scst_local/Makefile"
 
   add_file "scst_local/scst_local.c" "drivers/scst/scst_local/scst_local.c"
+
+else
+
+  add_empty_file "drivers/scst/scst_local/Kconfig"
+
+  add_empty_file "drivers/scst/scst_local/Makefile"
 
 fi
