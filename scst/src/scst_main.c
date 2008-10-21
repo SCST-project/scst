@@ -1847,11 +1847,6 @@ out_destroy_mgmt_cache:
 
 static void __exit exit_scst(void)
 {
-#ifdef CONFIG_LOCKDEP
-	static /* To hide the lockdep's warning about non-static key */
-#endif
-	DECLARE_MUTEX_LOCKED(shm);
-
 	TRACE_ENTRY();
 
 	/* ToDo: unregister_cpu_notifier() */

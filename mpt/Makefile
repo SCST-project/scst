@@ -58,7 +58,7 @@ tgt: Modules.symvers Module.symvers
 install: all
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
 		modules_install
-	-depmod -a
+	-/sbin/depmod -a
 
 SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Modules.symvers 2>/dev/null)
 ifneq ($(SCST_MOD_VERS),)

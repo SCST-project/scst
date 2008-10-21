@@ -2978,6 +2978,9 @@ static int __init init_scst_user(void)
 	}
 #else
 	dev = device_create(dev_user_sysfs_class, NULL, MKDEV(DEV_USER_MAJOR, 0),
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+				NULL,
+#endif
 				DEV_USER_NAME);
 	if (IS_ERR(dev)) {
 		res = PTR_ERR(dev);

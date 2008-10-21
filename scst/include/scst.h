@@ -51,10 +51,6 @@ typedef _Bool bool;
 #define false 0
 #endif
 
-#ifndef DECLARE_MUTEX_LOCKED
-#define DECLARE_MUTEX_LOCKED(name)	__DECLARE_SEMAPHORE_GENERIC(name, 0)
-#endif
-
 #define SCST_LOCAL_NAME			"scst_lcl_drvr"
 
 /*************************************************************

@@ -82,7 +82,7 @@ ifneq ($(MOD_VERS),)
 	rm -f $(INSTALL_DIR_H)/Modules.symvers
 	install -m 644 Module.symvers $(INSTALL_DIR_H)
 endif
-	-depmod -a $(KVER)
+	-/sbin/depmod -a $(KVER)
 	@echo "****************************************************************"
 	@echo "*!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*"
 	@echo "*!!                                                          !!*"
