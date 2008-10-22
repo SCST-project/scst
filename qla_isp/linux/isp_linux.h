@@ -135,11 +135,17 @@
 #define DESTROY_ISP_DEV(isp)    \
     class_device_destroy(isp_class, MKDEV(MAJOR(isp_dev), (isp)->isp_unit));
 
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2,6,27)
 #define ISP_CLASS               struct class
 #define CREATE_ISP_CLASS        class_create
 #define DESTROY_ISP_CLASS       class_destroy
 #define CREATE_ISP_DEV(i, c)    (void) device_create(c, NULL, MKDEV(MAJOR(isp_dev), (i)->isp_unit), "%s%d", ISP_NAME, (i)->isp_unit);
+#define DESTROY_ISP_DEV(i)      device_destroy(isp_class, MKDEV(MAJOR(isp_dev), (i)->isp_unit));
+#else
+#define ISP_CLASS               struct class
+#define CREATE_ISP_CLASS        class_create
+#define DESTROY_ISP_CLASS       class_destroy
+#define CREATE_ISP_DEV(i, c)    (void) device_create(c, NULL, MKDEV(MAJOR(isp_dev), (i)->isp_unit), NULL, "%s%d", ISP_NAME, (i)->isp_unit);
 #define DESTROY_ISP_DEV(i)      device_destroy(isp_class, MKDEV(MAJOR(isp_dev), (i)->isp_unit));
 #endif
 
@@ -192,10 +198,6 @@ typedef struct scsi_host_template Scsi_Host_Template;
 #endif
 #ifdef  max
 #undef  max
-#endif
-
-#ifndef DECLARE_MUTEX_LOCKED
-#define DECLARE_MUTEX_LOCKED(name) __DECLARE_SEMAPHORE_GENERIC(name,0)
 #endif
 
 #define	ull	unsigned long long

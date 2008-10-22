@@ -910,7 +910,7 @@ void
 isp_detach_target(ispsoftc_t *isp)
 {
     hba_register_t hba;
-    DECLARE_MUTEX_LOCKED(rsem);
+    struct semaphore rsem;
 
     hba.r_identity = isp;
     snprintf(hba.r_name, sizeof (hba.r_name), ISP_NAME);
@@ -924,6 +924,7 @@ isp_detach_target(ispsoftc_t *isp)
         hba.r_type = R_SPI;
     }
     hba.r_private = &rsem;
+    sema_init(&rsem, 0);
     ISP_PARENT_TARGET(QOUT_HBA_UNREG, &hba);
     down(&rsem);
 }
@@ -2667,7 +2668,7 @@ isp_fc_change_role(ispsoftc_t *isp, int chan, int new_role)
 int
 isp_enable_lun(ispsoftc_t *isp, uint16_t bus, uint16_t lun)
 {
-    DECLARE_MUTEX_LOCKED(rsem);
+    struct semaphore rsem;
     tgt_enalun_t *axl;
     uint16_t rstat;
     int cmd, r;
@@ -2783,6 +2784,7 @@ isp_enable_lun(ispsoftc_t *isp, uint16_t bus, uint16_t lun)
 
     ISP_LOCK_SOFTC(isp);
     isp->isp_osinfo.rsemap = &rsem;
+    sema_init(&rsem, 0);
     if (IS_24XX(isp)) {
         rstat = LUN_OK;
     } else {
@@ -2846,7 +2848,7 @@ out:
 int
 isp_disable_lun(ispsoftc_t *isp, uint16_t bus, uint16_t lun)
 {
-    DECLARE_MUTEX_LOCKED(rsem);
+    struct semaphore rsem;
     uint16_t rstat;
     tgt_enalun_t *axl;
     int cmd;
@@ -2885,6 +2887,7 @@ isp_disable_lun(ispsoftc_t *isp, uint16_t bus, uint16_t lun)
     }
 
     isp->isp_osinfo.rsemap = &rsem;
+    sema_init(&rsem, 0);
     if (IS_24XX(isp)) {
         rstat = LUN_OK;
     } else {
