@@ -61,7 +61,7 @@ static struct scst_dev_type cdrom_devtype = CDROM_TYPE;
  *
  *  Description:
  *************************************************************/
-int cdrom_attach(struct scst_device *dev)
+static int cdrom_attach(struct scst_device *dev)
 {
 	int res = 0;
 	uint8_t cmd[10];
@@ -132,7 +132,8 @@ int cdrom_attach(struct scst_device *dev)
 		if (sector_size == 0)
 			params->block_shift = CDROM_DEF_BLOCK_SHIFT;
 		else
-			params->block_shift = scst_calc_block_shift(sector_size);
+			params->block_shift =
+				scst_calc_block_shift(sector_size);
 		TRACE_DBG("Sector size is %i scsi_level %d(SCSI_2 %d)",
 			sector_size, dev->scsi_dev->scsi_level, SCSI_2);
 	} else {
@@ -172,7 +173,7 @@ out:
  *
  *  Description:  Called to detach this device type driver
  ************************************************************/
-void cdrom_detach(struct scst_device *dev)
+static void cdrom_detach(struct scst_device *dev)
 {
 	struct cdrom_params *params =
 		(struct cdrom_params *)dev->dh_priv;
@@ -207,7 +208,7 @@ static int cdrom_get_block_shift(struct scst_cmd *cmd)
  *
  *  Note:  Not all states are allowed on return
  ********************************************************************/
-int cdrom_parse(struct scst_cmd *cmd)
+static int cdrom_parse(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
 
@@ -243,7 +244,7 @@ static void cdrom_set_block_shift(struct scst_cmd *cmd, int block_shift)
  *                it is used to extract any necessary information
  *                about a command.
  ********************************************************************/
-int cdrom_done(struct scst_cmd *cmd)
+static int cdrom_done(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
 

@@ -172,9 +172,9 @@ int changer_done(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	/*
-	 * SCST sets good defaults for cmd->is_send_status and cmd->resp_data_len
-	 * based on cmd->status and cmd->data_direction, therefore change
-	 * them only if necessary
+	 * SCST sets good defaults for cmd->is_send_status and
+	 * cmd->resp_data_len based on cmd->status and cmd->data_direction,
+	 * therefore change them only if necessary
 	 */
 
 #if 0

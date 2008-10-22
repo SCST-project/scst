@@ -137,7 +137,7 @@ module_exit(exit_scst_disk_driver);
  *
  *  Description:
  *************************************************************/
-int disk_attach(struct scst_device *dev)
+static int disk_attach(struct scst_device *dev)
 {
 	int res = 0;
 	uint8_t cmd[10];
@@ -206,7 +206,8 @@ int disk_attach(struct scst_device *dev)
 		if (sector_size == 0)
 			params->block_shift = DISK_DEF_BLOCK_SHIFT;
 		else
-			params->block_shift = scst_calc_block_shift(sector_size);
+			params->block_shift =
+				scst_calc_block_shift(sector_size);
 	} else {
 		TRACE_BUFFER("Sense set", sbuff, SCST_SENSE_BUFFERSIZE);
 		res = -ENODEV;
@@ -245,7 +246,7 @@ out:
  *
  *  Description:  Called to detach this device type driver
  ************************************************************/
-void disk_detach(struct scst_device *dev)
+static void disk_detach(struct scst_device *dev)
 {
 	struct disk_params *params =
 		(struct disk_params *)dev->dh_priv;
@@ -280,7 +281,7 @@ static int disk_get_block_shift(struct scst_cmd *cmd)
  *
  *  Note:  Not all states are allowed on return
  ********************************************************************/
-int disk_parse(struct scst_cmd *cmd)
+static int disk_parse(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
 
@@ -316,7 +317,7 @@ static void disk_set_block_shift(struct scst_cmd *cmd, int block_shift)
  *                it is used to extract any necessary information
  *                about a command.
  ********************************************************************/
-int disk_done(struct scst_cmd *cmd)
+static int disk_done(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
 
@@ -338,7 +339,7 @@ int disk_done(struct scst_cmd *cmd)
  *  Description:  Make SCST do nothing for data READs and WRITES.
  *                Intended for raw line performance testing
  ********************************************************************/
-int disk_exec(struct scst_cmd *cmd)
+static int disk_exec(struct scst_cmd *cmd)
 {
 	int res = SCST_EXEC_NOT_COMPLETED, rc;
 	int opcode = cmd->cdb[0];

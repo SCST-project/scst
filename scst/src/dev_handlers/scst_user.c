@@ -564,7 +564,8 @@ static int dev_user_alloc_sg(struct scst_user_cmd *ucmd, int cached_buff)
 			if (ll < 10) {
 				PRINT_INFO("Unable to complete command due to "
 					"SG IO count limitation (requested %d, "
-					"available %d, tgt lim %d)", cmd->sg_cnt,
+					"available %d, tgt lim %d)",
+					cmd->sg_cnt,
 					cmd->tgt_dev->max_sg_cnt,
 					cmd->tgt->sg_tablesize);
 				ll++;
@@ -611,7 +612,8 @@ static int dev_user_alloc_space(struct scst_user_cmd *ucmd)
 	if (unlikely(ucmd->cmd->data_buf_tgt_alloc)) {
 		PRINT_ERROR("Target driver %s requested own memory "
 			"allocation", ucmd->cmd->tgtt->name);
-		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_hardw_error));
 		res = scst_get_cmd_abnormal_done_state(cmd);
 		goto out;
 	}
@@ -908,7 +910,7 @@ static void dev_user_on_free_cmd(struct scst_cmd *cmd)
 		ucmd->buff_cached, ucmd->ubuff);
 
 	ucmd->cmd = NULL;
-	if ((cmd->data_direction == SCST_DATA_WRITE) && (ucmd->buf_ucmd != NULL))
+	if (cmd->data_direction == SCST_DATA_WRITE && ucmd->buf_ucmd != NULL)
 		ucmd->buf_ucmd->buf_dirty = 1;
 
 	if (ucmd->dev->on_free_cmd_type == SCST_USER_ON_FREE_CMD_IGNORE) {
@@ -1027,12 +1029,13 @@ static void dev_user_add_to_ready(struct scst_user_cmd *ucmd)
 			&dev->ready_cmd_list);
 		do_wake = 1;
 	} else if ((ucmd->cmd != NULL) &&
-		   unlikely((ucmd->cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))) {
+	   unlikely((ucmd->cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))) {
 		TRACE_DBG("Adding HQ ucmd %p to head of ready cmd list", ucmd);
 		list_add(&ucmd->ready_cmd_list_entry, &dev->ready_cmd_list);
 	} else {
 		TRACE_DBG("Adding ucmd %p to ready cmd list", ucmd);
-		list_add_tail(&ucmd->ready_cmd_list_entry, &dev->ready_cmd_list);
+		list_add_tail(&ucmd->ready_cmd_list_entry,
+			      &dev->ready_cmd_list);
 	}
 
 	if (do_wake) {
@@ -1061,8 +1064,9 @@ static int dev_user_map_buf(struct scst_user_cmd *ucmd, unsigned long ubuff,
 
 	ucmd->num_data_pages = num_pg;
 
-	ucmd->data_pages = kmalloc(sizeof(*ucmd->data_pages)*ucmd->num_data_pages,
-		GFP_KERNEL);
+	ucmd->data_pages =
+		kmalloc(sizeof(*ucmd->data_pages) * ucmd->num_data_pages,
+			  GFP_KERNEL);
 	if (ucmd->data_pages == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "Unable to allocate data_pages array "
 			"(num_data_pages=%d)", ucmd->num_data_pages);
@@ -1070,8 +1074,8 @@ static int dev_user_map_buf(struct scst_user_cmd *ucmd, unsigned long ubuff,
 		goto out_nomem;
 	}
 
-	TRACE_MEM("Mapping buffer (ucmd %p, ubuff %lx, ucmd->num_data_pages %d, "
-		"first_page_offset %d, len %d)", ucmd, ubuff,
+	TRACE_MEM("Mapping buffer (ucmd %p, ubuff %lx, ucmd->num_data_pages %d,"
+		" first_page_offset %d, len %d)", ucmd, ubuff,
 		ucmd->num_data_pages, (int)(ubuff & ~PAGE_MASK),
 		ucmd->cmd->bufflen);
 
@@ -1129,12 +1133,14 @@ static int dev_user_process_reply_alloc(struct scst_user_cmd *ucmd,
 		if (ucmd->buff_cached) {
 			if (unlikely((reply->alloc_reply.pbuf & ~PAGE_MASK) != 0)) {
 				PRINT_ERROR("Supplied pbuf %llx isn't "
-					"page aligned", reply->alloc_reply.pbuf);
+					"page aligned",
+					reply->alloc_reply.pbuf);
 				goto out_hwerr;
 			}
 			pages = cmd->sg_cnt;
 		} else
-			pages = calc_num_pg(reply->alloc_reply.pbuf, cmd->bufflen);
+			pages = calc_num_pg(reply->alloc_reply.pbuf,
+					    cmd->bufflen);
 		res = dev_user_map_buf(ucmd, reply->alloc_reply.pbuf, pages);
 	} else {
 		scst_set_busy(ucmd->cmd);
@@ -1340,7 +1346,8 @@ out_hwerr_res_set:
 		ucmd_put(ucmd);
 		goto out;
 	} else {
-		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+		scst_set_cmd_error(cmd,
+				   SCST_LOAD_SENSE(scst_sense_hardw_error));
 		goto out_compl;
 	}
 
@@ -1531,7 +1538,8 @@ static struct scst_user_cmd *__dev_user_get_next_cmd(struct list_head *cmd_list)
 again:
 	u = NULL;
 	if (!list_empty(cmd_list)) {
-		u = list_entry(cmd_list->next, typeof(*u), ready_cmd_list_entry);
+		u = list_entry(cmd_list->next, typeof(*u),
+			       ready_cmd_list_entry);
 
 		TRACE_DBG("Found ready ucmd %p", u);
 		list_del(&u->ready_cmd_list_entry);
@@ -1736,7 +1744,8 @@ static long dev_user_ioctl(struct file *file, unsigned int cmd,
 			res = -ENOMEM;
 			goto out;
 		}
-		res = copy_from_user(dev_desc, (void __user *)arg, sizeof(*dev_desc));
+		res = copy_from_user(dev_desc, (void __user *)arg,
+				     sizeof(*dev_desc));
 		if (res < 0) {
 			kfree(dev_desc);
 			goto out;
@@ -1826,7 +1835,7 @@ out:
 }
 
 /*
- * Called under cmd_lists.cmd_list_lock, but can drop it inside, then reaquire.
+ * Called under cmd_lists.cmd_list_lock, but can drop it inside, then reacquire.
  */
 static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 	unsigned long *flags)
@@ -1856,7 +1865,7 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 				scst_set_busy(ucmd->cmd);
 			else
 				scst_set_cmd_error(ucmd->cmd,
-					SCST_LOAD_SENSE(scst_sense_hardw_error));
+				       SCST_LOAD_SENSE(scst_sense_hardw_error));
 		}
 		scst_set_cmd_abnormal_done_state(ucmd->cmd);
 
@@ -1868,7 +1877,8 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 
 	case UCMD_STATE_EXECING:
 		if (flags != NULL)
-			spin_unlock_irqrestore(&dev->cmd_lists.cmd_list_lock, *flags);
+			spin_unlock_irqrestore(&dev->cmd_lists.cmd_list_lock,
+					       *flags);
 		else
 			spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
 
@@ -1881,14 +1891,15 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 				scst_set_busy(ucmd->cmd);
 			else
 				scst_set_cmd_error(ucmd->cmd,
-					SCST_LOAD_SENSE(scst_sense_hardw_error));
+				       SCST_LOAD_SENSE(scst_sense_hardw_error));
 		}
 
 		ucmd->cmd->scst_cmd_done(ucmd->cmd, SCST_CMD_STATE_DEFAULT);
 		/* !! At this point cmd and ucmd can be already freed !! */
 
 		if (flags != NULL)
-			spin_lock_irqsave(&dev->cmd_lists.cmd_list_lock, *flags);
+			spin_lock_irqsave(&dev->cmd_lists.cmd_list_lock,
+					  *flags);
 		else
 			spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
 		break;
@@ -1900,7 +1911,8 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 	case UCMD_STATE_DETACH_SESS:
 	{
 		if (flags != NULL)
-			spin_unlock_irqrestore(&dev->cmd_lists.cmd_list_lock, *flags);
+			spin_unlock_irqrestore(&dev->cmd_lists.cmd_list_lock,
+					       *flags);
 		else
 			spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
 
@@ -1914,7 +1926,8 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 			break;
 
 		case UCMD_STATE_TM_EXECING:
-			dev_user_process_reply_tm_exec(ucmd, SCST_MGMT_STATUS_FAILED);
+			dev_user_process_reply_tm_exec(ucmd,
+						       SCST_MGMT_STATUS_FAILED);
 			break;
 
 		case UCMD_STATE_ATTACH_SESS:
@@ -1924,7 +1937,8 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 		}
 
 		if (flags != NULL)
-			spin_lock_irqsave(&dev->cmd_lists.cmd_list_lock, *flags);
+			spin_lock_irqsave(&dev->cmd_lists.cmd_list_lock,
+					  *flags);
 		else
 			spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
 		break;
@@ -2048,7 +2062,8 @@ static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	struct scst_tgt_dev *tgt_dev)
 {
 	struct scst_user_cmd *ucmd;
-	struct scst_user_dev *dev = (struct scst_user_dev *)tgt_dev->dev->dh_priv;
+	struct scst_user_dev *dev =
+		(struct scst_user_dev *)tgt_dev->dev->dh_priv;
 	struct scst_user_cmd *ucmd_to_abort = NULL;
 
 	TRACE_ENTRY();
@@ -2104,7 +2119,8 @@ static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	ucmd->user_cmd.tm_cmd.cmd_sn_set = mcmd->cmd_sn_set;
 
 	if (mcmd->cmd_to_abort != NULL) {
-		ucmd_to_abort = (struct scst_user_cmd *)mcmd->cmd_to_abort->dh_priv;
+		ucmd_to_abort =
+			(struct scst_user_cmd *)mcmd->cmd_to_abort->dh_priv;
 		if (ucmd_to_abort != NULL)
 			ucmd->user_cmd.tm_cmd.cmd_h_to_abort = ucmd_to_abort->h;
 	}
@@ -2372,8 +2388,9 @@ static int dev_user_check_version(const struct scst_user_dev_desc *dev_desc)
 	char ver[sizeof(DEV_USER_VERSION)+1];
 	int res;
 
-	res = copy_from_user(ver, (void __user *)(unsigned long)dev_desc->version_str,
-				sizeof(ver));
+	res = copy_from_user(ver,
+			(void __user *)(unsigned long)dev_desc->version_str,
+			sizeof(ver));
 	if (res < 0) {
 		PRINT_ERROR("%s", "Unable to get version string");
 		goto out;
@@ -2410,7 +2427,8 @@ static int dev_user_register_dev(struct file *file,
 	case TYPE_ROM:
 	case TYPE_MOD:
 		if (dev_desc->block_size == 0) {
-			PRINT_ERROR("Wrong block size %d", dev_desc->block_size);
+			PRINT_ERROR("Wrong block size %d",
+				    dev_desc->block_size);
 			res = -EINVAL;
 			goto out;
 		}
@@ -2565,10 +2583,10 @@ static int __dev_user_set_opt(struct scst_user_dev *dev,
 		opt->on_free_cmd_type, opt->memory_reuse_type,
 		opt->partial_transfers_type, opt->partial_len);
 
-	if ((opt->parse_type > SCST_USER_MAX_PARSE_OPT) ||
-	    (opt->on_free_cmd_type > SCST_USER_MAX_ON_FREE_CMD_OPT) ||
-	    (opt->memory_reuse_type > SCST_USER_MAX_MEM_REUSE_OPT) ||
-	    (opt->partial_transfers_type > SCST_USER_MAX_PARTIAL_TRANSFERS_OPT)) {
+	if (opt->parse_type > SCST_USER_MAX_PARSE_OPT ||
+	    opt->on_free_cmd_type > SCST_USER_MAX_ON_FREE_CMD_OPT ||
+	    opt->memory_reuse_type > SCST_USER_MAX_MEM_REUSE_OPT ||
+	    opt->partial_transfers_type > SCST_USER_MAX_PARTIAL_TRANSFERS_OPT) {
 		PRINT_ERROR("%s", "Invalid option");
 		res = -EINVAL;
 		goto out;
@@ -2579,9 +2597,10 @@ static int __dev_user_set_opt(struct scst_user_dev *dev,
 	    ((opt->queue_alg != SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER) &&
 	     (opt->queue_alg != SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER)) ||
 	    (opt->swp > 1) || (opt->tas > 1) || (opt->has_own_order_mgmt > 1)) {
-		PRINT_ERROR("Invalid SCSI option (tst %x, queue_alg %x, swp %x, "
-			"tas %x, has_own_order_mgmt %x)", opt->tst,
-			opt->queue_alg, opt->swp, opt->tas, opt->has_own_order_mgmt);
+		PRINT_ERROR("Invalid SCSI option (tst %x, queue_alg %x, swp %x,"
+			" tas %x, has_own_order_mgmt %x)", opt->tst,
+			opt->queue_alg, opt->swp, opt->tas,
+			opt->has_own_order_mgmt);
 		res = -EINVAL;
 		goto out;
 	}
@@ -2965,7 +2984,8 @@ static int __init init_scst_user(void)
 
 	res = register_chrdev(DEV_USER_MAJOR, DEV_USER_NAME, &dev_user_fops);
 	if (res) {
-		PRINT_ERROR("Unable to get major %d for SCSI tapes", DEV_USER_MAJOR);
+		PRINT_ERROR("Unable to get major %d for SCSI tapes",
+			    DEV_USER_MAJOR);
 		goto out_class;
 	}
 
@@ -2977,7 +2997,8 @@ static int __init init_scst_user(void)
 		goto out_chrdev;
 	}
 #else
-	dev = device_create(dev_user_sysfs_class, NULL, MKDEV(DEV_USER_MAJOR, 0),
+	dev = device_create(dev_user_sysfs_class, NULL,
+			    MKDEV(DEV_USER_MAJOR, 0),
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
 				NULL,
 #endif

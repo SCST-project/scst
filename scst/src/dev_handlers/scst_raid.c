@@ -142,7 +142,7 @@ void raid_detach(struct scst_device *dev)
  *
  *  Note:  Not all states are allowed on return
  ********************************************************************/
-int raid_parse(struct scst_cmd *cmd)
+static int raid_parse(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
 
@@ -172,9 +172,9 @@ int raid_done(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	/*
-	 * SCST sets good defaults for cmd->is_send_status and cmd->resp_data_len
-	 * based on cmd->status and cmd->data_direction, therefore change
-	 * them only if necessary
+	 * SCST sets good defaults for cmd->is_send_status and
+	 * cmd->resp_data_len based on cmd->status and cmd->data_direction,
+	 * therefore change them only if necessary.
 	 */
 
 #if 0

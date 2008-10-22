@@ -137,7 +137,7 @@ module_exit(exit_scst_modisk_driver);
  *
  *  Description:
  *************************************************************/
-int modisk_attach(struct scst_device *dev)
+static int modisk_attach(struct scst_device *dev)
 {
 	int res = 0;
 	uint8_t cmd[10];
@@ -218,7 +218,8 @@ int modisk_attach(struct scst_device *dev)
 		if (sector_size == 0)
 			params->block_shift = MODISK_DEF_BLOCK_SHIFT;
 		else
-			params->block_shift = scst_calc_block_shift(sector_size);
+			params->block_shift =
+				scst_calc_block_shift(sector_size);
 		TRACE_DBG("Sector size is %i scsi_level %d(SCSI_2 %d)",
 		      sector_size, dev->scsi_dev->scsi_level, SCSI_2);
 	} else {
@@ -262,7 +263,7 @@ out:
  *
  *  Description:  Called to detach this device type driver
  ************************************************************/
-void modisk_detach(struct scst_device *dev)
+static void modisk_detach(struct scst_device *dev)
 {
 	struct modisk_params *params =
 		(struct modisk_params *)dev->dh_priv;
@@ -278,7 +279,8 @@ void modisk_detach(struct scst_device *dev)
 
 static int modisk_get_block_shift(struct scst_cmd *cmd)
 {
-	struct modisk_params *params = (struct modisk_params *)cmd->dev->dh_priv;
+	struct modisk_params *params =
+		(struct modisk_params *)cmd->dev->dh_priv;
 	/*
 	 * No need for locks here, since *_detach() can not be
 	 * called, when there are existing commands.
@@ -297,7 +299,7 @@ static int modisk_get_block_shift(struct scst_cmd *cmd)
  *
  *  Note:  Not all states are allowed on return
  ********************************************************************/
-int modisk_parse(struct scst_cmd *cmd)
+static int modisk_parse(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
 
@@ -310,7 +312,8 @@ int modisk_parse(struct scst_cmd *cmd)
 
 static void modisk_set_block_shift(struct scst_cmd *cmd, int block_shift)
 {
-	struct modisk_params *params = (struct modisk_params *)cmd->dev->dh_priv;
+	struct modisk_params *params =
+		(struct modisk_params *)cmd->dev->dh_priv;
 	/*
 	 * No need for locks here, since *_detach() can not be
 	 * called, when there are existing commands.
@@ -333,7 +336,7 @@ static void modisk_set_block_shift(struct scst_cmd *cmd, int block_shift)
  *                it is used to extract any necessary information
  *                about a command.
  ********************************************************************/
-int modisk_done(struct scst_cmd *cmd)
+static int modisk_done(struct scst_cmd *cmd)
 {
 	int res;
 
@@ -355,7 +358,7 @@ int modisk_done(struct scst_cmd *cmd)
  *  Description:  Make SCST do nothing for data READs and WRITES.
  *                Intended for raw line performance testing
  ********************************************************************/
-int modisk_exec(struct scst_cmd *cmd)
+static int modisk_exec(struct scst_cmd *cmd)
 {
 	int res = SCST_EXEC_NOT_COMPLETED, rc;
 	int opcode = cmd->cdb[0];

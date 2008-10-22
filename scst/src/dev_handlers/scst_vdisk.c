@@ -95,12 +95,12 @@ static struct scst_proc_log vdisk_proc_local_trace_tbl[] =
  * Since we can't control backstorage device's reordering, we have to always
  * report unrestricted reordering.
  */
-#define DEF_QUEUE_ALG_WT		SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER
-#define DEF_QUEUE_ALG			SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER
-#define DEF_SWP				0
-#define DEF_TAS				0
+#define DEF_QUEUE_ALG_WT	SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER
+#define DEF_QUEUE_ALG		SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER
+#define DEF_SWP			0
+#define DEF_TAS			0
 
-#define VDISK_PROC_HELP			"help"
+#define VDISK_PROC_HELP		"help"
 
 static unsigned int random_values[256] = {
 	    9862592UL,  3744545211UL,  2348289082UL,  4036111983UL,
@@ -245,10 +245,12 @@ static void vdisk_exec_read_toc(struct scst_cmd *cmd);
 static void vdisk_exec_prevent_allow_medium_removal(struct scst_cmd *cmd);
 static int vdisk_fsync(struct scst_vdisk_thr *thr,
 	loff_t loff, loff_t len, struct scst_cmd *cmd);
-static int vdisk_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type);
+static int vdisk_read_proc(struct seq_file *seq,
+	struct scst_dev_type *dev_type);
 static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 	int length, int *eof, struct scst_dev_type *dev_type);
-static int vcdrom_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type);
+static int vcdrom_read_proc(struct seq_file *seq,
+	struct scst_dev_type *dev_type);
 static int vcdrom_write_proc(char *buffer, char **start, off_t offset,
 	int length, int *eof, struct scst_dev_type *dev_type);
 static int vdisk_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
@@ -379,7 +381,8 @@ static struct file *vdisk_open(const struct scst_vdisk_dev *virt_dev)
 		open_flags |= O_DIRECT;
 	if (virt_dev->wt_flag && !virt_dev->nv_cache)
 		open_flags |= O_SYNC;
-	TRACE_DBG("Opening file %s, flags 0x%x", virt_dev->file_name, open_flags);
+	TRACE_DBG("Opening file %s, flags 0x%x",
+		  virt_dev->file_name, open_flags);
 	fd = filp_open(virt_dev->file_name, O_LARGEFILE | open_flags, 0600);
 
 	TRACE_EXIT();
@@ -448,7 +451,7 @@ static int vdisk_attach(struct scst_device *dev)
 			fd = vdisk_open(virt_dev);
 			if (IS_ERR(fd)) {
 				res = PTR_ERR(fd);
-				PRINT_ERROR("filp_open(%s) returned an error %d",
+				PRINT_ERROR("filp_open(%s) returned error %d",
 				       virt_dev->file_name, res);
 				goto out;
 			}
@@ -460,9 +463,9 @@ static int vdisk_attach(struct scst_device *dev)
 			if ((fd->f_op == NULL) || (fd->f_op->aio_read == NULL) ||
 			    (fd->f_op->aio_write == NULL)) {
 #endif
-				PRINT_ERROR("%s", "Wrong f_op or FS doesn't have "
-					"required capabilities");
-					res = -EINVAL;
+				PRINT_ERROR("%s", "Wrong f_op or FS doesn't "
+					"have required capabilities");
+				res = -EINVAL;
 				filp_close(fd, NULL);
 				goto out;
 			}
@@ -478,7 +481,7 @@ static int vdisk_attach(struct scst_device *dev)
 			}
 
 			if (S_ISREG(inode->i_mode))
-				;
+				/* Nothing to do*/;
 			else if (S_ISBLK(inode->i_mode))
 				inode = inode->i_bdev->bd_inode;
 			else {
@@ -496,22 +499,26 @@ static int vdisk_attach(struct scst_device *dev)
 		virt_dev->file_size = 0;
 
 	if (dev->handler->type == TYPE_DISK) {
-		virt_dev->nblocks = virt_dev->file_size >> virt_dev->block_shift;
+		virt_dev->nblocks =
+			virt_dev->file_size >> virt_dev->block_shift;
 	} else {
 		virt_dev->block_size = DEF_CDROM_BLOCKSIZE;
 		virt_dev->block_shift = DEF_CDROM_BLOCKSIZE_SHIFT;
-		virt_dev->nblocks = virt_dev->file_size >> DEF_CDROM_BLOCKSIZE_SHIFT;
+		virt_dev->nblocks =
+			virt_dev->file_size >> DEF_CDROM_BLOCKSIZE_SHIFT;
 	}
 
 	if (!virt_dev->cdrom_empty) {
 		PRINT_INFO("Attached SCSI target virtual %s %s "
-		      "(file=\"%s\", fs=%lldMB, bs=%d, nblocks=%lld, cyln=%lld%s)",
+		      "(file=\"%s\", fs=%lldMB, bs=%d, nblocks=%lld,"
+		      " cyln=%lld%s)",
 		      (dev->handler->type == TYPE_DISK) ? "disk" : "cdrom",
 		      virt_dev->name, virt_dev->file_name,
 		      virt_dev->file_size >> 20, virt_dev->block_size,
 		      (long long unsigned int)virt_dev->nblocks,
 		      (long long unsigned int)virt_dev->nblocks/64/32,
-		      virt_dev->nblocks < 64*32 ? " !WARNING! cyln less than 1" : "");
+		      virt_dev->nblocks < 64*32
+		      ? " !WARNING! cyln less than 1" : "");
 	} else {
 		PRINT_INFO("Attached empty SCSI target virtual cdrom %s",
 			virt_dev->name);
@@ -562,7 +569,8 @@ static void vdisk_detach(struct scst_device *dev)
 
 static void vdisk_free_thr_data(struct scst_thr_data_hdr *d)
 {
-	struct scst_vdisk_thr *thr = container_of(d, struct scst_vdisk_thr, hdr);
+	struct scst_vdisk_thr *thr =
+		container_of(d, struct scst_vdisk_thr, hdr);
 
 	TRACE_ENTRY();
 
@@ -838,10 +846,12 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 			enum scst_cmd_queue_type last_queue_type =
 				ftgt_dev->last_write_cmd_queue_type;
 			ftgt_dev->last_write_cmd_queue_type = cmd->queue_type;
-			if (vdisk_need_pre_sync(cmd->queue_type, last_queue_type)) {
+			if (vdisk_need_pre_sync(cmd->queue_type,
+						last_queue_type)) {
 				TRACE(TRACE_ORDER, "ORDERED "
 				      "WRITE(%d): loff=%lld, data_len=%lld",
-				      cmd->queue_type, (long long unsigned int)loff,
+				      cmd->queue_type,
+				      (long long unsigned int)loff,
 				      (long long unsigned int)data_len);
 				do_fsync = 1;
 				if (vdisk_fsync(thr, 0, 0, cmd) != 0)
@@ -873,10 +883,12 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 			enum scst_cmd_queue_type last_queue_type =
 				ftgt_dev->last_write_cmd_queue_type;
 			ftgt_dev->last_write_cmd_queue_type = cmd->queue_type;
-			if (vdisk_need_pre_sync(cmd->queue_type, last_queue_type)) {
+			if (vdisk_need_pre_sync(cmd->queue_type,
+						last_queue_type)) {
 				TRACE(TRACE_ORDER, "ORDERED "
-				      "WRITE_VERIFY(%d): loff=%lld, data_len=%lld",
-				      cmd->queue_type, (long long unsigned int)loff,
+				      "WRITE_VERIFY(%d): loff=%lld,"
+				      " data_len=%lld", cmd->queue_type,
+				      (long long unsigned int)loff,
 				      (long long unsigned int)data_len);
 				do_fsync = 1;
 				if (vdisk_fsync(thr, 0, 0, cmd) != 0)
@@ -900,7 +912,8 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	{
 		int immed = cdb[1] & 0x2;
 		TRACE(TRACE_ORDER, "SYNCHRONIZE_CACHE: "
-			"loff=%lld, data_len=%lld, immed=%d", (long long unsigned int)loff,
+			"loff=%lld, data_len=%lld, immed=%d",
+			(long long unsigned int)loff,
 			(long long unsigned int)data_len, immed);
 		if (immed) {
 			scst_cmd_get(cmd);
@@ -1132,8 +1145,10 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 		int dev_id_num;
 		char dev_id_str[6];
 
-		for (dev_id_num = 0, i = 0; i < (int)strlen(virt_dev->name); i++) {
-			unsigned int rv = random_values[(int)(virt_dev->name[i])];
+		for (dev_id_num = 0, i = 0; i < (int)strlen(virt_dev->name);
+		     i++) {
+			unsigned int rv =
+				random_values[(int)(virt_dev->name[i])];
 			/*
 			 * Device name maximum length = 16,
 			 * do some rotating of the bits.
@@ -1196,7 +1211,7 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			buf[num + 1] = 0x3;
 			buf[num + 2] = 0x0;
 			buf[num + 3] = 0x8;
-			buf[num + 4] = 0x51;	/* ieee company id=0x123456 (faked) */
+			buf[num + 4] = 0x51; /* IEEE OUI=0x123456 (faked) */
 			buf[num + 5] = 0x23;
 			buf[num + 6] = 0x45;
 			buf[num + 7] = 0x60;
@@ -1224,24 +1239,34 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			goto out_put;
 		}
 
-		buf[2] = 4;		/* Device complies to this standard - SPC-2  */
-		buf[3] = 0x12;		/* HiSup + data in format specified in SPC-2 */
-		buf[4] = 31;		/* n - 4 = 35 - 4 = 31 for full 36 byte data */
-		buf[6] = 0; buf[7] = 2; /* BQue = 0, CMDQUE = 1 commands queuing supported */
+		buf[2] = 4;	/* Device complies to this standard - SPC-2  */
+		buf[3] = 0x12;	/* HiSup + data in format specified in SPC-2 */
+		buf[4] = 31;	/* n - 4 = 35 - 4 = 31 for full 36 byte data */
+		/* BQue = 0, CMDQUE = 1 commands queuing supported */
+		buf[6] = 0; buf[7] = 2;
 
-		/* 8 byte ASCII Vendor Identification of the target - left aligned */
+		/*
+		 * 8 byte ASCII Vendor Identification of the target
+		 * - left aligned.
+		 */
 		if (virt_dev->blockio)
 			memcpy(&buf[8], SCST_BIO_VENDOR, 8);
 		else
 			memcpy(&buf[8], SCST_FIO_VENDOR, 8);
 
-		/* 16 byte ASCII Product Identification of the target - left aligned */
+		/*
+		 * 16 byte ASCII Product Identification of the target - left
+		 * aligned.
+		 */
 		memset(&buf[16], ' ', 16);
 		len = strlen(virt_dev->name);
 		len = len < 16 ? len : 16;
 		memcpy(&buf[16], virt_dev->name, len);
 
-		/* 4 byte ASCII Product Revision Level of the target - left aligned */
+		/*
+		 * 4 byte ASCII Product Revision Level of the target - left
+		 * aligned.
+		 */
 		memcpy(&buf[32], SCST_FIO_REV, 4);
 		resp_len = buf[4] + 5;
 	}
@@ -1485,7 +1510,8 @@ static void vdisk_exec_mode_sense(struct scst_cmd *cmd)
 			buf[offset + 2] = 0xFF;
 			buf[offset + 3] = 0xFF;
 		} else {
-			buf[offset + 0] = (nblocks >> (BYTE * 3)) & 0xFF;/* num blks */
+			/* num blks */
+			buf[offset + 0] = (nblocks >> (BYTE * 3)) & 0xFF;
 			buf[offset + 1] = (nblocks >> (BYTE * 2)) & 0xFF;
 			buf[offset + 2] = (nblocks >> (BYTE * 1)) & 0xFF;
 			buf[offset + 3] = (nblocks >> (BYTE * 0)) & 0xFF;
@@ -1863,16 +1889,20 @@ static void vdisk_exec_read_toc(struct scst_cmd *cmd)
 	off = 4;
 	if (cmd->cdb[6] <= 1) {
 		/* Fistr TOC Track Descriptor */
-		buffer[off+1] = 0x14; /* ADDR    0x10 - Q Sub-channel encodes current position data
-					 CONTROL 0x04 - Data track, recoreded uninterrupted */
-		buffer[off+2] = 0x01; /* Track Number */
+		/* ADDR    0x10 - Q Sub-channel encodes current position data
+		   CONTROL 0x04 - Data track, recoreded uninterrupted */
+		buffer[off+1] = 0x14;
+		/* Track Number */
+		buffer[off+2] = 0x01;
 		off += 8;
 	}
 	if (!(cmd->cdb[2] & 0x01)) {
 		/* Lead-out area TOC Track Descriptor */
 		buffer[off+1] = 0x14;
-		buffer[off+2] = 0xAA;     /* Track Number */
-		buffer[off+4] = (nblocks >> (BYTE * 3)) & 0xFF; /* Track Start Address */
+		/* Track Number */
+		buffer[off+2] = 0xAA;
+		/* Track Start Address */
+		buffer[off+4] = (nblocks >> (BYTE * 3)) & 0xFF;
 		buffer[off+5] = (nblocks >> (BYTE * 2)) & 0xFF;
 		buffer[off+6] = (nblocks >> (BYTE * 1)) & 0xFF;
 		buffer[off+7] = (nblocks >> (BYTE * 0)) & 0xFF;
@@ -1956,7 +1986,7 @@ static struct iovec *vdisk_alloc_iv(struct scst_cmd *cmd,
 	iv_count = scst_get_buf_count(cmd);
 	if (iv_count > thr->iv_count) {
 		kfree(thr->iv);
-		thr->iv = kmalloc(sizeof(*thr->iv) * iv_count, 
+		thr->iv = kmalloc(sizeof(*thr->iv) * iv_count,
 			scst_cmd_atomic(cmd) ? GFP_ATOMIC : GFP_KERNEL);
 		if (thr->iv == NULL) {
 			PRINT_ERROR("Unable to allocate iv (%d)", iv_count);
@@ -2066,14 +2096,16 @@ static void vdisk_exec_read(struct scst_cmd *cmd,
 			PRINT_ERROR("lseek trouble %lld != %lld",
 				    (long long unsigned int)err,
 				    (long long unsigned int)loff);
-			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_hardw_error));
 			goto out_set_fs;
 		}
 		/* READ */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 		err = fd->f_op->readv(fd, iv, iv_count, &fd->f_pos);
 #else
-		err = do_sync_readv_writev(fd, iv, iv_count, full_len, &fd->f_pos, fd->f_op->aio_read);
+		err = do_sync_readv_writev(fd, iv, iv_count, full_len,
+					   &fd->f_pos, fd->f_op->aio_read);
 #endif
 	}
 
@@ -2167,8 +2199,8 @@ restart:
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 		err = fd->f_op->writev(fd, eiv, eiv_count, &fd->f_pos);
 #else
-		err = do_sync_readv_writev(fd, iv, iv_count, full_len, &fd->f_pos,
-									fd->f_op->aio_write);
+		err = do_sync_readv_writev(fd, iv, iv_count, full_len,
+					   &fd->f_pos, fd->f_op->aio_write);
 #endif
 	}
 
@@ -2451,7 +2483,8 @@ static void vdisk_exec_verify(struct scst_cmd *cmd,
 			PRINT_ERROR("lseek trouble %lld != %lld",
 				    (long long unsigned int)err,
 				    (long long unsigned int)loff);
-			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_hardw_error));
 			goto out_set_fs;
 		}
 	}
@@ -2478,7 +2511,8 @@ static void vdisk_exec_verify(struct scst_cmd *cmd,
 		TRACE_DBG("Verify: length %zd - len_mem %zd", length, len_mem);
 
 		if (!virt_dev->nullio)
-			err = fd->f_op->read(fd, (char *)mem_verify, len_mem, &fd->f_pos);
+			err = fd->f_op->read(fd, (char *)mem_verify, len_mem,
+					     &fd->f_pos);
 		else
 			err = len_mem;
 		if ((err < 0) || (err < len_mem)) {
@@ -2579,7 +2613,7 @@ static int vdisk_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
 	}
 
 	seq_printf(seq, "%-17s %-11s %-11s %-15s %s\n",
-			   "Name", "Size(MB)", "Block size", "Options", "File name");
+		   "Name", "Size(MB)", "Block size", "Options", "File name");
 
 	list_for_each_entry(virt_dev, &vdisk_dev_list, vdisk_dev_list_entry) {
 		int c;
@@ -2806,15 +2840,15 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 				TRACE_DBG("%s", "READ_ONLY");
 			} else if (!strncmp("O_DIRECT", p, 8)) {
 				p += 8;
-		#if 0
+#if 0
 
 				virt_dev->o_direct_flag = 1;
 				TRACE_DBG("%s", "O_DIRECT");
-		#else
+#else
 				PRINT_INFO("%s flag doesn't currently"
 					" work, ignoring it, use fileio_tgt "
 					"in O_DIRECT mode instead", "O_DIRECT");
-		#endif
+#endif
 			} else if (!strncmp("NULLIO", p, 6)) {
 				p += 6;
 				virt_dev->nullio = 1;
@@ -2866,12 +2900,12 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 		} else if (virt_dev->nullio) {
 			vdisk_report_registering("NULLIO", virt_dev);
 			virt_dev->virt_id =
-				scst_register_virtual_device(&vdisk_null_devtype,
+			       scst_register_virtual_device(&vdisk_null_devtype,
 							 virt_dev->name);
 		} else {
 			vdisk_report_registering("FILEIO", virt_dev);
 			virt_dev->virt_id =
-				scst_register_virtual_device(&vdisk_file_devtype,
+			       scst_register_virtual_device(&vdisk_file_devtype,
 							 virt_dev->name);
 		}
 		if (virt_dev->virt_id < 0) {
@@ -3172,8 +3206,8 @@ static int vcdrom_change(char *p, char *name)
 
 	if (!virt_dev->cdrom_empty) {
 		PRINT_INFO("Changed SCSI target virtual cdrom %s "
-			"(file=\"%s\", fs=%lldMB, bs=%d, nblocks=%lld, cyln=%lld%s)",
-			virt_dev->name, virt_dev->file_name,
+			"(file=\"%s\", fs=%lldMB, bs=%d, nblocks=%lld,"
+			" cyln=%lld%s)", virt_dev->name, virt_dev->file_name,
 			virt_dev->file_size >> 20, virt_dev->block_size,
 			(long long unsigned int)virt_dev->nblocks,
 			(long long unsigned int)virt_dev->nblocks/64/32,
@@ -3206,7 +3240,8 @@ out_free_resume:
 /*
  * Called when a file in the /proc/VCDROM_NAME/VCDROM_NAME is read
  */
-static int vcdrom_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
+static int vcdrom_read_proc(struct seq_file *seq,
+			    struct scst_dev_type *dev_type)
 {
 	int res = 0;
 	struct scst_vdisk_dev *virt_dev;
@@ -3340,7 +3375,8 @@ static int vdisk_proc_help_build(struct scst_dev_type *dev_type)
 	vdisk_help_proc_data.data = (dev_type->type == TYPE_DISK) ?
 					vdisk_proc_help_string :
 					vcdrom_proc_help_string;
-	p = scst_create_proc_entry(root, VDISK_PROC_HELP, &vdisk_help_proc_data);
+	p = scst_create_proc_entry(root, VDISK_PROC_HELP,
+				   &vdisk_help_proc_data);
 	if (p == NULL) {
 		PRINT_ERROR("Not enough memory to register dev "
 		     "handler %s entry %s in /proc",

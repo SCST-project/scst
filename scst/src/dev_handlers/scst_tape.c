@@ -142,7 +142,7 @@ module_exit(exit_scst_tape_driver);
  *
  *  Description:
  *************************************************************/
-int tape_attach(struct scst_device *dev)
+static int tape_attach(struct scst_device *dev)
 {
 	int res = 0;
 	int retries;
@@ -255,7 +255,7 @@ out:
  *
  *  Description:  Called to detach this device type driver
  ************************************************************/
-void tape_detach(struct scst_device *dev)
+static void tape_detach(struct scst_device *dev)
 {
 	struct tape_params *params =
 		(struct tape_params *)dev->dh_priv;
@@ -290,7 +290,7 @@ static int tape_get_block_size(struct scst_cmd *cmd)
  *
  *  Note:  Not all states are allowed on return
  ********************************************************************/
-int tape_parse(struct scst_cmd *cmd)
+static int tape_parse(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
 
@@ -323,7 +323,7 @@ static void tape_set_block_size(struct scst_cmd *cmd, int block_size)
  *                it is used to extract any necessary information
  *                about a command.
  ********************************************************************/
-int tape_done(struct scst_cmd *cmd)
+static int tape_done(struct scst_cmd *cmd)
 {
 	int opcode = cmd->cdb[0];
 	int status = cmd->status;
@@ -342,7 +342,8 @@ int tape_done(struct scst_cmd *cmd)
 			/* EOF, EOM, or ILI */
 			int TransferLength, Residue = 0;
 			if ((cmd->sense[2] & 0x0f) == BLANK_CHECK)
-				cmd->sense[2] &= 0xcf;	/* No need for EOM in this case */
+				/* No need for EOM in this case */
+				cmd->sense[2] &= 0xcf;
 			TransferLength = ((cmd->cdb[2] << 16) |
 					  (cmd->cdb[3] << 8) | cmd->cdb[4]);
 			/* Compute the residual count */
@@ -353,9 +354,9 @@ int tape_done(struct scst_cmd *cmd)
 					   cmd->sense[6]);
 			}
 			TRACE_DBG("Checking the sense key "
-			      "sn[2]=%x cmd->cdb[0,1]=%x,%x TransLen/Resid %d/%d",
-			      (int) cmd->sense[2], cmd->cdb[0], cmd->cdb[1],
-			      TransferLength, Residue);
+				"sn[2]=%x cmd->cdb[0,1]=%x,%x TransLen/Resid"
+				" %d/%d", (int)cmd->sense[2], cmd->cdb[0],
+				cmd->cdb[1], TransferLength, Residue);
 			if (TransferLength > Residue) {
 				int resp_data_len = TransferLength - Residue;
 				if (cmd->cdb[1] & SCST_TRANSFER_LEN_TYPE_FIXED) {
@@ -364,7 +365,8 @@ int tape_done(struct scst_cmd *cmd)
 					 * *_detach() can not be called, when
 					 * there are existing commands.
 					 */
-					params = (struct tape_params *)cmd->dev->dh_priv;
+					params = (struct tape_params *)
+						 cmd->dev->dh_priv;
 					resp_data_len *= params->block_size;
 				}
 				scst_set_resp_data_len(cmd, resp_data_len);
@@ -389,7 +391,7 @@ int tape_done(struct scst_cmd *cmd)
  *  Description:  Make SCST do nothing for data READs and WRITES.
  *                Intended for raw line performance testing
  ********************************************************************/
-int tape_exec(struct scst_cmd *cmd)
+static int tape_exec(struct scst_cmd *cmd)
 {
 	int res = SCST_EXEC_NOT_COMPLETED, rc;
 	int opcode = cmd->cdb[0];
