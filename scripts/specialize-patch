@@ -127,7 +127,9 @@ function handle_if()
   }
   else
   {
-    sub("^+#elif ", "+#if ! " + decision[if_nesting_level] + " && ", evaluated)
+    sub("^+#elif ",
+        sprintf("+#if ! %d \\&\\& ", decision[if_nesting_level]),
+        evaluated)
     evaluated = evaluate(evaluated)
   }
   decision[if_nesting_level] = evaluated

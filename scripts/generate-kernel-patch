@@ -133,6 +133,9 @@ else
   kernel_version="$1"
 fi
 
+echo "Signed-off-by: ... <...@...>"
+echo ""
+
 kpatch=(                                                                \
   "scst/kernel/scst_exec_req_fifo-${kernel_version}.patch"              \
   "iscsi-scst/kernel/patches/put_page_callback-${kernel_version}.patch" \
@@ -165,7 +168,7 @@ cat "${kpatch[@]}"
 
 # Directory include/scst/
 
-for f in scst/include/*h
+for f in $(ls scst/include/*h)
 do
   add_file "${f}" "include/scst/${f#scst/include/}"
 done
@@ -188,7 +191,7 @@ add_file "scst/kernel/in-tree/Makefile.scst" "drivers/scst/Makefile"
 
 add_file "scst/README_in-tree"               "Documentation/scst/README.scst"
 
-for f in scst/src/*.[ch]
+for f in $(ls scst/src/*.[ch])
 do
   add_file "${f}" "drivers/scst/${f#scst/src/}"
 done
@@ -199,7 +202,7 @@ done
 add_file "scst/kernel/in-tree/Makefile.dev_handlers" \
          "drivers/scst/dev_handlers/Makefile"
 
-for f in scst/src/dev_handlers/*.[ch]
+for f in $(ls scst/src/dev_handlers/*.[ch])
 do
   add_file "${f}" "drivers/scst/dev_handlers/${f#scst/src/dev_handlers/}"
 done
@@ -210,7 +213,7 @@ done
 # Make sure the file iscsi-scst/iscsi_scst_itf_ver.h is up to date.
 make -s -C iscsi-scst include/iscsi_scst_itf_ver.h
 
-for f in iscsi-scst/include/*h
+for f in $(ls iscsi-scst/include/*h)
 do
   add_file "${f}" "include/scst/${f#iscsi-scst/include/}"
 done
@@ -220,7 +223,7 @@ add_file "iscsi-scst/kernel/Makefile.in-kernel" \
 
 add_file "iscsi-scst/kernel/Kconfig"  "drivers/scst/iscsi-scst/Kconfig"
 
-for f in iscsi-scst/kernel/*.[ch]
+for f in $(ls iscsi-scst/kernel/*.[ch])
 do
   add_file "${f}" "drivers/scst/iscsi-scst/${f#iscsi-scst/kernel/}"
 done
@@ -242,7 +245,7 @@ if [ "${qla2x00t}" = "true" ]; then
   add_file "qla2x00t/qla2x00-target/README" \
            "Documentation/scst/README.qla2x00t"
 
-  for f in qla2x00t/qla2x00-target/*.[ch]
+  for f in $(ls qla2x00t/qla2x00-target/*.[ch])
   do
     add_file "${f}" "drivers/scst/qla2xxx-target/${f#qla2x00t/qla2x00-target/}"
   done
@@ -265,7 +268,7 @@ if [ "$srpt" = "true" ]; then
 
   add_file  "srpt/README"                 "Documentation/scst/README.srpt"
 
-  for f in srpt/src/*.[ch]
+  for f in $(ls srpt/src/*.[ch])
   do
     add_file "${f}" "drivers/scst/srpt/${f#srpt/src/}"
   done
@@ -290,7 +293,7 @@ if [ "$mpt_scst" = "true" ]; then
 
   add_file  "mpt/Kconfig"  "drivers/message/fusion/mpt_scst/Kconfig"
 
-  for f in mpt/*.[ch]
+  for f in $(ls mpt/*.[ch])
   do
     add_file "${f}" "drivers/message/fusion/mpt_scst/${f#mpt/}"
   done
