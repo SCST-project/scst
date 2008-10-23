@@ -4215,9 +4215,13 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 	list_for_each_entry(dev, &host_devs, tm_dev_list_entry) {
 		/* dev->scsi_dev must be non-NULL here */
 		TRACE(TRACE_MGMT, "Resetting host %d bus ",
-		      dev->scsi_dev->host->host_no);
+			dev->scsi_dev->host->host_no);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
+		rc = scsi_reset_provider(dev->scsi_dev, SCSI_TRY_RESET_TARGET);
+#else
 		rc = scsi_reset_provider(dev->scsi_dev, SCSI_TRY_RESET_BUS);
-		TRACE(TRACE_MGMT, "Result of host %d bus reset: %s",
+#endif
+		TRACE(TRACE_MGMT, "Result of host %d target reset: %s",
 		      dev->scsi_dev->host->host_no,
 		      (rc == SUCCESS) ? "SUCCESS" : "FAILED");
 #if 0 /* scsi_reset_provider() returns very weird status, so let's always succeed */
