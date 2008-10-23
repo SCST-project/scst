@@ -174,7 +174,14 @@ struct scst_vdisk_dev {
 	uint64_t nblocks;
 	int block_shift;
 	loff_t file_size;	/* in bytes */
+
+	/*
+	 * This lock can be taken on both SIRQ and thread context, but in
+	 * all cases for each particular instance it's taken consistenly either
+	 * on SIRQ or thread context. Mix of them is impossible.
+	 */
 	spinlock_t flags_lock;
+
 	/*
 	 * Below flags are protected by flags_lock or suspended activity
 	 * with scst_vdisk_mutex.
@@ -213,7 +220,6 @@ struct scst_vdisk_thr {
 	struct block_device *bdev;
 	struct iovec *iv;
 	int iv_count;
-	struct scst_vdisk_dev *virt_dev;
 };
 
 static struct kmem_cache *vdisk_thr_cachep;
@@ -341,6 +347,8 @@ static struct scst_dev_type vdisk_file_devtype = VDISK_TYPE;
 static struct scst_dev_type vdisk_blk_devtype = VDISK_BLK_TYPE;
 static struct scst_dev_type vdisk_null_devtype = VDISK_NULL_TYPE;
 static struct scst_dev_type vcdrom_devtype = VCDROM_TYPE;
+
+static struct scst_vdisk_thr nullio_thr_data;
 
 static char *vdisk_proc_help_string =
 	"echo \"open|close NAME [FILE_NAME [BLOCK_SIZE] [WRITE_THROUGH "
@@ -594,6 +602,8 @@ static struct scst_vdisk_thr *vdisk_init_thr_data(
 
 	TRACE_ENTRY();
 
+	EXTRACHECKS_BUG_ON(virt_dev->nullio);
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
 	res = kmem_cache_alloc(vdisk_thr_cachep,
 				atomic ? GFP_ATOMIC : GFP_KERNEL);
@@ -609,9 +619,7 @@ static struct scst_vdisk_thr *vdisk_init_thr_data(
 		goto out;
 	}
 
-	res->virt_dev = virt_dev;
-
-	if (!virt_dev->cdrom_empty && !virt_dev->nullio) {
+	if (!virt_dev->cdrom_empty) {
 		res->fd = vdisk_open(virt_dev);
 		if (IS_ERR(res->fd)) {
 			PRINT_ERROR("filp_open(%s) returned an error %ld",
@@ -732,16 +740,21 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	cmd->host_status = DID_OK;
 	cmd->driver_status = 0;
 
-	d = scst_find_thr_data(cmd->tgt_dev);
-	if (unlikely(d == NULL)) {
-		thr = vdisk_init_thr_data(cmd->tgt_dev, scst_cmd_atomic(cmd));
-		if (thr == NULL) {
-			scst_set_busy(cmd);
-			goto out_compl;
-		}
+	if (!virt_dev->nullio) {
+		d = scst_find_thr_data(cmd->tgt_dev);
+		if (unlikely(d == NULL)) {
+			thr = vdisk_init_thr_data(cmd->tgt_dev, scst_cmd_atomic(cmd));
+			if (thr == NULL) {
+				scst_set_busy(cmd);
+				goto out_compl;
+			}
+			scst_thr_data_get(&thr->hdr);
+		} else
+			thr = container_of(d, struct scst_vdisk_thr, hdr);
+	} else {
+		thr = &nullio_thr_data;
 		scst_thr_data_get(&thr->hdr);
-	} else
-		thr = container_of(d, struct scst_vdisk_thr, hdr);
+	}
 
 	switch (opcode) {
 	case READ_6:
@@ -1946,7 +1959,8 @@ static int vdisk_fsync(struct scst_vdisk_thr *thr,
 	loff_t loff, loff_t len, struct scst_cmd *cmd)
 {
 	int res = 0;
-	struct scst_vdisk_dev *virt_dev = thr->virt_dev;
+	struct scst_vdisk_dev *virt_dev =
+		(struct scst_vdisk_dev *)cmd->dev->dh_priv;
 	struct file *file = thr->fd;
 	struct inode *inode;
 	struct address_space *mapping;
@@ -2057,6 +2071,9 @@ static void vdisk_exec_read(struct scst_cmd *cmd,
 
 	TRACE_ENTRY();
 
+	if (virt_dev->nullio)
+		goto out;
+
 	iv = vdisk_alloc_iv(cmd, thr);
 	if (iv == NULL)
 		goto out;
@@ -2084,30 +2101,27 @@ static void vdisk_exec_read(struct scst_cmd *cmd,
 	set_fs(get_ds());
 
 	TRACE_DBG("reading(iv_count %d, full_len %zd)", iv_count, full_len);
-	if (virt_dev->nullio)
-		err = full_len;
-	else {
-		/* SEEK */
-		if (fd->f_op->llseek)
-			err = fd->f_op->llseek(fd, loff, 0/*SEEK_SET*/);
-		else
-			err = default_llseek(fd, loff, 0/*SEEK_SET*/);
-		if (err != loff) {
-			PRINT_ERROR("lseek trouble %lld != %lld",
-				    (long long unsigned int)err,
-				    (long long unsigned int)loff);
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_hardw_error));
-			goto out_set_fs;
-		}
-		/* READ */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
-		err = fd->f_op->readv(fd, iv, iv_count, &fd->f_pos);
-#else
-		err = do_sync_readv_writev(fd, iv, iv_count, full_len,
-					   &fd->f_pos, fd->f_op->aio_read);
-#endif
+	/* SEEK */
+	if (fd->f_op->llseek)
+		err = fd->f_op->llseek(fd, loff, 0/*SEEK_SET*/);
+	else
+		err = default_llseek(fd, loff, 0/*SEEK_SET*/);
+	if (err != loff) {
+		PRINT_ERROR("lseek trouble %lld != %lld",
+			    (long long unsigned int)err,
+			    (long long unsigned int)loff);
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_hardw_error));
+		goto out_set_fs;
 	}
+
+	/* READ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
+	err = fd->f_op->readv(fd, iv, iv_count, &fd->f_pos);
+#else
+	err = do_sync_readv_writev(fd, iv, iv_count, full_len,
+				   &fd->f_pos, fd->f_op->aio_read);
+#endif
 
 	if ((err < 0) || (err < full_len)) {
 		PRINT_ERROR("readv() returned %lld from %zd",
@@ -2149,6 +2163,9 @@ static void vdisk_exec_write(struct scst_cmd *cmd,
 
 	TRACE_ENTRY();
 
+	if (virt_dev->nullio)
+		goto out;
+
 	iv = vdisk_alloc_iv(cmd, thr);
 	if (iv == NULL)
 		goto out;
@@ -2178,31 +2195,26 @@ static void vdisk_exec_write(struct scst_cmd *cmd,
 restart:
 	TRACE_DBG("writing(eiv_count %d, full_len %zd)", eiv_count, full_len);
 
-	if (virt_dev->nullio)
-		err = full_len;
-	else {
-		/* SEEK */
-		if (fd->f_op->llseek)
-			err = fd->f_op->llseek(fd, loff, 0 /*SEEK_SET */);
-		else
-			err = default_llseek(fd, loff, 0 /*SEEK_SET */);
-		if (err != loff) {
-			PRINT_ERROR("lseek trouble %lld != %lld",
-				    (long long unsigned int)err,
-				    (long long unsigned int)loff);
-			scst_set_cmd_error(cmd,
-			    SCST_LOAD_SENSE(scst_sense_hardw_error));
-			goto out_set_fs;
-		}
-
-		/* WRITE */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
-		err = fd->f_op->writev(fd, eiv, eiv_count, &fd->f_pos);
-#else
-		err = do_sync_readv_writev(fd, iv, iv_count, full_len,
-					   &fd->f_pos, fd->f_op->aio_write);
-#endif
+	/* SEEK */
+	if (fd->f_op->llseek)
+		err = fd->f_op->llseek(fd, loff, 0 /*SEEK_SET */);
+	else
+		err = default_llseek(fd, loff, 0 /*SEEK_SET */);
+	if (err != loff) {
+		PRINT_ERROR("lseek trouble %lld != %lld",
+			    (long long unsigned int)err,
+			    (long long unsigned int)loff);
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+		goto out_set_fs;
 	}
+
+	/* WRITE */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
+	err = fd->f_op->writev(fd, eiv, eiv_count, &fd->f_pos);
+#else
+	err = do_sync_readv_writev(fd, iv, iv_count, full_len, &fd->f_pos,
+					fd->f_op->aio_write);
+#endif
 
 	if (err < 0) {
 		PRINT_ERROR("write() returned %lld from %zd",
@@ -2318,7 +2330,8 @@ static void blockio_endio(struct bio *bio, int error)
 static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 	u64 lba_start, int write)
 {
-	struct scst_vdisk_dev *virt_dev = thr->virt_dev;
+	struct scst_vdisk_dev *virt_dev =
+		(struct scst_vdisk_dev *)cmd->dev->dh_priv;
 	struct block_device *bdev = thr->bdev;
 	struct request_queue *q = bdev_get_queue(bdev);
 	int length, max_nr_vecs = 0;
@@ -3486,6 +3499,8 @@ static int __init init_scst_vdisk_driver(void)
 	num_threads = num_online_cpus() + 2;
 	vdisk_file_devtype.threads_num = num_threads;
 	vcdrom_devtype.threads_num = num_threads;
+
+	atomic_set(&nullio_thr_data.hdr.ref, 1); /* never destroy it */
 
 	res = init_scst_vdisk(&vdisk_file_devtype);
 	if (res != 0)
