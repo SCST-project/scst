@@ -41,7 +41,8 @@
     				<li><span>By sending patches, which fix bugs or implement new functionality.
     				          See below a list of possible SCST improvements with some possible 
     				          implementation ideas.</span></li>
-				<li><span>By sending donations. They would be spent on making SCST even better.
+				<li><span>By sending donations. They will be spent on making SCST even better aw well as on providing
+				better support and troubleshooting for you.
 				</ul>			
 
 				<h1>Possible SCST improvements</h1>
@@ -52,12 +53,13 @@
 				which copy data from the page cache to the supplied buffer and back. Zero-copy FILEIO
 				would use page cache data directly. This would be a major performance improvement,
 				especially for fast hardware, like Infiniband, because it would eliminate the data copy
-				latency. This proposal is limited for READs only, because for WRITEs it is a lot harder to
+				latency as well as considerably ease CPU and memory bandwidth load. This proposal is limited for
+				READs only, because for WRITEs it is a lot harder to
 				implement, so it is worth to do zero-copy for READs and WRITEs separately.</p>
 				
 				<p>The main idea is to add one more flag to filp_open() "flags" parameter
 				(like O_RDONLY, O_DIRECT, etc.) O_ZEROCOPY, which would be available 
-				only if the caller is from the kernel space . In this case fd->f_op->readv(), 
+				only if the caller is from the kernel space. In this case fd->f_op->readv(), 
 				do_sync_readv_writev(), etc. would receive as the pointer to data 
 				buffer not a real data buffer, but pointer to an empty SG vector. Then:</p>
 				
@@ -258,17 +260,18 @@
 
 				<p>That's all. Then only support for initiators, like iSCSI, 
 				which don't handle QUEUE FULL to decrease amount of queued 
-				commands. Instead they expect target to control it through MAX_SN.</p>
+				commands, should be added. Such initiators expect target to control size of
+				the queue, via, e.g., through MAX_SN for iSCSI.</p>
 
-				<p>For such cases at the stage 2 of the dynamic flow control development 
+				<p>For it at the stage 2 of the dynamic flow control development 
 				the following should be done:</p>
 
 				<ul>
-				<li><span>New callback on_queue_depth_adjustment() added to struct 
+				<li><span>New callback on_queue_depth_adjustment() should be added to struct 
 				scst_tgt_template.</span></li>
 
 				<li><span>If target driver defined it, each time after dev->queue_depth changed 
-				on_queue_depth_adjustment() will be called. In this callback target 
+				on_queue_depth_adjustment() should be called. In this callback target 
 				driver should change internal queue_depth to, e.g. for iSCSI target, set 
 				max_sn in the replies correctly.</span></li>
 				</ul>
@@ -287,6 +290,24 @@
 				If it is NULL, then, instead of calling get_user_pages(), dio->pages should be filled
 				by pages, taken directly from dio->curr_user_address. Each such page should be referenced
 				by page_cache_get(). That's all.</p>
+
+				<h3>Refactoring of command execution path in scst_vdisk handler</h3>
+				
+				<p>At the moment, in scst_vdisk handler command execution function vdisk_do_job() is
+				overcomplicated and not very performance effective. It would be good to replace all those
+				ugly "switch" statements by choosing the handler for each SCSI command by indirect
+				function call on an array of function pointers.</p>
+				
+				<p>I.e., there should be an array vdisk_exec_fns with 256 entries of function pointers:</p>
+
+				 <p>void (*cmd_exec_fn) (struct scst_cmd *cmd)</p>
+				 
+				 <p>Then vdisk_do_job() should look like</p>
+				 
+				 <listing><p>static int vdisk_do_job(struct scst_cmd *cmd)
+{
+	return vdisk_exec_fns[cmd->cdb[0]](cmd);
+}</p></listing>
 			</div>
 	</div>
 </div>
