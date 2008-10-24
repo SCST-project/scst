@@ -57,7 +57,7 @@ static struct scst_dev_type changer_devtype = CHANGER_TYPE;
  *
  *  Description:
  *************************************************************/
-int changer_attach(struct scst_device *dev)
+static int changer_attach(struct scst_device *dev)
 {
 	int res = 0;
 	int retries;
@@ -142,7 +142,7 @@ void changer_detach(struct scst_device *dev)
  *
  *  Note:  Not all states are allowed on return
  ********************************************************************/
-int changer_parse(struct scst_cmd *cmd)
+static int changer_parse(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
 

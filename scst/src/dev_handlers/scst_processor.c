@@ -57,7 +57,7 @@ static struct scst_dev_type processor_devtype = PROCESSOR_TYPE;
  *
  *  Description:
  *************************************************************/
-int processor_attach(struct scst_device *dev)
+static int processor_attach(struct scst_device *dev)
 {
 	int res = 0;
 	int retries;
@@ -142,7 +142,7 @@ void processor_detach(struct scst_device *dev)
  *
  *  Note:  Not all states are allowed on return
  ********************************************************************/
-int processor_parse(struct scst_cmd *cmd)
+static int processor_parse(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
 

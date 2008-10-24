@@ -2202,7 +2202,8 @@ restart:
 		PRINT_ERROR("lseek trouble %lld != %lld",
 			    (long long unsigned int)err,
 			    (long long unsigned int)loff);
-		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+		scst_set_cmd_error(cmd,
+				   SCST_LOAD_SENSE(scst_sense_hardw_error));
 		goto out_set_fs;
 	}
 

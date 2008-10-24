@@ -2817,12 +2817,12 @@ static int dev_user_process_cleanup(struct scst_user_dev *dev)
 	int i;
 	for (i = 0; i < (int)ARRAY_SIZE(dev->ucmd_hash); i++) {
 		struct list_head *head = &dev->ucmd_hash[i];
-		struct scst_user_cmd *ucmd;
+		struct scst_user_cmd *ucmd2;
 again:
-		list_for_each_entry(ucmd, head, hash_list_entry) {
-			PRINT_ERROR("Lost ucmd %p (state %x, ref %d)", ucmd,
-				ucmd->state, atomic_read(&ucmd->ucmd_ref));
-			ucmd_put(ucmd);
+		list_for_each_entry(ucmd2, head, hash_list_entry) {
+			PRINT_ERROR("Lost ucmd %p (state %x, ref %d)", ucmd2,
+				ucmd2->state, atomic_read(&ucmd2->ucmd_ref));
+			ucmd_put(ucmd2);
 			goto again;
 		}
 	}

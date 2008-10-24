@@ -57,7 +57,7 @@ static struct scst_dev_type raid_devtype = RAID_TYPE;
  *
  *  Description:
  *************************************************************/
-int raid_attach(struct scst_device *dev)
+static int raid_attach(struct scst_device *dev)
 {
 	int res = 0;
 	int retries;
