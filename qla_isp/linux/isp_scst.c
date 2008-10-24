@@ -983,7 +983,7 @@ qlaispd_function(void *arg)
 static int
 scsi_target_enadis(bus_t *bp, uint64_t en, int chan, int lun)
 {
-    DECLARE_MUTEX_LOCKED(rsem);
+    struct semaphore rsem;
     enadis_t ec;
     info_t info;
     bus_chan_t *bc;
@@ -992,6 +992,7 @@ scsi_target_enadis(bus_t *bp, uint64_t en, int chan, int lun)
     BUG_ON(chan < 0 || chan >= bp->h.r_nchannels);
     BUG_ON(lun != LUN_ANY && (lun < 0 || lun >= MAX_LUN));
     bc = &bp->bchan[chan];
+    sema_init(&rsem, 0);
 
     if (bp->h.r_type == R_FC) {
         if (en == bc->enable) {
