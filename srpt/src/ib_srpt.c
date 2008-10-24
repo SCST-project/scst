@@ -64,7 +64,7 @@ static u64 mellanox_ioc_guid;
 static struct list_head srpt_devices;
 static int thread = 1;
 static struct srpt_thread srpt_thread;
-DECLARE_WAIT_QUEUE_HEAD(ioctx_list_waitQ);
+static DECLARE_WAIT_QUEUE_HEAD(ioctx_list_waitQ);
 
 module_param(thread, int, 0444);
 MODULE_PARM_DESC(thread,
@@ -2031,7 +2031,7 @@ static int srpt_release(struct scst_tgt *scst_tgt)
 	return 0;
 }
 
-int srpt_ioctx_thread(void *arg)
+static int srpt_ioctx_thread(void *arg)
 {
 	struct srpt_ioctx *ioctx;
 
@@ -2086,7 +2086,7 @@ int srpt_ioctx_thread(void *arg)
 	return 0;
 }
 
-struct scst_tgt_template srpt_template = {
+static struct scst_tgt_template srpt_template = {
 	.name = DRV_NAME,
 	.sg_tablesize = SRPT_DEF_SG_TABLESIZE,
 	.xmit_response_atomic = 1,
