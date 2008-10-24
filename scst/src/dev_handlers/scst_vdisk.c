@@ -594,7 +594,7 @@ static void vdisk_free_thr_data(struct scst_thr_data_hdr *d)
 }
 
 static struct scst_vdisk_thr *vdisk_init_thr_data(
-	struct scst_tgt_dev *tgt_dev, bool atomic)
+	struct scst_tgt_dev *tgt_dev)
 {
 	struct scst_vdisk_thr *res;
 	struct scst_vdisk_dev *virt_dev =
@@ -605,13 +605,11 @@ static struct scst_vdisk_thr *vdisk_init_thr_data(
 	EXTRACHECKS_BUG_ON(virt_dev->nullio);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
-	res = kmem_cache_alloc(vdisk_thr_cachep,
-				atomic ? GFP_ATOMIC : GFP_KERNEL);
+	res = kmem_cache_alloc(vdisk_thr_cachep, GFP_KERNEL);
 	if (res != NULL)
 		memset(res, 0, sizeof(*res));
 #else
-	res = kmem_cache_zalloc(vdisk_thr_cachep,
-				atomic ? GFP_ATOMIC : GFP_KERNEL);
+	res = kmem_cache_zalloc(vdisk_thr_cachep, GFP_KERNEL);
 #endif
 	if (res == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Unable to allocate struct "
@@ -743,7 +741,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	if (!virt_dev->nullio) {
 		d = scst_find_thr_data(cmd->tgt_dev);
 		if (unlikely(d == NULL)) {
-			thr = vdisk_init_thr_data(cmd->tgt_dev, scst_cmd_atomic(cmd));
+			thr = vdisk_init_thr_data(cmd->tgt_dev);
 			if (thr == NULL) {
 				scst_set_busy(cmd);
 				goto out_compl;
@@ -2000,8 +1998,8 @@ static struct iovec *vdisk_alloc_iv(struct scst_cmd *cmd,
 	iv_count = scst_get_buf_count(cmd);
 	if (iv_count > thr->iv_count) {
 		kfree(thr->iv);
-		thr->iv = kmalloc(sizeof(*thr->iv) * iv_count,
-			scst_cmd_atomic(cmd) ? GFP_ATOMIC : GFP_KERNEL);
+		/* It can't be called in atomic context */
+		thr->iv = kmalloc(sizeof(*thr->iv) * iv_count, GFP_KERNEL);
 		if (thr->iv == NULL) {
 			PRINT_ERROR("Unable to allocate iv (%d)", iv_count);
 			scst_set_busy(cmd);

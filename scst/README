@@ -809,7 +809,9 @@ ISCSI-SCST driver also has its own iSCSI specific parameter for that.
 
 4. Insrease speed of the target's backstorage.
 
-5. Implement in SCST the dynamic I/O flow control. 
+5. Implement in SCST dynamic I/O flow control. See "Dynamic I/O flow
+control" section on http://scst.sourceforge.net/contributing.html page
+for possible idea how to do it.
 
 To decrease device queue depth on Linux initiators run command:
 
