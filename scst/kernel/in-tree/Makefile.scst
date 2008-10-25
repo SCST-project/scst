@@ -1,4 +1,4 @@
-EXTRA_CFLAGS += -Iinclude/scst -Wextra -Wno-unused-parameter
+EXTRA_CFLAGS += -Iinclude/scst -Wno-unused-parameter
 
 scst-y        += scst_main.o
 scst-y        += scst_targ.o

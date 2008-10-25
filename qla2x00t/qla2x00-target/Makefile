@@ -37,7 +37,8 @@ INSTALL_DIR := /lib/modules/$(shell uname -r)/extra
 
 EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS 
 #EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
-EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -W -Wno-unused-parameter
+EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -W -Wno-unused-parameter \
+		-Wno-missing-field-initializers
 #EXTRA_CFLAGS += -DCONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
 
 ifeq ($(KVER),)

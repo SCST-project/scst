@@ -21,11 +21,11 @@
 # Note 2! The CFLAGS definitions are now in the main makefile.
 
 EXTRA_CFLAGS += -I$(src)/../include -I$(SCST_INC_DIR)
-# -Wextra -Wno-unused-parameter
+EXTRA_CFLAGS += -Wextra -Wno-unused-parameter -Wno-missing-field-initializers
 
 EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
 #EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
-EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -W -Wno-unused-parameter
+EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -W
 
 #EXTRA_CFLAGS += -DCONFIG_SCST_ISCSI_DEBUG_DIGEST_FAILURES
 
