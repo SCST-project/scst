@@ -1,8 +1,8 @@
 Index: scst/src/Makefile
 ===================================================================
---- scst/src/Makefile	(revision 233)
+--- scst/src/Makefile	(revision 542)
 +++ scst/src/Makefile	(working copy)
-@@ -115,7 +115,7 @@ EXTRA_CFLAGS += -I$(SCST_INC_DIR) -Wextr
+@@ -116,7 +116,7 @@ EXTRA_CFLAGS += -I$(SCST_INC_DIR) -Wextr
  
  #EXTRA_CFLAGS += -DCONFIG_SCST_STRICT_SERIALIZING
  
@@ -11,33 +11,33 @@ Index: scst/src/Makefile
  
  #EXTRA_CFLAGS += -DCONFIG_SCST_USE_EXPECTED_VALUES
  #EXTRA_CFLAGS += -DALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
-@@ -123,9 +123,9 @@ EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
+@@ -124,9 +124,9 @@ EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECK
  
  #EXTRA_CFLAGS += -fno-inline
  
 -#EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
 +EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
  
--EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -W -Wno-unused-parameter
-+#EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -W -Wno-unused-parameter
+-EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -W
++#EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -W
  #EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG_TM -UCONFIG_SCST_TM_DBG_GO_OFFLINE
  #EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG_RETRY
  #EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG_OOM
 Index: scst/src/dev_handlers/Makefile
 ===================================================================
---- scst/src/dev_handlers/Makefile	(revision 230)
+--- scst/src/dev_handlers/Makefile	(revision 542)
 +++ scst/src/dev_handlers/Makefile	(working copy)
-@@ -69,10 +69,10 @@ endif
- 
- EXTRA_CFLAGS += -I$(SUBDIRS) -I$(SCST_INC_DIR) -Wextra -Wno-unused-parameter
+@@ -70,10 +70,10 @@ endif
+ EXTRA_CFLAGS += -I$(SUBDIRS) -I$(SCST_INC_DIR) -Wextra -Wno-unused-parameter\
+ 		-Wno-missing-field-initializers
  
 -EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
 +#EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
  
 -#EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
--EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -W -Wno-unused-parameter
+-EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -W
 +EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
-+#EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -W -Wno-unused-parameter
++#EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -W
  
  clean:
  	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend Modules.symvers \
