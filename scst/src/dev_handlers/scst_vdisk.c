@@ -1191,7 +1191,7 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 				if (strlen(virt_dev->usn) > MAX_USN_LEN)
 					usn_len = MAX_USN_LEN;
 				else
-					usn_len = len;
+					usn_len = strlen(virt_dev->usn);
 				buf[3] = usn_len;
 				strncpy(&buf[4], virt_dev->usn, usn_len);
 			}
@@ -1213,9 +1213,9 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			memset(&buf[num + 12], ' ', 16);
 			i = strlen(virt_dev->name);
 			i = i < 16 ? i : 16;
-			memcpy(&buf[num + 12], virt_dev->name, len);
-			memcpy(&buf[num + 28], dev_id_str, len);
-			buf[num + 3] = 8 + 16 + len;
+			memcpy(&buf[num + 12], virt_dev->name, i);
+			memcpy(&buf[num + 28], dev_id_str, i);
+			buf[num + 3] = 8 + 16 + i;
 			num += buf[num + 3] + 4;
 			/* NAA IEEE registered identifier (faked) */
 			buf[num] = 0x1;	/* binary */
