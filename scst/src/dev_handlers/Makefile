@@ -73,7 +73,7 @@ EXTRA_CFLAGS += -I$(SUBDIRS) -I$(SCST_INC_DIR) -Wextra -Wno-unused-parameter \
 EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
 
 #EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
-EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -W
+EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g
 
 clean:
 	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend Modules.symvers \
