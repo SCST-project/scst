@@ -35,10 +35,11 @@ EXTRA_CFLAGS += -I$(SCST_INC_DIR)
 
 INSTALL_DIR := /lib/modules/$(shell uname -r)/extra
 
+EXTRA_CFLAGS += -W -Wno-unused-parameter -Wno-missing-field-initializers
+
 EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS 
 #EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
-EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -W -Wno-unused-parameter \
-		-Wno-missing-field-initializers
+EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g
 #EXTRA_CFLAGS += -DCONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
 
 ifeq ($(KVER),)
