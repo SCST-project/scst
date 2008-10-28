@@ -1,6 +1,6 @@
 Index: scst/src/Makefile
 ===================================================================
---- scst/src/Makefile	(revision 542)
+--- scst/src/Makefile	(revision 544)
 +++ scst/src/Makefile	(working copy)
 @@ -116,7 +116,7 @@ EXTRA_CFLAGS += -I$(SCST_INC_DIR) -Wextr
  
@@ -15,29 +15,25 @@ Index: scst/src/Makefile
  
  #EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
  
--EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -W
-+#EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -W
+-EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g
++#EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g
  #EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG_TM -UCONFIG_SCST_TM_DBG_GO_OFFLINE
  #EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG_RETRY
  #EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG_OOM
 Index: scst/src/dev_handlers/Makefile
 ===================================================================
---- scst/src/dev_handlers/Makefile	(revision 542)
+--- scst/src/dev_handlers/Makefile	(revision 544)
 +++ scst/src/dev_handlers/Makefile	(working copy)
-@@ -67,13 +67,13 @@ else
- INSTALL_DIR := /lib/modules/$(KVER)/extra
- endif
- 
--EXTRA_CFLAGS += -I$(SUBDIRS) -I$(SCST_INC_DIR) -Wextra -Wno-unused-parameter\
-+EXTRA_CFLAGS += -I$(SUBDIRS) -I$(SCST_INC_DIR) -Wextra -Wno-unused-parameter \
+@@ -70,10 +70,10 @@ endif
+ EXTRA_CFLAGS += -I$(SUBDIRS) -I$(SCST_INC_DIR) -Wextra -Wno-unused-parameter \
  		-Wno-missing-field-initializers
  
 -EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
 +#EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
  
  #EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
--EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -W
-+#EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -W
+-EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g
++#EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g
  
  clean:
  	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend Modules.symvers \

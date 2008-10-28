@@ -1,16 +1,16 @@
 Index: qla2x00t/qla2x00-target/Makefile
 ===================================================================
---- qla2x00t/qla2x00-target/Makefile	(revision 213)
+--- qla2x00t/qla2x00-target/Makefile	(revision 545)
 +++ qla2x00t/qla2x00-target/Makefile	(working copy)
-@@ -36,9 +36,9 @@ EXTRA_CFLAGS += -I$(SCST_INC_DIR) -DFC_T
+@@ -37,9 +37,9 @@ INSTALL_DIR := /lib/modules/$(shell unam
  
- INSTALL_DIR := /lib/modules/$(shell uname -r)/extra
+ EXTRA_CFLAGS += -W -Wno-unused-parameter -Wno-missing-field-initializers
  
 -EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS 
 +#EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS 
  #EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
--EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -W
-+#EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -W
+-EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g
++#EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g
  #EXTRA_CFLAGS += -DCONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
  
  ifeq ($(KVER),)

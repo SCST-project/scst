@@ -1,6 +1,6 @@
 Index: iscsi-scst/kernel/Makefile
 ===================================================================
---- iscsi-scst/kernel/Makefile	(revision 542)
+--- iscsi-scst/kernel/Makefile	(revision 544)
 +++ iscsi-scst/kernel/Makefile	(working copy)
 @@ -23,9 +23,9 @@
  EXTRA_CFLAGS += -I$(src)/../include -I$(SCST_INC_DIR)
@@ -8,10 +8,10 @@ Index: iscsi-scst/kernel/Makefile
  
 -EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
 -#EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
--EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -W
+-EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g
 +#EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
 +EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
-+#EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -W
++#EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g
  
  #EXTRA_CFLAGS += -DCONFIG_SCST_ISCSI_DEBUG_DIGEST_FAILURES
  
