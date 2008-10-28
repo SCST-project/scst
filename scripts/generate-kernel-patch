@@ -289,9 +289,9 @@ if [ "$mpt_scst" = "true" ]; then
 
   add_patch "mpt/in-tree/Makefile.diff"       "drivers/message/fusion/Makefile"
 
-  add_file  "mpt/Makefile" "drivers/message/fusion/mpt_scst/Makefile"
+  add_file  "mpt/in-tree/Makefile" "drivers/message/fusion/mpt_scst/Makefile"
 
-  add_file  "mpt/Kconfig"  "drivers/message/fusion/mpt_scst/Kconfig"
+  add_file  "mpt/in-tree/Kconfig"  "drivers/message/fusion/mpt_scst/Kconfig"
 
   for f in $(ls mpt/*.[ch])
   do
