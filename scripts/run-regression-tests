@@ -1,0 +1,343 @@
+#!/bin/bash
+
+############################################################################
+#
+# Script for running those SCST regression tests that can be run automatically.
+#
+# Copyright (C) 2008 Bart Van Assche <bart.vanassche@gmail.com>
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, version 2
+# of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+############################################################################
+
+########################
+# Function definitions #
+########################
+
+function usage {
+  echo "Usage: $0 [-h] [-k <kver1>] [-k <kver2>] ..."
+  echo "        -h - display this help information."
+  echo "        -k <kver> - kernel version to use during test."
+}
+
+# First three components of the kernel version number.
+function kernel_version {
+  if [ "${1#[0-9]*.[0-9]*.[0-9]*.[0-9]*}" != "$1" ]; then
+    echo "${1%.[0-9]*}"
+  else
+    echo "$1"
+  fi
+}
+
+# Last component of the kernel version, or the empty string if $1 has only
+# three components.
+function patchlevel {
+  if [ "${1#[0-9]*.[0-9]*.[0-9]*.}" = "$1" ]; then
+    echo ""
+  else
+    echo "${1#[0-9]*.[0-9]*.[0-9]*.}"
+  fi
+}
+
+# Create a linux-$1 tree in the current directory, where $1 is a kernel
+# version number with either three or four components.
+function extract_kernel_tree {
+  local kver="$(kernel_version $1)"
+  local plevel="$(patchlevel $1)"
+  local tmpdir=kernel-tree-tmp-$$
+
+  rm -rf "linux-$1" "${tmpdir}"
+  mkdir "${tmpdir}" || return $?
+  (
+    cd "${tmpdir}" || return $?
+    tar xjf "${downloads}/linux-${kver}.tar.bz2"
+    cd "linux-${kver}" || return $?
+    if [ "${plevel}" != "" ]; then
+      bzip2 -cd "${downloads}/patch-$1.bz2" | patch -p1 -f -s || return $?
+    fi
+    cd ..
+    mv "linux-${kver}" "../linux-$1"
+  )
+  rmdir "${tmpdir}"
+}
+
+# Test whether the *.patch files in the SCST top-level directory apply cleanly
+# to the SCST tree. Does not modify any files nor produce any output files.
+function test_scst_tree_patches {
+  echo "Testing whether the SCST patches apply cleanly to the SCST tree ..."
+  for p in *.patch
+  do
+    patch -p0 -f --dry-run -s <$p >&/dev/null \
+    || echo "ERROR: patch $p does not apply cleanly."
+  done
+}
+
+# Copy the entire SCST source code tree except the regression-* directories
+# from "$1" into the current directory.
+function duplicate_scst_source_tree {
+  if [ -e "$1/AskingQuestions" ]; then
+    tar -C "$1" --exclude=regression-* -c -f - . | tar -x -f -
+  else
+    return 1
+  fi
+}
+
+# Compile the unpatched SCST source code.
+function compile_scst_unpatched {
+  local scst="$PWD"
+  local outputfile="${outputdir}/compilation-output-unpatched.txt"
+  local workingdirectory="${outputdir}/scst-unpatched"
+
+  echo "Testing whether the SCST tree compiles fine ..."
+  (
+    if mkdir -p "${workingdirectory}"  \
+       && cd "${workingdirectory}"     \
+       && duplicate_scst_source_tree "${scst}"  \
+       && [ $(( make -s clean               \
+                && make -s scst iscsi-scst  \
+                && ([ "${scst_local}" = "true" ] && make -C scst_local clean) \
+                && ([ "${scst_local}" = "true" ] && make -C scst_local -s   ) \
+                && ([ "${mpt_scst}"   = "true" ] && make -C mpt clean) \
+                && ([ "${mpt_scst}"   = "true" ] && make -C mpt -s   ) \
+                && make -C srpt -s clean    \
+                && make -C srpt -s ) 2>&1   \
+              | tee "${outputfile}"         \
+              | grep -vE 'warning.*Patch scst_exec_req_fifo-|^  Building'\
+              | wc --lines) = 0 ]
+    then
+      true
+    else
+      echo "FAILED"
+    fi
+  )
+}
+
+# Test out-of-tree compilation agains the kernel header files in
+# /lib/modules/$(uname -r)/build.
+function compile_scst_patched {
+  local scst="$PWD"
+  local outputfile="${outputdir}/compilation-output-patched.txt"
+  local workingdirectory="${outputdir}/scst-patched"
+
+  echo "Testing whether the full-perf SCST tree compiles fine ..."
+  (
+    if mkdir -p "${workingdirectory}"  \
+       && cd "${workingdirectory}"     \
+       && duplicate_scst_source_tree "${scst}"  \
+       && patch -p0 -f -s <"${scst}/iscsi-full_perf.patch"    \
+       && patch -p0 -f -s <"${scst}/qla2x00t-full_perf.patch" \
+       && patch -p0 -f -s <"${scst}/scst-full_perf.patch"     \
+       && [ $(( make -s clean               \
+                && make -s scst iscsi-scst  \
+                && ([ "${scst_local}" = "true" ] && make -C scst_local clean) \
+                && ([ "${scst_local}" = "true" ] && make -C scst_local -s   ) \
+                && ([ "${mpt_scst}"   = "true" ] && make -C mpt clean) \
+                && ([ "${mpt_scst}"   = "true" ] && make -C mpt -s   ) \
+                && make -C srpt -s clean    \
+                && make -C srpt -s ) 2>&1   \
+              | tee "${outputfile}"         \
+              | grep -vE 'warning.*Patch scst_exec_req_fifo-|^  Building'\
+              | wc --lines) = 0 ]
+    then
+      true
+    else
+      echo "FAILED"
+    fi
+  )
+}
+
+# Download the file from URL $1 and save it in the current directory.
+function download_file {
+  if [ ! -e "$(basename "$1")" ]; then
+    echo "Downloading $1 ..."
+    wget -q -nc "$1"
+  fi
+}
+
+# Make sure the kernel tarball and patch file are present in directory
+# ${downloads}. Download any missing files from ${kernel_mirror}.
+function download_kernel {
+  local kver="$(kernel_version $1)"
+  local plevel="$(patchlevel $1)"
+
+  mkdir -p "${downloads}" || return $?
+  (
+    cd "${downloads}" || return $?
+    download_file "${kernel_mirror}/linux-$(kernel_version $1).tar.bz2"
+    if [ "${plevel}" != "" ]; then
+      download_file "${kernel_mirror}/patch-$1.bz2"
+    fi
+  )
+}
+
+# Generate a kernel patch from the SCST source tree for kernel version $1.
+function generate_kernel_patch {
+  scripts/generate-kernel-patch \
+    $([ "${scst_local}" = "true" ] && echo -- "-l") \
+    $([ "${mpt_scst}"   = "true" ] && echo -- "-m") \
+    $([ "${qla2x00t}"   = "true" ] && echo -- "-q") \
+    $1
+}
+
+# Generate a kernel patch through scripts/generate-kernel-patch and test
+# whether it applies cleanly to kernel version $1. Leaves a vanilla kernel
+# in directory "${outputdir}/linux-$1" at exit.
+function test_if_patch_applies_cleanly {
+  local kver="$(kernel_version $1)"
+  local plevel="$(patchlevel $1)"
+  local outputfile="${outputdir}/kernel-$1-patch-output.txt"
+  local rc=0
+
+  echo "Testing whether the generated kernel patch applies cleanly to $1 ..."
+  ( cd "${outputdir}" && extract_kernel_tree "$1" )
+  generate_kernel_patch $1 \
+  | (cd "${outputdir}/linux-$1" && patch -p1 --dry-run -f >& "${outputfile}")
+  if [ $? != 0 ]; then
+    echo "FAILED"
+    rc=1
+  fi
+  return $rc
+}
+
+# Run checkpatch on the generated kernel patch. Assumes that there is a
+# vanilla kernel tree present in directory "${outputdir}/linux-$1", and leaves
+# this kernel tree clean.
+function run_checkpatch  {
+  local kver="$(kernel_version $1)"
+  local plevel="$(patchlevel $1)"
+  local outputfile="${outputdir}/checkpatch-$1-output.txt"
+
+  echo "Running checkpatch version $1 on the SCST kernel patch ..."
+  generate_kernel_patch $1 \
+  | (cd "${outputdir}/linux-$1" && scripts/checkpatch.pl - >& "${outputfile}")
+  # For now, only display checkpatch errors.
+  local errors=$(grep -c '^ERROR' "${outputfile}")
+  local warnings=$(grep -c '^WARNING' "${outputfile}")
+  echo "${errors} errors / ${warnings} warnings."
+  return 0
+}
+
+# Patches and compiles a kernel tree. Assumes that there is a vanilla kernel
+# tree present in directory "${outputdir}/linux-$1".
+function compile_patched_kernel {
+  local kver="$(kernel_version $1)"
+  local plevel="$(patchlevel $1)"
+  local outputfile="${outputdir}/kernel-$1-compilation-output.txt"
+  local patchfile="${outputdir}/scst-$1-kernel.patch"
+
+  echo "Patching and compiling kernel $1 ..."
+  (
+    generate_kernel_patch "$1" > "${patchfile}"
+    (
+      cd "${outputdir}/linux-$1" && patch -p1 -f -s <"${patchfile}"
+    )
+    (
+      cd "${outputdir}/linux-$1" \
+      && make -s allmodconfig \
+      && LC_ALL=C make -s -k -j3 bzImage modules
+    )
+  ) >& "${outputfile}"
+  echo "See also ${outputfile}."
+  return 0
+}
+
+# Run the source code verification tool 'sparse' on the SCST code. Assumes that
+# there is a patched and compiled kernel tree present in directory
+# "${outputdir}/linux-$1".
+function run_sparse {
+  local kver="$(kernel_version $1)"
+  local plevel="$(patchlevel $1)"
+  local outputfile="${outputdir}/sparse-$1-output.txt"
+
+  echo "Running sparse on the patched $1 kernel ..."
+  (
+    cd "${outputdir}/linux-$1" \
+    && make -s prepare \
+    && LC_ALL=C make -s -k C=2 M=drivers/scst
+  ) >& "${outputfile}"
+  echo "See also ${outputfile}."
+  return 0
+}
+
+
+#########################
+# Argument verification #
+#########################
+
+if [ ! -e scst -o ! -e iscsi-scst -o ! -e srpt ]; then
+  echo "Please run this script from inside the SCST subversion source tree."
+  exit 1
+fi
+
+# Where to store persistenly downloaded kernel tarballs and kernel patches.
+downloads="$HOME/software/downloads"
+# URL for downloading kernel tarballs and kernel patches.
+kernel_mirror="ftp://ftp.eu.kernel.org/pub/linux/kernel/v2.6"
+kernel_versions=""
+# Directory in which the regression test output files will be stored.
+outputdir=$PWD/regression-test-output-$(date +%Y-%m-%d_%Hh%Mm%Ss)
+# Driver configuration.
+mpt_scst="false"
+qla2x00t="false"
+scst_local="false"
+
+set -- $(/usr/bin/getopt "hk:" "$@")
+while [ "$1" != "${1#-}" ]
+do
+  case "$1" in
+    '-h') usage; exit 1;;
+    '-k') kernel_versions="${kernel_versions} $2"; shift; shift;;
+    '--') shift;;
+    *)    usage; exit 1;;
+  esac
+done
+
+if [ $# != 0 ]; then
+  usage
+  exit 1
+fi
+
+# Default kernel versions to use for the test.
+if [ "${kernel_versions}" = "" ]; then
+  #kernel_versions="2.6.24.7 2.6.25.19 2.6.26.7 2.6.27.3"
+  kernel_versions="2.6.26.7 2.6.27.3"
+  kernel_versions="2.6.27.3"
+fi
+
+
+####################
+# Regression tests #
+####################
+
+rm -rf "${outputdir}"
+mkdir -p "${outputdir}" || exit $?
+
+test_scst_tree_patches || exit $?
+compile_scst_unpatched || exit $?
+compile_scst_patched || exit $?
+
+for k in ${kernel_versions}
+do
+  download_kernel $k
+  if test_if_patch_applies_cleanly $k; then
+    run_checkpatch $k
+  fi
+done
+
+for k in ${kernel_versions}
+do
+  compile_patched_kernel $k
+done
+
+for k in ${kernel_versions}
+do
+  run_sparse $k
+done
