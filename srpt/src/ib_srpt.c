@@ -425,7 +425,11 @@ static struct srpt_ioctx *srpt_alloc_ioctx(struct srpt_device *sdev)
 
 	ioctx->dma = dma_map_single(sdev->device->dma_device, ioctx->buf,
 				    MAX_MESSAGE_SIZE, DMA_BIDIRECTIONAL);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+	if (dma_mapping_error(sdev->device->dma_device, ioctx->dma))
+#else
 	if (dma_mapping_error(ioctx->dma))
+#endif
 		goto out_free_buf;
 
 	return ioctx;
