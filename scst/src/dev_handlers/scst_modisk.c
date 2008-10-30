@@ -184,7 +184,10 @@ static int modisk_attach(struct scst_device *dev)
 		goto out_free_params;
 	}
 
-	/* Clear any existing UA's and get modisk capacity (modisk block size) */
+	/*
+	 * Clear any existing UA's and get modisk capacity (modisk block
+	 * size).
+	 */
 	memset(cmd, 0, sizeof(cmd));
 	cmd[0] = READ_CAPACITY;
 	cmd[1] = (dev->scsi_dev->scsi_level <= SCSI_2) ?
