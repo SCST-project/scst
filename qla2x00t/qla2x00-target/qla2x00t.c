@@ -1460,9 +1460,6 @@ out:
 
 out_free_sess:
 	kfree(sess);
-	tgt->sess_count--;
-	if (tgt->sess_count == 0)
-		wake_up_all(&tgt->waitQ);
 	/* go through */
 
 out_free_cmd:
