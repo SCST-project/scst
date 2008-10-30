@@ -114,8 +114,10 @@
 #define TRACE_ALL            0xffffffff
 /* Flags 0xXXXX0000 are local for users */
 
-#define PRINT(log_flag, format, args...)  printk("%s" format "\n", log_flag, ## args)
-#define PRINTN(log_flag, format, args...) printk("%s" format, log_flag, ## args)
+#define PRINT(log_flag, format, args...)  \
+		printk("%s" format "\n", log_flag, ## args)
+#define PRINTN(log_flag, format, args...) \
+		printk("%s" format, log_flag, ## args)
 
 #ifdef LOG_PREFIX
 #define __LOG_PREFIX	LOG_PREFIX
@@ -194,7 +196,8 @@ do {									\
 #define TRACE_DBG(args...)		__TRACE(TRACE_DEBUG, args)
 #define TRACE_DBG_SPECIAL(args...)	__TRACE(TRACE_DEBUG|TRACE_SPECIAL, args)
 #define TRACE_MGMT_DBG(args...)		__TRACE(TRACE_MGMT_DEBUG, args)
-#define TRACE_MGMT_DBG_SPECIAL(args...)	__TRACE(TRACE_MGMT_DEBUG|TRACE_SPECIAL, args)
+#define TRACE_MGMT_DBG_SPECIAL(args...)	\
+		__TRACE(TRACE_MGMT_DEBUG|TRACE_SPECIAL, args)
 
 #define TRACE_BUFFER(message, buff, len)				\
 do {									\
@@ -299,7 +302,8 @@ do {									\
 			      __func__, (long)(res));			\
 		}							\
 		else {							\
-			PRINT(LOG_FLAG, "EXIT %s: %ld", __func__, (long)(res)); \
+			PRINT(LOG_FLAG, "EXIT %s: %ld",			\
+				__func__, (long)(res));			\
 		}							\
 	}                                                               \
 } while (0)
@@ -312,7 +316,8 @@ do {									\
 			      __func__, (long)(res));			\
 		}							\
 		else {							\
-			PRINT(LOG_FLAG, "EXIT %s: %lx", __func__, (long)(res)); \
+			PRINT(LOG_FLAG, "EXIT %s: %lx",			\
+					__func__, (long)(res));		\
 		}							\
 	}                                                               \
 } while (0)

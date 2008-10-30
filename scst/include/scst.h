@@ -40,10 +40,11 @@
  * Changing it don't forget to change SCST_FIO_REV in scst_vdisk.c
  * and FIO_REV in usr/fileio/common.h as well.
  */
-#define SCST_VERSION_CODE 0x01000100
-#define SCST_VERSION(a, b, c, d) (((a) << 24) + ((b) << 16) + ((c) << 8) + d)
-#define SCST_VERSION_STRING "1.0.1"
-#define SCST_INTERFACE_VERSION SCST_VERSION_STRING "$Revision$" SCST_CONST_VERSION
+#define SCST_VERSION_CODE	    0x01000100
+#define SCST_VERSION(a, b, c, d)    (((a) << 24) + ((b) << 16) + ((c) << 8) + d)
+#define SCST_VERSION_STRING	    "1.0.1"
+#define SCST_INTERFACE_VERSION	    \
+		SCST_VERSION_STRING "$Revision$" SCST_CONST_VERSION
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 typedef _Bool bool;
@@ -418,7 +419,8 @@ struct scst_acn;
 typedef enum dma_data_direction scst_data_direction;
 
 enum scst_cdb_flags {
-	SCST_TRANSFER_LEN_TYPE_FIXED = 0x01, /* must be equviv 1 (FIXED_BIT in cdb) */
+	/* SCST_TRANSFER_LEN_TYPE_FIXED must be equiv 1 (FIXED_BIT in cdb) */
+	SCST_TRANSFER_LEN_TYPE_FIXED = 0x01,
 	SCST_SMALL_TIMEOUT = 0x02,
 	SCST_LONG_TIMEOUT = 0x04,
 	SCST_UNKNOWN_LENGTH = 0x08,
@@ -732,8 +734,9 @@ struct scst_dev_type {
 	 * Returns:
 	 *  - SCST_EXEC_COMPLETED - the cmd is done, go to other ones
 	 *  - SCST_EXEC_NEED_THREAD - thread context is required to execute
-	 *    the command. Exec() will be called again in the thread context.
-	 *  - SCST_EXEC_NOT_COMPLETED - the cmd should be sent to SCSI mid-level.
+	 *	the command. Exec() will be called again in the thread context.
+	 *  - SCST_EXEC_NOT_COMPLETED - the cmd should be sent to SCSI
+	 *	mid-level.
 	 *
 	 * Pay attention to "atomic" attribute of the cmd, which can be get
 	 * by scst_cmd_atomic(): it is true if the function called in the
@@ -743,8 +746,9 @@ struct scst_dev_type {
 	 * exec_sync flag and should consider to setup dedicated threads by
 	 * setting threads_num > 0.
 	 *
-	 * !! If this function is implemented, scst_check_local_events() shall !!
-	 * !! be called inside it just before the actual command's execution.  !!
+	 * !! If this function is implemented, scst_check_local_events() !!
+	 * !! shall be called inside it just before the actual command's !!
+	 * !! execution.                                                 !!
 	 *
 	 * OPTIONAL, if not set, the commands will be sent directly to SCSI
 	 * device.
@@ -781,8 +785,8 @@ struct scst_dev_type {
 	 *	no firther actions required
 	 *  - The SCST_MGMT_STATUS_* error code if the command is failed and
 	 *	no further actions required
-	 *  - SCST_DEV_TM_NOT_COMPLETED - regular standard actions for the command
-	 *	should be done
+	 *  - SCST_DEV_TM_NOT_COMPLETED - regular standard actions for the
+	 *      command should be done
 	 *
 	 * Called without any locks held from a thread context.
 	 */
@@ -894,7 +898,10 @@ struct scst_session {
 
 	/**************************************************************/
 
-	/* Alive commands for this session. ToDo: make it part of the common IO flow control */
+	/*
+	 * Alive commands for this session. ToDo: make it part of the common
+	 * IO flow control.
+	 */
 	atomic_t sess_cmd_count;
 
 	spinlock_t sess_list_lock; /* protects search_cmd_list, etc */
@@ -931,7 +938,9 @@ struct scst_session {
 	/* List entry for the list that keeps session, waiting for the init */
 	struct list_head sess_init_list_entry;
 
-	/* List entry for the list that keeps session, waiting for the shutdown */
+	/*
+	 * List entry for the list that keeps session, waiting for the shutdown
+	 */
 	struct list_head sess_shut_list_entry;
 
 	/*
@@ -1170,8 +1179,8 @@ struct scst_cmd {
 
 	enum scst_cmd_queue_type queue_type;
 
-	int timeout;	/* CDB execution timeout in seconds */
-	int retries;	/* Amount of retries that will be done by SCSI mid-level */
+	int timeout; /* CDB execution timeout in seconds */
+	int retries; /* Amount of retries that will be done by SCSI mid-level */
 
 	/* SCSI data direction, one of SCST_DATA_* constants */
 	scst_data_direction data_direction;
@@ -1280,7 +1289,8 @@ struct scst_mgmt_cmd {
 	unsigned int needs_unblocking:1;
 	unsigned int lun_set:1;		/* set, if lun field is valid */
 	unsigned int cmd_sn_set:1;	/* set, if cmd_sn field is valid */
-	unsigned int nexus_loss_check_done:1; /* set, if nexus loss check is done */
+	/* set, if nexus loss check is done */
+	unsigned int nexus_loss_check_done:1;
 
 	/*
 	 * Number of commands to finish before sending response,

@@ -27,7 +27,8 @@
 #define DEV_USER_NAME			"scst_user"
 #define DEV_USER_PATH			"/dev/"
 #define DEV_USER_VERSION_NAME		"1.0.1"
-#define DEV_USER_VERSION		DEV_USER_VERSION_NAME "$Revision$" SCST_CONST_VERSION
+#define DEV_USER_VERSION		\
+	DEV_USER_VERSION_NAME "$Revision$" SCST_CONST_VERSION
 
 /*
  * Chosen so sizeof(scst_user_sess) <= sizeof(scst_user_scsi_cmd_exec)
@@ -53,7 +54,8 @@
 #define SCST_USER_PARTIAL_TRANSFERS_NOT_SUPPORTED	0
 #define SCST_USER_PARTIAL_TRANSFERS_SUPPORTED_ORDERED	1
 #define SCST_USER_PARTIAL_TRANSFERS_SUPPORTED		2
-#define SCST_USER_MAX_PARTIAL_TRANSFERS_OPT		SCST_USER_PARTIAL_TRANSFERS_SUPPORTED
+#define SCST_USER_MAX_PARTIAL_TRANSFERS_OPT		\
+		SCST_USER_PARTIAL_TRANSFERS_SUPPORTED
 
 #ifndef aligned_u64
 #define aligned_u64 uint64_t __attribute__((aligned(8)))
@@ -243,13 +245,22 @@ struct scst_user_reply_cmd {
 #define SCST_USER_REPLY_CMD		_IOW('u', 6, struct scst_user_reply_cmd)
 
 /* Values for scst_user_get_cmd.subcode */
-#define SCST_USER_ATTACH_SESS		_IOR('s', UCMD_STATE_ATTACH_SESS, struct scst_user_sess)
-#define SCST_USER_DETACH_SESS		_IOR('s', UCMD_STATE_DETACH_SESS, struct scst_user_sess)
-#define SCST_USER_PARSE			_IOWR('s', UCMD_STATE_PARSING, struct scst_user_scsi_cmd_parse)
-#define SCST_USER_ALLOC_MEM		_IOWR('s', UCMD_STATE_BUF_ALLOCING, struct scst_user_scsi_cmd_alloc_mem)
-#define SCST_USER_EXEC			_IOWR('s', UCMD_STATE_EXECING, struct scst_user_scsi_cmd_exec)
-#define SCST_USER_ON_FREE_CMD		_IOR('s', UCMD_STATE_ON_FREEING, struct scst_user_scsi_on_free_cmd)
-#define SCST_USER_ON_CACHED_MEM_FREE	_IOR('s', UCMD_STATE_ON_CACHE_FREEING, struct scst_user_on_cached_mem_free)
-#define SCST_USER_TASK_MGMT		_IOWR('s', UCMD_STATE_TM_EXECING, struct scst_user_tm)
+#define SCST_USER_ATTACH_SESS		\
+	_IOR('s', UCMD_STATE_ATTACH_SESS, struct scst_user_sess)
+#define SCST_USER_DETACH_SESS		\
+	_IOR('s', UCMD_STATE_DETACH_SESS, struct scst_user_sess)
+#define SCST_USER_PARSE			\
+	_IOWR('s', UCMD_STATE_PARSING, struct scst_user_scsi_cmd_parse)
+#define SCST_USER_ALLOC_MEM		\
+	_IOWR('s', UCMD_STATE_BUF_ALLOCING, struct scst_user_scsi_cmd_alloc_mem)
+#define SCST_USER_EXEC			\
+	_IOWR('s', UCMD_STATE_EXECING, struct scst_user_scsi_cmd_exec)
+#define SCST_USER_ON_FREE_CMD		\
+	_IOR('s', UCMD_STATE_ON_FREEING, struct scst_user_scsi_on_free_cmd)
+#define SCST_USER_ON_CACHED_MEM_FREE            \
+	_IOR('s', UCMD_STATE_ON_CACHE_FREEING,  \
+	struct scst_user_on_cached_mem_free)
+#define SCST_USER_TASK_MGMT		\
+	_IOWR('s', UCMD_STATE_TM_EXECING, struct scst_user_tm)
 
 #endif /* __SCST_USER_H */
