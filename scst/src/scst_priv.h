@@ -39,9 +39,11 @@
 
 #define TRACE_RTRY              0x80000000
 #define TRACE_SCSI_SERIALIZING  0x40000000
-#define TRACE_SND_TOP		0x20000000 /** top being the edge away from the interupt */
+/** top being the edge away from the interupt */
+#define TRACE_SND_TOP		0x20000000
 #define TRACE_RCV_TOP		0x01000000
-#define TRACE_SND_BOT		0x08000000 /** bottom being the edge toward the interupt */
+/** bottom being the edge toward the interupt */
+#define TRACE_SND_BOT		0x08000000
 #define TRACE_RCV_BOT		0x04000000
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
@@ -165,7 +167,8 @@ extern struct list_head scst_dev_type_list; /* protected by scst_mutex */
 extern wait_queue_head_t scst_dev_cmd_waitQ;
 
 extern struct mutex scst_suspend_mutex;
-extern struct list_head scst_cmd_lists_list; /* protected by scst_suspend_mutex */
+/* protected by scst_suspend_mutex */
+extern struct list_head scst_cmd_lists_list;
 
 extern struct list_head scst_acg_list;
 extern struct scst_acg *scst_default_acg;

@@ -82,7 +82,8 @@ struct scst_sdbops {
 				 */
 	uint8_t flags;		/* opcode --  various flags */
 	uint8_t off;		/* length offset in cdb */
-	int (*get_trans_len)(struct scst_cmd *cmd, uint8_t off) __attribute__ ((aligned));
+	int (*get_trans_len)(struct scst_cmd *cmd, uint8_t off)
+		__attribute__ ((aligned));
 }  __attribute__((packed));
 
 static int scst_scsi_op_list[256];
@@ -120,7 +121,8 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{0x03, "MMMMMMMMMMMMMMMM", "REQUEST SENSE",
 	 SCST_DATA_READ, SCST_SMALL_TIMEOUT, 4, get_trans_len_1},
 	{0x04, "M    O O        ", "FORMAT UNIT",
-	 SCST_DATA_WRITE, SCST_LONG_TIMEOUT|SCST_UNKNOWN_LENGTH, 0, get_trans_len_none},
+	 SCST_DATA_WRITE, SCST_LONG_TIMEOUT|SCST_UNKNOWN_LENGTH,
+	 0, get_trans_len_none},
 	{0x04, "  O             ", "FORMAT",
 	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
 	{0x05, "VMVVVV  V       ", "READ BLOCK LIMITS",
@@ -175,7 +177,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 SCST_DATA_READ, SCST_SMALL_TIMEOUT, 4, get_trans_len_1},
 	{0x13, "VOVVVV          ", "VERIFY(6)",
 	 SCST_DATA_NONE, SCST_TRANSFER_LEN_TYPE_FIXED|
-	 		 SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED,
+			 SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED,
 	 2, get_trans_len_3},
 	{0x14, "VOOVVV          ", "RECOVER BUFFERED DATA",
 	 SCST_DATA_READ, SCST_TRANSFER_LEN_TYPE_FIXED, 2, get_trans_len_3},
@@ -253,7 +255,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED, 7, get_trans_len_2},
 	{0x2F, "O   OO O        ", "VERIFY(10)",
 	 SCST_DATA_NONE, SCST_TRANSFER_LEN_TYPE_FIXED|
-	 		 SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED,
+			 SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED,
 	 7, get_trans_len_2},
 	{0x33, "O   OO O        ", "SET LIMITS(10)",
 	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
@@ -280,7 +282,8 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{0x3C, "OOOOOOOOOOOOOOOO", "READ BUFFER",
 	 SCST_DATA_READ, SCST_SMALL_TIMEOUT, 6, get_trans_len_3},
 	{0x3D, "    O  O        ", "UPDATE BLOCK",
-	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED, 0, get_trans_len_single},
+	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED,
+	 0, get_trans_len_single},
 	{0x3E, "O   OO O        ", "READ LONG",
 	 SCST_DATA_READ, FLAG_NONE, 7, get_trans_len_2},
 	{0x3F, "O   O  O        ", "WRITE LONG",
@@ -288,7 +291,8 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{0x40, "OOOOOOOOOO      ", "CHANGE DEFINITION",
 	 SCST_DATA_WRITE, SCST_SMALL_TIMEOUT, 8, get_trans_len_1},
 	{0x41, "O    O          ", "WRITE SAME",
-	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED, 0, get_trans_len_single},
+	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED,
+	 0, get_trans_len_single},
 	{0x42, "     O          ", "READ SUB-CHANNEL",
 	 SCST_DATA_READ, FLAG_NONE, 7, get_trans_len_2},
 	{0x43, "     O          ", "READ TOC/PMA/ATIP",
@@ -383,7 +387,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED, 10, get_trans_len_4},
 	{0x8F, "O   OO O        ", "VERIFY(16)",
 	 SCST_DATA_NONE, SCST_TRANSFER_LEN_TYPE_FIXED|
-	 		 SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED,
+			 SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED,
 	 10, get_trans_len_4},
 	{0x90, "O   OO O        ", "PRE-FETCH(16)",
 	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
@@ -449,7 +453,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED, 6, get_trans_len_4},
 	{0xAF, "O   OO O        ", "VERIFY(12)",
 	 SCST_DATA_NONE, SCST_TRANSFER_LEN_TYPE_FIXED|
-	 		 SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED,
+			 SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED,
 	 6, get_trans_len_4},
 /* No need to support at all.
 	{0xB0, "    OO O        ", "SEARCH DATA HIGH(12)",
@@ -509,6 +513,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	#define WRITE_LONG_2			0xea
 */
 
-#define SCST_CDB_TBL_SIZE ((int)(sizeof(scst_scsi_op_table)/sizeof(struct scst_sdbops)))
+#define SCST_CDB_TBL_SIZE \
+	((int)(sizeof(scst_scsi_op_table)/sizeof(struct scst_sdbops)))
 
 #endif /* __SCST_CDBPROBE_H */

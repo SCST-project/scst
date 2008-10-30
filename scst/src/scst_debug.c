@@ -58,7 +58,8 @@ int debug_print_prefix(unsigned long trace_flag, const char *log_level,
 		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE, "[%d]: ",
 			      get_current_tid());
 	if (prefix != NULL)
-		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "%s: ", prefix);
+		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "%s: ",
+			      prefix);
 	if (trace_flag & TRACE_FUNCTION)
 		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "%s:", func);
 	if (trace_flag & TRACE_LINE)

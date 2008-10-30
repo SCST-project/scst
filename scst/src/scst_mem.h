@@ -37,7 +37,8 @@ struct sgv_pool_obj {
 	int order_or_pages;
 
 	struct {
-		unsigned long time_stamp; /* jiffies, protected by pool_mgr_lock */
+		/* jiffies, protected by pool_mgr_lock */
+		unsigned long time_stamp;
 		struct list_head recycling_list_entry;
 		struct list_head sorted_recycling_list_entry;
 	} recycle_entry;
@@ -77,7 +78,8 @@ struct sgv_pool {
 	/* 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048 */
 	struct kmem_cache *caches[SGV_POOL_ELEMENTS];
 
-	struct list_head recycling_lists[SGV_POOL_ELEMENTS];  /* protected by pool_mgr_lock */
+	/* protected by pool_mgr_lock */
+	struct list_head recycling_lists[SGV_POOL_ELEMENTS];
 
 	struct sgv_pool_acc acc;
 	struct sgv_pool_cache_acc cache_acc[SGV_POOL_ELEMENTS];
@@ -95,15 +97,22 @@ struct scst_sgv_pools_manager {
 
 	struct sgv_pool_mgr {
 		spinlock_t pool_mgr_lock;
-		struct list_head sorted_recycling_list; /* protected by pool_mgr_lock */
-		int pitbool_running:1;		/* protected by pool_mgr_lock */
+		/* protected by pool_mgr_lock */
+		struct list_head sorted_recycling_list;
+		/* protected by pool_mgr_lock */
+		unsigned pitbool_running:1;
 
 		struct sgv_mem_throttling {
 			u32 inactive_pages_total;
 			u32 active_pages_total;
 
-			u32 hi_wmk; /* compared against inactive_pages_total + active_pages_total */
-			u32 lo_wmk; /* compared against inactive_pages_total only */
+			/*
+			 * compared against inactive_pages_total +
+			 *		    active_pages_total
+			 */
+			u32 hi_wmk;
+			/* compared against inactive_pages_total only */
+			u32 lo_wmk;
 
 			u32 releases_on_hiwmk;
 			u32 releases_failed;
@@ -138,7 +147,8 @@ static inline struct scatterlist *sgv_pool_sg(struct sgv_pool_obj *obj)
 	return obj->sg_entries;
 }
 
-extern int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark);
+extern int scst_sgv_pools_init(unsigned long mem_hwmark,
+			       unsigned long mem_lwmark);
 extern void scst_sgv_pools_deinit(void);
 extern int sgv_pool_procinfo_show(struct seq_file *seq, void *v);
 

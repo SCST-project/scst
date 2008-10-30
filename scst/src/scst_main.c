@@ -40,10 +40,11 @@
 	details."
 #endif
 
-#if !defined(SCSI_EXEC_REQ_FIFO_DEFINED) && !defined(CONFIG_SCST_STRICT_SERIALIZING)
+#if !defined(SCSI_EXEC_REQ_FIFO_DEFINED) && \
+    !defined(CONFIG_SCST_STRICT_SERIALIZING)
 #warning "Patch scst_exec_req_fifo-<kernel-version>.patch was not applied on \
-	your kernel and CONFIG_SCST_STRICT_SERIALIZING isn't defined. Pass-through dev \
-	handlers will not be supported."
+	your kernel and CONFIG_SCST_STRICT_SERIALIZING isn't defined. \
+	Pass-through dev handlers will not be supported."
 #endif
 
 /**
@@ -68,13 +69,13 @@ struct list_head scst_dev_type_list;
 
 spinlock_t scst_main_lock;
 
-struct kmem_cache *scst_mgmt_cachep;
+static struct kmem_cache *scst_mgmt_cachep;
 mempool_t *scst_mgmt_mempool;
-struct kmem_cache *scst_mgmt_stub_cachep;
+static struct kmem_cache *scst_mgmt_stub_cachep;
 mempool_t *scst_mgmt_stub_mempool;
-struct kmem_cache *scst_ua_cachep;
+static struct kmem_cache *scst_ua_cachep;
 mempool_t *scst_ua_mempool;
-struct kmem_cache *scst_sense_cachep;
+static struct kmem_cache *scst_sense_cachep;
 mempool_t *scst_sense_mempool;
 struct kmem_cache *scst_tgtd_cachep;
 struct kmem_cache *scst_sess_cachep;
@@ -454,7 +455,8 @@ static int scst_susp_wait(bool interruptible)
 		} else
 			res = 0;
 	} else
-		wait_event(scst_dev_cmd_waitQ, atomic_read(&scst_cmd_count) == 0);
+		wait_event(scst_dev_cmd_waitQ,
+			   atomic_read(&scst_cmd_count) == 0);
 
 	TRACE_MGMT_DBG("wait_event() returned %d", res);
 
@@ -881,7 +883,8 @@ int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 	if (res != 0)
 		goto out_error;
 
-#if !defined(SCSI_EXEC_REQ_FIFO_DEFINED) && !defined(CONFIG_SCST_STRICT_SERIALIZING)
+#if !defined(SCSI_EXEC_REQ_FIFO_DEFINED) && \
+    !defined(CONFIG_SCST_STRICT_SERIALIZING)
 	if (dev_type->exec == NULL) {
 		PRINT_ERROR("Pass-through dev handlers (handler \"%s\") not "
 			"supported. Consider applying on your kernel patch "
@@ -920,7 +923,7 @@ int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 	list_add_tail(&dev_type->dev_type_list_entry, &scst_dev_type_list);
 
 	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
-		if ((dev->scsi_dev == NULL) || (dev->handler != &scst_null_devtype))
+		if (dev->scsi_dev == NULL || dev->handler != &scst_null_devtype)
 			continue;
 		if (dev->scsi_dev->type == dev_type->type)
 			scst_assign_dev_handler(dev, dev_type);
@@ -1280,7 +1283,9 @@ int scst_cmd_threads_count(void)
 {
 	int i;
 
-	/* Just to lower the race window, when user can get just changed value */
+	/*
+	 * Just to lower the race window, when user can get just changed value
+	 */
 	mutex_lock(&scst_threads_info.cmd_threads_mutex);
 	i = scst_threads_info.nr_cmd_threads;
 	mutex_unlock(&scst_threads_info.cmd_threads_mutex);
@@ -1583,7 +1588,8 @@ static void __init scst_print_config(void)
 #endif
 
 #ifdef CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
-	i += snprintf(&buf[i], sizeof(buf) - i, "%sALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ",
+	i += snprintf(&buf[i], sizeof(buf) - i,
+		"%sALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ",
 		(j == i) ? "" : ", ");
 #endif
 
@@ -1691,7 +1697,8 @@ static int __init init_scst(void)
 			out_destroy_mgmt_stub_cache);
 	{
 		struct scst_sense { uint8_t s[SCST_SENSE_BUFFERSIZE]; };
-		INIT_CACHEP(scst_sense_cachep, scst_sense, out_destroy_ua_cache);
+		INIT_CACHEP(scst_sense_cachep, scst_sense,
+			    out_destroy_ua_cache);
 	}
 	INIT_CACHEP(scst_cmd_cachep, scst_cmd, out_destroy_sense_cache);
 	INIT_CACHEP(scst_sess_cachep, scst_session, out_destroy_cmd_cache);
@@ -1719,7 +1726,9 @@ static int __init init_scst(void)
 		goto out_destroy_mgmt_stub_mempool;
 	}
 
-	/* Loosing sense may have fatal consequences, so let's have a big pool */
+	/*
+	 * Loosing sense may have fatal consequences, so let's have a big pool
+	 */
 	scst_sense_mempool = mempool_create(128, mempool_alloc_slab,
 		mempool_free_slab, scst_sense_cachep);
 	if (scst_sense_mempool == NULL) {
@@ -1770,8 +1779,9 @@ static int __init init_scst(void)
 	for (i = 0; i < (int)ARRAY_SIZE(scst_tasklets); i++) {
 		spin_lock_init(&scst_tasklets[i].tasklet_lock);
 		INIT_LIST_HEAD(&scst_tasklets[i].tasklet_cmd_list);
-		tasklet_init(&scst_tasklets[i].tasklet, (void *)scst_cmd_tasklet,
-			(unsigned long)&scst_tasklets[i]);
+		tasklet_init(&scst_tasklets[i].tasklet,
+			     (void *)scst_cmd_tasklet,
+			     (unsigned long)&scst_tasklets[i]);
 	}
 
 	TRACE_DBG("%d CPUs found, starting %d threads", scst_num_cpus,

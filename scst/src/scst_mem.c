@@ -256,7 +256,8 @@ static int sgv_alloc_arrays(struct sgv_pool_obj *obj,
 
 	if (obj->owner_pool->clustered) {
 		if (order <= sgv_pools_mgr.sgv_max_trans_order) {
-			obj->trans_tbl = (struct trans_tbl_ent *)obj->sg_entries_data;
+			obj->trans_tbl =
+				(struct trans_tbl_ent *)obj->sg_entries_data;
 			/*
 			 * No need to clear trans_tbl, if needed, it will be
 			 * fully rewritten in scst_alloc_sg_entries()
@@ -265,8 +266,8 @@ static int sgv_alloc_arrays(struct sgv_pool_obj *obj,
 			tsz = pages_to_alloc * sizeof(obj->trans_tbl[0]);
 			obj->trans_tbl = kzalloc(tsz, gfp_mask);
 			if (unlikely(obj->trans_tbl == NULL)) {
-				TRACE(TRACE_OUT_OF_MEM, "Allocation of trans_tbl "
-					"failed (size %d)", tsz);
+				TRACE(TRACE_OUT_OF_MEM, "Allocation of "
+					"trans_tbl failed (size %d)", tsz);
 				res = -ENOMEM;
 				goto out_free;
 			}
@@ -294,7 +295,8 @@ static void sgv_dtor_and_free(struct sgv_pool_obj *obj)
 			obj->sg_count, obj->allocator_priv);
 	}
 	if (obj->sg_entries != obj->sg_entries_data) {
-		if (obj->trans_tbl != (struct trans_tbl_ent *)obj->sg_entries_data) {
+		if (obj->trans_tbl !=
+		    (struct trans_tbl_ent *)obj->sg_entries_data) {
 			/* kfree() handles NULL parameter */
 			kfree(obj->trans_tbl);
 			obj->trans_tbl = NULL;
@@ -434,6 +436,8 @@ static int sgv_pool_cached_purge(struct sgv_pool_obj *e, int t,
 
 /* Called under pool_mgr_lock held, but drops/reaquires it inside */
 static int sgv_pool_oom_free_objs(int pgs)
+	__releases(sgv_pools_mgr.mgr.pool_mgr_lock)
+	__acquires(sgv_pools_mgr.mgr.pool_mgr_lock)
 {
 	TRACE_MEM("Shrinking pools about %d pages", pgs);
 	while ((sgv_pools_mgr.mgr.throttle.inactive_pages_total >
@@ -621,8 +625,9 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 					(obj->sg_entries + pages_to_alloc);
 				TRACE_MEM("trans_tbl %p", obj->trans_tbl);
 				/*
-				 * No need to clear trans_tbl, if needed, it will
-				 * be fully rewritten in scst_alloc_sg_entries()
+				 * No need to clear trans_tbl, if needed, it
+				 * will be fully rewritten in
+				 * scst_alloc_sg_entries(),
 				 */
 			}
 		} else {
@@ -733,7 +738,8 @@ success:
 	*sgv = obj;
 
 	if (size & ~PAGE_MASK)
-		obj->sg_entries[cnt-1].length -= PAGE_SIZE - (size & ~PAGE_MASK);
+		obj->sg_entries[cnt-1].length -=
+			PAGE_SIZE - (size & ~PAGE_MASK);
 
 	TRACE_MEM("sgv_obj=%p, sg_entries %p (size=%d, pages=%d, sg_count=%d, "
 		"count=%d, last_len=%d)", obj, obj->sg_entries, size, pages,
@@ -758,7 +764,8 @@ out_return2:
 
 out_fail_free_sg_entries:
 	if (obj->sg_entries != obj->sg_entries_data) {
-		if (obj->trans_tbl != (struct trans_tbl_ent *)obj->sg_entries_data) {
+		if (obj->trans_tbl !=
+			(struct trans_tbl_ent *)obj->sg_entries_data) {
 			/* kfree() handles NULL parameter */
 			kfree(obj->trans_tbl);
 			obj->trans_tbl = NULL;
@@ -933,8 +940,10 @@ int sgv_pool_init(struct sgv_pool *pool, const char *name, int clustered)
 				(sizeof(obj->sg_entries[0]) +
 				 (clustered ? sizeof(obj->trans_tbl[0]) : 0));
 		} else if (i <= sgv_pools_mgr.sgv_max_trans_order) {
-			/* sgv ie sg_entries is allocated outside object but ttbl
-			is embedded still */
+			/* 
+			 * sgv ie sg_entries is allocated outside object, but
+			 * ttbl is still embedded.
+			 */
 			size = sizeof(*obj) + (1 << i) *
 				((clustered ? sizeof(obj->trans_tbl[0]) : 0));
 		} else {
@@ -995,8 +1004,8 @@ static void sgv_pool_evaluate_local_order(struct scst_sgv_pools_manager *pmgr)
 			PAGE_SIZE) & PAGE_MASK)) - 1;
 
 	pmgr->sgv_max_trans_order = get_order(
-		(((space4sgv_ttbl /
-		  (sizeof(struct trans_tbl_ent))) * PAGE_SIZE) & PAGE_MASK)) - 1;
+		(((space4sgv_ttbl / sizeof(struct trans_tbl_ent)) * PAGE_SIZE)
+		 & PAGE_MASK)) - 1;
 
 	TRACE_MEM("sgv_max_local_order %d, sgv_max_trans_order %d",
 		pmgr->sgv_max_local_order, pmgr->sgv_max_trans_order);
@@ -1009,8 +1018,8 @@ static void sgv_pool_evaluate_local_order(struct scst_sgv_pools_manager *pmgr)
 		(sizeof(struct scatterlist))
 		+ sizeof(struct sgv_pool_obj));
 	TRACE_MEM("max object size with embedded ttbl %zd",
-		(1 << pmgr->sgv_max_trans_order) * sizeof(struct trans_tbl_ent) +
-		sizeof(struct sgv_pool_obj));
+		(1 << pmgr->sgv_max_trans_order) * sizeof(struct trans_tbl_ent)
+		+ sizeof(struct sgv_pool_obj));
 }
 
 void sgv_pool_deinit(struct sgv_pool *pool)
@@ -1117,7 +1126,8 @@ static int sgv_pool_cached_shrinker(int nr, gfp_t gfpm)
 
 			if (sgv_pool_cached_purge(e, SHRINK_TIME_AFTER, rt) == 0) {
 				nr -= 1 << e->order_or_pages;
-				spin_unlock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
+				spin_unlock_bh(
+					&sgv_pools_mgr.mgr.pool_mgr_lock);
 				sgv_dtor_and_free(e);
 				spin_lock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
 			} else
@@ -1319,7 +1329,8 @@ int sgv_pool_procinfo_show(struct seq_file *seq, void *v)
 		sgv_pools_mgr.mgr.throttle.inactive_pages_total,
 		sgv_pools_mgr.mgr.throttle.active_pages_total,
 		"Hi/lo watermarks [pages]", sgv_pools_mgr.mgr.throttle.hi_wmk,
-		sgv_pools_mgr.mgr.throttle.lo_wmk, "Hi watermark releases/failures",
+		sgv_pools_mgr.mgr.throttle.lo_wmk,
+		"Hi watermark releases/failures",
 		sgv_pools_mgr.mgr.throttle.releases_on_hiwmk,
 		sgv_pools_mgr.mgr.throttle.releases_failed);
 
