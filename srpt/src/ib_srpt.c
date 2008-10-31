@@ -669,19 +669,18 @@ static void srpt_handle_err_comp(struct srpt_rdma_ch *ch, struct ib_wc *wc)
 					scmnd->sg_cnt = 0;
 				}
 
-				if (scmnd->state == SCST_CMD_STATE_RDY_TO_XFER)
+				if (scmnd->state == SCST_CMD_STATE_DATA_WAIT)
 					scst_rx_data(scmnd,
 						     SCST_RX_STATUS_ERROR,
 						     SCST_CONTEXT_THREAD);
 				else if (scmnd->state ==
-					 SCST_CMD_STATE_XMIT_WAIT)
+						SCST_CMD_STATE_XMIT_WAIT)
 					scst_tgt_cmd_done(scmnd,
 						SCST_CONTEXT_DIRECT_ATOMIC);
 			}
 		} else
 			srpt_reset_ioctx(ch, ioctx);
 	}
-
 }
 
 static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
