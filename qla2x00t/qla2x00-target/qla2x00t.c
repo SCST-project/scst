@@ -954,9 +954,11 @@ out_unlock:
 		spin_unlock_irqrestore(&ha->hardware_lock, flags);
 
 	if (do_tgt_cmd_done) {
-		if (!in_interrupt())
+		if (!in_interrupt()) {
 			msleep(250);
-		scst_tgt_cmd_done(cmd->scst_cmd);
+			scst_tgt_cmd_done(cmd->scst_cmd, SCST_CONTEXT_DIRECT);
+		} else
+			scst_tgt_cmd_done(cmd->scst_cmd, SCST_CONTEXT_TASKLET);
 		/* !! At this point cmd could be already freed !! */
 	}
 
@@ -1004,9 +1006,16 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha,
 	struct scst_cmd *scst_cmd;
 	struct q2t_cmd *cmd;
 	uint16_t loop_id = -1;
+	enum scst_exec_context context;
 	int err = 0;
 
 	TRACE_ENTRY();
+
+#ifdef CONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
+	context = SCST_CONTEXT_THREAD;
+#else
+	context = SCST_CONTEXT_TASKLET;
+#endif
 
 	if (ctio != NULL)
 		loop_id = GET_TARGET_ID(ha, ctio);
@@ -1109,17 +1118,12 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha,
 		}
 		goto out_free;
 	} else if (cmd->state == Q2T_STATE_NEED_DATA) {
-		int context = SCST_CONTEXT_TASKLET;
 		int rx_status = SCST_RX_STATUS_SUCCESS;
 
 		cmd->state = Q2T_STATE_DATA_IN;
 
 		if (status != CTIO_SUCCESS)
 			rx_status = SCST_RX_STATUS_ERROR;
-
-#ifdef CONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
-		context = SCST_CONTEXT_THREAD;
-#endif
 
 		TRACE_DBG("Data received, context %x, rx_status %d",
 		      context, rx_status);
@@ -1148,7 +1152,7 @@ out_free:
 		TRACE_MGMT_DBG("%s", "Finishing failed CTIO");
 		scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_FAILED);
 	}
-	scst_tgt_cmd_done(scst_cmd);
+	scst_tgt_cmd_done(scst_cmd, context);
 	goto out;
 }
 
@@ -1209,7 +1213,7 @@ static int q2t_do_send_cmd_to_scst(scsi_qla_host_t *ha, struct q2t_cmd *cmd)
 	struct q2t_sess *sess = cmd->sess;
 	uint16_t lun;
 	scst_data_direction dir = SCST_DATA_NONE;
-	int context;
+	enum scst_exec_context context;
 
 	TRACE_ENTRY();
 

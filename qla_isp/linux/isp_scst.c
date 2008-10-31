@@ -642,7 +642,7 @@ scsi_target_done_cmd(tmd_cmd_t *tmd)
         if (unlikely(xact->td_error)) {
             scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_FAILED);
         }
-        scst_tgt_cmd_done(scst_cmd);
+        scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_TASKLET);
         return;
     }
 
@@ -658,7 +658,7 @@ scsi_target_done_cmd(tmd_cmd_t *tmd)
                 if (unlikely(xact->td_error)) {
                     scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_FAILED);
                 }
-                scst_tgt_cmd_done(scst_cmd);
+                scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_TASKLET);
             }
         } else {
             ; /* we don't have all data, do nothing */
@@ -669,7 +669,7 @@ scsi_target_done_cmd(tmd_cmd_t *tmd)
         if (unlikely(xact->td_error)) {
             scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_FAILED);
         }
-        scst_tgt_cmd_done(scst_cmd);
+        scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_TASKLET);
     } else {
         Eprintk("don't know what to do with TMD_DONE[%llx] cdb0 %x hf %x lf %x xfrlen %d totlen %d moved %d\n",
                 tmd->cd_tagval, tmd->cd_cdb[0], xact->td_hflags, xact->td_lflags, xact->td_xfrlen, tmd->cd_totlen, tmd->cd_moved);
@@ -1106,7 +1106,7 @@ isp_rdy_to_xfer(struct scst_cmd *scst_cmd)
         if (unlikely(bc->enable == 0)) {
             SDprintk("%s: TMD[%llx] Chan %d not enabled\n", __FUNCTION__, tmd->cd_tagval, tmd->cd_channel);
             up_read(&bc->disable_sem);
-            scst_rx_data(scst_cmd, SCST_RX_STATUS_ERROR, SCST_CONTEXT_TASKLET);
+            scst_rx_data(scst_cmd, SCST_RX_STATUS_ERROR, SCST_CONTEXT_SAME);
             return (0);
         }
 
@@ -1128,7 +1128,7 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
 
     if (unlikely(scst_cmd_aborted(scst_cmd))) {
         scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_ABORTED);
-        scst_tgt_cmd_done(scst_cmd);
+        scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_SAME);
         return (0);
     }
 
@@ -1205,7 +1205,7 @@ out:
     if (unlikely(bc->enable == 0)) {
         SDprintk("%s: TMD[%llx] Chan %d not enabled\n", __FUNCTION__, tmd->cd_tagval, tmd->cd_channel);
         up_read(&bc->disable_sem);
-        scst_tgt_cmd_done(scst_cmd);
+        scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_SAME);
         return (0);
     }
 

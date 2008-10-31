@@ -374,7 +374,7 @@ out:
 
 out_done:
 	res = SCST_EXEC_COMPLETED;
-	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
 	goto out;
 }
 

@@ -1148,7 +1148,7 @@ static int dev_user_process_reply_alloc(struct scst_user_cmd *ucmd,
 	}
 
 out_process:
-	scst_process_active_cmd(cmd, SCST_CONTEXT_DIRECT);
+	scst_process_active_cmd(cmd, false);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -1196,7 +1196,7 @@ static int dev_user_process_reply_parse(struct scst_user_cmd *ucmd,
 	cmd->data_len = preply->data_len;
 
 out_process:
-	scst_process_active_cmd(cmd, SCST_CONTEXT_DIRECT);
+	scst_process_active_cmd(cmd, false);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -1326,7 +1326,7 @@ static int dev_user_process_reply_exec(struct scst_user_cmd *ucmd,
 
 out_compl:
 	cmd->completed = 1;
-	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_DIRECT);
 	/* !! At this point cmd can be already freed !! */
 
 out:
@@ -1520,8 +1520,7 @@ static int dev_user_process_scst_commands(struct scst_user_dev *dev)
 		TRACE_DBG("Deleting cmd %p from active cmd list", cmd);
 		list_del(&cmd->cmd_list_entry);
 		spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
-		scst_process_active_cmd(cmd, SCST_CONTEXT_DIRECT |
-						 SCST_CONTEXT_PROCESSABLE);
+		scst_process_active_cmd(cmd, false);
 		spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
 		res++;
 	}
@@ -1558,7 +1557,8 @@ again:
 				rc = scst_check_local_events(u->cmd);
 				if (unlikely(rc != 0)) {
 					u->cmd->scst_cmd_done(u->cmd,
-						SCST_CMD_STATE_DEFAULT);
+						SCST_CMD_STATE_DEFAULT,
+						SCST_CONTEXT_DIRECT);
 					/*
 					 * !! At this point cmd & u can be !!
 					 * !! already freed		   !!
@@ -1884,7 +1884,7 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 
 		TRACE_MGMT_DBG("EXEC: unjamming ucmd %p", ucmd);
 
-		if (test_bit(SCST_CMD_ABORTED,	&ucmd->cmd->cmd_flags))
+		if (test_bit(SCST_CMD_ABORTED, &ucmd->cmd->cmd_flags))
 			ucmd->aborted = 1;
 		else {
 			if (busy)
@@ -1894,7 +1894,8 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 				       SCST_LOAD_SENSE(scst_sense_hardw_error));
 		}
 
-		ucmd->cmd->scst_cmd_done(ucmd->cmd, SCST_CMD_STATE_DEFAULT);
+		ucmd->cmd->scst_cmd_done(ucmd->cmd, SCST_CMD_STATE_DEFAULT,
+			SCST_CONTEXT_DIRECT);
 		/* !! At this point cmd and ucmd can be already freed !! */
 
 		if (flags != NULL)

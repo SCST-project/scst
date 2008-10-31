@@ -280,7 +280,8 @@ static void mpt_on_free_cmd(struct scst_cmd *scst_cmd);
 static void mpt_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd);
 static int mpt_handle_task_mgmt(MPT_STM_PRIV * priv, u32 reply_word,
 		int task_mgmt, int lun);
-static int mpt_send_cmd_to_scst(struct mpt_cmd *cmd, int context);
+static int mpt_send_cmd_to_scst(struct mpt_cmd *cmd,
+	enum scst_exec_context context);
 
 static struct scst_tgt_template tgt_template = {
 	.name = MYNAM,
@@ -634,7 +635,7 @@ mpt_alloc_session_done(struct scst_session *scst_sess, void *data, int result)
 }
 
 static int
-mpt_send_cmd_to_scst(struct mpt_cmd *cmd, int context)
+mpt_send_cmd_to_scst(struct mpt_cmd *cmd, enum scst_exec_context context)
 {
 	int res = 0;
 
@@ -708,13 +709,19 @@ void
 stm_tgt_reply(MPT_ADAPTER *ioc, u32 reply_word)
 {
 	MPT_STM_PRIV *priv = mpt_stm_priv[ioc->id];
-	int index;
-	int init_index;
+	int index, init_index;
+	enum scst_exec_context context;
 	struct scst_cmd *scst_cmd;
 	struct mpt_cmd *cmd;
 	volatile int *io_state;
 
 	TRACE_ENTRY();
+
+#ifdef DEBUG_WORK_IN_THREAD
+	context = SCST_CONTEXT_THREAD;
+#else
+	context = SCST_CONTEXT_TASKLET;
+#endif
 
 	index = GET_IO_INDEX(reply_word);
 	init_index = GET_INITIATOR_INDEX(reply_word);
@@ -742,14 +749,10 @@ stm_tgt_reply(MPT_ADAPTER *ioc, u32 reply_word)
 		  scst_cmd, index, cmd, mpt_state_string[cmd->state]);
 
 	if (cmd->state == MPT_STATE_NEED_DATA) {
-		int context = SCST_CONTEXT_TASKLET;
 		int rx_status = SCST_RX_STATUS_SUCCESS;
 
 		cmd->state = MPT_STATE_DATA_IN;
 
-#ifdef DEBUG_WORK_IN_THREAD
-		context = SCST_CONTEXT_THREAD;
-#endif
 		TRACE_DBG("Data received, context %x, rx_status %d",
 				context, rx_status);
 
@@ -804,7 +807,7 @@ stm_tgt_reply(MPT_ADAPTER *ioc, u32 reply_word)
 					atomic_set(&priv->pending_sense[init_index],
 						MPT_STATUS_SENSE_IDLE);
 					/* ToDo: check and set scst_set_delivery_status(), if necessary */
-					scst_tgt_cmd_done(scst_cmd);
+					scst_tgt_cmd_done(scst_cmd, context);
 					break;
 
 				/* we tried to send status and sense
@@ -815,7 +818,7 @@ stm_tgt_reply(MPT_ADAPTER *ioc, u32 reply_word)
 					atomic_set(&priv->pending_sense[init_index],
 						MPT_STATUS_SENSE_HANDLE_RQ);
 					/* ToDo: check and set scst_set_delivery_status(), if necessary */
-					scst_tgt_cmd_done(scst_cmd);
+					scst_tgt_cmd_done(scst_cmd, context);
 					break;
 
 				/* we've handled REQUEST_SENSE ourselves and
@@ -834,12 +837,12 @@ stm_tgt_reply(MPT_ADAPTER *ioc, u32 reply_word)
 					/* nothing much to do here, we aren't
 					 * handling cached sense/status */
 					/* ToDo: check and set scst_set_delivery_status(), if necessary */
-					scst_tgt_cmd_done(scst_cmd);
+					scst_tgt_cmd_done(scst_cmd, context);
 					break;
 			}
 		} else {
 			/* ToDo: check and set scst_set_delivery_status(), if necessary */
-			scst_tgt_cmd_done(scst_cmd);
+			scst_tgt_cmd_done(scst_cmd, context);
 		}
 
 		goto out;
@@ -1686,7 +1689,7 @@ mpt_xmit_response(struct scst_cmd *scst_cmd)
 
  out_tgt_free:
  	/* ToDo: check and set scst_set_delivery_status(), if necessary */
-	scst_tgt_cmd_done(scst_cmd);
+	scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_SAME);
 	goto out;
 }
 
@@ -1769,7 +1772,7 @@ static int mpt_rdy_to_xfer(struct scst_cmd *scst_cmd)
 		TRACE_DBG("cmd %p while session %p is shutting down",
 			  prm.cmd, sess);
 		scst_rx_data(scst_cmd, SCST_RX_STATUS_ERROR_FATAL,
-			     SCST_CONTEXT_THREAD);
+			     SCST_CONTEXT_SAME);
 		res = SCST_TGT_RES_SUCCESS;
 		goto out;
 	}

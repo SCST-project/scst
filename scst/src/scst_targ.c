@@ -99,9 +99,13 @@ out:
 }
 EXPORT_SYMBOL(scst_rx_cmd);
 
-static int scst_init_cmd(struct scst_cmd *cmd, int context)
+/*
+ * No locks, but might be on IRQ. Returns 0 on success, <0 if processing of
+ * this command should be stopped.
+ */
+static int scst_init_cmd(struct scst_cmd *cmd, enum scst_exec_context *context)
 {
-	int rc;
+	int rc, res = 0;
 
 	TRACE_ENTRY();
 
@@ -122,23 +126,24 @@ static int scst_init_cmd(struct scst_cmd *cmd, int context)
 		goto out;
 
 	/* Small context optimization */
-	if (((context == SCST_CONTEXT_TASKLET) ||
-	     (context == SCST_CONTEXT_DIRECT_ATOMIC)) &&
-	    scst_cmd_is_expected_set(cmd)) {
+	if (((*context == SCST_CONTEXT_TASKLET) ||
+	     (*context == SCST_CONTEXT_DIRECT_ATOMIC) ||
+	     ((*context == SCST_CONTEXT_SAME) && scst_cmd_atomic(cmd))) &&
+	      scst_cmd_is_expected_set(cmd)) {
 		if (cmd->expected_data_direction == SCST_DATA_WRITE) {
 			if (!test_bit(SCST_TGT_DEV_AFTER_INIT_WR_ATOMIC,
 					&cmd->tgt_dev->tgt_dev_flags))
-				context = SCST_CONTEXT_THREAD;
+				*context = SCST_CONTEXT_THREAD;
 		} else {
 			if (!test_bit(SCST_TGT_DEV_AFTER_INIT_OTH_ATOMIC,
 					&cmd->tgt_dev->tgt_dev_flags))
-				context = SCST_CONTEXT_THREAD;
+				*context = SCST_CONTEXT_THREAD;
 		}
 	}
 
 out:
-	TRACE_EXIT_RES(context);
-	return context;
+	TRACE_EXIT_RES(res);
+	return res;
 
 out_redirect:
 	if (cmd->preprocessing_only) {
@@ -146,14 +151,11 @@ out_redirect:
 		 * Poor man solution for single threaded targets, where
 		 * blocking receiver at least sometimes means blocking all.
 		 */
-		sBUG_ON(context != SCST_CONTEXT_DIRECT);
+		sBUG_ON(*context != SCST_CONTEXT_DIRECT);
 		scst_set_busy(cmd);
 		scst_set_cmd_abnormal_done_state(cmd);
 		/* Keep initiator away from too many BUSY commands */
-		if (!in_interrupt() && !in_atomic())
-			msleep(50);
-		else
-			WARN_ON_ONCE(1);
+		msleep(50);
 	} else {
 		unsigned long flags;
 		spin_lock_irqsave(&scst_init_lock, flags);
@@ -164,7 +166,7 @@ out_redirect:
 			scst_init_poll_cnt++;
 		spin_unlock_irqrestore(&scst_init_lock, flags);
 		wake_up(&scst_init_cmd_list_waitQ);
-		context = -1;
+		res = -1;
 	}
 	goto out;
 }
@@ -176,10 +178,12 @@ static inline uint64_t scst_sec_to_nsec(time_t sec)
 }
 #endif
 
-void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context)
+void scst_cmd_init_done(struct scst_cmd *cmd,
+	enum scst_exec_context pref_context)
 {
 	unsigned long flags;
 	struct scst_session *sess = cmd->sess;
+	int rc;
 
 	TRACE_ENTRY();
 
@@ -276,8 +280,8 @@ void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context)
 
 	cmd->state = SCST_CMD_STATE_INIT;
 	/* cmd must be inited here to preserve the order */
-	pref_context = scst_init_cmd(cmd, pref_context);
-	if (unlikely(pref_context < 0))
+	rc = scst_init_cmd(cmd, &pref_context);
+	if (unlikely(rc < 0))
 		goto out;
 
 active:
@@ -288,8 +292,12 @@ active:
 		break;
 
 	case SCST_CONTEXT_DIRECT:
+		scst_process_active_cmd(cmd, false);
+		/* For *NEED_THREAD wake_up() is already done */
+		break;
+
 	case SCST_CONTEXT_DIRECT_ATOMIC:
-		scst_process_active_cmd(cmd, pref_context);
+		scst_process_active_cmd(cmd, true);
 		/* For *NEED_THREAD wake_up() is already done */
 		break;
 
@@ -772,7 +780,8 @@ out_error:
 	goto out;
 }
 
-void scst_restart_cmd(struct scst_cmd *cmd, int status, int pref_context)
+void scst_restart_cmd(struct scst_cmd *cmd, int status, 
+	enum scst_exec_context pref_context)
 {
 	TRACE_ENTRY();
 
@@ -805,7 +814,9 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status, int pref_context)
 			scst_cmd_set_sn(cmd);
 		/* Small context optimization */
 		if ((pref_context == SCST_CONTEXT_TASKLET) ||
-		    (pref_context == SCST_CONTEXT_DIRECT_ATOMIC)) {
+		    (pref_context == SCST_CONTEXT_DIRECT_ATOMIC) ||
+		    ((pref_context == SCST_CONTEXT_SAME) &&
+		     scst_cmd_atomic(cmd))) {
 			if (cmd->data_direction == SCST_DATA_WRITE) {
 				if (!test_bit(SCST_TGT_DEV_AFTER_RESTART_WR_ATOMIC,
 						&cmd->tgt_dev->tgt_dev_flags))
@@ -976,8 +987,8 @@ out_dev_done:
 }
 
 /* No locks, but might be in IRQ */
-void scst_proccess_redirect_cmd(struct scst_cmd *cmd, int context,
-	int check_retries)
+void scst_proccess_redirect_cmd(struct scst_cmd *cmd,
+	enum scst_exec_context context, int check_retries)
 {
 	unsigned long flags;
 
@@ -985,14 +996,19 @@ void scst_proccess_redirect_cmd(struct scst_cmd *cmd, int context,
 
 	TRACE_DBG("Context: %x", context);
 
-	switch (context & ~SCST_CONTEXT_PROCESSABLE) {
+	if (context == SCST_CONTEXT_SAME)
+		context = scst_cmd_atomic(cmd) ? SCST_CONTEXT_DIRECT_ATOMIC :
+						 SCST_CONTEXT_DIRECT;
+
+	switch (context) {
 	case SCST_CONTEXT_DIRECT_ATOMIC:
-		context &= ~SCST_CONTEXT_PROCESSABLE;
-		/* go through */
+		scst_process_active_cmd(cmd, true);
+		break;
+
 	case SCST_CONTEXT_DIRECT:
 		if (check_retries)
 			scst_check_retries(cmd->tgt);
-		scst_process_active_cmd(cmd, context);
+		scst_process_active_cmd(cmd, false);
 		break;
 
 	default:
@@ -1025,7 +1041,8 @@ void scst_proccess_redirect_cmd(struct scst_cmd *cmd, int context,
 	return;
 }
 
-void scst_rx_data(struct scst_cmd *cmd, int status, int pref_context)
+void scst_rx_data(struct scst_cmd *cmd, int status,
+	enum scst_exec_context pref_context)
 {
 	TRACE_ENTRY();
 
@@ -1049,7 +1066,9 @@ void scst_rx_data(struct scst_cmd *cmd, int status, int pref_context)
 		cmd->state = SCST_CMD_STATE_TGT_PRE_EXEC;
 		/* Small context optimization */
 		if ((pref_context == SCST_CONTEXT_TASKLET) ||
-		    (pref_context == SCST_CONTEXT_DIRECT_ATOMIC)) {
+		    (pref_context == SCST_CONTEXT_DIRECT_ATOMIC) ||
+		    ((pref_context == SCST_CONTEXT_SAME) &&
+		     scst_cmd_atomic(cmd))) {
 			if (!test_bit(SCST_TGT_DEV_AFTER_RX_DATA_ATOMIC,
 					&cmd->tgt_dev->tgt_dev_flags))
 				pref_context = SCST_CONTEXT_THREAD;
@@ -1165,8 +1184,7 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 		cmd->dbl_ua_orig_resp_data_len = cmd->resp_data_len;
 		cmd->dbl_ua_orig_data_direction = cmd->data_direction;
 
-		scst_alloc_set_sense(cmd, scst_is_context_gfp_atomic(),
-					rq_sense, rq_sense_len);
+		scst_alloc_set_sense(cmd, 1, rq_sense, rq_sense_len);
 	}
 
 	TRACE(TRACE_SCSI, "cmd%p, result=%x, cmd->status=%x, resid=%d, "
@@ -1181,10 +1199,11 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 }
 
 /* For small context optimization */
-static inline int scst_optimize_post_exec_context(struct scst_cmd *cmd,
-	int context)
+static inline enum scst_exec_context scst_optimize_post_exec_context(
+	struct scst_cmd *cmd, enum scst_exec_context context)
 {
-	if ((context == SCST_CONTEXT_TASKLET) ||
+	if (((context == SCST_CONTEXT_SAME) && scst_cmd_atomic(cmd)) ||
+	    (context == SCST_CONTEXT_TASKLET) ||
 	    (context == SCST_CONTEXT_DIRECT_ATOMIC)) {
 		if (!test_bit(SCST_TGT_DEV_AFTER_EXEC_ATOMIC,
 				&cmd->tgt_dev->tgt_dev_flags))
@@ -1215,6 +1234,7 @@ static void scst_cmd_done(struct scsi_cmnd *scsi_cmd)
 {
 	struct scsi_request *req = NULL;
 	struct scst_cmd *cmd;
+	enum scst_exec_context context;
 
 	TRACE_ENTRY();
 
@@ -1237,8 +1257,15 @@ static void scst_cmd_done(struct scsi_cmnd *scsi_cmd)
 
 	cmd->state = SCST_CMD_STATE_PRE_DEV_DONE;
 
+	if (in_irq())
+		context = SCST_CONTEXT_TASKLET;
+	else if (irqs_disabled())
+		context = SCST_CONTEXT_THREAD;
+	else
+		context = SCST_CONTEXT_DIRECT_ATOMIC;
+
 	scst_proccess_redirect_cmd(cmd,
-		scst_optimize_post_exec_context(cmd, scst_get_context()), 0);
+		scst_optimize_post_exec_context(cmd, context), 0);
 
 out:
 	TRACE_EXIT();
@@ -1248,6 +1275,7 @@ out:
 static void scst_cmd_done(void *data, char *sense, int result, int resid)
 {
 	struct scst_cmd *cmd;
+	enum scst_exec_context context;
 
 	TRACE_ENTRY();
 
@@ -1259,8 +1287,15 @@ static void scst_cmd_done(void *data, char *sense, int result, int resid)
 
 	cmd->state = SCST_CMD_STATE_PRE_DEV_DONE;
 
+	if (in_irq())
+		context = SCST_CONTEXT_TASKLET;
+	else if (irqs_disabled())
+		context = SCST_CONTEXT_THREAD;
+	else
+		context = SCST_CONTEXT_DIRECT_ATOMIC;
+
 	scst_proccess_redirect_cmd(cmd,
-		scst_optimize_post_exec_context(cmd, scst_get_context()), 0);
+		scst_optimize_post_exec_context(cmd, context), 0);
 
 out:
 	TRACE_EXIT();
@@ -1268,10 +1303,9 @@ out:
 }
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18) */
 
-static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state)
+static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state,
+	enum scst_exec_context pref_context)
 {
-	int context;
-
 	TRACE_ENTRY();
 
 #ifdef CONFIG_SCST_MEASURE_LATENCY
@@ -1317,10 +1351,8 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state)
 		scst_set_cmd_abnormal_done_state(cmd);
 	}
 #endif
-	context = scst_optimize_post_exec_context(cmd, scst_get_context());
-	if (cmd->context_processable)
-		context |= SCST_CONTEXT_PROCESSABLE;
-	scst_proccess_redirect_cmd(cmd, context, 0);
+	pref_context = scst_optimize_post_exec_context(cmd, pref_context);
+	scst_proccess_redirect_cmd(cmd, pref_context, 0);
 
 	TRACE_EXIT();
 	return;
@@ -1427,7 +1459,7 @@ out_compl:
 
 out_done:
 	/* Report the result */
-	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
 
 	TRACE_EXIT();
 	return SCST_EXEC_COMPLETED;
@@ -1520,7 +1552,7 @@ out:
 
 out_done:
 	/* Report the result */
-	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
 	res = SCST_EXEC_COMPLETED;
 	goto out;
 }
@@ -1583,7 +1615,7 @@ out:
 out_done:
 	res = SCST_EXEC_COMPLETED;
 	/* Report the result */
-	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
 	goto out;
 }
 
@@ -1764,9 +1796,6 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 
 	cmd->state = SCST_CMD_STATE_REAL_EXECUTING;
 
-	if (!handler->exec_sync)
-		cmd->context_processable = 0;
-
 	if (handler->exec) {
 		if (unlikely(!dev->handler->exec_atomic &&
 			     scst_cmd_atomic(cmd))) {
@@ -1876,7 +1905,7 @@ out_busy:
 out_done:
 	res = SCST_EXEC_COMPLETED;
 	/* Report the result */
-	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
 	goto out_complete;
 }
 
@@ -1966,7 +1995,7 @@ out:
 
 out_done:
 	/* Report the result */
-	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
 	res = SCST_EXEC_COMPLETED;
 	goto out;
 }
@@ -2794,14 +2823,15 @@ out_error:
 	goto out;
 }
 
-void scst_tgt_cmd_done(struct scst_cmd *cmd)
+void scst_tgt_cmd_done(struct scst_cmd *cmd,
+	enum scst_exec_context pref_context)
 {
 	TRACE_ENTRY();
 
 	sBUG_ON(cmd->state != SCST_CMD_STATE_XMIT_WAIT);
 
 	cmd->state = SCST_CMD_STATE_FINISHED;
-	scst_proccess_redirect_cmd(cmd, scst_get_context(), 1);
+	scst_proccess_redirect_cmd(cmd, pref_context, 1);
 
 	TRACE_EXIT();
 	return;
@@ -3238,7 +3268,7 @@ int scst_init_cmd_thread(void *arg)
 }
 
 /* Called with no locks held */
-void scst_process_active_cmd(struct scst_cmd *cmd, int context)
+void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 {
 	int res;
 
@@ -3246,12 +3276,9 @@ void scst_process_active_cmd(struct scst_cmd *cmd, int context)
 
 	EXTRACHECKS_BUG_ON(in_irq());
 
-	cmd->context_processable = context | SCST_CONTEXT_PROCESSABLE;
-	context &= ~SCST_CONTEXT_PROCESSABLE;
-	cmd->atomic = (context == SCST_CONTEXT_DIRECT_ATOMIC);
+	cmd->atomic = atomic;
 
-	TRACE_DBG("cmd %p, context_processable %d, atomic %d", cmd,
-		cmd->context_processable, cmd->atomic);
+	TRACE_DBG("cmd %p, atomic %d", cmd, atomic);
 
 	do {
 		switch (cmd->state) {
@@ -3397,17 +3424,9 @@ EXPORT_SYMBOL(scst_process_active_cmd);
 
 /* Called under cmd_list_lock and IRQs disabled */
 static void scst_do_job_active(struct list_head *cmd_list,
-       spinlock_t *cmd_list_lock, int context)
+	spinlock_t *cmd_list_lock, bool atomic)
 {
 	TRACE_ENTRY();
-
-#ifdef CONFIG_SCST_EXTRACHECKS
-	{
-		int c = context & ~SCST_CONTEXT_PROCESSABLE;
-		sBUG_ON((c != SCST_CONTEXT_DIRECT_ATOMIC) &&
-			(c != SCST_CONTEXT_DIRECT));
-	}
-#endif
 
 	while (!list_empty(cmd_list)) {
 		struct scst_cmd *cmd = list_entry(cmd_list->next, typeof(*cmd),
@@ -3415,7 +3434,7 @@ static void scst_do_job_active(struct list_head *cmd_list,
 		TRACE_DBG("Deleting cmd %p from active cmd list", cmd);
 		list_del(&cmd->cmd_list_entry);
 		spin_unlock_irq(cmd_list_lock);
-		scst_process_active_cmd(cmd, context);
+		scst_process_active_cmd(cmd, atomic);
 		spin_lock_irq(cmd_list_lock);
 	}
 
@@ -3471,8 +3490,7 @@ int scst_cmd_thread(void *arg)
 		}
 
 		scst_do_job_active(&p_cmd_lists->active_cmd_list,
-			&p_cmd_lists->cmd_list_lock, SCST_CONTEXT_DIRECT |
-						SCST_CONTEXT_PROCESSABLE);
+			&p_cmd_lists->cmd_list_lock, false);
 	}
 	spin_unlock_irq(&p_cmd_lists->cmd_list_lock);
 
@@ -3501,8 +3519,7 @@ void scst_cmd_tasklet(long p)
 	TRACE_ENTRY();
 
 	spin_lock_irq(&t->tasklet_lock);
-	scst_do_job_active(&t->tasklet_cmd_list, &t->tasklet_lock,
-		SCST_CONTEXT_DIRECT_ATOMIC);
+	scst_do_job_active(&t->tasklet_cmd_list, &t->tasklet_lock, true);
 	spin_unlock_irq(&t->tasklet_lock);
 
 	TRACE_EXIT();

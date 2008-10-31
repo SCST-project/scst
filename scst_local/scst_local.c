@@ -928,7 +928,7 @@ static int scst_local_targ_xmit_response(struct scst_cmd *scst_cmd)
 
 	if (unlikely(scst_cmd_aborted(scst_cmd))) {
 		scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_ABORTED);
-		scst_tgt_cmd_done(scst_cmd);
+		scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_SAME);
 		printk(KERN_INFO "%s aborted command handled\n", __func__);
 		return SCST_TGT_RES_SUCCESS;
 	}
@@ -947,7 +947,7 @@ static int scst_local_targ_xmit_response(struct scst_cmd *scst_cmd)
 	/*
 	 * Now tell SCST that the command is done ...
 	 */
-	scst_tgt_cmd_done(scst_cmd);
+	scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_SAME);
 
 	TRACE_EXIT();
 

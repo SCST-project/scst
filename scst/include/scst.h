@@ -173,35 +173,40 @@ typedef _Bool bool;
 #define SCST_ATOMIC                  1
 
 /*************************************************************
- ** Values for pref_context parameter of scst_cmd_init_done() and
- ** scst_rx_data()
+ ** Values for pref_context parameter of scst_cmd_init_done(),
+ ** scst_rx_data(), scst_restart_cmd(), scst_tgt_cmd_done()
+ ** and scst_cmd_done()
  *************************************************************/
 
-/*
- * Direct cmd's processing (i.e. regular function calls in the current
- * context) sleeping is not allowed
- */
-#define SCST_CONTEXT_DIRECT_ATOMIC   0
+enum scst_exec_context {
+	/*
+	 * Direct cmd's processing (i.e. regular function calls in the current
+	 * context) sleeping is not allowed
+	 */
+	SCST_CONTEXT_DIRECT_ATOMIC,
 
-/*
- * Direct cmd's processing (i.e. regular function calls in the current
- * context), sleeping is allowed, no restrictions
- */
-#define SCST_CONTEXT_DIRECT          1
+	/*
+	 * Direct cmd's processing (i.e. regular function calls in the current
+	 * context), sleeping is allowed, no restrictions
+	 */
+	SCST_CONTEXT_DIRECT,
 
-/* Tasklet or thread context required for cmd's processing */
-#define SCST_CONTEXT_TASKLET         2
+	/* Tasklet or thread context required for cmd's processing */
+	SCST_CONTEXT_TASKLET,
 
-/* Thread context required for cmd's processing */
-#define SCST_CONTEXT_THREAD          3
+	/* Thread context required for cmd's processing */
+	SCST_CONTEXT_THREAD,
 
-/*
- * SCST internal flag, which specifies that context is processable, i.e. the
- * next command in the active list will be processed after the current one.
- *
- * Target drivers must never use it!!
- */
-#define SCST_CONTEXT_PROCESSABLE     0x100
+	/*
+	 * Context is the same as it was in previous call of the corresponding
+	 * callback. For example, if dev handler's exec() does sync. data
+	 * reading this value should be used for scst_cmd_done(). The same is
+	 * true if scst_tgt_cmd_done() called directly from target driver's
+	 * xmit_response(). Not allowed in scst_cmd_init_done() and
+	 * scst_cmd_init_stage1_done().
+	 */
+	SCST_CONTEXT_SAME
+};
 
 /*************************************************************
  ** Values for status parameter of scst_rx_data()
@@ -705,7 +710,10 @@ struct scst_dev_type {
 	/* Set, if no /proc files should be automatically created by SCST */
 	unsigned no_proc:1;
 
-	/* Set, if exec() is synchronous */
+	/*
+	 * Should be set, if exec() is synchronous. This is a hint to SCST core
+	 * to optimize commands order management.
+	 */
 	unsigned exec_sync:1;
 
 	/*
@@ -742,8 +750,8 @@ struct scst_dev_type {
 	 * by scst_cmd_atomic(): it is true if the function called in the
 	 * atomic (non-sleeping) context.
 	 *
-	 * If this function provides sync execution, you must set above
-	 * exec_sync flag and should consider to setup dedicated threads by
+	 * If this function provides sync execution, you should set
+	 * exec_sync flag and consider to setup dedicated threads by
 	 * setting threads_num > 0.
 	 *
 	 * !! If this function is implemented, scst_check_local_events() !!
@@ -1001,6 +1009,7 @@ struct scst_cmd {
 	/*************************************************************
 	 ** Cmd's flags
 	 *************************************************************/
+
 	/*
 	 * Set if expected_sn should be incremented, i.e. cmd was sent
 	 * for execution
@@ -1021,12 +1030,6 @@ struct scst_cmd {
 
 	/* Set if this command contains status */
 	unsigned int is_send_status:1;
-
-	/*
-	 * Set if the cmd is being processed in the processable context. See
-	 * comment for SCST_CONTEXT_PROCESSABLE for what it means.
-	 */
-	unsigned int context_processable:1;
 
 	/* Set if cmd is being retried */
 	unsigned int retry:1;
@@ -1110,16 +1113,6 @@ struct scst_cmd {
 	/* Set if increment expected_sn in cmd->scst_cmd_done() */
 	unsigned int inc_expected_sn_on_done:1;
 
-	/*
-	 * Set if xmit_response() is going to need a considerable processing
-	 * time. Processing time is considerable, if it's > context switch time
-	 * (about 1 usec on modern systems). It's needed to trigger other
-	 * threads to start processing other outstanding commands without
-	 * waiting XMIT for the current one to finish. E.g., it should be set
-	 * if iSCSI data digest used and cmd has READ direction.
-	 */
-	unsigned int long_xmit:1;
-
 	/* Set if tgt_sn field is valid */
 	unsigned int tgt_sn_set:1;
 
@@ -1197,7 +1190,8 @@ struct scst_cmd {
 	int data_len;
 
 	/* Completition routine */
-	void (*scst_cmd_done) (struct scst_cmd *cmd, int next_state);
+	void (*scst_cmd_done) (struct scst_cmd *cmd, int next_state,
+		enum scst_exec_context pref_context);
 
 	struct sgv_pool_obj *sgv;	/* sgv object */
 
@@ -1778,7 +1772,8 @@ struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
  * with multiple connections per session seems to be an exception. For it, some
  * mutex/lock shall be used for the serialization.
  */
-void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context);
+void scst_cmd_init_done(struct scst_cmd *cmd,
+	enum scst_exec_context pref_context);
 
 /*
  * Notifies SCST that the driver finished the first stage of the command
@@ -1790,7 +1785,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd, int pref_context);
  * See also scst_cmd_init_done() comment for the serialization requirements.
  */
 static inline void scst_cmd_init_stage1_done(struct scst_cmd *cmd,
-	int pref_context, int set_sn)
+	enum scst_exec_context pref_context, int set_sn)
 {
 	cmd->preprocessing_only = 1;
 	cmd->set_sn_on_restart_cmd = !set_sn;
@@ -1807,7 +1802,8 @@ static inline void scst_cmd_init_stage1_done(struct scst_cmd *cmd,
  *
  * See also scst_cmd_init_done() comment for the serialization requirements.
  */
-void scst_restart_cmd(struct scst_cmd *cmd, int status, int pref_context);
+void scst_restart_cmd(struct scst_cmd *cmd, int status,
+	enum scst_exec_context pref_context);
 
 /*
  * Notifies SCST that the driver received all the necessary data
@@ -1817,15 +1813,18 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status, int pref_context);
  * The third argument sets preferred command execition context
  * (see SCST_CONTEXT_* constants for details)
  */
-void scst_rx_data(struct scst_cmd *cmd, int status, int pref_context);
+void scst_rx_data(struct scst_cmd *cmd, int status,
+	enum scst_exec_context pref_context);
 
 /*
  * Notifies SCST that the driver sent the response and the command
  * can be freed now. Don't forget to set the delivery status, if it
  * isn't success, using scst_set_delivery_status() before calling
- * this function.
+ * this function. The third argument sets preferred command execition
+ * context (see SCST_CONTEXT_* constants for details)
  */
-void scst_tgt_cmd_done(struct scst_cmd *cmd);
+void scst_tgt_cmd_done(struct scst_cmd *cmd,
+	enum scst_exec_context pref_context);
 
 /*
  * Creates new management command sends it for execution.
@@ -2296,24 +2295,6 @@ static inline void scst_set_delivery_status(struct scst_cmd *cmd,
 }
 
 /*
- * Get/set/clear functions for cmd's long XMIT flag.
- */
-static inline int scst_get_long_xmit(struct scst_cmd *cmd)
-{
-	return cmd->long_xmit;
-}
-
-static inline void scst_set_long_xmit(struct scst_cmd *cmd)
-{
-	cmd->long_xmit = 1;
-}
-
-static inline void scst_clear_long_xmit(struct scst_cmd *cmd)
-{
-	cmd->long_xmit = 0;
-}
-
-/*
  * Get/Set function for mgmt cmd's target private data
  */
 static inline void *scst_mgmt_cmd_get_tgt_priv(struct scst_mgmt_cmd *mcmd)
@@ -2464,11 +2445,9 @@ void scst_resume_activity(void);
 
 /*
  * Main SCST commands processing routing. Must be used only by dev handlers.
- * Argument context sets the execution context, only SCST_CONTEXT_DIRECT and
- * SCST_CONTEXT_DIRECT_ATOMIC with optional SCST_CONTEXT_PROCESSABLE flag
- * are allowed.
+ * Argument atomic is true if function called in atomic context.
  */
-void scst_process_active_cmd(struct scst_cmd *cmd, int context);
+void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic);
 
 /*
  * Checks if command can be executed (reservations, etc.) or there are local

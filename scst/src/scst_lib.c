@@ -2480,7 +2480,6 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 
 	TRACE_ENTRY();
 
-	sBUG_ON(in_interrupt() || in_atomic());
 	EXTRACHECKS_BUG_ON(dev->scsi_dev == NULL);
 
 	for (i = 0; i < 5; i++) {

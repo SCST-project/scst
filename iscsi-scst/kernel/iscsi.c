@@ -240,7 +240,8 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 			switch (cmnd->scst_state) {
 			case ISCSI_CMD_STATE_PROCESSED:
 				TRACE_DBG("cmd %p PROCESSED", cmnd);
-				scst_tgt_cmd_done(cmnd->scst_cmd);
+				scst_tgt_cmd_done(cmnd->scst_cmd,
+					SCST_CONTEXT_DIRECT);
 				break;
 			case ISCSI_CMD_STATE_AFTER_PREPROC:
 			{
@@ -1148,12 +1149,6 @@ static int iscsi_pre_exec(struct scst_cmd *scst_cmd)
 	EXTRACHECKS_BUG_ON(scst_cmd_atomic(scst_cmd));
 
 	if (scst_cmd_get_data_direction(scst_cmd) == SCST_DATA_READ) {
-		if (!(req->conn->ddigest_type & DIGEST_NONE))
-			scst_set_long_xmit(scst_cmd);
-#if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
-		else if (cmnd_hdr(req)->data_length > 8*1024)
-			scst_set_long_xmit(scst_cmd);
-#endif
 		EXTRACHECKS_BUG_ON(!list_empty(&req->rx_ddigest_cmd_list));
 		goto out;
 	}
@@ -2504,8 +2499,7 @@ static void iscsi_preprocessing_done(struct scst_cmd *scst_cmd)
  * upon entrance in this function, because otherwise it could be destroyed
  * inside as a result of iscsi_send(), which releases sent commands.
  */
-static void iscsi_try_local_processing(struct iscsi_conn *conn,
-	bool single_only)
+static void iscsi_try_local_processing(struct iscsi_conn *conn)
 {
 	int local;
 
@@ -2532,11 +2526,9 @@ static void iscsi_try_local_processing(struct iscsi_conn *conn,
 
 	if (local) {
 		int rc = 1;
-		while (test_write_ready(conn)) {
+
+		if (test_write_ready(conn))
 			rc = iscsi_send(conn);
-			if ((rc <= 0) || single_only)
-				break;
-		}
 
 		spin_lock_bh(&iscsi_wr_lock);
 #ifdef CONFIG_SCST_EXTRACHECKS
@@ -2565,11 +2557,6 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 	u8 *sense = scst_cmd_get_sense_buffer(scst_cmd);
 	int sense_len = scst_cmd_get_sense_buffer_len(scst_cmd);
 	int old_state = req->scst_state;
-#if 0 /* temp. ToDo */
-	bool single_only = !scst_get_long_xmit(scst_cmd);
-#else
-	bool single_only = 0;
-#endif
 
 	if (scst_cmd_atomic(scst_cmd))
 		return SCST_TGT_RES_NEED_THREAD_CTX;
@@ -2678,7 +2665,7 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 
 	conn_get_ordered(conn);
 	req_cmnd_release(req);
-	iscsi_try_local_processing(conn, single_only);
+	iscsi_try_local_processing(conn);
 	conn_put(conn);
 
 out:

@@ -125,22 +125,6 @@ extern unsigned long scst_trace_flag;
 
 #define SCST_TGT_RETRY_TIMEOUT               (3/2*HZ)
 
-static inline int scst_get_context(void)
-{
-	if (in_irq())
-		return SCST_CONTEXT_TASKLET;
-	if (irqs_disabled())
-		return SCST_CONTEXT_THREAD;
-	if (in_softirq() || in_atomic())
-		return SCST_CONTEXT_DIRECT_ATOMIC;
-	return SCST_CONTEXT_DIRECT;
-}
-
-static inline bool scst_is_context_gfp_atomic(void)
-{
-	return  irqs_disabled() || in_atomic() || in_interrupt();
-}
-
 extern unsigned int scst_max_cmd_mem;
 extern unsigned int scst_max_dev_cmd_mem;
 
@@ -246,10 +230,7 @@ static inline void scst_make_deferred_commands_active(
 		spin_lock_irq(&c->cmd_lists->cmd_list_lock);
 		list_add_tail(&c->cmd_list_entry,
 			&c->cmd_lists->active_cmd_list);
-#if 0 /* temp. ToDo */
-		if (!curr_cmd->context_processable || curr_cmd->long_xmit)
-#endif
-			wake_up(&c->cmd_lists->cmd_list_waitQ);
+		wake_up(&c->cmd_lists->cmd_list_waitQ);
 		spin_unlock_irq(&c->cmd_lists->cmd_list_lock);
 	}
 
@@ -316,8 +297,8 @@ static inline void scst_destroy_cmd(struct scst_cmd *cmd)
 	return;
 }
 
-void scst_proccess_redirect_cmd(struct scst_cmd *cmd, int context,
-	int check_retries);
+void scst_proccess_redirect_cmd(struct scst_cmd *cmd,
+	enum scst_exec_context context, int check_retries);
 void scst_check_retries(struct scst_tgt *tgt);
 void scst_tgt_retry_timer_fn(unsigned long arg);
 

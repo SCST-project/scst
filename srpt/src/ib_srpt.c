@@ -654,7 +654,8 @@ static void srpt_handle_err_comp(struct srpt_rdma_ch *ch, struct ib_wc *wc)
 			dir = scst_cmd_get_data_direction(scmnd);
 
 			if (dir == SCST_DATA_NONE)
-				scst_tgt_cmd_done(scmnd);
+				scst_tgt_cmd_done(scmnd,
+					SCST_CONTEXT_DIRECT_ATOMIC);
 			else {
 				dma_unmap_sg(sdev->device->dma_device,
 					     scst_cmd_get_sg(scmnd),
@@ -674,7 +675,8 @@ static void srpt_handle_err_comp(struct srpt_rdma_ch *ch, struct ib_wc *wc)
 						     SCST_CONTEXT_THREAD);
 				else if (scmnd->state ==
 					 SCST_CMD_STATE_XMIT_WAIT)
-					scst_tgt_cmd_done(scmnd);
+					scst_tgt_cmd_done(scmnd,
+						SCST_CONTEXT_DIRECT_ATOMIC);
 			}
 		} else
 			srpt_reset_ioctx(ch, ioctx);
@@ -683,7 +685,8 @@ static void srpt_handle_err_comp(struct srpt_rdma_ch *ch, struct ib_wc *wc)
 }
 
 static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
-				  struct srpt_ioctx *ioctx)
+				  struct srpt_ioctx *ioctx,
+				  enum scst_exec_context context)
 {
 	if (ioctx->scmnd) {
 		scst_data_direction dir =
@@ -702,7 +705,7 @@ static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
 			ioctx->scmnd->sg_cnt = 0;
 		}
 
-		scst_tgt_cmd_done(ioctx->scmnd);
+		scst_tgt_cmd_done(ioctx->scmnd, context);
 	} else
 		srpt_reset_ioctx(ch, ioctx);
 }
@@ -1041,7 +1044,8 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 		} else {
 			switch (wc.opcode) {
 			case IB_WC_SEND:
-				srpt_handle_send_comp(ch, ioctx);
+				srpt_handle_send_comp(ch, ioctx,
+					SCST_CONTEXT_DIRECT_ATOMIC);
 				break;
 			case IB_WC_RDMA_WRITE:
 			case IB_WC_RDMA_READ:
@@ -1833,11 +1837,8 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 		else if (ch->state == RDMA_CHANNEL_CONNECTING)
 			ret = SCST_TGT_RES_QUEUE_FULL;
 
-		if (unlikely(scst_cmd_aborted(scmnd))) {
-			scst_set_delivery_status(scmnd,
-						 SCST_CMD_DELIVERY_ABORTED);
-			ret = SCST_TGT_RES_SUCCESS;
-		}
+		if (unlikely(scst_cmd_aborted(scmnd)))
+			goto out_aborted;
 
 		goto out;
 	}
@@ -1851,10 +1852,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 		printk(KERN_ERR PFX
 		       "%s: tag= %lld already get aborted\n",
 		       __func__, (unsigned long long)tag);
-		scst_set_delivery_status(ioctx->scmnd,
-					 SCST_CMD_DELIVERY_ABORTED);
-		scst_tgt_cmd_done(ioctx->scmnd);
-		goto out;
+		goto out_aborted;
 	}
 
 	dir = scst_cmd_get_data_direction(scmnd);
@@ -1903,6 +1901,12 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 
 out:
 	return ret;
+
+out_aborted:
+	ret = SCST_TGT_RES_SUCCESS;
+	scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_ABORTED);
+	scst_tgt_cmd_done(scmnd, SCST_CONTEXT_SAME);
+	goto out;
 }
 
 static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
@@ -2070,7 +2074,8 @@ static int srpt_ioctx_thread(void *arg)
 			spin_unlock_irq(&srpt_thread.thread_lock);
 			switch (ioctx->op) {
 			case IB_WC_SEND:
-				srpt_handle_send_comp(ioctx->ch, ioctx);
+				srpt_handle_send_comp(ioctx->ch, ioctx,
+					SCST_CONTEXT_DIRECT);
 				break;
 			case IB_WC_RDMA_WRITE:
 			case IB_WC_RDMA_READ:

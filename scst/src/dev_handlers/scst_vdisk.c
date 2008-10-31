@@ -931,7 +931,8 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 		if (immed) {
 			scst_cmd_get(cmd);
 			cmd->completed = 1;
-			cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);
+			cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT,
+				SCST_CONTEXT_SAME);
 			vdisk_fsync(thr, loff, data_len, NULL);
 			/* ToDo: vdisk_fsync() error processing */
 			scst_cmd_put(cmd);
@@ -1000,7 +1001,7 @@ out_compl:
 	cmd->completed = 1;
 
 out_done:
-	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
 
 out_thr:
 	if (likely(thr != NULL))
@@ -1104,7 +1105,7 @@ out:
 	return res;
 
 out_done:
-	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT);
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
 	goto out;
 }
 
@@ -2282,9 +2283,10 @@ static inline void blockio_check_finish(struct blockio_work *blockio_work)
 	if (atomic_dec_and_test(&blockio_work->bios_inflight)) {
 		blockio_work->cmd->completed = 1;
 		blockio_work->cmd->scst_cmd_done(blockio_work->cmd,
-			SCST_CMD_STATE_DEFAULT);
+			SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_DIRECT_ATOMIC);
 		kfree(blockio_work);
 	}
+	return;
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
