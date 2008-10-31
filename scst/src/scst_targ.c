@@ -207,12 +207,13 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
 		cmd->cdb, cmd->cdb_len);
 
 #ifdef CONFIG_SCST_EXTRACHECKS
-	if (unlikely(in_irq()) && ((pref_context == SCST_CONTEXT_DIRECT) ||
-			 (pref_context == SCST_CONTEXT_DIRECT_ATOMIC))) {
+	if (unlikely((in_irq() || irqs_disabled())) &&
+	    ((pref_context == SCST_CONTEXT_DIRECT) ||
+	     (pref_context == SCST_CONTEXT_DIRECT_ATOMIC))) {
 		PRINT_ERROR("Wrong context %d in IRQ from target %s, use "
-			"SCST_CONTEXT_TASKLET instead\n", pref_context,
+			"SCST_CONTEXT_THREAD instead\n", pref_context,
 			cmd->tgtt->name);
-		pref_context = SCST_CONTEXT_TASKLET;
+		pref_context = SCST_CONTEXT_THREAD;
 	}
 #endif
 
@@ -791,12 +792,13 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status,
 		  status);
 
 #ifdef CONFIG_SCST_EXTRACHECKS
-	if (in_irq() && ((pref_context == SCST_CONTEXT_DIRECT) ||
-			 (pref_context == SCST_CONTEXT_DIRECT_ATOMIC))) {
+	if ((in_irq() || irqs_disabled()) &&
+	    ((pref_context == SCST_CONTEXT_DIRECT) ||
+	     (pref_context == SCST_CONTEXT_DIRECT_ATOMIC))) {
 		PRINT_ERROR("Wrong context %d in IRQ from target %s, use "
-			"SCST_CONTEXT_TASKLET instead\n", pref_context,
+			"SCST_CONTEXT_THREAD instead\n", pref_context,
 			cmd->tgtt->name);
-		pref_context = SCST_CONTEXT_TASKLET;
+		pref_context = SCST_CONTEXT_THREAD;
 	}
 #endif
 
@@ -1052,12 +1054,13 @@ void scst_rx_data(struct scst_cmd *cmd, int status,
 	      status);
 
 #ifdef CONFIG_SCST_EXTRACHECKS
-	if (in_irq() && ((pref_context == SCST_CONTEXT_DIRECT) ||
-			 (pref_context == SCST_CONTEXT_DIRECT_ATOMIC))) {
+	if ((in_irq() || irqs_disabled()) &&
+	    ((pref_context == SCST_CONTEXT_DIRECT) ||
+	     (pref_context == SCST_CONTEXT_DIRECT_ATOMIC))) {
 		PRINT_ERROR("Wrong context %d in IRQ from target %s, use "
-			"SCST_CONTEXT_TASKLET instead\n", pref_context,
+			"SCST_CONTEXT_THREAD instead\n", pref_context,
 			cmd->tgtt->name);
-		pref_context = SCST_CONTEXT_TASKLET;
+		pref_context = SCST_CONTEXT_THREAD;
 	}
 #endif
 
@@ -1257,15 +1260,9 @@ static void scst_cmd_done(struct scsi_cmnd *scsi_cmd)
 
 	cmd->state = SCST_CMD_STATE_PRE_DEV_DONE;
 
-	if (in_irq())
-		context = SCST_CONTEXT_TASKLET;
-	else if (irqs_disabled())
-		context = SCST_CONTEXT_THREAD;
-	else
-		context = SCST_CONTEXT_DIRECT_ATOMIC;
-
 	scst_proccess_redirect_cmd(cmd,
-		scst_optimize_post_exec_context(cmd, context), 0);
+		scst_optimize_post_exec_context(cmd, scst_estimate_context()),
+						0);
 
 out:
 	TRACE_EXIT();
@@ -1275,7 +1272,6 @@ out:
 static void scst_cmd_done(void *data, char *sense, int result, int resid)
 {
 	struct scst_cmd *cmd;
-	enum scst_exec_context context;
 
 	TRACE_ENTRY();
 
@@ -1287,15 +1283,9 @@ static void scst_cmd_done(void *data, char *sense, int result, int resid)
 
 	cmd->state = SCST_CMD_STATE_PRE_DEV_DONE;
 
-	if (in_irq())
-		context = SCST_CONTEXT_TASKLET;
-	else if (irqs_disabled())
-		context = SCST_CONTEXT_THREAD;
-	else
-		context = SCST_CONTEXT_DIRECT_ATOMIC;
-
 	scst_proccess_redirect_cmd(cmd,
-		scst_optimize_post_exec_context(cmd, context), 0);
+		scst_optimize_post_exec_context(cmd, scst_estimate_context()),
+						0);
 
 out:
 	TRACE_EXIT();
@@ -3274,7 +3264,7 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 
 	TRACE_ENTRY();
 
-	EXTRACHECKS_BUG_ON(in_irq());
+	EXTRACHECKS_BUG_ON(in_irq() || irqs_disabled());
 
 	cmd->atomic = atomic;
 
@@ -3743,7 +3733,7 @@ static int scst_call_dev_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	if (h->task_mgmt_fn) {
 		TRACE_MGMT_DBG("Calling dev handler %s task_mgmt_fn(fn=%d)",
 			h->name, mcmd->fn);
-		EXTRACHECKS_BUG_ON(in_irq());
+		EXTRACHECKS_BUG_ON(in_irq() || irqs_disabled());
 		res = h->task_mgmt_fn(mcmd, tgt_dev);
 		TRACE_MGMT_DBG("Dev handler %s task_mgmt_fn() returned %d",
 		      h->name, res);

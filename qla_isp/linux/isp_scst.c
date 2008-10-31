@@ -480,8 +480,9 @@ rx_loop:
         }
         scst_cmd_set_expected(scst_cmd, dir, len);
     }
-    scst_cmd_init_done(scst_cmd, SCST_CONTEXT_TASKLET);
     spin_unlock_irq(&bc->tmds_lock);
+
+    scst_cmd_init_done(scst_cmd, SCST_CONTEXT_DIRECT_ATOMIC);
 
     goto rx_loop;
 }
@@ -620,6 +621,7 @@ scsi_target_done_cmd(tmd_cmd_t *tmd)
     bus_t *bp;
     struct scst_cmd *scst_cmd;
     tmd_xact_t *xact = &tmd->cd_xact;
+    enum scst_exec_context context = scst_estimate_context();
 
     SDprintk2("scsi_target: TMD_DONE[%llx] %p hf %x lf %x xfrlen %d totlen %d moved %d\n",
               tmd->cd_tagval, tmd, xact->td_hflags, xact->td_lflags, xact->td_xfrlen, tmd->cd_totlen, tmd->cd_moved);
@@ -642,7 +644,7 @@ scsi_target_done_cmd(tmd_cmd_t *tmd)
         if (unlikely(xact->td_error)) {
             scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_FAILED);
         }
-        scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_TASKLET);
+        scst_tgt_cmd_done(scst_cmd, context);
         return;
     }
 
@@ -653,12 +655,12 @@ scsi_target_done_cmd(tmd_cmd_t *tmd)
                 if (unlikely(xact->td_error)) {
                     rx_status = SCST_RX_STATUS_ERROR;
                 }
-                scst_rx_data(scst_cmd, rx_status, SCST_CONTEXT_TASKLET);
+                scst_rx_data(scst_cmd, rx_status, context);
             } else {
                 if (unlikely(xact->td_error)) {
                     scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_FAILED);
                 }
-                scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_TASKLET);
+                scst_tgt_cmd_done(scst_cmd, context);
             }
         } else {
             ; /* we don't have all data, do nothing */
@@ -669,7 +671,7 @@ scsi_target_done_cmd(tmd_cmd_t *tmd)
         if (unlikely(xact->td_error)) {
             scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_FAILED);
         }
-        scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_TASKLET);
+        scst_tgt_cmd_done(scst_cmd, context);
     } else {
         Eprintk("don't know what to do with TMD_DONE[%llx] cdb0 %x hf %x lf %x xfrlen %d totlen %d moved %d\n",
                 tmd->cd_tagval, tmd->cd_cdb[0], xact->td_hflags, xact->td_lflags, xact->td_xfrlen, tmd->cd_totlen, tmd->cd_moved);

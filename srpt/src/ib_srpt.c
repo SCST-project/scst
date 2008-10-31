@@ -655,7 +655,7 @@ static void srpt_handle_err_comp(struct srpt_rdma_ch *ch, struct ib_wc *wc)
 
 			if (dir == SCST_DATA_NONE)
 				scst_tgt_cmd_done(scmnd,
-					SCST_CONTEXT_DIRECT_ATOMIC);
+					scst_estimate_context());
 			else {
 				dma_unmap_sg(sdev->device->dma_device,
 					     scst_cmd_get_sg(scmnd),
@@ -676,7 +676,7 @@ static void srpt_handle_err_comp(struct srpt_rdma_ch *ch, struct ib_wc *wc)
 				else if (scmnd->state ==
 						SCST_CMD_STATE_XMIT_WAIT)
 					scst_tgt_cmd_done(scmnd,
-						SCST_CONTEXT_DIRECT_ATOMIC);
+						scst_estimate_context());
 			}
 		} else
 			srpt_reset_ioctx(ch, ioctx);
@@ -1044,7 +1044,7 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 			switch (wc.opcode) {
 			case IB_WC_SEND:
 				srpt_handle_send_comp(ch, ioctx,
-					SCST_CONTEXT_DIRECT_ATOMIC);
+					scst_estimate_context());
 				break;
 			case IB_WC_RDMA_WRITE:
 			case IB_WC_RDMA_READ:

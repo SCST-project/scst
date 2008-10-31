@@ -2034,6 +2034,16 @@ static inline int scst_cmd_atomic(struct scst_cmd *cmd)
 	return res;
 }
 
+static inline enum scst_exec_context scst_estimate_context(void)
+{
+	if (in_irq())
+		return SCST_CONTEXT_TASKLET;
+	else if (irqs_disabled())
+		return SCST_CONTEXT_THREAD;
+	else
+		return SCST_CONTEXT_DIRECT_ATOMIC;
+}
+
 /* Returns cmd's session */
 static inline struct scst_session *scst_cmd_get_session(struct scst_cmd *cmd)
 {
