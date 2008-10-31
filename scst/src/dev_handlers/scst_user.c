@@ -806,14 +806,24 @@ static void dev_user_flush_dcache(struct scst_user_cmd *ucmd)
 {
 	struct scst_user_cmd *buf_ucmd = ucmd->buf_ucmd;
 	unsigned long start = buf_ucmd->ubuff;
-	int i;
+	int i, bufflen = ucmd->cmd->bufflen;
 
 	TRACE_ENTRY();
 
 	if (start == 0)
 		goto out;
 
-	for (i = 0; i < buf_ucmd->num_data_pages; i++) {
+	/*
+	 * Possibly, flushing of all the pages from ucmd->cmd->sg can be
+	 * faster, since it should be cache hot, while ucmd->buf_ucmd and
+	 * buf_ucmd->data_pages are cache cold. But, from other side,
+	 * sizeof(buf_ucmd->data_pages[0]) is considerably smaller, than
+	 * sizeof(ucmd->cmd->sg[0]), so on big buffers going over 
+	 * data_pages array can lead to less cache misses. So, real numbers are
+	 * needed. ToDo.
+	 */
+
+	for (i = 0; (bufflen > 0) && (i < buf_ucmd->num_data_pages); i++) {
 		struct page *page;
 		page = buf_ucmd->data_pages[i];
 #ifdef ARCH_HAS_FLUSH_ANON_PAGE
@@ -823,6 +833,7 @@ static void dev_user_flush_dcache(struct scst_user_cmd *ucmd)
 #endif
 		flush_dcache_page(page);
 		start += PAGE_SIZE;
+		bufflen -= PAGE_SIZE;
 	}
 
 out:
