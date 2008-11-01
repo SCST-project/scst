@@ -50,8 +50,8 @@ DEFINE_SPINLOCK(iscsi_wr_lock);
 LIST_HEAD(iscsi_wr_list);
 DECLARE_WAIT_QUEUE_HEAD(iscsi_wr_waitQ);
 
-/* It must be at least PAGE_SIZE big, to match ISCSI_CONN_IOV_MAX */
-static char dummy_data[PAGE_SIZE];
+static struct page *dummy_page;
+static struct scatterlist dummy_sg;
 
 struct iscsi_thread_t {
 	struct task_struct *thr;
@@ -277,7 +277,8 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 
 	if (cmnd->own_sg) {
 		TRACE_DBG("%s", "own_sg");
-		scst_free(cmnd->sg, cmnd->sg_cnt);
+		if (cmnd->sg != &dummy_sg)
+			scst_free(cmnd->sg, cmnd->sg_cnt);
 #ifdef CONFIG_SCST_DEBUG
 		cmnd->own_sg = 0;
 		cmnd->sg = NULL;
@@ -939,14 +940,14 @@ static void cmnd_prepare_get_rejected_cmd_data(struct iscsi_cmnd *cmnd)
 		return;
 
 	if (sg == NULL) {
-		/* ToDo: __GFP_NOFAIL ?? */
-		sg = cmnd->sg = scst_alloc(PAGE_SIZE, GFP_KERNEL|__GFP_NOFAIL,
-					&cmnd->sg_cnt);
-		if (sg == NULL) {
-			;/* ToDo */;
-		}
-		cmnd->own_sg = 1;
+		/*
+		 * There are no problems with the safety from concurrent
+		 * accesses to dummy_page in dummy_sg, since data only
+		 * will be read and then discarded.
+		 */
+		sg = cmnd->sg = &dummy_sg;
 		cmnd->bufflen = PAGE_SIZE;
+		cmnd->own_sg = 1;
 	}
 
 	addr = page_address(sg_page(&sg[0]));
@@ -1251,12 +1252,13 @@ static int noop_out_start(struct iscsi_cmnd *cmnd)
 		} else {
 			/*
 			 * There are no problems with the safety from concurrent
-			 * accesses to dummy_data, since for ISCSI_RESERVED_TAG
+			 * accesses to dummy_page, since for ISCSI_RESERVED_TAG
 			 * the data only read and then discarded.
 			 */
 			for (i = 0; i < ISCSI_CONN_IOV_MAX; i++) {
-				conn->read_iov[i].iov_base = dummy_data;
-				tmp = min_t(u32, size, sizeof(dummy_data));
+				conn->read_iov[i].iov_base =
+					page_address(dummy_page);
+				tmp = min_t(u32, size, PAGE_SIZE);
 				conn->read_iov[i].iov_len = tmp;
 				conn->read_size += tmp;
 				size -= tmp;
@@ -2894,17 +2896,26 @@ static void iscsi_stop_threads(void)
 
 static int __init iscsi_init(void)
 {
-	int err;
+	int err = 0;
 	int num;
 
 	PRINT_INFO("iSCSI SCST Target - version %s", ISCSI_VERSION_STRING);
+
+	dummy_page = alloc_pages(GFP_KERNEL, 0);
+	if (dummy_page == NULL) {
+		PRINT_ERROR("%s", "Dummy page allocation failed");
+		goto out;
+	}
+
+	sg_init_table(&dummy_sg, 1);
+	sg_set_page(&dummy_sg, dummy_page, PAGE_SIZE, 0);
 
 #if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	err = net_set_get_put_page_callbacks(iscsi_get_page_callback,
 			iscsi_put_page_callback);
 	if (err != 0) {
 		PRINT_INFO("Unable to set page callbackes: %d", err);
-		goto out;
+		goto out_free_dummy;
 	}
 #else
 	PRINT_INFO("%s", "Patch put_page_callback-<kernel-version>.patch "
@@ -2972,6 +2983,9 @@ out_callb:
 #if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	net_set_get_put_page_callbacks(NULL, NULL);
 #endif
+
+out_free_dummy:
+	__free_pages(dummy_page, 0);
 	goto out;
 }
 
@@ -2991,6 +3005,9 @@ static void __exit iscsi_exit(void)
 #if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	net_set_get_put_page_callbacks(NULL, NULL);
 #endif
+
+	__free_pages(dummy_page, 0);
+	return;
 }
 
 module_init(iscsi_init);
