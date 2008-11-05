@@ -82,8 +82,9 @@ static struct scst_tgt_template scst_local_targ_tmpl;
 /*
  * Some max values
  */
-#define DEF_NUM_HOST 2
+#define DEF_NUM_HOST 1
 #define DEF_NUM_TGTS 1
+#define MAX_TARGETS 16
 #define DEF_MAX_LUNS 256
 #define SCST_LOCAL_CANQUEUE 1
 /*#define SCST_LOCAL_CANQUEUE 255*/
@@ -102,14 +103,15 @@ static int num_dev_resets;
 static int num_target_resets;
 
 /*
- * Each host has a target it is pointing to ... this will allow multiple
- * hosts pointing to the one target.
+ * Each host has multiple targets, each of which has a separate session
+ * to SCST.
  */
+
 struct scst_local_host_info {
 	struct list_head host_list;
 	struct Scsi_Host *shost;
 	struct scst_tgt *target;
-	struct scst_session *session;
+	struct scst_session *session[MAX_TARGETS];
 	struct device dev;
 };
 
@@ -201,7 +203,7 @@ static ssize_t scst_local_add_host_show(struct device_driver *ddp, char *buf)
 	list_for_each_entry_safe(scst_lcl_host, tmp, &scst_local_host_list,
 				 host_list) {
 		len += scnprintf(&buf[len], PAGE_SIZE - len, " Initiator: %s\n",
-				 scst_lcl_host->session->initiator_name);
+				 scst_lcl_host->session[0]->initiator_name);
 	}
 
 	TRACE_EXIT_RES(len);
@@ -215,7 +217,7 @@ static ssize_t scst_local_add_host_store(struct device_driver *ddp,
 
 	TRACE_ENTRY();
 
-	if (sscanf(buf, "%d", &delta_hosts) != 2)
+	if (sscanf(buf, "%d", &delta_hosts) != 1)
 		return -EINVAL;
 	if (delta_hosts > 0) {
 		do {
@@ -291,7 +293,7 @@ static int scst_local_abort(struct scsi_cmnd *SCpnt)
 
 	scst_lcl_host = to_scst_lcl_host(scsi_get_device(SCpnt->device->host));
 
-	ret = scst_rx_mgmt_fn_tag(scst_lcl_host->session,
+	ret = scst_rx_mgmt_fn_tag(scst_lcl_host->session[SCpnt->device->id],
 				  SCST_LUN_RESET, SCpnt->tag, FALSE,
 				  &dev_reset_completion);
 
@@ -322,7 +324,7 @@ static int scst_local_device_reset(struct scsi_cmnd *SCpnt)
 	lun = SCpnt->device->lun;
 	lun = (lun & 0xFF) << 8 | ((lun & 0xFF00) >> 8); /* FIXME: LE only */
 
-	ret = scst_rx_mgmt_fn_lun(scst_lcl_host->session,
+	ret = scst_rx_mgmt_fn_lun(scst_lcl_host->session[SCpnt->device->id],
 				  SCST_LUN_RESET,
 				  (const uint8_t *)&lun,
 				  sizeof(lun), FALSE,
@@ -353,7 +355,7 @@ static int scst_local_target_reset(struct scsi_cmnd *SCpnt)
 	lun = SCpnt->device->lun;
 	lun = (lun & 0xFF) << 8 | ((lun & 0xFF00) >> 8); /* FIXME: LE only */
 
-	ret = scst_rx_mgmt_fn_lun(scst_lcl_host->session,
+	ret = scst_rx_mgmt_fn_lun(scst_lcl_host->session[SCpnt->device->id],
 				  SCST_TARGET_RESET,
 				  (const uint8_t *)&lun,
 				  sizeof(lun), FALSE,
@@ -460,7 +462,7 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 	 */
 	lun = SCpnt->device->lun;
 	lun = (lun & 0xFF) << 8 | ((lun & 0xFF00) >> 8); /* FIXME: LE only */
-	scst_cmd = scst_rx_cmd(scst_lcl_host->session,
+	scst_cmd = scst_rx_cmd(scst_lcl_host->session[SCpnt->device->id],
 			       (const uint8_t *)&lun,
 			       sizeof(lun), SCpnt->cmnd,
 			       SCpnt->cmd_len, TRUE);
@@ -537,11 +539,15 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 static void scst_local_release_adapter(struct device *dev)
 {
 	struct scst_local_host_info *scst_lcl_host;
+	int i = 0;
 
 	TRACE_ENTRY();
 	scst_lcl_host = to_scst_lcl_host(dev);
 	if (scst_lcl_host) {
-		scst_unregister_session(scst_lcl_host->session, TRUE, NULL);
+		for (i = 0; i < scst_local_num_tgts; i++)
+			if (scst_lcl_host->session[i])
+				scst_unregister_session(
+					scst_lcl_host->session[i], TRUE, NULL);
 		scst_unregister(scst_lcl_host->target);
 		kfree(scst_lcl_host);
 	}
@@ -559,7 +565,7 @@ static void scst_local_release_adapter(struct device *dev)
  */
 static int scst_local_add_adapter(void)
 {
-	int error = 0;
+	int error = 0, i = 0;
 	struct scst_local_host_info *scst_lcl_host;
 	char name[32];
 
@@ -580,7 +586,7 @@ static int scst_local_add_adapter(void)
 	/*
 	 * Register a target with SCST and add a session
 	 */
-	sprintf(name, "scst_lcl_targ_%d", scst_local_add_host);
+	sprintf(name, "scstlcltgt%d", scst_local_add_host);
 	scst_lcl_host->target = scst_register(&scst_local_targ_tmpl, name);
 	if (!scst_lcl_host) {
 		printk(KERN_WARNING "scst_register_target failed:\n");
@@ -588,13 +594,19 @@ static int scst_local_add_adapter(void)
 		goto cleanup;
 	}
 
-	sprintf(name, "scst_lcl_host_%d", scst_local_add_host);
-	scst_lcl_host->session = scst_register_session(scst_lcl_host->target,
-						       TRUE, name, NULL, NULL);
-	if (!scst_lcl_host->session) {
-		printk(KERN_WARNING "scst_register_session failed:\n");
-		error = -1;
-		goto unregister_target;
+	/*
+	 * Create a session for each device
+	 */
+	for (i = 0; i < scst_local_num_tgts; i++) {
+		sprintf(name, "scstlclhst%d:%d", scst_local_add_host, i);
+		scst_lcl_host->session[i] = scst_register_session(
+						scst_lcl_host->target,
+						TRUE, name, NULL, NULL);
+		if (!scst_lcl_host->session[i]) {
+			printk(KERN_WARNING "scst_register_session failed:\n");
+			error = -1;
+			goto unregister_target;
+		}
 	}
 
 	scst_lcl_host->dev.bus     = &scst_fake_lld_bus;
@@ -612,7 +624,11 @@ static int scst_local_add_adapter(void)
 	return error;
 
 unregister_session:
-	scst_unregister_session(scst_lcl_host->session, TRUE, NULL);
+	for (i = 0; i < scst_local_num_tgts; i++) {
+		if (scst_lcl_host->session[i])
+			scst_unregister_session(scst_lcl_host->session[i],
+			TRUE, NULL);
+	}
 unregister_target:
 	scst_unregister(scst_lcl_host->target);
 cleanup:
@@ -654,7 +670,6 @@ static struct scsi_host_template scst_lcl_ini_driver_template = {
 	.proc_name			= scst_local_proc_name,
 	.name				= SCST_LOCAL_NAME,
 	.info				= scst_local_info,
-/*	.slave_alloc			= scst_local_slave_alloc, */
 /*	.ioctl				= scst_local_ioctl, */
 	.queuecommand			= scst_local_queuecommand,
 	.eh_abort_handler		= scst_local_abort,
@@ -688,6 +703,9 @@ static int __init scst_local_init(void)
 	TRACE_ENTRY();
 
 	TRACE_DBG("Adapters: %d\n", scst_local_add_host);
+
+	if (scst_local_num_tgts > MAX_TARGETS)
+		scst_local_num_tgts = MAX_TARGETS;
 
 	/*
 	 * Allocate a pool of structures for tgt_specific structures
