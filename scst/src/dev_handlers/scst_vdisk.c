@@ -1412,12 +1412,15 @@ static int vdisk_ctrl_m_pg(unsigned char *p, int pcontrol,
 		break;
 	case 1:
 		memset(p + 2, 0, sizeof(ctrl_m_pg) - 2);
-#if 0 /* Too early, see corresponding comment in vdisk_exec_mode_select() */
-		p[2] |= 7 << 5;
-		p[3] |= 0xF << 4;
-		p[4] |= 1 << 3;
-		p[5] |= 1 << 6;
+#if 0	/*
+	 * It's too early to implement it, since we can't control the
+	 * backstorage device parameters. ToDo
+	 */
+		p[2] |= 7 << 5;		/* TST */
+		p[3] |= 0xF << 4;	/* QUEUE ALGORITHM MODIFIER */
 #endif
+		p[4] |= 1 << 3;		/* SWP */
+		p[5] |= 1 << 6;		/* TAS */
 		break;
 	case 2:
 		p[2] |= DEF_TST << 5;
@@ -1624,6 +1627,26 @@ out:
 	return res;
 }
 
+static void vdisk_ctrl_m_pg_select(unsigned char *p,
+	struct scst_vdisk_dev *virt_dev)
+{
+	struct scst_device *dev = virt_dev->dev;
+	int old_swp = dev->swp, old_tas = dev->tas;
+
+#if 0
+	/* Not implemented yet, see comment in vdisk_ctrl_m_pg() */
+	dev->tst = p[2] >> 5;
+	dev->queue_alg = p[3] >> 4;
+#endif
+	dev->swp = (p[4] & 0x8) >> 3;
+	dev->tas = (p[5] & 0x40) >> 6;
+
+	PRINT_INFO("Device %s: new control mode page parameters: SWP %x "
+		"(was %x), TAS %x (was %x)", virt_dev->name, dev->swp,
+		old_swp, dev->tas, old_tas);
+	return;
+}
+
 static void vdisk_exec_mode_select(struct scst_cmd *cmd)
 {
 	int32_t length;
@@ -1693,10 +1716,6 @@ static void vdisk_exec_mode_select(struct scst_cmd *cmd)
 				goto out_put;
 			}
 			break;
-#if 0 /*
-       * It's too early to implement it, since we can't control the backstorage
-       * device parameters. ToDo
-       */
 		} else if ((address[offset] & 0x3f) == 0xA) {
 			/* Control page */
 			if (address[offset + 1] != 0xA) {
@@ -1706,7 +1725,7 @@ static void vdisk_exec_mode_select(struct scst_cmd *cmd)
 				    scst_sense_invalid_field_in_parm_list));
 				goto out_put;
 			}
-#endif
+			vdisk_ctrl_m_pg_select(&address[offset], virt_dev);
 		} else {
 			PRINT_ERROR("MODE SELECT: Invalid request %x",
 				address[offset] & 0x3f);
