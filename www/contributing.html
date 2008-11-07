@@ -308,6 +308,21 @@
 {
 	return vdisk_exec_fns[cmd->cdb[0]](cmd);
 }</p></listing>
+
+				<h3>Solve SG IO count limitation issue in pass-through mode</h3>
+				
+				<p>In the pass-through mode (i.e. using the pass-through device handlers
+				scst_disk, scst_tape, etc) SCSI commands, coming from remote initiators,
+				are passed to local SCSI hardware on target as is, without any
+				modifications. As any other hardware, the local SCSI hardware can not
+				handle commands with amount of data and/or segments count in
+				scatter-gather array bigger some values. If you have this issue you will see
+				symptoms like small transfers work well, but large ones stall and
+				messages like: "Unable to complete command due to SG IO count
+				limitation" are printed in the kernel logs.</p>
+				
+				<p>In <a href="sgv_big_order_alloc.diff">sgv_big_order_alloc.diff</a> you
+				can find a possible way to solve this issue.</p>
 			</div>
 	</div>
 </div>
