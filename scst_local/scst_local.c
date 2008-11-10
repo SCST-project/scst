@@ -893,7 +893,7 @@ static int scst_fake_lld_driver_remove(struct device *dev)
 	return 0;
 }
 
-static int scst_fake_lld_bus_match(struct device dev,
+static int scst_fake_lld_bus_match(struct device *dev,
 				   struct device_driver *dev_driver)
 {
 	TRACE_ENTRY();
