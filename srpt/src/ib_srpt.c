@@ -662,19 +662,11 @@ static void srpt_handle_err_comp(struct srpt_rdma_ch *ch, struct ib_wc *wc)
 					     scst_cmd_get_sg_cnt(scmnd),
 					     scst_to_tgt_dma_dir(dir));
 
-				if (scmnd->data_buf_tgt_alloc &&
-				    scmnd->data_buf_alloced) {
-					kfree(scmnd->sg);
-					scmnd->sg = NULL;
-					scmnd->sg_cnt = 0;
-				}
-
 				if (scmnd->state == SCST_CMD_STATE_DATA_WAIT)
 					scst_rx_data(scmnd,
 						     SCST_RX_STATUS_ERROR,
 						     SCST_CONTEXT_THREAD);
-				else if (scmnd->state ==
-						SCST_CMD_STATE_XMIT_WAIT)
+				else if (scmnd->state == SCST_CMD_STATE_XMIT_WAIT)
 					scst_tgt_cmd_done(scmnd,
 						scst_estimate_context());
 			}
@@ -696,13 +688,6 @@ static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
 				     scst_cmd_get_sg(ioctx->scmnd),
 				     scst_cmd_get_sg_cnt(ioctx->scmnd),
 				     scst_to_tgt_dma_dir(dir));
-
-		if (ioctx->scmnd->data_buf_tgt_alloc &&
-		    ioctx->scmnd->data_buf_alloced) {
-			kfree(ioctx->scmnd->sg);
-			ioctx->scmnd->sg = NULL;
-			ioctx->scmnd->sg_cnt = 0;
-		}
 
 		scst_tgt_cmd_done(ioctx->scmnd, context);
 	} else
