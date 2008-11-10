@@ -2056,15 +2056,6 @@ static inline int scst_cmd_get_resp_data_len(struct scst_cmd *cmd)
 	return cmd->resp_data_len;
 }
 
-/*
- * Returns cmd's response flags (SCST_TSC_FLAG_* constants). Obsolete, use
- * scst_cmd_get_is_send_status() instead.
- */
-static inline __deprecated int scst_cmd_get_tgt_resp_flags(struct scst_cmd *cmd)
-{
-	return cmd->is_send_status ? SCST_TSC_FLAG_STATUS : 0;
-}
-
 /* Returns if status should be sent for cmd */
 static inline int scst_cmd_get_is_send_status(struct scst_cmd *cmd)
 {
