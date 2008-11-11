@@ -490,11 +490,6 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 		break;
 	}
 
-	/*
-	 * We get given data buffers by the SML
-	 */
-	scst_cmd_set_data_buff_alloced(scst_cmd);
-
 	dir = SCST_DATA_NONE;
 	switch (SCpnt->sc_data_direction) {
 	case DMA_TO_DEVICE:
@@ -517,11 +512,8 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 	}
 	scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(SCpnt));
 
-	/*
-	 * Set the SGL things directly ...
-	 */
-	scst_cmd->sg_cnt = scsi_sg_count(SCpnt);
-	scst_cmd->sg     = scsi_sglist(SCpnt);
+	/* Set the SGL things directly ... */
+	scst_cmd_set_tgt_sg(scst_cmd, scsi_sglist(SCpnt), scsi_sg_count(SCpnt));
 
 	/*
 	 * Unfortunately, we called with IRQs disabled, so have no choice,

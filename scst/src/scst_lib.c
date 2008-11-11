@@ -1700,8 +1700,8 @@ void scst_release_space(struct scst_cmd *cmd)
 	if (cmd->sgv == NULL)
 		goto out;
 
-	if (cmd->data_buf_alloced) {
-		TRACE_MEM("%s", "data_buf_alloced set, returning");
+	if (cmd->tgt_data_buf_alloced || cmd->dh_data_buf_alloced) {
+		TRACE_MEM("%s", "*data_buf_alloced set, returning");
 		goto out;
 	}
 
@@ -1712,6 +1712,91 @@ void scst_release_space(struct scst_cmd *cmd)
 	cmd->sg = NULL;
 	cmd->bufflen = 0;
 	cmd->data_len = 0;
+
+out:
+	TRACE_EXIT();
+	return;
+}
+
+void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir)
+{
+	struct scatterlist *src_sg, *dst_sg;
+	unsigned int src_sg_cnt, src_len, dst_len, src_offs, dst_offs;
+	struct page *src, *dst;
+	int s, d, to_copy;
+
+	TRACE_ENTRY();
+
+	if (copy_dir == SCST_SG_COPY_FROM_TARGET) {
+		src_sg = cmd->tgt_sg;
+		src_sg_cnt = cmd->tgt_sg_cnt;
+		dst_sg = cmd->sg;
+		to_copy = cmd->bufflen;
+	} else {
+		src_sg = cmd->sg;
+		src_sg_cnt = cmd->sg_cnt;
+		dst_sg = cmd->tgt_sg;
+		to_copy = cmd->resp_data_len;
+	}
+
+	TRACE_MEM("cmd %p, copy_dir %d, src_sg %p, src_sg_cnt %d, dst_sg %p, "
+		"to_copy %d", cmd, copy_dir, src_sg, src_sg_cnt, dst_sg,
+		to_copy);
+
+	dst = sg_page(dst_sg);
+	dst_len = dst_sg->length;
+	dst_offs = dst_sg->offset;
+
+	s = 0;
+	d = 0;
+	src_offs = 0;
+	while (s < src_sg_cnt) {
+		src = sg_page(&src_sg[s]);
+		src_len = src_sg[s].length;
+		src_offs += src_sg[s].offset;
+
+		do {
+			unsigned int n;
+
+			TRACE_MEM("cmd %p, to_copy %d, src %p, src_len %d, "
+				"src_offs %d, dst %p, dst_len %d, dst_offs %d",
+				cmd, to_copy, src, src_len, src_offs, dst,
+				dst_len, dst_offs);
+
+			if ((src_offs == 0) && (dst_offs == 0) &&
+			    (src_len >= PAGE_SIZE) && (dst_len >= PAGE_SIZE) &&
+			    !PageHighMem(dst) && !PageHighMem(src)) {
+				copy_page(page_address(dst), page_address(src));
+				n = PAGE_SIZE;
+			} else {
+				n = min(PAGE_SIZE - dst_offs,
+					PAGE_SIZE - src_offs);
+				n = min(n, src_len);
+				n = min(n, dst_len);
+				memcpy(page_address(dst) + dst_offs,
+				       page_address(src) + src_offs, n);
+				dst_offs -= min(n, dst_offs);
+				src_offs -= min(n, src_offs);
+			}
+
+			TRACE_MEM("cmd %p, n %d, s %d", cmd, n, s);
+
+			to_copy -= n;
+			if (to_copy <= 0)
+				goto out;
+
+			src_len -= n;
+			dst_len -= n;
+			if (dst_len == 0) {
+				d++;
+				dst = sg_page(&dst_sg[d]);
+				dst_len = dst_sg[d].length;
+				dst_offs += dst_sg[d].offset;
+			}
+		} while (src_len > 0);
+
+		s++;
+	}
 
 out:
 	TRACE_EXIT();

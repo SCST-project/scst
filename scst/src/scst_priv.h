@@ -341,6 +341,12 @@ int scst_alloc_space(struct scst_cmd *cmd);
 void scst_release_space(struct scst_cmd *cmd);
 void scst_scsi_op_list_init(void);
 
+enum scst_sg_copy_dir {
+	SCST_SG_COPY_FROM_TARGET,
+	SCST_SG_COPY_TO_TARGET
+};
+void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir);
+
 uint64_t scst_unpack_lun(const uint8_t *lun, int len);
 
 struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,

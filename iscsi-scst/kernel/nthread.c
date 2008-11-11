@@ -1046,7 +1046,7 @@ static int write_data(struct iscsi_conn *conn)
 	sock_sendpage = sock->ops->sendpage;
 #else
 	if ((write_cmnd->parent_req->scst_cmd != NULL) &&
-	    scst_cmd_get_data_buff_alloced(write_cmnd->parent_req->scst_cmd))
+	    scst_cmd_get_dh_data_buff_alloced(write_cmnd->parent_req->scst_cmd))
 		sock_sendpage = sock_no_sendpage;
 	else
 		sock_sendpage = sock->ops->sendpage;

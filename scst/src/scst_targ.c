@@ -199,10 +199,10 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
 #endif
 
 	TRACE_DBG("Preferred context: %d (cmd %p)", pref_context, cmd);
-	TRACE(TRACE_SCSI, "tag=%llu, lun=%lld, CDB len=%d",
-	      (long long unsigned int)cmd->tag,
-	      (long long unsigned int)cmd->lun,
-	      cmd->cdb_len);
+	TRACE(TRACE_SCSI, "tag=%llu, lun=%lld, CDB len=%d, queue_type=%x "
+		"(cmd %p)", (long long unsigned int)cmd->tag,
+		(long long unsigned int)cmd->lun, cmd->cdb_len,
+		cmd->queue_type, cmd);
 	PRINT_BUFF_FLAG(TRACE_SCSI|TRACE_RCV_BOT, "Recieving CDB",
 		cmd->cdb, cmd->cdb_len);
 
@@ -389,10 +389,10 @@ static int scst_pre_parse(struct scst_cmd *cmd)
 		goto out_xmit;
 #endif
 	} else {
-		TRACE(TRACE_SCSI, "op_name <%s>, direction=%d (expected %d, "
-			"set %s), transfer_len=%d (expected len %d), flags=%d",
-			cmd->op_name, cmd->data_direction,
-			cmd->expected_data_direction,
+		TRACE(TRACE_SCSI, "op_name <%s> (cmd %p), direction=%d "
+			"(expected %d, set %s), transfer_len=%d (expected "
+			"len %d), flags=%d", cmd->op_name, cmd,
+			cmd->data_direction, cmd->expected_data_direction,
 			scst_cmd_is_expected_set(cmd) ? "yes" : "no",
 			cmd->bufflen, cmd->expected_transfer_len,
 			cmd->op_flags);
@@ -521,7 +521,8 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 	if (cmd->data_len == -1)
 		cmd->data_len = cmd->bufflen;
 
-	if (cmd->data_buf_alloced && unlikely((orig_bufflen > cmd->bufflen))) {
+	if (cmd->dh_data_buf_alloced &&
+	    unlikely((orig_bufflen > cmd->bufflen))) {
 		PRINT_ERROR("Dev handler supplied data buffer (size %d), "
 			"is less, than required (size %d)", cmd->bufflen,
 			orig_bufflen);
@@ -688,10 +689,11 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 	if (cmd->data_direction == SCST_DATA_NONE)
 		goto prep_done;
 
-	if (cmd->data_buf_tgt_alloc) {
+	if (cmd->tgt_need_alloc_data_buf) {
 		int orig_bufflen = cmd->bufflen;
 
-		TRACE_MEM("%s", "Custom tgt data buf allocation requested");
+		TRACE_MEM("Custom tgt data buf allocation requested (cmd %p)",
+			cmd);
 
 		r = cmd->tgtt->alloc_data_buf(cmd);
 		if (r > 0)
@@ -702,7 +704,9 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 				if (cmd->sg == NULL)
 					goto alloc;
 			}
-			cmd->data_buf_alloced = 1;
+
+			cmd->tgt_data_buf_alloced = 1;
+
 			if (unlikely(orig_bufflen < cmd->bufflen)) {
 				PRINT_ERROR("Target driver allocated data "
 					"buffer (size %d), is less, than "
@@ -710,16 +714,32 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 					cmd->bufflen);
 				goto out_error;
 			}
-			TRACE_MEM("%s", "data_buf_alloced, returning");
-		}
-		goto check;
+			TRACE_MEM("tgt_data_buf_alloced (cmd %p)", cmd);
+		} else
+			goto check;
 	}
 
 alloc:
-	if (!cmd->data_buf_alloced)
+	if (!cmd->tgt_data_buf_alloced && !cmd->dh_data_buf_alloced) {
 		r = scst_alloc_space(cmd);
-	else
-		TRACE_MEM("%s", "data_buf_alloced set, returning");
+		cmd->tgt_sg = cmd->sg;
+		cmd->tgt_sg_cnt = cmd->sg_cnt;
+	} else if (cmd->dh_data_buf_alloced && !cmd->tgt_data_buf_alloced) {
+		TRACE_MEM("dh_data_buf_alloced set (cmd %p)", cmd);
+		cmd->tgt_sg = cmd->sg;
+		cmd->tgt_sg_cnt = cmd->sg_cnt;
+		r = 0;
+	} else if (cmd->tgt_data_buf_alloced && !cmd->dh_data_buf_alloced) {
+		TRACE_MEM("tgt_data_buf_alloced set (cmd %p)", cmd);
+		cmd->sg = cmd->tgt_sg;
+		cmd->sg_cnt = cmd->tgt_sg_cnt;
+		r = 0;
+	} else {
+		TRACE_MEM("Both *_data_buf_alloced set (cmd %p, sg %p, "
+			"sg_cnt %d, tgt_sg %p, tgt_sg_cnt %d)", cmd, cmd->sg,
+			cmd->sg_cnt, cmd->tgt_sg, cmd->tgt_sg_cnt);
+		r = 0;
+	}
 
 check:
 	if (r != 0) {
@@ -1049,9 +1069,7 @@ void scst_rx_data(struct scst_cmd *cmd, int status,
 	TRACE_ENTRY();
 
 	TRACE_DBG("Preferred context: %d", pref_context);
-	TRACE(TRACE_SCSI, "tag=%llu status=%#x",
-	      (long long unsigned int)scst_cmd_get_tag(cmd),
-	      status);
+	TRACE(TRACE_SCSI, "cmd %p, status %#x", cmd, status);
 
 #ifdef CONFIG_SCST_EXTRACHECKS
 	if ((in_irq() || irqs_disabled()) &&
@@ -1066,6 +1084,19 @@ void scst_rx_data(struct scst_cmd *cmd, int status,
 
 	switch (status) {
 	case SCST_RX_STATUS_SUCCESS:
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+		if (cmd->tgt_sg) {
+			int i;
+			struct scatterlist *sg = cmd->tgt_sg;
+			TRACE_RECV_BOT("RX data for cmd %p "
+				"(sg_cnt %d, sg %p, sg[0].page %p)", cmd,
+				cmd->tgt_sg_cnt, sg, (void *)sg_page(&sg[0]));
+			for (i = 0; i < cmd->tgt_sg_cnt; ++i) {
+				PRINT_BUFF_FLAG(TRACE_RCV_BOT, "RX sg",
+					sg_virt(&sg[i]), sg[i].length);
+			}
+		}
+#endif
 		cmd->state = SCST_CMD_STATE_TGT_PRE_EXEC;
 		/* Small context optimization */
 		if ((pref_context == SCST_CONTEXT_TASKLET) ||
@@ -1190,10 +1221,10 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 		scst_alloc_set_sense(cmd, 1, rq_sense, rq_sense_len);
 	}
 
-	TRACE(TRACE_SCSI, "cmd%p, result=%x, cmd->status=%x, resid=%d, "
+	TRACE(TRACE_SCSI, "cmd %p, result=%x, cmd->status=%x, resid=%d, "
 	      "cmd->msg_status=%x, cmd->host_status=%x, "
-	      "cmd->driver_status=%x", cmd, result, cmd->status, resid,
-	      cmd->msg_status, cmd->host_status, cmd->driver_status);
+	      "cmd->driver_status=%x (cmd %p)",cmd,  result, cmd->status, resid,
+	      cmd->msg_status, cmd->host_status, cmd->driver_status, cmd);
 
 	cmd->completed = 1;
 
@@ -2041,6 +2072,10 @@ static int scst_exec(struct scst_cmd **active_cmd)
 		cmd->scst_cmd_done = scst_cmd_done_local;
 		cmd->state = SCST_CMD_STATE_LOCAL_EXEC;
 
+		if (cmd->tgt_data_buf_alloced && cmd->dh_data_buf_alloced &&
+		    (cmd->data_direction == SCST_DATA_WRITE))
+			scst_copy_sg(cmd, SCST_SG_COPY_FROM_TARGET);
+
 		rc = scst_do_local_exec(cmd);
 		if (likely(rc == SCST_EXEC_NOT_COMPLETED))
 			/* Nothing to do */;
@@ -2272,8 +2307,9 @@ static int scst_check_auto_sense(struct scst_cmd *cmd)
 	     SCST_NO_SENSE(cmd->sense))) {
 		TRACE(TRACE_SCSI|TRACE_MINOR, "CHECK_CONDITION, but no sense: "
 		      "cmd->status=%x, cmd->msg_status=%x, "
-		      "cmd->host_status=%x, cmd->driver_status=%x", cmd->status,
-		      cmd->msg_status, cmd->host_status, cmd->driver_status);
+		      "cmd->host_status=%x, cmd->driver_status=%x (cmd %p)",
+		      cmd->status, cmd->msg_status, cmd->host_status,
+		      cmd->driver_status, cmd);
 		res = 1;
 	} else if (unlikely(cmd->host_status)) {
 		if ((cmd->host_status == DID_REQUEUE) ||
@@ -2283,8 +2319,8 @@ static int scst_check_auto_sense(struct scst_cmd *cmd)
 			scst_set_busy(cmd);
 		} else {
 			TRACE(TRACE_SCSI|TRACE_MINOR, "Host status %x "
-				"received, returning HARDWARE ERROR instead",
-				cmd->host_status);
+				"received, returning HARDWARE ERROR instead "
+				"(cmd %p)", cmd->host_status, cmd);
 			scst_set_cmd_error(cmd,
 				SCST_LOAD_SENSE(scst_sense_hardw_error));
 		}
@@ -2685,6 +2721,10 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 		goto out;
 	}
 
+	if (cmd->tgt_data_buf_alloced && cmd->dh_data_buf_alloced &&
+	    (cmd->data_direction == SCST_DATA_READ))
+		scst_copy_sg(cmd, SCST_SG_COPY_TO_TARGET);
+
 	cmd->state = SCST_CMD_STATE_XMIT_RESP;
 	res = SCST_CMD_STATE_RES_CONT_SAME;
 
@@ -2746,16 +2786,16 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 
 		TRACE_DBG("Calling xmit_response(%p)", cmd);
 
-#if defined(CONFIG_SCST_DEBUG)
-		if (cmd->sg) {
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+		if (cmd->tgt_sg) {
 			int i;
-			struct scatterlist *sg = cmd->sg;
-			TRACE_SEND_BOT("Xmitting %d S/G(s) at %p sg[0].page at "
-				"%p", cmd->sg_cnt, sg, (void *)sg_page(&sg[0]));
-			for (i = 0; i < cmd->sg_cnt; ++i) {
-				TRACE_BUFF_FLAG(TRACE_SND_BOT,
-				    "Xmitting sg", sg_virt(&sg[i]),
-				    sg[i].length);
+			struct scatterlist *sg = cmd->tgt_sg;
+			TRACE(TRACE_SND_BOT, "Xmitting data for cmd %p "
+				"(sg_cnt %d, sg %p, sg[0].page %p)", cmd,
+				cmd->tgt_sg_cnt, sg, (void *)sg_page(&sg[0]));
+			for (i = 0; i < cmd->tgt_sg_cnt; ++i) {
+				PRINT_BUFF_FLAG(TRACE_SND_BOT, "Xmitting sg",
+					sg_virt(&sg[i]), sg[i].length);
 			}
 		}
 #endif
@@ -2878,8 +2918,7 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	if (scst_is_implicit_hq(cmd)) {
-		TRACE(TRACE_SCSI|TRACE_SCSI_SERIALIZING,
-			"Implicit HQ cmd %p", cmd);
+		TRACE_SN("Implicit HQ cmd %p", cmd);
 		cmd->queue_type = SCST_CMD_QUEUE_HEAD_OF_QUEUE;
 	}
 
@@ -2932,8 +2971,7 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 		break;
 
 	case SCST_CMD_QUEUE_ORDERED:
-		TRACE(TRACE_SCSI|TRACE_SCSI_SERIALIZING, "ORDERED cmd %p "
-			"(op %x)", cmd, cmd->cdb[0]);
+		TRACE_SN("ORDERED cmd %p (op %x)", cmd, cmd->cdb[0]);
 ordered:
 		if (!tgt_dev->prev_cmd_ordered) {
 			spin_lock_irqsave(&tgt_dev->sn_lock, flags);
@@ -2969,8 +3007,7 @@ ordered:
 		break;
 
 	case SCST_CMD_QUEUE_HEAD_OF_QUEUE:
-		TRACE(TRACE_SCSI|TRACE_SCSI_SERIALIZING, "HQ cmd %p "
-			"(op %x)", cmd, cmd->cdb[0]);
+		TRACE_SN("HQ cmd %p (op %x)", cmd, cmd->cdb[0]);
 		spin_lock_irqsave(&tgt_dev->sn_lock, flags);
 		tgt_dev->hq_cmd_count++;
 		spin_unlock_irqrestore(&tgt_dev->sn_lock, flags);

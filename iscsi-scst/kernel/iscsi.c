@@ -1322,13 +1322,13 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 	req->scst_cmd = scst_cmd;
 	scst_cmd_set_tag(scst_cmd, req_hdr->itt);
 	scst_cmd_set_tgt_priv(scst_cmd, req);
-#if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
-	scst_cmd_set_data_buf_tgt_alloc(scst_cmd);
-#endif
 
-	if (req_hdr->flags & ISCSI_CMD_READ)
+	if (req_hdr->flags & ISCSI_CMD_READ) {
 		dir = SCST_DATA_READ;
-	else if (req_hdr->flags & ISCSI_CMD_WRITE)
+#if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
+		scst_cmd_set_tgt_need_alloc_data_buf(scst_cmd);
+#endif
+	} else if (req_hdr->flags & ISCSI_CMD_WRITE)
 		dir = SCST_DATA_WRITE;
 	else
 		dir = SCST_DATA_NONE;
@@ -2451,16 +2451,15 @@ out_rejected:
 #if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 static int iscsi_alloc_data_buf(struct scst_cmd *cmd)
 {
-	if (scst_cmd_get_data_direction(cmd) == SCST_DATA_READ) {
-		/*
-		 * sock->ops->sendpage() is async zero copy operation,
-		 * so we must be sure not to free and reuse
-		 * the command's buffer before the sending was completed
-		 * by the network layers. It is possible only if we
-		 * don't use SGV cache.
-		 */
-		scst_cmd_set_no_sgv(cmd);
-	}
+	/*
+	 * sock->ops->sendpage() is async zero copy operation,
+	 * so we must be sure not to free and reuse
+	 * the command's buffer before the sending was completed
+	 * by the network layers. It is possible only if we
+	 * don't use SGV cache.
+	 */
+	EXTRACHECKS_BUG_ON(scst_cmd_get_data_direction(cmd) != SCST_DATA_READ);
+	scst_cmd_set_no_sgv(cmd);
 	return 1;
 }
 #endif
@@ -2982,9 +2981,9 @@ out_reg:
 out_callb:
 #if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	net_set_get_put_page_callbacks(NULL, NULL);
-#endif
 
 out_free_dummy:
+#endif
 	__free_pages(dummy_page, 0);
 	goto out;
 }

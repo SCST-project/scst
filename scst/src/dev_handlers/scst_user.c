@@ -609,17 +609,8 @@ static int dev_user_alloc_space(struct scst_user_cmd *ucmd)
 
 	TRACE_ENTRY();
 
-	if (unlikely(ucmd->cmd->data_buf_tgt_alloc)) {
-		PRINT_ERROR("Target driver %s requested own memory "
-			"allocation", ucmd->cmd->tgtt->name);
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_hardw_error));
-		res = scst_get_cmd_abnormal_done_state(cmd);
-		goto out;
-	}
-
 	ucmd->state = UCMD_STATE_BUF_ALLOCING;
-	cmd->data_buf_alloced = 1;
+	cmd->dh_data_buf_alloced = 1;
 
 	rc = dev_user_alloc_sg(ucmd, is_buff_cached(ucmd));
 	if (rc == 0)

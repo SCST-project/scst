@@ -548,8 +548,12 @@ struct scst_tgt_template {
 	 *
 	 * Shall return 0 in case of success or < 0 (preferrably -ENOMEM)
 	 * in case of error, or > 0 if the regular SCST allocation should be
-	 * done. In case of returning successfully, scst_cmd->data_buf_alloced
+	 * done. In case of returning successfully, scst_cmd->tgt_data_buf_alloced
 	 * will be set by SCST.
+	 *
+	 * It is possible that both target driver and dev handler request own
+	 * memory allocation. In this case, data will be memcpy() between
+	 * buffers, where necessary.
 	 *
 	 * If allocation in atomic context - cf. scst_cmd_atomic() - is not
 	 * desired or fails and consequently < 0 is returned, this function
@@ -1051,13 +1055,16 @@ struct scst_cmd {
 	 * In this case alloc_data_buf() must be provided in the target driver
 	 * template.
 	 */
-	unsigned int data_buf_tgt_alloc:1;
+	unsigned int tgt_need_alloc_data_buf:1;
 
 	/*
 	 * Set by SCST if the custom data buffer allocation by the target driver
 	 * succeeded.
 	 */
-	unsigned int data_buf_alloced:1;
+	unsigned int tgt_data_buf_alloced:1;
+
+	/* Set if custom data buffer allocated by dev handler */
+	unsigned int dh_data_buf_alloced:1;
 
 	/* Set if the target driver called scst_set_expected() */
 	unsigned int expected_values_set:1;
@@ -1207,6 +1214,18 @@ struct scst_cmd {
 	 * directly, use scst_set_resp_data_len() for that
 	 */
 	int resp_data_len;
+
+	/*
+	 * Used if both target driver and dev handler request own memory
+	 * allocation. In other cases, both are equal to sg and sg_cnt
+	 * correspondingly.
+	 *
+	 * If target driver requests own memory allocations, it MUST use
+	 * functions scst_cmd_get_tgt_sg*() to get sg and sg_cnt! Otherwise,
+	 * it may use functions scst_cmd_get_sg*().
+	 */
+	struct scatterlist *tgt_sg;
+	int tgt_sg_cnt;
 
 	/*
 	 * The status fields in case of errors must be set using
@@ -2074,6 +2093,17 @@ static inline struct scatterlist *scst_cmd_get_sg(struct scst_cmd *cmd)
 }
 
 /*
+ * Returns cmd's sg_cnt.
+ *
+ * Usage of this function is not recommended, use scst_get_buf_*()
+ * family of functions instead.
+ */
+static inline unsigned int scst_cmd_get_sg_cnt(struct scst_cmd *cmd)
+{
+	return cmd->sg_cnt;
+}
+
+/*
  * Returns cmd's data buffer length.
  *
  * In case if you need to iterate over data in the buffer, usage of
@@ -2085,15 +2115,25 @@ static inline unsigned int scst_cmd_get_bufflen(struct scst_cmd *cmd)
 	return cmd->bufflen;
 }
 
-/*
- * Returns cmd's sg_cnt.
- *
- * Usage of this function is not recommended, use scst_get_buf_*()
- * family of functions instead.
- */
-static inline unsigned short scst_cmd_get_sg_cnt(struct scst_cmd *cmd)
+/* Returns pointer to cmd's target's SG data buffer */
+static inline struct scatterlist *scst_cmd_get_tgt_sg(struct scst_cmd *cmd)
 {
-	return cmd->sg_cnt;
+	return cmd->tgt_sg;
+}
+
+/* Returns cmd's target's sg_cnt */
+static inline unsigned int scst_cmd_get_tgt_sg_cnt(struct scst_cmd *cmd)
+{
+	return cmd->tgt_sg_cnt;
+}
+
+/* Sets cmd's target's SG data buffer */
+static inline void scst_cmd_set_tgt_sg(struct scst_cmd *cmd,
+	struct scatterlist *sg, unsigned int sg_cnt)
+{
+	cmd->tgt_sg = sg;
+	cmd->tgt_sg_cnt = sg_cnt;
+	cmd->tgt_data_buf_alloced = 1;
 }
 
 /* Returns cmd's data direction */
@@ -2172,29 +2212,42 @@ void *scst_cmd_get_tgt_priv_lock(struct scst_cmd *cmd);
 void scst_cmd_set_tgt_priv_lock(struct scst_cmd *cmd, void *val);
 
 /*
- * Get/Set functions for data_buf_tgt_alloc flag
+ * Get/Set functions for tgt_need_alloc_data_buf flag
  */
-static inline int scst_cmd_get_data_buf_tgt_alloc(struct scst_cmd *cmd)
+static inline int scst_cmd_get_tgt_need_alloc_data_buf(struct scst_cmd *cmd)
 {
-	return cmd->data_buf_tgt_alloc;
+	return cmd->tgt_need_alloc_data_buf;
 }
 
-static inline void scst_cmd_set_data_buf_tgt_alloc(struct scst_cmd *cmd)
+static inline void scst_cmd_set_tgt_need_alloc_data_buf(struct scst_cmd *cmd)
 {
-	cmd->data_buf_tgt_alloc = 1;
+	cmd->tgt_need_alloc_data_buf = 1;
 }
 
 /*
- * Get/Set functions for data_buf_alloced flag
+ * Get/Set functions for tgt_data_buf_alloced flag
  */
-static inline int scst_cmd_get_data_buff_alloced(struct scst_cmd *cmd)
+static inline int scst_cmd_get_tgt_data_buff_alloced(struct scst_cmd *cmd)
 {
-	return cmd->data_buf_alloced;
+	return cmd->tgt_data_buf_alloced;
 }
 
-static inline void scst_cmd_set_data_buff_alloced(struct scst_cmd *cmd)
+static inline void scst_cmd_set_tgt_data_buff_alloced(struct scst_cmd *cmd)
 {
-	cmd->data_buf_alloced = 1;
+	cmd->tgt_data_buf_alloced = 1;
+}
+
+/*
+ * Get/Set functions for dh_data_buf_alloced flag
+ */
+static inline int scst_cmd_get_dh_data_buff_alloced(struct scst_cmd *cmd)
+{
+	return cmd->dh_data_buf_alloced;
+}
+
+static inline void scst_cmd_set_dh_data_buff_alloced(struct scst_cmd *cmd)
+{
+	cmd->dh_data_buf_alloced = 1;
 }
 
 /*
