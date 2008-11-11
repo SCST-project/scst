@@ -341,6 +341,7 @@ static int scst_local_device_reset(struct scsi_cmnd *SCpnt)
 	return ret;
 }
 
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 25))
 static int scst_local_target_reset(struct scsi_cmnd *SCpnt)
 {
 	struct scst_local_host_info *scst_lcl_host;
@@ -371,6 +372,7 @@ static int scst_local_target_reset(struct scsi_cmnd *SCpnt)
 	TRACE_EXIT_RES(ret);
 	return ret;
 }
+#endif
 
 static void copy_sense(struct scsi_cmnd *cmnd, struct scst_cmd *scst_cmnd)
 {
@@ -666,7 +668,9 @@ static struct scsi_host_template scst_lcl_ini_driver_template = {
 	.queuecommand			= scst_local_queuecommand,
 	.eh_abort_handler		= scst_local_abort,
 	.eh_device_reset_handler	= scst_local_device_reset,
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 25))
 	.eh_target_reset_handler	= scst_local_target_reset,
+#endif
 	.can_queue			= SCST_LOCAL_CANQUEUE,
 	.this_id			= 7, /*???*/
 	.sg_tablesize			= SCST_LOCAL_SG_TABLESIZE,
