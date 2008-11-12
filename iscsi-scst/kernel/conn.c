@@ -251,10 +251,11 @@ static void conn_rsp_timer_fn(unsigned long arg)
 
 		if (unlikely(time_after_eq(jiffies, wr_cmd->write_timeout))) {
 			if (!conn->closing) {
-				PRINT_ERROR("Timeout sending data to initiator "
-					"%s (SID %llx), closing connection",
+				PRINT_ERROR("Timeout sending data to initiator"
+					" %s (SID %llx), closing connection",
 					conn->session->initiator_name,
-					(long long unsigned int)conn->session->sid);
+					(long long unsigned int)
+						conn->session->sid);
 				mark_conn_closed(conn);
 			}
 		} else {
@@ -349,7 +350,8 @@ int conn_free(struct iscsi_conn *conn)
 }
 
 /* target_mutex supposed to be locked */
-static int iscsi_conn_alloc(struct iscsi_session *session, struct conn_info *info)
+static int iscsi_conn_alloc(struct iscsi_session *session,
+			    struct conn_info *info)
 {
 	struct iscsi_conn *conn;
 	int res = 0;
@@ -452,8 +454,8 @@ int conn_del(struct iscsi_session *session, struct conn_info *info)
 void iscsi_extracheck_is_rd_thread(struct iscsi_conn *conn)
 {
 	if (unlikely(current != conn->rd_task)) {
-		printk(KERN_EMERG "conn %p rd_task != current %p (pid %d)\n", conn,
-			current, current->pid);
+		printk(KERN_EMERG "conn %p rd_task != current %p (pid %d)\n",
+			conn, current, current->pid);
 		while (in_softirq())
 			local_bh_enable();
 		printk(KERN_EMERG "rd_state %x\n", conn->rd_state);
@@ -466,8 +468,8 @@ void iscsi_extracheck_is_rd_thread(struct iscsi_conn *conn)
 void iscsi_extracheck_is_wr_thread(struct iscsi_conn *conn)
 {
 	if (unlikely(current != conn->wr_task)) {
-		printk(KERN_EMERG "conn %p wr_task != current %p (pid %d)\n", conn,
-			current, current->pid);
+		printk(KERN_EMERG "conn %p wr_task != current %p (pid %d)\n",
+			conn, current, current->pid);
 		while (in_softirq())
 			local_bh_enable();
 		printk(KERN_EMERG "wr_state %x\n", conn->wr_state);

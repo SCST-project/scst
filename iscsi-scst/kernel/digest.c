@@ -1,7 +1,8 @@
 /*
  *  iSCSI digest handling.
  *
- *  Copyright (C) 2004 - 2006 Xiranet Communications GmbH <arne.redlich@xiranet.com>
+ *  Copyright (C) 2004 - 2006 Xiranet Communications GmbH
+ *                            <arne.redlich@xiranet.com>
  *  Copyright (C) 2007 - 2008 Vladislav Bolkhovitin
  *  Copyright (C) 2007 - 2008 CMS Distribution Limited
  *
@@ -81,8 +82,9 @@ static u32 evaluate_crc32_from_sg(struct scatterlist *sg, int total,
 	if (pad_bytes) {
 		u32 padding = 0;
 		/*
-		 * Digest includes also padding for aligned pdu length, hopefully
-		 * it is always filled with 0s in pdu (according to crypto/crc32c.c
+		 * Digest includes also padding for aligned pdu length,
+		 * hopefully it is always filled with 0s in pdu (according to
+		 * crypto/crc32c.c
 		 */
 		crc = crc32c(crc, (u8 *)&padding, pad_bytes);
 	}

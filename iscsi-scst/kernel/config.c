@@ -113,7 +113,7 @@ static __init int iscsi_proc_log_entry_build(struct scst_tgt_template *templ)
 	root = scst_proc_get_tgt_root(templ);
 	if (root) {
 		p = scst_create_proc_entry(root, ISCSI_PROC_VERSION_NAME,
-					 &iscsi_version_proc_data);
+					   &iscsi_version_proc_data);
 		if (p == NULL) {
 			PRINT_ERROR("Not enough memory to register "
 			     "target driver %s entry %s in /proc",
@@ -126,7 +126,7 @@ static __init int iscsi_proc_log_entry_build(struct scst_tgt_template *templ)
 		/* create the proc file entry for the device */
 		iscsi_log_proc_data.data = (void *)templ->name;
 		p = scst_create_proc_entry(root, ISCSI_PROC_LOG_ENTRY_NAME,
-					&iscsi_log_proc_data);
+					   &iscsi_log_proc_data);
 		if (p == NULL) {
 			PRINT_ERROR("Not enough memory to register "
 			     "target driver %s entry %s in /proc",
@@ -209,7 +209,8 @@ int __init iscsi_procfs_init(void)
 		goto out;
 
 	for (i = 0; i < ARRAY_SIZE(iscsi_proc_entries); i++) {
-		ent = create_proc_entry(iscsi_proc_entries[i].name, 0, proc_iscsi_dir);
+		ent = create_proc_entry(iscsi_proc_entries[i].name, 0,
+					proc_iscsi_dir);
 		if (ent)
 			ent->proc_fops = iscsi_proc_entries[i].fops;
 		else {
@@ -344,7 +345,8 @@ static int del_session(struct iscsi_target *target, void __user *ptr)
 }
 
 /* target_mutex supposed to be locked */
-static int iscsi_param_config(struct iscsi_target *target, void __user *ptr, int set)
+static int iscsi_param_config(struct iscsi_target *target, void __user *ptr,
+			      int set)
 {
 	int err;
 	struct iscsi_param_info info;
@@ -545,10 +547,11 @@ void iscsi_dump_iov(struct msghdr *msg)
 {
 	if (trace_flag & TRACE_D_IOV) {
 		int i;
-		printk("%p, %zd\n", msg->msg_iov, msg->msg_iovlen);
+		printk(LOG_FLAG "%p, %zd\n", msg->msg_iov, msg->msg_iovlen);
 		for (i = 0; i < min_t(size_t, msg->msg_iovlen,
 				ISCSI_CONN_IOV_MAX); i++) {
-			printk("%d: %p,%zd\n", i, msg->msg_iov[i].iov_base,
+			printk(LOG_FLAG "%d: %p,%zd\n",
+				i, msg->msg_iov[i].iov_base,
 				msg->msg_iov[i].iov_len);
 		}
 	}
@@ -561,26 +564,26 @@ static void iscsi_dump_char(int ch)
 
 	if (ch < 0) {
 		while ((i % 16) != 0) {
-			printk("   ");
+			printk(LOG_FLAG "   ");
 			text[i] = ' ';
 			i++;
 			if ((i % 16) == 0)
-				printk(" | %.16s |\n", text);
+				printk(LOG_FLAG " | %.16s |\n", text);
 			else if ((i % 4) == 0)
-				printk(" |");
+				printk(LOG_FLAG " |");
 		}
 		i = 0;
 		return;
 	}
 
 	text[i] = (ch < 0x20 || (ch >= 0x80 && ch <= 0xa0)) ? ' ' : ch;
-	printk(" %02x", ch);
+	printk(LOG_FLAG " %02x", ch);
 	i++;
 	if ((i % 16) == 0) {
-		printk(" | %.16s |\n", text);
+		printk(LOG_FLAG " | %.16s |\n", text);
 		i = 0;
 	} else if ((i % 4) == 0)
-		printk(" |");
+		printk(LOG_FLAG " |");
 }
 
 void iscsi_dump_pdu(struct iscsi_pdu *pdu)
@@ -590,18 +593,18 @@ void iscsi_dump_pdu(struct iscsi_pdu *pdu)
 		int i;
 
 		buf = (void *)&pdu->bhs;
-		printk("BHS: (%p,%zd)\n", buf, sizeof(pdu->bhs));
+		printk(LOG_FLAG "BHS: (%p,%zd)\n", buf, sizeof(pdu->bhs));
 		for (i = 0; i < sizeof(pdu->bhs); i++)
 			iscsi_dump_char(*buf++);
 		iscsi_dump_char(-1);
 
 		buf = (void *)pdu->ahs;
-		printk("AHS: (%p,%d)\n", buf, pdu->ahssize);
+		printk(LOG_FLAG "AHS: (%p,%d)\n", buf, pdu->ahssize);
 		for (i = 0; i < pdu->ahssize; i++)
 			iscsi_dump_char(*buf++);
 		iscsi_dump_char(-1);
 
-		printk("Data: (%d)\n", pdu->datasize);
+		printk(LOG_FLAG "Data: (%d)\n", pdu->datasize);
 	}
 }
 #endif /* CONFIG_SCST_DEBUG */

@@ -215,6 +215,25 @@ out:
 	return err;
 }
 
+static void target_del_session(struct iscsi_target *target,
+			       struct iscsi_session *session)
+{
+	TRACE_MGMT_DBG("Cleaning up session %p", session);
+	if (!list_empty(&session->conn_list)) {
+		struct iscsi_conn *conn, *tc;
+		list_for_each_entry_safe(conn, tc, &session->conn_list,
+					 conn_list_entry) {
+			TRACE_MGMT_DBG("Mark conn %p closing", conn);
+			__mark_conn_closed(conn,
+				ISCSI_CONN_ACTIVE_CLOSE|ISCSI_CONN_DELETING);
+		}
+	} else {
+		TRACE_MGMT_DBG("Freeing session %p without connections",
+			       session);
+		session_del(target, session->sid);
+	}
+}
+
 void target_del_all(void)
 {
 	struct iscsi_target *target, *t;
@@ -230,29 +249,17 @@ void target_del_all(void)
 		if (list_empty(&target_list))
 			break;
 
-		list_for_each_entry_safe(target, t, &target_list, target_list_entry) {
+		list_for_each_entry_safe(target, t, &target_list,
+					 target_list_entry) {
 			struct iscsi_session *session, *ts;
 			mutex_lock(&target->target_mutex);
 			if (!list_empty(&target->session_list)) {
-				TRACE_MGMT_DBG("Cleaning up target %p", target);
-				list_for_each_entry_safe(session, ts, &target->session_list,
+				TRACE_MGMT_DBG("Cleaning up target %p",
+					       target);
+				list_for_each_entry_safe(session, ts,
+						&target->session_list,
 						session_list_entry) {
-					TRACE_MGMT_DBG("Cleaning up session %p", session);
-					if (!list_empty(&session->conn_list)) {
-						struct iscsi_conn *conn, *tc;
-						list_for_each_entry_safe(conn, tc,
-								&session->conn_list,
-								conn_list_entry) {
-							TRACE_MGMT_DBG("Mark conn %p "
-								"closing", conn);
-							__mark_conn_closed(conn,
-								ISCSI_CONN_ACTIVE_CLOSE|ISCSI_CONN_DELETING);
-						}
-					} else {
-						TRACE_MGMT_DBG("Freeing session %p "
-							"without connections", session);
-						session_del(target, session->sid);
-					}
+					target_del_session(target, session);
 				}
 				mutex_unlock(&target->target_mutex);
 			} else {

@@ -164,7 +164,10 @@ struct iscsi_conn {
 	struct task_struct *wr_task;
 #endif
 
-	/* All are unprotected, since accessed only from a single write thread */
+	/* 
+	 * All are unprotected, since accessed only from a single write
+	 * thread.
+	 */
 	struct iscsi_cmnd *write_cmnd;
 	struct iovec *write_iop;
 	int write_iop_used;
@@ -199,7 +202,10 @@ struct iscsi_conn {
 	struct task_struct *rd_task;
 #endif
 
-	/* All are unprotected, since accessed only from a single read thread */
+	/*
+	 * All are unprotected, since accessed only from a single read
+	 * thread.
+	 */
 	struct iscsi_cmnd *read_cmnd;
 	struct msghdr read_msg;
 	u32 read_size;
@@ -208,7 +214,7 @@ struct iscsi_conn {
 
 	struct iscsi_target *target;
 
-	struct list_head conn_list_entry;	/* list entry in session conn_list */
+	struct list_head conn_list_entry; /* list entry in session conn_list */
 
 	/* Doesn't need any protection */
 	u16 cid;
@@ -221,14 +227,21 @@ struct iscsi_pdu {
 	unsigned int datasize;
 };
 
-typedef void (iscsi_show_info_t)(struct seq_file *seq, struct iscsi_target *target);
+typedef void (iscsi_show_info_t)(struct seq_file *seq,
+				 struct iscsi_target *target);
 
 /* Command's states */
-#define ISCSI_CMD_STATE_NEW               0	/* New command and SCST processes it */
-#define ISCSI_CMD_STATE_RX_CMD            1	/* SCST processes cmd after scst_rx_cmd() */
-#define ISCSI_CMD_STATE_AFTER_PREPROC     2	/* The command returned from preprocessing_done() */
-#define ISCSI_CMD_STATE_RESTARTED         3	/* scst_restart_cmd() called and SCST processing it */
-#define ISCSI_CMD_STATE_PROCESSED         4	/* SCST done processing */
+
+/* New command and SCST processes it */
+#define ISCSI_CMD_STATE_NEW               0
+/* SCST processes cmd after scst_rx_cmd() */
+#define ISCSI_CMD_STATE_RX_CMD            1
+/* The command returned from preprocessing_done() */
+#define ISCSI_CMD_STATE_AFTER_PREPROC     2
+/* scst_restart_cmd() called and SCST processing it */
+#define ISCSI_CMD_STATE_RESTARTED         3
+/* SCST done processing */
+#define ISCSI_CMD_STATE_PROCESSED         4
 
 /* Command's reject reasons */
 #define ISCSI_REJECT_SCSI_CMD             1
@@ -263,7 +276,8 @@ struct iscsi_cmnd {
 	unsigned int release_called:1;
 #endif
 
-	volatile unsigned int tm_aborted; /* it's async. with the above flags */
+	/* It's async. with the above flags */
+	volatile unsigned int tm_aborted;
 
 	struct list_head hash_list_entry;
 
@@ -393,14 +407,16 @@ extern int session_del(struct iscsi_target *, u64);
 extern int session_free(struct iscsi_session *session);
 
 /* params.c */
-extern int iscsi_param_set(struct iscsi_target *, struct iscsi_param_info *, int);
+extern int iscsi_param_set(struct iscsi_target *, struct iscsi_param_info *,
+			   int);
 
 /* event.c */
 extern int event_send(u32, u64, u32, u32, int);
 extern int event_init(void);
 extern void event_exit(void);
 
-#define get_pgcnt(size, offset)	((((size) + ((offset) & ~PAGE_MASK)) + PAGE_SIZE - 1) >> PAGE_SHIFT)
+#define get_pgcnt(size, offset)	\
+	((((size) + ((offset) & ~PAGE_MASK)) + PAGE_SIZE - 1) >> PAGE_SHIFT)
 
 static inline void iscsi_cmnd_get_length(struct iscsi_pdu *pdu)
 {

@@ -96,7 +96,8 @@ static int notify(void *data, int len, gfp_t gfp_mask)
 	if (!skb)
 		return -ENOMEM;
 
-	nlh = __nlmsg_put(skb, iscsid_pid, seq++, NLMSG_DONE, len - sizeof(*nlh), 0);
+	nlh = __nlmsg_put(skb, iscsid_pid, seq++, NLMSG_DONE,
+			  len - sizeof(*nlh), 0);
 
 	memcpy(NLMSG_DATA(nlh), data, len);
 

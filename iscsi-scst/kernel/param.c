@@ -16,34 +16,34 @@
 #include "iscsi.h"
 #include "digest.h"
 
-#define	CHECK_PARAM(info, iparam, word, min, max)				\
-do {										\
-	if (!(info)->partial || ((info)->partial & 1 << key_##word))		\
-		if ((iparam)[key_##word] < (min) ||				\
-			(iparam)[key_##word] > (max)) {				\
-			PRINT_ERROR("%s: %u is out of range (%u %u)",		\
-				#word, (iparam)[key_##word], (min), (max));	\
-			if ((iparam)[key_##word] < (min))			\
-				(iparam)[key_##word] = (min);			\
-			else							\
-				(iparam)[key_##word] = (max);			\
-		}								\
+#define	CHECK_PARAM(info, iparam, word, min, max)			      \
+do {									      \
+	if (!(info)->partial || ((info)->partial & 1 << key_##word))	      \
+		if ((iparam)[key_##word] < (min) ||			      \
+			(iparam)[key_##word] > (max)) {			      \
+			PRINT_ERROR("%s: %u is out of range (%u %u)",	      \
+				#word, (iparam)[key_##word], (min), (max));   \
+			if ((iparam)[key_##word] < (min))		      \
+				(iparam)[key_##word] = (min);		      \
+			else						      \
+				(iparam)[key_##word] = (max);		      \
+		}							      \
 } while (0)
 
-#define	SET_PARAM(param, info, iparam, word)					\
-({										\
-	int changed = 0;							\
-	if (!(info)->partial || ((info)->partial & 1 << key_##word)) {		\
-		if ((param)->word != (iparam)[key_##word])			\
-			changed = 1;						\
-		(param)->word = (iparam)[key_##word];				\
-	}									\
-	changed;								\
+#define	SET_PARAM(param, info, iparam, word)				      \
+({									      \
+	int changed = 0;						      \
+	if (!(info)->partial || ((info)->partial & 1 << key_##word)) {	      \
+		if ((param)->word != (iparam)[key_##word])		      \
+			changed = 1;					      \
+		(param)->word = (iparam)[key_##word];			      \
+	}								      \
+	changed;							      \
 })
 
-#define	GET_PARAM(param, info, iparam, word)					\
-do {										\
-	(iparam)[key_##word] = (param)->word;					\
+#define	GET_PARAM(param, info, iparam, word)				      \
+do {									      \
+	(iparam)[key_##word] = (param)->word;				      \
 } while (0)
 
 static const char *get_bool_name(int val)
@@ -68,7 +68,8 @@ static void log_params(struct iscsi_sess_param *param)
 {
 	PRINT_INFO("Negotiated parameters: InitialR2T %s, ImmediateData %s, "
 		"MaxConnections %d, MaxRecvDataSegmentLength %d, "
-		"MaxXmitDataSegmentLength %d, ", get_bool_name(param->initial_r2t),
+		"MaxXmitDataSegmentLength %d, ",
+		get_bool_name(param->initial_r2t),
 		get_bool_name(param->immediate_data), param->max_connections,
 		param->max_recv_data_length, param->max_xmit_data_length);
 	PRINT_INFO("    MaxBurstLength %d, FirstBurstLength %d, "
@@ -77,14 +78,16 @@ static void log_params(struct iscsi_sess_param *param)
 		param->default_wait_time, param->default_retain_time);
 	PRINT_INFO("    MaxOutstandingR2T %d, DataPDUInOrder %s, "
 		"DataSequenceInOrder %s, ErrorRecoveryLevel %d, ",
-		param->max_outstanding_r2t, get_bool_name(param->data_pdu_inorder),
+		param->max_outstanding_r2t,
+		get_bool_name(param->data_pdu_inorder),
 		get_bool_name(param->data_sequence_inorder),
 		param->error_recovery_level);
 	PRINT_INFO("    HeaderDigest %s, DataDigest %s, OFMarker %s, "
 		"IFMarker %s, OFMarkInt %d, IFMarkInt %d",
 		get_digest_name(param->header_digest),
 		get_digest_name(param->data_digest),
-		get_bool_name(param->ofmarker), get_bool_name(param->ifmarker),
+		get_bool_name(param->ofmarker),
+		get_bool_name(param->ifmarker),
 		param->ofmarkint, param->ifmarkint);
 }
 
@@ -110,7 +113,8 @@ static void sess_param_check(struct iscsi_param_info *info)
 }
 
 /* target_mutex supposed to be locked */
-static void sess_param_set(struct iscsi_sess_param *param, struct iscsi_param_info *info)
+static void sess_param_set(struct iscsi_sess_param *param,
+			   struct iscsi_param_info *info)
 {
 	u32 *iparam = info->session_param;
 
@@ -135,7 +139,8 @@ static void sess_param_set(struct iscsi_sess_param *param, struct iscsi_param_in
 	SET_PARAM(param, info, iparam, ifmarkint);
 }
 
-static void sess_param_get(struct iscsi_sess_param *param, struct iscsi_param_info *info)
+static void sess_param_get(struct iscsi_sess_param *param,
+			   struct iscsi_param_info *info)
 {
 	u32 *iparam = info->session_param;
 
@@ -165,11 +170,13 @@ static void trgt_param_check(struct iscsi_param_info *info)
 {
 	u32 *iparam = info->target_param;
 
-	CHECK_PARAM(info, iparam, queued_cmnds, MIN_NR_QUEUED_CMNDS, MAX_NR_QUEUED_CMNDS);
+	CHECK_PARAM(info, iparam, queued_cmnds, MIN_NR_QUEUED_CMNDS,
+		    MAX_NR_QUEUED_CMNDS);
 }
 
 /* target_mutex supposed to be locked */
-static void trgt_param_set(struct iscsi_target *target, struct iscsi_param_info *info)
+static void trgt_param_set(struct iscsi_target *target,
+			   struct iscsi_param_info *info)
 {
 	struct iscsi_trgt_param *param = &target->trgt_param;
 	u32 *iparam = info->target_param;
@@ -178,7 +185,8 @@ static void trgt_param_set(struct iscsi_target *target, struct iscsi_param_info 
 }
 
 /* target_mutex supposed to be locked */
-static void trgt_param_get(struct iscsi_trgt_param *param, struct iscsi_param_info *info)
+static void trgt_param_get(struct iscsi_trgt_param *param,
+			   struct iscsi_param_info *info)
 {
 	u32 *iparam = info->target_param;
 
@@ -186,7 +194,8 @@ static void trgt_param_get(struct iscsi_trgt_param *param, struct iscsi_param_in
 }
 
 /* target_mutex supposed to be locked */
-static int trgt_param(struct iscsi_target *target, struct iscsi_param_info *info, int set)
+static int trgt_param(struct iscsi_target *target,
+		      struct iscsi_param_info *info, int set)
 {
 	if (set) {
 		struct iscsi_trgt_param *prm;
@@ -203,7 +212,8 @@ static int trgt_param(struct iscsi_target *target, struct iscsi_param_info *info
 }
 
 /* target_mutex supposed to be locked */
-static int sess_param(struct iscsi_target *target, struct iscsi_param_info *info, int set)
+static int sess_param(struct iscsi_target *target,
+		      struct iscsi_param_info *info, int set)
 {
 	struct iscsi_session *session = NULL;
 	struct iscsi_sess_param *param;
@@ -237,7 +247,8 @@ out:
 }
 
 /* target_mutex supposed to be locked */
-int iscsi_param_set(struct iscsi_target *target, struct iscsi_param_info *info, int set)
+int iscsi_param_set(struct iscsi_target *target, struct iscsi_param_info *info,
+		    int set)
 {
 	int err;
 

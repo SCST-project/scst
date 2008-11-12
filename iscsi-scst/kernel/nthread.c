@@ -117,9 +117,11 @@ again:
 		}
 
 		spin_lock_bh(&cmnd->rsp_cmd_lock);
-		list_for_each_entry(rsp, &cmnd->rsp_cmd_list, rsp_cmd_list_entry) {
-			TRACE_CONN_CLOSE_DBG("  rsp %p, ref_cnt %d, net_ref_cnt %d, "
-				"sg %p", rsp, atomic_read(&rsp->ref_cnt),
+		list_for_each_entry(rsp, &cmnd->rsp_cmd_list,
+				rsp_cmd_list_entry) {
+			TRACE_CONN_CLOSE_DBG("  rsp %p, ref_cnt %d, "
+				"net_ref_cnt %d, sg %p",
+				rsp, atomic_read(&rsp->ref_cnt),
 				atomic_read(&rsp->net_ref_cnt), rsp->sg);
 
 			if ((rsp->sg != cmnd->sg) && (rsp->sg != NULL)) {
@@ -129,9 +131,12 @@ again:
 					continue;
 
 				for (i = 0; i < rsp->sg_cnt; i++) {
-					struct page *page = sg_page(&rsp->sg[i]);
-					TRACE_CONN_CLOSE_DBG("    page %p, net_priv %p, "
-						"_count %d", page, page->net_priv,
+					struct page *page =
+						sg_page(&rsp->sg[i]);
+					TRACE_CONN_CLOSE_DBG(
+						"    page %p, net_priv %p, "
+						"_count %d",
+						page, page->net_priv,
 						atomic_read(&page->_count));
 
 					if (page->net_priv != NULL) {
@@ -178,6 +183,151 @@ static void iscsi_unreg_cmds_done_fn(struct scst_session *scst_sess)
 	return;
 }
 
+static void free_pending_commands(struct iscsi_conn *conn)
+{
+	struct iscsi_session *session = conn->session;
+	struct list_head *pending_list = &session->pending_list;
+	int req_freed;
+	struct iscsi_cmnd *cmnd;
+
+	spin_lock(&session->sn_lock);
+	do {
+		req_freed = 0;
+		list_for_each_entry(cmnd, pending_list, pending_list_entry) {
+			TRACE_CONN_CLOSE_DBG("Pending cmd %p"
+				"(conn %p, cmd_sn %u, exp_cmd_sn %u)",
+				cmnd, conn, cmnd->pdu.bhs.sn,
+				session->exp_cmd_sn);
+			if ((cmnd->conn == conn) &&
+			    (session->exp_cmd_sn == cmnd->pdu.bhs.sn)) {
+				TRACE_CONN_CLOSE_DBG("Freeing pending cmd %p",
+					cmnd);
+
+				list_del(&cmnd->pending_list_entry);
+				cmnd->pending = 0;
+
+				session->exp_cmd_sn++;
+
+				spin_unlock(&session->sn_lock);
+
+				req_cmnd_release_force(cmnd, 0);
+
+				req_freed = 1;
+				spin_lock(&session->sn_lock);
+				break;
+			}
+		}
+	} while (req_freed);
+	spin_unlock(&session->sn_lock);
+}
+
+static void free_orphaned_pending_commands(struct iscsi_conn *conn)
+{
+	struct iscsi_session *session = conn->session;
+	struct list_head *pending_list = &session->pending_list;
+	int req_freed;
+	struct iscsi_cmnd *cmnd;
+
+	spin_lock(&session->sn_lock);
+	do {
+		req_freed = 0;
+		list_for_each_entry(cmnd, pending_list, pending_list_entry) {
+			TRACE_CONN_CLOSE_DBG("Pending cmd %p"
+				"(conn %p, cmd_sn %u, exp_cmd_sn %u)",
+				cmnd, conn, cmnd->pdu.bhs.sn,
+				session->exp_cmd_sn);
+			if (cmnd->conn == conn) {
+				PRINT_ERROR("Freeing orphaned pending cmd %p",
+					    cmnd);
+
+				list_del(&cmnd->pending_list_entry);
+				cmnd->pending = 0;
+
+				if (session->exp_cmd_sn == cmnd->pdu.bhs.sn)
+					session->exp_cmd_sn++;
+
+				spin_unlock(&session->sn_lock);
+
+				req_cmnd_release_force(cmnd, 0);
+
+				req_freed = 1;
+				spin_lock(&session->sn_lock);
+				break;
+			}
+		}
+	} while (req_freed);
+	spin_unlock(&session->sn_lock);
+}
+
+#ifdef CONFIG_SCST_DEBUG
+static void trace_conn_close(struct iscsi_conn *conn)
+{
+	struct iscsi_cmnd *cmnd;
+#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
+	struct iscsi_cmnd *rsp;
+#endif
+
+#if 0
+	if (time_after(jiffies, start_waiting + 10*HZ))
+		trace_flag |= TRACE_CONN_OC_DBG;
+#endif
+
+	spin_lock_bh(&conn->cmd_list_lock);
+	list_for_each_entry(cmnd, &conn->cmd_list,
+			cmd_list_entry) {
+		TRACE_CONN_CLOSE_DBG(
+			"cmd %p, scst_state %x, scst_cmd state %d, "
+			"data_waiting %d, ref_cnt %d, sn %u, "
+			"parent_req %p, pending %d",
+			cmnd, cmnd->scst_state,
+			cmnd->scst_cmd ? cmnd->scst_cmd->state : -1,
+			cmnd->data_waiting, atomic_read(&cmnd->ref_cnt),
+			cmnd->pdu.bhs.sn, cmnd->parent_req, cmnd->pending);
+#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
+		TRACE_CONN_CLOSE_DBG("net_ref_cnt %d, sg %p",
+			atomic_read(&cmnd->net_ref_cnt),
+			cmnd->sg);
+		if (cmnd->sg != NULL) {
+			int i;
+			for (i = 0; i < cmnd->sg_cnt; i++) {
+				struct page *page = sg_page(&cmnd->sg[i]);
+				TRACE_CONN_CLOSE_DBG("page %p, "
+					"net_priv %p, _count %d",
+					page, page->net_priv,
+					atomic_read(&page->_count));
+			}
+		}
+
+		sBUG_ON(cmnd->parent_req != NULL);
+
+		spin_lock_bh(&cmnd->rsp_cmd_lock);
+		list_for_each_entry(rsp, &cmnd->rsp_cmd_list,
+				rsp_cmd_list_entry) {
+			TRACE_CONN_CLOSE_DBG("  rsp %p, "
+			    "ref_cnt %d, net_ref_cnt %d, sg %p",
+			    rsp, atomic_read(&rsp->ref_cnt),
+			    atomic_read(&rsp->net_ref_cnt), rsp->sg);
+			if (rsp->sg != cmnd->sg && rsp->sg) {
+				int i;
+				for (i = 0; i < rsp->sg_cnt; i++) {
+					TRACE_CONN_CLOSE_DBG("    page %p, "
+					  "net_priv %p, _count %d",
+					  sg_page(&rsp->sg[i]),
+					  sg_page(&rsp->sg[i])->net_priv,
+					  atomic_read(&sg_page(&rsp->sg[i])->
+						_count));
+				}
+			}
+		}
+		spin_unlock_bh(&cmnd->rsp_cmd_lock);
+#endif /* CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION */
+	}
+	spin_unlock_bh(&conn->cmd_list_lock);
+}
+#else /* CONFIG_SCST_DEBUG */
+static void trace_conn_close(struct iscsi_conn *conn) {}
+#endif /* CONFIG_SCST_DEBUG */
+
 /* No locks */
 static void close_conn(struct iscsi_conn *conn)
 {
@@ -211,7 +361,7 @@ static void close_conn(struct iscsi_conn *conn)
 
 	/*
 	 * We need to call scst_unregister_session() ASAP to make SCST start
-	 * stuck commands recovery.
+	 * recovering stuck commands.
 	 *
 	 * ToDo: this is incompatible with MC/S
 	 */
@@ -230,11 +380,9 @@ static void close_conn(struct iscsi_conn *conn)
 
 	/* ToDo: not the best way to wait */
 	while (atomic_read(&conn->conn_ref_cnt) != 0) {
-		struct iscsi_cmnd *cmnd;
-
 		mutex_lock(&target->target_mutex);
 		spin_lock(&session->sn_lock);
-		if ((session->tm_rsp != NULL) && (session->tm_rsp->conn == conn)) {
+		if (session->tm_rsp && session->tm_rsp->conn == conn) {
 			struct iscsi_cmnd *tm_rsp = session->tm_rsp;
 			TRACE(TRACE_MGMT_MINOR, "Dropping delayed TM rsp %p",
 				tm_rsp);
@@ -251,86 +399,28 @@ static void close_conn(struct iscsi_conn *conn)
 		}
 
 		if (!list_empty(&session->pending_list)) {
-			struct list_head *pending_list = &session->pending_list;
-			int req_freed;
-
 			TRACE_CONN_CLOSE_DBG("Disposing pending commands on "
-					     "connection %p (conn_ref_cnt=%d)", conn,
+					     "connection %p (conn_ref_cnt=%d)",
+					     conn,
 					     atomic_read(&conn->conn_ref_cnt));
 
 			/*
-			 * Such complicated approach currently isn't necessary,
-			 * but it will be necessary for MC/S, if we won't want
-			 * to reestablish the whole session on a connection
-			 * failure.
+			 * Such complicated approach currently isn't really
+			 * necessary, but it will be necessary for MC/S, if we
+			 * won't want to reestablish the whole session on a
+			 * connection failure.
 			 */
 
-			spin_lock(&session->sn_lock);
-			do {
-				req_freed = 0;
-				list_for_each_entry(cmnd, pending_list,
-							pending_list_entry) {
-					TRACE_CONN_CLOSE_DBG("Pending cmd %p"
-						"(conn %p, cmd_sn %u, exp_cmd_sn %u)",
-						cmnd, conn, cmnd->pdu.bhs.sn,
-						session->exp_cmd_sn);
-					if ((cmnd->conn == conn) &&
-					    (session->exp_cmd_sn == cmnd->pdu.bhs.sn)) {
-						TRACE_CONN_CLOSE_DBG("Freeing pending cmd %p",
-							cmnd);
+			free_pending_commands(conn);
 
-						list_del(&cmnd->pending_list_entry);
-						cmnd->pending = 0;
-
-						session->exp_cmd_sn++;
-
-						spin_unlock(&session->sn_lock);
-
-						req_cmnd_release_force(cmnd, 0);
-
-						req_freed = 1;
-						spin_lock(&session->sn_lock);
-						break;
-					}
-				}
-			} while (req_freed);
-			spin_unlock(&session->sn_lock);
-
-			if (time_after(jiffies, start_waiting + CONN_PENDING_TIMEOUT)) {
+			if (time_after(jiffies,
+				start_waiting + CONN_PENDING_TIMEOUT)) {
 				if (!pending_reported) {
-					TRACE_CONN_CLOSE("%s", "Pending wait time expired");
+					TRACE_CONN_CLOSE("%s",
+						"Pending wait time expired");
 					pending_reported = 1;
 				}
-				spin_lock(&session->sn_lock);
-				do {
-					req_freed = 0;
-					list_for_each_entry(cmnd, pending_list,
-							pending_list_entry) {
-						TRACE_CONN_CLOSE_DBG("Pending cmd %p"
-							"(conn %p, cmd_sn %u, exp_cmd_sn %u)",
-							cmnd, conn, cmnd->pdu.bhs.sn,
-							session->exp_cmd_sn);
-						if (cmnd->conn == conn) {
-							PRINT_ERROR("Freeing orphaned "
-								"pending cmd %p", cmnd);
-
-							list_del(&cmnd->pending_list_entry);
-							cmnd->pending = 0;
-
-							if (session->exp_cmd_sn == cmnd->pdu.bhs.sn)
-								session->exp_cmd_sn++;
-
-							spin_unlock(&session->sn_lock);
-
-							req_cmnd_release_force(cmnd, 0);
-
-							req_freed = 1;
-							spin_lock(&session->sn_lock);
-							break;
-						}
-					}
-				} while (req_freed);
-				spin_unlock(&session->sn_lock);
+				free_orphaned_pending_commands(conn);
 			}
 		}
 
@@ -340,7 +430,8 @@ static void close_conn(struct iscsi_conn *conn)
 		if (time_after(jiffies, start_waiting + CONN_WAIT_TIMEOUT) &&
 		    !wait_expired) {
 			TRACE_CONN_CLOSE("Wait time expired (conn %p, "
-				"sk_state %d)", conn, conn->sock->sk->sk_state);
+				"sk_state %d)",
+				conn, conn->sock->sk->sk_state);
 			conn->sock->ops->shutdown(conn->sock, SEND_SHUTDOWN);
 			wait_expired = 1;
 			shut_start_waiting = jiffies;
@@ -362,63 +453,12 @@ static void close_conn(struct iscsi_conn *conn)
 		else
 			msleep(1000);
 
-		TRACE_CONN_CLOSE_DBG("conn %p, conn_ref_cnt %d left, wr_state %d, "
-			"exp_cmd_sn %u", conn, atomic_read(&conn->conn_ref_cnt),
+		TRACE_CONN_CLOSE_DBG("conn %p, conn_ref_cnt %d left, "
+			"wr_state %d, exp_cmd_sn %u",
+			conn, atomic_read(&conn->conn_ref_cnt),
 			conn->wr_state, session->exp_cmd_sn);
 #ifdef CONFIG_SCST_DEBUG
-		{
-#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
-			struct iscsi_cmnd *rsp;
-#endif
-
-#if 0
-			if (time_after(jiffies, start_waiting + 10*HZ))
-				trace_flag |= TRACE_CONN_OC_DBG;
-#endif
-
-			spin_lock_bh(&conn->cmd_list_lock);
-			list_for_each_entry(cmnd, &conn->cmd_list, cmd_list_entry) {
-				TRACE_CONN_CLOSE_DBG("cmd %p, scst_state %x, scst_cmd "
-					"state %d, data_waiting %d, ref_cnt %d, sn %u, "
-					"parent_req %p, pending %d", cmnd, cmnd->scst_state,
-					(cmnd->scst_cmd != NULL) ? cmnd->scst_cmd->state : -1,
-					cmnd->data_waiting, atomic_read(&cmnd->ref_cnt),
-					cmnd->pdu.bhs.sn, cmnd->parent_req, cmnd->pending);
-#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
-				TRACE_CONN_CLOSE_DBG("net_ref_cnt %d, sg %p",
-					atomic_read(&cmnd->net_ref_cnt), cmnd->sg);
-				if (cmnd->sg != NULL) {
-					int i;
-					for (i = 0; i < cmnd->sg_cnt; i++) {
-						struct page *page = sg_page(&cmnd->sg[i]);
-						TRACE_CONN_CLOSE_DBG("page %p, net_priv %p, _count %d",
-							page, page->net_priv,
-							atomic_read(&page->_count));
-					}
-				}
-
-				sBUG_ON(cmnd->parent_req != NULL);
-
-				spin_lock_bh(&cmnd->rsp_cmd_lock);
-				list_for_each_entry(rsp, &cmnd->rsp_cmd_list, rsp_cmd_list_entry) {
-					TRACE_CONN_CLOSE_DBG("  rsp %p, ref_cnt %d, net_ref_cnt %d, "
-						"sg %p", rsp, atomic_read(&rsp->ref_cnt),
-						atomic_read(&rsp->net_ref_cnt), rsp->sg);
-					if ((rsp->sg != cmnd->sg) && (rsp->sg != NULL)) {
-						int i;
-						for (i = 0; i < rsp->sg_cnt; i++) {
-							TRACE_CONN_CLOSE_DBG("    page %p, net_priv %p, "
-								"_count %d", sg_page(&rsp->sg[i]),
-								sg_page(&rsp->sg[i])->net_priv,
-								atomic_read(&sg_page(&rsp->sg[i])->_count));
-						}
-					}
-				}
-				spin_unlock_bh(&cmnd->rsp_cmd_lock);
-#endif
-			}
-			spin_unlock_bh(&conn->cmd_list_lock);
-		}
+		trace_conn_close(conn);
 #endif
 		iscsi_check_closewait(conn);
 	}
@@ -444,7 +484,8 @@ static void close_conn(struct iscsi_conn *conn)
 		msleep(50);
 	}
 
-	TRACE_CONN_CLOSE("Notifying user space about closing connection %p", conn);
+	TRACE_CONN_CLOSE("Notifying user space about closing connection %p",
+			 conn);
 	event_send(target->tid, session->sid, conn->cid, E_CONN_CLOSE, 0);
 
 	wait_for_completion(&session->unreg_compl);
@@ -494,7 +535,8 @@ static void start_close_conn(struct iscsi_conn *conn)
 	return;
 }
 
-static inline void iscsi_conn_init_read(struct iscsi_conn *conn, void *data, size_t len)
+static inline void iscsi_conn_init_read(struct iscsi_conn *conn, void *data,
+					size_t len)
 {
 	len = (len + 3) & -4; /* XXX ??? */
 	conn->read_iov[0].iov_base = data;
@@ -504,7 +546,8 @@ static inline void iscsi_conn_init_read(struct iscsi_conn *conn, void *data, siz
 	conn->read_size = (len + 3) & -4;
 }
 
-static void iscsi_conn_read_ahs(struct iscsi_conn *conn, struct iscsi_cmnd *cmnd)
+static void iscsi_conn_read_ahs(struct iscsi_conn *conn,
+				struct iscsi_cmnd *cmnd)
 {
 	/* ToDo: __GFP_NOFAIL ?? */
 	cmnd->pdu.ahs = kmalloc(cmnd->pdu.ahssize, __GFP_NOFAIL|GFP_KERNEL);
@@ -548,7 +591,8 @@ static int do_recv(struct iscsi_conn *conn, int state)
 
 	oldfs = get_fs();
 	set_fs(get_ds());
-	res = sock_recvmsg(conn->sock, &msg, conn->read_size, MSG_DONTWAIT | MSG_NOSIGNAL);
+	res = sock_recvmsg(conn->sock, &msg, conn->read_size,
+			   MSG_DONTWAIT | MSG_NOSIGNAL);
 	set_fs(oldfs);
 
 	if (res <= 0) {
@@ -556,7 +600,7 @@ static int do_recv(struct iscsi_conn *conn, int state)
 		case -EAGAIN:
 		case -ERESTARTSYS:
 			TRACE_DBG("EAGAIN or ERESTARTSYS (%d) received for "
-				"conn %p", res, conn);
+				  "conn %p", res, conn);
 			break;
 		default:
 			PRINT_ERROR("sock_recvmsg() failed: %d", res);
@@ -575,7 +619,8 @@ static int do_recv(struct iscsi_conn *conn, int state)
 		conn->read_size -= res;
 		if (conn->read_size) {
 			if (res >= first_len) {
-				int done = 1 + ((res - first_len) >> PAGE_SHIFT);
+				int done =
+					1 + ((res - first_len) >> PAGE_SHIFT);
 				conn->read_msg.msg_iov += done;
 				conn->read_msg.msg_iovlen -= done;
 			}
@@ -637,7 +682,8 @@ static int recv(struct iscsi_conn *conn)
 			iscsi_conn_read_ahs(conn, cmnd);
 			conn->read_state = RX_AHS;
 		} else
-			conn->read_state = hdigest ? RX_INIT_HDIGEST : RX_INIT_DATA;
+			conn->read_state =
+				hdigest ? RX_INIT_HDIGEST : RX_INIT_DATA;
 
 		if (conn->read_state != RX_AHS)
 			break;
@@ -700,9 +746,9 @@ static int recv(struct iscsi_conn *conn)
 			cmnd_get(cmnd);
 		} else if (cmnd_opcode(cmnd) != ISCSI_OP_SCSI_DATA_OUT) {
 			/*
-			 * We could get here only for NOP-Out. ISCSI RFC doesn't
-			 * specify how to deal with digest errors in this case.
-			 * Is closing connection correct?
+			 * We could get here only for NOP-Out. ISCSI RFC
+			 * doesn't specify how to deal with digest errors in
+			 * this case. Is closing connection correct?
 			 */
 			TRACE_DBG("cmnd %p, opcode %x: checking NOP RX "
 				"ddigest", cmnd, cmnd_opcode(cmnd));
@@ -770,7 +816,9 @@ static void scst_do_job_rd(void)
 {
 	TRACE_ENTRY();
 
-	/* We delete/add to tail connections to maintain fairness between them */
+	/*
+	 * We delete/add to tail connections to maintain fairness between them.
+	 */
 
 	while (!list_empty(&iscsi_rd_list)) {
 		int rc, closed = 0;
@@ -929,7 +977,8 @@ static int write_data(struct iscsi_conn *conn)
 	mm_segment_t oldfs;
 	struct file *file;
 	struct socket *sock;
-	ssize_t (*sock_sendpage)(struct socket *, struct page *, int, size_t, int);
+	ssize_t (*sock_sendpage)(struct socket *, struct page *, int, size_t,
+				 int);
 	ssize_t (*sendpage)(struct socket *, struct page *, int, size_t, int);
 	struct iscsi_cmnd *write_cmnd = conn->write_cmnd;
 	struct iscsi_cmnd *ref_cmd;
@@ -1064,18 +1113,20 @@ static int write_data(struct iscsi_conn *conn)
 			if (sg_page(&sg[idx])->net_priv != NULL) {
 				if (sg_page(&sg[idx])->net_priv != ref_cmd) {
 					/*
-					 * This might happen if user space supplies
-					 * to scst_user the same pages in different
-					 * commands or in case of zero-copy FILEIO,
-					 * when several initiators request the same
+					 * This might happen if user space
+					 * supplies to scst_user the same
+					 * pages in different commands or in
+					 * case of zero-copy FILEIO, when
+					 * several initiators request the same
 					 * data simultaneously.
 					 */
 					TRACE_DBG("net_priv isn't NULL and != "
-						"ref_cmd (write_cmnd %p, ref_cmd %p, "
-						"sg %p, idx %d, page %p, net_priv %p)",
-						write_cmnd, ref_cmd, sg, idx,
-						sg_page(&sg[idx]),
-						sg_page(&sg[idx])->net_priv);
+					    "ref_cmd (write_cmnd %p, ref_cmd "
+					    "%p, sg %p, idx %d, page %p, "
+					    "net_priv %p)",
+					    write_cmnd, ref_cmd, sg, idx,
+					    sg_page(&sg[idx]),
+					    sg_page(&sg[idx])->net_priv);
 					sendpage = sock_no_sendpage;
 				}
 			} else
@@ -1086,14 +1137,14 @@ static int write_data(struct iscsi_conn *conn)
 		sendsize = PAGE_SIZE - offset;
 		if (size <= sendsize) {
 retry2:
-			res = sendpage(sock, sg_page(&sg[idx]), offset, size, flags);
-			TRACE_WRITE("Final %s %#Lx:%u: %d(%lu,%u,%u, cmd %p, page %p)",
-				(sendpage != sock_no_sendpage) ? "sendpage" :
-								 "sock_no_sendpage",
+			res = sendpage(sock, sg_page(&sg[idx]), offset, size,
+				       flags);
+			TRACE_WRITE("Final %s %#Lx:%u: %d(%lu,%u,%u, cmd %p, "
+				"page %p)", (sendpage != sock_no_sendpage) ?
+						"sendpage" : "sock_no_sendpage",
 				(long long unsigned int)conn->session->sid,
-				conn->cid,
-				res, sg_page(&sg[idx])->index, offset, size,
-				write_cmnd, sg_page(&sg[idx]));
+				conn->cid, res, sg_page(&sg[idx])->index,
+				offset, size, write_cmnd, sg_page(&sg[idx]));
 			if (unlikely(res <= 0)) {
 				if (res == -EINTR)
 					goto retry2;
@@ -1195,7 +1246,8 @@ static int exit_tx(struct iscsi_conn *conn, int res)
 		{
 			PRINT_ERROR("Sending data failed: initiator %s, "
 				"write_size %d, write_state %d, res %d",
-				conn->session->initiator_name, conn->write_size,
+				conn->session->initiator_name,
+				conn->write_size,
 				conn->write_state, res);
 		}
 		conn->write_state = TX_END;
@@ -1239,7 +1291,9 @@ static void init_tx_hdigest(struct iscsi_cmnd *cmnd)
 
 	digest_tx_header(cmnd);
 
-	sBUG_ON(conn->write_iop_used >= sizeof(conn->write_iov)/sizeof(conn->write_iov[0]));
+	sBUG_ON(conn->write_iop_used >=
+		sizeof(conn->write_iov)/sizeof(conn->write_iov[0]));
+
 	iop = &conn->write_iop[conn->write_iop_used];
 	conn->write_iop_used++;
 	iop->iov_base = &(cmnd->hdigest);
@@ -1362,7 +1416,9 @@ static void scst_do_job_wr(void)
 {
 	TRACE_ENTRY();
 
-	/* We delete/add to tail connections to maintain fairness between them */
+	/*
+	 * We delete/add to tail connections to maintain fairness between them.
+	 */
 
 	while (!list_empty(&iscsi_wr_list)) {
 		int rc;

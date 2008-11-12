@@ -21,7 +21,8 @@ struct iscsi_session *session_lookup(struct iscsi_target *target, u64 sid)
 {
 	struct iscsi_session *session;
 
-	list_for_each_entry(session, &target->session_list, session_list_entry) {
+	list_for_each_entry(session, &target->session_list,
+			session_list_entry) {
 		if ((session->sid == sid) && !session->shutting_down)
 			return session;
 	}
@@ -29,7 +30,8 @@ struct iscsi_session *session_lookup(struct iscsi_target *target, u64 sid)
 }
 
 /* target_mutex supposed to be locked */
-static int iscsi_session_alloc(struct iscsi_target *target, struct session_info *info)
+static int iscsi_session_alloc(struct iscsi_target *target,
+			       struct session_info *info)
 {
 	int err, i;
 	struct iscsi_session *session;
@@ -173,11 +175,13 @@ int session_del(struct iscsi_target *target, u64 sid)
 }
 
 /* target_mutex supposed to be locked */
-static void iscsi_session_info_show(struct seq_file *seq, struct iscsi_target *target)
+static void iscsi_session_info_show(struct seq_file *seq,
+				    struct iscsi_target *target)
 {
 	struct iscsi_session *session;
 
-	list_for_each_entry(session, &target->session_list, session_list_entry) {
+	list_for_each_entry(session, &target->session_list,
+			    session_list_entry) {
 		seq_printf(seq, "\tsid:%llu initiator:%s shutting down %d\n",
 			(long long unsigned int)session->sid,
 			session->initiator_name,

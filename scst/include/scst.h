@@ -2043,7 +2043,8 @@ static inline int scst_cmd_atomic(struct scst_cmd *cmd)
 {
 	int res = cmd->atomic;
 #ifdef CONFIG_SCST_EXTRACHECKS
-	if (unlikely((in_atomic() || in_interrupt()) && !res)) {
+	if (unlikely((in_atomic() || in_interrupt() || irqs_disabled()) &&
+		     !res)) {
 		printk(KERN_ERR "ERROR: atomic context and non-atomic cmd\n");
 		dump_stack();
 		cmd->atomic = 1;
