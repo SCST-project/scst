@@ -43,6 +43,13 @@
 
 #include <scst_debug.h>
 
+#if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
+#warning "HIGHMEM kernel configurations are not supported by this module, \
+	because nowadays it doesn't worth the effort. Consider change \
+	VMSPLIT option or use 64-bit configuration instead. See SCST core \
+	README file for details."
+#endif
+
 #ifdef CONFIG_SCST_DEBUG
 #define SCST_LOCAL_DEFAULT_LOG_FLAGS (TRACE_FUNCTION | TRACE_PID | \
 	TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_MGMT_MINOR | \

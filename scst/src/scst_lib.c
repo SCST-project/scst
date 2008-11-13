@@ -1758,14 +1758,22 @@ void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir)
 		do {
 			unsigned int n;
 
+			/*
+			 * Himem pages are not allowed here, see the
+			 * corresponding #warning in scst_main.c. Correct
+			 * your target driver or dev handler to not alloc
+			 * such pages!
+			 */
+			EXTRACHECKS_BUG_ON(PageHighMem(dst) ||
+					   PageHighMem(src));
+
 			TRACE_MEM("cmd %p, to_copy %d, src %p, src_len %d, "
 				"src_offs %d, dst %p, dst_len %d, dst_offs %d",
 				cmd, to_copy, src, src_len, src_offs, dst,
 				dst_len, dst_offs);
 
 			if ((src_offs == 0) && (dst_offs == 0) &&
-			    (src_len >= PAGE_SIZE) && (dst_len >= PAGE_SIZE) &&
-			    !PageHighMem(dst) && !PageHighMem(src)) {
+			    (src_len >= PAGE_SIZE) && (dst_len >= PAGE_SIZE)) {
 				copy_page(page_address(dst), page_address(src));
 				n = PAGE_SIZE;
 			} else {
