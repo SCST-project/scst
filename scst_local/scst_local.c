@@ -241,7 +241,7 @@ static ssize_t scst_local_add_host_store(struct device_driver *ddp,
 }
 
 DRIVER_ATTR(add_host, S_IRUGO | S_IWUSR, scst_local_add_host_show,
-            scst_local_add_host_store);
+	    scst_local_add_host_store);
 
 static int do_create_driverfs_files(void)
 {
@@ -404,7 +404,8 @@ static void copy_sense(struct scsi_cmnd *cmnd, struct scst_cmd *scst_cmnd)
  */
 static int scst_local_send_resp(struct scsi_cmnd *cmnd,
 				struct scst_cmd *scst_cmnd,
-				void (*done)(struct scsi_cmnd *), int scsi_result)
+				void (*done)(struct scsi_cmnd *),
+				int scsi_result)
 {
 	int ret = 0;
 
@@ -751,9 +752,9 @@ static int __init scst_local_init(void)
 
 
 	/*
- 	 * register the target driver and then create a host. This makes sure
- 	 * that we see any targets that are there. Gotta figure out how to
- 	 * tell the system that there are new targets when SCST creates them.
+	 * register the target driver and then create a host. This makes sure
+	 * that we see any targets that are there. Gotta figure out how to
+	 * tell the system that there are new targets when SCST creates them.
 	 */
 
 	ret = scst_local_target_register();
@@ -764,8 +765,8 @@ static int __init scst_local_init(void)
 	}
 
 	/*
- 	 * Add adapters ...
- 	 */
+	 * Add adapters ...
+	 */
 	adapters = scst_local_add_host;
 	scst_local_add_host = 0;
 	for (k = 0; k < adapters; k++) {
@@ -857,10 +858,10 @@ static int scst_fake_lld_driver_probe(struct device *dev)
 
 	*((struct scst_local_host_info **)hpnt->hostdata) = scst_lcl_host;
 	if ((hpnt->this_id >= 0) && (scst_local_num_tgts > hpnt->this_id))
-                hpnt->max_id = scst_local_num_tgts + 1;
-        else
-                hpnt->max_id = scst_local_num_tgts;
-        hpnt->max_lun = scst_local_max_luns - 1;
+		hpnt->max_id = scst_local_num_tgts + 1;
+	else
+		hpnt->max_id = scst_local_num_tgts;
+	hpnt->max_lun = scst_local_max_luns - 1;
 
 	ret = scsi_add_host(hpnt, &scst_lcl_host->dev);
 	if (ret) {
@@ -924,8 +925,8 @@ static int scst_local_targ_detect(struct scst_tgt_template *tgt_template)
 	TRACE_ENTRY();
 
 	/*
- 	 * Register the adapter(s)
- 	 */
+	 * Register the adapter(s)
+	 */
 
 	adapter_count = scst_local_add_host;
 
