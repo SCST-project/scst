@@ -594,25 +594,17 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 			}
 		}
 		if (unlikely(cmd->bufflen != cmd->expected_transfer_len)) {
-			static int repd;
-			if (repd < 100) {
-				/*
-				 * Intentionally unlocked. Few messages more
-				 * or less don't matter.
-				 */
-				repd++;
-				TRACE(TRACE_MINOR, "Warning: expected transfer "
-					"length %d for opcode 0x%02x (handler "
-					"%s, target %s) doesn't match decoded "
-					"value %d. Faulty initiator (e.g. "
-					"VMware is known to be such) or "
-					"scst_scsi_op_table should be updated?",
-					cmd->expected_transfer_len, cmd->cdb[0],
-					dev->handler->name, cmd->tgtt->name,
-					cmd->bufflen);
-				PRINT_BUFF_FLAG(TRACE_MINOR, "Suspicious CDB",
-					cmd->cdb, cmd->cdb_len);
-			}
+			TRACE(TRACE_MGMT_MINOR, "Warning: expected "
+				"transfer length %d for opcode 0x%02x "
+				"(handler %s, target %s) doesn't match "
+				"decoded value %d. Faulty initiator "
+				"(e.g. VMware is known to be such) or "
+				"scst_scsi_op_table should be updated?",
+				cmd->expected_transfer_len, cmd->cdb[0],
+				dev->handler->name, cmd->tgtt->name,
+				cmd->bufflen);
+			PRINT_BUFF_FLAG(TRACE_MINOR, "Suspicious CDB",
+				cmd->cdb, cmd->cdb_len);
 		}
 #endif
 	}
