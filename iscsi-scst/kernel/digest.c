@@ -23,7 +23,7 @@
 #include "digest.h"
 #include <linux/crc32c.h>
 
-void digest_alg_available(unsigned int *val)
+void digest_alg_available(int *val)
 {
 #if defined(CONFIG_LIBCRC32C_MODULE) || defined(CONFIG_LIBCRC32C)
 	int crc32c = 1;

@@ -94,13 +94,13 @@ static void log_params(struct iscsi_sess_param *param)
 /* target_mutex supposed to be locked */
 static void sess_param_check(struct iscsi_param_info *info)
 {
-	s32 *iparam = info->session_param;
+	int32_t *iparam = info->session_param;
 
 	CHECK_PARAM(info, iparam, max_connections, 1, 1);
 	CHECK_PARAM(info, iparam, max_recv_data_length, 512,
-		    (s32) (ISCSI_CONN_IOV_MAX * PAGE_SIZE));
+		    (int32_t) (ISCSI_CONN_IOV_MAX * PAGE_SIZE));
 	CHECK_PARAM(info, iparam, max_xmit_data_length, 512,
-		    (s32) (ISCSI_CONN_IOV_MAX * PAGE_SIZE));
+		    (int32_t) (ISCSI_CONN_IOV_MAX * PAGE_SIZE));
 	CHECK_PARAM(info, iparam, error_recovery_level, 0, 0);
 	CHECK_PARAM(info, iparam, data_pdu_inorder, 0, 1);
 	CHECK_PARAM(info, iparam, data_sequence_inorder, 0, 1);
@@ -116,7 +116,7 @@ static void sess_param_check(struct iscsi_param_info *info)
 static void sess_param_set(struct iscsi_sess_param *param,
 			   struct iscsi_param_info *info)
 {
-	u32 *iparam = info->session_param;
+	int32_t *iparam = info->session_param;
 
 	SET_PARAM(param, info, iparam, initial_r2t);
 	SET_PARAM(param, info, iparam, immediate_data);
@@ -142,7 +142,7 @@ static void sess_param_set(struct iscsi_sess_param *param,
 static void sess_param_get(struct iscsi_sess_param *param,
 			   struct iscsi_param_info *info)
 {
-	u32 *iparam = info->session_param;
+	int32_t *iparam = info->session_param;
 
 	GET_PARAM(param, info, iparam, initial_r2t);
 	GET_PARAM(param, info, iparam, immediate_data);
@@ -168,7 +168,7 @@ static void sess_param_get(struct iscsi_sess_param *param,
 /* target_mutex supposed to be locked */
 static void trgt_param_check(struct iscsi_param_info *info)
 {
-	u32 *iparam = info->target_param;
+	int32_t *iparam = info->target_param;
 
 	CHECK_PARAM(info, iparam, queued_cmnds, MIN_NR_QUEUED_CMNDS,
 		    MAX_NR_QUEUED_CMNDS);
@@ -179,7 +179,7 @@ static void trgt_param_set(struct iscsi_target *target,
 			   struct iscsi_param_info *info)
 {
 	struct iscsi_trgt_param *param = &target->trgt_param;
-	u32 *iparam = info->target_param;
+	int32_t *iparam = info->target_param;
 
 	SET_PARAM(param, info, iparam, queued_cmnds);
 }
@@ -188,7 +188,7 @@ static void trgt_param_set(struct iscsi_target *target,
 static void trgt_param_get(struct iscsi_trgt_param *param,
 			   struct iscsi_param_info *info)
 {
-	u32 *iparam = info->target_param;
+	int32_t *iparam = info->target_param;
 
 	GET_PARAM(param, info, iparam, queued_cmnds);
 }

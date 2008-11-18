@@ -457,9 +457,9 @@ static void close_conn(struct iscsi_conn *conn)
 			"wr_state %d, exp_cmd_sn %u",
 			conn, atomic_read(&conn->conn_ref_cnt),
 			conn->wr_state, session->exp_cmd_sn);
-#ifdef CONFIG_SCST_DEBUG
+
 		trace_conn_close(conn);
-#endif
+
 		iscsi_check_closewait(conn);
 	}
 

@@ -18,7 +18,7 @@
 #ifndef __ISCSI_DIGEST_H__
 #define __ISCSI_DIGEST_H__
 
-extern void digest_alg_available(unsigned int *val);
+extern void digest_alg_available(int *val);
 
 extern int digest_init(struct iscsi_conn *conn);
 
