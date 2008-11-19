@@ -1436,7 +1436,12 @@ void scst_free_cmd(struct scst_cmd *cmd)
 #endif
 #endif
 
-	scst_check_restore_sg_buff(cmd);
+	/*
+	 * Target driver can already free sg buffer before calling
+	 * scst_tgt_cmd_done(). E.g., scst_local has to do that.
+	 */
+	if (!cmd->tgt_data_buf_alloced)
+		scst_check_restore_sg_buff(cmd);
 
 	if (unlikely(cmd->internal)) {
 		if (cmd->bufflen > 0)
