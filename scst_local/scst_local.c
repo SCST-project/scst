@@ -75,10 +75,8 @@ unsigned long scst_local_trace_flag = SCST_LOCAL_DEFAULT_LOG_FLAGS;
 static void scst_local_remove_adapter(void);
 static int scst_local_add_adapter(void);
 
-#define SCST_LOCAL_VERSION "0.7"
-static const char *scst_local_version_date = "20081011";
-
-#define SCST_LOCAL_SG_TABLESIZE 256
+#define SCST_LOCAL_VERSION "0.8"
+static const char *scst_local_version_date = "20081116";
 
 /*
  * Target structures that are shared between the two pieces
@@ -91,10 +89,8 @@ static struct scst_tgt_template scst_local_targ_tmpl;
  */
 #define DEF_NUM_HOST 1
 #define DEF_NUM_TGTS 1
-#define MAX_TARGETS 16
+#define SCST_LOCAL_MAX_TARGETS 16
 #define DEF_MAX_LUNS 256
-#define SCST_LOCAL_CANQUEUE 1
-/*#define SCST_LOCAL_CANQUEUE 255*/
 
 /*
  * These following defines are the SCSI Host LLD (the initiator).
@@ -118,7 +114,7 @@ struct scst_local_host_info {
 	struct list_head host_list;
 	struct Scsi_Host *shost;
 	struct scst_tgt *target;
-	struct scst_session *session[MAX_TARGETS];
+	struct scst_session *session[SCST_LOCAL_MAX_TARGETS];
 	struct device dev;
 };
 
@@ -457,15 +453,6 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 					    DID_NO_CONNECT << 16);
 	}
 
-	tgt_specific = kmem_cache_alloc(tgt_specific_pool, GFP_ATOMIC);
-	if (!tgt_specific) {
-		printk(KERN_ERR "%s out of memory at line %d\n",
-		       __func__, __LINE__);
-		return -ENOMEM;
-	}
-	tgt_specific->cmnd = SCpnt;
-	tgt_specific->done = done;
-
 	/*
 	 * Tell the target that we have a command ... but first we need
 	 * to get the LUN into a format that SCST understand
@@ -482,7 +469,6 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 		return -ENOMEM;
 	}
 
-	scst_cmd_set_tgt_priv(scst_cmd, tgt_specific);
 	scst_cmd_set_tag(scst_cmd, SCpnt->tag);
 	switch (scsi_get_tag_type(SCpnt->device)) {
 	case MSG_SIMPLE_TAG:
@@ -513,7 +499,7 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 		       __func__);
 		return scst_local_send_resp(SCpnt, NULL, done,
 					    DID_ERROR << 16);
-		dir = SCST_DATA_UNKNOWN;
+		/*dir = SCST_DATA_UNKNOWN;*/
 		break;
 	case DMA_NONE:
 	default:
@@ -521,6 +507,20 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 		break;
 	}
 	scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(SCpnt));
+
+	/*
+	 * Defer allocating memory until all error paths are done
+	 */
+	tgt_specific = kmem_cache_alloc(tgt_specific_pool, GFP_ATOMIC);
+	if (!tgt_specific) {
+		printk(KERN_ERR "%s out of memory at line %d\n",
+		       __func__, __LINE__);
+		return -ENOMEM;
+	}
+	tgt_specific->cmnd = SCpnt;
+	tgt_specific->done = done;
+
+	scst_cmd_set_tgt_priv(scst_cmd, tgt_specific);
 
 	/* Set the SGL things directly ... */
 	scst_cmd_set_tgt_sg(scst_cmd, scsi_sglist(SCpnt), scsi_sg_count(SCpnt));
@@ -679,12 +679,18 @@ static struct scsi_host_template scst_lcl_ini_driver_template = {
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 25))
 	.eh_target_reset_handler	= scst_local_target_reset,
 #endif
-	.can_queue			= SCST_LOCAL_CANQUEUE,
-	.this_id			= 7, /*???*/
-	.sg_tablesize			= SCST_LOCAL_SG_TABLESIZE,
-	.cmd_per_lun			= 16,
+	.can_queue			= 256,
+	.this_id			= SCST_LOCAL_MAX_TARGETS, 
+	/* SCST doesn't support sg chaining */
+	.sg_tablesize			= SCSI_MAX_SG_SEGMENTS,
+	.cmd_per_lun			= 32,
 	.max_sectors			= 0xffff,
+	/*
+	 * There's no gain to merge requests on this level. If necessary,
+	 * they will be merged at the backstorage level.
+	 */
 	.use_clustering			= DISABLE_CLUSTERING,
+	.skip_settle_delay		= 1,
 	.module				= THIS_MODULE,
 };
 
@@ -708,8 +714,8 @@ static int __init scst_local_init(void)
 
 	TRACE_DBG("Adapters: %d\n", scst_local_add_host);
 
-	if (scst_local_num_tgts > MAX_TARGETS)
-		scst_local_num_tgts = MAX_TARGETS;
+	if (scst_local_num_tgts > SCST_LOCAL_MAX_TARGETS)
+		scst_local_num_tgts = SCST_LOCAL_MAX_TARGETS;
 
 	/*
 	 * Allocate a pool of structures for tgt_specific structures
@@ -1006,10 +1012,7 @@ static void scst_local_targ_task_mgmt_done(struct scst_mgmt_cmd *mgmt_cmd)
 }
 
 static struct scst_tgt_template scst_local_targ_tmpl = {
-	.sg_tablesize		= SCST_LOCAL_SG_TABLESIZE,
 	.name			= "scst_local_tgt",
-	.unchecked_isa_dma	= 0,
-	.use_clustering		= 0,
 	.xmit_response_atomic	= 1,
 	.detect			= scst_local_targ_detect,
 	.release		= scst_local_targ_release,
