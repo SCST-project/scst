@@ -71,6 +71,7 @@ install: all
 		modules_install
 	install -d $(INSTALL_DIR_H)
 	install -m 644 ../include/scst.h $(INSTALL_DIR_H)
+	install -m 644 ../include/scst_sgv.h $(INSTALL_DIR_H)
 	install -m 644 ../include/scst_debug.h $(INSTALL_DIR_H)
 	install -m 644 ../include/scst_user.h $(INSTALL_DIR_H)
 	install -m 644 ../include/scst_const.h $(INSTALL_DIR_H)

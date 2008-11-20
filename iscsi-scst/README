@@ -146,6 +146,15 @@ CAUTION:  Working of target and initiator on the same host isn't
 ========  supported. See SCST README file for details.
 
 
+Performance advices
+-------------------
+
+1. If you use Windows XP or Windows 2003+ as initiators, you should
+consider to decrease TcpAckFrequency parameter to 1. See
+http://support.microsoft.com/kb/328890/ or google for "TcpAckFrequency"
+for more details.
+
+
 Known issues
 ------------
 

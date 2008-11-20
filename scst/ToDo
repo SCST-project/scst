@@ -1,6 +1,8 @@
 To be done
 ----------
 
+ - See http://scst.sourceforge.net/contributing.html
+
  - Kernel build integration (patch).
 
  - Reimplement VDISK handler with usage of async. read/write operations
