@@ -178,7 +178,7 @@ static void __q2t_send_notify_ack(scsi_qla_host_t *ha,
 	/* Send marker if required */
 	if (tgt_data.issue_marker(ha) != QLA_SUCCESS) {
 		PRINT_ERROR("qla2x00tgt(%ld): __QLA2X00_MARKER() "
-			    "failed", ha->instance);
+			    "failed", ha->host_no);
 		goto out;
 	}
 
@@ -310,7 +310,7 @@ static void q2t_unreg_sess(struct q2t_sess *sess)
 	list_del(&sess->list);
 
 	PRINT_INFO("qla2x00tgt(%ld): session for loop_id %d deleted",
-		sess->tgt->ha->instance, sess->loop_id);
+		sess->tgt->ha->host_no, sess->loop_id);
 
 	/*
 	 * Any commands for this session will be finished regularly,
@@ -431,7 +431,7 @@ out:
 
 out_err:
 	PRINT_ERROR("qla2x00tgt(%ld): PCI mapping failed: sg_cnt=%d",
-		prm->tgt->ha->instance, prm->sg_cnt);
+		prm->tgt->ha->host_no, prm->sg_cnt);
 	res = -1;
 	goto out;
 }
@@ -689,7 +689,7 @@ static int q2t_xmit_response(struct scst_cmd *scst_cmd)
 
 		TRACE(TRACE_MGMT_MINOR, "qla2x00tgt(%ld): terminating exchange "
 			"for aborted scst_cmd=%p (tag=%lld)",
-			ha->instance, scst_cmd, scst_cmd_get_tag(scst_cmd));
+			ha->host_no, scst_cmd, scst_cmd_get_tag(scst_cmd));
 
 		scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_ABORTED);
 
@@ -721,7 +721,7 @@ static int q2t_xmit_response(struct scst_cmd *scst_cmd)
 	if (!is_send_status) {
 		/* ToDo, after it's done in SCST */
 		PRINT_ERROR("qla2x00tgt(%ld): is_send_status not set: "
-		     "feature not implemented", prm.tgt->ha->instance);
+		     "feature not implemented", prm.tgt->ha->host_no);
 		res = SCST_TGT_RES_FATAL_ERROR;
 		goto out;
 	}
@@ -732,12 +732,12 @@ static int q2t_xmit_response(struct scst_cmd *scst_cmd)
 	/* Send marker if required */
 	if (tgt_data.issue_marker(prm.tgt->ha) != QLA_SUCCESS) {
 		PRINT_ERROR("qla2x00tgt(%ld): __QLA2X00_MARKER() "
-			    "failed", prm.tgt->ha->instance);
+			    "failed", prm.tgt->ha->host_no);
 		res = SCST_TGT_RES_FATAL_ERROR;
 		goto out_unlock;
 	}
 
-	TRACE_DBG("CTIO start: ha(%d)", (int) prm.tgt->ha->instance);
+	TRACE_DBG("CTIO start: ha(%d)", (int) prm.tgt->ha->host_no);
 
 	if (q2t_has_data(scst_cmd)) {
 		if (q2t_pci_map_calc_cnt(&prm) != 0) {
@@ -854,12 +854,12 @@ static int q2t_rdy_to_xfer(struct scst_cmd *scst_cmd)
 	/* Send marker if required */
 	if (tgt_data.issue_marker(prm.tgt->ha) != QLA_SUCCESS) {
 		PRINT_ERROR("qla2x00tgt(%ld): __QLA2X00_MARKER() "
-			    "failed", prm.tgt->ha->instance);
+			    "failed", prm.tgt->ha->host_no);
 		res = SCST_TGT_RES_FATAL_ERROR;
 		goto out_unlock;
 	}
 
-	TRACE_DBG("CTIO_start: ha(%d)", (int) prm.tgt->ha->instance);
+	TRACE_DBG("CTIO_start: ha(%d)", (int) prm.tgt->ha->host_no);
 
 	/* Calculate number of entries and segments required */
 	if (q2t_pci_map_calc_cnt(&prm) != 0) {
@@ -906,14 +906,14 @@ static void q2t_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
 	/* Send marker if required */
 	if (tgt_data.issue_marker(ha) != QLA_SUCCESS) {
 		PRINT_ERROR("qla2x00tgt(%ld): __QLA2X00_MARKER() "
-			    "failed", ha->instance);
+			    "failed", ha->host_no);
 		goto out_unlock;
 	}
 
 	ctio = (ctio_ret_entry_t *)tgt_data.req_pkt(ha);
 	if (ctio == NULL) {
 		PRINT_ERROR("qla2x00tgt(%ld): %s failed: unable to allocate "
-			"request packet", ha->instance, __func__);
+			"request packet", ha->host_no, __func__);
 		goto out_unlock;
 	}
 
@@ -1038,19 +1038,19 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha,
 			TRACE(TRACE_MGMT_MINOR, "qla2x00tgt(%ld): CTIO with "
 				"status %#x received (LIP_RESET=e, ABORTED=2, "
 				"TARGET_RESET=17, TIMEOUT=b, "
-				"INVALID_RX_ID=8)", ha->instance, status);
+				"INVALID_RX_ID=8)", ha->host_no, status);
 			break;
 
 		case CTIO_PORT_LOGGED_OUT:
 		case CTIO_PORT_UNAVAILABLE:
 			PRINT_INFO("qla2x00tgt(%ld): CTIO with PORT LOGGED "
 				"OUT (29) or PORT UNAVAILABLE (28) status %x "
-				"received", ha->instance, status);
+				"received", ha->host_no, status);
 			break;
 
 		default:
 			PRINT_ERROR("qla2x00tgt(%ld): CTIO with error status "
-				    "0x%x received", ha->instance, status);
+				    "0x%x received", ha->host_no, status);
 			break;
 		}
 		q2t_modify_command_count(ha, 1, 0);
@@ -1067,7 +1067,7 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha,
 		if (unlikely(scst_cmd == NULL)) {
 			PRINT_INFO("qla2x00tgt(%ld): Suspicious: unable to "
 				   "find the command with handle %x",
-				   ha->instance, handle);
+				   ha->host_no, handle);
 			goto out;
 		}
 		if (unlikely(err)) {
@@ -1082,7 +1082,7 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha,
 			PRINT_INFO("qla2x00tgt(%ld): Suspicious: "
 				   "ctio_completion for non-existing session "
 				   "(loop_id %d, tag %d)",
-				   ha->instance, loop_id, tag);
+				   ha->host_no, loop_id, tag);
 			goto out;
 		}
 
@@ -1090,7 +1090,7 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha,
 		if (scst_cmd == NULL) {
 			PRINT_INFO("qla2x00tgt(%ld): Suspicious: unable to "
 			     "find the command with tag %d (loop_id %d)",
-			     ha->instance, tag, loop_id);
+			     ha->host_no, tag, loop_id);
 			goto out;
 		}
 		if (unlikely(err)) {
@@ -1139,7 +1139,7 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha,
 		goto out_free;
 	} else {
 		PRINT_ERROR("qla2x00tgt(%ld): A command in state (%d) should "
-			"not return a CTIO complete", ha->instance, cmd->state);
+			"not return a CTIO complete", ha->host_no, cmd->state);
 		goto out_free;
 	}
 
@@ -1225,7 +1225,7 @@ static int q2t_do_send_cmd_to_scst(scsi_qla_host_t *ha, struct q2t_cmd *cmd)
 
 	if (cmd->scst_cmd == NULL) {
 		PRINT_ERROR("qla2x00tgt(%ld): scst_rx_cmd() failed for "
-		     "host %ld(%p)", ha->instance, ha->host_no, ha);
+		     "host %ld(%p)", ha->host_no, ha->host_no, ha);
 		res = -EFAULT;
 		goto out;
 	}
@@ -1258,7 +1258,7 @@ static int q2t_do_send_cmd_to_scst(scsi_qla_host_t *ha, struct q2t_cmd *cmd)
 		break;
 	default:
 		PRINT_ERROR("qla2x00tgt(%ld): Unknown task code %x, use "
-			"ORDERED instead", ha->instance, cmd->atio.task_codes);
+			"ORDERED instead", ha->host_no, cmd->atio.task_codes);
 		cmd->scst_cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
 		break;
 	}
@@ -1291,7 +1291,7 @@ static void q2t_alloc_session_done(struct scst_session *scst_sess,
 		unsigned long flags;
 
 		PRINT_INFO("qla2x00tgt(%ld): Session initialization failed",
-			   ha->instance);
+			   ha->host_no);
 
 		spin_lock_irqsave(&ha->hardware_lock, flags);
 		q2t_unreg_sess(sess);
@@ -1330,7 +1330,7 @@ static char *q2t_find_name(scsi_qla_host_t *ha, int loop_id)
 
 	if (wwn_found == 0) {
 		TRACE_MGMT_DBG("qla2x00tgt(%ld): Unable to find wwn login for "
-			"loop id %d", ha->instance, loop_id);
+			"loop id %d", ha->host_no, loop_id);
 		kfree(wwn_str);
 		wwn_str = NULL;
 	}
@@ -1372,8 +1372,8 @@ static int q2t_send_cmd_to_scst(scsi_qla_host_t *ha, atio_entry_t *atio)
 	loop_id = GET_TARGET_ID(ha, atio);
 
 	pn = (uint16_t *)(((char *)atio)+0x2a);
-	TRACE_DBG("To SCST instance=%ld l_id=%d tag=%d wwpn=%04x%04x%04x%04x",
-		  ha->instance, loop_id, le16_to_cpu(atio->exchange_id),
+	TRACE_DBG("To SCST host_no=%ld l_id=%d tag=%d wwpn=%04x%04x%04x%04x",
+		  ha->host_no, loop_id, le16_to_cpu(atio->exchange_id),
 		  le16_to_cpu(pn[0]),
 		  le16_to_cpu(pn[1]),
 		  le16_to_cpu(pn[2]),
@@ -1442,7 +1442,7 @@ static int q2t_send_cmd_to_scst(scsi_qla_host_t *ha, atio_entry_t *atio)
 
 		if (sess->scst_sess == NULL) {
 			PRINT_ERROR("qla2x00tgt(%ld): scst_register_session() failed "
-			     "for host %ld(%p)", ha->instance, ha->host_no, ha);
+			     "for host %ld(%p)", ha->host_no, ha->host_no, ha);
 			res = -EFAULT;
 			goto out_free_sess;
 		}
@@ -1492,7 +1492,7 @@ static int q2t_handle_task_mgmt(scsi_qla_host_t *ha, notify_entry_t *iocb)
 	sess = q2t_find_sess_by_lid(tgt, loop_id);
 	if (sess == NULL) {
 		TRACE(TRACE_MGMT, "qla2x00tgt(%ld): task mgmt fn 0x%x for "
-		      "non-existant session", ha->instance, iocb->task_flags);
+		      "non-existant session", ha->host_no, iocb->task_flags);
 		res = -EFAULT;
 		goto out;
 	}
@@ -1545,13 +1545,13 @@ static int q2t_handle_task_mgmt(scsi_qla_host_t *ha, notify_entry_t *iocb)
 
 	default:
 		PRINT_ERROR("qla2x00tgt(%ld): Unknown task mgmt fn 0x%x",
-			    ha->instance, iocb->task_flags);
+			    ha->host_no, iocb->task_flags);
 		break;
 	}
 
 	if (rc != 0) {
 		PRINT_ERROR("qla2x00tgt(%ld): scst_rx_mgmt_fn_lun() failed: %d",
-			    ha->instance, rc);
+			    ha->host_no, rc);
 		res = -EFAULT;
 		goto out_free;
 	}
@@ -1582,7 +1582,7 @@ static int q2t_abort_task(scsi_qla_host_t *ha, notify_entry_t *iocb)
 	sess = q2t_find_sess_by_lid(ha->tgt, loop_id);
 	if (sess == NULL) {
 		TRACE(TRACE_MGMT, "qla2x00tgt(%ld): task abort for unexisting "
-			"session", ha->instance);
+			"session", ha->host_no);
 		res = -EFAULT;
 		goto out;
 	}
@@ -1601,7 +1601,7 @@ static int q2t_abort_task(scsi_qla_host_t *ha, notify_entry_t *iocb)
 		SCST_ATOMIC, mcmd);
 	if (rc != 0) {
 		PRINT_ERROR("qla2x00tgt(%ld): scst_rx_mgmt_fn_tag() failed: %d",
-			    ha->instance, rc);
+			    ha->host_no, rc);
 		res = -EFAULT;
 		goto out_free;
 	}
@@ -1684,7 +1684,7 @@ static void q2t_handle_imm_notify(scsi_qla_host_t *ha, notify_entry_t *iocb)
 
 	case IMM_NTFY_IOCB_OVERFLOW:
 		PRINT_ERROR("qla2x00tgt(%ld): Cannot provide requested "
-			"capability (IOCB overflow)", ha->instance);
+			"capability (IOCB overflow)", ha->host_no);
 		break;
 
 	case IMM_NTFY_ABORT_TASK:
@@ -1721,7 +1721,7 @@ static void q2t_handle_imm_notify(scsi_qla_host_t *ha, notify_entry_t *iocb)
 
 	case IMM_NTFY_RESOURCE:
 		PRINT_ERROR("qla2x00tgt(%ld): Out of resources, host %ld",
-			    ha->instance, ha->host_no);
+			    ha->host_no, ha->host_no);
 		break;
 
 	case IMM_NTFY_MSG_RX:
@@ -1732,7 +1732,7 @@ static void q2t_handle_imm_notify(scsi_qla_host_t *ha, notify_entry_t *iocb)
 
 	default:
 		PRINT_ERROR("qla2x00tgt(%ld): Received unknown immediate "
-			"notify status %x", ha->instance, status);
+			"notify status %x", ha->host_no, status);
 		break;
 	}
 
@@ -1765,7 +1765,7 @@ static void q2t_response_pkt(scsi_qla_host_t *ha, sts_entry_t *pkt)
 
 	if (pkt->entry_status != 0) {
 		PRINT_ERROR("qla2x00tgt(%ld): Received response packet %x "
-		     "with error status %x", ha->instance, pkt->entry_type,
+		     "with error status %x", ha->host_no, pkt->entry_type,
 		     pkt->entry_status);
 		goto out;
 	}
@@ -1775,10 +1775,10 @@ static void q2t_response_pkt(scsi_qla_host_t *ha, sts_entry_t *pkt)
 		if (ha->flags.enable_target_mode && ha->tgt != NULL) {
 			int rc;
 			atio = (atio_entry_t *)pkt;
-			TRACE_DBG("ACCEPT_TGT_IO instance %ld status %04x "
+			TRACE_DBG("ACCEPT_TGT_IO host_no %ld status %04x "
 				  "lun %04x read/write %d data_length %08x "
 				  "target_id %02x exchange_id %04x ",
-				  ha->instance, le16_to_cpu(atio->status),
+				  ha->host_no, le16_to_cpu(atio->status),
 				  le16_to_cpu(atio->lun),
 				  atio->execution_codes,
 				  le32_to_cpu(atio->data_length),
@@ -1787,7 +1787,7 @@ static void q2t_response_pkt(scsi_qla_host_t *ha, sts_entry_t *pkt)
 			if (atio->status !=
 				__constant_cpu_to_le16(ATIO_CDB_VALID)) {
 				PRINT_ERROR("qla2x00tgt(%ld): ATIO with error "
-					    "status %x received", ha->instance,
+					    "status %x received", ha->host_no,
 					    le16_to_cpu(atio->status));
 				break;
 			}
@@ -1806,41 +1806,41 @@ static void q2t_response_pkt(scsi_qla_host_t *ha, sts_entry_t *pkt)
 						PRINT_INFO("qla2x00tgt(%ld): Unable to "
 						    "send the command to SCSI target "
 						    "mid-level, sending BUSY status",
-						    ha->instance);
+						    ha->host_no);
 					}
 					q2t_send_busy(ha, atio);
 				}
 			}
 		} else if (!ha->tgt->tgt_shutdown) {
 			PRINT_ERROR("qla2x00tgt(%ld): ATIO, but target mode "
-				"disabled", ha->instance);
+				"disabled", ha->host_no);
 		}
 		break;
 
 	case CONTINUE_TGT_IO_TYPE:
 		if (ha->flags.enable_target_mode && ha->tgt != NULL) {
 			ctio_common_entry_t *entry = (ctio_common_entry_t *)pkt;
-			TRACE_DBG("CONTINUE_TGT_IO: instance %ld",
-				  ha->instance);
+			TRACE_DBG("CONTINUE_TGT_IO: host_no %ld",
+				  ha->host_no);
 			q2t_do_ctio_completion(ha, entry->handle,
 					       le16_to_cpu(entry->status),
 					       entry);
 		} else if (!ha->tgt->tgt_shutdown) {
 			PRINT_ERROR("qla2x00tgt(%ld): CTIO, but target mode "
-				"disabled", ha->instance);
+				"disabled", ha->host_no);
 		}
 		break;
 
 	case CTIO_A64_TYPE:
 		if (ha->flags.enable_target_mode && ha->tgt != NULL) {
 			ctio_common_entry_t *entry = (ctio_common_entry_t *)pkt;
-			TRACE_DBG("CTIO_A64: instance %ld", ha->instance);
+			TRACE_DBG("CTIO_A64: host_no %ld", ha->host_no);
 			q2t_do_ctio_completion(ha, entry->handle,
 					       le16_to_cpu(entry->status),
 					       entry);
 		} else if (!ha->tgt->tgt_shutdown) {
 			PRINT_ERROR("qla2x00tgt(%ld): CTIO_A64, but target "
-				"mode disabled", ha->instance);
+				"mode disabled", ha->host_no);
 		}
 		break;
 
@@ -1852,7 +1852,7 @@ static void q2t_response_pkt(scsi_qla_host_t *ha, sts_entry_t *pkt)
 	case NOTIFY_ACK_TYPE:
 		if (ha->tgt == NULL) {
 			PRINT_ERROR("qla2x00tgt(%ld): NOTIFY_ACK recieved "
-				"with NULL tgt", ha->instance);
+				"with NULL tgt", ha->host_no);
 		} else if (ha->tgt->notify_ack_expected > 0) {
 			nack_entry_t *entry = (nack_entry_t *)pkt;
 			TRACE_DBG("NOTIFY_ACK seq %04x status %x",
@@ -1862,12 +1862,12 @@ static void q2t_response_pkt(scsi_qla_host_t *ha, sts_entry_t *pkt)
 			if (entry->status !=
 				__constant_cpu_to_le16(NOTIFY_ACK_SUCCESS)) {
 				PRINT_ERROR("qla2x00tgt(%ld): NOTIFY_ACK "
-					    "failed %x", ha->instance,
+					    "failed %x", ha->host_no,
 					    le16_to_cpu(entry->status));
 			}
 		} else {
 			PRINT_ERROR("qla2x00tgt(%ld): Unexpected NOTIFY_ACK "
-				    "received", ha->instance);
+				    "received", ha->host_no);
 		}
 		break;
 
@@ -1888,13 +1888,13 @@ static void q2t_response_pkt(scsi_qla_host_t *ha, sts_entry_t *pkt)
 			tgt->modify_lun_expected--;
 			if (entry->status != MODIFY_LUN_SUCCESS) {
 				PRINT_ERROR("qla2x00tgt(%ld): MODIFY_LUN "
-					    "failed %x", ha->instance,
+					    "failed %x", ha->host_no,
 					    entry->status);
 			}
 			tgt->disable_lun_status = entry->status;
 		} else {
 			PRINT_ERROR("qla2x00tgt(%ld): Unexpected MODIFY_LUN "
-				    "received", (ha != NULL) ?ha->instance :-1);
+				"received", (ha != NULL) ? ha->host_no : -1);
 		}
 		break;
 
@@ -1917,7 +1917,7 @@ static void q2t_response_pkt(scsi_qla_host_t *ha, sts_entry_t *pkt)
 			} else if (entry->status != ENABLE_LUN_SUCCESS) {
 				PRINT_ERROR("qla2x00tgt(%ld): ENABLE_LUN "
 					    "failed %x",
-					    ha->instance, entry->status);
+					    ha->host_no, entry->status);
 				ha->flags.enable_target_mode =
 					~ha->flags.enable_target_mode;
 			} /* else success */
@@ -1927,7 +1927,7 @@ static void q2t_response_pkt(scsi_qla_host_t *ha, sts_entry_t *pkt)
 
 	default:
 		PRINT_INFO("qla2x00tgt(%ld): Received unknown response pkt "
-		     "type %x", ha->instance, pkt->entry_type);
+		     "type %x", ha->host_no, pkt->entry_type);
 		break;
 	}
 
@@ -2051,7 +2051,7 @@ static void q2t_host_action(scsi_qla_host_t *ha,
 
 		if (ha->flags.enable_64bit_addressing) {
 			PRINT_INFO("qla2x00tgt(%ld): 64 Bit PCI "
-				   "Addressing Enabled", ha->instance);
+				   "Addressing Enabled", ha->host_no);
 			tgt->tgt_enable_64bit_addr = 1;
 			/* 3 is reserved */
 			sg_tablesize =
@@ -2060,7 +2060,7 @@ static void q2t_host_action(scsi_qla_host_t *ha,
 			tgt->datasegs_per_cont = DATASEGS_PER_CONT64;
 		} else {
 			PRINT_INFO("qla2x00tgt(%ld): Using 32 Bit "
-				   "PCI Addressing", ha->instance);
+				   "PCI Addressing", ha->host_no);
 			sg_tablesize =
 				QLA_MAX_SG32(ha->request_q_length - 3);
 			tgt->datasegs_per_cmd = DATASEGS_PER_COMMAND32;
@@ -2076,7 +2076,7 @@ static void q2t_host_action(scsi_qla_host_t *ha,
 		kfree(wwn);
 		if (!tgt->scst_tgt) {
 			PRINT_ERROR("qla2x00tgt(%ld): scst_register() "
-				    "failed for host %ld(%p)", ha->instance,
+				    "failed for host %ld(%p)", ha->host_no,
 				    ha->host_no, ha);
 			kfree(tgt);
 			goto out;
@@ -2090,7 +2090,7 @@ static void q2t_host_action(scsi_qla_host_t *ha,
 		spin_unlock_irqrestore(&ha->hardware_lock, flags);
 
 		TRACE_DBG("Enable lun for host %ld(%ld,%p)",
-			  ha->host_no, ha->instance, ha);
+			  ha->host_no, ha->host_no, ha);
 		tgt_data.enable_lun(ha);
 
 		break;
@@ -2113,7 +2113,7 @@ static void q2t_host_action(scsi_qla_host_t *ha,
 		spin_unlock_irqrestore(&ha->hardware_lock, flags);
 
 		TRACE_DBG("Shutting down host %ld(%ld,%p)",
-			  ha->host_no, ha->instance, ha);
+			  ha->host_no, ha->host_no, ha);
 		scst_unregister(tgt->scst_tgt);
 		/*
 		 * Free of tgt happens via callback q2t_target_release

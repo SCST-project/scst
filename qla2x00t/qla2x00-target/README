@@ -13,15 +13,16 @@ all necessary callbacks, but it's still capable to work as initiator
 only. Mode, when a host acts as the initiator and the target
 simultaneously, is supported as well.
 
-This version is compatible with SCST core version 1.0.0 and higher and
-Linux kernel 2.6.26 and higher. Backport patches to kernels earlier than
-2.6.26 are welcome.
+This version is compatible with SCST core version 1.0.1 and higher and
+Linux kernel 2.6.27 and higher. Backport patches to kernels earlier than
+2.6.27 are welcome.
 
-The original initiator driver was taken from the kernel 2.6.26.
+The original initiator driver was taken from the kernel 2.6.27.
 
-If you need to use this driver on kernels prior 2.6.26, it is
+If you need to use this driver on kernels prior 2.6.27, it is
 recommended to use version 1.0.0.x of this driver, taken from branch
-1.0.0.x.
+1.0.0.x. For 2.6.26 you can also use version of this driver from SVN
+trunk/ revision 577.
 
 See also "ToDo" file for list of known issues and unimplemented 
 features.
