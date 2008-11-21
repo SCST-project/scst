@@ -236,7 +236,7 @@ static ssize_t scst_local_add_host_store(struct device_driver *ddp,
 	return count;
 }
 
-DRIVER_ATTR(add_host, S_IRUGO | S_IWUSR, scst_local_add_host_show,
+static DRIVER_ATTR(add_host, S_IRUGO | S_IWUSR, scst_local_add_host_show,
 	    scst_local_add_host_store);
 
 static int do_create_driverfs_files(void)
