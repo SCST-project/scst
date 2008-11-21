@@ -29,8 +29,8 @@
 #include <scst_debug.h>
 
 /* Version numbers, the same as for the kernel */
-#define Q2T_VERSION(a,b,c,d) (((a) << 030) + ((b) << 020) + (c) << 010 + (d))
-#define Q2T_VERSION_CODE Q2T_VERSION(1,0,0,0)
+#define Q2T_VERSION(a, b, c, d) (((a) << 030) + ((b) << 020) + (c) << 010 + (d))
+#define Q2T_VERSION_CODE Q2T_VERSION(1, 0, 0, 0)
 #define Q2T_VERSION_STRING "1.0.1"
 
 #define Q2T_MAX_CDB_LEN             16
@@ -63,14 +63,14 @@
 #define Q2T_STATE_NEW               0	/* New command and SCST processing it */
 #define Q2T_STATE_PROCESSED         1	/* SCST done processing */
 #define Q2T_STATE_NEED_DATA         2	/* SCST needs data to continue */
-#define Q2T_STATE_DATA_IN           3	/* Data arrived and SCST processing them */
+#define Q2T_STATE_DATA_IN           3	/* Data arrived and SCST processing */
+					/* them */
 #define Q2T_STATE_ABORTED           4	/* Command aborted */
 
 /* Misc */
 #define Q2T_NULL_HANDLE             0
 #define Q2T_SKIP_HANDLE             (0xFFFFFFFE & ~CTIO_COMPLETION_HANDLE_MARK)
 #define Q2T_BUSY_HANDLE             (0xFFFFFFFF & ~CTIO_COMPLETION_HANDLE_MARK)
-#define Q2T_DISABLE_LUN_STATUS_NOT_SET      -1
 
 /* ATIO task_codes fields */
 #define ATIO_SIMPLE_QUEUE           0
@@ -93,49 +93,43 @@
 /*
  * Equivilant to IT Nexus (Initiator-Target)
  */
-struct q2t_sess
-{
+struct q2t_sess {
 	struct list_head list;
 	struct scst_session *scst_sess;
 	struct q2t_tgt *tgt;
 	int loop_id;
 };
 
-struct q2t_cmd
-{
+struct q2t_cmd {
 	struct q2t_sess *sess;
 	struct scst_cmd *scst_cmd;
 	int state;
-	atio_entry_t atio;
+	struct atio_entry atio;
 	dma_addr_t dma_handle;
 	uint32_t iocb_cnt;
 };
 
-struct q2t_tgt
-{
+struct q2t_tgt {
 	struct scst_tgt *scst_tgt;
 	scsi_qla_host_t *ha;
 	int datasegs_per_cmd, datasegs_per_cont;
 	/* Target's flags, serialized by ha->hardware_lock */
 	unsigned int tgt_shutdown:1;	/* The driver is being released */
-	unsigned int tgt_enable_64bit_addr:1;	/* 64-bits PCI addressing enabled */
+	unsigned int tgt_enable_64bit_addr:1; /* 64bit PCI addressing enabled */
 	wait_queue_head_t waitQ;
 	int notify_ack_expected;
-	volatile int modify_lun_expected;
-	volatile int disable_lun_status;
+	int modify_lun_expected;
 	/* Count of sessions refering q2t_tgt, protected by hardware_lock */
 	int sess_count;
 	struct list_head sess_list;
 };
 
-struct q2t_mgmt_cmd
-{
+struct q2t_mgmt_cmd {
 	struct q2t_sess *sess;
-	notify_entry_t notify_entry;
+	struct notify_entry notify_entry;
 };
 
-struct q2t_prm
-{
+struct q2t_prm {
 	struct q2t_tgt *tgt;
 	uint16_t req_cnt;
 	uint16_t seg_cnt;
@@ -149,7 +143,7 @@ struct q2t_prm
 	unsigned int sense_buffer_len;
 	int residual;
 	struct q2t_cmd *cmd;
-	ctio_common_entry_t *pkt;
+	struct ctio_common_entry *pkt;
 };
 
 /* ha->hardware_lock supposed to be held on entry (to protect tgt->sess_list) */

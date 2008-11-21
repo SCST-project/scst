@@ -50,9 +50,9 @@ extern request_t *qla2x00_req_pkt(scsi_qla_host_t *ha);
 static inline void
 __qla2x00_en_dis_lun(scsi_qla_host_t *ha, int enable)
 {
-	elun_entry_t *pkt;
+	struct elun_entry *pkt;
 
-	if ((pkt = (elun_entry_t *)qla2x00_req_pkt(ha)) != NULL) {
+	if ((pkt = (struct elun_entry *)qla2x00_req_pkt(ha)) != NULL) {
 		pkt->entry_type = ENABLE_LUN_TYPE;
 		if (enable) {
 			pkt->command_count = QLA2X00_COMMAND_COUNT_INIT;

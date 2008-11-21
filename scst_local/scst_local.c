@@ -680,7 +680,7 @@ static struct scsi_host_template scst_lcl_ini_driver_template = {
 	.eh_target_reset_handler	= scst_local_target_reset,
 #endif
 	.can_queue			= 256,
-	.this_id			= SCST_LOCAL_MAX_TARGETS, 
+	.this_id			= SCST_LOCAL_MAX_TARGETS,
 	/* SCST doesn't support sg chaining */
 	.sg_tablesize			= SCSI_MAX_SG_SEGMENTS,
 	.cmd_per_lun			= 32,
