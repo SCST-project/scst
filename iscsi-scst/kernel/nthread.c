@@ -535,7 +535,8 @@ static void start_close_conn(struct iscsi_conn *conn)
 	return;
 }
 
-static inline void iscsi_conn_init_read(struct iscsi_conn *conn, void *data,
+static inline void iscsi_conn_init_read(struct iscsi_conn *conn,
+					void __user *data,
 					size_t len)
 {
 	len = (len + 3) & -4; /* XXX ??? */
@@ -552,7 +553,8 @@ static void iscsi_conn_read_ahs(struct iscsi_conn *conn,
 	/* ToDo: __GFP_NOFAIL ?? */
 	cmnd->pdu.ahs = kmalloc(cmnd->pdu.ahssize, __GFP_NOFAIL|GFP_KERNEL);
 	sBUG_ON(cmnd->pdu.ahs == NULL);
-	iscsi_conn_init_read(conn, cmnd->pdu.ahs, cmnd->pdu.ahssize);
+	iscsi_conn_init_read(conn, (void __force __user *)cmnd->pdu.ahs,
+		cmnd->pdu.ahssize);
 }
 
 static struct iscsi_cmnd *iscsi_get_send_cmnd(struct iscsi_conn *conn)
@@ -651,7 +653,8 @@ static struct iscsi_cmnd *create_cmnd(struct iscsi_conn *conn)
 	struct iscsi_cmnd *cmnd;
 
 	cmnd = cmnd_alloc(conn, NULL);
-	iscsi_conn_init_read(cmnd->conn, &cmnd->pdu.bhs, sizeof(cmnd->pdu.bhs));
+	iscsi_conn_init_read(cmnd->conn, (void __force __user *)&cmnd->pdu.bhs,
+		sizeof(cmnd->pdu.bhs));
 	conn->read_state = RX_BHS;
 
 	return cmnd;
@@ -692,7 +695,8 @@ static int recv(struct iscsi_conn *conn)
 		if (res <= 0 || conn->read_state != RX_INIT_HDIGEST)
 			break;
 	case RX_INIT_HDIGEST:
-		iscsi_conn_init_read(conn, &cmnd->hdigest, sizeof(u32));
+		iscsi_conn_init_read(conn,
+			(void __force __user *)&cmnd->hdigest, sizeof(u32));
 		conn->read_state = RX_HDIGEST;
 	case RX_HDIGEST:
 		res = do_recv(conn, RX_CHECK_HDIGEST);
@@ -723,7 +727,8 @@ static int recv(struct iscsi_conn *conn)
 		if (res <= 0 || conn->read_state != RX_INIT_DDIGEST)
 			break;
 	case RX_INIT_DDIGEST:
-		iscsi_conn_init_read(conn, &cmnd->ddigest, sizeof(u32));
+		iscsi_conn_init_read(conn,
+			(void __force __user *)&cmnd->ddigest, sizeof(u32));
 		conn->read_state = RX_DDIGEST;
 	case RX_DDIGEST:
 		res = do_recv(conn, RX_CHECK_DDIGEST);
@@ -983,7 +988,7 @@ static int write_data(struct iscsi_conn *conn)
 	struct iscsi_cmnd *write_cmnd = conn->write_cmnd;
 	struct iscsi_cmnd *ref_cmd;
 	struct scatterlist *sg;
-	struct iovec *iop;
+	struct iovec __user *iop;
 	int saved_size, size, sendsize;
 	int offset, idx, sg_offset;
 	int flags, res, count;
@@ -1035,8 +1040,7 @@ static int write_data(struct iscsi_conn *conn)
  retry:
 			oldfs = get_fs();
 			set_fs(KERNEL_DS);
-			res = vfs_writev(file, (struct iovec __user *)iop,
-					 count, &off);
+			res = vfs_writev(file, iop, count, &off);
 			set_fs(oldfs);
 			TRACE_WRITE("%#Lx:%u: %d(%ld)",
 				    (long long unsigned int)conn->session->sid,
@@ -1268,7 +1272,8 @@ static int tx_ddigest(struct iscsi_cmnd *cmnd, int state)
 
 	TRACE_DBG("Sending data digest %x (cmd %p)", cmnd->ddigest, cmnd);
 
-	iov.iov_base = (char *) (&cmnd->ddigest) + (sizeof(u32) - rest);
+	iov.iov_base =
+		(char __force __user *) (&cmnd->ddigest) + (sizeof(u32) - rest);
 	iov.iov_len = rest;
 
 	res = kernel_sendmsg(cmnd->conn->sock, &msg, &iov, 1, rest);
@@ -1296,7 +1301,7 @@ static void init_tx_hdigest(struct iscsi_cmnd *cmnd)
 
 	iop = &conn->write_iop[conn->write_iop_used];
 	conn->write_iop_used++;
-	iop->iov_base = &(cmnd->hdigest);
+	iop->iov_base = (void __force __user *)&(cmnd->hdigest);
 	iop->iov_len = sizeof(u32);
 	conn->write_size += sizeof(u32);
 

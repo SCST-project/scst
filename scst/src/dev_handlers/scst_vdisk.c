@@ -2082,7 +2082,7 @@ static void vdisk_exec_read(struct scst_cmd *cmd,
 	mm_segment_t old_fs;
 	loff_t err;
 	ssize_t length, full_len;
-	uint8_t *address;
+	uint8_t __user *address;
 	struct scst_vdisk_dev *virt_dev =
 	    (struct scst_vdisk_dev *)cmd->dev->dh_priv;
 	struct file *fd = thr->fd;
@@ -2101,14 +2101,14 @@ static void vdisk_exec_read(struct scst_cmd *cmd,
 	iv_count = 0;
 	full_len = 0;
 	i = -1;
-	length = scst_get_buf_first(cmd, &address);
+	length = scst_get_buf_first(cmd, (uint8_t __force **)&address);
 	while (length > 0) {
 		full_len += length;
 		i++;
 		iv_count++;
 		iv[i].iov_base = address;
 		iv[i].iov_len = length;
-		length = scst_get_buf_next(cmd, &address);
+		length = scst_get_buf_next(cmd, (uint8_t __force **)&address);
 	}
 	if (unlikely(length < 0)) {
 		PRINT_ERROR("scst_get_buf_() failed: %zd", length);
@@ -2161,7 +2161,7 @@ out_set_fs:
 
 out_put:
 	for (; i >= 0; i--)
-		scst_put_buf(cmd, iv[i].iov_base);
+		scst_put_buf(cmd, (void __force *)(iv[i].iov_base));
 
 out:
 	TRACE_EXIT();
@@ -2174,7 +2174,7 @@ static void vdisk_exec_write(struct scst_cmd *cmd,
 	mm_segment_t old_fs;
 	loff_t err;
 	ssize_t length, full_len;
-	uint8_t *address;
+	uint8_t __user *address;
 	struct scst_vdisk_dev *virt_dev =
 	    (struct scst_vdisk_dev *)cmd->dev->dh_priv;
 	struct file *fd = thr->fd;
@@ -2192,13 +2192,13 @@ static void vdisk_exec_write(struct scst_cmd *cmd,
 
 	iv_count = 0;
 	full_len = 0;
-	length = scst_get_buf_first(cmd, &address);
+	length = scst_get_buf_first(cmd, (uint8_t __force **)&address);
 	while (length > 0) {
 		full_len += length;
 		iv[iv_count].iov_base = address;
 		iv[iv_count].iov_len = length;
 		iv_count++;
-		length = scst_get_buf_next(cmd, &address);
+		length = scst_get_buf_next(cmd, (uint8_t __force **)&address);
 	}
 	if (unlikely(length < 0)) {
 		PRINT_ERROR("scst_get_buf_() failed: %zd", length);
@@ -2269,7 +2269,8 @@ restart:
 				eiv_count--;
 			} else {
 				eiv->iov_base =
-					(uint8_t *)eiv->iov_base + err;
+					(uint8_t __force __user *)eiv->iov_base +
+					err;
 				eiv->iov_len -= err;
 				break;
 			}
@@ -2282,7 +2283,7 @@ out_set_fs:
 
 out_put:
 	while (iv_count > 0) {
-		scst_put_buf(cmd, iv[iv_count-1].iov_base);
+		scst_put_buf(cmd, (void __force *)(iv[iv_count-1].iov_base));
 		iv_count--;
 	}
 
@@ -2546,8 +2547,9 @@ static void vdisk_exec_verify(struct scst_cmd *cmd,
 		TRACE_DBG("Verify: length %zd - len_mem %zd", length, len_mem);
 
 		if (!virt_dev->nullio)
-			err = fd->f_op->read(fd, (char *)mem_verify, len_mem,
-					     &fd->f_pos);
+			err = fd->f_op->read(fd,
+				(char __force __user *)mem_verify, len_mem,
+				&fd->f_pos);
 		else
 			err = len_mem;
 		if ((err < 0) || (err < len_mem)) {

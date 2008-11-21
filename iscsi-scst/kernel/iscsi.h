@@ -164,12 +164,12 @@ struct iscsi_conn {
 	struct task_struct *wr_task;
 #endif
 
-	/* 
+	/*
 	 * All are unprotected, since accessed only from a single write
 	 * thread.
 	 */
 	struct iscsi_cmnd *write_cmnd;
-	struct iovec *write_iop;
+	struct iovec __user *write_iop;
 	int write_iop_used;
 	struct iovec write_iov[2];
 	u32 write_size;

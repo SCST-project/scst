@@ -809,7 +809,7 @@ static void dev_user_flush_dcache(struct scst_user_cmd *ucmd)
 	 * faster, since it should be cache hot, while ucmd->buf_ucmd and
 	 * buf_ucmd->data_pages are cache cold. But, from other side,
 	 * sizeof(buf_ucmd->data_pages[0]) is considerably smaller, than
-	 * sizeof(ucmd->cmd->sg[0]), so on big buffers going over 
+	 * sizeof(ucmd->cmd->sg[0]), so on big buffers going over
 	 * data_pages array can lead to less cache misses. So, real numbers are
 	 * needed. ToDo.
 	 */
@@ -1510,6 +1510,8 @@ out:
 }
 
 static int dev_user_process_scst_commands(struct scst_user_dev *dev)
+	__releases(&dev->cmd_lists.cmd_list_lock)
+	__acquires(&dev->cmd_lists.cmd_list_lock)
 {
 	int res = 0;
 
@@ -1533,6 +1535,8 @@ static int dev_user_process_scst_commands(struct scst_user_dev *dev)
 
 /* Called under cmd_lists.cmd_list_lock and IRQ off */
 static struct scst_user_cmd *__dev_user_get_next_cmd(struct list_head *cmd_list)
+	__releases(&dev->cmd_lists.cmd_list_lock)
+	__acquires(&dev->cmd_lists.cmd_list_lock)
 {
 	struct scst_user_cmd *u;
 
@@ -1841,6 +1845,8 @@ out:
  */
 static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 	unsigned long *flags)
+	__releases(&dev->cmd_lists.cmd_list_lock)
+	__acquires(&dev->cmd_lists.cmd_list_lock)
 {
 	int state = ucmd->state;
 	struct scst_user_dev *dev = ucmd->dev;
@@ -1959,6 +1965,8 @@ out:
 }
 
 static void dev_user_unjam_dev(struct scst_user_dev *dev)
+	__releases(&dev->cmd_lists.cmd_list_lock)
+	__acquires(&dev->cmd_lists.cmd_list_lock)
 {
 	int i;
 	struct scst_user_cmd *ucmd;

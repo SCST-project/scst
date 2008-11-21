@@ -275,6 +275,12 @@ static void conn_rsp_timer_fn(unsigned long arg)
 	return;
 }
 
+/*
+ * Note: the code belows passes a kernel space pointer (&opt) to setsockopt()
+ * while the declaration of setsockopt specifies that it expects a user space
+ * pointer. This seems to work fine, and this approach is also used in some
+ * other parts of the Linux kernel (see e.g. fs/ocfs2/cluster/tcp.c).
+ */
 static int iscsi_socket_bind(struct iscsi_conn *conn)
 {
 	int res = 0;
@@ -314,7 +320,7 @@ static int iscsi_socket_bind(struct iscsi_conn *conn)
 	oldfs = get_fs();
 	set_fs(get_ds());
 	conn->sock->ops->setsockopt(conn->sock, SOL_TCP, TCP_NODELAY,
-		(void *)&opt, sizeof(opt));
+		(void __force __user *)&opt, sizeof(opt));
 	set_fs(oldfs);
 
 out:

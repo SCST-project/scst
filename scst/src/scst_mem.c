@@ -436,8 +436,8 @@ static int sgv_pool_cached_purge(struct sgv_pool_obj *e, int t,
 
 /* Called under pool_mgr_lock held, but drops/reaquires it inside */
 static int sgv_pool_oom_free_objs(int pgs)
-	__releases(sgv_pools_mgr.mgr.pool_mgr_lock)
-	__acquires(sgv_pools_mgr.mgr.pool_mgr_lock)
+	__releases(&sgv_pools_mgr.mgr.pool_mgr_lock)
+	__acquires(&sgv_pools_mgr.mgr.pool_mgr_lock)
 {
 	TRACE_MEM("Shrinking pools about %d pages", pgs);
 	while ((sgv_pools_mgr.mgr.throttle.inactive_pages_total >
@@ -940,7 +940,7 @@ int sgv_pool_init(struct sgv_pool *pool, const char *name, int clustered)
 				(sizeof(obj->sg_entries[0]) +
 				 (clustered ? sizeof(obj->trans_tbl[0]) : 0));
 		} else if (i <= sgv_pools_mgr.sgv_max_trans_order) {
-			/* 
+			/*
 			 * sgv ie sg_entries is allocated outside object, but
 			 * ttbl is still embedded.
 			 */

@@ -961,7 +961,7 @@ static void cmnd_prepare_get_rejected_cmd_data(struct iscsi_cmnd *cmnd)
 		cmnd->own_sg = 1;
 	}
 
-	addr = page_address(sg_page(&sg[0]));
+	addr = (char __force __user *)(page_address(sg_page(&sg[0])));
 	sBUG_ON(addr == NULL);
 	size = (size + 3) & -4;
 	conn->read_size = size;
@@ -1030,7 +1030,7 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 	struct scatterlist *sg = cmd->sg;
 	int bufflen = cmd->bufflen;
 	int idx, i;
-	char *addr;
+	char __user *addr;
 	int res = 0;
 
 	TRACE_DBG("%p %u,%u", cmd->sg, offset, size);
@@ -1054,7 +1054,7 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 
 	i = 0;
 	while (1) {
-		addr = page_address(sg_page(&sg[idx]));
+		addr = (char __force __user *)(page_address(sg_page(&sg[idx])));
 		sBUG_ON(addr == NULL);
 		conn->read_iov[i].iov_base = addr + offset;
 		if (offset + size <= PAGE_SIZE) {
@@ -1254,7 +1254,7 @@ static int noop_out_start(struct iscsi_cmnd *cmnd)
 
 			for (i = 0; i < cmnd->sg_cnt; i++) {
 				conn->read_iov[i].iov_base =
-					page_address(sg_page(&sg[i]));
+					(void __force __user *)(page_address(sg_page(&sg[i])));
 				tmp = min_t(u32, size, PAGE_SIZE);
 				conn->read_iov[i].iov_len = tmp;
 				conn->read_size += tmp;
@@ -1269,7 +1269,7 @@ static int noop_out_start(struct iscsi_cmnd *cmnd)
 			 */
 			for (i = 0; i < ISCSI_CONN_IOV_MAX; i++) {
 				conn->read_iov[i].iov_base =
-					page_address(dummy_page);
+					(void __force __user *)(page_address(dummy_page));
 				tmp = min_t(u32, size, PAGE_SIZE);
 				conn->read_iov[i].iov_len = tmp;
 				conn->read_size += tmp;
@@ -2107,6 +2107,12 @@ static void cmnd_send_pdu(struct iscsi_conn *conn, struct iscsi_cmnd *cmnd)
 	__cmnd_send_pdu(conn, cmnd, 0, size);
 }
 
+/*
+ * Note: the code belows passes a kernel space pointer (&opt) to setsockopt()
+ * while the declaration of setsockopt specifies that it expects a user space
+ * pointer. This seems to work fine, and this approach is also used in some
+ * other parts of the Linux kernel (see e.g. fs/ocfs2/cluster/tcp.c).
+ */
 static void set_cork(struct socket *sock, int on)
 {
 	int opt = on;
@@ -2115,7 +2121,7 @@ static void set_cork(struct socket *sock, int on)
 	oldfs = get_fs();
 	set_fs(get_ds());
 	sock->ops->setsockopt(sock, SOL_TCP, TCP_CORK,
-			      (void *)&opt, sizeof(opt));
+			      (void __force __user *)&opt, sizeof(opt));
 	set_fs(oldfs);
 }
 
@@ -2130,8 +2136,8 @@ void cmnd_tx_start(struct iscsi_cmnd *cmnd)
 
 	set_cork(conn->sock, 1);
 
-	conn->write_iop = conn->write_iov;
-	conn->write_iop->iov_base = &cmnd->pdu.bhs;
+	conn->write_iop = (void __force __user *)(conn->write_iov);
+	conn->write_iop->iov_base = (void __force __user *)(&cmnd->pdu.bhs);
 	conn->write_iop->iov_len = sizeof(cmnd->pdu.bhs);
 	conn->write_iop_used = 1;
 	conn->write_size = sizeof(cmnd->pdu.bhs);

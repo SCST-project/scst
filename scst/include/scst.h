@@ -550,8 +550,8 @@ struct scst_tgt_template {
 	 *
 	 * Shall return 0 in case of success or < 0 (preferrably -ENOMEM)
 	 * in case of error, or > 0 if the regular SCST allocation should be
-	 * done. In case of returning successfully, scst_cmd->tgt_data_buf_alloced
-	 * will be set by SCST.
+	 * done. In case of returning successfully,
+	 * scst_cmd->tgt_data_buf_alloced will be set by SCST.
 	 *
 	 * It is possible that both target driver and dev handler request own
 	 * memory allocation. In this case, data will be memcpy() between

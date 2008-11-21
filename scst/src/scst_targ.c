@@ -793,7 +793,7 @@ out_error:
 	goto out;
 }
 
-void scst_restart_cmd(struct scst_cmd *cmd, int status, 
+void scst_restart_cmd(struct scst_cmd *cmd, int status,
 	enum scst_exec_context pref_context)
 {
 	TRACE_ENTRY();
@@ -1215,7 +1215,7 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 
 	TRACE(TRACE_SCSI, "cmd %p, result=%x, cmd->status=%x, resid=%d, "
 	      "cmd->msg_status=%x, cmd->host_status=%x, "
-	      "cmd->driver_status=%x (cmd %p)",cmd,  result, cmd->status, resid,
+	      "cmd->driver_status=%x (cmd %p)", cmd, result, cmd->status, resid,
 	      cmd->msg_status, cmd->host_status, cmd->driver_status, cmd);
 
 	cmd->completed = 1;
@@ -3157,6 +3157,8 @@ out_busy:
 
 /* Called under scst_init_lock and IRQs disabled */
 static void scst_do_job_init(void)
+	__releases(&scst_init_lock)
+	__acquires(&scst_init_lock)
 {
 	struct scst_cmd *cmd;
 	int susp;
@@ -3444,6 +3446,8 @@ EXPORT_SYMBOL(scst_process_active_cmd);
 /* Called under cmd_list_lock and IRQs disabled */
 static void scst_do_job_active(struct list_head *cmd_list,
 	spinlock_t *cmd_list_lock, bool atomic)
+	__releases(cmd_list_lock)
+	__acquires(cmd_list_lock)
 {
 	TRACE_ENTRY();
 
@@ -4329,7 +4333,7 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 #if 0
 		if ((rc != SUCCESS) &&
 		    (mcmd->status == SCST_MGMT_STATUS_SUCCESS)) {
-			/* 
+			/*
 			 * SCSI_TRY_RESET_BUS is also done by
 			 * scsi_reset_provider()
 			 */
@@ -4877,7 +4881,7 @@ int scst_mgmt_cmd_thread(void *arg)
 			if (rc > 0) {
 				if (test_bit(SCST_FLAG_SUSPENDED, &scst_flags) &&
 				    !test_bit(SCST_FLAG_SUSPENDING,
-				    		 &scst_flags)) {
+						&scst_flags)) {
 					TRACE_MGMT_DBG("Adding mgmt cmd %p to "
 						"head of delayed mgmt cmd list",
 						mcmd);
