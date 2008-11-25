@@ -3998,7 +3998,7 @@ static void scst_unblock_aborted_cmds(int scst_mutex_held)
 }
 
 static void __scst_abort_task_set(struct scst_mgmt_cmd *mcmd,
-	struct scst_tgt_dev *tgt_dev, int other_ini)
+	struct scst_tgt_dev *tgt_dev)
 {
 	struct scst_cmd *cmd;
 	struct scst_session *sess = tgt_dev->sess;
@@ -4019,7 +4019,7 @@ static void __scst_abort_task_set(struct scst_mgmt_cmd *mcmd,
 				    (mcmd->cmd_sn == cmd->tgt_sn))
 					continue;
 			}
-			scst_abort_cmd(cmd, mcmd, other_ini, 0);
+			scst_abort_cmd(cmd, mcmd, 0, 0);
 		}
 	}
 	spin_unlock_irq(&sess->sess_list_lock);
@@ -4044,7 +4044,7 @@ static int scst_abort_task_set(struct scst_mgmt_cmd *mcmd)
 	__scst_block_dev(dev);
 	spin_unlock_bh(&dev->dev_lock);
 
-	__scst_abort_task_set(mcmd, tgt_dev, 0);
+	__scst_abort_task_set(mcmd, tgt_dev);
 
 	scst_unblock_aborted_cmds(0);
 
@@ -4103,7 +4103,7 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 	__scst_block_dev(dev);
 	spin_unlock_bh(&dev->dev_lock);
 
-	__scst_abort_task_set(mcmd, mcmd->mcmd_tgt_dev, 0);
+	__scst_abort_task_set(mcmd, mcmd->mcmd_tgt_dev);
 
 	mutex_lock(&scst_mutex);
 
@@ -4285,12 +4285,16 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 				dev_tgt_dev_list_entry) {
 			cont = 1;
-			rc = scst_call_dev_task_mgmt_fn(mcmd, tgt_dev, 0);
-			if (rc == SCST_DEV_TM_NOT_COMPLETED)
-				c = 1;
-			else if ((rc < 0) &&
-				 (mcmd->status == SCST_MGMT_STATUS_SUCCESS))
-				mcmd->status = rc;
+			if (mcmd->sess == tgt_dev->sess) {
+				rc = scst_call_dev_task_mgmt_fn(mcmd,
+						tgt_dev, 0);
+				if (rc == SCST_DEV_TM_NOT_COMPLETED)
+					c = 1;
+				else if ((rc < 0) &&
+					 (mcmd->status == SCST_MGMT_STATUS_SUCCESS))
+					mcmd->status = rc;
+				break;
+			}
 		}
 		if (cont && !c)
 			continue;
@@ -4471,7 +4475,7 @@ static int scst_abort_all_nexus_loss_sess(struct scst_mgmt_cmd *mcmd,
 				spin_unlock_bh(&dev->dev_lock);
 			}
 
-			__scst_abort_task_set(mcmd, tgt_dev, 0);
+			__scst_abort_task_set(mcmd, tgt_dev);
 
 			rc = scst_call_dev_task_mgmt_fn(mcmd, tgt_dev, 0);
 			if (rc < 0 && mcmd->status == SCST_MGMT_STATUS_SUCCESS)
@@ -4555,16 +4559,18 @@ static int scst_abort_all_nexus_loss_tgt(struct scst_mgmt_cmd *mcmd,
 					sess_tgt_dev_list_entry) {
 				int rc;
 
-				__scst_abort_task_set(mcmd, tgt_dev, 0);
+				__scst_abort_task_set(mcmd, tgt_dev);
 
 				if (nexus_loss)
 					scst_nexus_loss(tgt_dev);
 
-				rc = scst_call_dev_task_mgmt_fn(mcmd, tgt_dev,
-								0);
-				if ((rc < 0) &&
-				    (mcmd->status == SCST_MGMT_STATUS_SUCCESS))
-					mcmd->status = rc;
+				if (mcmd->sess == tgt_dev->sess) {
+					rc = scst_call_dev_task_mgmt_fn(
+						mcmd, tgt_dev, 0);
+					if ((rc < 0) &&
+					    (mcmd->status == SCST_MGMT_STATUS_SUCCESS))
+						mcmd->status = rc;
+				}
 			}
 		}
 	}
