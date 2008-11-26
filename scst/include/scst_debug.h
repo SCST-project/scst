@@ -114,10 +114,14 @@
 #define TRACE_ALL            0xffffffff
 /* Flags 0xXXXX0000 are local for users */
 
+/*
+ * Note: in the next two printk() statements the KERN_CONT macro is only
+ * present to suppress a checkpatch warning (KERN_CONT is defined as "").
+ */
 #define PRINT(log_flag, format, args...)  \
-		printk("%s" format "\n", log_flag, ## args)
+		printk(KERN_CONT "%s" format "\n", log_flag, ## args)
 #define PRINTN(log_flag, format, args...) \
-		printk("%s" format, log_flag, ## args)
+		printk(KERN_CONT "%s" format, log_flag, ## args)
 
 #ifdef LOG_PREFIX
 #define __LOG_PREFIX	LOG_PREFIX
