@@ -115,10 +115,10 @@ enum scst_cmd_queue_type {
 #define SCST_LOAD_SENSE(key_asc_ascq) key_asc_ascq
 
 #define SCST_SENSE_VALID(sense)  ((sense != NULL) && \
-				  ((((uint8_t *)(sense))[0] & 0x70) == 0x70))
+				  ((((const uint8_t *)(sense))[0] & 0x70) == 0x70))
 
 #define SCST_NO_SENSE(sense)     ((sense != NULL) && \
-				  (((uint8_t *)(sense))[2] == 0))
+				  (((const uint8_t *)(sense))[2] == 0))
 
 static inline int scst_is_ua_sense(const uint8_t *sense)
 {
