@@ -138,7 +138,7 @@ echo ""
 
 kpatch=(                                                                \
   "scst/kernel/scst_exec_req_fifo-${kernel_version}.patch"              \
-  "scst/kernel/alloc_io_context-${kernel_version}.patch"		\
+  "scst/kernel/export_alloc_io_context-${kernel_version}.patch"		\
   "iscsi-scst/kernel/patches/put_page_callback-${kernel_version}.patch" \
 )
 
