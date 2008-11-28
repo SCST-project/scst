@@ -111,7 +111,7 @@ static u32 digest_header(struct iscsi_pdu *pdu)
 static u32 digest_data(struct iscsi_cmnd *cmd, u32 osize, u32 offset)
 {
 	struct scatterlist *sg = cmd->sg;
-	int idx, count;
+	unsigned int idx, count;
 	struct scatterlist saved_sg;
 	u32 size = (osize + 3) & ~3;
 	u32 crc;

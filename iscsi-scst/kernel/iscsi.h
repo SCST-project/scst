@@ -36,13 +36,13 @@ struct iscsi_sess_param {
 	int initial_r2t;
 	int immediate_data;
 	int max_connections;
-	int max_recv_data_length;
-	int max_xmit_data_length;
-	int max_burst_length;
-	int first_burst_length;
+	unsigned int max_recv_data_length;
+	unsigned int max_xmit_data_length;
+	unsigned int max_burst_length;
+	unsigned int first_burst_length;
 	int default_wait_time;
 	int default_retain_time;
-	int max_outstanding_r2t;
+	unsigned int max_outstanding_r2t;
 	int data_pdu_inorder;
 	int data_sequence_inorder;
 	int error_recovery_level;
@@ -322,7 +322,7 @@ struct iscsi_cmnd {
 
 	struct scatterlist *sg;
 	int sg_cnt;
-	int bufflen;
+	unsigned int bufflen;
 	u32 r2t_sn;
 	u32 r2t_length;
 	u32 is_unsolicited_data;

@@ -25,8 +25,7 @@
 
 #if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 #warning "Patch put_page_callback-<kernel-version>.patch not applied on your \
-	kernel. ISCSI-SCST will run in the performance degraded mode. Refer \
-	README file for details."
+	kernel. ISCSI-SCST will be working with not the best performance."
 #endif
 
 #define ISCSI_INIT_WRITE_WAKE		0x1
@@ -690,7 +689,7 @@ static struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req, int status,
 		rsp->pdu.datasize = sizeof(struct iscsi_sense_data) + sense_len;
 		rsp->bufflen = (rsp->pdu.datasize + 3) & -4;
 		if (rsp->bufflen - rsp->pdu.datasize) {
-			int i = rsp->pdu.datasize;
+			unsigned int i = rsp->pdu.datasize;
 			u8 *p = (u8 *)sense + i;
 
 			while (i < rsp->bufflen) {
@@ -938,7 +937,7 @@ static void cmnd_prepare_get_rejected_cmd_data(struct iscsi_cmnd *cmnd)
 	struct scatterlist *sg = cmnd->sg;
 	char __user *addr;
 	u32 size;
-	int i;
+	unsigned int i;
 
 	TRACE_MGMT_DBG("Skipping (%p, %x %x %x %u, %p, scst state %d)", cmnd,
 		cmnd_itt(cmnd), cmnd_opcode(cmnd), cmnd_hdr(cmnd)->scb[0],
@@ -1028,8 +1027,8 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 	struct iscsi_cmnd *cmd,	u32 offset, u32 size)
 {
 	struct scatterlist *sg = cmd->sg;
-	int bufflen = cmd->bufflen;
-	int idx, i;
+	unsigned int bufflen = cmd->bufflen;
+	unsigned int idx, i;
 	char __user *addr;
 	int res = 0;
 
@@ -1247,7 +1246,7 @@ static int noop_out_start(struct iscsi_cmnd *cmnd)
 			}
 
 			/* We already checked it in check_segment_length() */
-			sBUG_ON(cmnd->sg_cnt > ISCSI_CONN_IOV_MAX);
+			sBUG_ON(cmnd->sg_cnt > (signed)ISCSI_CONN_IOV_MAX);
 
 			cmnd->own_sg = 1;
 			cmnd->bufflen = size;
@@ -1267,7 +1266,7 @@ static int noop_out_start(struct iscsi_cmnd *cmnd)
 			 * accesses to dummy_page, since for ISCSI_RESERVED_TAG
 			 * the data only read and then discarded.
 			 */
-			for (i = 0; i < ISCSI_CONN_IOV_MAX; i++) {
+			for (i = 0; i < (signed)ISCSI_CONN_IOV_MAX; i++) {
 				conn->read_iov[i].iov_base =
 					(void __force __user *)(page_address(dummy_page));
 				tmp = min_t(u32, size, PAGE_SIZE);

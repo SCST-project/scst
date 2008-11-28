@@ -180,7 +180,7 @@ static struct proc_dir_entry *proc_iscsi_dir;
 
 void iscsi_procfs_exit(void)
 {
-	int i;
+	unsigned int i;
 
 	if (!proc_iscsi_dir)
 		return;
@@ -193,7 +193,8 @@ void iscsi_procfs_exit(void)
 
 int __init iscsi_procfs_init(void)
 {
-	int i, err = 0;
+	unsigned int i;
+	int err = 0;
 	struct proc_dir_entry *ent;
 
 	proc_iscsi_dir = scst_proc_get_tgt_root(&iscsi_template);

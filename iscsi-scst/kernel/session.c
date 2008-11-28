@@ -33,7 +33,8 @@ struct iscsi_session *session_lookup(struct iscsi_target *target, u64 sid)
 static int iscsi_session_alloc(struct iscsi_target *target,
 			       struct session_info *info)
 {
-	int err, i;
+	int err;
+	unsigned int i;
 	struct iscsi_session *session;
 	char *name = NULL;
 
@@ -130,7 +131,7 @@ int session_add(struct iscsi_target *target, struct session_info *info)
 /* target_mutex supposed to be locked */
 int session_free(struct iscsi_session *session)
 {
-	int i;
+	unsigned int i;
 
 	TRACE_MGMT_DBG("Freeing session %p:%#Lx",
 		session, (long long unsigned int)session->sid);

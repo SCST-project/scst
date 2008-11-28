@@ -1035,8 +1035,8 @@ static int write_data(struct iscsi_conn *conn)
 			loff_t off = 0;
 			int rest;
 
-			sBUG_ON(count > sizeof(conn->write_iov)
-					/ sizeof(conn->write_iov[0]));
+			sBUG_ON(count > (signed)(sizeof(conn->write_iov) /
+						sizeof(conn->write_iov[0])));
  retry:
 			oldfs = get_fs();
 			set_fs(KERNEL_DS);
@@ -1297,7 +1297,7 @@ static void init_tx_hdigest(struct iscsi_cmnd *cmnd)
 	digest_tx_header(cmnd);
 
 	sBUG_ON(conn->write_iop_used >=
-		sizeof(conn->write_iov)/sizeof(conn->write_iov[0]));
+		(signed)(sizeof(conn->write_iov)/sizeof(conn->write_iov[0])));
 
 	iop = &conn->write_iop[conn->write_iop_used];
 	conn->write_iop_used++;
