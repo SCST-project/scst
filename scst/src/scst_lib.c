@@ -781,8 +781,7 @@ int scst_acg_add_dev(struct scst_acg *acg, struct scst_device *dev,
 	list_add_tail(&acg_dev->acg_dev_list_entry, &acg->acg_dev_list);
 	list_add_tail(&acg_dev->dev_acg_dev_list_entry, &dev->dev_acg_dev_list);
 
-	list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry)
-	{
+	list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
 		tgt_dev = scst_alloc_add_tgt_dev(sess, acg_dev);
 		if (tgt_dev == NULL) {
 			res = -ENOMEM;
@@ -1728,7 +1727,7 @@ void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir)
 	struct scatterlist *src_sg, *dst_sg;
 	unsigned int src_sg_cnt, src_len, dst_len, src_offs, dst_offs;
 	struct page *src, *dst;
-	int s, d, to_copy;
+	unsigned int s, d, to_copy;
 
 	TRACE_ENTRY();
 
@@ -3082,10 +3081,11 @@ EXPORT_SYMBOL(scst_dev_del_all_thr_data);
 struct scst_thr_data_hdr *scst_find_thr_data(struct scst_tgt_dev *tgt_dev)
 {
 	struct scst_thr_data_hdr *res = NULL, *d;
+	struct task_struct *tsk = current;
 
 	spin_lock(&tgt_dev->thr_data_lock);
 	list_for_each_entry(d, &tgt_dev->thr_data_list, thr_data_list_entry) {
-		if (d->pid == current->pid) {
+		if (d->pid == tsk->pid) {
 			res = d;
 			scst_thr_data_get(res);
 			break;

@@ -712,6 +712,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	int opcode = cdb[0];
 	loff_t loff;
 	struct scst_device *dev = cmd->dev;
+	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
 	struct scst_vdisk_dev *virt_dev =
 		(struct scst_vdisk_dev *)dev->dh_priv;
 	struct scst_thr_data_hdr *d;
@@ -741,9 +742,9 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	cmd->driver_status = 0;
 
 	if (!virt_dev->nullio) {
-		d = scst_find_thr_data(cmd->tgt_dev);
+		d = scst_find_thr_data(tgt_dev);
 		if (unlikely(d == NULL)) {
-			thr = vdisk_init_thr_data(cmd->tgt_dev);
+			thr = vdisk_init_thr_data(tgt_dev);
 			if (thr == NULL) {
 				scst_set_busy(cmd);
 				goto out_compl;
@@ -855,7 +856,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 			int do_fsync = vdisk_sync_queue_type(cmd->queue_type);
 			struct scst_vdisk_tgt_dev *ftgt_dev =
 				(struct scst_vdisk_tgt_dev *)
-					cmd->tgt_dev->dh_priv;
+					tgt_dev->dh_priv;
 			enum scst_cmd_queue_type last_queue_type =
 				ftgt_dev->last_write_cmd_queue_type;
 			ftgt_dev->last_write_cmd_queue_type = cmd->queue_type;
@@ -892,7 +893,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 			int do_fsync = vdisk_sync_queue_type(cmd->queue_type);
 			struct scst_vdisk_tgt_dev *ftgt_dev =
 				(struct scst_vdisk_tgt_dev *)
-					cmd->tgt_dev->dh_priv;
+					tgt_dev->dh_priv;
 			enum scst_cmd_queue_type last_queue_type =
 				ftgt_dev->last_write_cmd_queue_type;
 			ftgt_dev->last_write_cmd_queue_type = cmd->queue_type;
@@ -2709,7 +2710,7 @@ static void vdisk_report_registering(const char *type,
 	j = i;
 
 	if (virt_dev->wt_flag)
-		i += snprintf(&buf[i], sizeof(buf) - i, " (WRITE_THROUGH");
+		i += snprintf(&buf[i], sizeof(buf) - i, "(WRITE_THROUGH");
 
 	if (virt_dev->nv_cache)
 		i += snprintf(&buf[i], sizeof(buf) - i, "%sNV_CACHE",
@@ -3520,7 +3521,7 @@ static int __init init_scst_vdisk_driver(void)
 		goto out;
 	}
 
-	num_threads = num_online_cpus() + 2;
+	num_threads = 5;
 	vdisk_file_devtype.threads_num = num_threads;
 	vcdrom_devtype.threads_num = num_threads;
 

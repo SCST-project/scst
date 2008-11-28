@@ -1260,7 +1260,6 @@ static void scst_cmd_done(struct scsi_cmnd *scsi_cmd)
 {
 	struct scsi_request *req = NULL;
 	struct scst_cmd *cmd;
-	enum scst_exec_context context;
 
 	TRACE_ENTRY();
 
@@ -1801,7 +1800,10 @@ static struct scst_cmd *scst_post_exec_sn(struct scst_cmd *cmd,
 /* cmd must be additionally referenced to not die inside */
 static int scst_do_real_exec(struct scst_cmd *cmd)
 {
-	int res = SCST_EXEC_NOT_COMPLETED, rc;
+	int res = SCST_EXEC_NOT_COMPLETED;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18)
+	int rc;
+#endif
 	struct scst_device *dev = cmd->dev;
 	struct scst_dev_type *handler = dev->handler;
 
@@ -2933,7 +2935,7 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 	switch (cmd->queue_type) {
 	case SCST_CMD_QUEUE_SIMPLE:
 	case SCST_CMD_QUEUE_UNTAGGED:
-#if 1 /* temporary, ToDo */
+#if 0 /* left for future performance investigations */
 		if (scst_cmd_is_expected_set(cmd)) {
 			if ((cmd->expected_data_direction == SCST_DATA_READ) &&
 			    (atomic_read(&cmd->dev->write_cmd_count) == 0))

@@ -56,7 +56,7 @@
 #endif
 #endif
 
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 19)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
 #define WARN_ON_ONCE(condition) ({				\
 	static int __warned;					\
 	typeof(condition) __ret_warn_once = (condition);	\

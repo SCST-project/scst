@@ -723,11 +723,9 @@ using debug2perf Makefile target.
    directory, they also affect performance. If you find the best values,
    please share them with us.
 
- - On the target deadline IO scheduler with read_expire and
-   write_expire increased on all exported devices to 5000 and 15000
-   correspondingly should be the fastest for BLOCKIO, but for FILEIO
-   seems CFQ often outperforms it. So, try on your load and use the best
-   one.
+ - On the target CFQ IO scheduler. In most cases it has performance
+   advantage over other IO schedulers, sometimes huge (2+ times
+   aggregate throughput increase).
 
  - It is recommended to turn the kernel preemption off, i.e. set
    the kernel preemption model to "No Forced Preemption (Server)".

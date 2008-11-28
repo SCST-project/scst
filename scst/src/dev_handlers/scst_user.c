@@ -1056,6 +1056,7 @@ static int dev_user_map_buf(struct scst_user_cmd *ucmd, unsigned long ubuff,
 {
 	int res = 0, rc;
 	int i;
+	struct task_struct *tsk = current;
 
 	TRACE_ENTRY();
 
@@ -1081,10 +1082,10 @@ static int dev_user_map_buf(struct scst_user_cmd *ucmd, unsigned long ubuff,
 		ucmd->num_data_pages, (int)(ubuff & ~PAGE_MASK),
 		ucmd->cmd->bufflen);
 
-	down_read(&current->mm->mmap_sem);
-	rc = get_user_pages(current, current->mm, ubuff, ucmd->num_data_pages,
+	down_read(&tsk->mm->mmap_sem);
+	rc = get_user_pages(tsk, tsk->mm, ubuff, ucmd->num_data_pages,
 		1/*writable*/, 0/*don't force*/, ucmd->data_pages, NULL);
-	up_read(&current->mm->mmap_sem);
+	up_read(&tsk->mm->mmap_sem);
 
 	/* get_user_pages() flushes dcache */
 

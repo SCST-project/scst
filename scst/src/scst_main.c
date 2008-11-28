@@ -47,6 +47,13 @@
 	Pass-through dev handlers will not be supported."
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+#if !defined(SCST_ALLOC_IO_CONTEXT_EXPORTED)
+#warning "Patch export_alloc_io_context-<kernel-version>.patch was not applied \
+	on your kernel. SCST will be working with not the best performance."
+#endif
+#endif
+
 /**
  ** SCST global variables. They are all uninitialized to have their layout in
  ** memory be exactly as specified. Otherwise compiler puts zero-initialized
@@ -130,6 +137,12 @@ static int scst_virt_dev_last_id; /* protected by scst_mutex */
  */
 spinlock_t scst_temp_UA_lock;
 uint8_t scst_temp_UA[SCST_SENSE_BUFFERSIZE];
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+#if defined(CONFIG_BLOCK) && defined(SCST_ALLOC_IO_CONTEXT_EXPORTED)
+static struct io_context *scst_ioc;
+#endif
+#endif
 
 unsigned int scst_max_cmd_mem;
 unsigned int scst_max_dev_cmd_mem;
@@ -1069,6 +1082,7 @@ int scst_add_dev_threads(struct scst_device *dev, int num)
 	int i, res = 0;
 	int n = 0;
 	struct scst_cmd_thread_t *thr;
+	struct io_context *ioc = NULL;
 	char nm[12];
 
 	TRACE_ENTRY();
@@ -1086,7 +1100,7 @@ int scst_add_dev_threads(struct scst_device *dev, int num)
 		}
 		strncpy(nm, dev->handler->name, ARRAY_SIZE(nm)-1);
 		nm[ARRAY_SIZE(nm)-1] = '\0';
-		thr->cmd_thread = kthread_run(scst_cmd_thread,
+		thr->cmd_thread = kthread_create(scst_cmd_thread,
 			&dev->cmd_lists, "%sd%d_%d", nm, dev->dev_num, n++);
 		if (IS_ERR(thr->cmd_thread)) {
 			res = PTR_ERR(thr->cmd_thread);
@@ -1094,10 +1108,38 @@ int scst_add_dev_threads(struct scst_device *dev, int num)
 			kfree(thr);
 			goto out;
 		}
+
 		list_add(&thr->thread_list_entry, &dev->threads_list);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+#if defined(CONFIG_BLOCK) && defined(SCST_ALLOC_IO_CONTEXT_EXPORTED)
+		/*
+		 * It would be better to keep io_context in tgt_dev and
+		 * dynamically assign it to the current thread on the IO
+		 * submission time to let each initiator have own
+		 * io_context. But, unfortunately, CFQ doesn't
+		 * support if a task has dynamically switched
+		 * io_context, it oopses on BUG_ON(!cic->dead_key) in
+		 * cic_free_func(). So, we have to have the same io_context
+		 * for all initiators.
+		 */
+		if (ioc == NULL) {
+			ioc = alloc_io_context(GFP_KERNEL, -1);
+			TRACE_DBG("ioc %p (thr %d)", ioc, thr->cmd_thread->pid);
+		}
+
+		put_io_context(thr->cmd_thread->io_context);
+		thr->cmd_thread->io_context = ioc_task_link(ioc);
+		TRACE_DBG("Setting ioc %p on thr %d", ioc,
+			thr->cmd_thread->pid);
+#endif
+#endif
+		wake_up_process(thr->cmd_thread);
 	}
 
 out:
+	put_io_context(ioc);
+
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -1349,7 +1391,7 @@ int __scst_add_cmd_threads(int num)
 			PRINT_ERROR("fail to allocate thr %d", res);
 			goto out_error;
 		}
-		thr->cmd_thread = kthread_run(scst_cmd_thread,
+		thr->cmd_thread = kthread_create(scst_cmd_thread,
 			&scst_main_cmd_lists, "scsi_tgt%d",
 			scst_thread_num++);
 		if (IS_ERR(thr->cmd_thread)) {
@@ -1358,9 +1400,27 @@ int __scst_add_cmd_threads(int num)
 			kfree(thr);
 			goto out_error;
 		}
+
 		list_add(&thr->thread_list_entry,
 			&scst_threads_info.cmd_threads_list);
 		scst_threads_info.nr_cmd_threads++;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+#if defined(CONFIG_BLOCK) && defined(SCST_ALLOC_IO_CONTEXT_EXPORTED)
+		/* See comment in scst_add_dev_threads() */
+		if (scst_ioc == NULL) {
+			scst_ioc = alloc_io_context(GFP_KERNEL, -1);
+			TRACE_DBG("scst_ioc %p (thr %d)", scst_ioc,
+				thr->cmd_thread->pid);
+		}
+
+		put_io_context(thr->cmd_thread->io_context);
+		thr->cmd_thread->io_context = ioc_task_link(scst_ioc);
+		TRACE_DBG("Setting scst_ioc %p on thr %d",
+			scst_ioc, thr->cmd_thread->pid);
+#endif
+#endif
+		wake_up_process(thr->cmd_thread);
 	}
 	res = 0;
 
@@ -1888,6 +1948,12 @@ static void __exit exit_scst(void)
 	DEINIT_CACHEP(scst_sess_cachep);
 	DEINIT_CACHEP(scst_tgtd_cachep);
 	DEINIT_CACHEP(scst_acgd_cachep);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+#if defined(CONFIG_BLOCK) && defined(SCST_ALLOC_IO_CONTEXT_EXPORTED)
+	put_io_context(scst_ioc);
+#endif
+#endif
 
 	PRINT_INFO("%s", "SCST unloaded");
 
