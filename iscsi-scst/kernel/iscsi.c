@@ -25,7 +25,9 @@
 
 #if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 #warning "Patch put_page_callback-<kernel-version>.patch not applied on your \
-	kernel. ISCSI-SCST will be working with not the best performance."
+	kernel or CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION \
+	config option not set. ISCSI-SCST will be working with not the best \
+	performance. Refer README file for details."
 #endif
 
 #define ISCSI_INIT_WRITE_WAKE		0x1
@@ -2961,9 +2963,10 @@ static int __init iscsi_init(void)
 		goto out_free_dummy;
 	}
 #else
-	PRINT_INFO("%s", "Patch put_page_callback-<kernel-version>.patch "
-		"not applied on your kernel. Running in the performance "
-		"degraded mode. Refer README file for details");
+	PRINT_WARNING("%s",
+		"CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION "
+		"not enabled in your kernel. ISCSI-SCST will be working with "
+		"not the best performance. Refer README file for details.");
 #endif
 
 	ctr_major = register_chrdev(0, ctr_name, &ctr_fops);

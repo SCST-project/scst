@@ -229,6 +229,7 @@ do
   add_file "${f}" "drivers/scst/iscsi-scst/${f#iscsi-scst/kernel/}"
 done
 
+add_file "iscsi-scst/README_in-tree"               "Documentation/scst/README.iscsi"
 
 # Directory drivers/scst/qla2x00-target/
 

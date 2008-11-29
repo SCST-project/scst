@@ -65,6 +65,10 @@ only adds one of those functions and nothing more. You may not patch the
 kernel if you don't need pass-through support or CONFIG_SCST_STRICT_SERIALIZING is
 defined during the compilation (see description below).
 
+Then, to get the maximum performance you should apply export_alloc_io_context
+patch. This patch simply makes alloc_io_context() function be available
+for modules, not only for built-in in kernel code.
+
 To compile SCST type 'make scst'. It will build SCST itself and its
 device handlers. To install them type 'make scst_install'. The driver
 modules will be installed in '/lib/modules/`you_kernel_version`/extra'.

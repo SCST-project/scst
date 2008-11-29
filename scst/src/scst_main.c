@@ -1693,6 +1693,14 @@ static int __init init_scst(void)
 	BUILD_BUG_ON(SCST_DATA_READ != DMA_FROM_DEVICE);
 	BUILD_BUG_ON(SCST_DATA_NONE != DMA_NONE);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+#if !defined(SCST_ALLOC_IO_CONTEXT_EXPORTED)
+	PRINT_WARNING("%s", "Patch export_alloc_io_context was not applied on "
+		"your kernel. SCST will be working with not the best "
+		"performance."
+#endif
+#endif
+
 	mutex_init(&scst_mutex);
 	INIT_LIST_HEAD(&scst_template_list);
 	INIT_LIST_HEAD(&scst_dev_list);
