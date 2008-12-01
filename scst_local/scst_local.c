@@ -43,10 +43,14 @@
 
 #include <scst_debug.h>
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
+#define SCSI_MAX_SG_SEGMENTS 128
+#endif
+
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
 #warning "HIGHMEM kernel configurations are not supported by this module, \
-	because nowadays it doesn't worth the effort. Consider change \
-	VMSPLIT option or use 64-bit configuration instead. See SCST core \
+	because nowadays it isn't worth the effort. Consider changing \
+	VMSPLIT option or use a 64-bit configuration instead. See SCST core \
 	README file for details."
 #endif
 
@@ -75,8 +79,8 @@ unsigned long scst_local_trace_flag = SCST_LOCAL_DEFAULT_LOG_FLAGS;
 static void scst_local_remove_adapter(void);
 static int scst_local_add_adapter(void);
 
-#define SCST_LOCAL_VERSION "0.8"
-static const char *scst_local_version_date = "20081116";
+#define SCST_LOCAL_VERSION "0.9"
+static const char *scst_local_version_date = "20081130";
 
 /*
  * Target structures that are shared between the two pieces
