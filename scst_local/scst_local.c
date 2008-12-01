@@ -716,6 +716,15 @@ static int __init scst_local_init(void)
 
 	TRACE_ENTRY();
 
+#if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
+	PRINT_ERROR("%s", "HIGHMEM kernel configurations are not supported. "
+		"Consider changing VMSPLIT option or use a 64-bit "
+		"configuration instead. See SCST core README file for "
+		"details.");
+	ret = -EINVAL;
+	goto out;
+#endif
+
 	TRACE_DBG("Adapters: %d\n", scst_local_add_host);
 
 	if (scst_local_num_tgts > SCST_LOCAL_MAX_TARGETS)
@@ -739,7 +748,7 @@ static int __init scst_local_init(void)
 	if (ret < 0) {
 		printk(KERN_WARNING "%s: device_register error: %d\n",
 		       __func__, ret);
-		goto free_stuff;
+		goto destroy_kmem;
 	}
 	ret = bus_register(&scst_fake_lld_bus);
 	if (ret < 0) {
@@ -788,8 +797,9 @@ static int __init scst_local_init(void)
 		}
 	}
 
-	TRACE_EXIT();
-	return 0;
+out:
+	TRACE_EXIT_RES(ret);
+	return ret;
 
 del_files:
 	do_remove_driverfs_files();
@@ -799,10 +809,9 @@ bus_unreg:
 	bus_unregister(&scst_fake_lld_bus);
 dev_unreg:
 	device_unregister(&scst_fake_primary);
-free_stuff:
-
-	TRACE_EXIT_RES(ret);
-	return ret;
+destroy_kmem:
+	kmem_cache_destroy(tgt_specific_pool);
+	goto out;
 }
 
 static void __exit scst_local_exit(void)

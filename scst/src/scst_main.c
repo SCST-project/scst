@@ -35,8 +35,8 @@
 
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
 #warning "HIGHMEM kernel configurations are fully supported, but not \
-	recommended for performance reasons. Consider change VMSPLIT \
-	option or use 64-bit configuration instead. See README file for \
+	recommended for performance reasons. Consider changing VMSPLIT \
+	option or use a 64-bit configuration instead. See README file for \
 	details."
 #endif
 
@@ -1697,7 +1697,7 @@ static int __init init_scst(void)
 #if !defined(SCST_ALLOC_IO_CONTEXT_EXPORTED)
 	PRINT_WARNING("%s", "Patch export_alloc_io_context was not applied on "
 		"your kernel. SCST will be working with not the best "
-		"performance."
+		"performance.");
 #endif
 #endif
 
