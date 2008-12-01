@@ -1,5 +1,5 @@
 SCST Debug ...
-Richard Sharpe, 24-Sep-2008
+Richard Sharpe, 30-Nov-2008
 
 This is the SCST Local driver. Its function is to allow you to access devices
 that are exported via SCST directly on the same Linux system that they are
@@ -11,7 +11,9 @@ and so forth.
 
 To build, simply issue 'make' in the scst-local directory.
 
-Try 'modinfo scst_local.ko' for a listing of module parameters so far.
+Try 'modinfo scst_local' for a listing of module parameters so far.
+
+NOTE! This is now part of scst and supports being built in the scst tree.
 
 Here is how I have used it so far:
 
@@ -31,8 +33,8 @@ Here is how I have used it so far:
 
 3. Load the scst_local driver:
 
-  insmod scst_local.ko
-# insmod scst_local.ko max_luns=8 options=1 # That options prints debug info
+  insmod scst_local
+# insmod scst_local max_luns=8
 
 4. Check what you have
 
@@ -87,3 +89,7 @@ V0.6 7-Oct-2008 (Santa Clara) Removed some redundant code and made some
 
 V0.7 11-Oct-2008 (Santa Clara) Moved into the scst tree. Cleaned up some
 			       unused functions, used TRACE macros etc.
+
+V0.9 30-Nov-2008 (Mtn View) Cleaned up an additional problem with symbols not
+			    being defined in older version of the kernel. Also
+			    fixed some English and cleaned up this doc.
