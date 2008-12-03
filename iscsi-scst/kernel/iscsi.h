@@ -359,7 +359,6 @@ extern int cmnd_rx_start(struct iscsi_cmnd *);
 extern void cmnd_rx_end(struct iscsi_cmnd *);
 extern void cmnd_tx_start(struct iscsi_cmnd *);
 extern void cmnd_tx_end(struct iscsi_cmnd *);
-extern void req_cmnd_release(struct iscsi_cmnd *req);
 extern void req_cmnd_release_force(struct iscsi_cmnd *req, int flags);
 extern void rsp_cmnd_release(struct iscsi_cmnd *);
 extern void cmnd_done(struct iscsi_cmnd *cmnd);

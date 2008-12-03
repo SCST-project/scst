@@ -43,12 +43,9 @@
 #endif
 
 #ifdef CONFIG_SCST_DEBUG
-struct msghdr;
 struct iscsi_pdu;
-extern void iscsi_dump_iov(struct msghdr *msg);
 extern void iscsi_dump_pdu(struct iscsi_pdu *pdu);
 #else
-#define iscsi_dump_iov(x) do {} while (0)
 #define iscsi_dump_pdu(x) do {} while (0)
 #endif
 

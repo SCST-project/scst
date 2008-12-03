@@ -70,7 +70,8 @@
  */
 struct mutex scst_mutex;
 
-struct list_head scst_template_list;
+ /* All 3 protected by scst_mutex */
+static struct list_head scst_template_list;
 struct list_head scst_dev_list;
 struct list_head scst_dev_type_list;
 
@@ -121,8 +122,9 @@ struct list_head scst_sess_shut_list;
 
 wait_queue_head_t scst_dev_cmd_waitQ;
 
-struct mutex scst_suspend_mutex;
-struct list_head scst_cmd_lists_list;
+static struct mutex scst_suspend_mutex;
+/* protected by scst_suspend_mutex */
+static struct list_head scst_cmd_lists_list;
 
 static int scst_threads;
 struct scst_threads_info_t scst_threads_info;
@@ -144,7 +146,7 @@ static struct io_context *scst_ioc;
 #endif
 #endif
 
-unsigned int scst_max_cmd_mem;
+static unsigned int scst_max_cmd_mem;
 unsigned int scst_max_dev_cmd_mem;
 
 module_param_named(scst_threads, scst_threads, int, 0);

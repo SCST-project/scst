@@ -1057,6 +1057,7 @@ void sgv_pool_deinit(struct sgv_pool *pool)
 	}
 
 	TRACE_EXIT();
+	return;
 }
 
 void sgv_pool_set_allocator(struct sgv_pool *pool,

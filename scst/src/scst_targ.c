@@ -35,6 +35,10 @@
 static void scst_cmd_set_sn(struct scst_cmd *cmd);
 static int __scst_init_cmd(struct scst_cmd *cmd);
 static void scst_finish_cmd_mgmt(struct scst_cmd *cmd);
+static struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,
+	uint64_t tag);
+static void scst_proccess_redirect_cmd(struct scst_cmd *cmd,
+	enum scst_exec_context context, int check_retries);
 
 static inline void scst_schedule_tasklet(struct scst_cmd *cmd)
 {

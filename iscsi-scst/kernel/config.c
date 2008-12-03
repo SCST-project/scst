@@ -544,20 +544,6 @@ struct file_operations ctr_fops = {
 };
 
 #ifdef CONFIG_SCST_DEBUG
-void iscsi_dump_iov(struct msghdr *msg)
-{
-	if (trace_flag & TRACE_D_IOV) {
-		int i;
-		printk(LOG_FLAG "%p, %zd\n", msg->msg_iov, msg->msg_iovlen);
-		for (i = 0; i < min_t(size_t, msg->msg_iovlen,
-				ISCSI_CONN_IOV_MAX); i++) {
-			printk(LOG_FLAG "%d: %p,%zd\n",
-				i, msg->msg_iov[i].iov_base,
-				msg->msg_iov[i].iov_len);
-		}
-	}
-}
-
 static void iscsi_dump_char(int ch)
 {
 	static unsigned char text[16];

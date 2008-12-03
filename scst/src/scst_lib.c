@@ -37,6 +37,22 @@
 static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev);
 static void scst_check_internal_sense(struct scst_device *dev, int result,
 	uint8_t *sense, int sense_len);
+static void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
+	const uint8_t *sense, int sense_len, int head);
+static void scst_free_all_UA(struct scst_tgt_dev *tgt_dev);
+static void scst_release_space(struct scst_cmd *cmd);
+static void scst_sess_free_tgt_devs(struct scst_session *sess);
+static void scst_unblock_cmds(struct scst_device *dev);
+
+#ifdef CONFIG_SCST_DEBUG_TM
+static void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev,
+	struct scst_acg_dev *acg_dev);
+static void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev);
+#else
+static inline void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev,
+	struct scst_acg_dev *acg_dev) {}
+static inline void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev) {}
+#endif /* CONFIG_SCST_DEBUG_TM */
 
 int scst_alloc_sense(struct scst_cmd *cmd, int atomic)
 {
@@ -144,7 +160,7 @@ void scst_set_sense(uint8_t *buffer, int len, int key,
 }
 EXPORT_SYMBOL(scst_set_sense);
 
-void scst_set_cmd_error_sense(struct scst_cmd *cmd, uint8_t *sense,
+static void scst_set_cmd_error_sense(struct scst_cmd *cmd, uint8_t *sense,
 	unsigned int len)
 {
 	TRACE_ENTRY();
@@ -950,7 +966,7 @@ int scst_acg_remove_name(struct scst_acg *acg, const char *name)
 	return res;
 }
 
-struct scst_cmd *scst_create_prepare_internal_cmd(
+static struct scst_cmd *scst_create_prepare_internal_cmd(
 	struct scst_cmd *orig_cmd, int bufsize)
 {
 	struct scst_cmd *res;
@@ -983,7 +999,7 @@ out:
 	return res;
 }
 
-void scst_free_internal_cmd(struct scst_cmd *cmd)
+static void scst_free_internal_cmd(struct scst_cmd *cmd)
 {
 	TRACE_ENTRY();
 
@@ -3104,7 +3120,7 @@ void __scst_block_dev(struct scst_device *dev)
 }
 
 /* No locks */
-void scst_block_dev(struct scst_device *dev, int outstanding)
+static void scst_block_dev(struct scst_device *dev, int outstanding)
 {
 	spin_lock_bh(&dev->dev_lock);
 	__scst_block_dev(dev);

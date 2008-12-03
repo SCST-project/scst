@@ -125,7 +125,6 @@ extern unsigned long scst_trace_flag;
 
 #define SCST_TGT_RETRY_TIMEOUT               (3/2*HZ)
 
-extern unsigned int scst_max_cmd_mem;
 extern unsigned int scst_max_dev_cmd_mem;
 
 extern mempool_t *scst_mgmt_mempool;
@@ -145,14 +144,9 @@ extern struct scst_sgv_pools scst_sgv;
 extern unsigned long scst_flags;
 extern struct mutex scst_mutex;
 extern atomic_t scst_cmd_count;
-extern struct list_head scst_template_list; /* protected by scst_mutex */
-extern struct list_head scst_dev_list; /* protected by scst_mutex */
-extern struct list_head scst_dev_type_list; /* protected by scst_mutex */
+extern struct list_head scst_dev_list;
+extern struct list_head scst_dev_type_list;
 extern wait_queue_head_t scst_dev_cmd_waitQ;
-
-extern struct mutex scst_suspend_mutex;
-/* protected by scst_suspend_mutex */
-extern struct list_head scst_cmd_lists_list;
 
 extern struct list_head scst_acg_list;
 extern struct scst_acg *scst_default_acg;
@@ -260,12 +254,8 @@ void scst_free_device(struct scst_device *dev);
 
 struct scst_acg *scst_alloc_add_acg(const char *acg_name);
 int scst_destroy_acg(struct scst_acg *acg);
-int scst_proc_group_add_tree(struct scst_acg *acg, const char *name);
-void scst_proc_del_acg_tree(struct proc_dir_entry *acg_proc_root,
-	const char *name);
 
 int scst_sess_alloc_tgt_devs(struct scst_session *sess);
-void scst_sess_free_tgt_devs(struct scst_session *sess);
 void scst_nexus_loss(struct scst_tgt_dev *tgt_dev);
 
 int scst_acg_add_dev(struct scst_acg *acg, struct scst_device *dev,
@@ -275,9 +265,6 @@ int scst_acg_remove_dev(struct scst_acg *acg, struct scst_device *dev);
 int scst_acg_add_name(struct scst_acg *acg, const char *name);
 int scst_acg_remove_name(struct scst_acg *acg, const char *name);
 
-struct scst_cmd *scst_create_prepare_internal_cmd(
-	struct scst_cmd *orig_cmd, int bufsize);
-void scst_free_internal_cmd(struct scst_cmd *cmd);
 int scst_prepare_request_sense(struct scst_cmd *orig_cmd);
 struct scst_cmd *scst_complete_request_sense(struct scst_cmd *cmd);
 
@@ -297,8 +284,6 @@ static inline void scst_destroy_cmd(struct scst_cmd *cmd)
 	return;
 }
 
-void scst_proccess_redirect_cmd(struct scst_cmd *cmd,
-	enum scst_exec_context context, int check_retries);
 void scst_check_retries(struct scst_tgt *tgt);
 void scst_tgt_retry_timer_fn(unsigned long arg);
 
@@ -338,7 +323,6 @@ static inline int scst_exec_req(struct scsi_device *sdev,
 #endif
 
 int scst_alloc_space(struct scst_cmd *cmd);
-void scst_release_space(struct scst_cmd *cmd);
 void scst_scsi_op_list_init(void);
 
 enum scst_sg_copy_dir {
@@ -348,9 +332,6 @@ enum scst_sg_copy_dir {
 void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir);
 
 uint64_t scst_unpack_lun(const uint8_t *lun, int len);
-
-struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,
-	uint64_t tag);
 
 struct scst_mgmt_cmd *scst_alloc_mgmt_cmd(gfp_t gfp_mask);
 void scst_free_mgmt_cmd(struct scst_mgmt_cmd *mcmd);
@@ -383,9 +364,6 @@ void scst_dev_check_set_local_UA(struct scst_device *dev,
 
 void scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
 	const uint8_t *sense, int sense_len, int head);
-void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev, const uint8_t *sense,
-	int sense_len, int head);
-void scst_free_all_UA(struct scst_tgt_dev *tgt_dev);
 int scst_set_pending_UA(struct scst_cmd *cmd);
 
 void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
@@ -419,10 +397,8 @@ static inline int scst_is_implicit_hq(struct scst_cmd *cmd)
  */
 
 extern int scst_inc_on_dev_cmd(struct scst_cmd *cmd);
-extern void scst_unblock_cmds(struct scst_device *dev);
 
 extern void __scst_block_dev(struct scst_device *dev);
-extern void scst_block_dev(struct scst_device *dev, int outstanding);
 extern void scst_block_dev_cmd(struct scst_cmd *cmd, int outstanding);
 extern void scst_unblock_dev(struct scst_device *dev);
 extern void scst_unblock_dev_cmd(struct scst_cmd *cmd);
@@ -519,9 +495,6 @@ static inline void scst_check_restore_sg_buff(struct scst_cmd *cmd)
 }
 
 #ifdef CONFIG_SCST_DEBUG_TM
-extern void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev,
-	struct scst_acg_dev *acg_dev);
-extern void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev);
 extern void tm_dbg_check_released_cmds(void);
 extern int tm_dbg_check_cmd(struct scst_cmd *cmd);
 extern void tm_dbg_release_cmd(struct scst_cmd *cmd);
@@ -529,9 +502,6 @@ extern void tm_dbg_task_mgmt(struct scst_device *dev, const char *fn,
 	int force);
 extern int tm_dbg_is_release(void);
 #else
-static inline void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev,
-	struct scst_acg_dev *acg_dev) {}
-static inline void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev) {}
 static inline void tm_dbg_check_released_cmds(void) {}
 static inline int tm_dbg_check_cmd(struct scst_cmd *cmd)
 {

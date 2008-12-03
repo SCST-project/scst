@@ -555,7 +555,7 @@ static void scst_proc_cleanup_module_log(void)
 	return;
 }
 
-int scst_proc_group_add_tree(struct scst_acg *acg, const char *name)
+static int scst_proc_group_add_tree(struct scst_acg *acg, const char *name)
 {
 	int res = 0;
 	struct proc_dir_entry *generic;
@@ -609,7 +609,7 @@ out_remove:
 	goto out;
 }
 
-void scst_proc_del_acg_tree(struct proc_dir_entry *acg_proc_root,
+static void scst_proc_del_acg_tree(struct proc_dir_entry *acg_proc_root,
 	const char *name)
 {
 	TRACE_ENTRY();

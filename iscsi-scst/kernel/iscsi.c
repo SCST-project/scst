@@ -66,6 +66,7 @@ static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status);
 static void cmnd_prepare_get_rejected_cmd_data(struct iscsi_cmnd *cmnd);
 static void iscsi_check_send_delayed_tm_resp(struct iscsi_session *sess);
 static void iscsi_session_push_cmnd(struct iscsi_cmnd *cmnd);
+static void req_cmnd_release(struct iscsi_cmnd *req);
 
 static inline u32 cmnd_write_size(struct iscsi_cmnd *cmnd)
 {
@@ -392,7 +393,7 @@ again_rsp:
  * Corresponding conn may also gets destroyed atfer this function, except only
  * if it's called from the read thread!
  */
-void req_cmnd_release(struct iscsi_cmnd *req)
+static void req_cmnd_release(struct iscsi_cmnd *req)
 {
 	struct iscsi_cmnd *c, *t;
 

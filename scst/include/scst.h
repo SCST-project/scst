@@ -2600,9 +2600,6 @@ int scst_alloc_set_sense(struct scst_cmd *cmd, int atomic,
 void scst_set_sense(uint8_t *buffer, int len, int key,
 	int asc, int ascq);
 
-void scst_set_cmd_error_sense(struct scst_cmd *cmd, uint8_t *sense,
-	unsigned int len);
-
 /*
  * Returnes a pseudo-random number for debugging purposes. Available only in
  * the DEBUG build.
