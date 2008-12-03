@@ -62,13 +62,14 @@ struct srpt_thread {
 
 static u64 mellanox_ioc_guid;
 static struct list_head srpt_devices;
-static int thread = 1;
+static int thread = 0;
 static struct srpt_thread srpt_thread;
 static DECLARE_WAIT_QUEUE_HEAD(ioctx_list_waitQ);
 
 module_param(thread, int, 0444);
 MODULE_PARM_DESC(thread,
-		 "Executing ioctx in thread context. Default thread = 1");
+		 "Executing ioctx in thread context. Default 0, i.e. soft IRQ, "
+		 "where possible");
 
 static void srpt_add_one(struct ib_device *device);
 static void srpt_remove_one(struct ib_device *device);
@@ -704,7 +705,7 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 
 	if (scst_cmd_get_data_direction(ioctx->scmnd) == SCST_DATA_WRITE)
 		scst_rx_data(ioctx->scmnd, SCST_RX_STATUS_SUCCESS,
-			     SCST_CONTEXT_THREAD);
+			scst_estimate_context());
 }
 
 static void srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
@@ -869,9 +870,9 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 		spin_lock_irq(&ch->spinlock);
 		list_add_tail(&ioctx->scmnd_list, &ch->active_scmnd_list);
 		ch->active_scmnd_cnt++;
-		scst_cmd_init_done(scmnd, SCST_CONTEXT_THREAD);
 		spin_unlock_irq(&ch->spinlock);
 
+		scst_cmd_init_done(scmnd, scst_estimate_context());
 		break;
 
 	case SRP_TSK_MGMT:
