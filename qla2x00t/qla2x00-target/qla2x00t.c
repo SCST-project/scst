@@ -73,10 +73,10 @@ static void q2t_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 #define trace_flag q2t_trace_flag
-unsigned long q2t_trace_flag = Q2T_DEFAULT_LOG_FLAGS;
+static unsigned long q2t_trace_flag = Q2T_DEFAULT_LOG_FLAGS;
 #endif
 
-struct scst_tgt_template tgt_template = {
+static struct scst_tgt_template tgt_template = {
 	.name			= "qla2x00tgt",
 	.sg_tablesize		= 0,
 	.use_clustering		= 1,
@@ -95,7 +95,7 @@ struct scst_tgt_template tgt_template = {
 	.task_mgmt_fn_done	= q2t_task_mgmt_fn_done,
 };
 
-struct kmem_cache *q2t_cmd_cachep;
+static struct kmem_cache *q2t_cmd_cachep;
 static struct qla2x_tgt_target tgt_data;
 
 /*

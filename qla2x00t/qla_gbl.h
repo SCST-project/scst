@@ -374,13 +374,4 @@ extern void qla2x00_free_sysfs_attr(scsi_qla_host_t *);
 extern int qla2x00_dfs_setup(scsi_qla_host_t *);
 extern int qla2x00_dfs_remove(scsi_qla_host_t *);
 
-/* from qla_os.c for __qla2x00_host_reset in qla_init.c */
-int
-qla2x00_wait_for_loop_ready(scsi_qla_host_t *ha);
-int
-qla2x00_wait_for_hba_online(scsi_qla_host_t *ha);
-int
-qla2x00_eh_wait_for_pending_commands(scsi_qla_host_t *ha, unsigned int t,
-    unsigned int l, enum nexus_wait_type type);
-
 #endif /* _QLA_GBL_H */

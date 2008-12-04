@@ -601,7 +601,7 @@ qla2x00_wait_for_hba_online(scsi_qla_host_t *ha)
  *    Success (LOOP_READY) : 0
  *    Failed  (LOOP_NOT_READY) : 1
  */
-int
+static int
 qla2x00_wait_for_loop_ready(scsi_qla_host_t *ha)
 {
 	int 	 return_status = QLA_SUCCESS;
@@ -762,7 +762,13 @@ qla2xxx_eh_abort(struct scsi_cmnd *cmd)
 	return ret;
 }
 
-int
+enum nexus_wait_type {
+	WAIT_HOST = 0,
+	WAIT_TARGET,
+	WAIT_LUN,
+};
+
+static int
 qla2x00_eh_wait_for_pending_commands(scsi_qla_host_t *ha, unsigned int t,
     unsigned int l, enum nexus_wait_type type)
 {

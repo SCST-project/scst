@@ -4136,50 +4136,11 @@ qla24xx_configure_vhba(scsi_qla_host_t *ha)
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 
 /*
- * __qla2x00_host_reset - NO LOCKS HELD
- *
- * Reset host adapter.
- * taken directly from qla2xxx_eh_host_reset() {ver 8.01.03-k}
- */
-void
-__qla2x00_host_reset(scsi_qla_host_t *ha)
-{
-	int ret = FAILED;
-
-	qla_printk(KERN_INFO, ha, "scsi(%ld): ADAPTER RESET ISSUED.\n",
-		   ha->host_no);
-
-	if (qla2x00_wait_for_hba_online(ha) != QLA_SUCCESS)
-		goto out;
-
-	qla2x00_wait_for_loop_ready(ha);
-	set_bit(ABORT_ISP_ACTIVE, &ha->dpc_flags);
-	if (qla2x00_abort_isp(ha)) {
-		clear_bit(ABORT_ISP_ACTIVE, &ha->dpc_flags);
-		/* failed. schedule dpc to try */
-		set_bit(ISP_ABORT_NEEDED, &ha->dpc_flags);
-
-		if (qla2x00_wait_for_hba_online(ha) != QLA_SUCCESS)
-			goto out;
-	}
-	clear_bit(ABORT_ISP_ACTIVE, &ha->dpc_flags);
-
-	/* Waiting for our command in done_queue to be returned to OS.*/
-	if (qla2x00_eh_wait_for_pending_commands(ha, 0, 0, WAIT_HOST))
-		ret = SUCCESS;
-
-out:
-	qla_printk(KERN_INFO, ha, "%s: reset %s\n", __func__,
-	    (ret == FAILED) ? "failed" : "succeded");
-	return;
-}
-
-/*
  * __qla2x00_enable_lun - NO LOCK HELD
  *
  * host_reset, bring up w/ Target Mode Enabled
  */
-void
+static void
 __qla2x00_enable_lun(scsi_qla_host_t *ha)
 {
 	unsigned long flags = 0;
@@ -4188,7 +4149,6 @@ __qla2x00_enable_lun(scsi_qla_host_t *ha)
 	ha->flags.enable_target_mode = 1;
 	spin_unlock_irqrestore(&ha->hardware_lock, flags);
 
-	/* __qla2x00_host_reset(ha); */
 	set_bit(ISP_ABORT_NEEDED, &ha->dpc_flags);
 }
 
@@ -4197,7 +4157,7 @@ __qla2x00_enable_lun(scsi_qla_host_t *ha)
  *
  * Disable Target Mode and reset the adapter
  */
-void
+static void
 __qla2x00_disable_lun(scsi_qla_host_t *ha)
 {
 	unsigned long flags = 0;
@@ -4206,7 +4166,6 @@ __qla2x00_disable_lun(scsi_qla_host_t *ha)
 	ha->flags.enable_target_mode = 0;
 	spin_unlock_irqrestore(&ha->hardware_lock, flags);
 
-	/* __qla2x00_host_reset(ha); */
 	set_bit(ISP_ABORT_NEEDED, &ha->dpc_flags);
 }
 
@@ -4216,7 +4175,7 @@ __qla2x00_disable_lun(scsi_qla_host_t *ha)
  *	Caller MUST have hardware lock held
  */
 
-int
+static int
 __qla2x00_issue_marker(scsi_qla_host_t *ha)
 {
 	/* Send marker if required */
@@ -4228,7 +4187,7 @@ __qla2x00_issue_marker(scsi_qla_host_t *ha)
 	return QLA_SUCCESS;
 }
 
-int
+static int
 qla2x00_get_resource_counts(scsi_qla_host_t *ha, uint8_t *cmd, uint8_t *imm)
 {
 	mbx_cmd_t mc;
@@ -4254,7 +4213,7 @@ qla2x00_get_resource_counts(scsi_qla_host_t *ha, uint8_t *cmd, uint8_t *imm)
  *	Retrieve a continue packet from request que
  *	Caller MUST have hardware lock held
  */
-cont_entry_t *
+static cont_entry_t *
 qla2x00_req_cont_pkt(scsi_qla_host_t *ha)
 {
 	/* Adjust ring index. */
