@@ -67,7 +67,7 @@
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 #define trace_flag scst_local_trace_flag
-unsigned long scst_local_trace_flag = SCST_LOCAL_DEFAULT_LOG_FLAGS;
+static unsigned long scst_local_trace_flag = SCST_LOCAL_DEFAULT_LOG_FLAGS;
 #endif
 
 #define TRUE 1
