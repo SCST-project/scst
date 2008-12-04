@@ -318,6 +318,8 @@ if [ "$scst_local" = "true" ]; then
 
   add_file "scst_local/scst_local.c" "drivers/scst/scst_local/scst_local.c"
 
+  add_file  "scst_local/README"       "Documentation/scst/README.scst_local"
+
 else
 
   add_empty_file "drivers/scst/scst_local/Kconfig"
