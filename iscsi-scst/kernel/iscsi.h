@@ -169,7 +169,7 @@ struct iscsi_conn {
 	 * thread.
 	 */
 	struct iscsi_cmnd *write_cmnd;
-	struct iovec __user *write_iop;
+	struct iovec *write_iop;
 	int write_iop_used;
 	struct iovec write_iov[2];
 	u32 write_size;

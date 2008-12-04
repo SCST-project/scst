@@ -2138,7 +2138,7 @@ void cmnd_tx_start(struct iscsi_cmnd *cmnd)
 
 	set_cork(conn->sock, 1);
 
-	conn->write_iop = (void __force __user *)(conn->write_iov);
+	conn->write_iop = conn->write_iov;
 	conn->write_iop->iov_base = (void __force __user *)(&cmnd->pdu.bhs);
 	conn->write_iop->iov_len = sizeof(cmnd->pdu.bhs);
 	conn->write_iop_used = 1;

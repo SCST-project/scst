@@ -988,7 +988,7 @@ static int write_data(struct iscsi_conn *conn)
 	struct iscsi_cmnd *write_cmnd = conn->write_cmnd;
 	struct iscsi_cmnd *ref_cmd;
 	struct scatterlist *sg;
-	struct iovec __user *iop;
+	struct iovec *iop;
 	int saved_size, size, sendsize;
 	int offset, idx, sg_offset;
 	int flags, res, count;
