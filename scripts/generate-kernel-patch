@@ -24,10 +24,11 @@
 ########################
 
 function usage {
-  echo "Usage: $0 [-h] [-l] [-m] [-q] [-s] <kernel version>, where: "
+  echo "Usage: $0 [-h] [-m] [-p <dir>] [-q] <kernel version>, where: "
   echo "        -h - show this text"
-  echo "        -l - add scst_local target driver"
   echo "        -m - add mpt target driver"
+  echo "        -p - generate multiple patches instead of one big patch into"\
+       "the specified directory."
   echo "        -q - add qla2x00t driver"
 }
 
@@ -88,6 +89,27 @@ diff -uprN orig/linux-${kernel_version}/$1 linux-${kernel_version}/$1
 EOF
 }
 
+# Read a patch from stdin, specialize it for kernel version ${kernel_version}
+# and write the output either to stdout or to the file $1 (if not empty),
+# depending on the value of the variable ${multiple_patches}.
+function process_patch {
+  if [ "${multiple_patches}" = "true" ]; then
+    if [ -e "${patchdir}/$1" ]; then
+      echo "Warning: overwriting ${patchdir}/$1"
+    fi
+    if [ "$1" != "" ]; then
+    (
+      echo "Signed-off-by: ${SIGNED_OFF_BY}"
+      echo ""
+      "$(dirname $0)/specialize-patch" -v kernel_version="${kernel_version}"
+    ) >"${patchdir}/$1"
+    else
+      echo "Skipping ..."
+    fi
+  else
+    "$(dirname $0)/specialize-patch" -v kernel_version="${kernel_version}" 
+  fi
+}
 
 #########################
 # Argument verification #
@@ -96,20 +118,22 @@ EOF
 qla2x00t="false"
 srpt="true"
 mpt_scst="false"
-scst_local="false"
+multiple_patches="false"
+patchdir=""
 
 if [ ! -e scst -o ! -e iscsi-scst -o ! -e srpt -o ! -e scst_local ]; then
   echo "Please run this script from inside the SCST subversion source tree."
   exit 1
 fi
 
-set -- $(/usr/bin/getopt hlmq "$@")
+set -- $(/usr/bin/getopt hlmp:q "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
     '-h') usage; exit 1;;
-    '-l') scst_local="true"; shift;;
+    '-l') shift;;
     '-m') mpt_scst="true"; shift;;
+    '-p') multiple_patches="true"; patchdir="$2"; shift; shift;;
     '-q') qla2x00t="true"; shift;;
     '--') shift;;
     *)    usage; exit 1;;
@@ -119,6 +143,15 @@ done
 if [ $# != 1 ]; then
   usage
   exit 1
+fi
+
+if [ "${multiple_patches}" = "" ]; then
+  if [ -e "${patchdir}" ]; then
+    echo "Patch output directory ${patchdir} already exists."
+  fi
+  if [ ! -d "${patchdir}" ]; then
+    echo "Error: ${patchdir} is not a directory."
+  fi
 fi
 
 
@@ -133,38 +166,20 @@ else
   kernel_version="$1"
 fi
 
-echo "Signed-off-by: ... <...@...>"
-echo ""
+if [ "${multiple_patches}" = "false" ]; then
+  echo "Signed-off-by: ${SIGNED_OFF_BY}"
+  echo ""
+fi
 
-kpatch=(                                                                \
-  "scst/kernel/scst_exec_req_fifo-${kernel_version}.patch"              \
-  "scst/kernel/export_alloc_io_context-${kernel_version}.patch"		\
-  "iscsi-scst/kernel/patches/put_page_callback-${kernel_version}.patch" \
-)
-
-for p in "${kpatch[@]}"
-do
-  if [ ! -e "$p" ]; then
-    echo "Error: kernel version ${kernel_version} is not supported by SCST."
-    echo "(could not find file $p)."
-    exit 1
-  fi >&2
-done
-
-
-# Redirect the output of all subsequent commands to the specialize-patch script
-
-trap "rm -f ${fifo}" EXIT
-fifo=/tmp/generate-kernel-patch-fifo.$$
-rm -f "${fifo}"
-mkfifo "${fifo}"
-"$(dirname $0)/specialize-patch" -v kernel_version="${kernel_version}" \
-  < "${fifo}" &
-exec >"${fifo}"
 
 # General kernel patches.
 
-cat "${kpatch[@]}"
+process_patch < "scst/kernel/scst_exec_req_fifo-${kernel_version}.patch" \
+    "scst_exec_req_fifo.patch"
+process_patch < "scst/kernel/export_alloc_io_context-${kernel_version}.patch" \
+    "export_alloc_io_context.diff"
+process_patch < "iscsi-scst/kernel/patches/put_page_callback-${kernel_version}.patch" \
+    "put_page_callback.diff"
 
 
 # Directory include/scst/
@@ -172,34 +187,44 @@ cat "${kpatch[@]}"
 for f in $(ls scst/include/*h)
 do
   add_file "${f}" "include/scst/${f#scst/include/}"
-done
+done \
+| process_patch "scst_public_headers.diff"
 
 
 # Directory drivers/
 
+(
 add_patch "scst/kernel/in-tree/Kconfig.drivers.Linux-${kernel_version}.patch" \
           "drivers/Kconfig"
 
 add_patch "scst/kernel/in-tree/Makefile.drivers.Linux-${kernel_version}.patch"\
           "drivers/Makefile"
+) \
+| process_patch "misc.diff"
 
 
 # Directory drivers/scst/
 
+(
 add_file "scst/kernel/in-tree/Kconfig.scst"  "drivers/scst/Kconfig"
 
 add_file "scst/kernel/in-tree/Makefile.scst" "drivers/scst/Makefile"
-
-add_file "scst/README_in-tree"               "Documentation/scst/README.scst"
 
 for f in $(ls scst/src/*.[ch])
 do
   add_file "${f}" "drivers/scst/${f#scst/src/}"
 done
+) \
+| process_patch "scst_core.diff"
+
+add_file "scst/README_in-tree" "Documentation/scst/README.scst" \
+| process_patch "scst_core_doc.diff"
+
 
 
 # Directory drivers/scst/dev_handlers/
 
+(
 add_file "scst/kernel/in-tree/Makefile.dev_handlers" \
          "drivers/scst/dev_handlers/Makefile"
 
@@ -207,6 +232,8 @@ for f in $(ls scst/src/dev_handlers/*.[ch])
 do
   add_file "${f}" "drivers/scst/dev_handlers/${f#scst/src/dev_handlers/}"
 done
+) \
+| process_patch "scst_dev_handlers.diff"
 
 
 # Directory drivers/scst/iscsi-scst/
@@ -214,6 +241,7 @@ done
 # Make sure the file iscsi-scst/iscsi_scst_itf_ver.h is up to date.
 make -s -C iscsi-scst include/iscsi_scst_itf_ver.h
 
+(
 for f in $(ls iscsi-scst/include/*h)
 do
   add_file "${f}" "include/scst/${f#iscsi-scst/include/}"
@@ -228,8 +256,12 @@ for f in $(ls iscsi-scst/kernel/*.[ch])
 do
   add_file "${f}" "drivers/scst/iscsi-scst/${f#iscsi-scst/kernel/}"
 done
+) \
+| process_patch "iscsi-scst.diff"
 
-add_file "iscsi-scst/README_in-tree"               "Documentation/scst/README.iscsi"
+add_file "iscsi-scst/README_in-tree" "Documentation/scst/README.iscsi" \
+| process_patch "iscsi-scst-doc.diff"
+
 
 # Directory drivers/scst/qla2x00-target/
 
@@ -258,7 +290,9 @@ else
 
   add_empty_file "drivers/scst/qla2xxx-target/Kconfig"
 
-fi
+fi \
+| process_patch "qla2x00t.diff"
+
 
 # Directory drivers/scst/srpt
 
@@ -267,8 +301,6 @@ if [ "$srpt" = "true" ]; then
   add_file  "srpt/src/Kconfig"            "drivers/scst/srpt/Kconfig"
 
   add_file  "srpt/src/Makefile.in_kernel" "drivers/scst/srpt/Makefile"
-
-  add_file  "srpt/README"                 "Documentation/scst/README.srpt"
 
   for f in $(ls srpt/src/*.[ch])
   do
@@ -281,7 +313,12 @@ else
 
   add_empty_file "drivers/scst/srpt/Makefile"
 
-fi
+fi \
+| process_patch "srpt.diff"
+
+add_file "srpt/README" "Documentation/scst/README.srpt" \
+| process_patch "srpt-doc.diff"
+
 
 # Directory drivers/message/fusion/mpt_scst
 
@@ -306,24 +343,20 @@ else
 
   add_empty_file "drivers/message/fusion/Makefile"
 
-fi
+fi \
+| process_patch "mpt.diff"
+
 
 # Directory drivers/scst/scst-local
 
-if [ "$scst_local" = "true" ]; then
-
+(
   add_file "scst_local/in-tree/Kconfig" "drivers/scst/scst_local/Kconfig"
 
   add_file "scst_local/in-tree/Makefile" "drivers/scst/scst_local/Makefile"
 
   add_file "scst_local/scst_local.c" "drivers/scst/scst_local/scst_local.c"
+) \
+| process_patch "scst-local.diff"
 
-  add_file  "scst_local/README"       "Documentation/scst/README.scst_local"
-
-else
-
-  add_empty_file "drivers/scst/scst_local/Kconfig"
-
-  add_empty_file "drivers/scst/scst_local/Makefile"
-
-fi
+add_file "scst_local/README" "Documentation/scst/README.scst_local" \
+| process_patch "scst-local-doc.diff"
