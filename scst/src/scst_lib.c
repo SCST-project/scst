@@ -171,7 +171,6 @@ static void scst_set_cmd_error_sense(struct scst_cmd *cmd, uint8_t *sense,
 	TRACE_EXIT();
 	return;
 }
-EXPORT_SYMBOL(scst_set_cmd_error_sense);
 
 void scst_set_busy(struct scst_cmd *cmd)
 {
