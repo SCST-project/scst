@@ -601,7 +601,7 @@ qla2x00_wait_for_hba_online(scsi_qla_host_t *ha)
  *    Success (LOOP_READY) : 0
  *    Failed  (LOOP_NOT_READY) : 1
  */
-static int
+static inline int
 qla2x00_wait_for_loop_ready(scsi_qla_host_t *ha)
 {
 	int 	 return_status = QLA_SUCCESS;
