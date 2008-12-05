@@ -175,7 +175,7 @@ fi
 # General kernel patches.
 
 process_patch < "scst/kernel/scst_exec_req_fifo-${kernel_version}.patch" \
-    "scst_exec_req_fifo.patch"
+    "scst_exec_req_fifo.diff"
 process_patch < "scst/kernel/export_alloc_io_context-${kernel_version}.patch" \
     "export_alloc_io_context.diff"
 process_patch < "iscsi-scst/kernel/patches/put_page_callback-${kernel_version}.patch" \
@@ -226,7 +226,8 @@ add_file "scst/README_in-tree" "Documentation/scst/README.scst" \
 
 (
 add_file "scst/kernel/in-tree/Makefile.dev_handlers" \
-         "drivers/scst/dev_handlers/Makefile"
+         "drivers/scst/dev_handlers/Makefile" \
+| process_patch "dev_handlers_makefile.diff"
 
 for f in $(ls scst/src/dev_handlers/*.[ch])
 do
@@ -273,8 +274,8 @@ if [ "${qla2x00t}" = "true" ]; then
   add_file "qla2x00t/qla2x00-target/Kconfig" \
            "drivers/scst/qla2xxx-target/Kconfig"
 
-  add_file "qla2x00t/qla2x_tgt_def.h" \
-           "drivers/scst/qla2x00-target/qla2x_tgt_def.h"
+#  add_file "qla2x00t/qla2x_tgt_def.h" \
+#           "drivers/scst/qla2x00-target/qla2x_tgt_def.h"
 
   add_file "qla2x00t/qla2x00-target/README" \
            "Documentation/scst/README.qla2x00t"
@@ -337,17 +338,17 @@ if [ "$mpt_scst" = "true" ]; then
     add_file "${f}" "drivers/message/fusion/mpt_scst/${f#mpt/}"
   done
 
-else
+#else
 
-  add_empty_file "drivers/message/fusion/Kconfig"
+#  add_empty_file "drivers/message/fusion/Kconfig"
 
-  add_empty_file "drivers/message/fusion/Makefile"
+#  add_empty_file "drivers/message/fusion/Makefile"
 
 fi \
 | process_patch "mpt.diff"
 
 
-# Directory drivers/scst/scst-local
+# Directory drivers/scst/scst_local
 
 (
   add_file "scst_local/in-tree/Kconfig" "drivers/scst/scst_local/Kconfig"
@@ -356,7 +357,7 @@ fi \
 
   add_file "scst_local/scst_local.c" "drivers/scst/scst_local/scst_local.c"
 ) \
-| process_patch "scst-local.diff"
+| process_patch "scst_local.diff"
 
 add_file "scst_local/README" "Documentation/scst/README.scst_local" \
-| process_patch "scst-local-doc.diff"
+| process_patch "scst_local-doc.diff"
