@@ -29,7 +29,7 @@ To minimize QUEUEFULL conditions, please apply scst_increase_max_tgt_cmds
 patch and recompile scst
 
 $ cd ~scst/trunk
-$ patch -p0 < srpt/patches/scst_increasa_max_tgt_cmds.patch
+$ patch -p0 < srpt/patches/scst_increase_max_tgt_cmds.patch
 $ make scst scst_install srpt srpt_install
 
 On the other hand, if you have obtained the SCST source code included
