@@ -94,17 +94,17 @@ EOF
 # depending on the value of the variable ${multiple_patches}.
 function process_patch {
   if [ "${multiple_patches}" = "true" ]; then
-    if [ -e "${patchdir}/$1" ]; then
-      echo "Warning: overwriting ${patchdir}/$1"
-    fi
     if [ "$1" != "" ]; then
+      if [ -e "${patchdir}/$1" ]; then
+        echo "Warning: overwriting ${patchdir}/$1"
+      fi
     (
       echo "Signed-off-by: ${SIGNED_OFF_BY}"
       echo ""
       "$(dirname $0)/specialize-patch" -v kernel_version="${kernel_version}"
     ) >"${patchdir}/$1"
     else
-      echo "Skipping ..."
+      echo "Discarded $(wc -l) lines."
     fi
   else
     "$(dirname $0)/specialize-patch" -v kernel_version="${kernel_version}" 
@@ -325,6 +325,7 @@ add_file "srpt/README" "Documentation/scst/README.srpt" \
 
 if [ "$mpt_scst" = "true" ]; then
 
+  (
   add_patch "mpt/in-tree/Kconfig-2.6.24.diff" "drivers/message/fusion/Kconfig"
 
   add_patch "mpt/in-tree/Makefile.diff"       "drivers/message/fusion/Makefile"
@@ -337,15 +338,19 @@ if [ "$mpt_scst" = "true" ]; then
   do
     add_file "${f}" "drivers/message/fusion/mpt_scst/${f#mpt/}"
   done
+  ) \
+  | process_patch "mpt_scst.diff"
 
-#else
+else
 
-#  add_empty_file "drivers/message/fusion/Kconfig"
+  (
+    add_empty_file "drivers/message/fusion/Kconfig"
 
-#  add_empty_file "drivers/message/fusion/Makefile"
+    add_empty_file "drivers/message/fusion/Makefile"
+  ) \
+  | process_patch ""
 
-fi \
-| process_patch "mpt.diff"
+fi
 
 
 # Directory drivers/scst/scst_local
