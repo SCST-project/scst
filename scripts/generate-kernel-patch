@@ -104,12 +104,20 @@ function process_patch {
       "$(dirname $0)/specialize-patch" -v kernel_version="${kernel_version}"
     ) >"${patchdir}/$1"
     else
-      echo "Discarded $(wc -l) lines."
+      # echo "Discarded $(wc -l) lines."
+      true
     fi
   else
     "$(dirname $0)/specialize-patch" -v kernel_version="${kernel_version}" 
   fi
 }
+
+# Returns 0 (true) if SCST core file "$1" should be added in a separate patch,
+# and 1 (false) if not.
+function in_separate_patch {
+  echo "${source_files_in_separate_patch}" | grep -qE "^$1 | $1 | $1\$"
+}
+
 
 #########################
 # Argument verification #
@@ -182,11 +190,19 @@ process_patch < "iscsi-scst/kernel/patches/put_page_callback-${kernel_version}.p
     "put_page_callback.diff"
 
 
+scst_debug="scst/include/scst_debug.h scst/src/scst_debug.c"
+scst_sgv="scst/include/scst_sgv.h scst/src/scst_mem.h scst/src/scst_mem.c"
+scst_user="scst/include/scst_user.h scst/src/dev_handlers/scst_user.c"
+source_files_in_separate_patch="${scst_debug} ${scst_sgv} ${scst_user}"
+
+
 # Directory include/scst/
 
 for f in $(ls scst/include/*h)
 do
-  add_file "${f}" "include/scst/${f#scst/include/}"
+  if ! in_separate_patch "${f}"; then
+    add_file "${f}" "include/scst/${f#scst/include/}"
+  fi
 done \
 | process_patch "scst_public_headers.diff"
 
@@ -212,10 +228,26 @@ add_file "scst/kernel/in-tree/Makefile.scst" "drivers/scst/Makefile"
 
 for f in $(ls scst/src/*.[ch])
 do
-  add_file "${f}" "drivers/scst/${f#scst/src/}"
+  if ! in_separate_patch "${f}"; then
+    add_file "${f}" "drivers/scst/${f#scst/src/}"
+  fi
 done
 ) \
 | process_patch "scst_core.diff"
+
+for s in scst_debug scst_sgv scst_user
+do
+  fileset=$s
+  for f in $(set | sed -n -e "s/^$s='\(.*\)'\$/\1/p")
+  do
+    if [ "${f#scst/include}" != "${f}" ]; then
+      add_file "${f}" "include/scst/${f#scst/include/}"
+    else
+      add_file "${f}" "drivers/scst/${f#scst/src/}"
+    fi
+  done \
+  | process_patch "${s}.diff"
+done
 
 add_file "scst/README_in-tree" "Documentation/scst/README.scst" \
 | process_patch "scst_core_doc.diff"
@@ -231,7 +263,9 @@ add_file "scst/kernel/in-tree/Makefile.dev_handlers" \
 
 for f in $(ls scst/src/dev_handlers/*.[ch])
 do
-  add_file "${f}" "drivers/scst/dev_handlers/${f#scst/src/dev_handlers/}"
+  if ! in_separate_patch "${f}"; then
+    add_file "${f}" "drivers/scst/dev_handlers/${f#scst/src/dev_handlers/}"
+  fi
 done
 ) \
 | process_patch "scst_dev_handlers.diff"
