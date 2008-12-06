@@ -39,6 +39,7 @@
 # - Run 'make allmodconfig'.
 # - Run the sparse source code checker on the SCST directory.
 # - Run 'make headers_check'.
+# - Run 'make htmldocs'.
 # - Compile the kernel tree.
 # - Run 'make checkstack'.
 # - Run 'make namespacecheck'.
@@ -105,7 +106,7 @@ function extract_kernel_tree {
 # to the SCST tree. Does not modify any files nor produce any output files.
 function test_scst_tree_patches {
   echo "Testing whether the SCST patches apply cleanly to the SCST tree ..."
-  for p in *.patch
+  for p in *.patch srpt/patches/scst_increase_max_tgt_cmds.patch
   do
     patch -p0 -f --dry-run -s <$p >&/dev/null \
     || echo "ERROR: patch $p does not apply cleanly."
@@ -355,6 +356,22 @@ function run_headers_check {
   return 0
 }
 
+function run_make_htmldocs {
+  local kver="$(kernel_version $1)"
+  local plevel="$(patchlevel $1)"
+  local outputfile="${outputdir}/htmldocs-$1-output.txt"
+
+  echo "Generating HTML documentation for the patched $1 kernel ..."
+  (
+    cd "${outputdir}/linux-$1" \
+    && make -s prepare \
+    && make -s scripts \
+    && LC_ALL=C make -k htmldocs
+  ) >& "${outputfile}"
+  echo "See also ${outputfile}."
+  return 0
+}
+
 
 #########################
 # Argument verification #
@@ -396,8 +413,8 @@ fi
 
 # Default kernel versions to use for the test.
 if [ "${kernel_versions}" = "" ]; then
-  #kernel_versions="2.6.24.7 2.6.25.20 2.6.26.8 2.6.27.7"
-  kernel_versions="2.6.27.7"
+  #kernel_versions="2.6.24.7 2.6.25.20 2.6.26.8 2.6.27.8"
+  kernel_versions="2.6.27.8"
 fi
 
 
@@ -419,6 +436,7 @@ do
     patch_and_configure_kernel $k
     run_sparse $k
     run_headers_check $k
+    run_make_htmldocs $k
     compile_patched_kernel $k
     run_checkstack $k
     run_namespacecheck $k
