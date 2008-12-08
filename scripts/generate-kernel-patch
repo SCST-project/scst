@@ -375,15 +375,6 @@ if [ "$mpt_scst" = "true" ]; then
   ) \
   | process_patch "mpt_scst.diff"
 
-else
-
-  (
-    add_empty_file "drivers/message/fusion/Kconfig"
-
-    add_empty_file "drivers/message/fusion/Makefile"
-  ) \
-  | process_patch ""
-
 fi
 
 
