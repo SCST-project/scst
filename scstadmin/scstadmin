@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-$Version  = 'SCST Configurator v1.0.2';
+$Version  = 'SCST Configurator v1.0.3';
 
 # Configures SCST
 #
@@ -97,11 +97,13 @@ my $_DEF_CONFIG_ = '/etc/scst.conf';
 my $TRUE  = 1;
 my $FALSE = 0;
 
-my $_MAX_LUNS_      = 255;
-my $_DEFAULT_GROUP_ = 'Default';
+my $_MAX_LUNS_       = 255;
+my $_DEFAULT_GROUP_  = 'Default';
 
-my $_SCSI_CLASS_    = '/sys/class/scsi_host';
-my $_FC_CLASS_      = '/sys/class/fc_host';
+my $_SCSI_CLASS_     = '/sys/class/scsi_host';
+my $_FC_CLASS_       = '/sys/class/fc_host';
+my $_SCSI_ISP_       = '/proc/scsi/isp';
+my $_SCSITGT_QLAISP_ = '/proc/scsi_tgt/qla_isp';
 
 my $SCST;
 my $DEVICES;
@@ -1307,7 +1309,8 @@ sub clearDevices {
 sub targets {
 	my %targets;
 	my %fcards;
-	my $root = new IO::Dir $_FC_CLASS_;
+
+	my $root = new IO::Dir $_FC_CLASS_ if (-d $_FC_CLASS_);
 
 	if ($root) {
 		while (my $entry = $root->read()) {
@@ -1325,7 +1328,7 @@ sub targets {
 		}
 	}
 
-	$root = new IO::Dir $_SCSI_CLASS_;
+	$root = new IO::Dir $_SCSI_CLASS_ if (-d $_SCSI_CLASS_);
 
 	if ($root) {
 		while (my $entry = $root->read()) {
@@ -1340,6 +1343,7 @@ sub targets {
 
 				$targets{$entry}->{'path'} = "$_SCSI_CLASS_/$entry/target_mode_enabled";
 				$targets{$entry}->{'enabled'} = $enabled;
+				$targets{$entry}->{'qla_isp'} = $FALSE;
 
 				if ($fcards{$entry}) {
 					$targets{$fcards{$entry}}->{'enabled'} = $enabled;
@@ -1348,6 +1352,50 @@ sub targets {
 					$targets{$entry}->{'duplicate'} = $TRUE;
 				} else {
 					$targets{$entry}->{'duplicate'} = $FALSE;
+				}
+			}
+		}
+	}
+
+	$root = new IO::Dir $_SCSI_ISP_ if (-d $_SCSI_ISP_);
+
+	if ($root) {
+		while (my $entry = $root->read()) {
+			next if (($entry eq '.') || ($entry eq '..'));
+
+			local $/;
+			my $io = new IO::File "$_SCSI_ISP_/$entry", O_RDONLY;
+
+			if ($io) {
+				my $wwn;
+				my @fcont;
+				my $fstr;
+				my $enabled2;
+
+				$fstr = <$io>;
+				close $io;
+
+				($wwn) = ($fstr =~ '.*?Port WWN +([^\ ]+) .*');
+				$fcards{$entry} = $wwn;
+
+				$io = new IO::File "$_SCSITGT_QLAISP_/$entry", O_RDONLY;
+				if ($io) {
+					$fstr = <$io>;
+					close $io;
+
+					($enabled2) = ($fstr =~ '[^\n]+\n *\d *: *(\d)');
+					$targets{$entry}->{'path'} = "$_SCSITGT_QLAISP_/$entry";
+					$targets{$entry}->{'enabled'} = $enabled2;
+					$targets{$entry}->{'qla_isp'} = $TRUE;
+
+					if ($fcards{$entry}) {
+						$targets{$fcards{$entry}}->{'enabled'} = $enabled2;
+			    			$targets{$fcards{$entry}}->{'path'} = "$_SCSITGT_QLAISP_/$entry";
+						$targets{$fcards{$entry}}->{'qla_isp'} = $TRUE;
+						$targets{$entry}->{'duplicate'} = $TRUE;
+    					} else {
+						$targets{$entry}->{'duplicate'} = $FALSE;
+					}
 				}
 			}
 		}
@@ -1378,7 +1426,11 @@ sub enableTarget {
 	if ($_DEBUG_) {
 		print "DBG($$): ".$$TARGETS{$target}->{'path'}." -> $enable\n\n";
 	} else {
-		print $io $enable;
+		if ($$TARGETS{$target}->{'qla_isp'} == $FALSE) {
+			print $io $enable;
+		} else {
+			print $io $enable ? "enable all" : "disable all";
+		}
 	}
 
 	close $io;

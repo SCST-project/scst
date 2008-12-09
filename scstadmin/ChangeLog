@@ -1,3 +1,8 @@
+Changes since 1.0.3
+
+- Added patch from Witold Kowolik to allow for qla_isp enable/disable
+  target mode. This is untested by me as I don't have one of these cards.
+
 Changes since 1.0.2
 
 - Simplified/fixed options parsing. Thanks to Witold Kowolik.
