@@ -1,3 +1,15 @@
+Changes since 1.0.2
+
+- Simplified/fixed options parsing. Thanks to Witold Kowolik.
+- Use cluck() instead of print in module.
+- Added a new option REMOVABLE.
+- Allow options to be specified lowercase.
+
+Changes since 1.0.1
+
+- Module install/uninstall added
+- Added mapping NV -> NV_CACHE
+
 Changes since 1.0.0
 
 - Added a proper Makefile.PL to SCST::SCST so now we have a also a

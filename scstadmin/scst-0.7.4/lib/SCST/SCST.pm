@@ -2,13 +2,13 @@ package SCST::SCST;
 
 # Author:	Mark R. Buechler
 # License:	GPLv2
-# Copyright (c) 2005-2007 Mark R. Buechler
+# Copyright (c) 2005-2008 Mark R. Buechler
 
 use 5.005;
 use IO::Handle;
 use IO::File;
 use strict;
-use Carp;
+use Carp qw(cluck);
 
 my $TRUE  = 1;
 my $FALSE = 0;
@@ -55,7 +55,7 @@ $IOTYPE_PHYSICAL    = 100;
 $IOTYPE_VIRTUAL     = 101;
 $IOTYPE_PERFORMANCE = 102;
 
-$VERSION = 0.7.4;
+$VERSION = 0.7.5;
 
 my $_SCST_MIN_MAJOR_   = 0;
 my $_SCST_MIN_MINOR_   = 9;
@@ -112,13 +112,19 @@ my %_IO_TYPES_ = ($CDROM_TYPE => $IOTYPE_PHYSICAL,
 my %_HANDLER_ALIASES_ = ('vdisk_blk' => 'vdisk');
 
 my %_AVAILABLE_OPTIONS_ = ('WRITE_THROUGH' => 'WRITE_THROUGH',
+			   'WT'		   => 'WRITE_THROUGH',
 			   'O_DIRECT'      => 'O_DIRECT',
+			   'DR'		   => 'O_DIRECT',
 			   'READ_ONLY'     => 'READ_ONLY',
+			   'RO'		   => 'READ_ONLY',
 			   'NULLIO'        => 'NULLIO',
+			   'NIO'	   => 'NULLIO',
 			   'NV_CACHE'      => 'NV_CACHE',
 			   'NV'            => 'NV_CACHE',
 			   'BLOCKIO'       => 'BLOCKIO',
-			   'BIO'           => 'BLOCKIO');
+			   'BIO'           => 'BLOCKIO',
+			   'REMOVABLE'	   => 'REMOVABLE',
+			   'RM'		   => 'REMOVABLE');
 
 sub new {
 	my $this = shift;
@@ -372,7 +378,7 @@ sub handlerDevices {
 	my $io = new IO::File $handler_io, O_RDONLY;
 
 	if (!$io) {
-		print "WARNING: handlerDevices(): Failed to open handler IO $handler_io, assuming disabled.\n";
+		cluck("WARNING: handlerDevices(): Failed to open handler IO $handler_io, assuming disabled");
 		return \%devices; # Return an empty hash
 	}
 
@@ -384,14 +390,22 @@ sub handlerDevices {
 			next;
 		}
 
-		my ($vname, $size, $blocksize, $options, $path) = split(/\s+/, $line);
+		my ($vname, $size, $blocksize, $options, $path) =
+		  ($line =~ /(\S+)\s+(\S+)\s+(\S+)\s+(.*?)\s+(\S+)\s*$/);
 
-		if ($options =~ /^\//) {
-			$path = $options;
-			$options = "";
+		my $options_t;
+		foreach my $option (split(/\s/, cleanupString($options))) {
+			if (defined($_AVAILABLE_OPTIONS_{$option})) {
+				$options_t .= $_AVAILABLE_OPTIONS_{$option}.',';
+			} else {
+				cluck("WARNING: Unknown option '$option', please update your SCST module");
+			}
 		}
 
-		$devices{$vname}->{'OPTIONS'} = cleanupString($options);
+		$options_t =~ s/\,$//;
+
+		$devices{$vname}->{'OPTIONS'} = $options_t;
+
 		$devices{$vname}->{'SIZE'} = cleanupString($size);
 		$devices{$vname}->{'PATH'} = cleanupString($path);
 		$devices{$vname}->{'BLOCKSIZE'} = cleanupString($blocksize);
@@ -462,6 +476,7 @@ sub openDevice {
 	}
 
 	$options = cleanupString($options);
+	$options =~ s/,/ /g;
 
 	my $cmd = "open $device $path $blocksize $options\n";
 
@@ -878,7 +893,7 @@ sub handler_private {
 	my $io = new IO::File $handler_io, O_WRONLY;
 
 	if (!$io) {
-		print "WARNING: SCST/SCST.pm: Failed to open handler IO $handler_io, assuming disabled.\n";
+		cluck("WARNING: SCST/SCST.pm: Failed to open handler IO $handler_io, assuming disabled");
 		return $FALSE;
 	}
 
@@ -943,13 +958,25 @@ sub checkOptions {
 	my $self = shift;
 	my $options = shift;
 	my $o_string;
+	my $b_string;
+	my $bad = $FALSE;
 
 	return undef, $TRUE if (!$options);
 
-	foreach my $option (split(/\s+/, $options)) {
+	foreach my $option (split(/[\s+|\,]/, $options)) {
 		my $map = $_AVAILABLE_OPTIONS_{$option};
-		return undef, $FALSE if (!$map);
-		$o_string .= ",$map";
+
+		if (!$map) {
+			$bad = $TRUE;
+			$b_string .= ",$option";
+		} else {
+			$o_string .= ",$map";
+		}
+	}
+
+	if ($bad) {
+		$b_string =~ s/^\,//;
+		return $b_string, $FALSE;
 	}
 
 	$o_string =~ s/^\,//;

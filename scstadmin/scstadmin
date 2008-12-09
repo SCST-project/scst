@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-$Version  = 'SCST Configurator v1.0.1';
+$Version  = 'SCST Configurator v1.0.2';
 
 # Configures SCST
 #
@@ -64,8 +64,8 @@ Available Handlers:
       disk, vdisk, disk_perf, cdrom, vcdrom, changer, modisk, modisk_perf, tape, tape_perf
 
 Available Options for create and open:
-      WRITE_THROUGH, READ_ONLY, O_DIRECT, NULLIO, NV_CACHE, BIO
-     
+      WRITE_THROUGH, READ_ONLY, O_DIRECT, NULLIO, NV_CACHE, BLOCK_IO, REMOVABLE
+
 Examples:
      Enable target mode for fibre card specifying its WWN
        scstadmin -enable 50:06:0B:00:00:39:71:78
@@ -294,6 +294,7 @@ sub getArgs {
 	$showSessions = $TRUE if (defined($showSessions));
 
 	$enable =~ tr/A-Z/a-z/; $disable =~ tr/A-Z/a-z/;
+	$options =~ tr/a-z/A-Z/ if ($options);
 
 	if ((defined($showSessions) + defined($addDev) + defined($removeDev) +
 	     defined($addUser) + defined($enable) + defined($disable) +
@@ -505,7 +506,8 @@ sub writeConfiguration {
 
 		foreach my $device (sort keys %{$devices}) {
 			my $options = $$devices{$device}->{'OPTIONS'};
-			$options =~ s/\,/\|/;
+
+			$options =~ s/\,/\|/g;
 
 			print $io "DEVICE $device,".$$devices{$device}->{'PATH'};
 			print $io ",$options";
@@ -750,7 +752,7 @@ sub applyConfiguration {
 		}
 	}
 
-	print "Applying configurations additions..\n" if (!$check);
+	print "Applying configuration additions..\n" if (!$check);
 	print "\n";
 
 	readWorkingConfig() if ($force);
@@ -765,7 +767,7 @@ sub applyConfiguration {
 		foreach my $device (@{$$config{'HANDLER'}->{$_handler}->{'DEVICE'}}) {
 			my($vname, $path, $options, $blocksize) = split(/\,/, $device);
 			$path = cleanupString($path);
-			$options =~ s/\s+//; $options =~ s/\|/,/;
+			$options =~ s/\s+//g;
 
 			if (defined($$DEVICES{$vname}) && ($_HANDLER_MAP_{$_handler} == $$DEVICES{$vname})) {
 				next;
@@ -999,8 +1001,6 @@ sub addDevice {
 	my $path = shift;
 	my $options = shift;
 	my $blocksize = shift;
-
-	$options =~ s/\,/ /;
 
 	my $_handler = $_HANDLER_MAP_{$handler};
 	my $htype = $SCST->handlerType($_handler);
