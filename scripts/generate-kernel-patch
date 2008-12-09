@@ -115,7 +115,7 @@ function process_patch {
 # Returns 0 (true) if SCST core file "$1" should be added in a separate patch,
 # and 1 (false) if not.
 function in_separate_patch {
-  echo "${source_files_in_separate_patch}" | grep -qE "^$1 | $1 | $1\$"
+  echo "${source_files_in_separate_patch}" | grep -qE "^$1 | $1 | $1\$|^$1\$"
 }
 
 
@@ -191,9 +191,12 @@ process_patch < "iscsi-scst/kernel/patches/put_page_callback-${kernel_version}.p
 
 
 scst_debug="scst/include/scst_debug.h scst/src/scst_debug.c"
+scst_proc="scst/src/scst_proc.c"
 scst_sgv="scst/include/scst_sgv.h scst/src/scst_mem.h scst/src/scst_mem.c"
 scst_user="scst/include/scst_user.h scst/src/dev_handlers/scst_user.c"
-source_files_in_separate_patch="${scst_debug} ${scst_sgv} ${scst_user}"
+scst_vdisk="scst/src/dev_handlers/scst_vdisk.c"
+separate_patches="scst_debug scst_proc scst_sgv scst_user scst_vdisk"
+source_files_in_separate_patch="${scst_debug} ${scst_proc} ${scst_sgv} ${scst_user} ${scst_vdisk}"
 
 
 # Directory include/scst/
@@ -235,10 +238,10 @@ done
 ) \
 | process_patch "scst_core.diff"
 
-for s in scst_debug scst_sgv scst_user
+for s in ${separate_patches}
 do
   fileset=$s
-  for f in $(set | sed -n -e "s/^$s='\(.*\)'\$/\1/p")
+  for f in $(set | grep "^$s=" | sed -e "s/^$s='\(.*\)'\$/\1/" -e "s/^$s=\(.*\)\$/\1/")
   do
     if [ "${f#scst/include}" != "${f}" ]; then
       add_file "${f}" "include/scst/${f#scst/include/}"
@@ -268,7 +271,7 @@ do
   fi
 done
 ) \
-| process_patch "scst_dev_handlers.diff"
+| process_patch "scst_passthrough.diff"
 
 
 # Directory drivers/scst/iscsi-scst/
@@ -279,8 +282,12 @@ make -s -C iscsi-scst include/iscsi_scst_itf_ver.h
 (
 for f in $(ls iscsi-scst/include/*h)
 do
-  add_file "${f}" "include/scst/${f#iscsi-scst/include/}"
+  if [ "${f}" != "iscsi-scst/include/iscsi_scst_itf_ver.h" ]; then
+    add_file "${f}" "include/scst/${f#iscsi-scst/include/}"
+  fi
 done
+
+add_file "iscsi-scst/include/iscsi_scst_itf_ver.h" "include/scst/iscsi_scst_itf_ver.h" | process_patch ""
 
 add_file "iscsi-scst/kernel/Makefile.in-kernel" \
          "drivers/scst/iscsi-scst/Makefile"
@@ -311,13 +318,14 @@ if [ "${qla2x00t}" = "true" ]; then
 #  add_file "qla2x00t/qla2x_tgt_def.h" \
 #           "drivers/scst/qla2x00-target/qla2x_tgt_def.h"
 
-  add_file "qla2x00t/qla2x00-target/README" \
-           "Documentation/scst/README.qla2x00t"
-
   for f in $(ls qla2x00t/qla2x00-target/*.[ch])
   do
     add_file "${f}" "drivers/scst/qla2xxx-target/${f#qla2x00t/qla2x00-target/}"
   done
+
+  add_file "qla2x00t/qla2x00-target/README" \
+           "Documentation/scst/README.qla2x00t" \
+  | process_patch "qla2x00t-doc.diff"
 
 else
 
