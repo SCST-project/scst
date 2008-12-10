@@ -501,13 +501,18 @@ int scst_suspend_activity(bool interruptible)
 
 	set_bit(SCST_FLAG_SUSPENDING, &scst_flags);
 	set_bit(SCST_FLAG_SUSPENDED, &scst_flags);
+	/*
+	 * Assignment of SCST_FLAG_SUSPENDING and SCST_FLAG_SUSPENDED must be
+	 * ordered with scst_cmd_count. Otherwise lockless logic in
+	 * scst_translate_lun() and scst_mgmt_translate_lun() won't work.
+	 */
 	smp_mb__after_set_bit();
 
 	/*
 	 * See comment in scst_user.c::dev_user_task_mgmt_fn() for more
 	 * information about scst_user behavior.
 	 *
-	 * ToDo: make the global suspending unneeded (Switch to per-device
+	 * ToDo: make the global suspending unneeded (switch to per-device
 	 * reference counting? That would mean to switch off from lockless
 	 * implementation of scst_translate_lun().. )
 	 */
@@ -530,6 +535,7 @@ int scst_suspend_activity(bool interruptible)
 		goto out_clear;
 
 	clear_bit(SCST_FLAG_SUSPENDING, &scst_flags);
+	/* See comment about smp_mb() above */
 	smp_mb__after_clear_bit();
 
 	TRACE_MGMT_DBG("Waiting for %d active commands finally to complete",
@@ -551,6 +557,7 @@ out:
 
 out_clear:
 	clear_bit(SCST_FLAG_SUSPENDING, &scst_flags);
+	/* See comment about smp_mb() above */
 	smp_mb__after_clear_bit();
 	goto out_up;
 }
@@ -568,6 +575,10 @@ static void __scst_resume_activity(void)
 		goto out;
 
 	clear_bit(SCST_FLAG_SUSPENDED, &scst_flags);
+	/*
+	 * The barrier is needed to make sure all woken up threads see the
+	 * cleared flag. Not sure if it's really needed, but let's be safe.
+	 */
 	smp_mb__after_clear_bit();
 
 	list_for_each_entry(l, &scst_cmd_lists_list, lists_list_entry) {

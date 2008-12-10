@@ -1528,9 +1528,10 @@ void scst_check_retries(struct scst_tgt *tgt)
 
 	/*
 	 * We don't worry about overflow of finished_cmds, because we check
-	 * only for its change
+	 * only for its change.
 	 */
 	atomic_inc(&tgt->finished_cmds);
+	/* See comment in scst_queue_retry_cmd() */
 	smp_mb__after_atomic_inc();
 	if (unlikely(tgt->retry_cmds > 0)) {
 		struct scst_cmd *c, *tc;
@@ -1541,8 +1542,7 @@ void scst_check_retries(struct scst_tgt *tgt)
 
 		spin_lock_irqsave(&tgt->tgt_lock, flags);
 		list_for_each_entry_safe(c, tc, &tgt->retry_cmd_list,
-				cmd_list_entry)
-		{
+				cmd_list_entry) {
 			tgt->retry_cmds--;
 
 			TRACE_RETRY("Moving retry cmd %p to head of active "
@@ -3125,7 +3125,13 @@ static void scst_block_dev(struct scst_device *dev, int outstanding)
 	__scst_block_dev(dev);
 	spin_unlock_bh(&dev->dev_lock);
 
-	/* spin_unlock_bh() doesn't provide the necessary memory barrier */
+	/*
+	 * Memory barrier is necessary here, because we need to read
+	 * on_dev_count in wait_event() below after we increased block_count.
+	 * Otherwise, we can miss wake up in scst_dec_on_dev_cmd().
+	 * We use the explicit barrier, because spin_unlock_bh() doesn't
+	 * provide the necessary memory barrier functionality.
+	 */
 	smp_mb();
 
 	TRACE_MGMT_DBG("Waiting during blocking outstanding %d (on_dev_count "
@@ -3211,7 +3217,6 @@ repeat:
 		spin_lock_bh(&dev->dev_lock);
 		if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)))
 			goto out_unlock;
-		barrier(); /* to reread block_count */
 		if (dev->block_count > 0) {
 			scst_dec_on_dev_cmd(cmd);
 			TRACE_MGMT_DBG("Delaying cmd %p due to blocking or "
@@ -3230,7 +3235,6 @@ repeat:
 	}
 	if (unlikely(dev->dev_serialized)) {
 		spin_lock_bh(&dev->dev_lock);
-		barrier(); /* to reread block_count */
 		if (dev->block_count == 0) {
 			TRACE_MGMT_DBG("cmd %p (tag %llu), blocking further "
 				"cmds due to serializing (dev %p)", cmd,
@@ -3405,7 +3409,6 @@ void scst_xmit_process_aborted_cmd(struct scst_cmd *cmd)
 
 	scst_done_cmd_mgmt(cmd);
 
-	smp_rmb();
 	if (test_bit(SCST_CMD_ABORTED_OTHER, &cmd->cmd_flags)) {
 		if (cmd->completed) {
 			/* It's completed and it's OK to return its result */
@@ -3548,6 +3551,7 @@ static void tm_dbg_timer_fn(unsigned long arg)
 {
 	TRACE_MGMT_DBG("%s", "delayed cmd timer expired");
 	tm_dbg_flags.tm_dbg_release = 1;
+	/* Used to make sure that all woken up threads see the new value */
 	smp_wmb();
 	wake_up_all(tm_dbg_p_cmd_list_waitQ);
 }
@@ -3763,6 +3767,10 @@ void tm_dbg_task_mgmt(struct scst_device *dev, const char *fn, int force)
 			tm_dbg_delayed_cmds_count);
 		tm_dbg_change_state();
 		tm_dbg_flags.tm_dbg_release = 1;
+		/*
+		 * Used to make sure that all woken up threads see the new
+		 * value.
+		 */
 		smp_wmb();
 		if (tm_dbg_p_cmd_list_waitQ != NULL)
 			wake_up_all(tm_dbg_p_cmd_list_waitQ);

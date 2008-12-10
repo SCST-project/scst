@@ -2450,7 +2450,6 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 
 	/* +1 to prevent erroneous too early command completion */
 	atomic_set(&blockio_work->bios_inflight, bios+1);
-	smp_wmb();
 
 	while (hbio) {
 		bio = hbio;

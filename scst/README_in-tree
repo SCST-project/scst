@@ -222,6 +222,8 @@ For changing VMSPLIT option (CONFIG_VMSPLIT to be precise) you should in
 
  - General setup->Configure standard kernel features (for small systems): ON
 
+ - General setup->Prompt for development and/or incomplete code/drivers: ON
+
  - Processor type and features->High Memory Support: OFF
 
  - Processor type and features->Memory split: according to amount of

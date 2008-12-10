@@ -1270,6 +1270,11 @@ static int dev_user_process_reply_exec(struct scst_user_cmd *ucmd,
 		if (unlikely((cmd->data_direction == SCST_DATA_READ) ||
 			     (cmd->resp_data_len != 0)))
 			goto out_inval;
+		/*
+		 * background_exec assignment must be after ucmd get.
+		 * Otherwise, due to reorder, in dev_user_process_reply()
+		 * it is possible that ucmd is destroyed before it "got" here.
+		 */
 		ucmd_get_ordered(ucmd);
 		ucmd->background_exec = 1;
 		TRACE_DBG("Background ucmd %p", ucmd);
@@ -1383,6 +1388,8 @@ static int dev_user_process_reply(struct scst_user_dev *dev,
 		goto out_unlock;
 	}
 
+	/* To sync. with dev_user_process_reply_exec(). See comment there. */
+	smp_mb();
 	if (ucmd->background_exec) {
 		state = UCMD_STATE_EXECING;
 		goto unlock_process;

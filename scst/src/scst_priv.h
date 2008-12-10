@@ -420,6 +420,7 @@ static inline void scst_dec_on_dev_cmd(struct scst_cmd *cmd)
 		scst_unblock_dev(dev);
 
 	atomic_dec(&dev->on_dev_count);
+	/* See comment in scst_block_dev() */
 	smp_mb__after_atomic_dec();
 
 	TRACE_DBG("New on_dev_count %d", atomic_read(&dev->on_dev_count));
@@ -438,6 +439,7 @@ static inline void __scst_get(int barrier)
 	TRACE_DBG("Incrementing scst_cmd_count(%d)",
 		atomic_read(&scst_cmd_count));
 
+	/* See comment about smp_mb() in scst_suspend_activity() */
 	if (barrier)
 		smp_mb__after_atomic_inc();
 }
@@ -446,6 +448,7 @@ static inline void __scst_put(void)
 {
 	int f;
 	f = atomic_dec_and_test(&scst_cmd_count);
+	/* See comment about smp_mb() in scst_suspend_activity() */
 	if (f && unlikely(test_bit(SCST_FLAG_SUSPENDED, &scst_flags))) {
 		TRACE_MGMT_DBG("%s", "Waking up scst_dev_cmd_waitQ");
 		wake_up_all(&scst_dev_cmd_waitQ);

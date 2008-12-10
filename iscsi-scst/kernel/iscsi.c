@@ -2512,7 +2512,9 @@ static inline void iscsi_set_state_wake_up(struct iscsi_cmnd *req,
 	 * We use wait_event() to wait for the state change, but it checks its
 	 * condition without any protection, so without cmnd_get() it is
 	 * possible that req will die "immediately" after the state assignment
-	 * and wake_up() will operate on dead data.
+	 * and wake_up() will operate on dead data. We use the ordered version
+	 * of cmnd_get(), because "get" must be done before the state
+	 * assignment.
 	 */
 	cmnd_get_ordered(req);
 	req->scst_state = new_state;
@@ -2710,6 +2712,12 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 		sBUG();
 #endif
 
+	/*
+	 * "_ordered" here to protect from reorder, which can lead to
+	 * preliminary connection destroy in req_cmnd_release(). Just in
+	 * case, actually, because reordering shouldn't go so far, but who
+	 * knows..
+	 */
 	conn_get_ordered(conn);
 	req_cmnd_release(req);
 	iscsi_try_local_processing(conn);

@@ -120,7 +120,8 @@ static int scst_init_cmd(struct scst_cmd *cmd, enum scst_exec_context *context)
 	}
 	/*
 	 * Memory barrier isn't necessary here, because CPU appears to
-	 * be self-consistent
+	 * be self-consistent and we don't care about the race, described
+	 * in comment in scst_do_job_init().
 	 */
 
 	rc = __scst_init_cmd(cmd);
@@ -885,6 +886,12 @@ static int scst_queue_retry_cmd(struct scst_cmd *cmd, int finished_cmds)
 
 	spin_lock_irqsave(&tgt->tgt_lock, flags);
 	tgt->retry_cmds++;
+	/*
+	 * Memory barrier is needed here, because we need the exact order
+	 * between the read and write between retry_cmds and finished_cmds to
+	 * not miss the case when a command finished while we queuing it for
+	 * retry after the finished_cmds check.
+	 */
 	smp_mb();
 	TRACE_RETRY("TGT QUEUE FULL: incrementing retry_cmds %d",
 	      tgt->retry_cmds);
@@ -1684,7 +1691,6 @@ int scst_check_local_events(struct scst_cmd *cmd)
 			 * was_reset.
 			 */
 			spin_lock_bh(&dev->dev_lock);
-			barrier(); /* to reread was_reset */
 			if (dev->scsi_dev->was_reset) {
 				TRACE(TRACE_MGMT, "was_reset is %d", 1);
 				scst_set_cmd_error(cmd,
@@ -1764,12 +1770,16 @@ void scst_inc_expected_sn(struct scst_tgt_dev *tgt_dev, atomic_t *slot)
 
 inc:
 	/*
-	 * No locks is needed, because only one thread at time can
-	 * be here (serialized by sn). Also it is supposed that there
-	 * could not be half-incremented halves.
+	 * No protection of expected_sn is needed, because only one thread
+	 * at time can be here (serialized by sn). Also it is supposed that
+	 * there could not be half-incremented halves.
 	 */
 	tgt_dev->expected_sn++;
-	smp_mb(); /* write must be before def_cmd_count read */
+	/*
+	 * Write must be before def_cmd_count read to be in sync. with
+	 * scst_post_exec_sn(). See comment in scst_send_for_exec().
+	 */
+	smp_mb(); 
 	TRACE_SN("Next expected_sn: %ld", tgt_dev->expected_sn);
 
 out:
@@ -2168,6 +2178,17 @@ static int scst_send_for_exec(struct scst_cmd **active_cmd)
 		spin_lock_irq(&tgt_dev->sn_lock);
 
 		tgt_dev->def_cmd_count++;
+		/*
+		 * Memory barrier is needed here to implement lockless fast
+		 * path. We need the exact order of read and write between
+		 * def_cmd_count and expected_sn. Otherwise, we can miss case,
+		 * when expected_sn was changed to be equal to cmd->sn while
+		 * we are queuing cmd the deferred list after the expected_sn
+		 * below. It will lead to a forever stuck command. But with
+		 * the barrier in such case __scst_check_deferred_commands()
+		 * will be called and it will take sn_lock, so we will be
+		 * synchronized.
+		 */
 		smp_mb();
 
 		expected_sn = tgt_dev->expected_sn;
@@ -3044,6 +3065,7 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
+	/* See comment about smp_mb() in scst_suspend_activity() */
 	__scst_get(1);
 
 	if (likely(!test_bit(SCST_FLAG_SUSPENDED, &scst_flags))) {
@@ -3209,11 +3231,11 @@ restart:
 		 * it's inserting to it, but another command at the same time
 		 * seeing init cmd list empty and goes directly, because it
 		 * could affect only commands from the same initiator to the
-		 * same tgt_dev, but init_cmd_done() doesn't guarantee the order
-		 * in case of simultaneous such calls anyway.
+		 * same tgt_dev, but scst_cmd_init_done*() doesn't guarantee
+		 * the order in case of simultaneous such calls anyway.
 		 */
 		TRACE_MGMT_DBG("Deleting cmd %p from init cmd list", cmd);
-		smp_wmb();
+		smp_wmb(); /* enforce the required order */
 		list_del(&cmd->cmd_list_entry);
 		spin_unlock(&scst_init_lock);
 
@@ -3571,6 +3593,7 @@ static int scst_mgmt_translate_lun(struct scst_mgmt_cmd *mcmd)
 	TRACE_DBG("Finding tgt_dev for mgmt cmd %p (lun %lld)", mcmd,
 	      (long long unsigned int)mcmd->lun);
 
+	/* See comment about smp_mb() in scst_suspend_activity() */
 	__scst_get(1);
 
 	if (unlikely(test_bit(SCST_FLAG_SUSPENDED, &scst_flags) &&
@@ -3817,10 +3840,8 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 
 	if (other_ini) {
 		/* Might be necessary if command aborted several times */
-		if (!test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)) {
+		if (!test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))
 			set_bit(SCST_CMD_ABORTED_OTHER, &cmd->cmd_flags);
-			smp_mb__after_set_bit();
-		}
 	} else {
 		/* Might be necessary if command aborted several times */
 		clear_bit(SCST_CMD_ABORTED_OTHER, &cmd->cmd_flags);

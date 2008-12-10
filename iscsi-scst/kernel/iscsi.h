@@ -475,6 +475,7 @@ static inline void cmnd_get(struct iscsi_cmnd *cmnd)
 static inline void cmnd_get_ordered(struct iscsi_cmnd *cmnd)
 {
 	cmnd_get(cmnd);
+	/* See comments for each cmnd_get_ordered() use */
 	smp_mb__after_atomic_inc();
 }
 
@@ -546,6 +547,7 @@ static inline void conn_get(struct iscsi_conn *conn)
 static inline void conn_get_ordered(struct iscsi_conn *conn)
 {
 	conn_get(conn);
+	/* See comments for each conn_get_ordered() use */
 	smp_mb__after_atomic_inc();
 }
 
@@ -556,8 +558,9 @@ static inline void conn_put(struct iscsi_conn *conn)
 	sBUG_ON(atomic_read(&conn->conn_ref_cnt) == 0);
 
 	/*
-	 * It always ordered to protect from undesired side effects like
-	 * accessing just destroyed object because of this *_dec() reordering.
+	 * Make it always ordered to protect from undesired side effects like
+	 * accessing just destroyed by close_conn() conn caused by reordering
+	 * of this atomic_dec().
 	 */
 	smp_mb__before_atomic_dec();
 	atomic_dec(&conn->conn_ref_cnt);

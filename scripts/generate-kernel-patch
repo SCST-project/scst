@@ -359,7 +359,7 @@ else
 fi \
 | process_patch "srpt.diff"
 
-add_file "srpt/README" "Documentation/scst/README.srpt" \
+add_file "srpt/README_in-tree" "Documentation/scst/README.srpt" \
 | process_patch "srpt-doc.diff"
 
 
