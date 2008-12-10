@@ -1779,7 +1779,7 @@ inc:
 	 * Write must be before def_cmd_count read to be in sync. with
 	 * scst_post_exec_sn(). See comment in scst_send_for_exec().
 	 */
-	smp_mb(); 
+	smp_mb();
 	TRACE_SN("Next expected_sn: %ld", tgt_dev->expected_sn);
 
 out:
