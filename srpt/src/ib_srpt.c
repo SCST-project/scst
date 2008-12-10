@@ -62,7 +62,7 @@ struct srpt_thread {
 
 static u64 mellanox_ioc_guid;
 static struct list_head srpt_devices;
-static int thread = 0;
+static int thread;
 static struct srpt_thread srpt_thread;
 static DECLARE_WAIT_QUEUE_HEAD(ioctx_list_waitQ);
 
