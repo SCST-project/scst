@@ -1368,9 +1368,6 @@ struct scst_device {
 	/* Set if dev is RESERVED */
 	unsigned short dev_reserved:1;
 
-	/* Set if dev accepts only one command at time  */
-	unsigned short dev_serialized:1;
-
 	/* Set if double reset UA is possible */
 	unsigned short dev_double_ua_possible:1;
 

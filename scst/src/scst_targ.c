@@ -2299,13 +2299,12 @@ static int scst_check_sense(struct scst_cmd *cmd)
 				"cmd %p)", dev, cmd);
 			/*
 			 * Lock used to protect other flags in the bitfield
-			 * (just in case, actually). Those 2 flags can't be
+			 * (just in case, actually). Those flags can't be
 			 * changed in parallel, because the device is
 			 * serialized.
 			 */
 			spin_lock_bh(&dev->dev_lock);
 			dev->dev_double_ua_possible = 0;
-			dev->dev_serialized = 0;
 			spin_unlock_bh(&dev->dev_lock);
 		}
 	}

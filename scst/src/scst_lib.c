@@ -318,7 +318,6 @@ int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev)
 	INIT_LIST_HEAD(&dev->threads_list);
 	init_waitqueue_head(&dev->on_dev_waitQ);
 	dev->dev_double_ua_possible = 1;
-	dev->dev_serialized = 1;
 	dev->queue_alg = SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER;
 	dev->dev_num = dev_num++;
 
@@ -2740,7 +2739,6 @@ void scst_process_reset(struct scst_device *dev,
 	}
 
 	dev->dev_double_ua_possible = 1;
-	dev->dev_serialized = 1;
 
 	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 		dev_tgt_dev_list_entry) {
@@ -3219,8 +3217,8 @@ repeat:
 			goto out_unlock;
 		if (dev->block_count > 0) {
 			scst_dec_on_dev_cmd(cmd);
-			TRACE_MGMT_DBG("Delaying cmd %p due to blocking or "
-				"serializing (tag %llu, dev %p)", cmd,
+			TRACE_MGMT_DBG("Delaying cmd %p due to blocking "
+				"(tag %llu, dev %p)", cmd,
 				(long long unsigned int)cmd->tag, dev);
 			list_add_tail(&cmd->blocked_cmd_list_entry,
 				      &dev->blocked_cmd_list);
@@ -3233,12 +3231,12 @@ repeat:
 		}
 		spin_unlock_bh(&dev->dev_lock);
 	}
-	if (unlikely(dev->dev_serialized)) {
+	if (unlikely(dev->dev_double_ua_possible)) {
 		spin_lock_bh(&dev->dev_lock);
 		if (dev->block_count == 0) {
 			TRACE_MGMT_DBG("cmd %p (tag %llu), blocking further "
-				"cmds due to serializing (dev %p)", cmd,
-				(long long unsigned int)cmd->tag, dev);
+				"cmds due to possible double reset UA (dev %p)",
+				cmd, (long long unsigned int)cmd->tag, dev);
 			__scst_block_dev(dev);
 			cmd->inc_blocking = 1;
 		} else {
