@@ -1,3 +1,9 @@
+Changes since 1.0.4
+
+- Fixed a check in SCST::removeUser().
+- Fixed enable/disable target and error produced.
+- Minor cosmetic fixes.
+
 Changes since 1.0.3
 
 - Added patch from Witold Kowolik to allow for qla_isp enable/disable

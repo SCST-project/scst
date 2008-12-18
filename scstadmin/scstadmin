@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-$Version  = 'SCST Configurator v1.0.3';
+$Version  = 'SCST Configurator v1.0.4';
 
 # Configures SCST
 #
@@ -1164,7 +1164,7 @@ sub removeUser {
 	print "\t-> Removing user '$user' from security group '$group'..\n";
 
 	if ($SCST->removeUser($user, $group)) {
-		print "WARNING: Failed to add user '$user' to security group '$group': ".
+		print "WARNING: Failed to remove user '$user' to security group '$group': ".
 		  $SCST->errorString()."\n";
 		return $TRUE;
 	}
@@ -1368,7 +1368,6 @@ sub targets {
 
 			if ($io) {
 				my $wwn;
-				my @fcont;
 				my $fstr;
 				my $enabled2;
 
