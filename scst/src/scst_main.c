@@ -1822,10 +1822,11 @@ static int __init init_scst(void)
 		si_meminfo(&si);
 #if BITS_PER_LONG == 32
 		scst_max_cmd_mem = min(
-			(((uint64_t)si.totalram << PAGE_SHIFT) >> 20) >> 2,
-			(uint64_t)1 << 30);
+			(((uint64_t)(si.totalram - si.totalhigh) << PAGE_SHIFT)
+				>> 20) >> 2, (uint64_t)1 << 30);
 #else
-		scst_max_cmd_mem = ((si.totalram << PAGE_SHIFT) >> 20) >> 2;
+		scst_max_cmd_mem = (((si.totalram - si.totalhigh) << PAGE_SHIFT)
+					>> 20) >> 2;
 #endif
 	}
 
