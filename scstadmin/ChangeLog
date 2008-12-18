@@ -1,3 +1,9 @@
+Changes since 1.0.5
+
+- Fixed a removeDevice() case when using -ForceConfig.
+- SCST.pm: Cosmetic changes to error messages - include the handler name.
+- SCST.pm: Quote handlers, handler IOs, devices, users and groups in error messages.
+
 Changes since 1.0.4
 
 - Fixed a check in SCST::removeUser().

@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-$Version  = 'SCST Configurator v1.0.4';
+$Version  = 'SCST Configurator v1.0.5';
 
 # Configures SCST
 #
@@ -658,6 +658,7 @@ sub applyConfiguration {
 
 		# Users & Groups
 		foreach my $group (sort keys %USERS) {
+			next if ($group eq $_DEFAULT_GROUP_);
 			if (!defined($used_users{$group})) {
 				print "\t-> WARNING: Group '$group' does not exist in saved configuration";
 
@@ -718,7 +719,7 @@ sub applyConfiguration {
 
 					if (!$check) {
 						print ", removing.\n";
-						if (removeDevice($device)) {
+						if (removeDevice($_REVERSE_MAP_{$$DEVICES{$device}}, $device)) {
 							$errs++;
 						} else {
 							$changes++;
@@ -1101,6 +1102,8 @@ sub addGroup {
 
 sub removeGroup {
 	my $group = shift;
+
+	return $FALSE if ($group eq $_DEFAULT_GROUP_);
 
 	if (!defined($GROUPS{$group})) {
 		print "WARNING: Group '$group' does not exist.\n";

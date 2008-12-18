@@ -55,7 +55,7 @@ $IOTYPE_PHYSICAL    = 100;
 $IOTYPE_VIRTUAL     = 101;
 $IOTYPE_PERFORMANCE = 102;
 
-$VERSION = 0.7.6;
+$VERSION = 0.7.7;
 
 my $_SCST_MIN_MAJOR_   = 0;
 my $_SCST_MIN_MINOR_   = 9;
@@ -204,7 +204,7 @@ sub addGroup {
 	my $io = new IO::File $_SCST_IO_, O_WRONLY;
 
 	if (!$io) {
-		$self->{'error'} = "addGroup(): Failed to open handler IO $_SCST_IO_";
+		$self->{'error'} = "addGroup(): Failed to open handler IO '$_SCST_IO_'";
 		return $TRUE;
 	}
 
@@ -231,7 +231,7 @@ sub removeGroup {
 	my $io = new IO::File $_SCST_IO_, O_WRONLY;
 
 	if (!$io) {
-		$self->{'error'} = "removeGroup(): Failed to open handler IO $_SCST_IO_";
+		$self->{'error'} = "removeGroup(): Failed to open handler IO '$_SCST_IO_'";
 		return $TRUE;
 	}
 
@@ -256,7 +256,7 @@ sub sgvStats {
 	my $first = $TRUE;
 
 	if (!$io) {
-		$self->{'error'} = "sgvStats(): Failed to open handler IO $_SCST_IO_";
+		$self->{'error'} = "sgvStats(): Failed to open handler IO '$_SCST_IO_'";
 		return undef;
 	}
 
@@ -306,7 +306,7 @@ sub sessions {
 	my $first = $TRUE;
 
 	if (!$io) {
-		$self->{'error'} = "sessions(): Failed to open handler IO $_SCST_IO_";
+		$self->{'error'} = "sessions(): Failed to open handler IO '$_SCST_IO_'";
 		return undef;
 	}
 
@@ -335,7 +335,7 @@ sub devices {
 	my $first = $TRUE;
 
 	if (!$io) {
-		$self->{'error'} = "devices(): Failed to open handler IO $_SCST_IO_";
+		$self->{'error'} = "devices(): Failed to open handler IO '$_SCST_IO_'";
 		return undef;
 	}
 
@@ -363,15 +363,17 @@ sub handlerDevices {
 	my $handler = shift;
 	my $handler_io = $_IO_MAP_{$handler};
 	my $first = $TRUE;
+	my $handler_name = $_REVERSE_MAP_{$handler};
 	my %devices;
 
 	if (!$handler_io) {
-		$self->{'error'} = "handlerDevices(): Failed to open handler IO $handler_io or handler $handler invalid";
+		$self->{'error'} = "handlerDevices(): Failed to open handler IO '$handler_io'".
+		  " or handler '$handler_name' ($handler) invalid";
 		return undef;
 	}
 
 	if (!$self->handlerExists($handler)) {
-		$self->{'error'} = "handlerDevices(): Handler $handler does not exist";
+		$self->{'error'} = "handlerDevices(): Handler '$handler_name' ($handler) does not exist";
 		return undef;
 	}
 
@@ -431,11 +433,12 @@ sub handlerDeviceExists {
 sub handlerType {
 	my $self = shift;
 	my $handler = shift;
-
 	my $type = $_IO_TYPES_{$handler};
+	my $handler_name = $_REVERSE_MAP_{$handler};
 
 	if (!$type) {
-		$self->{'error'} = "handlerType(): Handler type for handler $handler not defined";
+		$self->{'error'} = "handlerType(): Handler type for handler '$handler_name'".
+		  " ($handler) not defined";
 		return undef;
 	}
 
@@ -450,28 +453,30 @@ sub openDevice {
 	my $options = shift;
 	my $blocksize = shift;
 	my $handler_io = $_IO_MAP_{$handler};
+	my $handler_name = $_REVERSE_MAP_{$handler};
 	my $valid_opts;
 
 	($options, $valid_opts) = $self->checkOptions($options);
 
+
 	if (!$valid_opts) {
-		$self->{'error'} = "openDevice(): Invalid option(s) '$options' given for device $device";
+		$self->{'error'} = "openDevice(): Invalid option(s) '$options' given for device '$device'";
 		return 1;
 	}
 
 	if (!$handler_io) {
-		$self->{'error'} = "openDevice(): Failed to open handler IO $handler_io or ".
-		  "handler $handler invalid";
+		$self->{'error'} = "openDevice(): Failed to open handler IO '$handler_io' or ".
+		  "handler '$handler_name' ($handler) invalid";
 		return 1;
 	}
 
 	if (!$self->handlerExists($handler)) {
-		$self->{'error'} = "openDevice(): Handler $handler does not exist";
+		$self->{'error'} = "openDevice(): Handler '$handler_name' ($handler) does not exist";
 		return 1;
 	}
 
 	if ($self->handlerDeviceExists($handler, $device)) {
-		$self->{'error'} = "openDevice(): Device $device is already open";
+		$self->{'error'} = "openDevice(): Device '$device' is already open";
 		return 2;
 	}
 
@@ -490,7 +495,7 @@ sub openDevice {
 	$rc = !$self->handlerDeviceExists($handler, $device);
 
 	if ($rc) {
-		$self->{'error'} = "openDevice(): An error occured while opening device $device. ".
+		$self->{'error'} = "openDevice(): An error occured while opening device '$device'. ".
 		  "See dmesg/kernel log for more information.";
 	}
 
@@ -503,19 +508,21 @@ sub closeDevice {
 	my $device = shift;
 	my $path = shift;
 	my $handler_io = $_IO_MAP_{$handler};
+	my $handler_name = $_REVERSE_MAP_{$handler};
 
 	if (!$handler_io) {
-		$self->{'error'} = "closeDevice(): Failed to open handler IO $handler_io or handler $handler invalid";
+		$self->{'error'} = "closeDevice(): Failed to open handler IO '$handler_io'".
+		  " or handler '$handler_name' ($handler) invalid";
 		return $TRUE;
 	}
 
 	if (!$self->handlerExists($handler)) {
-		$self->{'error'} = "closeDevice(): Handler $handler does not exist";
+		$self->{'error'} = "closeDevice(): Handler '$handler_name' ($handler) does not exist";
 		return $TRUE;
 	}
 
 	if (!$self->handlerDeviceExists($handler, $device)) {
-		$self->{'error'} = "closeDevice(): Device $device is not open";
+		$self->{'error'} = "closeDevice(): Device '$device' is not open";
 		return 2;
 	}
 
@@ -529,7 +536,7 @@ sub closeDevice {
 	$rc = $self->handlerDeviceExists($handler, $device);
 
 	if ($rc) {
-		$self->{'error'} = "closeDevice(): An error occured while closing device $device. ".
+		$self->{'error'} = "closeDevice(): An error occured while closing device '$device'. ".
 		  "See dmesg/kernel log for more information.";
 	}
 
@@ -562,8 +569,8 @@ sub users {
 	my $io = new IO::File $_SCST_GROUPS_DIR_."/$group/".$_SCST_USERS_IO_, O_RDONLY;
 
 	if (!$io) {
-		$self->{'error'} = "users(): Failed to open handler IO ".$_SCST_GROUPS_DIR_.
-		  "/$group/".$_SCST_USERS_IO_;
+		$self->{'error'} = "users(): Failed to open handler IO '".$_SCST_GROUPS_DIR_.
+		  "/$group/".$_SCST_USERS_IO_."'";
 		return undef;
 	}
 
@@ -584,12 +591,12 @@ sub addUser {
 	my $group = shift;
 
 	if (!$self->groupExists($group)) {
-		$self->{'error'} = "addUser(): Group $group does not exist";
+		$self->{'error'} = "addUser(): Group '$group' does not exist";
 		return 1;
 	}
 
 	if ($self->userExists($user, $group)) {
-		$self->{'error'} = "addUser(): User $user already exists in group $group";
+		$self->{'error'} = "addUser(): User '$user' already exists in group '$group'";
 		return 2;
 	}
 
@@ -603,7 +610,7 @@ sub addUser {
 	$rc = !$self->userExists($user, $group);
 
 	if ($rc) {
-		$self->{'error'} = "addUser(): An error occured while adding user $user to group $group. ".
+		$self->{'error'} = "addUser(): An error occured while adding user '$user' to group '$group'. ".
 		  "See dmesg/kernel log for more information.";
 	}
 
@@ -616,12 +623,12 @@ sub removeUser {
 	my $group = shift;
 
 	if (!$self->groupExists($group)) {
-		$self->{'error'} = "removeUser(): Group $group does not exist";
+		$self->{'error'} = "removeUser(): Group '$group' does not exist";
 		return 1;
 	}
 
 	if (!$self->userExists($user, $group)) {
-		$self->{'error'} = "removeUser(): User $user does not exist in group $group";
+		$self->{'error'} = "removeUser(): User '$user' does not exist in group '$group'";
 		return 2;
 	}
 
@@ -635,8 +642,8 @@ sub removeUser {
 	$rc = $self->userExists($user, $group);
 
 	if ($rc) {
-		$self->{'error'} = "removeUser(): An error occured while removing user $user ".
-		  "from group $group. See dmesg/kernel log for more information.";
+		$self->{'error'} = "removeUser(): An error occured while removing user '$user' ".
+		  "from group '$group'. See dmesg/kernel log for more information.";
 	}
 
 	return $rc;
@@ -647,7 +654,7 @@ sub clearUsers {
 	my $group = shift;
 
 	if (!$self->groupExists($group)) {
-		$self->{'error'} = "clearUsers(): Group $group does not exist";
+		$self->{'error'} = "clearUsers(): Group '$group' does not exist";
 		return $TRUE;
 	}
 
@@ -659,7 +666,7 @@ sub clearUsers {
 
 	if ($rc) {
 		$self->{'error'} = "clearUsers(): An error occured while clearing users from ".
-		  "group $group. See dmesg/kernel log for more information.";
+		  "group '$group'. See dmesg/kernel log for more information.";
 		return $rc;
 	}
 
@@ -726,15 +733,15 @@ sub groupDevices {
 	my $first = $TRUE;
 
 	if (!$self->groupExists($group)) {
-		$self->{'error'} = "groupDevices(): Group $group does not exist";
+		$self->{'error'} = "groupDevices(): Group '$group' does not exist";
 		return undef;
 	}
 
 	my $io = new IO::File $_SCST_GROUPS_DIR_."/$group/".$_SCST_DEVICES_IO_, O_RDONLY;
 
 	if (!$io) {
-		$self->{'error'} = "groupDevices(): Failed to open handler IO ".$_SCST_GROUPS_DIR_.
-		  "/$group/".$_SCST_DEVICES_IO_;
+		$self->{'error'} = "groupDevices(): Failed to open handler IO '".$_SCST_GROUPS_DIR_.
+		  "/$group/".$_SCST_DEVICES_IO_."'";
 		return undef;
 	}
 
@@ -763,13 +770,13 @@ sub assignDeviceToGroup {
 	my $lun = shift;
 
 	if (!$self->groupExists($group)) {
-		$self->{'error'} = "assignDeviceToGroup(): Group $group does not exist";
+		$self->{'error'} = "assignDeviceToGroup(): Group '$group' does not exist";
 		return $TRUE;
 	}
 
 	if ($self->groupDeviceExists($device, $group, $lun)) {
-		$self->{'error'} = "assignDeviceToGroup(): Device $device is already ".
-		  "assigned to group $group";
+		$self->{'error'} = "assignDeviceToGroup(): Device '$device' is already ".
+		  "assigned to group '$group'";
 		return 2;
 	}
 
@@ -783,8 +790,8 @@ sub assignDeviceToGroup {
 	$rc = !$self->groupDeviceExists($device, $group, $lun);
 
 	if ($rc) {
-		$self->{'error'} = "assignDeviceToGroup(): An error occured while assigning device $device ".
-		  "to group $group. See dmesg/kernel log for more information.";
+		$self->{'error'} = "assignDeviceToGroup(): An error occured while assigning device '$device' ".
+		  "to group '$group'. See dmesg/kernel log for more information.";
 	}
 
 	return $rc;
@@ -795,25 +802,26 @@ sub assignDeviceToHandler {
 	my $device = shift;
 	my $handler = shift;
 	my $handler_io = $_IO_MAP_{$handler};
-	my $_handler = $_REVERSE_MAP_{$handler};
+	my $handler_name = $_REVERSE_MAP_{$handler};
 
 	if (!$handler_io) {
-		$self->{'error'} = "assignDeviceToHandler(): Failed to open handler IO $handler_io or ".
-		  "handler $_handler($handler) invalid";
+		$self->{'error'} = "assignDeviceToHandler(): Failed to open handler IO '$handler_io' or ".
+		  "handler '$handler_name' ($handler) invalid";
 		return $TRUE;
 	}
 
 	if (!$self->handlerExists($handler)) {
-		$self->{'error'} = "assignDeviceToHandler(): Handler $_handler does not exist";
+		$self->{'error'} = "assignDeviceToHandler(): Handler '$handler_name' ($handler) does not exist";
 		return $TRUE;
 	}
 
 	if ($self->handlerDeviceExists($handler, $device)) {
-		$self->{'error'} = "assignDeviceToHandler(): Device $device is already assigned to handler $_handler";
+		$self->{'error'} = "assignDeviceToHandler(): Device '$device' is already assigned".
+		  " to handler '$handler_name' ($handler)";
 		return 2;
 	}
 
-	my $cmd = "assign $device $_handler\n";
+	my $cmd = "assign $device $handler_name\n";
 
 	my $rc = $self->scst_private($cmd);
 
@@ -823,8 +831,8 @@ sub assignDeviceToHandler {
 	$rc = !$self->handlerDeviceExists($handler, $device);
 
 	if ($rc) {
-		$self->{'error'} = "assignDeviceToHandler(): An error occured while assigning device $device ".
-		  "to handler $_handler. See dmesg/kernel log for more information.";
+		$self->{'error'} = "assignDeviceToHandler(): An error occured while assigning device '$device' ".
+		  "to handler '$handler_name' ($handler). See dmesg/kernel log for more information.";
 	}
 
 	return $rc;
@@ -836,12 +844,12 @@ sub removeDeviceFromGroup {
 	my $group = shift;
 
 	if (!$self->groupExists($group)) {
-		$self->{'error'} = "removeDeviceFromGroup(): Group $group does not exist";
+		$self->{'error'} = "removeDeviceFromGroup(): Group '$group' does not exist";
 		return $TRUE;
 	}
 
 	if (!$self->groupDeviceExists($device, $group)) {
-		$self->{'error'} = "removeDeviceFromGroup(): Device $device does not exist in group $group";
+		$self->{'error'} = "removeDeviceFromGroup(): Device '$device' does not exist in group '$group'";
 		return 2;
 	}
 
@@ -855,8 +863,8 @@ sub removeDeviceFromGroup {
 	$rc = $self->groupDeviceExists($device, $group);
 
 	if ($rc) {
-		$self->{'error'} = "removeDeviceFromGroup(): An error occured while removing device $device ".
-		  "from group $group. See dmesg/kernel log for more information.";
+		$self->{'error'} = "removeDeviceFromGroup(): An error occured while removing device '$device' ".
+		  "from group '$group'. See dmesg/kernel log for more information.";
 	}
 
 	return $rc;
@@ -876,7 +884,7 @@ sub clearGroupDevices {
 
 	if ($rc) {
 		$self->{'error'} = "clearGroupDevices(): An error occured while clearing devices from ".
-		  "group $group. See dmesg/kernel log for more information.";
+		  "group '$group'. See dmesg/kernel log for more information.";
 		return $rc;
 	}
 
@@ -915,7 +923,7 @@ sub scst_private {
 	my $io = new IO::File $_SCST_IO_, O_WRONLY;
 
 	if (!$io) {
-		$self->{'error'} = "SCST/SCST.pm: Failed to open handler IO $_SCST_IO_";
+		$self->{'error'} = "SCST/SCST.pm: Failed to open handler IO '$_SCST_IO_'";
 		return $TRUE;
 	}
 
@@ -939,7 +947,7 @@ sub group_private {
 	my $io = new IO::File $_SCST_GROUPS_DIR_."/$group/".$file, O_WRONLY;
 
 	if (!$io) {
-		$self->{'error'} = "SCST/SCST.pm: Failed to open handler IO ".$_SCST_GROUPS_DIR_."/$group/".$file;
+		$self->{'error'} = "SCST/SCST.pm: Failed to open handler IO '".$_SCST_GROUPS_DIR_."/$group/".$file."'";
 		return $TRUE;
 	}
 
