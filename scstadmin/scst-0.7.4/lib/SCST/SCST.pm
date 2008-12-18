@@ -55,7 +55,7 @@ $IOTYPE_PHYSICAL    = 100;
 $IOTYPE_VIRTUAL     = 101;
 $IOTYPE_PERFORMANCE = 102;
 
-$VERSION = 0.7.5;
+$VERSION = 0.7.6;
 
 my $_SCST_MIN_MAJOR_   = 0;
 my $_SCST_MIN_MINOR_   = 9;
@@ -456,18 +456,18 @@ sub openDevice {
 
 	if (!$valid_opts) {
 		$self->{'error'} = "openDevice(): Invalid option(s) '$options' given for device $device";
-		return $TRUE;
+		return 1;
 	}
 
 	if (!$handler_io) {
 		$self->{'error'} = "openDevice(): Failed to open handler IO $handler_io or ".
 		  "handler $handler invalid";
-		return $TRUE;
+		return 1;
 	}
 
 	if (!$self->handlerExists($handler)) {
 		$self->{'error'} = "openDevice(): Handler $handler does not exist";
-		return $TRUE;
+		return 1;
 	}
 
 	if ($self->handlerDeviceExists($handler, $device)) {
@@ -585,7 +585,7 @@ sub addUser {
 
 	if (!$self->groupExists($group)) {
 		$self->{'error'} = "addUser(): Group $group does not exist";
-		return $TRUE;
+		return 1;
 	}
 
 	if ($self->userExists($user, $group)) {
@@ -617,10 +617,10 @@ sub removeUser {
 
 	if (!$self->groupExists($group)) {
 		$self->{'error'} = "removeUser(): Group $group does not exist";
-		return $TRUE;
+		return 1;
 	}
 
-	if ($self->userExists($user, $group)) {
+	if (!$self->userExists($user, $group)) {
 		$self->{'error'} = "removeUser(): User $user does not exist in group $group";
 		return 2;
 	}
