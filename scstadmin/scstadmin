@@ -1415,6 +1415,8 @@ sub enableTarget {
 	my $target = shift;
 	my $enable = shift;
 
+	$target = unformatTarget($target);
+
 	return undef if (!defined($$TARGETS{$target}));
 
 	my $io = new IO::File $$TARGETS{$target}->{'path'}, O_WRONLY;
@@ -1435,7 +1437,7 @@ sub enableTarget {
 
 	close $io;
 
-	$$TARGETS{unformatTarget($target)}->{'enabled'} = $enable;
+	$$TARGETS{$target}->{'enabled'} = $enable;
 
 	return $FALSE;
 }
