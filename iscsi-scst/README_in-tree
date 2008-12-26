@@ -52,21 +52,20 @@ Usage
 -----
 
 ISCSI parameters like iSNS, CHAP and target parameters are configured in
-iscsi-scstd.conf. All LUN information is configured using the regular
-SCST interface. It is highly recommended to use scstadmin utility for
-that purpose. The LUN information in iscsi-scstd.conf will be ignored.
-This is because now responsibilities are divided (as it should be)
-between the target driver (iSCSI-SCST) and the SCST core as it logically
-should be: the target driver is responsible for handling targets and
-their parameters, SCST core is responsible for handling backstorage.
+iscsi-scstd.conf. All LUN information is configured using the
+corresponding SCST interface. See in SCST README file section "Access
+and devices visibility management (LUN masking)" to find out how to do
+it. It is highly recommended to use scstadmin utility for that purpose.
+The LUN information in iscsi-scstd.conf will be ignored. This is because
+now responsibilities are divided between the target driver (iSCSI-SCST)
+and the SCST core as it logically should be: the target driver is
+responsible for handling targets and their parameters, SCST core is
+responsible for handling backstorage.
 
-If you need to configure different LUs for different targets you should
-create for each target group "Default_target_name", where "target_name"
-means name of the target, for example:
-"Default_iqn.2007-05.com.example:storage.disk1.sys1.xyz", and add there
-all necessary LUNs. Check SCST README file for details.
+IMPORTANT: All LUN information (access control) MUST be configured
+=========  BEFORE iscsi-scstd started!
 
-Check SCST README file how to tune for the best performance.
+Also see SCST README file how to tune for the best performance.
 
 If under high load you experience I/O stalls or see in the kernel log
 abort or reset messages, then try to reduce QueuedCommands parameter in
@@ -74,8 +73,8 @@ iscsi-scstd.conf file for the corresponding target to some lower value,
 like 8 (default is 32). See also SCST README file for more details about
 that issue.
 
-CAUTION:  Working of target and initiator on the same host isn't
-========  supported. See SCST README file for details.
+CAUTION: Working of target and initiator on the same host isn't
+=======  supported. See SCST README file for details.
 
 
 Performance advices

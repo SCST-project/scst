@@ -4,7 +4,12 @@ PATH=/bin:/usr/bin:/sbin:/usr/sbin:/usr/local/sbin:/usr/local/bin
 SCST_CMD=/usr/local/sbin/scstadmin
 SCST_CFG=/etc/scst.conf
 
-# Modules to load/unload
+# Modules to load/unload.
+#
+# !!! DON'T ADD HERE TARGET DRIVERS, WHICH IMMEDIATELLY START ACCEPTING
+# !!! NEW CONNECTIONS, BECAUSE AT THIS POINT ACCESS CONTROL HASN'T CONFIGURED
+# !!! YET!
+#
 SCST_MODULES="qla2x00tgt scst_vdisk scst_disk"
 
 OPTIONS=""

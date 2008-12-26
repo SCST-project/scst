@@ -209,7 +209,7 @@ your favorit kernel configuration Makefile target, e.g. "make xconfig":
  - CONFIG_SCST_MEASURE_LATENCY - if defined, provides in /proc/scsi_tgt/latency
    file average commands processing latency. You can clear already
    measured results by writing 0 in this file. Note, you need a
-   non-preemtible kernel to have correct results.
+   non-preemptible kernel to have correct results.
 
 HIGHMEM kernel configurations are fully supported, but not recommended
 for performance reasons, except for scst_user, where they are not
@@ -300,27 +300,49 @@ Access and devices visibility management (LUN masking)
 ------------------------------------------------------
 
 Access and devices visibility management allows for an initiator or
-group of initiators to have different views of LUs/LUNs (security groups)
-each with appropriate access permissions. It is highly recommended to
-use scstadmin utility for that purpose instead of described in this
-section low level interface.
+group of initiators to see different devices with different LUNs
+with necessary access permissions.
 
-Initiator is represented as an SCST session. The session is bound to
-security group on its registration time by character "name" parameter of
-the registration function, which provided by target driver, based on its
-internal authentication. For example, for FC "name" could be WWN or just
-loop ID. For iSCSI this could be iSCSI login credentials or iSCSI
-initiator name. Each security group has set of names assigned to it by
-system administrator. Session is bound to security group with provided
-name. If no such groups found, the session bound to either
-"Default_target_name", or "Default" group, depending from either
-"Default_target_name" exists or not. In "Default_target_name" target
-name means name of the target.
+SCST supports two modes of access control: 
+
+1. Target-oriented. In this mode you define for each target devices and
+their LUNs, which are accessible to all initiators, connected to that
+target. This is a regular access control mode, which people mean
+thinking about access control in general. For instance, in IET this is
+the only supported mode. In this mode you should create a security group
+with name "Default_TARGET_NAME", where "TARGET_NAME" is name of the
+target, like "Default_iqn.2007-05.com.example:storage.disk1.sys1.xyz"
+for target "iqn.2007-05.com.example:storage.disk1.sys1.xyz". Then you
+should add to it all LUNs, available from that target.
+
+2. Initiator-oriented. In this mode you define which devices and their
+LUNs are accessible for each initiator. In this mode you should create
+for each set of one or more initiators, which should access to the same
+set of devices with the same LUNs, a separate security group, then add
+to it available devices and names of allowed initiator(s).
+
+Both modes can be used simultaneously. In this case initiator-oriented
+mode has higher priority, than target-oriented.
+
+When a target driver registers itself in SCST core, it tells SCST core
+its name. Then, when there is a new connection from a remote initiator,
+the target driver registers this connection in SCST core and tells it
+name of the remote initiator. Then SCST core finds the corresponding
+devices for it using the following algorithm:
+
+1. It searches through all defined groups trying to find group
+containing the initiator name. If it succeeds, the found group is used.
+
+2. Otherwise, it searches through all groups trying to find group with
+name "Default_TARGET_NAME". If it succeeds, the found group is used.
+
+3. Otherwise, the group with name "Default" is used. This group is
+always defined, but empty by default.
 
 In /proc/scsi_tgt each group represented as "groups/GROUP_NAME/"
 subdirectory. In it there are files "devices" and "names". File
-"devices" lists all devices and their LUNs in the group, file "names"
-lists all names that should be bound to this group.
+"devices" lists devices and their LUNs in the group, file "names" lists
+names of initiators, which allowed to access devices in this group.
 
 To configure access and devices visibility management SCST provides the
 following files and directories under /proc/scsi_tgt:
@@ -330,14 +352,14 @@ following files and directories under /proc/scsi_tgt:
   - "del_group GROUP" to /proc/scsi_tgt/scsi_tgt deletes group "GROUP"
 
   - "add H:C:I:L lun [READ_ONLY]" to /proc/scsi_tgt/groups/GROUP/devices adds
-    device with host:channel:id:lun as LUN "lun" in group "GROUP". Optionally,
+    device with host:channel:id:lun with LUN "lun" in group "GROUP". Optionally,
     the device could be marked as read only.
 
   - "del H:C:I:L" to /proc/scsi_tgt/groups/GROUP/devices deletes device with
     host:channel:id:lun from group "GROUP"
 
   - "add V_NAME lun [READ_ONLY]" to /proc/scsi_tgt/groups/GROUP/devices adds
-    device with virtual name "V_NAME" as LUN "lun" in group "GROUP".
+    device with virtual name "V_NAME" with LUN "lun" in group "GROUP".
     Optionally, the device could be marked as read only.
 
   - "del V_NAME" to /proc/scsi_tgt/groups/GROUP/devices deletes device with
@@ -367,6 +389,49 @@ Examples:
  - "echo "add disk1 1" >/proc/scsi_tgt/groups/Default/devices" will
  add virtual VDISK device with name "disk1" to "Default" group
  with LUN 1.
+
+Consider you need to have an iSCSI target with name
+"iqn.2007-05.com.example:storage.disk1.sys1.xyz" (you defined it in
+iscsi-scst.conf), which should export virtual device "dev1" with LUN 0
+and virtual device "dev2" with LUN 1, but initiator with name
+"iqn.2007-05.com.example:storage.disk1.spec_ini.xyz" should see only
+virtual device "dev2" with LUN 0. To achieve that you should do the
+following commands:
+
+# echo "add_group Default_iqn.2007-05.com.example:storage.disk1.sys1.xyz" >/proc/scsi_tgt/scsi_tgt
+# echo "add dev1 0" >/proc/scsi_tgt/groups/Default_iqn.2007-05.com.example:storage.disk1.sys1.xyz/devices
+# echo "add dev2 1" >/proc/scsi_tgt/groups/Default_iqn.2007-05.com.example:storage.disk1.sys1.xyz/devices
+
+# echo "add_group spec_ini" >/proc/scsi_tgt/scsi_tgt
+# echo "add iqn.2007-05.com.example:storage.disk1.spec_ini.xyz" >/proc/scsi_tgt/groups/spec_ini/names
+# echo "add dev2 0" >/proc/scsi_tgt/groups/spec_ini/devices
+
+It is highly recommended to use scstadmin utility instead of described
+in this section low level interface.
+
+IMPORTANT
+=========
+
+All the access control must be fully configured BEFORE load of the 
+corresponding target driver! When you load a target driver or enable
+target mode in it, as for qla2x00t driver, it will immediately start
+accepting new connections, hence creating new sessions, and those new
+sessions will be assigned to security groups according to the
+*currently* configured access control settings. For instance, to
+"Default" group, instead of "HOST004" as you need, because "HOST004"
+doesn't exist yet. So, one must configure all the security groups before
+new connections from the initiators are created, i.e. before target
+drivers loaded.
+
+Access controls can be altered after the target driver loaded as long as
+the target session doesn't yet exist. And even in the case of the
+session already existing, changes are still possible, but won't be
+reflected on the initiator side.
+
+So, the safest choice is to configure all the access control before any
+target driver load and then only add new devices to new groups for new
+initiators or add new devices to old groups, but not altering existing
+LUNs in them.
 
 VDISK device handler
 --------------------
