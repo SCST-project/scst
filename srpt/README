@@ -108,9 +108,3 @@ automatically ie. set SRP_LOAD=yes, and SRPHA_ENABLE=yes
 and multipath tool
 + Please refer to OFED-1.x SRP's user manual for more in-details instructions
 on how-to enable/use HA feature
-
-
-TO DO
-------
-+ Stress test and stabilize the code
-+ Performance tuning
