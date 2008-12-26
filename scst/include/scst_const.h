@@ -253,13 +253,6 @@ static inline int scst_is_ua_sense(const uint8_t *sense)
 #define SCST_RES_LONGID              0x02
 
 /*************************************************************
- ** Bits in the READ POSITION command
- *************************************************************/
-#define TCLP_BIT                     4
-#define LONG_BIT                     2
-#define BT_BIT                       1
-
-/*************************************************************
  ** Values for the control mode page TST field
  *************************************************************/
 #define SCST_CONTR_MODE_ONE_TASK_SET  0

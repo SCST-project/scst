@@ -2339,9 +2339,9 @@ int scst_tape_generic_parse(struct scst_cmd *cmd,
 	      cmd->op_name, cmd->data_direction, cmd->op_flags, cmd->bufflen);
 
 	if (cmd->cdb[0] == READ_POSITION) {
-		int tclp = cmd->cdb[1] & TCLP_BIT;
-		int long_bit = cmd->cdb[1] & LONG_BIT;
-		int bt = cmd->cdb[1] & BT_BIT;
+		int tclp = cmd->cdb[1] & 4;
+		int long_bit = cmd->cdb[1] & 2;
+		int bt = cmd->cdb[1] & 1;
 
 		if ((tclp == long_bit) && (!bt || !long_bit)) {
 			cmd->bufflen =
