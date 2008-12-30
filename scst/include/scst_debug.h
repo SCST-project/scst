@@ -114,6 +114,10 @@
 #define TRACE_ALL            0xffffffff
 /* Flags 0xXXXX0000 are local for users */
 
+#ifndef KERN_CONT
+#define KERN_CONT       ""
+#endif
+
 /*
  * Note: in the next two printk() statements the KERN_CONT macro is only
  * present to suppress a checkpatch warning (KERN_CONT is defined as "").
