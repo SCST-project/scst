@@ -1026,6 +1026,7 @@ static void scst_local_targ_task_mgmt_done(struct scst_mgmt_cmd *mgmt_cmd)
 
 static struct scst_tgt_template scst_local_targ_tmpl = {
 	.name			= "scst_local_tgt",
+	.sg_tablesize		= 0xffff,
 	.xmit_response_atomic	= 1,
 	.detect			= scst_local_targ_detect,
 	.release		= scst_local_targ_release,
