@@ -1489,7 +1489,7 @@ static int dev_user_reply_cmd(struct file *file, void __user *arg)
 	mutex_lock(&dev_priv_mutex);
 	dev = (struct scst_user_dev *)file->private_data;
 	res = dev_user_check_reg(dev);
-	if (res != 0) {
+	if (unlikely(res != 0)) {
 		mutex_unlock(&dev_priv_mutex);
 		goto out;
 	}
@@ -1497,7 +1497,7 @@ static int dev_user_reply_cmd(struct file *file, void __user *arg)
 	mutex_unlock(&dev_priv_mutex);
 
 	res = copy_from_user(&reply, arg, sizeof(reply));
-	if (res < 0)
+	if (unlikely(res < 0))
 		goto out_up;
 
 	TRACE_MGMT_DBG("Reply for dev %s", dev->name);
@@ -1505,7 +1505,7 @@ static int dev_user_reply_cmd(struct file *file, void __user *arg)
 	TRACE_BUFFER("Reply", &reply, sizeof(reply));
 
 	res = dev_user_process_reply(dev, &reply);
-	if (res < 0)
+	if (unlikely(res < 0))
 		goto out_up;
 
 out_up:
@@ -1675,7 +1675,7 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 	mutex_lock(&dev_priv_mutex);
 	dev = (struct scst_user_dev *)file->private_data;
 	res = dev_user_check_reg(dev);
-	if (res != 0) {
+	if (unlikely(res != 0)) {
 		mutex_unlock(&dev_priv_mutex);
 		goto out;
 	}
@@ -1686,14 +1686,14 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 	res = copy_from_user(&ureply, (uint64_t __user *)
 		&((struct scst_user_get_cmd *)arg)->preply,
 		sizeof(ureply));
-	if (res < 0)
+	if (unlikely(res < 0))
 		goto out_up;
 
 	TRACE_DBG("ureply %lld (dev %s)", (long long unsigned int)ureply,
 		dev->name);
 
 	cmd = kmem_cache_alloc(user_get_cmd_cachep, GFP_KERNEL);
-	if (cmd == NULL) {
+	if (unlikely(cmd == NULL)) {
 		res = -ENOMEM;
 		goto out_up;
 	}
@@ -1702,13 +1702,13 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 		unsigned long u = (unsigned long)ureply;
 		reply = (struct scst_user_reply_cmd *)cmd;
 		res = copy_from_user(reply, (void __user *)u, sizeof(*reply));
-		if (res < 0)
+		if (unlikely(res < 0))
 			goto out_free;
 
 		TRACE_BUFFER("Reply", reply, sizeof(*reply));
 
 		res = dev_user_process_reply(dev, reply);
-		if (res < 0)
+		if (unlikely(res < 0))
 			goto out_free;
 	}
 
@@ -1811,7 +1811,7 @@ static unsigned int dev_user_poll(struct file *file, poll_table *wait)
 	mutex_lock(&dev_priv_mutex);
 	dev = (struct scst_user_dev *)file->private_data;
 	res = dev_user_check_reg(dev);
-	if (res != 0) {
+	if (unlikely(res != 0)) {
 		mutex_unlock(&dev_priv_mutex);
 		goto out;
 	}
