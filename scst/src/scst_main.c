@@ -420,8 +420,19 @@ void scst_unregister(struct scst_tgt *tgt)
 	TRACE_DBG("%s", "Target driver's release() returned");
 
 	mutex_lock(&scst_mutex);
+again:
 	list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
-		sBUG_ON(sess->shut_phase == SCST_SESS_SPH_READY);
+		if (sess->shut_phase == SCST_SESS_SPH_READY) {
+			/*
+			 * Sometimes it's hard for target driver to track all
+			 * its sessions (see scst_local, for example), so let's
+			 * help it.
+			 */
+			mutex_unlock(&scst_mutex);
+			scst_unregister_session(sess, 0, NULL);
+			mutex_lock(&scst_mutex);
+			goto again;
+		}
 	}
 	mutex_unlock(&scst_mutex);
 

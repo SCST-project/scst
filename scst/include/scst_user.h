@@ -185,10 +185,10 @@ struct scst_user_tm {
 };
 
 struct scst_user_get_cmd {
-	aligned_u64 preply;
 	uint32_t cmd_h;
 	uint32_t subcode;
 	union {
+		aligned_u64 preply;
 		struct scst_user_sess sess;
 		struct scst_user_scsi_cmd_parse parse_cmd;
 		struct scst_user_scsi_cmd_alloc_mem alloc_cmd;

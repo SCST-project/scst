@@ -923,7 +923,6 @@ static void dev_user_on_free_cmd(struct scst_cmd *cmd)
 
 	if (unlikely(!ucmd->seen_by_user)) {
 		TRACE_MGMT_DBG("Not seen by user ucmd %p", ucmd);
-		sBUG_ON((ucmd->sgv != NULL) || (ucmd->data_pages != NULL));
 		goto out_reply;
 	}
 
@@ -1683,7 +1682,10 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 	down_read(&dev->dev_rwsem);
 	mutex_unlock(&dev_priv_mutex);
 
-	res = copy_from_user(&ureply, arg, sizeof(ureply));
+	/* get_user() can't be used with 64-bit values on x86_32 */
+	res = copy_from_user(&ureply, (uint64_t __user *)
+		&((struct scst_user_get_cmd *)arg)->preply,
+		sizeof(ureply));
 	if (res < 0)
 		goto out_up;
 
