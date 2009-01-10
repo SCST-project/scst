@@ -26,10 +26,10 @@ Here is how I have used it so far:
 
   dd if=/dev/zero of=/some/path/vdisk1.img bs=16384 count=1000000
 #  dd if=/dev/zero of=/some/path/vdisk2.img bs=16384 count=1000000
-  echo "open vm_disk1 /some/path/vdisk1.img" > /proc/scsi_tgt/vdisk/vdisk 
-#  echo "open vm_disk2 /some/path/vdisk2.img" > /proc/scsi_tgt/vdisk/vdisk 
-  echo "add vm_disk1 0" > /proc/scsi_tgt/groups/Default/devices 
-#  echo "add vm_disk2 1" > /proc/scsi_tgt/groups/Default/devices 
+  echo "open vm_disk1 /some/path/vdisk1.img" > /proc/scsi_tgt/vdisk/vdisk
+#  echo "open vm_disk2 /some/path/vdisk2.img" > /proc/scsi_tgt/vdisk/vdisk
+  echo "add vm_disk1 0" > /proc/scsi_tgt/groups/Default/devices
+#  echo "add vm_disk2 1" > /proc/scsi_tgt/groups/Default/devices
 
 3. Load the scst_local driver:
 
@@ -52,18 +52,18 @@ Here is how I have used it so far:
 
 5. Have fun.
 
-Some of this was coded while in Santa Clara, some in Bangalore, and some in 
+Some of this was coded while in Santa Clara, some in Bangalore, and some in
 Hyderabad. Noe doubt some will be coded on the way back to Santa Clara.
 
 The code still has bugs, so if you encounter any, email me the fixes at:
 
    realrichardsharpe@gmail.com
 
-I am thinking of renaming this to something more interesting. 
+I am thinking of renaming this to something more interesting.
 
 6. Change log
 
-V0.1 24-Sep-2008 (Hyderabad) Initial coding, pretty chatty and messy, 
+V0.1 24-Sep-2008 (Hyderabad) Initial coding, pretty chatty and messy,
                              but worked.
 
 V0.2 25-Sep-2008 (Hong Kong) Cleaned up the code a lot, reduced the log
@@ -80,7 +80,7 @@ V0.4 5-Oct-2008 (Santa Clara) Changed name to scst_local as suggested, cleaned
 			      up some unused variables (made them used) and
 			      change allocation to a kmem_cache pool.
 
-V0.5 5-Oct-2008 (Santa Clara) Added mgmt commands to handle dev reset and 
+V0.5 5-Oct-2008 (Santa Clara) Added mgmt commands to handle dev reset and
 			      aborts. Not sure if aborts works. Also corrected
 			      the version info and renamed readme to README.
 
