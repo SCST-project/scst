@@ -842,17 +842,20 @@ IMPORTANT: If you use on initiator some versions of Windows (at least W2K)
 	   See also important notes about setting block sizes >512 bytes
 	   for VDISK FILEIO devices above.
 
-What if target's backstorage is too slow
-----------------------------------------
 
-If under high load you experience I/O stalls or see in the kernel log on
-the target abort or reset messages, then your backstorage is too slow
-comparing with your target link speed and amount of simultaneously
-queued commands. On some seek intensive workloads even fast disks or
-RAIDs, which able to serve continuous data stream on 500+ MB/s speed,
-can be as slow as 0.3 MB/s. Another possible cause for that can be
-MD/LVM/RAID on your target as in http://lkml.org/lkml/2008/2/27/96
-(check the whole thread as well).
+Work if target's backstorage or link is too slow
+------------------------------------------------
+
+Under high I/O load, when your target's backstorage gets overloaded, or
+working over a slow link between inititor and target, when the link
+can't serve all the queued commands on time, you can experience I/O
+stalls or see in the kernel log abort or reset messages.
+
+At first, consider the case of too slow target's backstorage. On some
+seek intensive workloads even fast disks or RAIDs, which able to serve
+continuous data stream on 500+ MB/s speed, can be as slow as 0.3 MB/s.
+Another possible cause for that can be MD/LVM/RAID on your target as in
+http://lkml.org/lkml/2008/2/27/96 (check the whole thread as well).
 
 Thus, in such situations simply processing of one or more commands takes
 too long time, hence initiator decides that they are stuck on the target
@@ -865,28 +868,21 @@ backstorage speed could be more appropriate.
 Unfortunately, currently SCST lacks dynamic I/O flow control, when the
 queue depth on the target is dynamically decreased/increased based on
 how slow/fast the backstorage speed comparing to the target link. So,
-there are only 5 possible actions, which you can do to workaround or fix
-this issue:
+there are 6 possible actions, which you can do to workaround or fix this
+issue in this case:
 
 1. Ignore incoming task management (TM) commands. It's fine if there are
 not too many of them, so average performance isn't hurt and the
-corresponding device isn't put offline, i.e. if the backstorage isn't
-too much slow.
+corresponding device isn't getting put offline, i.e. if the backstorage
+isn't too slow.
 
 2. Decrease /sys/block/sdX/device/queue_depth on the initiator in case
 if it's Linux (see below how) or/and SCST_MAX_TGT_DEV_COMMANDS constant
 in scst_priv.h file until you stop seeing incoming TM commands.
-ISCSI-SCST driver also has its own iSCSI specific parameter for that.
+ISCSI-SCST driver also has its own iSCSI specific parameter for that,
+see its README file.
 
-3. Try to avoid such seek intensive workloads.
-
-4. Insrease speed of the target's backstorage.
-
-5. Implement in SCST dynamic I/O flow control. See "Dynamic I/O flow
-control" section on http://scst.sourceforge.net/contributing.html page
-for possible idea how to do it.
-
-To decrease device queue depth on Linux initiators run command:
+To decrease device queue depth on Linux initiators you can run command:
 
 # echo Y >/sys/block/sdX/device/queue_depth
 
@@ -896,12 +892,53 @@ limitations for Y value, it can be any value from 1 to possible maximum
 (usually, 32), so start from dividing the current value on 2, i.e. set
 16, if /sys/block/sdX/device/queue_depth contains 32.
 
+3. Increase the corresponding timeout on the initiator. For Linux it is
+located in
+/sys/devices/platform/host*/session*/target*:0:0/*:0:0:1/timeout. It can
+be done automatically by an udev rule. For instance, the following
+rule will increase it to 300 seconds:
+
+SUBSYSTEM=="scsi", KERNEL=="[0-9]*:[0-9]*", ACTION=="add", ATTR{type}=="0|7|14", ATTR{timeout}="300"
+
+By default, this timeout is 30 or 60 seconds, depending on your distribution.
+
+4. Try to avoid such seek intensive workloads.
+
+5. increase speed of the target's backstorage.
+
+6. Implement in SCST dynamic I/O flow control. This will be an ultimate
+solution. See "Dynamic I/O flow control" section on
+http://scst.sourceforge.net/contributing.html page for possible
+implementation idea.
+
+Next, consider the case of too slow link between initiator and target,
+when the initiator tries to simultaneously push N commands to the target
+over it. In this case time to serve those commands, i.e. send or receive
+data for them over the link, can be more, than timeout for any single
+command, hence one or more commands in the tail of the queue can not be
+served on time less than the timeout, so the initiator will decide that
+they are stuck on the target and will try to recover.
+
+Unfortunately, target can reliably detect leading to the issue
+conditions only in case of READ commands, when the target can see that
+commands' data transmission is getting too slow, so the dynamic flow
+control, described above, can prevent the issue. But for WRITE commands
+there are cases when target has no way to detect the issue. In this case
+you can workaround it only by increasing the corresponding timeout on
+the initiator.
+
+Thus, to workaround/fix this issue in this case you can use ways 1, 2,
+3, 6 above or (7) increase speed of the link between target and
+initiator. But for write intensive workloads you may have to increase
+the timeout on initiator (way 3) in any case.
+
 Note, that logged messages about QUEUE_FULL status are quite different
 by nature. This is a normal work, just SCSI flow control in action.
 Simply don't enable "mgmt_minor" logging level, or, alternatively, if
-you are confident in the worst case performance of your back-end
-storage, you can increase SCST_MAX_TGT_DEV_COMMANDS in scst_priv.h to
-64. Usually initiators don't try to push more commands on the target.
+you are confident in the worst case performance of your back-end storage
+or inititor-target link, you can increase SCST_MAX_TGT_DEV_COMMANDS in
+scst_priv.h to 64. Usually initiators don't try to push more commands on
+the target.
 
 Credits
 -------

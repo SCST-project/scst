@@ -11,6 +11,7 @@
 #include <linux/delay.h>
 #include <linux/kthread.h>
 #include <linux/mutex.h>
+#include <linux/version.h>
 
 #include <scsi/scsi_tcq.h>
 #include <scsi/scsicam.h>
@@ -1571,9 +1572,14 @@ qla2x00_probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 			goto probe_out;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
 	if (pci_find_aer_capability(pdev))
 		if (pci_enable_pcie_error_reporting(pdev))
 			goto probe_out;
+#else /* taken from 2.6.28 */
+	/* This may fail but that's ok */
+	pci_enable_pcie_error_reporting(pdev);
+#endif
 
 	host = scsi_host_alloc(sht, sizeof(scsi_qla_host_t));
 	if (host == NULL) {
