@@ -30,11 +30,7 @@
 #define DEV_USER_VERSION		\
 	DEV_USER_VERSION_NAME "$Revision$" SCST_CONST_VERSION
 
-/*
- * Chosen so sizeof(scst_user_sess) <= sizeof(scst_user_scsi_cmd_exec)
- * (the largest one)
- */
-#define SCST_MAX_NAME			45
+#define SCST_MAX_NAME			50
 
 #define SCST_USER_PARSE_STANDARD	0
 #define SCST_USER_PARSE_CALL		1
@@ -106,6 +102,7 @@ struct scst_user_sess {
 	uint16_t threads_num;
 	uint8_t rd_only;
 	char initiator_name[SCST_MAX_NAME];
+	char target_name[SCST_MAX_NAME];
 };
 
 struct scst_user_scsi_cmd_parse {

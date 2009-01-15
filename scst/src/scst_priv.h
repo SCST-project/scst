@@ -107,9 +107,6 @@ extern unsigned long scst_trace_flag;
 #define SCST_CMD_STATE_RES_CONT_SAME         SCST_EXEC_NOT_COMPLETED
 #define SCST_CMD_STATE_RES_NEED_THREAD       SCST_EXEC_NEED_THREAD
 
-/** Name of the "default" security group **/
-#define SCST_DEFAULT_ACG_NAME                "Default"
-
 /**
  ** Maximum count of uncompleted commands that an initiator could
  ** queue on any device. Then it will start getting TASK QUEUE FULL status.

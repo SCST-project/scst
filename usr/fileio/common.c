@@ -618,9 +618,10 @@ static int do_sess(struct vdisk_cmd *vcmd)
 		tgt_dev->sess_h = cmd->sess.sess_h;
 		tgt_dev->last_write_cmd_queue_type = SCST_CMD_QUEUE_SIMPLE;
 
-		PRINT_INFO("Session from initiator %s attached (LUN %"PRIx64", "
-			"threads_num %d, rd_only %d, sess_h %"PRIx64")",
-			cmd->sess.initiator_name, cmd->sess.lun,
+		PRINT_INFO("Session from initiator %s (target %s) attached "
+			"(LUN %"PRIx64", threads_num %d, rd_only %d, sess_h "
+			"%"PRIx64")", cmd->sess.initiator_name,
+			cmd->sess.target_name, cmd->sess.lun,
 			cmd->sess.threads_num, cmd->sess.rd_only,
 			cmd->sess.sess_h);
 	} else {

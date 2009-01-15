@@ -110,6 +110,11 @@ enum scst_cmd_queue_type {
 #define SCST_DATA_NONE				3
 
 /*************************************************************
+ ** Name of the "Default" security group
+ *************************************************************/
+#define SCST_DEFAULT_ACG_NAME			"Default"
+
+/*************************************************************
  ** Sense manipulation and examination
  *************************************************************/
 #define SCST_LOAD_SENSE(key_asc_ascq) key_asc_ascq

@@ -20,6 +20,7 @@
 #include <linux/kthread.h>
 #include <linux/delay.h>
 #include <linux/poll.h>
+#include <linux/stddef.h>
 
 #define LOG_PREFIX		DEV_USER_NAME
 
@@ -53,10 +54,10 @@
 #endif
 
 #define DEV_USER_MAJOR			237
-
 #define DEV_USER_CMD_HASH_ORDER		6
-
 #define DEV_USER_ATTACH_TIMEOUT		(5*HZ)
+
+#define DEV_USER_HEADER_LEN	offsetof(struct scst_user_get_cmd, preply)
 
 struct scst_user_dev {
 	struct rw_semaphore dev_rwsem;
@@ -144,6 +145,7 @@ struct scst_user_cmd {
 	unsigned int h;
 	struct list_head hash_list_entry;
 
+	int user_cmd_payload_len;
 	struct scst_user_get_cmd user_cmd;
 
 	/* cmpl used only by ATTACH_SESS, mcmd used only by TM */
@@ -410,6 +412,7 @@ static void dev_user_on_cached_mem_free(struct scst_user_cmd *ucmd)
 	TRACE_MEM("Preparing ON_CACHED_MEM_FREE (ucmd %p, h %d, ubuff %lx)",
 		ucmd, ucmd->h, ucmd->ubuff);
 
+	ucmd->user_cmd_payload_len = sizeof(ucmd->user_cmd.on_cached_mem_free);
 	ucmd->user_cmd.cmd_h = ucmd->h;
 	ucmd->user_cmd.subcode = SCST_USER_ON_CACHED_MEM_FREE;
 	ucmd->user_cmd.on_cached_mem_free.pbuf = ucmd->ubuff;
@@ -627,6 +630,7 @@ static int dev_user_alloc_space(struct scst_user_cmd *ucmd)
 		goto out;
 	}
 
+	ucmd->user_cmd_payload_len = sizeof(ucmd->user_cmd.alloc_cmd);
 	ucmd->user_cmd.cmd_h = ucmd->h;
 	ucmd->user_cmd.subcode = SCST_USER_ALLOC_MEM;
 	ucmd->user_cmd.alloc_cmd.sess_h = (unsigned long)cmd->tgt_dev;
@@ -747,6 +751,7 @@ static int dev_user_parse(struct scst_cmd *cmd)
 	case SCST_USER_PARSE_CALL:
 		TRACE_DBG("Preparing PARSE for user space (ucmd=%p, h=%d, "
 			"bufflen %d)", ucmd, ucmd->h, cmd->bufflen);
+		ucmd->user_cmd_payload_len = sizeof(ucmd->user_cmd.parse_cmd);
 		ucmd->user_cmd.cmd_h = ucmd->h;
 		ucmd->user_cmd.subcode = SCST_USER_PARSE;
 		ucmd->user_cmd.parse_cmd.sess_h = (unsigned long)cmd->tgt_dev;
@@ -858,6 +863,7 @@ static int dev_user_exec(struct scst_cmd *cmd)
 	if (cmd->data_direction == SCST_DATA_WRITE)
 		dev_user_flush_dcache(ucmd);
 
+	ucmd->user_cmd_payload_len = sizeof(ucmd->user_cmd.exec_cmd);
 	ucmd->user_cmd.cmd_h = ucmd->h;
 	ucmd->user_cmd.subcode = SCST_USER_EXEC;
 	ucmd->user_cmd.exec_cmd.sess_h = (unsigned long)cmd->tgt_dev;
@@ -926,9 +932,9 @@ static void dev_user_on_free_cmd(struct scst_cmd *cmd)
 		goto out_reply;
 	}
 
+	ucmd->user_cmd_payload_len = sizeof(ucmd->user_cmd.on_free_cmd);
 	ucmd->user_cmd.cmd_h = ucmd->h;
 	ucmd->user_cmd.subcode = SCST_USER_ON_FREE_CMD;
-
 	ucmd->user_cmd.on_free_cmd.pbuf = ucmd->ubuff;
 	ucmd->user_cmd.on_free_cmd.resp_data_len = cmd->resp_data_len;
 	ucmd->user_cmd.on_free_cmd.buffer_cached = ucmd->buff_cached;
@@ -1712,18 +1718,44 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 			goto out_free;
 	}
 
+	kmem_cache_free(user_get_cmd_cachep, cmd);
+
 	spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
 	res = dev_user_get_next_cmd(dev, &ucmd);
 	if (res == 0) {
-		*cmd = ucmd->user_cmd;
-		spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
-		TRACE_BUFFER("UCMD", cmd, sizeof(*cmd));
-		res = copy_to_user(arg, cmd, sizeof(*cmd));
-	} else
+		int len;
+		/*
+		 * A misbehaving user space handler can make ucmd to get dead
+		 * immediately after we released the lock, which can lead to
+		 * copy of dead data to the user space, which can lead to a
+		 * leak of sensitive information.
+		 */
+		ucmd_get(ucmd);
 		spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
 
-out_free:
-	kmem_cache_free(user_get_cmd_cachep, cmd);
+		EXTRACHECKS_BUG_ON(ucmd->user_cmd_payload_len == 0);
+
+		len = DEV_USER_HEADER_LEN + ucmd->user_cmd_payload_len;
+		TRACE_DBG("ucmd %p (user_cmd %p), payload_len %d (len %d)",
+			ucmd, &ucmd->user_cmd, ucmd->user_cmd_payload_len, len);
+		TRACE_BUFFER("UCMD", &ucmd->user_cmd, len);
+		res = copy_to_user(arg, &ucmd->user_cmd, len);
+		if (unlikely(res != 0)) {
+			/* Requeue ucmd back */
+			TRACE_DBG("Copy to user failed (%d), requeuing ucmd %p "
+				"back to head of ready cmd list", res, ucmd);
+			spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
+			list_add(&ucmd->ready_cmd_list_entry,
+				&dev->ready_cmd_list);
+			spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+		}
+#ifdef CONFIG_SCST_EXTRACHECKS
+		else
+			ucmd->user_cmd_payload_len = 0;
+#endif
+		ucmd_put(ucmd);
+	} else
+		spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
 
 out_up:
 	up_read(&dev->dev_rwsem);
@@ -1731,6 +1763,10 @@ out_up:
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_free:
+	kmem_cache_free(user_get_cmd_cachep, cmd);
+	goto out_up;
 }
 
 static long dev_user_ioctl(struct file *file, unsigned int cmd,
@@ -2132,6 +2168,7 @@ static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	/* We can't afford missing TM command due to memory shortage */
 	ucmd = dev_user_alloc_ucmd(dev, GFP_KERNEL|__GFP_NOFAIL);
 
+	ucmd->user_cmd_payload_len = sizeof(ucmd->user_cmd.tm_cmd);
 	ucmd->user_cmd.cmd_h = ucmd->h;
 	ucmd->user_cmd.subcode = SCST_USER_TASK_MGMT;
 	ucmd->user_cmd.tm_cmd.sess_h = (unsigned long)tgt_dev;
@@ -2266,6 +2303,7 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 
 	ucmd->cmpl = &cmpl;
 
+	ucmd->user_cmd_payload_len = sizeof(ucmd->user_cmd.sess);
 	ucmd->user_cmd.cmd_h = ucmd->h;
 	ucmd->user_cmd.subcode = SCST_USER_ATTACH_SESS;
 	ucmd->user_cmd.sess.sess_h = (unsigned long)tgt_dev;
@@ -2277,12 +2315,20 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 		sizeof(ucmd->user_cmd.sess.initiator_name)-1);
 	ucmd->user_cmd.sess.initiator_name[
 		sizeof(ucmd->user_cmd.sess.initiator_name)-1] = '\0';
+	if (tgt_dev->sess->tgt->default_group_name != NULL) {
+		strncpy(ucmd->user_cmd.sess.target_name,
+			&tgt_dev->sess->tgt->default_group_name[sizeof(SCST_DEFAULT_ACG_NAME)],
+			sizeof(ucmd->user_cmd.sess.target_name)-1);
+		ucmd->user_cmd.sess.target_name[
+			sizeof(ucmd->user_cmd.sess.target_name)-1] = '\0';
+	}
 
 	TRACE_MGMT_DBG("Preparing ATTACH_SESS %p (h %d, sess_h %llx, LUN %llx, "
-		"threads_num %d, rd_only_flag %d, initiator %s)", ucmd, ucmd->h,
-		ucmd->user_cmd.sess.sess_h, ucmd->user_cmd.sess.lun,
-		ucmd->user_cmd.sess.threads_num, ucmd->user_cmd.sess.rd_only,
-		ucmd->user_cmd.sess.initiator_name);
+		"threads_num %d, rd_only_flag %d, initiator %s, target %s)",
+		ucmd, ucmd->h, ucmd->user_cmd.sess.sess_h,
+		ucmd->user_cmd.sess.lun, ucmd->user_cmd.sess.threads_num,
+		ucmd->user_cmd.sess.rd_only, ucmd->user_cmd.sess.initiator_name,
+		ucmd->user_cmd.sess.target_name);
 
 	ucmd->state = UCMD_STATE_ATTACH_SESS;
 
@@ -2334,6 +2380,7 @@ static void dev_user_detach_tgt(struct scst_tgt_dev *tgt_dev)
 	TRACE_MGMT_DBG("Preparing DETACH_SESS %p (h %d, sess_h %llx)", ucmd,
 		ucmd->h, ucmd->user_cmd.sess.sess_h);
 
+	ucmd->user_cmd_payload_len = sizeof(ucmd->user_cmd.sess);
 	ucmd->user_cmd.cmd_h = ucmd->h;
 	ucmd->user_cmd.subcode = SCST_USER_DETACH_SESS;
 	ucmd->user_cmd.sess.sess_h = (unsigned long)tgt_dev;

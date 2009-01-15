@@ -470,7 +470,7 @@ target mode in it, as for qla2x00t driver, it will immediately start
 accepting new connections, hence creating new sessions, and those new
 sessions will be assigned to security groups according to the
 *currently* configured access control settings. For instance, to
-"Default" group, instead of "HOST004" as you need, because "HOST004"
+"Default" group, instead of "HOST004" as you may need, because "HOST004"
 doesn't exist yet. So, one must configure all the security groups before
 new connections from the initiators are created, i.e. before target
 drivers loaded.
@@ -904,7 +904,7 @@ By default, this timeout is 30 or 60 seconds, depending on your distribution.
 
 4. Try to avoid such seek intensive workloads.
 
-5. increase speed of the target's backstorage.
+5. Increase speed of the target's backstorage.
 
 6. Implement in SCST dynamic I/O flow control. This will be an ultimate
 solution. See "Dynamic I/O flow control" section on
@@ -919,18 +919,13 @@ command, hence one or more commands in the tail of the queue can not be
 served on time less than the timeout, so the initiator will decide that
 they are stuck on the target and will try to recover.
 
-Unfortunately, target can reliably detect leading to the issue
-conditions only in case of READ commands, when the target can see that
-commands' data transmission is getting too slow, so the dynamic flow
-control, described above, can prevent the issue. But for WRITE commands
-there are cases when target has no way to detect the issue. In this case
-you can workaround it only by increasing the corresponding timeout on
-the initiator.
-
-Thus, to workaround/fix this issue in this case you can use ways 1, 2,
-3, 6 above or (7) increase speed of the link between target and
-initiator. But for write intensive workloads you may have to increase
-the timeout on initiator (way 3) in any case.
+To workaround/fix this issue in this case you can use ways 1, 2, 3, 6
+above or (7): increase speed of the link between target and initiator.
+But for some initiators implementations for WRITE commands there might
+be cases when target has no way to detect the issue, so dynamic I/O flow
+control will not be able to help. In those cases you could also need on
+the initiator(s) to either decrease the queue depth (way 2), or increase
+the corresponding timeout (way 3).
 
 Note, that logged messages about QUEUE_FULL status are quite different
 by nature. This is a normal work, just SCSI flow control in action.

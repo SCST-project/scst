@@ -206,10 +206,10 @@ which is defined as the following:
 
 struct scst_user_get_cmd
 {
-	uint64_t preply;
 	uint32_t cmd_h;
 	uint32_t subcode;
 	union {
+		uint64_t preply;
 		struct scst_user_sess sess;
 		struct scst_user_scsi_cmd_parse parse_cmd;
 		struct scst_user_scsi_cmd_alloc_mem alloc_cmd;
@@ -222,15 +222,15 @@ struct scst_user_get_cmd
 
 where:
 
- - preply - pointer to the reply data or, if 0, there is no reply. See
-   SCST_USER_REPLY_CMD for description of struct scst_user_reply_cmd
-   fields
-
  - cmd_h - command handle used to identify the command in the reply.
 
  - subcode - subcommand code, see 4.1 below
 
-Union contains command's specific payload.
+  - preply - pointer to the reply data or, if 0, there is no reply. See
+   SCST_USER_REPLY_CMD for description of struct scst_user_reply_cmd
+   fields
+
+Other union members contain command's specific payload.
 
 For all received subcommands the user space device handler shall call
 SCST_USER_REPLY_AND_GET_CMD or SCST_USER_REPLY_CMD function to tell SCST
@@ -254,6 +254,7 @@ struct scst_user_sess
 	uint16_t threads_num;
 	uint8_t rd_only;
 	char initiator_name[SCST_MAX_NAME];
+	char target_name[SCST_MAX_NAME];
 },
 
 where:
@@ -269,6 +270,8 @@ where:
 
  - initiator_name - name of the remote initiator, which initiated this
    session
+
+ - target_name - name of the target, to which this session belongs
 
 When SCST_USER_ATTACH_SESS is returned, it is guaranteed that there are
 no other commands are being executed or pending.
