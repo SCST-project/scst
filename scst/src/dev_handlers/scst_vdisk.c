@@ -81,11 +81,12 @@ static struct scst_proc_log vdisk_proc_local_trace_tbl[] =
 #define PS				0x80	/* parameter saveable */
 
 #define	BYTE				8
-#define	DEF_DISK_BLOCKSIZE		512
 #define	DEF_DISK_BLOCKSIZE_SHIFT	9
-#define	DEF_CDROM_BLOCKSIZE		2048
+#define	DEF_DISK_BLOCKSIZE		(1 << DEF_DISK_BLOCKSIZE_SHIFT)
 #define	DEF_CDROM_BLOCKSIZE_SHIFT	11
-#define	DEF_SECTORS_PER			63
+#define	DEF_CDROM_BLOCKSIZE		(1 << DEF_CDROM_BLOCKSIZE_SHIFT)
+#define	DEF_SECTORS			56
+#define	DEF_HEADS			255
 #define LEN_MEM				(32 * 1024)
 #define VDISK_NAME			"vdisk"
 #define VCDROM_NAME			"vcdrom"
@@ -1112,7 +1113,7 @@ out_done:
 
 static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 {
-	int32_t length, len, i, resp_len = 0;
+	int32_t length, i, resp_len = 0;
 	uint8_t *address;
 	uint8_t *buf;
 	struct scst_vdisk_dev *virt_dev =
@@ -1157,7 +1158,7 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 		buf[1] = 0x80;      /* removable */
 	/* Vital Product */
 	if (cmd->cdb[1] & EVPD) {
-		int dev_id_num;
+		int dev_id_num, dev_id_len;
 		char dev_id_str[6];
 
 		for (dev_id_num = 0, i = 0; i < (int)strlen(virt_dev->name);
@@ -1173,9 +1174,10 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 
 		dev_id_num += scst_vdisk_ID;
 
-		len = scnprintf(dev_id_str, 6, "%d", dev_id_num);
-		TRACE_DBG("num %d, str <%s>, len %d",
-			   dev_id_num, dev_id_str, len);
+		dev_id_len = scnprintf(dev_id_str, sizeof(dev_id_str), "%d",
+					dev_id_num);
+		TRACE_DBG("dev_id num %d, str %s, len %d", dev_id_num,
+			dev_id_str, dev_id_len);
 		if (0 == cmd->cdb[2]) {
 			/* supported vital product data pages */
 			buf[3] = 3;
@@ -1214,13 +1216,17 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 				memcpy(&buf[num + 4], SCST_BIO_VENDOR, 8);
 			else
 				memcpy(&buf[num + 4], SCST_FIO_VENDOR, 8);
+
 			memset(&buf[num + 12], ' ', 16);
-			i = strlen(virt_dev->name);
-			i = i < 16 ? i : 16;
+			i = min(strlen(virt_dev->name), (size_t)16);
 			memcpy(&buf[num + 12], virt_dev->name, i);
-			memcpy(&buf[num + 28], dev_id_str, i);
-			buf[num + 3] = 8 + 16 + i;
-			num += buf[num + 3] + 4;
+			memcpy(&buf[num + 28], dev_id_str, dev_id_len);
+			buf[num + 3] = 8 + 16 + dev_id_len;
+			num += buf[num + 3];
+
+#if 0 /* This isn't required and can be misleading, so let's disable it */
+			num += 4;
+
 			/* NAA IEEE registered identifier (faked) */
 			buf[num] = 0x1;	/* binary */
 			buf[num + 1] = 0x3;
@@ -1234,8 +1240,10 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			buf[num + 9] = (dev_id_num >> 16) & 0xff;
 			buf[num + 10] = (dev_id_num >> 8) & 0xff;
 			buf[num + 11] = dev_id_num & 0xff;
+			num = num + 12 - 4;
+#endif
 
-			resp_len = num + 12 - 4;
+			resp_len = num;
 			buf[2] = (resp_len >> 8) & 0xFF;
 			buf[3] = resp_len & 0xFF;
 			resp_len += 4;
@@ -1247,6 +1255,8 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			goto out_put;
 		}
 	} else {
+		int len;
+
 		if (cmd->cdb[2] != 0) {
 			TRACE_DBG("INQUIRY: Unsupported page %x", cmd->cdb[2]);
 			scst_set_cmd_error(cmd,
@@ -1254,11 +1264,11 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			goto out_put;
 		}
 
-		buf[2] = 4;	/* Device complies to this standard - SPC-2  */
+		buf[2] = 4; /* Device complies to this standard - SPC-2  */
 		buf[3] = 0x12;	/* HiSup + data in format specified in SPC-2 */
-		buf[4] = 31;	/* n - 4 = 35 - 4 = 31 for full 36 byte data */
-		/* BQue = 0, CMDQUE = 1 commands queuing supported */
-		buf[6] = 0; buf[7] = 2;
+		buf[4] = 31;/* n - 4 = 35 - 4 = 31 for full 36 byte data */
+		buf[6] = 1; /* MultiP 1 */
+		buf[7] = 2; /* CMDQUE 1, BQue 0 => commands queuing supported */
 
 		/*
 		 * 8 byte ASCII Vendor Identification of the target
@@ -1342,7 +1352,6 @@ out:
  *
  * ToDo: revise them
  */
-
 static int vdisk_err_recov_pg(unsigned char *p, int pcontrol,
 			       struct scst_vdisk_dev *virt_dev)
 {	/* Read-Write Error Recovery page for mode_sense */
@@ -1367,6 +1376,26 @@ static int vdisk_disconnect_pg(unsigned char *p, int pcontrol,
 	return sizeof(disconnect_pg);
 }
 
+static int vdisk_rigid_geo_pg(unsigned char *p, int pcontrol,
+	struct scst_vdisk_dev *virt_dev)
+{
+	unsigned char geo_m_pg[] = {0x04, 0x16, 0, 0, 0, DEF_HEADS, 0, 0,
+				    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+				    0x3a, 0x98/* 15K RPM */, 0, 0};
+	int32_t ncyl, n, rem;
+	
+	memcpy(p, geo_m_pg, sizeof(geo_m_pg));
+	ncyl = div_s64_rem(virt_dev->nblocks, DEF_HEADS * DEF_SECTORS, &rem);
+	if (rem != 0)
+		ncyl++;
+	memcpy(&n, p + 2, sizeof(u32));
+	n = n | (cpu_to_be32(ncyl) >> 8);
+	memcpy(p + 2, &n, sizeof(u32));
+	if (1 == pcontrol)
+		memset(p + 2, 0, sizeof(geo_m_pg) - 2);
+	return sizeof(geo_m_pg);
+}
+
 static int vdisk_format_pg(unsigned char *p, int pcontrol,
 			    struct scst_vdisk_dev *virt_dev)
 {       /* Format device page for mode_sense */
@@ -1375,8 +1404,8 @@ static int vdisk_format_pg(unsigned char *p, int pcontrol,
 					   0, 0, 0, 0, 0x40, 0, 0, 0};
 
 	memcpy(p, format_pg, sizeof(format_pg));
-	p[10] = (DEF_SECTORS_PER >> 8) & 0xff;
-	p[11] = DEF_SECTORS_PER & 0xff;
+	p[10] = (DEF_SECTORS >> 8) & 0xff;
+	p[11] = DEF_SECTORS & 0xff;
 	p[12] = (virt_dev->block_size >> 8) & 0xff;
 	p[13] = virt_dev->block_size & 0xff;
 	if (1 == pcontrol)
@@ -1547,27 +1576,24 @@ static void vdisk_exec_mode_sense(struct scst_cmd *cmd)
 	switch (pcode) {
 	case 0x1:	/* Read-Write error recovery page, direct access */
 		len = vdisk_err_recov_pg(bp, pcontrol, virt_dev);
-		offset += len;
 		break;
 	case 0x2:	/* Disconnect-Reconnect page, all devices */
 		len = vdisk_disconnect_pg(bp, pcontrol, virt_dev);
-		offset += len;
 		break;
 	case 0x3:       /* Format device page, direct access */
 		len = vdisk_format_pg(bp, pcontrol, virt_dev);
-		offset += len;
+		break;
+	case 0x4:	/* Rigid disk geometry */
+		len = vdisk_rigid_geo_pg(bp, pcontrol, virt_dev);
 		break;
 	case 0x8:	/* Caching page, direct access */
 		len = vdisk_caching_pg(bp, pcontrol, virt_dev);
-		offset += len;
 		break;
 	case 0xa:	/* Control Mode page, all devices */
 		len = vdisk_ctrl_m_pg(bp, pcontrol, virt_dev);
-		offset += len;
 		break;
 	case 0x1c:	/* Informational Exceptions Mode page, all devices */
 		len = vdisk_iec_m_pg(bp, pcontrol, virt_dev);
-		offset += len;
 		break;
 	case 0x3f:	/* Read all Mode pages */
 		len = vdisk_err_recov_pg(bp, pcontrol, virt_dev);
@@ -1576,7 +1602,7 @@ static void vdisk_exec_mode_sense(struct scst_cmd *cmd)
 		len += vdisk_caching_pg(bp + len, pcontrol, virt_dev);
 		len += vdisk_ctrl_m_pg(bp + len, pcontrol, virt_dev);
 		len += vdisk_iec_m_pg(bp + len, pcontrol, virt_dev);
-		offset += len;
+		len += vdisk_rigid_geo_pg(bp + len, pcontrol, virt_dev);
 		break;
 	default:
 		TRACE_DBG("MODE SENSE: Unsupported page %x", pcode);
@@ -1584,6 +1610,9 @@ static void vdisk_exec_mode_sense(struct scst_cmd *cmd)
 		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 		goto out_put;
 	}
+
+	offset += len;
+
 	if (msense_6)
 		buf[0] = offset - 1;
 	else {
