@@ -48,8 +48,12 @@ You can check your network hardware offload capabilities by command
 "ethtool -k ethX", where X is the network device number. At least
 "tx-checksumming" and "scatter-gather" should be enabled.
 
+
 Usage
 -----
+
+See in http://scst.sourceforge.net/iscsi-scst-howto.txt how to configure
+iSCSI-SCST.
 
 ISCSI parameters like iSNS, CHAP and target parameters are configured in
 iscsi-scstd.conf. All LUN information is configured using the
@@ -67,14 +71,24 @@ IMPORTANT: All LUN information (access control) MUST be configured
 
 Also see SCST README file how to tune for the best performance.
 
-If under high load you experience I/O stalls or see in the kernel log
-abort or reset messages, then try to reduce QueuedCommands parameter in
-iscsi-scstd.conf file for the corresponding target to some lower value,
-like 8 (default is 32). See also SCST README file for more details about
-that issue.
-
 CAUTION: Working of target and initiator on the same host isn't
 =======  supported. See SCST README file for details.
+
+
+Work if target's backstorage or link is too slow
+------------------------------------------------
+
+In some cases you can experience I/O stalls or see in the kernel log
+abort or reset messages. It can happen under high I/O load, when your
+target's backstorage gets overloaded, or working over a slow link, when
+the link can't serve all the queued commands on time, 
+
+To workaround it you can reduce QueuedCommands parameter in
+iscsi-scstd.conf file for the corresponding target to some lower value,
+like 8 (default is 32).
+
+Also see SCST README file for more details about that issue and ways to
+prevent it.
 
 
 Performance advices

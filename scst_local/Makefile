@@ -10,6 +10,8 @@ SCST_DIR	:= $(shell pwd)/../scst/src
 EXTRA_CFLAGS	+= -I$(SCST_INC_DIR) -I$(SCST_DIR)
 EXTRA_CFLAGS	+=  -Wextra -Wno-unused-parameter -Wno-missing-field-initializers
 
+#EXTRA_CFLAGS	+= -DCONFIG_SCST_LOCAL_FORCE_DIRECT_PROCESSING
+
 EXTRA_CFLAGS	+= -DCONFIG_SCST_EXTRACHECKS
 
 #EXTRA_CFLAGS	+= -DCONFIG_SCST_TRACING

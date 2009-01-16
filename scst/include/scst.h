@@ -865,24 +865,6 @@ struct scst_tgt {
 
 	struct scst_tgt_template *tgtt;	/* corresponding target template */
 
-	/* Used to wait until session finished to unregister */
-	wait_queue_head_t unreg_waitQ;
-
-	/* Device number in /proc */
-	int proc_num;
-
-	/*
-	 * The following fields used to store and retry cmds if
-	 * target's internal queue is full, so the target is unable to accept
-	 * the cmd returning QUEUE FULL
-	 */
-	atomic_t finished_cmds;
-	int retry_cmds;		/* protected by tgt_lock */
-	spinlock_t tgt_lock;
-	struct list_head retry_cmd_list; /* protected by tgt_lock */
-	struct timer_list retry_timer;
-	int retry_timer_active;
-
 	/*
 	 * Maximum SG table size. Needed here, since different cards on the
 	 * same target template can have different SG table limitations.
@@ -891,6 +873,24 @@ struct scst_tgt {
 
 	/* Used for storage of target driver private stuff */
 	void *tgt_priv;
+
+	/*
+	 * The following fields used to store and retry cmds if
+	 * target's internal queue is full, so the target is unable to accept
+	 * the cmd returning QUEUE FULL
+	 */
+	bool retry_timer_active;
+	struct timer_list retry_timer;
+	atomic_t finished_cmds;
+	int retry_cmds;		/* protected by tgt_lock */
+	spinlock_t tgt_lock;
+	struct list_head retry_cmd_list; /* protected by tgt_lock */
+
+	/* Used to wait until session finished to unregister */
+	wait_queue_head_t unreg_waitQ;
+
+	/* Device number in /proc */
+	int proc_num;
 
 	/* Name on the default security group ("Default_target_name") */
 	char *default_group_name;
@@ -908,9 +908,24 @@ struct scst_session {
 	 */
 	int init_phase;
 
-	atomic_t refcnt;		/* get/put counter */
+	struct scst_tgt *tgt;	/* corresponding target */
 
-	/**************************************************************/
+	/* Used for storage of target driver private stuff */
+	void *tgt_priv;
+
+	/*
+	 * Hash list of tgt_dev's for this session, protected by scst_mutex
+	 * and suspended activity
+	 */
+	struct list_head sess_tgt_dev_list_hash[TGT_DEV_HASH_SIZE];
+
+	/*
+	 * List of cmds in this session. Used to find a cmd in the
+	 * session. Protected by sess_list_lock.
+	 */
+	struct list_head search_cmd_list;
+
+	atomic_t refcnt;		/* get/put counter */
 
 	/*
 	 * Alive commands for this session. ToDo: make it part of the common
@@ -920,28 +935,11 @@ struct scst_session {
 
 	spinlock_t sess_list_lock; /* protects search_cmd_list, etc */
 
-	/*
-	 * List of cmds in this session. Used to find a cmd in the
-	 * session. Protected by sess_list_lock.
-	 */
-	struct list_head search_cmd_list;
-
-	/*
-	 * Hash list of tgt_dev's for this session, protected by scst_mutex
-	 * and suspended activity
-	 */
-	struct list_head sess_tgt_dev_list_hash[TGT_DEV_HASH_SIZE];
-
 	/* Access control for this session and list entry there */
 	struct scst_acg *acg;
 
 	/* List entry for the sessions list inside ACG */
 	struct list_head acg_sess_list_entry;
-
-	struct scst_tgt *tgt;	/* corresponding target */
-
-	/* Used for storage of target driver private stuff */
-	void *tgt_priv;
 
 	/* Name of attached initiator */
 	const char *initiator_name;
@@ -1344,18 +1342,6 @@ struct scst_mgmt_cmd {
 struct scst_device {
 	struct scst_dev_type *handler;	/* corresponding dev handler */
 
-	/* Pointer to lists of commands with the lock */
-	struct scst_cmd_lists *p_cmd_lists;
-
-	/* Lists of commands with lock, if dedicated threads are used */
-	struct scst_cmd_lists cmd_lists;
-
-	/* How many cmds alive on this dev */
-	atomic_t dev_cmd_count;
-
-	/* How many write cmds alive on this dev. Temporary, ToDo */
-	atomic_t write_cmd_count;
-
 	struct scst_mem_lim dev_mem_lim;
 
 	unsigned short type;	/* SCSI type of the device */
@@ -1393,6 +1379,27 @@ struct scst_device {
 
 	/**************************************************************/
 
+	/* Used for storage of dev handler private stuff */
+	void *dh_priv;
+
+	/* Used to translate SCSI's cmd to SCST's cmd */
+	struct gendisk *rq_disk;
+
+	/* Corresponding real SCSI device, could be NULL for virtual devices */
+	struct scsi_device *scsi_dev;
+
+	/* Pointer to lists of commands with the lock */
+	struct scst_cmd_lists *p_cmd_lists;
+
+	/* Lists of commands with lock, if dedicated threads are used */
+	struct scst_cmd_lists cmd_lists;
+
+	/* How many cmds alive on this dev */
+	atomic_t dev_cmd_count;
+
+	/* How many write cmds alive on this dev. Temporary, ToDo */
+	atomic_t write_cmd_count;
+
 	spinlock_t dev_lock;		/* device lock */
 
 	/*
@@ -1408,15 +1415,6 @@ struct scst_device {
 	atomic_t on_dev_count;
 
 	struct list_head blocked_cmd_list; /* protected by dev_lock */
-
-	/* Used for storage of dev handler private stuff */
-	void *dh_priv;
-
-	/* Used to translate SCSI's cmd to SCST's cmd */
-	struct gendisk *rq_disk;
-
-	/* Corresponding real SCSI device, could be NULL for virtual devices */
-	struct scsi_device *scsi_dev;
 
 	/* Used to wait for requested amount of "on_dev" commands */
 	wait_queue_head_t on_dev_waitQ;
@@ -1471,14 +1469,17 @@ struct scst_tgt_dev {
 	struct scst_device *dev; /* to save extra dereferences */
 	uint64_t lun;		 /* to save extra dereferences */
 
-	/* How many cmds alive on this dev in this session */
-	atomic_t tgt_dev_cmd_count;
-
 	gfp_t gfp_mask;
 	struct sgv_pool *pool;
 	int max_sg_cnt;
 
 	unsigned long tgt_dev_flags;	/* tgt_dev's async flags */
+
+	/* Used for storage of dev handler private stuff */
+	void *dh_priv;
+
+	/* How many cmds alive on this dev in this session */
+	atomic_t tgt_dev_cmd_count;
 
 	/*
 	 * Used to execute cmd's in order of arrival, honoring SCSI task
@@ -1505,9 +1506,6 @@ struct scst_tgt_dev {
 	int num_free_sn_slots; /* if it's <0, then all slots are busy */
 	atomic_t *cur_sn_slot;
 	atomic_t sn_slots[15];
-
-	/* Used for storage of dev handler private stuff */
-	void *dh_priv;
 
 	/* List of scst_thr_data_hdr and lock */
 	spinlock_t thr_data_lock;
@@ -2042,14 +2040,25 @@ static inline int scst_cmd_atomic(struct scst_cmd *cmd)
 	return res;
 }
 
-static inline enum scst_exec_context scst_estimate_context(void)
+static inline enum scst_exec_context __scst_estimate_context(bool direct)
 {
 	if (in_irq())
 		return SCST_CONTEXT_TASKLET;
 	else if (irqs_disabled())
 		return SCST_CONTEXT_THREAD;
 	else
-		return SCST_CONTEXT_DIRECT_ATOMIC;
+		return direct ? SCST_CONTEXT_DIRECT :
+				SCST_CONTEXT_DIRECT_ATOMIC;
+}
+
+static inline enum scst_exec_context scst_estimate_context(void)
+{
+	return __scst_estimate_context(0);
+}
+
+static inline enum scst_exec_context scst_estimate_context_direct(void)
+{
+	return __scst_estimate_context(1);
 }
 
 /* Returns cmd's session */

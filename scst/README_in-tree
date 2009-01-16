@@ -37,8 +37,6 @@ In addition, SCST supports advanced per-initiator access and devices
 visibility management, so different initiators could see different set
 of devices with different access permissions. See below for details.
 
-This is quite stable (but still beta) version.
-
 Installation
 ------------
 
@@ -303,11 +301,11 @@ Access and devices visibility management allows for an initiator or
 group of initiators to see different devices with different LUNs
 with necessary access permissions.
 
-SCST supports two modes of access control: 
+SCST supports two modes of access control:
 
 1. Target-oriented. In this mode you define for each target devices and
 their LUNs, which are accessible to all initiators, connected to that
-target. This is a regular access control mode, which people mean
+target. This is a regular access control mode, which people usually mean
 thinking about access control in general. For instance, in IET this is
 the only supported mode. In this mode you should create a security group
 with name "Default_TARGET_NAME", where "TARGET_NAME" is name of the
@@ -327,7 +325,7 @@ mode has higher priority, than target-oriented.
 When a target driver registers itself in SCST core, it tells SCST core
 its name. Then, when there is a new connection from a remote initiator,
 the target driver registers this connection in SCST core and tells it
-name of the remote initiator. Then SCST core finds the corresponding
+the name of the remote initiator. Then SCST core finds the corresponding
 devices for it using the following algorithm:
 
 1. It searches through all defined groups trying to find group
@@ -338,6 +336,9 @@ name "Default_TARGET_NAME". If it succeeds, the found group is used.
 
 3. Otherwise, the group with name "Default" is used. This group is
 always defined, but empty by default.
+
+Names of both target and initiator you can clarify in the kernel log. In
+it SCST reports to which group each session is assigned.
 
 In /proc/scsi_tgt each group represented as "groups/GROUP_NAME/"
 subdirectory. In it there are files "devices" and "names". File
@@ -377,9 +378,6 @@ following files and directories under /proc/scsi_tgt:
   - "clear" to /proc/scsi_tgt/groups/GROUP/names clears the list of names
     for group "GROUP"
 
-There must be LUN 0 in each security group, i.e. LUs numeration must not
-start from, e.g., 1.
-
 Examples:
 
  - "echo "add 1:0:1:0 0" >/proc/scsi_tgt/groups/Default/devices" will
@@ -412,13 +410,19 @@ in this section low level interface.
 IMPORTANT
 =========
 
-All the access control must be fully configured BEFORE load of the 
+There must be LUN 0 in each security group, i.e. LUs numeration must not
+start from, e.g., 1.
+
+IMPORTANT
+=========
+
+All the access control must be fully configured BEFORE load of the
 corresponding target driver! When you load a target driver or enable
 target mode in it, as for qla2x00t driver, it will immediately start
 accepting new connections, hence creating new sessions, and those new
 sessions will be assigned to security groups according to the
 *currently* configured access control settings. For instance, to
-"Default" group, instead of "HOST004" as you need, because "HOST004"
+"Default" group, instead of "HOST004" as you may need, because "HOST004"
 doesn't exist yet. So, one must configure all the security groups before
 new connections from the initiators are created, i.e. before target
 drivers loaded.
@@ -643,6 +647,10 @@ applications, so, if you experience large transfers stalls, you should
 check documentation for your application how to limit the transfer
 sizes.
 
+Another way to solve this issue is to build SG entries with more than 1
+page each. See the following patch as an example:
+http://scst.sf.net/sgv_big_order_alloc.diff
+
 User space mode using scst_user dev handler
 -------------------------------------------
 
@@ -786,17 +794,19 @@ IMPORTANT: If you use on initiator some versions of Windows (at least W2K)
 	   See also important notes about setting block sizes >512 bytes
 	   for VDISK FILEIO devices above.
 
-What if target's backstorage is too slow
-----------------------------------------
+Work if target's backstorage or link is too slow
+------------------------------------------------
 
-If under high load you experience I/O stalls or see in the kernel log on
-the target abort or reset messages, then your backstorage is too slow
-comparing with your target link speed and amount of simultaneously
-queued commands. On some seek intensive workloads even fast disks or
-RAIDs, which able to serve continuous data stream on 500+ MB/s speed,
-can be as slow as 0.3 MB/s. Another possible cause for that can be
-MD/LVM/RAID on your target as in http://lkml.org/lkml/2008/2/27/96
-(check the whole thread as well).
+Under high I/O load, when your target's backstorage gets overloaded, or
+working over a slow link between inititor and target, when the link
+can't serve all the queued commands on time, you can experience I/O
+stalls or see in the kernel log abort or reset messages.
+
+At first, consider the case of too slow target's backstorage. On some
+seek intensive workloads even fast disks or RAIDs, which able to serve
+continuous data stream on 500+ MB/s speed, can be as slow as 0.3 MB/s.
+Another possible cause for that can be MD/LVM/RAID on your target as in
+http://lkml.org/lkml/2008/2/27/96 (check the whole thread as well).
 
 Thus, in such situations simply processing of one or more commands takes
 too long time, hence initiator decides that they are stuck on the target
@@ -809,26 +819,21 @@ backstorage speed could be more appropriate.
 Unfortunately, currently SCST lacks dynamic I/O flow control, when the
 queue depth on the target is dynamically decreased/increased based on
 how slow/fast the backstorage speed comparing to the target link. So,
-there are only 5 possible actions, which you can do to workaround or fix
-this issue:
+there are 6 possible actions, which you can do to workaround or fix this
+issue in this case:
 
 1. Ignore incoming task management (TM) commands. It's fine if there are
 not too many of them, so average performance isn't hurt and the
-corresponding device isn't put offline, i.e. if the backstorage isn't
-too much slow.
+corresponding device isn't getting put offline, i.e. if the backstorage
+isn't too slow.
 
 2. Decrease /sys/block/sdX/device/queue_depth on the initiator in case
 if it's Linux (see below how) or/and SCST_MAX_TGT_DEV_COMMANDS constant
 in scst_priv.h file until you stop seeing incoming TM commands.
-ISCSI-SCST driver also has its own iSCSI specific parameter for that.
+ISCSI-SCST driver also has its own iSCSI specific parameter for that,
+see its README file.
 
-3. Try to avoid such seek intensive workloads.
-
-4. Insrease speed of the target's backstorage.
-
-5. Implement in SCST the dynamic I/O flow control.
-
-To decrease device queue depth on Linux initiators run command:
+To decrease device queue depth on Linux initiators you can run command:
 
 # echo Y >/sys/block/sdX/device/queue_depth
 
@@ -838,12 +843,48 @@ limitations for Y value, it can be any value from 1 to possible maximum
 (usually, 32), so start from dividing the current value on 2, i.e. set
 16, if /sys/block/sdX/device/queue_depth contains 32.
 
+3. Increase the corresponding timeout on the initiator. For Linux it is
+located in
+/sys/devices/platform/host*/session*/target*:0:0/*:0:0:1/timeout. It can
+be done automatically by an udev rule. For instance, the following
+rule will increase it to 300 seconds:
+
+SUBSYSTEM=="scsi", KERNEL=="[0-9]*:[0-9]*", ACTION=="add", ATTR{type}=="0|7|14", ATTR{timeout}="300"
+
+By default, this timeout is 30 or 60 seconds, depending on your distribution.
+
+4. Try to avoid such seek intensive workloads.
+
+5. Increase speed of the target's backstorage.
+
+6. Implement in SCST dynamic I/O flow control. This will be an ultimate
+solution. See "Dynamic I/O flow control" section on
+http://scst.sourceforge.net/contributing.html page for possible
+implementation idea.
+
+Next, consider the case of too slow link between initiator and target,
+when the initiator tries to simultaneously push N commands to the target
+over it. In this case time to serve those commands, i.e. send or receive
+data for them over the link, can be more, than timeout for any single
+command, hence one or more commands in the tail of the queue can not be
+served on time less than the timeout, so the initiator will decide that
+they are stuck on the target and will try to recover.
+
+To workaround/fix this issue in this case you can use ways 1, 2, 3, 6
+above or (7): increase speed of the link between target and initiator.
+But for some initiators implementations for WRITE commands there might
+be cases when target has no way to detect the issue, so dynamic I/O flow
+control will not be able to help. In those cases you could also need on
+the initiator(s) to either decrease the queue depth (way 2), or increase
+the corresponding timeout (way 3).
+
 Note, that logged messages about QUEUE_FULL status are quite different
 by nature. This is a normal work, just SCSI flow control in action.
 Simply don't enable "mgmt_minor" logging level, or, alternatively, if
-you are confident in the worst case performance of your back-end
-storage, you can increase SCST_MAX_TGT_DEV_COMMANDS in scst_priv.h to
-64. Usually initiators don't try to push more commands on the target.
+you are confident in the worst case performance of your back-end storage
+or inititor-target link, you can increase SCST_MAX_TGT_DEV_COMMANDS in
+scst_priv.h to 64. Usually initiators don't try to push more commands on
+the target.
 
 Credits
 -------

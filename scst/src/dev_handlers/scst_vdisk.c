@@ -225,6 +225,13 @@ struct scst_vdisk_thr {
 
 static struct kmem_cache *vdisk_thr_cachep;
 
+static int num_threads;
+
+#define DEF_NUM_THREADS		5
+
+module_param_named(num_threads, num_threads, int, DEF_NUM_THREADS);
+MODULE_PARM_DESC(num_threads, "vdisk threads count");
+
 static int vdisk_attach(struct scst_device *dev);
 static void vdisk_detach(struct scst_device *dev);
 static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev);
@@ -1383,7 +1390,7 @@ static int vdisk_rigid_geo_pg(unsigned char *p, int pcontrol,
 				    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 				    0x3a, 0x98/* 15K RPM */, 0, 0};
 	int32_t ncyl, n, rem;
-	
+
 	memcpy(p, geo_m_pg, sizeof(geo_m_pg));
 	ncyl = div_s64_rem(virt_dev->nblocks, DEF_HEADS * DEF_SECTORS, &rem);
 	if (rem != 0)
@@ -3541,7 +3548,7 @@ static void exit_scst_vdisk(struct scst_dev_type *devtype,
 
 static int __init init_scst_vdisk_driver(void)
 {
-	int res, num_threads;
+	int res;
 
 	vdisk_thr_cachep = KMEM_CACHE(scst_vdisk_thr, SCST_SLAB_FLAGS);
 	if (vdisk_thr_cachep == NULL) {
@@ -3549,7 +3556,12 @@ static int __init init_scst_vdisk_driver(void)
 		goto out;
 	}
 
-	num_threads = 5;
+	if (num_threads < 1) {
+		PRINT_ERROR("num_threads can not be less than 1, use "
+			"default %d", DEF_NUM_THREADS);
+		num_threads = DEF_NUM_THREADS;
+	}
+
 	vdisk_file_devtype.threads_num = num_threads;
 	vcdrom_devtype.threads_num = num_threads;
 

@@ -8,3 +8,15 @@ config SCST_LOCAL
 	  You will need the SCST subsystem as well.
 
 	  If unsure whether you really want or need this, say N.
+
+config SCST_LOCAL_FORCE_DIRECT_PROCESSING
+	bool "Force local processing"
+	depends on SCST_LOCAL
+	help
+	  This experimental option forces scst_local to make SCST process
+	  SCSI commands in the same context, in which they was submitted.
+	  Otherwise, they will be processed in SCST threads. Setting this
+	  option to "Y" will give some performance increase, but might be
+	  unsafe.
+
+	  If unsure, say "N".

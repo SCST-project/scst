@@ -65,7 +65,7 @@
 # endif
 #endif
 
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+#if defined(CONFIG_SCST_DEBUG)
 #define trace_flag scst_local_trace_flag
 static unsigned long scst_local_trace_flag = SCST_LOCAL_DEFAULT_LOG_FLAGS;
 #endif
@@ -529,11 +529,20 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 	/* Set the SGL things directly ... */
 	scst_cmd_set_tgt_sg(scst_cmd, scsi_sglist(SCpnt), scsi_sg_count(SCpnt));
 
+#ifdef CONFIG_SCST_LOCAL_FORCE_DIRECT_PROCESSING
+	{
+		struct Scsi_Host *h = SCpnt->device->host;
+		spin_unlock_irq(h->host_lock);
+		scst_cmd_init_done(scst_cmd, scst_estimate_context_direct());
+		spin_lock_irq(h->host_lock);
+	}
+#else
 	/*
 	 * Unfortunately, we called with IRQs disabled, so have no choice,
 	 * except pass to the thread context.
 	 */
 	scst_cmd_init_done(scst_cmd, SCST_CONTEXT_THREAD);
+#endif
 
 	/*
 	 * We are done here I think. Other callbacks move us forward.

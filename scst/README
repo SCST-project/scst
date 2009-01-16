@@ -13,7 +13,7 @@ SCST's Internet page http://scst.sourceforge.net.
 SCST supports the following I/O modes:
 
  * Pass-through mode with one to many relationship, i.e. when multiple
-   initiators can connect to the exported pass-through devices, for   
+   initiators can connect to the exported pass-through devices, for
    the following SCSI devices types: disks (type 0), tapes (type 1),
    processors (type 3), CDROMs (type 5), MO disks (type 7), medium
    changers (type 8) and RAID controllers (type 0xC)
@@ -105,14 +105,14 @@ kernel logs (or run dmesg command for the few most recent messages).
 
 IMPORTANT: Without loading appropriate device handler, corresponding devices
 =========  will be invisible for remote initiators, which could lead to holes
-           in the LUN addressing, so automatic device scanning by remote SCSI 
-           mid-level could not notice the devices. Therefore you will have 
-	   to add them manually via 
+           in the LUN addressing, so automatic device scanning by remote SCSI
+           mid-level could not notice the devices. Therefore you will have
+	   to add them manually via
 	   'echo "- - -" >/sys/class/scsi_host/hostX/scan',
 	   where X - is the host number.
 
 IMPORTANT: Working of target and initiator on the same host isn't
-=========  supported. This is a limitation of the Linux memory/cache                      
+=========  supported. This is a limitation of the Linux memory/cache
            manager, because in this case an OOM deadlock like: system
 	   needs some memory -> it decides to clear some cache -> cache
 	   needs to write on a target exported device -> initiator sends
@@ -163,7 +163,7 @@ the user space, which allows to create pure user space devices. The
 simplest example, where one would want it is if he/she wants to write a
 VTL. With scst_user he/she can write it purely in the user space. Or one
 would want it if he/she needs some sophisticated for kernel space
-processing of the passed data, like encrypting them or making snapshots. 
+processing of the passed data, like encrypting them or making snapshots.
 
 "Performance" device handlers for disks, MO disks and tapes in their
 exec() method skip (pretend to execute) all READ and WRITE operations
@@ -302,12 +302,12 @@ interface in "/proc/scsi_tgt" directory. It contains the following
 entries:
 
   - "help" file, which provides online help for SCST commands
-  
+
   - "scsi_tgt" file, which on read provides information of serving by SCST
     devices and their dev handlers. On write it supports the following
     command:
-    
-      * "assign H:C:I:L HANDLER_NAME" assigns dev handler "HANDLER_NAME" 
+
+      * "assign H:C:I:L HANDLER_NAME" assigns dev handler "HANDLER_NAME"
         on device with host:channel:id:lun
 
   - "sessions" file, which lists currently connected initiators (open sessions)
@@ -318,11 +318,11 @@ entries:
     allocations requests to the kernel. "Size" - is the commands data
     size upper rounded to power of 2, "Hit" - how many there are
     allocations from the cache, "Total" - total number of allocations.
-	
+
   - "threads" file, which allows to read and set number of SCST's threads
-  
+
   - "version" file, which shows version of SCST
-  
+
   - "trace_level" file, which allows to read and set trace (logging) level
     for SCST. See "help" file for list of trace levels. If you want to
     enable logging options, which produce a lot of events, like "debug",
@@ -355,11 +355,11 @@ Access and devices visibility management allows for an initiator or
 group of initiators to see different devices with different LUNs
 with necessary access permissions.
 
-SCST supports two modes of access control: 
+SCST supports two modes of access control:
 
 1. Target-oriented. In this mode you define for each target devices and
 their LUNs, which are accessible to all initiators, connected to that
-target. This is a regular access control mode, which people mean
+target. This is a regular access control mode, which people usually mean
 thinking about access control in general. For instance, in IET this is
 the only supported mode. In this mode you should create a security group
 with name "Default_TARGET_NAME", where "TARGET_NAME" is name of the
@@ -379,7 +379,7 @@ mode has higher priority, than target-oriented.
 When a target driver registers itself in SCST core, it tells SCST core
 its name. Then, when there is a new connection from a remote initiator,
 the target driver registers this connection in SCST core and tells it
-name of the remote initiator. Then SCST core finds the corresponding
+the name of the remote initiator. Then SCST core finds the corresponding
 devices for it using the following algorithm:
 
 1. It searches through all defined groups trying to find group
@@ -391,6 +391,9 @@ name "Default_TARGET_NAME". If it succeeds, the found group is used.
 3. Otherwise, the group with name "Default" is used. This group is
 always defined, but empty by default.
 
+Names of both target and initiator you can clarify in the kernel log. In
+it SCST reports to which group each session is assigned.
+
 In /proc/scsi_tgt each group represented as "groups/GROUP_NAME/"
 subdirectory. In it there are files "devices" and "names". File
 "devices" lists devices and their LUNs in the group, file "names" lists
@@ -400,37 +403,34 @@ To configure access and devices visibility management SCST provides the
 following files and directories under /proc/scsi_tgt:
 
   - "add_group GROUP" to /proc/scsi_tgt/scsi_tgt adds group "GROUP"
-  
+
   - "del_group GROUP" to /proc/scsi_tgt/scsi_tgt deletes group "GROUP"
-  
-  - "add H:C:I:L lun [READ_ONLY]" to /proc/scsi_tgt/groups/GROUP/devices adds 
+
+  - "add H:C:I:L lun [READ_ONLY]" to /proc/scsi_tgt/groups/GROUP/devices adds
     device with host:channel:id:lun with LUN "lun" in group "GROUP". Optionally,
     the device could be marked as read only.
-  
+
   - "del H:C:I:L" to /proc/scsi_tgt/groups/GROUP/devices deletes device with
     host:channel:id:lun from group "GROUP"
-  
+
   - "add V_NAME lun [READ_ONLY]" to /proc/scsi_tgt/groups/GROUP/devices adds
     device with virtual name "V_NAME" with LUN "lun" in group "GROUP".
     Optionally, the device could be marked as read only.
-  
+
   - "del V_NAME" to /proc/scsi_tgt/groups/GROUP/devices deletes device with
     virtual name "V_NAME" from group "GROUP"
-  
+
   - "clear" to /proc/scsi_tgt/groups/GROUP/devices clears the list of devices
     for group "GROUP"
-  
-  - "add NAME" to /proc/scsi_tgt/groups/GROUP/names adds name "NAME" to group 
+
+  - "add NAME" to /proc/scsi_tgt/groups/GROUP/names adds name "NAME" to group
     "GROUP"
-  
-  - "del NAME" to /proc/scsi_tgt/groups/GROUP/names deletes name "NAME" from group 
+
+  - "del NAME" to /proc/scsi_tgt/groups/GROUP/names deletes name "NAME" from group
     "GROUP"
-  
+
   - "clear" to /proc/scsi_tgt/groups/GROUP/names clears the list of names
     for group "GROUP"
-
-There must be LUN 0 in each security group, i.e. LUs numeration must not
-start from, e.g., 1.
 
 Examples:
 
@@ -440,8 +440,8 @@ Examples:
 
  - "echo "add disk1 1" >/proc/scsi_tgt/groups/Default/devices" will
  add virtual VDISK device with name "disk1" to "Default" group
- with LUN 1. 
- 
+ with LUN 1.
+
 Consider you need to have an iSCSI target with name
 "iqn.2007-05.com.example:storage.disk1.sys1.xyz" (you defined it in
 iscsi-scst.conf), which should export virtual device "dev1" with LUN 0
@@ -464,7 +464,13 @@ in this section low level interface.
 IMPORTANT
 =========
 
-All the access control must be fully configured BEFORE load of the 
+There must be LUN 0 in each security group, i.e. LUs numeration must not
+start from, e.g., 1.
+
+IMPORTANT
+=========
+
+All the access control must be fully configured BEFORE load of the
 corresponding target driver! When you load a target driver or enable
 target mode in it, as for qla2x00t driver, it will immediately start
 accepting new connections, hence creating new sessions, and those new
@@ -492,27 +498,27 @@ After loading VDISK device handler creates in "/proc/scsi_tgt/"
 subdirectories "vdisk" and "vcdrom". They have similar layout:
 
   - "trace_level" and "type" files as described for other dev handlers
-  
+
   - "help" file, which provides online help for VDISK commands
-  
+
   - "vdisk"/"vcdrom" files, which on read provides information of
     currently open device files. On write it supports the following
     command:
-    
+
     * "open NAME [PATH] [BLOCK_SIZE] [FLAGS]" - opens file "PATH" as
       device "NAME" with block size "BLOCK_SIZE" bytes with flags
       "FLAGS". "PATH" could be empty only for VDISK CDROM. "BLOCK_SIZE"
       and "FLAGS" are valid only for disk VDISK. The block size must be
       power of 2 and >= 512 bytes. Default is 512. Possible flags:
-      
+
       - WRITE_THROUGH - write back caching disabled. Note, this option
         has sense only if you also *manually* disable write-back cache
 	in *all* your backstorage devices and make sure it's actually
 	disabled, since many devices are known to lie about this mode to
 	get better benchmark results.
-      
+
       - READ_ONLY - read only
-      
+
       - O_DIRECT - both read and write caching disabled. This mode
         isn't currently fully implemented, you should use user space
 	fileio_tgt program in O_DIRECT mode instead (see below).
@@ -548,7 +554,7 @@ subdirectories "vdisk" and "vcdrom". They have similar layout:
 
       - REMOVABLE - with this flag set the device is reported to remote
         initiators as removable.
- 
+
     * "close NAME" - closes device "NAME".
 
     * "change NAME [PATH]" - changes a virtual CD in the VDISK CDROM.
@@ -763,17 +769,17 @@ using debug2perf Makefile target.
    attached remotely (SCSI target case), which sometimes could lead to
    unexpectedly low throughput. You should increase read-ahead size to at
    least 512KB or even more on all initiators and the target.
-   
+
    You should also limit on all initiators maximum amount of sectors per
    SCSI command. To do it on Linux initiators, run:
-  
+
    echo “64” > /sys/block/sdX/queue/max_sectors_kb
 
    where specify instead of X your imported from target device letter,
    like 'b', i.e. sdb.
 
    To increase read-ahead size on Linux, run:
-  
+
    blockdev --setra N /dev/sdX
 
    where N is a read-ahead number in 512-byte sectors and X is a device
@@ -944,7 +950,7 @@ Thanks to:
    suggestions, bug reports and help in debugging.
 
  * Ming Zhang <mingz@ele.uri.edu> for fixes and comments.
- 
+
  * Nathaniel Clark <nate@misrule.us> for fixes and comments.
 
  * Calvin Morrow <calvin.morrow@comcast.net> for testing and useful
