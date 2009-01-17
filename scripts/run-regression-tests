@@ -292,6 +292,8 @@ function compile_patched_kernel {
 
 # Run the source code verification tool 'sparse' on the SCST code. Assumes that
 # there is a patched kernel tree present in directory "${outputdir}/linux-$1".
+# For more information about endianness annotations, see also
+# http://lwn.net/Articles/205624/.
 function run_sparse {
   local kver="$(kernel_version $1)"
   local plevel="$(patchlevel $1)"
@@ -302,7 +304,7 @@ function run_sparse {
     cd "${outputdir}/linux-$1" \
     && make -s prepare \
     && make -s scripts \
-    && LC_ALL=C make -k C=2 M=drivers/scst
+    && LC_ALL=C make -k C=2 M=drivers/scst # CF=-D__CHECK_ENDIAN__
   ) >& "${outputfile}"
   echo "See also ${outputfile}."
   return 0
@@ -413,8 +415,8 @@ fi
 
 # Default kernel versions to use for the test.
 if [ "${kernel_versions}" = "" ]; then
-  #kernel_versions="2.6.24.7 2.6.25.20 2.6.26.8 2.6.27.8"
-  kernel_versions="2.6.27.8"
+  #kernel_versions="2.6.24.7 2.6.25.20 2.6.26.8 2.6.27.11 2.6.28"
+  kernel_versions="2.6.28"
 fi
 
 
