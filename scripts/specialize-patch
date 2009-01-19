@@ -37,16 +37,52 @@ function version_code(kver) {
 
 
 # Evaluate a preprocessor statement via repeated substitutions.
-# Mathematicians call this 'term rewriting'.
+# Mathematicians call this algorithm 'term rewriting'.
+# Note: the order in which the substitutions appear below is important --
+# it is the same order as the order of operators in C.
 
 function evaluate(stmnt) {
   gsub(" *\\/\\*[^*]*\\*\\/ *", "", stmnt)
 
   gsub("^+ *# *", "+#", stmnt)
 
+  if (match(stmnt, "^+#ifdef (.*)$", arg))
+  {
+    stmnt = "+#if defined(" arg[1] ")"
+  }
+
+  if (match(stmnt, "^+#ifndef (.*)$", arg))
+  {
+    stmnt = "+#if ! defined(" arg[1] ")"
+  }
+
   gsub("LINUX_VERSION_CODE", LINUX_VERSION_CODE, stmnt)
 
   gsub("defined\\(INSIDE_KERNEL_TREE\\)", "1", stmnt)
+
+  if (RHEL_MAJOR == "")
+    gsub("defined\\(RHEL_MAJOR\\)", "0", stmnt)
+  else
+  {
+    gsub("defined\\(RHEL_MAJOR\\)", "1", stmnt)
+    gsub("RHEL_MAJOR", RHEL_MAJOR, stmnt)
+  }
+
+  if (RHEL_MINOR == "")
+    gsub("defined\\(RHEL_MINOR\\)", "0", stmnt)
+  else
+  {
+    gsub("defined\\(RHEL_MINOR\\)", "1", stmnt)
+    gsub("RHEL_MINOR", RHEL_MINOR, stmnt)
+  }
+
+  if (RHEL_MAJOR == "" || RHEL_MINOR == "")
+    gsub("defined\\(RHEL_RELEASE_CODE\\)", "0", stmnt)
+  else
+  {
+    gsub("defined\\(RHEL_RELEASE_CODE\\)", "1", stmnt)
+    gsub("RHEL_RELEASE_CODE", RHEL_MAJOR * 256 + RHEL_MINOR, stmnt)
+  }
 
   do
   {
@@ -79,13 +115,13 @@ function evaluate(stmnt) {
     pattern="([0-9]+) *\\&\\& *([0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
-      sub(pattern, op[1] && op[3], stmnt)
+      sub(pattern, (op[1] != 0) && (op[2] != 0), stmnt)
     }
   
     pattern="([0-9]+) *\\|\\| *([0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
-      sub(pattern, op[1] || op[3], stmnt)
+      sub(pattern, (op[1] != 0) || (op[2] != 0), stmnt)
     }
   
     pattern="\\(([0-9]+)\\)"
@@ -112,8 +148,13 @@ function handle_if()
 {
   # Only act on preprocessor conditional expressions with regard to the Linux
   # kernel version, and do not interpret other expressions.
-  if ($0 ~ "LINUX_VERSION_CODE" || $0 ~ "INSIDE_KERNEL_TREE")
+  if ($0 ~ "LINUX_VERSION_CODE"    \
+      || $0 ~ "INSIDE_KERNEL_TREE" \
+      || $0 ~ "RHEL_MAJOR"         \
+      || $0 ~ "RHEL_MINOR"         \
+      || $0 ~ "RHEL_RELEASE_CODE")
   {
+    #print $0 " -> " evaluated
     $0 = evaluated
   }
   else
@@ -216,6 +257,8 @@ BEGIN {
 
 
 {
+  # If the line currently being processed is a hunk header, print all lines
+  # that were stored in the array line[] since the last hunk header was read.
   if (match($0, "^@@ -([0-9]*),([0-9]*) \\+([0-9]*),([0-9]*) @@(.*)$"))
   {
     /* print h[1], h[2], h[3], h[4], h[5] */
@@ -223,13 +266,22 @@ BEGIN {
     match($0, "^@@ -([0-9]*),([0-9]*) \\+([0-9]*),([0-9]*) @@(.*)$", h)
   }
   else if (match($0, "^+ *#"))
+  {
     process_preprocessor_statement()
+  }
   else if (output)
+  {
+    # Store the line that was just read.
     line[lines++]=$0
+  }
   else
+  {
+    # Discard the last read line.
     lines_deleted++
+  }
 }
 
 END {
+  # Dump processed contents of the last read hunk.
   dump_lines()
 }
