@@ -38,6 +38,22 @@
 #include <asm/atomic.h>
 #include <linux/kthread.h>
 #include <linux/sched.h>
+#include <linux/version.h>
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
+#include <linux/math64.h>
+#else
+#include <asm/div64.h>
+static inline s64 div_s64_rem(s64 dividend, s32 divisor, s32 *remainder)
+{
+	unsigned long long d = dividend;
+	unsigned int dd = divisor, r;
+
+	r = do_div(d, dd);
+	*remainder = r;
+	return d;
+}
+#endif
 
 #define LOG_PREFIX			"dev_vdisk"
 

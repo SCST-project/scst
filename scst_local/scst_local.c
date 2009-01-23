@@ -742,9 +742,15 @@ static int __init scst_local_init(void)
 	/*
 	 * Allocate a pool of structures for tgt_specific structures
 	 */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 23)
 	tgt_specific_pool = kmem_cache_create("scst_tgt_specific",
 				      sizeof(struct scst_local_tgt_specific),
 				      0, SCST_SLAB_FLAGS, NULL);
+#else
+	tgt_specific_pool = kmem_cache_create("scst_tgt_specific",
+				      sizeof(struct scst_local_tgt_specific),
+				      0, SCST_SLAB_FLAGS, NULL, NULL);
+#endif
 
 	if (!tgt_specific_pool) {
 		printk(KERN_WARNING "%s: out of memory for "

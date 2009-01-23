@@ -49,7 +49,9 @@
 		SCST_VERSION_STRING "$Revision$" SCST_CONST_VERSION
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
+#ifndef RHEL_RELEASE_CODE
 typedef _Bool bool;
+#endif
 #define true  1
 #define false 0
 #endif

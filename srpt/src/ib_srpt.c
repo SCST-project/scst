@@ -1055,7 +1055,7 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 		return -ENOMEM;
 
 	cqe = SRPT_RQ_SIZE + SRPT_SQ_SIZE - 1;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && ! defined(RHEL_RELEASE_CODE)
 	ch->cq = ib_create_cq(sdev->device, srpt_completion, NULL, ch, cqe);
 #else
 	ch->cq = ib_create_cq(sdev->device, srpt_completion, NULL, ch, cqe, 0);
