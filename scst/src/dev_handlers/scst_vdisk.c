@@ -241,11 +241,11 @@ struct scst_vdisk_thr {
 
 static struct kmem_cache *vdisk_thr_cachep;
 
-static int num_threads;
-
 #define DEF_NUM_THREADS		5
 
-module_param_named(num_threads, num_threads, int, DEF_NUM_THREADS);
+static int num_threads = DEF_NUM_THREADS;
+
+module_param_named(num_threads, num_threads, int, 0);
 MODULE_PARM_DESC(num_threads, "vdisk threads count");
 
 static int vdisk_attach(struct scst_device *dev);
