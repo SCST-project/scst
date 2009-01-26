@@ -736,7 +736,7 @@ out_free:
  * scst_mutex supposed to be held, there must not be parallel activity in this
  * session.
  */
-void scst_sess_free_tgt_devs(struct scst_session *sess)
+static void scst_sess_free_tgt_devs(struct scst_session *sess)
 {
 	int i;
 	struct scst_tgt_dev *tgt_dev, *t;
@@ -1711,7 +1711,7 @@ out_sg_free:
 	goto out;
 }
 
-void scst_release_space(struct scst_cmd *cmd)
+static void scst_release_space(struct scst_cmd *cmd)
 {
 	TRACE_ENTRY();
 
@@ -2844,7 +2844,7 @@ out_unlock:
 }
 
 /* Called under tgt_dev_lock and BH off */
-void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
+static void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
 	const uint8_t *sense, int sense_len, int head)
 {
 	struct scst_tgt_dev_UA *UA_entry = NULL;
@@ -2950,7 +2950,7 @@ void __scst_dev_check_set_UA(struct scst_device *dev,
 }
 
 /* Called under tgt_dev_lock or when tgt_dev is unused */
-void scst_free_all_UA(struct scst_tgt_dev *tgt_dev)
+static void scst_free_all_UA(struct scst_tgt_dev *tgt_dev)
 {
 	struct scst_tgt_dev_UA *UA_entry, *t;
 
@@ -3259,7 +3259,7 @@ out_unlock:
 }
 
 /* Called under dev_lock */
-void scst_unblock_cmds(struct scst_device *dev)
+static void scst_unblock_cmds(struct scst_device *dev)
 {
 #ifdef CONFIG_SCST_STRICT_SERIALIZING
 	struct scst_cmd *cmd, *t;
@@ -3515,7 +3515,7 @@ static wait_queue_head_t *tm_dbg_p_cmd_list_waitQ;
 
 static const int tm_dbg_on_state_num_passes[] = { 5, 1, 0x7ffffff };
 
-void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev,
+static void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev,
 	struct scst_acg_dev *acg_dev)
 {
 	if ((acg_dev->acg == scst_default_acg) && (acg_dev->lun == 0)) {
@@ -3534,7 +3534,7 @@ void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev,
 	}
 }
 
-void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev)
+static void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev)
 {
 	if (test_bit(SCST_TGT_DEV_UNDER_TM_DBG, &tgt_dev->tgt_dev_flags)) {
 		unsigned long flags;

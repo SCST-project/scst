@@ -1040,7 +1040,9 @@ static int write_data(struct iscsi_conn *conn)
  retry:
 			oldfs = get_fs();
 			set_fs(KERNEL_DS);
-			res = vfs_writev(file, iop, count, &off);
+			res = vfs_writev(file,
+					 (struct iovec __force __user *)iop,
+					 count, &off);
 			set_fs(oldfs);
 			TRACE_WRITE("%#Lx:%u: %d(%ld)",
 				    (long long unsigned int)conn->session->sid,
@@ -1272,8 +1274,7 @@ static int tx_ddigest(struct iscsi_cmnd *cmnd, int state)
 
 	TRACE_DBG("Sending data digest %x (cmd %p)", cmnd->ddigest, cmnd);
 
-	iov.iov_base =
-		(char __force __user *) (&cmnd->ddigest) + (sizeof(u32) - rest);
+	iov.iov_base = (char *)(&cmnd->ddigest) + (sizeof(u32) - rest);
 	iov.iov_len = rest;
 
 	res = kernel_sendmsg(cmnd->conn->sock, &msg, &iov, 1, rest);

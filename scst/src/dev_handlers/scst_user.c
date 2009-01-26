@@ -1690,7 +1690,7 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 
 	/* get_user() can't be used with 64-bit values on x86_32 */
 	res = copy_from_user(&ureply, (uint64_t __user *)
-		&((struct scst_user_get_cmd *)arg)->preply,
+		&((struct scst_user_get_cmd __user *)arg)->preply,
 		sizeof(ureply));
 	if (unlikely(res < 0))
 		goto out_up;

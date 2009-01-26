@@ -1012,7 +1012,7 @@ out_dev_done:
 }
 
 /* No locks, but might be in IRQ */
-void scst_proccess_redirect_cmd(struct scst_cmd *cmd,
+static void scst_proccess_redirect_cmd(struct scst_cmd *cmd,
 	enum scst_exec_context context, int check_retries)
 {
 	unsigned long flags;
@@ -5454,7 +5454,8 @@ int scst_mgmt_thread(void *arg)
 }
 
 /* Called under sess->sess_list_lock */
-struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess, uint64_t tag)
+static struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,
+	uint64_t tag)
 {
 	struct scst_cmd *cmd = NULL;
 

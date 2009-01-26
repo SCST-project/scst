@@ -81,7 +81,7 @@ Work if target's backstorage or link is too slow
 In some cases you can experience I/O stalls or see in the kernel log
 abort or reset messages. It can happen under high I/O load, when your
 target's backstorage gets overloaded, or working over a slow link, when
-the link can't serve all the queued commands on time, 
+the link can't serve all the queued commands on time,
 
 To workaround it you can reduce QueuedCommands parameter in
 iscsi-scstd.conf file for the corresponding target to some lower value,
