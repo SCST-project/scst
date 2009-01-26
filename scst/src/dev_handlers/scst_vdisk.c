@@ -39,21 +39,7 @@
 #include <linux/kthread.h>
 #include <linux/sched.h>
 #include <linux/version.h>
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
-#include <linux/math64.h>
-#else
 #include <asm/div64.h>
-static inline s64 div_s64_rem(s64 dividend, s32 divisor, s32 *remainder)
-{
-	unsigned long long d = dividend;
-	unsigned int dd = divisor, r;
-
-	r = do_div(d, dd);
-	*remainder = r;
-	return d;
-}
-#endif
 
 #define LOG_PREFIX			"dev_vdisk"
 
@@ -242,7 +228,6 @@ struct scst_vdisk_thr {
 static struct kmem_cache *vdisk_thr_cachep;
 
 #define DEF_NUM_THREADS		5
-
 static int num_threads = DEF_NUM_THREADS;
 
 module_param_named(num_threads, num_threads, int, 0);
@@ -1406,9 +1391,16 @@ static int vdisk_rigid_geo_pg(unsigned char *p, int pcontrol,
 				    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 				    0x3a, 0x98/* 15K RPM */, 0, 0};
 	int32_t ncyl, n, rem;
+	uint64_t dividend;
 
 	memcpy(p, geo_m_pg, sizeof(geo_m_pg));
-	ncyl = div_s64_rem(virt_dev->nblocks, DEF_HEADS * DEF_SECTORS, &rem);
+	/*
+	 * Divide virt_dev->nblocks by (DEF_HEADS * DEF_SECTORS) and store
+	 * the quotient in ncyl and the remainder in rem.
+	 */
+	dividend = virt_dev->nblocks;
+	rem = do_div(dividend, DEF_HEADS * DEF_SECTORS);
+	ncyl = dividend;
 	if (rem != 0)
 		ncyl++;
 	memcpy(&n, p + 2, sizeof(u32));
