@@ -42,7 +42,7 @@ struct PDU {
 #define KEY_STATE_DONE		2
 
 struct session {
-	struct qelem slist;
+	struct __qelem slist;
 
 	char *initiator;
 	struct target *target;
@@ -132,9 +132,9 @@ struct connection {
 #define INCOMING_BUFSIZE	8192
 
 struct target {
-	struct qelem tlist;
+	struct __qelem tlist;
 
-	struct qelem sessions_list;
+	struct __qelem sessions_list;
 
 	u32 tid;
 	char name[ISCSI_NAME_LEN];
@@ -143,7 +143,7 @@ struct target {
 	int max_nr_sessions;
 	int nr_sessions;
 
-	struct qelem isns_head;
+	struct __qelem isns_head;
 };
 
 extern struct config_operations plain_ops;
@@ -197,7 +197,7 @@ extern void session_create(struct connection *conn);
 extern void session_remove(struct session *session);
 
 /* target.c */
-extern struct qelem targets_list;
+extern struct __qelem targets_list;
 extern int target_add(u32 *, char *);
 extern int target_del(u32);
 extern u32 target_find_by_name(const char *name);

@@ -41,7 +41,7 @@
  */
 
 struct user {
-	struct qelem ulist;
+	struct __qelem ulist;
 
 	u32 tid;
 	char *name;
@@ -72,18 +72,18 @@ static struct iscsi_key user_keys[] = {
 	{NULL,},
 };
 
-static struct qelem discovery_users_in = LIST_HEAD_INIT(discovery_users_in);
-static struct qelem discovery_users_out = LIST_HEAD_INIT(discovery_users_out);
+static struct __qelem discovery_users_in = LIST_HEAD_INIT(discovery_users_in);
+static struct __qelem discovery_users_out = LIST_HEAD_INIT(discovery_users_out);
 
 #define HASH_ORDER	4
 #define acct_hash(x)	((x) & ((1 << HASH_ORDER) - 1))
 
-static struct qelem trgt_acct_in[1 << HASH_ORDER];
-static struct qelem trgt_acct_out[1 << HASH_ORDER];
+static struct __qelem trgt_acct_in[1 << HASH_ORDER];
+static struct __qelem trgt_acct_out[1 << HASH_ORDER];
 
-static struct qelem *account_list_get(u32 tid, int dir)
+static struct __qelem *account_list_get(u32 tid, int dir)
 {
-	struct qelem *list = NULL;
+	struct __qelem *list = NULL;
 
 	if (tid) {
 		list = (dir == AUTH_DIR_INCOMING) ?
@@ -139,7 +139,7 @@ static int plain_account_init(char *filename)
 /* Return the first account if the length of name is zero */
 static struct user *account_lookup_by_name(u32 tid, int dir, char *name)
 {
-	struct qelem *list = account_list_get(tid, dir);
+	struct __qelem *list = account_list_get(tid, dir);
 	struct user *user = NULL;
 
 	list_for_each_entry(user, list, ulist) {
@@ -210,7 +210,7 @@ static int plain_account_add(u32 tid, int dir, char *name, char *pass)
 {
 	int err = -ENOMEM;
 	struct user *user;
-	struct qelem *list;
+	struct __qelem *list;
 
 	if (!name || !pass)
 		return -EINVAL;
@@ -241,7 +241,7 @@ static int plain_account_add(u32 tid, int dir, char *name, char *pass)
 			    " Replacing the old one.\n",
 			    tid ? "target" : "discovery");
 
-		old = (struct user *) list->q_forw;
+		old = list_entry(list->q_forw, struct user, ulist);
 		account_destroy(old);
 	}
 

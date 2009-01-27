@@ -16,9 +16,9 @@
 #ifndef MISC_H
 #define MISC_H
 
-struct qelem {
-	struct qelem *q_forw;
-	struct qelem *q_back;
+struct __qelem {
+	struct __qelem *q_forw;
+	struct __qelem *q_back;
 };
 
 /* stolen list stuff from Linux kernel */
@@ -32,20 +32,20 @@ struct qelem {
 
 #define LIST_HEAD_INIT(name) { &(name), &(name) }
 #define LIST_HEAD(name) \
-	struct qelem name = LIST_HEAD_INIT(name)
+	struct __qelem name = LIST_HEAD_INIT(name)
 
 #define INIT_LIST_HEAD(ptr) do { \
 	(ptr)->q_forw = (ptr); (ptr)->q_back = (ptr); \
 } while (0)
 
-static inline int list_empty(const struct qelem *head)
+static inline int list_empty(const struct __qelem *head)
 {
 	return head->q_forw == head;
 }
 
-static inline int list_length_is_one(const struct qelem *head)
+static inline int list_length_is_one(const struct __qelem *head)
 {
-        return head->q_forw == head->q_back;
+        return (!list_empty(head) && head->q_forw == head->q_back);
 }
 
 #define container_of(ptr, type, member) ({			\

@@ -24,7 +24,7 @@
 
 #include "iscsid.h"
 
-struct qelem targets_list = LIST_HEAD_INIT(targets_list);
+struct __qelem targets_list = LIST_HEAD_INIT(targets_list);
 
 void target_list_build(struct connection *conn, char *addr, char *name)
 {

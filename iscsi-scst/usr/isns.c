@@ -46,12 +46,12 @@ struct isns_io {
 struct isns_qry_mgmt {
 	char name[ISCSI_NAME_LEN];
 	uint16_t transaction;
-	struct qelem qlist;
+	struct __qelem qlist;
 };
 
 struct isns_initiator {
 	char name[ISCSI_NAME_LEN];
-	struct qelem ilist;
+	struct __qelem ilist;
 };
 
 static LIST_HEAD(qry_list);
