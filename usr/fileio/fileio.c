@@ -358,6 +358,9 @@ int main(int argc, char **argv)
 	PRINT_INFO("trace_flag %lx", trace_flag);
 #endif
 
+	snprintf(dev.usn, sizeof(dev.usn), "%x", gen_dev_id_num(&dev));
+	TRACE_DBG("usn %s", dev.usn);
+
 	dev.scst_usr_fd = open(DEV_USER_PATH DEV_USER_NAME, O_RDWR |
 		(dev.non_blocking ? O_NONBLOCK : 0));
 	if (dev.scst_usr_fd < 0) {

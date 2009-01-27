@@ -66,7 +66,7 @@ static struct scst_proc_log vdisk_proc_local_trace_tbl[] =
 /* 4 byte ASCII Product Revision Level - left aligned */
 #define SCST_FIO_REV			" 101"
 
-#define MAX_USN_LEN			20
+#define MAX_USN_LEN			(20+1) /* For '\0' */
 
 #define INQ_BUF_SZ			128
 #define EVPD				0x01
@@ -203,7 +203,7 @@ struct scst_vdisk_dev {
 	char name[16+1];	/* Name of virtual device,
 				   must be <= SCSI Model + 1 */
 	char *file_name;	/* File name */
-	char *usn;
+	char usn[MAX_USN_LEN];
 	struct scst_device *dev;
 	struct list_head vdisk_dev_list_entry;
 };
@@ -1119,6 +1119,23 @@ out_done:
 	goto out;
 }
 
+static int vdisk_gen_dev_id_num(struct scst_vdisk_dev *virt_dev)
+{
+	int dev_id_num, i;
+
+	for (dev_id_num = 0, i = 0; i < (int)strlen(virt_dev->name); i++) {
+		unsigned int rv = random_values[(int)(virt_dev->name[i])];
+		/*
+		 * Device name maximum length = 16, do some rotating of the
+		 * bits.
+		 */
+		dev_id_num ^= ((rv << i) | (rv >> (32 - i)));
+	}
+
+	dev_id_num += scst_vdisk_ID;
+	return dev_id_num;
+}
+
 static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 {
 	int32_t length, i, resp_len = 0;
@@ -1169,19 +1186,7 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 		int dev_id_num, dev_id_len;
 		char dev_id_str[6];
 
-		for (dev_id_num = 0, i = 0; i < (int)strlen(virt_dev->name);
-		     i++) {
-			unsigned int rv =
-				random_values[(int)(virt_dev->name[i])];
-			/*
-			 * Device name maximum length = 16,
-			 * do some rotating of the bits.
-			 */
-			dev_id_num ^= ((rv << i) | (rv >> (32 - i)));
-		}
-
-		dev_id_num += scst_vdisk_ID;
-
+		dev_id_num = vdisk_gen_dev_id_num(virt_dev);
 		dev_id_len = scnprintf(dev_id_str, sizeof(dev_id_str), "%d",
 					dev_id_num);
 		TRACE_DBG("dev_id num %d, str %s, len %d", dev_id_num,
@@ -1195,20 +1200,10 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			resp_len = buf[3] + 4;
 		} else if (0x80 == cmd->cdb[2]) {
 			/* unit serial number */
+			int usn_len = strlen(virt_dev->usn);
 			buf[1] = 0x80;
-			if (virt_dev->usn == NULL) {
-				buf[3] = MAX_USN_LEN;
-				memset(&buf[4], 0x20, MAX_USN_LEN);
-			} else {
-				int usn_len;
-
-				if (strlen(virt_dev->usn) > MAX_USN_LEN)
-					usn_len = MAX_USN_LEN;
-				else
-					usn_len = strlen(virt_dev->usn);
-				buf[3] = usn_len;
-				strncpy(&buf[4], virt_dev->usn, usn_len);
-			}
+			buf[3] = usn_len;
+			strncpy(&buf[4], virt_dev->usn, usn_len);
 			resp_len = buf[3] + 4;
 		} else if (0x83 == cmd->cdb[2]) {
 			/* device identification */
@@ -2960,6 +2955,10 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 
 		strcpy(virt_dev->name, name);
 
+		scnprintf(virt_dev->usn, sizeof(virt_dev->usn), "%x",
+				vdisk_gen_dev_id_num(virt_dev));
+		TRACE_DBG("usn %s", virt_dev->usn);
+
 		len = strlen(file_name) + 1;
 		virt_dev->file_name = kmalloc(len, GFP_KERNEL);
 		if (virt_dev->file_name == NULL) {
@@ -3092,6 +3091,10 @@ static int vcdrom_open(char *p, char *name)
 	virt_dev->cdrom_empty = cdrom_empty;
 
 	strcpy(virt_dev->name, name);
+
+	scnprintf(virt_dev->usn, sizeof(virt_dev->usn), "%x",
+			vdisk_gen_dev_id_num(virt_dev));
+	TRACE_DBG("usn %s", virt_dev->usn);
 
 	if (!virt_dev->cdrom_empty) {
 		len = strlen(file_name) + 1;

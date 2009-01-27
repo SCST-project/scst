@@ -24,7 +24,7 @@
 /* 4 byte ASCII Product Revision Level - left aligned */
 #define FIO_REV				" 101"
 
-#define MAX_USN_LEN			20
+#define MAX_USN_LEN			(20+1) /* For '\0' */
 
 #define INQ_BUF_SZ			128
 #define EVPD				0x01
@@ -41,7 +41,8 @@
 #define PS				0x80	/* parameter saveable */
 
 #define	BYTE				8
-#define	DEF_SECTORS_PER			63
+#define	DEF_SECTORS			56
+#define	DEF_HEADS			255
 
 struct vdisk_tgt_dev {
 	uint64_t sess_h;
@@ -85,7 +86,7 @@ struct vdisk_dev {
 	char *name;		/* Name of virtual device,
 				   must be <= SCSI Model + 1 */
 	char *file_name;	/* File name */
-	char *usn;
+	char usn[MAX_USN_LEN];
 	int type;
 };
 
@@ -117,4 +118,5 @@ struct vdisk_cmd
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
+int gen_dev_id_num(const struct vdisk_dev *dev);
 void *main_loop(void *arg);

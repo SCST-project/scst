@@ -29,9 +29,78 @@
 #include <sys/ioctl.h>
 #include <sys/poll.h>
 
+#include <arpa/inet.h>
+
 #include <pthread.h>
 
 #include "common.h"
+
+static unsigned int random_values[256] = {
+	    9862592UL,  3744545211UL,  2348289082UL,  4036111983UL,
+	  435574201UL,  3110343764UL,  2383055570UL,  1826499182UL,
+	 4076766377UL,  1549935812UL,  3696752161UL,  1200276050UL,
+	 3878162706UL,  1783530428UL,  2291072214UL,   125807985UL,
+	 3407668966UL,   547437109UL,  3961389597UL,   969093968UL,
+	   56006179UL,  2591023451UL,     1849465UL,  1614540336UL,
+	 3699757935UL,   479961779UL,  3768703953UL,  2529621525UL,
+	 4157893312UL,  3673555386UL,  4091110867UL,  2193909423UL,
+	 2800464448UL,  3052113233UL,   450394455UL,  3424338713UL,
+	 2113709130UL,  4082064373UL,  3708640918UL,  3841182218UL,
+	 3141803315UL,  1032476030UL,  1166423150UL,  1169646901UL,
+	 2686611738UL,   575517645UL,  2829331065UL,  1351103339UL,
+	 2856560215UL,  2402488288UL,   867847666UL,     8524618UL,
+	  704790297UL,  2228765657UL,   231508411UL,  1425523814UL,
+	 2146764591UL,  1287631730UL,  4142687914UL,  3879884598UL,
+	  729945311UL,   310596427UL,  2263511876UL,  1983091134UL,
+	 3500916580UL,  1642490324UL,  3858376049UL,   695342182UL,
+	  780528366UL,  1372613640UL,  1100993200UL,  1314818946UL,
+	  572029783UL,  3775573540UL,   776262915UL,  2684520905UL,
+	 1007252738UL,  3505856396UL,  1974886670UL,  3115856627UL,
+	 4194842288UL,  2135793908UL,  3566210707UL,     7929775UL,
+	 1321130213UL,  2627281746UL,  3587067247UL,  2025159890UL,
+	 2587032000UL,  3098513342UL,  3289360258UL,   130594898UL,
+	 2258149812UL,  2275857755UL,  3966929942UL,  1521739999UL,
+	 4191192765UL,   958953550UL,  4153558347UL,  1011030335UL,
+	  524382185UL,  4099757640UL,   498828115UL,  2396978754UL,
+	  328688935UL,   826399828UL,  3174103611UL,  3921966365UL,
+	 2187456284UL,  2631406787UL,  3930669674UL,  4282803915UL,
+	 1776755417UL,   374959755UL,  2483763076UL,   844956392UL,
+	 2209187588UL,  3647277868UL,   291047860UL,  3485867047UL,
+	 2223103546UL,  2526736133UL,  3153407604UL,  3828961796UL,
+	 3355731910UL,  2322269798UL,  2752144379UL,   519897942UL,
+	 3430536488UL,  1801511593UL,  1953975728UL,  3286944283UL,
+	 1511612621UL,  1050133852UL,   409321604UL,  1037601109UL,
+	 3352316843UL,  4198371381UL,   617863284UL,   994672213UL,
+	 1540735436UL,  2337363549UL,  1242368492UL,   665473059UL,
+	 2330728163UL,  3443103219UL,  2291025133UL,  3420108120UL,
+	 2663305280UL,  1608969839UL,  2278959931UL,  1389747794UL,
+	 2226946970UL,  2131266900UL,  3856979144UL,  1894169043UL,
+	 2692697628UL,  3797290626UL,  3248126844UL,  3922786277UL,
+	  343705271UL,  3739749888UL,  2191310783UL,  2962488787UL,
+	 4119364141UL,  1403351302UL,  2984008923UL,  3822407178UL,
+	 1932139782UL,  2323869332UL,  2793574182UL,  1852626483UL,
+	 2722460269UL,  1136097522UL,  1005121083UL,  1805201184UL,
+	 2212824936UL,  2979547931UL,  4133075915UL,  2585731003UL,
+	 2431626071UL,   134370235UL,  3763236829UL,  1171434827UL,
+	 2251806994UL,  1289341038UL,  3616320525UL,   392218563UL,
+	 1544502546UL,  2993937212UL,  1957503701UL,  3579140080UL,
+	 4270846116UL,  2030149142UL,  1792286022UL,   366604999UL,
+	 2625579499UL,   790898158UL,   770833822UL,   815540197UL,
+	 2747711781UL,  3570468835UL,  3976195842UL,  1257621341UL,
+	 1198342980UL,  1860626190UL,  3247856686UL,   351473955UL,
+	  993440563UL,   340807146UL,  1041994520UL,  3573925241UL,
+	  480246395UL,  2104806831UL,  1020782793UL,  3362132583UL,
+	 2272911358UL,  3440096248UL,  2356596804UL,   259492703UL,
+	 3899500740UL,   252071876UL,  2177024041UL,  4284810959UL,
+	 2775999888UL,  2653420445UL,  2876046047UL,  1025771859UL,
+	 1994475651UL,  3564987377UL,  4112956647UL,  1821511719UL,
+	 3113447247UL,   455315102UL,  1585273189UL,  2311494568UL,
+	  774051541UL,  1898115372UL,  2637499516UL,   247231365UL,
+	 1475014417UL,   803585727UL,  3911097303UL,  1714292230UL,
+	  476579326UL,  2496900974UL,  3397613314UL,   341202244UL,
+	  807790202UL,  4221326173UL,   499979741UL,  1301488547UL,
+	 1056807896UL,  3525009458UL,  1174811641UL,  3049738746UL,
+};
 
 static void exec_inquiry(struct vdisk_cmd *vcmd);
 static void exec_request_sense(struct vdisk_cmd *vcmd);
@@ -837,12 +906,28 @@ out:
 	return (void *)(long)res;
 }
 
+int gen_dev_id_num(const struct vdisk_dev *dev)
+{
+	int dev_id_num, i;
+
+	for (dev_id_num = 0, i = 0; i < (int)strlen(dev->name); i++) {
+		unsigned int rv = random_values[(int)(dev->name[i])];
+		/*
+		 * Device name maximum length = 16, do some rotating of the
+		 * bits.
+		 */
+		dev_id_num ^= ((rv << i) | (rv >> (32 - i)));
+	}
+
+	return dev_id_num;
+}
+
 static void exec_inquiry(struct vdisk_cmd *vcmd)
 {
 	struct vdisk_dev *dev = vcmd->dev;
 	struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
 	struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
-	int len, resp_len = 0;
+	int resp_len = 0;
 	int length = cmd->bufflen;
 	unsigned int i;
 	uint8_t *address = (uint8_t*)(unsigned long)cmd->pbuf;
@@ -863,15 +948,16 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 		buf[1] = 0x80;      /* removable */
 	/* Vital Product */
 	if (cmd->cdb[1] & EVPD) {
-		int dev_id_num;
+		int dev_id_num, dev_id_len;
 		char dev_id_str[6];
 
-		for (dev_id_num = 0, i = 0; i < strlen(dev->name); i++) {
-			dev_id_num += dev->name[i];
-		}
-		len = snprintf(dev_id_str, 6, "%d", dev_id_num);
-		TRACE_DBG("num %d, str <%s>, len %d",
-			   dev_id_num, dev_id_str, len);
+		dev_id_num  = gen_dev_id_num(dev);
+		dev_id_len = snprintf(dev_id_str, sizeof(dev_id_str), "%d",
+					dev_id_num);
+		if (dev_id_len >= (signed)sizeof(dev_id_str))
+			dev_id_len = sizeof(dev_id_str) - 1;
+		TRACE_DBG("dev_id num %d, str %s, len %d", dev_id_num,
+			dev_id_str, dev_id_len);
 		if (0 == cmd->cdb[2]) { /* supported vital product data pages */
 			buf[3] = 3;
 			buf[4] = 0x0; /* this page */
@@ -879,20 +965,10 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 			buf[6] = 0x83; /* device identification */
 			resp_len = buf[3] + 4;
 		} else if (0x80 == cmd->cdb[2]) { /* unit serial number */
+			int usn_len = strlen(dev->usn);
 			buf[1] = 0x80;
-			if (dev->usn == NULL) {
-				buf[3] = MAX_USN_LEN;
-				memset(&buf[4], 0x20, MAX_USN_LEN);
-			} else {
-				int usn_len;
-
-				if (strlen(dev->usn) > MAX_USN_LEN)
-					usn_len = MAX_USN_LEN;
-				else
-					usn_len = len;
-				buf[3] = usn_len;
-				strncpy((char *)&buf[4], dev->usn, usn_len);
-			}
+			buf[3] = usn_len;
+			strncpy((char *)&buf[4], dev->usn, usn_len);
 			resp_len = buf[3] + 4;
 		} else if (0x83 == cmd->cdb[2]) { /* device identification */
 			int num = 4;
@@ -905,12 +981,15 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 			buf[num + 2] = 0x0;
 			memcpy(&buf[num + 4], VENDOR, 8);
 			memset(&buf[num + 12], ' ', 16);
-			i = strlen(dev->name);
-			i = i < 16 ? i : 16;
-			memcpy(&buf[num + 12], dev->name, len);
-			memcpy(&buf[num + 28], dev_id_str, len);
-			buf[num + 3] = 8 + 16 + len;
-			num += buf[num + 3] + 4;
+			i = min(strlen(dev->name), (size_t)16);
+			memcpy(&buf[num + 12], dev->name, i);
+			memcpy(&buf[num + 28], dev_id_str, dev_id_len);
+			buf[num + 3] = 8 + 16 + dev_id_len;
+			num += buf[num + 3];
+
+#if 0 /* This isn't required and can be misleading, so let's disable it */
+			num += 4;
+
 			/* NAA IEEE registered identifier (faked) */
 			buf[num] = 0x1;	/* binary */
 			buf[num + 1] = 0x3;
@@ -924,8 +1003,10 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 			buf[num + 9] = (dev_id_num >> 16) & 0xff;
 			buf[num + 10] = (dev_id_num >> 8) & 0xff;
 			buf[num + 11] = dev_id_num & 0xff;
+			num = num + 12 - 4;
+#endif
 
-			resp_len = num + 12 - 4;
+			resp_len = num;
 			buf[2] = (resp_len >> 8) & 0xFF;
 			buf[3] = resp_len & 0xFF;
 			resp_len += 4;
@@ -937,6 +1018,8 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 			goto out;
 		}
 	} else {
+		int len;
+
 		if (cmd->cdb[2] != 0) {
 			TRACE_DBG("INQUIRY: Unsupported page %x", cmd->cdb[2]);
 			set_cmd_error(vcmd,
@@ -944,10 +1027,11 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 			goto out;
 		}
 
-		buf[2] = 4;		/* Device complies to this standard - SPC-2  */
-		buf[3] = 0x12;		/* HiSup + data in format specified in SPC-2 */
-		buf[4] = 31;		/* n - 4 = 35 - 4 = 31 for full 36 byte data */
-		buf[6] = 0; buf[7] = 2; /* BQue = 0, CMDQUE = 1 commands queuing supported */
+		buf[2] = 4;	/* Device complies to this standard - SPC-2  */
+		buf[3] = 0x12;	/* HiSup + data in format specified in SPC-2 */
+		buf[4] = 31;/* n - 4 = 35 - 4 = 31 for full 36 byte data */
+		buf[6] = 1; /* MultiP 1 */
+		buf[7] = 2; /* CMDQUE 1, BQue 0 => commands queuing supported */
 
 		/* 8 byte ASCII Vendor Identification of the target - left aligned */
 		memcpy(&buf[8], VENDOR, 8);
@@ -1027,6 +1111,26 @@ static int disconnect_pg(unsigned char *p, int pcontrol)
 	return sizeof(disconnect_pg);
 }
 
+static int rigid_geo_pg(unsigned char *p, int pcontrol,
+	struct vdisk_dev *dev)
+{
+	unsigned char geo_m_pg[] = {0x04, 0x16, 0, 0, 0, DEF_HEADS, 0, 0,
+				    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+				    0x3a, 0x98/* 15K RPM */, 0, 0};
+	int32_t ncyl, n;
+	
+	memcpy(p, geo_m_pg, sizeof(geo_m_pg));
+	ncyl = dev->nblocks / (DEF_HEADS * DEF_SECTORS);
+	if ((dev->nblocks % (DEF_HEADS * DEF_SECTORS)) != 0)
+		ncyl++;
+	memcpy(&n, p + 2, sizeof(uint32_t));
+	n = n | (htonl(ncyl) >> 8);
+	memcpy(p + 2, &n, sizeof(uint32_t));
+	if (1 == pcontrol)
+		memset(p + 2, 0, sizeof(geo_m_pg) - 2);
+	return sizeof(geo_m_pg);
+}
+
 static int format_pg(unsigned char *p, int pcontrol,
 			     struct vdisk_dev *dev)
 {       /* Format device page for mode_sense */
@@ -1035,8 +1139,8 @@ static int format_pg(unsigned char *p, int pcontrol,
 					   0, 0, 0, 0, 0x40, 0, 0, 0};
 
         memcpy(p, format_pg, sizeof(format_pg));
-        p[10] = (DEF_SECTORS_PER >> 8) & 0xff;
-        p[11] = DEF_SECTORS_PER & 0xff;
+        p[10] = (DEF_SECTORS >> 8) & 0xff;
+        p[11] = DEF_SECTORS & 0xff;
         p[12] = (dev->block_size >> 8) & 0xff;
         p[13] = dev->block_size & 0xff;
         if (1 == pcontrol)
@@ -1163,27 +1267,24 @@ static void exec_mode_sense(struct vdisk_cmd *vcmd)
 	switch (pcode) {
 	case 0x1:	/* Read-Write error recovery page, direct access */
 		len = err_recov_pg(bp, pcontrol);
-		offset += len;
 		break;
 	case 0x2:	/* Disconnect-Reconnect page, all devices */
 		len = disconnect_pg(bp, pcontrol);
-		offset += len;
 		break;
         case 0x3:       /* Format device page, direct access */
                 len = format_pg(bp, pcontrol, dev);
-                offset += len;
                 break;
+	case 0x4:	/* Rigid disk geometry */
+		len = rigid_geo_pg(bp, pcontrol, dev);
+		break;
 	case 0x8:	/* Caching page, direct access */
 		len = caching_pg(bp, pcontrol, dev);
-		offset += len;
 		break;
 	case 0xa:	/* Control Mode page, all devices */
 		len = ctrl_m_pg(bp, pcontrol, dev);
-		offset += len;
 		break;
 	case 0x1c:	/* Informational Exceptions Mode page, all devices */
 		len = iec_m_pg(bp, pcontrol);
-		offset += len;
 		break;
 	case 0x3f:	/* Read all Mode pages */
 		len = err_recov_pg(bp, pcontrol);
@@ -1192,7 +1293,7 @@ static void exec_mode_sense(struct vdisk_cmd *vcmd)
 		len += caching_pg(bp + len, pcontrol, dev);
 		len += ctrl_m_pg(bp + len, pcontrol, dev);
 		len += iec_m_pg(bp + len, pcontrol);
-		offset += len;
+		len += rigid_geo_pg(bp + len, pcontrol, dev);
 		break;
 	default:
 		TRACE_DBG("MODE SENSE: Unsupported page %x", pcode);
@@ -1200,6 +1301,9 @@ static void exec_mode_sense(struct vdisk_cmd *vcmd)
 		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 		goto out;
 	}
+
+	offset += len;
+
 	if (msense_6)
 		buf[0] = offset - 1;
 	else {
