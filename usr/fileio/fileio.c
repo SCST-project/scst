@@ -69,6 +69,8 @@ unsigned long trace_flag = DEFAULT_LOG_FLAGS;
 #define VERSION_STR		"1.0.1"
 #define THREADS			7
 
+int vdisk_ID;
+
 static struct option const long_options[] =
 {
 	{"block", required_argument, 0, 'b'},
@@ -82,6 +84,7 @@ static struct option const long_options[] =
 	{"on_free", required_argument, 0, 'f'},
 	{"mem_reuse", required_argument, 0, 'm'},
 	{"non_blocking", no_argument, 0, 'l'},
+	{"vdisk_id", required_argument, 0, 'I'},
 #if defined(DEBUG) || defined(TRACING)
 	{"debug", required_argument, 0, 'd'},
 #endif
@@ -111,6 +114,7 @@ static void usage(void)
 	printf("  -m, --mem_reuse=type	Memory reuse type, one of \"all\" "
 		"(default), \"read\", \"write\" or \"none\"\n");
 	printf("  -l, --non_blocking	Use non-blocking operations\n");
+	printf("  -I, --vdisk_id=ID	Vdisk ID (used in multi-targets setups)\n");
 #if defined(DEBUG) || defined(TRACING)
 	printf("  -d, --debug=level	Debug tracing level\n");
 #endif
@@ -177,7 +181,7 @@ int main(int argc, char **argv)
 	dev.type = TYPE_DISK;
 	dev.alloc_fn = align_alloc;
 
-	while ((ch = getopt_long(argc, argv, "+b:e:tronglcp:f:m:d:vh", long_options,
+	while ((ch = getopt_long(argc, argv, "+b:e:tronglI:cp:f:m:d:vh", long_options,
 				&longindex)) >= 0) {
 		switch (ch) {
 		case 'b':
@@ -246,6 +250,9 @@ int main(int argc, char **argv)
 			break;
 		case 'l':
 			dev.non_blocking = 1;
+			break;
+		case 'I':
+			vdisk_ID = strtol(optarg, (char **)NULL, 0);
 			break;
 #if defined(DEBUG_TM_IGNORE) || defined(DEBUG_TM_IGNORE_ALL)
 		case 'g':
@@ -358,7 +365,7 @@ int main(int argc, char **argv)
 	PRINT_INFO("trace_flag %lx", trace_flag);
 #endif
 
-	snprintf(dev.usn, sizeof(dev.usn), "%x", gen_dev_id_num(&dev));
+	snprintf(dev.usn, sizeof(dev.usn), "%llx", gen_dev_id_num(&dev));
 	TRACE_DBG("usn %s", dev.usn);
 
 	dev.scst_usr_fd = open(DEV_USER_PATH DEV_USER_NAME, O_RDWR |

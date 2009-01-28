@@ -1119,21 +1119,17 @@ out_done:
 	goto out;
 }
 
-static int vdisk_gen_dev_id_num(struct scst_vdisk_dev *virt_dev)
+static uint64_t vdisk_gen_dev_id_num(struct scst_vdisk_dev *virt_dev)
 {
-	int dev_id_num, i;
+	unsigned int dev_id_num, i;
 
-	for (dev_id_num = 0, i = 0; i < (int)strlen(virt_dev->name); i++) {
+	for (dev_id_num = 0, i = 0; i < strlen(virt_dev->name); i++) {
 		unsigned int rv = random_values[(int)(virt_dev->name[i])];
-		/*
-		 * Device name maximum length = 16, do some rotating of the
-		 * bits.
-		 */
+		/* Do some rotating of the bits */
 		dev_id_num ^= ((rv << i) | (rv >> (32 - i)));
 	}
 
-	dev_id_num += scst_vdisk_ID;
-	return dev_id_num;
+	return ((uint64_t)scst_vdisk_ID << 32) | dev_id_num;
 }
 
 static void vdisk_exec_inquiry(struct scst_cmd *cmd)
@@ -1183,13 +1179,14 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 		buf[1] = 0x80;      /* removable */
 	/* Vital Product */
 	if (cmd->cdb[1] & EVPD) {
-		int dev_id_num, dev_id_len;
-		char dev_id_str[6];
+		uint64_t dev_id_num;
+		int dev_id_len;
+		char dev_id_str[17];
 
 		dev_id_num = vdisk_gen_dev_id_num(virt_dev);
-		dev_id_len = scnprintf(dev_id_str, sizeof(dev_id_str), "%d",
+		dev_id_len = scnprintf(dev_id_str, sizeof(dev_id_str), "%llx",
 					dev_id_num);
-		TRACE_DBG("dev_id num %d, str %s, len %d", dev_id_num,
+		TRACE_DBG("dev_id num %lld, str %s, len %d", dev_id_num,
 			dev_id_str, dev_id_len);
 		if (0 == cmd->cdb[2]) {
 			/* supported vital product data pages */
@@ -1210,21 +1207,19 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			int num = 4;
 
 			buf[1] = 0x83;
-			/* Two identification descriptors: */
 			/* T10 vendor identifier field format (faked) */
 			buf[num + 0] = 0x2;	/* ASCII */
-			buf[num + 1] = 0x1;
-			buf[num + 2] = 0x0;
+			buf[num + 1] = 0x1;	/* Vendor ID */
 			if (virt_dev->blockio)
 				memcpy(&buf[num + 4], SCST_BIO_VENDOR, 8);
 			else
 				memcpy(&buf[num + 4], SCST_FIO_VENDOR, 8);
 
-			memset(&buf[num + 12], ' ', 16);
-			i = min(strlen(virt_dev->name), (size_t)16);
-			memcpy(&buf[num + 12], virt_dev->name, i);
-			memcpy(&buf[num + 28], dev_id_str, dev_id_len);
-			buf[num + 3] = 8 + 16 + dev_id_len;
+			i = strlen(virt_dev->name) + 1; /* for ' ' */
+			memset(&buf[num + 12], ' ', i + dev_id_len);
+			memcpy(&buf[num + 12], virt_dev->name, i-1);
+			memcpy(&buf[num + 12 + i], dev_id_str, dev_id_len);
+			buf[num + 3] = 8 + i + dev_id_len;
 			num += buf[num + 3];
 
 #if 0 /* This isn't required and can be misleading, so let's disable it */
@@ -1287,8 +1282,7 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 		 * aligned.
 		 */
 		memset(&buf[16], ' ', 16);
-		len = strlen(virt_dev->name);
-		len = len < 16 ? len : 16;
+		len = min(strlen(virt_dev->name), (size_t)16);
 		memcpy(&buf[16], virt_dev->name, len);
 
 		/*
@@ -2955,7 +2949,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 
 		strcpy(virt_dev->name, name);
 
-		scnprintf(virt_dev->usn, sizeof(virt_dev->usn), "%x",
+		scnprintf(virt_dev->usn, sizeof(virt_dev->usn), "%llx",
 				vdisk_gen_dev_id_num(virt_dev));
 		TRACE_DBG("usn %s", virt_dev->usn);
 
@@ -3092,7 +3086,7 @@ static int vcdrom_open(char *p, char *name)
 
 	strcpy(virt_dev->name, name);
 
-	scnprintf(virt_dev->usn, sizeof(virt_dev->usn), "%x",
+	scnprintf(virt_dev->usn, sizeof(virt_dev->usn), "%llx",
 			vdisk_gen_dev_id_num(virt_dev));
 	TRACE_DBG("usn %s", virt_dev->usn);
 

@@ -118,5 +118,7 @@ struct vdisk_cmd
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
-int gen_dev_id_num(const struct vdisk_dev *dev);
+extern int vdisk_ID;
+
+uint64_t gen_dev_id_num(const struct vdisk_dev *dev);
 void *main_loop(void *arg);

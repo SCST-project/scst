@@ -906,20 +906,17 @@ out:
 	return (void *)(long)res;
 }
 
-int gen_dev_id_num(const struct vdisk_dev *dev)
+uint64_t gen_dev_id_num(const struct vdisk_dev *dev)
 {
-	int dev_id_num, i;
+	unsigned int dev_id_num, i;
 
 	for (dev_id_num = 0, i = 0; i < (int)strlen(dev->name); i++) {
 		unsigned int rv = random_values[(int)(dev->name[i])];
-		/*
-		 * Device name maximum length = 16, do some rotating of the
-		 * bits.
-		 */
+		/* do some rotating of the bits */
 		dev_id_num ^= ((rv << i) | (rv >> (32 - i)));
 	}
 
-	return dev_id_num;
+	return ((uint64_t)vdisk_ID << 32) | dev_id_num;
 }
 
 static void exec_inquiry(struct vdisk_cmd *vcmd)
@@ -948,15 +945,16 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 		buf[1] = 0x80;      /* removable */
 	/* Vital Product */
 	if (cmd->cdb[1] & EVPD) {
-		int dev_id_num, dev_id_len;
-		char dev_id_str[6];
+		uint64_t dev_id_num;
+		int dev_id_len;
+		char dev_id_str[17];
 
 		dev_id_num  = gen_dev_id_num(dev);
-		dev_id_len = snprintf(dev_id_str, sizeof(dev_id_str), "%d",
+		dev_id_len = snprintf(dev_id_str, sizeof(dev_id_str), "%llx",
 					dev_id_num);
 		if (dev_id_len >= (signed)sizeof(dev_id_str))
 			dev_id_len = sizeof(dev_id_str) - 1;
-		TRACE_DBG("dev_id num %d, str %s, len %d", dev_id_num,
+		TRACE_DBG("dev_id num %llx, str %s, len %d", dev_id_num,
 			dev_id_str, dev_id_len);
 		if (0 == cmd->cdb[2]) { /* supported vital product data pages */
 			buf[3] = 3;
@@ -977,14 +975,13 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 			/* Two identification descriptors: */
 			/* T10 vendor identifier field format (faked) */
 			buf[num + 0] = 0x2;	/* ASCII */
-			buf[num + 1] = 0x1;
-			buf[num + 2] = 0x0;
+			buf[num + 1] = 0x1;	/* Vendor ID */
 			memcpy(&buf[num + 4], VENDOR, 8);
-			memset(&buf[num + 12], ' ', 16);
-			i = min(strlen(dev->name), (size_t)16);
-			memcpy(&buf[num + 12], dev->name, i);
-			memcpy(&buf[num + 28], dev_id_str, dev_id_len);
-			buf[num + 3] = 8 + 16 + dev_id_len;
+			i = strlen(dev->name) + 1; /* for ' ' */
+			memset(&buf[num + 12], ' ', i + dev_id_len);
+			memcpy(&buf[num + 12], dev->name, i-1);
+			memcpy(&buf[num + 12 + i], dev_id_str, dev_id_len);
+			buf[num + 3] = 8 + i + dev_id_len;
 			num += buf[num + 3];
 
 #if 0 /* This isn't required and can be misleading, so let's disable it */
@@ -1038,8 +1035,7 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 
 		/* 16 byte ASCII Product Identification of the target - left aligned */
 		memset(&buf[16], ' ', 16);
-		len = strlen(dev->name);
-		len = len < 16 ? len : 16;
+		len = min(strlen(dev->name), (size_t)16);
 		memcpy(&buf[16], dev->name, len);
 
 		/* 4 byte ASCII Product Revision Level of the target - left aligned */
