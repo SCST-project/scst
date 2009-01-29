@@ -656,14 +656,25 @@ int main(int argc, char **argv)
 				exit(res);
 		}
 
-		chdir("/");
+		if (chdir("/") < 0) {
+			log_error("failed to set working dir to /: %m");
+			exit(1);
+		}
+
 		if (lockf(fd, F_TLOCK, 0) < 0) {
 			log_error("unable to lock pid file");
 			exit(1);
 		}
-		ftruncate(fd, 0);
+		if (ftruncate(fd, 0) < 0) {
+			log_error("failed to ftruncate the PID file: %m");
+			exit(1);
+		}
+
 		sprintf(buf, "%d\n", getpid());
-		write(fd, buf, strlen(buf));
+		if (write(fd, buf, strlen(buf)) < strlen(buf)) {
+			log_error("failed to write PID to PID file: %m");
+			exit(1);
+		}
 
 		close(0);
 		open("/dev/null", O_RDWR);

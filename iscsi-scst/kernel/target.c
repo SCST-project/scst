@@ -116,14 +116,14 @@ static int iscsi_target_create(struct target_info *info, u32 tid)
 	mutex_init(&target->target_mutex);
 	INIT_LIST_HEAD(&target->session_list);
 
-	list_add(&target->target_list_entry, &target_list);
-
 	target->scst_tgt = scst_register(&iscsi_template, target->name);
 	if (!target->scst_tgt) {
 		PRINT_ERROR("%s", "scst_register() failed");
 		err = -EBUSY;
 		goto out_free;
 	}
+
+	list_add(&target->target_list_entry, &target_list);
 
 	return 0;
 

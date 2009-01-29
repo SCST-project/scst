@@ -134,7 +134,7 @@ Optional. If set to "CRC32C" and the initiator is configured accordingly, the in
 Optional. If set to "CRC32C" and the initiator is configured accordingly, the integrity of an iSCSI PDU's data segment will be protected by a CRC32C checksum. The default is "None". Note that data digests are not supported during discovery sessions.
 .TP 
 .B [MaxConnections <value>]
-Optional. Has to be set to "1" (in words: one), which is also the default.
+Optional. The number of connections within a session. Has to be set to "1" (in words: one), which is also the default since MC/S is not supported.
 .TP 
 .B [InitialR2T <Yes|No>]
 Optional. If set to "Yes", the initiator has to wait for the target to solicit SCSI data before sending it. Setting it to "No" (default) allows the initiator to send a burst of

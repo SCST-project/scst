@@ -65,7 +65,6 @@ struct connection {
 	char *user;
 	union iscsi_sid sid;
 	u16 cid;
-	u16 pad;
 	int session_type;
 	int auth_method;
 
