@@ -15,6 +15,7 @@
 
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 #include <sys/socket.h>
@@ -47,7 +48,8 @@ int iscsi_adm_request_listen(void)
 	return fd;
 }
 
-static void iscsi_adm_request_exec(struct iscsi_adm_req *req, struct iscsi_adm_rsp *rsp)
+static void iscsi_adm_request_exec(struct iscsi_adm_req *req, struct iscsi_adm_rsp *rsp,
+				void **rsp_data, size_t *rsp_data_sz)
 {
 	int err = 0;
 
@@ -102,14 +104,35 @@ static void iscsi_adm_request_exec(struct iscsi_adm_req *req, struct iscsi_adm_r
 		break;
 
 	case C_ACCT_NEW:
-		err = cops->account_add(req->tid, req->u.acnt.auth_dir, req->u.acnt.user,
-					req->u.acnt.pass);
+		err = cops->account_add(req->tid, req->u.acnt.auth_dir,
+					req->u.acnt.u.user.name,
+					req->u.acnt.u.user.pass);
 		break;
 	case C_ACCT_DEL:
-		err = cops->account_del(req->tid, req->u.acnt.auth_dir, req->u.acnt.user);
+		err = cops->account_del(req->tid, req->u.acnt.auth_dir,
+					req->u.acnt.u.user.name);
+		break;
+	case C_ACCT_LIST:
+		*rsp_data = malloc(req->u.acnt.u.list.alloc_len);
+		if (!*rsp_data) {
+			err = -ENOMEM;
+			break;
+		}
+
+		*rsp_data_sz = req->u.acnt.u.list.alloc_len;
+		memset(*rsp_data, 0x0, *rsp_data_sz);
+
+		err = cops->account_list(req->tid, req->u.acnt.auth_dir,
+					 &req->u.acnt.u.list.count,
+					 &req->u.acnt.u.list.overflow,
+					 *rsp_data, *rsp_data_sz);
 		break;
 	case C_ACCT_UPDATE:
+		break;
 	case C_ACCT_SHOW:
+		err = cops->account_query(req->tid, req->u.acnt.auth_dir,
+					  req->u.acnt.u.user.name,
+					  req->u.acnt.u.user.pass);
 		break;
 	case C_SYS_NEW:
 		break;
@@ -135,7 +158,9 @@ int iscsi_adm_request_handle(int accept_fd)
 	socklen_t len;
 	struct iscsi_adm_req req;
 	struct iscsi_adm_rsp rsp;
-	struct iovec iov[2];
+	struct iovec iov[3];
+	void *rsp_data = NULL;
+	size_t rsp_data_sz;
 
 	memset(&rsp, 0, sizeof(rsp));
 	len = sizeof(addr);
@@ -165,17 +190,22 @@ int iscsi_adm_request_handle(int accept_fd)
 		goto out;
 	}
 
-	iscsi_adm_request_exec(&req, &rsp);
+	iscsi_adm_request_exec(&req, &rsp, &rsp_data, &rsp_data_sz);
 
 send:
 	iov[0].iov_base = &req;
 	iov[0].iov_len = sizeof(req);
 	iov[1].iov_base = &rsp;
 	iov[1].iov_len = sizeof(rsp);
+	iov[2].iov_base = rsp.err ? NULL : rsp_data;
+	iov[2].iov_len = iov[2].iov_base ? rsp_data_sz : 0;
 
-	err = writev(fd, iov, 2);
+	err = writev(fd, iov, 2 + !!iov[2].iov_len);
 out:
 	if (fd > 0)
 		close(fd);
+	if (rsp_data)
+		free(rsp_data);
+
 	return err;
 }

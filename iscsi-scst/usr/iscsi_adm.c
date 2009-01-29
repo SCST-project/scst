@@ -37,6 +37,8 @@
 #define	SET_CONNECTION	(1 << 2)
 #define	SET_USER	(1 << 4)
 
+typedef int (user_handle_fn_t)(struct iscsi_adm_req *req, char *user, char *pass);
+
 enum iscsi_adm_op {
 	OP_NEW,
 	OP_DELETE,
@@ -79,6 +81,14 @@ iSCSI-SCST Target Administration Utility.\n\
                         show iSCSI parameters in effect for session [sid]. If\n\
                         [sid] is \"0\" (zero), the configured parameters\n\
                         will be displayed.\n\
+  --op show --tid=[id] --user\n\
+                        show list of Discovery (--tid omitted / id=0 (zero))\n\
+                        or target CHAP accounts.\n\
+  --op show --tid=[id] --user --params=[user]=[name]\n\
+                        show CHAP account information. [user] can be\n\
+                        \"IncomingUser\" or \"OutgoingUser\". If --tid is\n\
+                        omitted / id=0 (zero), [user] is treated as Discovery\n\
+                        user.\n\
   --op delete --tid=[id] --sid=[sid] --cid=[cid]\n\
                         delete specific connection with [cid] in a session\n\
                         with [sid] that the target with [id] has.\n\
@@ -145,7 +155,8 @@ static int iscsid_request_send(int fd, struct iscsi_adm_req *req)
 	return err;
 }
 
-static int iscsid_response_recv(int fd, struct iscsi_adm_req *req)
+static int iscsid_response_recv(int fd, struct iscsi_adm_req *req, void *rsp_data,
+			      size_t rsp_data_sz)
 {
 	int err, ret;
 	struct iovec iov[2];
@@ -166,6 +177,15 @@ static int iscsid_response_recv(int fd, struct iscsi_adm_req *req)
 			err);
 	} else
 		err = rsp.err;
+
+	if (!err && rsp_data_sz && rsp_data) {
+		ret = read(fd, rsp_data, rsp_data_sz);
+		if (ret != rsp_data_sz) {
+			err = (ret < 0) ? -errno : -EIO;
+			fprintf(stderr,  "%s %d %d %d\n", __FUNCTION__,
+				__LINE__, ret, err);
+		}
+	}
 
 	return err;
 }
@@ -189,7 +209,8 @@ static int iscsid_connect(void)
 	return fd;
 }
 
-static int iscsid_request(struct iscsi_adm_req *req)
+static int iscsid_request(struct iscsi_adm_req *req, void *rsp_data,
+			size_t rsp_data_sz)
 {
 	int fd = -1, err = -EIO;
 
@@ -201,7 +222,7 @@ static int iscsid_request(struct iscsi_adm_req *req)
 	if ((err = iscsid_request_send(fd, req)) < 0)
 		goto out;
 
-	err = iscsid_response_recv(fd, req);
+	err = iscsid_response_recv(fd, req, rsp_data, rsp_data_sz);
 
 out:
 	if (fd > 0)
@@ -324,7 +345,7 @@ static int trgt_handle(int op, u32 set, u32 tid, char *params)
 		break;
 	}
 
-	err = iscsid_request(&req);
+	err = iscsid_request(&req, NULL, 0);
 	if (!err && req.rcmnd == C_TRGT_SHOW)
 		show_iscsi_param(key_target, req.u.trgt.target_param);
 
@@ -355,7 +376,7 @@ static int sess_handle(int op, u32 set, u32 tid, u64 sid, char *params)
 		break;
 	case OP_SHOW:
 		req.rcmnd = C_SESS_SHOW;
-		err = iscsid_request(&req);
+		err = iscsid_request(&req, NULL, 0);
 		if (!err)
 			show_iscsi_param(key_session, req.u.trgt.session_param);
 		break;
@@ -365,30 +386,10 @@ out:
 	return err;
 }
 
-static int user_handle(int op, u32 set, u32 tid, char *params)
+static int parse_user_params(char *params, u32 *auth_dir, char **user,
+			     char **pass)
 {
-	int err = -EINVAL;
-	char *p, *q, *user = NULL, *pass = NULL;
-	struct iscsi_adm_req req;
-
-	if (set & ~(SET_TARGET | SET_USER))
-		goto out;
-
-	memset(&req, 0, sizeof(req));
-	req.tid = tid;
-
-	switch (op) {
-	case OP_NEW:
-		req.rcmnd = C_ACCT_NEW;
-		break;
-	case OP_DELETE:
-		req.rcmnd = C_ACCT_DEL;
-		break;
-	case OP_UPDATE:
-	case OP_SHOW:
-		fprintf(stderr, "Unsupported.\n");
-		goto out;
-	}
+	char *p, *q;
 
 	while ((p = strsep(&params, ",")) != NULL) {
 		if (!*p)
@@ -401,37 +402,189 @@ static int user_handle(int op, u32 set, u32 tid, char *params)
 			q++;
 
 		if (!strcasecmp(p, "IncomingUser")) {
-			if (user)
-				fprintf(stderr, "Already specified user %s\n", q);
-			user = q;
-			req.u.acnt.auth_dir = AUTH_DIR_INCOMING;
+			if (*user)
+				fprintf(stderr,
+					"Already specified IncomingUser %s\n",
+					q);
+			*user = q;
+			*auth_dir = AUTH_DIR_INCOMING;
 		} else if (!strcasecmp(p, "OutgoingUser")) {
-			if (user)
-				fprintf(stderr, "Already specified user %s\n", q);
-			user = q;
-			req.u.acnt.auth_dir = AUTH_DIR_OUTGOING;
+			if (*user)
+				fprintf(stderr,
+					"Already specified OutgoingUser %s\n",
+					q);
+			*user = q;
+			*auth_dir = AUTH_DIR_OUTGOING;
 		} else if (!strcasecmp(p, "Password")) {
-			if (pass)
-				fprintf(stderr, "Already specified pass %s\n", q);
-			pass = q;
+			if (*pass)
+				fprintf(stderr,
+					"Already specified Password %s\n", q);
+			*pass = q;
 		} else {
 			fprintf(stderr, "Unknown parameter %p\n", q);
-			goto out;
+			return -EINVAL;
 		}
 	}
+	return 0;
+}
 
-	if ((op == OP_NEW && ((user && !pass) || (!user && pass) || (!user && !pass))) ||
-	    (op == OP_DELETE && ((!user && pass) || (!user && !pass)))) {
-		fprintf(stderr,
-			"You need to specify a user and its password %s %s\n", pass, user);
+static void show_account(int auth_dir, char *user, char *pass)
+{
+	char buf[(ISCSI_NAME_LEN  + 1) * 2] = {0};
+
+	snprintf(buf, ISCSI_NAME_LEN, "%s", user);
+	if (pass)
+		snprintf(buf + strlen(buf), ISCSI_NAME_LEN, " %s", pass);
+
+	printf("%sUser %s\n", (auth_dir == AUTH_DIR_INCOMING) ?
+	       "Incoming" : "Outgoing", buf);
+}
+
+static int user_handle_show_user(struct iscsi_adm_req *req, char *user)
+{
+	int err;
+
+	req->rcmnd = C_ACCT_SHOW;
+	strncpy(req->u.acnt.u.user.name, user,
+		sizeof(req->u.acnt.u.user.name) - 1);
+
+	err = iscsid_request(req, NULL, 0);
+	if (!err)
+		show_account(req->u.acnt.auth_dir, req->u.acnt.u.user.name,
+			     req->u.acnt.u.user.pass);
+
+	return err;
+}
+
+static int user_handle_show_list(struct iscsi_adm_req *req)
+{
+	int i, err, retry;
+	size_t buf_sz = 0;
+	char *buf;
+
+	req->u.acnt.auth_dir = AUTH_DIR_INCOMING;
+	req->rcmnd = C_ACCT_LIST;
+
+	do {
+		retry = 0;
+
+		buf_sz = buf_sz ? buf_sz : ISCSI_NAME_LEN;
+
+		buf = calloc(buf_sz, sizeof(char *));
+		if (!buf) {
+			fprintf(stderr, "Memory allocation failed\n");
+			return -ENOMEM;
+		}
+
+		req->u.acnt.u.list.alloc_len = buf_sz;
+
+		err = iscsid_request(req, buf, buf_sz);
+		if (err) {
+			free(buf);
+			break;
+		}
+
+		if (req->u.acnt.u.list.overflow) {
+			buf_sz = ISCSI_NAME_LEN * (req->u.acnt.u.list.count +
+						   req->u.acnt.u.list.overflow);
+			retry = 1;
+			free(buf);
+			continue;
+		}
+
+		for (i = 0; i < req->u.acnt.u.list.count; i++)
+			show_account(req->u.acnt.auth_dir,
+				     &buf[i * ISCSI_NAME_LEN], NULL);
+
+		if (req->u.acnt.auth_dir == AUTH_DIR_INCOMING) {
+			req->u.acnt.auth_dir = AUTH_DIR_OUTGOING;
+			buf_sz = 0;
+			retry = 1;
+		}
+
+		free(buf);
+
+	} while (retry);
+
+	return err;
+}
+
+static int user_handle_show(struct iscsi_adm_req *req, char *user, char *pass)
+{
+	if (pass)
+		fprintf(stderr, "Ignoring specified password\n");
+
+	if (user)
+		return user_handle_show_user(req, user);
+	else
+		return user_handle_show_list(req);
+}
+
+static int user_handle_new(struct iscsi_adm_req *req, char *user, char *pass)
+{
+	if (!user || !pass) {
+		fprintf(stderr, "Username and password must be specified\n");
+		return -EINVAL;
+	}
+
+	req->rcmnd = C_ACCT_NEW;
+
+	strncpy(req->u.acnt.u.user.name, user,
+		sizeof(req->u.acnt.u.user.name) - 1);
+	strncpy(req->u.acnt.u.user.pass, pass,
+		sizeof(req->u.acnt.u.user.pass) - 1);
+
+	return iscsid_request(req, NULL, 0);
+}
+
+static int user_handle_del(struct iscsi_adm_req *req, char *user, char *pass)
+{
+	if (!user) {
+		fprintf(stderr, "Username must be specified\n");
+		return -EINVAL;
+	}
+	
+	if (pass)
+		fprintf(stderr, "Ignoring specified password\n");
+
+	req->rcmnd = C_ACCT_DEL;
+
+	strncpy(req->u.acnt.u.user.name, user,
+		sizeof(req->u.acnt.u.user.name) - 1);
+
+	return iscsid_request(req, NULL, 0);
+}
+
+static int user_handle(int op, u32 set, u32 tid, char *params)
+{
+	int err = -EINVAL;
+	char *user = NULL, *pass = NULL;
+	struct iscsi_adm_req req;
+	static user_handle_fn_t *user_handle_fn[] = {
+		user_handle_new,
+		user_handle_del,
+		NULL,
+		user_handle_show,
+	}, *fn;
+
+	if (set & ~(SET_TARGET | SET_USER))
+		goto out;
+
+	memset(&req, 0, sizeof(req));
+	req.tid = tid;
+
+	err = parse_user_params(params, &req.u.acnt.auth_dir, &user, &pass);
+	if (err)
+		goto out;
+
+	if ((op >= sizeof(user_handle_fn)/sizeof(user_handle_fn[0])) ||
+	    ((fn = user_handle_fn[op]) == NULL)) {
+		fprintf(stderr, "Unsupported\n");
 		goto out;
 	}
 
-	strncpy(req.u.acnt.user, user, sizeof(req.u.acnt.user) - 1);
-	if (pass)
-		strncpy(req.u.acnt.pass, pass, sizeof(req.u.acnt.pass) - 1);
+	err = fn(&req, user, pass);
 
-	err = iscsid_request(&req);
 out:
 	return err;
 }
@@ -464,7 +617,7 @@ static int conn_handle(int op, u32 set, u32 tid, u64 sid, u32 cid, char *params)
 		break;
 	}
 
-	err = iscsid_request(&req);
+	err = iscsid_request(&req, NULL, 0);
 out:
 	return err;
 }
@@ -488,7 +641,7 @@ static int sys_handle(int op, u32 set, char *params)
 		break;
 	}
 
-	err = iscsid_request(&req);
+	err = iscsid_request(&req, NULL, 0);
 
 	return err;
 }

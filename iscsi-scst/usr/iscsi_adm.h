@@ -31,8 +31,17 @@ struct msg_trgt {
 
 struct msg_acnt {
 	u32 auth_dir;
-	char user[ISCSI_NAME_LEN];
-	char pass[ISCSI_NAME_LEN];
+	union {
+		struct {
+			char name[ISCSI_NAME_LEN];
+			char pass[ISCSI_NAME_LEN];
+		} user;
+		struct {
+			u32 alloc_len;
+			u32 count;
+			u32 overflow;
+		} list;
+	} u;
 };
 
 enum iscsi_adm_cmnd {
@@ -60,6 +69,8 @@ enum iscsi_adm_cmnd {
 	C_SYS_DEL,
 	C_SYS_UPDATE,
 	C_SYS_SHOW,
+
+	C_ACCT_LIST,
 };
 
 struct iscsi_adm_req {

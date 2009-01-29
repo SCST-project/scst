@@ -170,6 +170,30 @@ static int plain_account_query(u32 tid, int dir, char *name, char *pass)
 	return 0;
 }
 
+static int plain_account_list(u32 tid, int dir, u32 *cnt, u32 *overflow,
+			      char *buf, size_t buf_sz)
+{
+	struct __qelem *list = account_list_get(tid, dir);
+	struct user *user;
+
+	*cnt = *overflow = 0;
+
+	if (!list)
+		return -ENOENT;
+
+	list_for_each_entry(user, list, ulist) {
+		if (buf_sz >= ISCSI_NAME_LEN) {
+			strncpy(buf, user->name, ISCSI_NAME_LEN);
+			buf_sz -= ISCSI_NAME_LEN;
+			buf += ISCSI_NAME_LEN;
+			*cnt += 1;
+		} else
+			*overflow += 1;
+	}
+
+	return 0;
+}
+
 static void account_destroy(struct user *user)
 {
 	if (!user)
@@ -631,5 +655,6 @@ struct config_operations plain_ops = {
 	.account_add		= plain_account_add,
 	.account_del		= plain_account_del,
 	.account_query		= plain_account_query,
+	.account_list		= plain_account_list,
 	.initiator_access	= plain_initiator_access,
 };
