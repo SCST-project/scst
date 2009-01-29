@@ -219,6 +219,7 @@ static void free_pending_commands(struct iscsi_conn *conn)
 		}
 	} while (req_freed);
 	spin_unlock(&session->sn_lock);
+	return;
 }
 
 static void free_orphaned_pending_commands(struct iscsi_conn *conn)
@@ -257,6 +258,7 @@ static void free_orphaned_pending_commands(struct iscsi_conn *conn)
 		}
 	} while (req_freed);
 	spin_unlock(&session->sn_lock);
+	return;
 }
 
 #ifdef CONFIG_SCST_DEBUG
@@ -323,6 +325,7 @@ static void trace_conn_close(struct iscsi_conn *conn)
 #endif /* CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION */
 	}
 	spin_unlock_bh(&conn->cmd_list_lock);
+	return;
 }
 #else /* CONFIG_SCST_DEBUG */
 static void trace_conn_close(struct iscsi_conn *conn) {}
@@ -545,6 +548,7 @@ static inline void iscsi_conn_init_read(struct iscsi_conn *conn,
 	conn->read_msg.msg_iov = conn->read_iov;
 	conn->read_msg.msg_iovlen = 1;
 	conn->read_size = (len + 3) & -4;
+	return;
 }
 
 static void iscsi_conn_read_ahs(struct iscsi_conn *conn,
@@ -555,6 +559,7 @@ static void iscsi_conn_read_ahs(struct iscsi_conn *conn,
 	sBUG_ON(cmnd->pdu.ahs == NULL);
 	iscsi_conn_init_read(conn, (void __force __user *)cmnd->pdu.ahs,
 		cmnd->pdu.ahssize);
+	return;
 }
 
 static struct iscsi_cmnd *iscsi_get_send_cmnd(struct iscsi_conn *conn)
@@ -923,6 +928,7 @@ static inline void __iscsi_get_page_callback(struct iscsi_cmnd *cmd)
 		TRACE_NET_PAGE("getting cmd %p", cmd);
 		cmnd_get(cmd);
 	}
+	return;
 }
 
 void iscsi_get_page_callback(struct page *page)
@@ -933,6 +939,7 @@ void iscsi_get_page_callback(struct page *page)
 		atomic_read(&page->_count));
 
 	__iscsi_get_page_callback(cmd);
+	return;
 }
 
 static inline void __iscsi_put_page_callback(struct iscsi_cmnd *cmd)
@@ -950,6 +957,7 @@ static inline void __iscsi_put_page_callback(struct iscsi_cmnd *cmd)
 		}
 		cmnd_put(cmd);
 	}
+	return;
 }
 
 void iscsi_put_page_callback(struct page *page)
@@ -960,6 +968,7 @@ void iscsi_put_page_callback(struct page *page)
 		atomic_read(&page->_count));
 
 	__iscsi_put_page_callback(cmd);
+	return;
 }
 
 static void check_net_priv(struct iscsi_cmnd *cmd, struct page *page)
@@ -969,6 +978,7 @@ static void check_net_priv(struct iscsi_cmnd *cmd, struct page *page)
 			"%p (page %p)", page->net_priv, page);
 		page->net_priv = NULL;
 	}
+	return;
 }
 #else
 static inline void check_net_priv(struct iscsi_cmnd *cmd, struct page *page) {}

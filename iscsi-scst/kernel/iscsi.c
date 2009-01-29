@@ -100,6 +100,7 @@ static inline void iscsi_restart_cmnd(struct iscsi_cmnd *cmnd)
 	cmnd->scst_state = ISCSI_CMD_STATE_RESTARTED;
 	scst_restart_cmd(cmnd->scst_cmd, SCST_PREPROCESS_STATUS_SUCCESS,
 		SCST_CONTEXT_THREAD);
+	return;
 }
 
 static inline void iscsi_restart_waiting_cmnd(struct iscsi_cmnd *cmnd)
@@ -112,6 +113,7 @@ static inline void iscsi_restart_waiting_cmnd(struct iscsi_cmnd *cmnd)
 	cmnd->data_waiting = 0;
 
 	iscsi_restart_cmnd(cmnd);
+	return;
 }
 
 static inline void iscsi_fail_waiting_cmnd(struct iscsi_cmnd *cmnd)
@@ -758,6 +760,7 @@ static void iscsi_cmnd_reject(struct iscsi_cmnd *req, int reason)
 					 ISCSI_INIT_WRITE_WAKE);
 
 	cmnd_prepare_get_rejected_cmd_data(req);
+	return;
 }
 
 static inline int iscsi_get_allowed_cmds(struct iscsi_session *sess)
@@ -802,6 +805,7 @@ static void __update_stat_sn(struct iscsi_cmnd *cmnd)
 		/* free pdu resources */
 		cmnd->conn->exp_stat_sn = exp_stat_sn;
 	}
+	return;
 }
 
 static inline void update_stat_sn(struct iscsi_cmnd *cmnd)
@@ -809,6 +813,7 @@ static inline void update_stat_sn(struct iscsi_cmnd *cmnd)
 	spin_lock(&cmnd->conn->session->sn_lock);
 	__update_stat_sn(cmnd);
 	spin_unlock(&cmnd->conn->session->sn_lock);
+	return;
 }
 
 /* Called under sn_lock */
@@ -932,6 +937,7 @@ static void cmnd_remove_hash(struct iscsi_cmnd *cmnd)
 	}
 
 	spin_unlock(&session->cmnd_hash_lock);
+	return;
 }
 
 static void cmnd_prepare_get_rejected_cmd_data(struct iscsi_cmnd *cmnd)
@@ -1997,6 +2003,7 @@ static void noop_out_exec(struct iscsi_cmnd *req)
 		req_cmnd_release(req);
 	} else
 		cmnd_put(req);
+	return;
 }
 
 static void logout_exec(struct iscsi_cmnd *req)
@@ -2019,6 +2026,7 @@ static void logout_exec(struct iscsi_cmnd *req)
 	iscsi_cmnd_init_write(rsp,
 		ISCSI_INIT_WRITE_REMOVE_HASH | ISCSI_INIT_WRITE_WAKE);
 	req_cmnd_release(req);
+	return;
 }
 
 static void iscsi_cmnd_exec(struct iscsi_cmnd *cmnd)
@@ -2094,6 +2102,7 @@ static void __cmnd_send_pdu(struct iscsi_conn *conn, struct iscsi_cmnd *cmnd,
 
 	conn->write_offset = offset;
 	conn->write_size += size;
+	return;
 }
 
 static void cmnd_send_pdu(struct iscsi_conn *conn, struct iscsi_cmnd *cmnd)
@@ -2107,6 +2116,7 @@ static void cmnd_send_pdu(struct iscsi_conn *conn, struct iscsi_cmnd *cmnd)
 	sBUG_ON(cmnd->sg == NULL);
 	sBUG_ON(cmnd->bufflen != size);
 	__cmnd_send_pdu(conn, cmnd, 0, size);
+	return;
 }
 
 /*
@@ -2125,6 +2135,7 @@ static void set_cork(struct socket *sock, int on)
 	sock->ops->setsockopt(sock, SOL_TCP, TCP_CORK,
 			      (void __force __user *)&opt, sizeof(opt));
 	set_fs(oldfs);
+	return;
 }
 
 void cmnd_tx_start(struct iscsi_cmnd *cmnd)
@@ -2190,14 +2201,16 @@ void cmnd_tx_start(struct iscsi_cmnd *cmnd)
 	/* move this? */
 	conn->write_size = (conn->write_size + 3) & -4;
 	iscsi_dump_pdu(&cmnd->pdu);
+	return;
 }
 
 void cmnd_tx_end(struct iscsi_cmnd *cmnd)
 {
 	struct iscsi_conn *conn = cmnd->conn;
 
-	TRACE_DBG("%p:%x (should_close_conn %d)", cmnd, cmnd_opcode(cmnd),
-		cmnd->should_close_conn);
+	TRACE_DBG("%p:%x (should_close_conn %d, should_close_all_conn %d)",
+		cmnd, cmnd_opcode(cmnd), cmnd->should_close_conn,
+		cmnd->should_close_all_conn);
 
 	switch (cmnd_opcode(cmnd)) {
 	case ISCSI_OP_NOOP_IN:
@@ -2216,13 +2229,22 @@ void cmnd_tx_end(struct iscsi_cmnd *cmnd)
 		break;
 	}
 
-	if (cmnd->should_close_conn) {
-		PRINT_INFO("Closing connection at initiator %s request",
-			conn->session->initiator_name);
-		mark_conn_closed(conn);
+	if (unlikely(cmnd->should_close_conn)) {
+		if (cmnd->should_close_all_conn) {
+			PRINT_INFO("Closing all connections for target %x at "
+				"initiator's %s request",
+				cmnd->conn->session->target->tid,
+				conn->session->initiator_name);
+			target_del_all_sess(cmnd->conn->session->target, false);
+		} else {
+			PRINT_INFO("Closing connection at initiator's %s "
+				"request", conn->session->initiator_name);
+			mark_conn_closed(conn);
+		}
 	}
 
 	set_cork(cmnd->conn->sock, 0);
+	return;
 }
 
 /*
@@ -2807,8 +2829,10 @@ static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status)
 	rsp_hdr->itt = req_hdr->itt;
 	rsp_hdr->response = status;
 
-	if (fn == ISCSI_FUNCTION_TARGET_COLD_RESET)
+	if (fn == ISCSI_FUNCTION_TARGET_COLD_RESET) {
 		rsp->should_close_conn = 1;
+		rsp->should_close_all_conn = 1;
+	}
 
 	sBUG_ON(sess->tm_rsp != NULL);
 
@@ -2946,6 +2970,7 @@ static void iscsi_stop_threads(void)
 		list_del(&t->threads_list_entry);
 		kfree(t);
 	}
+	return;
 }
 
 static int __init iscsi_init(void)

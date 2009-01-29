@@ -183,12 +183,13 @@ static void iscsi_session_info_show(struct seq_file *seq,
 
 	list_for_each_entry(session, &target->session_list,
 			    session_list_entry) {
-		seq_printf(seq, "\tsid:%llu initiator:%s shutting down %d\n",
+		seq_printf(seq, "\tsid:%llx initiator:%s shutting down %d\n",
 			(long long unsigned int)session->sid,
 			session->initiator_name,
 			session->shutting_down);
 		conn_info_show(seq, session);
 	}
+	return;
 }
 
 static int iscsi_sessions_info_show(struct seq_file *seq, void *v)

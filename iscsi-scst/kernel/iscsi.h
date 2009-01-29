@@ -261,6 +261,7 @@ struct iscsi_cmnd {
 	 */
 	unsigned int hashed:1;
 	unsigned int should_close_conn:1;
+	unsigned int should_close_all_conn:1;
 	unsigned int pending:1;
 	unsigned int own_sg:1;
 	unsigned int on_write_list:1;
@@ -391,6 +392,7 @@ extern int istwr(void *arg);
 struct iscsi_target *target_lookup_by_id(u32);
 extern int target_add(struct target_info *);
 extern int target_del(u32 id);
+extern void target_del_all_sess(struct iscsi_target *target, bool deleting);
 extern void target_del_all(void);
 
 /* config.c */
