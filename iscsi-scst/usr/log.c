@@ -87,15 +87,24 @@ void log_debug(int level, const char *fmt, ...)
 	}
 }
 
+/* Definition for log_pdu buffer */
+#define BUFFER_SIZE 16
+
+/*
+ * size required for a hex dump of BUFFER_SIZE bytes (' ' + 2 chars = 3 chars
+ * per byte) with a ' |' separator each 4th byte:
+ */
+#define LINE_SIZE (BUFFER_SIZE * 3 + BUFFER_SIZE / 4 * 2 + 1)
+
 static void __dump_line(int level, unsigned char *buf, int *cp)
 {
-	char line[16*3+5], *lp = line;
+	char line[LINE_SIZE], *lp = line;
 	int i, cnt;
 
 	cnt = *cp;
 	if (!cnt)
 		return;
-	for (i = 0; i < 16; i++) {
+	for (i = 0; i < BUFFER_SIZE; i++) {
 		if (i < cnt)
 			lp += sprintf(lp, " %02x", buf[i]);
 		else
@@ -105,7 +114,9 @@ static void __dump_line(int level, unsigned char *buf, int *cp)
 		if (i >= cnt || !isprint(buf[i]))
 			buf[i] =  ' ';
 	}
-	log_debug(level, "%s %.16s |", line, buf);
+
+	/* buf is not \0-terminated! */
+	log_debug(level, "%s %.*s |", line, BUFFER_SIZE, buf);
 	*cp = 0;
 }
 
@@ -114,7 +125,7 @@ static void __dump_char(int level, unsigned char *buf, int *cp, int ch)
 	int cnt = (*cp)++;
 
 	buf[cnt] = ch;
-	if (cnt == 15)
+	if (cnt == BUFFER_SIZE - 1)
 		__dump_line(level, buf, cp);
 }
 
@@ -123,13 +134,12 @@ static void __dump_char(int level, unsigned char *buf, int *cp, int ch)
 
 void log_pdu(int level, struct PDU *pdu)
 {
-	unsigned char char_buf[16];
+	unsigned char char_buf[BUFFER_SIZE];
 	int char_cnt = 0;
 	unsigned char *buf;
 	int i;
-	return;
 
-	if (log_level <= level)
+	if (log_level < level)
 		return;
 
 	buf = (void *)&pdu->bhs;
