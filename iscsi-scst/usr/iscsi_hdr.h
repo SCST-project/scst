@@ -223,4 +223,34 @@ struct iscsi_logout_rsp_hdr {
 	u32 rsvd5;
 } __packed;
 
+#define ISCSI_REASON_NO_FULL_FEATURE_PHASE	0x01
+#define ISCSI_REASON_DATA_DIGEST_ERROR		0x02
+#define ISCSI_REASON_DATA_SNACK_REJECT		0x03
+#define ISCSI_REASON_PROTOCOL_ERROR		0x04
+#define ISCSI_REASON_UNSUPPORTED_COMMAND	0x05
+#define ISCSI_REASON_IMMEDIATE_COMMAND_REJECT	0x06
+#define ISCSI_REASON_TASK_IN_PROGRESS		0x07
+#define ISCSI_REASON_INVALID_SNACK		0x08
+#define ISCSI_REASON_INVALID_PDU_FIELD		0x09
+#define ISCSI_REASON_BOOKMARK_REJECT		0x0a
+#define ISCSI_REASON_NEGOTIATION_RESET		0x0b
+#define ISCSI_REASON_WAITING_LOGOUT		0x0c
+
+struct iscsi_reject_hdr {
+	u8  opcode;
+	u8  flags;
+	u8  reason;
+	u8  rsvd1;
+	u8  ahslength;
+	u8  datalength[3];
+	u32 rsvd2[2];
+	u32 ffffffff;
+	u32 rsvd3;
+	u32 stat_sn;
+	u32 exp_cmd_sn;
+	u32 max_cmd_sn;
+	u32 data_sn;
+	u32 rsvd4[2];
+} __packed;
+
 #endif	/* ISCSI_HDR_H */

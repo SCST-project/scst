@@ -479,6 +479,35 @@ static void login_finish(struct connection *conn)
 	}
 }
 
+static void cmnd_reject(struct connection *conn, u8 reason)
+{
+	struct iscsi_reject_hdr *rej =
+		(struct iscsi_reject_hdr *)&conn->rsp.bhs;
+	size_t data_sz = sizeof(struct iscsi_hdr);
+	struct buf_segment *seg = conn_alloc_buf_segment(conn, data_sz);
+
+	conn_free_rsp_buf_list(conn);
+
+	memset(rej, 0x0, sizeof *rej);
+	rej->opcode = ISCSI_OP_REJECT_MSG;
+	rej->reason = ISCSI_REASON_INVALID_PDU_FIELD;
+	rej->ffffffff = ISCSI_RESERVED_TAG;
+	rej->flags |= ISCSI_FLG_FINAL;
+
+	rej->stat_sn = cpu_to_be32(conn->stat_sn++);
+	rej->exp_cmd_sn = cpu_to_be32(conn->exp_cmd_sn);
+	rej->max_cmd_sn = cpu_to_be32(conn->exp_cmd_sn + 1);
+
+	if (!seg) {
+		log_error("Failed to alloc data segment for Reject PDU\n");
+		return;
+	}
+
+	memcpy(seg->data, &conn->req.bhs, data_sz);
+	seg->len = data_sz;
+	list_add_tail(&seg->entry, &conn->rsp_buf_list);
+}
+
 static int cmnd_exec_auth(struct connection *conn)
 {
        int res;
@@ -507,7 +536,8 @@ static void cmnd_exec_login(struct connection *conn)
 	memset(rsp, 0, BHS_SIZE);
 	if ((req->opcode & ISCSI_OPCODE_MASK) != ISCSI_OP_LOGIN_CMD ||
 	    !(req->opcode & ISCSI_OP_IMMEDIATE)) {
-		//reject
+		cmnd_reject(conn, ISCSI_REASON_PROTOCOL_ERROR);
+		return;
 	}
 
 	rsp->opcode = ISCSI_OP_LOGIN_RSP;
@@ -773,13 +803,8 @@ static void cmnd_exec_text(struct connection *conn)
 			  "expected %#x; %stext segments queued\n",
 			  req->ttt, conn->ttt, list_empty(&conn->rsp_buf_list) ?
 			  "no " : "");
-		/*
-		 * Return a malformed text rsp and close the conn for now.
-		 * The proper response would be a Reject instead.
-		 */
-		conn->ttt = rsp->ttt = ISCSI_RESERVED_TAG;
-		conn_free_rsp_buf_list(conn);
-		conn->state = STATE_CLOSE;
+		cmnd_reject(conn, ISCSI_REASON_INVALID_PDU_FIELD);
+		return;
 	}
 
 	if (list_length_is_one(&conn->rsp_buf_list))
@@ -817,22 +842,30 @@ int cmnd_execute(struct connection *conn)
 
 	switch (conn->req.bhs.opcode & ISCSI_OPCODE_MASK) {
 	case ISCSI_OP_LOGIN_CMD:
-		//if conn->state == STATE_FULL -> reject
+		if (conn->state == STATE_FULL) {
+			cmnd_reject(conn, ISCSI_REASON_PROTOCOL_ERROR);
+			break;
+		}
 		cmnd_exec_login(conn);
 		login_rsp = (struct iscsi_login_rsp_hdr *) &conn->rsp.bhs;
 		if (login_rsp->status_class)
 			conn_free_rsp_buf_list(conn);
 		break;
 	case ISCSI_OP_TEXT_CMD:
-		//if conn->state != STATE_FULL -> reject
-		cmnd_exec_text(conn);
+		if (conn->state != STATE_FULL)
+			cmnd_reject(conn, ISCSI_REASON_PROTOCOL_ERROR);
+		else
+			cmnd_exec_text(conn);
 		break;
 	case ISCSI_OP_LOGOUT_CMD:
-		//if conn->state != STATE_FULL -> reject
+		if (conn->state != STATE_FULL)
+			cmnd_reject(conn, ISCSI_REASON_PROTOCOL_ERROR);
+		else
+			cmnd_exec_logout(conn);
 		cmnd_exec_logout(conn);
 		break;
 	default:
-		//reject
+		cmnd_reject(conn, ISCSI_REASON_UNSUPPORTED_COMMAND);
 		res = 0;
 		goto out;
 	}
