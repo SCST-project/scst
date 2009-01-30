@@ -81,22 +81,23 @@ static void all_accounts_del(u32 tid, int dir)
 
 int target_del(u32 tid)
 {
-	int err;
-	struct target* target;
+	struct target *target = target_find_by_id(tid);
+	int err = ki->target_destroy(tid);
 
-	if (!(target = target_find_by_id(tid)))
+	if (err < 0 && errno != ENOENT)
+		return -errno;
+	else if (!err && !target)
+		/* A leftover kernel object was cleaned up - don't complain. */
+		return 0;
+
+	if (!target)
 		return -ENOENT;
-
-	if (target->nr_sessions)
-		return -EBUSY;
-
-	if ((err = target_destroy(tid)) < 0)
-		return err;
 
 	remque(&target->tlist);
 
 	if (!list_empty(&target->sessions_list)) {
-		log_error("%s still have sessions %d\n", __func__, tid);
+		log_error("%s: target %u still has sessions\n", __FUNCTION__,
+			  tid);
 		exit(-1);
 	}
 
