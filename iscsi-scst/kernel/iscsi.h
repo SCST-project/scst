@@ -395,10 +395,11 @@ extern int target_del(u32 id);
 extern void target_del_all_sess(struct iscsi_target *target, bool deleting);
 extern void target_del_all(void);
 
+extern struct seq_operations iscsi_seq_op;
+
 /* config.c */
 extern int iscsi_procfs_init(void);
 extern void iscsi_procfs_exit(void);
-extern int iscsi_info_show(struct seq_file *, iscsi_show_info_t *);
 
 /* session.c */
 extern struct file_operations session_seq_fops;

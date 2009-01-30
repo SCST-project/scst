@@ -142,6 +142,10 @@ int __init event_init(void)
 
 void event_exit(void)
 {
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 24))
 	if (nl)
 		sock_release(nl->sk_socket);
+#else
+	netlink_kernel_release(nl);
+#endif
 }

@@ -111,7 +111,7 @@ static u32 digest_header(struct iscsi_pdu *pdu)
 static u32 digest_data(struct iscsi_cmnd *cmd, u32 osize, u32 offset)
 {
 	struct scatterlist *sg = cmd->sg;
-	unsigned int idx, count;
+	int idx, count;
 	struct scatterlist saved_sg;
 	u32 size = (osize + 3) & ~3;
 	u32 crc;
@@ -125,7 +125,7 @@ static u32 digest_data(struct iscsi_cmnd *cmd, u32 osize, u32 offset)
 	TRACE_DBG("req %p, idx %d, count %d, sg_cnt %d, size %d, "
 		"offset %d", cmd, idx, count, cmd->sg_cnt, size, offset);
 	sBUG_ON(idx + count > cmd->sg_cnt);
-	sBUG_ON(count > ISCSI_CONN_IOV_MAX);
+	sBUG_ON(count > (signed)ISCSI_CONN_IOV_MAX);
 
 	saved_sg = sg[idx];
 	sg[idx].offset = offset;

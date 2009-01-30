@@ -1070,7 +1070,7 @@ static int write_data(struct iscsi_conn *conn)
 
 			rest = res;
 			size -= res;
-			while (iop->iov_len <= rest && rest) {
+			while ((typeof(rest))iop->iov_len <= rest && rest) {
 				rest -= iop->iov_len;
 				iop++;
 				count--;

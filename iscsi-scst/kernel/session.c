@@ -192,14 +192,14 @@ static void iscsi_session_info_show(struct seq_file *seq,
 	return;
 }
 
-static int iscsi_sessions_info_show(struct seq_file *seq, void *v)
-{
-	return iscsi_info_show(seq, iscsi_session_info_show);
-}
-
 static int iscsi_session_seq_open(struct inode *inode, struct file *file)
 {
-	return single_open(file, iscsi_sessions_info_show, NULL);
+	int res;
+	res = seq_open(file, &iscsi_seq_op);
+	if (!res)
+		((struct seq_file *)file->private_data)->private =
+			iscsi_session_info_show;
+	return res;
 }
 
 struct file_operations session_seq_fops = {
@@ -207,5 +207,5 @@ struct file_operations session_seq_fops = {
 	.open		= iscsi_session_seq_open,
 	.read		= seq_read,
 	.llseek		= seq_lseek,
-	.release	= single_release,
+	.release	= seq_release,
 };

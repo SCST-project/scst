@@ -299,24 +299,45 @@ void target_del_all(void)
 	return;
 }
 
-int iscsi_info_show(struct seq_file *seq, iscsi_show_info_t *func)
+static void *iscsi_seq_start(struct seq_file *m, loff_t *pos)
 {
 	int err;
-	struct iscsi_target *target;
 
 	err = mutex_lock_interruptible(&target_mgmt_mutex);
 	if (err < 0)
-		return err;
+		return ERR_PTR(err);
 
-	list_for_each_entry(target, &target_list, target_list_entry) {
-		seq_printf(seq, "tid:%u name:%s\n", target->tid, target->name);
+	return seq_list_start(&target_list, *pos);
+}
 
-		mutex_lock(&target->target_mutex);
-		func(seq, target);
-		mutex_unlock(&target->target_mutex);
-	}
+static void *iscsi_seq_next(struct seq_file *m, void *v, loff_t *pos)
+{
+	return seq_list_next(v, &target_list, pos);
+}
 
+static void iscsi_seq_stop(struct seq_file *m, void *v)
+{
 	mutex_unlock(&target_mgmt_mutex);
+}
+
+static int iscsi_seq_show(struct seq_file *m, void *p)
+{
+	iscsi_show_info_t *func = (iscsi_show_info_t *)m->private;
+	struct iscsi_target *target =
+		list_entry(p, struct iscsi_target, target_list_entry);
+
+	seq_printf(m, "tid:%u name:%s\n", target->tid, target->name);
+
+	mutex_lock(&target->target_mutex);
+	func(m, target);
+	mutex_unlock(&target->target_mutex);
 
 	return 0;
 }
+
+struct seq_operations iscsi_seq_op = {
+	.start = iscsi_seq_start,
+	.next = iscsi_seq_next,
+	.stop = iscsi_seq_stop,
+	.show = iscsi_seq_show,
+};
