@@ -66,6 +66,36 @@ static inline int list_length_is_one(const struct __qelem *head)
 	     &pos->member != (head); 					\
 	     pos = n, n = list_entry(n->member.q_forw, typeof(*n), member))
 
+#define list_del(elem) remque(elem)
+
+#define list_add(new, head) insque (new, head)
+
+#define list_add_tail(new, head) insque(new, (head)->q_back)
+
+/* min()/max() that do strict type-checking. Lifted from the kernel. */
+#define min(x, y) ({				\
+	typeof(x) _min1 = (x);			\
+	typeof(y) _min2 = (y);			\
+	(void) (&_min1 == &_min2);		\
+	_min1 < _min2 ? _min1 : _min2; })
+
+#define max(x, y) ({				\
+	typeof(x) _max1 = (x);			\
+	typeof(y) _max2 = (y);			\
+	(void) (&_max1 == &_max2);		\
+	_max1 > _max2 ? _max1 : _max2; })
+
+/* ... and their non-checking counterparts, also taken from the kernel. */
+#define min_t(type, x, y) ({			\
+	type __min1 = (x);			\
+	type __min2 = (y);			\
+	__min1 < __min2 ? __min1: __min2; })
+
+#define max_t(type, x, y) ({			\
+	type __max1 = (x);			\
+	type __max2 = (y);			\
+	__max1 > __max2 ? __max1: __max2; })
+
 #ifndef IPV6_V6ONLY
 #define IPV6_V6ONLY	26
 #endif

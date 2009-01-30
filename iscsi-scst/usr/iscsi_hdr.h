@@ -142,6 +142,7 @@ struct iscsi_login_rsp_hdr {
 	u8  rsvd2[10];
 } __packed;
 
+#define ISCSI_FLG_CONTINUE		0x40
 #define ISCSI_FLG_FINAL			0x80
 #define ISCSI_FLG_TRANSIT		0x80
 #define ISCSI_FLG_CSG_SECURITY		0x00
@@ -185,6 +186,8 @@ struct iscsi_login_rsp_hdr {
 #define ISCSI_STATUS_TARGET_ERROR	0x00
 #define ISCSI_STATUS_SVC_UNAVAILABLE	0x01
 #define ISCSI_STATUS_NO_RESOURCES	0x02
+
+#define ISCSI_RESERVED_TAG		0xffffffff
 
 struct iscsi_logout_req_hdr {
 	u8  opcode;

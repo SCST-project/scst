@@ -37,6 +37,7 @@ struct connection *conn_alloc(void)
 	memset(conn, 0, sizeof(*conn));
 	conn->state = STATE_FREE;
 	param_set_defaults(conn->session_param, session_keys);
+	INIT_LIST_HEAD(&conn->rsp_buf_list);
 
 	return conn;
 }
@@ -143,6 +144,19 @@ void conn_write_pdu(struct connection *conn)
 	conn->rwsize = BHS_SIZE;
 }
 
+void conn_free_rsp_buf_list(struct connection *conn)
+{
+	struct buf_segment *seg, *tmp;
+
+	list_for_each_entry_safe(seg, tmp, &conn->rsp_buf_list, entry) {
+		list_del(&seg->entry);
+		free(seg);
+	}
+
+	conn->rsp.datasize = 0;
+	conn->rsp.data = NULL;
+}
+
 void conn_free_pdu(struct connection *conn)
 {
 	conn->iostate = IOSTATE_FREE;
@@ -154,8 +168,5 @@ void conn_free_pdu(struct connection *conn)
 		free(conn->rsp.ahs);
 		conn->rsp.ahs = NULL;
 	}
-	if (conn->rsp.data) {
-		free(conn->rsp.data);
-		conn->rsp.data = NULL;
-	}
+	conn_free_rsp_buf_list(conn);
 }

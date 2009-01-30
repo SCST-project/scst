@@ -26,6 +26,14 @@
 
 #include "iscsid.h"
 
+static u32 ttt;
+
+static u32 get_next_ttt(struct connection *conn __attribute__((unused)))
+{
+	ttt += 1;
+	return (ttt == ISCSI_RESERVED_TAG) ? ++ttt : ttt;
+}
+
 static struct iscsi_key login_keys[] = {
 	{"InitiatorName",},
 	{"InitiatorAlias",},
@@ -91,45 +99,90 @@ static char *next_key(char **data, int *datasize, char **value)
 	return key;
 }
 
+static struct buf_segment *conn_alloc_buf_segment(struct connection *conn,
+						   size_t sz)
+{
+	struct buf_segment *seg = malloc(sizeof *seg + sz);
+
+	if (seg) {
+		seg->len = 0;
+		memset(seg->data, 0x0, sz);
+		list_add_tail(&seg->entry, &conn->rsp_buf_list);
+		log_debug(2, "alloc'ed new buf_segment\n");
+	}
+
+	return seg;
+}
+
 void text_key_add(struct connection *conn, char *key, char *value)
 {
+	struct buf_segment *seg;
 	int keylen = strlen(key);
 	int valuelen = strlen(value);
 	int len = keylen + valuelen + 2;
-	char *buffer;
+	int off = 0;
+	int sz = 0;
+	int stage = 0;
+	size_t data_sz;
 
-	if (!conn->rsp.datasize) {
-		if (!conn->rsp_buffer) {
-			conn->rsp_buffer = malloc(INCOMING_BUFSIZE);
-			if (!conn->rsp_buffer) {
-				log_error("Failed to alloc send buffer");
-				return;
+	data_sz = (conn->state == STATE_FULL) ?
+		conn->session_param[key_max_xmit_data_length].exec_val :
+		INCOMING_BUFSIZE;
+
+	seg = list_empty(&conn->rsp_buf_list) ? NULL :
+		list_entry(conn->rsp_buf_list.q_back, struct buf_segment,
+			   entry);
+
+	while (len) {
+		if (!seg || seg->len == data_sz) {
+			seg = conn_alloc_buf_segment(conn, data_sz);
+			if (!seg) {
+				log_error("Failed to alloc text buf segment\n");
+				conn_free_rsp_buf_list(conn);
+				break;
 			}
 		}
-		conn->rsp.data = conn->rsp_buffer;
-	}
-	if (conn->rsp.datasize + len > INCOMING_BUFSIZE) {
-		/* ToDo: multi-PDU replies */
-		log_warning("Dropping key (%s=%s) due to INCOMING_BUFSIZE "
-			"limit %d and because only single PDU replies during "
-			"discovery session are implemented. If you have "
-			"a lot of targets, you can increase INCOMING_BUFSIZE, "
-			"but, since it will be against iSCSI RFC required "
-			"not-negotiated PDU limit, not all initiators might "
-			"work with it. Alternatively, you can decrease names "
-			"of your targets so they will fit to INCOMING_BUFSIZE "
-			"limit", key, value, INCOMING_BUFSIZE);
-		return;
-	}
+		switch (stage) {
+		case 0:
+			sz = min_t(int, data_sz - seg->len, keylen - off);
+			strncpy(seg->data + seg->len, key + off, sz);
+			if (sz == data_sz - seg->len) {
+				off += sz;
+				if (keylen - off == 0) {
+					off = 0;
+					stage++;
+				}
+			} else {
+				off = 0;
+				stage++;
+			}
+			break;
+		case 1:
+			seg->data[seg->len] = '=';
+			off = 0;
+			sz = 1;
+			stage++;
+			break;
+		case 2:
+			sz = min_t(int, data_sz - seg->len, valuelen - off);
+			strncpy(seg->data + seg->len, value + off, sz);
+			off += sz;
+			if (valuelen - off == 0) {
+				off = 0;
+				stage++;
+			}
+			break;
+		case 3:
+			seg->data[seg->len] = 0;
+			sz = 1;
+			break;
+		}
 
-	buffer = conn->rsp_buffer;
-	buffer += conn->rsp.datasize;
-	conn->rsp.datasize += len;
+		log_debug(1, "wrote: %s\n", seg->data + seg->len);
 
-	strcpy(buffer, key);
-	buffer += keylen;
-	*buffer++ = '=';
-	strcpy(buffer, value);
+		seg->len += sz;
+		len -= sz;
+	}
 }
 
 static void text_key_add_reject(struct connection *conn, char *key)
@@ -588,21 +641,41 @@ static void cmnd_exec_login(struct connection *conn)
 		rsp->flags |= nsg | (stay ? 0 : ISCSI_FLG_TRANSIT);
 	}
 
+	/*
+	 * TODO: support Logical Text Data Segments > INCOMING_BUFSIZE (i.e.
+	 * key=value pairs spanning several PDUs) during login phase
+	 */
+	if (!list_empty(&conn->rsp_buf_list) &&
+	    !list_length_is_one(&conn->rsp_buf_list)) {
+		log_error("Target error: \'key=value\' pairs spanning several "
+			  "Login PDUs are not implemented, yet\n");
+		goto target_err;
+	}
+
 	rsp->sid = conn->sid;
 	rsp->stat_sn = cpu_to_be32(conn->stat_sn++);
 	rsp->exp_cmd_sn = cpu_to_be32(conn->exp_cmd_sn);
 	rsp->max_cmd_sn = cpu_to_be32(conn->exp_cmd_sn + 1);
 	return;
+
 init_err:
 	rsp->flags = 0;
 	rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
 	rsp->status_detail = ISCSI_STATUS_INIT_ERR;
 	conn->state = STATE_EXIT;
 	return;
+
 auth_err:
 	rsp->flags = 0;
 	rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
 	rsp->status_detail = ISCSI_STATUS_AUTH_FAILED;
+	conn->state = STATE_EXIT;
+	return;
+
+target_err:
+	rsp->flags = 0;
+	rsp->status_class = ISCSI_STATUS_TARGET_ERR;
+	rsp->status_detail = ISCSI_STATUS_TARGET_ERROR;
 	conn->state = STATE_EXIT;
 	return;
 }
@@ -679,22 +752,39 @@ static void cmnd_exec_text(struct connection *conn)
 
 	memset(rsp, 0, BHS_SIZE);
 
-	if (be32_to_cpu(req->ttt) != 0xffffffff) {
-		/* reject */;
-	}
 	rsp->opcode = ISCSI_OP_TEXT_RSP;
 	rsp->itt = req->itt;
-	//rsp->ttt = rsp->ttt;
-	rsp->ttt = 0xffffffff;
 	conn->exp_cmd_sn = be32_to_cpu(req->cmd_sn);
 	if (!(req->opcode & ISCSI_OP_IMMEDIATE))
 		conn->exp_cmd_sn++;
 
 	log_debug(1, "Text request: %d", conn->state);
-	text_scan_text(conn);
 
-	if (req->flags & ISCSI_FLG_FINAL)
+	if (req->ttt == ISCSI_RESERVED_TAG) {
+		conn_free_rsp_buf_list(conn);
+		text_scan_text(conn);
+		if (!list_empty(&conn->rsp_buf_list) &&
+		    !list_length_is_one(&conn->rsp_buf_list))
+			conn->ttt = get_next_ttt(conn);
+		else
+			conn->ttt = ISCSI_RESERVED_TAG;
+	} else if (list_empty(&conn->rsp_buf_list) || conn->ttt != req->ttt) {
+		log_error("Rejecting unexpected text request. TTT recv %#x, "
+			  "expected %#x; %stext segments queued\n",
+			  req->ttt, conn->ttt, list_empty(&conn->rsp_buf_list) ?
+			  "no " : "");
+		/*
+		 * Return a malformed text rsp and close the conn for now.
+		 * The proper response would be a Reject instead.
+		 */
+		conn->ttt = rsp->ttt = ISCSI_RESERVED_TAG;
+		conn_free_rsp_buf_list(conn);
+		conn->state = STATE_CLOSE;
+	}
+
+	if (list_length_is_one(&conn->rsp_buf_list))
 		rsp->flags = ISCSI_FLG_FINAL;
+	rsp->ttt = conn->ttt;
 
 	rsp->stat_sn = cpu_to_be32(conn->stat_sn++);
 	rsp->exp_cmd_sn = cpu_to_be32(conn->exp_cmd_sn);
@@ -722,11 +812,16 @@ static void cmnd_exec_logout(struct connection *conn)
 int cmnd_execute(struct connection *conn)
 {
 	int res = 1;
+	struct buf_segment *seg;
+	struct iscsi_login_rsp_hdr *login_rsp;
 
 	switch (conn->req.bhs.opcode & ISCSI_OPCODE_MASK) {
 	case ISCSI_OP_LOGIN_CMD:
 		//if conn->state == STATE_FULL -> reject
 		cmnd_exec_login(conn);
+		login_rsp = (struct iscsi_login_rsp_hdr *) &conn->rsp.bhs;
+		if (login_rsp->status_class)
+			conn_free_rsp_buf_list(conn);
 		break;
 	case ISCSI_OP_TEXT_CMD:
 		//if conn->state != STATE_FULL -> reject
@@ -742,6 +837,17 @@ int cmnd_execute(struct connection *conn)
 		goto out;
 	}
 
+	if (!list_empty(&conn->rsp_buf_list)) {
+		seg = list_entry(conn->rsp_buf_list.q_forw,
+				 struct buf_segment, entry);
+		list_del(&seg->entry);
+		conn->rsp.datasize = seg->len;
+		conn->rsp.data = seg->data;
+	} else {
+		conn->rsp.datasize = 0;
+		conn->rsp.data = NULL;
+	}
+
 	conn->rsp.bhs.ahslength = conn->rsp.ahssize / 4;
 	conn->rsp.bhs.datalength[0] = conn->rsp.datasize >> 16;
 	conn->rsp.bhs.datalength[1] = conn->rsp.datasize >> 8;
@@ -754,6 +860,13 @@ out:
 
 void cmnd_finish(struct connection *conn)
 {
+	struct buf_segment *seg;
+
+	if (conn->rsp.data) {
+		seg = container_of(conn->rsp.data, struct buf_segment, data);
+		free(seg);
+	}
+
 	switch (conn->state) {
 	case STATE_EXIT:
 		conn->state = STATE_CLOSE;
