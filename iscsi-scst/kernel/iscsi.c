@@ -974,6 +974,7 @@ static void cmnd_prepare_get_rejected_cmd_data(struct iscsi_cmnd *cmnd)
 	size = (size + 3) & -4;
 	conn->read_size = size;
 	for (i = 0; size > PAGE_SIZE; i++, size -= cmnd->bufflen) {
+		/* We already checked pdu.datasize in check_segment_length() */
 		sBUG_ON(i >= ISCSI_CONN_IOV_MAX);
 		conn->read_iov[i].iov_base = addr;
 		conn->read_iov[i].iov_len = cmnd->bufflen;
@@ -1995,6 +1996,7 @@ static void noop_out_exec(struct iscsi_cmnd *req)
 			rsp->bufflen = req->bufflen;
 		}
 
+		/* We already checked it in check_segment_length() */
 		sBUG_ON(get_pgcnt(req->pdu.datasize, 0) > ISCSI_CONN_IOV_MAX);
 
 		rsp->pdu.datasize = req->pdu.datasize;
@@ -2916,7 +2918,7 @@ static int iscsi_target_release(struct scst_tgt *scst_tgt)
 
 struct scst_tgt_template iscsi_template = {
 	.name = "iscsi",
-	.sg_tablesize = ISCSI_CONN_IOV_MAX,
+	.sg_tablesize = 0xFFFF /* no limit */,
 	.threads_num = 0,
 	.no_clustering = 1,
 	.xmit_response_atomic = 0,

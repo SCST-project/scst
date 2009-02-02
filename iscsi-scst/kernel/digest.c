@@ -125,7 +125,6 @@ static u32 digest_data(struct iscsi_cmnd *cmd, u32 osize, u32 offset)
 	TRACE_DBG("req %p, idx %d, count %d, sg_cnt %d, size %d, "
 		"offset %d", cmd, idx, count, cmd->sg_cnt, size, offset);
 	sBUG_ON(idx + count > cmd->sg_cnt);
-	sBUG_ON(count > (signed)ISCSI_CONN_IOV_MAX);
 
 	saved_sg = sg[idx];
 	sg[idx].offset = offset;
