@@ -299,6 +299,29 @@ void target_del_all(void)
 	return;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
+static struct list_head *seq_list_start(struct list_head *head, loff_t pos)
+{
+	struct list_head *lh;
+
+	list_for_each(lh, head)
+		if (pos-- == 0)
+			return lh;
+
+	return NULL;
+}
+
+static struct list_head *seq_list_next(void *v, struct list_head *head,
+				       loff_t *ppos)
+{
+	struct list_head *lh;
+
+	lh = ((struct list_head *)v)->next;
+	++*ppos;
+	return lh == head ? NULL : lh;
+}
+#endif
+
 static void *iscsi_seq_start(struct seq_file *m, loff_t *pos)
 {
 	int err;
