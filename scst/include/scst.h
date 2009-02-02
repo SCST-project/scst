@@ -2098,7 +2098,7 @@ static inline struct scatterlist *scst_cmd_get_sg(struct scst_cmd *cmd)
  * Usage of this function is not recommended, use scst_get_buf_*()
  * family of functions instead.
  */
-static inline unsigned int scst_cmd_get_sg_cnt(struct scst_cmd *cmd)
+static inline int scst_cmd_get_sg_cnt(struct scst_cmd *cmd)
 {
 	return cmd->sg_cnt;
 }
@@ -2122,14 +2122,14 @@ static inline struct scatterlist *scst_cmd_get_tgt_sg(struct scst_cmd *cmd)
 }
 
 /* Returns cmd's target's sg_cnt */
-static inline unsigned int scst_cmd_get_tgt_sg_cnt(struct scst_cmd *cmd)
+static inline int scst_cmd_get_tgt_sg_cnt(struct scst_cmd *cmd)
 {
 	return cmd->tgt_sg_cnt;
 }
 
 /* Sets cmd's target's SG data buffer */
 static inline void scst_cmd_set_tgt_sg(struct scst_cmd *cmd,
-	struct scatterlist *sg, unsigned int sg_cnt)
+	struct scatterlist *sg, int sg_cnt)
 {
 	cmd->tgt_sg = sg;
 	cmd->tgt_sg_cnt = sg_cnt;
