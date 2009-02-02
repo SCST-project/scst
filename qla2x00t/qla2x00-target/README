@@ -30,15 +30,15 @@ features.
 Installation
 ------------
 
-Only vanilla kernels from kernel.org are supported, but it should work
-on vendors' kernels, if you manage to successfully compile on them. The
-main problem with vendor's kernels is that they often contain patches,
-which will appear only in the next version of the vanilla kernel,
-therefore it's quite hard to track such changes. Thus, if during
-compilation for some vendor kernel your compiler complains about
-redefinition of some symbol, you should either switch to vanilla kernel,
-or change as necessary the corresponding to that symbol "#if
-LINUX_VERSION_CODE" statement.
+Only vanilla kernels from kernel.org and RHEL/CentOS 5.2 kernels are
+supported, but SCST should work on other (vendors') kernels, if you
+manage to successfully compile on them. The main problem with vendors'
+kernels is that they often contain patches, which will appear only in
+the next version of the vanilla kernel, therefore it's quite hard to
+track such changes. Thus, if during compilation for some vendor kernel
+your compiler complains about redefinition of some symbol, you should
+either switch to vanilla kernel, or add or change as necessary the
+corresponding to that symbol "#if LINUX_VERSION_CODE" statement.
 
 At first, make sure that the link "/lib/modules/`you_kernel_version`/build" 
 points to the source code for your currently running kernel.

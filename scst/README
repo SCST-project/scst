@@ -40,18 +40,19 @@ In addition, SCST supports advanced per-initiator access and devices
 visibility management, so different initiators could see different set
 of devices with different access permissions. See below for details.
 
+
 Installation
 ------------
 
-Only vanilla kernels from kernel.org are supported, but it should work
-on vendors' kernels, if you manage to successfully compile on them. The
-main problem with vendor's kernels is that they often contain patches,
-which will appear only in the next version of the vanilla kernel,
-therefore it's quite hard to track such changes. Thus, if during
-compilation for some vendor kernel your compiler complains about
-redefinition of some symbol, you should either switch to vanilla kernel,
-or change as necessary the corresponding to that symbol "#if
-LINUX_VERSION_CODE" statement.
+Only vanilla kernels from kernel.org and RHEL/CentOS 5.2 kernels are
+supported, but SCST should work on other (vendors') kernels, if you
+manage to successfully compile on them. The main problem with vendors'
+kernels is that they often contain patches, which will appear only in
+the next version of the vanilla kernel, therefore it's quite hard to
+track such changes. Thus, if during compilation for some vendor kernel
+your compiler complains about redefinition of some symbol, you should
+either switch to vanilla kernel, or add or change as necessary the
+corresponding to that symbol "#if LINUX_VERSION_CODE" statement.
 
 At first, make sure that the link "/lib/modules/`you_kernel_version`/build" 
 points to the source code for your currently running kernel.
@@ -131,6 +132,7 @@ IMPORTANT: In the current version simultaneous access to local SCSI devices
 
 To uninstall, type 'make scst_uninstall'.
 
+
 Device handlers
 ---------------
 
@@ -174,6 +176,7 @@ NOTE: Since "perf" device handlers on READ operations don't touch the
 ====  commands' data buffer, it is returned to remote initiators as it
       was allocated, without even being zeroed. Thus, "perf" device
       handlers impose some security risk, so use them with caution.
+
 
 Compilation options
 -------------------
@@ -282,6 +285,7 @@ For changing VMSPLIT option (CONFIG_VMSPLIT to be precise) you should in
    memory you have. If it is less than 800MB, you may not touch this
    option at all.
 
+
 Module parameters
 -----------------
 
@@ -293,6 +297,7 @@ Module scst supports the following parameters:
  - scst_max_cmd_mem - sets maximum amount of memory in Mb allowed to be
    consumed by the SCST commands for data buffers at any given time. By
    default it is approximately TotalMem/4.
+
 
 SCST "/proc" commands
 ---------------------
@@ -347,6 +352,7 @@ number of this handler as well as some text description.
 For example, "echo "assign 1:0:1:0 dev_disk" >/proc/scsi_tgt/scsi_tgt"
 will assign device handler "dev_disk" to real device sitting on host 1,
 channel 0, ID 1, LUN 0.
+
 
 Access and devices visibility management (LUN masking)
 ------------------------------------------------------
@@ -490,6 +496,7 @@ So, the safest choice is to configure all the access control before any
 target driver load and then only add new devices to new groups for new
 initiators or add new devices to old groups, but not altering existing
 LUNs in them.
+
 
 VDISK device handler
 --------------------
@@ -641,6 +648,7 @@ IMPORTANT: Some disk and partition table management utilities don't support
 	   size device, the block size stops matter, any program will
 	   work with files on such file system.
 
+
 BLOCKIO VDISK mode
 ------------------
 
@@ -671,6 +679,7 @@ considerable amount of CPU power and memory bandwidth.
 IMPORTANT: Since data in BLOCKIO and FILEIO modes are not consistent between
 =========  them, if you try to use a device in both those modes simultaneously,
            you will almost instantly corrupt your data on that device.
+
 
 Pass-through mode
 -----------------
@@ -704,6 +713,7 @@ Another way to solve this issue is to build SG entries with more than 1
 page each. See the following patch as an example:
 http://scst.sf.net/sgv_big_order_alloc.diff
 
+
 User space mode using scst_user dev handler
 -------------------------------------------
 
@@ -715,6 +725,7 @@ basically the same as BLOCKIO, but also supports files, so for some
 loads it could be significantly faster, than the regular FILEIO access.
 All the words about BLOCKIO from above apply to O_DIRECT as well. See
 fileio_tgt's README file for more details.
+
 
 Performance
 -----------
@@ -939,6 +950,7 @@ you are confident in the worst case performance of your back-end storage
 or inititor-target link, you can increase SCST_MAX_TGT_DEV_COMMANDS in
 scst_priv.h to 64. Usually initiators don't try to push more commands on
 the target.
+
 
 Credits
 -------
