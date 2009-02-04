@@ -136,7 +136,7 @@ IMPORTANT: All LUN information (access control) MUST be configured
 
 Also see SCST README file how to tune for the best performance.
 
-CAUTION: Working of target and initiator on the same host isn't
+CAUTION: Working of target and initiator on the same host isn't fully
 =======  supported. See SCST README file for details.
 
 

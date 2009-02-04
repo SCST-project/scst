@@ -4475,11 +4475,11 @@ static int scst_abort_all_nexus_loss_sess(struct scst_mgmt_cmd *mcmd,
 	TRACE_ENTRY();
 
 	if (nexus_loss) {
-		TRACE(TRACE_MGMT, "Nexus loss for sess %p (mcmd %p)", sess,
-			mcmd);
+		TRACE(TRACE_MGMT_MINOR, "Nexus loss for sess %p (mcmd %p)",
+			sess, mcmd);
 	} else {
-		TRACE(TRACE_MGMT, "Aborting all from sess %p (mcmd %p)", sess,
-			mcmd);
+		TRACE(TRACE_MGMT_MINOR, "Aborting all from sess %p (mcmd %p)",
+			sess, mcmd);
 	}
 
 	if (mcmd->fn != SCST_UNREG_SESS_TM)
@@ -4557,11 +4557,11 @@ static int scst_abort_all_nexus_loss_tgt(struct scst_mgmt_cmd *mcmd,
 	TRACE_ENTRY();
 
 	if (nexus_loss) {
-		TRACE(TRACE_MGMT, "I_T Nexus loss (tgt %p, mcmd %p)", tgt,
-			mcmd);
+		TRACE(TRACE_MGMT_MINOR, "I_T Nexus loss (tgt %p, mcmd %p)",
+			tgt, mcmd);
 	} else {
-		TRACE(TRACE_MGMT, "Aborting all from tgt %p (mcmd %p)", tgt,
-			mcmd);
+		TRACE(TRACE_MGMT_MINOR, "Aborting all from tgt %p (mcmd %p)",
+			tgt, mcmd);
 	}
 
 	mcmd->needs_unblocking = 1;

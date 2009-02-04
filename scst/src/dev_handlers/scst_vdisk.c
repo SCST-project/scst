@@ -226,6 +226,7 @@ struct scst_vdisk_thr {
 };
 
 static struct kmem_cache *vdisk_thr_cachep;
+static struct kmem_cache *blockio_work_cachep;
 
 #define DEF_NUM_THREADS		5
 static int num_threads = DEF_NUM_THREADS;
@@ -2326,19 +2327,19 @@ out:
 	return;
 }
 
-struct blockio_work {
+struct scst_blockio_work {
 	atomic_t bios_inflight;
 	struct scst_cmd *cmd;
 };
 
-static inline void blockio_check_finish(struct blockio_work *blockio_work)
+static inline void blockio_check_finish(struct scst_blockio_work *blockio_work)
 {
 	/* Decrement the bios in processing, and if zero signal completion */
 	if (atomic_dec_and_test(&blockio_work->bios_inflight)) {
 		blockio_work->cmd->completed = 1;
 		blockio_work->cmd->scst_cmd_done(blockio_work->cmd,
 			SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_DIRECT_ATOMIC);
-		kfree(blockio_work);
+		kmem_cache_free(blockio_work_cachep, blockio_work);
 	}
 	return;
 }
@@ -2349,7 +2350,7 @@ static int blockio_endio(struct bio *bio, unsigned int bytes_done, int error)
 static void blockio_endio(struct bio *bio, int error)
 #endif
 {
-	struct blockio_work *blockio_work = bio->bi_private;
+	struct scst_blockio_work *blockio_work = bio->bi_private;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 	if (bio->bi_size)
@@ -2395,7 +2396,7 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 	uint8_t *address;
 	struct bio *bio = NULL, *hbio = NULL, *tbio = NULL;
 	int need_new_bio;
-	struct blockio_work *blockio_work;
+	struct scst_blockio_work *blockio_work;
 	int bios = 0;
 
 	TRACE_ENTRY();
@@ -2404,7 +2405,7 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 		goto out;
 
 	/* Allocate and initialize blockio_work struct */
-	blockio_work = kmalloc(sizeof(*blockio_work), GFP_KERNEL);
+	blockio_work = kmem_cache_alloc(blockio_work_cachep, GFP_KERNEL);
 	if (blockio_work == NULL)
 		goto out_no_mem;
 
@@ -2506,7 +2507,7 @@ out_no_bio:
 		hbio = hbio->bi_next;
 		bio_put(bio);
 	}
-	kfree(blockio_work);
+	kmem_cache_free(blockio_work_cachep, blockio_work);
 
 out_no_mem:
 	scst_set_busy(cmd);
@@ -3561,6 +3562,12 @@ static int __init init_scst_vdisk_driver(void)
 		goto out;
 	}
 
+	blockio_work_cachep = KMEM_CACHE(scst_blockio_work, SCST_SLAB_FLAGS);
+	if (blockio_work_cachep == NULL) {
+		res = -ENOMEM;
+		goto out_free_vdisk_cache;
+	}
+
 	if (num_threads < 1) {
 		PRINT_ERROR("num_threads can not be less than 1, use "
 			"default %d", DEF_NUM_THREADS);
@@ -3601,6 +3608,9 @@ out_free_vdisk:
 	exit_scst_vdisk(&vdisk_file_devtype, &vdisk_dev_list);
 
 out_free_slab:
+	kmem_cache_destroy(blockio_work_cachep);
+
+out_free_vdisk_cache:
 	kmem_cache_destroy(vdisk_thr_cachep);
 	goto out;
 }
@@ -3611,6 +3621,7 @@ static void __exit exit_scst_vdisk_driver(void)
 	exit_scst_vdisk(&vdisk_blk_devtype, &vdisk_dev_list);
 	exit_scst_vdisk(&vdisk_file_devtype, &vdisk_dev_list);
 	exit_scst_vdisk(&vcdrom_devtype, &vcdrom_dev_list);
+	kmem_cache_destroy(blockio_work_cachep);
 	kmem_cache_destroy(vdisk_thr_cachep);
 }
 

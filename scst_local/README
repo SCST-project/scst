@@ -9,6 +9,11 @@ No assumptions are made in the code about the device types on the target, so
 any device handlers that you load in SCST should be visible, including tapes
 and so forth.
 
+You can freely use any sg, sd, st, etc. devices imported from target,
+except the following: you can't mount file systems or put swap on them.
+This is a limitation of Linux memory/cache manager. See SCST README file
+for details.
+
 To build, simply issue 'make' in the scst-local directory.
 
 Try 'modinfo scst_local' for a listing of module parameters so far.

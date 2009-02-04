@@ -1209,13 +1209,28 @@ void scst_del_dev_threads(struct scst_device *dev, int num)
 
 	TRACE_ENTRY();
 
-	list_for_each_entry_safe(ct, tmp, &dev->threads_list,
+	list_for_each_entry_safe_reverse(ct, tmp, &dev->threads_list,
 				thread_list_entry) {
-		int rc = kthread_stop(ct->cmd_thread);
+		int rc;
+		struct scst_tgt_dev *tgt_dev;
+
+		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
+				dev_tgt_dev_list_entry) {
+			struct scst_thr_data_hdr *td;
+			td = __scst_find_thr_data(tgt_dev, ct->cmd_thread);
+			if (td != NULL) {
+				scst_thr_data_put(td);
+				break;
+			}
+		}
+
+		rc = kthread_stop(ct->cmd_thread);
 		if (rc < 0)
 			TRACE_MGMT_DBG("kthread_stop() failed: %d", rc);
+
 		list_del(&ct->thread_list_entry);
 		kfree(ct);
+
 		if ((num > 0) && (++i >= num))
 			break;
 	}

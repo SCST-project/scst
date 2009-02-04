@@ -112,13 +112,19 @@ IMPORTANT: Without loading appropriate device handler, corresponding devices
 	   'echo "- - -" >/sys/class/scsi_host/hostX/scan',
 	   where X - is the host number.
 
-IMPORTANT: Working of target and initiator on the same host isn't
-=========  supported. This is a limitation of the Linux memory/cache
-           manager, because in this case an OOM deadlock like: system
+IMPORTANT: Working of target and initiator on the same host is
+=========  supported, except the following 2 cases: swap over target exported
+           device and using a writable mmap over a file from target
+	   exported device. The latter means you can't mount a file
+	   system over target exported device. In other words, you can
+	   freely use any sg, sd, st, etc. devices imported from target
+	   on the same host, but you can't mount file systems or put
+	   swap on them. This is a limitation of Linux memory/cache
+	   manager, because in this case an OOM deadlock like: system
 	   needs some memory -> it decides to clear some cache -> cache
-	   needs to write on a target exported device -> initiator sends
-	   request to the target -> target needs memory -> problem is
-	   possible.
+	   needs to write on target exported device -> initiator sends
+	   request to the target -> target needs memory -> system needs
+	   even more memory -> deadlock.
 
 IMPORTANT: In the current version simultaneous access to local SCSI devices
 =========  via standard high-level SCSI drivers (sd, st, sg, etc.) and
@@ -863,7 +869,7 @@ Work if target's backstorage or link is too slow
 ------------------------------------------------
 
 Under high I/O load, when your target's backstorage gets overloaded, or
-working over a slow link between inititor and target, when the link
+working over a slow link between initiator and target, when the link
 can't serve all the queued commands on time, you can experience I/O
 stalls or see in the kernel log abort or reset messages.
 
@@ -947,7 +953,7 @@ Note, that logged messages about QUEUE_FULL status are quite different
 by nature. This is a normal work, just SCSI flow control in action.
 Simply don't enable "mgmt_minor" logging level, or, alternatively, if
 you are confident in the worst case performance of your back-end storage
-or inititor-target link, you can increase SCST_MAX_TGT_DEV_COMMANDS in
+or initiator-target link, you can increase SCST_MAX_TGT_DEV_COMMANDS in
 scst_priv.h to 64. Usually initiators don't try to push more commands on
 the target.
 

@@ -1455,7 +1455,7 @@ struct scst_device {
 struct scst_thr_data_hdr {
 	/* List entry in tgt_dev->thr_data_list */
 	struct list_head thr_data_list_entry;
-	pid_t pid; /* PID of the owner thread */
+	struct task_struct *owner_thr; /* the owner thread */
 	atomic_t ref;
 	/* Function that will be called on the tgt_dev destruction */
 	void (*free_fn) (struct scst_thr_data_hdr *data);
@@ -2658,8 +2658,16 @@ void scst_del_all_thr_data(struct scst_tgt_dev *tgt_dev);
 /* Deletes all local to threads data from all tgt_dev's of the dev */
 void scst_dev_del_all_thr_data(struct scst_device *dev);
 
+/* Finds local to the thread data. Returns NULL, if they not found. */
+struct scst_thr_data_hdr *__scst_find_thr_data(struct scst_tgt_dev *tgt_dev,
+	struct task_struct *tsk);
+
 /* Finds local to the current thread data. Returns NULL, if they not found. */
-struct scst_thr_data_hdr *scst_find_thr_data(struct scst_tgt_dev *tgt_dev);
+static inline struct scst_thr_data_hdr *scst_find_thr_data(
+	struct scst_tgt_dev *tgt_dev)
+{
+	return __scst_find_thr_data(tgt_dev, current);
+}
 
 static inline void scst_thr_data_get(struct scst_thr_data_hdr *data)
 {

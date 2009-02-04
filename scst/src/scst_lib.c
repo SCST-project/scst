@@ -2724,8 +2724,8 @@ void scst_process_reset(struct scst_device *dev,
 	if (dev->dev_reserved) {
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 				    dev_tgt_dev_list_entry) {
-			TRACE(TRACE_MGMT, "Clearing RESERVE'ation for tgt_dev "
-				"lun %lld",
+			TRACE(TRACE_MGMT_MINOR, "Clearing RESERVE'ation for "
+				"tgt_dev lun %lld",
 				(long long unsigned int)tgt_dev->lun);
 			clear_bit(SCST_TGT_DEV_RESERVED,
 				  &tgt_dev->tgt_dev_flags);
@@ -2800,7 +2800,7 @@ int scst_set_pending_UA(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	TRACE(TRACE_MGMT, "Setting pending UA cmd %p", cmd);
+	TRACE(TRACE_MGMT_MINOR, "Setting pending UA cmd %p", cmd);
 
 	spin_lock_bh(&cmd->tgt_dev->tgt_dev_lock);
 
@@ -2935,7 +2935,7 @@ void __scst_dev_check_set_UA(struct scst_device *dev,
 {
 	TRACE_ENTRY();
 
-	TRACE(TRACE_MGMT, "Processing UA dev %p", dev);
+	TRACE(TRACE_MGMT_MINOR, "Processing UA dev %p", dev);
 
 	/* Check for reset UA */
 	if (sense[12] == SCST_SENSE_ASC_UA_RESET)
@@ -3044,7 +3044,7 @@ void scst_add_thr_data(struct scst_tgt_dev *tgt_dev,
 	struct scst_thr_data_hdr *data,
 	void (*free_fn) (struct scst_thr_data_hdr *data))
 {
-	data->pid = current->pid;
+	data->owner_thr = current;
 	atomic_set(&data->ref, 1);
 	EXTRACHECKS_BUG_ON(free_fn == NULL);
 	data->free_fn = free_fn;
@@ -3091,14 +3091,14 @@ void scst_dev_del_all_thr_data(struct scst_device *dev)
 }
 EXPORT_SYMBOL(scst_dev_del_all_thr_data);
 
-struct scst_thr_data_hdr *scst_find_thr_data(struct scst_tgt_dev *tgt_dev)
+struct scst_thr_data_hdr *__scst_find_thr_data(struct scst_tgt_dev *tgt_dev,
+	struct task_struct *tsk)
 {
 	struct scst_thr_data_hdr *res = NULL, *d;
-	struct task_struct *tsk = current;
 
 	spin_lock(&tgt_dev->thr_data_lock);
 	list_for_each_entry(d, &tgt_dev->thr_data_list, thr_data_list_entry) {
-		if (d->pid == tsk->pid) {
+		if (d->owner_thr == tsk) {
 			res = d;
 			scst_thr_data_get(res);
 			break;
@@ -3107,7 +3107,7 @@ struct scst_thr_data_hdr *scst_find_thr_data(struct scst_tgt_dev *tgt_dev)
 	spin_unlock(&tgt_dev->thr_data_lock);
 	return res;
 }
-EXPORT_SYMBOL(scst_find_thr_data);
+EXPORT_SYMBOL(__scst_find_thr_data);
 
 /* dev_lock supposed to be held and BH disabled */
 void __scst_block_dev(struct scst_device *dev)
