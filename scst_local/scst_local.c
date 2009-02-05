@@ -277,7 +277,7 @@ static const char *scst_local_info(struct Scsi_Host *shp)
 	return scst_local_info_buf;
 }
 
-/*
+#if 0
 static int scst_local_ioctl(struct scsi_device *dev, int cmd, void __user *arg)
 {
 	TRACE_ENTRY();
@@ -288,7 +288,7 @@ static int scst_local_ioctl(struct scsi_device *dev, int cmd, void __user *arg)
 
 	TRACE_EXIT();
 }
-*/
+#endif
 
 static int scst_local_abort(struct scsi_cmnd *SCpnt)
 {
@@ -301,7 +301,7 @@ static int scst_local_abort(struct scsi_cmnd *SCpnt)
 	scst_lcl_host = to_scst_lcl_host(scsi_get_device(SCpnt->device->host));
 
 	ret = scst_rx_mgmt_fn_tag(scst_lcl_host->session[SCpnt->device->id],
-				  SCST_LUN_RESET, SCpnt->tag, FALSE,
+				  SCST_ABORT_TASK, SCpnt->tag, FALSE,
 				  &dev_reset_completion);
 
 	wait_for_completion_interruptible(&dev_reset_completion);
