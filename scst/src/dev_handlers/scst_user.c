@@ -184,6 +184,8 @@ static int dev_user_process_reply_tm_exec(struct scst_user_cmd *ucmd,
 static int dev_user_process_reply_sess(struct scst_user_cmd *ucmd, int status);
 static int dev_user_register_dev(struct file *file,
 	const struct scst_user_dev_desc *dev_desc);
+static int dev_user_unregister_dev(struct file *file);
+static int dev_user_flush_cache(struct file *file);
 static int __dev_user_set_opt(struct scst_user_dev *dev,
 	const struct scst_user_opt *opt);
 static int dev_user_set_opt(struct file *file, const struct scst_user_opt *opt);
@@ -511,7 +513,6 @@ static int dev_user_alloc_sg(struct scst_user_cmd *ucmd, int cached_buff)
 	int flags = 0;
 	int bufflen = cmd->bufflen;
 	int last_len = 0;
-	struct sgv_pool *pool;
 
 	TRACE_ENTRY();
 
@@ -540,11 +541,6 @@ static int dev_user_alloc_sg(struct scst_user_cmd *ucmd, int cached_buff)
 			last_len = PAGE_SIZE;
 	}
 	ucmd->buff_cached = cached_buff;
-
-	if (test_bit(SCST_TGT_DEV_CLUST_POOL, &cmd->tgt_dev->tgt_dev_flags))
-		pool = dev->pool_clust;
-	else
-		pool = dev->pool;
 
 	cmd->sg = sgv_pool_alloc((struct sgv_pool *)cmd->tgt_dev->dh_priv,
 			bufflen, gfp_mask, flags, &cmd->sg_cnt, &ucmd->sgv,
@@ -1831,6 +1827,16 @@ static long dev_user_ioctl(struct file *file, unsigned int cmd,
 		break;
 	}
 
+	case SCST_USER_UNREGISTER_DEVICE:
+		TRACE_DBG("%s", "UNREGISTER_DEVICE");
+		res = dev_user_unregister_dev(file);
+		break;
+
+	case SCST_USER_FLUSH_CACHE:
+		TRACE_DBG("%s", "FLUSH_CACHE");
+		res = dev_user_flush_cache(file);
+		break;
+
 	case SCST_USER_SET_OPTIONS:
 	{
 		struct scst_user_opt opt;
@@ -2681,6 +2687,76 @@ out_put:
 	goto out;
 }
 
+static int dev_user_unregister_dev(struct file *file)
+{
+	int res;
+	struct scst_user_dev *dev;
+
+	TRACE_ENTRY();
+
+	mutex_lock(&dev_priv_mutex);
+	dev = (struct scst_user_dev *)file->private_data;
+	res = dev_user_check_reg(dev);
+	if (res != 0) {
+		mutex_unlock(&dev_priv_mutex);
+		goto out;
+	}
+	down_read(&dev->dev_rwsem);
+	mutex_unlock(&dev_priv_mutex);
+
+	res = scst_suspend_activity(true);
+	if (res != 0)
+		goto out_up;
+
+	up_read(&dev->dev_rwsem);
+
+	dev_user_release(NULL, file);
+
+	scst_resume_activity();
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_up:
+	up_read(&dev->dev_rwsem);
+	goto out;
+}
+
+static int dev_user_flush_cache(struct file *file)
+{
+	int res;
+	struct scst_user_dev *dev;
+
+	TRACE_ENTRY();
+
+	mutex_lock(&dev_priv_mutex);
+	dev = (struct scst_user_dev *)file->private_data;
+	res = dev_user_check_reg(dev);
+	if (res != 0) {
+		mutex_unlock(&dev_priv_mutex);
+		goto out;
+	}
+	down_read(&dev->dev_rwsem);
+	mutex_unlock(&dev_priv_mutex);
+
+	res = scst_suspend_activity(true);
+	if (res != 0)
+		goto out_up;
+
+	sgv_pool_flush(dev->pool);
+	sgv_pool_flush(dev->pool_clust);
+
+	scst_resume_activity();
+
+out_up:
+	up_read(&dev->dev_rwsem);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 static int __dev_user_set_opt(struct scst_user_dev *dev,
 	const struct scst_user_opt *opt)
 {
@@ -2744,7 +2820,7 @@ out:
 
 static int dev_user_set_opt(struct file *file, const struct scst_user_opt *opt)
 {
-	int res = 0;
+	int res;
 	struct scst_user_dev *dev;
 
 	TRACE_ENTRY();
@@ -2756,7 +2832,7 @@ static int dev_user_set_opt(struct file *file, const struct scst_user_opt *opt)
 		mutex_unlock(&dev_priv_mutex);
 		goto out;
 	}
-	down_write(&dev->dev_rwsem);
+	down_read(&dev->dev_rwsem);
 	mutex_unlock(&dev_priv_mutex);
 
 	res = scst_suspend_activity(true);
@@ -2767,7 +2843,7 @@ static int dev_user_set_opt(struct file *file, const struct scst_user_opt *opt)
 
 	scst_resume_activity();
 
-	up_write(&dev->dev_rwsem);
+	up_read(&dev->dev_rwsem);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -2776,7 +2852,7 @@ out:
 
 static int dev_user_get_opt(struct file *file, void __user *arg)
 {
-	int res = 0;
+	int res;
 	struct scst_user_dev *dev;
 	struct scst_user_opt opt;
 
@@ -2853,16 +2929,17 @@ static int dev_user_release(struct inode *inode, struct file *file)
 	list_del(&dev->dev_list_entry);
 	spin_unlock(&dev_list_lock);
 
-	mutex_unlock(&dev_priv_mutex);
+	dev->blocking = 0;
+	wake_up_all(&dev->cmd_lists.cmd_list_waitQ);
 
 	down_write(&dev->dev_rwsem);
+	mutex_unlock(&dev_priv_mutex);
 
 	spin_lock(&cleanup_lock);
 	list_add_tail(&dev->cleanup_list_entry, &cleanup_list);
 	spin_unlock(&cleanup_lock);
 
 	wake_up(&cleanup_list_waitQ);
-	wake_up(&dev->cmd_lists.cmd_list_waitQ);
 
 	scst_unregister_virtual_device(dev->virt_id);
 	scst_unregister_virtual_dev_driver(&dev->devtype);
@@ -2899,7 +2976,8 @@ static int dev_user_process_cleanup(struct scst_user_dev *dev)
 
 	TRACE_ENTRY();
 
-	dev->blocking = 0;
+	sBUG_ON(dev->blocking);
+	wake_up_all(&dev->cmd_lists.cmd_list_waitQ); /* just in case */
 
 	while (1) {
 		TRACE_DBG("Cleanuping dev %p", dev);

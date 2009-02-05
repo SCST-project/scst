@@ -53,6 +53,7 @@ enum sgv_clustering_types {
 struct sgv_pool *sgv_pool_create(const char *name,
 	enum sgv_clustering_types clustered);
 void sgv_pool_destroy(struct sgv_pool *pool);
+void sgv_pool_flush(struct sgv_pool *pool);
 
 void sgv_pool_set_allocator(struct sgv_pool *pool,
 	struct page *(*alloc_pages_fn)(struct scatterlist *, gfp_t, void *),

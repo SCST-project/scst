@@ -26,7 +26,7 @@
 #include <getopt.h>
 #include <malloc.h>
 #include <inttypes.h>
-
+#include <signal.h>
 #include <sys/types.h>
 #include <sys/user.h>
 #include <sys/poll.h>
@@ -69,7 +69,9 @@ unsigned long trace_flag = DEFAULT_LOG_FLAGS;
 #define VERSION_STR		"1.0.1"
 #define THREADS			7
 
+struct vdisk_dev dev;
 int vdisk_ID;
+int flush_interval;
 
 static struct option const long_options[] =
 {
@@ -85,6 +87,8 @@ static struct option const long_options[] =
 	{"mem_reuse", required_argument, 0, 'm'},
 	{"non_blocking", no_argument, 0, 'l'},
 	{"vdisk_id", required_argument, 0, 'I'},
+	{"flush", required_argument, 0, 'F'},
+	{"unreg_before_close", no_argument, 0, 'u'},
 #if defined(DEBUG) || defined(TRACING)
 	{"debug", required_argument, 0, 'd'},
 #endif
@@ -115,6 +119,8 @@ static void usage(void)
 		"(default), \"read\", \"write\" or \"none\"\n");
 	printf("  -l, --non_blocking	Use non-blocking operations\n");
 	printf("  -I, --vdisk_id=ID	Vdisk ID (used in multi-targets setups)\n");
+	printf("  -F, --flush=n		Flush SGV cache each n seconds\n");
+	printf("  -u, --unreg_before_close Unregister before close\n");
 #if defined(DEBUG) || defined(TRACING)
 	printf("  -d, --debug=level	Debug tracing level\n");
 #endif
@@ -154,6 +160,36 @@ static void *align_alloc(size_t size)
 	return memalign(PAGE_SIZE, size);
 }
 
+void sigalrm_handler(int signo)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("%s", "Flushing cache...");
+
+	res = ioctl(dev.scst_usr_fd, SCST_USER_FLUSH_CACHE, NULL);
+	if (res != 0) {
+		res = errno;
+		PRINT_ERROR("Unable to flush cache: %s",
+			strerror(res));
+		goto out;
+	}
+
+	TRACE_DBG("%s", "Flushing cache done.");
+
+	res = alarm(flush_interval);
+	if (res != 0) {
+		res = errno;
+		PRINT_ERROR("alarm() failed: %s", strerror(res));
+		goto out;
+	}
+
+out:
+	TRACE_EXIT();
+	return;
+}
+
 int main(int argc, char **argv)
 {
 	int res = 0;
@@ -165,7 +201,7 @@ int main(int argc, char **argv)
 	int memory_reuse_type = SCST_USER_MEM_REUSE_ALL;
 	int threads = THREADS;
 	struct scst_user_dev_desc desc;
-	struct vdisk_dev dev;
+	int unreg_before_close = 0;
 
 	setlinebuf(stdout);
 
@@ -181,7 +217,7 @@ int main(int argc, char **argv)
 	dev.type = TYPE_DISK;
 	dev.alloc_fn = align_alloc;
 
-	while ((ch = getopt_long(argc, argv, "+b:e:tronglI:cp:f:m:d:vh", long_options,
+	while ((ch = getopt_long(argc, argv, "+b:e:trongluF:I:cp:f:m:d:vh", long_options,
 				&longindex)) >= 0) {
 		switch (ch) {
 		case 'b':
@@ -253,6 +289,17 @@ int main(int argc, char **argv)
 			break;
 		case 'I':
 			vdisk_ID = strtol(optarg, (char **)NULL, 0);
+			break;
+		case 'F':
+			flush_interval = strtol(optarg, (char **)NULL, 0);
+			if (flush_interval < 0) {
+				PRINT_ERROR("Wrong flush interval %d",
+					flush_interval);
+				flush_interval = 0;
+			}
+			break;
+		case 'u':
+			unreg_before_close = 1;
 			break;
 #if defined(DEBUG_TM_IGNORE) || defined(DEBUG_TM_IGNORE_ALL)
 		case 'g':
@@ -407,7 +454,7 @@ int main(int argc, char **argv)
 		if (res != 0) {
 			res = errno;
 			PRINT_ERROR("Unable to get options: %s", strerror(res));
-			goto out_close;
+			goto out_unreg;
 		}
 
 		opt.parse_type = parse_type;
@@ -418,7 +465,7 @@ int main(int argc, char **argv)
 		if (res != 0) {
 			res = errno;
 			PRINT_ERROR("Unable to set options: %s", strerror(res));
-			goto out_close;
+			goto out_unreg;
 		}
 	}
 #endif
@@ -427,7 +474,7 @@ int main(int argc, char **argv)
 	if (res != 0) {
 		res = errno;
 		PRINT_ERROR("pthread_mutex_init() failed: %s", strerror(res));
-		goto out_close;
+		goto out_unreg;
 	}
 
 	{
@@ -445,6 +492,31 @@ int main(int argc, char **argv)
 			}
 		}
 
+		if (flush_interval != 0) {
+			struct sigaction act;
+
+			memset(&act, 0, sizeof(act));
+			act.sa_handler = sigalrm_handler;
+			act.sa_flags = SA_RESTART;
+			sigemptyset(&act.sa_mask);
+			res = sigaction(SIGALRM, &act, NULL);
+			if (res != 0) {
+				res = errno;
+				PRINT_ERROR("sigaction() failed: %s",
+					strerror(res));
+				goto join;
+			}       
+
+			res = alarm(flush_interval);
+			if (res != 0) {
+				res = errno;
+				PRINT_ERROR("alarm() failed: %s",
+					strerror(res));
+				goto join;
+			}
+		}
+
+join:
 		j = i;
 		for(i = 0; i < j; i++) {
 			rc = pthread_join(thread[i], &rc1);
@@ -462,6 +534,19 @@ int main(int argc, char **argv)
 	}
 
 	pthread_mutex_destroy(&dev.dev_mutex);
+
+	alarm(0);
+
+out_unreg:
+	if (unreg_before_close) {
+		res = ioctl(dev.scst_usr_fd, SCST_USER_UNREGISTER_DEVICE, NULL);
+		if (res != 0) {
+			res = errno;
+			PRINT_ERROR("Unable to unregister device: %s",
+				strerror(res));
+			/* go through */
+		}
+	}
 
 out_close:
 	close(dev.scst_usr_fd);

@@ -129,6 +129,8 @@ do {								\
   }								\
 } while(0)
 
+#define TRACE_DBG_SPECIAL(args...)	TRACE(TRACE_DEBUG|TRACE_SPECIAL, args)
+
 #define TRACE_MGMT_DBG(format, args...)				\
 do {								\
   if (trace_flag & TRACE_MGMT_DEBUG)				\
@@ -246,6 +248,7 @@ do {								\
 
 #define TRACE_MEM(format, args...) {}
 #define TRACE_DBG(format, args...) {}
+#define TRACE_DBG_SPECIAL(args...) {}
 #define TRACE_MGMT_DBG(format, args...) {}
 #define TRACE_BUFFER(message, buff, len) {}
 #define TRACE_BUFF_FLAG(flag, message, buff, len) {}

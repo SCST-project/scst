@@ -444,6 +444,7 @@ enum scst_cdb_flags {
  * have to provide in order to work with the target mid-level.
  * MUST HAVEs define functions that are expected to be in order to work.
  * OPTIONAL says that there is a choice.
+ *
  * Also, pay attention to the fact that a command is BLOCKING or NON-BLOCKING.
  * NON-BLOCKING means that a function returns immediately and will not wait
  * for actual data transfer to finish. Blocking in such command could have
@@ -451,6 +452,7 @@ enum scst_cdb_flags {
  * it is worth to consider creating dedicated thread(s) in target driver, to
  * which the commands would be passed and which would perform blocking
  * operations instead of SCST.
+ *
  * If the function allowed to sleep or not is determined by its last
  * argument, which is true, if sleeping is not allowed. In this case,
  * if the function requires sleeping, it  can return
@@ -623,6 +625,7 @@ struct scst_tgt_template {
 	 * as the mid-level is concerned. Any information that must be
 	 * stored about the command is the responsibility of the low-
 	 * level driver. No return value expected.
+	 *
 	 * This function is expected to be NON-BLOCKING
 	 *
 	 * Called without any locks held from a thread context.

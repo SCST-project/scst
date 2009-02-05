@@ -236,10 +236,12 @@ struct scst_user_reply_cmd {
 };
 
 #define SCST_USER_REGISTER_DEVICE	_IOW('u', 1, struct scst_user_dev_desc)
+#define SCST_USER_UNREGISTER_DEVICE	_IO('u', 2)
 #define SCST_USER_SET_OPTIONS		_IOW('u', 3, struct scst_user_opt)
 #define SCST_USER_GET_OPTIONS		_IOR('u', 4, struct scst_user_opt)
 #define SCST_USER_REPLY_AND_GET_CMD	_IOWR('u', 5, struct scst_user_get_cmd)
 #define SCST_USER_REPLY_CMD		_IOW('u', 6, struct scst_user_reply_cmd)
+#define SCST_USER_FLUSH_CACHE		_IO('u', 7)
 
 /* Values for scst_user_get_cmd.subcode */
 #define SCST_USER_ATTACH_SESS		\

@@ -1081,15 +1081,11 @@ static void sgv_pool_evaluate_local_order(struct scst_sgv_pools_manager *pmgr)
 		+ sizeof(struct sgv_pool_obj));
 }
 
-void sgv_pool_deinit(struct sgv_pool *pool)
+void sgv_pool_flush(struct sgv_pool *pool)
 {
 	int i;
 
 	TRACE_ENTRY();
-
-	mutex_lock(&sgv_pools_mgr.scst_sgv_pool_mutex);
-	list_del(&pool->sgv_pool_list_entry);
-	mutex_unlock(&sgv_pools_mgr.scst_sgv_pool_mutex);
 
 	for (i = 0; i < SGV_POOL_ELEMENTS; i++) {
 		struct sgv_pool_obj *e;
@@ -1097,7 +1093,7 @@ void sgv_pool_deinit(struct sgv_pool *pool)
 		spin_lock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
 		while (!list_empty(&pool->recycling_lists[i])) {
 			e = list_entry(pool->recycling_lists[i].next,
-				 struct sgv_pool_obj,
+				struct sgv_pool_obj,
 				recycle_entry.recycling_list_entry);
 
 			__sgv_pool_cached_purge(e);
@@ -1109,7 +1105,26 @@ void sgv_pool_deinit(struct sgv_pool *pool)
 			spin_lock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
 		}
 		spin_unlock_bh(&sgv_pools_mgr.mgr.pool_mgr_lock);
+	}
 
+	TRACE_EXIT();
+	return;
+}
+EXPORT_SYMBOL(sgv_pool_flush);
+
+void sgv_pool_deinit(struct sgv_pool *pool)
+{
+	int i;
+
+	TRACE_ENTRY();
+
+	mutex_lock(&sgv_pools_mgr.scst_sgv_pool_mutex);
+	list_del(&pool->sgv_pool_list_entry);
+	mutex_unlock(&sgv_pools_mgr.scst_sgv_pool_mutex);
+
+	sgv_pool_flush(pool);
+
+	for (i = 0; i < SGV_POOL_ELEMENTS; i++) {
 		if (pool->caches[i])
 			kmem_cache_destroy(pool->caches[i]);
 		pool->caches[i] = NULL;

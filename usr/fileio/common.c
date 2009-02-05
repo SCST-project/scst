@@ -781,10 +781,10 @@ void *main_loop(void *arg)
 			switch(res) {
 			case ESRCH:
 			case EBUSY:
-			case EINTR:
 				TRACE_MGMT_DBG("SCST_USER_REPLY_AND_GET_CMD returned "
 					"%d (%s)", res, strerror(res));
 				cmd.preply = 0;
+			case EINTR:
 				continue;
 			case EAGAIN:
 				TRACE_DBG("SCST_USER_REPLY_AND_GET_CMD returned "
@@ -815,9 +815,9 @@ again_poll:
 				case ESRCH:
 				case EBUSY:
 				case EAGAIN:
-				case EINTR:
 					TRACE_MGMT_DBG("poll() returned %d "
 						"(%s)", res, strerror(res));
+				case EINTR:
 					goto again_poll;
 				default:
 					PRINT_ERROR("poll() failed: %s", strerror(res));
