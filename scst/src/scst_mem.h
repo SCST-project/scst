@@ -73,7 +73,7 @@ struct sgv_pool_alloc_fns {
 };
 
 struct sgv_pool {
-	unsigned int clustered;
+	enum sgv_clustering_types clustering_type;
 	struct sgv_pool_alloc_fns alloc_fns;
 	/* 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048 */
 	struct kmem_cache *caches[SGV_POOL_ELEMENTS];
@@ -139,7 +139,7 @@ struct scst_sgv_pools_manager {
 };
 
 int sgv_pool_init(struct sgv_pool *pool, const char *name,
-	int clustered);
+	enum sgv_clustering_types clustering_type);
 void sgv_pool_deinit(struct sgv_pool *pool);
 
 static inline struct scatterlist *sgv_pool_sg(struct sgv_pool_obj *obj)

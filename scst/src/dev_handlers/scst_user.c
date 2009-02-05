@@ -82,6 +82,7 @@ struct scst_user_dev {
 
 	struct scst_mem_lim udev_mem_lim;
 	struct sgv_pool *pool;
+	struct sgv_pool *pool_clust;
 
 	uint8_t parse_type;
 	uint8_t on_free_cmd_type;
@@ -276,12 +277,6 @@ static inline int calc_num_pg(unsigned long buf, int len)
 {
 	len += buf & ~PAGE_MASK;
 	return (len >> PAGE_SHIFT) + ((len & ~PAGE_MASK) != 0);
-}
-
-static inline int is_need_offs_page(unsigned long buf, int len)
-{
-	return ((buf & ~PAGE_MASK) != 0) &&
-		((buf & PAGE_MASK) != ((buf+len-1) & PAGE_MASK));
 }
 
 static void __dev_user_not_reg(void)
@@ -497,6 +492,12 @@ static inline int is_buff_cached(struct scst_user_cmd *ucmd)
 		return 0;
 }
 
+static inline int is_need_offs_page(unsigned long buf, int len)
+{
+	return ((buf & ~PAGE_MASK) != 0) &&
+		((buf & PAGE_MASK) != ((buf+len-1) & PAGE_MASK));
+}
+
 /*
  * Returns 0 for success, <0 for fatal failure, >0 - need pages.
  * Unmaps the buffer, if needed in case of error
@@ -510,6 +511,7 @@ static int dev_user_alloc_sg(struct scst_user_cmd *ucmd, int cached_buff)
 	int flags = 0;
 	int bufflen = cmd->bufflen;
 	int last_len = 0;
+	struct sgv_pool *pool;
 
 	TRACE_ENTRY();
 
@@ -539,13 +541,21 @@ static int dev_user_alloc_sg(struct scst_user_cmd *ucmd, int cached_buff)
 	}
 	ucmd->buff_cached = cached_buff;
 
-	cmd->sg = sgv_pool_alloc(dev->pool, bufflen, gfp_mask, flags,
-			&cmd->sg_cnt, &ucmd->sgv, &dev->udev_mem_lim, ucmd);
+	if (test_bit(SCST_TGT_DEV_CLUST_POOL, &cmd->tgt_dev->tgt_dev_flags))
+		pool = dev->pool_clust;
+	else
+		pool = dev->pool;
+
+	cmd->sg = sgv_pool_alloc((struct sgv_pool *)cmd->tgt_dev->dh_priv,
+			bufflen, gfp_mask, flags, &cmd->sg_cnt, &ucmd->sgv,
+			&dev->udev_mem_lim, ucmd);
 	if (cmd->sg != NULL) {
 		struct scst_user_cmd *buf_ucmd =
 			(struct scst_user_cmd *)sgv_get_priv(ucmd->sgv);
 
-		TRACE_MEM("Buf ucmd %p", buf_ucmd);
+		TRACE_MEM("Buf ucmd %p (cmd->sg_cnt %d, last seg len %d, "
+			"last_len %d, bufflen %d)", buf_ucmd, cmd->sg_cnt,
+			cmd->sg[cmd->sg_cnt-1].length, last_len, bufflen);
 
 		ucmd->ubuff = buf_ucmd->ubuff;
 		ucmd->buf_ucmd = buf_ucmd;
@@ -554,13 +564,13 @@ static int dev_user_alloc_sg(struct scst_user_cmd *ucmd, int cached_buff)
 				   (ucmd != buf_ucmd));
 
 		if (last_len != 0) {
-			/* We don't use clustering, so the assignment is safe */
-			cmd->sg[cmd->sg_cnt-1].length = last_len;
+			cmd->sg[cmd->sg_cnt-1].length &= PAGE_MASK;
+			cmd->sg[cmd->sg_cnt-1].length += last_len;
 		}
 
 		TRACE_MEM("Buf alloced (ucmd %p, cached_buff %d, ubuff %lx, "
-			"last_len %d, l %d)", ucmd, cached_buff, ucmd->ubuff,
-			last_len, cmd->sg[cmd->sg_cnt-1].length);
+			"last seg len %d)", ucmd, cached_buff, ucmd->ubuff,
+			cmd->sg[cmd->sg_cnt-1].length);
 
 		if (unlikely(cmd->sg_cnt > cmd->tgt_dev->max_sg_cnt)) {
 			static int ll;
@@ -2311,6 +2321,16 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 
 	TRACE_ENTRY();
 
+	/*
+	 * We can't replace tgt_dev->pool, because it can be used to allocate
+	 * memory for SCST local commands, like REPORT LUNS, where there is no
+	 * corresponding ucmd. Otherwise we will crash in dev_user_alloc_sg().
+	 */
+ 	if (test_bit(SCST_TGT_DEV_CLUST_POOL, &tgt_dev->tgt_dev_flags))
+		tgt_dev->dh_priv = dev->pool_clust;
+ 	else
+		tgt_dev->dh_priv = dev->pool;
+
 	ucmd = dev_user_alloc_ucmd(dev, GFP_KERNEL);
 	if (ucmd == NULL)
 		goto out_nomem;
@@ -2554,16 +2574,19 @@ static int dev_user_register_dev(struct file *file,
 
 	scst_init_mem_lim(&dev->udev_mem_lim);
 
-	/*
-	 * We don't use clustered pool, since it implies pages reordering,
-	 * which isn't possible with user space supplied buffers. Although
-	 * it's still possible to cluster pages by the tail of each other,
-	 * seems it doesn't worth the effort.
-	 */
-	dev->pool = sgv_pool_create(dev->name, 0);
+	dev->pool = sgv_pool_create(dev->name, sgv_no_clustering);
 	if (dev->pool == NULL)
-		goto out_put;
+		goto out_free_dev;
 	sgv_pool_set_allocator(dev->pool, dev_user_alloc_pages,
+		dev_user_free_sg_entries);
+
+	scnprintf(dev->devtype.name, sizeof(dev->devtype.name), "%s-clust",
+		dev->name);
+	dev->pool_clust = sgv_pool_create(dev->devtype.name,
+				sgv_tail_clustering);
+	if (dev->pool_clust == NULL)
+		goto out_free0;
+	sgv_pool_set_allocator(dev->pool_clust, dev_user_alloc_pages,
 		dev_user_free_sg_entries);
 
 	scnprintf(dev->devtype.name, sizeof(dev->devtype.name), "dh-%s",
@@ -2645,9 +2668,13 @@ out_del_free:
 	spin_unlock(&dev_list_lock);
 
 out_free:
+	sgv_pool_destroy(dev->pool_clust);
+
+out_free0:
 	sgv_pool_destroy(dev->pool);
+
+out_free_dev:
 	kfree(dev);
-	goto out_put;
 
 out_put:
 	module_put(THIS_MODULE);
@@ -2840,6 +2867,7 @@ static int dev_user_release(struct inode *inode, struct file *file)
 	scst_unregister_virtual_device(dev->virt_id);
 	scst_unregister_virtual_dev_driver(&dev->devtype);
 
+	sgv_pool_destroy(dev->pool_clust);
 	sgv_pool_destroy(dev->pool);
 
 	TRACE_DBG("Unregistering finished (dev %p)", dev);

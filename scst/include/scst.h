@@ -364,7 +364,7 @@ enum scst_exec_context {
 #define SCST_CMD_CAN_BE_DESTROYED	3
 
 /*************************************************************
- ** Tgt_dev's flags (tgt_dev_flags)
+ ** Tgt_dev's async. flags (tgt_dev_flags)
  *************************************************************/
 
 /* Set if tgt_dev has Unit Attention sense */
@@ -380,6 +380,8 @@ enum scst_exec_context {
 #define SCST_TGT_DEV_AFTER_RESTART_OTH_ATOMIC	8
 #define SCST_TGT_DEV_AFTER_RX_DATA_ATOMIC	9
 #define SCST_TGT_DEV_AFTER_EXEC_ATOMIC		10
+
+#define SCST_TGT_DEV_CLUST_POOL			11
 
 #ifdef CONFIG_SCST_DEBUG_TM
 #define SCST_TGT_DEV_UNDER_TM_DBG		20
@@ -1501,7 +1503,7 @@ struct scst_tgt_dev {
 
 	/*
 	 * Set if the prev cmd was ORDERED. Size must allow unprotected
-	 * modifications
+	 * modifications independant to the neighbour fields. 
 	 */
 	unsigned long prev_cmd_ordered;
 

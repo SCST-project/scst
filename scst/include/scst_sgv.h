@@ -43,7 +43,15 @@ struct scst_mem_lim {
 	int max_allowed_pages;
 };
 
-struct sgv_pool *sgv_pool_create(const char *name, int clustered);
+/* Types of clustering */
+enum sgv_clustering_types {
+	sgv_no_clustering = 0,
+	sgv_tail_clustering,
+	sgv_full_clustering,
+};
+
+struct sgv_pool *sgv_pool_create(const char *name,
+	enum sgv_clustering_types clustered);
 void sgv_pool_destroy(struct sgv_pool *pool);
 
 void sgv_pool_set_allocator(struct sgv_pool *pool,

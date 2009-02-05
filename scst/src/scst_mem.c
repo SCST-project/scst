@@ -37,10 +37,16 @@
 
 static struct scst_sgv_pools_manager sgv_pools_mgr;
 
+static inline bool sgv_pool_clustered(const struct sgv_pool *pool)
+{
+	return (pool->clustering_type != sgv_no_clustering);
+}
+
 void scst_sgv_pool_use_norm(struct scst_tgt_dev *tgt_dev)
 {
 	tgt_dev->gfp_mask = __GFP_NOWARN;
 	tgt_dev->pool = &sgv_pools_mgr.default_set.norm;
+	clear_bit(SCST_TGT_DEV_CLUST_POOL, &tgt_dev->tgt_dev_flags);
 }
 
 void scst_sgv_pool_use_norm_clust(struct scst_tgt_dev *tgt_dev)
@@ -48,6 +54,7 @@ void scst_sgv_pool_use_norm_clust(struct scst_tgt_dev *tgt_dev)
 	TRACE_MEM("%s", "Use clustering");
 	tgt_dev->gfp_mask = __GFP_NOWARN;
 	tgt_dev->pool = &sgv_pools_mgr.default_set.norm_clust;
+	set_bit(SCST_TGT_DEV_CLUST_POOL, &tgt_dev->tgt_dev_flags);
 }
 
 void scst_sgv_pool_use_dma(struct scst_tgt_dev *tgt_dev)
@@ -55,9 +62,10 @@ void scst_sgv_pool_use_dma(struct scst_tgt_dev *tgt_dev)
 	TRACE_MEM("%s", "Use ISA DMA memory");
 	tgt_dev->gfp_mask = __GFP_NOWARN | GFP_DMA;
 	tgt_dev->pool = &sgv_pools_mgr.default_set.dma;
+	clear_bit(SCST_TGT_DEV_CLUST_POOL, &tgt_dev->tgt_dev_flags);
 }
 
-static int scst_check_clustering(struct scatterlist *sg, int cur, int hint)
+static int sgv_check_full_clustering(struct scatterlist *sg, int cur, int hint)
 {
 	int res = -1;
 	int i = hint;
@@ -65,7 +73,8 @@ static int scst_check_clustering(struct scatterlist *sg, int cur, int hint)
 	int len_cur = sg[cur].length;
 	unsigned long pfn_cur_next = pfn_cur + (len_cur >> PAGE_SHIFT);
 	int full_page_cur = (len_cur & (PAGE_SIZE - 1)) == 0;
-	unsigned long pfn, pfn_next, full_page;
+	unsigned long pfn, pfn_next;
+	bool full_page;
 
 #if 0
 	TRACE_MEM("pfn_cur %ld, pfn_cur_next %ld, len_cur %d, full_page_cur %d",
@@ -115,6 +124,47 @@ out_head:
 	sg_clear(&sg[cur]);
 	res = i;
 	goto out;
+}
+
+static int sgv_check_tail_clustering(struct scatterlist *sg, int cur, int hint)
+{
+	int res = -1;
+	unsigned long pfn_cur = page_to_pfn(sg_page(&sg[cur]));
+	int len_cur = sg[cur].length;
+	int prev;
+	unsigned long pfn_prev;
+	bool full_page;
+
+#ifdef SCST_HIGHMEM
+	if (page >= highmem_start_page) {
+		TRACE_MEM("%s", "HIGHMEM page allocated, no clustering")
+		goto out;
+	}
+#endif
+
+#if 0
+	TRACE_MEM("pfn_cur %ld, pfn_cur_next %ld, len_cur %d, full_page_cur %d",
+		pfn_cur, pfn_cur_next, len_cur, full_page_cur);
+#endif
+
+	if (cur == 0)
+		goto out;
+
+	prev = cur - 1;
+	pfn_prev = page_to_pfn(sg_page(&sg[prev])) +
+			(sg[prev].length >> PAGE_SHIFT);
+	full_page = (sg[prev].length & (PAGE_SIZE - 1)) == 0;
+
+	if ((pfn_prev == pfn_cur) && full_page) {
+		TRACE_MEM("SG segment %d will be tail merged with segment %d",
+			cur, prev);
+		sg[prev].length += len_cur;
+		sg_clear(&sg[cur]);
+		res = prev;
+	}
+
+out:
+	return res;
 }
 
 static void scst_free_sys_sg_entries(struct scatterlist *sg, int sg_count,
@@ -173,14 +223,15 @@ static struct page *scst_alloc_sys_pages(struct scatterlist *sg,
 }
 
 static int scst_alloc_sg_entries(struct scatterlist *sg, int pages,
-	gfp_t gfp_mask, int clustered, struct trans_tbl_ent *trans_tbl,
+	gfp_t gfp_mask, enum sgv_clustering_types clustering_type,
+	struct trans_tbl_ent *trans_tbl,
 	const struct sgv_pool_alloc_fns *alloc_fns, void *priv)
 {
 	int sg_count = 0;
 	int pg, i, j;
 	int merged = -1;
 
-	TRACE_MEM("pages=%d, clustered=%d", pages, clustered);
+	TRACE_MEM("pages=%d, clustering_type=%d", pages, clustering_type);
 
 #if 0
 	gfp_mask |= __GFP_COLD;
@@ -201,17 +252,22 @@ static int scst_alloc_sg_entries(struct scatterlist *sg, int pages,
 				priv);
 		if (rc == NULL)
 			goto out_no_mem;
-		if (clustered) {
-			merged = scst_check_clustering(sg, sg_count, merged);
-			if (merged == -1)
-				sg_count++;
-		} else
+
+		if (clustering_type == sgv_full_clustering)
+			merged = sgv_check_full_clustering(sg, sg_count, merged);
+		else if (clustering_type == sgv_tail_clustering)
+			merged = sgv_check_tail_clustering(sg, sg_count, merged);
+		else
+			merged = -1;
+
+		if (merged == -1)
 			sg_count++;
+
 		TRACE_MEM("pg=%d, merged=%d, sg_count=%d", pg, merged,
 			sg_count);
 	}
 
-	if (clustered && (trans_tbl != NULL)) {
+	if ((clustering_type != sgv_no_clustering) && (trans_tbl != NULL)) {
 		pg = 0;
 		for (i = 0; i < pages; i++) {
 			int n = (sg[i].length >> PAGE_SHIFT) +
@@ -254,7 +310,7 @@ static int sgv_alloc_arrays(struct sgv_pool_obj *obj,
 
 	sg_init_table(obj->sg_entries, pages_to_alloc);
 
-	if (obj->owner_pool->clustered) {
+	if (sgv_pool_clustered(obj->owner_pool)) {
 		if (order <= sgv_pools_mgr.sgv_max_trans_order) {
 			obj->trans_tbl =
 				(struct trans_tbl_ent *)obj->sg_entries_data;
@@ -369,7 +425,7 @@ static void sgv_pool_cached_put(struct sgv_pool_obj *sgv)
 	TRACE_MEM("sgv %p, order %d, sg_count %d", sgv, sgv->order_or_pages,
 		sgv->sg_count);
 
-	if (owner->clustered) {
+	if (sgv_pool_clustered(owner)) {
 		/* Make objects with less entries more preferred */
 		__list_for_each(entry, list) {
 			struct sgv_pool_obj *tmp = list_entry(entry,
@@ -620,7 +676,7 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 			obj->sg_entries = obj->sg_entries_data;
 			sg_init_table(obj->sg_entries, pages_to_alloc);
 			TRACE_MEM("sg_entries %p", obj->sg_entries);
-			if (pool->clustered) {
+			if (sgv_pool_clustered(pool)) {
 				obj->trans_tbl = (struct trans_tbl_ent *)
 					(obj->sg_entries + pages_to_alloc);
 				TRACE_MEM("trans_tbl %p", obj->trans_tbl);
@@ -683,8 +739,8 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 	}
 
 	obj->sg_count = scst_alloc_sg_entries(obj->sg_entries,
-		pages_to_alloc, gfp_mask, pool->clustered, obj->trans_tbl,
-		&pool->alloc_fns, priv);
+		pages_to_alloc, gfp_mask, pool->clustering_type,
+		obj->trans_tbl, &pool->alloc_fns, priv);
 	if (unlikely(obj->sg_count <= 0)) {
 		obj->sg_count = 0;
 		if ((flags & SCST_POOL_RETURN_OBJ_ON_ALLOC_FAIL) && cache)
@@ -714,14 +770,14 @@ success:
 	if (cache) {
 		int sg;
 		atomic_inc(&pool->cache_acc[order].total_alloc);
-		if (pool->clustered)
+		if (sgv_pool_clustered(pool))
 			cnt = obj->trans_tbl[pages-1].sg_num;
 		else
 			cnt = pages;
 		sg = cnt-1;
 		obj->orig_sg = sg;
 		obj->orig_length = obj->sg_entries[sg].length;
-		if (pool->clustered) {
+		if (sgv_pool_clustered(pool)) {
 			obj->sg_entries[sg].length =
 				(pages - obj->trans_tbl[sg].pg_count) << PAGE_SHIFT;
 		}
@@ -860,8 +916,8 @@ struct scatterlist *scst_alloc(int size, gfp_t gfp_mask, int *count)
 	 * scst_free() to figure out how many pages are in the SG vector.
 	 * So, always don't use clustering.
 	 */
-	*count = scst_alloc_sg_entries(res, pages, gfp_mask, 0, NULL,
-			&sys_alloc_fns, NULL);
+	*count = scst_alloc_sg_entries(res, pages, gfp_mask, sgv_no_clustering,
+			NULL, &sys_alloc_fns, NULL);
 	if (*count <= 0)
 		goto out_free;
 
@@ -901,7 +957,8 @@ static void sgv_pool_cached_init(struct sgv_pool *pool)
 		INIT_LIST_HEAD(&pool->recycling_lists[i]);
 }
 
-int sgv_pool_init(struct sgv_pool *pool, const char *name, int clustered)
+int sgv_pool_init(struct sgv_pool *pool, const char *name,
+	enum sgv_clustering_types clustering_type)
 {
 	int res = -ENOMEM;
 	int i;
@@ -918,12 +975,12 @@ int sgv_pool_init(struct sgv_pool *pool, const char *name, int clustered)
 	atomic_set(&pool->acc.other_merged, 0);
 	atomic_set(&pool->acc.big_merged, 0);
 
-	pool->clustered = clustered;
+	pool->clustering_type = clustering_type;
 	pool->alloc_fns.alloc_pages_fn = scst_alloc_sys_pages;
 	pool->alloc_fns.free_pages_fn = scst_free_sys_sg_entries;
 
-	TRACE_MEM("name %s, sizeof(*obj)=%zd, clustered=%d", name, sizeof(*obj),
-		clustered);
+	TRACE_MEM("name %s, sizeof(*obj)=%zd, clustering_type=%d", name,
+		sizeof(*obj), clustering_type);
 
 	strncpy(pool->name, name, sizeof(pool->name)-1);
 	pool->name[sizeof(pool->name)-1] = '\0';
@@ -938,14 +995,16 @@ int sgv_pool_init(struct sgv_pool *pool, const char *name, int clustered)
 		if (i <= sgv_pools_mgr.sgv_max_local_order) {
 			size = sizeof(*obj) + (1 << i) *
 				(sizeof(obj->sg_entries[0]) +
-				 (clustered ? sizeof(obj->trans_tbl[0]) : 0));
+				 ((clustering_type != sgv_no_clustering) ?
+				 	sizeof(obj->trans_tbl[0]) : 0));
 		} else if (i <= sgv_pools_mgr.sgv_max_trans_order) {
 			/*
 			 * sgv ie sg_entries is allocated outside object, but
 			 * ttbl is still embedded.
 			 */
 			size = sizeof(*obj) + (1 << i) *
-				((clustered ? sizeof(obj->trans_tbl[0]) : 0));
+				(((clustering_type != sgv_no_clustering) ?
+					sizeof(obj->trans_tbl[0]) : 0));
 		} else {
 			size = sizeof(*obj);
 
@@ -1070,7 +1129,8 @@ void sgv_pool_set_allocator(struct sgv_pool *pool,
 }
 EXPORT_SYMBOL(sgv_pool_set_allocator);
 
-struct sgv_pool *sgv_pool_create(const char *name, int clustered)
+struct sgv_pool *sgv_pool_create(const char *name,
+	enum sgv_clustering_types clustering_type)
 {
 	struct sgv_pool *pool;
 	int rc;
@@ -1083,7 +1143,7 @@ struct sgv_pool *sgv_pool_create(const char *name, int clustered)
 		goto out;
 	}
 
-	rc = sgv_pool_init(pool, name, clustered);
+	rc = sgv_pool_init(pool, name, clustering_type);
 	if (rc != 0)
 		goto out_free;
 
@@ -1207,15 +1267,17 @@ int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 	INIT_LIST_HEAD(&pools->mgr.sorted_recycling_list);
 	spin_lock_init(&pools->mgr.pool_mgr_lock);
 
-	res = sgv_pool_init(&pools->default_set.norm, "sgv", 0);
+	res = sgv_pool_init(&pools->default_set.norm, "sgv", sgv_no_clustering);
 	if (res != 0)
 		goto out;
 
-	res = sgv_pool_init(&pools->default_set.norm_clust, "sgv-clust", 1);
+	res = sgv_pool_init(&pools->default_set.norm_clust, "sgv-clust",
+		sgv_full_clustering);
 	if (res != 0)
 		goto out_free_clust;
 
-	res = sgv_pool_init(&pools->default_set.dma, "sgv-dma", 0);
+	res = sgv_pool_init(&pools->default_set.dma, "sgv-dma",
+		sgv_no_clustering);
 	if (res != 0)
 		goto out_free_norm;
 
