@@ -40,11 +40,7 @@ void param_set_defaults(struct iscsi_param *params, struct iscsi_key *keys)
 	int i;
 
 	for (i = 0; keys[i].name; i++) {
-		if (i == key_max_recv_data_length)
-			params[i].exec_val = keys[i].local_def;
-		else
-			params[i].exec_val = keys[i].rfc_def;
-		params[i].local_val = keys[i].local_def;
+		params[i].val = keys[i].local_def;
 	}
 }
 
@@ -94,16 +90,16 @@ static int bool_str_to_val(char *str, unsigned int *val)
 
 static int or_set_val(struct iscsi_param *param, int idx, unsigned int *val)
 {
-	*val |= param[idx].local_val;
-	param[idx].exec_val = *val;
+	*val |= param[idx].val;
+	param[idx].val = *val;
 
 	return 0;
 }
 
 static int and_set_val(struct iscsi_param *param, int idx, unsigned int *val)
 {
-	*val &= param[idx].local_val;
-	param[idx].exec_val = *val;
+	*val &= param[idx].val;
+	param[idx].val = *val;
 
 	return 0;
 }
@@ -125,17 +121,17 @@ static int num_check_val(struct iscsi_key *key, unsigned int *val)
 
 static int minimum_set_val(struct iscsi_param *param, int idx, unsigned int *val)
 {
-	if (*val > param[idx].local_val)
-		*val = param[idx].local_val;
-	param[idx].exec_val = *val;
+	if (*val > param[idx].val)
+		*val = param[idx].val;
+	param[idx].val = *val;
 	return 0;
 }
 
 static int maximum_set_val(struct iscsi_param *param, int idx, unsigned int *val)
 {
-	if (param[idx].local_val > *val)
-		*val = param[idx].local_val;
-	param[idx].exec_val = *val;
+	if (param[idx].val > *val)
+		*val = param[idx].val;
+	param[idx].val = *val;
 	return 0;
 }
 
@@ -179,12 +175,12 @@ static int digest_str_to_val(char *str, unsigned int *val)
 
 static int digest_set_val(struct iscsi_param *param, int idx, unsigned int *val)
 {
-	if (*val & DIGEST_CRC32C && param[idx].local_val & DIGEST_CRC32C)
+	if (*val & DIGEST_CRC32C && param[idx].val & DIGEST_CRC32C)
 		*val = DIGEST_CRC32C;
 	else
 		*val = DIGEST_NONE;
 
-	param[idx].exec_val = *val;
+	param[idx].val = *val;
 
 	return 0;
 }
@@ -207,7 +203,7 @@ static int marker_set_val(struct iscsi_param *param, int idx, unsigned int *val)
 	else
 		*val = 1;
 
-	param[idx].exec_val = *val;
+	param[idx].val = *val;
 
 	return 0;
 }

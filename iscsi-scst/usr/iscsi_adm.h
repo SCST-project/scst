@@ -65,11 +65,6 @@ enum iscsi_adm_cmnd {
 	C_ACCT_UPDATE,
 	C_ACCT_SHOW,
 
-	C_SYS_NEW,
-	C_SYS_DEL,
-	C_SYS_UPDATE,
-	C_SYS_SHOW,
-
 	C_ACCT_LIST,
 };
 

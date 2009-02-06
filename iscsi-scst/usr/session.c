@@ -163,7 +163,7 @@ void session_create(struct connection *conn)
 	ki->session_create(conn->tid, session->sid.id64, conn->exp_cmd_sn,
 			   session->initiator, user);
 	ki->param_set(conn->tid, session->sid.id64, key_session, 0,
-		conn->session_param, 0);
+		conn->session_param);
 }
 
 void session_remove(struct session *session)

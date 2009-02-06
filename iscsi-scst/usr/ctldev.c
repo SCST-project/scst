@@ -45,7 +45,7 @@ static int ctrdev_open(int *max_data_seg_len)
 	struct iscsi_register_info reg = { 0 };
 
 	if (!(f = fopen("/proc/devices", "r"))) {
-		perror("Cannot open control path to the driver\n");
+		perror("Cannot open control path to the driver");
 		goto out;
 	}
 
@@ -86,6 +86,7 @@ static int ctrdev_open(int *max_data_seg_len)
 
 	err = ioctl(ctlfd, REGISTER_USERD, &reg);
 	if (err < 0) {
+		err = -errno;
 		log_error("Unable to register: %s. Incompatible version of the "
 			"kernel module?\n", strerror(errno));
 		goto out_close;
@@ -99,7 +100,7 @@ out:
 
 out_close:
 	close(ctlfd);
-	ctlfd = -1;
+	ctlfd = err;
 	goto out;
 }
 
@@ -112,8 +113,10 @@ static int iscsi_target_create(u32 *tid, char *name)
 
 	memcpy(info.name, name, sizeof(info.name) - 1);
 	info.tid = *tid;
-	if ((err = ioctl(ctrl_fd, ADD_TARGET, &info)) < 0)
-		log_warning("can't create a target %d %u\n", errno, info.tid);
+	if ((err = ioctl(ctrl_fd, ADD_TARGET, &info)) < 0) {
+		err = -errno;
+		log_error("can't create a target %d %u\n", errno, info.tid);
+	}
 
 	*tid = info.tid;
 	return err;
@@ -122,11 +125,16 @@ static int iscsi_target_create(u32 *tid, char *name)
 static int iscsi_target_destroy(u32 tid)
 {
 	struct target_info info;
+	int res;
 
 	memset(&info, 0, sizeof(info));
 	info.tid = tid;
 
-	return ioctl(ctrl_fd, DEL_TARGET, &info);
+	res = ioctl(ctrl_fd, DEL_TARGET, &info);
+	if (res < 0)
+		res = -errno;
+
+	return res;
 }
 
 static int iscsi_conn_destroy(u32 tid, u64 sid, u32 cid)
@@ -139,7 +147,7 @@ static int iscsi_conn_destroy(u32 tid, u64 sid, u32 cid)
 	info.cid = cid;
 
 	if ((err = ioctl(ctrl_fd, DEL_CONN, &info)) < 0)
-		err = errno;
+		err = -errno;
 
 	return err;
 }
@@ -258,22 +266,6 @@ static struct session_file_operations target_del_ops = {
 	.target_op = __target_del,
 };
 
-int server_stop(void)
-{
-	conn_blocked = 1;
-
-	proc_session_parse(ctrl_fd, &conn_close_ops, -1, NULL);
-
-	while (proc_session_parse(ctrl_fd, &shutdown_wait_ops, -1, NULL) < 0)
-		sleep(1);
-
-	proc_session_parse(ctrl_fd, &target_del_ops, -1, NULL);
-
-	isns_exit();
-
-	return 0;
-}
-
 int target_destroy(u32 tid)
 {
 	int err;
@@ -323,8 +315,7 @@ int session_conns_close(u32 tid, u64 sid)
 	return err;
 }
 
-static int iscsi_param_get(u32 tid, u64 sid, int type, struct iscsi_param *param,
-	int local)
+static int iscsi_param_get(u32 tid, u64 sid, int type, struct iscsi_param *param)
 {
 	int err, i;
 	struct iscsi_param_info info;
@@ -334,30 +325,24 @@ static int iscsi_param_get(u32 tid, u64 sid, int type, struct iscsi_param *param
 	info.sid = sid;
 	info.param_type = type;
 
-	if ((err = ioctl(ctrl_fd, ISCSI_PARAM_GET, &info)) < 0)
-		log_error("Can't get session param %d %d\n", info.tid, errno);
-
-	if (local) {
-		if (type == key_session)
-			for (i = 0; i < session_key_last; i++)
-				param[i].local_val = info.session_param[i];
-		else
-			for (i = 0; i < target_key_last; i++)
-				param[i].local_val = info.target_param[i];
-	} else {
-		if (type == key_session)
-			for (i = 0; i < session_key_last; i++)
-				param[i].exec_val = info.session_param[i];
-		else
-			for (i = 0; i < target_key_last; i++)
-				param[i].exec_val = info.target_param[i];
+	if ((err = ioctl(ctrl_fd, ISCSI_PARAM_GET, &info)) < 0) {
+		log_error("Can't get session param for session 0x%" PRIu64 
+			" (tid %u, err %d): %s\n", sid, tid, err, strerror(errno));
+		err = -errno;
 	}
+
+	if (type == key_session)
+		for (i = 0; i < session_key_last; i++)
+			param[i].val = info.session_param[i];
+	else
+		for (i = 0; i < target_key_last; i++)
+			param[i].val = info.target_param[i];
 
 	return err;
 }
 
 static int iscsi_param_set(u32 tid, u64 sid, int type, u32 partial,
-	struct iscsi_param *param, int local)
+	struct iscsi_param *param)
 {
 	int i, err;
 	struct iscsi_param_info info;
@@ -368,25 +353,18 @@ static int iscsi_param_set(u32 tid, u64 sid, int type, u32 partial,
 	info.param_type = type;
 	info.partial = partial;
 
-	if (local) {
-		if (info.param_type == key_session)
-			for (i = 0; i < session_key_last; i++)
-				info.session_param[i] = param[i].local_val;
-		else
-			for (i = 0; i < target_key_last; i++)
-				info.target_param[i] = param[i].local_val;
-	} else {
-		if (info.param_type == key_session)
-			for (i = 0; i < session_key_last; i++)
-				info.session_param[i] = param[i].exec_val;
-		else
-			for (i = 0; i < target_key_last; i++)
-				info.target_param[i] = param[i].exec_val;
-	}
+	if (info.param_type == key_session)
+		for (i = 0; i < session_key_last; i++)
+			info.session_param[i] = param[i].val;
+	else
+		for (i = 0; i < target_key_last; i++)
+			info.target_param[i] = param[i].val;
 
-	if ((err = ioctl(ctrl_fd, ISCSI_PARAM_SET, &info)) < 0)
-		fprintf(stderr, "%d %d %u " "%" PRIu64 " %d %u\n",
-			err, errno, tid, sid, type, partial);
+	if ((err = ioctl(ctrl_fd, ISCSI_PARAM_SET, &info)) < 0) {
+		fprintf(stderr, "%d %u " "%" PRIu64 " %d %u\n",
+			errno, tid, sid, type, partial);
+		err = -errno;
+	}
 
 	return err;
 }
@@ -395,6 +373,7 @@ static int iscsi_session_create(u32 tid, u64 sid, u32 exp_cmd_sn,
 	char *name, char *user)
 {
 	struct session_info info;
+	int res;
 
 	memset(&info, 0, sizeof(info));
 
@@ -404,7 +383,11 @@ static int iscsi_session_create(u32 tid, u64 sid, u32 exp_cmd_sn,
 	strncpy(info.initiator_name, name, sizeof(info.initiator_name) - 1);
 	strncpy(info.user_name, user, sizeof(info.user_name) - 1);
 
-	return ioctl(ctrl_fd, ADD_SESSION, &info);
+	res = ioctl(ctrl_fd, ADD_SESSION, &info);
+	if (res < 0)
+		res = -errno;
+
+	return res;
 }
 
 static int iscsi_session_destroy(u32 tid, u64 sid)
@@ -421,6 +404,9 @@ static int iscsi_session_destroy(u32 tid, u64 sid)
 		res = ioctl(ctrl_fd, DEL_SESSION, &info);
 	} while (res < 0 && errno == EINTR);
 
+	if (res < 0)
+		res = -errno;
+
 	return res;
 }
 
@@ -428,6 +414,7 @@ static int iscsi_conn_create(u32 tid, u64 sid, u32 cid, u32 stat_sn, u32 exp_sta
 			     int fd, u32 hdigest, u32 ddigest)
 {
 	struct conn_info info;
+	int res;
 
 	memset(&info, 0, sizeof(info));
 
@@ -440,7 +427,11 @@ static int iscsi_conn_create(u32 tid, u64 sid, u32 cid, u32 stat_sn, u32 exp_sta
 	info.header_digest = hdigest;
 	info.data_digest = ddigest;
 
-	return ioctl(ctrl_fd, ADD_CONN, &info);
+	res = ioctl(ctrl_fd, ADD_CONN, &info);
+	if (res < 0)
+		res = -errno;
+
+	return res;
 }
 
 struct iscsi_kernel_interface ioctl_ki = {

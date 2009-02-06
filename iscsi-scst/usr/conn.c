@@ -123,8 +123,8 @@ void conn_take_fd(struct connection *conn, int fd)
 
 	err = ki->conn_create(conn->tid, conn->session->sid.id64, conn->cid,
 			      conn->stat_sn, conn->exp_stat_sn, fd,
-			      conn->session_param[key_header_digest].exec_val,
-			      conn->session_param[key_data_digest].exec_val);
+			      conn->session_param[key_header_digest].val,
+			      conn->session_param[key_data_digest].val);
 
 	return;
 }

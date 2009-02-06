@@ -20,7 +20,7 @@ include/iscsi_scst_itf_ver.h: include/iscsi_scst.h
 
 install: all
 	@install -vD usr/iscsi-scstd $(DISTDIR)/usr/local/sbin/iscsi-scstd
-#	-@install -vD usr/iscsi-scst-adm $(DISTDIR)/usr/local/sbin/iscsi-scst-adm
+	@install -vD usr/iscsi-scst-adm $(DISTDIR)/usr/local/sbin/iscsi-scst-adm
 	if [ -f /etc/debian_version ]; then \
 		install -vD -m 755 etc/initd/initd.debian $(DISTDIR)/etc/init.d/iscsi-scst; \
 	elif [ -f /etc/redhat-release ]; then \

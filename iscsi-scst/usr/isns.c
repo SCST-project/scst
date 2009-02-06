@@ -92,14 +92,14 @@ static int isns_get_ip(int fd)
 
 	err = getsockname(fd, (struct sockaddr *) &lss, &slen);
 	if (err) {
-		log_error("getsockname error %s!", gai_strerror(err));
+		log_error("getsockname error: %s!", gai_strerror(err));
 		return err;
 	}
 
 	err = getnameinfo((struct sockaddr *) &lss, sizeof(lss),
 			  eid, sizeof(eid), NULL, 0, 0);
 	if (err) {
-		log_error("getaddrinfo error %s!", gai_strerror(err));
+		log_error("getaddrinfo error: %s!", gai_strerror(err));
 		return err;
 	}
 
@@ -772,7 +772,7 @@ static int scn_accept_connection(void)
 	slen = sizeof(from);
 	fd = accept(scn_listen_fd, (struct sockaddr *) &from, &slen);
 	if (fd < 0) {
-		log_error("%s %d: accept error %s", __func__, __LINE__,
+		log_error("%s %d: accept error: %s", __func__, __LINE__,
 			  strerror(errno));
 		return -errno;
 	}
@@ -920,7 +920,7 @@ int isns_init(char *addr, int isns_ac)
 	hints.ai_socktype = SOCK_STREAM;
 	err = getaddrinfo(addr, (char *) &port, &hints, &res);
 	if (err) {
-		log_error("getaddrinfo error %s, %s", gai_strerror(err), addr);
+		log_error("getaddrinfo error: %s, %s", gai_strerror(err), addr);
 		return -1;
 	}
 	memcpy(&ss, res->ai_addr, sizeof(ss));

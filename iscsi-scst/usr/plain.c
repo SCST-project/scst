@@ -475,7 +475,7 @@ static int __plain_target_create(u32 *tid, char *name, int update)
 		return err;
 
 	param_set_defaults(params, session_keys);
-	if ((err = ki->param_set(*tid, 0, key_session, 0, params, 1)) < 0)
+	if ((err = ki->param_set(*tid, 0, key_session, 0, params)) < 0)
 		return err;
 
 	if (update)
@@ -505,7 +505,7 @@ static int __plain_param_set(u32 tid, u64 sid, int type,
 {
 	int err;
 
-	if ((err = ki->param_set(tid, sid, type, partial, param, 1)) < 0)
+	if ((err = ki->param_set(tid, sid, type, partial, param)) < 0)
 		return err;
 
 	if (update)
@@ -531,7 +531,7 @@ static int iscsi_param_partial_set(u32 tid, u64 sid, int type, int key, u32 val)
 	else
 		param = target_param;
 
-	param[key].local_val = val;
+	param[key].val = val;
 
 	return __plain_param_set(tid, sid, type, 1 << key, param, 0);
 }

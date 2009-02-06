@@ -217,7 +217,7 @@ static void accept_connection(int listen)
 	namesize = sizeof(from);
 	if ((fd = accept(listen, (struct sockaddr *) &from, &namesize)) < 0) {
 		if (errno != EINTR && errno != EAGAIN) {
-			perror("accept(incoming_socket)\n");
+			perror("accept(incoming_socket) failed");
 			exit(1);
 		}
 		return;
@@ -578,7 +578,7 @@ int main(int argc, char **argv)
 	int max_data_seg_len = -1;
 
 	if (pipe(init_report_pipe) == -1) {
-		perror("pipe");
+		perror("pipe failed");
 		exit(-1);
 	}
 
@@ -600,16 +600,16 @@ int main(int argc, char **argv)
 			log_level = strtol(optarg, NULL, 0);
 			break;
 		case 'u':
-			uid = strtoul(optarg, NULL, 10);
+			uid = strtoul(optarg, NULL, 0);
 			break;
 		case 'g':
-			gid = strtoul(optarg, NULL, 10);
+			gid = strtoul(optarg, NULL, 0);
 			break;
 		case 'a':
 			server_address = strdup(optarg);
 			break;
 		case 'p':
-			server_port = (uint16_t)strtoul(optarg, NULL, 10);
+			server_port = (uint16_t)strtoul(optarg, NULL, 0);
 			break;
 		case 'v':
 			printf("%s version %s\n", program_name, ISCSI_VERSION_STRING);
@@ -625,7 +625,7 @@ int main(int argc, char **argv)
 	}
 
 	if ((nl_fd = nl_open()) < 0) {
-		perror("netlink fd\n");
+		perror("netlink open failed");
 		exit(-1);
 	};
 
@@ -635,7 +635,7 @@ int main(int argc, char **argv)
 	init_max_data_seg_len(max_data_seg_len);
 
 	if ((ipc_fd = iscsi_adm_request_listen()) < 0) {
-		perror("ipc fd\n");
+		perror("ipc failed\n");
 		exit(-1);
 	}
 
@@ -698,10 +698,10 @@ int main(int argc, char **argv)
 		exit(1);
 
 	if (gid && setgid(gid) < 0)
-		perror("setgid\n");
+		perror("setgid failed");
 
 	if (uid && setuid(uid) < 0)
-		perror("setuid\n");
+		perror("setuid failed");
 
 	event_loop(timeout);
 

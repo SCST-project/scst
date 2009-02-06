@@ -126,7 +126,7 @@ void text_key_add(struct connection *conn, char *key, char *value)
 	size_t data_sz;
 
 	data_sz = (conn->state == STATE_FULL) ?
-		conn->session_param[key_max_xmit_data_length].exec_val :
+		conn->session_param[key_max_xmit_data_length].val :
 		INCOMING_BUFSIZE;
 
 	seg = list_empty(&conn->rsp_buf_list) ? NULL :
@@ -178,7 +178,7 @@ void text_key_add(struct connection *conn, char *key, char *value)
 			break;
 		}
 
-		log_debug(1, "wrote: %s\n", seg->data + seg->len);
+		log_debug(2, "wrote: %s\n", seg->data + seg->len);
 
 		seg->len += sz;
 		len -= sz;
@@ -307,8 +307,7 @@ static void text_scan_login(struct connection *conn)
 				idx = key_max_xmit_data_length;
 
 			if (param_str_to_val(session_keys, idx, value, &val) < 0) {
-				if (conn->session_param[idx].state
-				    == KEY_STATE_START) {
+				if (conn->session_param[idx].state == KEY_STATE_START) {
 					text_key_add_reject(conn, key);
 					continue;
 				} else {
@@ -331,12 +330,12 @@ static void text_scan_login(struct connection *conn)
 				text_key_add(conn, key, buf);
 				break;
 			case KEY_STATE_REQUEST:
-				if (val != conn->session_param[idx].exec_val) {
+				if (val != conn->session_param[idx].val) {
 					rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
 					rsp->status_detail = ISCSI_STATUS_INIT_ERR;
 					conn->state = STATE_EXIT;
 					log_warning("%s %u %u\n", key,
-						val, conn->session_param[idx].exec_val);
+						val, conn->session_param[idx].val);
 					goto out;
 				}
 				break;
@@ -359,7 +358,7 @@ static int text_check_param(struct connection *conn)
 	int i, cnt;
 
 	for (i = 0, cnt = 0; session_keys[i].name; i++) {
-		if (p[i].state == KEY_STATE_START && p[i].exec_val != session_keys[i].rfc_def) {
+		if (p[i].state == KEY_STATE_START && p[i].val != session_keys[i].rfc_def) {
 			switch (conn->state) {
 			case STATE_LOGIN_FULL:
 			case STATE_SECURITY_FULL:
@@ -372,8 +371,7 @@ static int text_check_param(struct connection *conn)
 				if (iscsi_is_key_declarative(i))
 					continue;
 				memset(buf, 0, sizeof(buf));
-				param_val_to_str(session_keys, i, p[i].exec_val,
-						 buf);
+				param_val_to_str(session_keys, i, p[i].val, buf);
 				text_key_add(conn, session_keys[i].name, buf);
 				if (i == key_max_recv_data_length) {
 					p[i].state = KEY_STATE_DONE;
@@ -451,13 +449,11 @@ static void login_start(struct connection *conn)
 		}
 
 		if (ki->param_get(conn->tid, 0, key_session,
-				conn->session_param, 1))  {
+				conn->session_param))  {
 			rsp->status_class = ISCSI_STATUS_TARGET_ERROR;
 			rsp->status_detail = ISCSI_STATUS_SVC_UNAVAILABLE;
 			conn->state = STATE_EXIT;
 		}
-		conn->session_param[key_max_recv_data_length].exec_val =
-			conn->session_param[key_max_recv_data_length].local_val;
 	}
 	conn->exp_cmd_sn = be32_to_cpu(req->cmd_sn);
 	log_debug(1, "exp_cmd_sn: %d,%d", conn->exp_cmd_sn, req->cmd_sn);
@@ -468,10 +464,21 @@ static void login_finish(struct connection *conn)
 {
 	switch (conn->session_type) {
 	case SESSION_NORMAL:
+	{
+		int i;
+		for (i = 0; session_keys[i].name; i++) {
+			if (conn->session_param[i].state == KEY_STATE_START) {
+				log_debug(1, "Key %s was not negotiated, use RFC defined "
+					"default %d",  session_keys[i].name,
+					session_keys[i].rfc_def);
+				conn->session_param[i].val = session_keys[i].rfc_def;
+			}
+		}
 		if (!conn->session)
 			session_create(conn);
 		conn->sid = conn->session->sid;
 		break;
+	}
 	case SESSION_DISCOVERY:
 		/* set a dummy tsih value */
 		conn->sid.id.tsih = 1;

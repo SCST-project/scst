@@ -53,8 +53,8 @@ static void iscsi_adm_request_exec(struct iscsi_adm_req *req, struct iscsi_adm_r
 {
 	int err = 0;
 
-	log_debug(1, "%u %u %" PRIu64 " %u %u", req->rcmnd, req->tid,
-		  req->sid, req->cid, req->lun);
+	log_debug(1, "request %u, tid %u, sid 0x%" PRIx64 ", cid %u, lun %u",
+		req->rcmnd, req->tid, req->sid, req->cid, req->lun);
 
 	switch (req->rcmnd) {
 	case C_TRGT_NEW:
@@ -80,7 +80,7 @@ static void iscsi_adm_request_exec(struct iscsi_adm_req *req, struct iscsi_adm_r
 		break;
 	case C_TRGT_SHOW:
 		err = ki->param_get(req->tid, req->sid, key_target,
-				    req->u.trgt.target_param, 0);
+				    req->u.trgt.target_param);
 		break;
 
 	case C_SESS_NEW:
@@ -89,14 +89,13 @@ static void iscsi_adm_request_exec(struct iscsi_adm_req *req, struct iscsi_adm_r
 		break;
 	case C_SESS_SHOW:
 		err = ki->param_get(req->tid, req->sid, key_session,
-				    req->u.trgt.session_param, 0);
+				    req->u.trgt.session_param);
 		break;
 
 	case C_CONN_NEW:
 	case C_CONN_DEL:
 		conn_blocked = 1;
 		err = ki->conn_destroy(req->tid, req->sid, req->cid);
-		sleep(1);
 		conn_blocked = 0;
 		break;
 	case C_CONN_UPDATE:
@@ -133,14 +132,6 @@ static void iscsi_adm_request_exec(struct iscsi_adm_req *req, struct iscsi_adm_r
 		err = cops->account_query(req->tid, req->u.acnt.auth_dir,
 					  req->u.acnt.u.user.name,
 					  req->u.acnt.u.user.pass);
-		break;
-	case C_SYS_NEW:
-		break;
-	case C_SYS_DEL:
-		err = server_stop();
-		break;
-	case C_SYS_UPDATE:
-	case C_SYS_SHOW:
 		break;
 	default:
 		break;

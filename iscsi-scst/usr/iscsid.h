@@ -189,15 +189,21 @@ extern int log_daemon;
 extern int log_level;
 
 extern void log_init(void);
-extern void log_info(const char *fmt, ...)
-	__attribute__ ((format (printf, 1, 2)));
-extern void log_warning(const char *fmt, ...)
-	__attribute__ ((format (printf, 1, 2)));
-extern void log_error(const char *fmt, ...)
-	__attribute__ ((format (printf, 1, 2)));
-extern void log_debug(int level, const char *fmt, ...)
-	__attribute__ ((format (printf, 2, 3)));
-extern void log_pdu(int level, struct PDU *pdu);
+extern void __log_info(const char *func, int line, const char *fmt, ...)
+	__attribute__ ((format (printf, 3, 4)));
+extern void __log_warning(const char *func, int line, const char *fmt, ...)
+	__attribute__ ((format (printf, 3, 4)));
+extern void __log_error(const char *func, int line, const char *fmt, ...)
+	__attribute__ ((format (printf, 3, 4)));
+extern void __log_debug(const char *func, int line, int level, const char *fmt, ...)
+	__attribute__ ((format (printf, 4, 5)));
+extern void __log_pdu(const char *func, int line, int level, struct PDU *pdu);
+
+#define log_info(args...)	__log_info(__func__, __LINE__, ## args)
+#define log_warning(args...)	__log_warning(__func__, __LINE__, ## args)
+#define log_error(args...)	__log_error(__func__, __LINE__, ## args)
+#define log_debug(args...)	__log_debug(__func__, __LINE__, ## args)
+#define log_pdu(args...)	__log_pdu(__func__, __LINE__, ## args)
 
 /* session.c */
 extern struct session *session_find_name(u32 tid, const char *iname, union iscsi_sid sid);
@@ -220,8 +226,8 @@ extern int iscsi_adm_request_handle(int accept_fd);
 /* ctldev.c */
 struct iscsi_kernel_interface {
 	int (*ctldev_open) (int *);
-	int (*param_get) (u32, u64, int, struct iscsi_param *, int);
-	int (*param_set) (u32, u64, int, u32, struct iscsi_param *, int);
+	int (*param_get) (u32, u64, int, struct iscsi_param *);
+	int (*param_set) (u32, u64, int, u32, struct iscsi_param *);
 	int (*target_create) (u32 *, char *);
 	int (*target_destroy) (u32);
 	int (*session_create) (u32, u64, u32, char *, char *);
@@ -234,7 +240,6 @@ extern struct iscsi_kernel_interface *ki;
 
 /* the following functions should be killed */
 extern int session_conns_close(u32 tid, u64 sid);
-extern int server_stop(void);
 extern int target_destroy(u32 tid);
 
 /* event.c */

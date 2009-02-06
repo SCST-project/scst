@@ -95,9 +95,8 @@ iSCSI-SCST Target Administration Utility.\n\
                         If the session has no connections after\n\
                         the operation, the session will be deleted\n\
                         automatically.\n\
-  --op delete           stop all activity.\n\
   --op update --tid=[id] --params=key1=value1,key2=value2,...\n\
-                        change SCST iSCSI target parameters of specific\n\
+                        change iSCSI target parameters of specific\n\
                         target with [id]. You can use parameters in iscsi-scstd.conf\n\
                         as a key.\n\
   --op new --tid=[id] --user --params=[user]=[name],Password=[pass]\n\
@@ -147,8 +146,8 @@ static int iscsid_request_send(int fd, struct iscsi_adm_req *req)
 
 	if (ret != sizeof(*req)) {
 		err = (ret < 0) ? -errno : -EIO;
-		fprintf(stderr, "%s %d %d %d\n", __func__, __LINE__, ret,
-			err);
+		fprintf(stderr, "%s failed: written %d, to write %d, "
+			"error: %s\n", __func__, ret, err, strerror(err));
 	} else
 		err = 0;
 
@@ -173,8 +172,8 @@ static int iscsid_response_recv(int fd, struct iscsi_adm_req *req, void *rsp_dat
 
 	if (ret != sizeof(rsp) + sizeof(*req)) {
 		err = (ret < 0) ? -errno : -EIO;
-		fprintf(stderr, "%s %d %d %d\n", __func__, __LINE__, ret,
-			err);
+		fprintf(stderr, "readv failed: read %d instead of %d (%s)\n",
+			 ret, sizeof(rsp) + sizeof(*req), strerror(err));
 	} else
 		err = rsp.err;
 
@@ -182,8 +181,8 @@ static int iscsid_response_recv(int fd, struct iscsi_adm_req *req, void *rsp_dat
 		ret = read(fd, rsp_data, rsp_data_sz);
 		if (ret != rsp_data_sz) {
 			err = (ret < 0) ? -errno : -EIO;
-			fprintf(stderr,  "%s %d %d %d\n", __FUNCTION__,
-				__LINE__, ret, err);
+			fprintf(stderr, "read failed: read %d instead of %d (%s)\n",
+				 ret, rsp_data_sz, strerror(err));
 		}
 	}
 
@@ -196,16 +195,24 @@ static int iscsid_connect(void)
 	struct sockaddr_un addr;
 
 	fd = socket(AF_LOCAL, SOCK_STREAM, 0);
-	if (fd < 0)
-		return -errno;
+	if (fd < 0) {
+		perror("socket() failed");
+		fd = -errno;
+		goto out;
+	}
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_LOCAL;
 	memcpy((char *) &addr.sun_path + 1, ISCSI_ADM_NAMESPACE, strlen(ISCSI_ADM_NAMESPACE));
 
-	if (connect(fd, (struct sockaddr *) &addr, sizeof(addr)))
+	if (connect(fd, (struct sockaddr *) &addr, sizeof(addr))) {
 		fd = -errno;
+		fprintf(stderr, "Unable to connect to iscsid: %s\n",
+			strerror(-fd));
+		goto out;
+	}
 
+out:
 	return fd;
 }
 
@@ -216,20 +223,24 @@ static int iscsid_request(struct iscsi_adm_req *req, void *rsp_data,
 
 	if ((fd = iscsid_connect()) < 0) {
 		err = fd;
-		goto out;
+		goto out_close;
 	}
 
 	if ((err = iscsid_request_send(fd, req)) < 0)
-		goto out;
+		goto out_report;
 
 	err = iscsid_response_recv(fd, req, rsp_data, rsp_data_sz);
 
-out:
+out_report:
+	if (err < 0) {
+		if (err == -ENOENT)
+			err = -EINVAL;
+		fprintf(stderr, "Request to iscsid failed: %s\n", strerror(-err));
+	}
+
+out_close:
 	if (fd > 0)
 		close(fd);
-
-	if (err < 0)
-		fprintf(stderr, "%s.\n", strerror(-err));
 
 	return err;
 }
@@ -253,7 +264,7 @@ static void show_iscsi_param(int type, struct iscsi_param *param)
 		strcpy(buf, keys[i].name);
 		p = buf + strlen(buf);
 		*p++ = '=';
-		param_val_to_str(keys, i, param[i].local_val, p);
+		param_val_to_str(keys, i, param[i].val, p);
 		printf("%s\n", buf);
 	}
 }
@@ -280,7 +291,7 @@ static int parse_trgt_params(struct msg_trgt *msg, char *params)
 			}
 			if (!param_check_val(target_keys, idx, &val))
 				msg->target_partial |= (1 << idx);
-			msg->target_param[idx].local_val = val;
+			msg->target_param[idx].val = val;
 			msg->type |= 1 << key_target;
 
 			continue;
@@ -295,7 +306,7 @@ static int parse_trgt_params(struct msg_trgt *msg, char *params)
 			}
 			if (!param_check_val(session_keys, idx, &val))
 				msg->session_partial |= (1 << idx);
-			msg->session_param[idx].local_val = val;
+			msg->session_param[idx].val = val;
 			msg->type |= 1 << key_session;
 
 			continue;
@@ -323,11 +334,17 @@ static int trgt_handle(int op, u32 set, u32 tid, char *params)
 	{
 		char *p = params;
 
-		if (!params || !(p = strchr(params, '=')))
+		if (!params || !(p = strchr(params, '='))) {
+			fprintf(stderr, "Target name required\n");
+			err = -EINVAL;
 			goto out;
+		}
 		*p++ = '\0';
-		if (strcmp(params, "Name"))
+		if (strcmp(params, "Name")) {
+			fprintf(stderr, "Target name required\n");
+			err = -EINVAL;
 			goto out;
+		}
 		req.rcmnd = C_TRGT_NEW;
 		strncpy(req.u.trgt.name, p, sizeof(req.u.trgt.name) - 1);
 		break;
@@ -622,30 +639,6 @@ out:
 	return err;
 }
 
-static int sys_handle(int op, u32 set, char *params)
-{
-	int err = -EINVAL;
-	struct iscsi_adm_req req;
-
-	memset(&req, 0, sizeof(req));
-
-	switch (op) {
-	case OP_NEW:
-		break;
-	case OP_DELETE:
-		req.rcmnd = C_SYS_DEL;
-		break;
-	case OP_UPDATE:
-		break;
-	case OP_SHOW:
-		break;
-	}
-
-	err = iscsid_request(&req, NULL, 0);
-
-	return err;
-}
-
 int main(int argc, char **argv)
 {
 	int ch, longindex;
@@ -661,15 +654,15 @@ int main(int argc, char **argv)
 			op = str_to_op(optarg);
 			break;
 		case 't':
-			tid = strtoul(optarg, NULL, 10);
+			tid = strtoul(optarg, NULL, 0);
 			set |= SET_TARGET;
 			break;
 		case 's':
-			sid = strtoull(optarg, NULL, 10);
+			sid = strtoull(optarg, NULL, 0);
 			set |= SET_SESSION;
 			break;
 		case 'c':
-			cid = strtoul(optarg, NULL, 10);
+			cid = strtoul(optarg, NULL, 0);
 			set |= SET_CONNECTION;
 			break;
 		case 'p':
@@ -711,8 +704,6 @@ int main(int argc, char **argv)
 		err = sess_handle(op, set, tid, sid, params);
 	else if (set & SET_TARGET)
 		err = trgt_handle(op, set, tid, params);
-	else if (!set)
-		err = sys_handle(op, set, params);
 	else
 		usage(-1);
 

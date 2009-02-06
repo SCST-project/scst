@@ -32,7 +32,7 @@ void log_init(void)
 		openlog("iscsi-scstd", 0, LOG_DAEMON);
 }
 
-static void dolog(int prio, const char *fmt, va_list ap)
+static void dolog_nofunc(int prio, const char *fmt, va_list ap)
 {
 	if (log_daemon) {
 		int len = strlen(fmt);
@@ -53,41 +53,67 @@ static void dolog(int prio, const char *fmt, va_list ap)
 	}
 }
 
-void log_info(const char *fmt, ...)
+static void dolog(int prio, const char *func, int line, const char *fmt, va_list ap)
+{
+	if (log_level == 0) {
+		dolog_nofunc(prio, fmt, ap);
+		return;
+	}
+
+	if (log_daemon) {
+		int len = strlen(func) + strlen(fmt);
+		char f[len+1+1];
+		if (fmt[len] != '\n')
+			sprintf(f, "%s:%d: %s\n", func, line, fmt);
+		else
+			sprintf(f, "%s:%d: %s", func, line, fmt);
+		vsyslog(prio, f, ap);
+	} else {
+		struct timeval time;
+
+		gettimeofday(&time, NULL);
+		fprintf(stderr, "%ld.%06ld: %s:%d: ", time.tv_sec, time.tv_usec, func, line);
+		vfprintf(stderr, fmt, ap);
+		fprintf(stderr, "\n");
+		fflush(stderr);
+	}
+}
+
+void __log_info(const char *func, int line, const char *fmt, ...)
 {
 	va_list ap;
 	va_start(ap, fmt);
-	dolog(LOG_INFO, fmt, ap);
+	dolog(LOG_INFO, func, line, fmt, ap);
 	va_end(ap);
 }
 
-void log_warning(const char *fmt, ...)
+void __log_warning(const char *func, int line, const char *fmt, ...)
 {
 	va_list ap;
 	va_start(ap, fmt);
-	dolog(LOG_WARNING, fmt, ap);
+	dolog(LOG_WARNING, func, line, fmt, ap);
 	va_end(ap);
 }
 
-void log_error(const char *fmt, ...)
+void __log_error(const char *func, int line, const char *fmt, ...)
 {
 	va_list ap;
 	va_start(ap, fmt);
-	dolog(LOG_ERR, fmt, ap);
+	dolog(LOG_ERR, func, line, fmt, ap);
 	va_end(ap);
 }
 
-void log_debug(int level, const char *fmt, ...)
+void __log_debug(const char *func, int line, int level, const char *fmt, ...)
 {
 	if (log_level > level) {
 		va_list ap;
 		va_start(ap, fmt);
-		dolog(LOG_DEBUG, fmt, ap);
+		dolog(LOG_DEBUG, func, line, fmt, ap);
 		va_end(ap);
 	}
 }
 
-/* Definition for log_pdu buffer */
+/* Definition for __log_pdu buffer */
 #define BUFFER_SIZE 16
 
 /*
@@ -96,7 +122,7 @@ void log_debug(int level, const char *fmt, ...)
  */
 #define LINE_SIZE (BUFFER_SIZE * 3 + BUFFER_SIZE / 4 * 2 + 1)
 
-static void __dump_line(int level, unsigned char *buf, int *cp)
+static void __dump_line(const char *func, int line_num, int level, unsigned char *buf, int *cp)
 {
 	char line[LINE_SIZE], *lp = line;
 	int i, cnt;
@@ -116,23 +142,23 @@ static void __dump_line(int level, unsigned char *buf, int *cp)
 	}
 
 	/* buf is not \0-terminated! */
-	log_debug(level, "%s %.*s |", line, BUFFER_SIZE, buf);
+	__log_debug(func, line_num, level, "%s %.*s |", line, BUFFER_SIZE, buf);
 	*cp = 0;
 }
 
-static void __dump_char(int level, unsigned char *buf, int *cp, int ch)
+static void __dump_char(const char *func, int line, int level, unsigned char *buf, int *cp, int ch)
 {
 	int cnt = (*cp)++;
 
 	buf[cnt] = ch;
 	if (cnt == BUFFER_SIZE - 1)
-		__dump_line(level, buf, cp);
+		__dump_line(func, line, level, buf, cp);
 }
 
-#define dump_line() __dump_line(level, char_buf, &char_cnt)
-#define dump_char(ch) __dump_char(level, char_buf, &char_cnt, ch)
+#define dump_line() __dump_line(func, line, level, char_buf, &char_cnt)
+#define dump_char(ch) __dump_char(func, line, level, char_buf, &char_cnt, ch)
 
-void log_pdu(int level, struct PDU *pdu)
+void __log_pdu(const char *func, int line, int level, struct PDU *pdu)
 {
 	unsigned char char_buf[BUFFER_SIZE];
 	int char_cnt = 0;
@@ -143,19 +169,19 @@ void log_pdu(int level, struct PDU *pdu)
 		return;
 
 	buf = (void *)&pdu->bhs;
-	log_debug(level, "BHS: (%p)", buf);
+	__log_debug(func, line, level, "BHS: (%p)", buf);
 	for (i = 0; i < BHS_SIZE; i++)
 		dump_char(*buf++);
 	dump_line();
 
 	buf = (void *)pdu->ahs;
-	log_debug(level, "AHS: (%p)", buf);
+	__log_debug(func, line, level, "AHS: (%p)", buf);
 	for (i = 0; i < pdu->ahssize; i++)
 		dump_char(*buf++);
 	dump_line();
 
 	buf = (void *)pdu->data;
-	log_debug(level, "Data: (%p)", buf);
+	__log_debug(func, line, level, "Data: (%p)", buf);
 	for (i = 0; i < pdu->datasize; i++)
 		dump_char(*buf++);
 	dump_line();
