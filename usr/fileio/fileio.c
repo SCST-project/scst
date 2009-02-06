@@ -171,8 +171,7 @@ void sigalrm_handler(int signo)
 	res = ioctl(dev.scst_usr_fd, SCST_USER_FLUSH_CACHE, NULL);
 	if (res != 0) {
 		res = errno;
-		PRINT_ERROR("Unable to flush cache: %s",
-			strerror(res));
+		PRINT_ERROR("Unable to flush cache: %s", strerror(res));
 		goto out;
 	}
 

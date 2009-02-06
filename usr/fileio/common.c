@@ -910,7 +910,7 @@ uint64_t gen_dev_id_num(const struct vdisk_dev *dev)
 {
 	unsigned int dev_id_num, i;
 
-	for (dev_id_num = 0, i = 0; i < (int)strlen(dev->name); i++) {
+	for (dev_id_num = 0, i = 0; i < strlen(dev->name); i++) {
 		unsigned int rv = random_values[(int)(dev->name[i])];
 		/* do some rotating of the bits */
 		dev_id_num ^= ((rv << i) | (rv >> (32 - i)));
