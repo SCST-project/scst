@@ -1506,7 +1506,7 @@ struct scst_tgt_dev {
 
 	/*
 	 * Set if the prev cmd was ORDERED. Size must allow unprotected
-	 * modifications independant to the neighbour fields. 
+	 * modifications independant to the neighbour fields.
 	 */
 	unsigned long prev_cmd_ordered;
 

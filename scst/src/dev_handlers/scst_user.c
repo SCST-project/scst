@@ -2332,9 +2332,9 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 	 * memory for SCST local commands, like REPORT LUNS, where there is no
 	 * corresponding ucmd. Otherwise we will crash in dev_user_alloc_sg().
 	 */
- 	if (test_bit(SCST_TGT_DEV_CLUST_POOL, &tgt_dev->tgt_dev_flags))
+	if (test_bit(SCST_TGT_DEV_CLUST_POOL, &tgt_dev->tgt_dev_flags))
 		tgt_dev->dh_priv = dev->pool_clust;
- 	else
+	else
 		tgt_dev->dh_priv = dev->pool;
 
 	ucmd = dev_user_alloc_ucmd(dev, GFP_KERNEL);

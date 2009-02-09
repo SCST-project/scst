@@ -39,7 +39,7 @@ static struct scst_sgv_pools_manager sgv_pools_mgr;
 
 static inline bool sgv_pool_clustered(const struct sgv_pool *pool)
 {
-	return (pool->clustering_type != sgv_no_clustering);
+	return pool->clustering_type != sgv_no_clustering;
 }
 
 void scst_sgv_pool_use_norm(struct scst_tgt_dev *tgt_dev)
@@ -996,7 +996,7 @@ int sgv_pool_init(struct sgv_pool *pool, const char *name,
 			size = sizeof(*obj) + (1 << i) *
 				(sizeof(obj->sg_entries[0]) +
 				 ((clustering_type != sgv_no_clustering) ?
-				 	sizeof(obj->trans_tbl[0]) : 0));
+					sizeof(obj->trans_tbl[0]) : 0));
 		} else if (i <= sgv_pools_mgr.sgv_max_trans_order) {
 			/*
 			 * sgv ie sg_entries is allocated outside object, but
