@@ -1,18 +1,18 @@
-/* $Id: ispreg.h,v 1.28 2008/02/11 23:59:06 mjacob Exp $ */
+/* $Id: ispreg.h,v 1.30 2009/01/24 17:55:53 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
- *
+ * 
  *  Redistribution and use in source and binary forms, with or without
  *  modification, are permitted provided that the following conditions
  *  are met:
- *
+ * 
  *  1. Redistributions of source code must retain the above copyright
  *     notice, this list of conditions and the following disclaimer.
  *  2. Redistributions in binary form must reproduce the above copyright
  *     notice, this list of conditions and the following disclaimer in the
  *     documentation and/or other materials provided with the distribution.
- *
+ * 
  *  THIS SOFTWARE IS PROVIDED BY AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  *  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -24,32 +24,32 @@
  *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  *  OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  *  SUCH DAMAGE.
- *
- *
+ * 
+ * 
  *  Alternatively, this software may be distributed under the terms of the
  *  the GNU Public License ("GPL") with platforms where the prevalant license
  *  is the GNU Public License:
- *
+ * 
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of The Version 2 GNU General Public License as published
  *   by the Free Software Foundation.
- *
+ * 
  *   This program is distributed in the hope that it will be useful,
  *   but WITHOUT ANY WARRANTY; without even the implied warranty of
  *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *   GNU General Public License for more details.
- *
+ *  
  *   You should have received a copy of the GNU General Public License
  *   along with this program; if not, write to the Free Software
  *   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
- *
- *
+ * 
+ * 
  *  Matthew Jacob
  *  Feral Software
  *  421 Laurel Avenue
  *  Menlo Park, CA 94025
  *  USA
- *
+ * 
  *  gplbsd at feral com
  */
 /*
@@ -374,7 +374,7 @@
 
 /*
  * 2400 Interface Offsets and Register Definitions
- *
+ * 
  * The 2400 looks quite different in terms of registers from other QLogic cards.
  * It is getting to be a genuine pain and challenge to keep the same model
  * for all.
@@ -476,7 +476,7 @@
 #define	OUTMAILBOX7	(MBOX_BLOCK+0xE)
 
 /*
- * Strictly speaking, it's
+ * Strictly speaking, it's 
  *  SCSI && 2100 : 8 MBOX registers
  *  2200: 24 MBOX registers
  *  2300/2400: 32 MBOX registers
@@ -497,10 +497,21 @@ typedef struct {
 	uint16_t param[MAILBOX_STORAGE];
 	uint16_t ibits;
 	uint16_t obits;
-	uint32_t	: 28,
+	uint32_t
+		lineno	: 16,
+			: 12,
 		logval	: 4;
 	uint32_t timeout;
+	const char *func;
 } mbreg_t;
+#define	MBSINIT(mbxp, code, loglev, timo)	\
+	ISP_MEMZERO((mbxp), sizeof (mbreg_t));	\
+	(mbxp)->param[0] = code;		\
+	(mbxp)->lineno = __LINE__;		\
+	(mbxp)->func = __func__;		\
+	(mbxp)->logval = loglev;		\
+	(mbxp)->timeout = timo
+
 
 /*
  * Fibre Protocol Module and Frame Buffer Register Offsets/Definitions (2X00).

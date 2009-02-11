@@ -1,4 +1,4 @@
-/* $Id: isp_linux.h,v 1.164 2008/08/20 15:50:56 mjacob Exp $ */
+/* $Id: isp_linux.h,v 1.168 2009/01/24 17:55:55 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -245,7 +245,7 @@ typedef uint8_t isp_bmap_t;
 #define N_NOTIFIES          256
 #define DEFAULT_INQSIZE     32
 
-typedef struct isp_notify isp_notify_t;
+typedef struct notify notify_t;
 
 #define cd_action   cd_lreserved[0].shorts[0]
 #define cd_oxid     cd_lreserved[0].shorts[1]
@@ -327,8 +327,8 @@ struct isposinfo {
     u16                 wqhiwater;
     u16                 hiwater;
     struct timer_list   timer;
-    struct timer_list   mbtimer;
     struct semaphore    mbox_sem;
+    wait_queue_head_t   mboxwq;
     struct semaphore    mbox_c_sem;
     spinlock_t          slock;
     unsigned volatile int
@@ -338,7 +338,6 @@ struct isposinfo {
                         : 1,
         dogactive       : 1,
         mboxcmd_done    : 1,
-        mbox_waiting    : 1,
         mbintsok        : 1,
         intsok          : 1;
     u16                 frame_size;
@@ -362,9 +361,9 @@ struct isposinfo {
     struct tmd_cmd *        tfreelist;  /* freelist head */
     struct tmd_cmd *        bfreelist;  /* freelist tail */
     struct tmd_cmd *        pool;       /* pool itself */
-    isp_notify_t *          pending_n;  /* pending list of notifies going upstream */
-    isp_notify_t *          nfreelist;  /* freelist */
-    isp_notify_t *          npool;      /* pool itself */
+    notify_t *              pending_n;  /* pending list of notifies going upstream */
+    notify_t *              nfreelist;  /* freelist */
+    notify_t *              npool;      /* pool itself */
     struct tmd_xact *       pending_x;  /* pending list of xacts going upstream */
     /*
      * When we have inquiry commands that we have to xfer data with
@@ -382,8 +381,6 @@ struct isposinfo {
 };
 #define mbtimer         isp_osinfo.mbtimer
 #define dogactive       isp_osinfo.dogactive
-#define mbox_sem        isp_osinfo.mbox_sem
-#define mbox_c_sem      isp_osinfo.mbox_c_sem
 #define mbintsok        isp_osinfo.mbintsok
 #define intsok          isp_osinfo.intsok
 #define mbox_waiting    isp_osinfo.mbox_waiting
@@ -410,9 +407,7 @@ struct isposinfo {
 #define ISP_DRIVER_CTL_ENTRY_LOCK(isp)  do { } while (0)
 #define ISP_DRIVER_CTL_EXIT_LOCK(isp)   do { } while (0)
 
-#define ISP_ATOMIC in_atomic
-
-#define ISP_MUST_POLL(isp)          (ISP_ATOMIC() || isp->mbintsok == 0)
+#define ISP_MUST_POLL(isp)          (in_interrupt() || isp->mbintsok == 0)
 
 /*
  * Required Macros/Defines
@@ -424,11 +419,11 @@ struct isposinfo {
 
 #define ISP_FC_SCRLEN   0x1000
 
-#define MEMZERO(b, a)   memset(b, 0, a)
-#define MEMCPY          memcpy
-#define SNPRINTF        snprintf
-#define USEC_DELAY      _isp_usec_delay
-#define USEC_SLEEP(isp, x)                              \
+#define ISP_MEMZERO(b, a)   memset(b, 0, a)
+#define ISP_MEMCPY          memcpy
+#define ISP_SNPRINTF        snprintf
+#define ISP_DELAY           _isp_usec_delay
+#define ISP_SLEEP(isp, x)                               \
         ISP_DROP_LK_SOFTC(isp);                         \
         __set_current_state(TASK_UNINTERRUPTIBLE);      \
         (void) schedule_timeout(_usec_to_jiffies(x));   \
@@ -452,15 +447,12 @@ struct isposinfo {
 #  endif
 #endif
 
-#define MBOX_ACQUIRE(isp)   down_trylock(&isp->mbox_sem)
+#define MBOX_ACQUIRE(isp)   down_trylock(&isp->isp_osinfo.mbox_sem)
 #define MBOX_WAIT_COMPLETE  mbox_wait_complete
-#define MBOX_NOTIFY_COMPLETE(isp)   \
-    if (isp->mbox_waiting) {        \
-        isp->mbox_waiting = 0;      \
-        up(&isp->mbox_c_sem);       \
-    }                               \
+#define MBOX_NOTIFY_COMPLETE(isp)       \
+    wake_up(&isp->isp_osinfo.mboxwq);   \
     isp->mboxcmd_done = 1
-#define MBOX_RELEASE(isp)   up(&isp->mbox_sem)
+#define MBOX_RELEASE(isp)   up(&isp->isp_osinfo.mbox_sem)
 
 #define FC_SCRATCH_ACQUIRE              fc_scratch_acquire
 #define FC_SCRATCH_RELEASE(isp, chan)   ISP_DATA(isp, chan)->scratch_busy = 0
@@ -540,7 +532,7 @@ struct isposinfo {
 
 #define XS_INITERR(xs)  (xs)->result = 0, (xs)->SCp.Status = 0
 
-#define XS_SAVE_SENSE(Cmnd, s, l)   MEMCPY(XS_SNSP(Cmnd), s, min(XS_SNSLEN(Cmnd), l))
+#define XS_SAVE_SENSE(Cmnd, s, l)   memcpy(XS_SNSP(Cmnd), s, min(XS_SNSLEN(Cmnd), l))
 
 #define XS_SET_STATE_STAT(a, b, c)
 
@@ -617,14 +609,12 @@ typedef struct {
     uint64_t def_wwpn;
     uint32_t
         tgts_tested             :   16,
-                                :   10,
-        fcrswdog                :   1,
-                                :   1,
+                                :   11,
         scratch_busy            :   1,
         blocked                 :   1,
         deadloop                :   1,
         role                    :   2;
-    unsigned long downcount;
+    unsigned long downcount, nextscan;
     unsigned int qfdelay;
 } isp_data;
 
@@ -818,7 +808,7 @@ static inline void
 mbox_wait_complete(ispsoftc_t *isp, mbreg_t *mbp)
 {
     uint32_t lim = mbp->timeout;
-    unsigned long long tt = jiffies;
+    unsigned long long et, tt = jiffies;
 
     if (lim == 0) {
         lim = MBCMD_DEFAULT_TIMEOUT;
@@ -843,7 +833,13 @@ mbox_wait_complete(ispsoftc_t *isp, mbreg_t *mbp)
                     break;
                 }
             }
+            ISP_ENABLE_INTS(isp);
+            ISP_DROP_LK_SOFTC(isp);
             udelay(100);
+            ISP_IGET_LK_SOFTC(isp);
+            if (isp->mboxcmd_done) {
+                break;
+            }
         }
         if (isp->mboxcmd_done == 0) {
             isp_prt(isp, ISP_LOGWARN, "Polled Mailbox Command (0x%x) Timeout (%llu elapsed jiffies)", isp->isp_lastmbxcmd, ((unsigned long long) jiffies) - tt);
@@ -851,26 +847,16 @@ mbox_wait_complete(ispsoftc_t *isp, mbreg_t *mbp)
         }
     } else {
         isp_prt(isp, ISP_LOGDEBUG1, "Start Interrupting Mailbox Command (%x)", isp->isp_lastmbxcmd);
-        init_timer(&isp->mbtimer);
-        isp->mbtimer.data = (unsigned long) isp;
-        isp->mbtimer.function = isplinux_mbtimer;
-        isp->mbtimer.expires = tt;
-        isp->mbtimer.expires += ((lim/1000000) * HZ);
-        isp->mbtimer.expires += ((lim%1000000) / HZ);
-        add_timer(&isp->mbtimer);
-        isp->mbox_waiting = 1;
         ISP_ENABLE_INTS(isp);
         ISP_DROP_LK_SOFTC(isp);
-        down(&isp->mbox_c_sem);
+        et = wait_event_timeout(isp->isp_osinfo.mboxwq, isp->mboxcmd_done, usecs_to_jiffies(lim));
         ISP_IGET_LK_SOFTC(isp);
-        isp->mbox_waiting = 0;
-        del_timer(&isp->mbtimer);
-        if (isp->mboxcmd_done == 0) {
+        if (et == 0) {
             isp_prt(isp, ISP_LOGWARN, "Interrupting Mailbox Command (0x%x) Timeout (elapsed time %llu jiffies)", isp->isp_lastmbxcmd,
                 ((unsigned long long) jiffies) - tt);
             mbp->param[0] = MBOX_TIMEOUT;
         } else {
-            isp_prt(isp, ISP_LOGDEBUG1, "Interrupting Mailbox Command (0x%x) done (%llu jiffies)", isp->isp_lastmbxcmd, ((unsigned long long) jiffies) - tt);
+            isp_prt(isp, ISP_LOGDEBUG1, "Interrupting Mailbox Command (0x%x) done (%llu jiffies)", isp->isp_lastmbxcmd, et);
         }
     }
 }
@@ -919,7 +905,7 @@ isp_kzalloc(size_t size, int flags)
 {
     void *ptr = isp_kalloc(size, flags);
     if (ptr != NULL){
-        MEMZERO(ptr, size);
+        memset(ptr, 0, size);
     }
     return (ptr);
 }
@@ -945,8 +931,8 @@ int isp_target_notify(ispsoftc_t *, void *, uint32_t *);
 int isp_enable_lun(ispsoftc_t *, uint16_t, uint16_t);
 int isp_disable_lun(ispsoftc_t *,  uint16_t, uint16_t);
 
-struct isp_notify {
-    tmd_notify_t    notify;
+struct notify {
+    isp_notify_t    notify;
     uint8_t         qentry[QENTRY_LEN]; /* original immediate notify entry */
     uint8_t         qevalid;
 };

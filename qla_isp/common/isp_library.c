@@ -1,4 +1,4 @@
-/* $Id: isp_library.c,v 1.51 2008/03/10 18:03:08 mjacob Exp $ */
+/* $Id: isp_library.c,v 1.55 2009/02/01 23:49:49 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -164,7 +164,7 @@ isp_getrqentry(ispsoftc_t *isp, uint32_t *iptrp,
 
 #define	TBA	(4 * (((QENTRY_LEN >> 2) * 3) + 1) + 1)
 void
-isp_print_qentry(ispsoftc_t *isp, char *msg, int idx, void *arg)
+isp_print_qentry(ispsoftc_t *isp, const char *msg, int idx, void *arg)
 {
 	char buf[TBA];
 	int amt, i, j;
@@ -173,9 +173,9 @@ isp_print_qentry(ispsoftc_t *isp, char *msg, int idx, void *arg)
 	isp_prt(isp, ISP_LOGALL, "%s index %d=>", msg, idx);
 	for (buf[0] = 0, amt = i = 0; i < 4; i++) {
 		buf[0] = 0;
-		SNPRINTF(buf, TBA, "  ");
+		ISP_SNPRINTF(buf, TBA, "  ");
 		for (j = 0; j < (QENTRY_LEN >> 2); j++) {
-			SNPRINTF(buf, TBA, "%s %02x", buf, ptr[amt++] & 0xff);
+			ISP_SNPRINTF(buf, TBA, "%s %02x", buf, ptr[amt++] & 0xff);
 		}
 		isp_prt(isp, ISP_LOGALL, buf);
 	}
@@ -196,7 +196,7 @@ isp_print_bytes(ispsoftc_t *isp, const char *msg, int amt, void *arg)
 		int j, to;
 		to = off;
 		for (j = 0; j < 16; j++) {
-			SNPRINTF(buf, 128, "%s %02x", buf, ptr[off++] & 0xff);
+			ISP_SNPRINTF(buf, 128, "%s %02x", buf, ptr[off++] & 0xff);
 			if (off == amt)
 				break;
 		}
@@ -296,14 +296,13 @@ isp_dump_portdb(ispsoftc_t *isp, int chan)
 		};
 		fcportdb_t *lp = &fcp->portdb[i];
 
-		if (lp->state == FC_PORTDB_STATE_NIL) {
+		if (lp->state == FC_PORTDB_STATE_NIL && lp->target_mode == 0) {
 			continue;
 		}
-		if (lp->ini_map_idx) {
-			SNPRINTF(mb, sizeof (mb), "%3d",
-			    ((int) lp->ini_map_idx) - 1);
+		if (lp->dev_map_idx) {
+			ISP_SNPRINTF(mb, sizeof (mb), "%3d", ((int) lp->dev_map_idx) - 1);
 		} else {
-			SNPRINTF(mb, sizeof (mb), "---");
+			ISP_SNPRINTF(mb, sizeof (mb), "---");
 		}
 		isp_prt(isp, ISP_LOGALL, "Chan %d [%d]: hdl 0x%x %s al%d tgt %s"
 		    " %s 0x%06x =>%s 0x%06x; WWNN 0x%08x%08x WWPN 0x%08x%08x",
@@ -1246,7 +1245,7 @@ isp_get_ridacq(ispsoftc_t *isp, isp_ridacq_t *src, isp_ridacq_t *dst)
 		ISP_IOXGET_8(isp, &src->un.type1.ridacq_vp_status,
 		    dst->un.type1.ridacq_vp_status);
 	} else {
-		MEMZERO(&dst->un, sizeof (dst->un));
+		ISP_MEMZERO(&dst->un, sizeof (dst->un));
 	}
 }
 
@@ -1392,7 +1391,6 @@ isp_put_sns_request(ispsoftc_t *isp, sns_screq_t *src, sns_screq_t *dst)
 	for (i = 0; i < nw; i++) {
 		ISP_IOXPUT_16(isp, src->snscb_data[i], &dst->snscb_data[i]);
 	}
-
 }
 
 void
@@ -1632,13 +1630,14 @@ isp_get_fc_hdr(ispsoftc_t *isp, fc_hdr_t *src, fc_hdr_t *dst)
         ISP_IOZGET_8(isp, &src->s_id[1], dst->s_id[1]);
         ISP_IOZGET_8(isp, &src->s_id[2], dst->s_id[2]);
         ISP_IOZGET_8(isp, &src->type, dst->type);
-        ISP_IOZGET_8(isp, &src->f_ctl, dst->f_ctl);
+        ISP_IOZGET_8(isp, &src->f_ctl[0], dst->f_ctl[0]);
+        ISP_IOZGET_8(isp, &src->f_ctl[1], dst->f_ctl[1]);
+        ISP_IOZGET_8(isp, &src->f_ctl[2], dst->f_ctl[2]);
         ISP_IOZGET_8(isp, &src->seq_id, dst->seq_id);
         ISP_IOZGET_8(isp, &src->df_ctl, dst->df_ctl);
         ISP_IOZGET_16(isp, &src->seq_cnt, dst->seq_cnt);
-        ISP_IOZGET_32(isp, &src->ox_id, dst->parameter);
-        dst->ox_id = dst->parameter;
-        dst->rx_id = dst->parameter >> 16;
+        ISP_IOZGET_16(isp, &src->ox_id, dst->ox_id);
+        ISP_IOZGET_16(isp, &src->rx_id, dst->rx_id);
         ISP_IOZGET_32(isp, &src->parameter, dst->parameter);
 }
 
@@ -2233,7 +2232,7 @@ isp_put_ctio7(ispsoftc_t *isp, ct7_entry_t *src, ct7_entry_t *dst)
 	ISP_IOXPUT_16(isp, src->ct_nphdl, &dst->ct_nphdl);
 	ISP_IOXPUT_16(isp, src->ct_timeout, &dst->ct_timeout);
 	ISP_IOXPUT_16(isp, src->ct_seg_count, &dst->ct_seg_count);
-	ISP_IOXPUT_8(isp, src->ct_vpindex, &dst->ct_vpindex);
+	ISP_IOXPUT_8(isp, src->ct_vpidx, &dst->ct_vpidx);
 	ISP_IOXPUT_8(isp, src->ct_xflags, &dst->ct_xflags);
 	ISP_IOXPUT_16(isp, src->ct_iid_lo, &dst->ct_iid_lo);
 	ISP_IOXPUT_8(isp, src->ct_iid_hi, &dst->ct_iid_hi);
@@ -2465,7 +2464,7 @@ isp_get_ctio7(ispsoftc_t *isp, ct7_entry_t *src, ct7_entry_t *dst)
 	ISP_IOXGET_16(isp, &src->ct_nphdl, dst->ct_nphdl);
 	ISP_IOXGET_16(isp, &src->ct_timeout, dst->ct_timeout);
 	ISP_IOXGET_16(isp, &src->ct_seg_count, dst->ct_seg_count);
-	ISP_IOXGET_8(isp, &src->ct_vpindex, dst->ct_vpindex);
+	ISP_IOXGET_8(isp, &src->ct_vpidx, dst->ct_vpidx);
 	ISP_IOXGET_8(isp, &src->ct_xflags, dst->ct_xflags);
 	ISP_IOXGET_16(isp, &src->ct_iid_lo, dst->ct_iid_lo);
 	ISP_IOXGET_8(isp, &src->ct_iid_hi, dst->ct_iid_hi);
@@ -2732,7 +2731,7 @@ isp_put_notify_24xx(ispsoftc_t *isp, in_fcentry_24xx_t *src,
 		ISP_IOXPUT_8(isp, src->in_reserved4[i], &dst->in_reserved4[i]);
 	}
 	ISP_IOXPUT_8(isp, src->in_reserved5, &dst->in_reserved5);
-	ISP_IOXPUT_8(isp, src->in_vpindex, &dst->in_vpindex);
+	ISP_IOXPUT_8(isp, src->in_vpidx, &dst->in_vpidx);
 	ISP_IOXPUT_32(isp, src->in_reserved6, &dst->in_reserved6);
 	ISP_IOXPUT_16(isp, src->in_portid_lo, &dst->in_portid_lo);
 	ISP_IOXPUT_8(isp, src->in_portid_hi, &dst->in_portid_hi);
@@ -2798,7 +2797,7 @@ isp_get_notify_24xx(ispsoftc_t *isp, in_fcentry_24xx_t *src,
 		ISP_IOXGET_8(isp, &src->in_reserved4[i], dst->in_reserved4[i]);
 	}
 	ISP_IOXGET_8(isp, &src->in_reserved5, dst->in_reserved5);
-	ISP_IOXGET_8(isp, &src->in_vpindex, dst->in_vpindex);
+	ISP_IOXGET_8(isp, &src->in_vpidx, dst->in_vpidx);
 	ISP_IOXGET_32(isp, &src->in_reserved6, dst->in_reserved6);
 	ISP_IOXGET_16(isp, &src->in_portid_lo, dst->in_portid_lo);
 	ISP_IOXGET_8(isp, &src->in_portid_hi, dst->in_portid_hi);
@@ -2920,7 +2919,7 @@ isp_put_notify_24xx_ack(ispsoftc_t *isp, na_fcentry_24xx_t *src,
 		ISP_IOXPUT_8(isp, src->na_reserved3[i], &dst->na_reserved3[i]);
 	}
 	ISP_IOXPUT_8(isp, src->na_reserved4, &dst->na_reserved4);
-	ISP_IOXPUT_8(isp, src->na_vpindex, &dst->na_vpindex);
+	ISP_IOXPUT_8(isp, src->na_vpidx, &dst->na_vpidx);
 	ISP_IOXPUT_8(isp, src->na_srr_reject_vunique,
 	    &dst->na_srr_reject_vunique);
 	ISP_IOXPUT_8(isp, src->na_srr_reject_explanation,
@@ -2998,7 +2997,7 @@ isp_get_notify_ack_24xx(ispsoftc_t *isp, na_fcentry_24xx_t *src,
 		ISP_IOXGET_8(isp, &src->na_reserved3[i], dst->na_reserved3[i]);
 	}
 	ISP_IOXGET_8(isp, &src->na_reserved4, dst->na_reserved4);
-	ISP_IOXGET_8(isp, &src->na_vpindex, dst->na_vpindex);
+	ISP_IOXGET_8(isp, &src->na_vpidx, dst->na_vpidx);
 	ISP_IOXGET_8(isp, &src->na_srr_reject_vunique,
 	    dst->na_srr_reject_vunique);
 	ISP_IOXGET_8(isp, &src->na_srr_reject_explanation,

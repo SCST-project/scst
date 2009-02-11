@@ -1,4 +1,4 @@
-/* $Id: isp_cb_ops.c,v 1.95 2008/09/12 20:53:44 mjacob Exp $ */
+/* $Id: isp_cb_ops.c,v 1.98 2009/02/01 23:49:55 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -198,7 +198,7 @@ isplinux_proc_info(struct Scsi_Host *shp, char *buf, char **st, off_t off, int l
             io = len;
         } else if (strncmp(buf, "bins", 4) == 0) {
             ISP_LOCKU_SOFTC(isp);
-            MEMZERO(isp->isp_osinfo.bins, sizeof (isp->isp_osinfo.bins));
+            memset(isp->isp_osinfo.bins, 0, sizeof (isp->isp_osinfo.bins));
             ISP_UNLKU_SOFTC(isp);
             io = len;
         }
@@ -296,10 +296,10 @@ isplinux_proc_info(struct Scsi_Host *shp, char *buf, char **st, off_t off, int l
                 if (fcp->portdb[i].state != FC_PORTDB_STATE_VALID) {
                     continue;
                 }
-                if (fcp->portdb[i].ini_map_idx) {
+                if (fcp->portdb[i].dev_map_idx) {
                     copy_info(&info, "\tdbidx %d handle 0x%x PortID 0x%06x role %s (target %d)\n\tPort WWN 0x%016llx Node WWN 0x%016llx\n\n",
                         i, fcp->portdb[i].handle, fcp->portdb[i].portid, isp_class3_roles[fcp->portdb[i].roles],
-                        fcp->portdb[i].ini_map_idx - 1, (ull) fcp->portdb[i].port_wwn, (ull) fcp->portdb[i].node_wwn);
+                        fcp->portdb[i].dev_map_idx - 1, (ull) fcp->portdb[i].port_wwn, (ull) fcp->portdb[i].node_wwn);
                 } else {
                     copy_info(&info, "\tdbidx %d handle 0x%x PortID 0x%06x role %s\n\tPort WWN 0x%016llx Node WWN 0x%016llx\n\n",
                         i, fcp->portdb[i].handle, fcp->portdb[i].portid, isp_class3_roles[fcp->portdb[i].roles],
@@ -422,7 +422,7 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
     {
         isp_stats_t stats;
 
-        MEMZERO(&stats, sizeof stats);
+        memset(&stats, 0, sizeof stats);
         stats.isp_stat_version = ISP_STATS_VERSION;
         stats.isp_type = isp->isp_type;
         stats.isp_revision = isp->isp_revision;
@@ -642,7 +642,7 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
             break;
         }
 
-        MEMZERO(&mbs, sizeof (mbs));
+        memset(&mbs, 0, sizeof (mbs));
         needmarker = 0;
         loopid = fct->loopid;
         if (ISP_CAP_2KLOGIN(isp) == 0) {
@@ -771,7 +771,7 @@ isp_run_cmd(ispsoftc_t *isp, isp_xcmd_t *cmd)
     uint8_t local[QENTRY_LEN];
     ispreq_t *reqp;
     int time, result = 0;
-    DECLARE_MUTEX_LOCKED(rsem);
+    struct semaphore rsem;
     unsigned long flags;
 
     time = cmd->timeout / 1000;
@@ -781,7 +781,7 @@ isp_run_cmd(ispsoftc_t *isp, isp_xcmd_t *cmd)
     if (IS_24XX(isp) && time > 0x1999) {
         time = 0x1999;
     }
-    MEMZERO(local, sizeof (local));
+    memset(local, 0, sizeof (local));
     Cmnd = isp_kzalloc(sizeof (struct scsi_cmnd), GFP_KERNEL);
     if (Cmnd == NULL) {
         result = -ENOMEM;
@@ -797,6 +797,7 @@ isp_run_cmd(ispsoftc_t *isp, isp_xcmd_t *cmd)
     dev->host = host;
     Cmnd->scsi_done = isp_run_cmd_done;
     Cmnd->SCp.ptr = (char *)&rsem;
+    sema_init(&rsem, 0);
 
     ISP_LOCKU_SOFTC(isp);
     if (isp_getrqentry(isp, &nxti, &optr, (void *)&reqp)) {

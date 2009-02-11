@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.172 2008/08/20 15:50:56 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.175 2009/01/24 17:55:55 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -549,6 +549,9 @@ isplinux_pci_init_one(struct Scsi_Host *host)
         isp->isp_dblev = isp_debug;
     } else {
         isp->isp_dblev = ISP_LOGCONFIG|ISP_LOGINFO|ISP_LOGWARN|ISP_LOGERR;
+#ifdef  ISP_TARGET_MODE
+        isp->isp_dblev |= ISP_LOGTINFO;
+#endif
     }
 
     pci_read_config_word(pdev, PCI_COMMAND, &cmd);
@@ -1484,7 +1487,7 @@ isp_pci_mbxdma(ispsoftc_t *isp)
             isp_prt(isp, ISP_LOGERR, "ATIO Queue not on 64 byte boundary");
             goto bad;
         }
-        MEMZERO(isp->isp_atioq, ISP_QUEUE_SIZE(RESULT_QUEUE_LEN(isp)));
+        memset(isp->isp_atioq, 0, ISP_QUEUE_SIZE(RESULT_QUEUE_LEN(isp)));
     }
 #endif
     if (isp->isp_rquest == NULL) {
@@ -1499,7 +1502,7 @@ isp_pci_mbxdma(ispsoftc_t *isp)
             isp_prt(isp, ISP_LOGERR, "Request Queue not on 64 byte boundary");
             goto bad;
         }
-        MEMZERO(isp->isp_rquest, ISP_QUEUE_SIZE(RQUEST_QUEUE_LEN(isp)));
+        memset(isp->isp_rquest, 0, ISP_QUEUE_SIZE(RQUEST_QUEUE_LEN(isp)));
     }
 
     if (isp->isp_result == NULL) {
@@ -1514,7 +1517,7 @@ isp_pci_mbxdma(ispsoftc_t *isp)
             isp_prt(isp, ISP_LOGERR, "Result Queue not on 64 byte boundary");
             goto bad;
         }
-        MEMZERO(isp->isp_result, ISP_QUEUE_SIZE(RESULT_QUEUE_LEN(isp)));
+        memset(isp->isp_result, 0, ISP_QUEUE_SIZE(RESULT_QUEUE_LEN(isp)));
     }
 
     if (IS_FC(isp)) {
@@ -1528,7 +1531,7 @@ isp_pci_mbxdma(ispsoftc_t *isp)
                     goto bad;
                 }
                 fcp->isp_scdma = busaddr;
-                MEMZERO(fcp->isp_scratch, ISP_FC_SCRLEN);
+                memset(fcp->isp_scratch, 0, ISP_FC_SCRLEN);
                 if (fcp->isp_scdma & 0x7) {
                     isp_prt(isp, ISP_LOGERR, "scratch space not 8 byte aligned");
                     goto bad;
@@ -1582,11 +1585,6 @@ bad:
 #ifdef    ISP_TARGET_MODE
 static int tdma_mk(ispsoftc_t *, tmd_xact_t *, ct_entry_t *, uint32_t *, uint32_t);
 static int tdma_mkfc(ispsoftc_t *, tmd_xact_t *, ct2_entry_t *, uint32_t *, uint32_t);
-
-#define ALLOW_SYNTHETIC_CTIO    1
-#ifndef ALLOW_SYNTHETIC_CTIO
-#define cto2    0
-#endif
 
 #define STATUS_WITH_DATA        1
 
@@ -1642,7 +1640,7 @@ tdma_mk(ispsoftc_t *isp, tmd_xact_t *xact, ct_entry_t *cto, uint32_t *nxtip, uin
     cto->ct_xfrlen = 0;
     cto->ct_seg_count = 0;
     cto->ct_header.rqs_entry_count = 1;
-    MEMZERO(cto->ct_dataseg, sizeof (cto->ct_dataseg));
+    memset(cto->ct_dataseg, 0, sizeof (cto->ct_dataseg));
 
     if (xact->td_xfrlen == 0) {
         ISP_TDQE(isp, "tdma_mk[no data]", curi, cto);
@@ -1859,7 +1857,7 @@ tdma_mk(ispsoftc_t *isp, tmd_xact_t *xact, ct_entry_t *cto, uint32_t *nxtip, uin
             cto->ct_xfrlen = 0;
             cto->ct_resid = 0;
             cto->ct_seg_count = 0;
-            MEMZERO(cto->ct_dataseg, sizeof (cto->ct_dataseg));
+            memset(cto->ct_dataseg, 0, sizeof (cto->ct_dataseg));
         }
     }
     *nxtip = nxti;
@@ -1913,8 +1911,16 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xact_t *xact, ct7_entry_t *cto, uint32_t *nxti
     uint32_t bc, last_synthetic_count;
     long xfcnt;    /* must be signed */
     int nseg, seg, ovseg, seglim, new_seg_cnt;
-#ifdef ALLOW_SYNTHETIC_CTIO
     ct7_entry_t *cto2 = NULL, ct2;
+#if 0
+{
+ static int fred = 0;
+ if (fred++ == 100) {
+    fred = 0;
+    printk("YAGGA!\n");
+    return (CMD_EAGAIN);
+ }
+}
 #endif
 
     nxti = *nxtip;
@@ -1991,7 +1997,7 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xact_t *xact, ct7_entry_t *cto, uint32_t *nxti
     new_seg_cnt = pci_map_sg(pcs->pci_dev, sg, nseg, (cto->ct_flags & CT2_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
     if (new_seg_cnt == 0) {
         isp_prt(isp, ISP_LOGWARN, "%s: unable to dma map request", __func__);
-        cto->ct_resid = -ENOMEM;
+        cto->ct_resid = -EFAULT;
         return (CMD_COMPLETE);
     }
     tmd->cd_nseg = new_seg_cnt;
@@ -2011,12 +2017,11 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xact_t *xact, ct7_entry_t *cto, uint32_t *nxti
     swd = cto->ct_scsi_status;
 
     if ((cto->ct_flags & CT7_SENDSTATUS) && ((swd & 0xff) || cto->ct_resid)) {
-#ifdef  ALLOW_SYNTHETIC_CTIO
         cto2 = &ct2;
         /*
          * Copy over CTIO2
          */
-        MEMCPY(cto2, cto, sizeof (ct7_entry_t));
+        memcpy(cto2, cto, sizeof (ct7_entry_t));
 
         /*
          * Clear fields from first CTIO7 that now need to be cleared
@@ -2032,18 +2037,13 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xact_t *xact, ct7_entry_t *cto, uint32_t *nxti
         cto2->ct_flags &= ~(CT7_FLAG_MMASK|CT7_DATAMASK);
         cto2->ct_flags |= CT7_NO_DATA|CT7_NO_DATA|CT7_FLAG_MODE1;
         cto2->ct_seg_count = 0;
-        MEMZERO(&cto2->rsp, sizeof (cto2->rsp));
+        memset(&cto2->rsp, 0, sizeof (cto2->rsp));
         cto2->ct_scsi_status = swd;
         if ((swd & 0xff) == SCSI_CHECK && (xact->td_hflags & TDFH_SNSVALID)) {
             cto2->rsp.m1.ct_resplen = min(TMD_SENSELEN, MAXRESPLEN_24XX);
-            MEMCPY(cto2->rsp.m1.ct_resp, tmd->cd_sense, cto2->rsp.m1.ct_resplen);
+            memcpy(cto2->rsp.m1.ct_resp, tmd->cd_sense, cto2->rsp.m1.ct_resplen);
             cto2->ct_scsi_status |= (FCP_SNSLEN_VALID << 8);
         }
-#else
-        cto->ct_flags &= ~CT7_SENDSTATUS;
-        cto->ct_resid = 0;
-        cto->ct_scsi_status = 0;
-#endif
     }
 
     /*
@@ -2074,8 +2074,7 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xact_t *xact, ct7_entry_t *cto, uint32_t *nxti
         last_synthetic_addr = addr;
     } else {
         cto->rsp.m0.ds.ds_count = bc;
-        isp_prt(isp, ISP_LOGTDEBUG1, "%s: seg0[%d]%lx%08lx:%u", __func__, seg,
-            (unsigned long)cto->rsp.m0.ds.ds_basehi, (unsigned long)cto->rsp.m0.ds.ds_base, bc);
+        isp_prt(isp, ISP_LOGTDEBUG1, "%s: seg%d[%d]%llx:%u", __func__, 0, 0, (unsigned long long) addr, bc);
     }
     cto->rsp.m0.ct_xfrlen += bc;
     xfcnt -= bc;
@@ -2092,10 +2091,10 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xact_t *xact, ct7_entry_t *cto, uint32_t *nxti
     do {
         int lim;
         uint32_t curip;
-        ispcontreq_t local, *crq = &local, *qep;
+        ispcontreq64_t local, *crq = &local, *qep;
 
         curip = nxti;
-        qep = (ispcontreq_t *) ISP_QUEUE_ENTRY(isp->isp_rquest, curip);
+        qep = (ispcontreq64_t *) ISP_QUEUE_ENTRY(isp->isp_rquest, curip);
         nxti = ISP_NXT_QENTRY((curip), RQUEST_QUEUE_LEN(isp));
         if (nxti == optr) {
             pci_unmap_sg(pcs->pci_dev, xact->td_data, nseg, (cto->ct_flags & CT2_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
@@ -2103,13 +2102,13 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xact_t *xact, ct7_entry_t *cto, uint32_t *nxti
             return (CMD_EAGAIN);
         }
         cto->ct_header.rqs_entry_count++;
-        MEMZERO((void *)crq, sizeof (*crq));
+        BUG_ON(cto->ct_header.rqs_entry_count == 0);
+        memset((void *)crq, 0, sizeof (*crq));
         crq->req_header.rqs_entry_count = 1;
         crq->req_header.rqs_entry_type = RQSTYPE_A64_CONT;
         lim = ISP_CDSEG64;
 
         for (ovseg = 0; (seg < nseg || last_synthetic_count) && ovseg < lim; seg++, ovseg++, sg++) {
-            ispcontreq64_t *xrq;
             if (last_synthetic_count) {
                 addr = last_synthetic_addr;
                 bc = last_synthetic_count;
@@ -2125,19 +2124,18 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xact_t *xact, ct7_entry_t *cto, uint32_t *nxti
             cto->ct_seg_count++;
             cto->rsp.m0.ct_xfrlen += bc;
 
-            xrq = (ispcontreq64_t *) crq;
-            xrq->req_dataseg[ovseg].ds_count = bc;
-            xrq->req_dataseg[ovseg].ds_base = LOWD(addr);
-            xrq->req_dataseg[ovseg].ds_basehi = HIWD(addr);
+            crq->req_dataseg[ovseg].ds_count = bc;
+            crq->req_dataseg[ovseg].ds_base = LOWD(addr);
+            crq->req_dataseg[ovseg].ds_basehi = HIWD(addr);
             /*
              * Make sure we don't cross a 4GB boundary.
              */
             if (!SAME_4G(addr, bc)) {
                 isp_prt(isp, ISP_LOGTDEBUG1, "seg%d[%d]%llx:%u (TRUNC'd)", cto->ct_header.rqs_entry_count-1, ovseg, (long long)addr, bc);
-                xrq->req_dataseg[ovseg].ds_count = (unsigned int) (FOURG_SEG(addr + bc) - addr);
-                addr += xrq->req_dataseg[ovseg].ds_count;
-                bc -= xrq->req_dataseg[ovseg].ds_count;
-                xfcnt -= xrq->req_dataseg[ovseg].ds_count;
+                crq->req_dataseg[ovseg].ds_count = (unsigned int) (FOURG_SEG(addr + bc) - addr);
+                addr += crq->req_dataseg[ovseg].ds_count;
+                bc -= crq->req_dataseg[ovseg].ds_count;
+                xfcnt -= crq->req_dataseg[ovseg].ds_count;
                 /*
                  * Do we have space to split it here?
                  */
@@ -2147,26 +2145,21 @@ tdma_mk_2400(ispsoftc_t *isp, tmd_xact_t *xact, ct7_entry_t *cto, uint32_t *nxti
                     cto->ct_seg_count++;
                 } else {
                     ovseg++;
-                    xrq->req_dataseg[ovseg].ds_count = bc;
-                    xrq->req_dataseg[ovseg].ds_base = LOWD(addr);
-                    xrq->req_dataseg[ovseg].ds_basehi = HIWD(addr);
+                    crq->req_dataseg[ovseg].ds_count = bc;
+                    crq->req_dataseg[ovseg].ds_base = LOWD(addr);
+                    crq->req_dataseg[ovseg].ds_basehi = HIWD(addr);
                 }
             }
         }
         ISP_TDQE(isp, "tdma_mk_2400 cont", curip, crq);
         MEMORYBARRIER(isp, SYNC_REQUEST, curip, QENTRY_LEN);
-        if (crq->req_header.rqs_entry_type == RQSTYPE_A64_CONT) {
-            isp_put_cont64_req(isp, (ispcontreq64_t *)crq, (ispcontreq64_t *)qep);
-        } else {
-            isp_put_cont_req(isp, crq, qep);
-        }
+        isp_put_cont64_req(isp, (ispcontreq64_t *)crq, (ispcontreq64_t *)qep);
     } while (seg < nseg || last_synthetic_count);
 
     isp_prt(isp, ISP_LOGTDEBUG2, "[%llx]: map %d segments at %p for handle 0x%x", tmd->cd_tagval, new_seg_cnt, xact->td_data, cto->ct_syshandle);
 
 mbxsync:
 
-#ifdef  ALLOW_SYNTHETIC_CTIO
     /*
      * If we have a final CTIO2, allocate and push *that*
      * onto the request queue.
@@ -2178,14 +2171,12 @@ mbxsync:
         if (nxti == optr) {
             pci_unmap_sg(pcs->pci_dev, xact->td_data, nseg, (cto->ct_flags & CT7_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
             isp_prt(isp, ISP_LOGTDEBUG0, "%s: request queue overflow", __func__);
-            cto->ct_resid = -EAGAIN;
-            return (CMD_COMPLETE);
+            return (CMD_EAGAIN);
         }
         MEMORYBARRIER(isp, SYNC_REQUEST, curi, QENTRY_LEN);
         isp_put_ctio7(isp, cto2, (ct7_entry_t *)qe);
         ISP_TDQE(isp, "tdma_mk_2400:final", curi, cto2);
     }
-#endif
     qe = ISP_QUEUE_ENTRY(isp->isp_rquest, isp->isp_reqidx);
     isp_put_ctio7(isp, cto, qe);
     if (cto->ct_flags & CT2_FASTPOST) {
@@ -2212,9 +2203,7 @@ tdma_mkfc(ispsoftc_t *isp, tmd_xact_t *xact, ct2_entry_t *cto, uint32_t *nxtip, 
     uint32_t bc, last_synthetic_count;
     long xfcnt;    /* must be signed */
     int nseg, seg, ovseg, seglim, new_seg_cnt;
-#ifdef ALLOW_SYNTHETIC_CTIO
     ct2_entry_t *cto2 = NULL, ct2;
-#endif
 
     nxti = *nxtip;
     curi = isp->isp_reqidx;
@@ -2257,7 +2246,11 @@ tdma_mkfc(ispsoftc_t *isp, tmd_xact_t *xact, ct2_entry_t *cto, uint32_t *nxtip, 
         /* ct_syshandle contains the synchronization handle set by caller */
         cto->ct_seg_count = 0;
         cto->ct_reloff = 0;
-        isp_put_ctio2(isp, cto, qe);
+        if (ISP_CAP_2KLOGIN(isp)) {
+            isp_put_ctio2e(isp, (ct2e_entry_t *)cto, (ct2e_entry_t *)qe);
+        } else {
+            isp_put_ctio2(isp, cto, qe);
+        }
         if (cto->ct_flags & CT2_FASTPOST) {
             isp_prt(isp, ISP_LOGTDEBUG1, "[%x] faspost (0x%x)", cto->ct_rxid, tmd->cd_cdb[0]);
         }
@@ -2312,7 +2305,7 @@ tdma_mkfc(ispsoftc_t *isp, tmd_xact_t *xact, ct2_entry_t *cto, uint32_t *nxtip, 
     new_seg_cnt = pci_map_sg(pcs->pci_dev, sg, nseg, (cto->ct_flags & CT2_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
     if (new_seg_cnt == 0) {
         isp_prt(isp, ISP_LOGWARN, "%s: unable to dma map request", __func__);
-        cto->ct_resid = -ENOMEM;
+        cto->ct_resid = -EFAULT;
         return (CMD_COMPLETE);
     }
     tmd->cd_nseg = new_seg_cnt;
@@ -2322,12 +2315,11 @@ tdma_mkfc(ispsoftc_t *isp, tmd_xact_t *xact, ct2_entry_t *cto, uint32_t *nxtip, 
      */
 
     if ((cto->ct_flags & CT2_SENDSTATUS) && ((swd & 0xff) || cto->ct_resid)) {
-#ifdef  ALLOW_SYNTHETIC_CTIO
         cto2 = &ct2;
         /*
          * Copy over CTIO2
          */
-        MEMCPY(cto2, cto, sizeof (ct2_entry_t));
+        memcpy(cto2, cto, sizeof (ct2_entry_t));
 
         /*
          * Clear fields from first CTIO2 that now need to be cleared
@@ -2344,10 +2336,10 @@ tdma_mkfc(ispsoftc_t *isp, tmd_xact_t *xact, ct2_entry_t *cto, uint32_t *nxtip, 
         cto2->ct_flags |= CT2_NO_DATA|CT2_FLAG_MODE1;
         cto2->ct_seg_count = 0;
         cto2->ct_reloff = 0;
-        MEMZERO(&cto2->rsp, sizeof (cto2->rsp));
+        memset(&cto2->rsp, 0, sizeof (cto2->rsp));
         if ((swd & 0xff) == SCSI_CHECK && (swd & CT2_SNSLEN_VALID)) {
             cto2->rsp.m1.ct_senselen = min(TMD_SENSELEN, MAXRESPLEN);
-            MEMCPY(cto2->rsp.m1.ct_resp, tmd->cd_sense, cto2->rsp.m1.ct_senselen);
+            memcpy(cto2->rsp.m1.ct_resp, tmd->cd_sense, cto2->rsp.m1.ct_senselen);
             swd |= CT2_SNSLEN_VALID;
         }
         if (cto2->ct_resid > 0) {
@@ -2359,11 +2351,6 @@ tdma_mkfc(ispsoftc_t *isp, tmd_xact_t *xact, ct2_entry_t *cto, uint32_t *nxtip, 
         if (cto2->ct_flags & CT2_CCINCR) {
             tmd->cd_lflags &= ~CDFL_RESRC_FILL;
         }
-#else
-        cto->ct_flags &= ~(CT2_SENDSTATUS|CT2_CCINCR|CT2_FASTPOST);
-        cto->ct_resid = 0;
-        cto->rsp.m0.ct_scsi_status = 0;
-#endif
     } else if ((cto->ct_flags & (CT2_SENDSTATUS|CT2_CCINCR)) == (CT2_SENDSTATUS|CT2_CCINCR)) {
         tmd->cd_lflags &= ~CDFL_RESRC_FILL;
     }
@@ -2487,7 +2474,7 @@ again:
             return (CMD_EAGAIN);
         }
         cto->ct_header.rqs_entry_count++;
-        MEMZERO((void *)crq, sizeof (*crq));
+        memset((void *)crq, 0, sizeof (*crq));
         crq->req_header.rqs_entry_count = 1;
         if (cto->ct_header.rqs_entry_type == RQSTYPE_CTIO3) {
             crq->req_header.rqs_entry_type = RQSTYPE_A64_CONT;
@@ -2582,7 +2569,6 @@ again:
 
 mbxsync:
 
-#ifdef  ALLOW_SYNTHETIC_CTIO
     /*
      * If we have a final CTIO2, allocate and push *that*
      * onto the request queue.
@@ -2594,16 +2580,18 @@ mbxsync:
         if (nxti == optr) {
             pci_unmap_sg(pcs->pci_dev, xact->td_data, nseg, (cto->ct_flags & CT2_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
             isp_prt(isp, ISP_LOGTDEBUG0, "%s: request queue overflow", __func__);
-            cto->ct_resid = -EAGAIN;
-            return (CMD_COMPLETE);
+            return (CMD_EAGAIN);
         }
         MEMORYBARRIER(isp, SYNC_REQUEST, curi, QENTRY_LEN);
         isp_put_ctio2(isp, cto2, (ct2_entry_t *)qe);
         ISP_TDQE(isp, "tdma_mkfc:final", curi, cto2);
     }
-#endif
     qe = ISP_QUEUE_ENTRY(isp->isp_rquest, isp->isp_reqidx);
-    isp_put_ctio2(isp, cto, qe);
+    if (ISP_CAP_2KLOGIN(isp)) {
+        isp_put_ctio2e(isp, (ct2e_entry_t *)cto, (ct2e_entry_t *)qe);
+    } else {
+        isp_put_ctio2(isp, cto, qe);
+    }
     if (cto->ct_flags & CT2_FASTPOST) {
         isp_prt(isp, ISP_LOGTDEBUG1, "[%x] fastpost (0x%x) with entry count %d", cto->ct_rxid, tmd->cd_cdb[0], cto->ct_header.rqs_entry_count);
     }
@@ -2871,7 +2859,7 @@ again:
             return (CMD_EAGAIN);
         }
         rq->req_header.rqs_entry_count++;
-        MEMZERO((void *)crq, sizeof (*crq));
+        memset((void *)crq, 0, sizeof (*crq));
         crq->req_header.rqs_entry_count = 1;
         if (rq->req_header.rqs_entry_type == RQSTYPE_T3RQS || rq->req_header.rqs_entry_type == RQSTYPE_A64) {
             crq->req_header.rqs_entry_type = RQSTYPE_A64_CONT;
@@ -3135,7 +3123,7 @@ isp_pci_2400_dmasetup(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, ispreq_t *orig_rq, uint3
             return (CMD_EAGAIN);
         }
         rq->req_header.rqs_entry_count++;
-        MEMZERO((void *)xrq, sizeof (*xrq));
+        memset((void *)xrq, 0, sizeof (*xrq));
         xrq->req_header.rqs_entry_count = 1;
         xrq->req_header.rqs_entry_type = RQSTYPE_A64_CONT;
         lim = ISP_CDSEG64;

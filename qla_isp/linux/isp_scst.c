@@ -243,7 +243,7 @@ bus_from_name(const char *name)
 }
 
 static __inline bus_t *
-bus_from_notify(tmd_notify_t *np)
+bus_from_notify(isp_notify_t *np)
 {
     bus_t *bp;
     for (bp = busses; bp < &busses[MAX_BUS]; bp++) {
@@ -430,8 +430,8 @@ rx_loop:
         spin_unlock_irq(&bc->tmds_lock);
         tmd->cd_scsi_status = SCSI_BUSY;
         xact = &tmd->cd_xact;
-        xact->td_hflags |= TDFH_STSVALID;
-        xact->td_hflags &= ~TDFH_DATA_MASK;
+        xact->td_hflags = TDFH_STSVALID;
+        xact->td_lflags = 0;
         xact->td_xfrlen = 0;
         (*bp->h.r_action)(QIN_TMD_CONT, xact);
         goto rx_loop;
@@ -578,8 +578,8 @@ bus_chan_add_initiators(bus_t *bp, int chan)
 
                     tmd->cd_scsi_status = SCSI_BUSY;
                     xact = &tmd->cd_xact;
-                    xact->td_hflags |= TDFH_STSVALID;
-                    xact->td_hflags &= ~TDFH_DATA_MASK;
+                    xact->td_hflags = TDFH_STSVALID;
+                    xact->td_lflags = 0;
                     xact->td_xfrlen = 0;
                     (*bp->h.r_action)(QIN_TMD_CONT, xact);
 
@@ -714,7 +714,7 @@ abort_all_tasks(bus_chan_t *bc, uint64_t iid)
 }
 
 static void
-scsi_target_notify(tmd_notify_t *np)
+scsi_target_notify(isp_notify_t *np)
 {
     bus_t *bp;
     bus_chan_t *bc;
@@ -725,14 +725,6 @@ scsi_target_notify(tmd_notify_t *np)
     uint8_t lunbuf[8];
     unsigned long flags;
 
-    /*
-     * XXX If task management fail we can't give info to isp driver via tpublic
-     * XXX notifies interface. FC stuff is capable to handle errors in TM.
-     * XXX But TM is rare and TM errors are even more rare, so we can ignore errors
-     * XXX now. Maybe tpublic API change, than we could uncomment passing errors to
-     * XXX low level driver.
-     */
-
     spin_lock_irqsave(&scsi_target_lock, flags);
     bp = bus_from_notify(np);
     if (unlikely(bp == NULL || bp->bchan == NULL)) {
@@ -742,13 +734,12 @@ scsi_target_notify(tmd_notify_t *np)
     }
     spin_unlock_irqrestore(&scsi_target_lock, flags);
 
-    SDprintk("scsi_target: MGT code %x from %s%d iid 0x%016llx tag %llx\n",
-             np->nt_ncode, bp->h.r_name, bp->h.r_inst, np->nt_iid, np->nt_tagval);
+    SDprintk("scsi_target: MGT code %x from %s%d iid 0x%016llx tag %llx\n", np->nt_ncode, bp->h.r_name, bp->h.r_inst, np->nt_wwn, np->nt_tagval);
 
     bc = &bp->bchan[np->nt_channel];
 
     spin_lock_irqsave(&bc->tmds_lock, flags);
-    ini = ini_from_iid(bc, np->nt_iid);
+    ini = ini_from_iid(bc, np->nt_wwn);
     np->nt_ini = ini;
     __ini_get(np->nt_ini);
     spin_unlock_irqrestore(&bc->tmds_lock, flags);
@@ -759,12 +750,12 @@ scsi_target_notify(tmd_notify_t *np)
             if (ini == NULL) {
                goto err_no_ini;
             }
-            if (abort_task(bc, np->nt_iid, np->nt_tagval)) {
+            if (abort_task(bc, np->nt_wwn, np->nt_tagval)) {
                 SDprintk("TMD_NOTIFY abort task [%llx]\n", np->nt_tagval);
                 goto notify_ack;
             }
             if (scst_rx_mgmt_fn_tag(ini->ini_scst_sess, SCST_ABORT_TASK, np->nt_tagval, 1, np) < 0) {
-                //np->nt_error = NT_FAILED;
+                np->nt_failed = 1;
                 goto notify_ack;
             }
             /* wait for SCST now */
@@ -774,7 +765,7 @@ scsi_target_notify(tmd_notify_t *np)
             if (ini == NULL) {
                 goto err_no_ini;
             }
-            abort_all_tasks(bc, np->nt_iid);
+            abort_all_tasks(bc, np->nt_wwn);
             fn = SCST_ABORT_TASK_SET;
             break;
         case NT_CLEAR_TASK_SET:
@@ -782,7 +773,7 @@ scsi_target_notify(tmd_notify_t *np)
             if (ini == NULL) {
                 goto err_no_ini;
             }
-            abort_all_tasks(bc, np->nt_iid);
+            abort_all_tasks(bc, np->nt_wwn);
             fn = SCST_CLEAR_TASK_SET;
             break;
         case NT_CLEAR_ACA:
@@ -792,7 +783,7 @@ scsi_target_notify(tmd_notify_t *np)
         case NT_LUN_RESET:
             tmf = "LUN RESET";
             if (np->nt_lun == LUN_ANY) {
-                //np->nt_error = NT_REJECT;
+                np->nt_failed = 1;
                 goto notify_ack;
             }
             fn = SCST_LUN_RESET;
@@ -813,14 +804,16 @@ scsi_target_notify(tmd_notify_t *np)
             goto notify_ack;
         case NT_LOGOUT:
             spin_lock_irqsave(&bc->tmds_lock, flags);
-            /* If someone disable target during this notify, reference to initiator
+            /*
+             * If someone disables the target during this notify, reference to initiator
              * is currently dropped, so we need to check if IID is still in initiators
-             * table to avoid double free */
-            if (del_ini(bc, np->nt_iid)) {
-                SDprintk("droping reference to initiator 0x%016llx\n", np->nt_iid);
+             * table to avoid double free
+             */
+            if (del_ini(bc, np->nt_wwn)) {
+                SDprintk("droping reference to initiator 0x%016llx\n", np->nt_wwn);
                 __ini_put(bc, ini);
             } else {
-                Eprintk("cannot logout initiator 0x%016llx\n", np->nt_iid);
+                Eprintk("cannot logout initiator 0x%016llx\n", np->nt_wwn);
             }
             spin_unlock_irqrestore(&bc->tmds_lock, flags);
             goto notify_ack;
@@ -841,15 +834,15 @@ scsi_target_notify(tmd_notify_t *np)
         }
         FLATLUN_TO_L0LUN(lunbuf, lun);
         if (scst_rx_mgmt_fn_lun(ini->ini_scst_sess, fn, lunbuf, sizeof(lunbuf), 1, np) < 0) {
-            //np->nt_error = NT_FAILED;
+            np->nt_failed = 1;
             goto notify_ack;
         }
     }
     return;
 
 err_no_ini:
-    Eprintk("cannot find initiator 0x%016llx for %s\n", np->nt_iid, tmf);
-    //np->nt_error = NT_REJECT;
+    Eprintk("cannot find initiator 0x%016llx for %s\n", np->nt_wwn, tmf);
+    np->nt_failed = 1;
 notify_ack:
     ini_put(bc, ini);
     (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
@@ -922,7 +915,7 @@ scsi_target_handler(qact_e action, void *arg)
     }
     case QOUT_NOTIFY:
     {
-        tmd_notify_t *np = arg;
+        isp_notify_t *np = arg;
         SDprintk("scsi_target: TMD_NOTIFY %p code=0x%x\n", np, np->nt_ncode);
         scsi_target_notify(np);
         break;
@@ -1089,7 +1082,8 @@ isp_rdy_to_xfer(struct scst_cmd *scst_cmd)
         bus_chan_t *bc = &bp->bchan[tmd->cd_channel];
         int len = scst_cmd_get_bufflen(scst_cmd);
 
-        xact->td_hflags |= TDFH_DATA_OUT;
+        xact->td_hflags = TDFH_DATA_OUT;
+        xact->td_lflags = 0;
         xact->td_data = scst_cmd_get_sg(scst_cmd);
         xact->td_xfrlen = len;
         if (bp->h.r_type == R_SPI) {
@@ -1109,15 +1103,24 @@ isp_rdy_to_xfer(struct scst_cmd *scst_cmd)
             SDprintk("%s: TMD[%llx] Chan %d not enabled\n", __FUNCTION__, tmd->cd_tagval, tmd->cd_channel);
             up_read(&bc->disable_sem);
             scst_rx_data(scst_cmd, SCST_RX_STATUS_ERROR, SCST_CONTEXT_SAME);
-            return (0);
+            return (SCST_TGT_RES_SUCCESS);
         }
 
         SDprintk2("%s: TMD[%llx] write nbytes %u\n", __FUNCTION__, tmd->cd_tagval, scst_cmd_get_bufflen(scst_cmd));
-        (*bp->h.r_action)(QIN_TMD_CONT, xact);
         up_read(&bc->disable_sem);
+        (*bp->h.r_action)(QIN_TMD_CONT, xact);
+        /*
+         * Did we have an error starting this particular transaction?
+         */
+        if (unlikely(xact->td_lflags & (TDFL_ERROR|TDFL_SYNCERROR)) == (TDFL_ERROR|TDFL_SYNCERROR)) {
+            if (xact->td_error == -ENOMEM) {
+                return (SCST_TGT_RES_QUEUE_FULL);
+            } else {
+                return (SCST_TGT_RES_FATAL_ERROR);
+            }
+        }
     }
-
-    return (0);
+    return (SCST_TGT_RES_SUCCESS);
 }
 
 static int
@@ -1131,7 +1134,7 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
     if (unlikely(scst_cmd_aborted(scst_cmd))) {
         scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_ABORTED);
         scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_SAME);
-        return (0);
+        return (SCST_TGT_RES_SUCCESS);
     }
 
     if (scst_cmd_get_data_direction(scst_cmd) == SCST_DATA_READ) {
@@ -1147,11 +1150,11 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
             Eprintk("data size too big (totlen %u len %u)\n", tmd->cd_totlen, len);
 
             memcpy(tmd->cd_sense, ifailure, TMD_SENSELEN);
-            xact->td_hflags |= TDFH_STSVALID;
+            xact->td_hflags = TDFH_STSVALID;
             tmd->cd_scsi_status = SCSI_CHECK;
             goto out;
         } else {
-            xact->td_hflags |= TDFH_DATA_IN;
+            xact->td_hflags = TDFH_DATA_IN;
             xact->td_xfrlen = len;
             xact->td_data = scst_cmd_get_sg(scst_cmd);
         }
@@ -1160,6 +1163,8 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
         xact->td_xfrlen = 0;
         xact->td_hflags &= ~TDFH_DATA_MASK;
     }
+
+    xact->td_lflags = 0;
 
     if (scst_cmd_get_is_send_status(scst_cmd)) {
         xact->td_hflags |= TDFH_STSVALID;
@@ -1208,14 +1213,24 @@ out:
         SDprintk("%s: TMD[%llx] Chan %d not enabled\n", __FUNCTION__, tmd->cd_tagval, tmd->cd_channel);
         up_read(&bc->disable_sem);
         scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_SAME);
-        return (0);
+        return (SCST_TGT_RES_SUCCESS);
     }
 
     SDprintk2("%s: TMD[%llx] %p hf %x lf %x xfrlen %d totlen %d moved %d\n",
               __FUNCTION__, tmd->cd_tagval, tmd, xact->td_hflags, xact->td_lflags, xact->td_xfrlen, tmd->cd_totlen, tmd->cd_moved);
-    (*bp->h.r_action)(QIN_TMD_CONT, xact);
     up_read(&bc->disable_sem);
-    return (0);
+    (*bp->h.r_action)(QIN_TMD_CONT, xact);
+    /*
+     * Did we have an error starting this particular transaction?
+     */
+    if (unlikely(xact->td_lflags & (TDFL_ERROR|TDFL_SYNCERROR)) == (TDFL_ERROR|TDFL_SYNCERROR)) {
+        if (xact->td_error == -ENOMEM) {
+            return (SCST_TGT_RES_QUEUE_FULL);
+        } else {
+            return (SCST_TGT_RES_FATAL_ERROR);
+        }
+    }
+    return (SCST_TGT_RES_SUCCESS);
 }
 
 static void
@@ -1234,7 +1249,7 @@ isp_on_free_cmd(struct scst_cmd *scst_cmd)
 static void
 isp_task_mgmt_fn_done(struct scst_mgmt_cmd *mgmt_cmd)
 {
-    tmd_notify_t *np = mgmt_cmd->tgt_priv;
+    isp_notify_t *np = mgmt_cmd->tgt_priv;
     bus_t *bp = bus_from_notify(np);
 
     ini_put(&bp->bchan[np->nt_channel], np->nt_ini);

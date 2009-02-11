@@ -1,4 +1,4 @@
-/* $Id: ispvar.h,v 1.99 2008/06/16 23:53:18 mjacob Exp $ */
+/* $Id: ispvar.h,v 1.103 2009/02/01 23:49:49 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -292,9 +292,8 @@ typedef struct {
 /*
  * Special Constants
  */
-#define INI_NONE    		((uint64_t) 0)
-#define INI_ANY			((uint64_t) -1)
-#define VALID_INI(ini)		(ini != INI_NONE && ini != INI_ANY)
+#define	INI_NONE    		((uint64_t) 0)
+#define	ISP_NOCHAN		0xff
 
 /*
  * Special Port IDs
@@ -317,11 +316,11 @@ typedef struct {
  *
  * It has a state. If the state if VALID, that means that we've logged into
  * the device. We also *may* have a initiator map index entry. This is a value
- * from 0..MAX_FC_TARG that is used to index into the isp_ini_map array. If
+ * from 0..MAX_FC_TARG that is used to index into the isp_dev_map array. If
  * the value therein is non-zero, then that value minus one is used to index
  * into the Port Database to find the handle for forming commands. There is
  * back-index minus one value within to Port Database entry that tells us
- * which entry in isp_ini_map points to us (to avoid searching).
+ * which entry in isp_dev_map points to us (to avoid searching).
  *
  * Local loop devices the firmware automatically performs PLOGI on for us
  * (which is why that handle is imposed upon us). Fabric devices we assign
@@ -354,7 +353,7 @@ typedef struct {
  *
  *  + There can never be two non-NIL entries with the same handle.
  *
- *  + There can never be two non-NIL entries which have the same ini_map_idx
+ *  + There can never be two non-NIL entries which have the same dev_map_idx
  *    value.
  */
 typedef struct {
@@ -366,8 +365,8 @@ typedef struct {
 	uint16_t	handle;
 
 	/*
-	 * The ini_map_idx, if nonzero, is the system virtual target ID (+1)
-	 * as a cross-reference with the isp_ini_map.
+	 * The dev_map_idx, if nonzero, is the system virtual target ID (+1)
+	 * as a cross-reference with the isp_dev_map.
 	 *
 	 * A device is 'autologin' if the firmware automatically logs into
 	 * it (re-logins as needed). Basically, local private loop devices.
@@ -381,10 +380,10 @@ typedef struct {
 	 *
 	 * The 'target_mode' tag means that this entry arrived via a
 	 * target mode command and is immune from normal flushing rules.
-	 * You should also never see anything with no initiator role
+	 * You should also never see anything with an initiator role
 	 * with this set.
 	 */
-	uint16_t	ini_map_idx	: 12,
+	uint16_t	dev_map_idx	: 12,
 			autologin	: 1,	/* F/W does PLOGI/PLOGO */
 			state		: 3;
 	uint32_t	reserved	: 5,
@@ -464,7 +463,7 @@ typedef struct {
 	 * subtract one to get the portdb index. This means that
 	 * entries which are zero are unmapped (i.e., don't exist).
 	 */
-	uint16_t		isp_ini_map[MAX_FC_TARG];
+	uint16_t		isp_dev_map[MAX_FC_TARG];
 
 	/*
 	 * Scratch DMA mapped in area to fetch Port Database stuff, etc.
@@ -571,6 +570,7 @@ struct ispsoftc {
 	volatile uint32_t	isp_resodx;	/* index of next result */
 	volatile uint32_t	isp_lasthdls;	/* last handle seed */
 	volatile uint32_t	isp_obits;	/* mailbox command output */
+	volatile uint32_t	isp_serno;	/* rolling serial number */
 	volatile uint16_t	isp_mboxtmp[MAILBOX_STORAGE];
 	volatile uint16_t	isp_lastmbxcmd;	/* last mbox command sent */
 	volatile uint16_t	isp_mbxwrk0;
@@ -937,11 +937,11 @@ void isp_async(ispsoftc_t *, ispasync_t, ...);
  *
  *	ISP_FC_SCRLEN				FC scratch area DMA length
  *
- *	MEMZERO(dst, src)			platform zeroing function
- *	MEMCPY(dst, src, count)			platform copying function
- *	SNPRINTF(buf, bufsize, fmt, ...)	snprintf
- *	USEC_DELAY(usecs)			microsecond spindelay function
- *	USEC_SLEEP(isp, usecs)			microsecond sleep function
+ *	ISP_MEMZERO(dst, src)			platform zeroing function
+ *	ISP_MEMCPY(dst, src, count)		platform copying function
+ *	ISP_SNPRINTF(buf, bufsize, fmt, ...)	snprintf
+ *	ISP_DELAY(usecs)			microsecond spindelay function
+ *	ISP_SLEEP(isp, usecs)			microsecond sleep function
  *
  *	NANOTIME_T				nanosecond time type
  *
@@ -1051,4 +1051,61 @@ void isp_async(ispsoftc_t *, ispasync_t, ...);
  *	ISP_SWAP32(ispsoftc_t *, uint32_t srcval)
  */
 
+#ifdef	ISP_TARGET_MODE
+/*
+ * The functions below are for the publicly available
+ * target mode functions that are internal to the Qlogic driver.
+ */
+
+/*
+ * This function handles new response queue entry appropriate for target mode.
+ */
+int isp_target_notify(ispsoftc_t *, void *, uint32_t *);
+
+/*
+ * This function externalizes the ability to acknowledge an Immediate Notify request.
+ */
+int isp_notify_ack(ispsoftc_t *, void *);
+
+/*
+ * This function externalized acknowledging (success/fail) an ABTS frame
+ */
+int isp_acknak_abts(ispsoftc_t *, void *, int);
+
+/*
+ * Enable/Disable/Modify a logical unit.
+ * (softc, cmd, bus, tgt, lun, cmd_cnt, inotify_cnt)
+ */
+#define	DFLT_CMND_CNT	0xfe	/* unmonitored */
+#define	DFLT_INOT_CNT	0xfe	/* unmonitored */
+int isp_lun_cmd(ispsoftc_t *, int, int, int, int, int);
+
+/*
+ * General request queue 'put' routine for target mode entries.
+ */
+int isp_target_put_entry(ispsoftc_t *isp, void *);
+
+/*
+ * General routine to put back an ATIO entry-
+ * used for replenishing f/w resource counts.
+ * The argument is a pointer to a source ATIO
+ * or ATIO2.
+ */
+int isp_target_put_atio(ispsoftc_t *, void *);
+
+/*
+ * General routine to send a final CTIO for a command- used mostly for
+ * local responses.
+ */
+int isp_endcmd(ispsoftc_t *, ...);
+#define	ECMD_SVALID	0x100
+#define	ECMD_TERMINATE	0x200
+
+/*
+ * Handle an asynchronous event
+ *
+ * Return nonzero if the interrupt that generated this event has been dismissed.
+ */
+int isp_target_async(ispsoftc_t *, int, int);
+#endif
 #endif	/* _ISPVAR_H */
