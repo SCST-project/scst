@@ -6,13 +6,15 @@ all: perl-module
 install:
 	install -m 755 $(TOOL) /usr/local/sbin
 	install -m 755 init.d/scst /etc/init.d
+	/usr/lib/lsb/install_initd scst
+	install -m 755 init.d/qla2x00t /etc/init.d
+	/usr/lib/lsb/install_initd qla2x00t
 	$(MAKE) -C scst-$(MODULE_VERSION) install
-	@echo
-	@echo "The SCST init file has been installed in /etc/init.d,"
-	@echo "be sure to enable it with your favorite SysV init editor."
-	@echo
 
 uninstall:
+	-/usr/lib/lsb/remove_initd qla2x00t
+	-rm -f /etc/init.d/qla2x00t
+	-/usr/lib/lsb/remove_initd scst
 	-rm -f /etc/init.d/scst
 	-rm -f /usr/local/sbin/$(TOOL)
 	$(MAKE) -C scst-$(MODULE_VERSION) uninstall

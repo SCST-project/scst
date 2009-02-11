@@ -38,6 +38,10 @@ This installs scstadmin, the init.d script and the perl module. If you want SCST
 startup and configure automatically upon boot, enable SCST using your favorite
 SysV init editor.
 
+NOTE: The init.d startup & shutdown scripts now depend on lsb-core. Ensure you have
+lsb-core installed or 'make install' will fail. Make sure /usr/lib/lsb/install_initd
+exists.
+
 
 Getting Started:
 ================

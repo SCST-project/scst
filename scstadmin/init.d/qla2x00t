@@ -4,7 +4,7 @@
 # Copyright (C) 2009 Bart Van Assche <bart.vanassche@gmail.com>
 # This software is made available under the GPLv2 license.
 #
-# System startup script for the SCST core functionality.
+# System startup script for the QLogic 22xx/23xx card target driver.
 #
 # Note: on most Linux distributions /bin/sh is a soft link to /bin/bash, while
 # on a default Ubuntu setup /bin/sh is a soft link to /bin/dash !
@@ -14,28 +14,22 @@
 # * http://www.opengroup.org/onlinepubs/009695399/utilities/xcu_chap02.html
 #
 ### BEGIN INIT INFO
-# Provides:       scst
-# Required-Start: $syslog $local_fs
-# Required-Stop:  $syslog $local_fs
+# Provides:       qla2x00t
+# Required-Start: $syslog $local_fs scst
+# Required-Stop:  $syslog $local_fs scst
 # Default-Start:  2 3 4 5
 # Default-Stop:   0 1 6
-# Description:    SCST core
+# Description:    QLogic 22xx/23xx card target driver
 ### END INIT INFO
 ### BEGIN CHKCONFIG INFO
-# chkconfig:      2345 13 87
-# description:    SCST core
+# chkconfig:      2345 14 86
+# description:    QLogic 22xx/23xx card target driver
 ### END CHKCONFIG IFO
 
 PATH=/bin:/usr/bin:/sbin:/usr/sbin:/usr/local/sbin:/usr/local/bin
-SCST_CFG=/etc/scst.conf
 
 # Modules to load/unload.
-#
-# !!! DON'T ADD HERE TARGET DRIVERS, WHICH IMMEDIATELLY START ACCEPTING
-# !!! NEW CONNECTIONS, BECAUSE AT THIS POINT ACCESS CONTROL HASN'T CONFIGURED
-# !!! YET!
-#
-SCST_MODULES="scst scst_disk scst_vdisk"
+KERNEL_MODULES="qla2x00t"
 
 # Return values according to LSB for all commands but status:
 # 0 - success
@@ -48,36 +42,26 @@ SCST_MODULES="scst scst_disk scst_vdisk"
 # 7 - program is not running
 #
 
-[ -x "$(which scstadmin)" ] || exit 5
-[ -f $SCST_CFG ]            || exit 6
-
 . /lib/lsb/init-functions
 
 case "$1" in
     start)
         ## Start the service.
-        echo -n "Loading and configuring the mid-level SCSI target SCST"
+        echo -n "Loading and configuring the QLogic target driver"
 
-        for module in ${SCST_MODULES}; do
+        for module in ${KERNEL_MODULES}; do
             if ! modprobe "${module}"; then
                 log_failure_msg
                 exit 5
             fi
         done
-
-        if scstadmin -config $SCST_CFG >/dev/null 2>&1; then
-            log_success_msg
-        else
-            log_failure_msg
-            exit 1
-        fi
         ;;
     stop)
         ## Stop the service.
-        echo -n "Stopping the mid-level SCSI target SCST"
+        echo -n "Stopping the QLogic target driver"
 
         reverse_list=""
-        for module in ${SCST_MODULES}; do
+        for module in ${KERNEL_MODULES}; do
             reverse_list="${module} ${reverse_list}"
         done
         for module in ${reverse_list}; do
@@ -97,32 +81,23 @@ case "$1" in
         ;;
     try-restart)
         ## Restart the service if the service is already running.
-        $0 status >/dev/null 2>&1 && $0 restart
+        $0 status >/dev/null && $0 restart
         ;;
     reload)
         ## Cause the configuration of the service to be reloaded without
         ## actually stopping and restarting the service.
-        echo -n "Reloading SCST configuration"
-        if scstadmin -config $SCST_CFG >/dev/null 2>&1; then
-            log_success_msg
-        else
-            log_failure_msg
-            exit 1
-        fi
+        echo -n "Reloading QLogic target driver configuration"
+        log_success_msg
         ;;
     force-reload)
         ## Cause the configuration to be reloaded if the service supports this,
         ## otherwise restart the service if it is running.
-        echo -n "Reloading SCST configuration"
-        if scstadmin -config $SCST_CFG >/dev/null 2>&1; then
-            log_success_msg
-        else
-            $0 restart
-        fi
+        echo -n "Reloading QLogic target driver configuration"
+        log_success_msg
         ;;
     status)
         ## Print the current status of the service.
-        echo -n "SCST status: "
+        echo -n "QLogic target driver status: "
 
         # Status has a slightly different meaning for the status command:
         # 0 - service running
@@ -130,7 +105,7 @@ case "$1" in
         # 2 - service dead, but /var/lock/ lock file exists
         # 3 - service not running
 
-        for module in ${SCST_MODULES}; do
+        for module in ${KERNEL_MODULES}; do
             if [ ! -e "/sys/module/${module}" ]; then
                 echo "Not loaded"
                 exit 3
