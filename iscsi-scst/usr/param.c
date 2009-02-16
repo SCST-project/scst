@@ -197,8 +197,8 @@ static int marker_val_to_str(unsigned int val, char *str)
 
 static int marker_set_val(struct iscsi_param *param, int idx, unsigned int *val)
 {
-	if ((idx == key_ofmarkint && param[key_ofmarker].state == KEY_STATE_DONE) ||
-	    (idx == key_ifmarkint && param[key_ifmarker].state == KEY_STATE_DONE))
+	if ((idx == key_ofmarkint && param[key_ofmarker].key_state == KEY_STATE_DONE) ||
+	    (idx == key_ifmarkint && param[key_ifmarker].key_state == KEY_STATE_DONE))
 		*val = 0;
 	else
 		*val = 1;

@@ -303,11 +303,13 @@ static void text_scan_login(struct connection *conn)
 				text_key_add(conn, key, "NotUnderstood");
 				continue;
 			}
-			if (idx == key_max_recv_data_length)
+			if (idx == key_max_recv_data_length) {
+				conn->session_param[idx].key_state = KEY_STATE_DONE;
 				idx = key_max_xmit_data_length;
+			};
 
 			if (param_str_to_val(session_keys, idx, value, &val) < 0) {
-				if (conn->session_param[idx].state == KEY_STATE_START) {
+				if (conn->session_param[idx].key_state == KEY_STATE_START) {
 					text_key_add_reject(conn, key);
 					continue;
 				} else {
@@ -321,13 +323,16 @@ static void text_scan_login(struct connection *conn)
 			param_check_val(session_keys, idx, &val);
 			param_set_val(session_keys, conn->session_param, idx, &val);
 
-			switch (conn->session_param[idx].state) {
+			switch (conn->session_param[idx].key_state) {
 			case KEY_STATE_START:
-				if (iscsi_is_key_declarative(idx))
+				if (iscsi_is_key_declarative(idx)) {
+					conn->session_param[idx].key_state = KEY_STATE_DONE;
 					break;
+				}
 				memset(buf, 0, sizeof(buf));
 				param_val_to_str(session_keys, idx, val, buf);
 				text_key_add(conn, key, buf);
+				conn->session_param[idx].key_state = KEY_STATE_DONE_ADDED;
 				break;
 			case KEY_STATE_REQUEST:
 				if (val != conn->session_param[idx].val) {
@@ -338,11 +343,12 @@ static void text_scan_login(struct connection *conn)
 						val, conn->session_param[idx].val);
 					goto out;
 				}
+				conn->session_param[idx].key_state = KEY_STATE_DONE;
 				break;
+			case KEY_STATE_DONE_ADDED:
 			case KEY_STATE_DONE:
 				break;
 			}
-			conn->session_param[idx].state = KEY_STATE_DONE;
 		} else
 			text_key_add(conn, key, "NotUnderstood");
 	}
@@ -358,12 +364,23 @@ static int text_check_param(struct connection *conn)
 	int i, cnt;
 
 	for (i = 0, cnt = 0; session_keys[i].name; i++) {
-		if (p[i].state == KEY_STATE_START && p[i].val != session_keys[i].rfc_def) {
+		if (p[i].val != session_keys[i].rfc_def) {
+			if (p[i].key_state == KEY_STATE_START) {
+				log_debug(1, "Key %s was not negotiated, use RFC "
+					"defined default %d",  session_keys[i].name,
+					session_keys[i].rfc_def);
+				p[i].val = session_keys[i].rfc_def;
+				continue;
+			} else if (p[i].key_state == KEY_STATE_DONE_ADDED) {
+				log_debug(1, "Key %s was already added, val %d",
+					session_keys[i].name, p[i].val);
+				continue;
+			}
 			switch (conn->state) {
 			case STATE_LOGIN_FULL:
 			case STATE_SECURITY_FULL:
 				if (iscsi_is_key_declarative(i)) {
-					p[i].state = KEY_STATE_DONE;
+					p[i].key_state = KEY_STATE_DONE;
 					continue;
 				}
 				break;
@@ -374,10 +391,10 @@ static int text_check_param(struct connection *conn)
 				param_val_to_str(session_keys, i, p[i].val, buf);
 				text_key_add(conn, session_keys[i].name, buf);
 				if (i == key_max_recv_data_length) {
-					p[i].state = KEY_STATE_DONE;
+					p[i].key_state = KEY_STATE_DONE;
 					continue;
 				}
-				p[i].state = KEY_STATE_REQUEST;
+				p[i].key_state = KEY_STATE_REQUEST;
 				break;
 			default:
 				if (iscsi_is_key_declarative(i))
@@ -465,15 +482,7 @@ static void login_finish(struct connection *conn)
 	switch (conn->session_type) {
 	case SESSION_NORMAL:
 	{
-		int i;
-		for (i = 0; session_keys[i].name; i++) {
-			if (conn->session_param[i].state == KEY_STATE_START) {
-				log_debug(1, "Key %s was not negotiated, use RFC defined "
-					"default %d",  session_keys[i].name,
-					session_keys[i].rfc_def);
-				conn->session_param[i].val = session_keys[i].rfc_def;
-			}
-		}
+		
 		if (!conn->session)
 			session_create(conn);
 		conn->sid = conn->session->sid;

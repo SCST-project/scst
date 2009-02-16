@@ -19,7 +19,7 @@
 struct iscsi_key;
 
 struct iscsi_param {
-	int state;
+	int key_state;
 	unsigned int val;
 };
 

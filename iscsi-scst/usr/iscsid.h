@@ -46,7 +46,8 @@ struct PDU {
 
 #define KEY_STATE_START		0
 #define KEY_STATE_REQUEST	1
-#define KEY_STATE_DONE		2
+#define KEY_STATE_DONE_ADDED	2
+#define KEY_STATE_DONE		3
 
 struct session {
 	struct __qelem slist;
