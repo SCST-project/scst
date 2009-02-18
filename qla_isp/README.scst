@@ -156,3 +156,6 @@ When all LUNs and channels are disabled, the target role will also become
 inactive. For N_PORT ID virtualization, when enabling channels, you need to
 first enable channel 0; when disabling channels, you need to disable channel
 0 last.
+
+Send question about this driver to scst-devel@lists.sourceforge.net, CC
+Matthew Jacob <lydianconcepts@gmail.com> and Stanislaw Gruszka <stf_xl@wp.pl>.

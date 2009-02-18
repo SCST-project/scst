@@ -59,7 +59,7 @@
 				
 				<p><strong>ISCSI-SCST</strong> has the following major advantages over the mainline <strong>IET</strong>:
 				<ul>
-					<li><span>It uses full power of <strong>SCST core</strong> without loosing any existing feature (except, maybe, illegal
+					<li><span>It uses full power of <strong>SCST core</strong> without loosing any existing IET feature (except, maybe, illegal
 					 from SCSI specifications point of view MPIO). Namely, you can additionally use with it:
 					 <ul>
 						<li><span><strong>Pass-through mode with one to many relationship</strong>, i.e. when multiple initiators can connect to the 
@@ -83,29 +83,31 @@
 					 </ul>					 
 					 </span></li>
 					 <li><span>It has many code improvements and cleanups, including <strong>stability and iSCSI RFC violations fixes</strong>. 
-					  Many IET users use it for ages without problems, so they consider it problemless. But,
+					  Many IET users use it for ages without problems, so they consider it free from any real problem. But,
 					  in fact, unfortunately, it isn't so.
-					  IET works well only on "fast" paths and regularly used branches, in many other less used
+					  IET works well only on "fast" paths and regularly used code branches. In many other less used
 					  cases IET has various problems, from simply ignoring error processing, as it is with memory 
 					  allocations, and crashing itself with BUG() macro, as it is for malformed packets from initiators, to possible data
 					  corruption. See, for instance, <a href="http://communities.vmware.com/thread/53797?tstart=0&start=15">this</a>
 					  thread on a VMware forum about in which <strong>Russian roulette</strong> IET users play using it with VMware.
 					  ChangeLog file lists most noticeable fixes, but there were a lot of many other smaller ones.</span></li>
-					 <li><span>Due to reworked I/O architecture and <strong>SCST</strong> backend <strong>iSCSI-SCST</strong> has
-					  better performance in many cases. In future with upcoming improvements in <strong>SCST core</strong>, like zero-copy 
-					  with Linux cache <strong>FILEIO</strong>, the performance difference is going to be even bigger. Currently in 
-					  tests from a single initiator over a single connection on 1GbE hardware over <strong>FILEIO</strong> vdisk 
-					  <strong>iSCSI-SCST</strong> with default settings usually outperforms tuned for best
-					  performance <strong>IET</strong> a on <strong>3-30%</strong>. The difference is especially noticeably with real storage,
+
+					 <li><span>Due to reworked I/O architecture and SCST backend iSCSI-SCST has
+					  better performance in many cases. In future with upcoming improvements in SCST core, like <strong>zero-copy 
+					  with Linux cache FILEIO</strong>, the performance difference is going to be even bigger. Currently in 
+					  tests from a single initiator over a single connection on 1GbE hardware over FILEIO vdisk 
+					  iSCSI-SCST with default settings usually outperforms tuned for best
+					  performance IET a on <strong>on up to 100%</strong>. The difference is especially noticeably with real storage,
 					  not NULLIO or RAM disks.
 					  On 10GbE hardware the performance difference is often as high as <strong>100-200%</strong> or even more.
 					  With higher number of initiators the difference will be even bigger. This is because 
-					  <strong>iSCSI-SCST</strong> has less commands processing overhead per command, hence has smaller processing 
+					  iSCSI-SCST has less commands processing overhead per command, hence has smaller processing 
 					  latency and puts less load on CPU.			
 				</ul></p>
-				<p>Also, in contrast to <strong>IET, iSCSI-SCST</strong> is open for any new development, modifications and 
+
+				<p>Also, in contrast to IET, iSCSI-SCST is open for any new development, modifications and 
 				improvements, so people who want to fix or implement something new will not have to keep and maintain separate 
-				patches as it is currently necessary with <strong>IET</strong>. <strong>ISCSI-SCST</strong> is actively
+				patches as it is currently necessary with IET. ISCSI-SCST is actively
 				 developed and going to gain in the future new features like support for multiple connections per session, error recovery 
 				 levels >0, etc., which eventually make it really <i>"Enterprise"</i>.</p>
 				

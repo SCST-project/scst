@@ -35,28 +35,43 @@
 				<h1>SCST vs STGT</h1>
 				<p><strong><a href="http://stgt.berlios.de/">STGT</a></strong> is alternative, independent from SCST implementation 
 				of SCSI target framework for Linux. It has different architecture, where SCSI target state machine is placed in 
-				the user space, while in SCST all the processing done in the kernel. Such architecture was acknowledged as a 
-				"right" one by the Linux SCSI subsystem maintainers, so kernel's part of STGT quickly found its way to the kernel. 
-				But such architecture has two inherent problems, namely performance and complexity.
-				See thread <a href="http://sourceforge.net/mailarchive/forum.php?thread_name=472F7FA4.7040303%40wpkg.org&forum_name=scst-devel">
-				"Relationship between SCST and in-kernel SCSI_TGT"</a> and <a href="http://thread.gmane.org/gmane.linux.scsi/36417/focus=37273">
-				this</a> message in thread "Open-FCoE on linux-scsi" for more details.</p>
+				the user space, while in SCST all the processing done in the kernel. Such architecture as STGT has was acknowledged
+				at the moment by the Linux SCSI subsystem maintainers as a "right" one, so kernel's part of STGT quickly
+				found its way to the kernel.</p>
+
+				<p>But such architecture has several inherent problems. Among them performance and complexity.
+				See description for the set of patches, submitted for the first iteration of in-kernel inclusion review and comments
+				<a href="http://lkml.org/lkml/2008/12/10/245">http://lkml.org/lkml/2008/12/10/245</a></p>
 				
-				<p>See also the following important discussions:<ul>
+				<p>See also the following important discussions:
+				<ul>
+				
+				<li><span><a href="http://news.gmane.org/find-root.php?message_id=%3ce2e108260801170127w2937b2afg9bef324efa945e43%40mail.gmail.com%3e">
+				"Performance of SCST versus STGT"</a> for performance comparison.</span></li>
+				
+				<li><span><a href="http://news.gmane.org/find-root.php?message_id=%3c463F36AC.3010207%40vlnb.net%3e">
+				"Question for pass-through target design"</a></span></li>				
+				
 				<li><span><a href="http://news.gmane.org/find-root.php?message_id=%3c43987F75.2000301%40vlnb.net%3e">
 				"Stgt a new version of iscsi target?"</a>, especially pay attention to 
 				this message: <a href="http://article.gmane.org/gmane.linux.scsi/21073">
 				http://article.gmane.org/gmane.linux.scsi/21073</a> for motivation why STGT's architecture was considered "right".
 				</span></li>
-				<li><span><a href="http://news.gmane.org/find-root.php?message_id=%3c463F36AC.3010207%40vlnb.net%3e">
-				"Question for pass-through target design"</a></span></li>				
-				<li><span><a href="http://news.gmane.org/find-root.php?message_id=%3ce2e108260801170127w2937b2afg9bef324efa945e43%40mail.gmail.com%3e">
-				"Performance of SCST versus STGT"</a> for performance comparison.</span></li>
+				
+				<li><span>Thread
+				<a href="http://sourceforge.net/mailarchive/forum.php?thread_name=472F7FA4.7040303%40wpkg.org&forum_name=scst-devel">
+				"Relationship between SCST and in-kernel SCSI_TGT"</a>
+				</span></li>
+				
+				<li><span><a href="http://thread.gmane.org/gmane.linux.scsi/36417/focus=37273">this</a>
+				message in thread "Open-FCoE on linux-scsi" for more details.</span></li>
+				
 				</ul></p>
-				<p>Also you shouldn't be deceived by the fact that some (small) part of STGT was accepted in the kernel.<br> 
+				
+				<p>Also you shouldn't be deceived by the fact that some (small) part of STGT was accepted into the kernel.<br> 
 				It doesn't mean that STGT has the <strong>"kernel quality"</strong>. In fact, STGT as a whole similarly to any other
 				out-of-tree project lives on its own, hence has its own quality level, which isn't necessary better, than the 
-				quality level of <strong>SCST</strong>. Actually, from such important aspect of quality as simplicity, it 
+				quality level of SCST. Actually, from such important aspect of quality as simplicity, it 
 				might be quite contrary: e.g. SCST isn't required to support HIGHMEM (nowadays it 
 				isn't necessary, but required for all in-kernel components), which allowed to simplify memory management a lot.</p>	
 

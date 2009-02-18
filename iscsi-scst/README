@@ -140,6 +140,24 @@ CAUTION: Working of target and initiator on the same host isn't fully
 =======  supported. See SCST README file for details.
 
 
+Troubleshooting
+---------------
+
+If you have any problems, start troubleshooting from looking at the
+kernel and system logs. In the kernel log iSCSI-SCST and SCST core send
+their messages, in the system log iscsi-scstd sends its messages. In
+most Linux distributions both those logs are put to /var/log/messages
+file.
+
+Then, it might be helpful to increase level of logging. For kernel
+modules you should make the debug build, by either running "make
+release2debug" if you work with SCST SVN tree, or by enable the
+corresponding debug symbols (see below). 
+
+If after looking on the logs the reason of your problem is still unclear
+for you, report to SCST mailing list scst-devel@lists.sourceforge.net.
+
+
 Work if target's backstorage or link is too slow
 ------------------------------------------------
 

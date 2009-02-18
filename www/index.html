@@ -30,17 +30,20 @@
 	  		<div id="main">
 				<h1>Generic SCSI Target Middle Level for Linux</h1>
 						
-				<p>The <strong>SCSI target mid-level subsystem for Linux (SCST)</strong> is a subsystem of the Linux kernel 
-					that provides a standard framework for SCSI target drivers development.
-					It is designed to provide unified, consistent interface between SCSI target drivers and Linux kernel 
-					and simplify target drivers development as much as possible.</p>
-				<p>A system with a SCSI target device is able to share its local or virtual devices with other systems 
-					on a network with SCSI protocol support, e.g. <strong>SCSI bus, SAS, Fibre Channel or iSCSI</strong>.
-					This is commonly used for data storage virtualization.</p>
+				<p>The <strong>SCSI target mid-level subsystem for Linux (SCST)</strong> is an alternative
+					implementation of SCSI target subsystem for Linux. It provides unified,
+					consistent interface between SCSI target drivers and 
+					Linux kernel and simplifies target drivers development.
+					
+				<p>SCST allows creation of sophisticated storage devices, which  provide advanced 
+					functionality, like <EM>replication</EM>, <EM>thin provisioning</EM>,
+					<EM>deduplication</EM>, <EM>high availability</EM>, <EM>automatic backup</EM>, etc.
+					Another class of such devices are <EM>Virtual Tape Libraries</EM> (VTL)
+					as well as other disk-based backup solutions. </p>
 
-				<p>This project consists from a set of subprojects: <strong>SCST core</strong> itself
-					as well as <strong>target drivers</strong> and <strong>user space utilities</strong>.
-					They are developed more or less independently and have own maintainers.</p>
+				<p>SCST project consists from a set of subprojects: <strong>SCST core</strong> itself
+					with a set of <strong>device handlers</strong> as well as <strong>target
+					drivers</strong> and <strong>user space utilities</strong>.
 				
 				<h1>Features of SCST Core</h1>
 				<ul>					
@@ -49,11 +52,12 @@
 								 necessary error recovery.</span></li>
 					<li><span>Undertakes most problems, related to execution contexts, thus practically eliminating one of the most 
 								 complicated problem in the kernel drivers development. For example, a target driver for QLogic 
-								 22xx/23xx cards, which has all necessary features, is only about 2000 lines of code long.</span></li>
+								 22xx/23xx cards, which has all necessary features, is only about 2000 lines of code long.
+								 The same is true for InfiniBand SRP target driver.</span></li>
 					<li><span>Very low overhead, fine-grained locks and simplest commands processing path, which allow to reach 
 								 maximum possible performance and scalability. Particularly, incoming requests can be processed in 
-								 the caller's context or in one of the internal SCST core's tasklets, therefore no extra context switches 
-								 required. </span></li>
+								 the caller's context or in one of the internal SCST core's tasklets without any
+								 extra context switches.</span></li>
 					<li><span>Device handlers, i.e. plugins, architecture provides extra flexibility by allowing various I/O 
 								 modes in backstorage handling. For example, pass-through device handlers allows to use real 
 								 SCSI hardware and vdisk device handler allows to use files as virtual disks.</span></li>

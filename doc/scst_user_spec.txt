@@ -87,7 +87,21 @@ where:
 SCST_USER_REGISTER_DEVICE returns registered device's handler or -1
 in case of error, and errno is set appropriately.
 
-In order to unregister the device just call close() on its file descriptor.
+In order to unregister the device, either call SCST_USER_UNREGISTER_DEVICE
+function, or close on its file descriptor.
+
+
+		2. SCST_USER_UNREGISTER_DEVICE
+
+SCST_USER_UNREGISTER_DEVICE - unregisters the corresponding virtual user
+space device. It doesn't have any parameters.
+
+During execution of SCST_USER_UNREGISTER_DEVICE at least one another
+thread must process all coming subcommands, otherwise after timeout it
+will fail with EBUSY error.
+
+SCST_USER_UNREGISTER_DEVICE returns 0 on success or -1 in case of error,
+and errno is set appropriately.
 
 
 		3. SCST_USER_SET_OPTIONS/SCST_USER_GET_OPTIONS
@@ -705,7 +719,6 @@ Possible return values are:
  - SCST_MGMT_STATUS_FAILED - task management function failed
 
 
-
 		5. SCST_USER_REPLY_CMD
 
 SCST_USER_REPLY_CMD IOCTL function allows the user space handler to
@@ -798,6 +811,22 @@ where:
  - sense_len - length of sense data in psense_buffer, if any
 
  - psense_buffer - pointed to sense buffer
+
+
+		6. SCST_USER_FLUSH_CACHE
+
+SCST_USER_FLUSH_CACHE - flushes SGV cache for the corresponding virtual
+user space device and queues for all cached memory buffers corresponding
+SCST_USER_ON_CACHED_MEM_FREE subcommands.
+
+During execution of SCST_USER_FLUSH_CACHE at least one another thread
+must process all coming subcommands, otherwise after timeout it will
+fail with EBUSY error.
+
+SCST_USER_FLUSH_CACHE doesn't have any parameters.
+
+SCST_USER_FLUSH_CACHE returns 0 on success or -1 in case of error,
+and errno is set appropriately.
 
 
 		IV. Commands processing flow example.
