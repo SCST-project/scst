@@ -895,8 +895,8 @@ struct scatterlist *scst_alloc(int size, gfp_t gfp_mask, int *count)
 
 	atomic_inc(&sgv_pools_mgr.sgv_other_total_alloc);
 
-	if (unlikely(!no_fail)) {
-		if (unlikely(sgv_pool_hiwmk_check(pages) != 0)) {
+	if (unlikely(sgv_pool_hiwmk_check(pages) != 0)) {
+		if (!no_fail) {
 			res = NULL;
 			goto out;
 		}
@@ -922,7 +922,7 @@ struct scatterlist *scst_alloc(int size, gfp_t gfp_mask, int *count)
 		goto out_free;
 
 out:
-	TRACE_MEM("Alloced sg %p (count %d)", res, *count);
+	TRACE_MEM("Alloced sg %p (count %d) \"no fail\" %d", res, *count, no_fail);
 
 	TRACE_EXIT_HRES(res);
 	return res;
