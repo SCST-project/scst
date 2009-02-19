@@ -899,7 +899,14 @@ struct scatterlist *scst_alloc(int size, gfp_t gfp_mask, int *count)
 		if (!no_fail) {
 			res = NULL;
 			goto out;
-		}
+		} else {
+			/*
+			 * Update active_pages_total since alloc can't fail.
+			 * If it wasn't updated then the counter would cross 0
+			 * on free again.
+			 */
+			sgv_pool_hiwmk_uncheck(-pages);
+		 }
 	}
 
 	res = kmalloc(pages*sizeof(*res), gfp_mask);
@@ -1007,7 +1014,6 @@ int sgv_pool_init(struct sgv_pool *pool, const char *name,
 					sizeof(obj->trans_tbl[0]) : 0));
 		} else {
 			size = sizeof(*obj);
-
 			/* both sgv and ttbl are kallocated() */
 		}
 
