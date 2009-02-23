@@ -1,4 +1,4 @@
-/* $Id: ispvar.h,v 1.103 2009/02/01 23:49:49 mjacob Exp $ */
+/* $Id: ispvar.h,v 1.104 2009/02/13 23:58:38 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -76,7 +76,7 @@
 #include "ispmbox.h"
 #endif
 
-#define	ISP_CORE_VERSION_MAJOR	5
+#define	ISP_CORE_VERSION_MAJOR	6
 #define	ISP_CORE_VERSION_MINOR	0
 
 /*
@@ -84,13 +84,11 @@
  */
 typedef struct ispsoftc ispsoftc_t;
 struct ispmdvec {
-	int		(*dv_rd_isr)
-	    (ispsoftc_t *, uint32_t *, uint16_t *, uint16_t *);
+	int		(*dv_rd_isr) (ispsoftc_t *, uint32_t *, uint16_t *, uint16_t *);
 	uint32_t	(*dv_rd_reg) (ispsoftc_t *, int);
 	void		(*dv_wr_reg) (ispsoftc_t *, int, uint32_t);
 	int		(*dv_mbxdma) (ispsoftc_t *);
-	int		(*dv_dmaset)
-	    (ispsoftc_t *, XS_T *, ispreq_t *, uint32_t *, uint32_t);
+	int		(*dv_dmaset) (ispsoftc_t *, XS_T *, void *);
 	void		(*dv_dmaclr) (ispsoftc_t *, XS_T *, uint32_t);
 	void		(*dv_reset0) (ispsoftc_t *);
 	void		(*dv_reset1) (ispsoftc_t *);
@@ -126,8 +124,8 @@ struct ispmdvec {
 #define	ISP_MBOXDMASETUP(isp)	\
 	(*(isp)->isp_mdvec->dv_mbxdma)((isp))
 
-#define	ISP_DMASETUP(isp, xs, req, iptrp, optr)	\
-	(*(isp)->isp_mdvec->dv_dmaset)((isp), (xs), (req), (iptrp), (optr))
+#define	ISP_DMASETUP(isp, xs, req)	\
+	(*(isp)->isp_mdvec->dv_dmaset)((isp), (xs), (req))
 
 #define	ISP_DMAFREE(isp, xs, hndl)		\
 	if ((isp)->isp_mdvec->dv_dmaclr)	\
@@ -186,6 +184,11 @@ struct ispmdvec {
 	MEMORYBARRIER(isp, SYNC_REQUEST, isp->isp_reqidx, QENTRY_LEN);	\
 	ISP_WRITE(isp, isp->isp_rqstinrp, nxti);			\
 	isp->isp_reqidx = nxti
+
+#define	ISP_SYNC_REQUEST(isp)								\
+	MEMORYBARRIER(isp, SYNC_REQUEST, isp->isp_reqidx, QENTRY_LEN);			\
+	isp->isp_reqidx = ISP_NXT_QENTRY(isp->isp_reqidx, RQUEST_QUEUE_LEN(isp));	\
+	ISP_WRITE(isp, isp->isp_rqstinrp, isp->isp_reqidx)
 
 /*
  * SCSI Specific Host Adapter Parameters- per bus, per target
@@ -975,25 +978,27 @@ void isp_async(ispsoftc_t *, ispasync_t, ...);
  *	SCSI_BUSY	SCSI 'Busy' Status
  *	SCSI_QFULL	SCSI 'Queue Full' Status
  *
- *	XS_T		Platform SCSI transaction type (i.e., command for HBA)
- *	XS_DMA_ADDR_T	Platform PCI DMA Address Type
- *	XS_ISP(xs)	gets an instance out of an XS_T
- *	XS_CHANNEL(xs)	gets the channel (bus # for DUALBUS cards) ""
- *	XS_TGT(xs)	gets the target ""
- *	XS_LUN(xs)	gets the lun ""
- *	XS_CDBP(xs)	gets a pointer to the scsi CDB ""
- *	XS_CDBLEN(xs)	gets the CDB's length ""
- *	XS_XFRLEN(xs)	gets the associated data transfer length ""
- *	XS_TIME(xs)	gets the time (in milliseconds) for this command
+ *	XS_T			Platform SCSI transaction type (i.e., command for HBA)
+ *	XS_DMA_ADDR_T		Platform PCI DMA Address Type
+ *	XS_GET_DMA_SEG(..)	Get 32 bit dma segment list value
+ *	XS_GET_DMA64_SEG(..)	Get 64 bit dma segment list value
+ *	XS_ISP(xs)		gets an instance out of an XS_T
+ *	XS_CHANNEL(xs)		gets the channel (bus # for DUALBUS cards) ""
+ *	XS_TGT(xs)		gets the target ""
+ *	XS_LUN(xs)		gets the lun ""
+ *	XS_CDBP(xs)		gets a pointer to the scsi CDB ""
+ *	XS_CDBLEN(xs)		gets the CDB's length ""
+ *	XS_XFRLEN(xs)		gets the associated data transfer length ""
+ *	XS_TIME(xs)		gets the time (in milliseconds) for this command
  *	XS_GET_RESID(xs)	gets the current residual count
  *	XS_GET_RESID(xs, resid)	sets the current residual count
- *	XS_STSP(xs)	gets a pointer to the SCSI status byte ""
- *	XS_SNSP(xs)	gets a pointer to the associate sense data
- *	XS_SNSLEN(xs)	gets the length of sense data storage
- *	XS_SNSKEY(xs)	dereferences XS_SNSP to get the current stored Sense Key
- *	XS_TAG_P(xs)	predicate of whether this command should be tagged
- *	XS_TAG_TYPE(xs)	which type of tag to use
- *	XS_SETERR(xs)	set error state
+ *	XS_STSP(xs)		gets a pointer to the SCSI status byte ""
+ *	XS_SNSP(xs)		gets a pointer to the associate sense data
+ *	XS_SNSLEN(xs)		gets the length of sense data storage
+ *	XS_SNSKEY(xs)		dereferences XS_SNSP to get the current stored Sense Key
+ *	XS_TAG_P(xs)		predicate of whether this command should be tagged
+ *	XS_TAG_TYPE(xs)		which type of tag to use
+ *	XS_SETERR(xs)		set error state
  *
  *		HBA_NOERROR	command has no erros
  *		HBA_BOTCH	hba botched something

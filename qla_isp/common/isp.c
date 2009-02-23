@@ -4316,12 +4316,12 @@ int
 isp_start(XS_T *xs)
 {
 	ispsoftc_t *isp;
-	uint32_t nxti, optr, handle;
+	uint32_t handle;
 	uint8_t local[QENTRY_LEN];
-	ispreq_t *reqp, *qep;
-	void *cdbp;
+	ispreq_t *reqp;
+	void *cdbp, *qep;
 	uint16_t *tptr;
-	int target, i, hdlidx = 0;
+	int target, dmaresult, hdlidx = 0;
 
 	XS_INITERR(xs);
 	isp = XS_ISP(xs);
@@ -4344,9 +4344,7 @@ isp_start(XS_T *xs)
 	 */
 
 	if (XS_CDBLEN(xs) > (IS_FC(isp)? 16 : 44) || XS_CDBLEN(xs) == 0) {
-		isp_prt(isp, ISP_LOGERR,
-		    "unsupported cdb length (%d, CDB[0]=0x%x)",
-		    XS_CDBLEN(xs), XS_CDBP(xs)[0] & 0xff);
+		isp_prt(isp, ISP_LOGERR, "unsupported cdb length (%d, CDB[0]=0x%x)", XS_CDBLEN(xs), XS_CDBP(xs)[0] & 0xff);
 		XS_SETERR(xs, HBA_BOTCH);
 		return (CMD_COMPLETE);
 	}
@@ -4378,8 +4376,7 @@ isp_start(XS_T *xs)
 		}
 
 		hdlidx = fcp->isp_dev_map[XS_TGT(xs)] - 1;
-		isp_prt(isp, ISP_LOGDEBUG1, "XS_TGT(xs)=%d- hdlidx value %d",
-		    XS_TGT(xs), hdlidx);
+		isp_prt(isp, ISP_LOGDEBUG2, "XS_TGT(xs)=%d- hdlidx value %d", XS_TGT(xs), hdlidx);
 		if (hdlidx < 0 || hdlidx >= MAX_FC_TARG) {
 			XS_SETERR(xs, HBA_SELTIMEOUT);
 			return (CMD_COMPLETE);
@@ -4405,11 +4402,13 @@ isp_start(XS_T *xs)
 
  start_again:
 
-	if (isp_getrqentry(isp, &nxti, &optr, (void *)&qep)) {
+	qep = isp_getrqentry(isp);
+	if (qep == NULL) {
 		isp_prt(isp, ISP_LOGDEBUG0, "Request Queue Overflow");
 		XS_SETERR(xs, HBA_BOTCH);
 		return (CMD_EAGAIN);
 	}
+	XS_SETERR(xs, HBA_NOERROR);
 
 	/*
 	 * Now see if we need to synchronize the ISP with respect to anything.
@@ -4417,39 +4416,38 @@ isp_start(XS_T *xs)
 	 * than which we got here to send a command to.
 	 */
 	reqp = (ispreq_t *) local;
+	ISP_MEMZERO(local, QENTRY_LEN);
 	if (ISP_TST_SENDMARKER(isp, XS_CHANNEL(xs))) {
 		if (IS_24XX(isp)) {
-			isp_marker_24xx_t *m = (isp_marker_24xx_t *) qep;
-			ISP_MEMZERO(m, QENTRY_LEN);
+			isp_marker_24xx_t *m = (isp_marker_24xx_t *) reqp;
 			m->mrk_header.rqs_entry_count = 1;
 			m->mrk_header.rqs_entry_type = RQSTYPE_MARKER;
 			m->mrk_modifier = SYNC_ALL;
-			isp_put_marker_24xx(isp, m, (isp_marker_24xx_t *)qep);
+			isp_put_marker_24xx(isp, m, qep);
 		} else {
-			isp_marker_t *m = (isp_marker_t *) qep;
-			ISP_MEMZERO(m, QENTRY_LEN);
+			isp_marker_t *m = (isp_marker_t *) reqp;
 			m->mrk_header.rqs_entry_count = 1;
 			m->mrk_header.rqs_entry_type = RQSTYPE_MARKER;
 			m->mrk_target = (XS_CHANNEL(xs) << 7);	/* bus # */
 			m->mrk_modifier = SYNC_ALL;
-			isp_put_marker(isp, m, (isp_marker_t *) qep);
+			isp_put_marker(isp, m, qep);
 		}
-		ISP_ADD_REQUEST(isp, nxti);
+		ISP_SYNC_REQUEST(isp);
 		ISP_SET_SENDMARKER(isp, XS_CHANNEL(xs), 0);
 		goto start_again;
 	}
 
-	ISP_MEMZERO((void *)reqp, QENTRY_LEN);
 	reqp->req_header.rqs_entry_count = 1;
 	if (IS_24XX(isp)) {
 		reqp->req_header.rqs_entry_type = RQSTYPE_T7RQS;
 	} else if (IS_FC(isp)) {
 		reqp->req_header.rqs_entry_type = RQSTYPE_T2RQS;
 	} else {
-		if (XS_CDBLEN(xs) > 12)
+		if (XS_CDBLEN(xs) > 12) {
 			reqp->req_header.rqs_entry_type = RQSTYPE_CMDONLY;
-		else
+		} else {
 			reqp->req_header.rqs_entry_type = RQSTYPE_REQUEST;
+		}
 	}
 	/* reqp->req_header.rqs_flags = 0; */
 	/* reqp->req_header.rqs_seqno = 0; */
@@ -4497,8 +4495,7 @@ isp_start(XS_T *xs)
 		}
 	} else {
 		sdparam *sdp = SDPARAM(isp, XS_CHANNEL(xs));
-		if ((sdp->isp_devparam[target].actv_flags & DPARM_TQING) &&
-		    XS_TAG_P(xs)) {
+		if ((sdp->isp_devparam[target].actv_flags & DPARM_TQING) && XS_TAG_P(xs)) {
 			reqp->req_flags = XS_TAG_TYPE(xs);
 		}
 	}
@@ -4553,24 +4550,21 @@ isp_start(XS_T *xs)
 	reqp->req_handle = handle;
 
 	/*
-	 * Set up DMA and/or do any bus swizzling of the request entry
+	 * Set up DMA and/or do any platform dependent swizzling of the request entry
 	 * so that the Qlogic F/W understands what is being asked of it.
+	 *
+	 * The callee is responsible for adding all requests at this point.
 	 */
-	i = ISP_DMASETUP(isp, xs, reqp, &nxti, optr);
-	if (i != CMD_QUEUED) {
+	dmaresult = ISP_DMASETUP(isp, xs, reqp);
+	if (dmaresult != CMD_QUEUED) {
 		isp_destroy_handle(isp, handle);
 		/*
 		 * dmasetup sets actual error in packet, and
 		 * return what we were given to return.
 		 */
-		return (i);
+		return (dmaresult);
 	}
-	XS_SETERR(xs, HBA_NOERROR);
-	isp_prt(isp, ISP_LOGDEBUG0,
-	    "START cmd for %d.%d.%d cmd 0x%x datalen %ld",
-	    XS_CHANNEL(xs), XS_TGT(xs), XS_LUN(xs), XS_CDBP(xs)[0],
-	    (long) XS_XFRLEN(xs));
-	ISP_ADD_REQUEST(isp, nxti);
+	isp_prt(isp, ISP_LOGDEBUG0, "START cmd for %d.%d.%d cmd 0x%x datalen %ld", XS_CHANNEL(xs), XS_TGT(xs), XS_LUN(xs), XS_CDBP(xs)[0], (long) XS_XFRLEN(xs));
 	isp->isp_nactive++;
 	return (CMD_QUEUED);
 }

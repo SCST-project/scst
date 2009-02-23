@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.175 2009/01/24 17:55:55 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.176 2009/02/13 23:58:38 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -81,10 +81,9 @@ static int isp_pci_rd_isr_2300(ispsoftc_t *, uint32_t *, uint16_t *, uint16_t *)
 static uint32_t isp_pci_rd_reg_2400(ispsoftc_t *, int);
 static void isp_pci_wr_reg_2400(ispsoftc_t *, int, uint32_t);
 static int isp_pci_rd_isr_2400(ispsoftc_t *, uint32_t *, uint16_t *, uint16_t *);
-static int isp_pci_2400_dmasetup(ispsoftc_t *, XS_T *, ispreq_t *, uint32_t *, uint32_t);
 #endif
 static int isp_pci_mbxdma(ispsoftc_t *);
-static int isp_pci_dmasetup(ispsoftc_t *, XS_T *, ispreq_t *, uint32_t *, uint32_t);
+static int isp_pci_dmasetup(ispsoftc_t *, XS_T *, void *);
 static void isp_pci_dmateardown(ispsoftc_t *, XS_T *, uint32_t);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,6)
@@ -104,17 +103,6 @@ static void isp_pci_dmateardown(ispsoftc_t *, XS_T *, uint32_t);
 #else
 #define ISP_IRQ_FLAGS   IRQF_SHARED
 #endif
-
-#ifdef    ISP_DAC_SUPPORTED
-#define ISP_A64                 1
-#define HIWD(x)                 ((x) >> 32)
-#define IS_HIGH_ISP_ADDR(addr)  (((u64) addr) > DMA_32BIT_MASK)
-#else
-#define ISP_A64                 0
-#define HIWD(x)                 0
-#define IS_HIGH_ISP_ADDR(addr)  0
-#endif
-#define LOWD(x)                 x
 
 static void isp_pci_reset0(ispsoftc_t *);
 static void isp_pci_reset1(ispsoftc_t *);
@@ -270,7 +258,7 @@ static struct ispmdvec mdvec_2400 = {
     isp_pci_rd_reg_2400,
     isp_pci_wr_reg_2400,
     isp_pci_mbxdma,
-    isp_pci_2400_dmasetup,
+    isp_pci_dmasetup,
     isp_pci_dmateardown,
     isp_pci_reset0,
     isp_pci_reset1,
@@ -881,26 +869,20 @@ isplinux_pci_init_one(struct Scsi_Host *host)
      *
      * We can turn on highmem_io for all of them as we use the PCI dma mapping
      * API.
-     *
-     * We use our synthetic ISP_A64 define here because this allows us to
-     * remove code we wouldn't want to try and use if we don't have
-     * CONFIG_HIGHMEM64G defined.
      */
 
-    if (ISP_A64) {
-        if (pci_set_dma_mask(pdev, DMA_64BIT_MASK)) {
-            if (pci_set_dma_mask(pdev, DMA_32BIT_MASK)) {
-                isp_prt(isp, ISP_LOGERR, "cannot even set 32 bit dma mask");
+    if (IS_1020(isp)) {
+        if (pci_set_dma_mask(pdev, DMA_BIT_MASK(24))) {
+                isp_prt(isp, ISP_LOGERR, "cannot set dma mask");
                 goto bad;
-            }
-        } else {
-            isp_prt(isp, ISP_LOGCONFIG, "enabling 64 bit DMA");
         }
-    } else {
-        if (pci_set_dma_mask(pdev, DMA_32BIT_MASK)) {
-            isp_prt(isp, ISP_LOGERR, "cannot even set 32 bit dma mask");
+    } else if (pci_set_dma_mask(pdev, DMA_BIT_MASK(64))) {
+        if (pci_set_dma_mask(pdev, DMA_BIT_MASK(32))) {
+            isp_prt(isp, ISP_LOGERR, "cannot set dma mask");
             goto bad;
         }
+    } else {
+        isp->isp_osinfo.is_64bit_dma = 1;
     }
 
 #if !defined(DISABLE_FW_LOADER) && (defined(CONFIG_FW_LOADER) || defined(CONFIG_FW_LOADER_MODULE))
@@ -1583,1611 +1565,196 @@ bad:
 }
 
 #ifdef    ISP_TARGET_MODE
-static int tdma_mk(ispsoftc_t *, tmd_xact_t *, ct_entry_t *, uint32_t *, uint32_t);
-static int tdma_mkfc(ispsoftc_t *, tmd_xact_t *, ct2_entry_t *, uint32_t *, uint32_t);
-
-#define STATUS_WITH_DATA        1
-
-/*
- * We need to handle DMA for target mode differently from initiator mode.
- *
- * DMA mapping and construction and submission of CTIO Request Entries
- * and rendevous for completion are very tightly coupled because we start
- * out by knowing (per platform) how much data we have to move, but we
- * don't know, up front, how many DMA mapping segments will have to be used
- * cover that data, so we don't know how many CTIO and Continuation Request
- * Entries we will end up using. Further, for performance reasons we may want
- * to (on the last CTIO for Fibre Channel), send status too (if all went well).
- *
- * The standard vector still goes through isp_pci_dmasetup, but the callback
- * for the DMA mapping routines comes here instead with a pointer to a
- * partially filled in already allocated request queue entry.
- */
-
 static int
-tdma_mk(ispsoftc_t *isp, tmd_xact_t *xact, ct_entry_t *cto, uint32_t *nxtip, uint32_t optr)
+isp_pci_dmasetup_tgt(ispsoftc_t *isp, tmd_xact_t *xact, void *fqe)
 {
-    static const char ctx[] = "CTIO[%x] cdb0 0x%02x lun %u for iid %u flags 0x%x SSTS 0x%02x resid %u <END>";
-    static const char mid[] = "CTIO[%x] cdb0 0x%02x lun %u for iid %u flags 0x%x xfr %u moved %u/%u <MID>";
-    struct isp_pcisoftc *pcs = (struct isp_pcisoftc *) isp;
-    struct scatterlist *sg;
-    ct_entry_t *qe;
-    uint8_t scsi_status;
-    uint32_t curi, nxti, handle;
-    uint32_t sflags;
-    int32_t resid;
-    tmd_cmd_t *tmd;
-    int nth_ctio, nctios, send_status, nseg, new_seg_cnt;
+    struct scatterlist *sg = NULL;
+    isp_ddir_t ddir;
+    uint32_t nseg;
+    int ret;
 
-    tmd = xact->td_cmd;
-    curi = isp->isp_reqidx;
-    qe = (ct_entry_t *) ISP_QUEUE_ENTRY(isp->isp_rquest, isp->isp_reqidx);
-
-    if (cto->ct_flags & CT_SENDSTATUS) {
-        int level;
-        if (cto->ct_resid || cto->ct_scsi_status) {
-            level = ISP_LOGTINFO;
+    switch (((isphdr_t *)fqe)->rqs_entry_type) {
+    case RQSTYPE_CTIO:
+        if ((((ct_entry_t *)fqe)->ct_flags & CT_DATAMASK) == CT_DATA_OUT) {
+            ddir = ISP_FROM_DEVICE;
+        } else if ((((ct_entry_t *)fqe)->ct_flags & CT_DATAMASK) == CT_DATA_IN) {
+            ddir = ISP_TO_DEVICE;
         } else {
-            level = ISP_LOGTDEBUG0;
+            ddir = ISP_NOXFR;
         }
-        isp_prt(isp, level, ctx, cto->ct_fwhandle, tmd->cd_cdb[0], L0LUN_TO_FLATLUN(tmd->cd_lun), cto->ct_iid, cto->ct_flags,
-            cto->ct_scsi_status, cto->ct_resid);
-    } else {
-        isp_prt(isp, ISP_LOGTDEBUG0, mid, tmd->cd_cdb[0], cto->ct_fwhandle, L0LUN_TO_FLATLUN(tmd->cd_lun), cto->ct_iid, cto->ct_flags,
-            xact->td_xfrlen, tmd->cd_moved, tmd->cd_totlen);
-    }
-
-    cto->ct_xfrlen = 0;
-    cto->ct_seg_count = 0;
-    cto->ct_header.rqs_entry_count = 1;
-    memset(cto->ct_dataseg, 0, sizeof (cto->ct_dataseg));
-
-    if (xact->td_xfrlen == 0) {
-        ISP_TDQE(isp, "tdma_mk[no data]", curi, cto);
-        isp_put_ctio(isp, cto, qe);
-        if (cto->ct_flags & CT_CCINCR) {
-            tmd->cd_lflags &= ~CDFL_RESRC_FILL;
+        break;
+    case RQSTYPE_CTIO2:
+        if ((((ct2_entry_t *)fqe)->ct_flags & CT2_DATAMASK) == CT2_DATA_OUT) {
+            ddir = ISP_FROM_DEVICE;
+        } else if ((((ct2_entry_t *)fqe)->ct_flags & CT2_DATAMASK) == CT2_DATA_IN) {
+            ddir = ISP_TO_DEVICE;
+        } else {
+            ddir = ISP_NOXFR;
         }
-        return (CMD_QUEUED);
-    }
-
-    if (xact->td_xfrlen <= 1024) {
-        nseg = 0;
-    } else if (xact->td_xfrlen <= 4096) {
-        nseg = 1;
-    } else if (xact->td_xfrlen <= 32768) {
-        nseg = 2;
-    } else if (xact->td_xfrlen <= 65536) {
-        nseg = 3;
-    } else if (xact->td_xfrlen <= 131372) {
-        nseg = 4;
-    } else if (xact->td_xfrlen <= 262144) {
-        nseg = 5;
-    } else if (xact->td_xfrlen <= 524288) {
-        nseg = 6;
-    } else {
-        nseg = 7;
-    }
-    isp->isp_osinfo.bins[nseg]++;
-
-    sg = xact->td_data;
-    nseg = 0;
-    resid = (int32_t) xact->td_xfrlen;
-    while (resid > 0) {
-        if (sg->length == 0) {
-            isp_prt(isp, ISP_LOGWARN, "%s: zero length segment #%d for tag %llx\n", __func__, nseg, tmd->cd_tagval);
-            cto->ct_resid = -EINVAL;
-            return (CMD_COMPLETE);
+        if (ddir != ISP_NOXFR && isp->isp_osinfo.is_64bit_dma) {
+            ((isphdr_t *)fqe)->rqs_entry_type = RQSTYPE_CTIO3;
         }
-        nseg++;
-        resid -= sg->length;
-        sg++;
-    }
-    sg = xact->td_data;
-
-    new_seg_cnt = pci_map_sg(pcs->pci_dev, sg, nseg, (cto->ct_flags & CT_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
-
-    if (new_seg_cnt == 0) {
-        isp_prt(isp, ISP_LOGWARN, "%s: unable to dma map request", __func__);
-        cto->ct_resid = -ENOMEM;
+        break;
+    case RQSTYPE_CTIO7:
+        if (((ct7_entry_t *)fqe)->ct_flags & CT7_DATA_OUT) {
+            ddir = ISP_FROM_DEVICE;
+        } else if (((ct7_entry_t *)fqe)->ct_flags & CT7_DATA_IN) {
+            ddir = ISP_TO_DEVICE;
+        } else {
+            ddir = ISP_NOXFR;
+        }
+        break;
+    default:
+        xact->td_error = -EINVAL;
         return (CMD_COMPLETE);
     }
-    tmd->cd_nseg = new_seg_cnt;
 
-    nctios = nseg / ISP_RQDSEG;
-    if (nseg % ISP_RQDSEG) {
-        nctios++;
-    }
-
-    /*
-     * Save handle, and potentially any SCSI status, which
-     * we'll reinsert on the last CTIO we're going to send.
-     */
-    handle = cto->ct_syshandle;
-    cto->ct_syshandle = 0;
-    cto->ct_header.rqs_seqno = 0;
-    send_status = (cto->ct_flags & CT_SENDSTATUS) != 0;
-
-    if (send_status) {
-        sflags = cto->ct_flags & (CT_SENDSTATUS | CT_CCINCR);
-        cto->ct_flags &= ~(CT_SENDSTATUS|CT_CCINCR);
-        /*
-         * Preserve residual.
-         */
-        resid = cto->ct_resid;
-
-        /*
-         * Save actual SCSI status.
-         */
-        scsi_status = cto->ct_scsi_status;
-
-#ifndef    STATUS_WITH_DATA
-        sflags |= CT_NO_DATA;
-        /*
-         * We can't do a status at the same time as a data CTIO, so
-         * we need to synthesize an extra CTIO at this level.
-         */
-        nctios++;
-#endif
-    } else {
-        sflags = scsi_status = resid = 0;
-    }
-
-    cto->ct_resid = 0;
-    cto->ct_scsi_status = 0;
-
-    nxti = *nxtip;
-
-    for (nth_ctio = 0; nth_ctio < nctios; nth_ctio++) {
-        int seglim;
-
-        seglim = nseg;
-        if (seglim) {
-            int seg;
-
-            if (seglim > ISP_RQDSEG)
-                seglim = ISP_RQDSEG;
-
-            for (seg = 0; seg < seglim; seg++, nseg--) {
-                XS_DMA_ADDR_T addr = sg_dma_address(sg);
-
-                /*
-                 * We could actually do the work to support this,
-                 * but it's extra code to write and test with things
-                 * pretty unlikely to ever be used.
-                 */
-                if (ISP_A64 && IS_HIGH_ISP_ADDR(addr)) {
-                    isp_prt(isp, ISP_LOGERR, "%s: 64 bit tgt mode not supported", __func__);
-                    cto->ct_resid = -EFAULT;
-                    pci_unmap_sg(pcs->pci_dev, xact->td_data, nseg, (cto->ct_flags & CT_DATA_IN)? PCI_DMA_TODEVICE: PCI_DMA_FROMDEVICE);
-                    return (CMD_COMPLETE);
-                }
-                /*
-                 * Unlike normal initiator commands, we don't do any swizzling here.
-                 */
-                cto->ct_dataseg[seg].ds_base = LOWD(addr);
-                cto->ct_dataseg[seg].ds_count = (uint32_t) sg_dma_len(sg);
-                cto->ct_xfrlen += sg_dma_len(sg);
-                sg++;
-            }
-            cto->ct_seg_count = seg;
-        } else {
-            /*
-             * This case should only happen when we're
-             * sending an extra CTIO with final status.
-             */
-            if (send_status == 0) {
-                isp_prt(isp, ISP_LOGERR, "%s: ran out of segments, no status to send", __func__);
-                return (CMD_EAGAIN);
-            }
-        }
-
-        /*
-         * At this point, the fields ct_lun, ct_iid, ct_tagval, ct_tagtype, and
-         * ct_timeout have been carried over unchanged from what our caller had
-         * set.
-         *
-         * The dataseg fields and the seg_count fields we just got through
-         * setting. The data direction we've preserved all along and only
-         * clear it if we're now sending status.
-         */
-        if (nth_ctio == nctios - 1) {
-            /*
-             * We're the last in a sequence of CTIOs, so mark this
-             * CTIO and save the handle to the command such that when
-             * this CTIO completes we can free dma resources and
-             * do whatever else we need to do to finish the rest
-             * of the command.
-             */
-            cto->ct_syshandle = handle;
-            cto->ct_header.rqs_seqno = 1;
-
-            if (send_status) {
-                cto->ct_scsi_status = scsi_status;
-                cto->ct_flags |= sflags;
-                cto->ct_resid = resid;
-            }
-            isp_put_ctio(isp, cto, qe);
-            ISP_TDQE(isp, "last tdma_mk", curi, cto);
-            if (nctios > 1) {
-                MEMORYBARRIER(isp, SYNC_REQUEST, curi, QENTRY_LEN);
-            }
-        } else {
-            ct_entry_t *oqe = qe;
-
-            /*
-             * Make sure handle fields are clean
-             */
-            cto->ct_syshandle = 0;
-            cto->ct_header.rqs_seqno = 0;
-
-            isp_prt(isp, ISP_LOGTDEBUG1, "CTIO[%x] lun%d for ID%d ct_flags 0x%x", cto->ct_fwhandle, L0LUN_TO_FLATLUN(tmd->cd_lun), (int) cto->ct_iid, cto->ct_flags);
-
-            /*
-             * Get a new CTIO
-             */
-            qe = (ct_entry_t *) ISP_QUEUE_ENTRY(isp->isp_rquest, nxti);
-            nxti = ISP_NXT_QENTRY(nxti, RQUEST_QUEUE_LEN(isp));
-            if (nxti == optr) {
-                isp_prt(isp, ISP_LOGERR, "%s: request queue overflow", __func__);
-                return (CMD_EAGAIN);
-            }
-
-           /*
-            * Now that we're done with the old CTIO,
-            * flush it out to the request queue.
-            */
-            ISP_TDQE(isp, "tdma_mk", curi, cto);
-            isp_put_ctio(isp, cto, oqe);
-            if (nth_ctio != 0) {
-                MEMORYBARRIER(isp, SYNC_REQUEST, curi, QENTRY_LEN);
-            }
-            curi = ISP_NXT_QENTRY(curi, RQUEST_QUEUE_LEN(isp));
-
-            /*
-             * Reset some fields in the CTIO so we can reuse
-             * for the next one we'll flush to the request
-             * queue.
-             */
-            cto->ct_header.rqs_entry_type = RQSTYPE_CTIO;
-            cto->ct_header.rqs_entry_count = 1;
-            cto->ct_header.rqs_flags = 0;
-            cto->ct_status = 0;
-            cto->ct_scsi_status = 0;
-            cto->ct_xfrlen = 0;
-            cto->ct_resid = 0;
-            cto->ct_seg_count = 0;
-            memset(cto->ct_dataseg, 0, sizeof (cto->ct_dataseg));
-        }
-    }
-    *nxtip = nxti;
-    isp_prt(isp, ISP_LOGTDEBUG2, "[%llx]: map %d segments at %p for handle 0x%x", tmd->cd_tagval, new_seg_cnt, xact->td_data, cto->ct_syshandle);
-    if (sflags & CT_CCINCR) {
-        tmd->cd_lflags &= ~CDFL_RESRC_FILL;
-    }
-    return (CMD_QUEUED);
-}
-
-/*
- * We're passed a pointer to a prototype ct2_entry_t.
- *
- * If it doesn't contain any data movement, it has to be for sending status,
- * possibly with Sense Data as well, so we send a single CTIO2. This should
- * be a Mode 1 CTIO2, and it's up to the caller to set up the Sense Data
- * and flags appropriately.
- *
- * If it does contain data movement, it may *also* be for sending status
- * (possibly with Sense Data also). It's possible to describe to the firmware
- * what we want in one CTIO2. However, under some conditions it is not,
- * so we must also send a *second* CTIO2 after the first one.
- *
- * If the data to be sent is in segments that exceeds that which we can
- * fit into a CTIO2 (likely, as there's only room for 3 segments), we
- * utilize normal continuation entries, which get pushed after the
- * first CTIO2, and possibly are followed by a final CTIO2.
- *
- * In any case, it's up to the caller to send us a Mode 0 CTIO2 describing
- * the data to be moved (if any) and the appropriate flags indicating
- * status. We'll clear and set as appropriate. We'll also check to see
- * whether Sense Data is attempting to be sent and retrieve it as appropriate.
- *
- * In all cases the caller should not assume that the prototype CTIO2
- * has been left unchanged.
- */
-#ifndef    ISP_DISABLE_2400_SUPPORT
-static int tdma_mk_2400(ispsoftc_t *, tmd_xact_t *, ct7_entry_t *, uint32_t *, uint32_t);
-static int
-tdma_mk_2400(ispsoftc_t *isp, tmd_xact_t *xact, ct7_entry_t *cto, uint32_t *nxtip, uint32_t optr)
-{
-    struct isp_pcisoftc *pcs = (struct isp_pcisoftc *) isp;
-    static const char ctx[] = "CTIO7[%llx] cdb0 0x%02x lun %u nphdl 0x%x flgs 0x%x ssts 0x%x xfr %u moved %u/%u resid %d <END>";
-    static const char mid[] = "CTIO7[%llx] cdb0 0x%02x lun %u nphdl 0x%x flgs 0x%x xfr %u moved %u/%u <MID>";
-    XS_DMA_ADDR_T addr, last_synthetic_addr;
-    tmd_cmd_t *tmd = xact->td_cmd;
-    struct scatterlist *sg;
-    void *qe;
-    uint16_t swd;
-    uint32_t curi, nxti;
-    uint32_t bc, last_synthetic_count;
-    long xfcnt;    /* must be signed */
-    int nseg, seg, ovseg, seglim, new_seg_cnt;
-    ct7_entry_t *cto2 = NULL, ct2;
-#if 0
-{
- static int fred = 0;
- if (fred++ == 100) {
-    fred = 0;
-    printk("YAGGA!\n");
-    return (CMD_EAGAIN);
- }
-}
-#endif
-
-    nxti = *nxtip;
-    curi = isp->isp_reqidx;
-    qe = ISP_QUEUE_ENTRY(isp->isp_rquest, curi);
-
-    if (cto->ct_flags & CT7_SENDSTATUS) {
-        int level;
-        if (cto->ct_resid || cto->ct_scsi_status) {
-            level = ISP_LOGTINFO;
-        } else {
-            level = ISP_LOGTDEBUG0;
-        }
-        isp_prt(isp, level, ctx, (unsigned long long) tmd->cd_tagval, tmd->cd_cdb[0], L0LUN_TO_FLATLUN(tmd->cd_lun), cto->ct_nphdl, cto->ct_flags,
-            cto->ct_scsi_status, xact->td_xfrlen, tmd->cd_moved, tmd->cd_totlen, cto->ct_resid);
-    } else {
-        isp_prt(isp, ISP_LOGTDEBUG0, mid, (unsigned long long) tmd->cd_tagval, tmd->cd_cdb[0], L0LUN_TO_FLATLUN(tmd->cd_lun), cto->ct_nphdl, cto->ct_flags,
-            xact->td_xfrlen, tmd->cd_moved, tmd->cd_totlen);
-    }
-
-    /*
-     * Handle commands that transfer no data right away.
-     */
-    if (xact->td_xfrlen == 0) {
-        cto->ct_header.rqs_entry_count = 1;
-        cto->ct_header.rqs_seqno = 1;
-
-        /* ct_syshandle contains the synchronization handle set by caller */
-        isp_put_ctio7(isp, cto, qe);
-        ISP_TDQE(isp, "tdma_mk_2400[no data]", curi, qe);
-        return (CMD_QUEUED);
-    }
-
-    if (xact->td_xfrlen <= 1024) {
-        nseg = 0;
-    } else if (xact->td_xfrlen <= 4096) {
-        nseg = 1;
-    } else if (xact->td_xfrlen <= 32768) {
-        nseg = 2;
-    } else if (xact->td_xfrlen <= 65536) {
-        nseg = 3;
-    } else if (xact->td_xfrlen <= 131372) {
-        nseg = 4;
-    } else if (xact->td_xfrlen <= 262144) {
-        nseg = 5;
-    } else if (xact->td_xfrlen <= 524288) {
-        nseg = 6;
-    } else {
-        nseg = 7;
-    }
-    isp->isp_osinfo.bins[nseg]++;
-
-    /*
-     * First, count and map all S/G segments
-     *
-     * The byte counter has to be signed because
-     * we can have descriptors that are, in fact,
-     * longer than our data transfer count.
-     */
-    sg = xact->td_data;
-    nseg = 0;
-    xfcnt = xact->td_xfrlen;
-    while (xfcnt > 0) {
-        if (sg->length == 0) {
-            isp_prt(isp, ISP_LOGWARN, "%s: zero length segment #%d for tag %llx\n", __func__, nseg, tmd->cd_tagval);
-            cto->ct_resid = -EINVAL;
-            return (CMD_COMPLETE);
-        }
-        nseg++;
-        xfcnt -= sg->length;
-        sg++;
-    }
-    sg = xact->td_data;
-    new_seg_cnt = pci_map_sg(pcs->pci_dev, sg, nseg, (cto->ct_flags & CT2_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
-    if (new_seg_cnt == 0) {
-        isp_prt(isp, ISP_LOGWARN, "%s: unable to dma map request", __func__);
-        cto->ct_resid = -EFAULT;
-        return (CMD_COMPLETE);
-    }
-    tmd->cd_nseg = new_seg_cnt;
-
-    /*
-     * Check for sequential ordering of data frames
-     */
-    if (tmd->cd_lastoff + tmd->cd_lastsize != xact->td_offset) {
-        isp_prt(isp, ISP_LOGWARN, "%s: [0x%llx] lastoff %u lastsize %u but curoff %u (totlen %u)", __func__, (unsigned long long) tmd->cd_tagval, tmd->cd_lastoff, tmd->cd_lastsize, xact->td_offset, tmd->cd_totlen);
-    }
-    tmd->cd_lastsize = xact->td_xfrlen;
-    tmd->cd_lastoff = xact->td_offset;
-
-    /*
-     * Second, figure out whether we'll need to send a separate status CTIO.
-     */
-    swd = cto->ct_scsi_status;
-
-    if ((cto->ct_flags & CT7_SENDSTATUS) && ((swd & 0xff) || cto->ct_resid)) {
-        cto2 = &ct2;
-        /*
-         * Copy over CTIO2
-         */
-        memcpy(cto2, cto, sizeof (ct7_entry_t));
-
-        /*
-         * Clear fields from first CTIO7 that now need to be cleared
-         */
-        cto->ct_flags &= ~CT7_SENDSTATUS;
-        cto->ct_resid = 0;
-        cto->ct_syshandle = 0;
-        cto->ct_scsi_status = 0;
-
-        /*
-         * Reset fields in the second CTIO7 as appropriate.
-         */
-        cto2->ct_flags &= ~(CT7_FLAG_MMASK|CT7_DATAMASK);
-        cto2->ct_flags |= CT7_NO_DATA|CT7_NO_DATA|CT7_FLAG_MODE1;
-        cto2->ct_seg_count = 0;
-        memset(&cto2->rsp, 0, sizeof (cto2->rsp));
-        cto2->ct_scsi_status = swd;
-        if ((swd & 0xff) == SCSI_CHECK && (xact->td_hflags & TDFH_SNSVALID)) {
-            cto2->rsp.m1.ct_resplen = min(TMD_SENSELEN, MAXRESPLEN_24XX);
-            memcpy(cto2->rsp.m1.ct_resp, tmd->cd_sense, cto2->rsp.m1.ct_resplen);
-            cto2->ct_scsi_status |= (FCP_SNSLEN_VALID << 8);
-        }
-    }
-
-    /*
-     * Third, fill in the data segments in the first CTIO2 itself.
-     * This is also a good place to set the relative offset.
-     */
-    xfcnt = xact->td_xfrlen;
-
-    cto->rsp.m0.reloff = xact->td_offset;
-
-    seglim = 1;
-
-    last_synthetic_count = 0;
-    last_synthetic_addr = 0;
-    cto->ct_seg_count = 1;
-    seg = 1;
-
-    bc = min(sg_dma_len(sg), xfcnt);
-    addr = sg_dma_address(sg);
-    cto->rsp.m0.ds.ds_base = LOWD(addr);
-    cto->rsp.m0.ds.ds_basehi = HIWD(addr);
-    if (!SAME_4G(addr, bc)) {
-        isp_prt(isp, ISP_LOGTDEBUG1, "seg0[%d]%x%08x:%u (TRUNC'd)", seg, (uint32_t) HIWD(addr), (uint32_t)LOWD(addr), bc);
-        cto->rsp.m0.ds.ds_count = (unsigned int) (FOURG_SEG(addr + bc) - addr);
-        addr += cto->rsp.m0.ds.ds_count;
-        bc -= cto->rsp.m0.ds.ds_count;
-        last_synthetic_count = bc;
-        last_synthetic_addr = addr;
-    } else {
-        cto->rsp.m0.ds.ds_count = bc;
-        isp_prt(isp, ISP_LOGTDEBUG1, "%s: seg%d[%d]%llx:%u", __func__, 0, 0, (unsigned long long) addr, bc);
-    }
-    cto->rsp.m0.ct_xfrlen += bc;
-    xfcnt -= bc;
-    sg++;
-
-
-    if (seg == nseg && last_synthetic_count == 0) {
-        goto mbxsync;
-    }
-
-    /*
-     * Now do any continuation segments that are required.
-     */
-    do {
-        int lim;
-        uint32_t curip;
-        ispcontreq64_t local, *crq = &local, *qep;
-
-        curip = nxti;
-        qep = (ispcontreq64_t *) ISP_QUEUE_ENTRY(isp->isp_rquest, curip);
-        nxti = ISP_NXT_QENTRY((curip), RQUEST_QUEUE_LEN(isp));
-        if (nxti == optr) {
-            pci_unmap_sg(pcs->pci_dev, xact->td_data, nseg, (cto->ct_flags & CT2_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
-            isp_prt(isp, ISP_LOGTDEBUG0, "%s: out of space for continuations (%d of %d segs done)", __func__, cto->ct_seg_count, nseg);
-            return (CMD_EAGAIN);
-        }
-        cto->ct_header.rqs_entry_count++;
-        BUG_ON(cto->ct_header.rqs_entry_count == 0);
-        memset((void *)crq, 0, sizeof (*crq));
-        crq->req_header.rqs_entry_count = 1;
-        crq->req_header.rqs_entry_type = RQSTYPE_A64_CONT;
-        lim = ISP_CDSEG64;
-
-        for (ovseg = 0; (seg < nseg || last_synthetic_count) && ovseg < lim; seg++, ovseg++, sg++) {
-            if (last_synthetic_count) {
-                addr = last_synthetic_addr;
-                bc = last_synthetic_count;
-                last_synthetic_count = 0;
-                sg--;
-                seg--;
-            } else {
-                addr = sg_dma_address(sg);
-                bc = min(sg_dma_len(sg), xfcnt);
-            }
-            isp_prt(isp, ISP_LOGTDEBUG1, "%s: seg%d[%d]%llx:%u", __func__, cto->ct_header.rqs_entry_count-1, ovseg, (unsigned long long) addr, bc);
-
-            cto->ct_seg_count++;
-            cto->rsp.m0.ct_xfrlen += bc;
-
-            crq->req_dataseg[ovseg].ds_count = bc;
-            crq->req_dataseg[ovseg].ds_base = LOWD(addr);
-            crq->req_dataseg[ovseg].ds_basehi = HIWD(addr);
-            /*
-             * Make sure we don't cross a 4GB boundary.
-             */
-            if (!SAME_4G(addr, bc)) {
-                isp_prt(isp, ISP_LOGTDEBUG1, "seg%d[%d]%llx:%u (TRUNC'd)", cto->ct_header.rqs_entry_count-1, ovseg, (long long)addr, bc);
-                crq->req_dataseg[ovseg].ds_count = (unsigned int) (FOURG_SEG(addr + bc) - addr);
-                addr += crq->req_dataseg[ovseg].ds_count;
-                bc -= crq->req_dataseg[ovseg].ds_count;
-                xfcnt -= crq->req_dataseg[ovseg].ds_count;
-                /*
-                 * Do we have space to split it here?
-                 */
-                if (ovseg == lim - 1) {
-                    last_synthetic_count = bc;
-                    last_synthetic_addr = addr;
-                    cto->ct_seg_count++;
-                } else {
-                    ovseg++;
-                    crq->req_dataseg[ovseg].ds_count = bc;
-                    crq->req_dataseg[ovseg].ds_base = LOWD(addr);
-                    crq->req_dataseg[ovseg].ds_basehi = HIWD(addr);
-                }
-            }
-        }
-        ISP_TDQE(isp, "tdma_mk_2400 cont", curip, crq);
-        MEMORYBARRIER(isp, SYNC_REQUEST, curip, QENTRY_LEN);
-        isp_put_cont64_req(isp, (ispcontreq64_t *)crq, (ispcontreq64_t *)qep);
-    } while (seg < nseg || last_synthetic_count);
-
-    isp_prt(isp, ISP_LOGTDEBUG2, "[%llx]: map %d segments at %p for handle 0x%x", tmd->cd_tagval, new_seg_cnt, xact->td_data, cto->ct_syshandle);
-
-mbxsync:
-
-    /*
-     * If we have a final CTIO2, allocate and push *that*
-     * onto the request queue.
-     */
-    if (cto2) {
-        qe = (ct7_entry_t *) ISP_QUEUE_ENTRY(isp->isp_rquest, nxti);
-        curi = nxti;
-        nxti = ISP_NXT_QENTRY(curi, RQUEST_QUEUE_LEN(isp));
-        if (nxti == optr) {
-            pci_unmap_sg(pcs->pci_dev, xact->td_data, nseg, (cto->ct_flags & CT7_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
-            isp_prt(isp, ISP_LOGTDEBUG0, "%s: request queue overflow", __func__);
-            return (CMD_EAGAIN);
-        }
-        MEMORYBARRIER(isp, SYNC_REQUEST, curi, QENTRY_LEN);
-        isp_put_ctio7(isp, cto2, (ct7_entry_t *)qe);
-        ISP_TDQE(isp, "tdma_mk_2400:final", curi, cto2);
-    }
-    qe = ISP_QUEUE_ENTRY(isp->isp_rquest, isp->isp_reqidx);
-    isp_put_ctio7(isp, cto, qe);
-    if (cto->ct_flags & CT2_FASTPOST) {
-        isp_prt(isp, ISP_LOGTDEBUG1, "[%x] fastpost (0x%x) with entry count %d", cto->ct_rxid, tmd->cd_cdb[0], cto->ct_header.rqs_entry_count);
-    }
-    ISP_TDQE(isp, "tdma_mk_2400", isp->isp_reqidx, cto);
-    *nxtip = nxti;
-    return (CMD_QUEUED);
-}
-#endif
-
-static int
-tdma_mkfc(ispsoftc_t *isp, tmd_xact_t *xact, ct2_entry_t *cto, uint32_t *nxtip, uint32_t optr)
-{
-    struct isp_pcisoftc *pcs = (struct isp_pcisoftc *) isp;
-    static const char ctx[] = "CTIO2[%x] cdb0 0x%02x lun %u for 0x%016llx flags 0x%x SSTS 0x%04x resid %u <END>";
-    static const char mid[] = "CTIO2[%x] cdb0 0x%02x lun %u for 0x%016llx flags 0x%x xfr %u moved %u/%u <MID>";
-    XS_DMA_ADDR_T addr, last_synthetic_addr;
-    tmd_cmd_t *tmd = xact->td_cmd;
-    struct scatterlist *sg;
-    void *qe;
-    uint16_t swd;
-    uint32_t curi, nxti;
-    uint32_t bc, last_synthetic_count;
-    long xfcnt;    /* must be signed */
-    int nseg, seg, ovseg, seglim, new_seg_cnt;
-    ct2_entry_t *cto2 = NULL, ct2;
-
-    nxti = *nxtip;
-    curi = isp->isp_reqidx;
-    qe = ISP_QUEUE_ENTRY(isp->isp_rquest, curi);
-
-
-    if (cto->ct_flags & CT2_SENDSTATUS) {
-        int level;
-        if ((cto->ct_flags & CT2_FLAG_MMASK) == CT2_FLAG_MODE0) {
-            swd = cto->rsp.m0.ct_scsi_status;
-        } else if ((cto->ct_flags & CT2_FLAG_MMASK) == CT2_FLAG_MODE1) {
-            swd = cto->rsp.m1.ct_scsi_status;
-        } else {
-            swd = 0;
-        }
-        if (cto->ct_resid || swd) {
-            level = ISP_LOGTINFO;
-        } else {
-            level = ISP_LOGTDEBUG0;
-        }
-        isp_prt(isp, level, ctx, cto->ct_rxid, tmd->cd_cdb[0], L0LUN_TO_FLATLUN(tmd->cd_lun), (unsigned long long) tmd->cd_iid, cto->ct_flags, swd, cto->ct_resid);
-    } else {
-        isp_prt(isp, ISP_LOGTDEBUG0, mid, cto->ct_rxid, tmd->cd_cdb[0], L0LUN_TO_FLATLUN(tmd->cd_lun), (unsigned long long) tmd->cd_iid, cto->ct_flags,
-            xact->td_xfrlen, tmd->cd_moved, tmd->cd_totlen);
-        swd = 0;
-    }
-
-    if (cto->ct_flags & CT2_FASTPOST) {
-        if ((xact->td_hflags & (TDFH_STSVALID|TDFH_SNSVALID)) != TDFH_STSVALID) {
-            cto->ct_flags &= ~CT2_FASTPOST;
-        }
-    }
-
-    /*
-     * Handle commands that transfer no data right away.
-     */
-    if (xact->td_xfrlen == 0) {
-        cto->ct_header.rqs_entry_count = 1;
-        cto->ct_header.rqs_seqno = 1;
-        /* ct_syshandle contains the synchronization handle set by caller */
-        cto->ct_seg_count = 0;
-        cto->ct_reloff = 0;
-        if (ISP_CAP_2KLOGIN(isp)) {
-            isp_put_ctio2e(isp, (ct2e_entry_t *)cto, (ct2e_entry_t *)qe);
-        } else {
-            isp_put_ctio2(isp, cto, qe);
-        }
-        if (cto->ct_flags & CT2_FASTPOST) {
-            isp_prt(isp, ISP_LOGTDEBUG1, "[%x] faspost (0x%x)", cto->ct_rxid, tmd->cd_cdb[0]);
-        }
-        ISP_TDQE(isp, "tdma_mkfc[no data]", curi, qe);
-        if (cto->ct_flags & CT2_CCINCR) {
-            tmd->cd_lflags &= ~CDFL_RESRC_FILL;
-        }
-        return (CMD_QUEUED);
-    }
-
-    if (xact->td_xfrlen <= 1024) {
-        nseg = 0;
-    } else if (xact->td_xfrlen <= 4096) {
-        nseg = 1;
-    } else if (xact->td_xfrlen <= 32768) {
-        nseg = 2;
-    } else if (xact->td_xfrlen <= 65536) {
-        nseg = 3;
-    } else if (xact->td_xfrlen <= 131372) {
-        nseg = 4;
-    } else if (xact->td_xfrlen <= 262144) {
-        nseg = 5;
-    } else if (xact->td_xfrlen <= 524288) {
-        nseg = 6;
-    } else {
-        nseg = 7;
-    }
-    isp->isp_osinfo.bins[nseg]++;
-
-
-    /*
-     * First, count and map all S/G segments
-     *
-     * The byte counter has to be signed because
-     * we can have descriptors that are, in fact,
-     * longer than our data transfer count.
-     */
-    sg = xact->td_data;
-    nseg = 0;
-    xfcnt = xact->td_xfrlen;
-    while (xfcnt > 0) {
-        if (sg->length == 0) {
-            isp_prt(isp, ISP_LOGWARN, "%s: zero length segment #%d for tag %llx\n", __func__, nseg, tmd->cd_tagval);
-            cto->ct_resid = -EINVAL;
-            return (CMD_COMPLETE);
-        }
-        nseg++;
-        xfcnt -= sg->length;
-        sg++;
-    }
-    sg = xact->td_data;
-    new_seg_cnt = pci_map_sg(pcs->pci_dev, sg, nseg, (cto->ct_flags & CT2_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
-    if (new_seg_cnt == 0) {
-        isp_prt(isp, ISP_LOGWARN, "%s: unable to dma map request", __func__);
-        cto->ct_resid = -EFAULT;
-        return (CMD_COMPLETE);
-    }
-    tmd->cd_nseg = new_seg_cnt;
-
-    /*
-     * Second, figure out whether we'll need to send a separate status CTIO.
-     */
-
-    if ((cto->ct_flags & CT2_SENDSTATUS) && ((swd & 0xff) || cto->ct_resid)) {
-        cto2 = &ct2;
-        /*
-         * Copy over CTIO2
-         */
-        memcpy(cto2, cto, sizeof (ct2_entry_t));
-
-        /*
-         * Clear fields from first CTIO2 that now need to be cleared
-         */
-        cto->ct_flags &= ~(CT2_SENDSTATUS|CT2_CCINCR|CT2_FASTPOST);
-        cto->ct_resid = 0;
-        cto->ct_syshandle = 0;
-        cto->rsp.m0.ct_scsi_status = 0;
-
-        /*
-         * Reset fields in the second CTIO2 as appropriate.
-         */
-        cto2->ct_flags &= ~(CT2_FLAG_MMASK|CT2_DATAMASK|CT2_FASTPOST);
-        cto2->ct_flags |= CT2_NO_DATA|CT2_FLAG_MODE1;
-        cto2->ct_seg_count = 0;
-        cto2->ct_reloff = 0;
-        memset(&cto2->rsp, 0, sizeof (cto2->rsp));
-        if ((swd & 0xff) == SCSI_CHECK && (swd & CT2_SNSLEN_VALID)) {
-            cto2->rsp.m1.ct_senselen = min(TMD_SENSELEN, MAXRESPLEN);
-            memcpy(cto2->rsp.m1.ct_resp, tmd->cd_sense, cto2->rsp.m1.ct_senselen);
-            swd |= CT2_SNSLEN_VALID;
-        }
-        if (cto2->ct_resid > 0) {
-            swd |= CT2_DATA_UNDER;
-        } else if (cto2->ct_resid < 0) {
-            swd |= CT2_DATA_OVER;
-        }
-        cto2->rsp.m1.ct_scsi_status = swd;
-        if (cto2->ct_flags & CT2_CCINCR) {
-            tmd->cd_lflags &= ~CDFL_RESRC_FILL;
-        }
-    } else if ((cto->ct_flags & (CT2_SENDSTATUS|CT2_CCINCR)) == (CT2_SENDSTATUS|CT2_CCINCR)) {
-        tmd->cd_lflags &= ~CDFL_RESRC_FILL;
-    }
-
-    /*
-     * Third, fill in the data segments in the first CTIO2 itself.
-     * This is also a good place to set the relative offset.
-     */
-    xfcnt = xact->td_xfrlen;
-    cto->ct_reloff = xact->td_offset;
-
-    /*
-     * This is a good place to return to if we need to redo this with
-     * 64 bit PCI addressing. We really want to use 32 bit addressing
-     * if we can because it's a lot more efficient.
-     */
-    if (IS_2322(isp)) {
-        seglim = ISP_RQDSEG_T3;
-        cto->ct_header.rqs_entry_type = RQSTYPE_CTIO3;
-        if (cto2) {
-            cto2->ct_header.rqs_entry_type = RQSTYPE_CTIO3;
-        }
-    } else {
-        seglim = ISP_RQDSEG_T2;
-        cto->ct_header.rqs_entry_type = RQSTYPE_CTIO2;
-        if (cto2) {
-            cto2->ct_header.rqs_entry_type = RQSTYPE_CTIO2;
-        }
-    }
-
-again:
-    last_synthetic_count = 0;
-    last_synthetic_addr = 0;
-    cto->ct_seg_count = min(nseg, seglim);
-
-    for (seg = 0; seg < cto->ct_seg_count; seg++) {
-        bc = min(sg_dma_len(sg), xfcnt);
-        addr = sg_dma_address(sg);
-#ifdef    ISP_DAC_SUPPORTED
-        if (seglim == ISP_RQDSEG_T2) {
-            if (IS_HIGH_ISP_ADDR(addr)) {
-                cto->ct_header.rqs_entry_type = RQSTYPE_CTIO3;
-                if (cto2) {
-                    cto2->ct_header.rqs_entry_type = RQSTYPE_CTIO3;
-                }
-                xfcnt = xact->td_xfrlen;
-                cto->rsp.m0.ct_xfrlen = 0;
-                sg = xact->td_data;
-                seglim = ISP_RQDSEG_T3;
-                isp_prt(isp, ISP_LOGTDEBUG2, "%s: found hi page", __func__);
-                goto again;
-            }
-            cto->rsp.m0.u.ct_dataseg[seg].ds_base = LOWD(addr);
-            cto->rsp.m0.u.ct_dataseg[seg].ds_count = bc;
-            isp_prt(isp, ISP_LOGTDEBUG1, "%s: seg0[%d]%x:%u", __func__, seg, cto->rsp.m0.u.ct_dataseg[seg].ds_base, bc);
-        } else {
-            cto->rsp.m0.u.ct_dataseg64[seg].ds_base = LOWD(addr);
-            cto->rsp.m0.u.ct_dataseg64[seg].ds_basehi = HIWD(addr);
-            if (!SAME_4G(addr, bc)) {
-                isp_prt(isp, ISP_LOGTDEBUG1, "seg0[%d]%x%08x:%u (TRUNC'd)", seg, (uint32_t) HIWD(addr), (uint32_t)LOWD(addr), bc);
-                cto->rsp.m0.u.ct_dataseg64[seg].ds_count = (unsigned int) (FOURG_SEG(addr + bc) - addr);
-                addr += cto->rsp.m0.u.ct_dataseg64[seg].ds_count;
-                bc -= cto->rsp.m0.u.ct_dataseg64[seg].ds_count;
-                /*
-                 * Do we have space to split it here?
-                 */
-                if (seg == seglim - 1) {
-                    last_synthetic_count = bc;
-                    last_synthetic_addr = addr;
-                } else {
-                    cto->ct_seg_count++;
-                    seg++;
-                    cto->rsp.m0.u.ct_dataseg64[seg].ds_count = bc;
-                    cto->rsp.m0.u.ct_dataseg64[seg].ds_base = LOWD(addr);
-                    cto->rsp.m0.u.ct_dataseg64[seg].ds_basehi = HIWD(addr);
-                    isp_prt(isp, ISP_LOGALL, "%s: seg0[%d]%lx%08lx:%u", __func__, seg,
-                        (unsigned long)cto->rsp.m0.u.ct_dataseg64[seg].ds_basehi, (unsigned long)cto->rsp.m0.u.ct_dataseg64[seg].ds_base, bc);
-                }
-            } else {
-                cto->rsp.m0.u.ct_dataseg64[seg].ds_count = bc;
-                isp_prt(isp, ISP_LOGTDEBUG1, "%s: seg0[%d]%lx%08lx:%u", __func__, seg,
-                    (unsigned long)cto->rsp.m0.u.ct_dataseg64[seg].ds_basehi, (unsigned long)cto->rsp.m0.u.ct_dataseg64[seg].ds_base, bc);
-            }
-        }
-#else
-        if (seglim == ISP_RQDSEG_T2) {
-            cto->rsp.m0.u.ct_dataseg[seg].ds_base = addr;
-            cto->rsp.m0.u.ct_dataseg[seg].ds_count = bc;
-            isp_prt(isp, ISP_LOGTDEBUG1, "%s: seg0[%d]%x:%u", __func__, seg, cto->rsp.m0.u.ct_dataseg[seg].ds_base, bc);
-        } else {
-            cto->rsp.m0.u.ct_dataseg64[seg].ds_base = addr;
-            cto->rsp.m0.u.ct_dataseg64[seg].ds_basehi = 0;
-            cto->rsp.m0.u.ct_dataseg64[seg].ds_count = bc;
-            isp_prt(isp, ISP_LOGTDEBUG1, "%s: seg0[%d]%lx:%u", __func__, seg, (unsigned long) cto->rsp.m0.u.ct_dataseg64[seg].ds_base, bc);
-        }
-#endif
-        cto->rsp.m0.ct_xfrlen += bc;
-        xfcnt -= bc;
-        sg++;
-    }
-
-
-    if (seg == nseg && last_synthetic_count == 0) {
-        goto mbxsync;
-    }
-
-    /*
-     * Now do any continuation segments that are required.
-     */
-    do {
-        int lim;
-        uint32_t curip;
-        ispcontreq_t local, *crq = &local, *qep;
-
-        curip = nxti;
-        qep = (ispcontreq_t *) ISP_QUEUE_ENTRY(isp->isp_rquest, curip);
-        nxti = ISP_NXT_QENTRY((curip), RQUEST_QUEUE_LEN(isp));
-        if (nxti == optr) {
-            pci_unmap_sg(pcs->pci_dev, xact->td_data, nseg, (cto->ct_flags & CT2_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
-            isp_prt(isp, ISP_LOGTDEBUG0, "%s: out of space for continuations (%d of %d segs done)", __func__, cto->ct_seg_count, nseg);
-            return (CMD_EAGAIN);
-        }
-        cto->ct_header.rqs_entry_count++;
-        memset((void *)crq, 0, sizeof (*crq));
-        crq->req_header.rqs_entry_count = 1;
-        if (cto->ct_header.rqs_entry_type == RQSTYPE_CTIO3) {
-            crq->req_header.rqs_entry_type = RQSTYPE_A64_CONT;
-            lim = ISP_CDSEG64;
-        } else {
-            crq->req_header.rqs_entry_type = RQSTYPE_DATASEG;
-            lim = ISP_CDSEG;
-        }
-
-        for (ovseg = 0; (seg < nseg || last_synthetic_count) && ovseg < lim; seg++, ovseg++, sg++) {
-            if (last_synthetic_count) {
-                addr = last_synthetic_addr;
-                bc = last_synthetic_count;
-                last_synthetic_count = 0;
-                sg--;
-                seg--;
-            } else {
-                addr = sg_dma_address(sg);
-                bc = min(sg_dma_len(sg), xfcnt);
-            }
-            isp_prt(isp, ISP_LOGTDEBUG1, "%s: seg%d[%d]%llx:%u", __func__, cto->ct_header.rqs_entry_count-1, ovseg, (unsigned long long) addr, bc);
-
-            cto->ct_seg_count++;
-            cto->rsp.m0.ct_xfrlen += bc;
-
-            if (crq->req_header.rqs_entry_type == RQSTYPE_A64_CONT) {
-                ispcontreq64_t *xrq = (ispcontreq64_t *) crq;
-                xrq->req_dataseg[ovseg].ds_count = bc;
-                xrq->req_dataseg[ovseg].ds_base = LOWD(addr);
-                xrq->req_dataseg[ovseg].ds_basehi = HIWD(addr);
-                /*
-                 * Make sure we don't cross a 4GB boundary.
-                 */
-                if (!SAME_4G(addr, bc)) {
-                    isp_prt(isp, ISP_LOGTDEBUG1, "seg%d[%d]%llx:%u (TRUNC'd)", cto->ct_header.rqs_entry_count-1, ovseg, (long long)addr, bc);
-                    xrq->req_dataseg[ovseg].ds_count = (unsigned int) (FOURG_SEG(addr + bc) - addr);
-                    addr += xrq->req_dataseg[ovseg].ds_count;
-                    bc -= xrq->req_dataseg[ovseg].ds_count;
-                    xfcnt -= xrq->req_dataseg[ovseg].ds_count;
-                    /*
-                     * Do we have space to split it here?
-                     */
-                    if (ovseg == lim - 1) {
-                        last_synthetic_count = bc;
-                        last_synthetic_addr = addr;
-                        cto->ct_seg_count++;
-                    } else {
-                        ovseg++;
-                        xrq->req_dataseg[ovseg].ds_count = bc;
-                        xrq->req_dataseg[ovseg].ds_base = LOWD(addr);
-                        xrq->req_dataseg[ovseg].ds_basehi = HIWD(addr);
-                    }
-                }
-                continue;
-            }
-            /*
-             * We get here if we're a 32 bit continuation entry.
-             * We also check for being over 32 bits with our PCI
-             * address. If we are, we set ourselves up to do 64
-             * bit addressing and start the whole mapping process
-             * all over again- we apparently can't really mix types
-             */
-            if (ISP_A64 && IS_HIGH_ISP_ADDR(addr)) {
-                nxti = *nxtip;
-                cto->ct_header.rqs_entry_count = 1;
-                xfcnt = xact->td_xfrlen;
-                cto->ct_header.rqs_entry_type = RQSTYPE_CTIO3;
-                if (cto2) {
-                    cto2->ct_header.rqs_entry_type = RQSTYPE_CTIO3;
-                }
-                cto->rsp.m0.ct_xfrlen = 0;
-                sg = xact->td_data;
-                seglim = ISP_RQDSEG_T3;
-                isp_prt(isp, ISP_LOGTDEBUG1, "%s: found hi page in continuation, restarting", __func__);
-                goto again;
-            }
-            crq->req_dataseg[ovseg].ds_count = bc;
-            crq->req_dataseg[ovseg].ds_base = addr;
-            xfcnt -= bc;
-        }
-
-        ISP_TDQE(isp, "tdma_mkfc cont", curip, crq);
-        MEMORYBARRIER(isp, SYNC_REQUEST, curip, QENTRY_LEN);
-        if (crq->req_header.rqs_entry_type == RQSTYPE_A64_CONT) {
-            isp_put_cont64_req(isp, (ispcontreq64_t *)crq, (ispcontreq64_t *)qep);
-        } else {
-            isp_put_cont_req(isp, crq, qep);
-        }
-    } while (seg < nseg || last_synthetic_count);
-
-    isp_prt(isp, ISP_LOGTDEBUG2, "[%llx]: map %d segments at %p for handle 0x%x", tmd->cd_tagval, new_seg_cnt, xact->td_data, cto->ct_syshandle);
-
-mbxsync:
-
-    /*
-     * If we have a final CTIO2, allocate and push *that*
-     * onto the request queue.
-     */
-    if (cto2) {
-        qe = (ct2_entry_t *) ISP_QUEUE_ENTRY(isp->isp_rquest, nxti);
-        curi = nxti;
-        nxti = ISP_NXT_QENTRY(curi, RQUEST_QUEUE_LEN(isp));
-        if (nxti == optr) {
-            pci_unmap_sg(pcs->pci_dev, xact->td_data, nseg, (cto->ct_flags & CT2_DATA_IN)? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
-            isp_prt(isp, ISP_LOGTDEBUG0, "%s: request queue overflow", __func__);
-            return (CMD_EAGAIN);
-        }
-        MEMORYBARRIER(isp, SYNC_REQUEST, curi, QENTRY_LEN);
-        isp_put_ctio2(isp, cto2, (ct2_entry_t *)qe);
-        ISP_TDQE(isp, "tdma_mkfc:final", curi, cto2);
-    }
-    qe = ISP_QUEUE_ENTRY(isp->isp_rquest, isp->isp_reqidx);
-    if (ISP_CAP_2KLOGIN(isp)) {
-        isp_put_ctio2e(isp, (ct2e_entry_t *)cto, (ct2e_entry_t *)qe);
-    } else {
-        isp_put_ctio2(isp, cto, qe);
-    }
-    if (cto->ct_flags & CT2_FASTPOST) {
-        isp_prt(isp, ISP_LOGTDEBUG1, "[%x] fastpost (0x%x) with entry count %d", cto->ct_rxid, tmd->cd_cdb[0], cto->ct_header.rqs_entry_count);
-    }
-    ISP_TDQE(isp, "tdma_mkfc", isp->isp_reqidx, cto);
-    *nxtip = nxti;
-    return (CMD_QUEUED);
-}
-#endif
-
-static int
-isp_pci_dmasetup(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, ispreq_t *rq, uint32_t *nxi, uint32_t optr)
-{
-    struct scatterlist *sg, *savesg;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
-    XS_DMA_ADDR_T one_shot_addr, last_synthetic_addr;
-    unsigned int one_shot_length, last_synthetic_count;
-#else
-    XS_DMA_ADDR_T last_synthetic_addr;
-    unsigned int last_synthetic_count;
-#endif
-    int segcnt, seg, ovseg, seglim;
-    void *h;
-    uint32_t nxti;
-
-#ifdef    ISP_TARGET_MODE
-    if (rq->req_header.rqs_entry_type == RQSTYPE_CTIO || rq->req_header.rqs_entry_type == RQSTYPE_CTIO2 || rq->req_header.rqs_entry_type == RQSTYPE_CTIO3) {
-        int s;
-        if (IS_FC(isp)) {
-            s = tdma_mkfc(isp, (tmd_xact_t *)Cmnd, (ct2_entry_t *)rq, nxi, optr);
-        } else {
-            s = tdma_mk(isp, (tmd_xact_t *)Cmnd, (ct_entry_t *)rq, nxi, optr);
-        }
-        return (s);
-   }
-#endif
-
-    nxti = *nxi;
-    h = (void *) ISP_QUEUE_ENTRY(isp->isp_rquest, isp->isp_reqidx);
-
-    if (Cmnd->sc_data_direction == SCSI_DATA_NONE || XS_XFRLEN(Cmnd) == 0) {
-        rq->req_seg_count = 1;
-        goto mbxsync;
-    }
-
-    if (XS_XFRLEN(Cmnd) <= 1024) {
-        seg = 0;
-    } else if (XS_XFRLEN(Cmnd) <= 4096) {
-        seg = 1;
-    } else if (XS_XFRLEN(Cmnd) <= 32768) {
-        seg = 2;
-    } else if (XS_XFRLEN(Cmnd) <= 65536) {
-        seg = 3;
-    } else if (XS_XFRLEN(Cmnd) <= 131372) {
-        seg = 4;
-    } else if (XS_XFRLEN(Cmnd) <= 262144) {
-        seg = 5;
-    } else if (XS_XFRLEN(Cmnd) <= 524288) {
-        seg = 6;
-    } else {
-        seg = 7;
-    }
-    isp->isp_osinfo.bins[seg]++;
-
-    if (IS_FC(isp)) {
-        seglim = ISP_RQDSEG_T2;
-        ((ispreqt2_t *)rq)->req_totalcnt = XS_XFRLEN(Cmnd);
-        if (Cmnd->sc_data_direction == SCSI_DATA_WRITE) {
-            ((ispreqt2_t *)rq)->req_flags |= REQFLAG_DATA_OUT;
-        } else if (Cmnd->sc_data_direction == SCSI_DATA_READ) {
-            ((ispreqt2_t *)rq)->req_flags |= REQFLAG_DATA_IN;
-        } else {
-            isp_prt(isp, ISP_LOGERR, "%s: unkown data direction (%x) for %d byte request (opcode 0x%x)", __func__,
-                Cmnd->sc_data_direction, XS_XFRLEN(Cmnd), Cmnd->cmnd[0]);
-            XS_SETERR(Cmnd, HBA_BOTCH);
-            return (CMD_COMPLETE);
-        }
-    } else {
-        if (Cmnd->cmd_len > 12) {
-            seglim = 0;
-        } else {
-            seglim = ISP_RQDSEG;
-        }
-        if (Cmnd->sc_data_direction == SCSI_DATA_WRITE) {
-            rq->req_flags |= REQFLAG_DATA_OUT;
-        } else if (Cmnd->sc_data_direction == SCSI_DATA_READ) {
-            rq->req_flags |= REQFLAG_DATA_IN;
-        } else {
-            isp_prt(isp, ISP_LOGERR, "%s: unkown data direction (%x) for %d byte request (opcode 0x%x)", __func__,
-                Cmnd->sc_data_direction, XS_XFRLEN(Cmnd), Cmnd->cmnd[0]);
-            XS_SETERR(Cmnd, HBA_BOTCH);
-            return (CMD_COMPLETE);
-        }
-    }
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
-    one_shot_addr = (XS_DMA_ADDR_T) 0;
-    one_shot_length = 0;
-    if ((segcnt = Cmnd->use_sg) == 0) {
+    if (ddir != ISP_NOXFR) {
         struct isp_pcisoftc *pcs = (struct isp_pcisoftc *) isp;
-        segcnt = 1;
-        sg = NULL;
-        one_shot_length = XS_XFRLEN(Cmnd);
-        one_shot_addr = pci_map_single(pcs->pci_dev, Cmnd->request_buffer, XS_XFRLEN(Cmnd), scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
-        QLA_HANDLE(Cmnd) = (DMA_HTYPE_T) one_shot_addr;
-    } else {
-        struct isp_pcisoftc *pcs = (struct isp_pcisoftc *) isp;
-        sg = (struct scatterlist *) Cmnd->request_buffer;
-        segcnt = pci_map_sg(pcs->pci_dev, sg, Cmnd->use_sg, scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
-    }
-    if (segcnt == 0) {
-        isp_prt(isp, ISP_LOGWARN, "%s: unable to dma map request", __func__);
-        XS_SETERR(Cmnd, HBA_BOTCH);
-        return (CMD_COMPLETE);
-    }
-#else
-    segcnt = scsi_dma_map(Cmnd);
-    if (segcnt <= 0) {
-        isp_prt(isp, ISP_LOGWARN, "%s: unable to dma map request", __func__);
-        XS_SETERR(Cmnd, HBA_BOTCH);
-        return (CMD_COMPLETE);
-    }
-    sg = scsi_sglist(Cmnd);
-#endif
-    savesg = sg;
+        uint32_t xfcnt;
 
-again:
-    last_synthetic_count = 0;
-    last_synthetic_addr = 0;
-    for (seg = 0, rq->req_seg_count = 0; seg < segcnt && rq->req_seg_count < seglim; seg++, rq->req_seg_count++) {
-        XS_DMA_ADDR_T addr;
-        unsigned int length;
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
-        if (sg) {
-            length = sg_dma_len(sg);
-            addr = sg_dma_address(sg);
+        sg = xact->td_data;
+        xfcnt = xact->td_xfrlen;
+        nseg = 0;
+        while (xfcnt > 0) {
+            xfcnt -= sg->length;
             sg++;
-        } else {
-            length = one_shot_length;
-            addr = one_shot_addr;
+            nseg++;
         }
-#else
-        length = sg_dma_len(sg);
-        addr = sg_dma_address(sg);
-        sg++;
-#endif
-
-        if (ISP_A64 && IS_HIGH_ISP_ADDR(addr)) {
-            if (IS_FC(isp)) {
-                if (rq->req_header.rqs_entry_type != RQSTYPE_T3RQS) {
-                    rq->req_header.rqs_entry_type = RQSTYPE_T3RQS;
-                    seglim = ISP_RQDSEG_T3;
-                    sg = savesg;
-                    goto again;
-                }
-           } else {
-                if (rq->req_header.rqs_entry_type != RQSTYPE_A64) {
-                    rq->req_header.rqs_entry_type = RQSTYPE_A64;
-                    seglim = ISP_RQDSEG_A64;
-                    sg = savesg;
-                    goto again;
-                }
-           }
-        }
-
-        if (ISP_A64 && rq->req_header.rqs_entry_type == RQSTYPE_T3RQS) {
-            ispreqt3_t *rq3 = (ispreqt3_t *)rq;
-            rq3->req_dataseg[rq3->req_seg_count].ds_count = length;
-            rq3->req_dataseg[rq3->req_seg_count].ds_base = LOWD(addr);
-            rq3->req_dataseg[rq3->req_seg_count].ds_basehi = HIWD(addr);
-            /*
-             * Make sure we don't cross a 4GB boundary.
-             */
-            if (!SAME_4G(addr, length)) {
-                isp_prt(isp, ISP_LOGDEBUG1, "seg0[%d]%08x%08x:%u (TRUNC'd)", rq->req_seg_count, (uint32_t)HIWD(addr), (uint32_t)LOWD(addr), length);
-                rq3->req_dataseg[rq3->req_seg_count].ds_count = (unsigned int) (FOURG_SEG(addr + length) - addr);
-                addr += rq3->req_dataseg[rq3->req_seg_count].ds_count;
-                length -= rq3->req_dataseg[rq3->req_seg_count].ds_count;
-                /*
-                 * Do we have space to split it here?
-                 */
-                if (rq3->req_seg_count == seglim - 1) {
-                    last_synthetic_count = length;
-                    last_synthetic_addr = addr;
-                } else {
-                    rq3->req_seg_count++;
-                    rq3->req_dataseg[rq3->req_seg_count].ds_count = length;
-                    rq3->req_dataseg[rq3->req_seg_count].ds_base = LOWD(addr);
-                    rq3->req_dataseg[rq3->req_seg_count].ds_basehi = HIWD(addr);
-                }
-            }
-        } else if (ISP_A64 && rq->req_header.rqs_entry_type == RQSTYPE_A64) {
-            ispreq64_t *rq6 = (ispreq64_t *)rq;
-            rq6->req_dataseg[rq6->req_seg_count].ds_count = length;
-            rq6->req_dataseg[rq6->req_seg_count].ds_base = LOWD(addr);
-            rq6->req_dataseg[rq6->req_seg_count].ds_basehi = HIWD(addr);
-            /*
-             * Make sure we don't cross a dma boundary.
-             */
-            if (!SAME_4G(addr, length) || (IS_1020(isp) && !SAME_SIXTEENM(addr, length))) {
-                isp_prt(isp, ISP_LOGDEBUG1, "seg0[%d]%llx:%u (TRUNC'd)", rq->req_seg_count, (long long)addr, length);
-                if (IS_1020(isp) && !SAME_SIXTEENM(addr, length)) {
-                    rq6->req_dataseg[rq6->req_seg_count].ds_count = (unsigned int) (SIXTEENM_SEG(addr + length) - addr);
-                } else {
-                    rq6->req_dataseg[rq6->req_seg_count].ds_count = (unsigned int) (FOURG_SEG(addr + length) - addr);
-                }
-                addr += rq6->req_dataseg[rq6->req_seg_count].ds_count;
-                length -= rq6->req_dataseg[rq6->req_seg_count].ds_count;
-                /*
-                 * Do we have space to split it here?
-                 */
-                if (rq6->req_seg_count == seglim - 1) {
-                    last_synthetic_count = length;
-                    last_synthetic_addr = addr;
-                } else {
-                    rq6->req_seg_count++;
-                    rq6->req_dataseg[rq6->req_seg_count].ds_count = length;
-                    rq6->req_dataseg[rq6->req_seg_count].ds_base = LOWD(addr);
-                    rq6->req_dataseg[rq6->req_seg_count].ds_basehi = HIWD(addr);
-                }
-            }
-        } else if (rq->req_header.rqs_entry_type == RQSTYPE_T2RQS) {
-            ispreqt2_t *rq2 = (ispreqt2_t *)rq;
-            rq2->req_dataseg[rq2->req_seg_count].ds_count = length;
-            rq2->req_dataseg[rq2->req_seg_count].ds_base = addr;
-        } else if (IS_1020(isp) && !SAME_SIXTEENM(addr, length)) {
-            isp_prt(isp, ISP_LOGDEBUG1, "seg0[%d]%llx:%u (TRUNC'd)", rq->req_seg_count, (long long)addr, length);
-            rq->req_dataseg[rq->req_seg_count].ds_count = (unsigned int) (SIXTEENM_SEG(addr + length) - addr);
-            addr += rq->req_dataseg[rq->req_seg_count].ds_count;
-            length -= rq->req_dataseg[rq->req_seg_count].ds_count;
-            /*
-             * Do we have space to split it here?
-             */
-            if (rq->req_seg_count == seglim - 1) {
-                last_synthetic_count = length;
-                last_synthetic_addr = addr;
-            } else {
-                rq->req_seg_count++;
-                rq->req_dataseg[rq->req_seg_count].ds_count = length;
-                rq->req_dataseg[rq->req_seg_count].ds_base = LOWD(addr);
-            }
-        } else {
-            rq->req_dataseg[rq->req_seg_count].ds_count = length;
-            rq->req_dataseg[rq->req_seg_count].ds_base = addr;
-        }
-        isp_prt(isp, ISP_LOGDEBUG1, "seg0[%d]%llx:%u", rq->req_seg_count, (long long)addr, length);
-    }
-
-    if (sg == NULL || (seg == segcnt && last_synthetic_count == 0)) {
-        goto mbxsync;
-    }
-
-    do {
-        int lim;
-        uint32_t curip;
-        ispcontreq_t local, *crq = &local, *qep;
-
-        curip = nxti;
-        qep = (ispcontreq_t *) ISP_QUEUE_ENTRY(isp->isp_rquest, curip);
-        nxti = ISP_NXT_QENTRY((curip), RQUEST_QUEUE_LEN(isp));
-        if (nxti == optr) {
-            isp_pci_dmateardown(isp, Cmnd, 0);
-            isp_prt(isp, ISP_LOGDEBUG0, "%s: Chan %d out of space for continuations (did %d of %d segments)", __func__, XS_CHANNEL(Cmnd), seg, segcnt);
-            XS_SETERR(Cmnd, HBA_BOTCH);
-            return (CMD_EAGAIN);
-        }
-        rq->req_header.rqs_entry_count++;
-        memset((void *)crq, 0, sizeof (*crq));
-        crq->req_header.rqs_entry_count = 1;
-        if (rq->req_header.rqs_entry_type == RQSTYPE_T3RQS || rq->req_header.rqs_entry_type == RQSTYPE_A64) {
-            crq->req_header.rqs_entry_type = RQSTYPE_A64_CONT;
-            lim = ISP_CDSEG64;
-        } else {
-            crq->req_header.rqs_entry_type = RQSTYPE_DATASEG;
-            lim = ISP_CDSEG;
-        }
-
-        for (ovseg = 0; (seg < segcnt || last_synthetic_count) && ovseg < lim; rq->req_seg_count++, seg++, ovseg++, sg++) {
-            XS_DMA_ADDR_T addr;
-            unsigned int length;
-
-            if (last_synthetic_count) {
-                addr = last_synthetic_addr;
-                length = last_synthetic_count;
-                last_synthetic_count = 0;
-                sg--;
-                seg--;
-            } else {
-                addr = sg_dma_address(sg);
-                length = sg_dma_len(sg);
-            }
-
-            if (length == 0) {
-                panic("zero length s-g element at line %d", __LINE__);
-            }
-            isp_prt(isp, ISP_LOGDEBUG1, "seg%d[%d]%llx:%u", rq->req_header.rqs_entry_count-1, ovseg, (unsigned long long) addr, length);
-
-            if (crq->req_header.rqs_entry_type == RQSTYPE_A64_CONT) {
-                ispcontreq64_t *xrq = (ispcontreq64_t *) crq;
-                xrq->req_dataseg[ovseg].ds_count = length;
-                xrq->req_dataseg[ovseg].ds_base = LOWD(addr);
-                xrq->req_dataseg[ovseg].ds_basehi = HIWD(addr);
-                /*
-                 * Make sure we don't cross a 4GB boundary.
-                 */
-                if (!SAME_4G(addr, length)) {
-                    isp_prt(isp, ISP_LOGDEBUG1, "seg%d[%d]%llx:%u (TRUNC'd)", rq->req_header.rqs_entry_count-1, ovseg, (long long)addr, length);
-                    xrq->req_dataseg[ovseg].ds_count = (unsigned int) (FOURG_SEG(addr + length) - addr);
-                    addr += xrq->req_dataseg[ovseg].ds_count;
-                    length -= xrq->req_dataseg[ovseg].ds_count;
-                    /*
-                     * Do we have space to split it here?
-                     */
-                    if (ovseg == lim - 1) {
-                        last_synthetic_count = length;
-                        last_synthetic_addr = addr;
-                    } else {
-                        ovseg++;
-                        xrq->req_dataseg[ovseg].ds_count = length;
-                        xrq->req_dataseg[ovseg].ds_base = LOWD(addr);
-                        xrq->req_dataseg[ovseg].ds_basehi = HIWD(addr);
-                    }
-                }
-                continue;
-            }
-            /*
-             * We get here if we're a 32 bit continuation entry.
-             * We also check for being over 32 bits with our PCI
-             * address. If we are, we set ourselves up to do 64
-             * bit addressing and start the whole mapping process
-             * all over again- we apparently can't really mix types
-             */
-            if (ISP_A64 && IS_HIGH_ISP_ADDR(addr)) {
-                if (IS_FC(isp)) {
-                    rq->req_header.rqs_entry_type = RQSTYPE_T3RQS;
-                    seglim = ISP_RQDSEG_T3;
-                } else {
-                    rq->req_header.rqs_entry_type = RQSTYPE_A64;
-                    seglim = ISP_RQDSEG_A64;
-                }
-                sg = savesg;
-                nxti = *nxi;
-                rq->req_header.rqs_entry_count = 1;
-                goto again;
-            }
-            crq->req_dataseg[ovseg].ds_count = length;
-            crq->req_dataseg[ovseg].ds_base = addr;
-        }
-        if (isp->isp_dblev & ISP_LOGDEBUG1) {
-            isp_print_qentry(isp, "isp_pci_dmasetup: continuation", curip, crq);
-        }
-        MEMORYBARRIER(isp, SYNC_REQUEST, curip, QENTRY_LEN);
-        if (crq->req_header.rqs_entry_type == RQSTYPE_A64_CONT) {
-            isp_put_cont64_req(isp, (ispcontreq64_t *)crq, (ispcontreq64_t *)qep);
-        } else {
-            isp_put_cont_req(isp, crq, qep);
-        }
-    } while (seg < segcnt || last_synthetic_count);
-mbxsync:
-    if (isp->isp_dblev & ISP_LOGDEBUG1) {
-        isp_print_qentry(isp, "isp_pci_dmasetup", isp->isp_reqidx, rq);
-    }
-
-    if (rq->req_header.rqs_entry_type == RQSTYPE_T3RQS) {
-        if (ISP_CAP_2KLOGIN(isp))
-            isp_put_request_t3e(isp, (ispreqt3e_t *) rq, (ispreqt3e_t *) h);
-        else
-            isp_put_request_t3(isp, (ispreqt3_t *) rq, (ispreqt3_t *) h);
-    } else if (rq->req_header.rqs_entry_type == RQSTYPE_T2RQS) {
-        if (ISP_CAP_2KLOGIN(isp))
-            isp_put_request_t2e(isp, (ispreqt2e_t *) rq, (ispreqt2e_t *) h);
-        else
-            isp_put_request_t2(isp, (ispreqt2_t *) rq, (ispreqt2_t *) h);
+        sg = xact->td_data;
+        nseg = pci_map_sg(pcs->pci_dev, sg, nseg, ddir == ISP_TO_DEVICE? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
     } else {
-        isp_put_request(isp, (ispreq_t *) rq, (ispreq_t *) h);
+        sg = NULL;
+        nseg = 0;
     }
-    *nxi = nxti;
-    return (CMD_QUEUED);
+
+    ret = isp_send_tgt_cmd(isp, fqe, sg, nseg, xact->td_xfrlen, ddir, xact->td_cmd->cd_sense, TMD_SENSELEN);
+    if (ret == CMD_QUEUED) {
+        int bin;
+        if (xact->td_xfrlen <= 1024) {
+            bin = 0;
+        } else if (xact->td_xfrlen <= 4096) {
+            bin = 1;
+        } else if (xact->td_xfrlen <= 32768) {
+            bin = 2;
+        } else if (xact->td_xfrlen <= 65536) {
+            bin = 3;
+        } else if (xact->td_xfrlen <= 131372) {
+            bin = 4;
+        } else if (xact->td_xfrlen <= 262144) {
+            bin = 5;
+        } else if (xact->td_xfrlen <= 524288) {
+            bin = 6;
+        } else {
+            bin = 7;
+        }
+        isp->isp_osinfo.bins[bin]++;
+    }
+    return (ret);
 }
+#endif
 
-#ifndef ISP_DISABLE_2400_SUPPORT
 static int
-isp_pci_2400_dmasetup(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, ispreq_t *orig_rq, uint32_t *nxi, uint32_t optr)
+isp_pci_dmasetup(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, void *fqe)
 {
-    struct scatterlist *sg, *savesg;
-    ispreqt7_t *rq;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
-    XS_DMA_ADDR_T addr, one_shot_addr, last_synthetic_addr;
-    unsigned int one_shot_length, last_synthetic_count, length;
-#else
-    XS_DMA_ADDR_T addr, last_synthetic_addr;
-    unsigned int last_synthetic_count, length;
+    struct scatterlist one_shot;
 #endif
-    int segcnt, seg, ovseg;
-    void *h;
-    uint32_t nxti;
+    struct scatterlist *sg = NULL;
+    isphdr_t *hp;
+    isp_ddir_t ddir;
+    uint32_t nseg;
+    int ret;
 
+    hp = fqe;
+    switch (hp->rqs_entry_type) {
 #ifdef    ISP_TARGET_MODE
-    if (orig_rq->req_header.rqs_entry_type == RQSTYPE_CTIO7) {
-        return tdma_mk_2400(isp, (tmd_xact_t *)Cmnd, (ct7_entry_t *)orig_rq, nxi, optr);
-   }
+    case RQSTYPE_CTIO:
+    case RQSTYPE_CTIO2:
+    case RQSTYPE_CTIO7:
+        return (isp_pci_dmasetup_tgt(isp, (tmd_xact_t *)Cmnd, fqe));
 #endif
-    rq = (ispreqt7_t *) orig_rq;
-    nxti = *nxi;
-    h = (void *) ISP_QUEUE_ENTRY(isp->isp_rquest, isp->isp_reqidx);
-
-    if (Cmnd->sc_data_direction == SCSI_DATA_NONE || XS_XFRLEN(Cmnd) == 0) {
-        rq->req_seg_count = 0;
-        goto mbxsync;
-    }
-
-    if (XS_XFRLEN(Cmnd) <= 1024) {
-        seg = 0;
-    } else if (XS_XFRLEN(Cmnd) <= 4096) {
-        seg = 1;
-    } else if (XS_XFRLEN(Cmnd) <= 32768) {
-        seg = 2;
-    } else if (XS_XFRLEN(Cmnd) <= 65536) {
-        seg = 3;
-    } else if (XS_XFRLEN(Cmnd) <= 131372) {
-        seg = 4;
-    } else if (XS_XFRLEN(Cmnd) <= 262144) {
-        seg = 5;
-    } else if (XS_XFRLEN(Cmnd) <= 524288) {
-        seg = 6;
-    } else {
-        seg = 7;
-    }
-    isp->isp_osinfo.bins[seg]++;
-
-    rq->req_dl = XS_XFRLEN(Cmnd);
-    rq->req_seg_count = 1;
-    if (Cmnd->sc_data_direction == SCSI_DATA_WRITE) {
-        rq->req_alen_datadir = FCP_CMND_DATA_WRITE;
-    } else if (Cmnd->sc_data_direction == SCSI_DATA_READ) {
-        rq->req_alen_datadir = FCP_CMND_DATA_READ;
-    } else {
-        isp_prt(isp, ISP_LOGERR, "unknown data direction (%x) for %d byte request (opcode 0x%x)",
-            Cmnd->sc_data_direction, XS_XFRLEN(Cmnd), Cmnd->cmnd[0]);
-        XS_SETERR(Cmnd, HBA_BOTCH);
+    case RQSTYPE_REQUEST:
+        if (isp->isp_osinfo.is_64bit_dma) {
+            hp->rqs_entry_type = RQSTYPE_A64;
+        }
+        break;
+    case RQSTYPE_T2RQS:
+        if (isp->isp_osinfo.is_64bit_dma) {
+            hp->rqs_entry_type = RQSTYPE_T3RQS;
+        }
+        break;
+    default:
+        isp_prt(isp, ISP_LOGERR, "%s: unknwon type 0x%x", __func__, hp->rqs_entry_type);
         return (CMD_COMPLETE);
     }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
-    one_shot_addr = (XS_DMA_ADDR_T) 0;
-    one_shot_length = 0;
-    if ((segcnt = Cmnd->use_sg) == 0) {
-        struct isp_pcisoftc *pcs = (struct isp_pcisoftc *) isp;
-        segcnt = 1;
-        sg = NULL;
-        one_shot_length = XS_XFRLEN(Cmnd);
-        one_shot_addr = pci_map_single(pcs->pci_dev, Cmnd->request_buffer, XS_XFRLEN(Cmnd), scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
-        QLA_HANDLE(Cmnd) = (DMA_HTYPE_T) one_shot_addr;
+    if (Cmnd->sc_data_direction == SCSI_DATA_NONE) {
+        ddir = ISP_NOXFR;
+    } else if (Cmnd->sc_data_direction == SCSI_DATA_WRITE) {
+        ddir = ISP_TO_DEVICE;
     } else {
-        struct isp_pcisoftc *pcs = (struct isp_pcisoftc *) isp;
-        sg = (struct scatterlist *) Cmnd->request_buffer;
-        segcnt = pci_map_sg(pcs->pci_dev, sg, Cmnd->use_sg, scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
+        ddir = ISP_FROM_DEVICE;
     }
 
-    if (segcnt == 0) {
-        isp_prt(isp, ISP_LOGWARN, "unable to dma map request");
-        XS_SETERR(Cmnd, HBA_BOTCH);
-        return (CMD_EAGAIN);
-    }
-#else
-    segcnt = scsi_dma_map(Cmnd);
-    if (segcnt <= 0) {
-        isp_prt(isp, ISP_LOGWARN, "unable to dma map request");
-        XS_SETERR(Cmnd, HBA_BOTCH);
-        return (CMD_EAGAIN);
-    }
-    sg = scsi_sglist(Cmnd);
-#endif
-
-    savesg = sg;
-
-    last_synthetic_count = 0;
-    last_synthetic_addr = 0;
-
+    if (ddir != ISP_NOXFR) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
-    if (sg) {
-        length = sg_dma_len(sg);
-        addr = sg_dma_address(sg);
-        sg++;
-    } else {
-        length = one_shot_length;
-        addr = one_shot_addr;
-    }
-#else
-    length = sg_dma_len(sg);
-    addr = sg_dma_address(sg);
-    sg++;
-#endif
-    seg = 1;
-
-    rq->req_dataseg.ds_base = LOWD(addr);
-    rq->req_dataseg.ds_basehi = HIWD(addr);
-    rq->req_dataseg.ds_count = length;
-
-    /*
-     * Make sure we don't cross a 4GB boundary.
-     */
-    if (!SAME_4G(addr, length)) {
-        isp_prt(isp, ISP_LOGDEBUG1, "seg0[%d]0x%016llx:%u (TRUNC'd)", rq->req_seg_count, (unsigned long long) addr, length);
-        rq->req_dataseg.ds_count = (unsigned int) (FOURG_SEG(addr + length) - addr);
-        addr += rq->req_dataseg.ds_count;
-        length -= rq->req_dataseg.ds_count;
-        last_synthetic_count = length;
-        last_synthetic_addr = addr;
-    }
-    isp_prt(isp, ISP_LOGDEBUG1, "seg0[%d]0x%016llx:%u", rq->req_seg_count, (unsigned long long) addr, length);
-
-    if (sg == NULL || (seg == segcnt && last_synthetic_count == 0)) {
-        goto mbxsync;
-    }
-
-    do {
-        int lim;
-        uint32_t curip;
-        ispcontreq64_t local, *xrq = &local, *qep;
-
-        curip = nxti;
-        qep = (ispcontreq64_t *) ISP_QUEUE_ENTRY(isp->isp_rquest, curip);
-        nxti = ISP_NXT_QENTRY((curip), RQUEST_QUEUE_LEN(isp));
-        if (nxti == optr) {
-            isp_pci_dmateardown(isp, Cmnd, 0);
-            isp_prt(isp, ISP_LOGDEBUG0, "%s: Chan %d out of space for continuations (did %d of %d segments)", __func__, XS_CHANNEL(Cmnd), seg, segcnt);
+        if ((nseg = Cmnd->use_sg) == 0) {
+            struct isp_pcisoftc *pcs = (struct isp_pcisoftc *) isp;
+            nseg = 1;
+            sg = &one_shot;
+            sg_dma_address(sg) =  pci_map_single(pcs->pci_dev, Cmnd->request_buffer, XS_XFRLEN(Cmnd), scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
+            sg_dma_len(sg) = XS_XFRLEN(Cmnd);
+            QLA_HANDLE(Cmnd) = (DMA_HTYPE_T) sg_dma_address(sg);
+        } else {
+            struct isp_pcisoftc *pcs = (struct isp_pcisoftc *) isp;
+            sg = (struct scatterlist *) Cmnd->request_buffer;
+            nseg = pci_map_sg(pcs->pci_dev, sg, Cmnd->use_sg, scsi_to_pci_dma_dir(Cmnd->sc_data_direction));
+        }
+        if (nseg == 0) {
+            isp_prt(isp, ISP_LOGWARN, "%s: unable to dma map request", __func__);
             XS_SETERR(Cmnd, HBA_BOTCH);
-            return (CMD_EAGAIN);
+            return (CMD_COMPLETE);
         }
-        rq->req_header.rqs_entry_count++;
-        memset((void *)xrq, 0, sizeof (*xrq));
-        xrq->req_header.rqs_entry_count = 1;
-        xrq->req_header.rqs_entry_type = RQSTYPE_A64_CONT;
-        lim = ISP_CDSEG64;
-
-        for (ovseg = 0; (seg < segcnt || last_synthetic_count) && ovseg < lim; rq->req_seg_count++, seg++, ovseg++, sg++) {
-            XS_DMA_ADDR_T addr;
-            unsigned int length;
-
-            if (last_synthetic_count) {
-                addr = last_synthetic_addr;
-                length = last_synthetic_count;
-                last_synthetic_count = 0;
-                sg--;
-                seg--;
-            } else {
-                addr = sg_dma_address(sg);
-                length = sg_dma_len(sg);
-            }
-
-            if (length == 0) {
-                panic("zero length s-g element at line %d", __LINE__);
-            }
-            isp_prt(isp, ISP_LOGDEBUG1, "seg%d[%d]0x%016llx:%u", rq->req_header.rqs_entry_count-1, ovseg, (unsigned long long) addr, length);
-
-            xrq->req_dataseg[ovseg].ds_count = length;
-            xrq->req_dataseg[ovseg].ds_base = LOWD(addr);
-            xrq->req_dataseg[ovseg].ds_basehi = HIWD(addr);
-            /*
-             * Make sure we don't cross a 4GB boundary.
-             */
-            if (!SAME_4G(addr, length)) {
-                isp_prt(isp, ISP_LOGDEBUG1, "seg%d[%d]%llx:%u (TRUNC'd)", rq->req_header.rqs_entry_count-1, ovseg, (unsigned long long)addr, length);
-                xrq->req_dataseg[ovseg].ds_count = (unsigned int) (FOURG_SEG(addr + length) - addr);
-                addr += xrq->req_dataseg[ovseg].ds_count;
-                length -= xrq->req_dataseg[ovseg].ds_count;
-                /*
-                 * Do we have space to split it here?
-                 */
-                if (ovseg == lim - 1) {
-                    last_synthetic_count = length;
-                    last_synthetic_addr = addr;
-                } else {
-                    ovseg++;
-                    xrq->req_dataseg[ovseg].ds_count = length;
-                    xrq->req_dataseg[ovseg].ds_base = LOWD(addr);
-                    xrq->req_dataseg[ovseg].ds_basehi = HIWD(addr);
-                }
-            }
+#else
+        nseg = scsi_dma_map(Cmnd);
+        if (nseg <= 0) {
+            isp_prt(isp, ISP_LOGWARN, "%s: unable to dma map request", __func__);
+            XS_SETERR(Cmnd, HBA_BOTCH);
+            return (CMD_COMPLETE);
         }
-        if (isp->isp_dblev & ISP_LOGDEBUG1) {
-            isp_print_qentry(isp, "isp_pci_2400_dmasetup continuation", curip, xrq);
-        }
-        MEMORYBARRIER(isp, SYNC_REQUEST, curip, QENTRY_LEN);
-        isp_put_cont64_req(isp, xrq, qep);
-    } while (seg < segcnt || last_synthetic_count);
-mbxsync:
-    if (isp->isp_dblev & ISP_LOGDEBUG1) {
-        isp_print_qentry(isp, "isp_pci_2400_dmasetup", isp->isp_reqidx, rq);
-    }
-    isp_put_request_t7(isp, rq, (ispreqt7_t *) h);
-    *nxi = nxti;
-    return (CMD_QUEUED);
-}
+        sg = scsi_sglist(Cmnd);
 #endif
+    } else {
+        sg = NULL;
+        nseg = 0;
+    }
+    ret = isp_send_cmd(isp, fqe, sg, nseg, XS_XFRLEN(Cmnd), ddir);
+    if (ret == CMD_QUEUED) {
+        int bin;
+        if (XS_XFRLEN(Cmnd) <= 1024) {
+            bin = 0;
+        } else if (XS_XFRLEN(Cmnd) <= 4096) {
+            bin = 1;
+        } else if (XS_XFRLEN(Cmnd) <= 32768) {
+            bin = 2;
+        } else if (XS_XFRLEN(Cmnd) <= 65536) {
+            bin = 3;
+        } else if (XS_XFRLEN(Cmnd) <= 131372) {
+            bin = 4;
+        } else if (XS_XFRLEN(Cmnd) <= 262144) {
+            bin = 5;
+        } else if (XS_XFRLEN(Cmnd) <= 524288) {
+            bin = 6;
+        } else {
+            bin = 7;
+        }
+        isp->isp_osinfo.bins[bin]++;
+    } else if (ret == CMD_COMPLETE) {
+        XS_SETERR(Cmnd, HBA_BOTCH);
+    }
+    return (ret);
+}
 
 static void
 isp_pci_dmateardown(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, uint32_t handle)

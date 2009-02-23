@@ -1,4 +1,4 @@
-/* $Id: isp_linux.h,v 1.168 2009/01/24 17:55:55 mjacob Exp $ */
+/* $Id: isp_linux.h,v 1.169 2009/02/13 23:58:38 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -331,11 +331,10 @@ struct isposinfo {
     wait_queue_head_t   mboxwq;
     struct semaphore    mbox_c_sem;
     spinlock_t          slock;
-    unsigned volatile int
-                        : 20,
+    uint32_t
         dogcnt          : 5,
         isopen          : 1,
-                        : 1,
+        is_64bit_dma    : 1,
         dogactive       : 1,
         mboxcmd_done    : 1,
         mbintsok        : 1,
@@ -413,10 +412,6 @@ struct isposinfo {
  * Required Macros/Defines
  */
 
-#if defined(CONFIG_HIGHMEM64G) || defined(CONFIG_X86_64)    /* BOGUS */
-#define ISP_DAC_SUPPORTED   1
-#endif
-
 #define ISP_FC_SCRLEN   0x1000
 
 #define ISP_MEMZERO(b, a)   memset(b, 0, a)
@@ -477,7 +472,8 @@ struct isposinfo {
 
 #define XS_T                Scsi_Cmnd
 #define XS_DMA_ADDR_T       dma_addr_t
-
+#define XS_GET_DMA64_SEG    isp_get_dma64_seg
+#define XS_GET_DMA_SEG      isp_get_dma_seg
 #define XS_HOST(Cmnd)       Cmnd->device->host
 #define XS_CHANNEL(Cmnd)    (Cmnd)->device->channel
 #define XS_TGT(Cmnd)        (Cmnd)->device->id
@@ -912,6 +908,23 @@ isp_kzalloc(size_t size, int flags)
 
 #define COPYIN(uarg, karg, amt)     copy_from_user(karg, uarg, amt)
 #define COPYOUT(karg, uarg, amt)    copy_to_user(uarg, karg, amt)
+
+static __inline void
+isp_get_dma64_seg(ispds64_t *dsp, struct scatterlist *sg, uint32_t sgidx)
+{
+    sg += sgidx;
+    dsp->ds_base    = DMA_LO32(sg_dma_address(sg));
+    dsp->ds_basehi  = DMA_HI32(sg_dma_address(sg));
+    dsp->ds_count   = sg_dma_len(sg);
+}
+
+static __inline void
+isp_get_dma_seg(ispds_t *dsp, struct scatterlist *sg, uint32_t sgidx)
+{
+    sg += sgidx;
+    dsp->ds_base = sg_dma_address(sg);
+    dsp->ds_count = sg_dma_len(sg);
+}
 
 /*
  * Common inline functions

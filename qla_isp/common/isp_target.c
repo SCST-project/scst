@@ -1,4 +1,4 @@
-/* $Id: isp_target.c,v 1.83 2009/02/01 23:49:49 mjacob Exp $ */
+/* $Id: isp_target.c,v 1.84 2009/02/13 23:58:38 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2008 by Matthew Jacob
  *  All rights reserved.
@@ -468,7 +468,6 @@ int
 isp_lun_cmd(ispsoftc_t *isp, int cmd, int bus, int lun, int cmd_cnt, int inot_cnt)
 {
 	lun_entry_t el;
-	uint32_t nxti, optr;
 	void *outp;
 
 	ISP_MEMZERO(&el, sizeof (el));
@@ -503,25 +502,25 @@ isp_lun_cmd(ispsoftc_t *isp, int cmd, int bus, int lun, int cmd_cnt, int inot_cn
 	}
 	el.le_timeout = 30;
 
-	if (isp_getrqentry(isp, &nxti, &optr, &outp)) {
+	outp = isp_getrqentry(isp);
+	if (outp == NULL) {
 		isp_prt(isp, ISP_LOGERR, rqo, __func__);
 		return (-1);
 	}
-	ISP_TDQE(isp, "isp_lun_cmd", (int) optr, &el);
 	isp_put_enable_lun(isp, &el, outp);
-	ISP_ADD_REQUEST(isp, nxti);
+	ISP_TDQE(isp, "isp_lun_cmd", isp->isp_reqidx, &el);
+	ISP_SYNC_REQUEST(isp);
 	return (0);
 }
-
 
 int
 isp_target_put_entry(ispsoftc_t *isp, void *ap)
 {
 	void *outp;
-	uint32_t nxti, optr;
 	uint8_t etype = ((isphdr_t *) ap)->rqs_entry_type;
 
-	if (isp_getrqentry(isp, &nxti, &optr, &outp)) {
+	outp = isp_getrqentry(isp);
+	if (outp == NULL) {
 		isp_prt(isp, ISP_LOGWARN, rqo, __func__); 
 		return (-1);
 	}
@@ -553,8 +552,8 @@ isp_target_put_entry(ispsoftc_t *isp, void *ap)
 		isp_prt(isp, ISP_LOGERR, "%s: Unknown type 0x%x", __func__, etype);
 		return (-1);
 	}
-	ISP_TDQE(isp, __func__, (int) optr, ap);
-	ISP_ADD_REQUEST(isp, nxti);
+	ISP_TDQE(isp, __func__, isp->isp_reqidx, ap);
+	ISP_SYNC_REQUEST(isp);
 	return (0);
 }
 
@@ -1041,7 +1040,6 @@ int
 isp_notify_ack(ispsoftc_t *isp, void *arg)
 {
 	char storage[QENTRY_LEN];
-	uint32_t nxti, optr;
 	void *outp;
 
 	/*
@@ -1052,7 +1050,8 @@ isp_notify_ack(ispsoftc_t *isp, void *arg)
 		return (isp_endcmd(isp, aep, NIL_HANDLE, 0, 0, 0));
 	}
 
-	if (isp_getrqentry(isp, &nxti, &optr, &outp)) {
+	outp = isp_getrqentry(isp);
+	if (outp == NULL) {
 		isp_prt(isp, ISP_LOGWARN, rqo, __func__);
 		return (1);
 	}
@@ -1139,11 +1138,10 @@ isp_notify_ack(ispsoftc_t *isp, void *arg)
 		na->na_header.rqs_entry_type = RQSTYPE_NOTIFY_ACK;
 		na->na_header.rqs_entry_count = 1;
 		isp_put_notify_ack(isp, na, (na_entry_t *)outp);
-		isp_prt(isp, ISP_LOGTDEBUG0, "notify ack loopid %u lun %u tgt %u seqid %x event %x", na->na_iid, na->na_lun, na->na_tgt,
-		    na->na_seqid, na->na_event);
+		isp_prt(isp, ISP_LOGTDEBUG0, "notify ack loopid %u lun %u tgt %u seqid %x event %x", na->na_iid, na->na_lun, na->na_tgt, na->na_seqid, na->na_event);
 	}
-	ISP_TDQE(isp, "isp_notify_ack", (int) optr, storage);
-	ISP_ADD_REQUEST(isp, nxti);
+	ISP_TDQE(isp, "isp_notify_ack", isp->isp_reqidx, storage);
+	ISP_SYNC_REQUEST(isp);
 	return (0);
 }
 
@@ -1155,7 +1153,6 @@ isp_acknak_abts(ispsoftc_t *isp, void *arg, int errno)
 	uint8_t tmpb;
 	abts_t *abts = arg;
 	abts_rsp_t *rsp = (abts_rsp_t *) storage;
-	uint32_t nxti, optr;
 	void *outp;
 
 	if (!IS_24XX(isp)) {
@@ -1168,7 +1165,8 @@ isp_acknak_abts(ispsoftc_t *isp, void *arg, int errno)
 		return (0);
 	}
 
-	if (isp_getrqentry(isp, &nxti, &optr, &outp)) {
+	outp = isp_getrqentry(isp);
+	if (outp == NULL) {
 		isp_prt(isp, ISP_LOGWARN, rqo, __func__);
 		return (1);
 	}
@@ -1221,8 +1219,8 @@ isp_acknak_abts(ispsoftc_t *isp, void *arg, int errno)
 	 * in the ABTS structure just before calling us.
 	 */
 	isp_put_abts_rsp(isp, rsp, (abts_rsp_t *)outp);
-	ISP_TDQE(isp, "isp_acknak_abts", (int) optr, storage);
-	ISP_ADD_REQUEST(isp, nxti);
+	ISP_TDQE(isp, "isp_acknak_abts", isp->isp_reqidx, storage);
+	ISP_SYNC_REQUEST(isp);
 	return (0);
 }
 

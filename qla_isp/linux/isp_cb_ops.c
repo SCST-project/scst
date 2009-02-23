@@ -767,9 +767,10 @@ isp_run_cmd(ispsoftc_t *isp, isp_xcmd_t *cmd)
     struct scsi_device *dev = NULL;
     struct scsi_cmnd *Cmnd = NULL;
     struct Scsi_Host *host = NULL;
-    uint32_t nxti, optr, handle;
+    uint32_t handle;
     uint8_t local[QENTRY_LEN];
     ispreq_t *reqp;
+    void *qep;
     int time, result = 0;
     struct semaphore rsem;
     unsigned long flags;
@@ -800,7 +801,8 @@ isp_run_cmd(ispsoftc_t *isp, isp_xcmd_t *cmd)
     sema_init(&rsem, 0);
 
     ISP_LOCKU_SOFTC(isp);
-    if (isp_getrqentry(isp, &nxti, &optr, (void *)&reqp)) {
+    qep = isp_getrqentry(isp);
+    if (qep == NULL) {
         ISP_UNLKU_SOFTC(isp);
         isp_prt(isp, ISP_LOGDEBUG0, "%s: Request Queue Overflow", __func__);
         result = -ENOMEM;
@@ -881,7 +883,7 @@ isp_run_cmd(ispsoftc_t *isp, isp_xcmd_t *cmd)
         Cmnd->sc_data_direction =  SCSI_DATA_NONE;
     }
 
-    result = ISP_DMASETUP(isp, Cmnd, reqp, &nxti, optr);
+    result = ISP_DMASETUP(isp, Cmnd, reqp);
     switch (result) {
     default:
         isp_prt(isp, ISP_LOGWARN, "isp_run_cmd: dma setup returned %d", result);
@@ -891,7 +893,7 @@ isp_run_cmd(ispsoftc_t *isp, isp_xcmd_t *cmd)
         result = -ENOMEM;
         break;
     case CMD_QUEUED:
-        ISP_ADD_REQUEST(isp, nxti);
+        ISP_SYNC_REQUEST(isp);
         isp->isp_nactive++;
         result = 0;
         break;

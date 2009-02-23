@@ -79,6 +79,200 @@ const char *isp_class3_roles[4] = {
     "None", "Target", "Initiator", "Target/Initiator"
 };
 
+/*
+ * Command shipping- finish off first queue entry and do dma mapping and
+ * additional segments as needed.
+ *
+ * Called with the first queue entry at least partially filled out.
+ */
+int
+isp_send_cmd(ispsoftc_t *isp, void *fqe, void *segp, uint32_t nsegs, uint32_t totalcnt, isp_ddir_t ddir)
+{
+	uint8_t storage[QENTRY_LEN];
+	uint8_t type, nqe;
+	uint32_t seg, curseg, seglim, nxt, nxtnxt, ddf;
+	ispds_t *dsp = NULL;
+	ispds64_t *dsp64 = NULL;
+	void *qe0, *qe1;
+
+	qe0 = isp_getrqentry(isp);
+	if (qe0 == NULL) {
+		return (CMD_EAGAIN);
+	}
+	nxt = ISP_NXT_QENTRY(isp->isp_reqidx, RQUEST_QUEUE_LEN(isp));
+
+	type = ((isphdr_t *)fqe)->rqs_entry_type;
+	nqe = 1;
+
+	/*
+	 * If we have no data to transmit, just copy the first IOCB and start it up.
+	 */
+	if (ddir == ISP_NOXFR) {
+		if (type == RQSTYPE_T2RQS || type == RQSTYPE_T3RQS) {
+			ddf = CT2_NO_DATA;
+		} else {
+			ddf = 0;
+		}
+		goto copy_and_sync;
+	}
+
+	/*
+	 * First figure out how many pieces of data to transfer and what kind and how many we can put into the first queue entry.
+	 */
+	switch (type) {
+	case RQSTYPE_REQUEST:
+		ddf = (ddir == ISP_TO_DEVICE)? REQFLAG_DATA_OUT : REQFLAG_DATA_IN;
+		dsp = ((ispreq_t *)fqe)->req_dataseg;
+		seglim = ISP_RQDSEG;
+		break;
+	case RQSTYPE_CMDONLY:
+		ddf = (ddir == ISP_TO_DEVICE)? REQFLAG_DATA_OUT : REQFLAG_DATA_IN;
+		seglim = 0;
+		break;
+	case RQSTYPE_T2RQS:
+		ddf = (ddir == ISP_TO_DEVICE)? REQFLAG_DATA_OUT : REQFLAG_DATA_IN;
+		dsp = ((ispreqt2_t *)fqe)->req_dataseg;
+		seglim = ISP_RQDSEG_T2;
+		break;
+	case RQSTYPE_A64:
+		ddf = (ddir == ISP_TO_DEVICE)? REQFLAG_DATA_OUT : REQFLAG_DATA_IN;
+		dsp64 = ((ispreqt3_t *)fqe)->req_dataseg;
+		seglim = ISP_RQDSEG_T3;
+		break;
+	case RQSTYPE_T3RQS:
+		ddf = (ddir == ISP_TO_DEVICE)? CT2_DATA_OUT : CT2_DATA_IN;
+		dsp64 = ((ispreqt3_t *)fqe)->req_dataseg;
+		seglim = ISP_RQDSEG_T3;
+		break;
+	case RQSTYPE_T7RQS:
+		ddf = (ddir == ISP_TO_DEVICE)? FCP_CMND_DATA_WRITE : FCP_CMND_DATA_READ;
+		dsp64 = &((ispreqt7_t *)fqe)->req_dataseg;
+		seglim = 1;
+		break;
+	default:
+		return (CMD_COMPLETE);
+	}
+
+	if (seglim > nsegs) {
+		seglim = nsegs;
+	}
+
+	for (seg = curseg = 0; curseg < seglim; curseg++) {
+		if (dsp64) {
+			XS_GET_DMA64_SEG(dsp64++, segp, seg++);
+		} else {
+			XS_GET_DMA_SEG(dsp++, segp, seg++);
+		}
+	}
+
+
+	/*
+	 * Second, start building additional continuation segments as needed.
+	 */
+	while (seg < nsegs) {
+		nxtnxt = ISP_NXT_QENTRY(nxt, RQUEST_QUEUE_LEN(isp));
+		if (nxtnxt == isp->isp_reqodx) {
+			return (CMD_EAGAIN);
+		}
+		ISP_MEMZERO(storage, QENTRY_LEN);
+		qe1 = ISP_QUEUE_ENTRY(isp->isp_rquest, nxt);
+		nxt = nxtnxt;
+		if (dsp64) {
+			ispcontreq64_t *crq = (ispcontreq64_t *) storage;
+			seglim = ISP_CDSEG64;
+			crq->req_header.rqs_entry_type = RQSTYPE_A64_CONT;
+			crq->req_header.rqs_entry_count = 1;
+			dsp64 = crq->req_dataseg;
+		} else {
+			ispcontreq_t *crq = (ispcontreq_t *) storage;
+			seglim = ISP_CDSEG;
+			crq->req_header.rqs_entry_type = RQSTYPE_DATASEG;
+			crq->req_header.rqs_entry_count = 1;
+			dsp = crq->req_dataseg;
+		}
+		if (seg + seglim > nsegs) {
+			seglim = nsegs - seg;
+		}
+		for (curseg = 0; curseg < seglim; curseg++) {
+			if (dsp64) {
+				XS_GET_DMA64_SEG(dsp64++, segp, seg++);
+			} else {
+				XS_GET_DMA_SEG(dsp++, segp, seg++);
+			}
+		}
+		if (dsp64) {
+			isp_put_cont64_req(isp, (ispcontreq64_t *)storage, qe1);
+		} else {
+			isp_put_cont_req(isp, (ispcontreq_t *)storage, qe1);
+		}
+		if (isp->isp_dblev & ISP_LOGDEBUG1) {
+			isp_print_bytes(isp, "additional queue entry", QENTRY_LEN, storage);
+		}
+		nqe++;
+        }
+
+copy_and_sync:
+	((isphdr_t *)fqe)->rqs_entry_count = nqe;
+	switch (type) {
+	case RQSTYPE_REQUEST:
+		((ispreq_t *)fqe)->req_flags |= ddf;
+		/*
+		 * This is historical and not clear whether really needed.
+		 */
+		if (nsegs == 0) {
+			nsegs = 1;
+		}
+		((ispreq_t *)fqe)->req_seg_count = nsegs;
+		isp_put_request(isp, fqe, qe0);
+		break;
+	case RQSTYPE_CMDONLY:
+		((ispreq_t *)fqe)->req_flags |= ddf;
+		/*
+		 * This is historical and not clear whether really needed.
+		 */
+		if (nsegs == 0) {
+			nsegs = 1;
+		}
+		((ispextreq_t *)fqe)->req_seg_count = nsegs;
+		isp_put_extended_request(isp, fqe, qe0);
+		break;
+	case RQSTYPE_T2RQS:
+		((ispreqt2_t *)fqe)->req_flags |= ddf;
+		((ispreqt2_t *)fqe)->req_seg_count = nsegs;
+		((ispreqt2_t *)fqe)->req_totalcnt = totalcnt;
+		if (ISP_CAP_SCCFW(isp)) {
+			isp_put_request_t2e(isp, fqe, qe0);
+		} else {
+			isp_put_request_t2(isp, fqe, qe0);
+		}
+		break;
+	case RQSTYPE_A64:
+	case RQSTYPE_T3RQS:
+		((ispreqt3_t *)fqe)->req_flags |= ddf;
+		((ispreqt3_t *)fqe)->req_seg_count = nsegs;
+		((ispreqt3_t *)fqe)->req_totalcnt = totalcnt;
+		if (ISP_CAP_SCCFW(isp)) {
+			isp_put_request_t3e(isp, fqe, qe0);
+		} else {
+			isp_put_request_t3(isp, fqe, qe0);
+		}
+		break;
+	case RQSTYPE_T7RQS:
+        	((ispreqt7_t *)fqe)->req_alen_datadir = ddf;
+		((ispreqt7_t *)fqe)->req_seg_count = nsegs;
+		((ispreqt7_t *)fqe)->req_dl = totalcnt;
+		isp_put_request_t7(isp, fqe, qe0);
+		break;
+	default:
+		return (CMD_COMPLETE);
+	}
+	if (isp->isp_dblev & ISP_LOGDEBUG1) {
+		isp_print_bytes(isp, "first queue entry", QENTRY_LEN, fqe);
+	}
+	ISP_ADD_REQUEST(isp, nxt);
+	return (CMD_QUEUED);
+}
+
 int
 isp_save_xs(ispsoftc_t *isp, XS_T *xs, uint32_t *handlep)
 {
@@ -142,24 +336,20 @@ isp_destroy_handle(ispsoftc_t *isp, uint32_t handle)
 	}
 }
 
-int
-isp_getrqentry(ispsoftc_t *isp, uint32_t *iptrp,
-    uint32_t *optrp, void **resultp)
+/*
+ * Make sure we have space to put something on the request queue.
+ * Return a pointer to that entry if we do. A side effect of this
+ * function is to update the output index. The input index
+ * stays the same.
+ */
+void *
+isp_getrqentry(ispsoftc_t *isp)
 {
-	volatile uint32_t iptr, optr;
-
-	optr = isp->isp_reqodx = ISP_READ(isp, isp->isp_rqstoutrp);
-	iptr = isp->isp_reqidx;
-	*resultp = ISP_QUEUE_ENTRY(isp->isp_rquest, iptr);
-	iptr = ISP_NXT_QENTRY(iptr, RQUEST_QUEUE_LEN(isp));
-	if (iptr == optr) {
-		return (1);
+	isp->isp_reqodx = ISP_READ(isp, isp->isp_rqstoutrp);
+	if (ISP_NXT_QENTRY(isp->isp_reqidx, RQUEST_QUEUE_LEN(isp)) == isp->isp_reqodx) {
+		return (NULL);
 	}
-	if (optrp)
-		*optrp = optr;
-	if (iptrp)
-		*iptrp = iptr;
-	return (0);
+	return (ISP_QUEUE_ENTRY(isp->isp_rquest, isp->isp_reqidx));
 }
 
 #define	TBA	(4 * (((QENTRY_LEN >> 2) * 3) + 1) + 1)
@@ -1718,6 +1908,253 @@ isp_put_ct_hdr(ispsoftc_t *isp, ct_hdr_t *src, ct_hdr_t *dst)
 }
 
 #ifdef	ISP_TARGET_MODE
+
+/*
+ * Command shipping- finish off first queue entry and do dma mapping and
+ * additional segments as needed.
+ *
+ * Called with the first queue entry at least partially filled out.
+ */
+int
+isp_send_tgt_cmd(ispsoftc_t *isp, void *fqe, void *segp, uint32_t nsegs, uint32_t totalcnt, isp_ddir_t ddir, void *snsptr, uint32_t snslen)
+{
+	uint8_t storage[QENTRY_LEN], storage2[QENTRY_LEN];
+	uint8_t type, nqe;
+	uint32_t seg, curseg, seglim, nxt, nxtnxt;
+	ispds_t *dsp = NULL;
+	ispds64_t *dsp64 = NULL;
+	void *qe0, *qe1, *sqe = NULL;
+
+	qe0 = isp_getrqentry(isp);
+	if (qe0 == NULL) {
+		return (CMD_EAGAIN);
+	}
+	nxt = ISP_NXT_QENTRY(isp->isp_reqidx, RQUEST_QUEUE_LEN(isp));
+
+	type = ((isphdr_t *)fqe)->rqs_entry_type;
+	nqe = 1;
+	seglim = 0;
+
+	/*
+	 * If we have no data to transmit, just copy the first IOCB and start it up.
+	 */
+	if (ddir != ISP_NOXFR) {
+		/*
+		 * First, figure out how many pieces of data to transfer and what kind and how many we can put into the first queue entry.
+		 */
+		switch (type) {
+		case RQSTYPE_CTIO:
+			dsp = ((ct_entry_t *)fqe)->ct_dataseg;
+			seglim = ISP_RQDSEG;
+			break;
+		case RQSTYPE_CTIO2:
+		case RQSTYPE_CTIO3:
+		{
+			ct2_entry_t *ct = fqe, *ct2 = (ct2_entry_t *) storage2;
+			uint16_t swd = ct->rsp.m0.ct_scsi_status & 0xff;
+
+			if ((ct->ct_flags & CT2_SENDSTATUS) && (swd || ct->ct_resid)) {
+				memcpy(ct2, ct, QENTRY_LEN);
+				/*
+				 * Clear fields from first CTIO2 that now need to be cleared
+				 */
+				ct->ct_header.rqs_seqno = 0;
+				ct->ct_flags &= ~(CT2_SENDSTATUS|CT2_CCINCR|CT2_FASTPOST);
+				ct->ct_resid = 0;
+				ct->ct_syshandle = 0;
+				ct->rsp.m0.ct_scsi_status = 0;
+
+				/*
+				 * Reset fields in the second CTIO2 as appropriate.
+				 */
+				ct2->ct_flags &= ~(CT2_FLAG_MMASK|CT2_DATAMASK|CT2_FASTPOST);
+				ct2->ct_flags |= CT2_NO_DATA|CT2_FLAG_MODE1;
+				ct2->ct_seg_count = 0;
+				ct2->ct_reloff = 0;
+				memset(&ct2->rsp, 0, sizeof (ct2->rsp));
+				if (swd == SCSI_CHECK && snsptr && snslen) {
+					ct2->rsp.m1.ct_senselen = min(snslen, MAXRESPLEN);
+					memcpy(ct2->rsp.m1.ct_resp, snsptr, ct2->rsp.m1.ct_senselen);
+					swd |= CT2_SNSLEN_VALID;
+				}
+				if (ct2->ct_resid > 0) {
+					swd |= CT2_DATA_UNDER;
+				} else if (ct2->ct_resid < 0) {
+					swd |= CT2_DATA_OVER;
+				}
+				ct2->rsp.m1.ct_scsi_status = swd;
+				sqe = storage2;
+			}
+			if (type == RQSTYPE_CTIO2) {
+				dsp = ct->rsp.m0.u.ct_dataseg;
+				seglim = ISP_RQDSEG_T2;
+			} else {
+				dsp64 = ct->rsp.m0.u.ct_dataseg64;
+				seglim = ISP_RQDSEG_T3;
+			}
+			break;
+		}
+		case RQSTYPE_CTIO7:
+		{
+			ct7_entry_t *ct = fqe, *ct2 = (ct7_entry_t *)storage2;
+			uint16_t swd = ct->ct_scsi_status & 0xff;
+
+			dsp64 = &ct->rsp.m0.ds;
+			seglim = 1;
+			if ((ct->ct_flags & CT7_SENDSTATUS) && (swd || ct->ct_resid)) {
+				memcpy(ct2, ct, sizeof (ct7_entry_t));
+
+				/*
+				 * Clear fields from first CTIO7 that now need to be cleared
+				 */
+				ct->ct_header.rqs_seqno = 0;
+				ct->ct_flags &= ~CT7_SENDSTATUS;
+				ct->ct_resid = 0;
+				ct->ct_syshandle = 0;
+				ct->ct_scsi_status = 0;
+
+				/*
+				 * Reset fields in the second CTIO7 as appropriate.
+				 */
+				ct2->ct_flags &= ~(CT7_FLAG_MMASK|CT7_DATAMASK);
+				ct2->ct_flags |= CT7_NO_DATA|CT7_NO_DATA|CT7_FLAG_MODE1;
+				ct2->ct_seg_count = 0;
+				memset(&ct2->rsp, 0, sizeof (ct2->rsp));
+				if (swd == SCSI_CHECK && snsptr && snslen) {
+					ct2->rsp.m1.ct_resplen = min(snslen, MAXRESPLEN_24XX);
+					memcpy(ct2->rsp.m1.ct_resp, snsptr, ct2->rsp.m1.ct_resplen);
+					swd |= (FCP_SNSLEN_VALID << 8);
+				}
+				if (ct2->ct_resid < 0) {
+					swd |= (FCP_RESID_OVERFLOW << 8);
+				} else if (ct2->ct_resid > 0) {
+					swd |= (FCP_RESID_UNDERFLOW << 8);
+				}
+				ct2->ct_scsi_status = swd;
+				sqe = storage2;
+			}
+			break;
+		}
+		default:
+			return (CMD_COMPLETE);
+		}
+	}
+
+	/*
+	 * Fill out the data transfer stuff in the first queue entry
+	 */
+	if (seglim > nsegs) {
+		seglim = nsegs;
+	}
+
+	for (seg = curseg = 0; curseg < seglim; curseg++) {
+		if (dsp64) {
+			XS_GET_DMA64_SEG(dsp64++, segp, seg++);
+		} else {
+			XS_GET_DMA_SEG(dsp++, segp, seg++);
+		}
+	}
+
+	/*
+	 * First, if we are sending status with data and we have a non-zero
+	 * status or non-zero residual, we have to make a synthetic extra CTIO
+	 * that contains the status that we'll ship separately (FC cards only).
+	 */
+
+	/*
+	 * Second, start building additional continuation segments as needed.
+	 */
+	while (seg < nsegs) {
+		nxtnxt = ISP_NXT_QENTRY(nxt, RQUEST_QUEUE_LEN(isp));
+		if (nxtnxt == isp->isp_reqodx) {
+			return (CMD_EAGAIN);
+		}
+		ISP_MEMZERO(storage, QENTRY_LEN);
+		qe1 = ISP_QUEUE_ENTRY(isp->isp_rquest, nxt);
+		nxt = nxtnxt;
+		if (dsp64) {
+			ispcontreq64_t *crq = (ispcontreq64_t *) storage;
+			seglim = ISP_CDSEG64;
+			crq->req_header.rqs_entry_type = RQSTYPE_A64_CONT;
+			crq->req_header.rqs_entry_count = 1;
+			dsp64 = crq->req_dataseg;
+		} else {
+			ispcontreq_t *crq = (ispcontreq_t *) storage;
+			seglim = ISP_CDSEG;
+			crq->req_header.rqs_entry_type = RQSTYPE_DATASEG;
+			crq->req_header.rqs_entry_count = 1;
+			dsp = crq->req_dataseg;
+		}
+		if (seg + seglim > nsegs) {
+			seglim = nsegs - seg;
+		}
+		for (curseg = 0; curseg < seglim; curseg++) {
+			if (dsp64) {
+				XS_GET_DMA64_SEG(dsp64++, segp, seg++);
+			} else {
+				XS_GET_DMA_SEG(dsp++, segp, seg++);
+			}
+		}
+		if (dsp64) {
+			isp_put_cont64_req(isp, (ispcontreq64_t *)storage, qe1);
+		} else {
+			isp_put_cont_req(isp, (ispcontreq_t *)storage, qe1);
+		}
+		if (isp->isp_dblev & ISP_LOGTDEBUG1) {
+			isp_print_bytes(isp, "additional queue entry", QENTRY_LEN, storage);
+		}
+		nqe++;
+        }
+
+	/*
+	 * If we have a synthetic queue entry to complete things, do it here.
+	 */
+	if (sqe) {
+		nxtnxt = ISP_NXT_QENTRY(nxt, RQUEST_QUEUE_LEN(isp));
+		if (nxtnxt == isp->isp_reqodx) {
+			return (CMD_EAGAIN);
+		}
+		qe1 = ISP_QUEUE_ENTRY(isp->isp_rquest, nxt);
+		nxt = nxtnxt;
+		if (type == RQSTYPE_CTIO7) {
+			isp_put_ctio7(isp, sqe, qe1);
+		} else {
+			isp_put_ctio2(isp, sqe, qe1);
+		}
+		if (isp->isp_dblev & ISP_LOGTDEBUG1) {
+			isp_print_bytes(isp, "synthetic final queue entry", QENTRY_LEN, storage2);
+		}
+	}
+
+	((isphdr_t *)fqe)->rqs_entry_count = nqe;
+	switch (type) {
+	case RQSTYPE_CTIO:
+		((ct_entry_t *)fqe)->ct_seg_count = nsegs;
+		isp_put_ctio(isp, fqe, qe0);
+		break;
+	case RQSTYPE_CTIO2:
+	case RQSTYPE_CTIO3:
+		((ct2_entry_t *)fqe)->ct_seg_count = nsegs;
+		if (ISP_CAP_2KLOGIN(isp)) {
+			isp_put_ctio2e(isp, fqe, qe0);
+		} else {
+			isp_put_ctio2(isp, fqe, qe0);
+		}
+		break;
+	case RQSTYPE_CTIO7:
+		((ct7_entry_t *)fqe)->ct_seg_count = nsegs;
+		isp_put_ctio7(isp, fqe, qe0);
+		break;
+	default:
+		return (CMD_COMPLETE);
+	}
+	if (isp->isp_dblev & ISP_LOGTDEBUG1) {
+		isp_print_bytes(isp, "first queue entry", QENTRY_LEN, fqe);
+	}
+	ISP_ADD_REQUEST(isp, nxt);
+	return (CMD_QUEUED);
+}
+
 int
 isp_save_xs_tgt(ispsoftc_t *isp, void *xs, uint32_t *handlep)
 {
