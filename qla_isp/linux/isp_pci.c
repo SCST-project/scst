@@ -1627,7 +1627,17 @@ isp_pci_dmasetup_tgt(ispsoftc_t *isp, tmd_xact_t *xact, void *fqe)
         sg = NULL;
         nseg = 0;
     }
-
+    if (isp->isp_osinfo.is_64bit_dma) {
+        if (nseg >= ISP_NSEG64_MAX) {
+            isp_prt(isp, ISP_LOGERR, "number of segments (%d) exceed maximum we can support (%d)", nseg, ISP_NSEG64_MAX);
+            xact->td_error = -EFAULT;
+            return (CMD_COMPLETE);
+        }
+    } else if (nseg >= ISP_NSEG_MAX) {
+        isp_prt(isp, ISP_LOGERR, "number of segments (%d) exceed maximum we can support (%d)", nseg, ISP_NSEG_MAX);
+        xact->td_error = -EFAULT;
+        return (CMD_COMPLETE);
+    }
     ret = isp_send_tgt_cmd(isp, fqe, sg, nseg, xact->td_xfrlen, ddir, xact->td_cmd->cd_sense, TMD_SENSELEN);
     if (ret == CMD_QUEUED) {
         int bin;
@@ -1728,6 +1738,17 @@ isp_pci_dmasetup(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, void *fqe)
     } else {
         sg = NULL;
         nseg = 0;
+    }
+    if (isp->isp_osinfo.is_64bit_dma) {
+        if (nseg >= ISP_NSEG64_MAX) {
+            isp_prt(isp, ISP_LOGERR, "number of segments (%d) exceed maximum we can support (%d)", nseg, ISP_NSEG64_MAX);
+            XS_SETERR(Cmnd, HBA_BOTCH);
+            return (CMD_COMPLETE);
+        }
+    } else if (nseg >= ISP_NSEG_MAX) {
+        isp_prt(isp, ISP_LOGERR, "number of segments (%d) exceed maximum we can support (%d)", nseg, ISP_NSEG_MAX);
+        XS_SETERR(Cmnd, HBA_BOTCH);
+        return (CMD_COMPLETE);
     }
     ret = isp_send_cmd(isp, fqe, sg, nseg, XS_XFRLEN(Cmnd), ddir);
     if (ret == CMD_QUEUED) {

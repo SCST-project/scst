@@ -2548,4 +2548,19 @@ typedef struct {
 #define	ISP24XX_ABTS_RSP_SUBCODE	0x31
 
 #define	ISP24XX_NO_TASK			0xffffffff
+
+/*
+ * Miscellaneous
+ *
+ * These are the limits of the number of dma segments we
+ * can deal with based not on the size of the segment counter
+ * (which is 16 bits), but on the size of the number of 
+ * queue entries field (which is 8 bits). We assume no
+ * segments in the first queue entry, so we can either
+ * have 7 dma segments per continuation entry or 5
+ * (for 64 bit dma).. multiplying out by 254....
+ */
+#define	ISP_NSEG_MAX	1778
+#define	ISP_NSEG64_MAX	1270
+
 #endif	/* _ISPMBOX_H */
