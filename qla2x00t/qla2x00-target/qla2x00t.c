@@ -1308,7 +1308,7 @@ static char *q2t_find_name(scsi_qla_host_t *ha, int loop_id)
 	char *wwn_str;
 	fc_port_t *fcl;
 
-	wwn_str = kmalloc(2*WWN_SIZE, GFP_ATOMIC);
+	wwn_str = kmalloc(3*WWN_SIZE, GFP_ATOMIC);
 	if (wwn_str == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of wwn_str failed");
 		goto out;
