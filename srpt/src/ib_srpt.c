@@ -1161,26 +1161,6 @@ static int srpt_release_channel(struct srpt_rdma_ch *ch, int destroy_cmid)
 	return destroy_cmid ? 0 : 1;
 }
 
-static void srpt_register_channel_done(struct scst_session *scst_sess,
-				       void *data, int status)
-{
-	struct srpt_rdma_ch *ch = data;
-
-	BUG_ON(!ch);
-
-	if (status) {
-		if (ch->scst_sess) {
-			scst_unregister_session(ch->scst_sess, 0, NULL);
-			ch->scst_sess = NULL;
-		}
-		printk(KERN_ERR PFX
-		       "%s: Failed to establish sess= %p status= %d\n",
-		       __func__, scst_sess, status);
-	}
-
-	complete(&ch->scst_sess_done);
-}
-
 static int srpt_disconnect_channel(struct srpt_rdma_ch *ch, int dreq)
 {
 	spin_lock_irq(&ch->spinlock);
@@ -1327,19 +1307,15 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		goto destroy_ib;
 	}
 
-	init_completion(&ch->scst_sess_done);
 	sprintf(ch->sess_name, "0x%016llx%016llx",
 		(unsigned long long)be64_to_cpu(*(u64 *)ch->i_port_id),
 		(unsigned long long)be64_to_cpu(*(u64 *)(ch->i_port_id + 8)));
-	ch->scst_sess =
-	    scst_register_session(sdev->scst_tgt, 1, ch->sess_name,
-				  ch, srpt_register_channel_done);
 
-	wait_for_completion(&ch->scst_sess_done);
-
+	ch->scst_sess = scst_register_session(sdev->scst_tgt, 0, ch->sess_name,
+				  NULL, NULL);
 	if (!ch->scst_sess) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		printk(KERN_WARNING PFX "Reject failed to create scst sess");
+		printk(KERN_WARNING PFX "Failed to create scst sess\n");
 		goto destroy_ib;
 	}
 

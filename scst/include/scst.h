@@ -1638,7 +1638,8 @@ void scst_unregister(struct scst_tgt *tgt);
  *
  * Parameters:
  *   tgt    - target
- *   atomic - true, if the function called in the atomic context
+ *   atomic - true, if the function called in the atomic context. If false,
+ *	this function will block until the session registration is completed.
  *   initiator_name - remote initiator's name, any NULL-terminated string,
  *      e.g. iSCSI name, which used as the key to found appropriate access
  *      control group. Could be NULL, then "default" group is used.

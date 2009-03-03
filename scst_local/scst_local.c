@@ -616,7 +616,7 @@ static int scst_local_add_adapter(void)
 		sprintf(name, "scstlclhst%d:%d", scst_local_add_host, i);
 		scst_lcl_host->session[i] = scst_register_session(
 						scst_lcl_host->target,
-						TRUE, name, NULL, NULL);
+						0, name, NULL, NULL);
 		if (!scst_lcl_host->session[i]) {
 			printk(KERN_WARNING "scst_register_session failed:\n");
 			error = -1;

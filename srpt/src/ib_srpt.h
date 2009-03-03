@@ -142,7 +142,6 @@ struct srpt_rdma_ch {
 	struct list_head active_scmnd_list;
 	u32 active_scmnd_cnt;
 
-	struct completion scst_sess_done;
 	struct scst_session *scst_sess;
 	u8 sess_name[32];
 };
