@@ -1069,6 +1069,13 @@ int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
 
 	TRACE_ENTRY();
 
+	if (orig_cmd->sense != NULL) {
+		TRACE_MEM("Releasing sense %p (orig_cmd %p)",
+			orig_cmd->sense, orig_cmd);
+		mempool_free(orig_cmd->sense, scst_sense_mempool);
+		orig_cmd->sense = NULL;
+	}
+
 	rs_cmd = scst_create_prepare_internal_cmd(orig_cmd, sbuf_size);
 	if (rs_cmd == NULL)
 		goto out_error;
