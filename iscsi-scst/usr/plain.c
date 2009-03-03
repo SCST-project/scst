@@ -324,7 +324,7 @@ static int netmask_match_v4(struct sockaddr *sa1, struct sockaddr *sa2, uint32_t
 
 static int netmask_match(struct sockaddr *sa1, struct sockaddr *sa2, char *buf)
 {
-	uint32_t mbit;
+	int32_t mbit;
 	uint8_t family = sa1->sa_family;
 
 	mbit = strtoul(buf, NULL, 0);
@@ -465,7 +465,6 @@ static int plain_initiator_access(u32 tid, int fd)
 static int __plain_target_create(u32 *tid, char *name, int update)
 {
 	int err;
-	struct iscsi_param params[session_key_last];
 
 	if (target_find_by_name(name)) {
 		log_error("duplicated target %s", name);
@@ -473,13 +472,6 @@ static int __plain_target_create(u32 *tid, char *name, int update)
 	}
 	if ((err = target_add(tid, name)) < 0)
 		return err;
-
-	param_set_defaults(params, session_keys);
-	if ((err = ki->param_set(*tid, 0, key_session, 0, params)) < 0)
-		return err;
-
-	if (update)
-		; /* Update the config file here. */
 
 	return err;
 }
@@ -505,11 +497,8 @@ static int __plain_param_set(u32 tid, u64 sid, int type,
 {
 	int err;
 
-	if ((err = ki->param_set(tid, sid, type, partial, param)) < 0)
+	if ((err = kernel_param_set(tid, sid, type, partial, param)) < 0)
 		return err;
-
-	if (update)
-		;
 
 	return err;
 }

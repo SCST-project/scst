@@ -241,44 +241,82 @@ static void text_scan_security(struct connection *conn)
 		rsp->status_detail = ISCSI_STATUS_AUTH_FAILED;
 		conn->state = STATE_EXIT;
 	}
+	return;
 }
 
-static void login_security_done(struct connection *conn)
+static int login_check_reinstatement(struct connection *conn)
 {
-	int err;
 	struct iscsi_login_req_hdr *req = (struct iscsi_login_req_hdr *)&conn->req.bhs;
 	struct iscsi_login_rsp_hdr *rsp = (struct iscsi_login_rsp_hdr *)&conn->rsp.bhs;
 	struct session *session;
+	int res = 0;
 
-	if (!conn->tid)
-		return;
+	/*
+	 * We only check here to catch errors earlier. Actual session/connection
+	 * reinstatement, if necessary, will be done in the kernel.
+	 */
 
-	if ((session = session_find_name(conn->tid, conn->initiator, req->sid))) {
-		if (!req->sid.id.tsih) {
-			/* do session reinstatement */
-			session_conns_close(conn->tid, session->sid.id64);
-			session = NULL;
+	sBUG_ON(conn->sess != NULL);
+
+	session = session_find_name(conn->tid, conn->initiator, req->sid);
+	if (session != NULL) {
+		if (req->sid.id.tsih == 0) {
+			/* Kernel will do session reinstatement */
+			log_debug(1, "Session sid %#" PRIx64 " reinstatement "
+				"detected (tid %d, initiator %s)", req->sid.id64,
+				conn->tid, conn->initiator);
 		} else if (req->sid.id.tsih != session->sid.id.tsih) {
-			/* fail the login */
+			log_error("TSIH for existing session sid %#" PRIx64
+				") doesn't match (tid %d, initiator %s, sid requested "
+				"%#" PRIx64, session->sid.id64, conn->tid,
+				conn->initiator, req->sid.id64);
+			/* Fail the login */
 			rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
 			rsp->status_detail = ISCSI_STATUS_SESSION_NOT_FOUND;
 			conn->state = STATE_EXIT;
-			return;
-		} else if ((err = conn_test(conn)) == -ENOENT) {
-			/* do connection reinstatement */
+			res = -1;
+			goto out;
+		} else {
+			struct connection *c = conn_find(session, conn->cid);
+			if (c != NULL) {
+				/* Kernel will do connection reinstatement */
+				log_debug(1, "Conn %x reinstatement "
+					"detected (tid %d, sid %#" PRIx64
+					"initiator %s)", conn->cid, conn->tid,
+					req->sid.id64, conn->initiator);
+				conn->sess = session;
+				insque(&conn->clist, &session->conn_list);
+			} else {
+				log_error("Only a single connection supported "
+					"(initiator %s)", conn->initiator);
+				/* Fail the login */
+				rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
+				rsp->status_detail = ISCSI_STATUS_TOO_MANY_CONN;
+				conn->state = STATE_EXIT;
+				res = -1;
+				goto out;
+			}
 		}
-		/* add a new connection to the session */
-		conn->session = session;
 	} else {
-		if (req->sid.id.tsih) {
-			/* fail the login */
+		if (req->sid.id.tsih != 0) {
+			log_error("Requested TSIH not 0 (TSIH %d, tid %d, "
+				"initiator %s, sid requisted %#" PRIx64 ")",
+				req->sid.id.tsih, conn->tid, conn->initiator,
+				req->sid.id64);
+			/* Fail the login */
 			rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
 			rsp->status_detail = ISCSI_STATUS_SESSION_NOT_FOUND;
 			conn->state = STATE_EXIT;
-			return;
-		}
-		/* instantiate a new session */
+			res = -1;
+			goto out;
+		} else
+			log_debug(1, "New session sid %#" PRIx64 "(tid %d, "
+				"initiator %s)", req->sid.id64,
+				conn->tid, conn->initiator);
 	}
+
+out:
+	return res;
 }
 
 static void text_scan_login(struct connection *conn)
@@ -429,7 +467,16 @@ static void login_start(struct connection *conn)
 		conn->state = STATE_EXIT;
 		return;
 	}
+
 	conn->initiator = strdup(name);
+	if (conn->initiator == NULL) {
+		log_error("Unable to dublicate initiator's name %s", name);
+		rsp->status_class = ISCSI_STATUS_TARGET_ERR;
+		rsp->status_detail = ISCSI_STATUS_NO_RESOURCES;
+		conn->state = STATE_EXIT;
+		return;
+	}
+
 	alias = text_key_find(conn, "InitiatorAlias");
 	session_type = text_key_find(conn, "SessionType");
 	target_name = text_key_find(conn, "TargetName");
@@ -465,34 +512,34 @@ static void login_start(struct connection *conn)
 			return;
 		}
 
-		if (ki->param_get(conn->tid, 0, key_session,
-				conn->session_param))  {
-			rsp->status_class = ISCSI_STATUS_TARGET_ERROR;
-			rsp->status_detail = ISCSI_STATUS_SVC_UNAVAILABLE;
-			conn->state = STATE_EXIT;
-		}
+		if (login_check_reinstatement(conn) != 0)
+			return;
 	}
+
 	conn->exp_cmd_sn = be32_to_cpu(req->cmd_sn);
-	log_debug(1, "exp_cmd_sn: %d,%d", conn->exp_cmd_sn, req->cmd_sn);
+	log_debug(1, "exp_cmd_sn %u, cmd_sn %u", conn->exp_cmd_sn, req->cmd_sn);
 	text_key_add(conn, "TargetPortalGroupTag", "1");
+	return;
 }
 
-static void login_finish(struct connection *conn)
+static int login_finish(struct connection *conn)
 {
+	int res = 0;
+
 	switch (conn->session_type) {
 	case SESSION_NORMAL:
-	{
-		
-		if (!conn->session)
-			session_create(conn);
-		conn->sid = conn->session->sid;
+		if (!conn->sess)
+			res = session_create(conn);
+		if (res == 0)
+			conn->sid = conn->sess->sid;
 		break;
-	}
 	case SESSION_DISCOVERY:
 		/* set a dummy tsih value */
 		conn->sid.id.tsih = 1;
 		break;
 	}
+
+	return res;
 }
 
 static void cmnd_reject(struct connection *conn, u8 reason)
@@ -649,7 +696,6 @@ static void cmnd_exec_login(struct connection *conn)
 			case STATE_SECURITY:
 			case STATE_SECURITY_DONE:
 				conn->state = STATE_SECURITY_LOGIN;
-				login_security_done(conn);
 				break;
 			default:
 				goto init_err;
@@ -665,7 +711,6 @@ static void cmnd_exec_login(struct connection *conn)
 					break;
 				}
 				conn->state = STATE_SECURITY_FULL;
-				login_security_done(conn);
 				break;
 			case STATE_LOGIN:
 				if (stay)
@@ -677,8 +722,14 @@ static void cmnd_exec_login(struct connection *conn)
 				goto init_err;
 			}
 			if (!stay && !nsg_disagree) {
+				int err;
 				text_check_param(conn);
-				login_finish(conn);
+				err = login_finish(conn);
+				if (err != 0) {
+					log_debug(1, "login_finish() failed: %d", err);
+					/* Make initiator retry later */
+					goto tgt_no_mem;
+				}
 			}
 			break;
 		default:
@@ -722,6 +773,13 @@ target_err:
 	rsp->flags = 0;
 	rsp->status_class = ISCSI_STATUS_TARGET_ERR;
 	rsp->status_detail = ISCSI_STATUS_TARGET_ERROR;
+	conn->state = STATE_EXIT;
+	return;
+
+tgt_no_mem:
+	rsp->flags = 0;
+	rsp->status_class = ISCSI_STATUS_TARGET_ERR;
+	rsp->status_detail = ISCSI_STATUS_NO_RESOURCES;
 	conn->state = STATE_EXIT;
 	return;
 }

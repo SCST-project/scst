@@ -88,8 +88,9 @@ struct iscsi_session {
 	struct iscsi_target *target;
 	struct scst_session *scst_sess;
 
-	/* Both unprotected, since accessed only from a single read thread */
-	struct list_head pending_list;
+	struct list_head pending_list; /* protected by sn_lock */
+
+	/* Unprotected, since accessed only from a single read thread */
 	u32 next_ttt;
 
 	u32 max_queued_cmnds; /* unprotected, since read-only */
@@ -113,11 +114,12 @@ struct iscsi_session {
 
 	struct list_head session_list_entry;
 
-	struct completion unreg_compl;
+	/* All don't need any protection */
+	struct iscsi_session *sess_reinst_successor;
+	unsigned int sess_reinstating:1;
 
 	/* All don't need any protection */
 	char *initiator_name;
-	unsigned int shutting_down:1;
 	u64 sid;
 };
 
@@ -215,6 +217,12 @@ struct iscsi_conn {
 	struct iscsi_target *target;
 
 	struct list_head conn_list_entry; /* list entry in session conn_list */
+
+	/* All don't need any protection */
+	struct iscsi_conn *conn_reinst_successor;
+	unsigned int conn_reinstating:1;
+
+	struct completion ready_to_free;
 
 	/* Doesn't need any protection */
 	u16 cid;
@@ -367,8 +375,9 @@ extern void conn_abort(struct iscsi_conn *conn);
 
 /* conn.c */
 extern struct iscsi_conn *conn_lookup(struct iscsi_session *, u16);
-extern int conn_add(struct iscsi_session *, struct conn_info *);
-extern int conn_del(struct iscsi_session *, struct conn_info *);
+extern void __iscsi_socket_bind(struct iscsi_conn *);
+extern int conn_add(struct iscsi_session *, struct iscsi_kern_conn_info *);
+extern int conn_del(struct iscsi_session *, struct iscsi_kern_conn_info *);
 extern int conn_free(struct iscsi_conn *);
 
 #define ISCSI_CONN_ACTIVE_CLOSE		1
@@ -387,12 +396,15 @@ extern void iscsi_put_page_callback(struct page *page);
 #endif
 extern int istrd(void *arg);
 extern int istwr(void *arg);
+extern void iscsi_task_mgmt_affected_cmds_done(struct scst_mgmt_cmd *scst_mcmd);
 
 /* target.c */
 struct iscsi_target *target_lookup_by_id(u32);
-extern int target_add(struct target_info *);
+extern int target_add(struct iscsi_kern_target_info *);
 extern int target_del(u32 id);
-extern void target_del_all_sess(struct iscsi_target *target, bool deleting);
+extern void target_del_session(struct iscsi_target *target,
+	struct iscsi_session *session, int flags);
+extern void target_del_all_sess(struct iscsi_target *target, int flags);
 extern void target_del_all(void);
 
 extern struct seq_operations iscsi_seq_op;
@@ -404,13 +416,14 @@ extern void iscsi_procfs_exit(void);
 /* session.c */
 extern struct file_operations session_seq_fops;
 extern struct iscsi_session *session_lookup(struct iscsi_target *, u64);
-extern int session_add(struct iscsi_target *, struct session_info *);
+extern void sess_enable_reinstated_sess(struct iscsi_session *);
+extern int session_add(struct iscsi_target *, struct iscsi_kern_session_info *);
 extern int session_del(struct iscsi_target *, u64);
 extern int session_free(struct iscsi_session *session);
 
 /* params.c */
-extern int iscsi_param_set(struct iscsi_target *, struct iscsi_param_info *,
-			   int);
+extern int iscsi_param_set(struct iscsi_target *,
+	struct iscsi_kern_param_info *, int);
 
 /* event.c */
 extern int event_send(u32, u64, u32, u32, int);

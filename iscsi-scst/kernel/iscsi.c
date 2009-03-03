@@ -572,7 +572,7 @@ static void iscsi_cmnd_init_write(struct iscsi_cmnd *rsp, int flags)
 			list_empty(&rsp->rsp_cmd_list), rsp->hashed);
 		sBUG();
 	}
-	list_add(&rsp->write_list_entry, &head);
+	list_add_tail(&rsp->write_list_entry, &head);
 	iscsi_cmnds_init_write(&head, flags);
 	return;
 }
@@ -1638,7 +1638,7 @@ static void __cmnd_abort(struct iscsi_cmnd *cmnd)
 	return;
 }
 
-/* Must be called from the read thread */
+/* Must be called from the read or conn close thread */
 static int cmnd_abort(struct iscsi_cmnd *req)
 {
 	struct iscsi_session *session = req->conn->session;
@@ -1719,7 +1719,7 @@ out_put:
 	goto out;
 }
 
-/* Must be called from the read thread */
+/* Must be called from the read or conn close thread */
 static int target_abort(struct iscsi_cmnd *req, int all)
 {
 	struct iscsi_target *target = req->conn->session->target;
@@ -1753,7 +1753,7 @@ static int target_abort(struct iscsi_cmnd *req, int all)
 	return 0;
 }
 
-/* Must be called from the read thread */
+/* Must be called from the read or conn close thread */
 static void task_set_abort(struct iscsi_cmnd *req)
 {
 	struct iscsi_session *session = req->conn->session;
@@ -1785,7 +1785,7 @@ static void task_set_abort(struct iscsi_cmnd *req)
 	return;
 }
 
-/* Must be called from the read thread */
+/* Must be called from the read or conn close thread */
 void conn_abort(struct iscsi_conn *conn)
 {
 	struct iscsi_cmnd *cmnd;
@@ -2237,7 +2237,7 @@ void cmnd_tx_end(struct iscsi_cmnd *cmnd)
 				"initiator's %s request",
 				cmnd->conn->session->target->tid,
 				conn->session->initiator_name);
-			target_del_all_sess(cmnd->conn->session->target, false);
+			target_del_all_sess(cmnd->conn->session->target, 0);
 		} else {
 			PRINT_INFO("Closing connection at initiator's %s "
 				"request", conn->session->initiator_name);
@@ -2300,6 +2300,8 @@ static void iscsi_session_push_cmnd(struct iscsi_cmnd *cmnd)
 
 			iscsi_cmnd_exec(cmnd);
 
+			spin_lock(&session->sn_lock);
+
 			if (list_empty(&session->pending_list))
 				break;
 			cmnd = list_entry(session->pending_list.next,
@@ -2313,8 +2315,6 @@ static void iscsi_session_push_cmnd(struct iscsi_cmnd *cmnd)
 
 			TRACE_DBG("Processing pending cmd %p (cmd_sn %u)",
 				cmnd, cmd_sn);
-
-			spin_lock(&session->sn_lock);
 		}
 	} else {
 		int drop = 0;
@@ -2377,6 +2377,7 @@ static void iscsi_session_push_cmnd(struct iscsi_cmnd *cmnd)
 				PRINT_ERROR("%s", "Unable to create TM clone");
 		}
 
+		spin_lock(&session->sn_lock);
 		list_for_each(entry, &session->pending_list) {
 			struct iscsi_cmnd *tmp =
 				list_entry(entry, struct iscsi_cmnd,
@@ -2384,10 +2385,11 @@ static void iscsi_session_push_cmnd(struct iscsi_cmnd *cmnd)
 			if (before(cmd_sn, tmp->pdu.bhs.sn))
 				break;
 		}
-
 		list_add_tail(&cmnd->pending_list_entry, entry);
 		cmnd->pending = 1;
 	}
+
+	spin_unlock(&session->sn_lock);
 out:
 	return;
 }
@@ -2888,19 +2890,25 @@ static inline int iscsi_get_mgmt_response(int status)
 
 static void iscsi_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 {
+	int fn = scst_mgmt_cmd_get_fn(scst_mcmd);
 	struct iscsi_cmnd *req = (struct iscsi_cmnd *)
 				scst_mgmt_cmd_get_tgt_priv(scst_mcmd);
 	int status =
 		iscsi_get_mgmt_response(scst_mgmt_cmd_get_status(scst_mcmd));
 
 	TRACE_MGMT_DBG("req %p, scst_mcmd %p, fn %d, scst status %d",
-		req, scst_mcmd, scst_mgmt_cmd_get_fn(scst_mcmd),
-		scst_mgmt_cmd_get_status(scst_mcmd));
+		req, scst_mcmd, fn, scst_mgmt_cmd_get_status(scst_mcmd));
 
-	iscsi_send_task_mgmt_resp(req, status);
-
-	scst_mgmt_cmd_set_tgt_priv(scst_mcmd, NULL);
-
+	switch (fn) {
+	case SCST_NEXUS_LOSS_SESS:
+	case SCST_ABORT_ALL_TASKS_SESS:
+		/* They are internal */
+		break;
+	default:
+		iscsi_send_task_mgmt_resp(req, status);
+		scst_mgmt_cmd_set_tgt_priv(scst_mcmd, NULL);
+		break;
+	}
 	return;
 }
 
@@ -2930,6 +2938,7 @@ struct scst_tgt_template iscsi_template = {
 #endif
 	.preprocessing_done = iscsi_preprocessing_done,
 	.pre_exec = iscsi_pre_exec,
+	.task_mgmt_affected_cmds_done = iscsi_task_mgmt_affected_cmds_done,
 	.task_mgmt_fn_done = iscsi_task_mgmt_fn_done,
 };
 
@@ -2953,7 +2962,7 @@ static __init int iscsi_run_threads(int count, char *name, int (*fn)(void *))
 			kfree(thr);
 			goto out;
 		}
-		list_add(&thr->threads_list_entry, &iscsi_threads_list);
+		list_add_tail(&thr->threads_list_entry, &iscsi_threads_list);
 	}
 
 out:

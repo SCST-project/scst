@@ -262,21 +262,21 @@ Show the configured parameters for a specific target:
 
 # iscsi-scst-adm --op show --tid=1 --sid=0
 InitialR2T=No
-ImmediateData=
-MaxConnections=0
-MaxRecvDataSegmentLength=4269849632
-MaxXmitDataSegmentLength=10933
-MaxBurstLength=4294967295
-FirstBurstLength=32767
-DefaultTime2Wait=4203042
-DefaultTime2Retain=5
-MaxOutstandingR2T=0
-DataPDUInOrder=No
+ImmediateData=Yes
+MaxConnections=1
+MaxRecvDataSegmentLength=2097152
+MaxXmitDataSegmentLength=131072
+MaxBurstLength=2097152
+FirstBurstLength=262144
+DefaultTime2Wait=2
+DefaultTime2Retain=0
+MaxOutstandingR2T=1
+DataPDUInOrder=Yes
 DataSequenceInOrder=Yes
 ErrorRecoveryLevel=0
-HeaderDigest=
-DataDigest=CRC32C
-OFMarker=
+HeaderDigest=None
+DataDigest=None
+OFMarker=No
 IFMarker=No
 OFMarkInt=Reject
 IFMarkInt=Reject

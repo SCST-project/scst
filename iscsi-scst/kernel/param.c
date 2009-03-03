@@ -92,7 +92,7 @@ static void log_params(struct iscsi_sess_param *param)
 }
 
 /* target_mutex supposed to be locked */
-static void sess_param_check(struct iscsi_param_info *info)
+static void sess_param_check(struct iscsi_kern_param_info *info)
 {
 	int32_t *iparam = info->session_param;
 
@@ -114,7 +114,7 @@ static void sess_param_check(struct iscsi_param_info *info)
 
 /* target_mutex supposed to be locked */
 static void sess_param_set(struct iscsi_sess_param *param,
-			   struct iscsi_param_info *info)
+			   struct iscsi_kern_param_info *info)
 {
 	int32_t *iparam = info->session_param;
 
@@ -140,7 +140,7 @@ static void sess_param_set(struct iscsi_sess_param *param,
 }
 
 static void sess_param_get(struct iscsi_sess_param *param,
-			   struct iscsi_param_info *info)
+			   struct iscsi_kern_param_info *info)
 {
 	int32_t *iparam = info->session_param;
 
@@ -166,7 +166,7 @@ static void sess_param_get(struct iscsi_sess_param *param,
 }
 
 /* target_mutex supposed to be locked */
-static void trgt_param_check(struct iscsi_param_info *info)
+static void trgt_param_check(struct iscsi_kern_param_info *info)
 {
 	int32_t *iparam = info->target_param;
 
@@ -176,7 +176,7 @@ static void trgt_param_check(struct iscsi_param_info *info)
 
 /* target_mutex supposed to be locked */
 static void trgt_param_set(struct iscsi_target *target,
-			   struct iscsi_param_info *info)
+			   struct iscsi_kern_param_info *info)
 {
 	struct iscsi_trgt_param *param = &target->trgt_param;
 	int32_t *iparam = info->target_param;
@@ -186,7 +186,7 @@ static void trgt_param_set(struct iscsi_target *target,
 
 /* target_mutex supposed to be locked */
 static void trgt_param_get(struct iscsi_trgt_param *param,
-			   struct iscsi_param_info *info)
+			   struct iscsi_kern_param_info *info)
 {
 	int32_t *iparam = info->target_param;
 
@@ -195,7 +195,7 @@ static void trgt_param_get(struct iscsi_trgt_param *param,
 
 /* target_mutex supposed to be locked */
 static int trgt_param(struct iscsi_target *target,
-		      struct iscsi_param_info *info, int set)
+		      struct iscsi_kern_param_info *info, int set)
 {
 	if (set) {
 		struct iscsi_trgt_param *prm;
@@ -213,7 +213,7 @@ static int trgt_param(struct iscsi_target *target,
 
 /* target_mutex supposed to be locked */
 static int sess_param(struct iscsi_target *target,
-		      struct iscsi_param_info *info, int set)
+		      struct iscsi_kern_param_info *info, int set)
 {
 	struct iscsi_session *session = NULL;
 	struct iscsi_sess_param *param;
@@ -247,8 +247,8 @@ out:
 }
 
 /* target_mutex supposed to be locked */
-int iscsi_param_set(struct iscsi_target *target, struct iscsi_param_info *info,
-		    int set)
+int iscsi_param_set(struct iscsi_target *target,
+	struct iscsi_kern_param_info *info, int set)
 {
 	int err;
 

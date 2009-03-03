@@ -167,22 +167,6 @@ out:
 static inline void iscsi_check_closewait(struct iscsi_conn *conn) {};
 #endif
 
-static void iscsi_unreg_cmds_done_fn(struct scst_session *scst_sess)
-{
-	struct iscsi_session *sess =
-		(struct iscsi_session *)scst_sess_get_tgt_priv(scst_sess);
-
-	TRACE_ENTRY();
-
-	TRACE_CONN_CLOSE_DBG("sess %p (scst_sess %p)", sess, scst_sess);
-
-	sess->shutting_down = 1;
-	complete_all(&sess->unreg_compl);
-
-	TRACE_EXIT();
-	return;
-}
-
 static void free_pending_commands(struct iscsi_conn *conn)
 {
 	struct iscsi_session *session = conn->session;
@@ -219,6 +203,7 @@ static void free_pending_commands(struct iscsi_conn *conn)
 		}
 	} while (req_freed);
 	spin_unlock(&session->sn_lock);
+
 	return;
 }
 
@@ -258,6 +243,7 @@ static void free_orphaned_pending_commands(struct iscsi_conn *conn)
 		}
 	} while (req_freed);
 	spin_unlock(&session->sn_lock);
+
 	return;
 }
 
@@ -331,6 +317,42 @@ static void trace_conn_close(struct iscsi_conn *conn)
 static void trace_conn_close(struct iscsi_conn *conn) {}
 #endif /* CONFIG_SCST_DEBUG */
 
+void iscsi_task_mgmt_affected_cmds_done(struct scst_mgmt_cmd *scst_mcmd)
+{
+	int fn = scst_mgmt_cmd_get_fn(scst_mcmd);
+	void *priv = scst_mgmt_cmd_get_tgt_priv(scst_mcmd);
+
+	TRACE_MGMT_DBG("scst_mcmd %p, fn %d, priv %p", scst_mcmd, fn, priv);
+
+	switch (fn) {
+	case SCST_NEXUS_LOSS_SESS:
+	case SCST_ABORT_ALL_TASKS_SESS:
+	{
+		struct iscsi_conn *conn = (struct iscsi_conn *)priv;
+		struct iscsi_session *sess = conn->session;
+
+		mutex_lock(&sess->target->target_mutex);
+		if (conn->conn_reinst_successor != NULL) {
+			sBUG_ON(!conn->conn_reinst_successor->conn_reinstating);
+			__iscsi_socket_bind(conn->conn_reinst_successor);
+			/* We will check for conn_reinst_successor later */
+		} else if (sess->sess_reinst_successor != NULL) {
+			sess_enable_reinstated_sess(sess->sess_reinst_successor);
+			sess->sess_reinst_successor = NULL;
+		}
+		mutex_unlock(&sess->target->target_mutex);
+
+		complete_all(&conn->ready_to_free);
+		break;
+	}
+	default:
+		/* Nothing to do */
+		break;
+	}
+
+	return;
+}
+
 /* No locks */
 static void close_conn(struct iscsi_conn *conn)
 {
@@ -339,6 +361,7 @@ static void close_conn(struct iscsi_conn *conn)
 	typeof(jiffies) start_waiting = jiffies;
 	typeof(jiffies) shut_start_waiting = start_waiting;
 	bool pending_reported = 0, wait_expired = 0, shut_expired = 0;
+	bool free_sess;
 
 #define CONN_PENDING_TIMEOUT	((typeof(jiffies))10*HZ)
 #define CONN_WAIT_TIMEOUT	((typeof(jiffies))10*HZ)
@@ -362,15 +385,26 @@ static void close_conn(struct iscsi_conn *conn)
 			RCV_SHUTDOWN|SEND_SHUTDOWN);
 	}
 
-	/*
-	 * We need to call scst_unregister_session() ASAP to make SCST start
-	 * recovering stuck commands.
-	 *
-	 * ToDo: this is incompatible with MC/S
-	 */
-	scst_unregister_session_ex(session->scst_sess, 0,
-		NULL, iscsi_unreg_cmds_done_fn);
-	session->scst_sess = NULL;
+	if (conn->conn_reinst_successor != NULL) {
+		int rc;
+		int lun = 0;
+
+		/* Abort all outstanding commands */
+		rc = scst_rx_mgmt_fn_lun(session->scst_sess,
+			SCST_ABORT_ALL_TASKS_SESS, (uint8_t *)&lun, sizeof(lun),
+			SCST_NON_ATOMIC, conn);
+		if (rc != 0)
+			PRINT_ERROR("SCST_ABORT_ALL_TASKS_SESS failed %d", rc);
+	} else {
+		int rc;
+		int lun = 0;
+
+		rc = scst_rx_mgmt_fn_lun(session->scst_sess,
+			SCST_NEXUS_LOSS_SESS, (uint8_t *)&lun, sizeof(lun),
+			SCST_NON_ATOMIC, conn);
+		if (rc != 0)
+			PRINT_ERROR("SCST_NEXUS_LOSS_SESS failed %d", rc);
+	}
 
 	if (conn->read_state != RX_INIT_BHS) {
 		struct iscsi_cmnd *cmnd = conn->read_cmnd;
@@ -401,18 +435,11 @@ static void close_conn(struct iscsi_conn *conn)
 			mutex_unlock(&target->target_mutex);
 		}
 
+		/* It's safe to check it without sn_lock */
 		if (!list_empty(&session->pending_list)) {
 			TRACE_CONN_CLOSE_DBG("Disposing pending commands on "
-					     "connection %p (conn_ref_cnt=%d)",
-					     conn,
-					     atomic_read(&conn->conn_ref_cnt));
-
-			/*
-			 * Such complicated approach currently isn't really
-			 * necessary, but it will be necessary for MC/S, if we
-			 * won't want to reestablish the whole session on a
-			 * connection failure.
-			 */
+				"connection %p (conn_ref_cnt=%d)", conn,
+				atomic_read(&conn->conn_ref_cnt));
 
 			free_pending_commands(conn);
 
@@ -487,18 +514,27 @@ static void close_conn(struct iscsi_conn *conn)
 		msleep(50);
 	}
 
+	wait_for_completion(&conn->ready_to_free);
+
 	TRACE_CONN_CLOSE("Notifying user space about closing connection %p",
 			 conn);
 	event_send(target->tid, session->sid, conn->cid, E_CONN_CLOSE, 0);
 
-	wait_for_completion(&session->unreg_compl);
-
-	sBUG_ON(!session->shutting_down);
+	sBUG_ON(conn->conn_reinstating);
+	sBUG_ON(session->sess_reinstating);
 
 	mutex_lock(&target->target_mutex);
+
+	free_sess = (conn->conn_reinst_successor == NULL);
+
 	conn_free(conn);
-	/* ToDo: this is incompatible with MC/S */
-	session_free(session);
+
+	if (free_sess) {
+		sBUG_ON(session->sess_reinst_successor != NULL);
+		/* ToDo: this is incompatible with MC/S */
+		session_free(session);
+	}
+
 	mutex_unlock(&target->target_mutex);
 
 	TRACE_EXIT();
@@ -512,6 +548,11 @@ static int close_conn_thr(void *arg)
 	TRACE_ENTRY();
 
 #ifdef CONFIG_SCST_EXTRACHECKS
+	/*
+	 * To satisfy iscsi_extracheck_is_rd_thread() in functions called
+	 * on the connection close. It is safe, because at this point conn
+	 * can't be used by any other thread.
+	 */
 	conn->rd_task = current;
 #endif
 	close_conn(conn);

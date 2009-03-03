@@ -208,39 +208,75 @@ static void create_listen_socket(struct pollfd *array)
 
 static void accept_connection(int listen)
 {
-	struct sockaddr_storage from;
+	struct sockaddr_storage from, to;
+	char portal[50]; /* for full IP6 address + port */
 	socklen_t namesize;
 	struct pollfd *pollfd;
 	struct connection *conn;
-	int fd, i;
+	int fd, i, rc;
 
 	namesize = sizeof(from);
-	if ((fd = accept(listen, (struct sockaddr *) &from, &namesize)) < 0) {
-		if (errno != EINTR && errno != EAGAIN) {
+	if ((fd = accept(listen, (struct sockaddr *)&from, &namesize)) < 0) {
+		switch (errno) {
+		case EINTR:
+		case EAGAIN:
+		case ENETDOWN:
+		case EPROTO:
+		case ENOPROTOOPT:
+		case EHOSTDOWN:
+		case ENONET:
+		case EHOSTUNREACH:
+		case EOPNOTSUPP:
+		case ENETUNREACH:
+			break;
+		default:
 			perror("accept(incoming_socket) failed");
 			exit(1);
 		}
-		return;
+		goto out;
+	}
+
+	namesize = sizeof(to);
+	rc = getsockname(fd, (struct sockaddr *)&to, &namesize);
+	if (rc == 0) {
+		if (from.ss_family == AF_INET) {
+			struct sockaddr_in *in = (struct sockaddr_in *)&to;
+			rc = snprintf(portal, sizeof(portal), "%s:%hu",
+				inet_ntoa(in->sin_addr), ntohs(in->sin_port));
+		} else if (from.ss_family == AF_INET6) {
+			struct sockaddr_in6 *in6 = (struct sockaddr_in6 *)&to;
+			rc = snprintf(portal, sizeof(portal), "%x:%x:%x:%x:%x:%x:%x:%x.%hu",
+				in6->sin6_addr.s6_addr16[7], in6->sin6_addr.s6_addr16[6],
+				in6->sin6_addr.s6_addr16[5], in6->sin6_addr.s6_addr16[4],
+				in6->sin6_addr.s6_addr16[3], in6->sin6_addr.s6_addr16[2],
+				in6->sin6_addr.s6_addr16[1], in6->sin6_addr.s6_addr16[0],
+				ntohs(in6->sin6_port));
+		}
+		if (rc >= sizeof(portal))
+			log_error("portal too small %zu (needed %d)", sizeof(portal), rc);
+	} else {
+		portal[0] = '\0';
+		perror("getsockname() failed");
+		goto out_close;
 	}
 
 	if (from.ss_family == AF_INET) {
 		struct sockaddr_in *in = (struct sockaddr_in *)&from;
-		log_info("Connect from %s:%hu", inet_ntoa(in->sin_addr),
-			ntohs(in->sin_port));
+		log_info("Connect from %s:%hu to %s", inet_ntoa(in->sin_addr),
+			ntohs(in->sin_port), portal);
 	} else if (from.ss_family == AF_INET6) {
 		struct sockaddr_in6 *in6 = (struct sockaddr_in6 *)&from;
-		log_info("Connect from %x:%x:%x:%x:%x:%x:%x:%x.%hu",
+		log_info("Connect from %x:%x:%x:%x:%x:%x:%x:%x.%hu to %s",
 			in6->sin6_addr.s6_addr16[7], in6->sin6_addr.s6_addr16[6],
 			in6->sin6_addr.s6_addr16[5], in6->sin6_addr.s6_addr16[4],
 			in6->sin6_addr.s6_addr16[3], in6->sin6_addr.s6_addr16[2],
 			in6->sin6_addr.s6_addr16[1], in6->sin6_addr.s6_addr16[0],
-			 ntohs(in6->sin6_port));
+			ntohs(in6->sin6_port), portal);
 	}
 
 	if (conn_blocked) {
-		log_warning("A connection refused\n");
-		close(fd);
-		return;
+		log_warning("Connection refused due to blocking\n");
+		goto out_close;
 	}
 
 	for (i = 0; i < INCOMING_MAX; i++) {
@@ -248,14 +284,15 @@ static void accept_connection(int listen)
 			break;
 	}
 	if (i >= INCOMING_MAX) {
-		log_error("unable to find incoming slot? %d\n", i);
-		exit(1);
+		log_error("Unable to find incoming slot? %d\n", i);
+		goto out_close;
 	}
 
 	if (!(conn = conn_alloc())) {
-		log_error("fail to allocate %s", "conn\n");
-		exit(1);
+		log_error("Fail to allocate %s", "conn\n");
+		goto out_close;
 	}
+
 	conn->fd = fd;
 	incoming[i] = conn;
 	conn_read_pdu(conn);
@@ -269,6 +306,13 @@ static void accept_connection(int listen)
 	incoming_cnt++;
 	if (incoming_cnt >= INCOMING_MAX)
 		poll_array[POLL_LISTEN].events = 0;
+
+out:
+	return;
+
+out_close:
+	close(fd);
+	goto out;
 }
 
 static void __set_fd(int idx, int fd)
@@ -396,7 +440,7 @@ static void event_conn(struct connection *conn, struct pollfd *pollfd)
 
 			switch (conn->state) {
 			case STATE_KERNEL:
-				conn_take_fd(conn, pollfd->fd);
+				conn_pass_to_kern(conn, pollfd->fd);
 				conn->state = STATE_CLOSE;
 				break;
 			case STATE_EXIT:
@@ -522,7 +566,7 @@ static void event_loop(int timeout)
 			event_conn(conn, pollfd);
 
 			if (conn->state == STATE_CLOSE) {
-				log_debug(0, "connection closed");
+				log_debug(0, "closing conn %p", conn);
 				conn_free_pdu(conn);
 				conn_free(conn);
 				close(pollfd->fd);
@@ -536,33 +580,33 @@ static void event_loop(int timeout)
 
 void init_max_data_seg_len(int max_data_seg_len)
 {
-	if ((session_keys[3].local_def != -1) ||
-	    (session_keys[3].max != -1) ||
-	    (session_keys[4].local_def != -1) ||
-	    (session_keys[4].max != -1) ||
-	    (session_keys[5].local_def != -1) ||
-	    (session_keys[5].max != -1) ||
-	    (session_keys[6].local_def != -1) ||
-	    (session_keys[6].max != -1)) {
+	if ((session_keys[key_max_recv_data_length].local_def != -1) ||
+	    (session_keys[key_max_recv_data_length].max != -1) ||
+	    (session_keys[key_max_xmit_data_length].local_def != -1) ||
+	    (session_keys[key_max_xmit_data_length].max != -1) ||
+	    (session_keys[key_max_burst_length].local_def != -1) ||
+	    (session_keys[key_max_burst_length].max != -1) ||
+	    (session_keys[key_first_burst_length].local_def != -1) ||
+	    (session_keys[key_first_burst_length].max != -1)) {
 		log_error("Wrong session_keys initialization");
 		exit(-1);
 	}
 
 	/* MaxRecvDataSegmentLength */
-	session_keys[3].local_def = max_data_seg_len;
-	session_keys[3].max = max_data_seg_len;
+	session_keys[key_max_recv_data_length].local_def = max_data_seg_len;
+	session_keys[key_max_recv_data_length].max = max_data_seg_len;
 
 	/* MaxXmitDataSegmentLength */
-	session_keys[4].local_def = max_data_seg_len;
-	session_keys[4].max = max_data_seg_len;
+	session_keys[key_max_xmit_data_length].local_def = max_data_seg_len;
+	session_keys[key_max_xmit_data_length].max = max_data_seg_len;
 
 	/* MaxBurstLength */
-	session_keys[5].local_def = max_data_seg_len;
-	session_keys[5].max = max_data_seg_len;
+	session_keys[key_max_burst_length].local_def = max_data_seg_len;
+	session_keys[key_max_burst_length].max = max_data_seg_len;
 
 	/* FirstBurstLength */
-	session_keys[6].local_def = max_data_seg_len;
-	session_keys[6].max = max_data_seg_len;
+	session_keys[key_first_burst_length].local_def = max_data_seg_len;
+	session_keys[key_first_burst_length].max = max_data_seg_len;
 
 	return;
 }
@@ -607,6 +651,10 @@ int main(int argc, char **argv)
 			break;
 		case 'a':
 			server_address = strdup(optarg);
+			if (server_address == NULL) {
+				perror("strdup failed");
+				exit(-1);
+			}
 			break;
 		case 'p':
 			server_port = (uint16_t)strtoul(optarg, NULL, 0);
@@ -629,7 +677,7 @@ int main(int argc, char **argv)
 		exit(-1);
 	};
 
-	if ((ctrl_fd = ki->ctldev_open(&max_data_seg_len)) < 0)
+	if ((ctrl_fd = kernel_open(&max_data_seg_len)) < 0)
 		exit(-1);
 
 	init_max_data_seg_len(max_data_seg_len);

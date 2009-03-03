@@ -34,7 +34,7 @@ struct session_file_operations {
 	int (*connection_op) (int fd, u32 tid, u64 sid, u32 cid, void *arg);
 };
 
-static int ctrdev_open(int *max_data_seg_len)
+int kernel_open(int *max_data_seg_len)
 {
 	FILE *f;
 	char devname[256];
@@ -42,7 +42,7 @@ static int ctrdev_open(int *max_data_seg_len)
 	int devn;
 	int ctlfd = -1;
 	int err;
-	struct iscsi_register_info reg = { 0 };
+	struct iscsi_kern_register_info reg = { 0 };
 
 	if (!(f = fopen("/proc/devices", "r"))) {
 		perror("Cannot open control path to the driver");
@@ -104,10 +104,10 @@ out_close:
 	goto out;
 }
 
-static int iscsi_target_create(u32 *tid, char *name)
+int kernel_target_create(u32 *tid, char *name)
 {
 	int err;
-	struct target_info info;
+	struct iscsi_kern_target_info info;
 
 	memset(&info, 0, sizeof(info));
 
@@ -122,9 +122,9 @@ static int iscsi_target_create(u32 *tid, char *name)
 	return err;
 }
 
-static int iscsi_target_destroy(u32 tid)
+int kernel_target_destroy(u32 tid)
 {
-	struct target_info info;
+	struct iscsi_kern_target_info info;
 	int res;
 
 	memset(&info, 0, sizeof(info));
@@ -137,10 +137,10 @@ static int iscsi_target_destroy(u32 tid)
 	return res;
 }
 
-static int iscsi_conn_destroy(u32 tid, u64 sid, u32 cid)
+int kernel_conn_destroy(u32 tid, u64 sid, u32 cid)
 {
 	int err;
-	struct conn_info info;
+	struct iscsi_kern_conn_info info;
 
 	info.tid = tid;
 	info.sid = sid;
@@ -152,173 +152,14 @@ static int iscsi_conn_destroy(u32 tid, u64 sid, u32 cid)
 	return err;
 }
 
-static int __conn_close(int fd, u32 tid, u64 sid, u32 cid, void *arg)
-{
-	return ki->conn_destroy(tid, sid, cid);
-}
-
-static int __target_del(int fd, u32 tid, void *arg)
-{
-	return ki->target_destroy(tid);
-}
-
-static int proc_session_parse(int fd, struct session_file_operations *ops,
-	int op_tid, void *arg)
-{
-	FILE *f;
-	char buf[8192], *p;
-	u32 tid, cid;
-	u64 sid;
-	int err, skip, done = 0;
-
-	if ((f = fopen(PROC_SESSION, "r")) == NULL) {
-		fprintf(stderr, "Can't open %s\n", PROC_SESSION);
-		return errno;
-	}
-
-	skip = 0;
-	while (fgets(buf, sizeof(buf), f)) {
-		p = buf;
-		while (isspace((int) *p))
-			p++;
-
-		if (!strncmp(p, "tid:", 4)) {
-			if (sscanf(p, "tid:%u", &tid) != 1)
-				break;
-			if (op_tid != -1) {
-				if (tid == op_tid)
-					skip = 0;
-				else {
-					skip = 1;
-					if (done)
-						break;
-					else
-						continue;
-				}
-			}
-			if (ops->target_op)
-				if ((err = ops->target_op(fd, tid, arg)) < 0)
-					goto out;
-			continue;
-		}
-		if (skip)
-			continue;
-		if (!strncmp(p, "sid:", 4)) {
-			if (sscanf(p, "sid:%" SCNu64, &sid) != 1) {
-				log_error("Unknown %s sid syntax: %s\n", PROC_SESSION, p);
-				break;
-			}
-
-			if (ops->session_op)
-				if ((err = ops->session_op(fd, tid, sid, arg)) < 0)
-					goto out;
-		} else if (!strncmp(p, "cid:", 4)) {
-			if (sscanf(p, "cid:%u", &cid) != 1) {
-				log_error("Unknown %s cid syntax: %s\n", PROC_SESSION, p);
-				break;
-			}
-			if (ops->connection_op)
-				if ((err = ops->connection_op(fd, tid, sid, cid, arg)) < 0)
-					goto out;
-		} else
-			log_error("Unknown %s string: %s\n", PROC_SESSION, p);
-
-		done = 1;
-	}
-
-	err = 0;
-out:
-	fclose(f);
-
-	return err;
-}
-
-static int session_retry (int fd, u32 tid, u64 sid, void *arg)
-{
-	return -EAGAIN;
-}
-
-static int conn_retry (int fd, u32 tid, u64 sid, u32 cid, void *arg)
-{
-	return -EAGAIN;
-}
-
-static int __sess_cleanup(int fd, u32 tid, void *arg)
-{
-	wait_4_iscsi_event(100);
-	return 0;
-}
-
-static struct session_file_operations conn_close_ops = {
-	.connection_op = __conn_close,
-};
-
-static struct session_file_operations conn_sess_cleanup_ops = {
-	.target_op = __sess_cleanup,
-};
-
-static struct session_file_operations shutdown_wait_ops = {
-	.session_op = session_retry,
-	.connection_op = conn_retry,
-};
-
-static struct session_file_operations target_del_ops = {
-	.target_op = __target_del,
-};
-
-int target_destroy(u32 tid)
-{
-	int err;
-
-	conn_blocked = 1;
-
-	proc_session_parse(ctrl_fd, &conn_close_ops, tid, NULL);
-
-	while (proc_session_parse(ctrl_fd, &shutdown_wait_ops, tid, NULL) < 0) {
-		sleep(1);
-	}
-	proc_session_parse(ctrl_fd, &conn_sess_cleanup_ops, tid, NULL);
-
-	err = proc_session_parse(ctrl_fd, &target_del_ops, tid, NULL);
-
-	conn_blocked = 0;
-
-	return err;
-}
-
 struct session_conn_close_arg {
 	u64 sid;
 };
 
-static int session_conn_close(int fd, u32 tid, u64 sid, u32 cid, void *opaque)
-{
-	struct session_conn_close_arg *arg = (struct session_conn_close_arg *) opaque;
-	int err;
-
-	if (arg->sid == sid)
-		err = ki->conn_destroy(tid, sid, cid);
-
-	return 0;
-}
-
-struct session_file_operations session_conns_close_ops = {
-	.connection_op = session_conn_close,
-};
-
-int session_conns_close(u32 tid, u64 sid)
-{
-	int err;
-	struct session_conn_close_arg arg = {sid};
-
-	err = proc_session_parse(ctrl_fd, &session_conns_close_ops, tid, &arg);
-
-	return err;
-}
-
-static int iscsi_param_get(u32 tid, u64 sid, int type, struct iscsi_param *param)
+int kernel_param_get(u32 tid, u64 sid, int type, struct iscsi_param *param)
 {
 	int err, i;
-	struct iscsi_param_info info;
+	struct iscsi_kern_param_info info;
 
 	memset(&info, 0, sizeof(info));
 	info.tid = tid;
@@ -341,11 +182,11 @@ static int iscsi_param_get(u32 tid, u64 sid, int type, struct iscsi_param *param
 	return err;
 }
 
-static int iscsi_param_set(u32 tid, u64 sid, int type, u32 partial,
+int kernel_param_set(u32 tid, u64 sid, int type, u32 partial,
 	struct iscsi_param *param)
 {
 	int i, err;
-	struct iscsi_param_info info;
+	struct iscsi_kern_param_info info;
 
 	memset(&info, 0, sizeof(info));
 	info.tid = tid;
@@ -369,10 +210,10 @@ static int iscsi_param_set(u32 tid, u64 sid, int type, u32 partial,
 	return err;
 }
 
-static int iscsi_session_create(u32 tid, u64 sid, u32 exp_cmd_sn,
+int kernel_session_create(u32 tid, u64 sid, u32 exp_cmd_sn,
 	char *name, char *user)
 {
-	struct session_info info;
+	struct iscsi_kern_session_info info;
 	int res;
 
 	memset(&info, 0, sizeof(info));
@@ -390,9 +231,9 @@ static int iscsi_session_create(u32 tid, u64 sid, u32 exp_cmd_sn,
 	return res;
 }
 
-static int iscsi_session_destroy(u32 tid, u64 sid)
+int kernel_session_destroy(u32 tid, u64 sid)
 {
-	struct session_info info;
+	struct iscsi_kern_session_info info;
 	int res;
 
 	memset(&info, 0, sizeof(info));
@@ -410,10 +251,10 @@ static int iscsi_session_destroy(u32 tid, u64 sid)
 	return res;
 }
 
-static int iscsi_conn_create(u32 tid, u64 sid, u32 cid, u32 stat_sn, u32 exp_stat_sn,
+int kernel_conn_create(u32 tid, u64 sid, u32 cid, u32 stat_sn, u32 exp_stat_sn,
 			     int fd, u32 hdigest, u32 ddigest)
 {
-	struct conn_info info;
+	struct iscsi_kern_conn_info info;
 	int res;
 
 	memset(&info, 0, sizeof(info));
@@ -433,17 +274,3 @@ static int iscsi_conn_create(u32 tid, u64 sid, u32 cid, u32 stat_sn, u32 exp_sta
 
 	return res;
 }
-
-struct iscsi_kernel_interface ioctl_ki = {
-	.ctldev_open = ctrdev_open,
-	.param_get = iscsi_param_get,
-	.param_set = iscsi_param_set,
-	.target_create = iscsi_target_create,
-	.target_destroy = iscsi_target_destroy,
-	.session_create = iscsi_session_create,
-	.session_destroy = iscsi_session_destroy,
-	.conn_create = iscsi_conn_create,
-	.conn_destroy = iscsi_conn_destroy,
-};
-
-struct iscsi_kernel_interface *ki = &ioctl_ki;

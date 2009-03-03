@@ -80,7 +80,7 @@ static int nl_read(int fd, void *data, int len)
 void handle_iscsi_events(int fd)
 {
 	struct session *session;
-	struct iscsi_event event;
+	struct iscsi_kern_event event;
 	int res;
 
 retry:
@@ -103,8 +103,9 @@ retry:
 			goto retry;
 		}
 
-		if (!--session->conn_cnt)
-			session_remove(session);
+		session->kern_conn_cnt--;
+		if ((session->kern_conn_cnt == 0) && list_empty(&session->conn_list))
+			session_free(session);
 		break;
 	default:
 		log_warning("%s(%d) %u\n", __FUNCTION__, __LINE__, event.state);

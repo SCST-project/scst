@@ -82,7 +82,7 @@ static void all_accounts_del(u32 tid, int dir)
 int target_del(u32 tid)
 {
 	struct target *target = target_find_by_id(tid);
-	int err = ki->target_destroy(tid);
+	int err = kernel_target_destroy(tid);
 
 	if (err < 0 && errno != ENOENT)
 		return -errno;
@@ -114,6 +114,7 @@ int target_add(u32 *tid, char *name)
 {
 	struct target *target;
 	int err;
+	struct iscsi_param params[target_key_last];
 
 	if (!name)
 		return -EINVAL;
@@ -124,9 +125,16 @@ int target_add(u32 *tid, char *name)
 	memset(target, 0, sizeof(*target));
 	memcpy(target->name, name, sizeof(target->name) - 1);
 
-	if ((err = ki->target_create(tid, name)) < 0) {
+	if ((err = kernel_target_create(tid, name)) < 0) {
 		log_warning("can't create a target %d %u\n", errno, *tid);
-		goto out;
+		goto out_free;
+	}
+
+	param_set_defaults(params, target_keys);
+	err = kernel_param_set(*tid, 0, key_target, 0, params);
+	if (err != 0) {
+		log_error("kernel_param_set() failed: %s", strerror(errno));
+		goto out_destroy;
 	}
 
 	INIT_LIST_HEAD(&target->tlist);
@@ -137,8 +145,13 @@ int target_add(u32 *tid, char *name)
 
 	isns_target_register(name);
 
-	return 0;
 out:
-	free(target);
 	return err;
+
+out_destroy:
+	kernel_target_destroy(*tid);
+
+out_free:
+	free(target);
+	goto out;
 }

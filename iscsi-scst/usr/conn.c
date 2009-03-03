@@ -31,101 +31,46 @@ struct connection *conn_alloc(void)
 {
 	struct connection *conn;
 
-	if (!(conn = malloc(sizeof(*conn))))
-		return NULL;
+	conn = malloc(sizeof(*conn));
+	if (conn == NULL)
+		goto out;
 
 	memset(conn, 0, sizeof(*conn));
 	conn->state = STATE_FREE;
 	param_set_defaults(conn->session_param, session_keys);
 	INIT_LIST_HEAD(&conn->rsp_buf_list);
 
+out:
 	return conn;
 }
 
 void conn_free(struct connection *conn)
 {
+	remque(&conn->clist);
 	free(conn->initiator);
 	free(conn->user);
 	free(conn);
+	return;
 }
 
-int conn_test(struct connection *conn)
-{
-	FILE *f;
-	char buf[8192], *p;
-	u32 tid, t_tid, cid, t_cid;
-	u64 sid, t_sid;
-	int err = -ENOENT, find = 0;
-
-	t_tid = conn->tid;
-	t_sid = conn->session->sid.id64;
-	t_cid = conn->cid;
-
-	if ((f = fopen(PROC_SESSION, "r")) == NULL) {
-		fprintf(stderr, "Can't open %s\n", PROC_SESSION);
-		return -errno;
-	}
-
-	while (fgets(buf, sizeof(buf), f)) {
-		p = buf;
-		while (isspace((int) *p))
-			p++;
-
-		if (!strncmp(p, "tid:", 4)) {
-			if (sscanf(p, "tid:%u", &tid) != 1) {
-				err = -EIO;
-				goto out;
-			}
-			if (tid == t_tid)
-				find = 1;
-			else
-				find = 0;
-		} else if (!strncmp(p, "sid:", 4)) {
-			if (!find)
-				continue;
-			if (sscanf(p, "sid:%" SCNu64, &sid) != 1) {
-				err = -EIO;
-				goto out;
-			}
-
-			if (sid == t_sid)
-				find = 1;
-			else
-				find = 0;
-		} else if (!strncmp(p, "cid:", 4)) {
-			if (!find)
-				continue;
-			if (sscanf(p, "cid:%u", &cid) != 1) {
-				err = -EIO;
-				goto out;
-			}
-
-			if (cid == t_cid) {
-				err = 0;
-				goto out;
-			}
-		}
-	}
-
-out:
-	fclose(f);
-
-	return err;
-}
-
-void conn_take_fd(struct connection *conn, int fd)
+void conn_pass_to_kern(struct connection *conn, int fd)
 {
 	int err;
-	log_debug(1, "conn_take_fd: %d %u %u %u %" PRIx64,
-		  fd, conn->cid, conn->stat_sn, conn->exp_stat_sn, conn->sid.id64);
 
-	conn->session->conn_cnt++;
+	log_debug(1, "fd %d, cid %u, stat_sn %u, exp_stat_sn %u sid%" PRIx64,
+		fd, conn->cid, conn->stat_sn, conn->exp_stat_sn, conn->sid.id64);
 
-	err = ki->conn_create(conn->tid, conn->session->sid.id64, conn->cid,
+	err = kernel_conn_create(conn->tid, conn->sess->sid.id64, conn->cid,
 			      conn->stat_sn, conn->exp_stat_sn, fd,
 			      conn->session_param[key_header_digest].val,
 			      conn->session_param[key_data_digest].val);
 
+	if (err == 0)
+		conn->sess->kern_conn_cnt++;
+	else
+		log_error("kernel_conn_create() failed: %s", strerror(errno));
+
+	/* We don't need to return err, because we are going to close conn anyway */
 	return;
 }
 
@@ -134,6 +79,7 @@ void conn_read_pdu(struct connection *conn)
 	conn->iostate = IOSTATE_READ_BHS;
 	conn->buffer = (void *)&conn->req.bhs;
 	conn->rwsize = BHS_SIZE;
+	return;
 }
 
 void conn_write_pdu(struct connection *conn)
@@ -142,6 +88,7 @@ void conn_write_pdu(struct connection *conn)
 	memset(&conn->rsp, 0, sizeof(conn->rsp));
 	conn->buffer = (void *)&conn->rsp.bhs;
 	conn->rwsize = BHS_SIZE;
+	return;
 }
 
 void conn_free_rsp_buf_list(struct connection *conn)
@@ -155,6 +102,7 @@ void conn_free_rsp_buf_list(struct connection *conn)
 
 	conn->rsp.datasize = 0;
 	conn->rsp.data = NULL;
+	return;
 }
 
 void conn_free_pdu(struct connection *conn)
@@ -169,4 +117,5 @@ void conn_free_pdu(struct connection *conn)
 		conn->rsp.ahs = NULL;
 	}
 	conn_free_rsp_buf_list(conn);
+	return;
 }

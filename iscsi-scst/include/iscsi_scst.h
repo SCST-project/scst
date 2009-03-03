@@ -34,12 +34,12 @@
 #define aligned_u64 uint64_t __attribute__((aligned(8)))
 #endif
 
-struct target_info {
+struct iscsi_kern_target_info {
 	u32 tid;
 	char name[ISCSI_NAME_LEN];
 };
 
-struct session_info {
+struct iscsi_kern_session_info {
 	u32 tid;
 
 	aligned_u64 sid;
@@ -52,7 +52,7 @@ struct session_info {
 #define DIGEST_NONE		(1 << 0)
 #define DIGEST_CRC32C           (1 << 1)
 
-struct conn_info {
+struct iscsi_kern_conn_info {
 	u32 tid;
 	aligned_u64 sid;
 
@@ -97,7 +97,7 @@ enum {
 	key_target,
 };
 
-struct iscsi_param_info {
+struct iscsi_kern_param_info {
 	u32 tid;
 	aligned_u64 sid;
 
@@ -108,18 +108,18 @@ struct iscsi_param_info {
 	s32 target_param[target_key_last];
 };
 
-enum iscsi_event_state {
+enum iscsi_kern_event_state {
 	E_CONN_CLOSE,
 };
 
-struct iscsi_event {
+struct iscsi_kern_event {
 	u32 tid;
 	aligned_u64 sid;
 	u32 cid;
 	u32 state;
 };
 
-struct iscsi_register_info {
+struct iscsi_kern_register_info {
 	aligned_u64 version;
 };
 
@@ -130,18 +130,16 @@ struct iscsi_register_info {
 #define NETLINK_ISCSI_SCST	25
 
 /* On success returns MAX_DATA_SEG_LEN */
-#define REGISTER_USERD		_IOW('s', 0, struct iscsi_register_info)
+#define REGISTER_USERD		_IOW('s', 0, struct iscsi_kern_register_info)
 
-#define ADD_TARGET		_IOW('s', 1, struct target_info)
-#define DEL_TARGET		_IOW('s', 2, struct target_info)
-#define ADD_SESSION		_IOW('s', 3, struct session_info)
-#define DEL_SESSION		_IOW('s', 4, struct session_info)
-#define GET_SESSION_INFO	_IOWR('s', 5, struct session_info)
-#define ADD_CONN		_IOW('s', 6, struct conn_info)
-#define DEL_CONN		_IOW('s', 7, struct conn_info)
-#define GET_CONN_INFO		_IOWR('s', 8, struct conn_info)
-#define ISCSI_PARAM_SET		_IOW('s', 9, struct iscsi_param_info)
-#define ISCSI_PARAM_GET		_IOWR('s', 10, struct iscsi_param_info)
+#define ADD_TARGET		_IOW('s', 1, struct iscsi_kern_target_info)
+#define DEL_TARGET		_IOW('s', 2, struct iscsi_kern_target_info)
+#define ADD_SESSION		_IOW('s', 3, struct iscsi_kern_session_info)
+#define DEL_SESSION		_IOW('s', 4, struct iscsi_kern_session_info)
+#define ADD_CONN		_IOW('s', 5, struct iscsi_kern_conn_info)
+#define DEL_CONN		_IOW('s', 6, struct iscsi_kern_conn_info)
+#define ISCSI_PARAM_SET		_IOW('s', 7, struct iscsi_kern_param_info)
+#define ISCSI_PARAM_GET		_IOWR('s', 8, struct iscsi_kern_param_info)
 
 static inline int iscsi_is_key_declarative(int key)
 {

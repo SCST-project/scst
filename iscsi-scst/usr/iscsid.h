@@ -19,6 +19,7 @@
 
 #include <search.h>
 #include <sys/types.h>
+#include <assert.h>
 
 #include "types.h"
 #include "iscsi_hdr.h"
@@ -27,7 +28,8 @@
 #include "config.h"
 #include "misc.h"
 
-#define PROC_SESSION	"/proc/scsi_tgt/iscsi/session"
+#define sBUG() assert(0)
+#define sBUG_ON(p) assert(!(p))
 
 struct buf_segment {
 	struct __qelem entry;
@@ -56,7 +58,8 @@ struct session {
 	struct target *target;
 	union iscsi_sid sid;
 
-	int conn_cnt;
+	int kern_conn_cnt;
+	struct __qelem conn_list;
 };
 
 struct connection {
@@ -64,7 +67,7 @@ struct connection {
 	int iostate;
 	int fd;
 
-	struct session *session;
+	struct session *sess;
 
 	u32 tid;
 	struct iscsi_param session_param[session_key_last];
@@ -100,6 +103,8 @@ struct connection {
 			unsigned char *challenge;
 		} chap;
 	} auth;
+
+	struct __qelem clist;
 };
 
 #define IOSTATE_FREE		0
@@ -138,6 +143,11 @@ struct connection {
 
 #define BHS_SIZE		48
 
+/*
+ * Must be 8192, since it used as MaxRecvDataSegmentLength during Login phase,
+ * because iSCSI RFC requires: "The default MaxRecvDataSegmentLength is used
+ * during Login".
+ */
 #define INCOMING_BUFSIZE	8192
 
 struct target {
@@ -148,9 +158,6 @@ struct target {
 	u32 tid;
 	char name[ISCSI_NAME_LEN];
 	char *alias;
-
-	int max_nr_sessions;
-	int nr_sessions;
 
 	struct __qelem isns_head;
 };
@@ -165,8 +172,7 @@ extern int cmnd_exec_auth_chap(struct connection *conn);
 /* conn.c */
 extern struct connection *conn_alloc(void);
 extern void conn_free(struct connection *conn);
-extern int conn_test(struct connection *conn);
-extern void conn_take_fd(struct connection *conn, int fd);
+extern void conn_pass_to_kern(struct connection *conn, int fd);
 extern void conn_read_pdu(struct connection *conn);
 extern void conn_write_pdu(struct connection *conn);
 extern void conn_free_pdu(struct connection *conn);
@@ -209,8 +215,9 @@ extern void __log_pdu(const char *func, int line, int level, struct PDU *pdu);
 /* session.c */
 extern struct session *session_find_name(u32 tid, const char *iname, union iscsi_sid sid);
 extern struct session *session_find_id(u32 tid, u64 sid);
-extern void session_create(struct connection *conn);
-extern void session_remove(struct session *session);
+extern int session_create(struct connection *conn);
+extern void session_free(struct session *session);
+extern struct connection *conn_find(struct session *session, u16 cid);
 
 /* target.c */
 extern struct __qelem targets_list;
@@ -225,23 +232,18 @@ extern int iscsi_adm_request_listen(void);
 extern int iscsi_adm_request_handle(int accept_fd);
 
 /* ctldev.c */
-struct iscsi_kernel_interface {
-	int (*ctldev_open) (int *);
-	int (*param_get) (u32, u64, int, struct iscsi_param *);
-	int (*param_set) (u32, u64, int, u32, struct iscsi_param *);
-	int (*target_create) (u32 *, char *);
-	int (*target_destroy) (u32);
-	int (*session_create) (u32, u64, u32, char *, char *);
-	int (*session_destroy) (u32, u64);
-	int (*conn_create) (u32, u64, u32, u32, u32, int, u32, u32);
-	int (*conn_destroy) (u32 tid, u64 sid, u32 cid);
-};
-
-extern struct iscsi_kernel_interface *ki;
-
-/* the following functions should be killed */
-extern int session_conns_close(u32 tid, u64 sid);
-extern int target_destroy(u32 tid);
+extern int kernel_open(int *max_data_seg_len);
+extern int kernel_param_get(u32 tid, u64 sid, int type, struct iscsi_param *param);
+extern int kernel_param_set(u32 tid, u64 sid, int type, u32 partial,
+	struct iscsi_param *param);
+extern int kernel_target_create(u32 *tid, char *name);
+extern int kernel_target_destroy(u32 tid);
+extern int kernel_session_create(u32 tid, u64 sid, u32 exp_cmd_sn,
+	char *name, char *user);
+extern int kernel_session_destroy(u32 tid, u64 sid);
+extern int kernel_conn_create(u32 tid, u64 sid, u32 cid, u32 stat_sn, u32 exp_stat_sn,
+	int fd, u32 hdigest, u32 ddigest);
+extern int kernel_conn_destroy(u32 tid, u64 sid, u32 cid);	
 
 /* event.c */
 extern void handle_iscsi_events(int fd);

@@ -280,11 +280,19 @@ static struct iscsi_key_ops marker_ops = {
 
 #define	SET_KEY_VALUES(x)	DEFAULT_NR_##x,DEFAULT_NR_##x,MIN_NR_##x,MAX_NR_##x
 
+/*
+ * List of local target keys with initial values.
+ * Must match corresponding key_* enum in iscsi_scst.h!!
+ */
 struct iscsi_key target_keys[] = {
 	{"QueuedCommands", SET_KEY_VALUES(QUEUED_CMNDS), &minimum_ops},
 	{NULL,},
 };
 
+/*
+ * List of iSCSI RFC specified session keys with initial values.
+ * Must match corresponding key_* enum in iscsi_scst.h!!
+ */
 struct iscsi_key session_keys[] = {
 	{"InitialR2T", 1, 0, 0, 1, &or_ops},
 	{"ImmediateData", 1, 1, 0, 1, &and_ops},

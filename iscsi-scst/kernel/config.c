@@ -230,38 +230,11 @@ err:
 }
 
 /* target_mutex supposed to be locked */
-static int get_conn_info(struct iscsi_target *target, void __user *ptr)
-{
-	int err;
-	struct iscsi_session *session;
-	struct conn_info info;
-	struct iscsi_conn *conn;
-
-	err = copy_from_user(&info, ptr, sizeof(info));
-	if (err < 0)
-		return err;
-
-	session = session_lookup(target, info.sid);
-	if (!session)
-		return -ENOENT;
-	conn = conn_lookup(session, info.cid);
-
-	info.cid = conn->cid;
-	info.stat_sn = conn->stat_sn;
-	info.exp_stat_sn = conn->exp_stat_sn;
-
-	if (copy_to_user(ptr, &info, sizeof(info)))
-		return -EFAULT;
-
-	return 0;
-}
-
-/* target_mutex supposed to be locked */
 static int add_conn(struct iscsi_target *target, void __user *ptr)
 {
 	int err;
 	struct iscsi_session *session;
-	struct conn_info info;
+	struct iscsi_kern_conn_info info;
 
 	err = copy_from_user(&info, ptr, sizeof(info));
 	if (err < 0)
@@ -279,7 +252,7 @@ static int del_conn(struct iscsi_target *target, void __user *ptr)
 {
 	int err;
 	struct iscsi_session *session;
-	struct conn_info info;
+	struct iscsi_kern_conn_info info;
 
 	err = copy_from_user(&info, ptr, sizeof(info));
 	if (err < 0)
@@ -293,34 +266,10 @@ static int del_conn(struct iscsi_target *target, void __user *ptr)
 }
 
 /* target_mutex supposed to be locked */
-static int get_session_info(struct iscsi_target *target, void __user *ptr)
-{
-	int err;
-	struct iscsi_session *session;
-	struct session_info info;
-
-	err = copy_from_user(&info, ptr, sizeof(info));
-	if (err < 0)
-		return err;
-
-	session = session_lookup(target, info.sid);
-
-	if (!session)
-		return -ENOENT;
-
-	info.exp_cmd_sn = session->exp_cmd_sn;
-
-	if (copy_to_user(ptr, &info, sizeof(info)))
-		return -EFAULT;
-
-	return 0;
-}
-
-/* target_mutex supposed to be locked */
 static int add_session(struct iscsi_target *target, void __user *ptr)
 {
 	int err;
-	struct session_info info;
+	struct iscsi_kern_session_info info;
 
 	err = copy_from_user(&info, ptr, sizeof(info));
 	if (err < 0)
@@ -336,7 +285,7 @@ static int add_session(struct iscsi_target *target, void __user *ptr)
 static int del_session(struct iscsi_target *target, void __user *ptr)
 {
 	int err;
-	struct session_info info;
+	struct iscsi_kern_session_info info;
 
 	err = copy_from_user(&info, ptr, sizeof(info));
 	if (err < 0)
@@ -350,7 +299,7 @@ static int iscsi_param_config(struct iscsi_target *target, void __user *ptr,
 			      int set)
 {
 	int err;
-	struct iscsi_param_info info;
+	struct iscsi_kern_param_info info;
 
 	err = copy_from_user(&info, ptr, sizeof(info));
 	if (err < 0)
@@ -371,7 +320,7 @@ out:
 static int add_target(void __user *ptr)
 {
 	int err;
-	struct target_info info;
+	struct iscsi_kern_target_info info;
 
 	err = copy_from_user(&info, ptr, sizeof(info));
 	if (err < 0)
@@ -386,7 +335,7 @@ static int add_target(void __user *ptr)
 
 static int iscsi_check_version(void __user *arg)
 {
-	struct iscsi_register_info reg;
+	struct iscsi_kern_register_info reg;
 	char ver[sizeof(ISCSI_SCST_INTERFACE_VERSION)+1];
 	int res;
 
@@ -428,12 +377,10 @@ static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case DEL_TARGET:
 	case ADD_SESSION:
 	case DEL_SESSION:
-	case GET_SESSION_INFO:
 	case ISCSI_PARAM_SET:
 	case ISCSI_PARAM_GET:
 	case ADD_CONN:
 	case DEL_CONN:
-	case GET_CONN_INFO:
 		break;
 
 	case REGISTER_USERD:
@@ -491,10 +438,6 @@ static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		err = del_session(target, (void __user *) arg);
 		break;
 
-	case GET_SESSION_INFO:
-		err = get_session_info(target, (void __user *) arg);
-		break;
-
 	case ISCSI_PARAM_SET:
 		err = iscsi_param_config(target, (void __user *) arg, 1);
 		break;
@@ -509,10 +452,6 @@ static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	case DEL_CONN:
 		err = del_conn(target, (void __user *) arg);
-		break;
-
-	case GET_CONN_INFO:
-		err = get_conn_info(target, (void __user *) arg);
 		break;
 
 	default:
@@ -555,9 +494,9 @@ static void iscsi_dump_char(int ch)
 			text[i] = ' ';
 			i++;
 			if ((i % 16) == 0)
-				printk(LOG_FLAG " | %.16s |\n", text);
+				printk(" | %.16s |\n", text);
 			else if ((i % 4) == 0)
-				printk(LOG_FLAG " |");
+				printk(" |");
 		}
 		i = 0;
 		return;
@@ -567,10 +506,10 @@ static void iscsi_dump_char(int ch)
 	printk(LOG_FLAG " %02x", ch);
 	i++;
 	if ((i % 16) == 0) {
-		printk(LOG_FLAG " | %.16s |\n", text);
+		printk(" | %.16s |\n", text);
 		i = 0;
 	} else if ((i % 4) == 0)
-		printk(LOG_FLAG " |");
+		printk(" |");
 }
 
 void iscsi_dump_pdu(struct iscsi_pdu *pdu)

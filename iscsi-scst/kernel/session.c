@@ -23,7 +23,7 @@ struct iscsi_session *session_lookup(struct iscsi_target *target, u64 sid)
 
 	list_for_each_entry(session, &target->session_list,
 			session_list_entry) {
-		if ((session->sid == sid) && !session->shutting_down)
+		if (session->sid == sid)
 			return session;
 	}
 	return NULL;
@@ -31,7 +31,7 @@ struct iscsi_session *session_lookup(struct iscsi_target *target, u64 sid)
 
 /* target_mutex supposed to be locked */
 static int iscsi_session_alloc(struct iscsi_target *target,
-			       struct session_info *info)
+	struct iscsi_kern_session_info *info, struct iscsi_session **result)
 {
 	int err;
 	unsigned int i;
@@ -93,14 +93,15 @@ static int iscsi_session_alloc(struct iscsi_target *target,
 	kfree(name);
 
 	scst_sess_set_tgt_priv(session->scst_sess, session);
-	init_completion(&session->unreg_compl);
 
-	list_add(&session->session_list_entry, &target->session_list);
+	list_add_tail(&session->session_list_entry, &target->session_list);
 
 	TRACE_MGMT_DBG("Session %p created: target %p, tid %u, sid %#Lx",
 		session, target, target->tid, info->sid);
 
+	*result = session;
 	return 0;
+
 err:
 	if (session) {
 		kfree(session->initiator_name);
@@ -111,20 +112,89 @@ err:
 }
 
 /* target_mutex supposed to be locked */
-int session_add(struct iscsi_target *target, struct session_info *info)
+void sess_enable_reinstated_sess(struct iscsi_session *sess)
 {
-	struct iscsi_session *session;
-	int err = -EEXIST;
+	struct iscsi_conn *c;
+
+	TRACE_ENTRY();
+
+	TRACE_MGMT_DBG("Enabling reinstate successor sess %p", sess);
+
+	sBUG_ON(!sess->sess_reinstating);
+
+	list_for_each_entry(c, &sess->conn_list, conn_list_entry) {
+		__iscsi_socket_bind(c);
+	}
+	sess->sess_reinstating = 0;
+
+	TRACE_EXIT();
+	return;
+}
+
+/* target_mutex supposed to be locked */
+static void session_reinstate(struct iscsi_session *old_sess,
+	struct iscsi_session *new_sess)
+{
+	TRACE_ENTRY();
+
+	TRACE_MGMT_DBG("Reinstating sess %p with SID %llx (old %p, SID %llx)",
+		new_sess, new_sess->sid, old_sess, old_sess->sid);
+
+	new_sess->sess_reinstating = 1;
+	old_sess->sess_reinst_successor = new_sess;
+
+	scst_set_initial_UA(new_sess->scst_sess,
+		SCST_LOAD_SENSE(scst_sense_nexus_loss_UA));
+
+	target_del_session(old_sess->target, old_sess, 0);
+
+	TRACE_EXIT();
+	return;
+}
+
+/* target_mutex supposed to be locked */
+int session_add(struct iscsi_target *target,
+	struct iscsi_kern_session_info *info)
+{
+	struct iscsi_session *session, *old_sess;
+	int err = 0;
+	union iscsi_sid sid;
+
+	TRACE_MGMT_DBG("Adding session SID %llx", info->sid);
 
 	session = session_lookup(target, info->sid);
 	if (session) {
 		PRINT_ERROR("Attempt to add session with existing SID %llx",
 			info->sid);
-		return err;
+		err = -EEXIST;
+		goto out;
+ 	}
+
+	sid = (union iscsi_sid)info->sid;
+	sid.id.tsih = 0;
+	old_sess = NULL;
+
+	/*
+	 * We need to find the latest session to correctly handle
+	 * multi-reinstatements
+	 */
+	list_for_each_entry_reverse(session, &target->session_list,
+			session_list_entry) {
+		union iscsi_sid i = (union iscsi_sid)session->sid;
+		i.id.tsih = 0;
+		if ((sid.id64 == i.id64) &&
+		    (strcmp(info->initiator_name, session->initiator_name) == 0)) {
+		    	/* session reinstatement */
+		    	old_sess = session;
+			break;
+		}
 	}
 
-	err = iscsi_session_alloc(target, info);
+	err = iscsi_session_alloc(target, info, &session);
+	if ((err == 0) && (old_sess != NULL))
+		session_reinstate(old_sess, session);
 
+out:
 	return err;
 }
 
@@ -133,8 +203,8 @@ int session_free(struct iscsi_session *session)
 {
 	unsigned int i;
 
-	TRACE_MGMT_DBG("Freeing session %p:%#Lx",
-		session, (long long unsigned int)session->sid);
+	TRACE_MGMT_DBG("Freeing session %p (SID %llx)",
+		session, session->sid);
 
 	sBUG_ON(!list_empty(&session->conn_list));
 	if (unlikely(atomic_read(&session->active_cmds) != 0)) {
@@ -148,6 +218,21 @@ int session_free(struct iscsi_session *session)
 
 	if (session->scst_sess != NULL)
 		scst_unregister_session(session->scst_sess, 1, NULL);
+
+	if (session->sess_reinst_successor != NULL)
+		sess_enable_reinstated_sess(session->sess_reinst_successor);
+
+	if (session->sess_reinstating) {
+		struct iscsi_session *s;
+		TRACE_MGMT_DBG("Freeing being reinstated sess %p", session);
+		list_for_each_entry(s, &session->target->session_list,
+						session_list_entry) {
+			if (s->sess_reinst_successor == session) {
+				s->sess_reinst_successor = NULL;
+				break;
+			}
+		}
+	}
 
 	list_del(&session->session_list_entry);
 
@@ -183,10 +268,10 @@ static void iscsi_session_info_show(struct seq_file *seq,
 
 	list_for_each_entry(session, &target->session_list,
 			    session_list_entry) {
-		seq_printf(seq, "\tsid:%llx initiator:%s shutting down %d\n",
+		seq_printf(seq, "\tsid:%llx initiator:%s reinstating %d\n",
 			(long long unsigned int)session->sid,
 			session->initiator_name,
-			session->shutting_down);
+			session->sess_reinstating);
 		conn_info_show(seq, session);
 	}
 	return;

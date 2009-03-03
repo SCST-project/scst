@@ -79,7 +79,7 @@ static void iscsi_adm_request_exec(struct iscsi_adm_req *req, struct iscsi_adm_r
 					      req->u.trgt.target_param);
 		break;
 	case C_TRGT_SHOW:
-		err = ki->param_get(req->tid, req->sid, key_target,
+		err = kernel_param_get(req->tid, req->sid, key_target,
 				    req->u.trgt.target_param);
 		break;
 
@@ -88,14 +88,14 @@ static void iscsi_adm_request_exec(struct iscsi_adm_req *req, struct iscsi_adm_r
 	case C_SESS_UPDATE:
 		break;
 	case C_SESS_SHOW:
-		err = ki->param_get(req->tid, req->sid, key_session,
+		err = kernel_param_get(req->tid, req->sid, key_session,
 				    req->u.trgt.session_param);
 		break;
 
 	case C_CONN_NEW:
 	case C_CONN_DEL:
 		conn_blocked = 1;
-		err = ki->conn_destroy(req->tid, req->sid, req->cid);
+		err = kernel_conn_destroy(req->tid, req->sid, req->cid);
 		conn_blocked = 0;
 		break;
 	case C_CONN_UPDATE:

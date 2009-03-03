@@ -107,14 +107,14 @@ static int notify(void *data, int len, gfp_t gfp_mask)
 int event_send(u32 tid, u64 sid, u32 cid, u32 state, int atomic)
 {
 	int err;
-	struct iscsi_event event;
+	struct iscsi_kern_event event;
 
 	event.tid = tid;
 	event.sid = sid;
 	event.cid = cid;
 	event.state = state;
 
-	err = notify(&event, NLMSG_SPACE(sizeof(struct iscsi_event)), 0);
+	err = notify(&event, NLMSG_SPACE(sizeof(struct iscsi_kern_event)), 0);
 
 	return err;
 }

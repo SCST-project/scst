@@ -28,32 +28,6 @@ static LIST_HEAD(target_list);
 static u32 next_target_id;
 static u32 nr_targets;
 
-static struct iscsi_sess_param default_session_param = {
-	.initial_r2t = 1,
-	.immediate_data = 1,
-	.max_connections = 1,
-	.max_recv_data_length = 8192,
-	.max_xmit_data_length = 8192,
-	.max_burst_length = 262144,
-	.first_burst_length = 65536,
-	.default_wait_time = 2,
-	.default_retain_time = 20,
-	.max_outstanding_r2t = 1,
-	.data_pdu_inorder = 1,
-	.data_sequence_inorder = 1,
-	.error_recovery_level = 0,
-	.header_digest = DIGEST_NONE,
-	.data_digest = DIGEST_NONE,
-	.ofmarker = 0,
-	.ifmarker = 0,
-	.ofmarkint = 2048,
-	.ifmarkint = 2048,
-};
-
-static struct iscsi_trgt_param default_target_param = {
-	.queued_cmnds = DEFAULT_NR_QUEUED_CMNDS,
-};
-
 /* target_mgmt_mutex supposed to be locked */
 struct iscsi_target *target_lookup_by_id(u32 id)
 {
@@ -79,7 +53,7 @@ static struct iscsi_target *target_lookup_by_name(char *name)
 }
 
 /* target_mgmt_mutex supposed to be locked */
-static int iscsi_target_create(struct target_info *info, u32 tid)
+static int iscsi_target_create(struct iscsi_kern_target_info *info, u32 tid)
 {
 	int err = -EINVAL, len;
 	char *name = info->name;
@@ -106,11 +80,6 @@ static int iscsi_target_create(struct target_info *info, u32 tid)
 
 	target->tid = info->tid = tid;
 
-	memcpy(&target->trgt_sess_param, &default_session_param,
-		sizeof(default_session_param));
-	memcpy(&target->trgt_param, &default_target_param,
-		sizeof(default_target_param));
-
 	strncpy(target->name, name, sizeof(target->name) - 1);
 
 	mutex_init(&target->target_mutex);
@@ -123,7 +92,7 @@ static int iscsi_target_create(struct target_info *info, u32 tid)
 		goto out_free;
 	}
 
-	list_add(&target->target_list_entry, &target_list);
+	list_add_tail(&target->target_list_entry, &target_list);
 
 	return 0;
 
@@ -138,7 +107,7 @@ out:
 }
 
 /* target_mgmt_mutex supposed to be locked */
-int target_add(struct target_info *info)
+int target_add(struct iscsi_kern_target_info *info)
 {
 	int err = -EEXIST;
 	u32 tid = info->tid;
@@ -215,15 +184,13 @@ out:
 	return err;
 }
 
-static void target_del_session(struct iscsi_target *target,
-	struct iscsi_session *session, bool deleting)
+void target_del_session(struct iscsi_target *target,
+	struct iscsi_session *session, int flags)
 {
-	int flags = ISCSI_CONN_ACTIVE_CLOSE;
+	TRACE_ENTRY();
 
-	if (deleting)
-		flags |= ISCSI_CONN_DELETING;
+	TRACE_MGMT_DBG("Deleting session %p", session);
 
-	TRACE_MGMT_DBG("Cleaning up session %p", session);
 	if (!list_empty(&session->conn_list)) {
 		struct iscsi_conn *conn, *tc;
 		list_for_each_entry_safe(conn, tc, &session->conn_list,
@@ -236,10 +203,13 @@ static void target_del_session(struct iscsi_target *target,
 			       session);
 		session_del(target, session->sid);
 	}
+
+	TRACE_EXIT();
+	return;
 }
 
 /* target_mutex supposed to be locked */
-void target_del_all_sess(struct iscsi_target *target, bool deleting)
+void target_del_all_sess(struct iscsi_target *target, int flags)
 {
 	struct iscsi_session *session, *ts;
 
@@ -249,7 +219,7 @@ void target_del_all_sess(struct iscsi_target *target, bool deleting)
 		TRACE_MGMT_DBG("Deleting all sessions from target %p", target);
 		list_for_each_entry_safe(session, ts, &target->session_list,
 						session_list_entry) {
-			target_del_session(target, session, deleting);
+			target_del_session(target, session, flags);
 		}
 	}
 
@@ -276,7 +246,9 @@ void target_del_all(void)
 					 target_list_entry) {
 			mutex_lock(&target->target_mutex);
 			if (!list_empty(&target->session_list)) {
-				target_del_all_sess(target, true);
+				target_del_all_sess(target,
+					ISCSI_CONN_ACTIVE_CLOSE |
+					ISCSI_CONN_DELETING);
 				mutex_unlock(&target->target_mutex);
 			} else {
 				TRACE_MGMT_DBG("Deleting target %p", target);
