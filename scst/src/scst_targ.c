@@ -526,6 +526,14 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 	if (cmd->data_len == -1)
 		cmd->data_len = cmd->bufflen;
 
+	if (cmd->bufflen == 0) {
+		/*
+		 * According to SPC bufflen 0 for data transfer commands isn't
+		 * an error, so we need to fix the transfer direction.
+		 */
+		cmd->data_direction = SCST_DATA_NONE;
+	}
+
 	if (cmd->dh_data_buf_alloced &&
 	    unlikely((orig_bufflen > cmd->bufflen))) {
 		PRINT_ERROR("Dev handler supplied data buffer (size %d), "
