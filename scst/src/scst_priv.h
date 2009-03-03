@@ -251,7 +251,7 @@ struct scst_acg *scst_alloc_add_acg(const char *acg_name);
 int scst_destroy_acg(struct scst_acg *acg);
 
 int scst_sess_alloc_tgt_devs(struct scst_session *sess);
-void scst_nexus_loss(struct scst_tgt_dev *tgt_dev);
+void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA);
 
 int scst_acg_add_dev(struct scst_acg *acg, struct scst_device *dev,
 		     uint64_t lun, int read_only);

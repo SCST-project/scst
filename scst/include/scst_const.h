@@ -74,7 +74,10 @@
 
 /*
  * Internal TM command issued by SCST in scst_unregister_session(). It is the
- * same as SCST_NEXUS_LOSS_SESS, except it calls unreg_cmds_done_fn().
+ * same as SCST_NEXUS_LOSS_SESS, except:
+ *  - it doesn't call task_mgmt_affected_cmds_done()
+ *  - it doesn't call task_mgmt_fn_done()
+ *  - it doesn't queue NEXUS LOSS UA.
  *
  * Target driver shall NEVER use it!!
  */

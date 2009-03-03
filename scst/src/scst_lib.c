@@ -197,6 +197,56 @@ void scst_set_busy(struct scst_cmd *cmd)
 }
 EXPORT_SYMBOL(scst_set_busy);
 
+void scst_set_initial_UA(struct scst_session *sess, int key, int asc, int ascq)
+{
+	int i;
+
+	TRACE_ENTRY();
+
+	TRACE_MGMT_DBG("Setting for sess %p initial UA %x/%x/%x", sess, key,
+		asc, ascq);
+
+	/* Protect sess_tgt_dev_list_hash */
+	mutex_lock(&scst_mutex); 
+
+	for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
+		struct list_head *sess_tgt_dev_list_head =
+			&sess->sess_tgt_dev_list_hash[i];
+		struct scst_tgt_dev *tgt_dev;
+
+		list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
+				sess_tgt_dev_list_entry) {
+			spin_lock_bh(&tgt_dev->tgt_dev_lock);
+			if (!list_empty(&tgt_dev->UA_list)) {
+				struct scst_tgt_dev_UA *ua;
+				uint8_t *sense;
+
+				ua = list_entry(tgt_dev->UA_list.next,
+					typeof(*ua), UA_list_entry);
+				sense = ua->UA_sense_buffer;
+				if ((sense[2] == UNIT_ATTENTION) &&
+				    (sense[12] == 0x29) &&
+				    (sense[13] == 0)) {
+					scst_set_sense(sense,
+						sizeof(ua->UA_sense_buffer),
+						key, asc, ascq);
+				} else
+					PRINT_ERROR("%s",
+						"The first UA isn't RESET UA");
+			} else
+				PRINT_ERROR("%s", "There's no RESET UA to "
+					"replace");
+			spin_unlock_bh(&tgt_dev->tgt_dev_lock);
+		}
+	}
+
+	mutex_unlock(&scst_mutex); 
+
+	TRACE_EXIT();
+	return;
+}
+EXPORT_SYMBOL(scst_set_initial_UA);
+
 int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
 {
 	int res;
@@ -642,7 +692,7 @@ out_free:
 static void scst_clear_reservation(struct scst_tgt_dev *tgt_dev);
 
 /* No locks supposed to be held, scst_mutex - held */
-void scst_nexus_loss(struct scst_tgt_dev *tgt_dev)
+void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA)
 {
 	TRACE_ENTRY();
 
@@ -653,11 +703,13 @@ void scst_nexus_loss(struct scst_tgt_dev *tgt_dev)
 	scst_free_all_UA(tgt_dev);
 	spin_unlock_bh(&tgt_dev->tgt_dev_lock);
 
-	spin_lock_bh(&scst_temp_UA_lock);
-	scst_set_sense(scst_temp_UA, sizeof(scst_temp_UA),
-		SCST_LOAD_SENSE(scst_sense_nexus_loss_UA));
-	scst_check_set_UA(tgt_dev, scst_temp_UA, sizeof(scst_temp_UA), 0);
-	spin_unlock_bh(&scst_temp_UA_lock);
+	if (queue_UA) {
+		spin_lock_bh(&scst_temp_UA_lock);
+		scst_set_sense(scst_temp_UA, sizeof(scst_temp_UA),
+			SCST_LOAD_SENSE(scst_sense_nexus_loss_UA));
+		scst_check_set_UA(tgt_dev, scst_temp_UA, sizeof(scst_temp_UA), 0);
+		spin_unlock_bh(&scst_temp_UA_lock);
+	}
 
 	TRACE_EXIT();
 	return;

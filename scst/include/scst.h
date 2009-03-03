@@ -153,22 +153,22 @@ typedef _Bool bool;
  *************************************************************/
 
 /* LUN translation (mcmd->tgt_dev assignment) */
-#define SCST_MGMT_CMD_STATE_INIT     0
+#define SCST_MCMD_STATE_INIT     0
 
 /* Mgmt cmd is ready for processing */
-#define SCST_MGMT_CMD_STATE_READY    1
+#define SCST_MCMD_STATE_READY    1
 
 /* Mgmt cmd is being executing */
-#define SCST_MGMT_CMD_STATE_EXECUTING 2
+#define SCST_MCMD_STATE_EXECUTING 2
 
-/* Reservations are going to be cleared, if necessary */
-#define SCST_MGMT_CMD_STATE_CHECK_NEXUS_LOSS 3
+/* Post check when affected commands done */
+#define SCST_MCMD_STATE_POST_AFFECTED_CMDS_DONE 3
 
 /* Target driver's task_mgmt_fn_done() is going to be called */
-#define SCST_MGMT_CMD_STATE_DONE     4
+#define SCST_MCMD_STATE_DONE     4
 
 /* The mcmd finished */
-#define SCST_MGMT_CMD_STATE_FINISHED 5
+#define SCST_MCMD_STATE_FINISHED 5
 
 /*************************************************************
  ** Constants for "atomic" parameter of SCST's functions
@@ -616,21 +616,28 @@ struct scst_tgt_template {
 	int (*pre_exec) (struct scst_cmd *cmd);
 
 	/*
-	 * This function informs the driver that a
-	 * received task management function has been completed. This
-	 * function is necessary because low-level protocols have some
-	 * means of informing the initiator about the completion of a
-	 * Task Management function. This function being called will
-	 * signify that a Task Management function is completed as far
-	 * as the mid-level is concerned. Any information that must be
-	 * stored about the command is the responsibility of the low-
-	 * level driver. No return value expected.
+	 * This function informs the driver that all affected by the
+	 * corresponding task management function commands have beed completed.
+	 * No return value expected.
 	 *
-	 * This function is expected to be NON-BLOCKING
+	 * This function is expected to be NON-BLOCKING.
 	 *
 	 * Called without any locks held from a thread context.
 	 *
-	 * MUST HAVE if the target supports ABORTs
+	 * OPTIONAL
+	 */
+	void (*task_mgmt_affected_cmds_done) (struct scst_mgmt_cmd *mgmt_cmd);
+
+	/*
+	 * This function informs the driver that the corresponding task 
+	 * management function has been completed, i.e. all the corresponding
+	 * commands completed and freed. No return value expected.
+	 *
+	 * This function is expected to be NON-BLOCKING.
+	 *
+	 * Called without any locks held from a thread context.
+	 *
+	 * MUST HAVE if the target supports task management.
 	 */
 	void (*task_mgmt_fn_done) (struct scst_mgmt_cmd *mgmt_cmd);
 
@@ -987,7 +994,6 @@ struct scst_session {
 	void (*init_result_fn) (struct scst_session *sess, void *data,
 				int result);
 	void (*unreg_done_fn) (struct scst_session *sess);
-	void (*unreg_cmds_done_fn) (struct scst_session *sess);
 
 #ifdef CONFIG_SCST_MEASURE_LATENCY /* must be last */
 	spinlock_t meas_lock;
@@ -1299,7 +1305,7 @@ struct scst_mgmt_cmd {
 
 	struct scst_session *sess;
 
-	/* Mgmt cmd state, one of SCST_MGMT_CMD_STATE_* constants */
+	/* Mgmt cmd state, one of SCST_MCMD_STATE_* constants */
 	int state;
 
 	int fn;
@@ -1309,8 +1315,8 @@ struct scst_mgmt_cmd {
 	unsigned int needs_unblocking:1;
 	unsigned int lun_set:1;		/* set, if lun field is valid */
 	unsigned int cmd_sn_set:1;	/* set, if cmd_sn field is valid */
-	/* set, if nexus loss check is done */
-	unsigned int nexus_loss_check_done:1;
+	/* set, if scst_mgmt_affected_cmds_done was called */
+	unsigned int affected_cmds_done_called:1;
 
 	/*
 	 * Number of commands to finish before sending response,
@@ -1690,11 +1696,6 @@ struct scst_session *scst_register_session(struct scst_tgt *tgt, int atomic,
  *      the session is about to be completely freed. Can be NULL.
  *      Parameter:
  *       - sess - session
- *   unreg_cmds_done_fn - pointer to the function that will be
- *      asynchronously called when the last session's command completes, i.e.
- *      goes to XMIT stage. Can be NULL.
- *      Parameter:
- *       - sess - session
  *
  * Notes:
  *
@@ -1714,15 +1715,8 @@ struct scst_session *scst_register_session(struct scst_tgt *tgt, int atomic,
  *   but it also starts recovering stuck commands, if there are any.
  *   Otherwise, your target driver could wait for those commands forever.
  */
-void scst_unregister_session_ex(struct scst_session *sess, int wait,
-	void (*unreg_done_fn) (struct scst_session *sess),
-	void (*unreg_cmds_done_fn) (struct scst_session *sess));
-
-static inline void scst_unregister_session(struct scst_session *sess, int wait,
-	void (*unreg_done_fn) (struct scst_session *sess))
-{
-	scst_unregister_session_ex(sess, wait, unreg_done_fn, NULL);
-}
+void scst_unregister_session(struct scst_session *sess, int wait,
+	void (*unreg_done_fn) (struct scst_session *sess));
 
 /*
  * Registers dev handler driver
@@ -1920,6 +1914,11 @@ void scst_set_cmd_error(struct scst_cmd *cmd, int key, int asc, int ascq);
  * Sets BUSY or TASK QUEUE FULL status
  */
 void scst_set_busy(struct scst_cmd *cmd);
+
+/*
+ * Sets initial Unit Attention for sess, replacing default scst_sense_reset_UA
+ */
+void scst_set_initial_UA(struct scst_session *sess, int key, int asc, int ascq);
 
 /*
  * Finds a command based on the supplied tag comparing it with one
