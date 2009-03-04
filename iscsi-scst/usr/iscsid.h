@@ -58,7 +58,6 @@ struct session {
 	struct target *target;
 	union iscsi_sid sid;
 
-	int kern_conn_cnt;
 	struct __qelem conn_list;
 };
 

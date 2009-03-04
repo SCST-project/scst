@@ -568,7 +568,6 @@ static void event_loop(int timeout)
 			if (conn->state == STATE_CLOSE) {
 				log_debug(0, "closing conn %p", conn);
 				conn_free_pdu(conn);
-				conn_free(conn);
 				close(pollfd->fd);
 				pollfd->fd = -1;
 				incoming[i] = NULL;

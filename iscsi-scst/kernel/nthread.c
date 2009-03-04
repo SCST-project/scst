@@ -526,6 +526,7 @@ static void close_conn(struct iscsi_conn *conn)
 	mutex_lock(&target->target_mutex);
 
 	free_sess = (conn->conn_reinst_successor == NULL);
+	conn->conn_reinst_successor = NULL;
 
 	conn_free(conn);
 

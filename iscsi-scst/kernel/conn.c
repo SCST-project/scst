@@ -32,32 +32,36 @@ static void print_conn_state(char *p, size_t size, struct iscsi_conn *conn)
 
 	switch (conn->rd_state) {
 	case ISCSI_CONN_RD_STATE_PROCESSING:
-		snprintf(p, size, "%s", "read_processing ");
+		size -= scnprintf(p, size, "%s", "read_processing ");
 		printed = 1;
 		break;
 	case ISCSI_CONN_RD_STATE_IN_LIST:
-		snprintf(p, size, "%s", "in_read_list ");
+		size -= scnprintf(p, size, "%s", "in_read_list ");
 		printed = 1;
 		break;
 	}
 
 	switch (conn->wr_state) {
 	case ISCSI_CONN_WR_STATE_PROCESSING:
-		snprintf(p, size, "%s", "write_processing ");
+		size -= scnprintf(p, size, "%s", "write_processing ");
 		printed = 1;
 		break;
 	case ISCSI_CONN_WR_STATE_IN_LIST:
-		snprintf(p, size, "%s", "in_write_list ");
+		size -= scnprintf(p, size, "%s", "in_write_list ");
 		printed = 1;
 		break;
 	case ISCSI_CONN_WR_STATE_SPACE_WAIT:
-		snprintf(p, size, "%s", "space_waiting ");
+		size -= scnprintf(p, size, "%s", "space_waiting ");
 		printed = 1;
 		break;
 	}
 
-	if (!printed)
+	if (conn->conn_reinstating)
+		snprintf(p, size, "%s", "reinstating ");
+	else if (!printed)
 		snprintf(p, size, "%s", "established idle ");
+
+	return;
 }
 
 static void print_digest_state(char *p, size_t size, unsigned long flags)
@@ -184,7 +188,7 @@ void mark_conn_closed(struct iscsi_conn *conn)
 	__mark_conn_closed(conn, ISCSI_CONN_ACTIVE_CLOSE);
 }
 
-static void iscsi_state_change(struct sock *sk)
+static void __iscsi_state_change(struct sock *sk)
 {
 	struct iscsi_conn *conn = sk->sk_user_data;
 
@@ -202,9 +206,17 @@ static void iscsi_state_change(struct sock *sk)
 	} else
 		iscsi_make_conn_rd_active(conn);
 
+	TRACE_EXIT();
+	return;
+}
+
+static void iscsi_state_change(struct sock *sk)
+{
+	struct iscsi_conn *conn = sk->sk_user_data;
+
+	__iscsi_state_change(sk);
 	conn->old_state_change(sk);
 
-	TRACE_EXIT();
 	return;
 }
 
@@ -308,7 +320,11 @@ void __iscsi_socket_bind(struct iscsi_conn *conn)
 
 	write_unlock_bh(&conn->sock->sk->sk_callback_lock);
 
-	iscsi_make_conn_rd_active(conn);
+	/*
+	 * Check, if conn was closed while we were initializing it.
+	 * This function will make conn rd_active, if necessary.
+	 */
+	__iscsi_state_change(conn->sock->sk);
 
 	return;
 }
@@ -501,7 +517,8 @@ int conn_add(struct iscsi_session *session, struct iscsi_kern_conn_info *info)
 		goto out;
 
 	if (reinstatement) {
-		TRACE_MGMT_DBG("Reinstating conn %p", conn);
+		TRACE_MGMT_DBG("Reinstating conn (old %p, new %p)", conn,
+			new_conn);
 		conn->conn_reinst_successor = new_conn;
 		new_conn->conn_reinstating = 1;
 		__mark_conn_closed(conn, 0);

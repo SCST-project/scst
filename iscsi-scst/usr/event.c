@@ -80,6 +80,7 @@ static int nl_read(int fd, void *data, int len)
 void handle_iscsi_events(int fd)
 {
 	struct session *session;
+	struct connection *conn;
 	struct iscsi_kern_event event;
 	int res;
 
@@ -98,13 +99,22 @@ retry:
 
 	switch (event.state) {
 	case E_CONN_CLOSE:
-		if (!(session = session_find_id(event.tid, event.sid))) {
-			log_warning("session %#" PRIx64 " not found?", event.sid);
+		session = session_find_id(event.tid, event.sid);
+		if (session == NULL) {
+			log_error("Session %#" PRIx64 " not found", event.sid);
 			goto retry;
 		}
 
-		session->kern_conn_cnt--;
-		if ((session->kern_conn_cnt == 0) && list_empty(&session->conn_list))
+		conn = conn_find(session, event.cid);
+		if (conn == NULL) {
+			log_error("Connection %x for session %#" PRIx64 " not "
+				"found", event.cid, event.sid);
+			goto retry;
+		}
+
+		conn_free(conn);
+
+		if (list_empty(&session->conn_list))
 			session_free(session);
 		break;
 	default:
