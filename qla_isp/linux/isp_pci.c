@@ -872,12 +872,12 @@ isplinux_pci_init_one(struct Scsi_Host *host)
      */
 
     if (IS_1020(isp)) {
-        if (pci_set_dma_mask(pdev, DMA_BIT_MASK(24))) {
+        if (pci_set_dma_mask(pdev, (u64)(0xffffffull))) {
                 isp_prt(isp, ISP_LOGERR, "cannot set dma mask");
                 goto bad;
         }
-    } else if (pci_set_dma_mask(pdev, DMA_BIT_MASK(64))) {
-        if (pci_set_dma_mask(pdev, DMA_BIT_MASK(32))) {
+    } else if (pci_set_dma_mask(pdev, (u64) (0xffffffffffffffffull))) {
+        if (pci_set_dma_mask(pdev, (u64) (0xffffffffull))) {
             isp_prt(isp, ISP_LOGERR, "cannot set dma mask");
             goto bad;
         }
