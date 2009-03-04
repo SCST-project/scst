@@ -645,6 +645,7 @@ set_res:
 	case SCST_CMD_STATE_PRE_XMIT_RESP:
 	case SCST_CMD_STATE_XMIT_RESP:
 	case SCST_CMD_STATE_FINISHED:
+	case SCST_CMD_STATE_FINISHED_INTERNAL:
 		cmd->state = state;
 		res = SCST_CMD_STATE_RES_CONT_SAME;
 		break;
@@ -1374,7 +1375,8 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state,
 #ifdef CONFIG_SCST_EXTRACHECKS
 	if ((next_state != SCST_CMD_STATE_PRE_DEV_DONE) &&
 	    (next_state != SCST_CMD_STATE_PRE_XMIT_RESP) &&
-	    (next_state != SCST_CMD_STATE_FINISHED)) {
+	    (next_state != SCST_CMD_STATE_FINISHED) &&
+	    (next_state != SCST_CMD_STATE_FINISHED_INTERNAL)) {
 		PRINT_ERROR("%s() received invalid cmd state %d (opcode %d)",
 			__func__, next_state, cmd->cdb[0]);
 		scst_set_cmd_error(cmd,
@@ -2587,10 +2589,9 @@ static void scst_inc_check_expected_sn(struct scst_cmd *cmd)
 	scst_make_deferred_commands_active(cmd->tgt_dev);
 }
 
-static int scst_dev_done(struct scst_cmd **pcmd)
+static int scst_dev_done(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_RES_CONT_SAME;
-	struct scst_cmd *cmd = *pcmd;
 	int state;
 	struct scst_device *dev = cmd->dev;
 
@@ -2638,6 +2639,7 @@ static int scst_dev_done(struct scst_cmd **pcmd)
 	case SCST_CMD_STATE_DEV_DONE:
 	case SCST_CMD_STATE_XMIT_RESP:
 	case SCST_CMD_STATE_FINISHED:
+	case SCST_CMD_STATE_FINISHED_INTERNAL:
 		cmd->state = state;
 		break;
 
@@ -2673,8 +2675,8 @@ static int scst_dev_done(struct scst_cmd **pcmd)
 	if (cmd->inc_expected_sn_on_done && cmd->sent_for_exec)
 		scst_inc_check_expected_sn(cmd);
 
-	if (unlikely(cmd->cdb[0] == REQUEST_SENSE) && (cmd->internal))
-		*pcmd = scst_complete_request_sense(cmd);
+	if (unlikely(cmd->internal))
+		cmd->state = SCST_CMD_STATE_FINISHED_INTERNAL;
 
 out:
 	TRACE_EXIT_HRES(res);
@@ -2686,6 +2688,8 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 	int res;
 
 	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(cmd->internal);
 
 #ifdef CONFIG_SCST_DEBUG_TM
 	if (cmd->tm_dbg_delayed &&
@@ -2791,6 +2795,8 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 	int res, rc;
 
 	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(cmd->internal);
 
 	if (unlikely(!cmd->tgtt->xmit_response_atomic &&
 		     scst_cmd_atomic(cmd))) {
@@ -3402,7 +3408,7 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 			break;
 
 		case SCST_CMD_STATE_DEV_DONE:
-			res = scst_dev_done(&cmd);
+			res = scst_dev_done(cmd);
 			break;
 
 		case SCST_CMD_STATE_PRE_XMIT_RESP:
@@ -3417,6 +3423,12 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 
 		case SCST_CMD_STATE_FINISHED:
 			res = scst_finish_cmd(cmd);
+			EXTRACHECKS_BUG_ON(res ==
+				SCST_CMD_STATE_RES_NEED_THREAD);
+			break;
+
+		case SCST_CMD_STATE_FINISHED_INTERNAL:
+			res = scst_finish_internal_cmd(cmd);
 			EXTRACHECKS_BUG_ON(res ==
 				SCST_CMD_STATE_RES_NEED_THREAD);
 			break;
@@ -3449,6 +3461,7 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 		case SCST_CMD_STATE_PRE_XMIT_RESP:
 		case SCST_CMD_STATE_XMIT_RESP:
 		case SCST_CMD_STATE_FINISHED:
+		case SCST_CMD_STATE_FINISHED_INTERNAL:
 			TRACE_DBG("Adding cmd %p to head of active cmd list",
 				  cmd);
 			list_add(&cmd->cmd_list_entry,

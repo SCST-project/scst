@@ -104,10 +104,13 @@ typedef _Bool bool;
 /* Target driver's xmit_response() is going to be called */
 #define SCST_CMD_STATE_XMIT_RESP     12
 
-/* The cmd finished */
+/* Cmd finished */
 #define SCST_CMD_STATE_FINISHED      13
 
-#define SCST_CMD_STATE_LAST_ACTIVE   (SCST_CMD_STATE_FINISHED+100)
+/* Internal cmd finished */
+#define SCST_CMD_STATE_FINISHED_INTERNAL 14
+
+#define SCST_CMD_STATE_LAST_ACTIVE   (SCST_CMD_STATE_FINISHED_INTERNAL+100)
 
 /* A cmd is created, but scst_cmd_init_done() not called */
 #define SCST_CMD_STATE_INIT_WAIT     (SCST_CMD_STATE_LAST_ACTIVE+1)

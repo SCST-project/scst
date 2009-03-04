@@ -280,6 +280,7 @@ void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 	case SCST_CMD_STATE_PRE_XMIT_RESP:
 	case SCST_CMD_STATE_XMIT_RESP:
 	case SCST_CMD_STATE_FINISHED:
+	case SCST_CMD_STATE_FINISHED_INTERNAL:
 	case SCST_CMD_STATE_XMIT_WAIT:
 		PRINT_CRIT_ERROR("Wrong cmd state %x (cmd %p, op %x)",
 			cmd->state, cmd, cmd->cdb[0]);
@@ -1042,21 +1043,15 @@ static struct scst_cmd *scst_create_prepare_internal_cmd(
 	res->orig_cmd = orig_cmd;
 	res->bufflen = bufsize;
 
+	scst_sess_get(res->sess);
+	if (res->tgt_dev != NULL)
+		__scst_get(0);
+
 	res->state = SCST_CMD_STATE_PRE_PARSE;
 
 out:
 	TRACE_EXIT_HRES((unsigned long)res);
 	return res;
-}
-
-static void scst_free_internal_cmd(struct scst_cmd *cmd)
-{
-	TRACE_ENTRY();
-
-	__scst_cmd_put(cmd);
-
-	TRACE_EXIT();
-	return;
 }
 
 int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
@@ -1088,11 +1083,11 @@ int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
 	rs_cmd->expected_values_set = 1;
 
 	TRACE(TRACE_MGMT_MINOR, "Adding REQUEST SENSE cmd %p to head of active "
-		"cmd list ", rs_cmd);
+		"cmd list", rs_cmd);
 	spin_lock_irq(&rs_cmd->cmd_lists->cmd_list_lock);
 	list_add(&rs_cmd->cmd_list_entry, &rs_cmd->cmd_lists->active_cmd_list);
-	spin_unlock_irq(&rs_cmd->cmd_lists->cmd_list_lock);
 	wake_up(&rs_cmd->cmd_lists->cmd_list_waitQ);
+	spin_unlock_irq(&rs_cmd->cmd_lists->cmd_list_lock);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1104,7 +1099,7 @@ out_error:
 #undef sbuf_size
 }
 
-struct scst_cmd *scst_complete_request_sense(struct scst_cmd *req_cmd)
+static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 {
 	struct scst_cmd *orig_cmd = req_cmd->orig_cmd;
 	uint8_t *buf;
@@ -1132,10 +1127,34 @@ struct scst_cmd *scst_complete_request_sense(struct scst_cmd *req_cmd)
 	if (len > 0)
 		scst_put_buf(req_cmd, buf);
 
-	scst_free_internal_cmd(req_cmd);
+	TRACE(TRACE_MGMT_MINOR, "Adding orig cmd %p to head of active "
+		"cmd list", orig_cmd);
+	spin_lock_irq(&orig_cmd->cmd_lists->cmd_list_lock);
+	list_add(&orig_cmd->cmd_list_entry, &orig_cmd->cmd_lists->active_cmd_list);
+	wake_up(&orig_cmd->cmd_lists->cmd_list_waitQ);
+	spin_unlock_irq(&orig_cmd->cmd_lists->cmd_list_lock);
 
-	TRACE_EXIT_HRES((unsigned long)orig_cmd);
-	return orig_cmd;
+	TRACE_EXIT();
+	return;
+}
+
+int scst_finish_internal_cmd(struct scst_cmd *cmd)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	sBUG_ON(!cmd->internal);
+
+	if (cmd->cdb[0] == REQUEST_SENSE)
+		scst_complete_request_sense(cmd);
+
+	__scst_cmd_put(cmd);
+
+	res = SCST_CMD_STATE_RES_CONT_NEXT;
+
+	TRACE_EXIT_HRES(res);
+	return res;
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
@@ -1515,13 +1534,6 @@ void scst_free_cmd(struct scst_cmd *cmd)
 	if (!cmd->tgt_data_buf_alloced)
 		scst_check_restore_sg_buff(cmd);
 
-	if (unlikely(cmd->internal)) {
-		if (cmd->bufflen > 0)
-			scst_release_space(cmd);
-		scst_destroy_cmd(cmd);
-		goto out;
-	}
-
 	if (cmd->tgtt->on_free_cmd != NULL) {
 		TRACE_DBG("Calling target's on_free_cmd(%p)", cmd);
 		cmd->tgtt->on_free_cmd(cmd);
@@ -1549,7 +1561,7 @@ void scst_free_cmd(struct scst_cmd *cmd)
 
 	if (likely(cmd->tgt_dev != NULL)) {
 #ifdef CONFIG_SCST_EXTRACHECKS
-		if (unlikely(!cmd->sent_for_exec)) {
+		if (unlikely(!cmd->sent_for_exec) && !cmd->internal) {
 			PRINT_ERROR("Finishing not executed cmd %p (opcode "
 			    "%d, target %s, lun %lld, sn %ld, expected_sn %ld)",
 			    cmd, cmd->cdb[0], cmd->tgtt->name,
@@ -1572,7 +1584,6 @@ void scst_free_cmd(struct scst_cmd *cmd)
 	if (likely(destroy))
 		scst_destroy_put_cmd(cmd);
 
-out:
 	TRACE_EXIT();
 	return;
 }
