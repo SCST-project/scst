@@ -358,10 +358,11 @@ static void close_conn(struct iscsi_conn *conn)
 {
 	struct iscsi_session *session = conn->session;
 	struct iscsi_target *target = conn->target;
+	struct iscsi_conn *c;
 	typeof(jiffies) start_waiting = jiffies;
 	typeof(jiffies) shut_start_waiting = start_waiting;
 	bool pending_reported = 0, wait_expired = 0, shut_expired = 0;
-	bool free_sess;
+	bool reinst;
 
 #define CONN_PENDING_TIMEOUT	((typeof(jiffies))10*HZ)
 #define CONN_WAIT_TIMEOUT	((typeof(jiffies))10*HZ)
@@ -385,7 +386,22 @@ static void close_conn(struct iscsi_conn *conn)
 			RCV_SHUTDOWN|SEND_SHUTDOWN);
 	}
 
-	if (conn->conn_reinst_successor != NULL) {
+	mutex_lock(&session->target->target_mutex);
+
+	conn->conn_shutting_down = 1;
+	reinst = (conn->conn_reinst_successor != NULL);
+
+	session->sess_shutting_down = 1;
+	list_for_each_entry(c, &session->conn_list, conn_list_entry) {
+		if (!c->conn_shutting_down) {
+			session->sess_shutting_down = 0;
+			break;
+		}
+	}
+
+	mutex_unlock(&session->target->target_mutex);
+
+	if (reinst) {
 		int rc;
 		int lun = 0;
 
@@ -525,14 +541,11 @@ static void close_conn(struct iscsi_conn *conn)
 
 	mutex_lock(&target->target_mutex);
 
-	free_sess = (conn->conn_reinst_successor == NULL);
 	conn->conn_reinst_successor = NULL;
-
 	conn_free(conn);
 
-	if (free_sess) {
+	if (list_empty(&session->conn_list)) {
 		sBUG_ON(session->sess_reinst_successor != NULL);
-		/* ToDo: this is incompatible with MC/S */
 		session_free(session);
 	}
 

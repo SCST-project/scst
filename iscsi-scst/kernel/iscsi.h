@@ -114,9 +114,10 @@ struct iscsi_session {
 
 	struct list_head session_list_entry;
 
-	/* All don't need any protection */
+	/* All protected by target_mutex, where necessary */
 	struct iscsi_session *sess_reinst_successor;
 	unsigned int sess_reinstating:1;
+	unsigned int sess_shutting_down:1;
 
 	/* All don't need any protection */
 	char *initiator_name;
@@ -218,9 +219,10 @@ struct iscsi_conn {
 
 	struct list_head conn_list_entry; /* list entry in session conn_list */
 
-	/* All don't need any protection */
+	/* All protected by target_mutex, where necessary */
 	struct iscsi_conn *conn_reinst_successor;
 	unsigned int conn_reinstating:1;
+	unsigned int conn_shutting_down:1;
 
 	struct completion ready_to_free;
 

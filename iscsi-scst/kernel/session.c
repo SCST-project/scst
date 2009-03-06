@@ -184,8 +184,10 @@ int session_add(struct iscsi_target *target,
 		i.id.tsih = 0;
 		if ((sid.id64 == i.id64) &&
 		    (strcmp(info->initiator_name, session->initiator_name) == 0)) {
-		    	/* session reinstatement */
-		    	old_sess = session;
+		    	if (!session->sess_shutting_down) {
+				/* session reinstatement */
+				old_sess = session;
+			}
 			break;
 		}
 	}

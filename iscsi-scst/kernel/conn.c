@@ -394,6 +394,7 @@ int conn_free(struct iscsi_conn *conn)
 	sBUG_ON(!list_empty(&conn->write_list));
 	sBUG_ON(!list_empty(&conn->written_list));
 	sBUG_ON(conn->conn_reinst_successor != NULL);
+	sBUG_ON(!conn->conn_shutting_down);
 
 	if (conn->conn_reinstating) {
 		struct iscsi_conn *c;
@@ -504,7 +505,7 @@ int conn_add(struct iscsi_session *session, struct iscsi_kern_conn_info *info)
 	bool reinstatement = false;
 
 	conn = conn_lookup(session, info->cid);
-	if (conn != NULL) {
+	if ((conn != NULL) && !conn->conn_shutting_down) {
 		/* conn reinstatement */
 		reinstatement = true;
 	} else if (!list_empty(&session->conn_list)) {
