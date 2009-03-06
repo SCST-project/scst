@@ -2087,6 +2087,14 @@ static int scst_exec(struct scst_cmd **active_cmd)
 		int rc;
 
 		cmd->sent_for_exec = 1;
+		/*
+		 * To sync with scst_abort_cmd(). The above assignment must
+		 * be before SCST_CMD_ABORTED test, done later in
+		 * scst_check_local_events(). It's far from here, so the order
+		 * is virtually guaranteed, but let's have it just in case.
+		 */
+		smp_mb();
+
 		cmd->scst_cmd_done = scst_cmd_done_local;
 		cmd->state = SCST_CMD_STATE_LOCAL_EXEC;
 
@@ -3657,6 +3665,9 @@ void scst_done_cmd_mgmt(struct scst_cmd *cmd)
 
 	spin_lock_irqsave(&scst_mcmd_lock, flags);
 
+	if (!test_bit(SCST_CMD_DONE_COUNTED, &cmd->cmd_flags))
+		goto out_unlock;
+
 	list_for_each_entry(mstb, &cmd->mgmt_cmd_list,
 			cmd_mgmt_cmd_list_entry) {
 		struct scst_mgmt_cmd *mcmd = mstb->mcmd;
@@ -3683,6 +3694,7 @@ void scst_done_cmd_mgmt(struct scst_cmd *cmd)
 		}
 	}
 
+out_unlock:
 	spin_unlock_irqrestore(&scst_mcmd_lock, flags);
 
 	if (wake)
@@ -3928,9 +3940,11 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 
 		mcmd->cmd_finish_wait_count++;
 
-		if (!cmd->done) {
-			TRACE_MGMT_DBG("cmd %p (tag %llu) not done yet",
-				       cmd, (long long unsigned int)cmd->tag);
+		if (cmd->sent_for_exec && !cmd->done) {
+			TRACE_MGMT_DBG("cmd %p (tag %llu) is being executed "
+				"and not done yet", cmd,
+				(long long unsigned int)cmd->tag);
+			set_bit(SCST_CMD_DONE_COUNTED, &cmd->cmd_flags);
 			mcmd->cmd_done_wait_count++;
 		}
 	}
@@ -4086,6 +4100,8 @@ static int scst_abort_task_set(struct scst_mgmt_cmd *mcmd)
 
 	__scst_abort_task_set(mcmd, tgt_dev);
 
+	tm_dbg_task_mgmt(mcmd->mcmd_tgt_dev->dev, "ABORT TASK SET", 0);
+
 	scst_unblock_aborted_cmds(0);
 
 	scst_call_dev_task_mgmt_fn(mcmd, tgt_dev, 0);
@@ -4168,6 +4184,8 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 			list_add_tail(&tgt_dev->extra_tgt_dev_list_entry,
 					&UA_tgt_devs);
 	}
+
+	tm_dbg_task_mgmt(mcmd->mcmd_tgt_dev->dev, "CLEAR TASK SET", 0);
 
 	scst_unblock_aborted_cmds(1);
 
@@ -4505,6 +4523,10 @@ static int scst_abort_all_nexus_loss_sess(struct scst_mgmt_cmd *mcmd,
 			rc = scst_call_dev_task_mgmt_fn(mcmd, tgt_dev, 0);
 			if (rc < 0 && mcmd->status == SCST_MGMT_STATUS_SUCCESS)
 				mcmd->status = rc;
+
+			tm_dbg_task_mgmt(tgt_dev->dev, "NEXUS LOSS SESS or "
+				"ABORT ALL SESS or UNREG SESS",
+				(mcmd->fn == SCST_UNREG_SESS_TM));
 		}
 	}
 
@@ -4584,6 +4606,9 @@ static int scst_abort_all_nexus_loss_tgt(struct scst_mgmt_cmd *mcmd,
 					    (mcmd->status == SCST_MGMT_STATUS_SUCCESS))
 						mcmd->status = rc;
 				}
+
+				tm_dbg_task_mgmt(tgt_dev->dev, "NEXUS LOSS or "
+					"ABORT ALL", 0);
 			}
 		}
 	}
