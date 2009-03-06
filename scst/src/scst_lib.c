@@ -258,12 +258,33 @@ int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
 	case SCST_CMD_STATE_INIT:
 	case SCST_CMD_STATE_PRE_PARSE:
 	case SCST_CMD_STATE_DEV_PARSE:
-		res = SCST_CMD_STATE_PRE_XMIT_RESP;
+	case SCST_CMD_STATE_DEV_DONE:
+		if (cmd->internal)
+			res = SCST_CMD_STATE_FINISHED_INTERNAL;
+		else
+			res = SCST_CMD_STATE_PRE_XMIT_RESP;
+		break;
+
+	case SCST_CMD_STATE_PRE_DEV_DONE:
+	case SCST_CMD_STATE_MODE_SELECT_CHECKS:
+		res = SCST_CMD_STATE_DEV_DONE;
+		break;
+
+	case SCST_CMD_STATE_PRE_XMIT_RESP:
+		res = SCST_CMD_STATE_XMIT_RESP;
+		break;
+
+	case SCST_CMD_STATE_PREPARE_SPACE:
+	case SCST_CMD_STATE_RDY_TO_XFER:
+	case SCST_CMD_STATE_TGT_PRE_EXEC:
+	case SCST_CMD_STATE_SEND_FOR_EXEC:
+	case SCST_CMD_STATE_LOCAL_EXEC:
+	case SCST_CMD_STATE_REAL_EXEC:
+		res = SCST_CMD_STATE_PRE_DEV_DONE;
 		break;
 
 	default:
-		res = SCST_CMD_STATE_PRE_DEV_DONE;
-		break;
+		sBUG();
 	}
 
 	TRACE_EXIT_RES(res);
