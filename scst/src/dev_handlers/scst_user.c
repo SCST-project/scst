@@ -791,6 +791,14 @@ static int dev_user_parse(struct scst_cmd *cmd)
 	}
 
 alloc:
+	if (cmd->bufflen == 0) {
+		/*
+		 * According to SPC bufflen 0 for data transfer commands isn't
+		 * an error, so we need to fix the transfer direction.
+		 */
+		cmd->data_direction = SCST_DATA_NONE;
+	}
+
 	if (cmd->data_direction != SCST_DATA_NONE)
 		res = dev_user_alloc_space(ucmd);
 
