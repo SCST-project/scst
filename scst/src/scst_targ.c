@@ -5094,6 +5094,57 @@ out_free:
 }
 EXPORT_SYMBOL(scst_rx_mgmt_fn);
 
+/*
+ * Returns true if string "string" matches pattern "wild", false otherwise.
+ * Pattern is a regular DOS-type pattern, containing '*' and '?' symbols.
+ * '*' means match all any symbols, '?' means match only any single symbol.
+ *
+ * For instance:
+ * if (wildcmp("bl?h.*", "blah.jpg")) {
+ *   // match
+ *  } else {
+ *   // no match
+ *  }
+ *
+ * Written by Jack Handy - jakkhandy@hotmail.com
+ * Taken by Gennadiy Nerubayev <parakie@gmail.com> from
+ * http://www.codeproject.com/KB/string/wildcmp.aspx. No license attached
+ * to it, and is posted on a free site; assumed to be free for use.
+ */
+static bool wildcmp(const char *wild, const char *string)
+{
+	const char *cp = NULL, *mp = NULL;
+
+	while ((*string) && (*wild != '*')) {
+		if ((*wild != *string) && (*wild != '?'))
+			return false;
+
+		wild++;
+		string++;
+	}
+
+	while (*string) {
+		if (*wild == '*') {
+			if (!*++wild)
+				return true;
+
+			mp = wild;
+			cp = string+1;
+		} else if ((*wild == *string) || (*wild == '?')) {
+			wild++;
+			string++;
+		} else {
+			wild = mp;
+			string = cp++;
+		}
+	}
+
+	while (*wild == '*')
+		wild++;
+
+	return !*wild;
+}
+
 /* scst_mutex supposed to be held */
 static struct scst_acg *scst_find_acg(const char *initiator_name)
 {
@@ -5103,10 +5154,8 @@ static struct scst_acg *scst_find_acg(const char *initiator_name)
 	TRACE_ENTRY();
 
 	list_for_each_entry(acg, &scst_acg_list, scst_acg_list_entry) {
-		list_for_each_entry(n, &acg->acn_list,
-			acn_list_entry)
-		{
-			if (strcmp(n->name, initiator_name) == 0) {
+		list_for_each_entry(n, &acg->acn_list, acn_list_entry) {
+			if (wildcmp(n->name, initiator_name)) {
 				TRACE_DBG("Access control group %s found",
 					acg->acg_name);
 				res = acg;

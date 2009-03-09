@@ -436,7 +436,10 @@ following files and directories under /proc/scsi_tgt:
     for group "GROUP"
 
   - "add NAME" to /proc/scsi_tgt/groups/GROUP/names adds name "NAME" to group
-    "GROUP"
+    "GROUP". For NAME you can use simple DOS-type patterns, containing
+    '*' and '?' symbols. '*' means match all any symbols, '?' means
+    match only any single symbol. For instance, "blah.xxx" will match
+    "bl?h.*".
 
   - "del NAME" to /proc/scsi_tgt/groups/GROUP/names deletes name "NAME" from group
     "GROUP"
@@ -453,6 +456,9 @@ Examples:
  - "echo "add disk1 1" >/proc/scsi_tgt/groups/Default/devices" will
  add virtual VDISK device with name "disk1" to "Default" group
  with LUN 1.
+
+- "echo "21:*:e0:?b:83:*'" >/proc/scsi_tgt/groups/LAB1/names" will
+ add a pattern, which matches WWNs of Fibre Channel ports from LAB1.
 
 Consider you need to have an iSCSI target with name
 "iqn.2007-05.com.example:storage.disk1.sys1.xyz" (you defined it in
