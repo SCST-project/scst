@@ -853,7 +853,7 @@ struct scst_dev_type {
 		int length, int *eof, struct scst_dev_type *dev_type);
 
 	/* Name of the dev handler. Must be unique. MUST HAVE */
-	char name[15];
+	char name[60]; /* It's SCST_MAX_NAME + few more bytes for scst_user */
 
 	/*
 	 * Number of dedicated threads. If 0 - no dedicated threads will
