@@ -39,9 +39,10 @@ void param_set_defaults(struct iscsi_param *params, struct iscsi_key *keys)
 {
 	int i;
 
-	for (i = 0; keys[i].name; i++) {
+	for (i = 0; keys[i].name; i++)
 		params[i].val = keys[i].local_def;
-	}
+
+	return;
 }
 
 static int range_val_to_str(unsigned int val, char *str)

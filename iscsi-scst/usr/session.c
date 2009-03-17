@@ -143,17 +143,13 @@ int session_create(struct connection *conn)
 
 	res = kernel_session_create(conn->tid, session->sid.id64, conn->exp_cmd_sn,
 			session->initiator, user);
-	if (res != 0) {
-		log_error("kernel_session_create() failed: %d", res);
+	if (res != 0)
 		goto out_free;
-	}
 
 	res = kernel_param_set(conn->tid, session->sid.id64, key_session, 0,
 		conn->session_param);
-	if (res != 0) {
-		log_error("kernel_param_set() failed: %d", res);
+	if (res != 0)
 		goto out_destroy;
-	}
 
 out:
 	return res;

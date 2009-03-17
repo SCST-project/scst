@@ -195,7 +195,7 @@ static int account_empty(u32 tid, int dir)
 	char pass[ISCSI_NAME_LEN];
 
 	memset(pass, 0, sizeof(pass));
-	return cops->account_query(tid, dir, pass, pass) < 0 ? 1 : 0;
+	return config_account_query(tid, dir, pass, pass) < 0 ? 1 : 0;
 }
 
 static void text_scan_security(struct connection *conn)
@@ -496,6 +496,9 @@ static void login_start(struct connection *conn)
 	}
 
 	if (conn->session_type == SESSION_NORMAL) {
+		struct target *target;
+		int err;
+
 		if (!target_name) {
 			rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
 			rsp->status_detail = ISCSI_STATUS_MISSING_FIELDS;
@@ -503,11 +506,30 @@ static void login_start(struct connection *conn)
 			return;
 		}
 
-		if (!(conn->tid = target_find_by_name(target_name)) ||
-		    cops->initiator_access(conn->tid, conn->fd) ||
+		target = target_find_by_name(target_name);
+		if ((target == NULL) ||
+		    config_initiator_access(conn->tid, conn->fd) ||
 		    isns_scn_access(conn->tid, conn->fd, name)) {
 			rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
 			rsp->status_detail = ISCSI_STATUS_TGT_NOT_FOUND;
+			conn->state = STATE_EXIT;
+			return;
+		}
+		conn->tid = target->tid;
+
+		err = kernel_param_get(conn->tid, conn->sid.id64, key_session,
+			conn->session_param);
+		if (err == -ENOENT) {
+			err = kernel_param_get(conn->tid, 0, key_session,
+				conn->session_param);
+		}
+
+		if (err != 0) {
+			log_error("Can't get session param for session 0x%" PRIu64 
+				" (err %d): %s\n", conn->sid.id64, err,
+				strerror(-err));
+			rsp->status_class = ISCSI_STATUS_TARGET_ERR;
+			rsp->status_detail = ISCSI_STATUS_TARGET_ERROR;
 			conn->state = STATE_EXIT;
 			return;
 		}

@@ -78,9 +78,6 @@ static struct option const long_options[] =
 	{0, 0, 0, 0},
 };
 
-/* This will be comfigurable by command line options */
-struct config_operations *cops = &plain_ops;
-
 int init_report_pipe[2];
 
 static void usage(int status)
@@ -737,11 +734,11 @@ int main(int argc, char **argv)
 		setsid();
 	}
 
-	cops->init(config, &isns, &isns_ac);
+	config_isns_load(config, &isns, &isns_ac);
 	if (isns)
 		timeout = isns_init(isns, isns_ac);
 
-	if (cops->default_load(config) != 0)
+	if (config_load(config) != 0)
 		exit(1);
 
 	if (gid && setgid(gid) < 0)

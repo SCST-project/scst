@@ -58,14 +58,14 @@ static void iscsi_adm_request_exec(struct iscsi_adm_req *req, struct iscsi_adm_r
 
 	switch (req->rcmnd) {
 	case C_TRGT_NEW:
-		err = cops->target_add(&req->tid, req->u.trgt.name);
+		err = config_target_create(&req->tid, req->u.trgt.name);
 		break;
 	case C_TRGT_DEL:
-		err = cops->target_del(req->tid);
+		err = config_target_destroy(req->tid);
 		break;
 	case C_TRGT_UPDATE:
 		if (req->u.trgt.type & (1 << key_session))
-			err = cops->param_set(req->tid, req->sid,
+			err = config_param_set(req->tid, req->sid,
 					      key_session,
 					      req->u.trgt.session_partial,
 					      req->u.trgt.session_param);
@@ -74,7 +74,7 @@ static void iscsi_adm_request_exec(struct iscsi_adm_req *req, struct iscsi_adm_r
 			goto out;
 
 		if (req->u.trgt.type & (1 << key_target))
-			err = cops->param_set(req->tid, req->sid, key_target,
+			err = config_param_set(req->tid, req->sid, key_target,
 					      req->u.trgt.target_partial,
 					      req->u.trgt.target_param);
 		break;
@@ -103,12 +103,12 @@ static void iscsi_adm_request_exec(struct iscsi_adm_req *req, struct iscsi_adm_r
 		break;
 
 	case C_ACCT_NEW:
-		err = cops->account_add(req->tid, req->u.acnt.auth_dir,
+		err = config_account_add(req->tid, req->u.acnt.auth_dir,
 					req->u.acnt.u.user.name,
 					req->u.acnt.u.user.pass);
 		break;
 	case C_ACCT_DEL:
-		err = cops->account_del(req->tid, req->u.acnt.auth_dir,
+		err = config_account_del(req->tid, req->u.acnt.auth_dir,
 					req->u.acnt.u.user.name);
 		break;
 	case C_ACCT_LIST:
@@ -121,7 +121,7 @@ static void iscsi_adm_request_exec(struct iscsi_adm_req *req, struct iscsi_adm_r
 		*rsp_data_sz = req->u.acnt.u.list.alloc_len;
 		memset(*rsp_data, 0x0, *rsp_data_sz);
 
-		err = cops->account_list(req->tid, req->u.acnt.auth_dir,
+		err = config_account_list(req->tid, req->u.acnt.auth_dir,
 					 &req->u.acnt.u.list.count,
 					 &req->u.acnt.u.list.overflow,
 					 *rsp_data, *rsp_data_sz);
@@ -129,7 +129,7 @@ static void iscsi_adm_request_exec(struct iscsi_adm_req *req, struct iscsi_adm_r
 	case C_ACCT_UPDATE:
 		break;
 	case C_ACCT_SHOW:
-		err = cops->account_query(req->tid, req->u.acnt.auth_dir,
+		err = config_account_query(req->tid, req->u.acnt.auth_dir,
 					  req->u.acnt.u.user.name,
 					  req->u.acnt.u.user.pass);
 		break;

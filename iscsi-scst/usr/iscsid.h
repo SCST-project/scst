@@ -25,7 +25,6 @@
 #include "iscsi_hdr.h"
 #include "iscsi_scst.h"
 #include "param.h"
-#include "config.h"
 #include "misc.h"
 
 #define sBUG() assert(0)
@@ -161,7 +160,6 @@ struct target {
 	struct __qelem isns_head;
 };
 
-extern struct config_operations plain_ops;
 extern int ctrl_fd;
 extern int conn_blocked;
 
@@ -222,8 +220,9 @@ extern struct connection *conn_find(struct session *session, u16 cid);
 extern struct __qelem targets_list;
 extern int target_add(u32 *, char *);
 extern int target_del(u32);
-extern u32 target_find_by_name(const char *name);
-struct target * target_find_by_id(u32);
+extern u32 target_find_id_by_name(const char *name);
+extern struct target *target_find_by_name(const char *name);
+struct target *target_find_by_id(u32);
 extern void target_list_build(struct connection *, char *, char *);
 
 /* message.c */
@@ -250,6 +249,20 @@ extern int nl_open(void);
 
 /* param.c */
 extern int param_index_by_name(char *name, struct iscsi_key *keys);
+
+/* config.c */
+extern int config_isns_load(char *params, char **isns, int *isns_ac);
+extern int config_load(char *params);
+extern int config_target_create(u32 *tid, char *name);
+extern int config_target_destroy(u32 tid);
+int config_account_add(u32 tid, int dir, char *name, char *pass);
+extern int config_account_query(u32 tid, int dir, char *name, char *pass);
+extern int config_account_list(u32 tid, int dir, u32 *cnt, u32 *overflow,
+	char *buf, size_t buf_sz);
+extern int config_account_del(u32 tid, int dir, char *name);
+extern int config_param_set(u32 tid, u64 sid, int type, u32 partial,
+	struct iscsi_param *param);
+extern int config_initiator_access(u32 tid, int fd);
 
 /* isns.c */
 extern int isns_init(char *addr, int isns_ac);

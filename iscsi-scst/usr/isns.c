@@ -447,16 +447,6 @@ static void free_all_acl(struct target *target)
 	}
 }
 
-static struct target *target_lookup_by_name(char *name)
-{
-	uint32_t tid;
-
-	tid = target_find_by_name(name);
-	if (!tid)
-		return NULL;
-	return target_find_by_id(tid);
-}
-
 int isns_target_deregister(char *name)
 {
 	char buf[4096];
@@ -466,7 +456,7 @@ int isns_target_deregister(char *name)
 	int err, last = list_empty(&targets_list);
 	struct target *target;
 
-	target = target_lookup_by_name(name);
+	target = target_find_by_name(name);
 	if (target)
 		free_all_acl(target);
 
@@ -667,7 +657,7 @@ found:
 		goto free_qry_mgmt;
 	}
 
-	target = target_lookup_by_name(mgmt->name);
+	target = target_find_by_name(mgmt->name);
 	if (!target) {
 		log_error("%s %d: invalid tid %s",
 			  __func__, __LINE__, mgmt->name);

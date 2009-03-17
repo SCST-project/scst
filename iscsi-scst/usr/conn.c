@@ -65,9 +65,6 @@ void conn_pass_to_kern(struct connection *conn, int fd)
 			      conn->session_param[key_header_digest].val,
 			      conn->session_param[key_data_digest].val);
 
-	if (err != 0)
-		log_error("kernel_conn_create() failed: %s", strerror(errno));
-
 	/* We don't need to return err, because we are going to close conn anyway */
 	return;
 }

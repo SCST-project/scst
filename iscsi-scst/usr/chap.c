@@ -391,7 +391,7 @@ static int chap_initiator_auth_check_response(struct connection *conn)
 	char pass[ISCSI_NAME_LEN];
 
 	memset(pass, 0, sizeof(pass));
-	if (cops->account_query(conn->tid, AUTH_DIR_INCOMING, pass, pass) < 0) {
+	if (config_account_query(conn->tid, AUTH_DIR_INCOMING, pass, pass) < 0) {
 		log_warning("CHAP initiator auth.: "
 			    "No CHAP credentials configured");
 		retval = CHAP_TARGET_ERROR;
@@ -409,7 +409,7 @@ static int chap_initiator_auth_check_response(struct connection *conn)
 	}
 
 	memset(pass, 0, sizeof(pass));
-	if (cops->account_query(conn->tid, AUTH_DIR_INCOMING, value, pass) < 0) {
+	if (config_account_query(conn->tid, AUTH_DIR_INCOMING, value, pass) < 0) {
 		log_warning("CHAP initiator auth.: "
 			    "No valid user/pass combination for initiator %s "
 			    "found", conn->initiator);
@@ -506,7 +506,7 @@ static int chap_target_auth_create_response(struct connection *conn)
 
 	memset(pass, 0, sizeof(pass));
 	memset(name, 0, sizeof(name));
-	if (cops->account_query(conn->tid, AUTH_DIR_OUTGOING, name, pass) < 0) {
+	if (config_account_query(conn->tid, AUTH_DIR_OUTGOING, name, pass) < 0) {
 		log_warning("CHAP target auth.: "
 			    "no outgoing credentials configured%s",
 			    conn->tid ? "." : " for discovery.");

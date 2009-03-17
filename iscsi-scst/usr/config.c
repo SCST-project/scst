@@ -1,6 +1,4 @@
 /*
- *  Plain file-based configuration file code.
- *
  *  Copyright (C) 2005 FUJITA Tomonori <tomof@acm.org>
  *  Copyright (C) 2007 - 2008 Vladislav Bolkhovitin
  *  Copyright (C) 2007 - 2008 CMS Distribution Limited
@@ -95,7 +93,7 @@ static struct __qelem *account_list_get(u32 tid, int dir)
 	return list;
 }
 
-static int plain_account_init(char *filename)
+static int config_account_init(char *filename)
 {
 	FILE *fp;
 	char buf[BUFSIZE], *p, *q;
@@ -117,15 +115,15 @@ static int plain_account_init(char *filename)
 			tid = 0;
 			if (!(p = target_sep_string(&q)))
 				continue;
-			tid = target_find_by_name(p);
+			tid = target_find_id_by_name(p);
 		} else if (!((idx = param_index_by_name(p, user_keys)) < 0)) {
 			char *name, *pass;
 			name = target_sep_string(&q);
 			pass = target_sep_string(&q);
 
-			res = cops->account_add(tid, idx, name, pass);
+			res = config_account_add(tid, idx, name, pass);
 			if (res < 0) {
-				fprintf(stderr, "%s %s\n", name, pass);
+				log_error("%s %s\n", name, pass);
 				break;
 			}
 		}
@@ -143,7 +141,6 @@ static struct user *account_lookup_by_name(u32 tid, int dir, char *name)
 	struct user *user = NULL;
 
 	list_for_each_entry(user, list, ulist) {
-		fprintf(stderr, "%u %s %s\n", user->tid, user->password, user->name);
 		if (user->tid != tid)
 			continue;
 		if (!strlen(name))
@@ -155,7 +152,7 @@ static struct user *account_lookup_by_name(u32 tid, int dir, char *name)
 	return NULL;
 }
 
-static int plain_account_query(u32 tid, int dir, char *name, char *pass)
+int config_account_query(u32 tid, int dir, char *name, char *pass)
 {
 	struct user *user;
 
@@ -170,8 +167,8 @@ static int plain_account_query(u32 tid, int dir, char *name, char *pass)
 	return 0;
 }
 
-static int plain_account_list(u32 tid, int dir, u32 *cnt, u32 *overflow,
-			      char *buf, size_t buf_sz)
+int config_account_list(u32 tid, int dir, u32 *cnt, u32 *overflow,
+	char *buf, size_t buf_sz)
 {
 	struct __qelem *list = account_list_get(tid, dir);
 	struct user *user;
@@ -204,7 +201,7 @@ static void account_destroy(struct user *user)
 	free(user);
 }
 
-static int plain_account_del(u32 tid, int dir, char *name)
+int config_account_del(u32 tid, int dir, char *name)
 {
 	struct user *user;
 
@@ -230,7 +227,7 @@ static struct user *account_create(void)
 	return user;
 }
 
-static int plain_account_add(u32 tid, int dir, char *name, char *pass)
+int config_account_add(u32 tid, int dir, char *name, char *pass)
 {
 	int err = -ENOMEM;
 	struct user *user;
@@ -438,7 +435,7 @@ static int initiator_match(u32 tid, int fd, char *filename)
 			continue;
 		*(p++) = '\0';
 
-		if (target_find_by_name(buf) != tid && strcmp(buf, "ALL"))
+		if (target_find_id_by_name(buf) != tid && strcmp(buf, "ALL"))
 			continue;
 
 		err = __initiator_match(fd, p);
@@ -449,7 +446,7 @@ static int initiator_match(u32 tid, int fd, char *filename)
 	return err;
 }
 
-static int plain_initiator_access(u32 tid, int fd)
+int config_initiator_access(u32 tid, int fd)
 {
 	if (initiator_match(tid, fd, "/etc/initiators.deny") &&
 	    !initiator_match(tid, fd, "/etc/initiators.allow"))
@@ -462,7 +459,7 @@ static int plain_initiator_access(u32 tid, int fd)
  * Main configuration code
  */
 
-static int __plain_target_create(u32 *tid, char *name, int update)
+static int __config_target_create(u32 *tid, char *name, int update)
 {
 	int err;
 
@@ -476,37 +473,29 @@ static int __plain_target_create(u32 *tid, char *name, int update)
 	return err;
 }
 
-static int plain_target_create(u32 *tid, char *name)
+int config_target_create(u32 *tid, char *name)
 {
-	return __plain_target_create(tid, name, 1);
+	return __config_target_create(tid, name, 1);
 }
 
-static int plain_target_destroy(u32 tid)
+int config_target_destroy(u32 tid)
 {
 	int err;
 
 	if ((err = target_del(tid)) < 0)
 		return err;
 
-	/* Update the config file here. */
 	return err;
 }
 
-static int __plain_param_set(u32 tid, u64 sid, int type,
-			   u32 partial, struct iscsi_param *param, int update)
+int config_param_set(u32 tid, u64 sid, int type, u32 partial,
+	struct iscsi_param *param)
 {
 	int err;
 
-	if ((err = kernel_param_set(tid, sid, type, partial, param)) < 0)
-		return err;
+	err = kernel_param_set(tid, sid, type, partial, param);
 
 	return err;
-}
-
-static int plain_param_set(u32 tid, u64 sid, int type,
-			   u32 partial, struct iscsi_param *param)
-{
-	return __plain_param_set(tid, sid, type, partial, param, 1);
 }
 
 static int iscsi_param_partial_set(u32 tid, u64 sid, int type, int key, u32 val)
@@ -522,10 +511,10 @@ static int iscsi_param_partial_set(u32 tid, u64 sid, int type, int key, u32 val)
 
 	param[key].val = val;
 
-	return __plain_param_set(tid, sid, type, 1 << key, param, 0);
+	return config_param_set(tid, sid, type, 1 << key, param);
 }
 
-static int plain_main_init(char *filename)
+static int config_main_init(char *filename)
 {
 	FILE *config;
 	char buf[BUFSIZE];
@@ -548,7 +537,7 @@ static int plain_main_init(char *filename)
 			tid = 0;
 			if (!(p = target_sep_string(&q)))
 				continue;
-			if (__plain_target_create(&tid, p, 0))
+			if (__config_target_create(&tid, p, 0))
 				log_debug(1, "creating target %s", p);
 		} else if (!strcasecmp(p, "Alias") && tid) {
 			;
@@ -587,7 +576,7 @@ static int plain_main_init(char *filename)
 	return res;
 }
 
-static int plain_default_load(char *params)
+int config_load(char *params)
 {
 	int i, err;
 
@@ -597,10 +586,10 @@ static int plain_default_load(char *params)
 	}
 
 	/* First, we must finish the main configuration. */
-	if ((err = plain_main_init(params ? params : CONFIG_FILE)))
+	if ((err = config_main_init(params ? params : CONFIG_FILE)))
 		return err;
 
-	if ((err = plain_account_init(ACCT_CONFIG_FILE)) < 0)
+	if ((err = config_account_init(ACCT_CONFIG_FILE)) < 0)
 		return err;
 
 	/* TODO: error handling */
@@ -608,7 +597,7 @@ static int plain_default_load(char *params)
 	return err;
 }
 
-static int plain_init(char *params, char **isns, int *isns_ac)
+int config_isns_load(char *params, char **isns, int *isns_ac)
 {
 	FILE *config;
 	char buf[BUFSIZE];
@@ -634,16 +623,3 @@ static int plain_init(char *params, char **isns, int *isns_ac)
 	fclose(config);
 	return 0;
 }
-
-struct config_operations plain_ops = {
-	.init			= plain_init,
-	.default_load		= plain_default_load,
-	.target_add		= plain_target_create,
-	.target_del		= plain_target_destroy,
-	.param_set		= plain_param_set,
-	.account_add		= plain_account_add,
-	.account_del		= plain_account_del,
-	.account_query		= plain_account_query,
-	.account_list		= plain_account_list,
-	.initiator_access	= plain_initiator_access,
-};

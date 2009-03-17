@@ -33,7 +33,7 @@ void target_list_build(struct connection *conn, char *addr, char *name)
 	list_for_each_entry(target, &targets_list, tlist) {
 		if (name && strcmp(target->name, name))
 			continue;
-		if (cops->initiator_access(target->tid, conn->fd) ||
+		if (config_initiator_access(target->tid, conn->fd) ||
 		    isns_scn_access(target->tid, conn->fd, conn->initiator))
 			continue;
 
@@ -42,7 +42,7 @@ void target_list_build(struct connection *conn, char *addr, char *name)
 	}
 }
 
-u32 target_find_by_name(const char *name)
+u32 target_find_id_by_name(const char *name)
 {
 	struct target *target;
 
@@ -52,6 +52,18 @@ u32 target_find_by_name(const char *name)
 	}
 
 	return 0;
+}
+
+struct target *target_find_by_name(const char *name)
+{
+	struct target *target;
+
+	list_for_each_entry(target, &targets_list, tlist) {
+		if (!strcasecmp(target->name, name))
+			return target;
+	}
+
+	return NULL;
 }
 
 struct target *target_find_by_id(u32 tid)
@@ -72,9 +84,9 @@ static void all_accounts_del(u32 tid, int dir)
 
 	memset(name, 0, sizeof(name));
 
-	for (;cops->account_query(tid, dir, name, pass) != -ENOENT;
+	for (; config_account_query(tid, dir, name, pass) != -ENOENT;
 		memset(name, 0, sizeof(name))) {
-		cops->account_del(tid, dir, name);
+		config_account_del(tid, dir, name);
 	}
 
 }
@@ -84,8 +96,8 @@ int target_del(u32 tid)
 	struct target *target = target_find_by_id(tid);
 	int err = kernel_target_destroy(tid);
 
-	if (err < 0 && errno != ENOENT)
-		return -errno;
+	if (err < 0 && err != -ENOENT)
+		return err;
 	else if (!err && !target)
 		/* A leftover kernel object was cleaned up - don't complain. */
 		return 0;
@@ -114,7 +126,8 @@ int target_add(u32 *tid, char *name)
 {
 	struct target *target;
 	int err;
-	struct iscsi_param params[target_key_last];
+	struct iscsi_param tgt_params[target_key_last];
+	struct iscsi_param sess_params[session_key_last];
 
 	if (!name)
 		return -EINVAL;
@@ -125,17 +138,18 @@ int target_add(u32 *tid, char *name)
 	memset(target, 0, sizeof(*target));
 	memcpy(target->name, name, sizeof(target->name) - 1);
 
-	if ((err = kernel_target_create(tid, name)) < 0) {
-		log_warning("can't create a target %d %u\n", errno, *tid);
+	if ((err = kernel_target_create(tid, name)) < 0)
 		goto out_free;
-	}
 
-	param_set_defaults(params, target_keys);
-	err = kernel_param_set(*tid, 0, key_target, 0, params);
-	if (err != 0) {
-		log_error("kernel_param_set() failed: %s", strerror(errno));
+	param_set_defaults(tgt_params, target_keys);
+	err = kernel_param_set(*tid, 0, key_target, 0, tgt_params);
+	if (err != 0)
 		goto out_destroy;
-	}
+
+	param_set_defaults(sess_params, session_keys);
+	err = kernel_param_set(*tid, 0, key_session, 0, sess_params);
+	if (err != 0)
+		goto out_destroy;
 
 	INIT_LIST_HEAD(&target->tlist);
 	INIT_LIST_HEAD(&target->sessions_list);

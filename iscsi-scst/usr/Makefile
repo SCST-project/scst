@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 
 SRCS_D = iscsid.c iscsi_scstd.c conn.c session.c target.c message.c ctldev.c \
-		log.c chap.c event.c param.c plain.c isns.c
+		log.c chap.c event.c param.c config.c isns.c
 OBJS_D = $(SRCS_D:.c=.o)
 
 SRCS_ADM = iscsi_adm.c param.c
