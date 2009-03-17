@@ -73,8 +73,12 @@ struct iscsi_target {
 	struct list_head session_list; /* protected by target_mutex */
 
 	/* Both protected by target_mutex */
-	struct iscsi_sess_param trgt_sess_param;
 	struct iscsi_trgt_param trgt_param;
+	/*
+	 * Put here to have uniform parameters checking and assigning
+	 * from various places, including iscsi-scst-adm.
+	 */
+	struct iscsi_sess_param trgt_sess_param;
 
 	struct list_head target_list_entry;
 	u32 tid;
@@ -214,6 +218,7 @@ struct iscsi_conn {
 	u32 read_size;
 	int read_state;
 	struct iovec *read_iov;
+	uint32_t rpadding;
 
 	struct iscsi_target *target;
 
@@ -240,20 +245,27 @@ struct iscsi_pdu {
 typedef void (iscsi_show_info_t)(struct seq_file *seq,
 				 struct iscsi_target *target);
 
-/* Command's states */
+/** Command's states **/
 
 /* New command and SCST processes it */
 #define ISCSI_CMD_STATE_NEW               0
+
 /* SCST processes cmd after scst_rx_cmd() */
 #define ISCSI_CMD_STATE_RX_CMD            1
+
 /* The command returned from preprocessing_done() */
 #define ISCSI_CMD_STATE_AFTER_PREPROC     2
+
 /* scst_restart_cmd() called and SCST processing it */
 #define ISCSI_CMD_STATE_RESTARTED         3
+
 /* SCST done processing */
 #define ISCSI_CMD_STATE_PROCESSED         4
 
-/* Command's reject reasons */
+/* AEN processing */
+#define ISCSI_CMD_STATE_AEN               5
+
+/** Command's reject reasons **/
 #define ISCSI_REJECT_SCSI_CMD             1
 #define ISCSI_REJECT_CMD                  2
 #define ISCSI_REJECT_DATA                 3
@@ -294,7 +306,10 @@ struct iscsi_cmnd {
 
 	spinlock_t rsp_cmd_lock; /* BH lock */
 
-	/* Unions are for readability and grepability */
+	/*
+	 * Unions are for readability and grepability and to save some
+	 * cache footprint.
+	 */
 
 	union {
 		/* Protected by rsp_cmd_lock */
@@ -312,18 +327,37 @@ struct iscsi_cmnd {
 	unsigned long write_timeout;
 
 	/*
-	 * Unprotected, since could be accessed from only a single
+	 * All unprotected, since could be accessed from only a single
 	 * thread at time
 	 */
-	struct list_head rx_ddigest_cmd_list;
-	struct list_head rx_ddigest_cmd_list_entry;
-
 	struct iscsi_cmnd *parent_req;
 	struct iscsi_cmnd *cmd_req;
 
-	wait_queue_head_t scst_waitQ;
-	int scst_state;
-	struct scst_cmd *scst_cmd;
+	/*
+	 * All unprotected, since could be accessed from only a single
+	 * thread at time
+	 */
+	union {
+		/* Request only fields */
+		struct {
+			struct list_head rx_ddigest_cmd_list;
+			struct list_head rx_ddigest_cmd_list_entry;
+
+			wait_queue_head_t scst_waitQ;
+			int scst_state;
+			union {
+				struct scst_cmd *scst_cmd;
+				struct scst_aen *scst_aen;
+			};
+		};
+
+		/* Response only fields */
+		struct {
+			struct scatterlist rsp_sg[2];
+			struct iscsi_sense_data sense_hdr;
+		};
+	};
+
 	atomic_t ref_cnt;
 #if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	atomic_t net_ref_cnt;

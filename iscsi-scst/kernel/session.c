@@ -44,10 +44,7 @@ static int iscsi_session_alloc(struct iscsi_target *target,
 
 	session->target = target;
 	session->sid = info->sid;
-	BUILD_BUG_ON(sizeof(session->sess_param) !=
-		sizeof(target->trgt_sess_param));
-	memcpy(&session->sess_param, &target->trgt_sess_param,
-		sizeof(session->sess_param));
+	session->sess_param = target->trgt_sess_param;
 	session->max_queued_cmnds = target->trgt_param.queued_cmnds;
 	atomic_set(&session->active_cmds, 0);
 

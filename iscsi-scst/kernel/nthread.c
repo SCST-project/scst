@@ -39,6 +39,9 @@ enum rx_state {
 	RX_INIT_DATA,
 	RX_DATA,
 
+	RX_INIT_PADDING,
+	RX_PADDING,
+
 	RX_INIT_DDIGEST,
 	RX_DDIGEST,
 	RX_CHECK_DDIGEST,
@@ -49,6 +52,8 @@ enum rx_state {
 enum tx_state {
 	TX_INIT, /* Must be zero. */
 	TX_BHS_DATA,
+	TX_INIT_PADDING,
+	TX_PADDING,
 	TX_INIT_DDIGEST,
 	TX_DDIGEST,
 	TX_END,
@@ -594,26 +599,25 @@ static void start_close_conn(struct iscsi_conn *conn)
 }
 
 static inline void iscsi_conn_init_read(struct iscsi_conn *conn,
-					void __user *data,
-					size_t len)
+	void __user *data, size_t len)
 {
-	len = (len + 3) & -4; /* XXX ??? */
 	conn->read_iov[0].iov_base = data;
 	conn->read_iov[0].iov_len = len;
 	conn->read_msg.msg_iov = conn->read_iov;
 	conn->read_msg.msg_iovlen = 1;
-	conn->read_size = (len + 3) & -4;
+	conn->read_size = len;
 	return;
 }
 
 static void iscsi_conn_read_ahs(struct iscsi_conn *conn,
-				struct iscsi_cmnd *cmnd)
+	struct iscsi_cmnd *cmnd)
 {
+	int asize = (cmnd->pdu.ahssize + 3) & -4;
+
 	/* ToDo: __GFP_NOFAIL ?? */
-	cmnd->pdu.ahs = kmalloc(cmnd->pdu.ahssize, __GFP_NOFAIL|GFP_KERNEL);
+	cmnd->pdu.ahs = kmalloc(asize, __GFP_NOFAIL|GFP_KERNEL);
 	sBUG_ON(cmnd->pdu.ahs == NULL);
-	iscsi_conn_init_read(conn, (void __force __user *)cmnd->pdu.ahs,
-		cmnd->pdu.ahssize);
+	iscsi_conn_init_read(conn, (void __force __user *)cmnd->pdu.ahs, asize);
 	return;
 }
 
@@ -783,10 +787,31 @@ static int recv(struct iscsi_conn *conn)
 		if (conn->read_state != RX_DATA)
 			break;
 	case RX_DATA:
+		res = do_recv(conn, RX_INIT_PADDING);
+		if (res <= 0 || conn->read_state != RX_INIT_PADDING)
+			break;
+	case RX_INIT_PADDING:
+	{
+		int psz = ((cmnd->pdu.datasize + 3) & -4) - cmnd->pdu.datasize;
+		if (psz != 0) {
+			TRACE_DBG("padding %d bytes", psz);
+			iscsi_conn_init_read(conn,
+				(void __force __user *)&conn->rpadding, psz);
+			conn->read_state = RX_PADDING;
+		} else if (ddigest) {
+			conn->read_state = RX_INIT_DDIGEST;
+			goto init_ddigest;
+		} else {
+			conn->read_state = RX_END;
+			break;
+		}
+	}
+	case RX_PADDING:
 		res = do_recv(conn, ddigest ? RX_INIT_DDIGEST : RX_END);
 		if (res <= 0 || conn->read_state != RX_INIT_DDIGEST)
 			break;
 	case RX_INIT_DDIGEST:
+init_ddigest:
 		iscsi_conn_init_read(conn,
 			(void __force __user *)&cmnd->ddigest, sizeof(u32));
 		conn->read_state = RX_DDIGEST;
@@ -1046,17 +1071,18 @@ static int write_data(struct iscsi_conn *conn)
 {
 	mm_segment_t oldfs;
 	struct file *file;
+	struct iovec *iop;
 	struct socket *sock;
 	ssize_t (*sock_sendpage)(struct socket *, struct page *, int, size_t,
 				 int);
 	ssize_t (*sendpage)(struct socket *, struct page *, int, size_t, int);
 	struct iscsi_cmnd *write_cmnd = conn->write_cmnd;
 	struct iscsi_cmnd *ref_cmd;
+	struct page *page;
 	struct scatterlist *sg;
-	struct iovec *iop;
 	int saved_size, size, sendsize;
-	int offset, idx, sg_offset;
-	int flags, res, count;
+	int length, offset, idx;
+	int flags, res, count, sg_size;
 	bool do_put = false;
 
 	TRACE_ENTRY();
@@ -1091,7 +1117,8 @@ static int write_data(struct iscsi_conn *conn)
 	}
 
 	file = conn->file;
-	saved_size = size = conn->write_size;
+	size = conn->write_size;
+	saved_size = size;
 	iop = conn->write_iop;
 	count = conn->write_iop_used;
 
@@ -1102,17 +1129,16 @@ static int write_data(struct iscsi_conn *conn)
 
 			sBUG_ON(count > (signed)(sizeof(conn->write_iov) /
 						sizeof(conn->write_iov[0])));
- retry:
+retry:
 			oldfs = get_fs();
 			set_fs(KERNEL_DS);
 			res = vfs_writev(file,
 					 (struct iovec __force __user *)iop,
 					 count, &off);
 			set_fs(oldfs);
-			TRACE_WRITE("%#Lx:%u: %d(%ld)",
+			TRACE_WRITE("sid %#Lx, cid %u, res %d, iov_len %ld",
 				    (long long unsigned int)conn->session->sid,
-				    conn->cid,
-				    res, (long)iop->iov_len);
+				    conn->cid, res, (long)iop->iov_len);
 			if (unlikely(res <= 0)) {
 				if (res == -EAGAIN) {
 					conn->write_iop = iop;
@@ -1155,11 +1181,6 @@ static int write_data(struct iscsi_conn *conn)
 	__iscsi_get_page_callback(ref_cmd);
 	do_put = true;
 
-	sg_offset = sg[0].offset;
-	offset = conn->write_offset + sg_offset;
-	idx = offset >> PAGE_SHIFT;
-	offset &= ~PAGE_MASK;
-
 	sock = conn->sock;
 
 #if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
@@ -1173,6 +1194,31 @@ static int write_data(struct iscsi_conn *conn)
 #endif
 
 	flags = MSG_DONTWAIT;
+	sg_size = size;
+
+	if (sg != write_cmnd->rsp_sg) {
+		offset = conn->write_offset + sg[0].offset;
+		idx = offset >> PAGE_SHIFT;
+		offset &= ~PAGE_MASK;
+		length = min(size, (int)PAGE_SIZE - offset);
+		TRACE_WRITE("write_offset %d, sg_size %d, idx %d, offset %d, "
+			"length %d", conn->write_offset, sg_size, idx, offset,
+			length);
+	} else {
+		idx = 0;
+		offset = conn->write_offset;
+		while (offset >= sg[idx].length) {
+			offset -= sg[idx].length;
+			idx++;
+		}
+		length = sg[idx].length - offset;
+		offset += sg[idx].offset;
+		sock_sendpage = sock_no_sendpage;
+		TRACE_WRITE("rsp_sg: write_offset %d, sg_size %d, idx %d, "
+			"offset %d, length %d", conn->write_offset, sg_size,
+			idx, offset, length);
+	}
+	page = sg_page(&sg[idx]);
 
 	while (1) {
 		sendpage = sock_sendpage;
@@ -1181,8 +1227,8 @@ static int write_data(struct iscsi_conn *conn)
 		{
 			static DEFINE_SPINLOCK(net_priv_lock);
 			spin_lock(&net_priv_lock);
-			if (sg_page(&sg[idx])->net_priv != NULL) {
-				if (sg_page(&sg[idx])->net_priv != ref_cmd) {
+			if (unlikely(page->net_priv != NULL)) {
+				if (page->net_priv != ref_cmd) {
 					/*
 					 * This might happen if user space
 					 * supplies to scst_user the same
@@ -1196,26 +1242,25 @@ static int write_data(struct iscsi_conn *conn)
 					    "%p, sg %p, idx %d, page %p, "
 					    "net_priv %p)",
 					    write_cmnd, ref_cmd, sg, idx,
-					    sg_page(&sg[idx]),
-					    sg_page(&sg[idx])->net_priv);
+					    page, page->net_priv);
 					sendpage = sock_no_sendpage;
 				}
 			} else
-				sg_page(&sg[idx])->net_priv = ref_cmd;
+				page->net_priv = ref_cmd;
 			spin_unlock(&net_priv_lock);
 		}
 #endif
-		sendsize = PAGE_SIZE - offset;
+		sendsize = min(size, length);
 		if (size <= sendsize) {
 retry2:
-			res = sendpage(sock, sg_page(&sg[idx]), offset, size,
-				       flags);
-			TRACE_WRITE("Final %s %#Lx:%u: %d(%lu,%u,%u, cmd %p, "
+			res = sendpage(sock, page, offset, size, flags);
+			TRACE_WRITE("Final %s sid %#Lx, cid %u, res %d (page "
+				"index %lu, offset %u, size %u, cmd %p, "
 				"page %p)", (sendpage != sock_no_sendpage) ?
 						"sendpage" : "sock_no_sendpage",
 				(long long unsigned int)conn->session->sid,
-				conn->cid, res, sg_page(&sg[idx])->index,
-				offset, size, write_cmnd, sg_page(&sg[idx]));
+				conn->cid, res, page->index,
+				offset, size, write_cmnd, page);
 			if (unlikely(res <= 0)) {
 				if (res == -EINTR)
 					goto retry2;
@@ -1223,7 +1268,7 @@ retry2:
 					goto out_res;
 			}
 
-			check_net_priv(ref_cmd, sg_page(&sg[idx]));
+			check_net_priv(ref_cmd, page);
 			if (res == size) {
 				conn->write_size = 0;
 				res = saved_size;
@@ -1232,18 +1277,18 @@ retry2:
 
 			offset += res;
 			size -= res;
-			continue;
+			goto retry2;
 		}
 
 retry1:
-		res = sendpage(sock, sg_page(&sg[idx]), offset, sendsize,
-			flags | MSG_MORE);
-		TRACE_WRITE("%s %#Lx:%u: %d(%lu,%u,%u, cmd %p, page %p)",
+		res = sendpage(sock, page, offset, sendsize, flags | MSG_MORE);
+		TRACE_WRITE("%s sid %#Lx, cid %u, res %d (page index %lu, "
+			"offset %u, sendsize %u, size %u, cmd %p, page %p)",
 			(sendpage != sock_no_sendpage) ? "sendpage" :
 							 "sock_no_sendpage",
 			(unsigned long long)conn->session->sid, conn->cid,
-			res, sg_page(&sg[idx])->index, offset, sendsize,
-			write_cmnd, sg_page(&sg[idx]));
+			res, page->index, offset, sendsize, size,
+			write_cmnd, page);
 		if (unlikely(res <= 0)) {
 			if (res == -EINTR)
 				goto retry1;
@@ -1251,19 +1296,25 @@ retry1:
 				goto out_res;
 		}
 
-		check_net_priv(ref_cmd, sg_page(&sg[idx]));
-		if (res == sendsize) {
-			idx++;
-			offset = 0;
-			EXTRACHECKS_BUG_ON(idx >= ref_cmd->sg_cnt);
-		} else
-			offset += res;
+		check_net_priv(ref_cmd, page);
 
 		size -= res;
+
+		if (res == sendsize) {
+			idx++;
+			EXTRACHECKS_BUG_ON(idx >= ref_cmd->sg_cnt);
+			page = sg_page(&sg[idx]);
+			length = sg[idx].length;
+			offset = sg[idx].offset;
+		} else {
+			offset += res;
+			sendsize -= res;
+			goto retry1;
+		}
 	}
 
 out_off:
-	conn->write_offset = (idx << PAGE_SHIFT) + offset - sg_offset;
+	conn->write_offset += sg_size - size;
 
 out_iov:
 	conn->write_size = size;
@@ -1281,7 +1332,7 @@ out:
 	return res;
 
 out_res:
-	check_net_priv(ref_cmd, sg_page(&sg[idx]));
+	check_net_priv(ref_cmd, page);
 	if (res == -EAGAIN)
 		goto out_off;
 	/* else go through */
@@ -1295,9 +1346,14 @@ out_err:
 			    (long long unsigned int)conn->session->sid,
 			    conn->cid, conn->write_cmnd);
 	}
-	if (ref_cmd->scst_cmd != NULL)
-		scst_set_delivery_status(ref_cmd->scst_cmd,
-			SCST_CMD_DELIVERY_FAILED);
+	if ((ref_cmd->scst_cmd != NULL) || (ref_cmd->scst_aen != NULL)) {
+		if (ref_cmd->scst_state == ISCSI_CMD_STATE_AEN)
+			scst_set_aen_delivery_status(ref_cmd->scst_aen,
+				SCST_AEN_RES_FAILED);
+		else
+			scst_set_delivery_status(ref_cmd->scst_cmd,
+				SCST_CMD_DELIVERY_FAILED);
+	}
 	goto out_put;
 }
 
@@ -1374,6 +1430,31 @@ static void init_tx_hdigest(struct iscsi_cmnd *cmnd)
 	return;
 }
 
+static int tx_padding(struct iscsi_cmnd *cmnd, int state)
+{
+	int res, rest = cmnd->conn->write_size;
+	struct msghdr msg = {.msg_flags = MSG_NOSIGNAL | MSG_DONTWAIT};
+	struct kvec iov;
+	static const uint32_t padding;
+
+	iscsi_extracheck_is_wr_thread(cmnd->conn);
+
+	TRACE_DBG("Sending %d padding bytes (cmd %p)", rest, cmnd);
+
+	iov.iov_base = (char *)(&padding) + (sizeof(uint32_t) - rest);
+	iov.iov_len = rest;
+
+	res = kernel_sendmsg(cmnd->conn->sock, &msg, &iov, 1, rest);
+	if (res > 0) {
+		cmnd->conn->write_size -= res;
+		if (!cmnd->conn->write_size)
+			cmnd->conn->write_state = state;
+	} else
+		res = exit_tx(cmnd->conn, res);
+
+	return res;
+}
+
 static int iscsi_do_send(struct iscsi_conn *conn, int state)
 {
 	int res;
@@ -1421,11 +1502,28 @@ int iscsi_send(struct iscsi_conn *conn)
 			init_tx_hdigest(cmnd);
 		conn->write_state = TX_BHS_DATA;
 	case TX_BHS_DATA:
-		res = iscsi_do_send(conn, ddigest && cmnd->pdu.datasize ?
-					TX_INIT_DDIGEST : TX_END);
+		res = iscsi_do_send(conn, cmnd->pdu.datasize ?
+					TX_INIT_PADDING : TX_END);
+		if (res <= 0 || conn->write_state != TX_INIT_PADDING)
+			break;
+	case TX_INIT_PADDING:
+		cmnd->conn->write_size = ((cmnd->pdu.datasize + 3) & -4) -
+						cmnd->pdu.datasize;
+		if (cmnd->conn->write_size != 0)
+			conn->write_state = TX_PADDING;
+		else if (ddigest) {
+			conn->write_state = TX_INIT_DDIGEST;
+			goto init_ddigest;
+		} else {
+			conn->write_state = TX_END;
+			break;
+		}
+	case TX_PADDING:
+		res = tx_padding(cmnd, ddigest ? TX_INIT_DDIGEST : TX_END);
 		if (res <= 0 || conn->write_state != TX_INIT_DDIGEST)
 			break;
 	case TX_INIT_DDIGEST:
+init_ddigest:
 		cmnd->conn->write_size = sizeof(u32);
 		conn->write_state = TX_DDIGEST;
 	case TX_DDIGEST:

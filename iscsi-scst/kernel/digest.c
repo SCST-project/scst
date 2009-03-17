@@ -57,10 +57,11 @@ int digest_init(struct iscsi_conn *conn)
 	return 0;
 }
 
-static u32 evaluate_crc32_from_sg(struct scatterlist *sg, int total,
-	int pad_bytes)
+static u32 evaluate_crc32_from_sg(struct scatterlist *sg, int nbytes,
+	uint32_t padding)
 {
 	u32 crc = ~0;
+	int pad_bytes = ((nbytes + 3) & -4) - nbytes;
 
 #ifdef CONFIG_SCST_ISCSI_DEBUG_DIGEST_FAILURES
 	if (((scst_random() % 100000) == 752)) {
@@ -70,24 +71,15 @@ static u32 evaluate_crc32_from_sg(struct scatterlist *sg, int total,
 #endif
 
 #if defined(CONFIG_LIBCRC32C_MODULE) || defined(CONFIG_LIBCRC32C)
-	while (total > 0) {
-		int d = min(min(total, (int)(sg->length)),
-			(int)(PAGE_SIZE - sg->offset));
-
+	while (nbytes > 0) {
+		int d = min(nbytes, (int)(sg->length));
 		crc = crc32c(crc, sg_virt(sg), d);
-		total -= d;
+		nbytes -= d;
 		sg++;
 	}
 
-	if (pad_bytes) {
-		u32 padding = 0;
-		/*
-		 * Digest includes also padding for aligned pdu length,
-		 * hopefully it is always filled with 0s in pdu (according to
-		 * crypto/crc32c.c
-		 */
+	if (pad_bytes)
 		crc = crc32c(crc, (u8 *)&padding, pad_bytes);
-	}
 #endif
 
 	return ~cpu_to_le32(crc);
@@ -97,23 +89,25 @@ static u32 digest_header(struct iscsi_pdu *pdu)
 {
 	struct scatterlist sg[2];
 	unsigned int nbytes = sizeof(struct iscsi_hdr);
+	int asize = (pdu->ahssize + 3) & -4;
 
 	sg_init_table(sg, 2);
 
 	sg_set_buf(&sg[0], &pdu->bhs, nbytes);
 	if (pdu->ahssize) {
-		sg_set_buf(&sg[1], pdu->ahs, pdu->ahssize);
-		nbytes += pdu->ahssize;
+		sg_set_buf(&sg[1], pdu->ahs, asize);
+		nbytes += asize;
 	}
+	EXTRACHECKS_BUG_ON((nbytes & 3) != 0);
 	return evaluate_crc32_from_sg(sg, nbytes, 0);
 }
 
-static u32 digest_data(struct iscsi_cmnd *cmd, u32 osize, u32 offset)
+static u32 digest_data(struct iscsi_cmnd *cmd, u32 size, u32 offset,
+	uint32_t padding)
 {
 	struct scatterlist *sg = cmd->sg;
 	int idx, count;
 	struct scatterlist saved_sg;
-	u32 size = (osize + 3) & ~3;
 	u32 crc;
 
 	offset += sg[0].offset;
@@ -130,7 +124,7 @@ static u32 digest_data(struct iscsi_cmnd *cmd, u32 osize, u32 offset)
 	sg[idx].offset = offset;
 	sg[idx].length -= offset - saved_sg.offset;
 
-	crc = evaluate_crc32_from_sg(sg + idx, osize, size - osize);
+	crc = evaluate_crc32_from_sg(sg + idx, size, padding);
 
 	sg[idx] = saved_sg;
 	return crc;
@@ -178,7 +172,8 @@ int digest_rx_data(struct iscsi_cmnd *cmnd)
 		offset = 0;
 	}
 
-	crc = digest_data(req, cmnd->pdu.datasize, offset);
+	crc = digest_data(req, cmnd->pdu.datasize, offset,
+		cmnd->conn->rpadding);
 
 	if (unlikely(crc != cmnd->ddigest)) {
 		PRINT_ERROR("%s", "RX data digest failed");
@@ -213,11 +208,7 @@ void digest_tx_data(struct iscsi_cmnd *cmnd)
 		offset = 0;
 	}
 
-	/*
-	 * cmnd is used here regardless of its sg comes from parent or was
-	 * allocated for this cmnd only, see cmnd_send_pdu()
-	 */
-	cmnd->ddigest = digest_data(cmnd, cmnd->pdu.datasize, offset);
+	cmnd->ddigest = digest_data(cmnd, cmnd->pdu.datasize, offset, 0);
 	TRACE_DBG("TX data digest for cmd %p: %x (offset %d, opcode %x)", cmnd,
 		cmnd->ddigest, offset, cmnd_opcode(cmnd));
 }

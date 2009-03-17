@@ -490,7 +490,7 @@ static void iscsi_dump_char(int ch)
 
 	if (ch < 0) {
 		while ((i % 16) != 0) {
-			printk(LOG_FLAG "   ");
+			printk("   ");
 			text[i] = ' ';
 			i++;
 			if ((i % 16) == 0)
@@ -503,7 +503,7 @@ static void iscsi_dump_char(int ch)
 	}
 
 	text[i] = (ch < 0x20 || (ch >= 0x80 && ch <= 0xa0)) ? ' ' : ch;
-	printk(LOG_FLAG " %02x", ch);
+	printk(" %02x", ch);
 	i++;
 	if ((i % 16) == 0) {
 		printk(" | %.16s |\n", text);
@@ -519,18 +519,18 @@ void iscsi_dump_pdu(struct iscsi_pdu *pdu)
 		int i;
 
 		buf = (void *)&pdu->bhs;
-		printk(LOG_FLAG "BHS: (%p,%zd)\n", buf, sizeof(pdu->bhs));
+		printk("BHS: (%p,%zd)\n", buf, sizeof(pdu->bhs));
 		for (i = 0; i < sizeof(pdu->bhs); i++)
 			iscsi_dump_char(*buf++);
 		iscsi_dump_char(-1);
 
 		buf = (void *)pdu->ahs;
-		printk(LOG_FLAG "AHS: (%p,%d)\n", buf, pdu->ahssize);
+		printk("AHS: (%p,%d)\n", buf, pdu->ahssize);
 		for (i = 0; i < pdu->ahssize; i++)
 			iscsi_dump_char(*buf++);
 		iscsi_dump_char(-1);
 
-		printk(LOG_FLAG "Data: (%d)\n", pdu->datasize);
+		printk("Data: (%d)\n", pdu->datasize);
 	}
 }
 #endif /* CONFIG_SCST_DEBUG */

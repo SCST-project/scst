@@ -54,6 +54,8 @@ DECLARE_WAIT_QUEUE_HEAD(iscsi_wr_waitQ);
 static struct page *dummy_page;
 static struct scatterlist dummy_sg;
 
+static uint8_t sense_unexpected_unsolicited_data[SCST_STANDARD_SENSE_LEN];
+
 struct iscsi_thread_t {
 	struct task_struct *thr;
 	struct list_head threads_list_entry;
@@ -242,13 +244,14 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 
 		/* Order between above and below code is important! */
 
-		if (cmnd->scst_cmd) {
+		if ((cmnd->scst_cmd != NULL) || (cmnd->scst_aen != NULL)) {
 			switch (cmnd->scst_state) {
 			case ISCSI_CMD_STATE_PROCESSED:
 				TRACE_DBG("cmd %p PROCESSED", cmnd);
 				scst_tgt_cmd_done(cmnd->scst_cmd,
 					SCST_CONTEXT_DIRECT);
 				break;
+
 			case ISCSI_CMD_STATE_AFTER_PREPROC:
 			{
 				struct scst_cmd *scst_cmd = cmnd->scst_cmd;
@@ -260,6 +263,12 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 					SCST_CONTEXT_THREAD);
 				break;
 			}
+
+			case ISCSI_CMD_STATE_AEN:
+				TRACE_DBG("cmd %p AEN PROCESSED", cmnd);
+				scst_aen_done(cmnd->scst_aen);
+				break;
+
 			default:
 				PRINT_CRIT_ERROR("Unexpected cmnd scst state "
 					"%d", cmnd->scst_state);
@@ -283,7 +292,7 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 
 	if (cmnd->own_sg) {
 		TRACE_DBG("%s", "own_sg");
-		if (cmnd->sg != &dummy_sg)
+		if ((cmnd->sg != &dummy_sg) && (cmnd->sg != cmnd->rsp_sg))
 			scst_free(cmnd->sg, cmnd->sg_cnt);
 #ifdef CONFIG_SCST_DEBUG
 		cmnd->own_sg = 0;
@@ -577,22 +586,6 @@ static void iscsi_cmnd_init_write(struct iscsi_cmnd *rsp, int flags)
 	return;
 }
 
-static void iscsi_set_datasize(struct iscsi_cmnd *cmnd, u32 offset, u32 size)
-{
-	cmnd->pdu.datasize = size;
-
-	if (size & 3) {
-		u32 last_off = offset + size;
-		int idx = last_off >> PAGE_SHIFT;
-		u8 *p = (u8 *)page_address(sg_page(&cmnd->sg[idx])) +
-			(last_off & ~PAGE_MASK);
-		int i = 4 - (size & 3);
-		while (i--)
-			*p++ = 0;
-	}
-	return;
-}
-
 static void send_data_rsp(struct iscsi_cmnd *req, u8 status, int send_status)
 {
 	struct iscsi_cmnd *rsp;
@@ -625,7 +618,7 @@ static void send_data_rsp(struct iscsi_cmnd *req, u8 status, int send_status)
 
 		if (size <= pdusize) {
 			TRACE_DBG("offset %d, size %d", offset, size);
-			iscsi_set_datasize(rsp, offset, size);
+			rsp->pdu.datasize = size;
 			if (send_status) {
 				TRACE_DBG("status %x", status);
 				rsp_hdr->flags =
@@ -649,7 +642,7 @@ static void send_data_rsp(struct iscsi_cmnd *req, u8 status, int send_status)
 		TRACE_DBG("pdusize %d, offset %d, size %d", pdusize, offset,
 			size);
 
-		iscsi_set_datasize(rsp, offset, pdusize);
+		rsp->pdu.datasize = pdusize;
 
 		size -= pdusize;
 		offset += pdusize;
@@ -666,7 +659,6 @@ static struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req, int status,
 {
 	struct iscsi_cmnd *rsp;
 	struct iscsi_scsi_rsp_hdr *rsp_hdr;
-	struct iscsi_sense_data *sense;
 	struct scatterlist *sg;
 
 	rsp = iscsi_cmnd_create_rsp_cmnd(req);
@@ -681,27 +673,19 @@ static struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req, int status,
 
 	if (SCST_SENSE_VALID(sense_buf)) {
 		TRACE_DBG("%s", "SENSE VALID");
-		/* ToDo: __GFP_NOFAIL ?? */
-		sg = rsp->sg = scst_alloc(PAGE_SIZE, GFP_KERNEL|__GFP_NOFAIL,
-					&rsp->sg_cnt);
-		if (sg == NULL) {
-			;/* ToDo */;
-		}
-		rsp->own_sg = 1;
-		sense = (struct iscsi_sense_data *)page_address(sg_page(&sg[0]));
-		sense->length = cpu_to_be16(sense_len);
-		memcpy(sense->data, sense_buf, sense_len);
-		rsp->pdu.datasize = sizeof(struct iscsi_sense_data) + sense_len;
-		rsp->bufflen = (rsp->pdu.datasize + 3) & -4;
-		if (rsp->bufflen - rsp->pdu.datasize) {
-			unsigned int i = rsp->pdu.datasize;
-			u8 *p = (u8 *)sense + i;
 
-			while (i < rsp->bufflen) {
-				*p++ = 0;
-				i++;
-			}
-		}
+		sg = rsp->sg = rsp->rsp_sg;
+		rsp->sg_cnt = 2;
+		rsp->own_sg = 1;
+
+		sg_init_table(sg, 2);
+		sg_set_buf(&sg[0], &rsp->sense_hdr, sizeof(rsp->sense_hdr));
+		sg_set_buf(&sg[1], sense_buf, sense_len);
+
+		rsp->sense_hdr.length = cpu_to_be16(sense_len);
+
+		rsp->pdu.datasize = sizeof(rsp->sense_hdr) + sense_len;
+		rsp->bufflen = rsp->pdu.datasize;
 	} else {
 		rsp->pdu.datasize = 0;
 		rsp->bufflen = 0;
@@ -710,26 +694,11 @@ static struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req, int status,
 	return rsp;
 }
 
-static struct iscsi_cmnd *create_sense_rsp(struct iscsi_cmnd *req,
-	u8 sense_key, u8 asc, u8 ascq)
-{
-	u8 sense[14];
-	memset(sense, 0, sizeof(sense));
-	sense[0] = 0xf0;
-	sense[2] = sense_key;
-	sense[7] = 6;	/* Additional sense length */
-	sense[12] = asc;
-	sense[13] = ascq;
-	return create_status_rsp(req, SAM_STAT_CHECK_CONDITION, sense,
-		sizeof(sense));
-}
-
 static void iscsi_cmnd_reject(struct iscsi_cmnd *req, int reason)
 {
 	struct iscsi_cmnd *rsp;
 	struct iscsi_reject_hdr *rsp_hdr;
 	struct scatterlist *sg;
-	char *addr;
 
 	TRACE_MGMT_DBG("Reject: req %p, reason %x", req, reason);
 
@@ -744,16 +713,10 @@ static void iscsi_cmnd_reject(struct iscsi_cmnd *req, int reason)
 	rsp_hdr->ffffffff = ISCSI_RESERVED_TAG;
 	rsp_hdr->reason = reason;
 
-	/* ToDo: __GFP_NOFAIL ?? */
-	sg = rsp->sg = scst_alloc(PAGE_SIZE, GFP_KERNEL|__GFP_NOFAIL,
-				&rsp->sg_cnt);
-	if (sg == NULL) {
-		;/* ToDo */;
-	}
+	sg = rsp->sg = rsp->rsp_sg;
+	rsp->sg_cnt = 1;
 	rsp->own_sg = 1;
-	addr = page_address(sg_page(&sg[0]));
-	clear_page(addr);
-	memcpy(addr, &req->pdu.bhs, sizeof(struct iscsi_hdr));
+	sg_init_one(sg, &req->pdu.bhs, sizeof(struct iscsi_hdr));
 	rsp->bufflen = rsp->pdu.datasize = sizeof(struct iscsi_hdr);
 
 	iscsi_cmnd_init_write(rsp, ISCSI_INIT_WRITE_REMOVE_HASH |
@@ -971,7 +934,6 @@ static void cmnd_prepare_get_rejected_cmd_data(struct iscsi_cmnd *cmnd)
 
 	addr = (char __force __user *)(page_address(sg_page(&sg[0])));
 	sBUG_ON(addr == NULL);
-	size = (size + 3) & -4;
 	conn->read_size = size;
 	for (i = 0; size > PAGE_SIZE; i++, size -= cmnd->bufflen) {
 		/* We already checked pdu.datasize in check_segment_length() */
@@ -1059,7 +1021,7 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 	offset &= ~PAGE_MASK;
 
 	conn->read_msg.msg_iov = conn->read_iov;
-	conn->read_size = size = (size + 3) & -4;
+	conn->read_size = size;
 
 	i = 0;
 	while (1) {
@@ -1077,7 +1039,6 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 		TRACE_DBG("idx=%d, offset=%u, size=%d, iov_len=%zd, addr=%p",
 			idx, offset, size, conn->read_iov[i].iov_len, addr);
 		size -= conn->read_iov[i].iov_len;
-		offset = 0;
 		if (unlikely(++i >= ISCSI_CONN_IOV_MAX)) {
 			PRINT_ERROR("Initiator %s violated negotiated "
 				"parameters by sending too much data (size "
@@ -1088,6 +1049,7 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 			break;
 		}
 		idx++;
+		offset = sg[idx].offset;
 	}
 	TRACE_DBG("msg_iov=%p, msg_iovlen=%zd",
 		conn->read_msg.msg_iov, conn->read_msg.msg_iovlen);
@@ -1241,7 +1203,6 @@ static int noop_out_start(struct iscsi_cmnd *cmnd)
 	size = cmnd->pdu.datasize;
 
 	if (size) {
-		size = (size + 3) & -4;
 		conn->read_msg.msg_iov = conn->read_iov;
 		if (cmnd->pdu.bhs.itt != cpu_to_be32(ISCSI_RESERVED_TAG)) {
 			struct scatterlist *sg;
@@ -1410,7 +1371,9 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 			     req->pdu.datasize)) {
 			PRINT_ERROR("Unexpected unsolicited data (ITT %x "
 				"CDB %x", cmnd_itt(req), req_hdr->scb[0]);
-			create_sense_rsp(req, ABORTED_COMMAND, 0xc, 0xc);
+			create_status_rsp(req, SAM_STAT_CHECK_CONDITION,
+				sense_unexpected_unsolicited_data,
+				sizeof(sense_unexpected_unsolicited_data));
 			cmnd_reject_scsi_cmd(req);
 			goto out;
 		}
@@ -1461,7 +1424,9 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 		if (unlikely(dir != SCST_DATA_WRITE)) {
 			PRINT_ERROR("pdu.datasize(%d) >0, but dir(%x) isn't "
 				"WRITE", req->pdu.datasize, dir);
-			create_sense_rsp(req, ABORTED_COMMAND, 0xc, 0xc);
+			create_status_rsp(req, SAM_STAT_CHECK_CONDITION,
+				sense_unexpected_unsolicited_data,
+				sizeof(sense_unexpected_unsolicited_data));
 			cmnd_reject_scsi_cmd(req);
 		} else
 			res = cmnd_prepare_recv_pdu(conn, req, 0,
@@ -2092,35 +2057,6 @@ out_rejected:
 	goto out;
 }
 
-static void __cmnd_send_pdu(struct iscsi_conn *conn, struct iscsi_cmnd *cmnd,
-	u32 offset, u32 size)
-{
-	TRACE_DBG("%p %u,%u,%u", cmnd, offset, size, cmnd->bufflen);
-
-	iscsi_extracheck_is_wr_thread(conn);
-
-	sBUG_ON(offset > cmnd->bufflen);
-	sBUG_ON(offset + size > cmnd->bufflen);
-
-	conn->write_offset = offset;
-	conn->write_size += size;
-	return;
-}
-
-static void cmnd_send_pdu(struct iscsi_conn *conn, struct iscsi_cmnd *cmnd)
-{
-	u32 size;
-
-	if (!cmnd->pdu.datasize)
-		return;
-
-	size = (cmnd->pdu.datasize + 3) & -4;
-	sBUG_ON(cmnd->sg == NULL);
-	sBUG_ON(cmnd->bufflen != size);
-	__cmnd_send_pdu(conn, cmnd, 0, size);
-	return;
-}
-
 /*
  * Note: the code belows passes a kernel space pointer (&opt) to setsockopt()
  * while the declaration of setsockopt specifies that it expects a user space
@@ -2144,7 +2080,7 @@ void cmnd_tx_start(struct iscsi_cmnd *cmnd)
 {
 	struct iscsi_conn *conn = cmnd->conn;
 
-	TRACE_DBG("%p:%p:%x", conn, cmnd, cmnd_opcode(cmnd));
+	TRACE_DBG("conn %p, cmnd %p, opcode %x", conn, cmnd, cmnd_opcode(cmnd));
 	iscsi_cmnd_set_length(&cmnd->pdu);
 
 	iscsi_extracheck_is_wr_thread(conn);
@@ -2155,16 +2091,15 @@ void cmnd_tx_start(struct iscsi_cmnd *cmnd)
 	conn->write_iop->iov_base = (void __force __user *)(&cmnd->pdu.bhs);
 	conn->write_iop->iov_len = sizeof(cmnd->pdu.bhs);
 	conn->write_iop_used = 1;
-	conn->write_size = sizeof(cmnd->pdu.bhs);
+	conn->write_size = sizeof(cmnd->pdu.bhs) + cmnd->pdu.datasize;
+	conn->write_offset = 0;
 
 	switch (cmnd_opcode(cmnd)) {
 	case ISCSI_OP_NOOP_IN:
 		cmnd_set_sn(cmnd, 1);
-		cmnd_send_pdu(conn, cmnd);
 		break;
 	case ISCSI_OP_SCSI_RSP:
 		cmnd_set_sn(cmnd, 1);
-		cmnd_send_pdu(conn, cmnd);
 		break;
 	case ISCSI_OP_SCSI_TASK_MGT_RSP:
 		cmnd_set_sn(cmnd, 1);
@@ -2178,8 +2113,15 @@ void cmnd_tx_start(struct iscsi_cmnd *cmnd)
 			(struct iscsi_data_in_hdr *)&cmnd->pdu.bhs;
 		u32 offset = cpu_to_be32(rsp->buffer_offset);
 
+		TRACE_DBG("cmnd %p, offset %u, datasize %u, bufflen %u", cmnd,
+			offset, cmnd->pdu.datasize, cmnd->bufflen);
+
+		sBUG_ON(offset > cmnd->bufflen);
+		sBUG_ON(offset + cmnd->pdu.datasize > cmnd->bufflen);
+
+		conn->write_offset = offset;
+
 		cmnd_set_sn(cmnd, (rsp->flags & ISCSI_FLG_FINAL) ? 1 : 0);
-		__cmnd_send_pdu(conn, cmnd, offset, cmnd->pdu.datasize);
 		break;
 	}
 	case ISCSI_OP_LOGOUT_RSP:
@@ -2193,15 +2135,12 @@ void cmnd_tx_start(struct iscsi_cmnd *cmnd)
 		break;
 	case ISCSI_OP_REJECT:
 		cmnd_set_sn(cmnd, 1);
-		cmnd_send_pdu(conn, cmnd);
 		break;
 	default:
-		PRINT_ERROR("unexpected cmnd op %x", cmnd_opcode(cmnd));
+		PRINT_ERROR("Unexpected cmnd op %x", cmnd_opcode(cmnd));
 		break;
 	}
 
-	/* move this? */
-	conn->write_size = (conn->write_size + 3) & -4;
 	iscsi_dump_pdu(&cmnd->pdu);
 	return;
 }
@@ -2912,6 +2851,116 @@ static void iscsi_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 	return;
 }
 
+static int iscsi_scsi_aen(struct scst_aen *aen)
+{
+	int res = SCST_AEN_RES_SUCCESS;
+	uint64_t lun = scst_aen_get_lun(aen);
+	const uint8_t *sense = scst_aen_get_sense(aen);
+	int sense_len = scst_aen_get_sense_len(aen);
+	struct iscsi_session *sess = scst_sess_get_tgt_priv(
+					scst_aen_get_sess(aen));
+	struct iscsi_conn *conn;
+	bool found;
+	struct iscsi_cmnd *fake_req, *rsp;
+	struct iscsi_async_msg_hdr *rsp_hdr;
+	struct scatterlist *sg;
+
+	TRACE_ENTRY();
+
+	TRACE_MGMT_DBG("SCSI AEN to sess %p (initiator %s)", sess,
+		sess->initiator_name);
+
+	mutex_lock(&sess->target->target_mutex);
+
+	found = false;
+	list_for_each_entry_reverse(conn, &sess->conn_list, conn_list_entry) {
+		if (!conn->conn_shutting_down &&
+		    (conn->conn_reinst_successor == NULL)) {
+			found = true;
+			break;
+		}
+	}
+	if (!found) {
+		TRACE_MGMT_DBG("Unable to find alive conn for sess %p", sess);
+		goto out_err;
+	}
+
+	/* Create a fake request */
+	fake_req = cmnd_alloc(conn, NULL);
+	if (fake_req == NULL) {
+		PRINT_ERROR("%s", "Unable to alloc fake AEN request");
+		goto out_err;
+	}
+
+	mutex_unlock(&sess->target->target_mutex);
+
+	rsp = iscsi_cmnd_create_rsp_cmnd(fake_req);
+	if (rsp == NULL) {
+		PRINT_ERROR("%s", "Unable to alloc AEN rsp");
+		goto out_err_free_req;
+	}
+
+	fake_req->scst_state = ISCSI_CMD_STATE_AEN;
+	fake_req->scst_aen = aen;
+
+	rsp_hdr = (struct iscsi_async_msg_hdr *)&rsp->pdu.bhs;
+
+	rsp_hdr->opcode = ISCSI_OP_ASYNC_MSG;
+	rsp_hdr->flags = ISCSI_FLG_FINAL;
+	rsp_hdr->lun = lun; /* it's already in SCSI form */
+	rsp_hdr->ffffffff = 0xffffffff;
+	rsp_hdr->async_event = ISCSI_ASYNC_SCSI;
+
+	sg = rsp->sg = rsp->rsp_sg;
+	rsp->sg_cnt = 2;
+	rsp->own_sg = 1;
+
+	sg_init_table(sg, 2);
+	sg_set_buf(&sg[0], &rsp->sense_hdr, sizeof(rsp->sense_hdr));
+	sg_set_buf(&sg[1], sense, sense_len);
+		
+	rsp->sense_hdr.length = cpu_to_be16(sense_len);
+	rsp->pdu.datasize = sizeof(rsp->sense_hdr) + sense_len;
+	rsp->bufflen = rsp->pdu.datasize;
+
+	iscsi_cmnd_init_write(rsp, ISCSI_INIT_WRITE_WAKE);
+
+	req_cmnd_release(fake_req);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_err_free_req:
+	req_cmnd_release(fake_req);
+
+out_err:
+	mutex_unlock(&sess->target->target_mutex);
+	res = SCST_AEN_RES_FAILED;
+	goto out;
+}
+
+static int iscsi_report_aen(struct scst_aen *aen)
+{
+	int res;
+	int event_fn = scst_aen_get_event_fn(aen);
+
+	TRACE_ENTRY();
+
+	switch (event_fn) {
+	case SCST_AEN_SCSI:
+		res = iscsi_scsi_aen(aen);
+		break;
+	default:
+		TRACE_MGMT_DBG("Unsupported AEN %d", event_fn);
+		res = SCST_AEN_RES_NOT_SUPPORTED;
+		break;
+	}
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 static int iscsi_target_detect(struct scst_tgt_template *templ)
 {
 	/* Nothing to do */
@@ -2940,6 +2989,7 @@ struct scst_tgt_template iscsi_template = {
 	.pre_exec = iscsi_pre_exec,
 	.task_mgmt_affected_cmds_done = iscsi_task_mgmt_affected_cmds_done,
 	.task_mgmt_fn_done = iscsi_task_mgmt_fn_done,
+	.report_aen = iscsi_report_aen,
 };
 
 static __init int iscsi_run_threads(int count, char *name, int (*fn)(void *))
@@ -2990,6 +3040,12 @@ static int __init iscsi_init(void)
 	int num;
 
 	PRINT_INFO("iSCSI SCST Target - version %s", ISCSI_VERSION_STRING);
+
+	sense_unexpected_unsolicited_data[0] = 0x70;
+	sense_unexpected_unsolicited_data[2] = ABORTED_COMMAND;
+	sense_unexpected_unsolicited_data[7] = 6;
+	sense_unexpected_unsolicited_data[12] = 0xc;
+	sense_unexpected_unsolicited_data[13] = 0xc;
 
 	dummy_page = alloc_pages(GFP_KERNEL, 0);
 	if (dummy_page == NULL) {
