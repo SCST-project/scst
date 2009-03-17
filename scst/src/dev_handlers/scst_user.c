@@ -186,6 +186,7 @@ static int dev_user_register_dev(struct file *file,
 	const struct scst_user_dev_desc *dev_desc);
 static int dev_user_unregister_dev(struct file *file);
 static int dev_user_flush_cache(struct file *file);
+static int dev_user_capacity_changed(struct file *file);
 static int __dev_user_set_opt(struct scst_user_dev *dev,
 	const struct scst_user_opt *opt);
 static int dev_user_set_opt(struct file *file, const struct scst_user_opt *opt);
@@ -1862,6 +1863,11 @@ static long dev_user_ioctl(struct file *file, unsigned int cmd,
 		res = dev_user_get_opt(file, (void __user *)arg);
 		break;
 
+	case SCST_USER_DEVICE_CAPACITY_CHANGED:
+		TRACE_DBG("%s", "CAPACITY_CHANGED");
+		res = dev_user_capacity_changed(file);
+		break;
+
 	default:
 		PRINT_ERROR("Invalid ioctl cmd %x", cmd);
 		res = -EINVAL;
@@ -2764,6 +2770,33 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
+
+static int dev_user_capacity_changed(struct file *file)
+{
+	int res;
+	struct scst_user_dev *dev;
+
+	TRACE_ENTRY();
+
+	mutex_lock(&dev_priv_mutex);
+	dev = (struct scst_user_dev *)file->private_data;
+	res = dev_user_check_reg(dev);
+	if (res != 0) {
+		mutex_unlock(&dev_priv_mutex);
+		goto out;
+	}
+	down_read(&dev->dev_rwsem);
+	mutex_unlock(&dev_priv_mutex);
+
+	scst_capacity_data_changed(dev->sdev);
+
+	up_read(&dev->dev_rwsem);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 
 static int __dev_user_set_opt(struct scst_user_dev *dev,
 	const struct scst_user_opt *opt)

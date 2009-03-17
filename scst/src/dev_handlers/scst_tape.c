@@ -336,7 +336,17 @@ static int tape_done(struct scst_cmd *cmd)
 	else if ((status == SAM_STAT_CHECK_CONDITION) &&
 		   SCST_SENSE_VALID(cmd->sense)) {
 		struct tape_params *params;
-		TRACE_DBG("%s", "Extended sense");
+
+		TRACE_DBG("Extended sense %x", cmd->sense[0] & 0x7F);
+
+		if ((cmd->sense[0] & 0x7F) != 0x70) {
+			PRINT_ERROR("Sense format 0x%x is not supported",
+				cmd->sense[0] & 0x7F);
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_hardw_error));
+			goto out;
+		}
+
 		if (opcode == READ_6 && !(cmd->cdb[1] & SILI_BIT) &&
 		    (cmd->sense[2] & 0xe0)) {
 			/* EOF, EOM, or ILI */
@@ -374,6 +384,7 @@ static int tape_done(struct scst_cmd *cmd)
 		}
 	}
 
+out:
 	TRACE_DBG("cmd->is_send_status=%x, cmd->resp_data_len=%d, "
 	      "res=%d", cmd->is_send_status, cmd->resp_data_len, res);
 

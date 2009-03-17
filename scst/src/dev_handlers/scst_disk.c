@@ -144,9 +144,8 @@ static int disk_attach(struct scst_device *dev)
 	const int buffer_size = 512;
 	uint8_t *buffer = NULL;
 	int retries;
-	unsigned char sense_buffer[SCST_SENSE_BUFFERSIZE];
+	unsigned char sense_buffer[SCSI_SENSE_BUFFERSIZE];
 	enum dma_data_direction data_dir;
-	unsigned char *sbuff;
 	struct disk_params *params;
 
 	TRACE_ENTRY();
@@ -182,16 +181,16 @@ static int disk_attach(struct scst_device *dev)
 	while (1) {
 		memset(buffer, 0, buffer_size);
 		data_dir = SCST_DATA_READ;
-		sbuff = sense_buffer;
 
 		TRACE_DBG("%s", "Doing READ_CAPACITY");
 		res = scsi_execute(dev->scsi_dev, cmd, data_dir, buffer,
-				   buffer_size, sbuff,
+				   buffer_size, sense_buffer,
 				   SCST_GENERIC_DISK_REG_TIMEOUT, 3, 0);
 
 		TRACE_DBG("READ_CAPACITY done: %x", res);
 
-		if (!res || (sbuff[12] != 0x28 && sbuff[12] != 0x29))
+		if (!res || (sense_buffer[12] != 0x28 &&
+			     sense_buffer[12] != 0x29))
 			break;
 		if (!--retries) {
 			PRINT_ERROR("UA not clear after %d retries",
@@ -209,7 +208,7 @@ static int disk_attach(struct scst_device *dev)
 			params->block_shift =
 				scst_calc_block_shift(sector_size);
 	} else {
-		TRACE_BUFFER("Sense set", sbuff, SCST_SENSE_BUFFERSIZE);
+		TRACE_BUFFER("Sense set", sense_buffer, sizeof(sense_buffer));
 		res = -ENODEV;
 		goto out_free_buf;
 	}

@@ -29,6 +29,12 @@
 /* Max size of CDB */
 #define SCST_MAX_CDB_SIZE            16
 
+/*
+ * Size of sense sufficient to carry standard sense data.
+ * Warning! It's allocated on stack!
+ */
+#define SCST_STANDARD_SENSE_LEN      17
+
 /* Max size of sense */
 #define SCST_SENSE_BUFFERSIZE        96
 
@@ -156,8 +162,8 @@ static inline int scst_is_ua_sense(const uint8_t *sense)
 #define scst_sense_not_ready			NOT_READY,       0x04, 0x10
 #define scst_sense_invalid_message		ILLEGAL_REQUEST, 0x49, 0
 #define scst_sense_cleared_by_another_ini_UA	UNIT_ATTENTION,  0x2F, 0
-
-#define SCST_STANDARD_SENSE_LEN			14
+#define scst_sense_capacity_data_changed	UNIT_ATTENTION,  0x2A, 0x9
+#define scst_sense_reported_luns_data_changed	UNIT_ATTENTION,  0x3F, 0xE
 
 /*************************************************************
  * SCSI opcodes not listed anywhere else

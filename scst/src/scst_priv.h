@@ -126,6 +126,7 @@ extern mempool_t *scst_mgmt_mempool;
 extern mempool_t *scst_mgmt_stub_mempool;
 extern mempool_t *scst_ua_mempool;
 extern mempool_t *scst_sense_mempool;
+extern mempool_t *scst_aen_mempool;
 
 extern struct kmem_cache *scst_cmd_cachep;
 extern struct kmem_cache *scst_sess_cachep;
@@ -189,9 +190,6 @@ extern struct scst_threads_info_t scst_threads_info;
 extern int scst_cmd_threads_count(void);
 extern int __scst_add_cmd_threads(int num);
 extern void __scst_del_cmd_threads(int num);
-
-extern spinlock_t scst_temp_UA_lock;
-extern uint8_t scst_temp_UA[SCST_SENSE_BUFFERSIZE];
 
 extern struct scst_dev_type scst_null_devtype;
 
@@ -326,6 +324,7 @@ enum scst_sg_copy_dir {
 };
 void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir);
 
+uint64_t scst_pack_lun(const uint64_t lun);
 uint64_t scst_unpack_lun(const uint8_t *lun, int len);
 
 struct scst_mgmt_cmd *scst_alloc_mgmt_cmd(gfp_t gfp_mask);
@@ -357,9 +356,14 @@ static inline void scst_dev_check_set_UA(struct scst_device *dev,
 void scst_dev_check_set_local_UA(struct scst_device *dev,
 	struct scst_cmd *exclude, const uint8_t *sense, int sense_len);
 
+#define SCST_SET_UA_FLAG_AT_HEAD	1
+#define SCST_SET_UA_FLAG_GLOBAL		2
+
 void scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
-	const uint8_t *sense, int sense_len, int head);
+	const uint8_t *sense, int sense_len, int flags);
 int scst_set_pending_UA(struct scst_cmd *cmd);
+
+void scst_report_luns_changed(struct scst_acg *acg);
 
 void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 	int other_ini, int call_dev_task_mgmt_fn);

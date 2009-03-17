@@ -93,6 +93,8 @@ static struct scst_proc_log vdisk_proc_local_trace_tbl[] =
 #define VDISK_NAME			"vdisk"
 #define VCDROM_NAME			"vcdrom"
 
+#define VDISK_NULLIO_SIZE		3LL*1024*1024*1024*1024/2
+
 #define DEF_TST				SCST_CONTR_MODE_SEP_TASK_SETS
 /*
  * Since we can't control backstorage device's reordering, we have to always
@@ -361,9 +363,9 @@ static struct scst_dev_type vcdrom_devtype = VCDROM_TYPE;
 static struct scst_vdisk_thr nullio_thr_data;
 
 static char *vdisk_proc_help_string =
-	"echo \"open|close NAME [FILE_NAME [BLOCK_SIZE] [WRITE_THROUGH "
-	"READ_ONLY O_DIRECT NULLIO NV_CACHE BLOCKIO]]\" >/proc/scsi_tgt/"
-	VDISK_NAME "/" VDISK_NAME "\n";
+	"echo \"open|close|resync_size NAME [FILE_NAME [BLOCK_SIZE] "
+	"[WRITE_THROUGH READ_ONLY O_DIRECT NULLIO NV_CACHE BLOCKIO]]\" "
+	">/proc/scsi_tgt/" VDISK_NAME "/" VDISK_NAME "\n";
 
 static char *vcdrom_proc_help_string =
 	"echo \"open|change|close NAME [FILE_NAME]\" "
@@ -408,6 +410,76 @@ static struct file *vdisk_open(const struct scst_vdisk_dev *virt_dev)
 }
 
 /**************************************************************
+ *  Function:  vdisk_get_file_size
+ *
+ *  Argument:
+ *
+ *  Returns :  0 on success and file size in *file_size,
+ *	       error code otherwise
+ *
+ *  Description:
+ *************************************************************/
+static int vdisk_get_check_file_size(const char *file_name, bool blockio,
+	loff_t *file_size)
+{
+	struct inode *inode;
+	int res = 0;
+	struct file *fd;
+
+	TRACE_ENTRY();
+
+	*file_size = 0;
+
+	fd = filp_open(file_name, O_LARGEFILE | O_RDONLY, 0600);
+	if (IS_ERR(fd)) {
+		res = PTR_ERR(fd);
+		PRINT_ERROR("filp_open(%s) returned error %d", file_name, res);
+		goto out;
+	}
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
+	if ((fd->f_op == NULL) ||
+	    (fd->f_op->readv == NULL) ||
+	    (fd->f_op->writev == NULL)) {
+#else
+	if ((fd->f_op == NULL) ||
+	    (fd->f_op->aio_read == NULL) ||
+	    (fd->f_op->aio_write == NULL)) {
+#endif
+		PRINT_ERROR("%s", "Wrong f_op or FS doesn't have required "
+			"capabilities");
+		res = -EINVAL;
+		goto out_close;
+	}
+
+	inode = fd->f_dentry->d_inode;
+
+	if (blockio && !S_ISBLK(inode->i_mode)) {
+		PRINT_ERROR("File %s is NOT a block device", file_name);
+		res = -EINVAL;
+		goto out_close;
+	}
+
+	if (S_ISREG(inode->i_mode))
+		/* Nothing to do*/;
+	else if (S_ISBLK(inode->i_mode))
+		inode = inode->i_bdev->bd_inode;
+	else {
+		res = -EINVAL;
+		goto out_close;
+	}
+
+	*file_size = inode->i_size;
+
+out_close:
+	filp_close(fd, NULL);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/**************************************************************
  *  Function:  vdisk_attach
  *
  *  Argument:
@@ -420,7 +492,6 @@ static int vdisk_attach(struct scst_device *dev)
 {
 	int res = 0;
 	loff_t err;
-	struct file *fd;
 	struct scst_vdisk_dev *virt_dev = NULL, *vv;
 	struct list_head *vd;
 
@@ -462,56 +533,12 @@ static int vdisk_attach(struct scst_device *dev)
 
 	if (!virt_dev->cdrom_empty) {
 		if (virt_dev->nullio)
-			err = 3LL*1024*1024*1024*1024/2;
+			err = VDISK_NULLIO_SIZE;
 		else {
-			struct inode *inode;
-
-			fd = vdisk_open(virt_dev);
-			if (IS_ERR(fd)) {
-				res = PTR_ERR(fd);
-				PRINT_ERROR("filp_open(%s) returned error %d",
-				       virt_dev->file_name, res);
+			res = vdisk_get_check_file_size(virt_dev->file_name,
+				virt_dev->blockio, &err);
+			if (res != 0)
 				goto out;
-			}
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
-			if ((fd->f_op == NULL) ||
-			    (fd->f_op->readv == NULL) ||
-			    (fd->f_op->writev == NULL)) {
-#else
-			if ((fd->f_op == NULL) ||
-			    (fd->f_op->aio_read == NULL) ||
-			    (fd->f_op->aio_write == NULL)) {
-#endif
-				PRINT_ERROR("%s", "Wrong f_op or FS doesn't "
-					"have required capabilities");
-				res = -EINVAL;
-				filp_close(fd, NULL);
-				goto out;
-			}
-
-			inode = fd->f_dentry->d_inode;
-
-			if (virt_dev->blockio && !S_ISBLK(inode->i_mode)) {
-				PRINT_ERROR("File %s is NOT a block device",
-					virt_dev->file_name);
-				res = -EINVAL;
-				filp_close(fd, NULL);
-				goto out;
-			}
-
-			if (S_ISREG(inode->i_mode))
-				/* Nothing to do*/;
-			else if (S_ISBLK(inode->i_mode))
-				inode = inode->i_bdev->bd_inode;
-			else {
-				res = -EINVAL;
-				filp_close(fd, NULL);
-				goto out;
-			}
-			err = inode->i_size;
-
-			filp_close(fd, NULL);
 		}
 		virt_dev->file_size = err;
 		TRACE_DBG("size of file: %lld", (long long unsigned int)err);
@@ -2777,6 +2804,46 @@ static void vdisk_report_registering(const char *type,
 	return;
 }
 
+/* scst_vdisk_mutex supposed to be held */
+static int vdisk_resync_size(struct scst_vdisk_dev *virt_dev)
+{
+	loff_t err;
+	int res = 0;
+
+	if (!virt_dev->nullio) {
+		res = vdisk_get_check_file_size(virt_dev->file_name,
+				virt_dev->blockio, &err);
+		if (res != 0)
+			goto out;
+	} else
+		err = VDISK_NULLIO_SIZE;
+
+	res = scst_suspend_activity(true);
+	if (res != 0)
+		goto out;
+
+	virt_dev->file_size = err;
+	virt_dev->nblocks = virt_dev->file_size >> virt_dev->block_shift;
+
+	scst_dev_del_all_thr_data(virt_dev->dev);
+
+	PRINT_INFO("New size of SCSI target virtual disk %s "
+		"(fs=%lldMB, bs=%d, nblocks=%lld, cyln=%lld%s)",
+		virt_dev->name, virt_dev->file_size >> 20,
+		virt_dev->block_size,
+		(long long unsigned int)virt_dev->nblocks,
+		(long long unsigned int)virt_dev->nblocks/64/32,
+		virt_dev->nblocks < 64*32 ? " !WARNING! cyln less "
+						"than 1" : "");
+
+	scst_capacity_data_changed(virt_dev->dev);
+
+	scst_resume_activity();
+
+out:
+	return res;
+}
+
 /*
  * Called when a file in the /proc/VDISK_NAME/VDISK_NAME is written
  */
@@ -2810,6 +2877,9 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 		action = 0;
 	} else if (!strncmp("open ", p, 5)) {
 		p += 5;
+		action = 1;
+	} else if (!strncmp("resync_size ", p, 12)) {
+		p += 12;
 		action = 2;
 	} else {
 		PRINT_ERROR("Unknown action \"%s\"", p);
@@ -2834,12 +2904,11 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 		goto out_up;
 	}
 
-	if (action) {
+	if (action == 1) {
 		/* open */
 		virt_dev = NULL;
 		list_for_each_entry(vv, &vdisk_dev_list,
-					vdisk_dev_list_entry)
-		{
+					vdisk_dev_list_entry) {
 			if (strcmp(vv->name, name) == 0) {
 				virt_dev = vv;
 				break;
@@ -2992,11 +3061,10 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 			"vdisk_dev_list", virt_dev->name,
 			virt_dev->file_name, virt_dev->virt_id,
 			virt_dev->block_size);
-	} else {                           /* close */
+	} else if (action == 0) {	/* close */
 		virt_dev = NULL;
 		list_for_each_entry(vv, &vdisk_dev_list,
-					vdisk_dev_list_entry)
-		{
+					vdisk_dev_list_entry) {
 			if (strcmp(vv->name, name) == 0) {
 				virt_dev = vv;
 				break;
@@ -3016,6 +3084,24 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 
 		kfree(virt_dev->file_name);
 		kfree(virt_dev);
+	} else {	/* resync_size */
+		virt_dev = NULL;
+		list_for_each_entry(vv, &vdisk_dev_list,
+					vdisk_dev_list_entry) {
+			if (strcmp(vv->name, name) == 0) {
+				virt_dev = vv;
+				break;
+			}
+		}
+		if (virt_dev == NULL) {
+			PRINT_ERROR("Device %s not found", name);
+			res = -EINVAL;
+			goto out_up;
+		}
+
+		res = vdisk_resync_size(virt_dev);
+		if (res != 0)
+			goto out_up;
 	}
 	res = length;
 
@@ -3169,9 +3255,7 @@ out:
 /* scst_vdisk_mutex supposed to be held */
 static int vcdrom_change(char *p, char *name)
 {
-	struct file *fd;
 	loff_t err;
-	mm_segment_t old_fs;
 	struct scst_vdisk_dev *virt_dev, *vv;
 	char *file_name, *fn, *old_fn;
 	int len;
@@ -3179,8 +3263,7 @@ static int vcdrom_change(char *p, char *name)
 
 	virt_dev = NULL;
 	list_for_each_entry(vv, &vcdrom_dev_list,
-			    vdisk_dev_list_entry)
-	{
+			    vdisk_dev_list_entry) {
 		if (strcmp(vv->name, name) == 0) {
 			virt_dev = vv;
 			break;
@@ -3225,45 +3308,17 @@ static int vcdrom_change(char *p, char *name)
 		strncpy(fn, file_name, len);
 		virt_dev->file_name = fn;
 
-		fd = vdisk_open(virt_dev);
-		if (IS_ERR(fd)) {
-			res = PTR_ERR(fd);
-			PRINT_ERROR("filp_open(%s) returned an error %d",
-				       virt_dev->file_name, res);
+		res = vdisk_get_check_file_size(virt_dev->file_name,
+				virt_dev->blockio, &err);
+		if (res != 0)
 			goto out_free;
-		}
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
-		if ((fd->f_op == NULL) || (fd->f_op->readv == NULL)) {
-#else
-		if ((fd->f_op == NULL) || (fd->f_op->aio_read == NULL)) {
-#endif
-			PRINT_ERROR("%s", "Wrong f_op or FS doesn't "
-				"have required capabilities");
-			res = -EINVAL;
-			filp_close(fd, NULL);
-			goto out_free;
-		}
-		/* seek to end */
-		old_fs = get_fs();
-		set_fs(get_ds());
-		if (fd->f_op->llseek)
-			err = fd->f_op->llseek(fd, 0, 2/*SEEK_END*/);
-		else
-			err = default_llseek(fd, 0, 2/*SEEK_END*/);
-		set_fs(old_fs);
-		filp_close(fd, NULL);
-		if (err < 0) {
-			res = err;
-			PRINT_ERROR("llseek %s returned an error %d",
-				       virt_dev->file_name, res);
-			goto out_free;
-		}
 	} else {
-		len = 0;
 		err = 0;
-		fn = NULL;
-		virt_dev->file_name = fn;
+		virt_dev->file_name = NULL;
 	}
+	
+	 if (virt_dev->nullio)
+		err = VDISK_NULLIO_SIZE;
 
 	res = scst_suspend_activity(true);
 	if (res != 0)

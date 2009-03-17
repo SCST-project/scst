@@ -1321,13 +1321,12 @@ static void scst_cmd_done(void *data, char *sense, int result, int resid)
 	if (cmd == NULL)
 		goto out;
 
-	scst_do_cmd_done(cmd, result, sense, SCST_SENSE_BUFFERSIZE, resid);
+	scst_do_cmd_done(cmd, result, sense, SCSI_SENSE_BUFFERSIZE, resid);
 
 	cmd->state = SCST_CMD_STATE_PRE_DEV_DONE;
 
 	scst_proccess_redirect_cmd(cmd,
-		scst_optimize_post_exec_context(cmd, scst_estimate_context()),
-						0);
+	    scst_optimize_post_exec_context(cmd, scst_estimate_context()), 0);
 
 out:
 	TRACE_EXIT();
@@ -1489,6 +1488,37 @@ inc_dev_cnt:
 
 out_compl:
 	cmd->completed = 1;
+
+	/* Clear left sense_reported_luns_data_changed UA, if any. */
+
+	mutex_lock(&scst_mutex); /* protect sess_tgt_dev_list_hash */
+	for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
+		struct list_head *sess_tgt_dev_list_head =
+			&cmd->sess->sess_tgt_dev_list_hash[i];
+
+		list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
+				sess_tgt_dev_list_entry) {
+			struct scst_tgt_dev_UA *ua;
+
+			spin_lock_bh(&tgt_dev->tgt_dev_lock);
+			list_for_each_entry(ua, &tgt_dev->UA_list,
+						UA_list_entry) {
+				if (scst_analyze_sense(ua->UA_sense_buffer,
+						sizeof(ua->UA_sense_buffer),
+						SCST_SENSE_ALL_VALID,
+						SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed))) {
+					TRACE_MGMT_DBG("Freeing not needed "
+						"REPORTED LUNS DATA CHANGED UA "
+						"%p", ua);
+					list_del(&ua->UA_list_entry);
+					mempool_free(ua, scst_ua_mempool);
+					break;
+				}
+			}
+			spin_unlock_bh(&tgt_dev->tgt_dev_lock);
+		}
+	}
+	mutex_unlock(&scst_mutex);
 
 out_done:
 	/* Report the result */
@@ -2275,7 +2305,10 @@ static int scst_check_sense(struct scst_cmd *cmd)
 
 		/* Check Unit Attention Sense Key */
 		if (scst_is_ua_sense(cmd->sense)) {
-			if (cmd->sense[12] == SCST_SENSE_ASC_UA_RESET) {
+			if (scst_analyze_sense(cmd->sense,
+					SCST_SENSE_BUFFERSIZE,
+					SCST_SENSE_ASC_VALID,
+					0, SCST_SENSE_ASC_UA_RESET, 0)) {
 				if (cmd->double_ua_possible) {
 					TRACE(TRACE_MGMT_MINOR, "Double UA "
 						"detected for device %p", dev);
@@ -2501,10 +2534,11 @@ static int scst_pre_dev_done(struct scst_cmd *cmd)
 		    (cmd->status == SAM_STAT_CHECK_CONDITION) &&
 		    SCST_SENSE_VALID(cmd->sense) &&
 		    scst_is_ua_sense(cmd->sense) &&
-		    (cmd->sense[12] == 0x2a) && (cmd->sense[13] == 0x01)) {
-			TRACE(TRACE_SCSI,
-			      "MODE PARAMETERS CHANGED UA (lun %lld)",
-			      (long long unsigned int)cmd->lun);
+		    scst_analyze_sense(cmd->sense, SCST_SENSE_BUFFERSIZE,
+					SCST_SENSE_ASCx_VALID,
+					0, 0x2a, 0x01)) {
+			TRACE(TRACE_SCSI, "MODE PARAMETERS CHANGED UA (lun "
+				"%lld)", (long long unsigned int)cmd->lun);
 			cmd->state = SCST_CMD_STATE_MODE_SELECT_CHECKS;
 			goto out;
 		}
@@ -2529,6 +2563,8 @@ static int scst_mode_select_checks(struct scst_cmd *cmd)
 		    (cmd->cdb[0] == MODE_SELECT_10) ||
 		    (cmd->cdb[0] == LOG_SELECT))) {
 			struct scst_device *dev = cmd->dev;
+			uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
+
 			if (atomic && (dev->scsi_dev != NULL)) {
 				TRACE_DBG("%s", "MODE/LOG SELECT: thread "
 					"context required");
@@ -2541,19 +2577,17 @@ static int scst_mode_select_checks(struct scst_cmd *cmd)
 				(long long unsigned int)cmd->lun);
 
 			spin_lock_bh(&dev->dev_lock);
-			spin_lock(&scst_temp_UA_lock);
 			if (cmd->cdb[0] == LOG_SELECT) {
-				scst_set_sense(scst_temp_UA,
-					sizeof(scst_temp_UA),
+				scst_set_sense(sense_buffer,
+					sizeof(sense_buffer),
 					UNIT_ATTENTION, 0x2a, 0x02);
 			} else {
-				scst_set_sense(scst_temp_UA,
-					sizeof(scst_temp_UA),
+				scst_set_sense(sense_buffer,
+					sizeof(sense_buffer),
 					UNIT_ATTENTION, 0x2a, 0x01);
 			}
-			scst_dev_check_set_local_UA(dev, cmd, scst_temp_UA,
-				sizeof(scst_temp_UA));
-			spin_unlock(&scst_temp_UA_lock);
+			scst_dev_check_set_local_UA(dev, cmd, sense_buffer,
+				sizeof(sense_buffer));
 			spin_unlock_bh(&dev->dev_lock);
 
 			if (dev->scsi_dev != NULL)
@@ -2562,11 +2596,20 @@ static int scst_mode_select_checks(struct scst_cmd *cmd)
 	} else if ((cmd->status == SAM_STAT_CHECK_CONDITION) &&
 		    SCST_SENSE_VALID(cmd->sense) &&
 		    scst_is_ua_sense(cmd->sense) &&
-		    (((cmd->sense[12] == 0x2a) && (cmd->sense[13] == 0x01)) ||
-		     (cmd->sense[12] == 0x29) /* reset */ ||
-		     (cmd->sense[12] == 0x28) /* medium changed */ ||
+		     /* mode parameters changed */
+		    (scst_analyze_sense(cmd->sense, SCST_SENSE_BUFFERSIZE,
+					SCST_SENSE_ASCx_VALID,
+					0, 0x2a, 0x01) ||
+		     scst_analyze_sense(cmd->sense, SCST_SENSE_BUFFERSIZE,
+					SCST_SENSE_ASC_VALID,
+					0, 0x29, 0) /* reset */ ||
+		     scst_analyze_sense(cmd->sense, SCST_SENSE_BUFFERSIZE,
+					SCST_SENSE_ASC_VALID,
+					0, 0x28, 0) /* medium changed */ ||
 		     /* cleared by another ini (just in case) */
-		     (cmd->sense[12] == 0x2F))) {
+		     scst_analyze_sense(cmd->sense, SCST_SENSE_BUFFERSIZE,
+					SCST_SENSE_ASC_VALID,
+					0, 0x2F, 0))) {
 		if (atomic) {
 			TRACE_DBG("Possible parameters changed UA %x: "
 				"thread context required", cmd->sense[12]);
@@ -2934,7 +2977,8 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 			TRACE_MGMT_DBG("Requeuing UA for delivery failed cmd "
 				"%p", cmd);
 			scst_check_set_UA(cmd->tgt_dev, cmd->sense,
-					SCST_SENSE_BUFFERSIZE, 1);
+					SCST_SENSE_BUFFERSIZE,
+					SCST_SET_UA_FLAG_AT_HEAD);
 		}
 	}
 
@@ -4192,14 +4236,15 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 	mutex_unlock(&scst_mutex);
 
 	if (!dev->tas) {
+		uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
+
+		scst_set_sense(sense_buffer, sizeof(sense_buffer),
+			SCST_LOAD_SENSE(scst_sense_cleared_by_another_ini_UA));
+
 		list_for_each_entry(tgt_dev, &UA_tgt_devs,
-			extra_tgt_dev_list_entry) {
-			spin_lock_bh(&scst_temp_UA_lock);
-			scst_set_sense(scst_temp_UA, sizeof(scst_temp_UA),
-				SCST_LOAD_SENSE(scst_sense_cleared_by_another_ini_UA));
-			scst_check_set_UA(tgt_dev, scst_temp_UA,
-				sizeof(scst_temp_UA), 0);
-			spin_unlock_bh(&scst_temp_UA_lock);
+				extra_tgt_dev_list_entry) {
+			scst_check_set_UA(tgt_dev, sense_buffer,
+				sizeof(sense_buffer), 0);
 		}
 	}
 

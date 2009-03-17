@@ -515,6 +515,9 @@ subdirectories "vdisk" and "vcdrom". They have similar layout:
 
     * "close NAME" - closes device "NAME".
 
+    * "resync_size NAME" - refreshes size of device "NAME". Intended to be
+      used after device resize.
+
     * "change NAME [PATH]" - changes a virtual CD in the VDISK CDROM.
 
 By default, if neither BLOCKIO, nor NULLIO option is supplied, FILEIO

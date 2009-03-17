@@ -242,6 +242,7 @@ struct scst_user_reply_cmd {
 #define SCST_USER_REPLY_AND_GET_CMD	_IOWR('u', 5, struct scst_user_get_cmd)
 #define SCST_USER_REPLY_CMD		_IOW('u', 6, struct scst_user_reply_cmd)
 #define SCST_USER_FLUSH_CACHE		_IO('u', 7)
+#define SCST_USER_DEVICE_CAPACITY_CHANGED _IO('u', 8)
 
 /* Values for scst_user_get_cmd.subcode */
 #define SCST_USER_ATTACH_SESS		\

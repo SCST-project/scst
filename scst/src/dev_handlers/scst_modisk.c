@@ -144,9 +144,8 @@ static int modisk_attach(struct scst_device *dev)
 	const int buffer_size = 512;
 	uint8_t *buffer = NULL;
 	int retries;
-	unsigned char sense_buffer[SCST_SENSE_BUFFERSIZE];
+	unsigned char sense_buffer[SCSI_SENSE_BUFFERSIZE];
 	enum dma_data_direction data_dir;
-	unsigned char *sbuff;
 	struct modisk_params *params;
 
 	TRACE_ENTRY();
@@ -196,16 +195,15 @@ static int modisk_attach(struct scst_device *dev)
 	while (1) {
 		memset(buffer, 0, buffer_size);
 		data_dir = SCST_DATA_READ;
-		sbuff = sense_buffer;
 
 		TRACE_DBG("%s", "Doing READ_CAPACITY");
 		res = scsi_execute(dev->scsi_dev, cmd, data_dir, buffer,
-				   buffer_size, sbuff,
+				   buffer_size, sense_buffer,
 				   SCST_GENERIC_MODISK_REG_TIMEOUT, 3, 0);
 
 		TRACE_DBG("READ_CAPACITY done: %x", res);
 
-		if (!res || (sbuff[2] != UNIT_ATTENTION))
+		if (!res || (sense_buffer[2] != UNIT_ATTENTION))
 			break;
 
 		if (!--retries) {
@@ -226,9 +224,9 @@ static int modisk_attach(struct scst_device *dev)
 		TRACE_DBG("Sector size is %i scsi_level %d(SCSI_2 %d)",
 		      sector_size, dev->scsi_dev->scsi_level, SCSI_2);
 	} else {
-		TRACE_BUFFER("Sense set", sbuff, SCST_SENSE_BUFFERSIZE);
+		TRACE_BUFFER("Sense set", sense_buffer, sizeof(sense_buffer));
 
-		if (sbuff[2] != NOT_READY) {
+		if (sense_buffer[2] != NOT_READY) {
 			res = -ENODEV;
 			goto out_free_buf;
 		}

@@ -37,8 +37,10 @@
 static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev);
 static void scst_check_internal_sense(struct scst_device *dev, int result,
 	uint8_t *sense, int sense_len);
+static void __scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
+	const uint8_t *sense, int sense_len, int flags);
 static void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
-	const uint8_t *sense, int sense_len, int head);
+	const uint8_t *sense, int sense_len, int flags);
 static void scst_free_all_UA(struct scst_tgt_dev *tgt_dev);
 static void scst_release_space(struct scst_cmd *cmd);
 static void scst_sess_free_tgt_devs(struct scst_session *sess);
@@ -61,7 +63,8 @@ int scst_alloc_sense(struct scst_cmd *cmd, int atomic)
 
 	TRACE_ENTRY();
 
-	sBUG_ON(cmd->sense != NULL);
+	if (cmd->sense != NULL)
+		goto memzero;
 
 	cmd->sense = mempool_alloc(scst_sense_mempool, gfp_mask);
 	if (cmd->sense == NULL) {
@@ -71,6 +74,7 @@ int scst_alloc_sense(struct scst_cmd *cmd, int atomic)
 		goto out;
 	}
 
+memzero:
 	memset(cmd->sense, 0, SCST_SENSE_BUFFERSIZE);
 
 out:
@@ -146,19 +150,54 @@ out:
 }
 EXPORT_SYMBOL(scst_set_cmd_error);
 
-void scst_set_sense(uint8_t *buffer, int len, int key,
-	int asc, int ascq)
+void scst_set_sense(uint8_t *buffer, int len, int key, int asc, int ascq)
 {
+	sBUG_ON(len < SCST_STANDARD_SENSE_LEN);
+
 	memset(buffer, 0, len);
+
 	buffer[0] = 0x70;	/* Error Code			*/
 	buffer[2] = key;	/* Sense Key			*/
 	buffer[7] = 0x0a;	/* Additional Sense Length	*/
 	buffer[12] = asc;	/* ASC				*/
 	buffer[13] = ascq;	/* ASCQ				*/
+
 	TRACE_BUFFER("Sense set", buffer, len);
 	return;
 }
 EXPORT_SYMBOL(scst_set_sense);
+
+bool scst_analyze_sense(const uint8_t *sense, int len, unsigned int valid_mask,
+	int key, int asc, int ascq)
+{
+	bool res = false;
+
+	if (len < 14)
+		goto out;
+
+	/* Error Code */
+	if (sense[0] != 0x70)
+		goto out;
+
+	/* Sense Key */
+	if ((valid_mask & SCST_SENSE_KEY_VALID) && (sense[2] != key))
+		goto out;
+
+	/* ASC */
+	if ((valid_mask & SCST_SENSE_ASC_VALID) && (sense[12] != asc))
+		goto out;
+
+	/* ASCQ */
+	if ((valid_mask & SCST_SENSE_ASCQ_VALID) && (sense[13] != ascq))
+		goto out;
+
+	res = true;
+
+out:
+	TRACE_EXIT_RES((int)res);
+	return res;
+}
+EXPORT_SYMBOL(scst_analyze_sense);
 
 static void scst_set_cmd_error_sense(struct scst_cmd *cmd, uint8_t *sense,
 	unsigned int len)
@@ -207,7 +246,7 @@ void scst_set_initial_UA(struct scst_session *sess, int key, int asc, int ascq)
 		asc, ascq);
 
 	/* Protect sess_tgt_dev_list_hash */
-	mutex_lock(&scst_mutex); 
+	mutex_lock(&scst_mutex);
 
 	for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
 		struct list_head *sess_tgt_dev_list_head =
@@ -219,15 +258,14 @@ void scst_set_initial_UA(struct scst_session *sess, int key, int asc, int ascq)
 			spin_lock_bh(&tgt_dev->tgt_dev_lock);
 			if (!list_empty(&tgt_dev->UA_list)) {
 				struct scst_tgt_dev_UA *ua;
-				uint8_t *sense;
 
 				ua = list_entry(tgt_dev->UA_list.next,
 					typeof(*ua), UA_list_entry);
-				sense = ua->UA_sense_buffer;
-				if ((sense[2] == UNIT_ATTENTION) &&
-				    (sense[12] == 0x29) &&
-				    (sense[13] == 0)) {
-					scst_set_sense(sense,
+				if (scst_analyze_sense(ua->UA_sense_buffer,
+						sizeof(ua->UA_sense_buffer),
+						SCST_SENSE_ALL_VALID,
+						SCST_LOAD_SENSE(scst_sense_reset_UA))) {
+					scst_set_sense(ua->UA_sense_buffer,
 						sizeof(ua->UA_sense_buffer),
 						key, asc, ascq);
 				} else
@@ -240,12 +278,306 @@ void scst_set_initial_UA(struct scst_session *sess, int key, int asc, int ascq)
 		}
 	}
 
-	mutex_unlock(&scst_mutex); 
+	mutex_unlock(&scst_mutex);
 
 	TRACE_EXIT();
 	return;
 }
 EXPORT_SYMBOL(scst_set_initial_UA);
+
+static struct scst_aen *scst_alloc_aen(struct scst_tgt_dev *tgt_dev)
+{
+	struct scst_aen *aen;
+
+	TRACE_ENTRY();
+
+	aen = mempool_alloc(scst_aen_mempool, GFP_KERNEL);
+	if (aen == NULL) {
+		PRINT_ERROR("AEN memory allocation failed. Corresponding "
+			"event notification will not be performed (initiator "
+			"%s)", tgt_dev->sess->initiator_name);
+		goto out;
+	}
+	memset(aen, 0, sizeof(*aen));
+
+	aen->sess = tgt_dev->sess;
+	scst_sess_get(aen->sess);
+
+	aen->lun = scst_pack_lun(tgt_dev->lun);
+
+out:
+	TRACE_EXIT_HRES((unsigned long)aen);
+	return aen;
+};
+
+static void scst_free_aen(struct scst_aen *aen)
+{
+	TRACE_ENTRY();
+
+	scst_sess_put(aen->sess);
+	mempool_free(aen, scst_aen_mempool);
+
+	TRACE_EXIT();
+	return;
+};
+
+/* No locks */
+void scst_capacity_data_changed(struct scst_device *dev)
+{
+	struct scst_tgt_dev *tgt_dev;
+	uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
+
+	TRACE_ENTRY();
+
+	if (dev->type != TYPE_DISK) {
+		TRACE_MGMT_DBG("Device type %d isn't for CAPACITY DATA "
+			"CHANGED UA", dev->type);
+		goto out;
+	}
+
+	TRACE_MGMT_DBG("CAPACITY DATA CHANGED (dev %p)", dev);
+
+	scst_set_sense(sense_buffer, sizeof(sense_buffer),
+		SCST_LOAD_SENSE(scst_sense_capacity_data_changed));
+
+	mutex_lock(&scst_mutex);
+
+	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
+			    dev_tgt_dev_list_entry) {
+		struct scst_tgt_template *tgtt = tgt_dev->sess->tgt->tgtt;
+
+		if (tgtt->report_aen != NULL) {
+			struct scst_aen *aen;
+			int rc;
+
+			aen = scst_alloc_aen(tgt_dev);
+			if (aen == NULL)
+				goto queue_ua;
+
+			aen->event_fn = SCST_AEN_SCSI;
+			aen->aen_sense_len = SCST_STANDARD_SENSE_LEN;
+			scst_set_sense(aen->aen_sense, aen->aen_sense_len,
+				SCST_LOAD_SENSE(scst_sense_capacity_data_changed));
+
+			TRACE_DBG("Calling target's %s report_aen(%p)",
+				tgtt->name, aen);
+			rc = tgtt->report_aen(aen);
+			TRACE_DBG("Target's %s report_aen(%p) returned %d",
+				tgtt->name, aen, rc);
+			if (rc == SCST_AEN_RES_SUCCESS)
+				continue;
+
+			scst_free_aen(aen);
+		}
+queue_ua:
+		TRACE_MGMT_DBG("Queuing CAPACITY DATA CHANGED UA (tgt_dev %p)",
+			tgt_dev);
+		scst_check_set_UA(tgt_dev, sense_buffer,
+			sizeof(sense_buffer), 0);
+	}
+
+	mutex_unlock(&scst_mutex);
+
+out:
+	TRACE_EXIT();
+	return;
+}
+EXPORT_SYMBOL(scst_capacity_data_changed);
+
+static inline bool scst_is_report_luns_changed_type(int type)
+{
+	switch (type) {
+	case TYPE_DISK:
+	case TYPE_TAPE:
+	case TYPE_PRINTER:
+	case TYPE_PROCESSOR:
+	case TYPE_WORM:
+	case TYPE_ROM:
+	case TYPE_SCANNER:
+	case TYPE_MOD:
+	case TYPE_MEDIUM_CHANGER:
+	case TYPE_RAID:
+	case TYPE_ENCLOSURE:
+		return true;
+	default:
+		return false;
+	}
+}
+
+/* scst_mutex supposed to be held */
+void scst_queue_report_luns_changed_UA(struct scst_session *sess, int flags)
+{
+	uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
+	struct list_head *shead;
+	struct scst_tgt_dev *tgt_dev;
+	int i;
+
+	TRACE_ENTRY();
+
+	scst_set_sense(sense_buffer, sizeof(sense_buffer),
+		SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed));
+
+	TRACE_MGMT_DBG("Queuing REPORTED LUNS DATA CHANGED UA "
+		"(sess %p)", sess);
+
+	for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
+		shead = &sess->sess_tgt_dev_list_hash[i];
+
+		list_for_each_entry(tgt_dev, shead,
+				sess_tgt_dev_list_entry) {
+			spin_lock_bh(&tgt_dev->tgt_dev_lock);
+		}
+	}
+
+	for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
+		shead = &sess->sess_tgt_dev_list_hash[i];
+
+		list_for_each_entry(tgt_dev, shead,
+				sess_tgt_dev_list_entry) {
+			if (!scst_is_report_luns_changed_type(
+					tgt_dev->dev->type))
+				continue;
+
+			__scst_check_set_UA(tgt_dev, sense_buffer,
+				sizeof(sense_buffer),
+				flags | SCST_SET_UA_FLAG_GLOBAL);
+		}
+	}
+
+	for (i = TGT_DEV_HASH_SIZE-1; i >= 0; i--) {
+		shead = &sess->sess_tgt_dev_list_hash[i];
+
+		list_for_each_entry_reverse(tgt_dev,
+				shead, sess_tgt_dev_list_entry) {
+			spin_unlock_bh(&tgt_dev->tgt_dev_lock);
+		}
+	}
+
+	TRACE_EXIT();
+	return;
+}
+
+/* The activity supposed to be suspended and scst_mutex held */
+void scst_report_luns_changed(struct scst_acg *acg)
+{
+	struct scst_session *sess;
+
+	TRACE_ENTRY();
+
+	TRACE_MGMT_DBG("REPORTED LUNS DATA CHANGED (acg %s)", acg->acg_name);
+
+	list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
+		int i;
+		struct list_head *shead;
+		struct scst_tgt_dev *tgt_dev;
+		struct scst_tgt_template *tgtt = sess->tgt->tgtt;
+
+		for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
+			shead = &sess->sess_tgt_dev_list_hash[i];
+
+			list_for_each_entry(tgt_dev, shead,
+					sess_tgt_dev_list_entry) {
+				if (scst_is_report_luns_changed_type(
+						tgt_dev->dev->type))
+					goto found;
+			}
+		}
+		TRACE_MGMT_DBG("Not found a device capable REPORTED "
+			"LUNS DATA CHANGED UA (sess %p)", sess);
+		continue;
+found:
+		if (tgtt->report_aen != NULL) {
+			struct scst_aen *aen;
+			int rc;
+
+			aen = scst_alloc_aen(tgt_dev);
+			if (aen == NULL)
+				goto queue_ua;
+
+			aen->event_fn = SCST_AEN_SCSI;
+			aen->aen_sense_len = SCST_STANDARD_SENSE_LEN;
+			scst_set_sense(aen->aen_sense, aen->aen_sense_len,
+				SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed));
+
+			TRACE_DBG("Calling target's %s report_aen(%p)",
+				tgtt->name, aen);
+			rc = tgtt->report_aen(aen);
+			TRACE_DBG("Target's %s report_aen(%p) returned %d",
+				tgtt->name, aen, rc);
+			if (rc == SCST_AEN_RES_SUCCESS)
+				continue;
+
+			scst_free_aen(aen);
+		}
+
+queue_ua:
+		scst_queue_report_luns_changed_UA(sess, 0);
+	}
+
+	TRACE_EXIT();
+	return;
+}
+
+void scst_aen_done(struct scst_aen *aen)
+{
+	TRACE_ENTRY();
+
+	TRACE_MGMT_DBG("AEN %p (fn %d) done (initiator %s)", aen,
+		aen->event_fn, aen->sess->initiator_name);
+
+	if (aen->delivery_status == SCST_AEN_RES_SUCCESS)
+		goto out_free;
+
+	if (aen->event_fn != SCST_AEN_SCSI)
+		goto out_free;
+
+	TRACE_MGMT_DBG("Delivery of SCSI AEN failed (initiator %s)",
+		aen->sess->initiator_name);
+
+	if (scst_analyze_sense(aen->aen_sense, aen->aen_sense_len,
+			SCST_SENSE_ALL_VALID,
+			SCST_LOAD_SENSE(
+				scst_sense_reported_luns_data_changed))) {
+		mutex_lock(&scst_mutex);
+		scst_queue_report_luns_changed_UA(aen->sess,
+			SCST_SET_UA_FLAG_AT_HEAD);
+		mutex_unlock(&scst_mutex);
+	} else if (scst_analyze_sense(aen->aen_sense, aen->aen_sense_len,
+			SCST_SENSE_ALL_VALID,
+			SCST_LOAD_SENSE(scst_sense_capacity_data_changed))) {
+		/* tgt_dev might get dead, so we need to reseek it */
+		struct list_head *shead;
+		struct scst_tgt_dev *tgt_dev;
+		uint64_t lun;
+
+		lun = scst_unpack_lun((uint8_t *)&aen->lun, sizeof(aen->lun));
+
+		mutex_lock(&scst_mutex);
+
+		shead = &aen->sess->sess_tgt_dev_list_hash[HASH_VAL(lun)];
+		list_for_each_entry(tgt_dev, shead,
+				sess_tgt_dev_list_entry) {
+			if (tgt_dev->lun == lun) {
+				TRACE_MGMT_DBG("Queuing CAPACITY DATA CHANGED "
+					"UA (tgt_dev %p)", tgt_dev);
+				scst_check_set_UA(tgt_dev, aen->aen_sense,
+					aen->aen_sense_len,
+					SCST_SET_UA_FLAG_AT_HEAD);
+				break;
+			}
+		}
+
+		mutex_unlock(&scst_mutex);
+	} else
+		PRINT_ERROR("%s", "Unknown SCSI AEN");
+
+out_free:
+	scst_free_aen(aen);
+
+	TRACE_EXIT();
+	return;
+}
+EXPORT_SYMBOL(scst_aen_done);
 
 int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
 {
@@ -274,12 +606,15 @@ int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
 		res = SCST_CMD_STATE_XMIT_RESP;
 		break;
 
+	case SCST_CMD_STATE_PREPROCESS_DONE:
 	case SCST_CMD_STATE_PREPARE_SPACE:
 	case SCST_CMD_STATE_RDY_TO_XFER:
+	case SCST_CMD_STATE_DATA_WAIT:
 	case SCST_CMD_STATE_TGT_PRE_EXEC:
 	case SCST_CMD_STATE_SEND_FOR_EXEC:
 	case SCST_CMD_STATE_LOCAL_EXEC:
 	case SCST_CMD_STATE_REAL_EXEC:
+	case SCST_CMD_STATE_REAL_EXECUTING:
 		res = SCST_CMD_STATE_PRE_DEV_DONE;
 		break;
 
@@ -559,6 +894,7 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	struct list_head *sess_tgt_dev_list_head;
 	struct scst_tgt_template *vtt = sess->tgt->tgtt;
 	int rc, i;
+	uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
 
 	TRACE_ENTRY();
 
@@ -652,11 +988,9 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 			&tgt_dev->tgt_dev_flags);
 	}
 
-	spin_lock_bh(&scst_temp_UA_lock);
-	scst_set_sense(scst_temp_UA, sizeof(scst_temp_UA),
+	scst_set_sense(sense_buffer, sizeof(sense_buffer),
 		SCST_LOAD_SENSE(scst_sense_reset_UA));
-	scst_alloc_set_UA(tgt_dev, scst_temp_UA, sizeof(scst_temp_UA), 0);
-	spin_unlock_bh(&scst_temp_UA_lock);
+	scst_alloc_set_UA(tgt_dev, sense_buffer, sizeof(sense_buffer), 0);
 
 	tm_dbg_init_tgt_dev(tgt_dev, acg_dev);
 
@@ -726,11 +1060,11 @@ void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA)
 	spin_unlock_bh(&tgt_dev->tgt_dev_lock);
 
 	if (queue_UA) {
-		spin_lock_bh(&scst_temp_UA_lock);
-		scst_set_sense(scst_temp_UA, sizeof(scst_temp_UA),
+		uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
+		scst_set_sense(sense_buffer, sizeof(sense_buffer),
 			SCST_LOAD_SENSE(scst_sense_nexus_loss_UA));
-		scst_check_set_UA(tgt_dev, scst_temp_UA, sizeof(scst_temp_UA), 0);
-		spin_unlock_bh(&scst_temp_UA_lock);
+		scst_check_set_UA(tgt_dev, sense_buffer,
+			sizeof(sense_buffer), 0);
 	}
 
 	TRACE_EXIT();
@@ -879,24 +1213,24 @@ int scst_acg_add_dev(struct scst_acg *acg, struct scst_device *dev,
 			      &tmp_tgt_dev_list);
 	}
 
-out:
-	if (res == 0) {
-		if (dev->virt_name != NULL) {
-			PRINT_INFO("Added device %s to group %s (LUN %lld, "
-				"rd_only %d)", dev->virt_name, acg->acg_name,
-				(long long unsigned int)lun,
-				read_only);
-		} else {
-			PRINT_INFO("Added device %d:%d:%d:%d to group %s (LUN "
-				"%lld, rd_only %d)",
-				dev->scsi_dev->host->host_no,
-				dev->scsi_dev->channel,	dev->scsi_dev->id,
-				dev->scsi_dev->lun, acg->acg_name,
-				(long long unsigned int)lun,
-				read_only);
-		}
+	scst_report_luns_changed(acg);
+
+	if (dev->virt_name != NULL) {
+		PRINT_INFO("Added device %s to group %s (LUN %lld, "
+			"rd_only %d)", dev->virt_name, acg->acg_name,
+			(long long unsigned int)lun,
+			read_only);
+	} else {
+		PRINT_INFO("Added device %d:%d:%d:%d to group %s (LUN "
+			"%lld, rd_only %d)",
+			dev->scsi_dev->host->host_no,
+			dev->scsi_dev->channel,	dev->scsi_dev->id,
+			dev->scsi_dev->lun, acg->acg_name,
+			(long long unsigned int)lun,
+			read_only);
 	}
 
+out:
 	TRACE_EXIT_RES(res);
 	return res;
 
@@ -938,19 +1272,19 @@ int scst_acg_remove_dev(struct scst_acg *acg, struct scst_device *dev)
 	}
 	scst_free_acg_dev(acg_dev);
 
-out:
-	if (res == 0) {
-		if (dev->virt_name != NULL) {
-			PRINT_INFO("Removed device %s from group %s",
-				dev->virt_name, acg->acg_name);
-		} else {
-			PRINT_INFO("Removed device %d:%d:%d:%d from group %s",
-				dev->scsi_dev->host->host_no,
-				dev->scsi_dev->channel,	dev->scsi_dev->id,
-				dev->scsi_dev->lun, acg->acg_name);
-		}
+	scst_report_luns_changed(acg);
+
+	if (dev->virt_name != NULL) {
+		PRINT_INFO("Removed device %s from group %s",
+			dev->virt_name, acg->acg_name);
+	} else {
+		PRINT_INFO("Removed device %d:%d:%d:%d from group %s",
+			dev->scsi_dev->host->host_no,
+			dev->scsi_dev->channel,	dev->scsi_dev->id,
+			dev->scsi_dev->lun, acg->acg_name);
 	}
 
+out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -1078,9 +1412,8 @@ out:
 int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
 {
 	int res = 0;
-#define sbuf_size 252
 	static const uint8_t request_sense[6] =
-	    { REQUEST_SENSE, 0, 0, 0, sbuf_size, 0 };
+	    { REQUEST_SENSE, 0, 0, 0, SCST_SENSE_BUFFERSIZE, 0 };
 	struct scst_cmd *rs_cmd;
 
 	TRACE_ENTRY();
@@ -1092,7 +1425,8 @@ int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
 		orig_cmd->sense = NULL;
 	}
 
-	rs_cmd = scst_create_prepare_internal_cmd(orig_cmd, sbuf_size);
+	rs_cmd = scst_create_prepare_internal_cmd(orig_cmd,
+			SCST_SENSE_BUFFERSIZE);
 	if (rs_cmd == NULL)
 		goto out_error;
 
@@ -1100,7 +1434,7 @@ int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
 	rs_cmd->cdb_len = sizeof(request_sense);
 	rs_cmd->data_direction = SCST_DATA_READ;
 	rs_cmd->expected_data_direction = rs_cmd->data_direction;
-	rs_cmd->expected_transfer_len = sbuf_size;
+	rs_cmd->expected_transfer_len = SCST_SENSE_BUFFERSIZE;
 	rs_cmd->expected_values_set = 1;
 
 	TRACE(TRACE_MGMT_MINOR, "Adding REQUEST SENSE cmd %p to head of active "
@@ -1117,7 +1451,6 @@ out:
 out_error:
 	res = -1;
 	goto out;
-#undef sbuf_size
 }
 
 static void scst_complete_request_sense(struct scst_cmd *req_cmd)
@@ -1246,16 +1579,13 @@ static void scst_send_release(struct scst_device *dev)
 {
 	struct scsi_device *scsi_dev;
 	unsigned char cdb[6];
-	unsigned char *sense;
+	uint8_t sense[SCSI_SENSE_BUFFERSIZE];
 	int rc, i;
 
 	TRACE_ENTRY();
 
 	if (dev->scsi_dev == NULL)
 		goto out;
-
-	/* We can't afford missing RELEASE due to memory shortage */
-	sense = kmalloc(SCST_SENSE_BUFFERSIZE, GFP_KERNEL|__GFP_NOFAIL);
 
 	scsi_dev = dev->scsi_dev;
 
@@ -1265,7 +1595,7 @@ static void scst_send_release(struct scst_device *dev)
 		cdb[1] = (scsi_dev->scsi_level <= SCSI_2) ?
 		    ((scsi_dev->lun << 5) & 0xe0) : 0;
 
-		memset(sense, 0, SCST_SENSE_BUFFERSIZE);
+		memset(sense, 0, sizeof(sense));
 
 		TRACE(TRACE_DEBUG | TRACE_SCSI, "%s", "Sending RELEASE req to "
 			"SCSI mid-level");
@@ -1277,14 +1607,11 @@ static void scst_send_release(struct scst_device *dev)
 			break;
 		} else {
 			PRINT_ERROR("RELEASE failed: %d", rc);
-			PRINT_BUFFER("RELEASE sense", sense,
-				SCST_SENSE_BUFFERSIZE);
-			scst_check_internal_sense(dev, rc,
-					sense, SCST_SENSE_BUFFERSIZE);
+			PRINT_BUFFER("RELEASE sense", sense, sizeof(sense));
+			scst_check_internal_sense(dev, rc, sense,
+				sizeof(sense));
 		}
 	}
-
-	kfree(sense);
 
 out:
 	TRACE_EXIT();
@@ -2117,6 +2444,19 @@ out:
 }
 EXPORT_SYMBOL(scst_get_cdb_info);
 
+/* Packs SCST LUN back to SCSI form using peripheral device addressing method */
+uint64_t scst_pack_lun(const uint64_t lun)
+{
+	uint64_t res;
+	uint16_t *p = (uint16_t *)&res;
+
+	res = lun;
+	*p = cpu_to_be16(*p);
+
+	TRACE_EXIT_HRES((unsigned long)res);
+	return res;
+}
+
 /*
  * Routine to extract a lun number from an 8-byte LUN structure
  * in network byte order (BE).
@@ -2670,7 +3010,7 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 	int res = 0, i;
 	uint8_t cmd[16];
 	uint8_t buffer[4+0x0A];
-	uint8_t sense_buffer[SCST_SENSE_BUFFERSIZE];
+	uint8_t sense_buffer[SCSI_SENSE_BUFFERSIZE];
 
 	TRACE_ENTRY();
 
@@ -2741,7 +3081,10 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 			if (
 #endif
 			    SCST_SENSE_VALID(sense_buffer)) {
-				if (sense_buffer[2] == ILLEGAL_REQUEST) {
+				if (scst_analyze_sense(sense_buffer,
+			    			sizeof(sense_buffer),
+			    			SCST_SENSE_KEY_VALID,
+						ILLEGAL_REQUEST, 0, 0)) {
 					TRACE(TRACE_SCSI|TRACE_MGMT_MINOR,
 						"Device %d:%d:%d:%d doesn't"
 						" support control mode page,"
@@ -2759,7 +3102,10 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 						dev->has_own_order_mgmt);
 					res = 0;
 					goto out;
-				} else if (sense_buffer[2] == NOT_READY) {
+				} else if (scst_analyze_sense(sense_buffer,
+			    			sizeof(sense_buffer),
+			    			SCST_SENSE_KEY_VALID,
+						NOT_READY, 0, 0)) {
 					TRACE(TRACE_SCSI,
 						"Device %d:%d:%d:%d not ready",
 						dev->scsi_dev->host->host_no,
@@ -2863,13 +3209,11 @@ void scst_process_reset(struct scst_device *dev,
 	}
 
 	if (setUA) {
-		/* BH already off */
-		spin_lock(&scst_temp_UA_lock);
-		scst_set_sense(scst_temp_UA, sizeof(scst_temp_UA),
+		uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
+		scst_set_sense(sense_buffer, sizeof(sense_buffer),
 			SCST_LOAD_SENSE(scst_sense_reset_UA));
-		scst_dev_check_set_local_UA(dev, exclude_cmd, scst_temp_UA,
-			sizeof(scst_temp_UA));
-		spin_unlock(&scst_temp_UA_lock);
+		scst_dev_check_set_local_UA(dev, exclude_cmd, sense_buffer,
+			sizeof(sense_buffer));
 	}
 
 	TRACE_EXIT();
@@ -2878,8 +3222,10 @@ void scst_process_reset(struct scst_device *dev,
 
 int scst_set_pending_UA(struct scst_cmd *cmd)
 {
-	int res = 0;
+	int res = 0, i;
 	struct scst_tgt_dev_UA *UA_entry;
+	bool first = true, global_unlock = false;
+	struct scst_session *sess = cmd->sess;
 
 	TRACE_ENTRY();
 
@@ -2887,6 +3233,7 @@ int scst_set_pending_UA(struct scst_cmd *cmd)
 
 	spin_lock_bh(&cmd->tgt_dev->tgt_dev_lock);
 
+again:
 	/* UA list could be cleared behind us, so retest */
 	if (list_empty(&cmd->tgt_dev->UA_list)) {
 		TRACE_DBG("%s",
@@ -2901,12 +3248,61 @@ int scst_set_pending_UA(struct scst_cmd *cmd)
 	TRACE_DBG("next %p UA_entry %p",
 	      cmd->tgt_dev->UA_list.next, UA_entry);
 
+	if (UA_entry->global_UA && first) {
+		TRACE_MGMT_DBG("Global UA %p detected", UA_entry);
+
+		spin_unlock_bh(&cmd->tgt_dev->tgt_dev_lock);
+
+		mutex_lock(&scst_mutex);
+
+		for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
+			struct list_head *sess_tgt_dev_list_head =
+				&sess->sess_tgt_dev_list_hash[i];
+			struct scst_tgt_dev *tgt_dev;
+			list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
+					sess_tgt_dev_list_entry) {
+				spin_lock_bh(&tgt_dev->tgt_dev_lock);
+			}
+		}
+
+		first = false;
+		global_unlock = true;
+		goto again;
+	}
+
 	scst_set_cmd_error_sense(cmd, UA_entry->UA_sense_buffer,
 		sizeof(UA_entry->UA_sense_buffer));
 
 	cmd->ua_ignore = 1;
 
 	list_del(&UA_entry->UA_list_entry);
+
+	if (UA_entry->global_UA) {
+		for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
+			struct list_head *sess_tgt_dev_list_head =
+				&sess->sess_tgt_dev_list_hash[i];
+			struct scst_tgt_dev *tgt_dev;
+
+			list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
+					sess_tgt_dev_list_entry) {
+				struct scst_tgt_dev_UA *ua;
+				list_for_each_entry(ua, &tgt_dev->UA_list,
+							UA_list_entry) {
+					if (ua->global_UA &&
+					    memcmp(ua->UA_sense_buffer,
+						UA_entry->UA_sense_buffer,
+					     sizeof(ua->UA_sense_buffer)) == 0) {
+						TRACE_MGMT_DBG("Freeing not "
+							"needed global UA %p",
+							ua);
+						list_del(&ua->UA_list_entry);
+						mempool_free(ua, scst_ua_mempool);
+						break;
+					}
+				}
+			}
+		}
+	}
 
 	mempool_free(UA_entry, scst_ua_mempool);
 
@@ -2915,20 +3311,32 @@ int scst_set_pending_UA(struct scst_cmd *cmd)
 			  &cmd->tgt_dev->tgt_dev_flags);
 	}
 
+out_unlock:
+	if (global_unlock) {
+		for (i = TGT_DEV_HASH_SIZE-1; i >= 0; i--) {
+			struct list_head *sess_tgt_dev_list_head =
+				&sess->sess_tgt_dev_list_hash[i];
+			struct scst_tgt_dev *tgt_dev;
+			list_for_each_entry_reverse(tgt_dev, sess_tgt_dev_list_head,
+					sess_tgt_dev_list_entry) {
+				spin_unlock_bh(&tgt_dev->tgt_dev_lock);
+			}
+		}
+
+		mutex_unlock(&scst_mutex);
+
+		spin_lock_bh(&cmd->tgt_dev->tgt_dev_lock);
+	}
+
 	spin_unlock_bh(&cmd->tgt_dev->tgt_dev_lock);
 
-out:
 	TRACE_EXIT_RES(res);
 	return res;
-
-out_unlock:
-	spin_unlock_bh(&cmd->tgt_dev->tgt_dev_lock);
-	goto out;
 }
 
 /* Called under tgt_dev_lock and BH off */
 static void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
-	const uint8_t *sense, int sense_len, int head)
+	const uint8_t *sense, int sense_len, int flags)
 {
 	struct scst_tgt_dev_UA *UA_entry = NULL;
 
@@ -2944,6 +3352,10 @@ static void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
 	}
 	memset(UA_entry, 0, sizeof(*UA_entry));
 
+	UA_entry->global_UA = (flags & SCST_SET_UA_FLAG_GLOBAL) != 0;
+	if (UA_entry->global_UA)
+		TRACE_MGMT_DBG("Queuing global UA %p", UA_entry);
+
 	if (sense_len > (int)sizeof(UA_entry->UA_sense_buffer))
 		sense_len = sizeof(UA_entry->UA_sense_buffer);
 	memcpy(UA_entry->UA_sense_buffer, sense, sense_len);
@@ -2952,7 +3364,7 @@ static void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
 
 	TRACE_MGMT_DBG("Adding new UA to tgt_dev %p", tgt_dev);
 
-	if (head)
+	if (flags & SCST_SET_UA_FLAG_AT_HEAD)
 		list_add(&UA_entry->UA_list_entry, &tgt_dev->UA_list);
 	else
 		list_add_tail(&UA_entry->UA_list_entry, &tgt_dev->UA_list);
@@ -2962,20 +3374,19 @@ out:
 	return;
 }
 
-void scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
-	const uint8_t *sense, int sense_len, int head)
+/* tgt_dev_lock supposed to be held and BH off */
+static void __scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
+	const uint8_t *sense, int sense_len, int flags)
 {
 	int skip_UA = 0;
 	struct scst_tgt_dev_UA *UA_entry_tmp;
+	int len = min((int)sizeof(UA_entry_tmp->UA_sense_buffer), sense_len);
 
 	TRACE_ENTRY();
 
-	spin_lock_bh(&tgt_dev->tgt_dev_lock);
-
 	list_for_each_entry(UA_entry_tmp, &tgt_dev->UA_list,
 			    UA_list_entry) {
-		if (memcmp(sense, UA_entry_tmp->UA_sense_buffer,
-			   sense_len) == 0) {
+		if (memcmp(sense, UA_entry_tmp->UA_sense_buffer, len) == 0) {
 			TRACE_MGMT_DBG("%s", "UA already exists");
 			skip_UA = 1;
 			break;
@@ -2983,8 +3394,19 @@ void scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
 	}
 
 	if (skip_UA == 0)
-		scst_alloc_set_UA(tgt_dev, sense, sense_len, head);
+		scst_alloc_set_UA(tgt_dev, sense, len, flags);
 
+	TRACE_EXIT();
+	return;
+}
+
+void scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
+	const uint8_t *sense, int sense_len, int flags)
+{
+	TRACE_ENTRY();
+
+	spin_lock_bh(&tgt_dev->tgt_dev_lock);
+	__scst_check_set_UA(tgt_dev, sense, sense_len, flags);
 	spin_unlock_bh(&tgt_dev->tgt_dev_lock);
 
 	TRACE_EXIT();
@@ -3021,7 +3443,8 @@ void __scst_dev_check_set_UA(struct scst_device *dev,
 	TRACE(TRACE_MGMT_MINOR, "Processing UA dev %p", dev);
 
 	/* Check for reset UA */
-	if (sense[12] == SCST_SENSE_ASC_UA_RESET)
+	if (scst_analyze_sense(sense, sense_len, SCST_SENSE_ASC_VALID,
+				0, SCST_SENSE_ASC_UA_RESET, 0))
 		scst_process_reset(dev,
 				   (exclude != NULL) ? exclude->sess : NULL,
 				   exclude, NULL, false);
@@ -3044,7 +3467,7 @@ static void scst_free_all_UA(struct scst_tgt_dev *tgt_dev)
 		TRACE_MGMT_DBG("Clearing UA for tgt_dev lun %lld",
 			       (long long unsigned int)tgt_dev->lun);
 		list_del(&UA_entry->UA_list_entry);
-		kfree(UA_entry);
+		mempool_free(UA_entry, scst_ua_mempool);
 	}
 	INIT_LIST_HEAD(&tgt_dev->UA_list);
 	clear_bit(SCST_TGT_DEV_UA_PENDING, &tgt_dev->tgt_dev_flags);

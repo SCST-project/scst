@@ -269,8 +269,36 @@ enum scst_exec_context {
 #define SCST_PREPROCESS_STATUS_NEED_THREAD   4
 
 /*************************************************************
- ** Allowed return codes for xmit_response(), rdy_to_xfer(),
- ** report_aen()
+ ** Values for AEN functions
+ *************************************************************/
+
+/*
+ * SCSI Asynchronous Event. Parameter contains SCSI sense
+ * (Unit Attention). AENs generated only for 2 the following UAs:
+ * CAPACITY DATA HAS CHANGED and REPORTED LUNS DATA HAS CHANGED.
+ * Other UAs reported regularly as CHECK CONDITION status,
+ * because it doesn't look safe to report them using AENs, since
+ * reporting using AENs opens delivery race windows even in case of
+ * untagged commands.
+ */
+#define SCST_AEN_SCSI                0
+
+/*************************************************************
+ ** Allowed return/status codes for report_aen() callback and
+ ** scst_set_aen_delivery_status() function
+ *************************************************************/
+
+/* Success */
+#define SCST_AEN_RES_SUCCESS         0
+
+/* Not supported */
+#define SCST_AEN_RES_NOT_SUPPORTED  -1
+
+/* Failure */
+#define SCST_AEN_RES_FAILED         -2
+
+/*************************************************************
+ ** Allowed return codes for xmit_response(), rdy_to_xfer()
  *************************************************************/
 
 /* Success */
@@ -409,6 +437,21 @@ enum scst_exec_context {
 #endif
 
 /*************************************************************
+ ** Vlaid_mask constants for scst_analyze_sense()
+ *************************************************************/
+
+#define SCST_SENSE_KEY_VALID		1
+#define SCST_SENSE_ASC_VALID		2
+#define SCST_SENSE_ASCQ_VALID		4
+
+#define SCST_SENSE_ASCx_VALID		(SCST_SENSE_ASC_VALID | \
+				 	 SCST_SENSE_ASCQ_VALID)
+
+#define SCST_SENSE_ALL_VALID		(SCST_SENSE_KEY_VALID | \
+				 	 SCST_SENSE_ASC_VALID | \
+				 	 SCST_SENSE_ASCQ_VALID)
+
+/*************************************************************
  *                     TYPES
  *************************************************************/
 
@@ -422,6 +465,7 @@ struct scst_dev_type;
 struct scst_acg;
 struct scst_acg_dev;
 struct scst_acn;
+struct scst_aen;
 
 /*
  * SCST uses 64-bit numbers to represent LUN's internally. The value
@@ -665,17 +709,17 @@ struct scst_tgt_template {
 	int (*release) (struct scst_tgt *tgt);
 
 	/*
-	 * This function is used for Asynchronous Event Notification.
-	 * It is the responsibility of the driver to notify any/all
-	 * initiators about the Asynchronous Event reported.
-	 * Returns one of the SCST_TGT_RES_* constants.
+	 * This function is used for Asynchronous Event Notifications.
+	 *
+	 * Returns one of the SCST_AEN_RES_* constants.
+	 * After AEN is sent, target driver must call scst_aen_done() and,
+	 * optionally, scst_set_aen_delivery_status().
+	 *
 	 * This command is expected to be NON-BLOCKING, but can sleep.
 	 *
-	 * MUST HAVE if low-level protocol supports AEN
-	 *
-	 * ToDo
+	 * MUST HAVE, if low-level protocol supports AENs.
 	 */
-	int (*report_aen) (int mgmt_fn, const uint8_t *lun, int lun_len);
+	int (*report_aen) (struct scst_aen *aen);
 
 	/*
 	 * Those functions can be used to export the driver's statistics and
@@ -1598,8 +1642,31 @@ struct scst_acn {
 struct scst_tgt_dev_UA {
 	/* List entry in tgt_dev->UA_list */
 	struct list_head UA_list_entry;
+
+	/* Set if UA is global for session */
+	unsigned int global_UA:1;
+
 	/* Unit Attention sense */
 	uint8_t UA_sense_buffer[SCST_SENSE_BUFFERSIZE];
+};
+
+/* Used to deliver AENs */
+struct scst_aen {
+	int event_fn; /* AEN fn */
+
+	struct scst_session *sess;	/* corresponding session */
+	uint64_t lun;			/* corresponding LUN in SCSI form */
+
+	union {
+		/* SCSI AEN data */
+		struct {
+			int aen_sense_len;
+			uint8_t aen_sense[SCST_STANDARD_SENSE_LEN];
+		};
+	};
+
+	/* Keeps status of AEN's delivery to remote initiator */
+	int delivery_status;
 };
 
 #ifndef smp_mb__after_set_bit
@@ -1921,6 +1988,11 @@ void scst_set_busy(struct scst_cmd *cmd);
  * Sets initial Unit Attention for sess, replacing default scst_sense_reset_UA
  */
 void scst_set_initial_UA(struct scst_session *sess, int key, int asc, int ascq);
+
+/*
+ * Notifies SCST core that dev changed its capacity
+ */
+void scst_capacity_data_changed(struct scst_device *dev);
 
 /*
  * Finds a command based on the supplied tag comparing it with one
@@ -2340,8 +2412,8 @@ static inline void scst_clear_may_need_dma_sync(struct scst_cmd *cmd)
 }
 
 /*
- * Get/clear functions for cmd's delivery_status. It is one of
- * SCST_CMD_DELIVERY_* constants, it specifies the status of the
+ * Get/set functions for cmd's delivery_status. It is one of
+ * SCST_CMD_DELIVERY_* constants. It specifies the status of the
  * command's delivery to initiator.
  */
 static inline int scst_get_delivery_status(struct scst_cmd *cmd)
@@ -2393,6 +2465,60 @@ void scst_prepare_async_mcmd(struct scst_mgmt_cmd *mcmd);
  */
 void scst_async_mcmd_completed(struct scst_mgmt_cmd *mcmd, int status);
 
+/* Returns AEN's fn */
+static inline int scst_aen_get_event_fn(struct scst_aen *aen)
+{
+	return aen->event_fn;
+}
+
+/* Returns AEN's session */
+static inline struct scst_session *scst_aen_get_sess(struct scst_aen *aen)
+{
+	return aen->sess;
+}
+
+/* Returns AEN's LUN */
+static inline uint64_t scst_aen_get_lun(struct scst_aen *aen)
+{
+	return aen->lun;
+}
+
+/* Returns SCSI AEN's sense */
+static inline const uint8_t *scst_aen_get_sense(struct scst_aen *aen)
+{
+	return aen->aen_sense;
+}
+
+/* Returns SCSI AEN's sense length */
+static inline int scst_aen_get_sense_len(struct scst_aen *aen)
+{
+	return aen->aen_sense_len;
+}
+
+/*
+ * Get/set functions for AEN's delivery_status. It is one of
+ * SCST_AEN_RES_* constants. It specifies the status of the
+ * command's delivery to initiator.
+ */
+static inline int scst_get_aen_delivery_status(struct scst_aen *aen)
+{
+	return aen->delivery_status;
+}
+
+static inline void scst_set_aen_delivery_status(struct scst_aen *aen,
+	int status)
+{
+	aen->delivery_status = status;
+}
+
+/*
+ * Notifies SCST that the driver has sent the AEN and it
+ * can be freed now. Don't forget to set the delivery status, if it
+ * isn't success, using scst_set_aen_delivery_status() before calling
+ * this function.
+ */
+void scst_aen_done(struct scst_aen *aen);
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 
 static inline struct page *sg_page(struct scatterlist *sg)
@@ -2408,6 +2534,13 @@ static inline void *sg_virt(struct scatterlist *sg)
 static inline void sg_init_table(struct scatterlist *sgl, unsigned int nents)
 {
 	memset(sgl, 0, sizeof(*sgl) * nents);
+}
+
+static inline void sg_init_one(struct scatterlist *sg, const void *buf,
+	unsigned int buflen)
+{
+	sg_init_table(sg, 1);
+	sg_set_buf(sg, buf, buflen);
 }
 
 static inline void sg_assign_page(struct scatterlist *sg, struct page *page)
@@ -2612,8 +2745,15 @@ int scst_alloc_sense(struct scst_cmd *cmd, int atomic);
 int scst_alloc_set_sense(struct scst_cmd *cmd, int atomic,
 	const uint8_t *sense, unsigned int len);
 
-void scst_set_sense(uint8_t *buffer, int len, int key,
-	int asc, int ascq);
+void scst_set_sense(uint8_t *buffer, int len, int key, int asc, int ascq);
+
+/*
+ * Returnes true if sense matches to (key, asc, ascq) and false otherwise.
+ * Valid_mask is one or several SCST_SENSE_*_VALID constants setting valid
+ * (key, asc, ascq) values.
+ */
+bool scst_analyze_sense(const uint8_t *sense, int len, unsigned int valid_mask,
+	int key, int asc, int ascq);
 
 /*
  * Returnes a pseudo-random number for debugging purposes. Available only in

@@ -85,6 +85,8 @@ static struct kmem_cache *scst_ua_cachep;
 mempool_t *scst_ua_mempool;
 static struct kmem_cache *scst_sense_cachep;
 mempool_t *scst_sense_mempool;
+static struct kmem_cache *scst_aen_cachep;
+mempool_t *scst_aen_mempool;
 struct kmem_cache *scst_tgtd_cachep;
 struct kmem_cache *scst_sess_cachep;
 struct kmem_cache *scst_acgd_cachep;
@@ -132,13 +134,6 @@ struct scst_threads_info_t scst_threads_info;
 static int suspend_count;
 
 static int scst_virt_dev_last_id; /* protected by scst_mutex */
-
-/*
- * This buffer and lock are intended to avoid memory allocation, which
- * could fail in improper places.
- */
-spinlock_t scst_temp_UA_lock;
-uint8_t scst_temp_UA[SCST_SENSE_BUFFERSIZE];
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
 #if defined(CONFIG_BLOCK) && defined(SCST_ALLOC_IO_CONTEXT_EXPORTED)
@@ -1765,8 +1760,6 @@ static int __init init_scst(void)
 	mutex_init(&scst_suspend_mutex);
 	INIT_LIST_HEAD(&scst_cmd_lists_list);
 	scst_virt_dev_last_id = 1;
-	spin_lock_init(&scst_temp_UA_lock);
-
 	spin_lock_init(&scst_main_cmd_lists.cmd_list_lock);
 	INIT_LIST_HEAD(&scst_main_cmd_lists.active_cmd_list);
 	init_waitqueue_head(&scst_main_cmd_lists.cmd_list_waitQ);
@@ -1807,7 +1800,8 @@ static int __init init_scst(void)
 		INIT_CACHEP(scst_sense_cachep, scst_sense,
 			    out_destroy_ua_cache);
 	}
-	INIT_CACHEP(scst_cmd_cachep, scst_cmd, out_destroy_sense_cache);
+	INIT_CACHEP(scst_aen_cachep, scst_aen, out_destroy_sense_cache);
+	INIT_CACHEP(scst_cmd_cachep, scst_cmd, out_destroy_aen_cache);
 	INIT_CACHEP(scst_sess_cachep, scst_session, out_destroy_cmd_cache);
 	INIT_CACHEP(scst_tgtd_cachep, scst_tgt_dev, out_destroy_sess_cache);
 	INIT_CACHEP(scst_acgd_cachep, scst_acg_dev, out_destroy_tgt_cache);
@@ -1843,6 +1837,13 @@ static int __init init_scst(void)
 		goto out_destroy_ua_mempool;
 	}
 
+	scst_aen_mempool = mempool_create(100, mempool_alloc_slab,
+		mempool_free_slab, scst_aen_cachep);
+	if (scst_aen_mempool == NULL) {
+		res = -ENOMEM;
+		goto out_destroy_sense_mempool;
+	}
+
 	if (scst_max_cmd_mem == 0) {
 		struct sysinfo si;
 		si_meminfo(&si);
@@ -1870,7 +1871,7 @@ static int __init init_scst(void)
 	res = scst_sgv_pools_init(
 		((uint64_t)scst_max_cmd_mem << 10) >> (PAGE_SHIFT - 10), 0);
 	if (res != 0)
-		goto out_destroy_sense_mempool;
+		goto out_destroy_aen_mempool;
 
 	scst_default_acg = scst_alloc_add_acg(SCST_DEFAULT_ACG_NAME);
 	if (scst_default_acg == NULL) {
@@ -1925,6 +1926,9 @@ out_free_acg:
 out_destroy_sgv_pool:
 	scst_sgv_pools_deinit();
 
+out_destroy_aen_mempool:
+	mempool_destroy(scst_aen_mempool);
+
 out_destroy_sense_mempool:
 	mempool_destroy(scst_sense_mempool);
 
@@ -1948,6 +1952,9 @@ out_destroy_sess_cache:
 
 out_destroy_cmd_cache:
 	kmem_cache_destroy(scst_cmd_cachep);
+
+out_destroy_aen_cache:
+	kmem_cache_destroy(scst_aen_cachep);
 
 out_destroy_sense_cache:
 	kmem_cache_destroy(scst_sense_cachep);
@@ -1987,11 +1994,13 @@ static void __exit exit_scst(void)
 	mempool_destroy(scst_mgmt_stub_mempool);
 	mempool_destroy(scst_ua_mempool);
 	mempool_destroy(scst_sense_mempool);
+	mempool_destroy(scst_aen_mempool);
 
 	DEINIT_CACHEP(scst_mgmt_cachep);
 	DEINIT_CACHEP(scst_mgmt_stub_cachep);
 	DEINIT_CACHEP(scst_ua_cachep);
 	DEINIT_CACHEP(scst_sense_cachep);
+	DEINIT_CACHEP(scst_aen_cachep);
 	DEINIT_CACHEP(scst_cmd_cachep);
 	DEINIT_CACHEP(scst_sess_cachep);
 	DEINIT_CACHEP(scst_tgtd_cachep);
