@@ -189,6 +189,28 @@ out:
 	return;
 }
 
+void sigusr1_handler(int signo)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	TRACE_MGMT_DBG("%s", "Capacity data changed...");
+
+	res = ioctl(dev.scst_usr_fd, SCST_USER_DEVICE_CAPACITY_CHANGED, NULL);
+	if (res != 0) {
+		res = errno;
+		PRINT_ERROR("Capacity data changed failed: %s", strerror(res));
+		goto out;
+	}
+
+	TRACE_DBG("%s", "Capacity data changed done.");
+
+out:
+	TRACE_EXIT();
+	return;
+}
+
 int main(int argc, char **argv)
 {
 	int res = 0;
@@ -480,6 +502,19 @@ int main(int argc, char **argv)
 		pthread_t thread[threads];
 		int i, j, rc;
 		void *rc1;
+		struct sigaction act;
+
+		memset(&act, 0, sizeof(act));
+		act.sa_handler = sigusr1_handler;
+		act.sa_flags = SA_RESTART;
+		sigemptyset(&act.sa_mask);
+		res = sigaction(SIGUSR1, &act, NULL);
+		if (res != 0) {
+			res = errno;
+			PRINT_ERROR("sigaction() failed: %s",
+				strerror(res));
+			/* don't do anything */
+		}       
 
 		for(i = 0; i < threads; i++) {
 			rc = pthread_create(&thread[i], NULL, main_loop, &dev);
@@ -492,8 +527,6 @@ int main(int argc, char **argv)
 		}
 
 		if (flush_interval != 0) {
-			struct sigaction act;
-
 			memset(&act, 0, sizeof(act));
 			act.sa_handler = sigalrm_handler;
 			act.sa_flags = SA_RESTART;

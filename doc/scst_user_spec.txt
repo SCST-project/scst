@@ -829,6 +829,20 @@ SCST_USER_FLUSH_CACHE returns 0 on success or -1 in case of error,
 and errno is set appropriately.
 
 
+		7. SCST_USER_DEVICE_CAPACITY_CHANGED
+
+SCST_USER_DEVICE_CAPACITY_CHANGED - queues CAPACITY DATA HAS CHANGED
+Unit Attention or corresponding Asynchronous Event to the corresponding
+virtual device. It will notify remote initiators, connected to the
+device, and allow them to automatically refresh new device size. You
+should use SCST_USER_DEVICE_CAPACITY_CHANGED after resize of the device.
+
+SCST_USER_DEVICE_CAPACITY_CHANGED doesn't have any parameters.
+
+SCST_USER_DEVICE_CAPACITY_CHANGED returns 0 on success or -1 in case of
+error, and errno is set appropriately.
+
+
 		IV. Commands processing flow example.
 
 As the example consider a simple synchronous VTL, which serves one

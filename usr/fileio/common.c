@@ -125,14 +125,18 @@ static inline void set_cmd_error_status(struct scst_user_scsi_cmd_reply_exec *re
 
 static int set_sense(uint8_t *buffer, int len, int key, int asc, int ascq)
 {
-	int res = 14;
+	int res = SCST_STANDARD_SENSE_LEN;
+
 	EXTRACHECKS_BUG_ON(len < res);
+
 	memset(buffer, 0, res);
+
 	buffer[0] = 0x70;	/* Error Code			*/
 	buffer[2] = key;	/* Sense Key			*/
 	buffer[7] = 0x0a;	/* Additional Sense Length	*/
 	buffer[12] = asc;	/* ASC				*/
 	buffer[13] = ascq;	/* ASCQ				*/
+
 	TRACE_BUFFER("Sense set", buffer, res);
 	return res;
 }
