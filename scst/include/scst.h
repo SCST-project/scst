@@ -736,7 +736,7 @@ struct scst_tgt_template {
 	 * Name of the template. Must be unique to identify
 	 * the template. MUST HAVE
 	 */
-	const char name[50];
+	const char name[SCST_MAX_NAME];
 
 	/*
 	 * Number of additional threads to the pool of dedicated threads.
@@ -896,8 +896,12 @@ struct scst_dev_type {
 	int (*write_proc) (char *buffer, char **start, off_t offset,
 		int length, int *eof, struct scst_dev_type *dev_type);
 
-	/* Name of the dev handler. Must be unique. MUST HAVE */
-	char name[60]; /* It's SCST_MAX_NAME + few more bytes for scst_user */
+	/*
+	 * Name of the dev handler. Must be unique. MUST HAVE.
+	 *
+	 * It's SCST_MAX_NAME + few more bytes to match scst_user requirements.
+	 */
+	char name[SCST_MAX_NAME + 10];
 
 	/*
 	 * Number of dedicated threads. If 0 - no dedicated threads will
