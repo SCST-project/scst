@@ -798,20 +798,17 @@ static int recv(struct iscsi_conn *conn)
 			iscsi_conn_init_read(conn,
 				(void __force __user *)&conn->rpadding, psz);
 			conn->read_state = RX_PADDING;
-		} else if (ddigest) {
+		} else if (ddigest)
 			conn->read_state = RX_INIT_DDIGEST;
-			goto init_ddigest;
-		} else {
+		 else
 			conn->read_state = RX_END;
-			break;
-		}
+		break;
 	}
 	case RX_PADDING:
 		res = do_recv(conn, ddigest ? RX_INIT_DDIGEST : RX_END);
 		if (res <= 0 || conn->read_state != RX_INIT_DDIGEST)
 			break;
 	case RX_INIT_DDIGEST:
-init_ddigest:
 		iscsi_conn_init_read(conn,
 			(void __force __user *)&cmnd->ddigest, sizeof(u32));
 		conn->read_state = RX_DDIGEST;
@@ -1511,19 +1508,16 @@ int iscsi_send(struct iscsi_conn *conn)
 						cmnd->pdu.datasize;
 		if (cmnd->conn->write_size != 0)
 			conn->write_state = TX_PADDING;
-		else if (ddigest) {
+		else if (ddigest)
 			conn->write_state = TX_INIT_DDIGEST;
-			goto init_ddigest;
-		} else {
+		 else
 			conn->write_state = TX_END;
-			break;
-		}
+		break;
 	case TX_PADDING:
 		res = tx_padding(cmnd, ddigest ? TX_INIT_DDIGEST : TX_END);
 		if (res <= 0 || conn->write_state != TX_INIT_DDIGEST)
 			break;
 	case TX_INIT_DDIGEST:
-init_ddigest:
 		cmnd->conn->write_size = sizeof(u32);
 		conn->write_state = TX_DDIGEST;
 	case TX_DDIGEST:

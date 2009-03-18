@@ -899,7 +899,7 @@ struct scst_dev_type {
 	/*
 	 * Name of the dev handler. Must be unique. MUST HAVE.
 	 *
-	 * It's SCST_MAX_NAME + few more bytes to match scst_user requirements.
+	 * It's SCST_MAX_NAME + few more bytes to match scst_user expectations.
 	 */
 	char name[SCST_MAX_NAME + 10];
 
@@ -1235,7 +1235,9 @@ struct scst_cmd {
 
 	/* CDB and its len */
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
-	int cdb_len;
+	unsigned short cdb_len;
+	unsigned short ext_cdb_len;
+	uint8_t *ext_cdb;
 
 	enum scst_cdb_flags op_flags;
 	const char *op_name;
@@ -1831,8 +1833,8 @@ void scst_unregister_virtual_dev_driver(struct scst_dev_type *dev_type);
  * same sess. Returns the command on success or NULL otherwise
  */
 struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
-			     const uint8_t *lun, int lun_len,
-			     const uint8_t *cdb, int cdb_len, int atomic);
+	const uint8_t *lun, int lun_len, const uint8_t *cdb,
+	int cdb_len, int atomic);
 
 /*
  * Notifies SCST that the driver finished its part of the command
@@ -1964,11 +1966,8 @@ static inline int scst_rx_mgmt_fn_lun(struct scst_session *sess, int fn,
 }
 
 /*
- * Provides various CDB info
- * Parameters:
- *   cdb_p - pointer to CDB
- *   dev_type - SCSI device type
- *   op_flags, direction, transfer_len, cdb_len, op_name - the result (output)
+ * Provides various info about command's CDB.
+ *
  * Returns: 0 on success, <0 if command is unknown, >0 if command is invalid.
  */
 int scst_get_cdb_info(struct scst_cmd *cmd);
@@ -2144,6 +2143,38 @@ static inline enum scst_exec_context scst_estimate_context(void)
 static inline enum scst_exec_context scst_estimate_context_direct(void)
 {
 	return __scst_estimate_context(1);
+}
+
+/* Returns cmd's CDB */
+static inline const uint8_t *scst_cmd_get_cdb(struct scst_cmd *cmd)
+{
+	return cmd->cdb;
+}
+
+/* Returns cmd's CDB length */
+static inline int scst_cmd_get_cdb_len(struct scst_cmd *cmd)
+{
+	return cmd->cdb_len;
+}
+
+/* Returns cmd's extended CDB */
+static inline const uint8_t *scst_cmd_get_ext_cdb(struct scst_cmd *cmd)
+{
+	return cmd->ext_cdb;
+}
+
+/* Returns cmd's extended CDB length */
+static inline int scst_cmd_get_ext_cdb_len(struct scst_cmd *cmd)
+{
+	return cmd->ext_cdb_len;
+}
+
+/* Sets cmd's extended CDB and its length */
+static inline void scst_cmd_set_ext_cdb(struct scst_cmd *cmd,
+	uint8_t *ext_cdb, unsigned int ext_cdb_len)
+{
+	cmd->ext_cdb = ext_cdb;
+	cmd->ext_cdb_len = ext_cdb_len;
 }
 
 /* Returns cmd's session */

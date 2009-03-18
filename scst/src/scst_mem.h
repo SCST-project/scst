@@ -84,8 +84,9 @@ struct sgv_pool {
 	struct sgv_pool_acc acc;
 	struct sgv_pool_cache_acc cache_acc[SGV_POOL_ELEMENTS];
 
-	char cache_names[SGV_POOL_ELEMENTS][25];
-	char name[25];
+	/* SCST_MAX_NAME + few more bytes to match scst_user expectations */
+	char cache_names[SGV_POOL_ELEMENTS][SCST_MAX_NAME + 10];
+	char name[SCST_MAX_NAME + 10];
 	struct list_head sgv_pool_list_entry;
 };
 

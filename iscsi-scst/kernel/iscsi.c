@@ -84,13 +84,32 @@ static inline u32 cmnd_read_size(struct iscsi_cmnd *cmnd)
 	struct iscsi_scsi_cmd_hdr *hdr = cmnd_hdr(cmnd);
 
 	if (hdr->flags & ISCSI_CMD_READ) {
-		struct iscsi_rlength_ahdr *ahdr =
-			(struct iscsi_rlength_ahdr *)cmnd->pdu.ahs;
+		struct iscsi_ahs_hdr *ahdr;
 
 		if (!(hdr->flags & ISCSI_CMD_WRITE))
 			return be32_to_cpu(hdr->data_length);
-		if (ahdr && ahdr->ahstype == ISCSI_AHSTYPE_RLENGTH)
-			return be32_to_cpu(ahdr->read_length);
+
+		ahdr = (struct iscsi_ahs_hdr *)cmnd->pdu.ahs;
+		if (ahdr != NULL) {
+			uint8_t *p = (uint8_t *)ahdr;
+			int size = 0;
+			do {
+				int s;
+
+				ahdr = (struct iscsi_ahs_hdr *)p;
+
+				if (ahdr->ahstype == ISCSI_AHSTYPE_RLENGTH) {
+					struct iscsi_rlength_ahdr *rh = 
+					      (struct iscsi_rlength_ahdr *)ahdr;
+					return be32_to_cpu(rh->read_length);
+				}
+
+				s = 3 + be16_to_cpu(ahdr->ahslength);
+				s = (s + 3) & -4;
+				size += s;
+				p += s;
+			} while (size < cmnd->pdu.ahssize);
+		}
 	}
 	return 0;
 }
@@ -1280,6 +1299,7 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 	struct iscsi_scsi_cmd_hdr *req_hdr = cmnd_hdr(req);
 	struct scst_cmd *scst_cmd;
 	scst_data_direction dir;
+	struct iscsi_ahs_hdr *ahdr;
 	int res = 0;
 
 	TRACE_ENTRY();
@@ -1342,6 +1362,29 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 
 	/* cmd_sn is already in CPU format converted in check_cmd_sn() */
 	scst_cmd_set_tgt_sn(scst_cmd, req_hdr->cmd_sn);
+
+	ahdr = (struct iscsi_ahs_hdr *)req->pdu.ahs;
+	if (ahdr != NULL) {
+		uint8_t *p = (uint8_t *)ahdr;
+		int size = 0;
+		do {
+			int s;
+
+			ahdr = (struct iscsi_ahs_hdr *)p;
+
+			if (ahdr->ahstype == ISCSI_AHSTYPE_CDB) {
+				struct iscsi_cdb_ahdr *eca = 
+					(struct iscsi_cdb_ahdr *)ahdr;
+				scst_cmd_set_ext_cdb(scst_cmd, eca->cdb,
+					be16_to_cpu(ahdr->ahslength) - 1);
+				break;
+			}
+			s = 3 + be16_to_cpu(ahdr->ahslength);
+			s = (s + 3) & -4;
+			size += s;
+			p += s;
+		} while (size < req->pdu.ahssize);
+	}
 
 	TRACE_DBG("START Command (tag %d, queue_type %d)",
 		req_hdr->itt, scst_cmd->queue_type);

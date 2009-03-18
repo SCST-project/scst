@@ -107,7 +107,8 @@ struct scst_user_scsi_cmd_parse {
 	aligned_u64 sess_h;
 
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
-	int32_t cdb_len;
+	uint16_t cdb_len;
+	uint16_t ext_cdb_len;
 
 	int32_t timeout;
 	int32_t bufflen;
@@ -126,7 +127,8 @@ struct scst_user_scsi_cmd_alloc_mem {
 	aligned_u64 sess_h;
 
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
-	int32_t cdb_len;
+	uint16_t cdb_len;
+	uint16_t ext_cdb_len;
 
 	int32_t alloc_len;
 
@@ -140,7 +142,8 @@ struct scst_user_scsi_cmd_exec {
 	aligned_u64 sess_h;
 
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
-	int32_t cdb_len;
+	uint16_t cdb_len;
+	uint16_t ext_cdb_len;
 
 	int32_t data_len;
 	int32_t bufflen;
@@ -233,6 +236,11 @@ struct scst_user_reply_cmd {
 	};
 };
 
+struct scst_user_get_ext_cdb {
+	uint32_t cmd_h;
+	aligned_u64 ext_cdb_buffer;
+};
+
 #define SCST_USER_REGISTER_DEVICE	_IOW('u', 1, struct scst_user_dev_desc)
 #define SCST_USER_UNREGISTER_DEVICE	_IO('u', 2)
 #define SCST_USER_SET_OPTIONS		_IOW('u', 3, struct scst_user_opt)
@@ -241,6 +249,7 @@ struct scst_user_reply_cmd {
 #define SCST_USER_REPLY_CMD		_IOW('u', 6, struct scst_user_reply_cmd)
 #define SCST_USER_FLUSH_CACHE		_IO('u', 7)
 #define SCST_USER_DEVICE_CAPACITY_CHANGED _IO('u', 8)
+#define SCST_USER_GET_EXTENDED_CDB	_IOWR('u', 9, struct scst_user_get_ext_cdb)
 
 /* Values for scst_user_get_cmd.subcode */
 #define SCST_USER_ATTACH_SESS		\

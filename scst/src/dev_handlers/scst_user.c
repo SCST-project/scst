@@ -643,9 +643,9 @@ static int dev_user_alloc_space(struct scst_user_cmd *ucmd)
 	ucmd->user_cmd.cmd_h = ucmd->h;
 	ucmd->user_cmd.subcode = SCST_USER_ALLOC_MEM;
 	ucmd->user_cmd.alloc_cmd.sess_h = (unsigned long)cmd->tgt_dev;
-	memcpy(ucmd->user_cmd.alloc_cmd.cdb, cmd->cdb,
-		min(sizeof(ucmd->user_cmd.alloc_cmd.cdb), sizeof(cmd->cdb)));
+	memcpy(ucmd->user_cmd.alloc_cmd.cdb, cmd->cdb, cmd->cdb_len);
 	ucmd->user_cmd.alloc_cmd.cdb_len = cmd->cdb_len;
+	ucmd->user_cmd.alloc_cmd.ext_cdb_len = cmd->ext_cdb_len;
 	ucmd->user_cmd.alloc_cmd.alloc_len = ucmd->buff_cached ?
 		(cmd->sg_cnt << PAGE_SHIFT) : cmd->bufflen;
 	ucmd->user_cmd.alloc_cmd.queue_type = cmd->queue_type;
@@ -766,10 +766,9 @@ static int dev_user_parse(struct scst_cmd *cmd)
 		ucmd->user_cmd.cmd_h = ucmd->h;
 		ucmd->user_cmd.subcode = SCST_USER_PARSE;
 		ucmd->user_cmd.parse_cmd.sess_h = (unsigned long)cmd->tgt_dev;
-		memcpy(ucmd->user_cmd.parse_cmd.cdb, cmd->cdb,
-			min(sizeof(ucmd->user_cmd.parse_cmd.cdb),
-			    sizeof(cmd->cdb)));
+		memcpy(ucmd->user_cmd.parse_cmd.cdb, cmd->cdb, cmd->cdb_len);
 		ucmd->user_cmd.parse_cmd.cdb_len = cmd->cdb_len;
+		ucmd->user_cmd.parse_cmd.ext_cdb_len = cmd->ext_cdb_len;
 		ucmd->user_cmd.parse_cmd.timeout = cmd->timeout / HZ;
 		ucmd->user_cmd.parse_cmd.bufflen = cmd->bufflen;
 		ucmd->user_cmd.parse_cmd.queue_type = cmd->queue_type;
@@ -882,16 +881,17 @@ static int dev_user_exec(struct scst_cmd *cmd)
 	if (cmd->data_direction == SCST_DATA_WRITE)
 		dev_user_flush_dcache(ucmd);
 
+	BUILD_BUG_ON(sizeof(ucmd->user_cmd.exec_cmd.cdb) != sizeof(cmd->cdb));
+
 	ucmd->user_cmd_payload_len =
 		offsetof(struct scst_user_get_cmd, exec_cmd) +
 		sizeof(ucmd->user_cmd.exec_cmd);
 	ucmd->user_cmd.cmd_h = ucmd->h;
 	ucmd->user_cmd.subcode = SCST_USER_EXEC;
 	ucmd->user_cmd.exec_cmd.sess_h = (unsigned long)cmd->tgt_dev;
-	memcpy(ucmd->user_cmd.exec_cmd.cdb, cmd->cdb,
-		min(sizeof(ucmd->user_cmd.exec_cmd.cdb),
-		    sizeof(cmd->cdb)));
+	memcpy(ucmd->user_cmd.exec_cmd.cdb, cmd->cdb, cmd->cdb_len);
 	ucmd->user_cmd.exec_cmd.cdb_len = cmd->cdb_len;
+	ucmd->user_cmd.exec_cmd.ext_cdb_len = cmd->ext_cdb_len;
 	ucmd->user_cmd.exec_cmd.bufflen = cmd->bufflen;
 	ucmd->user_cmd.exec_cmd.data_len = cmd->data_len;
 	ucmd->user_cmd.exec_cmd.pbuf = ucmd->ubuff;
@@ -1545,6 +1545,90 @@ out:
 	return res;
 }
 
+static int dev_user_get_ext_cdb(struct file *file, void __user *arg)
+{
+	int res = 0;
+	struct scst_user_dev *dev;
+	struct scst_user_cmd *ucmd;
+	struct scst_cmd *cmd;
+	struct scst_user_get_ext_cdb get;
+
+	TRACE_ENTRY();
+
+	mutex_lock(&dev_priv_mutex);
+	dev = (struct scst_user_dev *)file->private_data;
+	res = dev_user_check_reg(dev);
+	if (unlikely(res != 0)) {
+		mutex_unlock(&dev_priv_mutex);
+		goto out;
+	}
+	down_read(&dev->dev_rwsem);
+	mutex_unlock(&dev_priv_mutex);
+
+	res = copy_from_user(&get, arg, sizeof(get));
+	if (unlikely(res < 0))
+		goto out_up;
+
+	TRACE_MGMT_DBG("Get ext cdb for dev %s", dev->name);
+
+	TRACE_BUFFER("Get ext cdb", &get, sizeof(get));
+
+	spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
+
+	ucmd = __ucmd_find_hash(dev, get.cmd_h);
+	if (unlikely(ucmd == NULL)) {
+		TRACE_MGMT_DBG("cmd_h %d not found", get.cmd_h);
+		res = -ESRCH;
+		goto out_unlock;
+	}
+
+	if (unlikely(ucmd_get_check(ucmd))) {
+		TRACE_MGMT_DBG("Found being destroyed cmd_h %d", get.cmd_h);
+		res = -ESRCH;
+		goto out_unlock;
+	}
+
+	if ((ucmd->cmd != NULL) && (ucmd->state <= UCMD_STATE_EXECING) &&
+	    (ucmd->sent_to_user || ucmd->background_exec)) {
+		cmd = ucmd->cmd;
+		scst_cmd_get(cmd);
+	} else {
+		TRACE_MGMT_DBG("Invalid ucmd state %d for cmd_h %d",
+			ucmd->state, get.cmd_h);
+		res = -EINVAL;
+		goto out_put;
+	}
+
+	spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+
+	if (cmd == NULL)
+		goto out_put;
+
+	if (cmd->ext_cdb == NULL)
+		goto out_cmd_put;
+
+	TRACE_BUFFER("EXT CDB", cmd->ext_cdb, cmd->ext_cdb_len);
+	res = copy_to_user((void __user *)(unsigned long)get.ext_cdb_buffer,
+		cmd->ext_cdb, cmd->ext_cdb_len);
+
+out_cmd_put:
+	scst_cmd_put(cmd);
+
+out_put:
+	ucmd_put(ucmd);
+
+out_up:
+	up_read(&dev->dev_rwsem);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_unlock:
+	spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+	goto out_up;
+}
+
 static int dev_user_process_scst_commands(struct scst_user_dev *dev)
 	__releases(&dev->cmd_lists.cmd_list_lock)
 	__acquires(&dev->cmd_lists.cmd_list_lock)
@@ -1812,6 +1896,11 @@ static long dev_user_ioctl(struct file *file, unsigned int cmd,
 	case SCST_USER_REPLY_CMD:
 		TRACE_DBG("%s", "REPLY_CMD");
 		res = dev_user_reply_cmd(file, (void __user *)arg);
+		break;
+
+	case SCST_USER_GET_EXTENDED_CDB:
+		TRACE_DBG("%s", "GET_EXTENDED_CDB");
+		res = dev_user_get_ext_cdb(file, (void __user *)arg);
 		break;
 
 	case SCST_USER_REGISTER_DEVICE:

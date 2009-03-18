@@ -269,7 +269,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
 	}
 
 	if (unlikely(cmd->cdb_len == 0)) {
-		PRINT_ERROR("Wrong CDB len %d, finishing cmd", 0);
+		PRINT_ERROR("%s", "Wrong CDB len, finishing cmd");
 		scst_set_cmd_error(cmd,
 			   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		scst_set_cmd_abnormal_done_state(cmd);
@@ -370,7 +370,7 @@ static int scst_pre_parse(struct scst_cmd *cmd)
 			cmd->data_direction = cmd->expected_data_direction;
 
 			cmd->bufflen = cmd->expected_transfer_len;
-			/* Restore (likely) lost CDB length */
+			/* Restore (possibly) lost CDB length */
 			cmd->cdb_len = scst_get_cdb_len(cmd->cdb);
 			if (cmd->cdb_len == -1) {
 				PRINT_ERROR("Unable to get CDB length for "
