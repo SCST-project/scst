@@ -11,6 +11,7 @@ SUBDIRS := $(shell pwd)
 SCST_INC_DIR := $(SUBDIRS)/../scst/include
 #SCST_DIR := $(SCST_INC_DIR)
 SCST_DIR := $(shell pwd)/../scst/src
+SBINDIR := /usr/local/sbin
 
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
@@ -38,8 +39,8 @@ include/iscsi_scst_itf_ver.h: include/iscsi_scst.h
 	echo "\"`sha1sum include/iscsi_scst.h|awk '{printf $$1}'`\"" >>include/iscsi_scst_itf_ver.h
 
 install: all
-	@install -vD usr/iscsi-scstd $(DISTDIR)/usr/local/sbin/iscsi-scstd
-	@install -vD usr/iscsi-scst-adm $(DISTDIR)/usr/local/sbin/iscsi-scst-adm
+	@install -vD usr/iscsi-scstd $(DISTDIR)$(SBINDIR)/iscsi-scstd
+	@install -vD usr/iscsi-scst-adm $(DISTDIR)$(SBINDIR)/iscsi-scst-adm
 	if [ -f /etc/debian_version ]; then \
 		install -vD -m 755 etc/initd/initd.debian $(DISTDIR)/etc/init.d/iscsi-scst; \
 	elif [ -f /etc/redhat-release ]; then \

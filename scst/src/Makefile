@@ -106,11 +106,11 @@ uninstall:
 endif
 
 ifeq ($(KVER),)
-INSTALL_DIR := /lib/modules/$(shell uname -r)/extra
+INSTALL_DIR := $(DISTDIR)/lib/modules/$(shell uname -r)/extra
 else
-INSTALL_DIR := /lib/modules/$(KVER)/extra
+INSTALL_DIR := $(DISTDIR)/lib/modules/$(KVER)/extra
 endif
-INSTALL_DIR_H := /usr/local/include/scst
+INSTALL_DIR_H := $(DISTDIR)/usr/local/include/scst
 
 EXTRA_CFLAGS += -I$(SCST_INC_DIR) -Wextra -Wno-unused-parameter \
 		-Wno-missing-field-initializers
