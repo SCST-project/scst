@@ -2571,13 +2571,6 @@ static inline void sg_init_table(struct scatterlist *sgl, unsigned int nents)
 	memset(sgl, 0, sizeof(*sgl) * nents);
 }
 
-static inline void sg_init_one(struct scatterlist *sg, const void *buf,
-	unsigned int buflen)
-{
-	sg_init_table(sg, 1);
-	sg_set_buf(sg, buf, buflen);
-}
-
 static inline void sg_assign_page(struct scatterlist *sg, struct page *page)
 {
 	sg->page = page;
