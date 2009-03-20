@@ -273,7 +273,8 @@ static void trace_conn_close(struct iscsi_conn *conn)
 			"data_waiting %d, ref_cnt %d, sn %u, "
 			"parent_req %p, pending %d",
 			cmnd, cmnd->scst_state,
-			cmnd->scst_cmd ? cmnd->scst_cmd->state : -1,
+			(cmnd->parent_req && cmnd->scst_cmd) ?
+				cmnd->scst_cmd->state : -1,
 			cmnd->data_waiting, atomic_read(&cmnd->ref_cnt),
 			cmnd->pdu.bhs.sn, cmnd->parent_req, cmnd->pending);
 #if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)

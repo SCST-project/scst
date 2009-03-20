@@ -297,7 +297,6 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 			}
 		}
 	} else {
-		EXTRACHECKS_BUG_ON(cmnd->scst_cmd != NULL);
 		TRACE_DBG("Deleting rsp %p from parent %p", cmnd,
 			cmnd->parent_req);
 
