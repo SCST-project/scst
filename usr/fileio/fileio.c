@@ -458,6 +458,7 @@ int main(int argc, char **argv)
 
 	desc.opt.tst = SCST_CONTR_MODE_SEP_TASK_SETS;
 	desc.opt.queue_alg = SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER;
+	desc.opt.d_sense = SCST_CONTR_MODE_FIXED_SENSE;
 
 	res = ioctl(dev.scst_usr_fd, SCST_USER_REGISTER_DEVICE, &desc);
 	if (res != 0) {

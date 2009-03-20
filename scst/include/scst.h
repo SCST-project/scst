@@ -1434,6 +1434,7 @@ struct scst_device {
 	unsigned long tst:3;
 	unsigned long tas:1;
 	unsigned long swp:1;
+	unsigned long d_sense:1;
 
 	/*
 	 * Set if device implements own ordered commands management. If not set
@@ -2403,6 +2404,12 @@ static inline int scst_cmd_aborted(struct scst_cmd *cmd)
 		!test_bit(SCST_CMD_ABORTED_OTHER, &cmd->cmd_flags);
 }
 
+/* Returns sense data format for cmd's dev */
+static inline bool scst_get_cmd_dev_d_sense(struct scst_cmd *cmd)
+{
+	return cmd->dev->d_sense;
+}
+
 /*
  * Get/Set functions for expected data direction, transfer length
  * and its validity flag
@@ -2773,15 +2780,16 @@ int scst_alloc_sense(struct scst_cmd *cmd, int atomic);
 int scst_alloc_set_sense(struct scst_cmd *cmd, int atomic,
 	const uint8_t *sense, unsigned int len);
 
-void scst_set_sense(uint8_t *buffer, int len, int key, int asc, int ascq);
+void scst_set_sense(uint8_t *buffer, int len, bool d_sense,
+	int key, int asc, int ascq);
 
 /*
  * Returnes true if sense matches to (key, asc, ascq) and false otherwise.
  * Valid_mask is one or several SCST_SENSE_*_VALID constants setting valid
  * (key, asc, ascq) values.
  */
-bool scst_analyze_sense(const uint8_t *sense, int len, unsigned int valid_mask,
-	int key, int asc, int ascq);
+bool scst_analyze_sense(const uint8_t *sense, int len,
+	unsigned int valid_mask, int key, int asc, int ascq);
 
 /*
  * Returnes a pseudo-random number for debugging purposes. Available only in

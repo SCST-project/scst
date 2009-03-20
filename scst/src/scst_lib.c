@@ -141,7 +141,8 @@ void scst_set_cmd_error(struct scst_cmd *cmd, int key, int asc, int ascq)
 		goto out;
 	}
 
-	scst_set_sense(cmd->sense, SCST_SENSE_BUFFERSIZE, key, asc, ascq);
+	scst_set_sense(cmd->sense, SCST_SENSE_BUFFERSIZE, cmd->dev->d_sense,
+		key, asc, ascq);
 	TRACE_BUFFER("Sense set", cmd->sense, SCST_SENSE_BUFFERSIZE);
 
 out:
@@ -150,17 +151,27 @@ out:
 }
 EXPORT_SYMBOL(scst_set_cmd_error);
 
-void scst_set_sense(uint8_t *buffer, int len, int key, int asc, int ascq)
+void scst_set_sense(uint8_t *buffer, int len, bool d_sense,
+	int key, int asc, int ascq)
 {
 	sBUG_ON(len < SCST_STANDARD_SENSE_LEN);
 
 	memset(buffer, 0, len);
 
-	buffer[0] = 0x70;	/* Error Code			*/
-	buffer[2] = key;	/* Sense Key			*/
-	buffer[7] = 0x0a;	/* Additional Sense Length	*/
-	buffer[12] = asc;	/* ASC				*/
-	buffer[13] = ascq;	/* ASCQ				*/
+	if (d_sense) {
+		/* Descriptor format */
+		buffer[0] = 0x72;	/* Response Code		*/
+		buffer[1] = key;	/* Sense Key			*/
+		buffer[2] = asc;	/* ASC				*/
+		buffer[3] = ascq;	/* ASCQ				*/
+	} else {
+		/* Fixed format */
+		buffer[0] = 0x70;	/* Response Code		*/
+		buffer[2] = key;	/* Sense Key			*/
+		buffer[7] = 0x0a;	/* Additional Sense Length	*/
+		buffer[12] = asc;	/* ASC				*/
+		buffer[13] = ascq;	/* ASCQ				*/
+	}
 
 	TRACE_BUFFER("Sense set", buffer, len);
 	return;
@@ -175,20 +186,36 @@ bool scst_analyze_sense(const uint8_t *sense, int len, unsigned int valid_mask,
 	if (len < 14)
 		goto out;
 
-	/* Error Code */
-	if (sense[0] != 0x70)
-		goto out;
+	/* Response Code */
+	if ((sense[0] == 0x70) || (sense[0] == 0x71)) {
+		/* Fixed format */
 
-	/* Sense Key */
-	if ((valid_mask & SCST_SENSE_KEY_VALID) && (sense[2] != key))
-		goto out;
+		/* Sense Key */
+		if ((valid_mask & SCST_SENSE_KEY_VALID) && (sense[2] != key))
+			goto out;
 
-	/* ASC */
-	if ((valid_mask & SCST_SENSE_ASC_VALID) && (sense[12] != asc))
-		goto out;
+		/* ASC */
+		if ((valid_mask & SCST_SENSE_ASC_VALID) && (sense[12] != asc))
+			goto out;
 
-	/* ASCQ */
-	if ((valid_mask & SCST_SENSE_ASCQ_VALID) && (sense[13] != ascq))
+		/* ASCQ */
+		if ((valid_mask & SCST_SENSE_ASCQ_VALID) && (sense[13] != ascq))
+			goto out;
+	} else if ((sense[0] == 0x72) || (sense[0] == 0x73)) {
+		/* Descriptor format */
+
+		/* Sense Key */
+		if ((valid_mask & SCST_SENSE_KEY_VALID) && (sense[1] != key))
+			goto out;
+
+		/* ASC */
+		if ((valid_mask & SCST_SENSE_ASC_VALID) && (sense[2] != asc))
+			goto out;
+
+		/* ASCQ */
+		if ((valid_mask & SCST_SENSE_ASCQ_VALID) && (sense[3] != ascq))
+			goto out;
+	} else
 		goto out;
 
 	res = true;
@@ -267,6 +294,7 @@ void scst_set_initial_UA(struct scst_session *sess, int key, int asc, int ascq)
 						SCST_LOAD_SENSE(scst_sense_reset_UA))) {
 					scst_set_sense(ua->UA_sense_buffer,
 						sizeof(ua->UA_sense_buffer),
+						tgt_dev->dev->d_sense,
 						key, asc, ascq);
 				} else
 					PRINT_ERROR("%s",
@@ -337,9 +365,6 @@ void scst_capacity_data_changed(struct scst_device *dev)
 
 	TRACE_MGMT_DBG("CAPACITY DATA CHANGED (dev %p)", dev);
 
-	scst_set_sense(sense_buffer, sizeof(sense_buffer),
-		SCST_LOAD_SENSE(scst_sense_capacity_data_changed));
-
 	mutex_lock(&scst_mutex);
 
 	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
@@ -357,6 +382,7 @@ void scst_capacity_data_changed(struct scst_device *dev)
 			aen->event_fn = SCST_AEN_SCSI;
 			aen->aen_sense_len = SCST_STANDARD_SENSE_LEN;
 			scst_set_sense(aen->aen_sense, aen->aen_sense_len,
+				tgt_dev->dev->d_sense,
 				SCST_LOAD_SENSE(scst_sense_capacity_data_changed));
 
 			TRACE_DBG("Calling target's %s report_aen(%p)",
@@ -372,6 +398,9 @@ void scst_capacity_data_changed(struct scst_device *dev)
 queue_ua:
 		TRACE_MGMT_DBG("Queuing CAPACITY DATA CHANGED UA (tgt_dev %p)",
 			tgt_dev);
+		scst_set_sense(sense_buffer, sizeof(sense_buffer),
+			tgt_dev->dev->d_sense,
+			SCST_LOAD_SENSE(scst_sense_capacity_data_changed));
 		scst_check_set_UA(tgt_dev, sense_buffer,
 			sizeof(sense_buffer), 0);
 	}
@@ -414,9 +443,6 @@ void scst_queue_report_luns_changed_UA(struct scst_session *sess, int flags)
 
 	TRACE_ENTRY();
 
-	scst_set_sense(sense_buffer, sizeof(sense_buffer),
-		SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed));
-
 	TRACE_MGMT_DBG("Queuing REPORTED LUNS DATA CHANGED UA "
 		"(sess %p)", sess);
 
@@ -437,6 +463,10 @@ void scst_queue_report_luns_changed_UA(struct scst_session *sess, int flags)
 			if (!scst_is_report_luns_changed_type(
 					tgt_dev->dev->type))
 				continue;
+
+			scst_set_sense(sense_buffer, sizeof(sense_buffer),
+				tgt_dev->dev->d_sense,
+				SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed));
 
 			__scst_check_set_UA(tgt_dev, sense_buffer,
 				sizeof(sense_buffer),
@@ -497,6 +527,7 @@ found:
 			aen->event_fn = SCST_AEN_SCSI;
 			aen->aen_sense_len = SCST_STANDARD_SENSE_LEN;
 			scst_set_sense(aen->aen_sense, aen->aen_sense_len,
+				tgt_dev->dev->d_sense,
 				SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed));
 
 			TRACE_DBG("Calling target's %s report_aen(%p)",
@@ -535,8 +566,7 @@ void scst_aen_done(struct scst_aen *aen)
 		aen->sess->initiator_name);
 
 	if (scst_analyze_sense(aen->aen_sense, aen->aen_sense_len,
-			SCST_SENSE_ALL_VALID,
-			SCST_LOAD_SENSE(
+			SCST_SENSE_ALL_VALID, SCST_LOAD_SENSE(
 				scst_sense_reported_luns_data_changed))) {
 		mutex_lock(&scst_mutex);
 		scst_queue_report_luns_changed_UA(aen->sess,
@@ -989,7 +1019,7 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	}
 
 	scst_set_sense(sense_buffer, sizeof(sense_buffer),
-		SCST_LOAD_SENSE(scst_sense_reset_UA));
+		dev->d_sense, SCST_LOAD_SENSE(scst_sense_reset_UA));
 	scst_alloc_set_UA(tgt_dev, sense_buffer, sizeof(sense_buffer), 0);
 
 	tm_dbg_init_tgt_dev(tgt_dev, acg_dev);
@@ -1062,6 +1092,7 @@ void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA)
 	if (queue_UA) {
 		uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
 		scst_set_sense(sense_buffer, sizeof(sense_buffer),
+			tgt_dev->dev->d_sense,
 			SCST_LOAD_SENSE(scst_sense_nexus_loss_UA));
 		scst_check_set_UA(tgt_dev, sense_buffer,
 			sizeof(sense_buffer), 0);
@@ -2994,7 +3025,7 @@ static void scst_check_internal_sense(struct scst_device *dev, int result,
 	if (host_byte(result) == DID_RESET) {
 		TRACE(TRACE_MGMT_MINOR, "%s", "DID_RESET received, triggering "
 			"reset UA");
-		scst_set_sense(sense, sense_len,
+		scst_set_sense(sense, sense_len, dev->d_sense,
 			SCST_LOAD_SENSE(scst_sense_reset_UA));
 		scst_dev_check_set_UA(dev, NULL, sense, sense_len);
 	} else if ((status_byte(result) == CHECK_CONDITION) &&
@@ -3052,6 +3083,7 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 			dev->queue_alg = q;
 			dev->swp = (buffer[4+4] & 0x8) >> 3;
 			dev->tas = (buffer[4+5] & 0x40) >> 6;
+			dev->d_sense = (buffer[4+2] & 0x4) >> 2;
 
 			/*
 			 * Unfortunately, SCSI ML doesn't provide a way to
@@ -3062,12 +3094,13 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 
 			TRACE(TRACE_SCSI|TRACE_MGMT_MINOR,
 				"Device %d:%d:%d:%d: TST %x, "
-				"QUEUE ALG %x, SWP %x, TAS %x, "
+				"QUEUE ALG %x, SWP %x, TAS %x, D_SENSE %d"
 				"has_own_order_mgmt %d",
 				dev->scsi_dev->host->host_no,
 				dev->scsi_dev->channel,	dev->scsi_dev->id,
 				dev->scsi_dev->lun, dev->tst, dev->queue_alg,
-				dev->swp, dev->tas, dev->has_own_order_mgmt);
+				dev->swp, dev->tas, dev->d_sense,
+				dev->has_own_order_mgmt);
 
 			goto out;
 		} else {
@@ -3086,19 +3119,19 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 			    			SCST_SENSE_KEY_VALID,
 						ILLEGAL_REQUEST, 0, 0)) {
 					TRACE(TRACE_SCSI|TRACE_MGMT_MINOR,
-						"Device %d:%d:%d:%d doesn't"
-						" support control mode page,"
-						" using defaults: TST %x,"
-						" QUEUE ALG %x, SWP %x, TAS %x,"
-						" has_own_order_mgmt %d",
+						"Device %d:%d:%d:%d doesn't "
+						"support control mode page, "
+						"using defaults: TST %x, "
+						"QUEUE ALG %x, SWP %x, "
+						"TAS %x, D_SENSE %d, "
+						"has_own_order_mgmt %d ",
 						dev->scsi_dev->host->host_no,
 						dev->scsi_dev->channel,
 						dev->scsi_dev->id,
 						dev->scsi_dev->lun,
-						dev->tst,
-						dev->queue_alg,
-						dev->swp,
-						dev->tas,
+						dev->tst, dev->queue_alg,
+						dev->swp, dev->tas,
+						dev->d_sense,
 						dev->has_own_order_mgmt);
 					res = 0;
 					goto out;
@@ -3211,7 +3244,7 @@ void scst_process_reset(struct scst_device *dev,
 	if (setUA) {
 		uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
 		scst_set_sense(sense_buffer, sizeof(sense_buffer),
-			SCST_LOAD_SENSE(scst_sense_reset_UA));
+			dev->d_sense, SCST_LOAD_SENSE(scst_sense_reset_UA));
 		scst_dev_check_set_local_UA(dev, exclude_cmd, sense_buffer,
 			sizeof(sense_buffer));
 	}

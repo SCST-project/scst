@@ -2580,10 +2580,12 @@ static int scst_mode_select_checks(struct scst_cmd *cmd)
 			if (cmd->cdb[0] == LOG_SELECT) {
 				scst_set_sense(sense_buffer,
 					sizeof(sense_buffer),
+					dev->d_sense,
 					UNIT_ATTENTION, 0x2a, 0x02);
 			} else {
 				scst_set_sense(sense_buffer,
 					sizeof(sense_buffer),
+					dev->d_sense,
 					UNIT_ATTENTION, 0x2a, 0x01);
 			}
 			scst_dev_check_set_local_UA(dev, cmd, sense_buffer,
@@ -4238,7 +4240,7 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 	if (!dev->tas) {
 		uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
 
-		scst_set_sense(sense_buffer, sizeof(sense_buffer),
+		scst_set_sense(sense_buffer, sizeof(sense_buffer), dev->d_sense,
 			SCST_LOAD_SENSE(scst_sense_cleared_by_another_ini_UA));
 
 		list_for_each_entry(tgt_dev, &UA_tgt_devs,

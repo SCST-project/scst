@@ -203,7 +203,9 @@ static int modisk_attach(struct scst_device *dev)
 
 		TRACE_DBG("READ_CAPACITY done: %x", res);
 
-		if (!res || (sense_buffer[2] != UNIT_ATTENTION))
+		if (!res || !scst_analyze_sense(sense_buffer,
+				sizeof(sense_buffer), SCST_SENSE_KEY_VALID,
+				UNIT_ATTENTION, 0, 0))
 			break;
 
 		if (!--retries) {

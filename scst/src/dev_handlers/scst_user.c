@@ -72,6 +72,7 @@ struct scst_user_dev {
 	unsigned int queue_alg:4;
 	unsigned int tas:1;
 	unsigned int swp:1;
+	unsigned int d_sense:1;
 	unsigned int has_own_order_mgmt:1;
 
 	int (*generic_parse)(struct scst_cmd *cmd,
@@ -2359,6 +2360,7 @@ static int dev_user_attach(struct scst_device *sdev)
 	sdev->queue_alg = dev->queue_alg;
 	sdev->swp = dev->swp;
 	sdev->tas = dev->tas;
+	sdev->d_sense = dev->d_sense;
 	sdev->has_own_order_mgmt = dev->has_own_order_mgmt;
 
 	dev->sdev = sdev;
@@ -2913,10 +2915,11 @@ static int __dev_user_set_opt(struct scst_user_dev *dev,
 	     (opt->tst != SCST_CONTR_MODE_SEP_TASK_SETS)) ||
 	    ((opt->queue_alg != SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER) &&
 	     (opt->queue_alg != SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER)) ||
-	    (opt->swp > 1) || (opt->tas > 1) || (opt->has_own_order_mgmt > 1)) {
+	    (opt->swp > 1) || (opt->tas > 1) || (opt->has_own_order_mgmt > 1) ||
+	    (opt->d_sense > 1)) {
 		PRINT_ERROR("Invalid SCSI option (tst %x, queue_alg %x, swp %x,"
-			" tas %x, has_own_order_mgmt %x)", opt->tst,
-			opt->queue_alg, opt->swp, opt->tas,
+			" tas %x, d_sense %d, has_own_order_mgmt %x)", opt->tst,
+			opt->queue_alg, opt->swp, opt->tas, opt->d_sense,
 			opt->has_own_order_mgmt);
 		res = -EINVAL;
 		goto out;
@@ -2932,12 +2935,15 @@ static int __dev_user_set_opt(struct scst_user_dev *dev,
 	dev->queue_alg = opt->queue_alg;
 	dev->swp = opt->swp;
 	dev->tas = opt->tas;
+	dev->tst = opt->tst;
+	dev->d_sense = opt->d_sense;
 	dev->has_own_order_mgmt = opt->has_own_order_mgmt;
 	if (dev->sdev != NULL) {
 		dev->sdev->tst = opt->tst;
 		dev->sdev->queue_alg = opt->queue_alg;
 		dev->sdev->swp = opt->swp;
 		dev->sdev->tas = opt->tas;
+		dev->sdev->d_sense = opt->d_sense;
 		dev->sdev->has_own_order_mgmt = opt->has_own_order_mgmt;
 	}
 
@@ -3007,6 +3013,7 @@ static int dev_user_get_opt(struct file *file, void __user *arg)
 	opt.queue_alg = dev->queue_alg;
 	opt.tas = dev->tas;
 	opt.swp = dev->swp;
+	opt.d_sense = dev->d_sense;
 	opt.has_own_order_mgmt = dev->has_own_order_mgmt;
 
 	TRACE_DBG("dev %s, parse_type %x, on_free_cmd_type %x, "

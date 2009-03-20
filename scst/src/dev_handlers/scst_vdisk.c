@@ -105,6 +105,8 @@ static struct scst_proc_log vdisk_proc_local_trace_tbl[] =
 #define DEF_SWP			0
 #define DEF_TAS			0
 
+#define DEF_DSENSE		SCST_CONTR_MODE_FIXED_SENSE
+
 #define VDISK_PROC_HELP		"help"
 
 static unsigned int random_values[256] = {
@@ -574,6 +576,7 @@ static int vdisk_attach(struct scst_device *dev)
 	dev->dh_priv = virt_dev;
 
 	dev->tst = DEF_TST;
+	dev->d_sense = DEF_DSENSE;
 	if (virt_dev->wt_flag && !virt_dev->nv_cache)
 		dev->queue_alg = DEF_QUEUE_ALG_WT;
 	else
@@ -1362,7 +1365,8 @@ static void vdisk_exec_request_sense(struct scst_cmd *cmd)
 			goto out;
 	}
 
-	scst_set_sense(address, length,	SCST_LOAD_SENSE(scst_sense_no_sense));
+	scst_set_sense(address, length,	cmd->dev->d_sense,
+		SCST_LOAD_SENSE(scst_sense_no_sense));
 
 out_put:
 	scst_put_buf(cmd, address);
@@ -1468,6 +1472,7 @@ static int vdisk_ctrl_m_pg(unsigned char *p, int pcontrol,
 	switch (pcontrol) {
 	case 0:
 		p[2] |= virt_dev->dev->tst << 5;
+		p[2] |= virt_dev->dev->d_sense << 2;
 		p[3] |= virt_dev->dev->queue_alg << 4;
 		p[4] |= virt_dev->dev->swp << 3;
 		p[5] |= virt_dev->dev->tas << 6;
@@ -1481,11 +1486,13 @@ static int vdisk_ctrl_m_pg(unsigned char *p, int pcontrol,
 		p[2] |= 7 << 5;		/* TST */
 		p[3] |= 0xF << 4;	/* QUEUE ALGORITHM MODIFIER */
 #endif
+		p[2] |= 1 << 2;		/* D_SENSE */
 		p[4] |= 1 << 3;		/* SWP */
 		p[5] |= 1 << 6;		/* TAS */
 		break;
 	case 2:
 		p[2] |= DEF_TST << 5;
+		p[2] |= DEF_DSENSE << 2;
 		if (virt_dev->wt_flag || virt_dev->nv_cache)
 			p[3] |= DEF_QUEUE_ALG_WT << 4;
 		else
@@ -1693,7 +1700,7 @@ static void vdisk_ctrl_m_pg_select(unsigned char *p,
 	struct scst_vdisk_dev *virt_dev)
 {
 	struct scst_device *dev = virt_dev->dev;
-	int old_swp = dev->swp, old_tas = dev->tas;
+	int old_swp = dev->swp, old_tas = dev->tas, old_dsense = dev->d_sense;
 
 #if 0
 	/* Not implemented yet, see comment in vdisk_ctrl_m_pg() */
@@ -1702,10 +1709,12 @@ static void vdisk_ctrl_m_pg_select(unsigned char *p,
 #endif
 	dev->swp = (p[4] & 0x8) >> 3;
 	dev->tas = (p[5] & 0x40) >> 6;
+	dev->d_sense = (p[2] & 0x4) >> 2;
 
 	PRINT_INFO("Device %s: new control mode page parameters: SWP %x "
-		"(was %x), TAS %x (was %x)", virt_dev->name, dev->swp,
-		old_swp, dev->tas, old_tas);
+		"(was %x), TAS %x (was %x), D_SENSE %d (was %d)",
+		virt_dev->name, dev->swp, old_swp, dev->tas, old_tas,
+		dev->d_sense, old_dsense);
 	return;
 }
 
@@ -2683,6 +2692,7 @@ static int vdisk_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 		struct scst_vdisk_dev *virt_dev =
 			(struct scst_vdisk_dev *)dev->dh_priv;
 		dev->tst = DEF_TST;
+		dev->d_sense = DEF_DSENSE;
 		if (virt_dev->wt_flag && !virt_dev->nv_cache)
 			dev->queue_alg = DEF_QUEUE_ALG_WT;
 		else

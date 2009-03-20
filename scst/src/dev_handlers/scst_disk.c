@@ -189,8 +189,12 @@ static int disk_attach(struct scst_device *dev)
 
 		TRACE_DBG("READ_CAPACITY done: %x", res);
 
-		if (!res || (sense_buffer[12] != 0x28 &&
-			     sense_buffer[12] != 0x29))
+		if ((res == 0) || !scst_analyze_sense(sense_buffer,
+				sizeof(sense_buffer), SCST_SENSE_ALL_VALID,
+				SCST_LOAD_SENSE(scst_sense_medium_changed_UA)) ||
+		    !scst_analyze_sense(sense_buffer, sizeof(sense_buffer),
+		    		SCST_SENSE_KEY_VALID | SCST_SENSE_ASC_VALID,
+				UNIT_ATTENTION, 0x29, 0))
 			break;
 		if (!--retries) {
 			PRINT_ERROR("UA not clear after %d retries",

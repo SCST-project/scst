@@ -282,6 +282,12 @@ static inline int scst_is_ua_sense(const uint8_t *sense)
 #define SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER 1
 
 /*************************************************************
+ ** Values for the control mode page D_SENSE field
+ *************************************************************/
+#define SCST_CONTR_MODE_FIXED_SENSE  0
+#define SCST_CONTR_MODE_DESCR_SENSE 1
+
+/*************************************************************
  ** Misc SCSI constants
  *************************************************************/
 #define SCST_SENSE_ASC_UA_RESET      0x29

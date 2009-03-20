@@ -54,7 +54,8 @@ DECLARE_WAIT_QUEUE_HEAD(iscsi_wr_waitQ);
 static struct page *dummy_page;
 static struct scatterlist dummy_sg;
 
-static uint8_t sense_unexpected_unsolicited_data[SCST_STANDARD_SENSE_LEN];
+static uint8_t sense_fixed_unexpected_unsolicited_data[SCST_STANDARD_SENSE_LEN];
+static uint8_t sense_descr_unexpected_unsolicited_data[SCST_STANDARD_SENSE_LEN];
 
 struct iscsi_thread_t {
 	struct task_struct *thr;
@@ -1414,9 +1415,14 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 			     req->pdu.datasize)) {
 			PRINT_ERROR("Unexpected unsolicited data (ITT %x "
 				"CDB %x", cmnd_itt(req), req_hdr->scb[0]);
-			create_status_rsp(req, SAM_STAT_CHECK_CONDITION,
-				sense_unexpected_unsolicited_data,
-				sizeof(sense_unexpected_unsolicited_data));
+			if (scst_get_cmd_dev_d_sense(scst_cmd))
+				create_status_rsp(req, SAM_STAT_CHECK_CONDITION,
+					sense_descr_unexpected_unsolicited_data,
+					sizeof(sense_descr_unexpected_unsolicited_data));
+			else
+				create_status_rsp(req, SAM_STAT_CHECK_CONDITION,
+					sense_fixed_unexpected_unsolicited_data,
+					sizeof(sense_fixed_unexpected_unsolicited_data));
 			cmnd_reject_scsi_cmd(req);
 			goto out;
 		}
@@ -1467,9 +1473,14 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 		if (unlikely(dir != SCST_DATA_WRITE)) {
 			PRINT_ERROR("pdu.datasize(%d) >0, but dir(%x) isn't "
 				"WRITE", req->pdu.datasize, dir);
-			create_status_rsp(req, SAM_STAT_CHECK_CONDITION,
-				sense_unexpected_unsolicited_data,
-				sizeof(sense_unexpected_unsolicited_data));
+			if (scst_get_cmd_dev_d_sense(scst_cmd))
+				create_status_rsp(req, SAM_STAT_CHECK_CONDITION,
+					sense_descr_unexpected_unsolicited_data,
+					sizeof(sense_descr_unexpected_unsolicited_data));
+			else
+				create_status_rsp(req, SAM_STAT_CHECK_CONDITION,
+					sense_fixed_unexpected_unsolicited_data,
+					sizeof(sense_fixed_unexpected_unsolicited_data));
 			cmnd_reject_scsi_cmd(req);
 		} else
 			res = cmnd_prepare_recv_pdu(conn, req, 0,
@@ -3084,11 +3095,16 @@ static int __init iscsi_init(void)
 
 	PRINT_INFO("iSCSI SCST Target - version %s", ISCSI_VERSION_STRING);
 
-	sense_unexpected_unsolicited_data[0] = 0x70;
-	sense_unexpected_unsolicited_data[2] = ABORTED_COMMAND;
-	sense_unexpected_unsolicited_data[7] = 6;
-	sense_unexpected_unsolicited_data[12] = 0xc;
-	sense_unexpected_unsolicited_data[13] = 0xc;
+	sense_fixed_unexpected_unsolicited_data[0] = 0x70;
+	sense_fixed_unexpected_unsolicited_data[2] = ABORTED_COMMAND;
+	sense_fixed_unexpected_unsolicited_data[7] = 6;
+	sense_fixed_unexpected_unsolicited_data[12] = 0xc;
+	sense_fixed_unexpected_unsolicited_data[13] = 0xc;
+
+	sense_descr_unexpected_unsolicited_data[0] = 0x72;
+	sense_descr_unexpected_unsolicited_data[1] = ABORTED_COMMAND;
+	sense_descr_unexpected_unsolicited_data[2] = 0xc;
+	sense_descr_unexpected_unsolicited_data[3] = 0xc;
 
 	dummy_page = alloc_pages(GFP_KERNEL, 0);
 	if (dummy_page == NULL) {

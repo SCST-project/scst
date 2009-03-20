@@ -82,6 +82,7 @@ struct scst_user_opt {
 	uint8_t queue_alg;
 	uint8_t tas;
 	uint8_t swp;
+	uint8_t d_sense;
 
 	uint8_t has_own_order_mgmt;
 };
