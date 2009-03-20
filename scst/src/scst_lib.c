@@ -141,8 +141,8 @@ void scst_set_cmd_error(struct scst_cmd *cmd, int key, int asc, int ascq)
 		goto out;
 	}
 
-	scst_set_sense(cmd->sense, SCST_SENSE_BUFFERSIZE, cmd->dev->d_sense,
-		key, asc, ascq);
+	scst_set_sense(cmd->sense, SCST_SENSE_BUFFERSIZE,
+		scst_get_cmd_dev_d_sense(cmd), key, asc, ascq);
 	TRACE_BUFFER("Sense set", cmd->sense, SCST_SENSE_BUFFERSIZE);
 
 out:

@@ -2407,7 +2407,7 @@ static inline int scst_cmd_aborted(struct scst_cmd *cmd)
 /* Returns sense data format for cmd's dev */
 static inline bool scst_get_cmd_dev_d_sense(struct scst_cmd *cmd)
 {
-	return cmd->dev->d_sense;
+	return (cmd->dev != NULL) ? cmd->dev->d_sense : 0;
 }
 
 /*
