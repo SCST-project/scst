@@ -445,11 +445,11 @@ enum scst_exec_context {
 #define SCST_SENSE_ASCQ_VALID		4
 
 #define SCST_SENSE_ASCx_VALID		(SCST_SENSE_ASC_VALID | \
-				 	 SCST_SENSE_ASCQ_VALID)
+					 SCST_SENSE_ASCQ_VALID)
 
 #define SCST_SENSE_ALL_VALID		(SCST_SENSE_KEY_VALID | \
-				 	 SCST_SENSE_ASC_VALID | \
-				 	 SCST_SENSE_ASCQ_VALID)
+					 SCST_SENSE_ASC_VALID | \
+					 SCST_SENSE_ASCQ_VALID)
 
 /*************************************************************
  *                     TYPES
@@ -675,7 +675,7 @@ struct scst_tgt_template {
 	void (*task_mgmt_affected_cmds_done) (struct scst_mgmt_cmd *mgmt_cmd);
 
 	/*
-	 * This function informs the driver that the corresponding task 
+	 * This function informs the driver that the corresponding task
 	 * management function has been completed, i.e. all the corresponding
 	 * commands completed and freed. No return value expected.
 	 *

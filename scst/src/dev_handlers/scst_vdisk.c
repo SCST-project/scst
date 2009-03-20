@@ -93,7 +93,7 @@ static struct scst_proc_log vdisk_proc_local_trace_tbl[] =
 #define VDISK_NAME			"vdisk"
 #define VCDROM_NAME			"vcdrom"
 
-#define VDISK_NULLIO_SIZE		3LL*1024*1024*1024*1024/2
+#define VDISK_NULLIO_SIZE		(3LL*1024*1024*1024*1024/2)
 
 #define DEF_TST				SCST_CONTR_MODE_SEP_TASK_SETS
 /*
@@ -3326,7 +3326,7 @@ static int vcdrom_change(char *p, char *name)
 		err = 0;
 		virt_dev->file_name = NULL;
 	}
-	
+
 	 if (virt_dev->nullio)
 		err = VDISK_NULLIO_SIZE;
 

@@ -172,7 +172,7 @@ static void create_listen_socket(struct pollfd *array)
 		opt = 1;
 		if (res->ai_family == AF_INET6 &&
 		    setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt))) {
-		    	log_error("Unable to restrict IPv6 socket (%s)", strerror(errno));
+			log_error("Unable to restrict IPv6 socket (%s)", strerror(errno));
 			close(sock);
 			continue;
 		}

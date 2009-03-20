@@ -604,8 +604,8 @@ static char *print_scn_pdu(struct isns_hdr *hdr)
 				name = (char *) tlv->value;
 			break;
 		case ISNS_ATTR_TIMESTAMP:
-/* 			log_error("%u : %u : %" PRIx64, ntohl(tlv->tag), vlen, */
-/* 				  *((uint64_t *) tlv->value)); */
+			/* log_error("%u : %u : %" PRIx64, ntohl(tlv->tag), vlen, */
+			/* *((uint64_t *) tlv->value)); */
 			break;
 		case ISNS_ATTR_ISCSI_SCN_BITMAP:
 			log_error("scn bitmap : %x", *((uint32_t *) tlv->value));

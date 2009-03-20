@@ -100,7 +100,7 @@ static inline u32 cmnd_read_size(struct iscsi_cmnd *cmnd)
 				ahdr = (struct iscsi_ahs_hdr *)p;
 
 				if (ahdr->ahstype == ISCSI_AHSTYPE_RLENGTH) {
-					struct iscsi_rlength_ahdr *rh = 
+					struct iscsi_rlength_ahdr *rh =
 					      (struct iscsi_rlength_ahdr *)ahdr;
 					return be32_to_cpu(rh->read_length);
 				}
@@ -1374,7 +1374,7 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 			ahdr = (struct iscsi_ahs_hdr *)p;
 
 			if (ahdr->ahstype == ISCSI_AHSTYPE_CDB) {
-				struct iscsi_cdb_ahdr *eca = 
+				struct iscsi_cdb_ahdr *eca =
 					(struct iscsi_cdb_ahdr *)ahdr;
 				scst_cmd_set_ext_cdb(scst_cmd, eca->cdb,
 					be16_to_cpu(ahdr->ahslength) - 1);
@@ -2972,7 +2972,7 @@ static int iscsi_scsi_aen(struct scst_aen *aen)
 	sg_init_table(sg, 2);
 	sg_set_buf(&sg[0], &rsp->sense_hdr, sizeof(rsp->sense_hdr));
 	sg_set_buf(&sg[1], sense, sense_len);
-		
+
 	rsp->sense_hdr.length = cpu_to_be16(sense_len);
 	rsp->pdu.datasize = sizeof(rsp->sense_hdr) + sense_len;
 	rsp->bufflen = rsp->pdu.datasize;

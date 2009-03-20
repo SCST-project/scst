@@ -3115,8 +3115,8 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 #endif
 			    SCST_SENSE_VALID(sense_buffer)) {
 				if (scst_analyze_sense(sense_buffer,
-			    			sizeof(sense_buffer),
-			    			SCST_SENSE_KEY_VALID,
+						sizeof(sense_buffer),
+						SCST_SENSE_KEY_VALID,
 						ILLEGAL_REQUEST, 0, 0)) {
 					TRACE(TRACE_SCSI|TRACE_MGMT_MINOR,
 						"Device %d:%d:%d:%d doesn't "
@@ -3136,8 +3136,8 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 					res = 0;
 					goto out;
 				} else if (scst_analyze_sense(sense_buffer,
-			    			sizeof(sense_buffer),
-			    			SCST_SENSE_KEY_VALID,
+						sizeof(sense_buffer),
+						SCST_SENSE_KEY_VALID,
 						NOT_READY, 0, 0)) {
 					TRACE(TRACE_SCSI,
 						"Device %d:%d:%d:%d not ready",

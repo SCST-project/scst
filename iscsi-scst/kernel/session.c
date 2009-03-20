@@ -165,7 +165,7 @@ int session_add(struct iscsi_target *target,
 			info->sid);
 		err = -EEXIST;
 		goto out;
- 	}
+	}
 
 	sid = (union iscsi_sid)info->sid;
 	sid.id.tsih = 0;
@@ -181,7 +181,7 @@ int session_add(struct iscsi_target *target,
 		i.id.tsih = 0;
 		if ((sid.id64 == i.id64) &&
 		    (strcmp(info->initiator_name, session->initiator_name) == 0)) {
-		    	if (!session->sess_shutting_down) {
+			if (!session->sess_shutting_down) {
 				/* session reinstatement */
 				old_sess = session;
 			}

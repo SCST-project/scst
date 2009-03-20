@@ -238,7 +238,7 @@ int config_account_add(u32 tid, int dir, char *name, char *pass)
 
 	if (tid) {
 		/* check here */
-/* 		return -ENOENT; */
+		/* return -ENOENT; */
 	}
 
 	/* Check for minimum RFC defined value */
