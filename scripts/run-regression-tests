@@ -57,27 +57,21 @@
 function usage {
   echo "Usage: $0 [-c] [-h] [-k <kver1>] [-k <kver2>] ..."
   echo "        -c - cache directory for Linux kernel tarballs."
+  echo "        -f - full check -- do not only compile SCST but the whole" \
+       "kernel tree."
   echo "        -h - display this help information."
   echo "        -k <kver> - kernel version to use during test."
 }
 
 # First three components of the kernel version number.
 function kernel_version {
-  if [ "${1#[0-9]*.[0-9]*.[0-9]*.[0-9]*}" != "$1" ]; then
-    echo "${1%.[0-9]*}"
-  else
-    echo "$1"
-  fi
+  echo "$1" | sed -n 's/^\([0-9]*\.[0-9]*\.[0-9]*\).*$/\1/p'
 }
 
 # Last component of the kernel version, or the empty string if $1 has only
 # three components.
 function patchlevel {
-  if [ "${1#[0-9]*.[0-9]*.[0-9]*.}" = "$1" ]; then
-    echo ""
-  else
-    echo "${1#[0-9]*.[0-9]*.[0-9]*.}"
-  fi
+  echo "$1" | sed -n 's/^\([0-9]*\.[0-9]*\.[0-9]*\)[.-]\(.*\)$/\2/p'
 }
 
 # Create a linux-$1 tree in the current directory, where $1 is a kernel
@@ -94,10 +88,11 @@ function extract_kernel_tree {
     tar xjf "${kernel_sources}/linux-${kver}.tar.bz2" || return $?
     cd "linux-${kver}" || return $?
     if [ "${plevel}" != "" ]; then
-      bzip2 -cd "${kernel_sources}/patch-$1.bz2" | patch -p1 -f -s || return $?
+      bzip2 -cd "${kernel_sources}/patch-$1.bz2" \
+        | patch -p1 -f -s || return $?
     fi
     cd ..
-    mv "linux-${kver}" "../linux-$1"
+    mv "linux-${kver}" "../linux-$1" || return $?
   )
   rmdir "${tmpdir}"
 }
@@ -108,16 +103,18 @@ function test_scst_tree_patches {
   echo "Testing whether the SCST patches apply cleanly to the SCST tree ..."
   for p in *.patch srpt/patches/scst_increase_max_tgt_cmds.patch
   do
-    patch -p0 -f --dry-run -s <$p >&/dev/null \
+    patch -p0 -f --dry-run -s <$p &>/dev/null \
     || echo "ERROR: patch $p does not apply cleanly."
   done
 }
 
-# Copy the entire SCST source code tree except the regression-* directories
-# from "$1" into the current directory.
+# Copy the entire SCST source code tree from "$1" into the current directory.
+# Only copy those files which are administered by Subversion.
 function duplicate_scst_source_tree {
   if [ -e "$1/AskingQuestions" ]; then
-    tar -C "$1" --exclude=regression-* -c -f - . | tar -x -f -
+    ( cd "$1" && svn status -v | cut -c41- \
+      | while read f; do [ ! -d "$f" ] && echo "$f"; done ) \
+    | tar -C "$1" --files-from=- -c -f - | tar -x -f -
   else
     return 1
   fi
@@ -142,7 +139,7 @@ function compile_scst_unpatched {
            && if "${mpt_scst}"   = "true" ; then make -C mpt -s   ; fi \
            && make -C srpt -s clean    \
            && make -C srpt -s )    \
-           >& "${outputfile}"
+           &> "${outputfile}"
     then
       true
     else
@@ -174,7 +171,7 @@ function compile_scst_patched {
            && if "${mpt_scst}"   = "true" ; then make -C mpt -s   ; fi \
            && make -C srpt -s clean    \
            && make -C srpt -s )    \
-          >& "${outputfile}"
+          &> "${outputfile}"
     then
       true
     else
@@ -230,10 +227,10 @@ function test_if_patch_applies_cleanly {
   local outputfile="${outputdir}/kernel-$1-patch-output.txt"
   local rc=0
 
-  echo "Testing whether the generated kernel patch applies cleanly to $1 ..."
+  echo "Testing whether the generated kernel patch applies cleanly ..."
   ( cd "${outputdir}" && extract_kernel_tree "$1" )
   generate_kernel_patch $1 \
-  | (cd "${outputdir}/linux-$1" && patch -p1 --dry-run -f >& "${outputfile}")
+  | (cd "${outputdir}/linux-$1" && patch -p1 --dry-run -f &> "${outputfile}")
   if [ $? != 0 ]; then
     echo "FAILED"
     rc=1
@@ -249,25 +246,30 @@ function run_checkpatch  {
   local plevel="$(patchlevel $1)"
   local outputfile="${outputdir}/checkpatch-$1-output.txt"
 
-  echo "Running checkpatch version $1 on the SCST kernel patch ..."
-  generate_kernel_patch $1 \
-  | (cd "${outputdir}/linux-$1" && scripts/checkpatch.pl - >& "${outputfile}")
-  # For now, only display checkpatch errors.
-  local errors=$(grep -c '^ERROR' "${outputfile}")
-  local warnings=$(grep -c '^WARNING' "${outputfile}")
-  echo "${errors} errors / ${warnings} warnings."
+  if [ -e "${outputdir}/linux-$1/scripts/checkpatch.pl" ]
+  then
+    echo "Running checkpatch on the SCST kernel patch ..."
+    generate_kernel_patch $1 \
+    | (cd "${outputdir}/linux-$1" && scripts/checkpatch.pl - &> "${outputfile}")
+    local errors=$(grep -c '^ERROR' "${outputfile}")
+    local warnings=$(grep -c '^WARNING' "${outputfile}")
+    echo "${errors} errors / ${warnings} warnings."
+    grep -E '^WARNING|^ERROR' "${outputfile}" | sort | uniq -c
+  else
+    echo "Skipping checkpatch step for kernel $1."
+  fi
   return 0
 }
 
 function patch_and_configure_kernel {
   local patchfile="${outputdir}/scst-$1-kernel.patch"
 
-  echo "Patching and configuring kernel $1 ..."
-  generate_kernel_patch "$1" > "${patchfile}"
+  echo "Patching and configuring kernel ..."
+  SIGNED_OFF_BY="..." generate_kernel_patch "$1" > "${patchfile}"
   (
-    cd "${outputdir}/linux-$1"                                  \
-    && patch -p1 -f -s <"${patchfile}"                          \
-                       >"${outputdir}/patch-command-output.txt" \
+    cd "${outputdir}/linux-$1"                                     \
+    && patch -p1 -f -s <"${patchfile}"                             \
+                       >"${outputdir}/patch-command-output-$1.txt" \
     && make -s allmodconfig &>/dev/null
   )
 }
@@ -283,9 +285,9 @@ function compile_patched_kernel {
   (
     (
       cd "${outputdir}/linux-$1" \
-      && LC_ALL=C make -s -k -j3 bzImage modules
+      && LC_ALL=C make -s -k bzImage modules
     )
-  ) >& "${outputfile}"
+  ) &> "${outputfile}"
   echo "See also ${outputfile}."
   return 0
 }
@@ -299,14 +301,22 @@ function run_sparse {
   local plevel="$(patchlevel $1)"
   local outputfile="${outputdir}/sparse-$1-output.txt"
 
-  echo "Running sparse on the patched $1 kernel ..."
+  echo "Running sparse on the patched kernel ..."
   (
     cd "${outputdir}/linux-$1" \
     && make -s prepare \
     && make -s scripts \
     && LC_ALL=C make -k C=2 M=drivers/scst # CF=-D__CHECK_ENDIAN__
-  ) >& "${outputfile}"
-  echo "See also ${outputfile}."
+  ) &> "${outputfile}"
+  local errors=$(grep -c ' error:' "${outputfile}")
+  local warnings=$(grep -vE 'expected different context|wanted >= [01], got |warning: potentially expensive pointer subtraction$' "${outputfile}" | grep -c ' warning:')
+  echo "${errors} errors / ${warnings} warnings."
+  cat "${outputfile}" \
+    | grep -vE 'expected different context|wanted >= [01], got |warning: potentially expensive pointer subtraction$' \
+    | grep '^[^ ]' \
+    | sed 's/.*: //' \
+    | sort \
+    | uniq -c
   return 0
 }
 
@@ -321,7 +331,7 @@ function run_checkstack {
     && make -s prepare \
     && make -s scripts \
     && LC_ALL=C make -k checkstack
-  ) >& "${outputfile}"
+  ) &> "${outputfile}"
   echo "See also ${outputfile}."
   return 0
 }
@@ -337,7 +347,7 @@ function run_namespacecheck {
     && make -s prepare \
     && make -s scripts \
     && LC_ALL=C make -k namespacecheck
-  ) >& "${outputfile}"
+  ) &> "${outputfile}"
   echo "See also ${outputfile}."
   return 0
 }
@@ -353,8 +363,10 @@ function run_headers_check {
     && make -s prepare \
     && make -s scripts \
     && LC_ALL=C make -k headers_check
-  ) >& "${outputfile}"
-  echo "See also ${outputfile}."
+  ) &> "${outputfile}"
+  local errors=$(grep -c '^[^ ]' "${outputfile}")
+  echo "${errors} errors."
+  grep '^[^ ]' "${outputfile}" | sed 's/.*: //' | sort | uniq -c
   return 0
 }
 
@@ -369,7 +381,7 @@ function run_make_htmldocs {
     && make -s prepare \
     && make -s scripts \
     && LC_ALL=C make -k htmldocs
-  ) >& "${outputfile}"
+  ) &> "${outputfile}"
   echo "See also ${outputfile}."
   return 0
 }
@@ -384,6 +396,7 @@ if [ ! -e scst -o ! -e iscsi-scst -o ! -e srpt ]; then
   exit 1
 fi
 
+full_check="false"
 # Where to store persistenly downloaded kernel tarballs and kernel patches.
 kernel_sources="$HOME/software/downloads"
 # URL for downloading kernel tarballs and kernel patches.
@@ -396,11 +409,12 @@ mpt_scst="false"
 qla2x00t="false"
 scst_local="true"
 
-set -- $(/usr/bin/getopt "c:hk:" "$@")
+set -- $(/usr/bin/getopt "c:fhk:" "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
     '-c') kernel_sources="$2"; shift; shift;;
+    '-f') full_check="true"; shift;;
     '-h') usage; exit 1;;
     '-k') kernel_versions="${kernel_versions} $2"; shift; shift;;
     '--') shift;;
@@ -415,8 +429,14 @@ fi
 
 # Default kernel versions to use for the test.
 if [ "${kernel_versions}" = "" ]; then
-  #kernel_versions="2.6.24.7 2.6.25.20 2.6.26.8 2.6.27.11 2.6.28"
-  kernel_versions="2.6.28"
+  # RHEL 4.x / CentOS 4.x has a kernel based on version 2.6.9.
+  # RHEL 5.x / CentOS 5.x has a kernel based on version 2.6.18.
+  # Ubuntu 8.04 (Hardy Heron) has a kernel based on version 2.6.24.
+  # Ubuntu 8.10 (Intrepid Ibex) has a kernel based on version 2.6.27.
+  # openSUSE 11.0 has a kernel based on version 2.6.25.
+  # openSUSE 11.1 has a kernel based on version 2.6.27.
+  #kernel_versions="2.6.24.7 2.6.25.20 2.6.26.8 2.6.27.20 2.6.28.8"
+  kernel_versions="2.6.28.8"
 fi
 
 
@@ -427,21 +447,29 @@ fi
 rm -rf "${outputdir}"
 mkdir -p "${outputdir}" || exit $?
 
+MAKEFLAGS=-j3
+
 test_scst_tree_patches || exit $?
 compile_scst_unpatched || exit $?
 compile_scst_patched || exit $?
 
 for k in ${kernel_versions}
 do
+  echo "===================="
+  printf "= kernel %-9s =\n" "${k}"
+  echo "===================="
+
   if download_kernel $k && test_if_patch_applies_cleanly $k; then
     run_checkpatch $k
     patch_and_configure_kernel $k
     run_sparse $k
     run_headers_check $k
-    compile_patched_kernel $k
-    run_checkstack $k
-    run_namespacecheck $k
-    run_make_htmldocs $k
+    if [ "${full_check}" = "true" ]; then
+      compile_patched_kernel $k
+      run_checkstack $k
+      run_namespacecheck $k
+      run_make_htmldocs $k
+    fi
   else
     echo "FAILED for kernel $k"
   fi
