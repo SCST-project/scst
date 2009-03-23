@@ -1460,6 +1460,9 @@ struct scst_device {
 	/* Lists of commands with lock, if dedicated threads are used */
 	struct scst_cmd_lists cmd_lists;
 
+	/* Per-device dedicated IO context */
+	struct io_context *dev_io_ctx;
+
 	/* How many cmds alive on this dev */
 	atomic_t dev_cmd_count;
 
@@ -1576,6 +1579,9 @@ struct scst_tgt_dev {
 	/* List of scst_thr_data_hdr and lock */
 	spinlock_t thr_data_lock;
 	struct list_head thr_data_list;
+
+	/* Per-(device, session) dedicated IO context */
+	struct io_context *tgt_dev_io_ctx;
 
 	spinlock_t tgt_dev_lock;	/* per-session device lock */
 
@@ -2770,11 +2776,11 @@ struct proc_dir_entry *scst_create_proc_entry(struct proc_dir_entry *root,
 	},
 
 /*
- * Adds and deletes (stops) num SCST's threads. Returns 0 on success,
- * error code otherwise.
+ * Adds and deletes (stops) num of global SCST's threads. Returns 0 on
+ * success, error code otherwise.
  */
-int scst_add_cmd_threads(int num);
-void scst_del_cmd_threads(int num);
+int scst_add_global_threads(int num);
+void scst_del_global_threads(int num);
 
 int scst_alloc_sense(struct scst_cmd *cmd, int atomic);
 int scst_alloc_set_sense(struct scst_cmd *cmd, int atomic,

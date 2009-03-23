@@ -758,6 +758,18 @@ int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev)
 	dev->queue_alg = SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER;
 	dev->dev_num = dev_num++;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+#if defined(CONFIG_BLOCK) && defined(SCST_IO_CONTEXT)
+	dev->dev_io_ctx = alloc_io_context(GFP_KERNEL, -1);
+	if (dev->dev_io_ctx == NULL) {
+		TRACE(TRACE_OUT_OF_MEM, "%s", "Failed to alloc dev IO context");
+		res = -ENOMEM;
+		kfree(dev);
+		goto out;
+	}
+#endif
+#endif
+
 	*out_dev = dev;
 
 out:
@@ -777,6 +789,12 @@ void scst_free_device(struct scst_device *dev)
 			"is not empty!", __func__);
 		sBUG();
 	}
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+#if defined(CONFIG_BLOCK) && defined(SCST_IO_CONTEXT)
+	__exit_io_context(dev->dev_io_ctx);
+#endif
 #endif
 
 	kfree(dev);
@@ -1024,12 +1042,24 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 
 	tm_dbg_init_tgt_dev(tgt_dev, acg_dev);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+#if defined(CONFIG_BLOCK) && defined(SCST_IO_CONTEXT)
+	tgt_dev->tgt_dev_io_ctx = alloc_io_context(GFP_KERNEL, -1);
+	if (tgt_dev->tgt_dev_io_ctx == NULL) {
+		TRACE(TRACE_OUT_OF_MEM, "Failed to alloc tgt_dev IO context "
+			"for dev %s (initiator %s)", dev->virt_name,
+			sess->initiator_name);
+		goto out_free;
+	}
+#endif
+#endif
+
 	if (vtt->threads_num > 0) {
 		rc = 0;
 		if (dev->handler->threads_num > 0)
 			rc = scst_add_dev_threads(dev, vtt->threads_num);
 		else if (dev->handler->threads_num == 0)
-			rc = scst_add_cmd_threads(vtt->threads_num);
+			rc = scst_add_global_threads(vtt->threads_num);
 		if (rc != 0)
 			goto out_free;
 	}
@@ -1066,10 +1096,12 @@ out_thr_free:
 		if (dev->handler->threads_num > 0)
 			scst_del_dev_threads(dev, vtt->threads_num);
 		else if (dev->handler->threads_num == 0)
-			scst_del_cmd_threads(vtt->threads_num);
+			scst_del_global_threads(vtt->threads_num);
 	}
 
 out_free:
+	__exit_io_context(tgt_dev->tgt_dev_io_ctx);
+
 	kmem_cache_free(scst_tgtd_cachep, tgt_dev);
 	tgt_dev = NULL;
 	goto out;
@@ -1135,8 +1167,14 @@ static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 		if (dev->handler->threads_num > 0)
 			scst_del_dev_threads(dev, vtt->threads_num);
 		else if (dev->handler->threads_num == 0)
-			scst_del_cmd_threads(vtt->threads_num);
+			scst_del_global_threads(vtt->threads_num);
 	}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+#if defined(CONFIG_BLOCK) && defined(SCST_IO_CONTEXT)
+	__exit_io_context(tgt_dev->tgt_dev_io_ctx);
+#endif
+#endif
 
 	kmem_cache_free(scst_tgtd_cachep, tgt_dev);
 

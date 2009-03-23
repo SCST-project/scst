@@ -48,8 +48,8 @@
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
-#if !defined(SCST_ALLOC_IO_CONTEXT_EXPORTED)
-#warning "Patch export_alloc_io_context-<kernel-version>.patch was not applied \
+#if !defined(SCST_IO_CONTEXT)
+#warning "Patch io_context-<kernel-version>.patch was not applied \
 	on your kernel. SCST will be working with not the best performance."
 #endif
 #endif
@@ -129,17 +129,16 @@ static struct mutex scst_suspend_mutex;
 static struct list_head scst_cmd_lists_list;
 
 static int scst_threads;
-struct scst_threads_info_t scst_threads_info;
+struct mutex scst_global_threads_mutex;
+u32 scst_nr_global_threads;
+static struct list_head scst_global_threads_list;
+static struct task_struct *scst_init_cmd_thread;
+static struct task_struct *scst_mgmt_thread;
+static struct task_struct *scst_mgmt_cmd_thread;
 
 static int suspend_count;
 
 static int scst_virt_dev_last_id; /* protected by scst_mutex */
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
-#if defined(CONFIG_BLOCK) && defined(SCST_ALLOC_IO_CONTEXT_EXPORTED)
-static struct io_context *scst_ioc;
-#endif
-#endif
 
 static unsigned int scst_max_cmd_mem;
 unsigned int scst_max_dev_cmd_mem;
@@ -1101,7 +1100,6 @@ int scst_add_dev_threads(struct scst_device *dev, int num)
 	int i, res = 0;
 	int n = 0;
 	struct scst_cmd_thread_t *thr;
-	struct io_context *ioc = NULL;
 	char nm[12];
 
 	TRACE_ENTRY();
@@ -1131,25 +1129,14 @@ int scst_add_dev_threads(struct scst_device *dev, int num)
 		list_add(&thr->thread_list_entry, &dev->threads_list);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
-#if defined(CONFIG_BLOCK) && defined(SCST_ALLOC_IO_CONTEXT_EXPORTED)
+#if defined(CONFIG_BLOCK) && defined(SCST_IO_CONTEXT)
 		/*
-		 * It would be better to keep io_context in tgt_dev and
-		 * dynamically assign it to the current thread on the IO
-		 * submission time to let each initiator have own
-		 * io_context. But, unfortunately, CFQ doesn't
-		 * support if a task has dynamically switched
-		 * io_context, it oopses on BUG_ON(!cic->dead_key) in
-		 * cic_free_func(). So, we have to have the same io_context
-		 * for all initiators.
+		 * ToDo: better to use tgt_dev_io_context instead, but we
+		 * are not ready for that yet.
 		 */
-		if (ioc == NULL) {
-			ioc = alloc_io_context(GFP_KERNEL, -1);
-			TRACE_DBG("ioc %p (thr %d)", ioc, thr->cmd_thread->pid);
-		}
-
-		put_io_context(thr->cmd_thread->io_context);
-		thr->cmd_thread->io_context = ioc_task_link(ioc);
-		TRACE_DBG("Setting ioc %p on thr %d", ioc,
+		__exit_io_context(thr->cmd_thread->io_context);
+		thr->cmd_thread->io_context = ioc_task_link(dev->dev_io_ctx);
+		TRACE_DBG("Setting dev io ctx %p on thr %d", dev->dev_io_ctx,
 			thr->cmd_thread->pid);
 #endif
 #endif
@@ -1157,8 +1144,6 @@ int scst_add_dev_threads(struct scst_device *dev, int num)
 	}
 
 out:
-	put_io_context(ioc);
-
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -1355,41 +1340,40 @@ out_err_detach_tgt:
 	goto out_null;
 }
 
-int scst_cmd_threads_count(void)
+int scst_global_threads_count(void)
 {
 	int i;
 
 	/*
 	 * Just to lower the race window, when user can get just changed value
 	 */
-	mutex_lock(&scst_threads_info.cmd_threads_mutex);
-	i = scst_threads_info.nr_cmd_threads;
-	mutex_unlock(&scst_threads_info.cmd_threads_mutex);
+	mutex_lock(&scst_global_threads_mutex);
+	i = scst_nr_global_threads;
+	mutex_unlock(&scst_global_threads_mutex);
 	return i;
 }
 
 static void scst_threads_info_init(void)
 {
-	memset(&scst_threads_info, 0, sizeof(scst_threads_info));
-	mutex_init(&scst_threads_info.cmd_threads_mutex);
-	INIT_LIST_HEAD(&scst_threads_info.cmd_threads_list);
+	mutex_init(&scst_global_threads_mutex);
+	INIT_LIST_HEAD(&scst_global_threads_list);
 }
 
-/* scst_threads_info.cmd_threads_mutex supposed to be held */
-void __scst_del_cmd_threads(int num)
+/* scst_global_threads_mutex supposed to be held */
+void __scst_del_global_threads(int num)
 {
 	struct scst_cmd_thread_t *ct, *tmp;
 	int i;
 
 	TRACE_ENTRY();
 
-	i = scst_threads_info.nr_cmd_threads;
+	i = scst_nr_global_threads;
 	if (num <= 0 || num > i) {
 		PRINT_ERROR("can not del %d cmd threads from %d", num, i);
 		return;
 	}
 
-	list_for_each_entry_safe(ct, tmp, &scst_threads_info.cmd_threads_list,
+	list_for_each_entry_safe(ct, tmp, &scst_global_threads_list,
 				thread_list_entry) {
 		int res;
 
@@ -1398,7 +1382,7 @@ void __scst_del_cmd_threads(int num)
 			TRACE_MGMT_DBG("kthread_stop() failed: %d", res);
 		list_del(&ct->thread_list_entry);
 		kfree(ct);
-		scst_threads_info.nr_cmd_threads--;
+		scst_nr_global_threads--;
 		--num;
 		if (num == 0)
 			break;
@@ -1408,8 +1392,8 @@ void __scst_del_cmd_threads(int num)
 	return;
 }
 
-/* scst_threads_info.cmd_threads_mutex supposed to be held */
-int __scst_add_cmd_threads(int num)
+/* scst_global_threads_mutex supposed to be held */
+int __scst_add_global_threads(int num)
 {
 	int res = 0, i;
 	static int scst_thread_num;
@@ -1435,25 +1419,9 @@ int __scst_add_cmd_threads(int num)
 			goto out_error;
 		}
 
-		list_add(&thr->thread_list_entry,
-			&scst_threads_info.cmd_threads_list);
-		scst_threads_info.nr_cmd_threads++;
+		list_add(&thr->thread_list_entry, &scst_global_threads_list);
+		scst_nr_global_threads++;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
-#if defined(CONFIG_BLOCK) && defined(SCST_ALLOC_IO_CONTEXT_EXPORTED)
-		/* See comment in scst_add_dev_threads() */
-		if (scst_ioc == NULL) {
-			scst_ioc = alloc_io_context(GFP_KERNEL, -1);
-			TRACE_DBG("scst_ioc %p (thr %d)", scst_ioc,
-				thr->cmd_thread->pid);
-		}
-
-		put_io_context(thr->cmd_thread->io_context);
-		thr->cmd_thread->io_context = ioc_task_link(scst_ioc);
-		TRACE_DBG("Setting scst_ioc %p on thr %d",
-			scst_ioc, thr->cmd_thread->pid);
-#endif
-#endif
 		wake_up_process(thr->cmd_thread);
 	}
 	res = 0;
@@ -1464,51 +1432,51 @@ out:
 
 out_error:
 	if (i > 0)
-		__scst_del_cmd_threads(i - 1);
+		__scst_del_global_threads(i - 1);
 	goto out;
 }
 
-int scst_add_cmd_threads(int num)
+int scst_add_global_threads(int num)
 {
 	int res;
 
 	TRACE_ENTRY();
 
-	mutex_lock(&scst_threads_info.cmd_threads_mutex);
-	res = __scst_add_cmd_threads(num);
-	mutex_unlock(&scst_threads_info.cmd_threads_mutex);
+	mutex_lock(&scst_global_threads_mutex);
+	res = __scst_add_global_threads(num);
+	mutex_unlock(&scst_global_threads_mutex);
 
 	TRACE_EXIT_RES(res);
 	return res;
 }
-EXPORT_SYMBOL(scst_add_cmd_threads);
+EXPORT_SYMBOL(scst_add_global_threads);
 
-void scst_del_cmd_threads(int num)
+void scst_del_global_threads(int num)
 {
 	TRACE_ENTRY();
 
-	mutex_lock(&scst_threads_info.cmd_threads_mutex);
-	__scst_del_cmd_threads(num);
-	mutex_unlock(&scst_threads_info.cmd_threads_mutex);
+	mutex_lock(&scst_global_threads_mutex);
+	__scst_del_global_threads(num);
+	mutex_unlock(&scst_global_threads_mutex);
 
 	TRACE_EXIT();
 	return;
 }
-EXPORT_SYMBOL(scst_del_cmd_threads);
+EXPORT_SYMBOL(scst_del_global_threads);
 
 static void scst_stop_all_threads(void)
 {
 	TRACE_ENTRY();
 
-	mutex_lock(&scst_threads_info.cmd_threads_mutex);
-	__scst_del_cmd_threads(scst_threads_info.nr_cmd_threads);
-	if (scst_threads_info.mgmt_cmd_thread)
-		kthread_stop(scst_threads_info.mgmt_cmd_thread);
-	if (scst_threads_info.mgmt_thread)
-		kthread_stop(scst_threads_info.mgmt_thread);
-	if (scst_threads_info.init_cmd_thread)
-		kthread_stop(scst_threads_info.init_cmd_thread);
-	mutex_unlock(&scst_threads_info.cmd_threads_mutex);
+	mutex_lock(&scst_global_threads_mutex);
+	__scst_del_global_threads(scst_nr_global_threads);
+	if (scst_mgmt_cmd_thread)
+		kthread_stop(scst_mgmt_cmd_thread);
+	if (scst_mgmt_thread)
+		kthread_stop(scst_mgmt_thread);
+	if (scst_init_cmd_thread)
+		kthread_stop(scst_init_cmd_thread);
+	mutex_unlock(&scst_global_threads_mutex);
 
 	TRACE_EXIT();
 	return;
@@ -1520,40 +1488,40 @@ static int scst_start_all_threads(int num)
 
 	TRACE_ENTRY();
 
-	mutex_lock(&scst_threads_info.cmd_threads_mutex);
-	res = __scst_add_cmd_threads(num);
+	mutex_lock(&scst_global_threads_mutex);
+	res = __scst_add_global_threads(num);
 	if (res < 0)
 		goto out;
 
-	scst_threads_info.init_cmd_thread = kthread_run(scst_init_cmd_thread,
+	scst_init_cmd_thread = kthread_run(scst_init_thread,
 		NULL, "scsi_tgt_init");
-	if (IS_ERR(scst_threads_info.init_cmd_thread)) {
-		res = PTR_ERR(scst_threads_info.init_cmd_thread);
+	if (IS_ERR(scst_init_cmd_thread)) {
+		res = PTR_ERR(scst_init_cmd_thread);
 		PRINT_ERROR("kthread_create() for init cmd failed: %d", res);
-		scst_threads_info.init_cmd_thread = NULL;
+		scst_init_cmd_thread = NULL;
 		goto out;
 	}
 
-	scst_threads_info.mgmt_cmd_thread = kthread_run(scst_mgmt_cmd_thread,
-		NULL, "scsi_tgt_mc");
-	if (IS_ERR(scst_threads_info.mgmt_cmd_thread)) {
-		res = PTR_ERR(scst_threads_info.mgmt_cmd_thread);
-		PRINT_ERROR("kthread_create() for mcmd failed: %d", res);
-		scst_threads_info.mgmt_cmd_thread = NULL;
+	scst_mgmt_cmd_thread = kthread_run(scst_tm_thread,
+		NULL, "scsi_tm");
+	if (IS_ERR(scst_mgmt_cmd_thread)) {
+		res = PTR_ERR(scst_mgmt_cmd_thread);
+		PRINT_ERROR("kthread_create() for TM failed: %d", res);
+		scst_mgmt_cmd_thread = NULL;
 		goto out;
 	}
 
-	scst_threads_info.mgmt_thread = kthread_run(scst_mgmt_thread,
+	scst_mgmt_thread = kthread_run(scst_global_mgmt_thread,
 		NULL, "scsi_tgt_mgmt");
-	if (IS_ERR(scst_threads_info.mgmt_thread)) {
-		res = PTR_ERR(scst_threads_info.mgmt_thread);
+	if (IS_ERR(scst_mgmt_thread)) {
+		res = PTR_ERR(scst_mgmt_thread);
 		PRINT_ERROR("kthread_create() for mgmt failed: %d", res);
-		scst_threads_info.mgmt_thread = NULL;
+		scst_mgmt_thread = NULL;
 		goto out;
 	}
 
 out:
-	mutex_unlock(&scst_threads_info.cmd_threads_mutex);
+	mutex_unlock(&scst_global_threads_mutex);
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -1728,8 +1696,8 @@ static int __init init_scst(void)
 	BUILD_BUG_ON(SCST_DATA_NONE != DMA_NONE);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
-#if !defined(SCST_ALLOC_IO_CONTEXT_EXPORTED)
-	PRINT_WARNING("%s", "Patch export_alloc_io_context was not applied on "
+#if !defined(SCST_IO_CONTEXT)
+	PRINT_WARNING("%s", "Patch io_context was not applied on "
 		"your kernel. SCST will be working with not the best "
 		"performance.");
 #endif
@@ -2005,12 +1973,6 @@ static void __exit exit_scst(void)
 	DEINIT_CACHEP(scst_sess_cachep);
 	DEINIT_CACHEP(scst_tgtd_cachep);
 	DEINIT_CACHEP(scst_acgd_cachep);
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
-#if defined(CONFIG_BLOCK) && defined(SCST_ALLOC_IO_CONTEXT_EXPORTED)
-	put_io_context(scst_ioc);
-#endif
-#endif
 
 	PRINT_INFO("%s", "SCST unloaded");
 

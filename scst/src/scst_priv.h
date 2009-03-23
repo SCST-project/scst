@@ -177,19 +177,41 @@ struct scst_cmd_thread_t {
 	struct list_head thread_list_entry;
 };
 
-struct scst_threads_info_t {
-	struct mutex cmd_threads_mutex;
-	u32 nr_cmd_threads;
-	struct list_head cmd_threads_list;
-	struct task_struct *init_cmd_thread;
-	struct task_struct *mgmt_thread;
-	struct task_struct *mgmt_cmd_thread;
-};
+static inline void scst_set_io_context(struct scst_tgt_dev *tgt_dev)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+#if defined(CONFIG_BLOCK) && defined(SCST_IO_CONTEXT)
+	if (tgt_dev->dev->p_cmd_lists == &scst_main_cmd_lists) {
+		EXTRACHECKS_BUG_ON(current->io_context);
+		/*
+		 * No need to call ioc_task_link(), because io_context
+		 * supposed to be cleared in the end of the caller function.
+		 */
+		current->io_context = tgt_dev->tgt_dev_io_ctx;
+		TRACE_DBG("io_context %p", tgt_dev->tgt_dev_io_ctx);
+	}
+#endif
+#endif
+}
 
-extern struct scst_threads_info_t scst_threads_info;
-extern int scst_cmd_threads_count(void);
-extern int __scst_add_cmd_threads(int num);
-extern void __scst_del_cmd_threads(int num);
+static inline void scst_reset_io_context(struct scst_tgt_dev *tgt_dev)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+#if defined(CONFIG_BLOCK) && defined(SCST_IO_CONTEXT)
+	if (current->io_context == tgt_dev->tgt_dev_io_ctx) {
+		current->io_context = NULL;
+		TRACE_DBG("io_context %p reset", tgt_dev->tgt_dev_io_ctx);
+	}
+#endif
+#endif
+}
+
+extern struct mutex scst_global_threads_mutex;
+extern u32 scst_nr_global_threads;
+
+extern int scst_global_threads_count(void);
+extern int __scst_add_global_threads(int num);
+extern void __scst_del_global_threads(int num);
 
 extern struct scst_dev_type scst_null_devtype;
 
@@ -235,9 +257,9 @@ void scst_xmit_process_aborted_cmd(struct scst_cmd *cmd);
 
 int scst_cmd_thread(void *arg);
 void scst_cmd_tasklet(long p);
-int scst_init_cmd_thread(void *arg);
-int scst_mgmt_cmd_thread(void *arg);
-int scst_mgmt_thread(void *arg);
+int scst_init_thread(void *arg);
+int scst_tm_thread(void *arg);
+int scst_global_mgmt_thread(void *arg);
 
 int scst_add_dev_threads(struct scst_device *dev, int num);
 void scst_del_dev_threads(struct scst_device *dev, int num);

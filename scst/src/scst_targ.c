@@ -1863,6 +1863,8 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
+	scst_set_io_context(cmd->tgt_dev);
+
 	cmd->state = SCST_CMD_STATE_REAL_EXECUTING;
 
 	if (handler->exec) {
@@ -1952,14 +1954,16 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 out_complete:
 	res = SCST_EXEC_COMPLETED;
 
-out:
+out_reset:
+	scst_reset_io_context(cmd->tgt_dev);
+
 	TRACE_EXIT();
 	return res;
 
 out_restore:
 	/* Restore the state */
 	cmd->state = SCST_CMD_STATE_REAL_EXEC;
-	goto out;
+	goto out_reset;
 
 out_error:
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
@@ -3338,7 +3342,7 @@ static inline int test_init_cmd_list(void)
 	return res;
 }
 
-int scst_init_cmd_thread(void *arg)
+int scst_init_thread(void *arg)
 {
 	TRACE_ENTRY();
 
@@ -3626,7 +3630,7 @@ int scst_cmd_thread(void *arg)
 	 * process the commands lists.
 	 */
 	if (p_cmd_lists == &scst_main_cmd_lists) {
-		sBUG_ON((scst_threads_info.nr_cmd_threads == 1) &&
+		sBUG_ON((scst_nr_global_threads == 1) &&
 			 !list_empty(&scst_main_cmd_lists.active_cmd_list));
 	}
 #endif
@@ -4906,7 +4910,7 @@ static inline int test_mgmt_cmd_list(void)
 	return res;
 }
 
-int scst_mgmt_cmd_thread(void *arg)
+int scst_tm_thread(void *arg)
 {
 	TRACE_ENTRY();
 
@@ -5445,7 +5449,7 @@ static inline int test_mgmt_list(void)
 	return res;
 }
 
-int scst_mgmt_thread(void *arg)
+int scst_global_mgmt_thread(void *arg)
 {
 	struct scst_session *sess;
 
