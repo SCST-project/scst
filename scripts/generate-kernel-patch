@@ -184,7 +184,7 @@ fi
 
 process_patch < "scst/kernel/scst_exec_req_fifo-${kernel_version}.patch" \
     "scst_exec_req_fifo.diff"
-process_patch < "scst/kernel/export_alloc_io_context-${kernel_version}.patch" \
+process_patch < "scst/kernel/io_context-${kernel_version}.patch" \
     "export_alloc_io_context.diff"
 process_patch < "iscsi-scst/kernel/patches/put_page_callback-${kernel_version}.patch" \
     "put_page_callback.diff"
