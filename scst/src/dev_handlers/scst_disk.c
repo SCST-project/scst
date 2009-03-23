@@ -193,7 +193,7 @@ static int disk_attach(struct scst_device *dev)
 				sizeof(sense_buffer), SCST_SENSE_ALL_VALID,
 				SCST_LOAD_SENSE(scst_sense_medium_changed_UA)) ||
 		    !scst_analyze_sense(sense_buffer, sizeof(sense_buffer),
-		    		SCST_SENSE_KEY_VALID | SCST_SENSE_ASC_VALID,
+				SCST_SENSE_KEY_VALID | SCST_SENSE_ASC_VALID,
 				UNIT_ATTENTION, 0x29, 0))
 			break;
 		if (!--retries) {

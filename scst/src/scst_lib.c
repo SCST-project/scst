@@ -37,6 +37,8 @@
 static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev);
 static void scst_check_internal_sense(struct scst_device *dev, int result,
 	uint8_t *sense, int sense_len);
+static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
+	int flags);
 static void __scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
 	const uint8_t *sense, int sense_len, int flags);
 static void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
@@ -434,7 +436,8 @@ static inline bool scst_is_report_luns_changed_type(int type)
 }
 
 /* scst_mutex supposed to be held */
-void scst_queue_report_luns_changed_UA(struct scst_session *sess, int flags)
+static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
+					      int flags)
 {
 	uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
 	struct list_head *shead;
@@ -4088,7 +4091,7 @@ static int tm_dbg_passed_cmds_count;
 static int tm_dbg_state;
 static int tm_dbg_on_state_passes;
 static DEFINE_TIMER(tm_dbg_timer, tm_dbg_timer_fn, 0, 0);
-struct scst_tgt_dev *tm_dbg_tgt_dev;
+static struct scst_tgt_dev *tm_dbg_tgt_dev;
 
 static const int tm_dbg_on_state_num_passes[] = { 5, 1, 0x7ffffff };
 

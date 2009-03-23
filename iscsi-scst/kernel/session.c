@@ -167,7 +167,7 @@ int session_add(struct iscsi_target *target,
 		goto out;
 	}
 
-	sid = (union iscsi_sid)info->sid;
+	sid = *(union iscsi_sid *)&info->sid;
 	sid.id.tsih = 0;
 	old_sess = NULL;
 
@@ -177,7 +177,7 @@ int session_add(struct iscsi_target *target,
 	 */
 	list_for_each_entry_reverse(session, &target->session_list,
 			session_list_entry) {
-		union iscsi_sid i = (union iscsi_sid)session->sid;
+		union iscsi_sid i = *(union iscsi_sid *)&session->sid;
 		i.id.tsih = 0;
 		if ((sid.id64 == i.id64) &&
 		    (strcmp(info->initiator_name, session->initiator_name) == 0)) {
