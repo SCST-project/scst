@@ -55,11 +55,12 @@
 ########################
 
 function usage {
-  echo "Usage: $0 [-c] [-h] [-k <kver1>] [-k <kver2>] ..."
+  echo "Usage: $0 [-c] [-f] [-h] [-j] [-k <kver1>] [-k <kver2>] ..."
   echo "        -c - cache directory for Linux kernel tarballs."
   echo "        -f - full check -- do not only compile SCST but the whole" \
        "kernel tree."
   echo "        -h - display this help information."
+  echo "        -j - number of jobs that 'make' should run simultaneously."
   echo "        -k <kver> - kernel version to use during test."
 }
 
@@ -211,11 +212,16 @@ function download_kernel {
 
 # Generate a kernel patch from the SCST source tree for kernel version $1.
 function generate_kernel_patch {
+  local scst_dir="${PWD}"
+  local kver="$(kernel_version $1)"
+  local patchfile="${outputdir}/scst-$1-kernel.patch"
+
+  SIGNED_OFF_BY="..." \
   scripts/generate-kernel-patch \
     $([ "${scst_local}" = "true" ] && echo -- "-l") \
     $([ "${mpt_scst}"   = "true" ] && echo -- "-m") \
     $([ "${qla2x00t}"   = "true" ] && echo -- "-q") \
-    $1
+    ${kver} > "${patchfile}"
 }
 
 # Generate a kernel patch through scripts/generate-kernel-patch and test
@@ -225,12 +231,13 @@ function test_if_patch_applies_cleanly {
   local kver="$(kernel_version $1)"
   local plevel="$(patchlevel $1)"
   local outputfile="${outputdir}/kernel-$1-patch-output.txt"
+  local patchfile="${outputdir}/scst-$1-kernel.patch"
   local rc=0
 
   echo "Testing whether the generated kernel patch applies cleanly ..."
   ( cd "${outputdir}" && extract_kernel_tree "$1" )
-  generate_kernel_patch $1 \
-  | (cd "${outputdir}/linux-$1" && patch -p1 --dry-run -f &> "${outputfile}")
+  ( cd "${outputdir}/linux-$1" \
+    && patch -p1 --dry-run -f < "${patchfile}" &> "${outputfile}" )
   if [ $? != 0 ]; then
     echo "FAILED"
     rc=1
@@ -245,12 +252,13 @@ function run_checkpatch  {
   local kver="$(kernel_version $1)"
   local plevel="$(patchlevel $1)"
   local outputfile="${outputdir}/checkpatch-$1-output.txt"
+  local patchfile="${outputdir}/scst-$1-kernel.patch"
 
   if [ -e "${outputdir}/linux-$1/scripts/checkpatch.pl" ]
   then
     echo "Running checkpatch on the SCST kernel patch ..."
-    generate_kernel_patch $1 \
-    | (cd "${outputdir}/linux-$1" && scripts/checkpatch.pl - &> "${outputfile}")
+    ( cd "${outputdir}/linux-$1" \
+      && scripts/checkpatch.pl - < "${patchfile}" &> "${outputfile}")
     local errors=$(grep -c '^ERROR' "${outputfile}")
     local warnings=$(grep -c '^WARNING' "${outputfile}")
     echo "${errors} errors / ${warnings} warnings."
@@ -265,7 +273,6 @@ function patch_and_configure_kernel {
   local patchfile="${outputdir}/scst-$1-kernel.patch"
 
   echo "Patching and configuring kernel ..."
-  SIGNED_OFF_BY="..." generate_kernel_patch "$1" > "${patchfile}"
   (
     cd "${outputdir}/linux-$1"                                     \
     && patch -p1 -f -s <"${patchfile}"                             \
@@ -309,12 +316,11 @@ function run_sparse {
     && LC_ALL=C make -k C=2 M=drivers/scst # CF=-D__CHECK_ENDIAN__
   ) &> "${outputfile}"
   local errors=$(grep -c ' error:' "${outputfile}")
-  local warnings=$(grep -vE 'expected different context|wanted >= [01], got |warning: potentially expensive pointer subtraction$' "${outputfile}" | grep -c ' warning:')
+  local warnings=$(grep -c ' warning:' "${outputfile}")
   echo "${errors} errors / ${warnings} warnings."
   cat "${outputfile}" \
-    | grep -vE 'expected different context|wanted >= [01], got |warning: potentially expensive pointer subtraction$' \
-    | grep '^[^ ]' \
-    | sed 's/.*: //' \
+    | grep -E 'warning:|error:' \
+    | sed -e 's/^[^ ]*:[^ ]*:[^ ]*: //' -e "s/'[^']*'/<function>/g" \
     | sort \
     | uniq -c
   return 0
@@ -402,8 +408,9 @@ kernel_sources="$HOME/software/downloads"
 # URL for downloading kernel tarballs and kernel patches.
 kernel_mirror="ftp://ftp.eu.kernel.org/pub/linux/kernel/v2.6"
 kernel_versions=""
-# Directory in which the regression test output files will be stored.
-outputdir=$PWD/regression-test-output-$(date +%Y-%m-%d_%Hh%Mm%Ss)
+# Directory in which the regression test output files will be stored. Must be
+# an absolute path.
+outputdir="${PWD}/regression-test-output-$(date +%Y-%m-%d_%Hh%Mm%Ss)"
 # Driver configuration.
 mpt_scst="false"
 qla2x00t="false"
@@ -416,6 +423,7 @@ do
     '-c') kernel_sources="$2"; shift; shift;;
     '-f') full_check="true"; shift;;
     '-h') usage; exit 1;;
+    '-j') export MAKEFLAGS="-j$2"; shift; shift;;
     '-k') kernel_versions="${kernel_versions} $2"; shift; shift;;
     '--') shift;;
     *)    usage; exit 1;;
@@ -447,8 +455,6 @@ fi
 rm -rf "${outputdir}"
 mkdir -p "${outputdir}" || exit $?
 
-MAKEFLAGS=-j3
-
 test_scst_tree_patches || exit $?
 compile_scst_unpatched || exit $?
 compile_scst_patched || exit $?
@@ -459,18 +465,16 @@ do
   printf "= kernel %-9s =\n" "${k}"
   echo "===================="
 
-  if download_kernel $k && test_if_patch_applies_cleanly $k; then
-    run_checkpatch $k
-    patch_and_configure_kernel $k
-    run_sparse $k
-    run_headers_check $k
-    if [ "${full_check}" = "true" ]; then
-      compile_patched_kernel $k
-      run_checkstack $k
-      run_namespacecheck $k
-      run_make_htmldocs $k
-    fi
-  else
-    echo "FAILED for kernel $k"
-  fi
+  download_kernel $k || continue
+  generate_kernel_patch $k || continue
+  test_if_patch_applies_cleanly $k || continue
+  run_checkpatch $k
+  patch_and_configure_kernel $k
+  run_sparse $k
+  run_headers_check $k
+  [ "${full_check}" = "true" ] || continue
+  compile_patched_kernel $k
+  run_checkstack $k
+  run_namespacecheck $k
+  run_make_htmldocs $k
 done
