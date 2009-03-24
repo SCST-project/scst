@@ -177,10 +177,10 @@ struct scst_cmd_thread_t {
 	struct list_head thread_list_entry;
 };
 
+#if defined(SCST_IO_CONTEXT)
+
 static inline void scst_set_io_context(struct scst_tgt_dev *tgt_dev)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
-#if defined(CONFIG_BLOCK) && defined(SCST_IO_CONTEXT)
 	if (tgt_dev->dev->p_cmd_lists == &scst_main_cmd_lists) {
 		EXTRACHECKS_BUG_ON(current->io_context);
 		/*
@@ -190,21 +190,29 @@ static inline void scst_set_io_context(struct scst_tgt_dev *tgt_dev)
 		current->io_context = tgt_dev->tgt_dev_io_ctx;
 		TRACE_DBG("io_context %p", tgt_dev->tgt_dev_io_ctx);
 	}
-#endif
-#endif
 }
 
 static inline void scst_reset_io_context(struct scst_tgt_dev *tgt_dev)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
-#if defined(CONFIG_BLOCK) && defined(SCST_IO_CONTEXT)
 	if (current->io_context == tgt_dev->tgt_dev_io_ctx) {
 		current->io_context = NULL;
 		TRACE_DBG("io_context %p reset", tgt_dev->tgt_dev_io_ctx);
 	}
-#endif
-#endif
 }
+
+#else
+
+static inline void scst_set_io_context(struct scst_tgt_dev *tgt_dev) {}
+static inline void scst_reset_io_context(struct scst_tgt_dev *tgt_dev) {}
+static inline void __exit_io_context(struct io_context *ioc) {}
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
+static inline struct io_context *ioc_task_link(struct io_context *ioc)
+{
+	return NULL;
+};
+#endif
+
+#endif
 
 extern struct mutex scst_global_threads_mutex;
 extern u32 scst_nr_global_threads;

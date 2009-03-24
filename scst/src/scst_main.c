@@ -34,23 +34,23 @@
 #include "scst_mem.h"
 
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
-#warning "HIGHMEM kernel configurations are fully supported, but not \
-	recommended for performance reasons. Consider changing VMSPLIT \
-	option or use a 64-bit configuration instead. See README file for \
-	details."
+#warning "HIGHMEM kernel configurations are fully supported, but not\
+ recommended for performance reasons. Consider changing VMSPLIT\
+ option or use a 64-bit configuration instead. See README file for\
+ details."
 #endif
 
 #if !defined(SCSI_EXEC_REQ_FIFO_DEFINED) && \
     !defined(CONFIG_SCST_STRICT_SERIALIZING)
-#warning "Patch scst_exec_req_fifo-<kernel-version>.patch was not applied on \
-	your kernel and CONFIG_SCST_STRICT_SERIALIZING isn't defined. \
-	Pass-through dev handlers will not be supported."
+#warning "Patch scst_exec_req_fifo-<kernel-version>.patch was not applied on\
+ your kernel and CONFIG_SCST_STRICT_SERIALIZING isn't defined.\
+ Pass-through dev handlers will not work."
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
 #if !defined(SCST_IO_CONTEXT)
-#warning "Patch io_context-<kernel-version>.patch was not applied \
-	on your kernel. SCST will be working with not the best performance."
+#warning "Patch io_context-<kernel-version>.patch was not applied\
+ on your kernel. SCST will be working with not the best performance."
 #endif
 #endif
 
@@ -1128,8 +1128,6 @@ int scst_add_dev_threads(struct scst_device *dev, int num)
 
 		list_add(&thr->thread_list_entry, &dev->threads_list);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
-#if defined(CONFIG_BLOCK) && defined(SCST_IO_CONTEXT)
 		/*
 		 * ToDo: better to use tgt_dev_io_context instead, but we
 		 * are not ready for that yet.
@@ -1138,8 +1136,7 @@ int scst_add_dev_threads(struct scst_device *dev, int num)
 		thr->cmd_thread->io_context = ioc_task_link(dev->dev_io_ctx);
 		TRACE_DBG("Setting dev io ctx %p on thr %d", dev->dev_io_ctx,
 			thr->cmd_thread->pid);
-#endif
-#endif
+
 		wake_up_process(thr->cmd_thread);
 	}
 

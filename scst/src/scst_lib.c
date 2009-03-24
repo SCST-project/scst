@@ -794,11 +794,7 @@ void scst_free_device(struct scst_device *dev)
 	}
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
-#if defined(CONFIG_BLOCK) && defined(SCST_IO_CONTEXT)
 	__exit_io_context(dev->dev_io_ctx);
-#endif
-#endif
 
 	kfree(dev);
 
@@ -1173,11 +1169,7 @@ static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 			scst_del_global_threads(vtt->threads_num);
 	}
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
-#if defined(CONFIG_BLOCK) && defined(SCST_IO_CONTEXT)
 	__exit_io_context(tgt_dev->tgt_dev_io_ctx);
-#endif
-#endif
 
 	kmem_cache_free(scst_tgtd_cachep, tgt_dev);
 

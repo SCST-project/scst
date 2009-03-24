@@ -29,10 +29,10 @@
 #include "scst_dev_handler.h"
 
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
-#warning "HIGHMEM kernel configurations are not supported by this module, \
-	because nowadays it doesn't worth the effort. Consider changing \
-	VMSPLIT option or use a 64-bit configuration instead. See README file \
-	for details."
+#warning "HIGHMEM kernel configurations are not supported by this module,\
+ because nowadays it doesn't worth the effort. Consider changing\
+ VMSPLIT option or use a 64-bit configuration instead. See README file\
+ for details."
 #endif
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18))
