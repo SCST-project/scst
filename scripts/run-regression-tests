@@ -55,8 +55,9 @@
 ########################
 
 function usage {
-  echo "Usage: $0 [-c] [-f] [-h] [-j] [-k <kver1>] [-k <kver2>] ..."
+  echo "Usage: $0 [-c] [-d] [-f] [-h] [-j] [-k <kver1>] [-k <kver2>] ..."
   echo "        -c - cache directory for Linux kernel tarballs."
+  echo "        -d - directory for temporary regression test files."
   echo "        -f - full check -- do not only compile SCST but the whole" \
        "kernel tree."
   echo "        -h - display this help information."
@@ -94,6 +95,25 @@ function extract_kernel_tree {
     fi
     cd ..
     mv "linux-${kver}" "../linux-$1" || return $?
+    if [ "${kver}" = "2.6.29" ]; then
+      cd "../linux-$1" || return $?
+      patch -f -s -p1 <<'EOF'
+Make sure that branch profiling does not trigger sparse warnings.
+See also http://bugzilla.kernel.org/show_bug.cgi?id=12925
+--- orig/linux-2.6.29/include/linux/compiler.h	2009-03-23 19:12:14.000000000 -0400
++++ linux-2.6.29/include/linux/compiler.h	2009-03-24 08:46:46.000000000 -0400
+@@ -75,7 +75,8 @@ struct ftrace_branch_data {
+  * Note: DISABLE_BRANCH_PROFILING can be used by special lowlevel code
+  * to disable branch tracing on a per file basis.
+  */
+-#if defined(CONFIG_TRACE_BRANCH_PROFILING) && !defined(DISABLE_BRANCH_PROFILING)
++#if defined(CONFIG_TRACE_BRANCH_PROFILING) \
++    && !defined(DISABLE_BRANCH_PROFILING) && !defined(__CHECKER__)
+ void ftrace_likely_update(struct ftrace_branch_data *f, int val, int expect);
+ 
+ #define likely_notrace(x)	__builtin_expect(!!(x), 1)
+EOF
+    fi
   )
   rmdir "${tmpdir}"
 }
@@ -101,12 +121,18 @@ function extract_kernel_tree {
 # Test whether the *.patch files in the SCST top-level directory apply cleanly
 # to the SCST tree. Does not modify any files nor produce any output files.
 function test_scst_tree_patches {
+  local rc=0
   echo "Testing whether the SCST patches apply cleanly to the SCST tree ..."
   for p in *.patch srpt/patches/scst_increase_max_tgt_cmds.patch
   do
-    patch -p0 -f --dry-run -s <$p &>/dev/null \
-    || echo "ERROR: patch $p does not apply cleanly."
+    if ! patch -p0 -f --dry-run -s <$p &>/dev/null; then
+      echo "ERROR: patch $p does not apply cleanly."
+      rc=1
+    fi
   done
+  if [ "${rc}" = 0 ]; then
+    echo "OK"
+  fi
 }
 
 # Copy the entire SCST source code tree from "$1" into the current directory.
@@ -142,7 +168,7 @@ function compile_scst_unpatched {
            && make -C srpt -s )    \
            &> "${outputfile}"
     then
-      true
+      echo "OK"
     else
       echo "FAILED"
     fi
@@ -174,7 +200,7 @@ function compile_scst_patched {
            && make -C srpt -s )    \
           &> "${outputfile}"
     then
-      true
+      echo "OK"
     else
       echo "FAILED"
     fi
@@ -320,7 +346,11 @@ function run_sparse {
   echo "${errors} errors / ${warnings} warnings."
   cat "${outputfile}" \
     | grep -E 'warning:|error:' \
-    | sed -e 's/^[^ ]*:[^ ]*:[^ ]*: //' -e "s/'[^']*'/<function>/g" \
+    | sed -e 's/^[^ ]*:[^ ]*:[^ ]*: //' \
+          -e "s/context imbalance in '[^']*':/context imbalance in <function>:/g" \
+          -e "s/context problem in '[^']*': '[^']*'/context problem in <function>: <function>/g" \
+          -e "s/function '[^']*'/function/g" \
+          -e "s/symbol '[^']*'/symbol/g" \
     | sort \
     | uniq -c
   return 0
@@ -416,11 +446,12 @@ mpt_scst="false"
 qla2x00t="false"
 scst_local="true"
 
-set -- $(/usr/bin/getopt "c:fhk:" "$@")
+set -- $(/usr/bin/getopt "c:d:fj:hk:" "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
     '-c') kernel_sources="$2"; shift; shift;;
+    '-d') outputdir="$2"; shift; shift;;
     '-f') full_check="true"; shift;;
     '-h') usage; exit 1;;
     '-j') export MAKEFLAGS="-j$2"; shift; shift;;
@@ -443,7 +474,7 @@ if [ "${kernel_versions}" = "" ]; then
   # Ubuntu 8.10 (Intrepid Ibex) has a kernel based on version 2.6.27.
   # openSUSE 11.0 has a kernel based on version 2.6.25.
   # openSUSE 11.1 has a kernel based on version 2.6.27.
-  #kernel_versions="2.6.24.7 2.6.25.20 2.6.26.8 2.6.27.20 2.6.28.8"
+  #kernel_versions="2.6.24.7 2.6.25.20 2.6.26.8 2.6.27.20 2.6.28.8 2.6.29"
   kernel_versions="2.6.28.8"
 fi
 
@@ -452,8 +483,13 @@ fi
 # Regression tests #
 ####################
 
-rm -rf "${outputdir}"
-mkdir -p "${outputdir}" || exit $?
+if ! mkdir -p "${outputdir}"; then
+  if [ -e "${outputdir}" ]; then
+    echo "Error: directory ${outputdir} already exists."
+  else
+    echo "Error: could not create directory ${outputdir}."
+  fi
+fi
 
 test_scst_tree_patches || exit $?
 compile_scst_unpatched || exit $?
