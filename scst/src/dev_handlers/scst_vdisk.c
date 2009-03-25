@@ -3267,7 +3267,7 @@ static int vcdrom_change(char *p, char *name)
 {
 	loff_t err;
 	struct scst_vdisk_dev *virt_dev, *vv;
-	char *file_name, *fn, *old_fn;
+	char *file_name, *fn = NULL, *old_fn;
 	int len;
 	int res = 0;
 

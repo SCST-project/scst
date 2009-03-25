@@ -168,7 +168,7 @@ static void iscsi_proc_log_entry_clean(struct scst_tgt_template *templ)
 
 struct proc_entries {
 	const char *name;
-	struct file_operations *fops;
+	const struct file_operations *const fops;
 };
 
 static struct proc_entries iscsi_proc_entries[] =
@@ -475,7 +475,7 @@ static int release(struct inode *inode, struct file *filp)
 	return 0;
 }
 
-struct file_operations ctr_fops = {
+const struct file_operations ctr_fops = {
 	.owner		= THIS_MODULE,
 	.unlocked_ioctl	= ioctl,
 	.compat_ioctl	= ioctl,

@@ -387,7 +387,7 @@ struct iscsi_cmnd {
 
 extern struct mutex target_mgmt_mutex;
 
-extern struct file_operations ctr_fops;
+extern const struct file_operations ctr_fops;
 
 extern spinlock_t iscsi_rd_lock;
 extern struct list_head iscsi_rd_list;
@@ -443,14 +443,14 @@ extern void target_del_session(struct iscsi_target *target,
 extern void target_del_all_sess(struct iscsi_target *target, int flags);
 extern void target_del_all(void);
 
-extern struct seq_operations iscsi_seq_op;
+extern const struct seq_operations iscsi_seq_op;
 
 /* config.c */
 extern int iscsi_procfs_init(void);
 extern void iscsi_procfs_exit(void);
 
 /* session.c */
-extern struct file_operations session_seq_fops;
+extern const struct file_operations session_seq_fops;
 extern struct iscsi_session *session_lookup(struct iscsi_target *, u64);
 extern void sess_enable_reinstated_sess(struct iscsi_session *);
 extern int session_add(struct iscsi_target *, struct iscsi_kern_session_info *);

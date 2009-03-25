@@ -89,9 +89,14 @@ void conn_info_show(struct seq_file *seq, struct iscsi_session *session)
 				 "%u.%u.%u.%u", NIPQUAD(inet_sk(sk)->daddr));
 			break;
 		case AF_INET6:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,29)
 			snprintf(buf, sizeof(buf),
 				 "[%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x]",
 				 NIP6(inet6_sk(sk)->daddr));
+#else
+			snprintf(buf, sizeof(buf), "[%p6]",
+				&inet6_sk(sk)->daddr);
+#endif
 			break;
 		default:
 			break;
@@ -500,7 +505,7 @@ out_err:
 /* target_mutex supposed to be locked */
 int conn_add(struct iscsi_session *session, struct iscsi_kern_conn_info *info)
 {
-	struct iscsi_conn *conn, *new_conn;
+	struct iscsi_conn *conn, *new_conn = NULL;
 	int err;
 	bool reinstatement = false;
 

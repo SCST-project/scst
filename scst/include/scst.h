@@ -2755,7 +2755,7 @@ int scst_proc_log_entry_write(struct file *file, const char __user *buf,
  * helper data structure and function to create proc entry.
  */
 struct scst_proc_data {
-	struct file_operations seq_op;
+	const struct file_operations seq_op;
 	int (*show)(struct seq_file *, void *);
 	void *data;
 };

@@ -286,7 +286,7 @@ static int iscsi_session_seq_open(struct inode *inode, struct file *file)
 	return res;
 }
 
-struct file_operations session_seq_fops = {
+const struct file_operations session_seq_fops = {
 	.owner		= THIS_MODULE,
 	.open		= iscsi_session_seq_open,
 	.read		= seq_read,

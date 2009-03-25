@@ -3156,7 +3156,7 @@ static int __init iscsi_init(void)
 	if (err < 0)
 		goto out_reg_tmpl;
 
-	num = max(num_online_cpus(), 2);
+	num = max((int)num_online_cpus(), 2);
 
 	err = iscsi_run_threads(num, "iscsird", istrd);
 	if (err != 0)

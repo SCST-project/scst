@@ -205,7 +205,7 @@ static struct kmem_cache *user_get_cmd_cachep;
 
 static DEFINE_MUTEX(dev_priv_mutex);
 
-static struct file_operations dev_user_fops = {
+static const struct file_operations dev_user_fops = {
 	.poll		= dev_user_poll,
 	.unlocked_ioctl	= dev_user_ioctl,
 #ifdef CONFIG_COMPAT

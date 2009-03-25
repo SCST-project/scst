@@ -1,0 +1,11 @@
+diff -uprN ../orig/linux-2.6.24/drivers/Makefile linux-2.6.24/drivers/Makefile
+--- ../orig/linux-2.6.24/drivers/Makefile       2008-01-24 23:58:37.000000000 +0100
++++ linux-2.6.24/drivers/Makefile       2008-05-13 13:06:34.000000000 +0200
+@@ -34,6 +34,7 @@
+ obj-$(CONFIG_IDE)		+= ide/
+ obj-$(CONFIG_FC4)		+= fc4/
+ obj-$(CONFIG_SCSI)		+= scsi/
++obj-$(CONFIG_SCST)		+= scst/
+ obj-$(CONFIG_FUSION)		+= message/
+ obj-$(CONFIG_IEEE1394)		+= ieee1394/
+ obj-y				+= cdrom/

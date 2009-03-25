@@ -1664,7 +1664,11 @@ static void scst_send_release(struct scst_device *dev)
 		TRACE(TRACE_DEBUG | TRACE_SCSI, "%s", "Sending RELEASE req to "
 			"SCSI mid-level");
 		rc = scsi_execute(scsi_dev, cdb, SCST_DATA_NONE, NULL, 0,
-				sense, 15, 0, 0);
+				sense, 15, 0, 0
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,29)
+				, NULL
+#endif
+				);
 		TRACE_DBG("MODE_SENSE done: %x", rc);
 
 		if (scsi_status_is_good(rc)) {
@@ -3093,7 +3097,11 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 
 		TRACE(TRACE_SCSI, "%s", "Doing internal MODE_SENSE");
 		res = scsi_execute(dev->scsi_dev, cmd, SCST_DATA_READ, buffer,
-				sizeof(buffer), sense_buffer, 15, 0, 0);
+				sizeof(buffer), sense_buffer, 15, 0, 0
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,29)
+				, NULL
+#endif
+				);
 
 		TRACE_DBG("MODE_SENSE done: %x", res);
 
@@ -3139,14 +3147,14 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 		} else {
 #if 0
 			if ((status_byte(res) == CHECK_CONDITION) &&
+			    SCST_SENSE_VALID(sense_buffer)) {
 #else
 			/*
 			 * 3ware controller is buggy and returns CONDITION_GOOD
 			 * instead of CHECK_CONDITION
 			 */
-			if (
+			if (SCST_SENSE_VALID(sense_buffer)) {
 #endif
-			    SCST_SENSE_VALID(sense_buffer)) {
 				if (scst_analyze_sense(sense_buffer,
 						sizeof(sense_buffer),
 						SCST_SENSE_KEY_VALID,

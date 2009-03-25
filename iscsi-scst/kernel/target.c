@@ -330,7 +330,7 @@ static int iscsi_seq_show(struct seq_file *m, void *p)
 	return 0;
 }
 
-struct seq_operations iscsi_seq_op = {
+const struct seq_operations iscsi_seq_op = {
 	.start = iscsi_seq_start,
 	.next = iscsi_seq_next,
 	.stop = iscsi_seq_stop,
