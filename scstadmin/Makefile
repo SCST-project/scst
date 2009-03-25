@@ -8,18 +8,18 @@ all: perl-module
 
 install:
 	$(MAKE) -C scst-$(MODULE_VERSION) install
-	install -m 755 $(TOOL) $(DISTDIR)$(SBINDIR)
-	install -m 755 init.d/scst $(DISTDIR)$(INITDIR)
-	install -m 755 init.d/qla2x00t $(DISTDIR)$(INITDIR)
-	/usr/lib/lsb/install_initd scst
-	/usr/lib/lsb/install_initd qla2x00t
+	install -m 755 $(TOOL) $(DESTDIR)$(SBINDIR)
+	install -m 755 init.d/scst $(DESTDIR)$(INITDIR)
+	install -m 755 init.d/qla2x00t $(DESTDIR)$(INITDIR)
+	-/usr/lib/lsb/install_initd scst
+	-/usr/lib/lsb/install_initd qla2x00t
 
 uninstall:
 	-/usr/lib/lsb/remove_initd qla2x00t
 	-/usr/lib/lsb/remove_initd scst
-	-rm -f $(DISTDIR)$(PATH_INITD)/qla2x00t
-	-rm -f $(DISTDIR)$(PATH_INITD)/scst
-	-rm -f $(DISTDIR)$(PATH_SBIN)/$(TOOL)
+	-rm -f $(DESTDIR)$(PATH_INITD)/qla2x00t
+	-rm -f $(DESTDIR)$(PATH_INITD)/scst
+	-rm -f $(DESTDIR)$(PATH_SBIN)/$(TOOL)
 	$(MAKE) -C scst-$(MODULE_VERSION) uninstall
 
 perl-module:

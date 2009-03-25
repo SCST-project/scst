@@ -6,6 +6,9 @@
 # unless it's something special (not a .c file).
 
 SUBDIRS := $(shell pwd)
+SBINDIR := /usr/local/sbin
+INITDIR := /etc/init.d
+RCDIR := /etc/rc.d
 
 all: include/iscsi_scst_itf_ver.h progs
 
@@ -19,18 +22,18 @@ include/iscsi_scst_itf_ver.h: include/iscsi_scst.h
 	echo "\"`sha1sum include/iscsi_scst.h|awk '{printf $$1}'`\"" >>include/iscsi_scst_itf_ver.h
 
 install: all
-	@install -vD usr/iscsi-scstd $(DISTDIR)/usr/local/sbin/iscsi-scstd
-	@install -vD usr/iscsi-scst-adm $(DISTDIR)/usr/local/sbin/iscsi-scst-adm
+	@install -vD usr/iscsi-scstd $(DESTDIR)$(SBINDIR)/iscsi-scstd
+	@install -vD usr/iscsi-scst-adm $(DESTDIR)$(SBINDIR)/iscsi-scst-adm
 	if [ -f /etc/debian_version ]; then \
-		install -vD -m 755 etc/initd/initd.debian $(DISTDIR)/etc/init.d/iscsi-scst; \
+		install -vD -m 755 etc/initd/initd.debian $(DESTDIR)$(INITDIR)/iscsi-scst; \
 	elif [ -f /etc/redhat-release ]; then \
-		install -vD -m 755 etc/initd/initd.redhat $(DISTDIR)/etc/init.d/iscsi-scst; \
+		install -vD -m 755 etc/initd/initd.redhat $(DESTDIR)$(INITDIR)/iscsi-scst; \
 	elif [ -f /etc/gentoo-release ]; then \
-		install -vD -m 755 etc/initd/initd.gentoo $(DISTDIR)/etc/init.d/iscsi-scst; \
+		install -vD -m 755 etc/initd/initd.gentoo $(DESTDIR)$(INITDIR)/iscsi-scst; \
 	elif [ -f /etc/slackware-version ]; then \
-		install -vD -m 755 etc/initd/initd $(DISTDIR)/etc/rc.d/iscsi-scst; \
+		install -vD -m 755 etc/initd/initd $(DESTDIR)$(RCDIR)/iscsi-scst; \
 	else \
-		install -vD -m 755 etc/initd/initd $(DISTDIR)/etc/init.d/iscsi-scst; \
+		install -vD -m 755 etc/initd/initd $(DESTDIR)$(INITDIR)/iscsi-scst; \
 	fi
 
 clean:

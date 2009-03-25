@@ -30,7 +30,7 @@ SRP_DIR=srpt
 SCST_LOCAL_DIR=scst_local
 
 ISCSI_DIR=iscsi-scst
-#ISCSI_DISTDIR=../../../iscsi_scst_inst
+#ISCSI_DESTDIR=../../../iscsi_scst_inst
 
 help:
 	@echo "		all               : make all"
@@ -112,7 +112,7 @@ install:
 #	@if [ -d $(QLA_ISP_DIR) ]; then cd $(QLA_ISP_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
-	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) DISTDIR=$(ISCSI_DISTDIR) $@; fi
+	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) DESTDIR=$(ISCSI_DESTDIR) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
 
@@ -214,7 +214,7 @@ iscsi:
 	cd $(ISCSI_DIR) && $(MAKE) all
 
 iscsi_install:
-	cd $(ISCSI_DIR) && $(MAKE) DISTDIR=$(ISCSI_DISTDIR) install
+	cd $(ISCSI_DIR) && $(MAKE) DESTDIR=$(ISCSI_DESTDIR) install
 
 iscsi_uninstall:
 	cd $(ISCSI_DIR) && $(MAKE) uninstall
