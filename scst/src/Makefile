@@ -29,7 +29,7 @@
 
 DEV_HANDLERS_DIR = dev_handlers
 
-ifneq ($(KERNELRELEASE),)
+ifneq ($(PATCHLEVEL),)
 SCST_INC_DIR := $(SUBDIRS)/../include
 
 obj-m := scst.o

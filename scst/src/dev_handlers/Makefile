@@ -27,7 +27,7 @@
 #    - install and uninstall must be made as root
 #
 
-ifneq ($(KERNELRELEASE),)
+ifneq ($(PATCHLEVEL),)
 SCST_INC_DIR := $(SUBDIRS)/../include
 
 obj-m := scst_cdrom.o scst_changer.o scst_disk.o scst_modisk.o scst_tape.o \

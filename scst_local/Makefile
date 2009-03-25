@@ -25,7 +25,7 @@ else
   KDIR := /lib/modules/$(KVER)/build
 endif
 
-ifneq ($(KERNELRELEASE),)
+ifneq ($(PATCHLEVEL),)
 obj-m	:= scst_local.o
 else
 

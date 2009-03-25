@@ -54,7 +54,7 @@ endif
 QLA2XXX_INC_DIR := $(KDIR)/drivers/scsi/qla2xxx
 EXTRA_CFLAGS += -I$(QLA2XXX_INC_DIR)
 
-ifneq ($(KERNELRELEASE),)
+ifneq ($(PATCHLEVEL),)
 obj-m := qla2x00tgt.o
 qla2x00tgt-objs := qla2x00t.o
 

@@ -45,7 +45,7 @@ endif
 LSI_INC_DIR := $(KDIR)/drivers/message/fusion
 EXTRA_CFLAGS += -I$(LSI_INC_DIR)
 
-ifneq ($(KERNELRELEASE),)
+ifneq ($(PATCHLEVEL),)
 obj-m += mpt_scst.o
 else
 
