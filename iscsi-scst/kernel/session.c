@@ -215,8 +215,7 @@ int session_free(struct iscsi_session *session)
 	for (i = 0; i < ARRAY_SIZE(session->cmnd_hash); i++)
 		sBUG_ON(!list_empty(&session->cmnd_hash[i]));
 
-	if (session->scst_sess != NULL)
-		scst_unregister_session(session->scst_sess, 1, NULL);
+	sBUG_ON(session->scst_sess != NULL);
 
 	if (session->sess_reinst_successor != NULL)
 		sess_enable_reinstated_sess(session->sess_reinst_successor);
@@ -233,7 +232,8 @@ int session_free(struct iscsi_session *session)
 		}
 	}
 
-	list_del(&session->session_list_entry);
+	if (!session->deleted_from_session_list)
+		list_del(&session->session_list_entry);
 
 	kfree(session->initiator_name);
 	kfree(session);
@@ -267,10 +267,10 @@ static void iscsi_session_info_show(struct seq_file *seq,
 
 	list_for_each_entry(session, &target->session_list,
 			    session_list_entry) {
-		seq_printf(seq, "\tsid:%llx initiator:%s reinstating %d\n",
+		seq_printf(seq, "\tsid:%llx initiator:%s (reinstating %s)\n",
 			(long long unsigned int)session->sid,
 			session->initiator_name,
-			session->sess_reinstating);
+			session->sess_reinstating ? "yes" : "no");
 		conn_info_show(seq, session);
 	}
 	return;
