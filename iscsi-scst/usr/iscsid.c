@@ -569,9 +569,10 @@ static void cmnd_reject(struct connection *conn, u8 reason)
 	struct iscsi_reject_hdr *rej =
 		(struct iscsi_reject_hdr *)&conn->rsp.bhs;
 	size_t data_sz = sizeof(struct iscsi_hdr);
-	struct buf_segment *seg = conn_alloc_buf_segment(conn, data_sz);
+	struct buf_segment *seg;
 
 	conn_free_rsp_buf_list(conn);
+	seg = conn_alloc_buf_segment(conn, data_sz);
 
 	memset(rej, 0x0, sizeof *rej);
 	rej->opcode = ISCSI_OP_REJECT_MSG;
@@ -590,7 +591,6 @@ static void cmnd_reject(struct connection *conn, u8 reason)
 
 	memcpy(seg->data, &conn->req.bhs, data_sz);
 	seg->len = data_sz;
-	list_add_tail(&seg->entry, &conn->rsp_buf_list);
 }
 
 static int cmnd_exec_auth(struct connection *conn)
@@ -969,7 +969,7 @@ int cmnd_execute(struct connection *conn)
 	if (!list_empty(&conn->rsp_buf_list)) {
 		seg = list_entry(conn->rsp_buf_list.q_forw,
 				 struct buf_segment, entry);
-		list_del(&seg->entry);
+		list_del_init(&seg->entry);
 		conn->rsp.datasize = seg->len;
 		conn->rsp.data = seg->data;
 	} else {
@@ -993,7 +993,9 @@ void cmnd_finish(struct connection *conn)
 
 	if (conn->rsp.data) {
 		seg = container_of(conn->rsp.data, struct buf_segment, data);
+		list_del(&seg->entry);
 		free(seg);
+		conn->rsp.data = NULL;
 	}
 
 	switch (conn->state) {

@@ -68,6 +68,11 @@ static inline int list_length_is_one(const struct __qelem *head)
 
 #define list_del(elem) remque(elem)
 
+#define list_del_init(elem) do {		\
+		remque(elem);			\
+		INIT_LIST_HEAD(elem);		\
+	} while (0)
+
 #define list_add(new, head) insque (new, head)
 
 #define list_add_tail(new, head) insque(new, (head)->q_back)

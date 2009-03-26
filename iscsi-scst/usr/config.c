@@ -179,6 +179,8 @@ int config_account_list(u32 tid, int dir, u32 *cnt, u32 *overflow,
 		return -ENOENT;
 
 	list_for_each_entry(user, list, ulist) {
+		if (user->tid != tid)
+			continue;
 		if (buf_sz >= ISCSI_NAME_LEN) {
 			strncpy(buf, user->name, ISCSI_NAME_LEN);
 			buf_sz -= ISCSI_NAME_LEN;
@@ -255,15 +257,16 @@ int config_account_add(u32 tid, int dir, char *name, char *pass)
 
 	user->tid = tid;
 	list = account_list_get(tid, dir);
-
-	if (dir == AUTH_DIR_OUTGOING && !list_empty(list)) {
-		struct user *old;
-		log_warning("Only one outgoing %s account is supported."
-			    " Replacing the old one.\n",
-			    tid ? "target" : "discovery");
-
-		old = list_entry(list->q_forw, struct user, ulist);
-		account_destroy(old);
+	if (dir == AUTH_DIR_OUTGOING) {
+		struct user *old, *tmp;
+		list_for_each_entry_safe(old, tmp, list, ulist) {
+			if (tid != old->tid)
+				continue;
+			log_warning("Only one outgoing %s account is supported."
+				    " Replacing the old one.\n",
+				    tid ? "target" : "discovery");
+			account_destroy(old);
+		}
 	}
 
 	insque(user, list);
