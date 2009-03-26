@@ -2115,7 +2115,13 @@ static inline void scst_sess_set_tgt_priv(struct scst_session *sess,
 	sess->tgt_priv = val;
 }
 
-/* Returns TRUE if cmd is being executed in atomic context */
+/**
+ * Returns TRUE if cmd is being executed in atomic context.
+ *
+ * Note: checkpatch will complain on the use of in_atomic() below. You can
+ * safely ignore this warning since in_atomic() is used here only for debugging
+ * purposes.
+ */
 static inline int scst_cmd_atomic(struct scst_cmd *cmd)
 {
 	int res = cmd->atomic;
