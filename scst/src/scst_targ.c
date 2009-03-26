@@ -1858,18 +1858,21 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18)
 	int rc;
 #endif
+	bool atomic = scst_cmd_atomic(cmd);
 	struct scst_device *dev = cmd->dev;
 	struct scst_dev_type *handler = dev->handler;
+	struct io_context *old_ctx = NULL;
+	bool ctx_changed = false;
 
 	TRACE_ENTRY();
 
-	scst_set_io_context(cmd->tgt_dev);
+	if (!atomic)
+		ctx_changed = scst_set_io_context(cmd, &old_ctx);
 
 	cmd->state = SCST_CMD_STATE_REAL_EXECUTING;
 
 	if (handler->exec) {
-		if (unlikely(!dev->handler->exec_atomic &&
-			     scst_cmd_atomic(cmd))) {
+		if (unlikely(!dev->handler->exec_atomic && atomic)) {
 			/*
 			 * It shouldn't be because of SCST_TGT_DEV_AFTER_*
 			 * optimization.
@@ -1910,7 +1913,7 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 		goto out_done;
 
 #ifndef CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
-	if (unlikely(scst_cmd_atomic(cmd))) {
+	if (unlikely(atomic)) {
 		TRACE_DBG("Pass-through exec() can not be called in atomic "
 			"context, rescheduling to the thread (handler %s)",
 			handler->name);
@@ -1921,7 +1924,7 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
 	if (unlikely(scst_alloc_request(cmd) != 0)) {
-		if (scst_cmd_atomic(cmd)) {
+		if (atomic) {
 			res = SCST_EXEC_NEED_THREAD;
 			goto out_restore;
 		} else {
@@ -1939,9 +1942,9 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 	rc = scst_exec_req(dev->scsi_dev, cmd->cdb, cmd->cdb_len,
 			cmd->data_direction, cmd->sg, cmd->bufflen, cmd->sg_cnt,
 			cmd->timeout, cmd->retries, cmd, scst_cmd_done,
-			scst_cmd_atomic(cmd) ? GFP_ATOMIC : GFP_KERNEL);
+			atomic ? GFP_ATOMIC : GFP_KERNEL);
 	if (unlikely(rc != 0)) {
-		if (scst_cmd_atomic(cmd)) {
+		if (atomic) {
 			res = SCST_EXEC_NEED_THREAD;
 			goto out_restore;
 		} else {
@@ -1954,8 +1957,9 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 out_complete:
 	res = SCST_EXEC_COMPLETED;
 
-out_reset:
-	scst_reset_io_context(cmd->tgt_dev);
+out_reset_ctx:
+	if (ctx_changed)
+		scst_reset_io_context(cmd->tgt_dev, old_ctx);
 
 	TRACE_EXIT();
 	return res;
@@ -1963,7 +1967,7 @@ out_reset:
 out_restore:
 	/* Restore the state */
 	cmd->state = SCST_CMD_STATE_REAL_EXEC;
-	goto out_reset;
+	goto out_reset_ctx;
 
 out_error:
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
@@ -2030,6 +2034,9 @@ static int scst_do_local_exec(struct scst_cmd *cmd)
 	     cmd->cdb[0] == WRITE_VERIFY_16 ||
 	     (cmd->dev->handler->type == TYPE_TAPE &&
 	      (cmd->cdb[0] == ERASE || cmd->cdb[0] == WRITE_FILEMARKS)))) {
+		PRINT_WARNING("Attempt of write access to read-only device: "
+			"initiator %s, LUN %lld, op %x",
+			cmd->sess->initiator_name, cmd->lun, cmd->cdb[0]);
 		scst_set_cmd_error(cmd,
 			   SCST_LOAD_SENSE(scst_sense_data_protect));
 		goto out_done;

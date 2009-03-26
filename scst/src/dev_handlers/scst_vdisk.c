@@ -920,8 +920,10 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 			if (do_fsync || fua)
 				vdisk_fsync(thr, loff, data_len, cmd);
 		} else {
-			TRACE(TRACE_MINOR, "Attempt to write to read-only "
-			      "device %s", virt_dev->name);
+			PRINT_WARNING("Attempt of write access to read-only "
+				"device %s: initiator %s, op %x",
+				virt_dev->name, cmd->sess->initiator_name,
+				cmd->cdb[0]);
 			scst_set_cmd_error(cmd,
 				   SCST_LOAD_SENSE(scst_sense_data_protect));
 		}
@@ -956,8 +958,10 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 			else if (do_fsync)
 				vdisk_fsync(thr, loff, data_len, cmd);
 		} else {
-			TRACE(TRACE_MINOR, "Attempt to write to read-only "
-				"device %s", virt_dev->name);
+			PRINT_WARNING("Attempt of write access to read-only "
+				"device %s: initiator %s, op %x",
+				virt_dev->name, cmd->sess->initiator_name,
+				cmd->cdb[0]);
 			scst_set_cmd_error(cmd,
 				SCST_LOAD_SENSE(scst_sense_data_protect));
 		}

@@ -428,7 +428,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 			if (do_fsync || fua)
 				exec_fsync(vcmd);
 		} else {
-			TRACE(TRACE_MINOR, "Attempt to write to read-only "
+			PRINT_WARNING("Attempt to write to read-only "
 				"device %s", dev->name);
 			set_cmd_error(vcmd,
 		    		SCST_LOAD_SENSE(scst_sense_data_protect));
@@ -469,7 +469,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 			else if (do_fsync)
 				exec_fsync(vcmd);
 		} else {
-			TRACE(TRACE_MINOR, "Attempt to write to read-only "
+			PRINT_WARNING("Attempt to write to read-only "
 				"device %s", dev->name);
 			set_cmd_error(vcmd,
 				SCST_LOAD_SENSE(scst_sense_data_protect));

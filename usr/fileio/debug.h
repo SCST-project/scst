@@ -163,18 +163,25 @@ do {								\
   }								\
 } while(0)
 
-#define PRINT_ERROR(format, args...)				\
-do {								\
-  debug_print_prefix(trace_flag, __LOG_PREFIX, __FUNCTION__,    \
-			__LINE__);				\
-  PRINT("***ERROR*** " format, args);			        \
-} while(0)
-
 #define PRINT_INFO(format, args...)				\
 do {								\
   debug_print_prefix(trace_flag, __LOG_PREFIX, __FUNCTION__,    \
 			__LINE__);				\
   PRINT(format, args);			        		\
+} while(0)
+
+#define PRINT_WARNING(format, args...)				\
+do {								\
+  debug_print_prefix(trace_flag, __LOG_PREFIX, __FUNCTION__,    \
+			__LINE__);				\
+  PRINT("***WARNING*** " format, args);			        \
+} while(0)
+
+#define PRINT_ERROR(format, args...)				\
+do {								\
+  debug_print_prefix(trace_flag, __LOG_PREFIX, __FUNCTION__,    \
+			__LINE__);				\
+  PRINT("***ERROR*** " format, args);			        \
 } while(0)
 
 #define TRACE_ENTRY()						\
@@ -264,6 +271,12 @@ do {								\
   PRINT("%s: " format, LOG_PREFIX, args);			\
 } while(0)
 
+#define PRINT_WARNING(format, args...)				\
+do {								\
+  PRINT("%s: ***WARNING*** "					\
+        format, LOG_PREFIX, args);				\
+} while(0)
+
 #define PRINT_ERROR(format, args...)				\
 do {								\
   PRINT("%s: ***ERROR*** "					\
@@ -276,6 +289,12 @@ do {								\
 do {								\
   PRINT(format, args);						\
 } while(0)
+
+#define PRINT_WARNING(format, args...)				\
+do {								\
+  PRINT("***WARNING*** " format, args);				\
+} while(0)
+
 
 #define PRINT_ERROR(format, args...)				\
 do {								\

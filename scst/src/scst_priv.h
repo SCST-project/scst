@@ -179,37 +179,49 @@ struct scst_cmd_thread_t {
 
 #if defined(SCST_IO_CONTEXT)
 
-static inline void scst_set_io_context(struct scst_tgt_dev *tgt_dev)
+static inline bool scst_set_io_context(struct scst_cmd *cmd,
+	struct io_context **old)
 {
-	if (tgt_dev->dev->p_cmd_lists == &scst_main_cmd_lists) {
-		EXTRACHECKS_BUG_ON(current->io_context);
+	bool res;
+
+	if (cmd->cmd_lists == &scst_main_cmd_lists) {
+		EXTRACHECKS_BUG_ON(in_interrupt());
 		/*
 		 * No need to call ioc_task_link(), because io_context
 		 * supposed to be cleared in the end of the caller function.
 		 */
-		current->io_context = tgt_dev->tgt_dev_io_ctx;
-		TRACE_DBG("io_context %p", tgt_dev->tgt_dev_io_ctx);
-	}
+		current->io_context = cmd->tgt_dev->tgt_dev_io_ctx;
+		res = true;
+		TRACE_DBG("io_context %p", cmd->tgt_dev->tgt_dev_io_ctx);
+	} else
+		res = false;
+
+	return res;
 }
 
-static inline void scst_reset_io_context(struct scst_tgt_dev *tgt_dev)
+static inline void scst_reset_io_context(struct scst_tgt_dev *tgt_dev,
+	struct io_context *old)
 {
-	if (current->io_context == tgt_dev->tgt_dev_io_ctx) {
-		current->io_context = NULL;
-		TRACE_DBG("io_context %p reset", tgt_dev->tgt_dev_io_ctx);
-	}
+	current->io_context = old;
+	TRACE_DBG("io_context %p reset", current->io_context);
+	return;
 }
 
 #else
 
-static inline void scst_set_io_context(struct scst_tgt_dev *tgt_dev) {}
-static inline void scst_reset_io_context(struct scst_tgt_dev *tgt_dev) {}
+static inline bool scst_set_io_context(struct scst_cmd *cmd,
+	struct io_context **old)
+{
+	return false;
+}
+static inline void scst_reset_io_context(struct scst_tgt_dev *tgt_dev,
+	struct io_context *old) {}
 static inline void __exit_io_context(struct io_context *ioc) {}
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 static inline struct io_context *ioc_task_link(struct io_context *ioc)
 {
 	return NULL;
-};
+}
 #endif
 
 #endif

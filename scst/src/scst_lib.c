@@ -936,11 +936,12 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	struct scst_acg_dev *acg_dev)
 {
 	int ini_sg, ini_unchecked_isa_dma, ini_use_clustering;
-	struct scst_tgt_dev *tgt_dev;
+	struct scst_tgt_dev *tgt_dev, *t;
 	struct scst_device *dev = acg_dev->dev;
 	struct list_head *sess_tgt_dev_list_head;
 	struct scst_tgt_template *vtt = sess->tgt->tgtt;
 	int rc, i;
+	bool share_io_ctx = false;
 	uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
 
 	TRACE_ENTRY();
@@ -1041,17 +1042,42 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 
 	tm_dbg_init_tgt_dev(tgt_dev, acg_dev);
 
+	if (tgt_dev->sess->initiator_name != NULL) {
+		spin_lock_bh(&dev->dev_lock);
+		list_for_each_entry(t, &dev->dev_tgt_dev_list,
+				dev_tgt_dev_list_entry) {
+			TRACE_DBG("t name %s (tgt_dev name %s)",
+				t->sess->initiator_name,
+				tgt_dev->sess->initiator_name);
+			if (t->sess->initiator_name == NULL)
+				continue;
+			if (strcmp(t->sess->initiator_name,
+					tgt_dev->sess->initiator_name) == 0) {
+				share_io_ctx = true;
+				break;
+			}
+		}
+		spin_unlock_bh(&dev->dev_lock);
+	}
+
+	if (share_io_ctx) {
+		TRACE_MGMT_DBG("Sharing IO context %p (tgt_dev %p, ini %s)",
+			t->tgt_dev_io_ctx, tgt_dev,
+			tgt_dev->sess->initiator_name);
+		tgt_dev->tgt_dev_io_ctx = ioc_task_link(t->tgt_dev_io_ctx);
+	} else {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
 #if defined(CONFIG_BLOCK) && defined(SCST_IO_CONTEXT)
-	tgt_dev->tgt_dev_io_ctx = alloc_io_context(GFP_KERNEL, -1);
-	if (tgt_dev->tgt_dev_io_ctx == NULL) {
-		TRACE(TRACE_OUT_OF_MEM, "Failed to alloc tgt_dev IO context "
-			"for dev %s (initiator %s)", dev->virt_name,
-			sess->initiator_name);
-		goto out_free;
+		tgt_dev->tgt_dev_io_ctx = alloc_io_context(GFP_KERNEL, -1);
+		if (tgt_dev->tgt_dev_io_ctx == NULL) {
+			TRACE(TRACE_OUT_OF_MEM, "Failed to alloc tgt_dev IO "
+				"context for dev %s (initiator %s)",
+				dev->virt_name, sess->initiator_name);
+			goto out_free;
+		}
+#endif
+#endif
 	}
-#endif
-#endif
 
 	if (vtt->threads_num > 0) {
 		rc = 0;
