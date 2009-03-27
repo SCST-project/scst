@@ -995,8 +995,7 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 		      (long long unsigned int)tgt_dev->lun);
 	} else {
 		TRACE_MGMT_DBG("Virtual device %s on SCST lun=%lld",
-			       dev->virt_name,
-			       (long long unsigned int)tgt_dev->lun);
+		       dev->virt_name, (long long unsigned int)tgt_dev->lun);
 	}
 
 	spin_lock_init(&tgt_dev->tgt_dev_lock);
@@ -1125,6 +1124,7 @@ out_thr_free:
 	}
 
 out_free:
+	scst_free_all_UA(tgt_dev);
 	__exit_io_context(tgt_dev->tgt_dev_io_ctx);
 
 	kmem_cache_free(scst_tgtd_cachep, tgt_dev);

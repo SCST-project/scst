@@ -1113,7 +1113,7 @@ int scst_add_dev_threads(struct scst_device *dev, int num)
 		if (!thr) {
 			res = -ENOMEM;
 			PRINT_ERROR("Failed to allocate thr %d", res);
-			goto out;
+			goto out_del;
 		}
 		strncpy(nm, dev->handler->name, ARRAY_SIZE(nm)-1);
 		nm[ARRAY_SIZE(nm)-1] = '\0';
@@ -1123,7 +1123,7 @@ int scst_add_dev_threads(struct scst_device *dev, int num)
 			res = PTR_ERR(thr->cmd_thread);
 			PRINT_ERROR("kthread_create() failed: %d", res);
 			kfree(thr);
-			goto out;
+			goto out_del;
 		}
 
 		list_add(&thr->thread_list_entry, &dev->threads_list);
@@ -1143,6 +1143,10 @@ int scst_add_dev_threads(struct scst_device *dev, int num)
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_del:
+	scst_del_dev_threads(dev, i);
+	goto out;
 }
 
 /* Called under scst_mutex and suspended activity */
@@ -1186,6 +1190,9 @@ void scst_del_dev_threads(struct scst_device *dev, int num)
 
 	TRACE_ENTRY();
 
+	if (num == 0)
+		goto out;
+
 	list_for_each_entry_safe_reverse(ct, tmp, &dev->threads_list,
 				thread_list_entry) {
 		int rc;
@@ -1212,6 +1219,7 @@ void scst_del_dev_threads(struct scst_device *dev, int num)
 			break;
 	}
 
+out:
 	TRACE_EXIT();
 	return;
 }
@@ -1360,15 +1368,11 @@ static void scst_threads_info_init(void)
 void __scst_del_global_threads(int num)
 {
 	struct scst_cmd_thread_t *ct, *tmp;
-	int i;
 
 	TRACE_ENTRY();
 
-	i = scst_nr_global_threads;
-	if (num <= 0 || num > i) {
-		PRINT_ERROR("can not del %d cmd threads from %d", num, i);
-		return;
-	}
+	if (num == 0)
+		goto out;
 
 	list_for_each_entry_safe(ct, tmp, &scst_global_threads_list,
 				thread_list_entry) {
@@ -1385,6 +1389,7 @@ void __scst_del_global_threads(int num)
 			break;
 	}
 
+out:
 	TRACE_EXIT();
 	return;
 }
@@ -1428,8 +1433,7 @@ out:
 	return res;
 
 out_error:
-	if (i > 0)
-		__scst_del_global_threads(i - 1);
+	__scst_del_global_threads(i);
 	goto out;
 }
 
@@ -1466,7 +1470,7 @@ static void scst_stop_all_threads(void)
 	TRACE_ENTRY();
 
 	mutex_lock(&scst_global_threads_mutex);
-	__scst_del_global_threads(scst_nr_global_threads);
+	__scst_del_global_threads(-1);
 	if (scst_mgmt_cmd_thread)
 		kthread_stop(scst_mgmt_cmd_thread);
 	if (scst_mgmt_thread)
