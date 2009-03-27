@@ -3,8 +3,6 @@ To be done
 
  - See http://scst.sourceforge.net/contributing.html
 
- - Kernel build integration (patch).
-
  - Reimplement VDISK handler with usage of async. read/write operations
    (in order to avoid unnecessary context switches) and direct access to
    the page cache (in order to avoid data copy between it and internal
@@ -17,7 +15,7 @@ To be done
 
  - Fix in-kernel O_DIRECT mode.
  
- - Close integration with Linux initiator SCSI mil-level, including 
+ - Close integration with Linux initiator SCSI mid-level, including 
    queue types (simple, ordered, etc.) and local initiators (sd, st, sg,
    etc.) support. Requires modifications of the kernel.
 
@@ -25,9 +23,7 @@ To be done
    using ACA in order to make them always reliable. Honoring NACA, QErr,
    TST, UA_INTLCK_CTRL bits. Requires deep modifications of the kernel.
 
- - Better handle of devices DMA restrictions.
- 
- - Move linear searches to hash-table based.
+ - Better handle of devices DMA restrictions, where needed.
  
  - Small ToDo's spread all over the code.
 
@@ -41,10 +37,6 @@ To be done
    after xmit_response() and rdy_to_xfer() returned (for example, if a
    command was successfully sent to the target card, but later it was
    returned by the card with BUSY completion status).
- 
- - Asynchronous Event Notification support.
- 
- - Support of SCSI 3 variable length CDBs, as well as OSD's extensions.
  
  - Advanced SCSI commands support: COPY, EXTENDED COPY, PERSISTENT
    RESERVE IN/OUT, third party RESERVE, etc.

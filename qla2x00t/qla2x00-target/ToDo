@@ -15,10 +15,6 @@ Known issues and unimplemented features
 
  - Minor "ToDo"'s spread in the code.
 
- - SNS support.
- 
- - Support for sense with length > 26 (is it possible?)
-
  - On 2300 if on a tape with block size 0 we write block with size X
    and then read it with bs <X the tape skips all blocks with size X
    until the next correct block or filemark found, instead of returning

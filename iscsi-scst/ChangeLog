@@ -1,7 +1,79 @@
 Summary of changes in iSCSI-SCST between versions 1.0.0 and 1.0.1
 -----------------------------------------------------------------
 
- - Update for 2.6.26
+ - Support for variable lenght CDB added
+
+ - Sending and receiving padding bytes as well as sesnse data
+   reimplemented to make it more reliable
+
+ - Support for SCSI Async. Event Notifications added
+
+ - Sessions and connections reinstatement reimplemented to be conforming
+   to iSCSI RFC
+
+ - iscsi-scst-adm fixed
+
+ - Removed artificial limitation of sg_tablesize. It isn't needed,
+   because the regular iSCSI negotiated MaxRecvDataSegmentLength-related
+   facilities do all the job pretty well.
+
+ - Merge with IET r170-211:
+
+   * Update MaxConnections documentation
+
+   * Remove isns config description from man page
+
+   * Check return values of chdir(), ftruncate() and write(), because
+     recent versions of the glibc insist on the return value being
+     checked by introducing __attribute__((warn_unused_result)) to these
+     functions.
+
+   * Fix snprintf use in isns.c
+
+   * Take \0-termination into account when passing strings to
+     isns_tlv_set() to solve incompatibility with MS iSNS 3.0 as IQN
+     length is multiple of 4
+
+   * Fix list corruption if SCST target registration fails
+
+   * Register the target port actually used instead of the default iSCSI port.
+
+   * Remove unused connection->pad
+
+   * Refactor cmnd_execute()
+
+   * Introduce min*/max*() and more list_* macros
+
+   * Multipart PDU support for discovery sessions
+
+   * Add support for Reject PDUs and make use of them in appropriate places.
+
+   * Ignore SIGPIPE in iscsi-scstd
+
+   * Allow removal of kernel target objects if the user space object does not exist
+
+   * Use netlink_socket_release() to clean up netlink sockets correctly
+     (taking care of namespaces)
+
+   * More scalable proc seq_file implementation
+
+   * Segfault in ietd buffer overrun in dump_line
+
+   * Add iscsi-scst-adm support to display list of CHAP accounts and their data
+
+   * Fixed compilation on glibc 2.8
+
+   * Fix CHAP account handling bugs
+
+   * Fix bugs in multi PDU handling code
+
+ - Support for CentOS 5.2 added (Bart Van Assche)
+
+ - Fixed NOP-Out with payload handling
+
+ - Several minor iSCSI RFC violations fixed
+
+ - Update for kernels up to 2.6.29
 
  - Zero-copy feature, introduced by put_page_callback patch made
    kernel compile time configurable via
@@ -10,6 +82,7 @@ Summary of changes in iSCSI-SCST between versions 1.0.0 and 1.0.1
    e-mail in scst-devel mailing list about possible compatibility
    problems.
 
+ - A lot of cleanups and minor fixes
 
 Summary of changes in iSCSI-SCST since it was IET
 -------------------------------------------------

@@ -1,0 +1,10 @@
+Summary of changes in SRPT between versions 1.0.0 and 1.0.1
+-----------------------------------------------------------
+
+ - Update for kernels up to 2.6.29
+
+ - Fixed incorrect SCST state used on error path
+
+ - Unneeded context switches during commands processing eliminated
+
+ - Minor fixes and cleanups

@@ -104,7 +104,6 @@ struct scst_user_dev {
 	char name[SCST_MAX_NAME];
 
 	struct list_head cleanup_list_entry;
-	/* ToDo: make it on-stack */
 	struct completion cleanup_cmpl;
 };
 

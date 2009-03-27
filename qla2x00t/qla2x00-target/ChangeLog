@@ -1,7 +1,17 @@
 Summary of changes between versions 1.0.0 and 1.0.1
 ---------------------------------------------------
 
+ - Update to initiator driver from 2.6.27
+
+ - HOWTO added (Amit Mehta)
+
+ - Fixed wrong sess_count decrement on session registration failure
+
  - Fixed possible oops in the initiator driver on the module unload
+
+ - Updated to work on kernels up to 2.6.29
+
+ - Other minor fixes
 
 
 Summary of changes between versions 0.9.5 and 1.0.0
