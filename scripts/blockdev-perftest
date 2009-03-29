@@ -1,0 +1,64 @@
+#!/bin/bash
+
+############################################################################
+#
+# Script for testing block device I/O performance. Running this script on a
+# block device that is connected to a remote SCST target device allows to
+# test the performance of the transport protocols implemented in SCST. The
+# operation of this script is similar to iozone, while this script is easier
+# to use.
+#
+# Copyright (C) 2009 Bart Van Assche <bart.vanassche@gmail.com>.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, version 2
+# of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+############################################################################
+
+device="$1"
+log2_io_size=31       # 2 GB
+log2_min_blocksize=12 # 4096 bytes
+log2_max_blocksize=26 # 64 MB
+
+if [ ! -e "${device}" ]; then
+  echo "Error: device ${device} does not exist."
+  exit 1
+fi
+
+if [ ! -w "${device}" ]; then
+  echo "Error: device ${device} is not writeable."
+  exit 1
+fi
+
+if ! cmp -s -n $((2**log2_io_size)) "${device}" /dev/zero; then
+  echo "Error: device ${device} still contains data."
+  exit 1
+fi
+
+printf "%9s %8s %8s %8s %8s %8s %8s\n" blocksize W W W R R R
+
+for ((log2_blocksize = log2_max_blocksize; log2_blocksize >= log2_min_blocksize; log2_blocksize--))
+do
+  bs=$((2**log2_blocksize))
+  printf "%9d " ${bs}
+  for ((i=0;i<3;i++))
+  do
+    elapsed="$(dd if=/dev/zero of="${device}" bs=${bs} oflag=direct 2>&1 \
+               | sed -n 's/.* \([0-9.]*\) s,.*/\1/p')"
+    printf "%8s " "${elapsed}"
+  done
+  for ((i=0;i<3;i++))
+  do
+    elapsed="$(dd if="${device}" of=/dev/null bs=${bs} iflag=direct 2>&1 \
+               | sed -n 's/.* \([0-9.]*\) s,.*/\1/p')"
+    printf "%8s " "${elapsed}"
+  done
+  printf "\n"
+done
