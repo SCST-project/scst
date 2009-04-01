@@ -124,6 +124,9 @@ struct scst_user_opt
 	uint8_t queue_alg;
 	uint8_t tas;
 	uint8_t swp;
+	uint8_t d_sense;
+
+	uint8_t has_own_order_mgmt;
 },
 
 where:
@@ -192,8 +195,13 @@ where:
    * SCST_USER_PARTIAL_TRANSFERS_SUPPORTED - the partial data transfers
      are supported without limitations.
 
- - tst, queue_alg, tas and swp - set values for TST, QUEUE ALGORITHM MODIFIER,
-   TAS and SWP fields from control mode page correspondingly, see SPC.
+ - tst, queue_alg, tas, swp, d_sense - set values for TST, QUEUE ALGORITHM MODIFIER,
+   TAS, SWP and D_SENSE fields from control mode page correspondingly,
+   see SPC.
+
+ - has_own_order_mgmt - true, if the user space handler has full
+   commands execution order management, i.e. guarantees commands execution
+   order as required by SAM. False otherwise.
 
 Flags parse_type and on_free_cmd_type are designed to improve
 performance by eliminating context switches to the user space handler,
@@ -328,7 +336,8 @@ struct scst_user_scsi_cmd_parse
 	uint64_t sess_h;
 
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
-	int32_t cdb_len;
+	uint16_t cdb_len;
+	uint16_t ext_cdb_len;
 
 	uint32_t timeout;
 	int32_t bufflen;
@@ -350,6 +359,9 @@ where:
  - cdb - SCSI CDB
 
  - cdb_len - SCSI CDB length
+ 
+ - ext_cdb_len - size of extended CDB, see SCST_USER_GET_EXTENDED_CDB
+   for more details
  
  - timeout - CDB execution timeout
 
@@ -403,7 +415,8 @@ struct scst_user_scsi_cmd_alloc_mem
 	uint64_t sess_h;
 
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
-	int32_t cdb_len;
+	uint16_t cdb_len;
+	uint16_t ext_cdb_len;
 
 	int32_t alloc_len;
 
@@ -420,6 +433,9 @@ where:
  - cdb - SCSI CDB
 
  - cdb_len - SCSI CDB length
+
+ - ext_cdb_len - size of extended CDB, see SCST_USER_GET_EXTENDED_CDB
+   for more details
 
  - alloc_len - command's buffer length
  
@@ -508,7 +524,8 @@ struct scst_user_scsi_cmd_exec
 	uint64_t sess_h;
 
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
-	int32_t cdb_len;
+	uint16_t cdb_len;
+	uint16_t ext_cdb_len;
 
 	int32_t data_len;
 	int32_t bufflen;
@@ -533,6 +550,9 @@ where:
  - cdb - SCSI CDB
 
  - cdb_len - SCSI CDB length
+
+ - ext_cdb_len - size of extended CDB, see SCST_USER_GET_EXTENDED_CDB
+   for more details
 
  - data_len - command's data length. Could be different from bufflen for
    commands like VERIFY, which transfer different amount of data, than
@@ -841,6 +861,29 @@ SCST_USER_DEVICE_CAPACITY_CHANGED doesn't have any parameters.
 
 SCST_USER_DEVICE_CAPACITY_CHANGED returns 0 on success or -1 in case of
 error, and errno is set appropriately.
+
+
+		8. SCST_USER_GET_EXTENDED_CDB
+
+SCST_USER_GET_EXTENDED_CDB - requests extended CDB, if CDB size is more
+than SCST_MAX_CDB_SIZE bytes. In this case SCST_USER_GET_EXTENDED_CDB
+returns additional CDB data beyond SCST_MAX_CDB_SIZE bytes.
+
+SCST_USER_GET_EXTENDED_CDB has the following arguments:
+
+struct scst_user_get_ext_cdb {
+	uint32_t cmd_h;
+	aligned_u64 ext_cdb_buffer;
+},
+
+where:
+
+ - cmd_h - command handle used to identify the command in the reply.
+
+ - ext_cdb_buffer - pointer to buffer, where extended CDB will be copied.
+
+SCST_USER_GET_EXTENDED_CDB returns 0 on success or -1 in case of error,
+and errno is set appropriately.
 
 
 		IV. Commands processing flow example.
