@@ -80,6 +80,8 @@ Replace the device names by names that apply to your system:
   scstadmin -ClearConfig /etc/scst.conf
   scstadmin -adddev disk01 -path /dev/ram0 -handler vdisk -options NV_CACHE
   scstadmin -adddev disk02 -path /dev/ram1 -handler vdisk -options NV_CACHE
+  scstadmin -assigndev disk01 -group Default -lun 0
+  scstadmin -assigndev disk02 -group Default -lun 0
   scstadmin -WriteConfig /etc/scst.conf
   cat /etc/scst.conf
 
