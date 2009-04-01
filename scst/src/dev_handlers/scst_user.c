@@ -1529,7 +1529,7 @@ static int dev_user_reply_cmd(struct file *file, void __user *arg)
 	if (unlikely(res < 0))
 		goto out_up;
 
-	TRACE_MGMT_DBG("Reply for dev %s", dev->name);
+	TRACE_DBG("Reply for dev %s", dev->name);
 
 	TRACE_BUFFER("Reply", &reply, sizeof(reply));
 
