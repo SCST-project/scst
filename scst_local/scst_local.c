@@ -79,7 +79,7 @@ static unsigned long scst_local_trace_flag = SCST_LOCAL_DEFAULT_LOG_FLAGS;
 static void scst_local_remove_adapter(void);
 static int scst_local_add_adapter(void);
 
-#define SCST_LOCAL_VERSION "0.9"
+#define SCST_LOCAL_VERSION "0.9.1"
 static const char *scst_local_version_date = "20081130";
 
 /*

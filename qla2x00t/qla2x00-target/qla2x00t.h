@@ -30,8 +30,8 @@
 
 /* Version numbers, the same as for the kernel */
 #define Q2T_VERSION(a, b, c, d) (((a) << 030) + ((b) << 020) + (c) << 010 + (d))
-#define Q2T_VERSION_CODE Q2T_VERSION(1, 0, 0, 0)
-#define Q2T_VERSION_STRING "1.0.1"
+#define Q2T_VERSION_CODE Q2T_VERSION(1, 0, 2, 0)
+#define Q2T_VERSION_STRING "1.0.2"
 
 #define Q2T_MAX_CDB_LEN             16
 #define Q2T_TIMEOUT                 10	/* in seconds */

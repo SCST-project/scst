@@ -66,7 +66,7 @@ unsigned long trace_flag = DEFAULT_LOG_FLAGS;
 #endif /* defined(DEBUG) || defined(TRACING) */
 
 #define DEF_BLOCK_SHIFT		9
-#define VERSION_STR		"1.0.1"
+#define VERSION_STR		"1.0.2"
 #define THREADS			7
 
 struct vdisk_dev dev;
