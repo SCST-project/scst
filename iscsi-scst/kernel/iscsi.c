@@ -17,6 +17,7 @@
 #include <linux/module.h>
 #include <linux/hash.h>
 #include <linux/kthread.h>
+#include <linux/scatterlist.h>
 #include <net/tcp.h>
 #include <scsi/scsi.h>
 
