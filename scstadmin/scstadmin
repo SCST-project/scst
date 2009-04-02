@@ -55,7 +55,7 @@ Assignments Operations
          -group <group>
 
 Options
-     -ForceConfig         : Force all confuration changes, even deletions (DANGER!).
+     -ForceConfig         : Force all configuration changes, even deletions (DANGER!).
   
 Debugging (limited support)
      -debug               : Debug mode - don\'t do anything destructive.
