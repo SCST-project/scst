@@ -17,6 +17,8 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  *  GNU General Public License for more details.
  */
+#ifndef __SCST_SGV_H
+#define __SCST_SGV_H
 
 /* SGV pool routines and flag bits */
 
@@ -67,3 +69,4 @@ void sgv_pool_free(struct sgv_pool_obj *sgv, struct scst_mem_lim *mem_lim);
 void *sgv_get_priv(struct sgv_pool_obj *sgv);
 
 void scst_init_mem_lim(struct scst_mem_lim *mem_lim);
+#endif /* ifndef __SCST_SGV_H */
