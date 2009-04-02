@@ -4150,6 +4150,8 @@ __qla2x00_enable_lun(scsi_qla_host_t *ha)
 	spin_unlock_irqrestore(&ha->hardware_lock, flags);
 
 	set_bit(ISP_ABORT_NEEDED, &ha->dpc_flags);
+	qla2xxx_wake_dpc(ha); 
+	qla2x00_wait_for_hba_online(ha);
 }
 
 /*
@@ -4167,6 +4169,8 @@ __qla2x00_disable_lun(scsi_qla_host_t *ha)
 	spin_unlock_irqrestore(&ha->hardware_lock, flags);
 
 	set_bit(ISP_ABORT_NEEDED, &ha->dpc_flags);
+	qla2xxx_wake_dpc(ha); 
+	qla2x00_wait_for_hba_online(ha);
 }
 
 /*
