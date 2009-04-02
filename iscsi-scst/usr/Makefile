@@ -22,7 +22,7 @@ SRCS_ADM = iscsi_adm.c param.c
 OBJS_ADM = $(SRCS_ADM:.c=.o)
 
 CFLAGS += -O2 -fno-inline -Wall -Wextra -Wstrict-prototypes -Wno-sign-compare \
-	-Werror=implicit-function-declaration -Wno-unused-parameter \
+	-Wimplicit-function-declaration -Wno-unused-parameter \
 	-Wno-missing-field-initializers -g -I../include
 CFLAGS += -D_GNU_SOURCE # required for glibc >= 2.8
 

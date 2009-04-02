@@ -705,19 +705,14 @@ II. In order to get the maximum performance you should:
 
  - Disable in Makefile CONFIG_SCST_TRACING and CONFIG_SCST_DEBUG.
 
- - If your initiator(s) use dedicated exported from the target virtual
-   SCSI devices and have more or equal amount of memory, than the
-   target, it is recommended to use O_DIRECT option (currently it is
-   available only with fileio_tgt user space program) or BLOCKIO. With
-   them you could have up to 100% increase in throughput.
 
-IMPORTANT: Some of the compilation options enabled by default, i.e. SCST
-=========  is optimized currently rather for development and bug hunting,
-           than for performance.
+IMPORTANT: Some of the above compilation options in the SCST SVN enabled by default,
+=========  i.e. development version of SCST is optimized currently rather for
+           development and bug hunting, than for performance.
 
 If you use SCST version taken directly from the SVN repository, you can
 set the above options, except CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ,
-using debug2perf Makefile target.
+in the needed values using debug2perf root Makefile target.
 
 4. For other target and initiator software parts:
 
@@ -791,6 +786,9 @@ using debug2perf Makefile target.
 6. If you use VDISK IO module in FILEIO mode, NV_CACHE option will
 provide you the best performance. But using it make sure you use a good
 UPS with ability to shutdown the target on the power failure.
+
+Baseline performance numbers you can find in those measurements:
+http://lkml.org/lkml/2009/3/30/283.
 
 IMPORTANT: If you use on initiator some versions of Windows (at least W2K)
 =========  you can't get good write performance for VDISK FILEIO devices with
