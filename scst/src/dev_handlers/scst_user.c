@@ -2317,9 +2317,9 @@ static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	}
 
 	TRACE_MGMT_DBG("Preparing TM ucmd %p (h %d, fn %d, cmd_to_abort %p, "
-		"ucmd_to_abort %p, cmd_h_to_abort %d)", ucmd, ucmd->h,
+		"ucmd_to_abort %p, cmd_h_to_abort %d, mcmd %p)", ucmd, ucmd->h,
 		mcmd->fn, mcmd->cmd_to_abort, ucmd_to_abort,
-		ucmd->user_cmd.tm_cmd.cmd_h_to_abort);
+		ucmd->user_cmd.tm_cmd.cmd_h_to_abort, mcmd);
 
 	ucmd->mcmd = mcmd;
 	ucmd->state = UCMD_STATE_TM_EXECING;

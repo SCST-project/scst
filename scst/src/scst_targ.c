@@ -3794,10 +3794,12 @@ void scst_prepare_async_mcmd(struct scst_mgmt_cmd *mcmd)
 
 	TRACE_ENTRY();
 
-	TRACE_MGMT_DBG("Preparing mcmd %p for async execution", mcmd);
+	TRACE_MGMT_DBG("Preparing mcmd %p for async execution "
+		"(cmd_finish_wait_count %d)", mcmd,
+		mcmd->cmd_finish_wait_count);
 
 	spin_lock_irqsave(&scst_mcmd_lock, flags);
-	 mcmd->cmd_finish_wait_count++;
+	mcmd->cmd_finish_wait_count++;
 	spin_unlock_irqrestore(&scst_mcmd_lock, flags);
 
 	TRACE_EXIT();
