@@ -1533,7 +1533,7 @@ bus_set_proc_data(bus_t *bp)
         SCST_DEF_RW_SEQ_OP(isp_write_proc)
         .show = isp_read_proc,
     };
-    bp->proc_data = proc_data;
+    memcpy(&bp->proc_data, &proc_data, sizeof(bp->proc_data));
     bp->proc_data.data = bp;
 }
 
