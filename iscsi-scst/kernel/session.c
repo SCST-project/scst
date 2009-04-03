@@ -29,7 +29,7 @@ struct iscsi_session *session_lookup(struct iscsi_target *target, u64 sid)
 	return NULL;
 }
 
-/* target_mutex supposed to be locked */
+/* target_mgmt_mutex supposed to be locked */
 static int iscsi_session_alloc(struct iscsi_target *target,
 	struct iscsi_kern_session_info *info, struct iscsi_session **result)
 {
@@ -91,8 +91,6 @@ static int iscsi_session_alloc(struct iscsi_target *target,
 
 	scst_sess_set_tgt_priv(session->scst_sess, session);
 
-	list_add_tail(&session->session_list_entry, &target->session_list);
-
 	TRACE_MGMT_DBG("Session %p created: target %p, tid %u, sid %#Lx",
 		session, target, target->tid, info->sid);
 
@@ -149,22 +147,28 @@ static void session_reinstate(struct iscsi_session *old_sess,
 	return;
 }
 
-/* target_mutex supposed to be locked */
+/* target_mgmt_mutex supposed to be locked */
 int session_add(struct iscsi_target *target,
 	struct iscsi_kern_session_info *info)
 {
-	struct iscsi_session *session, *old_sess;
+	struct iscsi_session *new_sess, *session, *old_sess;
 	int err = 0;
 	union iscsi_sid sid;
 
 	TRACE_MGMT_DBG("Adding session SID %llx", info->sid);
+
+	err = iscsi_session_alloc(target, info, &new_sess);
+	if (err != 0)
+		goto out;
+
+	mutex_lock(&target->target_mutex);
 
 	session = session_lookup(target, info->sid);
 	if (session) {
 		PRINT_ERROR("Attempt to add session with existing SID %llx",
 			info->sid);
 		err = -EEXIST;
-		goto out;
+		goto out_err_unlock;
 	}
 
 	sid = *(union iscsi_sid *)&info->sid;
@@ -189,12 +193,22 @@ int session_add(struct iscsi_target *target,
 		}
 	}
 
-	err = iscsi_session_alloc(target, info, &session);
-	if ((err == 0) && (old_sess != NULL))
+	session = new_sess;
+	list_add_tail(&session->session_list_entry, &target->session_list);
+
+	if (old_sess != NULL)
 		session_reinstate(old_sess, session);
+
+out_unlock:
+	mutex_unlock(&target->target_mutex);
 
 out:
 	return err;
+
+out_err_unlock:
+	new_sess->deleted_from_session_list = 1;
+	session_free(new_sess);
+	goto out_unlock;
 }
 
 /* target_mutex supposed to be locked */

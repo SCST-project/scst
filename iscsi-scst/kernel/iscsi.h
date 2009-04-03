@@ -72,7 +72,7 @@ struct iscsi_target {
 
 	struct list_head session_list; /* protected by target_mutex */
 
-	/* Both protected by target_mutex */
+	/* Both protected by target_mgmt_mutex */
 	struct iscsi_trgt_param trgt_param;
 	/*
 	 * Put here to have uniform parameters checking and assigning
