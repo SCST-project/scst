@@ -114,12 +114,14 @@ enum scst_cmd_queue_type {
 };
 
 /*************************************************************
- ** Data direction aliases
+ ** Data direction aliases. Changing it don't forget to change
+ ** scst_to_tgt_dma_dir as well!!
  *************************************************************/
-#define SCST_DATA_UNKNOWN			0
-#define SCST_DATA_WRITE				1
-#define SCST_DATA_READ				2
-#define SCST_DATA_NONE				3
+#define SCST_DATA_UNKNOWN		0
+#define SCST_DATA_WRITE			1
+#define SCST_DATA_READ			2
+#define SCST_DATA_BIDI			(SCST_DATA_WRITE | SCST_DATA_READ)
+#define SCST_DATA_NONE			4
 
 /*************************************************************
  ** Name of the "Default" security group
@@ -152,6 +154,7 @@ static inline int scst_is_ua_sense(const uint8_t *sense)
 #define scst_sense_invalid_opcode		ILLEGAL_REQUEST, 0x20, 0
 #define scst_sense_invalid_field_in_cdb		ILLEGAL_REQUEST, 0x24, 0
 #define scst_sense_invalid_field_in_parm_list	ILLEGAL_REQUEST, 0x26, 0
+#define scst_sense_parameter_value_invalid	ILLEGAL_REQUEST, 0x26, 2
 #define scst_sense_reset_UA			UNIT_ATTENTION,  0x29, 0
 #define scst_sense_nexus_loss_UA		UNIT_ATTENTION,  0x29, 0x7
 #define scst_sense_saving_params_unsup		ILLEGAL_REQUEST, 0x39, 0

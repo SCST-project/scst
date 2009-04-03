@@ -156,23 +156,42 @@ EXPORT_SYMBOL(scst_set_cmd_error);
 void scst_set_sense(uint8_t *buffer, int len, bool d_sense,
 	int key, int asc, int ascq)
 {
-	sBUG_ON(len < SCST_STANDARD_SENSE_LEN);
+	sBUG_ON(len == 0);
 
 	memset(buffer, 0, len);
 
 	if (d_sense) {
 		/* Descriptor format */
-		buffer[0] = 0x72;	/* Response Code		*/
-		buffer[1] = key;	/* Sense Key			*/
-		buffer[2] = asc;	/* ASC				*/
-		buffer[3] = ascq;	/* ASCQ				*/
+
+		if (len < 4) {
+			PRINT_ERROR("Length %d of sense buffer too small to "
+				"fit sense %x:%x:%x", len, key, asc, ascq);
+		}
+
+		buffer[0] = 0x72;		/* Response Code	*/
+		if (len > 1)
+			buffer[1] = key;	/* Sense Key		*/
+		if (len > 2)
+			buffer[2] = asc;	/* ASC			*/
+		if (len > 3)
+			buffer[3] = ascq;	/* ASCQ			*/
 	} else {
 		/* Fixed format */
-		buffer[0] = 0x70;	/* Response Code		*/
-		buffer[2] = key;	/* Sense Key			*/
-		buffer[7] = 0x0a;	/* Additional Sense Length	*/
-		buffer[12] = asc;	/* ASC				*/
-		buffer[13] = ascq;	/* ASCQ				*/
+
+		if (len < 14) {
+			PRINT_ERROR("Length %d of sense buffer too small to "
+				"fit sense %x:%x:%x", len, key, asc, ascq);
+		}
+
+		buffer[0] = 0x70;		/* Response Code	*/
+		if (len > 2)
+			buffer[2] = key;	/* Sense Key		*/
+		if (len > 7)
+			buffer[7] = 0x0a;	/* Additional Sense Length */
+		if (len > 12)
+			buffer[12] = asc;	/* ASC			*/
+		if (len > 13)
+			buffer[13] = ascq;	/* ASCQ			*/
 	}
 
 	TRACE_BUFFER("Sense set", buffer, len);
@@ -652,6 +671,8 @@ int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
 		break;
 
 	default:
+		PRINT_CRIT_ERROR("Wrong cmd state %d (cmd %p, op %x)",
+			cmd->state, cmd, cmd->cdb[0]);
 		sBUG();
 	}
 
@@ -666,12 +687,11 @@ void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 
 #ifdef CONFIG_SCST_EXTRACHECKS
 	switch (cmd->state) {
-	case SCST_CMD_STATE_PRE_XMIT_RESP:
 	case SCST_CMD_STATE_XMIT_RESP:
 	case SCST_CMD_STATE_FINISHED:
 	case SCST_CMD_STATE_FINISHED_INTERNAL:
 	case SCST_CMD_STATE_XMIT_WAIT:
-		PRINT_CRIT_ERROR("Wrong cmd state %x (cmd %p, op %x)",
+		PRINT_CRIT_ERROR("Wrong cmd state %d (cmd %p, op %x)",
 			cmd->state, cmd, cmd->cdb[0]);
 		sBUG();
 	}
@@ -2258,10 +2278,18 @@ void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir)
 	TRACE_ENTRY();
 
 	if (copy_dir == SCST_SG_COPY_FROM_TARGET) {
-		src_sg = cmd->tgt_sg;
-		src_sg_cnt = cmd->tgt_sg_cnt;
-		dst_sg = cmd->sg;
-		to_copy = cmd->bufflen;
+		if (cmd->data_direction != SCST_DATA_BIDI) {
+			src_sg = cmd->tgt_sg;
+			src_sg_cnt = cmd->tgt_sg_cnt;
+			dst_sg = cmd->sg;
+			to_copy = cmd->bufflen;
+		} else {
+			TRACE_MEM("BIDI cmd %p", cmd);
+			src_sg = cmd->tgt_in_sg;
+			src_sg_cnt = cmd->tgt_in_sg_cnt;
+			dst_sg = cmd->in_sg;
+			to_copy = cmd->in_bufflen;
+		}
 	} else {
 		src_sg = cmd->sg;
 		src_sg_cnt = cmd->sg_cnt;
@@ -3098,6 +3126,24 @@ static void scst_check_internal_sense(struct scst_device *dev, int result,
 	TRACE_EXIT();
 	return;
 }
+
+enum dma_data_direction scst_to_dma_dir(int scst_dir)
+{
+	static const enum dma_data_direction tr_tbl[] = { DMA_NONE,
+		DMA_TO_DEVICE, DMA_FROM_DEVICE, DMA_BIDIRECTIONAL, DMA_NONE };
+
+	return tr_tbl[scst_dir];
+}
+EXPORT_SYMBOL(scst_to_dma_dir);
+
+enum dma_data_direction scst_to_tgt_dma_dir(int scst_dir)
+{
+	static const enum dma_data_direction tr_tbl[] = { DMA_NONE,
+		DMA_FROM_DEVICE, DMA_TO_DEVICE, DMA_BIDIRECTIONAL, DMA_NONE };
+
+	return tr_tbl[scst_dir];
+}
+EXPORT_SYMBOL(scst_to_tgt_dma_dir);
 
 int scst_obtain_device_parameters(struct scst_device *dev)
 {

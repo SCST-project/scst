@@ -1691,11 +1691,6 @@ static int __init init_scst(void)
 		BUILD_BUG_ON(sizeof(c->sn) != sizeof(t->expected_sn));
 	}
 
-	BUILD_BUG_ON(SCST_DATA_UNKNOWN != DMA_BIDIRECTIONAL);
-	BUILD_BUG_ON(SCST_DATA_WRITE != DMA_TO_DEVICE);
-	BUILD_BUG_ON(SCST_DATA_READ != DMA_FROM_DEVICE);
-	BUILD_BUG_ON(SCST_DATA_NONE != DMA_NONE);
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
 #if !defined(SCST_IO_CONTEXT)
 	PRINT_WARNING("%s", "Patch io_context was not applied on "

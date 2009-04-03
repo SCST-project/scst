@@ -113,6 +113,7 @@ struct scst_user_scsi_cmd_parse {
 
 	int32_t timeout;
 	int32_t bufflen;
+	int32_t in_bufflen;
 
 	uint8_t queue_type;
 	uint8_t data_direction;
@@ -154,6 +155,9 @@ struct scst_user_scsi_cmd_exec {
 	uint8_t data_direction;
 	uint8_t partial;
 	int32_t timeout;
+
+	aligned_u64 p_in_buf;
+	int32_t in_bufflen;
 
 	uint32_t sn;
 

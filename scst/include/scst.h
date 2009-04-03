@@ -1253,6 +1253,7 @@ struct scst_cmd {
 	/* Remote initiator supplied values, if any */
 	scst_data_direction expected_data_direction;
 	int expected_transfer_len;
+	int expected_in_transfer_len; /* for bidi writes */
 
 	/*
 	 * Cmd data length. Could be different from bufflen for commands like
@@ -1266,19 +1267,24 @@ struct scst_cmd {
 		enum scst_exec_context pref_context);
 
 	struct sgv_pool_obj *sgv;	/* sgv object */
-
 	int bufflen;			/* cmd buffer length */
 	struct scatterlist *sg;		/* cmd data buffer SG vector */
 	int sg_cnt;			/* SG segments count */
-
-	/* scst_get_sg_buf_[first,next]() support */
-	int get_sg_buf_entry_num;
 
 	/*
 	 * Response data length in data buffer. This field must not be set
 	 * directly, use scst_set_resp_data_len() for that
 	 */
 	int resp_data_len;
+
+	/* scst_get_sg_buf_[first,next]() support */
+	int get_sg_buf_entry_num;
+
+	/* Bidirectional transfers support */
+	int in_bufflen;			/* WRITE buffer length */
+	struct sgv_pool_obj *in_sgv;	/* WRITE sgv object */
+	struct scatterlist *in_sg;	/* WRITE data buffer SG vector */
+	int in_sg_cnt;			/* WRITE SG segments count */
 
 	/*
 	 * Used if both target driver and dev handler request own memory
@@ -1291,6 +1297,8 @@ struct scst_cmd {
 	 */
 	struct scatterlist *tgt_sg;
 	int tgt_sg_cnt;
+	struct scatterlist *tgt_in_sg;	/* bidirectional */
+	int tgt_in_sg_cnt;		/* bidirectional */
 
 	/*
 	 * The status fields in case of errors must be set using
@@ -2021,25 +2029,16 @@ struct scst_cmd *scst_find_cmd(struct scst_session *sess, void *data,
 					      void *data));
 
 /*
- * Translates SCST's data direction to DMA one
+ * Translates SCST's data direction to DMA one from backend storage
+ * perspective.
  */
-static inline int scst_to_dma_dir(int scst_dir)
-{
-	return scst_dir;
-}
+enum dma_data_direction scst_to_dma_dir(int scst_dir);
 
 /*
- * Translates SCST data direction to DMA one from the perspective
+ * Translates SCST data direction to DMA data direction from the perspective
  * of the target device.
  */
-static inline int scst_to_tgt_dma_dir(int scst_dir)
-{
-	if (scst_dir == SCST_DATA_WRITE)
-		return DMA_FROM_DEVICE;
-	else if (scst_dir == SCST_DATA_READ)
-		return DMA_TO_DEVICE;
-	return scst_dir;
-}
+enum dma_data_direction scst_to_tgt_dma_dir(int scst_dir);
 
 /*
  * Returns 1, if cmd's CDB is locally handled by SCST and 0 otherwise.
@@ -2242,6 +2241,40 @@ static inline unsigned int scst_cmd_get_bufflen(struct scst_cmd *cmd)
 	return cmd->bufflen;
 }
 
+/*
+ * Returns pointer to cmd's bidirectional in (WRITE) SG data buffer.
+ *
+ * Usage of this function is not recommended, use scst_get_in_buf_*()
+ * family of functions instead.
+ */
+static inline struct scatterlist *scst_cmd_get_in_sg(struct scst_cmd *cmd)
+{
+	return cmd->in_sg;
+}
+
+/*
+ * Returns cmd's bidirectional in (WRITE) sg_cnt.
+ *
+ * Usage of this function is not recommended, use scst_get_in_buf_*()
+ * family of functions instead.
+ */
+static inline int scst_cmd_get_in_sg_cnt(struct scst_cmd *cmd)
+{
+	return cmd->in_sg_cnt;
+}
+
+/*
+ * Returns cmd's bidirectional in (WRITE) data buffer length.
+ *
+ * In case if you need to iterate over data in the buffer, usage of
+ * this function is not recommended, use scst_get_in_buf_*()
+ * family of functions instead.
+ */
+static inline unsigned int scst_cmd_get_in_bufflen(struct scst_cmd *cmd)
+{
+	return cmd->in_bufflen;
+}
+
 /* Returns pointer to cmd's target's SG data buffer */
 static inline struct scatterlist *scst_cmd_get_tgt_sg(struct scst_cmd *cmd)
 {
@@ -2261,6 +2294,28 @@ static inline void scst_cmd_set_tgt_sg(struct scst_cmd *cmd,
 	cmd->tgt_sg = sg;
 	cmd->tgt_sg_cnt = sg_cnt;
 	cmd->tgt_data_buf_alloced = 1;
+}
+
+/* Returns pointer to cmd's target's IN SG data buffer */
+static inline struct scatterlist *scst_cmd_get_in_tgt_sg(struct scst_cmd *cmd)
+{
+	return cmd->tgt_in_sg;
+}
+
+/* Returns cmd's target's IN sg_cnt */
+static inline int scst_cmd_get_tgt_in_sg_cnt(struct scst_cmd *cmd)
+{
+	return cmd->tgt_in_sg_cnt;
+}
+
+/* Sets cmd's target's IN SG data buffer */
+static inline void scst_cmd_set_tgt_in_sg(struct scst_cmd *cmd,
+	struct scatterlist *sg, int sg_cnt)
+{
+	WARN_ON(!cmd->tgt_data_buf_alloced);
+
+	cmd->tgt_in_sg = sg;
+	cmd->tgt_in_sg_cnt = sg_cnt;
 }
 
 /* Returns cmd's data direction */
@@ -2443,6 +2498,12 @@ static inline int scst_cmd_get_expected_transfer_len(
 	return cmd->expected_transfer_len;
 }
 
+static inline int scst_cmd_get_expected_in_transfer_len(
+	struct scst_cmd *cmd)
+{
+	return cmd->expected_in_transfer_len;
+}
+
 static inline void scst_cmd_set_expected(struct scst_cmd *cmd,
 	scst_data_direction expected_data_direction,
 	int expected_transfer_len)
@@ -2450,6 +2511,13 @@ static inline void scst_cmd_set_expected(struct scst_cmd *cmd,
 	cmd->expected_data_direction = expected_data_direction;
 	cmd->expected_transfer_len = expected_transfer_len;
 	cmd->expected_values_set = 1;
+}
+
+static inline void scst_cmd_set_expected_in_transfer_len(struct scst_cmd *cmd,
+	int expected_in_transfer_len)
+{
+	WARN_ON(!cmd->expected_values_set);
+	cmd->expected_in_transfer_len = expected_in_transfer_len;
 }
 
 /*
@@ -2623,15 +2691,15 @@ static inline void sg_clear(struct scatterlist *sg)
  *
  * The "put" function unmaps the buffer.
  */
-static inline int __scst_get_buf(struct scst_cmd *cmd, uint8_t **buf)
+static inline int __scst_get_buf(struct scst_cmd *cmd, struct scatterlist *sg,
+	int sg_cnt, uint8_t **buf)
 {
 	int res = 0;
-	struct scatterlist *sg = cmd->sg;
 	int i = cmd->get_sg_buf_entry_num;
 
 	*buf = NULL;
 
-	if ((i >= cmd->sg_cnt) || unlikely(sg == NULL))
+	if ((i >= sg_cnt) || unlikely(sg == NULL))
 		goto out;
 
 	*buf = page_address(sg_page(&sg[i]));
@@ -2648,15 +2716,32 @@ static inline int scst_get_buf_first(struct scst_cmd *cmd, uint8_t **buf)
 {
 	cmd->get_sg_buf_entry_num = 0;
 	cmd->may_need_dma_sync = 1;
-	return __scst_get_buf(cmd, buf);
+	return __scst_get_buf(cmd, cmd->sg, cmd->sg_cnt, buf);
 }
 
 static inline int scst_get_buf_next(struct scst_cmd *cmd, uint8_t **buf)
 {
-	return __scst_get_buf(cmd, buf);
+	return __scst_get_buf(cmd, cmd->sg, cmd->sg_cnt, buf);
 }
 
 static inline void scst_put_buf(struct scst_cmd *cmd, void *buf)
+{
+	/* Nothing to do */
+}
+
+static inline int scst_get_in_buf_first(struct scst_cmd *cmd, uint8_t **buf)
+{
+	cmd->get_sg_buf_entry_num = 0;
+	cmd->may_need_dma_sync = 1;
+	return __scst_get_buf(cmd, cmd->in_sg, cmd->in_sg_cnt, buf);
+}
+
+static inline int scst_get_in_buf_next(struct scst_cmd *cmd, uint8_t **buf)
+{
+	return __scst_get_buf(cmd, cmd->in_sg, cmd->in_sg_cnt, buf);
+}
+
+static inline void scst_put_in_buf(struct scst_cmd *cmd, void *buf)
 {
 	/* Nothing to do */
 }
@@ -2668,6 +2753,15 @@ static inline void scst_put_buf(struct scst_cmd *cmd, void *buf)
 static inline int scst_get_buf_count(struct scst_cmd *cmd)
 {
 	return (cmd->sg_cnt == 0) ? 1 : cmd->sg_cnt;
+}
+
+/*
+ * Returns approximate higher rounded buffers count that
+ * scst_get_in_buf_[first|next]() return.
+ */
+static inline int scst_get_in_buf_count(struct scst_cmd *cmd)
+{
+	return (cmd->in_sg_cnt == 0) ? 1 : cmd->in_sg_cnt;
 }
 
 /*

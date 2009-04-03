@@ -2,7 +2,7 @@
 
 	  USER SPACE INTERFACE DESCRIPTION.
 
-		   Version 1.0.0
+		   Version 1.0.2
 
 
 		I. Description.
@@ -341,6 +341,7 @@ struct scst_user_scsi_cmd_parse
 
 	uint32_t timeout;
 	int32_t bufflen;
+	int32_t in_bufflen;
 
 	uint8_t queue_type;
 	uint8_t data_direction;
@@ -366,6 +367,9 @@ where:
  - timeout - CDB execution timeout
 
  - bufflen - command's buffer length
+ 
+ - in_bufflen - for bidirectional commands command's IN, i.e. from
+   initiator to target, buffer length
  
  - queue_type - SCSI task attribute (queue type)
  
@@ -536,6 +540,9 @@ struct scst_user_scsi_cmd_exec
 	uint8_t partial;
 	uint32_t timeout;
 
+	aligned_u64 p_in_buf;
+	int32_t in_bufflen;
+
 	uint32_t sn;
 
 	uint32_t parent_cmd_h;
@@ -579,6 +586,13 @@ where:
    * SCST_USER_SUBCOMMAND_FINAL - set if the subcommand is a final one
 
  - timeout - CDB execution timeout
+
+ - p_in_buf - for bidirectional commands pointer on command's IN, i.e. from
+   initiator to target, data buffer or 0 for SCSI commands without data
+   transfer
+
+ - in_bufflen - for bidirectional commands command's IN, i.e. from
+   initiator to target, buffer length
 
  - sn - command's SN, which might be used for task management
 

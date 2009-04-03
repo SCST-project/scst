@@ -30,7 +30,8 @@
 
 #include "iscsi_dbg.h"
 
-#define iscsi_sense_crc_error		ABORTED_COMMAND, 0x47, 0x5
+#define iscsi_sense_crc_error			ABORTED_COMMAND, 0x47, 0x5
+#define iscsi_sense_unexpected_unsolicited_data	ABORTED_COMMAND, 0xC, 0xC
 
 struct iscsi_sess_param {
 	int initial_r2t;
@@ -350,6 +351,7 @@ struct iscsi_cmnd {
 				struct scst_cmd *scst_cmd;
 				struct scst_aen *scst_aen;
 			};
+			int read_size;
 		};
 
 		/* Response only fields */

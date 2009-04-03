@@ -510,17 +510,31 @@ static int dev_user_alloc_sg(struct scst_user_cmd *ucmd, int cached_buff)
 	int res = 0;
 	struct scst_cmd *cmd = ucmd->cmd;
 	struct scst_user_dev *dev = ucmd->dev;
+	struct sgv_pool *pool;
 	gfp_t gfp_mask;
 	int flags = 0;
-	int bufflen = cmd->bufflen;
+	int bufflen, orig_bufflen;
 	int last_len = 0;
+	int out_sg_pages = 0;
 
 	TRACE_ENTRY();
 
-	sBUG_ON(bufflen == 0);
-
 	gfp_mask = __GFP_NOWARN;
 	gfp_mask |= (scst_cmd_atomic(cmd) ? GFP_ATOMIC : GFP_KERNEL);
+
+	if (cmd->data_direction != SCST_DATA_BIDI) {
+		orig_bufflen = cmd->bufflen;
+		pool = (struct sgv_pool *)cmd->tgt_dev->dh_priv;
+	} else {
+		/* Make in_sg->offset 0 */
+		int len = cmd->bufflen + ucmd->first_page_offset;
+		out_sg_pages = (len >> PAGE_SHIFT) + ((len & ~PAGE_MASK) != 0);
+		orig_bufflen = (out_sg_pages << PAGE_SHIFT) + cmd->in_bufflen;
+		pool = dev->pool;
+	}
+	bufflen = orig_bufflen;
+
+	EXTRACHECKS_BUG_ON(bufflen == 0);
 
 	if (cached_buff) {
 		flags |= SCST_POOL_RETURN_OBJ_ON_ALLOC_FAIL;
@@ -534,18 +548,17 @@ static int dev_user_alloc_sg(struct scst_user_cmd *ucmd, int cached_buff)
 			goto out;
 		}
 		bufflen += ucmd->first_page_offset;
-		if (is_need_offs_page(ucmd->ubuff, cmd->bufflen))
+		if (is_need_offs_page(ucmd->ubuff, orig_bufflen))
 			last_len = bufflen & ~PAGE_MASK;
 		else
-			last_len = cmd->bufflen & ~PAGE_MASK;
+			last_len = orig_bufflen & ~PAGE_MASK;
 		if (last_len == 0)
 			last_len = PAGE_SIZE;
 	}
 	ucmd->buff_cached = cached_buff;
 
-	cmd->sg = sgv_pool_alloc((struct sgv_pool *)cmd->tgt_dev->dh_priv,
-			bufflen, gfp_mask, flags, &cmd->sg_cnt, &ucmd->sgv,
-			&dev->udev_mem_lim, ucmd);
+	cmd->sg = sgv_pool_alloc(pool, bufflen, gfp_mask, flags, &cmd->sg_cnt,
+			&ucmd->sgv, &dev->udev_mem_lim, ucmd);
 	if (cmd->sg != NULL) {
 		struct scst_user_cmd *buf_ucmd =
 			(struct scst_user_cmd *)sgv_get_priv(ucmd->sgv);
@@ -569,14 +582,21 @@ static int dev_user_alloc_sg(struct scst_user_cmd *ucmd, int cached_buff)
 			"last seg len %d)", ucmd, cached_buff, ucmd->ubuff,
 			cmd->sg[cmd->sg_cnt-1].length);
 
+		if (cmd->data_direction == SCST_DATA_BIDI) {
+			cmd->in_sg = &cmd->sg[out_sg_pages];
+			cmd->in_sg_cnt = cmd->sg_cnt - out_sg_pages;
+			cmd->sg_cnt = out_sg_pages;
+			TRACE_MEM("cmd %p, in_sg %p, in_sg_cnt %d, sg_cnt %d",
+				cmd, cmd->in_sg, cmd->in_sg_cnt, cmd->sg_cnt);
+		}
+
 		if (unlikely(cmd->sg_cnt > cmd->tgt_dev->max_sg_cnt)) {
 			static int ll;
 			if (ll < 10) {
 				PRINT_INFO("Unable to complete command due to "
 					"SG IO count limitation (requested %d, "
 					"available %d, tgt lim %d)",
-					cmd->sg_cnt,
-					cmd->tgt_dev->max_sg_cnt,
+					cmd->sg_cnt, cmd->tgt_dev->max_sg_cnt,
 					cmd->tgt->sg_tablesize);
 				ll++;
 			}
@@ -771,6 +791,7 @@ static int dev_user_parse(struct scst_cmd *cmd)
 		ucmd->user_cmd.parse_cmd.ext_cdb_len = cmd->ext_cdb_len;
 		ucmd->user_cmd.parse_cmd.timeout = cmd->timeout / HZ;
 		ucmd->user_cmd.parse_cmd.bufflen = cmd->bufflen;
+		ucmd->user_cmd.parse_cmd.in_bufflen = cmd->in_bufflen;
 		ucmd->user_cmd.parse_cmd.queue_type = cmd->queue_type;
 		ucmd->user_cmd.parse_cmd.data_direction = cmd->data_direction;
 		ucmd->user_cmd.parse_cmd.expected_values_set =
@@ -903,6 +924,9 @@ static int dev_user_exec(struct scst_cmd *cmd)
 	ucmd->user_cmd.exec_cmd.data_direction = cmd->data_direction;
 	ucmd->user_cmd.exec_cmd.partial = 0;
 	ucmd->user_cmd.exec_cmd.timeout = cmd->timeout / HZ;
+	ucmd->user_cmd.exec_cmd.p_in_buf = ucmd->ubuff + 
+						(cmd->sg_cnt << PAGE_SHIFT);
+	ucmd->user_cmd.exec_cmd.in_bufflen = cmd->in_bufflen;
 	ucmd->user_cmd.exec_cmd.sn = cmd->tgt_sn;
 
 	ucmd->state = UCMD_STATE_EXECING;

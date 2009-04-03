@@ -135,7 +135,7 @@ static int scst_init_cmd(struct scst_cmd *cmd, enum scst_exec_context *context)
 	     (*context == SCST_CONTEXT_DIRECT_ATOMIC) ||
 	     ((*context == SCST_CONTEXT_SAME) && scst_cmd_atomic(cmd))) &&
 	      scst_cmd_is_expected_set(cmd)) {
-		if (cmd->expected_data_direction == SCST_DATA_WRITE) {
+		if (cmd->expected_data_direction & SCST_DATA_WRITE) {
 			if (!test_bit(SCST_TGT_DEV_AFTER_INIT_WR_ATOMIC,
 					&cmd->tgt_dev->tgt_dev_flags))
 				*context = SCST_CONTEXT_THREAD;
@@ -289,6 +289,9 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
 	rc = scst_init_cmd(cmd, &pref_context);
 	if (unlikely(rc < 0))
 		goto out;
+
+	if (unlikely(cmd->status != SAM_STAT_GOOD))
+		scst_set_cmd_abnormal_done_state(cmd);
 
 active:
 	/* Here cmd must not be in any cmd list, no locks */
@@ -664,7 +667,7 @@ set_res:
 	}
 
 	if (cmd->resp_data_len == -1) {
-		if (cmd->data_direction == SCST_DATA_READ)
+		if (cmd->data_direction & SCST_DATA_READ)
 			cmd->resp_data_len = cmd->bufflen;
 		else
 			 cmd->resp_data_len = 0;
@@ -728,17 +731,15 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 alloc:
 	if (!cmd->tgt_data_buf_alloced && !cmd->dh_data_buf_alloced) {
 		r = scst_alloc_space(cmd);
-		cmd->tgt_sg = cmd->sg;
-		cmd->tgt_sg_cnt = cmd->sg_cnt;
 	} else if (cmd->dh_data_buf_alloced && !cmd->tgt_data_buf_alloced) {
 		TRACE_MEM("dh_data_buf_alloced set (cmd %p)", cmd);
-		cmd->tgt_sg = cmd->sg;
-		cmd->tgt_sg_cnt = cmd->sg_cnt;
 		r = 0;
 	} else if (cmd->tgt_data_buf_alloced && !cmd->dh_data_buf_alloced) {
 		TRACE_MEM("tgt_data_buf_alloced set (cmd %p)", cmd);
 		cmd->sg = cmd->tgt_sg;
 		cmd->sg_cnt = cmd->tgt_sg_cnt;
+		cmd->in_sg = cmd->tgt_in_sg;
+		cmd->in_sg_cnt = cmd->tgt_in_sg_cnt;
 		r = 0;
 	} else {
 		TRACE_MEM("Both *_data_buf_alloced set (cmd %p, sg %p, "
@@ -778,15 +779,10 @@ prep_done:
 
 	}
 
-	switch (cmd->data_direction) {
-	case SCST_DATA_WRITE:
+	if (cmd->data_direction & SCST_DATA_WRITE)
 		cmd->state = SCST_CMD_STATE_RDY_TO_XFER;
-		break;
-
-	default:
+	else
 		cmd->state = SCST_CMD_STATE_TGT_PRE_EXEC;
-		break;
-	}
 
 out:
 	TRACE_EXIT_HRES(res);
@@ -830,14 +826,10 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status,
 
 	switch (status) {
 	case SCST_PREPROCESS_STATUS_SUCCESS:
-		switch (cmd->data_direction) {
-		case SCST_DATA_WRITE:
+		if (cmd->data_direction & SCST_DATA_WRITE)
 			cmd->state = SCST_CMD_STATE_RDY_TO_XFER;
-			break;
-		default:
+		else
 			cmd->state = SCST_CMD_STATE_TGT_PRE_EXEC;
-			break;
-		}
 		if (cmd->set_sn_on_restart_cmd)
 			scst_cmd_set_sn(cmd);
 		/* Small context optimization */
@@ -845,7 +837,7 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status,
 		    (pref_context == SCST_CONTEXT_DIRECT_ATOMIC) ||
 		    ((pref_context == SCST_CONTEXT_SAME) &&
 		     scst_cmd_atomic(cmd))) {
-			if (cmd->data_direction == SCST_DATA_WRITE) {
+			if (cmd->data_direction & SCST_DATA_WRITE) {
 				if (!test_bit(SCST_TGT_DEV_AFTER_RESTART_WR_ATOMIC,
 						&cmd->tgt_dev->tgt_dev_flags))
 					pref_context = SCST_CONTEXT_THREAD;
@@ -865,8 +857,9 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status,
 		set_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags);
 		/* go through */
 	case SCST_PREPROCESS_STATUS_ERROR:
-		scst_set_cmd_error(cmd,
-			   SCST_LOAD_SENSE(scst_sense_hardw_error));
+		if (cmd->sense != NULL)
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_hardw_error));
 		scst_set_cmd_abnormal_done_state(cmd);
 		break;
 
@@ -1097,15 +1090,26 @@ void scst_rx_data(struct scst_cmd *cmd, int status,
 	switch (status) {
 	case SCST_RX_STATUS_SUCCESS:
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-		if (cmd->tgt_sg) {
+		if (trace_flag & TRACE_RCV_BOT) {
 			int i;
-			struct scatterlist *sg = cmd->tgt_sg;
-			TRACE_RECV_BOT("RX data for cmd %p "
-				"(sg_cnt %d, sg %p, sg[0].page %p)", cmd,
-				cmd->tgt_sg_cnt, sg, (void *)sg_page(&sg[0]));
-			for (i = 0; i < cmd->tgt_sg_cnt; ++i) {
-				PRINT_BUFF_FLAG(TRACE_RCV_BOT, "RX sg",
-					sg_virt(&sg[i]), sg[i].length);
+			struct scatterlist *sg;
+			if (cmd->in_sg != NULL)
+				sg = cmd->in_sg;
+			else if (cmd->tgt_in_sg != NULL)
+				sg = cmd->tgt_in_sg;
+			else if (cmd->tgt_sg != NULL)
+				sg = cmd->tgt_sg;
+			else
+				sg = cmd->sg;
+			if (sg != NULL) {
+				TRACE_RECV_BOT("RX data for cmd %p "
+					"(sg_cnt %d, sg %p, sg[0].page %p)",
+					cmd, cmd->tgt_sg_cnt, sg,
+					(void *)sg_page(&sg[0]));
+				for (i = 0; i < cmd->tgt_sg_cnt; ++i) {
+					PRINT_BUFF_FLAG(TRACE_RCV_BOT, "RX sg",
+						sg_virt(&sg[i]), sg[i].length);
+				}
 			}
 		}
 #endif
@@ -1355,7 +1359,7 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state,
 
 #if defined(CONFIG_SCST_DEBUG)
 	if (next_state == SCST_CMD_STATE_PRE_DEV_DONE) {
-		if (cmd->sg) {
+		if ((trace_flag & TRACE_RCV_TOP) && (cmd->sg != NULL)) {
 			int i;
 			struct scatterlist *sg = cmd->sg;
 			TRACE_RECV_TOP("Exec'd %d S/G(s) at %p sg[0].page at "
@@ -2140,7 +2144,7 @@ static int scst_exec(struct scst_cmd **active_cmd)
 		cmd->state = SCST_CMD_STATE_LOCAL_EXEC;
 
 		if (cmd->tgt_data_buf_alloced && cmd->dh_data_buf_alloced &&
-		    (cmd->data_direction == SCST_DATA_WRITE))
+		    (cmd->data_direction & SCST_DATA_WRITE))
 			scst_copy_sg(cmd, SCST_SG_COPY_FROM_TARGET);
 
 		rc = scst_do_local_exec(cmd);
@@ -2774,7 +2778,7 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 		atomic_dec(&cmd->tgt_dev->tgt_dev_cmd_count);
 		atomic_dec(&cmd->dev->dev_cmd_count);
 		/* If expected values not set, expected direction is UNKNOWN */
-		if (cmd->expected_data_direction == SCST_DATA_WRITE)
+		if (cmd->expected_data_direction & SCST_DATA_WRITE)
 			atomic_dec(&cmd->dev->write_cmd_count);
 
 		if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))
@@ -2816,7 +2820,7 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 	}
 
 	if (cmd->tgt_data_buf_alloced && cmd->dh_data_buf_alloced &&
-	    (cmd->data_direction == SCST_DATA_READ))
+	    (cmd->data_direction & SCST_DATA_READ))
 		scst_copy_sg(cmd, SCST_SG_COPY_TO_TARGET);
 
 	cmd->state = SCST_CMD_STATE_XMIT_RESP;
@@ -2883,15 +2887,23 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 		TRACE_DBG("Calling xmit_response(%p)", cmd);
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-		if (cmd->tgt_sg) {
+		if (trace_flag & TRACE_SND_BOT) {
 			int i;
-			struct scatterlist *sg = cmd->tgt_sg;
-			TRACE(TRACE_SND_BOT, "Xmitting data for cmd %p "
-				"(sg_cnt %d, sg %p, sg[0].page %p)", cmd,
-				cmd->tgt_sg_cnt, sg, (void *)sg_page(&sg[0]));
-			for (i = 0; i < cmd->tgt_sg_cnt; ++i) {
-				PRINT_BUFF_FLAG(TRACE_SND_BOT, "Xmitting sg",
-					sg_virt(&sg[i]), sg[i].length);
+			struct scatterlist *sg;
+			if (cmd->tgt_sg != NULL)
+				sg = cmd->tgt_sg;
+			else
+				sg = cmd->sg;
+			if (sg != NULL) {
+				TRACE(TRACE_SND_BOT, "Xmitting data for cmd %p "
+					"(sg_cnt %d, sg %p, sg[0].page %p)",
+					cmd, cmd->tgt_sg_cnt, sg,
+					(void *)sg_page(&sg[0]));
+				for (i = 0; i < cmd->tgt_sg_cnt; ++i) {
+					PRINT_BUFF_FLAG(TRACE_SND_BOT,
+						"Xmitting sg", sg_virt(&sg[i]),
+						sg[i].length);
+				}
 			}
 		}
 #endif
@@ -3235,7 +3247,7 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 		}
 
 		/* If expected values not set, expected direction is UNKNOWN */
-		if (cmd->expected_data_direction == SCST_DATA_WRITE)
+		if (cmd->expected_data_direction & SCST_DATA_WRITE)
 			atomic_inc(&cmd->dev->write_cmd_count);
 
 		if (unlikely(failure))

@@ -494,23 +494,32 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 	switch (SCpnt->sc_data_direction) {
 	case DMA_TO_DEVICE:
 		dir = SCST_DATA_WRITE;
+		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(SCpnt));
+		scst_cmd_set_tgt_sg(scst_cmd, scsi_sglist(SCpnt),
+			scsi_sg_count(SCpnt));
 		break;
 	case DMA_FROM_DEVICE:
 		dir = SCST_DATA_READ;
+		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(SCpnt));
+		scst_cmd_set_tgt_sg(scst_cmd, scsi_sglist(SCpnt),
+			scsi_sg_count(SCpnt));
 		break;
 	case DMA_BIDIRECTIONAL:
-		printk(KERN_ERR "%s: DMA_BIDIRECTIONAL not allowed!\n",
-		       __func__);
-		return scst_local_send_resp(SCpnt, NULL, done,
-					    DID_ERROR << 16);
-		/*dir = SCST_DATA_UNKNOWN;*/
+		dir = SCST_DATA_BIDI;
+		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(SCpnt));
+		scst_cmd_set_expected_in_transfer_len(scst_cmd,
+			scsi_in(SCpnt)->length);
+		scst_cmd_set_tgt_sg(scst_cmd, scsi_sglist(SCpnt),
+			scsi_sg_count(SCpnt));
+		scst_cmd_set_tgt_in_sg(scst_cmd, scsi_in(SCpnt)->table.sgl,
+			scsi_in(SCpnt)->table.nents);
 		break;
 	case DMA_NONE:
 	default:
 		dir = SCST_DATA_NONE;
+		scst_cmd_set_expected(scst_cmd, dir, 0);
 		break;
 	}
-	scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(SCpnt));
 
 	/*
 	 * Defer allocating memory until all error paths are done
@@ -525,9 +534,6 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 	tgt_specific->done = done;
 
 	scst_cmd_set_tgt_priv(scst_cmd, tgt_specific);
-
-	/* Set the SGL things directly ... */
-	scst_cmd_set_tgt_sg(scst_cmd, scsi_sglist(SCpnt), scsi_sg_count(SCpnt));
 
 #ifdef CONFIG_SCST_LOCAL_FORCE_DIRECT_PROCESSING
 	{
