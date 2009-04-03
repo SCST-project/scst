@@ -1,6 +1,6 @@
-/* $Id: isp_ioctl.h,v 1.29 2008/09/12 22:24:31 mjacob Exp $ */
+/* $Id: isp_ioctl.h,v 1.30 2009/03/30 04:17:34 mjacob Exp $ */
 /*
- *  Copyright (c) 1997-2008 by Matthew Jacob
+ *  Copyright (c) 1997-2009 by Matthew Jacob
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without

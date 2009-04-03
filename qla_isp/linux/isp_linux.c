@@ -1,6 +1,6 @@
-/* $Id: isp_linux.c,v 1.241 2009/02/13 23:58:38 mjacob Exp $ */
+/* $Id: isp_linux.c,v 1.243 2009/04/03 04:56:00 mjacob Exp $ */
 /*
- *  Copyright (c) 1997-2008 by Matthew Jacob
+ *  Copyright (c) 1997-2009 by Matthew Jacob
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -157,6 +157,10 @@ isplinux_info(struct Scsi_Host *host)
         } else if (isp->isp_type == ISP_HA_FC_2400) {
             foo[25] = '4';
             foo[26] = '2';
+            foo[27] = '2';
+        } else if (isp->isp_type == ISP_HA_FC_2500) {
+            foo[25] = '5';
+            foo[26] = '3';
             foo[27] = '2';
         }
         return (foo);

@@ -1,6 +1,6 @@
-/* $Id: isp_pci.c,v 1.176 2009/02/13 23:58:38 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.179 2009/04/03 04:56:01 mjacob Exp $ */
 /*
- *  Copyright (c) 1997-2008 by Matthew Jacob
+ *  Copyright (c) 1997-2009 by Matthew Jacob
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -77,7 +77,7 @@ static int isp_pci_rd_isr(ispsoftc_t *, uint32_t *, uint16_t *, uint16_t *);
 #if !(defined(ISP_DISABLE_2300_SUPPORT) && defined(ISP_DISABLE_2322_SUPPORT))
 static int isp_pci_rd_isr_2300(ispsoftc_t *, uint32_t *, uint16_t *, uint16_t *);
 #endif
-#ifndef    ISP_DISABLE_2400_SUPPORT
+#if !defined(ISP_DISABLE_2400_SUPPORT)
 static uint32_t isp_pci_rd_reg_2400(ispsoftc_t *, int);
 static void isp_pci_wr_reg_2400(ispsoftc_t *, int, uint32_t);
 static int isp_pci_rd_isr_2400(ispsoftc_t *, uint32_t *, uint16_t *, uint16_t *);
@@ -118,6 +118,7 @@ static int isplinux_pci_exclude(struct pci_dev *);
 #define ISP_2300_RISC_CODE  NULL
 #define ISP_2322_RISC_CODE  NULL
 #define ISP_2400_RISC_CODE  NULL
+#define ISP_2500_RISC_CODE  NULL
 
 #if defined(DISABLE_FW_LOADER) || !(defined(CONFIG_FW_LOADER) || defined(CONFIG_FW_LOADER_MODULE))
 #ifndef    ISP_DISABLE_1020_SUPPORT
@@ -143,6 +144,7 @@ static int isplinux_pci_exclude(struct pci_dev *);
 #endif
 #ifndef    ISP_DISABLE_2400_SUPPORT
 #include "asm_2400.h"
+#include "asm_2500.h"
 #endif
 #endif
 
@@ -265,6 +267,18 @@ static struct ispmdvec mdvec_2400 = {
     NULL,
     ISP_2400_RISC_CODE
 };
+static struct ispmdvec mdvec_2500 = {
+    isp_pci_rd_isr_2400,
+    isp_pci_rd_reg_2400,
+    isp_pci_wr_reg_2400,
+    isp_pci_mbxdma,
+    isp_pci_dmasetup,
+    isp_pci_dmateardown,
+    isp_pci_reset0,
+    isp_pci_reset1,
+    NULL,
+    ISP_2500_RISC_CODE
+};
 #endif
 
 #ifndef    PCI_DEVICE_ID_QLOGIC_ISP1020
@@ -321,6 +335,10 @@ static struct ispmdvec mdvec_2400 = {
 
 #ifndef    PCI_DEVICE_ID_QLOGIC_ISP2432
 #define PCI_DEVICE_ID_QLOGIC_ISP2432    0x2432
+#endif
+
+#ifndef    PCI_DEVICE_ID_QLOGIC_ISP2532
+#define PCI_DEVICE_ID_QLOGIC_ISP2532    0x2532
 #endif
 
 #ifndef    PCI_DEVICE_ID_QLOGIC_ISP6312
@@ -600,6 +618,7 @@ isplinux_pci_init_one(struct Scsi_Host *host)
         break;
     case PCI_DEVICE_ID_QLOGIC_ISP2422:
     case PCI_DEVICE_ID_QLOGIC_ISP2432:
+    case PCI_DEVICE_ID_QLOGIC_ISP2532:
         isp->isp_port = PCI_FUNC(pdev->devfn);
         isp_pci->poff[MBOX_BLOCK >> _BLK_REG_SHFT] = PCI_MBOX_REGS2400_OFF;
         isp->isp_nchan += isp_vports;
@@ -611,7 +630,7 @@ isplinux_pci_init_one(struct Scsi_Host *host)
     }
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,7)
-    if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2422 || pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2432) {
+    if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2422 || pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2432 || pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2532) {
         struct msix_entry isp_msix[3];
         int reg;
 
@@ -810,6 +829,12 @@ isplinux_pci_init_one(struct Scsi_Host *host)
         if (isp->isp_mdvec->dv_ispfw == NULL)
             fwname = "ql2400_fw.bin";
     }
+    if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP2532) {
+        isp->isp_mdvec = &mdvec_2500;
+        isp->isp_type = ISP_HA_FC_2500;
+        if (isp->isp_mdvec->dv_ispfw == NULL)
+            fwname = "ql2500_fw.bin";
+    }
 #endif
     if (isp_pci->msix_enabled) {
         if (request_irq(isp_pci->msix_vector[0], isplinux_intr, 0, "isp_general", isp_pci)) {
@@ -872,12 +897,12 @@ isplinux_pci_init_one(struct Scsi_Host *host)
      */
 
     if (IS_1020(isp)) {
-        if (pci_set_dma_mask(pdev, (u64)(0xffffffull))) {
+        if (pci_set_dma_mask(pdev, DMA_BIT_MASK(24))) {
                 isp_prt(isp, ISP_LOGERR, "cannot set dma mask");
                 goto bad;
         }
-    } else if (pci_set_dma_mask(pdev, (u64) (0xffffffffffffffffull))) {
-        if (pci_set_dma_mask(pdev, (u64) (0xffffffffull))) {
+    } else if (pci_set_dma_mask(pdev, DMA_BIT_MASK(64))) {
+        if (pci_set_dma_mask(pdev, DMA_BIT_MASK(32))) {
             isp_prt(isp, ISP_LOGERR, "cannot set dma mask");
             goto bad;
         }
@@ -1047,7 +1072,7 @@ isp_pci_rd_isr(ispsoftc_t *isp, uint32_t *isrp, uint16_t *semap, uint16_t *mbp)
 }
 #endif
 
-#if !(defined(ISP_DISABLE_2300_SUPPORT) && defined(ISP_DISASBLE_2322_SUPPORT) && defined(ISP_DISABLE_2400_SUPPORT))
+#if !(defined(ISP_DISABLE_2300_SUPPORT) && defined(ISP_DISABLE_2322_SUPPORT) && defined(ISP_DISABLE_2400_SUPPORT))
 static __inline uint32_t
 ispregrd32(struct isp_pcisoftc *pcs, vm_offset_t offset)
 {
@@ -1125,7 +1150,7 @@ isp_pci_rd_isr_2300(ispsoftc_t *isp, uint32_t *isrp, uint16_t *semap, uint16_t *
 }
 #endif
 
-#ifndef ISP_DISABLE_2400_SUPPORT
+#if !defined(ISP_DISABLE_2400_SUPPORT)
 static __inline void
 ispregwr32(struct isp_pcisoftc *pcs, vm_offset_t offset, uint32_t val)
 {
@@ -1694,6 +1719,8 @@ isp_pci_dmasetup(ispsoftc_t *isp, Scsi_Cmnd *Cmnd, void *fqe)
             hp->rqs_entry_type = RQSTYPE_T3RQS;
         }
         break;
+    case RQSTYPE_T7RQS:
+        break;
     default:
         isp_prt(isp, ISP_LOGERR, "%s: unknwon type 0x%x", __func__, hp->rqs_entry_type);
         return (CMD_COMPLETE);
@@ -1975,6 +2002,7 @@ static struct pci_device_id isp_pci_tbl[] __devinitdata = {
 #ifndef    ISP_DISABLE_2400_SUPPORT
         { PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2422) },
         { PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2432) },
+        { PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2532) },
 #endif
         { 0, 0 }
 };

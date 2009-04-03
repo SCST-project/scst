@@ -1,6 +1,6 @@
-/* $Id: ispmbox.h,v 1.76 2009/02/01 23:49:49 mjacob Exp $ */
+/* $Id: ispmbox.h,v 1.78 2009/04/03 04:56:00 mjacob Exp $ */
 /*-
- *  Copyright (c) 1997-2008 by Matthew Jacob
+ *  Copyright (c) 1997-2009 by Matthew Jacob
  *  All rights reserved.
  * 
  *  Redistribution and use in source and binary forms, with or without
@@ -194,6 +194,7 @@
 #define		MBGSD_TWOGB	1
 #define		MBGSD_AUTO	2
 #define		MBGSD_FOURGB	3		/* 24XX only */
+#define		MBGSD_EIGHTGB	4		/* 25XX only */
 
 
 #define	ISP2100_SET_PCI_PARAM		0x00ff
@@ -1005,6 +1006,7 @@ typedef struct {
 #define	ICB2400_OPT3_RATE_TWOGB		0x00002000
 #define ICB2400_OPT3_RATE_AUTO		0x00004000
 #define	ICB2400_OPT3_RATE_FOURGB	0x00006000
+#define	ICB2400_OPT3_RATE_EIGHTGB	0x00008000
 #define	ICB2400_OPT3_ENA_OOF_XFRDY	0x00000200
 #define	ICB2400_OPT3_NO_LOCAL_PLOGI	0x00000080
 #define	ICB2400_OPT3_ENA_OOF		0x00000040

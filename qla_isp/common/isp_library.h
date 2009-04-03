@@ -1,6 +1,6 @@
-/* $Id: isp_library.h,v 1.29 2009/01/24 17:55:53 mjacob Exp $ */
+/* $Id: isp_library.h,v 1.31 2009/03/30 04:19:19 mjacob Exp $ */
 /*-
- *  Copyright (c) 1997-2008 by Matthew Jacob
+ *  Copyright (c) 1997-2009 by Matthew Jacob
  *  All rights reserved.
  * 
  *  Redistribution and use in source and binary forms, with or without

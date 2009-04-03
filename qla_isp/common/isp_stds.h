@@ -1,6 +1,6 @@
-/* $Id: isp_stds.h,v 1.15 2008/11/13 22:30:00 mjacob Exp $ */
+/* $Id: isp_stds.h,v 1.16 2009/03/30 04:19:19 mjacob Exp $ */
 /*-
- *  Copyright (c) 1997-2008 by Matthew Jacob
+ *  Copyright (c) 1997-2009 by Matthew Jacob
  *  All rights reserved.
  * 
  *  Redistribution and use in source and binary forms, with or without

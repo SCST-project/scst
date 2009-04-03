@@ -1,6 +1,6 @@
-/* $Id: isp.c,v 1.213 2009/02/01 23:49:48 mjacob Exp $ */
+/* $Id: isp.c,v 1.216 2009/04/03 04:56:00 mjacob Exp $ */
 /*-
- *  Copyright (c) 1997-2008 by Matthew Jacob
+ *  Copyright (c) 1997-2009 by Matthew Jacob
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -311,6 +311,9 @@ isp_reset(ispsoftc_t *isp)
 			break;
 		case ISP_HA_FC_2400:
 			btype = "2422";
+			break;
+		case ISP_HA_FC_2500:
+			btype = "2532";
 			break;
 		default:
 			break;
@@ -1005,6 +1008,9 @@ isp_reset(ispsoftc_t *isp)
 			mbs.param[3] = 0;
 		} else {
 			mbs.param[3] = 1;
+		}
+		if (IS_25XX(isp)) {
+			mbs.ibits |= 0x10;
 		}
 	} else if (IS_2322(isp)) {
 		mbs.param[1] = code_org;
@@ -1805,7 +1811,7 @@ isp_fibre_init_2400(ispsoftc_t *isp)
 		}
 	}
 	if (chan == isp->isp_nchan) {
-		isp_prt(isp, ISP_LOGDEBUG0, "all channels with role 'none'");
+		isp_prt(isp, ISP_LOGDEBUG0, "all %d channels with role 'none'", chan);
 		isp->isp_state = ISP_INITSTATE;
 		return;
 	}
@@ -2810,7 +2816,11 @@ not_on_fabric:
 		/* mbs.param[2] undefined if we're just getting rate */
 		isp_mboxcmd(isp, &mbs);
 		if (mbs.param[0] == MBOX_COMMAND_COMPLETE) {
-			if (mbs.param[1] == MBGSD_FOURGB) {
+			if (mbs.param[1] == MBGSD_EIGHTGB) {
+				isp_prt(isp, ISP_LOGINFO,
+				    "Chan %d 8Gb link speed", chan);
+				fcp->isp_gbspeed = 8;
+			} else if (mbs.param[1] == MBGSD_FOURGB) {
 				isp_prt(isp, ISP_LOGINFO,
 				    "Chan %d 4Gb link speed", chan);
 				fcp->isp_gbspeed = 4;
@@ -7845,7 +7855,7 @@ isp_reinit(ispsoftc_t *isp)
 	isp_reset(isp);
 
 	if (isp->isp_state != ISP_RESETSTATE) {
-		isp_prt(isp, ISP_LOGERR, "isp_reinit cannot reset card");
+		isp_prt(isp, ISP_LOGERR, "%s: cannot reset card", __func__);
 		ISP_DISABLE_INTS(isp);
 		goto cleanup;
 	}
@@ -7858,7 +7868,7 @@ isp_reinit(ispsoftc_t *isp)
 
 	if (isp->isp_state != ISP_RUNSTATE) {
 #ifndef	ISP_TARGET_MODE
-		isp_prt(isp, ISP_LOGINFO, "isp_reinit: not at runstate");
+		isp_prt(isp, ISP_LOGWARN, "%s: not at runstate", __func__);
 #endif
 		ISP_DISABLE_INTS(isp);
 		if (IS_FC(isp)) {
@@ -8101,9 +8111,12 @@ static void
 isp_rd_2400_nvram(ispsoftc_t *isp, uint32_t addr, uint32_t *rp)
 {
 	int loops = 0;
-	const uint32_t base = 0x7ffe0000;
+	uint32_t base = 0x7ffe0000;
 	uint32_t tmp = 0;
 
+	if (IS_25XX(isp)) {
+		base = 0x7ff00000 | 0x48000;
+	}
 	ISP_WRITE(isp, BIU2400_FLASH_ADDR, base | addr);
 	for (loops = 0; loops < 5000; loops++) {
 		ISP_DELAY(10);
@@ -8426,16 +8439,6 @@ isp_parse_nvram_2100(ispsoftc_t *isp, uint8_t *nvram_data)
 	}
 	fcp->isp_wwnn_nvram = wwn;
 
-#if	0
-	/*
-	 * Do some obvious fixups here.
-	 */
-	if (fcp->isp_wwnn_nvram == 0 && (fcp->isp_wwpn_nvram >> 60) == 2) {
-		fcp->isp_wwnn_nvram = fcp->isp_wwpn_nvram;
-		fcp->isp_wwnn_nvram &= ~0x0fff000000000000ULL;
-	}
-#endif
-
 	fcp->isp_maxalloc = ISP2100_NVRAM_MAXIOCBALLOCATION(nvram_data);
 	if ((isp->isp_confopts & ISP_CFG_OWNFSZ) == 0) {
 		DEFAULT_FRAMESIZE(isp) =
@@ -8509,17 +8512,6 @@ isp_parse_nvram_2400(ispsoftc_t *isp, uint8_t *nvram_data)
 		}
 	}
 	fcp->isp_wwnn_nvram = wwn;
-
-#if	0
-	/*
-	 * Do some obvious fixups here.
-	 */
-	if (fcp->isp_wwnn_nvram == 0 && (fcp->isp_wwpn_nvram >> 60) == 2) {
-		fcp->isp_wwnn_nvram = fcp->isp_wwpn_nvram;
-		fcp->isp_wwnn_nvram &= ~0x0fff000000000000ULL;
-	}
-#endif
-
 
 	if (ISP2400_NVRAM_EXCHANGE_COUNT(nvram_data)) {
 		fcp->isp_maxalloc = ISP2400_NVRAM_EXCHANGE_COUNT(nvram_data);

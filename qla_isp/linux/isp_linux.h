@@ -1,6 +1,6 @@
-/* $Id: isp_linux.h,v 1.169 2009/02/13 23:58:38 mjacob Exp $ */
+/* $Id: isp_linux.h,v 1.171 2009/03/30 04:17:25 mjacob Exp $ */
 /*
- *  Copyright (c) 1997-2008 by Matthew Jacob
+ *  Copyright (c) 1997-2009 by Matthew Jacob
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without

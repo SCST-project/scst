@@ -1,6 +1,6 @@
-/* $Id: ispvar.h,v 1.104 2009/02/13 23:58:38 mjacob Exp $ */
+/* $Id: ispvar.h,v 1.107 2009/04/03 04:56:00 mjacob Exp $ */
 /*-
- *  Copyright (c) 1997-2008 by Matthew Jacob
+ *  Copyright (c) 1997-2009 by Matthew Jacob
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -417,7 +417,8 @@ typedef struct {
  */
 
 typedef struct {
-	uint32_t				: 11,
+	uint32_t
+				link_active	: 1,
 				npiv_fabric	: 1,
 				inorder		: 1,
 				sendmarker	: 1,
@@ -738,6 +739,7 @@ struct ispsoftc {
 #define	ISP_HA_FC_2312		0x40
 #define	ISP_HA_FC_2322		0x50
 #define	ISP_HA_FC_2400		0x60
+#define	ISP_HA_FC_2500		0x70
 
 #define	IS_SCSI(isp)	(isp->isp_type & ISP_HA_SCSI)
 #define	IS_1020(isp)	(isp->isp_type < ISP_HA_SCSI_1240)
@@ -762,6 +764,7 @@ struct ispsoftc {
 #define	IS_2312(isp)	((isp)->isp_type == ISP_HA_FC_2312)
 #define	IS_2322(isp)	((isp)->isp_type == ISP_HA_FC_2322)
 #define	IS_24XX(isp)	((isp)->isp_type >= ISP_HA_FC_2400)
+#define	IS_25XX(isp)	((isp)->isp_type >= ISP_HA_FC_2500)
 
 /*
  * DMA related macros
