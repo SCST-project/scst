@@ -652,6 +652,8 @@ int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
 		break;
 
 	default:
+		PRINT_CRIT_ERROR("Wrong cmd state %d (cmd %p, op %x)",
+			cmd->state, cmd, cmd->cdb[0]);
 		sBUG();
 	}
 
@@ -666,12 +668,11 @@ void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 
 #ifdef CONFIG_SCST_EXTRACHECKS
 	switch (cmd->state) {
-	case SCST_CMD_STATE_PRE_XMIT_RESP:
 	case SCST_CMD_STATE_XMIT_RESP:
 	case SCST_CMD_STATE_FINISHED:
 	case SCST_CMD_STATE_FINISHED_INTERNAL:
 	case SCST_CMD_STATE_XMIT_WAIT:
-		PRINT_CRIT_ERROR("Wrong cmd state %x (cmd %p, op %x)",
+		PRINT_CRIT_ERROR("Wrong cmd state %d (cmd %p, op %x)",
 			cmd->state, cmd, cmd->cdb[0]);
 		sBUG();
 	}

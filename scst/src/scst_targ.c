@@ -1097,7 +1097,7 @@ void scst_rx_data(struct scst_cmd *cmd, int status,
 	switch (status) {
 	case SCST_RX_STATUS_SUCCESS:
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-		if (cmd->tgt_sg) {
+		if ((trace_flag & TRACE_RCV_BOT) && (cmd->tgt_sg != NULL)) {
 			int i;
 			struct scatterlist *sg = cmd->tgt_sg;
 			TRACE_RECV_BOT("RX data for cmd %p "
@@ -1355,7 +1355,7 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state,
 
 #if defined(CONFIG_SCST_DEBUG)
 	if (next_state == SCST_CMD_STATE_PRE_DEV_DONE) {
-		if (cmd->sg) {
+		if ((trace_flag & TRACE_RCV_TOP) && (cmd->sg != NULL)) {
 			int i;
 			struct scatterlist *sg = cmd->sg;
 			TRACE_RECV_TOP("Exec'd %d S/G(s) at %p sg[0].page at "
@@ -2883,7 +2883,7 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 		TRACE_DBG("Calling xmit_response(%p)", cmd);
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-		if (cmd->tgt_sg) {
+		if ((trace_flag & TRACE_SND_BOT) && (cmd->tgt_sg != NULL)) {
 			int i;
 			struct scatterlist *sg = cmd->tgt_sg;
 			TRACE(TRACE_SND_BOT, "Xmitting data for cmd %p "
