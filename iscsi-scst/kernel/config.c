@@ -265,7 +265,7 @@ static int del_conn(struct iscsi_target *target, void __user *ptr)
 	return conn_del(session, &info);
 }
 
-/* target_mutex supposed to be locked */
+/* target_mgmt_mutex supposed to be locked */
 static int add_session(struct iscsi_target *target, void __user *ptr)
 {
 	int err;
@@ -419,6 +419,9 @@ static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case ADD_TARGET:
 		err = add_target((void __user *) arg);
 		goto out_unlock;
+	case ADD_SESSION:
+		err = add_session(target, (void __user *) arg);
+		goto out_unlock;
 	}
 
 	if (!target) {
@@ -430,10 +433,6 @@ static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	mutex_lock(&target->target_mutex);
 
 	switch (cmd) {
-	case ADD_SESSION:
-		err = add_session(target, (void __user *) arg);
-		break;
-
 	case DEL_SESSION:
 		err = del_session(target, (void __user *) arg);
 		break;
