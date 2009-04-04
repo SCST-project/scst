@@ -22,10 +22,59 @@
 #
 ############################################################################
 
-device="$1"
-log2_io_size=31       # 2 GB
+#########################
+# Function definitions  #
+#########################
+
+function usage {
+  echo "Usage: $0 [-a] [-d] [-n] [-s <l2s>] <dev>"
+  echo "        -a - use asynchronous (buffered) I/O."
+  echo "        -d - use direct (non-buffered) I/O."
+  echo "        -n - do not verify the data on <dev> before overwriting it."
+  echo "        -s - logarithm base two of the I/O size."
+  echo "        <dev> - block device to run the I/O performance test on."
+}
+
+
+#########################
+# Default settings      #
+#########################
+
+log2_io_size=30       # 1 GB
 log2_min_blocksize=12 # 4096 bytes
 log2_max_blocksize=26 # 64 MB
+iotype=direct
+verify_device_data=true
+
+
+#########################
+# Argument processing   #
+#########################
+
+set -- $(/usr/bin/getopt "adns:" "$@")
+while [ "$1" != "${1#-}" ]
+do
+  case "$1" in
+    '-a') iotype="buffered"; shift;;
+    '-d') iotype="direct"; shift;;
+    '-n') verify_device_data="false"; shift;;
+    '-s') log2_io_size="$2"; shift; shift;;
+    '--') shift;;
+    *)    usage; exit 1;;
+  esac
+done
+
+if [ "$#" != 1 ]; then
+  usage
+  exit 1
+fi
+
+device="$1"
+
+
+####################
+# Performance test #
+####################
 
 if [ ! -e "${device}" ]; then
   echo "Error: device ${device} does not exist."
@@ -37,26 +86,41 @@ if [ ! -w "${device}" ]; then
   exit 1
 fi
 
-if ! cmp -s -n $((2**log2_io_size)) "${device}" /dev/zero; then
+if [ "${verify_device_data}" = "true" ] \
+   && ! cmp -s -n $((2**log2_io_size)) "${device}" /dev/zero
+then
   echo "Error: device ${device} still contains data."
   exit 1
 fi
 
+if [ "${iotype}" = "direct" ]; then
+  dd_oflags="oflag=direct"
+  dd_iflags="iflag=direct"
+else
+  dd_oflags="oflag=sync"
+  dd_iflags=""
+fi
+
 printf "%9s %8s %8s %8s %8s %8s %8s\n" blocksize W W W R R R
 
-for ((log2_blocksize = log2_max_blocksize; log2_blocksize >= log2_min_blocksize; log2_blocksize--))
+for ((log2_blocksize = log2_max_blocksize;
+      log2_blocksize >= log2_min_blocksize;
+      log2_blocksize--))
 do
   bs=$((2**log2_blocksize))
+  count=$((2**(log2_io_size - log2_blocksize)))
   printf "%9d " ${bs}
   for ((i=0;i<3;i++))
   do
-    elapsed="$(dd if=/dev/zero of="${device}" bs=${bs} oflag=direct 2>&1 \
+    elapsed="$(dd if=/dev/zero of="${device}" bs=${bs} count=${count} \
+                  ${dd_oflags} 2>&1 \
                | sed -n 's/.* \([0-9.]*\) s,.*/\1/p')"
     printf "%8s " "${elapsed}"
   done
   for ((i=0;i<3;i++))
   do
-    elapsed="$(dd if="${device}" of=/dev/null bs=${bs} iflag=direct 2>&1 \
+    elapsed="$(dd if="${device}" of=/dev/null bs=${bs} count=${count} \
+                  ${dd_iflags} 2>&1 \
                | sed -n 's/.* \([0-9.]*\) s,.*/\1/p')"
     printf "%8s " "${elapsed}"
   done
