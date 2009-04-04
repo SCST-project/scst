@@ -28,9 +28,9 @@
 #   compiles the SCST source code.
 # - Duplicates the entire source tree to the temporary directory, applies
 #   the full-perf patches and again compiles the SCST source code.
-# - Checks whether the kernel version specified through option -k is present
+# - Checks whether the specified kernel version is present
 #   in the directory specified through option -c.
-# - If the source code of the kernel specified through -k is not present,
+# - If the source code of the specified kernel version is not present,
 #   download it.
 # - Convert the SCST source code into a kernel patch.
 # - Extract the kernel sources.
@@ -55,14 +55,14 @@
 ########################
 
 function usage {
-  echo "Usage: $0 [-c] [-d] [-f] [-h] [-j] [-k <kver1>] [-k <kver2>] ..."
+  echo "Usage: $0 [-c] [-d] [-f] [-h] [-j] <kver1> <kver2> ..."
   echo "        -c - cache directory for Linux kernel tarballs."
   echo "        -d - directory for temporary regression test files."
   echo "        -f - full check -- do not only compile SCST but the whole" \
        "kernel tree."
   echo "        -h - display this help information."
   echo "        -j - number of jobs that 'make' should run simultaneously."
-  echo "        -k <kver> - kernel version to use during test."
+  echo "        <kver1> <kver2> ... - kernel versions to test."
 }
 
 # First three components of the kernel version number.
@@ -446,7 +446,7 @@ mpt_scst="false"
 qla2x00t="false"
 scst_local="true"
 
-set -- $(/usr/bin/getopt "c:d:fj:hk:" "$@")
+set -- $(/usr/bin/getopt "c:d:fj:h" "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
@@ -455,27 +455,24 @@ do
     '-f') full_check="true"; shift;;
     '-h') usage; exit 1;;
     '-j') export MAKEFLAGS="-j$2"; shift; shift;;
-    '-k') kernel_versions="${kernel_versions} $2"; shift; shift;;
     '--') shift;;
     *)    usage; exit 1;;
   esac
 done
 
-if [ $# != 0 ]; then
+kernel_versions="$*"
+
+# RHEL 4.x / CentOS 4.x has a kernel based on version 2.6.9.
+# RHEL 5.x / CentOS 5.x has a kernel based on version 2.6.18.
+# Ubuntu 8.04 (Hardy Heron) has a kernel based on version 2.6.24.
+# Ubuntu 8.10 (Intrepid Ibex) has a kernel based on version 2.6.27.
+# openSUSE 11.0 has a kernel based on version 2.6.25.
+# openSUSE 11.1 has a kernel based on version 2.6.27.
+#kernel_versions="2.6.23.17 2.6.24.7 2.6.25.20 2.6.26.8 2.6.27.21 2.6.28.9 2.6.29.1"
+
+if [ "${kernel_versions}" = "" ]; then
   usage
   exit 1
-fi
-
-# Default kernel versions to use for the test.
-if [ "${kernel_versions}" = "" ]; then
-  # RHEL 4.x / CentOS 4.x has a kernel based on version 2.6.9.
-  # RHEL 5.x / CentOS 5.x has a kernel based on version 2.6.18.
-  # Ubuntu 8.04 (Hardy Heron) has a kernel based on version 2.6.24.
-  # Ubuntu 8.10 (Intrepid Ibex) has a kernel based on version 2.6.27.
-  # openSUSE 11.0 has a kernel based on version 2.6.25.
-  # openSUSE 11.1 has a kernel based on version 2.6.27.
-  #kernel_versions="2.6.24.7 2.6.25.20 2.6.26.8 2.6.27.20 2.6.28.8 2.6.29"
-  kernel_versions="2.6.28.8"
 fi
 
 
