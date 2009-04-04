@@ -1,0 +1,344 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta name="Keywords" content="Generic SCSI Target Middle Level for Linux" />
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+<meta name="author" content="Daniel Fernandes"/>
+<meta name="Robots" content="index,follow" />
+<link rel="stylesheet" href="images/Orange.css" type="text/css" />	
+<title>SCST: Generic SCSI Target Middle Level for Linux</title>
+</head>
+
+<body>
+<!-- wrap starts here -->
+<div id="wrap"> 
+	<div id="header">	
+		<div class="logoimg"></div><h1 id="logo"><span class="orange"></span></h1>
+		<h2 id="slogan">SCSI Target Middle Level for Linux</h2>	
+	</div>		
+		
+	<div id="menu">
+		<ul>
+			<li id="sponsorship"><a href="sponsorship.html">Sponsorship</a></li>
+			<li><a href="index.html">Home</a></li>
+			<li><a href="http://www.sourceforge.net/projects/scst">Main</a></li>
+			<li><a href="targets.html">Drivers</a></li>
+			<li><a href="downloads.html">Downloads</a></li>
+			<li><a href="contributing.html">Contributing</a></li>
+			<li id="current"><a href="comparison.html">Comparison</a></li>		
+		</ul>
+	</div>
+	
+	<!-- content-wrap starts here -->	
+	<div id="content-wrap">  
+			<div id="sidebar">
+				<h1>Target Drivers</h1>
+				<ul class="sidemenu">
+					<li><a href="comparison.html">Features comparison</a></li>
+					<li><a href="scstvsstgt.html">SCST vs STGT</a></li>
+				</ul>
+			</div>		
+	
+			<div id="main">
+				<h1>Features comparison between Linux SCSI targets</h1>
+
+				<p><small>As on April 2009</small></p>
+
+<table bgcolor="#F0F0F0" border="1" cols="5" cellspacing="1" cellpadding="7" style="text-align:center" width="620">
+
+<tr>
+<th>
+</th><th> <a href="http://scst.sourceforge.net/" title="http://scst.sourceforge.net/" rel="nofollow">SCST</a>
+</th><th> <a href="http://stgt.berlios.de/" title="http://stgt.berlios.de/" rel="nofollow">STGT</a>
+</th><th> <a href="http://iscsitarget.sourceforge.net/" title="http://iscsitarget.sourceforge.net/" rel="nofollow">IET</a>
+</th><th> <a href="http://linux-iscsi.org/" title="http://linux-iscsi.org/" rel="nofollow">LIO v3.0</a>
+</th></tr>
+
+<tr bgcolor="#E0E0E0">
+<td colspan="5"> <b>General</b>
+</td></tr>
+<tr>
+<th align="left"> Upstream kernel</th>					<td> - </td>		<td> Kernel part </td>	<td> - </td>		<td> - </td>		
+</tr>                                                                                                                           
+<tr>                                                                                                                            
+<th align="left"> Generic Target Engine </th>				<td> + </td>		<td> + </td>		<td> iSCSI only </td>	<td> Under development </td>		
+</tr>
+<tr>                                                                                            
+<th align="left"> Architecture </th>					<td> Kernel only</td>	<td> User space only
+												<sup><A HREF="#1">1</A>	
+												</sup> </td>		<td> Split <sup>
+															<A HREF="#2">2</A>
+															</sup> </td>		<td> Kernel only </td>
+</tr>                                                                                                                           
+<tr>                                                                                                                           
+<th align="left"> Stability </th>					<td> + </td>		<td> + </td>		<td> + </td>		<td> Heavy development </td>
+</tr>                                                                                                                           
+<tr>                                                                                                                           
+<th align="left"> Performance </th>					<td> ***** </td>	<td> ***</td>		<td> **** </td>		<td> ****
+																		<sup><A HREF="#3">3</A></sup></td>
+</tr>                                                                                                                           
+<tr>                                                                                                                           
+<th align="left"> Zero-Copy </th>					<td> **** </td>		<td> *** 
+												<sup><A HREF="#4">4</A>	
+												</sup> </td>		<td> **** </td>		<td> **** </td>		
+</tr>
+<tr>                                                                                            
+<th align="left"> Support for transports without expecting
+transfer values (parallel SCSI, SAS) </th>				<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+</tr>                                                                                                                           
+<tr>                                                                                                                            
+<th align="left"> User Interface </th>					<td> ProcFS </td>	<td> Custom </td>	<td> IOCTL/ProcFS </td>	<td> ConfigFS/IOCTL </td>
+</tr>                                                                                                                           
+
+                                                                                                
+<tr bgcolor="#E0E0E0">                                                                                                          
+<td colspan="5"> <b>Major features</b>                                                                                          
+</td></tr>
+<tr>                                                                                            
+<th align="left"> Target drivers in kernel space </th>			<td> + </td>		<td> + </td>		<td> - </td>		<td> Under development </td>
+</tr>
+<tr>                                                                                            
+<th align="left"> Target drivers in user space </th>			<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
+</tr>
+<tr>                                                                                            
+<th align="left"> Backstorage handlers in kernel space </th>		<td> + </td>		<td> - </td>		<td> - </td>		<td> + </td>
+</tr>                                                                                                                           
+<tr>                                                                                            
+<th align="left"> Backstorage handlers in user space </th>		<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
+</tr>                                                                                           
+<tr>                                                                                            
+<th align="left"> Local access to emulated backstorage devices</th>	<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+</tr>
+<tr>                                                                                            
+<th align="left"> Advanced devices visibility management </th>		<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+</tr>
+<tr>                                                                                            
+<th align="left"> Support for Asynchronous Event Notifications
+(AEN) </th>								<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+</tr>
+<tr>                                                                                            
+<th align="left"> AEN for devices added/removed</th>			<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+</tr>
+<tr>                                                                                            
+<th align="left"> AEN for devices resized</th>				<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+</tr>
+<tr>                                                                                                                            
+<th align="left"> Bidirectional Commands </th>				<td> + <sup>
+									<A HREF="#5">5</A>
+									</sup></td>		<td> + </td>		<td> - </td>		<td> - </td>
+</tr>
+<tr>                                                                                            
+<th align="left"> Extended CDB (size >16 bytes) </th>			<td> + <sup>
+									<A HREF="#5">5</A>
+									</sup></td>		<td> + </td>		<td> - </td>		<td> - </td>
+</tr>
+<tr>                                                                                            
+<th align="left"> Descriptor sense support </th>			<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
+</tr>
+<th align="left"> RESERVE/RELEASE                                                                                                       
+<small> (Windows 2003 clustering) </small></th>				<td> + </td>		<td> + </td>		<td> + </td>		<td> + </td>
+</tr>
+<th align="left"> Safe RESERVE/RELEASE implementation according to
+SCSI requirements <sup><A HREF="#6">6</A></sup></th>			<td> Safe </td>		<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>
+</tr>
+<th align="left"> Safe implementation of Task Management commands 
+<sup><A HREF="#7">7</A></sup></th>					<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>	<td> Not safe </td>
+</tr>
+<tr>                                                                                                                            
+<th align="left"> Persistent Reservations <br/>
+<small> (Windows 2008 clustering)</small></th>				<td> - </td>		<td> - </td>		<td> - </td>		<td> Under development </td>		
+</tr>                                                                                                                           
+<tr>                                                                                            
+<th align="left"> ALUA </th>						<td> - </td>		<td> - </td>		<td> - </td>		<td> Under development </td>		
+</tr>                                                                                           
+<tr>                                                                                                                            
+<th align="left"> Failover Clustering </th>				<td> + </td>		<td> ? </td>		<td> + </td>		<td> + </td>		
+</tr>                                                                                                                           
+<tr>                                                                                                                            
+<th align="left"> SCSI MIBs </th>					<td> - </td>		<td> - </td>		<td> - </td>		<td> + </td>		
+</tr>                                                                                                                           
+<tr>                                                                                                                            
+<th align="left"> Cluster Storage Integration </th>			<td> - </td>		<td> - </td>		<td> - </td>		<td> VHACS </td>	
+</tr>                                                                                                                           
+                                                                                                
+                                                                                                
+<tr bgcolor="#E0E0E0">                                                                                                          
+<td colspan="5"> <b>Supported SCSI transports</b>                                                                                          
+</td></tr>                                                                                                                      
+<tr>                                                                                                                            
+<th align="left"> iSCSI </th>						<td> + </td>		<td> + </td>		<td> + </td>		<td> + </td>
+</tr>                                                                                                                           
+<tr>                                                                                            
+<th align="left"> Fibre Channel </th>					<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+</tr>
+<tr>                                                                                                                           
+<th align="left"> SRP </th>						<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+</tr>                                                                                                                           
+<tr>                                                                                                                            
+<th align="left"> iSER </th>						<td> - </td>		<td> + </td>		<td> - </td>		<td> - </td>		
+</tr>                                                                                                                           
+<tr>                                                                                                                            
+<th align="left"> Parallel (Wide) SCSI </th>				<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+</tr>
+<tr>                                                                                                                            
+<th align="left"> SAS </th>						<td> Under
+									 development </td>	<td> - </td>		<td> - </td>		<td> - </td>		
+</tr>
+<tr>                                                                                                                            
+<th align="left"> FCoE </th>						<td> Under
+									 development </td>	<td>Under
+									 			 development</<td>	<td> - </td>		<td> - </td>	
+</tr>                                                                                                                                                 
+<tr>                                                                                            
+<th align="left"> IBM pSeries Virtual SCSI </th>			<td> - </td>		<td> + </td>		<td> - </td>		<td> - </td>
+</tr>                                                                                     
+                                                                                                
+<tr bgcolor="#E0E0E0">                                                                                                          
+<td colspan="5"> <b>Supported backstorage</b>                                                   
+</td></tr>
+<tr>                                                                                            
+<th align="left"> Kernel side FILEIO </th>				<td> + </td>		<td> - </td>		<td> + </td>		<td> + </td>
+</tr>
+<tr>                                                                                            
+<th align="left"> Kernel side BLOCKIO </th>				<td> + </td>		<td> - </td>		<td> + </td>		<td> + </td>		
+</tr>
+<tr>                                                                                            
+<th align="left"> User space side FILEIO </th>				<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
+</tr>
+<tr>                                                                                            
+<th align="left"> SCSI Pass-through </th>				<td> + </td>		<td> - </td>		<td> - </td>		<td> Single initiator only, not enforced 
+																		<sup><A HREF="#8">8</A></sup></td>
+</tr>                                                                                           
+<tr>                                                                                                                            
+<th align="left"> 4k sectors support in pass-through mode </th>		<td> + </td>		<td> - </td>		<td> - </td>		<td> ? </td>
+</tr>                                                                                                                           
+<tr>                                                                                                                            
+<th align="left"> 4k, 2k, 1k and 512 byte sectors emulation
+in modes, other than pass-through </th>					<td> + </td>		<td> - </td>		<td> - </td>		<td> + </td>		
+</tr>
+<tr>                                                                                            
+<th align="left"> CDROM emulation from ISO files </th>			<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
+</tr>
+                                                                                                
+<tr bgcolor="#E0E0E0">                                                                                                          
+<td colspan="5"> <b>iSCSI Target</b>                                                                                            
+</td></tr>
+<tr>                                                                                            
+<th align="left"> Architecture </th>					<td> Split <sup>
+									<A HREF="#2">2</A>
+									</sup> </td>		<td> User space 
+												only </td>		<td> Split <sup>
+															<A HREF="#2">2</A>
+															</sup></td>		<td> Kernel only </td>
+</tr>
+<tr>                                                                                                                            
+<th align="left"> MC/S </th>						<td> - </td>		<td> - </td>		<td> - </td>		<td> + </td>
+</tr>                                                                                                                           
+<tr>                                                                                                                            
+<th align="left"> Max ErrorRecoveryLevel </th>				<td> 0 </td>		<td> 0 </td>		<td> 0 </td>		<td> 2 </td>		
+</tr>                                                                                                                           
+<tr>                                                                                                                            
+<th align="left"> Bidirectional Commands </th>				<td> + <sup>
+									<A HREF="#5">5</A>
+									</sup></td>		<td> + </td>		<td> - </td>		<td> - </td>
+</tr>
+<tr>                                                                                            
+<th align="left"> Extended CDB (size >16 bytes) </th>			<td> + <sup>
+									<A HREF="#5">5</A>
+									</sup></td>		<td> + </td>		<td> - </td>		<td> - </td>
+</tr>
+<tr>                                                                                            
+<th align="left"> Support for Asynchronous Event Notifications
+(AEN) </th>								<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+</tr>                                                                                                                           
+<th align="left"> Safe implementation of connections and sessions
+reinstatement <sup><A HREF="#9">9</A></sup></th>			<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>	<td> Not safe </td>
+</tr>
+<tr>                                                                                                                            
+<th align="left"> iSCSI MIBs </th>					<td> - </td>		<td> - </td>		<td> - </td>		<td> - 
+																		<sup><A HREF="#10">10</A></sup></td>
+</tr>                                                                                                                           
+</table>
+
+<br/>
+<p><strong><big><u>REMARKS:</u></big></strong></p>
+
+<p><A NAME="1"></A> 1. STGT has SCSI target engine in user space and small hooks in the kernel to interact with in-kernel target drivers.</p>
+
+<p><A NAME="2"></A> 2. All iSCSI management implemented in user space and actual data transfers in kernel space without user space involved.</p>
+
+<p><A NAME="3"></A> 3. The conclusion made by source code study only. LIO should have performance
+		       on the IET level or slightly less, because of more processing overhead. </p>
+
+<p><A NAME="4"></A> 4. Some zero-copy functionality isn't available from user space. For instance, zero-copy send to a socket.</p>
+
+<p><A NAME="5"></A> 5. Not well tested, because at the moment there is no backend using this functionality.</p>
+
+<p><A NAME="6"></A> 6. SCSI requires that if an initiator clears reservation held by another initiator, the reservation holder must be notified
+		       about the reservation clearance. Otherwise, several initiators can at the same time change supposed to be protected by the
+		       reservation data, which can corrupt them.</p>
+
+<p><A NAME="7"></A> 7. After a task management command completed and corresponding response was sent to initiator, who sent that task management
+		       command, all the affected SCSI commands must get into a state, where they can't affect following after
+		       the tasks management response commands from this initiator. This is the safe implementation.
+		       The unsafe implementation only marks all the affected
+		       SCSI commands as aborted and then immediately send task management response to the initiator. This implementation only
+		       guarantees that the initiator will never receive responses from those commands, but it doesn't
+		       guarantee that none of those commands will get executed by backstorage <strong>*AFTER*</strong> any
+		       SCSI command, which initiator will send after it received the task management response thinking
+		       that all the aborted commands actually fully aborted. This could lead to a data corruption.</p>
+
+<p><A NAME="8"></A> 8. LIO doesn't emulate all the necessary SCSI host functionality to allow to share a SCSI device
+		       in pass-through mode to several initiators. It can only pass SCSI commands from initiator to
+		       the SCSI device. This is safe only if there is only one initiator. This limitation
+		       isn't enforced anyhow by LIO. You can find more technical information about that in
+		       <a href="http://www.mail-archive.com/linux-scsi@vger.kernel.org/msg06911.html">
+		       	http://www.mail-archive.com/linux-scsi@vger.kernel.org/msg06911.html</a></p>
+
+<p><A NAME="5"></A> 9. Connections and sessions reinstatement is, basically, a kind of Task Management command.
+		       For instance, open-iscsi uses it as such in eh_target_reset_handler() callback. So, similarly
+		       to <A HREF="#7">(7)</A> above, a safe implementation
+		       must not accept SCSI commands from new connection/session until all the SCSI commands in
+		       being reinstated connection/session get into a state, where they can't affect the new commands.</p>
+
+<p><A NAME="10"></A> 10. SCSI-MIB (RFC 4455) - not supported;
+			SBE-SCSI-MIB - supported by LIO v2.6, not supported by LIO v3.0;
+			SBE-ISCSI-MIB - supported by LIO v2.6, not supported by LIO v3.0;
+			SBE-IPS-AUTH-MIB - supported by LIO v2.6, not supported by LIO v3.0
+		
+</p>
+
+<br/>
+<hr style="width: 100%; height: 1px; margin-left: 15px; margin-right: 0px;">
+<br/>
+
+<p><strong>P.S.</strong> LIO has similar comparison
+<a href="http://www.linux-iscsi.org/index.php/Overview_Page">page</a>. It is very much 
+wrong about SCST. I asked that page author, Nicholas Bellinger, to 
+correct the wrong items (see <a href="http://sourceforge.net/mailarchive/forum.php?thread_name=49AECE0B.5030009%40vlnb.net&forum_name=scst-devel">my e-mail</a>), 
+but Nicholas Bellinger refused to do it. Moreover, he blocked my access 
+to the LIO mailing list, preventing me from tell that to the interested 
+people myself. After all our previous discussions and with his skills 
+and experience I can't believe that Nicholas Bellinger doesn't know that 
+SCST is a lot more generic than LIO and has zero-copy in all the same 
+places, where LIO has. So, that comparison page looks like rather a 
+deliberate cheating attempt. Definitely, SCST in all major 
+technical areas is so much superior over LIO, so Nicholas Bellinger started 
+attacking people's perception about SCST trying to inspire them the 
+opposite.</strong></p>
+
+	  		</div> 
+	</div>
+</div>		
+<!-- wrap ends here -->
+<!-- footer starts here -->		
+		<div id="footer">
+			<p>
+			&copy; Copyright 2008 <b><font color="#EC981F">Vladislav Bolkhovitin & others.</font>&nbsp;&nbsp;
+			Design by: <b><font color="#EC981F">Daniel Fernandes</font></b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;		
+			
+			</p>		
+		</div>	
+<!-- footer ends here -->
+</body>
+</html>
