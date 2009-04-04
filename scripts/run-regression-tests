@@ -480,6 +480,10 @@ fi
 # Regression tests #
 ####################
 
+if [ "$(type -p sparse)" = "" ]; then
+  echo "Error: sparse has not yet been installed."
+fi
+
 if ! mkdir -p "${outputdir}"; then
   if [ -e "${outputdir}" ]; then
     echo "Error: directory ${outputdir} already exists."
