@@ -126,34 +126,14 @@ void sess_enable_reinstated_sess(struct iscsi_session *sess)
 	return;
 }
 
-/* target_mutex supposed to be locked */
-static void session_reinstate(struct iscsi_session *old_sess,
-	struct iscsi_session *new_sess)
-{
-	TRACE_ENTRY();
-
-	TRACE_MGMT_DBG("Reinstating sess %p with SID %llx (old %p, SID %llx)",
-		new_sess, new_sess->sid, old_sess, old_sess->sid);
-
-	new_sess->sess_reinstating = 1;
-	old_sess->sess_reinst_successor = new_sess;
-
-	scst_set_initial_UA(new_sess->scst_sess,
-		SCST_LOAD_SENSE(scst_sense_nexus_loss_UA));
-
-	target_del_session(old_sess->target, old_sess, 0);
-
-	TRACE_EXIT();
-	return;
-}
-
 /* target_mgmt_mutex supposed to be locked */
 int session_add(struct iscsi_target *target,
 	struct iscsi_kern_session_info *info)
 {
-	struct iscsi_session *new_sess, *session, *old_sess;
+	struct iscsi_session *new_sess, *sess, *old_sess;
 	int err = 0;
 	union iscsi_sid sid;
+	bool reinstatement = false;
 
 	TRACE_MGMT_DBG("Adding session SID %llx", info->sid);
 
@@ -163,8 +143,8 @@ int session_add(struct iscsi_target *target,
 
 	mutex_lock(&target->target_mutex);
 
-	session = session_lookup(target, info->sid);
-	if (session) {
+	sess = session_lookup(target, info->sid);
+	if (sess != NULL) {
 		PRINT_ERROR("Attempt to add session with existing SID %llx",
 			info->sid);
 		err = -EEXIST;
@@ -179,36 +159,63 @@ int session_add(struct iscsi_target *target,
 	 * We need to find the latest session to correctly handle
 	 * multi-reinstatements
 	 */
-	list_for_each_entry_reverse(session, &target->session_list,
+	list_for_each_entry_reverse(sess, &target->session_list,
 			session_list_entry) {
-		union iscsi_sid i = *(union iscsi_sid *)&session->sid;
+		union iscsi_sid i = *(union iscsi_sid *)&sess->sid;
 		i.id.tsih = 0;
 		if ((sid.id64 == i.id64) &&
-		    (strcmp(info->initiator_name, session->initiator_name) == 0)) {
-			if (!session->sess_shutting_down) {
+		    (strcmp(info->initiator_name, sess->initiator_name) == 0)) {
+			if (!sess->sess_shutting_down) {
 				/* session reinstatement */
-				old_sess = session;
+				old_sess = sess;
 			}
 			break;
 		}
 	}
+	sess = NULL;
 
-	session = new_sess;
-	list_add_tail(&session->session_list_entry, &target->session_list);
+	list_add_tail(&new_sess->session_list_entry, &target->session_list);
 
-	if (old_sess != NULL)
-		session_reinstate(old_sess, session);
+	if (old_sess != NULL) {
+		reinstatement = true;
 
-out_unlock:
+		TRACE_MGMT_DBG("Reinstating sess %p with SID %llx (old %p, "
+			"SID %llx)", new_sess, new_sess->sid, old_sess,
+			old_sess->sid);
+
+		new_sess->sess_reinstating = 1;
+		old_sess->sess_reinst_successor = new_sess;
+
+		target_del_session(old_sess->target, old_sess, 0);
+	}
+
 	mutex_unlock(&target->target_mutex);
+
+	if (reinstatement) {
+		/*
+		 * Mutex target_mgmt_mutex won't allow to add connections to
+		 * the new session after target_mutex was dropped, so it's safe
+		 * to replace the initial UA without it. We can't do it under
+		 * target_mutex, because otherwise we will establish a
+		 * circular locking dependency between target_mutex and
+		 * scst_mutex in SCST core (iscsi_report_aen() called by
+		 * SCST core under scst_mutex).
+		 */
+		scst_set_initial_UA(new_sess->scst_sess,
+			SCST_LOAD_SENSE(scst_sense_nexus_loss_UA));
+	}
 
 out:
 	return err;
 
 out_err_unlock:
-	new_sess->deleted_from_session_list = 1;
+	mutex_unlock(&target->target_mutex);
+
+	scst_unregister_session(new_sess->scst_sess, 1, NULL);
+	new_sess->scst_sess = NULL;
+	new_sess->deleted_from_session_list = 1; /* it wasn't added, actually */
 	session_free(new_sess);
-	goto out_unlock;
+	goto out;
 }
 
 /* target_mutex supposed to be locked */
