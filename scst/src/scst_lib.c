@@ -2203,6 +2203,7 @@ int scst_alloc_space(struct scst_cmd *cmd)
 	int atomic = scst_cmd_atomic(cmd);
 	int flags;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
+	static int ll;
 
 	TRACE_ENTRY();
 
@@ -2218,7 +2219,6 @@ int scst_alloc_space(struct scst_cmd *cmd)
 		goto out;
 
 	if (unlikely(cmd->sg_cnt > tgt_dev->max_sg_cnt)) {
-		static int ll;
 		if (ll < 10) {
 			PRINT_INFO("Unable to complete command due to "
 				"SG IO count limitation (requested %d, "
@@ -2229,11 +2229,38 @@ int scst_alloc_space(struct scst_cmd *cmd)
 		goto out_sg_free;
 	}
 
+	if (cmd->data_direction != SCST_DATA_BIDI)
+		goto success;
+
+	cmd->in_sg = sgv_pool_alloc(tgt_dev->pool, cmd->in_bufflen, gfp_mask,
+			 flags, &cmd->in_sg_cnt, &cmd->in_sgv,
+			 &cmd->dev->dev_mem_lim, NULL);
+	if (cmd->in_sg == NULL)
+		goto out_sg_free;
+
+	if (unlikely(cmd->in_sg_cnt > tgt_dev->max_sg_cnt)) {
+		if (ll < 10) {
+			PRINT_INFO("Unable to complete command due to "
+				"SG IO count limitation (IN buffer, requested "
+				"%d, available %d, tgt lim %d)", cmd->in_sg_cnt,
+				tgt_dev->max_sg_cnt, cmd->tgt->sg_tablesize);
+			ll++;
+		}
+		goto out_in_sg_free;
+	}
+
+success:
 	res = 0;
 
 out:
 	TRACE_EXIT();
 	return res;
+
+out_in_sg_free:
+	sgv_pool_free(cmd->in_sgv, &cmd->dev->dev_mem_lim);
+	cmd->in_sgv = NULL;
+	cmd->in_sg = NULL;
+	cmd->in_sg_cnt = 0;
 
 out_sg_free:
 	sgv_pool_free(cmd->sgv, &cmd->dev->dev_mem_lim);
@@ -2256,12 +2283,19 @@ static void scst_release_space(struct scst_cmd *cmd)
 	}
 
 	sgv_pool_free(cmd->sgv, &cmd->dev->dev_mem_lim);
-
 	cmd->sgv = NULL;
 	cmd->sg_cnt = 0;
 	cmd->sg = NULL;
 	cmd->bufflen = 0;
 	cmd->data_len = 0;
+
+	if (cmd->in_sgv != NULL) {
+		sgv_pool_free(cmd->in_sgv, &cmd->dev->dev_mem_lim);
+		cmd->in_sgv = NULL;
+		cmd->in_sg_cnt = 0;
+		cmd->in_sg = NULL;
+		cmd->in_bufflen = 0;
+	}
 
 out:
 	TRACE_EXIT();
