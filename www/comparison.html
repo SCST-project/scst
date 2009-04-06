@@ -71,15 +71,19 @@
 															</sup> </td>		<td> Kernel only </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                           
-<th align="left"> Stability </th>					<td> + </td>		<td> + </td>		<td> + </td>		<td> Heavy development </td>
+<th align="left"> Stability </th>					<td> + </td>		<td> +
+												<sup><A HREF="#3">3</A>	
+												</sup> </td>		<td> + </td>		<td> Heavy development </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                           
-<th align="left"> Performance </th>					<td> ***** </td>	<td> ***</td>		<td> **** </td>		<td> ****
-																		<sup><A HREF="#3">3</A></sup></td>
+<th align="left"> Performance <sup><A HREF="#4">4</A></sup></th>	<td> ***** <sup>
+									<A HREF="#5">5</A>
+									</sup></td>		<td> ***</td>		<td> **** </td>		<td> ****
+																		<sup><A HREF="#6">6</A></sup></td>
 </tr>                                                                                                                           
 <tr>                                                                                                                           
 <th align="left"> Zero-Copy </th>					<td> **** </td>		<td> *** 
-												<sup><A HREF="#4">4</A>	
+												<sup><A HREF="#7">7</A>	
 												</sup> </td>		<td> **** </td>		<td> **** </td>		
 </tr>
 <tr>                                                                                            
@@ -87,7 +91,7 @@
 transfer values (parallel SCSI, SAS) </th>				<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                            
-<th align="left"> User Interface </th>					<td> ProcFS </td>	<td> Custom </td>	<td> IOCTL/ProcFS </td>	<td> ConfigFS/IOCTL </td>
+<th align="left"> User Interface </th>					<td> ProcFS </td>	<td> Custom </td>	<td> IOCTL/ProcFS </td>	<td> ConfigFS/IOCTL/ProcFS </td>
 </tr>                                                                                                                           
 
                                                                                                 
@@ -107,10 +111,12 @@ transfer values (parallel SCSI, SAS) </th>				<td> + </td>		<td> - </td>		<td> -
 <th align="left"> Backstorage handlers in user space </th>		<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>                                                                                           
 <tr>                                                                                            
-<th align="left"> Local access to emulated backstorage devices</th>	<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+<th align="left"> Local access to emulated backstorage devices 
+<sup><A HREF="#8">8</A></sup></th>					<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
-<th align="left"> Advanced devices visibility management </th>		<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+<th align="left"> Advanced devices visibility management 
+<sup><A HREF="#9">9</A></sup></th>					<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
 <th align="left"> Support for Asynchronous Event Notifications
@@ -124,12 +130,12 @@ transfer values (parallel SCSI, SAS) </th>				<td> + </td>		<td> - </td>		<td> -
 </tr>
 <tr>                                                                                                                            
 <th align="left"> Bidirectional Commands </th>				<td> + <sup>
-									<A HREF="#5">5</A>
+									<A HREF="#10">10</A>
 									</sup></td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
 <th align="left"> Extended CDB (size >16 bytes) </th>			<td> + <sup>
-									<A HREF="#5">5</A>
+									<A HREF="#10">10</A>
 									</sup></td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
@@ -139,10 +145,10 @@ transfer values (parallel SCSI, SAS) </th>				<td> + </td>		<td> - </td>		<td> -
 <small> (Windows 2003 clustering) </small></th>				<td> + </td>		<td> + </td>		<td> + </td>		<td> + </td>
 </tr>
 <th align="left"> Safe RESERVE/RELEASE implementation according to
-SCSI requirements <sup><A HREF="#6">6</A></sup></th>			<td> Safe </td>		<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>
+SCSI requirements <sup><A HREF="#11">11</A></sup></th>			<td> Safe </td>		<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>
 </tr>
 <th align="left"> Safe implementation of Task Management commands 
-<sup><A HREF="#7">7</A></sup></th>					<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>	<td> Not safe </td>
+<sup><A HREF="#12">12</A></sup></th>					<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>	<td> Not safe </td>
 </tr>
 <tr>                                                                                                                            
 <th align="left"> Persistent Reservations <br/>
@@ -155,7 +161,8 @@ SCSI requirements <sup><A HREF="#6">6</A></sup></th>			<td> Safe </td>		<td> Saf
 <th align="left"> Failover Clustering </th>				<td> + </td>		<td> ? </td>		<td> + </td>		<td> + </td>		
 </tr>                                                                                                                           
 <tr>                                                                                                                            
-<th align="left"> SCSI MIBs </th>					<td> - </td>		<td> - </td>		<td> - </td>		<td> + </td>		
+<th align="left"> SCSI MIBs </th>					<td> - </td>		<td> - </td>		<td> - </td>		<td>  - 
+																		<sup><A HREF="#13">13</A></sup></td>
 </tr>                                                                                                                           
 <tr>                                                                                                                            
 <th align="left"> Cluster Storage Integration </th>			<td> - </td>		<td> - </td>		<td> - </td>		<td> VHACS </td>	
@@ -207,7 +214,7 @@ SCSI requirements <sup><A HREF="#6">6</A></sup></th>			<td> Safe </td>		<td> Saf
 </tr>
 <tr>                                                                                            
 <th align="left"> SCSI Pass-through </th>				<td> + </td>		<td> - </td>		<td> - </td>		<td> Single initiator only, not enforced 
-																		<sup><A HREF="#8">8</A></sup></td>
+																		<sup><A HREF="#14">14</A></sup></td>
 </tr>                                                                                           
 <tr>                                                                                                                            
 <th align="left"> 4k sectors support in pass-through mode </th>		<td> + </td>		<td> - </td>		<td> - </td>		<td> ? </td>
@@ -232,19 +239,19 @@ in modes, other than pass-through </th>					<td> + </td>		<td> - </td>		<td> - <
 															</sup></td>		<td> Kernel only </td>
 </tr>
 <tr>                                                                                                                            
-<th align="left"> MC/S </th>						<td> - </td>		<td> - </td>		<td> - </td>		<td> + </td>
+<th align="left"> Multiple connections per session (MS/C) </th>		<td> - </td>		<td> - </td>		<td> - </td>		<td> + </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                            
 <th align="left"> Max ErrorRecoveryLevel </th>				<td> 0 </td>		<td> 0 </td>		<td> 0 </td>		<td> 2 </td>		
 </tr>                                                                                                                           
 <tr>                                                                                                                            
 <th align="left"> Bidirectional Commands </th>				<td> + <sup>
-									<A HREF="#5">5</A>
+									<A HREF="#10">10</A>
 									</sup></td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
 <th align="left"> Extended CDB (size >16 bytes) </th>			<td> + <sup>
-									<A HREF="#5">5</A>
+									<A HREF="#10">10</A>
 									</sup></td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
@@ -252,33 +259,56 @@ in modes, other than pass-through </th>					<td> + </td>		<td> - </td>		<td> - <
 (AEN) </th>								<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>                                                                                                                           
 <th align="left"> Safe implementation of connections and sessions
-reinstatement <sup><A HREF="#9">9</A></sup></th>			<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>	<td> Not safe </td>
+reinstatement <sup><A HREF="#15">15</A></sup></th>			<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>	<td> Not safe </td>
 </tr>
 <tr>                                                                                                                            
 <th align="left"> iSCSI MIBs </th>					<td> - </td>		<td> - </td>		<td> - </td>		<td> - 
-																		<sup><A HREF="#10">10</A></sup></td>
+																		<sup><A HREF="#13">13</A></sup></td>
 </tr>                                                                                                                           
 </table>
 
 <br/>
 <p><strong><big><u>REMARKS:</u></big></strong></p>
 
-<p><A NAME="1"></A> 1. STGT has SCSI target engine in user space and small hooks in the kernel to interact with in-kernel target drivers.</p>
+<p><A NAME="1"></A> 1. STGT has SCSI target engine with memory management in user space and small hooks in the kernel to interact with in-kernel target drivers.</p>
 
 <p><A NAME="2"></A> 2. All iSCSI management implemented in user space and actual data transfers in kernel space without user space involved.</p>
 
-<p><A NAME="3"></A> 3. The conclusion made by source code study only. LIO should have performance
-		       on the IET level or slightly less, because of more processing overhead. </p>
+<p><A NAME="3"></A> 3. ISER target driver has long known (since Feb 2008) data corruption problem, which localization hasn't been determined yet and might be
+		       in the STGT core. See <a href="http://lists.berlios.de/pipermail/stgt-devel/2008-February/001367.html">
+		       http://lists.berlios.de/pipermail/stgt-devel/2008-February/001367.html</a> and
+		       <a href="http://lists.wpkg.org/pipermail/stgt/2009-February/002630.html">http://lists.wpkg.org/pipermail/stgt/2009-February/002630.html</a></p>
 
-<p><A NAME="4"></A> 4. Some zero-copy functionality isn't available from user space. For instance, zero-copy send to a socket.</p>
+<p><A NAME="4"></A> 4. The result "in average" is listed. One target can be better somewhere, another one somewhere else. Although manual tuning of target and
+		       system parameters tends the restore the difference listed in the comparison.</p>
 
-<p><A NAME="5"></A> 5. Not well tested, because at the moment there is no backend using this functionality.</p>
+<p><A NAME="5"></A> 5. All SCST and its drivers' kernel patches supposed to be applied and SCST with the drivers built in the release or performance build.
+		       Without the kernel patches SCST performance will be at "****+" level, except for the case, when user space backstorage handler used
+		       with iSCSI-SCST iSCSI target driver, where performance will be at "***+" level.</p>
 
-<p><A NAME="6"></A> 6. SCSI requires that if an initiator clears reservation held by another initiator, the reservation holder must be notified
+<p><A NAME="6"></A> 6. There is no performance data for LIO, which allow to make a direct comparison of it with other targets.
+		       The conclusion was made by source code study only. LIO should have performance on the IET level or less,
+		       because of more processing overhead. It might be much less for small block sizes.</p>
+
+<p><A NAME="7"></A> 7. Some zero-copy functionality isn't available from user space. For instance, zero-copy send to a socket.</p>
+
+<p><A NAME="8"></A> 8. "Local access to emulated backstorage devices" means that you can access emulated by a SCSI target devices
+		       locally on the target host. For instance, you can mount your ISO image as a SCSI CDROM device locally on the
+		       target host.</p>
+
+<p><A NAME="9"></A> 9. "Advanced devices visibility management" means that different initiators can see different sets
+		       of devices from the same target. This feature is essential with hardware targets, which don't have a possibility
+		       to create virtual targets.</p>
+
+<p><A NAME="10"></A> 10. Not well tested, because at the moment there is no backend using this functionality.</p>
+
+<p><A NAME="11"></A> 11. SCSI requires that if an initiator clears reservation held by another initiator, the reservation holder must be notified
 		       about the reservation clearance. Otherwise, several initiators can at the same time change supposed to be protected by the
-		       reservation data, which can corrupt them.</p>
+		       reservation data, which can corrupt them. This is what was called 
+		       <a href="http://communities.vmware.com/thread/53797?tstart=0&start=15">"Russian roulette with your data"</a> by someone
+		       working for VMware on the VMware community forum.</p>
 
-<p><A NAME="7"></A> 7. After a task management command completed and corresponding response was sent to initiator, who sent that task management
+<p><A NAME="12"></A> 12. After a task management command completed and before the corresponding response was sent to the initiator, who sent that task management
 		       command, all the affected SCSI commands must get into a state, where they can't affect following after
 		       the tasks management response commands from this initiator. This is the safe implementation.
 		       The unsafe implementation only marks all the affected
@@ -288,44 +318,24 @@ reinstatement <sup><A HREF="#9">9</A></sup></th>			<td> Safe </td>		<td> Not saf
 		       SCSI command, which initiator will send after it received the task management response thinking
 		       that all the aborted commands actually fully aborted. This could lead to a data corruption.</p>
 
-<p><A NAME="8"></A> 8. LIO doesn't emulate all the necessary SCSI host functionality to allow to share a SCSI device
+<p><A NAME="13"></A> 13. The IETF SCSI-MIB (RFC 4455) is not supported by LIO, only proprietary MIBs SBE-SCSI-MIB, SBE-ISCSI-MIB and SBE-IPS-AUTH-MIB are supported.
+
+<p><A NAME="14"></A> 14. LIO doesn't emulate all the necessary SCSI host functionality to allow to share a SCSI device
 		       in pass-through mode to several initiators. It can only pass SCSI commands from initiator to
 		       the SCSI device. This is safe only if there is only one initiator. This limitation
 		       isn't enforced anyhow by LIO. You can find more technical information about that in
 		       <a href="http://www.mail-archive.com/linux-scsi@vger.kernel.org/msg06911.html">
 		       	http://www.mail-archive.com/linux-scsi@vger.kernel.org/msg06911.html</a></p>
 
-<p><A NAME="5"></A> 9. Connections and sessions reinstatement is, basically, a kind of Task Management command.
-		       For instance, open-iscsi uses it as such in eh_target_reset_handler() callback. So, similarly
+<p><A NAME="15"></A> 15. Connections and sessions reinstatement is, basically, a kind of Task Management command, because it implies commands aborting.
+		       For instance, open-iscsi uses it as a less intrusive substistute for target reset in eh_target_reset_handler() callback. So, similarly
 		       to <A HREF="#7">(7)</A> above, a safe implementation
 		       must not accept SCSI commands from new connection/session until all the SCSI commands in
 		       being reinstated connection/session get into a state, where they can't affect the new commands.</p>
-
-<p><A NAME="10"></A> 10. SCSI-MIB (RFC 4455) - not supported;
-			SBE-SCSI-MIB - supported by LIO v2.6, not supported by LIO v3.0;
-			SBE-ISCSI-MIB - supported by LIO v2.6, not supported by LIO v3.0;
-			SBE-IPS-AUTH-MIB - supported by LIO v2.6, not supported by LIO v3.0
 		
 </p>
 
-<br/>
-<hr style="width: 100%; height: 1px; margin-left: 15px; margin-right: 0px;">
-<br/>
-
-<p><strong>P.S.</strong> LIO has similar comparison
-<a href="http://www.linux-iscsi.org/index.php/Overview_Page">page</a>. It is very much 
-wrong about SCST. I asked that page author, Nicholas Bellinger, to 
-correct the wrong items (see <a href="http://sourceforge.net/mailarchive/forum.php?thread_name=49AECE0B.5030009%40vlnb.net&forum_name=scst-devel">my e-mail</a>), 
-but Nicholas Bellinger refused to do it. Moreover, he blocked my access 
-to the LIO mailing list, preventing me from tell that to the interested 
-people myself. After all our previous discussions and with his skills 
-and experience I can't believe that Nicholas Bellinger doesn't know that 
-SCST is a lot more generic than LIO and has zero-copy in all the same 
-places, where LIO has. So, that comparison page looks like rather a 
-deliberate cheating attempt. Definitely, SCST in all major 
-technical areas is so much superior over LIO, so Nicholas Bellinger started 
-attacking people's perception about SCST trying to inspire them the 
-opposite.</strong></p>
+<p><small><strong>P.S.</strong> You can find a brief background history of this comparison page <a href="comparison_history.html">here</a>.</small></p>
 
 	  		</div> 
 	</div>
