@@ -1,0 +1,159 @@
+#!/bin/sh
+
+#----------------------------------------------------------------------------
+# Automated build and test for SCST.  Compares SCST build from 24 hours
+# ago with the current one.  See the README.txt on how to run it.
+#----------------------------------------------------------------------------
+
+#----------------------------------------------------------------------------
+# Helper function
+#----------------------------------------------------------------------------
+
+runcmd () {
+   logfile="$1"
+   str="$2"
+   shift 2
+
+   # Header in short logfile
+   printf "%-30s ..." "$str" >> ${logfile}.short
+
+   # Header and command in verbose logfile
+   { printf "%-30s ... " "$str"; echo "$*"; } >> ${logfile}.verbose
+
+   # Run the command
+   ("${ABT_EVAL}" "$*") >> ${logfile}.verbose 2>&1
+   res=$?
+
+   # Write result to the short logfile
+   if [ $res = 0 ]
+   then
+      echo "done"   >> ${logfile}.short
+   else
+      echo "failed" >> ${logfile}.short
+   fi
+
+   return $res
+}
+
+#----------------------------------------------------------------------------
+# Startup
+#----------------------------------------------------------------------------
+# Must have exactly one argument
+if [ "$#" -ne 1 ] ; then
+    echo "usage: $0 <tag>"
+    exit 1
+fi
+
+# Get args from command line
+if [ "${arg0#/}" = "${arg0}" ]; then
+  scriptpath=`dirname $PWD/$0`
+else
+  scriptpath=`dirname $0`
+fi
+ABT_TOP=`dirname ${scriptpath}`
+ABT_MACHINE="$1"
+
+# Get times and date
+ABT_START=`date "+%F %H:%M:%S %Z"`
+
+svn_old_date=`date --date=yesterday +%Y-%m-%dT%H:%M:%S`
+svn_new_date=`date --date=today     +%Y-%m-%dT%H:%M:%S`
+
+cd $ABT_TOP
+
+# Setup any relevant environment variables from conf/<tag>.conf.
+. conf/$ABT_MACHINE.conf
+if [ "${ABT_JOBS}" = "" ]; then
+  ABT_JOBS=1
+fi
+if [ "${ABT_EVAL}" = "" ]; then
+  ABT_EVAL="eval"
+fi
+if [ "${ABT_TMPDIR}" = "" ]; then
+  ABT_TMPDIR="/tmp/scst-$$"
+fi
+
+
+#----------------------------------------------------------------------------
+# Check out, build, test
+#----------------------------------------------------------------------------
+
+# Do everything twice -- once for the 24 hours old SCST, and once 
+# for the current one.
+for logfile in old new ; do
+
+   # Remove the old scst directory.
+   rm -rf "${ABT_TMPDIR}"
+   mkdir -p "${ABT_TMPDIR}/scst"
+
+   # Remove old short and verbose log files, and start the new ones.
+   for ext in short verbose ; do
+      echo > ${logfile}.$ext
+   done
+
+   # Choose the current SCST, or one from 24 hours ago.
+   if [ ${logfile} = "old" ] ; then
+      svn_date="$svn_old_date"
+   else
+      svn_date="$svn_new_date"
+   fi
+
+   # Check out and run the tests.
+   runcmd ${logfile} \
+          "Checking out SCST source tree" \
+          "svn co -q -r {${svn_date}} https://scst.svn.sourceforge.net/svnroot/scst/trunk ${ABT_TMPDIR}/scst" && \
+   echo "Checked out SCST revision `svn info ${ABT_TMPDIR}/scst | grep Revision: | sed 's/.* //'`" &&\
+   runcmd ${logfile} \
+          "Running regression tests" \
+          "cd ${ABT_TMPDIR}/scst && scripts/run-regression-tests -d ${ABT_TMPDIR}/regtest -j ${ABT_JOBS} ${ABT_KERNELS}"
+   runcmd ${logfile} \
+          "Cleaning up" \
+          "rm -rf ${ABT_TMPDIR}"
+
+   cat ${logfile}.verbose >>${logfile}.short
+
+done
+
+#----------------------------------------------------------------------------
+# Prepare results and send
+#----------------------------------------------------------------------------
+
+# 'final' shows the difference between the old and new results
+echo                                                     >  final
+echo "Nightly build on" $ABT_MACHINE "(" $ABT_DETAILS ")" \
+     "started at" $ABT_START                             >> final
+
+# If the results differ from 24 hours ago, print extra stuff.
+diff -C1 old.short new.short > diff.short
+changed=$?
+
+if [ $changed != 0 ] ; then
+   echo "Results differ from 24 hours ago"      >> final
+   changed_str=""
+else
+   echo "Results unchanged from 24 hours ago"   >> final
+   changed_str="(unchanged) "
+fi
+
+# Always show the current results.
+cat new.short >> final
+
+if [ $changed != 0 ] ; then
+   echo "=================================================" >> final
+   echo "== Results from 24 hours ago                   ==" >> final
+   echo "=================================================" >> final
+   cat old.short                                            >> final
+
+   echo                                                     >> final
+   echo "=================================================" >> final
+   echo "== Difference between 24 hours ago and now     ==" >> final
+   echo "=================================================" >> final
+   echo                                                     >> final
+   cat diff.short                                           >> final
+   echo                                                     >> final
+fi
+
+# Use the conf/<tag>.sendmail script to email the results.
+conf/$ABT_MACHINE.sendmail \
+   "$changed_str$ABT_START nightly build ($ABT_MACHINE, $ABT_DETAILS)" \
+   final > sendmail.log 2>&1
