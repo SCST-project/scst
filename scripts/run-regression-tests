@@ -55,13 +55,14 @@
 ########################
 
 function usage {
-  echo "Usage: $0 [-c] [-d] [-f] [-h] [-j] <kver1> <kver2> ..."
+  echo "Usage: $0 [-c] [-d] [-f] [-h] [-j] [-q] <kver1> <kver2> ..."
   echo "        -c - cache directory for Linux kernel tarballs."
   echo "        -d - directory for temporary regression test files."
   echo "        -f - full check -- do not only compile SCST but the whole" \
        "kernel tree."
   echo "        -h - display this help information."
   echo "        -j - number of jobs that 'make' should run simultaneously."
+  echo "        -q - download kernel sources silently."
   echo "        <kver1> <kver2> ... - kernel versions to test."
 }
 
@@ -210,7 +211,9 @@ function compile_scst_patched {
 # Download the file from URL $1 and save it in the current directory.
 function download_file {
   if [ ! -e "$(basename "$1")" ]; then
-    echo "Downloading $1 ..."
+    if [ "${quiet_download}" = "false" ]; then
+      echo "Downloading $1 ..."
+    fi
     if ! wget -q -nc "$1"; then
       echo "Downloading $1 failed."
       return 1
@@ -445,8 +448,9 @@ outputdir="${PWD}/regression-test-output-$(date +%Y-%m-%d_%Hh%Mm%Ss)"
 mpt_scst="false"
 qla2x00t="false"
 scst_local="true"
+quiet_download="false"
 
-set -- $(/usr/bin/getopt "c:d:fj:h" "$@")
+set -- $(/usr/bin/getopt "c:d:fj:hq" "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
@@ -455,6 +459,7 @@ do
     '-f') full_check="true"; shift;;
     '-h') usage; exit 1;;
     '-j') export MAKEFLAGS="-j$2"; shift; shift;;
+    '-q') quiet_download="true"; shift;;
     '--') shift;;
     *)    usage; exit 1;;
   esac
@@ -508,7 +513,7 @@ do
   run_checkpatch $k
   patch_and_configure_kernel $k
   run_sparse $k
-  run_headers_check $k
+  # run_headers_check $k
   [ "${full_check}" = "true" ] || continue
   compile_patched_kernel $k
   run_checkstack $k
