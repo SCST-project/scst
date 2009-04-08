@@ -102,15 +102,14 @@ for logfile in old new ; do
    runcmd ${logfile} \
           "Checking out SCST source tree" \
           "svn co -q -r {${svn_date}} https://scst.svn.sourceforge.net/svnroot/scst/trunk ${ABT_TMPDIR}/scst" && \
-   echo "Checked out SCST revision `svn info ${ABT_TMPDIR}/scst | grep Revision: | sed 's/.* //'`" &&\
    runcmd ${logfile} \
           "Running regression tests" \
-          "cd ${ABT_TMPDIR}/scst && scripts/run-regression-tests -d ${ABT_TMPDIR}/regtest -j ${ABT_JOBS} ${ABT_KERNELS}"
+          "cd ${ABT_TMPDIR}/scst && scripts/run-regression-tests -d ${ABT_TMPDIR}/regtest -j ${ABT_JOBS} -q ${ABT_KERNELS}"
    runcmd ${logfile} \
           "Cleaning up" \
           "rm -rf ${ABT_TMPDIR}"
 
-   cat ${logfile}.verbose >>${logfile}.short
+   tail -n +4 ${logfile}.verbose >>${logfile}.short
 
 done
 
@@ -136,7 +135,12 @@ else
 fi
 
 # Always show the current results.
+echo                                                     >> final
+echo "=================================================" >> final
+echo "== Current results                             ==" >> final
+echo "=================================================" >> final
 cat new.short >> final
+echo                                                     >> final
 
 if [ $changed != 0 ] ; then
    echo "=================================================" >> final
