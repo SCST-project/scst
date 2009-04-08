@@ -509,6 +509,7 @@ fi
 
 if [ "$(type -p sparse)" = "" ]; then
   echo "Error: sparse has not yet been installed."
+  echo "See also http://www.kernel.org/pub/software/devel/sparse/."
 fi
 
 if ! mkdir -p "${outputdir}"; then
