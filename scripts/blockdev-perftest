@@ -101,12 +101,18 @@ else
   dd_iflags=""
 fi
 
+# Force all changed blocks to disk before the tests start.
+sync
+
 printf "%9s %8s %8s %8s %8s %8s %8s\n" blocksize W W W R R R
 
 for ((log2_blocksize = log2_max_blocksize;
       log2_blocksize >= log2_min_blocksize;
       log2_blocksize--))
 do
+  if [ $log2_blocksize -gt $log2_io_size ]; then
+    continue
+  fi
   bs=$((2**log2_blocksize))
   count=$((2**(log2_io_size - log2_blocksize)))
   printf "%9d " ${bs}
@@ -119,6 +125,8 @@ do
   done
   for ((i=0;i<3;i++))
   do
+    # Flush the read cache before the read test starts.
+    echo 1 > /proc/sys/vm/drop_caches
     elapsed="$(dd if="${device}" of=/dev/null bs=${bs} count=${count} \
                   ${dd_iflags} 2>&1 \
                | sed -n 's/.* \([0-9.]*\) s,.*/\1/p')"
