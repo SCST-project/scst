@@ -328,6 +328,27 @@ function compile_patched_kernel {
   return 0
 }
 
+# Compile subdirectory $2 of the patched kernel tree linux-$1.
+function compile_kernel {
+  local kver="$(kernel_version $1)"
+  local plevel="$(patchlevel $1)"
+  local outputfile="${outputdir}/compilation-$1-output.txt"
+  local subdir="$2"
+
+  echo "Compiling the patched kernel ..."
+  (
+    cd "${outputdir}/linux-$1" \
+    && make -s prepare \
+    && make -s scripts \
+    && LC_ALL=C make -k M="${subdir}"
+  ) &> "${outputfile}"
+  local errors=$(grep -c ' error:' "${outputfile}")
+  local warnings=$(grep -c ' warning:' "${outputfile}")
+  echo "${errors} errors / ${warnings} warnings."
+  cat "${outputfile}" | grep -E 'warning:|error:' | sort | uniq -c
+  return 0
+}
+
 # Run the source code verification tool 'sparse' on the SCST code. Assumes that
 # there is a patched kernel tree present in directory "${outputdir}/linux-$1".
 # For more information about endianness annotations, see also
@@ -336,13 +357,14 @@ function run_sparse {
   local kver="$(kernel_version $1)"
   local plevel="$(patchlevel $1)"
   local outputfile="${outputdir}/sparse-$1-output.txt"
+  local subdir="$2"
 
   echo "Running sparse on the patched kernel ..."
   (
     cd "${outputdir}/linux-$1" \
     && make -s prepare \
     && make -s scripts \
-    && LC_ALL=C make -k C=2 M=drivers/scst # CF=-D__CHECK_ENDIAN__
+    && LC_ALL=C make -k C=2 M="${subdir}" # CF=-D__CHECK_ENDIAN__
   ) &> "${outputfile}"
   local errors=$(grep -c ' error:' "${outputfile}")
   local warnings=$(grep -c ' warning:' "${outputfile}")
@@ -501,6 +523,7 @@ test_scst_tree_patches || exit $?
 compile_scst_unpatched || exit $?
 compile_scst_patched || exit $?
 
+first_iteration="true"
 for k in ${kernel_versions}
 do
   echo "===================="
@@ -510,9 +533,15 @@ do
   download_kernel $k || continue
   generate_kernel_patch $k || continue
   test_if_patch_applies_cleanly $k || continue
-  run_checkpatch $k
-  patch_and_configure_kernel $k
-  run_sparse $k
+  if [ "${first_iteration}" = "true" ]; then
+    first_iteration="false"
+    run_checkpatch $k
+    patch_and_configure_kernel $k
+    run_sparse $k drivers/scst
+  else
+    patch_and_configure_kernel $k
+    compile_kernel $k drivers/scst
+  fi
   # run_headers_check $k
   [ "${full_check}" = "true" ] || continue
   compile_patched_kernel $k
