@@ -127,8 +127,10 @@ static int scst_init_cmd(struct scst_cmd *cmd, enum scst_exec_context *context)
 	rc = __scst_init_cmd(cmd);
 	if (unlikely(rc > 0))
 		goto out_redirect;
-	else if (unlikely(rc != 0))
+	else if (unlikely(rc != 0)) {
+		res = 1;
 		goto out;
+	}
 
 	/* Small context optimization */
 	if (((*context == SCST_CONTEXT_TASKLET) ||
@@ -159,6 +161,7 @@ out_redirect:
 		sBUG_ON(*context != SCST_CONTEXT_DIRECT);
 		scst_set_busy(cmd);
 		scst_set_cmd_abnormal_done_state(cmd);
+		res = 1;
 		/* Keep initiator away from too many BUSY commands */
 		msleep(50);
 	} else {
@@ -284,14 +287,21 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
 		goto active;
 	}
 
+	/* 
+	 * Cmd must be inited here to preserve the order. In case if cmd
+	 * already preliminary completed by target driver we need to init
+	 * cmd anyway to find out in which format we should return sense.
+	 */
 	cmd->state = SCST_CMD_STATE_INIT;
-	/* cmd must be inited here to preserve the order */
 	rc = scst_init_cmd(cmd, &pref_context);
 	if (unlikely(rc < 0))
 		goto out;
-
-	if (unlikely(cmd->status != SAM_STAT_GOOD))
-		scst_set_cmd_abnormal_done_state(cmd);
+	else if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION)) {
+		if (rc == 0) {
+			/* Target driver preliminary completed cmd */
+			scst_set_cmd_abnormal_done_state(cmd);
+		}
+	}
 
 active:
 	/* Here cmd must not be in any cmd list, no locks */
@@ -1396,7 +1406,7 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state,
 
 static int scst_report_luns_local(struct scst_cmd *cmd)
 {
-	int rc;
+	int res = SCST_EXEC_COMPLETED, rc;
 	int dev_cnt = 0;
 	int buffer_size;
 	int i;
@@ -1405,6 +1415,11 @@ static int scst_report_luns_local(struct scst_cmd *cmd)
 	int offs, overflow = 0;
 
 	TRACE_ENTRY();
+
+	if (scst_cmd_atomic(cmd)) {
+		res = SCST_EXEC_NEED_THREAD;
+		goto out;
+	}
 
 	rc = scst_check_local_events(cmd);
 	if (unlikely(rc != 0))
@@ -1528,8 +1543,9 @@ out_done:
 	/* Report the result */
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
 
-	TRACE_EXIT();
-	return SCST_EXEC_COMPLETED;
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 
 out_put_err:
 	scst_put_buf(cmd, buffer);
@@ -2316,12 +2332,11 @@ static int scst_check_sense(struct scst_cmd *cmd)
 	if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION) &&
 	    SCST_SENSE_VALID(cmd->sense)) {
 		PRINT_BUFF_FLAG(TRACE_SCSI, "Sense", cmd->sense,
-			SCST_SENSE_BUFFERSIZE);
+			cmd->sense_bufflen);
 
 		/* Check Unit Attention Sense Key */
 		if (scst_is_ua_sense(cmd->sense)) {
-			if (scst_analyze_sense(cmd->sense,
-					SCST_SENSE_BUFFERSIZE,
+			if (scst_analyze_sense(cmd->sense, cmd->sense_bufflen,
 					SCST_SENSE_ASC_VALID,
 					0, SCST_SENSE_ASC_UA_RESET, 0)) {
 				if (cmd->double_ua_possible) {
@@ -2355,7 +2370,7 @@ static int scst_check_sense(struct scst_cmd *cmd)
 				}
 			}
 			scst_dev_check_set_UA(dev, cmd,	cmd->sense,
-				SCST_SENSE_BUFFERSIZE);
+				cmd->sense_bufflen);
 		}
 	}
 
@@ -2529,7 +2544,7 @@ static int scst_pre_dev_done(struct scst_cmd *cmd)
 					(long long unsigned int)cmd->lun,
 					cmd->status);
 				PRINT_BUFF_FLAG(TRACE_SCSI, "Sense", cmd->sense,
-					SCST_SENSE_BUFFERSIZE);
+					cmd->sense_bufflen);
 
 				/* Clearing the reservation */
 				spin_lock_bh(&dev->dev_lock);
@@ -2549,7 +2564,7 @@ static int scst_pre_dev_done(struct scst_cmd *cmd)
 		    (cmd->status == SAM_STAT_CHECK_CONDITION) &&
 		    SCST_SENSE_VALID(cmd->sense) &&
 		    scst_is_ua_sense(cmd->sense) &&
-		    scst_analyze_sense(cmd->sense, SCST_SENSE_BUFFERSIZE,
+		    scst_analyze_sense(cmd->sense, cmd->sense_bufflen,
 					SCST_SENSE_ASCx_VALID,
 					0, 0x2a, 0x01)) {
 			TRACE(TRACE_SCSI, "MODE PARAMETERS CHANGED UA (lun "
@@ -2614,17 +2629,17 @@ static int scst_mode_select_checks(struct scst_cmd *cmd)
 		    SCST_SENSE_VALID(cmd->sense) &&
 		    scst_is_ua_sense(cmd->sense) &&
 		     /* mode parameters changed */
-		    (scst_analyze_sense(cmd->sense, SCST_SENSE_BUFFERSIZE,
+		    (scst_analyze_sense(cmd->sense, cmd->sense_bufflen,
 					SCST_SENSE_ASCx_VALID,
 					0, 0x2a, 0x01) ||
-		     scst_analyze_sense(cmd->sense, SCST_SENSE_BUFFERSIZE,
+		     scst_analyze_sense(cmd->sense, cmd->sense_bufflen,
 					SCST_SENSE_ASC_VALID,
 					0, 0x29, 0) /* reset */ ||
-		     scst_analyze_sense(cmd->sense, SCST_SENSE_BUFFERSIZE,
+		     scst_analyze_sense(cmd->sense, cmd->sense_bufflen,
 					SCST_SENSE_ASC_VALID,
 					0, 0x28, 0) /* medium changed */ ||
 		     /* cleared by another ini (just in case) */
-		     scst_analyze_sense(cmd->sense, SCST_SENSE_BUFFERSIZE,
+		     scst_analyze_sense(cmd->sense, cmd->sense_bufflen,
 					SCST_SENSE_ASC_VALID,
 					0, 0x2F, 0))) {
 		if (atomic) {
@@ -3002,8 +3017,7 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 			TRACE_MGMT_DBG("Requeuing UA for delivery failed cmd "
 				"%p", cmd);
 			scst_check_set_UA(cmd->tgt_dev, cmd->sense,
-					SCST_SENSE_BUFFERSIZE,
-					SCST_SET_UA_FLAG_AT_HEAD);
+				cmd->sense_bufflen, SCST_SET_UA_FLAG_AT_HEAD);
 		}
 	}
 

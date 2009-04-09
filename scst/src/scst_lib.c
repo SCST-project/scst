@@ -77,6 +77,7 @@ int scst_alloc_sense(struct scst_cmd *cmd, int atomic)
 	}
 
 memzero:
+	cmd->sense_bufflen = SCST_SENSE_BUFFERSIZE;
 	memset(cmd->sense, 0, SCST_SENSE_BUFFERSIZE);
 
 out:
@@ -98,8 +99,8 @@ int scst_alloc_set_sense(struct scst_cmd *cmd, int atomic,
 		goto out;
 	}
 
-	memcpy(cmd->sense, sense, min((int)len, (int)SCST_SENSE_BUFFERSIZE));
-	TRACE_BUFFER("Sense set", cmd->sense, SCST_SENSE_BUFFERSIZE);
+	memcpy(cmd->sense, sense, min((int)len, (int)cmd->sense_bufflen));
+	TRACE_BUFFER("Sense set", cmd->sense, cmd->sense_bufflen);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -143,9 +144,9 @@ void scst_set_cmd_error(struct scst_cmd *cmd, int key, int asc, int ascq)
 		goto out;
 	}
 
-	scst_set_sense(cmd->sense, SCST_SENSE_BUFFERSIZE,
+	scst_set_sense(cmd->sense, cmd->sense_bufflen,
 		scst_get_cmd_dev_d_sense(cmd), key, asc, ascq);
-	TRACE_BUFFER("Sense set", cmd->sense, SCST_SENSE_BUFFERSIZE);
+	TRACE_BUFFER("Sense set", cmd->sense, cmd->sense_bufflen);
 
 out:
 	TRACE_EXIT();
@@ -162,7 +163,6 @@ void scst_set_sense(uint8_t *buffer, int len, bool d_sense,
 
 	if (d_sense) {
 		/* Descriptor format */
-
 		if (len < 4) {
 			PRINT_ERROR("Length %d of sense buffer too small to "
 				"fit sense %x:%x:%x", len, key, asc, ascq);
@@ -177,7 +177,6 @@ void scst_set_sense(uint8_t *buffer, int len, bool d_sense,
 			buffer[3] = ascq;	/* ASCQ			*/
 	} else {
 		/* Fixed format */
-
 		if (len < 14) {
 			PRINT_ERROR("Length %d of sense buffer too small to "
 				"fit sense %x:%x:%x", len, key, asc, ascq);
@@ -204,12 +203,15 @@ bool scst_analyze_sense(const uint8_t *sense, int len, unsigned int valid_mask,
 {
 	bool res = false;
 
-	if (len < 14)
-		goto out;
-
 	/* Response Code */
 	if ((sense[0] == 0x70) || (sense[0] == 0x71)) {
 		/* Fixed format */
+
+		if (len < 14) {
+			PRINT_ERROR("Sense too small to analyze (%d, "
+				"type fixed)", len);
+			goto out;
+		}
 
 		/* Sense Key */
 		if ((valid_mask & SCST_SENSE_KEY_VALID) && (sense[2] != key))
@@ -224,6 +226,12 @@ bool scst_analyze_sense(const uint8_t *sense, int len, unsigned int valid_mask,
 			goto out;
 	} else if ((sense[0] == 0x72) || (sense[0] == 0x73)) {
 		/* Descriptor format */
+
+		if (len < 4) {
+			PRINT_ERROR("Sense too small to analyze (%d, "
+				"type descriptor)", len);
+			goto out;
+		}
 
 		/* Sense Key */
 		if ((valid_mask & SCST_SENSE_KEY_VALID) && (sense[1] != key))
@@ -246,6 +254,45 @@ out:
 	return res;
 }
 EXPORT_SYMBOL(scst_analyze_sense);
+
+void scst_check_convert_sense(struct scst_cmd *cmd)
+{
+	bool d_sense;
+
+	TRACE_ENTRY();
+
+	if ((cmd->sense == NULL) || (cmd->status != SAM_STAT_CHECK_CONDITION))
+		goto out;
+
+	d_sense = scst_get_cmd_dev_d_sense(cmd);
+	if (d_sense && ((cmd->sense[0] == 0x70) || (cmd->sense[0] == 0x71))) {
+		TRACE_MGMT_DBG("Converting fixed sense to descriptor (cmd %p)",
+			cmd);
+		if (cmd->sense_bufflen < 14) {
+			PRINT_ERROR("Sense too small to convert (%d, "
+				"type fixed)", cmd->sense_bufflen);
+			goto out;
+		}
+		scst_set_sense(cmd->sense, cmd->sense_bufflen, d_sense,
+			cmd->sense[2], cmd->sense[12], cmd->sense[13]);
+	} else if (!d_sense && ((cmd->sense[0] == 0x72) ||
+				(cmd->sense[0] == 0x73))) {
+		TRACE_MGMT_DBG("Converting descriptor sense to fixed (cmd %p)",
+			cmd);
+		if (cmd->sense_bufflen < 4) {
+			PRINT_ERROR("Sense too small to convert (%d, "
+				"type descryptor)", cmd->sense_bufflen);
+			goto out;
+		}
+		scst_set_sense(cmd->sense, cmd->sense_bufflen, d_sense,
+			cmd->sense[1], cmd->sense[2], cmd->sense[3]);
+	}
+
+out:
+	TRACE_EXIT();
+	return;
+}
+EXPORT_SYMBOL(scst_check_convert_sense);
 
 static void scst_set_cmd_error_sense(struct scst_cmd *cmd, uint8_t *sense,
 	unsigned int len)
@@ -468,12 +515,15 @@ static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 	TRACE_MGMT_DBG("Queuing REPORTED LUNS DATA CHANGED UA "
 		"(sess %p)", sess);
 
+	local_bh_disable();
+
 	for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
 		shead = &sess->sess_tgt_dev_list_hash[i];
 
 		list_for_each_entry(tgt_dev, shead,
 				sess_tgt_dev_list_entry) {
-			spin_lock_bh(&tgt_dev->tgt_dev_lock);
+			spin_lock_nested(&tgt_dev->tgt_dev_lock,
+				tgt_dev->lun);
 		}
 	}
 
@@ -501,9 +551,11 @@ static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 
 		list_for_each_entry_reverse(tgt_dev,
 				shead, sess_tgt_dev_list_entry) {
-			spin_unlock_bh(&tgt_dev->tgt_dev_lock);
+			spin_unlock(&tgt_dev->tgt_dev_lock);
 		}
 	}
+
+	local_bh_enable();
 
 	TRACE_EXIT();
 	return;
@@ -699,8 +751,14 @@ void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 
 	cmd->state = scst_get_cmd_abnormal_done_state(cmd);
 
-	EXTRACHECKS_BUG_ON((cmd->state != SCST_CMD_STATE_PRE_XMIT_RESP) &&
-			   (cmd->tgt_dev == NULL));
+#ifdef CONFIG_SCST_EXTRACHECKS
+	if ((cmd->state != SCST_CMD_STATE_PRE_XMIT_RESP) &&
+		   (cmd->tgt_dev == NULL) && !cmd->internal) {
+		PRINT_CRIT_ERROR("Wrong not inited cmd state %d (cmd %p, "
+			"op %x)", cmd->state, cmd, cmd->cdb[0]);
+		sBUG();
+	}
+#endif
 
 	TRACE_EXIT();
 	return;
@@ -1541,6 +1599,7 @@ int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
 		goto out_error;
 
 	memcpy(rs_cmd->cdb, request_sense, sizeof(request_sense));
+	rs_cmd->cdb[1] |= scst_get_cmd_dev_d_sense(orig_cmd);
 	rs_cmd->cdb_len = sizeof(request_sense);
 	rs_cmd->data_direction = SCST_DATA_READ;
 	rs_cmd->expected_data_direction = rs_cmd->data_direction;
@@ -3434,6 +3493,7 @@ again:
 		spin_unlock_bh(&cmd->tgt_dev->tgt_dev_lock);
 
 		mutex_lock(&scst_mutex);
+		local_bh_disable();
 
 		for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
 			struct list_head *sess_tgt_dev_list_head =
@@ -3441,7 +3501,8 @@ again:
 			struct scst_tgt_dev *tgt_dev;
 			list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
 					sess_tgt_dev_list_entry) {
-				spin_lock_bh(&tgt_dev->tgt_dev_lock);
+				spin_lock_nested(&tgt_dev->tgt_dev_lock,
+					tgt_dev->lun);
 			}
 		}
 
@@ -3503,6 +3564,7 @@ out_unlock:
 			}
 		}
 
+		local_bh_enable();
 		mutex_unlock(&scst_mutex);
 
 		spin_lock_bh(&cmd->tgt_dev->tgt_dev_lock);

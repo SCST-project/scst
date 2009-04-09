@@ -51,12 +51,12 @@ int debug_print_prefix(unsigned long trace_flag, const char *log_level,
 {
 	int i = 0;
 	unsigned long flags;
+	int pid = get_current_tid();
 
 	spin_lock_irqsave(&trace_buf_lock, flags);
 
 	if (trace_flag & TRACE_PID)
-		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE, "[%d]: ",
-			      get_current_tid());
+		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE, "[%d]: ", pid);
 	if (prefix != NULL)
 		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "%s: ",
 			      prefix);

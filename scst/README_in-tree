@@ -180,7 +180,8 @@ your favorit kernel configuration Makefile target, e.g. "make xconfig":
    commands reliably if they sent asynchronously to a stateful device.
    Turned off by default, turn it on if you use stateful device(s) and
    need as much error recovery reliability as possible. As a side
-   effect, no kernel patching is necessary.
+   effect, no kernel patching is necessary for pass-through device
+   handlers (scst_disk, etc.)
 
  - CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ - if defined, it will be
    allowed to submit pass-through commands to real SCSI devices via the SCSI
@@ -260,7 +261,8 @@ entries:
     command:
 
       * "assign H:C:I:L HANDLER_NAME" assigns dev handler "HANDLER_NAME"
-        on device with host:channel:id:lun
+        on device with host:channel:id:lun. The recommended way to find out
+        H:C:I:L numbers is use of lsscsi utility.
 
   - "sessions" file, which lists currently connected initiators (open sessions)
 
@@ -360,10 +362,12 @@ following files and directories under /proc/scsi_tgt:
 
   - "add H:C:I:L lun [READ_ONLY]" to /proc/scsi_tgt/groups/GROUP/devices adds
     device with host:channel:id:lun with LUN "lun" in group "GROUP". Optionally,
-    the device could be marked as read only.
+    the device could be marked as read only. The recommended way to find out
+    H:C:I:L numbers is use of lsscsi utility.
 
   - "del H:C:I:L" to /proc/scsi_tgt/groups/GROUP/devices deletes device with
-    host:channel:id:lun from group "GROUP"
+    host:channel:id:lun from group "GROUP". The recommended way to find out
+    H:C:I:L numbers is use of lsscsi utility.
 
   - "add V_NAME lun [READ_ONLY]" to /proc/scsi_tgt/groups/GROUP/devices adds
     device with virtual name "V_NAME" with LUN "lun" in group "GROUP".
@@ -726,7 +730,8 @@ in the needed values using debug2perf root Makefile target.
    least 512KB or even more on all initiators and the target.
 
    You should also limit on all initiators maximum amount of sectors per
-   SCSI command. To do it on Linux initiators, run:
+   SCSI command. This tuning is also recommended on targets with large
+   read-ahead values. To do it on Linux, run:
 
    echo “64” > /sys/block/sdX/queue/max_sectors_kb
 
@@ -744,6 +749,9 @@ in the needed values using debug2perf root Makefile target.
    you changed the maximum amount of sectors per SCSI command for that
    device.
 
+   Note2: you need to restart SCST after you changed read-ahead settings
+   on the target.
+
  - You may need to increase amount of requests that OS on initiator
    sends to the target device. To do it on Linux initiators, run
 
@@ -755,7 +763,7 @@ in the needed values using debug2perf root Makefile target.
    directory, they also affect performance. If you find the best values,
    please share them with us.
 
- - On the target CFQ IO scheduler. In most cases it has performance
+ - On the target use CFQ IO scheduler. In most cases it has performance
    advantage over other IO schedulers, sometimes huge (2+ times
    aggregate throughput increase).
 

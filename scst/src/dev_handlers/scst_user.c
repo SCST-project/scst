@@ -1376,8 +1376,7 @@ static int dev_user_process_reply_exec(struct scst_user_cmd *ucmd,
 			goto out_compl;
 		res = copy_from_user(cmd->sense,
 			(void __user *)(unsigned long)ereply->psense_buffer,
-			min((unsigned int)SCST_SENSE_BUFFERSIZE,
-				(unsigned int)ereply->sense_len));
+			min((int)cmd->sense_bufflen, (int)ereply->sense_len));
 		if (res < 0) {
 			PRINT_ERROR("%s", "Unable to get sense data");
 			goto out_hwerr_res_set;

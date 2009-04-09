@@ -477,7 +477,7 @@ static inline void scst_dec_on_dev_cmd(struct scst_cmd *cmd)
 static inline void __scst_get(int barrier)
 {
 	atomic_inc(&scst_cmd_count);
-	TRACE_DBG("Incrementing scst_cmd_count(%d)",
+	TRACE_DBG("Incrementing scst_cmd_count(new value %d)",
 		atomic_read(&scst_cmd_count));
 
 	/* See comment about smp_mb() in scst_suspend_activity() */
@@ -494,7 +494,7 @@ static inline void __scst_put(void)
 		TRACE_MGMT_DBG("%s", "Waking up scst_dev_cmd_waitQ");
 		wake_up_all(&scst_dev_cmd_waitQ);
 	}
-	TRACE_DBG("Decrementing scst_cmd_count(%d)",
+	TRACE_DBG("Decrementing scst_cmd_count(new value %d)",
 	      atomic_read(&scst_cmd_count));
 }
 
@@ -503,10 +503,14 @@ void scst_sched_session_free(struct scst_session *sess);
 static inline void scst_sess_get(struct scst_session *sess)
 {
 	atomic_inc(&sess->refcnt);
+	TRACE_DBG("Incrementing sess %p refcnt (new value %d)",
+		sess, atomic_read(&sess->refcnt));
 }
 
 static inline void scst_sess_put(struct scst_session *sess)
 {
+	TRACE_DBG("Decrementing sess %p refcnt (new value %d)",
+		sess, atomic_read(&sess->refcnt)-1);
 	if (atomic_dec_and_test(&sess->refcnt))
 		scst_sched_session_free(sess);
 }
@@ -514,10 +518,14 @@ static inline void scst_sess_put(struct scst_session *sess)
 static inline void __scst_cmd_get(struct scst_cmd *cmd)
 {
 	atomic_inc(&cmd->cmd_ref);
+	TRACE_DBG("Incrementing cmd %p ref (new value %d)",
+		cmd, atomic_read(&cmd->cmd_ref));
 }
 
 static inline void __scst_cmd_put(struct scst_cmd *cmd)
 {
+	TRACE_DBG("Decrementing cmd %p ref (new value %d)",
+		cmd, atomic_read(&cmd->cmd_ref)-1);
 	if (atomic_dec_and_test(&cmd->cmd_ref))
 		scst_free_cmd(cmd);
 }

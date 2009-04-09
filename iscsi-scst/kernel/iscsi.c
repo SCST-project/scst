@@ -2706,6 +2706,12 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 	if (unlikely(old_state != ISCSI_CMD_STATE_RESTARTED)) {
 		TRACE_DBG("req %p on %d state", req, old_state);
 
+		/*
+		 * We could preliminary have finished req before we knew its
+		 * device, so check if we return correct sense format.
+		 */
+		scst_check_convert_sense(scst_cmd);
+
 		create_status_rsp(req, status, sense, sense_len);
 
 		switch (old_state) {

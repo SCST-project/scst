@@ -1310,6 +1310,7 @@ struct scst_cmd {
 	uint8_t driver_status;	/* set by mid-level */
 
 	uint8_t *sense;		/* pointer to sense buffer */
+	unsigned short sense_bufflen; /* length of the sense buffer, if any */
 
 	/* Used for storage of target driver private stuff */
 	void *tgt_priv;
@@ -2003,6 +2004,12 @@ void scst_set_cmd_error(struct scst_cmd *cmd, int key, int asc, int ascq);
 void scst_set_busy(struct scst_cmd *cmd);
 
 /*
+ * Check if sense in the sense buffer, if any, in the correct format. If not,
+ * convert it to the correct format.
+ */
+void scst_check_convert_sense(struct scst_cmd *cmd);
+
+/*
  * Sets initial Unit Attention for sess, replacing default scst_sense_reset_UA
  */
 void scst_set_initial_UA(struct scst_session *sess, int key, int asc, int ascq);
@@ -2358,7 +2365,7 @@ static inline uint8_t *scst_cmd_get_sense_buffer(struct scst_cmd *cmd)
 /* Returns cmd's sense buffer length */
 static inline int scst_cmd_get_sense_buffer_len(struct scst_cmd *cmd)
 {
-	return SCST_SENSE_BUFFERSIZE;
+	return cmd->sense_bufflen;
 }
 
 /*

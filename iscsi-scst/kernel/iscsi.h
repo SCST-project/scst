@@ -123,7 +123,6 @@ struct iscsi_session {
 	struct iscsi_session *sess_reinst_successor;
 	unsigned int sess_reinstating:1;
 	unsigned int sess_shutting_down:1;
-	unsigned int deleted_from_session_list:1;
 
 	/* All don't need any protection */
 	char *initiator_name;
@@ -458,7 +457,7 @@ extern struct iscsi_session *session_lookup(struct iscsi_target *, u64);
 extern void sess_enable_reinstated_sess(struct iscsi_session *);
 extern int session_add(struct iscsi_target *, struct iscsi_kern_session_info *);
 extern int session_del(struct iscsi_target *, u64);
-extern int session_free(struct iscsi_session *session);
+extern int session_free(struct iscsi_session *session, bool del);
 
 /* params.c */
 extern int iscsi_param_set(struct iscsi_target *,
