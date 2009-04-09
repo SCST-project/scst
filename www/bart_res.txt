@@ -1,0 +1,22 @@
+ISCSI over IPoIB (two DDR PCIe 1.0 ConnectX HCA's connected back to back). The results
+for the buffered I/O test with a block size of 512K (initiator)
+against a file of 1GB residing on a tmpfs filesystem on the target are
+as follows:
+
+write-test: iSCSI-SCST 243 MB/s; IET 192 MB/s.
+read-test: iSCSI-SCST 291 MB/s; IET 223 MB/s.
+
+And for a block size of 4 KB:
+
+write-test: iSCSI-SCST 43 MB/s; IET 42 MB/s.
+read-test: iSCSI-SCST 288 MB/s; IET 221 MB/s.
+
+Or: depending on the test scenario, SCST transfers data between 2% and
+30% faster via the iSCSI protocol over this network.
+
+Something that is not relevant for this comparison, but interesting to
+know: with the SRP implementation in SCST the maximal read throughput
+is 1290 MB/s on the same setup.
+
+Measured by Bart Van Assche
+

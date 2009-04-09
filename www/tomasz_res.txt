@@ -1,0 +1,52 @@
+The target is running Debian Lenny 64bit userspace on an Intel Celeron 2.93GHz CPU, 2 GB RAM.
+
+Initiator is running Debian Etch 64 bit userspace, open-iscsi 2.0-869, Intel Xeon 3050/2.13GHz, 8 GB RAM.
+
+
+Each test was repeated 6 times, "sync" was made and caches were dropped on both sides before each test was started.
+
+dd parameters were like below, so 6.6 GB of data was read each time:
+
+dd if=/dev/sdag of=/dev/null bs=64k count=100000
+
+
+Data was read from two block devices:
+- /dev/md0, which is RAID-1 on two ST31500341AS 1.5 TB drives
+- encrypted dm-crypt device which is on top of /dev/md0
+
+Encrypted device was created with the following additional options passed to cryptsetup
+(it provides the most performance on systems where CPU is a bottleneck, but with decreased
+security when compared to default options):
+
+-c aes-ecb-plain -s 128
+
+
+Generally, CPU on the target was a bottleneck, so I also tested the load on target.
+
+
+md0, crypt columns - averages from dd
+us, sy, id, wa - averages from vmstat
+
+
+1. Disk speeds on the target
+
+Raw performance: 102.17 MB/s
+Raw performance (encrypted):  50.21 MB/s
+
+
+2. Read-ahead on the initiator: 256 (default); md0, crypt - MB/s
+
+                           md0   us  sy  id  wa  | crypt   us  sy  id  wa  
+STGT                      50.63   4% 45% 18% 33% | 32.52    3% 62% 16% 19%
+SCST (debug + no patches) 43.75   0% 26% 30% 44% | 42.05    0% 84%  1% 15%
+SCST (fullperf + patches) 45.18   0% 25% 33% 42% | 44.12    0% 81%  2% 17%
+
+
+3. Read-ahead on the initiator: 16384; md0, crypt - MB/s
+
+                           md0   us  sy  id  wa  | crypt   us  sy  id  wa  
+STGT                      56.43   3% 55%  2% 40% | 46.90    3% 90%  3%  4%
+SCST (debug + no patches) 73.85   0% 58%  1% 41% | 42.70    0% 85%  0% 15%
+SCST (fullperf + patches) 76.27   0% 63%  1% 36% | 42.52    0% 85%  0% 15%
+
+Measured by Tomasz Chmielewski

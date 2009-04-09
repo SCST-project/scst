@@ -45,9 +45,9 @@
 				better support and troubleshooting for you.
 				</ul>			
 
-				<h1>Possible SCST improvements</h1>
+				<h1>Possible SCST extensions and improvements</h1>
 
-				<h3>Zero-copy FILEIO for READ-direction commands</h3>
+				<A NAME="ZC_READ"></A><h3>Zero-copy FILEIO for READ-direction commands</h3>
 
 				<p>At the moment, SCST in FILEIO mode uses standard Linux read() and write() syscalls paths,
 				which copy data from the page cache to the supplied buffer and back. Zero-copy FILEIO
@@ -83,7 +83,7 @@
 				
 				<p>That's all. For WRITEs the current code path would remain unchanged.</p>
 
-				<h3>Zero-copy FILEIO for WRITE-direction commands</h3>
+				<A NAME="ZC_WRITE"></A><h3>Zero-copy FILEIO for WRITE-direction commands</h3>
 
 				<p>Implementation should be similar to zero-copy FILEIO for READ commands and should
 				be done after it. All incoming data should be inserted in the page cache, then dereferenced in
@@ -91,7 +91,7 @@
 				page cache, namely, locking issues related to it. They should be carefully
 				investigated.</p>
 
-				<h3>Persistent reservations</h3>
+				<A NAME="PR"></A><h3>Persistent reservations</h3>
 
 				<p>Support for PERSISTENT RESERVE IN and PERSISTENT RESERVE OUT is required to
 				work in many cluster environments, e.g. Windows 2003 Cluster.</p>
@@ -107,7 +107,7 @@
 				devices only and reject PERSISTENT RESERVE IN and OUT commands for 
 				pass-through devices with "COMMAND NOT SUPPORTED" sense data.</p>
 				
-				<h3>Automatic sessions reassignment</h3>
+				<A NAME="AUTO_SESS"></A><h3>Automatic sessions reassignment</h3>
 				
 				<p>At the moment, if security name for an initiator reassigned (moved) to another security
 				group, the existing sessions from that initiator are not automatically reassigned to
@@ -129,7 +129,7 @@
 				<li><span>Resume the activities.</span></li>
 				</ul>
 				
-				<h3>Dynamic I/O flow control</h3>
+				<A NAME="DYN_FLOW"></A><h3>Dynamic I/O flow control</h3>
 				
 				<p>At the moment, if an initiator or several initiators simultaneously send to
 				target too many commands, especially in seek intensive workloads, target can get
@@ -279,7 +279,7 @@
 				<p>Then, at the latest stage of the development, logic to not schedule the 
 				flow control work on idle devices should be added.</p>
 
-				<h3>Support for O_DIRECT in scst_vdisk handler</h3>
+				<A NAME="O_DIRECT"></A><h3>Support for O_DIRECT in scst_vdisk handler</h3>
 
 				<p>At the moment, scst_vdisk handler doesn't support O_DIRECT option and possibility to set it
 				was disabled. This limitation caused by Linux kernel expectation that memory supplied to
@@ -291,7 +291,7 @@
 				by pages, taken directly from dio->curr_user_address. Each such page should be referenced
 				by page_cache_get(). That's all.</p>
 
-				<h3>Refactoring of command execution path in scst_vdisk handler</h3>
+				<A NAME="VDISK_REFACTOR"></A><h3>Refactoring of command execution path in scst_vdisk handler</h3>
 				
 				<p>At the moment, in scst_vdisk handler command execution function vdisk_do_job() is
 				overcomplicated and not very performance effective. It would be good to replace all those
@@ -309,7 +309,7 @@
 	return vdisk_exec_fns[cmd->cdb[0]](cmd);
 }</p></listing>
 
-				<h3>Solve SG IO count limitation issue in pass-through mode</h3>
+				<A NAME="SG_LIMIT"></A><h3>Solve SG IO count limitation issue in pass-through mode</h3>
 				
 				<p>In the pass-through mode (i.e. using the pass-through device handlers
 				scst_disk, scst_tape, etc) SCSI commands, coming from remote initiators,
@@ -323,6 +323,98 @@
 				
 				<p>In <a href="sgv_big_order_alloc.diff">sgv_big_order_alloc.diff</a> you
 				can find a possible way to solve this issue.</p>
+
+				<A NAME="MEM_REG"></A><h3>Memory registration</h3>
+				
+				<p>In some cases a target driver might need to register memory used for data buffers in the
+				hardware. At the moment, none of SCST target drivers, including InfiniBand SRP target driver,
+				need that feature. But in case if in future there is a need in such a feature, it can be easily
+				added by extending SCST SGV cache. The SCST SGV cache is a memory management 
+				subsystem in SCST. It doesn't free to the system each data buffer,
+				which is not used anymore, but keeps it for a while to let it be reused by the 
+				next consecutive command to reduce command processing latency and, hence, improve performance.</p>
+				
+				<p>To support memory buffers registrations, it can be extended by the following way:</p>
+				
+				<p>1. Struct scst_tgt_template would be extended to have 2 new callbacks:</p>
+				
+				<ul>
+
+					<li><span>int register_buffer(struct scst_cmd *cmd)</span></li>
+					
+					<li><span>int unregister_buffer(unsigned long mem_priv, void *scst_priv)</span></li>
+			
+				</ul>
+				
+				<p>2. SCST core would be extended to have 4 new functions:</p>
+
+				<ul>
+
+					<li><span>int scst_mem_registered(struct scst_cmd *cmd)</span></li>
+					
+					<li><span>int scst_mem_deregistered(void *scst_priv)</span></li>
+					
+					<li><span>int scst_set_mem_priv(struct scst_cmd *cmd, unsigned long mem_priv)</span></li>
+					
+					<li><span>unsigned long scst_get_mem_priv(struct scst_cmd *cmd)</span></li>
+			
+				</ul>
+				
+				<p>3. The workflow would be the following:</p>
+				
+				<ol>
+					<li><span>If target driver defined register_buffer() and unregister_buffer() callbacks,
+					SCST core would allocate a dedicated SGV cache for each instance of struct scst_tgt,
+					i.e. target.</span></li>
+
+					<li><span>When there would be an SGV cache miss in memory buffer for a command allocation,
+					SCST would check if register_buffer() callback was defined in the target driver's template
+					and, if yes, would call it.</span></li>
+					
+					<li><span>In register_buffer() callback the target driver would do necessary actions to
+					start registration of the commands memory buffer.</span></li>
+					
+					<li><span>Upon register_buffer() callback returns, SCST core would suspend processing the
+					corresponding command and would switch to processing of the next commands.</span></li>
+					
+					<li><span>After the memory registration finished, the target driver would call scst_set_mem_priv()
+					to associate the memory buffer with some internal data.</span></li>
+					
+					<li><span>Then the target driver would call scst_mem_registered() and SCST would resume processing
+					the command.</span></li>
+					
+					<li><span>After the command finished, the corresponding memory buffer would remain in the
+					SGV cache in the registered state and would be reused by the next commands. For each of them
+					the target driver can at any time figure out the associated with the registered buffer data
+					by using scst_get_mem_priv().</span></li>
+					
+					<li><span>When the SGV cache decide that there is a time to free the memory buffer, it would
+					call the target driver's unregister_buffer() callback.</span></li>
+			
+					<li><span>In this callback the target driver would do necessary actions to start deregistration of the
+					commands memory buffer.</span></li>
+					
+					<li><span>Upon unregister_buffer() callback returns, SGV cache would suspend freeing the corresponding buffer
+					and would switch to other deals it has.</span></li>
+
+					<li><span>After the memory deregistration finished, the target driver would call scst_mem_deregistered()
+					and pass to it scst_priv pointer, received in unregister_buffer(). Then the  memory buffer
+					would be freed by the SGV cache.
+					</span></li>
+				</ol>
+
+				<A NAME="NON_SCSI_TGT"></A><h3>SCST usage with non-SCSI transports</h3>
+				
+				<p>SCST might also be used with non-SCSI speaking transports, like NBD or AoE. Such cooperation
+				would allow them to use SCST-emulated backend.</p>
+				
+				<p>For user space targets this is trivial: they simply should use SCST-emulated devices locally
+				via scst_local module.</p>
+				
+				<p>For in-kernel non-SCSI target driver it's a bit more complicated. They should implement a small layer,
+				which would translate their internal READ/WRITE requests to corresponding SCSI commands and, on the
+				way back, SCSI status and sense codes to their internal status codes.</p>
+
 			</div>
 	</div>
 </div>

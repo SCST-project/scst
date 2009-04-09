@@ -66,9 +66,7 @@
 <tr>                                                                                            
 <th align="left"> Architecture </th>					<td> Kernel only</td>	<td> User space only
 												<sup><A HREF="#1">1</A>	
-												</sup> </td>		<td> Split <sup>
-															<A HREF="#2">2</A>
-															</sup> </td>		<td> Kernel only </td>
+												</sup> </td>		<td> - </td>		<td> Kernel only </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                           
 <th align="left"> Stability </th>					<td> + </td>		<td> +
@@ -91,7 +89,7 @@
 transfer values (parallel SCSI, SAS) </th>				<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                            
-<th align="left"> User Interface </th>					<td> ProcFS </td>	<td> Custom </td>	<td> IOCTL/ProcFS </td>	<td> ConfigFS/IOCTL/ProcFS </td>
+<th align="left"> Interface with user space</th>			<td> ProcFS </td>	<td> Custom </td>	<td> - </td>		<td> ConfigFS/IOCTL/ProcFS </td>
 </tr>                                                                                                                           
 
                                                                                                 
@@ -115,7 +113,7 @@ transfer values (parallel SCSI, SAS) </th>				<td> + </td>		<td> - </td>		<td> -
 <sup><A HREF="#8">8</A></sup></th>					<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
-<th align="left"> Advanced devices visibility management 
+<th align="left"> Advanced devices access control 
 <sup><A HREF="#9">9</A></sup></th>					<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
@@ -123,10 +121,8 @@ transfer values (parallel SCSI, SAS) </th>				<td> + </td>		<td> - </td>		<td> -
 (AEN) </th>								<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
-<th align="left"> AEN for devices added/removed</th>			<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
-</tr>
-<tr>                                                                                            
-<th align="left"> AEN for devices resized</th>				<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+<th align="left"> Notification for devices added/removed or
+resized through AENs or Unit Attentions</th>				<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                                                            
 <th align="left"> Bidirectional Commands </th>				<td> + <sup>
@@ -213,7 +209,7 @@ SCSI requirements <sup><A HREF="#11">11</A></sup></th>			<td> Safe </td>		<td> S
 <th align="left"> User space side FILEIO </th>				<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
-<th align="left"> SCSI Pass-through </th>				<td> + </td>		<td> - </td>		<td> - </td>		<td> Single initiator only, not enforced 
+<th align="left"> SCSI pass-through </th>				<td> + </td>		<td> - </td>		<td> - </td>		<td> Single initiator only, not enforced 
 																		<sup><A HREF="#14">14</A></sup></td>
 </tr>                                                                                           
 <tr>                                                                                                                            
@@ -224,7 +220,15 @@ SCSI requirements <sup><A HREF="#11">11</A></sup></th>			<td> Safe </td>		<td> S
 in modes, other than pass-through </th>					<td> + </td>		<td> - </td>		<td> - </td>		<td> + </td>		
 </tr>
 <tr>                                                                                            
-<th align="left"> CDROM emulation from ISO files </th>			<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
+<th align="left"> Virtual CD devices emulation from ISO files </th>	<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
+</tr>
+<tr>                                                                                            
+<th align="left"> Possibility to write to emulated from ISO files
+CD devices</th>								<td> - </td>		<td> + </td>		<td> - </td>		<td> - </td>
+</tr>
+<tr>                                                                                            
+<th align="left"> Emulation of virtual tape and media changer
+devices</th>								<td> - </td>		<td>Experimental</td>	<td> - </td>		<td> - </td>
 </tr>
                                                                                                 
 <tr bgcolor="#E0E0E0">                                                                                                          
@@ -238,6 +242,11 @@ in modes, other than pass-through </th>					<td> + </td>		<td> - </td>		<td> - <
 															<A HREF="#2">2</A>
 															</sup></td>		<td> Kernel only </td>
 </tr>
+<tr>                                                                                                                            
+<th align="left"> Interface with user space</th>			<td>IOCTL/ProcFS/
+									Netlink</td>		<td> - </td>		<td>IOCTL/ProcFS/
+															Netlink</td>	<td> ConfigFS/IOCTL/ProcFS </td>
+</tr>                                                                                                                           
 <tr>                                                                                                                            
 <th align="left"> Multiple connections per session (MS/C) </th>		<td> - </td>		<td> - </td>		<td> - </td>		<td> + </td>
 </tr>                                                                                                                           
@@ -270,7 +279,8 @@ reinstatement <sup><A HREF="#15">15</A></sup></th>			<td> Safe </td>		<td> Not s
 <br/>
 <p><strong><big><u>REMARKS:</u></big></strong></p>
 
-<p><A NAME="1"></A> 1. STGT has SCSI target engine with memory management in user space and small hooks in the kernel to interact with in-kernel target drivers.</p>
+<p><A NAME="1"></A> 1. STGT has SCSI target engine and memory management in user space with small hooks in the kernel to interact with in-kernel target drivers.
+		       As a direct consequence, fully user space STGT target (e.g. iSCSI) can run without any kernel modules needed.</p>
 
 <p><A NAME="2"></A> 2. All iSCSI management implemented in user space and actual data transfers in kernel space without user space involved.</p>
 
@@ -280,7 +290,8 @@ reinstatement <sup><A HREF="#15">15</A></sup></th>			<td> Safe </td>		<td> Not s
 		       <a href="http://lists.wpkg.org/pipermail/stgt/2009-February/002630.html">http://lists.wpkg.org/pipermail/stgt/2009-February/002630.html</a></p>
 
 <p><A NAME="4"></A> 4. The result "in average" is listed. One target can be better somewhere, another one somewhere else. Although manual tuning of target and
-		       system parameters tends the restore the difference listed in the comparison.</p>
+		       system parameters tends the restore the difference listed in the comparison. You can find example measurements <a href="vl_res.txt">here</a>,
+		       <a href="bart_res.txt">here</a> and <a href="tomasz_res.txt">here</a>.</p>
 
 <p><A NAME="5"></A> 5. All SCST and its drivers' kernel patches supposed to be applied and SCST with the drivers built in the release or performance build.
 		       Without the kernel patches SCST performance will be at "****+" level, except for the case, when user space backstorage handler used
@@ -290,14 +301,17 @@ reinstatement <sup><A HREF="#15">15</A></sup></th>			<td> Safe </td>		<td> Not s
 		       The conclusion was made by source code study only. LIO should have performance on the IET level or less,
 		       because of more processing overhead. It might be much less for small block sizes.</p>
 
-<p><A NAME="7"></A> 7. Some zero-copy functionality isn't available from user space. For instance, zero-copy send to a socket.</p>
+<p><A NAME="7"></A> 7. Some zero-copy functionality isn't available from user space, sometimes fundamentally.
+		       For instance, zero-copy FILEIO with page cache or zero-copy send to a socket. Also STGT can't use splice() for in-kernel
+		       target drivers, because it has memory management in user space. To use splice() with socket-based user space target drivers
+		       STGT would need a deep redesign of internal interactions between target drivers, core and backend handlers.</p>
 
 <p><A NAME="8"></A> 8. "Local access to emulated backstorage devices" means that you can access emulated by a SCSI target devices
-		       locally on the target host. For instance, you can mount your ISO image as a SCSI CDROM device locally on the
-		       target host.</p>
+		       locally on the target host. For instance, you can mount your ISO image from emulated by the target
+		       CDROM device on the locally target host.</p>
 
-<p><A NAME="9"></A> 9. "Advanced devices visibility management" means that different initiators can see different sets
-		       of devices from the same target. This feature is essential with hardware targets, which don't have a possibility
+<p><A NAME="9"></A> 9. "Advanced devices access control" means that different initiators can see different sets
+		       of devices from the same target. This feature is essential for hardware targets, which don't have ability
 		       to create virtual targets.</p>
 
 <p><A NAME="10"></A> 10. Not well tested, because at the moment there is no backend using this functionality.</p>

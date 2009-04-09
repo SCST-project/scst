@@ -334,7 +334,7 @@
 				 </ul></span></li></ul></p>
 				 <p>All outstanding commands will be finished regularly. After <strong>scst_unregister_session()</strong> returned 
 				 no new commands must be sent to SCST via <strong>scst_rx_cmd()</strong>. Also, the caller must ensure that no 
-				 <strong>scst_rx_cmd()</strong> or <strong>scst_rx_mgmt_fn_*()</strong> is called in paralell with 
+				 <strong>scst_rx_cmd()</strong> or <strong>scst_rx_mgmt_fn_*()</strong> is called in parallel with 
 				 <strong>scst_unregister_session()</strong>.</p>
 				 <p>Function <strong>scst_unregister_session()</strong> can be called before <strong>result_fn()</strong> of 
 				 <strong>scst_register_session()</strong> called, i.e. during the session registration/initialization.</p>
@@ -582,8 +582,8 @@
 				<li><span><strong>int (*dev_done) (struct scst_cmd *cmd)</strong> - called to notify device handler about the result of the command's execution and perform some post processing. If <strong>parse()</strong> function is called, <strong>dev_done()</strong> is guaranteed to be called as well. The command's fields <strong>tgt_resp_flags</strong> and <strong>resp_data_len</strong> should be set by this function, but SCST offers good defaults. Pay attention to "atomic" attribute of the command, which can be get via <strong>scst_cmd_atomic()</strong>: it is true if the function called in the atomic (non-sleeping) context. Returns the command's next state or <strong>SCST_CMD_STATE_DEFAULT</strong>, if the next default state should be used, or <strong>SCST_CMD_STATE_NEED_THREAD_CTX</strong> if the function called in atomic context, but requires sleeping. In the last case, the function will be recalled in the thread context, where sleeping is allowed.</span></li>
 				<li><span><strong>int (*task_mgmt_fn) (struct scst_mgmt_cmd *mgmt_cmd, struct scst_tgt_dev *tgt_dev, struct scst_cmd *cmd_to_abort)</strong> - called to execute a task management command. Returns:
     			<ul>
-          		<li><span><strong>SCST_DEV_TM_COMPLETED_SUCCESS</strong> - the command is done with success, no firther actions required</span></li>
-          		<li><span><strong>SCST_DEV_TM_COMPLETED_FAILED</strong> - the command is failed, no firther actions required</span></li>
+          		<li><span><strong>SCST_DEV_TM_COMPLETED_SUCCESS</strong> - the command is done with success, no further actions required</span></li>
+          		<li><span><strong>SCST_DEV_TM_COMPLETED_FAILED</strong> - the command is failed, no further actions required</span></li>
           		<li><span><strong>SCST_DEV_TM_NOT_COMPLETED</strong> - regular standard actions for the command should be done</span></li>
           	</ul><strong>NOTE</strong>: for <strong>SCST_ABORT_TASK</strong> called under spinlock</span></li>
 				<li><span><strong>void (*on_free_cmd) (struct scst_cmd *cmd)</strong> - called to notify device handler that the command is about to be freed. Could be called on IRQ context.</span></li>
@@ -1052,7 +1052,7 @@
 
 				<h3>13.7 scst_add_threads() and scst_del_threads()</h3>
 				<p>These functions allows to add or delete some SCST threads. For example, if <strong>exec()</strong> function in 
-				your device handler works synchronously, i.e. wait for job's completition, in order to prevent performance loss you 
+				your device handler works synchronously, i.e. wait for job's completion, in order to prevent performance loss you 
 				can add for SCST as many threads as there are devices serviced by your device handler.</p>
 				<p>Function <strong>scst_add_threads()</strong> starts requested number of threads. It is defined as the following:</p>
 				<p><code>int scst_add_threads(<br />
