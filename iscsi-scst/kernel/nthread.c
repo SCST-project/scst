@@ -552,18 +552,7 @@ static void close_conn(struct iscsi_conn *conn)
 
 	if (list_empty(&session->conn_list)) {
 		sBUG_ON(session->sess_reinst_successor != NULL);
-
-		list_del(&session->session_list_entry);
-		session->deleted_from_session_list = 1;
-
-		mutex_unlock(&target->target_mutex);
-		if (session->scst_sess != NULL) {
-			scst_unregister_session(session->scst_sess, 1, NULL);
-			session->scst_sess = NULL;
-		}
-		mutex_lock(&target->target_mutex);
-
-		session_free(session);
+		session_free(session, true);
 	}
 
 	mutex_unlock(&target->target_mutex);

@@ -196,7 +196,7 @@ int session_add(struct iscsi_target *target,
 		 * Mutex target_mgmt_mutex won't allow to add connections to
 		 * the new session after target_mutex was dropped, so it's safe
 		 * to replace the initial UA without it. We can't do it under
-		 * target_mutex, because otherwise we will establish a
+		 * target_mutex, because otherwise we can establish a
 		 * circular locking dependency between target_mutex and
 		 * scst_mutex in SCST core (iscsi_report_aen() called by
 		 * SCST core under scst_mutex).
@@ -213,13 +213,15 @@ out_err_unlock:
 
 	scst_unregister_session(new_sess->scst_sess, 1, NULL);
 	new_sess->scst_sess = NULL;
-	new_sess->deleted_from_session_list = 1; /* it wasn't added, actually */
-	session_free(new_sess);
+
+	mutex_lock(&target->target_mutex);
+	session_free(new_sess, false);
+	mutex_unlock(&target->target_mutex);
 	goto out;
 }
 
 /* target_mutex supposed to be locked */
-int session_free(struct iscsi_session *session)
+int session_free(struct iscsi_session *session, bool del)
 {
 	unsigned int i;
 
@@ -236,8 +238,6 @@ int session_free(struct iscsi_session *session)
 	for (i = 0; i < ARRAY_SIZE(session->cmnd_hash); i++)
 		sBUG_ON(!list_empty(&session->cmnd_hash[i]));
 
-	sBUG_ON(session->scst_sess != NULL);
-
 	if (session->sess_reinst_successor != NULL)
 		sess_enable_reinstated_sess(session->sess_reinst_successor);
 
@@ -253,7 +253,19 @@ int session_free(struct iscsi_session *session)
 		}
 	}
 
-	if (!session->deleted_from_session_list)
+	if (session->scst_sess != NULL) {
+		/*
+		 * We must NOT call scst_unregister_session() in the waiting
+		 * mode, since we are under target_mutex. Otherwise we can
+		 * establish a circular locking dependency between target_mutex
+		 * and scst_mutex in SCST core (iscsi_report_aen() called by
+		 * SCST core under scst_mutex).
+		 */
+		scst_unregister_session(session->scst_sess, 0, NULL);
+		session->scst_sess = NULL;
+	}
+
+	if (del)
 		list_del(&session->session_list_entry);
 
 	kfree(session->initiator_name);
@@ -277,7 +289,7 @@ int session_del(struct iscsi_target *target, u64 sid)
 		return -EBUSY;
 	}
 
-	return session_free(session);
+	return session_free(session, true);
 }
 
 /* target_mutex supposed to be locked */
