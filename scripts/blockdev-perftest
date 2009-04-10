@@ -35,6 +35,11 @@ function usage {
   echo "        <dev> - block device to run the I/O performance test on."
 }
 
+function drop_caches {
+  sync
+  echo 3 > /proc/sys/vm/drop_caches
+}
+
 
 #########################
 # Default settings      #
@@ -101,9 +106,6 @@ else
   dd_iflags=""
 fi
 
-# Force all changed blocks to disk before the tests start.
-sync
-
 printf "%9s %8s %8s %8s %8s %8s %8s\n" blocksize W W W R R R
 
 for ((log2_blocksize = log2_max_blocksize;
@@ -118,6 +120,7 @@ do
   printf "%9d " ${bs}
   for ((i=0;i<3;i++))
   do
+    drop_caches
     elapsed="$(dd if=/dev/zero of="${device}" bs=${bs} count=${count} \
                   ${dd_oflags} 2>&1 \
                | sed -n 's/.* \([0-9.]*\) s,.*/\1/p')"
@@ -125,8 +128,7 @@ do
   done
   for ((i=0;i<3;i++))
   do
-    # Flush the read cache before the read test starts.
-    echo 1 > /proc/sys/vm/drop_caches
+    drop_caches
     elapsed="$(dd if="${device}" of=/dev/null bs=${bs} count=${count} \
                   ${dd_iflags} 2>&1 \
                | sed -n 's/.* \([0-9.]*\) s,.*/\1/p')"
