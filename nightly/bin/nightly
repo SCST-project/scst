@@ -5,9 +5,15 @@
 # ago with the current one.  See the README.txt on how to run it.
 #----------------------------------------------------------------------------
 
+
 #----------------------------------------------------------------------------
-# Helper function
+# Helper functions
 #----------------------------------------------------------------------------
+
+# Returns the revision number of the source files with date $1.
+get_svn_revision() {
+  svn info -r "{$1}" "${scst_svn_repo}" | sed -n 's/^Revision: //p'
+}
 
 runcmd () {
    logfile="$1"
@@ -38,6 +44,9 @@ runcmd () {
 #----------------------------------------------------------------------------
 # Startup
 #----------------------------------------------------------------------------
+
+scst_svn_repo="https://scst.svn.sourceforge.net/svnroot/scst/trunk"
+
 # Must have exactly one argument
 if [ "$#" -ne 1 ] ; then
     echo "usage: $0 <tag>"
@@ -78,6 +87,13 @@ fi
 # Check out, build, test
 #----------------------------------------------------------------------------
 
+svn_old_rev="`get_svn_revision ${svn_old_date}`"
+svn_new_rev="`get_svn_revision ${svn_new_date}`"
+if [ "${svn_old_rev}" = "${svn_new_rev}" ]; then
+  echo "No changes have been committed between ${svn_old_date} (r${svn_old_rev}) and ${svn_new_date} (r${svn_new_rev})."
+  exit 0
+fi
+
 # Do everything twice -- once for the 24 hours old SCST, and once 
 # for the current one.
 for logfile in old new ; do
@@ -101,7 +117,7 @@ for logfile in old new ; do
    # Check out and run the tests.
    runcmd ${logfile} \
           "Checking out SCST source tree" \
-          "svn co -q -r {${svn_date}} https://scst.svn.sourceforge.net/svnroot/scst/trunk ${ABT_TMPDIR}/scst" && \
+          "svn co -q -r {${svn_date}} ${scst_svn_repo} ${ABT_TMPDIR}/scst" && \
    runcmd ${logfile} \
           "Running regression tests" \
           "cd ${ABT_TMPDIR}/scst && scripts/run-regression-tests -d ${ABT_TMPDIR}/regtest -j ${ABT_JOBS} -q ${ABT_KERNELS}"
@@ -118,12 +134,13 @@ done
 #----------------------------------------------------------------------------
 
 # 'final' shows the difference between the old and new results
-echo                                                     >  final
-echo "Nightly build on" $ABT_MACHINE "(" $ABT_DETAILS ")" \
-     "started at" $ABT_START                             >> final
+echo                                                >  final
+echo "Nightly build on $ABT_MACHINE ($ABT_DETAILS)" >> final
+echo "started at $ABT_START and compared r${svn_old_rev} with r${svn_new_rev}." \
+                                                    >> final
 
 # If the results differ from 24 hours ago, print extra stuff.
-diff -C1 old.short new.short > diff.short
+diff -u old.short new.short > diff.short
 changed=$?
 
 if [ $changed != 0 ] ; then
@@ -132,6 +149,15 @@ if [ $changed != 0 ] ; then
 else
    echo "Results unchanged from 24 hours ago"   >> final
    changed_str="(unchanged) "
+fi
+
+if [ $changed != 0 ] ; then
+   echo "=================================================" >> final
+   echo "== Difference between 24 hours ago and now     ==" >> final
+   echo "=================================================" >> final
+   echo                                                     >> final
+   cat diff.short                                           >> final
+   echo                                                     >> final
 fi
 
 # Always show the current results.
@@ -147,13 +173,6 @@ if [ $changed != 0 ] ; then
    echo "== Results from 24 hours ago                   ==" >> final
    echo "=================================================" >> final
    cat old.short                                            >> final
-
-   echo                                                     >> final
-   echo "=================================================" >> final
-   echo "== Difference between 24 hours ago and now     ==" >> final
-   echo "=================================================" >> final
-   echo                                                     >> final
-   cat diff.short                                           >> final
    echo                                                     >> final
 fi
 
