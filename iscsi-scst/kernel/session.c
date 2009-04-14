@@ -130,7 +130,7 @@ void sess_reinst_finished(struct iscsi_session *sess)
 int session_add(struct iscsi_target *target,
 	struct iscsi_kern_session_info *info)
 {
-	struct iscsi_session *new_sess, *sess, *old_sess;
+	struct iscsi_session *new_sess = NULL, *sess, *old_sess;
 	int err = 0;
 	union iscsi_sid sid;
 	bool reinstatement = false;

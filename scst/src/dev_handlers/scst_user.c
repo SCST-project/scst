@@ -924,7 +924,7 @@ static int dev_user_exec(struct scst_cmd *cmd)
 	ucmd->user_cmd.exec_cmd.data_direction = cmd->data_direction;
 	ucmd->user_cmd.exec_cmd.partial = 0;
 	ucmd->user_cmd.exec_cmd.timeout = cmd->timeout / HZ;
-	ucmd->user_cmd.exec_cmd.p_in_buf = ucmd->ubuff + 
+	ucmd->user_cmd.exec_cmd.p_in_buf = ucmd->ubuff +
 						(cmd->sg_cnt << PAGE_SHIFT);
 	ucmd->user_cmd.exec_cmd.in_bufflen = cmd->in_bufflen;
 	ucmd->user_cmd.exec_cmd.sn = cmd->tgt_sn;

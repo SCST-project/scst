@@ -1403,7 +1403,7 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 
 	if ((req_hdr->flags & ISCSI_CMD_READ) &&
 	    (req_hdr->flags & ISCSI_CMD_WRITE)) {
-	    	int sz = cmnd_read_size(req);
+		int sz = cmnd_read_size(req);
 		if (unlikely(sz < 0)) {
 			PRINT_ERROR("%s", "BIDI data transfer, but initiator "
 				"not supplied Bidirectional Read Expected Data "
@@ -1535,7 +1535,7 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 			goto out;
 		}
 	}
-	
+
 	req->target_task_tag = get_next_ttt(conn);
 	if (dir != SCST_DATA_BIDI) {
 		req->sg = scst_cmd_get_sg(scst_cmd);
