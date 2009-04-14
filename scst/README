@@ -57,20 +57,29 @@ corresponding to that symbol "#if LINUX_VERSION_CODE" statement.
 At first, make sure that the link "/lib/modules/`you_kernel_version`/build" 
 points to the source code for your currently running kernel.
 
-Then, since in the mainstream kernels scsi_do_req()/scsi_execute_async()
-work in LIFO order, instead of expected and required FIFO, SCST needs a
-new functions scsi_do_req_fifo()/scsi_execute_async_fifo() to be added
-in the kernel. Patch scst_exec_req_fifo.patch from "kernel" directory
-does that. If it doesn't apply to your kernel, apply it manually, it
-only adds one of those functions and nothing more. You may not patch the
-kernel if you don't need pass-through support or CONFIG_SCST_STRICT_SERIALIZING is
-defined during the compilation (see description below).
+Then you should consider to apply necessary kernel patches. SCST has the
+following patches for the kernel in the "kernel" subdirectory. All of
+them are optional, so, if you don't need the corresponding
+functionality, you may not apply them.
 
-Then, to get the maximum performance you should apply export_alloc_io_context
-patch. This patch simply makes alloc_io_context() function be available
-for modules, not only for built-in in kernel code.
+1. scst_exec_req_fifo-2.6.X.patch. This patch is necessary for
+pass-through dev handlers, because in the mainstream kernels
+scsi_do_req()/scsi_execute_async() work in LIFO order, instead of
+expected and required FIFO. So SCST needs new functions
+scsi_do_req_fifo() or scsi_execute_async_fifo() to be added in the
+kernel. This patch does that. You may not patch the kernel if you don't
+need pass-through support. Alternatively, you can define
+CONFIG_SCST_STRICT_SERIALIZING compile option during the compilation
+(see description below).
 
-To compile SCST type 'make scst'. It will build SCST itself and its
+2. io_context-2.6.X.patch. This patch exports some IO context management
+functions from the kernel. For performance reasons SCST queues commands
+using a pool of IO threads. It is considerably better for performance
+(>30% increase on sequential reads) if threads in a pool have the same
+IO context. This patch allows that. If you don't apply this patch, you
+will loose this performance benefit.
+
+Then, to compile SCST type 'make scst'. It will build SCST itself and its
 device handlers. To install them type 'make scst_install'. The driver
 modules will be installed in '/lib/modules/`you_kernel_version`/extra'.
 In addition, scst.h, scst_debug.h as well as Module.symvers or
@@ -137,6 +146,13 @@ IMPORTANT: In the current version simultaneous access to local SCSI devices
 	   be safe.
 
 To uninstall, type 'make scst_uninstall'.
+
+
+Usage in failover mode
+----------------------
+
+It is recommended to use TEST UNIT READY ("tur") command to check if
+SCST target is alive.
 
 
 Device handlers
@@ -236,9 +252,9 @@ in/out in Makefile:
    cases. The current SCSI core in Linux doesn't allow to abort all
    commands reliably if they sent asynchronously to a stateful device.
    Turned off by default, turn it on if you use stateful device(s) and
-   need as much error recovery reliability as possible. As a side
-   effect, no kernel patching is necessary for pass-through device
-   handlers (scst_disk, etc.).
+   need as much error recovery reliability as possible. As a side effect
+   of CONFIG_SCST_STRICT_SERIALIZING, no kernel patching is necessary
+   for pass-through device handlers (scst_disk, etc.).
 
  - CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ - if defined, it will be
    allowed to submit pass-through commands to real SCSI devices via the SCSI

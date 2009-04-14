@@ -107,7 +107,7 @@ err:
 }
 
 /* target_mutex supposed to be locked */
-void sess_enable_reinstated_sess(struct iscsi_session *sess)
+void sess_reinst_finished(struct iscsi_session *sess)
 {
 	struct iscsi_conn *c;
 
@@ -118,7 +118,7 @@ void sess_enable_reinstated_sess(struct iscsi_session *sess)
 	sBUG_ON(!sess->sess_reinstating);
 
 	list_for_each_entry(c, &sess->conn_list, conn_list_entry) {
-		__iscsi_socket_bind(c);
+		conn_reinst_finished(c);
 	}
 	sess->sess_reinstating = 0;
 
@@ -239,7 +239,7 @@ int session_free(struct iscsi_session *session, bool del)
 		sBUG_ON(!list_empty(&session->cmnd_hash[i]));
 
 	if (session->sess_reinst_successor != NULL)
-		sess_enable_reinstated_sess(session->sess_reinst_successor);
+		sess_reinst_finished(session->sess_reinst_successor);
 
 	if (session->sess_reinstating) {
 		struct iscsi_session *s;

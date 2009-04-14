@@ -72,16 +72,17 @@ original IET behavior, when for data transmission:
 
  - For in-kernel allocated memory (scst_vdisk and pass-through
    handlers) usage of SGV cache on transmit path (READ-type commands)
-   will be disabled. The performance hit will be not big, but performance
-   will still remain better, than for IET, because SGV cache will remain
-   used on receive path while IET doesn't have such feature.
+   will be disabled, but data will still be sent in zero-copy manner.
+   The performance hit will be not big, but performance will still
+   remain better, than for IET, because SGV cache will remain used on
+   receive path while IET doesn't have such feature.
 
  - For user space allocated memory (scst_user handler) all transmitted
    data will be additionally copied into temporary TCP buffers. The
    performance hit will be quite noticeable.
 
 Note, that if your network hardware does not support TX offload
-functions of has them disabled, then TCP zero-copy transmit functions on
+functions or has them disabled, then TCP zero-copy transmit functions on
 your system will not be used by Linux networking in any case, so
 put_page_callback patch will not be able to improve performance for you.
 You can check your network hardware offload capabilities by command
@@ -130,6 +131,9 @@ now responsibilities are divided between the target driver (iSCSI-SCST)
 and the SCST core as it logically should be: the target driver is
 responsible for handling targets and their parameters, SCST core is
 responsible for handling backstorage.
+
+It is recommended to use TEST UNIT READY ("tur") command to check if
+iSCSI-SCST target is alive.
 
 IMPORTANT: All LUN information (access control) MUST be configured
 =========  BEFORE iscsi-scstd started!
