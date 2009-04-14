@@ -168,7 +168,6 @@ static int isp_getpdb(ispsoftc_t *, int, uint16_t, isp_pdb_t *, int);
 static void isp_dump_chip_portdb(ispsoftc_t *, int, int);
 static uint64_t isp_get_wwn(ispsoftc_t *, int, int, int);
 static int isp_fclink_test(ispsoftc_t *, int, int);
-static const char *ispfc_fw_statename(int);
 static int isp_pdb_sync(ispsoftc_t *, int);
 static int isp_scan_loop(ispsoftc_t *, int);
 static int isp_gid_ft_sns(ispsoftc_t *, int);
@@ -2559,13 +2558,6 @@ isp_get_wwn(ispsoftc_t *isp, int chan, int loopid, int nodename)
 static int
 isp_fclink_test(ispsoftc_t *isp, int chan, int usdelay)
 {
-	static const char *toponames[] = {
-		"Private Loop",
-		"FL Port",
-		"N-Port to N-Port",
-		"F Port",
-		"F Port (no FLOGI_ACC response)"
-	};
 	mbreg_t mbs;
 	int count, check_for_fabric, r;
 	uint8_t lwfs;
@@ -2841,13 +2833,13 @@ not_on_fabric:
 	 */
 	isp_prt(isp, ISP_LOGSANCFG|ISP_LOGCONFIG, topology, chan,
 	    (uint32_t) (fcp->isp_wwpn >> 32), (uint32_t) fcp->isp_wwpn,
-	    fcp->isp_portid, fcp->isp_loopid, toponames[fcp->isp_topo]);
+	    fcp->isp_portid, fcp->isp_loopid, ispfc_toponame(fcp->isp_topo));
 	isp_prt(isp, ISP_LOGSANCFG|ISP_LOGDEBUG0,
 	    "Chan %d FC Link Test Complete", chan);
 	return (0);
 }
 
-static const char *
+const char *
 ispfc_fw_statename(int state)
 {
 	switch (state) {
@@ -2859,6 +2851,36 @@ ispfc_fw_statename(int state)
 	case FW_ERROR:		return "Error";
 	case FW_REINIT:		return "Re-Init";
 	case FW_NON_PART:	return "Nonparticipating";
+	default:		return "?????";
+	}
+}
+
+const char *
+ispfc_loop_statename(int state)
+{
+	switch (state) {
+	case LOOP_NIL:			return "NIL";
+	case LOOP_LIP_RCVD:		return "LIP Received";
+	case LOOP_PDB_RCVD:		return "PDB Received";
+	case LOOP_SCANNING_LOOP:	return "Scanning";
+	case LOOP_LSCAN_DONE:		return "Loop Scan Done";
+	case LOOP_SCANNING_FABRIC:	return "Scanning Fabric";
+	case LOOP_FSCAN_DONE:		return "Fabric Scan Done";
+	case LOOP_SYNCING_PDB:		return "Syncing PDB";
+	case LOOP_READY:		return "Ready";
+	default:			return "?????";
+	}
+}
+
+const char *
+ispfc_toponame(int topo)
+{
+	switch (topo) {
+	case TOPO_NL_PORT:	return "Private Loop";
+	case TOPO_FL_PORT:	return "FL Port";
+	case TOPO_N_PORT:	return "N-Port to N-Port";
+	case TOPO_F_PORT:	return "F Port";
+	case TOPO_PTP_STUB:	return "F Port (no FLOGI_ACC response)";
 	default:		return "?????";
 	}
 }
