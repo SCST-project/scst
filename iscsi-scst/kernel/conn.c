@@ -56,7 +56,7 @@ static void print_conn_state(char *p, size_t size, struct iscsi_conn *conn)
 		break;
 	}
 
-	if (conn->conn_reinstating)
+	if (test_bit(ISCSI_CONN_REINSTATING, &conn->conn_aflags))
 		snprintf(p, size, "%s", "reinstating ");
 	else if (!printed)
 		snprintf(p, size, "%s", "established idle ");
@@ -132,8 +132,6 @@ static void iscsi_make_conn_rd_active(struct iscsi_conn *conn)
 {
 	TRACE_ENTRY();
 
-	EXTRACHECKS_BUG_ON(conn->conn_reinstating);
-
 	spin_lock_bh(&iscsi_rd_lock);
 
 	TRACE_DBG("conn %p, rd_state %x, rd_data_ready %d", conn,
@@ -184,8 +182,7 @@ void __mark_conn_closed(struct iscsi_conn *conn, int flags)
 		conn->deleting = 1;
 	spin_unlock_bh(&iscsi_rd_lock);
 
-	if (!conn->conn_reinstating)
-		iscsi_make_conn_rd_active(conn);
+	iscsi_make_conn_rd_active(conn);
 }
 
 void mark_conn_closed(struct iscsi_conn *conn)
@@ -274,7 +271,7 @@ static void conn_rsp_timer_fn(unsigned long arg)
 
 	if (!list_empty(&conn->written_list)) {
 		struct iscsi_cmnd *wr_cmd = list_entry(conn->written_list.next,
-				struct iscsi_cmnd, write_list_entry);
+				struct iscsi_cmnd, written_list_entry);
 
 		if (unlikely(time_after_eq(jiffies, wr_cmd->write_timeout))) {
 			if (!conn->closing) {
@@ -302,15 +299,33 @@ static void conn_rsp_timer_fn(unsigned long arg)
 	return;
 }
 
-void __iscsi_socket_bind(struct iscsi_conn *conn)
+/* target_mutex supposed to be locked */
+void conn_reinst_finished(struct iscsi_conn *conn)
+{
+	struct iscsi_cmnd *cmnd, *t;
+
+	TRACE_ENTRY();
+
+	clear_bit(ISCSI_CONN_REINSTATING, &conn->conn_aflags);
+
+	list_for_each_entry_safe(cmnd, t, &conn->reinst_pending_cmd_list,
+					reinst_pending_cmd_list_entry) {
+		TRACE_MGMT_DBG("Restarting reinst pending cmnd %p",
+			cmnd);
+		list_del(&cmnd->reinst_pending_cmd_list_entry);
+		iscsi_restart_cmnd(cmnd);
+	}
+
+	TRACE_EXIT();
+	return;
+}
+
+static void conn_activate(struct iscsi_conn *conn)
 {
 	TRACE_MGMT_DBG("Enabling conn %p", conn);
 
 	/* Catch double bind */
 	sBUG_ON(conn->sock->sk->sk_state_change == iscsi_state_change);
-
-	/* Let's reset this flag in one place */
-	conn->conn_reinstating = 0;
 
 	write_lock_bh(&conn->sock->sk->sk_callback_lock);
 
@@ -340,7 +355,7 @@ void __iscsi_socket_bind(struct iscsi_conn *conn)
  * pointer. This seems to work fine, and this approach is also used in some
  * other parts of the Linux kernel (see e.g. fs/ocfs2/cluster/tcp.c).
  */
-static int iscsi_socket_bind(struct iscsi_conn *conn, bool reinstating)
+static int conn_setup_sock(struct iscsi_conn *conn)
 {
 	int res = 0;
 	int opt = 1;
@@ -369,17 +384,6 @@ static int iscsi_socket_bind(struct iscsi_conn *conn, bool reinstating)
 		(void __force __user *)&opt, sizeof(opt));
 	set_fs(oldfs);
 
-	if (!reinstating) {
-		/*
-		 * We will delay full conn serving until all commands in
-		 * replacing connections are done to prevent them from
-		 * spoil our data by writing to them too late.
-		 */
-		__iscsi_socket_bind(conn);
-	} else
-		TRACE_MGMT_DBG("conn %p is reinstating, delaying enabling it",
-			conn);
-
 out:
 	return res;
 }
@@ -399,9 +403,10 @@ int conn_free(struct iscsi_conn *conn)
 	sBUG_ON(!list_empty(&conn->write_list));
 	sBUG_ON(!list_empty(&conn->written_list));
 	sBUG_ON(conn->conn_reinst_successor != NULL);
-	sBUG_ON(!conn->conn_shutting_down);
+	sBUG_ON(!test_bit(ISCSI_CONN_SHUTTINGDOWN, &conn->conn_aflags));
 
-	if (conn->conn_reinstating) {
+	/* Just in case if new conn gets freed before the old one */
+	if (test_bit(ISCSI_CONN_REINSTATING, &conn->conn_aflags)) {
 		struct iscsi_conn *c;
 		TRACE_MGMT_DBG("Freeing being reinstated conn %p", conn);
 		list_for_each_entry(c, &conn->session->conn_list,
@@ -428,13 +433,10 @@ int conn_free(struct iscsi_conn *conn)
 
 /* target_mutex supposed to be locked */
 static int iscsi_conn_alloc(struct iscsi_session *session,
-	struct iscsi_kern_conn_info *info, bool reinstating,
-	struct iscsi_conn **new_conn)
+	struct iscsi_kern_conn_info *info, struct iscsi_conn **new_conn)
 {
 	struct iscsi_conn *conn;
 	int res = 0;
-
-	reinstating |= session->sess_reinstating;
 
 	conn = kzalloc(sizeof(*conn), GFP_KERNEL);
 	if (!conn) {
@@ -454,7 +456,8 @@ static int iscsi_conn_alloc(struct iscsi_session *session,
 
 	atomic_set(&conn->conn_ref_cnt, 0);
 	conn->session = session;
-	conn->conn_reinstating = reinstating;
+	if (session->sess_reinstating)
+		__set_bit(ISCSI_CONN_REINSTATING, &conn->conn_aflags);
 	conn->cid = info->cid;
 	conn->stat_sn = info->stat_sn;
 	conn->exp_stat_sn = info->exp_stat_sn;
@@ -475,10 +478,11 @@ static int iscsi_conn_alloc(struct iscsi_session *session,
 	INIT_LIST_HEAD(&conn->written_list);
 	setup_timer(&conn->rsp_timer, conn_rsp_timer_fn, (unsigned long)conn);
 	init_completion(&conn->ready_to_free);
+	INIT_LIST_HEAD(&conn->reinst_pending_cmd_list);
 
 	conn->file = fget(info->fd);
 
-	res = iscsi_socket_bind(conn, reinstating);
+	res = conn_setup_sock(conn);
 	if (res != 0)
 		goto out_err_free2;
 
@@ -510,7 +514,8 @@ int conn_add(struct iscsi_session *session, struct iscsi_kern_conn_info *info)
 	bool reinstatement = false;
 
 	conn = conn_lookup(session, info->cid);
-	if ((conn != NULL) && !conn->conn_shutting_down) {
+	if ((conn != NULL) &&
+	    !test_bit(ISCSI_CONN_SHUTTINGDOWN, &conn->conn_aflags)) {
 		/* conn reinstatement */
 		reinstatement = true;
 	} else if (!list_empty(&session->conn_list)) {
@@ -518,7 +523,7 @@ int conn_add(struct iscsi_session *session, struct iscsi_kern_conn_info *info)
 		goto out;
 	}
 
-	err = iscsi_conn_alloc(session, info, reinstatement, &new_conn);
+	err = iscsi_conn_alloc(session, info, &new_conn);
 	if (err != 0)
 		goto out;
 
@@ -526,9 +531,11 @@ int conn_add(struct iscsi_session *session, struct iscsi_kern_conn_info *info)
 		TRACE_MGMT_DBG("Reinstating conn (old %p, new %p)", conn,
 			new_conn);
 		conn->conn_reinst_successor = new_conn;
-		new_conn->conn_reinstating = 1;
+		__set_bit(ISCSI_CONN_REINSTATING, &new_conn->conn_aflags);
 		__mark_conn_closed(conn, 0);
 	}
+
+	conn_activate(new_conn);
 
 out:
 	return err;

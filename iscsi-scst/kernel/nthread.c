@@ -339,11 +339,12 @@ void iscsi_task_mgmt_affected_cmds_done(struct scst_mgmt_cmd *scst_mcmd)
 
 		mutex_lock(&sess->target->target_mutex);
 		if (conn->conn_reinst_successor != NULL) {
-			sBUG_ON(!conn->conn_reinst_successor->conn_reinstating);
-			__iscsi_socket_bind(conn->conn_reinst_successor);
-			/* We will check for conn_reinst_successor later */
+			sBUG_ON(!test_bit(ISCSI_CONN_REINSTATING,
+				  &conn->conn_reinst_successor->conn_aflags));
+			conn_reinst_finished(conn->conn_reinst_successor);
+			conn->conn_reinst_successor = NULL;
 		} else if (sess->sess_reinst_successor != NULL) {
-			sess_enable_reinstated_sess(sess->sess_reinst_successor);
+			sess_reinst_finished(sess->sess_reinst_successor);
 			sess->sess_reinst_successor = NULL;
 		}
 		mutex_unlock(&sess->target->target_mutex);
@@ -394,12 +395,12 @@ static void close_conn(struct iscsi_conn *conn)
 
 	mutex_lock(&session->target->target_mutex);
 
-	conn->conn_shutting_down = 1;
+	set_bit(ISCSI_CONN_SHUTTINGDOWN, &conn->conn_aflags);
 	reinst = (conn->conn_reinst_successor != NULL);
 
 	session->sess_shutting_down = 1;
 	list_for_each_entry(c, &session->conn_list, conn_list_entry) {
-		if (!c->conn_shutting_down) {
+		if (!test_bit(ISCSI_CONN_SHUTTINGDOWN, &c->conn_aflags)) {
 			session->sess_shutting_down = 0;
 			break;
 		}
@@ -542,12 +543,8 @@ static void close_conn(struct iscsi_conn *conn)
 			 conn);
 	event_send(target->tid, session->sid, conn->cid, E_CONN_CLOSE, 0);
 
-	sBUG_ON(conn->conn_reinstating);
-	sBUG_ON(session->sess_reinstating);
-
 	mutex_lock(&target->target_mutex);
 
-	conn->conn_reinst_successor = NULL;
 	conn_free(conn);
 
 	if (list_empty(&session->conn_list)) {
@@ -1098,7 +1095,8 @@ static int write_data(struct iscsi_conn *conn)
 		spin_lock_bh(&conn->write_list_lock);
 		ref_cmd->on_written_list = 1;
 		ref_cmd->write_timeout = jiffies + ISCSI_RSP_TIMEOUT;
-		list_add_tail(&ref_cmd->write_list_entry, &conn->written_list);
+		list_add_tail(&ref_cmd->written_list_entry,
+			&conn->written_list);
 		spin_unlock_bh(&conn->write_list_lock);
 	}
 

@@ -83,6 +83,14 @@ IMPORTANT: In the current version simultaneous access to local SCSI devices
 	   devices READ/WRITE commands using direct disk handler look to
 	   be safe.
 
+
+Usage in failover mode
+----------------------
+
+It is recommended to use TEST UNIT READY ("tur") command to check if
+SCST target is alive.
+
+
 Device handlers
 ---------------
 
@@ -179,9 +187,9 @@ your favorit kernel configuration Makefile target, e.g. "make xconfig":
    cases. The current SCSI core in Linux doesn't allow to abort all
    commands reliably if they sent asynchronously to a stateful device.
    Turned off by default, turn it on if you use stateful device(s) and
-   need as much error recovery reliability as possible. As a side
-   effect, no kernel patching is necessary for pass-through device
-   handlers (scst_disk, etc.)
+   need as much error recovery reliability as possible. As a side effect
+   of CONFIG_SCST_STRICT_SERIALIZING, no kernel patching is necessary
+   for pass-through device handlers (scst_disk, etc.).
 
  - CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ - if defined, it will be
    allowed to submit pass-through commands to real SCSI devices via the SCSI

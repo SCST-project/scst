@@ -114,13 +114,45 @@ static inline int cmnd_read_size(struct iscsi_cmnd *cmnd)
 	return 0;
 }
 
-static inline void iscsi_restart_cmnd(struct iscsi_cmnd *cmnd)
+void iscsi_restart_cmnd(struct iscsi_cmnd *cmnd)
 {
 	EXTRACHECKS_BUG_ON(cmnd->data_waiting);
+
+	if (unlikely(test_bit(ISCSI_CONN_REINSTATING,
+			&cmnd->conn->conn_aflags))) {
+		struct iscsi_target *target = cmnd->conn->session->target;
+		bool get_out;
+
+		mutex_lock(&target->target_mutex);
+
+		get_out = test_bit(ISCSI_CONN_REINSTATING,
+				&cmnd->conn->conn_aflags);
+		/* Let's don't look dead */
+		if (scst_cmd_get_cdb(cmnd->scst_cmd)[0] == TEST_UNIT_READY)
+			get_out = false;
+
+		if (!get_out)
+			goto unlock_cont;
+
+		TRACE_MGMT_DBG("Pending cmnd %p, because conn %p is "
+			"reinstated", cmnd, cmnd->conn);
+
+		cmnd->scst_state = ISCSI_CMD_STATE_REINST_PENDING;
+		list_add_tail(&cmnd->reinst_pending_cmd_list_entry,
+			&cmnd->conn->reinst_pending_cmd_list);
+
+unlock_cont:
+		mutex_unlock(&target->target_mutex);
+
+		if (get_out)
+			goto out;
+	}
 
 	cmnd->scst_state = ISCSI_CMD_STATE_RESTARTED;
 	scst_restart_cmd(cmnd->scst_cmd, SCST_PREPROCESS_STATUS_SUCCESS,
 		SCST_CONTEXT_THREAD);
+
+out:
 	return;
 }
 
@@ -226,6 +258,7 @@ static void cmnd_free(struct iscsi_cmnd *cmnd)
 	return;
 }
 
+/* Might be called unded some lock and on SIRQ */
 void cmnd_done(struct iscsi_cmnd *cmnd)
 {
 	TRACE_DBG("%p", cmnd);
@@ -243,7 +276,7 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 		TRACE_DBG("Deleting cmd %p from conn %p written_list", cmnd,
 			conn);
 		spin_lock_bh(&conn->write_list_lock);
-		list_del(&cmnd->write_list_entry);
+		list_del(&cmnd->written_list_entry);
 		cmnd->on_written_list = 0;
 		spin_unlock_bh(&conn->write_list_lock);
 	}
@@ -2973,7 +3006,7 @@ static int iscsi_scsi_aen(struct scst_aen *aen)
 
 	found = false;
 	list_for_each_entry_reverse(conn, &sess->conn_list, conn_list_entry) {
-		if (!conn->conn_shutting_down &&
+		if (!test_bit(ISCSI_CONN_SHUTTINGDOWN, &conn->conn_aflags) &&
 		    (conn->conn_reinst_successor == NULL)) {
 			found = true;
 			break;

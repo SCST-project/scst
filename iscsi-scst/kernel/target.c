@@ -184,6 +184,7 @@ out:
 	return err;
 }
 
+/* target_mutex supposed to be locked */
 void target_del_session(struct iscsi_target *target,
 	struct iscsi_session *session, int flags)
 {

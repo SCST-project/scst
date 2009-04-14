@@ -147,6 +147,10 @@ struct iscsi_conn {
 	u32 stat_sn;
 	u32 exp_stat_sn;
 
+#define ISCSI_CONN_REINSTATING	1
+#define ISCSI_CONN_SHUTTINGDOWN	2
+	unsigned long conn_aflags;
+
 	spinlock_t cmd_list_lock; /* BH lock */
 
 	/* Protected by cmd_list_lock */
@@ -227,8 +231,7 @@ struct iscsi_conn {
 
 	/* All protected by target_mutex, where necessary */
 	struct iscsi_conn *conn_reinst_successor;
-	unsigned int conn_reinstating:1;
-	unsigned int conn_shutting_down:1;
+	struct list_head reinst_pending_cmd_list;
 
 	struct completion ready_to_free;
 
@@ -257,14 +260,17 @@ typedef void (iscsi_show_info_t)(struct seq_file *seq,
 /* The command returned from preprocessing_done() */
 #define ISCSI_CMD_STATE_AFTER_PREPROC     2
 
+/* The command is waiting for session or connection reinstatement finished */
+#define ISCSI_CMD_STATE_REINST_PENDING    3
+
 /* scst_restart_cmd() called and SCST processing it */
-#define ISCSI_CMD_STATE_RESTARTED         3
+#define ISCSI_CMD_STATE_RESTARTED         4
 
 /* SCST done processing */
-#define ISCSI_CMD_STATE_PROCESSED         4
+#define ISCSI_CMD_STATE_PROCESSED         5
 
 /* AEN processing */
-#define ISCSI_CMD_STATE_AEN               5
+#define ISCSI_CMD_STATE_AEN               6
 
 /** Command's reject reasons **/
 #define ISCSI_REJECT_SCSI_CMD             1
@@ -320,7 +326,12 @@ struct iscsi_cmnd {
 
 	union {
 		struct list_head pending_list_entry;
+		struct list_head reinst_pending_cmd_list_entry;
+	};
+
+	union {
 		struct list_head write_list_entry;
+		struct list_head written_list_entry;
 	};
 
 	/* Both modified only from single write thread */
@@ -410,10 +421,11 @@ extern void req_cmnd_release_force(struct iscsi_cmnd *req, int flags);
 extern void rsp_cmnd_release(struct iscsi_cmnd *);
 extern void cmnd_done(struct iscsi_cmnd *cmnd);
 extern void conn_abort(struct iscsi_conn *conn);
+extern void iscsi_restart_cmnd(struct iscsi_cmnd *cmnd);
 
 /* conn.c */
 extern struct iscsi_conn *conn_lookup(struct iscsi_session *, u16);
-extern void __iscsi_socket_bind(struct iscsi_conn *);
+extern void conn_reinst_finished(struct iscsi_conn *);
 extern int conn_add(struct iscsi_session *, struct iscsi_kern_conn_info *);
 extern int conn_del(struct iscsi_session *, struct iscsi_kern_conn_info *);
 extern int conn_free(struct iscsi_conn *);
@@ -454,7 +466,7 @@ extern void iscsi_procfs_exit(void);
 /* session.c */
 extern const struct file_operations session_seq_fops;
 extern struct iscsi_session *session_lookup(struct iscsi_target *, u64);
-extern void sess_enable_reinstated_sess(struct iscsi_session *);
+extern void sess_reinst_finished(struct iscsi_session *);
 extern int session_add(struct iscsi_target *, struct iscsi_kern_session_info *);
 extern int session_del(struct iscsi_target *, u64);
 extern int session_free(struct iscsi_session *session, bool del);

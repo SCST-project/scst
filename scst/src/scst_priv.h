@@ -415,19 +415,21 @@ void scst_process_reset(struct scst_device *dev,
 
 static inline int scst_is_ua_command(struct scst_cmd *cmd)
 {
-	return cmd->cdb[0] != INQUIRY
-	       && cmd->cdb[0] != REQUEST_SENSE
-	       && cmd->cdb[0] != REPORT_LUNS;
+	return (cmd->cdb[0] != INQUIRY) &&
+	       (cmd->cdb[0] != REQUEST_SENSE) &&
+	       (cmd->cdb[0] != REPORT_LUNS);
 }
 
 static inline int scst_is_implicit_hq(struct scst_cmd *cmd)
 {
-	return cmd->cdb[0] == INQUIRY
-	       || cmd->cdb[0] == REPORT_LUNS
-	       || (cmd->dev->type == TYPE_DISK
-		   && (cmd->cdb[0] == READ_CAPACITY
-		       || (cmd->cdb[0] == SERVICE_ACTION_IN
-			   && (cmd->cdb[1] & 0x1f) == SAI_READ_CAPACITY_16)));
+	return (cmd->cdb[0] == INQUIRY) ||
+	       (cmd->cdb[0] == REPORT_LUNS) ||
+	       ((cmd->dev->type == TYPE_DISK) &&
+			((cmd->cdb[0] == READ_CAPACITY) ||
+			 ((cmd->cdb[0] == SERVICE_ACTION_IN) &&
+			  ((cmd->cdb[1] & 0x1f) == SAI_READ_CAPACITY_16)))) ||
+	       /* Let's don't look dead under high load */
+	       (cmd->cdb[0] == TEST_UNIT_READY);
 }
 
 /*
