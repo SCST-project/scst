@@ -958,7 +958,7 @@ sub clearConfiguration {
 	print "If this is not what you intend, press ctrl-c now. Waiting 10 seconds.\n\n";
 	sleep 10;
 
-	print "\nRemoving all user and groups:\n\n";
+	print "\nRemoving all users and groups:\n\n";
 	foreach my $group (keys %GROUPS) {
 		$errs += removeGroup($group) if ($group ne $_DEFAULT_GROUP_);
 	}
