@@ -506,6 +506,56 @@ isp_dump_portdb(ispsoftc_t *isp, int chan)
 	}
 }
 
+const char *
+isp_fc_fw_statename(int state)
+{
+	switch (state) {
+	case FW_CONFIG_WAIT:	return "Config Wait";
+	case FW_WAIT_AL_PA:	return "Waiting for AL_PA";
+	case FW_WAIT_LOGIN:	return "Wait Login";
+	case FW_READY:		return "Ready";
+	case FW_LOSS_OF_SYNC:	return "Loss Of Sync";
+	case FW_ERROR:		return "Error";
+	case FW_REINIT:		return "Re-Init";
+	case FW_NON_PART:	return "Nonparticipating";
+	default:		return "?????";
+	}
+}
+
+const char *
+isp_fc_loop_statename(int state)
+{
+	switch (state) {
+	case LOOP_NIL:                  return "NIL";
+	case LOOP_LIP_RCVD:             return "LIP Received";
+	case LOOP_PDB_RCVD:             return "PDB Received";
+	case LOOP_SCANNING_LOOP:        return "Scanning";
+	case LOOP_LSCAN_DONE:           return "Loop Scan Done";
+	case LOOP_SCANNING_FABRIC:      return "Scanning Fabric";
+	case LOOP_FSCAN_DONE:           return "Fabric Scan Done";
+	case LOOP_SYNCING_PDB:          return "Syncing PDB";
+	case LOOP_READY:                return "Ready"; 
+	default:                        return "?????";
+	}
+}
+
+const char *
+isp_fc_toponame(fcparam *fcp)
+{
+
+	if (fcp->isp_fwstate != FW_READY) {
+		return "Unavailable";
+	}
+	switch (fcp->isp_topo) {
+	case TOPO_NL_PORT:      return "Private Loop";
+	case TOPO_FL_PORT:      return "FL Port";
+	case TOPO_N_PORT:       return "N-Port to N-Port";
+	case TOPO_F_PORT:       return "F Port";
+	case TOPO_PTP_STUB:     return "F Port (no FLOGI_ACC response)";
+	default:                return "?????";
+	}
+}
+
 void
 isp_shutdown(ispsoftc_t *isp)
 {

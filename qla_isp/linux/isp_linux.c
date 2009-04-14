@@ -4342,7 +4342,7 @@ isplinux_common_init(ispsoftc_t *isp)
     retval = isplinux_reinit(isp);
 
     if (retval) {
-        isp_prt(isp, ISP_LOGERR, "failed to init HBA port (%d): skipping it", retval);
+        isp_prt(isp, ISP_LOGERR, "failed to init HBA port- skipping it");
         del_timer(&isp->isp_osinfo.timer);
         isp->dogactive = 0;
         ISP_UNLK_SOFTC(isp);

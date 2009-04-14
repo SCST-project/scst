@@ -93,6 +93,10 @@ extern const char *isp_class3_roles[4];
 int isp_fc_runstate(ispsoftc_t *, int, int);
 void isp_dump_portdb(ispsoftc_t *, int);
 
+const char *isp_fc_fw_statename(int);
+const char *isp_fc_loop_statename(int);
+const char *isp_fc_toponame(fcparam *);
+
 
 /*
  * Common chip shutdown function

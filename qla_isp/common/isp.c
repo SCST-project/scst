@@ -100,30 +100,18 @@ __FBSDID("$FreeBSD$");
 /*
  * Local static data
  */
-static const char fconf[] =
-    "Chan %d PortDB[%d] changed:\n current =(0x%x@0x%06x 0x%08x%08x 0x%08x%08x)"
-    "\n database=(0x%x@0x%06x 0x%08x%08x 0x%08x%08x)";
-static const char notresp[] =
-  "Not RESPONSE in RESPONSE Queue (type 0x%x) @ idx %d (next %d) nlooked %d";
-static const char xact1[] =
-    "HBA attempted queued transaction with disconnect not set for %d.%d.%d";
-static const char xact2[] =
-    "HBA attempted queued transaction to target routine %d on target %d bus %d";
-static const char xact3[] =
-    "HBA attempted queued cmd for %d.%d.%d when queueing disabled";
-static const char pskip[] =
-    "SCSI phase skipped for target %d.%d.%d";
-static const char topology[] =
-    "Chan %d WWPN 0x%08x%08x PortID 0x%06x N-Port Handle %d, Connection '%s'";
-static const char finmsg[] =
-    "%d.%d.%d: FIN dl%d resid %ld STS 0x%x SKEY %c XS_ERR=0x%x";
+static const char fconf[] = "Chan %d PortDB[%d] changed:\n current =(0x%x@0x%06x 0x%08x%08x 0x%08x%08x)\n database=(0x%x@0x%06x 0x%08x%08x 0x%08x%08x)";
+static const char notresp[] = "Not RESPONSE in RESPONSE Queue (type 0x%x) @ idx %d (next %d) nlooked %d";
+static const char xact1[] = "HBA attempted queued transaction with disconnect not set for %d.%d.%d";
+static const char xact2[] = "HBA attempted queued transaction to target routine %d on target %d bus %d";
+static const char xact3[] = "HBA attempted queued cmd for %d.%d.%d when queueing disabled";
+static const char pskip[] = "SCSI phase skipped for target %d.%d.%d";
+static const char topology[] = "Chan %d WWPN 0x%08x%08x PortID 0x%06x N-Port Handle %d, Connection '%s'";
+static const char finmsg[] = "%d.%d.%d: FIN dl%d resid %ld STS 0x%x SKEY %c XS_ERR=0x%x";
 static const char sc4[] = "NVRAM";
-static const char bun[] =
-    "bad underrun for %d.%d (count %d, resid %d, status %s)";
-static const char lipd[] =
-    "Chan %d LIP destroyed %d active commands";
-static const char sacq[] =
-    "unable to acquire scratch area";
+static const char bun[] = "bad underrun for %d.%d (count %d, resid %d, status %s)";
+static const char lipd[] = "Chan %d LIP destroyed %d active commands";
+static const char sacq[] = "unable to acquire scratch area";
 
 static const uint8_t alpa_map[] = {
 	0xef, 0xe8, 0xe4, 0xe2, 0xe1, 0xe0, 0xdc, 0xda,
@@ -148,11 +136,8 @@ static const uint8_t alpa_map[] = {
  * Local function prototypes.
  */
 static int isp_parse_async(ispsoftc_t *, uint16_t);
-static int isp_handle_other_response(ispsoftc_t *, int, isphdr_t *,
-    uint32_t *);
-static void
-isp_parse_status(ispsoftc_t *, ispstatusreq_t *, XS_T *, long *);
-static void
+static int isp_handle_other_response(ispsoftc_t *, int, isphdr_t *, uint32_t *);
+static void isp_parse_status(ispsoftc_t *, ispstatusreq_t *, XS_T *, long *); static void
 isp_parse_status_24xx(ispsoftc_t *, isp24xx_statusreq_t *, XS_T *, long *);
 static void isp_fastpost_complete(ispsoftc_t *, uint16_t);
 static int isp_mbox_continue(ispsoftc_t *);
@@ -173,8 +158,7 @@ static int isp_scan_loop(ispsoftc_t *, int);
 static int isp_gid_ft_sns(ispsoftc_t *, int);
 static int isp_gid_ft_ct_passthru(ispsoftc_t *, int);
 static int isp_scan_fabric(ispsoftc_t *, int);
-static int
-isp_login_device(ispsoftc_t *, int, uint32_t, isp_pdb_t *, uint16_t *);
+static int isp_login_device(ispsoftc_t *, int, uint32_t, isp_pdb_t *, uint16_t *);
 static int isp_register_fc4_type(ispsoftc_t *, int);
 static int isp_register_fc4_type_24xx(ispsoftc_t *, int);
 static uint16_t isp_nxt_handle(ispsoftc_t *, int, uint16_t);
@@ -230,7 +214,6 @@ isp_reset(ispsoftc_t *isp)
 	 */
 
 	ISP_DISABLE_INTS(isp);
-
 
 	/*
 	 * Pick an initial maxcmds value which will be used
@@ -2568,8 +2551,7 @@ isp_fclink_test(ispsoftc_t *isp, int chan, int usdelay)
 
 	fcp = FCPARAM(isp, chan);
 
-	isp_prt(isp, ISP_LOGSANCFG|ISP_LOGDEBUG0,
-	    "Chan %d FC Link Test Entry", chan);
+	isp_prt(isp, ISP_LOGSANCFG|ISP_LOGDEBUG0, "Chan %d FC Link Test Entry", chan);
 	ISP_MARK_PORTDB(isp, chan, 1);
 
 	/*
@@ -2585,10 +2567,7 @@ isp_fclink_test(ispsoftc_t *isp, int chan, int usdelay)
 		GET_NANOTIME(&hra);
 		isp_fw_state(isp, chan);
 		if (lwfs != fcp->isp_fwstate) {
-			isp_prt(isp, ISP_LOGCONFIG|ISP_LOGSANCFG,
-			    "Chan %d Firmware State <%s->%s>",
-			    chan, ispfc_fw_statename((int)lwfs),
-			    ispfc_fw_statename((int)fcp->isp_fwstate));
+			isp_prt(isp, ISP_LOGCONFIG|ISP_LOGSANCFG, "Chan %d Firmware State <%s->%s>", chan, isp_fc_fw_statename((int)lwfs), isp_fc_fw_statename((int)fcp->isp_fwstate));
 			lwfs = fcp->isp_fwstate;
 		}
 		if (fcp->isp_fwstate == FW_READY) {
@@ -2602,10 +2581,7 @@ isp_fclink_test(ispsoftc_t *isp, int chan, int usdelay)
 		 */
 		enano = NANOTIME_SUB(&hrb, &hra);
 
-		isp_prt(isp, ISP_LOGDEBUG1,
-		    "usec%d: 0x%lx->0x%lx enano 0x%x%08x",
-		    count, (long) GET_NANOSEC(&hra), (long) GET_NANOSEC(&hrb),
-		    (uint32_t)(enano >> 32), (uint32_t)(enano));
+		isp_prt(isp, ISP_LOGDEBUG1, "usec%d: 0x%lx->0x%lx enano 0x%x%08x", count, (long) GET_NANOSEC(&hra), (long) GET_NANOSEC(&hrb), (uint32_t)(enano >> 32), (uint32_t)(enano));
 
 		/*
 		 * If the elapsed time is less than 1 millisecond,
@@ -2642,8 +2618,7 @@ isp_fclink_test(ispsoftc_t *isp, int chan, int usdelay)
 	 * If we haven't gone to 'ready' state, return.
 	 */
 	if (fcp->isp_fwstate != FW_READY) {
-		isp_prt(isp, ISP_LOGSANCFG,
-		    "isp_fclink_test: chan %d not at FW_READY state", chan);
+		isp_prt(isp, ISP_LOGSANCFG, "%s: chan %d not at FW_READY state", __func__, chan);
 		return (-1);
 	}
 
@@ -2712,11 +2687,7 @@ isp_fclink_test(ispsoftc_t *isp, int chan, int usdelay)
 				}
 			}
 			if (alpa_map[i] && fcp->isp_loopid != i) {
-				isp_prt(isp, ISP_LOGSANCFG|ISP_LOGDEBUG0,
-				    "Chan %d deriving loopid %d from AL_PA map "
-				    " (AL_PA 0x%x) and ignoring returned value "
-				    "%d (AL_PA 0x%x)", chan, i, alpa_map[i],
-				    fcp->isp_loopid, alpa);
+				isp_prt(isp, ISP_LOGSANCFG|ISP_LOGDEBUG0, "Chan %d deriving loopid %d from AL_PA map  (AL_PA 0x%x) and ignoring returned value %d (AL_PA 0x%x)", chan, i, alpa_map[i], fcp->isp_loopid, alpa);
 				fcp->isp_loopid = i;
 			}
 		}
@@ -2764,23 +2735,16 @@ isp_fclink_test(ispsoftc_t *isp, int chan, int usdelay)
 		if (IS_24XX(isp)) {
 			fcp->inorder = (mbs.param[7] & ISP24XX_INORDER) != 0;
 			if (ISP_FW_NEWER_THAN(isp, 4, 0, 27)) {
-				fcp->npiv_fabric =
-				    (mbs.param[7] & ISP24XX_NPIV_SAN) != 0;
+				fcp->npiv_fabric = (mbs.param[7] & ISP24XX_NPIV_SAN) != 0;
 				if (fcp->npiv_fabric) {
-					isp_prt(isp, ISP_LOGCONFIG,
-					   "fabric supports NP-IV");
+					isp_prt(isp, ISP_LOGCONFIG, "fabric supports NP-IV");
 				}
 			}
 			if (chan) {
 				fcp->isp_sns_hdl = NPH_SNS_HDLBASE + chan;
-				r = isp_plogx(isp, chan, fcp->isp_sns_hdl,
-				    SNS_PORT_ID, PLOGX_FLG_CMD_PLOGI |
-				    PLOGX_FLG_COND_PLOGI | PLOGX_FLG_SKIP_PRLI,
-				    0);
+				r = isp_plogx(isp, chan, fcp->isp_sns_hdl, SNS_PORT_ID, PLOGX_FLG_CMD_PLOGI | PLOGX_FLG_COND_PLOGI | PLOGX_FLG_SKIP_PRLI, 0);
 				if (r) {
-					isp_prt(isp, ISP_LOGWARN, "isp_fclink"
-					    "_test: Chan %d cannot log into "
-					    "SNS", chan);
+					isp_prt(isp, ISP_LOGWARN, "%s: Chan %d cannot log into SNS", __func__, chan);
 					return (-1);
 				}
 			} else {
@@ -2792,8 +2756,7 @@ isp_fclink_test(ispsoftc_t *isp, int chan, int usdelay)
 			r = isp_register_fc4_type(isp, chan);
 		}
 		if (r) {
-			isp_prt(isp, ISP_LOGWARN|ISP_LOGSANCFG,
-			    "isp_fclink_test: register fc4 type failed");
+			isp_prt(isp, ISP_LOGWARN|ISP_LOGSANCFG, "%s: register fc4 type failed", __func__);
 			return (-1);
 		}
 	} else {
@@ -2809,20 +2772,16 @@ not_on_fabric:
 		isp_mboxcmd(isp, &mbs);
 		if (mbs.param[0] == MBOX_COMMAND_COMPLETE) {
 			if (mbs.param[1] == MBGSD_EIGHTGB) {
-				isp_prt(isp, ISP_LOGINFO,
-				    "Chan %d 8Gb link speed", chan);
+				isp_prt(isp, ISP_LOGINFO, "Chan %d 8Gb link speed", chan);
 				fcp->isp_gbspeed = 8;
 			} else if (mbs.param[1] == MBGSD_FOURGB) {
-				isp_prt(isp, ISP_LOGINFO,
-				    "Chan %d 4Gb link speed", chan);
+				isp_prt(isp, ISP_LOGINFO, "Chan %d 4Gb link speed", chan);
 				fcp->isp_gbspeed = 4;
 			} else if (mbs.param[1] == MBGSD_TWOGB) {
-				isp_prt(isp, ISP_LOGINFO,
-				    "Chan %d 2Gb link speed", chan);
+				isp_prt(isp, ISP_LOGINFO, "Chan %d 2Gb link speed", chan);
 				fcp->isp_gbspeed = 2;
 			} else if (mbs.param[1] == MBGSD_ONEGB) {
-				isp_prt(isp, ISP_LOGINFO,
-				    "Chan %d 1Gb link speed", chan);
+				isp_prt(isp, ISP_LOGINFO, "Chan %d 1Gb link speed", chan);
 				fcp->isp_gbspeed = 1;
 			}
 		}
@@ -2831,58 +2790,9 @@ not_on_fabric:
 	/*
 	 * Announce ourselves, too.
 	 */
-	isp_prt(isp, ISP_LOGSANCFG|ISP_LOGCONFIG, topology, chan,
-	    (uint32_t) (fcp->isp_wwpn >> 32), (uint32_t) fcp->isp_wwpn,
-	    fcp->isp_portid, fcp->isp_loopid, ispfc_toponame(fcp->isp_topo));
-	isp_prt(isp, ISP_LOGSANCFG|ISP_LOGDEBUG0,
-	    "Chan %d FC Link Test Complete", chan);
+	isp_prt(isp, ISP_LOGSANCFG|ISP_LOGCONFIG, topology, chan, (uint32_t) (fcp->isp_wwpn >> 32), (uint32_t) fcp->isp_wwpn, fcp->isp_portid, fcp->isp_loopid, isp_fc_toponame(fcp));
+	isp_prt(isp, ISP_LOGSANCFG|ISP_LOGDEBUG0, "Chan %d FC Link Test Complete", chan);
 	return (0);
-}
-
-const char *
-ispfc_fw_statename(int state)
-{
-	switch (state) {
-	case FW_CONFIG_WAIT:	return "Config Wait";
-	case FW_WAIT_AL_PA:	return "Waiting for AL_PA";
-	case FW_WAIT_LOGIN:	return "Wait Login";
-	case FW_READY:		return "Ready";
-	case FW_LOSS_OF_SYNC:	return "Loss Of Sync";
-	case FW_ERROR:		return "Error";
-	case FW_REINIT:		return "Re-Init";
-	case FW_NON_PART:	return "Nonparticipating";
-	default:		return "?????";
-	}
-}
-
-const char *
-ispfc_loop_statename(int state)
-{
-	switch (state) {
-	case LOOP_NIL:			return "NIL";
-	case LOOP_LIP_RCVD:		return "LIP Received";
-	case LOOP_PDB_RCVD:		return "PDB Received";
-	case LOOP_SCANNING_LOOP:	return "Scanning";
-	case LOOP_LSCAN_DONE:		return "Loop Scan Done";
-	case LOOP_SCANNING_FABRIC:	return "Scanning Fabric";
-	case LOOP_FSCAN_DONE:		return "Fabric Scan Done";
-	case LOOP_SYNCING_PDB:		return "Syncing PDB";
-	case LOOP_READY:		return "Ready";
-	default:			return "?????";
-	}
-}
-
-const char *
-ispfc_toponame(int topo)
-{
-	switch (topo) {
-	case TOPO_NL_PORT:	return "Private Loop";
-	case TOPO_FL_PORT:	return "FL Port";
-	case TOPO_N_PORT:	return "N-Port to N-Port";
-	case TOPO_F_PORT:	return "F Port";
-	case TOPO_PTP_STUB:	return "F Port (no FLOGI_ACC response)";
-	default:		return "?????";
-	}
 }
 
 /*

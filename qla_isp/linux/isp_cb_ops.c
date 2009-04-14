@@ -287,9 +287,8 @@ isplinux_proc_info(struct Scsi_Host *shp, char *buf, char **st, off_t off, int l
         int chan;
         for (chan = 0; chan < isp->isp_nchan; chan++) {
             fcparam *fcp = FCPARAM(isp, chan);
-            copy_info(&info,
-                "Self Channel %d:\nHandle ID 0x%x PortID 0x%06x FW State %s Loop State %s Topology %s Link Speed %dGb\n", chan,
-                fcp->isp_loopid, fcp->isp_portid, ispfc_fw_statename(fcp->isp_fwstate), ispfc_loop_statename(fcp->isp_loopstate), ispfc_toponame(fcp->isp_topo), fcp->isp_gbspeed);
+            copy_info(&info, "Self Channel %d:\nHandle ID 0x%x PortID 0x%06x FW State %s Loop State %s Topology %s Link Speed %dGb\n", chan, fcp->isp_loopid, fcp->isp_portid,
+                isp_fc_fw_statename(fcp->isp_fwstate), isp_fc_loop_statename(fcp->isp_loopstate), isp_fc_toponame(fcp), fcp->isp_gbspeed);
             copy_info(&info, "Port WWN 0x%016llx Node WWN 0x%016llx\n\n", (ull) fcp->isp_wwpn, (ull)fcp->isp_wwnn);
             copy_info(&info, "FC devices in port database:\n");
             for (i = 0; i < MAX_FC_TARG; i++) {

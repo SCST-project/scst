@@ -501,10 +501,6 @@ typedef struct {
 #define	TOPO_F_PORT		3
 #define	TOPO_PTP_STUB		4
 
-const char *ispfc_fw_statename(int);
-const char *ispfc_loop_statename(int);
-const char *ispfc_toponame(int);
-
 /*
  * Soft Structure per host adapter
  */
