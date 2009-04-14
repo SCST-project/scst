@@ -159,17 +159,17 @@ struct bus {
 #define DEBUG 1
 
 #ifdef DEBUG
-#define    SDprintk     if (debug) printk
-#define    SDprintk2    if (debug > 1) printk
+#define    BUS_DBG(bp, fmt, args...)    if (debug > 0) printk("%s%d: %s " fmt, bp->h.r_name, bp->h.r_inst, __func__, ##args)
+#define    BUS_DBG2(bp, fmt, args...)   if (debug > 1) printk("%s%d: %s " fmt, bp->h.r_name, bp->h.r_inst, __func__, ##args)
 static int debug = 0;
 module_param(debug, int, 0);
 #else
-#define    SDprintk(fmt, args...)
-#define    SDprintk2(fmt, args...)
+#define    BUS_DBG(bp, fmt, args...)
+#define    BUS_DBG2(bp, fmt, args...)
 #endif
 
-#define    Eprintk(fmt, args...) printk(KERN_ERR "isp_scst(%s): " fmt, __FUNCTION__, ##args)
-#define    Iprintk(fmt, args...) printk(KERN_INFO "isp_scst(%s): " fmt, __FUNCTION__, ##args)
+#define    Eprintk(fmt, args...) printk(KERN_ERR "isp_scst(%s): " fmt, __func__, ##args)
+#define    Iprintk(fmt, args...) printk(KERN_INFO "isp_scst(%s): " fmt, __func__, ##args)
 
 static void scsi_target_handler(qact_e, void *);
 
@@ -296,14 +296,14 @@ alloc_ini(bus_chan_t *bc, uint64_t iid)
         return (NULL);
     }
     atomic_inc(&bc->sess_count);
-    SDprintk("scsi_target: alloc initiator 0x%016llx, ++sess_count %d\n", iid, atomic_read(&bc->sess_count));
+    BUS_DBG(bc->bus, "0x%016llx, ++sess_count %d\n", iid, atomic_read(&bc->sess_count));
     return (nptr);
 }
 
 static void
 free_ini(bus_chan_t *bc, ini_t *ini, int wait)
 {
-    SDprintk("scsi_target: free initiator 0x%016llx, sess_count-- %d, wait %d\n", ini->ini_iid, atomic_read(&bc->sess_count), wait);
+    BUS_DBG(bc->bus, "0x%016llx, sess_count-- %d, wait %d\n", ini->ini_iid, atomic_read(&bc->sess_count), wait);
     scst_unregister_session(ini->ini_scst_sess, wait, NULL);
     /* no wait call is only when there are no pending commands, so we can free stuff here */
     kfree(ini);
@@ -353,11 +353,11 @@ del_ini(bus_chan_t *bc, uint64_t iid)
 }
 
 static __inline void
-__ini_get(ini_t *ini)
+__ini_get(bus_chan_t *bc, ini_t *ini)
 {
     if (ini != NULL) {
         ini->ini_refcnt++;
-        SDprintk2("ini 0x%016llx ++refcnt (%d)\n", ini->ini_iid, ini->ini_refcnt);
+        BUS_DBG2(bc->bus, "0x%016llx ++refcnt (%d)\n", ini->ini_iid, ini->ini_refcnt);
     }
 }
 
@@ -366,7 +366,7 @@ ini_get(bus_chan_t *bc, ini_t *ini)
 {
     unsigned long flags;
     spin_lock_irqsave(&bc->tmds_lock, flags);
-    __ini_get(ini);
+    __ini_get(bc, ini);
     spin_unlock_irqrestore(&bc->tmds_lock, flags);
 }
 
@@ -375,7 +375,7 @@ __ini_put(bus_chan_t *bc, ini_t *ini)
 {
     if (ini != NULL) {
         ini->ini_refcnt--;
-        SDprintk2("ini 0x%016llx --refcnt (%d)\n", ini->ini_iid, ini->ini_refcnt);
+        BUS_DBG2(bc->bus, "0x%016llx --refcnt (%d)\n", ini->ini_iid, ini->ini_refcnt);
         if (ini->ini_refcnt < 0) {
             free_ini(bc, ini, 0);
         }
@@ -419,7 +419,7 @@ rx_loop:
     if (tmd->cd_flags & CDF_PRIVATE_ABORTED) {
         __ini_put(bc, tmd->cd_ini);
         spin_unlock_irq(&bc->tmds_lock);
-        SDprintk("%s: ABORTED TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
+        BUS_DBG(bp, "ABORTED TMD_FIN[%llx]\n", tmd->cd_tagval);
         (*bp->h.r_action)(QIN_TMD_FIN, tmd);
         goto rx_loop;
     }
@@ -504,6 +504,8 @@ scsi_target_start_cmd(tmd_cmd_t *tmd)
     }
     spin_unlock_irqrestore(&scsi_target_lock, flags);
 
+    BUS_DBG2(bp, "TMD_START[%llx] %p cdb0=%x\n", tmd->cd_tagval, tmd, tmd->cd_cdb[0] & 0xff);
+    
     tmd->cd_bus = bp;
     tmd->cd_hnext = NULL;
     bc = &bp->bchan[tmd->cd_channel];
@@ -511,7 +513,7 @@ scsi_target_start_cmd(tmd_cmd_t *tmd)
     /* then, add commands to queue */
     spin_lock_irqsave(&bc->tmds_lock, flags);
     tmd->cd_ini = ini_from_iid(bc, tmd->cd_iid);
-    __ini_get(tmd->cd_ini);
+    __ini_get(bc, tmd->cd_ini);
     if (bc->tmds_front == NULL) {
         bc->tmds_front = tmd;
     } else {
@@ -537,7 +539,7 @@ bus_chan_add_initiators(bus_t *bp, int chan)
     tmd_cmd_t *prev_tmd = NULL;
     tmd_xact_t *xact;
 
-    SDprintk("scsi_target: searching new initiators for %s%d Chan %d\n", bp->h.r_name, bp->h.r_inst, chan);
+    BUS_DBG(bp, "Chan %d searching new initiators\n", chan);
 
     /* iterate over queue and find any commands not assigned to initiator */
     spin_lock_irq(&bc->tmds_lock);
@@ -553,7 +555,7 @@ bus_chan_add_initiators(bus_t *bp, int chan)
             ini = ini_from_iid(bc, tmd->cd_iid);
             if (ini != NULL) {
                 tmd->cd_ini = ini;
-                __ini_get(ini);
+                __ini_get(bc, ini);
             } else {
                 spin_unlock_irq(&bc->tmds_lock);
 
@@ -563,7 +565,7 @@ bus_chan_add_initiators(bus_t *bp, int chan)
                 if (ini != NULL) {
                     tmd->cd_ini = ini;
                     add_ini(bc, tmd->cd_iid, ini);
-                    __ini_get(ini);
+                    __ini_get(bc, ini);
                 } else {
                     /* fail to alloc initiator, remove from queue and send busy */
                     if (prev_tmd == NULL) {
@@ -623,14 +625,15 @@ scsi_target_done_cmd(tmd_cmd_t *tmd)
     tmd_xact_t *xact = &tmd->cd_xact;
     enum scst_exec_context context = scst_estimate_context();
 
-    SDprintk2("scsi_target: TMD_DONE[%llx] %p hf %x lf %x xfrlen %d totlen %d moved %d\n",
-              tmd->cd_tagval, tmd, xact->td_hflags, xact->td_lflags, xact->td_xfrlen, tmd->cd_totlen, tmd->cd_moved);
-
     bp = tmd->cd_bus;
+
+    BUS_DBG2(bp,"TMD_DONE[%llx] %p hf %x lf %x xfrlen %d totlen %d moved %d\n",
+             tmd->cd_tagval, tmd, xact->td_hflags, xact->td_lflags, xact->td_xfrlen, tmd->cd_totlen, tmd->cd_moved);
+
     scst_cmd = tmd->cd_scst_cmd;
     if (!scst_cmd) {
         /* command returned by us with status BUSY */
-        SDprintk("%s: BUSY TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
+        BUS_DBG(bp, "BUSY TMD_FIN[%llx]\n", tmd->cd_tagval);
         ini_put(&bp->bchan[tmd->cd_channel], tmd->cd_ini);
         (*bp->h.r_action)(QIN_TMD_FIN, tmd);
         return;
@@ -734,14 +737,14 @@ scsi_target_notify(isp_notify_t *np)
     }
     spin_unlock_irqrestore(&scsi_target_lock, flags);
 
-    SDprintk("scsi_target: MGT code %x from %s%d iid 0x%016llx tag %llx\n", np->nt_ncode, bp->h.r_name, bp->h.r_inst, np->nt_wwn, np->nt_tagval);
+    BUS_DBG(bp, "TMD_NOTIFY %p code %x iid 0x%016llx tag %llx\n", np, np->nt_ncode, np->nt_wwn, np->nt_tagval);
 
     bc = &bp->bchan[np->nt_channel];
 
     spin_lock_irqsave(&bc->tmds_lock, flags);
     ini = ini_from_iid(bc, np->nt_wwn);
     np->nt_ini = ini;
-    __ini_get(np->nt_ini);
+    __ini_get(bc, np->nt_ini);
     spin_unlock_irqrestore(&bc->tmds_lock, flags);
 
     switch (np->nt_ncode) {
@@ -751,7 +754,7 @@ scsi_target_notify(isp_notify_t *np)
                goto err_no_ini;
             }
             if (abort_task(bc, np->nt_wwn, np->nt_tagval)) {
-                SDprintk("TMD_NOTIFY abort task [%llx]\n", np->nt_tagval);
+                BUS_DBG(bp, "TMD_NOTIFY abort task [%llx]\n", np->nt_tagval);
                 goto notify_ack;
             }
             if (scst_rx_mgmt_fn_tag(ini->ini_scst_sess, SCST_ABORT_TASK, np->nt_tagval, 1, np) < 0) {
@@ -810,7 +813,7 @@ scsi_target_notify(isp_notify_t *np)
              * table to avoid double free
              */
             if (del_ini(bc, np->nt_wwn)) {
-                SDprintk("droping reference to initiator 0x%016llx\n", np->nt_wwn);
+                BUS_DBG(bp, "droping reference to initiator 0x%016llx\n", np->nt_wwn);
                 __ini_put(bc, ini);
             } else {
                 Eprintk("cannot logout initiator 0x%016llx\n", np->nt_wwn);
@@ -901,7 +904,6 @@ scsi_target_handler(qact_e action, void *arg)
     case QOUT_TMD_START:
     {
         tmd_cmd_t *tmd = arg;
-        SDprintk2("scsi_target: TMD_START[%llx] %p cdb0=%x\n", tmd->cd_tagval, tmd, tmd->cd_cdb[0] & 0xff);
         tmd->cd_xact.td_cmd = tmd;
         scsi_target_start_cmd(arg);
         break;
@@ -916,7 +918,6 @@ scsi_target_handler(qact_e action, void *arg)
     case QOUT_NOTIFY:
     {
         isp_notify_t *np = arg;
-        SDprintk("scsi_target: TMD_NOTIFY %p code=0x%x\n", np, np->nt_ncode);
         scsi_target_notify(np);
         break;
     }
@@ -955,11 +956,11 @@ static void unregister_scst(void);
 static int
 qlaispd_function(void *arg)
 {
-    SDprintk("qlaispd starting\n");
+    printk(KERN_DEBUG "qlaispd starting\n");
     while (!kthread_should_stop()) {
-        SDprintk("qlaispd sleeping\n");
+        printk(KERN_DEBUG "qlaispd sleeping\n");
         wait_event_interruptible(qlaispd_waitq, qlaispd_flags || kthread_should_stop());
-        SDprintk("qlaispd running\n");
+        printk(KERN_DEBUG "qlaispd running\n");
 
         if (test_and_clear_bit(SF_REGISTER_SCST, &qlaispd_flags)) {
             register_scst();
@@ -971,7 +972,7 @@ qlaispd_function(void *arg)
             unregister_scst();
         }
     }
-    SDprintk("qlaispd exiting\n");
+    printk(KERN_DEBUG "qlaispd exiting\n");
     return (0);
 }
 
@@ -1024,9 +1025,9 @@ scsi_target_enadis(bus_t *bp, uint64_t en, int chan, int lun)
     /* Locking disable_sem prevent moving pending commands to low level driver
      * during disabling luns, as we can't get them back, what leads to SCST
      * commands leakage */
-    SDprintk("%s: Chan %d before down_write disable_sem\n", __FUNCTION__, chan);
+    BUS_DBG(bp, "Chan %d before down_write disable_sem\n", chan);
     down_write(&bc->disable_sem);
-    SDprintk("%s: Chan %d after down_write disable_sem\n", __FUNCTION__, chan);
+    BUS_DBG(bp, "Chan %d after down_write disable_sem\n", chan);
 
     ec.en_private = &rsem;
     (*bp->h.r_action)(en ? QIN_ENABLE : QIN_DISABLE, &ec);
@@ -1045,7 +1046,7 @@ scsi_target_enadis(bus_t *bp, uint64_t en, int chan, int lun)
     }
 
     if (bc->enable == 0) {
-        SDprintk("%s: Chan %d drop all initiators references\n", __FUNCTION__, chan);
+        BUS_DBG(bp, "Chan %d drop all initiators references\n", chan);
         /* If no lun is active on channel we want to logoff from SCST. At this point no new
          * commands and notifies come from low level driver, but we need to care on pendgin
          * ones. We just drop reference to initiators. When last command/notify finish
@@ -1091,8 +1092,8 @@ isp_rdy_to_xfer(struct scst_cmd *scst_cmd)
         }
 
         if (unlikely(down_read_trylock(&bc->disable_sem) != 1)) {
-            SDprintk("%s: TMD[%llx] Chan %d disable_sem trylock failed, atomic %d\n",
-                     __FUNCTION__, tmd->cd_tagval, tmd->cd_channel, scst_cmd_atomic(scst_cmd));
+            BUS_DBG(bp, "TMD[%llx] Chan %d disable_sem trylock failed, atomic %d\n",
+                    tmd->cd_tagval, tmd->cd_channel, scst_cmd_atomic(scst_cmd));
             if (scst_cmd_atomic(scst_cmd)) {
                 return (SCST_TGT_RES_NEED_THREAD_CTX);
             }
@@ -1100,13 +1101,13 @@ isp_rdy_to_xfer(struct scst_cmd *scst_cmd)
         }
 
         if (unlikely(bc->enable == 0)) {
-            SDprintk("%s: TMD[%llx] Chan %d not enabled\n", __FUNCTION__, tmd->cd_tagval, tmd->cd_channel);
+            BUS_DBG(bp, "TMD[%llx] Chan %d not enabled\n", tmd->cd_tagval, tmd->cd_channel);
             up_read(&bc->disable_sem);
             scst_rx_data(scst_cmd, SCST_RX_STATUS_ERROR, SCST_CONTEXT_SAME);
             return (SCST_TGT_RES_SUCCESS);
         }
 
-        SDprintk2("%s: TMD[%llx] write nbytes %u\n", __FUNCTION__, tmd->cd_tagval, scst_cmd_get_bufflen(scst_cmd));
+        BUS_DBG2(bp, "TMD[%llx] write nbytes %u\n", tmd->cd_tagval, scst_cmd_get_bufflen(scst_cmd));
         up_read(&bc->disable_sem);
         (*bp->h.r_action)(QIN_TMD_CONT, xact);
         /*
@@ -1186,11 +1187,11 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
                 key = (slen >= 2) ? sbuf[2] : 0;
                 asc = (slen >= 12) ? sbuf[12] : 0;
                 ascq = (slen >= 13) ? sbuf[13] : 0;
-                SDprintk("sense code: key 0x%02x asc 0x%02x ascq 0x%02x\n", key, asc, ascq);
+                BUS_DBG(bp, "sense code: key 0x%02x asc 0x%02x ascq 0x%02x\n", key, asc, ascq);
             }
 #endif
         }
-        SDprintk2("%s: TMD[%llx] status %d\n", __FUNCTION__, tmd->cd_tagval, scst_cmd_get_status(scst_cmd));
+        BUS_DBG2(bp, "TMD[%llx] status %d\n", tmd->cd_tagval, scst_cmd_get_status(scst_cmd));
     }
 
 out:
@@ -1201,8 +1202,8 @@ out:
     }
 
     if (unlikely(down_read_trylock(&bc->disable_sem) != 1)) {
-        SDprintk("%s: TMD[%llx] Chan %d disable_sem trylock failed, atomic %d\n",
-                 __FUNCTION__, tmd->cd_tagval, tmd->cd_channel, scst_cmd_atomic(scst_cmd));
+        BUS_DBG(bp, "TMD[%llx] Chan %d disable_sem trylock failed, atomic %d\n",
+                tmd->cd_tagval, tmd->cd_channel, scst_cmd_atomic(scst_cmd));
         if (scst_cmd_atomic(scst_cmd)) {
             return (SCST_TGT_RES_NEED_THREAD_CTX);
         }
@@ -1210,14 +1211,14 @@ out:
     }
 
     if (unlikely(bc->enable == 0)) {
-        SDprintk("%s: TMD[%llx] Chan %d not enabled\n", __FUNCTION__, tmd->cd_tagval, tmd->cd_channel);
+        BUS_DBG(bp, "TMD[%llx] Chan %d not enabled\n", tmd->cd_tagval, tmd->cd_channel);
         up_read(&bc->disable_sem);
         scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_SAME);
         return (SCST_TGT_RES_SUCCESS);
     }
 
-    SDprintk2("%s: TMD[%llx] %p hf %x lf %x xfrlen %d totlen %d moved %d\n",
-              __FUNCTION__, tmd->cd_tagval, tmd, xact->td_hflags, xact->td_lflags, xact->td_xfrlen, tmd->cd_totlen, tmd->cd_moved);
+    BUS_DBG2(bp, "TMD[%llx] %p hf %x lf %x xfrlen %d totlen %d moved %d\n",
+             tmd->cd_tagval, tmd, xact->td_hflags, xact->td_lflags, xact->td_xfrlen, tmd->cd_totlen, tmd->cd_moved);
     up_read(&bc->disable_sem);
     (*bp->h.r_action)(QIN_TMD_CONT, xact);
     /*
@@ -1242,7 +1243,7 @@ isp_on_free_cmd(struct scst_cmd *scst_cmd)
 
     xact->td_data = NULL;
     ini_put(&bp->bchan[tmd->cd_channel], tmd->cd_ini);
-    SDprintk2("%s: TMD_FIN[%llx]\n", __FUNCTION__, tmd->cd_tagval);
+    BUS_DBG2(bp, "TMD_FIN[%llx]\n", tmd->cd_tagval);
     (*bp->h.r_action)(QIN_TMD_FIN, tmd);
 }
 
@@ -1253,7 +1254,7 @@ isp_task_mgmt_fn_done(struct scst_mgmt_cmd *mgmt_cmd)
     bus_t *bp = bus_from_notify(np);
 
     ini_put(&bp->bchan[np->nt_channel], np->nt_ini);
-    SDprintk("%s: NOTIFY_ACK[%llx]\n", __FUNCTION__, np->nt_tagval);
+    BUS_DBG(bp, "NOTIFY_ACK[%llx]\n", np->nt_tagval);
     (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
 }
 
@@ -1667,9 +1668,9 @@ unregister_hba(bus_t *bp, hba_register_t *unreg_hp)
         bc = &bp->bchan[chan];
         bus_chan_unregister_sessions(bc, 1);
         if (bc->scst_tgt) {
-            SDprintk("%s: waiting for finishing %d sessions\n", __FUNCTION__, atomic_read(&bc->sess_count));
+            BUS_DBG(bp, "Chan %d waiting for finishing %d sessions\n", chan, atomic_read(&bc->sess_count));
             wait_event(bc->unreg_waitq, atomic_read(&bc->sess_count) == 0);
-            SDprintk("%s: all sessions finished\n", __FUNCTION__);
+            BUS_DBG(bp, "Chan %d all sessions finished\n", chan);
             scst_unregister(bc->scst_tgt);
         }
     }
