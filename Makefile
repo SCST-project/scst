@@ -28,6 +28,7 @@ LSI_DIR=mpt
 USR_DIR=usr/fileio
 SRP_DIR=srpt
 SCST_LOCAL_DIR=scst_local
+MVSAS_DIR=mvsas_tgt
 
 ISCSI_DIR=iscsi-scst
 #ISCSI_DESTDIR=../../../iscsi_scst_inst
@@ -285,6 +286,22 @@ usr_clean:
 usr_extraclean:
 	cd $(USR_DIR) && $(MAKE) extraclean
 
+mvsas:
+	cd $(MVSAS_DIR) && $(MAKE) all
+
+mvsas_install:
+	cd $(MVSAS_DIR) && $(MAKE) install
+
+mvsas_uninstall:
+	cd $(MVSAS_DIR) && $(MAKE) uninstall
+
+mvsas_clean:
+	cd $(MVSAS_DIR) && $(MAKE) clean
+
+mvsas_extraclean:
+	cd $(MVSAS_DIR) && $(MAKE) extraclean
+
+
 debug2perf:
 	echo "Changing current debug state from full debug to full performance"
 	patch -p0 <scst-full_perf.patch
@@ -327,4 +344,5 @@ release2debug:
 	srpt srpt_install srpt_uninstall srpt_clean srpt_extraclean \
 	usr usr_install usr_uninstall usr_clean usr_extraclean \
 	scst_local scst_local_install scst_local_uninstall scst_local_clean scst_local_extraclean \
+	mvsas mvsas_install mvsas_uninstall mvsas_clean mvsas_extraclean \
 	debug2perf, debug2release, perf2debug, release2debug
