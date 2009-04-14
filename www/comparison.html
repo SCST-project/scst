@@ -83,8 +83,8 @@
 <th align="left"> Zero-copy passing data between target and
 backend drivers</th>							<td> + <sup>
 									<A HREF="#7">7</A>
-									</sup></td>		<td> + 
-												<sup><A HREF="#8">8</A>	
+									</sup></td>		<td> + <sup>
+												<A HREF="#8">8</A>	
 												</sup> </td>		<td> + </td>		<td> + </td>		
 </tr>
 <tr>                                                                                            
@@ -211,17 +211,20 @@ SCSI requirements <sup><A HREF="#12">12</A></sup></th>			<td> Safe </td>		<td> S
 <th align="left"> Kernel side BLOCKIO </th>				<td> + </td>		<td> - </td>		<td> + </td>		<td> + </td>		
 </tr>
 <tr>                                                                                            
-<th align="left"> User space side FILEIO </th>				<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
+<th align="left"> User space FILEIO </th>				<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
 <th align="left"> SCSI pass-through </th>				<td> + </td>		<td> - </td>		<td> - </td>		<td> Single initiator only, not enforced 
 																		<sup><A HREF="#15">15</A></sup></td>
 </tr>
 <tr>                                                                                                                           
-<th align="left"> Zero-copy data read/write to backstorage</th>		<td>BLOCKIO, pass-
-									through <sup>
+<th align="left"> Zero-copy data read/write to backstorage</th>		<td>BLOCKIO, user space
+									FILEIO in O_DIRECT mode,
+									pass-through <sup>
 									<A HREF="#16">16</A>
-									</sup></td>		<td> - </td>		<td> BLOCKIO </td>	<td> BLOCKIO, pass-
+									</sup></td>		<td> - <sup>
+												<A HREF="#8">8</A>	
+												</sup> </td>		<td> BLOCKIO </td>	<td> BLOCKIO, pass-
 									                                                                        through </td>		
 </tr>                                                                                           
 <tr>                                                                                                                            
@@ -262,7 +265,9 @@ devices</th>								<td> - </td>		<td>Experimental</td>	<td> - </td>		<td> - </t
 <tr>                                                                                                                            
 <th align="left"> Zero-copy data send/receive</th>			<td> Send only<sup>
 									<A HREF="#17">17</A>
-									</sup> </td>		<td> None </td>		<td> Send only</td>	<td> Send only </td>
+									</sup> </td>		<td> None <sup>
+												<A HREF="#8">8</A>	
+												</sup> </td>		<td> Send only</td>	<td> Send only </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                            
 <th align="left"> Multiple connections per session (MS/C) </th>		<td> - </td>		<td> - </td>		<td> - </td>		<td> + </td>
@@ -363,7 +368,7 @@ reinstatement <sup><A HREF="#18">18</A></sup></th>			<td> Safe </td>		<td> Not s
 		       <a href="http://www.mail-archive.com/linux-scsi@vger.kernel.org/msg06911.html">
 		       	http://www.mail-archive.com/linux-scsi@vger.kernel.org/msg06911.html</a></p>
 
-<p><A NAME="16"></A> 16. Proposal how to implement zero-copy FILEIO in SCST you can find in <a href="contributing.html">
+<p><A NAME="16"></A> 16. You can find proposal how to implement zero-copy FILEIO in SCST on the <a href="contributing.html#ZC_READ">
 		       Contributing</a> page.</p>
 
 <p><A NAME="17"></A> 17. Doesn't need any kernel patch, except in case, when used with user space backend.</p>
