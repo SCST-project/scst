@@ -43,8 +43,13 @@
 
 <h3>Some background history of the <a href="comparison.html">Features comparison</a> page.</h3>
 
-<p>LIO was the first who has had similar comparison page
-http://www.linux-iscsi.org/index.php/Overview_Page. It was and still is very much 
+<p>LIO was the first who has had similar comparison
+<script type="text/javascript">
+document.write("<a href=\"ht");
+document.write("tp://www.linux-is");
+document.write("csi.org/index.php/Main_Page#Feature_Overview\">page<\/a>");
+</script>
+<noscript>page http://www.linux-iscsi.org/index.php/Main_Page</noscript>. It was and still is very much 
 wrong about SCST. I asked that page author, Nicholas Bellinger, to 
 correct the wrong items (see <a href="http://sourceforge.net/mailarchive/forum.php?thread_name=49AECE0B.5030009%40vlnb.net&forum_name=scst-devel">my
 e-mail</a>), but Nicholas Bellinger refused to do it without any explanations. Moreover, he
@@ -52,14 +57,37 @@ blocked my access to the LIO mailing list, preventing me from tell that
 to the interested people myself. After all our previous discussions and
 with his skills and experience it's nearly impossible to believe that Nicholas Bellinger
 didn't know that SCST is a lot more generic than LIO and has zero-copy
-in all the same places, where LIO has. Thus, that comparison page looked like rather a deliberate cheating
+in all the same places, where LIO has. Thus, that comparison page is looking like rather a deliberate cheating
 attempt. Seems SCST is so much superior over LIO, so Nicholas Bellinger gave up technical discussions and started 
-attacking people's perception about SCST, trying to inspire them the 
-opposite.</p>
+attacking people's perception about SCST, trying to inspire them the opposite.</p>
 
-<p>So, for SCST there was no other way, except to setup own,
+<p>So, we had no choice, except to setup own,
 correct comparison. This comparison table turned out to be very useful,
 so it was extended to cover all the SCSI target areas.</p>
+
+<h4>Update</h4>
+
+<p>After our comparison page was published, Nicholas Bellinger corrected the most crying items about SCST. Namely:
+he acknowledged that SCST is a generic engine, marked "zero-copy" item for SCST as "Needs kernel patch" and removed "User Interface" item.
+But "zero-copy" mark for SCST is still cheating, because
+SCST needs kernel patch to provide send zero-copy in the iSCSI target driver (and only in it) only if it is working with user space backend. LIO doesn't
+support user space backend, so, if it has "X" here, then SCST must also has unconditional "X" here.</p>
+
+<p>Moreover, new wrong items where introduced:
+
+<ul>
+
+	<li><span>STGT marked as having Fibre Channel target drivers for Emulex, QLogic and LSI cards.</span></li>
+					
+	<li><span>STGT marked as having Fibre Channel QLogic target driver in-tree.</span></li>
+	
+	<li><span>SCST was marked as "-" in "Additional Header Segment" and "Bidirectional Commands" items.
+	In reality, SCST and iSCSI-SCST support bidirectional commands as well as iSCSI-SCST supports other values in the
+	Additional Header Segment (namely, extended CDB).</span></li>
+			
+	</ul>
+
+</p>
 
 	  		</div> 
 	</div>

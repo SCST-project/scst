@@ -375,13 +375,14 @@
 					start registration of the commands memory buffer.</span></li>
 					
 					<li><span>Upon register_buffer() callback returns, SCST core would suspend processing the
-					corresponding command and would switch to processing of the next commands.</span></li>
+					corresponding command and would switch to the next commands processing.</span></li>
 					
 					<li><span>After the memory registration finished, the target driver would call scst_set_mem_priv()
 					to associate the memory buffer with some internal data.</span></li>
 					
 					<li><span>Then the target driver would call scst_mem_registered() and SCST would resume processing
-					the command.</span></li>
+					the command. Functions scst_set_mem_priv() and scst_mem_registered() can be called from inside register_buffer().
+					In this case SCST core would continue processing the command immediately without suspending.</span></li>
 					
 					<li><span>After the command finished, the corresponding memory buffer would remain in the
 					SGV cache in the registered state and would be reused by the next commands. For each of them
@@ -399,7 +400,8 @@
 
 					<li><span>After the memory deregistration finished, the target driver would call scst_mem_deregistered()
 					and pass to it scst_priv pointer, received in unregister_buffer(). Then the  memory buffer
-					would be freed by the SGV cache.
+					would be freed by the SGV cache. Function scst_mem_deregistered() can be called from inside unregister_buffer().
+					In this case SGV cache would free the buffer immediately without suspending.
 					</span></li>
 				</ol>
 

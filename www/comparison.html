@@ -51,7 +51,7 @@
 </th><th> <a href="http://scst.sourceforge.net/" title="http://scst.sourceforge.net/" rel="nofollow">SCST</a>
 </th><th> <a href="http://stgt.berlios.de/" title="http://stgt.berlios.de/" rel="nofollow">STGT</a>
 </th><th> <a href="http://iscsitarget.sourceforge.net/" title="http://iscsitarget.sourceforge.net/" rel="nofollow">IET</a>
-</th><th> <a href="http://linux-iscsi.org/" title="http://linux-iscsi.org/" rel="nofollow">LIO v3.0</a>
+</th><th> <a href="http://linux-iscsi.org/" title="http://linux-iscsi.org/" rel="nofollow">LIO</a>
 </th></tr>
 
 <tr bgcolor="#E0E0E0">
@@ -80,9 +80,12 @@
 																		<sup><A HREF="#6">6</A></sup></td>
 </tr>                                                                                                                           
 <tr>                                                                                                                           
-<th align="left"> Zero-Copy </th>					<td> **** </td>		<td> *** 
-												<sup><A HREF="#7">7</A>	
-												</sup> </td>		<td> **** </td>		<td> **** </td>		
+<th align="left"> Zero-copy passing data between target and
+backend drivers</th>							<td> + <sup>
+									<A HREF="#7">7</A>
+									</sup></td>		<td> + 
+												<sup><A HREF="#8">8</A>	
+												</sup> </td>		<td> + </td>		<td> + </td>		
 </tr>
 <tr>                                                                                            
 <th align="left"> Support for transports without expecting
@@ -110,11 +113,11 @@ transfer values (parallel SCSI, SAS) </th>				<td> + </td>		<td> - </td>		<td> -
 </tr>                                                                                           
 <tr>                                                                                            
 <th align="left"> Local access to emulated backstorage devices 
-<sup><A HREF="#8">8</A></sup></th>					<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+<sup><A HREF="#9">9</A></sup></th>					<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
 <th align="left"> Advanced devices access control 
-<sup><A HREF="#9">9</A></sup></th>					<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+<sup><A HREF="#10">10</A></sup></th>					<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
 <th align="left"> Support for Asynchronous Event Notifications
@@ -126,12 +129,12 @@ resized through AENs or Unit Attentions</th>				<td> + </td>		<td> - </td>		<td>
 </tr>
 <tr>                                                                                                                            
 <th align="left"> Bidirectional Commands </th>				<td> + <sup>
-									<A HREF="#10">10</A>
+									<A HREF="#11">11</A>
 									</sup></td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
 <th align="left"> Extended CDB (size >16 bytes) </th>			<td> + <sup>
-									<A HREF="#10">10</A>
+									<A HREF="#11">11</A>
 									</sup></td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
@@ -141,10 +144,10 @@ resized through AENs or Unit Attentions</th>				<td> + </td>		<td> - </td>		<td>
 <small> (Windows 2003 clustering) </small></th>				<td> + </td>		<td> + </td>		<td> + </td>		<td> + </td>
 </tr>
 <th align="left"> Safe RESERVE/RELEASE implementation according to
-SCSI requirements <sup><A HREF="#11">11</A></sup></th>			<td> Safe </td>		<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>
+SCSI requirements <sup><A HREF="#12">12</A></sup></th>			<td> Safe </td>		<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>
 </tr>
 <th align="left"> Safe implementation of Task Management commands 
-<sup><A HREF="#12">12</A></sup></th>					<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>	<td> Not safe </td>
+<sup><A HREF="#13">13</A></sup></th>					<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>	<td> Not safe </td>
 </tr>
 <tr>                                                                                                                            
 <th align="left"> Persistent Reservations <br/>
@@ -158,7 +161,7 @@ SCSI requirements <sup><A HREF="#11">11</A></sup></th>			<td> Safe </td>		<td> S
 </tr>                                                                                                                           
 <tr>                                                                                                                            
 <th align="left"> SCSI MIBs </th>					<td> - </td>		<td> - </td>		<td> - </td>		<td>  - 
-																		<sup><A HREF="#13">13</A></sup></td>
+																		<sup><A HREF="#14">14</A></sup></td>
 </tr>                                                                                                                           
 <tr>                                                                                                                            
 <th align="left"> Cluster Storage Integration </th>			<td> - </td>		<td> - </td>		<td> - </td>		<td> VHACS </td>	
@@ -178,7 +181,9 @@ SCSI requirements <sup><A HREF="#11">11</A></sup></th>			<td> Safe </td>		<td> S
 <th align="left"> SRP </th>						<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                            
-<th align="left"> iSER </th>						<td> - </td>		<td> + </td>		<td> - </td>		<td> - </td>		
+<th align="left"> iSER </th>						<td> - </td>		<td> +
+												<sup><A HREF="#3">3</A>	
+												</sup> </td>		<td> - </td>		<td> - </td>		
 </tr>                                                                                                                           
 <tr>                                                                                                                            
 <th align="left"> Parallel (Wide) SCSI </th>				<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
@@ -210,7 +215,14 @@ SCSI requirements <sup><A HREF="#11">11</A></sup></th>			<td> Safe </td>		<td> S
 </tr>
 <tr>                                                                                            
 <th align="left"> SCSI pass-through </th>				<td> + </td>		<td> - </td>		<td> - </td>		<td> Single initiator only, not enforced 
-																		<sup><A HREF="#14">14</A></sup></td>
+																		<sup><A HREF="#15">15</A></sup></td>
+</tr>
+<tr>                                                                                                                           
+<th align="left"> Zero-copy data read/write to backstorage</th>		<td>BLOCKIO, pass-
+									through <sup>
+									<A HREF="#16">16</A>
+									</sup></td>		<td> - </td>		<td> BLOCKIO </td>	<td> BLOCKIO, pass-
+									                                                                        through </td>		
 </tr>                                                                                           
 <tr>                                                                                                                            
 <th align="left"> 4k sectors support in pass-through mode </th>		<td> + </td>		<td> - </td>		<td> - </td>		<td> ? </td>
@@ -248,6 +260,11 @@ devices</th>								<td> - </td>		<td>Experimental</td>	<td> - </td>		<td> - </t
 															Netlink</td>	<td> ConfigFS/IOCTL/ProcFS </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                            
+<th align="left"> Zero-copy data send/receive</th>			<td> Send only<sup>
+									<A HREF="#17">17</A>
+									</sup> </td>		<td> None </td>		<td> Send only</td>	<td> Send only </td>
+</tr>                                                                                                                           
+<tr>                                                                                                                            
 <th align="left"> Multiple connections per session (MS/C) </th>		<td> - </td>		<td> - </td>		<td> - </td>		<td> + </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                            
@@ -255,12 +272,12 @@ devices</th>								<td> - </td>		<td>Experimental</td>	<td> - </td>		<td> - </t
 </tr>                                                                                                                           
 <tr>                                                                                                                            
 <th align="left"> Bidirectional Commands </th>				<td> + <sup>
-									<A HREF="#10">10</A>
+									<A HREF="#11">11</A>
 									</sup></td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
 <th align="left"> Extended CDB (size >16 bytes) </th>			<td> + <sup>
-									<A HREF="#10">10</A>
+									<A HREF="#11">11</A>
 									</sup></td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
@@ -268,11 +285,13 @@ devices</th>								<td> - </td>		<td>Experimental</td>	<td> - </td>		<td> - </t
 (AEN) </th>								<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>                                                                                                                           
 <th align="left"> Safe implementation of connections and sessions
-reinstatement <sup><A HREF="#15">15</A></sup></th>			<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>	<td> Not safe </td>
+reinstatement <sup><A HREF="#18">18</A></sup></th>			<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>	<td> Not safe </td>
+</tr>
+<th align="left"> Safe restart <sup><A HREF="#19">19</A></sup></th>	<td> Safe </td>		<td> ? </td>		<td> Not safe </td>	<td> ?</td>
 </tr>
 <tr>                                                                                                                            
 <th align="left"> iSCSI MIBs </th>					<td> - </td>		<td> - </td>		<td> - </td>		<td> - 
-																		<sup><A HREF="#13">13</A></sup></td>
+																		<sup><A HREF="#14">14</A></sup></td>
 </tr>                                                                                                                           
 </table>
 
@@ -287,7 +306,7 @@ reinstatement <sup><A HREF="#15">15</A></sup></th>			<td> Safe </td>		<td> Not s
 <p><A NAME="3"></A> 3. ISER target driver has long known (since Feb 2008) data corruption problem, which localization hasn't been determined yet and might be
 		       in the STGT core. See <a href="http://lists.berlios.de/pipermail/stgt-devel/2008-February/001367.html">
 		       http://lists.berlios.de/pipermail/stgt-devel/2008-February/001367.html</a> and
-		       <a href="http://lists.wpkg.org/pipermail/stgt/2009-February/002630.html">http://lists.wpkg.org/pipermail/stgt/2009-February/002630.html</a></p>
+		       <a href="http://lists.wpkg.org/pipermail/stgt/2009-February/002630.html">http://lists.wpkg.org/pipermail/stgt/2009-February/002630.html</a>.</p>
 
 <p><A NAME="4"></A> 4. The result "in average" is listed. One target can be better somewhere, another one somewhere else. Although manual tuning of target and
 		       system parameters tends the restore the difference listed in the comparison. You can find example measurements <a href="vl_res.txt">here</a>,
@@ -297,32 +316,35 @@ reinstatement <sup><A HREF="#15">15</A></sup></th>			<td> Safe </td>		<td> Not s
 		       Without the kernel patches SCST performance will be at "****+" level, except for the case, when user space backstorage handler used
 		       with iSCSI-SCST iSCSI target driver, where performance will be at "***+" level.</p>
 
-<p><A NAME="6"></A> 6. There is no performance data for LIO, which allow to make a direct comparison of it with other targets.
+<p><A NAME="6"></A> 6. There is no performance data for LIO, which allow to make a direct comparison with other targets.
 		       The conclusion was made by source code study only. LIO should have performance on the IET level or less,
 		       because of more processing overhead. It might be much less for small block sizes.</p>
 
-<p><A NAME="7"></A> 7. Some zero-copy functionality isn't available from user space, sometimes fundamentally.
+<p><A NAME="7"></A> 7. In SCST data are always passed in zero-copy manner between target and backend drivers without need for any
+		       additional kernel patches, except in case, when local access (scst_local) used with user space backend. </p>
+
+<p><A NAME="8"></A> 8. Some zero-copy functionality isn't available from user space, sometimes fundamentally.
 		       For instance, zero-copy FILEIO with page cache or zero-copy send to a socket. Also STGT can't use splice() for in-kernel
 		       target drivers, because it has memory management in user space. To use splice() with socket-based user space target drivers
 		       STGT would need a deep redesign of internal interactions between target drivers, core and backend handlers.</p>
 
-<p><A NAME="8"></A> 8. "Local access to emulated backstorage devices" means that you can access emulated by a SCSI target devices
+<p><A NAME="9"></A> 9. Local access to emulated backstorage devices" means that you can access emulated by a SCSI target devices
 		       locally on the target host. For instance, you can mount your ISO image from emulated by the target
-		       CDROM device on the locally target host.</p>
+		       CDROM device locally on the target host.</p>
 
-<p><A NAME="9"></A> 9. "Advanced devices access control" means that different initiators can see different sets
+<p><A NAME="10"></A> 10. "Advanced devices access control" means that different initiators can see different sets
 		       of devices from the same target. This feature is essential for hardware targets, which don't have ability
 		       to create virtual targets.</p>
 
-<p><A NAME="10"></A> 10. Not well tested, because at the moment there is no backend using this functionality.</p>
+<p><A NAME="11"></A> 11. Not well tested, because at the moment there is no backend using this functionality.</p>
 
-<p><A NAME="11"></A> 11. SCSI requires that if an initiator clears reservation held by another initiator, the reservation holder must be notified
+<p><A NAME="12"></A> 12. SCSI requires that if an initiator clears reservation held by another initiator, the reservation holder must be notified
 		       about the reservation clearance. Otherwise, several initiators can at the same time change supposed to be protected by the
 		       reservation data, which can corrupt them. This is what was called 
-		       <a href="http://communities.vmware.com/thread/53797?tstart=0&start=15">"Russian roulette with your data"</a> by someone
-		       working for VMware on the VMware community forum.</p>
+		       <a href="http://communities.vmware.com/thread/53797?tstart=0&start=15">"Russian roulette with your data"</a> on the VMware
+		       community forum by someone working for VMware.</p>
 
-<p><A NAME="12"></A> 12. After a task management command completed and before the corresponding response was sent to the initiator, who sent that task management
+<p><A NAME="13"></A> 13. After a task management command completed and before the corresponding response was sent to the initiator, who sent that task management
 		       command, all the affected SCSI commands must get into a state, where they can't affect following after
 		       the tasks management response commands from this initiator. This is the safe implementation.
 		       The unsafe implementation only marks all the affected
@@ -332,22 +354,29 @@ reinstatement <sup><A HREF="#15">15</A></sup></th>			<td> Safe </td>		<td> Not s
 		       SCSI command, which initiator will send after it received the task management response thinking
 		       that all the aborted commands actually fully aborted. This could lead to a data corruption.</p>
 
-<p><A NAME="13"></A> 13. The IETF SCSI-MIB (RFC 4455) is not supported by LIO, only proprietary MIBs SBE-SCSI-MIB, SBE-ISCSI-MIB and SBE-IPS-AUTH-MIB are supported.
+<p><A NAME="14"></A> 14. The IETF SCSI-MIB (RFC 4455) is not supported by LIO, only proprietary MIBs SBE-SCSI-MIB, SBE-ISCSI-MIB and SBE-IPS-AUTH-MIB are supported.</p>
 
-<p><A NAME="14"></A> 14. LIO doesn't emulate all the necessary SCSI host functionality to allow to share a SCSI device
+<p><A NAME="15"></A> 15. LIO doesn't emulate all the necessary SCSI host functionality to allow to share a SCSI device
 		       in pass-through mode to several initiators. It can only pass SCSI commands from initiator to
 		       the SCSI device. This is safe only if there is only one initiator. This limitation
 		       isn't enforced anyhow by LIO. You can find more technical information about that in
 		       <a href="http://www.mail-archive.com/linux-scsi@vger.kernel.org/msg06911.html">
 		       	http://www.mail-archive.com/linux-scsi@vger.kernel.org/msg06911.html</a></p>
 
-<p><A NAME="15"></A> 15. Connections and sessions reinstatement is, basically, a kind of Task Management command, because it implies commands aborting.
+<p><A NAME="16"></A> 16. Proposal how to implement zero-copy FILEIO in SCST you can find in <a href="contributing.html">
+		       Contributing</a> page.</p>
+
+<p><A NAME="17"></A> 17. Doesn't need any kernel patch, except in case, when used with user space backend.</p>
+
+<p><A NAME="18"></A> 18. Connections and sessions reinstatement is, basically, a kind of Task Management command, because it implies commands aborting.
 		       For instance, open-iscsi uses it as a less intrusive substistute for target reset in eh_target_reset_handler() callback. So, similarly
-		       to <A HREF="#7">(7)</A> above, a safe implementation
+		       to the safe task management above, a safe implementation of connections and sessions reinstatement
 		       must not accept SCSI commands from new connection/session until all the SCSI commands in
-		       being reinstated connection/session get into a state, where they can't affect the new commands.</p>
-		
-</p>
+		       being reinstated connection/session get into a state, where they can't affect new commands.</p>
+
+<p><A NAME="19"></A> 19. "Safe restart" means that after the iSCSI target restart, all the connected initiators will seamlessly restore all existing before
+			the restart connections. "Not safe" means that, most likely, the connected initiators will fail to restore
+			existing connections with some errors.</p>
 
 <p><small><strong>P.S.</strong> You can find a brief background history of this comparison page <a href="comparison_history.html">here</a>.</small></p>
 

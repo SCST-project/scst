@@ -41,7 +41,7 @@ h3 { font-size: 1.2em; text-transform: none;}
 	text-transform: uppercase;	
 }
 
-p, h1, h2, h3 { margin: 10px 15px; }
+p, h1, h2, h3, h4 { margin: 10px 15px; }
 
 ul, ol {
 	margin: 10px 30px;
