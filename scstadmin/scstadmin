@@ -1,11 +1,11 @@
 #!/usr/bin/perl
-$Version  = 'SCST Configurator v1.0.5';
+$Version  = 'SCST Configurator v1.0.6';
 
 # Configures SCST
 #
 # Author:       Mark R. Buechler
 # License:      GPLv2
-# Copyright (c) 2005-2007 Mark R. Buechler
+# Copyright (c) 2005-2009 Mark R. Buechler
 
 sub usage
   {
@@ -24,16 +24,18 @@ Target Driver Operations
      -enable <wwn|host>   : Enable target mode for driver at specified WWN or host.
      -disable <wwn|host>  : Disable target mode for driver at specified WWN or host.
 
-Devices Operations
+Device Operations
      -adddev <device>     : Adds a device to a handler.
          -handler <handler>
          -path <path>
          -options <options>
          -blocksize <bytes>
+     -resyncdev <device>  : Resync the size of a device with the initiator(s).
+         -handler <handler>
      -RemoveDev <device>  : Remove a device from a handler.
          -handler <handler>
  
-Users Operations
+User Operations
      -adduser <user>      : Adds a user to a security group.
          -group <group>
      -RemoveUser <user>   : Delete a user from a security group.
@@ -41,11 +43,11 @@ Users Operations
      -ClearUsers          : Clear all users from a given security group.
          -group <group>
 
-Groups Operations
+Group Operations
      -addgroup <group>    : Add a given group to available security groups.
      -RemoveGroup <group> : Remove a give group from available security groups.
      
-Assignments Operations
+Assignment Operations
      -assigndev <device>  : Assign a given device to a security group.
          -group <group>
          -lun <lun>
@@ -169,6 +171,7 @@ sub getArgs {
 	my $showSessions;
 	my $addDev;
 	my $devPath;
+	my $resyncDev;
 	my $removeDev;
 	my $addUser;
 	my $removeUser;
@@ -204,6 +207,7 @@ sub getArgs {
 			    'addgroup=s'        => \$addGroup,
 			    'RemoveGroup=s'     => \$removeGroup,
 			    'assigndev=s'       => \$assignDev,
+			    'resyncdev=s'	=> \$resyncDev,
 			    'ReleaseDev=s'      => \$releaseDev,
 			    'ClearDevs'         => \$clearDevs,
 			    'handler=s'         => \$handler,
@@ -247,6 +251,11 @@ sub getArgs {
 
 	if (defined($forceConfig) && !defined($applyConfig)) {
 		print "Please specify -config with -ForceConfig.\n\n";
+		usage();
+	}
+
+	if ($resyncDev && !$handler) {
+		print "Please specify -handler with -resyncdev.\n\n";
 		usage();
 	}
 
@@ -298,8 +307,8 @@ sub getArgs {
 	$enable =~ tr/A-Z/a-z/; $disable =~ tr/A-Z/a-z/;
 	$options =~ tr/a-z/A-Z/ if ($options);
 
-	if ((defined($showSessions) + defined($addDev) + defined($removeDev) +
-	     defined($addUser) + defined($enable) + defined($disable) +
+	if ((defined($showSessions) + defined($addDev) + defined($resyncDev) +
+	     defined($removeDev)+ defined($addUser) + defined($enable) + defined($disable) +
 	     defined($removeUser) + defined($clearUsers) + defined($assignDev) +
 	     defined($releaseDev) + defined($clearDevs) + defined($applyConfig) +
 	     defined($clearConfig) + defined($writeConfig) + defined($checkConfig)) > 1) {
@@ -310,9 +319,9 @@ sub getArgs {
 	$applyConfig = $_DEF_CONFIG_ if (defined($applyConfig) && !$applyConfig);
 	$checkConfig = $_DEF_CONFIG_ if (defined($checkConfig) && !$checkConfig);
 
-	return ($enable, $disable, $addDev, $devPath, $devLun, $removeDev, $addUser, $removeUser,
-	        $clearUsers, $addGroup, $removeGroup, $assignDev, $releaseDev, $clearDevs,
-		$handler, $group, $options, $blocksize, $applyConfig, $forceConfig,
+	return ($enable, $disable, $addDev, $devPath, $devLun, $resyncDev, $removeDev, $addUser,
+		$removeUser, $clearUsers, $addGroup, $removeGroup, $assignDev, $releaseDev,
+		$clearDevs, $handler, $group, $options, $blocksize, $applyConfig, $forceConfig,
 		$clearConfig, $writeConfig, $checkConfig, $showSessions);
 }
 
@@ -324,9 +333,9 @@ sub main {
 	# We need to run as root
 	if ( $> ) {die("This program must run as root.\n");}
 
-	my ($enable, $disable, $addDev, $devPath, $devLun, $removeDev, $addUser, $removeUser,
-	    $clearUsers, $addGroup, $removeGroup, $assignDev, $releaseDev, $clearDevs,
-	    $handler, $group, $options, $blocksize, $applyConfig, $forceConfig,
+	my ($enable, $disable, $addDev, $devPath, $devLun, $resyncDev, $removeDev, $addUser,
+	    $removeUser, $clearUsers, $addGroup, $removeGroup, $assignDev, $releaseDev,
+	    $clearDevs, $handler, $group, $options, $blocksize, $applyConfig, $forceConfig,
 	    $clearConfig, $writeConfig, $checkConfig, $showSessions) = getArgs();
 
 	$SCST = new SCST::SCST($_DEBUG_);
@@ -365,6 +374,10 @@ sub main {
 		};
 		$addDev && do {
 			$rc = addDevice($handler, $addDev, $devPath, $options, $blocksize);
+			last SWITCH;
+		};
+		$resyncDev && do {
+			$rc = resyncDevice($handler, $resyncDev);
 			last SWITCH;
 		};
 		$removeDev && do {
@@ -1036,6 +1049,29 @@ sub addDevice {
 	}
 
 	$$DEVICES{$device} = $_handler;
+
+	return $FALSE;
+}
+
+sub resyncDevice {
+	my $handler = shift;
+	my $device = shift;
+
+	my $_handler = $_HANDLER_MAP_{$handler};
+	my $htype = $SCST->handlerType($_handler);
+
+	if (!defined($$DEVICES{$device})) {
+		print "WARNING: Device '$device' not defined.\n";
+		return $TRUE;
+	}
+
+	print "\t-> Resync'ing virtual device '$device'..\n";
+
+	if ($SCST->resyncDevice($_handler, $device)) {
+		print "WARNING: Failed to resync virtual device '$device': ".
+		  $SCST->errorString()."\n";
+		return $TRUE;
+	}
 
 	return $FALSE;
 }

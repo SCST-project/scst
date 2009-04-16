@@ -2,16 +2,13 @@ package SCST::SCST;
 
 # Author:	Mark R. Buechler
 # License:	GPLv2
-# Copyright (c) 2005-2008 Mark R. Buechler
+# Copyright (c) 2005-2009 Mark R. Buechler
 
 use 5.005;
 use IO::Handle;
 use IO::File;
 use strict;
 use Carp qw(cluck);
-
-my $TRUE  = 1;
-my $FALSE = 0;
 
 my $_SCST_DIR_           = '/proc/scsi_tgt';
 my $_SCST_IO_            = $_SCST_DIR_.'/scsi_tgt';
@@ -55,7 +52,7 @@ $IOTYPE_PHYSICAL    = 100;
 $IOTYPE_VIRTUAL     = 101;
 $IOTYPE_PERFORMANCE = 102;
 
-$VERSION = 0.7.7;
+$VERSION = 0.7.9;
 
 my $_SCST_MIN_MAJOR_   = 0;
 my $_SCST_MIN_MINOR_   = 9;
@@ -129,7 +126,7 @@ my %_AVAILABLE_OPTIONS_ = ('WRITE_THROUGH' => 'WRITE_THROUGH',
 sub new {
 	my $this = shift;
 	my $debug = shift;
-	my $badVersion = $TRUE;
+	my $badVersion = 1;
 	
 	my $class = ref($this) || $this;
 	my $self = {};
@@ -143,9 +140,10 @@ sub new {
 	my($major, $minor, $release) = split(/\./, $scstVersion, 3);
 	($release, undef) = split(/\-/, $release) if ($release =~ /\-/);
 
-	$badVersion = $FALSE if (($major > $_SCST_MIN_MAJOR_) ||
-				 (($major == $_SCST_MIN_MAJOR_) && ($minor > $_SCST_MIN_MINOR_)) ||
-				 (($major == $_SCST_MIN_MAJOR_) && ($minor == $_SCST_MIN_MINOR_) && ($release >= $_SCST_MIN_RELEASE_)));
+	$badVersion = 0 if (($major > $_SCST_MIN_MAJOR_) ||
+			    (($major == $_SCST_MIN_MAJOR_) && ($minor > $_SCST_MIN_MINOR_)) ||
+			    (($major == $_SCST_MIN_MAJOR_) && ($minor == $_SCST_MIN_MINOR_) &&
+			     ($release >= $_SCST_MIN_RELEASE_)));
 
 	croak("This module requires at least SCST version $_SCST_MIN_MAJOR_\.$_SCST_MIN_MINOR_\.".
 	      "$_SCST_MIN_RELEASE_ and version $scstVersion was found") if ($badVersion);
@@ -157,7 +155,7 @@ sub scstVersion {
 	my $self = shift;
 
 	my $io = new IO::File $_SCST_VERSION_IO_, O_RDONLY;
-	return $TRUE if (!$io);
+	return 1 if (!$io);
 
 	my $version = <$io>;
 	chomp $version;
@@ -189,10 +187,10 @@ sub groupExists {
 	my $groups = $self->groups();
 
 	foreach my $_group (@{$groups}) {
-		return $TRUE if ($group eq $_group);
+		return 1 if ($group eq $_group);
 	}
 
-	return $FALSE;
+	return 0;
 }
 
 sub addGroup {
@@ -205,7 +203,7 @@ sub addGroup {
 
 	if (!$io) {
 		$self->{'error'} = "addGroup(): Failed to open handler IO '$_SCST_IO_'";
-		return $TRUE;
+		return 1;
 	}
 
 	my $cmd = "add_group $group\n";
@@ -218,7 +216,7 @@ sub addGroup {
 
 	close $io;
 
-	return $FALSE if ($self->{'debug'});
+	return 0 if ($self->{'debug'});
 	return !$self->groupExists($group);
 }
 
@@ -232,7 +230,7 @@ sub removeGroup {
 
 	if (!$io) {
 		$self->{'error'} = "removeGroup(): Failed to open handler IO '$_SCST_IO_'";
-		return $TRUE;
+		return 1;
 	}
 
 	my $cmd = "del_group $group\n";
@@ -245,7 +243,7 @@ sub removeGroup {
 
 	close $io;
 
-	return $FALSE if ($self->{'debug'});
+	return 0 if ($self->{'debug'});
 	return $self->groupExists($group);
 }
 
@@ -253,7 +251,7 @@ sub sgvStats {
 	my $self = shift;
 	my $io = new IO::File $_SCST_SGV_STATS_, O_RDONLY;
 	my %stats;
-	my $first = $TRUE;
+	my $first = 1;
 
 	if (!$io) {
 		$self->{'error'} = "sgvStats(): Failed to open handler IO '$_SCST_IO_'";
@@ -264,7 +262,7 @@ sub sgvStats {
 		chomp $line;
 
 		if ($first || !$line) {
-			$first = $FALSE;
+			$first = 0;
 			next;
 		}
 
@@ -303,7 +301,7 @@ sub sessions {
 	my $self = shift;
 	my $io = new IO::File $_SCST_SESSIONS_, O_RDONLY;
 	my %sessions;
-	my $first = $TRUE;
+	my $first = 1;
 
 	if (!$io) {
 		$self->{'error'} = "sessions(): Failed to open handler IO '$_SCST_IO_'";
@@ -314,7 +312,7 @@ sub sessions {
 		chomp $line;
 
 		if ($first) {
-			$first = $FALSE;
+			$first = 0;
 			next;
 		}
 
@@ -332,7 +330,7 @@ sub devices {
 	my $self = shift;
 	my $io = new IO::File $_SCST_IO_, O_RDONLY;
 	my %devices;
-	my $first = $TRUE;
+	my $first = 1;
 
 	if (!$io) {
 		$self->{'error'} = "devices(): Failed to open handler IO '$_SCST_IO_'";
@@ -343,7 +341,7 @@ sub devices {
 		chomp $line;
 
 		if ($first) {
-			$first = $FALSE;
+			$first = 0;
 			next;
 		}
 
@@ -362,7 +360,7 @@ sub handlerDevices {
 	my $self = shift;
 	my $handler = shift;
 	my $handler_io = $_IO_MAP_{$handler};
-	my $first = $TRUE;
+	my $first = 1;
 	my $handler_name = $_REVERSE_MAP_{$handler};
 	my %devices;
 
@@ -388,7 +386,7 @@ sub handlerDevices {
 		chomp $line;
 
 		if ($first) {
-			$first = $FALSE;
+			$first = 0;
 			next;
 		}
 
@@ -425,9 +423,9 @@ sub handlerDeviceExists {
 	my $devices = $self->handlerDevices($handler);
 
 	return -1 if (!defined($devices));
-	return $TRUE if (defined($$devices{$device}));
+	return 1 if (defined($$devices{$device}));
 
-	return $FALSE;
+	return 0;
 }
 
 sub handlerType {
@@ -457,7 +455,6 @@ sub openDevice {
 	my $valid_opts;
 
 	($options, $valid_opts) = $self->checkOptions($options);
-
 
 	if (!$valid_opts) {
 		$self->{'error'} = "openDevice(): Invalid option(s) '$options' given for device '$device'";
@@ -489,7 +486,7 @@ sub openDevice {
 
 	my $rc = $self->handler_private($handler_io, $cmd);
 
-	return $FALSE if ($self->{'debug'});
+	return 0 if ($self->{'debug'});
 	return $rc if ($rc);
 
 	$rc = !$self->handlerDeviceExists($handler, $device);
@@ -513,12 +510,12 @@ sub closeDevice {
 	if (!$handler_io) {
 		$self->{'error'} = "closeDevice(): Failed to open handler IO '$handler_io'".
 		  " or handler '$handler_name' ($handler) invalid";
-		return $TRUE;
+		return 1;
 	}
 
 	if (!$self->handlerExists($handler)) {
 		$self->{'error'} = "closeDevice(): Handler '$handler_name' ($handler) does not exist";
-		return $TRUE;
+		return 1;
 	}
 
 	if (!$self->handlerDeviceExists($handler, $device)) {
@@ -530,7 +527,7 @@ sub closeDevice {
 
 	my $rc = $self->handler_private($handler_io, $cmd);
 
-	return $FALSE if ($self->{'debug'});
+	return 0 if ($self->{'debug'});
 	return $rc if ($rc);
 
 	$rc = $self->handlerDeviceExists($handler, $device);
@@ -539,6 +536,39 @@ sub closeDevice {
 		$self->{'error'} = "closeDevice(): An error occured while closing device '$device'. ".
 		  "See dmesg/kernel log for more information.";
 	}
+
+	return $rc;
+}
+
+sub resyncDevice {
+	my $self = shift;
+	my $handler = shift;
+	my $device = shift;
+	my $handler_io = $_IO_MAP_{$handler};
+	my $handler_name = $_REVERSE_MAP_{$handler};
+
+	if (!$handler_io) {
+		$self->{'error'} = "resyncDevice(): Failed to open handler IO '$handler_io'".
+		  " or handler '$handler_name' ($handler) invalid";
+		return 1;
+	}
+
+	if (!$self->handlerExists($handler)) {
+		$self->{'error'} = "resyncDevice(): Handler '$handler_name' ($handler) does not exist";
+		return 1;
+	}
+
+	if (!$self->handlerDeviceExists($handler, $device)) {
+		$self->{'error'} = "resyncDevice(): Device '$device' does not exist";
+		return 2;
+	}
+
+	my $cmd = "resync_size $device\n";
+
+	my $rc = $self->handler_private($handler_io, $cmd);
+
+	return 0 if ($self->{'debug'});
+	return $rc if ($rc);
 
 	return $rc;
 }
@@ -553,10 +583,10 @@ sub userExists {
 	return -1 if (!defined($users));
 
 	foreach my $_user (@{$users}) {
-		return $TRUE if ($user eq $_user);
+		return 1 if ($user eq $_user);
 	}
 
-	return $FALSE;
+	return 0;
 }
 
 sub users {
@@ -604,7 +634,7 @@ sub addUser {
 
 	my $rc = $self->group_private($group, $_SCST_USERS_IO_, $cmd);
 
-	return $FALSE if ($self->{'debug'});
+	return 0 if ($self->{'debug'});
 	return $rc if ($rc);
 
 	$rc = !$self->userExists($user, $group);
@@ -636,7 +666,7 @@ sub removeUser {
 
 	my $rc = $self->group_private($group, $_SCST_USERS_IO_, $cmd);
 
-	return $FALSE if ($self->{'debug'});
+	return 0 if ($self->{'debug'});
 	return $rc if ($rc);
 
 	$rc = $self->userExists($user, $group);
@@ -655,14 +685,14 @@ sub clearUsers {
 
 	if (!$self->groupExists($group)) {
 		$self->{'error'} = "clearUsers(): Group '$group' does not exist";
-		return $TRUE;
+		return 1;
 	}
 
 	my $cmd = "clear\n";
 
 	my $rc = $self->group_private($group, $_SCST_USERS_IO_, $cmd);
 
-	return $FALSE if ($self->{'debug'});
+	return 0 if ($self->{'debug'});
 
 	if ($rc) {
 		$self->{'error'} = "clearUsers(): An error occured while clearing users from ".
@@ -682,10 +712,10 @@ sub handlerExists {
 	my $handlers = $self->handlers();
 
 	foreach my $_handler (@{$handlers}) {
-		return $TRUE if ($handler eq $_handler);
+		return 1 if ($handler eq $_handler);
 	}
 
-	return $FALSE;
+	return 0;
 }
 
 sub handlers {
@@ -718,19 +748,19 @@ sub groupDeviceExists {
 	return -1 if (!defined($devices));
 
 	if (defined($lun)) {
-		return $TRUE if ($$devices{$device} eq $lun);
+		return 1 if ($$devices{$device} eq $lun);
 	} else {
-		return $TRUE if (defined($$devices{$device}));
+		return 1 if (defined($$devices{$device}));
 	}
 
-	return $FALSE;
+	return 0;
 }
 
 sub groupDevices {
 	my $self = shift;
 	my $group = shift;
 	my %devices;
-	my $first = $TRUE;
+	my $first = 1;
 
 	if (!$self->groupExists($group)) {
 		$self->{'error'} = "groupDevices(): Group '$group' does not exist";
@@ -749,7 +779,7 @@ sub groupDevices {
 		chomp $line;
 
 		if ($first) {
-			$first = $FALSE;
+			$first = 0;
 			next;
 		}
 
@@ -771,7 +801,7 @@ sub assignDeviceToGroup {
 
 	if (!$self->groupExists($group)) {
 		$self->{'error'} = "assignDeviceToGroup(): Group '$group' does not exist";
-		return $TRUE;
+		return 1;
 	}
 
 	if ($self->groupDeviceExists($device, $group, $lun)) {
@@ -784,7 +814,7 @@ sub assignDeviceToGroup {
 
 	my $rc = $self->group_private($group, $_SCST_DEVICES_IO_, $cmd);
 
-	return $FALSE if ($self->{'debug'});
+	return 0 if ($self->{'debug'});
 	return $rc if ($rc);
 
 	$rc = !$self->groupDeviceExists($device, $group, $lun);
@@ -807,12 +837,12 @@ sub assignDeviceToHandler {
 	if (!$handler_io) {
 		$self->{'error'} = "assignDeviceToHandler(): Failed to open handler IO '$handler_io' or ".
 		  "handler '$handler_name' ($handler) invalid";
-		return $TRUE;
+		return 1;
 	}
 
 	if (!$self->handlerExists($handler)) {
 		$self->{'error'} = "assignDeviceToHandler(): Handler '$handler_name' ($handler) does not exist";
-		return $TRUE;
+		return 1;
 	}
 
 	if ($self->handlerDeviceExists($handler, $device)) {
@@ -825,7 +855,7 @@ sub assignDeviceToHandler {
 
 	my $rc = $self->scst_private($cmd);
 
-	return $FALSE if ($self->{'debug'});
+	return 0 if ($self->{'debug'});
 	return $rc if($rc);
 
 	$rc = !$self->handlerDeviceExists($handler, $device);
@@ -845,7 +875,7 @@ sub removeDeviceFromGroup {
 
 	if (!$self->groupExists($group)) {
 		$self->{'error'} = "removeDeviceFromGroup(): Group '$group' does not exist";
-		return $TRUE;
+		return 1;
 	}
 
 	if (!$self->groupDeviceExists($device, $group)) {
@@ -857,7 +887,7 @@ sub removeDeviceFromGroup {
 
 	my $rc = $self->group_private($group, $_SCST_DEVICES_IO_, $cmd);
 
-	return $FALSE if ($self->{'debug'});
+	return 0 if ($self->{'debug'});
 	return $rc if ($rc);
 
 	$rc = $self->groupDeviceExists($device, $group);
@@ -874,13 +904,13 @@ sub clearGroupDevices {
 	my $self = shift;
 	my $group = shift;
 
-	return $TRUE if (!$self->groupExists($group));
+	return 1 if (!$self->groupExists($group));
 
 	my $cmd = "clear\n";
 
 	my $rc = $self->group_private($group, $_SCST_DEVICES_IO_, $cmd);
 
-	return $FALSE if ($self->{'debug'});
+	return 0 if ($self->{'debug'});
 
 	if ($rc) {
 		$self->{'error'} = "clearGroupDevices(): An error occured while clearing devices from ".
@@ -902,7 +932,7 @@ sub handler_private {
 
 	if (!$io) {
 		cluck("WARNING: SCST/SCST.pm: Failed to open handler IO $handler_io, assuming disabled");
-		return $FALSE;
+		return 0;
 	}
 
 	if ($self->{'debug'}) {
@@ -913,7 +943,7 @@ sub handler_private {
 
 	close $io;
 
-	return $FALSE;
+	return 0;
 }
 
 sub scst_private {
@@ -924,7 +954,7 @@ sub scst_private {
 
 	if (!$io) {
 		$self->{'error'} = "SCST/SCST.pm: Failed to open handler IO '$_SCST_IO_'";
-		return $TRUE;
+		return 1;
 	}
 
 	if ($self->{'debug'}) {
@@ -935,7 +965,7 @@ sub scst_private {
 
 	close $io;
 
-	return $FALSE;
+	return 0;
 }
 
 sub group_private {
@@ -948,7 +978,7 @@ sub group_private {
 
 	if (!$io) {
 		$self->{'error'} = "SCST/SCST.pm: Failed to open handler IO '".$_SCST_GROUPS_DIR_."/$group/".$file."'";
-		return $TRUE;
+		return 1;
 	}
 
 	if ($self->{'debug'}) {
@@ -959,7 +989,7 @@ sub group_private {
 
 	close $io;
 
-	return $FALSE;
+	return 0;
 }
 
 sub checkOptions {
@@ -967,15 +997,15 @@ sub checkOptions {
 	my $options = shift;
 	my $o_string;
 	my $b_string;
-	my $bad = $FALSE;
+	my $bad = 0;
 
-	return undef, $TRUE if (!$options);
+	return undef, 1 if (!$options);
 
 	foreach my $option (split(/[\s+|\,]/, $options)) {
 		my $map = $_AVAILABLE_OPTIONS_{$option};
 
 		if (!$map) {
-			$bad = $TRUE;
+			$bad = 1;
 			$b_string .= ",$option";
 		} else {
 			$o_string .= ",$map";
@@ -984,12 +1014,12 @@ sub checkOptions {
 
 	if ($bad) {
 		$b_string =~ s/^\,//;
-		return $b_string, $FALSE;
+		return $b_string, 0;
 	}
 
 	$o_string =~ s/^\,//;
 
-	return $o_string, $TRUE;
+	return $o_string, 1;
 }
 
 sub errorString {
