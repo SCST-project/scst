@@ -2604,6 +2604,14 @@ isp_fclink_test(ispsoftc_t *isp, int chan, int usdelay)
 			ISP_SLEEP(isp, wrk);
 		} else {
 			while (enano > (uint64_t) 4000000000U) {
+#if defined(__GNUC__) && (__GNUC__ >= 4)
+				/*
+				 * Prevent to optimize loop, gcc assume libgcc.a
+				 * with  __udivdi3 is linked, but this is not
+				 * true when building (linux) kernel
+ 				 */
+				asm("" : "+rm" (enano));
+#endif
 				count += 4000000;
 				enano -= (uint64_t) 4000000000U;
 			}
