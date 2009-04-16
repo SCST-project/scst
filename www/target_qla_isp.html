@@ -1,12 +1,12 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
-<meta name="Keywords" content="Generic SCSI Target Middle Level for Linux" />
+<meta name="Keywords" content="Generic SCSI Target Middle Level for Linux, Fibre Channel Target, QLogic Target, 4Gbps target, 8Gbps target" />
 <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
 <meta name="author" content="Daniel Fernandes"/>
 <meta name="Robots" content="index,follow" />
 <link rel="stylesheet" href="images/Orange.css" type="text/css" />	
-<title>SCST: Generic SCSI Target Middle Level for Linux</title>
+<title>QLogic Fibre Channel Target Driver</title>
 </head>
 
 <body>
@@ -52,17 +52,23 @@
 	
 	  		<div id="main"> 
 				<h1>Target driver for QLogic ISP chipsets</h1>
+
 				<p><img src="images/t_qlogic.gif" width="100" height="120" class="float-left" />
 				This is an SCST driver for ISP QLogic chipsets commonly used in many SCSI and FC host bus adapters. 
 				It is based on Matthew Jacob's multiplatform driver for ISP chipsets, which has its own page at 
 				<a href="http://www.feral.com/isp.html">http://www.feral.com/isp.html</a>. The update for SCST was made by 
 				Stanislaw Gruszka for Open-E Inc.</p>
+
 				<p>Driver operates on the same hardware as the qla2x00 target driver, but has one notable 
-				advantage over it: <strong>support of 24xx series of QLogic adapters</strong>.</p>
-				<p>This driver is in beta stages. You may want to use it in production, but you need to test it for your hardware 
+				advantage over it: <strong>support of 24xx series of QLogic adapters (4Gbps)</strong>. Additionally, version 1.0.1 of this driver
+				also supports <strong>25xx series of QLogic adapters (8Gbps)</strong>.</p>
+
+				<p>This driver is in beta stage. You may want to use it in production, but you need to test it for your hardware 
 				configuration. The latest version is 1.0.0.</p>
+
 				<p>You can find the latest development version of this driver in the SCST SVN. See the download page how to setup 
 				access to it.</p>
+
 				<p class="post-footer align-right">					
 					<a href="https://sourceforge.net/project/showfiles.php?group_id=110471&package_id=283231" class="readmore">Download</a>				
 					<a href="http://scst.svn.sourceforge.net/" class="readmore">SCST SVN Repository</a>
