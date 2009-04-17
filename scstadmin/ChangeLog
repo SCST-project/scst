@@ -1,3 +1,9 @@
+Changes since 1.0.6
+
+- Added -resyncdev option to work with the new SCST resync_size option.
+- SCST.pm: Added resyncDevice()
+- SCST.pm: General cleanup.
+
 Changes since 1.0.5
 
 - Fixed a removeDevice() case when using -ForceConfig.
