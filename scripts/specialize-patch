@@ -77,7 +77,10 @@ function evaluate(stmnt) {
   }
 
   if (RHEL_MAJOR == "" || RHEL_MINOR == "")
+  {
     gsub("defined\\(RHEL_RELEASE_CODE\\)", "0", stmnt)
+    gsub("RHEL_RELEASE_CODE", "", stmnt)
+  }
   else
   {
     gsub("defined\\(RHEL_RELEASE_CODE\\)", "1", stmnt)
