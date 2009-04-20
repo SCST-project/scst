@@ -81,6 +81,10 @@ Then you should configure exported devices using the corresponding
 interface of SCST core. It is highly recommended to use scstadmin
 utility for that purpose.
 
+You can find some installation and configuration HOWTOs in
+http://scst.sourceforge.net/qla2x00t-howto.html and
+https://forums.openfiler.com/viewtopic.php?id=3422.
+
 Compilation options
 -------------------
 
