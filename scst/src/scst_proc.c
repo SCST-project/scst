@@ -176,7 +176,20 @@ static DEFINE_MUTEX(scst_proc_mutex);
 
 #include <linux/ctype.h>
 
-#if !defined(CONFIG_PPC) && (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22))
+#if !defined(CONFIG_PPC) && (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)) && \
+	(!defined(RHEL_RELEASE_CODE) || RHEL_RELEASE_CODE -0 < 5 * 256 + 3)
+/*
+ * If strcasecmp() and strncasecmp() have already been declared in
+ * <linux/string.h>, do not redefine these functions. Declarations for these
+ * functions are present in the <linux/string.h> header of the following
+ * kernels:
+ * - The kernel headers on PPC for all kernel versions supported by SCST.
+ * - Kernel version 2.6.22 and later for all architectures.
+ * - RHEL 5.3 and later.
+ *
+ * We can't use RHEL_RELEASE_CODE(5, 3), because it triggers an error on
+ * non-RHEL/CentOS systems, because it expands to "< (5,3)"
+ */
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 static int strcasecmp(const char *s1, const char *s2)
