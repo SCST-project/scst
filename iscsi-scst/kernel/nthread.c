@@ -336,8 +336,25 @@ void iscsi_task_mgmt_affected_cmds_done(struct scst_mgmt_cmd *scst_mcmd)
 	{
 		struct iscsi_conn *conn = (struct iscsi_conn *)priv;
 		struct iscsi_session *sess = conn->session;
+		struct iscsi_conn *c;
 
 		mutex_lock(&sess->target->target_mutex);
+
+		/*
+		 * We can't mark sess as shutting down earlier, because until
+		 * now it might have pending commands. Otherwise, in case of
+		 * reinstatement it might lead to data corruption, because
+		 * commands in being reinstated session can be executed
+		 * after commands in the new session.
+		 */
+		sess->sess_shutting_down = 1;
+		list_for_each_entry(c, &sess->conn_list, conn_list_entry) {
+			if (!test_bit(ISCSI_CONN_SHUTTINGDOWN, &c->conn_aflags)) {
+				sess->sess_shutting_down = 0;
+				break;
+			}
+		}
+
 		if (conn->conn_reinst_successor != NULL) {
 			sBUG_ON(!test_bit(ISCSI_CONN_REINSTATING,
 				  &conn->conn_reinst_successor->conn_aflags));
@@ -365,7 +382,6 @@ static void close_conn(struct iscsi_conn *conn)
 {
 	struct iscsi_session *session = conn->session;
 	struct iscsi_target *target = conn->target;
-	struct iscsi_conn *c;
 	typeof(jiffies) start_waiting = jiffies;
 	typeof(jiffies) shut_start_waiting = start_waiting;
 	bool pending_reported = 0, wait_expired = 0, shut_expired = 0;
@@ -397,14 +413,6 @@ static void close_conn(struct iscsi_conn *conn)
 
 	set_bit(ISCSI_CONN_SHUTTINGDOWN, &conn->conn_aflags);
 	reinst = (conn->conn_reinst_successor != NULL);
-
-	session->sess_shutting_down = 1;
-	list_for_each_entry(c, &session->conn_list, conn_list_entry) {
-		if (!test_bit(ISCSI_CONN_SHUTTINGDOWN, &c->conn_aflags)) {
-			session->sess_shutting_down = 0;
-			break;
-		}
-	}
 
 	mutex_unlock(&session->target->target_mutex);
 
