@@ -142,9 +142,8 @@ struct bus_chan {
     struct tasklet_struct    tasklet;
     struct scst_tgt *        scst_tgt;
     uint64_t                 enable;             /* is target mode enabled in low level driver, one bit per lun */
-    struct rw_semaphore      disable_sem;        /* help to synchronize when disabling target mode */
     bus_t *                  bus;                /* back pointer */
-    wait_queue_head_t        unreg_waitq;
+    wait_queue_head_t        wait_queue;
     atomic_t                 sess_count;
 };
 
@@ -308,7 +307,7 @@ free_ini(bus_chan_t *bc, ini_t *ini, int wait)
     /* no wait call is only when there are no pending commands, so we can free stuff here */
     kfree(ini);
     atomic_dec(&bc->sess_count);
-    wake_up(&bc->unreg_waitq);
+    wake_up(&bc->wait_queue);
 }
 
 static void
@@ -505,10 +504,16 @@ scsi_target_start_cmd(tmd_cmd_t *tmd)
     spin_unlock_irqrestore(&scsi_target_lock, flags);
 
     BUS_DBG2(bp, "TMD_START[%llx] %p cdb0=%x\n", tmd->cd_tagval, tmd, tmd->cd_cdb[0] & 0xff);
-    
+
+    bc = &bp->bchan[tmd->cd_channel];
+    if (unlikely(bc->enable == 0)) {
+         BUS_DBG2(bp, "TMD_START[%llx] Chan %d not enabled - finishing command\n", tmd->cd_tagval, tmd->cd_channel);
+         (*bp->h.r_action)(QIN_TMD_FIN, tmd);
+         return;
+    }
+ 
     tmd->cd_bus = bp;
     tmd->cd_hnext = NULL;
-    bc = &bp->bchan[tmd->cd_channel];
 
     /* then, add commands to queue */
     spin_lock_irqsave(&bc->tmds_lock, flags);
@@ -977,18 +982,112 @@ qlaispd_function(void *arg)
 }
 
 static int
-scsi_target_enadis(bus_t *bp, uint64_t en, int chan, int lun)
+scsi_target_enable(bus_t *bp, int chan, int lun)
 {
     struct semaphore rsem;
-    enadis_t ec;
-    info_t info;
     bus_chan_t *bc;
+    uint64_t mask;
+    enadis_t ec;
+
+    memset(&ec, 0, sizeof (ec));
+    ec.en_hba = bp->h.r_identity;
+    ec.en_chan = chan;
+    if (bp->h.r_type == R_FC) {
+        ec.en_lun = LUN_ANY;
+    } else {
+        ec.en_lun = lun;
+    }
+    sema_init(&rsem, 0);
+    ec.en_private = &rsem;
+    (*bp->h.r_action)(QIN_ENABLE, &ec);
+    down(&rsem);
+    if (ec.en_error) {
+        return (ec.en_error);
+    }
+
+    bc = &bp->bchan[chan];
+    if (bp->h.r_type == R_FC) {
+        bc->enable = 1;
+    } else {
+        mask = ~(1 << lun);
+        bc->enable &= mask;
+        bc->enable |= (1 << lun);
+    }
+
+    return (0);
+}
+
+static int
+scsi_target_disable(bus_t *bp, int chan, int lun)
+{
+    uint64_t mask;
+    uint64_t old_enable;
+    struct semaphore rsem;
+    enadis_t ec;
+    bus_chan_t *bc;
+
+    bc = &bp->bchan[chan];
+    old_enable = bc->enable;
+
+    if (bp->h.r_type == R_FC) {
+        bc->enable = 0;
+    } else {
+        mask = ~(1 << lun);
+        bc->enable &= mask;
+    }
+
+    // FIXME I don't know what I'm doing .... but I will know ... some day
+    smp_wmb();
+
+    if (bc->enable == 0) {
+        BUS_DBG(bp, "Chan %d drop all initiators references\n", chan);
+        /*
+         * If no lun is active on channel we want to logoff from SCST. At this point we ignore all
+         * new commands and notifies comeing from low level driver, but we need to care on pending
+         * ones. We just drop reference to initiators. When last command/notify finish for initiator,
+         * we will unregister session from SCST and disable target mode in low lever driver here.
+         */
+        bus_chan_unregister_sessions(bc, 0);
+
+        /*
+         * Now wait for all sessions associated with channel stop.
+         */
+        BUS_DBG(bp, "Chan %d waiting for finishing %d sessions\n", chan, atomic_read(&bc->sess_count));
+        wait_event(bc->wait_queue, atomic_read(&bc->sess_count) == 0);
+        BUS_DBG(bp, "Chan %d all sessions finished\n", chan);
+    }
+
+    memset(&ec, 0, sizeof (ec));
+    ec.en_hba = bp->h.r_identity;
+    ec.en_chan = chan;
+    if (bp->h.r_type == R_FC) {
+        ec.en_lun = LUN_ANY;
+    } else {
+        ec.en_lun = lun;
+    }
+    sema_init(&rsem, 0);
+    ec.en_private = &rsem;
+    (*bp->h.r_action)(QIN_DISABLE, &ec);
+    down(&rsem);
+    if (ec.en_error) {
+        bc->enable = old_enable;
+        return (ec.en_error);
+    }
+
+    return (0);
+}
+
+static int
+scsi_target_enadis(bus_t *bp, uint64_t en, int chan, int lun)
+{
+    bus_chan_t *bc;
+    info_t info;
     uint64_t mask;
 
     BUG_ON(chan < 0 || chan >= bp->h.r_nchannels);
     BUG_ON(lun != LUN_ANY && (lun < 0 || lun >= MAX_LUN));
+
     bc = &bp->bchan[chan];
-    sema_init(&rsem, 0);
 
     if (bp->h.r_type == R_FC) {
         if (en == bc->enable) {
@@ -1005,6 +1104,9 @@ scsi_target_enadis(bus_t *bp, uint64_t en, int chan, int lun)
         }
     }
 
+    /*
+     * Check if requested HBA is there
+     */
     memset(&info, 0, sizeof (info));
     info.i_identity = bp->h.r_identity;
     info.i_channel = chan;
@@ -1013,48 +1115,11 @@ scsi_target_enadis(bus_t *bp, uint64_t en, int chan, int lun)
         return (info.i_error);
     }
 
-    memset(&ec, 0, sizeof (ec));
-    ec.en_hba = bp->h.r_identity;
-    ec.en_chan = chan;
-    if (bp->h.r_type == R_FC) {
-        ec.en_lun = LUN_ANY;
+    if (en) {
+        return scsi_target_enable(bp, chan, lun);
     } else {
-        ec.en_lun = lun;
+        return scsi_target_disable(bp, chan, lun);
     }
-
-    /* Locking disable_sem prevent moving pending commands to low level driver
-     * during disabling luns, as we can't get them back, what leads to SCST
-     * commands leakage */
-    BUS_DBG(bp, "Chan %d before down_write disable_sem\n", chan);
-    down_write(&bc->disable_sem);
-    BUS_DBG(bp, "Chan %d after down_write disable_sem\n", chan);
-
-    ec.en_private = &rsem;
-    (*bp->h.r_action)(en ? QIN_ENABLE : QIN_DISABLE, &ec);
-    down(&rsem);
-    if (ec.en_error) {
-        up_write(&bc->disable_sem);
-        return (ec.en_error);
-    }
-
-    if (bp->h.r_type == R_FC) {
-        bc->enable = en;
-    } else {
-        mask = ~(1 << lun);
-        bc->enable &= mask;
-        bc->enable |= (en << lun);
-    }
-
-    if (bc->enable == 0) {
-        BUS_DBG(bp, "Chan %d drop all initiators references\n", chan);
-        /* If no lun is active on channel we want to logoff from SCST. At this point no new
-         * commands and notifies come from low level driver, but we need to care on pendgin
-         * ones. We just drop reference to initiators. When last command/notify finish
-         * for initiator, we will unregister session from SCST */
-        bus_chan_unregister_sessions(bc, 0);
-    }
-    up_write(&bc->disable_sem);
-    return (0);
 }
 
 static int
@@ -1080,7 +1145,6 @@ isp_rdy_to_xfer(struct scst_cmd *scst_cmd)
         tmd_cmd_t *tmd = (tmd_cmd_t *) scst_cmd_get_tgt_priv(scst_cmd);
         tmd_xact_t *xact = &tmd->cd_xact;
         bus_t *bp = tmd->cd_bus;
-        bus_chan_t *bc = &bp->bchan[tmd->cd_channel];
         int len = scst_cmd_get_bufflen(scst_cmd);
 
         xact->td_hflags = TDFH_DATA_OUT;
@@ -1091,25 +1155,9 @@ isp_rdy_to_xfer(struct scst_cmd *scst_cmd)
             tmd->cd_totlen = len;
         }
 
-        if (unlikely(down_read_trylock(&bc->disable_sem) != 1)) {
-            BUS_DBG(bp, "TMD[%llx] Chan %d disable_sem trylock failed, atomic %d\n",
-                    tmd->cd_tagval, tmd->cd_channel, scst_cmd_atomic(scst_cmd));
-            if (scst_cmd_atomic(scst_cmd)) {
-                return (SCST_TGT_RES_NEED_THREAD_CTX);
-            }
-            down_read(&bc->disable_sem);
-        }
-
-        if (unlikely(bc->enable == 0)) {
-            BUS_DBG(bp, "TMD[%llx] Chan %d not enabled\n", tmd->cd_tagval, tmd->cd_channel);
-            up_read(&bc->disable_sem);
-            scst_rx_data(scst_cmd, SCST_RX_STATUS_ERROR, SCST_CONTEXT_SAME);
-            return (SCST_TGT_RES_SUCCESS);
-        }
-
         BUS_DBG2(bp, "TMD[%llx] write nbytes %u\n", tmd->cd_tagval, scst_cmd_get_bufflen(scst_cmd));
+
         (*bp->h.r_action)(QIN_TMD_CONT, xact);
-        up_read(&bc->disable_sem);
         /*
          * Did we have an error starting this particular transaction?
          */
@@ -1129,7 +1177,6 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
 {
     tmd_cmd_t *tmd = (tmd_cmd_t *) scst_cmd_get_tgt_priv(scst_cmd);
     bus_t *bp = tmd->cd_bus;
-    bus_chan_t *bc = &bp->bchan[tmd->cd_channel];
     tmd_xact_t *xact = &tmd->cd_xact;
 
     if (unlikely(scst_cmd_aborted(scst_cmd))) {
@@ -1201,25 +1248,6 @@ out:
         xact->td_hflags |= TDFH_SNSVALID;
     }
 
-    if (unlikely(down_read_trylock(&bc->disable_sem) != 1)) {
-        BUS_DBG(bp, "TMD[%llx] Chan %d disable_sem trylock failed, atomic %d\n",
-                tmd->cd_tagval, tmd->cd_channel, scst_cmd_atomic(scst_cmd));
-        if (scst_cmd_atomic(scst_cmd)) {
-            return (SCST_TGT_RES_NEED_THREAD_CTX);
-        }
-        down_read(&bc->disable_sem);
-    }
-
-    if (unlikely(bc->enable == 0)) {
-        BUS_DBG(bp, "TMD[%llx] Chan %d not enabled\n", tmd->cd_tagval, tmd->cd_channel);
-        up_read(&bc->disable_sem);
-        scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_SAME);
-        return (SCST_TGT_RES_SUCCESS);
-    }
-
-    BUS_DBG2(bp, "TMD[%llx] %p hf %x lf %x xfrlen %d totlen %d moved %d\n",
-             tmd->cd_tagval, tmd, xact->td_hflags, xact->td_lflags, xact->td_xfrlen, tmd->cd_totlen, tmd->cd_moved);
-    up_read(&bc->disable_sem);
     (*bp->h.r_action)(QIN_TMD_CONT, xact);
     /*
      * Did we have an error starting this particular transaction?
@@ -1590,8 +1618,7 @@ register_hba(bus_t *bp)
         bc = &bchan[chan];
         spin_lock_init(&bc->tmds_lock);
         tasklet_init(&bc->tasklet, tasklet_rx_cmds, (unsigned long) bc);
-        init_rwsem(&bc->disable_sem);
-        init_waitqueue_head(&bc->unreg_waitq);
+        init_waitqueue_head(&bc->wait_queue);
         atomic_set(&bc->sess_count, 0);
         bc->bus = bp;
         bc->scst_tgt = scst_tgt;
@@ -1669,7 +1696,7 @@ unregister_hba(bus_t *bp, hba_register_t *unreg_hp)
         bus_chan_unregister_sessions(bc, 1);
         if (bc->scst_tgt) {
             BUS_DBG(bp, "Chan %d waiting for finishing %d sessions\n", chan, atomic_read(&bc->sess_count));
-            wait_event(bc->unreg_waitq, atomic_read(&bc->sess_count) == 0);
+            wait_event(bc->wait_queue, atomic_read(&bc->sess_count) == 0);
             BUS_DBG(bp, "Chan %d all sessions finished\n", chan);
             scst_unregister(bc->scst_tgt);
         }
