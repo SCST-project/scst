@@ -522,8 +522,8 @@ static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 
 		list_for_each_entry(tgt_dev, shead,
 				sess_tgt_dev_list_entry) {
-			spin_lock_nested(&tgt_dev->tgt_dev_lock,
-				tgt_dev->lun);
+			/* Lockdep triggers here a false positive.. */
+			spin_lock(&tgt_dev->tgt_dev_lock);
 		}
 	}
 
@@ -3501,8 +3501,8 @@ again:
 			struct scst_tgt_dev *tgt_dev;
 			list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
 					sess_tgt_dev_list_entry) {
-				spin_lock_nested(&tgt_dev->tgt_dev_lock,
-					tgt_dev->lun);
+				/* Lockdep triggers here a false positive.. */
+				spin_lock(&tgt_dev->tgt_dev_lock);
 			}
 		}
 
@@ -3560,7 +3560,7 @@ out_unlock:
 			struct scst_tgt_dev *tgt_dev;
 			list_for_each_entry_reverse(tgt_dev, sess_tgt_dev_list_head,
 					sess_tgt_dev_list_entry) {
-				spin_unlock_bh(&tgt_dev->tgt_dev_lock);
+				spin_unlock(&tgt_dev->tgt_dev_lock);
 			}
 		}
 

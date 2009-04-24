@@ -1777,6 +1777,11 @@ static int __init init_scst(void)
 		goto out_destroy_acg_cache;
 	}
 
+	/*
+	 * All mgmt stubs, UAs and sense buffers are bursty and loosing them
+	 * may have fatal consequences, so let's have big pools for them.
+	 */
+
 	scst_mgmt_stub_mempool = mempool_create(1024, mempool_alloc_slab,
 		mempool_free_slab, scst_mgmt_stub_cachep);
 	if (scst_mgmt_stub_mempool == NULL) {
@@ -1784,17 +1789,14 @@ static int __init init_scst(void)
 		goto out_destroy_mgmt_mempool;
 	}
 
-	scst_ua_mempool = mempool_create(64, mempool_alloc_slab,
+	scst_ua_mempool = mempool_create(512, mempool_alloc_slab,
 		mempool_free_slab, scst_ua_cachep);
 	if (scst_ua_mempool == NULL) {
 		res = -ENOMEM;
 		goto out_destroy_mgmt_stub_mempool;
 	}
 
-	/*
-	 * Loosing sense may have fatal consequences, so let's have a big pool
-	 */
-	scst_sense_mempool = mempool_create(128, mempool_alloc_slab,
+	scst_sense_mempool = mempool_create(1024, mempool_alloc_slab,
 		mempool_free_slab, scst_sense_cachep);
 	if (scst_sense_mempool == NULL) {
 		res = -ENOMEM;
