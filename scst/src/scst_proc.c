@@ -176,19 +176,25 @@ static DEFINE_MUTEX(scst_proc_mutex);
 
 #include <linux/ctype.h>
 
-#if !defined(CONFIG_PPC) && (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)) && \
-	(!defined(RHEL_RELEASE_CODE) || RHEL_RELEASE_CODE -0 < 5 * 256 + 3)
+#if !defined(CONFIG_PPC) && (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)) && (!defined(RHEL_RELEASE_CODE) || RHEL_RELEASE_CODE -0 < 5 * 256 + 3)
 /*
  * If strcasecmp() and strncasecmp() have already been declared in
  * <linux/string.h>, do not redefine these functions. Declarations for these
  * functions are present in the <linux/string.h> header of the following
  * kernels:
- * - The kernel headers on PPC for all kernel versions supported by SCST.
+ * - The PPC kernel headers for all kernel versions supported by SCST.
  * - Kernel version 2.6.22 and later for all architectures.
  * - RHEL 5.3 and later.
  *
- * We can't use RHEL_RELEASE_CODE(5, 3), because it triggers an error on
- * non-RHEL/CentOS systems, because it expands to "< (5,3)"
+ * Notes about the above preprocessor statement:
+ * - We can't use RHEL_RELEASE_CODE(5, 3) because it would trigger an error on
+ *   non-RHEL/CentOS systems -- this expression would expand to "(5,3)".
+ * - There is no space between the minus sign and the zero in the expression
+ *   "RHEL_RELEASE_CODE -0" such that it expands to a syntactically valid
+ *   expression on non-RHEL/CentOS systems ("-0").
+ * - The above statement has been put on one long line because as of r800
+ *   scripts/specialize-patch does not yet handle multi-line preprocessor
+ *   statements correctly.
  */
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
