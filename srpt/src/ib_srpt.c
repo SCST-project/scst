@@ -2107,7 +2107,7 @@ static ssize_t show_login_info(struct device *dev,
 	for (i = 0; i < sdev->device->phys_port_cnt; i++) {
 		sport = &sdev->port[i];
 
-		len += sprintf(buf,
+		len += sprintf(buf + len,
 			       "tid_ext=%016llx,ioc_guid=%016llx,pkey=ffff,"
 			       "dgid=%04x%04x%04x%04x%04x%04x%04x%04x,"
 			       "service_id=%016llx\n",
@@ -2122,7 +2122,6 @@ static ssize_t show_login_info(struct device *dev,
 			       be16_to_cpu(((__be16 *) sport->gid.raw)[6]),
 			       be16_to_cpu(((__be16 *) sport->gid.raw)[7]),
 			       (unsigned long long) mellanox_ioc_guid);
-		buf += len;
 	}
 
 	return len;
