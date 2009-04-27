@@ -2,8 +2,8 @@
  *  iSCSI digest handling.
  *
  *  Copyright (C) 2004 Xiranet Communications GmbH <arne.redlich@xiranet.com>
- *  Copyright (C) 2007 - 2008 Vladislav Bolkhovitin
- *  Copyright (C) 2007 - 2008 CMS Distribution Limited
+ *  Copyright (C) 2007 - 2009 Vladislav Bolkhovitin
+ *  Copyright (C) 2007 - 2009 ID7 Ltd.
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License

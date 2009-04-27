@@ -1,9 +1,9 @@
 /*
  *  include/scst.h
  *
- *  Copyright (C) 2004 - 2008 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2009 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
- *  Copyright (C) 2007 - 2008 CMS Distribution Limited
+ *  Copyright (C) 2007 - 2009 ID7 Ltd.
  *
  *  Main SCSI target mid-level include file.
  *

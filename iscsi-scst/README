@@ -1,8 +1,8 @@
 iSCSI SCST target driver
 ========================
 
-Version 1.0.1/0.4.16r155, XX XXXX 2008
---------------------------------------
+Version 1.0.1, 27 April 2009
+----------------------------
 
 This driver is a forked with all respects version of iSCSI Enterprise
 Target (IET) (http://iscsitarget.sourceforge.net/) with updates to work
@@ -21,10 +21,7 @@ simultaneously all the driver's modules and files were renamed:
  * iscsi-target -> iscsi-scst
  * iscsi-target.ko -> iscsi-scst.ko
 
-This version is compatible with SCST version 1.0.0 and higher.
-
-Tested on 2.6.21.1 kernel, but it should also work on other versions,
-starting from 2.6.16.x.
+This version is compatible with SCST version 1.0.1 and higher.
 
 
 Installation if your Linux kernel already has iSCSI-SCST built-in

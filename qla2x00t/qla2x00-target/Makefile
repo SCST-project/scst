@@ -1,7 +1,7 @@
 #
 #  Qlogic 2x00 SCSI target driver makefile
 #  
-#  Copyright (C) 2004 - 2008 Vladislav Bolkhovitin <vst@vlnb.net>
+#  Copyright (C) 2004 - 2009 Vladislav Bolkhovitin <vst@vlnb.net>
 #  Copyright (C) 2004 - 2005 Leonid Stoljar
 #  
 #  This program is free software; you can redistribute it and/or
