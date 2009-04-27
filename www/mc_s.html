@@ -1,0 +1,258 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta name="Keywords" content="Generic SCSI Target Middle Level for Linux, iSCSI target, MC/S, multiple connections per session" />
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+<meta name="author" content="Daniel Fernandes"/>
+<meta name="Robots" content="index,follow" />
+<link rel="stylesheet" href="images/Orange.css" type="text/css" />	
+<title>MC/S vs MPIO</title>
+</head>
+
+<body>
+<!-- wrap starts here -->
+<div id="wrap"> 
+	<div id="header">	
+		<div class="logoimg"></div><h1 id="logo"><span class="orange"></span></h1>
+		<h2 id="slogan">SCSI Target Middle Level for Linux</h2>	
+	</div>		
+		
+	<div id="menu">
+		<ul>
+			<li id="sponsorship"><a href="sponsorship.html">Sponsorship</a></li>
+			<li><a href="index.html">Home</a></li>
+			<li><a href="http://www.sourceforge.net/projects/scst">Main/News</a></li>
+			<li><a href="targets.html">Drivers</a></li>
+			<li><a href="downloads.html">Downloads</a></li>
+			<li><a href="contributing.html">Contributing</a></li>
+			<li id="current"><a href="comparison.html">Comparison</a></li>		
+		</ul>
+	</div>
+	
+	<!-- content-wrap starts here -->	
+	<div id="content-wrap">  
+			<div id="sidebar">
+				<h1>Comparison</h1>
+				<ul class="sidemenu">
+					<li><a href="comparison.html">Features comparison</a></li>
+					<li><a href="scstvsstgt.html">SCST vs STGT</a></li>
+					<li><a href="mc_s.html">MC/S vs MPIO</a></li>
+				</ul>
+			</div>		
+	
+			<div id="main">
+
+<h1>MC/S vs MPIO</h1>
+
+<p>MC/S (Multiple Connections per Session) is a feature of iSCSI
+protocol, which allows to combine several connections inside a single
+session for performance and failover purposes. Let's consider what
+practical value this feature has comparing with OS level multipath
+(MPIO) and try to answer why none of Open Source OS'es neither still
+support it, despite of many years since iSCSI protocol started
+being actively used, nor going to implement it in the future.</p>
+
+<p> MC/S is done on the iSCSI level, while MPIO is done on the higher
+level. Hence, all MPIO infrastructure is shared among all SCSI
+transports, including Fibre Channel and SAS. </p>
+
+<p> MC/S was designed at time, when most OS'es didn't have OS level
+multipath. Instead, each vendor had its own implementation, which
+created huge interoperability problems. So, one of the goals of MC/S was
+to address this issue and standardize the multipath area. But
+nowadays almost all OS'es has OS level multipath implemented using
+standard SCSI facilities, hence this purpose of MC/S isn't valid anymore.</p>
+
+<p>Usually it is claimed, than MC/S has the following 2 advantages over MPIO:</p>
+
+<ol>
+	<li><span>Faster failover recovery.</span></li>
+
+	<li><span>Better performance.</span></li>
+
+</ol>
+
+<p>Let's look how much true those claims are.</p>
+
+<h2>Failover recovery time</h2>
+
+<p>Let's consider a single target exporting a single device over 2 links.</p>
+
+<p>For MC/S failover recovery is pretty simple: all outstanding SCSI
+commands reassigned to another connection. No other actions are
+necessary, because session (i.e. I_T Nexus) remains the same.
+Consequently, all reservations and other SCSI states as well as other
+initiators connected to the device remain unaffected.</p>
+
+<p>For MPIO failover recovery is much more complicated. This is because
+it involves transferring outstanding commands and SCSI states from one
+I_T Nexus to another. The first thing, which initiator will do for
+failover recovery is to abort all outstanding commands on the faulted
+I_T Nexus. There are 2 approaches for that: CLEAR TASK SET and LUN RESET
+task management functions. </p>
+
+<p>CLEAR TASK SET function aborts all commands on the device.
+Unfortunately, it has limitations: it isn't always supported by device
+and having single task set shared over initiators isn't always
+appropriate for application.</p>
+
+<p>LUN RESET function resets the device.</p>
+
+<p>Both CLEAR TASK SET and LUN RESET functions can somehow harm
+other initiators, because all commands from all initiators, not only 
+from one doing the failover recovery, will be aborted. Additionally, LUN
+RESET resets all SCSI settings for all connected initiators to the
+initial state and, if device had reservation from any initiator, it will
+be cleared.
+
+<p>But the harm will be minimal:</p>
+
+<ul>
+	<li><span> With TAS bit set on Control Mode page, all the aborted commands will
+	be returned to all affected initiators with TASK ABORTED status, so they
+	can simply immediately retry them. For CLEAR TASK SET if TAS isn't set
+	all affected initiators will be notified by Unit Attention COMMANDS
+	CLEARED BY ANOTHER INITIATOR, so they also can immediately retry all
+	outstanding commands.</li></span>
+
+	<li><span>In case of device reset the affected initiators will be notified via
+	the corresponding Unit Attention about the device reset, i.e. about reset of
+	all SCSI settings to the initial state. Then they can do the necessary
+	recovery actions. Usually no recovery actions are needed, except for the
+	reservation holder, whose reservation was cleared. For it recovery might
+	be not trivial. But Persistent Reservations solve this issue, because
+	they are not cleared by the device reset.</li></span>
+</ul>
+
+<p>Thus, with Persistent Reservations or using  CLEAR TASK SET function
+additional failover recovery time, which MPIO has comparing to MC/S,
+is time to wait for reset or commands abort finished and time to
+retry all the aborted commands. On a properly configured system it
+should be less than few seconds, which is well acceptable on practice.
+If Linux storage stack improved to allow to abort all submitted to it
+commands (currently only wait for their completion is possible), then
+time to abort all commands can be decreased to a fraction of second. </p>
+
+<h2>Performance</h2>
+
+<p>At first, neither MC/S, nor MPIO can improve performance if there is
+only one SCSI command sent to target at time. For instance, for tape
+backup and restore. Both MC/S and MPIO work on the commands level, so
+can't split data transfers for a single command over several links. Only
+bonding can improve performance in this case, because it works on the
+link level.</p>
+
+<p>MC/S over several links preserves commands execution order, i.e. with
+it commands executed in the same order as they were submitted. MPIO
+can't preserve this order, because it can't see, which command on which
+link was submitted earlier. Delays in links processing can change
+commands order in the place where target receives them.</p>
+
+<p>Since initiators usually send commands in the optimal for performance
+order, reordering can hurt performance. But this can happen only with
+naive implementation, which can't recover the optimal commands execution
+order. Currently Linux is not naive and quite good on it. See, for
+instance, section "SEQUENTIAL ACCESS OVER MPIO" in <a
+href="vl_res.txt">those measurements</a>. Don't look at the absolute
+numbers, look at %% of performance improvement using the second link.
+The result equivalent to 200 MB/s over 2 1Gbps links, which is close to
+possible maximum.</p>
+
+<p>If free commands reorder is forbidden for a device, either
+by use of ORDERED tag, or if the Queue Algorithm Modifier in the Control
+Mode Page is set to 0, then MPIO will have to maintain commands order by
+sending them over only a single link. But on practice this case is
+really rare and 99.(9)% of OS'es and applications allow free commands
+reorder and it is enabled by default.</p>
+
+<p>However strictly preserving commands order as MC/S does has a
+downside as well. It can lead to so called "commands ordering
+bottleneck", when newer commands have to wait before one or more older
+commands get executed, although it would be better for performance to
+reorder them. As result, MPIO sometimes has better performance, than
+MC/S, especially in setups, where maximum IOPS number is important. See,
+for instance,
+
+<a href="http://article.gmane.org/gmane.linux.scsi/16311">http://article.gmane.org/gmane.linux.scsi/16311</a>.
+</p>
+
+<h2>Conclusion</h2>
+
+<p>Thus:</p>
+
+<ol>
+	<li><span>Benefits of MC/S are marginal and with future MPIO
+	improvements can be made negligible.</span></li>
+
+	<li><span>MPIO allows to utilize existing infrastructure for all
+	transports, not only iSCSI.
+	 </span></li>
+	
+	<li><span>All transports can benefit from improvements in MPIO.</span></li>
+
+	<li><span>With MPIO there is no need to create multiple layers doing very similar
+	functionality.</span></li>
+
+	<li><span> MPIO doesn't have commands ordering bottleneck, which MC/S has. </span></li>
+
+</ol>
+
+<p>Hence, what's the point to implement MC/S, which is a very tricky
+task? Better to spend this effort on improving MPIO. Simply, MC/S is
+done on the wrong level. No surprise then that no Open Source OS'es
+neither support, nor going to implement it. Moreover, when back to 2005
+there was an attempt to add MC/S in Linux, it was rejected. See for more details:
+<a href="http://article.gmane.org/gmane.linux.scsi/15769">http://article.gmane.org/gmane.linux.scsi/15769</a>
+and <a href="http://article.gmane.org/gmane.linux.scsi/16301">http://article.gmane.org/gmane.linux.scsi/16301</a>.
+</p>
+
+<p>But for sake of completeness, there are cases, where MPIO can't be
+used or will not provide any benefit, but MC/S can provide benefits:</p>
+
+<ol>
+	<li><span>When strict commands order is required.</span></li>
+
+	<li><span>When aborted commands can't be retried.</span></li>
+
+</ol>
+
+<p>For disks both of them are always false. However for some tape drives and
+backup applications one or both can be true. But on practice:</p>
+
+<ul>
+
+	<li><span>There are neither known tape drives, nor backup
+	applications, which can use multiple outstanding commands at
+	time. All them support and use only one single outstanding
+	command at time. MC/S can't increase performance for them, only
+	bonding can. So, in this case there no difference between MC/S
+	and MPIO.</span></li>
+
+	<li><span>The lack of ability to retry commands is rather a
+	limitation of legacy tape drives, which support only implicit
+	address commands, not of MPIO. Modern tape drives and backup
+	applications can use explicit address commands, which you can
+	abort and then retry, hence compatible with MPIO.</span></li>
+
+</ul>
+
+<p>If in future SCSI standards have possibility to group several I_T nexuses
+with possibilities to reassign commands between them and preserve commands
+order among them, the above the only advantages of MC/S over MPIO will be
+removed and, hence, all investments in it will be voided.</p>
+
+	  		</div> 
+	</div>
+</div>		
+<!-- wrap ends here -->
+<!-- footer starts here -->		
+		<div id="footer">
+			<p>
+			&copy; Copyright 2008-2009 <b><font color="#EC981F">Vladislav Bolkhovitin & others.</font>&nbsp;&nbsp;
+			Design by: <b><font color="#EC981F">Daniel Fernandes</font></b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;		
+			
+			</p>		
+		</div>	
+<!-- footer ends here -->
+</body>
+</html>

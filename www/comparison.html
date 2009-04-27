@@ -1,7 +1,7 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
-<meta name="Keywords" content="Generic SCSI Target Middle Level for Linux" />
+<meta name="Keywords" content="Generic SCSI Target Middle Level for Linux, SCSI targets, iSCSI targets, comparison" />
 <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
 <meta name="author" content="Daniel Fernandes"/>
 <meta name="Robots" content="index,follow" />
@@ -21,7 +21,7 @@
 		<ul>
 			<li id="sponsorship"><a href="sponsorship.html">Sponsorship</a></li>
 			<li><a href="index.html">Home</a></li>
-			<li><a href="http://www.sourceforge.net/projects/scst">Main</a></li>
+			<li><a href="http://www.sourceforge.net/projects/scst">Main/News</a></li>
 			<li><a href="targets.html">Drivers</a></li>
 			<li><a href="downloads.html">Downloads</a></li>
 			<li><a href="contributing.html">Contributing</a></li>
@@ -36,6 +36,7 @@
 				<ul class="sidemenu">
 					<li><a href="comparison.html">Features comparison</a></li>
 					<li><a href="scstvsstgt.html">SCST vs STGT</a></li>
+					<li><a href="mc_s.html">MC/S vs MPIO</a></li>
 				</ul>
 			</div>		
 	
@@ -116,7 +117,7 @@ transfer values (parallel SCSI, SAS) </th>				<td> + </td>		<td> - </td>		<td> -
 <sup><A HREF="#9">9</A></sup></th>					<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
-<th align="left"> Advanced devices access control 
+<th align="left"> Advanced LUNs access control 
 <sup><A HREF="#10">10</A></sup></th>					<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
@@ -218,7 +219,7 @@ SCSI requirements <sup><A HREF="#12">12</A></sup></th>			<td> Safe </td>		<td> S
 																		<sup><A HREF="#15">15</A></sup></td>
 </tr>
 <tr>                                                                                                                           
-<th align="left"> Zero-copy data read/write to backstorage</th>		<td>BLOCKIO, user space
+<th align="left"> Zero-copy data read/write to/from backstorage</th>	<td>BLOCKIO, user space
 									FILEIO in O_DIRECT mode,
 									pass-through <sup>
 									<A HREF="#16">16</A>
@@ -270,7 +271,8 @@ devices</th>								<td> - </td>		<td>Experimental</td>	<td> - </td>		<td> - </t
 												</sup> </td>		<td> Send only</td>	<td> Send only </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                            
-<th align="left"> Multiple connections per session (MS/C) </th>		<td> - </td>		<td> - </td>		<td> - </td>		<td> + </td>
+<th align="left"><a href="mc_s.html">Multiple connections per session
+ (MS/C)</a> </th>							<td> - </td>		<td> - </td>		<td> - </td>		<td> + </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                            
 <th align="left"> Max ErrorRecoveryLevel </th>				<td> 0 </td>		<td> 0 </td>		<td> 0 </td>		<td> 2 </td>		
@@ -337,8 +339,8 @@ reinstatement <sup><A HREF="#18">18</A></sup></th>			<td> Safe </td>		<td> Not s
 		       locally on the target host. For instance, you can mount your ISO image from emulated by the target
 		       CDROM device locally on the target host.</p>
 
-<p><A NAME="10"></A> 10. "Advanced devices access control" means that different initiators can see different sets
-		       of devices from the same target. This feature is essential for hardware targets, which don't have ability
+<p><A NAME="10"></A> 10. "Advanced devices LUNs control" means that different initiators can see different sets
+		       of devices from the same target. This feature is required for hardware targets, which don't have ability
 		       to create virtual targets.</p>
 
 <p><A NAME="11"></A> 11. Not well tested, because at the moment there is no backend using this functionality.</p>
@@ -363,8 +365,8 @@ reinstatement <sup><A HREF="#18">18</A></sup></th>			<td> Safe </td>		<td> Not s
 
 <p><A NAME="15"></A> 15. LIO doesn't emulate all the necessary SCSI host functionality to allow to share a SCSI device
 		       in pass-through mode to several initiators. It can only pass SCSI commands from initiator to
-		       the SCSI device. This is safe only if there is only one initiator. This limitation
-		       isn't enforced anyhow by LIO. You can find more technical information about that in
+		       the SCSI device and response back. This is safe only with a single initiator. This limitation
+		       isn't enforced anyhow, so you can accidentally corrupt your data. You can find more technical information about that in
 		       <a href="http://www.mail-archive.com/linux-scsi@vger.kernel.org/msg06911.html">
 		       	http://www.mail-archive.com/linux-scsi@vger.kernel.org/msg06911.html</a></p>
 
@@ -382,8 +384,8 @@ reinstatement <sup><A HREF="#18">18</A></sup></th>			<td> Safe </td>		<td> Not s
 <p><A NAME="19"></A> 19. "Safe restart" means that after the iSCSI target restart, all the connected initiators will seamlessly restore all existing before
 			the restart connections. "Not safe" means that, most likely, the connected initiators will fail to restore
 			existing connections with some errors.</p>
-
-<p><small><strong>P.S.</strong> You can find a brief background history of this comparison page <a href="comparison_history.html">here</a>.</small></p>
+			
+<!-- <p><small><strong>P.S.</strong> You can find a brief background history of this comparison page <a href="comparison_history.html">here</a>.</small></p> -->
 
 	  		</div> 
 	</div>

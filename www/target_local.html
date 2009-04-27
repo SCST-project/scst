@@ -1,12 +1,12 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
-<meta name="Keywords" content="Generic SCSI Target Middle Level for Linux, Fibre Channel Target, QLogic Target" />
+<meta name="Keywords" content="Generic SCSI Target Middle Level for Linux, SCSI target" />
 <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
 <meta name="author" content="Daniel Fernandes"/>
 <meta name="Robots" content="index,follow" />
 <link rel="stylesheet" href="images/Orange.css" type="text/css" />	
-<title>QLogic Fibre Channel Target Driver</title>
+<title>Local Target Driver</title>
 </head>
 
 <body>
@@ -25,7 +25,7 @@
 			<li id="current"><a href="targets.html">Drivers</a></li>
 			<li><a href="downloads.html">Downloads</a></li>
 			<li><a href="contributing.html">Contributing</a></li>
-			<li><a href="comparison.html">Comparison</a></li>				
+			<li><a href="comparison.html">Comparison</a></li>		
 		</ul>
 	</div>
 	
@@ -52,20 +52,23 @@
 			</div>		
 	
 	  		<div id="main"> 
-				<h1>Target driver for QLogic 22xx/23xx cards</h1>
-				<p><img src="images/t_qlogic.gif" width="100" height="120" class="float-left" />
-				This is target driver for QLogic 22xx/23xx Fibre Channel cards. It is stable and well tested.</p>
+				<h1>Target driver for local access</h1>
 
-				<p>The latest stable version is 1.0.1. Requires Linux kernel version 2.6.16.x or higher and
-				SCST version 1.0.1 or higher.</p>
-
-				<p>You can find the latest development version of this driver in the SCST SVN. See the download page how to setup 
-				access to it.</p>
-
+				<p>This driver allows you to access devices that are exported via SCST
+				directly on the same Linux system that they are exported from. </p>
+				
+				<p>It makes no assumptions in the code about the device types on the target, so
+				any device handlers that you load in SCST will be visible, including tapes
+				and so forth.</p>
+				
+				<p>This driver was made by Richard Sharpe.</p>
+				
+				<p>It is on the beta stage. The latest released version is 0.9. You can download
+				the latest development version from the SCST SVN repository. See the
+				download page how to setup access to it. </p><br><br><br>
 				<p class="post-footer align-right">					
-					<a href="qla2x00t-howto.html" class="readmore">HOWTO</a>				
 					<a href="downloads.html" class="readmore">Download</a>				
-					<a href="http://scst.svn.sourceforge.net/" class="readmore">SCST SVN Repository</a>
+					<a href="http://scst.svn.sourceforge.net/" class="readmore">SCST SVN Repository</a>	
 				</p>
 				<p><span><table height="300px" border=0><tr><td>&nbsp;</td></tr></table></span></p>								
 	  		</div>
@@ -83,5 +86,6 @@
 			</p>		
 		</div>	
 <!-- footer ends here -->
+
 </body>
 </html>
