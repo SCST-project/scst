@@ -120,10 +120,10 @@ maximize IOPS it can be needed to assign for those threads dedicated
 CPUs using Linux CPU affinity facilities. No IRQ processing should be
 done on those CPUs. Check that using /proc/interrupts. See taskset
 command and Documentation/IRQ-affinity.txt in your kernel's source tree
-for how to assign IRQ affinity to tasks and IRQs.
+for how to assign CPU affinity to tasks and IRQs.
 
 The reason for that is that processing of coming commands in SIRQ context
-might be done on the same CPUs as SSD devices' threads doing data
+can be done on the same CPUs as SSD devices' threads doing data
 transfers. As the result, those threads won't receive all the CPU power
 and perform worse.
 
@@ -132,3 +132,7 @@ target's internal thread. It will allows Linux CPU scheduler to better
 distribute load among available CPUs. To enable SRP target driver's
 internal thread you should load ib_srpt module with parameter
 "thread=1".
+
+
+Send questions about this driver to scst-devel@lists.sourceforge.net, CC:
+Vu Pham <vuhuong@mellanox.com> and Bart Van Assche <bart.vanassche@gmail.com>.

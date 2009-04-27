@@ -1,8 +1,8 @@
 /*
  *  include/scst_const.h
  *
- *  Copyright (C) 2004 - 2008 Vladislav Bolkhovitin <vst@vlnb.net>
- *  Copyright (C) 2007 - 2008 CMS Distribution Limited
+ *  Copyright (C) 2004 - 2009 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2007 - 2009 ID7 Ltd.
  *
  *  Contains common SCST constants.
  *

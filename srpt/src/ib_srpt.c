@@ -1,5 +1,7 @@
 /*
- * Copyright (c) 2006-2008 Mellanox Technology Inc.  All rights reserved.
+ * Copyright (c) 2006 - 2009 Mellanox Technology Inc.  All rights reserved.
+ * Copyright (C) 2008 Vladislav Bolkhovitin <vst@vlnb.net>
+ * Copyright (C) 2008 - 2009 Bart Van Assche <bart.vanassche@gmail.com>
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -44,7 +46,7 @@
 
 #define DRV_NAME		"ib_srpt"
 #define PFX			DRV_NAME ": "
-#define DRV_VERSION		"1.0"
+#define DRV_VERSION		"1.0.1"
 #define DRV_RELDATE		"July 10, 2008"
 
 #define MELLANOX_SRPT_ID_STRING	"Mellanox OFED SRP target"
