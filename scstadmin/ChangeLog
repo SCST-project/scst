@@ -1,39 +1,39 @@
-Changes since 1.0.6
+Changes for 1.0.6
 
 - Added -resyncdev option to work with the new SCST resync_size option.
 - SCST.pm: Added resyncDevice()
 - SCST.pm: General cleanup.
 
-Changes since 1.0.5
+Changes for 1.0.5
 
 - Fixed a removeDevice() case when using -ForceConfig.
 - SCST.pm: Cosmetic changes to error messages - include the handler name.
 - SCST.pm: Quote handlers, handler IOs, devices, users and groups in error messages.
 
-Changes since 1.0.4
+Changes for 1.0.4
 
 - Fixed a check in SCST::removeUser().
 - Fixed enable/disable target and error produced.
 - Minor cosmetic fixes.
 
-Changes since 1.0.3
+Changes for 1.0.3
 
 - Added patch from Witold Kowolik to allow for qla_isp enable/disable
   target mode. This is untested by me as I don't have one of these cards.
 
-Changes since 1.0.2
+Changes for 1.0.2
 
 - Simplified/fixed options parsing. Thanks to Witold Kowolik.
 - Use cluck() instead of print in module.
 - Added a new option REMOVABLE.
 - Allow options to be specified lowercase.
 
-Changes since 1.0.1
+Changes for 1.0.1
 
 - Module install/uninstall added
 - Added mapping NV -> NV_CACHE
 
-Changes since 1.0.0
+Changes for 1.0.0
 
 - Added a proper Makefile.PL to SCST::SCST so now we have a also a
   proper man page.
@@ -43,12 +43,12 @@ Changes since 1.0.0
 - Added init enable instructions to "make install" and README file.
 - Changed VERSION on top-level Makefile to MODULE_VERSION to be more clear.
 
-Changes since 1.0.0 RC1
+Changes for 1.0.0 RC1
 
 - Updated SCST/SCST.pm to add one more option mapping NV -> NV_CACHE.
 - Install/uninstall added.
 
-Changes since 0.9.6-pre2:
+Changes for 0.9.6-pre2:
 
 - Updated SCST/SCST.pm for vdisk/vcdrom from cdrom_fileio/disk_fileio
 - Updated scstadmin for vdisk/vcdrom...
@@ -66,7 +66,7 @@ Changes since 0.9.6-pre2:
 - Fixed handling of disabled handlers (like dev_disk, dev_cdrom, etc from compile time)
 - Minor bug fixes
 
-Changes since 0.9.5-pre0:
+Changes for 0.9.5-pre0:
 
 - Renamed scst to scstadmin
 - Fixed writeConfiguration() to properly write DEVICE lines with no options
@@ -74,7 +74,7 @@ Changes since 0.9.5-pre0:
 - Updated init.d/scst to use scstadmin instead of scst_db
 - Fixup of README file
 
-Changes since 0.9.2-pre2:
+Changes for 0.9.2-pre2:
 
 - List SCST sessions
 - Verify specified config file against live configuration and show differences
