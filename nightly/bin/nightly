@@ -70,6 +70,10 @@ svn_new_date=`date --date=today     +%Y-%m-%dT%H:%M:%S`
 
 cd $ABT_TOP
 
+# Clean up output files produced by a previous run.
+rm -rf diffs diff.short final new.short new.verbose old.short old.verbose
+rm -rf sendmail.log unchanged.log
+
 # Setup any relevant environment variables from conf/<tag>.conf.
 . conf/$ABT_MACHINE.conf
 if [ "${ABT_JOBS}" = "" ]; then
@@ -90,7 +94,8 @@ fi
 svn_old_rev="`get_svn_revision ${svn_old_date}`"
 svn_new_rev="`get_svn_revision ${svn_new_date}`"
 if [ "${svn_old_rev}" = "${svn_new_rev}" ]; then
-  echo "No changes have been committed between ${svn_old_date} (r${svn_old_rev}) and ${svn_new_date} (r${svn_new_rev})."
+  echo "Both {$svn_old_date} and {$svn_new_date} correspond to r${svn_new_rev}"\
+       "-- skipping nightly build." >unchanged.log
   exit 0
 fi
 
