@@ -206,8 +206,9 @@ there was an attempt to add MC/S in Linux, it was rejected. See for more details
 and <a href="http://article.gmane.org/gmane.linux.scsi/16301">http://article.gmane.org/gmane.linux.scsi/16301</a>.
 </p>
 
-<p>But for sake of completeness, there are cases, where MPIO can't be
-used or will not provide any benefit, but MC/S can provide benefits:</p>
+<p>But for sake of completeness, there are marginal cases, where MPIO
+can't be used or will not provide any benefit, but MC/S can provide
+benefits:</p>
 
 <ol>
 	<li><span>When strict commands order is required.</span></li>
@@ -216,8 +217,8 @@ used or will not provide any benefit, but MC/S can provide benefits:</p>
 
 </ol>
 
-<p>For disks both of them are always false. However for some tape drives and
-backup applications one or both can be true. But on practice:</p>
+<p>For disks both of them are always false. However for some tape drives
+and backup applications one or both can be true. But on practice:</p>
 
 <ul>
 
@@ -255,4 +256,18 @@ removed and, hence, all investments in it will be voided.</p>
 		</div>	
 <!-- footer ends here -->
 </body>
+
+<!-- Piwik -->
+<script type="text/javascript">
+var pkBaseURL = (("https:" == document.location.protocol) ? "https://apps.sourceforge.net/piwik/scst/" : "http://apps.sourceforge.net/piwik/scst/");
+document.write(unescape("%3Cscript src='" + pkBaseURL + "piwik.js' type='text/javascript'%3E%3C/script%3E"));
+</script><script type="text/javascript">
+piwik_action_name = '';
+piwik_idsite = 1;
+piwik_url = pkBaseURL + "piwik.php";
+piwik_log(piwik_action_name, piwik_idsite, piwik_url);
+</script>
+<object><noscript><p><img src="http://apps.sourceforge.net/piwik/scst/piwik.php?idsite=1" alt="piwik"/></p></noscript></object>
+<!-- End Piwik Tag -->
+
 </html>
