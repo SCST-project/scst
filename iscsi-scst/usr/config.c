@@ -372,7 +372,7 @@ static int __initiator_match(int fd, char *str)
 		return 0;
 
 	while ((p = strsep(&str, ","))) {
-		while (isspace(*p))
+		while (isblank(*p))
 			p++;
 
 		if (!strcmp(p, "ALL"))
@@ -423,7 +423,7 @@ static int initiator_match(u32 tid, int fd, char *filename)
 
 	/*
 	 * Every time we are called, we read the file. So we don't need to
-	 * implement 'reload feature'. It's slow, however, it doesn't matter.
+	 * implement the 'reload feature'. It's slow, but that doesn't matter.
 	 */
 	while ((p = fgets(buf, sizeof(buf), fp))) {
 		if (!p || *p == '#')
@@ -434,9 +434,14 @@ static int initiator_match(u32 tid, int fd, char *filename)
 			continue;
 		*p = '\0';
 
-		if (!(p = strchr(buf, ' ')))
+		p = buf;
+		while (!isblank(*p) && (*p != '\0'))
+			p++;
+		if (p == '\0')
 			continue;
-		*(p++) = '\0';
+
+		*p = '\0';
+		p++;
 
 		if (target_find_id_by_name(buf) != tid && strcmp(buf, "ALL"))
 			continue;

@@ -507,15 +507,21 @@ static void login_start(struct connection *conn)
 		}
 
 		target = target_find_by_name(target_name);
-		if ((target == NULL) ||
-		    config_initiator_access(conn->tid, conn->fd) ||
+		if (target == NULL) {
+			rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
+			rsp->status_detail = ISCSI_STATUS_TGT_NOT_FOUND;
+			conn->state = STATE_EXIT;
+			return;
+		}
+
+		conn->tid = target->tid;
+		if (config_initiator_access(conn->tid, conn->fd) ||
 		    isns_scn_access(conn->tid, conn->fd, name)) {
 			rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
 			rsp->status_detail = ISCSI_STATUS_TGT_NOT_FOUND;
 			conn->state = STATE_EXIT;
 			return;
 		}
-		conn->tid = target->tid;
 
 		err = kernel_param_get(conn->tid, conn->sid.id64, key_session,
 			conn->session_param);
