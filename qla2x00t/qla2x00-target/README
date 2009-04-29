@@ -1,7 +1,7 @@
 Target driver for Qlogic 22xx/23xx Fibre Channel cards
 ======================================================
 
-Version 1.0.1, 27 April 2009
+Version 1.0.2, XX XXXXX 2009
 ----------------------------
 
 This driver has all required features and looks to be quite stable (for
@@ -13,7 +13,7 @@ all necessary callbacks, but it's still capable to work as initiator
 only. Mode, when a host acts as the initiator and the target
 simultaneously, is supported as well.
 
-This version is compatible with SCST core version 1.0.1 and higher and
+This version is compatible with SCST core version 1.0.2 and higher and
 Linux kernel 2.6.26 and higher. If you need to use this driver on
 kernels prior 2.6.26, you should apply qla_ini_pre-2.6.26.patch.
 
