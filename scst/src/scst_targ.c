@@ -55,7 +55,7 @@ static inline void scst_schedule_tasklet(struct scst_cmd *cmd)
 }
 
 /*
- * Must not be called in parallel with scst_unregister_session_ex() for the
+ * Must not be called in parallel with scst_unregister_session() for the
  * same sess
  */
 struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
@@ -5110,7 +5110,7 @@ out_unlock:
 }
 
 /*
- * Must not be called in parallel with scst_unregister_session_ex() for the
+ * Must not be called in parallel with scst_unregister_session() for the
  * same sess
  */
 int scst_rx_mgmt_fn(struct scst_session *sess,
