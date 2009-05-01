@@ -760,14 +760,14 @@ static int dev_user_parse(struct scst_cmd *cmd)
 	case SCST_USER_PARSE_STANDARD:
 		TRACE_DBG("PARSE STANDARD: ucmd %p", ucmd);
 		rc = dev->generic_parse(cmd, dev_user_get_block);
-		if ((rc != 0) || (cmd->op_flags & SCST_INFO_INVALID))
+		if ((rc != 0) || (cmd->op_flags & SCST_INFO_NOT_FOUND))
 			goto out_invalid;
 		break;
 
 	case SCST_USER_PARSE_EXCEPTION:
 		TRACE_DBG("PARSE EXCEPTION: ucmd %p", ucmd);
 		rc = dev->generic_parse(cmd, dev_user_get_block);
-		if ((rc == 0) && (!(cmd->op_flags & SCST_INFO_INVALID)))
+		if ((rc == 0) && (!(cmd->op_flags & SCST_INFO_NOT_FOUND)))
 			break;
 		else if (rc == SCST_CMD_STATE_NEED_THREAD_CTX) {
 			TRACE_MEM("Restarting PARSE to thread context "
@@ -828,8 +828,7 @@ out:
 	return res;
 
 out_invalid:
-	PRINT_ERROR("PARSE failed (ucmd %p, rc %d, invalid %d)", ucmd, rc,
-		cmd->op_flags & SCST_INFO_INVALID);
+	PRINT_ERROR("PARSE failed (ucmd %p, rc %d)", ucmd, rc);
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 
 out_error:
@@ -1249,6 +1248,8 @@ static int dev_user_process_reply_parse(struct scst_user_cmd *ucmd,
 	cmd->data_direction = preply->data_direction;
 	cmd->bufflen = preply->bufflen;
 	cmd->data_len = preply->data_len;
+	if (preply->write_medium)
+		cmd->op_flags |= SCST_WRITE_MEDIUM;
 
 out_process:
 	scst_process_active_cmd(cmd, false);

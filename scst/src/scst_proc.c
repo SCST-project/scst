@@ -1460,7 +1460,7 @@ static int scst_proc_assign_handler(char *buf)
 
 	if (dev->scsi_dev->type != handler->type) {
 		PRINT_ERROR("Type %d of device %s differs from type "
-			"%d of dev handler %s", dev->handler->type,
+			"%d of dev handler %s", dev->type,
 			dev->handler->name, handler->type, handler->name);
 		res = -EINVAL;
 		goto out;

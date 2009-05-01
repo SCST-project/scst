@@ -1440,7 +1440,7 @@ static int scst_report_luns_local(struct scst_cmd *cmd)
 	if (unlikely(buffer_size == 0))
 		goto out_compl;
 	else if (unlikely(buffer_size < 0))
-		goto out_err;
+		goto out_hw_err;
 
 	if (buffer_size < 16)
 		goto out_put_err;
@@ -1491,7 +1491,7 @@ inc_dev_cnt:
 	if (unlikely(buffer_size == 0))
 		goto out_compl;
 	else if (unlikely(buffer_size < 0))
-		goto out_err;
+		goto out_hw_err;
 
 	dev_cnt *= 8;
 	buffer[0] = (dev_cnt >> 24) & 0xff;
@@ -1557,8 +1557,106 @@ out_err:
 
 out_put_hw_err:
 	scst_put_buf(cmd, buffer);
+	
+out_hw_err:
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 	goto out_compl;
+}
+
+static int scst_request_sense_local(struct scst_cmd *cmd)
+{
+	int res = SCST_EXEC_COMPLETED, rc;
+	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
+	uint8_t *buffer;
+	int buffer_size = 0;
+
+	TRACE_ENTRY();
+
+	rc = scst_check_local_events(cmd);
+	if (unlikely(rc != 0))
+		goto out_done;
+
+	cmd->status = 0;
+	cmd->msg_status = 0;
+	cmd->host_status = DID_OK;
+	cmd->driver_status = 0;
+
+	spin_lock_bh(&tgt_dev->tgt_dev_lock);
+
+	if (tgt_dev->tgt_dev_valid_sense_len == 0)
+		goto out_not_completed;
+
+	TRACE(TRACE_SCSI, "%s: Returning stored sense", cmd->op_name);
+
+	buffer_size = scst_get_buf_first(cmd, &buffer);
+	if (unlikely(buffer_size == 0))
+		goto out_compl;
+	else if (unlikely(buffer_size < 0))
+		goto out_hw_err;
+
+	memset(buffer, 0, buffer_size);
+
+	if (((tgt_dev->tgt_dev_sense[0] == 0x70) ||
+	     (tgt_dev->tgt_dev_sense[0] == 0x71)) && (cmd->cdb[1] & 1)) {
+		PRINT_WARNING("%s: Fixed format of the saved sense, but "
+			"descriptor format requested. Convertion will "
+			"truncated data", cmd->op_name);
+		PRINT_BUFFER("Original sense", tgt_dev->tgt_dev_sense,
+			tgt_dev->tgt_dev_valid_sense_len);
+
+		buffer_size = min(SCST_STANDARD_SENSE_LEN, buffer_size);
+		scst_set_sense(buffer, buffer_size, true,
+			tgt_dev->tgt_dev_sense[2], tgt_dev->tgt_dev_sense[12],
+			tgt_dev->tgt_dev_sense[13]);
+	} else if (((tgt_dev->tgt_dev_sense[0] == 0x72) ||
+		    (tgt_dev->tgt_dev_sense[0] == 0x73)) && !(cmd->cdb[1] & 1)) {
+		PRINT_WARNING("%s: Descriptor format of the "
+			"saved sense, but fixed format requested. Convertion "
+			"will truncated data", cmd->op_name);
+		PRINT_BUFFER("Original sense", tgt_dev->tgt_dev_sense,
+			tgt_dev->tgt_dev_valid_sense_len);
+
+		buffer_size = min(SCST_STANDARD_SENSE_LEN, buffer_size);
+		scst_set_sense(buffer, buffer_size, false,
+			tgt_dev->tgt_dev_sense[1], tgt_dev->tgt_dev_sense[2],
+			tgt_dev->tgt_dev_sense[3]);
+	} else {
+		if (buffer_size >= tgt_dev->tgt_dev_valid_sense_len)
+			buffer_size = tgt_dev->tgt_dev_valid_sense_len;
+		else {
+			PRINT_WARNING("%s: Being returned sense truncated to "
+				"size %d (needed %d)", cmd->op_name,
+				buffer_size, tgt_dev->tgt_dev_valid_sense_len);
+		}
+		memcpy(buffer, tgt_dev->tgt_dev_sense, buffer_size);
+	}
+
+	scst_put_buf(cmd, buffer);
+
+out_compl:
+	tgt_dev->tgt_dev_valid_sense_len = 0;
+	scst_set_resp_data_len(cmd, buffer_size);
+
+	spin_unlock_bh(&tgt_dev->tgt_dev_lock);
+
+	cmd->completed = 1;
+
+out_done:
+	/* Report the result */
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_hw_err:
+	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+	goto out_compl;
+
+out_not_completed:
+	spin_unlock_bh(&tgt_dev->tgt_dev_lock);
+	res = SCST_EXEC_NOT_COMPLETED;
+	goto out;
 }
 
 static int scst_pre_select(struct scst_cmd *cmd)
@@ -2044,16 +2142,8 @@ static int scst_do_local_exec(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	/* Check READ_ONLY device status */
-	if (((tgt_dev->acg_dev->rd_only_flag) || cmd->dev->swp) &&
-	    (cmd->cdb[0] == WRITE_6 ||  /* ToDo: full list of the modify cmds */
-	     cmd->cdb[0] == WRITE_10 ||
-	     cmd->cdb[0] == WRITE_12 ||
-	     cmd->cdb[0] == WRITE_16 ||
-	     cmd->cdb[0] == WRITE_VERIFY ||
-	     cmd->cdb[0] == WRITE_VERIFY_12 ||
-	     cmd->cdb[0] == WRITE_VERIFY_16 ||
-	     (cmd->dev->handler->type == TYPE_TAPE &&
-	      (cmd->cdb[0] == ERASE || cmd->cdb[0] == WRITE_FILEMARKS)))) {
+	if ((cmd->op_flags & SCST_WRITE_MEDIUM) &&
+	    ((tgt_dev->acg_dev->rd_only_flag) || cmd->dev->swp)) {
 		PRINT_WARNING("Attempt of write access to read-only device: "
 			"initiator %s, LUN %lld, op %x",
 			cmd->sess->initiator_name, cmd->lun, cmd->cdb[0]);
@@ -2066,6 +2156,11 @@ static int scst_do_local_exec(struct scst_cmd *cmd)
 	 * Adding new commands here don't forget to update
 	 * scst_is_cmd_local() in scst.h, if necessary
 	 */
+
+	if (!(cmd->op_flags & SCST_LOCAL_EXEC_NEEDED)) {
+		res = SCST_EXEC_NOT_COMPLETED;
+		goto out;
+	}
 
 	switch (cmd->cdb[0]) {
 	case MODE_SELECT:
@@ -2083,6 +2178,9 @@ static int scst_do_local_exec(struct scst_cmd *cmd)
 		break;
 	case REPORT_LUNS:
 		res = scst_report_luns_local(cmd);
+		break;
+	case REQUEST_SENSE:
+		res = scst_request_sense_local(cmd);
 		break;
 	default:
 		res = SCST_EXEC_NOT_COMPLETED;
@@ -2453,7 +2551,7 @@ static int scst_pre_dev_done(struct scst_cmd *cmd)
 		goto out;
 
 	if (likely(scsi_status_is_good(cmd->status))) {
-		unsigned char type = cmd->dev->handler->type;
+		unsigned char type = cmd->dev->type;
 		if (unlikely((cmd->cdb[0] == MODE_SENSE ||
 			      cmd->cdb[0] == MODE_SENSE_10)) &&
 		    cmd->tgt_dev->acg_dev->rd_only_flag &&
@@ -2824,6 +2922,28 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)))
 		scst_xmit_process_aborted_cmd(cmd);
+	else if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION) &&
+		 SCST_SENSE_VALID(cmd->sense) &&
+		 !test_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags)) {
+		struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
+
+		TRACE_DBG("Storing sense (cmd %p)", cmd);
+
+		spin_lock_bh(&tgt_dev->tgt_dev_lock);
+
+		if (cmd->sense_bufflen <= sizeof(tgt_dev->tgt_dev_sense))
+			tgt_dev->tgt_dev_valid_sense_len = cmd->sense_bufflen;
+		else {
+			tgt_dev->tgt_dev_valid_sense_len = sizeof(tgt_dev->tgt_dev_sense);
+			PRINT_ERROR("Stored sense truncated to size %d "
+				"(needed %d)", tgt_dev->tgt_dev_valid_sense_len,
+				cmd->sense_bufflen);
+		}
+		memcpy(tgt_dev->tgt_dev_sense, cmd->sense, 
+			tgt_dev->tgt_dev_valid_sense_len);
+
+		spin_unlock_bh(&tgt_dev->tgt_dev_lock);
+	}
 
 	if (unlikely(test_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags))) {
 		TRACE_MGMT_DBG("Flag NO_RESP set for cmd %p (tag %llu),"

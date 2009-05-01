@@ -154,7 +154,7 @@ static int tape_attach(struct scst_device *dev)
 	TRACE_ENTRY();
 
 	if (dev->scsi_dev == NULL ||
-	    dev->scsi_dev->type != dev->handler->type) {
+	    dev->scsi_dev->type != dev->type) {
 		PRINT_ERROR("%s", "SCSI device not define or illegal type");
 		res = -ENODEV;
 		goto out;

@@ -2487,6 +2487,23 @@ static int get_trans_len_read_capacity(struct scst_cmd *cmd, uint8_t off)
 	return 0;
 }
 
+static int get_trans_len_serv_act_in(struct scst_cmd *cmd, uint8_t off)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	if ((cmd->cdb[1] & 0x1f) == SAI_READ_CAPACITY_16) {
+		cmd->op_name = "READ CAPACITY(16)";
+		cmd->bufflen = READ_CAP16_LEN;
+		cmd->op_flags |= SCST_IMPLICIT_HQ;
+	} else
+		cmd->op_flags |= SCST_UNKNOWN_LENGTH;
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 static int get_trans_len_single(struct scst_cmd *cmd, uint8_t off)
 {
 	cmd->bufflen = 1;
@@ -2600,7 +2617,7 @@ static int get_trans_len_none(struct scst_cmd *cmd, uint8_t off)
 
 int scst_get_cdb_info(struct scst_cmd *cmd)
 {
-	int dev_type = cmd->dev->handler->type;
+	int dev_type = cmd->dev->type;
 	int i, res = 0;
 	uint8_t op;
 	const struct scst_sdbops *ptr = NULL;
@@ -2638,12 +2655,12 @@ int scst_get_cdb_info(struct scst_cmd *cmd)
 		i++;
 	}
 
-	if (ptr == NULL) {
+	if (unlikely(ptr == NULL)) {
 		/* opcode not found or now not used !!! */
 		TRACE(TRACE_SCSI, "Unknown opcode 0x%x for type %d", op,
 		      dev_type);
 		res = -1;
-		cmd->op_flags = SCST_INFO_INVALID;
+		cmd->op_flags = SCST_INFO_NOT_FOUND;
 		goto out;
 	}
 
@@ -2654,7 +2671,7 @@ int scst_get_cdb_info(struct scst_cmd *cmd)
 	res = (*ptr->get_trans_len)(cmd, ptr->off);
 
 out:
-	TRACE_EXIT();
+	TRACE_EXIT_RES(res);
 	return res;
 }
 EXPORT_SYMBOL(scst_get_cdb_info);
@@ -2811,12 +2828,6 @@ int scst_sbc_generic_parse(struct scst_cmd *cmd,
 	      cmd->op_name, cmd->data_direction, cmd->op_flags, cmd->bufflen);
 
 	switch (cmd->cdb[0]) {
-	case SERVICE_ACTION_IN:
-		if ((cmd->cdb[1] & 0x1f) == SAI_READ_CAPACITY_16) {
-			cmd->bufflen = READ_CAP16_LEN;
-			cmd->data_direction = SCST_DATA_READ;
-		}
-		break;
 	case VERIFY_6:
 	case VERIFY:
 	case VERIFY_12:

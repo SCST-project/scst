@@ -1469,6 +1469,7 @@ static void exec_read_capacity16(struct vdisk_cmd *vcmd)
 	nblocks = dev->nblocks - 1;
 
 	memset(buffer, 0, sizeof(buffer));
+
 	buffer[0] = nblocks >> 56;
 	buffer[1] = (nblocks >> 48) & 0xFF;
 	buffer[2] = (nblocks >> 40) & 0xFF;
@@ -1482,6 +1483,25 @@ static void exec_read_capacity16(struct vdisk_cmd *vcmd)
 	buffer[9] = (blocksize >> (BYTE * 2)) & 0xFF;
 	buffer[10] = (blocksize >> (BYTE * 1)) & 0xFF;
 	buffer[11] = (blocksize >> (BYTE * 0)) & 0xFF;
+
+	switch (blocksize) {
+	case 512:
+		buffer[13] = 3;
+		break;
+	case 1024:
+		buffer[13] = 2;
+		break;
+	case 2048:
+		buffer[13] = 1;
+		break;
+	default:
+		PRINT_ERROR("READ CAPACITY(16): Unexpected block size %d6",
+			blocksize);
+		/* go through */
+	case 4096:
+		buffer[13] = 0;
+		break;
+	}
 
 	if (length > READ_CAP16_LEN)
 		length = READ_CAP16_LEN;

@@ -477,12 +477,17 @@ typedef enum dma_data_direction scst_data_direction;
 
 enum scst_cdb_flags {
 	/* SCST_TRANSFER_LEN_TYPE_FIXED must be equiv 1 (FIXED_BIT in cdb) */
-	SCST_TRANSFER_LEN_TYPE_FIXED = 0x01,
-	SCST_SMALL_TIMEOUT = 0x02,
-	SCST_LONG_TIMEOUT = 0x04,
-	SCST_UNKNOWN_LENGTH = 0x08,
-	SCST_INFO_INVALID = 0x10,
-	SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED = 0x20,
+	SCST_TRANSFER_LEN_TYPE_FIXED =		0x001,
+	SCST_SMALL_TIMEOUT =			0x002,
+	SCST_LONG_TIMEOUT =			0x004,
+	SCST_UNKNOWN_LENGTH =			0x008,
+	SCST_INFO_NOT_FOUND =			0x010, /* must be single bit */
+	SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED =	0x020,
+	SCST_IMPLICIT_HQ =			0x040,
+	SCST_SKIP_UA =				0x080,
+	SCST_WRITE_MEDIUM =			0x100,
+	SCST_LOCAL_CMD =			0x200,
+	SCST_LOCAL_EXEC_NEEDED =		0x400,
 };
 
 /*
@@ -1605,6 +1610,13 @@ struct scst_tgt_dev {
 
 	/* internal tmp list entry */
 	struct list_head extra_tgt_dev_list_entry;
+
+	/*
+	 * Stored Unit Attention sense and its length for possible
+	 * subsequent RQUEST SENSE. Both protected by tgt_dev_lock.
+	 */
+	unsigned short tgt_dev_valid_sense_len;
+	uint8_t tgt_dev_sense[SCST_SENSE_BUFFERSIZE];
 };
 
 /*
@@ -2051,14 +2063,9 @@ enum dma_data_direction scst_to_tgt_dma_dir(int scst_dir);
  * Returns 1, if cmd's CDB is locally handled by SCST and 0 otherwise.
  * Dev handlers parse() and dev_done() not called for such commands.
  */
-static inline int scst_is_cmd_local(struct scst_cmd *cmd)
+static inline bool scst_is_cmd_local(struct scst_cmd *cmd)
 {
-	int res = 0;
-	switch (cmd->cdb[0]) {
-	case REPORT_LUNS:
-		res = 1;
-	}
-	return res;
+	return (cmd->op_flags & SCST_LOCAL_CMD) != 0;
 }
 
 /*

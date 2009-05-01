@@ -206,6 +206,7 @@ struct scst_user_get_cmd {
 struct scst_user_scsi_cmd_reply_parse {
 	uint8_t queue_type;
 	uint8_t data_direction;
+	uint8_t write_medium;
 	int32_t data_len;
 	int32_t bufflen;
 };

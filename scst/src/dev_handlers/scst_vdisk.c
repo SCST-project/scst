@@ -507,7 +507,7 @@ static int vdisk_attach(struct scst_device *dev)
 		goto out;
 	}
 
-	vd = (dev->handler->type == TYPE_DISK) ?
+	vd = (dev->type == TYPE_DISK) ?
 				&vdisk_dev_list :
 				&vcdrom_dev_list;
 
@@ -530,7 +530,7 @@ static int vdisk_attach(struct scst_device *dev)
 
 	virt_dev->dev = dev;
 
-	if (dev->handler->type == TYPE_ROM)
+	if (dev->type == TYPE_ROM)
 		virt_dev->rd_only_flag = 1;
 
 	if (!virt_dev->cdrom_empty) {
@@ -547,7 +547,7 @@ static int vdisk_attach(struct scst_device *dev)
 	} else
 		virt_dev->file_size = 0;
 
-	if (dev->handler->type == TYPE_DISK) {
+	if (dev->type == TYPE_DISK) {
 		virt_dev->nblocks =
 			virt_dev->file_size >> virt_dev->block_shift;
 	} else {
@@ -561,7 +561,7 @@ static int vdisk_attach(struct scst_device *dev)
 		PRINT_INFO("Attached SCSI target virtual %s %s "
 		      "(file=\"%s\", fs=%lldMB, bs=%d, nblocks=%lld,"
 		      " cyln=%lld%s)",
-		      (dev->handler->type == TYPE_DISK) ? "disk" : "cdrom",
+		      (dev->type == TYPE_DISK) ? "disk" : "cdrom",
 		      virt_dev->name, virt_dev->file_name,
 		      virt_dev->file_size >> 20, virt_dev->block_size,
 		      (long long unsigned int)virt_dev->nblocks,
@@ -1209,7 +1209,7 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 		goto out_put;
 	}
 
-	buf[0] = cmd->dev->handler->type;      /* type dev */
+	buf[0] = cmd->dev->type;      /* type dev */
 	if ((buf[0] == TYPE_ROM) || virt_dev->removable)
 		buf[1] = 0x80;      /* removable */
 	/* Vital Product */
@@ -1548,7 +1548,7 @@ static void vdisk_exec_mode_sense(struct scst_cmd *cmd)
 	blocksize = virt_dev->block_size;
 	nblocks = virt_dev->nblocks;
 
-	type = cmd->dev->handler->type;    /* type dev */
+	type = cmd->dev->type;    /* type dev */
 	dbd = cmd->cdb[1] & DBD;
 	pcontrol = (cmd->cdb[2] & 0xc0) >> 6;
 	pcode = cmd->cdb[2] & 0x3f;
@@ -1904,6 +1904,7 @@ static void vdisk_exec_read_capacity16(struct scst_cmd *cmd)
 	nblocks = virt_dev->nblocks - 1;
 
 	memset(buffer, 0, sizeof(buffer));
+
 	buffer[0] = nblocks >> 56;
 	buffer[1] = (nblocks >> 48) & 0xFF;
 	buffer[2] = (nblocks >> 40) & 0xFF;
@@ -1917,6 +1918,25 @@ static void vdisk_exec_read_capacity16(struct scst_cmd *cmd)
 	buffer[9] = (blocksize >> (BYTE * 2)) & 0xFF;
 	buffer[10] = (blocksize >> (BYTE * 1)) & 0xFF;
 	buffer[11] = (blocksize >> (BYTE * 0)) & 0xFF;
+
+	switch (blocksize) {
+	case 512:
+		buffer[13] = 3;
+		break;
+	case 1024:
+		buffer[13] = 2;
+		break;
+	case 2048:
+		buffer[13] = 1;
+		break;
+	default:
+		PRINT_ERROR("%s: Unexpected block size %d",
+			cmd->op_name, blocksize);
+		/* go through */
+	case 4096:
+		buffer[13] = 0;
+		break;
+	}
 
 	length = scst_get_buf_first(cmd, &address);
 	if (unlikely(length <= 0)) {
@@ -1953,7 +1973,7 @@ static void vdisk_exec_read_toc(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	if (cmd->dev->handler->type != TYPE_ROM) {
+	if (cmd->dev->type != TYPE_ROM) {
 		PRINT_ERROR("%s", "READ TOC for non-CDROM device");
 		scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_sense_invalid_opcode));
@@ -2040,7 +2060,7 @@ static void vdisk_exec_prevent_allow_medium_removal(struct scst_cmd *cmd)
 
 	TRACE_DBG("PERSIST/PREVENT 0x%02x", cmd->cdb[4]);
 
-	if (cmd->dev->handler->type == TYPE_ROM) {
+	if (cmd->dev->type == TYPE_ROM) {
 		spin_lock(&virt_dev->flags_lock);
 		virt_dev->prevent_allow_medium_removal =
 			cmd->cdb[4] & 0x01 ? 1 : 0;
