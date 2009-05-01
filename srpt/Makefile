@@ -21,7 +21,12 @@ else
   KDIR ?= /lib/modules/$(KVER)/build
 endif
 
-all: Modules.symvers Module.symvers
+# The file Modules.symvers has been renamed in the 2.6.18 kernel to
+# Module.symvers. Find out which name to use by looking in $(KDIR).
+MODULE_SYMVERS=$(shell if [ -e $(KDIR)/Module.symvers ]; then \
+		       echo Module.symvers; else echo Modules.symvers; fi)
+
+all: $(MODULE_SYMVERS)
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src modules
 
 install: all src/ib_srpt.ko
@@ -30,31 +35,30 @@ install: all src/ib_srpt.ko
 	$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra/ib_srpt.ko
 	-/sbin/depmod -aq $(KVER)
 
-ifneq ($(shell ls $(SCST_DIR)/Modules.symvers 2>/dev/null),)
-Modules.symvers: $(SCST_DIR)/Modules.symvers
-	(                                                    \
-	  cat $(SCST_DIR)/Modules.symvers;                   \
-	  if [ -e /usr/src/ofa_kernel/Module.symvers ]; then \
-	    cat /usr/src/ofa_kernel/Module.symvers;          \
-	  fi                                                 \
-	) >src/Modules.symvers
-else
-.PHONY: Modules.symvers
-endif
+Module.symvers: src/Module.symvers
 
-# The file Modules.symvers has been renamed in the 2.6.18 kernel to
-# Module.symvers.
-ifneq ($(shell ls $(SCST_DIR)/Module.symvers 2>/dev/null),)
-Module.symvers: $(SCST_DIR)/Module.symvers
-	(                                                    \
-	  cat $(SCST_DIR)/Module.symvers;                    \
-	  if [ -e /usr/src/ofa_kernel/Module.symvers ]; then \
-	    cat /usr/src/ofa_kernel/Module.symvers;          \
-	  fi                                                 \
-	) >src/Module.symvers
-else
-.PHONY: Module.symvers
-endif
+Modules.symvers: src/Modules.symvers
+
+.PHONY: Module.symvers Modules.symvers
+
+src/Module.symvers src/Modules.symvers: $(SCST_DIR)/$(MODULE_SYMVERS)
+	if [ -e /lib/modules/$(KVER)/updates/kernel/drivers/infiniband ]; then\
+	  if [ ! -e /usr/src/ofa_kernel/Module.symvers ]; then                \
+	    echo "Error: the OFED package kernel-ib-devel has not yet been"   \
+	         "installed.";                                                \
+	    false;                                                            \
+	  elif [ -e /lib/modules/$(KVER)/kernel/drivers/infiniband ]; then    \
+	    echo "Error: OFED has not been installed correctly.";             \
+	    false;                                                            \
+	  else                                                                \
+	    (                                                                 \
+	      grep -v drivers/infiniband/ $<;                                 \
+	      cat /usr/src/ofa_kernel/Module.symvers                          \
+	    ) >$@;                                                            \
+	  fi                                                                  \
+	else                                                                  \
+	  cp $< $@;                                                           \
+	fi
 
 clean:
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src clean
