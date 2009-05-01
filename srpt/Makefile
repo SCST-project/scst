@@ -30,20 +30,28 @@ install: all src/ib_srpt.ko
 	$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra/ib_srpt.ko
 	-/sbin/depmod -aq $(KVER)
 
-SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Modules.symvers 2>/dev/null)
-ifneq ($(SCST_MOD_VERS),)
+ifneq ($(shell ls $(SCST_DIR)/Modules.symvers 2>/dev/null),)
 Modules.symvers: $(SCST_DIR)/Modules.symvers
-	echo $(SCST_MOD_VERS)
-	cp $(SCST_DIR)/Modules.symvers src/
+	(                                                    \
+	  cat $(SCST_DIR)/Modules.symvers;                   \
+	  if [ -e /usr/src/ofa_kernel/Module.symvers ]; then \
+	    cat /usr/src/ofa_kernel/Module.symvers;          \
+	  fi                                                 \
+	) >src/Modules.symvers
 else
 .PHONY: Modules.symvers
 endif
 
-# It's renamed in 2.6.18
-SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Module.symvers 2>/dev/null)
-ifneq ($(SCST_MOD_VERS),)
+# The file Modules.symvers has been renamed in the 2.6.18 kernel to
+# Module.symvers.
+ifneq ($(shell ls $(SCST_DIR)/Module.symvers 2>/dev/null),)
 Module.symvers: $(SCST_DIR)/Module.symvers
-	cp $(SCST_DIR)/Module.symvers src/
+	(                                                    \
+	  cat $(SCST_DIR)/Module.symvers;                    \
+	  if [ -e /usr/src/ofa_kernel/Module.symvers ]; then \
+	    cat /usr/src/ofa_kernel/Module.symvers;          \
+	  fi                                                 \
+	) >src/Module.symvers
 else
 .PHONY: Module.symvers
 endif
