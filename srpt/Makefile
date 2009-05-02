@@ -1,11 +1,6 @@
 #
-# Makefile for the Linux kernel device drivers.
+# Makefile for ib_srpt.ko.
 #
-# Note! Dependencies are done automagically by 'make dep', which also
-# removes any old dependencies. DON'T put your own dependencies here
-# unless it's something special (not a .c file).
-#
-# Note 2! The CFLAGS definitions are now in the main makefile.
 
 SCST_DIR := $(shell pwd)/../scst/src
 SUBDIRS := $(shell pwd)
@@ -23,10 +18,23 @@ endif
 
 # The file Modules.symvers has been renamed in the 2.6.18 kernel to
 # Module.symvers. Find out which name to use by looking in $(KDIR).
-MODULE_SYMVERS=$(shell if [ -e $(KDIR)/Module.symvers ]; then \
+MODULE_SYMVERS:=$(shell if [ -e $(KDIR)/Module.symvers ]; then \
 		       echo Module.symvers; else echo Modules.symvers; fi)
 
-all: $(MODULE_SYMVERS)
+# Whether or not the OFED kernel modules have been installed.
+OFED_KERNEL_IB_RPM_INSTALLED:=$(shell if rpm -q kernel-ib >/dev/null 2>&1; then echo true; else echo false; fi)
+
+# Whether or not the OFED kernel-ib-devel RPM has been installed.
+OFED_KERNEL_IB_DEVEL_RPM_INSTALLED:=$(shell if rpm -q kernel-ib-devel >/dev/null 2>&1; then echo true; else echo false; fi)
+
+# Path of the OFED ib_srpt.ko kernel module.
+OFED_SRPT_PATH:=/lib/modules/$(KVER)/updates/kernel/drivers/infiniband/ulp/srpt/ib_srpt.ko
+
+# Whether or not the OFED ib_srpt.ko kernel module has been installed.
+OFED_SRPT_INSTALLED:=$(shell if [ -e $(OFED_SRPT_PATH) ]; then echo true; else echo false; fi)
+
+
+all: src/$(MODULE_SYMVERS)
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src modules
 
 install: all src/ib_srpt.ko
@@ -35,29 +43,27 @@ install: all src/ib_srpt.ko
 	$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra/ib_srpt.ko
 	-/sbin/depmod -aq $(KVER)
 
-Module.symvers: src/Module.symvers
-
-Modules.symvers: src/Modules.symvers
-
-.PHONY: Module.symvers Modules.symvers
-
 src/Module.symvers src/Modules.symvers: $(SCST_DIR)/$(MODULE_SYMVERS)
-	if [ -e /lib/modules/$(KVER)/updates/kernel/drivers/infiniband ]; then\
-	  if [ ! -e /usr/src/ofa_kernel/Module.symvers ]; then                \
-	    echo "Error: the OFED package kernel-ib-devel has not yet been"   \
-	         "installed.";                                                \
-	    false;                                                            \
-	  elif [ -e /lib/modules/$(KVER)/kernel/drivers/infiniband ]; then    \
-	    echo "Error: OFED has not been installed correctly.";             \
-	    false;                                                            \
-	  else                                                                \
-	    (                                                                 \
-	      grep -v drivers/infiniband/ $<;                                 \
-	      cat /usr/src/ofa_kernel/Module.symvers                          \
-	    ) >$@;                                                            \
-	  fi                                                                  \
-	else                                                                  \
-	  cp $< $@;                                                           \
+	if $(OFED_KERNEL_IB_RPM_INSTALLED); then                            \
+	  if ! $(OFED_KERNEL_IB_DEVEL_RPM_INSTALLED); then                  \
+	    echo "Error: the OFED package kernel-ib-devel has not yet been" \
+	         "installed.";                                              \
+	    false;                                                          \
+	  elif [ -e /lib/modules/$(KVER)/kernel/drivers/infiniband ]; then  \
+	    echo "Error: OFED has not been installed correctly.";           \
+	    false;                                                          \
+	  elif $(OFED_SRPT_INSTALLED); then                                 \
+	    echo "Error: OFED has been built with srpt=y in ofed.conf.";    \
+	    echo "Rebuild OFED with srpt=n.";                               \
+	    false;                                                          \
+	  else                                                              \
+	    (                                                               \
+	      grep -v drivers/infiniband/ $<;                               \
+	      cat /usr/src/ofa_kernel/Module.symvers                        \
+	    ) >$@;                                                          \
+	  fi                                                                \
+	else                                                                \
+	  cp $< $@;                                                         \
 	fi
 
 clean:
