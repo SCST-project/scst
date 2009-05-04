@@ -1958,7 +1958,7 @@ static int srpt_detect(struct scst_tgt_template *tp)
 			sport = &sdev->port[i - 1];
 			sport->sdev = sdev;
 			sport->port = i;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && ! defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
 			INIT_WORK(&sport->work, srpt_refresh_port_work, sport);
 #else
 			INIT_WORK(&sport->work, srpt_refresh_port_work);
