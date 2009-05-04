@@ -60,6 +60,8 @@ function evaluate(stmnt) {
 
   gsub("defined\\(INSIDE_KERNEL_TREE\\)", "1", stmnt)
 
+  gsub("defined\\(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19\\)", "0", stmnt)
+
   if (RHEL_MAJOR == "")
     gsub("defined\\(RHEL_MAJOR\\)", "0", stmnt)
   else
