@@ -65,11 +65,6 @@ src/Module.symvers src/Modules.symvers: $(SCST_DIR)/$(MODULE_SYMVERS)
 	    echo "Error: OFED has been built with srpt=y in ofed.conf.";    \
 	    echo "Rebuild OFED with srpt=n.";                               \
 	    false;                                                          \
-	  elif ! grep -wq '^c_flags .*EXTRA_PRE_CFLAGS'                     \
-               $(KDIR)/scripts/Makefile.lib; then                           \
-	    echo "Error: $(KDIR)/scripts/Makefile.lib has not yet"          \
-		 "been patched.";                                           \
-	    false;                                                          \
 	  else                                                              \
 	    (                                                               \
 	      grep -v drivers/infiniband/ $<;                               \
