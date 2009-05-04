@@ -27,6 +27,14 @@ OFED_KERNEL_IB_RPM_INSTALLED:=$(shell if rpm -q kernel-ib >/dev/null 2>&1; then 
 # Whether or not the OFED kernel-ib-devel RPM has been installed.
 OFED_KERNEL_IB_DEVEL_RPM_INSTALLED:=$(shell if rpm -q kernel-ib-devel >/dev/null 2>&1; then echo true; else echo false; fi)
 
+ifeq ($(OFED_KERNEL_IB_DEVEL_RPM_INSTALLED),true)
+# Read OFED's config.mk, which contains the definition of the variable
+# BACKPORT_INCLUDES.
+include /usr/src/ofa_kernel/config.mk
+endif
+
+OFED_CFLAGS:=$(shell if $(OFED_KERNEL_IB_DEVEL_RPM_INSTALLED); then echo $(BACKPORT_INCLUDES) -I/usr/src/ofa_kernel/include; fi)
+
 # Path of the OFED ib_srpt.ko kernel module.
 OFED_SRPT_PATH:=/lib/modules/$(KVER)/updates/kernel/drivers/infiniband/ulp/srpt/ib_srpt.ko
 
@@ -35,7 +43,8 @@ OFED_SRPT_INSTALLED:=$(shell if [ -e $(OFED_SRPT_PATH) ]; then echo true; else e
 
 
 all: src/$(MODULE_SYMVERS)
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src modules
+	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src \
+	EXTRA_PRE_CFLAGS="$(OFED_CFLAGS)" modules
 
 install: all src/ib_srpt.ko
 	@eval `sed -n 's/#define UTS_RELEASE /KERNELRELEASE=/p' $(KDIR)/include/linux/version.h $(KDIR)/include/linux/utsrelease.h 2>/dev/null`; \
@@ -55,6 +64,11 @@ src/Module.symvers src/Modules.symvers: $(SCST_DIR)/$(MODULE_SYMVERS)
 	  elif $(OFED_SRPT_INSTALLED); then                                 \
 	    echo "Error: OFED has been built with srpt=y in ofed.conf.";    \
 	    echo "Rebuild OFED with srpt=n.";                               \
+	    false;                                                          \
+	  elif ! grep -wq '^c_flags .*EXTRA_PRE_CFLAGS'                     \
+               $(KDIR)/scripts/Makefile.lib; then                           \
+	    echo "Error: $(KDIR)/scripts/Makefile.lib has not yet"          \
+		 "been patched.";                                           \
 	    false;                                                          \
 	  else                                                              \
 	    (                                                               \
