@@ -1557,7 +1557,7 @@ out_err:
 
 out_put_hw_err:
 	scst_put_buf(cmd, buffer);
-	
+
 out_hw_err:
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 	goto out_compl;
@@ -2939,7 +2939,7 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 				"(needed %d)", tgt_dev->tgt_dev_valid_sense_len,
 				cmd->sense_bufflen);
 		}
-		memcpy(tgt_dev->tgt_dev_sense, cmd->sense, 
+		memcpy(tgt_dev->tgt_dev_sense, cmd->sense,
 			tgt_dev->tgt_dev_valid_sense_len);
 
 		spin_unlock_bh(&tgt_dev->tgt_dev_lock);

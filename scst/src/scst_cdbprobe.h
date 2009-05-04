@@ -428,7 +428,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	/* 12-bytes length CDB */
 	{0xA0, "VVVVVVVVVV  M   ", "REPORT LUNS",
 	 SCST_DATA_READ, SCST_SMALL_TIMEOUT|SCST_IMPLICIT_HQ|SCST_SKIP_UA|
-	 		 SCST_LOCAL_CMD|SCST_LOCAL_EXEC_NEEDED,
+			 SCST_LOCAL_CMD|SCST_LOCAL_EXEC_NEEDED,
 	 6, get_trans_len_4},
 	{0xA1, "     O          ", "BLANK",
 	 SCST_DATA_NONE, SCST_LONG_TIMEOUT, 0, get_trans_len_none},
