@@ -2657,6 +2657,17 @@ void scst_aen_done(struct scst_aen *aen);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 
+/*
+ * The macro's sg_page(), sg_virt(), sg_init_table(), sg_assign_page() and
+ * sg_set_page() have been introduced in the 2.6.24 kernel. The definitions
+ * below are backports of the 2.6.24 macro's for older kernels. There is one
+ * exception however: when compiling SCST on a system with a pre-2.6.24 kernel
+ * (e.g. RHEL 5.x) where the OFED kernel headers have been installed, do not
+ * define the backported macro's because OFED has already defined these.
+ */
+
+#ifndef __BACKPORT_LINUX_SCATTERLIST_H_TO_2_6_23__
+
 static inline struct page *sg_page(struct scatterlist *sg)
 {
 	return sg->page;
@@ -2684,6 +2695,8 @@ static inline void sg_set_page(struct scatterlist *sg, struct page *page,
 	sg->offset = offset;
 	sg->length = len;
 }
+
+#endif
 
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24) */
 
