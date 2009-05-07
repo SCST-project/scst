@@ -1,4 +1,4 @@
-$Id: README,v 1.30 2007/03/05 19:10:52 mjacob Exp $
+$Id: README,v 1.32 2009/05/02 23:25:49 mjacob Exp $
 ------------------------------------------------------------------------------
 
 Supported Cards:
@@ -20,11 +20,13 @@ PCI Fibre Channel
 	4-Gbit:
 		ISP2422, ISP2432
 
+	8-GBit:
+		ISP2532
+
 You should note that some old non-Qlogic (or very old Qlogic) 2100 cards may
 have trouble loading firmware. The newer f/w for 2100s is > 0x8000 words,
 which PROM code on some cards has trouble loading- define the token
 USE_SMALLER_2100_FIRMWARE to select 1.15.37 f/w for the 2100.
 
-For 23XX (but not 2322) 2K Login firmware is available and is recommended.
-
+For 23XX (but not 2322) 2K Login firmware is available and is the detfault.
 ------------------------------------------------------------------------------

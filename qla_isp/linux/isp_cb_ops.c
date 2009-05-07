@@ -193,7 +193,7 @@ isplinux_proc_info(struct Scsi_Host *shp, char *buf, char **st, off_t off, int l
             io = len;
         } else if (strncmp(buf, "reset", 5) == 0) {
             ISP_LOCKU_SOFTC(isp);
-            isp_reinit(isp);
+            isp_reinit(isp, 0);
             ISP_UNLKU_SOFTC(isp);
             io = len;
         } else if (strncmp(buf, "bins", 4) == 0) {
@@ -540,7 +540,7 @@ isp_ioctl(struct inode *ip, struct file *fp, unsigned int c, unsigned long arg)
     case ISP_RESETHBA:
     {
         ISP_LOCK_SOFTC(isp);
-        isp_reset(isp);
+        isp_reset(isp, 0);
         ISP_UNLK_SOFTC(isp);
         break;
     }

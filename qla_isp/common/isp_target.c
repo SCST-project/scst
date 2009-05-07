@@ -280,26 +280,28 @@ isp_target_notify(ispsoftc_t *isp, void *vptr, uint32_t *optrp)
 			break;
 		}
 		if (IS_FC(isp)) {
-			inot_fcp = (in_fcentry_t *) local;
 			if (ISP_CAP_2KLOGIN(isp)) {
 				in_fcentry_e_t *ecp = (in_fcentry_e_t *)local;
-				isp_get_notify_fc_e(isp, inote_fcp, (in_fcentry_e_t *)local);
+				isp_get_notify_fc_e(isp, inote_fcp, ecp);
 				iid = ecp->in_iid;
+				status = ecp->in_status;
+				seqid = ecp->in_seqid;
 			} else {
-				isp_get_notify_fc(isp, inot_fcp, (in_fcentry_t *)local);
-				iid = inot_fcp->in_iid;
+				in_fcentry_t *fcp = (in_fcentry_t *)local;
+				isp_get_notify_fc(isp, inot_fcp, fcp);
+				iid = fcp->in_iid;
+				status = fcp->in_status;
+				seqid = fcp->in_seqid;
 			}
-			status = inot_fcp->in_status;
-			seqid = inot_fcp->in_seqid;
 		} else {
-			isp_get_notify(isp, inotp, (in_entry_t *)local);
-			inotp = (in_entry_t *) local;
-			status = inotp->in_status & 0xff;
-			seqid = inotp->in_seqid;
-			iid = inotp->in_iid;
+			in_entry_t *inp = (in_entry_t *)local;
+			isp_get_notify(isp, inotp, inp);
+			status = inp->in_status & 0xff;
+			seqid = inp->in_seqid;
+			iid = inp->in_iid;
 			if (IS_DUALBUS(isp)) {
-				bus = GET_BUS_VAL(inotp->in_iid);
-				SET_BUS_VAL(inotp->in_iid, 0);
+				bus = GET_BUS_VAL(inp->in_iid);
+				SET_BUS_VAL(inp->in_iid, 0);
 			}
 		}
 
@@ -318,6 +320,7 @@ isp_target_notify(ispsoftc_t *isp, void *vptr, uint32_t *optrp)
 			isp_prt(isp, ISP_LOGINFO, "Firmware out of ATIOs");
 			(void) isp_notify_ack(isp, local);
 			break;
+
 		case IN_RESET:
 			ISP_MEMZERO(&notify, sizeof (isp_notify_t));
 			notify.nt_hba = isp;
@@ -334,6 +337,7 @@ isp_target_notify(ispsoftc_t *isp, void *vptr, uint32_t *optrp)
 			notify.nt_lreserved = local;
 			isp_async(isp, ISPASYNC_TARGET_NOTIFY, &notify);
 			break;
+
 		case IN_PORT_LOGOUT:
 			ISP_MEMZERO(&notify, sizeof (isp_notify_t));
 			notify.nt_hba = isp;
@@ -346,6 +350,7 @@ isp_target_notify(ispsoftc_t *isp, void *vptr, uint32_t *optrp)
 			notify.nt_lreserved = local;
 			isp_async(isp, ISPASYNC_TARGET_NOTIFY, &notify);
 			break;
+
 		case IN_ABORT_TASK:
 			ISP_MEMZERO(&notify, sizeof (isp_notify_t));
 			notify.nt_hba = isp;
@@ -360,12 +365,26 @@ isp_target_notify(ispsoftc_t *isp, void *vptr, uint32_t *optrp)
 			break;
 
 		case IN_GLOBAL_LOGO:
+			isp_prt(isp, ISP_LOGTINFO, "%s: all ports logged out", __func__);
+			ISP_MEMZERO(&notify, sizeof (isp_notify_t));
+			notify.nt_hba = isp;
+			notify.nt_wwn = INI_ANY;
+			notify.nt_nphdl = NIL_HANDLE;
+			notify.nt_sid = PORT_ANY;
+			notify.nt_did = PORT_ANY;
+			notify.nt_ncode = NT_GLOBAL_LOGOUT;
+			isp_async(isp, ISPASYNC_TARGET_NOTIFY, &notify);
+			(void) isp_notify_ack(isp, local);
+			break;
+
 		case IN_PORT_CHANGED:
 			isp_prt(isp, ISP_LOGTINFO, "%s: port changed", __func__);
 			(void) isp_notify_ack(isp, local);
 			break;
+
 		default:
-			isp_prt(isp, ISP_LOGTINFO, "%s: unknown status (0x%x)", __func__, status);
+			ISP_SNPRINTF(local, sizeof local, "%s: unknown status to RQSTYPE_NOTIFY (0x%x)", __func__, status);
+			isp_print_bytes(isp, local, QENTRY_LEN, vptr);
 			(void) isp_notify_ack(isp, local);
 			break;
 		}
@@ -426,7 +445,7 @@ isp_target_notify(ispsoftc_t *isp, void *vptr, uint32_t *optrp)
 		    abts_rsp->abts_rsp_payload.rsp.subcode1, abts_rsp->abts_rsp_payload.rsp.subcode2);
 		break;
 	default:
-		isp_prt(isp, ISP_LOGERR, "Unknown entry type 0x%x in isp_target_notify", type);
+		isp_prt(isp, ISP_LOGERR, "%s: unknown entry type 0x%x", __func__, type);
 		rval = 0;
 		break;
 	}
@@ -1847,8 +1866,9 @@ isp_handle_24xx_inotify(ispsoftc_t *isp, in_fcentry_24xx_t *inot_24xx)
 		hichan = isp->isp_nchan;
 	} else {
 		if (chan >= isp->isp_nchan) {
-			isp_prt(isp, ISP_LOGINFO, "%s: bad channel %d for status 0x%x", __func__, chan, inot_24xx->in_status);
-			isp_print_bytes(isp, "XXX", QENTRY_LEN, inot_24xx);
+			char buf[64];
+			ISP_SNPRINTF(buf, sizeof buf, "%s: bad channel %d for status 0x%x", __func__, chan, inot_24xx->in_status);
+			isp_print_bytes(isp, buf, QENTRY_LEN, inot_24xx);
 			(void) isp_notify_ack(isp, inot_24xx);
 			return;
 		}

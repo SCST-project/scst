@@ -75,6 +75,9 @@ typedef enum {
 	NT_LINK_UP,
 	NT_LINK_DOWN,
 	NT_LOGOUT,
+	NT_GLOBAL_LOGOUT,
+	NT_ARRIVED,
+	NT_DEPARTED,
 	NT_HBA_RESET
 } isp_ncode_t;
 
@@ -87,7 +90,6 @@ typedef struct isp_notify {
 	uint64_t	nt_tgt;		/* destination (wwn) */
 	uint64_t	nt_tagval;	/* tag value */
 	uint32_t
-			nt_channel	: 6,	/* channel id */
 			nt_sid		: 24;	/* source port id */
 	uint32_t
 			nt_failed	: 1,	/* notify operation failed */
@@ -96,6 +98,7 @@ typedef struct isp_notify {
 	uint32_t
 			nt_lun		: 16,	/* logical unit */
 			nt_nphdl  	: 16;	/* n-port handle */
+	uint8_t		nt_channel;		/* channel id */
 	isp_ncode_t	nt_ncode;	/* action */
 } isp_notify_t;
 #define MATCH_TMD(tmd, iid, lun, tag)                   \

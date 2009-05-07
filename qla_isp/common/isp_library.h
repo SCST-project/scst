@@ -99,6 +99,11 @@ const char *isp_fc_toponame(fcparam *);
 
 
 /*
+ * Cleanup
+ */
+void isp_clear_commands(ispsoftc_t *);
+
+/*
  * Common chip shutdown function
  */
 void isp_shutdown(ispsoftc_t *);
@@ -181,6 +186,16 @@ int isp_save_xs_tgt(ispsoftc_t *, void *, uint32_t *);
 void *isp_find_xs_tgt(ispsoftc_t *, uint32_t);
 uint32_t isp_find_tgt_handle(ispsoftc_t *, void *);
 void isp_destroy_tgt_handle(ispsoftc_t *, uint32_t);
+
+int isp_find_pdb_by_wwn(ispsoftc_t *, int, uint64_t, fcportdb_t **);
+int isp_find_pdb_by_loopid(ispsoftc_t *, int, uint32_t, fcportdb_t **);
+int isp_find_pdb_by_sid(ispsoftc_t *, int, uint32_t, fcportdb_t **);
+void isp_find_chan_by_did(ispsoftc_t *, uint32_t, uint16_t *);
+void isp_add_wwn_entry(ispsoftc_t *, int, uint64_t, uint16_t, uint32_t);
+void isp_del_wwn_entry(ispsoftc_t *, int, uint64_t, uint16_t, uint32_t);
+void isp_del_all_wwn_entries(ispsoftc_t *, int);
+void isp_del_wwn_entries(ispsoftc_t *, isp_notify_t *);
+int isp_fc_change_role(ispsoftc_t *, int, int);
 
 void isp_put_atio(ispsoftc_t *, at_entry_t *, at_entry_t *);
 void isp_get_atio(ispsoftc_t *, at_entry_t *, at_entry_t *);

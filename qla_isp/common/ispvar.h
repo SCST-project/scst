@@ -293,6 +293,11 @@ typedef struct {
 #define	LOCAL_LOOP_LIM		126
 
 /*
+ * Limit for (2K login) N-port handle amounts
+ */
+#define	MAX_NPORT_HANDLE	2048
+
+/*
  * Special Constants
  */
 #define	INI_NONE    		((uint64_t) 0)
@@ -468,6 +473,18 @@ typedef struct {
 	 * entries which are zero are unmapped (i.e., don't exist).
 	 */
 	uint16_t		isp_dev_map[MAX_FC_TARG];
+
+#ifdef	ISP_TARGET_MODE
+	/*
+	 * This maps N-Port Handle to portdb entry so we
+	 * don't have to search for every incoming command.
+	 *
+	 * The mapping function is to take any non-zero entry and
+	 * subtract one to get the portdb index. This means that
+	 * entries which are zero are unmapped (i.e., don't exist).
+	 */
+	uint16_t		isp_tgt_map[MAX_NPORT_HANDLE];
+#endif
 
 	/*
 	 * Scratch DMA mapped in area to fetch Port Database stuff, etc.
@@ -782,10 +799,9 @@ struct ispsoftc {
  */
 
 /*
- * Reset Hardware. Totally. Assumes that you'll follow this with
- * a call to isp_init.
+ * Reset Hardware. Totally. Assumes that you'll follow this with a call to isp_init.
  */
-void isp_reset(ispsoftc_t *);
+void isp_reset(ispsoftc_t *, int);
 
 /*
  * Initialize Hardware to known state
@@ -795,7 +811,7 @@ void isp_init(ispsoftc_t *);
 /*
  * Reset the ISP and call completion for any orphaned commands.
  */
-void isp_reinit(ispsoftc_t *);
+void isp_reinit(ispsoftc_t *, int);
 
 /*
  * Internal Interrupt Service Routine

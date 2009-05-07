@@ -635,7 +635,7 @@ int isplinux_common_init(ispsoftc_t *);
 void isplinux_init_proc(ispsoftc_t *);
 void isplinux_undo_proc(ispsoftc_t *);
 #endif
-int isplinux_reinit(ispsoftc_t *);
+int isplinux_reinit(ispsoftc_t *, int);
 void isplinux_sqd(struct Scsi_Host *, struct scsi_device *);
 
 int isp_thread_event(ispsoftc_t *, int, void *, int, const char *, const int line);

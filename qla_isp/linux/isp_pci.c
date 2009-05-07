@@ -70,8 +70,7 @@ static void isp_pci_wr_reg(ispsoftc_t *, int, uint32_t);
 static uint32_t isp_pci_rd_reg_1080(ispsoftc_t *, int);
 static void isp_pci_wr_reg_1080(ispsoftc_t *, int, uint32_t);
 #endif
-#if !(defined(ISP_DISABLE_1020_SUPPORT) && defined(ISP_DISABLE_1080_SUPPORT) && defined(ISP_DISABLE_12160_SUPPORT) && \
-    defined(ISP_DISABLE_2100_SUPPORT) && defined(ISP_DISABLE_2200_SUPPORT))
+#if !(defined(ISP_DISABLE_1020_SUPPORT) && defined(ISP_DISABLE_1080_SUPPORT) && defined(ISP_DISABLE_12160_SUPPORT) && defined(ISP_DISABLE_2100_SUPPORT) && defined(ISP_DISABLE_2200_SUPPORT))
 static int isp_pci_rd_isr(ispsoftc_t *, uint32_t *, uint16_t *, uint16_t *);
 #endif
 #if !(defined(ISP_DISABLE_2300_SUPPORT) && defined(ISP_DISABLE_2322_SUPPORT))

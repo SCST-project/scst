@@ -2226,6 +2226,8 @@ typedef struct {
 #define	CT_SRR		0x45	/* SRR Received */
 #define	CT_LUN_RESET	0x48	/* Lun Reset Received */
 
+#define	CT_HBA_RESET	0xffff	/* pseudo error - command destroyed by HBA reset*/
+
 /*
  * When the firmware returns a CTIO entry, it may overwrite the last
  * part of the structure with sense data. This starts at offset 0x2E
@@ -2442,13 +2444,13 @@ typedef struct {
 #define CT7_ABORTED	0x02	/* aborted by host */
 #define CT7_ERR		0x04	/* see sense data for error */
 #define CT7_INVAL	0x06	/* request for disabled lun */
-#define	CT7_INVRXID	0x08	/* (FC only) Invalid RX_ID */
-#define	CT7_DATA_OVER	0x09	/* (FC only) Data Overrun */
+#define	CT7_INVRXID	0x08	/* Invalid RX_ID */
+#define	CT7_DATA_OVER	0x09	/* Data Overrun */
 #define CT7_TIMEOUT	0x0B	/* timed out */
 #define CT7_RESET	0x0E	/* LIP Rset Received */
 #define	CT7_BUS_ERROR	0x10	/* DMA PCI Error */
 #define	CT7_REASSY_ERR	0x11	/* DMA reassembly error */
-#define	CT7_DATA_UNDER	0x15	/* (FC only) Data Underrun */
+#define	CT7_DATA_UNDER	0x15	/* Data Underrun */
 #define	CT7_PORTUNAVAIL	0x28	/* port not available */
 #define	CT7_LOGOUT	0x29	/* port logout */
 #define	CT7_PORTCHANGED	0x2A	/* port changed */
