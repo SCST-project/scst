@@ -329,7 +329,7 @@ struct mvs_info {
 	const struct mvs_chip_info *chip;
 
 	int tags_num;
-	u8 tags[MVS_SLOTS >> 3];
+	u32 tags[MVS_SLOTS >> 5];
 
 	/* further per-slot information */
 	struct mvs_phy phy[MVS_MAX_PHYS];
