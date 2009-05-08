@@ -146,11 +146,11 @@ unsigned int scst_max_dev_cmd_mem;
 module_param_named(scst_threads, scst_threads, int, 0);
 MODULE_PARM_DESC(scst_threads, "SCSI target threads count");
 
-module_param_named(scst_max_cmd_mem, scst_max_cmd_mem, int, 0);
+module_param_named(scst_max_cmd_mem, scst_max_cmd_mem, int, S_IRUGO);
 MODULE_PARM_DESC(scst_max_cmd_mem, "Maximum memory allowed to be consumed by "
 	"all SCSI commands of all devices at any given time in MB");
 
-module_param_named(scst_max_dev_cmd_mem, scst_max_dev_cmd_mem, int, 0);
+module_param_named(scst_max_dev_cmd_mem, scst_max_dev_cmd_mem, int, S_IRUGO);
 MODULE_PARM_DESC(scst_max_dev_cmd_mem, "Maximum memory allowed to be consumed "
 	"by all SCSI commands of a device at any given time in MB");
 

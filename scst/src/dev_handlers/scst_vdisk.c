@@ -235,7 +235,7 @@ static struct kmem_cache *blockio_work_cachep;
 #define DEF_NUM_THREADS		5
 static int num_threads = DEF_NUM_THREADS;
 
-module_param_named(num_threads, num_threads, int, 0);
+module_param_named(num_threads, num_threads, int, S_IRUGO);
 MODULE_PARM_DESC(num_threads, "vdisk threads count");
 
 static int vdisk_attach(struct scst_device *dev);
@@ -375,7 +375,7 @@ static char *vcdrom_proc_help_string =
 
 static int scst_vdisk_ID;
 
-module_param_named(scst_vdisk_ID, scst_vdisk_ID, int, 0);
+module_param_named(scst_vdisk_ID, scst_vdisk_ID, int, S_IRUGO);
 MODULE_PARM_DESC(scst_vdisk_ID, "SCST virtual disk subsystem ID");
 
 
