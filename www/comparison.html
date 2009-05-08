@@ -1,7 +1,7 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
-<meta name="Keywords" content="Generic SCSI Target Middle Level for Linux, SCSI targets, iSCSI targets, comparison" />
+<meta name="Keywords" content="Generic SCSI Target Subsystem for Linux, SCSI targets, iSCSI targets, comparison" />
 <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
 <meta name="author" content="Daniel Fernandes"/>
 <meta name="Robots" content="index,follow" />
@@ -14,7 +14,7 @@
 <div id="wrap"> 
 	<div id="header">	
 		<div class="logoimg"></div><h1 id="logo"><span class="orange"></span></h1>
-		<h2 id="slogan">SCSI Target Middle Level for Linux</h2>	
+		<h2 id="slogan">SCSI Target Subsystem for Linux</h2>	
 	</div>		
 		
 	<div id="menu">
@@ -150,6 +150,16 @@ SCSI requirements <sup><A HREF="#12">12</A></sup></th>			<td> Safe </td>		<td> S
 <th align="left"> Safe implementation of Task Management commands 
 <sup><A HREF="#13">13</A></sup></th>					<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>	<td> Not safe </td>
 </tr>
+<tr>                                                                                                                            
+<th align="left"> Support for SCSI task attributes, including
+ORDERED commands</th>							<td> + </td>		<td> + </td>		<td> -, <br/> data
+															corruption possible
+															<sup><A HREF="#20">
+															20</A></sup></td>	<td>  -, <br/>data
+																		corruption possible
+																		<sup><A HREF="#20">
+																		20</A></sup> </td>
+</tr>                                                                                                                           
 <tr>                                                                                                                            
 <th align="left"> Persistent Reservations <br/>
 <small> (Windows 2008 clustering)</small></th>				<td> - </td>		<td> - </td>		<td> - </td>		<td> Under development </td>		
@@ -384,6 +394,10 @@ reinstatement <sup><A HREF="#18">18</A></sup></th>			<td> Safe </td>		<td> Not s
 <p><A NAME="19"></A> 19. "Safe restart" means that after the iSCSI target restart, all the connected initiators will seamlessly restore all existing before
 			the restart connections. "Not safe" means that, most likely, the connected initiators will fail to restore
 			existing connections with some errors.</p>
+
+<p><A NAME="20"></A> 20. Both IET and LIO report in INQUIRY command response support for full task management model. But they process ORDERED
+			commands the same way as SIMPLE commands, i.e. allow free reorder of them before they get executed. That violates SCSI standard
+			and can lead to a data curruption to any application relying on commands order provided by ORDERED attribute.</p>
 			
 <!-- <p><small><strong>P.S.</strong> You can find a brief background history of this comparison page <a href="comparison_history.html">here</a>.</small></p> -->
 

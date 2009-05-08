@@ -1,7 +1,7 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
-<meta name="Keywords" content="Generic SCSI Target Middle Level for Linux, iSCSI target, MC/S, multiple connections per session" />
+<meta name="Keywords" content="Generic SCSI Target Subsystem for Linux, iSCSI target, MC/S, multiple connections per session" />
 <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
 <meta name="author" content="Daniel Fernandes"/>
 <meta name="Robots" content="index,follow" />
@@ -14,7 +14,7 @@
 <div id="wrap"> 
 	<div id="header">	
 		<div class="logoimg"></div><h1 id="logo"><span class="orange"></span></h1>
-		<h2 id="slogan">SCSI Target Middle Level for Linux</h2>	
+		<h2 id="slogan">SCSI Target Subsystem for Linux</h2>	
 	</div>		
 		
 	<div id="menu">
@@ -136,11 +136,12 @@ time to abort all the commands can be decreased to a fraction of second. </p>
 <h2>Performance</h2>
 
 <p>At first, neither MC/S, nor MPIO can improve performance if there is
-only one SCSI command sent to target at time. For instance, in case of tape
-backup and restore. Both MC/S and MPIO work on the commands level, so
-can't split data transfers for a single command over several links. Only
-bonding can improve performance in this case, because it works on the
-link level.</p>
+only one SCSI command sent to target at time. For instance, in case of
+tape backup and restore. Both MC/S and MPIO work on the commands level,
+so can't split data transfers for a single command over several links.
+Only bonding (also known as NIC teaming or Link Aggregation) can improve
+performance in this case, although also with limitations, because it
+works on the link level.</p>
 
 <p>MC/S over several links preserves commands execution order, i.e. with
 it commands executed in the same order as they were submitted. MPIO
@@ -172,42 +173,13 @@ commands get executed, although it would be better for performance to
 reorder them. As result, MPIO sometimes has better performance, than
 MC/S, especially in setups, where maximum IOPS number is important. See,
 for instance,
-
 <a href="http://article.gmane.org/gmane.linux.scsi/16311">http://article.gmane.org/gmane.linux.scsi/16311</a>.
 </p>
 
-<h2>Conclusion</h2>
+<h2>When MC/S is better than MPIO</h2>
 
-<p>Thus:</p>
-
-<ol>
-	<li><span>Benefits of MC/S are marginal and with future MPIO
-	improvements can be made negligible.</span></li>
-
-	<li><span>MPIO allows to utilize existing infrastructure for all
-	transports, not only iSCSI.
-	 </span></li>
-	
-	<li><span>All transports can benefit from improvements in MPIO.</span></li>
-
-	<li><span>With MPIO there is no need to create multiple layers doing very similar
-	functionality.</span></li>
-
-	<li><span> MPIO doesn't have commands ordering bottleneck, which MC/S has. </span></li>
-
-</ol>
-
-<p>Hence, what's the point to implement MC/S, which is a very tricky
-task? Better to spend this effort on improving MPIO. Simply, MC/S is
-done on the wrong level. No surprise then that no Open Source OS'es
-neither support, nor going to implement it. Moreover, when back to 2005
-there was an attempt to add MC/S in Linux, it was rejected. See for more details
-<a href="http://article.gmane.org/gmane.linux.scsi/15769">http://article.gmane.org/gmane.linux.scsi/15769</a>
-and <a href="http://article.gmane.org/gmane.linux.scsi/16301">http://article.gmane.org/gmane.linux.scsi/16301</a>.
-</p>
-
-<p>But for sake of completeness, there are marginal cases, where MPIO
-can't be used or will not provide any benefit, but MC/S can be successful:</p>
+<p>There are marginal cases, where MPIO can't be used or will not
+provide any benefit, but MC/S can be successful:</p>
 
 <ol>
 	<li><span>When strict commands order is required.</span></li>
@@ -236,8 +208,38 @@ and backup applications one or both can be true. But on practice:</p>
 
 </ul>
 
+<h2>Conclusion</h2>
+
+<p>Thus:</p>
+
+<ol>
+	<li><span>Cost to develop MC/S is high, but benefits of it are marginal and with future MPIO
+	improvements can be made negligible.</span></li>
+
+	<li><span>MPIO allows to utilize existing infrastructure for all
+	transports, not only iSCSI.
+	 </span></li>
+	
+	<li><span>All transports can benefit from improvements in MPIO.</span></li>
+
+	<li><span>With MPIO there is no need to create multiple layers doing very similar
+	functionality.</span></li>
+
+	<li><span> MPIO doesn't have commands ordering bottleneck, which MC/S has. </span></li>
+
+</ol>
+
+<p> Simply, MC/S is done on the wrong level. No surprise then that no
+Open Source OS'es neither support, nor going to implement it. Moreover,
+when back to 2005 there was an attempt to add MC/S in Linux, it was
+rejected. See for more details <a
+href="http://article.gmane.org/gmane.linux.scsi/15769">http://article.gmane.org/gmane.linux.scsi/15769</a>
+and <a
+href="http://article.gmane.org/gmane.linux.scsi/16301">http://article.gmane.org/gmane.linux.scsi/16301</a>.
+</p>
+
 <p>If in future SCSI standards gain possibility to group several I_T nexuses
-with possibilities to reassign commands between them and preserve commands
+with ability to reassign commands between them as well as preserve commands
 order among them, the above minor advantages of MC/S over MPIO will be
 removed and, hence, all investments in it will be voided.</p>
 

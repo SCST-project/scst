@@ -1,7 +1,7 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
-<meta name="Keywords" content="Generic SCSI Target Middle Level for Linux,SCST vs STGT" />
+<meta name="Keywords" content="Generic SCSI Target Subsystem for Linux,SCST vs STGT" />
 <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
 <meta name="author" content="Daniel Fernandes"/>
 <meta name="Robots" content="index,follow" />
@@ -14,7 +14,7 @@
 <div id="wrap"> 
 	<div id="header">	
 		<div class="logoimg"></div><h1 id="logo"><span class="orange"></span></h1>
-		<h2 id="slogan">SCSI Target Middle Level for Linux</h2>	
+		<h2 id="slogan">SCSI Target Subsystem for Linux</h2>	
 	</div>		
 		
 	<div id="menu">
@@ -44,7 +44,7 @@
 				<p><strong><a href="http://stgt.berlios.de/">STGT</a></strong> is alternative, independent from SCST implementation 
 				of SCSI target framework for Linux. It has different architecture, where SCSI target state machine is placed in 
 				the user space, while in SCST all the processing done in the kernel. Such architecture as STGT has was acknowledged
-				at the moment by the Linux SCSI subsystem maintainers as a "right" one, so kernel's part of STGT quickly
+				by the Linux SCSI subsystem maintainers as a "right" one, so kernel's part of STGT quickly
 				found its way to the kernel.</p>
 
 				<p>But such architecture has several inherent problems. Among them performance and complexity.
@@ -66,30 +66,12 @@
 				http://article.gmane.org/gmane.linux.scsi/21073</a> why STGT's architecture was considered "right".
 				</span></li>
 				
-				<li><span>Thread
-				<a href="http://sourceforge.net/mailarchive/forum.php?thread_name=472F7FA4.7040303%40wpkg.org&forum_name=scst-devel">
-				"Relationship between SCST and in-kernel SCSI_TGT"</a>
-				</span></li>
-				
-				<li><span><a href="http://thread.gmane.org/gmane.linux.scsi/36417/focus=37273">this</a>
-				message in thread "Open-FCoE on linux-scsi" for more details.</span></li>
-				
 				</ul></p>
 				
 				<p>Also you shouldn't be deceived by the fact that some (small) part of STGT was accepted into the kernel.<br> 
 				It doesn't mean that STGT has the <strong>"kernel quality"</strong>. In fact, STGT as a whole similarly to any other
 				out-of-tree project lives on its own, hence has its own quality level, which isn't necessary better, than the 
-				quality level of SCST. Actually, from such important aspect of quality as simplicity, it 
-				might be quite contrary: e.g. SCST isn't required to support HIGHMEM (nowadays it 
-				isn't necessary, but required for all in-kernel components), which allowed to simplify memory management a lot.</p>	
-
-				<p>Interesting, on 2008 Linux Storage & Filesystem Workshop, namely in
-				<a href="http://www.usenix.org/event/lsf08/tech/lsf08sums.pdf">"Storage Track"</a> and
-				<a href="http://www.usenix.org/event/lsf08/tech/IO_bellinger.pdf">"Linux/iSCSI and a Generic Target Mode Storage
-				Engine for Linux v2.6"</a> documents, a special emphasis was put on the fact that SCST has "older" design,
-				while STGT has the "current" design. Well, this seems to be a good sign, because SCST opponents have come to so
-				little to say against it, so they started to use psychological arguments, exploiting the fact that most people
-				think that "newer" is always better.</p>
+				quality level of SCST.</p>	
 
 	  		</div> 
 	</div>
