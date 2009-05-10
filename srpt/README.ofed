@@ -43,8 +43,7 @@ Compiling SRP against OFED
 --------------------------
 
 Make sure that all necessary packages needed for kernel compilation
-have been installed (kernel headers, kernel source code, gcc,
-binutils, ...).
+have been installed (kernel headers, gcc, binutils, ...).
 
 Unload any loaded InfiniBand drivers:
 
@@ -58,8 +57,7 @@ Remove any distro-provided InfiniBand drivers:
 Now locate the file Makefile.lib and patch it such that it supports
 the variable PRE_CFLAGS:
 
-  cd /usr/src
-  find -name Makefile.lib
+  find /lib/modules/$(uname -r)/build/ -name Makefile.lib
   cd ...
   patch -p0 < ${SCST_DIR}/srpt/patches/kernel-${KV}-scripts-Makefile.lib.patch
 
