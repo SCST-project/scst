@@ -1,159 +1,81 @@
 SCSI RDMA Protocol (SRP) Target driver for Linux
 =================================================
 
-SRP Target driver is designed to work directly on top of OpenFabrics
-OFED-1.x software stack (http://www.openfabrics.org) or Infiniband
-drivers in Linux kernel tree (kernel.org). It also interfaces with 
-Generic SCSI target mid-level driver - SCST (http://scst.sourceforge.net)
-
-By interfacing with SCST driver we are able to work and  support a lot IO
-modes on real or virtual devices in the backend
-1. scst_disk  -- interfacing with scsi sub-system to claim and export real
-scsi devices ie. disks, hardware raid volumes, tape library as SRP's luns
-
-2. scst_vdisk -- fileio and blockio modes. This allows you to turn software raid
-volumes, LVM volumes, IDE disks, and normal files into SRP's luns (required to
-work with latest scst's svn tree)
-
-3. NULLIO mode will allow you to measure the performance without sending IOs
-to *real* devices
-
-
-Prerequisites
--------------
-1. First it is required to download and install SCST driver. Please
-refer to SCST's Internet page http://scst.sourceforge.net for download
-and installation instructions. You can also find SCST's design document, 
-svn repository development tree and utility tools for basic storage
-management
-
-a. git clone git://git.openfabrics.org/~vu/srpt_inc ~/srpt_inc
-b. Checking out scst's svn development tree revision 245
-svn co https://scst.svn.sourceforge.net/svnroot/scst/trunk/scst -r 245
-c. cd scst
-d. patch -p0 < ~/srpt_inc/scst_r245.patch
-e. make and make install
-
-2. Download/install IB low-level driver from OFED package or linux kernel tree
-a. SRP target is part of OFED-1.3
-or
-b. Download and install OFED-1.x (x > 1) with kernel_ib development package rpm
-or
-c. Built and installed Infiniband driver in Linux "vanilla" kernel tree
-   from kernel.org
-
-3. Download SRP target driver from openfabrics.org (needed for 2b, 2c)
-git clone git://git.openfabrics.org/~vu/srpt.git ~/srpt
-
-
-Installation
+Introduction
 ------------
-A. For OFED-1.3
-----------------
-SRP target is part of ofed-1.3. Go through normal installation with srpt enable
+
+The SRP target driver has been designed to work on top of the Linux
+InfiniBand kernel drivers. While all recent Linux distributions
+include recent versions of the InfiniBand drivers, the only way to
+obtain the latest available InfiniBand drivers is by installing the
+OFED software stack.
+
+The OFED stack is distributed by the OpenFabrics Alliance (OFA). The
+mission of the OpenFabrics Alliance is to is to develop, distribute
+and promote a unified, transport-independent, open-source software
+stack for RDMA-capable fabrics and networks, including InfiniBand and
+Ethernet.
+
+Note: because during OFED installation the distro-provided InfiniBand
+kernel drivers are replaced, doing so voids the support contract
+offered by your Linux distributor.
 
 
-B. Instruction to included in and built with OFED-1.2.5 development tree
------------------------------------------------------------------------
-1. cd /usr/src/ofa_kernel-1.2.5 or /usr/src/ofa_kernel-1.2.c or
-~/ofa_1_2_c_kernel-200708xx-yyyy
-2. patch -p1 < ~/srpt_inc/add_srpt_01.patch 
-3. patch -p1 < ~/srpt_inc/add_srpt_03.patch 
-4. patch -p1 < ~/srpt_inc/add_srpt_04.patch 
-5. cp -r ~/srpt drivers/infiniband/ulp/srpt
-6. ./configure --with-core-mod --with-mthca-mod --without-mthca_debug-mod
-   --with-srp-target-mod <and any other modules/drivers as needed>
-7. make and make install
+Compiling SRP against OFED
+--------------------------
 
-C. Instruction to be included in and built with OFED-1.2 development tree
---------------------------------------------------------------------------
-1. cd /usr/src/ofa_kernel-1.2 or /usr/src/ofa_kernel-1.2 or
-~/ofa_1_2_kernel-200708xx-yyyy
-2. patch -p1 < ~/srpt_inc/add_srpt_01.patch
-3. patch -p1 < ~/srpt_inc/add_srpt_03.patch
-4. patch -p1 < ~/srpt_inc/add_srpt_04.patch
-5. cp -r ~/srpt drivers/infiniband/ulp/srpt
-6. patch -p1 < ~/srpt_inc/add_srpt_ofed_1_2.patch
-7. ./configure --with-core-mod --with-mthca-mod --without-mthca_debug-mod
-   --with-srp-target-mod <and any other modules/drivers as needed>
-8. make and make install
+Make sure that all necessary packages needed for kernel compilation
+have been installed (kernel headers, kernel source code, gcc,
+binutils, ...).
 
-D. Instruction to be included in and built with "vanilla" kernel development tree
-----------------------------------------------------------------------------------
-1. cd /usr/src/linux-2.6.1x
-2. patch -p1 < ~/srpt_inc/add_srpt_03.patch
-3. cp -r ~/srpt drivers/infiniband/ulp/srpt
-4. configure and build SRP target module driver as normal
+Now locate the file Makefile.lib and patch it such that it supports
+the variable PRE_CFLAGS:
 
+  cd /usr/src
+  find -name Makefile.lib
+  cd ...
+  patch -p0 < ${SCST_DIR}/srpt/patches/kernel-scripts-Makefile.lib.patch
 
-How-to run
------------
-A. On srp target machine
-1. Please refer to SCST's README for loading scst driver and its
-dev_handlers drivers (scst_disk, scst_vdisk block or file IO mode, nullio, ...)
+Next, download and install the OFED package. Make sure to disable
+OFED's SRP target driver (srpt=n) and to enable the SRP tools
+(srptools=y). An example:
 
-Example 1: working with real back-end scsi disks
-a. modprobe scst
-b. modprobe scst_disk
-c. cat /proc/scsi_tgt/scsi_tgt
+  wget http://www.openfabrics.org/downloads/OFED/ofed-1.4/OFED-1.4.tgz
+  tar xzf OFED-1.4.tgz
+  cd OFED-1.4
+  cat <<EOF >ofed.conf
+  libibverbs=y                                          
+  libibverbs-utils=y                                    
+  libmthca=y                                            
+  libmlx4=y                                             
+  libcxgb3=y
+  libnes=y
+  libipathverbs=y
+  librdmacm=y
+  librdmacm-utils=y
+  mstflint=y
+  ofed-docs=y
+  ofed-scripts=y
+  kernel-ib=y
+  kernel-ib-devel=y
+  ibvexdmtools=y
+  qlgc_vnic_daemon=y
+  core=y
+  mthca=y
+  mlx4=y
+  mlx4_en=y
+  cxgb3=y
+  nes=y
+  ipath=y
+  ipoib=y
+  opensm=y
+  opensm-libs=y
+  srpt=n
+  srptools=y
+  EOF
+  ./install.pl -c ofed.conf  
 
-ibstor00:~ # cat /proc/scsi_tgt/scsi_tgt 
-Device (host:ch:id:lun or name)                             Device handler
-0:0:0:0                                                     dev_disk
-4:0:0:0                                                     dev_disk
-5:0:0:0                                                     dev_disk
-6:0:0:0                                                     dev_disk
-7:0:0:0                                                     dev_disk
-
-Now you want to exclude the first scsi disk and expose the last 4 scsi disks as
-IB/SRP luns for I/O
-echo "add 4:0:0:0 0" >/proc/scsi_tgt/groups/Default/devices
-echo "add 5:0:0:0 1" >/proc/scsi_tgt/groups/Default/devices
-echo "add 6:0:0:0 2" >/proc/scsi_tgt/groups/Default/devices
-echo "add 7:0:0:0 3" >/proc/scsi_tgt/groups/Default/devices
-
-Example 2: working with VDISK FILEIO mode (using md0 device and file 10G-file)
-a. modprobe scst
-b. modprobe scst_vdisk
-c. echo "open vdisk0 /dev/md0" > /proc/scsi_tgt/vdisk/vdisk
-d. echo "open vdisk1 /10G-file" > /proc/scsi_tgt/vdisk/vdisk
-e. echo "add vdisk0 0" >/proc/scsi_tgt/groups/Default/devices
-f. echo "add vdisk1 1" >/proc/scsi_tgt/groups/Default/devices
-
-Example 3: working with VDISK BLOCKIO mode (using md0 device, sda, and cciss/c1d0)
-a. modprobe scst
-b. modprobe scst_vdisk
-c. echo "open vdisk0 /dev/md0 BLOCKIO" > /proc/scsi_tgt/vdisk/vdisk
-d. echo "open vdisk1 /dev/sda BLOCKIO" > /proc/scsi_tgt/vdisk/vdisk
-e. echo "open vdisk2 /dev/cciss/c1d0 BLOCKIO" > /proc/scsi_tgt/vdisk/vdisk
-f. echo "add vdisk0 0" >/proc/scsi_tgt/groups/Default/devices
-g. echo "add vdisk1 1" >/proc/scsi_tgt/groups/Default/devices
-h. echo "add vdisk2 2" >/proc/scsi_tgt/groups/Default/devices
-
-2. modprobe ib_srpt
-
-
-B. On initiator machines you can manualy do the following steps:
-1. modprobe ib_srp
-2. ipsrpdm -c (to discover new SRP target)
-3. echo <new target info> > /sys/class/infiniband_srp/srp-mthca0-1/add_target
-4. fdisk -l (will show new discovered scsi disks)
-
-Example:
-Assume that you use port 1 of first HCA in the system ie. mthca0
-
-[root@lab104 ~]# ibsrpdm -c -d /dev/infiniband/umad0
-id_ext=0002c90200226cf4,ioc_guid=0002c90200226cf4,
-dgid=fe800000000000000002c90200226cf5,pkey=ffff,service_id=0002c90200226cf4
-[root@lab104 ~]# echo id_ext=0002c90200226cf4,ioc_guid=0002c90200226cf4,
-dgid=fe800000000000000002c90200226cf5,pkey=ffff,service_id=0002c90200226cf4 >
-/sys/class/infiniband_srp/srp-mthca0-1/add_target
-
-OR
-
-+ You can edit /etc/infiniband/openib.conf to load srp driver and srp HA daemon
-automatically ie. set SRP_LOAD=yes, and SRPHA_ENABLE=yes
-+ To set up and use high availability feature you need dm-multipath driver
-and multipath tool
-+ Please refer to OFED-1.x SRP's user manual for more in-details instructions
-on how-to enable/use HA feature
+Now continue with the installation instructions you can find in the
+SCST-SRPT README file. The Makefile included with SCST-SRPT detects
+whether OFED has been installed, and if so, compiles SCST-SRPT with
+the OFED kernel headers instead of with the regular kernel headers.

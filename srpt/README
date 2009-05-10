@@ -1,114 +1,112 @@
 SCSI RDMA Protocol (SRP) Target driver for Linux
 =================================================
 
-The SRP Target driver is designed to work directly on top of the
-OpenFabrics OFED-1.x software stack (http://www.openfabrics.org) or
-the Infiniband drivers in the Linux kernel tree
-(http://www.kernel.org). The SRP target driver also interfaces with
-the generic SCSI target mid-level driver called SCST
-(http://scst.sourceforge.net).
+The SRP target driver has been designed to work on top of the Linux
+InfiniBand kernel drivers -- either the InfiniBand drivers included
+with a Linux distribution of the OFED InfiniBand drivers. For more
+information about using the SRP target driver in combination with
+OFED, see also README.ofed.
 
-NOTES: This SRP Target driver can only be compiled and will only work
-with the IB drivers in the vanilla Linux kernel. It does not compile
-and work with the IB drivers included in any of the OFED-1.x packages.
+The SRP target driver has been implemented as an SCST driver. This
+makes it possible to support a lot of I/O modes on real and virtual
+devices. A few examples of supported device handlers are:
 
-If you want to work with the IB drivers in one of the OFED-1.x
-packages, you should read and follow instruction in README.ofed file.
+1. scst_disk. This device handler implements transparent pass-through
+   of SCSI commands and allows SRP to access and to export real
+   SCSI devices, i.e. disks, hardware RAID volumes, tape libraries
+   as SRP LUNs.
+
+2. scst_vdisk, either in fileio or in blockio mode. This device handler
+   allows to export software RAID volumes, LVM volumes, IDE disks, and
+   normal files as SRP LUNs.
+
+3. nullio. The nullio device handler allows to measure the performance
+   of the SRP target implementation without performing any actual I/O.
 
 
 Installation
 ------------
-If you have obtained SCST from the SCST SVN repository as an out-of-tree
-kernel subsystem, proceed as follows to compile and install the SRP target
-driver:
 
-$ make
-$ make install
+Proceed as follows to compile and install the SRP target driver:
 
-To minimize QUEUEFULL conditions, please apply scst_increase_max_tgt_cmds
-patch and recompile scst
+1. To minimize QUEUEFULL conditions, apply the
+   scst_increase_max_tgt_cmds patch as follows:
 
-$ cd ~scst/trunk
-$ patch -p0 < srpt/patches/scst_increase_max_tgt_cmds.patch
-$ make scst scst_install srpt srpt_install
+   cd ${SCST_DIR}
+   patch -p0 < srpt/patches/scst_increase_max_tgt_cmds.patch
 
-On the other hand, if you have obtained the SCST source code included
-with the Linux kernel source code, enable and build the SRP target driver
-in the same way as any other kernel module. Make sure to enable SCST itself
-and InfiniBand before attempting to enable the SRP target driver.
+2. Now compile and install SRPT:
 
+   cd ${SCST_DIR}
+   make -s scst_clean scst scst_install
+   make -s srpt_clean srpt srpt_install
+   make -s scstadm_install
 
-How-to run
------------
-A. On srp target machine
-1. Please refer to SCST's README for loading scst driver and its
-dev_handlers drivers (scst_disk, scst_vdisk block or file IO mode, nullio, ...)
+3. Edit the installed file /etc/init.d/scst and add ib_srpt to the
+   SCST_MODULES variable.
 
-Example 1: working with real back-end scsi disks
-a. modprobe scst
-b. modprobe scst_disk
-c. cat /proc/scsi_tgt/scsi_tgt
+4. Configure SCST such that it will be started during system boot:
 
-ibstor00:~ # cat /proc/scsi_tgt/scsi_tgt
-Device (host:ch:id:lun or name)                             Device handler
-0:0:0:0                                                     dev_disk
-4:0:0:0                                                     dev_disk
-5:0:0:0                                                     dev_disk
-6:0:0:0                                                     dev_disk
-7:0:0:0                                                     dev_disk
-
-Now you want to exclude the first scsi disk and expose the last 4 scsi disks as
-IB/SRP luns for I/O
-echo "add 4:0:0:0 0" >/proc/scsi_tgt/groups/Default/devices
-echo "add 5:0:0:0 1" >/proc/scsi_tgt/groups/Default/devices
-echo "add 6:0:0:0 2" >/proc/scsi_tgt/groups/Default/devices
-echo "add 7:0:0:0 3" >/proc/scsi_tgt/groups/Default/devices
-
-Example 2: working with VDISK FILEIO mode (using md0 device and file 10G-file)
-a. modprobe scst
-b. modprobe scst_vdisk
-c. echo "open vdisk0 /dev/md0" > /proc/scsi_tgt/vdisk/vdisk
-d. echo "open vdisk1 /10G-file" > /proc/scsi_tgt/vdisk/vdisk
-e. echo "add vdisk0 0" >/proc/scsi_tgt/groups/Default/devices
-f. echo "add vdisk1 1" >/proc/scsi_tgt/groups/Default/devices
-
-Example 3: working with VDISK BLOCKIO mode (using md0 device, sda, and cciss/c1d0)
-a. modprobe scst
-b. modprobe scst_vdisk
-c. echo "open vdisk0 /dev/md0 BLOCKIO" > /proc/scsi_tgt/vdisk/vdisk
-d. echo "open vdisk1 /dev/sda BLOCKIO" > /proc/scsi_tgt/vdisk/vdisk
-e. echo "open vdisk2 /dev/cciss/c1d0 BLOCKIO" > /proc/scsi_tgt/vdisk/vdisk
-f. echo "add vdisk0 0" >/proc/scsi_tgt/groups/Default/devices
-g. echo "add vdisk1 1" >/proc/scsi_tgt/groups/Default/devices
-h. echo "add vdisk2 2" >/proc/scsi_tgt/groups/Default/devices
-
-2. modprobe ib_srpt
+   chkconfig scst on
 
 
-B. On initiator machines you can manually do the following steps:
-1. modprobe ib_srp
-2. ipsrpdm -c (to discover new SRP target)
-3. echo <new target info> > /sys/class/infiniband_srp/srp-mthca0-1/add_target
-4. fdisk -l (will show new discovered scsi disks)
+Configuring the SRP Target System
+---------------------------------
 
-Example:
-Assume that you use port 1 of first HCA in the system ie. mthca0
+First of all, create the file /etc/scst.conf. Below you can find an
+example of how you can create this file using the scstadmin tool:
 
-[root@lab104 ~]# ibsrpdm -c -d /dev/infiniband/umad0
-id_ext=0002c90200226cf4,ioc_guid=0002c90200226cf4,
-dgid=fe800000000000000002c90200226cf5,pkey=ffff,service_id=0002c90200226cf4
-[root@lab104 ~]# echo id_ext=0002c90200226cf4,ioc_guid=0002c90200226cf4,
-dgid=fe800000000000000002c90200226cf5,pkey=ffff,service_id=0002c90200226cf4 >
-/sys/class/infiniband_srp/srp-mthca0-1/add_target
+  /etc/init.d/scst stop
+  /etc/init.d/scst start
 
-OR
+  scstadmin -ClearConfig /etc/scst.conf
+  scstadmin -adddev disk01 -path /dev/ram0 -handler vdisk -options NV_CACHE
+  scstadmin -adddev disk02 -path /dev/ram1 -handler vdisk -options NV_CACHE
+  scstadmin -assigndev disk01 -group Default -lun 0
+  scstadmin -assigndev disk02 -group Default -lun 1
+  scstadmin -assigndev 4:0:0:0 -group Default -lun 2
+  scstadmin -WriteConfig /etc/scst.conf
+  cat /etc/scst.conf
 
-+ You can edit /etc/infiniband/openib.conf to load srp driver and srp HA daemon
-automatically ie. set SRP_LOAD=yes, and SRPHA_ENABLE=yes
-+ To set up and use high availability feature you need dm-multipath driver
-and multipath tool
-+ Please refer to OFED-1.x SRP's user manual for more in-details instructions
-on how-to enable/use HA feature
+Now load the new configuration:
+
+  /etc/init.d/scst reload
+
+Note: SCSI device ID's in host:ch:id:lun format can be obtained by
+running the lsscsi command.
+
+
+Configuring the SRP Initiator System
+------------------------------------
+
+First of all, load the SRP kernel module as follows:
+
+  modprobe ib_srp
+
+Next, discover the new SRP target by running the ipsrpdm command:
+
+   ipsrpdm -c
+
+Now let the initiator system log in to the target system:
+
+   ibsrpdm -c | while read target_info; do echo "${target_info}" > /sys/class/infiniband_srp/${SRP_HCA_NAME}/add_target; done
+
+Finally run lsscsi to display the details of the newly discovered SCSI disks:
+
+   lsscsi
+
+SRP targets can be recognized in the output of lsscsi by looking for
+the disk names assigned on the SCST target ("disk01" in the example below):
+
+[8:0:0:0]    disk    SCST_FIO disk01            102  /dev/sdb
+
+Notes:
+* You can edit /etc/infiniband/openib.conf to load srp driver and srp HA daemon
+  automatically ie. set SRP_LOAD=yes, and SRPHA_ENABLE=yes
+* To set up and use high availability feature you need dm-multipath driver
+  and multipath tool
+* Please refer to OFED-1.x SRP's user manual for more in-details instructions
+  on how-to enable/use HA feature.
 
 
 Performance notes
