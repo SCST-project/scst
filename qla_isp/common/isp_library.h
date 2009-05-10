@@ -1,4 +1,4 @@
-/* $Id: isp_library.h,v 1.31 2009/03/30 04:19:19 mjacob Exp $ */
+/* $Id: isp_library.h,v 1.35 2009/05/10 16:25:09 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2009 by Matthew Jacob
  *  All rights reserved.
@@ -96,6 +96,8 @@ void isp_dump_portdb(ispsoftc_t *, int);
 const char *isp_fc_fw_statename(int);
 const char *isp_fc_loop_statename(int);
 const char *isp_fc_toponame(fcparam *);
+
+int isp_fc_change_role(ispsoftc_t *, int, int);
 
 
 /*
@@ -195,7 +197,6 @@ void isp_add_wwn_entry(ispsoftc_t *, int, uint64_t, uint16_t, uint32_t);
 void isp_del_wwn_entry(ispsoftc_t *, int, uint64_t, uint16_t, uint32_t);
 void isp_del_all_wwn_entries(ispsoftc_t *, int);
 void isp_del_wwn_entries(ispsoftc_t *, isp_notify_t *);
-int isp_fc_change_role(ispsoftc_t *, int, int);
 
 void isp_put_atio(ispsoftc_t *, at_entry_t *, at_entry_t *);
 void isp_get_atio(ispsoftc_t *, at_entry_t *, at_entry_t *);

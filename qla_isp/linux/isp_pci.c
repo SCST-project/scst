@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.179 2009/04/03 04:56:01 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.181 2009/05/10 16:25:09 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2009 by Matthew Jacob
  *  All rights reserved.
@@ -380,7 +380,7 @@ struct isp_pcisoftc {
 /*
  * Gratefully borrowed from Gerard Roudier's sym53c8xx driver
  */
-static __inline void *
+static ISP_INLINE void *
 map_pci_mem(struct isp_pcisoftc *isp_pci, u_long size)
 {
     unsigned long page_base;
@@ -397,7 +397,7 @@ map_pci_mem(struct isp_pcisoftc *isp_pci, u_long size)
     return (page_remapped);
 }
 
-static __inline
+static ISP_INLINE
 void unmap_pci_mem(struct isp_pcisoftc *isp_pci, unsigned long size)
 {
     if (isp_pci->vaddr) {
@@ -407,7 +407,7 @@ void unmap_pci_mem(struct isp_pcisoftc *isp_pci, unsigned long size)
     }
 }
 
-static __inline int
+static ISP_INLINE int
 map_isp_mem(struct isp_pcisoftc *isp_pci, u_short cmd, vm_offset_t mem_base)
 {
     if (cmd & PCI_COMMAND_MEMORY) {
@@ -419,7 +419,7 @@ map_isp_mem(struct isp_pcisoftc *isp_pci, u_short cmd, vm_offset_t mem_base)
     return (0);
 }
 
-static __inline int
+static ISP_INLINE int
 map_isp_io(struct isp_pcisoftc *isp_pci, u_short cmd, vm_offset_t io_base)
 {
     if ((cmd & PCI_COMMAND_IO) && (io_base & 3) == 1) {
@@ -643,8 +643,10 @@ isplinux_pci_init_one(struct Scsi_Host *host)
         /* enable PCI-INTX */
         pci_intx(pdev, 1);
 
-        /* enable MSI-X or MSI-X */
-        if (pci_enable_msix(pdev, isp_msix, 3) == 0) {
+        /*
+	 * enable MSI-X or MSI-X, but not for the 2432
+	 */
+        if (pdev->device != PCI_DEVICE_ID_QLOGIC_ISP2432 && pci_enable_msix(pdev, isp_msix, 3) == 0) {
             isp_pci->msix_enabled = 1;
             isp_pci->msix_vector[0] = isp_msix[0].vector;
             isp_pci->msix_vector[1] = isp_msix[1].vector;
@@ -989,7 +991,7 @@ bad:
     return (1);
 }
 
-static __inline uint32_t
+static ISP_INLINE uint32_t
 ispregrd(struct isp_pcisoftc *pcs, vm_offset_t offset)
 {
     uint32_t rv;
@@ -1003,7 +1005,7 @@ ispregrd(struct isp_pcisoftc *pcs, vm_offset_t offset)
     return (rv);
 }
 
-static __inline void
+static ISP_INLINE void
 ispregwr(struct isp_pcisoftc *pcs, vm_offset_t offset, uint32_t val)
 {
     if (pcs->vaddr) {
@@ -1015,7 +1017,7 @@ ispregwr(struct isp_pcisoftc *pcs, vm_offset_t offset, uint32_t val)
     }
 }
 
-static __inline int
+static ISP_INLINE int
 isp_pci_rd_debounced(struct isp_pcisoftc *pcs, vm_offset_t off, uint16_t *rp)
 {
     uint16_t val0, val1;
@@ -1072,7 +1074,7 @@ isp_pci_rd_isr(ispsoftc_t *isp, uint32_t *isrp, uint16_t *semap, uint16_t *mbp)
 #endif
 
 #if !(defined(ISP_DISABLE_2300_SUPPORT) && defined(ISP_DISABLE_2322_SUPPORT) && defined(ISP_DISABLE_2400_SUPPORT))
-static __inline uint32_t
+static ISP_INLINE uint32_t
 ispregrd32(struct isp_pcisoftc *pcs, vm_offset_t offset)
 {
     uint32_t rv;
@@ -1150,7 +1152,7 @@ isp_pci_rd_isr_2300(ispsoftc_t *isp, uint32_t *isrp, uint16_t *semap, uint16_t *
 #endif
 
 #if !defined(ISP_DISABLE_2400_SUPPORT)
-static __inline void
+static ISP_INLINE void
 ispregwr32(struct isp_pcisoftc *pcs, vm_offset_t offset, uint32_t val)
 {
     if (pcs->vaddr) {

@@ -1,4 +1,4 @@
-/* $Id: ispvar.h,v 1.107 2009/04/03 04:56:00 mjacob Exp $ */
+/* $Id: ispvar.h,v 1.109 2009/05/10 16:25:09 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2009 by Matthew Jacob
  *  All rights reserved.
@@ -964,6 +964,9 @@ void isp_async(ispsoftc_t *, ispasync_t, ...);
  *	ISP_SNPRINTF(buf, bufsize, fmt, ...)	snprintf
  *	ISP_DELAY(usecs)			microsecond spindelay function
  *	ISP_SLEEP(isp, usecs)			microsecond sleep function
+ *
+ *	ISP_INLINE				___inline or not- depending on how
+ *						good your debugger is
  *
  *	NANOTIME_T				nanosecond time type
  *

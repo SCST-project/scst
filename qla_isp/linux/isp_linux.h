@@ -1,4 +1,4 @@
-/* $Id: isp_linux.h,v 1.171 2009/03/30 04:17:25 mjacob Exp $ */
+/* $Id: isp_linux.h,v 1.173 2009/05/10 16:25:09 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2009 by Matthew Jacob
  *  All rights reserved.
@@ -424,6 +424,8 @@ struct isposinfo {
         (void) schedule_timeout(_usec_to_jiffies(x));   \
         ISP_IGET_LK_SOFTC(isp)
 
+#define ISP_INLINE          inline
+
 #define NANOTIME_T      struct timeval
 /* for prior to 2.2.19, use do_gettimeofday, and, well, it'll be inaccurate */
 #define GET_NANOTIME(ptr)   (ptr)->tv_sec = 0, (ptr)->tv_usec = 0, do_gettimeofday(ptr)
@@ -640,12 +642,12 @@ void isplinux_sqd(struct Scsi_Host *, struct scsi_device *);
 
 int isp_thread_event(ispsoftc_t *, int, void *, int, const char *, const int line);
 
-static inline uint64_t _isp_microtime_sub(struct timeval *, struct timeval *);
-static inline void _isp_usec_delay(unsigned int);
-static inline unsigned long _usec_to_jiffies(unsigned int);
-static inline unsigned long _jiffies_to_usec(unsigned long);
-static inline int isplinux_tagtype(Scsi_Cmnd *);
-static inline void mbox_wait_complete(ispsoftc_t *, mbreg_t *);
+static ISP_INLINE uint64_t _isp_microtime_sub(struct timeval *, struct timeval *);
+static ISP_INLINE void _isp_usec_delay(unsigned int);
+static ISP_INLINE unsigned long _usec_to_jiffies(unsigned int);
+static ISP_INLINE unsigned long _jiffies_to_usec(unsigned long);
+static ISP_INLINE int isplinux_tagtype(Scsi_Cmnd *);
+static ISP_INLINE void mbox_wait_complete(ispsoftc_t *, mbreg_t *);
 
 int isplinux_proc_info(struct Scsi_Host *, char *, char **, off_t, int, int);
 const char *isplinux_info(struct Scsi_Host *);
@@ -718,7 +720,7 @@ extern int api_channel;
 #define _SBSWAP(a, b, c)
 #endif
 
-static inline uint64_t
+static ISP_INLINE uint64_t
 _isp_microtime_sub(struct timeval *b, struct timeval *a)
 {
     uint64_t elapsed;
@@ -741,7 +743,7 @@ _isp_microtime_sub(struct timeval *b, struct timeval *a)
     return (elapsed * 1000);
 }
 
-static inline void
+static ISP_INLINE void
 _isp_usec_delay(unsigned int usecs)
 {
     while (usecs > 1000) {
@@ -752,7 +754,7 @@ _isp_usec_delay(unsigned int usecs)
         udelay(usecs);
 }
 
-static inline unsigned long
+static ISP_INLINE unsigned long
 _usec_to_jiffies(unsigned int usecs)
 {
     struct timespec lt;
@@ -763,7 +765,7 @@ _usec_to_jiffies(unsigned int usecs)
     return (timespec_to_jiffies(&lt));
 }
 
-static inline unsigned long
+static ISP_INLINE unsigned long
 _jiffies_to_usec(unsigned long jiffies)
 {
     unsigned long usecs;
@@ -785,7 +787,7 @@ _jiffies_to_usec(unsigned long jiffies)
 #define MSG_ORDERED_TAG 0x22
 #endif
 
-static inline int
+static ISP_INLINE int
 isplinux_tagtype(Scsi_Cmnd *Cmnd)
 {
     switch (Cmnd->tag) {
@@ -800,7 +802,7 @@ isplinux_tagtype(Scsi_Cmnd *Cmnd)
     }
 }
 
-static inline void
+static ISP_INLINE void
 mbox_wait_complete(ispsoftc_t *isp, mbreg_t *mbp)
 {
     uint32_t lim = mbp->timeout;
@@ -857,7 +859,7 @@ mbox_wait_complete(ispsoftc_t *isp, mbreg_t *mbp)
     }
 }
 
-static inline int
+static ISP_INLINE int
 fc_scratch_acquire(ispsoftc_t *isp, int chan)
 {
     if (ISP_DATA(isp, chan)->scratch_busy) {
@@ -870,11 +872,11 @@ fc_scratch_acquire(ispsoftc_t *isp, int chan)
 /*
  * Note that these allocators aren't interrupt safe
  */
-static inline void * isp_kalloc(size_t, int);
-static inline void   isp_kfree(void *, size_t);
-static inline void * isp_kzalloc(size_t, int);
+static ISP_INLINE void * isp_kalloc(size_t, int);
+static ISP_INLINE void   isp_kfree(void *, size_t);
+static ISP_INLINE void * isp_kzalloc(size_t, int);
 
-static inline void *
+static ISP_INLINE void *
 isp_kalloc(size_t size, int flags)
 {
     void *ptr;
@@ -886,7 +888,7 @@ isp_kalloc(size_t size, int flags)
     return (ptr);
 }
 
-static inline void
+static ISP_INLINE void
 isp_kfree(void *ptr, size_t size)
 {
     if (size >= PAGE_SIZE) {
@@ -896,7 +898,7 @@ isp_kfree(void *ptr, size_t size)
     }
 }
 
-static inline void *
+static ISP_INLINE void *
 isp_kzalloc(size_t size, int flags)
 {
     void *ptr = isp_kalloc(size, flags);
@@ -909,7 +911,7 @@ isp_kzalloc(size_t size, int flags)
 #define COPYIN(uarg, karg, amt)     copy_from_user(karg, uarg, amt)
 #define COPYOUT(karg, uarg, amt)    copy_to_user(uarg, karg, amt)
 
-static __inline void
+static ISP_INLINE void
 isp_get_dma64_seg(ispds64_t *dsp, struct scatterlist *sg, uint32_t sgidx)
 {
     sg += sgidx;
@@ -918,7 +920,7 @@ isp_get_dma64_seg(ispds64_t *dsp, struct scatterlist *sg, uint32_t sgidx)
     dsp->ds_count   = sg_dma_len(sg);
 }
 
-static __inline void
+static ISP_INLINE void
 isp_get_dma_seg(ispds_t *dsp, struct scatterlist *sg, uint32_t sgidx)
 {
     sg += sgidx;

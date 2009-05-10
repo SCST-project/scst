@@ -1,4 +1,4 @@
-/* $Id: isp_linux.c,v 1.243 2009/04/03 04:56:00 mjacob Exp $ */
+/* $Id: isp_linux.c,v 1.247 2009/05/10 16:25:09 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2009 by Matthew Jacob
  *  All rights reserved.
@@ -115,7 +115,7 @@ static char *isp_wwnns;
     hba->isp_osinfo.pending_x = xact
 
 extern void ISP_PARENT_TARGET (qact_e, void *);
-static inline tmd_cmd_t *isp_find_tmd(ispsoftc_t *, uint64_t);
+static ISP_INLINE tmd_cmd_t *isp_find_tmd(ispsoftc_t *, uint64_t);
 static void isp_taction(qact_e, void *);
 static void isp_target_start_ctio(ispsoftc_t *, tmd_xact_t *);
 static void isp_handle_platform_atio(ispsoftc_t *, at_entry_t *);
@@ -175,7 +175,7 @@ isplinux_info(struct Scsi_Host *host)
     }
 }
 
-static inline void
+static ISP_INLINE void
 isplinux_append_to_waitq(ispsoftc_t *isp, Scsi_Cmnd *Cmnd)
 {
     /*
@@ -220,7 +220,7 @@ isplinux_append_to_waitq(ispsoftc_t *isp, Scsi_Cmnd *Cmnd)
     }
 }
 
-static inline void
+static ISP_INLINE void
 isplinux_insert_head_waitq(ispsoftc_t *isp, Scsi_Cmnd *Cmnd)
 {
     isp->isp_osinfo.wqcnt++;
@@ -233,7 +233,7 @@ isplinux_insert_head_waitq(ispsoftc_t *isp, Scsi_Cmnd *Cmnd)
     }
 }
 
-static inline Scsi_Cmnd *
+static ISP_INLINE Scsi_Cmnd *
 isp_remove_from_waitq(Scsi_Cmnd *Cmnd)
 {
     ispsoftc_t *isp;
@@ -265,7 +265,7 @@ isp_remove_from_waitq(Scsi_Cmnd *Cmnd)
     return (f);
 }
 
-static inline void
+static ISP_INLINE void
 isplinux_runwaitq(ispsoftc_t *isp)
 {
     Scsi_Cmnd *f;
@@ -338,7 +338,7 @@ isplinux_runwaitq(ispsoftc_t *isp)
     }
 }
 
-static inline void
+static ISP_INLINE void
 isplinux_flushwaitq(ispsoftc_t *isp)
 {
     Scsi_Cmnd *Cmnd, *Ncmnd;
@@ -367,7 +367,7 @@ isplinux_flushwaitq(ispsoftc_t *isp)
     ISP_IGET_LK_SOFTC(isp);
 }
 
-static inline Scsi_Cmnd *
+static ISP_INLINE Scsi_Cmnd *
 isplinux_remove_from_doneq(Scsi_Cmnd *Cmnd)
 {
     Scsi_Cmnd *f;
@@ -513,7 +513,7 @@ isplinux_queuecommand(Scsi_Cmnd *Cmnd, void (*donecmd)(Scsi_Cmnd *))
     return (result);
 }
 
-static inline void
+static ISP_INLINE void
 isplinux_scsi_probe_done(Scsi_Cmnd *Cmnd)
 {
     ispsoftc_t *isp = XS_ISP(Cmnd);
@@ -974,7 +974,7 @@ isp_tgt_tq(ispsoftc_t *isp)
     }
 }
 
-static inline tmd_cmd_t *
+static ISP_INLINE tmd_cmd_t *
 isp_find_tmd(ispsoftc_t *isp, uint64_t tagval)
 {
     int i;
@@ -1317,7 +1317,7 @@ nolunsenabled(ispsoftc_t *isp, uint16_t bus)
     return (1);
 }
 
-static inline void
+static ISP_INLINE void
 addlun(ispsoftc_t *isp, tgt_enalun_t *axl, uint16_t bus, uint16_t lun)
 {
     axl->lun = lun;
@@ -1326,7 +1326,7 @@ addlun(ispsoftc_t *isp, tgt_enalun_t *axl, uint16_t bus, uint16_t lun)
     isp->isp_osinfo.luns = axl;
 }
 
-static inline tgt_enalun_t *
+static ISP_INLINE tgt_enalun_t *
 remlun(ispsoftc_t *isp, uint16_t bus, uint16_t lun)
 {
     tgt_enalun_t *axl, *axy = NULL;

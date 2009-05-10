@@ -1,4 +1,4 @@
-/* $Id: isp_library.c,v 1.57 2009/03/30 04:19:19 mjacob Exp $ */
+/* $Id: isp_library.c,v 1.61 2009/05/10 16:25:09 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2009 by Matthew Jacob
  *  All rights reserved.
@@ -139,7 +139,7 @@ isp_send_cmd(ispsoftc_t *isp, void *fqe, void *segp, uint32_t nsegs, uint32_t to
 		seglim = ISP_RQDSEG_T3;
 		break;
 	case RQSTYPE_T3RQS:
-		ddf = (ddir == ISP_TO_DEVICE)? CT2_DATA_OUT : CT2_DATA_IN;
+		ddf = (ddir == ISP_TO_DEVICE)? REQFLAG_DATA_OUT : REQFLAG_DATA_IN;
 		dsp64 = ((ispreqt3_t *)fqe)->req_dataseg;
 		seglim = ISP_RQDSEG_T3;
 		break;
@@ -239,7 +239,7 @@ copy_and_sync:
 		((ispreqt2_t *)fqe)->req_flags |= ddf;
 		((ispreqt2_t *)fqe)->req_seg_count = nsegs;
 		((ispreqt2_t *)fqe)->req_totalcnt = totalcnt;
-		if (ISP_CAP_SCCFW(isp)) {
+		if (ISP_CAP_2KLOGIN(isp)) {
 			isp_put_request_t2e(isp, fqe, qe0);
 		} else {
 			isp_put_request_t2(isp, fqe, qe0);
@@ -250,7 +250,7 @@ copy_and_sync:
 		((ispreqt3_t *)fqe)->req_flags |= ddf;
 		((ispreqt3_t *)fqe)->req_seg_count = nsegs;
 		((ispreqt3_t *)fqe)->req_totalcnt = totalcnt;
-		if (ISP_CAP_SCCFW(isp)) {
+		if (ISP_CAP_2KLOGIN(isp)) {
 			isp_put_request_t3e(isp, fqe, qe0);
 		} else {
 			isp_put_request_t3(isp, fqe, qe0);
@@ -416,8 +416,7 @@ isp_fc_runstate(ispsoftc_t *isp, int chan, int tval)
         if (fcp->role == ISP_ROLE_NONE) {
 		return (0);
 	}
-	if (fcp->isp_fwstate < FW_READY ||
-	    fcp->isp_loopstate < LOOP_PDB_RCVD) {
+	if (fcp->isp_fwstate < FW_READY || fcp->isp_loopstate < LOOP_PDB_RCVD) {
 		if (isp_control(isp, ISPCTL_FCLINK_TEST, chan, tval) != 0) {
 			isp_prt(isp, ISP_LOGSANCFG, "isp_fc_runstate: linktest failed for channel %d", chan);
 			return (-1);
@@ -488,6 +487,157 @@ isp_dump_portdb(ispsoftc_t *isp, int chan)
 		isp_prt(isp, ISP_LOGALL, "Chan %d [%d]: hdl 0x%x %s al%d tgt %s %s 0x%06x =>%s 0x%06x; WWNN 0x%08x%08x WWPN 0x%08x%08x",
 		    chan, i, lp->handle, dbs[lp->state], lp->autologin, mb, roles[lp->roles], lp->portid, roles[lp->new_roles], lp->new_portid,
 		    (uint32_t) (lp->node_wwn >> 32), (uint32_t) (lp->node_wwn), (uint32_t) (lp->port_wwn >> 32), (uint32_t) (lp->port_wwn));
+	}
+}
+
+const char *
+isp_fc_fw_statename(int state)
+{
+	switch (state) {
+	case FW_CONFIG_WAIT:	return "Config Wait";
+	case FW_WAIT_AL_PA:	return "Waiting for AL_PA";
+	case FW_WAIT_LOGIN:	return "Wait Login";
+	case FW_READY:		return "Ready";
+	case FW_LOSS_OF_SYNC:	return "Loss Of Sync";
+	case FW_ERROR:		return "Error";
+	case FW_REINIT:		return "Re-Init";
+	case FW_NON_PART:	return "Nonparticipating";
+	default:		return "?????";
+	}
+}
+
+const char *
+isp_fc_loop_statename(int state)
+{
+	switch (state) {
+	case LOOP_NIL:                  return "NIL";
+	case LOOP_LIP_RCVD:             return "LIP Received";
+	case LOOP_PDB_RCVD:             return "PDB Received";
+	case LOOP_SCANNING_LOOP:        return "Scanning";
+	case LOOP_LSCAN_DONE:           return "Loop Scan Done";
+	case LOOP_SCANNING_FABRIC:      return "Scanning Fabric";
+	case LOOP_FSCAN_DONE:           return "Fabric Scan Done";
+	case LOOP_SYNCING_PDB:          return "Syncing PDB";
+	case LOOP_READY:                return "Ready"; 
+	default:                        return "?????";
+	}
+}
+
+const char *
+isp_fc_toponame(fcparam *fcp)
+{
+
+	if (fcp->isp_fwstate != FW_READY) {
+		return "Unavailable";
+	}
+	switch (fcp->isp_topo) {
+	case TOPO_NL_PORT:      return "Private Loop";
+	case TOPO_FL_PORT:      return "FL Port";
+	case TOPO_N_PORT:       return "N-Port to N-Port";
+	case TOPO_F_PORT:       return "F Port";
+	case TOPO_PTP_STUB:     return "F Port (no FLOGI_ACC response)";
+	default:                return "?????";
+	}
+}
+
+/*
+ * Change Roles
+ */
+int
+isp_fc_change_role(ispsoftc_t *isp, int chan, int new_role)
+{
+	fcparam *fcp = FCPARAM(isp, chan);
+
+	if (chan >= isp->isp_nchan) {
+		isp_prt(isp, ISP_LOGWARN, "%s: bad channel %d", __func__, chan);
+		return (ENXIO);
+	}
+	if (chan == 0) {
+#ifdef	ISP_TARGET_MODE
+		isp_del_all_wwn_entries(isp, chan);
+#endif
+		isp_clear_commands(isp);
+
+		isp_reset(isp, 0);
+		if (isp->isp_state != ISP_RESETSTATE) {
+			isp_prt(isp, ISP_LOGERR, "%s: cannot reset card", __func__);
+			return (EIO);
+		}
+		fcp->role = new_role;
+		isp_init(isp);
+		if (isp->isp_state != ISP_INITSTATE) {
+			isp_prt(isp, ISP_LOGERR, "%s: cannot init card", __func__);
+			return (EIO);
+		}
+		isp->isp_state = ISP_RUNSTATE;
+		return (0);
+	} else if (ISP_CAP_MULTI_ID(isp)) {
+		mbreg_t mbs;
+		vp_modify_t *vp;
+		uint8_t qe[QENTRY_LEN], *scp;
+
+		ISP_MEMZERO(qe, QENTRY_LEN);
+		/* Acquire Scratch */
+
+		if (FC_SCRATCH_ACQUIRE(isp, chan)) {
+			return (EBUSY);
+		}
+		scp = fcp->isp_scratch;
+
+		/*
+		 * Build a VP MODIFY command in memory
+		 */
+		vp = (vp_modify_t *) qe;
+		vp->vp_mod_hdr.rqs_entry_type = RQSTYPE_VP_MODIFY;
+		vp->vp_mod_hdr.rqs_entry_count = 1;
+		vp->vp_mod_cnt = 1;
+		vp->vp_mod_idx0 = chan;
+		vp->vp_mod_cmd = VP_MODIFY_ENA;
+		vp->vp_mod_ports[0].options = ICB2400_VPOPT_ENABLED;
+		if (new_role & ISP_ROLE_INITIATOR) {
+			vp->vp_mod_ports[0].options |= ICB2400_VPOPT_INI_ENABLE;
+		}
+		if ((new_role & ISP_ROLE_TARGET) == 0) {
+			vp->vp_mod_ports[0].options |= ICB2400_VPOPT_TGT_DISABLE;
+		}
+		MAKE_NODE_NAME_FROM_WWN(vp->vp_mod_ports[0].wwpn, fcp->isp_wwpn);
+		MAKE_NODE_NAME_FROM_WWN(vp->vp_mod_ports[0].wwnn, fcp->isp_wwnn);
+		isp_put_vp_modify(isp, vp, (vp_modify_t *) scp);
+
+		/*
+		 * Build a EXEC IOCB A64 command that points to the VP MODIFY command
+		 */
+		MBSINIT(&mbs, MBOX_EXEC_COMMAND_IOCB_A64, MBLOGALL, 0);
+		mbs.param[1] = QENTRY_LEN;
+		mbs.param[2] = DMA_WD1(fcp->isp_scdma);
+		mbs.param[3] = DMA_WD0(fcp->isp_scdma);
+		mbs.param[6] = DMA_WD3(fcp->isp_scdma);
+		mbs.param[7] = DMA_WD2(fcp->isp_scdma);
+		MEMORYBARRIER(isp, SYNC_SFORDEV, 0, 2 * QENTRY_LEN);
+		isp_control(isp, ISPCTL_RUN_MBOXCMD, &mbs);
+		if (mbs.param[0] != MBOX_COMMAND_COMPLETE) {
+			FC_SCRATCH_RELEASE(isp, chan);
+			return (EIO);
+		}
+		MEMORYBARRIER(isp, SYNC_SFORCPU, QENTRY_LEN, QENTRY_LEN);
+		isp_get_vp_modify(isp, (vp_modify_t *)&scp[QENTRY_LEN], vp);
+
+#ifdef	ISP_TARGET_MODE
+		isp_del_all_wwn_entries(isp, chan);
+#endif
+		/*
+		 * Release Scratch
+		 */
+		FC_SCRATCH_RELEASE(isp, chan);
+
+		if (vp->vp_mod_status != VP_STS_OK) {
+			isp_prt(isp, ISP_LOGERR, "%s: VP_MODIFY of Chan %d failed with status %d", __func__, chan, vp->vp_mod_status);
+			return (EIO);
+		}
+		fcp->role = new_role;
+		return (0);
+	} else {
+		return (EINVAL);
 	}
 }
 
@@ -567,56 +717,6 @@ isp_clear_commands(ispsoftc_t *isp)
 		isp_async(isp, ISPASYNC_TARGET_NOTIFY, &notify);
 	}
 #endif
-}
-
-const char *
-isp_fc_fw_statename(int state)
-{
-	switch (state) {
-	case FW_CONFIG_WAIT:	return "Config Wait";
-	case FW_WAIT_AL_PA:	return "Waiting for AL_PA";
-	case FW_WAIT_LOGIN:	return "Wait Login";
-	case FW_READY:		return "Ready";
-	case FW_LOSS_OF_SYNC:	return "Loss Of Sync";
-	case FW_ERROR:		return "Error";
-	case FW_REINIT:		return "Re-Init";
-	case FW_NON_PART:	return "Nonparticipating";
-	default:		return "?????";
-	}
-}
-
-const char *
-isp_fc_loop_statename(int state)
-{
-	switch (state) {
-	case LOOP_NIL:                  return "NIL";
-	case LOOP_LIP_RCVD:             return "LIP Received";
-	case LOOP_PDB_RCVD:             return "PDB Received";
-	case LOOP_SCANNING_LOOP:        return "Scanning";
-	case LOOP_LSCAN_DONE:           return "Loop Scan Done";
-	case LOOP_SCANNING_FABRIC:      return "Scanning Fabric";
-	case LOOP_FSCAN_DONE:           return "Fabric Scan Done";
-	case LOOP_SYNCING_PDB:          return "Syncing PDB";
-	case LOOP_READY:                return "Ready"; 
-	default:                        return "?????";
-	}
-}
-
-const char *
-isp_fc_toponame(fcparam *fcp)
-{
-
-	if (fcp->isp_fwstate != FW_READY) {
-		return "Unavailable";
-	}
-	switch (fcp->isp_topo) {
-	case TOPO_NL_PORT:      return "Private Loop";
-	case TOPO_FL_PORT:      return "FL Port";
-	case TOPO_N_PORT:       return "N-Port to N-Port";
-	case TOPO_F_PORT:       return "F Port";
-	case TOPO_PTP_STUB:     return "F Port (no FLOGI_ACC response)";
-	default:                return "?????";
-	}
 }
 
 void
@@ -2534,129 +2634,23 @@ isp_del_wwn_entries(ispsoftc_t *isp, isp_notify_t *mp)
 	if (mp->nt_nphdl != NIL_HANDLE) {
 		if (isp_find_pdb_by_loopid(isp, mp->nt_channel, mp->nt_nphdl, &lp)) {
 			isp_del_wwn_entry(isp, mp->nt_channel, lp->port_wwn, lp->handle, lp->portid);
-		} else {
-			isp_prt(isp, ISP_LOGWARN, "unable to find entry to delete for N-port handle 0x%x", mp->nt_nphdl);
+			return;
 		}
-		return;
 	}
 	if (mp->nt_wwn != INI_ANY) {
 		if (isp_find_pdb_by_wwn(isp, mp->nt_channel, mp->nt_wwn, &lp)) {
 			isp_del_wwn_entry(isp, mp->nt_channel, lp->port_wwn, lp->handle, lp->portid);
-		} else {
-			isp_prt(isp, ISP_LOGWARN, "unable to find entry to delete for initiator WWN 0x%016llx", (unsigned long long)mp->nt_wwn);
+			return;
 		}
-		return;
 	}
-	if (mp->nt_sid != PORT_ANY) {
+	if (mp->nt_sid != PORT_ANY && mp->nt_sid != PORT_NONE) {
 		if (isp_find_pdb_by_sid(isp, mp->nt_channel, mp->nt_sid, &lp)) {
 			isp_del_wwn_entry(isp, mp->nt_channel, lp->port_wwn, lp->handle, lp->portid);
-		} else {
-			isp_prt(isp, ISP_LOGWARN, "unable to find entry to delete for Initiator S_ID 0x%x", mp->nt_sid);
+			return;
 		}
-		return;
 	}
-	isp_prt(isp, ISP_LOGWARN, "%s: unable to find entries to delete", __func__);
-}
-
-/*
- * Change Roles
- */
-int
-isp_fc_change_role(ispsoftc_t *isp, int chan, int new_role)
-{
-	fcparam *fcp = FCPARAM(isp, chan);
-
-	if (chan >= isp->isp_nchan) {
-		isp_prt(isp, ISP_LOGWARN, "%s: bad channel %d", __func__, chan);
-		return (ENXIO);
-	}
-	if (chan == 0) {
-#ifdef	ISP_TARGET_MODE
-		isp_del_all_wwn_entries(isp, chan);
-#endif
-		isp_clear_commands(isp);
-
-		isp_reset(isp, 0);
-		if (isp->isp_state != ISP_RESETSTATE) {
-			isp_prt(isp, ISP_LOGERR, "%s: cannot reset card", __func__);
-			return (EIO);
-		}
-		fcp->role = new_role;
-		isp_init(isp);
-		if (isp->isp_state != ISP_INITSTATE) {
-			isp_prt(isp, ISP_LOGERR, "%s: cannot init card", __func__);
-			return (EIO);
-		}
-		isp->isp_state = ISP_RUNSTATE;
-		return (0);
-	} else if (ISP_CAP_MULTI_ID(isp)) {
-		mbreg_t mbs;
-		vp_modify_t *vp;
-		uint8_t qe[QENTRY_LEN], *scp;
-
-		ISP_MEMZERO(qe, QENTRY_LEN);
-		/* Acquire Scratch */
-
-		if (FC_SCRATCH_ACQUIRE(isp, chan)) {
-			return (EBUSY);
-		}
-		scp = fcp->isp_scratch;
-
-		/*
-		 * Build a VP MODIFY command in memory
-		 */
-		vp = (vp_modify_t *) qe;
-		vp->vp_mod_hdr.rqs_entry_type = RQSTYPE_VP_MODIFY;
-		vp->vp_mod_hdr.rqs_entry_count = 1;
-		vp->vp_mod_cnt = 1;
-		vp->vp_mod_idx0 = chan;
-		vp->vp_mod_cmd = VP_MODIFY_ENA;
-		vp->vp_mod_ports[0].options = ICB2400_VPOPT_ENABLED;
-		if (new_role & ISP_ROLE_INITIATOR) {
-			vp->vp_mod_ports[0].options |= ICB2400_VPOPT_INI_ENABLE;
-		}
-		if ((new_role & ISP_ROLE_TARGET) == 0) {
-			vp->vp_mod_ports[0].options |= ICB2400_VPOPT_TGT_DISABLE;
-		}
-		MAKE_NODE_NAME_FROM_WWN(vp->vp_mod_ports[0].wwpn, fcp->isp_wwpn);
-		MAKE_NODE_NAME_FROM_WWN(vp->vp_mod_ports[0].wwnn, fcp->isp_wwnn);
-		isp_put_vp_modify(isp, vp, (vp_modify_t *) scp);
-
-		/*
-		 * Build a EXEC IOCB A64 command that points to the VP MODIFY command
-		 */
-		MBSINIT(&mbs, MBOX_EXEC_COMMAND_IOCB_A64, MBLOGALL, 0);
-		mbs.param[1] = QENTRY_LEN;
-		mbs.param[2] = DMA_WD1(fcp->isp_scdma);
-		mbs.param[3] = DMA_WD0(fcp->isp_scdma);
-		mbs.param[6] = DMA_WD3(fcp->isp_scdma);
-		mbs.param[7] = DMA_WD2(fcp->isp_scdma);
-		MEMORYBARRIER(isp, SYNC_SFORDEV, 0, 2 * QENTRY_LEN);
-		isp_control(isp, ISPCTL_RUN_MBOXCMD, &mbs);
-		if (mbs.param[0] != MBOX_COMMAND_COMPLETE) {
-			FC_SCRATCH_RELEASE(isp, chan);
-			return (EIO);
-		}
-		MEMORYBARRIER(isp, SYNC_SFORCPU, QENTRY_LEN, QENTRY_LEN);
-		isp_get_vp_modify(isp, (vp_modify_t *)&scp[QENTRY_LEN], vp);
-
-#ifdef	ISP_TARGET_MODE
-		isp_del_all_wwn_entries(isp, chan);
-#endif
-		/*
-		 * Release Scratch
-		 */
-		FC_SCRATCH_RELEASE(isp, chan);
-
-		if (vp->vp_mod_status != VP_STS_OK) {
-			isp_prt(isp, ISP_LOGERR, "%s: VP_MODIFY of Chan %d failed with status %d", __func__, chan, vp->vp_mod_status);
-			return (EIO);
-		}
-		fcp->role = new_role;
-		return (0);
-	} else {
-		return (EINVAL);
-	}
+	isp_prt(isp, ISP_LOGWARN, "%s: Chan %d unable to find entry to delete N-port handle 0x%04x initiator WWN 0x%016llx Port ID 0x%06x", __func__,
+	    mp->nt_channel, mp->nt_nphdl, (unsigned long long) mp->nt_wwn, mp->nt_sid);
 }
 
 void

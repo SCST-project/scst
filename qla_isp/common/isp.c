@@ -1,4 +1,4 @@
-/* $Id: isp.c,v 1.216 2009/04/03 04:56:00 mjacob Exp $ */
+/* $Id: isp.c,v 1.219 2009/05/10 16:25:09 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2009 by Matthew Jacob
  *  All rights reserved.
@@ -4261,8 +4261,7 @@ isp_start(XS_T *xs)
 		/*
 		 * Try again later.
 		 */
-		if (fcp->isp_fwstate != FW_READY ||
-		    fcp->isp_loopstate != LOOP_READY) {
+		if (fcp->isp_fwstate != FW_READY || fcp->isp_loopstate != LOOP_READY) {
 			return (CMD_RQLATER);
 		}
 
@@ -5256,8 +5255,26 @@ again:
 		switch (etype) {
 		case RQSTYPE_RESPONSE:
 			if (resp && rlen >= 4 && resp[FCP_RSPNS_CODE_OFFSET] != 0) {
-				isp_prt(isp, ISP_LOGWARN, "%d.%d.%d FCP RESPONSE: 0x%x", XS_CHANNEL(xs), XS_TGT(xs), XS_LUN(xs), resp[FCP_RSPNS_CODE_OFFSET]);
-				XS_SETERR(xs, HBA_BOTCH);
+				const char *ptr;
+				char lb[64];
+				const char *rnames[6] = {
+					"Task Management Function Done",
+					"Data Length Differs From Burst Length",
+					"Invalid FCP Cmnd",
+					"FCP DATA RO mismatch with FCP DATA_XFR_RDY RO",
+					"Task Management Function Rejected",
+					"Task Management Function Failed",
+				};
+				if (resp[FCP_RSPNS_CODE_OFFSET] > 5) {
+					ISP_SNPRINTF(lb, sizeof lb, "Unknown FCP Response Code 0x%x", resp[FCP_RSPNS_CODE_OFFSET]);
+					ptr = lb;
+				} else {
+					ptr = rnames[resp[FCP_RSPNS_CODE_OFFSET]];
+				}
+				isp_prt(isp, ISP_LOGWARN, "%d.%d.%d FCP RESPONSE, LENGTH %u: %s CDB0=0x%02x", XS_CHANNEL(xs), XS_TGT(xs), XS_LUN(xs), rlen, ptr, XS_CDBP(xs)[0] & 0xff);
+				if (resp[FCP_RSPNS_CODE_OFFSET] != 0) {
+					XS_SETERR(xs, HBA_BOTCH);
+				}
 			}
 			if (IS_24XX(isp)) {
 				isp_parse_status_24xx(isp, (isp24xx_statusreq_t *)sp, xs, &resid);

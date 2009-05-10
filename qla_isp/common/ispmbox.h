@@ -1,4 +1,4 @@
-/* $Id: ispmbox.h,v 1.78 2009/04/03 04:56:00 mjacob Exp $ */
+/* $Id: ispmbox.h,v 1.79 2009/05/01 22:34:13 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2009 by Matthew Jacob
  *  All rights reserved.
