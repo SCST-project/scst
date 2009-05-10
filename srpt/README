@@ -40,7 +40,7 @@ Proceed as follows to compile and install the SRP target driver:
    cd ${SCST_DIR}
    make -s scst_clean scst scst_install
    make -s srpt_clean srpt srpt_install
-   make -s scstadm_install
+   make -s scstadm scstadm_install
 
 3. Edit the installed file /etc/init.d/scst and add ib_srpt to the
    SCST_MODULES variable.

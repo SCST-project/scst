@@ -20,6 +20,24 @@ Note: because during OFED installation the distro-provided InfiniBand
 kernel drivers are replaced, doing so voids the support contract
 offered by your Linux distributor.
 
+Please follow the instructions below carefully. Skipping a step may
+result in kernel modules that fail to load, a kernel oops or even a
+system that does no longer boot.
+
+
+Verifying the kernel version
+----------------------------
+
+Before installing the OFED distribution, it is very important to check
+the OFED release notes. Each OFED distribution has been tested
+carefully, but only against the kernel versions specified in
+docs/OFED_release_notes.txt (you can find this document in the OFED
+distribution). Make sure that you are using a supported kernel / OFED
+combination. As an example, if you want to use OFED 1.4.1 on an Ubuntu
+system, you will have to start with replacing the Ubuntu kernel by a
+kernel from kernel.org since OFED 1.4.1 has not been tested on any
+Ubuntu kernel.
+
 
 Compiling SRP against OFED
 --------------------------
@@ -28,17 +46,26 @@ Make sure that all necessary packages needed for kernel compilation
 have been installed (kernel headers, kernel source code, gcc,
 binutils, ...).
 
+Unload any loaded InfiniBand drivers:
+
+  /etc/init.d/opensmd stop
+  /etc/init.d/openibd stop
+
+Remove any distro-provided InfiniBand drivers:
+
+  rm -rf /lib/modules/$(uname -r)/kernel/drivers/infiniband
+
 Now locate the file Makefile.lib and patch it such that it supports
 the variable PRE_CFLAGS:
 
   cd /usr/src
   find -name Makefile.lib
   cd ...
-  patch -p0 < ${SCST_DIR}/srpt/patches/kernel-scripts-Makefile.lib.patch
+  patch -p0 < ${SCST_DIR}/srpt/patches/kernel-${KV}-scripts-Makefile.lib.patch
 
 Next, download and install the OFED package. Make sure to disable
-OFED's SRP target driver (srpt=n) and to enable the SRP tools
-(srptools=y). An example:
+OFED's SRP target driver (srpt=n) and to enable at least the
+kernel-ib, kernel-ib-devel and SRP tools packages. An example:
 
   wget http://www.openfabrics.org/downloads/OFED/ofed-1.4/OFED-1.4.tgz
   tar xzf OFED-1.4.tgz
