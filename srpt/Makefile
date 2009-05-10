@@ -59,7 +59,8 @@ src/Module.symvers src/Modules.symvers: $(SCST_DIR)/$(MODULE_SYMVERS)
 	         "installed.";                                              \
 	    false;                                                          \
 	  elif [ -e /lib/modules/$(KVER)/kernel/drivers/infiniband ]; then  \
-	    echo "Error: OFED has not been installed correctly.";           \
+	    echo "Error: the distro-provided InfiniBand kernel drivers"     \
+	         "must be removed first.";                                  \
 	    false;                                                          \
 	  elif $(OFED_SRPT_INSTALLED); then                                 \
 	    echo "Error: OFED has been built with srpt=y in ofed.conf.";    \
