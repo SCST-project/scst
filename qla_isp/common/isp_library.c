@@ -140,7 +140,7 @@ isp_send_cmd(ispsoftc_t *isp, void *fqe, void *segp, uint32_t nsegs, uint32_t to
 		seglim = ISP_RQDSEG_T3;
 		break;
 	case RQSTYPE_T3RQS:
-		ddf = (ddir == ISP_TO_DEVICE)? CT2_DATA_OUT : CT2_DATA_IN;
+		ddf = (ddir == ISP_TO_DEVICE)? REQFLAG_DATA_OUT : REQFLAG_DATA_IN;
 		dsp64 = ((ispreqt3_t *)fqe)->req_dataseg;
 		seglim = ISP_RQDSEG_T3;
 		break;
@@ -240,7 +240,7 @@ copy_and_sync:
 		((ispreqt2_t *)fqe)->req_flags |= ddf;
 		((ispreqt2_t *)fqe)->req_seg_count = nsegs;
 		((ispreqt2_t *)fqe)->req_totalcnt = totalcnt;
-		if (ISP_CAP_SCCFW(isp)) {
+		if (ISP_CAP_2KLOGIN(isp)) {
 			isp_put_request_t2e(isp, fqe, qe0);
 		} else {
 			isp_put_request_t2(isp, fqe, qe0);
@@ -251,7 +251,7 @@ copy_and_sync:
 		((ispreqt3_t *)fqe)->req_flags |= ddf;
 		((ispreqt3_t *)fqe)->req_seg_count = nsegs;
 		((ispreqt3_t *)fqe)->req_totalcnt = totalcnt;
-		if (ISP_CAP_SCCFW(isp)) {
+		if (ISP_CAP_2KLOGIN(isp)) {
 			isp_put_request_t3e(isp, fqe, qe0);
 		} else {
 			isp_put_request_t3(isp, fqe, qe0);
@@ -387,8 +387,9 @@ isp_print_bytes(ispsoftc_t *isp, const char *msg, int amt, void *arg)
 		to = off;
 		for (j = 0; j < 16; j++) {
 			ISP_SNPRINTF(buf, 128, "%s %02x", buf, ptr[off++] & 0xff);
-			if (off == amt)
+			if (off == amt) {
 				break;
+			}
 		}
 		isp_prt(isp, ISP_LOGALL, "0x%08x:%s", to, buf);
 		buf[0] = 0;
