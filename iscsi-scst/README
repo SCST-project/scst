@@ -152,7 +152,7 @@ file.
 
 Then, it might be helpful to increase level of logging. For kernel
 modules you should make the debug build, by either running "make
-release2debug" if you work with SCST SVN tree, or by enable the
+release2debug" if you work with SCST SVN tree, or by enabling the
 corresponding debug symbols (see below). 
 
 If after looking on the logs the reason of your problem is still unclear
@@ -182,6 +182,11 @@ Performance advices
 consider to decrease TcpAckFrequency parameter to 1. See
 http://support.microsoft.com/kb/328890/ or google for "TcpAckFrequency"
 for more details.
+
+2. See how to get the maximum throughput from iSCSI, for instance, at
+http://virtualgeek.typepad.com/virtual_geek/2009/01/a-multivendor-post-to-help-our-mutual-iscsi-customers-using-vmware.html.
+It's about VMware, but its recommendations apply to other environments
+as well.
 
 
 Compilation options

@@ -79,6 +79,22 @@ CAUTION: Working of target and initiator on the same host isn't fully
 =======  supported. See SCST README file for details.
 
 
+Troubleshooting
+---------------
+
+If you have any problems, start troubleshooting from looking at the
+kernel and system logs. In the kernel log iSCSI-SCST and SCST core send
+their messages, in the system log iscsi-scstd sends its messages. In
+most Linux distributions both those logs are put to /var/log/messages
+file.
+
+Then, it might be helpful to increase level of logging. For kernel
+modules you should make the debug build by enabling CONFIG_SCST_DEBUG. 
+
+If after looking on the logs the reason of your problem is still unclear
+for you, report to SCST mailing list scst-devel@lists.sourceforge.net.
+
+
 Work if target's backstorage or link is too slow
 ------------------------------------------------
 
@@ -102,6 +118,11 @@ Performance advices
 consider to decrease TcpAckFrequency parameter to 1. See
 http://support.microsoft.com/kb/328890/ or google for "TcpAckFrequency"
 for more details.
+
+2. See how to get the maximum throughput from iSCSI, for instance, at
+http://virtualgeek.typepad.com/virtual_geek/2009/01/a-multivendor-post-to-help-our-mutual-iscsi-customers-using-vmware.html.
+It's about VMware, but its recommendations apply to other environments
+as well.
 
 
 Compilation options
