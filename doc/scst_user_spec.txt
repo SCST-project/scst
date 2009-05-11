@@ -62,10 +62,12 @@ struct scst_user_dev_desc
 {
 	uint8_t version;
 	uint8_t type;
+	uint8_t sgv_shared;
 	uint8_t has_own_order_mgmt;
 	struct scst_user_opt opt;
 	uint32_t block_size;
 	char name[SCST_MAX_NAME];
+	char sgv_name[SCST_MAX_NAME];
 },
 
 where:
@@ -73,6 +75,9 @@ where:
  - version - is a protocol version, shall be DEV_USER_VERSION
 
  - type - SCSI type of the device
+
+ - sgv_shared - true, if SGV cache for this device should be shared with
+   other devices. False, if the SGV cache should be dedicated.
 
  - has_own_order_mgmt - set it in non-zero, if device implements own
    ORDERED commands management, i.e. guarantees commands execution order
@@ -83,6 +88,8 @@ where:
  - block_size - block size, shall be divisible by 512 for block devices
 
  - name - name of the device
+
+ - sgv_name - name of SGV cache for this device
 
 SCST_USER_REGISTER_DEVICE returns registered device's handler or -1
 in case of error, and errno is set appropriately.
