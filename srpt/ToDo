@@ -1,9 +1,14 @@
-1. SRPT driver directly uses internal states of SCST core target state
+1. Update the OFED wiki entries about SRP and SRPT:
+   * https://wiki.openfabrics.org/tiki-index.php?page=SRP
+   * https://wiki.openfabrics.org/tiki-index.php?page=SRPT+Installation
+
+
+2. SRPT driver directly uses internal states of SCST core target state
 machine, which is bad, bad, bad and generally not acceptable. Only dev
 handler are allowed to use them. That should be fixed.
 
 
-2. Analyze why memory usage keeps increasing for repeatedly rejected logins.
+3. Analyze why memory usage keeps increasing for repeatedly rejected logins.
 
 Details: openSUSE 11.1, 2.6.29.1 kernel with SCST patches applied (target),
          SCST trunk r800.
@@ -23,7 +28,7 @@ Result:
 * No other values in /proc/meminfo changed significantly.
 
 
-3. Analyze why ib_srpt.ko triggers a kernel oops if ib_srpt is loaded before 
+4. Analyze why ib_srpt.ko triggers a kernel oops if ib_srpt is loaded before 
    opensm is started.
 
 Details: openSUSE 11.1, 2.6.29.1 kernel with SCST patches applied, SCST trunk r830.
@@ -83,3 +88,18 @@ Code: 8b 46 20 48 8b 06 45 85 c0 48 f7 d0 0f 45 3d 12 73 3a 00 48 89 ce 48 63 d7
 RIP  [<ffffffff80254a26>] queue_work_on+0x56/0x60
  RSP <ffff8801149dbc48>
 ---[ end trace 8dc16c5c1664b10b ]---
+
+
+5. rmmod ib_srpt under load crashes.
+
+
+6. The initiator names supplied to the SCST core contain the target port name,
+   which is wrong. Nobody identifies a man by the door through which he entered.
+   Instead, a man has a name by which he is identified through his whole life.
+
+
+7. Analyze and document the implications of
+   sdev->mr = ib_get_dma_mr(sdev->pd, IB_ACCESS_LOCAL_WRITE).
+
+
+8. Enable and test the LUN_RESET task management function.
