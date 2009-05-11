@@ -1918,7 +1918,7 @@ static struct scst_proc_data scst_sessions_proc_data = {
 
 static struct scst_proc_data scst_sgv_proc_data = {
 	SCST_DEF_RW_SEQ_OP(NULL)
-	.show = sgv_pool_procinfo_show,
+	.show = sgv_procinfo_show,
 };
 
 static int scst_groups_names_show(struct seq_file *seq, void *v)

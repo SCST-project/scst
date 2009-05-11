@@ -2924,7 +2924,8 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 		scst_xmit_process_aborted_cmd(cmd);
 	else if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION) &&
 		 SCST_SENSE_VALID(cmd->sense) &&
-		 !test_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags)) {
+		 !test_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags) &&
+		 (cmd->tgt_dev != NULL)) {
 		struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
 
 		TRACE_DBG("Storing sense (cmd %p)", cmd);

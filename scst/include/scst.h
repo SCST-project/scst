@@ -1613,7 +1613,7 @@ struct scst_tgt_dev {
 
 	/*
 	 * Stored Unit Attention sense and its length for possible
-	 * subsequent RQUEST SENSE. Both protected by tgt_dev_lock.
+	 * subsequent REQUEST SENSE. Both protected by tgt_dev_lock.
 	 */
 	unsigned short tgt_dev_valid_sense_len;
 	uint8_t tgt_dev_sense[SCST_SENSE_BUFFERSIZE];

@@ -2,7 +2,6 @@
  *  include/scst_sgv.h
  *
  *  Copyright (C) 2004 - 2009 Vladislav Bolkhovitin <vst@vlnb.net>
- *  Copyright (C) 2004 - 2005 Leonid Stoljar
  *  Copyright (C) 2007 - 2009 ID7 Ltd.
  *
  *  Include file for SCST SGV cache.
@@ -53,8 +52,8 @@ enum sgv_clustering_types {
 };
 
 struct sgv_pool *sgv_pool_create(const char *name,
-	enum sgv_clustering_types clustered);
-void sgv_pool_destroy(struct sgv_pool *pool);
+	enum sgv_clustering_types clustered, bool shared);
+void sgv_pool_del(struct sgv_pool *pool);
 void sgv_pool_flush(struct sgv_pool *pool);
 
 void sgv_pool_set_allocator(struct sgv_pool *pool,
@@ -69,4 +68,5 @@ void sgv_pool_free(struct sgv_pool_obj *sgv, struct scst_mem_lim *mem_lim);
 void *sgv_get_priv(struct sgv_pool_obj *sgv);
 
 void scst_init_mem_lim(struct scst_mem_lim *mem_lim);
-#endif /* ifndef __SCST_SGV_H */
+
+#endif /* __SCST_SGV_H */

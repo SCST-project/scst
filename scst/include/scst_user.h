@@ -90,9 +90,11 @@ struct scst_user_opt {
 struct scst_user_dev_desc {
 	aligned_u64 version_str;
 	uint8_t type;
+	uint8_t sgv_shared;
 	struct scst_user_opt opt;
 	uint32_t block_size;
 	char name[SCST_MAX_NAME];
+	char sgv_name[SCST_MAX_NAME];
 };
 
 struct scst_user_sess {

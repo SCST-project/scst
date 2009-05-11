@@ -726,6 +726,8 @@ int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
 		PRINT_CRIT_ERROR("Wrong cmd state %d (cmd %p, op %x)",
 			cmd->state, cmd, cmd->cdb[0]);
 		sBUG();
+		/* Invalid state to supress compiler's warning */
+		res = SCST_CMD_STATE_LAST_ACTIVE;
 	}
 
 	TRACE_EXIT_RES(res);

@@ -1944,6 +1944,7 @@ static long dev_user_ioctl(struct file *file, unsigned int cmd,
 		}
 		TRACE_BUFFER("dev_desc", dev_desc, sizeof(*dev_desc));
 		dev_desc->name[sizeof(dev_desc->name)-1] = '\0';
+		dev_desc->sgv_name[sizeof(dev_desc->sgv_name)-1] = '\0';
 		res = dev_user_register_dev(file, dev_desc);
 		kfree(dev_desc);
 		break;
@@ -2708,22 +2709,27 @@ static int dev_user_register_dev(struct file *file,
 
 	scst_init_mem_lim(&dev->udev_mem_lim);
 
-	dev->pool = sgv_pool_create(dev->name, sgv_no_clustering);
+	scnprintf(dev->devtype.name, sizeof(dev->devtype.name), "%s",
+		(dev_desc->sgv_name[0] == '\0') ? dev->name :
+						  dev_desc->sgv_name);
+	dev->pool = sgv_pool_create(dev->devtype.name, sgv_no_clustering,
+					dev_desc->sgv_shared);
 	if (dev->pool == NULL)
 		goto out_free_dev;
 	sgv_pool_set_allocator(dev->pool, dev_user_alloc_pages,
 		dev_user_free_sg_entries);
 
 	scnprintf(dev->devtype.name, sizeof(dev->devtype.name), "%s-clust",
-		dev->name);
+		(dev_desc->sgv_name[0] == '\0') ? dev->name :
+						  dev_desc->sgv_name);
 	dev->pool_clust = sgv_pool_create(dev->devtype.name,
-				sgv_tail_clustering);
+				sgv_tail_clustering, dev_desc->sgv_shared);
 	if (dev->pool_clust == NULL)
 		goto out_free0;
 	sgv_pool_set_allocator(dev->pool_clust, dev_user_alloc_pages,
 		dev_user_free_sg_entries);
 
-	scnprintf(dev->devtype.name, sizeof(dev->devtype.name), "dh-%s",
+	scnprintf(dev->devtype.name, sizeof(dev->devtype.name), "%s",
 		dev->name);
 	dev->devtype.type = dev_desc->type;
 	dev->devtype.threads_num = -1;
@@ -2802,10 +2808,10 @@ out_del_free:
 	spin_unlock(&dev_list_lock);
 
 out_free:
-	sgv_pool_destroy(dev->pool_clust);
+	sgv_pool_del(dev->pool_clust);
 
 out_free0:
-	sgv_pool_destroy(dev->pool);
+	sgv_pool_del(dev->pool);
 
 out_free_dev:
 	kfree(dev);
@@ -3104,8 +3110,8 @@ static int dev_user_release(struct inode *inode, struct file *file)
 	scst_unregister_virtual_device(dev->virt_id);
 	scst_unregister_virtual_dev_driver(&dev->devtype);
 
-	sgv_pool_destroy(dev->pool_clust);
-	sgv_pool_destroy(dev->pool);
+	sgv_pool_del(dev->pool_clust);
+	sgv_pool_del(dev->pool);
 
 	TRACE_DBG("Unregistering finished (dev %p)", dev);
 
