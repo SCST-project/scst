@@ -97,6 +97,7 @@ static struct scst_tgt_template tgt_template = {
 
 static struct kmem_cache *q2t_cmd_cachep;
 static struct qla2x_tgt_target tgt_data;
+static DEFINE_MUTEX(qla_mgmt_mutex);
 
 /*
  * Functions
@@ -377,6 +378,8 @@ static int q2t_target_release(struct scst_tgt *scst_tgt)
 
 	wait_event(tgt->waitQ, test_tgt_sess_count(tgt, ha));
 
+	mutex_lock(&qla_mgmt_mutex);
+
 	/* big hammer */
 	if (!ha->flags.host_shutting_down)
 		tgt_data.disable_lun(ha);
@@ -393,6 +396,8 @@ static int q2t_target_release(struct scst_tgt *scst_tgt)
 	scst_tgt_set_tgt_priv(scst_tgt, NULL);
 	ha->tgt = NULL;
 	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+
+	mutex_unlock(&qla_mgmt_mutex);
 
 	kfree(tgt);
 
@@ -2031,7 +2036,6 @@ static void q2t_host_action(scsi_qla_host_t *ha,
 	struct q2t_tgt *tgt = NULL;
 	unsigned long flags = 0;
 
-
 	TRACE_ENTRY();
 
 	sBUG_ON(ha == NULL);
@@ -2076,6 +2080,8 @@ static void q2t_host_action(scsi_qla_host_t *ha,
 			goto out;
 		}
 
+		mutex_lock(&qla_mgmt_mutex);
+
 		tgt->scst_tgt = scst_register(&tgt_template, wwn);
 		kfree(wwn);
 		if (!tgt->scst_tgt) {
@@ -2083,7 +2089,7 @@ static void q2t_host_action(scsi_qla_host_t *ha,
 				    "failed for host %ld(%p)", ha->host_no,
 				    ha->host_no, ha);
 			kfree(tgt);
-			goto out;
+			goto out_unlock;
 		}
 
 		scst_tgt_set_sg_tablesize(tgt->scst_tgt, sg_tablesize);
@@ -2097,9 +2103,12 @@ static void q2t_host_action(scsi_qla_host_t *ha,
 			  ha->host_no, ha->host_no, ha);
 		tgt_data.enable_lun(ha);
 
+		mutex_unlock(&qla_mgmt_mutex);
 		break;
 	}
 	case DISABLE_TARGET_MODE:
+		mutex_lock(&qla_mgmt_mutex);
+
 		spin_lock_irqsave(&ha->hardware_lock, flags);
 		if (ha->tgt == NULL) {
 			/* ensure target mode is marked as off */
@@ -2109,12 +2118,14 @@ static void q2t_host_action(scsi_qla_host_t *ha,
 			if (!ha->flags.host_shutting_down)
 				tgt_data.disable_lun(ha);
 
-			goto out;
+			goto out_unlock;
 		}
 
 		tgt = ha->tgt;
 		ha->tgt = NULL; /* ensure no one gets in behind us */
 		spin_unlock_irqrestore(&ha->hardware_lock, flags);
+
+		mutex_unlock(&qla_mgmt_mutex);
 
 		TRACE_DBG("Shutting down host %ld(%ld,%p)",
 			  ha->host_no, ha->host_no, ha);
@@ -2134,6 +2145,10 @@ static void q2t_host_action(scsi_qla_host_t *ha,
 out:
 	TRACE_EXIT();
 	return;
+
+out_unlock:
+	mutex_unlock(&qla_mgmt_mutex);
+	goto out;
 }
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
