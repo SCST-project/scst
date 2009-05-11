@@ -482,10 +482,9 @@ const struct file_operations ctr_fops = {
 };
 
 #ifdef CONFIG_SCST_DEBUG
-static void iscsi_dump_char(int ch)
+static void iscsi_dump_char(int ch, unsigned char *text, int *pos)
 {
-	static unsigned char text[16];
-	static int i;
+	int i = *pos;
 
 	if (ch < 0) {
 		while ((i % 16) != 0) {
@@ -498,7 +497,7 @@ static void iscsi_dump_char(int ch)
 				printk(KERN_CONT " |");
 		}
 		i = 0;
-		return;
+		goto out;
 	}
 
 	text[i] = (ch < 0x20 || (ch >= 0x80 && ch <= 0xa0)) ? ' ' : ch;
@@ -509,10 +508,17 @@ static void iscsi_dump_char(int ch)
 		i = 0;
 	} else if ((i % 4) == 0)
 		printk(KERN_CONT " |");
+
+out:
+	*pos = i;
+	return;
 }
 
 void iscsi_dump_pdu(struct iscsi_pdu *pdu)
 {
+	unsigned char text[16];
+	int pos = 0;
+
 	if (trace_flag & TRACE_D_DUMP_PDU) {
 		unsigned char *buf;
 		int i;
@@ -520,14 +526,14 @@ void iscsi_dump_pdu(struct iscsi_pdu *pdu)
 		buf = (void *)&pdu->bhs;
 		printk(KERN_DEBUG "BHS: (%p,%zd)\n", buf, sizeof(pdu->bhs));
 		for (i = 0; i < sizeof(pdu->bhs); i++)
-			iscsi_dump_char(*buf++);
-		iscsi_dump_char(-1);
+			iscsi_dump_char(*buf++, text, &pos);
+		iscsi_dump_char(-1, text, &pos);
 
 		buf = (void *)pdu->ahs;
 		printk(KERN_DEBUG "AHS: (%p,%d)\n", buf, pdu->ahssize);
 		for (i = 0; i < pdu->ahssize; i++)
-			iscsi_dump_char(*buf++);
-		iscsi_dump_char(-1);
+			iscsi_dump_char(*buf++, text, &pos);
+		iscsi_dump_char(-1, text, &pos);
 
 		printk(KERN_DEBUG "Data: (%d)\n", pdu->datasize);
 	}
