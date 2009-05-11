@@ -784,6 +784,7 @@ static void cmnd_exec_login(struct connection *conn)
 	return;
 
 init_err:
+	log_error("Initiator %s error", conn->initiator);
 	rsp->flags = 0;
 	rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
 	rsp->status_detail = ISCSI_STATUS_INIT_ERR;
@@ -791,6 +792,7 @@ init_err:
 	return;
 
 auth_err:
+	log_error("Authentication of initiator %s failed", conn->initiator);
 	rsp->flags = 0;
 	rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
 	rsp->status_detail = ISCSI_STATUS_AUTH_FAILED;
