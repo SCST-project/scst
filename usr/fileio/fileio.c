@@ -69,9 +69,30 @@ unsigned long trace_flag = DEFAULT_LOG_FLAGS;
 #define VERSION_STR		"1.0.2"
 #define THREADS			7
 
-struct vdisk_dev dev;
+#define MAX_VDEVS		10
+
+static void *align_alloc(size_t size);
+
+static struct vdisk_dev devs[MAX_VDEVS];
+static int num_devs;
+
 int vdisk_ID;
-int flush_interval;
+static int flush_interval;
+
+static int parse_type = SCST_USER_PARSE_STANDARD;
+static int on_free_cmd_type = SCST_USER_ON_FREE_CMD_IGNORE;
+static int on_free_cmd_type_set;
+static int memory_reuse_type = SCST_USER_MEM_REUSE_ALL;
+static int threads = THREADS;
+static int unreg_before_close;
+static int block_size = (1 << DEF_BLOCK_SHIFT);
+static int block_shift = DEF_BLOCK_SHIFT;
+static int wt_flag, rd_only_flag, o_direct_flag, nullio, nv_cache;
+#if defined(DEBUG_TM_IGNORE) || defined(DEBUG_TM_IGNORE_ALL)
+static int debug_tm_ignore;
+#endif
+static int non_blocking, sgv_shared;
+static void *(*alloc_fn)(size_t size) = align_alloc;
 
 static struct option const long_options[] =
 {
@@ -89,6 +110,7 @@ static struct option const long_options[] =
 	{"vdisk_id", required_argument, 0, 'I'},
 	{"flush", required_argument, 0, 'F'},
 	{"unreg_before_close", no_argument, 0, 'u'},
+	{"sgv_shared", no_argument, 0, 's'},
 #if defined(DEBUG) || defined(TRACING)
 	{"debug", required_argument, 0, 'd'},
 #endif
@@ -102,7 +124,7 @@ static struct option const long_options[] =
 
 static void usage(void)
 {
-	printf("Usage: %s [OPTION] name path\n", app_name);
+	printf("Usage: %s [OPTION] name path [name path] ...\n", app_name);
 	printf("\nFILEIO disk target emulator for SCST\n");
 	printf("  -b, --block=size	Block size, must be power of 2 and >=512\n");
 	printf("  -e, --threads=count	Number of threads, %d by default\n", THREADS);
@@ -120,6 +142,7 @@ static void usage(void)
 	printf("  -l, --non_blocking	Use non-blocking operations\n");
 	printf("  -I, --vdisk_id=ID	Vdisk ID (used in multi-targets setups)\n");
 	printf("  -F, --flush=n		Flush SGV cache each n seconds\n");
+	printf("  -s, --sgv_shared	Use shared SGV cache\n");
 	printf("  -u, --unreg_before_close Unregister before close\n");
 #if defined(DEBUG) || defined(TRACING)
 	printf("  -d, --debug=level	Debug tracing level\n");
@@ -162,17 +185,19 @@ static void *align_alloc(size_t size)
 
 void sigalrm_handler(int signo)
 {
-	int res;
+	int res, i;
 
 	TRACE_ENTRY();
 
 	TRACE_DBG("%s", "Flushing cache...");
 
-	res = ioctl(dev.scst_usr_fd, SCST_USER_FLUSH_CACHE, NULL);
-	if (res != 0) {
-		res = errno;
-		PRINT_ERROR("Unable to flush cache: %s", strerror(res));
-		goto out;
+	for (i = 0; i < num_devs; i++) {
+		res = ioctl(devs[i].scst_usr_fd, SCST_USER_FLUSH_CACHE, NULL);
+		if (res != 0) {
+			res = errno;
+			PRINT_ERROR("Unable to flush cache: %s", strerror(res));
+			goto out;
+		}
 	}
 
 	TRACE_DBG("%s", "Flushing cache done.");
@@ -191,17 +216,19 @@ out:
 
 void sigusr1_handler(int signo)
 {
-	int res;
+	int res, i;
 
 	TRACE_ENTRY();
 
 	TRACE_MGMT_DBG("%s", "Capacity data changed...");
 
-	res = ioctl(dev.scst_usr_fd, SCST_USER_DEVICE_CAPACITY_CHANGED, NULL);
-	if (res != 0) {
-		res = errno;
-		PRINT_ERROR("Capacity data changed failed: %s", strerror(res));
-		goto out;
+	for (i = 0; i < num_devs; i++) {
+		res = ioctl(devs[i].scst_usr_fd, SCST_USER_DEVICE_CAPACITY_CHANGED, NULL);
+		if (res != 0) {
+			res = errno;
+			PRINT_ERROR("Capacity data changed failed: %s", strerror(res));
+			goto out;
+		}
 	}
 
 	TRACE_DBG("%s", "Capacity data changed done.");
@@ -211,18 +238,195 @@ out:
 	return;
 }
 
+int start(int argc, char **argv)
+{
+	int res = 0;
+	int fd;
+	int i, rc;
+	void *rc1;
+	static struct scst_user_dev_desc desc;
+	pthread_t thread[MAX_VDEVS][threads];
+
+	memset(thread, 0, sizeof(thread));
+
+	i = 0;
+	optind -= 2;
+	while (1) {
+		int j;
+
+		optind += 2;
+		if (optind > (argc-2))
+			break;
+
+		devs[i].block_size = block_size;
+		devs[i].block_shift = block_shift;
+		devs[i].alloc_fn = alloc_fn;
+
+		devs[i].rd_only_flag = rd_only_flag;
+		devs[i].wt_flag = wt_flag;
+		devs[i].nv_cache = nv_cache;
+		devs[i].o_direct_flag = o_direct_flag;
+		devs[i].nullio = nullio;
+		devs[i].non_blocking = non_blocking;
+#if defined(DEBUG_TM_IGNORE) || defined(DEBUG_TM_IGNORE_ALL)
+		devs[i].debug_tm_ignore = debug_tm_ignore;
+#endif
+		devs[i].type = TYPE_DISK;
+		devs[i].name = argv[optind];
+		devs[i].file_name = argv[optind+1];
+
+		TRACE_DBG("Opening file %s", devs[i].file_name);
+		fd = open(devs[i].file_name, O_RDONLY|O_LARGEFILE);
+		if (fd < 0) {
+			res = -errno;
+			PRINT_ERROR("Unable to open file %s (%s)", devs[i].file_name,
+				strerror(-res));
+			continue;
+		}
+
+		devs[i].file_size = lseek64(fd, 0, SEEK_END);
+		devs[i].nblocks = devs[i].file_size >> devs[i].block_shift;
+
+		close(fd);
+
+		PRINT_INFO("%s", " ");
+		PRINT_INFO("Virtual device \"%s\", path \"%s\", size %"PRId64"Mb, "
+			"block size %d, nblocks %"PRId64", options:", devs[i].name,
+			devs[i].file_name, (uint64_t)devs[i].file_size/1024/1024,
+			devs[i].block_size, (uint64_t)devs[i].nblocks);
+
+		snprintf(devs[i].usn, sizeof(devs[i].usn), "%llx", gen_dev_id_num(&devs[i]));
+		TRACE_DBG("usn %s", devs[i].usn);
+
+		devs[i].scst_usr_fd = open(DEV_USER_PATH DEV_USER_NAME, O_RDWR |
+					(devs[i].non_blocking ? O_NONBLOCK : 0));
+		if (devs[i].scst_usr_fd < 0) {
+			res = -errno;
+			PRINT_ERROR("Unable to open SCST device %s (%s)",
+				DEV_USER_PATH DEV_USER_NAME, strerror(-res));
+			goto out_unreg;
+		}
+
+		memset(&desc, 0, sizeof(desc));
+		desc.version_str = (unsigned long)DEV_USER_VERSION;
+		strncpy(desc.name, devs[i].name, sizeof(desc.name)-1);
+		desc.name[sizeof(desc.name)-1] = '\0';
+		if (sgv_shared) {
+			desc.sgv_shared = 1;
+			strncpy(desc.sgv_name, devs[0].name, sizeof(desc.sgv_name)-1);
+			desc.sgv_name[sizeof(desc.sgv_name)-1] = '\0';
+		}
+		desc.type = devs[i].type;
+		desc.block_size = devs[i].block_size;
+
+		desc.opt.parse_type = parse_type;
+		desc.opt.on_free_cmd_type = on_free_cmd_type;
+		desc.opt.memory_reuse_type = memory_reuse_type;
+
+		desc.opt.tst = SCST_CONTR_MODE_SEP_TASK_SETS;
+		desc.opt.queue_alg = SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER;
+		desc.opt.d_sense = SCST_CONTR_MODE_FIXED_SENSE;
+
+		res = ioctl(devs[i].scst_usr_fd, SCST_USER_REGISTER_DEVICE, &desc);
+		if (res != 0) {
+			res = errno;
+			PRINT_ERROR("Unable to register device: %s", strerror(res));
+			goto out_unreg;
+		}
+
+#if 1
+		{
+			/* Not needed, added here only as a test */
+			struct scst_user_opt opt;
+
+			res = ioctl(devs[i].scst_usr_fd, SCST_USER_GET_OPTIONS, &opt);
+			if (res != 0) {
+				res = errno;
+				PRINT_ERROR("Unable to get options: %s", strerror(res));
+				goto out_unreg;
+			}
+
+			opt.parse_type = parse_type;
+			opt.on_free_cmd_type = on_free_cmd_type;
+			opt.memory_reuse_type = memory_reuse_type;
+
+			res = ioctl(devs[i].scst_usr_fd, SCST_USER_SET_OPTIONS, &opt);
+			if (res != 0) {
+				res = errno;
+				PRINT_ERROR("Unable to set options: %s", strerror(res));
+				goto out_unreg;
+			}
+		}
+#endif
+
+		res = pthread_mutex_init(&devs[i].dev_mutex, NULL);
+		if (res != 0) {
+			res = errno;
+			PRINT_ERROR("pthread_mutex_init() failed: %s", strerror(res));
+			goto out_unreg;
+		}
+
+		for (j = 0; j < threads; j++) {
+			rc = pthread_create(&thread[i][j], NULL, main_loop, &devs[i]);
+			if (rc != 0) {
+				res = errno;
+				PRINT_ERROR("pthread_create() failed: %s",
+					strerror(res));
+				break;
+			}
+		}
+
+		i++;
+		num_devs++;
+		if (num_devs >= MAX_VDEVS) {
+			PRINT_INFO("Max devices limit %d reached", i);
+			break;
+		}
+	}
+
+	for (i = 0; i < num_devs; i++) {
+		int j = 0;
+		while (thread[i][j] != 0) {
+			rc = pthread_join(thread[i][j], &rc1);
+			if (rc != 0) {
+				res = errno;
+				PRINT_ERROR("pthread_join() failed: %s",
+					strerror(res));
+			} else if (rc1 != NULL) {
+				res = (long)rc1;
+				PRINT_INFO("Thread %d exited (dev %s), res %lx", j,
+					devs[i].name, (long)rc1);
+			} else
+				PRINT_INFO("Thread %d exited (dev %s)", j,
+					devs[i].name);
+			j++;
+		}
+		pthread_mutex_destroy(&devs[i].dev_mutex);
+	}
+
+out_unreg:
+	alarm(0);
+	for (i = 0; i < num_devs; i++) {
+		if (unreg_before_close) {
+			res = ioctl(devs[i].scst_usr_fd, SCST_USER_UNREGISTER_DEVICE, NULL);
+			if (res != 0) {
+				res = errno;
+				PRINT_ERROR("Unable to unregister device: %s",
+					strerror(res));
+				/* go through */
+			}
+		}
+		close(devs[i].scst_usr_fd);
+	}
+
+	return res;
+}
+
 int main(int argc, char **argv)
 {
 	int res = 0;
 	int ch, longindex;
-	int fd;
-	int parse_type = SCST_USER_PARSE_STANDARD;
-	int on_free_cmd_type = SCST_USER_ON_FREE_CMD_IGNORE;
-	int on_free_cmd_type_set = 0;
-	int memory_reuse_type = SCST_USER_MEM_REUSE_ALL;
-	int threads = THREADS;
-	struct scst_user_dev_desc desc;
-	int unreg_before_close = 0;
+	struct sigaction act;
 
 	setlinebuf(stdout);
 
@@ -232,20 +436,16 @@ int main(int argc, char **argv)
 
 	app_name = argv[0];
 
-	memset(&dev, 0, sizeof(dev));
-	dev.block_size = (1 << DEF_BLOCK_SHIFT);
-	dev.block_shift = DEF_BLOCK_SHIFT;
-	dev.type = TYPE_DISK;
-	dev.alloc_fn = align_alloc;
+	memset(devs, 0, sizeof(devs));
 
 	while ((ch = getopt_long(argc, argv, "+b:e:trongluF:I:cp:f:m:d:vh", long_options,
 				&longindex)) >= 0) {
 		switch (ch) {
 		case 'b':
-			dev.block_size = atoi(optarg);
-			PRINT_INFO("block_size %x (%s)", dev.block_size, optarg);
-			dev.block_shift = scst_calc_block_shift(dev.block_size);
-			if (dev.block_shift < 9) {
+			block_size = atoi(optarg);
+			PRINT_INFO("block_size %x (%s)", block_size, optarg);
+			block_shift = scst_calc_block_shift(block_size);
+			if (block_shift < 9) {
 				res = -EINVAL;
 				goto out_usage;
 			}
@@ -254,7 +454,7 @@ int main(int argc, char **argv)
 			threads = strtol(optarg, (char **)NULL, 0);
 			break;
 		case 't':
-			dev.wt_flag = 1;
+			wt_flag = 1;
 			break;
 #if defined(DEBUG) || defined(TRACING)
 		case 'd':
@@ -262,17 +462,16 @@ int main(int argc, char **argv)
 			break;
 #endif
 		case 'r':
-			dev.rd_only_flag = 1;
+			rd_only_flag = 1;
 			break;
 		case 'o':
-			dev.o_direct_flag = 1;
-			dev.alloc_fn = align_alloc;
+			o_direct_flag = 1;
 			break;
 		case 'n':
-			dev.nullio = 1;
+			nullio = 1;
 			break;
 		case 'c':
-			dev.nv_cache = 1;
+			nv_cache = 1;
 			break;
 		case 'p':
 			if (strncmp(optarg, "std", 3) == 0)
@@ -293,6 +492,9 @@ int main(int argc, char **argv)
 			else
 				goto out_usage;
 			break;
+		case 's':
+			sgv_shared = 1;
+			break;
 		case 'm':
 			if (strncmp(optarg, "all", 3) == 0)
 				memory_reuse_type = SCST_USER_MEM_REUSE_ALL;
@@ -306,7 +508,7 @@ int main(int argc, char **argv)
 				goto out_usage;
 			break;
 		case 'l':
-			dev.non_blocking = 1;
+			non_blocking = 1;
 			break;
 		case 'I':
 			vdisk_ID = strtol(optarg, (char **)NULL, 0);
@@ -324,7 +526,7 @@ int main(int argc, char **argv)
 			break;
 #if defined(DEBUG_TM_IGNORE) || defined(DEBUG_TM_IGNORE_ALL)
 		case 'g':
-			dev.debug_tm_ignore = 1;
+			debug_tm_ignore = 1;
 			break;
 #endif
 		case 'v':
@@ -335,45 +537,26 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (optind != (argc-2))
+	if (optind > (argc-2))
 		goto out_usage;
 
 	if (!on_free_cmd_type_set &&
 	    (memory_reuse_type != SCST_USER_MEM_REUSE_ALL))
 		on_free_cmd_type = SCST_USER_ON_FREE_CMD_CALL;
 
-	dev.name = argv[optind];
-	dev.file_name = argv[optind+1];
+	PRINT_INFO("%s", "Options:");
 
-	TRACE_DBG("Opening file %s", dev.file_name);
-	fd = open(dev.file_name, O_RDONLY|O_LARGEFILE);
-	if (fd < 0) {
-		res = -errno;
-		PRINT_ERROR("Unable to open file %s (%s)", dev.file_name,
-			strerror(-res));
-		goto out_done;
-	}
-
-	dev.file_size = lseek64(fd, 0, SEEK_END);
-	dev.nblocks = dev.file_size >> dev.block_shift;
-
-	close(fd);
-
-	PRINT_INFO("Virtual device \"%s\", path \"%s\", size %"PRId64"Mb, "
-		"block size %d, nblocks %"PRId64", options:", dev.name,
-		dev.file_name, (uint64_t)dev.file_size/1024/1024,
-		dev.block_size, (uint64_t)dev.nblocks);
-	if (dev.rd_only_flag)
+	if (rd_only_flag)
 		PRINT_INFO("	%s", "READ ONLY");
-	if (dev.wt_flag)
+	if (wt_flag)
 		PRINT_INFO("	%s", "WRITE THROUGH");
-	if (dev.nv_cache)
+	if (nv_cache)
 		PRINT_INFO("	%s", "NV_CACHE");
-	if (dev.o_direct_flag)
+	if (o_direct_flag)
 		PRINT_INFO("	%s", "O_DIRECT");
-	if (dev.nullio)
+	if (nullio)
 		PRINT_INFO("	%s", "NULLIO");
-	if (dev.non_blocking)
+	if (non_blocking)
 		PRINT_INFO("	%s", "NON-BLOCKING");
 
 	switch(parse_type) {
@@ -418,171 +601,55 @@ int main(int argc, char **argv)
 		sBUG();
 	}
 
-	if (!dev.o_direct_flag && (memory_reuse_type == SCST_USER_MEM_NO_REUSE)) {
+	if (!o_direct_flag && (memory_reuse_type == SCST_USER_MEM_NO_REUSE)) {
 		PRINT_INFO("	%s", "Using unaligned buffers");
-		dev.alloc_fn = malloc;
+		alloc_fn = malloc;
 	}
 
 #if defined(DEBUG_TM_IGNORE) || defined(DEBUG_TM_IGNORE_ALL)
-	if (dev.debug_tm_ignore) {
+	if (debug_tm_ignore)
 		PRINT_INFO("	%s", "DEBUG_TM_IGNORE");
-	}
 #endif
 
 #ifdef DEBUG
 	PRINT_INFO("trace_flag %lx", trace_flag);
 #endif
 
-	snprintf(dev.usn, sizeof(dev.usn), "%llx", gen_dev_id_num(&dev));
-	TRACE_DBG("usn %s", dev.usn);
-
-	dev.scst_usr_fd = open(DEV_USER_PATH DEV_USER_NAME, O_RDWR |
-		(dev.non_blocking ? O_NONBLOCK : 0));
-	if (dev.scst_usr_fd < 0) {
-		res = -errno;
-		PRINT_ERROR("Unable to open SCST device %s (%s)",
-			DEV_USER_PATH DEV_USER_NAME, strerror(-res));
-		goto out_done;
-	}
-
-	memset(&desc, 0, sizeof(desc));
-	desc.version_str = (unsigned long)DEV_USER_VERSION;
-	strncpy(desc.name, dev.name, sizeof(desc.name)-1);
-	desc.name[sizeof(desc.name)-1] = '\0';
-	desc.type = dev.type;
-	desc.block_size = dev.block_size;
-
-	desc.opt.parse_type = parse_type;
-	desc.opt.on_free_cmd_type = on_free_cmd_type;
-	desc.opt.memory_reuse_type = memory_reuse_type;
-
-	desc.opt.tst = SCST_CONTR_MODE_SEP_TASK_SETS;
-	desc.opt.queue_alg = SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER;
-	desc.opt.d_sense = SCST_CONTR_MODE_FIXED_SENSE;
-
-	res = ioctl(dev.scst_usr_fd, SCST_USER_REGISTER_DEVICE, &desc);
+	memset(&act, 0, sizeof(act));
+	act.sa_handler = sigusr1_handler;
+	act.sa_flags = SA_RESTART;
+	sigemptyset(&act.sa_mask);
+	res = sigaction(SIGUSR1, &act, NULL);
 	if (res != 0) {
 		res = errno;
-		PRINT_ERROR("Unable to register device: %s", strerror(res));
-		goto out_close;
+		PRINT_ERROR("sigaction() failed: %s",
+			strerror(res));
+		/* don't do anything */
 	}
 
-#if 1
-	{
-		/* Not needed, added here only as a test */
-		struct scst_user_opt opt;
-
-		res = ioctl(dev.scst_usr_fd, SCST_USER_GET_OPTIONS, &opt);
-		if (res != 0) {
-			res = errno;
-			PRINT_ERROR("Unable to get options: %s", strerror(res));
-			goto out_unreg;
-		}
-
-		opt.parse_type = parse_type;
-		opt.on_free_cmd_type = on_free_cmd_type;
-		opt.memory_reuse_type = memory_reuse_type;
-
-		res = ioctl(dev.scst_usr_fd, SCST_USER_SET_OPTIONS, &opt);
-		if (res != 0) {
-			res = errno;
-			PRINT_ERROR("Unable to set options: %s", strerror(res));
-			goto out_unreg;
-		}
-	}
-#endif
-
-	res = pthread_mutex_init(&dev.dev_mutex, NULL);
-	if (res != 0) {
-		res = errno;
-		PRINT_ERROR("pthread_mutex_init() failed: %s", strerror(res));
-		goto out_unreg;
-	}
-
-	{
-		pthread_t thread[threads];
-		int i, j, rc;
-		void *rc1;
-		struct sigaction act;
-
+	if (flush_interval != 0) {
 		memset(&act, 0, sizeof(act));
-		act.sa_handler = sigusr1_handler;
+		act.sa_handler = sigalrm_handler;
 		act.sa_flags = SA_RESTART;
 		sigemptyset(&act.sa_mask);
-		res = sigaction(SIGUSR1, &act, NULL);
+		res = sigaction(SIGALRM, &act, NULL);
 		if (res != 0) {
 			res = errno;
 			PRINT_ERROR("sigaction() failed: %s",
 				strerror(res));
-			/* don't do anything */
+			goto out_done;
 		}       
 
-		for(i = 0; i < threads; i++) {
-			rc = pthread_create(&thread[i], NULL, main_loop, &dev);
-			if (rc != 0) {
-				res = errno;
-				PRINT_ERROR("pthread_create() failed: %s",
-					strerror(res));
-				break;
-			}
-		}
-
-		if (flush_interval != 0) {
-			memset(&act, 0, sizeof(act));
-			act.sa_handler = sigalrm_handler;
-			act.sa_flags = SA_RESTART;
-			sigemptyset(&act.sa_mask);
-			res = sigaction(SIGALRM, &act, NULL);
-			if (res != 0) {
-				res = errno;
-				PRINT_ERROR("sigaction() failed: %s",
-					strerror(res));
-				goto join;
-			}       
-
-			res = alarm(flush_interval);
-			if (res != 0) {
-				res = errno;
-				PRINT_ERROR("alarm() failed: %s",
-					strerror(res));
-				goto join;
-			}
-		}
-
-join:
-		j = i;
-		for(i = 0; i < j; i++) {
-			rc = pthread_join(thread[i], &rc1);
-			if (rc != 0) {
-				res = errno;
-				PRINT_ERROR("pthread_join() failed: %s",
-					strerror(res));
-			} else if (rc1 != NULL) {
-				res = (long)rc1;
-				PRINT_INFO("Thread %d exited, res %lx", i,
-					(long)rc1);
-			} else
-				PRINT_INFO("Thread %d exited", i);
-		}
-	}
-
-	pthread_mutex_destroy(&dev.dev_mutex);
-
-	alarm(0);
-
-out_unreg:
-	if (unreg_before_close) {
-		res = ioctl(dev.scst_usr_fd, SCST_USER_UNREGISTER_DEVICE, NULL);
+		res = alarm(flush_interval);
 		if (res != 0) {
 			res = errno;
-			PRINT_ERROR("Unable to unregister device: %s",
+			PRINT_ERROR("alarm() failed: %s",
 				strerror(res));
-			/* go through */
+			goto out_done;
 		}
 	}
 
-out_close:
-	close(dev.scst_usr_fd);
+	res = start(argc, argv);
 
 out_done:
 	debug_done();
