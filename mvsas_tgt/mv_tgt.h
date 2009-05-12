@@ -1,3 +1,27 @@
+/*
+ * Marvell 88SE64xx/88SE94xx main function
+ *
+ * Copyright 2007 Red Hat, Inc.
+ * Copyright 2008 Marvell. <kewei@marvell.com>
+ *
+ * This file is licensed under GPLv2.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; version 2 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
+ * USA
+*/
+
 #ifdef SUPPORT_TARGET
 #ifndef _MVSAST_H
 #define _MVSAST_H
@@ -5,8 +29,6 @@
 #include "scst_debug.h"
 #include "mv_sas.h"
 
-
-#define SUPPORT_AEN
 struct mvs_info;
 #ifdef MV_DEBUG
 #ifdef CONFIG_SCST_DEBUG
@@ -69,6 +91,10 @@ extern unsigned long mvst_trace_flag;
 #define PROTOCOL_SSP      0x1
 #define PROTOCOL_STP      0x2
 
+/* cmd type for build cmd */
+#define MVST_CMD	0x0
+#define MVST_TMF	0x1
+
 /* defines for address frame types */
 #define ADDRESS_IDENTIFY_FRAME 				0x00
 #define ADDRESS_OPEN_FRAME 					0x01
@@ -90,6 +116,15 @@ extern unsigned long mvst_trace_flag;
 #define MVST_STATE_SEND_DATA     5  /*Target sending DATA out */
 #define MVST_STATE_SEND_STATUS      6  /*Target sending status */
 #define MVST_STATE_SEND_DATA_RETRY  7  /*Command failed,retry sending data */
+
+/* TM failed */
+#define MVST_TM_COMPL		0x00
+#define MVST_TM_INVALID_FR 	0x02
+#define MVST_TM_NOT_SUPPORT 	0x04
+#define MVST_TM_FAILED		0x05
+#define MVST_TM_SUCCEED	0x08
+#define MVST_TM_INCRT_LUN	0x09
+#define MVST_TM_OVLAP_TAG	0x0a
 
 #define MVST_MAX_CDB_LEN             16
 #define MVST_TIMEOUT                 10	/* in seconds */
@@ -441,10 +476,8 @@ struct mvs_tgt_initiator {
 	/* Callbacks */
 	u8 (*tgt_rsp_ssp_cmd)(struct mvs_info *mvi, u32 rx_desc);
 	void (*tgt_cmd_cmpl)(struct mvs_info *mvi, u32 rx_desc);
-	void (*tgt_async_event)(u16 code, struct mvs_info *mvi, u16 *mailbox);
 	void (*tgt_host_action)(struct mvs_info *mvi,
 		enum mvst_tgt_host_action_t action, u8 phyid);
-	int (*tgt_send_cmd)(struct mvs_info *mvi);
 };
 
 /*
@@ -499,12 +532,20 @@ struct mvst_cmd {
 	struct list_head	cmd_entry;
 	struct mvst_sess *sess;
 	struct scst_cmd *scst_cmd;
+	struct scst_mgmt_cmd *scst_mcmd;
 	int cmd_state;
 	struct ssp_frame_header *ssp_hdr;
-	struct ssp_command_iu *command_iu;
+	union {
+		struct ssp_command_iu *command_iu;
+		struct ssp_task_iu *task_iu;
+	};
+
 	struct open_address_frame *open_frame;
 	struct ssp_frame_header save_ssp_hdr;
-	struct ssp_command_iu save_command_iu;
+	union {
+		struct ssp_command_iu save_command_iu;
+		struct ssp_task_iu save_task_iu;
+	};
 	struct open_address_frame save_open_frame;
 	dma_addr_t dma_handle;
 	struct mvst_port	*cmd_tgt_port;
@@ -524,11 +565,6 @@ struct mvst_tgt {
 	/* Count of sessions refering q2t_tgt, protected by hardware_lock */
 	int sess_count;
 	struct list_head sess_list;
-};
-
-struct mvst_mgmt_cmd {
-	struct mvst_sess *sess;
-	struct ssp_task_iu task_iu;
 };
 
 struct mvst_prm {

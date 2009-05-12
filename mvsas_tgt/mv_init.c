@@ -24,15 +24,17 @@
 
 
 #include "mv_sas.h"
+#ifdef SUPPORT_TARGET
 #include "mv_spi.h"
+#endif
 
 static struct scsi_transport_template *mvs_stt;
 static const struct mvs_chip_info mvs_chips[] = {
-	[chip_6320] =	{ 1, 2, 0x400, 17, 16,  9, &mvs_64xx_dispatch, },
-	[chip_6440] =	{ 1, 4, 0x400, 17, 16,  9, &mvs_64xx_dispatch, },
-	[chip_6485] =	{ 1, 8, 0x800, 33, 32, 10, &mvs_64xx_dispatch, },
-	[chip_9180] =	{ 2, 4, 0x800, 17, 64,  9, &mvs_94xx_dispatch, },
-	[chip_9480] =	{ 2, 4, 0x800, 17, 64,  9, &mvs_94xx_dispatch, },
+	[chip_6320] =	{ 1, 2, 0x400, 17, 16,  6, 9, &mvs_64xx_dispatch, },
+	[chip_6440] =	{ 1, 4, 0x400, 17, 16,  6, 9, &mvs_64xx_dispatch, },
+	[chip_6485] =	{ 1, 8, 0x800, 33, 32,  6, 10, &mvs_64xx_dispatch, },
+	[chip_9180] =	{ 2, 4, 0x800, 17, 64,  8, 9, &mvs_94xx_dispatch, },
+	[chip_9480] =	{ 2, 4, 0x800, 17, 64,  8, 9, &mvs_94xx_dispatch, },
 };
 
 #ifdef SUPPORT_TARGET
@@ -246,6 +248,7 @@ static int __devinit mvs_alloc(struct mvs_info *mvi, struct Scsi_Host *shost)
 		mvi->devices[i].taskfileset = MVS_ID_NOT_MAPPED;
 		mvi->devices[i].dev_type = NO_DEVICE;
 		mvi->devices[i].device_id = i;
+		mvi->devices[i].dev_status = MVS_DEV_NORMAL;
 	}
 
 	/*
@@ -505,6 +508,7 @@ static void  __devinit mvs_post_sas_ha_init(struct Scsi_Host *shost,
 		can_queue = MVS_CAN_QUEUE;
 
 	sha->lldd_queue_size = can_queue;
+	shost->sg_tablesize = MVS_MAX_SG;
 	shost->can_queue = can_queue;
 	mvi->shost->cmd_per_lun = MVS_SLOTS/sha->num_phys;
 	sha->core.shost = mvi->shost;

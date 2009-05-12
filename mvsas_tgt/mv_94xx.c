@@ -233,9 +233,12 @@ static int __devinit mvs_94xx_init(struct mvs_info *mvi)
 	 * it will make count 0.
 	 */
 	tmp = 0;
-	mw32(MVS_INT_COAL, tmp);
+	if (MVS_SLOTS > 0x1ff)
+		mw32(MVS_INT_COAL, 0x1ff|COAL_EN);
+	else
+		mw32(MVS_INT_COAL, MVS_SLOTS|COAL_EN);
 
-	tmp = 0x100;
+	tmp = 0x10400;
 	mw32(MVS_INT_COAL_TMOUT, tmp);
 
 	/* ladies and gentlemen, start your engines */
@@ -247,8 +250,8 @@ static int __devinit mvs_94xx_init(struct mvs_info *mvi)
 		PCS_CMD_EN | PCS_CMD_STOP_ERR);
 
 	/* enable completion queue interrupt */
-	tmp = (CINT_PORT_MASK | CINT_DONE | CINT_MEM | CINT_SRS | CINT_CI_STOP |
-		CINT_DMA_PCIE);
+	tmp = (CINT_PORT_MASK | CINT_DONE | CINT_MEM |
+		CINT_SRS | CINT_CI_STOP | CINT_DMA_PCIE);
 	tmp |= CINT_PHY_MASK;
 	mw32(MVS_INT_MASK, tmp);
 

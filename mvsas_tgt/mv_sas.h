@@ -47,11 +47,10 @@
 #endif
 
 #define DRV_NAME		"mvsas"
-#define DRV_VERSION		"0.8.2"
+#define DRV_VERSION		"0.8.3"
 #define _MV_DUMP		0
 #define MVS_ID_NOT_MAPPED	0x7f
 /* #define DISABLE_HOTPLUG_DMA_FIX */
-
 #define WIDE_PORT_MAX_PHY		4
 #define	MV_DISABLE_NCQ	0
 #define mv_printk(fmt, arg ...)	\
@@ -68,6 +67,8 @@ extern struct mvs_tgt_initiator mvs_tgt;
 extern struct mvs_info *tgt_mvi;
 extern const struct mvs_dispatch mvs_64xx_dispatch;
 extern const struct mvs_dispatch mvs_94xx_dispatch;
+#define DEV_IS_EXPANDER(type)	\
+	((type == EDGE_DEV) || (type == FANOUT_DEV))
 
 #define bit(n) ((u32)1 << n)
 
@@ -103,6 +104,12 @@ extern const struct mvs_dispatch mvs_94xx_dispatch;
 	(SATA_RECEIVED_FIS_LIST(reg_set) + 0x20)
 #define SATA_RECEIVED_DMA_FIS(reg_set)	\
 	(SATA_RECEIVED_FIS_LIST(reg_set) + 0x00)
+
+enum dev_status {
+	MVS_DEV_NORMAL = 0x0,
+	MVS_DEV_EH	= 0x1,
+};
+
 
 struct mvs_info;
 
@@ -186,9 +193,12 @@ struct mvs_chip_info {
 	u32 		fis_offs;
 	u32 		fis_count;
 	u32 		srs_sz;
+	u32 		sg_width;
 	u32 		slot_width;
 	const struct mvs_dispatch *dispatch;
 };
+
+#define MVS_MAX_SG		(1U << mvi->chip->sg_width)
 #define MVS_CHIP_SLOT_SZ	(1U << mvi->chip->slot_width)
 #define MVS_RX_FISL_SZ		\
 	(mvi->chip->fis_offs + (mvi->chip->fis_count * 0x100))
@@ -243,13 +253,16 @@ struct mvs_phy {
 };
 
 struct mvs_device {
+	struct list_head	dev_entry;
 	enum sas_dev_type dev_type;
+	struct mvs_info *mvi_info;
 	struct domain_device *sas_device;
 	u32 attached_phy;
 	u32 device_id;
 	u32 runing_req;
 	u8 taskfileset;
-	struct list_head		dev_entry;
+	u8 dev_status;
+	u16 reserved;
 };
 
 struct mvs_slot_info {
@@ -274,6 +287,7 @@ struct mvs_slot_info {
 	u32 target_cmd_tag;
 	/* interrnal command if NULL */
 	void *slot_scst_cmd;
+	void *slot_scst_mgmt_cmd;
 	struct mvst_port *slot_tgt_port;
 #endif
 	void *response;
@@ -329,8 +343,7 @@ struct mvs_info {
 	const struct mvs_chip_info *chip;
 
 	int tags_num;
-	u32 tags[MVS_SLOTS >> 5];
-
+	DECLARE_BITMAP(tags, MVS_SLOTS);
 	/* further per-slot information */
 	struct mvs_phy phy[MVS_MAX_PHYS];
 	struct mvs_port port[MVS_MAX_PHYS];
@@ -417,7 +430,9 @@ int mvs_lu_reset(struct domain_device *dev, u8 *lun);
 int mvs_slot_complete(struct mvs_info *mvi, u32 rx_desc, u32 flags);
 int mvs_I_T_nexus_reset(struct domain_device *dev);
 int mvs_query_task(struct sas_task *task);
-void mvs_release_task(struct mvs_info *mvi, int phy_no,
+void mvs_do_release_task(struct mvs_info *mvi,
+		int phy_no, struct domain_device *dev);
+void mvs_release_task(struct mvs_info *mvi,
 			struct domain_device *dev);
 void mvs_int_port(struct mvs_info *mvi, int phy_no, u32 events);
 void mvs_update_phyinfo(struct mvs_info *mvi, int i, int get_st);

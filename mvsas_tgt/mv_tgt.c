@@ -1,3 +1,27 @@
+/*
+ * Marvell 88SE64xx/88SE94xx main function
+ *
+ * Copyright 2007 Red Hat, Inc.
+ * Copyright 2008 Marvell. <kewei@marvell.com>
+ *
+ * This file is licensed under GPLv2.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; version 2 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
+ * USA
+*/
+
 #ifdef SUPPORT_TARGET
 #include <linux/module.h>
 #include <linux/init.h>
@@ -24,7 +48,6 @@
 unsigned long mvst_trace_flag = MVST_DEFAULT_LOG_FLAGS;
 #endif
 
-
 #ifndef SUPPORT_TARGET
 #error "SUPPORT_TARGET is NOT DEFINED"
 #endif
@@ -38,12 +61,9 @@ static void mvst_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd);
 static int mvst_report_event(struct scst_aen *aen);
 /* Predefs for callbacks handed to mvst(target) */
 static u8 mvst_response_ssp_command(struct mvs_info *mvi, u32 rx_desc);
-static void mvst_async_event(uint16_t code, struct mvs_info *mvi,
-	uint16_t *mailbox);
 static void mvst_cmd_completion(struct mvs_info *mvi, u32 rx_desc);
 static void mvst_host_action(struct mvs_info *mvi,
 	enum mvst_tgt_host_action_t action, u8 phyid);
-static int mvst_send_cmd(struct mvs_info *mvi);
 static int mvst_start_sas_target(struct mvs_info *mvi, u8 id);
 static int mvst_restart_free_list(struct mvs_info *mvi, u8 slot_id);
 
@@ -158,13 +178,6 @@ static inline void mvst_exec_queue(struct mvs_info *mvi)
 	mw32(MVS_TX_PROD_IDX, (mvi->tx_prod - 1) & (MVS_CHIP_SLOT_SZ - 1));
 }
 
-/* mvi->lock supposed to be held on entry */
-static inline void mvst_send_notify_ack(struct mvs_info *mvi,
-	struct mvst_mgmt_cmd *mcmd, int status)
-{
-
-}
-
 /*
  * register with initiator driver (but target mode isn't enabled till
  * it's turned on via sysfs)
@@ -176,9 +189,7 @@ static int mvst_target_detect(struct scst_tgt_template *templ)
 		.magic = MVST_TARGET_MAGIC,
 		.tgt_rsp_ssp_cmd = mvst_response_ssp_command,
 		.tgt_cmd_cmpl = mvst_cmd_completion,
-		.tgt_async_event = mvst_async_event,
 		.tgt_host_action = mvst_host_action,
-		.tgt_send_cmd = mvst_send_cmd
 	};
 
 	TRACE_ENTRY();
@@ -208,9 +219,7 @@ static void mvst_free_session_done(struct scst_session *scst_sess)
 	sess = (struct mvst_sess *)scst_sess_get_tgt_priv(scst_sess);
 	sBUG_ON(sess == NULL);
 	tgt = sess->tgt;
-
 	kfree(sess);
-
 	if (tgt == NULL)
 		goto out;
 
@@ -316,7 +325,6 @@ static int mvst_target_release(struct scst_tgt *scst_tgt)
 	scst_tgt_set_tgt_priv(scst_tgt, NULL);
 	mvi->tgt = NULL;
 	spin_unlock_irqrestore(&mvi->lock, flags);
-
 	kfree(tgt);
 
 	TRACE_EXIT_RES(res);
@@ -337,6 +345,7 @@ mvst_put_slot(struct mvs_info *mvi, struct mvs_slot_info *slot)
 	slot->target_cmd_tag = 0xdeadbeef;
 	slot->tx = 0xdeadbeef;
 	slot->slot_scst_cmd = NULL;
+	slot->slot_scst_mgmt_cmd = NULL;
 	slot->response = NULL;
 	slot->open_frame = NULL;
 	slot->slot_tgt_port = NULL;
@@ -365,6 +374,7 @@ mvst_get_slot(struct mvs_info *mvi, struct mvst_port *tgt_port)
 	slot->target_cmd_tag = tag;
 	slot->slot_tgt_port = tgt_port;
 	slot->slot_scst_cmd = NULL;
+	slot->slot_scst_mgmt_cmd = NULL;
 	slot->open_frame = NULL;
 	slot->tx = mvi->tx_prod;
 	list_add_tail(&slot->entry, &slot->slot_tgt_port->slot_list);
@@ -373,11 +383,10 @@ mvst_get_slot(struct mvs_info *mvi, struct mvst_port *tgt_port)
 }
 
 static int mvst_prep_resp_frame(struct mvst_prm *prm,
-			struct mvs_slot_info *slot, u8 sense_data)
+			struct mvs_slot_info *slot, u8 datapres)
 {
-	u8 has_data = 0;
 	u16 tag;
-	void *buf_tmp, *buf_cmd;
+	void *buf_tmp;
 	dma_addr_t buf_tmp_dma;
 	u32 resp_len = 0, req_len = 0, prd_len = 0;
 	const u32 max_resp_len = SB_RFB_MAX;
@@ -388,6 +397,7 @@ static int mvst_prep_resp_frame(struct mvst_prm *prm,
 	struct mvs_prd *buf_prd;
 	struct open_address_frame *open_frame;
 	struct mv_ssp_response_iu *response_iu;
+
 	TRACE_ENTRY();
 	tag = slot->target_cmd_tag;
 	cmd_hdr = (struct mvs_cmd_header *)&mvi->slot[tag];
@@ -401,25 +411,6 @@ static int mvst_prep_resp_frame(struct mvst_prm *prm,
 	delivery_q->sata_reg_set = 0;
 	delivery_q->phy = cmd->cmd_tgt_port->wide_port_phymap;
 	delivery_q->slot_nm = tag;
-
-	if (sense_data) {
-		if ((prm->rq_result) && (SCST_SENSE_VALID(prm->sense_buffer))) {
-			req_len = 24 + prm->sense_buffer_len;
-			has_data = 1;
-		} else {
-			req_len = 24;
-			has_data = 0;
-		}
-	} else {
-		if (prm->rq_result) {
-			req_len = 24 + 4;
-			has_data = 1;
-		} else {
-			req_len = 24;
-			has_data = 0;
-		}
-	}
-	req_len += sizeof(struct ssp_frame_header);
 
 	cmd_hdr->ssp_frame_type = MCH_SSP_FR_RESP;
 	cmd_hdr->ssp_passthru = MCH_SSP_MODE_NORMAL;
@@ -436,10 +427,34 @@ static int mvst_prep_resp_frame(struct mvst_prm *prm,
 	 * arrange MVS_SLOT_BUF_SZ-sized DMA buffer according to our needs
 	 */
 	/* command header dword 4 -5 */
-	/* region 1: command table area (MVS_SSP_CMD_SZ bytes) ************** */
-	buf_tmp = buf_cmd = slot->buf;
+	/* region 1: command table area (MVS_SSP_CMD_SZ bytes) ******* */
+	buf_tmp = slot->buf;
 	buf_tmp_dma = slot->buf_dma;
 	cmd_hdr->cmd_tbl = cpu_to_le64(buf_tmp_dma);
+
+	req_len += sizeof(struct ssp_frame_header);
+	req_len += 24;
+	if (datapres == SENSE_DATA) {
+		if (SCST_SENSE_VALID(prm->sense_buffer))
+			req_len += prm->sense_buffer_len;
+		else
+			datapres = 0;
+	} else if (datapres == RESPONSE_DATA)
+		req_len += 4;
+	/* fill in response frame IU */
+	response_iu = (struct mv_ssp_response_iu *)(buf_tmp
+		+ sizeof(struct ssp_frame_header));
+	response_iu->status = prm->rq_result;
+	response_iu->datapres = datapres;
+	if (datapres == RESPONSE_DATA) {
+		response_iu->response_data_len =
+			cpu_to_be32(prm->sense_buffer_len);
+	} else if (datapres == SENSE_DATA) {
+		response_iu->response_data_len =
+			cpu_to_be32(prm->sense_buffer_len);
+	}
+	memcpy(response_iu->data,
+		prm->sense_buffer, prm->sense_buffer_len);
 
 	/* command header dword 6 -7 */
 	buf_tmp += req_len;
@@ -479,7 +494,6 @@ static int mvst_prep_resp_frame(struct mvst_prm *prm,
 		be16_to_cpu(prm->cmd->open_frame->received_tag);
 	open_frame->dest_sas_addr =
 		mvst_get_be_sas_addr((u8 *)&prm->cmd->open_frame->src_sas_addr);
-
 	/*  for passthru mode */
 	/* fill in SSP frame header (Command Table.SSP frame header) */
 	if (cmd_hdr->ssp_passthru == MCH_SSP_MODE_PASSTHRU) {
@@ -497,33 +511,12 @@ static int mvst_prep_resp_frame(struct mvst_prm *prm,
 		ssp_hdr->tag = be16_to_cpu(prm->cmd->ssp_hdr->tag);
 	}
 
-	/* fill in xfer ready frame IU */
-	buf_cmd += sizeof(struct ssp_frame_header);
-	response_iu = (struct mv_ssp_response_iu *)buf_cmd;
-
-	if (has_data == 0) {
-		response_iu->datapres = NO_DATA;
-	} else if (sense_data) {
-		response_iu->status = prm->rq_result;
-		response_iu->datapres = SENSE_DATA;
-		response_iu->sense_data_len =
-			cpu_to_be32(prm->sense_buffer_len);
-		memcpy(response_iu->data,
-			prm->sense_buffer, prm->sense_buffer_len);
-	} else {
-	/* response data */
-		response_iu->datapres = RESPONSE_DATA;
-		response_iu->response_data_len = cpu_to_be32((int)4);
-		response_iu->data[3] = INVALID_FRAME;
-	}
-
 	TRACE_EXIT();
 	return 0;
 }
 
 static int
-mvst_send_resp_deferred(struct mvs_info	*mvi,
-				struct mvst_cmd *cmd)
+mvst_send_resp(struct mvs_info *mvi, struct mvst_cmd *cmd)
 {
 	struct mvst_prm prm = { 0 };
 	struct scst_cmd *scst_cmd = cmd->scst_cmd;
@@ -532,6 +525,7 @@ mvst_send_resp_deferred(struct mvs_info	*mvi,
 	u32 res = SCST_TGT_RES_SUCCESS;
 
 	TRACE_ENTRY();
+
 	prm.cmd = (struct mvst_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
 	prm.sg = scst_cmd_get_sg(scst_cmd);
 	prm.bufflen = scst_cmd_get_resp_data_len(scst_cmd);
@@ -553,7 +547,7 @@ mvst_send_resp_deferred(struct mvs_info	*mvi,
 		}
 		/* save scst cmd */
 		slot->slot_scst_cmd = scst_cmd;
-		mvst_prep_resp_frame(&prm, slot, 1);
+		mvst_prep_resp_frame(&prm, slot, SENSE_DATA);
 
 		pass++;
 		mvi->tx_prod = (mvi->tx_prod + 1) & (MVS_CHIP_SLOT_SZ - 1);
@@ -574,11 +568,11 @@ out_done:
 }
 
 
-static int  mvst_prep_data_frame_sg(struct mvst_prm *prm,
-			struct mvs_slot_info *slot, u8 no_response)
+static int  mvst_prep_data_frame(struct mvst_prm *prm,
+			struct mvs_slot_info *slot, u8 datapres)
 {
 	u16 tag;
-	u8 *buf_tmp, sense_data;
+	u8 *buf_tmp;
 	dma_addr_t buf_tmp_dma;
 	u32 resp_len, prd_len = 0;
 	const u32 max_resp_len = SB_RFB_MAX;
@@ -591,6 +585,7 @@ static int  mvst_prep_data_frame_sg(struct mvst_prm *prm,
 	struct mv_ssp_response_iu *response_iu;
 
 	TRACE_ENTRY();
+
 	tag = slot->target_cmd_tag;
 	cmd_hdr = (struct mvs_cmd_header *)&mvi->slot[tag];
 	/* get free delivery queue */
@@ -604,16 +599,16 @@ static int  mvst_prep_data_frame_sg(struct mvst_prm *prm,
 	delivery_q->phy = prm->cmd->cmd_tgt_port->wide_port_phymap;
 	delivery_q->slot_nm = tag;
 
-	if ((prm->rq_result) && (SCST_SENSE_VALID(prm->sense_buffer)))
-		sense_data = 1;
-	else
-		sense_data = 0;
+	if (datapres == SENSE_DATA) {
+		if (SCST_SENSE_VALID(prm->sense_buffer))
+			datapres = SENSE_DATA;
+		else
+			datapres = 0;
+	}
 
 	/* command header dword 0 */
 	cmd_hdr->prd_entry_count = prm->sg_cnt;
-
 	cmd_hdr->ssp_frame_type = MCH_SSP_FR_READ_RESP;
-
 	cmd_hdr->ssp_passthru = MCH_SSP_MODE_NORMAL;
 
 	/* command header dword 1 */
@@ -641,11 +636,9 @@ static int  mvst_prep_data_frame_sg(struct mvst_prm *prm,
 	/* prepare response frame following data */
 	buf_tmp += sizeof(struct ssp_frame_header);
 	response_iu = (struct mv_ssp_response_iu *)buf_tmp;
-	if (sense_data == 0) {
-		response_iu->datapres = NO_DATA;
-	} else if (!no_response) {
-		response_iu->status = prm->rq_result;
-		response_iu->datapres = SENSE_DATA;
+	response_iu->datapres = datapres;
+	response_iu->status = prm->rq_result;
+	if (datapres) {
 		response_iu->sense_data_len =
 			cpu_to_le32(prm->sense_buffer_len);
 		memcpy(response_iu->data,
@@ -723,7 +716,7 @@ static int  mvst_prep_data_frame_sg(struct mvst_prm *prm,
 }
 
 static int
-mvst_send_data_frame_sg(struct mvs_info	*mvi,
+mvst_send_data_resp(struct mvs_info *mvi,
 				struct mvst_prm *prm)
 {
 	u16 pass = 0;
@@ -739,7 +732,7 @@ mvst_send_data_frame_sg(struct mvs_info	*mvi,
 	}
 	/* save scst cmd */
 	slot->slot_scst_cmd = cmd->scst_cmd;
-	mvst_prep_data_frame_sg(prm, slot, prm->rq_result);
+	mvst_prep_data_frame(prm, slot, SENSE_DATA);
 	pass++;
 	mvi->tx_prod = (mvi->tx_prod + 1) & (MVS_CHIP_SLOT_SZ - 1);
 	/* Mid-level is done processing */
@@ -756,31 +749,6 @@ out_done:
 	return res;
 }
 
-
-/* Be called from irq contex */
-static int
-mvst_send_cmd(struct mvs_info *mvi)
-{
-	u32 res = SCST_TGT_RES_SUCCESS;
-	u8 pass = 0;
-	struct list_head *pos, *n;
-	struct mvst_cmd *cmd;
-
-	BUG_ON(!in_irq());
-	list_for_each_safe(pos, n, &mvi->data_cmd_list) {
-		cmd = container_of(pos, struct mvst_cmd, cmd_entry);
-		if (cmd->cmd_state == MVST_STATE_PROCESSED)
-			continue;	/* has sent command */
-		res = mvst_send_resp_deferred(mvi, cmd);
-		if (res == SCST_TGT_RES_QUEUE_FULL) {
-			/* no resource */
-			goto out_cmd;
-		}
-		pass++;
-	}
-out_cmd:
-	return res;
-}
 static int mvst_xmit_response(struct scst_cmd *scst_cmd)
 {
 	int res = SCST_TGT_RES_SUCCESS;
@@ -791,6 +759,7 @@ static int mvst_xmit_response(struct scst_cmd *scst_cmd)
 	struct mvs_info	*mvi;
 
 	TRACE_ENTRY();
+
 	TRACE(TRACE_SCSI, "xmit_respons scmd[0x%p] tag=%ld, sg_cnt=%d",
 		scst_cmd, scst_cmd_get_tag(scst_cmd), scst_cmd->sg_cnt);
 
@@ -856,18 +825,18 @@ static int mvst_xmit_response(struct scst_cmd *scst_cmd)
 	list_add_tail(&prm.cmd->cmd_entry, &mvi->data_cmd_list);
 	if (mvst_has_data(scst_cmd)) {
 		/* prepare send data frame */
-		res = mvst_send_data_frame_sg(mvi, &prm);
+		res = mvst_send_data_resp(mvi, &prm);
 		if (res)
 			TRACE_DBG("xmit_response"
-			"mvst_send_data_frame failed[%d]!\n",
+			"mvst_send_data failed[%d]!\n",
 			res);
 		goto out_done;
 	} else {
 		/* prepare response frame */
-		res = mvst_send_resp_deferred(mvi, prm.cmd);
+		res = mvst_send_resp(mvi, prm.cmd);
 		if (res)
 			TRACE_DBG("xmit_response"
-			"mvst_send_resp_deferred failed[%d]!\n",
+			"mvst_send_resp failed[%d]!\n",
 			res);
 	}
 
@@ -880,12 +849,8 @@ out:
 	return res;
 
 out_tgt_free:
-	/*ToDo: check and set scst_set_delivery_status(), if necessary */
-	if (!in_interrupt()) {
-		msleep(250);
-		scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_DIRECT);
-	} else
-		scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_TASKLET);
+
+	scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_TASKLET);
 	/* !! At this point cmd could be already freed !! */
 	goto out;
 }
@@ -908,8 +873,8 @@ static int mvst_prep_xfer_frame(struct mvst_prm *prm,
 	struct ssp_xfrd_iu *xfrd_iu;
 
 	TRACE_ENTRY();
-	tag = slot->target_cmd_tag;
 
+	tag = slot->target_cmd_tag;
 	cmd_hdr = (struct mvs_cmd_header *)&mvi->slot[tag];
 	/* get free delivery queue */
 	delivery_q = (struct mvs_delivery_queue *)&mvi->tx[mvi->tx_prod];
@@ -937,7 +902,6 @@ static int mvst_prep_xfer_frame(struct mvst_prm *prm,
 	cmd_hdr->target_tag = cpu_to_le16(tag);
 	cmd_hdr->tag = be16_to_cpu(prm->cmd->ssp_hdr->tag);
 
-
 	/* command header dword 3 */
 	cmd_hdr->data_len = cpu_to_le32(prm->bufflen);
 
@@ -949,7 +913,6 @@ static int mvst_prep_xfer_frame(struct mvst_prm *prm,
 	buf_tmp = buf_cmd = slot->buf;
 	buf_tmp_dma = slot->buf_dma;
 	cmd_hdr->cmd_tbl = cpu_to_le64(buf_tmp_dma);
-
 
 	/* command header dword 6 -7 */
 	buf_tmp += req_len;
@@ -1038,6 +1001,7 @@ static int mvst_prep_xfer_frame(struct mvst_prm *prm,
 
 static int mvst_pci_map_calc_cnt(struct mvst_prm *prm)
 {
+	struct mvs_info *mvi = prm->tgt->mvi;
 	int res = 0;
 
 	sBUG_ON(prm->sg_cnt == 0);
@@ -1052,8 +1016,7 @@ static int mvst_pci_map_calc_cnt(struct mvst_prm *prm)
 	 * the continuation entries, but bug on now
 	 */
 
-	sBUG_ON(prm->seg_cnt > SG_ALL);
-
+	sBUG_ON(prm->seg_cnt > MVS_MAX_SG);
 out:
 	TRACE_DBG("seg_cnt=%d, req_cnt=%d, res=%d", prm->seg_cnt,
 		prm->req_cnt, res);
@@ -1139,8 +1102,6 @@ out_done:
 	return res;
 }
 
-
-
 static inline void mvst_free_cmd(struct mvst_cmd *cmd)
 {
 	kmem_cache_free(mvst_cmd_cachep, cmd);
@@ -1184,7 +1145,6 @@ static int mvst_slot_tgt_err(struct mvs_info *mvi,	 u32 slot_idx)
 	TRACE_EXIT_HRES(stat);
 	return stat;
 }
-
 
 /* mvi->lock supposed to be held on entry */
 static void mvst_do_cmd_completion(struct mvs_info *mvi,
@@ -1250,6 +1210,13 @@ static void mvst_do_cmd_completion(struct mvs_info *mvi,
 
 		if (cmd->cmd_state == MVST_STATE_PROCESSED) {
 			TRACE_DBG("Command %p finished", cmd);
+			if (mvst_has_data(scst_cmd)) {
+				pci_unmap_sg(mvi->pdev,
+					scst_cmd_get_sg(scst_cmd),
+					scst_cmd_get_sg_cnt(scst_cmd),
+					scst_to_tgt_dma_dir(
+					scst_cmd_get_data_direction(scst_cmd)));
+			}
 			if (err)
 				goto out;
 			list_del(&cmd->cmd_entry);
@@ -1292,6 +1259,12 @@ static void mvst_do_cmd_completion(struct mvs_info *mvi,
 				mvi->instance, cmd->cmd_state);
 			goto out_free;
 		}
+	} else if (slot->slot_scst_mgmt_cmd) {
+		TRACE_DBG("Found tmf frame[0x%x] complete",
+			cmd_hdr->ssp_frame_type);
+		cmd = scst_mgmt_cmd_get_tgt_priv(slot->slot_scst_mgmt_cmd);
+		kfree(cmd);
+		goto out;
 	} else {
 		TRACE_DBG("Found internal target frame[0x%x] complete",
 			cmd_hdr->ssp_frame_type);
@@ -1307,11 +1280,8 @@ out_free:
 		TRACE_MGMT_DBG("%s", "Finishing failed CTIO");
 		scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_FAILED);
 	}
-	if (!in_interrupt()) {
-		msleep(250);
-		scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_DIRECT);
-	} else
-		scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_TASKLET);
+
+	scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_TASKLET);
 	goto out;
 }
 
@@ -1323,6 +1293,7 @@ static void mvst_cmd_completion(struct mvs_info *mvi, uint32_t rx_desc)
 	struct mvs_cmd_header  *cmd_hdr = NULL;
 
 	TRACE_ENTRY();
+
 	sBUG_ON(mvi == NULL);
 
 	if ((mvi->tgt != NULL) && MVST_IN_TARGET_MODE(mvi))
@@ -1401,7 +1372,6 @@ static int mvst_do_send_cmd_to_scst(struct mvs_info *mvi, struct mvst_cmd *cmd)
 #else
 	context = SCST_CONTEXT_TASKLET;
 #endif
-
 	TRACE_DBG("Context %x", context);
 	TRACE(TRACE_SCSI, "START Command (tag %ld)",
 		scst_cmd_get_tag(cmd->scst_cmd));
@@ -1496,72 +1466,14 @@ struct mvst_port *mvst_get_port_by_sasaddr(struct mvs_info *mvi,
 	return &mvi->tgt_port[n];
 }
 
-int mvst_alloc_session(struct mvst_sess *sess, struct mvst_tgt *tgt, u64 sas_addr)
+int mvst_build_cmd(struct mvs_info *mvi,
+				struct mvs_slot_info *slot,
+				struct mvst_cmd **pcmd,
+				int cmd_type)
 {
 	int res = 0;
-	struct mvs_info *mvi = tgt->mvi;
-
-	TRACE_ENTRY();
-	sess = mvst_find_sess_by_lid(tgt, sas_addr);
-	if (unlikely(sess == NULL)) {
-		sess = kzalloc(sizeof(*sess), GFP_ATOMIC);
-		if (sess == NULL) {
-			TRACE(TRACE_OUT_OF_MEM, "%s",
-			      "Allocation of sess failed");
-			res = -ENOMEM;
-			goto out;
-		}
-
-		sess->tgt = tgt;
-		sess->initiator_sas_addr = sas_addr;
-		INIT_LIST_HEAD(&sess->sess_entry);
-
-		/* register session (remote initiator) */
-		{
-			char *name;
-			name = mvst_make_name(mvi);
-			if (name == NULL) {
-				PRINT_ERROR("can not make name"
-					"for session %p", sess);
-				res = -ESRCH;
-				goto out;
-			}
-
-			sess->scst_sess = scst_register_session(
-				tgt->scst_tgt, SCST_ATOMIC, name, sess,
-				mvst_alloc_session_done);
-			kfree(name);
-		}
-
-		if (sess->scst_sess == NULL) {
-			PRINT_ERROR("mvst tgt(%ld): scst_register_session()"
-				"failed for host %ld(%p)",
-				mvi->instance,
-				mvi->host_no, mvi);
-			res = -EFAULT;
-			goto out;
-		}
-		scst_sess_set_tgt_priv(sess->scst_sess, sess);
-
-		/* add session data to host data structure */
-		list_add(&sess->sess_entry, &tgt->sess_list);
-		tgt->sess_count++;
-	}
-out:
-	TRACE_EXIT();
-	return res;
-}
-
-/* mvi->lock supposed to be held on entry */
-
-static int mvst_send_cmd_to_scst(struct mvs_info *mvi,
-				struct mvs_slot_info *slot)
-{
-	int res = 0;
-	u64 initiator_sas_addr, src_sas_addr, dst_sas_addr;
-	struct mvst_tgt *tgt;
-	struct mvst_sess *sess = NULL;
-	struct mvst_cmd *cmd;
+	u64 src_sas_addr, dst_sas_addr;
+	struct mvst_cmd *cmd = NULL;
 	struct open_address_frame *open_frame =
 		(struct open_address_frame *)slot->open_frame;
 	struct ssp_frame_header *ssp_hdr =
@@ -1569,14 +1481,16 @@ static int mvst_send_cmd_to_scst(struct mvs_info *mvi,
 	struct ssp_command_iu *ssp_cmd_iu =
 		(struct ssp_command_iu *)((u8 *)ssp_hdr +
 		sizeof(struct ssp_frame_header));
+	struct ssp_task_iu *ssp_task_iu =
+		(struct ssp_task_iu *)((u8 *)ssp_hdr +
+		sizeof(struct ssp_frame_header));
 	struct mvst_port	*tgt_port;
+
 	TRACE_ENTRY();
 
-	initiator_sas_addr = be64_to_cpu(open_frame->src_sas_addr);
 	dst_sas_addr = mvst_get_le_sas_addr((u8 *)&open_frame->dest_sas_addr);
 	src_sas_addr = mvst_get_le_sas_addr((u8 *)&open_frame->src_sas_addr);
 
-	tgt = mvi->tgt;
 	tgt_port = mvst_get_port_by_sasaddr(mvi, dst_sas_addr, src_sas_addr);
 	if (tgt_port == NULL) {
 		res = -EFAULT;
@@ -1586,11 +1500,7 @@ static int mvst_send_cmd_to_scst(struct mvs_info *mvi,
 		goto out;
 	}
 
-	TRACE_DBG("To SCST instance=%ld  tag=0x%x src_sas_addr=0x%0llx",
-		  mvi->instance,  be16_to_cpu(ssp_hdr->tag),
-		  mvst_get_le_sas_addr((u8 *)&initiator_sas_addr));
-
-	if (tgt->tgt_shutdown) {
+	if (mvi->tgt->tgt_shutdown) {
 		TRACE_DBG("New command while device %p is shutting "
 			"down", tgt);
 		res = -EFAULT;
@@ -1611,27 +1521,53 @@ static int mvst_send_cmd_to_scst(struct mvs_info *mvi,
 	memset(cmd, 0, sizeof(*cmd));
 #endif
 	/* set cmd private data for later use */
-	memcpy(&cmd->save_command_iu, ssp_cmd_iu, sizeof(*ssp_cmd_iu));
+	if (!cmd_type)
+		memcpy(&cmd->save_command_iu,
+			ssp_cmd_iu, sizeof(*ssp_cmd_iu));
+	else
+		memcpy(&cmd->save_task_iu,
+			ssp_task_iu, sizeof(*ssp_task_iu));
 	memcpy(&cmd->save_open_frame, open_frame, sizeof(*open_frame));
 	memcpy(&cmd->save_ssp_hdr, ssp_hdr, sizeof(*ssp_hdr));
-	memset(slot->buf, 0, MVS_SLOT_BUF_SZ);
-	cmd->command_iu = &cmd->save_command_iu;
+	if (!cmd_type)
+		cmd->command_iu = &cmd->save_command_iu;
+	else
+		cmd->task_iu = &cmd->save_task_iu;
 	cmd->open_frame = &cmd->save_open_frame;
 	cmd->ssp_hdr = &cmd->save_ssp_hdr;
-	cmd->cmd_tgt_port =  tgt_port;	/* save  SSP Target port */
+	cmd->cmd_tgt_port = tgt_port;	/* save  SSP Target port */
 	cmd->cmd_state = MVST_STATE_NEW;
 	cmd->transfer_len = 0;
 	cmd->finished_len = 0;
 	cmd->transfer_buf = NULL;
-#if 0
-	res = mvst_alloc_session(sess, tgt, initiator_sas_addr);
-	if (res) {
-		if (-ENOMEM == res)
-			goto out_free_cmd;
-		if (-ESRCH == res || -EFAULT == res)
-			goto out_free_sess;
-	}
-#else
+out:
+	*pcmd = cmd;
+	TRACE_EXIT();
+	return res;
+}
+
+
+/* mvi->lock supposed to be held on entry */
+int mvst_send_cmd_to_scst(struct mvs_info *mvi,
+				struct mvs_slot_info *slot)
+{
+	int res = 0;
+	u64 initiator_sas_addr;
+	struct mvst_tgt *tgt;
+	struct mvst_sess *sess;
+	struct mvst_cmd *cmd = NULL;
+	struct open_address_frame *open_frame =
+		(struct open_address_frame *)slot->open_frame;
+
+	TRACE_ENTRY();
+
+	tgt = mvi->tgt;
+	initiator_sas_addr = be64_to_cpu(open_frame->src_sas_addr);
+
+	res = mvst_build_cmd(mvi, slot, &cmd, MVST_CMD);
+	if (res)
+		goto out;
+
 	sess = mvst_find_sess_by_lid(tgt, initiator_sas_addr);
 	if (unlikely(sess == NULL)) {
 		sess = kzalloc(sizeof(*sess), GFP_ATOMIC);
@@ -1678,7 +1614,6 @@ static int mvst_send_cmd_to_scst(struct mvs_info *mvi,
 		list_add(&sess->sess_entry, &tgt->sess_list);
 		tgt->sess_count++;
 	}
-#endif
 	cmd->sess = sess;
 	res = mvst_do_send_cmd_to_scst(mvi, cmd);
 	if (res != 0)
@@ -1697,7 +1632,6 @@ out_free_sess:
 
 out_free_cmd:
 	mvst_free_cmd(cmd);
-
 	goto out;
 }
 
@@ -1709,11 +1643,11 @@ static int mvst_handle_task_mgmt(struct mvs_info *mvi,
 	u64 initiator_sas_addr;
 	u8 lun[8];
 	u16 tag;
-	struct mvst_mgmt_cmd *mcmd;
+	struct mvst_cmd *cmd = NULL;
 	struct mvst_tgt *tgt;
 	struct mvst_sess *sess;
 	struct open_address_frame *open_frame =
-		(struct open_address_frame *)slot->buf;
+		(struct open_address_frame *)slot->open_frame;
 	struct ssp_frame_header *ssp_hdr =
 		(struct ssp_frame_header *)((u8 *)slot->response+8);
 	struct ssp_task_iu *ssp_task_iu =
@@ -1727,63 +1661,58 @@ static int mvst_handle_task_mgmt(struct mvs_info *mvi,
 	tag = be16_to_cpu(ssp_task_iu->tag);
 	initiator_sas_addr = be64_to_cpu(open_frame->src_sas_addr);
 
+	if (mvst_build_cmd(mvi, slot, &cmd, MVST_TMF))
+		goto out;
+
 	sess = mvst_find_sess_by_lid(tgt, initiator_sas_addr);
 	if (sess == NULL) {
 		TRACE(TRACE_MGMT, "mvsttgt(%ld): task mgmt fn 0x%x for "
 		      "non-existant session", mvi->instance,
-		      ssp_task_iu->task_fun);
+		      cmd->save_task_iu.task_fun);
 		res = -EFAULT;
 		goto out;
 	}
 
-	mcmd = kzalloc(sizeof(*mcmd), GFP_ATOMIC);
-	if (mcmd == NULL) {
-		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of mgmt cmd failed");
-		res = -ENOMEM;
-		goto out;
-	}
+	cmd->sess = sess;
 
-	mcmd->sess = sess;
-	memcpy(&mcmd->task_iu, ssp_task_iu, sizeof(*ssp_task_iu));
-
-	switch (ssp_task_iu->task_fun) {
+	switch (cmd->save_task_iu.task_fun) {
 	case TMF_CLEAR_ACA:
 		TRACE(TRACE_MGMT, "%s", "TMF_CLEAR_ACA received");
 		rc = scst_rx_mgmt_fn_lun(sess->scst_sess, SCST_CLEAR_ACA,
 					 (uint8_t *)lun, sizeof(lun),
-					 SCST_ATOMIC, mcmd);
+					 SCST_ATOMIC, cmd);
 		break;
 
 	case TMF_LU_RESET:
 		TRACE(TRACE_MGMT, "%s", "TMF_LU_RESET received");
 		rc = scst_rx_mgmt_fn_lun(sess->scst_sess, SCST_LUN_RESET,
 					 (uint8_t *)&lun, sizeof(lun),
-					 SCST_ATOMIC, mcmd);
+					 SCST_ATOMIC, cmd);
 		break;
 
 	case TMF_CLEAR_TASK_SET:
 		TRACE(TRACE_MGMT, "%s", "TMF_CLEAR_TASK_SET received");
 		rc = scst_rx_mgmt_fn_lun(sess->scst_sess, SCST_CLEAR_TASK_SET,
 					 (uint8_t *)&lun, sizeof(lun),
-					 SCST_ATOMIC, mcmd);
+					 SCST_ATOMIC, cmd);
 		break;
 
 	case TMF_ABORT_TASK_SET:
 		TRACE(TRACE_MGMT, "%s", "TMF_ABORT_TASK_SET received");
 		rc = scst_rx_mgmt_fn_lun(sess->scst_sess, SCST_ABORT_TASK_SET,
 					 (uint8_t *)&lun, sizeof(lun),
-					 SCST_ATOMIC, mcmd);
+					 SCST_ATOMIC, cmd);
 		break;
 
 	case TMF_ABORT_TASK:
 		TRACE(TRACE_MGMT, "%s", "TMF_ABORT_TASK received");
 		rc = scst_rx_mgmt_fn_tag(sess->scst_sess, SCST_ABORT_TASK, tag,
-			SCST_ATOMIC, mcmd);
+			SCST_ATOMIC, cmd);
 		break;
 
 	default:
 		PRINT_ERROR("mvsttgt(%ld): Unknown task mgmt fn 0x%x",
-			    mvi->instance, ssp_task_iu->task_fun);
+			    mvi->instance, cmd->save_task_iu.task_fun);
 		break;
 	}
 
@@ -1799,19 +1728,19 @@ out:
 	return res;
 
 out_free:
-	kfree(mcmd);
+	kfree(cmd);
 	goto out;
 }
 
-static int mvst_notify_attach_chg(struct mvs_info *mvi)
+static int mvst_notify_attach_chg(void)
 {
 	u8 i, j;
 	int res = SCST_AEN_RES_SUCCESS;
+	struct mvs_info *mvi = ((struct mvs_info **)tgt_mvi)[0];
 
 	TRACE_ENTRY();
 	if (!mvi)
 		return SCST_AEN_RES_FAILED;
-
 #if	0
 	for (i = 0; i < mvi->chip->n_phy; i++) {
 		struct mvs_phy *phy = &mvi->phy[i];
@@ -1842,7 +1771,7 @@ static int mvst_notify_attach_chg(struct mvs_info *mvi)
 			if (mvi->phy[j].phy_mode)
 				MVS_CHIP_DISP->phy_disable(mvi, j);
 		}
-		msleep(500);
+		msleep(2000);
 		for (j = 0; j < mvi->chip->n_phy; j++) {
 			if (mvi->phy[j].phy_mode) {
 				/* enable phy */
@@ -1860,7 +1789,6 @@ static int mvst_notify_attach_chg(struct mvs_info *mvi)
 static int mvst_notify_unit_attention(struct scst_aen *aen)
 {
 	int res = SCST_AEN_RES_SUCCESS, key, asc, ascq;
-	struct mvs_info *mvi = ((struct mvs_info **)tgt_mvi)[0];
 
 	TRACE_ENTRY();
 
@@ -1874,10 +1802,11 @@ static int mvst_notify_unit_attention(struct scst_aen *aen)
 		ascq = aen->aen_sense[13]; /* ASCQ */
 	} else
 		return res;
+
 	switch (key) {
 	case UNIT_ATTENTION:
 		if (asc == 0x3F && ascq == 0xE)
-			mvst_notify_attach_chg(mvi);
+			mvst_notify_attach_chg();
 		break;
 		/*
 		.to support more
@@ -1907,43 +1836,141 @@ static int mvst_report_event(struct scst_aen *aen)
 		res = SCST_AEN_RES_NOT_SUPPORTED;
 		break;
 	}
-	TRACE_EXIT_RES(res);
+	scst_aen_done(aen);
+	return res;
+}
+
+static u8 mvst_get_mgmt_status(int status)
+{
+	u8 resp = 0;
+	switch (status) {
+	case SCST_MGMT_STATUS_SUCCESS:
+		resp = MVST_TM_COMPL;
+		break;
+	case SCST_MGMT_STATUS_LUN_NOT_EXIST:
+		resp = MVST_TM_INCRT_LUN;
+		break;
+	case SCST_MGMT_STATUS_FN_NOT_SUPPORTED:
+		resp = MVST_TM_NOT_SUPPORT;
+		break;
+	case SCST_MGMT_STATUS_TASK_NOT_EXIST:
+	case SCST_MGMT_STATUS_REJECTED:
+	case SCST_MGMT_STATUS_FAILED:
+	default:
+		resp = MVST_TM_FAILED;
+		break;
+	}
+	return resp;
+}
+
+/* mvi->lock supposed to be held on entry */
+static inline int mvst_send_notify_ack(struct mvst_cmd *cmd, int status)
+{
+	int res = 0;
+	u8 buf[4] = {0, 0, 0, 0};
+	struct mvs_slot_info *resp_slot;
+	struct mvst_prm prm = { 0 };
+	struct mvs_info *mvi = cmd->sess->tgt->mvi;
+
+	TRACE_ENTRY();
+
+	/* prepare response frame */
+	resp_slot = mvst_get_slot(mvi, cmd->cmd_tgt_port);
+	if (!resp_slot) {
+		res = SCST_TGT_RES_QUEUE_FULL;
+		goto out;
+	}
+
+	resp_slot->slot_scst_mgmt_cmd = cmd->scst_mcmd;
+	prm.rq_result = SAM_STAT_GOOD;
+	prm.tgt = mvi->tgt;
+	prm.seg_cnt = 0;
+	prm.req_cnt = 1;
+	prm.sense_buffer_len = 4;
+	prm.sense_buffer = buf;
+	prm.cmd = cmd;
+
+	buf[3] = mvst_get_mgmt_status(status);
+	mvst_prep_resp_frame(&prm, resp_slot, RESPONSE_DATA);
+	/* Mid-level is done processing */
+	cmd->cmd_state = MVST_STATE_SEND_STATUS;
+
+	mvi->tx_prod = (mvi->tx_prod + 1) & (MVS_CHIP_SLOT_SZ - 1);
+	MVS_CHIP_DISP->start_delivery(mvi,
+		(mvi->tx_prod - 1) & (MVS_CHIP_SLOT_SZ - 1));
+out:
+	TRACE_EXIT();
 	return res;
 }
 
 /* SCST Callback */
 static void mvst_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 {
-	struct mvst_mgmt_cmd *mcmd;
+	struct mvst_cmd *cmd;
 	unsigned long flags;
-	int	status;
+	int status, res = 0;
 	TRACE_ENTRY();
-	status = scst_mgmt_cmd_get_status(scst_mcmd);
-	TRACE_MGMT_DBG("scst_mcmd (%p) status %#x state %#x", scst_mcmd,
-		status, scst_mcmd->state);
 
-	mcmd = scst_mgmt_cmd_get_tgt_priv(scst_mcmd);
-	if (unlikely(mcmd == NULL)) {
-		PRINT_ERROR("scst_mcmd %p tgt_spec is NULL", mcmd);
+	cmd = scst_mgmt_cmd_get_tgt_priv(scst_mcmd);
+	if (unlikely(cmd == NULL)) {
+		PRINT_ERROR("scst_mcmd %p tgt_spec is NULL", cmd);
 		goto out;
 	}
 
-	spin_lock_irqsave(&mcmd->sess->tgt->mvi->lock, flags);
-	mvst_send_notify_ack(mcmd->sess->tgt->mvi, mcmd, status);
-	spin_unlock_irqrestore(&mcmd->sess->tgt->mvi->lock, flags);
+	cmd->scst_mcmd = scst_mcmd;
+	status = scst_mgmt_cmd_get_status(scst_mcmd);
+	spin_lock_irqsave(&cmd->sess->tgt->mvi->lock, flags);
+	res = mvst_send_notify_ack(cmd, status);
+	spin_unlock_irqrestore(&cmd->sess->tgt->mvi->lock, flags);
 
 	scst_mgmt_cmd_set_tgt_priv(scst_mcmd, NULL);
-	kfree(mcmd);
-
+	if (res)
+		kfree(cmd);
 out:
 	TRACE_EXIT();
 	return;
 }
 
-
-static void mvst_send_busy(struct mvs_info *mvi, struct mvs_slot_info *slot)
+static int mvst_send_busy(struct mvs_info *mvi, struct mvs_slot_info *slot)
 {
+	int res = 0;
+	struct mvs_slot_info *resp_slot;
+	struct mvst_cmd *cmd = NULL;
+	struct mvst_prm prm = { 0 };
 
+	TRACE_ENTRY();
+
+	if (mvst_build_cmd(mvi, slot, &cmd, MVST_CMD)) {
+		mv_printk("failed to build cmd from slot %p\n", slot);
+		goto out;
+	}
+
+	/* prepare response frame */
+	resp_slot = mvst_get_slot(mvi, cmd->cmd_tgt_port);
+	if (!resp_slot) {
+		res = SCST_TGT_RES_QUEUE_FULL;
+		goto err_out;
+	}
+
+	prm.cmd = cmd;
+	prm.rq_result = SAM_STAT_BUSY;
+	prm.tgt = mvi->tgt;
+	prm.seg_cnt = 0;
+	prm.req_cnt = 1;
+
+	mvst_prep_resp_frame(&prm, resp_slot, NO_DATA);
+	/* Mid-level is done processing */
+	cmd->cmd_state = MVST_STATE_SEND_STATUS;
+
+	mvi->tx_prod = (mvi->tx_prod + 1) & (MVS_CHIP_SLOT_SZ - 1);
+	MVS_CHIP_DISP->start_delivery(mvi,
+		(mvi->tx_prod - 1) & (MVS_CHIP_SLOT_SZ - 1));
+out:
+	TRACE_EXIT();
+	return res;
+err_out:
+	mvst_free_cmd(cmd);
+	goto out;
 }
 
 /* mvi->lock supposed to be held on entry */
@@ -1959,7 +1986,6 @@ static u8 mvst_response_ssp_command(struct mvs_info *mvi, uint32_t rx_desc)
 		(struct ssp_frame_header *)((u8 *)slot->response+8);
 
 	TRACE_ENTRY();
-
 	if (unlikely((mvi->tgt == NULL) || !MVST_IN_TARGET_MODE(mvi))) {
 		TRACE_DBG("receive command, but no tgt. mvi %p tgt_flag %ld",
 			mvi, MVST_IN_TARGET_MODE(mvi));
@@ -2006,7 +2032,7 @@ static u8 mvst_response_ssp_command(struct mvs_info *mvi, uint32_t rx_desc)
 	case SSP_COMMAND:
 		{
 		struct ssp_command_iu *ssp_cmd_iu = NULL;
-		ssp_cmd_iu =	(struct ssp_command_iu *)((u8 *)ssp_hdr
+		ssp_cmd_iu = (struct ssp_command_iu *)((u8 *)ssp_hdr
 			+ sizeof(struct ssp_frame_header));
 
 		TRACE_DBG("COMMAND FRAME:lun[0-7]=%016llx.\n",
@@ -2063,27 +2089,6 @@ out:
 	return rc;
 }
 
-/* mvi->lock supposed to be held on entry */
-/* called via callback from mvst */
-static void mvst_async_event(uint16_t code,
-			struct mvs_info *mvi, uint16_t *mailbox)
-{
-	TRACE_ENTRY();
-
-	sBUG_ON(mvi == NULL);
-
-	if (unlikely(mvi->tgt == NULL)) {
-		TRACE(TRACE_DEBUG|TRACE_MGMT,
-		      "ASYNC EVENT %#x, but no tgt. mvi %p tgt_flag %ld",
-		      code, mvi, MVST_IN_TARGET_MODE(mvi));
-		goto out;
-	}
-
-out:
-	TRACE_EXIT();
-	return;
-}
-
 void mvs_enable_taget_xmt(struct mvs_info *mvi, int PhyId)
 {
 	void __iomem *regs = mvi->regs;
@@ -2099,9 +2104,7 @@ void mvs_enable_taget_xmt(struct mvs_info *mvi, int PhyId)
 static void mvst_register_tgt_handler(struct mvs_info *mvi)
 {
 	struct mvst_tgt *tgt = NULL;
-	int sg_tablesize;
 	unsigned long flags = 0;
-	struct mvst_sess *sess = NULL;
 
 	tgt = kzalloc(sizeof(*tgt), GFP_KERNEL);
 	if (tgt == NULL)
@@ -2111,9 +2114,6 @@ static void mvst_register_tgt_handler(struct mvs_info *mvi)
 	INIT_LIST_HEAD(&tgt->sess_list);
 	init_waitqueue_head(&tgt->waitQ);
 
-	/* set max sg counts */
-	sg_tablesize = SG_ALL;
-
 	tgt->scst_tgt = scst_register(&tgt_template, MVST_NAME);
 	if (!tgt->scst_tgt) {
 		PRINT_ERROR("mvst tgt(%ld): scst_register() "
@@ -2122,7 +2122,8 @@ static void mvst_register_tgt_handler(struct mvs_info *mvi)
 		kfree(tgt);
 		return;
 	}
-	scst_tgt_set_sg_tablesize(tgt->scst_tgt, sg_tablesize);
+
+	scst_tgt_set_sg_tablesize(tgt->scst_tgt, MVS_MAX_SG);
 	scst_tgt_set_tgt_priv(tgt->scst_tgt, tgt);
 
 	spin_lock_irqsave(&mvi->lock, flags);
@@ -2150,14 +2151,13 @@ static void mvst_unregister_tgt_handler(struct mvs_info *mvi)
 	 */
 	tgt = NULL;
 }
-
 static void mvst_enable_tgt_port(struct mvs_info *mvi, u8 phyid)
 {
 	struct mvs_phy *phy;
 	struct asd_sas_phy *sas_phy;
 	u8 id = 0;
 
-#if 0
+#if 	0
 	u8 j = 0, i = 0
 	/*enable all the phy within the same port*/
 	for (id = 0, j = 0; id < mvi->chip->n_phy; id++) {
@@ -2288,14 +2288,15 @@ static void mvst_host_action(struct mvs_info *mvi,
 			(mvi->tgt_port[target_port].sas_addr),
 			mvi->tgt_port[target_port].wide_port_phymap,
 			target_port);
-		if (target_port * MVS_TARGET_QUEUE > MVS_CAN_QUEUE) {
+		if (target_port * (MVS_SLOTS/mvi->chip->n_phy)
+			> MVS_CAN_QUEUE) {
 			mv_dprintk("Warning: No sufficient slots"
 				"for target port[%d].\n", target_port);
 			break;
 		}
 
 		mvst_enable_tgt_port(mvi, phyid);
-		mvst_notify_attach_chg(mvi);
+		mvst_notify_attach_chg();
 
 		mv_dprintk("Enable target mode......\n");
 		break;
@@ -2503,7 +2504,7 @@ mvst_start_sas_target(struct mvs_info *mvi, u8 id)
 			goto err_out_tag;
 		++pass;
 		mvi->tx_prod = (mvi->tx_prod + 1) & (MVS_CHIP_SLOT_SZ - 1);
-	} while (++slot_id < MVS_TARGET_QUEUE);
+	} while (++slot_id < MVS_SLOTS/mvi->chip->n_phy);
 
 	rc = 0;
 	goto out_done;
@@ -2597,7 +2598,6 @@ void mvst_int_port(struct mvs_info *mvi, u32 id)
 	/* clean status */
 	mvs_write_port_irq_stat(mvi, id, phy->irq_status);
 
-	/* TBD */
 	/*
 	* events is port event now ,
 	* we need check the interrupt status which belongs to per port.
@@ -2726,7 +2726,6 @@ void mvst_msg_insert(struct mvst_msg_queue *msg_queue,
 	unsigned long flags;
 
 	mv_dprintk("msg insert %d.\n", event);
-
 	spin_lock_irqsave(&msg_queue->msg_lock, flags);
 	if (list_empty(&msg_queue->free)) {
 		/* should wreck some havoc ...*/
