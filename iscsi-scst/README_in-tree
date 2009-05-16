@@ -89,7 +89,7 @@ most Linux distributions both those logs are put to /var/log/messages
 file.
 
 Then, it might be helpful to increase level of logging. For kernel
-modules you should make the debug build by enabling CONFIG_SCST_DEBUG. 
+modules you should make the debug build by enabling CONFIG_SCST_DEBUG.
 
 If after looking on the logs the reason of your problem is still unclear
 for you, report to SCST mailing list scst-devel@lists.sourceforge.net.
