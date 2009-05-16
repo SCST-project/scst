@@ -44,7 +44,9 @@
 
 #include "ib_srpt.h"
 
+/* Name of this kernel module. */
 #define DRV_NAME		"ib_srpt"
+/* Prefix for printk() kernel messages. */
 #define PFX			DRV_NAME ": "
 #define DRV_VERSION		"1.0.1"
 #define DRV_RELDATE		"July 10, 2008"
@@ -57,12 +59,16 @@ MODULE_DESCRIPTION("InfiniBand SCSI RDMA Protocol target "
 MODULE_LICENSE("Dual BSD/GPL");
 
 struct srpt_thread {
+	/* Protects thread_ioctx_list. */
 	spinlock_t thread_lock;
+	/* I/O contexts to be processed by the kernel thread. */
 	struct list_head thread_ioctx_list;
+	/* SRPT kernel thread. */
 	struct task_struct *thread;
 };
 
 static u64 mellanox_ioc_guid;
+/* List of srpt_device structures. */
 static struct list_head srpt_devices;
 static int thread;
 static struct srpt_thread srpt_thread;
@@ -83,6 +89,12 @@ static struct ib_client srpt_client = {
 	.remove = srpt_remove_one
 };
 
+/*
+ * Callback function called by the InfiniBand core when an asynchronous IB
+ * event occurs. This callback may occur in interrupt context. See also
+ * section 11.5.2, Set Asynchronous Event Handler in the InfiniBand
+ * Architecture Specification.
+ */
 static void srpt_event_handler(struct ib_event_handler *handler,
 			       struct ib_event *event)
 {
@@ -121,11 +133,18 @@ static void srpt_event_handler(struct ib_event_handler *handler,
 
 }
 
+/*
+ * Callback function called by the InfiniBand core for SRQ (shared receive
+ * queue) events.
+ */
 static void srpt_srq_event(struct ib_event *event, void *ctx)
 {
 	printk(KERN_WARNING PFX "SRQ event %d\n", event->event);
 }
 
+/*
+ * Callback function called by the InfiniBand core for QP (queue pair) events.
+ */
 static void srpt_qp_event(struct ib_event *event, void *ctx)
 {
 	struct srpt_rdma_ch *ch = ctx;
@@ -150,6 +169,13 @@ static void srpt_qp_event(struct ib_event *event, void *ctx)
 	}
 }
 
+/*
+ * Helper function for filling in an InfiniBand IOUnitInfo structure. Copies
+ * the lowest four bits of value in element slot of the array of four bit
+ * elements called c_list (controller list). The index slot is one-based.
+ *
+ * @pre 1 <= slot && 0 <= value && value < 16
+ */
 static void srpt_set_ioc(u8 *c_list, u32 slot, u8 value)
 {
 	u16 id;
@@ -165,6 +191,10 @@ static void srpt_set_ioc(u8 *c_list, u32 slot, u8 value)
 	}
 }
 
+/*
+ * Write InfiniBand ClassPortInfo to mad. See also section 16.3.3.1
+ * ClassPortInfo in the InfiniBand Architecture Specification.
+ */
 static void srpt_get_class_port_info(struct ib_dm_mad *mad)
 {
 	struct ib_class_port_info *cif;
@@ -178,6 +208,11 @@ static void srpt_get_class_port_info(struct ib_dm_mad *mad)
 	mad->mad_hdr.status = 0;
 }
 
+/*
+ * Write IOUnitInfo to mad. See also section 16.3.3.3 IOUnitInfo in the
+ * InfiniBand Architecture Specification. See also section B.7,
+ * table B.6 in the T10 SRP r16a document.
+ */
 static void srpt_get_iou(struct ib_dm_mad *mad)
 {
 	struct ib_dm_iou_info *ioui;
@@ -196,6 +231,12 @@ static void srpt_get_iou(struct ib_dm_mad *mad)
 	mad->mad_hdr.status = 0;
 }
 
+/*
+ * Write IOControllerprofile to mad for I/O controller (sdev, slot). See also
+ * section 16.3.3.4 IOControllerProfile in the InfiniBand Architecture
+ * Specification. See also section B.7, table B.7 in the T10 SRP r16a
+ * document.
+ */
 static void srpt_get_ioc(struct srpt_device *sdev, u32 slot,
 			 struct ib_dm_mad *mad)
 {
@@ -236,6 +277,11 @@ static void srpt_get_ioc(struct srpt_device *sdev, u32 slot,
 	mad->mad_hdr.status = 0;
 }
 
+/*
+ * Device management: write ServiceEntries to mad for the given slot. See also
+ * section 16.3.3.5 ServiceEntries in the InfiniBand Architecture
+ * Specification. See also section B.7, table B.8 in the T10 SRP r16a document.
+ */
 static void srpt_get_svc_entries(u16 slot, u8 hi, u8 lo, struct ib_dm_mad *mad)
 {
 	struct ib_dm_svc_entries *svc_entries;
@@ -259,6 +305,11 @@ static void srpt_get_svc_entries(u16 slot, u8 hi, u8 lo, struct ib_dm_mad *mad)
 	mad->mad_hdr.status = 0;
 }
 
+/*
+ * Actual processing of a received MAD *rq_mad received through source port *sp
+ * (MAD = InfiniBand management datagram). The response to be sent back is
+ * written to *rsp_mad.
+ */
 static void srpt_mgmt_method_get(struct srpt_port *sp, struct ib_mad *rq_mad,
 				 struct ib_dm_mad *rsp_mad)
 {
@@ -292,6 +343,10 @@ static void srpt_mgmt_method_get(struct srpt_port *sp, struct ib_mad *rq_mad,
 	}
 }
 
+/*
+ * Callback function that is called by the InfiniBand core after transmission of
+ * a MAD. (MAD = management datagram; AH = address handle.)
+ */
 static void srpt_mad_send_handler(struct ib_mad_agent *mad_agent,
 				  struct ib_mad_send_wc *mad_wc)
 {
@@ -299,6 +354,10 @@ static void srpt_mad_send_handler(struct ib_mad_agent *mad_agent,
 	ib_free_send_mad(mad_wc->send_buf);
 }
 
+/*
+ * Callback function that is called by the InfiniBand core after reception of
+ * a MAD (management datagram).
+ */
 static void srpt_mad_recv_handler(struct ib_mad_agent *mad_agent,
 				  struct ib_mad_recv_wc *mad_wc)
 {
@@ -314,6 +373,8 @@ static void srpt_mad_recv_handler(struct ib_mad_agent *mad_agent,
 				  mad_wc->recv_buf.grh, mad_agent->port_num);
 	if (IS_ERR(ah))
 		goto err;
+
+	BUILD_BUG_ON(offsetof(struct ib_dm_mad, data) != IB_MGMT_DEVICE_HDR);
 
 	rsp = ib_create_send_mad(mad_agent, mad_wc->wc->src_qp,
 				 mad_wc->wc->pkey_index, 0,
@@ -357,6 +418,10 @@ err:
 	ib_free_recv_mad(mad_wc);
 }
 
+/*
+ * Register InfiniBand management datagram callback functions for the specified
+ * port.
+ */
 static int srpt_refresh_port(struct srpt_port *sport)
 {
 	struct ib_mad_reg_req reg_req;
@@ -414,6 +479,9 @@ err_mod_port:
 	return ret;
 }
 
+/*
+ * Allocate and initialize an SRPT I/O context structure.
+ */
 static struct srpt_ioctx *srpt_alloc_ioctx(struct srpt_device *sdev)
 {
 	struct srpt_ioctx *ioctx;
@@ -445,6 +513,9 @@ out:
 	return NULL;
 }
 
+/*
+ * Deallocate an SRPT I/O context structure.
+ */
 static void srpt_free_ioctx(struct srpt_device *sdev, struct srpt_ioctx *ioctx)
 {
 	if (!ioctx)
@@ -456,6 +527,9 @@ static void srpt_free_ioctx(struct srpt_device *sdev, struct srpt_ioctx *ioctx)
 	kfree(ioctx);
 }
 
+/*
+ * Associate a ring of SRPT I/O context structures with the specified device.
+ */
 static int srpt_alloc_ioctx_ring(struct srpt_device *sdev)
 {
 	int i;
@@ -479,6 +553,9 @@ err:
 	return -ENOMEM;
 }
 
+/*
+ * Post a receive request on the work queue of InfiniBand device 'sdev'.
+ */
 static int srpt_post_recv(struct srpt_device *sdev, struct srpt_ioctx *ioctx)
 {
 	struct ib_sge list;
@@ -497,6 +574,9 @@ static int srpt_post_recv(struct srpt_device *sdev, struct srpt_ioctx *ioctx)
 	return ib_post_srq_recv(sdev->srq, &wr, &bad_wr);
 }
 
+/*
+ * Post a send request on the SRPT RDMA channel 'ch'.
+ */
 static int srpt_post_send(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 			  int len)
 {
@@ -566,6 +646,10 @@ out:
 	return 0;
 }
 
+/*
+ * Modify the attributes of queue pair 'qp': allow local write, remote read,
+ * and remote write. Also transition 'qp' to state IB_QPS_INIT.
+ */
 static int srpt_init_ch_qp(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 {
 	struct ib_qp_attr *attr;
@@ -768,7 +852,9 @@ static void srpt_build_tskmgmt_rsp(struct srpt_rdma_ch *ch,
 	}
 }
 
-/** Process SRP_CMD. */
+/*
+ * Process SRP_CMD.
+ */
 static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 {
 	struct scst_cmd *scmnd = NULL;
@@ -854,7 +940,9 @@ send_rsp:
 	return -1;
 }
 
-/** Process SRP_TSK_MGMT. */
+/*
+ * Process SRP_TSK_MGMT. See also table 19 in the T10 SRP r16a document.
+ */
 static int srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 				struct srpt_ioctx *ioctx)
 {
@@ -1005,6 +1093,11 @@ send_rsp:
 		srpt_reset_ioctx(ch, ioctx);
 }
 
+/*
+ * Returns true if the ioctx list is non-empty or if the ib_srpt kernel thread
+ * should stop.
+ * @pre thread != 0
+ */
 static inline int srpt_test_ioctx_list(void)
 {
 	int res = (!list_empty(&srpt_thread.thread_ioctx_list) ||
@@ -1012,6 +1105,11 @@ static inline int srpt_test_ioctx_list(void)
 	return res;
 }
 
+/*
+ * Add 'ioctx' to the tail of the ioctx list and wake up the kernel thread.
+ *
+ * @pre thread != 0
+ */
 static inline void srpt_schedule_thread(struct srpt_ioctx *ioctx)
 {
 	unsigned long flags;
@@ -1022,6 +1120,10 @@ static inline void srpt_schedule_thread(struct srpt_ioctx *ioctx)
 	wake_up(&ioctx_list_waitQ);
 }
 
+/*
+ * InfiniBand CQ (completion queue) event handler for asynchronous events not
+ * associated with a completion.
+ */
 static void srpt_completion(struct ib_cq *cq, void *ctx)
 {
 	struct srpt_rdma_ch *ch = ctx;
@@ -1072,6 +1174,9 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 	}
 }
 
+/*
+ * Create a completion queue on the specified device.
+ */
 static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 {
 	struct ib_qp_init_attr *qp_init;
@@ -1082,6 +1187,8 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	qp_init = kzalloc(sizeof *qp_init, GFP_KERNEL);
 	if (!qp_init)
 		return -ENOMEM;
+
+	/* Create a completion queue (CQ). */
 
 	cqe = SRPT_RQ_SIZE + SRPT_SQ_SIZE - 1;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && ! defined(RHEL_RELEASE_CODE)
@@ -1096,7 +1203,11 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 		goto out;
 	}
 
+	/* Request completion notification. */
+
 	ib_req_notify_cq(ch->cq, IB_CQ_NEXT_COMP);
+
+	/* Create a queue pair (QP). */
 
 	qp_init->qp_context = (void *)ch;
 	qp_init->event_handler = srpt_qp_event;
@@ -1119,6 +1230,8 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	printk(KERN_DEBUG PFX "%s: max_cqe= %d max_sge= %d cm_id= %p\n",
 	       __func__, ch->cq->cqe, qp_init->cap.max_send_sge,
 	       ch->cm_id);
+
+	/* Modify the attributes and the state of queue pair ch->qp. */
 
 	ret = srpt_init_ch_qp(ch, ch->qp);
 	if (ret) {
@@ -1752,6 +1865,9 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 	return ret;
 }
 
+/*
+ * Start data reception. Must not block.
+ */
 static int srpt_xfer_data(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 			  struct scst_cmd *scmnd)
 {
@@ -1780,6 +1896,10 @@ out:
 	return ret;
 }
 
+/*
+ * Called by the SCST core to inform ib_srpt that data reception should start.
+ * Must not block.
+ */
 static int srpt_rdy_to_xfer(struct scst_cmd *scmnd)
 {
 	struct srpt_rdma_ch *ch;
@@ -1799,6 +1919,10 @@ static int srpt_rdy_to_xfer(struct scst_cmd *scmnd)
 	return srpt_xfer_data(ch, ioctx, scmnd);
 }
 
+/*
+ * Called by the SCST core. Transmits the response buffer and status held in
+ * 'scmnd'. Must not block.
+ */
 static int srpt_xmit_response(struct scst_cmd *scmnd)
 {
 	struct srpt_rdma_ch *ch;
@@ -1899,6 +2023,10 @@ out_aborted:
 	goto out;
 }
 
+/*
+ * Called by the SCST core to inform ib_srpt that a received task management
+ * function has been completed. Must not block.
+ */
 static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 {
 	struct srpt_rdma_ch *ch;
@@ -1931,6 +2059,10 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 	kfree(mgmt_ioctx);
 }
 
+/*
+ * Called by the SCST core to inform ib_srpt that the command 'scmnd' is about
+ * to be freed. May be called in IRQ context.
+ */
 static void srpt_on_free_cmd(struct scst_cmd *scmnd)
 {
 	struct srpt_rdma_ch *ch;
@@ -1966,6 +2098,10 @@ static void srpt_refresh_port_work(struct work_struct *work)
 	srpt_refresh_port(sport);
 }
 
+/*
+ * Called by the SCST core to detect target adapters. Returns the number of
+ * detected target adapters.
+ */
 static int srpt_detect(struct scst_tgt_template *tp)
 {
 	struct srpt_device *sdev;
@@ -2003,6 +2139,10 @@ out:
 	return count;
 }
 
+/*
+ * Called by the SCST core to free up the resources associated with device
+ * 'scst_tgt'.
+ */
 static int srpt_release(struct scst_tgt *scst_tgt)
 {
 	struct srpt_device *sdev = scst_tgt_get_tgt_priv(scst_tgt);
@@ -2029,10 +2169,18 @@ static int srpt_release(struct scst_tgt *scst_tgt)
 	return 0;
 }
 
+/*
+ * Entry point for ib_srpt's kernel thread. This kernel thread is only created
+ * when the module parameter 'thread' is not zero (the default is zero).
+ * This thread processes the ioctx list srpt_thread.thread_ioctx_list.
+ *
+ * @pre thread != 0
+ */
 static int srpt_ioctx_thread(void *arg)
 {
 	struct srpt_ioctx *ioctx;
 
+	/* Hibernation / freezing of the SRPT kernel thread is not supported. */
 	current->flags |= PF_NOFREEZE;
 
 	spin_lock_irq(&srpt_thread.thread_lock);
@@ -2085,6 +2233,7 @@ static int srpt_ioctx_thread(void *arg)
 	return 0;
 }
 
+/* SCST target template for the SRP target implementation. */
 static struct scst_tgt_template srpt_template = {
 	.name = DRV_NAME,
 	.sg_tablesize = SRPT_DEF_SG_TABLESIZE,
@@ -2099,6 +2248,10 @@ static struct scst_tgt_template srpt_template = {
 	.task_mgmt_fn_done = srpt_tsk_mgmt_done
 };
 
+/*
+ * The callback function srpt_release_class_dev() is called whenever a
+ * device is removed from the /sys/class/infiniband_srpt device class.
+ */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 static void srpt_release_class_dev(struct class_device *class_dev)
 #else
@@ -2162,6 +2315,11 @@ static CLASS_DEVICE_ATTR(login_info, S_IRUGO, show_login_info, NULL);
 static DEVICE_ATTR(login_info, S_IRUGO, show_login_info, NULL);
 #endif
 
+/*
+ * Callback function called by the InfiniBand core when either an InfiniBand
+ * device has been added or during the ib_register_client() call for each
+ * registered InfiniBand device.
+ */
 static void srpt_add_one(struct ib_device *device)
 {
 	struct srpt_device *sdev;
@@ -2287,6 +2445,11 @@ free_dev:
 	kfree(sdev);
 }
 
+/*
+ * Callback function called by the InfiniBand core when either an InfiniBand
+ * device has been removed or during the ib_unregister_client() call for each
+ * registered InfiniBand device.
+ */
 static void srpt_remove_one(struct ib_device *device)
 {
 	struct srpt_device *sdev;

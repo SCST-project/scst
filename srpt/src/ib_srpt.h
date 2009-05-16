@@ -49,9 +49,19 @@
 
 #include "ib_dm_mad.h"
 
+/*
+ * The prefix the ServiceName field of the ServiceName/ServiceID pair in the
+ * device management ServiceEntries attribute pair must start with, as specified
+ * in the SRP r16a document.
+ */
 #define SRP_SERVICE_NAME_PREFIX		"SRP.T10:"
 
 enum {
+	/*
+	 * SRP IOControllerProfile attributes for SRP target ports that have
+	 * not been defined in <scsi/srp.h>. Source: section B.7, table B.7
+	 * in the T10 SRP r16a document.
+	 */
 	SRP_PROTOCOL = 0x0108,
 	SRP_PROTOCOL_VERSION = 0x0001,
 	SRP_IO_SUBCLASS = 0x609e,
@@ -60,10 +70,12 @@ enum {
 	SRP_RDMA_READ_FROM_IOC = 0x08,
 	SRP_RDMA_WRITE_FROM_IOC = 0x20,
 
+	/* See also table 24 in the T10 r16a document. */
 	SRP_TSK_MGMT_SUCCESS = 0x00,
 	SRP_TSK_MGMT_FUNC_NOT_SUPP = 0x04,
 	SRP_TSK_MGMT_FAILED = 0x05,
 
+	/* See also table 21 in the T10 r16a document. */
 	SRP_CMD_SIMPLE_Q = 0x0,
 	SRP_CMD_HEAD_OF_Q = 0x1,
 	SRP_CMD_ORDERED_Q = 0x2,
@@ -156,21 +168,41 @@ struct srpt_port {
 	struct work_struct work;
 };
 
+/*
+ * Data stored by the ib_srpt kernel module per InfiniBand device
+ * (struct ib_device).
+ */
 struct srpt_device {
+	/* Backpointer to the struct ib_device managed by the IB core. */
 	struct ib_device *device;
+	/* Protection domain. */
 	struct ib_pd *pd;
+	/* L_Key (local key) with write access to all local memory. */
 	struct ib_mr *mr;
+	/* SRQ (shared receive queue). */
 	struct ib_srq *srq;
+	/* Connection identifier. */
 	struct ib_cm_id *cm_id;
+	/*
+	 * Attributes of the InfiniBand device as obtained during the
+	 * ib_client::add() callback.
+	 */
 	struct ib_device_attr dev_attr;
 	struct srpt_ioctx *ioctx_ring[SRPT_SRQ_SIZE];
+	/* List head for membership of the srpt_devices list. */
 	struct list_head list;
+	/* List head for membership of the srpt_rdma_ch::list list. */
 	struct list_head rch_list;
 	spinlock_t spinlock;
 	struct srpt_port port[2];
 	struct ib_event_handler event_handler;
+	/*
+	 * scst_released is used to postpone srpt_remove_one() until the SCST
+	 * core has notified the ib_srpt module about driver release.
+	 */
 	struct completion scst_released;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+	/* per-port srpt-<portname> device instance. */
 	struct class_device class_dev;
 #else
 	struct device dev;
