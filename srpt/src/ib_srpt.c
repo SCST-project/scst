@@ -872,7 +872,7 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 					   NO_ADD_SENSE, srp_cmd->tag);
 			((struct srp_rsp *)ioctx->buf)->status =
 					SAM_STAT_TASK_SET_FULL;
-			goto send_rsp;
+			return -1;
 		}
 
 		if (indirect_desc) {
@@ -880,7 +880,7 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 					   NO_ADD_SENSE, srp_cmd->tag);
 			((struct srp_rsp *)ioctx->buf)->status =
 					SAM_STAT_TASK_SET_FULL;
-			goto send_rsp;
+			return -1;
 		}
 
 		if (srp_cmd->buf_fmt & 0xf)
@@ -900,7 +900,7 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 				   NO_ADD_SENSE, srp_cmd->tag);
 		((struct srp_rsp *)ioctx->buf)->status =
 			SAM_STAT_TASK_SET_FULL;
-		goto send_rsp;
+		return -1;
 	}
 
 	ioctx->scmnd = scmnd;
@@ -935,9 +935,6 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 	scst_cmd_init_done(scmnd, scst_estimate_context());
 
 	return 0;
-
-send_rsp:
-	return -1;
 }
 
 /*
@@ -964,7 +961,7 @@ static int srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 	if (!mgmt_ioctx) {
 		srpt_build_tskmgmt_rsp(ch, ioctx, SRP_TSK_MGMT_FAILED,
 				       srp_tsk->tag);
-		goto send_rsp;
+		return -1;
 	}
 
 	mgmt_ioctx->ioctx = ioctx;
@@ -1022,12 +1019,9 @@ static int srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 		srpt_build_tskmgmt_rsp(ch, ioctx,
 				       SRP_TSK_MGMT_FUNC_NOT_SUPP,
 				       srp_tsk->tag);
-		goto send_rsp;
+		return -1;
 	}
 	return 0;
-
-send_rsp:
-	return -1;
 }
 
 static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
