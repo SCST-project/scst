@@ -768,17 +768,184 @@ static void srpt_build_tskmgmt_rsp(struct srpt_rdma_ch *ch,
 	}
 }
 
-static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
-			       struct srpt_ioctx *ioctx)
+/** Process SRP_CMD. */
+static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 {
 	struct scst_cmd *scmnd = NULL;
 	struct srp_cmd *srp_cmd = NULL;
-	struct srp_tsk_mgmt *srp_tsk = NULL;
-	struct srpt_mgmt_ioctx *mgmt_ioctx;
 	scst_data_direction dir = SCST_DATA_NONE;
 	int indirect_desc = 0;
-	u8 op;
 	int ret;
+
+	srp_cmd = ioctx->buf;
+
+	if (srp_cmd->buf_fmt) {
+		ret = srpt_get_desc_tbl(ioctx, srp_cmd, &indirect_desc);
+		if (ret) {
+			srpt_build_cmd_rsp(ch, ioctx, NO_SENSE,
+					   NO_ADD_SENSE, srp_cmd->tag);
+			((struct srp_rsp *)ioctx->buf)->status =
+					SAM_STAT_TASK_SET_FULL;
+			goto send_rsp;
+		}
+
+		if (indirect_desc) {
+			srpt_build_cmd_rsp(ch, ioctx, NO_SENSE,
+					   NO_ADD_SENSE, srp_cmd->tag);
+			((struct srp_rsp *)ioctx->buf)->status =
+					SAM_STAT_TASK_SET_FULL;
+			goto send_rsp;
+		}
+
+		if (srp_cmd->buf_fmt & 0xf)
+			dir = SCST_DATA_READ;
+		else if (srp_cmd->buf_fmt >> 4)
+			dir = SCST_DATA_WRITE;
+		else
+			dir = SCST_DATA_NONE;
+	} else
+		dir = SCST_DATA_NONE;
+
+	scmnd = scst_rx_cmd(ch->scst_sess, (u8 *) &srp_cmd->lun,
+			    sizeof srp_cmd->lun, srp_cmd->cdb, 16,
+			    thread ? SCST_NON_ATOMIC : SCST_ATOMIC);
+	if (!scmnd) {
+		srpt_build_cmd_rsp(ch, ioctx, NO_SENSE,
+				   NO_ADD_SENSE, srp_cmd->tag);
+		((struct srp_rsp *)ioctx->buf)->status =
+			SAM_STAT_TASK_SET_FULL;
+		goto send_rsp;
+	}
+
+	ioctx->scmnd = scmnd;
+
+	switch (srp_cmd->task_attr) {
+	case SRP_CMD_HEAD_OF_Q:
+		scmnd->queue_type = SCST_CMD_QUEUE_HEAD_OF_QUEUE;
+		break;
+	case SRP_CMD_ORDERED_Q:
+		scmnd->queue_type = SCST_CMD_QUEUE_ORDERED;
+		break;
+	case SRP_CMD_SIMPLE_Q:
+		scmnd->queue_type = SCST_CMD_QUEUE_SIMPLE;
+		break;
+	case SRP_CMD_ACA:
+		scmnd->queue_type = SCST_CMD_QUEUE_ACA;
+		break;
+	default:
+		scmnd->queue_type = SCST_CMD_QUEUE_ORDERED;
+		break;
+	}
+
+	scst_cmd_set_tag(scmnd, srp_cmd->tag);
+	scst_cmd_set_tgt_priv(scmnd, ioctx);
+	scst_cmd_set_expected(scmnd, dir, ioctx->data_len);
+
+	spin_lock_irq(&ch->spinlock);
+	list_add_tail(&ioctx->scmnd_list, &ch->active_scmnd_list);
+	ch->active_scmnd_cnt++;
+	spin_unlock_irq(&ch->spinlock);
+
+	scst_cmd_init_done(scmnd, scst_estimate_context());
+
+	return 0;
+
+send_rsp:
+	return -1;
+}
+
+/** Process SRP_TSK_MGMT. */
+static int srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
+				struct srpt_ioctx *ioctx)
+{
+	struct srp_tsk_mgmt *srp_tsk = NULL;
+	struct srpt_mgmt_ioctx *mgmt_ioctx;
+	int ret;
+
+	srp_tsk = ioctx->buf;
+
+	printk(KERN_WARNING PFX
+	       "recv_tsk_mgmt= %d for task_tag= %lld"
+	       " using tag= %lld cm_id= %p sess= %p\n",
+	       srp_tsk->tsk_mgmt_func,
+	       (unsigned long long) srp_tsk->task_tag,
+	       (unsigned long long) srp_tsk->tag,
+	       ch->cm_id, ch->scst_sess);
+
+	mgmt_ioctx = kmalloc(sizeof *mgmt_ioctx, GFP_ATOMIC);
+	if (!mgmt_ioctx) {
+		srpt_build_tskmgmt_rsp(ch, ioctx, SRP_TSK_MGMT_FAILED,
+				       srp_tsk->tag);
+		goto send_rsp;
+	}
+
+	mgmt_ioctx->ioctx = ioctx;
+	mgmt_ioctx->ch = ch;
+	mgmt_ioctx->tag = srp_tsk->tag;
+
+	switch (srp_tsk->tsk_mgmt_func) {
+	case SRP_TSK_ABORT_TASK:
+		ret = scst_rx_mgmt_fn_tag(ch->scst_sess,
+					  SCST_ABORT_TASK,
+					  srp_tsk->task_tag,
+					  thread ?
+					  SCST_NON_ATOMIC : SCST_ATOMIC,
+					  mgmt_ioctx);
+		break;
+	case SRP_TSK_ABORT_TASK_SET:
+		ret = scst_rx_mgmt_fn_lun(ch->scst_sess,
+					  SCST_ABORT_TASK_SET,
+					  (u8 *) &srp_tsk->lun,
+					  sizeof srp_tsk->lun,
+					  thread ?
+					  SCST_NON_ATOMIC : SCST_ATOMIC,
+					  mgmt_ioctx);
+		break;
+	case SRP_TSK_CLEAR_TASK_SET:
+		ret = scst_rx_mgmt_fn_lun(ch->scst_sess,
+					  SCST_CLEAR_TASK_SET,
+					  (u8 *) &srp_tsk->lun,
+					  sizeof srp_tsk->lun,
+					  thread ?
+					  SCST_NON_ATOMIC : SCST_ATOMIC,
+					  mgmt_ioctx);
+		break;
+#if 0
+	case SRP_TSK_LUN_RESET:
+		ret = scst_rx_mgmt_fn_lun(ch->scst_sess,
+					  SCST_LUN_RESET,
+					  (u8 *) &srp_tsk->lun,
+					  sizeof srp_tsk->lun,
+					  thread ?
+					  SCST_NON_ATOMIC : SCST_ATOMIC,
+					  mgmt_ioctx);
+		break;
+#endif
+	case SRP_TSK_CLEAR_ACA:
+		ret = scst_rx_mgmt_fn_lun(ch->scst_sess,
+					  SCST_CLEAR_ACA,
+					  (u8 *) &srp_tsk->lun,
+					  sizeof srp_tsk->lun,
+					  thread ?
+					  SCST_NON_ATOMIC : SCST_ATOMIC,
+					  mgmt_ioctx);
+		break;
+	default:
+		srpt_build_tskmgmt_rsp(ch, ioctx,
+				       SRP_TSK_MGMT_FUNC_NOT_SUPP,
+				       srp_tsk->tag);
+		goto send_rsp;
+	}
+	return 0;
+
+send_rsp:
+	return -1;
+}
+
+static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
+			       struct srpt_ioctx *ioctx)
+{
+	u8 op;
 
 	if (ch->state != RDMA_CHANNEL_LIVE) {
 		if (ch->state == RDMA_CHANNEL_CONNECTING) {
@@ -805,155 +972,15 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 	op = *(u8 *) ioctx->buf;
 	switch (op) {
 	case SRP_CMD:
-		srp_cmd = ioctx->buf;
-
-		if (srp_cmd->buf_fmt) {
-			ret = srpt_get_desc_tbl(ioctx, srp_cmd, &indirect_desc);
-			if (ret) {
-				srpt_build_cmd_rsp(ch, ioctx, NO_SENSE,
-						   NO_ADD_SENSE, srp_cmd->tag);
-				((struct srp_rsp *)ioctx->buf)->status =
-					SAM_STAT_TASK_SET_FULL;
-				goto send_rsp;
-			}
-
-			if (indirect_desc) {
-				srpt_build_cmd_rsp(ch, ioctx, NO_SENSE,
-						   NO_ADD_SENSE, srp_cmd->tag);
-				((struct srp_rsp *)ioctx->buf)->status =
-					SAM_STAT_TASK_SET_FULL;
-				goto send_rsp;
-			}
-
-			if (srp_cmd->buf_fmt & 0xf)
-				dir = SCST_DATA_READ;
-			else if (srp_cmd->buf_fmt >> 4)
-				dir = SCST_DATA_WRITE;
-			else
-				dir = SCST_DATA_NONE;
-		} else
-			dir = SCST_DATA_NONE;
-
-		scmnd = scst_rx_cmd(ch->scst_sess, (u8 *) &srp_cmd->lun,
-				    sizeof srp_cmd->lun, srp_cmd->cdb, 16,
-				    thread ? SCST_NON_ATOMIC : SCST_ATOMIC);
-		if (!scmnd) {
-			srpt_build_cmd_rsp(ch, ioctx, NO_SENSE,
-					   NO_ADD_SENSE, srp_cmd->tag);
-			((struct srp_rsp *)ioctx->buf)->status =
-				SAM_STAT_TASK_SET_FULL;
+		if (srpt_handle_cmd(ch, ioctx) < 0)
 			goto send_rsp;
-		}
-
-		ioctx->scmnd = scmnd;
-
-		switch (srp_cmd->task_attr) {
-		case SRP_CMD_HEAD_OF_Q:
-			scmnd->queue_type = SCST_CMD_QUEUE_HEAD_OF_QUEUE;
-			break;
-		case SRP_CMD_ORDERED_Q:
-			scmnd->queue_type = SCST_CMD_QUEUE_ORDERED;
-			break;
-		case SRP_CMD_SIMPLE_Q:
-			scmnd->queue_type = SCST_CMD_QUEUE_SIMPLE;
-			break;
-		case SRP_CMD_ACA:
-			scmnd->queue_type = SCST_CMD_QUEUE_ACA;
-			break;
-		default:
-			scmnd->queue_type = SCST_CMD_QUEUE_ORDERED;
-			break;
-		}
-
-		scst_cmd_set_tag(scmnd, srp_cmd->tag);
-		scst_cmd_set_tgt_priv(scmnd, ioctx);
-		scst_cmd_set_expected(scmnd, dir, ioctx->data_len);
-
-		spin_lock_irq(&ch->spinlock);
-		list_add_tail(&ioctx->scmnd_list, &ch->active_scmnd_list);
-		ch->active_scmnd_cnt++;
-		spin_unlock_irq(&ch->spinlock);
-
-		scst_cmd_init_done(scmnd, scst_estimate_context());
 		break;
 
 	case SRP_TSK_MGMT:
-		srp_tsk = ioctx->buf;
-
-		printk(KERN_WARNING PFX
-		       "recv_tsk_mgmt= %d for task_tag= %lld"
-		       " using tag= %lld cm_id= %p sess= %p\n",
-		       srp_tsk->tsk_mgmt_func,
-		       (unsigned long long) srp_tsk->task_tag,
-		       (unsigned long long) srp_tsk->tag,
-		       ch->cm_id, ch->scst_sess);
-
-		mgmt_ioctx = kmalloc(sizeof *mgmt_ioctx, GFP_ATOMIC);
-		if (!mgmt_ioctx) {
-			srpt_build_tskmgmt_rsp(ch, ioctx, SRP_TSK_MGMT_FAILED,
-					       srp_tsk->tag);
+		if (srpt_handle_tsk_mgmt(ch, ioctx) < 0)
 			goto send_rsp;
-		}
-
-		mgmt_ioctx->ioctx = ioctx;
-		mgmt_ioctx->ch = ch;
-		mgmt_ioctx->tag = srp_tsk->tag;
-
-		switch (srp_tsk->tsk_mgmt_func) {
-		case SRP_TSK_ABORT_TASK:
-			ret = scst_rx_mgmt_fn_tag(ch->scst_sess,
-						  SCST_ABORT_TASK,
-						  srp_tsk->task_tag,
-						  thread ?
-						  SCST_NON_ATOMIC : SCST_ATOMIC,
-						  mgmt_ioctx);
-			break;
-		case SRP_TSK_ABORT_TASK_SET:
-			ret = scst_rx_mgmt_fn_lun(ch->scst_sess,
-						  SCST_ABORT_TASK_SET,
-						  (u8 *) &srp_tsk->lun,
-						  sizeof srp_tsk->lun,
-						  thread ?
-						  SCST_NON_ATOMIC : SCST_ATOMIC,
-						  mgmt_ioctx);
-			break;
-		case SRP_TSK_CLEAR_TASK_SET:
-			ret = scst_rx_mgmt_fn_lun(ch->scst_sess,
-						  SCST_CLEAR_TASK_SET,
-						  (u8 *) &srp_tsk->lun,
-						  sizeof srp_tsk->lun,
-						  thread ?
-						  SCST_NON_ATOMIC : SCST_ATOMIC,
-						  mgmt_ioctx);
-			break;
-#if 0
-		case SRP_TSK_LUN_RESET:
-			ret = scst_rx_mgmt_fn_lun(ch->scst_sess,
-						  SCST_LUN_RESET,
-						  (u8 *) &srp_tsk->lun,
-						  sizeof srp_tsk->lun,
-						  thread ?
-						  SCST_NON_ATOMIC : SCST_ATOMIC,
-						  mgmt_ioctx);
-			break;
-#endif
-		case SRP_TSK_CLEAR_ACA:
-			ret = scst_rx_mgmt_fn_lun(ch->scst_sess,
-						  SCST_CLEAR_ACA,
-						  (u8 *) &srp_tsk->lun,
-						  sizeof srp_tsk->lun,
-						  thread ?
-						  SCST_NON_ATOMIC : SCST_ATOMIC,
-						  mgmt_ioctx);
-			break;
-		default:
-			srpt_build_tskmgmt_rsp(ch, ioctx,
-					       SRP_TSK_MGMT_FUNC_NOT_SUPP,
-					       srp_tsk->tag);
-			goto send_rsp;
-		}
-
 		break;
+
 	case SRP_I_LOGOUT:
 	case SRP_AER_REQ:
 	default:
