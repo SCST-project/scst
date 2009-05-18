@@ -110,11 +110,20 @@ A SCSI device that originates service and task management requests to be
 processed by a SCSI target device and receives device service and task
 management responses from SCSI target devices.
 
+Think of the 'SCSI LLDD' as a BE (Back End) driver.
+
 <bf/SCSI target device/
 
 A SCSI device that receives device service and task management requests
 for processing and sends device service and task management responses
 to SCSI initiator devices or drivers. 
+
+Think of the 'Target Driver' as an FE (Front End) driver.
+
+The FE driver interfaces to the initiators (via the
+storage-fabric-cloud) and also to the upper edge of the SCST. Whereas
+the BE driver interfaces to the targets, i.e. disk-enclosures/JBODs/tapes etc.
+and also to the bottom edge of the SCST.
 
 <bf/SCST session/
 
@@ -596,7 +605,7 @@ session is about to be completely freed. Can be NULL. Parameter:
 All outstanding commands will be finished regularly. After
 <bf/scst_unregister_session()/ returned no new commands must be sent to
 SCST via <bf/scst_rx_cmd()/. Also, the caller must ensure that no
-<bf/scst_rx_cmd()/ or <bf/scst_rx_mgmt_fn_*()/ is called in paralell
+<bf/scst_rx_cmd()/ or <bf/scst_rx_mgmt_fn_*()/ is called in parallel
 with <bf/scst_unregister_session()/. 
 
 Function <bf/scst_unregister_session()/ can be called before
@@ -620,11 +629,11 @@ appropriate device handler's <bf/parse()/ function. Then:
 <item>If the command required no data transfer, it will be passed to
 SCSI mid-level directly or via device handler's <bf/exec()/ call.
 
-<item>If the command is <bf/READ/ command (data to the target),
+<item>If the command is a <bf/READ/ command (data to the remote/local initiator),
 necessary space will be allocated and then the command will be passed
 to SCSI mid-level directly or via device handler's <bf/exec()/ call.
 
-<item>If the command is <bf/WRITE/ command (data from the target),
+<item>If the command is a <bf/WRITE/ command (data from the remote/local initiator),
 necessary space will be allocated, then the target's <bf/rdy_to_xfer()/
 function will be called, telling the target that the space is ready and
 it can start data transferring. When all the data are read from the
@@ -1196,10 +1205,10 @@ execute a task management command. Returns:
 	<itemize>
 
 	<item><bf/SCST_DEV_TM_COMPLETED_SUCCESS/ - the command is done
-	with success, no firther actions required
+	with success, no further actions required
 
 	<item><bf/SCST_DEV_TM_COMPLETED_FAILED/ - the command is failed, 
-	no firther actions required
+	no further actions required
 
 	<item><bf/SCST_DEV_TM_NOT_COMPLETED/ - regular standard actions
 	for the command should be done
@@ -2200,7 +2209,7 @@ Where:
 <p>
 These functions allows to add or delete some SCST threads. For example,
 if <bf/exec()/ function in your device handler works synchronously, i.e.
-wait for job's completition, in order to prevent performance loss you
+wait for job's completion, in order to prevent performance loss you
 can add for SCST as many threads as there are devices serviced by your
 device handler.
 
