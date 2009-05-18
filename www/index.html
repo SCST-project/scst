@@ -43,7 +43,7 @@
 					<strong>automatic backup</strong>, etc. Another class of such devices
 					are <strong>Virtual Tape Libraries</strong> (VTL)
 					as well as other disk-based backup solutions. SCST created devices not
-					limited by IP network interface only. They can use any link supporting
+					limited by IP networking only. They can use any link which supports
 					SCSI-style data exchange, including <strong>Fibre Channel</strong>,
 					<strong>iSCSI</strong>, <strong>SAS</strong>,
 					<strong>InfiniBand</strong> and <strong>parallel (Wide) SCSI</strong>. It might
@@ -55,10 +55,10 @@
 				
 				<h1>Features of SCST Core</h1>
 				<ul>					
-					<li><span>Simple, easy to use interface with target drivers. 
+					<li><span>SCST core has simple, easy to use interface with target drivers. 
 								 SCST core performs all required pre- and post- processing of incoming requests as well as 
 								 necessary error recovery.</span></li>
-					<li><span>Undertakes most problems, related to execution contexts, thus practically eliminating one of the most 
+					<li><span>SCST core undertakes most problems, related to execution contexts, thus practically eliminating one of the most 
 								 complicated problem in the kernel drivers development. For example, target drivers for QLogic 
 								 22xx/23xx cards and for InfiniBand SRP are only about 2300 lines of code long.</span></li>
 					<li><span>Very low overhead, fine-grained locks and simplest commands processing path allow to reach 
@@ -68,14 +68,14 @@
 					<li><span>Device handlers, i.e. plugins, architecture allows various I/O 
 								 modes in backstorage handling. For example, pass-through device handlers allows to use real 
 								 SCSI hardware and vdisk device handler allows to use files as virtual disks.</span></li>
-					<li><span>Provides advanced per-initiator devices visibility management (LUN masking) allows different 
+					<li><span>Advanced per-initiator devices visibility management (LUN masking) allows different 
 								 initiators to see different set of devices with different access permissions. For instance, 
 								 initiator A could see exported from target T devices X and Y read-writable, and initiator B from 
 								 the same target T could see devices Y read-only and Z read-writable.
 								 This feature is required for hardware targets, which don't have ability to create
 								 virtual targets (SAS adapters, for instance).</span></li>
-					<li><span>Emulates necessary functionality of SCSI host adapter, because from remote initiators' point of view 
-								 SCST acts as a SCSI host with its own devices. This is especially important in pass-through mode with 
+					<li><span>SCST core emulates necessary functionality of SCSI host adapter, because from remote initiators' point of view 
+								 a SCSI target acts as a SCSI host with its own devices. This is especially important in pass-through mode with 
 								 one to many relationship, i.e. when multiple initiators can connect to the exported pass-through 
 								 devices. You can find more deep elaboration why it is needed in <a href=http://www.mail-archive.com/linux-scsi@vger.kernel.org/msg06911.html>this</a> 
 								 message in thread "Question for pass-through target design" in linux-scsi mailing list. Some of the emulated functions are the following:
@@ -98,25 +98,26 @@
 								 </ul>
 								 </span></li>
 
-					<li><span>Multithreaded design and complete SMP support, so, if necessary, all your CPU cores will participate in the commands
+					<li><span>SCST core has multithreaded design and complete SMP support, so, if necessary, all your CPU cores will participate in the commands
 								 processing.</span></li>
 					<li><span>Well documented.</span></li>							
 				</ul>					
-				<p>Interoperability between SCST core and local SCSI initiators (i.e. sd, st, etc.) is the additional issue that SCST is going to 
+				<p>Interoperability between remote and local SCSI initiators (i.e. sd, st, etc.) is the additional issue that SCST is going to 
 				address (it is not implemented yet). It is necessary, because local SCSI initiators can change the state of the 
-				device, for example RESERVE the device, or some of its parameters and that could be done behind SCST, which could 
+				device, for example RESERVE the device, or some of its parameters and that could be done behind SCST, i.e. remote initiators
+				will not know about it, which could 
 				lead to various problems, including data corruption. Thus, RESERVE/RELEASE commands, locally generated 
-				UNIT ATTENTIONs, etc. should be intercepted and processed as if local SCSI initiators act as remote SCSI 
-				initiators connected to SCST.</p>			
+				UNIT ATTENTIONs, etc. should be intercepted and passed through SCST core.</p>			
 					
 				<h1>SCST core supports the following I/O modes</h1>
 				<ul>
 					<li><span><strong>Pass-through mode</strong> with one to many relationship, i.e. when multiple initiators can 
 						connect to the exported pass-through devices, for virtually all SCSI devices types: <strong>disks (type 0), 
 						tapes (type 1), processors (type 3), CDROMs (type 5), MO disks (type 7), medium changers (type 8) and RAID 
-						controllers (type 0xC)</strong>.</span></li>
+						controllers (type 0xC)</strong>. In this mode you can, for instance, share your parallel SCSI tape or SATA
+						DVD-RW device to your iSCSI network.</span></li>
     				<li><span><strong>FILEIO mode</strong>, which allows to use files on file systems or block devices as virtual 
-    					remotely available SCSI disks or CDROMs with benefits of the <strong>Linux page cache</strong>.</span></li>
+    					remotely available SCSI disks or CDROMs with benefits of the Linux <strong>cache</strong>.</span></li>
     				<li><span><strong>BLOCKIO mode</strong>, which performs direct block IO with a block device, bypassing 
     					page-cache for all operations. This mode works well with high-end storage HBAs and for applications that 
     					either do not need caching between application and disk or need the large block throughput.</span></li>

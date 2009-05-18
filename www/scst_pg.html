@@ -89,9 +89,20 @@
 				<p><strong>SCSI initiator device</strong><br><br>
 				A SCSI device that originates service and task management requests to be processed by a SCSI target device and 
 				receives device service and task management responses from SCSI target devices.</p>
+
+				<p>Think of the 'SCSI LLDD' as a BE (Back End) driver.</p>
+
 				<p><strong>SCSI target device</strong><br><br>
 				A SCSI device that receives device service and task management requests for processing and sends device service 
 				and task management responses to SCSI initiator devices or drivers.</p>
+
+				<p>Think of the 'Target Driver' as an FE (Front End) driver.</p>
+
+				<p>The FE driver interfaces to the initiators (via the
+				storage-fabric-cloud) and also to the upper edge of the SCST. Whereas
+				the BE driver interfaces to the targets, i.e. disk-enclosures/JBODs/tapes etc.
+				and also to the bottom edge of the SCST.</p>
+
 				<p><strong>SCST session</strong><br><br>
 				SCST session is the object that describes relationship between a remote initiator and SCST via a target driver. 
 				All the commands from the remote initiator is passed to SCST in the session. For example, for connection oriented 
@@ -348,10 +359,10 @@
 				 function.<br>Then:<ul>
 					<li><span>If the command required no data transfer, it will be passed to SCSI mid-level directly or 
 					via device handler's <strong>exec()</strong> call.</span></li>
-					<li><span>If the command is <strong>READ</strong> command (data to the target), necessary space will be 
+					<li><span>If the command is a <strong>READ</strong> command (data to the remote/local initiator), necessary space will be 
 					allocated and then the command will be passed to SCSI mid-level directly or via device handler's 
 					<strong>exec()</strong> call.</span></li>
-					<li><span>If the command is <strong>WRITE</strong> command (data from the target), necessary space will be 
+					<li><span>If the command is a <strong>WRITE</strong> command (data from the remote/local initiator), necessary space will be 
 					allocated, then the target's <strong>rdy_to_xfer()</strong> function will be called, telling the target that 
 					the space is ready and it can start data transferring. When all the data are read from the target, it will call 
 					<strong>scst_rx_data()</strong>, and the command will be passed to SCSI mid-level directly or via device 
