@@ -34,6 +34,7 @@ static int get_trans_len_read_capacity(struct scst_cmd *cmd, uint8_t off);
 static int get_trans_len_single(struct scst_cmd *cmd, uint8_t off);
 static int get_trans_len_none(struct scst_cmd *cmd, uint8_t off);
 static int get_trans_len_read_pos(struct scst_cmd *cmd, uint8_t off);
+static int get_trans_cdb_len_10(struct scst_cmd *cmd, uint8_t off);
 
 /*
 +=====================================-============-======-
@@ -271,6 +272,8 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
 	{0x37, "O      O        ", "READ DEFECT DATA(10)",
 	 SCST_DATA_READ, FLAG_NONE, 8, get_trans_len_1},
+	{0x37, "        O       ", "INIT ELEMENT STATUS WRANGE",
+	 SCST_DATA_NONE, SCST_LONG_TIMEOUT, 0, get_trans_len_none},
 	{0x38, "    O  O        ", "MEDIUM SCAN",
 	 SCST_DATA_READ, FLAG_NONE, 8, get_trans_len_1},
 	{0x39, "OOOOOOOO        ", "COMPARE",
@@ -502,7 +505,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{0xBF, "            O   ", "VOLUME SET(OUT)",
 	 SCST_DATA_WRITE, FLAG_NONE, 6, get_trans_len_4},
 	{0xE7, "        V       ", "INIT ELEMENT STATUS WRANGE",
-	 SCST_DATA_NONE, SCST_LONG_TIMEOUT, 0, get_trans_len_none}
+	 SCST_DATA_NONE, SCST_LONG_TIMEOUT, 0, get_trans_cdb_len_10}
 };
 
 /* Notes:
