@@ -343,7 +343,7 @@ struct scst_user_scsi_cmd_parse
 	uint64_t sess_h;
 
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
-	uint16_t cdb_len;
+	int16_t cdb_len;
 	uint16_t ext_cdb_len;
 
 	uint32_t timeout;
@@ -426,7 +426,7 @@ struct scst_user_scsi_cmd_alloc_mem
 	uint64_t sess_h;
 
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
-	uint16_t cdb_len;
+	int16_t cdb_len;
 	uint16_t ext_cdb_len;
 
 	int32_t alloc_len;
@@ -535,7 +535,7 @@ struct scst_user_scsi_cmd_exec
 	uint64_t sess_h;
 
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
-	uint16_t cdb_len;
+	int16_t cdb_len;
 	uint16_t ext_cdb_len;
 
 	int32_t data_len;

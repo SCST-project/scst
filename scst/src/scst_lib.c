@@ -2477,7 +2477,13 @@ int scst_get_cdb_len(const uint8_t *cdb)
 
 /* get_trans_len_x extract x bytes from cdb as length starting from off */
 
-/* for special commands */
+static int get_trans_cdb_len_10(struct scst_cmd *cmd, uint8_t off)
+{
+	cmd->cdb_len = 10;	
+	cmd->bufflen = 0;
+	return 0;
+}
+
 static int get_trans_len_block_limit(struct scst_cmd *cmd, uint8_t off)
 {
 	cmd->bufflen = 6;

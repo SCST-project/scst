@@ -1240,7 +1240,7 @@ struct scst_cmd {
 
 	/* CDB and its len */
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
-	unsigned short cdb_len;
+	short cdb_len; /* it might be -1 */
 	unsigned short ext_cdb_len;
 	uint8_t *ext_cdb;
 
