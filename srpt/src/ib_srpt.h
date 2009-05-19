@@ -161,10 +161,13 @@ struct srpt_rdma_ch {
 struct srpt_port {
 	struct srpt_device *sdev;
 	struct ib_mad_agent *mad_agent;
+	/* One-based port number. */
 	u8 port;
+	/* Cached values of the port's sm_lid, lid and gid. */
 	u16 sm_lid;
 	u16 lid;
 	union ib_gid gid;
+	/* Work structure for refreshing the aforementioned cached values. */
 	struct work_struct work;
 };
 
