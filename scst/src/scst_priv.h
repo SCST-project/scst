@@ -303,6 +303,8 @@ int scst_acg_remove_name(struct scst_acg *acg, const char *name);
 int scst_prepare_request_sense(struct scst_cmd *orig_cmd);
 int scst_finish_internal_cmd(struct scst_cmd *cmd);
 
+void scst_store_sense(struct scst_cmd *cmd);
+
 int scst_assign_dev_handler(struct scst_device *dev,
 	struct scst_dev_type *handler);
 

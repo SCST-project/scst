@@ -1224,6 +1224,7 @@ void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA)
 	/* With activity suspended the lock isn't needed, but let's be safe */
 	spin_lock_bh(&tgt_dev->tgt_dev_lock);
 	scst_free_all_UA(tgt_dev);
+	memset(tgt_dev->tgt_dev_sense, 0, sizeof(tgt_dev->tgt_dev_sense));
 	spin_unlock_bh(&tgt_dev->tgt_dev_lock);
 
 	if (queue_UA) {
@@ -3426,7 +3427,12 @@ void scst_process_reset(struct scst_device *dev,
 		struct scst_session *sess = tgt_dev->sess;
 
 		spin_lock_bh(&tgt_dev->tgt_dev_lock);
+
 		scst_free_all_UA(tgt_dev);
+
+		memset(tgt_dev->tgt_dev_sense, 0,
+			sizeof(tgt_dev->tgt_dev_sense));
+
 		spin_unlock_bh(&tgt_dev->tgt_dev_lock);
 
 		spin_lock_irq(&sess->sess_list_lock);
@@ -4154,6 +4160,37 @@ void scst_on_hq_cmd_response(struct scst_cmd *cmd)
 		scst_make_deferred_commands_active(tgt_dev);
 
 out:
+	TRACE_EXIT();
+	return;
+}
+
+void scst_store_sense(struct scst_cmd *cmd)
+{
+	TRACE_ENTRY();
+
+	if (SCST_SENSE_VALID(cmd->sense) &&
+	    !test_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags) &&
+	    (cmd->tgt_dev != NULL)) {
+		struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
+
+		TRACE_DBG("Storing sense (cmd %p)", cmd);
+
+		spin_lock_bh(&tgt_dev->tgt_dev_lock);
+
+		if (cmd->sense_bufflen <= sizeof(tgt_dev->tgt_dev_sense))
+			tgt_dev->tgt_dev_valid_sense_len = cmd->sense_bufflen;
+		else {
+			tgt_dev->tgt_dev_valid_sense_len = sizeof(tgt_dev->tgt_dev_sense);
+			PRINT_ERROR("Stored sense truncated to size %d "
+				"(needed %d)", tgt_dev->tgt_dev_valid_sense_len,
+				cmd->sense_bufflen);
+		}
+		memcpy(tgt_dev->tgt_dev_sense, cmd->sense,
+			tgt_dev->tgt_dev_valid_sense_len);
+
+		spin_unlock_bh(&tgt_dev->tgt_dev_lock);
+	}
+
 	TRACE_EXIT();
 	return;
 }

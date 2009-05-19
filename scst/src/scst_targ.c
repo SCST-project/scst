@@ -2922,29 +2922,8 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)))
 		scst_xmit_process_aborted_cmd(cmd);
-	else if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION) &&
-		 SCST_SENSE_VALID(cmd->sense) &&
-		 !test_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags) &&
-		 (cmd->tgt_dev != NULL)) {
-		struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
-
-		TRACE_DBG("Storing sense (cmd %p)", cmd);
-
-		spin_lock_bh(&tgt_dev->tgt_dev_lock);
-
-		if (cmd->sense_bufflen <= sizeof(tgt_dev->tgt_dev_sense))
-			tgt_dev->tgt_dev_valid_sense_len = cmd->sense_bufflen;
-		else {
-			tgt_dev->tgt_dev_valid_sense_len = sizeof(tgt_dev->tgt_dev_sense);
-			PRINT_ERROR("Stored sense truncated to size %d "
-				"(needed %d)", tgt_dev->tgt_dev_valid_sense_len,
-				cmd->sense_bufflen);
-		}
-		memcpy(tgt_dev->tgt_dev_sense, cmd->sense,
-			tgt_dev->tgt_dev_valid_sense_len);
-
-		spin_unlock_bh(&tgt_dev->tgt_dev_lock);
-	}
+	else if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION))
+		scst_store_sense(cmd);
 
 	if (unlikely(test_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags))) {
 		TRACE_MGMT_DBG("Flag NO_RESP set for cmd %p (tag %llu),"
