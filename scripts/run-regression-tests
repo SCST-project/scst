@@ -96,7 +96,8 @@ function extract_kernel_tree {
     fi
     cd ..
     mv "linux-${kver}" "../linux-$1" || return $?
-    if [ "${kver}" = "2.6.29" ]; then
+    if [ "$1" = "2.6.29" -o "$1" = "2.6.29.1" -o "$1" = "2.6.29.2" -o "$1" = "2.6.29.3" ]
+    then
       cd "../linux-$1" || return $?
       patch -f -s -p1 <<'EOF'
 Make sure that branch profiling does not trigger sparse warnings.
