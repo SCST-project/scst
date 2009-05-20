@@ -771,6 +771,8 @@ check:
 
 prep_done:
 	if (cmd->preprocessing_only) {
+		cmd->preprocessing_only = 0;
+
 		if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
 			TRACE_MGMT_DBG("ABORTED set, returning ABORTED for "
 				"cmd %p", cmd);

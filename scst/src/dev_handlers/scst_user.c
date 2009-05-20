@@ -1044,12 +1044,10 @@ static void dev_user_add_to_ready(struct scst_user_cmd *ucmd)
 {
 	struct scst_user_dev *dev = ucmd->dev;
 	unsigned long flags;
-	int do_wake;
+	int do_wake = in_interrupt();
 
 	TRACE_ENTRY();
 
-	do_wake = (in_interrupt() ||
-		   (ucmd->state == UCMD_STATE_ON_CACHE_FREEING));
 	if (ucmd->cmd)
 		do_wake |= ucmd->cmd->preprocessing_only;
 
@@ -1072,7 +1070,6 @@ static void dev_user_add_to_ready(struct scst_user_cmd *ucmd)
 			"cmd list", ucmd, ucmd->state);
 		list_add(&ucmd->ready_cmd_list_entry,
 			&dev->ready_cmd_list);
-		do_wake = 1;
 	} else if (unlikely(ucmd->state == UCMD_STATE_TM_EXECING) ||
 		   unlikely(ucmd->state == UCMD_STATE_ATTACH_SESS) ||
 		   unlikely(ucmd->state == UCMD_STATE_DETACH_SESS)) {
@@ -1081,14 +1078,20 @@ static void dev_user_add_to_ready(struct scst_user_cmd *ucmd)
 		list_add(&ucmd->ready_cmd_list_entry,
 			&dev->ready_cmd_list);
 		do_wake = 1;
-	} else if ((ucmd->cmd != NULL) &&
-	   unlikely((ucmd->cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))) {
-		TRACE_DBG("Adding HQ ucmd %p to head of ready cmd list", ucmd);
-		list_add(&ucmd->ready_cmd_list_entry, &dev->ready_cmd_list);
 	} else {
-		TRACE_DBG("Adding ucmd %p to ready cmd list", ucmd);
-		list_add_tail(&ucmd->ready_cmd_list_entry,
-			      &dev->ready_cmd_list);
+		if ((ucmd->cmd != NULL) &&
+		    unlikely((ucmd->cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))) {
+			TRACE_DBG("Adding HQ ucmd %p to head of ready cmd list",
+				ucmd);
+			list_add(&ucmd->ready_cmd_list_entry,
+				&dev->ready_cmd_list);
+		} else {
+			TRACE_DBG("Adding ucmd %p to ready cmd list", ucmd);
+			list_add_tail(&ucmd->ready_cmd_list_entry,
+				      &dev->ready_cmd_list);
+		}
+		do_wake |= ((ucmd->state == UCMD_STATE_ON_CACHE_FREEING) ||
+			    (ucmd->state == UCMD_STATE_ON_FREEING));
 	}
 
 	if (do_wake) {
@@ -2120,7 +2123,6 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 	case UCMD_STATE_TM_EXECING:
 	case UCMD_STATE_ATTACH_SESS:
 	case UCMD_STATE_DETACH_SESS:
-	{
 		if (flags != NULL)
 			spin_unlock_irqrestore(&dev->cmd_lists.cmd_list_lock,
 					       *flags);
@@ -2153,7 +2155,6 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 		else
 			spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
 		break;
-	}
 
 	default:
 		PRINT_CRIT_ERROR("Wrong ucmd state %x", state);
