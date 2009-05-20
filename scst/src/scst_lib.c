@@ -2479,7 +2479,7 @@ int scst_get_cdb_len(const uint8_t *cdb)
 
 static int get_trans_cdb_len_10(struct scst_cmd *cmd, uint8_t off)
 {
-	cmd->cdb_len = 10;	
+	cmd->cdb_len = 10;
 	cmd->bufflen = 0;
 	return 0;
 }
