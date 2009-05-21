@@ -82,6 +82,7 @@ MODULE_PARM_DESC(thread,
 static void srpt_add_one(struct ib_device *device);
 static void srpt_remove_one(struct ib_device *device);
 static int srpt_disconnect_channel(struct srpt_rdma_ch *ch, int dreq);
+static void srpt_unregister_mad_agent(struct srpt_device *sdev);
 
 static struct ib_client srpt_client = {
 	.name = DRV_NAME,
@@ -419,8 +420,10 @@ err:
 }
 
 /*
- * Register InfiniBand management datagram callback functions for the specified
- * port.
+ * Enable InfiniBand management datagram processing, update the cached sm_lid,
+ * lid and gid values, and register a callback function for processing MADs
+ * on the specified port. It is safe to call this function more than once for
+ * the same port.
  */
 static int srpt_refresh_port(struct srpt_port *sport)
 {
@@ -477,6 +480,32 @@ err_query_port:
 err_mod_port:
 
 	return ret;
+}
+
+/*
+ * Unregister the callback function for processing MADs and disable MAD
+ * processing for all ports of the specified device. It is safe to call this
+ * function more than once for the same device.
+ */
+static void srpt_unregister_mad_agent(struct srpt_device *sdev)
+{
+	struct ib_port_modify port_modify = {
+		.clr_port_cap_mask = IB_PORT_DEVICE_MGMT_SUP,
+	};
+	struct srpt_port *sport;
+	int i;
+
+	for (i = 1; i <= sdev->device->phys_port_cnt; i++) {
+		sport = &sdev->port[i - 1];
+		WARN_ON(sport->port != i);
+		if (ib_modify_port(sdev->device, i, 0, &port_modify) < 0)
+			printk(KERN_ERR PFX "disabling MAD processing"
+			       " failed.\n");
+		if (sport->mad_agent && !IS_ERR(sport->mad_agent)) {
+			ib_unregister_mad_agent(sport->mad_agent);
+			sport->mad_agent = NULL;
+		}
+	}
 }
 
 /*
@@ -2146,21 +2175,12 @@ out:
 static int srpt_release(struct scst_tgt *scst_tgt)
 {
 	struct srpt_device *sdev = scst_tgt_get_tgt_priv(scst_tgt);
-	struct srpt_port *sport;
 	struct srpt_rdma_ch *ch, *tmp_ch;
-	struct ib_port_modify port_modify = {
-		.clr_port_cap_mask = IB_PORT_DEVICE_MGMT_SUP
-	};
-	int i;
 
 	list_for_each_entry_safe(ch, tmp_ch, &sdev->rch_list, list)
 	    srpt_release_channel(ch, 1);
 
-	for (i = 1; i <= sdev->device->phys_port_cnt; i++) {
-		sport = &sdev->port[i - 1];
-		ib_modify_port(sdev->device, sport->port, 0, &port_modify);
-		ib_unregister_mad_agent(sport->mad_agent);
-	}
+	srpt_unregister_mad_agent(sdev);
 
 	scst_tgt_set_tgt_priv(scst_tgt, NULL);
 
