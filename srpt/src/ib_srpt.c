@@ -465,8 +465,11 @@ static int srpt_refresh_port(struct srpt_port *sport)
 							 srpt_mad_send_handler,
 							 srpt_mad_recv_handler,
 							 sport);
-		if (IS_ERR(sport->mad_agent))
+		if (IS_ERR(sport->mad_agent)) {
+			ret = PTR_ERR(sport->mad_agent);
+			sport->mad_agent = NULL;
 			goto err_query_port;
+		}
 	}
 
 	return 0;
@@ -501,7 +504,7 @@ static void srpt_unregister_mad_agent(struct srpt_device *sdev)
 		if (ib_modify_port(sdev->device, i, 0, &port_modify) < 0)
 			printk(KERN_ERR PFX "disabling MAD processing"
 			       " failed.\n");
-		if (sport->mad_agent && !IS_ERR(sport->mad_agent)) {
+		if (sport->mad_agent) {
 			ib_unregister_mad_agent(sport->mad_agent);
 			sport->mad_agent = NULL;
 		}
