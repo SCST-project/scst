@@ -2486,7 +2486,7 @@ static void srpt_remove_one(struct ib_device *device)
 	struct srpt_device *sdev;
 
 	sdev = ib_get_client_data(device, &srpt_client);
-	if (!WARN_ON(sdev))
+	if (WARN_ON(!sdev))
 		return;
 
 	wait_for_completion(&sdev->scst_released);
