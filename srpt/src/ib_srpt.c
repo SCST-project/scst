@@ -1496,6 +1496,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		(unsigned long long)be64_to_cpu(*(u64 *)ch->i_port_id),
 		(unsigned long long)be64_to_cpu(*(u64 *)(ch->i_port_id + 8)));
 
+	BUG_ON(!sdev->scst_tgt);
 	ch->scst_sess = scst_register_session(sdev->scst_tgt, 0, ch->sess_name,
 				  NULL, NULL);
 	if (!ch->scst_sess) {
@@ -2148,48 +2149,25 @@ static void srpt_refresh_port_work(struct work_struct *work)
 static int srpt_detect(struct scst_tgt_template *tp)
 {
 	struct srpt_device *sdev;
-	struct srpt_port *sport;
-	int i;
 	int count = 0;
 
-	list_for_each_entry(sdev, &srpt_devices, list) {
-
-		sdev->scst_tgt = scst_register(tp, NULL);
-		if (!sdev->scst_tgt)
-			goto out;
-
-		scst_tgt_set_tgt_priv(sdev->scst_tgt, sdev);
-
-		for (i = 1; i <= sdev->device->phys_port_cnt; i++) {
-			sport = &sdev->port[i - 1];
-			sport->sdev = sdev;
-			sport->port = i;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && ! defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
-			INIT_WORK(&sport->work, srpt_refresh_port_work, sport);
-#else
-			INIT_WORK(&sport->work, srpt_refresh_port_work);
-#endif
-
-			if (srpt_refresh_port(sport)) {
-				scst_unregister(sdev->scst_tgt);
-				goto out;
-			}
-		}
-
+	list_for_each_entry(sdev, &srpt_devices, list)
 		++count;
-	}
-out:
 	return count;
 }
 
 /*
- * Called by the SCST core to free up the resources associated with device
- * 'scst_tgt'.
+ * Callback function called by the SCST core from scst_unregister() to free up
+ * the resources associated with device scst_tgt.
  */
 static int srpt_release(struct scst_tgt *scst_tgt)
 {
 	struct srpt_device *sdev = scst_tgt_get_tgt_priv(scst_tgt);
 	struct srpt_rdma_ch *ch, *tmp_ch;
+
+	BUG_ON(!scst_tgt);
+	if (WARN_ON(!sdev))
+		return -ENODEV;
 
 	list_for_each_entry_safe(ch, tmp_ch, &sdev->rch_list, list)
 	    srpt_release_channel(ch, 1);
@@ -2357,6 +2335,7 @@ static DEVICE_ATTR(login_info, S_IRUGO, show_login_info, NULL);
 static void srpt_add_one(struct ib_device *device)
 {
 	struct srpt_device *sdev;
+	struct srpt_port *sport;
 	struct ib_srq_init_attr srq_attr;
 	int i;
 
@@ -2457,8 +2436,39 @@ static void srpt_add_one(struct ib_device *device)
 
 	ib_set_client_data(device, &srpt_client, sdev);
 
+	sdev->scst_tgt = scst_register(&srpt_template, NULL);
+	if (!sdev->scst_tgt) {
+		printk(KERN_ERR PFX "SCST registration failed for %s.\n",
+			sdev->device->name);
+		goto err_ring;
+	}
+
+	scst_tgt_set_tgt_priv(sdev->scst_tgt, sdev);
+
+	for (i = 1; i <= sdev->device->phys_port_cnt; i++) {
+		sport = &sdev->port[i - 1];
+		sport->sdev = sdev;
+		sport->port = i;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && ! defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
+		INIT_WORK(&sport->work, srpt_refresh_port_work, sport);
+#else
+		INIT_WORK(&sport->work, srpt_refresh_port_work);
+#endif
+		if (srpt_refresh_port(sport)) {
+			printk(KERN_ERR PFX "MAD registration failed"
+			       " for %s-%d.\n", sdev->device->name, i);
+			goto err_refresh_port;
+		}
+	}
+
 	return;
 
+err_refresh_port:
+	scst_unregister(sdev->scst_tgt);
+err_ring:
+	ib_set_client_data(device, &srpt_client, NULL);
+	list_del(&sdev->list);
+	srpt_free_ioctx_ring(sdev);
 err_event:
 	ib_unregister_event_handler(&sdev->event_handler);
 err_cm:
@@ -2492,6 +2502,9 @@ static void srpt_remove_one(struct ib_device *device)
 	if (WARN_ON(!sdev))
 		return;
 
+	scst_unregister(sdev->scst_tgt);
+	sdev->scst_tgt = NULL;
+
 	wait_for_completion(&sdev->scst_released);
 
 	ib_unregister_event_handler(&sdev->event_handler);
@@ -2510,6 +2523,14 @@ static void srpt_remove_one(struct ib_device *device)
 	kfree(sdev);
 }
 
+/*
+ * Module initialization.
+ *
+ * Note: since ib_register_client() registers callback functions, and since at
+ * least one of these callback functions (srpt_add_one()) calls SCST functions,
+ * the SCST target template must be registered before ib_register_client() is
+ * called.
+ */
 static int __init srpt_init_module(void)
 {
 	int ret;
@@ -2522,17 +2543,17 @@ static int __init srpt_init_module(void)
 		return ret;
 	}
 
-	ret = ib_register_client(&srpt_client);
-	if (ret) {
-		printk(KERN_ERR PFX "couldn't register IB client\n");
-		goto mem_out;
-	}
-
 	ret = scst_register_target_template(&srpt_template);
 	if (ret < 0) {
 		printk(KERN_ERR PFX "couldn't register with scst\n");
 		ret = -ENODEV;
-		goto ib_out;
+		goto mem_out;
+	}
+
+	ret = ib_register_client(&srpt_client);
+	if (ret) {
+		printk(KERN_ERR PFX "couldn't register IB client\n");
+		goto scst_out;
 	}
 
 	if (thread) {
@@ -2548,8 +2569,8 @@ static int __init srpt_init_module(void)
 
 	return 0;
 
-ib_out:
-	ib_unregister_client(&srpt_client);
+scst_out:
+	scst_unregister_target_template(&srpt_template);
 mem_out:
 	class_unregister(&srpt_class);
 	return ret;
@@ -2559,8 +2580,8 @@ static void __exit srpt_cleanup_module(void)
 {
 	if (srpt_thread.thread)
 		kthread_stop(srpt_thread.thread);
-	scst_unregister_target_template(&srpt_template);
 	ib_unregister_client(&srpt_client);
+	scst_unregister_target_template(&srpt_template);
 	class_unregister(&srpt_class);
 }
 
