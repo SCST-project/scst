@@ -582,6 +582,17 @@ err:
 	return -ENOMEM;
 }
 
+/* Free the ring of SRPT I/O context structures. */
+static void srpt_free_ioctx_ring(struct srpt_device *sdev)
+{
+	int i;
+
+	for (i = 0; i < SRPT_SRQ_SIZE; ++i) {
+		srpt_free_ioctx(sdev, sdev->ioctx_ring[i]);
+		sdev->ioctx_ring[i] = NULL;
+	}
+}
+
 /*
  * Post a receive request on the work queue of InfiniBand device 'sdev'.
  */
@@ -2473,10 +2484,9 @@ free_dev:
 static void srpt_remove_one(struct ib_device *device)
 {
 	struct srpt_device *sdev;
-	int i;
 
 	sdev = ib_get_client_data(device, &srpt_client);
-	if (!sdev)
+	if (!WARN_ON(sdev))
 		return;
 
 	wait_for_completion(&sdev->scst_released);
@@ -2492,9 +2502,7 @@ static void srpt_remove_one(struct ib_device *device)
 	device_unregister(&sdev->dev);
 #endif
 
-	for (i = 0; i < SRPT_SRQ_SIZE; ++i)
-		srpt_free_ioctx(sdev, sdev->ioctx_ring[i]);
-
+	srpt_free_ioctx_ring(sdev);
 	list_del(&sdev->list);
 	kfree(sdev);
 }
