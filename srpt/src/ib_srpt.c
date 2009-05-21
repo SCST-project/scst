@@ -2176,8 +2176,6 @@ static int srpt_release(struct scst_tgt *scst_tgt)
 
 	scst_tgt_set_tgt_priv(scst_tgt, NULL);
 
-	complete(&sdev->scst_released);
-
 	return 0;
 }
 
@@ -2344,7 +2342,6 @@ static void srpt_add_one(struct ib_device *device)
 		return;
 
 	sdev->device = device;
-	init_completion(&sdev->scst_released);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 	sdev->class_dev.class = &srpt_class;
@@ -2504,8 +2501,6 @@ static void srpt_remove_one(struct ib_device *device)
 
 	scst_unregister(sdev->scst_tgt);
 	sdev->scst_tgt = NULL;
-
-	wait_for_completion(&sdev->scst_released);
 
 	ib_unregister_event_handler(&sdev->event_handler);
 	ib_destroy_cm_id(sdev->cm_id);

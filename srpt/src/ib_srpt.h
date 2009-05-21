@@ -199,11 +199,6 @@ struct srpt_device {
 	spinlock_t spinlock;
 	struct srpt_port port[2];
 	struct ib_event_handler event_handler;
-	/*
-	 * scst_released is used to postpone srpt_remove_one() until the SCST
-	 * core has notified the ib_srpt module about driver release.
-	 */
-	struct completion scst_released;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 	/* per-port srpt-<portname> device instance. */
 	struct class_device class_dev;
