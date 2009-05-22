@@ -1,10 +1,36 @@
-Summary of changes in SRPT between versions 1.0.0 and 1.0.1
------------------------------------------------------------
+Version 1.0.1 (not yet released)
+-------------
 
- - Update for kernels up to 2.6.29
+Changes:
+- Performance has been improved. I/O requests are now handled in soft IRQ
+  context instead of on a separate thread, which drastically reduces the
+  number of context switches needed for processing I/O (r594).
+- Added support for building SCST-SRPT against the OFED InfiniBand drivers
+  (r814:838).
+- Compiles now without further patches on RHEL 5.x / CentOS 5.x systems (r638).
+- Compiles now against 2.6.26 and later kernels (r516).
+- Fixed incorrect SCST state used on error path (r557).
+- Fixed memory leak triggered by rejecting SRP login requests (r800).
+- Fixed kernel oops triggered by reception of an asynchronous InfiniBand event.
+  Asynchronous events are triggered by e.g. resetting an InfiniBand switch or
+  reconnecting an InfiniBand cable (r878:880). The call stack of the oops is
+  as follows:
+    queue_work+0x1a/0x20                                     
+    schedule_work+0x16/0x20                                  
+    srpt_event_handler+0xda/0xe0 [ib_srpt]                   
+    ib_dispatch_event+0x39/0x70 [ib_core]                    
+    mlx4_ib_process_mad+0x3e6/0x430 [mlx4_ib]                
+    ib_post_send_mad+0x374/0x6f0 [ib_mad]                    
+    ? futex_wake+0x105/0x120                                 
+    ib_umad_write+0x4a8/0x5c0 [ib_umad]                      
+    vfs_write+0xcb/0x170                                     
+    sys_write+0x50/0x90                                      
+    system_call_fastpath+0x16/0x1b                           
+- The login information for HCA's with more than two ports is now displayed
+  correctly. Note: no such devices exist yet (r799).
 
- - Fixed incorrect SCST state used on error path
 
- - Unneeded context switches during commands processing eliminated
-
- - Minor fixes and cleanups
+Version 1.0.0 (released on July 14, 2008)
+-------------
+Almost identical to trunk r440 (only the variables SCST_DIR and EXTRA_CFLAGS
+in the Makefiles are different from trunk r440).

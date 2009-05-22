@@ -3,94 +3,25 @@
    * https://wiki.openfabrics.org/tiki-index.php?page=SRPT+Installation
 
 
-2. SRPT driver directly uses internal states of SCST core target state
-machine, which is bad, bad, bad and generally not acceptable. Only dev
-handler are allowed to use them. That should be fixed.
+2. The SRPT driver directly uses the internal state of the SCST core target
+   state machine (scmnd->state), which is bad, bad, bad and generally not
+   acceptable. Only dev handler are allowed to use them. This should be fixed.
 
 
-3. Analyze why memory usage keeps increasing for repeatedly rejected logins.
-
-Details: openSUSE 11.1, 2.6.29.1 kernel with SCST patches applied (target),
-         SCST trunk r800.
-
-How to reproduce:
-* Run the following command on the target system:
-    while true; do echo "$(date) $(cat /proc/meminfo)"; done | tee memlog.txt
-* Run the following command on the initiator system:
-    for ((i=0;i<100000;i++)); do echo 'id_ext=0002c9030003cca2,ioc_guid=0002c9030003cca2,pkey=ffff,dgid=fe800000000000000002c9030003cca3,service_id=0002c9030003cca3' >/sys/class/infiniband_srp/srp-mlx4_0-1/add_target ; done
-
-Result:
-
-* The value of MemFree was decreasing during this test.
-* The values of Active, Inactive, Active(anon), AnonPages and
-  Committed_AS were all increasing at the same rate as MemFree was
-  decreasing.
-* No other values in /proc/meminfo changed significantly.
+3. Fix the race condition between srpt_refresh_port_work() and 
+   srpt_remove_one(). Although the probability that this happens is very low,
+   at least in theory it is possible that srpt_refresh_port_work() gets
+   called for a port after srpt_remove_one() called kfree() on the data
+   structure that contains the work_struct passed to srpt_refresh_port_work().
+   It's not clear to me whether or not letting srpt_remove_one() wait until
+   srpt_refresh_work() finished can result in a deadlock.
 
 
-4. Analyze why ib_srpt.ko triggers a kernel oops if ib_srpt is loaded before 
-   opensm is started.
-
-Details: openSUSE 11.1, 2.6.29.1 kernel with SCST patches applied, SCST trunk r830.
-
-How to reproduce:
-
-/etc/init.d/scst stop
-/etc/init.d/opensmd stop
-/etc/init.d/openibd stop
-modprobe scst
-modprobe ib_srpt
-/etc/init.d/openibd start
-dmesg -c >/dev/null
-/etc/init.d/opensmd start
-dmesg -c
-
-Result:
-
-ib_srpt: ASYNC event= 17 on device= mlx4_0
-------------[ cut here ]------------      
-kernel BUG at kernel/workqueue.c:189!     
-invalid opcode: 0000 [#1] SMP             
-last sysfs file: /sys/devices/pci0000:00/0000:00:01.0/0000:01:00.0/infiniband_mad/umad0/port                                                                    
-CPU 0                                                                           
-Modules linked in: rdma_ucm rdma_cm iw_cm ib_addr ib_srp scsi_transport_srp scsi_tgt ib_ipoib ib_uverbs ib_umad mlx4_ib ib_srpt scst_vdisk scst ib_cm ib_sa ib_mad ib_core ip6t_LOG ipt_MASQUERADE xt_pkttype xt_TCPMSS xt_tcpudp ipt_LOG xt_limit iptable_nat nf_nat vboxnetflt vboxdrv snd_pcm_oss snd_mixer_oss snd_seq snd_seq_device af_packet ip6t_REJECT nf_conntrack_ipv6 ip6table_raw xt_NOTRACK ipt_REJECT xt_state iptable_raw iptable_filter ip6table_mangle nf_conntrack_netbios_ns nf_conntrack_ipv4 nf_conntrack nf_defrag_ipv4 ip_tables ip6table_filter ip6_tables x_tables cpufreq_conservative cpufreq_userspace cpufreq_powersave acpi_cpufreq ipv6 fuse loop dm_mod coretemp snd_hda_codec_atihdmi snd_hda_codec_analog snd_hda_intel snd_hda_codec snd_hwdep snd_pcm snd_timer snd soundcore i2c_i801 joydev sr_mod serio_raw i2c_core rtc_cmos button snd_page_alloc hid_belkin cdrom pcspkr mlx4_core rtc_core intel_agp rtc_lib sg usbhid hid raid456 async_xor async_memcpy async_tx xor raid0 sd_mod crc_t10dif ehci_hcd uhci_hcd usbcore edd raid1 ext3 mbcache jbd fan ide_pci_generic ide_core ata_generic ata_piix pata_marvell ahci libata scsi_mod thermal processor thermal_sys hwmon [last unloaded: scst]   
-Pid: 9073, comm: opensm Not tainted 2.6.29.1-scst #2 P5Q DELUXE                 
-RIP: 0010:[<ffffffff80254a26>]  [<ffffffff80254a26>] queue_work_on+0x56/0x60    
-RSP: 0018:ffff8801149dbc48  EFLAGS: 00010003                                    
-RAX: ffff880095c28120 RBX: ffff8801149dbd08 RCX: ffff880095c28118               
-RDX: 0000000000000000 RSI: ffff88013ec96400 RDI: 0000000000000000               
-RBP: ffff8801149dbc48 R08: 0000000000000000 R09: 0000000000000006               
-R10: ffffffff80711480 R11: ffff8801149dbc18 R12: ffff880095c20000               
-R13: 0000000000000282 R14: ffff8800932a8040 R15: ffff880138453800               
-FS:  00007f8868e91950(0000) GS:ffffffff80697040(0000) knlGS:0000000000000000    
-CS:  0010 DS: 0000 ES: 0000 CR0: 000000008005003b                               
-CR2: 000000000040d3f0 CR3: 0000000093057000 CR4: 00000000000406e0               
-DR0: 0000000000000000 DR1: 0000000000000000 DR2: 0000000000000000               
-DR3: 0000000000000000 DR6: 00000000ffff0ff0 DR7: 0000000000000400
-Process opensm (pid: 9073, threadinfo ffff8801149da000, task ffff8800937a3710)
-Stack:
- ffff8801149dbc58 ffffffff80254bca ffff8801149dbc68 ffffffff80254be6
- ffff8801149dbc88 ffffffffa06dcaca ffff880095c28180 ffff8801149dbd08
- ffff8801149dbcb8 ffffffffa0629b49 ffff8801149dbcb8 0000000000000001
-Call Trace:
- [<ffffffff80254bca>] queue_work+0x1a/0x20
- [<ffffffff80254be6>] schedule_work+0x16/0x20
- [<ffffffffa06dcaca>] srpt_event_handler+0xda/0xe0 [ib_srpt]
- [<ffffffffa0629b49>] ib_dispatch_event+0x39/0x70 [ib_core]
- [<ffffffffa06ea186>] mlx4_ib_process_mad+0x3e6/0x430 [mlx4_ib]
- [<ffffffffa063d634>] ib_post_send_mad+0x374/0x6f0 [ib_mad]
- [<ffffffff80265ad5>] ? futex_wake+0x105/0x120
- [<ffffffffa05bf6d8>] ib_umad_write+0x4a8/0x5c0 [ib_umad]
- [<ffffffff802c1c5b>] vfs_write+0xcb/0x170
- [<ffffffff802c1df0>] sys_write+0x50/0x90
- [<ffffffff8020c49b>] system_call_fastpath+0x16/0x1b
-Code: 8b 46 20 48 8b 06 45 85 c0 48 f7 d0 0f 45 3d 12 73 3a 00 48 89 ce 48 63 d7 48 8b 3c d0 e8 e3 fe ff ff ba 01 00 00 00 c9 89 d0 c3 <0f> 0b eb fe 66 0f 1f 44 00 00 55 48 89 e5 53 48 8d 5d b0 48 83
-RIP  [<ffffffff80254a26>] queue_work_on+0x56/0x60
- RSP <ffff8801149dbc48>
----[ end trace 8dc16c5c1664b10b ]---
+4. Find out from which threads the srpt_devices list can be accessed and
+   whether it has to be protected by a spinlock or mutex.
 
 
-5. rmmod ib_srpt under load crashes.
+5. Fix the issue that 'rmmod ib_srpt' under load hangs.
 
 
 6. The initiator names supplied to the SCST core contain the target port name,
