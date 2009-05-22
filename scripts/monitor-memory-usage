@@ -1,0 +1,81 @@
+#!/bin/bash
+
+############################################################################
+#
+# Script for monitoring system-wide memory usage.
+#
+# Copyright (C) 2009 Bart Van Assche <bart.vanassche@gmail.com>.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, version 2
+# of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+############################################################################
+
+#########################
+# Function definitions  #
+#########################
+
+function usage {
+  echo "Usage: $0 [-h] [-i <interval>]"
+  echo "        -h - display this information."
+  echo "        -i - monitoring interval in seconds."
+}
+
+
+#########################
+# Default settings      #
+#########################
+
+interval=10
+
+
+#########################
+# Argument processing   #
+#########################
+
+set -- $(/usr/bin/getopt "hi:" "$@")
+while [ "$1" != "${1#-}" ]
+do
+  case "$1" in
+    '-i') interval="$2"; shift; shift;;
+    '--') shift;;
+    *)    usage; exit 1;;
+  esac
+done
+
+if [ "$#" != 0 -o "${interval}" -le 0 ]; then
+  usage
+  exit 1
+fi
+
+
+####################
+# Performance test #
+####################
+
+printf "%-10s " "Time"
+cat /proc/meminfo \
+| while read label number unit
+  do
+    printf " %10s" ${label%:}
+  done
+echo
+
+while true
+do
+  printf "%-10d" $(date +%s)
+  cat /proc/meminfo \
+  | while read label number unit
+    do
+      printf " %10d" ${number}
+    done
+  echo
+  sleep "${interval}"
+done
