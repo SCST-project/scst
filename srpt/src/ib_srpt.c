@@ -2127,13 +2127,13 @@ static void srpt_on_free_cmd(struct scst_cmd *scmnd)
 	scst_cmd_set_tgt_priv(scmnd, NULL);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && ! defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
 static void srpt_refresh_port_work(void *ctx)
 #else
 static void srpt_refresh_port_work(struct work_struct *work)
 #endif
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && ! defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
 	struct srpt_port *sport = (struct srpt_port *)ctx;
 #else
 	struct srpt_port *sport = container_of(work, struct srpt_port, work);
@@ -2166,8 +2166,14 @@ static int srpt_release(struct scst_tgt *scst_tgt)
 	struct srpt_rdma_ch *ch, *tmp_ch;
 
 	BUG_ON(!scst_tgt);
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
+	WARN_ON(!sdev);
+	if (!sdev)
+		return -ENODEV;
+#else
 	if (WARN_ON(!sdev))
 		return -ENODEV;
+#endif
 
 	list_for_each_entry_safe(ch, tmp_ch, &sdev->rch_list, list)
 	    srpt_release_channel(ch, 1);
@@ -2496,8 +2502,14 @@ static void srpt_remove_one(struct ib_device *device)
 	struct srpt_device *sdev;
 
 	sdev = ib_get_client_data(device, &srpt_client);
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
+	WARN_ON(!sdev);
+	if (!sdev)
+		return;
+#else
 	if (WARN_ON(!sdev))
 		return;
+#endif
 
 	scst_unregister(sdev->scst_tgt);
 	sdev->scst_tgt = NULL;
