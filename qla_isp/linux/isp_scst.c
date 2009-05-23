@@ -1107,12 +1107,12 @@ isp_rdy_to_xfer(struct scst_cmd *scst_cmd)
         }
 
         SDprintk2("%s: TMD[%llx] write nbytes %u\n", __FUNCTION__, tmd->cd_tagval, scst_cmd_get_bufflen(scst_cmd));
-        up_read(&bc->disable_sem);
         (*bp->h.r_action)(QIN_TMD_CONT, xact);
+        up_read(&bc->disable_sem);
         /*
          * Did we have an error starting this particular transaction?
          */
-        if (unlikely(xact->td_lflags & (TDFL_ERROR|TDFL_SYNCERROR)) == (TDFL_ERROR|TDFL_SYNCERROR)) {
+        if (unlikely((xact->td_lflags & (TDFL_ERROR|TDFL_SYNCERROR)) == (TDFL_ERROR|TDFL_SYNCERROR))) {
             if (xact->td_error == -ENOMEM) {
                 return (SCST_TGT_RES_QUEUE_FULL);
             } else {
@@ -1218,12 +1218,12 @@ out:
 
     SDprintk2("%s: TMD[%llx] %p hf %x lf %x xfrlen %d totlen %d moved %d\n",
               __FUNCTION__, tmd->cd_tagval, tmd, xact->td_hflags, xact->td_lflags, xact->td_xfrlen, tmd->cd_totlen, tmd->cd_moved);
-    up_read(&bc->disable_sem);
     (*bp->h.r_action)(QIN_TMD_CONT, xact);
+    up_read(&bc->disable_sem);
     /*
      * Did we have an error starting this particular transaction?
      */
-    if (unlikely(xact->td_lflags & (TDFL_ERROR|TDFL_SYNCERROR)) == (TDFL_ERROR|TDFL_SYNCERROR)) {
+    if (unlikely((xact->td_lflags & (TDFL_ERROR|TDFL_SYNCERROR)) == (TDFL_ERROR|TDFL_SYNCERROR))) {
         if (xact->td_error == -ENOMEM) {
             return (SCST_TGT_RES_QUEUE_FULL);
         } else {
