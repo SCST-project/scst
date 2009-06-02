@@ -894,7 +894,7 @@ scsi_target_handler(qact_e action, void *arg)
     {
         enadis_t *ep = arg;
         if (ep->en_private) {
-            up(ep->en_private);
+            up((struct semaphore *)ep->en_private);
         }
         break;
     }
@@ -902,7 +902,7 @@ scsi_target_handler(qact_e action, void *arg)
     {
         enadis_t *ep = arg;
         if (ep->en_private) {
-            up(ep->en_private);
+            up((struct semaphore *)ep->en_private);
         }
         break;
     }
