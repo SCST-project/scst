@@ -43,7 +43,7 @@
 			<div id="main">
 				<h1>Features comparison between Linux SCSI targets</h1>
 
-				<p><small>As on April 2009</small></p>
+				<p><small>As on June 2009</small></p>
 
 <table bgcolor="#F0F0F0" border="1" cols="5" cellspacing="1" cellpadding="7" style="text-align:center" width="620">
 
@@ -145,20 +145,22 @@ resized through AENs or Unit Attentions</th>				<td> + </td>		<td> - </td>		<td>
 <small> (Windows 2003 clustering) </small></th>				<td> + </td>		<td> + </td>		<td> + </td>		<td> + </td>
 </tr>
 <th align="left"> Safe RESERVE/RELEASE implementation according to
-SCSI requirements <sup><A HREF="#12">12</A></sup></th>			<td> Safe </td>		<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>
+SCSI requirements <sup><A HREF="#12">12</A></sup></th>			<td> Safe </td>		<td> Safe </td>		<td> Not safe
+															<sup><A HREF="#13">
+															13</A></sup> </td>	<td> Not safe </td>
 </tr>
 <th align="left"> Safe implementation of Task Management commands 
-<sup><A HREF="#13">13</A></sup></th>					<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>	<td> Not safe </td>
+<sup><A HREF="#14">14</A></sup></th>					<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>	<td> Not safe </td>
 </tr>
 <tr>                                                                                                                            
 <th align="left"> Support for SCSI task attributes, including
 ORDERED commands</th>							<td> + </td>		<td> + </td>		<td> -, <br/> data
 															corruption possible
-															<sup><A HREF="#21">
-															21</A></sup></td>	<td>  -, <br/>data
+															<sup><A HREF="#15">
+															15</A></sup></td>	<td>  -, <br/>data
 																		corruption possible
-																		<sup><A HREF="#21">
-																		21</A></sup> </td>
+																		<sup><A HREF="#15">
+																		15</A></sup> </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                            
 <th align="left"> Persistent Reservations <br/>
@@ -172,7 +174,7 @@ ORDERED commands</th>							<td> + </td>		<td> + </td>		<td> -, <br/> data
 </tr>                                                                                                                           
 <tr>                                                                                                                            
 <th align="left"> SCSI MIBs </th>					<td> - </td>		<td> - </td>		<td> - </td>		<td>  - 
-																		<sup><A HREF="#15">15</A></sup></td>
+																		<sup><A HREF="#16">16</A></sup></td>
 </tr>                                                                                                                           
 <tr>                                                                                                                            
 <th align="left"> Cluster Storage Integration </th>			<td> - </td>		<td> - </td>		<td> - </td>		<td> VHACS </td>	
@@ -226,14 +228,14 @@ ORDERED commands</th>							<td> + </td>		<td> + </td>		<td> -, <br/> data
 </tr>
 <tr>                                                                                            
 <th align="left"> SCSI pass-through
-	<sup><A HREF="#16">16</A></sup></th>				<td> + </td>		<td> - </td>		<td> - </td>		<td> Single initiator only, not enforced 
-																		<sup><A HREF="#17">17</A></sup></td>
+	<sup><A HREF="#17">17</A></sup></th>				<td> + </td>		<td> - </td>		<td> - </td>		<td> Single initiator only, not enforced 
+																		<sup><A HREF="#18">18</A></sup></td>
 </tr>
 <tr>                                                                                                                           
 <th align="left"> Zero-copy data read/write to/from backstorage</th>	<td>BLOCKIO, user space
 									FILEIO in O_DIRECT mode,
 									pass-through <sup>
-									<A HREF="#18">18</A>
+									<A HREF="#19">19</A>
 									</sup></td>		<td> - <sup>
 												<A HREF="#8">8</A>	
 												</sup> </td>		<td> BLOCKIO </td>	<td> BLOCKIO, pass-
@@ -276,7 +278,7 @@ devices</th>								<td> - </td>		<td>Experimental</td>	<td> - </td>		<td> - </t
 </tr>                                                                                                                           
 <tr>                                                                                                                            
 <th align="left"> Zero-copy data send/receive</th>			<td> Send only<sup>
-									<A HREF="#19">19</A>
+									<A HREF="#20">20</A>
 									</sup> </td>		<td> None <sup>
 												<A HREF="#8">8</A>	
 												</sup> </td>		<td> Send only</td>	<td> Send only </td>
@@ -303,13 +305,13 @@ devices</th>								<td> - </td>		<td>Experimental</td>	<td> - </td>		<td> - </t
 (AEN) </th>								<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>                                                                                                                           
 <th align="left"> Safe implementation of connections and sessions
-reinstatement <sup><A HREF="#20">20</A></sup></th>			<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>	<td> Not safe </td>
+reinstatement <sup><A HREF="#21">21</A></sup></th>			<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>	<td> Not safe </td>
 </tr>
-<th align="left"> Safe restart <sup><A HREF="#21">21</A></sup></th>	<td> Safe </td>		<td> ? </td>		<td> Not safe </td>	<td> ?</td>
+<th align="left"> Safe restart <sup><A HREF="#22">22</A></sup></th>	<td> Safe </td>		<td> ? </td>		<td> Not safe </td>	<td> ?</td>
 </tr>
 <tr>                                                                                                                            
 <th align="left"> iSCSI MIBs </th>					<td> - </td>		<td> - </td>		<td> - </td>		<td> - 
-																		<sup><A HREF="#15">15</A></sup></td>
+																		<sup><A HREF="#16">16</A></sup></td>
 </tr>                                                                                                                           
 </table>
 
@@ -322,9 +324,8 @@ reinstatement <sup><A HREF="#20">20</A></sup></th>			<td> Safe </td>		<td> Not s
 <p><A NAME="2"></A> 2. All iSCSI management implemented in user space and actual data transfers in kernel space without user space involved.</p>
 
 <p><A NAME="3"></A> 3. ISER target driver has long known (since Feb 2008) data corruption problem, which localization hasn't been determined yet and might be
-		       in the STGT core. See <a href="http://lists.berlios.de/pipermail/stgt-devel/2008-February/001367.html">
-		       http://lists.berlios.de/pipermail/stgt-devel/2008-February/001367.html</a> and
-		       <a href="http://lists.wpkg.org/pipermail/stgt/2009-February/002630.html">http://lists.wpkg.org/pipermail/stgt/2009-February/002630.html</a>.</p>
+		       in the STGT core. See <a href="http://lists.berlios.de/pipermail/stgt-devel/2008-February/001367.html">here</a> and
+		       <a href="http://lists.wpkg.org/pipermail/stgt/2009-February/002630.html">here</a>.</p>
 
 <p><A NAME="4"></A> 4. The result "in average" is listed. One target can be better somewhere, another one somewhere else. Although manual tuning of target and
 		       system parameters tends the restore the difference listed in the comparison. You can find example measurements <a href="vl_res.txt">here</a>,
@@ -362,7 +363,11 @@ reinstatement <sup><A HREF="#20">20</A></sup></th>			<td> Safe </td>		<td> Not s
 		       <a href="http://communities.vmware.com/thread/53797?tstart=0&start=15">"Russian roulette with your data"</a> on the VMware
 		       community forum by someone working for VMware.</p>
 
-<p><A NAME="13"></A> 13. After a task management command completed and before the corresponding response was sent to the initiator, who sent that task management
+<p><A NAME="13"></A> 13. The problem in IET
+			<a href="http://sourceforge.net/mailarchive/message.php?msg_name=1239130617.11478.1282.camel%40blackadder">
+			was confirmed</a> in IET mailing list.</p>
+
+<p><A NAME="14"></A> 14. After a task management command completed and before the corresponding response was sent to the initiator, who sent that task management
 		       command, all the affected SCSI commands must get into a state, where they can't affect following after
 		       the tasks management response commands from this initiator. This is the safe implementation.
 		       The unsafe implementation only marks all the affected
@@ -372,35 +377,34 @@ reinstatement <sup><A HREF="#20">20</A></sup></th>			<td> Safe </td>		<td> Not s
 		       SCSI command, which initiator will send after it received the task management response thinking
 		       that all the aborted commands actually fully aborted. This could lead to a data corruption.</p>
 
-<p><A NAME="14"></A> 14. Both IET and LIO report in INQUIRY command response support for full task management model. But they process ORDERED
+<p><A NAME="15"></A> 15. Both IET and LIO report in INQUIRY command response support for full task management model. But they process ORDERED
 			commands the same way as SIMPLE commands, i.e. allow free reorder of them before they get executed. That violates SCSI standard
 			and can lead to a data corruption to any application relying on commands order provided by ORDERED attribute.</p>
 
-<p><A NAME="15"></A> 15. The IETF SCSI-MIB (RFC 4455) is not supported by LIO, only proprietary MIBs SBE-SCSI-MIB, SBE-ISCSI-MIB and SBE-IPS-AUTH-MIB are supported.</p>
+<p><A NAME="16"></A> 16. The IETF SCSI-MIB (RFC 4455) is not supported by LIO, only proprietary MIBs SBE-SCSI-MIB, SBE-ISCSI-MIB and SBE-IPS-AUTH-MIB are supported.</p>
 
-<p><A NAME="16"></A> 16. SCSI pass-through mode allows to export your local SCSI-capable device. For instance with it you can share your parallel
+<p><A NAME="17"></A> 17. SCSI pass-through mode allows to export your local SCSI-capable device. For instance with it you can share your parallel
 			SCSI tape or SATA DVD-RW device to your iSCSI network.</p>
 
-<p><A NAME="17"></A> 17. LIO doesn't emulate all the necessary SCSI host functionality to allow to share SCSI devices
+<p><A NAME="18"></A> 18. LIO doesn't emulate all the necessary SCSI host functionality to allow to share SCSI devices
 		       in pass-through mode to several initiators. It can only pass SCSI commands from initiators to
 		       SCSI devices and responses back. This is safe only with a single initiator. This limitation
-		       isn't enforced anyhow and LIO doesn't issue no warning about it, so you can quietly corrupt your data.
-		       You can find more technical information about that in
-		       <a href="http://www.mail-archive.com/linux-scsi@vger.kernel.org/msg06911.html">
-		       	http://www.mail-archive.com/linux-scsi@vger.kernel.org/msg06911.html</a></p>
+		       isn't enforced anyhow and LIO doesn't issue no warning about it, so an user will not be notified about it
+		       and can quietly corrupt his/her data. You can find more technical information about it
+		       <a href="http://www.mail-archive.com/linux-scsi@vger.kernel.org/msg06911.html">here</a>.</p>
 
-<p><A NAME="18"></A> 18. You can find proposal how to implement zero-copy FILEIO in SCST on the <a href="contributing.html#ZC_READ">
+<p><A NAME="19"></A> 19. You can find a proposal how to implement zero-copy FILEIO in SCST on the <a href="contributing.html#ZC_READ">
 		       Contributing</a> page.</p>
 
-<p><A NAME="19"></A> 19. Doesn't need any kernel patch, except in case, when used with user space backend.</p>
+<p><A NAME="20"></A> 20. Doesn't need any kernel patch, except in the case, when used with user space backend.</p>
 
-<p><A NAME="20"></A> 20. Connections and sessions reinstatement is, basically, a kind of Task Management command, because it implies commands aborting.
+<p><A NAME="21"></A> 21. Connections and sessions reinstatement is, basically, a kind of Task Management command, because it implies commands aborting.
 		       For instance, open-iscsi uses it as a less intrusive substistute for target reset in eh_target_reset_handler() callback. So, similarly
 		       to the safe task management above, a safe implementation of connections and sessions reinstatement
 		       must not accept SCSI commands from new connection/session until all the SCSI commands in
 		       being reinstated connection/session get into a state, where they can't affect new commands.</p>
 
-<p><A NAME="21"></A> 21. "Safe restart" means that after the iSCSI target restart, all the connected initiators will seamlessly restore all existing before
+<p><A NAME="22"></A> 22. "Safe restart" means that after the iSCSI target restart, all the connected initiators will seamlessly restore all existing before
 			the restart connections. "Not safe" means that, most likely, the connected initiators will fail to restore
 			existing connections with some errors.</p>
 			
