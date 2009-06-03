@@ -108,7 +108,7 @@ static struct buf_segment *conn_alloc_buf_segment(struct connection *conn,
 		seg->len = 0;
 		memset(seg->data, 0x0, sz);
 		list_add_tail(&seg->entry, &conn->rsp_buf_list);
-		log_debug(2, "alloc'ed new buf_segment\n");
+		log_debug(2, "alloc'ed new buf_segment");
 	}
 
 	return seg;
@@ -178,7 +178,7 @@ void text_key_add(struct connection *conn, char *key, char *value)
 			break;
 		}
 
-		log_debug(2, "wrote: %s\n", seg->data + seg->len);
+		log_debug(2, "wrote: %s", seg->data + seg->len);
 
 		seg->len += sz;
 		len -= sz;
