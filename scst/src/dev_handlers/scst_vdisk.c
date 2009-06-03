@@ -2715,6 +2715,7 @@ static int vdisk_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 		struct scst_device *dev = tgt_dev->dev;
 		struct scst_vdisk_dev *virt_dev =
 			(struct scst_vdisk_dev *)dev->dh_priv;
+
 		dev->tst = DEF_TST;
 		dev->d_sense = DEF_DSENSE;
 		if (virt_dev->wt_flag && !virt_dev->nv_cache)
@@ -2723,6 +2724,8 @@ static int vdisk_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 			dev->queue_alg = DEF_QUEUE_ALG;
 		dev->swp = DEF_SWP;
 		dev->tas = DEF_TAS;
+
+		virt_dev->prevent_allow_medium_removal = 0;
 	}
 
 	TRACE_EXIT();

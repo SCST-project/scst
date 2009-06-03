@@ -2087,7 +2087,7 @@ void scst_free_cmd(struct scst_cmd *cmd)
 #ifdef CONFIG_SCST_EXTRACHECKS
 		if (unlikely(!cmd->sent_for_exec) && !cmd->internal) {
 			PRINT_ERROR("Finishing not executed cmd %p (opcode "
-			    "%d, target %s, lun %lld, sn %ld, expected_sn %ld)",
+			    "%d, target %s, LUN %lld, sn %ld, expected_sn %ld)",
 			    cmd, cmd->cdb[0], cmd->tgtt->name,
 			    (long long unsigned int)cmd->lun,
 			    cmd->sn, cmd->tgt_dev->expected_sn);
@@ -3413,7 +3413,7 @@ void scst_process_reset(struct scst_device *dev,
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 				    dev_tgt_dev_list_entry) {
 			TRACE(TRACE_MGMT_MINOR, "Clearing RESERVE'ation for "
-				"tgt_dev lun %lld",
+				"tgt_dev LUN %lld",
 				(long long unsigned int)tgt_dev->lun);
 			clear_bit(SCST_TGT_DEV_RESERVED,
 				  &tgt_dev->tgt_dev_flags);
@@ -3731,7 +3731,7 @@ static void scst_free_all_UA(struct scst_tgt_dev *tgt_dev)
 
 	list_for_each_entry_safe(UA_entry, t,
 				 &tgt_dev->UA_list, UA_list_entry) {
-		TRACE_MGMT_DBG("Clearing UA for tgt_dev lun %lld",
+		TRACE_MGMT_DBG("Clearing UA for tgt_dev LUN %lld",
 			       (long long unsigned int)tgt_dev->lun);
 		list_del(&UA_entry->UA_list_entry);
 		mempool_free(UA_entry, scst_ua_mempool);

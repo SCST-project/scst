@@ -2023,7 +2023,7 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 
 	if (unlikely(dev->scsi_dev == NULL)) {
 		PRINT_ERROR("Command for virtual device must be "
-			"processed by device handler (lun %lld)!",
+			"processed by device handler (LUN %lld)!",
 			(long long unsigned int)cmd->lun);
 		goto out_error;
 	}
@@ -2750,7 +2750,7 @@ static int scst_mode_select_checks(struct scst_cmd *cmd)
 		}
 
 		TRACE(TRACE_SCSI, "Possible parameters changed UA %x "
-			"(lun %lld): getting new parameters", cmd->sense[12],
+			"(LUN %lld): getting new parameters", cmd->sense[12],
 			(long long unsigned int)cmd->lun);
 
 		scst_obtain_device_parameters(cmd->dev);
@@ -3304,7 +3304,7 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 		}
 		if (res != 0) {
 			TRACE(TRACE_MINOR,
-				"tgt_dev for lun %lld not found, command to "
+				"tgt_dev for LUN %lld not found, command to "
 				"unexisting LU?",
 				(long long unsigned int)cmd->lun);
 			__scst_put();
@@ -4471,9 +4471,8 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 	case SCST_LUN_RESET:
 		rc = scst_mgmt_translate_lun(mcmd);
 		if (rc < 0) {
-			PRINT_ERROR("Corresponding device for lun %lld not "
-				    "found",
-				    (long long unsigned int)mcmd->lun);
+			PRINT_ERROR("Corresponding device for LUN %lld not "
+				"found", (long long unsigned int)mcmd->lun);
 			mcmd->status = SCST_MGMT_STATUS_LUN_NOT_EXIST;
 			mcmd->state = SCST_MCMD_STATE_DONE;
 		} else if (rc != 0)
@@ -4614,7 +4613,7 @@ static int scst_lun_reset(struct scst_mgmt_cmd *mcmd)
 
 	TRACE_ENTRY();
 
-	TRACE(TRACE_MGMT, "Resetting lun %lld (mcmd %p)",
+	TRACE(TRACE_MGMT, "Resetting LUN %lld (mcmd %p)",
 	      (long long unsigned int)tgt_dev->lun, mcmd);
 
 	mcmd->needs_unblocking = 1;
