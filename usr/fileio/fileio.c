@@ -295,7 +295,8 @@ int start(int argc, char **argv)
 			devs[i].file_name, (uint64_t)devs[i].file_size/1024/1024,
 			devs[i].block_size, (uint64_t)devs[i].nblocks);
 
-		snprintf(devs[i].usn, sizeof(devs[i].usn), "%llx", gen_dev_id_num(&devs[i]));
+		snprintf(devs[i].usn, sizeof(devs[i].usn), "%"PRIx64,
+			gen_dev_id_num(&devs[i]));
 		TRACE_DBG("usn %s", devs[i].usn);
 
 		devs[i].scst_usr_fd = open(DEV_USER_PATH DEV_USER_NAME, O_RDWR |
