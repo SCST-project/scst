@@ -955,11 +955,11 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 		char dev_id_str[17];
 
 		dev_id_num  = gen_dev_id_num(dev);
-		dev_id_len = snprintf(dev_id_str, sizeof(dev_id_str), "%llx",
+		dev_id_len = snprintf(dev_id_str, sizeof(dev_id_str), "%"PRIx64,
 					dev_id_num);
 		if (dev_id_len >= (signed)sizeof(dev_id_str))
 			dev_id_len = sizeof(dev_id_str) - 1;
-		TRACE_DBG("dev_id num %llx, str %s, len %d", dev_id_num,
+		TRACE_DBG("dev_id num %"PRIx64", str %s, len %d", dev_id_num,
 			dev_id_str, dev_id_len);
 		if (0 == cmd->cdb[2]) { /* supported vital product data pages */
 			buf[3] = 3;

@@ -43,7 +43,9 @@ Installation
 To see your devices remotely, you need to add them to at least "Default"
 security group (see below how). By default, no local devices are seen
 remotely. There must be LUN 0 in each security group, i.e. LUs
-numeration must not start from, e.g., 1.
+numeration must not start from, e.g., 1. Otherwise you will see no
+devices on remote initiators and SCST core will write into the kernel
+log message: "tgt_dev for LUN 0 not found, command to unexisting LU?"
 
 It is highly recommended to use scstadmin utility for configuring
 devices and security groups.
@@ -435,7 +437,9 @@ IMPORTANT
 =========
 
 There must be LUN 0 in each security group, i.e. LUs numeration must not
-start from, e.g., 1.
+start from, e.g., 1. Otherwise you will see no devices on remote
+initiators and SCST core will write into the kernel log message:
+"tgt_dev for LUN 0 not found, command to unexisting LU?"
 
 IMPORTANT
 =========
@@ -722,9 +726,9 @@ IMPORTANT: Some of the above compilation options in the SCST SVN enabled by defa
 =========  i.e. development version of SCST is optimized currently rather for
            development and bug hunting, than for performance.
 
-If you use SCST version taken directly from the SVN repository, you can
-set the above options, except CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ,
-in the needed values using debug2perf root Makefile target.
+You can set the above options, except
+CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ, in the needed values
+using debug2perf root Makefile target.
 
 4. For other target and initiator software parts:
 
