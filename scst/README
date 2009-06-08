@@ -79,6 +79,11 @@ using a pool of IO threads. It is considerably better for performance
 IO context. This patch allows that. If you don't apply this patch, you
 will loose this performance benefit.
 
+3. readahead-2.6.X.patch. This patch fixes problem in Linux readahead
+subsystem and greatly improves performance for software RAIDs. See
+http://sourceforge.net/mailarchive/forum.php?thread_name=a0272b440906030714g67eabc5k8f847fb1e538cc62%40mail.gmail.com&forum_name=scst-devel
+thread for more details.
+
 Then, to compile SCST type 'make scst'. It will build SCST itself and its
 device handlers. To install them type 'make scst_install'. The driver
 modules will be installed in '/lib/modules/`you_kernel_version`/extra'.
