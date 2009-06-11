@@ -27,9 +27,10 @@
 #########################
 
 function usage {
-  echo "Usage: $0 [-a] [-d] [-n] [-r] [-s <l2s>] <dev>"
+  echo "Usage: $0 [-a] [-d] [-i <i>] [-n] [-r] [-s <l2s>] <dev>"
   echo "        -a - use asynchronous (buffered) I/O."
   echo "        -d - use direct (non-buffered) I/O."
+  echo "        -i - number times each test is iterated."
   echo "        -n - do not verify the data on <dev> before overwriting it."
   echo "        -r - only perform the read test."
   echo "        -s - logarithm base two of the I/O size."
@@ -43,11 +44,19 @@ function drop_caches {
   fi
 }
 
+# Read times in seconds from stdin, one number per line, echo each number
+# using format $1, and also echo the average transfer size in MB/s, its
+# standard deviation and the number of IOPS using the total I/O size $2 and
+# the block transfer size $3.
+function echo_and_calc_avg {
+  awk -v fmt="$1" -v iosize="$2" -v blocksize="$3" '{if ($1 != 0){n++;sum+=iosize/$1;sumsq+=iosize*iosize/($1*$1)};printf fmt, $1} END{d=(n>0?sumsq/n-sum*sum/n/n:0);avg=(n>0?sum/n:0);stddev=(d>0?sqrt(d):0);iops=avg/blocksize;printf fmt fmt fmt,avg/2**20,stddev/2**20,iops}'
+}
 
 #########################
 # Default settings      #
 #########################
 
+iterations=3
 log2_io_size=30       # 1 GB
 log2_min_blocksize=9  # 512 bytes
 log2_max_blocksize=26 # 64 MB
@@ -60,12 +69,13 @@ verify_device_data=true
 # Argument processing   #
 #########################
 
-set -- $(/usr/bin/getopt "adnrs:" "$@")
+set -- $(/usr/bin/getopt "adi:nrs:" "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
     '-a') iotype="buffered"; shift;;
     '-d') iotype="direct"; shift;;
+    '-i') iterations="$2"; shift; shift;;
     '-n') verify_device_data="false"; shift;;
     '-r') read_test_only="true"; shift;;
     '-s') log2_io_size="$2"; shift; shift;;
@@ -111,8 +121,21 @@ else
   dd_iflags=""
 fi
 
-printf "%9s %8s %8s %8s %8s %8s %8s\n" blocksize W W W R R R
+# Header
+printf "%9s " blocksize
+for ((i = 0; i < ${iterations}; i++))
+do
+  printf "%6s " "W(s)"
+done
+printf "%6s %6s %6s" "W(avg,MB/s)" "W(stddev,MB/s)" "W(IOPS)"
+for ((i = 0; i < ${iterations}; i++))
+do
+  printf "%6s " "R(s)"
+done
+printf "%6s %6s %6s" "R(avg,MB/s)" "R(stddev,MB/s)" "R(IOPS)"
+printf "\n"
 
+# Measurements
 for ((log2_blocksize = log2_max_blocksize;
       log2_blocksize >= log2_min_blocksize;
       log2_blocksize--))
@@ -120,28 +143,28 @@ do
   if [ $log2_blocksize -gt $log2_io_size ]; then
     continue
   fi
+  iosize=$((2**log2_io_size))
   bs=$((2**log2_blocksize))
   count=$((2**(log2_io_size - log2_blocksize)))
   printf "%9d " ${bs}
-  for ((i=0;i<3;i++))
+  for ((i = 0; i < ${iterations}; i++))
   do
     if [ "${read_test_only}" = "false" ]; then
       drop_caches
-      elapsed="$(dd if=/dev/zero of="${device}" bs=${bs} count=${count} \
+      dd if=/dev/zero of="${device}" bs=${bs} count=${count} \
                     ${dd_oflags} 2>&1 \
-                 | sed -n 's/.* \([0-9.]*\) s,.*/\1/p')"
+                 | sed -n 's/.* \([0-9.]*\) s,.*/\1/p'
     else
-      elapsed=-1
+      echo 0
     fi
-    printf "%8s " "${elapsed}"
-  done
-  for ((i=0;i<3;i++))
+  done | echo_and_calc_avg "%8g " ${iosize} ${bs}
+
+  for ((i = 0; i < ${iterations}; i++))
   do
     drop_caches
-    elapsed="$(dd if="${device}" of=/dev/null bs=${bs} count=${count} \
+    dd if="${device}" of=/dev/null bs=${bs} count=${count} \
                   ${dd_iflags} 2>&1 \
-               | sed -n 's/.* \([0-9.]*\) s,.*/\1/p')"
-    printf "%8s " "${elapsed}"
-  done
+               | sed -n 's/.* \([0-9.]*\) s,.*/\1/p'
+  done | echo_and_calc_avg "%8g " ${iosize} ${bs}
   printf "\n"
 done
