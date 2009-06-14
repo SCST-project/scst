@@ -2357,7 +2357,13 @@ static void srpt_add_one(struct ib_device *device)
 #else
 	sdev->dev.class = &srpt_class;
 	sdev->dev.parent = device->dma_device;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
 	snprintf(sdev->dev.bus_id, BUS_ID_SIZE, "srpt-%s", device->name);
+#else
+	snprintf(sdev->init_name, sizeof(sdev->init_name),
+		 "srpt-%s", device->name);
+	sdev->dev.init_name = sdev->init_name;
+#endif
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)

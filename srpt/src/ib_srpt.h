@@ -205,6 +205,9 @@ struct srpt_device {
 #else
 	struct device dev;
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+	char init_name[20];
+#endif
 
 	struct scst_tgt *scst_tgt;
 };
