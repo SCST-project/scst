@@ -71,6 +71,29 @@
 static unsigned long scst_local_trace_flag = SCST_LOCAL_DEFAULT_LOG_FLAGS;
 #endif
 
+/*
+ * Provide some local definitions that are not provided for some earlier
+ * kernels so we operate over a wider range of kernels
+ *
+ * Some time before 2.6.24 scsi_sg_count, scsi_sglist and scsi_bufflen were
+ * not available. Make it available for 2.6.18 which is used still on some
+ * distros, like CentOS etc.
+ */
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19))
+#define scsi_sg_count(cmd) ((cmd)->use_sg)
+#define scsi_sglist(cmd) ((struct scatterlist *)(cmd)->request_buffer)
+#define scsi_bufflen(cmd) ((cmd)->request_bufflen)
+
+/* Include the following manually of scsi_set_resid is not defined */
+#if 0
+static inline void scsi_set_resid(struct scsi_cmnd *cmd, int resid)
+{
+	cmd->resid = resid;
+}
+#endif
+#endif
+
 #define TRUE 1
 #define FALSE 0
 
@@ -80,8 +103,8 @@ static unsigned long scst_local_trace_flag = SCST_LOCAL_DEFAULT_LOG_FLAGS;
 static void scst_local_remove_adapter(void);
 static int scst_local_add_adapter(void);
 
-#define SCST_LOCAL_VERSION "0.9.1"
-static const char *scst_local_version_date = "20081130";
+#define SCST_LOCAL_VERSION "0.9.2"
+static const char *scst_local_version_date = "20090614";
 
 /*
  * Target structures that are shared between the two pieces
@@ -506,6 +529,8 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 			scsi_sg_count(SCpnt));
 		break;
 	case DMA_BIDIRECTIONAL:
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 24))
+		/* Some of these symbols are only defined after 2.6.24 */
 		dir = SCST_DATA_BIDI;
 		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(SCpnt));
 		scst_cmd_set_expected_in_transfer_len(scst_cmd,
@@ -515,6 +540,7 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 		scst_cmd_set_tgt_in_sg(scst_cmd, scsi_in(SCpnt)->table.sgl,
 			scsi_in(SCpnt)->table.nents);
 		break;
+#endif
 	case DMA_NONE:
 	default:
 		dir = SCST_DATA_NONE;
