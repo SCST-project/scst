@@ -184,10 +184,16 @@ fi
 
 process_patch < "scst/kernel/scst_exec_req_fifo-${kernel_version}.patch" \
     "scst_exec_req_fifo.diff"
-process_patch < "scst/kernel/io_context-${kernel_version}.patch" \
-    "export_alloc_io_context.diff"
+if [ -e "scst/kernel/io_context-${kernel_version}.patch" ]; then
+  process_patch < "scst/kernel/io_context-${kernel_version}.patch" \
+      "export_alloc_io_context.diff"
+fi
 process_patch < "iscsi-scst/kernel/patches/put_page_callback-${kernel_version}.patch" \
     "put_page_callback.diff"
+if [ -e "scst/kernel/readahead-${kernel_version}.patch" ]; then
+  process_patch < "scst/kernel/readahead-${kernel_version}.patch" \
+      "readahead.diff"
+fi
 
 
 scst_debug="scst/include/scst_debug.h scst/src/scst_debug.c"
