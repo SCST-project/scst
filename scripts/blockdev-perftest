@@ -121,18 +121,32 @@ else
   dd_iflags=""
 fi
 
-# Header
+# Header, line 1
 printf "%9s " blocksize
 for ((i = 0; i < ${iterations}; i++))
 do
-  printf "%6s " "W(s)"
+  printf "%8s " "W"
 done
-printf "%6s %6s %6s" "W(avg,MB/s)" "W(stddev,MB/s)" "W(IOPS)"
+printf "%8s %8s %8s " "W(avg," "W(std," "W"
 for ((i = 0; i < ${iterations}; i++))
 do
-  printf "%6s " "R(s)"
+  printf "%8s " "R"
 done
-printf "%6s %6s %6s" "R(avg,MB/s)" "R(stddev,MB/s)" "R(IOPS)"
+printf "%8s %8s %8s" "R(avg," "R(std" "R"
+printf "\n"
+
+# Header, line 2
+printf "%9s " "(bytes)"
+for ((i = 0; i < ${iterations}; i++))
+do
+  printf "%8s " "(s)"
+done
+printf "%8s %8s %8s " "MB/s)" ",MB/s)" "(IOPS)"
+for ((i = 0; i < ${iterations}; i++))
+do
+  printf "%8s " "(s)"
+done
+printf "%8s %8s %8s" "MB/s)" ",MB/s)" "(IOPS)"
 printf "\n"
 
 # Measurements
@@ -157,7 +171,7 @@ do
     else
       echo 0
     fi
-  done | echo_and_calc_avg "%8g " ${iosize} ${bs}
+  done | echo_and_calc_avg "%8.3f " ${iosize} ${bs}
 
   for ((i = 0; i < ${iterations}; i++))
   do
@@ -165,6 +179,6 @@ do
     dd if="${device}" of=/dev/null bs=${bs} count=${count} \
                   ${dd_iflags} 2>&1 \
                | sed -n 's/.* \([0-9.]*\) s,.*/\1/p'
-  done | echo_and_calc_avg "%8g " ${iosize} ${bs}
+  done | echo_and_calc_avg "%8.3f " ${iosize} ${bs}
   printf "\n"
 done
