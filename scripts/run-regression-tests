@@ -55,7 +55,7 @@
 ########################
 
 function usage {
-  echo "Usage: $0 [-c] [-d] [-f] [-h] [-j] [-q] <kver1> <kver2> ..."
+  echo "Usage: $0 [-c <dir>] [-d <dir>] [-f] [-h] [-j <jobs>] [-q] <kver1> <kver2> ..."
   echo "        -c - cache directory for Linux kernel tarballs."
   echo "        -d - directory for temporary regression test files."
   echo "        -f - full check -- do not only compile SCST but the whole" \
