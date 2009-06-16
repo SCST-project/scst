@@ -1,0 +1,11 @@
+diff -uprN ../orig/linux-2.6.23/drivers/Makefile linux-2.6.23/drivers/Makefile
+--- ../orig/linux-2.6.23/drivers/Makefile       2008-01-24 23:58:37.000000000 +0100
++++ linux-2.6.23/drivers/Makefile       2008-05-13 13:06:34.000000000 +0200
+@@ -35,6 +35,7 @@
+ obj-y				+= macintosh/
+ obj-$(CONFIG_IDE)		+= ide/
+ obj-$(CONFIG_SCSI)		+= scsi/
++obj-$(CONFIG_SCST)		+= scst/
+ obj-$(CONFIG_ATA)		+= ata/
+ obj-$(CONFIG_FUSION)		+= message/
+ obj-$(CONFIG_FIREWIRE)		+= firewire/

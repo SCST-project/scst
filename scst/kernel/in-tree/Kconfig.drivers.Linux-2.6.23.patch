@@ -1,0 +1,12 @@
+diff -uprN ../orig/linux-2.6.23/drivers/Kconfig linux-2.6.23/drivers/Kconfig
+--- ../orig/linux-2.6.23/drivers/Kconfig        2008-01-24 23:58:37.000000000 +0100
++++ linux-2.6.23/drivers/Kconfig        2008-05-13 13:05:55.000000000 +0200
+@@ -24,6 +24,8 @@
+
+ source "drivers/scsi/Kconfig"
+
++source "drivers/scst/Kconfig"
++
+ source "drivers/ata/Kconfig"
+
+ source "drivers/md/Kconfig"
