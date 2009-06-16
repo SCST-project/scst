@@ -622,7 +622,7 @@ int main(int argc, char **argv)
 		exit(-1);
 	}
 
-	/* 
+	/*
 	 * Otherwise we could die in some later write() during the event_loop()
 	 * instead of getting EPIPE!
 	 */
