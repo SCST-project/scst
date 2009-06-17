@@ -406,7 +406,8 @@ reinstatement <sup><A HREF="#21">21</A></sup></th>			<td> Safe </td>		<td> Not s
 
 <p><A NAME="22"></A> 22. "Safe restart" means that after the iSCSI target restart, all the connected initiators will seamlessly restore all existing before
 			the restart connections. "Not safe" means that, most likely, the connected initiators will fail to restore
-			existing connections with some errors.</p>
+			existing connections with some errors. However, your iSCSI initiator also should be able to handle the safe restart. For instance,
+			old (pre-CentOS/RHEL 5) open-iscsi has problems in this area. But the latest versions do it pretty well.</p>
 			
 <!-- <p><small><strong>P.S.</strong> You can find a brief background history of this comparison page <a href="comparison_history.html">here</a>.</small></p> -->
 
