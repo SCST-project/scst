@@ -64,6 +64,7 @@ you use the -ForceConfig flag. Also, using the init script to reload the configu
 
 will also not remove configurations from a running system.
 
+NOTE! Section "[TARGETS enable]" in the config file is for qla2x00t driver only!
 
 Mark.Buechler@gmail.com
 

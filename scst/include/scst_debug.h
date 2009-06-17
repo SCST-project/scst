@@ -158,11 +158,23 @@ do {									  \
 	}								  \
 } while (0)
 
+#ifdef CONFIG_SCST_DEBUG
+
+#define PRINT_BUFFER(message, buff, len)                            \
+do {                                                                \
+	PRINT(NO_FLAG, "%s:%s:", __func__, message);		    \
+	debug_print_buffer(INFO_FLAG, buff, len);		    \
+} while (0)
+
+#else
+
 #define PRINT_BUFFER(message, buff, len)                            \
 do {                                                                \
 	PRINT(NO_FLAG, "%s:", message);				    \
 	debug_print_buffer(INFO_FLAG, buff, len);		    \
 } while (0)
+
+#endif
 
 #define PRINT_BUFF_FLAG(flag, message, buff, len)			\
 do {									\
