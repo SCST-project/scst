@@ -42,16 +42,20 @@
 
 #if !defined(SCSI_EXEC_REQ_FIFO_DEFINED) && \
     !defined(CONFIG_SCST_STRICT_SERIALIZING)
-#warning "Patch scst_exec_req_fifo-<kernel-version>.patch was not applied on\
+#warning "Patch scst_exec_req_fifo-<kernel-version> was not applied on\
  your kernel and CONFIG_SCST_STRICT_SERIALIZING isn't defined.\
  Pass-through dev handlers will not work."
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
 #if !defined(SCST_IO_CONTEXT)
-#warning "Patch io_context-<kernel-version>.patch was not applied\
+#warning "Patch io_context-<kernel-version> was not applied\
  on your kernel. SCST will be working with not the best performance."
 #endif
+#else
+#warning "There is no patch io_context-<kernel-version>\
+ for your kernel version. For performance reasons it is strongly recommended\
+ to upgrade your kernel to version >= 2.6.27.x."
 #endif
 
 /**
@@ -919,7 +923,7 @@ int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 	if (dev_type->exec == NULL) {
 		PRINT_ERROR("Pass-through dev handlers (handler \"%s\") not "
 			"supported. Consider applying on your kernel patch "
-			"scst_exec_req_fifo-<kernel-version>.patch or define "
+			"scst_exec_req_fifo-<kernel-version> or define "
 			"CONFIG_SCST_STRICT_SERIALIZING", dev_type->name);
 		res = -EINVAL;
 		goto out;
@@ -1691,12 +1695,16 @@ static int __init init_scst(void)
 		BUILD_BUG_ON(sizeof(c->sn) != sizeof(t->expected_sn));
 	}
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
 #if !defined(SCST_IO_CONTEXT)
 	PRINT_WARNING("%s", "Patch io_context was not applied on "
 		"your kernel. SCST will be working with not the best "
 		"performance.");
 #endif
+#else
+	PRINT_WARNING("%s", "There is no patch io_context for your kernel "
+		"version. For performance reasons it is strongly recommended "
+		"to upgrade your kernel to version >= 2.6.27.x.");
 #endif
 
 	mutex_init(&scst_mutex);

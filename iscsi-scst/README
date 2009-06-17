@@ -188,6 +188,9 @@ http://virtualgeek.typepad.com/virtual_geek/2009/01/a-multivendor-post-to-help-o
 It's about VMware, but its recommendations apply to other environments
 as well.
 
+3. ISCSI initiators built in pre-CentOS/RHEL 5 reported to have some
+performance problems. If you use it, it is strongly advised to upgrade.
+
 
 Compilation options
 -------------------
