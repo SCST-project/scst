@@ -1,0 +1,61 @@
+Summary of changes between versions 0.8.4 and 0.8.3
+ - Fixed issue with working on big endian platform.
+ - Adjust code of supporting hardware feature accoring to chip type.
+ - Add supporting Vanir B0 chip.
+----------------------------------------------------
+Summary of changes between versions 0.8.3 and 0.8.2
+ - Add code to balance sata disk io stress on expander.
+ - Update scst to 1.0.1 and enhance task management function of target driver.
+ - Change wide port load balance scheme.
+ - Enable interrupt coalescing.
+----------------------------------------------------
+Summary of changes between versions 0.8.2 and 0.8.1
+ - Fixed issue - Wrong return value with smart control test.
+ - Add patch for libsas on port selector
+ - Fixed issue with error handling.
+----------------------------------------------------
+Summary of changes between versions 0.8.1 and 0.7.10
+ - Fixed issue -- Detecting SATA disk with hotplug in.
+ - Enhance error hanlding.
+----------------------------------------------------
+Summary of changes between versions 0.7.10 and 0.7.9
+ - Fixed issue -- System hang when stress test with SATA disk.
+----------------------------------------------------
+Summary of changes between versions 0.7.9 and 0.7.8
+ - Fixed issue -- Changed the code to report one scsi host for Vanir chip.
+----------------------------------------------------
+Summary of changes between versions 0.7.8 and 0.7.7
+ - Fixed issue -- Set max sg entry count according to chip specific for DMA fix.
+ - Fixed Libsas issue -- memory corruption issue.
+---------------------------------------------------
+Summary of changes between versions 0.7.7 and 0.7.6
+ - Fixed issue: Kernel panic with 64bit OS, structure change.
+ - Fixed issue: Kernel panic if hot plug any disk when run stress.
+ - Fixed issue: Add multiple LUN fail with some controller.
+ - Changed the interface for target mode enable.
+ - Add supporting target mode for new controller 91xx.
+---------------------------------------------------
+Summary of changes between versions 0.7.6 and 0.7.5
+ - Fixed issue -- Because of the different SAS address of HBA's phys, wide
+		  port mode doesn't work.
+ - Fixed issue -- failed to discover SATA drive when plug out/in SATA disk which run
+ 		  DD test.
+
+Summary of changes between versions 0.7.5 and 0.7.4
+---------------------------------------------------
+ - Fixed issue -- PDs connected expander still can be detected after plug out the expander .
+ - Fixed issue -- PDs connected expander can not be detected after plug in the expander.
+
+Summary of changes between versions 0.7.4 and 0.7.3
+---------------------------------------------------
+ - Fixed issue -- can not find SATA disk connected Vanir directly.
+
+Summary of changes between versions 0.7.3 and 0.7.2
+---------------------------------------------------
+ - Support device id 11AB/9480.
+ - Update for 2.6.27
+ - Fixed issue -- can not find SATA disk behind expander.
+ - Support read/write flash ROM for 9480/9180.
+ - Minor fixes and cleanups
+
+

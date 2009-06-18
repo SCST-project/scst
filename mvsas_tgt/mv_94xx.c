@@ -57,6 +57,43 @@ static void __devinit mvs_94xx_enable_xmt(struct mvs_info *mvi, int phy_id)
 	mw32(MVS_PCS, tmp);
 }
 
+static void mvs_94xx_stp_reset(struct mvs_info *mvi, u32 phy_id)
+{
+	void __iomem *regs = mvi->regs;
+	u32 reg, tmp;
+
+	if (!(mvi->flags & MVF_FLAG_SOC)) {
+		if (phy_id < 4)
+			pci_read_config_dword(mvi->pdev, PCR_PHY_CTL, &reg);
+		else
+			pci_read_config_dword(mvi->pdev, PCR_PHY_CTL2, &reg);
+
+	} else
+		reg = mr32(MVS_PHY_CTL);
+
+	tmp = reg;
+	if (phy_id < 4)
+		tmp |= (1U << phy_id) << PCTL_LINK_OFFS;
+	else
+		tmp |= (1U << (phy_id - 4)) << PCTL_LINK_OFFS;
+
+	if (!(mvi->flags & MVF_FLAG_SOC)) {
+		if (phy_id < 4) {
+			pci_write_config_dword(mvi->pdev, PCR_PHY_CTL, tmp);
+			mdelay(10);
+			pci_write_config_dword(mvi->pdev, PCR_PHY_CTL, reg);
+		} else {
+			pci_write_config_dword(mvi->pdev, PCR_PHY_CTL2, tmp);
+			mdelay(10);
+			pci_write_config_dword(mvi->pdev, PCR_PHY_CTL2, reg);
+		}
+	} else {
+		mw32(MVS_PHY_CTL, tmp);
+		mdelay(10);
+		mw32(MVS_PHY_CTL, reg);
+	}
+}
+
 static void mvs_94xx_phy_reset(struct mvs_info *mvi, u32 phy_id, int hard)
 {
 	u32 tmp;
@@ -89,12 +126,24 @@ static void mvs_94xx_phy_disable(struct mvs_info *mvi, u32 phy_id)
 
 static void mvs_94xx_phy_enable(struct mvs_info *mvi, u32 phy_id)
 {
-	mvs_write_port_vsr_addr(mvi, phy_id, 0x1B4);
-	mvs_write_port_vsr_data(mvi, phy_id, 0x8300ffc1);
-	mvs_write_port_vsr_addr(mvi, phy_id, 0x104);
-	mvs_write_port_vsr_data(mvi, phy_id, 0x00018080);
+	u32 tmp;
+	if (mvi->pdev->revision == 0xa0) {
+		mvs_write_port_vsr_addr(mvi, phy_id, 0x000001b4);
+		mvs_write_port_vsr_data(mvi, phy_id, 0x8300ffc1);
+	}
+	if (mvi->pdev->revision == 0x01) {
+		mvs_write_port_vsr_addr(mvi, phy_id, 0x00000144);
+		mvs_write_port_vsr_data(mvi, phy_id, 0x08001006);
+		mvs_write_port_vsr_addr(mvi, phy_id, 0x000001b4);
+		mvs_write_port_vsr_data(mvi, phy_id, 0x0000705f);
+	}
+	/*
 	mvs_write_port_vsr_addr(mvi, phy_id, VSR_PHY_MODE2);
 	mvs_write_port_vsr_data(mvi, phy_id, 0x00207fff);
+	*/
+	mvs_write_port_vsr_addr(mvi, phy_id, 0x00000008);
+	tmp = 0x4ffff;
+	mvs_write_port_vsr_data(mvi, phy_id, tmp & 0xfd7fffff);
 }
 
 static int __devinit mvs_94xx_init(struct mvs_info *mvi)
@@ -132,6 +181,21 @@ static int __devinit mvs_94xx_init(struct mvs_info *mvi)
 		msleep(100);
 	}
 
+	/* disable Multiplexing, enable phy implemented */
+	mw32(MVS_PORTS_IMP, 0xFF);
+
+	if (mvi->pdev->revision == 0xa0) {
+		mw32(MVS_PA_VSR_ADDR, 0x00000104);
+		mw32(MVS_PA_VSR_PORT, 0x00018080);
+	}
+	mw32(MVS_PA_VSR_ADDR, VSR_PHY_MODE8);
+	mw32(MVS_PA_VSR_PORT, 0x0084ffff);
+	if (mvi->pdev->revision == 0x01) {
+		mw32(MVS_PA_VSR_ADDR, 0x00000144);
+		mw32(MVS_PA_VSR_PORT, 0x08001006);
+		mw32(MVS_PA_VSR_ADDR, 0x000001b4);
+		mw32(MVS_PA_VSR_PORT, 0x0000705f);
+	}
 	/* reset control */
 	mw32(MVS_PCS, 0);		/* MVS_PCS */
 	mw32(MVS_STP_REG_SET_0, 0);
@@ -139,15 +203,6 @@ static int __devinit mvs_94xx_init(struct mvs_info *mvi)
 
 	/* init phys */
 	mvs_phy_hacks(mvi);
-
-	/* disable Multiplexing, enable phy implemented */
-	mw32(MVS_PORTS_IMP, 0xFF);
-
-
-	mw32(MVS_PA_VSR_ADDR, 0x00000104);
-	mw32(MVS_PA_VSR_PORT, 0x00018080);
-	mw32(MVS_PA_VSR_ADDR, VSR_PHY_MODE8);
-	mw32(MVS_PA_VSR_PORT, 0x0084ffff);
 
 	/* set LED blink when IO*/
 	mw32(MVS_PA_VSR_ADDR, 0x00000030);
@@ -174,7 +229,7 @@ static int __devinit mvs_94xx_init(struct mvs_info *mvi)
 		mvs_94xx_phy_disable(mvi, i);
 		/* set phy local SAS address */
 		mvs_set_sas_addr(mvi, i, CONFIG_ID_FRAME3, CONFIG_ID_FRAME4,
-						(mvi->phy[i].dev_sas_addr));
+					cpu_to_le64(mvi->phy[i].dev_sas_addr));
 
 		mvs_94xx_enable_xmt(mvi, i);
 		mvs_94xx_phy_enable(mvi, i);
@@ -219,7 +274,6 @@ static int __devinit mvs_94xx_init(struct mvs_info *mvi)
 	 */
 	cctl = mr32(MVS_CTL);
 	cctl |= CCTL_ENDIAN_CMD;
-	cctl |= CCTL_ENDIAN_DATA;
 	cctl &= ~CCTL_ENDIAN_OPEN;
 	cctl |= CCTL_ENDIAN_RSP;
 	mw32_f(MVS_CTL, cctl);
@@ -233,10 +287,10 @@ static int __devinit mvs_94xx_init(struct mvs_info *mvi)
 	 * it will make count 0.
 	 */
 	tmp = 0;
-	if (MVS_SLOTS > 0x1ff)
+	if (MVS_CHIP_SLOT_SZ > 0x1ff)
 		mw32(MVS_INT_COAL, 0x1ff|COAL_EN);
 	else
-		mw32(MVS_INT_COAL, MVS_SLOTS|COAL_EN);
+		mw32(MVS_INT_COAL, MVS_CHIP_SLOT_SZ|COAL_EN);
 
 	tmp = 0x10400;
 	mw32(MVS_INT_COAL_TMOUT, tmp);
@@ -424,9 +478,13 @@ static void mvs_94xx_make_prd(struct scatterlist *scatter, int nr, void *prd)
 	int i;
 	struct scatterlist *sg;
 	struct mvs_prd *buf_prd = prd;
+	struct mvs_prd_imt im_len;
+	*(u32 *)&im_len = 0;
 	for_each_sg(scatter, sg, nr, i) {
 		buf_prd->addr = cpu_to_le64(sg_dma_address(sg));
-		buf_prd->im_len.len = cpu_to_le32(sg_dma_len(sg));
+		im_len.len = sg_dma_len(sg);
+		buf_prd->im_len =
+			cpu_to_le32(*(u32 *)&im_len);
 		buf_prd++;
 	}
 }
@@ -449,7 +507,7 @@ static void mvs_94xx_get_dev_identify_frame(struct mvs_info *mvi, int port_id,
 	for (i = 0; i < 7; i++) {
 		mvs_write_port_cfg_addr(mvi, port_id,
 					CONFIG_ID_FRAME0 + i * 4);
-		id_frame[i] = mvs_read_port_cfg_data(mvi, port_id);
+		id_frame[i] = cpu_to_le32(mvs_read_port_cfg_data(mvi, port_id));
 	}
 	memcpy(id, id_frame, 28);
 }
@@ -464,7 +522,7 @@ static void mvs_94xx_get_att_identify_frame(struct mvs_info *mvi, int port_id,
 	for (i = 0; i < 7; i++) {
 		mvs_write_port_cfg_addr(mvi, port_id,
 					CONFIG_ATT_ID_FRAME0 + i * 4);
-		id_frame[i] = mvs_read_port_cfg_data(mvi, port_id);
+		id_frame[i] = cpu_to_le32(mvs_read_port_cfg_data(mvi, port_id));
 		mv_dprintk("94xx phy %d atta frame %d %x.\n",
 			port_id + mvi->id * mvi->chip->n_phy, i, id_frame[i]);
 	}
@@ -525,11 +583,39 @@ static void mvs_94xx_fix_phy_info(struct mvs_info *mvi, int i,
 
 }
 
+static void mvs_94xx_phy_work_around(struct mvs_info *mvi, int i)
+{
+	u32 tmp;
+	struct mvs_phy *phy = &mvi->phy[i];
+	/* workaround for HW phy decoding error on 1.5g disk drive */
+	mvs_write_port_vsr_addr(mvi, i, VSR_PHY_MODE6);
+	tmp = mvs_read_port_vsr_data(mvi, i);
+	if (((phy->phy_status & PHY_NEG_SPP_PHYS_LINK_RATE_MASK) >>
+	     PHY_NEG_SPP_PHYS_LINK_RATE_MASK_OFFSET) ==
+		SAS_LINK_RATE_1_5_GBPS)
+		tmp &= ~PHY_MODE6_LATECLK;
+	else
+		tmp |= PHY_MODE6_LATECLK;
+	mvs_write_port_vsr_data(mvi, i, tmp);
+}
+
 void mvs_94xx_phy_set_link_rate(struct mvs_info *mvi, u32 phy_id,
 			struct sas_phy_linkrates *rates)
 {
-	/* TODO */
+	u32 lrmax = 0;
+	u32 tmp;
+
+	tmp = mvs_read_phy_ctl(mvi, phy_id);
+	lrmax = (rates->maximum_linkrate - SAS_LINK_RATE_1_5_GBPS) << 12;
+
+	if (lrmax) {
+		tmp &= ~(0x3 << 12);
+		tmp |= lrmax;
+	}
+	mvs_write_phy_ctl(mvi, phy_id, tmp);
+	mvs_94xx_phy_reset(mvi, phy_id, 1);
 }
+
 
 #ifdef SUPPORT_TARGET
 static void
@@ -636,10 +722,14 @@ void mvs_94xx_fix_dma(dma_addr_t buf_dma, int buf_len, int from, void *prd)
 {
 	int i;
 	struct mvs_prd *buf_prd = prd;
+	struct mvs_prd_imt im_len;
+	*(u32 *)&im_len = 0;
 	buf_prd += from;
 	for (i = 0; i < MAX_SG_ENTRY - from; i++) {
 		buf_prd->addr = cpu_to_le64(buf_dma);
-		buf_prd->im_len.len = cpu_to_le32(buf_len);
+		im_len.len = buf_len;
+		buf_prd->im_len =
+			cpu_to_le32(*(u32 *)&im_len);
 		++buf_prd;
 	}
 }
@@ -681,13 +771,13 @@ const struct mvs_dispatch mvs_94xx_dispatch = {
 	mvs_94xx_detect_porttype,
 	mvs_94xx_oob_done,
 	mvs_94xx_fix_phy_info,
-	NULL,
+	mvs_94xx_phy_work_around,
 	mvs_94xx_phy_set_link_rate,
 	mvs_hw_max_link_rate,
 	mvs_94xx_phy_disable,
 	mvs_94xx_phy_enable,
 	mvs_94xx_phy_reset,
-	NULL,
+	mvs_94xx_stp_reset,
 #ifdef SUPPORT_TARGET
 	mvs_91xx_enable_ssp_target,
 	mvs_91xx_disable_ssp_target,

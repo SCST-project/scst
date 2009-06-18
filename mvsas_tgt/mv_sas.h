@@ -47,10 +47,11 @@
 #endif
 
 #define DRV_NAME		"mvsas"
-#define DRV_VERSION		"0.8.3"
+#define DRV_VERSION		"0.8.4"
 #define _MV_DUMP		0
 #define MVS_ID_NOT_MAPPED	0x7f
 /* #define DISABLE_HOTPLUG_DMA_FIX */
+#define DISK_FLASH_HOLD_TIME		10
 #define WIDE_PORT_MAX_PHY		4
 #define	MV_DISABLE_NCQ	0
 #define mv_printk(fmt, arg ...)	\
@@ -259,7 +260,7 @@ struct mvs_device {
 	struct domain_device *sas_device;
 	u32 attached_phy;
 	u32 device_id;
-	u32 runing_req;
+	u32 running_req;
 	u8 taskfileset;
 	u8 dev_status;
 	u16 reserved;
@@ -343,7 +344,7 @@ struct mvs_info {
 	const struct mvs_chip_info *chip;
 
 	int tags_num;
-	DECLARE_BITMAP(tags, MVS_SLOTS);
+	unsigned long *tags;
 	/* further per-slot information */
 	struct mvs_phy phy[MVS_MAX_PHYS];
 	struct mvs_port port[MVS_MAX_PHYS];

@@ -33,8 +33,8 @@ static const struct mvs_chip_info mvs_chips[] = {
 	[chip_6320] =	{ 1, 2, 0x400, 17, 16,  6, 9, &mvs_64xx_dispatch, },
 	[chip_6440] =	{ 1, 4, 0x400, 17, 16,  6, 9, &mvs_64xx_dispatch, },
 	[chip_6485] =	{ 1, 8, 0x800, 33, 32,  6, 10, &mvs_64xx_dispatch, },
-	[chip_9180] =	{ 2, 4, 0x800, 17, 64,  8, 9, &mvs_94xx_dispatch, },
-	[chip_9480] =	{ 2, 4, 0x800, 17, 64,  8, 9, &mvs_94xx_dispatch, },
+	[chip_9180] =	{ 2, 4, 0x800, 17, 64,  8, 11, &mvs_94xx_dispatch, },
+	[chip_9480] =	{ 2, 4, 0x800, 17, 64,  8, 11, &mvs_94xx_dispatch, },
 };
 
 #ifdef SUPPORT_TARGET
@@ -90,14 +90,13 @@ static struct sas_domain_function_template mvs_transport_ops = {
 	.lldd_abort_task	= mvs_abort_task,
 	.lldd_abort_task_set    = mvs_abort_task_set,
 	.lldd_clear_aca         = mvs_clear_aca,
-       .lldd_clear_task_set    = mvs_clear_task_set,
+	.lldd_clear_task_set    = mvs_clear_task_set,
 	.lldd_I_T_nexus_reset	= mvs_I_T_nexus_reset,
 	.lldd_lu_reset 		= mvs_lu_reset,
 	.lldd_query_task	= mvs_query_task,
 
 	.lldd_port_formed	= mvs_port_formed,
 	.lldd_port_deformed     = mvs_port_deformed,
-
 };
 
 static void __devinit mvs_phy_init(struct mvs_info *mvi, int phy_id)
@@ -106,6 +105,7 @@ static void __devinit mvs_phy_init(struct mvs_info *mvi, int phy_id)
 	struct asd_sas_phy *sas_phy = &phy->sas_phy;
 
 	phy->mvi = mvi;
+	phy->port = NULL;
 	init_timer(&phy->timer);
 	sas_phy->enabled = (phy_id < mvi->chip->n_phy) ? 1 : 0;
 	sas_phy->class = SAS;
@@ -135,7 +135,7 @@ static void mvs_free(struct mvs_info *mvi)
 	if (mvi->flags & MVF_FLAG_SOC)
 		slot_nr = MVS_SOC_SLOTS;
 	else
-		slot_nr = MVS_SLOTS;
+		slot_nr = MVS_CHIP_SLOT_SZ;
 
 	for (i = 0; i < mvi->tags_num; i++) {
 		struct mvs_slot_info *slot = &mvi->slot_info[i];
@@ -170,6 +170,7 @@ static void mvs_free(struct mvs_info *mvi)
 		scsi_host_put(mvi->shost);
 	list_for_each_entry(mwq, &mvi->wq_list, entry)
 		cancel_delayed_work(&mwq->work_q);
+	kfree(mvi->tags);
 	kfree(mvi);
 }
 
@@ -230,12 +231,16 @@ static irqreturn_t mvs_interrupt(int irq, void *opaque)
 
 static int __devinit mvs_alloc(struct mvs_info *mvi, struct Scsi_Host *shost)
 {
-	int i, slot_nr;
+	int i = 0, j = 0, slot_nr;
+	unsigned long buf_size;
+	void *buf;
+	dma_addr_t buf_dma;
+	struct mvs_slot_info *slot = 0;
 
 	if (mvi->flags & MVF_FLAG_SOC)
 		slot_nr = MVS_SOC_SLOTS;
 	else
-		slot_nr = MVS_SLOTS;
+		slot_nr = MVS_CHIP_SLOT_SZ;
 
 	spin_lock_init(&mvi->lock);
 	for (i = 0; i < mvi->chip->n_phy; i++) {
@@ -289,17 +294,26 @@ static int __devinit mvs_alloc(struct mvs_info *mvi, struct Scsi_Host *shost)
 	if (!mvi->bulk_buffer)
 		goto err_out;
 #endif
-	for (i = 0; i < slot_nr; i++) {
-		struct mvs_slot_info *slot = &mvi->slot_info[i];
-
-		slot->buf = dma_alloc_coherent(mvi->dev, MVS_SLOT_BUF_SZ,
-					       &slot->buf_dma, GFP_KERNEL);
-		if (!slot->buf) {
+	i = 0;
+	while (i < slot_nr) {
+		buf_size = PAGE_SIZE > MVS_SLOT_BUF_SZ ?
+			PAGE_SIZE : MVS_SLOT_BUF_SZ;
+		buf = dma_alloc_coherent(mvi->dev, buf_size,
+				&buf_dma, GFP_KERNEL);
+		if (!buf) {
 			printk(KERN_DEBUG"failed to allocate slot->buf.\n");
 			goto err_out;
 		}
-		memset(slot->buf, 0, MVS_SLOT_BUF_SZ);
-		++mvi->tags_num;
+		j = 0;
+		do {
+			slot = &mvi->slot_info[i + j];
+			slot->buf = buf + MVS_SLOT_BUF_SZ * j;
+			slot->buf_dma = buf_dma + MVS_SLOT_BUF_SZ * j;
+			memset(slot->buf, 0, MVS_SLOT_BUF_SZ);
+			++mvi->tags_num;
+			j++;
+		} while (j < PAGE_SIZE/MVS_SLOT_BUF_SZ);
+		i += j;
 	}
 	/* Initialize tags */
 	mvs_tag_init(mvi);
@@ -367,11 +381,12 @@ static struct mvs_info *__devinit mvs_pci_alloc(struct pci_dev *pdev,
 				const struct pci_device_id *ent,
 				struct Scsi_Host *shost, unsigned int id)
 {
-	struct mvs_info *mvi;
+	struct mvs_info *mvi = NULL;
 	struct sas_ha_struct *sha = SHOST_TO_SAS_HA(shost);
 
-	mvi = kzalloc(sizeof(*mvi) + MVS_SLOTS * sizeof(struct mvs_slot_info),
-			GFP_KERNEL);
+	mvi = kzalloc(sizeof(*mvi) +
+		(1L << mvs_chips[ent->driver_data].slot_width)
+		* sizeof(struct mvs_slot_info), GFP_KERNEL);
 	if (!mvi)
 		return NULL;
 
@@ -388,6 +403,10 @@ static struct mvs_info *__devinit mvs_pci_alloc(struct pci_dev *pdev,
 	mvi->id = id;
 	mvi->sas = sha;
 	mvi->shost = shost;
+	mvi->tags = kzalloc(MVS_CHIP_SLOT_SZ>>3, GFP_KERNEL);
+	if (!mvi->tags)
+		goto err_out;
+
 #ifdef MVS_USE_TASKLET
 	tasklet_init(&mv_tasklet, mvs_tasklet, (unsigned long)sha);
 #endif
@@ -462,7 +481,7 @@ static int __devinit mvs_prep_sas_ha_init(struct Scsi_Host *shost,
 	((struct mvs_prv_info *)sha->lldd_ha)->n_host = core_nr;
 
 	shost->transportt = mvs_stt;
-	shost->max_id = 128;
+	shost->max_id = MVS_MAX_DEVICES;
 	shost->max_lun = ~0;
 	shost->max_channel = 1;
 	shost->max_cmd_len = 16;
@@ -505,12 +524,12 @@ static void  __devinit mvs_post_sas_ha_init(struct Scsi_Host *shost,
 	if (mvi->flags & MVF_FLAG_SOC)
 		can_queue = MVS_SOC_CAN_QUEUE;
 	else
-		can_queue = MVS_CAN_QUEUE;
+		can_queue = MVS_CHIP_SLOT_SZ;
 
 	sha->lldd_queue_size = can_queue;
 	shost->sg_tablesize = MVS_MAX_SG;
 	shost->can_queue = can_queue;
-	mvi->shost->cmd_per_lun = MVS_SLOTS/sha->num_phys;
+	mvi->shost->cmd_per_lun = MVS_QUEUE_SIZE;
 	sha->core.shost = mvi->shost;
 }
 
@@ -519,7 +538,9 @@ static void mvs_init_sas_add(struct mvs_info *mvi)
 {
 	u8 i;
 	for (i = 0; i < mvi->chip->n_phy; i++) {
-		mvi->phy[i].dev_sas_addr = 0x5005043011ab0000ULL;
+		mvi->phy[i].dev_sas_addr =  0x5005043011ab0000ULL;
+		if (mvi->id == 1)
+			mvi->phy[i].dev_sas_addr =  0x5005043011ab0001ULL;
 		mvi->phy[i].dev_sas_addr =
 			cpu_to_be64((u64)(*(u64 *)&mvi->phy[i].dev_sas_addr));
 	}
@@ -713,7 +734,15 @@ static struct pci_device_id __devinitdata mvs_pci_table[] = {
 	{ PCI_VDEVICE(MARVELL, 0x6485), chip_6485 },
 	{ PCI_VDEVICE(MARVELL, 0x9480), chip_9480 },
 	{ PCI_VDEVICE(MARVELL, 0x9180), chip_9180 },
-
+	{
+		.vendor 	= 0x1b4b,
+		.device 	= 0x9480,
+		.subvendor	= PCI_ANY_ID,
+		.subdevice	= 0x9480,
+		.class		= 0,
+		.class_mask	= 0,
+		.driver_data	= chip_9480,
+	},
 	{ }	/* terminate list */
 };
 
@@ -947,11 +976,18 @@ struct device_attribute *mvst_host_attrs[] = {
 #endif	/* #ifdef SUPPORT_TARGET */
 
 
-
+/* task handler */
+struct task_struct *mvs_th;
 static int __init mvs_init(void)
 {
 	int rc;
-
+#ifdef SUPPORT_EXP_LB
+	mvs_th = kthread_run(mvs_ex_task_scheduler, NULL, "mvs_work");
+	if (mvs_th == ERR_PTR(-ENOMEM)) {
+		mv_printk("mvsas kernel thread creation failed\n");
+		return -ENOMEM;
+	}
+#endif
 	mvs_stt = sas_domain_attach_transport(&mvs_transport_ops);
 	if (!mvs_stt)
 		return -ENOMEM;
@@ -972,6 +1008,10 @@ static void __exit mvs_exit(void)
 {
 	pci_unregister_driver(&mvs_pci_driver);
 	sas_release_transport(mvs_stt);
+#ifdef SUPPORT_EXP_LB
+	if (mvs_th != NULL)
+		kthread_stop(mvs_th);
+#endif
 }
 
 module_init(mvs_init);

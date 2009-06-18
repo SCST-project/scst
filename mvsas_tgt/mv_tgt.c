@@ -379,7 +379,6 @@ mvst_get_slot(struct mvs_info *mvi, struct mvst_port *tgt_port)
 	slot->tx = mvi->tx_prod;
 	list_add_tail(&slot->entry, &slot->slot_tgt_port->slot_list);
 	return	slot;
-
 }
 
 static int mvst_prep_resp_frame(struct mvst_prm *prm,
@@ -760,7 +759,7 @@ static int mvst_xmit_response(struct scst_cmd *scst_cmd)
 
 	TRACE_ENTRY();
 
-	TRACE(TRACE_SCSI, "xmit_respons scmd[0x%p] tag=%ld, sg_cnt=%d",
+	TRACE(TRACE_SCSI, "xmit_respons scmd[0x%p] tag=%lld, sg_cnt=%d",
 		scst_cmd, scst_cmd_get_tag(scst_cmd), scst_cmd->sg_cnt);
 
 #ifdef DEBUG_WORK_IN_THREAD
@@ -774,9 +773,9 @@ static int mvst_xmit_response(struct scst_cmd *scst_cmd)
 		scst_sess_get_tgt_priv(scst_cmd_get_session(scst_cmd));
 
 	if (unlikely(scst_cmd_aborted(scst_cmd))) {
-		TRACE(TRACE_MGMT_MINOR, "mvst tgt(%ld): terminating exchange "
-			"for aborted scst_cmd=%p (tag=%ld)",
-			mvi->instance, scst_cmd, scst_cmd_get_tag(scst_cmd));
+		TRACE(TRACE_MGMT_MINOR, "mvst tgt: terminating exchange "
+			"for aborted scst_cmd=%p (tag=%lld)",
+			scst_cmd, scst_cmd_get_tag(scst_cmd));
 
 		scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_ABORTED);
 
@@ -1187,7 +1186,6 @@ static void mvst_do_cmd_completion(struct mvs_info *mvi,
 			(struct open_address_frame *)slot->open_frame;
 		struct ssp_frame_header *ssp_hdr;
 		struct mvst_sess *sess;
-		TRACE_BUFFER("SSP Header", ssp_hdr, sizeof(*ssp_hdr));
 		TRACE_BUFFER("SSP open_frame", open_frame, sizeof(*open_frame));
 		dest_sas_addr = (open_frame->dest_sas_addr);
 		sess = mvst_find_sess_by_lid(mvi->tgt,
@@ -1373,7 +1371,7 @@ static int mvst_do_send_cmd_to_scst(struct mvs_info *mvi, struct mvst_cmd *cmd)
 	context = SCST_CONTEXT_TASKLET;
 #endif
 	TRACE_DBG("Context %x", context);
-	TRACE(TRACE_SCSI, "START Command (tag %ld)",
+	TRACE(TRACE_SCSI, "START Command (tag %lld)",
 		scst_cmd_get_tag(cmd->scst_cmd));
 	scst_cmd_init_done(cmd->scst_cmd, context);
 out:
@@ -1502,7 +1500,7 @@ int mvst_build_cmd(struct mvs_info *mvi,
 
 	if (mvi->tgt->tgt_shutdown) {
 		TRACE_DBG("New command while device %p is shutting "
-			"down", tgt);
+			"down", tgt_port);
 		res = -EFAULT;
 		goto out;
 	}
@@ -2288,8 +2286,8 @@ static void mvst_host_action(struct mvs_info *mvi,
 			(mvi->tgt_port[target_port].sas_addr),
 			mvi->tgt_port[target_port].wide_port_phymap,
 			target_port);
-		if (target_port * (MVS_SLOTS/mvi->chip->n_phy)
-			> MVS_CAN_QUEUE) {
+		if (target_port * (MVS_CHIP_SLOT_SZ/mvi->chip->n_phy)
+			> MVS_CHIP_SLOT_SZ) {
 			mv_dprintk("Warning: No sufficient slots"
 				"for target port[%d].\n", target_port);
 			break;
@@ -2504,8 +2502,7 @@ mvst_start_sas_target(struct mvs_info *mvi, u8 id)
 			goto err_out_tag;
 		++pass;
 		mvi->tx_prod = (mvi->tx_prod + 1) & (MVS_CHIP_SLOT_SZ - 1);
-	} while (++slot_id < MVS_SLOTS/mvi->chip->n_phy);
-
+	} while (++slot_id < MVS_TARGET_QUEUE);
 	rc = 0;
 	goto out_done;
 

@@ -190,11 +190,12 @@ static inline void __devinit mvs_phy_hacks(struct mvs_info *mvi)
 	tmp &= 0x0000ffff;
 	tmp |= 0x00fa0000;
 	mvs_cw32(mvi, CMD_PHY_MODE_21, tmp);
-
+#if 0
 	tmp = mvs_cr32(mvi, CMD_PHY_TIMER);
 	tmp &= 0x1fffffff;
 	tmp |= (2U << 29);	/* 8 ms retry */
 	mvs_cw32(mvi, CMD_PHY_TIMER, tmp);
+#endif
 }
 
 static inline void mvs_int_sata(struct mvs_info *mvi)

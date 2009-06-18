@@ -171,17 +171,24 @@ enum pci_interrupt_cause {
 #define MAX_SG_ENTRY		255
 
 struct mvs_prd_imt {
+#ifndef __BIG_ENDIAN
 	__le32			len:22;
 	u8			_r_a:2;
 	u8			misc_ctl:4;
 	u8			inter_sel:4;
+#else
+	u32			inter_sel:4;
+	u32			misc_ctl:4;
+	u32			_r_a:2;
+	u32			len:22;
+#endif
 };
 
 struct mvs_prd {
 	/* 64-bit buffer address */
 	__le64			addr;
 	/* 22-bit length */
-	struct mvs_prd_imt	im_len;
+	__le32			im_len;
 } __attribute__ ((packed));
 
 #define SPI_CTRL_REG_94XX           	0xc800

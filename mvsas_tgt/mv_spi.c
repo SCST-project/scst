@@ -514,6 +514,8 @@ u8 mvs_spi_init(struct mvs_info *mvi)
 		if (!mvui_init_param(mvi, &hba_info_para)) {
 			for (i = 0; i < mvi->chip->n_phy; i++) {
 				sas_addr = 0x5005043011ab0000ULL;
+				if (mvi->id == 1)
+					sas_addr = 0x5005043011ab0001ULL;
 				mvi->phy[i].dev_sas_addr =
 					cpu_to_be64((u64)(*(u64 *)&sas_addr));
 			}

@@ -36,7 +36,6 @@ enum chip_flavors {
 
 /* driver compile-time configuration */
 enum driver_configuration {
-	MVS_SLOTS		= 512,	/* command slots */
 	MVS_TX_RING_SZ		= 1024,	/* TX ring size (12-bit) */
 	MVS_RX_RING_SZ		= 1024, /* RX ring size (12-bit) */
 					/* software requires power-of-2
@@ -50,10 +49,9 @@ enum driver_configuration {
 	MVS_ATA_CMD_SZ		= 96,	/* SATA command table buffer size */
 	MVS_OAF_SZ		= 64,	/* Open address frame buffer size */
 #ifdef SUPPORT_TARGET
-	MVS_TARGET_QUEUE	= 32,
+	MVS_TARGET_QUEUE	= 64,
 #endif
-	MVS_QUEUE_SIZE	= 32,	/* Support Queue depth */
-	MVS_CAN_QUEUE		= MVS_SLOTS - 2,	/* SCSI Queue depth */
+	MVS_QUEUE_SIZE	= 64,	/* Support Queue depth */
 	MVS_SOC_CAN_QUEUE	= MVS_SOC_SLOTS - 2,
 #ifdef SUPPORT_TARGET
 	MVS_MAX_STP_FRAME		= 0x10,
@@ -405,6 +403,7 @@ enum mvs_event_flags {
 	PHY_PLUG_EVENT	= (3U),
 	PHY_PLUG_IN		= (1U << 0),	/* phy plug in */
 	PHY_PLUG_OUT		= (1U << 1),	/* phy plug out */
+	EXP_BRCT_CHG		= (1U << 2),	/* broadcast change */
 };
 
 enum mvs_port_type {

@@ -379,10 +379,10 @@ static int __devinit mvs_64xx_init(struct mvs_info *mvi)
 	 * it will make count 0.
 	 */
 	tmp = 0;
-	if (MVS_SLOTS > 0x1ff)
+	if (MVS_CHIP_SLOT_SZ > 0x1ff)
 		mw32(MVS_INT_COAL, 0x1ff|COAL_EN);
 	else
-		mw32(MVS_INT_COAL, MVS_SLOTS|COAL_EN);
+		mw32(MVS_INT_COAL, MVS_CHIP_SLOT_SZ|COAL_EN);
 
 	tmp = 0x10400;
 	mw32(MVS_INT_COAL_TMOUT, tmp);
