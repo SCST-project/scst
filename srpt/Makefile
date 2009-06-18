@@ -73,12 +73,14 @@ src/Module.symvers src/Modules.symvers: $(SCST_DIR)/$(MODULE_SYMVERS)
 		 "been patched.";                                           \
 	    false;                                                          \
 	  else                                                              \
+	    echo "  Building against OFED InfiniBand kernel headers.";      \
 	    (                                                               \
 	      grep -v drivers/infiniband/ $<;                               \
 	      cat /usr/src/ofa_kernel/Module.symvers                        \
 	    ) >$@;                                                          \
 	  fi                                                                \
 	else                                                                \
+	  echo "  Building against non-OFED InfiniBand kernel headers.";    \
 	  cp $< $@;                                                         \
 	fi
 
