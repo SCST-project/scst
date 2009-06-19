@@ -2397,6 +2397,14 @@ void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir)
 		"to_copy %d", cmd, copy_dir, src_sg, src_sg_cnt, dst_sg,
 		to_copy);
 
+	if (unlikely(src_sg == NULL) || unlikely(dst_sg == NULL)) {
+		/*
+		 * It can happened, e.g., with scst_user for cmd with delay
+		 * alloc, which failed with Check Condition.
+		 */
+		goto out;
+	}
+
 	dst = sg_page(dst_sg);
 	dst_len = dst_sg->length;
 	dst_offs = dst_sg->offset;
