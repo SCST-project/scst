@@ -175,6 +175,59 @@ isplinux_info(struct Scsi_Host *host)
     }
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
+static ISP_INLINE void
+isplinux_eh_timer_off(Scsi_Cmnd *Cmnd)
+{
+    if (Cmnd->eh_timeout.function) {
+        del_timer(&Cmnd->eh_timeout);
+    }
+}
+
+static ISP_INLINE void
+isplinux_eh_timer_on(Scsi_Cmnd *Cmnd)
+{
+    if (Cmnd->eh_timeout.function) {
+        mod_timer(&Cmnd->eh_timeout, jiffies + Cmnd->timeout_per_command);
+    }
+}
+#else
+static ISP_INLINE void
+isplinux_eh_timer_on(Scsi_Cmnd *Cmnd)
+{
+    Cmnd->SCp.ptr = (void *) jiffies;
+    Cmnd->SCp.Message = 1;
+}
+
+static ISP_INLINE void
+isplinux_eh_timer_off(Scsi_Cmnd *Cmnd)
+{
+    Cmnd->SCp.Message = 0;
+}
+
+static enum blk_eh_timer_return isplinux_eh_timed_out(Scsi_Cmnd *Cmnd)
+{
+    /*
+     * Give us more time if command is on our internal wait queue
+     * or if time elapsed after removing from wait queue is too small
+     */
+    if (Cmnd->SCp.Message == 0) {
+        return (BLK_EH_RESET_TIMER);
+    } else {
+        unsigned long start = (unsigned long) Cmnd->SCp.ptr;
+
+        if (time_before(jiffies, start + Cmnd->request->timeout)) {
+            return (BLK_EH_RESET_TIMER);
+        }
+    }
+
+    /*
+     * We do not do any error handling here, instruct scsi layer do it
+     */
+    return (BLK_EH_NOT_HANDLED);
+}
+#endif
+
 static ISP_INLINE void
 isplinux_append_to_waitq(ispsoftc_t *isp, Scsi_Cmnd *Cmnd)
 {
@@ -188,9 +241,7 @@ isplinux_append_to_waitq(ispsoftc_t *isp, Scsi_Cmnd *Cmnd)
         /*
          * Add back a timer else scsi_done drops this on the floor.
          */
-        if (Cmnd->eh_timeout.function) {
-            mod_timer(&Cmnd->eh_timeout, jiffies + Cmnd->timeout_per_command);
-        }
+        isplinux_eh_timer_on(Cmnd);
         isp_prt(isp, ISP_LOGDEBUG0, "giving up on target %d", XS_TGT(Cmnd));
         ISP_DROP_LK_SOFTC(isp);
         ISP_LOCK_SCSI_DONE(isp);
@@ -215,9 +266,7 @@ isplinux_append_to_waitq(ispsoftc_t *isp, Scsi_Cmnd *Cmnd)
     /*
      * Stop the clock for this command.
      */
-    if (Cmnd->eh_timeout.function) {
-        del_timer(&Cmnd->eh_timeout);
-    }
+    isplinux_eh_timer_off(Cmnd);
 }
 
 static ISP_INLINE void
@@ -292,9 +341,7 @@ isplinux_runwaitq(ispsoftc_t *isp)
              * Restart the timer for this command if it is queued or completing.
              */
             if (result == CMD_QUEUED || result == CMD_COMPLETE) {
-                if (f->eh_timeout.function) {
-                    mod_timer(&f->eh_timeout, jiffies + f->timeout_per_command);
-                }
+                isplinux_eh_timer_on(f);
                 if (result == CMD_QUEUED) {
                     if (isp->isp_osinfo.hiwater < isp->isp_nactive) {
                         isp->isp_osinfo.hiwater = isp->isp_nactive;
@@ -357,9 +404,7 @@ isplinux_flushwaitq(ispsoftc_t *isp)
         /*
          * Add back a timer else scsi_done drops this on the floor.
          */
-        if (Cmnd->eh_timeout.function) {
-            mod_timer(&Cmnd->eh_timeout, jiffies + Cmnd->timeout_per_command);
-        }
+        isplinux_eh_timer_on(Cmnd);
         ISP_LOCK_SCSI_DONE(isp);
         (*Cmnd->scsi_done)(Cmnd);
         ISP_UNLK_SCSI_DONE(isp);
@@ -4736,6 +4781,9 @@ static struct scsi_host_template driver_template = {
     .eh_host_reset_handler =    isplinux_hreset,
     .slave_configure =          isplinux_slave_configure,
     .bios_param =               isplinux_biosparam,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,28)
+    .eh_timed_out =             isplinux_eh_timed_out,
+#endif
 #if defined(CONFIG_PROC_FS)
     .proc_info =                isplinux_proc_info,
     .proc_name =                ISP_NAME,

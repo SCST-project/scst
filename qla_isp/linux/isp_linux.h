@@ -498,7 +498,11 @@ struct isposinfo {
 #define XS_SET_RESID        scsi_set_resid
 #define XS_XFRLEN           scsi_bufflen
 #endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
 #define XS_TIME(Cmnd)       ((((Cmnd)->timeout_per_command) * HZ)*1000)
+#else
+#define XS_TIME(Cmnd)       ((((Cmnd)->request->timeout) * HZ)*1000)
+#endif
 #define XS_STSP(Cmnd)       (&(Cmnd)->SCp.Status)
 #define XS_SNSP(Cmnd)       (Cmnd)->sense_buffer
 #define XS_SNSLEN(Cmnd)     SCSI_SENSE_BUFFERSIZE
