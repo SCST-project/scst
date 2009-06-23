@@ -5416,18 +5416,6 @@ static int scst_init_session(struct scst_session *sess)
 		TRACE_DBG("%s", "init_result_fn() returned");
 	}
 
-#ifdef CONFIG_LOCKDEP
-	if (res == 0) {
-		/* ToDo: make it on-stack */
-		sess->shutdown_compl = kmalloc(sizeof(*sess->shutdown_compl),
-			GFP_KERNEL);
-		if (sess->shutdown_compl == NULL)
-			res = -ENOMEM;
-		else
-			init_completion(sess->shutdown_compl);
-	}
-#endif
-
 	spin_lock_irq(&sess->sess_list_lock);
 
 	if (res == 0)
@@ -5521,21 +5509,12 @@ void scst_unregister_session(struct scst_session *sess, int wait,
 	void (*unreg_done_fn) (struct scst_session *sess))
 {
 	unsigned long flags;
-	struct completion *pc;
-#ifndef CONFIG_LOCKDEP
-	DECLARE_COMPLETION(c);
-#endif
+	DECLARE_COMPLETION_ONSTACK(c);
 	int rc, lun;
 
 	TRACE_ENTRY();
 
 	TRACE_MGMT_DBG("Unregistering session %p (wait %d)", sess, wait);
-
-#ifdef CONFIG_LOCKDEP
-	pc = sess->shutdown_compl;
-#else
-	pc = &c;
-#endif
 
 	sess->unreg_done_fn = unreg_done_fn;
 
@@ -5553,11 +5532,7 @@ void scst_unregister_session(struct scst_session *sess, int wait,
 	spin_lock_irqsave(&scst_mgmt_lock, flags);
 
 	if (wait)
-		sess->shutdown_compl = pc;
-#ifdef CONFIG_LOCKDEP
-	else
-		 sess->shutdown_compl = NULL;
-#endif
+		sess->shutdown_compl = &c;
 
 	spin_unlock_irqrestore(&scst_mgmt_lock, flags);
 
@@ -5565,12 +5540,8 @@ void scst_unregister_session(struct scst_session *sess, int wait,
 
 	if (wait) {
 		TRACE_DBG("Waiting for session %p to complete", sess);
-		wait_for_completion(pc);
+		wait_for_completion(&c);
 	}
-
-#ifdef CONFIG_LOCKDEP
-	kfree(pc);
-#endif
 
 	TRACE_EXIT();
 	return;

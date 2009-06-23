@@ -35,24 +35,6 @@
  for details."
 #endif
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18))
-#define COMPLETION_INITIALIZER_ONSTACK(work) \
-	({ init_completion(&work); work; })
-	
-/*
- * Lockdep needs to run a non-constant initializer for on-stack
- * completions - so we use the _ONSTACK() variant for those that
- * are on the kernel stack:
- */
-#ifdef CONFIG_LOCKDEP
-# define DECLARE_COMPLETION_ONSTACK(work) \
-	struct completion work = COMPLETION_INITIALIZER_ONSTACK(work)
-#else
-# define DECLARE_COMPLETION_ONSTACK(work) DECLARE_COMPLETION(work)
-#endif
-
-#endif
-
 #define DEV_USER_MAJOR			237
 #define DEV_USER_CMD_HASH_ORDER		6
 #define DEV_USER_ATTACH_TIMEOUT		(5*HZ)

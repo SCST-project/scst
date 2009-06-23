@@ -34,6 +34,14 @@
 
 #include <scst_const.h>
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
+#ifndef RHEL_RELEASE_CODE
+typedef _Bool bool;
+#endif
+#define true  1
+#define false 0
+#endif
+
 #include "scst_sgv.h"
 
 /*
@@ -48,12 +56,23 @@
 #define SCST_INTERFACE_VERSION	    \
 		SCST_VERSION_STRING "$Revision$" SCST_CONST_VERSION
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
-#ifndef RHEL_RELEASE_CODE
-typedef _Bool bool;
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18))
+#define COMPLETION_INITIALIZER_ONSTACK(work) \
+	({ init_completion(&work); work; })
+	
+/*
+ * Lockdep needs to run a non-constant initializer for on-stack
+ * completions - so we use the _ONSTACK() variant for those that
+ * are on the kernel stack:
+ */
+#ifdef CONFIG_LOCKDEP
+# define DECLARE_COMPLETION_ONSTACK(work) \
+	struct completion work = COMPLETION_INITIALIZER_ONSTACK(work)
+#else
+# define DECLARE_COMPLETION_ONSTACK(work) DECLARE_COMPLETION(work)
 #endif
-#define true  1
-#define false 0
+
 #endif
 
 #define SCST_LOCAL_NAME			"scst_lcl_drvr"
