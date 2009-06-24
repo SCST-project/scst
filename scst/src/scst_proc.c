@@ -1987,12 +1987,12 @@ static int scst_groups_devices_show(struct seq_file *seq, void *v)
 					acg_dev->dev->scsi_dev->lun,
 					acg_dev->lun);
 			seq_printf(seq, "%s\n",
-				acg_dev->rd_only_flag ? "RO" : "");
+				acg_dev->rd_only ? "RO" : "");
 		} else {
 			seq_printf(seq, "%-60s%-13lld%s\n",
 				       acg_dev->dev->virt_name,
 				       (long long unsigned int)acg_dev->lun,
-				       acg_dev->rd_only_flag ? "RO" : "");
+				       acg_dev->rd_only ? "RO" : "");
 		}
 	}
 	mutex_unlock(&scst_mutex);

@@ -2145,7 +2145,8 @@ static int scst_do_local_exec(struct scst_cmd *cmd)
 
 	/* Check READ_ONLY device status */
 	if ((cmd->op_flags & SCST_WRITE_MEDIUM) &&
-	    ((tgt_dev->acg_dev->rd_only_flag) || cmd->dev->swp)) {
+	    (tgt_dev->acg_dev->rd_only || cmd->dev->swp ||
+	     cmd->dev->rd_only)) {
 		PRINT_WARNING("Attempt of write access to read-only device: "
 			"initiator %s, LUN %lld, op %x",
 			cmd->sess->initiator_name, cmd->lun, cmd->cdb[0]);
@@ -2556,7 +2557,8 @@ static int scst_pre_dev_done(struct scst_cmd *cmd)
 		unsigned char type = cmd->dev->type;
 		if (unlikely((cmd->cdb[0] == MODE_SENSE ||
 			      cmd->cdb[0] == MODE_SENSE_10)) &&
-		    cmd->tgt_dev->acg_dev->rd_only_flag &&
+		    (cmd->tgt_dev->acg_dev->rd_only || cmd->dev->swp ||
+		     cmd->dev->rd_only) &&
 		    (type == TYPE_DISK ||
 		     type == TYPE_WORM ||
 		     type == TYPE_MOD ||

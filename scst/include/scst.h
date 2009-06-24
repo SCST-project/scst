@@ -1455,6 +1455,9 @@ struct scst_device {
 	/* Set if double reset UA is possible */
 	unsigned short dev_double_ua_possible:1;
 
+	/* If set, dev is read only */
+	unsigned int rd_only:1;
+
 	/**************************************************************/
 
 	/*************************************************************
@@ -1644,7 +1647,7 @@ struct scst_tgt_dev {
 struct scst_acg_dev {
 	struct scst_device *dev; /* corresponding device */
 	uint64_t lun;		/* device's LUN in this acg */
-	unsigned int rd_only_flag:1; /* if != 0, then read only */
+	unsigned int rd_only:1; /* if != 0, then read only */
 	struct scst_acg *acg;	/* parent acg */
 
 	/* list entry in dev->dev_acg_dev_list */

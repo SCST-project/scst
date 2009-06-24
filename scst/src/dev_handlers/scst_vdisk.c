@@ -193,7 +193,7 @@ struct scst_vdisk_dev {
 	 * Below flags are protected by flags_lock or suspended activity
 	 * with scst_vdisk_mutex.
 	 */
-	unsigned int rd_only_flag:1;
+	unsigned int rd_only:1;
 	unsigned int wt_flag:1;
 	unsigned int nv_cache:1;
 	unsigned int o_direct_flag:1;
@@ -395,7 +395,7 @@ static struct file *vdisk_open(const struct scst_vdisk_dev *virt_dev)
 
 	TRACE_ENTRY();
 
-	if (virt_dev->rd_only_flag)
+	if (virt_dev->dev->rd_only)
 		open_flags |= O_RDONLY;
 	else
 		open_flags |= O_RDWR;
@@ -530,8 +530,9 @@ static int vdisk_attach(struct scst_device *dev)
 
 	virt_dev->dev = dev;
 
+	dev->rd_only = virt_dev->rd_only;
 	if (dev->type == TYPE_ROM)
-		virt_dev->rd_only_flag = 1;
+		dev->rd_only = 1;
 
 	if (!virt_dev->cdrom_empty) {
 		if (virt_dev->nullio)
@@ -892,80 +893,61 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	case WRITE_10:
 	case WRITE_12:
 	case WRITE_16:
-		if (likely(!virt_dev->rd_only_flag)) {
-			int do_fsync = vdisk_sync_queue_type(cmd->queue_type);
-			struct scst_vdisk_tgt_dev *ftgt_dev =
-				(struct scst_vdisk_tgt_dev *)
-					tgt_dev->dh_priv;
-			enum scst_cmd_queue_type last_queue_type =
-				ftgt_dev->last_write_cmd_queue_type;
-			ftgt_dev->last_write_cmd_queue_type = cmd->queue_type;
-			if (vdisk_need_pre_sync(cmd->queue_type,
-						last_queue_type)) {
-				TRACE(TRACE_ORDER, "ORDERED "
-				      "WRITE(%d): loff=%lld, data_len=%lld",
-				      cmd->queue_type,
-				      (long long unsigned int)loff,
-				      (long long unsigned int)data_len);
-				do_fsync = 1;
-				if (vdisk_fsync(thr, 0, 0, cmd) != 0)
-					goto out_compl;
-			}
-			if (virt_dev->blockio) {
-				blockio_exec_rw(cmd, thr, lba_start, 1);
-				goto out_thr;
-			} else
-				vdisk_exec_write(cmd, thr, loff);
-			/* O_SYNC flag is used for WT devices */
-			if (do_fsync || fua)
-				vdisk_fsync(thr, loff, data_len, cmd);
-		} else {
-			PRINT_WARNING("Attempt of write access to read-only "
-				"device %s: initiator %s, op %x",
-				virt_dev->name, cmd->sess->initiator_name,
-				cmd->cdb[0]);
-			scst_set_cmd_error(cmd,
-				   SCST_LOAD_SENSE(scst_sense_data_protect));
+	{
+		int do_fsync = vdisk_sync_queue_type(cmd->queue_type);
+		struct scst_vdisk_tgt_dev *ftgt_dev =
+			(struct scst_vdisk_tgt_dev *)tgt_dev->dh_priv;
+		enum scst_cmd_queue_type last_queue_type =
+			ftgt_dev->last_write_cmd_queue_type;
+		ftgt_dev->last_write_cmd_queue_type = cmd->queue_type;
+		if (vdisk_need_pre_sync(cmd->queue_type, last_queue_type)) {
+			TRACE(TRACE_ORDER, "ORDERED WRITE(%d): loff=%lld, "
+				"data_len=%lld", cmd->queue_type,
+			      (long long unsigned int)loff,
+			      (long long unsigned int)data_len);
+			do_fsync = 1;
+			if (vdisk_fsync(thr, 0, 0, cmd) != 0)
+				goto out_compl;
 		}
+		if (virt_dev->blockio) {
+			blockio_exec_rw(cmd, thr, lba_start, 1);
+			goto out_thr;
+		} else
+			vdisk_exec_write(cmd, thr, loff);
+		/* O_SYNC flag is used for WT devices */
+		if (do_fsync || fua)
+			vdisk_fsync(thr, loff, data_len, cmd);
 		break;
+	}
 	case WRITE_VERIFY:
 	case WRITE_VERIFY_12:
 	case WRITE_VERIFY_16:
-		if (likely(!virt_dev->rd_only_flag)) {
-			int do_fsync = vdisk_sync_queue_type(cmd->queue_type);
-			struct scst_vdisk_tgt_dev *ftgt_dev =
-				(struct scst_vdisk_tgt_dev *)
-					tgt_dev->dh_priv;
-			enum scst_cmd_queue_type last_queue_type =
-				ftgt_dev->last_write_cmd_queue_type;
-			ftgt_dev->last_write_cmd_queue_type = cmd->queue_type;
-			if (vdisk_need_pre_sync(cmd->queue_type,
-						last_queue_type)) {
-				TRACE(TRACE_ORDER, "ORDERED "
-				      "WRITE_VERIFY(%d): loff=%lld,"
-				      " data_len=%lld", cmd->queue_type,
-				      (long long unsigned int)loff,
-				      (long long unsigned int)data_len);
-				do_fsync = 1;
-				if (vdisk_fsync(thr, 0, 0, cmd) != 0)
-					goto out_compl;
-			}
-			/* ToDo: BLOCKIO VERIFY */
-			vdisk_exec_write(cmd, thr, loff);
-			/* O_SYNC flag is used for WT devices */
-			if (scsi_status_is_good(cmd->status))
-				vdisk_exec_verify(cmd, thr, loff);
-			else if (do_fsync)
-				vdisk_fsync(thr, loff, data_len, cmd);
-		} else {
-			PRINT_WARNING("Attempt of write access to read-only "
-				"device %s: initiator %s, op %x",
-				virt_dev->name, cmd->sess->initiator_name,
-				cmd->cdb[0]);
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_data_protect));
+	{
+		int do_fsync = vdisk_sync_queue_type(cmd->queue_type);
+		struct scst_vdisk_tgt_dev *ftgt_dev =
+			(struct scst_vdisk_tgt_dev *) tgt_dev->dh_priv;
+		enum scst_cmd_queue_type last_queue_type =
+			ftgt_dev->last_write_cmd_queue_type;
+		ftgt_dev->last_write_cmd_queue_type = cmd->queue_type;
+		if (vdisk_need_pre_sync(cmd->queue_type, last_queue_type)) {
+			TRACE(TRACE_ORDER, "ORDERED "
+			      "WRITE_VERIFY(%d): loff=%lld,"
+			      " data_len=%lld", cmd->queue_type,
+			      (long long unsigned int)loff,
+			      (long long unsigned int)data_len);
+			do_fsync = 1;
+			if (vdisk_fsync(thr, 0, 0, cmd) != 0)
+				goto out_compl;
 		}
+		/* ToDo: BLOCKIO VERIFY */
+		vdisk_exec_write(cmd, thr, loff);
+		/* O_SYNC flag is used for WT devices */
+		if (scsi_status_is_good(cmd->status))
+			vdisk_exec_verify(cmd, thr, loff);
+		else if (do_fsync)
+			vdisk_fsync(thr, loff, data_len, cmd);
 		break;
+	}
 	case SYNCHRONIZE_CACHE:
 	{
 		int immed = cdb[1] & 0x2;
@@ -1554,7 +1536,7 @@ static void vdisk_exec_mode_sense(struct scst_cmd *cmd)
 	pcode = cmd->cdb[2] & 0x3f;
 	subpcode = cmd->cdb[3];
 	msense_6 = (MODE_SENSE == cmd->cdb[0]);
-	dev_spec = (virt_dev->rd_only_flag ? WP : 0) | DPOFUA;
+	dev_spec = (virt_dev->dev->rd_only ? WP : 0) | DPOFUA;
 
 	length = scst_get_buf_first(cmd, &address);
 	if (unlikely(length <= 0)) {
@@ -2084,8 +2066,7 @@ static int vdisk_fsync(struct scst_vdisk_thr *thr,
 
 	/* Hopefully, the compiler will generate the single comparison */
 	if (virt_dev->nv_cache || virt_dev->blockio || virt_dev->wt_flag ||
-	    virt_dev->rd_only_flag || virt_dev->o_direct_flag ||
-	    virt_dev->nullio)
+	    virt_dev->o_direct_flag || virt_dev->nullio)
 		goto out;
 
 	inode = file->f_dentry->d_inode;
@@ -2764,7 +2745,12 @@ static int vdisk_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
 			seq_printf(seq, "NV ");
 			c += 3;
 		}
-		if (virt_dev->rd_only_flag) {
+		if (virt_dev->dev != NULL) {
+			if (virt_dev->dev->rd_only) {
+				seq_printf(seq, "RO ");
+				c += 3;
+			}
+		} else if (virt_dev->rd_only) {
 			seq_printf(seq, "RO ");
 			c += 3;
 		}
@@ -2813,7 +2799,7 @@ static void vdisk_report_registering(const char *type,
 		i += snprintf(&buf[i], sizeof(buf) - i, "%sNV_CACHE",
 			(j == i) ? "(" : ", ");
 
-	if (virt_dev->rd_only_flag)
+	if (virt_dev->rd_only)
 		i += snprintf(&buf[i], sizeof(buf) - i, "%sREAD_ONLY",
 			(j == i) ? "(" : ", ");
 
@@ -3013,7 +2999,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 				TRACE_DBG("%s", "NON-VOLATILE CACHE");
 			} else if (!strncmp("READ_ONLY", p, 9)) {
 				p += 9;
-				virt_dev->rd_only_flag = 1;
+				virt_dev->rd_only = 1;
 				TRACE_DBG("%s", "READ_ONLY");
 			} else if (!strncmp("O_DIRECT", p, 8)) {
 				p += 8;

@@ -1367,7 +1367,7 @@ int scst_acg_add_dev(struct scst_acg *acg, struct scst_device *dev,
 		res = -ENOMEM;
 		goto out;
 	}
-	acg_dev->rd_only_flag = read_only;
+	acg_dev->rd_only = read_only;
 
 	TRACE_DBG("Adding acg_dev %p to acg_dev_list and dev_acg_dev_list",
 		acg_dev);

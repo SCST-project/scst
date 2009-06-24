@@ -2462,7 +2462,7 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 	ucmd->user_cmd.sess.sess_h = (unsigned long)tgt_dev;
 	ucmd->user_cmd.sess.lun = (uint64_t)tgt_dev->lun;
 	ucmd->user_cmd.sess.threads_num = tgt_dev->sess->tgt->tgtt->threads_num;
-	ucmd->user_cmd.sess.rd_only = tgt_dev->acg_dev->rd_only_flag;
+	ucmd->user_cmd.sess.rd_only = tgt_dev->acg_dev->rd_only;
 	strncpy(ucmd->user_cmd.sess.initiator_name,
 		tgt_dev->sess->initiator_name,
 		sizeof(ucmd->user_cmd.sess.initiator_name)-1);
@@ -2477,7 +2477,7 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 	}
 
 	TRACE_MGMT_DBG("Preparing ATTACH_SESS %p (h %d, sess_h %llx, LUN %llx, "
-		"threads_num %d, rd_only_flag %d, initiator %s, target %s)",
+		"threads_num %d, rd_only %d, initiator %s, target %s)",
 		ucmd, ucmd->h, ucmd->user_cmd.sess.sess_h,
 		ucmd->user_cmd.sess.lun, ucmd->user_cmd.sess.threads_num,
 		ucmd->user_cmd.sess.rd_only, ucmd->user_cmd.sess.initiator_name,
