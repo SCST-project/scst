@@ -84,14 +84,6 @@ static unsigned long scst_local_trace_flag = SCST_LOCAL_DEFAULT_LOG_FLAGS;
 #define scsi_sg_count(cmd) ((cmd)->use_sg)
 #define scsi_sglist(cmd) ((struct scatterlist *)(cmd)->request_buffer)
 #define scsi_bufflen(cmd) ((cmd)->request_bufflen)
-
-/* Include the following manually of scsi_set_resid is not defined */
-#if 0
-static inline void scsi_set_resid(struct scsi_cmnd *cmd, int resid)
-{
-	cmd->resid = resid;
-}
-#endif
 #endif
 
 #define TRUE 1
