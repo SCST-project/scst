@@ -143,10 +143,16 @@ struct scst_local_host_info {
 
 /*
  * Maintains data that is needed during command processing ...
+ * We have a single element scatterlist in here in case the scst_cmnd
+ * we are given has a buffer, not a scatterlist, but we only need this for
+ * kernels less than 2.6.25.
  */
 struct scst_local_tgt_specific {
 	struct scsi_cmnd *cmnd;
 	void (*done)(struct scsi_cmnd *);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
+	struct scatterlist sgl;
+#endif
 };
 
 /*
@@ -451,6 +457,8 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 {
 	struct scst_local_tgt_specific *tgt_specific = NULL;
 	struct scst_local_host_info *scst_lcl_host;
+	struct scatterlist *sgl = NULL;
+	int sgl_count = 0;
 	int target = SCpnt->device->id;
 	int lun;
 	struct scst_cmd *scst_cmd = NULL;
@@ -506,19 +514,64 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 		break;
 	}
 
+	/*
+	 * Get some memory to keep track of the cmnd and the done routine
+	 */ 
+	tgt_specific = kmem_cache_alloc(tgt_specific_pool, GFP_ATOMIC);
+	if (!tgt_specific) {
+		printk(KERN_ERR "%s out of memory at line %d\n",
+		       __func__, __LINE__);
+		return -ENOMEM;
+	}
+	tgt_specific->cmnd = SCpnt;
+	tgt_specific->done = done;
+
+	/*
+	 * If the command has a request, not a scatterlist, then convert it
+	 * to one. We use scsi_sg_count to isolate us from the changes from
+	 * version to version
+	 */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
+	if (scsi_sg_count(SCpnt)) {
+		sgl       = scsi_sglist(SCpnt);
+		sgl_count = scsi_sg_count(SCpnt);
+	} else {
+		/*
+ 		 * Build a one-element scatter list out of the buffer
+ 		 * We will not even get here if the kernel version we 
+ 		 * are building on only supports scatterlists. See #if above.
+ 		 *
+ 		 * We use the sglist and bufflen function/macros to isolate
+ 		 * us from kernel version differences.
+ 		 */
+		if (scsi_sglist(SCpnt)) {
+			sg_init_one(&(tgt_specific->sgl), 
+				(const void *)scsi_sglist(SCpnt), 
+				scsi_bufflen(SCpnt));
+			sgl	  = &(tgt_specific->sgl);
+			sgl_count = 1;
+		}
+		else {
+			sgl = NULL;
+			sgl_count = 0;
+		}
+	}
+#else
+	sgl       = scsi_sglist(SCpnt);
+	sgl_count = scsi_sg_count(SCpnt);
+#endif
+
 	dir = SCST_DATA_NONE;
 	switch (SCpnt->sc_data_direction) {
 	case DMA_TO_DEVICE:
 		dir = SCST_DATA_WRITE;
 		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(SCpnt));
-		scst_cmd_set_tgt_sg(scst_cmd, scsi_sglist(SCpnt),
-			scsi_sg_count(SCpnt));
+		scst_cmd_set_tgt_sg(scst_cmd, sgl, sgl_count);
 		break;
 	case DMA_FROM_DEVICE:
 		dir = SCST_DATA_READ;
 		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(SCpnt));
-		scst_cmd_set_tgt_sg(scst_cmd, scsi_sglist(SCpnt),
-			scsi_sg_count(SCpnt));
+		scst_cmd_set_tgt_sg(scst_cmd, sgl, sgl_count);
 		break;
 	case DMA_BIDIRECTIONAL:
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 24))
@@ -527,8 +580,7 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(SCpnt));
 		scst_cmd_set_expected_in_transfer_len(scst_cmd,
 			scsi_in(SCpnt)->length);
-		scst_cmd_set_tgt_sg(scst_cmd, scsi_sglist(SCpnt),
-			scsi_sg_count(SCpnt));
+		scst_cmd_set_tgt_sg(scst_cmd, sgl, sgl_count);
 		scst_cmd_set_tgt_in_sg(scst_cmd, scsi_in(SCpnt)->table.sgl,
 			scsi_in(SCpnt)->table.nents);
 		break;
@@ -539,18 +591,6 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 		scst_cmd_set_expected(scst_cmd, dir, 0);
 		break;
 	}
-
-	/*
-	 * Defer allocating memory until all error paths are done
-	 */
-	tgt_specific = kmem_cache_alloc(tgt_specific_pool, GFP_ATOMIC);
-	if (!tgt_specific) {
-		printk(KERN_ERR "%s out of memory at line %d\n",
-		       __func__, __LINE__);
-		return -ENOMEM;
-	}
-	tgt_specific->cmnd = SCpnt;
-	tgt_specific->done = done;
 
 	scst_cmd_set_tgt_priv(scst_cmd, tgt_specific);
 
