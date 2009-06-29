@@ -1,0 +1,11 @@
+--- linux-2.6.24-24.53/mm/readahead.c	2008-02-11 06:51:11.000000000 +0100
++++ linux-2.6.24-24.53.copy/mm/readahead.c	2009-06-09 21:59:13.640647726 +0200
+@@ -472,5 +472,8 @@ page_cache_async_readahead(struct addres
+ 
+ 	/* do read-ahead */
+ 	ondemand_readahead(mapping, ra, filp, true, offset, req_size);
++
++	if (PageUptodate(page))
++		blk_run_backing_dev(mapping->backing_dev_info, NULL);
+ }
+ EXPORT_SYMBOL_GPL(page_cache_async_readahead);
