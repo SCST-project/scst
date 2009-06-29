@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 ############################################################################
 #
@@ -26,7 +26,7 @@
 # Function definitions  #
 #########################
 
-function usage {
+usage() {
   echo "Usage: $0 [-a] [-d] [-i <i>] [-n] [-r] [-s <l2s>] <dev>"
   echo "        -a - use asynchronous (buffered) I/O."
   echo "        -d - use direct (non-buffered) I/O."
@@ -37,7 +37,16 @@ function usage {
   echo "        <dev> - block device to run the I/O performance test on."
 }
 
-function drop_caches {
+# Echo ((2**$1))
+pow2() {
+  if [ $1 = 0 ]; then
+    echo 1
+  else
+    echo $((2 * $(pow2 $(($1 - 1)) ) ))
+  fi
+}
+
+drop_caches() {
   sync
   if [ -w /proc/sys/vm/drop_caches ]; then
     echo 3 > /proc/sys/vm/drop_caches
@@ -48,8 +57,8 @@ function drop_caches {
 # using format $1, and also echo the average transfer size in MB/s, its
 # standard deviation and the number of IOPS using the total I/O size $2 and
 # the block transfer size $3.
-function echo_and_calc_avg {
-  awk -v fmt="$1" -v iosize="$2" -v blocksize="$3" '{if ($1 != 0){n++;sum+=iosize/$1;sumsq+=iosize*iosize/($1*$1)};printf fmt, $1} END{d=(n>0?sumsq/n-sum*sum/n/n:0);avg=(n>0?sum/n:0);stddev=(d>0?sqrt(d):0);iops=avg/blocksize;printf fmt fmt fmt,avg/2**20,stddev/2**20,iops}'
+echo_and_calc_avg() {
+  awk -v fmt="$1" -v iosize="$2" -v blocksize="$3" 'BEGIN{pow_2_20=1024*1024}{if ($1 != 0){n++;sum+=iosize/$1;sumsq+=iosize*iosize/($1*$1)};printf fmt, $1} END{d=(n>0?sumsq/n-sum*sum/n/n:0);avg=(n>0?sum/n:0);stddev=(d>0?sqrt(d):0);iops=avg/blocksize;printf fmt fmt fmt,avg/pow_2_20,stddev/pow_2_20,iops}'
 }
 
 #########################
@@ -69,7 +78,7 @@ verify_device_data=true
 # Argument processing   #
 #########################
 
-set -- $(/usr/bin/getopt "adi:nrs:" "$@")
+set -- $(/usr/bin/getopt "adhi:nrs:" "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
@@ -107,7 +116,7 @@ if [ "${read_test_only}" = "false" -a ! -w "${device}" ]; then
 fi
 
 if [ "${read_test_only}" = "false" -a "${verify_device_data}" = "true" ] \
-   && ! cmp -s -n $((2**log2_io_size)) "${device}" /dev/zero
+   && ! cmp -s -n $(pow2 $log2_io_size) "${device}" /dev/zero
 then
   echo "Error: device ${device} still contains data."
   exit 1
@@ -123,45 +132,53 @@ fi
 
 # Header, line 1
 printf "%9s " blocksize
-for ((i = 0; i < ${iterations}; i++))
+i=0
+while [ $i -lt ${iterations} ]
 do
   printf "%8s " "W"
+  i=$((i+1))
 done
 printf "%8s %8s %8s " "W(avg," "W(std," "W"
-for ((i = 0; i < ${iterations}; i++))
+i=0
+while [ $i -lt ${iterations} ]
 do
   printf "%8s " "R"
+  i=$((i+1))
 done
 printf "%8s %8s %8s" "R(avg," "R(std" "R"
 printf "\n"
 
 # Header, line 2
 printf "%9s " "(bytes)"
-for ((i = 0; i < ${iterations}; i++))
+i=0
+while [ $i -lt ${iterations} ]
 do
   printf "%8s " "(s)"
+  i=$((i+1))
 done
 printf "%8s %8s %8s " "MB/s)" ",MB/s)" "(IOPS)"
-for ((i = 0; i < ${iterations}; i++))
+i=0
+while [ $i -lt ${iterations} ]
 do
   printf "%8s " "(s)"
+  i=$((i+1))
 done
 printf "%8s %8s %8s" "MB/s)" ",MB/s)" "(IOPS)"
 printf "\n"
 
 # Measurements
-for ((log2_blocksize = log2_max_blocksize;
-      log2_blocksize >= log2_min_blocksize;
-      log2_blocksize--))
+log2_blocksize=${log2_max_blocksize}
+while [ ! $log2_blocksize -lt $log2_min_blocksize ]
 do
   if [ $log2_blocksize -gt $log2_io_size ]; then
     continue
   fi
-  iosize=$((2**log2_io_size))
-  bs=$((2**log2_blocksize))
-  count=$((2**(log2_io_size - log2_blocksize)))
+  iosize=$(pow2 $log2_io_size)
+  bs=$(pow2 $log2_blocksize)
+  count=$(pow2 $(($log2_io_size - $log2_blocksize)))
   printf "%9d " ${bs}
-  for ((i = 0; i < ${iterations}; i++))
+  i=0
+  while [ $i -lt ${iterations} ]
   do
     if [ "${read_test_only}" = "false" ]; then
       drop_caches
@@ -171,14 +188,18 @@ do
     else
       echo 0
     fi
+    i=$((i+1))
   done | echo_and_calc_avg "%8.3f " ${iosize} ${bs}
 
-  for ((i = 0; i < ${iterations}; i++))
+  i=0
+  while [ $i -lt ${iterations} ]
   do
     drop_caches
     dd if="${device}" of=/dev/null bs=${bs} count=${count} \
                   ${dd_iflags} 2>&1 \
                | sed -n 's/.* \([0-9.]*\) s,.*/\1/p'
+    i=$((i+1))
   done | echo_and_calc_avg "%8.3f " ${iosize} ${bs}
   printf "\n"
+  log2_blocksize=$((log2_blocksize - 1))
 done
