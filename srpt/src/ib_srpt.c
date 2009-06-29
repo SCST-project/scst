@@ -156,7 +156,13 @@ static void srpt_qp_event(struct ib_event *event, void *ctx)
 
 	switch (event->event) {
 	case IB_EVENT_COMM_EST:
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20) || defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
 		ib_cm_notify(ch->cm_id, event->event);
+#else
+		/* Vanilla 2.6.19 kernel (or before) without OFED. */
+		printk(KERN_ERR PFX "how to perform ib_cm_notify() on a"
+			" vanilla 2.6.18 kernel ???\n");
+#endif
 		break;
 	case IB_EVENT_QP_LAST_WQE_REACHED:
 		if (ch->state == RDMA_CHANNEL_LIVE) {
