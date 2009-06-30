@@ -974,7 +974,7 @@ int istrd(void *arg)
 		init_waitqueue_entry(&wait, current);
 
 		if (!test_rd_list()) {
-			add_wait_queue_exclusive(&iscsi_rd_waitQ, &wait);
+			add_wait_queue_exclusive_head(&iscsi_rd_waitQ, &wait);
 			for (;;) {
 				set_current_state(TASK_INTERRUPTIBLE);
 				if (test_rd_list())
@@ -1662,7 +1662,7 @@ int istwr(void *arg)
 		init_waitqueue_entry(&wait, current);
 
 		if (!test_wr_list()) {
-			add_wait_queue_exclusive(&iscsi_wr_waitQ, &wait);
+			add_wait_queue_exclusive_head(&iscsi_wr_waitQ, &wait);
 			for (;;) {
 				set_current_state(TASK_INTERRUPTIBLE);
 				if (test_wr_list())

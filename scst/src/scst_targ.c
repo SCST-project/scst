@@ -3735,7 +3735,8 @@ int scst_cmd_thread(void *arg)
 		init_waitqueue_entry(&wait, current);
 
 		if (!test_cmd_lists(p_cmd_lists)) {
-			add_wait_queue_exclusive(&p_cmd_lists->cmd_list_waitQ,
+			add_wait_queue_exclusive_head(
+				&p_cmd_lists->cmd_list_waitQ,
 				&wait);
 			for (;;) {
 				set_current_state(TASK_INTERRUPTIBLE);

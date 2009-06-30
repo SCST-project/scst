@@ -1745,7 +1745,8 @@ static int dev_user_get_next_cmd(struct scst_user_dev *dev,
 
 	while (1) {
 		if (!test_cmd_lists(dev)) {
-			add_wait_queue_exclusive(&dev->cmd_lists.cmd_list_waitQ,
+			add_wait_queue_exclusive_head(
+				&dev->cmd_lists.cmd_list_waitQ,
 				&wait);
 			for (;;) {
 				set_current_state(TASK_INTERRUPTIBLE);

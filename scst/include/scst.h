@@ -26,6 +26,7 @@
 #include <linux/blkdev.h>
 #include <linux/interrupt.h>
 #include <linux/proc_fs.h>
+#include <linux/wait.h>
 
 #include <scsi/scsi_cmnd.h>
 #include <scsi/scsi_device.h>
@@ -3074,5 +3075,21 @@ int scst_tape_generic_dev_done(struct scst_cmd *cmd,
  * dev's parameter from it. Returns 0 on success and not 0 otherwise.
  */
 int scst_obtain_device_parameters(struct scst_device *dev);
+
+/*
+ * Has to be put here open coded, because Linux doesn't have equivalent, which
+ * allows exclusive wake ups of threads in LIFO order. We need it to let (yet)
+ * unneeded threads sleep and not pollute CPU cache by their stacks. 
+ */
+static inline void add_wait_queue_exclusive_head(wait_queue_head_t *q,
+	wait_queue_t *wait)
+{
+	unsigned long flags;
+
+	wait->flags |= WQ_FLAG_EXCLUSIVE;
+	spin_lock_irqsave(&q->lock, flags);
+	__add_wait_queue(q, wait);
+	spin_unlock_irqrestore(&q->lock, flags);
+}
 
 #endif /* __SCST_H */
