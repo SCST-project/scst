@@ -84,6 +84,10 @@ subsystem and greatly improves performance for software RAIDs. See
 http://sourceforge.net/mailarchive/forum.php?thread_name=a0272b440906030714g67eabc5k8f847fb1e538cc62%40mail.gmail.com&forum_name=scst-devel
 thread for more details.
 
+4. readahead-context-2.6.X.patch. This is backported version of the
+context readahead patch http://lkml.org/lkml/2009/4/12/9, big thanks to
+Wu Fengguang! This is a performance improvement patch.
+
 Then, to compile SCST type 'make scst'. It will build SCST itself and its
 device handlers. To install them type 'make scst_install'. The driver
 modules will be installed in '/lib/modules/`you_kernel_version`/extra'.
