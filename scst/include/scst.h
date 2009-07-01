@@ -3079,7 +3079,7 @@ int scst_obtain_device_parameters(struct scst_device *dev);
 /*
  * Has to be put here open coded, because Linux doesn't have equivalent, which
  * allows exclusive wake ups of threads in LIFO order. We need it to let (yet)
- * unneeded threads sleep and not pollute CPU cache by their stacks. 
+ * unneeded threads sleep and not pollute CPU cache by their stacks.
  */
 static inline void add_wait_queue_exclusive_head(wait_queue_head_t *q,
 	wait_queue_t *wait)

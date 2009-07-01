@@ -99,7 +99,7 @@ if [ "${svn_old_rev}" = "${svn_new_rev}" ]; then
   exit 0
 fi
 
-# Do everything twice -- once for the 24 hours old SCST, and once 
+# Do everything twice -- once for the 24 hours old SCST, and once
 # for the current one.
 for logfile in old new ; do
 

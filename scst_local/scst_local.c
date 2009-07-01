@@ -516,7 +516,7 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 
 	/*
 	 * Get some memory to keep track of the cmnd and the done routine
-	 */ 
+	 */
 	tgt_specific = kmem_cache_alloc(tgt_specific_pool, GFP_ATOMIC);
 	if (!tgt_specific) {
 		printk(KERN_ERR "%s out of memory at line %d\n",
@@ -538,15 +538,15 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 	} else {
 		/*
  		 * Build a one-element scatter list out of the buffer
- 		 * We will not even get here if the kernel version we 
+ 		 * We will not even get here if the kernel version we
  		 * are building on only supports scatterlists. See #if above.
  		 *
  		 * We use the sglist and bufflen function/macros to isolate
  		 * us from kernel version differences.
  		 */
 		if (scsi_sglist(SCpnt)) {
-			sg_init_one(&(tgt_specific->sgl), 
-				(const void *)scsi_sglist(SCpnt), 
+			sg_init_one(&(tgt_specific->sgl),
+				(const void *)scsi_sglist(SCpnt),
 				scsi_bufflen(SCpnt));
 			sgl	  = &(tgt_specific->sgl);
 			sgl_count = 1;
