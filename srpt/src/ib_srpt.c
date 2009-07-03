@@ -911,6 +911,7 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 	scst_data_direction dir = SCST_DATA_NONE;
 	int indirect_desc = 0;
 	int ret;
+	unsigned long flags;
 
 	srp_cmd = ioctx->buf;
 
@@ -976,10 +977,10 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 	scst_cmd_set_tgt_priv(scmnd, ioctx);
 	scst_cmd_set_expected(scmnd, dir, ioctx->data_len);
 
-	spin_lock_irq(&ch->spinlock);
+	spin_lock_irqsave(&ch->spinlock, flags);
 	list_add_tail(&ioctx->scmnd_list, &ch->active_scmnd_list);
 	ch->active_scmnd_cnt++;
-	spin_unlock_irq(&ch->spinlock);
+	spin_unlock_irqrestore(&ch->spinlock, flags);
 
 	scst_cmd_init_done(scmnd, scst_estimate_context());
 
@@ -1083,12 +1084,13 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 			       struct srpt_ioctx *ioctx)
 {
 	u8 op;
+	unsigned long flags;
 
 	if (ch->state != RDMA_CHANNEL_LIVE) {
 		if (ch->state == RDMA_CHANNEL_CONNECTING) {
-			spin_lock_irq(&ch->spinlock);
+			spin_lock_irqsave(&ch->spinlock, flags);
 			list_add_tail(&ioctx->wait_list, &ch->cmd_wait_list);
-			spin_unlock_irq(&ch->spinlock);
+			spin_unlock_irqrestore(&ch->spinlock, flags);
 		} else
 			srpt_reset_ioctx(ch, ioctx);
 
