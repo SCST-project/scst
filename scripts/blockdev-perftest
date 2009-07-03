@@ -171,6 +171,7 @@ log2_blocksize=${log2_max_blocksize}
 while [ ! $log2_blocksize -lt $log2_min_blocksize ]
 do
   if [ $log2_blocksize -gt $log2_io_size ]; then
+    log2_blocksize=$((log2_blocksize - 1))
     continue
   fi
   iosize=$(pow2 $log2_io_size)
