@@ -2456,6 +2456,7 @@ isp_add_wwn_entry(ispsoftc_t *isp, int chan, uint64_t ini, uint16_t nphdl, uint3
 		if (lp->handle != nphdl) {
 			isp_prt(isp, ISP_LOGWARN, "%s: Chan %d attempt to re-enter N-port handle 0x%04x IID 0x%016llx Port ID 0x%06x finds IID 0x%016llx N-Port Handle 0x%04x Port ID 0x%06x",
 			    __func__, chan, nphdl, (unsigned long long)ini, s_id, (unsigned long long) lp->port_wwn, lp->handle, lp->portid);
+			isp_dump_portdb(isp, chan);
 			return;
 		}
 		if (s_id != PORT_NONE) {
@@ -2466,6 +2467,7 @@ isp_add_wwn_entry(ispsoftc_t *isp, int chan, uint64_t ini, uint16_t nphdl, uint3
 			} else if (lp->portid != s_id) {
 				isp_prt(isp, ISP_LOGTINFO, "%s: Chan %d N-port handle 0x%04x tries to change Port ID 0x%06x to 0x%06x", __func__, chan, nphdl,
 				    lp->portid, s_id);
+				isp_dump_portdb(isp, chan);
 				return;
 			}
 		}
@@ -2477,6 +2479,7 @@ isp_add_wwn_entry(ispsoftc_t *isp, int chan, uint64_t ini, uint16_t nphdl, uint3
 			} else if (lp->port_wwn != ini) {
 				isp_prt(isp, ISP_LOGWARN, "%s: Chan %d N-port handle 0x%04x tries to change WWN 0x%016llx to 0x%016llx", __func__, chan, nphdl,
 				    (unsigned long long) lp->port_wwn, (unsigned long long) ini);
+				isp_dump_portdb(isp, chan);
 				return;
 			}
 		}
@@ -2555,6 +2558,7 @@ isp_del_wwn_entry(ispsoftc_t *isp, int chan, uint64_t ini, uint16_t nphdl, uint3
 	if (lp == NULL) {
 		isp_prt(isp, ISP_LOGWARN, "%s: Chan %d IID 0x%016llx N-Port Handle 0x%04x Port ID 0x%06x cannot be found to be cleared",
 		    __func__, chan, (unsigned long long) ini, nphdl, s_id);
+		isp_dump_portdb(isp, chan);
 		return;
 	}
 	isp_prt(isp, ISP_LOGTINFO, "%s: Chan %d IID 0x%016llx N-Port Handle 0x%04x Port ID 0x%06x vtgt %d cleared",

@@ -398,7 +398,9 @@ typedef struct {
 			target_mode	: 1,
 			roles		: 2,
 			portid		: 24;
-	uint32_t	new_reserved	: 6,
+	uint32_t
+			dirty		: 1,	/* commands have been run */
+			new_reserved	: 5,
 			new_roles	: 2,
 			new_portid	: 24;
 	uint64_t	node_wwn;
@@ -573,6 +575,7 @@ struct ispsoftc {
 	uint64_t		isp_fphccmplt;		/* CMDs via fastpost */
 	uint16_t		isp_rscchiwater;
 	uint16_t		isp_fpcchiwater;
+	NANOTIME_T		isp_init_time;		/* time were last initialized */
 
 	/*
 	 * Volatile state

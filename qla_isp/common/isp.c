@@ -810,15 +810,25 @@ isp_reset(ispsoftc_t *isp, int do_load_defaults)
 				}
 				MEMORYBARRIER(isp, SYNC_REQUEST, 0, ISP_QUEUE_SIZE(RQUEST_QUEUE_LEN(isp)));
 				ISP_MEMZERO(&mbs, sizeof (mbs));
-				mbs.param[0] = MBOX_LOAD_RISC_RAM;
-				mbs.param[1] = la;
-				mbs.param[2] = DMA_WD1(isp->isp_rquest_dma);
-				mbs.param[3] = DMA_WD0(isp->isp_rquest_dma);
-				mbs.param[4] = nw >> 16;
-				mbs.param[5] = nw;
-				mbs.param[6] = DMA_WD3(isp->isp_rquest_dma);
-				mbs.param[7] = DMA_WD2(isp->isp_rquest_dma);
-				mbs.param[8] = la >> 16;
+				if (la < 0x10000 && nw < 0x10000) {
+					mbs.param[0] = MBOX_LOAD_RISC_RAM_2100;
+					mbs.param[1] = la;
+					mbs.param[2] = DMA_WD1(isp->isp_rquest_dma);
+					mbs.param[3] = DMA_WD0(isp->isp_rquest_dma);
+					mbs.param[4] = nw;
+					mbs.param[6] = DMA_WD3(isp->isp_rquest_dma);
+					mbs.param[7] = DMA_WD2(isp->isp_rquest_dma);
+				} else {
+					mbs.param[0] = MBOX_LOAD_RISC_RAM;
+					mbs.param[1] = la;
+					mbs.param[2] = DMA_WD1(isp->isp_rquest_dma);
+					mbs.param[3] = DMA_WD0(isp->isp_rquest_dma);
+					mbs.param[4] = nw >> 16;
+					mbs.param[5] = nw;
+					mbs.param[6] = DMA_WD3(isp->isp_rquest_dma);
+					mbs.param[7] = DMA_WD2(isp->isp_rquest_dma);
+					mbs.param[8] = la >> 16;
+				}
 				mbs.logval = MBLOGALL;
 				isp_mboxcmd(isp, &mbs);
 				if (mbs.param[0] != MBOX_COMMAND_COMPLETE) {
@@ -853,7 +863,7 @@ isp_reset(ispsoftc_t *isp, int do_load_defaults)
 
 			while (wi < ptr[3]) {
 				uint16_t *cp;
-				uint32_t nw;
+				uint16_t nw;
 
 				nw = ISP_QUEUE_SIZE(RQUEST_QUEUE_LEN(isp)) >> 1;
 				if (nw > wl) {
@@ -869,14 +879,24 @@ isp_reset(ispsoftc_t *isp, int do_load_defaults)
 				}
 				MEMORYBARRIER(isp, SYNC_REQUEST, 0, ISP_QUEUE_SIZE(RQUEST_QUEUE_LEN(isp)));
 				ISP_MEMZERO(&mbs, sizeof (mbs));
-				mbs.param[0] = MBOX_LOAD_RISC_RAM;
-				mbs.param[1] = la;
-				mbs.param[2] = DMA_WD1(isp->isp_rquest_dma);
-				mbs.param[3] = DMA_WD0(isp->isp_rquest_dma);
-				mbs.param[4] = nw;
-				mbs.param[6] = DMA_WD3(isp->isp_rquest_dma);
-				mbs.param[7] = DMA_WD2(isp->isp_rquest_dma);
-				mbs.param[8] = la >> 16;
+				if (la < 0x10000) {
+					mbs.param[0] = MBOX_LOAD_RISC_RAM_2100;
+					mbs.param[1] = la;
+					mbs.param[2] = DMA_WD1(isp->isp_rquest_dma);
+					mbs.param[3] = DMA_WD0(isp->isp_rquest_dma);
+					mbs.param[4] = nw;
+					mbs.param[6] = DMA_WD3(isp->isp_rquest_dma);
+					mbs.param[7] = DMA_WD2(isp->isp_rquest_dma);
+				} else {
+					mbs.param[0] = MBOX_LOAD_RISC_RAM;
+					mbs.param[1] = la;
+					mbs.param[2] = DMA_WD1(isp->isp_rquest_dma);
+					mbs.param[3] = DMA_WD0(isp->isp_rquest_dma);
+					mbs.param[4] = nw;
+					mbs.param[6] = DMA_WD3(isp->isp_rquest_dma);
+					mbs.param[7] = DMA_WD2(isp->isp_rquest_dma);
+					mbs.param[8] = la >> 16;
+				}
 				mbs.logval = MBLOGALL;
 				isp_mboxcmd(isp, &mbs);
 				if (mbs.param[0] != MBOX_COMMAND_COMPLETE) {
@@ -1073,8 +1093,7 @@ isp_reset(ispsoftc_t *isp, int do_load_defaults)
 #endif
 		} else {
 			isp->isp_fwattr = mbs.param[6];
-			isp_prt(isp, ISP_LOGDEBUG0,
-			    "Firmware Attributes = 0x%x", mbs.param[6]);
+			isp_prt(isp, ISP_LOGDEBUG0, "Firmware Attributes = 0x%x", mbs.param[6]);
 		}
 	} else {
 #ifndef	ISP_TARGET_MODE
@@ -1096,6 +1115,17 @@ isp_reset(ispsoftc_t *isp, int do_load_defaults)
 		}
 	}
 	isp_prt(isp, ISP_LOGCONFIG, "%d max I/O command limit set", isp->isp_maxcmds);
+
+	/*
+	 * If we don't have Multi-ID f/w loaded, we need to restrict channels to one.
+	 * Only make this check for non-SCSI cards (I'm not sure firmware attributes
+	 * work for them).
+	 */
+	if (IS_FC(isp) && ISP_CAP_MULTI_ID(isp) == 0 && isp->isp_nchan > 1) {
+		isp_prt(isp, ISP_LOGWARN, "non-MULTIID f/w loaded, only can enable 1 of %d channels", isp->isp_nchan);
+		isp->isp_nchan = 1;
+	}
+
 	for (i = 0; i < isp->isp_nchan; i++) {
 		isp_fw_state(isp, i);
 	}
@@ -1176,6 +1206,7 @@ isp_init(ispsoftc_t *isp)
 	} else {
 		isp_scsi_init(isp);
 	}
+	GET_NANOTIME(&isp->isp_init_time);
 }
 
 static void
@@ -1634,8 +1665,7 @@ isp_fibre_init(ispsoftc_t *isp)
 			 * after a delay (ZIO).
 			 */
 			icbp->icb_fwoptions &= ~ICBOPT_FAST_POST;
-			if ((fcp->isp_xfwoptions & ICBXOPT_TIMER_MASK) ==
-			    ICBXOPT_ZIO) {
+			if ((fcp->isp_xfwoptions & ICBXOPT_TIMER_MASK) == ICBXOPT_ZIO) {
 				icbp->icb_xfwoptions |= ICBXOPT_ZIO;
 				icbp->icb_idelaytimer = 10;
 			}
@@ -1758,7 +1788,7 @@ isp_fibre_init_2400(ispsoftc_t *isp)
 	fcparam *fcp;
 	isp_icb_2400_t local, *icbp = &local;
 	mbreg_t mbs;
-	int chan, nchan;
+	int chan;
 
 	/*
 	 * Check to see whether all channels have *some* kind of role
@@ -1773,13 +1803,6 @@ isp_fibre_init_2400(ispsoftc_t *isp)
 		isp_prt(isp, ISP_LOGDEBUG0, "all %d channels with role 'none'", chan);
 		isp->isp_state = ISP_INITSTATE;
 		return;
-	}
-
-	if (ISP_CAP_MULTI_ID(isp) == 0 && isp->isp_nchan > 1) {
-		isp_prt(isp, ISP_LOGWARN, "non-MULTIID f/w loaded, only can enable 1 of %d channels", isp->isp_nchan);
-		nchan = 1;
-	} else {
-		nchan = isp->isp_nchan;
 	}
 
 	/*
@@ -1983,7 +2006,7 @@ isp_fibre_init_2400(ispsoftc_t *isp)
 	/*
 	 * Now fill in information about any additional channels
 	 */
-	if (nchan > 1) {
+	if (isp->isp_nchan > 1) {
 		isp_icb_2400_vpinfo_t vpinfo, *vdst;
 		vp_port_info_t pi, *pdst;
 		size_t amt = 0;
@@ -2024,7 +2047,7 @@ isp_fibre_init_2400(ispsoftc_t *isp)
 	 * Init the firmware
 	 */
 	MBSINIT(&mbs, 0, MBLOGALL, 30000000);
-	if (nchan > 1) {
+	if (isp->isp_nchan > 1) {
 		mbs.param[0] = MBOX_INIT_FIRMWARE_MULTI_ID;
 	} else {
 		mbs.param[0] = MBOX_INIT_FIRMWARE;
@@ -3311,7 +3334,7 @@ isp_gid_ft_ct_passthru(ispsoftc_t *isp, int chan)
 	pt->ctp_handle = 0xffffffff;
 	pt->ctp_nphdl = fcp->isp_sns_hdl;
 	pt->ctp_cmd_cnt = 1;
-	pt->ctp_vpidx = chan;
+	pt->ctp_vpidx = ISP_GET_VPIDX(isp, chan);
 	pt->ctp_time = 30;
 	pt->ctp_rsp_cnt = 1;
 	pt->ctp_rsp_bcnt = GIDLEN;
@@ -4076,7 +4099,7 @@ isp_register_fc4_type_24xx(ispsoftc_t *isp, int chan)
 	pt->ctp_handle = 0xffffffff;
 	pt->ctp_nphdl = fcp->isp_sns_hdl;
 	pt->ctp_cmd_cnt = 1;
-	pt->ctp_vpidx = chan;
+	pt->ctp_vpidx = ISP_GET_VPIDX(isp, chan);
 	pt->ctp_time = 1;
 	pt->ctp_rsp_cnt = 1;
 	pt->ctp_rsp_bcnt = sizeof (ct_hdr_t);
@@ -4284,6 +4307,7 @@ isp_start(XS_T *xs)
 			return (CMD_COMPLETE);
 		}
 		target = fcp->portdb[hdlidx].handle;
+		fcp->portdb[hdlidx].dirty = 1;
 	} else {
 		sdparam *sdp = SDPARAM(isp, XS_CHANNEL(xs));
 		if ((sdp->role & ISP_ROLE_INITIATOR) == 0) {
@@ -4408,7 +4432,7 @@ isp_start(XS_T *xs)
 		((ispreqt7_t *)reqp)->req_nphdl = target;
 		((ispreqt7_t *)reqp)->req_tidlo = lp->portid;
 		((ispreqt7_t *)reqp)->req_tidhi = lp->portid >> 16;
-		((ispreqt7_t *)reqp)->req_vpidx = XS_CHANNEL(xs);
+		((ispreqt7_t *)reqp)->req_vpidx = ISP_GET_VPIDX(isp, XS_CHANNEL(xs));
 		if (XS_LUN(xs) > 256) {
 			((ispreqt7_t *)reqp)->req_lun[0] = XS_LUN(xs) >> 8;
 			((ispreqt7_t *)reqp)->req_lun[0] |= 0x40;
@@ -4548,10 +4572,8 @@ isp_control(ispsoftc_t *isp, ispctl_t ctl, ...)
 			tmf->tmf_flags = ISP24XX_TMF_TARGET_RESET;
 			tmf->tmf_tidlo = lp->portid;
 			tmf->tmf_tidhi = lp->portid >> 16;
-			tmf->tmf_vpidx = chan;
-			isp_prt(isp, ISP_LOGALL,
-			    "Chan %d Reset N-Port Handle 0x%04x @ Port 0x%06x",
-			    chan, lp->handle, lp->portid);
+			tmf->tmf_vpidx = ISP_GET_VPIDX(isp, chan);
+			isp_prt(isp, ISP_LOGALL, "Chan %d Reset N-Port Handle 0x%04x @ Port 0x%06x", chan, lp->handle, lp->portid);
 			MBSINIT(&mbs, MBOX_EXEC_COMMAND_IOCB_A64, MBLOGALL, 5000000);
 			mbs.param[1] = QENTRY_LEN;
 			mbs.param[2] = DMA_WD1(fcp->isp_scdma);
@@ -4650,7 +4672,7 @@ isp_control(ispsoftc_t *isp, ispctl_t ctl, ...)
 			ab->abrt_cmd_handle = handle;
 			ab->abrt_tidlo = lp->portid;
 			ab->abrt_tidhi = lp->portid >> 16;
-			ab->abrt_vpidx = chan;
+			ab->abrt_vpidx = ISP_GET_VPIDX(isp, chan);
 
 			ISP_MEMZERO(&mbs, sizeof (mbs));
 			MBSINIT(&mbs, MBOX_EXEC_COMMAND_IOCB_A64, MBLOGALL, 5000000);
@@ -4829,15 +4851,12 @@ isp_control(ispsoftc_t *isp, ispctl_t ctl, ...)
 		p = va_arg(ap, isp_plcmd_t *);
 		va_end(ap);
 
-		if ((p->flags & PLOGX_FLG_CMD_MASK) != PLOGX_FLG_CMD_PLOGI ||
-		    (p->handle != NIL_HANDLE)) {
-			return (isp_plogx(isp, p->channel, p->handle,
-			    p->portid, p->flags, 0));
+		if ((p->flags & PLOGX_FLG_CMD_MASK) != PLOGX_FLG_CMD_PLOGI || (p->handle != NIL_HANDLE)) {
+			return (isp_plogx(isp, p->channel, p->handle, p->portid, p->flags, 0));
 		}
 		do {
 			p->handle = isp_nxt_handle(isp, p->channel, p->handle);
-			r = isp_plogx(isp, p->channel, p->handle, p->portid,
-			    p->flags, 0);
+			r = isp_plogx(isp, p->channel, p->handle, p->portid, p->flags, 0);
 			if ((r & 0xffff) == MBOX_PORT_ID_USED) {
 				p->handle = r >> 16;
 				r = 0;
@@ -5415,15 +5434,13 @@ out:
  * Support routines.
  */
 
-#define	GET_24XX_BUS(isp, chan, msg)					\
-	if (IS_24XX(isp)) {						\
-		chan = ISP_READ(isp, OUTMAILBOX3) & 0xff;		\
-		if (chan >= isp->isp_nchan) {				\
-			isp_prt(isp, ISP_LOGERR,			\
-			    "bogus channel %u for %s at line %d",	\
-			    chan, msg, __LINE__);			\
-			break;						\
-		}							\
+#define	GET_24XX_BUS(isp, chan, msg)										\
+	if (IS_24XX(isp)) {											\
+		chan = ISP_READ(isp, OUTMAILBOX3) & 0xff;							\
+		if (chan >= isp->isp_nchan) {									\
+			isp_prt(isp, ISP_LOGERR, "bogus channel %u for %s at line %d",	chan, msg, __LINE__);	\
+			break;											\
+		}												\
 	}
 
 static int
