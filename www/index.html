@@ -7,14 +7,14 @@
 <meta name="Robots" content="index,follow" />
 <meta name="verify-v1" content="N5TwpSXr8cNkQf0gvE3F3sv+TPHL15k4dTo+ZQCeV9Q=" />
 <link rel="stylesheet" href="images/Orange.css" type="text/css" />	
-<title>SCST: SCSI Target Subsystem for Linux</title>
+<title>SCST: A Generic SCSI Target Subsystem for Linux</title>
 </head>
 
 <body>
 <div id="wrap"> 
 	<div id="header">	
 		<div class="logoimg"></div><h1 id="logo"><span class="orange"></span></h1>
-		<h2 id="slogan">SCSI Target Subsystem for Linux</h2>	
+		<h2 id=slogan>Generic SCSI Target Subsystem for Linux</h2>	
 	</div>
 	<div id="menu">
 		<ul>
@@ -29,10 +29,10 @@
 	</div>	
 	<div id="content-wrap">
 	  		<div id="main">
-				<h1>SCSI Target Subsystem for Linux</h1>
+				<h1>Generic SCSI Target Subsystem for Linux</h1>
 						
-				<p>The <strong>SCSI target subsystem for Linux (SCST)</strong> is an alternative
-					implementation of SCSI target subsystem for Linux. It provides unified,
+				<p>The <strong>generic SCSI target subsystem for Linux (SCST)</strong> is an alternative
+					implementation of a SCSI target subsystem for Linux. It provides unified,
 					consistent interface between SCSI target drivers and 
 					Linux kernel as well as between Linux kernel and storage backend
 					handlers, connecting target drivers with real or emulated storage backend.
@@ -60,7 +60,7 @@
 								 necessary error recovery.</span></li>
 					<li><span>SCST core undertakes most problems, related to execution contexts, thus practically eliminating one of the most 
 								 complicated problem in the kernel drivers development. For example, target drivers for QLogic 
-								 22xx/23xx cards and for InfiniBand SRP are only about 2300 lines of code long.</span></li>
+								 22xx/23xx adapters and for InfiniBand SRP are only about 2300 lines of code long.</span></li>
 					<li><span>Very low overhead, fine-grained locks and simplest commands processing path allow to reach 
 								 maximum possible performance and scalability. Particularly, incoming requests can be processed in 
 								 the caller's context or in one of the internal SCST core's tasklets without any

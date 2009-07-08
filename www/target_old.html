@@ -14,7 +14,7 @@
 <div id="wrap"> 
 	<div id="header">	
 		<div class="logoimg"></div><h1 id="logo"><span class="orange"></span></h1>
-		<h2 id="slogan">SCSI Target Subsystem for Linux</h2>	
+		<h2 id=slogan>Generic SCSI Target Subsystem for Linux</h2>	
 	</div>		
 		
 	<div id="menu">
@@ -38,9 +38,10 @@
 					<li><a href="target_qla22xx_23xx.html">QLogic FC 22xx/23xx</a></li>
 					<li><a href="target_qla_isp.html">QLogic FC ISP</a></li>
 					<li><a href="target_srp.html">SCSI RDMA Protocol (SRP)</a></li>
-					<li><a href="target_mvsas.html">Marvell SAS cards</a></li>
-					<li><a href="target_lsi.html">LSI/MPT cards</a></li>
-					<li><a href="target_fcoe.html">Open-FCoE Target SW</a></li>
+					<li><a href="target_mvsas.html">Marvell SAS adapters</a></li>
+					<li><a href="target_emulex.html">Emulex lpfc FC/FCoE adapters</a></li>
+					<li><a href="target_lsi.html">LSI/MPT adapters</a></li>
+					<li><a href="target_fcoe.html">Open-FCoE Target</a></li>
 					<li><a href="target_local.html">Local Target Driver</a></li>
 					<li><a href="target_old.html">Old Unsupported</a></li>
 				</ul>
@@ -52,9 +53,9 @@
 			</div>		
 	
 	  		<div id="main"> 
-				<h1>Old target driver for QLogic 22xx/23xx cards for 2.4 kernels</h1>
+				<h1>Old target driver for QLogic 22xx/23xx adapters for 2.4 kernels</h1>
 				<p><img src="images/t_unsupported.gif" width="100" height="120" class="float-left" />
-				Old target driver for QLogic 22xx/23xx cards is capable to work on 2.4 kernels. 
+				Old target driver for QLogic 22xx/23xx adapters is capable to work on 2.4 kernels. 
 				It has all required features and looks to be quite stable. It is designed to work in conjunction with the 
 				initiator driver, which is intended to perform all the initialization and shutdown tasks. In the current release as 
 				a base for the initiator driver was taken Red Hat's driver from the stock 2.4.20 kernel. Then it was patched to 
@@ -66,11 +67,11 @@
 				should work on any other supported by Linux platform.</p>
 				<p>Currently it is <strong>not supported</strong> and listed here for historical reasons only.</p>
 				
-				<h1>Target drivers for Adaptec 7xxx and QLogic QLA12xx cards</h1>
+				<h1>Target drivers for Adaptec 7xxx and QLogic QLA12xx adapters</h1>
 				<p><img src="images/t_unsupported.gif" width="100" height="120" class="float-left" />
-				Target drivers for Adaptec 7xxx and QLogic QLA12xx cards have been developed by Hu Gang and they available for 
+				Target drivers for Adaptec 7xxx and QLogic QLA12xx adapters have been developed by Hu Gang and they available for 
 				download from <a href="http://bj.soulinfo.com/~hugang/scst/tgt/">http://bj.soulinfo.com/~hugang/scst/tgt/</a>. 
-				These drivers are not completed, but looks to be a good starting point if you are going to use one of these cards. 
+				These drivers are not completed, but looks to be a good starting point if you are going to use one of these adapters. 
 				SCST team don't have the appropriate hardware, therefore have not tested and don't support these drivers. 
 				Send all questions to <strong>Hu Gang <hugang@soulinfo.com></strong>. If some of these drivers don't compile for 
 				you, try again with SCST version 0.9.3-pre2.</p><br><br>

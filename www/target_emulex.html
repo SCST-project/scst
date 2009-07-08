@@ -1,12 +1,12 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
-<meta name="Keywords" content="Generic SCSI Target Subsystem for Linux, iSCSI, iSCSI target" />
+<meta name="Keywords" content="Generic SCSI Target Subsystem for Linux, SCSI target, SAS target, Marvell target" />
 <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
 <meta name="author" content="Daniel Fernandes"/>
 <meta name="Robots" content="index,follow" />
 <link rel="stylesheet" href="images/Orange.css" type="text/css" />	
-<title>FILEIO Target SCST Handler</title>
+<title>Emulex lpfc FC/FCoE target driver</title>
 </head>
 
 <body>
@@ -14,7 +14,7 @@
 <div id="wrap"> 
 	<div id="header">	
 		<div class="logoimg"></div><h1 id="logo"><span class="orange"></span></h1>
-		<h2 id=slogan>Generic SCSI Target Subsystem for Linux</h2>
+		<h2 id=slogan>Generic SCSI Target Subsystem for Linux</h2>	
 	</div>		
 		
 	<div id="menu">
@@ -30,7 +30,7 @@
 	</div>
 	
 	<!-- content-wrap starts here -->	
-	<div id="content-wrap">
+	<div id="content-wrap">  
 			<div id="sidebar">
 				<h1>Target Drivers</h1>
 				<ul class="sidemenu">
@@ -42,6 +42,7 @@
 					<li><a href="target_emulex.html">Emulex lpfc FC/FCoE adapters</a></li>
 					<li><a href="target_lsi.html">LSI/MPT adapters</a></li>
 					<li><a href="target_fcoe.html">Open-FCoE Target</a></li>
+					<li><a href="target_local.html">Local Target Driver</a></li>
 					<li><a href="target_old.html">Old Unsupported</a></li>
 				</ul>
 				<h1>User utilities</h1>
@@ -50,29 +51,27 @@
 					<li><a href="handler_fileio_tgt.html">FILEIO_TGT handler</a></li>
 				</ul>
 			</div>		
-			
-			<div id="main">
-				<h1>FILEIO_TGT handler</h1>
+	
+	  		<div id="main"> 
+				<h1>Target driver for Emulex lpfc FC/FCoE adapters</h1>
 
-				<p>User space program fileio_tgt uses interface of SCST's scst_user dev
-				handler and allows to see how it works in various modes.
-				Fileio_tgt provides mostly the same functionality as the kernel space
-				SCST's scst_vdisk handler with the only exceptions that it supports
-				O_DIRECT mode and doesn't support BLOCKIO one. O_DIRECT mode is
-				basically the same as BLOCKIO, but also supports files, so for some
-				loads it could be significantly faster, than the regular FILEIO access.
-				All the words about BLOCKIO mode from SCST's README file apply to
-				O_DIRECT mode as well.</p>
-			
-				<p>The latest stable version is 1.0.1. Requires SCST version 1.0.1 or higher.</p>
-				<p>You can find the latest development version of this handler in the SCST SVN. See the download page how to setup 
-				access to it.</p>
-				<p class="post-footer align-right">					
-					<a href="downloads.html" class="readmore">Download</a>				
-					<a href="http://scst.svn.sourceforge.net/" class="readmore">SCST SVN Repository</a>
-				</p>
-	  		</div> 
+				<p>Target driver for Emulex lpfc FC/FCoE adapters is developed by the Emulex team.</p>
+
+				<p>The driver allows for lpfc adapters to be placed in initiator and/or target mode. Those in
+				initiator mode will continue to function with the SCSI subsystem as usual.  A lpfc_scst helper
+				module is then loaded that binds that target mode adapters with the SCST subsystem
+				for use as FCP targets.  NPIV is also supported, allowing virtual ports to be created with
+				individual SCST target instances bound to them.</p>
+				
+				<p>The lpfc SCST driver kit is part of the lpfcxxxx SourceForge project located at
+				<a href="https://sourceforge.net/projects/lpfcxxxx" class="readmore">Emulex Linux Drivers</a> page.</p>
+
+				<p><span><table height="300px" border=0><tr><td>&nbsp;</td></tr></table></span></p>								
+	  		</div>
+	<!-- content-wrap ends here -->	
 	</div>
+	
+<!-- wrap ends here -->
 </div>		
 <!-- footer starts here -->		
 		<div id="footer">
@@ -83,6 +82,7 @@
 			</p>		
 		</div>	
 <!-- footer ends here -->
+
 </body>
 
 <!-- Piwik -->

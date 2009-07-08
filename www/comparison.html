@@ -14,7 +14,7 @@
 <div id="wrap"> 
 	<div id="header">	
 		<div class="logoimg"></div><h1 id="logo"><span class="orange"></span></h1>
-		<h2 id="slogan">SCSI Target Subsystem for Linux</h2>	
+		<h2 id=slogan>Generic SCSI Target Subsystem for Linux</h2>	
 	</div>		
 		
 	<div id="menu">
@@ -43,7 +43,7 @@
 			<div id="main">
 				<h1>Features comparison between Linux SCSI targets</h1>
 
-				<p><small>As on June 2009</small></p>
+				<p><small>As on July 2009</small></p>
 
 <table bgcolor="#F0F0F0" border="1" cols="5" cellspacing="1" cellpadding="7" style="text-align:center" width="620">
 
@@ -72,7 +72,7 @@
 <tr>                                                                                                                           
 <th align="left"> Stability </th>					<td> + </td>		<td> +
 												<sup><A HREF="#3">3</A>	
-												</sup> </td>		<td> + </td>		<td> Heavy development </td>
+												</sup> </td>		<td> + </td>		<td> Under development </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                           
 <th align="left"> Performance <sup><A HREF="#4">4</A></sup></th>	<td> ***** <sup>
@@ -182,13 +182,15 @@ ORDERED commands</th>							<td> + </td>		<td> + </td>		<td> -, <br/> data
                                                                                                 
                                                                                                 
 <tr bgcolor="#E0E0E0">                                                                                                          
-<td colspan="5"> <b>Supported SCSI transports</b>                                                                                          
+<td colspan="5"> <b>Supported transports and hardware</b>                                                                                          
 </td></tr>                                                                                                                      
 <tr>                                                                                                                            
 <th align="left"> iSCSI </th>						<td> + </td>		<td> + </td>		<td> + </td>		<td> + </td>
 </tr>                                                                                                                           
 <tr>                                                                                            
-<th align="left"> Fibre Channel </th>					<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+<th align="left"> QLogic (Fibre Channel) </th>				<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+</tr>
+<th align="left"> Emulex (Fibre Channel and FCoE) </th>			<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                                                           
 <th align="left"> SRP </th>						<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
@@ -198,18 +200,21 @@ ORDERED commands</th>							<td> + </td>		<td> + </td>		<td> -, <br/> data
 												<sup><A HREF="#3">3</A>	
 												</sup> </td>		<td> - </td>		<td> - </td>		
 </tr>                                                                                                                           
-<tr>                                                                                                                            
-<th align="left"> Parallel (Wide) SCSI </th>				<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
-</tr>
-<tr>                                                                                                                            
-<th align="left"> SAS </th>						<td> Under
+<th align="left"> Marvell (SAS) </th>					<td> Under
 									 development </td>	<td> - </td>		<td> - </td>		<td> - </td>		
 </tr>
-<tr>                                                                                                                            
+<tr>
 <th align="left"> FCoE </th>						<td> Under
 									 development </td>	<td>Under
 									 			 development</<td>	<td> - </td>		<td> - </td>	
 </tr>                                                                                                                                                 
+<tr>                                                                                                                            
+<th align="left"> LSI (Parallel (Wide) SCSI and Fibre Channel)		<td> Under
+									development </td>		<td> - </td>		<td> - </td>		<td> - </td>
+</tr>
+<th align="left"> LSI (SAS)						<td> Preliminary </td>	<td> - </td>		<td> - </td>		<td> - </td>
+</tr>
+<tr>                                                                                                                            
 <tr>                                                                                            
 <th align="left"> IBM pSeries Virtual SCSI </th>			<td> - </td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>                                                                                     
@@ -228,7 +233,10 @@ ORDERED commands</th>							<td> + </td>		<td> + </td>		<td> -, <br/> data
 </tr>
 <tr>                                                                                            
 <th align="left"> SCSI pass-through
-	<sup><A HREF="#17">17</A></sup></th>				<td> + </td>		<td> - </td>		<td> - </td>		<td> Single initiator only, not enforced 
+	<sup><A HREF="#17">17</A></sup></th>				<td> + </td>		<td> Disks only, not
+												enforced <sup>
+												<A HREF="#18">18</A>
+												</sup> </td>		<td> - </td>		<td> Single initiator only, not enforced 
 																		<sup><A HREF="#18">18</A></sup></td>
 </tr>
 <tr>                                                                                                                           
@@ -361,7 +369,8 @@ reinstatement <sup><A HREF="#21">21</A></sup></th>			<td> Safe </td>		<td> Not s
 		       about the reservation clearance. Otherwise, several initiators can at the same time change supposed to be protected by the
 		       reservation data, which can corrupt them. This is what was called 
 		       <a href="http://communities.vmware.com/thread/53797?tstart=0&start=15">"Russian roulette with your data"</a> on the VMware
-		       community forum by someone working for VMware.</p>
+		       community forum by someone working for VMware. But, sure, it can affect not only VMware, but also any other cluster
+		       implementation, relying on this functionality.</p>
 
 <p><A NAME="13"></A> 13. The problem in IET
 			<a href="http://sourceforge.net/mailarchive/message.php?msg_name=1239130617.11478.1282.camel%40blackadder">
@@ -386,11 +395,11 @@ reinstatement <sup><A HREF="#21">21</A></sup></th>			<td> Safe </td>		<td> Not s
 <p><A NAME="17"></A> 17. SCSI pass-through mode allows to export your local SCSI-capable device. For instance with it you can share your parallel
 			SCSI tape or SATA DVD-RW device to your iSCSI network.</p>
 
-<p><A NAME="18"></A> 18. LIO doesn't emulate all the necessary SCSI host functionality to allow to share SCSI devices
-		       in pass-through mode to several initiators. It can only pass SCSI commands from initiators to
+<p><A NAME="18"></A> 18. STGT and LIO don't emulate all the necessary SCSI host functionality to allow to share SCSI devices
+		       in pass-through mode to several initiators. They can only pass SCSI commands from initiators to
 		       SCSI devices and responses back. This is safe only with a single initiator. This limitation
-		       isn't enforced anyhow and LIO doesn't issue no warning about it, so an user will not be notified about it
-		       and can quietly corrupt his/her data. You can find more technical information about it
+		       isn't enforced anyhow and both STGT and LIO don't issue any warning about it, so an user will not be notified about this
+		       limitation and can quietly corrupt his/her data. You can find more technical information about it
 		       <a href="http://www.mail-archive.com/linux-scsi@vger.kernel.org/msg06911.html">here</a>.</p>
 
 <p><A NAME="19"></A> 19. You can find a proposal how to implement zero-copy FILEIO in SCST on the <a href="contributing.html#ZC_READ">
