@@ -27,6 +27,7 @@
 #include <linux/cdrom.h>
 #include <linux/unistd.h>
 #include <linux/string.h>
+#include <asm/kmap_types.h>
 
 #include "scst.h"
 #include "scst_priv.h"
@@ -2258,6 +2259,15 @@ void scst_release_request(struct scst_cmd *cmd)
 }
 #endif
 
+static bool is_report_sg_limitation(void)
+{
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	return (trace_flag & TRACE_OUT_OF_MEM);
+#else
+	return false;
+#endif
+}
+
 int scst_alloc_space(struct scst_cmd *cmd)
 {
 	gfp_t gfp_mask;
@@ -2281,7 +2291,7 @@ int scst_alloc_space(struct scst_cmd *cmd)
 		goto out;
 
 	if (unlikely(cmd->sg_cnt > tgt_dev->max_sg_cnt)) {
-		if (ll < 10) {
+		if ((ll < 10) || is_report_sg_limitation()) {
 			PRINT_INFO("Unable to complete command due to "
 				"SG IO count limitation (requested %d, "
 				"available %d, tgt lim %d)", cmd->sg_cnt,
@@ -2301,7 +2311,7 @@ int scst_alloc_space(struct scst_cmd *cmd)
 		goto out_sg_free;
 
 	if (unlikely(cmd->in_sg_cnt > tgt_dev->max_sg_cnt)) {
-		if (ll < 10) {
+		if ((ll < 10)  || is_report_sg_limitation()) {
 			PRINT_INFO("Unable to complete command due to "
 				"SG IO count limitation (IN buffer, requested "
 				"%d, available %d, tgt lim %d)", cmd->in_sg_cnt,
@@ -2364,38 +2374,128 @@ out:
 	return;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30) || !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
+/**
+ * blk_copy_sg - copy one SG vector to another
+ * @dst_sg:	destination SG
+ * @src_sg:	source SG
+ * @copy_len:	maximum amount of data to copy. If 0, then copy all.
+ * @d_km_type:	kmap_atomic type for the destination SG
+ * @s_km_type:	kmap_atomic type for the source SG
+ *
+ * Description:
+ *    Data from the destination SG vector will be copied to the source SG
+ *    vector. End of the vectors will be determined by sg_next() returning
+ *    NULL. Returns number of bytes copied.
+ */
+int blk_copy_sg(struct scatterlist *dst_sg,
+		struct scatterlist *src_sg, size_t copy_len,
+		enum km_type d_km_type, enum km_type s_km_type)
+{
+	int res = 0;
+	size_t src_len, dst_len, src_offs, dst_offs;
+	struct page *src_page, *dst_page;
+
+	if (copy_len == 0)
+		copy_len = 0x7FFFFFFF; /* copy all */
+
+	dst_page = sg_page(dst_sg);
+	dst_len = dst_sg->length;
+	dst_offs = dst_sg->offset;
+
+	src_offs = 0;
+	do {
+		src_page = sg_page(src_sg);
+		src_len = src_sg->length;
+		src_offs = src_sg->offset;
+
+		do {
+			void *saddr, *daddr;
+			size_t n;
+
+			saddr = kmap_atomic(src_page, s_km_type) + src_offs;
+			daddr = kmap_atomic(dst_page, d_km_type) + dst_offs;
+
+			if ((src_offs == 0) && (dst_offs == 0) &&
+			    (src_len >= PAGE_SIZE) && (dst_len >= PAGE_SIZE) &&
+			    (copy_len >= PAGE_SIZE)) {
+				copy_page(daddr, saddr);
+				n = PAGE_SIZE;
+			} else {
+				n = min_t(size_t, PAGE_SIZE - dst_offs,
+						  PAGE_SIZE - src_offs);
+				n = min(n, src_len);
+				n = min(n, dst_len);
+				n = min_t(size_t, n, copy_len);
+				memcpy(daddr, saddr, n);
+				dst_offs += n;
+				src_offs += n;
+			}
+
+			kunmap_atomic(saddr, s_km_type);
+			kunmap_atomic(daddr, d_km_type);
+
+			res += n;
+			copy_len -= n;
+			if (copy_len == 0)
+				goto out;
+
+			if ((src_offs & ~PAGE_MASK) == 0) {
+				src_page = nth_page(src_page, 1);
+				src_offs = 0;
+			}
+			if ((dst_offs & ~PAGE_MASK) == 0) {
+				dst_page = nth_page(dst_page, 1);
+				dst_offs = 0;
+			}
+
+			src_len -= n;
+			dst_len -= n;
+			if (dst_len == 0) {
+				dst_sg = sg_next(dst_sg);
+				if (dst_sg == NULL)
+					goto out;
+				dst_page = sg_page(dst_sg);
+				dst_len = dst_sg->length;
+				dst_offs = dst_sg->offset;
+			}
+		} while (src_len > 0);
+
+		src_sg = sg_next(src_sg);
+	} while (src_sg != NULL);
+
+out:
+	return res;
+}
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30) || !defined(SCSI_EXEC_REQ_FIFO_DEFINED) */
+
 void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir)
 {
 	struct scatterlist *src_sg, *dst_sg;
-	unsigned int src_sg_cnt, src_len, dst_len, src_offs, dst_offs;
-	struct page *src, *dst;
-	unsigned int s, d, to_copy;
+	unsigned int to_copy;
+	int atomic = scst_cmd_atomic(cmd);
 
 	TRACE_ENTRY();
 
 	if (copy_dir == SCST_SG_COPY_FROM_TARGET) {
 		if (cmd->data_direction != SCST_DATA_BIDI) {
 			src_sg = cmd->tgt_sg;
-			src_sg_cnt = cmd->tgt_sg_cnt;
 			dst_sg = cmd->sg;
 			to_copy = cmd->bufflen;
 		} else {
 			TRACE_MEM("BIDI cmd %p", cmd);
 			src_sg = cmd->tgt_in_sg;
-			src_sg_cnt = cmd->tgt_in_sg_cnt;
 			dst_sg = cmd->in_sg;
 			to_copy = cmd->in_bufflen;
 		}
 	} else {
 		src_sg = cmd->sg;
-		src_sg_cnt = cmd->sg_cnt;
 		dst_sg = cmd->tgt_sg;
 		to_copy = cmd->resp_data_len;
 	}
 
-	TRACE_MEM("cmd %p, copy_dir %d, src_sg %p, src_sg_cnt %d, dst_sg %p, "
-		"to_copy %d", cmd, copy_dir, src_sg, src_sg_cnt, dst_sg,
-		to_copy);
+	TRACE_MEM("cmd %p, copy_dir %d, src_sg %p, dst_sg %p, "
+		"to_copy %d", cmd, copy_dir, src_sg, dst_sg, to_copy);
 
 	if (unlikely(src_sg == NULL) || unlikely(dst_sg == NULL)) {
 		/*
@@ -2405,68 +2505,8 @@ void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir)
 		goto out;
 	}
 
-	dst = sg_page(dst_sg);
-	dst_len = dst_sg->length;
-	dst_offs = dst_sg->offset;
-
-	s = 0;
-	d = 0;
-	src_offs = 0;
-	while (s < src_sg_cnt) {
-		src = sg_page(&src_sg[s]);
-		src_len = src_sg[s].length;
-		src_offs += src_sg[s].offset;
-
-		do {
-			unsigned int n;
-
-			/*
-			 * Himem pages are not allowed here, see the
-			 * corresponding #warning in scst_main.c. Correct
-			 * your target driver or dev handler to not alloc
-			 * such pages!
-			 */
-			EXTRACHECKS_BUG_ON(PageHighMem(dst) ||
-					   PageHighMem(src));
-
-			TRACE_MEM("cmd %p, to_copy %d, src %p, src_len %d, "
-				"src_offs %d, dst %p, dst_len %d, dst_offs %d",
-				cmd, to_copy, src, src_len, src_offs, dst,
-				dst_len, dst_offs);
-
-			if ((src_offs == 0) && (dst_offs == 0) &&
-			    (src_len >= PAGE_SIZE) && (dst_len >= PAGE_SIZE)) {
-				copy_page(page_address(dst), page_address(src));
-				n = PAGE_SIZE;
-			} else {
-				n = min(PAGE_SIZE - dst_offs,
-					PAGE_SIZE - src_offs);
-				n = min(n, src_len);
-				n = min(n, dst_len);
-				memcpy(page_address(dst) + dst_offs,
-				       page_address(src) + src_offs, n);
-				dst_offs -= min(n, dst_offs);
-				src_offs -= min(n, src_offs);
-			}
-
-			TRACE_MEM("cmd %p, n %d, s %d", cmd, n, s);
-
-			to_copy -= n;
-			if (to_copy <= 0)
-				goto out;
-
-			src_len -= n;
-			dst_len -= n;
-			if (dst_len == 0) {
-				d++;
-				dst = sg_page(&dst_sg[d]);
-				dst_len = dst_sg[d].length;
-				dst_offs += dst_sg[d].offset;
-			}
-		} while (src_len > 0);
-
-		s++;
-	}
+	blk_copy_sg(dst_sg, src_sg, to_copy, atomic ? KM_SOFTIRQ0 : KM_USER0,
+					     atomic ? KM_SOFTIRQ1 : KM_USER1);
 
 out:
 	TRACE_EXIT();

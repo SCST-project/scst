@@ -136,6 +136,7 @@ struct scst_local_host_info {
 	struct scst_tgt *target;
 	struct scst_session *session[SCST_LOCAL_MAX_TARGETS];
 	struct device dev;
+	char init_name[20];
 };
 
 #define to_scst_lcl_host(d) \
@@ -692,7 +693,13 @@ static int scst_local_add_adapter(void)
 	scst_lcl_host->dev.bus     = &scst_fake_lld_bus;
 	scst_lcl_host->dev.parent  = &scst_fake_primary;
 	scst_lcl_host->dev.release = &scst_local_release_adapter;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
 	sprintf(scst_lcl_host->dev.bus_id, "scst_adp_%d", scst_local_add_host);
+#else
+	snprintf(scst_lcl_host->init_name, sizeof(scst_lcl_host->init_name),
+		 "scst_adp_%d", scst_local_add_host);
+	scst_lcl_host->dev.init_name = scst_lcl_host->init_name;
+#endif
 
 	error = device_register(&scst_lcl_host->dev);
 	if (error)
@@ -780,7 +787,11 @@ static void scst_fake_0_release(struct device *dev)
 }
 
 static struct device scst_fake_primary = {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
 	.bus_id		= "scst_fake_0",
+#else
+	.init_name	= "scst_fake_0",
+#endif
 	.release	= scst_fake_0_release,
 };
 

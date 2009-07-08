@@ -2476,7 +2476,11 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 			struct page *page = virt_to_page(addr);
 
 			if (need_new_bio) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+				bio = bio_kmalloc(GFP_KERNEL, max_nr_vecs);
+#else
 				bio = bio_alloc(GFP_KERNEL, max_nr_vecs);
+#endif
 				if (!bio) {
 					PRINT_ERROR("Failed to create bio "
 						"for data segment= %d cmd %p",
@@ -3449,7 +3453,7 @@ static int vcdrom_write_proc(char *buffer, char **start, off_t offset,
 	if (!strncmp("close ", p, 6)) {
 		p += 6;
 		action = 0;
-	} else if (!strncmp("change ", p, 5)) {
+	} else if (!strncmp("change ", p, 7)) {
 		p += 7;
 		action = 1;
 	} else if (!strncmp("open ", p, 5)) {

@@ -203,7 +203,9 @@ int __init iscsi_procfs_init(void)
 		goto out;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
 	proc_iscsi_dir->owner = THIS_MODULE;
+#endif
 
 	err = iscsi_proc_log_entry_build(&iscsi_template);
 	if (err < 0)

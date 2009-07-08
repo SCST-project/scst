@@ -2719,6 +2719,12 @@ static inline void sg_set_page(struct scatterlist *sg, struct page *page,
 	sg->length = len;
 }
 
+static inline struct scatterlist *sg_next(struct scatterlist *sg)
+{
+	sg++;
+	return sg;
+}
+
 #endif
 
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24) */

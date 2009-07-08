@@ -340,23 +340,37 @@ static inline void scst_do_req(struct scsi_request *sreq,
 	scsi_do_req_fifo(sreq, cmnd, buffer, bufflen, done, timeout, retries);
 #endif
 }
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
 static inline int scst_exec_req(struct scsi_device *sdev,
 	const unsigned char *cmd, int cmd_len, int data_direction,
-	void *buffer, unsigned bufflen,	int use_sg, int timeout, int retries,
-	void *privdata, void (*done)(void *, char *, int, int), gfp_t gfp)
+	struct scatterlist *sgl, unsigned bufflen, unsigned nents,
+	int timeout, int retries, void *privdata,
+	void (*done)(void *, char *, int, int), gfp_t gfp)
 {
-#ifdef CONFIG_SCST_STRICT_SERIALIZING
-	return scsi_execute_async(sdev, cmd, cmd_len, data_direction, buffer,
-		    bufflen, use_sg, timeout, retries, privdata, done, gfp);
+#if defined(CONFIG_SCST_STRICT_SERIALIZING)
+	return scsi_execute_async(sdev, cmd, cmd_len, data_direction, (void*)sgl,
+		    bufflen, nents, timeout, retries, privdata, done, gfp);
 #elif !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
-	sBUG();
+	WARN_ON(1);
 	return -1;
 #else
 	return scsi_execute_async_fifo(sdev, cmd, cmd_len, data_direction,
-	    buffer, bufflen, use_sg, timeout, retries, privdata, done, gfp);
+	    (void*)sgl, bufflen, nents, timeout, retries, privdata, done, gfp);
 #endif
 }
+#else
+#if !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
+#define SCSI_ASYNC_EXEC_FLAG_HAS_TAIL_SPACE_FOR_PADDING	2
+static inline int scsi_execute_async(struct scsi_device *sdev,
+	const unsigned char *cmd, int cmd_len, int data_direction,
+	struct scatterlist *sgl, int nents, int timeout, int retries,
+	void *privdata, void (*done)(void *, char *, int, int),
+	gfp_t gfp, int flags)
+{
+	WARN_ON(1);
+	return -1;
+}
+#endif
 #endif
 
 int scst_alloc_space(struct scst_cmd *cmd);
