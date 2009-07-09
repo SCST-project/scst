@@ -1090,16 +1090,19 @@ static int write_data(struct iscsi_conn *conn)
 	int saved_size, size, sendsize;
 	int length, offset, idx;
 	int flags, res, count, sg_size;
-	bool do_put = false;
+	bool do_put = false, ref_cmd_to_parent;
 
 	TRACE_ENTRY();
 
 	iscsi_extracheck_is_wr_thread(conn);
 
-	if (write_cmnd->own_sg == 0)
+	if (write_cmnd->own_sg == 0) {
 		ref_cmd = write_cmnd->parent_req;
-	else
+		ref_cmd_to_parent = true;
+	} else {
 		ref_cmd = write_cmnd;
+		ref_cmd_to_parent = false;
+	}
 
 	if (!ref_cmd->on_written_list) {
 		TRACE_DBG("Adding cmd %p to conn %p written_list", ref_cmd,
@@ -1354,7 +1357,8 @@ out_err:
 			    (long long unsigned int)conn->session->sid,
 			    conn->cid, conn->write_cmnd);
 	}
-	if ((ref_cmd->scst_cmd != NULL) || (ref_cmd->scst_aen != NULL)) {
+	if (ref_cmd_to_parent && 
+	    ((ref_cmd->scst_cmd != NULL) || (ref_cmd->scst_aen != NULL))) {
 		if (ref_cmd->scst_state == ISCSI_CMD_STATE_AEN)
 			scst_set_aen_delivery_status(ref_cmd->scst_aen,
 				SCST_AEN_RES_FAILED);
