@@ -302,7 +302,7 @@ diff -upkr linux-2.6.30.1/block/blk-map.c linux-2.6.30.1/block/blk-map.c
 +
 +	hdr->page_link = (unsigned long)sgl;
 +	hdr->length = nents;
-+	
++
 +	for_each_sg(new_sgl, sg, new_sgl_nents, i) {
 +		struct page *pg;
 +
@@ -542,7 +542,7 @@ diff -upkr linux-2.6.30.1/block/blk-map.c linux-2.6.30.1/block/blk-map.c
 +			goto out;
 +
 +		res = __blk_rq_map_kern_sg(rq, sgl, nents, gfp, &sg_to_copy,
-+		                                &nents_to_copy);
++						&nents_to_copy);
 +		if (res != 0) {
 +			blk_rq_unmap_kern_sg(rq, 0);
 +			goto out;
