@@ -1357,7 +1357,7 @@ out_err:
 			    (long long unsigned int)conn->session->sid,
 			    conn->cid, conn->write_cmnd);
 	}
-	if (ref_cmd_to_parent && 
+	if (ref_cmd_to_parent &&
 	    ((ref_cmd->scst_cmd != NULL) || (ref_cmd->scst_aen != NULL))) {
 		if (ref_cmd->scst_state == ISCSI_CMD_STATE_AEN)
 			scst_set_aen_delivery_status(ref_cmd->scst_aen,
