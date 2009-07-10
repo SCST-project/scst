@@ -2262,7 +2262,7 @@ void scst_release_request(struct scst_cmd *cmd)
 static bool is_report_sg_limitation(void)
 {
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-	return (trace_flag & TRACE_OUT_OF_MEM);
+	return (trace_flag & TRACE_OUT_OF_MEM) != 0;
 #else
 	return false;
 #endif
