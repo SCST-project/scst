@@ -1450,7 +1450,10 @@ static int scst_report_luns_local(struct scst_cmd *cmd)
 	memset(buffer, 0, buffer_size);
 	offs = 8;
 
-	/* sess->sess_tgt_dev_list_hash is protected by suspended activity */
+	/*
+	 * cmd won't allow to suspend activities, so we can access
+	 * sess->sess_tgt_dev_list_hash without any additional protection.
+	 */
 	for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
 		struct list_head *sess_tgt_dev_list_head =
 			&cmd->sess->sess_tgt_dev_list_hash[i];
@@ -1512,7 +1515,10 @@ out_compl:
 
 	/* Clear left sense_reported_luns_data_changed UA, if any. */
 
-	mutex_lock(&scst_mutex); /* protect sess_tgt_dev_list_hash */
+	/*
+	 * cmd won't allow to suspend activities, so we can access
+	 * sess->sess_tgt_dev_list_hash without any additional protection.
+	 */
 	for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
 		struct list_head *sess_tgt_dev_list_head =
 			&cmd->sess->sess_tgt_dev_list_hash[i];
@@ -1539,7 +1545,6 @@ out_compl:
 			spin_unlock_bh(&tgt_dev->tgt_dev_lock);
 		}
 	}
-	mutex_unlock(&scst_mutex);
 
 out_done:
 	/* Report the result */
@@ -1802,7 +1807,7 @@ out_done:
 	goto out;
 }
 
-/* No locks, no IRQ or IRQ-safe context allowed */
+/* No locks, no IRQ or IRQ-disabled context allowed */
 int scst_check_local_events(struct scst_cmd *cmd)
 {
 	int res, rc;

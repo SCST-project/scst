@@ -3532,6 +3532,7 @@ void scst_process_reset(struct scst_device *dev,
 	return;
 }
 
+/* No locks, no IRQ or IRQ-disabled context allowed */
 int scst_set_pending_UA(struct scst_cmd *cmd)
 {
 	int res = 0, i;
@@ -3565,7 +3566,12 @@ again:
 
 		spin_unlock_bh(&cmd->tgt_dev->tgt_dev_lock);
 
-		mutex_lock(&scst_mutex);
+		/*
+		 * cmd won't allow to suspend activities, so we can access
+		 * sess->sess_tgt_dev_list_hash without any additional
+		 * protection.
+		 */
+
 		local_bh_disable();
 
 		for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
@@ -3638,8 +3644,6 @@ out_unlock:
 		}
 
 		local_bh_enable();
-		mutex_unlock(&scst_mutex);
-
 		spin_lock_bh(&cmd->tgt_dev->tgt_dev_lock);
 	}
 
