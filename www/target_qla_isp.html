@@ -61,12 +61,14 @@
 				<a href="http://www.feral.com/isp.html">http://www.feral.com/isp.html</a>. The update for SCST was made by 
 				Stanislaw Gruszka for Open-E Inc.</p>
 
-				<p>Driver operates on the same hardware as the qla2x00 target driver, but has one notable 
-				advantage over it: <strong>support of 24xx series of QLogic adapters (4Gbps)</strong>. Additionally, version 1.0.1 of this driver
-				also supports <strong>25xx series of QLogic adapters (8Gbps)</strong>.</p>
+				<p>This driver operates on the same hardware as the qla2x00t target driver, but has one notable 
+				advantage over it: <strong>support of 24xx (4Gbps) and 25xx (8Gbps) series of QLogic adapters</strong>.
+				Disadvantage of this driver over qla2x00t is that qla2x00t is simpler, smaller and much better tested,
+				hence more stable and reliable.</p>
 
-				<p>This driver is in beta stage. You may want to use it in production, but you need to test it for your hardware 
-				configuration. The latest version is 1.0.0.</p>
+				<p>The latest release is 1.0.1. It does not support 25xx chipsets yet and can be compiled with Linux
+				kernel versions between 2.6.16 and 2.6.27. You can find support for 25xx chipsets and the latter kernels
+				in being developed version 1.0.2.</p>
 
 				<p>You can find the latest development version of this driver in the SCST SVN. See the download page how to setup 
 				access to it.</p>
