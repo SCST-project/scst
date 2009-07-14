@@ -1,6 +1,6 @@
 diff -upkr linux-2.6.30.1/block/blk-map.c linux-2.6.30.1/block/blk-map.c
---- linux-2.6.30.1/block/blk-map.c	2009-06-10 07:05:27.000000000 +0400
-+++ linux-2.6.30.1/block/blk-map.c	2009-07-09 21:33:07.000000000 +0400
+--- linux-2.6.30.1/block/blk-map.c	2009-07-10 21:13:25.000000000 +0400
++++ linux-2.6.30.1/block/blk-map.c	2009-07-14 19:24:36.000000000 +0400
 @@ -5,6 +5,7 @@
  #include <linux/module.h>
  #include <linux/bio.h>
@@ -27,102 +27,21 @@ diff -upkr linux-2.6.30.1/block/blk-map.c linux-2.6.30.1/block/blk-map.c
  
  	blk_queue_bounce(q, &bio);
  	bio_get(bio);
-@@ -273,6 +274,541 @@ int blk_rq_unmap_user(struct bio *bio)
+@@ -272,6 +273,413 @@ int blk_rq_unmap_user(struct bio *bio)
+ }
  EXPORT_SYMBOL(blk_rq_unmap_user);
  
- /**
-+ * blk_copy_sg - copy one SG vector to another
-+ * @dst_sg:	destination SG
-+ * @src_sg:	source SG
-+ * @copy_len:	maximum amount of data to copy. If 0, then copy all.
-+ * @d_km_type:	kmap_atomic type for the destination SG
-+ * @s_km_type:	kmap_atomic type for the source SG
-+ *
-+ * Description:
-+ *    Data from the destination SG vector will be copied to the source SG
-+ *    vector. End of the vectors will be determined by sg_next() returning
-+ *    NULL. Returns number of bytes copied.
-+ */
-+int blk_copy_sg(struct scatterlist *dst_sg,
-+		struct scatterlist *src_sg, size_t copy_len,
-+		enum km_type d_km_type, enum km_type s_km_type)
-+{
-+	int res = 0;
-+	size_t src_len, dst_len, src_offs, dst_offs;
-+	struct page *src_page, *dst_page;
++struct blk_kern_sg_hdr {
++	struct scatterlist *orig_sgp;
++	union {
++		struct sg_table new_sg_table;
++		struct scatterlist *saved_sg;
++	};
++	bool tail_only;
++};
 +
-+	if (copy_len == 0)
-+		copy_len = 0x7FFFFFFF; /* copy all */
-+
-+	dst_page = sg_page(dst_sg);
-+	dst_len = dst_sg->length;
-+	dst_offs = dst_sg->offset;
-+
-+	src_offs = 0;
-+	do {
-+		src_page = sg_page(src_sg);
-+		src_len = src_sg->length;
-+		src_offs = src_sg->offset;
-+
-+		do {
-+			void *saddr, *daddr;
-+			size_t n;
-+
-+			saddr = kmap_atomic(src_page, s_km_type) + src_offs;
-+			daddr = kmap_atomic(dst_page, d_km_type) + dst_offs;
-+
-+			if ((src_offs == 0) && (dst_offs == 0) &&
-+			    (src_len >= PAGE_SIZE) && (dst_len >= PAGE_SIZE) &&
-+			    (copy_len >= PAGE_SIZE)) {
-+				copy_page(daddr, saddr);
-+				n = PAGE_SIZE;
-+			} else {
-+				n = min_t(size_t, PAGE_SIZE - dst_offs,
-+						  PAGE_SIZE - src_offs);
-+				n = min(n, src_len);
-+				n = min(n, dst_len);
-+				n = min_t(size_t, n, copy_len);
-+				memcpy(daddr, saddr, n);
-+				dst_offs += n;
-+				src_offs += n;
-+			}
-+
-+			kunmap_atomic(saddr, s_km_type);
-+			kunmap_atomic(daddr, d_km_type);
-+
-+			res += n;
-+			copy_len -= n;
-+			if (copy_len == 0)
-+				goto out;
-+
-+			if ((src_offs & ~PAGE_MASK) == 0) {
-+				src_page = nth_page(src_page, 1);
-+				src_offs = 0;
-+			}
-+			if ((dst_offs & ~PAGE_MASK) == 0) {
-+				dst_page = nth_page(dst_page, 1);
-+				dst_offs = 0;
-+			}
-+
-+			src_len -= n;
-+			dst_len -= n;
-+			if (dst_len == 0) {
-+				dst_sg = sg_next(dst_sg);
-+				if (dst_sg == NULL)
-+					goto out;
-+				dst_page = sg_page(dst_sg);
-+				dst_len = dst_sg->length;
-+				dst_offs = dst_sg->offset;
-+			}
-+		} while (src_len > 0);
-+
-+		src_sg = sg_next(src_sg);
-+	} while (src_sg != NULL);
-+
-+out:
-+	return res;
-+}
-+EXPORT_SYMBOL(blk_copy_sg);
++#define BLK_KERN_SG_HDR_ENTRIES	(1 + (sizeof(struct blk_kern_sg_hdr) - 1) / \
++				 sizeof(struct scatterlist))
 +
 +/**
 + * blk_rq_unmap_kern_sg - "unmaps" data buffers in the request
@@ -134,56 +53,35 @@ diff -upkr linux-2.6.30.1/block/blk-map.c linux-2.6.30.1/block/blk-map.c
 + */
 +void blk_rq_unmap_kern_sg(struct request *req, int do_copy)
 +{
-+	struct scatterlist *hdr = (struct scatterlist *)req->end_io_data;
++	struct blk_kern_sg_hdr *hdr = (struct blk_kern_sg_hdr *)req->end_io_data;
 +
 +	if (hdr == NULL)
 +		goto out;
 +
-+	if (hdr->length == 0) {
++	if (hdr->tail_only) {
 +		/* Tail element only was copied */
-+		struct scatterlist *new_sg = &hdr[1];
-+		struct scatterlist *orig_sg = (struct scatterlist *)hdr->page_link;
++		struct scatterlist *saved_sg = hdr->saved_sg;
++		struct scatterlist *tail_sg = hdr->orig_sgp;
 +
-+		if ((rq_data_dir(req) == READ) && do_copy) {
-+			void *saddr, *daddr;
++		if ((rq_data_dir(req) == READ) && do_copy)
++			sg_copy_elem(saved_sg, tail_sg, tail_sg->length,
++				KM_BIO_DST_IRQ, KM_BIO_SRC_IRQ);
 +
-+			saddr = kmap_atomic(sg_page(orig_sg), KM_BIO_SRC_IRQ);
-+			daddr = kmap_atomic(sg_page(new_sg), KM_BIO_DST_IRQ) +
-+					new_sg->offset;
-+			memcpy(daddr, saddr, orig_sg->length);
-+			kunmap_atomic(saddr, KM_BIO_SRC_IRQ);
-+			kunmap_atomic(daddr, KM_BIO_DST_IRQ);
-+		}
-+
-+		__free_pages(sg_page(orig_sg), get_order(orig_sg->length));
-+		*orig_sg = *new_sg;
++		__free_pages(sg_page(tail_sg), get_order(tail_sg->length));
++		*tail_sg = *saved_sg;
 +		kfree(hdr);
 +	} else {
 +		/* The whole SG was copied */
-+		struct scatterlist *new_sgl = &hdr[1];
-+		struct scatterlist *orig_sgl = (struct scatterlist *)hdr->page_link;
-+		struct scatterlist *sg, *start_sg;
-+		int n;
++		struct sg_table new_sg_table = hdr->new_sg_table;
++		struct scatterlist *new_sgl = new_sg_table.sgl +
++						BLK_KERN_SG_HDR_ENTRIES;
++		struct scatterlist *orig_sgl = hdr->orig_sgp;
 +
-+		if ((rq_data_dir(req) == READ) && do_copy) {
-+			blk_copy_sg(orig_sgl, new_sgl, 0, KM_BIO_DST_IRQ,
++		if ((rq_data_dir(req) == READ) && do_copy)
++			sg_copy(orig_sgl, new_sgl, 0, KM_BIO_DST_IRQ,
 +				KM_BIO_SRC_IRQ);
-+		}
 +
-+		start_sg = hdr;
-+		sg = new_sgl;
-+		n = 1;
-+		while (sg != NULL) {
-+			__free_page(sg_page(sg));
-+			sg = sg_next(sg);
-+			n++;
-+			/* One entry for chaining */
-+			if ((sg == NULL) || (n == (SG_MAX_SINGLE_ALLOC - 1))) {
-+				kfree(start_sg);
-+				start_sg = sg;
-+				n = 0;
-+			}
-+		}
++		sg_free_table(&new_sg_table);
 +	}
 +
 +out:
@@ -197,42 +95,39 @@ diff -upkr linux-2.6.30.1/block/blk-map.c linux-2.6.30.1/block/blk-map.c
 +{
 +	int res = 0;
 +	struct scatterlist *tail_sg = sg_to_copy;
-+	struct scatterlist *new_sg;
-+	struct scatterlist *hdr;
-+	int new_sg_nents;
++	struct scatterlist *saved_sg;
++	struct blk_kern_sg_hdr *hdr;
++	int saved_sg_nents;
 +	struct page *pg;
 +
-+	new_sg_nents = 2;
++	saved_sg_nents = 1 + BLK_KERN_SG_HDR_ENTRIES;
 +
-+	new_sg = kmalloc(sizeof(*new_sg) * new_sg_nents, gfp);
-+	if (new_sg == NULL)
++	saved_sg = kmalloc(sizeof(*saved_sg) * saved_sg_nents, gfp);
++	if (saved_sg == NULL)
 +		goto out_nomem;
 +
-+	sg_init_table(new_sg, new_sg_nents);
++	sg_init_table(saved_sg, saved_sg_nents);
 +
-+	hdr = new_sg;
-+	new_sg++;
-+	new_sg_nents--;
++	hdr = (struct blk_kern_sg_hdr *)saved_sg;
++	saved_sg += BLK_KERN_SG_HDR_ENTRIES;
++	saved_sg_nents -= BLK_KERN_SG_HDR_ENTRIES;
 +
-+	hdr->page_link = (unsigned long)tail_sg;
-+	*new_sg = *tail_sg;
++	hdr->tail_only = true;
++	hdr->orig_sgp = tail_sg;
++	hdr->saved_sg = saved_sg;
++
++	*saved_sg = *tail_sg;
 +
 +	pg = alloc_pages(page_gfp, get_order(tail_sg->length));
 +	if (pg == NULL)
-+		goto err_free_new_sg;
-+
-+	if (rq_data_dir(rq) == WRITE) {
-+		void *saddr, *daddr;
-+		saddr = kmap_atomic(sg_page(tail_sg), KM_USER0) +
-+				tail_sg->offset;
-+		daddr = kmap_atomic(pg, KM_USER1);
-+		memcpy(daddr, saddr, tail_sg->length);
-+		kunmap_atomic(saddr, KM_USER0);
-+		kunmap_atomic(daddr, KM_USER1);
-+	}
++		goto err_free_saved_sg;
 +
 +	sg_assign_page(tail_sg, pg);
 +	tail_sg->offset = 0;
++
++	if (rq_data_dir(rq) == WRITE)
++		sg_copy_elem(tail_sg, saved_sg, saved_sg->length,
++				KM_USER1, KM_USER0);
 +
 +	rq->end_io_data = hdr;
 +	rq->cmd_flags |= REQ_HAS_TAIL_SPACE_FOR_PADDING;
@@ -240,8 +135,8 @@ diff -upkr linux-2.6.30.1/block/blk-map.c linux-2.6.30.1/block/blk-map.c
 +out:
 +	return res;
 +
-+err_free_new_sg:
-+	kfree(new_sg);
++err_free_saved_sg:
++	kfree(saved_sg);
 +
 +out_nomem:
 +	res = -ENOMEM;
@@ -255,62 +150,40 @@ diff -upkr linux-2.6.30.1/block/blk-map.c linux-2.6.30.1/block/blk-map.c
 +	int res = 0, i;
 +	struct scatterlist *sgl = *psgl;
 +	int nents = *pnents;
-+	struct scatterlist *sg, *prev_sg;
++	struct sg_table sg_table;
++	struct scatterlist *sg;
 +	struct scatterlist *new_sgl;
-+	struct scatterlist *hdr;
 +	size_t len = 0, to_copy;
-+	int new_sgl_nents, new_sgl_nents_to_alloc, n;
++	int new_sgl_nents;
++	struct blk_kern_sg_hdr *hdr;
 +
 +	if (sgl != sgl_to_copy) {
-+		/* Copy only the last element */
++		/* copy only the last element */
 +		res = blk_rq_handle_align_tail_only(rq, sgl_to_copy,
 +				gfp, page_gfp);
 +		if (res == 0)
 +			goto out;
++		/* else go through */
 +	}
 +
 +	for_each_sg(sgl, sg, nents, i)
 +		len += sg->length;
 +	to_copy = len;
 +
-+	/*
-+	 * Let's keep each SG allocation inside a single page to decrease
-+	 * probability of failure.
-+	 */
++	new_sgl_nents = PFN_UP(len) + BLK_KERN_SG_HDR_ENTRIES;
 +
-+	new_sgl_nents = PFN_UP(len) + 1;
-+	new_sgl_nents_to_alloc = new_sgl_nents +
-+			((new_sgl_nents - 1) / SG_MAX_SINGLE_ALLOC);
-+	n = min_t(size_t, SG_MAX_SINGLE_ALLOC, new_sgl_nents_to_alloc);
++	res = sg_alloc_table(&sg_table, new_sgl_nents, gfp);
++	if (res != 0)
++		goto out;
 +
-+	new_sgl = kmalloc(sizeof(*new_sgl) * n, gfp);
-+	if (new_sgl ==  NULL)
-+		goto out_nomem;
++	new_sgl = sg_table.sgl;
++	hdr = (struct blk_kern_sg_hdr *)new_sgl;
++	new_sgl += BLK_KERN_SG_HDR_ENTRIES;
++	new_sgl_nents -= BLK_KERN_SG_HDR_ENTRIES;
 +
-+	sg_init_table(new_sgl, n);
-+
-+	new_sgl_nents_to_alloc -= n;
-+	sg = new_sgl;
-+	while (new_sgl_nents_to_alloc > 0) {
-+		prev_sg = sg;
-+		n = min_t(size_t, SG_MAX_SINGLE_ALLOC, new_sgl_nents_to_alloc);
-+
-+		sg = kmalloc(sizeof(*sg) * n, gfp);
-+		if (sg ==  NULL)
-+			goto out_nomem;
-+
-+		sg_init_table(sg, n);
-+		sg_chain(prev_sg, SG_MAX_SINGLE_ALLOC, sg);
-+
-+		new_sgl_nents_to_alloc -= n;
-+	};
-+
-+	hdr = new_sgl;
-+	new_sgl++;
-+	new_sgl_nents--;
-+
-+	hdr->page_link = (unsigned long)sgl;
-+	hdr->length = nents;
++	hdr->tail_only = false;
++	hdr->orig_sgp = sgl;
++	hdr->new_sg_table = sg_table;
 +
 +	for_each_sg(new_sgl, sg, new_sgl_nents, i) {
 +		struct page *pg;
@@ -331,7 +204,7 @@ diff -upkr linux-2.6.30.1/block/blk-map.c linux-2.6.30.1/block/blk-map.c
 +		 * sgl might have the last element not marked as last in
 +		 * SG chaining.
 +		 */
-+		blk_copy_sg(new_sgl, sgl, to_copy, KM_USER0, KM_USER1);
++		sg_copy(new_sgl, sgl, to_copy, KM_USER0, KM_USER1);
 +	}
 +
 +	rq->end_io_data = hdr;
@@ -350,8 +223,8 @@ diff -upkr linux-2.6.30.1/block/blk-map.c linux-2.6.30.1/block/blk-map.c
 +			break;
 +		__free_page(pg);
 +	}
++	sg_free_table(&sg_table);
 +
-+out_nomem:
 +	res = -ENOMEM;
 +	goto out;
 +}
@@ -565,11 +438,10 @@ diff -upkr linux-2.6.30.1/block/blk-map.c linux-2.6.30.1/block/blk-map.c
 +}
 +EXPORT_SYMBOL(blk_rq_map_kern_sg);
 +
-+/**
+ /**
   * blk_rq_map_kern - map kernel data to a request, for REQ_TYPE_BLOCK_PC usage
   * @q:		request queue where request should be inserted
-  * @rq:		request to fill
-@@ -309,7 +845,7 @@ int blk_rq_map_kern(struct request_queue
+@@ -309,7 +717,7 @@ int blk_rq_map_kern(struct request_queue
  		bio->bi_rw |= (1 << BIO_RW);
  
  	if (do_copy)
@@ -579,7 +451,7 @@ diff -upkr linux-2.6.30.1/block/blk-map.c linux-2.6.30.1/block/blk-map.c
  	blk_rq_bio_prep(q, rq, bio);
  	blk_queue_bounce(q, &rq->bio);
 diff -upkr linux-2.6.30.1/block/blk-merge.c linux-2.6.30.1/block/blk-merge.c
---- linux-2.6.30.1/block/blk-merge.c	2009-06-10 07:05:27.000000000 +0400
+--- linux-2.6.30.1/block/blk-merge.c	2009-07-10 21:13:25.000000000 +0400
 +++ linux-2.6.30.1/block/blk-merge.c	2009-07-08 21:24:29.000000000 +0400
 @@ -198,7 +198,7 @@ new_segment:
  	} /* segments in rq */
@@ -591,7 +463,7 @@ diff -upkr linux-2.6.30.1/block/blk-merge.c linux-2.6.30.1/block/blk-merge.c
  		unsigned int pad_len = (q->dma_pad_mask & ~rq->data_len) + 1;
  
 diff -upkr linux-2.6.30.1/drivers/scsi/scsi_lib.c linux-2.6.30.1/drivers/scsi/scsi_lib.c
---- linux-2.6.30.1/drivers/scsi/scsi_lib.c	2009-06-10 07:05:27.000000000 +0400
+--- linux-2.6.30.1/drivers/scsi/scsi_lib.c	2009-07-10 21:13:25.000000000 +0400
 +++ linux-2.6.30.1/drivers/scsi/scsi_lib.c	2009-07-08 21:24:29.000000000 +0400
 @@ -277,6 +277,100 @@ int scsi_execute_req(struct scsi_device 
  }
@@ -735,8 +607,8 @@ diff -upkr linux-2.6.30.1/drivers/scsi/scsi_lib.c linux-2.6.30.1/drivers/scsi/sc
  
  	for (i = 0; i < SG_MEMPOOL_NR; i++) {
 diff -upkr linux-2.6.30.1/include/linux/blkdev.h linux-2.6.30.1/include/linux/blkdev.h
---- linux-2.6.30.1/include/linux/blkdev.h	2009-06-10 07:05:27.000000000 +0400
-+++ linux-2.6.30.1/include/linux/blkdev.h	2009-07-08 21:24:29.000000000 +0400
+--- linux-2.6.30.1/include/linux/blkdev.h	2009-07-10 21:13:25.000000000 +0400
++++ linux-2.6.30.1/include/linux/blkdev.h	2009-07-13 13:56:45.000000000 +0400
 @@ -115,7 +115,7 @@ enum rq_flag_bits {
  	__REQ_RW_SYNC,		/* request is sync (sync write or read) */
  	__REQ_ALLOCED,		/* request came from our alloc pool */
@@ -765,18 +637,25 @@ diff -upkr linux-2.6.30.1/include/linux/blkdev.h linux-2.6.30.1/include/linux/bl
  extern int blk_execute_rq(struct request_queue *, struct gendisk *,
  			  struct request *, int);
  extern void blk_execute_rq_nowait(struct request_queue *, struct gendisk *,
-@@ -909,6 +912,9 @@ extern void blk_dump_rq_flags(struct req
- extern void generic_unplug_device(struct request_queue *);
- extern long nr_blockdev_pages(void);
+diff -upkr linux-2.6.30.1/include/linux/scatterlist.h linux-2.6.30.1/include/linux/scatterlist.h
+--- linux-2.6.30.1/include/linux/scatterlist.h	2009-06-10 07:05:27.000000000 +0400
++++ linux-2.6.30.1/include/linux/scatterlist.h	2009-07-13 13:56:24.000000000 +0400
+@@ -218,6 +218,13 @@ size_t sg_copy_from_buffer(struct scatte
+ size_t sg_copy_to_buffer(struct scatterlist *sgl, unsigned int nents,
+ 			 void *buf, size_t buflen);
  
-+extern int blk_copy_sg(struct scatterlist *, struct scatterlist *, size_t,
-+	enum km_type, enum km_type);
++int sg_copy_elem(struct scatterlist *dst_sg, struct scatterlist *src_sg,
++		 size_t copy_len, enum km_type d_km_type,
++		 enum km_type s_km_type);
++int sg_copy(struct scatterlist *dst_sg,
++	    struct scatterlist *src_sg, size_t copy_len,
++	    enum km_type d_km_type, enum km_type s_km_type);
 +
- int blk_get_queue(struct request_queue *);
- struct request_queue *blk_alloc_queue(gfp_t);
- struct request_queue *blk_alloc_queue_node(gfp_t, int);
+ /*
+  * Maximum number of entries that will be allocated in one piece, if
+  * a list larger than this is required then chaining will be utilized.
 diff -upkr linux-2.6.30.1/include/scsi/scsi_device.h linux-2.6.30.1/include/scsi/scsi_device.h
---- linux-2.6.30.1/include/scsi/scsi_device.h	2009-06-10 07:05:27.000000000 +0400
+--- linux-2.6.30.1/include/scsi/scsi_device.h	2009-07-10 21:13:25.000000000 +0400
 +++ linux-2.6.30.1/include/scsi/scsi_device.h	2009-07-08 21:24:29.000000000 +0400
 @@ -372,6 +372,17 @@ extern int scsi_execute_req(struct scsi_
  			    struct scsi_sense_hdr *, int timeout, int retries,
@@ -796,3 +675,157 @@ diff -upkr linux-2.6.30.1/include/scsi/scsi_device.h linux-2.6.30.1/include/scsi
  static inline int __must_check scsi_device_reprobe(struct scsi_device *sdev)
  {
  	return device_reprobe(&sdev->sdev_gendev);
+diff -upkr linux-2.6.30.1/lib/scatterlist.c linux-2.6.30.1/lib/scatterlist.c
+--- linux-2.6.30.1/lib/scatterlist.c	2009-06-10 07:05:27.000000000 +0400
++++ linux-2.6.30.1/lib/scatterlist.c	2009-07-14 19:22:49.000000000 +0400
+@@ -485,3 +485,150 @@ size_t sg_copy_to_buffer(struct scatterl
+ 	return sg_copy_buffer(sgl, nents, buf, buflen, 1);
+ }
+ EXPORT_SYMBOL(sg_copy_to_buffer);
++
++/*
++ * Can switch to the next dst_sg element, so, to copy to strictly only
++ * one dst_sg element, it must be either last in the chain, or
++ * copy_len == dst_sg->length.
++ */
++static int __sg_copy_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
++			  size_t *pdst_offs, struct scatterlist *src_sg,
++			  size_t copy_len,
++			  enum km_type d_km_type, enum km_type s_km_type)
++{
++	int res = 0;
++	struct scatterlist *dst_sg;
++	size_t src_len, dst_len, src_offs, dst_offs;
++	struct page *src_page, *dst_page;
++
++	if (copy_len == 0)
++		copy_len = 0x7FFFFFFF; /* copy all */
++
++	dst_sg = *pdst_sg;
++	dst_len = *pdst_len;
++	dst_offs = *pdst_offs;
++	dst_page = sg_page(dst_sg);
++
++	src_page = sg_page(src_sg);
++	src_len = src_sg->length;
++	src_offs = src_sg->offset;
++
++	do {
++		void *saddr, *daddr;
++		size_t n;
++
++		saddr = kmap_atomic(src_page +
++					 (src_offs >> PAGE_SHIFT), s_km_type) +
++				    (src_offs & ~PAGE_MASK);
++		daddr = kmap_atomic(dst_page +
++					(dst_offs >> PAGE_SHIFT), d_km_type) +
++				    (dst_offs & ~PAGE_MASK);
++
++		if (((src_offs & ~PAGE_MASK) == 0) &&
++		    ((dst_offs & ~PAGE_MASK) == 0) &&
++		    (src_len >= PAGE_SIZE) && (dst_len >= PAGE_SIZE) &&
++		    (copy_len >= PAGE_SIZE)) {
++			copy_page(daddr, saddr);
++			n = PAGE_SIZE;
++		} else {
++			n = min_t(size_t, PAGE_SIZE - (dst_offs & ~PAGE_MASK),
++					  PAGE_SIZE - (src_offs & ~PAGE_MASK));
++			n = min(n, src_len);
++			n = min(n, dst_len);
++			n = min_t(size_t, n, copy_len);
++			memcpy(daddr, saddr, n);
++		}
++		dst_offs += n;
++		src_offs += n;
++
++		kunmap_atomic(saddr, s_km_type);
++		kunmap_atomic(daddr, d_km_type);
++
++		res += n;
++		copy_len -= n;
++		if (copy_len == 0)
++			goto out;
++
++		src_len -= n;
++		dst_len -= n;
++		if (dst_len == 0) {
++			dst_sg = sg_next(dst_sg);
++			if (dst_sg == NULL)
++				goto out;
++			dst_page = sg_page(dst_sg);
++			dst_len = dst_sg->length;
++			dst_offs = dst_sg->offset;
++		}
++	} while (src_len > 0);
++
++out:
++	*pdst_sg = dst_sg;
++	*pdst_len = dst_len;
++	*pdst_offs = dst_offs;
++	return res;
++}
++
++/**
++ * sg_copy_elem - copy one SG element to another
++ * @dst_sg:	destination SG element
++ * @src_sg:	source SG element
++ * @copy_len:	maximum amount of data to copy. If 0, then copy all.
++ * @d_km_type:	kmap_atomic type for the destination SG
++ * @s_km_type:	kmap_atomic type for the source SG
++ *
++ * Description:
++ *    Data from the source SG element will be copied to the destination SG
++ *    element. Returns number of bytes copied. Can switch to the next dst_sg
++ *    element, so, to copy to strictly only one dst_sg element, it must be
++ *    either last in the chain, or copy_len == dst_sg->length.
++ */
++int sg_copy_elem(struct scatterlist *dst_sg, struct scatterlist *src_sg,
++		 size_t copy_len, enum km_type d_km_type,
++		 enum km_type s_km_type)
++{
++	size_t dst_len = dst_sg->length, dst_offs = dst_sg->offset;
++
++	return __sg_copy_elem(&dst_sg, &dst_len, &dst_offs, src_sg,
++		copy_len, d_km_type, s_km_type);
++}
++EXPORT_SYMBOL(sg_copy_elem);
++
++/**
++ * sg_copy - copy one SG vector to another
++ * @dst_sg:	destination SG
++ * @src_sg:	source SG
++ * @copy_len:	maximum amount of data to copy. If 0, then copy all.
++ * @d_km_type:	kmap_atomic type for the destination SG
++ * @s_km_type:	kmap_atomic type for the source SG
++ *
++ * Description:
++ *    Data from the source SG vector will be copied to the destination SG
++ *    vector. End of the vectors will be determined by sg_next() returning
++ *    NULL. Returns number of bytes copied.
++ */
++int sg_copy(struct scatterlist *dst_sg,
++	    struct scatterlist *src_sg, size_t copy_len,
++	    enum km_type d_km_type, enum km_type s_km_type)
++{
++	int res = 0;
++	size_t dst_len, dst_offs;
++
++	if (copy_len == 0)
++		copy_len = 0x7FFFFFFF; /* copy all */
++
++	dst_len = dst_sg->length;
++	dst_offs = dst_sg->offset;
++
++	do {
++		copy_len -= __sg_copy_elem(&dst_sg, &dst_len, &dst_offs,
++				src_sg, copy_len, d_km_type, s_km_type);
++		if ((copy_len == 0) || (dst_sg == NULL))
++			goto out;
++
++		src_sg = sg_next(src_sg);
++	} while (src_sg != NULL);
++
++out:
++	return res;
++}
++EXPORT_SYMBOL(sg_copy);

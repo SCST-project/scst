@@ -47,11 +47,6 @@
  your kernel and CONFIG_SCST_STRICT_SERIALIZING isn't defined.\
  Pass-through dev handlers will not work."
 #endif
-#else
-#if !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
-#warning "Patch scst_exec_req_fifo-<kernel-version> was not applied on\
- your kernel. Pass-through dev handlers will not work."
-#endif
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
@@ -933,16 +928,6 @@ int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 			"supported. Consider applying on your kernel patch "
 			"scst_exec_req_fifo-<kernel-version> or define "
 			"CONFIG_SCST_STRICT_SERIALIZING", dev_type->name);
-		res = -EINVAL;
-		goto out_error;
-	}
-#endif
-#else
-#if !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
-	if (dev_type->exec == NULL) {
-		PRINT_ERROR("Pass-through dev handlers (handler \"%s\") not "
-			"supported. Consider applying on your kernel patch "
-			"scst_exec_req_fifo-<kernel-version>", dev_type->name);
 		res = -EINVAL;
 		goto out_error;
 	}

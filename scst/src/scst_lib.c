@@ -2375,8 +2375,116 @@ out:
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30) || !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
+
+/*
+ * Can switch to the next dst_sg element, so, to copy to strictly only
+ * one dst_sg element, it must be either last in the chain, or
+ * copy_len == dst_sg->length.
+ */
+static int __sg_copy_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
+			  size_t *pdst_offs, struct scatterlist *src_sg,
+			  size_t copy_len,
+			  enum km_type d_km_type, enum km_type s_km_type)
+{
+	int res = 0;
+	struct scatterlist *dst_sg;
+	size_t src_len, dst_len, src_offs, dst_offs;
+	struct page *src_page, *dst_page;
+
+	if (copy_len == 0)
+		copy_len = 0x7FFFFFFF; /* copy all */
+
+	dst_sg = *pdst_sg;
+	dst_len = *pdst_len;
+	dst_offs = *pdst_offs;
+	dst_page = sg_page(dst_sg);
+
+	src_page = sg_page(src_sg);
+	src_len = src_sg->length;
+	src_offs = src_sg->offset;
+
+	do {
+		void *saddr, *daddr;
+		size_t n;
+
+		saddr = kmap_atomic(src_page +
+					 (src_offs >> PAGE_SHIFT), s_km_type) +
+				    (src_offs & ~PAGE_MASK);
+		daddr = kmap_atomic(dst_page +
+					(dst_offs >> PAGE_SHIFT), d_km_type) +
+				    (dst_offs & ~PAGE_MASK);
+
+		if (((src_offs & ~PAGE_MASK) == 0) &&
+		    ((dst_offs & ~PAGE_MASK) == 0) &&
+		    (src_len >= PAGE_SIZE) && (dst_len >= PAGE_SIZE) &&
+		    (copy_len >= PAGE_SIZE)) {
+			copy_page(daddr, saddr);
+			n = PAGE_SIZE;
+		} else {
+			n = min_t(size_t, PAGE_SIZE - (dst_offs & ~PAGE_MASK),
+					  PAGE_SIZE - (src_offs & ~PAGE_MASK));
+			n = min(n, src_len);
+			n = min(n, dst_len);
+			n = min_t(size_t, n, copy_len);
+			memcpy(daddr, saddr, n);
+		}
+		dst_offs += n;
+		src_offs += n;
+
+		kunmap_atomic(saddr, s_km_type);
+		kunmap_atomic(daddr, d_km_type);
+
+		res += n;
+		copy_len -= n;
+		if (copy_len == 0)
+			goto out;
+
+		src_len -= n;
+		dst_len -= n;
+		if (dst_len == 0) {
+			dst_sg = sg_next(dst_sg);
+			if (dst_sg == NULL)
+				goto out;
+			dst_page = sg_page(dst_sg);
+			dst_len = dst_sg->length;
+			dst_offs = dst_sg->offset;
+		}
+	} while (src_len > 0);
+
+out:
+	*pdst_sg = dst_sg;
+	*pdst_len = dst_len;
+	*pdst_offs = dst_offs;
+	return res;
+}
+
 /**
- * blk_copy_sg - copy one SG vector to another
+ * sg_copy_elem - copy one SG element to another
+ * @dst_sg:	destination SG element
+ * @src_sg:	source SG element
+ * @copy_len:	maximum amount of data to copy. If 0, then copy all.
+ * @d_km_type:	kmap_atomic type for the destination SG
+ * @s_km_type:	kmap_atomic type for the source SG
+ *
+ * Description:
+ *    Data from the source SG element will be copied to the destination SG
+ *    element. Returns number of bytes copied. Can switch to the next dst_sg
+ *    element, so, to copy to strictly only one dst_sg element, it must be
+ *    either last in the chain, or copy_len == dst_sg->length.
+ */
+int sg_copy_elem(struct scatterlist *dst_sg, struct scatterlist *src_sg,
+		 size_t copy_len, enum km_type d_km_type,
+		 enum km_type s_km_type)
+{
+	size_t dst_len = dst_sg->length, dst_offs = dst_sg->offset;
+
+	return __sg_copy_elem(&dst_sg, &dst_len, &dst_offs, src_sg,
+		copy_len, d_km_type, s_km_type);
+}
+
+
+/**
+ * sg_copy - copy one SG vector to another
  * @dst_sg:	destination SG
  * @src_sg:	source SG
  * @copy_len:	maximum amount of data to copy. If 0, then copy all.
@@ -2384,82 +2492,28 @@ out:
  * @s_km_type:	kmap_atomic type for the source SG
  *
  * Description:
- *    Data from the destination SG vector will be copied to the source SG
+ *    Data from the source SG vector will be copied to the destination SG
  *    vector. End of the vectors will be determined by sg_next() returning
  *    NULL. Returns number of bytes copied.
  */
-int blk_copy_sg(struct scatterlist *dst_sg,
-		struct scatterlist *src_sg, size_t copy_len,
-		enum km_type d_km_type, enum km_type s_km_type)
+int sg_copy(struct scatterlist *dst_sg,
+	    struct scatterlist *src_sg, size_t copy_len,
+	    enum km_type d_km_type, enum km_type s_km_type)
 {
 	int res = 0;
-	size_t src_len, dst_len, src_offs, dst_offs;
-	struct page *src_page, *dst_page;
+	size_t dst_len, dst_offs;
 
 	if (copy_len == 0)
 		copy_len = 0x7FFFFFFF; /* copy all */
 
-	dst_page = sg_page(dst_sg);
 	dst_len = dst_sg->length;
 	dst_offs = dst_sg->offset;
 
-	src_offs = 0;
 	do {
-		src_page = sg_page(src_sg);
-		src_len = src_sg->length;
-		src_offs = src_sg->offset;
-
-		do {
-			void *saddr, *daddr;
-			size_t n;
-
-			saddr = kmap_atomic(src_page, s_km_type) + src_offs;
-			daddr = kmap_atomic(dst_page, d_km_type) + dst_offs;
-
-			if ((src_offs == 0) && (dst_offs == 0) &&
-			    (src_len >= PAGE_SIZE) && (dst_len >= PAGE_SIZE) &&
-			    (copy_len >= PAGE_SIZE)) {
-				copy_page(daddr, saddr);
-				n = PAGE_SIZE;
-			} else {
-				n = min_t(size_t, PAGE_SIZE - dst_offs,
-						  PAGE_SIZE - src_offs);
-				n = min(n, src_len);
-				n = min(n, dst_len);
-				n = min_t(size_t, n, copy_len);
-				memcpy(daddr, saddr, n);
-				dst_offs += n;
-				src_offs += n;
-			}
-
-			kunmap_atomic(saddr, s_km_type);
-			kunmap_atomic(daddr, d_km_type);
-
-			res += n;
-			copy_len -= n;
-			if (copy_len == 0)
-				goto out;
-
-			if ((src_offs & ~PAGE_MASK) == 0) {
-				src_page = nth_page(src_page, 1);
-				src_offs = 0;
-			}
-			if ((dst_offs & ~PAGE_MASK) == 0) {
-				dst_page = nth_page(dst_page, 1);
-				dst_offs = 0;
-			}
-
-			src_len -= n;
-			dst_len -= n;
-			if (dst_len == 0) {
-				dst_sg = sg_next(dst_sg);
-				if (dst_sg == NULL)
-					goto out;
-				dst_page = sg_page(dst_sg);
-				dst_len = dst_sg->length;
-				dst_offs = dst_sg->offset;
-			}
-		} while (src_len > 0);
+		copy_len -= __sg_copy_elem(&dst_sg, &dst_len, &dst_offs,
+				src_sg, copy_len, d_km_type, s_km_type);
+		if ((copy_len == 0) || (dst_sg == NULL))
+			goto out;
 
 		src_sg = sg_next(src_sg);
 	} while (src_sg != NULL);
@@ -2468,6 +2522,506 @@ out:
 	return res;
 }
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30) || !defined(SCSI_EXEC_REQ_FIFO_DEFINED) */
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30) && !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
+#include <linux/pfn.h>
+
+struct blk_kern_sg_hdr {
+	struct scatterlist *orig_sgp;
+	union {
+		struct sg_table new_sg_table;
+		struct scatterlist *saved_sg;
+	};
+	bool tail_only;
+};
+
+#define BLK_KERN_SG_HDR_ENTRIES	(1 + (sizeof(struct blk_kern_sg_hdr) - 1) / \
+				 sizeof(struct scatterlist))
+
+/**
+ * blk_rq_unmap_kern_sg - "unmaps" data buffers in the request
+ * @req:	request to unmap
+ * @do_copy:	sets copy data between buffers, if needed, or not
+ *
+ * Description:
+ *    It frees all additional buffers allocated for SG->BIO mapping.
+ */
+void blk_rq_unmap_kern_sg(struct request *req, int do_copy)
+{
+	struct blk_kern_sg_hdr *hdr = (struct blk_kern_sg_hdr *)req->end_io_data;
+
+	if (hdr == NULL)
+		goto out;
+
+	if (hdr->tail_only) {
+		/* Tail element only was copied */
+		struct scatterlist *saved_sg = hdr->saved_sg;
+		struct scatterlist *tail_sg = hdr->orig_sgp;
+
+		if ((rq_data_dir(req) == READ) && do_copy)
+			sg_copy_elem(saved_sg, tail_sg, tail_sg->length,
+				KM_BIO_DST_IRQ, KM_BIO_SRC_IRQ);
+
+		__free_pages(sg_page(tail_sg), get_order(tail_sg->length));
+		*tail_sg = *saved_sg;
+		kfree(hdr);
+	} else {
+		/* The whole SG was copied */
+		struct sg_table new_sg_table = hdr->new_sg_table;
+		struct scatterlist *new_sgl = new_sg_table.sgl +
+						BLK_KERN_SG_HDR_ENTRIES;
+		struct scatterlist *orig_sgl = hdr->orig_sgp;
+
+		if ((rq_data_dir(req) == READ) && do_copy)
+			sg_copy(orig_sgl, new_sgl, 0, KM_BIO_DST_IRQ,
+				KM_BIO_SRC_IRQ);
+
+		sg_free_table(&new_sg_table);
+	}
+
+out:
+	return;
+}
+
+static int blk_rq_handle_align_tail_only(struct request *rq,
+					 struct scatterlist *sg_to_copy,
+					 gfp_t gfp, gfp_t page_gfp)
+{
+	int res = 0;
+	struct scatterlist *tail_sg = sg_to_copy;
+	struct scatterlist *saved_sg;
+	struct blk_kern_sg_hdr *hdr;
+	int saved_sg_nents;
+	struct page *pg;
+
+	saved_sg_nents = 1 + BLK_KERN_SG_HDR_ENTRIES;
+
+	saved_sg = kmalloc(sizeof(*saved_sg) * saved_sg_nents, gfp);
+	if (saved_sg == NULL)
+		goto out_nomem;
+
+	sg_init_table(saved_sg, saved_sg_nents);
+
+	hdr = (struct blk_kern_sg_hdr *)saved_sg;
+	saved_sg += BLK_KERN_SG_HDR_ENTRIES;
+	saved_sg_nents -= BLK_KERN_SG_HDR_ENTRIES;
+
+	hdr->tail_only = true;
+	hdr->orig_sgp = tail_sg;
+	hdr->saved_sg = saved_sg;
+
+	*saved_sg = *tail_sg;
+
+	pg = alloc_pages(page_gfp, get_order(tail_sg->length));
+	if (pg == NULL)
+		goto err_free_saved_sg;
+
+	sg_assign_page(tail_sg, pg);
+	tail_sg->offset = 0;
+
+	if (rq_data_dir(rq) == WRITE)
+		sg_copy_elem(tail_sg, saved_sg, saved_sg->length,
+				KM_USER1, KM_USER0);
+
+	rq->end_io_data = hdr;
+	rq->cmd_flags |= REQ_COPY_USER;
+
+out:
+	return res;
+
+err_free_saved_sg:
+	kfree(saved_sg);
+
+out_nomem:
+	res = -ENOMEM;
+	goto out;
+}
+
+static int blk_rq_handle_align(struct request *rq, struct scatterlist **psgl,
+			       int *pnents, struct scatterlist *sgl_to_copy,
+			       int nents_to_copy, gfp_t gfp, gfp_t page_gfp)
+{
+	int res = 0, i;
+	struct scatterlist *sgl = *psgl;
+	int nents = *pnents;
+	struct sg_table sg_table;
+	struct scatterlist *sg;
+	struct scatterlist *new_sgl;
+	size_t len = 0, to_copy;
+	int new_sgl_nents;
+	struct blk_kern_sg_hdr *hdr;
+
+	if (sgl != sgl_to_copy) {
+		/* copy only the last element */
+		res = blk_rq_handle_align_tail_only(rq, sgl_to_copy,
+				gfp, page_gfp);
+		if (res == 0)
+			goto out;
+		/* else go through */
+	}
+
+	for_each_sg(sgl, sg, nents, i)
+		len += sg->length;
+	to_copy = len;
+
+	new_sgl_nents = PFN_UP(len) + BLK_KERN_SG_HDR_ENTRIES;
+
+	res = sg_alloc_table(&sg_table, new_sgl_nents, gfp);
+	if (res != 0)
+		goto out;
+
+	new_sgl = sg_table.sgl;
+	hdr = (struct blk_kern_sg_hdr *)new_sgl;
+	new_sgl += BLK_KERN_SG_HDR_ENTRIES;
+	new_sgl_nents -= BLK_KERN_SG_HDR_ENTRIES;
+
+	hdr->tail_only = false;
+	hdr->orig_sgp = sgl;
+	hdr->new_sg_table = sg_table;
+
+	for_each_sg(new_sgl, sg, new_sgl_nents, i) {
+		struct page *pg;
+
+		pg = alloc_page(page_gfp);
+		if (pg == NULL)
+			goto err_free_new_sgl;
+
+		sg_assign_page(sg, pg);
+		sg->length = min_t(size_t, PAGE_SIZE, len);
+
+		len -= PAGE_SIZE;
+	}
+
+	if (rq_data_dir(rq) == WRITE) {
+		/*
+		 * We need to limit amount of copied data to to_copy, because
+		 * sgl might have the last element not marked as last in
+		 * SG chaining.
+		 */
+		sg_copy(new_sgl, sgl, to_copy, KM_USER0, KM_USER1);
+	}
+
+	rq->end_io_data = hdr;
+	rq->cmd_flags |= REQ_COPY_USER;
+
+	*psgl = new_sgl;
+	*pnents = new_sgl_nents;
+
+out:
+	return res;
+
+err_free_new_sgl:
+	for_each_sg(new_sgl, sg, new_sgl_nents, i) {
+		struct page *pg = sg_page(sg);
+		if (pg == NULL)
+			break;
+		__free_page(pg);
+	}
+	sg_free_table(&sg_table);
+
+	res = -ENOMEM;
+	goto out;
+}
+
+static void bio_map_kern_endio(struct bio *bio, int err)
+{
+	bio_put(bio);
+}
+
+static int __blk_rq_map_kern_sg(struct request *rq, struct scatterlist *sgl,
+	int nents, gfp_t gfp, struct scatterlist **sgl_to_copy,
+	int *nents_to_copy)
+{
+	int res;
+	struct request_queue *q = rq->q;
+	int rw = rq_data_dir(rq);
+	int max_nr_vecs, i;
+	size_t tot_len;
+	bool need_new_bio;
+	struct scatterlist *sg, *prev_sg = NULL;
+	struct bio *bio = NULL, *hbio = NULL, *tbio = NULL;
+
+	*sgl_to_copy = NULL;
+
+	if (unlikely((sgl == 0) || (nents <= 0))) {
+		WARN_ON(1);
+		res = -EINVAL;
+		goto out;
+	}
+
+	/*
+	 * Let's keep each bio allocation inside a single page to decrease
+	 * probability of failure.
+	 */
+	max_nr_vecs =  min_t(size_t,
+		((PAGE_SIZE - sizeof(struct bio)) / sizeof(struct bio_vec)),
+		BIO_MAX_PAGES);
+
+	need_new_bio = true;
+	tot_len = 0;
+	for_each_sg(sgl, sg, nents, i) {
+		struct page *page = sg_page(sg);
+		void *page_addr = page_address(page);
+		size_t len = sg->length, l;
+		size_t offset = sg->offset;
+
+		tot_len += len;
+		prev_sg = sg;
+
+		/*
+		 * Each segment must be aligned on DMA boundary and
+		 * not on stack. The last one may have unaligned
+		 * length as long as the total length is aligned to
+		 * DMA padding alignment.
+		 */
+		if (i == nents - 1)
+			l = 0;
+		else
+			l = len;
+		if (((sg->offset | l) & queue_dma_alignment(q)) ||
+		    (page_addr && object_is_on_stack(page_addr + sg->offset))) {
+			res = -EINVAL;
+			goto out_need_copy;
+		}
+
+		while (len > 0) {
+			size_t bytes;
+			int rc;
+
+			if (need_new_bio) {
+				bio = bio_kmalloc(gfp, max_nr_vecs);
+				if (bio == NULL) {
+					res = -ENOMEM;
+					goto out_free_bios;
+				}
+
+				if (rw == WRITE)
+					bio->bi_rw |= 1 << BIO_RW;
+
+				bio->bi_end_io = bio_map_kern_endio;
+
+				if (hbio == NULL)
+					hbio = tbio = bio;
+				else
+					tbio = tbio->bi_next = bio;
+			}
+
+			bytes = min_t(size_t, len, PAGE_SIZE - offset);
+
+			rc = bio_add_pc_page(q, bio, page, bytes, offset);
+			if (rc < bytes) {
+				if (unlikely(need_new_bio || (rc < 0))) {
+					if (rc < 0)
+						res = rc;
+					else
+						res = -EIO;
+					goto out_need_copy;
+				} else {
+					need_new_bio = true;
+					len -= rc;
+					offset += rc;
+					continue;
+				}
+			}
+
+			need_new_bio = false;
+			offset = 0;
+			len -= bytes;
+			page = nth_page(page, 1);
+		}
+	}
+
+	if (hbio == NULL) {
+		res = -EINVAL;
+		goto out_free_bios;
+	}
+
+	/* Total length must be aligned on DMA padding alignment */
+	if ((tot_len & q->dma_pad_mask) &&
+	    !(rq->cmd_flags & REQ_COPY_USER)) {
+		res = -EINVAL;
+		if (sgl->offset == 0) {
+			*sgl_to_copy = prev_sg;
+			*nents_to_copy = 1;
+			goto out_free_bios;
+		} else
+			goto out_need_copy;
+	}
+
+	while (hbio != NULL) {
+		bio = hbio;
+		hbio = hbio->bi_next;
+		bio->bi_next = NULL;
+
+		blk_queue_bounce(q, &bio);
+
+		res = blk_rq_append_bio(q, rq, bio);
+		if (unlikely(res != 0)) {
+			bio->bi_next = hbio;
+			hbio = bio;
+			goto out_free_bios;
+		}
+	}
+
+	rq->buffer = rq->data = NULL;
+
+out:
+	return res;
+
+out_need_copy:
+	*sgl_to_copy = sgl;
+	*nents_to_copy = nents;
+
+out_free_bios:
+	while (hbio != NULL) {
+		bio = hbio;
+		hbio = hbio->bi_next;
+		bio_put(bio);
+	}
+	goto out;
+}
+
+/**
+ * blk_rq_map_kern_sg - map kernel data to a request, for REQ_TYPE_BLOCK_PC
+ * @rq:		request to fill
+ * @sgl:	area to map
+ * @nents:	number of elements in @sgl
+ * @gfp:	memory allocation flags
+ *
+ * Description:
+ *    Data will be mapped directly if possible. Otherwise a bounce
+ *    buffer will be used.
+ */
+int blk_rq_map_kern_sg(struct request *rq, struct scatterlist *sgl,
+		       int nents, gfp_t gfp)
+{
+	int res;
+	struct scatterlist *sg_to_copy = NULL;
+	int nents_to_copy = 0;
+
+	if (unlikely((sgl == 0) || (sgl->length == 0) ||
+		     (nents <= 0) || (rq->end_io_data != NULL))) {
+		WARN_ON(1);
+		res = -EINVAL;
+		goto out;
+	}
+
+	res = __blk_rq_map_kern_sg(rq, sgl, nents, gfp, &sg_to_copy,
+				&nents_to_copy);
+	if (unlikely(res != 0)) {
+		if (sg_to_copy == NULL)
+			goto out;
+
+		res = blk_rq_handle_align(rq, &sgl, &nents, sg_to_copy,
+				nents_to_copy, gfp, rq->q->bounce_gfp | gfp);
+		if (unlikely(res != 0))
+			goto out;
+
+		res = __blk_rq_map_kern_sg(rq, sgl, nents, gfp, &sg_to_copy,
+						&nents_to_copy);
+		if (res != 0) {
+			blk_rq_unmap_kern_sg(rq, 0);
+			goto out;
+		}
+	}
+
+	rq->buffer = rq->data = NULL;
+
+out:
+	return res;
+}
+
+struct scsi_io_context {
+	void *blk_data;
+	void *data;
+	void (*done)(void *data, char *sense, int result, int resid);
+	char sense[SCSI_SENSE_BUFFERSIZE];
+};
+
+static void scsi_end_async(struct request *req, int error)
+{
+	struct scsi_io_context *sioc = req->end_io_data;
+
+	req->end_io_data = sioc->blk_data;
+	blk_rq_unmap_kern_sg(req, (error == 0));
+
+	if (sioc->done)
+		sioc->done(sioc->data, sioc->sense, req->errors, req->data_len);
+
+	kfree(sioc);
+	__blk_put_request(req->q, req);
+}
+
+/**
+ * scsi_execute_async - insert request
+ * @sdev:	scsi device
+ * @cmd:	scsi command
+ * @cmd_len:	length of scsi cdb
+ * @data_direction: DMA_TO_DEVICE, DMA_FROM_DEVICE, or DMA_NONE
+ * @sgl:	data buffer scatterlist
+ * @nents:	number of elements in the sgl
+ * @timeout:	request timeout in seconds
+ * @retries:	number of times to retry request
+ * @privdata:	data passed to done()
+ * @done:	callback function when done
+ * @gfp:	memory allocation flags
+ * @flags:	one or more SCSI_ASYNC_EXEC_FLAG_* flags
+ */
+int scsi_execute_async(struct scsi_device *sdev, const unsigned char *cmd,
+		       int cmd_len, int data_direction, struct scatterlist *sgl,
+		       int nents, int timeout, int retries, void *privdata,
+		       void (*done)(void *, char *, int, int), gfp_t gfp,
+		       int flags)
+{
+	struct request *req;
+	struct scsi_io_context *sioc;
+	int err = 0;
+	int write = (data_direction == DMA_TO_DEVICE);
+
+	sioc = kzalloc(sizeof(*sioc), gfp);
+	if (sioc == NULL)
+		return DRIVER_ERROR << 24;
+
+	req = blk_get_request(sdev->request_queue, write, gfp);
+	if (req == NULL)
+		goto free_sense;
+	req->cmd_type = REQ_TYPE_BLOCK_PC;
+	req->cmd_flags |= REQ_QUIET;
+
+	if (flags & SCSI_ASYNC_EXEC_FLAG_HAS_TAIL_SPACE_FOR_PADDING)
+		req->cmd_flags |= REQ_COPY_USER;
+
+	if (sgl != NULL) {
+		err = blk_rq_map_kern_sg(req, sgl, nents, gfp);
+		if (err)
+			goto free_req;
+	}
+
+	sioc->blk_data = req->end_io_data;
+	sioc->data = privdata;
+	sioc->done = done;
+
+	req->cmd_len = cmd_len;
+	memset(req->cmd, 0, BLK_MAX_CDB); /* ATAPI hates garbage after CDB */
+	memcpy(req->cmd, cmd, req->cmd_len);
+	req->sense = sioc->sense;
+	req->sense_len = 0;
+	req->timeout = timeout;
+	req->retries = retries;
+	req->end_io_data = sioc;
+
+	blk_execute_rq_nowait(req->q, NULL, req,
+		flags & SCSI_ASYNC_EXEC_FLAG_AT_HEAD, scsi_end_async);
+	return 0;
+
+free_req:
+	blk_put_request(req);
+
+free_sense:
+	kfree(sioc);
+	return DRIVER_ERROR << 24;
+}
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30) && !defined(SCSI_EXEC_REQ_FIFO_DEFINED) */
 
 void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir)
 {
@@ -2505,8 +3059,8 @@ void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir)
 		goto out;
 	}
 
-	blk_copy_sg(dst_sg, src_sg, to_copy, atomic ? KM_SOFTIRQ0 : KM_USER0,
-					     atomic ? KM_SOFTIRQ1 : KM_USER1);
+	sg_copy(dst_sg, src_sg, to_copy, atomic ? KM_SOFTIRQ0 : KM_USER0,
+					 atomic ? KM_SOFTIRQ1 : KM_USER1);
 
 out:
 	TRACE_EXIT();

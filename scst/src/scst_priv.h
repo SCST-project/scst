@@ -358,18 +358,15 @@ static inline int scst_exec_req(struct scsi_device *sdev,
 	    (void*)sgl, bufflen, nents, timeout, retries, privdata, done, gfp);
 #endif
 }
-#else
+#else /* i.e. LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30) */
 #if !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
+#define SCSI_ASYNC_EXEC_FLAG_AT_HEAD			1
 #define SCSI_ASYNC_EXEC_FLAG_HAS_TAIL_SPACE_FOR_PADDING	2
-static inline int scsi_execute_async(struct scsi_device *sdev,
+int scsi_execute_async(struct scsi_device *sdev,
 	const unsigned char *cmd, int cmd_len, int data_direction,
 	struct scatterlist *sgl, int nents, int timeout, int retries,
 	void *privdata, void (*done)(void *, char *, int, int),
-	gfp_t gfp, int flags)
-{
-	WARN_ON(1);
-	return -1;
-}
+	gfp_t gfp, int flags);
 #endif
 #endif
 

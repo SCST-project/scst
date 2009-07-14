@@ -141,7 +141,7 @@ Compilation options
 -------------------
 
 There are the following compilation options, that could be change using
-your favorit kernel configuration Makefile target, e.g. "make xconfig":
+your favorite kernel configuration Makefile target, e.g. "make xconfig":
 
  - CONFIG_SCST_DEBUG - if defined, turns on some debugging code,
    including some logging. Makes the driver considerably bigger and slower,
