@@ -3094,8 +3094,8 @@ static int dev_user_release(struct inode *inode, struct file *file)
 	scst_unregister_virtual_device(dev->virt_id);
 	scst_unregister_virtual_dev_driver(&dev->devtype);
 
-	sgv_pool_del(dev->pool_clust);
-	sgv_pool_del(dev->pool);
+	sgv_pool_flush(dev->pool_clust);
+	sgv_pool_flush(dev->pool);
 
 	TRACE_DBG("Unregistering finished (dev %p)", dev);
 
@@ -3105,6 +3105,9 @@ static int dev_user_release(struct inode *inode, struct file *file)
 	wake_up(&dev->cmd_lists.cmd_list_waitQ);
 
 	wait_for_completion(&dev->cleanup_cmpl);
+
+	sgv_pool_del(dev->pool_clust);
+	sgv_pool_del(dev->pool);
 
 	up_write(&dev->dev_rwsem); /* to make the debug check happy */
 
