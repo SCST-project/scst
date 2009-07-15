@@ -42,8 +42,10 @@ function version_code(kver) {
 # it is the same order as the order of operators in C.
 
 function evaluate(stmnt) {
+  # Remove C-style comments.
   gsub(" *\\/\\*[^*]*\\*\\/ *", "", stmnt)
 
+  # Remove the spaces before the #-sign.
   gsub("^+ *# *", "+#", stmnt)
 
   if (match(stmnt, "^+#ifdef (.*)$", arg))
@@ -99,7 +101,7 @@ function evaluate(stmnt) {
       sub(pattern, op[1] == 0, stmnt)
     }
     
-    pattern="KERNEL_VERSION\\(([0-9]+) *, *([0-9]+) *, *([0-9]+) *\\)"
+    pattern="KERNEL_VERSION\\( *([0-9]+) *, *([0-9]+) *, *([0-9]+) *\\)"
     while (match(stmnt, pattern, op) != 0)
     {
       sub(pattern, op[1] * 65536 + op[2] * 256 + op[3], stmnt)
@@ -123,10 +125,22 @@ function evaluate(stmnt) {
       sub(pattern, (op[1] != 0) && (op[2] != 0), stmnt)
     }
   
+    pattern="([0-9]+) *\\&\\& *(!* *defined\\([^)]*\\))"
+    while (match(stmnt, pattern, op) != 0)
+    {
+      sub(pattern, (op[1] != 0) ? op[2] : "0", stmnt)
+    }
+  
     pattern="([0-9]+) *\\|\\| *([0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
       sub(pattern, (op[1] != 0) || (op[2] != 0), stmnt)
+    }
+  
+    pattern="([0-9]+) *\\|\\| *(!* *defined\\([^)]*\\))"
+    while (match(stmnt, pattern, op) != 0)
+    {
+      sub(pattern, (op[1] != 0) ? "1" : op[2], stmnt)
     }
   
     pattern="\\(([0-9]+)\\)"
