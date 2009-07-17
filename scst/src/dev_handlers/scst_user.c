@@ -2150,11 +2150,11 @@ out:
 	return;
 }
 
-static void dev_user_unjam_dev(struct scst_user_dev *dev)
+static int dev_user_unjam_dev(struct scst_user_dev *dev)
 	__releases(&dev->cmd_lists.cmd_list_lock)
 	__acquires(&dev->cmd_lists.cmd_list_lock)
 {
-	int i;
+	int i, res = 0;
 	struct scst_user_cmd *ucmd;
 
 	TRACE_ENTRY();
@@ -2168,6 +2168,8 @@ repeat:
 		struct list_head *head = &dev->ucmd_hash[i];
 
 		list_for_each_entry(ucmd, head, hash_list_entry) {
+			res++;
+
 			if (!ucmd->sent_to_user)
 				continue;
 
@@ -2192,8 +2194,8 @@ repeat:
 
 	spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
 
-	TRACE_EXIT();
-	return;
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 static int dev_user_process_reply_tm_exec(struct scst_user_cmd *ucmd,
@@ -3125,7 +3127,7 @@ out:
 static int dev_user_process_cleanup(struct scst_user_dev *dev)
 {
 	struct scst_user_cmd *ucmd;
-	int rc, res = 1;
+	int rc = 0, res = 1;
 
 	TRACE_ENTRY();
 
@@ -3133,9 +3135,13 @@ static int dev_user_process_cleanup(struct scst_user_dev *dev)
 	wake_up_all(&dev->cmd_lists.cmd_list_waitQ); /* just in case */
 
 	while (1) {
+		int rc1;
+
 		TRACE_DBG("Cleanuping dev %p", dev);
 
-		dev_user_unjam_dev(dev);
+		rc1 = dev_user_unjam_dev(dev);
+		if ((rc1 == 0) && (rc == -EAGAIN) && dev->cleanup_done)
+			break;
 
 		spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
 
@@ -3146,9 +3152,7 @@ static int dev_user_process_cleanup(struct scst_user_dev *dev)
 		spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
 
 		if (rc == -EAGAIN) {
-			if (dev->cleanup_done)
-				break;
-			else {
+			if (!dev->cleanup_done) {
 				TRACE_DBG("No more commands (dev %p)", dev);
 				goto out;
 			}
