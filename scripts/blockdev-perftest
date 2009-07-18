@@ -38,7 +38,7 @@ usage() {
   echo "        <dev> - block device to run the I/O performance test on."
 }
 
-# Echo ((2**$1))
+# Compute two raised to the power $1.
 pow2() {
   if [ $1 = 0 ]; then
     echo 1
@@ -47,9 +47,15 @@ pow2() {
   fi
 }
 
+# Report via the exit status whether or not the current user has sufficient
+# privileges to drop the VM caches.
+can_drop_cache() {
+  [ -w /proc/sys/vm/drop_caches ]
+}
+
 drop_caches() {
   sync
-  if [ -w /proc/sys/vm/drop_caches ]; then
+  if can_drop_cache; then
     echo 3 > /proc/sys/vm/drop_caches
   fi
   if [ "${target_login}" != "" ]; then
@@ -128,6 +134,13 @@ then
   exit 1
 fi
 
+if ! can_drop_cache; then
+  echo ""
+  echo "WARNING: insufficient privileges to drop the file system cache"
+  echo "-- results will be unreliable."
+  echo ""
+fi
+
 if [ "${iotype}" = "direct" ]; then
   dd_oflags="oflag=direct conv=notrunc"
   dd_iflags="iflag=direct"
@@ -191,9 +204,9 @@ do
       drop_caches
       dd if=/dev/zero of="${device}" bs=${bs} count=${count} \
                     ${dd_oflags} 2>&1 \
-                 | sed -n 's/.* \([0-9.]*\) s,.*/\1/p'
+        | sed -n -e 's/.* \([0-9.]*\) s,.*/\1/p' -e 's/^dd: .*/0/p'
     else
-      echo 0
+      echo " 0 s,"
     fi
     i=$((i+1))
   done | echo_and_calc_avg "%8.3f " ${iosize} ${bs}
@@ -204,7 +217,7 @@ do
     drop_caches
     dd if="${device}" of=/dev/null bs=${bs} count=${count} \
                   ${dd_iflags} 2>&1 \
-               | sed -n 's/.* \([0-9.]*\) s,.*/\1/p'
+      | sed -n -e 's/.* \([0-9.]*\) s,.*/\1/p' -e 's/^dd: .*/0/p'
     i=$((i+1))
   done | echo_and_calc_avg "%8.3f " ${iosize} ${bs}
   printf "\n"
