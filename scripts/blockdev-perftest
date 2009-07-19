@@ -127,6 +127,13 @@ if [ "${read_test_only}" = "false" -a ! -w "${device}" ]; then
   exit 1
 fi
 
+if [ $(dd if="${device}" bs=1M count=$(pow2 $(($log2_io_size - 20))) \
+     2>/dev/null | wc --bytes) -lt $(pow2 $log2_io_size) ]
+then
+  echo "Error: device ${device} contains less than $(pow2 $log2_io_size) bytes."
+  exit 1
+fi
+
 if [ "${read_test_only}" = "false" -a "${verify_device_data}" = "true" ] \
    && ! cmp -s -n $(pow2 $log2_io_size) "${device}" /dev/zero
 then
@@ -204,7 +211,7 @@ do
       drop_caches
       dd if=/dev/zero of="${device}" bs=${bs} count=${count} \
                     ${dd_oflags} 2>&1 \
-        | sed -n -e 's/.* \([0-9.]*\) s,.*/\1/p' -e 's/^dd: .*/0/p'
+        | sed -n -e 's/.* \([0-9.]*\) s,.*/\1/p' | sed 's/^$/0/'
     else
       echo " 0 s,"
     fi
@@ -217,7 +224,7 @@ do
     drop_caches
     dd if="${device}" of=/dev/null bs=${bs} count=${count} \
                   ${dd_iflags} 2>&1 \
-      | sed -n -e 's/.* \([0-9.]*\) s,.*/\1/p' -e 's/^dd: .*/0/p'
+      | sed -n -e 's/.* \([0-9.]*\) s,.*/\1/p' | sed 's/^$/0/'
     i=$((i+1))
   done | echo_and_calc_avg "%8.3f " ${iosize} ${bs}
   printf "\n"
