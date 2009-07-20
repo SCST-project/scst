@@ -105,7 +105,8 @@ space device. It doesn't have any parameters.
 
 During execution of SCST_USER_UNREGISTER_DEVICE at least one another
 thread must process all coming subcommands, otherwise after timeout it
-will fail with EBUSY error.
+will fail with EBUSY error. The processing should stop on receiving
+ENODEV error.
 
 SCST_USER_UNREGISTER_DEVICE returns 0 on success or -1 in case of error,
 and errno is set appropriately.

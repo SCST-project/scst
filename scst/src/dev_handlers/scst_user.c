@@ -266,7 +266,7 @@ static inline int calc_num_pg(unsigned long buf, int len)
 
 static void __dev_user_not_reg(void)
 {
-	PRINT_ERROR("%s", "Device not registered");
+	TRACE(TRACE_MGMT_MINOR, "%s", "Device not registered");
 	return;
 }
 
@@ -274,7 +274,7 @@ static inline int dev_user_check_reg(struct scst_user_dev *dev)
 {
 	if (dev == NULL) {
 		__dev_user_not_reg();
-		return -EINVAL;
+		return -ENODEV;
 	}
 	return 0;
 }
