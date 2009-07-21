@@ -1561,7 +1561,7 @@ static int dev_user_get_ext_cdb(struct file *file, void __user *arg)
 	int res = 0;
 	struct scst_user_dev *dev;
 	struct scst_user_cmd *ucmd;
-	struct scst_cmd *cmd;
+	struct scst_cmd *cmd = NULL;
 	struct scst_user_get_ext_cdb get;
 
 	TRACE_ENTRY();
@@ -1607,7 +1607,7 @@ static int dev_user_get_ext_cdb(struct file *file, void __user *arg)
 		TRACE_MGMT_DBG("Invalid ucmd state %d for cmd_h %d",
 			ucmd->state, get.cmd_h);
 		res = -EINVAL;
-		goto out_put;
+		goto out_unlock;
 	}
 
 	spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
@@ -2990,12 +2990,13 @@ static int dev_user_set_opt(struct file *file, const struct scst_user_opt *opt)
 
 	res = scst_suspend_activity(true);
 	if (res != 0)
-		goto out;
+		goto out_up;
 
 	res = __dev_user_set_opt(dev, opt);
 
 	scst_resume_activity();
 
+out_up:
 	up_read(&dev->dev_rwsem);
 
 out:
@@ -3102,7 +3103,7 @@ static int dev_user_release(struct inode *inode, struct file *file)
 	sgv_pool_flush(dev->pool_clust);
 	sgv_pool_flush(dev->pool);
 
-	TRACE_DBG("Unregistering finished (dev %p)", dev);
+	TRACE_MGMT_DBG("Unregistering finished (dev %p)", dev);
 
 	dev->cleanup_done = 1;
 
@@ -3114,9 +3115,9 @@ static int dev_user_release(struct inode *inode, struct file *file)
 	sgv_pool_del(dev->pool_clust);
 	sgv_pool_del(dev->pool);
 
-	up_write(&dev->dev_rwsem); /* to make the debug check happy */
+	up_write(&dev->dev_rwsem); /* to make lockdep happy */
 
-	TRACE_DBG("Releasing completed (dev %p)", dev);
+	TRACE_MGMT_DBG("Releasing completed (dev %p)", dev);
 
 	kfree(dev);
 
