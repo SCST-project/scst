@@ -178,6 +178,8 @@ static unsigned int dev_user_poll(struct file *filp, poll_table *wait);
 static long dev_user_ioctl(struct file *file, unsigned int cmd,
 	unsigned long arg);
 static int dev_user_release(struct inode *inode, struct file *file);
+static int dev_user_read_proc(struct seq_file *seq,
+	struct scst_dev_type *dev_type);
 
 /** Data **/
 
@@ -3056,6 +3058,7 @@ static int dev_usr_parse(struct scst_cmd *cmd)
 	.name =		DEV_USER_NAME,	\
 	.type =		-1,		\
 	.parse =	dev_usr_parse,	\
+        .read_proc =    dev_user_read_proc, \
 }
 
 static struct scst_dev_type dev_user_devtype = USR_TYPE;
@@ -3181,6 +3184,46 @@ again:
 	res = 0;
 
 out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+
+/*
+ * Called when a file in the /proc/scsi_tgt/scst_user is read
+ */
+static int dev_user_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
+{
+	int res = 0;
+	struct scst_user_dev *dev;
+	unsigned long flags;
+
+	TRACE_ENTRY();
+
+	spin_lock(&dev_list_lock);
+
+	list_for_each_entry(dev, &dev_list, dev_list_entry) {
+		int i;
+		seq_printf(seq, "Device %s commands:\n", dev->name);
+		spin_lock_irqsave(&dev->cmd_lists.cmd_list_lock, flags);
+		for (i = 0; i < (int)ARRAY_SIZE(dev->ucmd_hash); i++) {
+			struct list_head *head = &dev->ucmd_hash[i];
+			struct scst_user_cmd *ucmd;
+			list_for_each_entry(ucmd, head, hash_list_entry) {
+				seq_printf(seq, "ucmd %p (state %x, ref %d), "
+					"sent_to_user %d, seen_by_user %d, "
+					"aborted %d, jammed %d, scst_cmd %p\n",
+					ucmd, ucmd->state,
+					atomic_read(&ucmd->ucmd_ref),
+					ucmd->sent_to_user, ucmd->seen_by_user,
+					ucmd->aborted, ucmd->jammed, ucmd->cmd);
+				
+			}
+		}
+		spin_unlock_irqrestore(&dev->cmd_lists.cmd_list_lock, flags);
+	}
+	spin_unlock(&dev_list_lock);
+
 	TRACE_EXIT_RES(res);
 	return res;
 }
