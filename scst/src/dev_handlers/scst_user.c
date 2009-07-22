@@ -3059,7 +3059,7 @@ static int dev_usr_parse(struct scst_cmd *cmd)
 	.name =		DEV_USER_NAME,	\
 	.type =		-1,		\
 	.parse =	dev_usr_parse,	\
-        .read_proc =    dev_user_read_proc, \
+	.read_proc =    dev_user_read_proc, \
 }
 
 static struct scst_dev_type dev_user_devtype = USR_TYPE;
@@ -3218,7 +3218,6 @@ static int dev_user_read_proc(struct seq_file *seq, struct scst_dev_type *dev_ty
 					atomic_read(&ucmd->ucmd_ref),
 					ucmd->sent_to_user, ucmd->seen_by_user,
 					ucmd->aborted, ucmd->jammed, ucmd->cmd);
-				
 			}
 		}
 		spin_unlock_irqrestore(&dev->cmd_lists.cmd_list_lock, flags);
