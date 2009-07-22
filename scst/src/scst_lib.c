@@ -3874,10 +3874,17 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 	for (i = 0; i < 5; i++) {
 		/* Get control mode page */
 		memset(cmd, 0, sizeof(cmd));
+#if 0
+		cmd[0] = MODE_SENSE_10;
+		cmd[1] = 0;
+		cmd[2] = 0x0A;
+		cmd[8] = sizeof(buffer); /* it's < 256 */
+#else
 		cmd[0] = MODE_SENSE;
 		cmd[1] = 8; /* DBD */
 		cmd[2] = 0x0A;
 		cmd[4] = sizeof(buffer);
+#endif
 
 		memset(buffer, 0, sizeof(buffer));
 		memset(sense_buffer, 0, sizeof(sense_buffer));
