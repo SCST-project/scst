@@ -122,28 +122,52 @@ static int isplinux_pci_exclude(struct pci_dev *);
 #if defined(DISABLE_FW_LOADER) || !(defined(CONFIG_FW_LOADER) || defined(CONFIG_FW_LOADER_MODULE))
 #ifndef    ISP_DISABLE_1020_SUPPORT
 #include "asm_1040.h"
+#undef  ISP_1040_RISC_CODE
+#define ISP_1040_RISC_CODE  (const uint16_t *) isp_1040_risc_code
 #endif
 #ifndef    ISP_DISABLE_1080_SUPPORT
 #include "asm_1080.h"
+#undef  ISP_1080_RISC_CODE
+#define ISP_1080_RISC_CODE  (const uint16_t *) isp_1080_risc_code
 #endif
 #ifndef    ISP_DISABLE_12160_SUPPORT
 #include "asm_12160.h"
+#undef  ISP_12160_RISC_CODE
+#define ISP_12160_RISC_CODE  (const uint16_t *) isp_12160_risc_code
 #endif
 #ifndef    ISP_DISABLE_2100_SUPPORT
 #include "asm_2100.h"
+#undef  ISP_2100_RISC_CODE
+#define ISP_2100_RISC_CODE  (const uint16_t *) isp_2100_risc_code
 #endif
 #ifndef    ISP_DISABLE_2200_SUPPORT
 #include "asm_2200.h"
+#undef  ISP_2200_RISC_CODE
+#define ISP_2200_RISC_CODE  (const uint16_t *) isp_2200_risc_code
 #endif
 #ifndef    ISP_DISABLE_2300_SUPPORT
 #include "asm_2300.h"
+#undef  ISP_2300_RISC_CODE
+#define ISP_2300_RISC_CODE  (const uint16_t *) isp_2300_risc_code
 #endif
 #ifndef    ISP_DISABLE_2322_SUPPORT
 #include "asm_2322.h"
+#undef  ISP_2322_RISC_CODE
+#define ISP_2322_RISC_CODE  (const uint16_t *) isp_2322_risc_code
 #endif
 #ifndef    ISP_DISABLE_2400_SUPPORT
+#define ISP_2400
+#define ISP_2400_MULTI
+#define ISP_2500
+#define ISP_2500_MULTI
 #include "asm_2400.h"
 #include "asm_2500.h"
+#undef  ISP_2400_RISC_CODE
+#undef  ISP_2500_RISC_CODE
+#define ISP_2400_RISC_CODE  (const uint32_t *) isp_2400_risc_code
+#define ISP_2500_RISC_CODE  (const uint32_t *) isp_2500_risc_code
+#define ISP_2400_MULTI_RISC_CODE    (const uint32_t *) isp_2400_multi_risc_code
+#define ISP_2500_MULTI_RISC_CODE    (const uint32_t *) isp_2500_multi_risc_code
 #endif
 #endif
 
@@ -937,6 +961,14 @@ isplinux_pci_init_one(struct Scsi_Host *host)
         } else {
             isp_prt(isp, ISP_LOGWARN, "unable to load firmware set \"%s\"", fwname);
             isp->isp_osinfo.fwp = NULL;
+        }
+    }
+#else
+    if (isp_vports) {
+        if (IS_25XX(isp)) {
+            isp->isp_mdvec->dv_ispfw = ISP_2500_MULTI_RISC_CODE;
+        } else if (IS_24XX(isp)) {
+            isp->isp_mdvec->dv_ispfw = ISP_2400_MULTI_RISC_CODE;
         }
     }
 #endif
@@ -1855,7 +1887,10 @@ isp_pci_reset1(ispsoftc_t *isp)
     }
     ISP_ENABLE_INTS(isp);
     isp->intsok = 1;
-    isp->mbintsok = 1;
+    /*
+     * We used to enable mbintsok here.
+     * This seemed to nuke 24XX cards in some, but not all cases.
+     */
 }
 
 static void
@@ -2169,6 +2204,8 @@ isplinux_pci_init(void)
     ret = pci_register_driver(&isplinux_pci_driver);
     if (ret < 0) {
         printk(KERN_ERR "%s: unable to register driver (return value %d)", __func__, ret);
+        DESTROY_ISP_CLASS(isp_class);
+        cdev_del(&isp_cdev);
         unregister_chrdev_region(isp_dev, MAX_ISP);
         return (ret);
     }

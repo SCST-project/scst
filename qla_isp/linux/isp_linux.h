@@ -1,4 +1,4 @@
-/* $Id: isp_linux.h,v 1.173 2009/05/10 16:25:09 mjacob Exp $ */
+/* $Id: isp_linux.h,v 1.174 2009/06/07 04:36:38 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2009 by Matthew Jacob
  *  All rights reserved.
@@ -339,6 +339,8 @@ struct isposinfo {
         mboxcmd_done    : 1,
         mbintsok        : 1,
         intsok          : 1;
+    u16                 scan_timeout;
+    u16                 rescan_timeout;
     u16                 frame_size;
     u16                 exec_throttle;
     struct task_struct *thread_task;
@@ -698,6 +700,8 @@ extern int api_channel;
 
 #define ISP_WATCH_TPS   10
 #define ISP_WATCH_TIME  (HZ / ISP_WATCH_TPS)
+#define ISP_SCAN_TIMEOUT    (2 * ISP_WATCH_TPS)
+#define ISP_RESCAN_TIMEOUT  ISP_WATCH_TPS
 
 #ifndef min
 #define min(a,b) (((a)<(b))?(a):(b))

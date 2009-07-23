@@ -2958,14 +2958,12 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
                 isp_dump_portdb(isp, bus);
             }
         }
+        isp_prt(isp, ISP_LOGCONFIG, prom0, bus, lp->portid, lp->handle, isp_class3_roles[lp->roles], "arrived", (ull) lp->node_wwn, (ull) lp->port_wwn);
         if (lp->dev_map_idx) {
-            unsigned long arg;
-            tgt = lp->dev_map_idx - 1;
-            isp_prt(isp, ISP_LOGCONFIG, prom2, bus, lp->portid, lp->handle, isp_class3_roles[lp->roles], "arrived at", tgt, (ull) lp->node_wwn, (ull) lp->port_wwn);
-            arg = tgt | (bus << 16);
-            isp_thread_event(isp, ISP_THREAD_SCSI_SCAN, (void *)arg, 0, __func__, __LINE__);
-        } else {
-            isp_prt(isp, ISP_LOGCONFIG, prom0, bus, lp->portid, lp->handle, isp_class3_roles[lp->roles], "arrived", (ull) lp->node_wwn, (ull) lp->port_wwn);
+            lp->dirty = 0;
+            if (isp->isp_osinfo.scan_timeout == 0) {
+                isp->isp_osinfo.scan_timeout = ISP_SCAN_TIMEOUT;
+            }
         }
         break;
     case ISPASYNC_DEV_CHANGED:
@@ -3004,15 +3002,13 @@ isp_async(ispsoftc_t *isp, ispasync_t cmd, ...)
         va_end(ap);
         fcp = FCPARAM(isp, bus);
         if (lp->dev_map_idx) {
-            unsigned long arg;
-            tgt = lp->dev_map_idx - 1;
-            fcp->isp_dev_map[tgt] = 0;
-            lp->state = FC_PORTDB_STATE_NIL;
-            lp->dev_map_idx = 0;
-            isp_prt(isp, ISP_LOGCONFIG, prom2, bus, lp->portid, lp->handle, isp_class3_roles[lp->roles], "departed", tgt, (ull) lp->node_wwn, (ull) lp->port_wwn);
-            arg = tgt | (bus << 16) | (1 << 31);
-            isp_thread_event(isp, ISP_THREAD_SCSI_SCAN, (void *)arg, 0, __func__, __LINE__);
-        } else if (lp->reserved == 0) {
+            lp->reserved = 2;
+            if (isp->isp_osinfo.rescan_timeout == 0) {
+                isp->isp_osinfo.rescan_timeout = ISP_RESCAN_TIMEOUT;
+            }
+            isp_prt(isp, ISP_LOGCONFIG, prom0, bus, lp->portid, lp->handle, isp_class3_roles[lp->roles], "zombie", (ull) lp->node_wwn, (ull) lp->port_wwn);
+            lp->state = FC_PORTDB_STATE_ZOMBIE;
+        } else {
             isp_prt(isp, ISP_LOGCONFIG, prom0, bus, lp->portid, lp->handle, isp_class3_roles[lp->roles], "departed", (ull) lp->node_wwn, (ull) lp->port_wwn);
         }
         break;
@@ -3787,6 +3783,16 @@ isplinux_timer(unsigned long arg)
     }
 
     /*
+     * Check for any rescan activity that needs running
+     */
+    if (isp->isp_osinfo.scan_timeout && --isp->isp_osinfo.scan_timeout == 0) {
+            isp_thread_event(isp, ISP_THREAD_SCSI_SCAN, (void *)1, 0, __func__, __LINE__);
+    }
+    if (isp->isp_osinfo.rescan_timeout && --isp->isp_osinfo.rescan_timeout == 0) {
+            isp_thread_event(isp, ISP_THREAD_SCSI_SCAN, (void *)0, 0, __func__, __LINE__);
+    }
+
+    /*
      * Set up the timer again
      */
     if (isp->dogactive) {
@@ -4262,6 +4268,7 @@ isplinux_reinit(ispsoftc_t *isp, int doset_defaults)
          * Bus Reset delay handled by firmware.
          */
     }
+    isp->mbintsok = 1;
     isp->isp_state = ISP_RUNSTATE;
     return (0);
 }
@@ -4332,6 +4339,48 @@ isp_thread_event(ispsoftc_t *isp, int action, void *a, int dowait, const char *f
     return (0);
 }
 
+static void
+isp_scsi_scan(ispsoftc_t *isp)
+{
+    unsigned long flags;
+    int chan, tgt, i;
+
+    if (!IS_FC(isp)) {
+        return;
+    }
+
+    ISP_LOCKU_SOFTC(isp);
+    for (chan = 0; chan < isp->isp_nchan; chan++) {
+        fcparam *fcp = FCPARAM(isp, chan);
+        for (i = 0; i < MAX_FC_TARG; i++) {
+            fcportdb_t *lp = &fcp->portdb[i];
+            if (lp->dev_map_idx == 0) {
+                continue;
+            }
+            tgt = lp->dev_map_idx - 1;
+            if (lp->state == FC_PORTDB_STATE_VALID && lp->dirty == 0) {
+                ISP_UNLKU_SOFTC(isp);
+                scsi_scan_target(&isp->isp_osinfo.host->shost_gendev, chan, tgt, 0, 0);
+                ISP_LOCKU_SOFTC(isp);
+            } else if (lp->state == FC_PORTDB_STATE_ZOMBIE) {
+                struct scsi_device *sdev;
+                fcp->isp_dev_map[tgt] = 0;
+                lp->state = FC_PORTDB_STATE_NIL;
+                lp->dev_map_idx = 0;
+                lp->dirty = 0;
+                ISP_UNLKU_SOFTC(isp);
+                sdev = scsi_device_lookup(isp->isp_osinfo.host, 0, tgt, 0);
+                if (sdev) {
+                    scsi_remove_device(sdev);
+                    scsi_device_put(sdev);
+                }
+                ISP_LOCKU_SOFTC(isp);
+            }
+        }
+    }
+    ISP_UNLKU_SOFTC(isp);
+}
+
 static int
 isp_task_thread(void *arg)
 {
@@ -4365,24 +4414,8 @@ isp_task_thread(void *arg)
             case ISP_THREAD_NIL:
                 break;
             case ISP_THREAD_SCSI_SCAN:
-            {
-                unsigned long arg = (unsigned long) tap->arg;
-                int tgt, chan, rescan;
-                tgt = arg & 0xffff;
-                chan = (arg >> 16) & 0xff;
-                rescan = (arg >> 31) & 1;
-                if (rescan == 0) {
-                    scsi_scan_target(&isp->isp_osinfo.host->shost_gendev, chan, tgt, 0, rescan);
-                } else {
-                    struct scsi_device *sdev;
-                    sdev = scsi_device_lookup(isp->isp_osinfo.host, 0, tgt, 0);
-                    if (sdev) {
-                        scsi_remove_device(sdev);
-                        scsi_device_put(sdev);
-                    }
-                }
+                isp_scsi_scan(isp);
                 break;
-            }
             case ISP_THREAD_REINIT:
                 ISP_LOCKU_SOFTC(isp);
                 if (isp->isp_dead) {
