@@ -178,6 +178,7 @@ static unsigned int dev_user_poll(struct file *filp, poll_table *wait);
 static long dev_user_ioctl(struct file *file, unsigned int cmd,
 	unsigned long arg);
 static int dev_user_release(struct inode *inode, struct file *file);
+static int dev_user_exit_dev(struct scst_user_dev *dev);
 static int dev_user_read_proc(struct seq_file *seq,
 	struct scst_dev_type *dev_type);
 
@@ -2832,7 +2833,25 @@ static int dev_user_unregister_dev(struct file *file)
 
 	up_read(&dev->dev_rwsem);
 
-	dev_user_release(NULL, file);
+	mutex_lock(&dev_priv_mutex);
+	dev = (struct scst_user_dev *)file->private_data;
+	if (dev == NULL) {
+		mutex_unlock(&dev_priv_mutex);
+		goto out;
+	}
+
+	dev->blocking = 0;
+	wake_up_all(&dev->cmd_lists.cmd_list_waitQ);
+
+	down_write(&dev->dev_rwsem);
+	file->private_data = NULL;
+	mutex_unlock(&dev_priv_mutex);
+
+	dev_user_exit_dev(dev);
+
+	up_write(&dev->dev_rwsem); /* to make lockdep happy */
+
+	kfree(dev);
 
 	scst_resume_activity();
 
@@ -3064,20 +3083,9 @@ static int dev_usr_parse(struct scst_cmd *cmd)
 
 static struct scst_dev_type dev_user_devtype = USR_TYPE;
 
-static int dev_user_release(struct inode *inode, struct file *file)
+static int dev_user_exit_dev(struct scst_user_dev *dev)
 {
-	int res = 0;
-	struct scst_user_dev *dev;
-
 	TRACE_ENTRY();
-
-	mutex_lock(&dev_priv_mutex);
-	dev = (struct scst_user_dev *)file->private_data;
-	if (dev == NULL) {
-		mutex_unlock(&dev_priv_mutex);
-		goto out;
-	}
-	file->private_data = NULL;
 
 	TRACE(TRACE_MGMT, "Releasing dev %s", dev->name);
 
@@ -3087,9 +3095,6 @@ static int dev_user_release(struct inode *inode, struct file *file)
 
 	dev->blocking = 0;
 	wake_up_all(&dev->cmd_lists.cmd_list_waitQ);
-
-	down_write(&dev->dev_rwsem);
-	mutex_unlock(&dev_priv_mutex);
 
 	spin_lock(&cleanup_lock);
 	list_add_tail(&dev->cleanup_list_entry, &cleanup_list);
@@ -3115,17 +3120,52 @@ static int dev_user_release(struct inode *inode, struct file *file)
 	sgv_pool_del(dev->pool_clust);
 	sgv_pool_del(dev->pool);
 
-	up_write(&dev->dev_rwsem); /* to make lockdep happy */
-
 	TRACE_MGMT_DBG("Releasing completed (dev %p)", dev);
 
 	kfree(dev);
 
 	module_put(THIS_MODULE);
 
+	TRACE_EXIT();
+	return 0;
+}
+
+static int __dev_user_release(void *arg)
+{
+	struct scst_user_dev *dev = (struct scst_user_dev *)arg;
+
+	dev_user_exit_dev(dev);
+	kfree(dev);
+	return 0;
+}
+
+static int dev_user_release(struct inode *inode, struct file *file)
+{
+	struct scst_user_dev *dev;
+	struct task_struct *t;
+
+	TRACE_ENTRY();
+
+	dev = (struct scst_user_dev *)file->private_data;
+	if (dev == NULL) {
+		mutex_unlock(&dev_priv_mutex);
+		goto out;
+	}
+	file->private_data = NULL;
+
+	TRACE_MGMT_DBG("Going to release dev %s", dev->name);
+
+	t = kthread_run(__dev_user_release, dev, "scst_usr_released");
+	if (IS_ERR(t)) {
+		PRINT_CRIT_ERROR("kthread_run() failed (%ld), releasing device "
+			"%p directly. If you have several devices under load "
+			"it might deadlock!", PTR_ERR(t), dev);
+		__dev_user_release(dev);
+	}
+ 
 out:
-	TRACE_EXIT_RES(res);
-	return res;
+	TRACE_EXIT();
+	return 0;
 }
 
 static int dev_user_process_cleanup(struct scst_user_dev *dev)
