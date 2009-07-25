@@ -3162,7 +3162,7 @@ static int dev_user_release(struct inode *inode, struct file *file)
 			"it might deadlock!", PTR_ERR(t), dev);
 		__dev_user_release(dev);
 	}
- 
+
 out:
 	TRACE_EXIT();
 	return 0;
