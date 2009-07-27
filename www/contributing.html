@@ -16,13 +16,13 @@
 	</div>
 	<div id="menu">
 		<ul>
-			<li id="sponsorship"><a href="sponsorship.html">Sponsorship</a></li>
 			<li><a href="index.html">Home</a></li>
 			<li><a href="http://www.sourceforge.net/projects/scst">Main/News</a></li>
 			<li><a href="targets.html">Drivers</a></li>
 			<li><a href="downloads.html">Downloads</a></li>
 			<li id="current"><a href="contributing.html">Contributing</a></li>
 			<li><a href="comparison.html">Comparison</a></li>			
+			<li><a href="solutions.html">Solutions</a></li>
 		</ul>
 	</div>	
 	<div id="content-wrap">  
@@ -32,17 +32,26 @@
 				<p>If you would like to contribute to SCST development, you can do in many ways:</p>
 
 				<ul>
-				<li><span>By reporting bugs or other problems.</span></li>
+				<li><span>By sending donations. They will be spent on further work making SCST better as well as on providing
+				better support and troubleshooting for you. Donations can be on one time or per period of time basis,
+				from companies or individuals. They can be sent by direct bank transfer or using
+				Western Union, Moneygram or similar payment systems. Unfortunately, more convenient options,
+				like PayPal, are not available in Russia.
+				<li><span>By sending patches, which fix bugs or implement new functionality.
+    				          See below a list of possible SCST improvements with some possible 
+    				          implementation ideas.</span></li>
 				<li><span>By writing or updating various documentation to keep it complete and up to date.
 					For instance, <a href="scst_pg.html">SCST internals description</a> document is
 					in some areas quite outdated. Particularly, many functions were renamed since
 					time, when it was written. It would be good to bring it up to date.</span></li>
-    				<li><span>By sending patches, which fix bugs or implement new functionality.
-    				          See below a list of possible SCST improvements with some possible 
-    				          implementation ideas.</span></li>
-				<li><span>By sending donations. They will be spent on making SCST even better as well as on providing
-				better support and troubleshooting for you.
+    				<li><span>By reporting bugs or other problems.</span></li>
 				</ul>			
+
+				<p>Contributing in SCST, you investing not only
+				in making Linux <strong>the best storage OS</strong>, but, if your company
+				has a product or service, based on SCST, you also investing in <strong>the secured
+				future</strong>	of your product	or service and, hence, in the <strong>the secured
+				future</strong> of your company.</p>
 
 				<h1>Possible SCST extensions and improvements</h1>
 
@@ -416,6 +425,13 @@
 				which would translate their internal READ/WRITE requests to corresponding SCSI commands and, on the
 				way back, SCSI status and sense codes to their internal status codes.</p>
 
+				<A NAME="iSER_target"></A><h3>iSER target</h3>
+
+				<p><a href="http://en.wikipedia.org/wiki/ISCSI_Extensions_for_RDMA">iSER</a> (iSCSI Extensions for RDMA)
+				protocol accelerates iSCSI by allowing direct data transfers using RDMA services (iWARP or
+				InfiniBand) bypassing the regular heavy weighted and CPU consuming TCP/IP data transfers path.</p>
+
+				<p>It would be good to add support for iSER in iSCSI-SCST.</p>
 			</div>
 	</div>
 </div>
@@ -423,7 +439,7 @@
 <!-- footer starts here -->		
 		<div id="footer">
 			<p>
-			&copy; Copyright 2008-2009 <b><font color="#EC981F">Vladislav Bolkhovitin & others.</font>&nbsp;&nbsp;
+			&copy; Copyright 2004-2009 <b><font color="#EC981F">Vladislav Bolkhovitin & others.</font>&nbsp;&nbsp;
 			Design by: <b><font color="#EC981F">Daniel Fernandes</font></b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;		
 			
 			</p>		
