@@ -29,10 +29,6 @@ To be done
 
  - Investigate possible missed emulated UA cases.
 
- - More target drivers errors handling (timeouts for commands, sent
-   to target drivers, e.g. via xmit_response(), etc.) with some kind
-   of error recovery.
-
  - Additional ability for target drivers to ask for command's retry also
    after xmit_response() and rdy_to_xfer() returned (for example, if a
    command was successfully sent to the target card, but later it was

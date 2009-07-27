@@ -809,6 +809,174 @@ out:
 }
 EXPORT_SYMBOL(scst_set_resp_data_len);
 
+/* No locks */
+int scst_queue_retry_cmd(struct scst_cmd *cmd, int finished_cmds)
+{
+	struct scst_tgt *tgt = cmd->tgt;
+	int res = 0;
+	unsigned long flags;
+
+	TRACE_ENTRY();
+
+	spin_lock_irqsave(&tgt->tgt_lock, flags);
+	tgt->retry_cmds++;
+	/*
+	 * Memory barrier is needed here, because we need the exact order
+	 * between the read and write between retry_cmds and finished_cmds to
+	 * not miss the case when a command finished while we queuing it for
+	 * retry after the finished_cmds check.
+	 */
+	smp_mb();
+	TRACE_RETRY("TGT QUEUE FULL: incrementing retry_cmds %d",
+	      tgt->retry_cmds);
+	if (finished_cmds != atomic_read(&tgt->finished_cmds)) {
+		/* At least one cmd finished, so try again */
+		tgt->retry_cmds--;
+		TRACE_RETRY("Some command(s) finished, direct retry "
+		      "(finished_cmds=%d, tgt->finished_cmds=%d, "
+		      "retry_cmds=%d)", finished_cmds,
+		      atomic_read(&tgt->finished_cmds), tgt->retry_cmds);
+		res = -1;
+		goto out_unlock_tgt;
+	}
+
+	TRACE_RETRY("Adding cmd %p to retry cmd list", cmd);
+	list_add_tail(&cmd->cmd_list_entry, &tgt->retry_cmd_list);
+
+	if (!tgt->retry_timer_active) {
+		tgt->retry_timer.expires = jiffies + SCST_TGT_RETRY_TIMEOUT;
+		add_timer(&tgt->retry_timer);
+		tgt->retry_timer_active = 1;
+	}
+
+out_unlock_tgt:
+	spin_unlock_irqrestore(&tgt->tgt_lock, flags);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/* Returns 0 to continue, >0 to restart, <0 to break */
+static int scst_check_hw_pending_cmd(struct scst_cmd *cmd,
+	unsigned long cur_time, unsigned long max_time,
+	struct scst_session *sess, unsigned long *flags,
+	struct scst_tgt_template *tgtt)
+{
+	int res = -1; /* break */
+
+	TRACE_DBG("cmd %p, hw_pending %d, proc time %ld, "
+		"pending time %ld", cmd, cmd->cmd_hw_pending,
+		(long)(cur_time - cmd->start_time) / HZ,
+		(long)(cur_time - cmd->hw_pending_start) / HZ);
+
+	if (time_before_eq(cur_time, cmd->start_time + max_time)) {
+		/* Cmds are ordered, so no need to check more */
+		goto out;
+	}
+
+	if (!cmd->cmd_hw_pending) {
+		res = 0; /* continue */
+		goto out;
+	}
+
+	if (time_before(cur_time, cmd->hw_pending_start + max_time)) {
+		/* Cmds are ordered, so no need to check more */
+		goto out;
+	}
+
+	TRACE_MGMT_DBG("Cmd %p HW pending for too long %ld (state %x)",
+		cmd, (cur_time - cmd->hw_pending_start) / HZ,
+		cmd->state);
+
+	cmd->cmd_hw_pending = 0;
+
+	spin_unlock_irqrestore(&sess->sess_list_lock, *flags);
+	tgtt->on_hw_pending_cmd_timeout(cmd);
+	spin_lock_irqsave(&sess->sess_list_lock, *flags);
+
+	res = 1; /* restart */
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void scst_hw_pending_work_fn(void *p)
+#else
+static void scst_hw_pending_work_fn(struct delayed_work *work)
+#endif
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	struct scst_session *sess = (struct scst_session *)p;
+#else
+	struct scst_session *sess = container_of(work, struct scst_session,
+					hw_pending_work);
+#endif
+	struct scst_tgt_template *tgtt = sess->tgt->tgtt;
+	struct scst_cmd *cmd;
+	unsigned long cur_time = jiffies;
+	unsigned long flags;
+	unsigned long max_time = tgtt->max_hw_pending_time * HZ;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("HW pending work (sess %p, max time %ld)", sess, max_time/HZ);
+
+	clear_bit(SCST_SESS_HW_PENDING_WORK_SCHEDULED, &sess->sess_aflags);
+
+	spin_lock_irqsave(&sess->sess_list_lock, flags);
+
+restart:
+	list_for_each_entry(cmd, &sess->search_cmd_list,
+				sess_cmd_list_entry) {
+		int rc;
+
+		rc = scst_check_hw_pending_cmd(cmd, cur_time, max_time, sess,
+					&flags, tgtt);
+		if (rc < 0)
+			break;
+		else if (rc == 0)
+			continue;
+		else
+			goto restart;
+	}
+
+restart1:
+	list_for_each_entry(cmd, &sess->after_pre_xmit_cmd_list,
+				sess_cmd_list_entry) {
+		int rc;
+
+		rc = scst_check_hw_pending_cmd(cmd, cur_time, max_time, sess,
+					&flags, tgtt);
+		if (rc < 0)
+			break;
+		else if (rc == 0)
+			continue;
+		else
+			goto restart1;
+	}
+
+	
+	if (!list_empty(&sess->search_cmd_list) ||
+	    !list_empty(&sess->after_pre_xmit_cmd_list)) {
+		/*
+		 * For stuck cmds if there is no activity we might need to have
+		 * one more run to release them, so reschedule once again.
+		 */
+		TRACE_DBG("Sched HW pending work for sess %p (max time %d)",
+			sess, tgtt->max_hw_pending_time);
+		set_bit(SCST_SESS_HW_PENDING_WORK_SCHEDULED, &sess->sess_aflags);
+		schedule_delayed_work(&sess->hw_pending_work,
+				tgtt->max_hw_pending_time * HZ);
+	}
+
+	spin_unlock_irqrestore(&sess->sess_list_lock, flags);
+
+	TRACE_EXIT();
+	return;
+}
+
 /* Called under scst_mutex and suspended activity */
 int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev)
 {
@@ -1860,9 +2028,16 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 	}
 	spin_lock_init(&sess->sess_list_lock);
 	INIT_LIST_HEAD(&sess->search_cmd_list);
+	INIT_LIST_HEAD(&sess->after_pre_xmit_cmd_list);
 	sess->tgt = tgt;
 	INIT_LIST_HEAD(&sess->init_deferred_cmd_list);
 	INIT_LIST_HEAD(&sess->init_deferred_mcmd_list);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20))
+	INIT_DELAYED_WORK(&sess->hw_pending_work,
+		(void (*)(struct work_struct *))scst_hw_pending_work_fn);
+#else
+	INIT_WORK(&sess->hw_pending_work, scst_hw_pending_work_fn, sess);
+#endif
 
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 	spin_lock_init(&sess->meas_lock);
@@ -1919,6 +2094,8 @@ void scst_free_session_callback(struct scst_session *sess)
 	TRACE_ENTRY();
 
 	TRACE_DBG("Freeing session %p", sess);
+
+	cancel_delayed_work_sync(&sess->hw_pending_work);
 
 	c = sess->shutdown_compl;
 
@@ -4054,7 +4231,7 @@ void scst_process_reset(struct scst_device *dev,
 
 		TRACE_DBG("Searching in search cmd list (sess=%p)", sess);
 		list_for_each_entry(cmd, &sess->search_cmd_list,
-				search_cmd_list_entry) {
+				sess_cmd_list_entry) {
 			if (cmd == exclude_cmd)
 				continue;
 			if ((cmd->tgt_dev == tgt_dev) ||

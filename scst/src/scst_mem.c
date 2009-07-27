@@ -1410,7 +1410,7 @@ void sgv_pool_deinit(struct sgv_pool *pool)
 
 	TRACE_ENTRY();
 
-	cancel_delayed_work(&pool->sgv_purge_work);
+	cancel_delayed_work_sync(&pool->sgv_purge_work);
 
 	sgv_pool_flush(pool);
 

@@ -399,6 +399,13 @@ enum scst_exec_context {
 #define SCST_SESS_SPH_SHUTDOWN       1
 
 /*************************************************************
+ ** Session's async (atomic) flags
+ *************************************************************/
+
+/* Set if the sess's hw pending work is scheduled */
+#define SCST_SESS_HW_PENDING_WORK_SCHEDULED	0
+
+/*************************************************************
  ** Cmd's async (atomic) flags
  *************************************************************/
 
@@ -566,6 +573,16 @@ struct scst_tgt_template {
 	unsigned no_proc_entry:1;
 
 	/*
+	 * The maximum time in seconds cmd can stay inside the target
+	 * hardware, i.e. after rdy_to_xfer() and xmit_response(), before
+	 * on_hw_pending_cmd_timeout() will be called, if defined.
+	 *
+	 * In the current implementation a cmd will be aborted in time t
+	 * max_hw_pending_time <= t < 2*max_hw_pending_time.
+	 */
+	int max_hw_pending_time;
+
+	/*
 	 * This function is equivalent to the SCSI
 	 * queuecommand. The target should transmit the response
 	 * buffer and the status in the scst_cmd struct.
@@ -605,6 +622,16 @@ struct scst_tgt_template {
 	 * OPTIONAL
 	 */
 	int (*rdy_to_xfer) (struct scst_cmd *cmd);
+
+	/*
+	 * Called if cmd stays inside the target hardware, i.e. after
+	 * rdy_to_xfer() and xmit_response(), more than max_hw_pending_time
+	 * time. The target driver supposed to cleanup this command and
+	 * resume cmd's processing.
+	 *
+	 * OPTIONAL
+	 */
+	void (*on_hw_pending_cmd_timeout) (struct scst_cmd *cmd);
 
 	/*
 	 * Called to notify the driver that the command is about to be freed.
@@ -964,16 +991,17 @@ struct scst_tgt {
 	void *tgt_priv;
 
 	/*
-	 * The following fields used to store and retry cmds if
-	 * target's internal queue is full, so the target is unable to accept
-	 * the cmd returning QUEUE FULL
+	 * The following fields used to store and retry cmds if target's
+	 * internal queue is full, so the target is unable to accept
+	 * the cmd returning QUEUE FULL.
+	 * They protected by tgt_lock, where necessary.
 	 */
 	bool retry_timer_active;
 	struct timer_list retry_timer;
 	atomic_t finished_cmds;
-	int retry_cmds;		/* protected by tgt_lock */
+	int retry_cmds;
 	spinlock_t tgt_lock;
-	struct list_head retry_cmd_list; /* protected by tgt_lock */
+	struct list_head retry_cmd_list;
 
 	/* Used to wait until session finished to unregister */
 	wait_queue_head_t unreg_waitQ;
@@ -987,7 +1015,7 @@ struct scst_tgt {
 
 /* Hash size and hash fn for hash based lun translation */
 #define	TGT_DEV_HASH_SHIFT	5
-#define	TGT_DEV_HASH_SIZE	(1<<TGT_DEV_HASH_SHIFT)
+#define	TGT_DEV_HASH_SIZE	(1 << TGT_DEV_HASH_SHIFT)
 #define	HASH_VAL(_val)		(_val & (TGT_DEV_HASH_SIZE - 1))
 
 struct scst_session {
@@ -1002,6 +1030,8 @@ struct scst_session {
 	/* Used for storage of target driver private stuff */
 	void *tgt_priv;
 
+	unsigned long sess_aflags; /* session's async flags */
+
 	/*
 	 * Hash list of tgt_dev's for this session, protected by scst_mutex
 	 * and suspended activity
@@ -1014,6 +1044,15 @@ struct scst_session {
 	 */
 	struct list_head search_cmd_list;
 
+	spinlock_t sess_list_lock; /* protects search_cmd_list, etc */
+
+	/*
+	 * List of cmds in this in the state after PRE_XMIT_RESP. All the cmds
+	 * moved here from search_cmd_list. Needed for hw_pending_work.
+	 * Protected by sess_list_lock.
+	 */
+	struct list_head after_pre_xmit_cmd_list;
+
 	atomic_t refcnt;		/* get/put counter */
 
 	/*
@@ -1022,13 +1061,17 @@ struct scst_session {
 	 */
 	atomic_t sess_cmd_count;
 
-	spinlock_t sess_list_lock; /* protects search_cmd_list, etc */
-
 	/* Access control for this session and list entry there */
 	struct scst_acg *acg;
 
 	/* List entry for the sessions list inside ACG */
 	struct list_head acg_sess_list_entry;
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20))
+	struct delayed_work hw_pending_work;
+#else
+	struct work_struct hw_pending_work;
+#endif
 
 	/* Name of attached initiator */
 	const char *initiator_name;
@@ -1045,7 +1088,7 @@ struct scst_session {
 	struct list_head sess_shut_list_entry;
 
 	/*
-	 * Lists of deffered during session initialization commands.
+	 * Lists of deferred during session initialization commands.
 	 * Protected by sess_list_lock.
 	 */
 	struct list_head init_deferred_cmd_list;
@@ -1138,6 +1181,9 @@ struct scst_cmd {
 	/* Set if scst_dec_on_dev_cmd() call is needed on the cmd's finish */
 	unsigned int dec_on_dev_needed:1;
 
+	/* Set if cmd is queued as hw pending */
+	unsigned int cmd_hw_pending:1;
+
 	/*
 	 * Set if the target driver wants to alloc data buffers on its own.
 	 * In this case alloc_data_buf() must be provided in the target driver
@@ -1156,18 +1202,6 @@ struct scst_cmd {
 
 	/* Set if the target driver called scst_set_expected() */
 	unsigned int expected_values_set:1;
-
-	/*
-	 * Set if the cmd was delayed by task management debugging code.
-	 * Used only if CONFIG_SCST_DEBUG_TM is on.
-	 */
-	unsigned int tm_dbg_delayed:1;
-
-	/*
-	 * Set if the cmd must be ignored by task management debugging code.
-	 * Used only if CONFIG_SCST_DEBUG_TM is on.
-	 */
-	unsigned int tm_dbg_immut:1;
 
 	/*
 	 * Set if the SG buffer was modified by scst_set_resp_data_len()
@@ -1217,6 +1251,18 @@ struct scst_cmd {
 	/* Set if cmd is finished */
 	unsigned int finished:1;
 
+	/*
+	 * Set if the cmd was delayed by task management debugging code.
+	 * Used only if CONFIG_SCST_DEBUG_TM is on.
+	 */
+	unsigned int tm_dbg_delayed:1;
+
+	/*
+	 * Set if the cmd must be ignored by task management debugging code.
+	 * Used only if CONFIG_SCST_DEBUG_TM is on.
+	 */
+	unsigned int tm_dbg_immut:1;
+
 	/**************************************************************/
 
 	unsigned long cmd_flags; /* cmd's async flags */
@@ -1247,8 +1293,8 @@ struct scst_cmd {
 	/* The corresponding sn_slot in tgt_dev->sn_slots */
 	atomic_t *sn_slot;
 
-	/* List entry for session's search_cmd_list */
-	struct list_head search_cmd_list_entry;
+	/* List entry for sess's search_cmd_list and after_pre_xmit_cmd_list */
+	struct list_head sess_cmd_list_entry;
 
 	/*
 	 * Used to found the cmd by scst_find_cmd_by_tag(). Set by the
@@ -1336,6 +1382,9 @@ struct scst_cmd {
 
 	uint8_t *sense;		/* pointer to sense buffer */
 	unsigned short sense_bufflen; /* length of the sense buffer, if any */
+
+	/* Start time when cmd was sent to rdy_to_xfer() or xmit_response() */
+	unsigned long hw_pending_start;
 
 	/* Used for storage of target driver private stuff */
 	void *tgt_priv;
@@ -2819,6 +2868,21 @@ static inline int scst_get_in_buf_count(struct scst_cmd *cmd)
 {
 	return (cmd->in_sg_cnt == 0) ? 1 : cmd->in_sg_cnt;
 }
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20))
+static inline int cancel_delayed_work_sync(struct delayed_work *work)
+#else
+static inline int cancel_delayed_work_sync(struct work_struct *work)
+#endif
+{
+	int res;
+
+	res = cancel_delayed_work(work);
+	flush_scheduled_work();
+	return res;
+}
+#endif
 
 /*
  * Suspends and resumes any activity.

@@ -284,6 +284,8 @@ int scst_global_mgmt_thread(void *arg);
 int scst_add_dev_threads(struct scst_device *dev, int num);
 void scst_del_dev_threads(struct scst_device *dev, int num);
 
+int scst_queue_retry_cmd(struct scst_cmd *cmd, int finished_cmds);
+
 int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev);
 void scst_free_device(struct scst_device *dev);
 

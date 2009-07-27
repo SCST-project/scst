@@ -236,8 +236,8 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
 		 * TM processing. This check is needed because there might be
 		 * old, i.e. deferred, commands and new, i.e. just coming, ones.
 		 */
-		if (cmd->search_cmd_list_entry.next == NULL)
-			list_add_tail(&cmd->search_cmd_list_entry,
+		if (cmd->sess_cmd_list_entry.next == NULL)
+			list_add_tail(&cmd->sess_cmd_list_entry,
 				&sess->search_cmd_list);
 		switch (sess->init_phase) {
 		case SCST_SESS_IPH_SUCCESS:
@@ -258,7 +258,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
 			sBUG();
 		}
 	} else
-		list_add_tail(&cmd->search_cmd_list_entry,
+		list_add_tail(&cmd->sess_cmd_list_entry,
 			      &sess->search_cmd_list);
 
 	spin_unlock_irqrestore(&sess->sess_list_lock, flags);
@@ -889,56 +889,10 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status,
 }
 EXPORT_SYMBOL(scst_restart_cmd);
 
-/* No locks */
-static int scst_queue_retry_cmd(struct scst_cmd *cmd, int finished_cmds)
-{
-	struct scst_tgt *tgt = cmd->sess->tgt;
-	int res = 0;
-	unsigned long flags;
-
-	TRACE_ENTRY();
-
-	spin_lock_irqsave(&tgt->tgt_lock, flags);
-	tgt->retry_cmds++;
-	/*
-	 * Memory barrier is needed here, because we need the exact order
-	 * between the read and write between retry_cmds and finished_cmds to
-	 * not miss the case when a command finished while we queuing it for
-	 * retry after the finished_cmds check.
-	 */
-	smp_mb();
-	TRACE_RETRY("TGT QUEUE FULL: incrementing retry_cmds %d",
-	      tgt->retry_cmds);
-	if (finished_cmds != atomic_read(&tgt->finished_cmds)) {
-		/* At least one cmd finished, so try again */
-		tgt->retry_cmds--;
-		TRACE_RETRY("Some command(s) finished, direct retry "
-		      "(finished_cmds=%d, tgt->finished_cmds=%d, "
-		      "retry_cmds=%d)", finished_cmds,
-		      atomic_read(&tgt->finished_cmds), tgt->retry_cmds);
-		res = -1;
-		goto out_unlock_tgt;
-	}
-
-	TRACE_RETRY("Adding cmd %p to retry cmd list", cmd);
-	list_add_tail(&cmd->cmd_list_entry, &tgt->retry_cmd_list);
-
-	if (!tgt->retry_timer_active) {
-		tgt->retry_timer.expires = jiffies + SCST_TGT_RETRY_TIMEOUT;
-		add_timer(&tgt->retry_timer);
-		tgt->retry_timer_active = 1;
-	}
-
-out_unlock_tgt:
-	spin_unlock_irqrestore(&tgt->tgt_lock, flags);
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
 static int scst_rdy_to_xfer(struct scst_cmd *cmd)
 {
 	int res, rc;
+	struct scst_tgt_template *tgtt = cmd->tgtt;
 
 	TRACE_ENTRY();
 
@@ -947,28 +901,43 @@ static int scst_rdy_to_xfer(struct scst_cmd *cmd)
 		goto out_dev_done;
 	}
 
-	if ((cmd->tgtt->rdy_to_xfer == NULL) || unlikely(cmd->internal)) {
+	if ((tgtt->rdy_to_xfer == NULL) || unlikely(cmd->internal)) {
 		cmd->state = SCST_CMD_STATE_TGT_PRE_EXEC;
 		res = SCST_CMD_STATE_RES_CONT_SAME;
 		goto out;
 	}
 
-	if (unlikely(!cmd->tgtt->rdy_to_xfer_atomic && scst_cmd_atomic(cmd))) {
+	if (unlikely(!tgtt->rdy_to_xfer_atomic && scst_cmd_atomic(cmd))) {
 		/*
 		 * It shouldn't be because of SCST_TGT_DEV_AFTER_*
 		 * optimization.
 		 */
 		TRACE_DBG("Target driver %s rdy_to_xfer() needs thread "
-			      "context, rescheduling", cmd->tgtt->name);
+			      "context, rescheduling", tgtt->name);
 		res = SCST_CMD_STATE_RES_NEED_THREAD;
 		goto out;
 	}
 
 	while (1) {
-		int finished_cmds = atomic_read(&cmd->sess->tgt->finished_cmds);
+		int finished_cmds = atomic_read(&cmd->tgt->finished_cmds);
 
 		res = SCST_CMD_STATE_RES_CONT_NEXT;
 		cmd->state = SCST_CMD_STATE_DATA_WAIT;
+
+		if (tgtt->on_hw_pending_cmd_timeout != NULL) {
+			struct scst_session *sess = cmd->sess;
+			cmd->hw_pending_start = jiffies;
+			cmd->cmd_hw_pending = 1;
+			if (!test_bit(SCST_SESS_HW_PENDING_WORK_SCHEDULED, &sess->sess_aflags)) {
+				TRACE_DBG("Sched HW pending work for sess %p "
+					"(max time %d)", sess,
+					tgtt->max_hw_pending_time);
+				set_bit(SCST_SESS_HW_PENDING_WORK_SCHEDULED,
+					&sess->sess_aflags);
+				schedule_delayed_work(&sess->hw_pending_work,
+					tgtt->max_hw_pending_time * HZ);
+			}
+		}
 
 		TRACE_DBG("Calling rdy_to_xfer(%p)", cmd);
 #ifdef CONFIG_SCST_DEBUG_RETRY
@@ -976,11 +945,13 @@ static int scst_rdy_to_xfer(struct scst_cmd *cmd)
 			rc = SCST_TGT_RES_QUEUE_FULL;
 		else
 #endif
-			rc = cmd->tgtt->rdy_to_xfer(cmd);
+			rc = tgtt->rdy_to_xfer(cmd);
 		TRACE_DBG("rdy_to_xfer() returned %d", rc);
 
 		if (likely(rc == SCST_TGT_RES_SUCCESS))
 			goto out;
+
+		cmd->cmd_hw_pending = 0;
 
 		/* Restore the previous state */
 		cmd->state = SCST_CMD_STATE_RDY_TO_XFER;
@@ -995,7 +966,7 @@ static int scst_rdy_to_xfer(struct scst_cmd *cmd)
 		case SCST_TGT_RES_NEED_THREAD_CTX:
 			TRACE_DBG("Target driver %s "
 			      "rdy_to_xfer() requested thread "
-			      "context, rescheduling", cmd->tgtt->name);
+			      "context, rescheduling", tgtt->name);
 			res = SCST_CMD_STATE_RES_NEED_THREAD;
 			break;
 
@@ -1012,10 +983,10 @@ out:
 out_error_rc:
 	if (rc == SCST_TGT_RES_FATAL_ERROR) {
 		PRINT_ERROR("Target driver %s rdy_to_xfer() returned "
-		     "fatal error", cmd->tgtt->name);
+		     "fatal error", tgtt->name);
 	} else {
 		PRINT_ERROR("Target driver %s rdy_to_xfer() returned invalid "
-			    "value %d", cmd->tgtt->name, rc);
+			    "value %d", tgtt->name, rc);
 	}
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 
@@ -1029,6 +1000,7 @@ out_dev_done:
 static void scst_proccess_redirect_cmd(struct scst_cmd *cmd,
 	enum scst_exec_context context, int check_retries)
 {
+	struct scst_tgt *tgt = cmd->tgt;
 	unsigned long flags;
 
 	TRACE_ENTRY();
@@ -1046,7 +1018,7 @@ static void scst_proccess_redirect_cmd(struct scst_cmd *cmd,
 
 	case SCST_CONTEXT_DIRECT:
 		if (check_retries)
-			scst_check_retries(cmd->tgt);
+			scst_check_retries(tgt);
 		scst_process_active_cmd(cmd, false);
 		break;
 
@@ -1056,7 +1028,7 @@ static void scst_proccess_redirect_cmd(struct scst_cmd *cmd,
 		/* go through */
 	case SCST_CONTEXT_THREAD:
 		if (check_retries)
-			scst_check_retries(cmd->tgt);
+			scst_check_retries(tgt);
 		spin_lock_irqsave(&cmd->cmd_lists->cmd_list_lock, flags);
 		TRACE_DBG("Adding cmd %p to active cmd list", cmd);
 		if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))
@@ -1071,7 +1043,7 @@ static void scst_proccess_redirect_cmd(struct scst_cmd *cmd,
 
 	case SCST_CONTEXT_TASKLET:
 		if (check_retries)
-			scst_check_retries(cmd->tgt);
+			scst_check_retries(tgt);
 		scst_schedule_tasklet(cmd);
 		break;
 	}
@@ -1087,6 +1059,8 @@ void scst_rx_data(struct scst_cmd *cmd, int status,
 
 	TRACE_DBG("Preferred context: %d", pref_context);
 	TRACE(TRACE_SCSI, "cmd %p, status %#x", cmd, status);
+
+	cmd->cmd_hw_pending = 0;
 
 #ifdef CONFIG_SCST_EXTRACHECKS
 	if ((in_irq() || irqs_disabled()) &&
@@ -2885,6 +2859,7 @@ out:
 static int scst_pre_xmit_response(struct scst_cmd *cmd)
 {
 	int res;
+	struct scst_session *sess = cmd->sess;
 
 	TRACE_ENTRY();
 
@@ -2931,9 +2906,10 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 	 * initiator sends cmd with the same tag => it is possible that
 	 * a wrong cmd will be found by find() functions.
 	 */
-	spin_lock_irq(&cmd->sess->sess_list_lock);
-	list_del(&cmd->search_cmd_list_entry);
-	spin_unlock_irq(&cmd->sess->sess_list_lock);
+	spin_lock_irq(&sess->sess_list_lock);
+	list_move_tail(&cmd->sess_cmd_list_entry,
+		&sess->after_pre_xmit_cmd_list);
+	spin_unlock_irq(&sess->sess_list_lock);
 
 	cmd->done = 1;
 	smp_mb(); /* to sync with scst_abort_cmd() */
@@ -2964,7 +2940,6 @@ out:
 	{
 		struct timespec ts;
 		uint64_t finish, scst_time, proc_time;
-		struct scst_session *sess = cmd->sess;
 
 		getnstimeofday(&ts);
 		finish = scst_sec_to_nsec(ts.tv_sec) + ts.tv_nsec;
@@ -2993,26 +2968,27 @@ out:
 
 static int scst_xmit_response(struct scst_cmd *cmd)
 {
+	struct scst_tgt_template *tgtt = cmd->tgtt;
 	int res, rc;
 
 	TRACE_ENTRY();
 
 	EXTRACHECKS_BUG_ON(cmd->internal);
 
-	if (unlikely(!cmd->tgtt->xmit_response_atomic &&
+	if (unlikely(!tgtt->xmit_response_atomic &&
 		     scst_cmd_atomic(cmd))) {
 		/*
 		 * It shouldn't be because of SCST_TGT_DEV_AFTER_*
 		 * optimization.
 		 */
 		TRACE_DBG("Target driver %s xmit_response() needs thread "
-			      "context, rescheduling", cmd->tgtt->name);
+			      "context, rescheduling", tgtt->name);
 		res = SCST_CMD_STATE_RES_NEED_THREAD;
 		goto out;
 	}
 
 	while (1) {
-		int finished_cmds = atomic_read(&cmd->sess->tgt->finished_cmds);
+		int finished_cmds = atomic_read(&cmd->tgt->finished_cmds);
 
 		res = SCST_CMD_STATE_RES_CONT_NEXT;
 		cmd->state = SCST_CMD_STATE_XMIT_WAIT;
@@ -3041,16 +3017,33 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 		}
 #endif
 
+		if (tgtt->on_hw_pending_cmd_timeout != NULL) {
+			struct scst_session *sess = cmd->sess;
+			cmd->hw_pending_start = jiffies;
+			cmd->cmd_hw_pending = 1;
+			if (!test_bit(SCST_SESS_HW_PENDING_WORK_SCHEDULED, &sess->sess_aflags)) {
+				TRACE_DBG("Sched HW pending work for sess %p "
+					"(max time %d)", sess,
+					tgtt->max_hw_pending_time);
+				set_bit(SCST_SESS_HW_PENDING_WORK_SCHEDULED,
+					&sess->sess_aflags);
+				schedule_delayed_work(&sess->hw_pending_work,
+					tgtt->max_hw_pending_time * HZ);
+			}
+		}
+
 #ifdef CONFIG_SCST_DEBUG_RETRY
 		if (((scst_random() % 100) == 77))
 			rc = SCST_TGT_RES_QUEUE_FULL;
 		else
 #endif
-			rc = cmd->tgtt->xmit_response(cmd);
+			rc = tgtt->xmit_response(cmd);
 		TRACE_DBG("xmit_response() returned %d", rc);
 
 		if (likely(rc == SCST_TGT_RES_SUCCESS))
 			goto out;
+
+		cmd->cmd_hw_pending = 0;
 
 		/* Restore the previous state */
 		cmd->state = SCST_CMD_STATE_XMIT_RESP;
@@ -3065,7 +3058,7 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 		case SCST_TGT_RES_NEED_THREAD_CTX:
 			TRACE_DBG("Target driver %s xmit_response() "
 			      "requested thread context, rescheduling",
-			      cmd->tgtt->name);
+			      tgtt->name);
 			res = SCST_CMD_STATE_RES_NEED_THREAD;
 			break;
 
@@ -3083,10 +3076,10 @@ out:
 out_error:
 	if (rc == SCST_TGT_RES_FATAL_ERROR) {
 		PRINT_ERROR("Target driver %s xmit_response() returned "
-			"fatal error", cmd->tgtt->name);
+			"fatal error", tgtt->name);
 	} else {
 		PRINT_ERROR("Target driver %s xmit_response() returned "
-			"invalid value %d", cmd->tgtt->name, rc);
+			"invalid value %d", tgtt->name, rc);
 	}
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 	cmd->state = SCST_CMD_STATE_FINISHED;
@@ -3101,6 +3094,8 @@ void scst_tgt_cmd_done(struct scst_cmd *cmd,
 
 	sBUG_ON(cmd->state != SCST_CMD_STATE_XMIT_WAIT);
 
+	cmd->cmd_hw_pending = 0;
+
 	cmd->state = SCST_CMD_STATE_FINISHED;
 	scst_proccess_redirect_cmd(cmd, pref_context, 1);
 
@@ -3112,10 +3107,15 @@ EXPORT_SYMBOL(scst_tgt_cmd_done);
 static int scst_finish_cmd(struct scst_cmd *cmd)
 {
 	int res;
+	struct scst_session *sess = cmd->sess;
 
 	TRACE_ENTRY();
 
-	atomic_dec(&cmd->sess->sess_cmd_count);
+	atomic_dec(&sess->sess_cmd_count);
+
+	spin_lock_irq(&sess->sess_list_lock);
+	list_del(&cmd->sess_cmd_list_entry);
+	spin_unlock_irq(&sess->sess_list_lock);
 
 	cmd->finished = 1;
 	smp_mb(); /* to sync with scst_abort_cmd() */
@@ -4274,7 +4274,7 @@ static void __scst_abort_task_set(struct scst_mgmt_cmd *mcmd,
 
 	TRACE_DBG("Searching in search cmd list (sess=%p)", sess);
 	list_for_each_entry(cmd, &sess->search_cmd_list,
-			    search_cmd_list_entry) {
+			    sess_cmd_list_entry) {
 		if ((cmd->tgt_dev == tgt_dev) ||
 		    ((cmd->tgt_dev == NULL) &&
 		     (cmd->lun == tgt_dev->lun))) {
@@ -4374,7 +4374,7 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 
 		TRACE_DBG("Searching in search cmd list (sess=%p)", sess);
 		list_for_each_entry(cmd, &sess->search_cmd_list,
-				    search_cmd_list_entry) {
+				    sess_cmd_list_entry) {
 			if ((cmd->dev == dev) ||
 			    ((cmd->dev == NULL) &&
 			     scst_is_cmd_belongs_to_dev(cmd, dev))) {
@@ -5678,7 +5678,7 @@ static struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,
 	TRACE_DBG("%s (sess=%p, tag=%llu)", "Searching in search cmd list",
 		  sess, (long long unsigned int)tag);
 	list_for_each_entry(cmd, &sess->search_cmd_list,
-			search_cmd_list_entry) {
+			sess_cmd_list_entry) {
 		if (cmd->tag == tag)
 			goto out;
 	}
@@ -5704,7 +5704,7 @@ struct scst_cmd *scst_find_cmd(struct scst_session *sess, void *data,
 
 	TRACE_DBG("Searching in search cmd list (sess=%p)", sess);
 	list_for_each_entry(cmd, &sess->search_cmd_list,
-			search_cmd_list_entry) {
+			sess_cmd_list_entry) {
 		if (cmp_fn(cmd, data))
 			goto out_unlock;
 	}
