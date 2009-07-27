@@ -3122,8 +3122,6 @@ static int dev_user_exit_dev(struct scst_user_dev *dev)
 
 	TRACE_MGMT_DBG("Releasing completed (dev %p)", dev);
 
-	kfree(dev);
-
 	module_put(THIS_MODULE);
 
 	TRACE_EXIT();
@@ -3133,7 +3131,6 @@ static int dev_user_exit_dev(struct scst_user_dev *dev)
 static int __dev_user_release(void *arg)
 {
 	struct scst_user_dev *dev = (struct scst_user_dev *)arg;
-
 	dev_user_exit_dev(dev);
 	kfree(dev);
 	return 0;
