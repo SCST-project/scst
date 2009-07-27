@@ -455,6 +455,8 @@ static int scst_local_send_resp(struct scsi_cmnd *cmnd,
  */
 static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 				   void (*done)(struct scsi_cmnd *))
+	__acquires(&h->host_lock)
+	__releases(&h->host_lock)
 {
 	struct scst_local_tgt_specific *tgt_specific = NULL;
 	struct scst_local_host_info *scst_lcl_host;

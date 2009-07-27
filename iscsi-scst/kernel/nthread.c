@@ -910,6 +910,8 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
  * then reaquire.
  */
 static void scst_do_job_rd(void)
+	__acquires(&iscsi_rd_lock)
+	__releases(&iscsi_rd_lock)
 {
 	TRACE_ENTRY();
 
@@ -1591,6 +1593,8 @@ static int process_write_queue(struct iscsi_conn *conn)
  * then reaquire.
  */
 static void scst_do_job_wr(void)
+	__acquires(&iscsi_wr_lock)
+	__releases(&iscsi_wr_lock)
 {
 	TRACE_ENTRY();
 
