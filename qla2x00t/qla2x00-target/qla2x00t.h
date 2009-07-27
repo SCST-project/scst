@@ -35,6 +35,7 @@
 
 #define Q2T_MAX_CDB_LEN             16
 #define Q2T_TIMEOUT                 10	/* in seconds */
+#define Q2T_MAX_HW_PENDING_TIME	    60 /* in seconds */
 
 /* Immediate notify status constants */
 #define IMM_NTFY_LIP_RESET          0x000E

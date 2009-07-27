@@ -66,6 +66,7 @@ static void q2t_host_action(scsi_qla_host_t *ha,
 	enum qla2x_tgt_host_action action);
 static void q2t_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
 	struct atio_entry *atio, int ha_locked);
+static void q2t_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd);
 
 /*
  * Global Variables
@@ -87,12 +88,14 @@ static struct scst_tgt_template tgt_template = {
 	.xmit_response_atomic	= 1,
 	.rdy_to_xfer_atomic	= 1,
 #endif
+	.max_hw_pending_time	= Q2T_MAX_HW_PENDING_TIME,
 	.detect			= q2t_target_detect,
 	.release		= q2t_target_release,
 	.xmit_response		= q2t_xmit_response,
 	.rdy_to_xfer		= q2t_rdy_to_xfer,
 	.on_free_cmd		= q2t_on_free_cmd,
 	.task_mgmt_fn_done	= q2t_task_mgmt_fn_done,
+	.on_hw_pending_cmd_timeout = q2t_on_hw_pending_cmd_timeout,
 };
 
 static struct kmem_cache *q2t_cmd_cachep;
@@ -252,7 +255,7 @@ static int q2t_target_detect(struct scst_tgt_template *templ)
 	}
 
 	if (tgt_data.magic != QLA2X_INITIATOR_MAGIC) {
-		PRINT_ERROR("Wrong version of the initiator driver: %d",
+		PRINT_ERROR("Wrong version of the initiator part: %d",
 			tgt_data.magic);
 		res = -EINVAL;
 	}
@@ -1999,6 +2002,76 @@ static void q2t_async_event(uint16_t code, scsi_qla_host_t *ha,
 	}
 
 out:
+	TRACE_EXIT();
+	return;
+}
+
+/* ha->hardware_lock supposed to be held and IRQs off */
+static void q2t_cleanup_hw_pending_cmd(scsi_qla_host_t *ha, struct q2t_cmd *cmd)
+{
+	uint32_t h;
+
+	for (h = 0; h < MAX_OUTSTANDING_COMMANDS; h++) {
+		if (ha->cmds[h] == cmd) {
+			TRACE_DBG("Clearing handle %d for cmd %p", h, cmd);
+			ha->cmds[h] = NULL;
+			break;
+		}
+	}
+	return;
+}
+
+static void q2t_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd)
+{
+	struct q2t_cmd *cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
+	struct q2t_tgt *tgt = cmd->sess->tgt;
+	scsi_qla_host_t *ha = tgt->ha;
+	unsigned long flags;
+
+	TRACE_ENTRY();
+
+	TRACE_MGMT_DBG("Cmd %p HW pending for too long (state %x)", cmd,
+		cmd->state);
+
+	spin_lock_irqsave(&ha->hardware_lock, flags);
+
+	if (cmd->state == Q2T_STATE_PROCESSED) {
+		TRACE_MGMT_DBG("Force finishing cmd %p", cmd);
+		if (q2t_has_data(scst_cmd)) {
+			pci_unmap_sg(ha->pdev, scst_cmd_get_sg(scst_cmd),
+				scst_cmd_get_sg_cnt(scst_cmd),
+				scst_to_tgt_dma_dir(
+				    scst_cmd_get_data_direction(scst_cmd)));
+		}
+	} else if (cmd->state == Q2T_STATE_NEED_DATA) {
+		TRACE_MGMT_DBG("Force rx_data cmd %p", cmd);
+
+		q2t_cleanup_hw_pending_cmd(ha, cmd);
+
+		pci_unmap_sg(ha->pdev, scst_cmd_get_sg(scst_cmd),
+			scst_cmd_get_sg_cnt(scst_cmd),
+			scst_to_tgt_dma_dir(
+				scst_cmd_get_data_direction(scst_cmd)));
+
+		scst_rx_data(scst_cmd, SCST_RX_STATUS_ERROR_FATAL,
+				SCST_CONTEXT_THREAD);
+		goto out_unlock;
+	} else if (cmd->state == Q2T_STATE_ABORTED) {
+		TRACE_MGMT_DBG("Force finishing aborted cmd %p (tag %ld)",
+			cmd, (unsigned long)scst_cmd->tag);
+	} else {
+		PRINT_ERROR("qla2x00tgt(%ld): A command in state (%d) should "
+			"not be HW pending", ha->host_no, cmd->state);
+		goto out_unlock;
+	}
+
+	q2t_cleanup_hw_pending_cmd(ha, cmd);
+
+	scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_FAILED);
+	scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_THREAD);
+
+out_unlock:
+	spin_unlock_irqrestore(&ha->hardware_lock, flags);
 	TRACE_EXIT();
 	return;
 }
