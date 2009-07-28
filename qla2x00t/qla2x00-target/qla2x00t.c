@@ -2195,7 +2195,6 @@ static void q2t_host_action(scsi_qla_host_t *ha,
 		}
 
 		tgt = ha->tgt;
-		ha->tgt = NULL; /* ensure no one gets in behind us */
 		spin_unlock_irqrestore(&ha->hardware_lock, flags);
 
 		mutex_unlock(&qla_mgmt_mutex);
@@ -2205,7 +2204,8 @@ static void q2t_host_action(scsi_qla_host_t *ha,
 		scst_unregister(tgt->scst_tgt);
 		/*
 		 * Free of tgt happens via callback q2t_target_release
-		 * called from scst_unregister, so we shouldn't touch it again
+		 * called from scst_unregister, so it might be dead here!
+		 * Let's clear it just in case.
 		 */
 		tgt = NULL;
 		break;
