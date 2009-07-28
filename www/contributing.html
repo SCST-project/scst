@@ -332,6 +332,19 @@
 				<p>In <a href="sgv_big_order_alloc.diff">sgv_big_order_alloc.diff</a> you
 				can find a possible way to solve this issue.</p>
 
+				<p>There are also 2 more patches you can look at:</p>
+				
+				<ul>
+				
+				<li><span><a href="sgv_big_order_alloc-r2.diff">sgv_big_order_alloc-r2.diff</a> - this patch
+				has all the required features, but has a memory corruption.</li></span>
+
+				<li><span><a href="sgv_big_order_alloc-sfw4.diff">sgv_big_order_alloc-sfw4.diff</a> - this patch,
+				created by Frank Zago, works for him, but doesn't have all the required features to be merged
+				in SCST.</li></span>
+
+				</ul>
+
 				<A NAME="MEM_REG"></A><h3>Memory registration</h3>
 				
 				<p>In some cases a target driver might need to register memory used for data buffers in the
