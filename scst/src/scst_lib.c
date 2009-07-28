@@ -957,7 +957,6 @@ restart1:
 			goto restart1;
 	}
 
-	
 	if (!list_empty(&sess->search_cmd_list) ||
 	    !list_empty(&sess->after_pre_xmit_cmd_list)) {
 		/*
