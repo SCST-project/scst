@@ -1469,7 +1469,7 @@ void sgv_pool_set_allocator(struct sgv_pool *pool,
 EXPORT_SYMBOL(sgv_pool_set_allocator);
 
 struct sgv_pool *sgv_pool_create(const char *name,
-	enum sgv_clustering_types clustering_type, 
+	enum sgv_clustering_types clustering_type,
 	int single_alloc_pages, bool shared, int purge_interval)
 {
 	struct sgv_pool *pool;

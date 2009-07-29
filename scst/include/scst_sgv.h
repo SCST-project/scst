@@ -153,7 +153,7 @@ void sgv_pool_free(struct sgv_pool_obj *sgv, struct scst_mem_lim *mem_lim);
 
 /**
  * sgv_get_priv - returns the private allocation data
- * @:sgv        the SGV object	
+ * @:sgv        the SGV object
  *
  * Description:
  *     Allows to get the allocation private data for this SGV
