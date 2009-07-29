@@ -37,12 +37,14 @@
 #include <linux/init.h>
 #include <linux/slab.h>
 #include <linux/err.h>
+#include <linux/ctype.h>
 #include <linux/string.h>
 #include <linux/kthread.h>
 
 #include <asm/atomic.h>
 
 #include "ib_srpt.h"
+#include "scst_debug.h"
 
 /* Name of this kernel module. */
 #define DRV_NAME		"ib_srpt"
@@ -50,6 +52,11 @@
 #define PFX			DRV_NAME ": "
 #define DRV_VERSION		"1.0.1"
 #define DRV_RELDATE		"July 10, 2008"
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+/* Flags to be used in SCST debug tracing statements. */
+#define DEFAULT_SRPT_TRACE_FLAGS (TRACE_OUT_OF_MEM | TRACE_MINOR \
+				  | TRACE_MGMT | TRACE_SPECIAL)
+#endif
 
 #define MELLANOX_SRPT_ID_STRING	"Mellanox OFED SRP target"
 
@@ -67,12 +74,22 @@ struct srpt_thread {
 	struct task_struct *thread;
 };
 
+/*
+ * Global Variables
+ */
+
 static u64 mellanox_ioc_guid;
 /* List of srpt_device structures. */
 static struct list_head srpt_devices;
 static int thread;
 static struct srpt_thread srpt_thread;
 static DECLARE_WAIT_QUEUE_HEAD(ioctx_list_waitQ);
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+static unsigned long trace_flag = DEFAULT_SRPT_TRACE_FLAGS;
+module_param(trace_flag, long, 0644);
+MODULE_PARM_DESC(trace_flag,
+		 "Trace flags for the ib_srpt kernel module.");
+#endif
 
 module_param(thread, int, 0444);
 MODULE_PARM_DESC(thread,
@@ -122,6 +139,13 @@ static void srpt_event_handler(struct ib_event_handler *handler,
 	case IB_EVENT_PKEY_CHANGE:
 	case IB_EVENT_SM_CHANGE:
 	case IB_EVENT_CLIENT_REREGISTER:
+		/*
+		 * Refresh port data asynchronously. Note: it is safe to call
+		 * schedule_work() even if &sport->work is already on the
+		 * global workqueue because schedule_work() tests for the
+		 * work_pending() condition before adding &sport->work to the
+		 * global work queue.
+		 */
 		if (event->element.port_num <= sdev->device->phys_port_cnt) {
 			sport = &sdev->port[event->element.port_num - 1];
 			if (!sport->lid && !sport->sm_lid)
@@ -2136,6 +2160,7 @@ static void srpt_on_free_cmd(struct scst_cmd *scmnd)
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && ! defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
+/* A vanilla 2.6.19 or older kernel without backported OFED kernel headers. */
 static void srpt_refresh_port_work(void *ctx)
 #else
 static void srpt_refresh_port_work(struct work_struct *work)
@@ -2159,8 +2184,13 @@ static int srpt_detect(struct scst_tgt_template *tp)
 	struct srpt_device *sdev;
 	int count = 0;
 
+	TRACE_ENTRY();
+
 	list_for_each_entry(sdev, &srpt_devices, list)
 		++count;
+
+	TRACE_EXIT();
+
 	return count;
 }
 
@@ -2172,6 +2202,8 @@ static int srpt_release(struct scst_tgt *scst_tgt)
 {
 	struct srpt_device *sdev = scst_tgt_get_tgt_priv(scst_tgt);
 	struct srpt_rdma_ch *ch, *tmp_ch;
+
+	TRACE_ENTRY();
 
 	BUG_ON(!scst_tgt);
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
@@ -2189,6 +2221,8 @@ static int srpt_release(struct scst_tgt *scst_tgt)
 	srpt_unregister_mad_agent(sdev);
 
 	scst_tgt_set_tgt_priv(scst_tgt, NULL);
+
+	TRACE_EXIT();
 
 	return 0;
 }
@@ -2284,13 +2318,166 @@ static void srpt_release_class_dev(struct device *dev)
 {
 }
 
+static const struct { int flag; const char *const label; }
+	srpt_trace_label[] =
+{
+	{ TRACE_OUT_OF_MEM,	"out_of_mem"	},
+	{ TRACE_MINOR,		"minor"		},
+	{ TRACE_SG_OP,		"sg"		},
+	{ TRACE_MEMORY,		"mem"		},
+	{ TRACE_BUFF,		"buff"		},
+	{ TRACE_ENTRYEXIT,	"entryexit"	},
+	{ TRACE_PID,		"pid"		},
+	{ TRACE_LINE,		"line"		},
+	{ TRACE_FUNCTION,	"function"	},
+	{ TRACE_DEBUG,		"debug"		},
+	{ TRACE_SPECIAL,	"special"	},
+	{ TRACE_SCSI,		"scsi"		},
+	{ TRACE_MGMT,		"mgmt"		},
+	{ TRACE_MGMT_MINOR,	"mgmt_minor"	},
+	{ TRACE_MGMT_DEBUG,	"mgmt_dbg"	},
+};
+
+/**
+ * Convert a label into a trace flag. Consider exactly 'len' characters of
+ * the label and ignore case. Return zero if no match has been found.
+ */
+static unsigned long trace_label_to_flag(const char *const label, int len)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(srpt_trace_label); i++)
+		if (strncasecmp(srpt_trace_label[i].label, label, len) == 0)
+			return srpt_trace_label[i].flag;
+
+	return 0;
+}
+
+/**
+ * Parse multiple tracing flags separated by whitespace. Return zero upon
+ * error.
+ */
+static unsigned long parse_flags(const char *buf, int count)
+{
+	unsigned long result = 0;
+	unsigned long flag;
+	const char *p;
+	const char *e;
+
+	for (p = buf; p < buf + count; p = e) {
+		while (p < buf + count && isspace(*p))
+			p++;
+		e = p;
+		while (e < buf + count && !isspace(*e))
+			e++;
+		flag = trace_label_to_flag(p, e - p);
+		if (!flag)
+			return 0;
+		result |= flag;
+	}
+	return result;
+}
+
+/**
+ * Convert a flag into a label. A flag is an integer with exactly one bit set.
+ * Return NULL upon failure.
+ */
+static const char *trace_flag_to_label(unsigned long flag)
+{
+	int i;
+
+	if (flag == 0)
+		return NULL;
+
+	for (i = 0; i < ARRAY_SIZE(srpt_trace_label); i++)
+		if (srpt_trace_label[i].flag == flag)
+			return srpt_trace_label[i].label;
+
+	return NULL;
+}
+
+/** sysfs function for showing the "trace_level" attribute. */
+static ssize_t srpt_show_trace_flags(struct class *class, char *buf)
+{
+	int i;
+	int first = 1;
+
+	if (trace_flag == 0) {
+		strcpy(buf, "none\n");
+		return strlen(buf);
+	}
+
+	*buf = 0;
+	for (i = 0; i < 8 * sizeof(trace_flag); i++) {
+		const char *label;
+
+		label = trace_flag_to_label(trace_flag & (1UL << i));
+		if (label) {
+			if (first)
+				first = 0;
+			else
+				strcat(buf, " | ");
+			strcat(buf, label);
+		}
+	}
+	strcat(buf, "\n");
+	return strlen(buf);
+}
+
+/** sysfs function for storing the "trace_level" attribute. */
+static ssize_t srpt_store_trace_flags(struct class *class,
+				      const char *buf, size_t count)
+{
+	unsigned long flags;
+
+	if (strncasecmp(buf, "all", 3) == 0)
+		trace_flag = TRACE_ALL;
+	else if (strncasecmp(buf, "none", 4) == 0
+		 || strncasecmp(buf, "null", 4) == 0) {
+		trace_flag = 0;
+	} else if (strncasecmp(buf, "default", 7) == 0)
+		trace_flag = DEFAULT_SRPT_TRACE_FLAGS;
+	else if (strncasecmp(buf, "set ", 4) == 0) {
+		flags = parse_flags(buf + 4, count - 4);
+		if (flags)
+			trace_flag = flags;
+		else
+			count = -EINVAL;
+	} else if (strncasecmp(buf, "add ", 4) == 0) {
+		flags = parse_flags(buf + 4, count - 4);
+		if (flags)
+			trace_flag |= flags;
+		else
+			count = -EINVAL;
+	} else if (strncasecmp(buf, "del ", 4) == 0) {
+		flags = parse_flags(buf + 4, count - 4);
+		if (flags)
+			trace_flag &= ~flags;
+		else
+			count = -EINVAL;
+	} else if (strncasecmp(buf, "value ", 4) == 0)
+		trace_flag = simple_strtoul(buf + 4, NULL, 0);
+	else
+		count = -EINVAL;
+	return count;
+}
+
+static struct class_attribute srpt_class_attrs[] = {
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	__ATTR(trace_level, 0600, srpt_show_trace_flags,
+	       srpt_store_trace_flags),
+#endif
+	__ATTR_NULL,
+};
+
 static struct class srpt_class = {
 	.name = "infiniband_srpt",
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-	.release = srpt_release_class_dev
+	.release = srpt_release_class_dev,
 #else
-	.dev_release = srpt_release_class_dev
+	.dev_release = srpt_release_class_dev,
 #endif
+	.class_attrs = srpt_class_attrs,
 };
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
@@ -2350,6 +2537,8 @@ static void srpt_add_one(struct ib_device *device)
 	struct srpt_port *sport;
 	struct ib_srq_init_attr srq_attr;
 	int i;
+
+	TRACE_ENTRY();
 
 	sdev = kzalloc(sizeof *sdev, GFP_KERNEL);
 	if (!sdev)
@@ -2467,6 +2656,10 @@ static void srpt_add_one(struct ib_device *device)
 		sport->sdev = sdev;
 		sport->port = i;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && ! defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
+		/*
+		 * A vanilla 2.6.19 or older kernel without backported OFED
+		 * kernel headers.
+		 */
 		INIT_WORK(&sport->work, srpt_refresh_port_work, sport);
 #else
 		INIT_WORK(&sport->work, srpt_refresh_port_work);
@@ -2477,6 +2670,8 @@ static void srpt_add_one(struct ib_device *device)
 			goto err_refresh_port;
 		}
 	}
+
+	TRACE_EXIT();
 
 	return;
 
@@ -2504,6 +2699,8 @@ err_dev:
 #endif
 free_dev:
 	kfree(sdev);
+
+	TRACE_EXIT();
 }
 
 /*
@@ -2513,7 +2710,10 @@ free_dev:
  */
 static void srpt_remove_one(struct ib_device *device)
 {
+	int i;
 	struct srpt_device *sdev;
+
+	TRACE_ENTRY();
 
 	sdev = ib_get_client_data(device, &srpt_client);
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
@@ -2524,6 +2724,13 @@ static void srpt_remove_one(struct ib_device *device)
 	if (WARN_ON(!sdev))
 		return;
 #endif
+
+	/*
+	 * Cancel the work if it is queued. Wait until srpt_refresh_port_work()
+	 * finished if it is running.
+	 */
+	for (i = 0; i < sdev->device->phys_port_cnt; i++)
+		cancel_work_sync(&sdev->port[i].work);
 
 	scst_unregister(sdev->scst_tgt);
 	sdev->scst_tgt = NULL;
@@ -2542,6 +2749,8 @@ static void srpt_remove_one(struct ib_device *device)
 	srpt_free_ioctx_ring(sdev);
 	list_del(&sdev->list);
 	kfree(sdev);
+
+	TRACE_EXIT();
 }
 
 /*
@@ -2599,11 +2808,15 @@ mem_out:
 
 static void __exit srpt_cleanup_module(void)
 {
+	TRACE_ENTRY();
+
 	if (srpt_thread.thread)
 		kthread_stop(srpt_thread.thread);
 	ib_unregister_client(&srpt_client);
 	scst_unregister_target_template(&srpt_template);
 	class_unregister(&srpt_class);
+
+	TRACE_EXIT();
 }
 
 module_init(srpt_init_module);
