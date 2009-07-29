@@ -2370,6 +2370,8 @@ static unsigned long parse_flags(const char *buf, int count)
 		e = p;
 		while (e < buf + count && !isspace(*e))
 			e++;
+		if (e == p)
+			break;
 		flag = trace_label_to_flag(p, e - p);
 		if (!flag)
 			return 0;
