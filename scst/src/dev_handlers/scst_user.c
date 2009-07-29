@@ -522,12 +522,12 @@ static int dev_user_alloc_sg(struct scst_user_cmd *ucmd, int cached_buff)
 	EXTRACHECKS_BUG_ON(bufflen == 0);
 
 	if (cached_buff) {
-		flags |= SCST_POOL_RETURN_OBJ_ON_ALLOC_FAIL;
+		flags |= SGV_POOL_RETURN_OBJ_ON_ALLOC_FAIL;
 		if (ucmd->ubuff == 0)
-			flags |= SCST_POOL_NO_ALLOC_ON_CACHE_MISS;
+			flags |= SGV_POOL_NO_ALLOC_ON_CACHE_MISS;
 	} else {
 		TRACE_MEM("%s", "Not cached buff");
-		flags |= SCST_POOL_ALLOC_NO_CACHED;
+		flags |= SGV_POOL_ALLOC_NO_CACHED;
 		if (ucmd->ubuff == 0) {
 			res = 1;
 			goto out;
@@ -2640,7 +2640,7 @@ out:
 static int dev_user_register_dev(struct file *file,
 	const struct scst_user_dev_desc *dev_desc)
 {
-	int res = -ENOMEM, i;
+	int res, i;
 	struct scst_user_dev *dev, *d;
 	int block;
 
@@ -2673,12 +2673,15 @@ static int dev_user_register_dev(struct file *file,
 
 	if (!try_module_get(THIS_MODULE)) {
 		PRINT_ERROR("%s", "Fail to get module");
+		res = -ETXTBSY;
 		goto out;
 	}
 
 	dev = kzalloc(sizeof(*dev), GFP_KERNEL);
-	if (dev == NULL)
+	if (dev == NULL) {
+		res = -ENOMEM;
 		goto out_put;
+	}
 
 	init_rwsem(&dev->dev_rwsem);
 	spin_lock_init(&dev->cmd_lists.cmd_list_lock);
@@ -2702,9 +2705,13 @@ static int dev_user_register_dev(struct file *file,
 		(dev_desc->sgv_name[0] == '\0') ? dev->name :
 						  dev_desc->sgv_name);
 	dev->pool = sgv_pool_create(dev->devtype.name, sgv_no_clustering,
-					dev_desc->sgv_shared);
-	if (dev->pool == NULL)
+					dev_desc->sgv_single_alloc_pages,
+					dev_desc->sgv_shared,
+					dev_desc->sgv_purge_interval);
+	if (dev->pool == NULL) {
+		res = -ENOMEM;
 		goto out_free_dev;
+	}
 	sgv_pool_set_allocator(dev->pool, dev_user_alloc_pages,
 		dev_user_free_sg_entries);
 
@@ -2712,9 +2719,14 @@ static int dev_user_register_dev(struct file *file,
 		(dev_desc->sgv_name[0] == '\0') ? dev->name :
 						  dev_desc->sgv_name);
 	dev->pool_clust = sgv_pool_create(dev->devtype.name,
-				sgv_tail_clustering, dev_desc->sgv_shared);
-	if (dev->pool_clust == NULL)
+				sgv_tail_clustering,
+				dev_desc->sgv_single_alloc_pages,
+				dev_desc->sgv_shared,
+				dev_desc->sgv_purge_interval);
+	if (dev->pool_clust == NULL) {
+		res = -ENOMEM;
 		goto out_free0;
+	}
 	sgv_pool_set_allocator(dev->pool_clust, dev_user_alloc_pages,
 		dev_user_free_sg_entries);
 
@@ -2739,6 +2751,8 @@ static int dev_user_register_dev(struct file *file,
 	dev->def_block = block;
 
 	res = __dev_user_set_opt(dev, &dev_desc->opt);
+	if (res != 0)
+		goto out_free;
 
 	TRACE_MEM("dev %p, name %s", dev, dev->name);
 
@@ -2757,9 +2771,6 @@ static int dev_user_register_dev(struct file *file,
 	list_add_tail(&dev->dev_list_entry, &dev_list);
 
 	spin_unlock(&dev_list_lock);
-
-	if (res != 0)
-		goto out_del_free;
 
 	res = scst_register_virtual_dev_driver(&dev->devtype);
 	if (res < 0)

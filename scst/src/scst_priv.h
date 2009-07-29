@@ -58,12 +58,12 @@ extern unsigned long scst_trace_flag;
 	TRACE_LINE | TRACE_FUNCTION | TRACE_SPECIAL | TRACE_MGMT | \
 	/*TRACE_MGMT_MINOR |*/ TRACE_MGMT_DEBUG | TRACE_RTRY)
 
-#define TRACE_RETRY(args...)		__TRACE(TRACE_RTRY, args)
-#define TRACE_SN(args...)		__TRACE(TRACE_SCSI_SERIALIZING, args)
-#define TRACE_SEND_TOP(args...)		__TRACE(TRACE_SND_TOP, args)
-#define TRACE_RECV_TOP(args...)		__TRACE(TRACE_RCV_TOP, args)
-#define TRACE_SEND_BOT(args...)		__TRACE(TRACE_SND_BOT, args)
-#define TRACE_RECV_BOT(args...)		__TRACE(TRACE_RCV_BOT, args)
+#define TRACE_RETRY(args...)	TRACE_DBG_FLAG(TRACE_RTRY, args)
+#define TRACE_SN(args...)	TRACE_DBG_FLAG(TRACE_SCSI_SERIALIZING, args)
+#define TRACE_SEND_TOP(args...)	TRACE_DBG_FLAG(TRACE_SND_TOP, args)
+#define TRACE_RECV_TOP(args...)	TRACE_DBG_FLAG(TRACE_RCV_TOP, args)
+#define TRACE_SEND_BOT(args...)	TRACE_DBG_FLAG(TRACE_SND_BOT, args)
+#define TRACE_RECV_BOT(args...)	TRACE_DBG_FLAG(TRACE_RCV_BOT, args)
 
 #else /* CONFIG_SCST_DEBUG */
 

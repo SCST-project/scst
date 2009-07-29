@@ -91,7 +91,7 @@ static int wt_flag, rd_only_flag, o_direct_flag, nullio, nv_cache;
 #if defined(DEBUG_TM_IGNORE) || defined(DEBUG_TM_IGNORE_ALL)
 static int debug_tm_ignore;
 #endif
-static int non_blocking, sgv_shared;
+static int non_blocking, sgv_shared, sgv_single_alloc_pages, sgv_purge_interval;
 static void *(*alloc_fn)(size_t size) = align_alloc;
 
 static struct option const long_options[] =
@@ -111,6 +111,8 @@ static struct option const long_options[] =
 	{"flush", required_argument, 0, 'F'},
 	{"unreg_before_close", no_argument, 0, 'u'},
 	{"sgv_shared", no_argument, 0, 's'},
+	{"sgv_single_cache", required_argument, 0, 'S'},
+	{"sgv_purge_interval", required_argument, 0, 'P'},
 #if defined(DEBUG) || defined(TRACING)
 	{"debug", required_argument, 0, 'd'},
 #endif
@@ -124,7 +126,7 @@ static struct option const long_options[] =
 
 static void usage(void)
 {
-	printf("Usage: %s [OPTION] name path [name path] ...\n", app_name);
+	printf("Usage: %s [OPTIONS] name path [name path] ...\n", app_name);
 	printf("\nFILEIO disk target emulator for SCST\n");
 	printf("  -b, --block=size	Block size, must be power of 2 and >=512\n");
 	printf("  -e, --threads=count	Number of threads, %d by default\n", THREADS);
@@ -143,6 +145,8 @@ static void usage(void)
 	printf("  -I, --vdisk_id=ID	Vdisk ID (used in multi-targets setups)\n");
 	printf("  -F, --flush=n		Flush SGV cache each n seconds\n");
 	printf("  -s, --sgv_shared	Use shared SGV cache\n");
+	printf("  -S, --sgv_single_cache=n Use single entry SGV cache with n pages/entry\n");
+	printf("  -P, --sgv_purge_interval=n Use SGV cache purge interval n seconds\n");
 	printf("  -u, --unreg_before_close Unregister before close\n");
 #if defined(DEBUG) || defined(TRACING)
 	printf("  -d, --debug=level	Debug tracing level\n");
@@ -317,6 +321,8 @@ int start(int argc, char **argv)
 			strncpy(desc.sgv_name, devs[0].name, sizeof(desc.sgv_name)-1);
 			desc.sgv_name[sizeof(desc.sgv_name)-1] = '\0';
 		}
+		desc.sgv_single_alloc_pages = sgv_single_alloc_pages;
+		desc.sgv_purge_interval = sgv_purge_interval;
 		desc.type = devs[i].type;
 		desc.block_size = devs[i].block_size;
 
@@ -439,7 +445,7 @@ int main(int argc, char **argv)
 
 	memset(devs, 0, sizeof(devs));
 
-	while ((ch = getopt_long(argc, argv, "+b:e:trongluF:I:cp:f:m:d:vh", long_options,
+	while ((ch = getopt_long(argc, argv, "+b:e:trongluF:I:cp:f:m:d:vsS:P:h", long_options,
 				&longindex)) >= 0) {
 		switch (ch) {
 		case 'b':
@@ -495,6 +501,12 @@ int main(int argc, char **argv)
 			break;
 		case 's':
 			sgv_shared = 1;
+			break;
+		case 'S':
+			sgv_single_alloc_pages = atoi(optarg);
+			break;
+		case 'P':
+			sgv_purge_interval = atoi(optarg);
 			break;
 		case 'm':
 			if (strncmp(optarg, "all", 3) == 0)
@@ -600,6 +612,21 @@ int main(int argc, char **argv)
 		break;
 	default:
 		sBUG();
+	}
+
+	if (sgv_shared)
+		PRINT_INFO("	%s", "SGV shared");
+
+	if (sgv_single_alloc_pages != 0)
+		PRINT_INFO("	Use single entry SGV cache with %d pages/entry",
+			sgv_single_alloc_pages);
+
+	if (sgv_purge_interval != 0) {
+		if (sgv_purge_interval > 0)
+			PRINT_INFO("	Use SGV cache purge interval %d seconds",
+				sgv_purge_interval);
+		else
+			PRINT_INFO("	%s", "SGV cache purging disabled");
 	}
 
 	if (!o_direct_flag && (memory_reuse_type == SCST_USER_MEM_NO_REUSE)) {

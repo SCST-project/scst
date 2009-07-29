@@ -2457,9 +2457,9 @@ int scst_alloc_space(struct scst_cmd *cmd)
 
 	gfp_mask = tgt_dev->gfp_mask | (atomic ? GFP_ATOMIC : GFP_KERNEL);
 
-	flags = atomic ? SCST_POOL_NO_ALLOC_ON_CACHE_MISS : 0;
+	flags = atomic ? SGV_POOL_NO_ALLOC_ON_CACHE_MISS : 0;
 	if (cmd->no_sgv)
-		flags |= SCST_POOL_ALLOC_NO_CACHED;
+		flags |= SGV_POOL_ALLOC_NO_CACHED;
 
 	cmd->sg = sgv_pool_alloc(tgt_dev->pool, cmd->bufflen, gfp_mask, flags,
 			&cmd->sg_cnt, &cmd->sgv, &cmd->dev->dev_mem_lim, NULL);

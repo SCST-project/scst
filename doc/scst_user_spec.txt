@@ -63,6 +63,8 @@ struct scst_user_dev_desc
 	uint8_t version;
 	uint8_t type;
 	uint8_t sgv_shared;
+	int32_t sgv_single_alloc_pages;
+	int32_t sgv_purge_interval
 	uint8_t has_own_order_mgmt;
 	struct scst_user_opt opt;
 	uint32_t block_size;
@@ -76,8 +78,21 @@ where:
 
  - type - SCSI type of the device
 
- - sgv_shared - true, if SGV cache for this device should be shared with
+ - sgv_shared - true, if the SGV cache for this device should be shared with
    other devices. False, if the SGV cache should be dedicated.
+
+ - sgv_single_alloc_pages - if 0, then the SGV cache for this device will
+   work in the set of power 2 size buffers mode. If >0, then the SGV
+   cache will work in the fixed size buffers mode. In this case it sets
+   the size of each buffer in pages. See the SGV cache documentation
+   (http://scst.sourceforge.net/sgv_cache.txt) for more details.
+
+ - sgv_purge_interval - sets the SGV cache purging interval. I.e. an SG
+   buffer will be freed if it's unused for time t purge_interval <= t <
+   2*purge_interval. If purge_interval is 0, then the default interval
+   will be used (60 seconds). If purge_interval <0, then the automatic
+   purging will be disabled. Shrinking by the system's demand will also
+   be disabled.
 
  - has_own_order_mgmt - set it in non-zero, if device implements own
    ORDERED commands management, i.e. guarantees commands execution order
@@ -469,23 +484,17 @@ allocated and fully built SG vectors for subsequent commands of this
 type, so for them SCST_USER_ALLOC_MEM subfunction will not be called and
 in SCST_USER_EXEC pbuf pointer will point to that reused buffer. 
 
-SGV cache is a backend cache made on top of Linux kernel SLAB cache. It
-caches SG vectors with power of 2 data sizes: 4K, 8K, ..., 4M. So, if
-there is a 5K SCSI command coming, then the user space handler will be
-asked for 8K allocation, from which only 5K will be used for this
-particular SCSI command. Then that SG vector will be cached and
-subsequently reused for all SCSI commands between 4K and 8K. For a 1M
-SCSI command the user space handler will be asked for another buffer
-(while the previous 5K one will be kept), which will not be then reused
-for 5K SCSI commands, since 1M and 5K vectors belong to different cache
-data sizes, it will be reused only for commands between 512K and 1M.
+SGV cache is a backend cache made on top of Linux kernel kmem cache. It
+caches unused SG vectors for future allocations to improve performance.
 Then, after some time of inactivity or when the system is under memory
 pressure, the cache entries will be freed and the user space handler
-will be notified using SCST_USER_ON_CACHED_MEM_FREE.
+will be notified using SCST_USER_ON_CACHED_MEM_FREE. See the SGV cache
+documentation (http://scst.sourceforge.net/sgv_cache.txt) for more
+details.
 
-Since SGV cache caches SG vectors with power of 2 data sizes, alloc_len
-field could be up to 2 times more, than actually required by the SCSI
-command.
+Since the SGV cache caches SG vectors, which can be bigger, than actual
+data sizes of SCSI commands, alloc_len field could also be bigger, than
+actually required by the SCSI command.
 
 The memory reuse could be used in both SCSI tagged and untagged queuing
 environments. In the SCSI tagged queuing environment the SGV cache will
@@ -521,12 +530,12 @@ reply using the corresponding reply command.
 
 In some cases for performance reasons for READ-type SCSI commands
 SCST_USER_ALLOC_MEM subcommand isn't returned before SCST_USER_EXEC.
-Thus, if pbuf pointer is 0 and the SCSI command needs data transfer,
-the user space handler should be prepared to allocate the data buffer
-with size alloc_len, which could be up to 2 times more, than actually
-required by the SCSI command. But field bufflen will contain the correct
-value. All the memory reusage rules, described for SCST_USER_ALLOC_MEM,
-apply to SCST_USER_EXEC as well.
+Thus, if pbuf pointer is 0 and the SCSI command needs data transfer, the
+user space handler should be prepared to allocate the data buffer with
+size alloc_len, which could be bigger (due to the SGV cache), than
+actually required by the SCSI command. But field bufflen will contain
+the correct value. All the memory reusage rules, described for
+SCST_USER_ALLOC_MEM, apply to SCST_USER_EXEC as well.
 
 Payload contains struct scst_user_scsi_cmd_exec, which is defined as the
 following:

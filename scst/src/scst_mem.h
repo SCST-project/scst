@@ -32,8 +32,8 @@ struct trans_tbl_ent {
 };
 
 struct sgv_pool_obj {
-	/* if <0 - pages, >0 - order */
-	int order_or_pages;
+	int cache_num;
+	int pages;
 
 	/* jiffies, protected by sgv_pool_lock */
 	unsigned long time_stamp;
@@ -65,6 +65,8 @@ struct sgv_pool_alloc_fns {
 
 struct sgv_pool {
 	enum sgv_clustering_types clustering_type;
+	int single_alloc_pages;
+	int max_cached_pages;
 
 	struct sgv_pool_alloc_fns alloc_fns;
 
@@ -72,6 +74,8 @@ struct sgv_pool {
 	struct kmem_cache *caches[SGV_POOL_ELEMENTS];
 
 	spinlock_t sgv_pool_lock; /* outer lock for sgv_pools_lock! */
+
+	int purge_interval;
 
 	/* Protected by sgv_pool_lock */
 	unsigned int purge_work_scheduled:1;
@@ -101,6 +105,8 @@ struct sgv_pool {
 
 	atomic_t sgv_pool_ref;
 
+	int max_caches;
+
 	/* SCST_MAX_NAME + few more bytes to match scst_user expectations */
 	char cache_names[SGV_POOL_ELEMENTS][SCST_MAX_NAME + 10];
 	char name[SCST_MAX_NAME + 10];
@@ -111,7 +117,8 @@ struct sgv_pool {
 };
 
 int sgv_pool_init(struct sgv_pool *pool, const char *name,
-	enum sgv_clustering_types clustering_type);
+	enum sgv_clustering_types clustering_type, int single_alloc_pages,
+	int purge_interval);
 void sgv_pool_deinit(struct sgv_pool *pool);
 
 static inline struct scatterlist *sgv_pool_sg(struct sgv_pool_obj *obj)
