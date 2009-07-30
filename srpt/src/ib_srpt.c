@@ -40,9 +40,11 @@
 #include <linux/ctype.h>
 #include <linux/string.h>
 #include <linux/kthread.h>
-
 #include <asm/atomic.h>
-
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+#include <linux/proc_fs.h>
+#include <linux/seq_file.h>
+#endif
 #include "ib_srpt.h"
 #include "scst_debug.h"
 
@@ -56,6 +58,8 @@
 /* Flags to be used in SCST debug tracing statements. */
 #define DEFAULT_SRPT_TRACE_FLAGS (TRACE_OUT_OF_MEM | TRACE_MINOR \
 				  | TRACE_MGMT | TRACE_SPECIAL)
+/* Name of the entry that will be created under /proc/scsi_tgt/ib_srpt. */
+#define SRPT_PROC_TRACE_LEVEL_NAME	"trace_level"
 #endif
 
 #define MELLANOX_SRPT_ID_STRING	"Mellanox OFED SRP target"
@@ -100,6 +104,7 @@ static void srpt_add_one(struct ib_device *device);
 static void srpt_remove_one(struct ib_device *device);
 static int srpt_disconnect_channel(struct srpt_rdma_ch *ch, int dreq);
 static void srpt_unregister_mad_agent(struct srpt_device *sdev);
+static void srpt_unregister_procfs_entry(struct scst_tgt_template *tgt);
 
 static struct ib_client srpt_client = {
 	.name = DRV_NAME,
@@ -2215,6 +2220,8 @@ static int srpt_release(struct scst_tgt *scst_tgt)
 		return -ENODEV;
 #endif
 
+	srpt_unregister_procfs_entry(scst_tgt->tgtt);
+
 	list_for_each_entry_safe(ch, tmp_ch, &sdev->rch_list, list)
 	    srpt_release_channel(ch, 1);
 
@@ -2297,7 +2304,7 @@ static struct scst_tgt_template srpt_template = {
 	.sg_tablesize = SRPT_DEF_SG_TABLESIZE,
 	.xmit_response_atomic = 1,
 	.rdy_to_xfer_atomic = 1,
-	.no_proc_entry = 1,
+	.no_proc_entry = 0,
 	.detect = srpt_detect,
 	.release = srpt_release,
 	.xmit_response = srpt_xmit_response,
@@ -2319,158 +2326,25 @@ static void srpt_release_class_dev(struct device *dev)
 }
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-static const struct { int flag; const char *const label; }
-	srpt_trace_label[] =
+static int srpt_trace_level_show(struct seq_file *seq, void *v)
 {
-	{ TRACE_OUT_OF_MEM,	"out_of_mem"	},
-	{ TRACE_MINOR,		"minor"		},
-	{ TRACE_SG_OP,		"sg"		},
-	{ TRACE_MEMORY,		"mem"		},
-	{ TRACE_BUFF,		"buff"		},
-	{ TRACE_ENTRYEXIT,	"entryexit"	},
-	{ TRACE_PID,		"pid"		},
-	{ TRACE_LINE,		"line"		},
-	{ TRACE_FUNCTION,	"function"	},
-	{ TRACE_DEBUG,		"debug"		},
-	{ TRACE_SPECIAL,	"special"	},
-	{ TRACE_SCSI,		"scsi"		},
-	{ TRACE_MGMT,		"mgmt"		},
-	{ TRACE_MGMT_MINOR,	"mgmt_minor"	},
-	{ TRACE_MGMT_DEBUG,	"mgmt_dbg"	},
+	return scst_proc_log_entry_read(seq, trace_flag, NULL);
+}
+
+static ssize_t srpt_proc_trace_level_write(struct file *file,
+	const char __user *buf, size_t length, loff_t *off)
+{
+	return scst_proc_log_entry_write(file, buf, length, &trace_flag,
+		DEFAULT_SRPT_TRACE_FLAGS, NULL);
+}
+
+static struct scst_proc_data srpt_log_proc_data = {
+	SCST_DEF_RW_SEQ_OP(srpt_proc_trace_level_write)
+	.show = srpt_trace_level_show,
 };
-
-/**
- * Convert a label into a trace flag. Consider exactly 'len' characters of
- * the label and ignore case. Return zero if no match has been found.
- */
-static unsigned long trace_label_to_flag(const char *const label, int len)
-{
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(srpt_trace_label); i++)
-		if (strncasecmp(srpt_trace_label[i].label, label, len) == 0)
-			return srpt_trace_label[i].flag;
-
-	return 0;
-}
-
-/**
- * Parse multiple tracing flags separated by whitespace. Return zero upon
- * error.
- */
-static unsigned long parse_flags(const char *buf, int count)
-{
-	unsigned long result = 0;
-	unsigned long flag;
-	const char *p;
-	const char *e;
-
-	for (p = buf; p < buf + count; p = e) {
-		while (p < buf + count && isspace(*p))
-			p++;
-		e = p;
-		while (e < buf + count && !isspace(*e))
-			e++;
-		if (e == p)
-			break;
-		flag = trace_label_to_flag(p, e - p);
-		if (!flag)
-			return 0;
-		result |= flag;
-	}
-	return result;
-}
-
-/**
- * Convert a flag into a label. A flag is an integer with exactly one bit set.
- * Return NULL upon failure.
- */
-static const char *trace_flag_to_label(unsigned long flag)
-{
-	int i;
-
-	if (flag == 0)
-		return NULL;
-
-	for (i = 0; i < ARRAY_SIZE(srpt_trace_label); i++)
-		if (srpt_trace_label[i].flag == flag)
-			return srpt_trace_label[i].label;
-
-	return NULL;
-}
-
-/** sysfs function for showing the "trace_level" attribute. */
-static ssize_t srpt_show_trace_flags(struct class *class, char *buf)
-{
-	int i;
-	int first = 1;
-
-	if (trace_flag == 0) {
-		strcpy(buf, "none\n");
-		return strlen(buf);
-	}
-
-	*buf = 0;
-	for (i = 0; i < 8 * sizeof(trace_flag); i++) {
-		const char *label;
-
-		label = trace_flag_to_label(trace_flag & (1UL << i));
-		if (label) {
-			if (first)
-				first = 0;
-			else
-				strcat(buf, " | ");
-			strcat(buf, label);
-		}
-	}
-	strcat(buf, "\n");
-	return strlen(buf);
-}
-
-/** sysfs function for storing the "trace_level" attribute. */
-static ssize_t srpt_store_trace_flags(struct class *class,
-				      const char *buf, size_t count)
-{
-	unsigned long flags;
-
-	if (strncasecmp(buf, "all", 3) == 0)
-		trace_flag = TRACE_ALL;
-	else if (strncasecmp(buf, "none", 4) == 0
-		 || strncasecmp(buf, "null", 4) == 0) {
-		trace_flag = 0;
-	} else if (strncasecmp(buf, "default", 7) == 0)
-		trace_flag = DEFAULT_SRPT_TRACE_FLAGS;
-	else if (strncasecmp(buf, "set ", 4) == 0) {
-		flags = parse_flags(buf + 4, count - 4);
-		if (flags)
-			trace_flag = flags;
-		else
-			count = -EINVAL;
-	} else if (strncasecmp(buf, "add ", 4) == 0) {
-		flags = parse_flags(buf + 4, count - 4);
-		if (flags)
-			trace_flag |= flags;
-		else
-			count = -EINVAL;
-	} else if (strncasecmp(buf, "del ", 4) == 0) {
-		flags = parse_flags(buf + 4, count - 4);
-		if (flags)
-			trace_flag &= ~flags;
-		else
-			count = -EINVAL;
-	} else if (strncasecmp(buf, "value ", 4) == 0)
-		trace_flag = simple_strtoul(buf + 4, NULL, 0);
-	else
-		count = -EINVAL;
-	return count;
-}
 #endif
 
 static struct class_attribute srpt_class_attrs[] = {
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-	__ATTR(trace_level, 0600, srpt_show_trace_flags,
-	       srpt_store_trace_flags),
-#endif
 	__ATTR_NULL,
 };
 
@@ -2757,6 +2631,48 @@ static void srpt_remove_one(struct ib_device *device)
 	TRACE_EXIT();
 }
 
+/**
+ * Create procfs entries for srpt. Currently the only procfs entry created
+ * by this function is the "trace_level" entry.
+ */
+static int srpt_register_procfs_entry(struct scst_tgt_template *tgt)
+{
+	int res = 0;
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	struct proc_dir_entry *p, *root;
+
+	root = scst_proc_get_tgt_root(tgt);
+	WARN_ON(!root);
+	if (root) {
+		/*
+		 * Fill in the scst_proc_data::data pointer, which is used in
+		 * a printk(KERN_INFO ...) statement in
+		 * scst_proc_log_entry_write() in scst_proc.c.
+		 */
+		srpt_log_proc_data.data = (char *)tgt->name;
+		p = scst_create_proc_entry(root, SRPT_PROC_TRACE_LEVEL_NAME,
+					   &srpt_log_proc_data);
+		if (!p)
+			res = -ENOMEM;
+	} else
+		res = -ENOMEM;
+
+#endif
+	return res;
+}
+
+static void srpt_unregister_procfs_entry(struct scst_tgt_template *tgt)
+{
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	struct proc_dir_entry *root;
+
+	root = scst_proc_get_tgt_root(tgt);
+	WARN_ON(!root);
+	if (root)
+		remove_proc_entry(SRPT_PROC_TRACE_LEVEL_NAME, root);
+#endif
+}
+
 /*
  * Module initialization.
  *
@@ -2774,20 +2690,26 @@ static int __init srpt_init_module(void)
 	ret = class_register(&srpt_class);
 	if (ret) {
 		printk(KERN_ERR PFX "couldn't register class ib_srpt\n");
-		return ret;
+		goto out;
 	}
 
 	ret = scst_register_target_template(&srpt_template);
 	if (ret < 0) {
 		printk(KERN_ERR PFX "couldn't register with scst\n");
 		ret = -ENODEV;
-		goto mem_out;
+		goto out_unregister_class;
+	}
+
+	ret = srpt_register_procfs_entry(&srpt_template);
+	if (ret) {
+		printk(KERN_ERR PFX "couldn't register procfs entry\n");
+		goto out_unregister_target;
 	}
 
 	ret = ib_register_client(&srpt_client);
 	if (ret) {
 		printk(KERN_ERR PFX "couldn't register IB client\n");
-		goto scst_out;
+		goto out_unregister_target;
 	}
 
 	if (thread) {
@@ -2803,10 +2725,15 @@ static int __init srpt_init_module(void)
 
 	return 0;
 
-scst_out:
+out_unregister_target:
+	/*
+	 * Note: the procfs entry is unregistered in srpt_release(), which is
+	 * called by scst_unregister_target_template().
+	 */
 	scst_unregister_target_template(&srpt_template);
-mem_out:
+out_unregister_class:
 	class_unregister(&srpt_class);
+out:
 	return ret;
 }
 
