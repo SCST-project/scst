@@ -335,8 +335,11 @@ static void srpt_get_svc_entries(u16 slot, u8 hi, u8 lo, struct ib_dm_mad *mad)
 	svc_entries = (struct ib_dm_svc_entries *)mad->data;
 	memset(svc_entries, 0, sizeof *svc_entries);
 	svc_entries->service_entries[0].id = cpu_to_be64(mellanox_ioc_guid);
-	sprintf(svc_entries->service_entries[0].name, "%s%016llx",
-		SRP_SERVICE_NAME_PREFIX, (unsigned long long)mellanox_ioc_guid);
+	snprintf(svc_entries->service_entries[0].name,
+		 sizeof(svc_entries->service_entries[0].name),
+		 "%s%016llx",
+		 SRP_SERVICE_NAME_PREFIX,
+		 (unsigned long long)mellanox_ioc_guid);
 
 	mad->mad_hdr.status = 0;
 }
@@ -1346,6 +1349,8 @@ static struct srpt_rdma_ch *srpt_find_channel(struct ib_cm_id *cm_id)
 
 static int srpt_release_channel(struct srpt_rdma_ch *ch, int destroy_cmid)
 {
+	TRACE_ENTRY();
+
 	spin_lock_irq(&ch->sport->sdev->spinlock);
 	list_del(&ch->list);
 	spin_unlock_irq(&ch->sport->sdev->spinlock);
@@ -1379,6 +1384,8 @@ static int srpt_release_channel(struct srpt_rdma_ch *ch, int destroy_cmid)
 	}
 
 	kfree(ch);
+
+	TRACE_EXIT_RES(!destroy_cmid);
 
 	return destroy_cmid ? 0 : 1;
 }
@@ -1529,9 +1536,12 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		goto destroy_ib;
 	}
 
-	sprintf(ch->sess_name, "0x%016llx%016llx",
-		(unsigned long long)be64_to_cpu(*(u64 *)ch->i_port_id),
-		(unsigned long long)be64_to_cpu(*(u64 *)(ch->i_port_id + 8)));
+	snprintf(ch->sess_name, sizeof(ch->sess_name),
+		 "0x%016llx%016llx",
+		 (unsigned long long)be64_to_cpu(*(u64 *)ch->i_port_id),
+		 (unsigned long long)be64_to_cpu(*(u64 *)(ch->i_port_id + 8)));
+
+	TRACE_DBG("registering session %s", ch->sess_name);
 
 	BUG_ON(!sdev->scst_tgt);
 	ch->scst_sess = scst_register_session(sdev->scst_tgt, 0, ch->sess_name,

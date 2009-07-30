@@ -155,7 +155,7 @@ struct srpt_rdma_ch {
 	u32 active_scmnd_cnt;
 
 	struct scst_session *scst_sess;
-	u8 sess_name[32];
+	u8 sess_name[36];
 };
 
 struct srpt_port {
