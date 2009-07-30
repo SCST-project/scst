@@ -2318,6 +2318,7 @@ static void srpt_release_class_dev(struct device *dev)
 {
 }
 
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 static const struct { int flag; const char *const label; }
 	srpt_trace_label[] =
 {
@@ -2463,6 +2464,7 @@ static ssize_t srpt_store_trace_flags(struct class *class,
 		count = -EINVAL;
 	return count;
 }
+#endif
 
 static struct class_attribute srpt_class_attrs[] = {
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
