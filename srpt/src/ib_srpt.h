@@ -122,7 +122,7 @@ struct srpt_ioctx {
 	u8 n_rbuf;
 
 	enum ib_wc_opcode op;
-        /* Node for insertion in the srpt_thread::thread_ioctx_list. */
+	/* Node for insertion in the srpt_thread::thread_ioctx_list. */
 	struct list_head comp_list;
 	struct srpt_rdma_ch *ch;
 	struct scst_cmd *scmnd;
@@ -154,9 +154,9 @@ struct srpt_rdma_ch {
 	enum rdma_ch_state state;
 	/* Node for insertion in the srpt_device::rch_list list. */
 	struct list_head list;
-        /* List of waiting SCST commands (containt struct srpt_ioctx elem's). */
+	/* List of waiting SCST commands (containt struct srpt_ioctx elem's). */
 	struct list_head cmd_wait_list;
-        /* SCST commands being processed (contains struct srpt_ioctx elem's). */
+	/* SCST commands being processed (contains struct srpt_ioctx elem's). */
 	struct list_head active_scmnd_list;
 	u32 active_scmnd_cnt;
 
