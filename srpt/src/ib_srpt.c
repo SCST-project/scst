@@ -804,11 +804,36 @@ static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 		atomic_inc(&ch->req_lim_delta);
 }
 
+static void srpt_abort_scst_cmd(struct srpt_device *sdev,
+				struct scst_cmd *scmnd,
+				bool tell_initiator)
+{
+	scst_data_direction dir;
+
+	dir = scst_cmd_get_data_direction(scmnd);
+	if (dir != SCST_DATA_NONE) {
+		dma_unmap_sg(sdev->device->dma_device,
+			     scst_cmd_get_sg(scmnd),
+			     scst_cmd_get_sg_cnt(scmnd),
+			     scst_to_tgt_dma_dir(dir));
+
+		if (scmnd->state == SCST_CMD_STATE_DATA_WAIT)
+			scst_rx_data(scmnd,
+				     tell_initiator ? SCST_RX_STATUS_ERROR
+				     : SCST_RX_STATUS_ERROR_FATAL,
+				     SCST_CONTEXT_THREAD);
+		else if (scmnd->state == SCST_CMD_STATE_XMIT_WAIT)
+			;
+	}
+
+	scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_FAILED);
+	scst_tgt_cmd_done(scmnd, scst_estimate_context());
+}
+
 static void srpt_handle_err_comp(struct srpt_rdma_ch *ch, struct ib_wc *wc)
 {
 	struct srpt_ioctx *ioctx;
 	struct srpt_device *sdev = ch->sport->sdev;
-	scst_data_direction dir = SCST_DATA_NONE;
 
 	if (wc->wr_id & SRPT_OP_RECV) {
 		ioctx = sdev->ioctx_ring[wc->wr_id & ~SRPT_OP_RECV];
@@ -816,29 +841,9 @@ static void srpt_handle_err_comp(struct srpt_rdma_ch *ch, struct ib_wc *wc)
 	} else {
 		ioctx = sdev->ioctx_ring[wc->wr_id];
 
-		if (ioctx->scmnd) {
-			struct scst_cmd *scmnd = ioctx->scmnd;
-
-			dir = scst_cmd_get_data_direction(scmnd);
-
-			if (dir == SCST_DATA_NONE)
-				scst_tgt_cmd_done(scmnd,
-					scst_estimate_context());
-			else {
-				dma_unmap_sg(sdev->device->dma_device,
-					     scst_cmd_get_sg(scmnd),
-					     scst_cmd_get_sg_cnt(scmnd),
-					     scst_to_tgt_dma_dir(dir));
-
-				if (scmnd->state == SCST_CMD_STATE_DATA_WAIT)
-					scst_rx_data(scmnd,
-						     SCST_RX_STATUS_ERROR,
-						     SCST_CONTEXT_THREAD);
-				else if (scmnd->state == SCST_CMD_STATE_XMIT_WAIT)
-					scst_tgt_cmd_done(scmnd,
-						scst_estimate_context());
-			}
-		} else
+		if (ioctx->scmnd)
+			srpt_abort_scst_cmd(sdev, ioctx->scmnd, true);
+		else
 			srpt_reset_ioctx(ch, ioctx);
 	}
 }
@@ -1347,6 +1352,7 @@ static struct srpt_rdma_ch *srpt_find_channel(struct ib_cm_id *cm_id)
 	return NULL;
 }
 
+/** Release all resources associated with the specified RDMA channel. */
 static int srpt_release_channel(struct srpt_rdma_ch *ch, int destroy_cmid)
 {
 	TRACE_ENTRY();
@@ -1373,11 +1379,19 @@ static int srpt_release_channel(struct srpt_rdma_ch *ch, int destroy_cmid)
 		       __func__, ch->scst_sess, ch->sess_name,
 		       ch->active_scmnd_cnt);
 
+		spin_lock_irq(&ch->spinlock);
 		list_for_each_entry_safe(ioctx, ioctx_tmp,
 					 &ch->active_scmnd_list, scmnd_list) {
-			list_del(&ioctx->scmnd_list);
-			ch->active_scmnd_cnt--;
+			spin_unlock_irq(&ch->spinlock);
+
+			if (ioctx->scmnd)
+				srpt_abort_scst_cmd(ch->sport->sdev,
+						    ioctx->scmnd, true);
+
+			spin_lock_irq(&ch->spinlock);
 		}
+		WARN_ON(ch->active_scmnd_cnt != 0);
+		spin_unlock_irq(&ch->spinlock);
 
 		scst_unregister_session(ch->scst_sess, 0, NULL);
 		ch->scst_sess = NULL;
