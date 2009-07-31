@@ -113,13 +113,16 @@ struct srpt_ioctx {
 	struct rdma_iu *rdma_ius;
 	struct srp_direct_buf *rbufs;
 	struct srp_direct_buf single_rbuf;
+	/* Node for insertion in srpt_rdma_ch::cmd_wait_list. */
 	struct list_head wait_list;
+	/* Node for insertion in srpt_rdma_ch::active_scmnd_list. */
 	struct list_head scmnd_list;
 	u16 n_rdma_ius;
 	u8 n_rdma;
 	u8 n_rbuf;
 
 	enum ib_wc_opcode op;
+        /* Node for insertion in the srpt_thread::thread_ioctx_list. */
 	struct list_head comp_list;
 	struct srpt_rdma_ch *ch;
 	struct scst_cmd *scmnd;
@@ -149,8 +152,11 @@ struct srpt_rdma_ch {
 	atomic_t req_lim_delta;
 	spinlock_t spinlock;
 	enum rdma_ch_state state;
+	/* Node for insertion in the srpt_device::rch_list list. */
 	struct list_head list;
+        /* List of waiting SCST commands (containt struct srpt_ioctx elem's). */
 	struct list_head cmd_wait_list;
+        /* SCST commands being processed (contains struct srpt_ioctx elem's). */
 	struct list_head active_scmnd_list;
 	u32 active_scmnd_cnt;
 
@@ -192,9 +198,9 @@ struct srpt_device {
 	 */
 	struct ib_device_attr dev_attr;
 	struct srpt_ioctx *ioctx_ring[SRPT_SRQ_SIZE];
-	/* List head for membership of the srpt_devices list. */
+	/* List node for insertion in the srpt_devices list. */
 	struct list_head list;
-	/* List head for membership of the srpt_rdma_ch::list list. */
+	/* List node for insertion in the srpt_rdma_ch::list list. */
 	struct list_head rch_list;
 	spinlock_t spinlock;
 	struct srpt_port port[2];
