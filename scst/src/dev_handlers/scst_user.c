@@ -2848,7 +2848,7 @@ static int dev_user_unregister_dev(struct file *file)
 	dev = (struct scst_user_dev *)file->private_data;
 	if (dev == NULL) {
 		mutex_unlock(&dev_priv_mutex);
-		goto out;
+		goto out_resume;
 	}
 
 	dev->blocking = 0;
@@ -2864,6 +2864,7 @@ static int dev_user_unregister_dev(struct file *file)
 
 	kfree(dev);
 
+out_resume:
 	scst_resume_activity();
 
 out:
@@ -3155,10 +3156,8 @@ static int dev_user_release(struct inode *inode, struct file *file)
 	TRACE_ENTRY();
 
 	dev = (struct scst_user_dev *)file->private_data;
-	if (dev == NULL) {
-		mutex_unlock(&dev_priv_mutex);
+	if (dev == NULL)
 		goto out;
-	}
 	file->private_data = NULL;
 
 	TRACE_MGMT_DBG("Going to release dev %s", dev->name);
