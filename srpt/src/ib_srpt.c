@@ -1393,7 +1393,7 @@ static int srpt_release_channel(struct srpt_rdma_ch *ch, int destroy_cmid)
 
 			spin_lock_irq(&ch->spinlock);
 		}
-		WARN_ON(! list_empty(&ch->active_scmnd_list));
+		WARN_ON(!list_empty(&ch->active_scmnd_list));
 		WARN_ON(ch->active_scmnd_cnt != 0);
 		spin_unlock_irq(&ch->spinlock);
 
