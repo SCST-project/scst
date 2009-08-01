@@ -817,17 +817,20 @@ static void srpt_abort_scst_cmd(struct srpt_device *sdev,
 			     scst_cmd_get_sg_cnt(scmnd),
 			     scst_to_tgt_dma_dir(dir));
 
-		if (scmnd->state == SCST_CMD_STATE_DATA_WAIT)
+		if (scmnd->state == SCST_CMD_STATE_DATA_WAIT) {
 			scst_rx_data(scmnd,
 				     tell_initiator ? SCST_RX_STATUS_ERROR
 				     : SCST_RX_STATUS_ERROR_FATAL,
 				     SCST_CONTEXT_THREAD);
-		else if (scmnd->state == SCST_CMD_STATE_XMIT_WAIT)
+			goto out;
+		} else if (scmnd->state == SCST_CMD_STATE_XMIT_WAIT)
 			;
 	}
 
 	scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_FAILED);
 	scst_tgt_cmd_done(scmnd, scst_estimate_context());
+out:
+	return;
 }
 
 static void srpt_handle_err_comp(struct srpt_rdma_ch *ch, struct ib_wc *wc)
@@ -1390,6 +1393,7 @@ static int srpt_release_channel(struct srpt_rdma_ch *ch, int destroy_cmid)
 
 			spin_lock_irq(&ch->spinlock);
 		}
+		WARN_ON(! list_empty(&ch->active_scmnd_list));
 		WARN_ON(ch->active_scmnd_cnt != 0);
 		spin_unlock_irq(&ch->spinlock);
 
