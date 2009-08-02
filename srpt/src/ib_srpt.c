@@ -128,8 +128,8 @@ static void srpt_event_handler(struct ib_event_handler *handler,
 	if (!sdev || sdev->device != event->device)
 		return;
 
-	printk(KERN_WARNING PFX "ASYNC event= %d on device= %s\n",
-		event->event, sdev->device->name);
+	TRACE_DBG("ASYNC event= %d on device= %s",
+		  event->event, sdev->device->name);
 
 	switch (event->event) {
 	case IB_EVENT_PORT_ERR:
@@ -169,7 +169,7 @@ static void srpt_event_handler(struct ib_event_handler *handler,
  */
 static void srpt_srq_event(struct ib_event *event, void *ctx)
 {
-	printk(KERN_WARNING PFX "SRQ event %d\n", event->event);
+	TRACE_DBG("SRQ event %d", event->event);
 }
 
 /*
@@ -179,9 +179,8 @@ static void srpt_qp_event(struct ib_event *event, void *ctx)
 {
 	struct srpt_rdma_ch *ch = ctx;
 
-	printk(KERN_WARNING PFX
-	       "QP event %d on cm_id=%p sess_name=%s state=%d\n",
-	       event->event, ch->cm_id, ch->sess_name, ch->state);
+	TRACE_DBG("QP event %d on cm_id=%p sess_name=%s state=%d",
+		  event->event, ch->cm_id, ch->sess_name, ch->state);
 
 	switch (event->event) {
 	case IB_EVENT_COMM_EST:
@@ -195,8 +194,7 @@ static void srpt_qp_event(struct ib_event *event, void *ctx)
 		break;
 	case IB_EVENT_QP_LAST_WQE_REACHED:
 		if (ch->state == RDMA_CHANNEL_LIVE) {
-			printk(KERN_WARNING PFX
-			       "Schedule CM_DISCONNECT_WORK\n");
+			TRACE_DBG("%s", "Schedule CM_DISCONNECT_WORK");
 			srpt_disconnect_channel(ch, 1);
 		}
 		break;
@@ -1042,13 +1040,12 @@ static int srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 
 	srp_tsk = ioctx->buf;
 
-	printk(KERN_WARNING PFX
-	       "recv_tsk_mgmt= %d for task_tag= %lld"
-	       " using tag= %lld cm_id= %p sess= %p\n",
-	       srp_tsk->tsk_mgmt_func,
-	       (unsigned long long) srp_tsk->task_tag,
-	       (unsigned long long) srp_tsk->tag,
-	       ch->cm_id, ch->scst_sess);
+	TRACE_DBG("recv_tsk_mgmt= %d for task_tag= %lld"
+		  " using tag= %lld cm_id= %p sess= %p",
+		  srp_tsk->tsk_mgmt_func,
+		  (unsigned long long) srp_tsk->task_tag,
+		  (unsigned long long) srp_tsk->tag,
+		  ch->cm_id, ch->scst_sess);
 
 	mgmt_ioctx = kmalloc(sizeof *mgmt_ioctx, GFP_ATOMIC);
 	if (!mgmt_ioctx) {
@@ -1088,7 +1085,6 @@ static int srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 					  SCST_NON_ATOMIC : SCST_ATOMIC,
 					  mgmt_ioctx);
 		break;
-#if 0
 	case SRP_TSK_LUN_RESET:
 		ret = scst_rx_mgmt_fn_lun(ch->scst_sess,
 					  SCST_LUN_RESET,
@@ -1098,7 +1094,6 @@ static int srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 					  SCST_NON_ATOMIC : SCST_ATOMIC,
 					  mgmt_ioctx);
 		break;
-#endif
 	case SRP_TSK_CLEAR_ACA:
 		ret = scst_rx_mgmt_fn_lun(ch->scst_sess,
 					  SCST_CLEAR_ACA,
@@ -1318,7 +1313,7 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 		goto out;
 	}
 
-	printk(KERN_DEBUG PFX "%s: max_cqe= %d max_sge= %d cm_id= %p\n",
+	TRACE_DBG("%s: max_cqe= %d max_sge= %d cm_id= %p",
 	       __func__, ch->cq->cqe, qp_init->cap.max_send_sge,
 	       ch->cm_id);
 
@@ -1337,13 +1332,18 @@ out:
 	return ret;
 }
 
+/**
+ * Look up the RDMA channel that corresponds to the specified cm_id.
+ *
+ * Return NULL if no matching RDMA channel has been found.
+ */
 static struct srpt_rdma_ch *srpt_find_channel(struct ib_cm_id *cm_id)
 {
 	struct srpt_device *sdev = cm_id->context;
-	struct srpt_rdma_ch *ch, *tmp_ch;
+	struct srpt_rdma_ch *ch;
 
 	spin_lock_irq(&sdev->spinlock);
-	list_for_each_entry_safe(ch, tmp_ch, &sdev->rch_list, list) {
+	list_for_each_entry(ch, &sdev->rch_list, list) {
 		if (ch->cm_id == cm_id) {
 			spin_unlock_irq(&sdev->spinlock);
 			return ch;
@@ -1356,7 +1356,7 @@ static struct srpt_rdma_ch *srpt_find_channel(struct ib_cm_id *cm_id)
 }
 
 /** Release all resources associated with the specified RDMA channel. */
-static int srpt_release_channel(struct srpt_rdma_ch *ch, int destroy_cmid)
+static void srpt_release_channel(struct srpt_rdma_ch *ch, int destroy_cmid)
 {
 	TRACE_ENTRY();
 
@@ -1365,8 +1365,7 @@ static int srpt_release_channel(struct srpt_rdma_ch *ch, int destroy_cmid)
 	spin_unlock_irq(&ch->sport->sdev->spinlock);
 
 	if (ch->cm_id && destroy_cmid) {
-		printk(KERN_WARNING PFX
-		       "%s: destroy cm_id= %p\n", __func__, ch->cm_id);
+		TRACE_DBG("%s: destroy cm_id= %p", __func__, ch->cm_id);
 		ib_destroy_cm_id(ch->cm_id);
 		ch->cm_id = NULL;
 	}
@@ -1377,10 +1376,9 @@ static int srpt_release_channel(struct srpt_rdma_ch *ch, int destroy_cmid)
 	if (ch->scst_sess) {
 		struct srpt_ioctx *ioctx, *ioctx_tmp;
 
-		printk(KERN_WARNING PFX
-		       "%s: release sess= %p sess_name= %s active_cmd= %d\n",
-		       __func__, ch->scst_sess, ch->sess_name,
-		       ch->active_scmnd_cnt);
+		TRACE_DBG("%s: release sess= %p sess_name= %s active_cmd= %d",
+			  __func__, ch->scst_sess, ch->sess_name,
+			  ch->active_scmnd_cnt);
 
 		spin_lock_irq(&ch->spinlock);
 		list_for_each_entry_safe(ioctx, ioctx_tmp,
@@ -1403,9 +1401,7 @@ static int srpt_release_channel(struct srpt_rdma_ch *ch, int destroy_cmid)
 
 	kfree(ch);
 
-	TRACE_EXIT_RES(!destroy_cmid);
-
-	return destroy_cmid ? 0 : 1;
+	TRACE_EXIT();
 }
 
 static int srpt_disconnect_channel(struct srpt_rdma_ch *ch, int dreq)
@@ -1451,23 +1447,21 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 
 	it_iu_len = be32_to_cpu(req->req_it_iu_len);
 
-	printk(KERN_DEBUG PFX
-	       "Host login i_port_id=0x%llx:0x%llx t_port_id=0x%llx:0x%llx"
-	       " it_iu_len=%d\n",
-	       (unsigned long long)
-	       be64_to_cpu(*(u64 *)&req->initiator_port_id[0]),
-	       (unsigned long long)
-	       be64_to_cpu(*(u64 *)&req->initiator_port_id[8]),
-	       (unsigned long long)be64_to_cpu(*(u64 *)&req->target_port_id[0]),
-	       (unsigned long long)be64_to_cpu(*(u64 *)&req->target_port_id[8]),
-	       it_iu_len);
+	TRACE_DBG("Host login i_port_id=0x%llx:0x%llx t_port_id=0x%llx:0x%llx"
+	    " it_iu_len=%d",
+	    (unsigned long long)
+	    be64_to_cpu(*(u64 *)&req->initiator_port_id[0]),
+	    (unsigned long long)
+	    be64_to_cpu(*(u64 *)&req->initiator_port_id[8]),
+	    (unsigned long long)be64_to_cpu(*(u64 *)&req->target_port_id[0]),
+	    (unsigned long long)be64_to_cpu(*(u64 *)&req->target_port_id[8]),
+	    it_iu_len);
 
 	if (it_iu_len > MAX_MESSAGE_SIZE || it_iu_len < 64) {
 		rej->reason =
 		    cpu_to_be32(SRP_LOGIN_REJ_REQ_IT_IU_LENGTH_TOO_LARGE);
 		ret = -EINVAL;
-		printk(KERN_WARNING PFX
-		       "Reject invalid it_iu_len=%d\n", it_iu_len);
+		TRACE_DBG("Reject invalid it_iu_len=%d", it_iu_len);
 		goto reject;
 	}
 
@@ -1483,10 +1477,9 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 			    && param->listen_id == ch->sport->sdev->cm_id
 			    && ch->cm_id) {
 				/* found an existing channel */
-				printk(KERN_WARNING PFX
-				       "Found existing channel name= %s"
-				       " cm_id= %p state= %d\n",
-				       ch->sess_name, ch->cm_id, ch->state);
+				TRACE_DBG("Found existing channel name= %s"
+					  " cm_id= %p state= %d",
+					  ch->sess_name, ch->cm_id, ch->state);
 
 				spin_unlock_irq(&sdev->spinlock);
 
@@ -1518,14 +1511,14 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		rej->reason =
 		    cpu_to_be32(SRP_LOGIN_REJ_UNABLE_ASSOCIATE_CHANNEL);
 		ret = -ENOMEM;
-		printk(KERN_WARNING PFX "Reject invalid target_port_id\n");
+		TRACE_DBG("%s", "Reject invalid target_port_id");
 		goto reject;
 	}
 
 	ch = kzalloc(sizeof *ch, GFP_KERNEL);
 	if (!ch) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		printk(KERN_WARNING PFX "Reject failed allocate rdma_ch\n");
+		TRACE_DBG("%s", "Reject failed allocate rdma_ch");
 		ret = -ENOMEM;
 		goto reject;
 	}
@@ -1542,15 +1535,14 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	ret = srpt_create_ch_ib(ch);
 	if (ret) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		printk(KERN_WARNING PFX "Reject failed to create rdma_ch\n");
+		TRACE_DBG("%s", "Reject failed to create rdma_ch");
 		goto free_ch;
 	}
 
 	ret = srpt_ch_qp_rtr_rts(ch, ch->qp, IB_QPS_RTR);
 	if (ret) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		printk(KERN_WARNING PFX
-		       "Reject failed qp to rtr/rts ret=%d\n", ret);
+		TRACE_DBG("Reject failed qp to rtr/rts ret=%d", ret);
 		goto destroy_ib;
 	}
 
@@ -1566,7 +1558,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 				  NULL, NULL);
 	if (!ch->scst_sess) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		printk(KERN_WARNING PFX "Failed to create scst sess\n");
+		TRACE_DBG("%s", "Failed to create scst sess");
 		goto destroy_ib;
 	}
 
@@ -1574,8 +1566,8 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	list_add_tail(&ch->list, &sdev->rch_list);
 	spin_unlock_irq(&sdev->spinlock);
 
-	printk(KERN_DEBUG PFX "Establish connection sess=%p name=%s cm_id=%p\n",
-	       ch->scst_sess, ch->sess_name, ch->cm_id);
+	TRACE_DBG("Establish connection sess=%p name=%s cm_id=%p",
+		  ch->scst_sess, ch->sess_name, ch->cm_id);
 
 	scst_sess_set_tgt_priv(ch->scst_sess, ch);
 
@@ -1630,21 +1622,25 @@ out:
 	return ret;
 }
 
-static int srpt_find_and_release_channel(struct ib_cm_id *cm_id)
+/**
+ * Release the channel with the specified cm_id.
+ *
+ * Returns one to indicate that the caller of srpt_cm_handler() should destroy
+ * the cm_id.
+ */
+static void srpt_find_and_release_channel(struct ib_cm_id *cm_id)
 {
 	struct srpt_rdma_ch *ch;
 
 	ch = srpt_find_channel(cm_id);
-	if (!ch)
-		return -EINVAL;
-
-	return srpt_release_channel(ch, 0);
+	if (ch)
+		srpt_release_channel(ch, 0);
 }
 
-static int srpt_cm_rej_recv(struct ib_cm_id *cm_id)
+static void srpt_cm_rej_recv(struct ib_cm_id *cm_id)
 {
-	printk(KERN_DEBUG PFX "%s: cm_id=%p\n", __func__, cm_id);
-	return srpt_find_and_release_channel(cm_id);
+	TRACE_DBG("%s: cm_id=%p", __func__, cm_id);
+	srpt_find_and_release_channel(cm_id);
 }
 
 static int srpt_cm_rtu_recv(struct ib_cm_id *cm_id)
@@ -1675,24 +1671,24 @@ static int srpt_cm_rtu_recv(struct ib_cm_id *cm_id)
 		ret = 0;
 
 	if (ret) {
-		printk(KERN_ERR PFX "cm_id=%p sess_name=%s state=%d\n",
-		       cm_id, ch->sess_name, ch->state);
+		TRACE_DBG("cm_id=%p sess_name=%s state=%d",
+			  cm_id, ch->sess_name, ch->state);
 		srpt_disconnect_channel(ch, 1);
 	}
 
 	return ret;
 }
 
-static int srpt_cm_timewait_exit(struct ib_cm_id *cm_id)
+static void srpt_cm_timewait_exit(struct ib_cm_id *cm_id)
 {
-	printk(KERN_DEBUG PFX "%s: cm_id=%p\n", __func__, cm_id);
-	return srpt_find_and_release_channel(cm_id);
+	TRACE_DBG("%s: cm_id=%p", __func__, cm_id);
+	srpt_find_and_release_channel(cm_id);
 }
 
-static int srpt_cm_rep_error(struct ib_cm_id *cm_id)
+static void srpt_cm_rep_error(struct ib_cm_id *cm_id)
 {
-	printk(KERN_DEBUG PFX "%s: cm_id=%p\n", __func__, cm_id);
-	return srpt_find_and_release_channel(cm_id);
+	TRACE_DBG("%s: cm_id=%p", __func__, cm_id);
+	srpt_find_and_release_channel(cm_id);
 }
 
 static int srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
@@ -1705,7 +1701,7 @@ static int srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
 	if (!ch)
 		return -EINVAL;
 
-	printk(KERN_DEBUG PFX "%s: cm_id= %p ch->state= %d\n",
+	TRACE_DBG("%s: cm_id= %p ch->state= %d",
 		 __func__, cm_id, ch->state);
 
 	switch (ch->state) {
@@ -1721,12 +1717,20 @@ static int srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
 	return ret;
 }
 
-static int srpt_cm_drep_recv(struct ib_cm_id *cm_id)
+static void srpt_cm_drep_recv(struct ib_cm_id *cm_id)
 {
-	printk(KERN_DEBUG PFX "%s: cm_id=%p\n", __func__, cm_id);
-	return srpt_find_and_release_channel(cm_id);
+	TRACE_DBG("%s: cm_id=%p", __func__, cm_id);
+	srpt_find_and_release_channel(cm_id);
 }
 
+/**
+ * IB connection manager callback function.
+ *
+ * A non-zero return value will make the caller destroy the CM ID.
+ *
+ * Note: srpt_add_one passes a struct srpt_device* as the third argument to
+ * the ib_create_cm_id() call.
+ */
 static int srpt_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
 {
 	int ret = 0;
@@ -1737,7 +1741,8 @@ static int srpt_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
 				       event->private_data);
 		break;
 	case IB_CM_REJ_RECEIVED:
-		ret = srpt_cm_rej_recv(cm_id);
+		srpt_cm_rej_recv(cm_id);
+		ret = -EINVAL;
 		break;
 	case IB_CM_RTU_RECEIVED:
 	case IB_CM_USER_ESTABLISHED:
@@ -1747,13 +1752,16 @@ static int srpt_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
 		ret = srpt_cm_dreq_recv(cm_id);
 		break;
 	case IB_CM_DREP_RECEIVED:
-		ret = srpt_cm_drep_recv(cm_id);
+		srpt_cm_drep_recv(cm_id);
+		ret = -EINVAL;
 		break;
 	case IB_CM_TIMEWAIT_EXIT:
-		ret = srpt_cm_timewait_exit(cm_id);
+		srpt_cm_timewait_exit(cm_id);
+		ret = -EINVAL;
 		break;
 	case IB_CM_REP_ERROR:
-		ret = srpt_cm_rep_error(cm_id);
+		srpt_cm_rep_error(cm_id);
+		ret = -EINVAL;
 		break;
 	default:
 		break;
@@ -2251,7 +2259,7 @@ static int srpt_release(struct scst_tgt *scst_tgt)
 	srpt_unregister_procfs_entry(scst_tgt->tgtt);
 
 	list_for_each_entry_safe(ch, tmp_ch, &sdev->rch_list, list)
-	    srpt_release_channel(ch, 1);
+		srpt_release_channel(ch, 1);
 
 	srpt_unregister_mad_agent(sdev);
 
@@ -2503,7 +2511,7 @@ static void srpt_add_one(struct ib_device *device)
 	if (IS_ERR(sdev->srq))
 		goto err_mr;
 
-	printk(KERN_DEBUG PFX "%s: create SRQ #wr= %d max_allow=%d dev= %s\n",
+	TRACE_DBG("%s: create SRQ #wr= %d max_allow=%d dev= %s",
 	       __func__, srq_attr.attr.max_wr,
 	      sdev->dev_attr.max_srq_wr, device->name);
 
@@ -2515,11 +2523,11 @@ static void srpt_add_one(struct ib_device *device)
 		goto err_srq;
 
 	/* print out target login information */
-	printk(KERN_DEBUG PFX "Target login info: id_ext=%016llx,"
-		"ioc_guid=%016llx,pkey=ffff,service_id=%016llx\n",
-		(unsigned long long) mellanox_ioc_guid,
-		(unsigned long long) mellanox_ioc_guid,
-		(unsigned long long) mellanox_ioc_guid);
+	TRACE_DBG("Target login info: id_ext=%016llx,"
+		  "ioc_guid=%016llx,pkey=ffff,service_id=%016llx",
+		  (unsigned long long) mellanox_ioc_guid,
+		  (unsigned long long) mellanox_ioc_guid,
+		  (unsigned long long) mellanox_ioc_guid);
 
 	/*
 	 * We do not have a consistent service_id (ie. also id_ext of target_id)
