@@ -200,7 +200,10 @@ struct srpt_device {
 	struct srpt_ioctx *ioctx_ring[SRPT_SRQ_SIZE];
 	/* List node for insertion in the srpt_devices list. */
 	struct list_head list;
-	/* List node for insertion in the srpt_rdma_ch::list list. */
+	/*
+	 * List node for insertion in the srpt_rdma_ch::list list.
+	 * This list is protected by srpt_device::spinlock.
+	 */
 	struct list_head rch_list;
 	spinlock_t spinlock;
 	struct srpt_port port[2];
