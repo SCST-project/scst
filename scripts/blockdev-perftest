@@ -30,6 +30,7 @@ usage() {
   echo "Usage: $0 [-a] [-d] [-i <i>] [-n] [-r] [-s <l2s>] [-t [user@]host] <dev>"
   echo "        -a - use asynchronous (buffered) I/O."
   echo "        -d - use direct (non-buffered) I/O."
+  echo "        -f - force -- skip the test if there is still data present."
   echo "        -i - number times each test is iterated."
   echo "        -n - do not verify the data on <dev> before overwriting it."
   echo "        -r - only perform the read test."
@@ -75,6 +76,7 @@ echo_and_calc_avg() {
 # Default settings      #
 #########################
 
+force=false
 iterations=3
 log2_io_size=30       # 1 GB
 log2_min_blocksize=9  # 512 bytes
@@ -89,12 +91,13 @@ verify_device_data=true
 # Argument processing   #
 #########################
 
-set -- $(/usr/bin/getopt "adhi:nrs:t:" "$@")
+set -- $(/usr/bin/getopt "adfhi:nrs:t:" "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
     '-a') iotype="buffered"; shift;;
     '-d') iotype="direct"; shift;;
+    '-f') force="true"; shift;;
     '-i') iterations="$2"; shift; shift;;
     '-n') verify_device_data="false"; shift;;
     '-r') read_test_only="true"; shift;;
@@ -135,6 +138,7 @@ then
 fi
 
 if [ "${read_test_only}" = "false" -a "${verify_device_data}" = "true" ] \
+   && [ "${force}" != "true" ] \
    && ! cmp -s -n $(pow2 $log2_io_size) "${device}" /dev/zero
 then
   echo "Error: device ${device} still contains data."
