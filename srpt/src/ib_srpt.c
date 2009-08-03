@@ -102,7 +102,7 @@ MODULE_PARM_DESC(thread,
 
 static void srpt_add_one(struct ib_device *device);
 static void srpt_remove_one(struct ib_device *device);
-static int srpt_disconnect_channel(struct srpt_rdma_ch *ch, int dreq);
+static void srpt_disconnect_channel(struct srpt_rdma_ch *ch, int dreq);
 static void srpt_unregister_mad_agent(struct srpt_device *sdev);
 static void srpt_unregister_procfs_entry(struct scst_tgt_template *tgt);
 
@@ -121,10 +121,10 @@ static struct ib_client srpt_client = {
 static void srpt_event_handler(struct ib_event_handler *handler,
 			       struct ib_event *event)
 {
-	struct srpt_device *sdev =
-	    ib_get_client_data(event->device, &srpt_client);
+	struct srpt_device *sdev;
 	struct srpt_port *sport;
 
+	sdev = ib_get_client_data(event->device, &srpt_client);
 	if (!sdev || sdev->device != event->device)
 		return;
 
@@ -1360,6 +1360,11 @@ static void srpt_release_channel(struct srpt_rdma_ch *ch, int destroy_cmid)
 {
 	TRACE_ENTRY();
 
+	/*
+	 * Remove the channel from the channel list such that
+	 * srpt_find_channel() won't find this channel anymore and hence
+	 * new incoming requests for this channel will be refused.
+	 */
 	spin_lock_irq(&ch->sport->sdev->spinlock);
 	list_del(&ch->list);
 	spin_unlock_irq(&ch->sport->sdev->spinlock);
@@ -1404,7 +1409,7 @@ static void srpt_release_channel(struct srpt_rdma_ch *ch, int destroy_cmid)
 	TRACE_EXIT();
 }
 
-static int srpt_disconnect_channel(struct srpt_rdma_ch *ch, int dreq)
+static void srpt_disconnect_channel(struct srpt_rdma_ch *ch, int dreq)
 {
 	spin_lock_irq(&ch->spinlock);
 	ch->state = RDMA_CHANNEL_DISCONNECTING;
@@ -1414,8 +1419,6 @@ static int srpt_disconnect_channel(struct srpt_rdma_ch *ch, int dreq)
 		ib_send_cm_dreq(ch->cm_id, NULL, 0);
 	else
 		ib_send_cm_drep(ch->cm_id, NULL, 0);
-
-	return 0;
 }
 
 static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
@@ -1448,14 +1451,12 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	it_iu_len = be32_to_cpu(req->req_it_iu_len);
 
 	TRACE_DBG("Host login i_port_id=0x%llx:0x%llx t_port_id=0x%llx:0x%llx"
-	    " it_iu_len=%d",
-	    (unsigned long long)
-	    be64_to_cpu(*(u64 *)&req->initiator_port_id[0]),
-	    (unsigned long long)
-	    be64_to_cpu(*(u64 *)&req->initiator_port_id[8]),
-	    (unsigned long long)be64_to_cpu(*(u64 *)&req->target_port_id[0]),
-	    (unsigned long long)be64_to_cpu(*(u64 *)&req->target_port_id[8]),
-	    it_iu_len);
+		  " it_iu_len=%d",
+		  (u64)be64_to_cpu(*(u64 *)&req->initiator_port_id[0]),
+		  (u64)be64_to_cpu(*(u64 *)&req->initiator_port_id[8]),
+		  (u64)be64_to_cpu(*(u64 *)&req->target_port_id[0]),
+		  (u64)be64_to_cpu(*(u64 *)&req->target_port_id[8]),
+		  it_iu_len);
 
 	if (it_iu_len > MAX_MESSAGE_SIZE || it_iu_len < 64) {
 		rej->reason =
@@ -1484,7 +1485,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 				spin_unlock_irq(&sdev->spinlock);
 
 				rsp->rsp_flags =
-				    SRP_LOGIN_RSP_MULTICHAN_TERMINATED;
+					SRP_LOGIN_RSP_MULTICHAN_TERMINATED;
 
 				if (ch->state == RDMA_CHANNEL_LIVE)
 					srpt_disconnect_channel(ch, 1);
@@ -1694,10 +1695,8 @@ static void srpt_cm_rep_error(struct ib_cm_id *cm_id)
 static int srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
 {
 	struct srpt_rdma_ch *ch;
-	int ret = 0;
 
 	ch = srpt_find_channel(cm_id);
-
 	if (!ch)
 		return -EINVAL;
 
@@ -1707,14 +1706,14 @@ static int srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
 	switch (ch->state) {
 	case RDMA_CHANNEL_LIVE:
 	case RDMA_CHANNEL_CONNECTING:
-		ret = srpt_disconnect_channel(ch, 0);
+		srpt_disconnect_channel(ch, 0);
 		break;
 	case RDMA_CHANNEL_DISCONNECTING:
 	default:
 		break;
 	}
 
-	return ret;
+	return 0;
 }
 
 static void srpt_cm_drep_recv(struct ib_cm_id *cm_id)
