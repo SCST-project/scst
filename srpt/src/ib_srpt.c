@@ -1337,7 +1337,7 @@ out:
  *
  * Return NULL if no matching RDMA channel has been found.
  */
-static struct srpt_rdma_ch *srpt_find_channel(struct ib_cm_id *cm_id)
+static struct srpt_rdma_ch *srpt_find_channel(struct ib_cm_id *cm_id, bool del)
 {
 	struct srpt_device *sdev = cm_id->context;
 	struct srpt_rdma_ch *ch;
@@ -1345,6 +1345,8 @@ static struct srpt_rdma_ch *srpt_find_channel(struct ib_cm_id *cm_id)
 	spin_lock_irq(&sdev->spinlock);
 	list_for_each_entry(ch, &sdev->rch_list, list) {
 		if (ch->cm_id == cm_id) {
+			if (del)
+				list_del(&ch->list);
 			spin_unlock_irq(&sdev->spinlock);
 			return ch;
 		}
@@ -1355,19 +1357,17 @@ static struct srpt_rdma_ch *srpt_find_channel(struct ib_cm_id *cm_id)
 	return NULL;
 }
 
-/** Release all resources associated with the specified RDMA channel. */
+/**
+ * Release all resources associated with the specified RDMA channel.
+ *
+ * Note: the caller must have removed the channel from the channel list
+ * before calling this function.
+ */
 static void srpt_release_channel(struct srpt_rdma_ch *ch, int destroy_cmid)
 {
 	TRACE_ENTRY();
 
-	/*
-	 * Remove the channel from the channel list such that
-	 * srpt_find_channel() won't find this channel anymore and hence
-	 * new incoming requests for this channel will be refused.
-	 */
-	spin_lock_irq(&ch->sport->sdev->spinlock);
-	list_del(&ch->list);
-	spin_unlock_irq(&ch->sport->sdev->spinlock);
+	WARN_ON(srpt_find_channel(ch->cm_id, false) == ch);
 
 	if (ch->cm_id && destroy_cmid) {
 		TRACE_DBG("%s: destroy cm_id= %p", __func__, ch->cm_id);
@@ -1482,6 +1482,9 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 					  " cm_id= %p state= %d",
 					  ch->sess_name, ch->cm_id, ch->state);
 
+				if (ch->state == RDMA_CHANNEL_CONNECTING)
+					list_del(&ch->list);
+
 				spin_unlock_irq(&sdev->spinlock);
 
 				rsp->rsp_flags =
@@ -1563,10 +1566,6 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		goto destroy_ib;
 	}
 
-	spin_lock_irq(&sdev->spinlock);
-	list_add_tail(&ch->list, &sdev->rch_list);
-	spin_unlock_irq(&sdev->spinlock);
-
 	TRACE_DBG("Establish connection sess=%p name=%s cm_id=%p",
 		  ch->scst_sess, ch->sess_name, ch->cm_id);
 
@@ -1594,7 +1593,11 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	rep_param->initiator_depth = 4;
 
 	ret = ib_send_cm_rep(cm_id, rep_param);
-	if (ret)
+	if (ret == 0) {
+		spin_lock_irq(&sdev->spinlock);
+		list_add_tail(&ch->list, &sdev->rch_list);
+		spin_unlock_irq(&sdev->spinlock);
+	} else
 		srpt_release_channel(ch, 0);
 
 	goto out;
@@ -1633,7 +1636,7 @@ static void srpt_find_and_release_channel(struct ib_cm_id *cm_id)
 {
 	struct srpt_rdma_ch *ch;
 
-	ch = srpt_find_channel(cm_id);
+	ch = srpt_find_channel(cm_id, true);
 	if (ch)
 		srpt_release_channel(ch, 0);
 }
@@ -1649,7 +1652,7 @@ static int srpt_cm_rtu_recv(struct ib_cm_id *cm_id)
 	struct srpt_rdma_ch *ch;
 	int ret;
 
-	ch = srpt_find_channel(cm_id);
+	ch = srpt_find_channel(cm_id, false);
 	if (!ch)
 		return -EINVAL;
 
@@ -1696,7 +1699,7 @@ static int srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
 {
 	struct srpt_rdma_ch *ch;
 
-	ch = srpt_find_channel(cm_id);
+	ch = srpt_find_channel(cm_id, false);
 	if (!ch)
 		return -EINVAL;
 
@@ -2257,8 +2260,14 @@ static int srpt_release(struct scst_tgt *scst_tgt)
 
 	srpt_unregister_procfs_entry(scst_tgt->tgtt);
 
-	list_for_each_entry_safe(ch, tmp_ch, &sdev->rch_list, list)
+	spin_lock_irq(&sdev->spinlock);
+	list_for_each_entry_safe(ch, tmp_ch, &sdev->rch_list, list) {
+		list_del(&ch->list);
+		spin_unlock_irq(&sdev->spinlock);
 		srpt_release_channel(ch, 1);
+		spin_lock_irq(&sdev->spinlock);
+	}
+	spin_unlock_irq(&sdev->spinlock);
 
 	srpt_unregister_mad_agent(sdev);
 
