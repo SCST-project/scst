@@ -2929,7 +2929,7 @@ void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd);
 
 /*
  * Returns target driver's root entry in SCST's /proc hierarchy.
- * The driver can create own files/directoryes here, which should
+ * The driver can create own files/directories here, which should
  * be deleted in the driver's release().
  */
 static inline struct proc_dir_entry *scst_proc_get_tgt_root(
@@ -2940,7 +2940,7 @@ static inline struct proc_dir_entry *scst_proc_get_tgt_root(
 
 /*
  * Returns device handler's root entry in SCST's /proc hierarchy.
- * The driver can create own files/directoryes here, which should
+ * The driver can create own files/directories here, which should
  * be deleted in the driver's detach()/release().
  */
 static inline struct proc_dir_entry *scst_proc_get_dev_type_root(
