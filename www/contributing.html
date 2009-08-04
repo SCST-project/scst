@@ -445,6 +445,31 @@
 				InfiniBand) bypassing the regular heavy weighted and CPU consuming TCP/IP data transfers path.</p>
 
 				<p>It would be good to add support for iSER in iSCSI-SCST.</p>
+
+				<A NAME="GET_CONFIGURATION"></A><h3>GET CONFIGURATION command</h3>
+
+				<p>SCSI command GET CONFIGURATION is mandatory for SCSI multimedia devices, like CD/DVD-ROMs or
+				recorders, see MMC standard. Currently SCST lacks support for it, which leads to problems
+				with some programs depending on the result of GET CONFIGURATION command execution.</p>
+
+				<p>It would be good to add support for it in the SCST core.</p>
+
+				<A NAME="Per_Device_Suspend"></A><h3>Per-device suspending</h3>
+
+				<p>Currently before doing any management operations SCST core performs so called "activities suspending", i.e.
+				it suspends new coming SCSI commands and wait until currently being executed ones finished. It allows to
+				simplify internal locking and reference counting a lot, but has a drawback that it is global, i.e. affects
+				all devices and SCSI commands, even ones which don't participate in the management operation. In the majority
+				of regular cases it works pretty well, but sometimes it can be a problem.
+				For instance, if a SCSI command needs a big amount of execution time (hours for some tapes operations),
+				the management command and all other SCSI commands will wait until it's finished. Even worse, if a user space
+				dev handler hangs and stops processing commands, any SCST management command will not be able to complete and fail
+				with timeout until the user space dev handler gets killed.</p>
+
+				<p>The global suspending should be changed to more fine-grained per-device suspending
+				and only for cases where it's really needed, like device unregistration. This is a very tricky task, because
+				all the internal SCST locking should be reimplemented.</p>
+
 			</div>
 	</div>
 </div>
