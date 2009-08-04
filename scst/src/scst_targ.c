@@ -28,6 +28,7 @@
 #include <linux/string.h>
 #include <linux/kthread.h>
 #include <linux/delay.h>
+#include <linux/ktime.h>
 
 #include "scst.h"
 #include "scst_priv.h"
@@ -198,7 +199,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 	{
 		struct timespec ts;
-		getnstimeofday(&ts);
+		ktime_get_ts(&ts);
 		cmd->start = scst_sec_to_nsec(ts.tv_sec) + ts.tv_nsec;
 		TRACE_DBG("cmd %p (sess %p): start %lld (tv_sec %ld, "
 			"tv_nsec %ld)", cmd, sess, cmd->start, ts.tv_sec,
@@ -1216,7 +1217,7 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 	{
 		struct timespec ts;
-		getnstimeofday(&ts);
+		ktime_get_ts(&ts);
 		cmd->post_exec_start = scst_sec_to_nsec(ts.tv_sec) + ts.tv_nsec;
 		TRACE_DBG("cmd %p (sess %p): post_exec_start %lld (tv_sec %ld, "
 			"tv_nsec %ld)", cmd, cmd->sess, cmd->post_exec_start,
@@ -1356,7 +1357,7 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state,
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 	{
 		struct timespec ts;
-		getnstimeofday(&ts);
+		ktime_get_ts(&ts);
 		cmd->post_exec_start = scst_sec_to_nsec(ts.tv_sec) + ts.tv_nsec;
 		TRACE_DBG("cmd %p (sess %p): post_exec_start %lld (tv_sec %ld, "
 			"tv_nsec %ld)", cmd, cmd->sess, cmd->post_exec_start,
@@ -2240,7 +2241,7 @@ static int scst_send_for_exec(struct scst_cmd **active_cmd)
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 	if (cmd->pre_exec_finish == 0) {
 		struct timespec ts;
-		getnstimeofday(&ts);
+		ktime_get_ts(&ts);
 		cmd->pre_exec_finish = scst_sec_to_nsec(ts.tv_sec) + ts.tv_nsec;
 		TRACE_DBG("cmd %p (sess %p): pre_exec_finish %lld (tv_sec %ld, "
 			"tv_nsec %ld)", cmd, cmd->sess, cmd->pre_exec_finish,
@@ -2853,7 +2854,7 @@ out:
 		uint64_t finish, scst_time, proc_time;
 		struct scst_session *sess = cmd->sess;
 
-		getnstimeofday(&ts);
+		ktime_get_ts(&ts);
 		finish = scst_sec_to_nsec(ts.tv_sec) + ts.tv_nsec;
 
 		spin_lock_bh(&sess->meas_lock);
