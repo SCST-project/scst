@@ -425,7 +425,7 @@ static int lat_info_show(struct seq_file *seq, void *v)
 		   "Target name",
 		   "Initiator name",
 		   "SCST latency",
-		   "Processing latency (us)");
+		   "Processing latency (ns)");
 
 	list_for_each_entry(acg, &scst_acg_list, scst_acg_list_entry) {
 		list_for_each_entry(sess, &acg->acg_sess_list,
@@ -499,6 +499,7 @@ static ssize_t scst_proc_scsi_tgt_gen_write_lat(struct file *file,
 				sess->initiator_name);
 			spin_lock_bh(&sess->meas_lock);
 			sess->processing_time = 0;
+			sess->scst_time = 0;
 			sess->processed_cmds = 0;
 			spin_unlock_bh(&sess->meas_lock);
 		}
