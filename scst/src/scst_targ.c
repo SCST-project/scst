@@ -4358,6 +4358,17 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 	TRACE(TRACE_MGMT, "Clearing task set (lun=%lld, mcmd=%p)",
 		(long long unsigned int)mcmd->lun, mcmd);
 
+	/*
+	 * When a logical unit is aborting one or more tasks from a SCSI
+	 * initiator port with the TASK ABORTED status it should complete all
+	 * of those tasks before entering additional tasks from that SCSI
+	 * initiator port into the task set - SAM2
+	 */
+	mcmd->needs_unblocking = 1;
+	spin_lock_bh(&dev->dev_lock);
+	__scst_block_dev(dev);
+	spin_unlock_bh(&dev->dev_lock);
+
 	__scst_abort_task_set(mcmd, mcmd->mcmd_tgt_dev);
 
 	mutex_lock(&scst_mutex);
@@ -4975,6 +4986,7 @@ static void scst_mgmt_cmd_send_done(struct scst_mgmt_cmd *mcmd)
 	if (mcmd->needs_unblocking) {
 		switch (mcmd->fn) {
 		case SCST_LUN_RESET:
+		case SCST_CLEAR_TASK_SET:
 			scst_unblock_dev(mcmd->mcmd_tgt_dev->dev);
 			break;
 
