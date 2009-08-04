@@ -654,7 +654,12 @@ static int srpt_post_recv(struct srpt_device *sdev, struct srpt_ioctx *ioctx)
 }
 
 /*
- * Post a send request on the SRPT RDMA channel 'ch'.
+ * Post an IB send request.
+ * @ch: RDMA channel to post the send request on.
+ * @ioctx: I/O context of the send request.
+ * @len: length of the request to be sent in bytes.
+ *
+ * Returns zero upon success and a non-zero value upon failure.
  */
 static int srpt_post_send(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 			  int len)
@@ -881,6 +886,18 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 			scst_estimate_context());
 }
 
+/**
+ * Build an SRP_RSP response PDU.
+ * @ch: RDMA channel through which the request has been received.
+ * @ioctx: I/O context in which the SRP_RSP PDU will be built.
+ * @s_key: sense key that will be stored in the response.
+ * @s_code: value that will be stored in the asc_ascq field of the sense data.
+ * @tag: tag of the request for which this response is being generated.
+ *
+ * An SRP_RSP PDU contains a SCSI status or service response. See also
+ * section 6.9 in the T10 SRP r16a document for the format of an SRP_RSP PDU.
+ * See also SPC-2 for more information about sense data.
+ */
 static void srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 			       struct srpt_ioctx *ioctx, u8 s_key, u8 s_code,
 			       u64 tag)
@@ -944,30 +961,30 @@ static void srpt_build_tskmgmt_rsp(struct srpt_rdma_ch *ch,
  */
 static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 {
-	struct scst_cmd *scmnd = NULL;
-	struct srp_cmd *srp_cmd = NULL;
+	struct scst_cmd *scmnd;
+	struct srp_cmd *srp_cmd;
+	struct srp_rsp *srp_rsp;
 	scst_data_direction dir = SCST_DATA_NONE;
 	int indirect_desc = 0;
 	int ret;
 	unsigned long flags;
 
 	srp_cmd = ioctx->buf;
+	srp_rsp = ioctx->buf;
 
 	if (srp_cmd->buf_fmt) {
 		ret = srpt_get_desc_tbl(ioctx, srp_cmd, &indirect_desc);
 		if (ret) {
 			srpt_build_cmd_rsp(ch, ioctx, NO_SENSE,
 					   NO_ADD_SENSE, srp_cmd->tag);
-			((struct srp_rsp *)ioctx->buf)->status =
-					SAM_STAT_TASK_SET_FULL;
+			srp_rsp->status = SAM_STAT_TASK_SET_FULL;
 			goto send_rsp;
 		}
 
 		if (indirect_desc) {
 			srpt_build_cmd_rsp(ch, ioctx, NO_SENSE,
 					   NO_ADD_SENSE, srp_cmd->tag);
-			((struct srp_rsp *)ioctx->buf)->status =
-					SAM_STAT_TASK_SET_FULL;
+			srp_rsp->status = SAM_STAT_TASK_SET_FULL;
 			goto send_rsp;
 		}
 
@@ -986,8 +1003,7 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 	if (!scmnd) {
 		srpt_build_cmd_rsp(ch, ioctx, NO_SENSE,
 				   NO_ADD_SENSE, srp_cmd->tag);
-		((struct srp_rsp *)ioctx->buf)->status =
-			SAM_STAT_TASK_SET_FULL;
+		srp_rsp->status = SAM_STAT_TASK_SET_FULL;
 		goto send_rsp;
 	}
 
@@ -1029,12 +1045,25 @@ send_rsp:
 }
 
 /*
- * Process SRP_TSK_MGMT. See also table 19 in the T10 SRP r16a document.
+ * Process an SRP_TSK_MGMT request PDU.
+ *
+ * Returns 0 upon success and -1 upon failure.
+ *
+ * Each task management function is performed by calling one of the
+ * scst_rx_mgmt_fn*() functions. These functions will either report failure
+ * or process the task management function asynchronously. The function
+ * srpt_tsk_mgmt_done() will be called by the SCST core upon completion of the
+ * task management function. When srpt_handle_tsk_mgmt() reports failure
+ * (i.e. returns -1) a response PDU will have been built in ioctx->buf. This
+ * PDU has to be sent back by the caller.
+ *
+ * For more information about SRP_TSK_MGMT PDU's, see also section 6.7 in
+ * the T10 SRP r16a document.
  */
 static int srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 				struct srpt_ioctx *ioctx)
 {
-	struct srp_tsk_mgmt *srp_tsk = NULL;
+	struct srp_tsk_mgmt *srp_tsk;
 	struct srpt_mgmt_ioctx *mgmt_ioctx;
 	int ret;
 
@@ -1051,7 +1080,7 @@ static int srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 	if (!mgmt_ioctx) {
 		srpt_build_tskmgmt_rsp(ch, ioctx, SRP_TSK_MGMT_FAILED,
 				       srp_tsk->tag);
-		goto send_rsp;
+		goto err;
 	}
 
 	mgmt_ioctx->ioctx = ioctx;
@@ -1060,6 +1089,7 @@ static int srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 
 	switch (srp_tsk->tsk_mgmt_func) {
 	case SRP_TSK_ABORT_TASK:
+		TRACE_DBG("%s", "Processing SRP_TSK_ABORT_TASK");
 		ret = scst_rx_mgmt_fn_tag(ch->scst_sess,
 					  SCST_ABORT_TASK,
 					  srp_tsk->task_tag,
@@ -1068,6 +1098,7 @@ static int srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 					  mgmt_ioctx);
 		break;
 	case SRP_TSK_ABORT_TASK_SET:
+		TRACE_DBG("%s", "Processing SRP_TSK_ABORT_TASK_SET");
 		ret = scst_rx_mgmt_fn_lun(ch->scst_sess,
 					  SCST_ABORT_TASK_SET,
 					  (u8 *) &srp_tsk->lun,
@@ -1077,6 +1108,7 @@ static int srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 					  mgmt_ioctx);
 		break;
 	case SRP_TSK_CLEAR_TASK_SET:
+		TRACE_DBG("%s", "Processing SRP_TSK_CLEAR_TASK_SET");
 		ret = scst_rx_mgmt_fn_lun(ch->scst_sess,
 					  SCST_CLEAR_TASK_SET,
 					  (u8 *) &srp_tsk->lun,
@@ -1086,6 +1118,7 @@ static int srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 					  mgmt_ioctx);
 		break;
 	case SRP_TSK_LUN_RESET:
+		TRACE_DBG("%s", "Processing SRP_TSK_LUN_RESET");
 		ret = scst_rx_mgmt_fn_lun(ch->scst_sess,
 					  SCST_LUN_RESET,
 					  (u8 *) &srp_tsk->lun,
@@ -1095,6 +1128,7 @@ static int srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 					  mgmt_ioctx);
 		break;
 	case SRP_TSK_CLEAR_ACA:
+		TRACE_DBG("%s", "Processing SRP_TSK_CLEAR_ACA");
 		ret = scst_rx_mgmt_fn_lun(ch->scst_sess,
 					  SCST_CLEAR_ACA,
 					  (u8 *) &srp_tsk->lun,
@@ -1104,22 +1138,38 @@ static int srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 					  mgmt_ioctx);
 		break;
 	default:
+		TRACE_DBG("%s", "Unsupported task management function.");
 		srpt_build_tskmgmt_rsp(ch, ioctx,
 				       SRP_TSK_MGMT_FUNC_NOT_SUPP,
 				       srp_tsk->tag);
-		goto send_rsp;
+		goto err;
 	}
+
+	if (ret) {
+		TRACE_DBG("%s", "Processing task management function failed.");
+		srpt_build_tskmgmt_rsp(ch, ioctx, SRP_TSK_MGMT_FAILED,
+				       srp_tsk->tag);
+		goto err;
+	}
+
 	return 0;
 
-send_rsp:
+err:
 	return -1;
 }
 
+/**
+ * Process a receive completion event.
+ * @ch: RDMA channel for which the completion event has been received.
+ * @ioctx: SRPT I/O context for which the completion event has been received.
+ */
 static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 			       struct srpt_ioctx *ioctx)
 {
-	u8 op;
+	struct srp_cmd *srp_cmd;
+	struct srp_rsp *srp_rsp;
 	unsigned long flags;
+	int len;
 
 	if (ch->state != RDMA_CHANNEL_LIVE) {
 		if (ch->state == RDMA_CHANNEL_CONNECTING) {
@@ -1143,25 +1193,26 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 	ioctx->rdma_ius = NULL;
 	ioctx->scmnd = NULL;
 
-	op = *(u8 *) ioctx->buf;
-	switch (op) {
+	srp_cmd = ioctx->buf;
+	srp_rsp = ioctx->buf;
+
+	switch (srp_cmd->opcode) {
 	case SRP_CMD:
 		if (srpt_handle_cmd(ch, ioctx) < 0)
-			goto send_rsp;
+			goto err;
 		break;
 
 	case SRP_TSK_MGMT:
 		if (srpt_handle_tsk_mgmt(ch, ioctx) < 0)
-			goto send_rsp;
+			goto err;
 		break;
 
 	case SRP_I_LOGOUT:
 	case SRP_AER_REQ:
 	default:
 		srpt_build_cmd_rsp(ch, ioctx, ILLEGAL_REQUEST, INVALID_CDB,
-				   ((struct srp_cmd *)ioctx->buf)->tag);
-
-		goto send_rsp;
+				   srp_cmd->tag);
+		goto err;
 	}
 
 	dma_sync_single_for_device(ch->sport->sdev->device->dma_device,
@@ -1170,13 +1221,15 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 
 	return;
 
-send_rsp:
-	if (ch->state != RDMA_CHANNEL_LIVE ||
-	    srpt_post_send(ch, ioctx,
-			   sizeof(struct srp_rsp) +
-			   be32_to_cpu(((struct srp_rsp *)ioctx->buf)->
-				       sense_data_len)))
+err:
+	WARN_ON(srp_rsp->opcode != SRP_RSP);
+	len = (sizeof *srp_rsp) + be32_to_cpu(srp_rsp->sense_data_len);
+
+	if (ch->state != RDMA_CHANNEL_LIVE || srpt_post_send(ch, ioctx, len)) {
+		printk(KERN_ERR PFX "%s: sending SRP_RSP PDU failed",
+		       __func__);
 		srpt_reset_ioctx(ch, ioctx);
+	}
 }
 
 /*
@@ -1206,9 +1259,11 @@ static inline void srpt_schedule_thread(struct srpt_ioctx *ioctx)
 	wake_up(&ioctx_list_waitQ);
 }
 
-/*
- * InfiniBand CQ (completion queue) event handler for asynchronous events not
- * associated with a completion.
+/**
+ * InfiniBand completion queue callback function.
+ * @cq: completion queue.
+ * @ctx: completion queue context, which was passed as the fourth argument of
+ *       the function ib_create_cq().
  */
 static void srpt_completion(struct ib_cq *cq, void *ctx)
 {
@@ -1451,12 +1506,12 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	it_iu_len = be32_to_cpu(req->req_it_iu_len);
 
 	TRACE_DBG("Host login i_port_id=0x%llx:0x%llx t_port_id=0x%llx:0x%llx"
-		  " it_iu_len=%d",
-		  (u64)be64_to_cpu(*(u64 *)&req->initiator_port_id[0]),
-		  (u64)be64_to_cpu(*(u64 *)&req->initiator_port_id[8]),
-		  (u64)be64_to_cpu(*(u64 *)&req->target_port_id[0]),
-		  (u64)be64_to_cpu(*(u64 *)&req->target_port_id[8]),
-		  it_iu_len);
+	    " it_iu_len=%d",
+	    (unsigned long long)be64_to_cpu(*(u64 *)&req->initiator_port_id[0]),
+	    (unsigned long long)be64_to_cpu(*(u64 *)&req->initiator_port_id[8]),
+	    (unsigned long long)be64_to_cpu(*(u64 *)&req->target_port_id[0]),
+	    (unsigned long long)be64_to_cpu(*(u64 *)&req->target_port_id[8]),
+	    it_iu_len);
 
 	if (it_iu_len > MAX_MESSAGE_SIZE || it_iu_len < 64) {
 		rej->reason =
