@@ -1,25 +1,35 @@
-Before asking any questions to me directly or scst-devel mailing list
-make sure that you read *ALL* relevant documentation files (at least, 2
-README files: one for SCST and one for target driver you are using) and
-*understood* *ALL* written there. I personally very much like working
-with people who understand what they are doing and hate when somebody
-tries to use me as a replacement of his brain and to save his time on
-expense of mine. So, in such cases don't be surprised if your question
-will be ignored or answered in the RTFM style.
+Before asking any questions directly or in scst-devel mailing list make
+sure that you read *ALL* relevant documentation files (at least, 2
+README files: one for SCST and one for the target driver you are using)
+and *understood* *ALL* written there. I personally very much like
+working with people who understand what they are doing and hate when
+somebody tries to use me as a replacement for his brain to save his time
+on expense of mine. So, in such cases it shouldn't be a surprise if your
+question will not be answered or will be answered in the RTFM style.
 
-Particularly, I will refuse to answer on any questions about low
-performance if you don't *explicitly* write in your question that you
-don't use the debug build and ensured (write from what) that your target
-and backstorage devices don't share the same PCI bus.
+See a very good guide "How To Ask Questions The Smart Way" in
+http://www.catb.org/~esr/faqs/smart-questions.html.
 
-Another too FAQ area is "What are those aborts and resets, which your
-target from time to time logging, mean and what to do with them?", "Do
-they relate to I/O stalls I sometimes experience" and "Why after them my
-device was put offline?".
+Sorry, if the above might sound too harsh. Unfortunately, we, SCST
+developers, have limited abilities and can't waste them keeping
+explaining basic concepts and answering on the same questions again and
+again.
 
-Sorry, if the above might sound too harsh. Unfortunately, I have a
-limited power and can't waste it keeping explaining basic concepts and
-answering on the same questions.
+Examples of too FAQ areas are "What are those aborts and resets, which
+your target from time to time logging, mean and what to do with them?",
+"Do they relate to I/O stalls I sometimes experience" and "Why after
+them my device was put offline?".
+
+So, as a bottom line, don't ask questions answers on which you can find
+out yourself by a simple documentation reading and minimal thinking
+effort.
+
+If you experience kernel crash, hang, etc., you should follow
+REPORTING-BUGS file from your kernel source tree.
+
+For most questions it is very desirable if you attach to your message
+full kernel log from target since it's booted. It will allow us to see
+your target and SCST configurations.
 
 Example of a really bad question:
 
@@ -33,14 +43,14 @@ value from the epoll.
 
 What is the reason ?
 
-======================================================================
+----------------------------------------------------------------------
 
-It is bad, because, apparently, the author was doing something wrong
-with epoll, but instead of checking the source code to find out when
-"Bad address" error can be returned and understand possible reasons for
-it, he expected me to do that for him. He even didn't bothered to look
-in the kernel log, where, very probably, the reason for the error was
-logged.
+This question is bad, because, apparently, the author was doing
+something wrong with epoll, but instead of checking the scst_user source
+code to find out when "Bad address" error can be returned and understand
+possible reasons for it, he expected others to do that for him. He even
+didn't bothered to look in the kernel log, where, very probably, the
+reason of the error was logged.
 
 
 Here are three examples of good questions:
@@ -305,15 +315,5 @@ tell me what version should I use, for which all of the patches will
 work?
 
 ======================================================================
-
-So, as a bottom line, if you want me to be friendly, don't ask questions
-answers on which you can find out yourself by a simple documentation
-reading and minimal thinking effort.
-
-Also it is very desirable if you attach to your question full kernel log
-from target since it's booted.
-
-If you experience kernel crash, hang, etc., you should follow
-REPORTING-BUGS file from your kernel source tree.
 
 Vladislav Bolkhovitin <vst@vlnb.net>, http://scst.sourceforge.net
