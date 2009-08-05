@@ -102,7 +102,6 @@ MODULE_PARM_DESC(thread,
 
 static void srpt_add_one(struct ib_device *device);
 static void srpt_remove_one(struct ib_device *device);
-static void srpt_disconnect_channel(struct srpt_rdma_ch *ch, int dreq);
 static void srpt_unregister_mad_agent(struct srpt_device *sdev);
 static void srpt_unregister_procfs_entry(struct scst_tgt_template *tgt);
 
@@ -111,6 +110,32 @@ static struct ib_client srpt_client = {
 	.add = srpt_add_one,
 	.remove = srpt_remove_one
 };
+
+/**
+ * Atomically test and set the channel state.
+ * @ch: RDMA channel.
+ * @old: channel state to compare with.
+ * @new: state to change the channel state to if the current state matches the
+ *       argument 'old'.
+ *
+ * Returns true if the channel state matched old upon entry of this function,
+ * and false otherwise.
+ */
+static bool srpt_test_and_set_channel_state(struct srpt_rdma_ch *ch,
+					    enum rdma_ch_state old,
+					    enum rdma_ch_state new)
+{
+	unsigned long flags;
+	enum rdma_ch_state cur;
+
+	spin_lock_irqsave(&ch->spinlock, flags);
+	cur = ch->state;
+	if (cur == old)
+		ch->state = new;
+	spin_unlock_irqrestore(&ch->spinlock, flags);
+
+	return (cur == old);
+}
 
 /*
  * Callback function called by the InfiniBand core when an asynchronous IB
@@ -193,9 +218,10 @@ static void srpt_qp_event(struct ib_event *event, void *ctx)
 #endif
 		break;
 	case IB_EVENT_QP_LAST_WQE_REACHED:
-		if (ch->state == RDMA_CHANNEL_LIVE) {
-			TRACE_DBG("%s", "Schedule CM_DISCONNECT_WORK");
-			srpt_disconnect_channel(ch, 1);
+		if (srpt_test_and_set_channel_state(ch, RDMA_CHANNEL_LIVE,
+					RDMA_CHANNEL_DISCONNECTING)) {
+			TRACE_DBG("%s", "Disconnecting channel.");
+			ib_send_cm_dreq(ch->cm_id, NULL, 0);
 		}
 		break;
 	default:
@@ -757,6 +783,15 @@ static int srpt_init_ch_qp(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 	return ret;
 }
 
+/**
+ * Change the state of a channel to 'ready to receive' or 'ready to send'.
+ * @ch: channel of the queue pair.
+ * @qp: queue pair whose attributes should be modified.
+ * @qp_state: new state of the queue pair; either IB_QPS_RTS or IB_QPS_RTR
+ *      (RTS = ready to send; RTR = ready to receive).
+ *
+ * Returns zero upon success and a negative value upon failure.
+ */
 static int srpt_ch_qp_rtr_rts(struct srpt_rdma_ch *ch, struct ib_qp *qp,
 			      enum ib_qp_state qp_state)
 {
@@ -1171,16 +1206,19 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 	unsigned long flags;
 	int len;
 
+	spin_lock_irqsave(&ch->spinlock, flags);
 	if (ch->state != RDMA_CHANNEL_LIVE) {
 		if (ch->state == RDMA_CHANNEL_CONNECTING) {
-			spin_lock_irqsave(&ch->spinlock, flags);
 			list_add_tail(&ioctx->wait_list, &ch->cmd_wait_list);
 			spin_unlock_irqrestore(&ch->spinlock, flags);
-		} else
+			return;
+		} else {
+			spin_unlock_irqrestore(&ch->spinlock, flags);
 			srpt_reset_ioctx(ch, ioctx);
-
-		return;
+			return;
+		}
 	}
+	spin_unlock_irqrestore(&ch->spinlock, flags);
 
 	dma_sync_single_for_cpu(ch->sport->sdev->device->dma_device, ioctx->dma,
 				MAX_MESSAGE_SIZE, DMA_FROM_DEVICE);
@@ -1215,6 +1253,8 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 		goto err;
 	}
 
+	WARN_ON(srp_rsp->opcode == SRP_RSP);
+
 	dma_sync_single_for_device(ch->sport->sdev->device->dma_device,
 				   ioctx->dma, MAX_MESSAGE_SIZE,
 				   DMA_FROM_DEVICE);
@@ -1225,7 +1265,12 @@ err:
 	WARN_ON(srp_rsp->opcode != SRP_RSP);
 	len = (sizeof *srp_rsp) + be32_to_cpu(srp_rsp->sense_data_len);
 
-	if (ch->state != RDMA_CHANNEL_LIVE || srpt_post_send(ch, ioctx, len)) {
+	if (ch->state != RDMA_CHANNEL_LIVE) {
+		/* Give up if another thread modified the channel state. */
+		printk(KERN_ERR PFX "%s: channel is in state %d",
+		       __func__, ch->state);
+		srpt_reset_ioctx(ch, ioctx);
+	} else if (srpt_post_send(ch, ioctx, len)) {
 		printk(KERN_ERR PFX "%s: sending SRP_RSP PDU failed",
 		       __func__);
 		srpt_reset_ioctx(ch, ioctx);
@@ -1464,18 +1509,6 @@ static void srpt_release_channel(struct srpt_rdma_ch *ch, int destroy_cmid)
 	TRACE_EXIT();
 }
 
-static void srpt_disconnect_channel(struct srpt_rdma_ch *ch, int dreq)
-{
-	spin_lock_irq(&ch->spinlock);
-	ch->state = RDMA_CHANNEL_DISCONNECTING;
-	spin_unlock_irq(&ch->spinlock);
-
-	if (dreq)
-		ib_send_cm_dreq(ch->cm_id, NULL, 0);
-	else
-		ib_send_cm_drep(ch->cm_id, NULL, 0);
-}
-
 static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 			    struct ib_cm_req_event_param *param,
 			    void *private_data)
@@ -1532,12 +1565,17 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 			    && param->port == ch->sport->port
 			    && param->listen_id == ch->sport->sdev->cm_id
 			    && ch->cm_id) {
+				enum rdma_ch_state prev_state;
+
 				/* found an existing channel */
 				TRACE_DBG("Found existing channel name= %s"
 					  " cm_id= %p state= %d",
 					  ch->sess_name, ch->cm_id, ch->state);
 
-				if (ch->state == RDMA_CHANNEL_CONNECTING)
+				prev_state = ch->state;
+				if (ch->state == RDMA_CHANNEL_LIVE)
+					ch->state = RDMA_CHANNEL_DISCONNECTING;
+				else if (ch->state == RDMA_CHANNEL_CONNECTING)
 					list_del(&ch->list);
 
 				spin_unlock_irq(&sdev->spinlock);
@@ -1545,9 +1583,10 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 				rsp->rsp_flags =
 					SRP_LOGIN_RSP_MULTICHAN_TERMINATED;
 
-				if (ch->state == RDMA_CHANNEL_LIVE)
-					srpt_disconnect_channel(ch, 1);
-				else if (ch->state == RDMA_CHANNEL_CONNECTING) {
+				if (prev_state == RDMA_CHANNEL_LIVE)
+					ib_send_cm_dreq(ch->cm_id, NULL, 0);
+				else if (prev_state ==
+					 RDMA_CHANNEL_CONNECTING) {
 					ib_send_cm_rej(ch->cm_id,
 						       IB_CM_REJ_NO_RESOURCES,
 						       NULL, 0, NULL, 0);
@@ -1648,14 +1687,18 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	rep_param->initiator_depth = 4;
 
 	ret = ib_send_cm_rep(cm_id, rep_param);
-	if (ret == 0) {
-		spin_lock_irq(&sdev->spinlock);
-		list_add_tail(&ch->list, &sdev->rch_list);
-		spin_unlock_irq(&sdev->spinlock);
-	} else
-		srpt_release_channel(ch, 0);
+	if (ret)
+		goto release_channel;
+
+	spin_lock_irq(&sdev->spinlock);
+	list_add_tail(&ch->list, &sdev->rch_list);
+	spin_unlock_irq(&sdev->spinlock);
 
 	goto out;
+
+release_channel:
+	scst_unregister_session(ch->scst_sess, 0, NULL);
+	ch->scst_sess = NULL;
 
 destroy_ib:
 	ib_destroy_qp(ch->qp);
@@ -1702,6 +1745,12 @@ static void srpt_cm_rej_recv(struct ib_cm_id *cm_id)
 	srpt_find_and_release_channel(cm_id);
 }
 
+/**
+ * Process an IB_CM_RTU_RECEIVED or IB_CM_USER_ESTABLISHED event.
+ *
+ * An IB_CM_RTU_RECEIVED message indicates that the connection is established
+ * and that the recipient may begin transmitting (RTU = ready to use).
+ */
 static int srpt_cm_rtu_recv(struct ib_cm_id *cm_id)
 {
 	struct srpt_rdma_ch *ch;
@@ -1711,12 +1760,10 @@ static int srpt_cm_rtu_recv(struct ib_cm_id *cm_id)
 	if (!ch)
 		return -EINVAL;
 
-	if (ch->state == RDMA_CHANNEL_CONNECTING) {
+	if (srpt_test_and_set_channel_state(ch, RDMA_CHANNEL_CONNECTING,
+					    RDMA_CHANNEL_LIVE)) {
 		struct srpt_ioctx *ioctx, *ioctx_tmp;
 
-		spin_lock_irq(&ch->spinlock);
-		ch->state = RDMA_CHANNEL_LIVE;
-		spin_unlock_irq(&ch->spinlock);
 		ret = srpt_ch_qp_rtr_rts(ch, ch->qp, IB_QPS_RTS);
 
 		list_for_each_entry_safe(ioctx, ioctx_tmp, &ch->cmd_wait_list,
@@ -1724,16 +1771,20 @@ static int srpt_cm_rtu_recv(struct ib_cm_id *cm_id)
 			list_del(&ioctx->wait_list);
 			srpt_handle_new_iu(ch, ioctx);
 		}
-	} else if (ch->state == RDMA_CHANNEL_DISCONNECTING)
-		ret = -EAGAIN;
-	else
-		ret = 0;
-
-	if (ret) {
+		if (ret && srpt_test_and_set_channel_state(ch,
+					RDMA_CHANNEL_LIVE,
+					RDMA_CHANNEL_DISCONNECTING)) {
+			TRACE_DBG("cm_id=%p sess_name=%s state=%d",
+				  cm_id, ch->sess_name, ch->state);
+			ib_send_cm_dreq(ch->cm_id, NULL, 0);
+		}
+	} else if (ch->state == RDMA_CHANNEL_DISCONNECTING) {
 		TRACE_DBG("cm_id=%p sess_name=%s state=%d",
 			  cm_id, ch->sess_name, ch->state);
-		srpt_disconnect_channel(ch, 1);
-	}
+		ib_send_cm_dreq(ch->cm_id, NULL, 0);
+		ret = -EAGAIN;
+	} else
+		ret = 0;
 
 	return ret;
 }
@@ -1764,7 +1815,7 @@ static int srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
 	switch (ch->state) {
 	case RDMA_CHANNEL_LIVE:
 	case RDMA_CHANNEL_CONNECTING:
-		srpt_disconnect_channel(ch, 0);
+		ib_send_cm_drep(ch->cm_id, NULL, 0);
 		break;
 	case RDMA_CHANNEL_DISCONNECTING:
 	default:
