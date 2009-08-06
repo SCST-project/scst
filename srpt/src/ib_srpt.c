@@ -784,39 +784,54 @@ static int srpt_init_ch_qp(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 }
 
 /**
- * Change the state of a channel to 'ready to receive' or 'ready to send'.
+ * Change the state of a channel to 'ready to receive' (RTR).
  * @ch: channel of the queue pair.
- * @qp: queue pair whose attributes should be modified.
- * @qp_state: new state of the queue pair; either IB_QPS_RTS or IB_QPS_RTR
- *      (RTS = ready to send; RTR = ready to receive).
+ * @qp: queue pair to change the state of.
  *
  * Returns zero upon success and a negative value upon failure.
  */
-static int srpt_ch_qp_rtr_rts(struct srpt_rdma_ch *ch, struct ib_qp *qp,
-			      enum ib_qp_state qp_state)
+static int srpt_ch_qp_rtr(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 {
-	struct ib_qp_attr *qp_attr;
+	struct ib_qp_attr qp_attr;
 	int attr_mask;
 	int ret;
 
-	qp_attr = kmalloc(sizeof *qp_attr, GFP_KERNEL);
-	if (!qp_attr)
-		return -ENOMEM;
-
-	qp_attr->qp_state = qp_state;
-	ret = ib_cm_init_qp_attr(ch->cm_id, qp_attr, &attr_mask);
+	qp_attr.qp_state = IB_QPS_RTR;
+	ret = ib_cm_init_qp_attr(ch->cm_id, &qp_attr, &attr_mask);
 	if (ret)
 		goto out;
 
-	if (qp_state == IB_QPS_RTR)
-		qp_attr->max_dest_rd_atomic = 4;
-	else
-		qp_attr->max_rd_atomic = 4;
+	qp_attr.max_dest_rd_atomic = 4;
 
-	ret = ib_modify_qp(qp, qp_attr, attr_mask);
+	ret = ib_modify_qp(qp, &qp_attr, attr_mask);
 
 out:
-	kfree(qp_attr);
+	return ret;
+}
+
+/**
+ * Change the state of a channel to 'ready to send' (RTS).
+ * @ch: channel of the queue pair.
+ * @qp: queue pair to change the state of.
+ *
+ * Returns zero upon success and a negative value upon failure.
+ */
+static int srpt_ch_qp_rts(struct srpt_rdma_ch *ch, struct ib_qp *qp)
+{
+	struct ib_qp_attr qp_attr;
+	int attr_mask;
+	int ret;
+
+	qp_attr.qp_state = IB_QPS_RTS;
+	ret = ib_cm_init_qp_attr(ch->cm_id, &qp_attr, &attr_mask);
+	if (ret)
+		goto out;
+
+	qp_attr.max_rd_atomic = 4;
+
+	ret = ib_modify_qp(qp, &qp_attr, attr_mask);
+
+out:
 	return ret;
 }
 
@@ -1637,7 +1652,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		goto free_ch;
 	}
 
-	ret = srpt_ch_qp_rtr_rts(ch, ch->qp, IB_QPS_RTR);
+	ret = srpt_ch_qp_rtr(ch, ch->qp);
 	if (ret) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		TRACE_DBG("Reject failed qp to rtr/rts ret=%d", ret);
@@ -1764,7 +1779,7 @@ static int srpt_cm_rtu_recv(struct ib_cm_id *cm_id)
 					    RDMA_CHANNEL_LIVE)) {
 		struct srpt_ioctx *ioctx, *ioctx_tmp;
 
-		ret = srpt_ch_qp_rtr_rts(ch, ch->qp, IB_QPS_RTS);
+		ret = srpt_ch_qp_rts(ch, ch->qp);
 
 		list_for_each_entry_safe(ioctx, ioctx_tmp, &ch->cmd_wait_list,
 					 wait_list) {
@@ -2758,7 +2773,16 @@ static void srpt_remove_one(struct ib_device *device)
 	 * finished if it is running.
 	 */
 	for (i = 0; i < sdev->device->phys_port_cnt; i++)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 22)
 		cancel_work_sync(&sdev->port[i].work);
+#else
+		/*
+		 * cancel_work_sync() was introduced in kernel 2.6.22. Older
+		 * kernels do not have a facility to cancel scheduled work.
+		 */
+		printk(KERN_ERR PFX
+		       "your kernel does not provide cancel_work_sync().\n");
+#endif
 
 	scst_unregister(sdev->scst_tgt);
 	sdev->scst_tgt = NULL;
