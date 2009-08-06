@@ -1836,7 +1836,7 @@ void __scst_acg_remove_acn(struct scst_acn *n)
 }
 
 /* The activity supposed to be suspended and scst_mutex held */
-int scst_acg_remove_name(struct scst_acg *acg, const char *name)
+int scst_acg_remove_name(struct scst_acg *acg, const char *name, bool reassign)
 {
 	int res = -EINVAL;
 	struct scst_acn *n;
@@ -1854,7 +1854,8 @@ int scst_acg_remove_name(struct scst_acg *acg, const char *name)
 	if (res == 0) {
 		PRINT_INFO("Removed name %s from group %s", name,
 			acg->acg_name);
-		scst_check_reassign_sessions();
+		if (reassign)
+			scst_check_reassign_sessions();
 	} else
 		PRINT_ERROR("Unable to find name %s in group %s", name,
 			acg->acg_name);

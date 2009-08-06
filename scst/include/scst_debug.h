@@ -258,26 +258,26 @@ do {									\
 #define PRINT_WARNING(format, args...)					\
 do {									\
 	if (strcmp(INFO_FLAG, LOG_FLAG)) {				\
-		PRINT_LOG_FLAG(LOG_FLAG, "***WARNING*** " format, args); \
+		PRINT_LOG_FLAG(LOG_FLAG, "***WARNING***: " format, args); \
 	}								\
-	PRINT_LOG_FLAG(INFO_FLAG, "***WARNING*** " format, args);	\
+	PRINT_LOG_FLAG(INFO_FLAG, "***WARNING***: " format, args);	\
 } while (0)
 
 #define PRINT_ERROR(format, args...)					\
 do {									\
 	if (strcmp(ERROR_FLAG, LOG_FLAG)) {				\
-		PRINT_LOG_FLAG(LOG_FLAG, "***ERROR*** " format, args);	\
+		PRINT_LOG_FLAG(LOG_FLAG, "***ERROR***: " format, args);	\
 	}								\
-	PRINT_LOG_FLAG(ERROR_FLAG, "***ERROR*** " format, args);	\
+	PRINT_LOG_FLAG(ERROR_FLAG, "***ERROR***: " format, args);	\
 } while (0)
 
 #define PRINT_CRIT_ERROR(format, args...)				\
 do {									\
 	/*  if (strcmp(CRIT_FLAG, LOG_FLAG))				\
 	    {								\
-	    PRINT_LOG_FLAG(LOG_FLAG, "***CRITICAL ERROR*** " format, args); \
+	    PRINT_LOG_FLAG(LOG_FLAG, "***CRITICAL ERROR***: " format, args); \
 	    }*/								\
-	PRINT_LOG_FLAG(CRIT_FLAG, "***CRITICAL ERROR*** " format, args); \
+	PRINT_LOG_FLAG(CRIT_FLAG, "***CRITICAL ERROR***: " format, args); \
 } while (0)
 
 #define PRINT_INFO(format, args...)			\
@@ -366,19 +366,19 @@ do {								\
 
 #define PRINT_WARNING(format, args...)          \
 do {                                            \
-	PRINT(INFO_FLAG, "%s: ***WARNING*** "	\
+	PRINT(INFO_FLAG, "%s: ***WARNING***: "	\
 	      format, LOG_PREFIX, args);	\
 } while (0)
 
 #define PRINT_ERROR(format, args...)            \
 do {                                            \
-	PRINT(ERROR_FLAG, "%s: ***ERROR*** "	\
+	PRINT(ERROR_FLAG, "%s: ***ERROR***: "	\
 	      format, LOG_PREFIX, args);	\
 } while (0)
 
 #define PRINT_CRIT_ERROR(format, args...)       \
 do {                                            \
-	PRINT(CRIT_FLAG, "%s: ***CRITICAL ERROR*** "	\
+	PRINT(CRIT_FLAG, "%s: ***CRITICAL ERROR***: "	\
 		format, LOG_PREFIX, args);		\
 } while (0)
 
@@ -391,19 +391,19 @@ do {                                            \
 
 #define PRINT_WARNING(format, args...)          \
 do {                                            \
-	PRINT(INFO_FLAG, "***WARNING*** "	\
+	PRINT(INFO_FLAG, "***WARNING***: "	\
 		format, args);			\
 } while (0)
 
 #define PRINT_ERROR(format, args...)          	\
 do {                                            \
-	PRINT(ERROR_FLAG, "***ERROR*** "	\
+	PRINT(ERROR_FLAG, "***ERROR***: "	\
 		format, args);			\
 } while (0)
 
 #define PRINT_CRIT_ERROR(format, args...)		\
 do {							\
-	PRINT(CRIT_FLAG, "***CRITICAL ERROR*** "	\
+	PRINT(CRIT_FLAG, "***CRITICAL ERROR***: "	\
 		format, args);				\
 } while (0)
 

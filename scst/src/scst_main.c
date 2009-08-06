@@ -678,15 +678,13 @@ out_resume:
 
 out_err:
 	if (res == 0) {
-		PRINT_INFO("Attached SCSI target mid-level at "
-		    "scsi%d, channel %d, id %d, lun %d, type %d",
-		    scsidp->host->host_no, scsidp->channel, scsidp->id,
-		    scsidp->lun, scsidp->type);
+		PRINT_INFO("Attached to scsi%d, channel %d, id %d, lun %d, "
+			"type %d", scsidp->host->host_no, scsidp->channel,
+			scsidp->id, scsidp->lun, scsidp->type);
 	} else {
-		PRINT_ERROR("Failed to attach SCSI target mid-level "
-		    "at scsi%d, channel %d, id %d, lun %d, type %d",
-		    scsidp->host->host_no, scsidp->channel, scsidp->id,
-		    scsidp->lun, scsidp->type);
+		PRINT_ERROR("Failed to to scsi%d, channel %d, id %d, lun %d, "
+			"type %d", scsidp->host->host_no, scsidp->channel,
+			scsidp->id, scsidp->lun, scsidp->type);
 	}
 
 	TRACE_EXIT_RES(res);
@@ -736,9 +734,9 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 	put_disk(dev->rq_disk);
 	scst_free_device(dev);
 
-	PRINT_INFO("Detached SCSI target mid-level from scsi%d, channel %d, "
-		"id %d, lun %d, type %d", scsidp->host->host_no,
-		scsidp->channel, scsidp->id, scsidp->lun, scsidp->type);
+	PRINT_INFO("Detached from scsi%d, channel %d, id %d, lun %d, type %d",
+		scsidp->host->host_no, scsidp->channel, scsidp->id,
+		scsidp->lun, scsidp->type);
 
 out_unblock:
 	mutex_unlock(&scst_mutex);
@@ -835,13 +833,11 @@ out_resume:
 	scst_resume_activity();
 
 out:
-	if (res > 0) {
-		PRINT_INFO("Attached SCSI target mid-level to virtual "
-		    "device %s (id %d)", dev_name, dev->virt_id);
-	} else {
-		PRINT_INFO("Failed to attach SCSI target mid-level to "
-		    "virtual device %s", dev_name);
-	}
+	if (res > 0)
+		PRINT_INFO("Attached to virtual device %s (id %d)",
+			dev_name, dev->virt_id);
+	else
+		PRINT_INFO("Failed to attach to virtual device %s", dev_name);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -885,8 +881,8 @@ void scst_unregister_virtual_device(int id)
 
 	scst_assign_dev_handler(dev, &scst_null_devtype);
 
-	PRINT_INFO("Detached SCSI target mid-level from virtual device %s "
-		"(id %d)", dev->virt_name, dev->virt_id);
+	PRINT_INFO("Detached from virtual device %s (id %d)",
+		dev->virt_name, dev->virt_id);
 
 	scst_free_device(dev);
 

@@ -78,12 +78,13 @@ static struct scst_proc_data scst_dev_handler_proc_data;
 #define SCST_PROC_ACTION_SET		 4
 #define SCST_PROC_ACTION_ADD		 5
 #define SCST_PROC_ACTION_CLEAR		 6
-#define SCST_PROC_ACTION_DEL		 7
-#define SCST_PROC_ACTION_VALUE		 8
-#define SCST_PROC_ACTION_ASSIGN		 9
-#define SCST_PROC_ACTION_ADD_GROUP	10
-#define SCST_PROC_ACTION_DEL_GROUP	11
-#define SCST_PROC_ACTION_RENAME_GROUP	12
+#define SCST_PROC_ACTION_MOVE		 7
+#define SCST_PROC_ACTION_DEL		 8
+#define SCST_PROC_ACTION_VALUE		 9
+#define SCST_PROC_ACTION_ASSIGN		10
+#define SCST_PROC_ACTION_ADD_GROUP	11
+#define SCST_PROC_ACTION_DEL_GROUP	12
+#define SCST_PROC_ACTION_RENAME_GROUP	13
 
 static struct proc_dir_entry *scst_proc_scsi_tgt;
 static struct proc_dir_entry *scst_proc_groups_root;
@@ -137,6 +138,7 @@ static char *scst_proc_help_string =
 "   echo \"clear\" >/proc/scsi_tgt/groups/GROUP_NAME/devices\n"
 "\n"
 "   echo \"add|del NAME\" >/proc/scsi_tgt/groups/GROUP_NAME/names\n"
+"   echo \"move NAME NEW_GROUP_NAME\" >/proc/scsi_tgt/groups/OLD_GROUP_NAME/names\n"
 "   echo \"clear\" >/proc/scsi_tgt/groups/GROUP_NAME/names\n"
 "\n"
 "   echo \"DEC|0xHEX|0OCT\" >/proc/scsi_tgt/threads\n"
@@ -1374,30 +1376,31 @@ static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file,
 	case SCST_PROC_ACTION_ADD_GROUP:
 	case SCST_PROC_ACTION_DEL_GROUP:
 	case SCST_PROC_ACTION_RENAME_GROUP:
+		pp = p;
+		while (!isspace(*pp) && *pp != '\0')
+			pp++;
+		if (*pp != '\0') {
+			*pp = '\0';
+			pp++;
+			while (isspace(*pp) && *pp != '\0')
+				pp++;
+			if (*pp != '\0') {
+				switch (action) {
+				case SCST_PROC_ACTION_ADD_GROUP:
+				case SCST_PROC_ACTION_DEL_GROUP:
+					PRINT_ERROR("%s", "Too many "
+						"arguments");
+					res = -EINVAL;
+					goto out_up_free;
+				}
+			}
+		}
+
 		if (strcmp(p, SCST_DEFAULT_ACG_NAME) == 0) {
 			PRINT_ERROR("Attempt to add/delete/rename predefined "
 				"group \"%s\"", p);
 			res = -EINVAL;
 			goto out_up_free;
-		}
-
-		pp = p;
-		while (!isspace(*pp) && *pp != '\0')
-			pp++;
-		if (*pp != '\0') {
-			switch (action) {
-			case SCST_PROC_ACTION_ADD_GROUP:
-			case SCST_PROC_ACTION_DEL_GROUP:
-				PRINT_ERROR("Wrong acg name %s", p);
-				res = -EINVAL;
-				goto out_up_free;
-			default:
-				*pp = '\0';
-				pp++;
-				while (isspace(*pp) && *pp != '\0')
-					pp++;
-				break;
-			}
 		}
 
 		list_for_each_entry(a, &scst_acg_list, scst_acg_list_entry) {
@@ -1432,13 +1435,20 @@ static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file,
 				res = -EINVAL;
 				goto out_up_free;
 			}
+
 			p = pp;
 			while (!isspace(*pp) && *pp != '\0')
 				pp++;
 			if (*pp != '\0') {
-				PRINT_ERROR("Wrong acg name %s", p);
-				res = -EINVAL;
-				goto out_up_free;
+				*pp = '\0';
+				pp++;
+				while (isspace(*pp) && *pp != '\0')
+					pp++;
+				if (*pp != '\0') {
+					PRINT_ERROR("%s", "Too many arguments");
+					res = -EINVAL;
+					goto out_up_free;
+				}
 			}
 			rc = scst_proc_rename_acg(acg, p);
 			break;
@@ -1771,7 +1781,7 @@ static ssize_t scst_proc_groups_names_write(struct file *file,
 					size_t length, loff_t *off)
 {
 	int res = length, rc = 0, action;
-	char *buffer, *p, *e;
+	char *buffer, *p, *pp = NULL;
 	struct scst_acg *acg =
 		(struct scst_acg *)PDE(file->f_dentry->d_inode)->data;
 	struct scst_acn *n, *nn;
@@ -1804,6 +1814,7 @@ static ssize_t scst_proc_groups_names_write(struct file *file,
 
 	/*
 	 * Usage: echo "add|del NAME" >/proc/scsi_tgt/groups/GROUP_NAME/names
+	 *   or   echo "move NAME NEW_GROUP_NAME" >/proc/scsi_tgt/groups/OLD_GROUP_NAME/names"
 	 *   or   echo "clear" >/proc/scsi_tgt/groups/GROUP_NAME/names
 	 */
 	p = buffer;
@@ -1817,6 +1828,9 @@ static ssize_t scst_proc_groups_names_write(struct file *file,
 	} else if (!strncasecmp("del ", p, 4)) {
 		p += 4;
 		action = SCST_PROC_ACTION_DEL;
+	} else if (!strncasecmp("move ", p, 5)) {
+		p += 5;
+		action = SCST_PROC_ACTION_MOVE;
 	} else {
 		PRINT_ERROR("Unknown action \"%s\"", p);
 		res = -EINVAL;
@@ -1826,12 +1840,28 @@ static ssize_t scst_proc_groups_names_write(struct file *file,
 	switch (action) {
 	case SCST_PROC_ACTION_ADD:
 	case SCST_PROC_ACTION_DEL:
+	case SCST_PROC_ACTION_MOVE:
 		while (isspace(*p) && *p != '\0')
 			p++;
-		e = p;
-		while (!isspace(*e) && *e != '\0')
-			e++;
-		*e = 0;
+		pp = p;
+		while (!isspace(*pp) && *pp != '\0')
+			pp++;
+		if (*pp != '\0') {
+			*pp = '\0';
+			pp++;
+			while (isspace(*pp) && *pp != '\0')
+				pp++;
+			if (*pp != '\0') {
+				switch (action) {
+				case SCST_PROC_ACTION_ADD:
+				case SCST_PROC_ACTION_DEL:
+					PRINT_ERROR("%s", "Too many "
+						"arguments");
+					res = -EINVAL;
+					goto out_free;
+				}
+			}
+		}
 		break;
 	}
 
@@ -1849,8 +1879,45 @@ static ssize_t scst_proc_groups_names_write(struct file *file,
 		rc = scst_acg_add_name(acg, p);
 		break;
 	case SCST_PROC_ACTION_DEL:
-		rc = scst_acg_remove_name(acg, p);
+		rc = scst_acg_remove_name(acg, p, true);
 		break;
+	case SCST_PROC_ACTION_MOVE:
+	{
+		struct scst_acg *a, *new_acg = NULL;
+		char *name = p;
+		p = pp;
+		while (!isspace(*pp) && *pp != '\0')
+			pp++;
+		if (*pp != '\0') {
+			*pp = '\0';
+			pp++;
+			while (isspace(*pp) && *pp != '\0')
+				pp++;
+			if (*pp != '\0') {
+				PRINT_ERROR("%s", "Too many arguments");
+				res = -EINVAL;
+				goto out_free_unlock;
+			}
+		}
+		list_for_each_entry(a, &scst_acg_list, scst_acg_list_entry) {
+			if (strcmp(a->acg_name, p) == 0) {
+				TRACE_DBG("group (acg) %p %s found",
+					  a, a->acg_name);
+				new_acg = a;
+				break;
+			}
+		}
+		if (new_acg == NULL) {
+			PRINT_ERROR("Group %s not found", p);
+			res = -EINVAL;
+			goto out_free_unlock;
+		}
+		rc = scst_acg_remove_name(acg, name, false);
+		if (rc != 0)
+			goto out_free_unlock;
+		rc = scst_acg_add_name(new_acg, name);
+		break;
+	}
 	case SCST_PROC_ACTION_CLEAR:
 		list_for_each_entry_safe(n, nn, &acg->acn_list,
 					 acn_list_entry) {
@@ -1860,6 +1927,7 @@ static ssize_t scst_proc_groups_names_write(struct file *file,
 		break;
 	}
 
+out_free_unlock:
 	mutex_unlock(&scst_mutex);
 
 out_free_resume:

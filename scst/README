@@ -483,6 +483,9 @@ following files and directories under /proc/scsi_tgt:
   - "del NAME" to /proc/scsi_tgt/groups/GROUP_NAME/names deletes name "NAME" from group
     "GROUP_NAME"
 
+  - "move NAME NEW_GROUP_NAME" to /proc/scsi_tgt/groups/OLD_GROUP_NAME/names
+    moves name "NAME" from group "OLD_GROUP_NAME" to group "NEW_GROUP_NAME".
+
   - "clear" to /proc/scsi_tgt/groups/GROUP_NAME/names clears the list of names
     for group "GROUP_NAME"
 

@@ -305,7 +305,7 @@ int scst_acg_add_dev(struct scst_acg *acg, struct scst_device *dev,
 int scst_acg_remove_dev(struct scst_acg *acg, struct scst_device *dev);
 
 int scst_acg_add_name(struct scst_acg *acg, const char *name);
-int scst_acg_remove_name(struct scst_acg *acg, const char *name);
+int scst_acg_remove_name(struct scst_acg *acg, const char *name, bool reassign);
 void __scst_acg_remove_acn(struct scst_acn *n);
 
 int scst_prepare_request_sense(struct scst_cmd *orig_cmd);
