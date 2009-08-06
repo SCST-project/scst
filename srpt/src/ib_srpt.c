@@ -134,7 +134,7 @@ static bool srpt_test_and_set_channel_state(struct srpt_rdma_ch *ch,
 		ch->state = new;
 	spin_unlock_irqrestore(&ch->spinlock, flags);
 
-	return (cur == old);
+	return cur == old;
 }
 
 /*
