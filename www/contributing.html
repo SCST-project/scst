@@ -115,28 +115,6 @@
 				devices only and reject PERSISTENT RESERVE IN and OUT commands for 
 				pass-through devices with "COMMAND NOT SUPPORTED" sense data.</p>
 				
-				<A NAME="AUTO_SESS"></A><h3>Automatic sessions reassignment</h3>
-				
-				<p>At the moment, if security name for an initiator reassigned (moved) to another security
-				group, the existing sessions from that initiator are not automatically reassigned to
-				the new security group, i.e. they remain in the old one. The only ways to reassign them
-				are either sessions restart, or restart of the corresponding target driver. Both in many
-				cases are not options.</p>
-				
-				<p>To implement that you should on event of any group change:</p>
-				<ul>
-				<li><span>Globally suspend all activities by scst_suspend_activity().</span></li>
-				   
-				<li><span>Go over all existing sessions. For each find the corresponding ACG 
-				      (see scst_init_session() as an example) and check if it's the same as the existing 
-				      one. If it's the same, then go to the next session. Otherwise, reassign 
-				      it to the new ACG. For that you should go over all devices in the group/session 
-				      pair (tgt_dev's) and delete not existing in the new ACG tgt_dev's, 
-				      add new ones and keep the existing ones.</span></li>
-				      
-				<li><span>Resume the activities.</span></li>
-				</ul>
-				
 				<A NAME="DYN_FLOW"></A><h3>Dynamic I/O flow control</h3>
 				
 				<p>At the moment, if an initiator or several initiators simultaneously send to
