@@ -2869,7 +2869,7 @@ static inline int scst_get_in_buf_count(struct scst_cmd *cmd)
 	return (cmd->in_sg_cnt == 0) ? 1 : cmd->in_sg_cnt;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20))
 static inline int cancel_delayed_work_sync(struct delayed_work *work)
 #else
