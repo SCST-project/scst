@@ -48,6 +48,9 @@ static void scst_free_all_UA(struct scst_tgt_dev *tgt_dev);
 static void scst_release_space(struct scst_cmd *cmd);
 static void scst_sess_free_tgt_devs(struct scst_session *sess);
 static void scst_unblock_cmds(struct scst_device *dev);
+static void scst_clear_reservation(struct scst_tgt_dev *tgt_dev);
+static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
+	struct scst_acg_dev *acg_dev);
 
 #ifdef CONFIG_SCST_DEBUG_TM
 static void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev,
@@ -563,6 +566,66 @@ static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 }
 
 /* The activity supposed to be suspended and scst_mutex held */
+static void scst_report_luns_changed_sess(struct scst_session *sess)
+{
+	int i;
+	struct list_head *shead;
+	struct scst_tgt_dev *tgt_dev;
+	struct scst_tgt_template *tgtt = sess->tgt->tgtt;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("REPORTED LUNS DATA CHANGED (sess %p)", sess);
+
+	for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
+		shead = &sess->sess_tgt_dev_list_hash[i];
+
+		list_for_each_entry(tgt_dev, shead,
+				sess_tgt_dev_list_entry) {
+			if (scst_is_report_luns_changed_type(
+					tgt_dev->dev->type))
+				goto found;
+		}
+	}
+	TRACE_MGMT_DBG("Not found a device capable REPORTED "
+		"LUNS DATA CHANGED UA (sess %p)", sess);
+	goto out;
+
+found:
+	if (tgtt->report_aen != NULL) {
+		struct scst_aen *aen;
+		int rc;
+
+		aen = scst_alloc_aen(tgt_dev);
+		if (aen == NULL)
+			goto queue_ua;
+
+		aen->event_fn = SCST_AEN_SCSI;
+		aen->aen_sense_len = SCST_STANDARD_SENSE_LEN;
+		scst_set_sense(aen->aen_sense, aen->aen_sense_len,
+			tgt_dev->dev->d_sense,
+			SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed));
+
+		TRACE_DBG("Calling target's %s report_aen(%p)",
+			tgtt->name, aen);
+		rc = tgtt->report_aen(aen);
+		TRACE_DBG("Target's %s report_aen(%p) returned %d",
+			tgtt->name, aen, rc);
+		if (rc == SCST_AEN_RES_SUCCESS)
+			goto out;
+
+		scst_free_aen(aen);
+	}
+
+queue_ua:
+	scst_queue_report_luns_changed_UA(sess, 0);
+
+out:
+	TRACE_EXIT();
+	return;
+}
+
+/* The activity supposed to be suspended and scst_mutex held */
 void scst_report_luns_changed(struct scst_acg *acg)
 {
 	struct scst_session *sess;
@@ -572,52 +635,7 @@ void scst_report_luns_changed(struct scst_acg *acg)
 	TRACE_MGMT_DBG("REPORTED LUNS DATA CHANGED (acg %s)", acg->acg_name);
 
 	list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
-		int i;
-		struct list_head *shead;
-		struct scst_tgt_dev *tgt_dev;
-		struct scst_tgt_template *tgtt = sess->tgt->tgtt;
-
-		for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
-			shead = &sess->sess_tgt_dev_list_hash[i];
-
-			list_for_each_entry(tgt_dev, shead,
-					sess_tgt_dev_list_entry) {
-				if (scst_is_report_luns_changed_type(
-						tgt_dev->dev->type))
-					goto found;
-			}
-		}
-		TRACE_MGMT_DBG("Not found a device capable REPORTED "
-			"LUNS DATA CHANGED UA (sess %p)", sess);
-		continue;
-found:
-		if (tgtt->report_aen != NULL) {
-			struct scst_aen *aen;
-			int rc;
-
-			aen = scst_alloc_aen(tgt_dev);
-			if (aen == NULL)
-				goto queue_ua;
-
-			aen->event_fn = SCST_AEN_SCSI;
-			aen->aen_sense_len = SCST_STANDARD_SENSE_LEN;
-			scst_set_sense(aen->aen_sense, aen->aen_sense_len,
-				tgt_dev->dev->d_sense,
-				SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed));
-
-			TRACE_DBG("Calling target's %s report_aen(%p)",
-				tgtt->name, aen);
-			rc = tgtt->report_aen(aen);
-			TRACE_DBG("Target's %s report_aen(%p) returned %d",
-				tgtt->name, aen, rc);
-			if (rc == SCST_AEN_RES_SUCCESS)
-				continue;
-
-			scst_free_aen(aen);
-		}
-
-queue_ua:
-		scst_queue_report_luns_changed_UA(sess, 0);
+		scst_report_luns_changed_sess(sess);
 	}
 
 	TRACE_EXIT();
@@ -683,6 +701,129 @@ out_free:
 	return;
 }
 EXPORT_SYMBOL(scst_aen_done);
+
+/* The activity supposed to be suspended and scst_mutex held */
+static void scst_check_reassign_sess(struct scst_session *sess)
+{
+	struct scst_acg *acg, *old_acg;
+	struct scst_acg_dev *acg_dev;
+	int i;
+	struct list_head *shead;
+	struct scst_tgt_dev *tgt_dev;
+	bool luns_changed = false;
+	bool add_failed, something_freed;
+
+	TRACE_ENTRY();
+
+	TRACE_MGMT_DBG("Checking reassignment for sess %p (initiator %s)",
+		sess, sess->initiator_name);
+
+	acg = scst_find_acg(sess);
+	if (acg == sess->acg) {
+		TRACE_MGMT_DBG("No reassignment for sess %p", sess);
+		goto out;
+	}
+
+	TRACE_MGMT_DBG("sess %p will be reassigned from acg %s to acg %s",
+		sess, sess->acg->acg_name, acg->acg_name);
+
+	old_acg = sess->acg;
+	sess->acg = NULL; /* to catch implicit dependencies earlier */
+
+retry_add:
+	add_failed = false;
+	list_for_each_entry(acg_dev, &acg->acg_dev_list, acg_dev_list_entry) {
+		for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
+			shead = &sess->sess_tgt_dev_list_hash[i];
+
+			list_for_each_entry(tgt_dev, shead,
+					sess_tgt_dev_list_entry) {
+				if ((tgt_dev->dev == acg_dev->dev) &&
+				    (tgt_dev->lun == acg_dev->lun) &&
+				    (tgt_dev->acg_dev->rd_only == acg_dev->rd_only)) {
+					TRACE_MGMT_DBG("sess %p: tgt_dev %p for "
+						"LUN %lld stays the same",
+						sess, tgt_dev,
+						(unsigned long long)tgt_dev->lun);
+					tgt_dev->acg_dev = acg_dev;
+					goto next;
+				}
+			}
+		}
+
+		luns_changed = true;
+
+		TRACE_MGMT_DBG("sess %p: Allocing new tgt_dev for LUN %lld",
+			sess, (unsigned long long)acg_dev->lun);
+
+		tgt_dev = scst_alloc_add_tgt_dev(sess, acg_dev);
+		if (tgt_dev == NULL) {
+			add_failed = true;
+			break;
+		}
+next:
+		continue;
+	}
+
+	something_freed = false;
+	for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
+		struct scst_tgt_dev *t;
+		shead = &sess->sess_tgt_dev_list_hash[i];
+
+		list_for_each_entry_safe(tgt_dev, t, shead,
+					sess_tgt_dev_list_entry) {
+			if (tgt_dev->acg_dev->acg != acg) {
+				TRACE_MGMT_DBG("sess %p: Deleting not used "
+					"tgt_dev %p for LUN %lld",
+					sess, tgt_dev,
+					(unsigned long long)tgt_dev->lun);
+				luns_changed = true;
+				something_freed = true;
+				scst_free_tgt_dev(tgt_dev);
+			}
+		}
+	}
+
+	if (add_failed && something_freed) {
+		TRACE_MGMT_DBG("sess %p: Retrying adding new tgt_devs", sess);
+		goto retry_add;
+	}
+
+	sess->acg = acg;
+
+	TRACE_DBG("Moving sess %p from acg %s to acg %s", sess,
+		old_acg->acg_name, acg->acg_name);
+	list_move_tail(&sess->acg_sess_list_entry, &acg->acg_sess_list);
+
+	if (luns_changed)
+		scst_report_luns_changed_sess(sess);
+
+out:
+	TRACE_EXIT();
+	return;
+}
+
+/* The activity supposed to be suspended and scst_mutex held */
+void scst_check_reassign_sessions(void)
+{
+	struct scst_tgt_template *tgtt;
+
+	TRACE_ENTRY();
+
+	list_for_each_entry(tgtt, &scst_template_list, scst_template_list_entry) {
+		struct scst_tgt *tgt;
+		list_for_each_entry(tgt, &tgtt->tgt_list, tgt_list_entry) {
+			struct scst_session *sess;
+			list_for_each_entry(sess, &tgt->sess_list,
+						sess_list_entry) {
+				scst_check_reassign_sess(sess);
+			}
+		}
+	}
+
+	TRACE_EXIT();
+	return;
+}
 
 int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
 {
@@ -1125,6 +1266,8 @@ struct scst_acg *scst_alloc_add_acg(const char *acg_name)
 	TRACE_DBG("Adding acg %s to scst_acg_list", acg_name);
 	list_add_tail(&acg->scst_acg_list_entry, &scst_acg_list);
 
+	scst_check_reassign_sessions();
+
 out:
 	TRACE_EXIT_HRES(acg);
 	return acg;
@@ -1380,8 +1523,6 @@ out_free:
 	goto out;
 }
 
-static void scst_clear_reservation(struct scst_tgt_dev *tgt_dev);
-
 /* No locks supposed to be held, scst_mutex - held */
 void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA)
 {
@@ -1628,7 +1769,7 @@ out:
 	return res;
 }
 
-/* scst_mutex supposed to be held */
+/* The activity supposed to be suspended and scst_mutex held */
 int scst_acg_add_name(struct scst_acg *acg, const char *name)
 {
 	int res = 0;
@@ -1638,8 +1779,7 @@ int scst_acg_add_name(struct scst_acg *acg, const char *name)
 
 	TRACE_ENTRY();
 
-	list_for_each_entry(n, &acg->acn_list, acn_list_entry)
-	{
+	list_for_each_entry(n, &acg->acn_list, acn_list_entry) {
 		if (strcmp(n->name, name) == 0) {
 			PRINT_ERROR("Name %s already exists in group %s",
 				name, acg->acg_name);
@@ -1669,8 +1809,10 @@ int scst_acg_add_name(struct scst_acg *acg, const char *name)
 	list_add_tail(&n->acn_list_entry, &acg->acn_list);
 
 out:
-	if (res == 0)
+	if (res == 0) {
 		PRINT_INFO("Added name %s to group %s", name, acg->acg_name);
+		scst_check_reassign_sessions();
+	}
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -1681,6 +1823,19 @@ out_free:
 }
 
 /* scst_mutex supposed to be held */
+void __scst_acg_remove_acn(struct scst_acn *n)
+{
+	TRACE_ENTRY();
+
+	list_del(&n->acn_list_entry);
+	kfree(n->name);
+	kfree(n);
+
+	TRACE_EXIT();
+	return;
+}
+
+/* The activity supposed to be suspended and scst_mutex held */
 int scst_acg_remove_name(struct scst_acg *acg, const char *name)
 {
 	int res = -EINVAL;
@@ -1688,12 +1843,9 @@ int scst_acg_remove_name(struct scst_acg *acg, const char *name)
 
 	TRACE_ENTRY();
 
-	list_for_each_entry(n, &acg->acn_list, acn_list_entry)
-	{
+	list_for_each_entry(n, &acg->acn_list, acn_list_entry) {
 		if (strcmp(n->name, name) == 0) {
-			list_del(&n->acn_list_entry);
-			kfree(n->name);
-			kfree(n);
+			__scst_acg_remove_acn(n);
 			res = 0;
 			break;
 		}
@@ -1702,10 +1854,10 @@ int scst_acg_remove_name(struct scst_acg *acg, const char *name)
 	if (res == 0) {
 		PRINT_INFO("Removed name %s from group %s", name,
 			acg->acg_name);
-	} else {
+		scst_check_reassign_sessions();
+	} else
 		PRINT_ERROR("Unable to find name %s in group %s", name,
 			acg->acg_name);
-	}
 
 	TRACE_EXIT_RES(res);
 	return res;

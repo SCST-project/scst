@@ -5326,7 +5326,7 @@ EXPORT_SYMBOL(scst_rx_mgmt_fn);
  * Written by Jack Handy - jakkhandy@hotmail.com
  * Taken by Gennadiy Nerubayev <parakie@gmail.com> from
  * http://www.codeproject.com/KB/string/wildcmp.aspx. No license attached
- * to it, and is posted on a free site; assumed to be free for use.
+ * to it, and it's posted on a free site; assumed to be free for use.
  */
 static bool wildcmp(const char *wild, const char *string)
 {
@@ -5363,7 +5363,7 @@ static bool wildcmp(const char *wild, const char *string)
 }
 
 /* scst_mutex supposed to be held */
-static struct scst_acg *scst_find_acg(const char *initiator_name)
+static struct scst_acg *scst_find_acg_by_name_wild(const char *initiator_name)
 {
 	struct scst_acg *acg, *res = NULL;
 	struct scst_acn *n;
@@ -5407,10 +5407,27 @@ out:
 	return res;
 }
 
+/* Must be called under scst_mitex */
+struct scst_acg *scst_find_acg(const struct scst_session *sess)
+{
+	struct scst_acg *acg = NULL;
+
+	TRACE_ENTRY();
+
+	if (sess->initiator_name)
+		acg = scst_find_acg_by_name_wild(sess->initiator_name);
+	if ((acg == NULL) && (sess->tgt->default_group_name != NULL))
+		acg = scst_find_acg_by_name(sess->tgt->default_group_name);
+	if (acg == NULL)
+		acg = scst_default_acg;
+
+	TRACE_EXIT_HRES((unsigned long)acg);
+	return acg;
+}
+
 static int scst_init_session(struct scst_session *sess)
 {
 	int res = 0;
-	struct scst_acg *acg = NULL;
 	struct scst_cmd *cmd;
 	struct scst_mgmt_cmd *mcmd, *tm;
 	int mwake = 0;
@@ -5419,19 +5436,12 @@ static int scst_init_session(struct scst_session *sess)
 
 	mutex_lock(&scst_mutex);
 
-	if (sess->initiator_name)
-		acg = scst_find_acg(sess->initiator_name);
-	if ((acg == NULL) && (sess->tgt->default_group_name != NULL))
-		acg = scst_find_acg_by_name(sess->tgt->default_group_name);
-	if (acg == NULL)
-		acg = scst_default_acg;
+	sess->acg = scst_find_acg(sess);
 
 	PRINT_INFO("Using security group \"%s\" for initiator \"%s\"",
-		acg->acg_name, sess->initiator_name);
+		sess->acg->acg_name, sess->initiator_name);
 
-	sess->acg = acg;
-	TRACE_MGMT_DBG("Assigning session %p to acg %s", sess, acg->acg_name);
-	list_add_tail(&sess->acg_sess_list_entry, &acg->acg_sess_list);
+	list_add_tail(&sess->acg_sess_list_entry, &sess->acg->acg_sess_list);
 
 	TRACE_DBG("Adding sess %p to tgt->sess_list", sess);
 	list_add_tail(&sess->sess_list_entry, &sess->tgt->sess_list);

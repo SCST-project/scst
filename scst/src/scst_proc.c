@@ -83,6 +83,7 @@ static struct scst_proc_data scst_dev_handler_proc_data;
 #define SCST_PROC_ACTION_ASSIGN		 9
 #define SCST_PROC_ACTION_ADD_GROUP	10
 #define SCST_PROC_ACTION_DEL_GROUP	11
+#define SCST_PROC_ACTION_RENAME_GROUP	12
 
 static struct proc_dir_entry *scst_proc_scsi_tgt;
 static struct proc_dir_entry *scst_proc_groups_root;
@@ -125,17 +126,18 @@ static struct scst_proc_log scst_proc_local_trace_tbl[] =
 static char *scst_proc_help_string =
 "   echo \"assign H:C:I:L HANDLER_NAME\" >/proc/scsi_tgt/scsi_tgt\n"
 "\n"
-"   echo \"add_group GROUP\" >/proc/scsi_tgt/scsi_tgt\n"
-"   echo \"del_group GROUP\" >/proc/scsi_tgt/scsi_tgt\n"
+"   echo \"add_group GROUP_NAME\" >/proc/scsi_tgt/scsi_tgt\n"
+"   echo \"del_group GROUP_NAME\" >/proc/scsi_tgt/scsi_tgt\n"
+"   echo \"rename_group OLD_NAME NEW_NAME\" >/proc/scsi_tgt/scsi_tgt\n"
 "\n"
 "   echo \"add|del H:C:I:L lun [READ_ONLY]\""
-" >/proc/scsi_tgt/groups/GROUP/devices\n"
+" >/proc/scsi_tgt/groups/GROUP_NAME/devices\n"
 "   echo \"add|del V_NAME lun [READ_ONLY]\""
-" >/proc/scsi_tgt/groups/GROUP/devices\n"
-"   echo \"clear\" >/proc/scsi_tgt/groups/GROUP/devices\n"
+" >/proc/scsi_tgt/groups/GROUP_NAME/devices\n"
+"   echo \"clear\" >/proc/scsi_tgt/groups/GROUP_NAME/devices\n"
 "\n"
-"   echo \"add|del NAME\" >/proc/scsi_tgt/groups/GROUP/names\n"
-"   echo \"clear\" >/proc/scsi_tgt/groups/GROUP/names\n"
+"   echo \"add|del NAME\" >/proc/scsi_tgt/groups/GROUP_NAME/names\n"
+"   echo \"clear\" >/proc/scsi_tgt/groups/GROUP_NAME/names\n"
 "\n"
 "   echo \"DEC|0xHEX|0OCT\" >/proc/scsi_tgt/threads\n"
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
@@ -707,6 +709,45 @@ static int scst_proc_del_free_acg(struct scst_acg *acg, int remove_proc)
 	return res;
 }
 
+/* The activity supposed to be suspended and scst_mutex held */
+static int scst_proc_rename_acg(struct scst_acg *acg, const char *new_name)
+{
+	int res = 0, len = strlen(new_name) + 1;
+	char *name;
+	struct proc_dir_entry *old_acg_proc_root = acg->acg_proc_root;
+
+	TRACE_ENTRY();
+
+	name = kmalloc(len, GFP_KERNEL);
+	if (name == NULL) {
+		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of new name failed");
+		goto out_nomem;
+	}
+	strncpy(name, new_name, len);
+
+	res = scst_proc_group_add_tree(acg, new_name);
+	if (res != 0)
+		goto out_free;
+
+	scst_proc_del_acg_tree(old_acg_proc_root, acg->acg_name);
+
+	kfree(acg->acg_name);
+	acg->acg_name = name;
+
+	scst_check_reassign_sessions();
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_free:
+	kfree(name);
+
+out_nomem:
+	res = -ENOMEM;
+	goto out;
+}
+
 static int __init scst_proc_init_groups(void)
 {
 	int res = 0;
@@ -1262,7 +1303,7 @@ static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file,
 					size_t length, loff_t *off)
 {
 	int res, rc = 0, action;
-	char *buffer, *p;
+	char *buffer, *p, *pp;
 	struct scst_acg *a, *acg = NULL;
 
 	TRACE_ENTRY();
@@ -1292,8 +1333,9 @@ static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file,
 	}
 
 	/*
-	 * Usage: echo "add_group GROUP" >/proc/scsi_tgt/scsi_tgt
-	 *   or   echo "del_group GROUP" >/proc/scsi_tgt/scsi_tgt
+	 * Usage: echo "add_group GROUP_NAME" >/proc/scsi_tgt/scsi_tgt
+	 *   or   echo "del_group GROUP_NAME" >/proc/scsi_tgt/scsi_tgt
+	 *   or   echo "rename_group OLD_NAME NEW_NAME" >/proc/scsi_tgt/scsi_tgt"
 	 *   or   echo "assign H:C:I:L HANDLER_NAME" >/proc/scsi_tgt/scsi_tgt
 	 */
 	p = buffer;
@@ -1308,6 +1350,9 @@ static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file,
 	} else if (!strncasecmp("del_group ", p, 10)) {
 		p += 10;
 		action = SCST_PROC_ACTION_DEL_GROUP;
+	} else if (!strncasecmp("rename_group ", p, 13)) {
+		p += 13;
+		action = SCST_PROC_ACTION_RENAME_GROUP;
 	} else {
 		PRINT_ERROR("Unknown action \"%s\"", p);
 		res = -EINVAL;
@@ -1328,12 +1373,33 @@ static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file,
 	switch (action) {
 	case SCST_PROC_ACTION_ADD_GROUP:
 	case SCST_PROC_ACTION_DEL_GROUP:
+	case SCST_PROC_ACTION_RENAME_GROUP:
 		if (strcmp(p, SCST_DEFAULT_ACG_NAME) == 0) {
-			PRINT_ERROR("Attempt to add/delete predefined "
+			PRINT_ERROR("Attempt to add/delete/rename predefined "
 				"group \"%s\"", p);
 			res = -EINVAL;
 			goto out_up_free;
 		}
+
+		pp = p;
+		while (!isspace(*pp) && *pp != '\0')
+			pp++;
+		if (*pp != '\0') {
+			switch (action) {
+			case SCST_PROC_ACTION_ADD_GROUP:
+			case SCST_PROC_ACTION_DEL_GROUP:
+				PRINT_ERROR("Wrong acg name %s", p);
+				res = -EINVAL;
+				goto out_up_free;
+			default:
+				*pp = '\0';
+				pp++;
+				while (isspace(*pp) && *pp != '\0')
+					pp++;
+				break;
+			}
+		}
+
 		list_for_each_entry(a, &scst_acg_list, scst_acg_list_entry) {
 			if (strcmp(a->acg_name, p) == 0) {
 				TRACE_DBG("group (acg) %p %s found",
@@ -1342,6 +1408,7 @@ static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file,
 				break;
 			}
 		}
+
 		switch (action) {
 		case SCST_PROC_ACTION_ADD_GROUP:
 			if (acg) {
@@ -1358,6 +1425,22 @@ static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file,
 				goto out_up_free;
 			}
 			rc = scst_proc_del_free_acg(acg, 1);
+			break;
+		case SCST_PROC_ACTION_RENAME_GROUP:
+			if (acg == NULL) {
+				PRINT_ERROR("acg name %s not found", p);
+				res = -EINVAL;
+				goto out_up_free;
+			}
+			p = pp;
+			while (!isspace(*pp) && *pp != '\0')
+				pp++;
+			if (*pp != '\0') {
+				PRINT_ERROR("Wrong acg name %s", p);
+				res = -EINVAL;
+				goto out_up_free;
+			}
+			rc = scst_proc_rename_acg(acg, p);
 			break;
 		}
 		break;
@@ -1519,10 +1602,10 @@ static ssize_t scst_proc_groups_devices_write(struct file *file,
 
 	/*
 	 * Usage: echo "add|del H:C:I:L lun [READ_ONLY]" \
-	 *          >/proc/scsi_tgt/groups/GROUP/devices
+	 *          >/proc/scsi_tgt/groups/GROUP_NAME/devices
 	 *   or   echo "add|del V_NAME lun [READ_ONLY]" \
-	 *          >/proc/scsi_tgt/groups/GROUP/devices
-	 *   or   echo "clear" >/proc/scsi_tgt/groups/GROUP/devices
+	 *          >/proc/scsi_tgt/groups/GROUP_NAME/devices
+	 *   or   echo "clear" >/proc/scsi_tgt/groups/GROUP_NAME/devices
 	 */
 	p = buffer;
 	if (p[strlen(p) - 1] == '\n')
@@ -1687,7 +1770,7 @@ static ssize_t scst_proc_groups_names_write(struct file *file,
 					const char __user *buf,
 					size_t length, loff_t *off)
 {
-	int res = length, action;
+	int res = length, rc = 0, action;
 	char *buffer, *p, *e;
 	struct scst_acg *acg =
 		(struct scst_acg *)PDE(file->f_dentry->d_inode)->data;
@@ -1720,8 +1803,8 @@ static ssize_t scst_proc_groups_names_write(struct file *file,
 	}
 
 	/*
-	 * Usage: echo "add|del NAME" >/proc/scsi_tgt/groups/GROUP/names
-	 *   or   echo "clear" >/proc/scsi_tgt/groups/GROUP/names
+	 * Usage: echo "add|del NAME" >/proc/scsi_tgt/groups/GROUP_NAME/names
+	 *   or   echo "clear" >/proc/scsi_tgt/groups/GROUP_NAME/names
 	 */
 	p = buffer;
 	if (p[strlen(p) - 1] == '\n')
@@ -1752,33 +1835,43 @@ static ssize_t scst_proc_groups_names_write(struct file *file,
 		break;
 	}
 
+	rc = scst_suspend_activity(true);
+	if (rc != 0)
+		goto out_free;
+
 	if (mutex_lock_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
-		goto out_free;
+		goto out_free_resume;
 	}
 
 	switch (action) {
 	case SCST_PROC_ACTION_ADD:
-		scst_acg_add_name(acg, p);
+		rc = scst_acg_add_name(acg, p);
 		break;
 	case SCST_PROC_ACTION_DEL:
-		scst_acg_remove_name(acg, p);
+		rc = scst_acg_remove_name(acg, p);
 		break;
 	case SCST_PROC_ACTION_CLEAR:
 		list_for_each_entry_safe(n, nn, &acg->acn_list,
 					 acn_list_entry) {
-			list_del(&n->acn_list_entry);
-			kfree(n->name);
-			kfree(n);
+			__scst_acg_remove_acn(n);
 		}
+		scst_check_reassign_sessions();
 		break;
 	}
 
 	mutex_unlock(&scst_mutex);
 
+out_free_resume:
+	scst_resume_activity();
+
 out_free:
 	free_page((unsigned long)buffer);
+
 out:
+	if (rc < 0)
+		res = rc;
+
 	TRACE_EXIT_RES(res);
 	return res;
 }

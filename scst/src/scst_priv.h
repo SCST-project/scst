@@ -140,6 +140,7 @@ extern struct scst_sgv_pools scst_sgv;
 extern unsigned long scst_flags;
 extern struct mutex scst_mutex;
 extern atomic_t scst_cmd_count;
+extern struct list_head scst_template_list;
 extern struct list_head scst_dev_list;
 extern struct list_head scst_dev_type_list;
 extern wait_queue_head_t scst_dev_cmd_waitQ;
@@ -292,6 +293,10 @@ void scst_free_device(struct scst_device *dev);
 struct scst_acg *scst_alloc_add_acg(const char *acg_name);
 int scst_destroy_acg(struct scst_acg *acg);
 
+struct scst_acg *scst_find_acg(const struct scst_session *sess);
+
+void scst_check_reassign_sessions(void);
+
 int scst_sess_alloc_tgt_devs(struct scst_session *sess);
 void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA);
 
@@ -301,6 +306,7 @@ int scst_acg_remove_dev(struct scst_acg *acg, struct scst_device *dev);
 
 int scst_acg_add_name(struct scst_acg *acg, const char *name);
 int scst_acg_remove_name(struct scst_acg *acg, const char *name);
+void __scst_acg_remove_acn(struct scst_acn *n);
 
 int scst_prepare_request_sense(struct scst_cmd *orig_cmd);
 int scst_finish_internal_cmd(struct scst_cmd *cmd);

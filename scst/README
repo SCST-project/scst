@@ -448,40 +448,43 @@ names of initiators, which allowed to access devices in this group.
 To configure access and devices visibility management SCST provides the
 following files and directories under /proc/scsi_tgt:
 
-  - "add_group GROUP" to /proc/scsi_tgt/scsi_tgt adds group "GROUP"
+  - "add_group GROUP_NAME" to /proc/scsi_tgt/scsi_tgt adds group "GROUP_NAME"
 
-  - "del_group GROUP" to /proc/scsi_tgt/scsi_tgt deletes group "GROUP"
+  - "del_group GROUP_NAME" to /proc/scsi_tgt/scsi_tgt deletes group "GROUP_NAME"
 
-  - "add H:C:I:L lun [READ_ONLY]" to /proc/scsi_tgt/groups/GROUP/devices adds
-    device with host:channel:id:lun with LUN "lun" in group "GROUP". Optionally,
+  - "rename_group OLD_NAME NEW_NAME" to /proc/scsi_tgt/scsi_tgt renames
+    group "OLD_NAME" to "NEW_NAME".
+
+  - "add H:C:I:L lun [READ_ONLY]" to /proc/scsi_tgt/groups/GROUP_NAME/devices adds
+    device with host:channel:id:lun with LUN "lun" in group "GROUP_NAME". Optionally,
     the device could be marked as read only. The recommended way to find out
     H:C:I:L numbers is use of lsscsi utility.
 
-  - "del H:C:I:L" to /proc/scsi_tgt/groups/GROUP/devices deletes device with
-    host:channel:id:lun from group "GROUP". The recommended way to find out
+  - "del H:C:I:L" to /proc/scsi_tgt/groups/GROUP_NAME/devices deletes device with
+    host:channel:id:lun from group "GROUP_NAME". The recommended way to find out
     H:C:I:L numbers is use of lsscsi utility.
 
-  - "add V_NAME lun [READ_ONLY]" to /proc/scsi_tgt/groups/GROUP/devices adds
-    device with virtual name "V_NAME" with LUN "lun" in group "GROUP".
+  - "add V_NAME lun [READ_ONLY]" to /proc/scsi_tgt/groups/GROUP_NAME/devices adds
+    device with virtual name "V_NAME" with LUN "lun" in group "GROUP_NAME".
     Optionally, the device could be marked as read only.
 
-  - "del V_NAME" to /proc/scsi_tgt/groups/GROUP/devices deletes device with
-    virtual name "V_NAME" from group "GROUP"
+  - "del V_NAME" to /proc/scsi_tgt/groups/GROUP_NAME/devices deletes device with
+    virtual name "V_NAME" from group "GROUP_NAME"
 
-  - "clear" to /proc/scsi_tgt/groups/GROUP/devices clears the list of devices
-    for group "GROUP"
+  - "clear" to /proc/scsi_tgt/groups/GROUP_NAME/devices clears the list of devices
+    for group "GROUP_NAME"
 
-  - "add NAME" to /proc/scsi_tgt/groups/GROUP/names adds name "NAME" to group
-    "GROUP". For NAME you can use simple DOS-type patterns, containing
+  - "add NAME" to /proc/scsi_tgt/groups/GROUP_NAME/names adds name "NAME" to group
+    "GROUP_NAME". For NAME you can use simple DOS-type patterns, containing
     '*' and '?' symbols. '*' means match all any symbols, '?' means
     match only any single symbol. For instance, "blah.xxx" will match
     "bl?h.*".
 
-  - "del NAME" to /proc/scsi_tgt/groups/GROUP/names deletes name "NAME" from group
-    "GROUP"
+  - "del NAME" to /proc/scsi_tgt/groups/GROUP_NAME/names deletes name "NAME" from group
+    "GROUP_NAME"
 
-  - "clear" to /proc/scsi_tgt/groups/GROUP/names clears the list of names
-    for group "GROUP"
+  - "clear" to /proc/scsi_tgt/groups/GROUP_NAME/names clears the list of names
+    for group "GROUP_NAME"
 
 Examples:
 

@@ -77,7 +77,7 @@
 struct mutex scst_mutex;
 
  /* All 3 protected by scst_mutex */
-static struct list_head scst_template_list;
+struct list_head scst_template_list;
 struct list_head scst_dev_list;
 struct list_head scst_dev_type_list;
 
