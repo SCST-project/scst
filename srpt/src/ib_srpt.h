@@ -198,8 +198,6 @@ struct srpt_device {
 	 */
 	struct ib_device_attr dev_attr;
 	struct srpt_ioctx *ioctx_ring[SRPT_SRQ_SIZE];
-	/* List node for insertion in the srpt_devices list. */
-	struct list_head list;
 	/*
 	 * List node for insertion in the srpt_rdma_ch::list list.
 	 * This list is protected by srpt_device::spinlock.

@@ -84,7 +84,7 @@ struct srpt_thread {
 
 static u64 mellanox_ioc_guid;
 /* List of srpt_device structures. */
-static struct list_head srpt_devices;
+static atomic_t srpt_device_count;
 static int thread;
 static struct srpt_thread srpt_thread;
 static DECLARE_WAIT_QUEUE_HEAD(ioctx_list_waitQ);
@@ -2345,17 +2345,15 @@ static void srpt_refresh_port_work(struct work_struct *work)
  */
 static int srpt_detect(struct scst_tgt_template *tp)
 {
-	struct srpt_device *sdev;
-	int count = 0;
+	int device_count;
 
 	TRACE_ENTRY();
 
-	list_for_each_entry(sdev, &srpt_devices, list)
-		++count;
+	device_count = atomic_read(&srpt_device_count);
 
-	TRACE_EXIT();
+	TRACE_EXIT_RES(device_count);
 
-	return count;
+	return device_count;
 }
 
 /*
@@ -2681,8 +2679,6 @@ static void srpt_add_one(struct ib_device *device)
 	for (i = 0; i < SRPT_SRQ_SIZE; ++i)
 		srpt_post_recv(sdev, sdev->ioctx_ring[i]);
 
-	list_add_tail(&sdev->list, &srpt_devices);
-
 	ib_set_client_data(device, &srpt_client, sdev);
 
 	sdev->scst_tgt = scst_register(&srpt_template, NULL);
@@ -2714,6 +2710,8 @@ static void srpt_add_one(struct ib_device *device)
 		}
 	}
 
+	atomic_inc(&srpt_device_count);
+
 	TRACE_EXIT();
 
 	return;
@@ -2722,7 +2720,6 @@ err_refresh_port:
 	scst_unregister(sdev->scst_tgt);
 err_ring:
 	ib_set_client_data(device, &srpt_client, NULL);
-	list_del(&sdev->list);
 	srpt_free_ioctx_ring(sdev);
 err_event:
 	ib_unregister_event_handler(&sdev->event_handler);
@@ -2799,7 +2796,6 @@ static void srpt_remove_one(struct ib_device *device)
 #endif
 
 	srpt_free_ioctx_ring(sdev);
-	list_del(&sdev->list);
 	kfree(sdev);
 
 	TRACE_EXIT();
@@ -2858,8 +2854,6 @@ static void srpt_unregister_procfs_entry(struct scst_tgt_template *tgt)
 static int __init srpt_init_module(void)
 {
 	int ret;
-
-	INIT_LIST_HEAD(&srpt_devices);
 
 	ret = class_register(&srpt_class);
 	if (ret) {
