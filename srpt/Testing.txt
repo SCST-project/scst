@@ -1,0 +1,58 @@
+The following tests must be run at least before releasing a new SRPT version:
+
+* Make sure that SRPT compiles and installs without triggering any
+  compiler warning. Use the following command to compile and install SRPT:
+
+  for d in scst srpt; do make -C $d -s clean && make -C $d -s install; done 
+
+* Verify the output of run-regression-tests for kernel versions starting at
+  2.6.23 up to and including the latest released kernel.
+
+* Verify that SRPT compiles, installs and works fine when following the
+  instructions in README.ofed for the latest released OFED distribution and
+  at the latest released CentOS, Ubuntu and openSUSE distributions.
+
+* Verify that module loading and unloading works fine.
+
+* Verify that rejecting logins does not trigger a memory leak, e.g. as follows:
+  * Run the following command on the target system:                              
+      ${SCST_TRUNK}/scripts/monitor-memory-usage | tee memlog.txt  
+  * Run the following command on the initiator system:                           
+      for ((i=0;i<100000;i++)); do echo 'id_ext=0002c9030003cca2,ioc_guid=0002c9030003cca2,pkey=ffff,dgid=fe800000000000000002c9030003cca3,service_id=0002c9030003cca3' >/sys/class/infiniband_srp/srp-mlx4_0-1/add_target ; done                
+
+* Verify that an I/O stress test runs fine by running the following command
+  on an initiator system after having created two partitions:
+
+fio <<EOF
+[global]
+bs=1M
+direct=1
+ioengine=sync
+verify=meta
+rw=write
+verify_fatal=1
+verify_async=1
+loops=10
+
+[partition1]
+filename=/dev/sdb1
+
+[partition2]
+filename=/dev/sdb2
+EOF
+
+* Verify that a SCSI reset works properly by running the following command
+  on an initiator system:
+
+    sg_reset -d ${initiator_device}
+
+* Run the following command on a target system:
+
+    while true; do /etc/init.d/scst stop; sleep 3; /etc/init.d/scst start; sleep 5; done
+
+  and the following commands on an initiator system:
+
+    target_id="id_ext=0002c9030003cca2,ioc_guid=0002c9030003cca2,dgid=fe800000000000000002c9030003cca3,pkey=ffff,service_id=0009030003cca2,ioc_guid=0002c9030003cca2,dgid=fe800000000000000002c9030003cca3,pkey=ffff,service_id=0002c9030003cca2"
+    while true; do date; rmmod ib_srp; modprobe ib_srp; echo "${target_id}" > /sys/class/infiniband_srp/srp-mlx4_0-1/add_target; sleep 2; done
+
+  and verify that nothin unexpected happens.

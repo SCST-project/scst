@@ -53,6 +53,7 @@ Unload any loaded InfiniBand drivers:
 Remove any distro-provided InfiniBand drivers:
 
   rm -rf /lib/modules/$(uname -r)/kernel/drivers/infiniband
+  rm -rf /lib/modules/$(uname -r)/kernel/drivers/net/mlx4
 
 Now locate the file Makefile.lib and patch it such that it supports
 the variable PRE_CFLAGS:
