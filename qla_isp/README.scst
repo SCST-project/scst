@@ -1,8 +1,3 @@
-WARNING
-
-This driver is in beta stages, you may want to use it in production, but you
-need test it for your hardware configuration.
-
 INTRODUCTION
 
 This is an SCST driver for ISP Qlogic chipsets commonly used in many SCSI and
@@ -14,9 +9,12 @@ which has its own page at http://www.feral.com/isp.html . The update for SCST
 was made by Stanislaw Gruszka <stf_xl@wp.pl> for Open-E Inc.
 
 Driver operates on the same hardware as qla2x00t, but has one notable
-adventage over it: support of 24xx series of Qlogic adapters.
+advantage over it: support of 24xx and 25xx series of Qlogic adapters.
+From other side, qla2x00t is simpler, smaller and much better tested
+on 22xx and 23xx, hence perform more reliable and, thus, is recommended
+for these adapters.
 
-INSTALLATION: QUICK START
+INSTALLATION
 
 Build driver with the following command
 $ make
@@ -80,12 +78,13 @@ SELECTING FIRMWARE
 The firmware loading interface allows for choosing the appropriate firmware.
 However, some firmware images are not available from the Qlogic site, e.g.
 firmware with multichannel support. That is why you can build a firmware
-image into  the isp_mod module. At the beginning of the isp_linux.h file you
-need to comment out the following line:
+image into the isp_mod module. At the beginning of the isp_linux.h file you
+need to add the following line:
 
 #define DISABLE_FW_LOADER 1
 
-Firmware from sources for 24xx supports multichannel (NPIV)
+Then, if you load module with isp_vports parameter > 0, driver will use
+multichannel firmware.
 
 SUPPORTED DEVICES
 
