@@ -140,6 +140,7 @@ struct srpt_ioctx {
 	enum srpt_command_state state;
 };
 
+/* Additional context information for SCST management commands. */
 struct srpt_mgmt_ioctx {
 	struct srpt_ioctx *ioctx;
 	struct srpt_rdma_ch *ch;
