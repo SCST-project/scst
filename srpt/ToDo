@@ -3,19 +3,10 @@
    * https://wiki.openfabrics.org/tiki-index.php?page=SRPT+Installation
 
 
-2. The SRPT driver directly uses the internal state of the SCST core target
-   state machine (scmnd->state field / SCST_CMD_STATE_* values), which is bad,
-   bad, bad and generally not acceptable. Only dev handler are allowed to use
-   them. This should be fixed: the SRPT driver should keep its internal state
-   in an SRPT-specific variable. For an example, see also the "Q2T_STATE_"
-   constants in the qla2x00t driver, and especially the function
-   q2t_do_ctio_completion().
-
-
-3. The initiator names supplied to the SCST core contain the target port name,
+2. The initiator names supplied to the SCST core contain the target port name,
    which is wrong. Nobody identifies a man by the door through which he entered.
    Instead, a man has a name by which he is identified through his whole life.
 
 
-4. Analyze and document the implications of
+3. Analyze and document the implications of
    sdev->mr = ib_get_dma_mr(sdev->pd, IB_ACCESS_LOCAL_WRITE).

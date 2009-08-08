@@ -861,8 +861,11 @@ static void srpt_abort_scst_cmd(struct srpt_device *sdev,
 				struct scst_cmd *scmnd,
 				bool tell_initiator)
 {
+	struct srpt_ioctx *ioctx;
 	scst_data_direction dir;
 
+	ioctx = scst_cmd_get_tgt_priv(scmnd);
+	BUG_ON(!ioctx);
 	dir = scst_cmd_get_data_direction(scmnd);
 	if (dir != SCST_DATA_NONE) {
 		dma_unmap_sg(sdev->device->dma_device,
@@ -870,14 +873,20 @@ static void srpt_abort_scst_cmd(struct srpt_device *sdev,
 			     scst_cmd_get_sg_cnt(scmnd),
 			     scst_to_tgt_dma_dir(dir));
 
-		if (scmnd->state == SCST_CMD_STATE_DATA_WAIT) {
+		if (ioctx->state == SRPT_STATE_NEED_DATA) {
 			scst_rx_data(scmnd,
 				     tell_initiator ? SCST_RX_STATUS_ERROR
 				     : SCST_RX_STATUS_ERROR_FATAL,
 				     SCST_CONTEXT_THREAD);
 			goto out;
-		} else if (scmnd->state == SCST_CMD_STATE_XMIT_WAIT)
+		} else if (ioctx->state == SRPT_STATE_PROCESSED)
 			;
+		else {
+			printk(KERN_ERR PFX
+			       "unexpected cmd state %d (SCST) %d (SRPT)\n",
+			       scmnd->state, ioctx->state);
+			WARN_ON("unexpected cmd state");
+		}
 	}
 
 	scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_FAILED);
@@ -1028,14 +1037,14 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 			srpt_build_cmd_rsp(ch, ioctx, NO_SENSE,
 					   NO_ADD_SENSE, srp_cmd->tag);
 			srp_rsp->status = SAM_STAT_TASK_SET_FULL;
-			goto send_rsp;
+			goto err;
 		}
 
 		if (indirect_desc) {
 			srpt_build_cmd_rsp(ch, ioctx, NO_SENSE,
 					   NO_ADD_SENSE, srp_cmd->tag);
 			srp_rsp->status = SAM_STAT_TASK_SET_FULL;
-			goto send_rsp;
+			goto err;
 		}
 
 		if (srp_cmd->buf_fmt & 0xf)
@@ -1054,7 +1063,7 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 		srpt_build_cmd_rsp(ch, ioctx, NO_SENSE,
 				   NO_ADD_SENSE, srp_cmd->tag);
 		srp_rsp->status = SAM_STAT_TASK_SET_FULL;
-		goto send_rsp;
+		goto err;
 	}
 
 	ioctx->scmnd = scmnd;
@@ -1088,9 +1097,13 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 
 	scst_cmd_init_done(scmnd, scst_estimate_context());
 
+	WARN_ON(srp_rsp->opcode == SRP_RSP);
+
 	return 0;
 
-send_rsp:
+err:
+	WARN_ON(srp_rsp->opcode != SRP_RSP);
+
 	return -1;
 }
 
@@ -1202,9 +1215,13 @@ static int srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 		goto err;
 	}
 
+	WARN_ON(srp_tsk->opcode == SRP_RSP);
+
 	return 0;
 
 err:
+	WARN_ON(srp_tsk->opcode != SRP_RSP);
+
 	return -1;
 }
 
@@ -1245,6 +1262,7 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 	ioctx->n_rdma_ius = 0;
 	ioctx->rdma_ius = NULL;
 	ioctx->scmnd = NULL;
+	ioctx->state = SRPT_STATE_NEW;
 
 	srp_cmd = ioctx->buf;
 	srp_rsp = ioctx->buf;
@@ -2156,6 +2174,8 @@ static int srpt_rdy_to_xfer(struct scst_cmd *scmnd)
 	else if (ch->state == RDMA_CHANNEL_CONNECTING)
 		return SCST_TGT_RES_QUEUE_FULL;
 
+	ioctx->state = SRPT_STATE_NEED_DATA;
+
 	return srpt_xfer_data(ch, ioctx, scmnd);
 }
 
@@ -2244,6 +2264,8 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 		}
 	}
 
+	ioctx->state = SRPT_STATE_PROCESSED;
+
 	if (srpt_post_send(ch, ioctx,
 			   sizeof *srp_rsp +
 			   be32_to_cpu(srp_rsp->sense_data_len))) {
@@ -2259,6 +2281,7 @@ out:
 out_aborted:
 	ret = SCST_TGT_RES_SUCCESS;
 	scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_ABORTED);
+	ioctx->state = SRPT_STATE_ABORTED;
 	scst_tgt_cmd_done(scmnd, SCST_CONTEXT_SAME);
 	goto out;
 }

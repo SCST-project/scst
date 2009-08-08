@@ -106,6 +106,16 @@ struct rdma_iu {
 	int mem_id;
 };
 
+/* Command states. */
+enum srpt_command_state {
+	SRPT_STATE_NEW       = 0, /* New command being processed.      */
+	SRPT_STATE_PROCESSED = 1, /* Processing finished.              */
+	SRPT_STATE_NEED_DATA = 2, /* Data needed to continue.          */
+	SRPT_STATE_DATA_IN   = 3, /* Data arrived and being processed. */
+	SRPT_STATE_ABORTED   = 4, /* Command aborted.                  */
+};
+
+/* SRPT I/O context: SRPT-private data associated with a struct scst_cmd. */
 struct srpt_ioctx {
 	int index;
 	void *buf;
@@ -127,6 +137,7 @@ struct srpt_ioctx {
 	struct srpt_rdma_ch *ch;
 	struct scst_cmd *scmnd;
 	u64 data_len;
+	enum srpt_command_state state;
 };
 
 struct srpt_mgmt_ioctx {
