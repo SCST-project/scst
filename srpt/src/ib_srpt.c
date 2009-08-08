@@ -953,17 +953,20 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
  * @s_code: value that will be stored in the asc_ascq field of the sense data.
  * @tag: tag of the request for which this response is being generated.
  *
+ * Returns the size in bytes of the SRP_RSP response PDU.
+ *
  * An SRP_RSP PDU contains a SCSI status or service response. See also
  * section 6.9 in the T10 SRP r16a document for the format of an SRP_RSP PDU.
  * See also SPC-2 for more information about sense data.
  */
-static void srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
-			       struct srpt_ioctx *ioctx, u8 s_key, u8 s_code,
-			       u64 tag)
+static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
+			      struct srpt_ioctx *ioctx, u8 s_key, u8 s_code,
+			      u64 tag)
 {
 	struct srp_rsp *srp_rsp;
 	struct sense_data *sense;
 	int limit_delta;
+	int sense_data_len = 0;
 
 	srp_rsp = ioctx->buf;
 	memset(srp_rsp, 0, sizeof *srp_rsp);
@@ -976,24 +979,39 @@ static void srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 	srp_rsp->tag = tag;
 
 	if (s_key != NO_SENSE) {
+		sense_data_len = sizeof *sense + (sizeof *sense % 4);
 		srp_rsp->flags |= SRP_RSP_FLAG_SNSVALID;
 		srp_rsp->status = SAM_STAT_CHECK_CONDITION;
-		srp_rsp->sense_data_len =
-		    cpu_to_be32(sizeof *sense + (sizeof *sense % 4));
+		srp_rsp->sense_data_len = cpu_to_be32(sense_data_len);
 
 		sense = (struct sense_data *)(srp_rsp + 1);
 		sense->err_code = 0x70;
 		sense->key = s_key;
 		sense->asc_ascq = s_code;
 	}
+
+	return sizeof(*srp_rsp) + sense_data_len;
 }
 
-static void srpt_build_tskmgmt_rsp(struct srpt_rdma_ch *ch,
-				   struct srpt_ioctx *ioctx, u8 rsp_code,
-				   u64 tag)
+/**
+ * Build a task management response, which is a specific SRP_RSP response PDU.
+ * @ch: RDMA channel through which the request has been received.
+ * @ioctx: I/O context in which the SRP_RSP PDU will be built.
+ * @rsp_code: RSP_CODE that will be stored in the response.
+ * @tag: tag of the request for which this response is being generated.
+ *
+ * Returns the size in bytes of the SRP_RSP response PDU.
+ *
+ * An SRP_RSP PDU contains a SCSI status or service response. See also
+ * section 6.9 in the T10 SRP r16a document for the format of an SRP_RSP PDU.
+ */
+static int srpt_build_tskmgmt_rsp(struct srpt_rdma_ch *ch,
+				  struct srpt_ioctx *ioctx, u8 rsp_code,
+				  u64 tag)
 {
 	struct srp_rsp *srp_rsp;
 	int limit_delta;
+	int resp_data_len = 0;
 
 	dma_sync_single_for_cpu(ch->sport->sdev->device->dma_device, ioctx->dma,
 				MAX_MESSAGE_SIZE, DMA_TO_DEVICE);
@@ -1009,10 +1027,13 @@ static void srpt_build_tskmgmt_rsp(struct srpt_rdma_ch *ch,
 	srp_rsp->tag = tag;
 
 	if (rsp_code != SRP_TSK_MGMT_SUCCESS) {
+		resp_data_len = 4;
 		srp_rsp->flags |= SRP_RSP_FLAG_RSPVALID;
-		srp_rsp->resp_data_len = cpu_to_be32(4);
+		srp_rsp->resp_data_len = cpu_to_be32(resp_data_len);
 		srp_rsp->data[3] = rsp_code;
 	}
+
+	return sizeof(*srp_rsp) + resp_data_len;
 }
 
 /*
@@ -1222,6 +1243,7 @@ static int srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 err:
 	WARN_ON(srp_tsk->opcode != SRP_RSP);
 
+	kfree(mgmt_ioctx);
 	return -1;
 }
 
@@ -2295,6 +2317,7 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 	struct srpt_rdma_ch *ch;
 	struct srpt_mgmt_ioctx *mgmt_ioctx;
 	struct srpt_ioctx *ioctx;
+	int rsp_len;
 
 	mgmt_ioctx = scst_mgmt_cmd_get_tgt_priv(mcmnd);
 	BUG_ON(!mgmt_ioctx);
@@ -2305,17 +2328,17 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 	ioctx = mgmt_ioctx->ioctx;
 	BUG_ON(!ioctx);
 
-	printk(KERN_WARNING PFX
-	       "%s: tsk_mgmt_done for tag= %lld status=%d\n",
-	       __func__, (unsigned long long)mgmt_ioctx->tag,
-	       scst_mgmt_cmd_get_status(mcmnd));
+	TRACE_DBG("%s: tsk_mgmt_done for tag= %lld status=%d\n",
+		  __func__, (unsigned long long)mgmt_ioctx->tag,
+		  scst_mgmt_cmd_get_status(mcmnd));
 
-	srpt_build_tskmgmt_rsp(ch, ioctx,
-			       (scst_mgmt_cmd_get_status(mcmnd) ==
-				SCST_MGMT_STATUS_SUCCESS) ?
-			       SRP_TSK_MGMT_SUCCESS : SRP_TSK_MGMT_FAILED,
-			       mgmt_ioctx->tag);
-	srpt_post_send(ch, ioctx, sizeof(struct srp_rsp) + 4);
+	rsp_len = srpt_build_tskmgmt_rsp(ch, ioctx,
+					 (scst_mgmt_cmd_get_status(mcmnd) ==
+					  SCST_MGMT_STATUS_SUCCESS) ?
+					 SRP_TSK_MGMT_SUCCESS :
+					 SRP_TSK_MGMT_FAILED,
+					 mgmt_ioctx->tag);
+	srpt_post_send(ch, ioctx, rsp_len);
 
 	scst_mgmt_cmd_set_tgt_priv(mcmnd, NULL);
 
