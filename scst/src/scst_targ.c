@@ -3142,8 +3142,6 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 		scst_finish_cmd_mgmt(cmd);
 	}
 
-	
-
 	__scst_cmd_put(cmd);
 
 	res = SCST_CMD_STATE_RES_CONT_NEXT;
