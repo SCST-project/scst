@@ -873,6 +873,20 @@ static void srpt_abort_scst_cmd(struct srpt_device *sdev,
 			     scst_cmd_get_sg_cnt(scmnd),
 			     scst_to_tgt_dma_dir(dir));
 
+#if 1
+		switch (scmnd->state) {
+		case SCST_CMD_STATE_DATA_WAIT:
+			WARN_ON(ioctx->state != SRPT_STATE_NEED_DATA);
+			break;
+		case SCST_CMD_STATE_XMIT_WAIT:
+			WARN_ON(ioctx->state != SRPT_STATE_PROCESSED);
+			break;
+		default:
+			WARN_ON(ioctx->state == SRPT_STATE_NEED_DATA ||
+				ioctx->state == SRPT_STATE_PROCESSED);
+		}
+#endif
+
 		if (ioctx->state == SRPT_STATE_NEED_DATA) {
 			scst_rx_data(scmnd,
 				     tell_initiator ? SCST_RX_STATUS_ERROR
@@ -1118,8 +1132,6 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 
 	scst_cmd_init_done(scmnd, scst_estimate_context());
 
-	WARN_ON(srp_rsp->opcode == SRP_RSP);
-
 	return 0;
 
 err:
@@ -1307,8 +1319,6 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 				   srp_cmd->tag);
 		goto err;
 	}
-
-	WARN_ON(srp_rsp->opcode == SRP_RSP);
 
 	dma_sync_single_for_device(ch->sport->sdev->device->dma_device,
 				   ioctx->dma, MAX_MESSAGE_SIZE,
