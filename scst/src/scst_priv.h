@@ -356,14 +356,14 @@ static inline int scst_exec_req(struct scsi_device *sdev,
 	void (*done)(void *, char *, int, int), gfp_t gfp)
 {
 #if defined(CONFIG_SCST_STRICT_SERIALIZING)
-	return scsi_execute_async(sdev, cmd, cmd_len, data_direction, (void*)sgl,
+	return scsi_execute_async(sdev, cmd, cmd_len, data_direction, (void *)sgl,
 		    bufflen, nents, timeout, retries, privdata, done, gfp);
 #elif !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
 	WARN_ON(1);
 	return -1;
 #else
 	return scsi_execute_async_fifo(sdev, cmd, cmd_len, data_direction,
-	    (void*)sgl, bufflen, nents, timeout, retries, privdata, done, gfp);
+	    (void *)sgl, bufflen, nents, timeout, retries, privdata, done, gfp);
 #endif
 }
 #else /* i.e. LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30) */
