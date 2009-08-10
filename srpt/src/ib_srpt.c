@@ -307,7 +307,8 @@ static u64 srpt_get_ioc_guid(struct ib_device *device)
 	WARN_ON(!global_ioc_guid);
 	WARN_ON(!device->node_guid);
 
-	return one_guid_per_ioc ? device->node_guid : global_ioc_guid;
+	return one_guid_per_ioc ? be64_to_cpu(device->node_guid)
+		: global_ioc_guid;
 }
 
 /*
