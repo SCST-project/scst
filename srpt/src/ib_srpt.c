@@ -82,10 +82,11 @@ struct srpt_thread {
  * Global Variables
  */
 
-static u64 mellanox_ioc_guid;
+static u64 global_ioc_guid;
 /* List of srpt_device structures. */
 static atomic_t srpt_device_count;
 static int thread;
+static int one_guid_per_ioc;
 static struct srpt_thread srpt_thread;
 static DECLARE_WAIT_QUEUE_HEAD(ioctx_list_waitQ);
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
@@ -99,6 +100,10 @@ module_param(thread, int, 0444);
 MODULE_PARM_DESC(thread,
 		 "Executing ioctx in thread context. Default 0, i.e. soft IRQ, "
 		 "where possible");
+module_param(one_guid_per_ioc, bool, 0444);
+MODULE_PARM_DESC(one_guid_per_ioc,
+		 "Assign a unique GUID to each IOC instead of using one GUID "
+		 "for all IOCs.");
 
 static void srpt_add_one(struct ib_device *device);
 static void srpt_remove_one(struct ib_device *device);
@@ -291,6 +296,20 @@ static void srpt_get_iou(struct ib_dm_mad *mad)
 	mad->mad_hdr.status = 0;
 }
 
+/**
+ * Return the GUID that will be communicated to the initiator for identifying
+ * the SRPT target. Depending on the mode variable one_guid_per_ioc, either the
+ * GUID of the specified IOC is returned or the GUID of the first IOC.
+ */
+static u64 srpt_get_ioc_guid(struct ib_device *device)
+{
+	BUG_ON(!device);
+	WARN_ON(!global_ioc_guid);
+	WARN_ON(!device->node_guid);
+
+	return one_guid_per_ioc ? device->node_guid : global_ioc_guid;
+}
+
 /*
  * Write IOControllerprofile to mad for I/O controller (sdev, slot). See also
  * section 16.3.3.4 IOControllerProfile in the InfiniBand Architecture
@@ -316,7 +335,7 @@ static void srpt_get_ioc(struct srpt_device *sdev, u32 slot,
 
 	memset(iocp, 0, sizeof *iocp);
 	strcpy(iocp->id_string, MELLANOX_SRPT_ID_STRING);
-	iocp->guid = cpu_to_be64(mellanox_ioc_guid);
+	iocp->guid = cpu_to_be64(srpt_get_ioc_guid(sdev->device));
 	iocp->vendor_id = cpu_to_be32(sdev->dev_attr.vendor_id);
 	iocp->device_id = cpu_to_be32(sdev->dev_attr.vendor_part_id);
 	iocp->device_version = cpu_to_be16(sdev->dev_attr.hw_ver);
@@ -332,7 +351,7 @@ static void srpt_get_ioc(struct srpt_device *sdev, u32 slot,
 	iocp->rdma_size = cpu_to_be32(MAX_RDMA_SIZE);
 	iocp->num_svc_entries = 1;
 	iocp->op_cap_mask = SRP_SEND_TO_IOC | SRP_SEND_FROM_IOC |
-	    SRP_RDMA_READ_FROM_IOC | SRP_RDMA_WRITE_FROM_IOC;
+		SRP_RDMA_READ_FROM_IOC | SRP_RDMA_WRITE_FROM_IOC;
 
 	mad->mad_hdr.status = 0;
 }
@@ -342,9 +361,12 @@ static void srpt_get_ioc(struct srpt_device *sdev, u32 slot,
  * section 16.3.3.5 ServiceEntries in the InfiniBand Architecture
  * Specification. See also section B.7, table B.8 in the T10 SRP r16a document.
  */
-static void srpt_get_svc_entries(u16 slot, u8 hi, u8 lo, struct ib_dm_mad *mad)
+static void srpt_get_svc_entries(u64 ioc_guid,
+				 u16 slot, u8 hi, u8 lo, struct ib_dm_mad *mad)
 {
 	struct ib_dm_svc_entries *svc_entries;
+
+	WARN_ON(!ioc_guid);
 
 	if (!slot || slot > 16) {
 		mad->mad_hdr.status = cpu_to_be16(DM_MAD_STATUS_INVALID_FIELD);
@@ -358,12 +380,12 @@ static void srpt_get_svc_entries(u16 slot, u8 hi, u8 lo, struct ib_dm_mad *mad)
 
 	svc_entries = (struct ib_dm_svc_entries *)mad->data;
 	memset(svc_entries, 0, sizeof *svc_entries);
-	svc_entries->service_entries[0].id = cpu_to_be64(mellanox_ioc_guid);
+	svc_entries->service_entries[0].id = cpu_to_be64(ioc_guid);
 	snprintf(svc_entries->service_entries[0].name,
 		 sizeof(svc_entries->service_entries[0].name),
 		 "%s%016llx",
 		 SRP_SERVICE_NAME_PREFIX,
-		 (unsigned long long)mellanox_ioc_guid);
+		 (unsigned long long)ioc_guid);
 
 	mad->mad_hdr.status = 0;
 }
@@ -397,7 +419,8 @@ static void srpt_mgmt_method_get(struct srpt_port *sp, struct ib_mad *rq_mad,
 		hi = (u8) ((slot >> 8) & 0xff);
 		lo = (u8) (slot & 0xff);
 		slot = (u16) ((slot >> 16) & 0xffff);
-		srpt_get_svc_entries(slot, hi, lo, rsp_mad);
+		srpt_get_svc_entries(srpt_get_ioc_guid(sp->sdev->device),
+				     slot, hi, lo, rsp_mad);
 		break;
 	default:
 		rsp_mad->mad_hdr.status =
@@ -1585,6 +1608,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	struct ib_cm_rep_param *rep_param;
 	struct srpt_rdma_ch *ch, *tmp_ch;
 	u32 it_iu_len;
+	u64 ioc_guid;
 	int ret = 0;
 
 	if (!sdev || !private_data)
@@ -1667,10 +1691,11 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	} else
 		rsp->rsp_flags = SRP_LOGIN_RSP_MULTICHAN_MAINTAINED;
 
-	if (((u64) (*(u64 *) req->target_port_id) !=
-	     cpu_to_be64(mellanox_ioc_guid)) ||
+	ioc_guid = srpt_get_ioc_guid(sdev->device);
+
+	if (((u64) (*(u64 *) req->target_port_id) != cpu_to_be64(ioc_guid)) ||
 	    ((u64) (*(u64 *) (req->target_port_id + 8)) !=
-	     cpu_to_be64(mellanox_ioc_guid))) {
+	     cpu_to_be64(ioc_guid))) {
 		rej->reason =
 		    cpu_to_be32(SRP_LOGIN_REJ_UNABLE_ASSOCIATE_CHANNEL);
 		ret = -ENOMEM;
@@ -2591,18 +2616,20 @@ static ssize_t show_login_info(struct device *dev,
 		container_of(dev, struct srpt_device, dev);
 #endif
 	struct srpt_port *sport;
+	u64 ioc_guid;
 	int i;
 	int len = 0;
 
 	for (i = 0; i < sdev->device->phys_port_cnt; i++) {
 		sport = &sdev->port[i];
 
+		ioc_guid = srpt_get_ioc_guid(sdev->device);
 		len += sprintf(buf + len,
 			       "tid_ext=%016llx,ioc_guid=%016llx,pkey=ffff,"
 			       "dgid=%04x%04x%04x%04x%04x%04x%04x%04x,"
 			       "service_id=%016llx\n",
-			       (unsigned long long) mellanox_ioc_guid,
-			       (unsigned long long) mellanox_ioc_guid,
+			       (unsigned long long) ioc_guid,
+			       (unsigned long long) ioc_guid,
 			       be16_to_cpu(((__be16 *) sport->gid.raw)[0]),
 			       be16_to_cpu(((__be16 *) sport->gid.raw)[1]),
 			       be16_to_cpu(((__be16 *) sport->gid.raw)[2]),
@@ -2611,7 +2638,7 @@ static ssize_t show_login_info(struct device *dev,
 			       be16_to_cpu(((__be16 *) sport->gid.raw)[5]),
 			       be16_to_cpu(((__be16 *) sport->gid.raw)[6]),
 			       be16_to_cpu(((__be16 *) sport->gid.raw)[7]),
-			       (unsigned long long) mellanox_ioc_guid);
+			       (unsigned long long) ioc_guid);
 	}
 
 	return len;
@@ -2698,8 +2725,8 @@ static void srpt_add_one(struct ib_device *device)
 	       __func__, srq_attr.attr.max_wr,
 	      sdev->dev_attr.max_srq_wr, device->name);
 
-	if (!mellanox_ioc_guid)
-		mellanox_ioc_guid = be64_to_cpu(device->node_guid);
+	if (!global_ioc_guid)
+		global_ioc_guid = be64_to_cpu(device->node_guid);
 
 	sdev->cm_id = ib_create_cm_id(device, srpt_cm_handler, sdev);
 	if (IS_ERR(sdev->cm_id))
@@ -2708,9 +2735,9 @@ static void srpt_add_one(struct ib_device *device)
 	/* print out target login information */
 	TRACE_DBG("Target login info: id_ext=%016llx,"
 		  "ioc_guid=%016llx,pkey=ffff,service_id=%016llx",
-		  (unsigned long long) mellanox_ioc_guid,
-		  (unsigned long long) mellanox_ioc_guid,
-		  (unsigned long long) mellanox_ioc_guid);
+		  (unsigned long long) srpt_get_ioc_guid(sdev->device),
+		  (unsigned long long) srpt_get_ioc_guid(sdev->device),
+		  (unsigned long long) srpt_get_ioc_guid(sdev->device));
 
 	/*
 	 * We do not have a consistent service_id (ie. also id_ext of target_id)
@@ -2718,7 +2745,7 @@ static void srpt_add_one(struct ib_device *device)
 	 * in the system as service_id; therefore, the target_id will change
 	 * if this HCA is gone bad and replaced by different HCA
 	 */
-	if (ib_cm_listen(sdev->cm_id, cpu_to_be64(mellanox_ioc_guid), 0, NULL))
+	if (ib_cm_listen(sdev->cm_id, cpu_to_be64(global_ioc_guid), 0, NULL))
 		goto err_cm;
 
 	INIT_IB_EVENT_HANDLER(&sdev->event_handler, sdev->device,
