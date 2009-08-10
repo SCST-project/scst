@@ -434,6 +434,9 @@ void scst_process_reset(struct scst_device *dev,
 	struct scst_session *originator, struct scst_cmd *exclude_cmd,
 	struct scst_mgmt_cmd *mcmd, bool setUA);
 
+bool scst_is_ua_global(const uint8_t *sense, int len);
+void scst_requeue_ua(struct scst_cmd *cmd);
+
 static inline bool scst_is_ua_command(struct scst_cmd *cmd)
 {
 	return (cmd->op_flags & SCST_SKIP_UA) == 0;

@@ -1677,11 +1677,14 @@ struct scst_tgt_dev {
 	struct scst_session *sess;	/* corresponding session */
 	struct scst_acg_dev *acg_dev;	/* corresponding acg_dev */
 
-	/* list entry in dev->dev_tgt_dev_list */
+	/* List entry in dev->dev_tgt_dev_list */
 	struct list_head dev_tgt_dev_list_entry;
 
-	/* internal tmp list entry */
+	/* Internal tmp list entry */
 	struct list_head extra_tgt_dev_list_entry;
+
+	/* Set if INQUIRY DATA HAS CHANGED UA is needed */
+	unsigned int inq_changed_ua_needed:1;
 
 	/*
 	 * Stored Unit Attention sense and its length for possible
@@ -3008,6 +3011,12 @@ int scst_alloc_set_sense(struct scst_cmd *cmd, int atomic,
 
 void scst_set_sense(uint8_t *buffer, int len, bool d_sense,
 	int key, int asc, int ascq);
+
+/*
+ * Returns true if the sense is valid and carrying a Unit Attention or
+ * false otherwise.
+ */
+bool scst_is_ua_sense(const uint8_t *sense, int len);
 
 /*
  * Returnes true if sense matches to (key, asc, ascq) and false otherwise.

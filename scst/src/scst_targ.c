@@ -2425,7 +2425,7 @@ static int scst_check_sense(struct scst_cmd *cmd)
 			cmd->sense_bufflen);
 
 		/* Check Unit Attention Sense Key */
-		if (scst_is_ua_sense(cmd->sense)) {
+		if (scst_is_ua_sense(cmd->sense, cmd->sense_bufflen)) {
 			if (scst_analyze_sense(cmd->sense, cmd->sense_bufflen,
 					SCST_SENSE_ASC_VALID,
 					0, SCST_SENSE_ASC_UA_RESET, 0)) {
@@ -2653,8 +2653,7 @@ static int scst_pre_dev_done(struct scst_cmd *cmd)
 		/* Check for MODE PARAMETERS CHANGED UA */
 		if ((cmd->dev->scsi_dev != NULL) &&
 		    (cmd->status == SAM_STAT_CHECK_CONDITION) &&
-		    SCST_SENSE_VALID(cmd->sense) &&
-		    scst_is_ua_sense(cmd->sense) &&
+		    scst_is_ua_sense(cmd->sense, cmd->sense_bufflen) &&
 		    scst_analyze_sense(cmd->sense, cmd->sense_bufflen,
 					SCST_SENSE_ASCx_VALID,
 					0, 0x2a, 0x01)) {
@@ -2717,8 +2716,7 @@ static int scst_mode_select_checks(struct scst_cmd *cmd)
 				scst_obtain_device_parameters(dev);
 		}
 	} else if ((cmd->status == SAM_STAT_CHECK_CONDITION) &&
-		    SCST_SENSE_VALID(cmd->sense) &&
-		    scst_is_ua_sense(cmd->sense) &&
+		    scst_is_ua_sense(cmd->sense, cmd->sense_bufflen) &&
 		     /* mode parameters changed */
 		    (scst_analyze_sense(cmd->sense, cmd->sense_bufflen,
 					SCST_SENSE_ASCx_VALID,
@@ -3112,6 +3110,21 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
+	if (unlikely(cmd->delivery_status != SCST_CMD_DELIVERY_SUCCESS)) {
+		if ((cmd->tgt_dev != NULL) &&
+		    scst_is_ua_sense(cmd->sense, cmd->sense_bufflen)) {
+			/* This UA delivery failed, so we need to requeue it */
+			if (scst_cmd_atomic(cmd) &&
+			    scst_is_ua_global(cmd->sense, cmd->sense_bufflen)) {
+				TRACE_MGMT_DBG("Requeuing of global UA for "
+					"failed cmd %p needs a thread", cmd);
+				res = SCST_CMD_STATE_RES_NEED_THREAD;
+				goto out;
+			}
+			scst_requeue_ua(cmd);
+		}
+	}
+
 	atomic_dec(&sess->sess_cmd_count);
 
 	spin_lock_irq(&sess->sess_list_lock);
@@ -3129,21 +3142,13 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 		scst_finish_cmd_mgmt(cmd);
 	}
 
-	if (unlikely(cmd->delivery_status != SCST_CMD_DELIVERY_SUCCESS)) {
-		if ((cmd->tgt_dev != NULL) &&
-		    scst_is_ua_sense(cmd->sense)) {
-			/* This UA delivery failed, so requeue it */
-			TRACE_MGMT_DBG("Requeuing UA for delivery failed cmd "
-				"%p", cmd);
-			scst_check_set_UA(cmd->tgt_dev, cmd->sense,
-				cmd->sense_bufflen, SCST_SET_UA_FLAG_AT_HEAD);
-		}
-	}
+	
 
 	__scst_cmd_put(cmd);
 
 	res = SCST_CMD_STATE_RES_CONT_NEXT;
 
+out:
 	TRACE_EXIT_HRES(res);
 	return res;
 }
@@ -3170,10 +3175,9 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 
 	scst_check_debug_sn(cmd);
 
-	if (cmd->dev->queue_alg ==
-			SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER) {
+	if (cmd->dev->queue_alg == SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER) {
 		/*
-		 * Not the best way, but well enough until there will be a
+		 * Not the best way, but good enough until there is a
 		 * possibility to specify queue type during pass-through
 		 * commands submission.
 		 */
@@ -3633,8 +3637,6 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 
 		case SCST_CMD_STATE_FINISHED:
 			res = scst_finish_cmd(cmd);
-			EXTRACHECKS_BUG_ON(res ==
-				SCST_CMD_STATE_RES_NEED_THREAD);
 			break;
 
 		case SCST_CMD_STATE_FINISHED_INTERNAL:

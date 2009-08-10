@@ -259,6 +259,31 @@ out:
 }
 EXPORT_SYMBOL(scst_analyze_sense);
 
+bool scst_is_ua_sense(const uint8_t *sense, int len)
+{
+	if (SCST_SENSE_VALID(sense))
+		return scst_analyze_sense(sense, len,
+			SCST_SENSE_KEY_VALID, UNIT_ATTENTION, 0, 0);
+	else
+		return false;
+}
+EXPORT_SYMBOL(scst_is_ua_sense);
+
+bool scst_is_ua_global(const uint8_t *sense, int len)
+{
+	bool res;
+
+	/* Changing it don't forget to change scst_requeue_ua() as well!! */
+
+	if (scst_analyze_sense(sense, len, SCST_SENSE_ALL_VALID,
+			SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed)))
+		res = true;
+	else
+		res = false;
+
+	return res;
+}
+
 void scst_check_convert_sense(struct scst_cmd *cmd)
 {
 	bool d_sense;
@@ -702,6 +727,29 @@ out_free:
 }
 EXPORT_SYMBOL(scst_aen_done);
 
+void scst_requeue_ua(struct scst_cmd *cmd)
+{
+	TRACE_ENTRY();
+
+	if (scst_analyze_sense(cmd->sense, cmd->sense_bufflen,
+			SCST_SENSE_ALL_VALID,
+			SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed))) {
+		TRACE_MGMT_DBG("Requeuing REPORTED LUNS DATA CHANGED UA "
+			"for delivery failed cmd %p", cmd);
+		mutex_lock(&scst_mutex);
+		scst_queue_report_luns_changed_UA(cmd->sess,
+			SCST_SET_UA_FLAG_AT_HEAD);
+		mutex_unlock(&scst_mutex);
+	} else {
+		TRACE_MGMT_DBG("Requeuing UA for delivery failed cmd %p", cmd);
+		scst_check_set_UA(cmd->tgt_dev, cmd->sense,
+			cmd->sense_bufflen, SCST_SET_UA_FLAG_AT_HEAD);
+	}
+
+	TRACE_EXIT();
+	return;
+}
+
 /* The activity supposed to be suspended and scst_mutex held */
 static void scst_check_reassign_sess(struct scst_session *sess)
 {
@@ -711,7 +759,7 @@ static void scst_check_reassign_sess(struct scst_session *sess)
 	struct list_head *shead;
 	struct scst_tgt_dev *tgt_dev;
 	bool luns_changed = false;
-	bool add_failed, something_freed;
+	bool add_failed, something_freed, not_needed_freed = false;
 
 	TRACE_ENTRY();
 
@@ -733,6 +781,8 @@ static void scst_check_reassign_sess(struct scst_session *sess)
 retry_add:
 	add_failed = false;
 	list_for_each_entry(acg_dev, &acg->acg_dev_list, acg_dev_list_entry) {
+		unsigned int inq_changed_ua_needed = 0;
+
 		for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
 			shead = &sess->sess_tgt_dev_list_hash[i];
 
@@ -747,7 +797,8 @@ retry_add:
 						(unsigned long long)tgt_dev->lun);
 					tgt_dev->acg_dev = acg_dev;
 					goto next;
-				}
+				} else if (tgt_dev->lun == acg_dev->lun)
+					inq_changed_ua_needed = 1;
 			}
 		}
 
@@ -761,11 +812,15 @@ retry_add:
 			add_failed = true;
 			break;
 		}
+
+		tgt_dev->inq_changed_ua_needed = inq_changed_ua_needed ||
+						 not_needed_freed;
 next:
 		continue;
 	}
 
 	something_freed = false;
+	not_needed_freed = true;
 	for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
 		struct scst_tgt_dev *t;
 		shead = &sess->sess_tgt_dev_list_hash[i];
@@ -795,8 +850,34 @@ next:
 		old_acg->acg_name, acg->acg_name);
 	list_move_tail(&sess->acg_sess_list_entry, &acg->acg_sess_list);
 
-	if (luns_changed)
+	if (luns_changed) {
+		uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
+
 		scst_report_luns_changed_sess(sess);
+
+		for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
+			shead = &sess->sess_tgt_dev_list_hash[i];
+
+			list_for_each_entry(tgt_dev, shead,
+					sess_tgt_dev_list_entry) {
+				if (tgt_dev->inq_changed_ua_needed) {
+					TRACE_MGMT_DBG("sess %p: Setting "
+						"INQUIRY DATA HAS CHANGED UA "
+						"(tgt_dev %p)", sess, tgt_dev);
+
+					tgt_dev->inq_changed_ua_needed = 0;
+
+					scst_set_sense(sense_buffer,
+						sizeof(sense_buffer),
+						tgt_dev->dev->d_sense,
+						SCST_LOAD_SENSE(scst_sense_inquery_data_changed));
+
+					scst_check_set_UA(tgt_dev, sense_buffer,
+						sizeof(sense_buffer), 0);
+				}
+			}
+		}
+	}
 
 out:
 	TRACE_EXIT();
@@ -4164,7 +4245,7 @@ static void scst_check_internal_sense(struct scst_device *dev, int result,
 			SCST_LOAD_SENSE(scst_sense_reset_UA));
 		scst_dev_check_set_UA(dev, NULL, sense, sense_len);
 	} else if ((status_byte(result) == CHECK_CONDITION) &&
-		   SCST_SENSE_VALID(sense) && scst_is_ua_sense(sense))
+		   scst_is_ua_sense(sense, sense_len))
 		scst_dev_check_set_UA(dev, NULL, sense, sense_len);
 
 	TRACE_EXIT();

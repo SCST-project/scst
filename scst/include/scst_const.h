@@ -139,11 +139,6 @@ enum scst_cmd_queue_type {
 #define SCST_NO_SENSE(sense)     ((sense != NULL) && \
 				  (((const uint8_t *)(sense))[2] == 0))
 
-static inline int scst_is_ua_sense(const uint8_t *sense)
-{
-	return SCST_SENSE_VALID(sense) && (sense[2] == UNIT_ATTENTION);
-}
-
 /*************************************************************
  ** Sense data for the appropriate errors. Can be used with
  ** scst_set_cmd_error()
@@ -170,6 +165,7 @@ static inline int scst_is_ua_sense(const uint8_t *sense)
 #define scst_sense_cleared_by_another_ini_UA	UNIT_ATTENTION,  0x2F, 0
 #define scst_sense_capacity_data_changed	UNIT_ATTENTION,  0x2A, 0x9
 #define scst_sense_reported_luns_data_changed	UNIT_ATTENTION,  0x3F, 0xE
+#define scst_sense_inquery_data_changed		UNIT_ATTENTION,  0x3F, 0x3
 
 /*************************************************************
  * SCSI opcodes not listed anywhere else
