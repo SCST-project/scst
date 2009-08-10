@@ -460,6 +460,14 @@ following files and directories under /proc/scsi_tgt:
     the device could be marked as read only. The recommended way to find out
     H:C:I:L numbers is use of lsscsi utility.
 
+  - "replace H:C:I:L lun [READ_ONLY]" to /proc/scsi_tgt/groups/GROUP_NAME/devices
+    replaces by device with host:channel:id:lun existing with LUN "lun"
+    device in group "GROUP_NAME" with generation of INQUIRY DATA HAS
+    CHANGED Unit Attention. If the old device doesn't exist, this
+    command acts as the "add" command. Optionally, the device could be
+    marked as read only. The recommended way to find out H:C:I:L numbers
+    is use of lsscsi utility.
+
   - "del H:C:I:L" to /proc/scsi_tgt/groups/GROUP_NAME/devices deletes device with
     host:channel:id:lun from group "GROUP_NAME". The recommended way to find out
     H:C:I:L numbers is use of lsscsi utility.
@@ -467,6 +475,13 @@ following files and directories under /proc/scsi_tgt:
   - "add V_NAME lun [READ_ONLY]" to /proc/scsi_tgt/groups/GROUP_NAME/devices adds
     device with virtual name "V_NAME" with LUN "lun" in group "GROUP_NAME".
     Optionally, the device could be marked as read only.
+
+  - "replace V_NAME lun [READ_ONLY]" to /proc/scsi_tgt/groups/GROUP_NAME/devices
+    replaces by device with virtual name "V_NAME" existing with LUN
+    "lun" device in group "GROUP_NAME" with generation of INQUIRY DATA
+    HAS CHANGED Unit Attention. If the old device doesn't exist, this
+    command acts as the "add" command. Optionally, the device could
+    be marked as read only.
 
   - "del V_NAME" to /proc/scsi_tgt/groups/GROUP_NAME/devices deletes device with
     virtual name "V_NAME" from group "GROUP_NAME"

@@ -80,11 +80,12 @@ static struct scst_proc_data scst_dev_handler_proc_data;
 #define SCST_PROC_ACTION_CLEAR		 6
 #define SCST_PROC_ACTION_MOVE		 7
 #define SCST_PROC_ACTION_DEL		 8
-#define SCST_PROC_ACTION_VALUE		 9
-#define SCST_PROC_ACTION_ASSIGN		10
-#define SCST_PROC_ACTION_ADD_GROUP	11
-#define SCST_PROC_ACTION_DEL_GROUP	12
-#define SCST_PROC_ACTION_RENAME_GROUP	13
+#define SCST_PROC_ACTION_REPLACE	 9
+#define SCST_PROC_ACTION_VALUE		10
+#define SCST_PROC_ACTION_ASSIGN		11
+#define SCST_PROC_ACTION_ADD_GROUP	12
+#define SCST_PROC_ACTION_DEL_GROUP	13
+#define SCST_PROC_ACTION_RENAME_GROUP	14
 
 static struct proc_dir_entry *scst_proc_scsi_tgt;
 static struct proc_dir_entry *scst_proc_groups_root;
@@ -133,7 +134,11 @@ static char *scst_proc_help_string =
 "\n"
 "   echo \"add|del H:C:I:L lun [READ_ONLY]\""
 " >/proc/scsi_tgt/groups/GROUP_NAME/devices\n"
+"   echo \"replace H:C:I:L lun [READ_ONLY]\""
+" >/proc/scsi_tgt/groups/GROUP_NAME/devices\n"
 "   echo \"add|del V_NAME lun [READ_ONLY]\""
+" >/proc/scsi_tgt/groups/GROUP_NAME/devices\n"
+"   echo \"replace V_NAME lun [READ_ONLY]\""
 " >/proc/scsi_tgt/groups/GROUP_NAME/devices\n"
 "   echo \"clear\" >/proc/scsi_tgt/groups/GROUP_NAME/devices\n"
 "\n"
@@ -1613,7 +1618,11 @@ static ssize_t scst_proc_groups_devices_write(struct file *file,
 	/*
 	 * Usage: echo "add|del H:C:I:L lun [READ_ONLY]" \
 	 *          >/proc/scsi_tgt/groups/GROUP_NAME/devices
+	 *   or   echo "replace H:C:I:L lun [READ_ONLY]" \
+	 *          >/proc/scsi_tgt/groups/GROUP_NAME/devices
 	 *   or   echo "add|del V_NAME lun [READ_ONLY]" \
+	 *          >/proc/scsi_tgt/groups/GROUP_NAME/devices
+	 *   or   echo "replace V_NAME lun [READ_ONLY]" \
 	 *          >/proc/scsi_tgt/groups/GROUP_NAME/devices
 	 *   or   echo "clear" >/proc/scsi_tgt/groups/GROUP_NAME/devices
 	 */
@@ -1628,6 +1637,9 @@ static ssize_t scst_proc_groups_devices_write(struct file *file,
 	} else if (!strncasecmp("del ", p, 4)) {
 		p += 4;
 		action = SCST_PROC_ACTION_DEL;
+	} else if (!strncasecmp("replace ", p, 8)) {
+		p += 8;
+		action = SCST_PROC_ACTION_REPLACE;
 	} else {
 		PRINT_ERROR("Unknown action \"%s\"", p);
 		res = -EINVAL;
@@ -1648,6 +1660,7 @@ static ssize_t scst_proc_groups_devices_write(struct file *file,
 	switch (action) {
 	case SCST_PROC_ACTION_ADD:
 	case SCST_PROC_ACTION_DEL:
+	case SCST_PROC_ACTION_REPLACE:
 		while (isspace(*p) && *p != '\0')
 			p++;
 		e = p; /* save p */
@@ -1703,6 +1716,10 @@ static ssize_t scst_proc_groups_devices_write(struct file *file,
 
 	switch (action) {
 	case SCST_PROC_ACTION_ADD:
+	case SCST_PROC_ACTION_REPLACE:
+	{
+		bool dev_replaced = false;
+
 		e++;
 		while (isspace(*e) && *e != '\0')
 			e++;
@@ -1728,35 +1745,64 @@ static ssize_t scst_proc_groups_devices_write(struct file *file,
 				break;
 			}
 		}
-		if (acg_dev) {
-			acg_dev = acg_dev_tmp;
-			PRINT_ERROR("virt lun %d already exists in group %s",
-				       virt_lun, acg->acg_name);
-			res = -EINVAL;
+		if (acg_dev != NULL) {
+			if (action == SCST_PROC_ACTION_ADD) {
+				PRINT_ERROR("virt lun %d already exists in "
+					"group %s", virt_lun, acg->acg_name);
+				res = -EINVAL;
+				goto out_free_up;
+			} else {
+				/* Replace */
+				rc = scst_acg_remove_dev(acg, acg_dev->dev,
+						false);
+				if (rc) {
+					res = rc;
+					goto out_free_up;
+				}
+				dev_replaced = true;
+			}
+		}
+
+		rc = scst_acg_add_dev(acg, dev, virt_lun, read_only,
+			action == SCST_PROC_ACTION_ADD);
+		if (rc) {
+			res = rc;
 			goto out_free_up;
 		}
-		rc = scst_acg_add_dev(acg, dev, virt_lun, read_only);
-		if (rc) {
-			PRINT_ERROR("scst_acg_add_dev() returned %d", rc);
-			res = rc;
+
+		if (dev_replaced) {
+			struct scst_tgt_dev *tgt_dev;
+
+			list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
+					dev_tgt_dev_list_entry) {
+				if ((tgt_dev->acg_dev->acg == acg) &&
+				    (tgt_dev->lun == virt_lun)) {
+					TRACE_MGMT_DBG("INQUIRY DATA HAS CHANGED"
+						" on tgt_dev %p", tgt_dev);
+					scst_gen_aen_or_ua(tgt_dev,
+						SCST_LOAD_SENSE(scst_sense_inquery_data_changed));
+				}
+			}
 		}
 		break;
+	}
 	case SCST_PROC_ACTION_DEL:
-		rc = scst_acg_remove_dev(acg, dev);
+		rc = scst_acg_remove_dev(acg, dev, true);
 		if (rc) {
-			PRINT_ERROR("scst_acg_remove_dev() returned %d", rc);
 			res = rc;
+			goto out_free_up;
 		}
 		break;
 	case SCST_PROC_ACTION_CLEAR:
 		list_for_each_entry_safe(acg_dev, acg_dev_tmp,
 					 &acg->acg_dev_list,
 					 acg_dev_list_entry) {
-			rc = scst_acg_remove_dev(acg, acg_dev->dev);
+			rc = scst_acg_remove_dev(acg, acg_dev->dev,
+				list_is_last(&acg_dev->acg_dev_list_entry,
+					     &acg->acg_dev_list));
 			if (rc) {
-				PRINT_ERROR("scst_acg_remove_dev() "
-					       "return %d", rc);
 				res = rc;
+				goto out_free_up;
 			}
 		}
 		break;

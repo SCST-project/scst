@@ -724,9 +724,8 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 	list_del(&dev->dev_list_entry);
 
 	list_for_each_entry_safe(acg_dev, aa, &dev->dev_acg_dev_list,
-				 dev_acg_dev_list_entry)
-	{
-		scst_acg_remove_dev(acg_dev->acg, dev);
+				 dev_acg_dev_list_entry) {
+		scst_acg_remove_dev(acg_dev->acg, dev, true);
 	}
 
 	scst_assign_dev_handler(dev, &scst_null_devtype);
@@ -876,7 +875,7 @@ void scst_unregister_virtual_device(int id)
 	list_for_each_entry_safe(acg_dev, aa, &dev->dev_acg_dev_list,
 				 dev_acg_dev_list_entry)
 	{
-		scst_acg_remove_dev(acg_dev->acg, dev);
+		scst_acg_remove_dev(acg_dev->acg, dev, true);
 	}
 
 	scst_assign_dev_handler(dev, &scst_null_devtype);
