@@ -813,6 +813,10 @@ static int srpt_init_ch_qp(struct srpt_rdma_ch *ch, struct ib_qp *qp)
  * @qp: queue pair to change the state of.
  *
  * Returns zero upon success and a negative value upon failure.
+ *
+ * Note: currently a struct ib_qp_attr takes 136 bytes on a 64-bit system.
+ * If this structure ever becomes larger, it might be necessary to allocate
+ * it dynamically instead of on the stack.
  */
 static int srpt_ch_qp_rtr(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 {
@@ -839,6 +843,10 @@ out:
  * @qp: queue pair to change the state of.
  *
  * Returns zero upon success and a negative value upon failure.
+ *
+ * Note: currently a struct ib_qp_attr takes 136 bytes on a 64-bit system.
+ * If this structure ever becomes larger, it might be necessary to allocate
+ * it dynamically instead of on the stack.
  */
 static int srpt_ch_qp_rts(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 {
