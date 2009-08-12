@@ -2483,7 +2483,7 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 #endif
 				if (!bio) {
 					PRINT_ERROR("Failed to create bio "
-						"for data segment= %d cmd %p",
+						"for data segment %d (cmd %p)",
 						cmd->get_sg_buf_entry_num, cmd);
 					goto out_no_bio;
 				}

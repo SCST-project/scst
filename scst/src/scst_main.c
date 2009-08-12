@@ -40,7 +40,7 @@
  details."
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 #if !defined(SCSI_EXEC_REQ_FIFO_DEFINED) && \
     !defined(CONFIG_SCST_STRICT_SERIALIZING)
 #warning "Patch scst_exec_req_fifo-<kernel-version> was not applied on\
@@ -915,7 +915,7 @@ int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 	if (res != 0)
 		goto out_error;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 #if !defined(SCSI_EXEC_REQ_FIFO_DEFINED) && \
     !defined(CONFIG_SCST_STRICT_SERIALIZING)
 	if (dev_type->exec == NULL) {
@@ -1670,7 +1670,7 @@ static void __init scst_print_config(void)
 
 static int __init init_scst(void)
 {
-	int res = 0, i;
+	int res, i;
 	int scst_num_cpus;
 
 	TRACE_ENTRY();
@@ -1737,6 +1737,10 @@ static int __init init_scst(void)
 	list_add_tail(&scst_main_cmd_lists.lists_list_entry,
 		&scst_cmd_lists_list);
 
+	res = scst_lib_init();
+	if (res != 0)
+		goto out;
+
 	scst_num_cpus = num_online_cpus();
 
 	/* ToDo: register_cpu_notifier() */
@@ -1761,7 +1765,7 @@ static int __init init_scst(void)
 		}							\
 	} while (0)
 
-	INIT_CACHEP(scst_mgmt_cachep, scst_mgmt_cmd, out);
+	INIT_CACHEP(scst_mgmt_cachep, scst_mgmt_cmd, out_lib_exit);
 	INIT_CACHEP(scst_mgmt_stub_cachep, scst_mgmt_cmd_stub,
 			out_destroy_mgmt_cache);
 	INIT_CACHEP(scst_ua_cachep, scst_tgt_dev_UA,
@@ -1856,8 +1860,6 @@ static int __init init_scst(void)
 	if (res != 0)
 		goto out_free_acg;
 
-	scst_scsi_op_list_init();
-
 	for (i = 0; i < (int)ARRAY_SIZE(scst_tasklets); i++) {
 		spin_lock_init(&scst_tasklets[i].tasklet_lock);
 		INIT_LIST_HEAD(&scst_tasklets[i].tasklet_cmd_list);
@@ -1940,6 +1942,9 @@ out_destroy_mgmt_stub_cache:
 
 out_destroy_mgmt_cache:
 	kmem_cache_destroy(scst_mgmt_cachep);
+
+out_lib_exit:
+	scst_lib_exit();
 	goto out;
 }
 
@@ -1978,6 +1983,8 @@ static void __exit exit_scst(void)
 	DEINIT_CACHEP(scst_sess_cachep);
 	DEINIT_CACHEP(scst_tgtd_cachep);
 	DEINIT_CACHEP(scst_acgd_cachep);
+
+	scst_lib_exit();
 
 	PRINT_INFO("%s", "SCST unloaded");
 

@@ -2039,25 +2039,20 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 		    cmd->scsi_req->sr_bufflen, scst_cmd_done, cmd->timeout,
 		    cmd->retries);
 #else
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 	rc = scst_exec_req(dev->scsi_dev, cmd->cdb, cmd->cdb_len,
 			cmd->data_direction, cmd->sg, cmd->bufflen, cmd->sg_cnt,
 			cmd->timeout, cmd->retries, cmd, scst_cmd_done,
 			atomic ? GFP_ATOMIC : GFP_KERNEL);
 #else
-	rc = scsi_execute_async(dev->scsi_dev, cmd->cdb, cmd->cdb_len,
-			cmd->data_direction, cmd->sg, cmd->sg_cnt,
-			cmd->timeout, cmd->retries, cmd, scst_cmd_done,
-			atomic ? GFP_ATOMIC : GFP_KERNEL,
-			cmd->tgt_data_buf_alloced ? 0 :
-				SCSI_ASYNC_EXEC_FLAG_HAS_TAIL_SPACE_FOR_PADDING);
+	rc = scst_scsi_exec_async(cmd, scst_cmd_done);
 #endif
 	if (unlikely(rc != 0)) {
 		if (atomic) {
 			res = SCST_EXEC_NEED_THREAD;
 			goto out_restore;
 		} else {
-			PRINT_ERROR("scst_exec_req() failed: %x", rc);
+			PRINT_ERROR("scst pass-through exec failed: %x", rc);
 			goto out_error;
 		}
 	}

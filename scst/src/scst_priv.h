@@ -349,7 +349,7 @@ static inline void scst_do_req(struct scsi_request *sreq,
 	scsi_do_req_fifo(sreq, cmnd, buffer, bufflen, done, timeout, retries);
 #endif
 }
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 static inline int scst_exec_req(struct scsi_device *sdev,
 	const unsigned char *cmd, int cmd_len, int data_direction,
 	struct scatterlist *sgl, unsigned bufflen, unsigned nents,
@@ -367,20 +367,15 @@ static inline int scst_exec_req(struct scsi_device *sdev,
 	    (void *)sgl, bufflen, nents, timeout, retries, privdata, done, gfp);
 #endif
 }
-#else /* i.e. LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30) */
-#if !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
-#define SCSI_ASYNC_EXEC_FLAG_AT_HEAD			1
-#define SCSI_ASYNC_EXEC_FLAG_HAS_TAIL_SPACE_FOR_PADDING	2
-int scsi_execute_async(struct scsi_device *sdev,
-	const unsigned char *cmd, int cmd_len, int data_direction,
-	struct scatterlist *sgl, int nents, int timeout, int retries,
-	void *privdata, void (*done)(void *, char *, int, int),
-	gfp_t gfp, int flags);
-#endif
+#else /* i.e. LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26) */
+int scst_scsi_exec_async(struct scst_cmd *cmd,
+	void (*done)(void *, char *, int, int));
 #endif
 
 int scst_alloc_space(struct scst_cmd *cmd);
-void scst_scsi_op_list_init(void);
+
+int scst_lib_init(void);
+void scst_lib_exit(void);
 
 enum scst_sg_copy_dir {
 	SCST_SG_COPY_FROM_TARGET,
