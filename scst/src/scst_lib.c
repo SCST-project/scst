@@ -2792,8 +2792,7 @@ out:
 	return;
 }
 
-#if !((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && \
-      defined(SCSI_EXEC_REQ_FIFO_DEFINED))
+#if !((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && defined(SCSI_EXEC_REQ_FIFO_DEFINED))
 
 /*
  * Can switch to the next dst_sg element, so, to copy to strictly only
@@ -2923,12 +2922,9 @@ out:
 	return res;
 }
 
-#endif /* !((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && \
-	     defined(SCSI_EXEC_REQ_FIFO_DEFINED)) */
+#endif /* !((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && defined(SCSI_EXEC_REQ_FIFO_DEFINED)) */
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26) && \
-    !((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && \
-       defined(SCSI_EXEC_REQ_FIFO_DEFINED))
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26) && !((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && defined(SCSI_EXEC_REQ_FIFO_DEFINED))
 
 #include <linux/pfn.h>
 
@@ -3314,9 +3310,7 @@ static void blk_rq_unmap_kern_sg(struct request *rq, int err)
 	return;
 }
 
-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26) && \
-	  !(LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30) && \
-	    defined(SCSI_EXEC_REQ_FIFO_DEFINED)) */
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26) && !(LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30) && defined(SCSI_EXEC_REQ_FIFO_DEFINED)) */
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
 
