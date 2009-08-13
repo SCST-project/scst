@@ -91,6 +91,9 @@ function evaluate(stmnt) {
     gsub("RHEL_RELEASE_CODE", RHEL_MAJOR * 256 + RHEL_MINOR, stmnt)
   }
 
+  gsub("defined  *SCSI_EXEC_REQ_FIFO_DEFINED", "1", stmnt)
+  gsub("defined *\\( *SCSI_EXEC_REQ_FIFO_DEFINED *\\)", "1", stmnt)
+
   do
   {
     last_stmnt = stmnt
@@ -234,7 +237,8 @@ function process_preprocessor_statement() {
       output = output && decision[i] != "+#if 0"
     }
   }
-  if (output && (! condition || condition && matching_if !~ "^+#if [01]"))
+  if (output && (! condition || condition && matching_if !~ "^+#if [01]") \
+      && ! (evaluated ~ "^+#define SCSI_EXEC_REQ_FIFO_DEFINED$"))
   {
     line[lines++]=$0
   }
