@@ -337,7 +337,7 @@ diff -upkr linux-2.6.30.1/block/blk-map.c linux-2.6.30.1/block/blk-map.c
 +		bio = bio->bi_next;
 +		b->bi_end_io(b, err);
 +	}
-+	rq->bio = 0;
++	rq->bio = NULL;
 +
 +	return;
 +}

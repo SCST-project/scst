@@ -2887,7 +2887,7 @@ out:
  *    vector. End of the vectors will be determined by sg_next() returning
  *    NULL. Returns number of bytes copied.
  */
-int sg_copy(struct scatterlist *dst_sg, struct scatterlist *src_sg,
+static int sg_copy(struct scatterlist *dst_sg, struct scatterlist *src_sg,
 	    int nents_to_copy, size_t copy_len,
 	    enum km_type d_km_type, enum km_type s_km_type)
 {
@@ -3020,15 +3020,16 @@ static int blk_rq_copy_kern_sg(struct request *rq, struct scatterlist *sgl,
 
 	new_sgl = bw->sg_table.sgl;
 
-	TRACE_DBG("sgl %p, nents %d, to_copy %d, new_sgl %p, new_sgl_nents %d",
-		sgl, nents, to_copy, new_sgl, new_sgl_nents);
+	TRACE_DBG("sgl %p, nents %d, to_copy %lld, new_sgl %p, new_sgl_nents %d",
+		sgl, nents, (long long)to_copy, new_sgl, new_sgl_nents);
 
 	for_each_sg(new_sgl, sg, new_sgl_nents, i) {
 		struct page *pg;
 
 		pg = alloc_page(page_gfp);
 		if (pg == NULL) {
-			PRINT_ERROR("Unable to alloc copy page (left %d)", len);
+			PRINT_ERROR("Unable to alloc copy page (left %lld)",
+				(long long)len);
 			goto err_free_new_sgl;
 		}
 
@@ -3045,8 +3046,8 @@ static int blk_rq_copy_kern_sg(struct request *rq, struct scatterlist *sgl,
 		 * SG chaining.
 		 */
 		TRACE_DBG("Copying sgl %p (nents %d) to new_sgl %p "
-			"(new_sgl_nents %d), to_copy %d", sgl, nents,
-			new_sgl, new_sgl_nents, to_copy);
+			"(new_sgl_nents %d), to_copy %lld", sgl, nents,
+			new_sgl, new_sgl_nents, (long long)to_copy);
 		sg_copy(new_sgl, sgl, 0, to_copy,
 			KM_USER0, KM_USER1);
 	}
@@ -3079,7 +3080,7 @@ out_free_bw:
 static int __blk_rq_map_kern_sg(struct request *rq, struct scatterlist *sgl,
 	int nents, struct blk_kern_sg_work *bw, gfp_t gfp)
 {
-	int res;
+	int res = 0;
 	struct request_queue *q = rq->q;
 	int rw = rq_data_dir(rq);
 	int max_nr_vecs, i;
@@ -3201,8 +3202,8 @@ static int __blk_rq_map_kern_sg(struct request *rq, struct scatterlist *sgl,
 	/* Total length must be aligned on DMA padding alignment */
 	if ((tot_len & q->dma_pad_mask) &&
 	    !(rq->cmd_flags & REQ_COPY_USER)) {
-		TRACE_DBG("Total len %d doesn't match DMA pad mask %x",
-			tot_len, q->dma_pad_mask);
+		TRACE_DBG("Total len %lld doesn't match DMA pad mask %x",
+			(long long)tot_len, q->dma_pad_mask);
 		res = -EINVAL;
 		goto out_free_bios;
 	}
@@ -3305,7 +3306,7 @@ static void blk_rq_unmap_kern_sg(struct request *rq, int err)
 		bio = bio->bi_next;
 		b->bi_end_io(b, err);
 	}
-	rq->bio = 0;
+	rq->bio = NULL;
 
 	return;
 }
@@ -3438,7 +3439,7 @@ out:
 out_free_unmap:
 	if (rq->next_rq != NULL) {
 		blk_put_request(rq->next_rq);
-		rq->next_rq = 0;
+		rq->next_rq = NULL;
 	}
 	blk_rq_unmap_kern_sg(rq, res);
 
@@ -3480,8 +3481,8 @@ void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir)
 		to_copy = cmd->resp_data_len;
 	}
 
-	TRACE_MEM("cmd %p, copy_dir %d, src_sg %p, dst_sg %p, "
-		"to_copy %d", cmd, copy_dir, src_sg, dst_sg, to_copy);
+	TRACE_MEM("cmd %p, copy_dir %d, src_sg %p, dst_sg %p, to_copy %lld",
+		cmd, copy_dir, src_sg, dst_sg, (long long)to_copy);
 
 	if (unlikely(src_sg == NULL) || unlikely(dst_sg == NULL)) {
 		/*
