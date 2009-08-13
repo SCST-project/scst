@@ -972,18 +972,18 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 }
 
 /**
- * Build an SRP_RSP response PDU.
+ * Build an SRP_RSP response.
  * @ch: RDMA channel through which the request has been received.
- * @ioctx: I/O context in which the SRP_RSP PDU will be built.
+ * @ioctx: I/O context in which the SRP_RSP response will be built.
  * @s_key: sense key that will be stored in the response.
  * @s_code: value that will be stored in the asc_ascq field of the sense data.
  * @tag: tag of the request for which this response is being generated.
  *
- * Returns the size in bytes of the SRP_RSP response PDU.
+ * Returns the size in bytes of the SRP_RSP response.
  *
- * An SRP_RSP PDU contains a SCSI status or service response. See also
- * section 6.9 in the T10 SRP r16a document for the format of an SRP_RSP PDU.
- * See also SPC-2 for more information about sense data.
+ * An SRP_RSP response contains a SCSI status or service response. See also
+ * section 6.9 in the T10 SRP r16a document for the format of an SRP_RSP
+ * response. See also SPC-2 for more information about sense data.
  */
 static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 			      struct srpt_ioctx *ioctx, u8 s_key, u8 s_code,
@@ -1020,16 +1020,17 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 }
 
 /**
- * Build a task management response, which is a specific SRP_RSP response PDU.
+ * Build a task management response, which is a specific SRP_RSP response.
  * @ch: RDMA channel through which the request has been received.
- * @ioctx: I/O context in which the SRP_RSP PDU will be built.
+ * @ioctx: I/O context in which the SRP_RSP response will be built.
  * @rsp_code: RSP_CODE that will be stored in the response.
  * @tag: tag of the request for which this response is being generated.
  *
- * Returns the size in bytes of the SRP_RSP response PDU.
+ * Returns the size in bytes of the SRP_RSP response.
  *
- * An SRP_RSP PDU contains a SCSI status or service response. See also
- * section 6.9 in the T10 SRP r16a document for the format of an SRP_RSP PDU.
+ * An SRP_RSP response contains a SCSI status or service response. See also
+ * section 6.9 in the T10 SRP r16a document for the format of an SRP_RSP
+ * response.
  */
 static int srpt_build_tskmgmt_rsp(struct srpt_rdma_ch *ch,
 				  struct srpt_ioctx *ioctx, u8 rsp_code,
@@ -1153,7 +1154,7 @@ err:
 }
 
 /*
- * Process an SRP_TSK_MGMT request PDU.
+ * Process an SRP_TSK_MGMT request.
  *
  * Returns 0 upon success and -1 upon failure.
  *
@@ -1162,11 +1163,11 @@ err:
  * or process the task management function asynchronously. The function
  * srpt_tsk_mgmt_done() will be called by the SCST core upon completion of the
  * task management function. When srpt_handle_tsk_mgmt() reports failure
- * (i.e. returns -1) a response PDU will have been built in ioctx->buf. This
- * PDU has to be sent back by the caller.
+ * (i.e. returns -1) a response will have been built in ioctx->buf. This
+ * information unit has to be sent back by the caller.
  *
- * For more information about SRP_TSK_MGMT PDU's, see also section 6.7 in
- * the T10 SRP r16a document.
+ * For more information about SRP_TSK_MGMT information units, see also section
+ * 6.7 in the T10 SRP r16a document.
  */
 static int srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 				struct srpt_ioctx *ioctx)
@@ -1348,7 +1349,7 @@ err:
 		       __func__, ch->state);
 		srpt_reset_ioctx(ch, ioctx);
 	} else if (srpt_post_send(ch, ioctx, len)) {
-		printk(KERN_ERR PFX "%s: sending SRP_RSP PDU failed",
+		printk(KERN_ERR PFX "%s: sending SRP_RSP response failed",
 		       __func__);
 		srpt_reset_ioctx(ch, ioctx);
 	}
