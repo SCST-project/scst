@@ -42,9 +42,9 @@
  * Changing it don't forget to change SCST_FIO_REV in scst_vdisk.c
  * and FIO_REV in usr/fileio/common.h as well.
  */
-#define SCST_VERSION_CODE	    0x01000101
+#define SCST_VERSION_CODE	    0x01000102
 #define SCST_VERSION(a, b, c, d)    (((a) << 24) + ((b) << 16) + ((c) << 8) + d)
-#define SCST_VERSION_STRING	    "1.0.1.1"
+#define SCST_VERSION_STRING	    "1.0.1.2"
 #define SCST_INTERFACE_VERSION	    \
 		SCST_VERSION_STRING "$Revision$" SCST_CONST_VERSION
 
