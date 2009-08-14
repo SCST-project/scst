@@ -1,6 +1,13 @@
 Summary of changes between versions 1.0.1 and 1.0.2
 ---------------------------------------------------
 
+ - Support for shared between devices caches added
+
+ - Possibility to use single size SGV cache as well as control
+   of the SGV cache reclamation time added
+
+ - Other monor fixes and cleanups
+
 
 Summary of changes between versions 1.0.0 and 1.0.1
 ---------------------------------------------------

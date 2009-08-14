@@ -1,8 +1,42 @@
 Summary of changes between versions 1.0.1 and 1.0.2
 ---------------------------------------------------
 
- - Support bidirectional transfers added
+ - Support for bidirectional transfers added
+
+ - REQUEST SENSE now can return the most recent sense
+
+ - READ CAPACITY(16) now reports number of logical blocks per phisical
+   block
+
+ - Parameters scst_max_cmd_mem and scst_max_dev_cmd_mem as well as
+   vdisk's parameters num_threads and scst_vdisk_ID made visible through
+   /sys/module/scst and /sys/module/scst_vdisk correspondingly
+
+ - Shared between devices SGV caches were implemented
  
+ - Possibilities to operate with single size entries as well as control of
+   the reclamation time added to the SGV cache
+
+ - Issues cased by change of cdb_len to unsigned fixed.
+
+ - INIT ELEMENT STATUS WRANGE added to the list of known commands.
+
+ - Races on scst_user devices cleanup fixed
+ 
+ - Implemented abort on timeout of stuck in tgt hardware commands
+
+ - Automatic sessions reassignment implemented with corresponding atomic
+   management commands added
+
+ - Generation of INQUERY DATA HAS CHANGED Unit Attention or AEN for
+   changed devices during automatic sessions reassignment added
+
+ - Requeue global Unit Attentions on delivery failure added
+
+ - Update for 2.6.30
+
+ - Other bug fixes and cleanups 
+
 
 Summary of changes between versions 1.0.0 and 1.0.1
 ---------------------------------------------------

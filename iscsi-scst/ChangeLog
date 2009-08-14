@@ -3,6 +3,14 @@ Summary of changes in iSCSI-SCST between versions 1.0.1 and 1.0.2
 
  - Support bidirectional transfers added
 
+ - Connection and session reinstatements fixes
+
+ - Fixes in handling of initiators.allow and initiators.deny files
+
+ - Sync with the latest IET
+
+ - Other minor fixes and cleanups
+
 
 Summary of changes in iSCSI-SCST between versions 1.0.0 and 1.0.1
 -----------------------------------------------------------------
