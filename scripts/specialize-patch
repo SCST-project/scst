@@ -94,6 +94,9 @@ function evaluate(stmnt) {
   gsub("defined  *SCSI_EXEC_REQ_FIFO_DEFINED", "1", stmnt)
   gsub("defined *\\( *SCSI_EXEC_REQ_FIFO_DEFINED *\\)", "1", stmnt)
 
+  gsub("defined  *SCST_IO_CONTEXT", "1", stmnt)
+  gsub("defined *\\( *SCST_IO_CONTEXT *\\)", "1", stmnt)
+
   do
   {
     last_stmnt = stmnt
@@ -110,7 +113,25 @@ function evaluate(stmnt) {
       sub(pattern, op[1] * 65536 + op[2] * 256 + op[3], stmnt)
     }
   
-    pattern="([0-9]+) *(<|<=|>|>=|==) *([0-9]+)"
+    pattern="(-*[0-9]+) *(\\*|/) *(-*[0-9]+)"
+    while (match(stmnt, pattern, op) != 0)
+    {
+      result="error"
+      if      (op[2] == "*") result = op[1] * op[3]
+      else if (op[2] == "/" && op[3] != 0) result = op[1] / op[3]
+      sub(pattern, result, stmnt)
+    }
+  
+    pattern="(-*[0-9]+) *(\\+|-) *(-*[0-9]+)"
+    while (match(stmnt, pattern, op) != 0)
+    {
+      result="error"
+      if      (op[2] == "+") result = op[1] * op[3]
+      else if (op[2] == "-") result = op[1] / op[3]
+      sub(pattern, result, stmnt)
+    }
+  
+    pattern="(-*[0-9]+) *(<|<=|>|>=|==) *(-*[0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
       result="error"
@@ -122,31 +143,19 @@ function evaluate(stmnt) {
       sub(pattern, result, stmnt)
     }
   
-    pattern="([0-9]+) *\\&\\& *([0-9]+)"
+    pattern="(-*[0-9]+) *\\&\\& *(-*[0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
       sub(pattern, (op[1] != 0) && (op[2] != 0), stmnt)
     }
   
-    pattern="([0-9]+) *\\&\\& *(!* *defined\\([^)]*\\))"
-    while (match(stmnt, pattern, op) != 0)
-    {
-      sub(pattern, (op[1] != 0) ? op[2] : "0", stmnt)
-    }
-  
-    pattern="([0-9]+) *\\|\\| *([0-9]+)"
+    pattern="(-*[0-9]+) *\\|\\| *(-*[0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
       sub(pattern, (op[1] != 0) || (op[2] != 0), stmnt)
     }
   
-    pattern="([0-9]+) *\\|\\| *(!* *defined\\([^)]*\\))"
-    while (match(stmnt, pattern, op) != 0)
-    {
-      sub(pattern, (op[1] != 0) ? "1" : op[2], stmnt)
-    }
-  
-    pattern="\\(([0-9]+)\\)"
+    pattern="\\((-*[0-9]+)\\)"
     while (match(stmnt, pattern, op) != 0)
     {
       sub(pattern, op[1], stmnt)
@@ -174,7 +183,9 @@ function handle_if()
       || $0 ~ "INSIDE_KERNEL_TREE" \
       || $0 ~ "RHEL_MAJOR"         \
       || $0 ~ "RHEL_MINOR"         \
-      || $0 ~ "RHEL_RELEASE_CODE")
+      || $0 ~ "RHEL_RELEASE_CODE"  \
+      || $0 ~ "SCSI_EXEC_REQ_FIFO_DEFINED" \
+      || $0 ~ "SCST_IO_CONTEXT")
   {
     #print $0 " -> " evaluated
     $0 = evaluated
@@ -238,21 +249,39 @@ function process_preprocessor_statement() {
     }
   }
   if (output && (! condition || condition && matching_if !~ "^+#if [01]") \
-      && ! (evaluated ~ "^+#define SCSI_EXEC_REQ_FIFO_DEFINED$"))
+      && evaluated !~ "^+#define SCSI_EXEC_REQ_FIFO_DEFINED$" \
+      && evaluated !~ "^+#define SCST_IO_CONTEXT$")
   {
     line[lines++]=$0
+    delete_next_blank_line = 0
   }
   else
   {
     lines_deleted++
+    delete_next_blank_line = 1
   }
 }
 
 function dump_lines() {
-  if (h[0] != "")
-    printf "@@ -%d,%d +%d,%d @@%s\n",h[1],h[2],h[3],h[4]-lines_deleted,h[5]
+  # Detect empty hunks
+  first_modif = -1
   for (i = 0; i < lines; i++)
+  {
+    if (line[i] ~ "^[+-]")
+    {
+      first_modif = i
+      break
+    }
+  }
+
+  # Dump line[] as a hunk, but only if the hunk is not empty.
+  if (first_modif >= 0)
+  {
+    if (h[0] != "")
+      printf "@@ -%d,%d +%d,%d @@%s\n",h[1],h[2],h[3],h[4]-lines_deleted,h[5]
+    for (i = 0; i < lines; i++)
     print line[i]
+  }
   lines = 0
   lines_deleted = 0
 }
@@ -276,6 +305,7 @@ BEGIN {
   lines_deleted = 0
   output = 1
   if_nesting_level = -1
+  delete_next_blank_line = 0
 }
 
 
@@ -288,19 +318,28 @@ BEGIN {
     dump_lines()
     match($0, "^@@ -([0-9]*),([0-9]*) \\+([0-9]*),([0-9]*) @@(.*)$", h)
   }
-  else if (match($0, "^+ *#"))
+  else if (delete_next_blank_line && match($0, "^+$"))
   {
-    process_preprocessor_statement()
-  }
-  else if (output)
-  {
-    # Store the line that was just read.
-    line[lines++]=$0
+    lines_deleted++
+    delete_next_blank_line = 0
   }
   else
   {
-    # Discard the last read line.
-    lines_deleted++
+    delete_next_blank_line = 0
+    if (match($0, "^+ *#"))
+    {
+      process_preprocessor_statement()
+    }
+    else if (output)
+    {
+      # Store the line that was just read.
+      line[lines++]=$0
+    }
+    else
+    {
+      # Discard the last read line.
+      lines_deleted++
+    }
   }
 }
 
