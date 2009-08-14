@@ -1,3 +1,25 @@
+Summary of changes between versions 1.0.0 and 1.0.1.1
+-----------------------------------------------------
+
+ - Issues cased by change of cdb_len to unsigned fixed
+
+ - INIT ELEMENT STATUS WRANGE added to the list of known commands
+
+ - Possible miss of UCMD_STATE_ON_FREEING event in scst_user fixed
+ 
+ - Fix possible crash in scst_copy_sg()
+
+ - Races on scst_user devices cleanup fixed
+ 
+ - Incorrect errors reporting on scst_user devices unregistration fixed
+
+ - Possible double free in scst_user fixed
+ 
+ - 64-bit cleanups
+
+ - Other monor fixes and cleanups
+ 
+
 Summary of changes between versions 1.0.0 and 1.0.1
 ---------------------------------------------------
 

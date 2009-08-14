@@ -1,3 +1,10 @@
+Summary of changes between versions 1.0.0 and 1.0.1.1
+-----------------------------------------------------
+
+ - Fix possible crash with too fast target mode enabling/disabling or
+   module unload
+
+
 Summary of changes between versions 1.0.0 and 1.0.1
 ---------------------------------------------------
 

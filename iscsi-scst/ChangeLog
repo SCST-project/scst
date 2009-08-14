@@ -1,3 +1,14 @@
+Summary of changes in iSCSI-SCST between versions 1.0.0 and 1.0.1.1
+-------------------------------------------------------------------
+
+ - Fixes in handling of initiators.allow and initiators.deny files
+ 
+ - Wrong usage of parent request's fields in the response fixed.
+ 
+ - Unneeded mutex_lock(&scst_mutex) removed, because it can be done on
+   atomic or SIRQ context
+ 
+
 Summary of changes in iSCSI-SCST between versions 1.0.0 and 1.0.1
 -----------------------------------------------------------------
 
