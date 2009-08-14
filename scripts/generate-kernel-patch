@@ -101,14 +101,20 @@ function process_patch {
     (
       echo "Signed-off-by: ${SIGNED_OFF_BY}"
       echo ""
-      "$(dirname $0)/specialize-patch" -v kernel_version="${kernel_version}"
+      "$(dirname $0)/specialize-patch" \
+          -v kernel_version="${kernel_version}" \
+          -v SCSI_EXEC_REQ_FIFO_DEFINED="${scsi_exec_req_fifo_defined}" \
+          -v SCST_IO_CONTEXT="${scst_io_context}"
     ) >"${patchdir}/$1"
     else
       # echo "Discarded $(wc -l) lines."
       true
     fi
   else
-    "$(dirname $0)/specialize-patch" -v kernel_version="${kernel_version}" 
+    "$(dirname $0)/specialize-patch" \
+        -v kernel_version="${kernel_version}" \
+        -v SCSI_EXEC_REQ_FIFO_DEFINED="${scsi_exec_req_fifo_defined}" \
+        -v SCST_IO_CONTEXT="${scst_io_context}"
   fi
 }
 
@@ -182,9 +188,17 @@ fi
 
 # General kernel patches.
 
+scsi_exec_req_fifo_defined=0
+scst_io_context=0
 for p in scst/kernel/*-${kernel_version}.patch \
          iscsi-scst/kernel/patches/*-${kernel_version}.patch
 do
+  if grep -q '^\+#define SCSI_EXEC_REQ_FIFO_DEFINED$' "${p}"; then
+    scsi_exec_req_fifo_defined=1
+  fi
+  if grep -q '^\+#define SCST_IO_CONTEXT$' "${p}"; then
+    scst_io_context=1
+  fi
   diffname="${p#scst/kernel/}"
   diffname="${p%-${kernel_version}.patch}.diff"
   process_patch < "$p" "${diffname}"

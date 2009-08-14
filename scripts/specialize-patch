@@ -91,11 +91,19 @@ function evaluate(stmnt) {
     gsub("RHEL_RELEASE_CODE", RHEL_MAJOR * 256 + RHEL_MINOR, stmnt)
   }
 
-  gsub("defined  *SCSI_EXEC_REQ_FIFO_DEFINED", "1", stmnt)
-  gsub("defined *\\( *SCSI_EXEC_REQ_FIFO_DEFINED *\\)", "1", stmnt)
+  if (SCSI_EXEC_REQ_FIFO_DEFINED != "")
+  {
+    gsub("defined  *SCSI_EXEC_REQ_FIFO_DEFINED",
+         SCSI_EXEC_REQ_FIFO_DEFINED, stmnt)
+    gsub("defined *\\( *SCSI_EXEC_REQ_FIFO_DEFINED *\\)",
+         SCSI_EXEC_REQ_FIFO_DEFINED, stmnt)
+  }
 
-  gsub("defined  *SCST_IO_CONTEXT", "1", stmnt)
-  gsub("defined *\\( *SCST_IO_CONTEXT *\\)", "1", stmnt)
+  if (SCST_IO_CONTEXT != "")
+  {
+    gsub("defined  *SCST_IO_CONTEXT", SCST_IO_CONTEXT, stmnt)
+    gsub("defined *\\( *SCST_IO_CONTEXT *\\)", SCST_IO_CONTEXT, stmnt)
+  }
 
   do
   {
