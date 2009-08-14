@@ -1247,8 +1247,8 @@ int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev)
 	dev->queue_alg = SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER;
 	dev->dev_num = dev_num++;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
-#if defined(CONFIG_BLOCK) && defined(SCST_IO_CONTEXT)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25) && defined(SCST_IO_CONTEXT)
+#if defined(CONFIG_BLOCK)
 	dev->dev_io_ctx = alloc_io_context(GFP_KERNEL, -1);
 	if (dev->dev_io_ctx == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Failed to alloc dev IO context");
@@ -1553,8 +1553,8 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 			tgt_dev->sess->initiator_name);
 		tgt_dev->tgt_dev_io_ctx = ioc_task_link(t->tgt_dev_io_ctx);
 	} else {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
-#if defined(CONFIG_BLOCK) && defined(SCST_IO_CONTEXT)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25) && defined(SCST_IO_CONTEXT)
+#if defined(CONFIG_BLOCK)
 		tgt_dev->tgt_dev_io_ctx = alloc_io_context(GFP_KERNEL, -1);
 		if (tgt_dev->tgt_dev_io_ctx == NULL) {
 			TRACE(TRACE_OUT_OF_MEM, "Failed to alloc tgt_dev IO "

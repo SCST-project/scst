@@ -185,7 +185,8 @@ static DEFINE_MUTEX(scst_proc_mutex);
 
 #include <linux/ctype.h>
 
-#if !defined(CONFIG_PPC) && (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)) && (!defined(RHEL_RELEASE_CODE) || RHEL_RELEASE_CODE -0 < 5 * 256 + 3)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)) && (!defined(RHEL_RELEASE_CODE) || RHEL_RELEASE_CODE -0 < 5 * 256 + 3)
+#if !defined(CONFIG_PPC)
 /*
  * If strcasecmp() and strncasecmp() have already been declared in
  * <linux/string.h>, do not redefine these functions. Declarations for these
@@ -232,7 +233,8 @@ static int strncasecmp(const char *s1, const char *s2, size_t n)
 	return c1 - c2;
 }
 
-#endif /* !CONFIG_PPC && (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)) */
+#endif /* !CONFIG_PPC */
+#endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)) && (!defined(RHEL_RELEASE_CODE) || RHEL_RELEASE_CODE -0 < 5 * 256 + 3) */
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 
