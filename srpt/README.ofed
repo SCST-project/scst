@@ -98,6 +98,7 @@ kernel-ib, kernel-ib-devel and SRP tools packages. An example:
   opensm-libs=y
   srpt=n
   srptools=y
+  perftest=y
   EOF
   ./install.pl -c ofed.conf  
 

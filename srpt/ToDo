@@ -3,10 +3,5 @@
    * https://wiki.openfabrics.org/tiki-index.php?page=SRPT+Installation
 
 
-2. The initiator names supplied to the SCST core contain the target port name,
-   which is wrong. Nobody identifies a man by the door through which he entered.
-   Instead, a man has a name by which he is identified through his whole life.
-
-
-3. Analyze and document the implications of
+2. Analyze and document the implications of
    sdev->mr = ib_get_dma_mr(sdev->pd, IB_ACCESS_LOCAL_WRITE).
