@@ -159,7 +159,9 @@ struct srpt_rdma_ch {
 	struct ib_qp *qp;
 	struct ib_cq *cq;
 	struct srpt_port *sport;
+	/* 128-bit initiator port identifier copied from SRP_LOGIN_REQ. */
 	u8 i_port_id[16];
+	/* 128-bit target port identifier copied from SRP_LOGIN_REQ. */
 	u8 t_port_id[16];
 	atomic_t req_lim_delta;
 	spinlock_t spinlock;
