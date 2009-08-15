@@ -1,4 +1,4 @@
-/* $Id: asm_2322.h,v 1.2 2008/01/13 21:16:39 mjacob Exp $ */
+/* $Id: asm_2322.h,v 1.3 2009/06/01 03:34:33 mjacob Exp $ */
 /*
  * Copyright (C) 2004-2005 by Qlogic, Inc.
  * All rights reserved.
@@ -7652,7 +7652,3 @@ static const uint16_t isp_2322_risc_code[] = {
 	0x0000, 0x0007, 0x0003, 0x48d5, 0x0000, 0xb838, 0x0017, 0x4000,
 	0x9f0a, 0xb6be
 };
-#ifdef	ISP_2322_RISC_CODE
-#undef	ISP_2322_RISC_CODE
-#endif
-#define	ISP_2322_RISC_CODE (const uint16_t *) isp_2322_risc_code

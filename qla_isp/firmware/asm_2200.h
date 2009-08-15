@@ -1,4 +1,4 @@
-/* $Id: asm_2200.h,v 1.12 2008/01/13 21:16:37 mjacob Exp $ */
+/* $Id: asm_2200.h,v 1.13 2009/06/01 03:34:30 mjacob Exp $ */
 /*
  * Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002 by Qlogic, Inc.
  * All rights reserved.
@@ -4863,7 +4863,3 @@ static const uint16_t isp_2200_risc_code[] = {
 	0x0004, 0x0008, 0x0010, 0x0020, 0x0040, 0x0080, 0x0100, 0x0200,
 	0x0400, 0x0800, 0x1000, 0x2000, 0x4000, 0x8000, 0xa332
 };
-#ifdef	ISP_2200_RISC_CODE
-#undef	ISP_2200_RISC_CODE
-#endif
-#define	ISP_2200_RISC_CODE (const uint16_t *) isp_2200_risc_code

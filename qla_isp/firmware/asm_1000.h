@@ -1,4 +1,4 @@
-/* $Id: asm_1000.h,v 1.8 2008/01/13 21:16:36 mjacob Exp $ */
+/* $Id: asm_1000.h,v 1.9 2009/06/01 03:34:30 mjacob Exp $ */
 /*
  * Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000 Qlogic, Inc.
  * All rights reserved.
@@ -3222,7 +3222,3 @@ static const uint16_t isp_1000_risc_code[] = {
 	0x300c, 0x817e, 0x872b, 0x8772, 0xa8af, 0x0000, 0xd66f
 };
 #endif
-#ifdef	ISP_1000_RISC_CODE
-#undef	ISP_1000_RISC_CODE
-#endif
-#define	ISP_1000_RISC_CODE (const uint16_t *) isp_1000_risc_code

@@ -1,6 +1,6 @@
 #/bin/sh
 #
-# $Id: fwbin,v 1.2 2008/01/18 23:18:34 mjacob Exp $
+# $Id: fwbin,v 1.3 2009/06/07 22:27:50 mjacob Exp $
 #
 # Copyright (c) 1997-2008 by Matthew Jacob
 # All rights reserved.
@@ -75,6 +75,8 @@ dowr '#include <stdint.h>'
 dowr '#include <memory.h>'
 dowr '#include <fcntl.h>'
 dowr '#include <errno.h>'
+dowr '#define ISP_2400 1'
+dowr '#define ISP_2500 1'
 cat $1 >> /tmp/x$$.c
 dowr '	int main(void)'
 dowr '{'
