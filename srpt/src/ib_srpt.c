@@ -62,7 +62,7 @@
 #define SRPT_PROC_TRACE_LEVEL_NAME	"trace_level"
 #endif
 
-#define MELLANOX_SRPT_ID_STRING	"Mellanox OFED SRP target"
+#define MELLANOX_SRPT_ID_STRING	"SCST SRP target"
 
 MODULE_AUTHOR("Vu Pham");
 MODULE_DESCRIPTION("InfiniBand SCSI RDMA Protocol target "
@@ -85,6 +85,7 @@ struct srpt_thread {
 static u64 srpt_service_guid;
 /* List of srpt_device structures. */
 static atomic_t srpt_device_count;
+static int use_port_guid_in_session_name;
 static int thread;
 static struct srpt_thread srpt_thread;
 static DECLARE_WAIT_QUEUE_HEAD(ioctx_list_waitQ);
@@ -99,6 +100,11 @@ module_param(thread, int, 0444);
 MODULE_PARM_DESC(thread,
 		 "Executing ioctx in thread context. Default 0, i.e. soft IRQ, "
 		 "where possible");
+
+module_param(use_port_guid_in_session_name, bool, 0444);
+MODULE_PARM_DESC(use_port_guid_in_session_name,
+		 "Use target port ID in the SCST session name such that"
+		 " redundant paths between multiport systems can be masked.");
 
 static void srpt_add_one(struct ib_device *device);
 static void srpt_remove_one(struct ib_device *device);
@@ -1600,8 +1606,32 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	u32 it_iu_len;
 	int ret = 0;
 
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
+	WARN_ON(!sdev || !private_data);
 	if (!sdev || !private_data)
 		return -EINVAL;
+#else
+	if (WARN_ON(!sdev || !private_data))
+		return -EINVAL;
+#endif
+
+	req = (struct srp_login_req *)private_data;
+
+	it_iu_len = be32_to_cpu(req->req_it_iu_len);
+
+	printk(KERN_INFO PFX "received SRP_LOGIN_REQ with"
+	    " i_port_id 0x%llx:0x%llx, t_port_id 0x%llx:0x%llx and length %d"
+	    " on port %d (guid=0x%llx:0x%llx)\n",
+	    (unsigned long long)be64_to_cpu(*(u64 *)&req->initiator_port_id[0]),
+	    (unsigned long long)be64_to_cpu(*(u64 *)&req->initiator_port_id[8]),
+	    (unsigned long long)be64_to_cpu(*(u64 *)&req->target_port_id[0]),
+	    (unsigned long long)be64_to_cpu(*(u64 *)&req->target_port_id[8]),
+	    it_iu_len,
+	    param->port,
+	    (unsigned long long)be64_to_cpu(*(u64 *)
+				&sdev->port[param->port - 1].gid.raw[0]),
+	    (unsigned long long)be64_to_cpu(*(u64 *)
+				&sdev->port[param->port - 1].gid.raw[8]));
 
 	rsp = kzalloc(sizeof *rsp, GFP_KERNEL);
 	rej = kzalloc(sizeof *rej, GFP_KERNEL);
@@ -1612,23 +1642,12 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		goto out;
 	}
 
-	req = (struct srp_login_req *)private_data;
-
-	it_iu_len = be32_to_cpu(req->req_it_iu_len);
-
-	TRACE_DBG("Host login i_port_id=0x%llx:0x%llx t_port_id=0x%llx:0x%llx"
-	    " it_iu_len=%d",
-	    (unsigned long long)be64_to_cpu(*(u64 *)&req->initiator_port_id[0]),
-	    (unsigned long long)be64_to_cpu(*(u64 *)&req->initiator_port_id[8]),
-	    (unsigned long long)be64_to_cpu(*(u64 *)&req->target_port_id[0]),
-	    (unsigned long long)be64_to_cpu(*(u64 *)&req->target_port_id[8]),
-	    it_iu_len);
-
 	if (it_iu_len > MAX_MESSAGE_SIZE || it_iu_len < 64) {
 		rej->reason =
 		    cpu_to_be32(SRP_LOGIN_REJ_REQ_IT_IU_LENGTH_TOO_LARGE);
 		ret = -EINVAL;
-		TRACE_DBG("Reject invalid it_iu_len=%d", it_iu_len);
+		printk(KERN_ERR PFX "rejected SRP_LOGIN_REQ because its"
+		       " length (%d bytes) is invalid\n", it_iu_len);
 		goto reject;
 	}
 
@@ -1661,10 +1680,17 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 				rsp->rsp_flags =
 					SRP_LOGIN_RSP_MULTICHAN_TERMINATED;
 
-				if (prev_state == RDMA_CHANNEL_LIVE)
+				if (prev_state == RDMA_CHANNEL_LIVE) {
 					ib_send_cm_dreq(ch->cm_id, NULL, 0);
-				else if (prev_state ==
+					printk(KERN_ERR PFX "disconnected"
+					  " session %s because a new"
+					  " SRP_LOGIN_REQ has been received.\n",
+					  ch->sess_name);
+				} else if (prev_state ==
 					 RDMA_CHANNEL_CONNECTING) {
+					printk(KERN_ERR PFX "rejected"
+					  " SRP_LOGIN_REQ because another login"
+					  " request is being processed.\n");
 					ib_send_cm_rej(ch->cm_id,
 						       IB_CM_REJ_NO_RESOURCES,
 						       NULL, 0, NULL, 0);
@@ -1687,14 +1713,16 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		rej->reason =
 		    cpu_to_be32(SRP_LOGIN_REJ_UNABLE_ASSOCIATE_CHANNEL);
 		ret = -ENOMEM;
-		TRACE_DBG("%s", "Reject invalid target_port_id");
+		printk(KERN_ERR PFX "rejected SRP_LOGIN_REQ because it"
+		       " has an invalid target port identifier\n");
 		goto reject;
 	}
 
 	ch = kzalloc(sizeof *ch, GFP_KERNEL);
 	if (!ch) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		TRACE_DBG("%s", "Reject failed allocate rdma_ch");
+		printk(KERN_ERR PFX "rejected SRP_LOGIN_REQ because out of"
+		       " memory\n");
 		ret = -ENOMEM;
 		goto reject;
 	}
@@ -1711,27 +1739,50 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	ret = srpt_create_ch_ib(ch);
 	if (ret) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		TRACE_DBG("%s", "Reject failed to create rdma_ch");
+		printk(KERN_ERR PFX "rejected SRP_LOGIN_REQ because creating"
+		       " a new RDMA channel failed\n");
 		goto free_ch;
 	}
 
 	ret = srpt_ch_qp_rtr(ch, ch->qp);
 	if (ret) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		TRACE_DBG("Reject failed qp to rtr/rts ret=%d", ret);
+		printk(KERN_ERR PFX "rejected SRP_LOGIN_REQ because enabling"
+		       " RTR failed (error code = %d)\n", ret);
 		goto destroy_ib;
 	}
 
-	snprintf(ch->sess_name, sizeof(ch->sess_name),
-		 "0x%016llx%016llx",
-		 (unsigned long long)be64_to_cpu(*(u64 *)ch->i_port_id),
-		 (unsigned long long)be64_to_cpu(*(u64 *)(ch->i_port_id + 8)));
+	if (use_port_guid_in_session_name) {
+		/*
+		 * If the kernel module parameter use_port_guid_in_session_name
+		 * has been specified, use a combination of the target port
+		 * GUID and the initiator port ID as the session name. This
+		 * was the original behavior of the SRP target implementation
+		 * (i.e. before the SRPT was included in OFED 1.3).
+		 */
+		snprintf(ch->sess_name, sizeof(ch->sess_name),
+			 "0x%016llx%016llx",
+			 (unsigned long long)be64_to_cpu(*(u64 *)
+				&sdev->port[param->port - 1].gid.raw[8]),
+			 (unsigned long long)be64_to_cpu(*(u64 *)
+				(ch->i_port_id + 8)));
+	} else {
+		/*
+		 * Default behavior: use the initator port identifier as the
+		 * session name.
+		 */
+		snprintf(ch->sess_name, sizeof(ch->sess_name),
+			 "0x%016llx%016llx",
+			 (unsigned long long)be64_to_cpu(*(u64 *)ch->i_port_id),
+			 (unsigned long long)be64_to_cpu(*(u64 *)
+				 (ch->i_port_id + 8)));
+	}
 
 	TRACE_DBG("registering session %s", ch->sess_name);
 
 	BUG_ON(!sdev->scst_tgt);
 	ch->scst_sess = scst_register_session(sdev->scst_tgt, 0, ch->sess_name,
-				  NULL, NULL);
+					      NULL, NULL);
 	if (!ch->scst_sess) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		TRACE_DBG("%s", "Failed to create scst sess");
@@ -1765,8 +1816,11 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	rep_param->initiator_depth = 4;
 
 	ret = ib_send_cm_rep(cm_id, rep_param);
-	if (ret)
+	if (ret) {
+		printk(KERN_ERR PFX "sending SRP_LOGIN_REQ response failed"
+		       " (error code = %d)\n", ret);
 		goto release_channel;
+	}
 
 	spin_lock_irq(&sdev->spinlock);
 	list_add_tail(&ch->list, &sdev->rch_list);
