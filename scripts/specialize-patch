@@ -206,6 +206,7 @@ function handle_if()
   if (evaluated ~ "^+#if")
   {
     if_stmnt[if_nesting_level] = evaluated
+    any_section_output[if_nesting_level] = 0
   }
   else
   {
@@ -225,6 +226,7 @@ function process_preprocessor_statement() {
   last_if_nesting_level = if_nesting_level
   evaluated = evaluate($0)
   condition = 1
+  delete_next_blank_line = 0
   if (evaluated ~ "^+#if")
   {
     if_nesting_level++
@@ -242,6 +244,7 @@ function process_preprocessor_statement() {
   else if (evaluated ~ "^+#endif")
   {
     matching_if = if_stmnt[if_nesting_level]
+    delete_next_blank_line = ! any_section_output[if_nesting_level]
     if_nesting_level--
   }
   else
@@ -255,18 +258,22 @@ function process_preprocessor_statement() {
     {
       output = output && decision[i] != "+#if 0"
     }
+    if (output)
+      any_section_output[if_nesting_level] = 1
   }
-  if (output && (! condition || condition && matching_if !~ "^+#if [01]") \
-      && evaluated !~ "^+#define SCSI_EXEC_REQ_FIFO_DEFINED$" \
-      && evaluated !~ "^+#define SCST_IO_CONTEXT$")
+  if (output && (! condition || condition && matching_if !~ "^+#if [01]"))
   {
     line[lines++]=$0
-    delete_next_blank_line = 0
+  }
+  else if (evaluated ~ "^+#define SCSI_EXEC_REQ_FIFO_DEFINED$" \
+           || evaluated ~ "^+#define SCST_IO_CONTEXT$")
+  {
+    lines_deleted++
+    delete_next_blank_line = 1
   }
   else
   {
     lines_deleted++
-    delete_next_blank_line = 1
   }
 }
 
