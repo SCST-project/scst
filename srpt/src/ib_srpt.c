@@ -226,7 +226,8 @@ static void srpt_qp_event(struct ib_event *event, void *ctx)
 	case IB_EVENT_QP_LAST_WQE_REACHED:
 		if (srpt_test_and_set_channel_state(ch, RDMA_CHANNEL_LIVE,
 					RDMA_CHANNEL_DISCONNECTING)) {
-			TRACE_DBG("%s", "Disconnecting channel.");
+			printk(KERN_INFO PFX "disconnected session %s.\n",
+			       ch->sess_name);
 			ib_send_cm_dreq(ch->cm_id, NULL, 0);
 		}
 		break;
@@ -881,6 +882,7 @@ static void srpt_abort_scst_cmd(struct srpt_device *sdev,
 {
 	struct srpt_ioctx *ioctx;
 	scst_data_direction dir;
+	enum srpt_command_state orig_ioctx_state;
 
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
 	BUG_ON(!ioctx);
@@ -891,7 +893,7 @@ static void srpt_abort_scst_cmd(struct srpt_device *sdev,
 			     scst_cmd_get_sg_cnt(scmnd),
 			     scst_to_tgt_dma_dir(dir));
 
-#if 1
+#ifdef CONFIG_SCST_EXTRACHECKS
 		switch (scmnd->state) {
 		case SCST_CMD_STATE_DATA_WAIT:
 			WARN_ON(ioctx->state != SRPT_STATE_NEED_DATA);
@@ -905,7 +907,12 @@ static void srpt_abort_scst_cmd(struct srpt_device *sdev,
 		}
 #endif
 
-		if (ioctx->state == SRPT_STATE_NEED_DATA) {
+		orig_ioctx_state = ioctx->state;
+		ioctx->state = SRPT_STATE_ABORTED;
+
+		if (orig_ioctx_state == SRPT_STATE_NEED_DATA) {
+			WARN_ON(scst_cmd_get_data_direction(ioctx->scmnd)
+				== SCST_DATA_READ);
 			scst_rx_data(scmnd,
 				     tell_initiator ? SCST_RX_STATUS_ERROR
 				     : SCST_RX_STATUS_ERROR_FATAL,
@@ -913,12 +920,8 @@ static void srpt_abort_scst_cmd(struct srpt_device *sdev,
 			goto out;
 		} else if (ioctx->state == SRPT_STATE_PROCESSED)
 			;
-		else {
-			printk(KERN_ERR PFX
-			       "unexpected cmd state %d (SCST) %d (SRPT)\n",
-			       scmnd->state, ioctx->state);
+		else
 			WARN_ON("unexpected cmd state");
-		}
 	}
 
 	scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_FAILED);
@@ -964,17 +967,28 @@ static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
 		srpt_reset_ioctx(ch, ioctx);
 }
 
+/** Process an RDMA completion notification. */
 static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 				  struct srpt_ioctx *ioctx)
 {
 	if (!ioctx->scmnd) {
+		WARN_ON("ERROR: ioctx->scmnd == NULL");
 		srpt_reset_ioctx(ch, ioctx);
 		return;
 	}
 
-	if (scst_cmd_get_data_direction(ioctx->scmnd) == SCST_DATA_WRITE)
+	/*
+	 * If an RDMA completion notification has been received for a write
+	 * command, tell SCST that processing can continue by calling
+	 * scst_rx_data().
+	 */
+	if (ioctx->state == SRPT_STATE_NEED_DATA) {
+		WARN_ON(scst_cmd_get_data_direction(ioctx->scmnd)
+			== SCST_DATA_READ);
+		ioctx->state = SRPT_STATE_DATA_IN;
 		scst_rx_data(ioctx->scmnd, SCST_RX_STATUS_SUCCESS,
-			scst_estimate_context());
+			     scst_estimate_context());
+	}
 }
 
 /**
@@ -1077,7 +1091,7 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 	struct scst_cmd *scmnd;
 	struct srp_cmd *srp_cmd;
 	struct srp_rsp *srp_rsp;
-	scst_data_direction dir = SCST_DATA_NONE;
+	scst_data_direction dir;
 	int indirect_desc = 0;
 	int ret;
 	unsigned long flags;
@@ -1085,6 +1099,7 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 	srp_cmd = ioctx->buf;
 	srp_rsp = ioctx->buf;
 
+	dir = SCST_DATA_NONE;
 	if (srp_cmd->buf_fmt) {
 		ret = srpt_get_desc_tbl(ioctx, srp_cmd, &indirect_desc);
 		if (ret) {
@@ -1101,14 +1116,18 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 			goto err;
 		}
 
+		/*
+		 * The lower four bits of the buffer format field contain the
+		 * DATA-IN buffer descriptor format, and the highest four bits
+		 * contain the DATA-OUT buffer descriptor format.
+		 */
 		if (srp_cmd->buf_fmt & 0xf)
+			/* DATA-IN: transfer data from target to initiator. */
 			dir = SCST_DATA_READ;
 		else if (srp_cmd->buf_fmt >> 4)
+			/* DATA-OUT: transfer data from initiator to target. */
 			dir = SCST_DATA_WRITE;
-		else
-			dir = SCST_DATA_NONE;
-	} else
-		dir = SCST_DATA_NONE;
+	}
 
 	scmnd = scst_rx_cmd(ch->scst_sess, (u8 *) &srp_cmd->lun,
 			    sizeof srp_cmd->lun, srp_cmd->cdb, 16,
@@ -2223,7 +2242,7 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 }
 
 /*
- * Start data reception. Must not block.
+ * Start data transfer between initiator and target. Must not block.
  */
 static int srpt_xfer_data(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 			  struct scst_cmd *scmnd)
@@ -2254,8 +2273,8 @@ out:
 }
 
 /*
- * Called by the SCST core to inform ib_srpt that data reception should start.
- * Must not block.
+ * Called by the SCST core to inform ib_srpt that data reception from the
+ * initiator should start (SCST_DATA_WRITE). Must not block.
  */
 static int srpt_rdy_to_xfer(struct scst_cmd *scmnd)
 {
@@ -2299,6 +2318,8 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	BUG_ON(!ch);
 
 	tag = scst_cmd_get_tag(scmnd);
+
+	ioctx->state = SRPT_STATE_PROCESSED;
 
 	if (ch->state != RDMA_CHANNEL_LIVE) {
 		printk(KERN_ERR PFX
@@ -2352,7 +2373,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 
 	srp_rsp->status = status;
 
-	/* transfer read data if any */
+	/* For read commands, transfer the data to the initiator. */
 	if (dir == SCST_DATA_READ && scst_cmd_get_resp_data_len(scmnd)) {
 		ret = srpt_xfer_data(ch, ioctx, scmnd);
 		if (ret != SCST_TGT_RES_SUCCESS) {
@@ -2362,8 +2383,6 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 			goto out;
 		}
 	}
-
-	ioctx->state = SRPT_STATE_PROCESSED;
 
 	if (srpt_post_send(ch, ioctx,
 			   sizeof *srp_rsp +

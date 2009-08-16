@@ -108,11 +108,16 @@ struct rdma_iu {
 
 /* Command states. */
 enum srpt_command_state {
-	SRPT_STATE_NEW       = 0, /* New command being processed.      */
-	SRPT_STATE_PROCESSED = 1, /* Processing finished.              */
-	SRPT_STATE_NEED_DATA = 2, /* Data needed to continue.          */
-	SRPT_STATE_DATA_IN   = 3, /* Data arrived and being processed. */
-	SRPT_STATE_ABORTED   = 4, /* Command aborted.                  */
+	/* New command arrived and is being processed. */
+	SRPT_STATE_NEW = 0,
+	/* Processing a write or bidir command and waiting for data arrival. */
+	SRPT_STATE_NEED_DATA = 1,
+	/* Data for the write or bidir command arrived and is being processed.*/
+	SRPT_STATE_DATA_IN = 2,
+	/* Command processing finished. */
+	SRPT_STATE_PROCESSED = 3,
+	/* Command processing has been aborted. */
+	SRPT_STATE_ABORTED = 4,
 };
 
 /* SRPT I/O context: SRPT-private data associated with a struct scst_cmd. */
