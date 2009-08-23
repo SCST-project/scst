@@ -1,0 +1,26 @@
+Sat Aug 22 21:06:07 PDT 2009
+
+Firmware binary modules provided by QLogic may be loaded with the standard
+linux firmware blob mechanism, and in fact this is the default.
+
+It should be noted that pulling random firmware blobs will get random
+results. For example, 4.4.5 seems to crash and burn with target mode
+here on 24XX cards. Normally this would be a cause for panic, yet the
+more recent 4.6.0 version works fine. The trouble is that this firmware
+may not be available in binary from the QLogic ftp site.
+
+You can either hack on Makefile definies and compile in the QLogic firmware
+sets included herein, or use the fwbin tool in the firmware directory to
+make your own binary modules.
+
+If you want multi-id firmware support enabled for the binaries built
+with the fwbin module, change the in fwbin from
+
+dowr '#define ISP_2400 1'
+dowr '#define ISP_2500 1'
+
+to
+
+dowr '#define ISP_2400_MULTI 1'
+dowr '#define ISP_2500_MULTI 1'
+

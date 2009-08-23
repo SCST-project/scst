@@ -132,6 +132,8 @@ ports(channels) and cannot be greater than 127. Each vport has its own WWN.
 From the driver point of view each vport is a separate channel. You can define
 separate role for each of the channels.
 
+Note that firmware that supports multiple ids must be used.
+
 PROCFS INTERFACE
 
 Target configuration interface is located in the following file:
