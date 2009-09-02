@@ -1,7 +1,13 @@
-1. Update the OFED wiki entries about SRP and SRPT:
-   * https://wiki.openfabrics.org/tiki-index.php?page=SRP
+1. Update the OFED wiki entry about SRPT:
    * https://wiki.openfabrics.org/tiki-index.php?page=SRPT+Installation
 
 
 2. Analyze and document the implications of
    sdev->mr = ib_get_dma_mr(sdev->pd, IB_ACCESS_LOCAL_WRITE).
+
+
+3. Document the features added since 1.0.0 in the README file.
+
+
+4. Implement support for bidirectionial SCSI commands. The SRP protocol
+   supports these, but the SRP target not yet.
