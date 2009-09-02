@@ -7,15 +7,21 @@
 SCST SGV cache is a memory management subsystem in SCST. One can call it
 a "memory pool", but Linux kernel already have a mempool interface,
 which serves different purposes. SGV cache provides to SCST core, target
-drivers and backend dev handlers facilities to allocate and build SG
-vectors for data buffers. The main advantage of it is that it doesn't
-free to the system each vector, which is not used anymore, but keeps it
-for a while to let it be reused by the next consecutive command. This
-allows to reduce commands processing latency and, hence, improve
-performance. The freed SG vectors are kept by the SGV cache either for
-some predefined time, or until the system needs more memory and asks to
-free some using the set_shrinker() interface. Also the SGV cache allows
-to:
+drivers and backend dev handlers facilities to allocate, build and cache
+SG vectors for data buffers. The main advantage of it is the caching
+facility, when it doesn't free to the system each vector, which is not
+used anymore, but keeps it for a while (possibly indefinitely) to let it
+be reused by the next consecutive command. This allows to:
+
+ - Reduce commands processing latencies and, hence, improve performance;
+
+ - Make commands processing latencies predictable, which is essential
+   for RT applications.
+
+The freed SG vectors are kept by the SGV cache either for some (possibly
+indefinite) time, or, optionally, until the system needs more memory and
+asks to free some using the set_shrinker() interface. Also the SGV cache
+allows to:
 
   - Cluster pages together. "Cluster" means merging adjacent pages in a
 single SG entry. It allows to have less SG entries in the resulting SG
