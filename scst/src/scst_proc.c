@@ -75,17 +75,16 @@ static struct scst_proc_data scst_dev_handler_proc_data;
 #define SCST_PROC_ACTION_ALL		 1
 #define SCST_PROC_ACTION_NONE		 2
 #define SCST_PROC_ACTION_DEFAULT	 3
-#define SCST_PROC_ACTION_SET		 4
-#define SCST_PROC_ACTION_ADD		 5
-#define SCST_PROC_ACTION_CLEAR		 6
-#define SCST_PROC_ACTION_MOVE		 7
-#define SCST_PROC_ACTION_DEL		 8
-#define SCST_PROC_ACTION_REPLACE	 9
-#define SCST_PROC_ACTION_VALUE		10
-#define SCST_PROC_ACTION_ASSIGN		11
-#define SCST_PROC_ACTION_ADD_GROUP	12
-#define SCST_PROC_ACTION_DEL_GROUP	13
-#define SCST_PROC_ACTION_RENAME_GROUP	14
+#define SCST_PROC_ACTION_ADD		 4
+#define SCST_PROC_ACTION_CLEAR		 5
+#define SCST_PROC_ACTION_MOVE		 6
+#define SCST_PROC_ACTION_DEL		 7
+#define SCST_PROC_ACTION_REPLACE	 8
+#define SCST_PROC_ACTION_VALUE		 9
+#define SCST_PROC_ACTION_ASSIGN		10
+#define SCST_PROC_ACTION_ADD_GROUP	11
+#define SCST_PROC_ACTION_DEL_GROUP	12
+#define SCST_PROC_ACTION_RENAME_GROUP	13
 
 static struct proc_dir_entry *scst_proc_scsi_tgt;
 static struct proc_dir_entry *scst_proc_groups_root;
@@ -154,10 +153,11 @@ static char *scst_proc_help_string =
 " >/proc/scsi_tgt/[DEV_HANDLER_NAME/]trace_level\n"
 "   echo \"set|add|del TOKEN\""
 " >/proc/scsi_tgt/[DEV_HANDLER_NAME/]trace_level\n"
-"     where TOKEN is one of [debug,function,line,pid,entryexit,\n"
-"                            buff,mem,sg,out_of_mem,special,scsi,mgmt,minor]\n"
+"     where TOKEN is one of [debug, function, line, pid, entryexit,\n"
+"                            buff, mem, sg, out_of_mem, special, scsi,\n"
+"                            mgmt, minor, mgmt_minor, mgmt_dbg]\n"
 "     Additionally for /proc/scsi_tgt/trace_level there are these TOKENs\n"
-"       [scsi_serializing,retry,recv_bot,send_bot,recv_top,send_top]\n"
+"       [scsi_serializing, retry, recv_bot, send_bot, recv_top, send_top]\n"
 #endif
 ;
 
@@ -281,10 +281,7 @@ int scst_proc_log_entry_write(struct file *file, const char __user *buf,
 	 * Usage:
 	 *   echo "all|none|default" >/proc/scsi_tgt/trace_level
 	 *   echo "value DEC|0xHEX|0OCT" >/proc/scsi_tgt/trace_level
-	 *   echo "set|add|clear|del TOKEN" >/proc/scsi_tgt/trace_level
-	 * where TOKEN is one of [debug,function,line,pid,entryexit,
-	 *                        buff,mem,sg,out_of_mem,retry,
-	 *                        scsi_serializing,special,scsi,mgmt,minor,...]
+	 *   echo "add|del TOKEN" >/proc/scsi_tgt/trace_level
 	 */
 	p = buffer;
 	if (!strncasecmp("all", p, 3)) {
@@ -293,9 +290,6 @@ int scst_proc_log_entry_write(struct file *file, const char __user *buf,
 		action = SCST_PROC_ACTION_NONE;
 	} else if (!strncasecmp("default", p, 7)) {
 		action = SCST_PROC_ACTION_DEFAULT;
-	} else if (!strncasecmp("set ", p, 4)) {
-		p += 4;
-		action = SCST_PROC_ACTION_SET;
 	} else if (!strncasecmp("add ", p, 4)) {
 		p += 4;
 		action = SCST_PROC_ACTION_ADD;
@@ -323,7 +317,6 @@ int scst_proc_log_entry_write(struct file *file, const char __user *buf,
 	case SCST_PROC_ACTION_NONE:
 		level = TRACE_NULL;
 		break;
-	case SCST_PROC_ACTION_SET:
 	case SCST_PROC_ACTION_ADD:
 	case SCST_PROC_ACTION_DEL:
 		while (isspace(*p) && *p != '\0')
