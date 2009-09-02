@@ -27,6 +27,7 @@ function usage {
   echo "Usage: $0 [-h] [-m] [-p <dir>] [-q] <kernel version>, where: "
   echo "        -h - show this text"
   echo "        -m - add mpt target driver"
+  echo "        -n - do not delete code disabled via preprocessor statements"
   echo "        -p - generate multiple patches instead of one big patch into"\
        "the specified directory."
   echo "        -q - add qla2x00t driver"
@@ -102,6 +103,7 @@ function process_patch {
       echo "Signed-off-by: ${SIGNED_OFF_BY}"
       echo ""
       "$(dirname $0)/specialize-patch" \
+          ${specialize_patch_options} \
           -v kernel_version="${kernel_version}" \
           -v SCSI_EXEC_REQ_FIFO_DEFINED="${scsi_exec_req_fifo_defined}" \
           -v SCST_IO_CONTEXT="${scst_io_context}"
@@ -112,6 +114,7 @@ function process_patch {
     fi
   else
     "$(dirname $0)/specialize-patch" \
+        ${specialize_patch_options} \
         -v kernel_version="${kernel_version}" \
         -v SCSI_EXEC_REQ_FIFO_DEFINED="${scsi_exec_req_fifo_defined}" \
         -v SCST_IO_CONTEXT="${scst_io_context}"
@@ -134,19 +137,21 @@ srpt="true"
 mpt_scst="false"
 multiple_patches="false"
 patchdir=""
+specialize_patch_options="-v delete_disabled_code=1"
 
 if [ ! -e scst -o ! -e iscsi-scst -o ! -e srpt -o ! -e scst_local ]; then
   echo "Please run this script from inside the SCST subversion source tree."
   exit 1
 fi
 
-set -- $(/usr/bin/getopt hlmp:q "$@")
+set -- $(/usr/bin/getopt hlmnp:q "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
     '-h') usage; exit 1;;
     '-l') shift;;
     '-m') mpt_scst="true"; shift;;
+    '-n') specialize_patch_options="-v delete_disabled_code=0"; shift;;
     '-p') multiple_patches="true"; patchdir="$2"; shift; shift;;
     '-q') qla2x00t="true"; shift;;
     '--') shift;;

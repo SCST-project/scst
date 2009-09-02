@@ -261,7 +261,7 @@ function process_preprocessor_statement() {
     if (output)
       any_section_output[if_nesting_level] = 1
   }
-  if (output && (! condition || condition && matching_if !~ "^+#if [01]"))
+  if (delete_disabled_code == 0 || (output && (! condition || condition && matching_if !~ "^+#if [01]")))
   {
     line[lines++]=$0
   }
@@ -325,6 +325,19 @@ BEGIN {
 
 
 {
+  # Dump continued lines without trying to process these -- the parsing code
+  # in this script cannot handle continued lines yet.
+  if (match($0, "\\\\$"))
+  {
+    line[lines++]=$0
+    do
+    {
+      getline
+      line[lines++]=$0
+    } while (match($0, "\\\\$"))
+    getline
+  }
+
   # If the line currently being processed is a hunk header, print all lines
   # that were stored in the array line[] since the last hunk header was read.
   if (match($0, "^@@ -([0-9]*),([0-9]*) \\+([0-9]*),([0-9]*) @@(.*)$"))
@@ -333,7 +346,7 @@ BEGIN {
     dump_lines()
     match($0, "^@@ -([0-9]*),([0-9]*) \\+([0-9]*),([0-9]*) @@(.*)$", h)
   }
-  else if (delete_next_blank_line && match($0, "^+$"))
+  else if (delete_disabled_output && delete_next_blank_line && match($0, "^+$"))
   {
     lines_deleted++
     delete_next_blank_line = 0
@@ -345,7 +358,7 @@ BEGIN {
     {
       process_preprocessor_statement()
     }
-    else if (output)
+    else if (delete_disabled_output == 0 || output)
     {
       # Store the line that was just read.
       line[lines++]=$0

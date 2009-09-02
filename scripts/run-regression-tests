@@ -245,6 +245,7 @@ function generate_kernel_patch {
   local scst_dir="${PWD}"
   local kver="$(kernel_version $1)"
   local patchfile="${outputdir}/scst-$1-kernel.patch"
+  local patchfile_m="${outputdir}/scst-$1-kernel-matching-line-numbers.patch"
 
   SIGNED_OFF_BY="..." \
   scripts/generate-kernel-patch \
@@ -252,6 +253,14 @@ function generate_kernel_patch {
     $([ "${mpt_scst}"   = "true" ] && echo -- "-m") \
     $([ "${qla2x00t}"   = "true" ] && echo -- "-q") \
     ${kver} > "${patchfile}"
+
+  SIGNED_OFF_BY="..." \
+  scripts/generate-kernel-patch \
+    -n                                              \
+    $([ "${scst_local}" = "true" ] && echo -- "-l") \
+    $([ "${mpt_scst}"   = "true" ] && echo -- "-m") \
+    $([ "${qla2x00t}"   = "true" ] && echo -- "-q") \
+    ${kver} > "${patchfile_m}"
 }
 
 # Generate a kernel patch through scripts/generate-kernel-patch and test
@@ -300,7 +309,7 @@ function run_checkpatch  {
 }
 
 function patch_and_configure_kernel {
-  local patchfile="${outputdir}/scst-$1-kernel.patch"
+  local patchfile="${outputdir}/scst-$1-kernel-matching-line-numbers.patch"
 
   echo "Patching and configuring kernel ..."
   (
