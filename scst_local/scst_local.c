@@ -540,21 +540,20 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 		sgl_count = scsi_sg_count(SCpnt);
 	} else {
 		/*
- 		 * Build a one-element scatter list out of the buffer
- 		 * We will not even get here if the kernel version we
- 		 * are building on only supports scatterlists. See #if above.
- 		 *
- 		 * We use the sglist and bufflen function/macros to isolate
- 		 * us from kernel version differences.
- 		 */
+		 * Build a one-element scatter list out of the buffer
+		 * We will not even get here if the kernel version we
+		 * are building on only supports scatterlists. See #if above.
+		 *
+		 * We use the sglist and bufflen function/macros to isolate
+		 * us from kernel version differences.
+		 */
 		if (scsi_sglist(SCpnt)) {
 			sg_init_one(&(tgt_specific->sgl),
 				(const void *)scsi_sglist(SCpnt),
 				scsi_bufflen(SCpnt));
 			sgl	  = &(tgt_specific->sgl);
 			sgl_count = 1;
-		}
-		else {
+		} else {
 			sgl = NULL;
 			sgl_count = 0;
 		}

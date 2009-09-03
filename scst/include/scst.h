@@ -61,7 +61,7 @@ typedef _Bool bool;
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18))
 #define COMPLETION_INITIALIZER_ONSTACK(work) \
 	({ init_completion(&work); work; })
-	
+
 /*
  * Lockdep needs to run a non-constant initializer for on-stack
  * completions - so we use the _ONSTACK() variant for those that
