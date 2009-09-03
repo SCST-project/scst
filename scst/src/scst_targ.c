@@ -38,7 +38,7 @@ static int __scst_init_cmd(struct scst_cmd *cmd);
 static void scst_finish_cmd_mgmt(struct scst_cmd *cmd);
 static struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,
 	uint64_t tag);
-static void scst_proccess_redirect_cmd(struct scst_cmd *cmd,
+static void scst_process_redirect_cmd(struct scst_cmd *cmd,
 	enum scst_exec_context context, int check_retries);
 
 static inline void scst_schedule_tasklet(struct scst_cmd *cmd)
@@ -883,7 +883,7 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status,
 		break;
 	}
 
-	scst_proccess_redirect_cmd(cmd, pref_context, 1);
+	scst_process_redirect_cmd(cmd, pref_context, 1);
 
 	TRACE_EXIT();
 	return;
@@ -998,7 +998,7 @@ out_dev_done:
 }
 
 /* No locks, but might be in IRQ */
-static void scst_proccess_redirect_cmd(struct scst_cmd *cmd,
+static void scst_process_redirect_cmd(struct scst_cmd *cmd,
 	enum scst_exec_context context, int check_retries)
 {
 	struct scst_tgt *tgt = cmd->tgt;
@@ -1132,7 +1132,7 @@ void scst_rx_data(struct scst_cmd *cmd, int status,
 		break;
 	}
 
-	scst_proccess_redirect_cmd(cmd, pref_context, 1);
+	scst_process_redirect_cmd(cmd, pref_context, 1);
 
 	TRACE_EXIT();
 	return;
@@ -1293,7 +1293,7 @@ static void scst_cmd_done(struct scsi_cmnd *scsi_cmd)
 
 	cmd->state = SCST_CMD_STATE_PRE_DEV_DONE;
 
-	scst_proccess_redirect_cmd(cmd,
+	scst_process_redirect_cmd(cmd,
 		scst_optimize_post_exec_context(cmd, scst_estimate_context()),
 						0);
 
@@ -1316,7 +1316,7 @@ static void scst_cmd_done(void *data, char *sense, int result, int resid)
 
 	cmd->state = SCST_CMD_STATE_PRE_DEV_DONE;
 
-	scst_proccess_redirect_cmd(cmd,
+	scst_process_redirect_cmd(cmd,
 	    scst_optimize_post_exec_context(cmd, scst_estimate_context()), 0);
 
 out:
@@ -1375,7 +1375,7 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state,
 	}
 #endif
 	pref_context = scst_optimize_post_exec_context(cmd, pref_context);
-	scst_proccess_redirect_cmd(cmd, pref_context, 0);
+	scst_process_redirect_cmd(cmd, pref_context, 0);
 
 	TRACE_EXIT();
 	return;
@@ -3091,7 +3091,7 @@ void scst_tgt_cmd_done(struct scst_cmd *cmd,
 	cmd->cmd_hw_pending = 0;
 
 	cmd->state = SCST_CMD_STATE_FINISHED;
-	scst_proccess_redirect_cmd(cmd, pref_context, 1);
+	scst_process_redirect_cmd(cmd, pref_context, 1);
 
 	TRACE_EXIT();
 	return;
