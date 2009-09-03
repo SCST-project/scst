@@ -339,11 +339,11 @@ Module scst supports the following parameters:
    default it is approximately TotalMem/4.
 
 
-SCST "/proc" commands
+SCST /proc commands
 ---------------------
 
 For communications with user space programs SCST provides proc-based
-interface in "/proc/scsi_tgt" directory. It contains the following
+interface in /proc/scsi_tgt directory. It contains the following
 entries:
 
   - "help" file, which provides online help for SCST commands
@@ -370,14 +370,17 @@ entries:
   - "version" file, which shows version of SCST
 
   - "trace_level" file, which allows to read and set trace (logging) level
-    for SCST. See "help" file for list of trace levels. If you want to
-    enable logging options, which produce a lot of events, like "debug",
-    to not loose logged events you should also:
+    for SCST. See /proc/scsi_tgt/help file for list of commands and
+    trace levels. If you want to enable logging options, which produce a
+    lot of events, like "debug", to not loose logged events you should
+    also:
 
      * Increase in .config of your kernel CONFIG_LOG_BUF_SHIFT variable
-       to much bigger value, then recompile it. For example, I use 25,
-       but to use it I needed to modify the maximum allowed value for
-       CONFIG_LOG_BUF_SHIFT in the corresponding Kconfig.
+       to much bigger value, then recompile it. For example, value 25
+       will provide good protection from logging overflow aven under
+       high volume of loggin events, but to use it you will need to
+       modify the maximum allowed value for CONFIG_LOG_BUF_SHIFT in the
+       corresponding Kconfig file.
 
      * Change in your /etc/syslog.conf or other config file of your favorite
        logging program to store kernel logs in async manner. For example,
@@ -573,10 +576,10 @@ LUNs in them.
 VDISK device handler
 --------------------
 
-After loading VDISK device handler creates in "/proc/scsi_tgt/"
+After loading VDISK device handler creates in /proc/scsi_tgt/
 subdirectories "vdisk" and "vcdrom". They have similar layout:
 
-  - "trace_level" and "type" files as described for other dev handlers
+  - "trace_level" and "type" files as described above
 
   - "help" file, which provides online help for VDISK commands
 
@@ -646,6 +649,22 @@ mode is used.
 
 For example, "echo "open disk1 /vdisks/disk1" >/proc/scsi_tgt/vdisk/vdisk"
 will open file /vdisks/disk1 as virtual FILEIO disk with name "disk1".
+
+Also the VDISK handler has module parameter "num_threads", which
+specifies count of I/O threads for each VDISK's device. If you have a
+workload, which tends to produce rather random accesses (e.g. DB-like),
+you should increase this count to a bigger value, like 32. If you have a
+rather sequential workload, you should decrease it to a lower value,
+like number of CPUs on the target or even 1. Due to some limitations of
+Linux I/O subsystem, increasing number of I/O threads leads to
+performance drop, especially with deadline scheduler, so decreasing it
+can improve sequential performance. The default provides a good
+compromise between random and sequential accesses.
+
+You shouldn't be afraid to have too many VDISK I/O threads if you have
+many VDISK devices. Kernel threads consume very little amount of
+resources (several KBs) and only necessary threads will be used by SCST,
+so the threads will not trash your system.
 
 CAUTION: If you partitioned/formatted your device with block size X, *NEVER*
 ======== ever try to export and then mount it (even accidentally) with another

@@ -1293,7 +1293,6 @@ int sgv_pool_init(struct sgv_pool *pool, const char *name,
 {
 	int res = -ENOMEM;
 	int i;
-	struct sgv_pool_obj *obj;
 
 	TRACE_ENTRY();
 
@@ -1335,8 +1334,8 @@ int sgv_pool_init(struct sgv_pool *pool, const char *name,
 
 	TRACE_MEM("name %s, sizeof(*obj)=%zd, clustering_type=%d, "
 		"single_alloc_pages=%d, max_caches=%d, max_cached_pages=%d",
-		name, sizeof(*obj), clustering_type, single_alloc_pages,
-		pool->max_caches, pool->max_cached_pages);
+		name, sizeof(struct sgv_pool_obj), clustering_type,
+		single_alloc_pages, pool->max_caches, pool->max_cached_pages);
 
 	strncpy(pool->name, name, sizeof(pool->name)-1);
 	pool->name[sizeof(pool->name)-1] = '\0';

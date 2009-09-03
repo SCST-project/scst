@@ -232,7 +232,12 @@ struct scst_vdisk_thr {
 static struct kmem_cache *vdisk_thr_cachep;
 static struct kmem_cache *blockio_work_cachep;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
 #define DEF_NUM_THREADS		5
+#else
+/* Context RA patch supposed to be applied on the kernel */
+#define DEF_NUM_THREADS		8
+#endif
 static int num_threads = DEF_NUM_THREADS;
 
 module_param_named(num_threads, num_threads, int, S_IRUGO);
