@@ -1030,8 +1030,8 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 			goto out;
 		}
 
-		buf[2] = 4;	/* Device complies to this standard - SPC-2  */
-		buf[3] = 0x12;	/* HiSup + data in format specified in SPC-2 */
+		buf[2] = 5;	/* Device complies to SPC-3 */
+		buf[3] = 0x12;	/* HiSup + data in format specified in SPC */
 		buf[4] = 31;/* n - 4 = 35 - 4 = 31 for full 36 byte data */
 		buf[6] = 1; /* MultiP 1 */
 		buf[7] = 2; /* CMDQUE 1, BQue 0 => commands queuing supported */
