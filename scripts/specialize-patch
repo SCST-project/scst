@@ -262,15 +262,16 @@ function process_preprocessor_statement() {
     if (output)
       any_section_output[if_nesting_level] = 1
   }
-  if (delete_disabled_code == 0 || (output && (! condition || condition && matching_if !~ "^+#if [01]")))
-  {
-    line[lines++] = orig_stmnt
-  }
-  else if (evaluated ~ "^+#define SCSI_EXEC_REQ_FIFO_DEFINED$" \
-           || evaluated ~ "^+#define SCST_IO_CONTEXT$")
+  if (delete_disabled_code                                      \
+      && (evaluated ~ "^+#define SCSI_EXEC_REQ_FIFO_DEFINED$"   \
+          || evaluated ~ "^+#define SCST_IO_CONTEXT$"))
   {
     lines_deleted++
     delete_next_blank_line = 1
+  }
+  else if (delete_disabled_code == 0 || (output && (! condition || condition && matching_if !~ "^+#if [01]")))
+  {
+    line[lines++] = orig_stmnt
   }
   else
   {
