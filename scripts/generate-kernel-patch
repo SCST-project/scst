@@ -69,11 +69,19 @@ diff -uprN orig/linux-${kernel_version}/$2 linux-${kernel_version}/$2
 +++ linux-${kernel_version}/$2
 @@ -0,0 +1,$(wc -l "$1" | { read a b; echo $a; }) @@
 EOF
-    if [ "${2%.[ch]}" != "$2" ]; then
-      sed -e 's/sBUG(/BUG(/g' -e 's/sBUG_ON(/BUG_ON(/g' -e 's/^/+/' \
-          -e 's/^ \([^ ]*:\)$/\1/' < "$1"
+    # Insert a '+'-sign at the start of each line.
+    sed -e 's/^/+/' < "$1" | \
+    if [ "${replace_sbug_by_bug}" = "true" ]; then
+      sed -e 's/sBUG(\([^)]\)/BUG(\1/g' -e 's/sBUG_ON(\([^)]\)/BUG_ON(\1/g'
     else
-      sed -e 's/sBUG(/BUG(/g' -e 's/sBUG_ON(/BUG_ON(/g' -e 's/^/+/' < "$1"
+      cat
+    fi \
+    |  \
+    if [ "${2%.[ch]}" != "$2" ]; then
+      # Make sure that labels (goto-targets) are left-aligned.
+      sed -e 's/^ \([^ ]*:\)$/\1/'
+    else
+      cat
     fi
   fi
 }
@@ -138,6 +146,7 @@ mpt_scst="false"
 multiple_patches="false"
 patchdir=""
 specialize_patch_options="-v delete_disabled_code=1"
+replace_sbug_by_bug="true"
 
 if [ ! -e scst -o ! -e iscsi-scst -o ! -e srpt -o ! -e scst_local ]; then
   echo "Please run this script from inside the SCST subversion source tree."
@@ -151,7 +160,10 @@ do
     '-h') usage; exit 1;;
     '-l') shift;;
     '-m') mpt_scst="true"; shift;;
-    '-n') specialize_patch_options="-v delete_disabled_code=0"; shift;;
+    '-n') specialize_patch_options="-v delete_disabled_code=0"
+          replace_sbug_by_bug="false"
+          shift
+          ;;
     '-p') multiple_patches="true"; patchdir="$2"; shift; shift;;
     '-q') qla2x00t="true"; shift;;
     '--') shift;;

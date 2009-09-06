@@ -224,6 +224,7 @@ function handle_if()
 
 function process_preprocessor_statement() {
   last_if_nesting_level = if_nesting_level
+  orig_stmnt = $0
   evaluated = evaluate($0)
   condition = 1
   delete_next_blank_line = 0
@@ -263,7 +264,7 @@ function process_preprocessor_statement() {
   }
   if (delete_disabled_code == 0 || (output && (! condition || condition && matching_if !~ "^+#if [01]")))
   {
-    line[lines++]=$0
+    line[lines++] = orig_stmnt
   }
   else if (evaluated ~ "^+#define SCSI_EXEC_REQ_FIFO_DEFINED$" \
            || evaluated ~ "^+#define SCST_IO_CONTEXT$")
@@ -314,6 +315,8 @@ BEGIN {
     printf "Error: kernel version (%s) is out of range.\n", kernel_version
     exit 1
   }
+  if (delete_disabled_code != 0 && delete_disabled_code != 1)
+    delete_disabled_code = 0
 
   # Variable initialization.
   lines = 0
@@ -346,7 +349,7 @@ BEGIN {
     dump_lines()
     match($0, "^@@ -([0-9]*),([0-9]*) \\+([0-9]*),([0-9]*) @@(.*)$", h)
   }
-  else if (delete_disabled_output && delete_next_blank_line && match($0, "^+$"))
+  else if (delete_disabled_code && delete_next_blank_line && match($0, "^+$"))
   {
     lines_deleted++
     delete_next_blank_line = 0
@@ -358,7 +361,7 @@ BEGIN {
     {
       process_preprocessor_statement()
     }
-    else if (delete_disabled_output == 0 || output)
+    else if (delete_disabled_code == 0 || output)
     {
       # Store the line that was just read.
       line[lines++]=$0
