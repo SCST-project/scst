@@ -2100,7 +2100,8 @@ static void scst_req_done(struct scsi_cmnd *scsi_cmd)
 
 	TRACE_ENTRY();
 
-	if (scsi_cmd && (req = scsi_cmd->sc_request)) {
+	if (scsi_cmd) {
+		req = scsi_cmd->sc_request;
 		if (req) {
 			if (req->sr_bufflen)
 				kfree(req->sr_buffer);

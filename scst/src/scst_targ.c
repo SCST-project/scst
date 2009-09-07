@@ -1255,8 +1255,11 @@ static inline struct scst_cmd *scst_get_cmd(struct scsi_cmnd *scsi_cmd,
 {
 	struct scst_cmd *cmd = NULL;
 
-	if (scsi_cmd && (*req = scsi_cmd->sc_request))
-		cmd = (struct scst_cmd *)(*req)->upper_private_data;
+	if (scsi_cmd) {
+                *req = scsi_cmd->sc_request;
+                if (*req)
+                        cmd = (struct scst_cmd *)(*req)->upper_private_data;
+        }
 
 	if (cmd == NULL) {
 		PRINT_ERROR("%s", "Request with NULL cmd");
