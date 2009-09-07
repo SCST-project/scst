@@ -1517,7 +1517,7 @@ struct scst_device {
 	unsigned short dev_double_ua_possible:1;
 
 	/* If set, dev is read only */
-	unsigned int rd_only:1;
+	unsigned short rd_only:1;
 
 	/**************************************************************/
 
