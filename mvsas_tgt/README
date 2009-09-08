@@ -128,5 +128,5 @@ in/out in Makefile:
  - MV_DEBUG -  turns on some debugging code for target driver itself.
 
 
-	
-     
+Send patches and questions about this driver to
+scst-devel@lists.sourceforge.net, CC: Andy Yan <ayan@marvell.com>.
