@@ -1,4 +1,4 @@
-/* $Id: isp.c,v 1.219 2009/05/10 16:25:09 mjacob Exp $ */
+/* $Id: isp.c,v 1.224 2009/09/06 00:38:03 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2009 by Matthew Jacob
  *  All rights reserved.
@@ -74,7 +74,7 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #endif
 #ifdef	__FreeBSD__
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
+__FBSDID("$FreeBSD: head/sys/dev/isp/isp.c 196008 2009-08-01 01:04:26Z mjacob $");
 #include <dev/isp/isp_freebsd.h>
 #endif
 #ifdef	__OpenBSD__
@@ -1574,24 +1574,18 @@ isp_fibre_init(ispsoftc_t *isp)
 	}
 
 	icbp->icb_maxfrmlen = DEFAULT_FRAMESIZE(isp);
-	if (icbp->icb_maxfrmlen < ICB_MIN_FRMLEN ||
-	    icbp->icb_maxfrmlen > ICB_MAX_FRMLEN) {
-		isp_prt(isp, ISP_LOGERR,
-		    "bad frame length (%d) from NVRAM- using %d",
-		    DEFAULT_FRAMESIZE(isp), ICB_DFLT_FRMLEN);
+	if (icbp->icb_maxfrmlen < ICB_MIN_FRMLEN || icbp->icb_maxfrmlen > ICB_MAX_FRMLEN) {
+		isp_prt(isp, ISP_LOGERR, "bad frame length (%d) from NVRAM- using %d", DEFAULT_FRAMESIZE(isp), ICB_DFLT_FRMLEN);
 		icbp->icb_maxfrmlen = ICB_DFLT_FRMLEN;
 	}
 	icbp->icb_maxalloc = fcp->isp_maxalloc;
 	if (icbp->icb_maxalloc < 1) {
-		isp_prt(isp, ISP_LOGERR,
-		    "bad maximum allocation (%d)- using 16", fcp->isp_maxalloc);
+		isp_prt(isp, ISP_LOGERR, "bad maximum allocation (%d)- using 16", fcp->isp_maxalloc);
 		icbp->icb_maxalloc = 16;
 	}
 	icbp->icb_execthrottle = DEFAULT_EXEC_THROTTLE(isp);
 	if (icbp->icb_execthrottle < 1) {
-		isp_prt(isp, ISP_LOGERR,
-		    "bad execution throttle of %d- using %d",
-		    DEFAULT_EXEC_THROTTLE(isp), ICB_DFLT_THROTTLE);
+		isp_prt(isp, ISP_LOGERR, "bad execution throttle of %d- using %d", DEFAULT_EXEC_THROTTLE(isp), ICB_DFLT_THROTTLE);
 		icbp->icb_execthrottle = ICB_DFLT_THROTTLE;
 	}
 	icbp->icb_retry_delay = fcp->isp_retry_delay;
@@ -1685,18 +1679,18 @@ isp_fibre_init(ispsoftc_t *isp)
 
 	/*
 	 * For 22XX > 2.1.26 && 23XX, set some options.
-	 * XXX: Probably okay for newer 2100 f/w too.
 	 */
 	if (ISP_FW_NEWER_THAN(isp, 2, 26, 0)) {
-		/*
-		 * Turn on LIP F8 async event (1)
-		 * Turn on generate AE 8013 on all LIP Resets (2)
-		 * Disable LIP F7 switching (8)
-		 */
 		MBSINIT(&mbs, MBOX_SET_FIRMWARE_OPTIONS, MBLOGALL, 0);
-		mbs.param[1] = 0xb;
+		mbs.param[1] = IFCOPT1_DISF7SWTCH|IFCOPT1_LIPASYNC|IFCOPT1_LIPF8;
 		mbs.param[2] = 0;
 		mbs.param[3] = 0;
+		if (ISP_FW_NEWER_THAN(isp, 3, 16, 0)) {
+			mbs.param[1] |= IFCOPT1_EQFQASYNC|IFCOPT1_CTIO_RETRY;
+			if (fcp->role & ISP_ROLE_TARGET) {
+				mbs.param[3] = IFCOPT3_NOPRLI;
+			}
+		}
 		isp_mboxcmd(isp, &mbs);
 		if (mbs.param[0] != MBOX_COMMAND_COMPLETE) {
 			return;
@@ -2120,8 +2114,7 @@ isp_mark_portdb(ispsoftc_t *isp, int chan, int disposition)
  * or via FABRIC LOGIN/FABRIC LOGOUT for other cards.
  */
 static int
-isp_plogx(ispsoftc_t *isp, int chan, uint16_t handle, uint32_t portid,
-    int flags, int gs)
+isp_plogx(ispsoftc_t *isp, int chan, uint16_t handle, uint32_t portid, int flags, int gs)
 {
 	mbreg_t mbs;
 	uint8_t q[QENTRY_LEN];

@@ -1,4 +1,4 @@
-/* $Id: isp_library.c,v 1.61 2009/05/10 16:25:09 mjacob Exp $ */
+/* $Id: isp_library.c,v 1.63 2009/08/08 19:46:31 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2009 by Matthew Jacob
  *  All rights reserved.
@@ -62,7 +62,7 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #endif
 #ifdef	__FreeBSD__
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
+__FBSDID("$FreeBSD: head/sys/dev/isp/isp_library.c 196008 2009-08-01 01:04:26Z mjacob $");
 #include <dev/isp/isp_freebsd.h>
 #endif
 #ifdef	__OpenBSD__

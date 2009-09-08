@@ -1,4 +1,4 @@
-/* $Id: ispvar.h,v 1.109 2009/05/10 16:25:09 mjacob Exp $ */
+/* $Id: ispvar.h,v 1.111 2009/06/07 04:35:31 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2009 by Matthew Jacob
  *  All rights reserved.

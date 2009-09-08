@@ -1,4 +1,4 @@
-/* $Id: isp_target.c,v 1.87 2009/05/01 22:34:13 mjacob Exp $ */
+/* $Id: isp_target.c,v 1.88 2009/08/08 19:46:31 mjacob Exp $ */
 /*-
  *  Copyright (c) 1997-2009 by Matthew Jacob
  *  All rights reserved.
@@ -68,7 +68,7 @@
 #endif
 #ifdef	__FreeBSD__
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD:$");
+__FBSDID("$FreeBSD: head/sys/dev/isp/isp_target.c 196008 2009-08-01 01:04:26Z mjacob $");
 #include <dev/isp/isp_freebsd.h>
 #endif
 #ifdef	__OpenBSD__
