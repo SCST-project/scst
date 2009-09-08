@@ -1,4 +1,4 @@
-/* $Id: isp_linux.c,v 1.247 2009/05/10 16:25:09 mjacob Exp $ */
+/* $Id: isp_linux.c,v 1.252 2009/09/08 01:22:53 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2009 by Matthew Jacob
  *  All rights reserved.
@@ -1431,7 +1431,7 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xact_t *xact)
      * Check for commands that are already dead
      */
     if (tmd->cd_lflags & CDFL_ABORTED) {
-        isp_prt(isp, ISP_LOGTINFO, "[%llx] already ABORTED- not sending a CTIO", (ull) tmd->cd_tagval);
+        isp_prt(isp, ISP_LOGTINFO, "%s: [%llx] already ABORTED- not sending a CTIO", __func__, (ull) tmd->cd_tagval);
         xact->td_error = -ENXIO;
         goto out;
     }
@@ -1443,20 +1443,20 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xact_t *xact)
      */
     if (xact->td_xfrlen == 0) {
         if ((xact->td_hflags & TDFH_STSVALID) == 0) {
-            isp_prt(isp, ISP_LOGERR, "CTIO, no data, and no status is wrong");
+            isp_prt(isp, ISP_LOGERR, "%s: a CTIO, no data, and no status is wrong", __func__);
             dump_stack();
             xact->td_error = -EINVAL;
             goto out;
         }
     } else {
         if ((xact->td_hflags & TDFH_DATA_MASK) == 0) {
-            isp_prt(isp, ISP_LOGERR, "data CTIO with no direction is wrong");
+            isp_prt(isp, ISP_LOGERR, "%s: a data CTIO with no direction is wrong", __func__);
             dump_stack();
             xact->td_error = -EINVAL;
             goto out;
         }
         if ((xact->td_hflags & TDFH_DATA_MASK) == TDFH_DATA_MASK) {
-            isp_prt(isp, ISP_LOGERR, "data CTIO with both directions is wrong (for now)");
+            isp_prt(isp, ISP_LOGERR, "%s: a data CTIO with both directions is wrong (for now)", __func__);
             dump_stack();
             xact->td_error = -EINVAL;
             goto out;
@@ -1464,7 +1464,7 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xact_t *xact)
     }
 
     if ((xact->td_hflags & TDFH_STSVALID) && tmd->cd_scsi_status == SCSI_CHECK && (xact->td_hflags & TDFH_SNSVALID) && tmd->cd_sense[0] == 0) {
-        isp_prt(isp, ISP_LOGWARN, "[%llx] cdb0 0x%02x CHECK CONDITION but bogus sense 0x%x/0x%x/0x%x", (ull) tmd->cd_tagval, tmd->cd_cdb[0], tmd->cd_sense[0], tmd->cd_sense[12], tmd->cd_sense[13]);
+        isp_prt(isp, ISP_LOGWARN, "%s: [%llx] cdb0 0x%02x CHECK CONDITION but bogus sense 0x%x/0x%x/0x%x", __func__, (ull) tmd->cd_tagval, tmd->cd_cdb[0], tmd->cd_sense[0], tmd->cd_sense[12], tmd->cd_sense[13]);
     }
 
     memset(local, 0, QENTRY_LEN);
@@ -1536,7 +1536,7 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xact_t *xact)
                 cto->ct_scsi_status |= (FCP_RESID_UNDERFLOW << 8);
             }
         }
-        isp_prt(isp, ISP_LOGTDEBUG0, "CTIO7[%llx] scsi sts %x flags %x resid %d offset %u", (ull) tmd->cd_tagval, tmd->cd_scsi_status, cto->ct_flags, resid, xact->td_offset);
+        isp_prt(isp, ISP_LOGTDEBUG0, "%s: CTIO7[%llx] scsi sts %x flags %x resid %d offset %u", __func__, (ull) tmd->cd_tagval, tmd->cd_scsi_status, cto->ct_flags, resid, xact->td_offset);
     } else if (IS_FC(isp)) {
         ct2_entry_t *cto = (ct2_entry_t *) local;
         uint16_t *ssptr = NULL;
@@ -1583,6 +1583,7 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xact_t *xact)
             } else {
                 cto->ct_flags |= CT2_DATA_OUT;
             }
+            cto->rsp.m0.ct_xfrlen = xact->td_xfrlen;
             if (xact->td_hflags & TDFH_STSVALID) {
                 ssptr = &cto->rsp.m0.ct_scsi_status;
                 cto->ct_flags |= CT2_SENDSTATUS;
@@ -1605,7 +1606,7 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xact_t *xact)
         if (cto->ct_flags & CT2_SENDSTATUS) {
             cto->ct_flags |= CT2_CCINCR;
         }
-        isp_prt(isp, ISP_LOGTDEBUG0, "CTIO2[%llx] scsi sts %x flags %x resid %d", (ull) tmd->cd_tagval, tmd->cd_scsi_status, cto->ct_flags, resid);
+        isp_prt(isp, ISP_LOGTDEBUG0, "%s: CTIO2[%llx] scsi sts %x flags %x resid %d", __func__, (ull) tmd->cd_tagval, tmd->cd_scsi_status, cto->ct_flags, resid);
     } else {
         ct_entry_t *cto = (ct_entry_t *) local;
 
@@ -1647,7 +1648,7 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xact_t *xact)
         if (cto->ct_flags & CT_SENDSTATUS) {
             cto->ct_flags |= CT_CCINCR;
         }
-        isp_prt(isp, ISP_LOGTDEBUG0, "CTIO[%llx] scsi sts %x resid %d cd_lflags %x", (ull) tmd->cd_tagval, tmd->cd_scsi_status, resid, xact->td_hflags);
+        isp_prt(isp, ISP_LOGTDEBUG0, "%s: CTIO[%llx] scsi sts %x resid %d cd_lflags %x", __func__, (ull) tmd->cd_tagval, tmd->cd_scsi_status, resid, xact->td_hflags);
     }
 
     qe = isp_getrqentry(isp);
@@ -1658,7 +1659,7 @@ isp_target_start_ctio(ispsoftc_t *isp, tmd_xact_t *xact)
     }
 
     if (isp_save_xs_tgt(isp, xact, &handle)) {
-        isp_prt(isp, ISP_LOGERR, "isp_target_start_ctio: No XFLIST pointers");
+        isp_prt(isp, ISP_LOGERR, "%s: No XFLIST pointers", __func__);
         xact->td_error = -ENOMEM;
         goto out;
     }
@@ -2368,7 +2369,7 @@ isp_handle_platform_ctio(ispsoftc_t *isp, void *arg)
 
     tmd->cd_moved -= resid;
 
-    isp_prt(isp, ISP_LOGTDEBUG0, "%s[%llx] status 0x%x flg 0x%x %s", ctstr, (ull) tmd->cd_tagval, status, flags, sentstatus? "FIN" : "MID");
+    isp_prt(isp, ISP_LOGTDEBUG0, "%s[%llx] status 0x%x flg 0x%x resid %d %s", ctstr, (ull) tmd->cd_tagval, status, flags, resid, sentstatus? "FIN" : "MID");
 
     /*
      * We're here either because intermediate data transfers are done
@@ -3670,6 +3671,10 @@ isplinux_default_wwn(ispsoftc_t *isp, int chan, int isactive, int iswwnn)
             return (seed);
         }
         seed = iswwnn? FCPARAM(isp, chan)->isp_wwnn_nvram : FCPARAM(isp, chan)->isp_wwpn_nvram;
+        if (seed) {
+            return (seed);
+        }
+        return (0x400000007F00000aull);
     } else {
         seed = iswwnn? fc->def_wwnn : fc->def_wwpn;
     }
@@ -4169,7 +4174,9 @@ isplinux_common_init(ispsoftc_t *isp)
 #ifdef ISP_TARGET_MODE
         isp_deinit_target(isp);
 #endif
-        kthread_stop(isp->isp_osinfo.thread_task);
+        if (isp->isp_osinfo.thread_task) {
+            kthread_stop(isp->isp_osinfo.thread_task);
+        }
         return (-1);
     }
     ISP_UNLK_SOFTC(isp);

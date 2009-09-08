@@ -1,4 +1,4 @@
-/* $Id: isp_pci.c,v 1.181 2009/05/10 16:25:09 mjacob Exp $ */
+/* $Id: isp_pci.c,v 1.186 2009/09/06 00:37:07 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2009 by Matthew Jacob
  *  All rights reserved.
@@ -668,7 +668,7 @@ isplinux_pci_init_one(struct Scsi_Host *host)
         pci_intx(pdev, 1);
 
         /*
-	 * enable MSI-X or MSI-X, but not for the 2432
+	 * enable MSI-X or MSI-X, but no MSI-X for the 2432
 	 */
         if (pdev->device != PCI_DEVICE_ID_QLOGIC_ISP2432 && pci_enable_msix(pdev, isp_msix, 3) == 0) {
             isp_pci->msix_enabled = 1;
@@ -756,45 +756,51 @@ isplinux_pci_init_one(struct Scsi_Host *host)
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP1020) {
         isp->isp_mdvec = &mdvec;
         isp->isp_type = ISP_HA_SCSI_UNKNOWN;
-        if (isp->isp_mdvec->dv_ispfw == NULL)
-            fwname = "ql1020_fw.bin";
+        if (isp->isp_mdvec->dv_ispfw == NULL) {
+            fwname = "ql1040_fw.bin";
+        }
     }
 #endif
 #ifndef    ISP_DISABLE_1080_SUPPORT
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP1080) {
         isp->isp_mdvec = &mdvec_1080;
         isp->isp_type = ISP_HA_SCSI_1080;
-        if (isp->isp_mdvec->dv_ispfw == NULL)
+        if (isp->isp_mdvec->dv_ispfw == NULL) {
             fwname = "ql1080_fw.bin";
+        }
     }
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP1240) {
         isp->isp_mdvec = &mdvec_1080;
         isp->isp_type = ISP_HA_SCSI_1240;
         host->max_channel = 1;
-        if (isp->isp_mdvec->dv_ispfw == NULL)
+        if (isp->isp_mdvec->dv_ispfw == NULL) {
             fwname = "ql1080_fw.bin";
+        }
     }
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP1280) {
         isp->isp_mdvec = &mdvec_1080;
         isp->isp_type = ISP_HA_SCSI_1280;
         host->max_channel = 1;
-        if (isp->isp_mdvec->dv_ispfw == NULL)
+        if (isp->isp_mdvec->dv_ispfw == NULL) {
             fwname = "ql1080_fw.bin";
+        }
     }
 #endif
 #ifndef    ISP_DISABLE_12160_SUPPORT
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP10160) {
         isp->isp_mdvec = &mdvec_12160;
         isp->isp_type = ISP_HA_SCSI_12160;
-        if (isp->isp_mdvec->dv_ispfw == NULL)
+        if (isp->isp_mdvec->dv_ispfw == NULL) {
             fwname = "ql12160_fw.bin";
+        }
     }
     if (pdev->device == PCI_DEVICE_ID_QLOGIC_ISP12160) {
         isp->isp_mdvec = &mdvec_12160;
         isp->isp_type = ISP_HA_SCSI_12160;
         host->max_channel = 1;
-        if (isp->isp_mdvec->dv_ispfw == NULL)
+        if (isp->isp_mdvec->dv_ispfw == NULL) {
             fwname = "ql12160_fw.bin";
+        }
     }
 #endif
 #ifndef    ISP_DISABLE_2100_SUPPORT

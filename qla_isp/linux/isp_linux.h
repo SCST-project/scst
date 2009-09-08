@@ -1,4 +1,4 @@
-/* $Id: isp_linux.h,v 1.174 2009/06/07 04:36:38 mjacob Exp $ */
+/* $Id: isp_linux.h,v 1.176 2009/09/06 00:37:07 mjacob Exp $ */
 /*
  *  Copyright (c) 1997-2009 by Matthew Jacob
  *  All rights reserved.
@@ -814,7 +814,7 @@ static ISP_INLINE void
 mbox_wait_complete(ispsoftc_t *isp, mbreg_t *mbp)
 {
     uint32_t lim = mbp->timeout;
-    unsigned long long et, tt = jiffies;
+    unsigned long et, tt = jiffies;
 
     if (lim == 0) {
         lim = MBCMD_DEFAULT_TIMEOUT;
@@ -848,7 +848,7 @@ mbox_wait_complete(ispsoftc_t *isp, mbreg_t *mbp)
             }
         }
         if (isp->mboxcmd_done == 0) {
-            isp_prt(isp, ISP_LOGWARN, "Polled Mailbox Command (0x%x) Timeout (%llu elapsed jiffies)", isp->isp_lastmbxcmd, ((unsigned long long) jiffies) - tt);
+            isp_prt(isp, ISP_LOGWARN, "Polled Mailbox Command (0x%x) Timeout (%lu elapsed usec)", isp->isp_lastmbxcmd, _jiffies_to_usec(jiffies - tt));
             mbp->param[0] = MBOX_TIMEOUT;
         }
     } else {
@@ -858,11 +858,10 @@ mbox_wait_complete(ispsoftc_t *isp, mbreg_t *mbp)
         et = wait_event_timeout(isp->isp_osinfo.mboxwq, isp->mboxcmd_done, usecs_to_jiffies(lim));
         ISP_IGET_LK_SOFTC(isp);
         if (et == 0) {
-            isp_prt(isp, ISP_LOGWARN, "Interrupting Mailbox Command (0x%x) Timeout (elapsed time %llu jiffies)", isp->isp_lastmbxcmd,
-                ((unsigned long long) jiffies) - tt);
+            isp_prt(isp, ISP_LOGWARN, "Interrupting Mailbox Command (0x%x) Timeout (elapsed time %lu usec)", isp->isp_lastmbxcmd, _jiffies_to_usec(jiffies - tt));
             mbp->param[0] = MBOX_TIMEOUT;
         } else {
-            isp_prt(isp, ISP_LOGDEBUG1, "Interrupting Mailbox Command (0x%x) done (%llu jiffies)", isp->isp_lastmbxcmd, et);
+            isp_prt(isp, ISP_LOGDEBUG1, "Interrupting Mailbox Command (0x%x) done (%lu usec)", isp->isp_lastmbxcmd, _jiffies_to_usec(et));
         }
     }
 }
