@@ -3315,7 +3315,6 @@ static void blk_rq_unmap_kern_sg(struct request *rq, int err)
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26) && !(LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30) && defined(SCSI_EXEC_REQ_FIFO_DEFINED)) */
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
-
 static void scsi_end_async(struct request *req, int error)
 {
 	struct scsi_io_context *sioc = req->end_io_data;
