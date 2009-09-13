@@ -220,14 +220,13 @@ static void srpt_qp_event(struct ib_event *event, void *ctx)
 #else
 		/* Vanilla 2.6.19 kernel (or before) without OFED. */
 		PRINT_ERROR("%s", "how to perform ib_cm_notify() on a"
-			" vanilla 2.6.18 kernel ???\n");
+			    " vanilla 2.6.18 kernel ???");
 #endif
 		break;
 	case IB_EVENT_QP_LAST_WQE_REACHED:
 		if (srpt_test_and_set_channel_state(ch, RDMA_CHANNEL_LIVE,
 					RDMA_CHANNEL_DISCONNECTING)) {
-			PRINT_INFO("disconnected session %s.\n",
-			       ch->sess_name);
+			PRINT_INFO("disconnected session %s.", ch->sess_name);
 			ib_send_cm_dreq(ch->cm_id, NULL, 0);
 		}
 		break;
@@ -575,7 +574,7 @@ static void srpt_unregister_mad_agent(struct srpt_device *sdev)
 		sport = &sdev->port[i - 1];
 		WARN_ON(sport->port != i);
 		if (ib_modify_port(sdev->device, i, 0, &port_modify) < 0)
-			PRINT_ERROR("%s", "disabling MAD processing failed.\n");
+			PRINT_ERROR("%s", "disabling MAD processing failed.");
 		if (sport->mad_agent) {
 			ib_unregister_mad_agent(sport->mad_agent);
 			sport->mad_agent = NULL;
@@ -869,7 +868,7 @@ static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 		kfree(ioctx->rbufs);
 
 	if (srpt_post_recv(ch->sport->sdev, ioctx))
-		PRINT_ERROR("%s", "SRQ post_recv failed - this is serious\n");
+		PRINT_ERROR("%s", "SRQ post_recv failed - this is serious.");
 		/* we should queue it back to free_ioctx queue */
 	else
 		atomic_inc(&ch->req_lim_delta);
@@ -936,7 +935,7 @@ static void srpt_handle_err_comp(struct srpt_rdma_ch *ch, struct ib_wc *wc)
 
 	if (wc->wr_id & SRPT_OP_RECV) {
 		ioctx = sdev->ioctx_ring[wc->wr_id & ~SRPT_OP_RECV];
-		PRINT_ERROR("%s", "This is serious - SRQ is in bad state\n");
+		PRINT_ERROR("%s", "This is serious - SRQ is in bad state.");
 	} else {
 		ioctx = sdev->ioctx_ring[wc->wr_id];
 
@@ -1420,7 +1419,7 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 	ib_req_notify_cq(ch->cq, IB_CQ_NEXT_COMP);
 	while (ib_poll_cq(ch->cq, 1, &wc) > 0) {
 		if (wc.status) {
-			PRINT_ERROR("failed %s status= %d\n",
+			PRINT_ERROR("failed %s status= %d",
 			       wc.wr_id & SRPT_OP_RECV ? "receive" : "send",
 			       wc.status);
 			srpt_handle_err_comp(ch, &wc);
@@ -1484,8 +1483,7 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 #endif
 	if (IS_ERR(ch->cq)) {
 		ret = PTR_ERR(ch->cq);
-		PRINT_ERROR("failed to create_cq cqe= %d ret= %d\n",
-			cqe, ret);
+		PRINT_ERROR("failed to create_cq cqe= %d ret= %d", cqe, ret);
 		goto out;
 	}
 
@@ -1509,7 +1507,7 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	if (IS_ERR(ch->qp)) {
 		ret = PTR_ERR(ch->qp);
 		ib_destroy_cq(ch->cq);
-		PRINT_ERROR("failed to create_qp ret= %d\n", ret);
+		PRINT_ERROR("failed to create_qp ret= %d", ret);
 		goto out;
 	}
 
@@ -1581,9 +1579,12 @@ static void srpt_release_channel(struct srpt_rdma_ch *ch, int destroy_cmid)
 	if (ch->scst_sess) {
 		struct srpt_ioctx *ioctx, *ioctx_tmp;
 
-		TRACE_DBG("%s: release sess= %p sess_name= %s active_cmd= %d",
-			  __func__, ch->scst_sess, ch->sess_name,
-			  ch->active_scmnd_cnt);
+		if (ch->active_scmnd_cnt)
+			PRINT_INFO("Releasing session %s which still has %d"
+				   " active commands",
+				   ch->sess_name, ch->active_scmnd_cnt);
+		else
+			PRINT_INFO("Releasing session %s", ch->sess_name);
 
 		spin_lock_irq(&ch->spinlock);
 		list_for_each_entry_safe(ioctx, ioctx_tmp,
@@ -1635,9 +1636,9 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 
 	it_iu_len = be32_to_cpu(req->req_it_iu_len);
 
-	PRINT_INFO("received SRP_LOGIN_REQ with"
+	PRINT_INFO("Received SRP_LOGIN_REQ with"
 	    " i_port_id 0x%llx:0x%llx, t_port_id 0x%llx:0x%llx and length %d"
-	    " on port %d (guid=0x%llx:0x%llx)\n",
+	    " on port %d (guid=0x%llx:0x%llx)",
 	    (unsigned long long)be64_to_cpu(*(u64 *)&req->initiator_port_id[0]),
 	    (unsigned long long)be64_to_cpu(*(u64 *)&req->initiator_port_id[8]),
 	    (unsigned long long)be64_to_cpu(*(u64 *)&req->target_port_id[0]),
@@ -1663,7 +1664,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		    cpu_to_be32(SRP_LOGIN_REJ_REQ_IT_IU_LENGTH_TOO_LARGE);
 		ret = -EINVAL;
 		PRINT_ERROR("rejected SRP_LOGIN_REQ because its"
-		       " length (%d bytes) is invalid\n", it_iu_len);
+			    " length (%d bytes) is invalid", it_iu_len);
 		goto reject;
 	}
 
@@ -1700,13 +1701,13 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 					ib_send_cm_dreq(ch->cm_id, NULL, 0);
 					PRINT_ERROR("disconnected"
 					  " session %s because a new"
-					  " SRP_LOGIN_REQ has been received.\n",
+					  " SRP_LOGIN_REQ has been received.",
 					  ch->sess_name);
 				} else if (prev_state ==
 					 RDMA_CHANNEL_CONNECTING) {
 					PRINT_ERROR("%s", "rejected"
 					  " SRP_LOGIN_REQ because another login"
-					  " request is being processed.\n");
+					  " request is being processed.");
 					ib_send_cm_rej(ch->cm_id,
 						       IB_CM_REJ_NO_RESOURCES,
 						       NULL, 0, NULL, 0);
@@ -1730,14 +1731,15 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		    cpu_to_be32(SRP_LOGIN_REJ_UNABLE_ASSOCIATE_CHANNEL);
 		ret = -ENOMEM;
 		PRINT_ERROR("%s", "rejected SRP_LOGIN_REQ because it"
-		       " has an invalid target port identifier\n");
+		       " has an invalid target port identifier.");
 		goto reject;
 	}
 
 	ch = kzalloc(sizeof *ch, GFP_KERNEL);
 	if (!ch) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		PRINT_ERROR("%s", "rejected SRP_LOGIN_REQ because out of memory\n");
+		PRINT_ERROR("%s",
+			    "rejected SRP_LOGIN_REQ because out of memory.");
 		ret = -ENOMEM;
 		goto reject;
 	}
@@ -1755,7 +1757,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	if (ret) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_ERROR("%s", "rejected SRP_LOGIN_REQ because creating"
-		       " a new RDMA channel failed\n");
+			    " a new RDMA channel failed.");
 		goto free_ch;
 	}
 
@@ -1763,7 +1765,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	if (ret) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_ERROR("rejected SRP_LOGIN_REQ because enabling"
-		       " RTR failed (error code = %d)\n", ret);
+		       " RTR failed (error code = %d)", ret);
 		goto destroy_ib;
 	}
 
@@ -1833,7 +1835,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	ret = ib_send_cm_rep(cm_id, rep_param);
 	if (ret) {
 		PRINT_ERROR("sending SRP_LOGIN_REQ response failed"
-		       " (error code = %d)\n", ret);
+			    " (error code = %d)", ret);
 		goto release_channel;
 	}
 
@@ -1888,7 +1890,7 @@ static void srpt_find_and_release_channel(struct ib_cm_id *cm_id)
 
 static void srpt_cm_rej_recv(struct ib_cm_id *cm_id)
 {
-	TRACE_DBG("%s: cm_id=%p", __func__, cm_id);
+	PRINT_INFO("%s", "Received InfiniBand REJ packet.");
 	srpt_find_and_release_channel(cm_id);
 }
 
@@ -1938,13 +1940,13 @@ static int srpt_cm_rtu_recv(struct ib_cm_id *cm_id)
 
 static void srpt_cm_timewait_exit(struct ib_cm_id *cm_id)
 {
-	TRACE_DBG("%s: cm_id=%p", __func__, cm_id);
+	PRINT_INFO("%s", "Received InfiniBand TimeWait exit.");
 	srpt_find_and_release_channel(cm_id);
 }
 
 static void srpt_cm_rep_error(struct ib_cm_id *cm_id)
 {
-	TRACE_DBG("%s: cm_id=%p", __func__, cm_id);
+	PRINT_INFO("%s", "Received InfiniBand REP error.");
 	srpt_find_and_release_channel(cm_id);
 }
 
@@ -1963,6 +1965,8 @@ static int srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
 	case RDMA_CHANNEL_LIVE:
 	case RDMA_CHANNEL_CONNECTING:
 		ib_send_cm_drep(ch->cm_id, NULL, 0);
+		PRINT_INFO("Received DREQ and sent DREP for session %s.",
+			   ch->sess_name);
 		break;
 	case RDMA_CHANNEL_DISCONNECTING:
 	default:
@@ -1974,7 +1978,7 @@ static int srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
 
 static void srpt_cm_drep_recv(struct ib_cm_id *cm_id)
 {
-	TRACE_DBG("%s: cm_id=%p", __func__, cm_id);
+	PRINT_INFO("%s", "Received InfiniBand DREP message.");
 	srpt_find_and_release_channel(cm_id);
 }
 
@@ -2247,14 +2251,14 @@ static int srpt_xfer_data(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 
 	ret = srpt_map_sg_to_ib_sge(ch, ioctx, scmnd);
 	if (ret) {
-		PRINT_ERROR("%s[%d] ret=%d\n", __func__, __LINE__, ret);
+		PRINT_ERROR("%s[%d] ret=%d", __func__, __LINE__, ret);
 		ret = SCST_TGT_RES_QUEUE_FULL;
 		goto out;
 	}
 
 	ret = srpt_perform_rdmas(ch, ioctx, scst_cmd_get_data_direction(scmnd));
 	if (ret) {
-		PRINT_ERROR("%s[%d] ret=%d\n", __func__, __LINE__, ret);
+		PRINT_ERROR("%s[%d] ret=%d", __func__, __LINE__, ret);
 		if (ret == -EAGAIN || ret == -ENOMEM)
 			ret = SCST_TGT_RES_QUEUE_FULL;
 		else
@@ -2318,7 +2322,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	ioctx->state = SRPT_STATE_PROCESSED;
 
 	if (ch->state != RDMA_CHANNEL_LIVE) {
-		PRINT_ERROR("%s: tag= %lld channel in bad state %d\n",
+		PRINT_ERROR("%s: tag= %lld channel in bad state %d",
 		       __func__, (unsigned long long)tag, ch->state);
 
 		if (ch->state == RDMA_CHANNEL_DISCONNECTING)
@@ -2338,7 +2342,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	srp_rsp = ioctx->buf;
 
 	if (unlikely(scst_cmd_aborted(scmnd))) {
-		PRINT_ERROR("%s: tag= %lld already get aborted\n",
+		PRINT_ERROR("%s: tag= %lld already get aborted",
 		       __func__, (unsigned long long)tag);
 		goto out_aborted;
 	}
@@ -2371,8 +2375,8 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	if (dir == SCST_DATA_READ && scst_cmd_get_resp_data_len(scmnd)) {
 		ret = srpt_xfer_data(ch, ioctx, scmnd);
 		if (ret != SCST_TGT_RES_SUCCESS) {
-			PRINT_ERROR("%s: tag= %lld xfer_data failed\n",
-			       __func__, (unsigned long long)tag);
+			PRINT_ERROR("%s: tag= %lld xfer_data failed",
+				    __func__, (unsigned long long)tag);
 			goto out;
 		}
 	}
@@ -2380,9 +2384,9 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	if (srpt_post_send(ch, ioctx,
 			   sizeof *srp_rsp +
 			   be32_to_cpu(srp_rsp->sense_data_len))) {
-		PRINT_ERROR("%s: ch->state= %d tag= %lld\n",
-		       __func__, ch->state,
-		       (unsigned long long)tag);
+		PRINT_ERROR("%s: ch->state= %d tag= %lld",
+			    __func__, ch->state,
+			    (unsigned long long)tag);
 		ret = SCST_TGT_RES_FATAL_ERROR;
 	}
 
@@ -2417,7 +2421,7 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 	ioctx = mgmt_ioctx->ioctx;
 	BUG_ON(!ioctx);
 
-	TRACE_DBG("%s: tsk_mgmt_done for tag= %lld status=%d\n",
+	TRACE_DBG("%s: tsk_mgmt_done for tag= %lld status=%d",
 		  __func__, (unsigned long long)mgmt_ioctx->tag,
 		  scst_mgmt_cmd_get_status(mcmnd));
 
@@ -2818,8 +2822,8 @@ static void srpt_add_one(struct ib_device *device)
 
 	sdev->scst_tgt = scst_register(&srpt_template, NULL);
 	if (!sdev->scst_tgt) {
-		PRINT_ERROR("SCST registration failed for %s.\n",
-			sdev->device->name);
+		PRINT_ERROR("SCST registration failed for %s.",
+			    sdev->device->name);
 		goto err_ring;
 	}
 
@@ -2839,7 +2843,7 @@ static void srpt_add_one(struct ib_device *device)
 		INIT_WORK(&sport->work, srpt_refresh_port_work);
 #endif
 		if (srpt_refresh_port(sport)) {
-			PRINT_ERROR("MAD registration failed for %s-%d.\n",
+			PRINT_ERROR("MAD registration failed for %s-%d.",
 				    sdev->device->name, i);
 			goto err_refresh_port;
 		}
@@ -2913,7 +2917,7 @@ static void srpt_remove_one(struct ib_device *device)
 		 * kernels do not have a facility to cancel scheduled work.
 		 */
 		PRINT_ERROR("%s", 
-		       "your kernel does not provide cancel_work_sync().\n");
+		       "your kernel does not provide cancel_work_sync().");
 #endif
 
 	scst_unregister(sdev->scst_tgt);
@@ -2992,26 +2996,26 @@ static int __init srpt_init_module(void)
 
 	ret = class_register(&srpt_class);
 	if (ret) {
-		PRINT_ERROR("%s", "couldn't register class ib_srpt\n");
+		PRINT_ERROR("%s", "couldn't register class ib_srpt");
 		goto out;
 	}
 
 	ret = scst_register_target_template(&srpt_template);
 	if (ret < 0) {
-		PRINT_ERROR("%s", "couldn't register with scst\n");
+		PRINT_ERROR("%s", "couldn't register with scst");
 		ret = -ENODEV;
 		goto out_unregister_class;
 	}
 
 	ret = srpt_register_procfs_entry(&srpt_template);
 	if (ret) {
-		PRINT_ERROR("%s", "couldn't register procfs entry\n");
+		PRINT_ERROR("%s", "couldn't register procfs entry");
 		goto out_unregister_target;
 	}
 
 	ret = ib_register_client(&srpt_client);
 	if (ret) {
-		PRINT_ERROR("%s", "couldn't register IB client\n");
+		PRINT_ERROR("%s", "couldn't register IB client");
 		goto out_unregister_target;
 	}
 
