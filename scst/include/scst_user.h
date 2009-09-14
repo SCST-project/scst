@@ -104,8 +104,8 @@ struct scst_user_sess {
 	aligned_u64 lun;
 	uint16_t threads_num;
 	uint8_t rd_only;
-	char initiator_name[SCST_MAX_NAME];
-	char target_name[SCST_MAX_NAME];
+	char initiator_name[SCST_MAX_EXTERNAL_NAME];
+	char target_name[SCST_MAX_EXTERNAL_NAME];
 };
 
 struct scst_user_scsi_cmd_parse {
