@@ -220,7 +220,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
 	    ((pref_context == SCST_CONTEXT_DIRECT) ||
 	     (pref_context == SCST_CONTEXT_DIRECT_ATOMIC))) {
 		PRINT_ERROR("Wrong context %d in IRQ from target %s, use "
-			"SCST_CONTEXT_THREAD instead\n", pref_context,
+			"SCST_CONTEXT_THREAD instead", pref_context,
 			cmd->tgtt->name);
 		pref_context = SCST_CONTEXT_THREAD;
 	}
@@ -831,7 +831,7 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status,
 	    ((pref_context == SCST_CONTEXT_DIRECT) ||
 	     (pref_context == SCST_CONTEXT_DIRECT_ATOMIC))) {
 		PRINT_ERROR("Wrong context %d in IRQ from target %s, use "
-			"SCST_CONTEXT_THREAD instead\n", pref_context,
+			"SCST_CONTEXT_THREAD instead", pref_context,
 			cmd->tgtt->name);
 		pref_context = SCST_CONTEXT_THREAD;
 	}
@@ -1068,7 +1068,7 @@ void scst_rx_data(struct scst_cmd *cmd, int status,
 	    ((pref_context == SCST_CONTEXT_DIRECT) ||
 	     (pref_context == SCST_CONTEXT_DIRECT_ATOMIC))) {
 		PRINT_ERROR("Wrong context %d in IRQ from target %s, use "
-			"SCST_CONTEXT_THREAD instead\n", pref_context,
+			"SCST_CONTEXT_THREAD instead", pref_context,
 			cmd->tgtt->name);
 		pref_context = SCST_CONTEXT_THREAD;
 	}
