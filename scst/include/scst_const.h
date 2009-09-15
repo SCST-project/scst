@@ -32,6 +32,9 @@
 /* Max size of various names */
 #define SCST_MAX_NAME		     50
 
+/* Max size of external names, like initiator name */
+#define SCST_MAX_EXTERNAL_NAME	     256
+
 /*
  * Size of sense sufficient to carry standard sense data.
  * Warning! It's allocated on stack!
