@@ -5281,7 +5281,7 @@ int scst_rx_mgmt_fn(struct scst_session *sess,
 	mcmd->cmd_sn = params->cmd_sn;
 
 	TRACE((params->fn == SCST_ABORT_TASK) ? TRACE_MGMT_MINOR : TRACE_MGMT,
-		"TM fn %x", params->fn);
+		"TM fn %d", params->fn);
 
 	TRACE_MGMT_DBG("sess=%p, tag_set %d, tag %lld, lun_set %d, "
 		"lun=%lld, cmd_sn_set %d, cmd_sn %d, priv %p", sess,
