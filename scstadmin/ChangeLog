@@ -1,3 +1,8 @@
+Changes for 1.0.7
+
+- Added -moveuser, -renamegroup and -ReplaceDev options and necessary -to argument.
+- Fixed minor bug in new renameGroup() method in SCST::SCST.
+
 Changes for 1.0.6
 
 - Added -resyncdev option to work with the new SCST resync_size option.

@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-$Version  = 'SCST Configurator v1.0.6';
+$Version  = 'SCST Configurator v1.0.7';
 
 # Configures SCST
 #
@@ -38,6 +38,9 @@ Device Operations
 User Operations
      -adduser <user>      : Adds a user to a security group.
          -group <group>
+     -MoveUser <user>     : Moves a user from one security group to another.
+         -group <group 1>
+         -to <group 2>
      -RemoveUser <user>   : Delete a user from a security group.
          -group <group>
      -ClearUsers          : Clear all users from a given security group.
@@ -45,10 +48,15 @@ User Operations
 
 Group Operations
      -addgroup <group>    : Add a given group to available security groups.
+     -renamegroup <group> : Renames a give group to a new name.
+         -to <new group>
      -RemoveGroup <group> : Remove a give group from available security groups.
      
 Assignment Operations
      -assigndev <device>  : Assign a given device to a security group.
+         -group <group>
+         -lun <lun>
+     -ReplaceDev <new dev>: Replaces a device assigned to a give LUN and group.
          -group <group>
          -lun <lun>
      -ReleaseDev <device> : Remove a given device from a security group.
@@ -83,6 +91,9 @@ Examples:
        
      Assign a device to a security group:
        scstadmin -assigndev DISK01 -group HOST01 -lun 1
+
+     Rename a security group:
+       scstadmin -RenameGroup HOST01 -to SERVER01
 
 EndUsage
   }
@@ -172,13 +183,18 @@ sub getArgs {
 	my $addDev;
 	my $devPath;
 	my $resyncDev;
+	my $replaceDev;
 	my $removeDev;
 	my $addUser;
+	my $moveUser;
 	my $removeUser;
 	my $clearUsers;
 	my $addGroup;
+	my $toGroup;
+	my $renameGroup;
 	my $removeGroup;
 	my $assignDev;
+	my $replaceDev;
 	my $releaseDev;
 	my $clearDevs;
 	my $devLun;
@@ -199,13 +215,17 @@ sub getArgs {
 			    'sessions'		=> \$showSessions,
 			    'adddev=s'          => \$addDev,
 			    'path=s'		=> \$devPath,
+			    'ReplaceDev=s'	=> \$replaceDev,
 			    'RemoveDev=s'       => \$removeDev,
 			    'lun=s'             => \$devLun,
 			    'adduser=s'         => \$addUser,
+			    'MoveUser=s'	=> \$moveUser,
 			    'RemoveUser=s'      => \$removeUser,
 			    'ClearUsers'        => \$clearUsers,
 			    'addgroup=s'        => \$addGroup,
+			    'to=s'		=> \$toGroup,
 			    'RemoveGroup=s'     => \$removeGroup,
+			    'renamegroup=s'	=> \$renameGroup,
 			    'assigndev=s'       => \$assignDev,
 			    'resyncdev=s'	=> \$resyncDev,
 			    'ReleaseDev=s'      => \$releaseDev,
@@ -269,6 +289,11 @@ sub getArgs {
 		usage();
 	}
 
+	if ($moveUser && (!defined($group) || !defined($toGroup))) {
+		print "Please specify -group and -to with -MoveUser.\n\n";
+		usage();
+	}
+
 	if ($removeUser && !defined($group)) {
 		print "Please specify -group with -RemoveUser.\n\n";
 		usage();
@@ -279,8 +304,18 @@ sub getArgs {
 		usage();
 	}
 
-	if ($assignDev && !(defined($group) && defined($devLun))) {
-		print "Please specify -group and -lun with -assigndev.\n\n";
+	if ($renameGroup && !defined($toGroup)) {
+		print "Please specify -to with -renamegroup.\n\n";
+		usage();
+	}
+
+	if ($assignDev && !defined($group)) {
+		print "Please specify -group with -assigndev.\n\n";
+		usage();
+	}
+
+	if ($replaceDev && (!defined($group) || !defined($devLun))) {
+		print "Please specify -group and -lun with -ReplaceDev.\n\n";
 		usage();
 	}
 
@@ -320,9 +355,9 @@ sub getArgs {
 	$checkConfig = $_DEF_CONFIG_ if (defined($checkConfig) && !$checkConfig);
 
 	return ($enable, $disable, $addDev, $devPath, $devLun, $resyncDev, $removeDev, $addUser,
-		$removeUser, $clearUsers, $addGroup, $removeGroup, $assignDev, $releaseDev,
-		$clearDevs, $handler, $group, $options, $blocksize, $applyConfig, $forceConfig,
-		$clearConfig, $writeConfig, $checkConfig, $showSessions);
+		$moveUser, $removeUser, $clearUsers, $addGroup, $renameGroup, $toGroup, $removeGroup,
+		$assignDev, $replaceDev, $releaseDev, $clearDevs, $handler, $group, $options, $blocksize,
+		$applyConfig, $forceConfig, $clearConfig, $writeConfig, $checkConfig, $showSessions);
 }
 
 sub main {
@@ -334,9 +369,9 @@ sub main {
 	if ( $> ) {die("This program must run as root.\n");}
 
 	my ($enable, $disable, $addDev, $devPath, $devLun, $resyncDev, $removeDev, $addUser,
-	    $removeUser, $clearUsers, $addGroup, $removeGroup, $assignDev, $releaseDev,
-	    $clearDevs, $handler, $group, $options, $blocksize, $applyConfig, $forceConfig,
-	    $clearConfig, $writeConfig, $checkConfig, $showSessions) = getArgs();
+	    $moveUser, $removeUser, $clearUsers, $addGroup, $renameGroup, $toGroup, $removeGroup,
+	    $assignDev, $replaceDev, $releaseDev, $clearDevs, $handler, $group, $options, $blocksize,
+	    $applyConfig, $forceConfig, $clearConfig, $writeConfig, $checkConfig, $showSessions) = getArgs();
 
 	$SCST = new SCST::SCST($_DEBUG_);
 
@@ -388,6 +423,10 @@ sub main {
 			$rc = addUser($group, $addUser);
 			last SWITCH;
 		};
+		$moveUser && do {
+			$rc = moveUser($group, $moveUser, $toGroup);
+			last SWITCH;
+		};
 		$removeUser && do {
 			$rc = removeUser($group, $removeUser);
 			last SWITCH;
@@ -400,12 +439,20 @@ sub main {
 			$rc = addGroup($addGroup);
 			last SWITCH;
 		};
+		$renameGroup && do {
+			$rc = renameGroup($renameGroup, $toGroup);
+			last SWITCH;
+		};
 		$removeGroup && do {
 			$rc = removeGroup($removeGroup);
 			last SWITCH;
 		};
 		$assignDev && do {
 			$rc = assignDevice($group, $assignDev, $devLun);
+			last SWITCH;
+		};
+		$replaceDev && do {
+			$rc = replaceDevice($group, $replaceDev, $devLun);
 			last SWITCH;
 		};
 		$releaseDev && do {
@@ -1136,6 +1183,29 @@ sub addGroup {
 	return $FALSE;
 }
 
+sub renameGroup {
+	my $group = shift;
+	my $toGroup = shift;
+
+	if (defined($GROUPS{$toGroup})) {
+		print "WARNING: Group '$toGroup' already exists.\n";
+		return $TRUE;
+	}
+
+	print "\t-> Renaming security group '$group' to '$toGroup'..\n";
+
+	if ($SCST->renameGroup($group, $toGroup)) {
+		print "WARNING: Failed to rename security group '$group' to ".
+		  "'$toGroup': ".$SCST->errorString()."\n";
+		return $TRUE;
+	}
+
+	delete $GROUPS{$group};
+	$GROUPS{$toGroup}++;
+
+	return $FALSE;
+}
+
 sub removeGroup {
 	my $group = shift;
 
@@ -1182,6 +1252,35 @@ sub addUser {
 	}
 
 	$USERS{$group}->{$user}++;
+
+	return $FALSE;
+}
+
+sub moveUser {
+	my $group = shift;
+	my $user = shift;
+	my $toGroup = shift;
+
+	if (!defined($GROUPS{$group})) {
+		print "WARNING: Failed to move user '$user' from group '$group', group does not exist.\n";
+		return $TRUE;
+	}
+
+	if (defined($USERS{$toGroup}->{$user})) {
+		print "WARNING: User '$user' already exists in security group '$toGroup'.\n";
+		return $TRUE;
+	}
+
+	print "\t-> Moving user '$user' from security group '$group' to security group '$toGroup'..\n";
+
+	if ($SCST->moveUser($user, $group, $toGroup)) {
+		print "WARNING: Failed to move user '$user' from security group '$group' to ".
+		  "security group '$toGroup': ".$SCST->errorString()."\n";
+		return $TRUE;
+	}
+
+	delete $USERS{$group}->{$user};
+	$USERS{$toGroup}->{$user}++;
 
 	return $FALSE;
 }
@@ -1291,6 +1390,52 @@ sub assignDevice {
 	my $_assignments = $ASSIGNMENTS{$group};
 
 	$$_assignments{$device} = $lun; 
+
+	return $FALSE;
+}
+
+sub replaceDevice {
+	my $group = shift;
+	my $newDevice = shift;
+	my $lun = shift;
+	my %allLuns;
+
+	# Put luns into something easier to parse..
+	foreach my $_group (keys %ASSIGNMENTS) {
+		my $_gAssigns = $ASSIGNMENTS{$_group};
+
+		foreach my $_device (keys %{$_gAssigns}) {
+			@{$allLuns{$_group}}[$$_gAssigns{$_device}] = $_device;
+		}
+	}
+			
+	if (!defined($$DEVICES{$newDevice})) {
+		print "WARNING: Unable to assign non-existant device '$newDevice' to group '$group'.\n";
+		return $TRUE;
+	}
+
+	if (${$allLuns{$group}}[$lun] eq $newDevice) {
+		print "ERROR: Device '$newDevice': Lun '$lun' is already assigned to device '$newDevice'.\n";
+		return $TRUE;
+	}
+
+	print "\t-> Replace device at LUN '$lun' in group '$group' with new device '$newDevice'..\n";
+
+	if ($SCST->replaceDeviceInGroup($newDevice, $group, $lun)) {
+		print "WARNING: Failed to replace LUN '$lun' in group '$group' with new device '$newDevice': ".
+		  $SCST->errorString()."\n";
+		return $TRUE;
+	}
+
+	if (!defined($ASSIGNMENTS{$group})) {
+		my %assignments_t;
+		$ASSIGNMENTS{$group} = \%assignments_t;
+	}
+
+	my $_assignments = $ASSIGNMENTS{$group};
+
+	delete $$_assignments{${$allLuns{$group}}[$lun]};
+	$$_assignments{$newDevice} = $lun;
 
 	return $FALSE;
 }

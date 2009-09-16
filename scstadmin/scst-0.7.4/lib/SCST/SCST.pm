@@ -252,7 +252,7 @@ sub renameGroup {
 	my $oldName = shift;
 	my $newName = shift;
 
-	if ($self->groupExists($oldName)) {
+	if (!$self->groupExists($oldName)) {
 		$self->{'error'} = "renameGroup(): Group '$oldName' doesn't exist";
 		return 1;
 	}
