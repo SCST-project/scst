@@ -52,7 +52,7 @@ $IOTYPE_PHYSICAL    = 100;
 $IOTYPE_VIRTUAL     = 101;
 $IOTYPE_PERFORMANCE = 102;
 
-$VERSION = 0.8.1;
+$VERSION = 0.8.2;
 
 my $_SCST_MIN_MAJOR_   = 1;
 my $_SCST_MIN_MINOR_   = 0;
@@ -874,6 +874,9 @@ sub assignDeviceToGroup {
 	my $device = shift;
 	my $group = shift;
 	my $lun = shift;
+	my $readOnly = shift;
+
+	$readOnly = 'READ_ONLY' if (defined($readOnly) && $readOnly);
 
 	if (!$self->groupExists($group)) {
 		$self->{'error'} = "assignDeviceToGroup(): Group '$group' does not exist";
@@ -886,7 +889,7 @@ sub assignDeviceToGroup {
 		return 2;
 	}
 
-	my $cmd = "add $device $lun\n";
+	my $cmd = "add $device $lun $readOnly\n";
 
 	my $rc = $self->group_private($group, $_SCST_DEVICES_IO_, $cmd);
 
@@ -908,6 +911,9 @@ sub replaceDeviceInGroup {
 	my $newDevice = shift;
 	my $group = shift;
 	my $lun = shift;
+	my $readOnly = shift;
+
+	$readOnly = 'READ_ONLY' if (defined($readOnly) && $readOnly);
 
 	if (!$self->groupExists($group)) {
 		$self->{'error'} = "replaceDeviceInGroup(): Group '$group' does not exist";
@@ -920,7 +926,7 @@ sub replaceDeviceInGroup {
 		return 2;
 	}
 
-	my $cmd = "replace $newDevice $lun\n";
+	my $cmd = "replace $newDevice $lun $readOnly\n";
 
 	my $rc = $self->group_private($group, $_SCST_DEVICES_IO_, $cmd);
 
@@ -1413,7 +1419,7 @@ Assigns the specified device to the specified security group. Returns
 0 upon success, 1 if unsuccessfull and 2 if the device has already
 been assigned to the specified security group.
 
-Arguments: (string) $device, (string) $group, (int) $lun
+Arguments: (string) $device, (string) $group, (int) $lun [, (bool) $rd_only]
 
 Returns: (int) $success
 
@@ -1424,7 +1430,7 @@ specified security group with $newDevice. Returns 0 upon success, 1
 if unsuccessfull and 2 if the device has already been assigned to
 the specified security group.
 
-Arguments: (string) $newDevice, (string) $group, (int) $lun
+Arguments: (string) $newDevice, (string) $group, (int) $lun [, (bool) $rd_only]
 
 Returns (int) $success
 
