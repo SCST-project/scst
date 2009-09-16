@@ -52,7 +52,7 @@ $IOTYPE_PHYSICAL    = 100;
 $IOTYPE_VIRTUAL     = 101;
 $IOTYPE_PERFORMANCE = 102;
 
-$VERSION = 0.8.0;
+$VERSION = 0.8.1;
 
 my $_SCST_MIN_MAJOR_   = 1;
 my $_SCST_MIN_MINOR_   = 0;
@@ -245,6 +245,39 @@ sub removeGroup {
 
 	return 0 if ($self->{'debug'});
 	return $self->groupExists($group);
+}
+
+sub renameGroup {
+	my $self = shift;
+	my $oldName = shift;
+	my $newName = shift;
+
+	if ($self->groupExists($oldName)) {
+		$self->{'error'} = "renameGroup(): Group '$oldName' doesn't exist";
+		return 1;
+	}
+
+	return 2 if ($self->groupExists($newName));
+
+	my $io = new IO::File $_SCST_IO_, O_WRONLY;
+
+	if (!$io) {
+		$self->{'error'} = "renameGroup(): Failed to open handler IO '$_SCST_IO_'";
+		return 1;
+	}
+
+	my $cmd = "rename_group $oldName $newName\n";
+
+	if ($self->{'debug'}) {
+		print "DBG($$): $_SCST_IO_ -> $cmd\n";
+	} else {
+		print $io $cmd;
+	}
+
+	close $io;
+
+	return 0 if ($self->{'debug'});
+	return !$self->groupExists($newName);
 }
 
 sub sgvStats {
@@ -1194,6 +1227,11 @@ Returns: (int) $success
 
 Removes a group from SCST's configuration. Returns 0 upon success, 1 if
 unsuccessfull and 2 if group does not exist.
+
+=item SCST::SCST->renameGroup();
+
+Renames an already existing group. Returns 0 upon success, 1 if unsuccessfull
+or 2 if the new group name already exists.
 
 =item SCST::SCST->sgvStats();
 
