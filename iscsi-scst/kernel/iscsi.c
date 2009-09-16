@@ -1978,7 +1978,7 @@ static void execute_task_management(struct iscsi_cmnd *req)
 
 	if ((function != ISCSI_FUNCTION_ABORT_TASK) &&
 	    (req_hdr->rtt != ISCSI_RESERVED_TAG)) {
-		PRINT_ERROR("Invalid RTT %x (TM fn %x)", req_hdr->rtt,
+		PRINT_ERROR("Invalid RTT %x (TM fn %d)", req_hdr->rtt,
 			function);
 		rc = -1;
 		status = ISCSI_RESPONSE_FUNCTION_REJECTED;
@@ -2915,7 +2915,7 @@ static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status)
 
 	spin_lock(&sess->sn_lock);
 	if (iscsi_is_delay_tm_resp(rsp)) {
-		TRACE(TRACE_MGMT_MINOR, "Delaying TM fn %x response %p "
+		TRACE(TRACE_MGMT_MINOR, "Delaying TM fn %d response %p "
 			"(req %p), because not all affected commands received "
 			"(TM cmd sn %u, exp sn %u)",
 			req_hdr->function & ISCSI_FUNCTION_MASK, rsp, req,
