@@ -52,11 +52,11 @@ $IOTYPE_PHYSICAL    = 100;
 $IOTYPE_VIRTUAL     = 101;
 $IOTYPE_PERFORMANCE = 102;
 
-$VERSION = 0.7.9;
+$VERSION = 0.8.0;
 
-my $_SCST_MIN_MAJOR_   = 0;
-my $_SCST_MIN_MINOR_   = 9;
-my $_SCST_MIN_RELEASE_ = 6;
+my $_SCST_MIN_MAJOR_   = 1;
+my $_SCST_MIN_MINOR_   = 0;
+my $_SCST_MIN_RELEASE_ = 2;
 
 my %_IO_MAP_ = ($CDROM_TYPE => $_SCST_CDROM_IO_,
 		$CHANGER_TYPE => $_SCST_CHANGER_IO_,
@@ -679,6 +679,49 @@ sub removeUser {
 	return $rc;
 }
 
+sub moveUser {
+	my $self = shift;
+	my $user = shift;
+	my $fromGroup = shift;
+	my $toGroup = shift;
+
+	if (!$self->groupExists($fromGroup)) {
+		$self->{'error'} = "moveUser(): Group '$fromGroup' does not exist";
+		return 1;
+	}
+
+	if (!$self->groupExists($toGroup)) {
+		$self->{'error'} = "moveUser(): Group '$toGroup' does not exist";
+		return 1;
+	}
+
+	if (!$self->userExists($user, $fromGroup)) {
+		$self->{'error'} = "addUser(): User '$user' doesn't exist in group '$fromGroup'";
+		return 1;
+	}
+
+	if ($self->userExists($user, $toGroup)) {
+		$self->{'error'} = "addUser(): User '$user' already exists in group '$toGroup'";
+		return 2;
+	}
+
+	my $cmd = "move $user $toGroup\n";
+
+	my $rc = $self->group_private($fromGroup, $_SCST_USERS_IO_, $cmd);
+
+	return 0 if ($self->{'debug'});
+	return $rc if ($rc);
+
+	$rc = !$self->userExists($user, $toGroup);
+
+	if ($rc) {
+		$self->{'error'} = "addUser(): An error occured while moving user '$user' from group '$fromGroup' ".
+		  "to group '$toGroup'. See dmesg/kernel log for more information.";
+	}
+
+	return $rc;
+}
+
 sub clearUsers {
 	my $self = shift;
 	my $group = shift;
@@ -822,6 +865,40 @@ sub assignDeviceToGroup {
 	if ($rc) {
 		$self->{'error'} = "assignDeviceToGroup(): An error occured while assigning device '$device' ".
 		  "to group '$group'. See dmesg/kernel log for more information.";
+	}
+
+	return $rc;
+}
+
+sub replaceDeviceInGroup {
+	my $self = shift;
+	my $newDevice = shift;
+	my $group = shift;
+	my $lun = shift;
+
+	if (!$self->groupExists($group)) {
+		$self->{'error'} = "replaceDeviceInGroup(): Group '$group' does not exist";
+		return 1;
+	}
+
+	if ($self->groupDeviceExists($newDevice, $group, $lun)) {
+		$self->{'error'} = "replaceDeviceInGroup(): Device '$newDevice' is already ".
+		  "assigned to group '$group'";
+		return 2;
+	}
+
+	my $cmd = "replace $newDevice $lun\n";
+
+	my $rc = $self->group_private($group, $_SCST_DEVICES_IO_, $cmd);
+
+	return 0 if ($self->{'debug'});
+	return $rc if ($rc);
+
+	$rc = !$self->groupDeviceExists($newDevice, $group, $lun);
+
+	if ($rc) {
+		$self->{'error'} = "replaceDeviceInGroup(): An error occured while replacing lun '$lun' with ".
+		  " device '$newDevice' in group '$group'. See dmesg/kernel log for more information.";
 	}
 
 	return $rc;
@@ -1236,6 +1313,17 @@ Arguments: (string) $user, (string) $group
 
 Returns: (int) $success
 
+=item SCST::SCST->moveUser();
+
+Moves a user from one group to another. Both groups must be defined
+and user must already exist in the first group. Returns 0 upon
+success, 1 if unsuccessfull and 2 if the user already exists in the
+second group.
+
+Arguments: (string) $user, (string) $fromGroup, (string) $toGroup
+
+Returns: (int) $success
+
 =item SCST::SCST->clearUsers();
 
 Removes all users from the specified security group. Returns 0 upon
@@ -1290,6 +1378,17 @@ been assigned to the specified security group.
 Arguments: (string) $device, (string) $group, (int) $lun
 
 Returns: (int) $success
+
+=item SCST::SCST->replaceDeviceInGroup();
+
+Replaces an already assigned device to the specified lun in a
+specified security group with $newDevice. Returns 0 upon success, 1
+if unsuccessfull and 2 if the device has already been assigned to
+the specified security group.
+
+Arguments: (string) $newDevice, (string) $group, (int) $lun
+
+Returns (int) $success
 
 =item SCST::SCST->assignDeviceToHandler();
 
