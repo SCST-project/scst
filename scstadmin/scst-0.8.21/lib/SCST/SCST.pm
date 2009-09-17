@@ -12,17 +12,8 @@ use Carp qw(cluck);
 
 my $_SCST_DIR_           = '/proc/scsi_tgt';
 my $_SCST_IO_            = $_SCST_DIR_.'/scsi_tgt';
-my $_SCST_CDROM_IO_      = $_SCST_DIR_.'/dev_cdrom/dev_cdrom';
-my $_SCST_CHANGER_IO_    = $_SCST_DIR_.'/dev_changer/dev_changer';
-my $_SCST_DISK_IO_       = $_SCST_DIR_.'/dev_disk/dev_disk';
-my $_SCST_DISKP_IO_      = $_SCST_DIR_.'/dev_disk_perf/dev_disk_perf';
-my $_SCST_MODISK_IO_     = $_SCST_DIR_.'/dev_modisk/dev_modisk';
-my $_SCST_MODISKP_IO_    = $_SCST_DIR_.'/dev_modisk_perf/dev_modisk_perf';
-my $_SCST_TAPE_IO_       = $_SCST_DIR_.'/dev_tape/dev_tape';
-my $_SCST_TAPEP_IO_      = $_SCST_DIR_.'/dev_tape_perf/dev_tape_perf';
 my $_SCST_VDISK_IO_      = $_SCST_DIR_.'/vdisk/vdisk';
 my $_SCST_VCDROM_IO_     = $_SCST_DIR_.'/vcdrom/vcdrom';
-my $_SCST_PROCESSOR_IO_  = $_SCST_DIR_.'/dev_processor/dev_processor';
 my $_SCST_GROUPS_DIR_    = $_SCST_DIR_.'/groups';
 my $_SCST_SGV_STATS_     = $_SCST_DIR_.'/sgv';
 my $_SCST_SESSIONS_      = $_SCST_DIR_.'/sessions';
@@ -58,17 +49,8 @@ my $_SCST_MIN_MAJOR_   = 1;
 my $_SCST_MIN_MINOR_   = 0;
 my $_SCST_MIN_RELEASE_ = 2;
 
-my %_IO_MAP_ = ($CDROM_TYPE => $_SCST_CDROM_IO_,
-		$CHANGER_TYPE => $_SCST_CHANGER_IO_,
-		$DISK_TYPE => $_SCST_DISK_IO_,
-		$VDISK_TYPE => $_SCST_VDISK_IO_,
-		$VCDROM_TYPE => $_SCST_VCDROM_IO_,
-		$DISKPERF_TYPE => $_SCST_DISKP_IO_,
-		$MODISK_TYPE => $_SCST_MODISK_IO_,
-		$MODISKPERF_TYPE => $_SCST_MODISKP_IO_,
-		$TAPE_TYPE => $_SCST_TAPE_IO_,
-		$TAPEPERF_TYPE => $_SCST_TAPEP_IO_,
-		$PROCESSOR_TYPE => $_SCST_PROCESSOR_IO_);
+my %_IO_MAP_ = ($VDISK_TYPE => $_SCST_VDISK_IO_,
+		$VCDROM_TYPE => $_SCST_VCDROM_IO_);
 
 my %_TYPE_MAP_ = ('dev_cdrom' => $CDROM_TYPE,
 		  'dev_changer' => $CHANGER_TYPE,
@@ -417,7 +399,7 @@ sub handlerDevices {
 	my $io = new IO::File $handler_io, O_RDONLY;
 
 	if (!$io) {
-		cluck("WARNING: handlerDevices(): Failed to open handler IO $handler_io, assuming disabled");
+		print "\nWARNING: handlerDevices(): Failed to open handler IO $handler_io, assuming disabled.\n\n";
 		return \%devices; # Return an empty hash
 	}
 

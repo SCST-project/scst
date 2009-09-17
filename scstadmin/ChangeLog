@@ -3,6 +3,10 @@ Changes for 1.0.9
 - Move a user from one group to another when applying the configuration instead
   of deleting from one and adding to another the same user.
 - Add the ability to specify options (ie: READ_ONLY) in assignments in scst.conf.
+- Remove unused references to handler IOs that don't exist and cleanup the write
+  configuration function to only write vdisk and vcdrom devices. All other devices
+  are automatically claimed by their handler module. I'm not sure how this will work
+  with devices we wish to change handlers for.
 - Minor fix to readConfig() which wasn't fully allowing for empty groups.
 
 Changes for 1.0.8

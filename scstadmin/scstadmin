@@ -556,35 +556,32 @@ sub writeConfiguration {
 
 	# Device information
 	foreach my $handler (sort keys %HANDLERS) {
-		print $io "[HANDLER ".$_REVERSE_MAP_{$handler}."]\n";
-
 		if ($SCST->handlerType($handler) == $SCST::SCST::IOTYPE_VIRTUAL) {
+			print $io "[HANDLER ".$_REVERSE_MAP_{$handler}."]\n";
 			print $io "#DEVICE <vdisk name>,<device path>";
 			if ($handler == $SCST::SCST::VDISK_TYPE) {
 				print $io ",<options>,<block size>\n";
 			} else {
 				print $io "\n";
 			}
-		} else {
-			print $io "#DEVICE <H:C:I:L>\n";
-		}
 
-		my $devices = $SCST->handlerDevices($handler);
+			my $devices = $SCST->handlerDevices($handler);
 
-		immediateExit($SCST->errorString());
+			immediateExit($SCST->errorString());
 
-		foreach my $device (sort keys %{$devices}) {
-			my $options = $$devices{$device}->{'OPTIONS'};
+			foreach my $device (sort keys %{$devices}) {
+				my $options = $$devices{$device}->{'OPTIONS'};
 
-			$options =~ s/\,/\|/g;
+				$options =~ s/\,/\|/g;
 
-			print $io "DEVICE $device,".$$devices{$device}->{'PATH'};
-			print $io ",$options";
-			print $io ",".$$devices{$device}->{'BLOCKSIZE'};
+				print $io "DEVICE $device,".$$devices{$device}->{'PATH'};
+				print $io ",$options";
+				print $io ",".$$devices{$device}->{'BLOCKSIZE'};
+				print $io "\n";
+			}
+
 			print $io "\n";
 		}
-
-		print $io "\n";
 	}
 
 	# User configuration
@@ -1721,6 +1718,27 @@ sub findUserGroupInCurrent {
 			return $group if ($_user eq $user);
 		}
 	}
+
+	return undef;
+}
+
+sub findDeviceGroup {
+	my $device = shift;
+	my $config = shift;
+
+	foreach my $group (keys %{$$config{'ASSIGNMENT'}}) {
+		foreach my $device (@{$$config{'ASSIGNMENT'}->{$group}->{'DEVICE'}}) {
+			my($vname, $arg) = split(/\,/, $device, 2);
+			$vname = cleanupString($vname);
+			return $group if ($vname eq $device);
+		}
+	}
+
+	return undef;
+}
+
+sub findDeviceGroupInCurrent {
+	my $device = shift;
 
 	return undef;
 }
