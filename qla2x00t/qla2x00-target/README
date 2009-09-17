@@ -13,8 +13,9 @@ Mode, when a host acts as the initiator and the target simultaneously,
 is supported as well.
 
 This version is compatible with SCST core version 1.0.2 and higher and
-Linux kernel 2.6.26 and higher. If you need to use this driver on
-kernels prior 2.6.26, you should apply qla_ini_pre-2.6.26.patch.
+Linux kernel 2.6.26 and higher. Sorry, kernels below 2.6.26 are not
+supported, because it's too hard to backport used initiator driver to
+older kernels.
 
 The original initiator driver was taken from the kernel 2.6.26.
 
