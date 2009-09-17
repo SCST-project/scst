@@ -1,15 +1,15 @@
 <html>
 <head>
 <title>
-How to configure QLogic target driver for 22xx/23xx cards
+How to configure QLogic target driver for 22xx/23xx/24xx/25xx adapters
 </title>
 <body>
 
-<div style="text-align: center;"> <strong>How to configure QLogic target driver for 22xx/23xx cards. Step by step guide.</strong></br></br></div>
+<div style="text-align: center;"> <strong>How to configure QLogic target driver for 22xx/23xx/24xx/25xx adapters. Step by step guide.</strong></br></br></div>
 
                     <div style="text-align: center;"> <strong>ON TARGET</strong></div><br><br>
 
-1: Get the Linux kernel sources for version >= 2.6.16 from kernel.org</br>
+1: Get the Linux kernel sources for version >= 2.6.26 from kernel.org</br>
     <br>I've downloaded kernel version 2.6.26</br>
     <br><a href="ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-2.6.26.tar.bz2">ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-2.6.26.tar.bz2</a></br></br></br>
 
@@ -51,8 +51,6 @@ How to configure QLogic target driver for 22xx/23xx cards
     AskingQuestions        iscsi-release.patch  mpt                       qla2x00t-release.patch  scripts    scst-full_perf.patch  usr                  www
     doc                    iscsi-scst           qla2x00t                  qla_isp                 scst       scst-release.patch    usr-full_perf.patch
     iscsi-full_perf.patch  Makefile             qla2x00t-full_perf.patch  README                  scstadmin  srpt                  usr-release.patch</br></br>
-
-    For kernels < 2.6.26 you should use ~scst/branches/1.0.0.x/ instead, because qla2x00t driver in trunk/ doesn't support those kernels (see its README).</br></br></br>
 
 7:  Patch the kernel (the kernel version you've downloaded in step 1)</br>
     [root@proj ] cp /root/scst/trunk/scst/kernel/scst_exec_req_fifo-2.6.26.patch /usr/src</br></br>
