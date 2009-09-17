@@ -886,7 +886,8 @@ sub assignDeviceToGroup {
 	($options, $valid_opts) = $self->checkOptions($options, 'ASSIGN');
 
 	if (!$valid_opts) {
-		$self->{'error'} = "assignDeviceToGroup(): Invalid option(s) '$options' given for device '$device'";
+		$self->{'error'} = "assignDeviceToGroup(): Invalid option(s) '$options' given for ".
+		  "device '$device' in assignment";
 		return 1;
 	}
 

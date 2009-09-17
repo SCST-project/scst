@@ -68,3 +68,9 @@ NOTE! Section "[TARGETS enable]" in the config file is for qla2x00t driver only!
 
 Mark.Buechler@gmail.com
 
+
+To Do:
+======
+
+- Compare device and assignment options between current and saved configurations and
+  reopen/reassign as required if -ForceConfig is used.
