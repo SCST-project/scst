@@ -35,7 +35,7 @@
 				<h1>Target Drivers</h1>
 				<ul class="sidemenu">
 					<li><a href="target_iscsi.html">iSCSI-SCST</a></li>
-					<li><a href="target_qla22xx_23xx.html">QLogic FC 22xx/23xx</a></li>
+					<li><a href="target_qla2x00t.html">QLogic FC QLA2X00T</a></li>
 					<li><a href="target_qla_isp.html">QLogic FC ISP</a></li>
 					<li><a href="target_srp.html">SCSI RDMA Protocol (SRP)</a></li>
 					<li><a href="target_mvsas.html">Marvell SAS adapters</a></li>
@@ -61,9 +61,9 @@
 				<a href="http://www.feral.com/isp.html">http://www.feral.com/isp.html</a>. The update for SCST was made by 
 				Stanislaw Gruszka for Open-E Inc.</p>
 
-				<p>This driver operates on the same hardware as the qla2x00t target driver, but has one notable 
-				advantage over it: <strong>support of 24xx (4Gbps) and 25xx (8Gbps) series of QLogic adapters</strong>.
-				From other side, qla2x00t is simpler, smaller and much better tested on 22xx and 23xx, hence perform more
+				<p>This driver operates on the same hardware as the qla2x00t target driver, but, comparing to version 1.0.1.1
+				of it, has two notable advantages: support of 24xx (4Gbps) and 25xx (8Gbps) series of QLogic adapters as well
+				as NPIV support. From other side, qla2x00t is simpler, smaller and much better tested on 22xx and 23xx, hence perform more
 				reliable and, thus, is recommended for these adapters.</p>
 
 				<p>The latest release is 1.0.1. It does not support 25xx chipsets yet and can be compiled with Linux

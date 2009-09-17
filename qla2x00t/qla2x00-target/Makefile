@@ -2,7 +2,9 @@
 #  Qlogic 2x00 SCSI target driver makefile
 #  
 #  Copyright (C) 2004 - 2009 Vladislav Bolkhovitin <vst@vlnb.net>
+#  Copyright (C) 2004 - 2009 Vladislav Bolkhovitin <vst@vlnb.net>
 #  Copyright (C) 2004 - 2005 Leonid Stoljar
+#  Copyright (C) 2006 - 2009 ID7 Ltd.
 #  
 #  This program is free software; you can redistribute it and/or
 #  modify it under the terms of the GNU General Public License
@@ -41,6 +43,7 @@ EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
 #EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
 EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g
 #EXTRA_CFLAGS += -DCONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
+#EXTRA_CFLAGS += -DCONFIG_QLA_TGT_DEBUG_SRR
 
 ifeq ($(KVER),)
   ifeq ($(KDIR),)

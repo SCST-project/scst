@@ -94,7 +94,6 @@
 #define LSD(x)	((uint32_t)((uint64_t)(x)))
 #define MSD(x)	((uint32_t)((((uint64_t)(x)) >> 16) >> 16))
 
-
 /*
  * I/O register
 */
@@ -181,6 +180,7 @@
 #define REQUEST_ENTRY_CNT_24XX		4096	/* Number of request entries. */
 #define RESPONSE_ENTRY_CNT_2100		64	/* Number of response entries.*/
 #define RESPONSE_ENTRY_CNT_2300		512	/* Number of response entries.*/
+#define ATIO_ENTRY_CNT_24XX		4096	/* Number of ATIO entries. */
 
 /*
  * SCSI Request Block
@@ -466,7 +466,7 @@ typedef struct {
 #define MBA_SYSTEM_ERR		0x8002	/* System Error. */
 #define MBA_REQ_TRANSFER_ERR	0x8003	/* Request Transfer Error. */
 #define MBA_RSP_TRANSFER_ERR	0x8004	/* Response Transfer Error. */
-#define MBA_WAKEUP_THRES	0x8005	/* Request Queue Wake-up. */
+#define MBA_ATIO_TRANSFER_ERR	0x8005	/* ATIO Queue Transfer Error. */
 #define MBA_LIP_OCCURRED	0x8010	/* Loop Initialization Procedure */
 					/* occurred. */
 #define MBA_LOOP_UP		0x8011	/* FC Loop UP. */
@@ -864,8 +864,7 @@ struct link_statistics {
 	uint32_t prim_seq_err_cnt;
 	uint32_t inval_xmit_word_cnt;
 	uint32_t inval_crc_cnt;
-	uint32_t lip_cnt;
-	uint32_t unused1[0x1a];
+	uint32_t unused1[0x1b];
 	uint32_t tx_frames;
 	uint32_t rx_frames;
 	uint32_t dumped_frames;
@@ -1130,10 +1129,26 @@ typedef struct {
  * ISP queue - response queue entry definition.
  */
 typedef struct {
-	uint8_t		data[60];
+	uint8_t		entry_type;		/* Entry type. */
+	uint8_t		entry_count;		/* Entry count. */
+	uint8_t		sys_define;		/* System defined. */
+	uint8_t		entry_status;		/* Entry Status. */
+	uint32_t	handle;			/* System defined handle */
+	uint8_t		data[52];
 	uint32_t	signature;
 #define RESPONSE_PROCESSED	0xDEADDEAD	/* Signature */
 } response_t;
+
+/*
+ * ISP queue - ATIO queue entry definition.
+ */
+typedef struct {
+	uint8_t  entry_type;
+	uint8_t  entry_count;
+	uint8_t  data[58];
+	uint32_t signature;
+#define ATIO_PROCESSED	0xDEADDEAD	/* Signature */
+} atio_t;
 
 typedef union {
 	uint16_t extended;
@@ -1529,6 +1544,8 @@ typedef struct fc_port {
 
 	uint8_t node_name[WWN_SIZE];
 	uint8_t port_name[WWN_SIZE];
+	/* True, if confirmed completion is supported */
+	uint8_t conf_compl_supported:1;
 	port_id_t d_id;
 	uint16_t loop_id;
 	uint16_t old_loop_id;
@@ -1545,6 +1562,7 @@ typedef struct fc_port {
 	int login_retry;
 	atomic_t port_down_timer;
 
+	spinlock_t rport_lock;
 	struct fc_rport *rport, *drport;
 	u32 supported_classes;
 
@@ -2155,10 +2173,6 @@ struct qla_chip_state_84xx {
 	uint32_t gold_fw_version;
 };
 
-struct qla_statistics {
-	uint32_t total_isp_aborts;
-};
-
 /*
  * Linux Host Adapter structure
  */
@@ -2170,6 +2184,7 @@ typedef struct scsi_qla_host {
 	struct pci_dev	*pdev;
 
 	unsigned long	host_no;
+	unsigned long	instance;
 
 	volatile struct {
 		uint32_t	init_done		:1;
@@ -2197,10 +2212,6 @@ typedef struct scsi_qla_host {
 		uint32_t	npiv_supported		:1;
 		uint32_t	fce_enabled		:1;
 		uint32_t	hw_event_marker_found	:1;
-#ifdef CONFIG_SCSI_QLA2XXX_TARGET
-		uint32_t	enable_target_mode	:1;
-		uint32_t	host_shutting_down	:1;
-#endif
 	} flags;
 
 	atomic_t	loop_state;
@@ -2241,7 +2252,6 @@ typedef struct scsi_qla_host {
 #define REGISTER_FDMI_NEEDED	26
 #define FCPORT_UPDATE_NEEDED	27
 #define VP_DPC_NEEDED		28	/* wake up for VP dpc handling */
-#define UNLOADING		29
 
 	uint32_t	device_flags;
 #define DFLG_LOCAL_DEVICES		BIT_0
@@ -2338,6 +2348,28 @@ typedef struct scsi_qla_host {
 	uint16_t        rsp_ring_index;     /* Current index. */
 	uint16_t	response_q_length;
 
+	/* Protected by hw lock */
+	unsigned int	enable_class_2		:1;
+#ifdef CONFIG_SCSI_QLA2XXX_TARGET
+	unsigned int	enable_explicit_conf	:1;
+	unsigned int	host_shutting_down	:1;
+
+	dma_addr_t	atio_dma;           /* Physical address. */
+	atio_t		*atio_ring;         /* Base virtual address */
+	atio_t		*atio_ring_ptr;     /* Current address. */
+	uint16_t        atio_ring_index;    /* Current index. */
+	uint16_t	atio_q_length;
+
+	/*
+	 * Protected by tgt_mutex AND hardware_lock for writing and
+	 * tgt_mutex OR hardware_lock for reading.
+	 */
+	struct q2t_tgt	*tgt;
+
+	struct q2t_cmd	*cmds[MAX_OUTSTANDING_COMMANDS];
+	uint16_t	current_handle;
+#endif /* CONFIG_SCSI_QLA2XXX_TARGET */
+
 	struct isp_operations *isp_ops;
 
 	/* Outstandings ISP commands. */
@@ -2411,13 +2443,19 @@ typedef struct scsi_qla_host {
 
 	struct list_head	work_list;
 
-	/*
-	 * Fibre Channel Device List.
-	 *
-	 * This list can be accessed from many contexts, including concurrently.
-	 * So, although anything never deleted from this list, it needs the
-	 * corresponding protection anyway. Let's do it by making access to
-	 * it using RCU functions.
+	/* 
+	 * To surprise, fcports list isn't anyhow protected, although it can be
+	 * accessed from many contexts, including concurrently. Seems, the
+	 * original author of this code thought that if anything never deleted
+	 * from this list, it is always safe to travel over it without any
+	 * protection. Obviously, this isn't true. (The whole decision to keep
+	 * stale entries forever is quite questionable as well.) We will fix
+	 * that making access to fcports list using RCU functions. This isn't
+	 * a complete solution, because it isn't clear if it's safe if some
+	 * function going over this list misses just added entry, but definitely
+	 * better, than currently. Also, most likely, fcports isn't the only
+	 * variable in this structure wrongly accessed in an unprotected
+	 * manner, so ToDo. VLNB.
 	 */
 	struct list_head	fcports;
 
@@ -2523,7 +2561,8 @@ typedef struct scsi_qla_host {
 	uint32_t	hw_event_ptr;
 	uint32_t	hw_event_pause_errors;
 
-	uint8_t		host_str[16];
+#define HA_HOST_STR_SIZE 16
+	uint8_t		host_str[HA_HOST_STR_SIZE];
 	uint32_t	pci_attr;
 	uint16_t	chip_revision;
 
@@ -2531,7 +2570,7 @@ typedef struct scsi_qla_host {
 
 	uint8_t		model_number[16+1];
 #define BINZERO		"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
-	char		model_desc[80];
+	char		*model_desc;
 	uint8_t		adapter_id[16+1];
 
 	uint8_t		*node_name;
@@ -2578,12 +2617,6 @@ typedef struct scsi_qla_host {
 	uint16_t	zio_timer;
 	struct fc_host_statistics fc_host_stat;
 
-#ifdef CONFIG_SCSI_QLA2XXX_TARGET
-	struct q2t_cmd	*cmds[MAX_OUTSTANDING_COMMANDS];
-	uint16_t	current_cmd;
-	struct q2t_tgt	*tgt;
-#endif /* CONFIG_SCSI_QLA2XXX_TARGET */
-
 	struct qla_msix_entry msix_entries[QLA_MSIX_ENTRIES];
 
 	struct list_head	vp_list;	/* list of VP */
@@ -2592,6 +2625,18 @@ typedef struct scsi_qla_host {
 	uint16_t        num_vhosts;	/* number of vports created */
 	uint16_t        num_vsans;	/* number of vsan created */
 	uint16_t        vp_idx;		/* vport ID */
+
+#ifdef CONFIG_SCSI_QLA2XXX_TARGET
+	struct mutex	tgt_mutex;
+
+	int		saved_set;
+	uint16_t	saved_exchange_count;
+	uint32_t	saved_firmware_options_1;
+	uint32_t	saved_firmware_options_2;
+	uint32_t	saved_firmware_options_3;
+	uint8_t		saved_firmware_options[2];
+	uint8_t		saved_add_firmware_options[2];
+#endif
 
 	struct scsi_qla_host	*parent;	/* holds pport */
 	unsigned long		vp_flags;
@@ -2618,8 +2663,8 @@ typedef struct scsi_qla_host {
 	int		cur_vport_count;
 
 	struct qla_chip_state_84xx *cs84xx;
-	struct qla_statistics qla_stats;
 } scsi_qla_host_t;
+
 
 /*
  * Macros to help code, maintain, etc.
@@ -2628,6 +2673,8 @@ typedef struct scsi_qla_host {
 	(test_bit(ISP_ABORT_NEEDED, &ha->dpc_flags) || \
 	 test_bit(LOOP_RESYNC_NEEDED, &ha->dpc_flags) || \
 	 atomic_read(&ha->loop_state) == LOOP_DOWN)
+
+#define to_qla_host(x)		((scsi_qla_host_t *) (x)->hostdata)
 
 #define qla_printk(level, ha, format, arg...) \
 	dev_printk(level , &((ha)->pdev->dev) , format , ## arg)
@@ -2682,4 +2729,4 @@ typedef struct scsi_qla_host {
 #define CMD_ACTUAL_SNSLEN(Cmnd)	((Cmnd)->SCp.Message)
 #define CMD_ENTRY_STATUS(Cmnd)	((Cmnd)->SCp.have_data_in)
 
-#endif
+#endif /* __QLA_DEF_H */

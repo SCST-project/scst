@@ -17,3 +17,14 @@ config QLA_TGT_DEBUG_WORK_IN_THREAD
 	  performance loss.
 
 	  If unsure, say "N".
+
+config QLA_TGT_DEBUG_SRR
+	bool "SRR debugging"
+	depends on SCST_QLA_TGT_ADDON
+	help
+	  Turns on restransmitting packets (SRR)
+	  debugging. In this mode some CTIOs will be "broken" to force the
+	  initiator to issue a retransmit request. Useful for debugging and lead to big
+	  performance loss.
+
+	  If unsure, say "N".

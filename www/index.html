@@ -59,8 +59,8 @@
 								 SCST core performs all required pre- and post- processing of incoming requests as well as 
 								 necessary error recovery.</span></li>
 					<li><span>SCST core undertakes most problems, related to execution contexts, thus practically eliminating one of the most 
-								 complicated problem in the kernel drivers development. For example, target drivers for QLogic 
-								 22xx/23xx adapters and for InfiniBand SRP are only about 2300 lines of code long.</span></li>
+								 complicated problem in the kernel drivers development. For example, target drivers for Marvell 
+								 SAS adapters or for InfiniBand SRP are less 3000 lines of code long.</span></li>
 					<li><span>Very low overhead, fine-grained locks and simplest commands processing path allow to reach 
 								 maximum possible performance and scalability. Particularly, incoming requests can be processed in 
 								 the caller's context or in one of the internal SCST core's tasklets without any

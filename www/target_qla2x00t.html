@@ -35,7 +35,7 @@
 				<h1>Target Drivers</h1>
 				<ul class="sidemenu">
 					<li><a href="target_iscsi.html">iSCSI-SCST</a></li>
-					<li><a href="target_qla22xx_23xx.html">QLogic FC 22xx/23xx</a></li>
+					<li><a href="target_qla2x00t.html">QLogic FC QLA2X00T</a></li>
 					<li><a href="target_qla_isp.html">QLogic FC ISP</a></li>
 					<li><a href="target_srp.html">SCSI RDMA Protocol (SRP)</a></li>
 					<li><a href="target_mvsas.html">Marvell SAS adapters</a></li>
@@ -53,15 +53,21 @@
 			</div>		
 	
 	  		<div id="main"> 
-				<h1>Target driver for QLogic 22xx/23xx adapters</h1>
+				<h1>Target driver qla2x00t for QLogic FC adapters</h1>
 				<p><img src="images/t_qlogic.gif" width="100" height="120" class="float-left" />
-				This is target driver for QLogic 22xx/23xx (qla2200/qla2300) Fibre Channel adapters. It is stable and well tested.</p>
+				This is target driver for QLogic qla2xxx (qla22xx/qla23xx) Fibre Channel adapters. It is stable and well tested.</p>
 
 				<p>The latest stable version is 1.0.1.1. Requires Linux kernel version 2.6.16.x or higher and
 				SCST version 1.0.1.1 or higher.</p>
 
-				<p>You can find the latest development version of this driver in the SCST SVN. See the download page how to setup 
+				<p>The latest development version is 2.0.0. It additionally has support for 24xx/25xx (4/8 Gbps) adapters
+				as well	as several other important improvements, thanks to <a href="http://www.id-7.com/">ID7</a>.
+				Requires Linux kernel version 2.6.16.x or higher and SCST version 1.0.2 or higher.
+				You can download it from SCST SVN repository. See the download page how to setup 
 				access to it.</p>
+
+				<p>This driver is mainline Linux kernel ready and after cosmetic cleanups going to be pushed to it
+				together with other SCST patches.</p>
 
 				<p class="post-footer align-right">					
 					<a href="qla2x00t-howto.html" class="readmore">HOWTO</a>				

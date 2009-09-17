@@ -27,11 +27,23 @@ config SCSI_QLA_FC
 		ftp://ftp.qlogic.com/outgoing/linux/firmware/
 
 config SCSI_QLA2XXX_TARGET
-	bool "QLogic 2XXX target mode support"
+	bool "QLogic 2xxx target mode support"
 	depends on SCSI_QLA_FC
-	default SCST
+	default y
 	---help---
-	This option enables target mode hooks used by the SCST qla2x00t driver.
+	This option enables target mode hooks used by the SCST QLA2x00tgt driver.
 	Once the qla2x00tgt module is loaded, target mode can be enable via a
 	sysfs interface under scsi_host, thus enabling target mode for specific
 	cards.
+	You will also need the SCST middle level drivers from http://scst.sf.net/.
+
+config SCSI_QLA2XXX_TARGET_DISABLE_INI_MODE
+	bool "Disable initiator mode for ports with enabled target mode"
+	depends on SCSI_QLA2XXX_TARGET
+	default y
+	---help---
+	This option disables initiator mode for hosts for which target mode was
+	enabled. In other words, it disables possibility to use both target and
+	initiator mode simultaneously on the same host. It is needed, because
+	some switches don't handle well ports with both target and initiator
+	modes enabled.

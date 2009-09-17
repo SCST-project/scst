@@ -49,10 +49,6 @@ extern void qla2x00_try_to_stop_firmware(scsi_qla_host_t *);
 
 extern void qla84xx_put_chip(struct scsi_qla_host *);
 
-extern int qla2x00_configure_loop(scsi_qla_host_t *ha);
-extern int qla2x00_configure_local_loop(scsi_qla_host_t *ha);
-extern int qla2x00_configure_fabric(scsi_qla_host_t *ha);
-
 /*
  * Global Data in qla_os.c source file.
  */
@@ -66,7 +62,7 @@ extern int ql2xfdmienable;
 extern int ql2xallocfwdump;
 extern int ql2xextended_error_logging;
 extern int ql2xqfullrampup;
-extern int ql2xiidmaenable;
+extern int num_hosts;
 
 extern int qla2x00_loop_reset(scsi_qla_host_t *);
 extern void qla2x00_abort_all_cmds(scsi_qla_host_t *, int);
@@ -74,8 +70,6 @@ extern int qla2x00_post_aen_work(struct scsi_qla_host *, enum
     fc_host_event_code, u32);
 extern int qla2x00_post_hwe_work(struct scsi_qla_host *, uint16_t , uint16_t,
     uint16_t, uint16_t);
-
-extern void qla2x00_abort_fcport_cmds(fc_port_t *);
 
 /*
  * Global Functions in qla_mid.c source file.
@@ -118,6 +112,7 @@ extern void qla2x00_vp_abort_isp(scsi_qla_host_t *);
  * Global Function Prototypes in qla_iocb.c source file.
  */
 extern void qla2x00_isp_cmd(scsi_qla_host_t *);
+
 extern uint16_t qla2x00_calc_iocbs_32(uint16_t);
 extern uint16_t qla2x00_calc_iocbs_64(uint16_t);
 extern void qla2x00_build_scsi_iocbs_32(srb_t *, cmd_entry_t *, uint16_t);
@@ -130,9 +125,6 @@ int __qla2x00_marker(scsi_qla_host_t *, uint16_t, uint16_t, uint8_t);
 /*
  * Global Function Prototypes in qla_mbx.c source file.
  */
-extern int
-qla2x00_mailbox_command(scsi_qla_host_t *pvha, mbx_cmd_t *mcp);
-
 extern int
 qla2x00_load_ram(scsi_qla_host_t *, dma_addr_t, uint32_t, uint32_t);
 
@@ -322,7 +314,8 @@ extern int qla2xxx_hw_event_log(scsi_qla_host_t *, uint16_t , uint16_t,
     uint16_t, uint16_t);
 
 extern void qla2xxx_get_flash_info(scsi_qla_host_t *);
-extern int qla2xxx_get_vpd_field(scsi_qla_host_t *, char *, char *, size_t);
+
+extern int qla2x00_mailbox_command(scsi_qla_host_t *ha, mbx_cmd_t *mcp);
 
 /*
  * Global Function Prototypes in qla_dbg.c source file.
@@ -373,5 +366,4 @@ extern void qla2x00_free_sysfs_attr(scsi_qla_host_t *);
  */
 extern int qla2x00_dfs_setup(scsi_qla_host_t *);
 extern int qla2x00_dfs_remove(scsi_qla_host_t *);
-
 #endif /* _QLA_GBL_H */

@@ -47,32 +47,6 @@ to_qla_parent(scsi_qla_host_t *ha)
 	return ha->parent ? ha->parent : ha;
 }
 
-/**
- * qla2x00_issue_marker() - Issue a Marker IOCB if necessary.
- * @ha: HA context
- * @ha_locked: is function called with the hardware lock
- *
- * Returns non-zero if a failure occured, else zero.
- */
-static inline int
-qla2x00_issue_marker(scsi_qla_host_t *ha, int ha_locked)
-{
-	/* Send marker if required */
-	if (ha->marker_needed != 0) {
-		if (ha_locked) {
-			if (__qla2x00_marker(ha, 0, 0, MK_SYNC_ALL) !=
-			    QLA_SUCCESS)
-				return (QLA_FUNCTION_FAILED);
-		} else {
-			if (qla2x00_marker(ha, 0, 0, MK_SYNC_ALL) !=
-			    QLA_SUCCESS)
-				return (QLA_FUNCTION_FAILED);
-		}
-		ha->marker_needed = 0;
-	}
-	return (QLA_SUCCESS);
-}
-
 static inline uint8_t *
 host_to_fcp_swap(uint8_t *fcp, uint32_t bsize)
 {

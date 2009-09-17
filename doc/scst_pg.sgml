@@ -39,10 +39,8 @@ required.
 
 <item> Undertakes most problems, related to execution contexts, thus
 practically eliminating one of the most complicated problem in the
-kernel drivers development. For example, a target driver for QLogic
-22xx/23xx cards, which has all necessary features, is about 2000
-lines of code long, that is at least in several times less, than the
-initiator one.
+kernel drivers development. For example, target drivers for Marvell SAS
+adapters or for InfiniBand SRP are less 3000 lines of code long.
 
 <item> Performs all required pre- and post- processing of incoming
 requests and all necessary error recovery functionality. 

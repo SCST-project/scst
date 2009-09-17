@@ -265,7 +265,7 @@ qla2x00_mailbox_command(scsi_qla_host_t *pvha, mbx_cmd_t *mcp)
 	if (!abort_active)
 		complete(&ha->mbx_cmd_comp);
 
-	if (rval) {
+	if (rval != QLA_SUCCESS) {
 		DEBUG2_3_11(printk("%s(%ld): **** FAILED. mbx0=%x, mbx1=%x, "
 		    "mbx2=%x, cmd=%x ****\n", __func__, ha->host_no,
 		    mcp->mb[0], mcp->mb[1], mcp->mb[2], command));
@@ -918,8 +918,6 @@ qla2x00_get_adapter_id(scsi_qla_host_t *ha, uint16_t *id, uint8_t *al_pa,
 	rval = qla2x00_mailbox_command(ha, mcp);
 	if (mcp->mb[0] == MBS_COMMAND_ERROR)
 		rval = QLA_COMMAND_ERROR;
-	else if (mcp->mb[0] == MBS_INVALID_COMMAND)
-		rval = QLA_INVALID_COMMAND;
 
 	/* Return data. */
 	*id = mcp->mb[1];
@@ -1023,6 +1021,28 @@ qla2x00_init_firmware(scsi_qla_host_t *ha, uint16_t size)
 
 	DEBUG11(printk("qla2x00_init_firmware(%ld): entered.\n",
 	    ha->host_no));
+
+#ifdef QL_DEBUG_LEVEL_5
+	if (IS_FWI2_CAPABLE(ha)) {
+		struct init_cb_24xx *icb = (struct init_cb_24xx *)ha->init_cb;
+		DEBUG5(printk("%s(): firmware_options_1 %x, "
+			"firmware_options_2 %x, firmware_options_3 %x\n",
+			__func__, icb->firmware_options_1,
+			icb->firmware_options_2, icb->firmware_options_3));
+		DEBUG5(printk("%s(): Control Block:\n", __func__));
+		DEBUG5(qla2x00_dump_buffer((uint8_t *)icb, sizeof(*icb)));
+	} else {
+		init_cb_t *icb = (init_cb_t *)ha->init_cb;
+		DEBUG5(printk("%s(): firmware_options[0] %x, "
+			"firmware_options[1] %x, add_firmware_options[0] %x, "
+			"add_firmware_options[1] %x\n", __func__,
+			icb->firmware_options[0], icb->firmware_options[1],
+			icb->add_firmware_options[0],
+			icb->add_firmware_options[1]));
+		DEBUG5(printk("%s(): Control Block:\n", __func__));
+		DEBUG5(qla2x00_dump_buffer((uint8_t *)icb, sizeof(*icb)));
+	}
+#endif
 
 	if (ha->flags.npiv_supported)
 		mcp->mb[0] = MBC_MID_INITIALIZE_FIRMWARE;
@@ -1156,6 +1176,13 @@ qla2x00_get_port_database(scsi_qla_host_t *ha, fc_port_t *fcport, uint8_t opt)
 			fcport->port_type = FCT_INITIATOR;
 		else
 			fcport->port_type = FCT_UNKNOWN;
+
+		/* Passback COS information. */
+		fcport->supported_classes = (pd24->flags & PDF_CLASS_2) ?
+		    FC_COS_CLASS2: FC_COS_CLASS3;
+
+		if (pd24->prli_svc_param_word_3[0] & BIT_7)
+			fcport->conf_compl_supported = 1;
 	} else {
 		/* Check for logged in state. */
 		if (pd->master_state != PD_STATE_PORT_LOGGED_IN &&
@@ -1189,6 +1216,9 @@ qla2x00_get_port_database(scsi_qla_host_t *ha, fc_port_t *fcport, uint8_t opt)
 		/* Passback COS information. */
 		fcport->supported_classes = (pd->options & BIT_4) ?
 		    FC_COS_CLASS2: FC_COS_CLASS3;
+
+		if (pd->prli_svc_param_word_3[0] & BIT_7)
+			fcport->conf_compl_supported = 1;
 	}
 
 gpd_error_out:
@@ -1537,6 +1567,8 @@ qla24xx_login_fabric(scsi_qla_host_t *ha, uint16_t loop_id, uint8_t domain,
 			mb[10] |= BIT_0;	/* Class 2. */
 		if (lg->io_parameter[9] || lg->io_parameter[10])
 			mb[10] |= BIT_1;	/* Class 3. */
+		if (lg->io_parameter[0] & __constant_cpu_to_le32(BIT_7))
+			mb[10] |= BIT_7;	/* Confirmed Completion Allowed */
 	}
 
 	dma_pool_free(ha->s_dma_pool, lg, lg_dma);
@@ -2167,18 +2199,17 @@ qla24xx_abort_command(scsi_qla_host_t *ha, srb_t *sp)
 	struct abort_entry_24xx *abt;
 	dma_addr_t	abt_dma;
 	uint32_t	handle;
-	scsi_qla_host_t *pha = to_qla_parent(ha);
 
 	DEBUG11(printk("%s(%ld): entered.\n", __func__, ha->host_no));
 
 	fcport = sp->fcport;
 
-	spin_lock_irqsave(&pha->hardware_lock, flags);
+	spin_lock_irqsave(&ha->hardware_lock, flags);
 	for (handle = 1; handle < MAX_OUTSTANDING_COMMANDS; handle++) {
-		if (pha->outstanding_cmds[handle] == sp)
+		if (ha->outstanding_cmds[handle] == sp)
 			break;
 	}
-	spin_unlock_irqrestore(&pha->hardware_lock, flags);
+	spin_unlock_irqrestore(&ha->hardware_lock, flags);
 	if (handle == MAX_OUTSTANDING_COMMANDS) {
 		/* Command not found. */
 		return QLA_FUNCTION_FAILED;

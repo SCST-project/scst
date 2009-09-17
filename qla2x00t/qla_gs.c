@@ -5,6 +5,7 @@
  * See LICENSE.qla2xxx for copyright and licensing details.
  */
 #include "qla_def.h"
+#include "qla2x_tgt.h"
 
 static int qla2x00_sns_ga_nxt(scsi_qla_host_t *, fc_port_t *);
 static int qla2x00_sns_gid_pt(scsi_qla_host_t *, sw_info_t *);
@@ -544,8 +545,12 @@ qla2x00_rff_id(scsi_qla_host_t *ha)
 	/*
 	 * FC-4 Feature bit 0 indicates target functionality to the name server.
 	 */
-	if (ha->flags.enable_target_mode) {
+	if (qla_tgt_mode_enabled(ha)) {
+#ifdef CONFIG_SCSI_QLA2XXX_TARGET_DISABLE_INI_MODE
+		ct_req->req.rff_id.fc4_feature = BIT_0;
+#else
 		ct_req->req.rff_id.fc4_feature = BIT_0 | BIT_1;
+#endif
 	} else
 #endif
 		ct_req->req.rff_id.fc4_feature = BIT_1;
@@ -1669,12 +1674,6 @@ int
 qla2x00_fdmi_register(scsi_qla_host_t *ha)
 {
 	int rval;
-
-	if (IS_QLA2100(ha) || IS_QLA2200(ha)) {
-		DEBUG2(printk("scsi(%ld): FDMI unsupported on "
-		    "ISP2100/ISP2200.\n", ha->host_no));
-		return QLA_SUCCESS;
-	}
 
 	rval = qla2x00_mgmt_svr_login(ha);
 	if (rval)

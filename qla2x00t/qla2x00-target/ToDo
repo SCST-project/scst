@@ -1,8 +1,10 @@
 Known issues and unimplemented features
 ---------------------------------------
 
+ - NPIV support
+
  - If a Linux initiator asks for devices using INQUIRY command too soon
-   before the controller on the target is fully initialized in the
+   before the controller on the 23xx target is fully initialized in the
    target mode, the initiator could receive garbage devices and the
    messages "scsi: unknown device type 31" will be printed in the kernel
    log on the initiator. After rescan on the initiator (eg by
@@ -15,9 +17,9 @@ Known issues and unimplemented features
 
  - Minor "ToDo"'s spread in the code.
 
- - On 2300 if on a tape with block size 0 we write block with size X
+ - On 23xx if on a tape with block size 0 we write block with size X
    and then read it with bs <X the tape skips all blocks with size X
    until the next correct block or filemark found, instead of returning
    ILI with negative counter. Looks like the initiator retries the
-   command quetly. 2200 works correctly. With the latest firmware that
+   command quetly. 22xx works correctly. With the latest firmware that
    might be fixed.
