@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-$Version  = 'SCST Configurator v1.0.7';
+$Version  = 'SCST Configurator v1.0.8';
 
 # Configures SCST
 #
@@ -56,9 +56,11 @@ Assignment Operations
      -assigndev <device>  : Assign a given device to a security group.
          -group <group>
          -lun <lun>
+         -options <options>
      -ReplaceDev <new dev>: Replaces a device assigned to a give LUN and group.
          -group <group>
          -lun <lun>
+         -options <options>
      -ReleaseDev <device> : Remove a given device from a security group.
          -group <group>
      -ClearDevs           : Clear all device assignments for a security group.
@@ -75,6 +77,9 @@ Available Handlers:
 
 Available Options for create and open:
       WRITE_THROUGH, READ_ONLY, O_DIRECT, NULLIO, NV_CACHE, BLOCK_IO, REMOVABLE
+
+Available Options for assign and replace:
+      READ_ONLY
 
 Examples:
      Enable target mode for fibre card specifying its WWN
@@ -448,11 +453,11 @@ sub main {
 			last SWITCH;
 		};
 		$assignDev && do {
-			$rc = assignDevice($group, $assignDev, $devLun);
+			$rc = assignDevice($group, $assignDev, $devLun, $options);
 			last SWITCH;
 		};
 		$replaceDev && do {
-			$rc = replaceDevice($group, $replaceDev, $devLun);
+			$rc = replaceDevice($group, $replaceDev, $devLun, $options);
 			last SWITCH;
 		};
 		$releaseDev && do {
@@ -1337,6 +1342,7 @@ sub assignDevice {
 	my $group = shift;
 	my $device = shift;
 	my $lun = shift;
+	my $options = shift;
 	my %allLuns;
 
 	# Put luns into something easier to parse..
@@ -1376,7 +1382,7 @@ sub assignDevice {
 
 	print "\t-> Assign virtual device '$device' to group '$group' at LUN '$lun'..\n";
 
-	if ($SCST->assignDeviceToGroup($device, $group, $lun)) {
+	if ($SCST->assignDeviceToGroup($device, $group, $lun, $options)) {
 		print "WARNING: Failed to assign device '$device' to group '$group': ".
 		  $SCST->errorString()."\n";
 		return $TRUE;
@@ -1398,6 +1404,7 @@ sub replaceDevice {
 	my $group = shift;
 	my $newDevice = shift;
 	my $lun = shift;
+	my $options = shift;
 	my %allLuns;
 
 	# Put luns into something easier to parse..
@@ -1421,7 +1428,7 @@ sub replaceDevice {
 
 	print "\t-> Replace device at LUN '$lun' in group '$group' with new device '$newDevice'..\n";
 
-	if ($SCST->replaceDeviceInGroup($newDevice, $group, $lun)) {
+	if ($SCST->replaceDeviceInGroup($newDevice, $group, $lun, $options)) {
 		print "WARNING: Failed to replace LUN '$lun' in group '$group' with new device '$newDevice': ".
 		  $SCST->errorString()."\n";
 		return $TRUE;

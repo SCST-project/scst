@@ -52,7 +52,7 @@ $IOTYPE_PHYSICAL    = 100;
 $IOTYPE_VIRTUAL     = 101;
 $IOTYPE_PERFORMANCE = 102;
 
-$VERSION = 0.8.2;
+$VERSION = 0.8.21;
 
 my $_SCST_MIN_MAJOR_   = 1;
 my $_SCST_MIN_MINOR_   = 0;
@@ -108,20 +108,26 @@ my %_IO_TYPES_ = ($CDROM_TYPE => $IOTYPE_PHYSICAL,
 
 my %_HANDLER_ALIASES_ = ('vdisk_blk' => 'vdisk');
 
-my %_AVAILABLE_OPTIONS_ = ('WRITE_THROUGH' => 'WRITE_THROUGH',
-			   'WT'		   => 'WRITE_THROUGH',
-			   'O_DIRECT'      => 'O_DIRECT',
-			   'DR'		   => 'O_DIRECT',
-			   'READ_ONLY'     => 'READ_ONLY',
-			   'RO'		   => 'READ_ONLY',
-			   'NULLIO'        => 'NULLIO',
-			   'NIO'	   => 'NULLIO',
-			   'NV_CACHE'      => 'NV_CACHE',
-			   'NV'            => 'NV_CACHE',
-			   'BLOCKIO'       => 'BLOCKIO',
-			   'BIO'           => 'BLOCKIO',
-			   'REMOVABLE'	   => 'REMOVABLE',
-			   'RM'		   => 'REMOVABLE');
+my %_OPEN_OPTIONS_ = ('WRITE_THROUGH' => 'WRITE_THROUGH',
+		      'WT'	      => 'WRITE_THROUGH',
+		      'O_DIRECT'      => 'O_DIRECT',
+	 	      'DR'	      => 'O_DIRECT',
+		      'READ_ONLY'     => 'READ_ONLY',
+		      'RO'	      => 'READ_ONLY',
+		      'NULLIO'        => 'NULLIO',
+		      'NIO'	      => 'NULLIO',
+		      'NV_CACHE'      => 'NV_CACHE',
+		      'NV'            => 'NV_CACHE',
+		      'BLOCKIO'       => 'BLOCKIO',
+		      'BIO'           => 'BLOCKIO',
+		      'REMOVABLE'     => 'REMOVABLE',
+		      'RM'	      => 'REMOVABLE');
+
+my %_ASSIGN_OPTIONS_ = ('READ_ONLY'   => 'READ_ONLY',
+			'RO'          => 'READ_ONLY');
+
+my %_OPTIONS_BY_TYPE_ = ('OPEN',      => \%_OPEN_OPTIONS_,
+			 'ASSIGN'     => \%_ASSIGN_OPTIONS_);
 
 sub new {
 	my $this = shift;
@@ -428,10 +434,10 @@ sub handlerDevices {
 
 		my $options_t;
 		foreach my $option (split(/\s/, cleanupString($options))) {
-			if (defined($_AVAILABLE_OPTIONS_{$option})) {
-				$options_t .= $_AVAILABLE_OPTIONS_{$option}.',';
+			if (defined($_OPEN_OPTIONS_{$option})) {
+				$options_t .= $_OPEN_OPTIONS_{$option}.',';
 			} else {
-				cluck("WARNING: Unknown option '$option', please update your SCST module");
+				cluck("WARNING: Unknown option '$option', please update your SCST version");
 			}
 		}
 
@@ -487,7 +493,7 @@ sub openDevice {
 	my $handler_name = $_REVERSE_MAP_{$handler};
 	my $valid_opts;
 
-	($options, $valid_opts) = $self->checkOptions($options);
+	($options, $valid_opts) = $self->checkOptions($options, 'OPEN');
 
 	if (!$valid_opts) {
 		$self->{'error'} = "openDevice(): Invalid option(s) '$options' given for device '$device'";
@@ -874,9 +880,15 @@ sub assignDeviceToGroup {
 	my $device = shift;
 	my $group = shift;
 	my $lun = shift;
-	my $readOnly = shift;
+	my $options = shift;
+	my $valid_opts;
 
-	$readOnly = 'READ_ONLY' if (defined($readOnly) && $readOnly);
+	($options, $valid_opts) = $self->checkOptions($options, 'ASSIGN');
+
+	if (!$valid_opts) {
+		$self->{'error'} = "assignDeviceToGroup(): Invalid option(s) '$options' given for device '$device'";
+		return 1;
+	}
 
 	if (!$self->groupExists($group)) {
 		$self->{'error'} = "assignDeviceToGroup(): Group '$group' does not exist";
@@ -889,7 +901,10 @@ sub assignDeviceToGroup {
 		return 2;
 	}
 
-	my $cmd = "add $device $lun $readOnly\n";
+	$options = cleanupString($options);
+	$options =~ s/,/ /g;
+
+	my $cmd = "add $device $lun $options\n";
 
 	my $rc = $self->group_private($group, $_SCST_DEVICES_IO_, $cmd);
 
@@ -911,9 +926,16 @@ sub replaceDeviceInGroup {
 	my $newDevice = shift;
 	my $group = shift;
 	my $lun = shift;
-	my $readOnly = shift;
+	my $options = shift;
+	my $valid_opts;
 
-	$readOnly = 'READ_ONLY' if (defined($readOnly) && $readOnly);
+	($options, $valid_opts) = $self->checkOptions($options, 'ASSIGN');
+
+	if (!$valid_opts) {
+		$self->{'error'} = "assignDeviceToGroup(): Invalid option(s) '$options' given for ".
+		  "device '$newDevice'";
+		return 1;
+	}
 
 	if (!$self->groupExists($group)) {
 		$self->{'error'} = "replaceDeviceInGroup(): Group '$group' does not exist";
@@ -926,7 +948,10 @@ sub replaceDeviceInGroup {
 		return 2;
 	}
 
-	my $cmd = "replace $newDevice $lun $readOnly\n";
+	$options = cleanupString($options);
+	$options =~ s/,/ /g;
+
+	my $cmd = "replace $newDevice $lun $options\n";
 
 	my $rc = $self->group_private($group, $_SCST_DEVICES_IO_, $cmd);
 
@@ -1111,14 +1136,17 @@ sub group_private {
 sub checkOptions {
 	my $self = shift;
 	my $options = shift;
+	my $type = shift;
 	my $o_string;
 	my $b_string;
 	my $bad = 0;
 
-	return undef, 1 if (!$options);
+	return undef, 1 if (!$options || !$type);
+
+	my $_options_ = $_OPTIONS_BY_TYPE_{$type};
 
 	foreach my $option (split(/[\s+|\,]/, $options)) {
-		my $map = $_AVAILABLE_OPTIONS_{$option};
+		my $map = $$_options_{$option};
 
 		if (!$map) {
 			$bad = 1;
@@ -1419,7 +1447,7 @@ Assigns the specified device to the specified security group. Returns
 0 upon success, 1 if unsuccessfull and 2 if the device has already
 been assigned to the specified security group.
 
-Arguments: (string) $device, (string) $group, (int) $lun [, (bool) $rd_only]
+Arguments: (string) $device, (string) $group, (int) $lun [, (string) $options]
 
 Returns: (int) $success
 
@@ -1430,7 +1458,7 @@ specified security group with $newDevice. Returns 0 upon success, 1
 if unsuccessfull and 2 if the device has already been assigned to
 the specified security group.
 
-Arguments: (string) $newDevice, (string) $group, (int) $lun [, (bool) $rd_only]
+Arguments: (string) $newDevice, (string) $group, (int) $lun [, (string) $options]
 
 Returns (int) $success
 

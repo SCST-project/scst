@@ -1,3 +1,11 @@
+Changes for 1.0.8
+
+- Added the ability to specify options for -assigndev and -replacedev,
+  mainly READ_ONLY for now.
+- Updated module to accept more than one option for assignDeviceToGroup() and
+  replaceDeviceInGroup().
+- Incremented module version number and renamed module directory to reflect it.
+
 Changes for 1.0.7
 
 - Added -moveuser, -renamegroup and -ReplaceDev options and necessary -to argument.
