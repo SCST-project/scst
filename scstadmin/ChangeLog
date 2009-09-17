@@ -1,3 +1,9 @@
+Changes for 1.0.9
+
+- Move a user from one group to another when applying the configuration instead
+  of deleting from one and adding to another the same user.
+- Minor fix to readConfig() which wasn't fully allowing for empty groups.
+
 Changes for 1.0.8
 
 - Added the ability to specify options for -assigndev and -replacedev,

@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-$Version  = 'SCST Configurator v1.0.8';
+$Version  = 'SCST Configurator v1.0.9';
 
 # Configures SCST
 #
@@ -385,7 +385,7 @@ sub main {
 	SWITCH: {
 		$applyConfig && do {
 			if ($forceConfig) {
-				$rc = applyConfiguration($applyConfig, $FALSE, $TRUE);
+				$rc = applyConfiguration($applyConfig, $TRUE, $TRUE);
 				die("Configuration errors found, aborting.\n") if ($rc);
 
 				print "\nConfiguration will apply in 10 seconds, type ctrl-c to abort..\n";
@@ -646,6 +646,8 @@ sub applyConfiguration {
 	my %used_assignments;
 	my %empty;
 
+	my %seen_users;
+
 	# Cache device/handler configuration
 	foreach my $entry (keys %{$$config{'HANDLER'}}) {
 		foreach my $device (@{$$config{'HANDLER'}->{$entry}->{'DEVICE'}}) {
@@ -658,7 +660,13 @@ sub applyConfiguration {
 	# Cache user/group configuration
 	foreach my $group (keys %{$$config{'GROUP'}}) {
 		foreach my $user (@{$$config{'GROUP'}->{$group}->{'USER'}}) {
+			if (defined($seen_users{$user})) {
+				print "\t-> FATAL: Configuration invalid. User '$user' is in more ".
+				  "than one group!\n";
+				exit 1;
+			}
 			$used_users{$group}->{$user}++;
+			$seen_users{$user}++;
 		}
 		$used_users{$group} = \%empty if (!$used_users{$group});
 	}
@@ -751,11 +759,22 @@ sub applyConfiguration {
 						  "in saved configuration";
 
 						if (!$check) {
-							print ", removing.\n";
-							if (removeUser($group, $user)) {
-								$errs++;
+							# Are we moving this user to another group?
+							my $new_group = findUserGroup($user, $config);
+							if ($new_group && ($new_group ne $group)) {
+								print ", moving to group '$new_group'.\n";
+								if (moveUser($group, $user, $new_group)) {
+									$errs++;
+								} else {
+									$changes++;
+								}
 							} else {
-								$changes++;
+								print ", removing.\n";
+								if (removeUser($group, $user)) {
+									$errs++;
+								} else {
+									$changes++;
+								}
 							}
 						} else {
 							print ".\n";
@@ -881,6 +900,13 @@ sub applyConfiguration {
 
 		foreach my $user (keys %{$used_users{$group}}) {
 			if (!defined($USERS{$group}->{$user})) {
+				my $move_group = findUserGroupInCurrent($user);
+				if ($move_group) {
+					print "\t-> WARNING: Use -ForceConfig to move user '$user' ".
+					  "from group '$move_group' to group '$group'.\n" if (!$force);
+					next;
+				}
+
 				if ($check) {
 					print "\t-> New user definition '$user' for group '$group'.\n";
 					$USERS{$group}->{$user}++;
@@ -1652,7 +1678,7 @@ sub readConfig {
 		if ($line =~ /^\[(.*)\]$/) {
 			($section, $arg) = split(/\s+/, $1, 2);
 
-			if ($last_arg && ($last_section ne $section) &&
+			if ($last_arg && ($last_arg ne $arg) &&
 			    !defined($config{$last_section}->{$last_arg})) {
 				$config{$last_section}->{$last_arg} = \%empty;
 			}   
@@ -1666,9 +1692,34 @@ sub readConfig {
 		}
 	}
 
-	close $io;
+	close $io;	
 
 	return \%config;
+}
+
+sub findUserGroup {
+	my $user = shift;
+	my $config = shift;
+
+	foreach my $group (keys %{$$config{'GROUP'}}) {
+		foreach my $_user (@{$$config{'GROUP'}->{$group}->{'USER'}}) {
+			return $group if ($_user eq $user);
+		}
+	}
+
+	return undef;
+}
+
+sub findUserGroupInCurrent {
+	my $user = shift;
+
+	foreach my $group (keys %USERS) {
+		foreach my $_user (keys %{$USERS{$group}}) {
+			return $group if ($_user eq $user);
+		}
+	}
+
+	return undef;
 }
 
 sub cleanupString {
