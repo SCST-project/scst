@@ -1,11 +1,11 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<html>
 <head>
-<meta name="Keywords" content="Generic SCSI Target Subsystem for Linux, SCSI targets, iSCSI targets, comparison" />
-<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
-<meta name="author" content="Daniel Fernandes"/>
-<meta name="Robots" content="index,follow" />
-<link rel="stylesheet" href="images/Orange.css" type="text/css" />	
+<meta name="Keywords" content="Generic SCSI Target Subsystem for Linux, SCSI targets, iSCSI targets, comparison">
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<meta name="author" content="Daniel Fernandes">
+<meta name="Robots" content="index,follow">
+<link rel="stylesheet" href="images/Orange.css" type="text/css">	
 <title>SCSI Targets Comparison</title>
 </head>
 
@@ -178,7 +178,7 @@ ORDERED commands</th>							<td> + </td>		<td> + </td>		<td> -, <br/> data
 <th align="left"> Failover Clustering </th>				<td> + </td>		<td> ? </td>		<td> + </td>		<td> + </td>		
 </tr>                                                                                                                           
 <tr>                                                                                                                            
-<th align="left"> SCSI MIBs </th>					<td> - </td>		<td> - </td>		<td> - </td>		<td>  - 
+<th align="left"> SCSI MIBs </th>					<td> - </td>		<td> - </td>		<td> - </td>		<td>  +- 
 																		<sup><A HREF="#16">16</A></sup></td>
 </tr>                                                                                                                           
 <tr>                                                                                                                            
@@ -322,7 +322,7 @@ reinstatement <sup><A HREF="#21">21</A></sup></th>			<td> Safe </td>		<td> Not s
 <th align="left"> Safe restart <sup><A HREF="#22">22</A></sup></th>	<td> Safe </td>		<td> ? </td>		<td> Not safe </td>	<td> ?</td>
 </tr>
 <tr>                                                                                                                            
-<th align="left"> iSCSI MIBs </th>					<td> - </td>		<td> - </td>		<td> - </td>		<td> - 
+<th align="left"> iSCSI MIBs </th>					<td> - </td>		<td> - </td>		<td> - </td>		<td> +- 
 																		<sup><A HREF="#16">16</A></sup></td>
 </tr>                                                                                                                           
 </table>
@@ -394,7 +394,8 @@ reinstatement <sup><A HREF="#21">21</A></sup></th>			<td> Safe </td>		<td> Not s
 			commands the same way as SIMPLE commands, i.e. allow free reorder of them before they get executed. That violates SCSI standard
 			and can lead to a data corruption to any application relying on commands order provided by ORDERED attribute.</p>
 
-<p><A NAME="16"></A> 16. The IETF SCSI-MIB (RFC 4455) is not supported by LIO, only proprietary MIBs SBE-SCSI-MIB, SBE-ISCSI-MIB and SBE-IPS-AUTH-MIB are supported.</p>
+<p><A NAME="16"></A> 16. LIO exports the information needed for an RFC 4455 implementation, but requires additional RFC 4455 implementing module.
+			 At the moment, there is no open source implementation of such module.</p>
 
 <p><A NAME="17"></A> 17. SCSI pass-through mode allows to export your local SCSI-capable device. For instance with it you can share your parallel
 			SCSI tape or SATA DVD-RW device to your iSCSI network.</p>
@@ -429,7 +430,7 @@ reinstatement <sup><A HREF="#21">21</A></sup></th>			<td> Safe </td>		<td> Not s
 <!-- footer starts here -->		
 		<div id="footer">
 			<p>
-			&copy; Copyright 2004-2009 <b><font color="#EC981F">Vladislav Bolkhovitin & others.</font>&nbsp;&nbsp;
+			&copy; Copyright 2004-2009 <b><font color="#EC981F">Vladislav Bolkhovitin &amp others.</font>&nbsp;&nbsp;
 			Design by: <b><font color="#EC981F">Daniel Fernandes</font></b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;		
 			
 			</p>		
