@@ -904,25 +904,26 @@ static void srpt_abort_scst_cmd(struct srpt_device *sdev,
 				ioctx->state == SRPT_STATE_PROCESSED);
 		}
 #endif
-
-		orig_ioctx_state = ioctx->state;
-		ioctx->state = SRPT_STATE_ABORTED;
-
-		if (orig_ioctx_state == SRPT_STATE_NEED_DATA) {
-			WARN_ON(scst_cmd_get_data_direction(ioctx->scmnd)
-				== SCST_DATA_READ);
-			scst_rx_data(scmnd,
-				     tell_initiator ? SCST_RX_STATUS_ERROR
-				     : SCST_RX_STATUS_ERROR_FATAL,
-				     SCST_CONTEXT_THREAD);
-			goto out;
-		} else if (ioctx->state == SRPT_STATE_PROCESSED)
-			;
-		else
-			WARN_ON("unexpected cmd state");
 	}
 
+	orig_ioctx_state = ioctx->state;
+	ioctx->state = SRPT_STATE_ABORTED;
+
+	if (orig_ioctx_state == SRPT_STATE_NEED_DATA) {
+		WARN_ON(scst_cmd_get_data_direction(ioctx->scmnd)
+			== SCST_DATA_READ);
+		scst_rx_data(scmnd,
+			     tell_initiator ? SCST_RX_STATUS_ERROR
+			     : SCST_RX_STATUS_ERROR_FATAL,
+			     SCST_CONTEXT_THREAD);
+		goto out;
+	} else if (ioctx->state == SRPT_STATE_PROCESSED)
+		;
+	else
+		WARN_ON("unexpected cmd state");
+
 	scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_FAILED);
+	WARN_ON(scmnd->state != SCST_CMD_STATE_XMIT_WAIT);
 	scst_tgt_cmd_done(scmnd, scst_estimate_context());
 out:
 	return;
@@ -960,6 +961,7 @@ static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
 				     scst_cmd_get_sg_cnt(ioctx->scmnd),
 				     scst_to_tgt_dma_dir(dir));
 
+		WARN_ON(ioctx->scmnd->state != SCST_CMD_STATE_XMIT_WAIT);
 		scst_tgt_cmd_done(ioctx->scmnd, context);
 	} else
 		srpt_reset_ioctx(ch, ioctx);
@@ -2397,6 +2399,7 @@ out_aborted:
 	ret = SCST_TGT_RES_SUCCESS;
 	scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_ABORTED);
 	ioctx->state = SRPT_STATE_ABORTED;
+	WARN_ON(scmnd->state != SCST_CMD_STATE_XMIT_WAIT);
 	scst_tgt_cmd_done(scmnd, SCST_CONTEXT_SAME);
 	goto out;
 }
