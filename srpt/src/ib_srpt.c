@@ -1701,7 +1701,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 
 				if (prev_state == RDMA_CHANNEL_LIVE) {
 					ib_send_cm_dreq(ch->cm_id, NULL, 0);
-					PRINT_ERROR("disconnected"
+					PRINT_INFO("disconnected"
 					  " session %s because a new"
 					  " SRP_LOGIN_REQ has been received.",
 					  ch->sess_name);
