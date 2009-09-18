@@ -5163,7 +5163,7 @@ static struct scst_mgmt_cmd *scst_pre_rx_mgmt_cmd(struct scst_session
 
 	mcmd = scst_alloc_mgmt_cmd(atomic ? GFP_ATOMIC : GFP_KERNEL);
 	if (mcmd == NULL) {
-		PRINT_CRIT_ERROR("Lost TM fn %x, initiator %s", fn,
+		PRINT_CRIT_ERROR("Lost TM fn %d, initiator %s", fn,
 			sess->initiator_name);
 		goto out;
 	}
