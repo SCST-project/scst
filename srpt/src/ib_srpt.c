@@ -2740,9 +2740,7 @@ static void srpt_add_one(struct ib_device *device)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
 	snprintf(sdev->dev.bus_id, BUS_ID_SIZE, "srpt-%s", device->name);
 #else
-	snprintf(sdev->init_name, sizeof(sdev->init_name),
-		 "srpt-%s", device->name);
-	sdev->dev.init_name = sdev->init_name;
+	dev_set_name(&sdev->dev, "srpt-%s", device->name);
 #endif
 #endif
 
