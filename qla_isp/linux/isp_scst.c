@@ -722,7 +722,7 @@ abort_all_tasks(bus_chan_t *bc, uint64_t iid)
 }
 
 static void
-scsi_target_notify(isp_notify_t *np)
+scsi_target_notify(notify_t *ins)
 {
     bus_t *bp;
     bus_chan_t *bc;
@@ -732,6 +732,7 @@ scsi_target_notify(isp_notify_t *np)
     uint16_t lun;
     uint8_t lunbuf[8];
     unsigned long flags;
+    isp_notify_t *np = &ins->notify;
 
     spin_lock_irqsave(&scsi_target_lock, flags);
     bp = bus_from_notify(np);
@@ -841,9 +842,10 @@ scsi_target_notify(isp_notify_t *np)
             lun = np->nt_lun;
         }
         FLATLUN_TO_L0LUN(lunbuf, lun);
-        if (scst_rx_mgmt_fn_lun(ini->ini_scst_sess, fn, lunbuf, sizeof(lunbuf), 1, np) < 0) {
-            np->nt_failed = 1;
-            goto notify_ack;
+	if (scst_rx_mgmt_fn_lun(ini->ini_scst_sess, fn, lunbuf,
+				sizeof(lunbuf), 1, ins) < 0) {
+		np->nt_failed = 1;
+		goto notify_ack;
         }
     }
     return;
@@ -853,7 +855,7 @@ err_no_ini:
     np->nt_failed = 1;
 notify_ack:
     ini_put(bc, ini);
-    (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
+    (*bp->h.r_action) (QIN_NOTIFY_ACK, ins);
 }
 
 static void
@@ -922,9 +924,9 @@ scsi_target_handler(qact_e action, void *arg)
     }
     case QOUT_NOTIFY:
     {
-        isp_notify_t *np = arg;
-        scsi_target_notify(np);
-        break;
+	notify_t *ins = arg;
+	scsi_target_notify(ins);
+	break;
     }
     case QOUT_HBA_UNREG:
     {
@@ -1275,15 +1277,41 @@ isp_on_free_cmd(struct scst_cmd *scst_cmd)
     (*bp->h.r_action)(QIN_TMD_FIN, tmd);
 }
 
+static int
+isp_task_mgmt_fn_get_resp(int scst_mgmt_status)
+{
+	switch (scst_mgmt_status) {
+	case SCST_MGMT_STATUS_SUCCESS:
+		return FCP_RSPNS_TMF_SUCCEEDED;
+
+	case SCST_MGMT_STATUS_TASK_NOT_EXIST:
+		return FCP_RSPNS_BADCMND;
+
+	case SCST_MGMT_STATUS_LUN_NOT_EXIST:
+		return FCP_RSPNS_TMF_INCORRECT_LUN;
+
+	case SCST_MGMT_STATUS_FN_NOT_SUPPORTED:
+	case SCST_MGMT_STATUS_REJECTED:
+		return FCP_RSPNS_TMF_REJECT;
+
+	case SCST_MGMT_STATUS_FAILED:
+	default:
+		return FCP_RSPNS_TMF_FAILED;
+	}
+}
+
 static void
 isp_task_mgmt_fn_done(struct scst_mgmt_cmd *mgmt_cmd)
 {
-    isp_notify_t *np = mgmt_cmd->tgt_priv;
+    notify_t *ins = scst_mgmt_cmd_get_tgt_priv(mgmt_cmd);
+    isp_notify_t *np = &ins->notify;
     bus_t *bp = bus_from_notify(np);
+    ins->tmf_resp =
+	    isp_task_mgmt_fn_get_resp(scst_mgmt_cmd_get_status(mgmt_cmd));
 
     ini_put(&bp->bchan[np->nt_channel], np->nt_ini);
     BUS_DBG(bp, "NOTIFY_ACK[%llx]\n", np->nt_tagval);
-    (*bp->h.r_action) (QIN_NOTIFY_ACK, np);
+    (*bp->h.r_action) (QIN_NOTIFY_ACK, ins);
 }
 
 static DEFINE_MUTEX(proc_mutex);
@@ -1294,7 +1322,7 @@ static DEFINE_MUTEX(proc_mutex);
 
 #if !defined(CONFIG_PPC) && (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22))
 
-static int strncasecmp(const char *s1, const char *s2, size_t n)
+int strncasecmp(const char *s1, const char *s2, size_t n)
 {
 	int c1, c2;
 	do {

@@ -957,6 +957,7 @@ struct notify {
     isp_notify_t    notify;
     uint8_t         qentry[QENTRY_LEN]; /* original immediate notify entry */
     uint8_t         qevalid;
+    uint8_t         tmf_resp;
 };
 #endif
 /*

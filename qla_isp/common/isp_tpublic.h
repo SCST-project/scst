@@ -85,7 +85,7 @@ typedef enum {
     QOUT_DISABLE,       /* the argument is a pointer to a enadis_t */
     QOUT_TMD_START,     /* the argument is a pointer to a tmd_cmd_t */
     QOUT_TMD_DONE,      /* the argument is a pointer to a tmd_xact_t */
-    QOUT_NOTIFY,        /* the argument is a pointer to a isp_notify_t */
+    QOUT_NOTIFY,        /* the argument is a pointer to a notify_t */
     QOUT_HBA_UNREG      /* the argument is a pointer to a hba_register_t */
 } tact_e;
 
@@ -102,7 +102,7 @@ typedef enum {
     QIN_DISABLE,        /* the argument is a pointer to a enadis_t */
     QIN_TMD_CONT,       /* the argument is a pointer to a tmd_xact_t */
     QIN_TMD_FIN,        /* the argument is a pointer to a tmd_cmd_t */
-    QIN_NOTIFY_ACK,     /* the argument is a pointer to a isp_notify_t */
+    QIN_NOTIFY_ACK,     /* the argument is a pointer to a notify_t */
     QIN_HBA_UNREG,      /* the argument is a pointer to a hba_register_t */
 } qact_e;
 
