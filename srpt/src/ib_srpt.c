@@ -597,13 +597,9 @@ static struct srpt_ioctx *srpt_alloc_ioctx(struct srpt_device *sdev)
 	if (!ioctx->buf)
 		goto out_free_ioctx;
 
-	ioctx->dma = dma_map_single(sdev->device->dma_device, ioctx->buf,
-				    MAX_MESSAGE_SIZE, DMA_BIDIRECTIONAL);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
-	if (dma_mapping_error(sdev->device->dma_device, ioctx->dma))
-#else
-	if (dma_mapping_error(ioctx->dma))
-#endif
+	ioctx->dma = ib_dma_map_single(sdev->device, ioctx->buf,
+				       MAX_MESSAGE_SIZE, DMA_BIDIRECTIONAL);
+	if (ib_dma_mapping_error(sdev->device, ioctx->dma))
 		goto out_free_buf;
 
 	return ioctx;
@@ -624,8 +620,8 @@ static void srpt_free_ioctx(struct srpt_device *sdev, struct srpt_ioctx *ioctx)
 	if (!ioctx)
 		return;
 
-	dma_unmap_single(sdev->device->dma_device, ioctx->dma,
-			 MAX_MESSAGE_SIZE, DMA_BIDIRECTIONAL);
+	ib_dma_unmap_single(sdev->device, ioctx->dma,
+			    MAX_MESSAGE_SIZE, DMA_BIDIRECTIONAL);
 	kfree(ioctx->buf);
 	kfree(ioctx);
 }
@@ -703,8 +699,8 @@ static int srpt_post_send(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 	struct ib_send_wr wr, *bad_wr;
 	struct srpt_device *sdev = ch->sport->sdev;
 
-	dma_sync_single_for_device(sdev->device->dma_device, ioctx->dma,
-				   MAX_MESSAGE_SIZE, DMA_TO_DEVICE);
+	ib_dma_sync_single_for_device(sdev->device, ioctx->dma,
+				      MAX_MESSAGE_SIZE, DMA_TO_DEVICE);
 
 	list.addr = ioctx->dma;
 	list.length = len;
@@ -886,10 +882,10 @@ static void srpt_abort_scst_cmd(struct srpt_device *sdev,
 	BUG_ON(!ioctx);
 	dir = scst_cmd_get_data_direction(scmnd);
 	if (dir != SCST_DATA_NONE) {
-		dma_unmap_sg(sdev->device->dma_device,
-			     scst_cmd_get_sg(scmnd),
-			     scst_cmd_get_sg_cnt(scmnd),
-			     scst_to_tgt_dma_dir(dir));
+		ib_dma_unmap_sg(sdev->device,
+				scst_cmd_get_sg(scmnd),
+				scst_cmd_get_sg_cnt(scmnd),
+				scst_to_tgt_dma_dir(dir));
 
 #ifdef CONFIG_SCST_EXTRACHECKS
 		switch (scmnd->state) {
@@ -956,10 +952,10 @@ static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
 			scst_cmd_get_data_direction(ioctx->scmnd);
 
 		if (dir != SCST_DATA_NONE)
-			dma_unmap_sg(ch->sport->sdev->device->dma_device,
-				     scst_cmd_get_sg(ioctx->scmnd),
-				     scst_cmd_get_sg_cnt(ioctx->scmnd),
-				     scst_to_tgt_dma_dir(dir));
+			ib_dma_unmap_sg(ch->sport->sdev->device,
+					scst_cmd_get_sg(ioctx->scmnd),
+					scst_cmd_get_sg_cnt(ioctx->scmnd),
+					scst_to_tgt_dma_dir(dir));
 
 		WARN_ON(ioctx->scmnd->state != SCST_CMD_STATE_XMIT_WAIT);
 		scst_tgt_cmd_done(ioctx->scmnd, context);
@@ -1060,8 +1056,8 @@ static int srpt_build_tskmgmt_rsp(struct srpt_rdma_ch *ch,
 	int limit_delta;
 	int resp_data_len = 0;
 
-	dma_sync_single_for_cpu(ch->sport->sdev->device->dma_device, ioctx->dma,
-				MAX_MESSAGE_SIZE, DMA_TO_DEVICE);
+	ib_dma_sync_single_for_cpu(ch->sport->sdev->device, ioctx->dma,
+				   MAX_MESSAGE_SIZE, DMA_TO_DEVICE);
 
 	srp_rsp = ioctx->buf;
 	memset(srp_rsp, 0, sizeof *srp_rsp);
@@ -1324,8 +1320,8 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 	}
 	spin_unlock_irqrestore(&ch->spinlock, flags);
 
-	dma_sync_single_for_cpu(ch->sport->sdev->device->dma_device, ioctx->dma,
-				MAX_MESSAGE_SIZE, DMA_FROM_DEVICE);
+	ib_dma_sync_single_for_cpu(ch->sport->sdev->device, ioctx->dma,
+				   MAX_MESSAGE_SIZE, DMA_FROM_DEVICE);
 
 	ioctx->data_len = 0;
 	ioctx->n_rbuf = 0;
@@ -1358,7 +1354,7 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 		goto err;
 	}
 
-	dma_sync_single_for_device(ch->sport->sdev->device->dma_device,
+	ib_dma_sync_single_for_device(ch->sport->sdev->device,
 				   ioctx->dma, MAX_MESSAGE_SIZE,
 				   DMA_FROM_DEVICE);
 
@@ -2050,9 +2046,9 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 
 	scat = scst_cmd_get_sg(scmnd);
 	dir = scst_cmd_get_data_direction(scmnd);
-	count = dma_map_sg(ch->sport->sdev->device->dma_device, scat,
-			   scst_cmd_get_sg_cnt(scmnd),
-			   scst_to_tgt_dma_dir(dir));
+	count = ib_dma_map_sg(ch->sport->sdev->device, scat,
+			      scst_cmd_get_sg_cnt(scmnd),
+			      scst_to_tgt_dma_dir(dir));
 	if (unlikely(!count))
 		return -EBUSY;
 
@@ -2065,9 +2061,9 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 					  scst_cmd_atomic(scmnd)
 					  ? GFP_ATOMIC : GFP_KERNEL);
 		if (!ioctx->rdma_ius) {
-			dma_unmap_sg(ch->sport->sdev->device->dma_device,
-				     scat, scst_cmd_get_sg_cnt(scmnd),
-				     scst_to_tgt_dma_dir(dir));
+			ib_dma_unmap_sg(ch->sport->sdev->device,
+					scat, scst_cmd_get_sg_cnt(scmnd),
+					scst_to_tgt_dma_dir(dir));
 			return -ENOMEM;
 		}
 
@@ -2202,9 +2198,9 @@ free_mem:
 
 	kfree(ioctx->rdma_ius);
 
-	dma_unmap_sg(ch->sport->sdev->device->dma_device,
-		     scat, scst_cmd_get_sg_cnt(scmnd),
-		     scst_to_tgt_dma_dir(dir));
+	ib_dma_unmap_sg(ch->sport->sdev->device,
+			scat, scst_cmd_get_sg_cnt(scmnd),
+			scst_to_tgt_dma_dir(dir));
 
 	return -ENOMEM;
 }
@@ -2338,8 +2334,8 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 		goto out;
 	}
 
-	dma_sync_single_for_cpu(ch->sport->sdev->device->dma_device, ioctx->dma,
-				MAX_MESSAGE_SIZE, DMA_TO_DEVICE);
+	ib_dma_sync_single_for_cpu(ch->sport->sdev->device, ioctx->dma,
+				   MAX_MESSAGE_SIZE, DMA_TO_DEVICE);
 
 	srp_rsp = ioctx->buf;
 
