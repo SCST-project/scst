@@ -27,11 +27,12 @@
 #########################
 
 usage() {
-  echo "Usage: $0 [-a] [-d] [-i <i>] [-n] [-r] [-s <l2s>] [-t [user@]host] <dev>"
+  echo "Usage: $0 [-a] [-d] [-f] [-i <i>] [-j] [-n] [-r] [-s <l2s>] [-t [user@]host] <dev>"
   echo "        -a - use asynchronous (buffered) I/O."
   echo "        -d - use direct (non-buffered) I/O."
   echo "        -f - force -- skip the test if there is still data present."
   echo "        -i - number times each test is iterated."
+  echo "        -j - use fio instead of dd for benchmarking."
   echo "        -n - do not verify the data on <dev> before overwriting it."
   echo "        -r - only perform the read test."
   echo "        -s - logarithm base two of the I/O size."
@@ -72,6 +73,51 @@ echo_and_calc_avg() {
   awk -v fmt="$1" -v iosize="$2" -v blocksize="$3" 'BEGIN{pow_2_20=1024*1024}{if ($1 != 0){n++;sum+=iosize/$1;sumsq+=iosize*iosize/($1*$1)};printf fmt, $1} END{d=(n>0?sumsq/n-sum*sum/n/n:0);avg=(n>0?sum/n:0);stddev=(d>0?sqrt(d):0);iops=avg/blocksize;printf fmt fmt fmt,avg/pow_2_20,stddev/pow_2_20,iops}'
 }
 
+time_write() {
+  if [ "${use_fio}" = "true" ]; then
+    if [ "${iotype}" = "direct" ]; then
+      fio_flags="--direct=1"
+    else
+      fio_flags="--direct=0 --end_fsync=1"
+    fi
+    fio  --rw=write --filename="${device}" --bs=$1 --size=$(($1*$2)) --ioengine=sync --end_fsync=1 --invalidate=1 ${fio_flags} --name=writeperftest \
+    | sed -n 's/.*runt= *\([0-9]*\)msec.*/\1/p' \
+    | awk '{print $1/1000}'
+  else
+    drop_caches
+    if [ "${iotype}" = "direct" ]; then
+      dd_oflags="oflag=direct conv=notrunc"
+    else
+      dd_oflags=""
+    fi
+    { dd if=/dev/zero of="${device}" bs=$1 count=$2 ${dd_oflags} 2>&1; sync; } \
+      | sed -n -e 's/.* \([0-9.]*\) s,.*/\1/p' | sed 's/^$/0/'
+  fi
+}
+
+time_read() {
+  if [ "${use_fio}" = "true" ]; then
+    if [ "${iotype}" = "direct" ]; then
+      fio_flags="--direct=1"
+    else
+      fio_flags="--direct=0"
+    fi
+    fio  --rw=read --filename="${device}" --bs=$1 --size=$(($1*$2)) --ioengine=sync --end_fsync=1 --invalidate=1 ${fio_flags} --name=readperftest \
+    | sed -n 's/.*runt= *\([0-9]*\)msec.*/\1/p' \
+    | awk '{print $1/1000}'
+  else
+    drop_caches
+    if [ "${iotype}" = "direct" ]; then
+      dd_iflags="iflag=direct"
+    else
+      dd_iflags=""
+    fi
+    dd if="${device}" of=/dev/null bs=$1 count=$2 ${dd_iflags} 2>&1 \
+      | sed -n -e 's/.* \([0-9.]*\) s,.*/\1/p' | sed 's/^$/0/'
+  fi
+}
+
+
 #########################
 # Default settings      #
 #########################
@@ -84,6 +130,7 @@ log2_max_blocksize=26 # 64 MB
 iotype=direct
 read_test_only=false
 target_login=""
+use_fio=false
 verify_device_data=true
 
 
@@ -91,7 +138,7 @@ verify_device_data=true
 # Argument processing   #
 #########################
 
-set -- $(/usr/bin/getopt "adfhi:nrs:t:" "$@")
+set -- $(/usr/bin/getopt "adfhi:jnrs:t:" "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
@@ -99,6 +146,7 @@ do
     '-d') iotype="direct"; shift;;
     '-f') force="true"; shift;;
     '-i') iterations="$2"; shift; shift;;
+    '-j') use_fio=true; shift;;
     '-n') verify_device_data="false"; shift;;
     '-r') read_test_only="true"; shift;;
     '-s') log2_io_size="$2"; shift; shift;;
@@ -150,14 +198,6 @@ if ! can_drop_cache; then
   echo "WARNING: insufficient privileges to drop the file system cache"
   echo "-- results will be unreliable."
   echo ""
-fi
-
-if [ "${iotype}" = "direct" ]; then
-  dd_oflags="oflag=direct conv=notrunc"
-  dd_iflags="iflag=direct"
-else
-  dd_oflags="oflag=sync"
-  dd_iflags=""
 fi
 
 # Header, line 1
@@ -212,10 +252,7 @@ do
   while [ $i -lt ${iterations} ]
   do
     if [ "${read_test_only}" = "false" ]; then
-      drop_caches
-      dd if=/dev/zero of="${device}" bs=${bs} count=${count} \
-                    ${dd_oflags} 2>&1 \
-        | sed -n -e 's/.* \([0-9.]*\) s,.*/\1/p' | sed 's/^$/0/'
+      time_write ${bs} ${count}
     else
       echo " 0 s,"
     fi
@@ -225,10 +262,7 @@ do
   i=0
   while [ $i -lt ${iterations} ]
   do
-    drop_caches
-    dd if="${device}" of=/dev/null bs=${bs} count=${count} \
-                  ${dd_iflags} 2>&1 \
-      | sed -n -e 's/.* \([0-9.]*\) s,.*/\1/p' | sed 's/^$/0/'
+    time_read ${bs} ${count}
     i=$((i+1))
   done | echo_and_calc_avg "%8.3f " ${iosize} ${bs}
   printf "\n"
