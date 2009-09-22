@@ -1,18 +1,18 @@
 /*
  *  qla2x00t.h
- *  
+ *
  *  Copyright (C) 2004 - 2009 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
  *  Copyright (C) 2006 Nathaniel Clark <nate@misrule.us>
  *  Copyright (C) 2006 - 2009 ID7 Ltd.
  *
  *  QLogic 22xx/23xx/24xx/25xx FC target driver.
- *  
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation, version 2
  *  of the License.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -97,9 +97,9 @@
 #define	FC_TM_REJECT                4
 #define FC_TM_FAILED                5
 
-/* 
+/*
  * Error code of q2t_pre_xmit_response() meaning that cmd's exchange was
- * terminated, so no more actions is needed and success should be returned 
+ * terminated, so no more actions is needed and success should be returned
  * to SCST. Must be different from any SCST_TGT_RES_* codes.
  */
 #define Q2T_PRE_XMIT_RESP_CMD_ABORTED	0x1717

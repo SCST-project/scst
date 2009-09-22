@@ -19,7 +19,7 @@ older kernels.
 
 The original initiator driver was taken from the kernel 2.6.26.
 
-See also "ToDo" file for list of known issues and unimplemented 
+See also "ToDo" file for list of known issues and unimplemented
 features.
 
 
@@ -129,11 +129,11 @@ in/out in Makefile:
    debugging. In this mode some CTIOs will be "broken" to force the
    initiator to issue a retransmit request.
 
-   
+
 Credits
 -------
 
-Thanks to: 
+Thanks to:
 
  * QLogic support for their invaluable help.
 
