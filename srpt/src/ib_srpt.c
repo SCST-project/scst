@@ -94,6 +94,10 @@ static unsigned long trace_flag = DEFAULT_SRPT_TRACE_FLAGS;
 module_param(trace_flag, long, 0644);
 MODULE_PARM_DESC(trace_flag,
 		 "Trace flags for the ib_srpt kernel module.");
+static unsigned long processing_delay_in_us;
+module_param(processing_delay_in_us, long, 0744);
+MODULE_PARM_DESC(processing_delay_in_us,
+		 "Per CQ event processing delay in microseconds.");
 #endif
 
 module_param(thread, int, 0444);
@@ -1454,6 +1458,9 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 				break;
 			}
 		}
+
+		if (processing_delay_in_us <= MAX_UDELAY_MS * 1000)
+			udelay(processing_delay_in_us);
 	}
 }
 
