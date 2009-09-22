@@ -29,8 +29,8 @@
 #include <scst_debug.h>
 
 /* Version numbers, the same as for the kernel */
-#define Q2T_VERSION(a,b,c,d)	(((a) << 030) + ((b) << 020) + (c) << 010 + (d))
-#define Q2T_VERSION_CODE	Q2T_VERSION(1,0,2,0)
+#define Q2T_VERSION(a, b, c, d)	(((a) << 030) + ((b) << 020) + (c) << 010 + (d))
+#define Q2T_VERSION_CODE	Q2T_VERSION(1, 0, 2, 0)
 #define Q2T_VERSION_STRING	"1.0.2priv"
 #define Q2T_PROC_VERSION_NAME	"version"
 
