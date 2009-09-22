@@ -24,13 +24,12 @@
 ########################
 
 function usage {
-  echo "Usage: $0 [-h] [-m] [-p <dir>] [-q] <kernel version>, where: "
+  echo "Usage: $0 [-h] [-m] [-p <dir>] <kernel version>, where: "
   echo "        -h - show this text"
   echo "        -m - add mpt target driver"
   echo "        -n - do not delete code disabled via preprocessor statements"
   echo "        -p - generate multiple patches instead of one big patch into"\
        "the specified directory."
-  echo "        -q - add qla2x00t driver"
 }
 
 # Convert an existing patch.
@@ -140,7 +139,7 @@ function in_separate_patch {
 # Argument verification #
 #########################
 
-qla2x00t="false"
+qla2x00t="true"
 srpt="true"
 mpt_scst="false"
 multiple_patches="false"
@@ -153,7 +152,7 @@ if [ ! -e scst -o ! -e iscsi-scst -o ! -e srpt -o ! -e scst_local ]; then
   exit 1
 fi
 
-set -- $(/usr/bin/getopt hlmnp:q "$@")
+set -- $(/usr/bin/getopt hlmnp: "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
@@ -165,7 +164,6 @@ do
           shift
           ;;
     '-p') multiple_patches="true"; patchdir="$2"; shift; shift;;
-    '-q') qla2x00t="true"; shift;;
     '--') shift;;
     *)    usage; exit 1;;
   esac
