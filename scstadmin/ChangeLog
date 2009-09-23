@@ -1,3 +1,12 @@
+Changes for 1.0.10
+
+- Added new [OPTIONS] section to config file.
+- Added new ISSUE_LIP option for fc targets to issue a LIP after group
+  assignment changes.
+- Added new KEEP_CONFIG option to keep all options when overwriting a
+  configuration file with -writeconfig.
+- General cleanup.
+
 Changes for 1.0.9
 
 - Move a user from one group to another when applying the configuration instead

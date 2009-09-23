@@ -75,6 +75,9 @@ To Do:
 - Compare device and assignment options between current and saved configurations and
   reopen/reassign as required if -ForceConfig is used.
 
+Completed:
+==========
+
 - Create options section to scst.conf which will be carried forward in a -writeconfig.
 
 - Add option to issue a LIP after any group assignment changes so initiators can see
