@@ -166,8 +166,6 @@ function compile_scst_unpatched {
            && if "${scst_local}" = "true" ; then make -C scst_local -s   ; fi \
            && if "${mpt_scst}"   = "true" ; then make -C mpt clean; fi \
            && if "${mpt_scst}"   = "true" ; then make -C mpt -s   ; fi \
-           && make -C qla2x00t -s clean \
-           && make -C qla2x00t -s       \
            && make -C srpt -s clean     \
            && make -C srpt -s )         \
            &> "${outputfile}"
@@ -200,8 +198,6 @@ function compile_scst_patched {
            && if "${scst_local}" = "true" ; then make -C scst_local -s   ; fi \
            && if "${mpt_scst}"   = "true" ; then make -C mpt clean; fi \
            && if "${mpt_scst}"   = "true" ; then make -C mpt -s   ; fi \
-           && make -C qla2x00t -s clean \
-           && make -C qla2x00t -s       \
            && make -C srpt -s clean     \
            && make -C srpt -s )         \
           &> "${outputfile}"
