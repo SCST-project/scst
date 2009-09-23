@@ -23,7 +23,7 @@ General Operations
 Target Driver Operations
      -enable <wwn|host>   : Enable target mode for driver at specified WWN or host.
      -disable <wwn|host>  : Disable target mode for driver at specified WWN or host.
-     -issuelip            : Issue LIP on all target-enabled fabrics.
+     -issuelip            : Issue LIP on all target-enabled FC fabrics.
 
 Device Operations
      -adddev <device>     : Adds a device to a handler.
@@ -1785,12 +1785,13 @@ sub enableTarget {
 sub issueLIP {
 	foreach my $target (keys %{$TARGETS}) {
 		next if ($$TARGETS{$target}->{'duplicate'});
+		next if (!$$TARGETS{$target}->{'enabled'});
 
 		if (defined($$TARGETS{$target}->{'ilip'})) {
 			my $io = new IO::File $$TARGETS{$target}->{'ilip'}, O_WRONLY;
 			return $TRUE if (!$io);
 
-			print "\t-> Issuing LIP for target '$target': ";
+			print "\t-> Issuing LIP for target '".formatTarget($target)."': ";
 
 			if ($_DEBUG_) {
 				print "DBG($$): ".$$TARGETS{$target}->{'ilip'}." -> $TRUE\n\n";
