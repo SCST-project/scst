@@ -36,7 +36,7 @@ kernel your compiler complains about redefinition of some symbol, you
 should either switch to vanilla kernel, or add or change as necessary
 the corresponding to that symbol "#if LINUX_VERSION_CODE" statement.
 
-Befer installation make sure that the link
+Before installation make sure that the link
 "/lib/modules/`you_kernel_version`/build" points to the source code for
 your currently running kernel.
 
@@ -125,7 +125,7 @@ in/out in Makefile:
    where those commands were received. Useful for debugging and lead to
    some performance loss.
 
- - CONFIG_QLA_TGT_DEBUG_SRR - turns on restransmitting packets (SRR)
+ - CONFIG_QLA_TGT_DEBUG_SRR - turns on retransmitting packets (SRR)
    debugging. In this mode some CTIOs will be "broken" to force the
    initiator to issue a retransmit request.
 
