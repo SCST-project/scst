@@ -915,7 +915,7 @@ sub replaceDeviceInGroup {
 	($options, $valid_opts) = $self->checkOptions($options, 'ASSIGN');
 
 	if (!$valid_opts) {
-		$self->{'error'} = "assignDeviceToGroup(): Invalid option(s) '$options' given for ".
+		$self->{'error'} = "replaceDeviceInGroup(): Invalid option(s) '$options' given for ".
 		  "device '$newDevice'";
 		return 1;
 	}

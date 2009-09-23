@@ -703,9 +703,10 @@ sub applyConfiguration {
 				foreach my $device (sort keys %{$_assignments}) {
 					if (!defined($used_assignments{$group}->{$device}) ||
 					   ($$_assignments{$device} != $used_assignments{$group}->{$device})) {
-						if ($$_assignments{$device} != $used_assignments{$group}->{$device}) {
-							print "\t-> WARNING: Device '$device' assigned to group '$group' is at LUN ".
-							  $used_assignments{$group}->{$device}.
+						if (defined($used_assignments{$group}->{$device}) &&
+						    ($$_assignments{$device} != $used_assignments{$group}->{$device})) {
+							print "\t-> WARNING: Device '$device' assigned to group '$group' ".
+							  "is at LUN ".$used_assignments{$group}->{$device}.
 							  " whereas working configuration reflects LUN ".$$_assignments{$device}; 
 						} else {
 							print "\t-> WARNING: Device '$device' is not associated with group ".
@@ -713,11 +714,25 @@ sub applyConfiguration {
 						}
 
 						if (!$check) {
-							print ", releasing.\n";
-							if (releaseDevice($group, $device)) {
-								$errs++;
+							my $_lun = $$_assignments{$device};
+
+							my $replace_dev = findAssignedLun($used_assignments{$group}, $_lun);
+
+							if (defined($replace_dev) && ($replace_dev ne $device)) {
+								print ", replacing with device '$replace_dev'.\n";
+
+								if (replaceDevice($group, $replace_dev, $_lun)) {
+									$errs++;
+								} else {
+									$changes++;
+								}
 							} else {
-								$changes++;
+								print ", releasing.\n";
+								if (releaseDevice($group, $device)) {
+									$errs++;
+								} else {
+									$changes++;
+								}
 							}
 						} else {
 							print ".\n";
@@ -953,6 +968,14 @@ sub applyConfiguration {
 				  ", whereas the working configuration reflects LUN $lun.\n".
 		 	          "\t   Use -ForceConfig to force this LUN change.\n" if (!$force && !$check);
 			} else {
+				my $replace_dev = findAssignedLun($_assignments, $lun);
+
+				if (defined($replace_dev) && ($vname ne $replace_dev)) {
+					print "\t-> WARNING: Use -ForceConfig to replace device '$replace_dev' ".
+					  "with device '$vname' for group '$group'.\n" if (!$force);
+					next;
+				}
+
 				if ($check) {
 					$lun = 'auto' if (!defined($lun));
 					print "\t-> New device assignment for '$vname' to group '$group' at LUN $lun.\n";
@@ -1722,23 +1745,17 @@ sub findUserGroupInCurrent {
 	return undef;
 }
 
-sub findDeviceGroup {
-	my $device = shift;
-	my $config = shift;
+sub findAssignedLun {
+	my $associations = shift;
+	my $lun = shift;
 
-	foreach my $group (keys %{$$config{'ASSIGNMENT'}}) {
-		foreach my $device (@{$$config{'ASSIGNMENT'}->{$group}->{'DEVICE'}}) {
-			my($vname, $arg) = split(/\,/, $device, 2);
-			$vname = cleanupString($vname);
-			return $group if ($vname eq $device);
+	return undef if (!defined($lun));
+
+	foreach my $device (keys %{$associations}) {
+		if ($$associations{$device} == $lun) {
+			return $device;
 		}
 	}
-
-	return undef;
-}
-
-sub findDeviceGroupInCurrent {
-	my $device = shift;
 
 	return undef;
 }
