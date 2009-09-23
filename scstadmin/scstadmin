@@ -123,6 +123,9 @@ my $_FC_CLASS_       = '/sys/class/fc_host';
 my $_SCSI_ISP_       = '/proc/scsi/isp';
 my $_SCSITGT_QLAISP_ = '/proc/scsi_tgt/qla_isp';
 
+my $_TGT_DEF_PREFIX_ = 'Default_';
+my $_TGT_TMP_PREFIX_ = 'TMP_GRP';
+
 my $SCST;
 my $DEVICES;
 my $TARGETS;
@@ -647,6 +650,8 @@ sub applyConfiguration {
 
 	my %seen_users;
 
+	my %rename_group;
+
 	# Cache device/handler configuration
 	foreach my $entry (keys %{$$config{'HANDLER'}}) {
 		foreach my $device (@{$$config{'HANDLER'}->{$entry}->{'DEVICE'}}) {
@@ -899,6 +904,17 @@ sub applyConfiguration {
 	# Create new groups and add users..
 	foreach my $group (keys %used_users) {
 		if (!defined($USERS{$group})) {
+			if ($group =~ /^$_TGT_DEF_PREFIX_/) {
+				my $rnd_id = randomGroupId();
+				my $tmp_group = $_TGT_TMP_PREFIX_.$rnd_id;
+
+				print "\t-> Using temporary group '$tmp_group' for group '$group'.\n";
+
+				$rename_group{$tmp_group} = $group;
+				$used_users{$tmp_group} = $used_users{$group};
+				$group = $tmp_group;
+			}
+
 			if ($check) {
 				print "\t-> New group definition '$group.'\n";
 				$GROUPS{$group}++;
@@ -989,6 +1005,13 @@ sub applyConfiguration {
 				}
 			}
 		}
+	}
+
+	foreach my $tmp_group (keys %rename_group) {
+		my $group = $rename_group{$tmp_group};
+		print "\t-> Processing temporary group '$tmp_group'.\n";
+
+		renameGroup($tmp_group, $group);
 	}
 
 	# Enable/Disable configured targets
@@ -1805,6 +1828,10 @@ sub validHandlerTypes {
 	}
 
 	return $buffer;
+}
+
+sub randomGroupId {
+	return int(rand(10000));
 }
 
 # If we have an unread error from SCST, exit immediately

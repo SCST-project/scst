@@ -4,6 +4,8 @@ Changes for 1.0.9
   of deleting from one and adding to another the same user.
 - Replace a device on a given LUN when applying the configuration instead of removing
   the old device and assigning the new one.
+- If target-oriented access control mode is used, Default_ groups will first be created
+  as temporary groups and later renamed.
 - Add the ability to specify options (ie: READ_ONLY) in assignments in scst.conf.
 - Remove unused references to handler IOs that don't exist and cleanup the write
   configuration function to only write vdisk and vcdrom devices. All other devices
