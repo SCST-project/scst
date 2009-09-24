@@ -2351,8 +2351,8 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	srp_rsp = ioctx->buf;
 
 	if (unlikely(scst_cmd_aborted(scmnd))) {
-		PRINT_INFO("%s: tag= %lld already got aborted",
-			   __func__, (unsigned long long)tag);
+		TRACE_MGMT_DBG("%s: tag= %lld already got aborted",
+			       __func__, (unsigned long long)tag);
 		goto out_aborted;
 	}
 
