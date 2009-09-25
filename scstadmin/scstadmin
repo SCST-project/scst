@@ -972,11 +972,17 @@ sub applyConfiguration {
 			if ($group =~ /^$_TGT_DEF_PREFIX_/) {
 				my $tmp_group = randomGroup();
 
-				print "\t-> Using temporary group '$tmp_group' for group '$group'.\n";
+				if (!defined($tmp_group)) {
+					print "\t-> WARNING: Unable to find a free temporary group for '$group', ".
+					  "using the original group name instead.\n";
 
-				$rename_group{$tmp_group} = $group;
-				$used_users{$tmp_group} = $used_users{$group};
-				$group = $tmp_group;
+				} else {
+					print "\t-> Using temporary group '$tmp_group' for group '$group'.\n";
+
+					$rename_group{$tmp_group} = $group;
+					$used_users{$tmp_group} = $used_users{$group};
+					$group = $tmp_group;
+				}
 			}
 
 			if ($check) {
@@ -1955,13 +1961,17 @@ sub validHandlerTypes {
 
 sub randomGroup {
 	my $tmp_group;
+	my $retry = 0;
 
-	while (!$tmp_group || $SCST->groupExists($tmp_group)) {
+	while (($retry < 10000) && (!$tmp_group || $SCST->groupExists($tmp_group))) {
 		my $id = int(rand(10000));
 
 		$tmp_group = $_TGT_TMP_PREFIX_.$id;
+
+		$retry++;
 	}
 
+	return undef if ($SCST->groupExists($tmp_group));
 	return $tmp_group;
 }
 
