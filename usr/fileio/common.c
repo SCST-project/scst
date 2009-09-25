@@ -125,7 +125,7 @@ static inline void set_cmd_error_status(struct scst_user_scsi_cmd_reply_exec *re
 
 static int set_sense(uint8_t *buffer, int len, int key, int asc, int ascq)
 {
-	int res = SCST_STANDARD_SENSE_LEN;
+	int res = 18;
 
 	EXTRACHECKS_BUG_ON(len < res);
 
@@ -1064,23 +1064,18 @@ static void exec_request_sense(struct vdisk_cmd *vcmd)
 {
 	struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
 	struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
-	int length = cmd->bufflen;
+	int length = cmd->bufflen, l;
 	uint8_t *address = (uint8_t*)(unsigned long)cmd->pbuf;
+	uint8_t b[SCST_STANDARD_SENSE_LEN];
 
 	TRACE_ENTRY();
 
-	if (length < SCST_STANDARD_SENSE_LEN) {
-		PRINT_ERROR("too small requested buffer for REQUEST SENSE "
-			"(len %d)", length);
-		set_cmd_error(vcmd,
-		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
-		goto out;
-	}
+	l = set_sense(b, sizeof(b), SCST_LOAD_SENSE(scst_sense_no_sense));
 
-	set_sense(address, length, SCST_LOAD_SENSE(scst_sense_no_sense));
+	length = min(l, length);
+	memcpy(address, b, length);
 	reply->resp_data_len = length;
 
-out:
 	TRACE_EXIT();
 	return;
 }

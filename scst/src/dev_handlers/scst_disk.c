@@ -193,7 +193,8 @@ static int disk_attach(struct scst_device *dev)
 
 		TRACE_DBG("READ_CAPACITY done: %x", res);
 
-		if ((res == 0) || !scst_analyze_sense(sense_buffer,
+		if ((res == 0) ||
+		    !scst_analyze_sense(sense_buffer,
 				sizeof(sense_buffer), SCST_SENSE_ALL_VALID,
 				SCST_LOAD_SENSE(scst_sense_medium_changed_UA)) ||
 		    !scst_analyze_sense(sense_buffer, sizeof(sense_buffer),
@@ -216,7 +217,8 @@ static int disk_attach(struct scst_device *dev)
 			params->block_shift =
 				scst_calc_block_shift(sector_size);
 	} else {
-		TRACE_BUFFER("Sense set", sense_buffer, sizeof(sense_buffer));
+		TRACE_BUFFER("Returned sense", sense_buffer,
+			sizeof(sense_buffer));
 		res = -ENODEV;
 		goto out_free_buf;
 	}

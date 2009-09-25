@@ -1360,16 +1360,22 @@ static int dev_user_process_reply_exec(struct scst_user_cmd *ucmd,
 
 	cmd->status = ereply->status;
 	if (ereply->sense_len != 0) {
+		int sense_len;
+
 		res = scst_alloc_sense(cmd, 0);
 		if (res != 0)
 			goto out_compl;
+
+		sense_len = min((int)cmd->sense_buflen, (int)ereply->sense_len);
+
 		res = copy_from_user(cmd->sense,
 			(void __user *)(unsigned long)ereply->psense_buffer,
-			min((int)cmd->sense_bufflen, (int)ereply->sense_len));
+			sense_len);
 		if (res < 0) {
 			PRINT_ERROR("%s", "Unable to get sense data");
 			goto out_hwerr_res_set;
 		}
+		cmd->sense_valid_len = sense_len;
 	}
 
 out_compl:

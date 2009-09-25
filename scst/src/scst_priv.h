@@ -436,11 +436,6 @@ void scst_requeue_ua(struct scst_cmd *cmd);
 void scst_gen_aen_or_ua(struct scst_tgt_dev *tgt_dev,
 	int key, int asc, int ascq);
 
-static inline bool scst_is_ua_command(struct scst_cmd *cmd)
-{
-	return (cmd->op_flags & SCST_SKIP_UA) == 0;
-}
-
 static inline bool scst_is_implicit_hq(struct scst_cmd *cmd)
 {
 	return (cmd->op_flags & SCST_IMPLICIT_HQ) != 0;

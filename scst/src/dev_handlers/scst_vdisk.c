@@ -1116,8 +1116,7 @@ static int vcdrom_exec(struct scst_cmd *cmd)
 		goto out_done;
 	}
 
-	if (virt_dev->media_changed && (cmd->cdb[0] != INQUIRY) &&
-	    (cmd->cdb[0] != REQUEST_SENSE) && (cmd->cdb[0] != REPORT_LUNS)) {
+	if (virt_dev->media_changed && scst_is_ua_command(cmd)) {
 		spin_lock(&virt_dev->flags_lock);
 		if (virt_dev->media_changed) {
 			virt_dev->media_changed = 0;
@@ -1335,31 +1334,28 @@ out:
 
 static void vdisk_exec_request_sense(struct scst_cmd *cmd)
 {
-	int32_t length;
+	int32_t length, sl;
 	uint8_t *address;
+	uint8_t b[SCST_STANDARD_SENSE_LEN];
 
 	TRACE_ENTRY();
 
-	length = scst_get_buf_first(cmd, &address);
-	TRACE_DBG("length %d", length);
-	if (unlikely(length < SCST_STANDARD_SENSE_LEN)) {
-		if (length != 0) {
-			PRINT_ERROR("scst_get_buf_first() failed or too small "
-				"requested buffer (returned %d)", length);
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(
-					scst_sense_invalid_field_in_parm_list));
-		}
-		if (length > 0)
-			goto out_put;
-		else
-			goto out;
-	}
-
-	scst_set_sense(address, length,	cmd->dev->d_sense,
+	sl = scst_set_sense(b, sizeof(b), cmd->dev->d_sense,
 		SCST_LOAD_SENSE(scst_sense_no_sense));
 
-out_put:
+	length = scst_get_buf_first(cmd, &address);
+	TRACE_DBG("length %d", length);
+	if (length < 0) {
+		PRINT_ERROR("scst_get_buf_first() failed: %d)", length);
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_hardw_error));
+		goto out;
+	}
+
+	length = min(sl, length);
+	memcpy(address, b, length);
+	scst_set_resp_data_len(cmd, length);
+
 	scst_put_buf(cmd, address);
 
 out:
@@ -1935,8 +1931,23 @@ static void vdisk_exec_read_capacity16(struct scst_cmd *cmd)
 		goto out;
 	}
 
+	/*
+	 * Some versions of Windows have a bug, which makes them consider
+	 * response of READ CAPACITY(16) longer than 12 bytes as a faulty one.
+	 * As the result, such Windows'es refuse to see SCST exported
+	 * devices >2TB in size. This is fixed by MS in latter Windows
+	 * versions, probably, by some hotfix.
+	 *
+	 * But if you're using such buggy Windows and experience this problem,
+	 * change this '1' to '0'.
+	 */
+#if 1  
 	if (length > READ_CAP16_LEN)
 		length = READ_CAP16_LEN;
+#else
+	if (length > 12)
+		length = 12;
+#endif
 	memcpy(address, buffer, length);
 
 	scst_put_buf(cmd, address);

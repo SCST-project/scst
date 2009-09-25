@@ -117,7 +117,8 @@ static int cdrom_attach(struct scst_device *dev)
 
 		TRACE_DBG("READ_CAPACITY done: %x", res);
 
-		if ((res == 0) || !scst_analyze_sense(sense_buffer,
+		if ((res == 0) ||
+		    !scst_analyze_sense(sense_buffer,
 				sizeof(sense_buffer), SCST_SENSE_KEY_VALID,
 				UNIT_ATTENTION, 0, 0))
 			break;
@@ -141,7 +142,8 @@ static int cdrom_attach(struct scst_device *dev)
 		TRACE_DBG("Sector size is %i scsi_level %d(SCSI_2 %d)",
 			sector_size, dev->scsi_dev->scsi_level, SCSI_2);
 	} else {
-		TRACE_BUFFER("Sense set", sense_buffer, sizeof(sense_buffer));
+		TRACE_BUFFER("Returned sense", sense_buffer,
+			sizeof(sense_buffer));
 		params->block_shift = CDROM_DEF_BLOCK_SHIFT;
 	}
 

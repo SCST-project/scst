@@ -39,7 +39,7 @@
  * Size of sense sufficient to carry standard sense data.
  * Warning! It's allocated on stack!
  */
-#define SCST_STANDARD_SENSE_LEN      17
+#define SCST_STANDARD_SENSE_LEN      18
 
 /* Max size of sense */
 #define SCST_SENSE_BUFFERSIZE        96

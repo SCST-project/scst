@@ -1392,7 +1392,8 @@ struct scst_cmd {
 	uint8_t driver_status;	/* set by mid-level */
 
 	uint8_t *sense;		/* pointer to sense buffer */
-	unsigned short sense_bufflen; /* length of the sense buffer, if any */
+	unsigned short sense_valid_len; /* length of valid sense data */
+	unsigned short sense_buflen; /* length of the sense buffer, if any */
 
 	/* Start time when cmd was sent to rdy_to_xfer() or xmit_response() */
 	unsigned long hw_pending_start;
@@ -1764,9 +1765,11 @@ struct scst_tgt_dev_UA {
 	struct list_head UA_list_entry;
 
 	/* Set if UA is global for session */
-	unsigned int global_UA:1;
+	unsigned short global_UA:1;
 
-	/* Unit Attention sense */
+	/* Unit Attention valid sense len */
+	unsigned short UA_valid_sense_len;
+	/* Unit Attention sense buf */
 	uint8_t UA_sense_buffer[SCST_SENSE_BUFFERSIZE];
 };
 
@@ -2146,12 +2149,18 @@ enum dma_data_direction scst_to_dma_dir(int scst_dir);
 enum dma_data_direction scst_to_tgt_dma_dir(int scst_dir);
 
 /*
- * Returns 1, if cmd's CDB is locally handled by SCST and 0 otherwise.
+ * Returns true, if cmd's CDB is locally handled by SCST and 0 otherwise.
  * Dev handlers parse() and dev_done() not called for such commands.
  */
 static inline bool scst_is_cmd_local(struct scst_cmd *cmd)
 {
 	return (cmd->op_flags & SCST_LOCAL_CMD) != 0;
+}
+
+/* Returns true, if cmd can deliver UA */
+static inline bool scst_is_ua_command(struct scst_cmd *cmd)
+{
+	return (cmd->op_flags & SCST_SKIP_UA) == 0;
 }
 
 /*
@@ -2455,10 +2464,10 @@ static inline uint8_t *scst_cmd_get_sense_buffer(struct scst_cmd *cmd)
 	return cmd->sense;
 }
 
-/* Returns cmd's sense buffer length */
+/* Returns cmd's valid sense length */
 static inline int scst_cmd_get_sense_buffer_len(struct scst_cmd *cmd)
 {
-	return cmd->sense_bufflen;
+	return cmd->sense_valid_len;
 }
 
 /*
@@ -3020,7 +3029,11 @@ int scst_alloc_sense(struct scst_cmd *cmd, int atomic);
 int scst_alloc_set_sense(struct scst_cmd *cmd, int atomic,
 	const uint8_t *sense, unsigned int len);
 
-void scst_set_sense(uint8_t *buffer, int len, bool d_sense,
+/*
+ * Sets the corresponding field in the sense buffer taking sense type
+ * into account. Returns resulting sense length.
+ */
+int scst_set_sense(uint8_t *buffer, int len, bool d_sense,
 	int key, int asc, int ascq);
 
 /*

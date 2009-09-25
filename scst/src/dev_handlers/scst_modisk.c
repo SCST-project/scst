@@ -230,7 +230,8 @@ static int modisk_attach(struct scst_device *dev)
 		TRACE_DBG("Sector size is %i scsi_level %d(SCSI_2 %d)",
 		      sector_size, dev->scsi_dev->scsi_level, SCSI_2);
 	} else {
-		TRACE_BUFFER("Sense set", sense_buffer, sizeof(sense_buffer));
+		TRACE_BUFFER("Returned sense", sense_buffer,
+			sizeof(sense_buffer));
 
 		if (sense_buffer[2] != NOT_READY) {
 			res = -ENODEV;

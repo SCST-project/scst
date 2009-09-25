@@ -91,9 +91,11 @@ int scst_alloc_sense(struct scst_cmd *cmd, int atomic)
 		goto out;
 	}
 
+	cmd->sense_buflen = SCST_SENSE_BUFFERSIZE;
+
 memzero:
-	cmd->sense_bufflen = SCST_SENSE_BUFFERSIZE;
-	memset(cmd->sense, 0, SCST_SENSE_BUFFERSIZE);
+	cmd->sense_valid_len = 0;
+	memset(cmd->sense, 0, cmd->sense_buflen);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -114,8 +116,15 @@ int scst_alloc_set_sense(struct scst_cmd *cmd, int atomic,
 		goto out;
 	}
 
-	memcpy(cmd->sense, sense, min((int)len, (int)cmd->sense_bufflen));
-	TRACE_BUFFER("Sense set", cmd->sense, cmd->sense_bufflen);
+	cmd->sense_valid_len = len;
+	if (cmd->sense_buflen < len) {
+		PRINT_WARNING("Sense truncated (needed %d), shall you increase "
+			"SCST_SENSE_BUFFERSIZE? Op: %x", len, cmd->cdb[0]);
+		cmd->sense_valid_len = cmd->sense_buflen;
+	}
+
+	memcpy(cmd->sense, sense, cmd->sense_valid_len);
+	TRACE_BUFFER("Sense set", cmd->sense, cmd->sense_valid_len);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -159,9 +168,9 @@ void scst_set_cmd_error(struct scst_cmd *cmd, int key, int asc, int ascq)
 		goto out;
 	}
 
-	scst_set_sense(cmd->sense, cmd->sense_bufflen,
+	cmd->sense_valid_len = scst_set_sense(cmd->sense, cmd->sense_buflen,
 		scst_get_cmd_dev_d_sense(cmd), key, asc, ascq);
-	TRACE_BUFFER("Sense set", cmd->sense, cmd->sense_bufflen);
+	TRACE_BUFFER("Sense set", cmd->sense, cmd->sense_valid_len);
 
 out:
 	TRACE_EXIT();
@@ -169,16 +178,18 @@ out:
 }
 EXPORT_SYMBOL(scst_set_cmd_error);
 
-void scst_set_sense(uint8_t *buffer, int len, bool d_sense,
+int scst_set_sense(uint8_t *buffer, int len, bool d_sense,
 	int key, int asc, int ascq)
 {
+	int res;
+
 	sBUG_ON(len == 0);
 
 	memset(buffer, 0, len);
 
 	if (d_sense) {
 		/* Descriptor format */
-		if (len < 4) {
+		if (len < 8) {
 			PRINT_ERROR("Length %d of sense buffer too small to "
 				"fit sense %x:%x:%x", len, key, asc, ascq);
 		}
@@ -190,9 +201,10 @@ void scst_set_sense(uint8_t *buffer, int len, bool d_sense,
 			buffer[2] = asc;	/* ASC			*/
 		if (len > 3)
 			buffer[3] = ascq;	/* ASCQ			*/
+		res = 8;
 	} else {
 		/* Fixed format */
-		if (len < 14) {
+		if (len < 18) {
 			PRINT_ERROR("Length %d of sense buffer too small to "
 				"fit sense %x:%x:%x", len, key, asc, ascq);
 		}
@@ -206,10 +218,11 @@ void scst_set_sense(uint8_t *buffer, int len, bool d_sense,
 			buffer[12] = asc;	/* ASC			*/
 		if (len > 13)
 			buffer[13] = ascq;	/* ASCQ			*/
+		res = 18;
 	}
 
-	TRACE_BUFFER("Sense set", buffer, len);
-	return;
+	TRACE_BUFFER("Sense set", buffer, res);
+	return res;
 }
 EXPORT_SYMBOL(scst_set_sense);
 
@@ -222,43 +235,55 @@ bool scst_analyze_sense(const uint8_t *sense, int len, unsigned int valid_mask,
 	if ((sense[0] == 0x70) || (sense[0] == 0x71)) {
 		/* Fixed format */
 
-		if (len < 14) {
-			PRINT_ERROR("Sense too small to analyze (%d, "
-				"type fixed)", len);
-			goto out;
+		/* Sense Key */
+		if (valid_mask & SCST_SENSE_KEY_VALID) {
+			if (len < 3)
+				goto out;
+			if (sense[2] != key)
+				goto out;
 		}
 
-		/* Sense Key */
-		if ((valid_mask & SCST_SENSE_KEY_VALID) && (sense[2] != key))
-			goto out;
-
 		/* ASC */
-		if ((valid_mask & SCST_SENSE_ASC_VALID) && (sense[12] != asc))
-			goto out;
+		if (valid_mask & SCST_SENSE_ASC_VALID) {
+			if (len < 13)
+				goto out;
+			if (sense[12] != asc)
+				goto out;
+		}
 
 		/* ASCQ */
-		if ((valid_mask & SCST_SENSE_ASCQ_VALID) && (sense[13] != ascq))
-			goto out;
+		if (valid_mask & SCST_SENSE_ASCQ_VALID) {
+			if (len < 14)
+				goto out;
+			if (sense[13] != ascq)
+				goto out;
+		}
 	} else if ((sense[0] == 0x72) || (sense[0] == 0x73)) {
 		/* Descriptor format */
 
-		if (len < 4) {
-			PRINT_ERROR("Sense too small to analyze (%d, "
-				"type descriptor)", len);
-			goto out;
+		/* Sense Key */
+		if (valid_mask & SCST_SENSE_KEY_VALID) {
+			if (len < 2)
+				goto out;
+			if (sense[1] != key)
+				goto out;
 		}
 
-		/* Sense Key */
-		if ((valid_mask & SCST_SENSE_KEY_VALID) && (sense[1] != key))
-			goto out;
-
 		/* ASC */
-		if ((valid_mask & SCST_SENSE_ASC_VALID) && (sense[2] != asc))
-			goto out;
+		if (valid_mask & SCST_SENSE_ASC_VALID) {
+			if (len < 3)
+				goto out;
+			if (sense[2] != asc)
+				goto out;
+		}
 
 		/* ASCQ */
-		if ((valid_mask & SCST_SENSE_ASCQ_VALID) && (sense[3] != ascq))
-			goto out;
+		if (valid_mask & SCST_SENSE_ASCQ_VALID) {
+			if (len < 4)
+				goto out;
+			if (sense[3] != ascq)
+				goto out;
+		}
 	} else
 		goto out;
 
@@ -308,23 +333,25 @@ void scst_check_convert_sense(struct scst_cmd *cmd)
 	if (d_sense && ((cmd->sense[0] == 0x70) || (cmd->sense[0] == 0x71))) {
 		TRACE_MGMT_DBG("Converting fixed sense to descriptor (cmd %p)",
 			cmd);
-		if (cmd->sense_bufflen < 14) {
+		if ((cmd->sense_valid_len < 18) ) {
 			PRINT_ERROR("Sense too small to convert (%d, "
-				"type fixed)", cmd->sense_bufflen);
+				"type: fixed)", cmd->sense_buflen);
 			goto out;
 		}
-		scst_set_sense(cmd->sense, cmd->sense_bufflen, d_sense,
-			cmd->sense[2], cmd->sense[12], cmd->sense[13]);
+		cmd->sense_valid_len = scst_set_sense(cmd->sense, cmd->sense_buflen,
+			d_sense, cmd->sense[2], cmd->sense[12], cmd->sense[13]);
 	} else if (!d_sense && ((cmd->sense[0] == 0x72) ||
 				(cmd->sense[0] == 0x73))) {
 		TRACE_MGMT_DBG("Converting descriptor sense to fixed (cmd %p)",
 			cmd);
-		if (cmd->sense_bufflen < 4) {
+		if ((cmd->sense_buflen < 18) || (cmd->sense_valid_len < 8)) {
 			PRINT_ERROR("Sense too small to convert (%d, "
-				"type descryptor)", cmd->sense_bufflen);
+				"type: descryptor, valid %d)",
+				cmd->sense_buflen, cmd->sense_valid_len);
 			goto out;
 		}
-		scst_set_sense(cmd->sense, cmd->sense_bufflen, d_sense,
+		cmd->sense_valid_len = scst_set_sense(cmd->sense,
+			cmd->sense_buflen, d_sense,
 			cmd->sense[1], cmd->sense[2], cmd->sense[3]);
 	}
 
@@ -397,10 +424,11 @@ void scst_set_initial_UA(struct scst_session *sess, int key, int asc, int ascq)
 				ua = list_entry(tgt_dev->UA_list.next,
 					typeof(*ua), UA_list_entry);
 				if (scst_analyze_sense(ua->UA_sense_buffer,
-						sizeof(ua->UA_sense_buffer),
+						ua->UA_valid_sense_len,
 						SCST_SENSE_ALL_VALID,
 						SCST_LOAD_SENSE(scst_sense_reset_UA))) {
-					scst_set_sense(ua->UA_sense_buffer,
+					ua->UA_valid_sense_len = scst_set_sense(
+						ua->UA_sense_buffer,
 						sizeof(ua->UA_sense_buffer),
 						tgt_dev->dev->d_sense,
 						key, asc, ascq);
@@ -464,6 +492,7 @@ void scst_gen_aen_or_ua(struct scst_tgt_dev *tgt_dev,
 {
 	struct scst_tgt_template *tgtt = tgt_dev->sess->tgt->tgtt;
 	uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
+	int sl;
 
 	TRACE_ENTRY();
 
@@ -476,9 +505,9 @@ void scst_gen_aen_or_ua(struct scst_tgt_dev *tgt_dev,
 			goto queue_ua;
 
 		aen->event_fn = SCST_AEN_SCSI;
-		aen->aen_sense_len = SCST_STANDARD_SENSE_LEN;
-		scst_set_sense(aen->aen_sense, aen->aen_sense_len,
-			tgt_dev->dev->d_sense, key, asc, ascq);
+		aen->aen_sense_len = scst_set_sense(aen->aen_sense,
+			SCST_SENSE_BUFFERSIZE, tgt_dev->dev->d_sense,
+			key, asc, ascq);
 
 		TRACE_DBG("Calling target's %s report_aen(%p)",
 			tgtt->name, aen);
@@ -494,9 +523,9 @@ void scst_gen_aen_or_ua(struct scst_tgt_dev *tgt_dev,
 queue_ua:
 	TRACE_MGMT_DBG("AEN not supported, queuing plain UA (tgt_dev %p)",
 		tgt_dev);
-	scst_set_sense(sense_buffer, sizeof(sense_buffer),
+	sl = scst_set_sense(sense_buffer, sizeof(sense_buffer),
 		tgt_dev->dev->d_sense, key, asc, ascq);
-	scst_check_set_UA(tgt_dev, sense_buffer, sizeof(sense_buffer), 0);
+	scst_check_set_UA(tgt_dev, sense_buffer, sl, 0);
 
 out:
 	TRACE_EXIT();
@@ -585,17 +614,18 @@ static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 
 		list_for_each_entry(tgt_dev, shead,
 				sess_tgt_dev_list_entry) {
+			int sl;
+
 			if (!scst_is_report_luns_changed_type(
 					tgt_dev->dev->type))
 				continue;
 
-			scst_set_sense(sense_buffer, sizeof(sense_buffer),
+			sl = scst_set_sense(sense_buffer, sizeof(sense_buffer),
 				tgt_dev->dev->d_sense,
 				SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed));
 
 			__scst_check_set_UA(tgt_dev, sense_buffer,
-				sizeof(sense_buffer),
-				flags | SCST_SET_UA_FLAG_GLOBAL);
+				sl, flags | SCST_SET_UA_FLAG_GLOBAL);
 		}
 	}
 
@@ -653,8 +683,8 @@ found:
 			goto queue_ua;
 
 		aen->event_fn = SCST_AEN_SCSI;
-		aen->aen_sense_len = SCST_STANDARD_SENSE_LEN;
-		scst_set_sense(aen->aen_sense, aen->aen_sense_len, d_sense,
+		aen->aen_sense_len = scst_set_sense(aen->aen_sense,
+			SCST_SENSE_BUFFERSIZE, d_sense,
 			SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed));
 
 		TRACE_DBG("Calling target's %s report_aen(%p)",
@@ -754,7 +784,7 @@ void scst_requeue_ua(struct scst_cmd *cmd)
 {
 	TRACE_ENTRY();
 
-	if (scst_analyze_sense(cmd->sense, cmd->sense_bufflen,
+	if (scst_analyze_sense(cmd->sense, cmd->sense_valid_len,
 			SCST_SENSE_ALL_VALID,
 			SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed))) {
 		TRACE_MGMT_DBG("Requeuing REPORTED LUNS DATA CHANGED UA "
@@ -766,7 +796,7 @@ void scst_requeue_ua(struct scst_cmd *cmd)
 	} else {
 		TRACE_MGMT_DBG("Requeuing UA for delivery failed cmd %p", cmd);
 		scst_check_set_UA(cmd->tgt_dev, cmd->sense,
-			cmd->sense_bufflen, SCST_SET_UA_FLAG_AT_HEAD);
+			cmd->sense_valid_len, SCST_SET_UA_FLAG_AT_HEAD);
 	}
 
 	TRACE_EXIT();
@@ -1428,7 +1458,7 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	struct scst_device *dev = acg_dev->dev;
 	struct list_head *sess_tgt_dev_list_head;
 	struct scst_tgt_template *vtt = sess->tgt->tgtt;
-	int rc, i;
+	int rc, i, sl;
 	bool share_io_ctx = false;
 	uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
 
@@ -1523,9 +1553,9 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 			&tgt_dev->tgt_dev_flags);
 	}
 
-	scst_set_sense(sense_buffer, sizeof(sense_buffer),
+	sl = scst_set_sense(sense_buffer, sizeof(sense_buffer),
 		dev->d_sense, SCST_LOAD_SENSE(scst_sense_reset_UA));
-	scst_alloc_set_UA(tgt_dev, sense_buffer, sizeof(sense_buffer), 0);
+	scst_alloc_set_UA(tgt_dev, sense_buffer, sl, 0);
 
 	tm_dbg_init_tgt_dev(tgt_dev, acg_dev);
 
@@ -1635,11 +1665,10 @@ void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA)
 
 	if (queue_UA) {
 		uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
-		scst_set_sense(sense_buffer, sizeof(sense_buffer),
-			tgt_dev->dev->d_sense,
-			SCST_LOAD_SENSE(scst_sense_nexus_loss_UA));
-		scst_check_set_UA(tgt_dev, sense_buffer,
-			sizeof(sense_buffer), 0);
+		int sl = scst_set_sense(sense_buffer, sizeof(sense_buffer),
+				tgt_dev->dev->d_sense,
+				SCST_LOAD_SENSE(scst_sense_nexus_loss_UA));
+		scst_check_set_UA(tgt_dev, sense_buffer, sl, 0);
 	}
 
 	TRACE_EXIT();
@@ -4272,11 +4301,12 @@ static void scst_check_internal_sense(struct scst_device *dev, int result,
 	TRACE_ENTRY();
 
 	if (host_byte(result) == DID_RESET) {
+		int sl;
 		TRACE(TRACE_MGMT_MINOR, "%s", "DID_RESET received, triggering "
 			"reset UA");
-		scst_set_sense(sense, sense_len, dev->d_sense,
+		sl = scst_set_sense(sense, sense_len, dev->d_sense,
 			SCST_LOAD_SENSE(scst_sense_reset_UA));
-		scst_dev_check_set_UA(dev, NULL, sense, sense_len);
+		scst_dev_check_set_UA(dev, NULL, sense, sl);
 	} else if ((status_byte(result) == CHECK_CONDITION) &&
 		   scst_is_ua_sense(sense, sense_len))
 		scst_dev_check_set_UA(dev, NULL, sense, sense_len);
@@ -4526,10 +4556,9 @@ void scst_process_reset(struct scst_device *dev,
 
 	if (setUA) {
 		uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
-		scst_set_sense(sense_buffer, sizeof(sense_buffer),
+		int sl = scst_set_sense(sense_buffer, sizeof(sense_buffer),
 			dev->d_sense, SCST_LOAD_SENSE(scst_sense_reset_UA));
-		scst_dev_check_set_local_UA(dev, exclude_cmd, sense_buffer,
-			sizeof(sense_buffer));
+		scst_dev_check_set_local_UA(dev, exclude_cmd, sense_buffer, sl);
 	}
 
 	TRACE_EXIT();
@@ -4595,7 +4624,7 @@ again:
 	}
 
 	scst_set_cmd_error_sense(cmd, UA_entry->UA_sense_buffer,
-		sizeof(UA_entry->UA_sense_buffer));
+		UA_entry->UA_valid_sense_len);
 
 	cmd->ua_ignore = 1;
 
@@ -4614,8 +4643,8 @@ again:
 							UA_list_entry) {
 					if (ua->global_UA &&
 					    memcmp(ua->UA_sense_buffer,
-						UA_entry->UA_sense_buffer,
-					     sizeof(ua->UA_sense_buffer)) == 0) {
+					      UA_entry->UA_sense_buffer,
+					      sizeof(ua->UA_sense_buffer)) == 0) {
 						TRACE_MGMT_DBG("Freeing not "
 							"needed global UA %p",
 							ua);
@@ -4679,9 +4708,13 @@ static void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
 	if (UA_entry->global_UA)
 		TRACE_MGMT_DBG("Queuing global UA %p", UA_entry);
 
-	if (sense_len > (int)sizeof(UA_entry->UA_sense_buffer))
+	if (sense_len > (int)sizeof(UA_entry->UA_sense_buffer)) {
+		PRINT_WARNING("Sense truncated (needed %d), shall you increase "
+			"SCST_SENSE_BUFFERSIZE?", sense_len);
 		sense_len = sizeof(UA_entry->UA_sense_buffer);
+	}
 	memcpy(UA_entry->UA_sense_buffer, sense, sense_len);
+	UA_entry->UA_valid_sense_len = sense_len;
 
 	set_bit(SCST_TGT_DEV_UA_PENDING, &tgt_dev->tgt_dev_flags);
 
@@ -5239,13 +5272,13 @@ void scst_store_sense(struct scst_cmd *cmd)
 
 		spin_lock_bh(&tgt_dev->tgt_dev_lock);
 
-		if (cmd->sense_bufflen <= sizeof(tgt_dev->tgt_dev_sense))
-			tgt_dev->tgt_dev_valid_sense_len = cmd->sense_bufflen;
+		if (cmd->sense_valid_len <= sizeof(tgt_dev->tgt_dev_sense))
+			tgt_dev->tgt_dev_valid_sense_len = cmd->sense_valid_len;
 		else {
 			tgt_dev->tgt_dev_valid_sense_len = sizeof(tgt_dev->tgt_dev_sense);
 			PRINT_ERROR("Stored sense truncated to size %d "
 				"(needed %d)", tgt_dev->tgt_dev_valid_sense_len,
-				cmd->sense_bufflen);
+				cmd->sense_valid_len);
 		}
 		memcpy(tgt_dev->tgt_dev_sense, cmd->sense,
 			tgt_dev->tgt_dev_valid_sense_len);
