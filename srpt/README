@@ -83,9 +83,9 @@ First of all, load the SRP kernel module as follows:
 
   modprobe ib_srp
 
-Next, discover the new SRP target by running the ipsrpdm command:
+Next, discover the new SRP target by running the ibsrpdm command:
 
-   ipsrpdm -c
+   ibsrpdm -c
 
 Now let the initiator system log in to the target system:
 
