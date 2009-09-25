@@ -167,8 +167,8 @@ IMPORTANT: Some versions of Windows have a bug, which makes them consider
 	   As the result, such Windows'es refuse to see SCST exported
            devices >2TB in size. This is fixed by MS in latter Windows
 	   versions, probably, by some hotfix. But if you're using such
-	   buggy Windows and experience this problem, change this '1' to
-	   '0'.
+	   buggy Windows and experience this problem, change in
+	   scst_vdisk.c::vdisk_exec_read_capacity16() "#if 1" to "#if 0".
 
 To uninstall, type 'make scst_uninstall'.
 
