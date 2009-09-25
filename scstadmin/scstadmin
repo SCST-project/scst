@@ -1783,6 +1783,8 @@ sub enableTarget {
 }
 
 sub issueLIP {
+	my $lip_issued;
+
 	foreach my $target (keys %{$TARGETS}) {
 		next if ($$TARGETS{$target}->{'duplicate'});
 		next if (!$$TARGETS{$target}->{'enabled'});
@@ -1800,8 +1802,13 @@ sub issueLIP {
 			}
 
 			print "done.\n";
+
+			$lip_issued = $TRUE;
 		}
 	}
+
+	print "\t-> WARNING: This target driver does not support issuing LIPs.\n\n"
+	  if (!$lip_issued);
 }
 
 sub readConfig {
