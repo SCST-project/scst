@@ -80,21 +80,6 @@
 #define EXTRACHECKS_WARN_ON_ONCE(a)
 #endif
 
-#ifdef CONFIG_SCST_DEBUG
-/*#  define LOG_FLAG KERN_DEBUG*/
-#  define LOG_FLAG KERN_INFO
-#  define INFO_FLAG KERN_INFO
-#  define ERROR_FLAG KERN_INFO
-#else
-# define LOG_FLAG KERN_INFO
-# define INFO_FLAG KERN_INFO
-# define ERROR_FLAG KERN_ERR
-#endif
-
-#define CRIT_FLAG KERN_CRIT
-
-#define NO_FLAG ""
-
 #define TRACE_NULL           0x00000000
 #define TRACE_DEBUG          0x00000001
 #define TRACE_FUNCTION       0x00000002
@@ -123,9 +108,9 @@
  * present to suppress a checkpatch warning (KERN_CONT is defined as "").
  */
 #define PRINT(log_flag, format, args...)  \
-		printk(KERN_CONT "%s" format "\n", log_flag, ## args)
+		printk(log_flag format "\n", ## args)
 #define PRINTN(log_flag, format, args...) \
-		printk(KERN_CONT "%s" format, log_flag, ## args)
+		printk(log_flag format, ## args)
 
 #ifdef LOG_PREFIX
 #define __LOG_PREFIX	LOG_PREFIX
@@ -141,37 +126,33 @@
 #define ___unlikely(a)		unlikely(a)
 #endif
 
-extern int debug_print_prefix(unsigned long trace_flag, const char *log_level,
+extern int debug_print_prefix(unsigned long trace_flag,
 	const char *prefix, const char *func, int line);
-extern void debug_print_buffer(const char *log_level, const void *data,
-	int len);
+extern void debug_print_buffer(const void *data, int len);
 
-#define TRACE(trace, format, args...)					  \
-do {									  \
-	if (___unlikely(trace_flag & (trace))) {			  \
-		char *__tflag = LOG_FLAG;				  \
-		if (debug_print_prefix(trace_flag, __tflag, __LOG_PREFIX, \
-				       __func__, __LINE__) > 0) {	  \
-			__tflag = NO_FLAG;				  \
-		}							  \
-		PRINT(NO_FLAG, "%s" format, __tflag, args);		  \
-	}								  \
+#define TRACE(trace, format, args...)					\
+do {									\
+	if (___unlikely(trace_flag & (trace))) {			\
+		debug_print_prefix(trace_flag, __LOG_PREFIX,		\
+				       __func__, __LINE__);		\
+		PRINT(KERN_CONT, format, args);				\
+	}								\
 } while (0)
 
 #ifdef CONFIG_SCST_DEBUG
 
 #define PRINT_BUFFER(message, buff, len)                            \
 do {                                                                \
-	PRINT(NO_FLAG, "%s:%s:", __func__, message);		    \
-	debug_print_buffer(INFO_FLAG, buff, len);		    \
+	PRINT(KERN_INFO, "%s:%s:", __func__, message);		    \
+	debug_print_buffer(buff, len);				    \
 } while (0)
 
 #else
 
 #define PRINT_BUFFER(message, buff, len)                            \
 do {                                                                \
-	PRINT(NO_FLAG, "%s:", message);				    \
-	debug_print_buffer(INFO_FLAG, buff, len);		    \
+	PRINT(KERN_INFO, "%s:", message);			    \
+	debug_print_buffer(buff, len);				    \
 } while (0)
 
 #endif
@@ -179,13 +160,10 @@ do {                                                                \
 #define PRINT_BUFF_FLAG(flag, message, buff, len)			\
 do {									\
 	if (___unlikely(trace_flag & (flag))) {				\
-		char *__tflag = INFO_FLAG;				\
-		if (debug_print_prefix(trace_flag, __tflag, NULL, __func__,\
-				       __LINE__) > 0) {			\
-			__tflag = NO_FLAG;				\
-		}							\
-		PRINT(NO_FLAG, "%s%s:", __tflag, message);		\
-		debug_print_buffer(INFO_FLAG, buff, len);		\
+		PRINTN(KERN_INFO, "%s", "");				\
+		debug_print_prefix(trace_flag, NULL, __func__, __LINE__);\
+		PRINT(KERN_CONT, "%s:", message);			\
+		debug_print_buffer(buff, len);				\
 	}								\
 } while (0)
 
@@ -202,12 +180,9 @@ do {									\
 #define TRACE_DBG_FLAG(trace, format, args...)				\
 do {									\
 	if (trace_flag & (trace)) {					\
-		char *__tflag = LOG_FLAG;				\
-		if (debug_print_prefix(trace_flag, __tflag, NULL, __func__,\
-				       __LINE__) > 0) {			\
-			__tflag = NO_FLAG;				\
-		}							\
-		PRINT(NO_FLAG, "%s" format, __tflag, args);		\
+		PRINTN(KERN_INFO, "%s", "");				\
+		debug_print_prefix(trace_flag, NULL, __func__, __LINE__);\
+		PRINT(KERN_CONT, format, args);				\
 	}								\
 } while (0)
 
@@ -222,81 +197,67 @@ do {									\
 #define TRACE_BUFFER(message, buff, len)				\
 do {									\
 	if (trace_flag & TRACE_BUFF) {					\
-		char *__tflag = LOG_FLAG;				\
-		if (debug_print_prefix(trace_flag, __tflag, NULL, __func__, \
-				       __LINE__) > 0) {			\
-			__tflag = NO_FLAG;				\
-		}							\
-		PRINT(NO_FLAG, "%s%s:", __tflag, message);		\
-		debug_print_buffer(LOG_FLAG, buff, len);		\
+		PRINTN(KERN_INFO, "%s", "");				\
+		debug_print_prefix(trace_flag, NULL, __func__, __LINE__);\
+		PRINT(KERN_CONT, "%s:", message);			\
+		debug_print_buffer(buff, len);				\
 	}								\
 } while (0)
 
 #define TRACE_BUFF_FLAG(flag, message, buff, len)			\
 do {									\
 	if (trace_flag & (flag)) {					\
-		char *__tflag = LOG_FLAG;				\
-		if (debug_print_prefix(trace_flag, __tflag, NULL, __func__, \
-				       __LINE__) > 0) {			\
-			__tflag = NO_FLAG;				\
-		}							\
-		PRINT(NO_FLAG, "%s%s:", __tflag, message);		\
-		debug_print_buffer(LOG_FLAG, buff, len);		\
+		PRINTN(KERN_INFO, "%s", "");				\
+		debug_print_prefix(trace_flag, NULL, __func__, __LINE__);\
+		PRINT(KERN_CONT, "%s:", message);			\
+		debug_print_buffer(buff, len);				\
 	}								\
 } while (0)
 
 #define PRINT_LOG_FLAG(log_flag, format, args...)			\
 do {									\
-	char *__tflag = log_flag;					\
-	if (debug_print_prefix(trace_flag, __tflag, __LOG_PREFIX,	\
-			       __func__, __LINE__) > 0) {		\
-		__tflag = NO_FLAG;					\
-	}								\
-	PRINT(NO_FLAG, "%s" format, __tflag, args);			\
+	PRINTN(KERN_INFO, "%s", "");					\
+	debug_print_prefix(trace_flag, __LOG_PREFIX, __func__, __LINE__);\
+	PRINT(KERN_CONT, format, args);					\
 } while (0)
 
 #define PRINT_WARNING(format, args...)					\
 do {									\
-	if (strcmp(INFO_FLAG, LOG_FLAG)) {				\
-		PRINT_LOG_FLAG(LOG_FLAG, "***WARNING***: " format, args); \
-	}								\
-	PRINT_LOG_FLAG(INFO_FLAG, "***WARNING***: " format, args);	\
+	PRINTN(KERN_INFO, "%s", "");					\
+	debug_print_prefix(trace_flag, __LOG_PREFIX, __func__, __LINE__);\
+	PRINT(KERN_CONT, "***WARNING***: " format, args);		\
 } while (0)
 
 #define PRINT_ERROR(format, args...)					\
 do {									\
-	if (strcmp(ERROR_FLAG, LOG_FLAG)) {				\
-		PRINT_LOG_FLAG(LOG_FLAG, "***ERROR***: " format, args);	\
-	}								\
-	PRINT_LOG_FLAG(ERROR_FLAG, "***ERROR***: " format, args);	\
+	PRINTN(KERN_INFO, "%s", "");					\
+	debug_print_prefix(trace_flag, __LOG_PREFIX, __func__, __LINE__);\
+	PRINT(KERN_CONT, "***ERROR***: " format, args);			\
 } while (0)
 
 #define PRINT_CRIT_ERROR(format, args...)				\
 do {									\
-	/*  if (strcmp(CRIT_FLAG, LOG_FLAG))				\
-	    {								\
-	    PRINT_LOG_FLAG(LOG_FLAG, "***CRITICAL ERROR***: " format, args); \
-	    }*/								\
-	PRINT_LOG_FLAG(CRIT_FLAG, "***CRITICAL ERROR***: " format, args); \
+	PRINTN(KERN_INFO, "%s", "");					\
+	debug_print_prefix(trace_flag, __LOG_PREFIX, __func__, __LINE__);\
+	PRINT(KERN_CONT, "***CRITICAL ERROR***: " format, args);	\
 } while (0)
 
-#define PRINT_INFO(format, args...)			\
-do {							\
-	if (strcmp(INFO_FLAG, LOG_FLAG)) {		\
-		PRINT_LOG_FLAG(LOG_FLAG, format, args);	\
-	}						\
-	PRINT_LOG_FLAG(INFO_FLAG, format, args);	\
+#define PRINT_INFO(format, args...)					\
+do {									\
+	PRINTN(KERN_INFO, "%s", "");					\
+	debug_print_prefix(trace_flag, __LOG_PREFIX, __func__, __LINE__);\
+	PRINT(KERN_CONT, format, args);					\
 } while (0)
 
 #define TRACE_ENTRY()							\
 do {									\
 	if (trace_flag & TRACE_ENTRYEXIT) {				\
 		if (trace_flag & TRACE_PID) {				\
-			PRINT(LOG_FLAG, "[%d]: ENTRY %s", current->pid, \
+			PRINT(KERN_INFO, "[%d]: ENTRY %s", current->pid, \
 				__func__);				\
 		}							\
 		else {							\
-			PRINT(LOG_FLAG, "ENTRY %s", __func__);		\
+			PRINT(KERN_INFO, "ENTRY %s", __func__);	\
 		}							\
 	}								\
 } while (0)
@@ -305,11 +266,11 @@ do {									\
 do {									\
 	if (trace_flag & TRACE_ENTRYEXIT) {				\
 		if (trace_flag & TRACE_PID) {				\
-			PRINT(LOG_FLAG, "[%d]: EXIT %s", current->pid,	\
+			PRINT(KERN_INFO, "[%d]: EXIT %s", current->pid,	\
 				__func__);				\
 		}							\
 		else {							\
-			PRINT(LOG_FLAG, "EXIT %s", __func__);		\
+			PRINT(KERN_INFO, "EXIT %s", __func__);		\
 		}							\
 	}								\
 } while (0)
@@ -318,11 +279,11 @@ do {									\
 do {									\
 	if (trace_flag & TRACE_ENTRYEXIT) {				\
 		if (trace_flag & TRACE_PID) {				\
-			PRINT(LOG_FLAG, "[%d]: EXIT %s: %ld", current->pid, \
+			PRINT(KERN_INFO, "[%d]: EXIT %s: %ld", current->pid, \
 			      __func__, (long)(res));			\
 		}							\
 		else {							\
-			PRINT(LOG_FLAG, "EXIT %s: %ld",			\
+			PRINT(KERN_INFO, "EXIT %s: %ld",		\
 				__func__, (long)(res));			\
 		}							\
 	}                                                               \
@@ -332,11 +293,11 @@ do {									\
 do {									\
 	if (trace_flag & TRACE_ENTRYEXIT) {				\
 		if (trace_flag & TRACE_PID) {				\
-			PRINT(LOG_FLAG, "[%d]: EXIT %s: 0x%lx", current->pid, \
+			PRINT(KERN_INFO, "[%d]: EXIT %s: 0x%lx", current->pid, \
 			      __func__, (long)(res));			\
 		}							\
 		else {							\
-			PRINT(LOG_FLAG, "EXIT %s: %lx",			\
+			PRINT(KERN_INFO, "EXIT %s: %lx",		\
 					__func__, (long)(res));		\
 		}							\
 	}                                                               \
@@ -361,24 +322,24 @@ do {									\
 
 #define PRINT_INFO(format, args...)				\
 do {								\
-	PRINT(INFO_FLAG, "%s: " format, LOG_PREFIX, args);	\
+	PRINT(KERN_INFO, "%s: " format, LOG_PREFIX, args);	\
 } while (0)
 
 #define PRINT_WARNING(format, args...)          \
 do {                                            \
-	PRINT(INFO_FLAG, "%s: ***WARNING***: "	\
+	PRINT(KERN_INFO, "%s: ***WARNING***: "	\
 	      format, LOG_PREFIX, args);	\
 } while (0)
 
 #define PRINT_ERROR(format, args...)            \
 do {                                            \
-	PRINT(ERROR_FLAG, "%s: ***ERROR***: "	\
+	PRINT(KERN_INFO, "%s: ***ERROR***: "	\
 	      format, LOG_PREFIX, args);	\
 } while (0)
 
 #define PRINT_CRIT_ERROR(format, args...)       \
 do {                                            \
-	PRINT(CRIT_FLAG, "%s: ***CRITICAL ERROR***: "	\
+	PRINT(KERN_INFO, "%s: ***CRITICAL ERROR***: "	\
 		format, LOG_PREFIX, args);		\
 } while (0)
 
@@ -386,24 +347,24 @@ do {                                            \
 
 #define PRINT_INFO(format, args...)           	\
 do {                                            \
-	PRINT(INFO_FLAG, format, args);		\
+	PRINT(KERN_INFO, format, args);		\
 } while (0)
 
 #define PRINT_WARNING(format, args...)          \
 do {                                            \
-	PRINT(INFO_FLAG, "***WARNING***: "	\
+	PRINT(KERN_INFO, "***WARNING***: "	\
 		format, args);			\
 } while (0)
 
 #define PRINT_ERROR(format, args...)          	\
 do {                                            \
-	PRINT(ERROR_FLAG, "***ERROR***: "	\
+	PRINT(KERN_ERR, "***ERROR***: "	\
 		format, args);			\
 } while (0)
 
 #define PRINT_CRIT_ERROR(format, args...)		\
 do {							\
-	PRINT(CRIT_FLAG, "***CRITICAL ERROR***: "	\
+	PRINT(KERN_CRIT, "***CRITICAL ERROR***: "	\
 		format, args);				\
 } while (0)
 

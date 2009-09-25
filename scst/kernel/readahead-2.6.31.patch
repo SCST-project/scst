@@ -1,0 +1,12 @@
+diff -upkr linux-2.6.31/mm/readahead.c linux-2.6.31/mm/readahead.c
+--- linux-2.6.31/mm/readahead.c	2009-09-10 02:13:59.000000000 +0400
++++ linux-2.6.31/mm/readahead.c	2009-09-23 14:17:26.000000000 +0400
+@@ -547,5 +547,8 @@ page_cache_async_readahead(struct addres
+ 
+ 	/* do read-ahead */
+ 	ondemand_readahead(mapping, ra, filp, true, offset, req_size);
++
++	if (PageUptodate(page))
++		blk_run_backing_dev(mapping->backing_dev_info, NULL);
+ }
+ EXPORT_SYMBOL_GPL(page_cache_async_readahead);

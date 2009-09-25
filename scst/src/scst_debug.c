@@ -46,7 +46,7 @@ static inline int get_current_tid(void)
 #endif
 }
 
-int debug_print_prefix(unsigned long trace_flag, const char *log_level,
+int debug_print_prefix(unsigned long trace_flag,
 	const char *prefix, const char *func, int line)
 {
 	int i = 0;
@@ -54,6 +54,8 @@ int debug_print_prefix(unsigned long trace_flag, const char *log_level,
 	int pid = get_current_tid();
 
 	spin_lock_irqsave(&trace_buf_lock, flags);
+
+	trace_buf[0] = '\0';
 
 	if (trace_flag & TRACE_PID)
 		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE, "[%d]: ", pid);
@@ -65,8 +67,7 @@ int debug_print_prefix(unsigned long trace_flag, const char *log_level,
 	if (trace_flag & TRACE_LINE)
 		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "%i:", line);
 
-	if (i > 0)
-		PRINTN(log_level, "%s", trace_buf);
+	PRINTN(KERN_INFO, "%s", trace_buf);
 
 	spin_unlock_irqrestore(&trace_buf_lock, flags);
 
@@ -74,11 +75,10 @@ int debug_print_prefix(unsigned long trace_flag, const char *log_level,
 }
 EXPORT_SYMBOL(debug_print_prefix);
 
-void debug_print_buffer(const char *log_level, const void *data, int len)
+void debug_print_buffer(const void *data, int len)
 {
 	int z, z1, i;
 	const unsigned char *buf = (const unsigned char *) data;
-	int f = 0;
 	unsigned long flags;
 
 	if (buf == NULL)
@@ -86,7 +86,7 @@ void debug_print_buffer(const char *log_level, const void *data, int len)
 
 	spin_lock_irqsave(&trace_buf_lock, flags);
 
-	PRINT(NO_FLAG, " (h)___0__1__2__3__4__5__6__7__8__9__A__B__C__D__E__F");
+	PRINT(KERN_INFO, " (h)___0__1__2__3__4__5__6__7__8__9__A__B__C__D__E__F");
 	for (z = 0, z1 = 0, i = 0; z < len; z++) {
 		if (z % 16 == 0) {
 			if (z != 0) {
@@ -101,9 +101,8 @@ void debug_print_buffer(const char *log_level, const void *data, int len)
 						trace_buf[i++] = '.';
 				}
 				trace_buf[i] = '\0';
-				PRINT(NO_FLAG, "%s", trace_buf);
+				PRINT(KERN_INFO, "%s", trace_buf);
 				i = 0;
-				f = 1;
 			}
 			i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i,
 				      "%4x: ", z);
@@ -111,6 +110,7 @@ void debug_print_buffer(const char *log_level, const void *data, int len)
 		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "%02x ",
 			      buf[z]);
 	}
+
 	i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "  ");
 	for (; (z1 < z) && (i < TRACE_BUF_SIZE - 1); z1++) {
 		if ((buf[z1] > 0x20) && (buf[z1] < 0x80))
@@ -119,10 +119,8 @@ void debug_print_buffer(const char *log_level, const void *data, int len)
 			trace_buf[i++] = '.';
 	}
 	trace_buf[i] = '\0';
-	if (f)
-		PRINT(log_level, "%s", trace_buf);
-	else
-		PRINT(NO_FLAG, "%s", trace_buf);
+
+	PRINT(KERN_INFO, "%s", trace_buf);
 
 	spin_unlock_irqrestore(&trace_buf_lock, flags);
 	return;

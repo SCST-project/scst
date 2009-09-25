@@ -3229,7 +3229,10 @@ static int __blk_rq_map_kern_sg(struct request *rq, struct scatterlist *sgl,
 		}
 	}
 
-	rq->buffer = rq->data = NULL;
+	rq->buffer = NULL;
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 30)
+	rq->data = NULL;
+#endif
 out:
 	return res;
 
@@ -3283,8 +3286,10 @@ static int blk_rq_map_kern_sg(struct request *rq, struct scatterlist *sgl,
 		}
 	}
 
-	rq->buffer = rq->data = NULL;
-
+	rq->buffer = NULL;
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 30)
+	rq->data = NULL;
+#endif
 out:
 	return res;
 }
@@ -3322,7 +3327,11 @@ static void scsi_end_async(struct request *req, int error)
 	TRACE_DBG("sioc %p, cmd %p", sioc, sioc->data);
 
 	if (sioc->done)
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 30)
 		sioc->done(sioc->data, sioc->sense, req->errors, req->data_len);
+#else
+		sioc->done(sioc->data, sioc->sense, req->errors, req->resid_len);
+#endif
 
 	if (!sioc->full_cdb_used)
 		kmem_cache_free(scsi_io_context_cache, sioc);
