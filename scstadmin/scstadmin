@@ -970,8 +970,7 @@ sub applyConfiguration {
 	foreach my $group (keys %used_users) {
 		if (!defined($USERS{$group})) {
 			if ($group =~ /^$_TGT_DEF_PREFIX_/) {
-				my $rnd_id = randomGroupId();
-				my $tmp_group = $_TGT_TMP_PREFIX_.$rnd_id;
+				my $tmp_group = randomGroup();
 
 				print "\t-> Using temporary group '$tmp_group' for group '$group'.\n";
 
@@ -1078,6 +1077,7 @@ sub applyConfiguration {
 		print "\t-> Processing temporary group '$tmp_group'.\n";
 
 		renameGroup($tmp_group, $group);
+		$changes++;
 	}
 
 	# Enable/Disable configured targets
@@ -1946,8 +1946,16 @@ sub validHandlerTypes {
 	return $buffer;
 }
 
-sub randomGroupId {
-	return int(rand(10000));
+sub randomGroup {
+	my $tmp_group;
+
+	while (!$tmp_group || $SCST->groupExists($tmp_group)) {
+		my $id = int(rand(10000));
+
+		$tmp_group = $_TGT_TMP_PREFIX_.$id;
+	}
+
+	return $tmp_group;
 }
 
 # If we have an unread error from SCST, exit immediately
