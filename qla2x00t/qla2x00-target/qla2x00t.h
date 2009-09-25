@@ -206,6 +206,7 @@ struct q2t_cmd
 	scst_data_direction data_direction;
 	uint32_t tag;
 	dma_addr_t dma_handle;
+	enum dma_data_direction dma_data_direction;
 
 	uint16_t loop_id;		    /* to save extra sess dereferences */
 	struct q2t_tgt *tgt;		    /* to save extra sess dereferences */

@@ -1344,8 +1344,7 @@ static int q2t_pci_map_calc_cnt(struct q2t_prm *prm)
 
 	prm->sg = (struct scatterlist *)prm->cmd->sg;
 	prm->seg_cnt = pci_map_sg(prm->tgt->ha->pdev, prm->cmd->sg,
-		prm->cmd->sg_cnt,
-		scst_to_tgt_dma_dir(prm->cmd->data_direction));
+		prm->cmd->sg_cnt, prm->cmd->dma_data_direction);
 	if (unlikely(prm->seg_cnt == 0))
 		goto out_err;
 	/*
@@ -1881,10 +1880,10 @@ out:
 	return res;
 
 out_unlock_free_unmap:
-	if (q2t_has_data(cmd)) {
+	if (q2t_has_data(cmd))
 		pci_unmap_sg(ha->pdev, cmd->sg, cmd->sg_cnt,
-		     scst_to_dma_dir(cmd->data_direction));
-	}
+		     cmd->dma_data_direction);
+
 	/* Release ring specific lock */
 	spin_unlock_irqrestore(&ha->hardware_lock, *flags);
 	goto out;
@@ -2093,6 +2092,7 @@ static int q2x_xmit_response(struct scst_cmd *scst_cmd)
 	cmd->sg = scst_cmd_get_sg(scst_cmd);
 	cmd->sg_cnt = scst_cmd_get_sg_cnt(scst_cmd);
 	cmd->data_direction = scst_cmd_get_data_direction(scst_cmd);
+	cmd->dma_data_direction = scst_to_tgt_dma_dir(cmd->data_direction);
 	cmd->offset = scst_cmd_get_ppl_offset(scst_cmd);
 	cmd->aborted = scst_cmd_aborted(scst_cmd);
 
@@ -2252,10 +2252,9 @@ out:
 	return res;
 
 out_unmap_unlock:
-	if (q2t_has_data(cmd)) {
+	if (q2t_has_data(cmd))
 		pci_unmap_sg(ha->pdev, cmd->sg, cmd->sg_cnt,
-		     scst_to_dma_dir(cmd->data_direction));
-	}
+			cmd->dma_data_direction);
 	goto out_unlock;
 }
 
@@ -2281,6 +2280,7 @@ static int q24_xmit_response(struct scst_cmd *scst_cmd)
 	cmd->sg = scst_cmd_get_sg(scst_cmd);
 	cmd->sg_cnt = scst_cmd_get_sg_cnt(scst_cmd);
 	cmd->data_direction = scst_cmd_get_data_direction(scst_cmd);
+	cmd->dma_data_direction = scst_to_tgt_dma_dir(cmd->data_direction);
 	cmd->offset = scst_cmd_get_ppl_offset(scst_cmd);
 	cmd->aborted = scst_cmd_aborted(scst_cmd);
 
@@ -2369,7 +2369,7 @@ out:
 out_unlock_free_unmap:
 	if (q2t_has_data(cmd)) {
 		pci_unmap_sg(ha->pdev, cmd->sg, cmd->sg_cnt,
-		     scst_to_dma_dir(cmd->data_direction));
+		     cmd->dma_data_direction);
 	}
 	goto out_unlock;
 }
@@ -2388,6 +2388,7 @@ static int q2t_rdy_to_xfer(struct scst_cmd *scst_cmd)
 	cmd->sg = scst_cmd_get_sg(scst_cmd);
 	cmd->sg_cnt = scst_cmd_get_sg_cnt(scst_cmd);
 	cmd->data_direction = scst_cmd_get_data_direction(scst_cmd);
+	cmd->dma_data_direction = scst_to_tgt_dma_dir(cmd->data_direction);
 
 	res = __q2t_rdy_to_xfer(cmd);
 
@@ -2857,7 +2858,7 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha, uint32_t handle,
 		TRACE_DBG("Command %p finished", cmd);
 		if (q2t_has_data(cmd)) {
 			pci_unmap_sg(ha->pdev, cmd->sg, cmd->sg_cnt,
-				scst_to_dma_dir(cmd->data_direction));
+				cmd->dma_data_direction);
 		}
 	} else if (cmd->state == Q2T_STATE_NEED_DATA) {
 		int rx_status = SCST_RX_STATUS_SUCCESS;
@@ -2871,7 +2872,7 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha, uint32_t handle,
 		      context, rx_status);
 
 		pci_unmap_sg(ha->pdev, cmd->sg, cmd->sg_cnt,
-				scst_to_dma_dir(cmd->data_direction));
+				cmd->dma_data_direction);
 
 		scst_rx_data(scst_cmd, rx_status, context);
 		goto out;
@@ -3596,7 +3597,7 @@ static void q24_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 			uint32_t offset;
 			int xmit_type;
 			pci_unmap_sg(ha->pdev, cmd->sg, cmd->sg_cnt,
-				scst_to_dma_dir(cmd->data_direction));
+				cmd->dma_data_direction);
 			offset = le32_to_cpu(imm->imm.notify_entry24.srr_rel_offs);
 			if (q2t_srr_adjust_data(cmd, offset, &xmit_type) != 0)
 				goto out_reject;
@@ -3619,7 +3620,7 @@ static void q24_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 			uint32_t offset;
 			int xmit_type;
 			pci_unmap_sg(ha->pdev, cmd->sg, cmd->sg_cnt,
-				scst_to_dma_dir(cmd->data_direction));
+				cmd->dma_data_direction);
 			offset = le32_to_cpu(imm->imm.notify_entry24.srr_rel_offs);
 			if (q2t_srr_adjust_data(cmd, offset, &xmit_type) != 0)
 				goto out_reject;
@@ -3649,7 +3650,7 @@ out:
 out_unmap_reject:
 	if (q2t_has_data(sctio->cmd)) {
 		pci_unmap_sg(ha->pdev, cmd->sg, cmd->sg_cnt,
-			scst_to_dma_dir(cmd->data_direction));
+			cmd->dma_data_direction);
 	}
 
 out_reject:
@@ -3661,7 +3662,7 @@ out_reject:
 		cmd->state = Q2T_STATE_DATA_IN;
 
 		pci_unmap_sg(ha->pdev, cmd->sg, cmd->sg_cnt,
-				scst_to_dma_dir(cmd->data_direction));
+				cmd->dma_data_direction);
 
 		scst_rx_data(cmd->scst_cmd, SCST_RX_STATUS_ERROR,
 			SCST_CONTEXT_THREAD);
@@ -3694,7 +3695,7 @@ static void q2x_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 			uint32_t offset;
 			int xmit_type;
 			pci_unmap_sg(ha->pdev, cmd->sg, cmd->sg_cnt,
-				scst_to_dma_dir(cmd->data_direction));
+				cmd->dma_data_direction);
 			offset = le32_to_cpu(imm->imm.notify_entry.srr_rel_offs);
 			if (q2t_srr_adjust_data(cmd, offset, &xmit_type) != 0)
 				goto out_reject;
@@ -3717,7 +3718,7 @@ static void q2x_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 			uint32_t offset;
 			int xmit_type;
 			pci_unmap_sg(ha->pdev, cmd->sg, cmd->sg_cnt,
-				scst_to_dma_dir(cmd->data_direction));
+				cmd->dma_data_direction);
 			offset = le32_to_cpu(imm->imm.notify_entry.srr_rel_offs);
 			if (q2t_srr_adjust_data(cmd, offset, &xmit_type) != 0)
 				goto out_reject;
@@ -3747,7 +3748,7 @@ out:
 out_unmap_reject:
 	if (q2t_has_data(sctio->cmd)) {
 		pci_unmap_sg(ha->pdev, cmd->sg, cmd->sg_cnt,
-			scst_to_dma_dir(cmd->data_direction));
+			cmd->dma_data_direction);
 	}
 
 out_reject:
@@ -3759,7 +3760,7 @@ out_reject:
 		cmd->state = Q2T_STATE_DATA_IN;
 
 		pci_unmap_sg(ha->pdev, cmd->sg, cmd->sg_cnt,
-				scst_to_dma_dir(cmd->data_direction));
+				cmd->dma_data_direction);
 
 		scst_rx_data(cmd->scst_cmd, SCST_RX_STATUS_ERROR,
 			SCST_CONTEXT_THREAD);
@@ -4915,7 +4916,7 @@ static void q2t_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd)
 		TRACE_MGMT_DBG("Force finishing cmd %p", cmd);
 		if (q2t_has_data(cmd)) {
 			pci_unmap_sg(ha->pdev, cmd->sg, cmd->sg_cnt,
-				scst_to_dma_dir(cmd->data_direction));
+				cmd->dma_data_direction);
 		}
 	} else if (cmd->state == Q2T_STATE_NEED_DATA) {
 		TRACE_MGMT_DBG("Force rx_data cmd %p", cmd);
@@ -4923,7 +4924,7 @@ static void q2t_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd)
 		q2t_cleanup_hw_pending_cmd(ha, cmd);
 
 		pci_unmap_sg(ha->pdev, cmd->sg, cmd->sg_cnt,
-			scst_to_dma_dir(cmd->data_direction));
+			cmd->dma_data_direction);
 
 		scst_rx_data(scst_cmd, SCST_RX_STATUS_ERROR_FATAL,
 				SCST_CONTEXT_THREAD);
