@@ -869,6 +869,10 @@ static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 	if (ioctx->n_rbuf > 1)
 		kfree(ioctx->rbufs);
 
+	/* If ch == NULL this means that the command has been aborted. */
+	if (!ch)
+		return;
+
 	if (srpt_post_recv(ch->sport->sdev, ioctx))
 		PRINT_ERROR("%s", "SRQ post_recv failed - this is serious.");
 		/* we should queue it back to free_ioctx queue */
@@ -882,53 +886,50 @@ static void srpt_abort_scst_cmd(struct srpt_device *sdev,
 {
 	struct srpt_ioctx *ioctx;
 	scst_data_direction dir;
-	enum srpt_command_state orig_ioctx_state;
+	struct srpt_rdma_ch *ch;
 
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
 	BUG_ON(!ioctx);
 	dir = scst_cmd_get_data_direction(scmnd);
-	if (dir != SCST_DATA_NONE) {
+	if (dir != SCST_DATA_NONE)
 		ib_dma_unmap_sg(sdev->device,
 				scst_cmd_get_sg(scmnd),
 				scst_cmd_get_sg_cnt(scmnd),
 				scst_to_tgt_dma_dir(dir));
 
-#ifdef CONFIG_SCST_EXTRACHECKS
-		switch (scmnd->state) {
-		case SCST_CMD_STATE_DATA_WAIT:
-			WARN_ON(ioctx->state != SRPT_STATE_NEED_DATA);
-			break;
-		case SCST_CMD_STATE_XMIT_WAIT:
-			WARN_ON(ioctx->state != SRPT_STATE_PROCESSED);
-			break;
-		default:
-			WARN_ON(ioctx->state == SRPT_STATE_NEED_DATA ||
-				ioctx->state == SRPT_STATE_PROCESSED);
-		}
-#endif
-	}
-
-	orig_ioctx_state = ioctx->state;
-	ioctx->state = SRPT_STATE_ABORTED;
-
-	if (orig_ioctx_state == SRPT_STATE_NEED_DATA) {
+	if (ioctx->state == SRPT_STATE_NEW) {
+		/*
+		 * Do not try to abort the SCST command here but wait until
+		 * the SCST core has called srpt_rdy_to_xfer() or
+		 * srpt_xmit_response(). Since srpt_release_channel() will
+		 * finish before srpt_on_free_cmd() is called, set the channel
+		 * pointer inside the SCST command to NULL such that
+		 * srpt_on_free_cmd() will not dereference a dangling pointer.
+		 */
+		ch = ioctx->ch;
+		ioctx->ch = NULL;
+		BUG_ON(!ch);
+		spin_lock_irq(&ch->spinlock);
+		list_del(&ioctx->scmnd_list);
+		ch->active_scmnd_cnt--;
+		spin_unlock_irq(&ch->spinlock);
+	} else if (ioctx->state == SRPT_STATE_NEED_DATA) {
 		WARN_ON(scst_cmd_get_data_direction(ioctx->scmnd)
 			== SCST_DATA_READ);
 		scst_rx_data(scmnd,
 			     tell_initiator ? SCST_RX_STATUS_ERROR
 			     : SCST_RX_STATUS_ERROR_FATAL,
 			     SCST_CONTEXT_THREAD);
-		goto out;
-	} else if (ioctx->state == SRPT_STATE_PROCESSED)
-		;
-	else
-		WARN_ON("unexpected cmd state");
+	} else if (ioctx->state == SRPT_STATE_PROCESSED) {
+		scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_FAILED);
+		WARN_ON(scmnd->state != SCST_CMD_STATE_XMIT_WAIT);
+		scst_tgt_cmd_done(scmnd, scst_estimate_context());
+	} else {
+		TRACE_DBG("Aborting cmd with state %d", ioctx->state);
+		WARN_ON("ERROR: unexpected command state");
+	}
 
-	scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_FAILED);
-	WARN_ON(scmnd->state != SCST_CMD_STATE_XMIT_WAIT);
-	scst_tgt_cmd_done(scmnd, scst_estimate_context());
-out:
-	return;
+	ioctx->state = SRPT_STATE_ABORTED;
 }
 
 static void srpt_handle_err_comp(struct srpt_rdma_ch *ch, struct ib_wc *wc)
@@ -1336,6 +1337,7 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 	ioctx->n_rdma_ius = 0;
 	ioctx->rdma_ius = NULL;
 	ioctx->scmnd = NULL;
+	ioctx->ch = ch;
 	ioctx->state = SRPT_STATE_NEW;
 
 	srp_cmd = ioctx->buf;
@@ -2293,7 +2295,11 @@ static int srpt_rdy_to_xfer(struct scst_cmd *scmnd)
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
 	BUG_ON(!ioctx);
 
-	ch = scst_sess_get_tgt_priv(scst_cmd_get_session(scmnd));
+	if (ioctx->state == SRPT_STATE_ABORTED)
+		return SCST_TGT_RES_FATAL_ERROR;
+
+	ch = ioctx->ch;
+	WARN_ON(ch != scst_sess_get_tgt_priv(scst_cmd_get_session(scmnd)));
 	BUG_ON(!ch);
 
 	if (ch->state == RDMA_CHANNEL_DISCONNECTING)
@@ -2322,6 +2328,11 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
 	BUG_ON(!ioctx);
+
+	if (ioctx->state == SRPT_STATE_ABORTED) {
+		ret = SCST_TGT_RES_FATAL_ERROR;
+		goto out;
+	}
 
 	ch = scst_sess_get_tgt_priv(scst_cmd_get_session(scmnd));
 	BUG_ON(!ch);
@@ -2435,6 +2446,8 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 		  __func__, (unsigned long long)mgmt_ioctx->tag,
 		  scst_mgmt_cmd_get_status(mcmnd));
 
+	ioctx->state = SRPT_STATE_PROCESSED;
+
 	rsp_len = srpt_build_tskmgmt_rsp(ch, ioctx,
 					 (scst_mgmt_cmd_get_status(mcmnd) ==
 					  SCST_MGMT_STATUS_SUCCESS) ?
@@ -2460,13 +2473,14 @@ static void srpt_on_free_cmd(struct scst_cmd *scmnd)
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
 	BUG_ON(!ioctx);
 
-	ch = scst_sess_get_tgt_priv(scst_cmd_get_session(scmnd));
-	BUG_ON(!ch);
-
-	spin_lock_irq(&ch->spinlock);
-	list_del(&ioctx->scmnd_list);
-	ch->active_scmnd_cnt--;
-	spin_unlock_irq(&ch->spinlock);
+	ch = ioctx->ch;
+	if (ch) {
+		spin_lock_irq(&ch->spinlock);
+		list_del(&ioctx->scmnd_list);
+		ch->active_scmnd_cnt--;
+		spin_unlock_irq(&ch->spinlock);
+		ioctx->ch = NULL;
+	}
 
 	srpt_reset_ioctx(ch, ioctx);
 	scst_cmd_set_tgt_priv(scmnd, NULL);
