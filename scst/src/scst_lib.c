@@ -333,7 +333,7 @@ void scst_check_convert_sense(struct scst_cmd *cmd)
 	if (d_sense && ((cmd->sense[0] == 0x70) || (cmd->sense[0] == 0x71))) {
 		TRACE_MGMT_DBG("Converting fixed sense to descriptor (cmd %p)",
 			cmd);
-		if ((cmd->sense_valid_len < 18) ) {
+		if ((cmd->sense_valid_len < 18)) {
 			PRINT_ERROR("Sense too small to convert (%d, "
 				"type: fixed)", cmd->sense_buflen);
 			goto out;
