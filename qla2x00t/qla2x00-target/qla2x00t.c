@@ -236,7 +236,7 @@ static inline int q2t_issue_marker(scsi_qla_host_t *ha, int ha_locked)
 		}
 		return rc;
 	}
-	return (QLA_SUCCESS);
+	return QLA_SUCCESS;
 }
 
 /*
@@ -1357,9 +1357,7 @@ static int q2t_pci_map_calc_cnt(struct q2t_prm *prm)
 				prm->tgt->datasegs_per_cont;
 		if (((uint16_t)(prm->seg_cnt - prm->tgt->datasegs_per_cmd)) %
 		    prm->tgt->datasegs_per_cont)
-		{
 			prm->req_cnt++;
-		}
 	}
 
 out:
@@ -1439,9 +1437,8 @@ static inline uint32_t q2t_make_handle(scsi_qla_host_t *ha)
 	/* always increment cmd handle */
 	do {
 		++h;
-		if (h > MAX_OUTSTANDING_COMMANDS) {
+		if (h > MAX_OUTSTANDING_COMMANDS)
 			h = 1; /* 0 is Q2T_NULL_HANDLE */
-		}
 		if (h == ha->current_handle) {
 			TRACE(TRACE_OUT_OF_MEM,
 			      "Ran out of empty cmd slots in ha %p", ha);
@@ -1589,8 +1586,7 @@ static void q2t_load_cont_data_segments(struct q2t_prm *prm)
 		/* Load continuation entry data segments */
 		for (cnt = 0;
 		     cnt < prm->tgt->datasegs_per_cont && prm->seg_cnt;
-		     cnt++, prm->seg_cnt--)
-		{
+		     cnt++, prm->seg_cnt--) {
 			*dword_ptr++ =
 			    cpu_to_le32(pci_dma_lo32
 					(sg_dma_address(prm->sg)));
@@ -1655,8 +1651,7 @@ static void q2x_load_data_segments(struct q2t_prm *prm)
 	/* Load command entry data segments */
 	for (cnt = 0;
 	     (cnt < prm->tgt->datasegs_per_cmd) && prm->seg_cnt;
-	     cnt++, prm->seg_cnt--)
-	{
+	     cnt++, prm->seg_cnt--) {
 		*dword_ptr++ =
 		    cpu_to_le32(pci_dma_lo32(sg_dma_address(prm->sg)));
 		if (enable_64bit_addressing) {
@@ -1720,8 +1715,7 @@ static void q24_load_data_segments(struct q2t_prm *prm)
 	/* Load command entry data segments */
 	for (cnt = 0;
 	     (cnt < prm->tgt->datasegs_per_cmd) && prm->seg_cnt;
-	     cnt++, prm->seg_cnt--)
-	{
+	     cnt++, prm->seg_cnt--) {
 		*dword_ptr++ =
 		    cpu_to_le32(pci_dma_lo32(sg_dma_address(prm->sg)));
 		if (enable_64bit_addressing) {
@@ -1782,7 +1776,7 @@ static int q2t_pre_xmit_response(struct q2t_cmd *cmd,
 		goto out;
 	}
 
-	TRACE(TRACE_SCSI, "tag=%Ld", scst_cmd_get_tag(scst_cmd));
+	TRACE(TRACE_SCSI, "tag=%lld", scst_cmd_get_tag(scst_cmd));
 
 	prm->cmd = cmd;
 	prm->tgt = tgt;
@@ -1828,7 +1822,7 @@ static int q2t_pre_xmit_response(struct q2t_cmd *cmd,
 			prm->residual = expected -
 				scst_cmd_get_resp_data_len(scst_cmd);
 			if (prm->residual > 0) {
-				TRACE_DBG("Residual underflow: %d (tag %Ld, "
+				TRACE_DBG("Residual underflow: %d (tag %lld, "
 					"op %x, expected %d, resp_data_len "
 					"%d, bufflen %d, rq_result %x)",
 					prm->residual, scst_cmd->tag,
@@ -1837,7 +1831,7 @@ static int q2t_pre_xmit_response(struct q2t_cmd *cmd,
 					cmd->bufflen, prm->rq_result);
 				prm->rq_result |= SS_RESIDUAL_UNDER;
 			} else if (prm->residual < 0) {
-				TRACE_DBG("Residual overflow: %d (tag %Ld, "
+				TRACE_DBG("Residual overflow: %d (tag %lld, "
 					"op %x, expected %d, resp_data_len "
 					"%d, bufflen %d, rq_result %x)",
 					prm->residual, scst_cmd->tag,
@@ -2381,7 +2375,7 @@ static int q2t_rdy_to_xfer(struct scst_cmd *scst_cmd)
 
 	TRACE_ENTRY();
 
-	TRACE(TRACE_SCSI, "tag=%Ld", scst_cmd_get_tag(scst_cmd));
+	TRACE(TRACE_SCSI, "tag=%lld", scst_cmd_get_tag(scst_cmd));
 
 	cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
 	cmd->bufflen = scst_cmd_get_bufflen(scst_cmd);
@@ -2557,7 +2551,7 @@ static void q2t_on_free_cmd(struct scst_cmd *scst_cmd)
 
 	TRACE_ENTRY();
 
-	TRACE(TRACE_SCSI, "Freeing command %p, tag %Ld", scst_cmd,
+	TRACE(TRACE_SCSI, "Freeing command %p, tag %lld", scst_cmd,
 		scst_cmd_get_tag(scst_cmd));
 
 	cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
@@ -5302,14 +5296,12 @@ static int __init q2t_init(void)
 	 */
 
 	res = q2t_proc_log_entry_build(&tgt2x_template);
-	if (res < 0) {
+	if (res < 0)
 		goto out_unreg_target24;
-	}
 
 	res = q2t_proc_log_entry_build(&tgt24_template);
-	if (res < 0) {
+	if (res < 0)
 		goto out_unreg_proc2x;
-	}
 
 out:
 	TRACE_EXIT_RES(res);

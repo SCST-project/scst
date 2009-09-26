@@ -112,8 +112,7 @@
 #define pci_dma_hi32(a) 0
 #endif
 
-struct q2t_tgt
-{
+struct q2t_tgt {
 	struct scst_tgt *scst_tgt;
 	scsi_qla_host_t *ha;
 
@@ -168,8 +167,7 @@ struct q2t_tgt
 /*
  * Equivilant to IT Nexus (Initiator-Target)
  */
-struct q2t_sess
-{
+struct q2t_sess {
 	uint16_t loop_id;
 	port_id_t s_id;
 
@@ -189,8 +187,7 @@ struct q2t_sess
 	uint8_t port_name[WWN_SIZE];
 };
 
-struct q2t_cmd
-{
+struct q2t_cmd {
 	struct q2t_sess *sess;
 	int state;
 	struct scst_cmd *scst_cmd;
@@ -222,8 +219,7 @@ struct q2t_sess_work_param {
 	struct q2t_cmd *cmd;
 };
 
-struct q2t_mgmt_cmd
-{
+struct q2t_mgmt_cmd {
 	struct q2t_sess *sess;
 	unsigned int flags;
 #define Q24_MGMT_SEND_NACK	1
@@ -235,8 +231,7 @@ struct q2t_mgmt_cmd
 	} __attribute__((packed)) orig_iocb;
 };
 
-struct q2t_prm
-{
+struct q2t_prm {
 	struct q2t_cmd *cmd;
 	struct q2t_tgt *tgt;
 	void *pkt;
@@ -251,8 +246,7 @@ struct q2t_prm
 	int add_status_pkt;
 };
 
-struct srr_imm
-{
+struct srr_imm {
 	struct list_head srr_list_entry;
 	int srr_id;
 	union {
@@ -261,8 +255,7 @@ struct srr_imm
 	} __attribute__((packed)) imm;
 };
 
-struct srr_ctio
-{
+struct srr_ctio {
 	struct list_head srr_list_entry;
 	int srr_id;
 	struct q2t_cmd *cmd;
