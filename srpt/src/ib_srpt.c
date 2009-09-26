@@ -96,10 +96,14 @@ MODULE_PARM_DESC(trace_flag,
 		 "Trace flags for the ib_srpt kernel module.");
 #endif
 #if defined(CONFIG_SCST_DEBUG)
-static unsigned long processing_delay_in_us;
-module_param(processing_delay_in_us, long, 0744);
-MODULE_PARM_DESC(processing_delay_in_us,
-		 "Per CQ event processing delay in microseconds.");
+static unsigned long interrupt_processing_delay_in_us;
+module_param(interrupt_processing_delay_in_us, long, 0744);
+MODULE_PARM_DESC(interrupt_processing_delay_in_us,
+		 "CQ completion handler interrupt delay in microseconds.");
+static unsigned long thread_processing_delay_in_us;
+module_param(thread_processing_delay_in_us, long, 0744);
+MODULE_PARM_DESC(thread_processing_delay_in_us,
+		 "SRP thread processing delay in microseconds.");
 #endif
 
 module_param(thread, int, 0444);
@@ -1464,8 +1468,8 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 		}
 
 #if defined(CONFIG_SCST_DEBUG)
-		if (processing_delay_in_us <= MAX_UDELAY_MS * 1000)
-			udelay(processing_delay_in_us);
+		if (interrupt_processing_delay_in_us <= MAX_UDELAY_MS * 1000)
+			udelay(interrupt_processing_delay_in_us);
 #endif
 	}
 }
@@ -2616,6 +2620,11 @@ static int srpt_ioctx_thread(void *arg)
 			default:
 				break;
 			}
+#if defined(CONFIG_SCST_DEBUG)
+			if (thread_processing_delay_in_us
+			    <= MAX_UDELAY_MS * 1000)
+				udelay(thread_processing_delay_in_us);
+#endif
 			spin_lock_irq(&srpt_thread.thread_lock);
 		}
 	}
