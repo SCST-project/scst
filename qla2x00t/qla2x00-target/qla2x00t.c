@@ -247,14 +247,14 @@ static int q2x_target_detect(struct scst_tgt_template *templ)
 {
 	int res;
 	struct qla_tgt_initiator itd = {
-		magic: QLA2X_TARGET_MAGIC,
-		tgt24_atio_pkt: q24_atio_pkt,
-		tgt_response_pkt: q2t_response_pkt,
-		tgt2x_ctio_completion: q2x_ctio_completion,
-		tgt_async_event: q2t_async_event,
-		tgt_host_action: q2t_host_action,
-		tgt_fc_port_added: q2t_fc_port_added,
-		tgt_fc_port_deleted: q2t_fc_port_deleted,
+		.magic = QLA2X_TARGET_MAGIC,
+		.tgt24_atio_pkt = q24_atio_pkt,
+		.tgt_response_pkt = q2t_response_pkt,
+		.tgt2x_ctio_completion = q2x_ctio_completion,
+		.tgt_async_event = q2t_async_event,
+		.tgt_host_action = q2t_host_action,
+		.tgt_fc_port_added = q2t_fc_port_added,
+		.tgt_fc_port_deleted = q2t_fc_port_deleted,
 	};
 
 	TRACE_ENTRY();
