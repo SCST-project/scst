@@ -599,7 +599,7 @@ sub writeConfiguration {
 	print $io "ISSUE_LIP ";
 
 	if (!$keep_config) {
-		print $io "TRUE\n";
+		print $io "FALSE\n";
 	} else {
 		print $io ($$config{'OPTIONS'}->{'default'}->{'ISSUE_LIP'}[0] ? "TRUE\n" : "FALSE\n");
 	}
