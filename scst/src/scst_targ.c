@@ -2938,20 +2938,65 @@ out:
 	{
 		struct timespec ts;
 		uint64_t finish, scst_time, proc_time;
+		struct scst_session *sess = cmd->sess;
 
+#ifdef CONFIG_SCST_MEASURE_LATENCY_EXT
+		int data_len;
+		int i;
+		struct scst_latency_stat *latency_stat;
+#endif
 		ktime_get_ts(&ts);
 		finish = scst_sec_to_nsec(ts.tv_sec) + ts.tv_nsec;
 
-		spin_lock_bh(&sess->meas_lock);
+#ifdef CONFIG_SCST_MEASURE_LATENCY_EXT
+		/* Determine the IO size for extended latency statistics*/
+		data_len = cmd->data_len;
+		i = SCST_LATENCY_STAT_INDEX_OTHER;
+		if (data_len <= SCST_IO_SIZE_THRESHOLD_SMALL)
+			i = SCST_LATENCY_STAT_INDEX_SMALL;
+		else if (data_len <= SCST_IO_SIZE_THRESHOLD_MEDIUM)
+			i = SCST_LATENCY_STAT_INDEX_MEDIUM;
+		else if (data_len <= SCST_IO_SIZE_THRESHOLD_LARGE)
+			i = SCST_LATENCY_STAT_INDEX_LARGE;
+		else if (data_len <= SCST_IO_SIZE_THRESHOLD_VERY_LARGE)
+			i = SCST_LATENCY_STAT_INDEX_VERY_LARGE;
+		latency_stat = &sess->latency_stat[i];
+#endif
 
+		spin_lock_bh(&sess->meas_lock);
+		/* Calculate the latencies */
 		scst_time = cmd->pre_exec_finish - cmd->start;
 		scst_time += finish - cmd->post_exec_start;
 		proc_time = finish - cmd->start;
 
+		/* Save the basic latency information */
 		sess->scst_time += scst_time;
 		sess->processing_time += proc_time;
 		sess->processed_cmds++;
 
+#ifdef CONFIG_SCST_MEASURE_LATENCY_EXT
+		/* Save the extended latency information */
+		switch (cmd->cdb[0]) {
+		case READ_6:
+		case READ_10:
+		case READ_12:
+		       latency_stat->scst_time_rd += scst_time;
+		       latency_stat->processing_time_rd += proc_time;
+		       latency_stat->processed_cmds_rd++;
+		       break;
+		case WRITE_6:
+		case WRITE_10:
+		case WRITE_12:
+		case WRITE_VERIFY:
+		case WRITE_VERIFY_12:
+		       latency_stat->scst_time_wr += scst_time;
+		       latency_stat->processing_time_wr += proc_time;
+		       latency_stat->processed_cmds_wr++;
+		       break;
+		default:
+		       break;
+		}
+#endif
 		spin_unlock_bh(&sess->meas_lock);
 
 		TRACE_DBG("cmd %p (sess %p): finish %lld (tv_sec %ld, "

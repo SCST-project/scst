@@ -412,6 +412,14 @@ out:
 
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 
+#ifdef CONFIG_SCST_MEASURE_LATENCY_EXT
+static char *scst_io_size_names[] = { "<=8K  ",
+				      "<=32K ",
+				      "<=128K",
+				      "<=512K",
+				      ">512K " };
+#endif
+
 static int lat_info_show(struct seq_file *seq, void *v)
 {
 	int res = 0;
@@ -425,10 +433,10 @@ static int lat_info_show(struct seq_file *seq, void *v)
 		goto out;
 	}
 
-	seq_printf(seq, "%-20s %-45s %-15s %15s\n",
-		   "Target name",
-		   "Initiator name",
-		   "SCST latency",
+	seq_printf(seq, "%-30s %-15s %-15s %-15s\n",
+		   "T-L names",
+		   "Total commands",
+		   "SCST latenct",
 		   "Processing latency (ns)");
 
 	list_for_each_entry(acg, &scst_acg_list, scst_acg_list_entry) {
@@ -437,8 +445,51 @@ static int lat_info_show(struct seq_file *seq, void *v)
 			unsigned long proc_lat = 0, scst_lat = 0;
 			uint64_t proc_time, scst_time;
 			unsigned int processed_cmds;
+#ifdef CONFIG_SCST_MEASURE_LATENCY_EXT
+			uint64_t proc_time_rd, scst_time_rd;
+			unsigned int processed_cmds_rd;
+			unsigned int i;
+			struct scst_latency_stat *latency_stat;
+#endif
+
+			seq_printf(seq,
+				   "Target name: %s \nInitiator name: %s\n",
+				   sess->tgt->tgtt->name,
+				   sess->initiator_name);
 
 			spin_lock_bh(&sess->meas_lock);
+#ifdef CONFIG_SCST_MEASURE_LATENCY_EXT
+			for (i = 0; i <= SCST_LATENCY_STAT_INDEX_OTHER ; i++) {
+				latency_stat = &sess->latency_stat[i];
+				proc_time =
+					latency_stat->processing_time_wr;
+				proc_time_rd =
+					latency_stat->processing_time_rd;
+				scst_time =
+					latency_stat->scst_time_wr;
+				scst_time_rd =
+					latency_stat->scst_time_rd;
+				processed_cmds =
+					latency_stat->processed_cmds_wr;
+				processed_cmds_rd =
+					latency_stat->processed_cmds_rd;
+
+				seq_printf(seq,
+					   "%-5s %-24s %-15ld %-15ld %-15ld\n",
+					   "Write",
+					   scst_io_size_names[i],
+					   (unsigned long)processed_cmds,
+					   (unsigned long)scst_time,
+					   (unsigned long)proc_time);
+				seq_printf(seq,
+					   "%-5s %-24s %-15ld %-15ld %-15ld\n",
+					   "Read",
+					   scst_io_size_names[i],
+					   (unsigned long)processed_cmds_rd,
+					   (unsigned long)scst_time_rd,
+					   (unsigned long)proc_time_rd);
+			}
+#endif
 			proc_time = sess->processing_time;
 			scst_time = sess->scst_time;
 			processed_cmds = sess->processed_cmds;
@@ -459,17 +510,19 @@ static int lat_info_show(struct seq_file *seq, void *v)
 			}
 #endif
 
-			if (sess->processed_cmds != 0) {
+			if (processed_cmds != 0) {
 				proc_lat = (unsigned long)proc_time /
 						processed_cmds;
 				scst_lat = (unsigned long)scst_time /
 						processed_cmds;
 			}
 
-			seq_printf(seq, "%-20s %-45s %-15ld %-15ld\n",
-					sess->tgt->tgtt->name,
-					sess->initiator_name,
-					scst_lat, proc_lat);
+			seq_printf(seq,
+				   "%-30s %-15d %-15ld %-15ld\n\n",
+				   "Average",
+				   processed_cmds,
+				   scst_lat,
+				   proc_lat);
 		}
 	}
 
@@ -505,6 +558,11 @@ static ssize_t scst_proc_scsi_tgt_gen_write_lat(struct file *file,
 			sess->processing_time = 0;
 			sess->scst_time = 0;
 			sess->processed_cmds = 0;
+#ifdef CONFIG_SCST_MEASURE_LATENCY_EXT
+			memset(sess->latency_stat,
+				0,
+				sizeof(sess->latency_stat));
+#endif
 			spin_unlock_bh(&sess->meas_lock);
 		}
 	}

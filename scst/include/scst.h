@@ -1029,6 +1029,31 @@ struct scst_tgt {
 #define	TGT_DEV_HASH_SIZE	(1 << TGT_DEV_HASH_SHIFT)
 #define	HASH_VAL(_val)		(_val & (TGT_DEV_HASH_SIZE - 1))
 
+#ifdef CONFIG_SCST_MEASURE_LATENCY_EXT
+/*define the structure for extended latency statistics*/
+struct scst_latency_stat {
+	uint64_t scst_time_wr;
+	uint64_t scst_time_rd;
+	uint64_t processing_time_wr;
+	uint64_t processing_time_rd;
+	unsigned int processed_cmds_wr;
+	unsigned int processed_cmds_rd;
+};
+
+#define SCST_IO_SIZE_THRESHOLD_SMALL (8*1024)
+#define SCST_IO_SIZE_THRESHOLD_MEDIUM (32*1024)
+#define SCST_IO_SIZE_THRESHOLD_LARGE (128*1024)
+#define SCST_IO_SIZE_THRESHOLD_VERY_LARGE (512*1024)
+
+#define SCST_LATENCY_STAT_INDEX_SMALL 0
+#define SCST_LATENCY_STAT_INDEX_MEDIUM 1
+#define SCST_LATENCY_STAT_INDEX_LARGE 2
+#define SCST_LATENCY_STAT_INDEX_VERY_LARGE 3
+#define SCST_LATENCY_STAT_INDEX_OTHER 4
+#define SCST_LATENCY_NUM_OF_THRESHOLDS 5
+
+#endif
+
 struct scst_session {
 	/*
 	 * Initialization phase, one of SCST_SESS_IPH_* constants, protected by
@@ -1128,6 +1153,9 @@ struct scst_session {
 	spinlock_t meas_lock;
 	uint64_t scst_time, processing_time;
 	unsigned int processed_cmds;
+#ifdef CONFIG_SCST_MEASURE_LATENCY_EXT
+	struct scst_latency_stat latency_stat[SCST_LATENCY_NUM_OF_THRESHOLDS];
+#endif
 #endif
 };
 
