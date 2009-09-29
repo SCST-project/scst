@@ -412,117 +412,240 @@ out:
 
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 
-#ifdef CONFIG_SCST_MEASURE_LATENCY_EXT
 static char *scst_io_size_names[] = { "<=8K  ",
 				      "<=32K ",
 				      "<=128K",
 				      "<=512K",
 				      ">512K " };
-#endif
 
 static int lat_info_show(struct seq_file *seq, void *v)
 {
 	int res = 0;
 	struct scst_acg *acg;
 	struct scst_session *sess;
+	char buf[50];
 
 	TRACE_ENTRY();
+
+	BUILD_BUG_ON(SCST_LATENCY_STATS_NUM != ARRAY_SIZE(scst_io_size_names));
+	BUILD_BUG_ON(SCST_LATENCY_STATS_NUM != ARRAY_SIZE(sess->sess_latency_stat));
 
 	if (mutex_lock_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
 		goto out;
 	}
 
-	seq_printf(seq, "%-30s %-15s %-15s %-15s\n",
-		   "T-L names",
-		   "Total commands",
-		   "SCST latenct",
-		   "Processing latency (ns)");
-
 	list_for_each_entry(acg, &scst_acg_list, scst_acg_list_entry) {
+		bool header_printed = false;
+
 		list_for_each_entry(sess, &acg->acg_sess_list,
 				acg_sess_list_entry) {
-			unsigned long proc_lat = 0, scst_lat = 0;
-			uint64_t proc_time, scst_time;
-			unsigned int processed_cmds;
-#ifdef CONFIG_SCST_MEASURE_LATENCY_EXT
-			uint64_t proc_time_rd, scst_time_rd;
-			unsigned int processed_cmds_rd;
 			unsigned int i;
-			struct scst_latency_stat *latency_stat;
-#endif
+			int t;
+			uint64_t scst_time, tgt_time, dev_time;
+			unsigned int processed_cmds;
 
-			seq_printf(seq,
-				   "Target name: %s \nInitiator name: %s\n",
+			if (!header_printed) {
+				seq_printf(seq, "%-15s %-15s %-34s %-34s %-34s\n",
+					"T-L names", "Total commands", "SCST latency",
+					"Target latency", "Dev latency (min/avg/max ns)");
+				header_printed = true;
+			}
+
+			seq_printf(seq, "Target name: %s\nInitiator name: %s\n",
 				   sess->tgt->tgtt->name,
 				   sess->initiator_name);
 
-			spin_lock_bh(&sess->meas_lock);
-#ifdef CONFIG_SCST_MEASURE_LATENCY_EXT
-			for (i = 0; i <= SCST_LATENCY_STAT_INDEX_OTHER ; i++) {
-				latency_stat = &sess->latency_stat[i];
-				proc_time =
-					latency_stat->processing_time_wr;
-				proc_time_rd =
-					latency_stat->processing_time_rd;
-				scst_time =
-					latency_stat->scst_time_wr;
-				scst_time_rd =
-					latency_stat->scst_time_rd;
-				processed_cmds =
-					latency_stat->processed_cmds_wr;
-				processed_cmds_rd =
-					latency_stat->processed_cmds_rd;
+			spin_lock_bh(&sess->lat_lock);
 
-				seq_printf(seq,
-					   "%-5s %-24s %-15ld %-15ld %-15ld\n",
-					   "Write",
-					   scst_io_size_names[i],
-					   (unsigned long)processed_cmds,
-					   (unsigned long)scst_time,
-					   (unsigned long)proc_time);
-				seq_printf(seq,
-					   "%-5s %-24s %-15ld %-15ld %-15ld\n",
-					   "Read",
-					   scst_io_size_names[i],
-					   (unsigned long)processed_cmds_rd,
-					   (unsigned long)scst_time_rd,
-					   (unsigned long)proc_time_rd);
+			for (i = 0; i < SCST_LATENCY_STATS_NUM ; i++) {
+				uint64_t scst_time_wr, tgt_time_wr, dev_time_wr;
+				unsigned int processed_cmds_wr;
+				uint64_t scst_time_rd, tgt_time_rd, dev_time_rd;
+				unsigned int processed_cmds_rd;
+				struct scst_ext_latency_stat *latency_stat;
+
+				latency_stat = &sess->sess_latency_stat[i];
+				scst_time_wr = latency_stat->scst_time_wr;
+				scst_time_rd = latency_stat->scst_time_rd;
+				tgt_time_wr = latency_stat->tgt_time_wr;
+				tgt_time_rd = latency_stat->tgt_time_rd;
+				dev_time_wr = latency_stat->dev_time_wr;
+				dev_time_rd = latency_stat->dev_time_rd;
+				processed_cmds_wr = latency_stat->processed_cmds_wr;
+				processed_cmds_rd = latency_stat->processed_cmds_rd;
+
+				seq_printf(seq, "%-5s %-9s %-15lu ",
+					"Write", scst_io_size_names[i],
+					(unsigned long)processed_cmds_wr);
+				if (processed_cmds_wr == 0)
+					processed_cmds_wr = 1;
+
+				do_div(scst_time_wr, processed_cmds_wr);
+				snprintf(buf, sizeof(buf), "%lu/%lu/%lu",
+					(unsigned long)latency_stat->min_scst_time_wr,
+					(unsigned long)scst_time_wr,
+					(unsigned long)latency_stat->max_scst_time_wr);
+				seq_printf(seq, "%-35s", buf);
+
+				do_div(tgt_time_wr, processed_cmds_wr);
+				snprintf(buf, sizeof(buf), "%lu/%lu/%lu",
+					(unsigned long)latency_stat->min_tgt_time_wr,
+					(unsigned long)tgt_time_wr,
+					(unsigned long)latency_stat->max_tgt_time_wr);
+				seq_printf(seq, "%-35s", buf);
+
+				do_div(dev_time_wr, processed_cmds_wr);
+				snprintf(buf, sizeof(buf), "%lu/%lu/%lu",
+					(unsigned long)latency_stat->min_dev_time_wr,
+					(unsigned long)dev_time_wr,
+					(unsigned long)latency_stat->max_dev_time_wr);
+				seq_printf(seq, "%-35s\n", buf);
+
+				seq_printf(seq, "%-5s %-9s %-15lu ",
+					"Read", scst_io_size_names[i],
+					(unsigned long)processed_cmds_rd);
+				if (processed_cmds_rd == 0)
+					processed_cmds_rd = 1;
+
+				do_div(scst_time_rd, processed_cmds_rd);
+				snprintf(buf, sizeof(buf), "%lu/%lu/%lu",
+					(unsigned long)latency_stat->min_scst_time_rd,
+					(unsigned long)scst_time_rd,
+					(unsigned long)latency_stat->max_scst_time_rd);
+				seq_printf(seq, "%-35s", buf);
+
+				do_div(tgt_time_rd, processed_cmds_rd);
+				snprintf(buf, sizeof(buf), "%lu/%lu/%lu",
+					(unsigned long)latency_stat->min_tgt_time_rd,
+					(unsigned long)tgt_time_rd,
+					(unsigned long)latency_stat->max_tgt_time_rd);
+				seq_printf(seq, "%-35s", buf);
+
+				do_div(dev_time_rd, processed_cmds_rd);
+				snprintf(buf, sizeof(buf), "%lu/%lu/%lu",
+					(unsigned long)latency_stat->min_dev_time_rd,
+					(unsigned long)dev_time_rd,
+					(unsigned long)latency_stat->max_dev_time_rd);
+				seq_printf(seq, "%-35s\n", buf);
 			}
-#endif
-			proc_time = sess->processing_time;
+
+			for (t = TGT_DEV_HASH_SIZE-1; t >= 0; t--) {
+				struct list_head *sess_tgt_dev_list_head =
+					&sess->sess_tgt_dev_list_hash[t];
+				struct scst_tgt_dev *tgt_dev;
+				list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
+						sess_tgt_dev_list_entry) {
+
+					seq_printf(seq, "\nLUN: %llu\n", tgt_dev->lun);
+
+					for (i = 0; i < SCST_LATENCY_STATS_NUM ; i++) {
+						uint64_t scst_time_wr, tgt_time_wr, dev_time_wr;
+						unsigned int processed_cmds_wr;
+						uint64_t scst_time_rd, tgt_time_rd, dev_time_rd;
+						unsigned int processed_cmds_rd;
+						struct scst_ext_latency_stat *latency_stat;
+
+						latency_stat = &tgt_dev->dev_latency_stat[i];
+						scst_time_wr = latency_stat->scst_time_wr;
+						scst_time_rd = latency_stat->scst_time_rd;
+						tgt_time_wr = latency_stat->tgt_time_wr;
+						tgt_time_rd = latency_stat->tgt_time_rd;
+						dev_time_wr = latency_stat->dev_time_wr;
+						dev_time_rd = latency_stat->dev_time_rd;
+						processed_cmds_wr = latency_stat->processed_cmds_wr;
+						processed_cmds_rd = latency_stat->processed_cmds_rd;
+
+						seq_printf(seq, "%-5s %-9s %-15lu ",
+							"Write", scst_io_size_names[i],
+							(unsigned long)processed_cmds_wr);
+						if (processed_cmds_wr == 0)
+							processed_cmds_wr = 1;
+
+						do_div(scst_time_wr, processed_cmds_wr);
+						snprintf(buf, sizeof(buf), "%lu/%lu/%lu",
+							(unsigned long)latency_stat->min_scst_time_wr,
+							(unsigned long)scst_time_wr,
+							(unsigned long)latency_stat->max_scst_time_wr);
+						seq_printf(seq, "%-35s", buf);
+
+						do_div(tgt_time_wr, processed_cmds_wr);
+						snprintf(buf, sizeof(buf), "%lu/%lu/%lu",
+							(unsigned long)latency_stat->min_tgt_time_wr,
+							(unsigned long)tgt_time_wr,
+							(unsigned long)latency_stat->max_tgt_time_wr);
+						seq_printf(seq, "%-35s", buf);
+
+						do_div(dev_time_wr, processed_cmds_wr);
+						snprintf(buf, sizeof(buf), "%lu/%lu/%lu",
+							(unsigned long)latency_stat->min_dev_time_wr,
+							(unsigned long)dev_time_wr,
+							(unsigned long)latency_stat->max_dev_time_wr);
+						seq_printf(seq, "%-35s\n", buf);
+
+						seq_printf(seq, "%-5s %-9s %-15lu ",
+							"Read", scst_io_size_names[i],
+							(unsigned long)processed_cmds_rd);
+						if (processed_cmds_rd == 0)
+							processed_cmds_rd = 1;
+
+						do_div(scst_time_rd, processed_cmds_rd);
+						snprintf(buf, sizeof(buf), "%lu/%lu/%lu",
+							(unsigned long)latency_stat->min_scst_time_rd,
+							(unsigned long)scst_time_rd,
+							(unsigned long)latency_stat->max_scst_time_rd);
+						seq_printf(seq, "%-35s", buf);
+
+						do_div(tgt_time_rd, processed_cmds_rd);
+						snprintf(buf, sizeof(buf), "%lu/%lu/%lu",
+							(unsigned long)latency_stat->min_tgt_time_rd,
+							(unsigned long)tgt_time_rd,
+							(unsigned long)latency_stat->max_tgt_time_rd);
+						seq_printf(seq, "%-35s", buf);
+
+						do_div(dev_time_rd, processed_cmds_rd);
+						snprintf(buf, sizeof(buf), "%lu/%lu/%lu",
+							(unsigned long)latency_stat->min_dev_time_rd,
+							(unsigned long)dev_time_rd,
+							(unsigned long)latency_stat->max_dev_time_rd);
+						seq_printf(seq, "%-35s\n", buf);
+					}
+				}
+			}
+
 			scst_time = sess->scst_time;
+			tgt_time = sess->tgt_time;
+			dev_time = sess->dev_time;
 			processed_cmds = sess->processed_cmds;
-			spin_unlock_bh(&sess->meas_lock);
 
-			TRACE_DBG("sess %p, scst_time %lld, proc_time %lld, "
-				"processed_cmds %d", sess, scst_time,
-				proc_time, processed_cmds);
+			seq_printf(seq, "%-15s %-16d", "Overall ",
+				processed_cmds);
 
-#if BITS_PER_LONG == 32
-			/* Unfortunately, do_div() doesn't work too well */
-			while (((proc_time & 0xFFFFFFFF00000000LL) != 0) ||
-			       ((scst_time & 0xFFFFFFFF00000000LL) != 0)) {
-				TRACE_DBG("%s", "Gathered time too big");
-				proc_time >>= 1;
-				scst_time >>= 1;
-				processed_cmds >>= 1;
-			}
-#endif
+			if (processed_cmds == 0)
+				processed_cmds = 1;
 
-			if (processed_cmds != 0) {
-				proc_lat = (unsigned long)proc_time /
-						processed_cmds;
-				scst_lat = (unsigned long)scst_time /
-						processed_cmds;
-			}
+			do_div(scst_time, processed_cmds);
+			snprintf(buf, sizeof(buf), "%lu/%lu/%lu",
+				(unsigned long)sess->min_scst_time,
+				(unsigned long)scst_time,
+				(unsigned long)sess->max_scst_time);
+			seq_printf(seq, "%-35s", buf);
 
-			seq_printf(seq,
-				   "%-30s %-15d %-15ld %-15ld\n\n",
-				   "Average",
-				   processed_cmds,
-				   scst_lat,
-				   proc_lat);
+			do_div(tgt_time, processed_cmds);
+			snprintf(buf, sizeof(buf), "%lu/%lu/%lu",
+				(unsigned long)sess->min_tgt_time,
+				(unsigned long)tgt_time,
+				(unsigned long)sess->max_tgt_time);
+			seq_printf(seq, "%-35s", buf);
+
+			do_div(dev_time, processed_cmds);
+			snprintf(buf, sizeof(buf), "%lu/%lu/%lu",
+				(unsigned long)sess->min_dev_time,
+				(unsigned long)dev_time,
+				(unsigned long)sess->max_dev_time);
+			seq_printf(seq, "%-35s\n\n", buf);
+
+			spin_unlock_bh(&sess->lat_lock);
 		}
 	}
 
@@ -537,7 +660,7 @@ static ssize_t scst_proc_scsi_tgt_gen_write_lat(struct file *file,
 					const char __user *buf,
 					size_t length, loff_t *off)
 {
-	int res = length;
+	int res = length, t;
 	struct scst_acg *acg;
 	struct scst_session *sess;
 
@@ -551,19 +674,39 @@ static ssize_t scst_proc_scsi_tgt_gen_write_lat(struct file *file,
 	list_for_each_entry(acg, &scst_acg_list, scst_acg_list_entry) {
 		list_for_each_entry(sess, &acg->acg_sess_list,
 				acg_sess_list_entry) {
-			PRINT_INFO("Zeroing latency statistics for initiator"
-				" %s",
-				sess->initiator_name);
-			spin_lock_bh(&sess->meas_lock);
-			sess->processing_time = 0;
+			PRINT_INFO("Zeroing latency statistics for initiator "
+				"%s", sess->initiator_name);
+			spin_lock_bh(&sess->lat_lock);
+
 			sess->scst_time = 0;
+			sess->tgt_time = 0;
+			sess->dev_time = 0;
+			sess->min_scst_time = 0;
+			sess->min_tgt_time = 0;
+			sess->min_dev_time = 0;
+			sess->max_scst_time = 0;
+			sess->max_tgt_time = 0;
+			sess->max_dev_time = 0;
 			sess->processed_cmds = 0;
-#ifdef CONFIG_SCST_MEASURE_LATENCY_EXT
-			memset(sess->latency_stat,
-				0,
-				sizeof(sess->latency_stat));
-#endif
-			spin_unlock_bh(&sess->meas_lock);
+			memset(sess->sess_latency_stat, 0,
+				sizeof(sess->sess_latency_stat));
+
+			for (t = TGT_DEV_HASH_SIZE-1; t >= 0; t--) {
+				struct list_head *sess_tgt_dev_list_head =
+					&sess->sess_tgt_dev_list_hash[t];
+				struct scst_tgt_dev *tgt_dev;
+				list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
+						sess_tgt_dev_list_entry) {
+					tgt_dev->scst_time = 0;
+					tgt_dev->tgt_time = 0;
+					tgt_dev->dev_time = 0;
+					tgt_dev->processed_cmds = 0;
+					memset(tgt_dev->dev_latency_stat, 0,
+						sizeof(tgt_dev->dev_latency_stat));
+				}
+			}
+
+			spin_unlock_bh(&sess->lat_lock);
 		}
 	}
 

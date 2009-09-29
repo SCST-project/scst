@@ -594,4 +594,38 @@ static inline int scst_sn_before(__u32 seq1, __u32 seq2)
 	return (__s32)(seq1-seq2) < 0;
 }
 
+#ifdef CONFIG_SCST_MEASURE_LATENCY
+
+void scst_set_start_time(struct scst_cmd *cmd);
+void scst_set_cur_start(struct scst_cmd *cmd);
+void scst_set_parse_time(struct scst_cmd *cmd);
+void scst_set_alloc_buf_time(struct scst_cmd *cmd);
+void scst_set_restart_waiting_time(struct scst_cmd *cmd);
+void scst_set_rdy_to_xfer_time(struct scst_cmd *cmd);
+void scst_set_pre_exec_time(struct scst_cmd *cmd);
+void scst_set_exec_time(struct scst_cmd *cmd);
+void scst_set_dev_done_time(struct scst_cmd *cmd);
+void scst_set_xmit_time(struct scst_cmd *cmd);
+void scst_set_tgt_on_free_time(struct scst_cmd *cmd);
+void scst_set_dev_on_free_time(struct scst_cmd *cmd);
+void scst_update_lat_stats(struct scst_cmd *cmd);
+
+#else
+
+static inline void scst_set_start_time(struct scst_cmd *cmd) {}
+static inline void scst_set_cur_start(struct scst_cmd *cmd) {}
+static inline void scst_set_parse_time(struct scst_cmd *cmd) {}
+static inline void scst_set_alloc_buf_time(struct scst_cmd *cmd) {}
+static inline void scst_set_restart_waiting_time(struct scst_cmd *cmd) {}
+static inline void scst_set_rdy_to_xfer_time(struct scst_cmd *cmd) {}
+static inline void scst_set_pre_exec_time(struct scst_cmd *cmd) {}
+static inline void scst_set_exec_time(struct scst_cmd *cmd) {}
+static inline void scst_set_dev_done_time(struct scst_cmd *cmd) {}
+static inline void scst_set_xmit_time(struct scst_cmd *cmd) {}
+static inline void scst_set_tgt_on_free_time(struct scst_cmd *cmd) {}
+static inline void scst_set_dev_on_free_time(struct scst_cmd *cmd) {}
+static inline void scst_update_lat_stats(struct scst_cmd *cmd) {}
+
+#endif /* CONFIG_SCST_MEASURE_LATENCY */
+
 #endif /* __SCST_PRIV_H */

@@ -1029,30 +1029,34 @@ struct scst_tgt {
 #define	TGT_DEV_HASH_SIZE	(1 << TGT_DEV_HASH_SHIFT)
 #define	HASH_VAL(_val)		(_val & (TGT_DEV_HASH_SIZE - 1))
 
-#ifdef CONFIG_SCST_MEASURE_LATENCY_EXT
-/*define the structure for extended latency statistics*/
-struct scst_latency_stat {
-	uint64_t scst_time_wr;
-	uint64_t scst_time_rd;
-	uint64_t processing_time_wr;
-	uint64_t processing_time_rd;
-	unsigned int processed_cmds_wr;
+#ifdef CONFIG_SCST_MEASURE_LATENCY
+
+/* Defines extended latency statistics */
+struct scst_ext_latency_stat {
+	uint64_t scst_time_rd, tgt_time_rd, dev_time_rd;
 	unsigned int processed_cmds_rd;
+	uint64_t min_scst_time_rd, min_tgt_time_rd, min_dev_time_rd;
+	uint64_t max_scst_time_rd, max_tgt_time_rd, max_dev_time_rd;
+
+	uint64_t scst_time_wr, tgt_time_wr, dev_time_wr;
+	unsigned int processed_cmds_wr;
+	uint64_t min_scst_time_wr, min_tgt_time_wr, min_dev_time_wr;
+	uint64_t max_scst_time_wr, max_tgt_time_wr, max_dev_time_wr;
 };
 
-#define SCST_IO_SIZE_THRESHOLD_SMALL (8*1024)
-#define SCST_IO_SIZE_THRESHOLD_MEDIUM (32*1024)
-#define SCST_IO_SIZE_THRESHOLD_LARGE (128*1024)
-#define SCST_IO_SIZE_THRESHOLD_VERY_LARGE (512*1024)
+#define SCST_IO_SIZE_THRESHOLD_SMALL		(8*1024)
+#define SCST_IO_SIZE_THRESHOLD_MEDIUM		(32*1024)
+#define SCST_IO_SIZE_THRESHOLD_LARGE		(128*1024)
+#define SCST_IO_SIZE_THRESHOLD_VERY_LARGE	(512*1024)
 
-#define SCST_LATENCY_STAT_INDEX_SMALL 0
-#define SCST_LATENCY_STAT_INDEX_MEDIUM 1
-#define SCST_LATENCY_STAT_INDEX_LARGE 2
-#define SCST_LATENCY_STAT_INDEX_VERY_LARGE 3
-#define SCST_LATENCY_STAT_INDEX_OTHER 4
-#define SCST_LATENCY_NUM_OF_THRESHOLDS 5
+#define SCST_LATENCY_STAT_INDEX_SMALL		0
+#define SCST_LATENCY_STAT_INDEX_MEDIUM		1
+#define SCST_LATENCY_STAT_INDEX_LARGE		2
+#define SCST_LATENCY_STAT_INDEX_VERY_LARGE	3
+#define SCST_LATENCY_STAT_INDEX_OTHER		4
+#define SCST_LATENCY_STATS_NUM		(SCST_LATENCY_STAT_INDEX_OTHER + 1)
 
-#endif
+#endif /* CONFIG_SCST_MEASURE_LATENCY */
 
 struct scst_session {
 	/*
@@ -1149,13 +1153,17 @@ struct scst_session {
 				int result);
 	void (*unreg_done_fn) (struct scst_session *sess);
 
-#ifdef CONFIG_SCST_MEASURE_LATENCY /* must be last */
-	spinlock_t meas_lock;
-	uint64_t scst_time, processing_time;
+#ifdef CONFIG_SCST_MEASURE_LATENCY
+	/*
+	 * Must be the last to allow to work with drivers who don't know
+	 * about this config time option.
+	 */
+	spinlock_t lat_lock;
+	uint64_t scst_time, tgt_time, dev_time;
 	unsigned int processed_cmds;
-#ifdef CONFIG_SCST_MEASURE_LATENCY_EXT
-	struct scst_latency_stat latency_stat[SCST_LATENCY_NUM_OF_THRESHOLDS];
-#endif
+	uint64_t min_scst_time, min_tgt_time, min_dev_time;
+	uint64_t max_scst_time, max_tgt_time, max_dev_time;
+	struct scst_ext_latency_stat sess_latency_stat[SCST_LATENCY_STATS_NUM];
 #endif
 };
 
@@ -1449,8 +1457,15 @@ struct scst_cmd {
 
 	struct scst_cmd *orig_cmd; /* Used to issue REQUEST SENSE */
 
-#ifdef CONFIG_SCST_MEASURE_LATENCY /* must be last */
-	uint64_t start, pre_exec_finish, post_exec_start;
+#ifdef CONFIG_SCST_MEASURE_LATENCY
+	/*
+	 * Must be the last to allow to work with drivers who don't know
+	 * about this config time option.
+	 */
+	uint64_t start, curr_start, parse_time, alloc_buf_time;
+	uint64_t restart_waiting_time, rdy_to_xfer_time;
+	uint64_t pre_exec_time, exec_time, dev_done_time;
+	uint64_t xmit_time, tgt_on_free_time, dev_on_free_time;
 #endif
 };
 
@@ -1732,6 +1747,18 @@ struct scst_tgt_dev {
 	 */
 	unsigned short tgt_dev_valid_sense_len;
 	uint8_t tgt_dev_sense[SCST_SENSE_BUFFERSIZE];
+
+#ifdef CONFIG_SCST_MEASURE_LATENCY
+	/*
+	 * Must be the last to allow to work with drivers who don't know
+	 * about this config time option.
+	 *
+	 * Protected by sess->lat_lock.
+	 */
+	uint64_t scst_time, tgt_time, dev_time;
+	unsigned int processed_cmds;
+	struct scst_ext_latency_stat dev_latency_stat[SCST_LATENCY_STATS_NUM];
+#endif
 };
 
 /*
@@ -2954,6 +2981,13 @@ void scst_resume_activity(void);
  * Argument atomic is true if function called in atomic context.
  */
 void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic);
+
+/*
+ * SCST commands processing routine, which should be called by dev handler
+ * after its parse() callback returned SCST_CMD_STATE_STOP. Arguments
+ * the same as for scst_process_active_cmd().
+ */
+void scst_post_parse_process_active_cmd(struct scst_cmd *cmd, bool atomic);
 
 /*
  * Checks if command can be executed (reservations, etc.) or there are local

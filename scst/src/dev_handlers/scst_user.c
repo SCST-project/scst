@@ -1190,7 +1190,7 @@ static int dev_user_process_reply_alloc(struct scst_user_cmd *ucmd,
 	}
 
 out_process:
-	scst_process_active_cmd(cmd, false);
+	scst_post_parse_process_active_cmd(cmd, false);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -1240,7 +1240,7 @@ static int dev_user_process_reply_parse(struct scst_user_cmd *ucmd,
 		cmd->op_flags |= SCST_WRITE_MEDIUM;
 
 out_process:
-	scst_process_active_cmd(cmd, false);
+	scst_post_parse_process_active_cmd(cmd, false);
 
 	TRACE_EXIT_RES(res);
 	return res;

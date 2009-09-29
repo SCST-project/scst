@@ -2311,7 +2311,7 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 #endif
 
 #ifdef CONFIG_SCST_MEASURE_LATENCY
-	spin_lock_init(&sess->meas_lock);
+	spin_lock_init(&sess->lat_lock);
 #endif
 
 	len = strlen(initiator_name);
@@ -2509,7 +2509,9 @@ void scst_free_cmd(struct scst_cmd *cmd)
 
 	if (cmd->tgtt->on_free_cmd != NULL) {
 		TRACE_DBG("Calling target's on_free_cmd(%p)", cmd);
+		scst_set_cur_start(cmd);
 		cmd->tgtt->on_free_cmd(cmd);
+		scst_set_tgt_on_free_time(cmd);
 		TRACE_DBG("%s", "Target's on_free_cmd() returned");
 	}
 
@@ -2517,8 +2519,10 @@ void scst_free_cmd(struct scst_cmd *cmd)
 		struct scst_dev_type *handler = cmd->dev->handler;
 		if (handler->on_free_cmd != NULL) {
 			TRACE_DBG("Calling dev handler %s on_free_cmd(%p)",
-			      handler->name, cmd);
+				handler->name, cmd);
+			scst_set_cur_start(cmd);
 			handler->on_free_cmd(cmd);
+			scst_set_dev_on_free_time(cmd);
 			TRACE_DBG("Dev handler %s on_free_cmd() returned",
 				handler->name);
 		}
@@ -5748,3 +5752,247 @@ out_unlock:
 	return;
 }
 #endif /* CONFIG_SCST_DEBUG_SN */
+
+#ifdef CONFIG_SCST_MEASURE_LATENCY
+
+static uint64_t scst_get_nsec(void)
+{
+	struct timespec ts;
+	ktime_get_ts(&ts);
+	return (uint64_t)ts.tv_sec * 1000000000 + ts.tv_nsec;
+}
+
+void scst_set_start_time(struct scst_cmd *cmd)
+{
+	cmd->start = scst_get_nsec();
+	TRACE_DBG("cmd %p: start %lld", cmd, cmd->start);
+}
+
+void scst_set_cur_start(struct scst_cmd *cmd)
+{
+	cmd->curr_start = scst_get_nsec();
+	TRACE_DBG("cmd %p: cur_start %lld", cmd, cmd->curr_start);
+}
+
+void scst_set_parse_time(struct scst_cmd *cmd)
+{
+	cmd->parse_time += scst_get_nsec() - cmd->curr_start;
+	TRACE_DBG("cmd %p: parse_time %lld", cmd, cmd->parse_time);
+}
+
+void scst_set_alloc_buf_time(struct scst_cmd *cmd)
+{
+	cmd->alloc_buf_time += scst_get_nsec() - cmd->curr_start;
+	TRACE_DBG("cmd %p: alloc_buf_time %lld", cmd, cmd->alloc_buf_time);
+}
+
+void scst_set_restart_waiting_time(struct scst_cmd *cmd)
+{
+	cmd->restart_waiting_time += scst_get_nsec() - cmd->curr_start;
+	TRACE_DBG("cmd %p: restart_waiting_time %lld", cmd,
+		cmd->restart_waiting_time);
+}
+
+void scst_set_rdy_to_xfer_time(struct scst_cmd *cmd)
+{
+	cmd->rdy_to_xfer_time += scst_get_nsec() - cmd->curr_start;
+	TRACE_DBG("cmd %p: rdy_to_xfer_time %lld", cmd, cmd->rdy_to_xfer_time);
+}
+
+void scst_set_pre_exec_time(struct scst_cmd *cmd)
+{
+	cmd->pre_exec_time += scst_get_nsec() - cmd->curr_start;
+	TRACE_DBG("cmd %p: pre_exec_time %lld", cmd, cmd->pre_exec_time);
+}
+
+void scst_set_exec_time(struct scst_cmd *cmd)
+{
+	cmd->exec_time += scst_get_nsec() - cmd->curr_start;
+	TRACE_DBG("cmd %p: exec_time %lld", cmd, cmd->exec_time);
+}
+
+void scst_set_dev_done_time(struct scst_cmd *cmd)
+{
+	cmd->dev_done_time += scst_get_nsec() - cmd->curr_start;
+	TRACE_DBG("cmd %p: dev_done_time %lld", cmd, cmd->dev_done_time);
+}
+
+void scst_set_xmit_time(struct scst_cmd *cmd)
+{
+	cmd->xmit_time += scst_get_nsec() - cmd->curr_start;
+	TRACE_DBG("cmd %p: xmit_time %lld", cmd, cmd->xmit_time);
+}
+
+void scst_set_tgt_on_free_time(struct scst_cmd *cmd)
+{
+	cmd->tgt_on_free_time += scst_get_nsec() - cmd->curr_start;
+	TRACE_DBG("cmd %p: tgt_on_free_time %lld", cmd, cmd->tgt_on_free_time);
+}
+
+void scst_set_dev_on_free_time(struct scst_cmd *cmd)
+{
+	cmd->dev_on_free_time += scst_get_nsec() - cmd->curr_start;
+	TRACE_DBG("cmd %p: dev_on_free_time %lld", cmd, cmd->dev_on_free_time);
+}
+
+void scst_update_lat_stats(struct scst_cmd *cmd)
+{
+	uint64_t finish, scst_time, tgt_time, dev_time;
+	struct scst_session *sess = cmd->sess;
+	int data_len;
+	int i;
+	struct scst_ext_latency_stat *latency_stat, *dev_latency_stat;
+
+	finish = scst_get_nsec();
+
+	/* Determine the IO size for extended latency statistics */
+	data_len = cmd->bufflen;
+	i = SCST_LATENCY_STAT_INDEX_OTHER;
+	if (data_len <= SCST_IO_SIZE_THRESHOLD_SMALL)
+		i = SCST_LATENCY_STAT_INDEX_SMALL;
+	else if (data_len <= SCST_IO_SIZE_THRESHOLD_MEDIUM)
+		i = SCST_LATENCY_STAT_INDEX_MEDIUM;
+	else if (data_len <= SCST_IO_SIZE_THRESHOLD_LARGE)
+		i = SCST_LATENCY_STAT_INDEX_LARGE;
+	else if (data_len <= SCST_IO_SIZE_THRESHOLD_VERY_LARGE)
+		i = SCST_LATENCY_STAT_INDEX_VERY_LARGE;
+	latency_stat = &sess->sess_latency_stat[i];
+	dev_latency_stat = &cmd->tgt_dev->dev_latency_stat[i];
+
+	spin_lock_bh(&sess->lat_lock);
+
+	/* Calculate the latencies */
+	scst_time = finish - cmd->start - (cmd->parse_time +
+		cmd->alloc_buf_time + cmd->restart_waiting_time +
+		cmd->rdy_to_xfer_time + cmd->pre_exec_time +
+		cmd->exec_time + cmd->dev_done_time + cmd->xmit_time +
+		cmd->tgt_on_free_time + cmd->dev_on_free_time);
+	tgt_time = cmd->alloc_buf_time + cmd->restart_waiting_time +
+		cmd->rdy_to_xfer_time + cmd->pre_exec_time +
+		cmd->xmit_time + cmd->tgt_on_free_time;
+	dev_time = cmd->parse_time + cmd->exec_time + cmd->dev_done_time +
+		cmd->dev_on_free_time;
+
+	/* Save the basic latency information */
+	sess->scst_time += scst_time;
+	sess->tgt_time += tgt_time;
+	sess->dev_time += dev_time;
+	sess->processed_cmds++;
+
+	if ((sess->min_scst_time == 0) ||
+	    (sess->min_scst_time > scst_time))
+		sess->min_scst_time = scst_time;
+	if ((sess->min_tgt_time == 0) ||
+	    (sess->min_tgt_time > tgt_time))
+		sess->min_tgt_time = tgt_time;
+	if ((sess->min_dev_time == 0) ||
+	    (sess->min_dev_time > dev_time))
+		sess->min_dev_time = dev_time;
+
+	if (sess->max_scst_time < scst_time)
+		sess->max_scst_time = scst_time;
+	if (sess->max_tgt_time < tgt_time)
+		sess->max_tgt_time = tgt_time;
+	if (sess->max_dev_time < dev_time)
+		sess->max_dev_time = dev_time;
+
+	/* Save the extended latency information */
+	if (cmd->data_direction == SCST_DATA_READ) {
+		latency_stat->scst_time_rd += scst_time;
+		latency_stat->tgt_time_rd += tgt_time;
+		latency_stat->dev_time_rd += dev_time;
+		latency_stat->processed_cmds_rd++;
+
+		if ((latency_stat->min_scst_time_rd == 0) ||
+		    (latency_stat->min_scst_time_rd > scst_time))
+			latency_stat->min_scst_time_rd = scst_time;
+		if ((latency_stat->min_tgt_time_rd == 0) ||
+		    (latency_stat->min_tgt_time_rd > tgt_time))
+			latency_stat->min_tgt_time_rd = tgt_time;
+		if ((latency_stat->min_dev_time_rd == 0) ||
+		    (latency_stat->min_dev_time_rd > dev_time))
+			latency_stat->min_dev_time_rd = dev_time;
+
+		if (latency_stat->max_scst_time_rd < scst_time)
+			latency_stat->max_scst_time_rd = scst_time;
+		if (latency_stat->max_tgt_time_rd < tgt_time)
+			latency_stat->max_tgt_time_rd = tgt_time;
+		if (latency_stat->max_dev_time_rd < dev_time)
+			latency_stat->max_dev_time_rd = dev_time;
+
+		dev_latency_stat->scst_time_rd += scst_time;
+		dev_latency_stat->tgt_time_rd += tgt_time;
+		dev_latency_stat->dev_time_rd += dev_time;
+		dev_latency_stat->processed_cmds_rd++;
+
+		if ((dev_latency_stat->min_scst_time_rd == 0) ||
+		    (dev_latency_stat->min_scst_time_rd > scst_time))
+			dev_latency_stat->min_scst_time_rd = scst_time;
+		if ((dev_latency_stat->min_tgt_time_rd == 0) ||
+		    (dev_latency_stat->min_tgt_time_rd > tgt_time))
+			dev_latency_stat->min_tgt_time_rd = tgt_time;
+		if ((dev_latency_stat->min_dev_time_rd == 0) ||
+		    (dev_latency_stat->min_dev_time_rd > dev_time))
+			dev_latency_stat->min_dev_time_rd = dev_time;
+
+		if (dev_latency_stat->max_scst_time_rd < scst_time)
+			dev_latency_stat->max_scst_time_rd = scst_time;
+		if (dev_latency_stat->max_tgt_time_rd < tgt_time)
+			dev_latency_stat->max_tgt_time_rd = tgt_time;
+		if (dev_latency_stat->max_dev_time_rd < dev_time)
+			dev_latency_stat->max_dev_time_rd = dev_time;
+	} else if (cmd->data_direction == SCST_DATA_WRITE) {
+		latency_stat->scst_time_wr += scst_time;
+		latency_stat->tgt_time_wr += tgt_time;
+		latency_stat->dev_time_wr += dev_time;
+		latency_stat->processed_cmds_wr++;
+
+		if ((latency_stat->min_scst_time_wr == 0) ||
+		    (latency_stat->min_scst_time_wr > scst_time))
+			latency_stat->min_scst_time_wr = scst_time;
+		if ((latency_stat->min_tgt_time_wr == 0) ||
+		    (latency_stat->min_tgt_time_wr > tgt_time))
+			latency_stat->min_tgt_time_wr = tgt_time;
+		if ((latency_stat->min_dev_time_wr == 0) ||
+		    (latency_stat->min_dev_time_wr > dev_time))
+			latency_stat->min_dev_time_wr = dev_time;
+
+		if (latency_stat->max_scst_time_wr < scst_time)
+			latency_stat->max_scst_time_wr = scst_time;
+		if (latency_stat->max_tgt_time_wr < tgt_time)
+			latency_stat->max_tgt_time_wr = tgt_time;
+		if (latency_stat->max_dev_time_wr < dev_time)
+			latency_stat->max_dev_time_wr = dev_time;
+
+		dev_latency_stat->scst_time_wr += scst_time;
+		dev_latency_stat->tgt_time_wr += tgt_time;
+		dev_latency_stat->dev_time_wr += dev_time;
+		dev_latency_stat->processed_cmds_wr++;
+
+		if ((dev_latency_stat->min_scst_time_wr == 0) ||
+		    (dev_latency_stat->min_scst_time_wr > scst_time))
+			dev_latency_stat->min_scst_time_wr = scst_time;
+		if ((dev_latency_stat->min_tgt_time_wr == 0) ||
+		    (dev_latency_stat->min_tgt_time_wr > tgt_time))
+			dev_latency_stat->min_tgt_time_wr = tgt_time;
+		if ((dev_latency_stat->min_dev_time_wr == 0) ||
+		    (dev_latency_stat->min_dev_time_wr > dev_time))
+			dev_latency_stat->min_dev_time_wr = dev_time;
+
+		if (dev_latency_stat->max_scst_time_wr < scst_time)
+			dev_latency_stat->max_scst_time_wr = scst_time;
+		if (dev_latency_stat->max_tgt_time_wr < tgt_time)
+			dev_latency_stat->max_tgt_time_wr = tgt_time;
+		if (dev_latency_stat->max_dev_time_wr < dev_time)
+			dev_latency_stat->max_dev_time_wr = dev_time;
+	}
+
+	spin_unlock_bh(&sess->lat_lock);
+
+	TRACE_DBG("cmd %p: finish %lld, scst_time %lld, "
+		"tgt_time %lld, dev_time %lld", cmd, finish, scst_time,
+		tgt_time, dev_time);
+	return;
+}
+
+#endif /* CONFIG_SCST_MEASURE_LATENCY */

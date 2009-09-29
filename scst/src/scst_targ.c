@@ -180,13 +180,6 @@ out_redirect:
 	goto out;
 }
 
-#ifdef CONFIG_SCST_MEASURE_LATENCY
-static inline uint64_t scst_sec_to_nsec(time_t sec)
-{
-	return (uint64_t)sec * 1000000000;
-}
-#endif
-
 void scst_cmd_init_done(struct scst_cmd *cmd,
 	enum scst_exec_context pref_context)
 {
@@ -196,16 +189,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
 
 	TRACE_ENTRY();
 
-#ifdef CONFIG_SCST_MEASURE_LATENCY
-	{
-		struct timespec ts;
-		ktime_get_ts(&ts);
-		cmd->start = scst_sec_to_nsec(ts.tv_sec) + ts.tv_nsec;
-		TRACE_DBG("cmd %p (sess %p): start %lld (tv_sec %ld, "
-			"tv_nsec %ld)", cmd, sess, cmd->start, ts.tv_sec,
-			ts.tv_nsec);
-	}
-#endif
+	scst_set_start_time(cmd);
 
 	TRACE_DBG("Preferred context: %d (cmd %p)", pref_context, cmd);
 	TRACE(TRACE_SCSI, "tag=%llu, lun=%lld, CDB len=%d, queue_type=%x "
@@ -513,6 +497,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 		      dev->handler->name, cmd);
 		TRACE_BUFF_FLAG(TRACE_SND_BOT, "Parsing: ",
 				cmd->cdb, cmd->cdb_len);
+		scst_set_cur_start(cmd);
 		state = dev->handler->parse(cmd);
 		/* Caution: cmd can be already dead here */
 		TRACE_DBG("Dev handler %s parse() returned %d",
@@ -520,6 +505,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 
 		switch (state) {
 		case SCST_CMD_STATE_NEED_THREAD_CTX:
+			scst_set_parse_time(cmd);
 			TRACE_DBG("Dev handler %s parse() requested thread "
 			      "context, rescheduling", dev->handler->name);
 			res = SCST_CMD_STATE_RES_NEED_THREAD;
@@ -531,6 +517,8 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 			res = SCST_CMD_STATE_RES_CONT_NEXT;
 			goto out;
 		}
+
+		scst_set_parse_time(cmd);
 
 		if (state == SCST_CMD_STATE_DEFAULT)
 			state = SCST_CMD_STATE_PREPARE_SPACE;
@@ -715,7 +703,10 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 		TRACE_MEM("Custom tgt data buf allocation requested (cmd %p)",
 			cmd);
 
+		scst_set_cur_start(cmd);
 		r = cmd->tgtt->alloc_data_buf(cmd);
+		scst_set_alloc_buf_time(cmd);
+
 		if (r > 0)
 			goto alloc;
 		else if (r == 0) {
@@ -786,6 +777,7 @@ prep_done:
 		cmd->state = SCST_CMD_STATE_PREPROCESS_DONE;
 
 		TRACE_DBG("Calling preprocessing_done(cmd %p)", cmd);
+		scst_set_cur_start(cmd);
 		cmd->tgtt->preprocessing_done(cmd);
 		TRACE_DBG("%s", "preprocessing_done() returned");
 		goto out;
@@ -820,6 +812,8 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status,
 	enum scst_exec_context pref_context)
 {
 	TRACE_ENTRY();
+
+	scst_set_restart_waiting_time(cmd);
 
 	TRACE_DBG("Preferred context: %d", pref_context);
 	TRACE_DBG("tag=%llu, status=%#x",
@@ -940,6 +934,8 @@ static int scst_rdy_to_xfer(struct scst_cmd *cmd)
 			}
 		}
 
+		scst_set_cur_start(cmd);
+
 		TRACE_DBG("Calling rdy_to_xfer(%p)", cmd);
 #ifdef CONFIG_SCST_DEBUG_RETRY
 		if (((scst_random() % 100) == 75))
@@ -951,6 +947,8 @@ static int scst_rdy_to_xfer(struct scst_cmd *cmd)
 
 		if (likely(rc == SCST_TGT_RES_SUCCESS))
 			goto out;
+
+		scst_set_rdy_to_xfer_time(cmd);
 
 		cmd->cmd_hw_pending = 0;
 
@@ -1058,6 +1056,8 @@ void scst_rx_data(struct scst_cmd *cmd, int status,
 {
 	TRACE_ENTRY();
 
+	scst_set_rdy_to_xfer_time(cmd);
+
 	TRACE_DBG("Preferred context: %d", pref_context);
 	TRACE(TRACE_SCSI, "cmd %p, status %#x", cmd, status);
 
@@ -1151,7 +1151,9 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 		goto out;
 
 	TRACE_DBG("Calling pre_exec(%p)", cmd);
+	scst_set_cur_start(cmd);
 	rc = cmd->tgtt->pre_exec(cmd);
+	scst_set_pre_exec_time(cmd);
 	TRACE_DBG("pre_exec() returned %d", rc);
 
 	if (unlikely(rc != SCST_PREPROCESS_STATUS_SUCCESS)) {
@@ -1190,16 +1192,7 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 {
 	TRACE_ENTRY();
 
-#ifdef CONFIG_SCST_MEASURE_LATENCY
-	{
-		struct timespec ts;
-		ktime_get_ts(&ts);
-		cmd->post_exec_start = scst_sec_to_nsec(ts.tv_sec) + ts.tv_nsec;
-		TRACE_DBG("cmd %p (sess %p): post_exec_start %lld (tv_sec %ld, "
-			"tv_nsec %ld)", cmd, cmd->sess, cmd->post_exec_start,
-			ts.tv_sec, ts.tv_nsec);
-	}
-#endif
+	scst_set_exec_time(cmd);
 
 	cmd->status = result & 0xff;
 	cmd->msg_status = msg_byte(result);
@@ -1333,16 +1326,7 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state,
 {
 	TRACE_ENTRY();
 
-#ifdef CONFIG_SCST_MEASURE_LATENCY
-	{
-		struct timespec ts;
-		ktime_get_ts(&ts);
-		cmd->post_exec_start = scst_sec_to_nsec(ts.tv_sec) + ts.tv_nsec;
-		TRACE_DBG("cmd %p (sess %p): post_exec_start %lld (tv_sec %ld, "
-			"tv_nsec %ld)", cmd, cmd->sess, cmd->post_exec_start,
-			ts.tv_sec, ts.tv_nsec);
-	}
-#endif
+	scst_set_exec_time(cmd);
 
 	if (next_state == SCST_CMD_STATE_DEFAULT)
 		next_state = SCST_CMD_STATE_PRE_DEV_DONE;
@@ -1991,6 +1975,7 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 		      handler->name, cmd);
 		TRACE_BUFF_FLAG(TRACE_SND_TOP, "Execing: ", cmd->cdb,
 			cmd->cdb_len);
+		scst_set_cur_start(cmd);
 		res = handler->exec(cmd);
 		TRACE_DBG("Dev handler %s exec() returned %d",
 		      handler->name, res);
@@ -1999,6 +1984,8 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 			goto out_complete;
 		else if (res == SCST_EXEC_NEED_THREAD)
 			goto out_restore;
+
+		scst_set_exec_time(cmd);
 
 		sBUG_ON(res != SCST_EXEC_NOT_COMPLETED);
 	}
@@ -2025,6 +2012,8 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 		goto out_restore;
 	}
 #endif
+
+	scst_set_cur_start(cmd);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
 	if (unlikely(scst_alloc_request(cmd) != 0)) {
@@ -2073,6 +2062,7 @@ out_reset_ctx:
 	return res;
 
 out_restore:
+	scst_set_exec_time(cmd);
 	/* Restore the state */
 	cmd->state = SCST_CMD_STATE_REAL_EXEC;
 	goto out_reset_ctx;
@@ -2320,17 +2310,6 @@ static int scst_send_for_exec(struct scst_cmd **active_cmd)
 	typeof(tgt_dev->expected_sn) expected_sn;
 
 	TRACE_ENTRY();
-
-#ifdef CONFIG_SCST_MEASURE_LATENCY
-	if (cmd->pre_exec_finish == 0) {
-		struct timespec ts;
-		ktime_get_ts(&ts);
-		cmd->pre_exec_finish = scst_sec_to_nsec(ts.tv_sec) + ts.tv_nsec;
-		TRACE_DBG("cmd %p (sess %p): pre_exec_finish %lld (tv_sec %ld, "
-			"tv_nsec %ld)", cmd, cmd->sess, cmd->pre_exec_finish,
-			ts.tv_sec, ts.tv_nsec);
-	}
-#endif
 
 	if (unlikely(cmd->internal))
 		goto exec;
@@ -2787,8 +2766,10 @@ static int scst_dev_done(struct scst_cmd *cmd)
 		}
 
 		TRACE_DBG("Calling dev handler %s dev_done(%p)",
-		      dev->handler->name, cmd);
+			dev->handler->name, cmd);
+		scst_set_cur_start(cmd);
 		rc = dev->handler->dev_done(cmd);
+		scst_set_dev_done_time(cmd);
 		TRACE_DBG("Dev handler %s dev_done() returned %d",
 		      dev->handler->name, rc);
 		if (rc != SCST_CMD_STATE_DEFAULT)
@@ -2934,77 +2915,6 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 	res = SCST_CMD_STATE_RES_CONT_SAME;
 
 out:
-#ifdef CONFIG_SCST_MEASURE_LATENCY
-	{
-		struct timespec ts;
-		uint64_t finish, scst_time, proc_time;
-		struct scst_session *sess = cmd->sess;
-
-#ifdef CONFIG_SCST_MEASURE_LATENCY_EXT
-		int data_len;
-		int i;
-		struct scst_latency_stat *latency_stat;
-#endif
-		ktime_get_ts(&ts);
-		finish = scst_sec_to_nsec(ts.tv_sec) + ts.tv_nsec;
-
-#ifdef CONFIG_SCST_MEASURE_LATENCY_EXT
-		/* Determine the IO size for extended latency statistics*/
-		data_len = cmd->data_len;
-		i = SCST_LATENCY_STAT_INDEX_OTHER;
-		if (data_len <= SCST_IO_SIZE_THRESHOLD_SMALL)
-			i = SCST_LATENCY_STAT_INDEX_SMALL;
-		else if (data_len <= SCST_IO_SIZE_THRESHOLD_MEDIUM)
-			i = SCST_LATENCY_STAT_INDEX_MEDIUM;
-		else if (data_len <= SCST_IO_SIZE_THRESHOLD_LARGE)
-			i = SCST_LATENCY_STAT_INDEX_LARGE;
-		else if (data_len <= SCST_IO_SIZE_THRESHOLD_VERY_LARGE)
-			i = SCST_LATENCY_STAT_INDEX_VERY_LARGE;
-		latency_stat = &sess->latency_stat[i];
-#endif
-
-		spin_lock_bh(&sess->meas_lock);
-		/* Calculate the latencies */
-		scst_time = cmd->pre_exec_finish - cmd->start;
-		scst_time += finish - cmd->post_exec_start;
-		proc_time = finish - cmd->start;
-
-		/* Save the basic latency information */
-		sess->scst_time += scst_time;
-		sess->processing_time += proc_time;
-		sess->processed_cmds++;
-
-#ifdef CONFIG_SCST_MEASURE_LATENCY_EXT
-		/* Save the extended latency information */
-		switch (cmd->cdb[0]) {
-		case READ_6:
-		case READ_10:
-		case READ_12:
-		       latency_stat->scst_time_rd += scst_time;
-		       latency_stat->processing_time_rd += proc_time;
-		       latency_stat->processed_cmds_rd++;
-		       break;
-		case WRITE_6:
-		case WRITE_10:
-		case WRITE_12:
-		case WRITE_VERIFY:
-		case WRITE_VERIFY_12:
-		       latency_stat->scst_time_wr += scst_time;
-		       latency_stat->processing_time_wr += proc_time;
-		       latency_stat->processed_cmds_wr++;
-		       break;
-		default:
-		       break;
-		}
-#endif
-		spin_unlock_bh(&sess->meas_lock);
-
-		TRACE_DBG("cmd %p (sess %p): finish %lld (tv_sec %ld, "
-			"tv_nsec %ld), scst_time %lld, proc_time %lld",
-			cmd, sess, finish, ts.tv_sec, ts.tv_nsec, scst_time,
-			proc_time);
-	}
-#endif
 	TRACE_EXIT_HRES(res);
 	return res;
 }
@@ -3075,6 +2985,8 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 			}
 		}
 
+		scst_set_cur_start(cmd);
+
 #ifdef CONFIG_SCST_DEBUG_RETRY
 		if (((scst_random() % 100) == 77))
 			rc = SCST_TGT_RES_QUEUE_FULL;
@@ -3085,6 +2997,8 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 
 		if (likely(rc == SCST_TGT_RES_SUCCESS))
 			goto out;
+
+		scst_set_xmit_time(cmd);
 
 		cmd->cmd_hw_pending = 0;
 
@@ -3137,6 +3051,8 @@ void scst_tgt_cmd_done(struct scst_cmd *cmd,
 
 	sBUG_ON(cmd->state != SCST_CMD_STATE_XMIT_WAIT);
 
+	scst_set_xmit_time(cmd);
+
 	cmd->cmd_hw_pending = 0;
 
 	cmd->state = SCST_CMD_STATE_FINISHED;
@@ -3153,6 +3069,8 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 	struct scst_session *sess = cmd->sess;
 
 	TRACE_ENTRY();
+
+	scst_update_lat_stats(cmd);
 
 	if (unlikely(cmd->delivery_status != SCST_CMD_DELIVERY_SUCCESS)) {
 		if ((cmd->tgt_dev != NULL) &&
@@ -3744,6 +3662,13 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 	return;
 }
 EXPORT_SYMBOL(scst_process_active_cmd);
+
+void scst_post_parse_process_active_cmd(struct scst_cmd *cmd, bool atomic)
+{
+	scst_set_parse_time(cmd);
+	scst_process_active_cmd(cmd, atomic);
+}
+EXPORT_SYMBOL(scst_post_parse_process_active_cmd);
 
 /* Called under cmd_list_lock and IRQs disabled */
 static void scst_do_job_active(struct list_head *cmd_list,
