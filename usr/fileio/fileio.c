@@ -92,6 +92,8 @@ static int wt_flag, rd_only_flag, o_direct_flag, nullio, nv_cache;
 static int debug_tm_ignore;
 #endif
 static int non_blocking, sgv_shared, sgv_single_alloc_pages, sgv_purge_interval;
+static int sgv_disable_clustered_pool, prealloc_buffers_num, prealloc_buffer_size;
+
 static void *(*alloc_fn)(size_t size) = align_alloc;
 
 static struct option const long_options[] =
@@ -113,6 +115,9 @@ static struct option const long_options[] =
 	{"sgv_shared", no_argument, 0, 's'},
 	{"sgv_single_cache", required_argument, 0, 'S'},
 	{"sgv_purge_interval", required_argument, 0, 'P'},
+	{"sgv_disable_clustered_pool", no_argument, 0, 'D'},
+	{"prealloc_buffers", required_argument, 0, 'R'},
+	{"prealloc_buffer_size", required_argument, 0, 'Z'},
 #if defined(DEBUG) || defined(TRACING)
 	{"debug", required_argument, 0, 'd'},
 #endif
@@ -148,6 +153,9 @@ static void usage(void)
 	printf("  -S, --sgv_single_cache=n Use single entry SGV cache with n pages/entry\n");
 	printf("  -P, --sgv_purge_interval=n Use SGV cache purge interval n seconds\n");
 	printf("  -u, --unreg_before_close Unregister before close\n");
+	printf("  -D, --sgv_disable_clustered_pool Disable clustered SGV pool\n");
+	printf("  -R, --prealloc_buffers=n Prealloc n buffers\n");
+	printf("  -Z, --prealloc_buffer_size=n Sets the size in KB of each prealloced buffer\n");
 #if defined(DEBUG) || defined(TRACING)
 	printf("  -d, --debug=level	Debug tracing level\n");
 #endif
@@ -184,6 +192,7 @@ out:
 
 static void *align_alloc(size_t size)
 {
+	TRACE_MEM("Request to alloc %dKB", size / 1024);
 	return memalign(PAGE_SIZE, size);
 }
 
@@ -240,6 +249,48 @@ void sigusr1_handler(int signo)
 out:
 	TRACE_EXIT();
 	return;
+}
+
+int prealloc_buffers(struct vdisk_dev *dev)
+{
+	int i, c, res = 0;
+
+	if (sgv_disable_clustered_pool)
+		c = 0;
+	else
+		c = 1;
+
+	do {
+		for (i = 0; i < prealloc_buffers_num; i++) {
+			union scst_user_prealloc_buffer pre;
+
+			memset(&pre, 0, sizeof(pre));
+			pre.in.pbuf = (unsigned long)alloc_fn(prealloc_buffer_size);
+			pre.in.bufflen = prealloc_buffer_size;
+			pre.in.for_clust_pool = c;
+
+			if (pre.in.pbuf == 0) {
+				res = errno;
+				PRINT_ERROR("Unable to prealloc buffer: %s",
+					strerror(res));
+				goto out;
+			}
+
+			res = ioctl(dev->scst_usr_fd, SCST_USER_PREALLOC_BUFFER, &pre);
+			if (res != 0) {
+				res = errno;
+				PRINT_ERROR("Unable to send prealloced buffer: %s",
+					strerror(res));
+				free((void *)(unsigned long)pre.in.pbuf);
+				goto out;
+			}
+			TRACE_MEM("Prealloced buffer cmd_h %x", pre.out.cmd_h);
+		}
+		c--;
+	} while (c >= 0);
+
+out:
+	return res;
 }
 
 int start(int argc, char **argv)
@@ -323,6 +374,7 @@ int start(int argc, char **argv)
 		}
 		desc.sgv_single_alloc_pages = sgv_single_alloc_pages;
 		desc.sgv_purge_interval = sgv_purge_interval;
+		desc.sgv_disable_clustered_pool = sgv_disable_clustered_pool;
 		desc.type = devs[i].type;
 		desc.block_size = devs[i].block_size;
 
@@ -339,6 +391,12 @@ int start(int argc, char **argv)
 			res = errno;
 			PRINT_ERROR("Unable to register device: %s", strerror(res));
 			goto out_unreg;
+		}
+
+		if ((prealloc_buffers_num > 0) && (prealloc_buffer_size > 0)) {
+			res = prealloc_buffers(&devs[i]);
+			if (res != 0)
+				goto out_unreg;
 		}
 
 #if 1
@@ -445,8 +503,8 @@ int main(int argc, char **argv)
 
 	memset(devs, 0, sizeof(devs));
 
-	while ((ch = getopt_long(argc, argv, "+b:e:trongluF:I:cp:f:m:d:vsS:P:h", long_options,
-				&longindex)) >= 0) {
+	while ((ch = getopt_long(argc, argv, "+b:e:trongluF:I:cp:f:m:d:vsS:P:hDR:Z:",
+			long_options, &longindex)) >= 0) {
 		switch (ch) {
 		case 'b':
 			block_size = atoi(optarg);
@@ -507,6 +565,15 @@ int main(int argc, char **argv)
 			break;
 		case 'P':
 			sgv_purge_interval = atoi(optarg);
+			break;
+		case 'D':
+			sgv_disable_clustered_pool = 1;
+			break;
+		case 'R':
+			prealloc_buffers_num = atoi(optarg);
+			break;
+		case 'Z':
+			prealloc_buffer_size = atoi(optarg) * 1024;
 			break;
 		case 'm':
 			if (strncmp(optarg, "all", 3) == 0)
@@ -628,6 +695,13 @@ int main(int argc, char **argv)
 		else
 			PRINT_INFO("	%s", "SGV cache purging disabled");
 	}
+
+	if (sgv_disable_clustered_pool)
+		PRINT_INFO("	%s", "Disable clustered SGV pool");
+
+	if ((prealloc_buffers_num > 0) && (prealloc_buffer_size > 0))
+		PRINT_INFO("	Prealloc %d buffers of %dKB",
+			prealloc_buffers_num, prealloc_buffer_size / 1024);
 
 	if (!o_direct_flag && (memory_reuse_type == SCST_USER_MEM_NO_REUSE)) {
 		PRINT_INFO("	%s", "Using unaligned buffers");

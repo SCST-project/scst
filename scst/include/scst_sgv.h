@@ -30,6 +30,12 @@
 /* Set an object should be returned even if it doesn't have SG vector built */
 #define SGV_POOL_RETURN_OBJ_ON_ALLOC_FAIL	4
 
+/*
+ * Set if the allocated object must be a new one, i.e. from the cache,
+ * but not cached
+ */
+#define SGV_POOL_ALLOC_GET_NEW			8
+
 struct sgv_pool_obj;
 struct sgv_pool;
 
@@ -99,6 +105,23 @@ struct sgv_pool *sgv_pool_create(const char *name,
  *    If the reference counter reaches 0, the cache will be destroyed.
  */
 void sgv_pool_del(struct sgv_pool *pool);
+
+/**
+ * sgv_pool_get - increases reference counter for the corresponding SGV cache
+ * @:pool	the cache to get.
+ *
+ * Description:
+ */
+void sgv_pool_get(struct sgv_pool *pool);
+
+/**
+ * sgv_pool_put - decreases reference counter for the corresponding SGV cache
+ * @:pool	the cache to put.
+ *
+ * Description:
+ *    If the reference counter reaches 0, the cache will be destroyed.
+ */
+void sgv_pool_put(struct sgv_pool *pool);
 
 /**
  * sgv_pool_flush - flushes the SGV cache

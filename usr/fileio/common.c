@@ -594,7 +594,7 @@ static int do_cached_mem_free(struct vdisk_cmd *vcmd)
 
 	TRACE_ENTRY();
 
-	TRACE_MEM("Cached mem free (cmd %d, buf %"PRIx64")", cmd->cmd_h,
+	TRACE_MEM("Cached mem free (cmd %x, buf %"PRIx64")", cmd->cmd_h,
 		cmd->on_cached_mem_free.pbuf);
 
 	free((void *)(unsigned long)cmd->on_cached_mem_free.pbuf);

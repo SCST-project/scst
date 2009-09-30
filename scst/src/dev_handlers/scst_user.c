@@ -169,6 +169,7 @@ static int dev_user_register_dev(struct file *file,
 static int dev_user_unregister_dev(struct file *file);
 static int dev_user_flush_cache(struct file *file);
 static int dev_user_capacity_changed(struct file *file);
+static int dev_user_prealloc_buffer(struct file *file, void __user *arg);
 static int __dev_user_set_opt(struct scst_user_dev *dev,
 	const struct scst_user_opt *opt);
 static int dev_user_set_opt(struct file *file, const struct scst_user_opt *opt);
@@ -1119,7 +1120,7 @@ static int dev_user_map_buf(struct scst_user_cmd *ucmd, unsigned long ubuff,
 	TRACE_MEM("Mapping buffer (ucmd %p, ubuff %lx, ucmd->num_data_pages %d,"
 		" first_page_offset %d, len %d)", ucmd, ubuff,
 		ucmd->num_data_pages, (int)(ubuff & ~PAGE_MASK),
-		ucmd->cmd->bufflen);
+		(ucmd->cmd != NULL) ? ucmd->cmd->bufflen : -1);
 
 	down_read(&tsk->mm->mmap_sem);
 	rc = get_user_pages(tsk, tsk->mm, ubuff, ucmd->num_data_pages,
@@ -1139,11 +1140,13 @@ out:
 	return res;
 
 out_nomem:
-	scst_set_busy(ucmd->cmd);
+	if (ucmd->cmd != NULL)
+		scst_set_busy(ucmd->cmd);
 	/* go through */
 
 out_err:
-	scst_set_cmd_abnormal_done_state(ucmd->cmd);
+	if (ucmd->cmd != NULL)
+		scst_set_cmd_abnormal_done_state(ucmd->cmd);
 	goto out;
 
 out_unmap:
@@ -1156,7 +1159,8 @@ out_unmap:
 	kfree(ucmd->data_pages);
 	ucmd->data_pages = NULL;
 	res = -EFAULT;
-	scst_set_cmd_error(ucmd->cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+	if (ucmd->cmd != NULL)
+		scst_set_cmd_error(ucmd->cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 	goto out_err;
 }
 
@@ -1977,6 +1981,11 @@ static long dev_user_ioctl(struct file *file, unsigned int cmd,
 		res = dev_user_capacity_changed(file);
 		break;
 
+	case SCST_USER_PREALLOC_BUFFER:
+		TRACE_DBG("%s", "PREALLOC_BUFFER");
+		res = dev_user_prealloc_buffer(file, (void __user *)arg);
+		break;
+
 	default:
 		PRINT_ERROR("Invalid ioctl cmd %x", cmd);
 		res = -EINVAL;
@@ -2721,20 +2730,26 @@ static int dev_user_register_dev(struct file *file,
 	sgv_pool_set_allocator(dev->pool, dev_user_alloc_pages,
 		dev_user_free_sg_entries);
 
-	scnprintf(dev->devtype.name, sizeof(dev->devtype.name), "%s-clust",
-		(dev_desc->sgv_name[0] == '\0') ? dev->name :
-						  dev_desc->sgv_name);
-	dev->pool_clust = sgv_pool_create(dev->devtype.name,
-				sgv_tail_clustering,
-				dev_desc->sgv_single_alloc_pages,
-				dev_desc->sgv_shared,
-				dev_desc->sgv_purge_interval);
-	if (dev->pool_clust == NULL) {
-		res = -ENOMEM;
-		goto out_free0;
+	if (!dev_desc->sgv_disable_clustered_pool) {
+		scnprintf(dev->devtype.name, sizeof(dev->devtype.name),
+			"%s-clust",
+			(dev_desc->sgv_name[0] == '\0') ? dev->name :
+							  dev_desc->sgv_name);
+		dev->pool_clust = sgv_pool_create(dev->devtype.name,
+					sgv_tail_clustering,
+					dev_desc->sgv_single_alloc_pages,
+					dev_desc->sgv_shared,
+					dev_desc->sgv_purge_interval);
+		if (dev->pool_clust == NULL) {
+			res = -ENOMEM;
+			goto out_free0;
+		}
+		sgv_pool_set_allocator(dev->pool_clust, dev_user_alloc_pages,
+			dev_user_free_sg_entries);
+	} else {
+		dev->pool_clust = dev->pool;
+		sgv_pool_get(dev->pool_clust);
 	}
-	sgv_pool_set_allocator(dev->pool_clust, dev_user_alloc_pages,
-		dev_user_free_sg_entries);
 
 	scnprintf(dev->devtype.name, sizeof(dev->devtype.name), "%s",
 		dev->name);
@@ -2942,6 +2957,100 @@ out:
 	return res;
 }
 
+static int dev_user_prealloc_buffer(struct file *file, void __user *arg)
+{
+	int res = 0;
+	struct scst_user_dev *dev;
+	union scst_user_prealloc_buffer pre;
+	aligned_u64 pbuf;
+	uint32_t bufflen;
+	struct scst_user_cmd *ucmd;
+	int pages, sg_cnt;
+	struct sgv_pool *pool;
+	struct scatterlist *sg;
+
+	TRACE_ENTRY();
+
+	mutex_lock(&dev_priv_mutex);
+	dev = (struct scst_user_dev *)file->private_data;
+	res = dev_user_check_reg(dev);
+	if (unlikely(res != 0)) {
+		mutex_unlock(&dev_priv_mutex);
+		goto out;
+	}
+	down_read(&dev->dev_rwsem);
+	mutex_unlock(&dev_priv_mutex);
+
+	res = copy_from_user(&pre.in, arg, sizeof(pre.in));
+	if (unlikely(res < 0))
+		goto out_up;
+
+	TRACE_MEM("Prealloc buffer with size %dKB for dev %s",
+		pre.in.bufflen / 1024, dev->name);
+	TRACE_BUFFER("Input param", &pre.in, sizeof(pre.in));
+
+	pbuf = pre.in.pbuf;
+	bufflen = pre.in.bufflen;
+
+	ucmd = dev_user_alloc_ucmd(dev, GFP_KERNEL);
+	if (ucmd == NULL) {
+		res = -ENOMEM;
+		goto out_up;
+	}
+
+	ucmd->buff_cached = 1;
+
+	TRACE_MEM("ucmd %p, pbuf %llx", ucmd, pbuf);
+
+	if (unlikely((pbuf & ~PAGE_MASK) != 0)) {
+		PRINT_ERROR("Supplied pbuf %llx isn't page aligned", pbuf);
+		res = -EINVAL;
+		goto out_put;
+	}
+
+	pages = calc_num_pg(pbuf, bufflen);
+	res = dev_user_map_buf(ucmd, pbuf, pages);
+	if (res != 0)
+		goto out_put;
+
+	if (pre.in.for_clust_pool)
+		pool = dev->pool_clust;
+	else
+		pool = dev->pool;
+
+	sg = sgv_pool_alloc(pool, bufflen, GFP_KERNEL, SGV_POOL_ALLOC_GET_NEW,
+			 &sg_cnt, &ucmd->sgv, &dev->udev_mem_lim, ucmd);
+	if (sg != NULL) {
+		struct scst_user_cmd *buf_ucmd =
+			(struct scst_user_cmd *)sgv_get_priv(ucmd->sgv);
+
+		TRACE_MEM("Buf ucmd %p (sg_cnt %d, last seg len %d, "
+			"bufflen %d)", buf_ucmd, sg_cnt,
+			sg[sg_cnt-1].length, bufflen);
+
+		EXTRACHECKS_BUG_ON(ucmd != buf_ucmd);
+
+		ucmd->buf_ucmd = buf_ucmd;
+	} else {
+		res = -ENOMEM;
+		goto out_put;
+	}
+
+	dev_user_free_sgv(ucmd);
+
+	pre.out.cmd_h = ucmd->h;
+	res = copy_to_user(arg, &pre.out, sizeof(pre.out));
+
+out_put:
+	ucmd_put(ucmd);
+
+out_up:
+	up_read(&dev->dev_rwsem);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
 
 static int __dev_user_set_opt(struct scst_user_dev *dev,
 	const struct scst_user_opt *opt)

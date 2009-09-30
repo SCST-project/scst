@@ -91,6 +91,7 @@ struct scst_user_dev_desc {
 	aligned_u64 version_str;
 	uint8_t type;
 	uint8_t sgv_shared;
+	uint8_t sgv_disable_clustered_pool;
 	int32_t sgv_single_alloc_pages;
 	int32_t sgv_purge_interval;
 	struct scst_user_opt opt;
@@ -246,9 +247,28 @@ struct scst_user_reply_cmd {
 	};
 };
 
+/* Be careful adding new members here, this structure is allocated on stack! */
 struct scst_user_get_ext_cdb {
 	uint32_t cmd_h;
 	aligned_u64 ext_cdb_buffer;
+};
+
+/* Be careful adding new members here, this structure is allocated on stack! */
+struct scst_user_prealloc_buffer_in {
+	aligned_u64 pbuf;
+	uint32_t bufflen;
+	uint8_t for_clust_pool;
+};
+
+/* Be careful adding new members here, this structure is allocated on stack! */
+struct scst_user_prealloc_buffer_out {
+	uint32_t cmd_h;
+};
+
+/* Be careful adding new members here, this structure is allocated on stack! */
+union scst_user_prealloc_buffer {
+	struct scst_user_prealloc_buffer_in in;
+	struct scst_user_prealloc_buffer_out out;
 };
 
 #define SCST_USER_REGISTER_DEVICE	_IOW('u', 1, struct scst_user_dev_desc)
@@ -260,6 +280,7 @@ struct scst_user_get_ext_cdb {
 #define SCST_USER_FLUSH_CACHE		_IO('u', 7)
 #define SCST_USER_DEVICE_CAPACITY_CHANGED _IO('u', 8)
 #define SCST_USER_GET_EXTENDED_CDB	_IOWR('u', 9, struct scst_user_get_ext_cdb)
+#define SCST_USER_PREALLOC_BUFFER	_IOWR('u', 10, union scst_user_prealloc_buffer)
 
 /* Values for scst_user_get_cmd.subcode */
 #define SCST_USER_ATTACH_SESS		\

@@ -70,9 +70,6 @@ static struct shrinker sgv_shrinker;
  */
 static LIST_HEAD(sgv_pools_list);
 
-static void sgv_pool_get(struct sgv_pool *pool);
-static void sgv_pool_put(struct sgv_pool *pool);
-
 static inline bool sgv_pool_clustered(const struct sgv_pool *pool)
 {
 	return pool->clustering_type != sgv_no_clustering;
@@ -700,11 +697,17 @@ out_free:
 }
 
 static struct sgv_pool_obj *sgv_get_obj(struct sgv_pool *pool, int cache_num,
-	int pages, gfp_t gfp_mask)
+	int pages, gfp_t gfp_mask, bool get_new)
 {
 	struct sgv_pool_obj *obj;
 
 	spin_lock_bh(&pool->sgv_pool_lock);
+
+	if (unlikely(get_new)) {
+		/* Used only for buffers preallocation */
+		goto get_new;
+	}
+
 	if (likely(!list_empty(&pool->recycling_lists[cache_num]))) {
 		obj = list_entry(pool->recycling_lists[cache_num].next,
 			 struct sgv_pool_obj, recycling_list_entry);
@@ -718,6 +721,7 @@ static struct sgv_pool_obj *sgv_get_obj(struct sgv_pool *pool, int cache_num,
 		goto out;
 	}
 
+get_new:
 	if (pool->cached_entries == 0) {
 		TRACE_MEM("Adding pool %p to the active list", pool);
 		spin_lock_bh(&sgv_pools_lock);
@@ -895,7 +899,7 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 	if (unlikely(size == 0))
 		goto out;
 
-	sBUG_ON((gfp_mask & __GFP_NOFAIL) == __GFP_NOFAIL);
+	EXTRACHECKS_BUG_ON((gfp_mask & __GFP_NOFAIL) == __GFP_NOFAIL);
 
 	pages = ((size + PAGE_SIZE - 1) >> PAGE_SHIFT);
 	if (pool->single_alloc_pages == 0) {
@@ -930,7 +934,8 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 			goto out_fail;
 		allowed_mem_checked = true;
 
-		obj = sgv_get_obj(pool, cache_num, pages_to_alloc, gfp_mask);
+		obj = sgv_get_obj(pool, cache_num, pages_to_alloc, gfp_mask,
+			flags & SGV_POOL_ALLOC_GET_NEW);
 		if (unlikely(obj == NULL)) {
 			TRACE(TRACE_OUT_OF_MEM, "Allocation of "
 				"sgv_pool_obj failed (size %d)", size);
@@ -1532,15 +1537,16 @@ static void sgv_pool_destroy(struct sgv_pool *pool)
 	return;
 }
 
-static void sgv_pool_get(struct sgv_pool *pool)
+void sgv_pool_get(struct sgv_pool *pool)
 {
 	atomic_inc(&pool->sgv_pool_ref);
 	TRACE_MEM("Incrementing sgv pool %p ref (new value %d)",
 		pool, atomic_read(&pool->sgv_pool_ref));
 	return;
 }
+EXPORT_SYMBOL(sgv_pool_get);
 
-static void sgv_pool_put(struct sgv_pool *pool)
+void sgv_pool_put(struct sgv_pool *pool)
 {
 	TRACE_MEM("Decrementing sgv pool %p ref (new value %d)",
 		pool, atomic_read(&pool->sgv_pool_ref)-1);
@@ -1548,6 +1554,7 @@ static void sgv_pool_put(struct sgv_pool *pool)
 		sgv_pool_destroy(pool);
 	return;
 }
+EXPORT_SYMBOL(sgv_pool_put);
 
 void sgv_pool_del(struct sgv_pool *pool)
 {

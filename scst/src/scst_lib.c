@@ -506,7 +506,7 @@ void scst_gen_aen_or_ua(struct scst_tgt_dev *tgt_dev,
 
 		aen->event_fn = SCST_AEN_SCSI;
 		aen->aen_sense_len = scst_set_sense(aen->aen_sense,
-			SCST_SENSE_BUFFERSIZE, tgt_dev->dev->d_sense,
+			sizeof(aen->aen_sense), tgt_dev->dev->d_sense,
 			key, asc, ascq);
 
 		TRACE_DBG("Calling target's %s report_aen(%p)",
@@ -684,7 +684,7 @@ found:
 
 		aen->event_fn = SCST_AEN_SCSI;
 		aen->aen_sense_len = scst_set_sense(aen->aen_sense,
-			SCST_SENSE_BUFFERSIZE, d_sense,
+			sizeof(aen->aen_sense), d_sense,
 			SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed));
 
 		TRACE_DBG("Calling target's %s report_aen(%p)",
