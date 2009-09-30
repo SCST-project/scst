@@ -517,6 +517,8 @@ static void login_start(struct connection *conn)
 		conn->tid = target->tid;
 		if (config_initiator_access(conn->tid, conn->fd) ||
 		    isns_scn_access(conn->tid, conn->fd, name)) {
+			log_info("Initiator %s not allowed to connect to "
+				"target %s", name, target_name);
 			rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
 			rsp->status_detail = ISCSI_STATUS_TGT_NOT_FOUND;
 			conn->state = STATE_EXIT;
