@@ -268,8 +268,8 @@ static void vdisk_exec_mode_select(struct scst_cmd *cmd);
 static void vdisk_exec_log(struct scst_cmd *cmd);
 static void vdisk_exec_read_toc(struct scst_cmd *cmd);
 static void vdisk_exec_prevent_allow_medium_removal(struct scst_cmd *cmd);
-static int vdisk_fsync(struct scst_vdisk_thr *thr,
-	loff_t loff, loff_t len, struct scst_cmd *cmd);
+static int vdisk_fsync(struct scst_vdisk_thr *thr, loff_t loff,
+	loff_t len, struct scst_cmd *cmd, struct scst_device *dev);
 static int vdisk_read_proc(struct seq_file *seq,
 	struct scst_dev_type *dev_type);
 static int vdisk_write_proc(char *buffer, char **start, off_t offset,
@@ -911,7 +911,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 			      (long long unsigned int)loff,
 			      (long long unsigned int)data_len);
 			do_fsync = 1;
-			if (vdisk_fsync(thr, 0, 0, cmd) != 0)
+			if (vdisk_fsync(thr, 0, 0, cmd, dev) != 0)
 				goto out_compl;
 		}
 		if (virt_dev->blockio) {
@@ -921,7 +921,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 			vdisk_exec_write(cmd, thr, loff);
 		/* O_SYNC flag is used for WT devices */
 		if (do_fsync || fua)
-			vdisk_fsync(thr, loff, data_len, cmd);
+			vdisk_fsync(thr, loff, data_len, cmd, dev);
 		break;
 	}
 	case WRITE_VERIFY:
@@ -941,7 +941,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 			      (long long unsigned int)loff,
 			      (long long unsigned int)data_len);
 			do_fsync = 1;
-			if (vdisk_fsync(thr, 0, 0, cmd) != 0)
+			if (vdisk_fsync(thr, 0, 0, cmd, dev) != 0)
 				goto out_compl;
 		}
 		/* ToDo: BLOCKIO VERIFY */
@@ -950,7 +950,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 		if (scsi_status_is_good(cmd->status))
 			vdisk_exec_verify(cmd, thr, loff);
 		else if (do_fsync)
-			vdisk_fsync(thr, loff, data_len, cmd);
+			vdisk_fsync(thr, loff, data_len, cmd, dev);
 		break;
 	}
 	case SYNCHRONIZE_CACHE:
@@ -961,16 +961,16 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 			(long long unsigned int)loff,
 			(long long unsigned int)data_len, immed);
 		if (immed) {
-			scst_cmd_get(cmd);
+			scst_cmd_get(cmd); /* to protect dev */
 			cmd->completed = 1;
 			cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT,
 				SCST_CONTEXT_SAME);
-			vdisk_fsync(thr, loff, data_len, NULL);
+			vdisk_fsync(thr, loff, data_len, NULL, dev);
 			/* ToDo: vdisk_fsync() error processing */
 			scst_cmd_put(cmd);
 			goto out_thr;
 		} else {
-			vdisk_fsync(thr, loff, data_len, cmd);
+			vdisk_fsync(thr, loff, data_len, cmd, dev);
 			break;
 		}
 	}
@@ -999,7 +999,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 		vdisk_exec_read_toc(cmd);
 		break;
 	case START_STOP:
-		vdisk_fsync(thr, 0, virt_dev->file_size, cmd);
+		vdisk_fsync(thr, 0, virt_dev->file_size, cmd, dev);
 		break;
 	case RESERVE:
 	case RESERVE_10:
@@ -2068,12 +2068,12 @@ static void vdisk_exec_prevent_allow_medium_removal(struct scst_cmd *cmd)
 	return;
 }
 
-static int vdisk_fsync(struct scst_vdisk_thr *thr,
-	loff_t loff, loff_t len, struct scst_cmd *cmd)
+static int vdisk_fsync(struct scst_vdisk_thr *thr, loff_t loff,
+	loff_t len, struct scst_cmd *cmd, struct scst_device *dev)
 {
 	int res = 0;
 	struct scst_vdisk_dev *virt_dev =
-		(struct scst_vdisk_dev *)cmd->dev->dh_priv;
+		(struct scst_vdisk_dev *)dev->dh_priv;
 	struct file *file = thr->fd;
 	struct inode *inode;
 	struct address_space *mapping;
@@ -2590,7 +2590,7 @@ static void vdisk_exec_verify(struct scst_cmd *cmd,
 
 	TRACE_ENTRY();
 
-	if (vdisk_fsync(thr, loff, cmd->bufflen, cmd) != 0)
+	if (vdisk_fsync(thr, loff, cmd->bufflen, cmd, cmd->dev) != 0)
 		goto out;
 
 	/*
