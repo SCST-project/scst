@@ -111,8 +111,7 @@
 /*
  * ISP queue - enable LUN entry structure definition.
  */
-typedef struct
-{
+typedef struct {
 	uint8_t	 entry_type;		/* Entry type. */
 	uint8_t	 entry_count;		/* Entry count. */
 	uint8_t	 sys_define;		/* System defined. */
@@ -141,8 +140,7 @@ typedef struct
 /*
  * ISP queue - modify LUN entry structure definition.
  */
-typedef struct
-{
+typedef struct {
 	uint8_t	 entry_type;		    /* Entry type. */
 	uint8_t	 entry_count;		    /* Entry count. */
 	uint8_t	 sys_define;		    /* System defined. */
@@ -178,8 +176,7 @@ typedef struct
 /*
  * ISP queue - immediate notify entry structure definition.
  */
-typedef struct
-{
+typedef struct {
 	uint8_t	 entry_type;		    /* Entry type. */
 	uint8_t	 entry_count;		    /* Entry count. */
 	uint8_t	 sys_define;		    /* System defined. */
@@ -210,8 +207,7 @@ typedef struct
 /*
  * ISP queue - notify acknowledge entry structure definition.
  */
-typedef struct
-{
+typedef struct {
 	uint8_t	 entry_type;		    /* Entry type. */
 	uint8_t	 entry_count;		    /* Entry count. */
 	uint8_t	 sys_define;		    /* System defined. */
@@ -251,8 +247,7 @@ typedef struct
 /*
  * ISP queue - Accept Target I/O (ATIO) entry structure definition.
  */
-typedef struct
-{
+typedef struct {
 	uint8_t	 entry_type;		    /* Entry type. */
 	uint8_t	 entry_count;		    /* Entry count. */
 	uint8_t	 sys_define;		    /* System defined. */
@@ -281,8 +276,7 @@ typedef struct
  * ISP queue - Continue Target I/O (CTIO) entry for status mode 0
  *	       structure definition.
  */
-typedef struct
-{
+typedef struct {
 	uint8_t	 entry_type;		    /* Entry type. */
 	uint8_t	 entry_count;		    /* Entry count. */
 	uint8_t	 sys_define;		    /* System defined. */
@@ -311,8 +305,7 @@ typedef struct
 
 #ifndef CTIO_A64_TYPE
 #define CTIO_A64_TYPE 0x1F
-typedef struct
-{
+typedef struct {
 	ctio_common_entry_t common;
 	uint32_t dseg_0_address;	    /* Data segment 0 address. */
 	uint32_t dseg_0_length;		    /* Data segment 0 length. */
@@ -339,8 +332,7 @@ typedef struct
 /*
  * ISP queue - CTIO returned entry structure definition.
  */
-typedef struct
-{
+typedef struct {
 	uint8_t	 entry_type;		    /* Entry type. */
 	uint8_t	 entry_count;		    /* Entry count. */
 	uint8_t	 sys_define;		    /* System defined. */
@@ -364,8 +356,7 @@ typedef struct
 
 #define ATIO_TYPE7 0x06 /* Accept target I/O entry for 24xx */
 
-typedef struct
-{
+typedef struct {
 	uint8_t  r_ctl;
 	uint8_t  d_id[3];
 	uint8_t  cs_ctl;
@@ -380,8 +371,7 @@ typedef struct
 	uint32_t parameter;
 } __attribute__((packed)) fcp_hdr_t;
 
-typedef struct
-{
+typedef struct {
 	uint8_t  d_id[3];
 	uint8_t  r_ctl;
 	uint8_t  s_id[3];
@@ -406,8 +396,7 @@ typedef struct
 #define R_CTL_B_ACC		0x4
 #define R_CTL_B_RJT		0x5
 
-typedef struct
-{
+typedef struct {
 	uint64_t lun;
 	uint8_t  cmnd_ref;
 	uint8_t  task_attr:3;
@@ -430,8 +419,7 @@ typedef struct
  * ISP queue - Accept Target I/O (ATIO) type 7 entry for 24xx structure
  * definition.
  */
-typedef struct
-{
+typedef struct {
 	uint8_t	 entry_type;		    /* Entry type. */
 	uint8_t	 entry_count;		    /* Entry count. */
 	uint8_t  fcp_cmnd_len_low;
@@ -450,8 +438,7 @@ typedef struct
  * definition.
  */
 
-typedef struct
-{
+typedef struct {
 	uint8_t	 entry_type;		    /* Entry type. */
 	uint8_t	 entry_count;		    /* Entry count. */
 	uint8_t	 sys_define;		    /* System defined. */
@@ -468,8 +455,7 @@ typedef struct
 	uint32_t exchange_addr;
 } __attribute__((packed)) ctio7_common_entry_t;
 
-typedef struct
-{
+typedef struct {
 	ctio7_common_entry_t common;
 	uint16_t reserved1;
 	uint16_t flags;
@@ -484,8 +470,7 @@ typedef struct
 	uint32_t dseg_0_length;		    /* Data segment 0 length. */
 } __attribute__((packed)) ctio7_status0_entry_t;
 
-typedef struct
-{
+typedef struct {
 	ctio7_common_entry_t common;
 	uint16_t sense_length;
 	uint16_t flags;
@@ -497,8 +482,7 @@ typedef struct
 	uint8_t sense_data[24];
 } __attribute__((packed)) ctio7_status1_entry_t;
 
-typedef struct
-{
+typedef struct {
 	uint8_t	 entry_type;		    /* Entry type. */
 	uint8_t	 entry_count;		    /* Entry count. */
 	uint8_t	 sys_define;		    /* System defined. */
@@ -534,8 +518,7 @@ typedef struct
 /*
  * ISP queue - immediate notify entry structure definition for 24xx.
  */
-typedef struct
-{
+typedef struct {
 	uint8_t	 entry_type;		    /* Entry type. */
 	uint8_t	 entry_count;		    /* Entry count. */
 	uint8_t	 sys_define;		    /* System defined. */
@@ -701,8 +684,7 @@ typedef enum {
 	ENABLE_TARGET_MODE = 1
 } qla2x_tgt_host_action_t;
 
-struct qla_tgt_initiator
-{
+struct qla_tgt_initiator {
 	int magic;
 
 	/* Callbacks */
@@ -717,8 +699,7 @@ struct qla_tgt_initiator
 	void (*tgt_fc_port_deleted)(scsi_qla_host_t *ha, fc_port_t *fcport);
 };
 
-struct qla_target
-{
+struct qla_target {
 	int magic;
 
 	/*
