@@ -1179,7 +1179,7 @@ qla2x00_get_port_database(scsi_qla_host_t *ha, fc_port_t *fcport, uint8_t opt)
 
 		/* Passback COS information. */
 		fcport->supported_classes = (pd24->flags & PDF_CLASS_2) ?
-		    FC_COS_CLASS2: FC_COS_CLASS3;
+		    FC_COS_CLASS2 : FC_COS_CLASS3;
 
 		if (pd24->prli_svc_param_word_3[0] & BIT_7)
 			fcport->conf_compl_supported = 1;

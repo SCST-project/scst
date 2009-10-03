@@ -3370,9 +3370,8 @@ qla2x00_loop_resync(scsi_qla_host_t *ha)
 		return (QLA_FUNCTION_FAILED);
 	}
 
-	if (rval != QLA_SUCCESS) {
+	if (rval != QLA_SUCCESS)
 		DEBUG2_3(printk("%s(): **** FAILED ****\n", __func__));
-	}
 
 	return (rval);
 }
