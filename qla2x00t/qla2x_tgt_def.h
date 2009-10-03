@@ -1,18 +1,18 @@
 /*
  *  qla2x_tgt_def.h
- *  
+ * 
  *  Copyright (C) 2004 - 2009 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
  *  Copyright (C) 2006 Nathaniel Clark <nate@misrule.us>
  *  Copyright (C) 2007 - 2009 ID7 Ltd.
  *
  *  Additional file for the target driver support.
- *  
+ * 
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation; either version 2
  *  of the License, or (at your option) any later version.
- * 
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -46,7 +46,7 @@
 #define QLA2X00_COMMAND_COUNT_INIT	250
 #define QLA2X00_IMMED_NOTIFY_COUNT_INIT 250
 
-/* 
+/*
  * Used to mark which completion handles (for RIO Status's) are for CTIO's
  * vs. regular (non-target) info. This is checked for in
  * qla2x00_process_response_queue() to see if a handle coming back in a
@@ -683,7 +683,7 @@ typedef struct
 	uint32_t handle;
 	uint16_t compl_status;
 #define ABTS_RESP_COMPL_SUCCESS		0
-#define ABTS_RESP_COMPL_SUBCODE_ERROR	0x31		
+#define ABTS_RESP_COMPL_SUBCODE_ERROR	0x31	
 	uint16_t nport_handle;
 	uint16_t reserved_1;
 	uint8_t  reserved_2;
@@ -702,9 +702,9 @@ typedef struct
  * Type Definitions used by initiator & target halves
 \********************************************************************/
 
-typedef enum { 
-	DISABLE_TARGET_MODE = 0, 
-	ENABLE_TARGET_MODE = 1 
+typedef enum {
+	DISABLE_TARGET_MODE = 0,
+	ENABLE_TARGET_MODE = 1
 } qla2x_tgt_host_action_t;
 
 struct qla_tgt_initiator
@@ -717,7 +717,7 @@ struct qla_tgt_initiator
 	void (*tgt2x_ctio_completion)(scsi_qla_host_t *ha, uint32_t handle);
 	void (*tgt_async_event)(uint16_t code, scsi_qla_host_t *ha,
 		uint16_t *mailbox);
-	int (*tgt_host_action)(scsi_qla_host_t *ha, qla2x_tgt_host_action_t 
+	int (*tgt_host_action)(scsi_qla_host_t *ha, qla2x_tgt_host_action_t
 							action);
 	void (*tgt_fc_port_added)(scsi_qla_host_t *ha, fc_port_t *fcport);
 	void (*tgt_fc_port_deleted)(scsi_qla_host_t *ha, fc_port_t *fcport);
@@ -726,8 +726,8 @@ struct qla_tgt_initiator
 struct qla_target
 {
 	int magic;
-	
-	/* 
+
+	/*
 	 * Callbacks - H/W lock MUST be held while calling any.
 	 *
 	 * !!! req_pkt() and issue_marker() could unlock/lock it inside !!!
@@ -741,7 +741,7 @@ struct qla_target
 	 *     cross those functions boundaries, except tgt_shutdown, which
 	 *     additionally protected by irq_cmd_count.
 	 */
-	request_t *(*req_pkt)(scsi_qla_host_t *ha); 
+	request_t *(*req_pkt)(scsi_qla_host_t *ha);
 	void (*isp_cmd)(scsi_qla_host_t *ha);
 	void (*enable_tgt_mode)(scsi_qla_host_t *ha);
 	void (*disable_tgt_mode)(scsi_qla_host_t *ha);
@@ -753,7 +753,7 @@ struct qla_target
 		uint8_t opt);
 };
 
-int qla2xxx_tgt_register_driver(/* IN */  struct qla_tgt_initiator *tgt, 
+int qla2xxx_tgt_register_driver(/* IN */  struct qla_tgt_initiator *tgt,
 				/* OUT */ struct qla_target *init);
 
 void qla2xxx_tgt_unregister_driver(void);
