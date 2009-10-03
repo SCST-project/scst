@@ -4189,7 +4189,7 @@ int qla2x00_issue_marker(scsi_qla_host_t *ha, int ha_locked)
 			return (QLA_FUNCTION_FAILED);
 	}
 	ha->marker_needed = 0;
-        return (QLA_SUCCESS);
+	return (QLA_SUCCESS);
 }
 
 int qla2xxx_tgt_register_driver(struct qla_tgt_initiator *tgt_data,

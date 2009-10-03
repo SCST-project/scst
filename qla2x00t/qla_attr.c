@@ -221,8 +221,8 @@ qla2x00_show_resource_counts(struct device *dev,
 	mc.mb[0] = MBC_GET_RESOURCE_COUNTS;
 	mc.out_mb = MBX_0;
 	mc.in_mb = MBX_0|MBX_1|MBX_2;
-        mc.tov = 30;
-        mc.flags = 0;
+	mc.tov = 30;
+	mc.flags = 0;
 
 	rval = qla2x00_mailbox_command(ha, &mc);
 
@@ -263,8 +263,8 @@ qla2x00_show_port_database(struct device *dev,
 	port_data_t *pmap;
 	ulong dma_size = 0x100*sizeof(*pmap);
 
-	pmap = (port_data_t*)dma_alloc_coherent(&ha->pdev->dev, dma_size,
-						&pmap_dma, GFP_KERNEL);
+	pmap = (port_data_t *)dma_alloc_coherent(&ha->pdev->dev, dma_size,
+						 &pmap_dma, GFP_KERNEL);
 	if (pmap == NULL) {
 		size = scnprintf(buffer, max_size, "DMA Alloc failed of %ld",
 				dma_size);
@@ -280,8 +280,8 @@ qla2x00_show_port_database(struct device *dev,
 	mc.mb[8] = 0xFF;
 	mc.out_mb = MBX_0|MBX_1|MBX_2|MBX_3|MBX_6|MBX_7;
 	mc.in_mb = MBX_0|MBX_1;
-        mc.tov = 30;
-        mc.flags = MBX_DMA_IN;
+	mc.tov = 30;
+	mc.flags = MBX_DMA_IN;
 
 	rval = qla2x00_mailbox_command(ha, &mc);
 
@@ -371,7 +371,7 @@ out_free_id_list:
 out_id_list_failed:
 	if (size < max_size) {
 		fc_port_t *fcport;
-		char * state;
+		char *state;
 		char port_type[] = "URSBIT";
 
 		size += scnprintf(buffer+size, max_size-size,

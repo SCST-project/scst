@@ -593,7 +593,7 @@ qla2x00_async_event(scsi_qla_host_t *ha, uint16_t *mb)
 				      ha->operating_mode,
 				      ha->current_topology));
 			if (qla_target.tgt_async_event)
-                        	qla_target.tgt_async_event(mb[0], ha, mb);
+				qla_target.tgt_async_event(mb[0], ha, mb);
 #endif
 			break;
 		}
@@ -617,7 +617,7 @@ qla2x00_async_event(scsi_qla_host_t *ha, uint16_t *mb)
 		set_bit(LOCAL_LOOP_UPDATE, &ha->dpc_flags);
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 		if (qla_target.tgt_async_event)
-                        qla_target.tgt_async_event(mb[0], ha, mb);
+			qla_target.tgt_async_event(mb[0], ha, mb);
 #endif
 		break;
 
@@ -755,7 +755,7 @@ qla2x00_async_event(scsi_qla_host_t *ha, uint16_t *mb)
 	case MBA_LIP_RESET:		/* LIP reset occurred */
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 		if (qla_target.tgt_async_event)
-                        qla_target.tgt_async_event(mb[0], ha, mb);
+			qla_target.tgt_async_event(mb[0], ha, mb);
 #endif
 		break;
 	}
@@ -912,14 +912,14 @@ qla2x00_process_response_queue(struct scsi_qla_host *ha)
 			qla2x00_error_entry(ha, pkt);
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 			switch (pkt->entry_type) {
-	                case ACCEPT_TGT_IO_TYPE:
-        	        case CONTINUE_TGT_IO_TYPE:
-                	case CTIO_A64_TYPE:
-	                case IMMED_NOTIFY_TYPE:
-        	        case NOTIFY_ACK_TYPE:
-                	case ENABLE_LUN_TYPE:
-	                case MODIFY_LUN_TYPE:
-	                	break;
+			case ACCEPT_TGT_IO_TYPE:
+			case CONTINUE_TGT_IO_TYPE:
+			case CTIO_A64_TYPE:
+			case IMMED_NOTIFY_TYPE:
+			case NOTIFY_ACK_TYPE:
+			case ENABLE_LUN_TYPE:
+			case MODIFY_LUN_TYPE:
+				break;
 			default:
 				((response_t *)pkt)->signature = RESPONSE_PROCESSED;
 				wmb();
@@ -930,13 +930,13 @@ qla2x00_process_response_queue(struct scsi_qla_host *ha)
 
 		switch (pkt->entry_type) {
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
-                case ACCEPT_TGT_IO_TYPE:
-                case CONTINUE_TGT_IO_TYPE:
-                case CTIO_A64_TYPE:
-                case IMMED_NOTIFY_TYPE:
-                case NOTIFY_ACK_TYPE:
-                case ENABLE_LUN_TYPE:
-                case MODIFY_LUN_TYPE:
+		case ACCEPT_TGT_IO_TYPE:
+		case CONTINUE_TGT_IO_TYPE:
+		case CTIO_A64_TYPE:
+		case IMMED_NOTIFY_TYPE:
+		case NOTIFY_ACK_TYPE:
+		case ENABLE_LUN_TYPE:
+		case MODIFY_LUN_TYPE:
 			DEBUG5(printk(KERN_WARNING
 				      "qla2x00_response_pkt: "
 				      "calling tgt_response_pkt %p "
@@ -945,7 +945,7 @@ qla2x00_process_response_queue(struct scsi_qla_host *ha)
 				      pkt->entry_type););
 			if (qla_target.tgt_response_pkt)
 				qla_target.tgt_response_pkt(ha,
-					(response_t*)pkt);
+					(response_t *)pkt);
 			break;
 #endif /* CONFIG_SCSI_QLA2XXX_TARGET */
 		case STATUS_TYPE:
@@ -1457,7 +1457,7 @@ qla2x00_error_entry(scsi_qla_host_t *ha, sts_entry_t *pkt)
 		pkt->entry_type);
 	if (pkt->entry_status & RF_INV_E_ORDER) {
 		qla_printk(KERN_ERR, ha, "%s: Invalid Entry Order:\n", __func__);
-		qla2x00_dump_buffer((void*)pkt, sizeof(*pkt));
+		qla2x00_dump_buffer((void *)pkt, sizeof(*pkt));
 	} else if (pkt->entry_status & RF_INV_E_COUNT)
 		qla_printk(KERN_ERR, ha, "%s: Invalid Entry Count\n", __func__);
 	else if (pkt->entry_status & RF_INV_E_PARAM)
@@ -1574,9 +1574,9 @@ qla24xx_process_atio_queue(struct scsi_qla_host *ha)
 			      pkt->entry_type, cnt););
 
 		if (likely(qla_target.tgt24_atio_pkt))
-			qla_target.tgt24_atio_pkt(ha, (atio7_entry_t*)pkt);
+			qla_target.tgt24_atio_pkt(ha, (atio7_entry_t *)pkt);
 
-		for(i = 0; i < cnt; i++) {
+		for (i = 0; i < cnt; i++) {
 			ha->atio_ring_index++;
 			if (ha->atio_ring_index == ha->atio_q_length) {
 				ha->atio_ring_index = 0;
@@ -1633,7 +1633,7 @@ qla24xx_process_response_queue(struct scsi_qla_host *ha)
 			case ABTS_RESP_24XX:
 			case CTIO_TYPE7:
 			case NOTIFY_ACK_TYPE:
-	                	break;
+				break;
 			default:
 				((response_t *)pkt)->signature = RESPONSE_PROCESSED;
 				wmb();
@@ -1669,7 +1669,7 @@ qla24xx_process_response_queue(struct scsi_qla_host *ha)
 				      pkt->entry_type););
 			if (qla_target.tgt_response_pkt)
 				qla_target.tgt_response_pkt(ha,
-					(response_t*)pkt);
+					(response_t *)pkt);
 			break;
 #endif /* CONFIG_SCSI_QLA2XXX_TARGET */
 		case MARKER_TYPE:
