@@ -1,13 +1,13 @@
 /*
  *  qla2x_tgt_def.h
- * 
+ *
  *  Copyright (C) 2004 - 2009 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
  *  Copyright (C) 2006 Nathaniel Clark <nate@misrule.us>
  *  Copyright (C) 2007 - 2009 ID7 Ltd.
  *
  *  Additional file for the target driver support.
- * 
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation; either version 2
@@ -72,9 +72,9 @@
 
 #define OF_EXPL_CONF        BIT_5       /* Explicit Confirmation Requested */
 #define OF_DATA_IN          BIT_6       /* Data in to initiator */
-                                        /*  (data from target to initiator) */
+					/*  (data from target to initiator) */
 #define OF_DATA_OUT         BIT_7       /* Data out from initiator */
-                                        /*  (data from initiator to target) */
+					/*  (data from initiator to target) */
 #define OF_NO_DATA          (BIT_7 | BIT_6)
 #define OF_INC_RC           BIT_8       /* Increment command resource count */
 #define OF_FAST_POST        BIT_9       /* Enable mailbox fast posting. */
@@ -683,7 +683,7 @@ typedef struct
 	uint32_t handle;
 	uint16_t compl_status;
 #define ABTS_RESP_COMPL_SUCCESS		0
-#define ABTS_RESP_COMPL_SUBCODE_ERROR	0x31	
+#define ABTS_RESP_COMPL_SUBCODE_ERROR	0x31
 	uint16_t nport_handle;
 	uint16_t reserved_1;
 	uint8_t  reserved_2;

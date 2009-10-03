@@ -1,13 +1,13 @@
 /*
  *  qla2x_tgt.h
- * 
+ *
  *  Copyright (C) 2004 - 2009 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
  *  Copyright (C) 2006 Nathaniel Clark <nate@misrule.us>
  *  Copyright (C) 2007 - 2009  ID7 Ltd.
  *
  *  Additional file for the target driver support.
- * 
+ *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
  *  as published by the Free Software Foundation; either version 2
@@ -100,7 +100,7 @@ __qla2x00_send_enable_lun(scsi_qla_host_t *ha, int enable)
 
 		/* Issue command to ISP */
 		qla2x00_isp_cmd(ha);
-	
+
 	} else
 		qla_clear_tgt_mode(ha);
 #if defined(QL_DEBUG_LEVEL_2) || defined(QL_DEBUG_LEVEL_3)
