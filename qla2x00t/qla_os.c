@@ -54,13 +54,13 @@ module_param(ql2xloginretrycount, int, S_IRUGO|S_IRUSR);
 MODULE_PARM_DESC(ql2xloginretrycount,
 		"Specify an alternate value for the NVRAM login retry count.");
 
-int ql2xenableclass2 = 0;
+int ql2xenableclass2;
 module_param(ql2xenableclass2, int, S_IRUGO|S_IRUSR);
 MODULE_PARM_DESC(ql2xenableclass2,
 		"Specify if Class 2 operations are supported from the very "
 		"beginning.");
 
-int ql2xallocfwdump = 0;
+int ql2xallocfwdump;
 module_param(ql2xallocfwdump, int, S_IRUGO|S_IRUSR);
 MODULE_PARM_DESC(ql2xallocfwdump,
 		"Option to enable allocation of memory for a firmware dump "
