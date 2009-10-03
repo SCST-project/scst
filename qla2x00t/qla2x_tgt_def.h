@@ -575,8 +575,7 @@ typedef struct
 /*
  * ISP queue - notify acknowledge entry structure definition for 24xx.
  */
-typedef struct
-{
+typedef struct {
 	uint8_t	 entry_type;		    /* Entry type. */
 	uint8_t	 entry_count;		    /* Entry count. */
 	uint8_t	 sys_define;		    /* System defined. */
@@ -608,8 +607,7 @@ typedef struct
 #define ABTS_RECV_24XX		0x54 /* ABTS received (for 24xx) */
 #define ABTS_RESP_24XX		0x55 /* ABTS responce (for 24xx) */
 
-typedef struct
-{
+typedef struct {
 	uint8_t	 entry_type;		    /* Entry type. */
 	uint8_t	 entry_count;		    /* Entry count. */
 	uint8_t	 sys_define;		    /* System defined. */
@@ -627,8 +625,7 @@ typedef struct
 
 #define ABTS_PARAM_ABORT_SEQ		BIT_0
 
-typedef struct
-{
+typedef struct {
 	uint16_t reserved;
 	uint8_t  seq_id_last;
 	uint8_t  seq_id_valid;
@@ -640,8 +637,7 @@ typedef struct
 	uint16_t low_seq_cnt;
 } __attribute__((packed)) ba_acc_le_t;
 
-typedef struct
-{
+typedef struct {
 	uint8_t vendor_uniq;
 	uint8_t reason_expl;
 	uint8_t reason_code;
@@ -650,8 +646,7 @@ typedef struct
 	uint8_t reserved;
 } __attribute__((packed)) ba_rjt_le_t;
 
-typedef struct
-{
+typedef struct {
 	uint8_t	 entry_type;		    /* Entry type. */
 	uint8_t	 entry_count;		    /* Entry count. */
 	uint8_t	 sys_define;		    /* System defined. */
@@ -674,8 +669,7 @@ typedef struct
 	uint32_t exchange_addr_to_abort;
 } __attribute__((packed)) abts24_resp_entry_t;
 
-typedef struct
-{
+typedef struct {
 	uint8_t	 entry_type;		    /* Entry type. */
 	uint8_t	 entry_count;		    /* Entry count. */
 	uint8_t	 sys_define;		    /* System defined. */

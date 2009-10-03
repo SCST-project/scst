@@ -87,8 +87,7 @@ __qla2x00_send_enable_lun(scsi_qla_host_t *ha, int enable)
 			pkt->command_count = QLA2X00_COMMAND_COUNT_INIT;
 			pkt->immed_notify_count = QLA2X00_IMMED_NOTIFY_COUNT_INIT;
 			pkt->timeout = 0xffff;
-		}
-		else {
+		} else {
 			pkt->command_count = 0;
 			pkt->immed_notify_count = 0;
 			pkt->timeout = 0;
