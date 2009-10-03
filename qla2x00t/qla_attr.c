@@ -46,13 +46,13 @@ qla2x00_store_class2_enabled(struct device *dev,
 	spin_lock_irqsave(&ha->hardware_lock, flags);
 
 	switch (buffer[0]) {
-	case '0' : 
+	case '0':
 		if (ha->enable_class_2) {
 			ha->enable_class_2 = 0;
 			reset = 1;
 		}
 		break;
-	case '1' :
+	case '1':
 		if (!ha->enable_class_2) {
 			if (ha->fw_attributes & __constant_cpu_to_le32(BIT_0)) {
 				qla_printk(KERN_INFO, ha, "Enabling class 2 "
@@ -89,8 +89,8 @@ out_unlock:
 	goto out;
 }
 
-static DEVICE_ATTR(class2_enabled, 
-		   S_IRUGO|S_IWUSR, 
+static DEVICE_ATTR(class2_enabled,
+		   S_IRUGO|S_IWUSR,
 		   qla2x00_show_class2_enabled,
 		   qla2x00_store_class2_enabled);
 
@@ -126,10 +126,10 @@ qla2x00_store_tgt_enabled(struct device *dev,
 	}
 
 	switch (buffer[0]) {
-	case '0' : 
+	case '0':
 		res = qla_target.tgt_host_action(ha, DISABLE_TARGET_MODE);
 		break;
-	case '1' :
+	case '1':
 		res = qla_target.tgt_host_action(ha, ENABLE_TARGET_MODE);
 		break;
 	default:
@@ -149,8 +149,8 @@ out:
 	return res;
 }
 
-static DEVICE_ATTR(target_mode_enabled, 
-		   S_IRUGO|S_IWUSR, 
+static DEVICE_ATTR(target_mode_enabled,
+		   S_IRUGO|S_IWUSR,
 		   qla2x00_show_tgt_enabled,
 		   qla2x00_store_tgt_enabled);
 
@@ -180,12 +180,12 @@ qla2x00_store_expl_conf_enabled(struct device *dev,
 	spin_lock_irqsave(&ha->hardware_lock, flags);
 
 	switch (buffer[0]) {
-	case '0' : 
+	case '0':
 		ha->enable_explicit_conf = 0;
 		printk("qla2xxx(%ld): explicit conformation disabled\n",
 			ha->instance);
 		break;
-	case '1' :
+	case '1':
 		ha->enable_explicit_conf = 1;
 		printk("qla2xxx(%ld): explicit conformation enabled\n",
 			ha->instance);
@@ -203,8 +203,8 @@ qla2x00_store_expl_conf_enabled(struct device *dev,
 	return size;
 }
 
-static DEVICE_ATTR(explicit_conform_enabled, 
-		   S_IRUGO|S_IWUSR, 
+static DEVICE_ATTR(explicit_conform_enabled,
+		   S_IRUGO|S_IWUSR,
 		   qla2x00_show_expl_conf_enabled,
 		   qla2x00_store_expl_conf_enabled);
 
@@ -227,11 +227,11 @@ qla2x00_show_resource_counts(struct device *dev,
 	rval = qla2x00_mailbox_command(ha, &mc);
 
 	if (rval != QLA_SUCCESS) {
-		size = scnprintf(buffer, max_size, 
-			"Mailbox Command failed %d, mb %#x", 
+		size = scnprintf(buffer, max_size,
+			"Mailbox Command failed %d, mb %#x",
 			rval, mc.mb[0]);
 	} else {
-		size = scnprintf(buffer, max_size, 
+		size = scnprintf(buffer, max_size,
 			"immed_notify\t%d\ncommand\t\t%d\n",
 			mc.mb[2], mc.mb[1]);
 	}
@@ -263,7 +263,7 @@ qla2x00_show_port_database(struct device *dev,
 	port_data_t *pmap;
 	ulong dma_size = 0x100*sizeof(*pmap);
 
-	pmap = (port_data_t*)dma_alloc_coherent(&ha->pdev->dev, dma_size, 
+	pmap = (port_data_t*)dma_alloc_coherent(&ha->pdev->dev, dma_size,
 						&pmap_dma, GFP_KERNEL);
 	if (pmap == NULL) {
 		size = scnprintf(buffer, max_size, "DMA Alloc failed of %ld",
@@ -286,30 +286,30 @@ qla2x00_show_port_database(struct device *dev,
 	rval = qla2x00_mailbox_command(ha, &mc);
 
 	if (rval != QLA_SUCCESS) {
-		size = scnprintf(buffer, max_size, 
-				"Mailbox Command failed %d, mb0 %#x mb1 %#x\n", 
+		size = scnprintf(buffer, max_size,
+				"Mailbox Command failed %d, mb0 %#x mb1 %#x\n",
 				rval, mc.mb[0], mc.mb[1]);
 		goto out_free;
 	}
 
 	entries = le16_to_cpu(mc.mb[1])/sizeof(*pmap);
-	
-	size += scnprintf(buffer+size, max_size-size, 
+
+	size += scnprintf(buffer+size, max_size-size,
 			 "Port Name List (%#04x) returned %d bytes\nL_ID WWPN\n",
 			 MBC_PORT_NODE_NAME_LIST, le16_to_cpu(mc.mb[1]));
 
 	for (i = 0; (i < entries) && (size < max_size); ++i) {
-		size += scnprintf(buffer+size, max_size-size, 
+		size += scnprintf(buffer+size, max_size-size,
 				 "%04x %02x%02x%02x%02x%02x%02x%02x%02x\n",
 				 le16_to_cpu(pmap[i].loop_id),
-				 pmap[i].port_name[7], pmap[i].port_name[6], 
-				 pmap[i].port_name[5], pmap[i].port_name[4], 
-				 pmap[i].port_name[3], pmap[i].port_name[2], 
+				 pmap[i].port_name[7], pmap[i].port_name[6],
+				 pmap[i].port_name[5], pmap[i].port_name[4],
+				 pmap[i].port_name[3], pmap[i].port_name[2],
 				 pmap[i].port_name[1], pmap[i].port_name[0]);
 	}
 
 out_free:
-	dma_free_coherent(&ha->pdev->dev, dma_size, pmap, pmap_dma);	
+	dma_free_coherent(&ha->pdev->dev, dma_size, pmap, pmap_dma);
 
 	if (size < max_size) {
 		dma_addr_t gid_list_dma;
@@ -320,7 +320,7 @@ out_free:
 		gid_list = dma_alloc_coherent(&ha->pdev->dev, GID_LIST_SIZE,
 				&gid_list_dma, GFP_KERNEL);
 		if (gid_list == NULL) {
-			size += scnprintf(buffer+size, max_size-size, 
+			size += scnprintf(buffer+size, max_size-size,
 					"Unable to allocate gid_list");
 			goto out_id_list_failed;
 		}
@@ -329,17 +329,17 @@ out_free:
 		rval = qla2x00_get_id_list(ha, gid_list, gid_list_dma,
 						&entries);
 		if (rval != QLA_SUCCESS) {
-			size += scnprintf(buffer+size, max_size-size, 
+			size += scnprintf(buffer+size, max_size-size,
 					"qla2x00_get_id_list failed: %d",
 					rval);
 			goto out_free_id_list;
 		}
-		
-		size += scnprintf(buffer+size, max_size-size, 
+
+		size += scnprintf(buffer+size, max_size-size,
 				 "\nGet ID List (0x007C) returned %d entries\n"
 				 "L_ID PortID\n",
 				 entries);
-		
+
 		id_iter = (char *)gid_list;
 		for (i = 0; (i < entries) && (size < max_size); ++i) {
 			gid = (struct gid_list_info *)id_iter;
@@ -359,7 +359,7 @@ out_free:
 						 gid->area,
 						 gid->al_pa,
 						 gid->loop_id_2100);
-				
+
 			}
 			id_iter += ha->gid_list_info_size;
 		}
@@ -373,8 +373,8 @@ out_id_list_failed:
 		fc_port_t *fcport;
 		char * state;
 		char port_type[] = "URSBIT";
-		
-		size += scnprintf(buffer+size, max_size-size, 
+
+		size += scnprintf(buffer+size, max_size-size,
 				 "\nfc_ports database\n");
 
 		list_for_each_entry_rcu(fcport, &ha->fcports, list) {
@@ -390,8 +390,8 @@ out_id_list_failed:
 			case FCS_FAILOVER_FAILED : state = "Failover Failed"; break;
 			default: state = "Unknown"; break;
 			}
-			
-			size += scnprintf(buffer+size, max_size-size, 
+
+			size += scnprintf(buffer+size, max_size-size,
 					 "%04x %02x%02x%02x "
 					 "%02x%02x%02x%02x%02x%02x%02x%02x "
 					 "%c %s\n",
@@ -399,9 +399,9 @@ out_id_list_failed:
 					 fcport->d_id.b.domain,
 					 fcport->d_id.b.area,
 					 fcport->d_id.b.al_pa,
-					 fcport->port_name[0], fcport->port_name[1], 
-					 fcport->port_name[2], fcport->port_name[3], 
-					 fcport->port_name[4], fcport->port_name[5], 
+					 fcport->port_name[0], fcport->port_name[1],
+					 fcport->port_name[2], fcport->port_name[3],
+					 fcport->port_name[4], fcport->port_name[5],
 					 fcport->port_name[6], fcport->port_name[7],
 					 port_type[fcport->port_type], state);
 		}
@@ -422,7 +422,7 @@ qla2x00_update_portdb(struct device *dev,
 
 	if ((buffer == NULL) || (size == 0))
 		goto out;
-	
+
 	switch (buffer[0]) {
 	case '2':
 		qla_printk(KERN_INFO, ha, "Reconfiguring loop on %ld\n",
@@ -1303,7 +1303,7 @@ struct device_attribute *qla2x00_host_attrs[] = {
 	&dev_attr_target_mode_enabled,
 	&dev_attr_explicit_conform_enabled,
 	&dev_attr_resource_counts,
-	&dev_attr_port_database,	
+	&dev_attr_port_database,
 #endif
 	NULL,
 };
@@ -1762,7 +1762,7 @@ qla2x00_init_host_attr(scsi_qla_host_t *ha)
 
 	fc_host_node_name(ha->host) = wwn_to_u64(ha->node_name);
 	fc_host_port_name(ha->host) = wwn_to_u64(ha->port_name);
-	fc_host_supported_classes(ha->host) = ha->enable_class_2 ? 
+	fc_host_supported_classes(ha->host) = ha->enable_class_2 ?
 		(FC_COS_CLASS2|FC_COS_CLASS3) : FC_COS_CLASS3;
 	fc_host_max_npiv_vports(ha->host) = ha->max_npiv_vports;;
 	fc_host_npiv_vports_inuse(ha->host) = ha->cur_vport_count;

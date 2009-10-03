@@ -1789,7 +1789,7 @@ qla2x00_stop_dpc_thread(scsi_qla_host_t *ha)
 		ha->dpc_thread = NULL;
 	}
 	spin_unlock_irq(&ha->dpc_lock);
-		
+
 	if (t != NULL)
 		kthread_stop(t);
 }
@@ -1808,7 +1808,7 @@ qla2x00_remove_one(struct pci_dev *pdev)
 		ha->host_shutting_down = 1;
 		spin_unlock_irqrestore(&ha->hardware_lock, flags);
 	}
-	if (qla_target.tgt_host_action != NULL) 
+	if (qla_target.tgt_host_action != NULL)
 		qla_target.tgt_host_action(ha, DISABLE_TARGET_MODE);
 #endif
 

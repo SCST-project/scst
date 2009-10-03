@@ -2443,7 +2443,7 @@ typedef struct scsi_qla_host {
 
 	struct list_head	work_list;
 
-	/* 
+	/*
 	 * To surprise, fcports list isn't anyhow protected, although it can be
 	 * accessed from many contexts, including concurrently. Seems, the
 	 * original author of this code thought that if anything never deleted

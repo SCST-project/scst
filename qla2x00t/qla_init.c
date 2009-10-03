@@ -4139,7 +4139,7 @@ fail_fw_integrity:
  * host_reset, bring up w/ Target Mode Enabled
  */
 void
-qla2x00_enable_tgt_mode(scsi_qla_host_t *ha) 
+qla2x00_enable_tgt_mode(scsi_qla_host_t *ha)
 {
 	unsigned long flags;
 
@@ -4148,7 +4148,7 @@ qla2x00_enable_tgt_mode(scsi_qla_host_t *ha)
 	spin_unlock_irqrestore(&ha->hardware_lock, flags);
 
 	set_bit(ISP_ABORT_NEEDED, &ha->dpc_flags);
-	qla2xxx_wake_dpc(ha); 
+	qla2xxx_wake_dpc(ha);
 	qla2x00_wait_for_hba_online(ha);
 }
 
@@ -4157,8 +4157,8 @@ qla2x00_enable_tgt_mode(scsi_qla_host_t *ha)
  *
  * Disable Target Mode and reset the adapter
  */
-void 
-qla2x00_disable_tgt_mode(scsi_qla_host_t *ha) 
+void
+qla2x00_disable_tgt_mode(scsi_qla_host_t *ha)
 {
 	unsigned long flags;
 
@@ -4167,7 +4167,7 @@ qla2x00_disable_tgt_mode(scsi_qla_host_t *ha)
 	spin_unlock_irqrestore(&ha->hardware_lock, flags);
 
 	set_bit(ISP_ABORT_NEEDED, &ha->dpc_flags);
-	qla2xxx_wake_dpc(ha); 
+	qla2xxx_wake_dpc(ha);
 	qla2x00_wait_for_hba_online(ha);
 }
 
@@ -4198,16 +4198,16 @@ int qla2xxx_tgt_register_driver(struct qla_tgt_initiator *tgt_data,
 	int res = 0;
 
 	ENTER(__func__);
-	
+
 	if ((tgt_data == NULL) || (tgt_data->magic != QLA2X_TARGET_MAGIC)) {
 		printk("***ERROR*** Wrong version of the target mode add-on: "
 			"%d\n", tgt_data->magic);
 		res = -EINVAL;
 		goto out;
 	}
-	
+
 	memcpy(&qla_target, tgt_data, sizeof(qla_target));
-	
+
 	init_data->magic = QLA2X_INITIATOR_MAGIC;
 	init_data->req_pkt = qla2x00_req_pkt;
 	init_data->isp_cmd = qla2x00_isp_cmd;
@@ -4217,7 +4217,7 @@ int qla2xxx_tgt_register_driver(struct qla_tgt_initiator *tgt_data,
 	init_data->mark_all_devices_lost = qla2x00_mark_all_devices_lost;
 	init_data->get_port_database = qla2x00_get_port_database;
 	init_data->get_id_list = qla2x00_get_id_list;
-	
+
 out:
 	LEAVE(__func__);
 	return res;

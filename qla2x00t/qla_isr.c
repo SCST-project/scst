@@ -586,8 +586,8 @@ qla2x00_async_event(scsi_qla_host_t *ha, uint16_t *mb)
 			    mb[2], mb[3]));
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 			DEBUG2(printk("scsi(%ld): ha state %d init_done %d "
-				      "oper_mode %d topo %d\n", 
-				      ha->host_no, 
+				      "oper_mode %d topo %d\n",
+				      ha->host_no,
 				      atomic_read(&ha->loop_state),
 				      ha->flags.init_done,
 				      ha->operating_mode,
@@ -915,7 +915,7 @@ qla2x00_process_response_queue(struct scsi_qla_host *ha)
 	                case ACCEPT_TGT_IO_TYPE:
         	        case CONTINUE_TGT_IO_TYPE:
                 	case CTIO_A64_TYPE:
-	                case IMMED_NOTIFY_TYPE: 
+	                case IMMED_NOTIFY_TYPE:
         	        case NOTIFY_ACK_TYPE:
                 	case ENABLE_LUN_TYPE:
 	                case MODIFY_LUN_TYPE:
@@ -933,10 +933,10 @@ qla2x00_process_response_queue(struct scsi_qla_host *ha)
                 case ACCEPT_TGT_IO_TYPE:
                 case CONTINUE_TGT_IO_TYPE:
                 case CTIO_A64_TYPE:
-                case IMMED_NOTIFY_TYPE: 
+                case IMMED_NOTIFY_TYPE:
                 case NOTIFY_ACK_TYPE:
                 case ENABLE_LUN_TYPE:
-                case MODIFY_LUN_TYPE: 
+                case MODIFY_LUN_TYPE:
 			DEBUG5(printk(KERN_WARNING
 				      "qla2x00_response_pkt: "
 				      "calling tgt_response_pkt %p "
@@ -944,9 +944,9 @@ qla2x00_process_response_queue(struct scsi_qla_host *ha)
 				      qla_target.tgt_response_pkt,
 				      pkt->entry_type););
 			if (qla_target.tgt_response_pkt)
-				qla_target.tgt_response_pkt(ha, 
+				qla_target.tgt_response_pkt(ha,
 					(response_t*)pkt);
-			break;		    
+			break;
 #endif /* CONFIG_SCSI_QLA2XXX_TARGET */
 		case STATUS_TYPE:
 			qla2x00_status_entry(ha, pkt);
@@ -1668,7 +1668,7 @@ qla24xx_process_response_queue(struct scsi_qla_host *ha)
 				      qla_target.tgt_response_pkt,
 				      pkt->entry_type););
 			if (qla_target.tgt_response_pkt)
-				qla_target.tgt_response_pkt(ha, 
+				qla_target.tgt_response_pkt(ha,
 					(response_t*)pkt);
 			break;
 #endif /* CONFIG_SCSI_QLA2XXX_TARGET */
