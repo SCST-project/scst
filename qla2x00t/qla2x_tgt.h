@@ -80,7 +80,8 @@ __qla2x00_send_enable_lun(scsi_qla_host_t *ha, int enable)
 
 	BUG_ON(IS_FWI2_CAPABLE(ha));
 
-	if ((pkt = (elun_entry_t *)qla2x00_req_pkt(ha)) != NULL) {
+	pkt = (elun_entry_t *)qla2x00_req_pkt(ha);
+	if (pkt != NULL) {
 		pkt->entry_type = ENABLE_LUN_TYPE;
 		if (enable) {
 			pkt->command_count = QLA2X00_COMMAND_COUNT_INIT;
