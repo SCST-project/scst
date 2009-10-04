@@ -38,9 +38,11 @@ diff -rup linux-source-2.6.26.orig/block/blk-ioc.c linux-source-2.6.26/block/blk
  }
  
  struct io_context *alloc_io_context(gfp_t gfp_flags, int node)
-@@ -106,5 +115,7 @@ struct io_context *alloc_io_context(gfp_
+@@ -105,7 +114,8 @@ struct io_context *alloc_io_context(gfp_
+ 
  	return ret;
  }
+-
 +EXPORT_SYMBOL(alloc_io_context);
 +
  /*
