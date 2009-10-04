@@ -40,6 +40,7 @@
 #include <linux/ctype.h>
 #include <linux/string.h>
 #include <linux/kthread.h>
+#include <linux/delay.h>
 #include <asm/atomic.h>
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 #include <linux/proc_fs.h>
