@@ -40,8 +40,8 @@ export LIBSAS := m
 
 #SCST_INC_DIR := /usr/local/include/scst
 #SCST_DIR := $(SCST_INC_DIR)
-SCST_INC_DIR := $(SUBDIRS)/scst/include
-SCST_DIR := $(shell pwd)/scst/src
+SCST_INC_DIR := $(SUBDIRS)/../scst/include
+SCST_DIR := $(shell pwd)/../scst/src
 
 EXTRA_CFLAGS += -I$(SCST_INC_DIR)
 
