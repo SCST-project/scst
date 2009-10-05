@@ -1192,7 +1192,9 @@ static void q24_send_task_mgmt_ctio(scsi_qla_host_t *ha,
 	ctio->flags = (atio->attr << 9) | __constant_cpu_to_le16(
 		CTIO7_FLAGS_STATUS_MODE_1 | CTIO7_FLAGS_SEND_STATUS);
 	ctio->ox_id = swab16(atio->fcp_hdr.ox_id);
-	ctio->scsi_status = cpu_to_le16(resp_code);
+	ctio->scsi_status = __constant_cpu_to_le16(SS_RESPONSE_INFO_LEN_VALID);
+	ctio->response_len = __constant_cpu_to_le16(8);
+	((uint32_t *)ctio->sense_data)[0] = cpu_to_be32(resp_code);
 
 	TRACE_BUFFER("CTIO7 TASK MGMT packet data", ctio, REQUEST_ENTRY_SIZE);
 
@@ -1258,7 +1260,7 @@ out:
 	return;
 }
 
-int q2t_convert_to_fc_tm_status(int scst_mstatus)
+uint32_t q2t_convert_to_fc_tm_status(int scst_mstatus)
 {
 	int res;
 
@@ -1320,7 +1322,7 @@ static void q2t_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 						scst_mgmt_cmd_get_status(scst_mcmd)));
 		}
 	} else {
-		int resp_code = q2t_convert_to_fc_tm_status(
+		uint32_t resp_code = q2t_convert_to_fc_tm_status(
 					scst_mgmt_cmd_get_status(scst_mcmd));
 		q2x_send_notify_ack(ha, &mcmd->orig_iocb.notify_entry, 0,
 			resp_code, 1, 0, 0, 0);

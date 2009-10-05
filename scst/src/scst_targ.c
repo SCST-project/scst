@@ -1537,7 +1537,7 @@ static int scst_request_sense_local(struct scst_cmd *cmd)
 	int res = SCST_EXEC_COMPLETED, rc;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
 	uint8_t *buffer;
-	int buffer_size = 0, sl;
+	int buffer_size = 0, sl = 0;
 
 	TRACE_ENTRY();
 

@@ -247,6 +247,7 @@ static DEVICE_ATTR(resource_counts,
 typedef struct {
 	uint8_t port_name[WWN_SIZE];
 	uint16_t loop_id;
+	uint16_t reserved;
 } port_data_t;
 
 static ssize_t
@@ -261,7 +262,7 @@ qla2x00_show_port_database(struct device *dev,
 	mbx_cmd_t mc;
 	dma_addr_t pmap_dma;
 	port_data_t *pmap;
-	ulong dma_size = 0x100*sizeof(*pmap);
+	ulong dma_size = 0x100 * sizeof(*pmap);
 
 	pmap = (port_data_t *)dma_alloc_coherent(&ha->pdev->dev, dma_size,
 						 &pmap_dma, GFP_KERNEL);
@@ -277,7 +278,7 @@ qla2x00_show_port_database(struct device *dev,
 	mc.mb[3] = LSW(pmap_dma);
 	mc.mb[6] = MSW(MSD(pmap_dma));
 	mc.mb[7] = LSW(MSD(pmap_dma));
-	mc.mb[8] = 0xFF;
+	mc.mb[8] = dma_size;
 	mc.out_mb = MBX_0|MBX_1|MBX_2|MBX_3|MBX_6|MBX_7;
 	mc.in_mb = MBX_0|MBX_1;
 	mc.tov = 30;
