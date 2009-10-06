@@ -66,10 +66,9 @@
 #endif
 
 static int q2x_target_detect(struct scst_tgt_template *templ);
-static int q24_target_detect(struct scst_tgt_template *templ);
 static int q2t_target_release(struct scst_tgt *scst_tgt);
 static int q2x_xmit_response(struct scst_cmd *scst_cmd);
-static int q24_xmit_response(struct scst_cmd *scst_cmd);
+static int __q24_xmit_response(struct q2t_cmd *cmd, int xmit_type);
 static int q2t_rdy_to_xfer(struct scst_cmd *scst_cmd);
 static void q2t_on_free_cmd(struct scst_cmd *scst_cmd);
 static void q2t_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd);
@@ -112,44 +111,14 @@ static struct scst_tgt_template tgt2x_template = {
 	.xmit_response_atomic = 1,
 	.rdy_to_xfer_atomic = 1,
 #endif
-#if SCST_VERSION_CODE >= SCST_VERSION(1, 0, 2, 0)
 	.max_hw_pending_time = Q2T_MAX_HW_PENDING_TIME,
-#endif
 	.detect = q2x_target_detect,
 	.release = q2t_target_release,
 	.xmit_response = q2x_xmit_response,
 	.rdy_to_xfer = q2t_rdy_to_xfer,
 	.on_free_cmd = q2t_on_free_cmd,
 	.task_mgmt_fn_done = q2t_task_mgmt_fn_done,
-#if SCST_VERSION_CODE >= SCST_VERSION(1, 0, 2, 0)
 	.on_hw_pending_cmd_timeout = q2t_on_hw_pending_cmd_timeout,
-#endif
-};
-
-static struct scst_tgt_template tgt24_template = {
-	.name = "qla24xx-tgt",
-	.sg_tablesize = 0,
-	.use_clustering = 1,
-	.no_proc_entry = 1,
-#ifdef CONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
-	.xmit_response_atomic = 0,
-	.rdy_to_xfer_atomic = 0,
-#else
-	.xmit_response_atomic = 1,
-	.rdy_to_xfer_atomic = 1,
-#endif
-#if SCST_VERSION_CODE >= SCST_VERSION(1, 0, 2, 0)
-	.max_hw_pending_time = Q2T_MAX_HW_PENDING_TIME,
-#endif
-	.detect = q24_target_detect,
-	.release = q2t_target_release,
-	.xmit_response = q24_xmit_response,
-	.rdy_to_xfer = q2t_rdy_to_xfer,
-	.on_free_cmd = q2t_on_free_cmd,
-	.task_mgmt_fn_done = q2t_task_mgmt_fn_done,
-#if SCST_VERSION_CODE >= SCST_VERSION(1, 0, 2, 0)
-	.on_hw_pending_cmd_timeout = q2t_on_hw_pending_cmd_timeout,
-#endif
 };
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
@@ -290,12 +259,6 @@ static int q2x_target_detect(struct scst_tgt_template *templ)
 out:
 	TRACE_EXIT();
 	return res;
-}
-
-static int q24_target_detect(struct scst_tgt_template *templ)
-{
-	/* Nothing to do */
-	return 0;
 }
 
 static void q2t_free_session_done(struct scst_session *scst_sess)
@@ -2081,7 +2044,7 @@ static inline void q2t_check_srr_debug(struct q2t_cmd *cmd, int *xmit_type) {}
 
 static int q2x_xmit_response(struct scst_cmd *scst_cmd)
 {
-	int xmit_type = Q2T_XMIT_DATA;
+	int xmit_type = Q2T_XMIT_DATA, res;
 	int is_send_status = scst_cmd_get_is_send_status(scst_cmd);
 	struct q2t_cmd *cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
 
@@ -2111,7 +2074,12 @@ static int q2x_xmit_response(struct scst_cmd *scst_cmd)
 		"cmd->data_direction=%d", is_send_status, cmd->bufflen,
 		cmd->sg_cnt, cmd->data_direction);
 
-	return __q2x_xmit_response(cmd, xmit_type);
+	if (IS_FWI2_CAPABLE(cmd->tgt->ha))
+		res = __q24_xmit_response(cmd, xmit_type);
+	else
+		res = __q2x_xmit_response(cmd, xmit_type);
+
+	return res;
 }
 
 static void q24_init_ctio_ret_entry(ctio7_status0_entry_t *ctio,
@@ -2265,41 +2233,6 @@ out_unmap_unlock:
 		pci_unmap_sg(ha->pdev, cmd->sg, cmd->sg_cnt,
 			cmd->dma_data_direction);
 	goto out_unlock;
-}
-
-static int q24_xmit_response(struct scst_cmd *scst_cmd)
-{
-	int xmit_type = Q2T_XMIT_DATA;
-	int is_send_status = scst_cmd_get_is_send_status(scst_cmd);
-	struct q2t_cmd *cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
-
-#ifdef CONFIG_SCST_EXTRACHECKS
-	sBUG_ON(!q2t_has_data(cmd) && !is_send_status);
-#endif
-
-#ifdef CONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
-	if (scst_cmd_atomic(scst_cmd))
-		return SCST_TGT_RES_NEED_THREAD_CTX;
-#endif
-
-	if (is_send_status)
-		xmit_type |= Q2T_XMIT_STATUS;
-
-	cmd->bufflen = scst_cmd_get_resp_data_len(scst_cmd);
-	cmd->sg = scst_cmd_get_sg(scst_cmd);
-	cmd->sg_cnt = scst_cmd_get_sg_cnt(scst_cmd);
-	cmd->data_direction = scst_cmd_get_data_direction(scst_cmd);
-	cmd->dma_data_direction = scst_to_tgt_dma_dir(cmd->data_direction);
-	cmd->offset = scst_cmd_get_ppl_offset(scst_cmd);
-	cmd->aborted = scst_cmd_aborted(scst_cmd);
-
-	q2t_check_srr_debug(cmd, &xmit_type);
-
-	TRACE_DBG("is_send_status=%x, bufflen=%d, sg_cnt=%d, "
-		"data_direction=%d, offset=%d", is_send_status, cmd->bufflen,
-		cmd->sg_cnt, cmd->data_direction, cmd->offset);
-
-	return __q24_xmit_response(cmd, xmit_type);
 }
 
 static int __q2t_rdy_to_xfer(struct q2t_cmd *cmd)
@@ -4975,7 +4908,6 @@ static int q2t_host_action(scsi_qla_host_t *ha,
 	switch (action) {
 	case ENABLE_TARGET_MODE:
 	{
-		struct scst_tgt_template *tgt_template;
 		fc_port_t *fcport;
 		char *wwn;
 		int sg_tablesize;
@@ -5015,11 +4947,6 @@ static int q2t_host_action(scsi_qla_host_t *ha,
 		INIT_LIST_HEAD(&tgt->srr_imm_list);
 		INIT_WORK(&tgt->srr_work, q2t_handle_srr_work);
 
-		if (IS_FWI2_CAPABLE(ha))
-			tgt_template = &tgt24_template;
-		else
-			tgt_template = &tgt2x_template;
-
 		if (q2t_get_target_name(ha, &wwn) != 0) {
 			kfree(tgt);
 			break;
@@ -5027,7 +4954,7 @@ static int q2t_host_action(scsi_qla_host_t *ha,
 
 		mutex_lock(&ha->tgt_mutex);
 
-		tgt->scst_tgt = scst_register(tgt_template, wwn);
+		tgt->scst_tgt = scst_register(&tgt2x_template, wwn);
 
 		/*
 		 * scst_tgt protected by tgt_mutex from not get freed before
@@ -5301,10 +5228,6 @@ static int __init q2t_init(void)
 	if (res < 0)
 		goto out_mempool_free;
 
-	res = scst_register_target_template(&tgt24_template);
-	if (res < 0)
-		goto out_unreg_target2x;
-
 	/*
 	 * qla2xxx_tgt_register_driver() happens in q2t_target_detect
 	 * called via scst_register_target_template()
@@ -5312,21 +5235,11 @@ static int __init q2t_init(void)
 
 	res = q2t_proc_log_entry_build(&tgt2x_template);
 	if (res < 0)
-		goto out_unreg_target24;
-
-	res = q2t_proc_log_entry_build(&tgt24_template);
-	if (res < 0)
-		goto out_unreg_proc2x;
+		goto out_unreg_target2x;
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
-out_unreg_proc2x:
-	q2t_proc_log_entry_clean(&tgt2x_template);
-
-out_unreg_target24:
-	scst_unregister_target_template(&tgt24_template);
 
 out_unreg_target2x:
 	scst_unregister_target_template(&tgt2x_template);
@@ -5352,9 +5265,6 @@ static void __exit q2t_exit(void)
 
 	/* To sync with q2t_host_action() */
 	down_write(&q2t_unreg_rwsem);
-
-	q2t_proc_log_entry_clean(&tgt24_template);
-	scst_unregister_target_template(&tgt24_template);
 
 	q2t_proc_log_entry_clean(&tgt2x_template);
 	scst_unregister_target_template(&tgt2x_template);
