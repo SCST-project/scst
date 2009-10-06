@@ -535,6 +535,7 @@ qla2x00_req_pkt(scsi_qla_host_t *ha)
 
 	return (pkt);
 }
+EXPORT_SYMBOL(qla2x00_req_pkt);
 
 /**
  * qla2x00_isp_cmd() - Modify the request ring pointer.
@@ -568,6 +569,7 @@ qla2x00_isp_cmd(scsi_qla_host_t *ha)
 		RD_REG_WORD_RELAXED(ISP_REQ_Q_IN(ha, &reg->isp));
 	}
 }
+EXPORT_SYMBOL(qla2x00_isp_cmd);
 
 /**
  * qla24xx_calc_iocbs() - Determine number of Command Type 3 and

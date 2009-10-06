@@ -40,8 +40,17 @@
 #define LEAVE(a)
 #endif
 
-#define QLA2X_TARGET_MAGIC	263
-#define QLA2X_INITIATOR_MAGIC   57216
+/*
+ * Must be changed on any change in any initiator visible interfaces or
+ * data in the target add-on
+ */
+#define QLA2X_TARGET_MAGIC	264
+
+/*
+ * Must be changed on any change in any target visible interfaces or
+ * data in the initiator
+ */
+#define QLA2X_INITIATOR_MAGIC   57217
 
 #define QLA2X00_COMMAND_COUNT_INIT	250
 #define QLA2X00_IMMED_NOTIFY_COUNT_INIT 250
@@ -684,7 +693,8 @@ typedef enum {
 	ENABLE_TARGET_MODE = 1
 } qla2x_tgt_host_action_t;
 
-struct qla_tgt_initiator {
+/* Changing it don't forget to change QLA2X_TARGET_MAGIC! */
+struct qla_tgt_data {
 	int magic;
 
 	/* Callbacks */
@@ -699,37 +709,7 @@ struct qla_tgt_initiator {
 	void (*tgt_fc_port_deleted)(scsi_qla_host_t *ha, fc_port_t *fcport);
 };
 
-struct qla_target {
-	int magic;
-
-	/*
-	 * Callbacks - H/W lock MUST be held while calling any.
-	 *
-	 * !!! req_pkt() and issue_marker() could unlock/lock it inside !!!
-	 *
-	 * But it isn't an issue, since in the current implementation:
-	 *
-	 *   - Either we in IRQ and only IRQ handler can modify HW data,
-	 *     including rings related fields.
-	 *
-	 *   - Or access to target mode variables from struct q2t_tgt don't
-	 *     cross those functions boundaries, except tgt_shutdown, which
-	 *     additionally protected by irq_cmd_count.
-	 */
-	request_t *(*req_pkt)(scsi_qla_host_t *ha);
-	void (*isp_cmd)(scsi_qla_host_t *ha);
-	void (*enable_tgt_mode)(scsi_qla_host_t *ha);
-	void (*disable_tgt_mode)(scsi_qla_host_t *ha);
-	int (*issue_marker)(scsi_qla_host_t *ha, int ha_locked);
-	void (*mark_all_devices_lost)(scsi_qla_host_t *ha, int defer);
-	int (*get_id_list)(scsi_qla_host_t *ha, void *id_list,
-		dma_addr_t id_list_dma, uint16_t *entries);
-	int (*get_port_database)(scsi_qla_host_t *ha, fc_port_t *fcport,
-		uint8_t opt);
-};
-
-int qla2xxx_tgt_register_driver(/* IN */  struct qla_tgt_initiator *tgt,
-				/* OUT */ struct qla_target *init);
+int qla2xxx_tgt_register_driver(struct qla_tgt_data *tgt);
 
 void qla2xxx_tgt_unregister_driver(void);
 

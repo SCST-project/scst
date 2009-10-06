@@ -32,7 +32,7 @@ extern request_t *qla2x00_req_pkt(scsi_qla_host_t *ha);
 
 #include "qla2x_tgt_def.h"
 
-extern struct qla_tgt_initiator qla_target;
+extern struct qla_tgt_data qla_target;
 
 /* Called under HW lock */
 static inline void qla_set_tgt_mode(scsi_qla_host_t *ha)

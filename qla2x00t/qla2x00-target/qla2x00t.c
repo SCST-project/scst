@@ -36,6 +36,20 @@
 
 #include "qla2x00t.h"
 
+/*
+ * This driver calls qla2x00_req_pkt() and qla2x00_issue_marker(), which
+ * must be called under HW lock and could unlock/lock it inside.
+ * It isn't an issue, since in the current implementation on the time when
+ * those functions are called:
+ *
+ *   - Either context is IRQ and only IRQ handler can modify HW data,
+ *     including rings related fields,
+ *
+ *   - Or access to target mode variables from struct q2t_tgt doesn't
+ *     cross those functions boundaries, except tgt_shutdown, which
+ *     additionally protected by irq_cmd_count.
+ */
+
 #ifndef CONFIG_SCSI_QLA2XXX_TARGET
 #error "CONFIG_SCSI_QLA2XXX_TARGET is NOT DEFINED"
 #endif
@@ -144,7 +158,6 @@ static unsigned long q2t_trace_flag = Q2T_DEFAULT_LOG_FLAGS;
 #endif
 
 static struct kmem_cache *q2t_cmd_cachep;
-static struct qla_target tgt_data;
 static struct kmem_cache *q2t_mgmt_cmd_cachep;
 static mempool_t *q2t_mgmt_cmd_mempool;
 
@@ -217,11 +230,10 @@ static inline struct q2t_sess *q2t_find_sess_by_s_id_le(struct q2t_tgt *tgt,
 	return NULL;
 }
 
-
 /* ha->hardware_lock supposed to be held on entry */
 static inline void q2t_exec_queue(scsi_qla_host_t *ha)
 {
-	tgt_data.isp_cmd(ha);
+	qla2x00_isp_cmd(ha);
 }
 
 /* Might release hw lock, then reaquire!! */
@@ -229,7 +241,7 @@ static inline int q2t_issue_marker(scsi_qla_host_t *ha, int ha_locked)
 {
 	/* Send marker if required */
 	if (unlikely(ha->marker_needed != 0)) {
-		int rc = tgt_data.issue_marker(ha, ha_locked);
+		int rc = qla2x00_issue_marker(ha, ha_locked);
 		if (rc != QLA_SUCCESS) {
 			PRINT_ERROR("qla2x00tgt(%ld): issue_marker() "
 				"failed", ha->instance);
@@ -246,7 +258,7 @@ static inline int q2t_issue_marker(scsi_qla_host_t *ha, int ha_locked)
 static int q2x_target_detect(struct scst_tgt_template *templ)
 {
 	int res;
-	struct qla_tgt_initiator itd = {
+	struct qla_tgt_data t = {
 		.magic = QLA2X_TARGET_MAGIC,
 		.tgt24_atio_pkt = q24_atio_pkt,
 		.tgt_response_pkt = q2t_response_pkt,
@@ -259,16 +271,17 @@ static int q2x_target_detect(struct scst_tgt_template *templ)
 
 	TRACE_ENTRY();
 
-	res = qla2xxx_tgt_register_driver(&itd, &tgt_data);
-	if (res != 0) {
+	res = qla2xxx_tgt_register_driver(&t);
+	if (res < 0) {
 		PRINT_ERROR("Unable to register driver: %d", res);
 		goto out;
 	}
 
-	if (tgt_data.magic != QLA2X_INITIATOR_MAGIC) {
+	if (res != QLA2X_INITIATOR_MAGIC) {
 		PRINT_ERROR("Wrong version of the initiator part: %d",
-			    tgt_data.magic);
+			    res);
 		res = -EINVAL;
+		goto out;
 	}
 
 	PRINT_INFO("%s", "Target mode driver for QLogic 2x00 controller "
@@ -811,7 +824,7 @@ static int q2t_target_release(struct scst_tgt *scst_tgt)
 
 	/* Big hammer */
 	if (!ha->host_shutting_down)
-		tgt_data.disable_tgt_mode(ha);
+		qla2x00_disable_tgt_mode(ha);
 
 	/* Wait for sessions to clear out (just in case) */
 	wait_event(tgt->waitQ, test_tgt_sess_count(tgt));
@@ -854,7 +867,7 @@ static void q2x_modify_command_count(scsi_qla_host_t *ha, int cmd_count,
 
 	/* Sending marker isn't necessary, since we called from ISR */
 
-	pkt = (modify_lun_entry_t *)tgt_data.req_pkt(ha);
+	pkt = (modify_lun_entry_t *)qla2x00_req_pkt(ha);
 	if (pkt == NULL) {
 		PRINT_ERROR("qla2x00tgt(%ld): %s failed: unable to allocate "
 			"request packet", ha->instance, __func__);
@@ -909,7 +922,7 @@ static void q2x_send_notify_ack(scsi_qla_host_t *ha, notify_entry_t *iocb,
 	if (q2t_issue_marker(ha, 1) != QLA_SUCCESS)
 		goto out;
 
-	ntfy = (nack_entry_t *)tgt_data.req_pkt(ha);
+	ntfy = (nack_entry_t *)qla2x00_req_pkt(ha);
 	if (ntfy == NULL) {
 		PRINT_ERROR("qla2x00tgt(%ld): %s failed: unable to allocate "
 			"request packet", ha->instance, __func__);
@@ -973,7 +986,7 @@ static void q24_send_abts_resp(scsi_qla_host_t *ha,
 	if (q2t_issue_marker(ha, 1) != QLA_SUCCESS)
 		goto out;
 
-	resp = (abts24_resp_entry_t *)tgt_data.req_pkt(ha);
+	resp = (abts24_resp_entry_t *)qla2x00_req_pkt(ha);
 	if (resp == NULL) {
 		PRINT_ERROR("qla2x00tgt(%ld): %s failed: unable to allocate "
 			"request packet", ha->instance, __func__);
@@ -1050,7 +1063,7 @@ static void q24_retry_term_exchange(scsi_qla_host_t *ha,
 	if (q2t_issue_marker(ha, 1) != QLA_SUCCESS)
 		goto out;
 
-	ctio = (ctio7_status1_entry_t *)tgt_data.req_pkt(ha);
+	ctio = (ctio7_status1_entry_t *)qla2x00_req_pkt(ha);
 	if (ctio == NULL) {
 		PRINT_ERROR("qla2x00tgt(%ld): %s failed: unable to allocate "
 			"request packet", ha->instance, __func__);
@@ -1173,7 +1186,7 @@ static void q24_send_task_mgmt_ctio(scsi_qla_host_t *ha,
 	if (q2t_issue_marker(ha, 1) != QLA_SUCCESS)
 		goto out;
 
-	ctio = (ctio7_status1_entry_t *)tgt_data.req_pkt(ha);
+	ctio = (ctio7_status1_entry_t *)qla2x00_req_pkt(ha);
 	if (ctio == NULL) {
 		PRINT_ERROR("qla2x00tgt(%ld): %s failed: unable to allocate "
 			"request packet", ha->instance, __func__);
@@ -1225,7 +1238,7 @@ static void q24_send_notify_ack(scsi_qla_host_t *ha,
 	if (ha->tgt != NULL)
 		ha->tgt->notify_ack_expected++;
 
-	nack = (nack24xx_entry_t *)tgt_data.req_pkt(ha);
+	nack = (nack24xx_entry_t *)qla2x00_req_pkt(ha);
 	if (nack == NULL) {
 		PRINT_ERROR("qla2x00tgt(%ld): %s failed: unable to allocate "
 			"request packet", ha->instance, __func__);
@@ -2411,7 +2424,7 @@ static void q2x_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
 	if (!ha_locked)
 		spin_lock_irqsave(&ha->hardware_lock, flags);
 
-	ctio = (ctio_ret_entry_t *)tgt_data.req_pkt(ha);
+	ctio = (ctio_ret_entry_t *)qla2x00_req_pkt(ha);
 	if (ctio == NULL) {
 		PRINT_ERROR("qla2x00tgt(%ld): %s failed: unable to allocate "
 			"request packet", ha->instance, __func__);
@@ -2484,7 +2497,7 @@ static void q24_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
 	if (!ha_locked)
 		spin_lock_irqsave(&ha->hardware_lock, flags);
 
-	ctio = (ctio7_status1_entry_t *)tgt_data.req_pkt(ha);
+	ctio = (ctio7_status1_entry_t *)qla2x00_req_pkt(ha);
 	if (ctio == NULL) {
 		PRINT_ERROR("qla2x00tgt(%ld): %s failed: unable to allocate "
 			"request packet", ha->instance, __func__);
@@ -3997,7 +4010,7 @@ static void q2t_handle_imm_notify(scsi_qla_host_t *ha, void *iocb)
 			/* set the Clear LIP reset event flag */
 			add_flags |= NOTIFY_ACK_CLEAR_LIP_RESET;
 		}
-		tgt_data.mark_all_devices_lost(ha, 1);
+		qla2x00_mark_all_devices_lost(ha, 1);
 		if (q2t_reset(ha, iocb, Q2T_ABORT_ALL) == 0)
 			send_notify_ack = 0;
 		break;
@@ -4024,7 +4037,7 @@ static void q2t_handle_imm_notify(scsi_qla_host_t *ha, void *iocb)
 	case IMM_NTFY_PORT_LOGOUT:
 		TRACE(TRACE_MGMT, "Port logout (S %08x -> L %#x)",
 			le16_to_cpu(iocb2x->seq_id), le16_to_cpu(iocb2x->lun));
-		tgt_data.mark_all_devices_lost(ha, 1);
+		qla2x00_mark_all_devices_lost(ha, 1);
 		if (q2t_reset(ha, iocb, Q2T_NEXUS_LOSS_SESS) == 0)
 			send_notify_ack = 0;
 		/* The sessions will be cleared in the callback, if needed */
@@ -4032,7 +4045,7 @@ static void q2t_handle_imm_notify(scsi_qla_host_t *ha, void *iocb)
 
 	case IMM_NTFY_GLBL_TPRLO:
 		TRACE(TRACE_MGMT, "Global TPRLO (%x)", status);
-		tgt_data.mark_all_devices_lost(ha, 1);
+		qla2x00_mark_all_devices_lost(ha, 1);
 		if (q2t_reset(ha, iocb, Q2T_NEXUS_LOSS) == 0)
 			send_notify_ack = 0;
 		/* The sessions will be cleared in the callback, if needed */
@@ -4040,7 +4053,7 @@ static void q2t_handle_imm_notify(scsi_qla_host_t *ha, void *iocb)
 
 	case IMM_NTFY_PORT_CONFIG:
 		TRACE(TRACE_MGMT, "Port config changed (%x)", status);
-		tgt_data.mark_all_devices_lost(ha, 1);
+		qla2x00_mark_all_devices_lost(ha, 1);
 		if (q2t_reset(ha, iocb, Q2T_ABORT_ALL) == 0)
 			send_notify_ack = 0;
 		/* The sessions will be cleared in the callback, if needed */
@@ -4050,7 +4063,7 @@ static void q2t_handle_imm_notify(scsi_qla_host_t *ha, void *iocb)
 		PRINT_ERROR("qla2x00tgt(%ld): Link failure detected",
 			ha->instance);
 		/* I_T nexus loss */
-		tgt_data.mark_all_devices_lost(ha, 1);
+		qla2x00_mark_all_devices_lost(ha, 1);
 		if (q2t_reset(ha, iocb, Q2T_NEXUS_LOSS) == 0)
 			send_notify_ack = 0;
 		break;
@@ -4119,7 +4132,7 @@ static void q2x_send_busy(scsi_qla_host_t *ha, atio_entry_t *atio)
 
 	/* Sending marker isn't necessary, since we called from ISR */
 
-	ctio = (ctio_ret_entry_t *)tgt_data.req_pkt(ha);
+	ctio = (ctio_ret_entry_t *)qla2x00_req_pkt(ha);
 	if (ctio == NULL) {
 		PRINT_ERROR("qla2x00tgt(%ld): %s failed: unable to allocate "
 			"request packet", ha->instance, __func__);
@@ -4174,7 +4187,7 @@ static void q24_send_busy(scsi_qla_host_t *ha, atio7_entry_t *atio,
 
 	/* Sending marker isn't necessary, since we called from ISR */
 
-	ctio = (ctio7_status1_entry_t *)tgt_data.req_pkt(ha);
+	ctio = (ctio7_status1_entry_t *)qla2x00_req_pkt(ha);
 	if (ctio == NULL) {
 		PRINT_ERROR("qla2x00tgt(%ld): %s failed: unable to allocate "
 			"request packet", ha->instance, __func__);
@@ -4684,7 +4697,7 @@ static int q24_get_loop_id(scsi_qla_host_t *ha, atio7_entry_t *atio7,
 	}
 
 	/* Get list of logged in devices */
-	rc = tgt_data.get_id_list(ha, gid_list, gid_list_dma, &entries);
+	rc = qla2x00_get_id_list(ha, gid_list, gid_list_dma, &entries);
 	if (rc != QLA_SUCCESS) {
 		PRINT_ERROR("get_id_list() failed: %x", rc);
 		res = -1;
@@ -4746,7 +4759,7 @@ static struct q2t_sess *q2t_make_local_sess(scsi_qla_host_t *ha, atio_t *atio)
 
 	fcport->loop_id = loop_id;
 
-	rc = tgt_data.get_port_database(ha, fcport, 0);
+	rc = qla2x00_get_port_database(ha, fcport, 0);
 	if (rc != QLA_SUCCESS) {
 		PRINT_ERROR("Failed to retrieve fcport information "
 			"-- get_port_database() returned %x "
@@ -5077,7 +5090,7 @@ static int q2t_host_action(scsi_qla_host_t *ha,
 do_enable:
 		TRACE_DBG("Enable tgt mode for host %ld(%ld,%p)",
 			  ha->host_no, ha->instance, ha);
-		tgt_data.enable_tgt_mode(ha);
+		qla2x00_enable_tgt_mode(ha);
 		break;
 	}
 
@@ -5361,7 +5374,7 @@ static void __exit q2t_exit(void)
 module_init(q2t_init);
 module_exit(q2t_exit);
 
-MODULE_AUTHOR("Vladislav Bolkhovitin, Leonid Stoljar & Nathaniel Clark");
-MODULE_DESCRIPTION("Target mode addon for qla2[2,3,4+]xx");
+MODULE_AUTHOR("Vladislav Bolkhovitin and others");
+MODULE_DESCRIPTION("Target mode addon for qla2[2,3,4,5+]xx");
 MODULE_LICENSE("GPL");
 MODULE_VERSION(Q2T_VERSION_STRING);

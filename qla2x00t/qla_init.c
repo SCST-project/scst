@@ -4150,6 +4150,7 @@ qla2x00_enable_tgt_mode(scsi_qla_host_t *ha)
 	qla2xxx_wake_dpc(ha);
 	qla2x00_wait_for_hba_online(ha);
 }
+EXPORT_SYMBOL(qla2x00_enable_tgt_mode);
 
 /*
  * qla2x00_disable_tgt_mode - NO LOCK HELD
@@ -4169,6 +4170,7 @@ qla2x00_disable_tgt_mode(scsi_qla_host_t *ha)
 	qla2xxx_wake_dpc(ha);
 	qla2x00_wait_for_hba_online(ha);
 }
+EXPORT_SYMBOL(qla2x00_disable_tgt_mode);
 
 /*
  * qla2x00_issue_marker
@@ -4190,9 +4192,9 @@ int qla2x00_issue_marker(scsi_qla_host_t *ha, int ha_locked)
 	ha->marker_needed = 0;
 	return QLA_SUCCESS;
 }
+EXPORT_SYMBOL(qla2x00_issue_marker);
 
-int qla2xxx_tgt_register_driver(struct qla_tgt_initiator *tgt_data,
-				struct qla_target *init_data)
+int qla2xxx_tgt_register_driver(struct qla_tgt_data *tgt_data)
 {
 	int res = 0;
 
@@ -4207,15 +4209,7 @@ int qla2xxx_tgt_register_driver(struct qla_tgt_initiator *tgt_data,
 
 	memcpy(&qla_target, tgt_data, sizeof(qla_target));
 
-	init_data->magic = QLA2X_INITIATOR_MAGIC;
-	init_data->req_pkt = qla2x00_req_pkt;
-	init_data->isp_cmd = qla2x00_isp_cmd;
-	init_data->enable_tgt_mode = qla2x00_enable_tgt_mode;
-	init_data->disable_tgt_mode = qla2x00_disable_tgt_mode;
-	init_data->issue_marker = qla2x00_issue_marker;
-	init_data->mark_all_devices_lost = qla2x00_mark_all_devices_lost;
-	init_data->get_port_database = qla2x00_get_port_database;
-	init_data->get_id_list = qla2x00_get_id_list;
+	res = QLA2X_INITIATOR_MAGIC;
 
 out:
 	LEAVE(__func__);

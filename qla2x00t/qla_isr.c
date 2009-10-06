@@ -9,7 +9,7 @@
 #include "qla2x_tgt.h"
 
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
-struct qla_tgt_initiator qla_target;
+struct qla_tgt_data qla_target;
 #endif
 
 #include <linux/delay.h>
