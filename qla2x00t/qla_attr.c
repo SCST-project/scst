@@ -247,8 +247,13 @@ static DEVICE_ATTR(resource_counts,
 typedef struct {
 	uint8_t port_name[WWN_SIZE];
 	uint16_t loop_id;
-	uint16_t reserved;
 } port_data_t;
+
+typedef struct {
+	uint8_t port_name[WWN_SIZE];
+	uint16_t loop_id;
+	uint16_t reserved;
+} port24_data_t;
 
 static ssize_t
 qla2x00_show_port_database(struct device *dev,
@@ -261,11 +266,11 @@ qla2x00_show_port_database(struct device *dev,
 	uint16_t entries;
 	mbx_cmd_t mc;
 	dma_addr_t pmap_dma;
-	port_data_t *pmap;
-	ulong dma_size = 0x100 * sizeof(*pmap);
+	void *pmap;
+	ulong dma_size = 0x100 * sizeof(port24_data_t);
 
-	pmap = (port_data_t *)dma_alloc_coherent(&ha->pdev->dev, dma_size,
-						 &pmap_dma, GFP_KERNEL);
+	pmap = dma_alloc_coherent(&ha->pdev->dev, dma_size,
+				  &pmap_dma, GFP_KERNEL);
 	if (pmap == NULL) {
 		size = scnprintf(buffer, max_size, "DMA Alloc failed of %ld",
 				dma_size);
@@ -279,7 +284,7 @@ qla2x00_show_port_database(struct device *dev,
 	mc.mb[6] = MSW(MSD(pmap_dma));
 	mc.mb[7] = LSW(MSD(pmap_dma));
 	mc.mb[8] = dma_size;
-	mc.out_mb = MBX_0|MBX_1|MBX_2|MBX_3|MBX_6|MBX_7;
+	mc.out_mb = MBX_0|MBX_1|MBX_2|MBX_3|MBX_6|MBX_7|MBX_8;
 	mc.in_mb = MBX_0|MBX_1;
 	mc.tov = 30;
 	mc.flags = MBX_DMA_IN;
@@ -293,20 +298,46 @@ qla2x00_show_port_database(struct device *dev,
 		goto out_free;
 	}
 
-	entries = le16_to_cpu(mc.mb[1])/sizeof(*pmap);
-
 	size += scnprintf(buffer+size, max_size-size,
 			 "Port Name List (%#04x) returned %d bytes\nL_ID WWPN\n",
 			 MBC_PORT_NODE_NAME_LIST, le16_to_cpu(mc.mb[1]));
 
-	for (i = 0; (i < entries) && (size < max_size); ++i) {
-		size += scnprintf(buffer+size, max_size-size,
-				 "%04x %02x%02x%02x%02x%02x%02x%02x%02x\n",
-				 le16_to_cpu(pmap[i].loop_id),
-				 pmap[i].port_name[7], pmap[i].port_name[6],
-				 pmap[i].port_name[5], pmap[i].port_name[4],
-				 pmap[i].port_name[3], pmap[i].port_name[2],
-				 pmap[i].port_name[1], pmap[i].port_name[0]);
+	if (IS_FWI2_CAPABLE(ha)) {
+		port_data_t *pmap2x = pmap;
+
+		entries = le16_to_cpu(mc.mb[1])/sizeof(*pmap2x);
+
+		for (i = 0; (i < entries) && (size < max_size); ++i) {
+			size += scnprintf(buffer+size, max_size-size,
+					 "%04x %02x%02x%02x%02x%02x%02x%02x%02x\n",
+					 le16_to_cpu(pmap2x[i].loop_id),
+					 pmap2x[i].port_name[7],
+					 pmap2x[i].port_name[6],
+					 pmap2x[i].port_name[5],
+					 pmap2x[i].port_name[4],
+					 pmap2x[i].port_name[3],
+					 pmap2x[i].port_name[2],
+					 pmap2x[i].port_name[1],
+					 pmap2x[i].port_name[0]);
+		}
+	} else {
+		port24_data_t *pmap24 = pmap;
+
+		entries = le16_to_cpu(mc.mb[1])/sizeof(*pmap24);
+
+		for (i = 0; (i < entries) && (size < max_size); ++i) {
+			size += scnprintf(buffer+size, max_size-size,
+					 "%04x %02x%02x%02x%02x%02x%02x%02x%02x\n",
+					 le16_to_cpu(pmap24[i].loop_id),
+					 pmap24[i].port_name[7],
+					 pmap24[i].port_name[6],
+					 pmap24[i].port_name[5],
+					 pmap24[i].port_name[4],
+					 pmap24[i].port_name[3],
+					 pmap24[i].port_name[2],
+					 pmap24[i].port_name[1],
+					 pmap24[i].port_name[0]);
+		}
 	}
 
 out_free:
