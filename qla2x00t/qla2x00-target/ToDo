@@ -1,7 +1,8 @@
 Known issues and unimplemented features
 ---------------------------------------
 
- - NPIV support
+ - Complete NPIV support. Particularly, SCST core should see all the virtual
+   targets and provide separate target-oriented access control for them.
 
  - If a Linux initiator asks for devices using INQUIRY command too soon
    before the controller on the 23xx target is fully initialized in the
@@ -21,5 +22,5 @@ Known issues and unimplemented features
    and then read it with bs <X the tape skips all blocks with size X
    until the next correct block or filemark found, instead of returning
    ILI with negative counter. Looks like the initiator retries the
-   command quetly. 22xx works correctly. With the latest firmware that
+   command quietly. 22xx works correctly. With the latest firmware that
    might be fixed.

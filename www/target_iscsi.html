@@ -93,18 +93,17 @@
 
 					 </span></li>
 
-					 <li><span>ISCSI-SCST has many code improvements and cleanups, including <strong>stability</strong>
-					  and <strong>iSCSI RFC violations fixes</strong>. 
+					 <li><span>ISCSI-SCST has many code improvements and cleanups, including stability
+					  and iSCSI RFC violations fixes. 
 					  IET works well on "fast" paths and regularly used code branches, but in many corner
 					  cases it has various problems, from simply ignoring error processing, as it is for memory 
 					  allocations, and crashing itself with BUG() macro, as it is for malformed packets from initiators, to possible data
-					  corruption. See, for instance, <a href="http://communities.vmware.com/thread/53797?tstart=0&start=15">this</a>
-					  thread on a VMware forum about in which <strong>Russian roulette</strong> IET users play using it with VMware.</span></li>
+					  corruptions, because of, for instance, unsafe task management or sessions reinstatement implementations.</span></li>
 
 					 <li><span>Due to reworked I/O architecture and SCST backend iSCSI-SCST has much
-					  better performance in many cases and has potential for future improvements, like <strong>zero-copy 
-					  with Linux cache FILEIO</strong>. In many tests iSCSI-SCST outperforms tuned for best
-					  performance IET on <strong>more than 100%</strong>.
+					  better performance in many cases and has potential for future improvements, like zero-copy 
+					  with Linux cache FILEIO. In many tests iSCSI-SCST outperforms tuned for best
+					  performance IET on more than 100%.
 				</ul></p>
 
 				<p>If you are an IET user before installation carefully read README files of both iSCSI-SCST and 

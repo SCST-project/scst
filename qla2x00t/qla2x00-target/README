@@ -17,6 +17,14 @@ Linux kernel 2.6.26 and higher. Sorry, kernels below 2.6.26 are not
 supported, because it's too hard to backport used initiator driver to
 older kernels.
 
+NPIV is particulary supported by this driver. You can create virtual
+targets using standard Linux interface by echoing wwpn:wwnn into
+/sys/class/fc_host/hostX/vport_create and work with them, but SCST core
+will not see those virtual targets and, hence, provide the
+target-oriented access control for them. However, the initiator-oriented
+access control will still work very well. Note, you need NPIV-supporting
+firmware as well as NPIV-supporting switches to use NPIV.
+
 The original initiator driver was taken from the kernel 2.6.26.
 
 See also "ToDo" file for list of known issues and unimplemented
@@ -81,6 +89,8 @@ utility for that purpose.
 You can find some installation and configuration HOWTOs in
 http://scst.sourceforge.net/qla2x00t-howto.html and
 https://forums.openfiler.com/viewtopic.php?id=3422.
+
+It is recommended to use firmware version 5.x.x or higher.
 
 
 Explicit conformation
