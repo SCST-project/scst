@@ -339,14 +339,26 @@ add_file "iscsi-scst/README_in-tree" "Documentation/scst/README.iscsi" \
 
 if [ "${qla2x00t}" = "true" ]; then
 
+  make -C qla2x00t -s patches
+
+  for f in $(ls qla2x00t/in-tree-patches/qla2xxx-*-${kernel_version}.patch)
+  do
+    g="${f#qla2x00t/in-tree-patches/qla2xxx-}"
+    g="${g%-${kernel_version}.patch}"
+    add_patch "${f}" "drivers/scsi/qla2xxx/${g}"
+  done
+
   add_file "qla2x00t/qla2x00-target/Makefile_in-tree" \
            "drivers/scst/qla2xxx-target/Makefile"
 
   add_file "qla2x00t/qla2x00-target/Kconfig" \
            "drivers/scst/qla2xxx-target/Kconfig"
 
-#  add_file "qla2x00t/qla2x_tgt_def.h" \
-#           "drivers/scst/qla2x00-target/qla2x_tgt_def.h"
+  add_file "qla2x00t/qla2x_tgt.h" \
+           "drivers/scsi/qla2xxx/qla2x_tgt.h"
+
+  add_file "qla2x00t/qla2x_tgt_def.h" \
+           "drivers/scsi/qla2xxx/qla2x_tgt_def.h"
 
   for f in $(ls qla2x00t/qla2x00-target/*.[ch])
   do
