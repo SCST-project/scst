@@ -303,24 +303,6 @@ qla2x00_show_port_database(struct device *dev,
 			 MBC_PORT_NODE_NAME_LIST, le16_to_cpu(mc.mb[1]));
 
 	if (IS_FWI2_CAPABLE(ha)) {
-		port_data_t *pmap2x = pmap;
-
-		entries = le16_to_cpu(mc.mb[1])/sizeof(*pmap2x);
-
-		for (i = 0; (i < entries) && (size < max_size); ++i) {
-			size += scnprintf(buffer+size, max_size-size,
-					 "%04x %02x%02x%02x%02x%02x%02x%02x%02x\n",
-					 le16_to_cpu(pmap2x[i].loop_id),
-					 pmap2x[i].port_name[7],
-					 pmap2x[i].port_name[6],
-					 pmap2x[i].port_name[5],
-					 pmap2x[i].port_name[4],
-					 pmap2x[i].port_name[3],
-					 pmap2x[i].port_name[2],
-					 pmap2x[i].port_name[1],
-					 pmap2x[i].port_name[0]);
-		}
-	} else {
 		port24_data_t *pmap24 = pmap;
 
 		entries = le16_to_cpu(mc.mb[1])/sizeof(*pmap24);
@@ -337,6 +319,24 @@ qla2x00_show_port_database(struct device *dev,
 					 pmap24[i].port_name[2],
 					 pmap24[i].port_name[1],
 					 pmap24[i].port_name[0]);
+		}
+	} else {
+		port_data_t *pmap2x = pmap;
+
+		entries = le16_to_cpu(mc.mb[1])/sizeof(*pmap2x);
+
+		for (i = 0; (i < entries) && (size < max_size); ++i) {
+			size += scnprintf(buffer+size, max_size-size,
+					 "%04x %02x%02x%02x%02x%02x%02x%02x%02x\n",
+					 le16_to_cpu(pmap2x[i].loop_id),
+					 pmap2x[i].port_name[7],
+					 pmap2x[i].port_name[6],
+					 pmap2x[i].port_name[5],
+					 pmap2x[i].port_name[4],
+					 pmap2x[i].port_name[3],
+					 pmap2x[i].port_name[2],
+					 pmap2x[i].port_name[1],
+					 pmap2x[i].port_name[0]);
 		}
 	}
 
