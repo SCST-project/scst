@@ -3,6 +3,10 @@ qla2xxx-y := qla_os.o qla_init.o qla_mbx.o qla_iocb.o qla_isr.o qla_gs.o \
 
 obj-$(CONFIG_SCSI_QLA_FC) += qla2xxx.o
 
+# The qla2xxx-orig/% targets are not built correctly when parallel building
+# (make -j...) is enabled, so disable parallel builds.
+.NOTPARALLEL:
+
 clean:
 	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend *~ Modules.symvers \
 		Module.symvers Module.markers modules.order
