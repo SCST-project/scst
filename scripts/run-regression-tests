@@ -116,6 +116,43 @@ See also http://bugzilla.kernel.org/show_bug.cgi?id=12925
  #define likely_notrace(x)	__builtin_expect(!!(x), 1)
 EOF
     fi
+    if [ "$1" = "2.6.31" -o "$1" = "2.6.31.1" -o "$1" = "2.6.31.2" -o "$1" = "2.6.31.3" ]
+    then
+      cd "../linux-$1" || return $?
+      patch -f -s -p1 <<'EOF'
+Checking a 2.6.31.1 kernel configured with allyesconfig/allmodconfig
+with sparse (make C=2) triggers a sparse warning on code that uses the
+kmemcheck_annotate_bitfield() macro. An example of such a warning:
+
+include/net/inet_sock.h:208:17: warning: do-while statement is not a compound statement
+
+Signed-off-by: Bart Van Assche <bart.vanassche@gmail.com>
+Cc: Vegard Nossum <vegardno@ifi.uio.no>
+Cc: Andrew Morton <akpm@linux-foundation.org>
+
+---
+See also http://lkml.org/lkml/2009/9/26/51
+
+--- linux-2.6.31.1/include/linux/kmemcheck-orig.h	2009-09-26 13:53:44.000000000 +0200
++++ linux-2.6.31.1/include/linux/kmemcheck.h	2009-09-26 13:53:56.000000000 +0200
+@@ -137,13 +137,13 @@ static inline void kmemcheck_mark_initia
+ 	int name##_end[0];
+ 
+ #define kmemcheck_annotate_bitfield(ptr, name)				\
+-	do if (ptr) {							\
++	do { if (ptr) {							\
+ 		int _n = (long) &((ptr)->name##_end)			\
+ 			- (long) &((ptr)->name##_begin);		\
+ 		BUILD_BUG_ON(_n < 0);					\
+ 									\
+ 		kmemcheck_mark_initialized(&((ptr)->name##_begin), _n);	\
+-	} while (0)
++	} } while (0)
+ 
+ #define kmemcheck_annotate_variable(var)				\
+ 	do {								\
+EOF
+    fi
   )
   rmdir "${tmpdir}"
 }
