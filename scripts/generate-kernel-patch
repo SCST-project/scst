@@ -231,7 +231,7 @@ source_files_in_separate_patch="${scst_debug} ${scst_proc} ${scst_sgv} ${scst_us
 
 # Directory include/scst/
 
-for f in $(ls scst/include/*h)
+for f in $(ls scst/include/*h 2>/dev/null)
 do
   if ! in_separate_patch "${f}"; then
     add_file "${f}" "include/scst/${f#scst/include/}"
@@ -259,7 +259,7 @@ add_file "scst/kernel/in-tree/Kconfig.scst"  "drivers/scst/Kconfig"
 
 add_file "scst/kernel/in-tree/Makefile.scst" "drivers/scst/Makefile"
 
-for f in $(ls scst/src/*.[ch])
+for f in $(ls scst/src/*.[ch] 2>/dev/null)
 do
   if ! in_separate_patch "${f}"; then
     add_file "${f}" "drivers/scst/${f#scst/src/}"
@@ -294,7 +294,7 @@ add_file "scst/kernel/in-tree/Makefile.dev_handlers" \
          "drivers/scst/dev_handlers/Makefile" \
 | process_patch "dev_handlers_makefile.diff"
 
-for f in $(ls scst/src/dev_handlers/*.[ch])
+for f in $(ls scst/src/dev_handlers/*.[ch] 2>/dev/null)
 do
   if ! in_separate_patch "${f}"; then
     add_file "${f}" "drivers/scst/dev_handlers/${f#scst/src/dev_handlers/}"
@@ -310,7 +310,7 @@ done
 make -s -C iscsi-scst include/iscsi_scst_itf_ver.h
 
 (
-for f in $(ls iscsi-scst/include/*h)
+for f in $(ls iscsi-scst/include/*h 2>/dev/null)
 do
   if [ "${f}" != "iscsi-scst/include/iscsi_scst_itf_ver.h" ]; then
     add_file "${f}" "include/scst/${f#iscsi-scst/include/}"
@@ -324,7 +324,7 @@ add_file "iscsi-scst/kernel/Makefile.in-kernel" \
 
 add_file "iscsi-scst/kernel/Kconfig"  "drivers/scst/iscsi-scst/Kconfig"
 
-for f in $(ls iscsi-scst/kernel/*.[ch])
+for f in $(ls iscsi-scst/kernel/*.[ch] 2>/dev/null)
 do
   add_file "${f}" "drivers/scst/iscsi-scst/${f#iscsi-scst/kernel/}"
 done
@@ -341,7 +341,7 @@ if [ "${qla2x00t}" = "true" ]; then
 
   make -C qla2x00t -s patches
 
-  for f in $(ls qla2x00t/in-tree-patches/qla2xxx-*-${kernel_version}.patch)
+  for f in $(ls qla2x00t/in-tree-patches/qla2xxx-*-${kernel_version}.patch 2>/dev/null)
   do
     g="${f#qla2x00t/in-tree-patches/qla2xxx-}"
     g="${g%-${kernel_version}.patch}"
@@ -360,7 +360,7 @@ if [ "${qla2x00t}" = "true" ]; then
   add_file "qla2x00t/qla2x_tgt_def.h" \
            "drivers/scsi/qla2xxx/qla2x_tgt_def.h"
 
-  for f in $(ls qla2x00t/qla2x00-target/*.[ch])
+  for f in $(ls qla2x00t/qla2x00-target/*.[ch] 2>/dev/null)
   do
     add_file "${f}" "drivers/scst/qla2xxx-target/${f#qla2x00t/qla2x00-target/}"
   done
@@ -387,7 +387,7 @@ if [ "$srpt" = "true" ]; then
 
   add_file  "srpt/src/Makefile.in_kernel" "drivers/scst/srpt/Makefile"
 
-  for f in $(ls srpt/src/*.[ch])
+  for f in $(ls srpt/src/*.[ch] 2>/dev/null)
   do
     add_file "${f}" "drivers/scst/srpt/${f#srpt/src/}"
   done
@@ -418,7 +418,7 @@ if [ "$mpt_scst" = "true" ]; then
 
   add_file  "mpt/in-tree/Kconfig"  "drivers/message/fusion/mpt_scst/Kconfig"
 
-  for f in $(ls mpt/*.[ch])
+  for f in $(ls mpt/*.[ch] 2>/dev/null)
   do
     add_file "${f}" "drivers/message/fusion/mpt_scst/${f#mpt/}"
   done
