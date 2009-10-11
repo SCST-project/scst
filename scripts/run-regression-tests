@@ -62,6 +62,7 @@ function usage {
        "kernel tree."
   echo "        -h - display this help information."
   echo "        -j - number of jobs that 'make' should run simultaneously."
+  echo "        -k - remove temporary files before exiting."
   echo "        -q - download kernel sources silently."
   echo "        <kver1> <kver2> ... - kernel versions to test."
 }
@@ -516,10 +517,11 @@ outputdir="${PWD}/regression-test-output-$(date +%Y-%m-%d_%Hh%Mm%Ss)"
 # Driver configuration.
 mpt_scst="false"
 qla2x00t="false"
+remove_temporary_files_at_end="false"
 scst_local="true"
 quiet_download="false"
 
-set -- $(/usr/bin/getopt "c:d:fj:hq" "$@")
+set -- $(/usr/bin/getopt "c:d:fj:hkq" "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
@@ -528,6 +530,7 @@ do
     '-f') full_check="true"; shift;;
     '-h') usage; exit 1;;
     '-j') export MAKEFLAGS="-j$2"; shift; shift;;
+    '-k') remove_temporary_files_at_end="true"; shift;;
     '-q') quiet_download="true"; shift;;
     '--') shift;;
     *)    usage; exit 1;;
@@ -591,9 +594,14 @@ do
     compile_kernel $k drivers/scst
   fi
   # run_headers_check $k
-  [ "${full_check}" = "true" ] || continue
-  compile_patched_kernel $k
-  run_checkstack $k
-  run_namespacecheck $k
-  run_make_htmldocs $k
+  if [ "${full_check}" = "true" ]; then
+    compile_patched_kernel $k
+    run_checkstack $k
+    run_namespacecheck $k
+    run_make_htmldocs $k
+  fi
+  if [ "${remove_temporary_files_at_end}" = "true" ]; then
+    rm -rf "${outputdir}"
+    mkdir -p "${outputdir}"
+  fi
 done
