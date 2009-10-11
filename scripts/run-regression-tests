@@ -103,6 +103,8 @@ function extract_kernel_tree {
       patch -f -s -p1 <<'EOF'
 Make sure that branch profiling does not trigger sparse warnings.
 See also http://bugzilla.kernel.org/show_bug.cgi?id=12925
+---
+See also http://lkml.org/lkml/2009/4/5/120
 --- orig/linux-2.6.29/include/linux/compiler.h	2009-03-23 19:12:14.000000000 -0400
 +++ linux-2.6.29/include/linux/compiler.h	2009-03-24 08:46:46.000000000 -0400
 @@ -75,7 +75,8 @@ struct ftrace_branch_data {
