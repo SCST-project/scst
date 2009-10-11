@@ -191,6 +191,7 @@ fi
 # Strip patch level from the kernel version number.
 if [ "${1#[0-9]*.[0-9]*.[0-9]*.[0-9]*}" != "$1" ]; then
   kernel_version="${1%.[0-9]*}"
+  patch_level="${1%${kernel_version}}"
 else
   kernel_version="$1"
 fi
@@ -339,26 +340,29 @@ add_file "iscsi-scst/README_in-tree" "Documentation/scst/README.iscsi" \
 
 if [ "${qla2x00t}" = "true" ]; then
 
-  make -C qla2x00t -s patches
+  if [ ! -e qla2x00t/qla2xxx-orig/$1 ]; then
+    ( cd qla2x00t && ./extract-qla2xxx-orig 2.6.26.8 )
+  fi
+  ( cd qla2x00t && ./generate-in-tree-patches "$1" )
 
-  for f in $(ls qla2x00t/in-tree-patches/qla2xxx-*-${kernel_version}.patch 2>/dev/null)
+  for f in $(ls qla2x00t/in-tree-patches/"$1"/*.patch 2>/dev/null)
   do
-    g="${f#qla2x00t/in-tree-patches/qla2xxx-}"
-    g="${g%-${kernel_version}.patch}"
+    g="${f#qla2x00t/in-tree-patches/$1/}"
+    g="${g%.patch}"
     add_patch "${f}" "drivers/scsi/qla2xxx/${g}"
   done
-
-  add_file "qla2x00t/qla2x00-target/Makefile_in-tree" \
-           "drivers/scst/qla2xxx-target/Makefile"
-
-  add_file "qla2x00t/qla2x00-target/Kconfig" \
-           "drivers/scst/qla2xxx-target/Kconfig"
 
   add_file "qla2x00t/qla2x_tgt.h" \
            "drivers/scsi/qla2xxx/qla2x_tgt.h"
 
   add_file "qla2x00t/qla2x_tgt_def.h" \
            "drivers/scsi/qla2xxx/qla2x_tgt_def.h"
+
+  add_file "qla2x00t/qla2x00-target/Makefile_in-tree" \
+           "drivers/scst/qla2xxx-target/Makefile"
+
+  add_file "qla2x00t/qla2x00-target/Kconfig" \
+           "drivers/scst/qla2xxx-target/Kconfig"
 
   for f in $(ls qla2x00t/qla2x00-target/*.[ch] 2>/dev/null)
   do

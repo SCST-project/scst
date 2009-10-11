@@ -292,7 +292,7 @@ function generate_kernel_patch {
     $([ "${scst_local}" = "true" ] && echo -- "-l") \
     $([ "${mpt_scst}"   = "true" ] && echo -- "-m") \
     $([ "${qla2x00t}"   = "true" ] && echo -- "-q") \
-    ${kver} > "${patchfile}"
+    ${1} > "${patchfile}"
 
   SIGNED_OFF_BY="..." \
   scripts/generate-kernel-patch \
@@ -300,7 +300,7 @@ function generate_kernel_patch {
     $([ "${scst_local}" = "true" ] && echo -- "-l") \
     $([ "${mpt_scst}"   = "true" ] && echo -- "-m") \
     $([ "${qla2x00t}"   = "true" ] && echo -- "-q") \
-    ${kver} > "${patchfile_m}"
+    ${1} > "${patchfile_m}"
 }
 
 # Generate a kernel patch through scripts/generate-kernel-patch and test

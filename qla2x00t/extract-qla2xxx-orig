@@ -1,0 +1,97 @@
+#!/bin/bash
+
+########################
+# Function definitions #
+########################
+
+# First three components of the kernel version number.
+function kernel_version {
+  echo "$1" | sed -n 's/^\([0-9]*\.[0-9]*\.[0-9]*\).*$/\1/p'
+}
+
+# Last component of the kernel version, or the empty string if $1 has only
+# three components.
+function patchlevel {
+  echo "$1" | sed -n 's/^\([0-9]*\.[0-9]*\.[0-9]*\)[.-]\(.*\)$/\2/p'
+}
+
+# Create a linux-$1 tree in the current directory, where $1 is a kernel
+# version number with either three or four components.
+function extract_kernel_tree {
+  local kver="$(kernel_version $1)"
+  local plevel="$(patchlevel $1)"
+  local tmpdir=kernel-tree-tmp-$$
+
+  rm -rf "linux-$1" "${tmpdir}"
+  mkdir "${tmpdir}" || return $?
+  (
+    cd "${tmpdir}" || return $?
+    tar xjf "${kernel_sources}/linux-${kver}.tar.bz2" || return $?
+    cd "linux-${kver}" || return $?
+    if [ "${plevel}" != "" ]; then
+      bzip2 -cd "${kernel_sources}/patch-$1.bz2" \
+        | patch -p1 -f -s || return $?
+    fi
+    cd ..
+    mv "linux-${kver}" "../linux-$1" || return $?
+  )
+  rmdir "${tmpdir}"
+}
+
+# Download the file from URL $1 and save it in the current directory.
+function download_file {
+  if [ ! -e "$(basename "$1")" ]; then
+    if [ "${quiet_download}" = "false" ]; then
+      echo "Downloading $1 ..."
+    fi
+    if ! wget -q -nc "$1"; then
+      echo "Downloading $1 failed."
+      return 1
+    fi
+  fi
+}
+
+# Make sure the kernel tarball and patch file are present in directory
+# ${kernel_sources}. Download any missing files from ${kernel_mirror}.
+function download_kernel {
+  local kver="$(kernel_version $1)"
+  local plevel="$(patchlevel $1)"
+
+  mkdir -p "${kernel_sources}" || return $?
+  test -w "${kernel_sources}" || return $?
+  (
+    cd "${kernel_sources}" || return $?
+    download_file "${kernel_mirror}/linux-$(kernel_version $1).tar.bz2" \
+      || return $?
+    if [ "${plevel}" != "" ]; then
+      download_file "${kernel_mirror}/patch-$1.bz2" || return $?
+    fi
+  )
+}
+
+
+#########################
+# Argument verification #
+#########################
+
+# Where to store persistenly downloaded kernel tarballs and kernel patches.
+kernel_sources="$HOME/software/downloads"
+# URL for downloading kernel tarballs and kernel patches.
+kernel_mirror="ftp://ftp.eu.kernel.org/pub/linux/kernel/v2.6"
+
+kernel_version="$1"
+
+if [ "$1" = "" ]; then
+  echo "Error: missing kernel version argument."
+  exit 1
+fi
+
+mkdir -p qla2xxx-orig
+cd qla2xxx-orig || exit $?
+extract_kernel_tree "${kernel_version}"
+touch linux-*/drivers/scsi/qla2xxx/*
+rm -rf "${kernel_version}"
+mkdir -p "${kernel_version}"
+mv linux-*/drivers/scsi/qla2xxx/* "${kernel_version}"
+rm -rf linux-*
+cd ..
