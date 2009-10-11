@@ -125,7 +125,7 @@ for logfile in old new ; do
           "svn co -q -r {${svn_date}} ${scst_svn_repo} ${ABT_TMPDIR}/scst" && \
    runcmd ${logfile} \
           "Running regression tests" \
-          "cd ${ABT_TMPDIR}/scst && scripts/run-regression-tests -d ${ABT_TMPDIR}/regtest -j ${ABT_JOBS} -q ${ABT_KERNELS}"
+          "cd ${ABT_TMPDIR}/scst && scripts/run-regression-tests -k -d ${ABT_TMPDIR}/regtest -j ${ABT_JOBS} -q ${ABT_KERNELS}"
    runcmd ${logfile} \
           "Cleaning up" \
           "rm -rf ${ABT_TMPDIR}"
