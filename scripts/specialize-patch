@@ -279,6 +279,14 @@ function process_preprocessor_statement() {
   }
 }
 
+function reset_hunk_state_variables() {
+  lines = 0
+  lines_deleted = 0
+  output = 1
+  if_nesting_level = -1
+  delete_next_blank_line = 0
+}
+
 function dump_lines() {
   # Detect empty hunks
   first_modif = -1
@@ -299,8 +307,7 @@ function dump_lines() {
     for (i = 0; i < lines; i++)
     print line[i]
   }
-  lines = 0
-  lines_deleted = 0
+  reset_hunk_state_variables()
 }
 
 BEGIN {
@@ -320,11 +327,7 @@ BEGIN {
     delete_disabled_code = 0
 
   # Variable initialization.
-  lines = 0
-  lines_deleted = 0
-  output = 1
-  if_nesting_level = -1
-  delete_next_blank_line = 0
+  reset_hunk_state_variables()
 }
 
 
