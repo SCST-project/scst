@@ -2507,7 +2507,7 @@ void scst_free_cmd(struct scst_cmd *cmd)
 	if (!cmd->tgt_data_buf_alloced)
 		scst_check_restore_sg_buff(cmd);
 
-	if (cmd->tgtt->on_free_cmd != NULL) {
+	if ((cmd->tgtt->on_free_cmd != NULL) && likely(!cmd->internal)) {
 		TRACE_DBG("Calling target's on_free_cmd(%p)", cmd);
 		scst_set_cur_start(cmd);
 		cmd->tgtt->on_free_cmd(cmd);
