@@ -2032,7 +2032,7 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 		    cmd->scsi_req->sr_bufflen, scst_cmd_done, cmd->timeout,
 		    cmd->retries);
 #else
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
 	rc = scst_exec_req(dev->scsi_dev, cmd->cdb, cmd->cdb_len,
 			cmd->data_direction, cmd->sg, cmd->bufflen, cmd->sg_cnt,
 			cmd->timeout, cmd->retries, cmd, scst_cmd_done,

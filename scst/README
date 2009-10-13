@@ -63,19 +63,16 @@ them are optional, so, if you don't need the corresponding
 functionality, you may not apply them.
 
 1. scst_exec_req_fifo-2.6.X.patch. This patch is necessary for
-pass-through dev handlers with kernels <2.6.26, because in the them
-scsi_do_req()/scsi_execute_async() work in LIFO order, instead of
-expected and required FIFO. So SCST needs new functions
-scsi_do_req_fifo() or scsi_execute_async_fifo() to be added in the
-kernel. This patch does that. You may not patch the kernel if you don't
-need pass-through support. Alternatively, you can define
-CONFIG_SCST_STRICT_SERIALIZING compile option during the compilation
-(see description below). This patch is optional for kernels starting
-from 2.6.26. On those kernels pass-through will well work without it.
-The patch for them created only for the mainline kernel inclusion.
-(Actually, implementation on scst_scsi_exec_async(), which you can find
-in scst_lib.c for kernels >=2.6.26, can work on the earlier kernels as
-well, so you're welcome to backport it.)
+pass-through dev handlers (scst_disk, scst_tape, etc.). Kernels <2.6.30
+need it, because in them scsi_do_req()/scsi_execute_async() work in LIFO
+order, instead of expected and required FIFO. So, SCST needs new
+functions scsi_do_req_fifo() or scsi_execute_async_fifo() to be added in
+the kernel. Kernels >=2.6.30 need it, because in them there is no
+functionality to execute commands with data in scatter-gather buffers.
+This patch adds the necessary functionality to the kernel. You may not
+patch your kernel if you don't need pass-through support. Alternatively,
+on kernels <2.6.30 you can define CONFIG_SCST_STRICT_SERIALIZING compile
+option during the compilation (see description below).
 
 2. io_context-2.6.X.patch. This patch exports some IO context management
 functions from the kernel. For performance reasons SCST queues commands

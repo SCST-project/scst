@@ -349,7 +349,7 @@ static inline void scst_do_req(struct scsi_request *sreq,
 	scsi_do_req_fifo(sreq, cmnd, buffer, bufflen, done, timeout, retries);
 #endif
 }
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
 static inline int scst_exec_req(struct scsi_device *sdev,
 	const unsigned char *cmd, int cmd_len, int data_direction,
 	struct scatterlist *sgl, unsigned bufflen, unsigned nents,
@@ -360,16 +360,25 @@ static inline int scst_exec_req(struct scsi_device *sdev,
 	return scsi_execute_async(sdev, cmd, cmd_len, data_direction, (void *)sgl,
 		    bufflen, nents, timeout, retries, privdata, done, gfp);
 #elif !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
-	WARN_ON(1);
+	WARN_ON_ONCE(1);
 	return -1;
 #else
 	return scsi_execute_async_fifo(sdev, cmd, cmd_len, data_direction,
 	    (void *)sgl, bufflen, nents, timeout, retries, privdata, done, gfp);
 #endif
 }
-#else /* i.e. LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26) */
+#else /* i.e. LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30) */
+#if defined(SCSI_EXEC_REQ_FIFO_DEFINED)
 int scst_scsi_exec_async(struct scst_cmd *cmd,
 	void (*done)(void *, char *, int, int));
+#else
+static inline int scst_scsi_exec_async(struct scst_cmd *cmd,
+	void (*done)(void *, char *, int, int))
+{
+	WARN_ON_ONCE(1);
+	return -1;
+}
+#endif
 #endif
 
 int scst_alloc_space(struct scst_cmd *cmd);
