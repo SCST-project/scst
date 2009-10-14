@@ -405,7 +405,7 @@ qla2x00_queuecommand(struct scsi_cmnd *cmd, void (*done)(struct scsi_cmnd *))
 	}
 
 	/* Close window on fcport/rport state-transitioning. */
-	if (!*(fc_port_t **)rport->dd_data) {
+	if (fcport->drport) {
 		cmd->result = DID_IMM_RETRY << 16;
 		goto qc_fail_command;
 	}
@@ -472,7 +472,7 @@ qla24xx_queuecommand(struct scsi_cmnd *cmd, void (*done)(struct scsi_cmnd *))
 	}
 
 	/* Close window on fcport/rport state-transitioning. */
-	if (!*(fc_port_t **)rport->dd_data) {
+	if (fcport->drport) {
 		cmd->result = DID_IMM_RETRY << 16;
 		goto qc24_fail_command;
 	}
@@ -632,6 +632,40 @@ qla2x00_wait_for_loop_ready(scsi_qla_host_t *ha)
 		}
 	}
 	return (return_status);
+}
+
+void
+qla2x00_abort_fcport_cmds(fc_port_t *fcport)
+{
+	int cnt;
+	unsigned long flags;
+	srb_t *sp;
+	scsi_qla_host_t *ha = fcport->ha;
+	scsi_qla_host_t *pha = to_qla_parent(ha);
+
+	spin_lock_irqsave(&pha->hardware_lock, flags);
+	for (cnt = 1; cnt < MAX_OUTSTANDING_COMMANDS; cnt++) {
+		sp = pha->outstanding_cmds[cnt];
+		if (!sp)
+			continue;
+		if (sp->fcport != fcport)
+			continue;
+
+		spin_unlock_irqrestore(&pha->hardware_lock, flags);
+		if (ha->isp_ops->abort_command(ha, sp)) {
+			DEBUG2(qla_printk(KERN_WARNING, ha,
+			    "Abort failed --  %lx\n", sp->cmd->serial_number));
+		} else {
+			if (qla2x00_eh_wait_on_command(ha, sp->cmd) !=
+			    QLA_SUCCESS)
+				DEBUG2(qla_printk(KERN_WARNING, ha,
+				    "Abort failed while waiting --  %lx\n",
+				    sp->cmd->serial_number));
+
+		}
+		spin_lock_irqsave(&pha->hardware_lock, flags);
+	}
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 }
 
 static void
@@ -1874,7 +1908,6 @@ static inline void
 qla2x00_schedule_rport_del(struct scsi_qla_host *ha, fc_port_t *fcport,
     int defer)
 {
-	unsigned long flags;
 	struct fc_rport *rport;
 
 	if (!fcport->rport)
@@ -1882,17 +1915,12 @@ qla2x00_schedule_rport_del(struct scsi_qla_host *ha, fc_port_t *fcport,
 
 	rport = fcport->rport;
 	if (defer) {
-		spin_lock_irqsave(&fcport->rport_lock, flags);
+		spin_lock_irq(ha->host->host_lock);
 		fcport->drport = rport;
-		fcport->rport = NULL;
-		*(fc_port_t **)rport->dd_data = NULL;
-		spin_unlock_irqrestore(&fcport->rport_lock, flags);
+		spin_unlock_irq(ha->host->host_lock);
 		set_bit(FCPORT_UPDATE_NEEDED, &ha->dpc_flags);
+		qla2xxx_wake_dpc(ha);
 	} else {
-		spin_lock_irqsave(&fcport->rport_lock, flags);
-		fcport->rport = NULL;
-		*(fc_port_t **)rport->dd_data = NULL;
-		spin_unlock_irqrestore(&fcport->rport_lock, flags);
 		fc_remote_port_delete(rport);
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 		if (qla_target.tgt_fc_port_deleted)

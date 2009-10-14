@@ -2006,12 +2006,11 @@ qla2x00_rport_del(void *data)
 {
 	fc_port_t *fcport = data;
 	struct fc_rport *rport;
-	unsigned long flags;
 
-	spin_lock_irqsave(&fcport->rport_lock, flags);
+	spin_lock_irq(fcport->ha->host->host_lock);
 	rport = fcport->drport;
 	fcport->drport = NULL;
-	spin_unlock_irqrestore(&fcport->rport_lock, flags);
+	spin_unlock_irq(fcport->ha->host->host_lock);
 	if (rport) {
 		fc_remote_port_delete(rport);
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
@@ -2045,7 +2044,6 @@ qla2x00_alloc_fcport(scsi_qla_host_t *ha, gfp_t flags)
 	atomic_set(&fcport->state, FCS_UNCONFIGURED);
 	fcport->flags = FCF_RLC_SUPPORT;
 	fcport->supported_classes = FC_COS_UNSPECIFIED;
-	spin_lock_init(&fcport->rport_lock);
 
 	return fcport;
 }
@@ -2390,20 +2388,16 @@ qla2x00_reg_remote_port(scsi_qla_host_t *ha, fc_port_t *fcport)
 {
 	struct fc_rport_identifiers rport_ids;
 	struct fc_rport *rport;
-	unsigned long flags;
 
 	if (fcport->drport)
 		qla2x00_rport_del(fcport);
-
-	if (fcport->rport)
-		return;
 
 	rport_ids.node_name = wwn_to_u64(fcport->node_name);
 	rport_ids.port_name = wwn_to_u64(fcport->port_name);
 	rport_ids.port_id = fcport->d_id.b.domain << 16 |
 	    fcport->d_id.b.area << 8 | fcport->d_id.b.al_pa;
 	rport_ids.roles = FC_RPORT_ROLE_UNKNOWN;
-	rport = fc_remote_port_add(ha->host, 0, &rport_ids);
+	fcport->rport = rport = fc_remote_port_add(ha->host, 0, &rport_ids);
 	if (!rport) {
 		qla_printk(KERN_WARNING, ha,
 		    "Unable to allocate fc remote port!\n");
@@ -2413,10 +2407,9 @@ qla2x00_reg_remote_port(scsi_qla_host_t *ha, fc_port_t *fcport)
 	if (qla_target.tgt_fc_port_added)
 		qla_target.tgt_fc_port_added(ha, fcport);
 #endif
-	spin_lock_irqsave(&fcport->rport_lock, flags);
-	fcport->rport = rport;
+	spin_lock_irq(fcport->ha->host->host_lock);
 	*((fc_port_t **)rport->dd_data) = fcport;
-	spin_unlock_irqrestore(&fcport->rport_lock, flags);
+	spin_unlock_irq(fcport->ha->host->host_lock);
 
 	rport->supported_classes = fcport->supported_classes;
 
