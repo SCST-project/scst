@@ -119,7 +119,7 @@ See also http://lkml.org/lkml/2009/4/5/120
  #define likely_notrace(x)	__builtin_expect(!!(x), 1)
 EOF
     fi
-    if [ "$1" = "2.6.31" -o "$1" = "2.6.31.1" -o "$1" = "2.6.31.2" -o "$1" = "2.6.31.3" ]
+    if [ "$1" = "2.6.31" -o "$1" = "2.6.31.1" -o "$1" = "2.6.31.2" -o "$1" = "2.6.31.3" -o "$1" = "2.6.31.4" ]
     then
       cd "../linux-$1" || return $?
       patch -f -s -p1 <<'EOF'
