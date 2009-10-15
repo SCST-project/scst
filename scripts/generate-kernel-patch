@@ -24,12 +24,13 @@
 ########################
 
 function usage {
-  echo "Usage: $0 [-h] [-m] [-p <dir>] <kernel version>, where: "
+  echo "Usage: $0 [-h] [-m] [-n] [-p <dir>] [-u] <kernel version>, where: "
   echo "        -h - show this text"
   echo "        -m - add mpt target driver"
   echo "        -n - do not delete code disabled via preprocessor statements"
   echo "        -p - generate multiple patches instead of one big patch into"\
        "the specified directory."
+  echo "        -u - enables #define GENERATING_UPSTREAM_PATCH."
 }
 
 # Convert an existing patch.
@@ -97,6 +98,16 @@ diff -uprN orig/linux-${kernel_version}/$1 linux-${kernel_version}/$1
 EOF
 }
 
+# Run the script specialize_patch with appropriate options on the patch
+# passed via stdin and send the specialized patch to stdout.
+function specialize_patch {
+  "$(dirname $0)/specialize-patch" \
+       ${specialize_patch_options} \
+       -v kernel_version="${kernel_version}" \
+       -v SCSI_EXEC_REQ_FIFO_DEFINED="${scsi_exec_req_fifo_defined}" \
+       -v SCST_IO_CONTEXT="${scst_io_context}"
+}
+
 # Read a patch from stdin, specialize it for kernel version ${kernel_version}
 # and write the output either to stdout or to the file $1 (if not empty),
 # depending on the value of the variable ${multiple_patches}.
@@ -109,22 +120,14 @@ function process_patch {
     (
       echo "Signed-off-by: ${SIGNED_OFF_BY}"
       echo ""
-      "$(dirname $0)/specialize-patch" \
-          ${specialize_patch_options} \
-          -v kernel_version="${kernel_version}" \
-          -v SCSI_EXEC_REQ_FIFO_DEFINED="${scsi_exec_req_fifo_defined}" \
-          -v SCST_IO_CONTEXT="${scst_io_context}"
+      specialize_patch
     ) >"${patchdir}/$1"
     else
       # echo "Discarded $(wc -l) lines."
       true
     fi
   else
-    "$(dirname $0)/specialize-patch" \
-        ${specialize_patch_options} \
-        -v kernel_version="${kernel_version}" \
-        -v SCSI_EXEC_REQ_FIFO_DEFINED="${scsi_exec_req_fifo_defined}" \
-        -v SCST_IO_CONTEXT="${scst_io_context}"
+    specialize_patch
   fi
 }
 
@@ -139,20 +142,21 @@ function in_separate_patch {
 # Argument verification #
 #########################
 
-qla2x00t="true"
-srpt="true"
+generating_upstream_patch="false"
 mpt_scst="false"
 multiple_patches="false"
 patchdir=""
-specialize_patch_options="-v delete_disabled_code=1"
+qla2x00t="true"
 replace_sbug_by_bug="true"
+specialize_patch_options="-v delete_disabled_code=1"
+srpt="true"
 
 if [ ! -e scst -o ! -e iscsi-scst -o ! -e srpt -o ! -e scst_local ]; then
   echo "Please run this script from inside the SCST subversion source tree."
   exit 1
 fi
 
-set -- $(/usr/bin/getopt hlmnp: "$@")
+set -- $(/usr/bin/getopt hlmnp:u "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
@@ -164,10 +168,15 @@ do
           shift
           ;;
     '-p') multiple_patches="true"; patchdir="$2"; shift; shift;;
+    '-u') generating_upstream_patch="true"; shift;;
     '--') shift;;
     *)    usage; exit 1;;
   esac
 done
+
+if [ "${generating_upstream_patch}" = "true" ]; then
+  specialize_patch_options="${specialize_patch_options} -v generating_upstream_patch_defined=1"
+fi
 
 if [ $# != 1 ]; then
   usage
@@ -209,15 +218,22 @@ scst_io_context=0
 for p in scst/kernel/*-${kernel_version}.patch \
          iscsi-scst/kernel/patches/*-${kernel_version}.patch
 do
-  if grep -q '^\+#define SCSI_EXEC_REQ_FIFO_DEFINED$' "${p}"; then
-    scsi_exec_req_fifo_defined=1
+  # Exclude the put_page_callback patch when command-line option -u has been
+  # specified since the current approach is not considered acceptable for
+  # upstream kernel inclusion. See also http://lkml.org/lkml/2008/12/11/213.
+  if [ "${generating_upstream_patch}" = "false" \
+       -o "${p#iscsi-scst/kernel/patches/put_page_callback}" = "$p" ]
+  then
+    if grep -q '^\+#define SCSI_EXEC_REQ_FIFO_DEFINED$' "${p}"; then
+      scsi_exec_req_fifo_defined=1
+    fi
+    if grep -q '^\+#define SCST_IO_CONTEXT$' "${p}"; then
+      scst_io_context=1
+    fi
+    diffname="${p#scst/kernel/}"
+    diffname="${p%-${kernel_version}.patch}.diff"
+    process_patch < "$p" "${diffname}"
   fi
-  if grep -q '^\+#define SCST_IO_CONTEXT$' "${p}"; then
-    scst_io_context=1
-  fi
-  diffname="${p#scst/kernel/}"
-  diffname="${p%-${kernel_version}.patch}.diff"
-  process_patch < "$p" "${diffname}"
 done
 
 
