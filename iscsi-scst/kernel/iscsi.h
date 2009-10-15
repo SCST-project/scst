@@ -223,6 +223,7 @@ struct iscsi_conn {
 	u32 read_size;
 	int read_state;
 	struct iovec *read_iov;
+	struct task_struct *rx_task;
 	uint32_t rpadding;
 
 	struct iscsi_target *target;
@@ -233,6 +234,7 @@ struct iscsi_conn {
 	struct iscsi_conn *conn_reinst_successor;
 	struct list_head reinst_pending_cmd_list;
 
+	wait_queue_head_t read_state_waitQ;
 	struct completion ready_to_free;
 
 	/* Doesn't need any protection */
@@ -355,7 +357,6 @@ struct iscsi_cmnd {
 			struct list_head rx_ddigest_cmd_list;
 			struct list_head rx_ddigest_cmd_list_entry;
 
-			wait_queue_head_t scst_waitQ;
 			int scst_state;
 			union {
 				struct scst_cmd *scst_cmd;
@@ -414,6 +415,7 @@ extern wait_queue_head_t iscsi_wr_waitQ;
 extern struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *,
 	struct iscsi_cmnd *parent);
 extern int cmnd_rx_start(struct iscsi_cmnd *);
+extern int cmnd_rx_continue(struct iscsi_cmnd *req);
 extern void cmnd_rx_end(struct iscsi_cmnd *);
 extern void cmnd_tx_start(struct iscsi_cmnd *);
 extern void cmnd_tx_end(struct iscsi_cmnd *);
@@ -429,6 +431,7 @@ extern void conn_reinst_finished(struct iscsi_conn *);
 extern int conn_add(struct iscsi_session *, struct iscsi_kern_conn_info *);
 extern int conn_del(struct iscsi_session *, struct iscsi_kern_conn_info *);
 extern int conn_free(struct iscsi_conn *);
+extern void iscsi_make_conn_rd_active(struct iscsi_conn *conn);
 
 #define ISCSI_CONN_ACTIVE_CLOSE		1
 #define ISCSI_CONN_DELETING		2

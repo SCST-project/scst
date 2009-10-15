@@ -200,7 +200,6 @@ struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *conn,
 	cmnd->scst_state = ISCSI_CMD_STATE_NEW;
 	cmnd->conn = conn;
 	cmnd->parent_req = parent;
-	init_waitqueue_head(&cmnd->scst_waitQ);
 
 	if (parent == NULL) {
 		conn_get(conn);
@@ -1368,6 +1367,108 @@ static inline u32 get_next_ttt(struct iscsi_conn *conn)
 	return cpu_to_be32(ttt);
 }
 
+int cmnd_rx_continue(struct iscsi_cmnd *req)
+{
+	struct iscsi_conn *conn = req->conn;
+	struct iscsi_session *session = conn->session;
+	struct iscsi_scsi_cmd_hdr *req_hdr = cmnd_hdr(req);
+	struct scst_cmd *scst_cmd = req->scst_cmd;
+	scst_data_direction dir;
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("scsi command: %02x", req_hdr->scb[0]);
+
+	if (unlikely(req->scst_state != ISCSI_CMD_STATE_AFTER_PREPROC)) {
+		TRACE_DBG("req %p is in %x state", req, req->scst_state);
+		if (req->scst_state == ISCSI_CMD_STATE_PROCESSED) {
+			cmnd_reject_scsi_cmd(req);
+			goto out;
+		}
+		if (unlikely(req->tm_aborted)) {
+			TRACE_MGMT_DBG("req %p (scst_cmd %p) aborted", req,
+				req->scst_cmd);
+			cmnd_prepare_get_rejected_cmd_data(req);
+			goto out;
+		}
+		sBUG();
+	}
+
+	dir = scst_cmd_get_data_direction(scst_cmd);
+	if (dir & SCST_DATA_WRITE) {
+		req->is_unsolicited_data = !(req_hdr->flags & ISCSI_CMD_FINAL);
+		req->r2t_length = be32_to_cpu(req_hdr->data_length) -
+					req->pdu.datasize;
+		if (req->r2t_length > 0)
+			req->data_waiting = 1;
+	} else {
+		if (unlikely(!(req_hdr->flags & ISCSI_CMD_FINAL) ||
+			     req->pdu.datasize)) {
+			PRINT_ERROR("Unexpected unsolicited data (ITT %x "
+				"CDB %x", cmnd_itt(req), req_hdr->scb[0]);
+			scst_set_cmd_error(scst_cmd,
+				SCST_LOAD_SENSE(iscsi_sense_unexpected_unsolicited_data));
+			if (scst_cmd_get_sense_buffer(scst_cmd) != NULL)
+				create_status_rsp(req, SAM_STAT_CHECK_CONDITION,
+				    scst_cmd_get_sense_buffer(scst_cmd),
+				    scst_cmd_get_sense_buffer_len(scst_cmd));
+			else
+				create_status_rsp(req, SAM_STAT_BUSY, NULL, 0);
+			cmnd_reject_scsi_cmd(req);
+			goto out;
+		}
+	}
+
+	req->target_task_tag = get_next_ttt(conn);
+	if (dir != SCST_DATA_BIDI) {
+		req->sg = scst_cmd_get_sg(scst_cmd);
+		req->sg_cnt = scst_cmd_get_sg_cnt(scst_cmd);
+		req->bufflen = scst_cmd_get_bufflen(scst_cmd);
+	} else {
+		req->sg = scst_cmd_get_in_sg(scst_cmd);
+		req->sg_cnt = scst_cmd_get_in_sg_cnt(scst_cmd);
+		req->bufflen = scst_cmd_get_in_bufflen(scst_cmd);
+	}
+	if (unlikely(req->r2t_length > req->bufflen)) {
+		PRINT_ERROR("req->r2t_length %d > req->bufflen %d",
+			req->r2t_length, req->bufflen);
+		req->r2t_length = req->bufflen;
+	}
+
+	TRACE_DBG("req=%p, dir=%d, is_unsolicited_data=%d, "
+		"r2t_length=%d, bufflen=%d", req, dir,
+		req->is_unsolicited_data, req->r2t_length, req->bufflen);
+
+	if (unlikely(!session->sess_param.immediate_data &&
+		     req->pdu.datasize)) {
+		PRINT_ERROR("Initiator %s violated negotiated paremeters: "
+			"forbidden immediate data sent (ITT %x, op  %x)",
+			session->initiator_name, cmnd_itt(req),
+			req_hdr->scb[0]);
+		res = -EINVAL;
+		goto out;
+	}
+
+	if (unlikely(session->sess_param.initial_r2t &&
+		     !(req_hdr->flags & ISCSI_CMD_FINAL))) {
+		PRINT_ERROR("Initiator %s violated negotiated paremeters: "
+			"initial R2T is required (ITT %x, op  %x)",
+			session->initiator_name, cmnd_itt(req),
+			req_hdr->scb[0]);
+		res = -EINVAL;
+		goto out;
+	}
+
+	if (req->pdu.datasize)
+		res = cmnd_prepare_recv_pdu(conn, req, 0, req->pdu.datasize);
+
+out:
+	/* Aborted commands will be freed in cmnd_rx_end() */
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 static int scsi_cmnd_start(struct iscsi_cmnd *req)
 {
 	struct iscsi_conn *conn = req->conn;
@@ -1492,92 +1593,17 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 	TRACE_DBG("START Command (tag %d, queue_type %d)",
 		req_hdr->itt, scst_cmd->queue_type);
 	req->scst_state = ISCSI_CMD_STATE_RX_CMD;
+	conn->rx_task = current;
 	scst_cmd_init_stage1_done(scst_cmd, SCST_CONTEXT_DIRECT, 0);
 
-	wait_event(req->scst_waitQ, req->scst_state != ISCSI_CMD_STATE_RX_CMD);
-
-	if (unlikely(req->scst_state != ISCSI_CMD_STATE_AFTER_PREPROC)) {
-		TRACE_DBG("req %p is in %x state", req, req->scst_state);
-		if (req->scst_state == ISCSI_CMD_STATE_PROCESSED) {
-			cmnd_reject_scsi_cmd(req);
-			goto out;
-		}
-		if (unlikely(req->tm_aborted)) {
-			TRACE_MGMT_DBG("req %p (scst_cmd %p) aborted", req,
-				req->scst_cmd);
-			cmnd_prepare_get_rejected_cmd_data(req);
-			goto out;
-		}
-		sBUG();
+	if (req->scst_state != ISCSI_CMD_STATE_RX_CMD)
+		res = cmnd_rx_continue(req);
+	else {
+		TRACE_DBG("Delaying req %p post processing (scst_state %d)",
+			req, req->scst_state);
+		res = 1;
 	}
 
-	dir = scst_cmd_get_data_direction(scst_cmd);
-	if (dir & SCST_DATA_WRITE) {
-		req->is_unsolicited_data = !(req_hdr->flags & ISCSI_CMD_FINAL);
-		req->r2t_length = be32_to_cpu(req_hdr->data_length) -
-					req->pdu.datasize;
-		if (req->r2t_length > 0)
-			req->data_waiting = 1;
-	} else {
-		if (unlikely(!(req_hdr->flags & ISCSI_CMD_FINAL) ||
-			     req->pdu.datasize)) {
-			PRINT_ERROR("Unexpected unsolicited data (ITT %x "
-				"CDB %x", cmnd_itt(req), req_hdr->scb[0]);
-			scst_set_cmd_error(scst_cmd,
-				SCST_LOAD_SENSE(iscsi_sense_unexpected_unsolicited_data));
-			if (scst_cmd_get_sense_buffer(scst_cmd) != NULL)
-				create_status_rsp(req, SAM_STAT_CHECK_CONDITION,
-				    scst_cmd_get_sense_buffer(scst_cmd),
-				    scst_cmd_get_sense_buffer_len(scst_cmd));
-			else
-				create_status_rsp(req, SAM_STAT_BUSY, NULL, 0);
-			cmnd_reject_scsi_cmd(req);
-			goto out;
-		}
-	}
-
-	req->target_task_tag = get_next_ttt(conn);
-	if (dir != SCST_DATA_BIDI) {
-		req->sg = scst_cmd_get_sg(scst_cmd);
-		req->sg_cnt = scst_cmd_get_sg_cnt(scst_cmd);
-		req->bufflen = scst_cmd_get_bufflen(scst_cmd);
-	} else {
-		req->sg = scst_cmd_get_in_sg(scst_cmd);
-		req->sg_cnt = scst_cmd_get_in_sg_cnt(scst_cmd);
-		req->bufflen = scst_cmd_get_in_bufflen(scst_cmd);
-	}
-	if (unlikely(req->r2t_length > req->bufflen)) {
-		PRINT_ERROR("req->r2t_length %d > req->bufflen %d",
-			req->r2t_length, req->bufflen);
-		req->r2t_length = req->bufflen;
-	}
-
-	TRACE_DBG("req=%p, dir=%d, is_unsolicited_data=%d, "
-		"r2t_length=%d, bufflen=%d", req, dir,
-		req->is_unsolicited_data, req->r2t_length, req->bufflen);
-
-	if (unlikely(!session->sess_param.immediate_data &&
-		     req->pdu.datasize)) {
-		PRINT_ERROR("Initiator %s violated negotiated paremeters: "
-			"forbidden immediate data sent (ITT %x, op  %x)",
-			session->initiator_name, cmnd_itt(req),
-			req_hdr->scb[0]);
-		res = -EINVAL;
-		goto out;
-	}
-
-	if (unlikely(session->sess_param.initial_r2t &&
-		     !(req_hdr->flags & ISCSI_CMD_FINAL))) {
-		PRINT_ERROR("Initiator %s violated negotiated paremeters: "
-			"initial R2T is required (ITT %x, op  %x)",
-			session->initiator_name, cmnd_itt(req),
-			req_hdr->scb[0]);
-		res = -EINVAL;
-		goto out;
-	}
-
-	if (req->pdu.datasize)
-		res = cmnd_prepare_recv_pdu(conn, req, 0, req->pdu.datasize);
 out:
 	/* Aborted commands will be freed in cmnd_rx_end() */
 	TRACE_EXIT_RES(res);
@@ -2619,18 +2645,26 @@ static int iscsi_alloc_data_buf(struct scst_cmd *cmd)
 static inline void iscsi_set_state_wake_up(struct iscsi_cmnd *req,
 	int new_state)
 {
-	/*
-	 * We use wait_event() to wait for the state change, but it checks its
-	 * condition without any protection, so without cmnd_get() it is
-	 * possible that req will die "immediately" after the state assignment
-	 * and wake_up() will operate on dead data. We use the ordered version
-	 * of cmnd_get(), because "get" must be done before the state
-	 * assignment.
-	 */
-	cmnd_get_ordered(req);
-	req->scst_state = new_state;
-	wake_up(&req->scst_waitQ);
-	cmnd_put(req);
+	if (req->conn->rx_task == current)
+		req->scst_state = new_state;
+	else {
+		/*
+		 * We wait for the state change without any protection, so
+		 * without cmnd_get() it is possible that req will die
+		 * "immediately" after the state assignment and
+		 * iscsi_make_conn_rd_active() will operate on dead data.
+		 * We use the ordered version of cmnd_get(), because "get"
+		 * must be done before the state assignment.
+		 */
+		cmnd_get_ordered(req);
+		req->scst_state = new_state;
+		iscsi_make_conn_rd_active(req->conn);
+		if (unlikely(req->conn->closing)) {
+			TRACE_DBG("Waiking up closing conn %p", req->conn);
+			wake_up(&req->conn->read_state_waitQ);
+		}
+		cmnd_put(req);
+	}
 	return;
 }
 

@@ -26,31 +26,23 @@
 #include "digest.h"
 
 enum rx_state {
-	RX_INIT_BHS, /* Must be zero. */
+	RX_INIT_BHS, /* Must be zero for better "switch" optimiztion. */
 	RX_BHS,
-
-	RX_INIT_AHS,
-	RX_AHS,
-
-	RX_INIT_HDIGEST,
-	RX_HDIGEST,
-	RX_CHECK_HDIGEST,
-
-	RX_INIT_DATA,
+	RX_CMD_START,
 	RX_DATA,
-
-	RX_INIT_PADDING,
-	RX_PADDING,
-
-	RX_INIT_DDIGEST,
-	RX_DDIGEST,
-	RX_CHECK_DDIGEST,
-
 	RX_END,
+
+	RX_CMD_CONTINUE,
+	RX_INIT_HDIGEST,
+	RX_CHECK_HDIGEST,
+	RX_INIT_DDIGEST,
+	RX_CHECK_DDIGEST,
+	RX_AHS,
+	RX_PADDING,
 };
 
 enum tx_state {
-	TX_INIT, /* Must be zero. */
+	TX_INIT = 0, /* Must be zero for better "switch" optimiztion. */
 	TX_BHS_DATA,
 	TX_INIT_PADDING,
 	TX_PADDING,
@@ -439,6 +431,14 @@ static void close_conn(struct iscsi_conn *conn)
 
 	if (conn->read_state != RX_INIT_BHS) {
 		struct iscsi_cmnd *cmnd = conn->read_cmnd;
+
+		if (cmnd->scst_state == ISCSI_CMD_STATE_RX_CMD) {
+			TRACE_DBG("Going to wait for cmnd %p to change state "
+				"from RX_CMD", cmnd);
+		}
+		wait_event(conn->read_state_waitQ,
+			cmnd->scst_state != ISCSI_CMD_STATE_RX_CMD);
+
 		conn->read_cmnd = NULL;
 		conn->read_state = RX_INIT_BHS;
 		req_cmnd_release_force(cmnd, 0);
@@ -615,7 +615,7 @@ static inline void iscsi_conn_init_read(struct iscsi_conn *conn,
 	return;
 }
 
-static void iscsi_conn_read_ahs(struct iscsi_conn *conn,
+static void iscsi_conn_prepare_read_ahs(struct iscsi_conn *conn,
 	struct iscsi_cmnd *cmnd)
 {
 	int asize = (cmnd->pdu.ahssize + 3) & -4;
@@ -643,187 +643,87 @@ static struct iscsi_cmnd *iscsi_get_send_cmnd(struct iscsi_conn *conn)
 	return cmnd;
 }
 
-static int do_recv(struct iscsi_conn *conn, int state)
+/* Returns number of bytes left to receive or <0 for error */
+static int do_recv(struct iscsi_conn *conn)
 {
-	mm_segment_t oldfs;
-	struct msghdr msg;
-	int res, first_len;
+	int res;
 
-	sBUG_ON(conn->read_cmnd == NULL);
+	EXTRACHECKS_BUG_ON(conn->read_cmnd == NULL);
 
-	if (unlikely(conn->closing)) {
-		res = -EIO;
-		goto out;
-	}
+	do {
+		mm_segment_t oldfs;
+		struct msghdr msg;
+		int first_len;
 
-	memset(&msg, 0, sizeof(msg));
-	msg.msg_iov = conn->read_msg.msg_iov;
-	msg.msg_iovlen = conn->read_msg.msg_iovlen;
-	first_len = msg.msg_iov->iov_len;
+		if (unlikely(conn->closing)) {
+			res = -EIO;
+			goto out;
+		}
 
-	oldfs = get_fs();
-	set_fs(get_ds());
-	res = sock_recvmsg(conn->sock, &msg, conn->read_size,
-			   MSG_DONTWAIT | MSG_NOSIGNAL);
-	set_fs(oldfs);
+		memset(&msg, 0, sizeof(msg));
+		msg.msg_iov = conn->read_msg.msg_iov;
+		msg.msg_iovlen = conn->read_msg.msg_iovlen;
+		first_len = msg.msg_iov->iov_len;
 
-	if (res <= 0) {
-		switch (res) {
-		case -EAGAIN:
-		case -ERESTARTSYS:
-			TRACE_DBG("EAGAIN or ERESTARTSYS (%d) received for "
-				  "conn %p", res, conn);
-			break;
-		default:
-			PRINT_ERROR("sock_recvmsg() failed: %d", res);
-			mark_conn_closed(conn);
+		oldfs = get_fs();
+		set_fs(get_ds());
+		res = sock_recvmsg(conn->sock, &msg, conn->read_size,
+				   MSG_DONTWAIT | MSG_NOSIGNAL);
+		set_fs(oldfs);
+
+		if (res > 0) {
+			/*
+			 * To save some considerable effort and CPU power we
+			 * suppose that TCP functions adjust
+			 * conn->read_msg.msg_iov and conn->read_msg.msg_iovlen
+			 * on amount of copied data. This BUG_ON is intended
+			 * to catch if it is changed in the future.
+			 */
+			sBUG_ON((res >= first_len) &&
+				(conn->read_msg.msg_iov->iov_len != 0));
+			conn->read_size -= res;
+			if (conn->read_size != 0) {
+				if (res >= first_len) {
+					int done = 1 + ((res - first_len) >> PAGE_SHIFT);
+					conn->read_msg.msg_iov += done;
+					conn->read_msg.msg_iovlen -= done;
+				}
+			}
+			res = conn->read_size;
+		} else {
+			switch (res) {
+			case -EAGAIN:
+				TRACE_DBG("EAGAIN received for conn %p", conn);
+				res = conn->read_size;
+				break;
+			case -ERESTARTSYS:
+				TRACE_DBG("ERESTARTSYS received for conn %p", conn);
+				continue;
+			default:
+				PRINT_ERROR("sock_recvmsg() failed: %d", res);
+				mark_conn_closed(conn);
+				if (res == 0)
+					res = -EIO;
+				break;
+			}
 			break;
 		}
-	} else {
-		/*
-		 * To save some considerable effort and CPU power we suppose
-		 * that TCP functions adjust conn->read_msg.msg_iov and
-		 * conn->read_msg.msg_iovlen on amount of copied data. This
-		 * BUG_ON is intended to catch if it is changed in the future.
-		 */
-		sBUG_ON((res >= first_len) &&
-			(conn->read_msg.msg_iov->iov_len != 0));
-		conn->read_size -= res;
-		if (conn->read_size) {
-			if (res >= first_len) {
-				int done =
-					1 + ((res - first_len) >> PAGE_SHIFT);
-				conn->read_msg.msg_iov += done;
-				conn->read_msg.msg_iovlen -= done;
-			}
-		} else
-			conn->read_state = state;
-	}
+	} while (res > 0);
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
 
-static int rx_hdigest(struct iscsi_conn *conn)
+static int iscsi_rx_check_ddigest(struct iscsi_conn *conn)
 {
 	struct iscsi_cmnd *cmnd = conn->read_cmnd;
-	int res = digest_rx_header(cmnd);
+	int res;
 
-	if (unlikely(res != 0)) {
-		PRINT_ERROR("rx header digest for initiator %s failed "
-			"(%d)", conn->session->initiator_name, res);
-		mark_conn_closed(conn);
-	}
-	return res;
-}
-
-static struct iscsi_cmnd *create_cmnd(struct iscsi_conn *conn)
-{
-	struct iscsi_cmnd *cmnd;
-
-	cmnd = cmnd_alloc(conn, NULL);
-	iscsi_conn_init_read(cmnd->conn, (void __force __user *)&cmnd->pdu.bhs,
-		sizeof(cmnd->pdu.bhs));
-	conn->read_state = RX_BHS;
-
-	return cmnd;
-}
-
-/* Returns >0 for success, <=0 for error or successful finish */
-static int recv(struct iscsi_conn *conn)
-{
-	struct iscsi_cmnd *cmnd = conn->read_cmnd;
-	int hdigest, ddigest, res = 1, rc;
-
-	TRACE_ENTRY();
-
-	hdigest = conn->hdigest_type & DIGEST_NONE ? 0 : 1;
-	ddigest = conn->ddigest_type & DIGEST_NONE ? 0 : 1;
-
-	switch (conn->read_state) {
-	case RX_INIT_BHS:
-		sBUG_ON(cmnd != NULL);
-		cmnd = conn->read_cmnd = create_cmnd(conn);
-	case RX_BHS:
-		res = do_recv(conn, RX_INIT_AHS);
-		if (res <= 0 || conn->read_state != RX_INIT_AHS)
-			break;
-	case RX_INIT_AHS:
-		iscsi_cmnd_get_length(&cmnd->pdu);
-		if (cmnd->pdu.ahssize) {
-			iscsi_conn_read_ahs(conn, cmnd);
-			conn->read_state = RX_AHS;
-		} else
-			conn->read_state =
-				hdigest ? RX_INIT_HDIGEST : RX_INIT_DATA;
-
-		if (conn->read_state != RX_AHS)
-			break;
-	case RX_AHS:
-		res = do_recv(conn, hdigest ? RX_INIT_HDIGEST : RX_INIT_DATA);
-		if (res <= 0 || conn->read_state != RX_INIT_HDIGEST)
-			break;
-	case RX_INIT_HDIGEST:
-		iscsi_conn_init_read(conn,
-			(void __force __user *)&cmnd->hdigest, sizeof(u32));
-		conn->read_state = RX_HDIGEST;
-	case RX_HDIGEST:
-		res = do_recv(conn, RX_CHECK_HDIGEST);
-		if (res <= 0 || conn->read_state != RX_CHECK_HDIGEST)
-			break;
-	case RX_CHECK_HDIGEST:
-		rc = rx_hdigest(conn);
-		if (likely(rc == 0))
-			conn->read_state = RX_INIT_DATA;
-		else {
-			res = rc;
-			break;
-		}
-	case RX_INIT_DATA:
-		rc = cmnd_rx_start(cmnd);
-		if (unlikely(rc != 0)) {
-			sBUG_ON(!conn->closing);
-			conn->read_state = RX_END;
-			res = rc;
-			/* cmnd will be freed in close_conn() */
-			goto out;
-		}
-		conn->read_state = cmnd->pdu.datasize ? RX_DATA : RX_END;
-		if (conn->read_state != RX_DATA)
-			break;
-	case RX_DATA:
-		res = do_recv(conn, RX_INIT_PADDING);
-		if (res <= 0 || conn->read_state != RX_INIT_PADDING)
-			break;
-	case RX_INIT_PADDING:
-	{
-		int psz = ((cmnd->pdu.datasize + 3) & -4) - cmnd->pdu.datasize;
-		if (psz != 0) {
-			TRACE_DBG("padding %d bytes", psz);
-			iscsi_conn_init_read(conn,
-				(void __force __user *)&conn->rpadding, psz);
-			conn->read_state = RX_PADDING;
-		} else if (ddigest)
-			conn->read_state = RX_INIT_DDIGEST;
-		 else
-			conn->read_state = RX_END;
-		break;
-	}
-	case RX_PADDING:
-		res = do_recv(conn, ddigest ? RX_INIT_DDIGEST : RX_END);
-		if (res <= 0 || conn->read_state != RX_INIT_DDIGEST)
-			break;
-	case RX_INIT_DDIGEST:
-		iscsi_conn_init_read(conn,
-			(void __force __user *)&cmnd->ddigest, sizeof(u32));
-		conn->read_state = RX_DDIGEST;
-	case RX_DDIGEST:
-		res = do_recv(conn, RX_CHECK_DDIGEST);
-		if (res <= 0 || conn->read_state != RX_CHECK_DDIGEST)
-			break;
-	case RX_CHECK_DDIGEST:
+	res = do_recv(conn);
+	if (res == 0) {
 		conn->read_state = RX_END;
+
 		if (cmnd->pdu.datasize <= 16*1024) {
 			/*
 			 * It's cache hot, so let's compute it inline. The
@@ -833,8 +733,8 @@ static int recv(struct iscsi_conn *conn)
 			TRACE_DBG("cmnd %p, opcode %x: checking RX "
 				"ddigest inline", cmnd, cmnd_opcode(cmnd));
 			cmnd->ddigest_checked = 1;
-			rc = digest_rx_data(cmnd);
-			if (unlikely(rc != 0)) {
+			res = digest_rx_data(cmnd);
+			if (unlikely(res != 0)) {
 				mark_conn_closed(conn);
 				goto out;
 			}
@@ -849,60 +749,182 @@ static int recv(struct iscsi_conn *conn)
 			 */
 			TRACE_DBG("cmnd %p, opcode %x: checking NOP RX "
 				"ddigest", cmnd, cmnd_opcode(cmnd));
-			rc = digest_rx_data(cmnd);
-			if (unlikely(rc != 0)) {
+			res = digest_rx_data(cmnd);
+			if (unlikely(res != 0)) {
 				mark_conn_closed(conn);
 				goto out;
 			}
 		}
-		break;
-	default:
-		PRINT_CRIT_ERROR("%d %x", conn->read_state, cmnd_opcode(cmnd));
-		sBUG();
-	}
-
-	if (res <= 0)
-		goto out;
-
-	if (conn->read_state != RX_END)
-		goto out;
-
-	if (unlikely(conn->read_size)) {
-		PRINT_CRIT_ERROR("%d %x %d", res, cmnd_opcode(cmnd),
-			conn->read_size);
-		sBUG();
-	}
-
-	conn->read_cmnd = NULL;
-	conn->read_state = RX_INIT_BHS;
-
-	cmnd_rx_end(cmnd);
-
-	sBUG_ON(conn->read_size != 0);
-
-	res = 0;
+	}		
 
 out:
-	TRACE_EXIT_RES(res);
 	return res;
 }
 
 /* No locks, conn is rd processing */
-static int process_read_io(struct iscsi_conn *conn, int *closed)
+static void process_read_io(struct iscsi_conn *conn, int *closed)
 {
+	struct iscsi_cmnd *cmnd = conn->read_cmnd;
 	int res;
 
-	do {
-		res = recv(conn);
-		if (unlikely(conn->closing)) {
-			start_close_conn(conn);
-			*closed = 1;
-			break;
-		}
-	} while (res > 0);
+	TRACE_ENTRY();
 
-	TRACE_EXIT_RES(res);
-	return res;
+	/* In case of error cmnd will be freed in close_conn() */
+
+	do {
+		switch (conn->read_state) {
+		case RX_INIT_BHS:
+			EXTRACHECKS_BUG_ON(conn->read_cmnd != NULL);
+			cmnd = cmnd_alloc(conn, NULL);
+			conn->read_cmnd = cmnd;
+			iscsi_conn_init_read(cmnd->conn,
+				(void __force __user *)&cmnd->pdu.bhs,
+				sizeof(cmnd->pdu.bhs));
+			conn->read_state = RX_BHS;
+			/* go through */
+
+		case RX_BHS:
+			res = do_recv(conn);
+			if (res == 0) {
+				iscsi_cmnd_get_length(&cmnd->pdu);
+				if (cmnd->pdu.ahssize == 0) {
+					if ((conn->hdigest_type & DIGEST_NONE) == 0)
+						conn->read_state = RX_INIT_HDIGEST;
+					else
+						conn->read_state = RX_CMD_START;
+				} else {
+					iscsi_conn_prepare_read_ahs(conn, cmnd);
+					conn->read_state = RX_AHS;
+				} 
+			}
+			break;
+
+		case RX_CMD_START:
+			res = cmnd_rx_start(cmnd);
+			if (res == 0) {
+				if (cmnd->pdu.datasize == 0)
+					conn->read_state = RX_END;
+				else
+					conn->read_state = RX_DATA;
+			} else if (res > 0)
+				conn->read_state = RX_CMD_CONTINUE;
+			else
+				sBUG_ON(!conn->closing);
+			break;
+
+		case RX_CMD_CONTINUE:
+			if (cmnd->scst_state == ISCSI_CMD_STATE_RX_CMD) {
+				TRACE_DBG("cmnd %p is still in RX_CMD state",
+					cmnd);
+				res = 1;
+				break;
+			}
+			res = cmnd_rx_continue(cmnd);
+			if (unlikely(res != 0))
+				sBUG_ON(!conn->closing);
+			else {
+				if (cmnd->pdu.datasize == 0)
+					conn->read_state = RX_END;
+				else
+					conn->read_state = RX_DATA;
+			}
+			break;
+
+		case RX_DATA:
+			res = do_recv(conn);
+			if (res == 0) {
+				int psz = ((cmnd->pdu.datasize + 3) & -4) - cmnd->pdu.datasize;
+				if (psz != 0) {
+					TRACE_DBG("padding %d bytes", psz);
+					iscsi_conn_init_read(conn,
+						(void __force __user *)&conn->rpadding, psz);
+					conn->read_state = RX_PADDING;
+				} else if ((conn->ddigest_type & DIGEST_NONE) != 0)
+					conn->read_state = RX_END;
+				else
+					conn->read_state = RX_INIT_DDIGEST;
+			}
+			break;
+
+		case RX_END:
+			if (unlikely(conn->read_size != 0)) {
+				PRINT_CRIT_ERROR("%d %x %d", res,
+					cmnd_opcode(cmnd), conn->read_size);
+				sBUG();
+			}
+			conn->read_cmnd = NULL;
+			conn->read_state = RX_INIT_BHS;
+
+			cmnd_rx_end(cmnd);
+
+			EXTRACHECKS_BUG_ON(conn->read_size != 0);
+			break;
+
+		case RX_INIT_HDIGEST:
+			iscsi_conn_init_read(conn,
+				(void __force __user *)&cmnd->hdigest, sizeof(u32));
+			conn->read_state = RX_CHECK_HDIGEST;
+			/* go through */
+
+		case RX_CHECK_HDIGEST:
+			res = do_recv(conn);
+			if (res == 0) {
+				res = digest_rx_header(cmnd);
+				if (unlikely(res != 0)) {
+					PRINT_ERROR("rx header digest for "
+						"initiator %s failed (%d)",
+						conn->session->initiator_name,
+						res);
+					mark_conn_closed(conn);
+				} else
+					conn->read_state = RX_CMD_START;
+			}
+			break;
+
+		case RX_INIT_DDIGEST:
+			iscsi_conn_init_read(conn,
+				(void __force __user *)&cmnd->ddigest,
+				sizeof(u32));
+			conn->read_state = RX_CHECK_DDIGEST;
+			/* go through */
+
+		case RX_CHECK_DDIGEST:
+			res = iscsi_rx_check_ddigest(conn);
+			break;
+
+		case RX_AHS:
+			res = do_recv(conn);
+			if (res == 0) {
+				if ((conn->hdigest_type & DIGEST_NONE) == 0)
+					conn->read_state = RX_INIT_HDIGEST;
+				else
+					conn->read_state = RX_CMD_START;
+			}
+			break;
+
+		case RX_PADDING:
+			res = do_recv(conn);
+			if (res == 0) {
+				if ((conn->ddigest_type & DIGEST_NONE) == 0)
+					conn->read_state = RX_INIT_DDIGEST;
+				else
+					conn->read_state = RX_END;
+			}
+			break;
+
+		default:
+			PRINT_CRIT_ERROR("%d %x", conn->read_state, cmnd_opcode(cmnd));
+			sBUG();
+		}
+	} while (res == 0);
+
+	if (unlikely(conn->closing)) {
+		start_close_conn(conn);
+		*closed = 1;
+	}
+
+	TRACE_EXIT();
+	return;
 }
 
 /*
@@ -920,7 +942,7 @@ static void scst_do_job_rd(void)
 	 */
 
 	while (!list_empty(&iscsi_rd_list)) {
-		int rc, closed = 0;
+		int closed = 0;
 		struct iscsi_conn *conn = list_entry(iscsi_rd_list.next,
 			typeof(*conn), rd_list_entry);
 
@@ -934,7 +956,7 @@ static void scst_do_job_rd(void)
 #endif
 		spin_unlock_bh(&iscsi_rd_lock);
 
-		rc = process_read_io(conn, &closed);
+		process_read_io(conn, &closed);
 
 		spin_lock_bh(&iscsi_rd_lock);
 
@@ -944,7 +966,7 @@ static void scst_do_job_rd(void)
 #ifdef CONFIG_SCST_EXTRACHECKS
 		conn->rd_task = NULL;
 #endif
-		if ((rc == 0) || conn->rd_data_ready) {
+		if (conn->rd_data_ready) {
 			list_add_tail(&conn->rd_list_entry, &iscsi_rd_list);
 			conn->rd_state = ISCSI_CONN_RD_STATE_IN_LIST;
 		} else

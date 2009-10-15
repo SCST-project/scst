@@ -220,6 +220,27 @@ out_err_unlock:
 	goto out;
 }
 
+static void __session_free(struct iscsi_session *session)
+{
+	kfree(session->initiator_name);
+	kfree(session);
+}
+
+static void iscsi_unreg_sess_done(struct scst_session *scst_sess)
+{
+	struct iscsi_session *session;
+
+	TRACE_ENTRY();
+
+	session = (struct iscsi_session *)scst_sess_get_tgt_priv(scst_sess);
+
+	session->scst_sess = NULL;
+	__session_free(session);
+
+	TRACE_EXIT();
+	return;
+}
+
 /* target_mutex supposed to be locked */
 int session_free(struct iscsi_session *session, bool del)
 {
@@ -253,6 +274,9 @@ int session_free(struct iscsi_session *session, bool del)
 		}
 	}
 
+	if (del)
+		list_del(&session->session_list_entry);
+
 	if (session->scst_sess != NULL) {
 		/*
 		 * We must NOT call scst_unregister_session() in the waiting
@@ -261,15 +285,10 @@ int session_free(struct iscsi_session *session, bool del)
 		 * and scst_mutex in SCST core (iscsi_report_aen() called by
 		 * SCST core under scst_mutex).
 		 */
-		scst_unregister_session(session->scst_sess, 0, NULL);
-		session->scst_sess = NULL;
-	}
-
-	if (del)
-		list_del(&session->session_list_entry);
-
-	kfree(session->initiator_name);
-	kfree(session);
+		scst_unregister_session(session->scst_sess, 0,
+			iscsi_unreg_sess_done);
+	} else
+		__session_free(session);
 
 	return 0;
 }

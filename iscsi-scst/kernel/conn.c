@@ -128,7 +128,7 @@ struct iscsi_conn *conn_lookup(struct iscsi_session *session, u16 cid)
 	return NULL;
 }
 
-static void iscsi_make_conn_rd_active(struct iscsi_conn *conn)
+void iscsi_make_conn_rd_active(struct iscsi_conn *conn)
 {
 	TRACE_ENTRY();
 
@@ -477,6 +477,7 @@ static int iscsi_conn_alloc(struct iscsi_session *session,
 	INIT_LIST_HEAD(&conn->write_list);
 	INIT_LIST_HEAD(&conn->written_list);
 	setup_timer(&conn->rsp_timer, conn_rsp_timer_fn, (unsigned long)conn);
+	init_waitqueue_head(&conn->read_state_waitQ);
 	init_completion(&conn->ready_to_free);
 	INIT_LIST_HEAD(&conn->reinst_pending_cmd_list);
 
