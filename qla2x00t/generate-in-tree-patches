@@ -7,6 +7,11 @@ if [ "$1" = "" ]; then
   exit 1
 fi
 
+if [ "${1#2.6.26}" = "$1" ]; then
+  # Exit silently for other kernel versions than 2.6.26.x.
+  exit 0
+fi
+
 mkdir -p in-tree-patches/"${kernel_version}"
 
 for f in qla2xxx-orig/"${kernel_version}"/*
