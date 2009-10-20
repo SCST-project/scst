@@ -53,7 +53,7 @@
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30) */
 #endif /* !defined(SCSI_EXEC_REQ_FIFO_DEFINED) */
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
 #if !defined(SCST_IO_CONTEXT)
 #warning "Patch io_context-<kernel-version> was not applied\
  on your kernel. SCST will be working with not the best performance."
@@ -61,7 +61,7 @@
 #else
 #warning "There is no patch io_context-<kernel-version>\
  for your kernel version. For performance reasons it is strongly recommended\
- to upgrade your kernel to version >= 2.6.27.x."
+ to upgrade your kernel to version >= 2.6.26.x."
 #endif
 
 /**
