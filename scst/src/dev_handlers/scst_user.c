@@ -188,6 +188,17 @@ static int dev_user_read_proc(struct seq_file *seq,
 
 static int dev_usr_parse(struct scst_cmd *cmd);
 
+static ssize_t dev_user_sysfs_commands_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+
+static struct kobj_attribute dev_user_commands_attr =
+	__ATTR(commands, S_IRUGO, dev_user_sysfs_commands_show, NULL);
+
+static const struct attribute *dev_user_dev_attrs[] = {
+	&dev_user_commands_attr.attr,
+	NULL,
+};
+
 /** Data **/
 
 static struct kmem_cache *user_cmd_cachep;
@@ -2777,6 +2788,7 @@ static int dev_user_register_dev(struct file *file,
 #ifdef CONFIG_SCST_PROC
 	dev->devtype.no_proc = 1;
 #endif
+	dev->devtype.dev_attrs = dev_user_dev_attrs;
 	dev->devtype.attach = dev_user_attach;
 	dev->devtype.detach = dev_user_detach;
 	dev->devtype.attach_tgt = dev_user_attach_tgt;
@@ -3359,6 +3371,47 @@ again:
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+}
+
+static ssize_t dev_user_sysfs_commands_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos = 0, ppos, i;
+	struct scst_device *dev;
+	struct scst_user_dev *udev;
+	unsigned long flags;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	udev = (struct scst_user_dev *)dev->dh_priv;
+
+	spin_lock_irqsave(&udev->cmd_lists.cmd_list_lock, flags);
+	for (i = 0; i < (int)ARRAY_SIZE(udev->ucmd_hash); i++) {
+		struct list_head *head = &udev->ucmd_hash[i];
+		struct scst_user_cmd *ucmd;
+		list_for_each_entry(ucmd, head, hash_list_entry) {
+			ppos = pos;
+			pos += scnprintf(&buf[pos],
+				SCST_SYSFS_BLOCK_SIZE - pos,
+				"ucmd %p (state %x, ref %d), "
+				"sent_to_user %d, seen_by_user %d, "
+				"aborted %d, jammed %d, scst_cmd %p\n",
+				ucmd, ucmd->state,
+				atomic_read(&ucmd->ucmd_ref),
+				ucmd->sent_to_user, ucmd->seen_by_user,
+				ucmd->aborted, ucmd->jammed, ucmd->cmd);
+			if (pos >= SCST_SYSFS_BLOCK_SIZE) {
+				scnprintf(&buf[ppos],
+					SCST_SYSFS_BLOCK_SIZE - ppos, "...\n");
+				break;
+			}
+		}
+	}
+	spin_unlock_irqrestore(&udev->cmd_lists.cmd_list_lock, flags);
+
+	TRACE_EXIT_RES(pos);
+	return pos;
 }
 
 #ifdef CONFIG_SCST_PROC
