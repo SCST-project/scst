@@ -574,7 +574,7 @@ fi
 
 test_scst_tree_patches || exit $?
 compile_scst_unpatched || exit $?
-compile_scst_patched || exit $?
+#compile_scst_patched || exit $?
 
 first_iteration="true"
 for k in ${kernel_versions}
