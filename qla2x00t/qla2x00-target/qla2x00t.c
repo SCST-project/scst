@@ -29,7 +29,6 @@
 #include <scsi/scsi_host.h>
 #include <linux/pci.h>
 #include <linux/delay.h>
-#include <linux/seq_file.h>
 #include <linux/list.h>
 
 #include <scst.h>
@@ -46,7 +45,7 @@
  *     including rings related fields,
  *
  *   - Or access to target mode variables from struct q2t_tgt doesn't
- *     cross those functions boundaries, except tgt_shutdown, which
+ *     cross those functions boundaries, except tgt_stop, which
  *     additionally protected by irq_cmd_count.
  */
 
@@ -65,7 +64,7 @@
 # endif
 #endif
 
-static int q2x_target_detect(struct scst_tgt_template *templ);
+static int q2t_target_detect(struct scst_tgt_template *templ);
 static int q2t_target_release(struct scst_tgt *scst_tgt);
 static int q2x_xmit_response(struct scst_cmd *scst_cmd);
 static int __q24_xmit_response(struct q2t_cmd *cmd, int xmit_type);
@@ -96,9 +95,45 @@ static void q2t_clear_tgt_db(struct q2t_tgt *tgt, bool local_only);
 static void q2t_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd);
 static int q2t_unreg_sess(struct q2t_sess *sess);
 
+/** SYSFS **/
+
+static ssize_t q2t_version_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+
+struct kobj_attribute q2t_version_attr =
+	__ATTR(version, S_IRUGO, q2t_version_show, NULL);
+
+static const struct attribute *q2t_attrs[] = {
+	&q2t_version_attr.attr,
+	NULL,
+};
+
+static ssize_t q2t_show_expl_conf_enabled(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buffer);
+static ssize_t q2t_store_expl_conf_enabled(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buffer, size_t size);
+
+struct kobj_attribute q2t_expl_conf_attr =
+	__ATTR(explicit_confirmation, S_IRUGO|S_IWUSR,
+	       q2t_show_expl_conf_enabled, q2t_store_expl_conf_enabled);
+
+static const struct attribute *q2t_tgt_attrs[] = {
+	&q2t_expl_conf_attr.attr,
+	NULL,
+};
+
+static ssize_t q2t_enable_tgt(struct scst_tgt *tgt, const char *buf,
+	size_t size);
+static bool q2t_is_tgt_enabled(struct scst_tgt *tgt);
+
 /*
  * Global Variables
  */
+
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+#define trace_flag q2t_trace_flag
+static unsigned long q2t_trace_flag = Q2T_DEFAULT_LOG_FLAGS;
+#endif
 
 static struct scst_tgt_template tgt2x_template = {
 	.name = "qla2x00tgt",
@@ -112,19 +147,22 @@ static struct scst_tgt_template tgt2x_template = {
 	.rdy_to_xfer_atomic = 1,
 #endif
 	.max_hw_pending_time = Q2T_MAX_HW_PENDING_TIME,
-	.detect = q2x_target_detect,
+	.detect = q2t_target_detect,
 	.release = q2t_target_release,
 	.xmit_response = q2x_xmit_response,
 	.rdy_to_xfer = q2t_rdy_to_xfer,
 	.on_free_cmd = q2t_on_free_cmd,
 	.task_mgmt_fn_done = q2t_task_mgmt_fn_done,
 	.on_hw_pending_cmd_timeout = q2t_on_hw_pending_cmd_timeout,
-};
-
+	.enable_tgt = q2t_enable_tgt,
+	.is_tgt_enabled = q2t_is_tgt_enabled,
+	.tgtt_attrs = q2t_attrs,
+	.tgt_attrs = q2t_tgt_attrs,
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-#define trace_flag q2t_trace_flag
-static unsigned long q2t_trace_flag = Q2T_DEFAULT_LOG_FLAGS;
+	.default_trace_flags = Q2T_DEFAULT_LOG_FLAGS,
+	.trace_flags = &trace_flag,
 #endif
+};
 
 static struct kmem_cache *q2t_cmd_cachep;
 static struct kmem_cache *q2t_mgmt_cmd_cachep;
@@ -224,7 +262,7 @@ static inline int q2t_issue_marker(scsi_qla_host_t *ha, int ha_locked)
  * Registers with initiator driver (but target mode isn't enabled till
  * it's turned on via sysfs)
  */
-static int q2x_target_detect(struct scst_tgt_template *templ)
+static int q2t_target_detect(struct scst_tgt_template *tgtt)
 {
 	int res;
 	struct qla_tgt_data t = {
@@ -252,6 +290,8 @@ static int q2x_target_detect(struct scst_tgt_template *templ)
 		res = -EINVAL;
 		goto out;
 	}
+
+	qla2xxx_add_targets();
 
 	PRINT_INFO("%s", "Target mode driver for QLogic 2x00 controller "
 		"registered successfully");
@@ -622,7 +662,7 @@ static void q2t_fc_port_added(scsi_qla_host_t *ha, fc_port_t *fcport)
 	if ((tgt == NULL) || (fcport->port_type != FCT_INITIATOR))
 		goto out_unlock;
 
-	if (tgt->tgt_shutdown)
+	if (tgt->tgt_stop)
 		goto out_unlock;
 
 	spin_lock_irq(&ha->hardware_lock);
@@ -686,7 +726,7 @@ static void q2t_fc_port_deleted(scsi_qla_host_t *ha, fc_port_t *fcport)
 
 	dev_loss_tmo = ha->port_down_retry_count + 5;
 
-	if (tgt->tgt_shutdown)
+	if (tgt->tgt_stop)
 		goto out_unlock;
 
 	spin_lock_irq(&ha->hardware_lock);
@@ -747,14 +787,15 @@ static inline int test_tgt_sess_count(struct q2t_tgt *tgt)
 	return res;
 }
 
-/* Must be called under read locked q2t_unreg_rwsem */
-static int q2t_target_release(struct scst_tgt *scst_tgt)
+/* Must be called under tgt_host_action_mutex */
+static void q2t_target_stop(struct scst_tgt *scst_tgt)
 {
-	int res = 0;
 	struct q2t_tgt *tgt = (struct q2t_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
 	scsi_qla_host_t *ha = tgt->ha;
 
 	TRACE_ENTRY();
+
+	TRACE_DBG("Stopping target for host %ld(%p)", ha->host_no, ha);
 
 	/*
 	 * Mutex needed to sync with q2t_fc_port_[added,deleted].
@@ -763,7 +804,7 @@ static int q2t_target_release(struct scst_tgt *scst_tgt)
 
 	mutex_lock(&ha->tgt_mutex);
 	spin_lock_irq(&ha->hardware_lock);
-	tgt->tgt_shutdown = 1;
+	tgt->tgt_stop = 1;
 	q2t_clear_tgt_db(tgt, false);
 	spin_unlock_irq(&ha->hardware_lock);
 	mutex_unlock(&ha->tgt_mutex);
@@ -786,7 +827,7 @@ static int q2t_target_release(struct scst_tgt *scst_tgt)
 	wait_event(tgt->waitQ, test_tgt_sess_count(tgt));
 
 	/* Big hammer */
-	if (!ha->host_shutting_down)
+	if (!ha->host_shutting_down && qla_tgt_mode_enabled(ha))
 		qla2x00_disable_tgt_mode(ha);
 
 	/* Wait for sessions to clear out (just in case) */
@@ -802,17 +843,35 @@ static int q2t_target_release(struct scst_tgt *scst_tgt)
 		udelay(2);
 		spin_lock_irq(&ha->hardware_lock);
 	}
-	scst_tgt_set_tgt_priv(scst_tgt, NULL);
 	ha->tgt = NULL;
 	spin_unlock_irq(&ha->hardware_lock);
 	mutex_unlock(&ha->tgt_mutex);
+
+	TRACE_MGMT_DBG("Stop of tgt %p finished", tgt);
+
+	TRACE_EXIT();
+	return;
+}
+
+/* Must be called under tgt_host_action_mutex */
+static int q2t_target_release(struct scst_tgt *scst_tgt)
+{
+	struct q2t_tgt *tgt = (struct q2t_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	scsi_qla_host_t *ha = tgt->ha;
+
+	TRACE_ENTRY();
+
+	q2t_target_stop(scst_tgt);
+
+	ha->q2t_tgt = NULL;
+	scst_tgt_set_tgt_priv(scst_tgt, NULL);
 
 	TRACE_MGMT_DBG("Release of tgt %p finished", tgt);
 
 	kfree(tgt);
 
-	TRACE_EXIT_RES(res);
-	return res;
+	TRACE_EXIT();
+	return 0;
 }
 
 /*
@@ -1238,7 +1297,7 @@ out:
 
 uint32_t q2t_convert_to_fc_tm_status(int scst_mstatus)
 {
-	int res;
+	uint32_t res;
 
 	switch (scst_mstatus) {
 	case SCST_MGMT_STATUS_SUCCESS:
@@ -3039,7 +3098,7 @@ static int q2t_send_cmd_to_scst(scsi_qla_host_t *ha, atio_t *atio)
 
 	TRACE_ENTRY();
 
-	if (unlikely(tgt->tgt_shutdown)) {
+	if (unlikely(tgt->tgt_stop)) {
 		TRACE_MGMT_DBG("New command while device %p is shutting "
 			"down", tgt);
 		res = -EFAULT;
@@ -4176,7 +4235,7 @@ static void q24_atio_pkt(scsi_qla_host_t *ha, atio7_entry_t *atio)
 	      atio, atio->entry_type, atio->entry_count);
 
 	/*
-	 * In tgt_shutdown mode we also should allow all requests to pass.
+	 * In tgt_stop mode we also should allow all requests to pass.
 	 * Otherwise, some commands can stuck.
 	 */
 
@@ -4278,7 +4337,7 @@ static void q2t_response_pkt(scsi_qla_host_t *ha, response_t *pkt)
 	      pkt->handle);
 
 	/*
-	 * In tgt_shutdown mode we also should allow all requests to pass.
+	 * In tgt_stop mode we also should allow all requests to pass.
 	 * Otherwise, some commands can stuck.
 	 */
 
@@ -4523,7 +4582,7 @@ static void q2t_async_event(uint16_t code, scsi_qla_host_t *ha,
 	}
 
 	/*
-	 * In tgt_shutdown mode we also should allow all requests to pass.
+	 * In tgt_stop mode we also should allow all requests to pass.
 	 * Otherwise, some commands can stuck.
 	 */
 
@@ -4696,7 +4755,7 @@ static struct q2t_sess *q2t_make_local_sess(scsi_qla_host_t *ha, atio_t *atio)
 	if (rc != QLA_SUCCESS) {
 		PRINT_ERROR("Failed to retrieve fcport information "
 			"-- get_port_database() returned %x "
-			"(loop_id=0x%04x)\n", rc, loop_id);
+			"(loop_id=0x%04x)", rc, loop_id);
 		goto out_free_fcport;
 	}
 
@@ -4726,7 +4785,7 @@ static int q2t_exec_sess_work(struct q2t_tgt *tgt,
 	mutex_lock(&ha->tgt_mutex);
 	spin_lock_irq(&ha->hardware_lock);
 
-	if (tgt->tgt_shutdown)
+	if (tgt->tgt_stop)
 		goto send;
 
 	if (IS_FWI2_CAPABLE(ha)) {
@@ -4751,7 +4810,7 @@ static int q2t_exec_sess_work(struct q2t_tgt *tgt,
 	}
 
 send:
-	if (!tgt->tm_to_unknown && !tgt->tgt_shutdown && (sess != NULL)) {
+	if (!tgt->tm_to_unknown && !tgt->tgt_stop && (sess != NULL)) {
 		TRACE_MGMT_DBG("Sending work cmd %p to SCST", cmd);
 		res = q2t_do_send_cmd_to_scst(ha, cmd, sess);
 	} else {
@@ -4891,11 +4950,135 @@ out_unlock:
 	return;
 }
 
-/* No lock held on entry, process context */
-static int q2t_host_action(scsi_qla_host_t *ha,
-			    qla2x_tgt_host_action_t action)
+/* Must be called under tgt_host_action_mutex */
+static int q2t_add_target(scsi_qla_host_t *ha)
 {
-	struct q2t_tgt *tgt = NULL;
+	int res, rc;
+	char *wwn;
+	int sg_tablesize;
+	struct q2t_tgt *tgt;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("Registering target for host %ld(%p)", ha->host_no, ha);
+
+	sBUG_ON((ha->q2t_tgt != NULL) || (ha->tgt != NULL));
+
+	tgt = kzalloc(sizeof(*tgt), GFP_KERNEL);
+	if (tgt == NULL) {
+		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of tgt "
+			"failed");
+		res = -ENOMEM;
+		goto out;
+	}
+
+	tgt->ha = ha;
+	init_waitqueue_head(&tgt->waitQ);
+	INIT_LIST_HEAD(&tgt->sess_list);
+	INIT_LIST_HEAD(&tgt->del_sess_list);
+	init_timer(&tgt->sess_del_timer);
+	tgt->sess_del_timer.data = (unsigned long)tgt;
+	tgt->sess_del_timer.function = q2t_del_sess_timer_fn;
+	spin_lock_init(&tgt->sess_work_lock);
+	INIT_WORK(&tgt->sess_work, q2t_sess_work_fn);
+	INIT_LIST_HEAD(&tgt->sess_works_list);
+	spin_lock_init(&tgt->srr_lock);
+	INIT_LIST_HEAD(&tgt->srr_ctio_list);
+	INIT_LIST_HEAD(&tgt->srr_imm_list);
+	INIT_WORK(&tgt->srr_work, q2t_handle_srr_work);
+
+	ha->q2t_tgt = tgt;
+
+	if (q2t_get_target_name(ha, &wwn) != 0)
+		goto out_free;
+
+	tgt->scst_tgt = scst_register(&tgt2x_template, wwn);
+
+	kfree(wwn);
+
+	if (!tgt->scst_tgt) {
+		PRINT_ERROR("qla2x00tgt(%ld): scst_register() "
+			    "failed for host %ld(%p)", ha->instance,
+			    ha->host_no, ha);
+		res = -ENOMEM;
+		goto out_free;
+	}
+
+	if (IS_FWI2_CAPABLE(ha)) {
+		PRINT_INFO("qla2400tgt(%ld): using 64 Bit PCI "
+			   "addressing", ha->instance);
+			tgt->tgt_enable_64bit_addr = 1;
+			/* 3 is reserved */
+			sg_tablesize =
+			    QLA_MAX_SG_24XX(ha->request_q_length - 3);
+			tgt->datasegs_per_cmd = DATASEGS_PER_COMMAND_24XX;
+			tgt->datasegs_per_cont = DATASEGS_PER_CONT_24XX;
+	} else {
+		if (ha->flags.enable_64bit_addressing) {
+			PRINT_INFO("qla2x00tgt(%ld): 64 Bit PCI "
+				   "addressing enabled", ha->instance);
+			tgt->tgt_enable_64bit_addr = 1;
+			/* 3 is reserved */
+			sg_tablesize =
+				QLA_MAX_SG64(ha->request_q_length - 3);
+			tgt->datasegs_per_cmd = DATASEGS_PER_COMMAND64;
+			tgt->datasegs_per_cont = DATASEGS_PER_CONT64;
+		} else {
+			PRINT_INFO("qla2x00tgt(%ld): Using 32 Bit "
+				   "PCI addressing", ha->instance);
+			sg_tablesize =
+				QLA_MAX_SG32(ha->request_q_length - 3);
+			tgt->datasegs_per_cmd = DATASEGS_PER_COMMAND32;
+			tgt->datasegs_per_cont = DATASEGS_PER_CONT32;
+		}
+	}
+
+#ifndef CONFIG_SCST_PROC
+	rc = sysfs_create_link(scst_sysfs_get_tgt_kobj(tgt->scst_tgt),
+		&ha->host->shost_dev.kobj, "host");
+	if (rc != 0)
+		PRINT_ERROR("Unable to create \"host\" link for target "
+			"%s", scst_get_tgt_name(tgt->scst_tgt));
+#endif
+
+	scst_tgt_set_sg_tablesize(tgt->scst_tgt, sg_tablesize);
+	scst_tgt_set_tgt_priv(tgt->scst_tgt, tgt);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_free:
+	ha->q2t_tgt = NULL;
+	kfree(tgt);
+	goto out;
+}
+
+/* Must be called under tgt_host_action_mutex */
+static int q2t_remove_target(scsi_qla_host_t *ha)
+{
+	TRACE_ENTRY();
+
+	if ((ha->q2t_tgt == NULL) || (ha->tgt != NULL)) {
+		PRINT_ERROR("qla2x00tgt(%ld): Can't remove "
+			"existing target", ha->instance);
+	}
+
+	TRACE_DBG("Unregistering target for host %ld(%p)", ha->host_no, ha);
+	scst_unregister(ha->tgt->scst_tgt);
+	/*
+	 * Free of tgt happens via callback q2t_target_release
+	 * called from scst_unregister, so we shouldn't touch
+	 * it again.
+	 */
+
+	TRACE_EXIT();
+	return 0;
+}
+
+static int q2t_host_action(scsi_qla_host_t *ha,
+	qla2x_tgt_host_action_t action)
+{
 	int res = 0;
 
 	TRACE_ENTRY();
@@ -4903,14 +5086,21 @@ static int q2t_host_action(scsi_qla_host_t *ha,
 	sBUG_ON(ha == NULL);
 
 	/* To sync with q2t_exit() */
-	down_read(&q2t_unreg_rwsem);
+	if (down_read_trylock(&q2t_unreg_rwsem) == 0)
+		goto out;
+
+	mutex_lock(&ha->tgt_host_action_mutex);
 
 	switch (action) {
+	case ADD_TARGET:
+		res = q2t_add_target(ha);
+		break;
+	case REMOVE_TARGET:
+		res = q2t_remove_target(ha);
+		break;
 	case ENABLE_TARGET_MODE:
 	{
 		fc_port_t *fcport;
-		char *wwn;
-		int sg_tablesize;
 
 		if (qla_tgt_mode_enabled(ha)) {
 			PRINT_INFO("qla2x00tgt(%ld): Target mode already "
@@ -4918,103 +5108,22 @@ static int q2t_host_action(scsi_qla_host_t *ha,
 			break;
 		}
 
+		if ((ha->q2t_tgt == NULL) || (ha->tgt != NULL)) {
+			PRINT_ERROR("qla2x00tgt(%ld): Can't enable target mode "
+				"for not existing target", ha->instance);
+			break;
+		}
+
 		PRINT_INFO("qla2x00tgt(%ld): Enabling target mode",
 			ha->instance);
 
-		if (ha->tgt != NULL)
-			goto do_enable;
-
-		tgt = kzalloc(sizeof(*tgt), GFP_KERNEL);
-		if (tgt == NULL) {
-			TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of tgt "
-				"failed");
-			res = -ENOMEM;
-			break;
-		}
-
-		tgt->ha = ha;
-		init_waitqueue_head(&tgt->waitQ);
-		INIT_LIST_HEAD(&tgt->sess_list);
-		INIT_LIST_HEAD(&tgt->del_sess_list);
-		init_timer(&tgt->sess_del_timer);
-		tgt->sess_del_timer.data = (unsigned long)tgt;
-		tgt->sess_del_timer.function = q2t_del_sess_timer_fn;
-		spin_lock_init(&tgt->sess_work_lock);
-		INIT_WORK(&tgt->sess_work, q2t_sess_work_fn);
-		INIT_LIST_HEAD(&tgt->sess_works_list);
-		spin_lock_init(&tgt->srr_lock);
-		INIT_LIST_HEAD(&tgt->srr_ctio_list);
-		INIT_LIST_HEAD(&tgt->srr_imm_list);
-		INIT_WORK(&tgt->srr_work, q2t_handle_srr_work);
-
-		if (q2t_get_target_name(ha, &wwn) != 0) {
-			kfree(tgt);
-			break;
-		}
-
-		mutex_lock(&ha->tgt_mutex);
-
-		tgt->scst_tgt = scst_register(&tgt2x_template, wwn);
-
-		/*
-		 * scst_tgt protected by tgt_mutex from not get freed before
-		 * been initialized
-		 */
-
-		kfree(wwn);
-
-		if (!tgt->scst_tgt) {
-			PRINT_ERROR("qla2x00tgt(%ld): scst_register() "
-				    "failed for host %ld(%p)", ha->instance,
-				    ha->host_no, ha);
-			kfree(tgt);
-			res = -ENOMEM;
-			break;
-		}
-
-		if (IS_FWI2_CAPABLE(ha)) {
-			PRINT_INFO("qla2400tgt(%ld): using 64 Bit PCI "
-				   "addressing", ha->instance);
-				tgt->tgt_enable_64bit_addr = 1;
-				/* 3 is reserved */
-				sg_tablesize =
-				    QLA_MAX_SG_24XX(ha->request_q_length - 3);
-				tgt->datasegs_per_cmd = DATASEGS_PER_COMMAND_24XX;
-				tgt->datasegs_per_cont = DATASEGS_PER_CONT_24XX;
-		} else {
-			if (ha->flags.enable_64bit_addressing) {
-				PRINT_INFO("qla2x00tgt(%ld): 64 Bit PCI "
-					   "addressing enabled", ha->instance);
-				tgt->tgt_enable_64bit_addr = 1;
-				/* 3 is reserved */
-				sg_tablesize =
-					QLA_MAX_SG64(ha->request_q_length - 3);
-				tgt->datasegs_per_cmd = DATASEGS_PER_COMMAND64;
-				tgt->datasegs_per_cont = DATASEGS_PER_CONT64;
-			} else {
-				PRINT_INFO("qla2x00tgt(%ld): Using 32 Bit "
-					   "PCI addressing", ha->instance);
-				sg_tablesize =
-					QLA_MAX_SG32(ha->request_q_length - 3);
-				tgt->datasegs_per_cmd = DATASEGS_PER_COMMAND32;
-				tgt->datasegs_per_cont = DATASEGS_PER_CONT32;
-			}
-		}
-
-		scst_tgt_set_sg_tablesize(tgt->scst_tgt, sg_tablesize);
-		scst_tgt_set_tgt_priv(tgt->scst_tgt, tgt);
-
 		spin_lock_irq(&ha->hardware_lock);
-		ha->tgt = tgt;
+		ha->tgt = ha->q2t_tgt;
+		ha->tgt->tgt_stop = 0;
 		spin_unlock_irq(&ha->hardware_lock);
-
-		mutex_unlock(&ha->tgt_mutex);
-
 		list_for_each_entry_rcu(fcport, &ha->fcports, list) {
 			q2t_fc_port_added(ha, fcport);
 		}
-
-do_enable:
 		TRACE_DBG("Enable tgt mode for host %ld(%ld,%p)",
 			  ha->host_no, ha->instance, ha);
 		qla2x00_enable_tgt_mode(ha);
@@ -5033,14 +5142,7 @@ do_enable:
 
 		sBUG_ON(ha->tgt == NULL);
 
-		TRACE_DBG("Unregistering target for host %ld(%p)",
-			ha->host_no, ha);
-		scst_unregister(ha->tgt->scst_tgt);
-		/*
-		 * Free of tgt happens via callback q2t_target_release
-		 * called from scst_unregister, so we shouldn't touch
-		 * it again.
-		 */
+		q2t_target_stop(ha->tgt->scst_tgt);
 		break;
 
 	default:
@@ -5050,11 +5152,136 @@ do_enable:
 		break;
 	}
 
-	up_read(&q2t_unreg_rwsem);
+	mutex_unlock(&ha->tgt_host_action_mutex);
 
+	up_read(&q2t_unreg_rwsem);
+out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
+
+static ssize_t q2t_enable_tgt(struct scst_tgt *scst_tgt, const char *buffer,
+	size_t size)
+{
+	struct q2t_tgt *tgt = (struct q2t_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	scsi_qla_host_t *ha = tgt->ha;
+	int res = 0;
+
+	switch (buffer[0]) {
+	case '0' : 
+		res = q2t_host_action(ha, DISABLE_TARGET_MODE);
+		break;
+	case '1' :
+		res = q2t_host_action(ha, ENABLE_TARGET_MODE);
+		break;
+	default:
+		PRINT_ERROR("%s: Requested action not understood: %s",
+		       __func__, buffer);
+		res = -EINVAL;
+		goto out;
+	}
+
+	if (res == 0)
+		res = size;
+
+	if ((size > 1) && (buffer[1] == 'r')) {
+		set_bit(ISP_ABORT_NEEDED, &ha->dpc_flags);
+		qla2x00_wait_for_hba_online(ha);
+	}
+
+out:
+	return res;
+}
+
+static bool q2t_is_tgt_enabled(struct scst_tgt *scst_tgt)
+{
+	struct q2t_tgt *tgt = (struct q2t_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	scsi_qla_host_t *ha = tgt->ha;
+
+	return qla_tgt_mode_enabled(ha);
+}
+
+static ssize_t q2t_show_expl_conf_enabled(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buffer)
+{
+	struct scst_tgt *scst_tgt;
+	struct q2t_tgt *tgt;
+	scsi_qla_host_t *ha;
+	ssize_t size;
+
+	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	tgt = (struct q2t_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	ha = tgt->ha;
+
+	size = scnprintf(buffer, PAGE_SIZE, "%d\n", ha->enable_explicit_conf);
+
+	return size;
+}
+
+static ssize_t q2t_store_expl_conf_enabled(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buffer, size_t size)
+{
+	struct scst_tgt *scst_tgt;
+	struct q2t_tgt *tgt;
+	scsi_qla_host_t *ha;
+	unsigned long flags;
+
+	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	tgt = (struct q2t_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	ha = tgt->ha;
+
+	spin_lock_irqsave(&ha->hardware_lock, flags);
+
+	switch (buffer[0]) {
+	case '0' : 
+		ha->enable_explicit_conf = 0;
+		PRINT_INFO("qla2xxx(%ld): explicit conformations disabled",
+			ha->instance);
+		break;
+	case '1' :
+		ha->enable_explicit_conf = 1;
+		PRINT_INFO("qla2xxx(%ld): explicit conformations enabled",
+			ha->instance);
+		break;
+	default:
+#if defined(QL_DEBUG_LEVEL_9) || defined(QL_DEBUG_LEVEL_11)
+		PRINT_INFO("%s: Requested action not understood: %s",
+		       __func__, buffer);
+#endif
+		break;
+	}
+
+	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+
+	return size;
+}
+
+static ssize_t q2t_version_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	sprintf(buf, "%s\n", Q2T_VERSION_STRING);
+
+#ifdef CONFIG_SCST_EXTRACHECKS
+	strcat(buf, "EXTRACHECKS\n");
+#endif
+
+#ifdef CONFIG_SCST_TRACING
+	strcat(buf, "TRACING\n");
+#endif
+
+#ifdef CONFIG_SCST_DEBUG
+	strcat(buf, "DEBUG\n");
+#endif
+
+#ifdef CONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
+	strcat(buf, "QLA_TGT_DEBUG_WORK_IN_THREAD\n");
+#endif
+
+	TRACE_EXIT();
+	return strlen(buf);
+}
+
+#ifdef CONFIG_SCST_PROC
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 
@@ -5194,6 +5421,8 @@ static void q2t_proc_log_entry_clean(struct scst_tgt_template *templ)
 	return;
 }
 
+#endif /* CONFIG_SCST_PROC */
+
 static int __init q2t_init(void)
 {
 	int res = 0;
@@ -5233,15 +5462,19 @@ static int __init q2t_init(void)
 	 * called via scst_register_target_template()
 	 */
 
+#ifdef CONFIG_SCST_PROC
 	res = q2t_proc_log_entry_build(&tgt2x_template);
 	if (res < 0)
 		goto out_unreg_target2x;
+#endif
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 
+#ifdef CONFIG_SCST_PROC
 out_unreg_target2x:
+#endif
 	scst_unregister_target_template(&tgt2x_template);
 	qla2xxx_tgt_unregister_driver();
 
@@ -5266,16 +5499,25 @@ static void __exit q2t_exit(void)
 	/* To sync with q2t_host_action() */
 	down_write(&q2t_unreg_rwsem);
 
+#ifdef CONFIG_SCST_PROC
 	q2t_proc_log_entry_clean(&tgt2x_template);
+#endif
+
 	scst_unregister_target_template(&tgt2x_template);
 
-	up_write(&q2t_unreg_rwsem);
-
+	/*
+	 * Now we have everywhere target mode disabled and no possibilities
+	 * to call us through sysfs, so we can safely remove all the references
+	 * to our functions.
+	 */
 	qla2xxx_tgt_unregister_driver();
 
 	mempool_destroy(q2t_mgmt_cmd_mempool);
 	kmem_cache_destroy(q2t_mgmt_cmd_cachep);
 	kmem_cache_destroy(q2t_cmd_cachep);
+
+	/* Let's make lockdep happy */
+	up_write(&q2t_unreg_rwsem);
 
 	TRACE_EXIT();
 	return;

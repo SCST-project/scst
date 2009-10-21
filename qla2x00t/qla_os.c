@@ -25,6 +25,19 @@
  */
 char qla2x00_version_str[40];
 
+#ifdef CONFIG_SCSI_QLA2XXX_TARGET
+/*
+ * Target mode add-on's callbacks
+ */
+struct qla_tgt_data qla_target;
+
+/*
+ * List of ha's and mutex protecting it.
+ */
+static LIST_HEAD(qla_ha_list);
+static DEFINE_MUTEX(qla_ha_list_mutex);
+#endif
+
 /*
  * SRB allocation cache
  */
@@ -591,6 +604,7 @@ qla2x00_wait_for_hba_online(scsi_qla_host_t *ha)
 
 	return (return_status);
 }
+EXPORT_SYMBOL(qla2x00_wait_for_hba_online);
 
 /*
  * qla2x00_wait_for_loop_ready
@@ -1544,6 +1558,23 @@ qla2xxx_scan_finished(struct Scsi_Host *shost, unsigned long time)
 	return atomic_read(&ha->loop_state) == LOOP_READY;
 }
 
+#ifdef CONFIG_SCSI_QLA2XXX_TARGET
+void
+qla2xxx_add_targets(void)
+{
+	scsi_qla_host_t *ha;
+
+	mutex_lock(&qla_ha_list_mutex);
+	list_for_each_entry(ha, &qla_ha_list, ha_list_entry) {
+		if (qla_target.tgt_host_action != NULL)
+			qla_target.tgt_host_action(ha, ADD_TARGET);
+	}
+	mutex_unlock(&qla_ha_list_mutex);
+	return;
+}
+EXPORT_SYMBOL(qla2xxx_add_targets);
+#endif /* CONFIG_SCSI_QLA2XXX_TARGET */
+
 /*
  * PCI driver interface
  */
@@ -1608,11 +1639,14 @@ qla2x00_probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	ha->parent = NULL;
 	ha->bars = bars;
 	ha->mem_only = mem_only;
+
+	spin_lock_init(&ha->hardware_lock);
+
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 	mutex_init(&ha->tgt_mutex);
+	mutex_init(&ha->tgt_host_action_mutex);
 	qla_clear_tgt_mode(ha);
 #endif
-	spin_lock_init(&ha->hardware_lock);
 
 	/* Set ISP-type information. */
 	qla2x00_set_isp_flags(ha);
@@ -1796,6 +1830,19 @@ qla2x00_probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	    ha->flags.enable_64bit_addressing ? '+': '-', ha->host_no,
 	    ha->isp_ops->fw_version_str(ha, fw_str));
 
+#ifdef CONFIG_SCSI_QLA2XXX_TARGET
+	if (qla_target.tgt_host_action != NULL)
+		qla_target.tgt_host_action(ha, ADD_TARGET);
+
+	/*
+	 * Must be after tgt_host_action() to not race with
+	 * qla2xxx_add_targets().
+	 */
+	mutex_lock(&qla_ha_list_mutex);
+	list_add_tail(&ha->ha_list_entry, &qla_ha_list);
+	mutex_unlock(&qla_ha_list_mutex);
+#endif
+
 	return 0;
 
 probe_failed:
@@ -1838,14 +1885,18 @@ qla2x00_remove_one(struct pci_dev *pdev)
 	ha = pci_get_drvdata(pdev);
 
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
-	{
-		unsigned long flags;
-		spin_lock_irqsave(&ha->hardware_lock, flags);
-		ha->host_shutting_down = 1;
-		spin_unlock_irqrestore(&ha->hardware_lock, flags);
-	}
-	if (qla_target.tgt_host_action != NULL)
-		qla_target.tgt_host_action(ha, DISABLE_TARGET_MODE);
+	/*
+	 * Must be before tgt_host_action() to not race with
+	 * qla2xxx_add_targets().
+	 */
+	mutex_lock(&qla_ha_list_mutex);
+	list_del(&ha->ha_list_entry);
+	mutex_unlock(&qla_ha_list_mutex);
+
+	ha->host_shutting_down = 1;
+
+	if (qla_target.tgt_host_action != NULL) 
+		qla_target.tgt_host_action(ha, REMOVE_TARGET);
 #endif
 
 	/* Necessary to prevent races with it */

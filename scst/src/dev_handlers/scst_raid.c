@@ -27,26 +27,28 @@
 
 #define RAID_NAME	"dev_raid"
 
-#define RAID_TYPE {				\
-	.name =			RAID_NAME,	\
-	.type =			TYPE_RAID,	\
-	.parse_atomic =		1,		\
-/*	.dev_done_atomic =	1,*/		\
-	.attach =		raid_attach,	\
-/*	.detach =		raid_detach,*/	\
-	.parse =		raid_parse,	\
-/*	.dev_done =		raid_done*/	\
-}
-
-#define RAID_RETRIES       2
-#define READ_CAP_LEN          8
+#define RAID_RETRIES		2
+#define READ_CAP_LEN		8
 
 static int raid_attach(struct scst_device *);
 /* static void raid_detach(struct scst_device *); */
 static int raid_parse(struct scst_cmd *);
 /* static int raid_done(struct scst_cmd *); */
 
-static struct scst_dev_type raid_devtype = RAID_TYPE;
+static struct scst_dev_type raid_devtype = {
+	.name =			RAID_NAME,
+	.type =			TYPE_RAID,
+	.parse_atomic =		1,
+/*	.dev_done_atomic =	1,*/
+	.attach =		raid_attach,
+/*	.detach =		raid_detach,*/
+	.parse =		raid_parse,
+/*	.dev_done =		raid_done,*/
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
+	.trace_flags =		&trace_flag,
+#endif
+};
 
 /**************************************************************
  *  Function:  raid_attach
@@ -101,9 +103,7 @@ static int raid_attach(struct scst_device *dev)
 	res = scst_obtain_device_parameters(dev);
 	if (res != 0) {
 		PRINT_ERROR("Failed to obtain control parameters for device "
-			"%d:%d:%d:%d", dev->scsi_dev->host->host_no,
-			dev->scsi_dev->channel, dev->scsi_dev->id,
-			dev->scsi_dev->lun);
+			"%s", dev->virt_name);
 		goto out;
 	}
 
@@ -202,23 +202,29 @@ static int __init raid_init(void)
 	if (res < 0)
 		goto out;
 
+#ifdef CONFIG_SCST_PROC
 	res = scst_dev_handler_build_std_proc(&raid_devtype);
 	if (res != 0)
 		goto out_err;
+#endif
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 
+#ifdef CONFIG_SCST_PROC
 out_err:
 	scst_unregister_dev_driver(&raid_devtype);
 	goto out;
+#endif
 }
 
 static void __exit raid_exit(void)
 {
 	TRACE_ENTRY();
+#ifdef CONFIG_SCST_PROC
 	scst_dev_handler_destroy_std_proc(&raid_devtype);
+#endif
 	scst_unregister_dev_driver(&raid_devtype);
 	TRACE_EXIT();
 	return;

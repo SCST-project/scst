@@ -96,6 +96,10 @@ static DEVICE_ATTR(class2_enabled,
 
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 
+#define CONFIG_SCST_PROC
+
+#ifdef CONFIG_SCST_PROC
+
 static ssize_t
 qla2x00_show_tgt_enabled(struct device *dev,
 	struct device_attribute *attr, char *buffer)
@@ -207,6 +211,8 @@ static DEVICE_ATTR(explicit_conform_enabled,
 		   S_IRUGO|S_IWUSR,
 		   qla2x00_show_expl_conf_enabled,
 		   qla2x00_store_expl_conf_enabled);
+
+#endif /* CONFIG_SCST_PROC */
 
 static ssize_t
 qla2x00_show_resource_counts(struct device *dev,
@@ -377,7 +383,7 @@ out_free:
 			gid = (struct gid_list_info *)id_iter;
 			if (IS_QLA2100(ha) || IS_QLA2200(ha)) {
 				size += scnprintf(buffer+size, max_size-size,
-						 " %02x  %02x%02x%02x\n",
+						 "%02x  %02x%02x%02x\n",
 						 gid->loop_id_2100,
 						 gid->domain,
 						 gid->area,
@@ -1332,8 +1338,10 @@ struct device_attribute *qla2x00_host_attrs[] = {
 	&dev_attr_optrom_fw_version,
 	&dev_attr_class2_enabled,
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
+#ifdef CONFIG_SCST_PROC
 	&dev_attr_target_mode_enabled,
 	&dev_attr_explicit_conform_enabled,
+#endif
 	&dev_attr_resource_counts,
 	&dev_attr_port_database,
 #endif

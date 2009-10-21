@@ -180,8 +180,13 @@ static long dev_user_ioctl(struct file *file, unsigned int cmd,
 	unsigned long arg);
 static int dev_user_release(struct inode *inode, struct file *file);
 static int dev_user_exit_dev(struct scst_user_dev *dev);
+
+#ifdef CONFIG_SCST_PROC
 static int dev_user_read_proc(struct seq_file *seq,
 	struct scst_dev_type *dev_type);
+#endif
+
+static int dev_usr_parse(struct scst_cmd *cmd);
 
 /** Data **/
 
@@ -197,6 +202,19 @@ static const struct file_operations dev_user_fops = {
 	.compat_ioctl	= dev_user_ioctl,
 #endif
 	.release	= dev_user_release,
+};
+
+static struct scst_dev_type dev_user_devtype = {
+	.name =		DEV_USER_NAME,
+	.type =		-1,
+	.parse =	dev_usr_parse,
+#ifdef CONFIG_SCST_PROC
+	.read_proc =    dev_user_read_proc,
+#endif
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	.default_trace_flags = SCST_DEFAULT_DEV_LOG_FLAGS,
+	.trace_flags = &trace_flag,
+#endif
 };
 
 static struct class *dev_user_sysfs_class;
@@ -2489,13 +2507,11 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 		sizeof(ucmd->user_cmd.sess.initiator_name)-1);
 	ucmd->user_cmd.sess.initiator_name[
 		sizeof(ucmd->user_cmd.sess.initiator_name)-1] = '\0';
-	if (tgt_dev->sess->tgt->default_group_name != NULL) {
-		strncpy(ucmd->user_cmd.sess.target_name,
-			&tgt_dev->sess->tgt->default_group_name[sizeof(SCST_DEFAULT_ACG_NAME)],
-			sizeof(ucmd->user_cmd.sess.target_name)-1);
-		ucmd->user_cmd.sess.target_name[
-			sizeof(ucmd->user_cmd.sess.target_name)-1] = '\0';
-	}
+	strncpy(ucmd->user_cmd.sess.target_name,
+		tgt_dev->sess->tgt->tgt_name,
+		sizeof(ucmd->user_cmd.sess.target_name)-1);
+	ucmd->user_cmd.sess.target_name[
+		sizeof(ucmd->user_cmd.sess.target_name)-1] = '\0';
 
 	TRACE_MGMT_DBG("Preparing ATTACH_SESS %p (h %d, sess_h %llx, LUN %llx, "
 		"threads_num %d, rd_only %d, initiator %s, target %s)",
@@ -2758,7 +2774,9 @@ static int dev_user_register_dev(struct file *file,
 	dev->devtype.parse_atomic = 1;
 	dev->devtype.exec_atomic = 0; /* no point to make it 1 */
 	dev->devtype.dev_done_atomic = 1;
+#ifdef CONFIG_SCST_PROC
 	dev->devtype.no_proc = 1;
+#endif
 	dev->devtype.attach = dev_user_attach;
 	dev->devtype.detach = dev_user_detach;
 	dev->devtype.attach_tgt = dev_user_attach_tgt;
@@ -2766,6 +2784,8 @@ static int dev_user_register_dev(struct file *file,
 	dev->devtype.exec = dev_user_exec;
 	dev->devtype.on_free_cmd = dev_user_on_free_cmd;
 	dev->devtype.task_mgmt_fn = dev_user_task_mgmt_fn;
+
+	dev->devtype.parent = &dev_user_devtype;
 
 	init_completion(&dev->cleanup_cmpl);
 	dev->block = block;
@@ -3200,16 +3220,6 @@ static int dev_usr_parse(struct scst_cmd *cmd)
 	return SCST_CMD_STATE_DEFAULT;
 }
 
-/* Needed only for /proc support */
-#define USR_TYPE {			\
-	.name =		DEV_USER_NAME,	\
-	.type =		-1,		\
-	.parse =	dev_usr_parse,	\
-	.read_proc =    dev_user_read_proc, \
-}
-
-static struct scst_dev_type dev_user_devtype = USR_TYPE;
-
 static int dev_user_exit_dev(struct scst_user_dev *dev)
 {
 	TRACE_ENTRY();
@@ -3351,7 +3361,7 @@ out:
 	return res;
 }
 
-
+#ifdef CONFIG_SCST_PROC
 /*
  * Called when a file in the /proc/scsi_tgt/scst_user is read
  */
@@ -3389,6 +3399,7 @@ static int dev_user_read_proc(struct seq_file *seq, struct scst_dev_type *dev_ty
 	TRACE_EXIT_RES(res);
 	return res;
 }
+#endif /* CONFIG_SCST_PROC */
 
 static inline int test_cleanup_list(void)
 {
@@ -3522,16 +3533,22 @@ static int __init init_scst_user(void)
 	if (res < 0)
 		goto out_cache1;
 
+#ifdef CONFIG_SCST_PROC
 	res = scst_dev_handler_build_std_proc(&dev_user_devtype);
 	if (res != 0)
 		goto out_unreg;
+#endif
 
 	dev_user_sysfs_class = class_create(THIS_MODULE, DEV_USER_NAME);
 	if (IS_ERR(dev_user_sysfs_class)) {
 		PRINT_ERROR("%s", "Unable create sysfs class for SCST user "
 			"space handler");
 		res = PTR_ERR(dev_user_sysfs_class);
+#ifdef CONFIG_SCST_PROC
 		goto out_proc;
+#else
+		goto out_unreg;
+#endif
 	}
 
 	res = register_chrdev(DEV_USER_MAJOR, DEV_USER_NAME, &dev_user_fops);
@@ -3586,8 +3603,10 @@ out_chrdev:
 out_class:
 	class_destroy(dev_user_sysfs_class);
 
+#ifdef CONFIG_SCST_PROC
 out_proc:
 	scst_dev_handler_destroy_std_proc(&dev_user_devtype);
+#endif
 
 out_unreg:
 	scst_unregister_dev_driver(&dev_user_devtype);
@@ -3618,7 +3637,9 @@ static void __exit exit_scst_user(void)
 #endif
 	class_destroy(dev_user_sysfs_class);
 
+#ifdef CONFIG_SCST_PROC
 	scst_dev_handler_destroy_std_proc(&dev_user_devtype);
+#endif
 	scst_unregister_virtual_dev_driver(&dev_user_devtype);
 
 	kmem_cache_destroy(user_get_cmd_cachep);

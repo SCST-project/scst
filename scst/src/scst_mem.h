@@ -17,7 +17,6 @@
 
 #include <linux/scatterlist.h>
 #include <linux/workqueue.h>
-#include <linux/seq_file.h>
 
 #define SGV_POOL_ELEMENTS	11
 
@@ -77,8 +76,9 @@ struct sgv_pool {
 
 	int purge_interval;
 
-	/* Protected by sgv_pool_lock */
+	/* Protected by sgv_pool_lock, if necessary */
 	unsigned int purge_work_scheduled:1;
+	unsigned int sgv_kobj_initialized:1;
 
 	/* Protected by sgv_pool_lock */
 	struct list_head sorted_recycling_list;
@@ -114,22 +114,28 @@ struct sgv_pool {
 	struct mm_struct *owner_mm;
 
 	struct list_head sgv_pools_list_entry;
-};
 
-int sgv_pool_init(struct sgv_pool *pool, const char *name,
-	enum sgv_clustering_types clustering_type, int single_alloc_pages,
-	int purge_interval);
-void sgv_pool_deinit(struct sgv_pool *pool);
+	struct kobject sgv_kobj;
+};
 
 static inline struct scatterlist *sgv_pool_sg(struct sgv_pool_obj *obj)
 {
 	return obj->sg_entries;
 }
 
-extern int scst_sgv_pools_init(unsigned long mem_hwmark,
-			       unsigned long mem_lwmark);
-extern void scst_sgv_pools_deinit(void);
-extern int sgv_procinfo_show(struct seq_file *seq, void *v);
+int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark);
+void scst_sgv_pools_deinit(void);
+
+void sgv_pool_destroy(struct sgv_pool *pool);
+
+#ifdef CONFIG_SCST_PROC
+int sgv_procinfo_show(struct seq_file *seq, void *v);
+#endif
+
+ssize_t sgv_sysfs_stat_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+ssize_t sgv_sysfs_global_stat_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
 
 void scst_sgv_pool_use_norm(struct scst_tgt_dev *tgt_dev);
 void scst_sgv_pool_use_norm_clust(struct scst_tgt_dev *tgt_dev);

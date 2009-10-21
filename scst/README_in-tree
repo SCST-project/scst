@@ -180,13 +180,13 @@ your favorite kernel configuration Makefile target, e.g. "make xconfig":
    support supplying expected values.
 
  - CONFIG_SCST_DEBUG_TM - if defined, turns on task management functions
-   debugging, when on LUN 0 in the default access control group some of the
-   commands will be delayed for about 60 sec., so making the remote
-   initiator send TM functions, eg ABORT TASK and TARGET RESET. Also
-   define CONFIG_SCST_TM_DBG_GO_OFFLINE symbol in the Makefile if you
-   want that the device eventually become completely unresponsive, or
-   otherwise to circle around ABORTs and RESETs code. Needs CONFIG_SCST_DEBUG
-   turned on.
+   debugging, when on LUN 6 some of the commands will be delayed for
+   about 60 sec., so making the remote initiator send TM functions, eg
+   ABORT TASK and TARGET RESET. Also define
+   CONFIG_SCST_TM_DBG_GO_OFFLINE symbol in the Makefile if you want that
+   the device eventually become completely unresponsive, or otherwise to
+   circle around ABORTs and RESETs code. Needs CONFIG_SCST_DEBUG turned
+   on.
 
  - CONFIG_SCST_STRICT_SERIALIZING - if defined, makes SCST send all commands to
    underlying SCSI device synchronously, one after one. This makes task
@@ -198,8 +198,9 @@ your favorite kernel configuration Makefile target, e.g. "make xconfig":
    commands reliably if they sent asynchronously to a stateful device.
    Turned off by default, turn it on if you use stateful device(s) and
    need as much error recovery reliability as possible. As a side effect
-   of CONFIG_SCST_STRICT_SERIALIZING, no kernel patching is necessary
-   for pass-through device handlers (scst_disk, etc.).
+   of CONFIG_SCST_STRICT_SERIALIZING, on kernels below 2.6.30 no kernel
+   patching is necessary for pass-through device handlers (scst_disk,
+   etc.).
 
  - CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ - if defined, it will be
    allowed to submit pass-through commands to real SCSI devices via the SCSI
@@ -1029,5 +1030,9 @@ Thanks to:
    devices >2TB in size
 
  * Bart Van Assche <bart.vanassche@gmail.com> for a lot of help
+
+ * Daniel Debonzi <debonzi@linux.vnet.ibm.com> for a big part of SCST sysfs tree
+   implementation
+
 
 Vladislav Bolkhovitin <vst@vlnb.net>, http://scst.sourceforge.net

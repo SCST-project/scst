@@ -63,16 +63,18 @@ them are optional, so, if you don't need the corresponding
 functionality, you may not apply them.
 
 1. scst_exec_req_fifo-2.6.X.patch. This patch is necessary for
-pass-through dev handlers (scst_disk, scst_tape, etc.). Kernels <2.6.30
-need it, because in them scsi_do_req()/scsi_execute_async() work in LIFO
-order, instead of expected and required FIFO. So, SCST needs new
-functions scsi_do_req_fifo() or scsi_execute_async_fifo() to be added in
-the kernel. Kernels >=2.6.30 need it, because in them there is no
-functionality to execute commands with data in scatter-gather buffers.
-This patch adds the necessary functionality to the kernel. You may not
-patch your kernel if you don't need pass-through support. Alternatively,
-on kernels <2.6.30 you can define CONFIG_SCST_STRICT_SERIALIZING compile
-option during the compilation (see description below).
+pass-through dev handlers, because in the mainstream kernels
+scsi_do_req()/scsi_execute_async() work in LIFO order, instead of
+expected and required FIFO. So SCST needs new functions
+scsi_do_req_fifo() or scsi_execute_async_fifo() to be added in the
+kernel. This patch does that. You may not patch the kernel if you don't
+need the pass-through support. Alternatively, you can define
+CONFIG_SCST_STRICT_SERIALIZING compile option during the compilation
+(see description below). Unfortunately, the CONFIG_SCST_STRICT_SERIALIZING
+trick doesn't work on kernels starting from 2.6.30, because those
+kernels don't have the required functionality (scsi_execute_async())
+anymore. So, on them to have pass-through working you have to apply
+scst_exec_req_fifo-2.6.X.patch.
 
 2. io_context-2.6.X.patch. This patch exports some IO context management
 functions from the kernel. For performance reasons SCST queues commands
@@ -257,13 +259,13 @@ in/out in Makefile:
    support supplying expected values.
 
  - CONFIG_SCST_DEBUG_TM - if defined, turns on task management functions
-   debugging, when on LUN 0 in the default access control group some of the
-   commands will be delayed for about 60 sec., so making the remote
-   initiator send TM functions, eg ABORT TASK and TARGET RESET. Also
-   define CONFIG_SCST_TM_DBG_GO_OFFLINE symbol in the Makefile if you
-   want that the device eventually become completely unresponsive, or
-   otherwise to circle around ABORTs and RESETs code. Needs CONFIG_SCST_DEBUG
-   turned on.
+   debugging, when on LUN 6 some of the commands will be delayed for
+   about 60 sec., so making the remote initiator send TM functions, eg
+   ABORT TASK and TARGET RESET. Also define
+   CONFIG_SCST_TM_DBG_GO_OFFLINE symbol in the Makefile if you want that
+   the device eventually become completely unresponsive, or otherwise to
+   circle around ABORTs and RESETs code. Needs CONFIG_SCST_DEBUG turned
+   on.
 
  - CONFIG_SCST_STRICT_SERIALIZING - if defined, makes SCST send all commands to
    underlying SCSI device synchronously, one after one. This makes task
@@ -275,8 +277,9 @@ in/out in Makefile:
    commands reliably if they sent asynchronously to a stateful device.
    Turned off by default, turn it on if you use stateful device(s) and
    need as much error recovery reliability as possible. As a side effect
-   of CONFIG_SCST_STRICT_SERIALIZING, no kernel patching is necessary
-   for pass-through device handlers (scst_disk, etc.).
+   of CONFIG_SCST_STRICT_SERIALIZING, on kernels below 2.6.30 no kernel
+   patching is necessary for pass-through device handlers (scst_disk,
+   etc.).
 
  - CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ - if defined, it will be
    allowed to submit pass-through commands to real SCSI devices via the SCSI
@@ -1120,5 +1123,9 @@ Thanks to:
  * University of New Hampshire Interoperability Labs (UNH IOL, http://www.iol.unh.edu)
    for UNH-iSCSI project (http://www.iol.unh.edu/consortiums/iscsi/index.html)
    on which interface between SCST core and target drivers was based.
+
+ * Daniel Debonzi <debonzi@linux.vnet.ibm.com> for a big part of SCST sysfs tree
+   implementation
+ 
 
 Vladislav Bolkhovitin <vst@vlnb.net>, http://scst.sourceforge.net

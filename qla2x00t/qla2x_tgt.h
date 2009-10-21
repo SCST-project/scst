@@ -129,6 +129,8 @@ qla2x00_send_enable_lun(scsi_qla_host_t *ha, bool enable)
 	}
 }
 
+extern void qla2xxx_add_targets(void);
+
 #endif /* CONFIG_SCSI_QLA2XXX_TARGET */
 
 #endif /* __QLA2X_TGT_H */

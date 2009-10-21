@@ -57,11 +57,11 @@ static void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
 	const uint8_t *sense, int sense_len, int flags);
 static void scst_free_all_UA(struct scst_tgt_dev *tgt_dev);
 static void scst_release_space(struct scst_cmd *cmd);
-static void scst_sess_free_tgt_devs(struct scst_session *sess);
 static void scst_unblock_cmds(struct scst_device *dev);
 static void scst_clear_reservation(struct scst_tgt_dev *tgt_dev);
 static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	struct scst_acg_dev *acg_dev);
+static void scst_tgt_retry_timer_fn(unsigned long arg);
 
 #ifdef CONFIG_SCST_DEBUG_TM
 static void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev,
@@ -1244,6 +1244,44 @@ restart1:
 	return;
 }
 
+struct scst_tgt *scst_alloc_tgt(struct scst_tgt_template *tgtt)
+{
+	struct scst_tgt *tgt;
+
+	TRACE_ENTRY();
+
+	tgt = kzalloc(sizeof(*tgt), GFP_KERNEL);
+	if (tgt == NULL) {
+		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of tgt failed");
+		goto out;
+	}
+
+	INIT_LIST_HEAD(&tgt->sess_list);
+	init_waitqueue_head(&tgt->unreg_waitQ);
+	tgt->tgtt = tgtt;
+	tgt->sg_tablesize = tgtt->sg_tablesize;
+	spin_lock_init(&tgt->tgt_lock);
+	INIT_LIST_HEAD(&tgt->retry_cmd_list);
+	atomic_set(&tgt->finished_cmds, 0);
+	init_timer(&tgt->retry_timer);
+	tgt->retry_timer.data = (unsigned long)tgt;
+	tgt->retry_timer.function = scst_tgt_retry_timer_fn;
+
+out:
+	TRACE_EXIT_HRES((unsigned long)tgt);
+	return tgt;
+}
+
+void scst_free_tgt(struct scst_tgt *tgt)
+{
+	TRACE_ENTRY();
+
+	kfree(tgt);
+
+	TRACE_EXIT();
+	return;
+}
+
 /* Called under scst_mutex and suspended activity */
 int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev)
 {
@@ -1310,6 +1348,7 @@ void scst_free_device(struct scst_device *dev)
 	}
 #endif
 
+	kfree(dev->virt_name);
 	__exit_io_context(dev->dev_io_ctx);
 
 	kfree(dev);
@@ -1356,6 +1395,16 @@ out:
 	return res;
 }
 
+void scst_acg_dev_destroy(struct scst_acg_dev *acg_dev)
+{
+	TRACE_ENTRY();
+
+	kmem_cache_free(scst_acgd_cachep, acg_dev);
+
+	TRACE_EXIT();
+	return;
+}
+
 /* The activity supposed to be suspended and scst_mutex held */
 static void scst_free_acg_dev(struct scst_acg_dev *acg_dev)
 {
@@ -1366,7 +1415,11 @@ static void scst_free_acg_dev(struct scst_acg_dev *acg_dev)
 	list_del(&acg_dev->acg_dev_list_entry);
 	list_del(&acg_dev->dev_acg_dev_list_entry);
 
-	kmem_cache_free(scst_acgd_cachep, acg_dev);
+	if (acg_dev->acg_dev_kobj_initialized) {
+		kobject_del(&acg_dev->acg_dev_kobj);
+		kobject_put(&acg_dev->acg_dev_kobj);
+	} else
+		scst_acg_dev_destroy(acg_dev);
 
 	TRACE_EXIT();
 	return;
@@ -1505,16 +1558,8 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	if (sess->tgt->tgtt->unchecked_isa_dma || ini_unchecked_isa_dma)
 		scst_sgv_pool_use_dma(tgt_dev);
 
-	if (dev->scsi_dev != NULL) {
-		TRACE_MGMT_DBG("host=%d, channel=%d, id=%d, lun=%d, "
-		      "SCST lun=%lld", dev->scsi_dev->host->host_no,
-		      dev->scsi_dev->channel, dev->scsi_dev->id,
-		      dev->scsi_dev->lun,
-		      (long long unsigned int)tgt_dev->lun);
-	} else {
-		TRACE_MGMT_DBG("Virtual device %s on SCST lun=%lld",
-		       dev->virt_name, (long long unsigned int)tgt_dev->lun);
-	}
+	TRACE_MGMT_DBG("Device %s on SCST lun=%lld",
+	       dev->virt_name, (long long unsigned int)tgt_dev->lun);
 
 	spin_lock_init(&tgt_dev->tgt_dev_lock);
 	INIT_LIST_HEAD(&tgt_dev->UA_list);
@@ -1750,7 +1795,7 @@ out_free:
  * scst_mutex supposed to be held, there must not be parallel activity in this
  * session.
  */
-static void scst_sess_free_tgt_devs(struct scst_session *sess)
+void scst_sess_free_tgt_devs(struct scst_session *sess)
 {
 	int i;
 	struct scst_tgt_dev *tgt_dev, *t;
@@ -1811,20 +1856,9 @@ int scst_acg_add_dev(struct scst_acg *acg, struct scst_device *dev,
 	if (gen_scst_report_luns_changed)
 		scst_report_luns_changed(acg);
 
-	if (dev->virt_name != NULL) {
-		PRINT_INFO("Added device %s to group %s (LUN %lld, "
-			"rd_only %d)", dev->virt_name, acg->acg_name,
-			(long long unsigned int)lun,
-			read_only);
-	} else {
-		PRINT_INFO("Added device %d:%d:%d:%d to group %s (LUN "
-			"%lld, rd_only %d)",
-			dev->scsi_dev->host->host_no,
-			dev->scsi_dev->channel,	dev->scsi_dev->id,
-			dev->scsi_dev->lun, acg->acg_name,
-			(long long unsigned int)lun,
-			read_only);
-	}
+	PRINT_INFO("Added device %s to group %s (LUN %lld, "
+		"rd_only %d)", dev->virt_name, acg->acg_name,
+		(long long unsigned int)lun, read_only);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1872,15 +1906,8 @@ int scst_acg_remove_dev(struct scst_acg *acg, struct scst_device *dev,
 	if (gen_scst_report_luns_changed)
 		scst_report_luns_changed(acg);
 
-	if (dev->virt_name != NULL) {
-		PRINT_INFO("Removed device %s from group %s",
-			dev->virt_name, acg->acg_name);
-	} else {
-		PRINT_INFO("Removed device %d:%d:%d:%d from group %s",
-			dev->scsi_dev->host->host_no,
-			dev->scsi_dev->channel,	dev->scsi_dev->id,
-			dev->scsi_dev->lun, acg->acg_name);
-	}
+	PRINT_INFO("Removed device %s from group %s", dev->virt_name,
+		acg->acg_name);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -2158,9 +2185,7 @@ static void scst_send_release(struct scst_device *dev)
 	req = scsi_allocate_request(scsi_dev, GFP_KERNEL);
 	if (req == NULL) {
 		PRINT_ERROR("Allocation of scsi_request failed: unable "
-			    "to RELEASE device %d:%d:%d:%d",
-			    scsi_dev->host->host_no, scsi_dev->channel,
-			    scsi_dev->id, scsi_dev->lun);
+			    "to RELEASE device %s", dev->virt_name);
 		goto out;
 	}
 
@@ -2347,9 +2372,20 @@ void scst_free_session(struct scst_session *sess)
 
 	scst_sess_free_tgt_devs(sess);
 
+	/* Called under lock to protect from too early tgt release */
 	wake_up_all(&sess->tgt->unreg_waitQ);
 
 	mutex_unlock(&scst_mutex);
+
+	scst_sess_sysfs_put(sess);
+
+	TRACE_EXIT();
+	return;
+}
+
+void scst_release_session(struct scst_session *sess)
+{
+	TRACE_ENTRY();
 
 	kfree(sess->initiator_name);
 	kmem_cache_free(scst_sess_cachep, sess);
@@ -2611,7 +2647,7 @@ void scst_check_retries(struct scst_tgt *tgt)
 	return;
 }
 
-void scst_tgt_retry_timer_fn(unsigned long arg)
+static void scst_tgt_retry_timer_fn(unsigned long arg)
 {
 	struct scst_tgt *tgt = (struct scst_tgt *)arg;
 	unsigned long flags;
@@ -3992,11 +4028,8 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 			dev->tst = buffer[4+2] >> 5;
 			q = buffer[4+3] >> 4;
 			if (q > SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER) {
-				PRINT_ERROR("Too big QUEUE ALG %x, dev "
-					"%d:%d:%d:%d", dev->queue_alg,
-					dev->scsi_dev->host->host_no,
-					dev->scsi_dev->channel,
-					dev->scsi_dev->id, dev->scsi_dev->lun);
+				PRINT_ERROR("Too big QUEUE ALG %x, dev %s",
+					dev->queue_alg, dev->virt_name);
 			}
 			dev->queue_alg = q;
 			dev->swp = (buffer[4+4] & 0x8) >> 3;
@@ -4011,12 +4044,10 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 			dev->has_own_order_mgmt = !dev->queue_alg;
 
 			TRACE(TRACE_SCSI|TRACE_MGMT_MINOR,
-				"Device %d:%d:%d:%d: TST %x, "
+				"Device %s: TST %x, "
 				"QUEUE ALG %x, SWP %x, TAS %x, D_SENSE %d"
 				"has_own_order_mgmt %d",
-				dev->scsi_dev->host->host_no,
-				dev->scsi_dev->channel,	dev->scsi_dev->id,
-				dev->scsi_dev->lun, dev->tst, dev->queue_alg,
+				dev->virt_name, dev->tst, dev->queue_alg,
 				dev->swp, dev->tas, dev->d_sense,
 				dev->has_own_order_mgmt);
 
@@ -4037,16 +4068,13 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 						SCST_SENSE_KEY_VALID,
 						ILLEGAL_REQUEST, 0, 0)) {
 					TRACE(TRACE_SCSI|TRACE_MGMT_MINOR,
-						"Device %d:%d:%d:%d doesn't "
+						"Device %s doesn't "
 						"support control mode page, "
 						"using defaults: TST %x, "
 						"QUEUE ALG %x, SWP %x, "
 						"TAS %x, D_SENSE %d, "
 						"has_own_order_mgmt %d ",
-						dev->scsi_dev->host->host_no,
-						dev->scsi_dev->channel,
-						dev->scsi_dev->id,
-						dev->scsi_dev->lun,
+						dev->virt_name,
 						dev->tst, dev->queue_alg,
 						dev->swp, dev->tas,
 						dev->d_sense,
@@ -4057,23 +4085,16 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 						sizeof(sense_buffer),
 						SCST_SENSE_KEY_VALID,
 						NOT_READY, 0, 0)) {
-					TRACE(TRACE_SCSI,
-						"Device %d:%d:%d:%d not ready",
-						dev->scsi_dev->host->host_no,
-						dev->scsi_dev->channel,
-						dev->scsi_dev->id,
-						dev->scsi_dev->lun);
+					TRACE(TRACE_SCSI, "Device %s not ready",
+						dev->virt_name);
 					res = 0;
 					goto out;
 				}
 			} else {
 				TRACE(TRACE_SCSI|TRACE_MGMT_MINOR,
 					"Internal MODE SENSE to "
-					"device %d:%d:%d:%d failed: %x",
-					dev->scsi_dev->host->host_no,
-					dev->scsi_dev->channel,
-					dev->scsi_dev->id,
-					dev->scsi_dev->lun, res);
+					"device %s failed: %x",
+					dev->virt_name, res);
 				PRINT_BUFF_FLAG(TRACE_SCSI|TRACE_MGMT_MINOR,
 					"MODE SENSE sense",
 					sense_buffer, sizeof(sense_buffer));
@@ -5053,7 +5074,7 @@ static const int tm_dbg_on_state_num_passes[] = { 5, 1, 0x7ffffff };
 static void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev,
 	struct scst_acg_dev *acg_dev)
 {
-	if ((acg_dev->acg == scst_default_acg) && (acg_dev->lun == 0)) {
+	if (acg_dev->lun == 6) {
 		unsigned long flags;
 
 		if (tm_dbg_tgt_dev != NULL)
@@ -5065,8 +5086,9 @@ static void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev,
 		tm_dbg_on_state_passes =
 			tm_dbg_on_state_num_passes[tm_dbg_state];
 		tm_dbg_tgt_dev = tgt_dev;
-		PRINT_INFO("LUN 0 connected from initiator %s is under "
+		PRINT_INFO("LUN %lld connected from initiator %s is under "
 			"TM debugging (tgt_dev %p)",
+			(unsigned long long)tgt_dev->lun,
 			tgt_dev->sess->initiator_name, tgt_dev);
 		spin_unlock_irqrestore(&scst_tm_dbg_lock, flags);
 	}

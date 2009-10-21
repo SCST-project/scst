@@ -311,6 +311,8 @@ int session_del(struct iscsi_target *target, u64 sid)
 	return session_free(session, true);
 }
 
+#ifdef CONFIG_SCST_PROC
+
 /* target_mutex supposed to be locked */
 static void iscsi_session_info_show(struct seq_file *seq,
 				    struct iscsi_target *target)
@@ -345,3 +347,5 @@ const struct file_operations session_seq_fops = {
 	.llseek		= seq_lseek,
 	.release	= seq_release,
 };
+
+#endif /* CONFIG_SCST_PROC */

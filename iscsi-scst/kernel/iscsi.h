@@ -18,7 +18,6 @@
 #define __ISCSI_H__
 
 #include <linux/pagemap.h>
-#include <linux/seq_file.h>
 #include <linux/mm.h>
 #include <linux/net.h>
 #include <net/sock.h>
@@ -439,7 +438,10 @@ extern void __mark_conn_closed(struct iscsi_conn *, int);
 
 extern void mark_conn_closed(struct iscsi_conn *);
 extern void iscsi_make_conn_wr_active(struct iscsi_conn *);
+
+#ifdef CONFIG_SCST_PROC
 extern void conn_info_show(struct seq_file *, struct iscsi_session *);
+#endif
 
 /* nthread.c */
 extern int iscsi_send(struct iscsi_conn *conn);
@@ -463,8 +465,10 @@ extern void target_del_all(void);
 extern const struct seq_operations iscsi_seq_op;
 
 /* config.c */
+#ifdef CONFIG_SCST_PROC
 extern int iscsi_procfs_init(void);
 extern void iscsi_procfs_exit(void);
+#endif
 
 /* session.c */
 extern const struct file_operations session_seq_fops;

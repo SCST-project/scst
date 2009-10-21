@@ -27,26 +27,28 @@
 
 #define PROCESSOR_NAME	"dev_processor"
 
-#define PROCESSOR_TYPE {				\
-	.name =			PROCESSOR_NAME,   	\
-	.type =			TYPE_PROCESSOR,		\
-	.parse_atomic =		1,      		\
-/*	.dev_done_atomic =	1,*/			\
-	.attach =		processor_attach, 	\
-/*	.detach =		processor_detach,*/	\
-	.parse =		processor_parse,	\
-/*	.dev_done =		processor_done*/	\
-}
-
-#define PROCESSOR_RETRIES       2
-#define READ_CAP_LEN          8
+#define PROCESSOR_RETRIES	2
+#define READ_CAP_LEN		8
 
 static int processor_attach(struct scst_device *);
 /*static void processor_detach(struct scst_device *);*/
 static int processor_parse(struct scst_cmd *);
 /*static int processor_done(struct scst_cmd *);*/
 
-static struct scst_dev_type processor_devtype = PROCESSOR_TYPE;
+static struct scst_dev_type processor_devtype = {
+	.name =			PROCESSOR_NAME,
+	.type =			TYPE_PROCESSOR,
+	.parse_atomic =		1,
+/*	.dev_done_atomic =	1,*/
+	.attach =		processor_attach,
+/*	.detach =		processor_detach,*/
+	.parse =		processor_parse,
+/*	.dev_done =		processor_done*/
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
+	.trace_flags =		&trace_flag,
+#endif
+};
 
 /**************************************************************
  *  Function:  processor_attach
@@ -101,9 +103,7 @@ static int processor_attach(struct scst_device *dev)
 	res = scst_obtain_device_parameters(dev);
 	if (res != 0) {
 		PRINT_ERROR("Failed to obtain control parameters for device "
-			"%d:%d:%d:%d", dev->scsi_dev->host->host_no,
-			dev->scsi_dev->channel, dev->scsi_dev->id,
-			dev->scsi_dev->lun);
+			"%s", dev->virt_name);
 		goto out;
 	}
 
@@ -202,23 +202,28 @@ static int __init processor_init(void)
 	if (res < 0)
 		goto out;
 
+#ifdef CONFIG_SCST_PROC
 	res = scst_dev_handler_build_std_proc(&processor_devtype);
 	if (res != 0)
 		goto out_err;
+#endif
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
+#ifdef CONFIG_SCST_PROC
 out_err:
 	scst_unregister_dev_driver(&processor_devtype);
 	goto out;
+#endif
 }
 
 static void __exit processor_exit(void)
 {
 	TRACE_ENTRY();
+#ifdef CONFIG_SCST_PROC
 	scst_dev_handler_destroy_std_proc(&processor_devtype);
+#endif
 	scst_unregister_dev_driver(&processor_devtype);
 	TRACE_EXIT();
 	return;

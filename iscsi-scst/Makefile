@@ -14,6 +14,7 @@ SCST_DIR := $(shell pwd)/../scst/src
 SBINDIR := /usr/local/sbin
 INITDIR := /etc/init.d
 RCDIR := /etc/rc.d
+KMOD := $(shell pwd)/kernel
 
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
@@ -29,7 +30,7 @@ endif
 all: include/iscsi_scst_itf_ver.h progs mods
 
 mods: Modules.symvers Module.symvers
-	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(shell pwd)/kernel modules
+	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(KMOD) modules
 
 progs:
 	$(MAKE) -C usr
@@ -79,11 +80,47 @@ endif
 
 clean:
 	$(MAKE) -C usr clean
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/kernel clean
+	$(MAKE) -C $(KDIR) SUBDIRS=$(KMOD) clean
 	rm -f kernel/Modules.symvers kernel/Module.symvers \
 		kernel/Module.markers kernel/modules.order \
 		include/iscsi_scst_itf_ver.h
 
 extraclean: clean
 
-.PHONY: all mods progs install clean extraclean
+debug2release:
+	sed -c -i.aa s/"^EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ $(KMOD)/Makefile
+	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
+	sed -c -i.aa s/"#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/"EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/ $(KMOD)/Makefile
+	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
+	sed -c -i.aa s/"^EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g"/ $(KMOD)/Makefile
+	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
+	rm $(KMOD)/Makefile.aa
+
+release2debug:
+	sed -c -i.aa s/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ $(KMOD)/Makefile
+	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
+	sed -c -i.aa s/"^EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/ $(KMOD)/Makefile
+	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
+	sed -c -i.aa s/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g"/"EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g"/ $(KMOD)/Makefile
+	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
+	rm $(KMOD)/Makefile.aa
+
+debug2perf:
+	sed -c -i.aa s/"^EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ $(KMOD)/Makefile
+	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
+	sed -c -i.aa s/"^EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g"/ $(KMOD)/Makefile
+	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
+	rm $(KMOD)/Makefile.aa
+
+perf2debug:
+	sed -c -i.aa s/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ $(KMOD)/Makefile
+	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
+	sed -c -i.aa s/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g"/"EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g"/ $(KMOD)/Makefile
+	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
+	rm $(KMOD)/Makefile.aa
+
+disable_proc:
+
+enable_proc:
+
+.PHONY: all mods progs install clean extraclean debug2release release2debug debug2perf perf2debug disable_proc enable_proc

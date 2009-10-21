@@ -44,13 +44,13 @@
  * Must be changed on any change in any initiator visible interfaces or
  * data in the target add-on
  */
-#define QLA2X_TARGET_MAGIC	264
+#define QLA2X_TARGET_MAGIC	265
 
 /*
  * Must be changed on any change in any target visible interfaces or
  * data in the initiator
  */
-#define QLA2X_INITIATOR_MAGIC   57217
+#define QLA2X_INITIATOR_MAGIC   57218
 
 #define QLA2X00_COMMAND_COUNT_INIT	250
 #define QLA2X00_IMMED_NOTIFY_COUNT_INIT 250
@@ -689,8 +689,10 @@ typedef struct {
 \********************************************************************/
 
 typedef enum {
-	DISABLE_TARGET_MODE = 0,
-	ENABLE_TARGET_MODE = 1
+	ADD_TARGET = 0,
+	REMOVE_TARGET,
+	DISABLE_TARGET_MODE,
+	ENABLE_TARGET_MODE,
 } qla2x_tgt_host_action_t;
 
 /* Changing it don't forget to change QLA2X_TARGET_MAGIC! */

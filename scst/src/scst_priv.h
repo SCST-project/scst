@@ -35,6 +35,10 @@
 
 #include "scst_debug.h"
 
+#ifdef CONFIG_SCST_PROC
+void sgv_pool_destroy(struct sgv_pool *pool);
+#endif
+
 #define SCST_MAJOR              177
 
 #define TRACE_RTRY              0x80000000
@@ -146,7 +150,9 @@ extern struct list_head scst_dev_type_list;
 extern wait_queue_head_t scst_dev_cmd_waitQ;
 
 extern struct list_head scst_acg_list;
+#ifdef CONFIG_SCST_PROC
 extern struct scst_acg *scst_default_acg;
+#endif
 
 extern spinlock_t scst_init_lock;
 extern struct list_head scst_init_cmd_list;
@@ -287,6 +293,12 @@ void scst_del_dev_threads(struct scst_device *dev, int num);
 
 int scst_queue_retry_cmd(struct scst_cmd *cmd, int finished_cmds);
 
+static inline void scst_tgtt_cleanup(struct scst_tgt_template *tgtt) { }
+static inline void scst_devt_cleanup(struct scst_dev_type *devt) { }
+
+struct scst_tgt *scst_alloc_tgt(struct scst_tgt_template *tgtt);
+void scst_free_tgt(struct scst_tgt *tgt);
+
 int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev);
 void scst_free_device(struct scst_device *dev);
 
@@ -298,12 +310,15 @@ struct scst_acg *scst_find_acg(const struct scst_session *sess);
 void scst_check_reassign_sessions(void);
 
 int scst_sess_alloc_tgt_devs(struct scst_session *sess);
+void scst_sess_free_tgt_devs(struct scst_session *sess);
 void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA);
 
 int scst_acg_add_dev(struct scst_acg *acg, struct scst_device *dev,
 	uint64_t lun, int read_only, bool gen_scst_report_luns_changed);
 int scst_acg_remove_dev(struct scst_acg *acg, struct scst_device *dev,
 	bool gen_scst_report_luns_changed);
+
+void scst_acg_dev_destroy(struct scst_acg_dev *acg_dev);
 
 int scst_acg_add_name(struct scst_acg *acg, const char *name);
 int scst_acg_remove_name(struct scst_acg *acg, const char *name, bool reassign);
@@ -320,6 +335,7 @@ int scst_assign_dev_handler(struct scst_device *dev,
 struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 	const char *initiator_name);
 void scst_free_session(struct scst_session *sess);
+void scst_release_session(struct scst_session *sess);
 void scst_free_session_callback(struct scst_session *sess);
 
 struct scst_cmd *scst_alloc_cmd(gfp_t gfp_mask);
@@ -331,7 +347,6 @@ static inline void scst_destroy_cmd(struct scst_cmd *cmd)
 }
 
 void scst_check_retries(struct scst_tgt *tgt);
-void scst_tgt_retry_timer_fn(unsigned long arg);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
 int scst_alloc_request(struct scst_cmd *cmd);
@@ -360,7 +375,7 @@ static inline int scst_exec_req(struct scsi_device *sdev,
 	return scsi_execute_async(sdev, cmd, cmd_len, data_direction, (void *)sgl,
 		    bufflen, nents, timeout, retries, privdata, done, gfp);
 #elif !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
-	WARN_ON_ONCE(1);
+	WARN_ON();
 	return -1;
 #else
 	return scsi_execute_async_fifo(sdev, cmd, cmd_len, data_direction,
@@ -399,6 +414,7 @@ struct scst_mgmt_cmd *scst_alloc_mgmt_cmd(gfp_t gfp_mask);
 void scst_free_mgmt_cmd(struct scst_mgmt_cmd *mcmd);
 void scst_done_cmd_mgmt(struct scst_cmd *cmd);
 
+#ifdef CONFIG_SCST_PROC
 /* /proc support */
 int scst_proc_init_module(void);
 void scst_proc_cleanup_module(void);
@@ -408,6 +424,96 @@ int scst_build_proc_target_entries(struct scst_tgt *vtt);
 void scst_cleanup_proc_target_entries(struct scst_tgt *vtt);
 int scst_build_proc_dev_handler_dir_entries(struct scst_dev_type *dev_type);
 void scst_cleanup_proc_dev_handler_dir_entries(struct scst_dev_type *dev_type);
+#endif
+
+/* sysfs support  */
+#ifdef CONFIG_SCST_PROC
+static inline int scst_sysfs_init(void)
+{
+	return 0;
+}
+static inline void scst_sysfs_cleanup(void) { }
+
+static inline int scst_create_tgtt_sysfs(struct scst_tgt_template *tgtt)
+{
+	return 0;
+}
+static inline void scst_tgtt_sysfs_put(struct scst_tgt_template *tgtt)
+{
+	scst_tgtt_cleanup(tgtt);
+}
+
+static inline int scst_create_tgt_sysfs(struct scst_tgt *tgt)
+{
+	return 0;
+}
+static inline void scst_tgt_sysfs_put(struct scst_tgt *tgt)
+{
+	scst_free_tgt(tgt);
+}
+
+static inline int scst_create_sess_sysfs(struct scst_session *sess)
+{
+	return 0;
+}
+static inline void scst_sess_sysfs_put(struct scst_session *sess)
+{
+	scst_release_session(sess);
+}
+
+static inline int scst_create_sgv_sysfs(struct sgv_pool *pool)
+{
+	return 0;
+}
+static inline void scst_sgv_sysfs_put(struct sgv_pool *pool)
+{
+	sgv_pool_destroy(pool);
+}
+
+static inline int scst_create_devt_sysfs(struct scst_dev_type *devt)
+{
+	return 0;
+}
+static inline void scst_devt_sysfs_put(struct scst_dev_type *devt)
+{
+	scst_devt_cleanup(devt);
+}
+
+static inline int scst_create_device_sysfs(struct scst_device *dev)
+{
+	return 0;
+}
+static inline void scst_device_sysfs_put(struct scst_device *dev)
+{
+	scst_free_device(dev);
+}
+
+static inline int scst_create_devt_dev_sysfs(struct scst_device *dev)
+{
+	return 0;
+}
+static inline void scst_devt_dev_sysfs_put(struct scst_device *dev) { }
+
+#else /* CONFIG_SCST_PROC */
+
+int scst_sysfs_init(void);
+void scst_sysfs_cleanup(void);
+int scst_create_tgtt_sysfs(struct scst_tgt_template *tgtt);
+void scst_tgtt_sysfs_put(struct scst_tgt_template *tgtt);
+int scst_create_tgt_sysfs(struct scst_tgt *tgt);
+void scst_tgt_sysfs_put(struct scst_tgt *tgt);
+int scst_create_sess_sysfs(struct scst_session *sess);
+void scst_sess_sysfs_put(struct scst_session *sess);
+int scst_create_sgv_sysfs(struct sgv_pool *pool);
+void scst_sgv_sysfs_put(struct sgv_pool *pool);
+int scst_create_devt_sysfs(struct scst_dev_type *devt);
+void scst_devt_sysfs_put(struct scst_dev_type *devt);
+int scst_create_device_sysfs(struct scst_device *dev);
+void scst_device_sysfs_put(struct scst_device *dev);
+int scst_create_devt_dev_sysfs(struct scst_device *dev);
+void scst_devt_dev_sysfs_put(struct scst_device *dev);
+
+#endif /* CONFIG_SCST_PROC */
 
 int scst_get_cdb_len(const uint8_t *cdb);
 

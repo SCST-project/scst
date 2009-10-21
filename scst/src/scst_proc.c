@@ -92,7 +92,7 @@ static struct proc_dir_entry *scst_proc_groups_root;
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 static struct scst_proc_data scst_log_proc_data;
 
-static struct scst_proc_log scst_proc_trace_tbl[] =
+static struct scst_trace_log scst_proc_trace_tbl[] =
 {
     { TRACE_OUT_OF_MEM,		"out_of_mem" },
     { TRACE_MINOR,		"minor" },
@@ -112,7 +112,7 @@ static struct scst_proc_log scst_proc_trace_tbl[] =
     { 0,			NULL }
 };
 
-static struct scst_proc_log scst_proc_local_trace_tbl[] =
+static struct scst_trace_log scst_proc_local_trace_tbl[] =
 {
     { TRACE_RTRY,		"retry" },
     { TRACE_SCSI_SERIALIZING,	"scsi_serializing" },
@@ -242,13 +242,13 @@ static DEFINE_MUTEX(scst_log_mutex);
 
 int scst_proc_log_entry_write(struct file *file, const char __user *buf,
 	unsigned long length, unsigned long *log_level,
-	unsigned long default_level, const struct scst_proc_log *tbl)
+	unsigned long default_level, const struct scst_trace_log *tbl)
 {
 	int res = length;
 	int action;
 	unsigned long level = 0, oldlevel;
 	char *buffer, *p, *e;
-	const struct scst_proc_log *t;
+	const struct scst_trace_log *t;
 	char *data = (char *)PDE(file->f_dentry->d_inode)->data;
 
 	TRACE_ENTRY();
@@ -1375,17 +1375,23 @@ int scst_build_proc_dev_handler_dir_entries(struct scst_dev_type *dev_type)
 {
 	int res = 0;
 	struct proc_dir_entry *p;
+	const char *name; /* workaround to keep /proc ABI intact */
 
 	TRACE_ENTRY();
 
 	sBUG_ON(dev_type->proc_dev_type_root);
 
+	if (strcmp(dev_type->name, "vdisk_fileio") == 0)
+		name = "vdisk";
+	else
+		name = dev_type->name;
+
 	/* create the proc directory entry for the dev type handler */
-	dev_type->proc_dev_type_root = proc_mkdir(dev_type->name,
+	dev_type->proc_dev_type_root = proc_mkdir(name,
 						  scst_proc_scsi_tgt);
 	if (dev_type->proc_dev_type_root == NULL) {
 		PRINT_ERROR("Not enough memory to register dev handler dir "
-		    "%s in /proc/%s", dev_type->name, SCST_PROC_ENTRY_NAME);
+		    "%s in /proc/%s", name, SCST_PROC_ENTRY_NAME);
 		goto out_nomem;
 	}
 
@@ -1398,7 +1404,7 @@ int scst_build_proc_dev_handler_dir_entries(struct scst_dev_type *dev_type)
 			PRINT_ERROR("Not enough memory to register dev "
 			     "handler entry %s in /proc/%s/%s",
 			     SCST_PROC_DEV_HANDLER_TYPE_ENTRY_NAME,
-			     SCST_PROC_ENTRY_NAME, dev_type->name);
+			     SCST_PROC_ENTRY_NAME, name);
 			goto out_remove;
 		}
 	}
@@ -1407,12 +1413,12 @@ int scst_build_proc_dev_handler_dir_entries(struct scst_dev_type *dev_type)
 		/* create the proc file entry for the dev type handler */
 		scst_dev_handler_proc_data.data = (void *)dev_type;
 		p = scst_create_proc_entry(dev_type->proc_dev_type_root,
-					   dev_type->name,
+					   name,
 					   &scst_dev_handler_proc_data);
 		if (p == NULL) {
 			PRINT_ERROR("Not enough memory to register dev "
-			     "handler entry %s in /proc/%s/%s", dev_type->name,
-			     SCST_PROC_ENTRY_NAME, dev_type->name);
+			     "handler entry %s in /proc/%s/%s", name,
+			     SCST_PROC_ENTRY_NAME, name);
 			goto out_remove1;
 		}
 	}
@@ -1427,7 +1433,7 @@ out_remove1:
 				  dev_type->proc_dev_type_root);
 
 out_remove:
-	remove_proc_entry(dev_type->name, scst_proc_scsi_tgt);
+	remove_proc_entry(name, scst_proc_scsi_tgt);
 
 out_nomem:
 	res = -ENOMEM;
@@ -1436,17 +1442,25 @@ out_nomem:
 
 void scst_cleanup_proc_dev_handler_dir_entries(struct scst_dev_type *dev_type)
 {
+	/* Workaround to keep /proc ABI intact */
+	const char *name;
+
 	TRACE_ENTRY();
 
 	sBUG_ON(dev_type->proc_dev_type_root == NULL);
+
+	if (strcmp(dev_type->name, "vdisk_fileio") == 0)
+		name = "vdisk";
+	else
+		name = dev_type->name;
 
 	if (dev_type->type >= 0) {
 		remove_proc_entry(SCST_PROC_DEV_HANDLER_TYPE_ENTRY_NAME,
 				  dev_type->proc_dev_type_root);
 	}
 	if (dev_type->read_proc || dev_type->write_proc)
-		remove_proc_entry(dev_type->name, dev_type->proc_dev_type_root);
-	remove_proc_entry(dev_type->name, scst_proc_scsi_tgt);
+		remove_proc_entry(name, dev_type->proc_dev_type_root);
+	remove_proc_entry(name, scst_proc_scsi_tgt);
 	dev_type->proc_dev_type_root = NULL;
 
 	TRACE_EXIT();
@@ -2428,11 +2442,11 @@ static struct scst_proc_data scst_groups_devices_proc_data = {
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 
-static int scst_proc_read_tlb(const struct scst_proc_log *tbl,
+static int scst_proc_read_tlb(const struct scst_trace_log *tbl,
 			      struct seq_file *seq,
 	unsigned long log_level, int *first)
 {
-	const struct scst_proc_log *t = tbl;
+	const struct scst_trace_log *t = tbl;
 	int res = 0;
 
 	while (t->token) {
@@ -2446,7 +2460,7 @@ static int scst_proc_read_tlb(const struct scst_proc_log *tbl,
 }
 
 int scst_proc_log_entry_read(struct seq_file *seq, unsigned long log_level,
-			     const struct scst_proc_log *tbl)
+			     const struct scst_trace_log *tbl)
 {
 	int res = 0, first = 1;
 
@@ -2641,3 +2655,17 @@ int scst_single_seq_open(struct inode *inode, struct file *file)
 	return single_open(file, pdata->show, PDE(inode)->data);
 }
 EXPORT_SYMBOL(scst_single_seq_open);
+
+struct proc_dir_entry *scst_proc_get_tgt_root(
+	struct scst_tgt_template *vtt)
+{
+	return vtt->proc_tgt_root;
+}
+EXPORT_SYMBOL(scst_proc_get_tgt_root);
+
+struct proc_dir_entry *scst_proc_get_dev_type_root(
+	struct scst_dev_type *dtt)
+{
+	return dtt->proc_dev_type_root;
+}
+EXPORT_SYMBOL(scst_proc_get_dev_type_root);

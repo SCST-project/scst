@@ -33,31 +33,6 @@
 # define DISK_NAME           "dev_disk"
 # define DISK_PERF_NAME      "dev_disk_perf"
 
-#define DISK_TYPE {          				\
-	.name =			DISK_NAME,		\
-	.type =			TYPE_DISK,		\
-	.parse_atomic =		1,       		\
-	.dev_done_atomic =	1,       		\
-	.exec_atomic =		1,       		\
-	.attach =		disk_attach,		\
-	.detach =		disk_detach,		\
-	.parse =		disk_parse,		\
-	.dev_done =		disk_done,		\
-}
-
-#define DISK_PERF_TYPE {     				\
-	.name =			DISK_PERF_NAME,		\
-	.type =			TYPE_DISK,		\
-	.parse_atomic =		1,       		\
-	.dev_done_atomic =	1,       		\
-	.exec_atomic =		1,       		\
-	.attach =		disk_attach,		\
-	.detach =		disk_detach,		\
-	.parse =		disk_parse,		\
-	.dev_done =		disk_done,		\
-	.exec =			disk_exec,		\
-}
-
 #define DISK_DEF_BLOCK_SHIFT	9
 
 struct disk_params {
@@ -70,8 +45,38 @@ static int disk_parse(struct scst_cmd *cmd);
 static int disk_done(struct scst_cmd *cmd);
 static int disk_exec(struct scst_cmd *cmd);
 
-static struct scst_dev_type disk_devtype = DISK_TYPE;
-static struct scst_dev_type disk_devtype_perf = DISK_PERF_TYPE;
+static struct scst_dev_type disk_devtype = {
+	.name =			DISK_NAME,
+	.type =			TYPE_DISK,
+	.parse_atomic =		1,
+	.dev_done_atomic =	1,
+	.exec_atomic =		1,
+	.attach =		disk_attach,
+	.detach =		disk_detach,
+	.parse =		disk_parse,
+	.dev_done =		disk_done,
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	.default_trace_flags = SCST_DEFAULT_DEV_LOG_FLAGS,
+	.trace_flags = &trace_flag,
+#endif
+};
+
+static struct scst_dev_type disk_devtype_perf = {
+	.name =			DISK_PERF_NAME,
+	.type =			TYPE_DISK,
+	.parse_atomic =		1,
+	.dev_done_atomic =	1,
+	.exec_atomic =		1,
+	.attach =		disk_attach,
+	.detach =		disk_detach,
+	.parse =		disk_parse,
+	.dev_done =		disk_done,
+	.exec =			disk_exec,
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
+	.trace_flags =		&trace_flag,
+#endif
+};
 
 static int __init init_scst_disk_driver(void)
 {
@@ -85,31 +90,35 @@ static int __init init_scst_disk_driver(void)
 	if (res < 0)
 		goto out;
 
-	res = scst_dev_handler_build_std_proc(&disk_devtype);
-	if (res != 0)
-		goto out_unreg1;
-
 	disk_devtype_perf.module = THIS_MODULE;
 
 	res = scst_register_dev_driver(&disk_devtype_perf);
 	if (res < 0)
-		goto out_unreg1_err1;
+		goto out_unreg;
+
+#ifdef CONFIG_SCST_PROC
+	res = scst_dev_handler_build_std_proc(&disk_devtype);
+	if (res != 0)
+		goto out_unreg1;
 
 	res = scst_dev_handler_build_std_proc(&disk_devtype_perf);
 	if (res != 0)
 		goto out_unreg2;
+#endif
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 
+#ifdef CONFIG_SCST_PROC
 out_unreg2:
-	scst_dev_handler_destroy_std_proc(&disk_devtype_perf);
-
-out_unreg1_err1:
 	scst_dev_handler_destroy_std_proc(&disk_devtype);
 
 out_unreg1:
+	scst_unregister_dev_driver(&disk_devtype_perf);
+#endif
+
+out_unreg:
 	scst_unregister_dev_driver(&disk_devtype);
 	goto out;
 }
@@ -117,10 +126,14 @@ out_unreg1:
 static void __exit exit_scst_disk_driver(void)
 {
 	TRACE_ENTRY();
+
+#ifdef CONFIG_SCST_PROC
 	scst_dev_handler_destroy_std_proc(&disk_devtype_perf);
-	scst_unregister_dev_driver(&disk_devtype_perf);
 	scst_dev_handler_destroy_std_proc(&disk_devtype);
+#endif
+	scst_unregister_dev_driver(&disk_devtype_perf);
 	scst_unregister_dev_driver(&disk_devtype);
+
 	TRACE_EXIT();
 	return;
 }
@@ -226,9 +239,7 @@ static int disk_attach(struct scst_device *dev)
 	res = scst_obtain_device_parameters(dev);
 	if (res != 0) {
 		PRINT_ERROR("Failed to obtain control parameters for device "
-			"%d:%d:%d:%d", dev->scsi_dev->host->host_no,
-			dev->scsi_dev->channel, dev->scsi_dev->id,
-			dev->scsi_dev->lun);
+			"%s", dev->virt_name);
 		goto out_free_buf;
 	}
 

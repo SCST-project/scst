@@ -33,12 +33,12 @@ ifneq ($(PATCHLEVEL),)
 SCST_INC_DIR := $(SUBDIRS)/../include
 
 obj-m := scst.o
-scst-objs := scst_main.o scst_targ.o scst_lib.o scst_mem.o scst_proc.o
 
 scst-y        += scst_main.o
 scst-y        += scst_targ.o
 scst-y        += scst_lib.o
 scst-y        += scst_proc.o
+#scst-y        += scst_sysfs.o
 scst-y        += scst_mem.o
 scst-y        += scst_debug.o
 obj-$(CONFIG_SCST)   += scst.o dev_handlers/
@@ -149,4 +149,60 @@ clean:
 
 extraclean: clean
 
-.PHONY: all install uninstall clean extraclean
+debug2release:
+	sed -c -i.aa s/"^EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ Makefile
+	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
+	sed -c -i.aa s/"#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/"EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/ Makefile
+	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
+	sed -c -i.aa s/"^EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g"/ Makefile
+	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
+	rm Makefile.aa
+	cd $(DEV_HANDLERS_DIR) && $(MAKE) $@
+
+release2debug:
+	sed -c -i.aa s/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ Makefile
+	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
+	sed -c -i.aa s/"^EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/ Makefile
+	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
+	sed -c -i.aa s/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g"/"EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g"/ Makefile
+	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
+	rm Makefile.aa
+	cd $(DEV_HANDLERS_DIR) && $(MAKE) $@
+
+debug2perf:
+	sed -c -i.aa s/"^EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ Makefile
+	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
+	sed -c -i.aa s/"^EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g"/ Makefile
+	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
+	rm Makefile.aa
+	cd $(DEV_HANDLERS_DIR) && $(MAKE) $@
+
+perf2debug:
+	sed -c -i.aa s/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ Makefile
+	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
+	sed -c -i.aa s/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g"/"EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g"/ Makefile
+	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
+	rm Makefile.aa
+	cd $(DEV_HANDLERS_DIR) && $(MAKE) $@
+
+disable_proc:
+	sed -c -i.aa s/"^#define CONFIG_SCST_PROC"/"\/* #define CONFIG_SCST_PROC *\/"/ ../include/scst.h
+	@cmp ../include/scst.h ../include/scst.h.aa >/dev/null; if [[ $$? = 0 ]]; then rm ../include/scst.h.aa; echo "sed failed"; false; fi
+	rm ../include/scst.h.aa
+	sed -c -i.aa s/"^scst-y        += scst_proc.o"/"#scst\-y        += scst_proc.o"/ Makefile
+	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
+	sed -c -i.aa s/"#scst\-y        += scst_sysfs.o"/"scst\-y        += scst_sysfs.o"/ Makefile
+	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
+	rm Makefile.aa
+
+enable_proc:
+	sed -c -i.aa s/"\/\* #define CONFIG_SCST_PROC \*\/"/"#define CONFIG_SCST_PROC"/ ../include/scst.h
+	@cmp ../include/scst.h ../include/scst.h.aa >/dev/null; if [[ $$? = 0 ]]; then rm ../include/scst.h.aa; echo "sed failed"; false; fi
+	rm ../include/scst.h.aa
+	sed -c -i.aa s/"#scst\-y        += scst_proc.o"/"scst\-y        += scst_proc.o"/ Makefile
+	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
+	sed -c -i.aa s/"^scst\-y        += scst_sysfs.o"/"#scst\-y        += scst_sysfs.o"/ Makefile
+	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
+	rm Makefile.aa
+
+.PHONY: all install uninstall clean extraclean debug2release release2debug debug2perf perf2debug disable_proc enable_proc

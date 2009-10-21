@@ -36,7 +36,7 @@
 /* Max pages freed from a pool per shrinking iteration */
 #define MAX_PAGES_PER_POOL	50
 
-static struct sgv_pool sgv_norm_clust_pool, sgv_norm_pool, sgv_dma_pool;
+static struct sgv_pool *sgv_norm_clust_pool, *sgv_norm_pool, *sgv_dma_pool;
 
 static atomic_t sgv_pages_total = ATOMIC_INIT(0);
 
@@ -78,7 +78,7 @@ static inline bool sgv_pool_clustered(const struct sgv_pool *pool)
 void scst_sgv_pool_use_norm(struct scst_tgt_dev *tgt_dev)
 {
 	tgt_dev->gfp_mask = __GFP_NOWARN;
-	tgt_dev->pool = &sgv_norm_pool;
+	tgt_dev->pool = sgv_norm_pool;
 	clear_bit(SCST_TGT_DEV_CLUST_POOL, &tgt_dev->tgt_dev_flags);
 }
 
@@ -86,7 +86,7 @@ void scst_sgv_pool_use_norm_clust(struct scst_tgt_dev *tgt_dev)
 {
 	TRACE_MEM("%s", "Use clustering");
 	tgt_dev->gfp_mask = __GFP_NOWARN;
-	tgt_dev->pool = &sgv_norm_clust_pool;
+	tgt_dev->pool = sgv_norm_clust_pool;
 	set_bit(SCST_TGT_DEV_CLUST_POOL, &tgt_dev->tgt_dev_flags);
 }
 
@@ -94,7 +94,7 @@ void scst_sgv_pool_use_dma(struct scst_tgt_dev *tgt_dev)
 {
 	TRACE_MEM("%s", "Use ISA DMA memory");
 	tgt_dev->gfp_mask = __GFP_NOWARN | GFP_DMA;
-	tgt_dev->pool = &sgv_dma_pool;
+	tgt_dev->pool = sgv_dma_pool;
 	clear_bit(SCST_TGT_DEV_CLUST_POOL, &tgt_dev->tgt_dev_flags);
 }
 
@@ -1292,7 +1292,7 @@ static void sgv_pool_init_cache(struct sgv_pool *pool, int cache_num)
 }
 
 /* Must be called under sgv_pools_mutex */
-int sgv_pool_init(struct sgv_pool *pool, const char *name,
+static int sgv_pool_init(struct sgv_pool *pool, const char *name,
 	enum sgv_clustering_types clustering_type, int single_alloc_pages,
 	int purge_interval)
 {
@@ -1436,7 +1436,7 @@ void sgv_pool_flush(struct sgv_pool *pool)
 }
 EXPORT_SYMBOL(sgv_pool_flush);
 
-void sgv_pool_deinit(struct sgv_pool *pool)
+static void sgv_pool_deinit_put(struct sgv_pool *pool)
 {
 	int i;
 
@@ -1457,6 +1457,10 @@ void sgv_pool_deinit(struct sgv_pool *pool)
 			kmem_cache_destroy(pool->caches[i]);
 		pool->caches[i] = NULL;
 	}
+
+	scst_sgv_sysfs_put(pool);
+
+	/* pool can be dead here */
 
 	TRACE_EXIT();
 	return;
@@ -1511,6 +1515,10 @@ struct sgv_pool *sgv_pool_create(const char *name,
 	if (rc != 0)
 		goto out_free_unlock;
 
+	rc = scst_create_sgv_sysfs(pool);
+	if (rc != 0)
+		goto out_err_unlock_put;
+
 out_unlock:
 	mutex_unlock(&sgv_pools_mutex);
 
@@ -1523,14 +1531,18 @@ out_free_unlock:
 out_err_unlock:
 	pool = NULL;
 	goto out_unlock;
+
+out_err_unlock_put:
+	mutex_unlock(&sgv_pools_mutex);
+	sgv_pool_deinit_put(pool);
+	goto out_err_unlock;
 }
 EXPORT_SYMBOL(sgv_pool_create);
 
-static void sgv_pool_destroy(struct sgv_pool *pool)
+void sgv_pool_destroy(struct sgv_pool *pool)
 {
 	TRACE_ENTRY();
 
-	sgv_pool_deinit(pool);
 	kfree(pool);
 
 	TRACE_EXIT();
@@ -1551,7 +1563,7 @@ void sgv_pool_put(struct sgv_pool *pool)
 	TRACE_MEM("Decrementing sgv pool %p ref (new value %d)",
 		pool, atomic_read(&pool->sgv_pool_ref)-1);
 	if (atomic_dec_and_test(&pool->sgv_pool_ref))
-		sgv_pool_destroy(pool);
+		sgv_pool_deinit_put(pool);
 	return;
 }
 EXPORT_SYMBOL(sgv_pool_put);
@@ -1570,7 +1582,7 @@ EXPORT_SYMBOL(sgv_pool_del);
 /* Both parameters in pages */
 int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 {
-	int res;
+	int res = 0;
 
 	TRACE_ENTRY();
 
@@ -1579,22 +1591,19 @@ int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 
 	sgv_evaluate_local_max_pages();
 
-	mutex_lock(&sgv_pools_mutex);
+	sgv_norm_pool = sgv_pool_create("sgv", sgv_no_clustering, 0, false, 0);
+	if (sgv_norm_pool == NULL)
+		goto out_err;
 
-	res = sgv_pool_init(&sgv_norm_pool, "sgv", sgv_no_clustering, 0, 0);
-	if (res != 0)
-		goto out_unlock;
-
-	res = sgv_pool_init(&sgv_norm_clust_pool, "sgv-clust",
-		sgv_full_clustering, 0, 0);
-	if (res != 0)
+	sgv_norm_clust_pool = sgv_pool_create("sgv-clust",
+		sgv_full_clustering, 0, false, 0);
+	if (sgv_norm_clust_pool == NULL)
 		goto out_free_norm;
 
-	res = sgv_pool_init(&sgv_dma_pool, "sgv-dma", sgv_no_clustering, 0, 0);
-	if (res != 0)
+	sgv_dma_pool = sgv_pool_create("sgv-dma", sgv_no_clustering, 0,
+				false, 0);
+	if (sgv_dma_pool == NULL)
 		goto out_free_clust;
-
-	mutex_unlock(&sgv_pools_mutex);
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23))
 	sgv_shrinker = set_shrinker(DEFAULT_SEEKS, sgv_shrink);
@@ -1609,13 +1618,13 @@ out:
 	return res;
 
 out_free_clust:
-	sgv_pool_deinit(&sgv_norm_clust_pool);
+	sgv_pool_deinit_put(sgv_norm_clust_pool);
 
 out_free_norm:
-	sgv_pool_deinit(&sgv_norm_pool);
+	sgv_pool_deinit_put(sgv_norm_pool);
 
-out_unlock:
-	mutex_unlock(&sgv_pools_mutex);
+out_err:
+	res = -ENOMEM;
 	goto out;
 }
 
@@ -1629,15 +1638,17 @@ void scst_sgv_pools_deinit(void)
 	unregister_shrinker(&sgv_shrinker);
 #endif
 
-	sgv_pool_deinit(&sgv_dma_pool);
-	sgv_pool_deinit(&sgv_norm_pool);
-	sgv_pool_deinit(&sgv_norm_clust_pool);
+	sgv_pool_deinit_put(sgv_dma_pool);
+	sgv_pool_deinit_put(sgv_norm_pool);
+	sgv_pool_deinit_put(sgv_norm_clust_pool);
 
 	flush_scheduled_work();
 
 	TRACE_EXIT();
 	return;
 }
+
+#ifdef CONFIG_SCST_PROC
 
 static void sgv_do_proc_read(struct seq_file *seq, const struct sgv_pool *pool)
 {
@@ -1729,4 +1740,91 @@ int sgv_procinfo_show(struct seq_file *seq, void *v)
 
 	TRACE_EXIT();
 	return 0;
+}
+
+#endif /* CONFIG_SCST_PROC */
+
+ssize_t sgv_sysfs_stat_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct sgv_pool *pool;
+	int i, total = 0, hit = 0, merged = 0, allocated = 0;
+	int oa, om, res;
+
+	pool = container_of(kobj, struct sgv_pool, sgv_kobj);
+
+	for (i = 0; i < SGV_POOL_ELEMENTS; i++) {
+		int t;
+
+		hit += atomic_read(&pool->cache_acc[i].hit_alloc);
+		total += atomic_read(&pool->cache_acc[i].total_alloc);
+
+		t = atomic_read(&pool->cache_acc[i].total_alloc) -
+			atomic_read(&pool->cache_acc[i].hit_alloc);
+		allocated += t * (1 << i);
+		merged += atomic_read(&pool->cache_acc[i].merged);
+	}
+
+	res = sprintf(buf, "%-30s %-11s %-11s %-11s %-11s", "Name", "Hit", "Total",
+		"% merged", "Cached (P/I/O)");
+
+	res += sprintf(&buf[res], "\n%-30s %-11d %-11d %-11d %d/%d/%d\n",
+		pool->name, hit, total,
+		(allocated != 0) ? merged*100/allocated : 0,
+		pool->cached_pages, pool->inactive_cached_pages,
+		pool->cached_entries);
+
+	for (i = 0; i < SGV_POOL_ELEMENTS; i++) {
+		int t = atomic_read(&pool->cache_acc[i].total_alloc) -
+			atomic_read(&pool->cache_acc[i].hit_alloc);
+		allocated = t * (1 << i);
+		merged = atomic_read(&pool->cache_acc[i].merged);
+
+		res += sprintf(&buf[res], "  %-28s %-11d %-11d %d\n",
+			pool->cache_names[i],
+			atomic_read(&pool->cache_acc[i].hit_alloc),
+			atomic_read(&pool->cache_acc[i].total_alloc),
+			(allocated != 0) ? merged*100/allocated : 0);
+	}
+
+	allocated = atomic_read(&pool->big_pages);
+	merged = atomic_read(&pool->big_merged);
+	oa = atomic_read(&pool->other_pages);
+	om = atomic_read(&pool->other_merged);
+
+	res += sprintf(&buf[res], "  %-40s %d/%-9d %d/%d\n", "big/other",
+		atomic_read(&pool->big_alloc), atomic_read(&pool->other_alloc),
+		(allocated != 0) ? merged*100/allocated : 0,
+		(oa != 0) ? om/oa : 0);
+
+	return res;
+}
+
+ssize_t sgv_sysfs_global_stat_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct sgv_pool *pool;
+	int inactive_pages = 0, res;
+
+	TRACE_ENTRY();
+
+	spin_lock_bh(&sgv_pools_lock);
+	list_for_each_entry(pool, &sgv_active_pools_list,
+			sgv_active_pools_list_entry) {
+		inactive_pages += pool->inactive_cached_pages;
+	}
+	spin_unlock_bh(&sgv_pools_lock);
+
+	res = sprintf(buf, "%-42s %d/%d\n%-42s %d/%d\n%-42s %d/%d\n"
+		"%-42s %-11d\n",
+		"Inactive/active pages", inactive_pages,
+		atomic_read(&sgv_pages_total) - inactive_pages,
+		"Hi/lo watermarks [pages]", sgv_hi_wmk, sgv_lo_wmk,
+		"Hi watermark releases/failures",
+		atomic_read(&sgv_releases_on_hiwmk),
+		atomic_read(&sgv_releases_on_hiwmk_failed),
+		"Other allocs", atomic_read(&sgv_other_total_alloc));
+
+	TRACE_EXIT();
+	return res;
 }

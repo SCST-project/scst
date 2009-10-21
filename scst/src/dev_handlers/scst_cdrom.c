@@ -28,17 +28,6 @@
 
 #define CDROM_NAME	"dev_cdrom"
 
-#define CDROM_TYPE {				\
-	.name = 		CDROM_NAME,	\
-	.type =			TYPE_ROM,	\
-	.parse_atomic =		1,		\
-	.dev_done_atomic = 	1,		\
-	.attach = 		cdrom_attach,	\
-	.detach = 		cdrom_detach,	\
-	.parse = 		cdrom_parse,	\
-	.dev_done = 		cdrom_done,	\
-}
-
 #define CDROM_DEF_BLOCK_SHIFT	11
 
 struct cdrom_params {
@@ -50,7 +39,20 @@ static void cdrom_detach(struct scst_device *);
 static int cdrom_parse(struct scst_cmd *);
 static int cdrom_done(struct scst_cmd *);
 
-static struct scst_dev_type cdrom_devtype = CDROM_TYPE;
+static struct scst_dev_type cdrom_devtype = {
+	.name = 		CDROM_NAME,
+	.type =			TYPE_ROM,
+	.parse_atomic =		1,
+	.dev_done_atomic = 	1,
+	.attach = 		cdrom_attach,
+	.detach = 		cdrom_detach,
+	.parse = 		cdrom_parse,
+	.dev_done = 		cdrom_done,
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
+	.trace_flags =		&trace_flag,
+#endif
+};
 
 /**************************************************************
  *  Function:  cdrom_attach
@@ -150,9 +152,7 @@ static int cdrom_attach(struct scst_device *dev)
 	res = scst_obtain_device_parameters(dev);
 	if (res != 0) {
 		PRINT_ERROR("Failed to obtain control parameters for device "
-			"%d:%d:%d:%d", dev->scsi_dev->host->host_no,
-			dev->scsi_dev->channel, dev->scsi_dev->id,
-			dev->scsi_dev->lun);
+			"%s", dev->virt_name);
 		goto out_free_buf;
 	}
 
@@ -274,23 +274,29 @@ static int __init cdrom_init(void)
 	if (res < 0)
 		goto out;
 
+#ifdef CONFIG_SCST_PROC
 	res = scst_dev_handler_build_std_proc(&cdrom_devtype);
 	if (res != 0)
 		goto out_err;
+#endif
 
 out:
 	TRACE_EXIT();
 	return res;
 
+#ifdef CONFIG_SCST_PROC
 out_err:
 	scst_unregister_dev_driver(&cdrom_devtype);
 	goto out;
+#endif
 }
 
 static void __exit cdrom_exit(void)
 {
 	TRACE_ENTRY();
+#ifdef CONFIG_SCST_PROC
 	scst_dev_handler_destroy_std_proc(&cdrom_devtype);
+#endif
 	scst_unregister_dev_driver(&cdrom_devtype);
 	TRACE_EXIT();
 	return;

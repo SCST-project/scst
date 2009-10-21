@@ -8,10 +8,6 @@
 #include "qla_def.h"
 #include "qla2x_tgt.h"
 
-#ifdef CONFIG_SCSI_QLA2XXX_TARGET
-struct qla_tgt_data qla_target;
-#endif
-
 #include <linux/delay.h>
 #include <scsi/scsi_tcq.h>
 

@@ -3256,9 +3256,11 @@ static int __init iscsi_init(void)
 
 	iscsi_template_registered = 1;
 
+#ifdef CONFIG_SCST_PROC
 	err = iscsi_procfs_init();
 	if (err < 0)
 		goto out_reg_tmpl;
+#endif
 
 	num = max((int)num_online_cpus(), 2);
 
@@ -3274,10 +3276,14 @@ out:
 	return err;
 
 out_thr:
+#ifdef CONFIG_SCST_PROC
 	iscsi_procfs_exit();
+#endif
 	iscsi_stop_threads();
 
+#ifdef CONFIG_SCST_PROC
 out_reg_tmpl:
+#endif
 	scst_unregister_target_template(&iscsi_template);
 
 out_kmem:
@@ -3305,7 +3311,9 @@ static void __exit iscsi_exit(void)
 
 	unregister_chrdev(ctr_major, ctr_name);
 
+#ifdef CONFIG_SCST_PROC
 	iscsi_procfs_exit();
+#endif
 	event_exit();
 
 	kmem_cache_destroy(iscsi_cmnd_cache);

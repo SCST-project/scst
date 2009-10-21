@@ -13,9 +13,11 @@
  *  GNU General Public License for more details.
  */
 
-#include <linux/proc_fs.h>
-
 #include "iscsi.h"
+
+#ifdef CONFIG_SCST_PROC
+
+#include <linux/proc_fs.h>
 
 #define ISCSI_PROC_VERSION_NAME		"version"
 
@@ -25,7 +27,7 @@
 
 #include <linux/proc_fs.h>
 
-static struct scst_proc_log iscsi_proc_local_trace_tbl[] =
+static struct scst_trace_log iscsi_local_trace_tbl[] =
 {
     { TRACE_D_READ,		"d_read" },
     { TRACE_D_WRITE,		"d_write" },
@@ -44,7 +46,7 @@ static int iscsi_log_info_show(struct seq_file *seq, void *v)
 	TRACE_ENTRY();
 
 	res = scst_proc_log_entry_read(seq, trace_flag,
-		iscsi_proc_local_trace_tbl);
+		iscsi_local_trace_tbl);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -58,7 +60,7 @@ static ssize_t iscsi_proc_log_entry_write(struct file *file,
 	TRACE_ENTRY();
 
 	res = scst_proc_log_entry_write(file, buf, length, &trace_flag,
-		ISCSI_DEFAULT_LOG_FLAGS, iscsi_proc_local_trace_tbl);
+		ISCSI_DEFAULT_LOG_FLAGS, iscsi_local_trace_tbl);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -230,6 +232,8 @@ err:
 		iscsi_procfs_exit();
 	goto out;
 }
+
+#endif /* CONFIG_SCST_PROC */
 
 /* target_mutex supposed to be locked */
 static int add_conn(struct iscsi_target *target, void __user *ptr)

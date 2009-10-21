@@ -134,7 +134,7 @@ struct q2t_tgt {
 	 * Protected by tgt_mutex AND hardware_lock for writing and tgt_mutex
 	 * OR hardware_lock for reading.
 	 */
-	unsigned long tgt_shutdown; /* the driver is being released */
+	unsigned long tgt_stop; /* the driver is being stopped */
 
 	/* Count of sessions refering q2t_tgt. Protected by hardware_lock. */
 	int sess_count;
@@ -162,6 +162,8 @@ struct q2t_tgt {
 	struct list_head srr_ctio_list;
 	struct list_head srr_imm_list;
 	struct work_struct srr_work;
+
+	struct list_head tgt_list_entry;
 };
 
 /*

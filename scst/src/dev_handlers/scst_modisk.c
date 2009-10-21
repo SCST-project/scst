@@ -33,31 +33,6 @@
 # define MODISK_NAME           "dev_modisk"
 # define MODISK_PERF_NAME      "dev_modisk_perf"
 
-#define MODISK_TYPE {				\
-	.name =			MODISK_NAME,	\
-	.type =			TYPE_MOD,	\
-	.parse_atomic =		1,		\
-	.dev_done_atomic =	1,		\
-	.exec_atomic =		1,		\
-	.attach =		modisk_attach,	\
-	.detach =		modisk_detach,	\
-	.parse =		modisk_parse,	\
-	.dev_done =		modisk_done,	\
-}
-
-#define MODISK_PERF_TYPE {				\
-	.name =			MODISK_PERF_NAME,	\
-	.type =			TYPE_MOD,		\
-	.parse_atomic =		1,			\
-	.dev_done_atomic =	1,			\
-	.exec_atomic =		1,			\
-	.attach =		modisk_attach,		\
-	.detach =		modisk_detach,		\
-	.parse =		modisk_parse,		\
-	.dev_done =		modisk_done,		\
-	.exec =			modisk_exec,		\
-}
-
 #define MODISK_DEF_BLOCK_SHIFT    10
 
 struct modisk_params {
@@ -70,8 +45,38 @@ static int modisk_parse(struct scst_cmd *);
 static int modisk_done(struct scst_cmd *);
 static int modisk_exec(struct scst_cmd *);
 
-static struct scst_dev_type modisk_devtype = MODISK_TYPE;
-static struct scst_dev_type modisk_devtype_perf = MODISK_PERF_TYPE;
+static struct scst_dev_type modisk_devtype = {
+	.name =			MODISK_NAME,
+	.type =			TYPE_MOD,
+	.parse_atomic =		1,
+	.dev_done_atomic =	1,
+	.exec_atomic =		1,
+	.attach =		modisk_attach,
+	.detach =		modisk_detach,
+	.parse =		modisk_parse,
+	.dev_done =		modisk_done,
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
+	.trace_flags =		&trace_flag,
+#endif
+};
+
+static struct scst_dev_type modisk_devtype_perf = {
+	.name =			MODISK_PERF_NAME,
+	.type =			TYPE_MOD,
+	.parse_atomic =		1,
+	.dev_done_atomic =	1,
+	.exec_atomic =		1,
+	.attach =		modisk_attach,
+	.detach =		modisk_detach,
+	.parse =		modisk_parse,
+	.dev_done =		modisk_done,
+	.exec =			modisk_exec,
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
+	.trace_flags =		&trace_flag,
+#endif
+};
 
 static int __init init_scst_modisk_driver(void)
 {
@@ -85,31 +90,35 @@ static int __init init_scst_modisk_driver(void)
 	if (res < 0)
 		goto out;
 
-	res = scst_dev_handler_build_std_proc(&modisk_devtype);
-	if (res != 0)
-		goto out_unreg1;
-
 	modisk_devtype_perf.module = THIS_MODULE;
 
 	res = scst_register_dev_driver(&modisk_devtype_perf);
 	if (res < 0)
-		goto out_unreg1_err1;
+		goto out_unreg;
+
+#ifdef CONFIG_SCST_PROC
+	res = scst_dev_handler_build_std_proc(&modisk_devtype);
+	if (res != 0)
+		goto out_unreg1;
 
 	res = scst_dev_handler_build_std_proc(&modisk_devtype_perf);
 	if (res != 0)
 		goto out_unreg2;
+#endif
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 
+#ifdef CONFIG_SCST_PROC
 out_unreg2:
-	scst_dev_handler_destroy_std_proc(&modisk_devtype_perf);
-
-out_unreg1_err1:
 	scst_dev_handler_destroy_std_proc(&modisk_devtype);
 
 out_unreg1:
+	scst_unregister_dev_driver(&modisk_devtype_perf);
+#endif
+
+out_unreg:
 	scst_unregister_dev_driver(&modisk_devtype);
 	goto out;
 }
@@ -117,10 +126,14 @@ out_unreg1:
 static void __exit exit_scst_modisk_driver(void)
 {
 	TRACE_ENTRY();
+
+#ifdef CONFIG_SCST_PROC
 	scst_dev_handler_destroy_std_proc(&modisk_devtype_perf);
-	scst_unregister_dev_driver(&modisk_devtype_perf);
 	scst_dev_handler_destroy_std_proc(&modisk_devtype);
+#endif
+	scst_unregister_dev_driver(&modisk_devtype_perf);
 	scst_unregister_dev_driver(&modisk_devtype);
+
 	TRACE_EXIT();
 	return;
 }
@@ -242,9 +255,7 @@ static int modisk_attach(struct scst_device *dev)
 	res = scst_obtain_device_parameters(dev);
 	if (res != 0) {
 		PRINT_ERROR("Failed to obtain control parameters for device "
-			"%d:%d:%d:%d: %x", dev->scsi_dev->host->host_no,
-			dev->scsi_dev->channel, dev->scsi_dev->id,
-			dev->scsi_dev->lun, res);
+			"%s: %x", dev->virt_name, res);
 		goto out_free_buf;
 	}
 

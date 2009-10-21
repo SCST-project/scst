@@ -2,8 +2,6 @@
 #define __SCST_DEV_HANDLER_H
 
 #include <linux/module.h>
-#include <linux/proc_fs.h>
-#include <linux/seq_file.h>
 #include <scsi/scsi_eh.h>
 #include "scst_debug.h"
 
@@ -11,8 +9,6 @@
 #define SCST_PASSTHROUGH_RETRIES	0
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-
-#define DEV_HANDLER_LOG_ENTRY_NAME "trace_level"
 
 #ifdef CONFIG_SCST_DEBUG
 #define SCST_DEFAULT_DEV_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_PID | \
@@ -25,6 +21,10 @@
 
 static unsigned long dh_trace_flag = SCST_DEFAULT_DEV_LOG_FLAGS;
 #define trace_flag dh_trace_flag
+
+#ifdef CONFIG_SCST_PROC
+
+#define DEV_HANDLER_LOG_ENTRY_NAME "trace_level"
 
 #ifndef trace_log_tbl
 #define trace_log_tbl	NULL
@@ -57,7 +57,12 @@ static ssize_t scst_dev_handler_proc_log_entry_write(struct file *file,
 	TRACE_EXIT_RES(res);
 	return res;
 }
+
+#endif /* CONFIG_SCST_PROC */
+
 #endif /* defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING) */
+
+#ifdef CONFIG_SCST_PROC
 
 static int scst_dev_handler_build_std_proc(struct scst_dev_type *dev_type)
 {
@@ -69,14 +74,20 @@ static int scst_dev_handler_build_std_proc(struct scst_dev_type *dev_type)
 
 	root = scst_proc_get_dev_type_root(dev_type);
 	if (root) {
-		/* create the proc file entry for the device */
-		dev_handler_log_proc_data.data = (void *)dev_type->name;
+		/* Create the proc file entry for the device */
+		/* Workaround to keep /proc ABI intact */
+		const char *name;
+		if (strcmp(dev_type->name, "vdisk_fileio") == 0)
+			name = "vdisk";
+		else
+			name = dev_type->name;
+		dev_handler_log_proc_data.data = (void *)name;
 		p = scst_create_proc_entry(root, DEV_HANDLER_LOG_ENTRY_NAME,
 					   &dev_handler_log_proc_data);
 		if (p == NULL) {
 			PRINT_ERROR("Not enough memory to register dev "
 			     "handler %s entry %s in /proc",
-			      dev_type->name, DEV_HANDLER_LOG_ENTRY_NAME);
+			     name, DEV_HANDLER_LOG_ENTRY_NAME);
 			res = -ENOMEM;
 			goto out;
 		}
@@ -109,5 +120,7 @@ static struct scst_proc_data dev_handler_log_proc_data = {
 	.show = dev_handler_log_info_show,
 };
 #endif
+
+#endif /* CONFIG_SCST_PROC */
 
 #endif /* __SCST_DEV_HANDLER_H */

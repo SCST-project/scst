@@ -2447,8 +2447,7 @@ typedef struct scsi_qla_host {
 	 * accessed from many contexts, including concurrently. Seems, the
 	 * original author of this code thought that if anything never deleted
 	 * from this list, it is always safe to travel over it without any
-	 * protection. Obviously, this isn't true. (The whole decision to keep
-	 * stale entries forever is quite questionable as well.) We will fix
+	 * protection. Obviously, this isn't true. We will fix
 	 * that making access to fcports list using RCU functions. This isn't
 	 * a complete solution, because it isn't clear if it's safe if some
 	 * function going over this list misses just added entry, but definitely
@@ -2628,6 +2627,13 @@ typedef struct scsi_qla_host {
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 	struct mutex	tgt_mutex;
 
+	struct mutex	tgt_host_action_mutex;
+
+	/* Protected by tgt_host_action_mutex */
+	struct q2t_tgt	*q2t_tgt;
+
+	struct list_head ha_list_entry;
+
 	int		saved_set;
 	uint16_t	saved_exchange_count;
 	uint32_t	saved_firmware_options_1;
@@ -2635,7 +2641,7 @@ typedef struct scsi_qla_host {
 	uint32_t	saved_firmware_options_3;
 	uint8_t		saved_firmware_options[2];
 	uint8_t		saved_add_firmware_options[2];
-#endif
+#endif /* CONFIG_SCSI_QLA2XXX_TARGET */
 
 	struct scsi_qla_host	*parent;	/* holds pport */
 	unsigned long		vp_flags;

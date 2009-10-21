@@ -5356,6 +5356,7 @@ out:
 	return res;
 }
 
+#ifdef CONFIG_SCST_PROC
 /* scst_mutex supposed to be held */
 static struct scst_acg *scst_find_acg_by_name(const char *acg_name)
 {
@@ -5376,6 +5377,7 @@ out:
 	TRACE_EXIT_HRES(res);
 	return res;
 }
+#endif /* CONFIG_SCST_PROC */
 
 /* Must be called under scst_mitex */
 struct scst_acg *scst_find_acg(const struct scst_session *sess)
@@ -5386,10 +5388,19 @@ struct scst_acg *scst_find_acg(const struct scst_session *sess)
 
 	if (sess->initiator_name)
 		acg = scst_find_acg_by_name_wild(sess->initiator_name);
+#ifdef CONFIG_SCST_PROC
 	if ((acg == NULL) && (sess->tgt->default_group_name != NULL))
 		acg = scst_find_acg_by_name(sess->tgt->default_group_name);
+	if (acg == NULL) {
+		if (list_empty(&sess->tgt->default_acg->acg_dev_list))
+			acg = scst_default_acg;
+		else
+			acg = sess->tgt->default_acg;
+	}
+#else
 	if (acg == NULL)
-		acg = scst_default_acg;
+		acg = sess->tgt->default_acg;
+#endif
 
 	TRACE_EXIT_HRES((unsigned long)acg);
 	return acg;
@@ -5397,7 +5408,7 @@ struct scst_acg *scst_find_acg(const struct scst_session *sess)
 
 static int scst_init_session(struct scst_session *sess)
 {
-	int res = 0;
+	int res = 0, rc;
 	struct scst_cmd *cmd;
 	struct scst_mgmt_cmd *mcmd, *tm;
 	int mwake = 0;
@@ -5417,6 +5428,11 @@ static int scst_init_session(struct scst_session *sess)
 	list_add_tail(&sess->sess_list_entry, &sess->tgt->sess_list);
 
 	res = scst_sess_alloc_tgt_devs(sess);
+
+	/* Let's always create session's sysfs to simplify error recovery */
+	rc = scst_create_sess_sysfs(sess);
+	if (res == 0)
+		res = rc;
 
 	mutex_unlock(&scst_mutex);
 
@@ -5454,7 +5470,12 @@ restart:
 			&scst_active_mgmt_cmd_list);
 		mwake = 1;
 	}
+
 	spin_unlock(&scst_mcmd_lock);
+	/*
+	 * In case of an error at this point the caller target driver supposed
+	 * to already call this sess's unregistration.
+	 */
 	sess->init_phase = SCST_SESS_IPH_READY;
 	spin_unlock_irq(&sess->sess_list_lock);
 

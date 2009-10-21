@@ -21,6 +21,8 @@
 #include "iscsi.h"
 #include "digest.h"
 
+#ifdef CONFIG_SCST_PROC
+
 static void print_conn_state(char *p, size_t size, struct iscsi_conn *conn)
 {
 	int printed = 0;
@@ -110,6 +112,8 @@ void conn_info_show(struct seq_file *seq, struct iscsi_session *session)
 		seq_printf(seq, "dd:%s\n", buf);
 	}
 }
+
+#endif /* CONFIG_SCST_PROC */
 
 /* target_mutex supposed to be locked */
 struct iscsi_conn *conn_lookup(struct iscsi_session *session, u16 cid)
