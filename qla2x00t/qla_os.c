@@ -1962,15 +1962,16 @@ qla2x00_schedule_rport_del(struct scsi_qla_host *ha, fc_port_t *fcport,
     int defer)
 {
 	struct fc_rport *rport;
+	unsigned long flags;
 
 	if (!fcport->rport)
 		return;
 
 	rport = fcport->rport;
 	if (defer) {
-		spin_lock_irq(ha->host->host_lock);
+		spin_lock_irqsave(ha->host->host_lock, flags);
 		fcport->drport = rport;
-		spin_unlock_irq(ha->host->host_lock);
+		spin_unlock_irqrestore(ha->host->host_lock, flags);
 		set_bit(FCPORT_UPDATE_NEEDED, &ha->dpc_flags);
 		qla2xxx_wake_dpc(ha);
 	} else {
