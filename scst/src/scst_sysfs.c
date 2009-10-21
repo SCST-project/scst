@@ -831,6 +831,7 @@ static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
 
 #define SCST_LUN_ACTION_ADD	1
 #define SCST_LUN_ACTION_DEL	2
+#define SCST_LUN_ACTION_REPLACE	3
 
 	TRACE_ENTRY();
 
@@ -856,6 +857,9 @@ static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
 	} else if (strncasecmp("del", p, 3) == 0) {
 		p += 3;
 		action = SCST_LUN_ACTION_DEL;
+	} else if (!strncasecmp("replace", p, 7)) {
+		p += 7;
+		action = SCST_LUN_ACTION_REPLACE;
 	} else {
 		PRINT_ERROR("Unknown action \"%s\"", p);
 		res = -EINVAL;
@@ -928,6 +932,10 @@ static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
 
 	switch (action) {
 	case SCST_LUN_ACTION_ADD:
+	case SCST_LUN_ACTION_REPLACE:
+	{
+		bool dev_replaced = false;
+
 		e++;
 		while (isspace(*e) && *e != '\0')
 			e++;
@@ -957,14 +965,24 @@ static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
 		}
 
 		if (acg_dev != NULL) {
-			acg_dev = acg_dev_tmp;
-			PRINT_ERROR("virt lun %d already exists in group %s",
-				    virt_lun, acg->acg_name);
-			res = -EINVAL;
-			goto out_free_up;
-		}
+			if (action == SCST_LUN_ACTION_ADD) {
+				PRINT_ERROR("virt lun %d already exists in "
+					"group %s", virt_lun, acg->acg_name);
+				res = -EINVAL;
+				goto out_free_up;
+			} else {
+				/* Replace */
+				res = scst_acg_remove_dev(acg, acg_dev->dev,
+						false);
+				if (res != 0)
+					goto out_free_up;
 
-		res = scst_acg_add_dev(acg, dev, virt_lun, read_only, true);
+				dev_replaced = true;
+			}
+ 		}
+
+		res = scst_acg_add_dev(acg, dev, virt_lun, read_only,
+					!dev_replaced);
 		if (res != 0)
 			goto out_free_up;
 
@@ -973,7 +991,24 @@ static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
 			PRINT_ERROR("%s", "Creation of acg_dev kobject failed");
 			goto out_remove_acg_dev;
 		}
+
+		if (dev_replaced) {
+			struct scst_tgt_dev *tgt_dev;
+
+			list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
+					dev_tgt_dev_list_entry) {
+				if ((tgt_dev->acg_dev->acg == acg) &&
+				    (tgt_dev->lun == virt_lun)) {
+					TRACE_MGMT_DBG("INQUIRY DATA HAS CHANGED"
+						" on tgt_dev %p", tgt_dev);
+					scst_gen_aen_or_ua(tgt_dev,
+						SCST_LOAD_SENSE(scst_sense_inquery_data_changed));
+				}
+			}
+ 		}
+
 		break;
+	}
 	case SCST_LUN_ACTION_DEL:
 		res = scst_acg_remove_dev(acg, dev, true);
 		if (res != 0)
@@ -1002,6 +1037,7 @@ out_remove_acg_dev:
 
 #undef SCST_LUN_ACTION_ADD
 #undef SCST_LUN_ACTION_DEL
+#undef SCST_LUN_ACTION_REPLACE
 }
 
 /*
