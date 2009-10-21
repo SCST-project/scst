@@ -12,6 +12,10 @@ if [ "${1#2.6.26}" = "$1" ]; then
   exit 0
 fi
 
+if [ ! -e qla2xxx-orig/$1 ]; then
+  ./extract-qla2xxx-orig "$1"
+fi
+
 mkdir -p in-tree-patches/"${kernel_version}"
 
 for f in qla2xxx-orig/"${kernel_version}"/*

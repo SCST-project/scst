@@ -356,9 +356,6 @@ add_file "iscsi-scst/README_in-tree" "Documentation/scst/README.iscsi" \
 
 if [ "${qla2x00t}" = "true" ]; then
 
-  if [ ! -e qla2x00t/qla2xxx-orig/$1 ]; then
-    ( cd qla2x00t && ./extract-qla2xxx-orig "$1" )
-  fi
   ( cd qla2x00t && ./generate-in-tree-patches "$1" )
 
   for f in $(ls qla2x00t/in-tree-patches/"$1"/*.patch 2>/dev/null)
