@@ -273,16 +273,17 @@ function process_preprocessor_statement() {
       && (evaluated ~ "^+#define SCSI_EXEC_REQ_FIFO_DEFINED$"   \
           || evaluated ~ "^+#define SCST_IO_CONTEXT$"))
   {
-    lines_deleted++
+    lines_deleted += input_line_count
     delete_next_blank_line = 1
   }
   else if (delete_disabled_code == 0 || (output && (! condition || condition && matching_if !~ "^+#if [01]")))
   {
-    line[lines++] = orig_stmnt
+    for (i = 0; i < input_line_count; i++)
+      line[lines++] = input_line[i]
   }
   else
   {
-    lines_deleted++
+    lines_deleted += input_line_count
   }
 }
 
@@ -341,17 +342,17 @@ BEGIN {
 
 
 {
-  # Dump continued lines without trying to process these -- the parsing code
-  # in this script cannot handle continued lines yet.
-  if (match($0, "\\\\$"))
+  input_line[0] = $0
+  input_line_count = 1
+  # Join continued lines before processing these.
+  while (match($0, "\\\\$"))
   {
-    line[lines++]=$0
-    do
-    {
-      getline
-      line[lines++]=$0
-    } while (match($0, "\\\\$"))
+    previous_line = $0
+    sub("\\\\$", "", previous_line)
     getline
+    input_line[input_line_count++] = $0
+    sub("^+", "", $0)
+    $0 = previous_line $0
   }
 
   # If the line currently being processed is a hunk header, print all lines
@@ -364,7 +365,7 @@ BEGIN {
   }
   else if (delete_disabled_code && delete_next_blank_line && match($0, "^+$"))
   {
-    lines_deleted++
+    lines_deleted += input_line_count
     delete_next_blank_line = 0
   }
   else
@@ -376,13 +377,14 @@ BEGIN {
     }
     else if (delete_disabled_code == 0 || output)
     {
-      # Store the line that was just read.
-      line[lines++]=$0
+      # Store the lines that were just read.
+      for (i = 0; i < input_line_count; i++)
+        line[lines++]=input_line[i]
     }
     else
     {
-      # Discard the last read line.
-      lines_deleted++
+      # Discard the last read lines.
+      lines_deleted += input_line_count
     }
   }
 }
