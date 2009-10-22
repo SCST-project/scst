@@ -2212,6 +2212,9 @@ static int dev_user_unjam_dev(struct scst_user_dev *dev)
 
 	TRACE_MGMT_DBG("Unjamming dev %p", dev);
 
+	sgv_pool_flush(dev->pool);
+	sgv_pool_flush(dev->pool_clust);
+
 	spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
 
 repeat:
