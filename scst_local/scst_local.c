@@ -974,6 +974,8 @@ static int scst_fake_lld_driver_probe(struct device *dev)
 		hpnt->max_id = scst_local_num_tgts;
 	hpnt->max_lun = scst_local_max_luns - 1;
 
+	hpnt->max_cmd_len = 260;
+
 	ret = scsi_add_host(hpnt, &scst_lcl_host->dev);
 	if (ret) {
 		printk(KERN_ERR "%s: scsi_add_host failed\n", __func__);
