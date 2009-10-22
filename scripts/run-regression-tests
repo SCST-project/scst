@@ -26,8 +26,8 @@
 #   tree.
 # - Duplicates the entire source tree to the temporary directory and
 #   compiles the SCST source code.
-# - Duplicates the entire source tree to the temporary directory, applies
-#   the full-perf patches and again compiles the SCST source code.
+# - Duplicates the entire source tree to the temporary directory, runs
+#   'make debug2release' and again compiles the SCST source code.
 # - Checks whether the specified kernel version is present
 #   in the directory specified through option -c.
 # - If the source code of the specified kernel version is not present,
@@ -229,9 +229,7 @@ function compile_scst_patched {
     if mkdir -p "${workingdirectory}"  \
        && cd "${workingdirectory}"     \
        && duplicate_scst_source_tree "${scst}"  \
-       && patch -p0 -f -s <"${scst}/iscsi-full_perf.patch"    \
-       && patch -p0 -f -s <"${scst}/qla2x00t-full_perf.patch" \
-       && patch -p0 -f -s <"${scst}/scst-full_perf.patch"     \
+       && make -s "$1"                 \
        && (make -s clean               \
            && make -s scst iscsi-scst  \
            && if "${scst_local}" = "true" ; then make -C scst_local clean; fi \
@@ -574,7 +572,7 @@ fi
 
 test_scst_tree_patches || exit $?
 compile_scst_unpatched || exit $?
-#compile_scst_patched || exit $?
+#compile_scst_patched debug2release || exit $?
 
 first_iteration="true"
 for k in ${kernel_versions}
