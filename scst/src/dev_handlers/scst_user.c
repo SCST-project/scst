@@ -182,11 +182,11 @@ static int dev_user_release(struct inode *inode, struct file *file);
 static int dev_user_exit_dev(struct scst_user_dev *dev);
 
 #ifdef CONFIG_SCST_PROC
+
 static int dev_user_read_proc(struct seq_file *seq,
 	struct scst_dev_type *dev_type);
-#endif
 
-static int dev_usr_parse(struct scst_cmd *cmd);
+#else /* CONFIG_SCST_PROC */
 
 static ssize_t dev_user_sysfs_commands_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
@@ -198,6 +198,10 @@ static const struct attribute *dev_user_dev_attrs[] = {
 	&dev_user_commands_attr.attr,
 	NULL,
 };
+
+#endif /* CONFIG_SCST_PROC */
+
+static int dev_usr_parse(struct scst_cmd *cmd);
 
 /** Data **/
 
@@ -2787,8 +2791,9 @@ static int dev_user_register_dev(struct file *file,
 	dev->devtype.dev_done_atomic = 1;
 #ifdef CONFIG_SCST_PROC
 	dev->devtype.no_proc = 1;
-#endif
+#else
 	dev->devtype.dev_attrs = dev_user_dev_attrs;
+#endif
 	dev->devtype.attach = dev_user_attach;
 	dev->devtype.detach = dev_user_detach;
 	dev->devtype.attach_tgt = dev_user_attach_tgt;
@@ -3373,6 +3378,8 @@ out:
 	return res;
 }
 
+#ifndef CONFIG_SCST_PROC
+
 static ssize_t dev_user_sysfs_commands_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
@@ -3414,7 +3421,8 @@ static ssize_t dev_user_sysfs_commands_show(struct kobject *kobj,
 	return pos;
 }
 
-#ifdef CONFIG_SCST_PROC
+#else /* CONFIG_SCST_PROC */
+
 /*
  * Called when a file in the /proc/scsi_tgt/scst_user is read
  */

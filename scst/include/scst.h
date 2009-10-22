@@ -41,6 +41,10 @@
 
 #include <scst_const.h>
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+#define kobj_attribute device_attribute
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 #ifndef RHEL_RELEASE_CODE
 typedef _Bool bool;
@@ -859,11 +863,13 @@ struct scst_tgt_template {
 	/* Optional local trace table help string */
 	const char *trace_tbl_help;
 
+#ifndef CONFIG_SCST_PROC
 	/* Optional sysfs attributes */
 	const struct attribute **tgtt_attrs;
 
 	/* Optional sysfs target attributes */
 	const struct attribute **tgt_attrs;
+#endif
 
 	/** Private, must be inited to 0 by memset() **/
 
@@ -1055,11 +1061,13 @@ struct scst_dev_type {
 	/* Optional local trace table help string */
 	const char *trace_tbl_help;
 
+#ifndef CONFIG_SCST_PROC
 	/* Optional sysfs attributes */
 	const struct attribute **devt_attrs;
 
 	/* Optional sysfs device attributes */
 	const struct attribute **dev_attrs;
+#endif
 
 	/* Pointer to dev handler's private data */
 	void *devt_priv;

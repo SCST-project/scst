@@ -95,6 +95,8 @@ static void q2t_clear_tgt_db(struct q2t_tgt *tgt, bool local_only);
 static void q2t_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd);
 static int q2t_unreg_sess(struct q2t_sess *sess);
 
+#ifndef CONFIG_SCST_PROC
+
 /** SYSFS **/
 
 static ssize_t q2t_version_show(struct kobject *kobj,
@@ -121,6 +123,8 @@ static const struct attribute *q2t_tgt_attrs[] = {
 	&q2t_expl_conf_attr.attr,
 	NULL,
 };
+
+#endif /* CONFIG_SCST_PROC */
 
 static ssize_t q2t_enable_tgt(struct scst_tgt *tgt, const char *buf,
 	size_t size);
@@ -156,8 +160,10 @@ static struct scst_tgt_template tgt2x_template = {
 	.on_hw_pending_cmd_timeout = q2t_on_hw_pending_cmd_timeout,
 	.enable_tgt = q2t_enable_tgt,
 	.is_tgt_enabled = q2t_is_tgt_enabled,
+#ifndef CONFIG_SCST_PROC
 	.tgtt_attrs = q2t_attrs,
 	.tgt_attrs = q2t_tgt_attrs,
+#endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags = Q2T_DEFAULT_LOG_FLAGS,
 	.trace_flags = &trace_flag,
@@ -5201,6 +5207,8 @@ static bool q2t_is_tgt_enabled(struct scst_tgt *scst_tgt)
 	return qla_tgt_mode_enabled(ha);
 }
 
+#ifndef CONFIG_SCST_PROC
+
 static ssize_t q2t_show_expl_conf_enabled(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buffer)
 {
@@ -5281,7 +5289,7 @@ static ssize_t q2t_version_show(struct kobject *kobj,
 	return strlen(buf);
 }
 
-#ifdef CONFIG_SCST_PROC
+#else /* CONFIG_SCST_PROC */
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 

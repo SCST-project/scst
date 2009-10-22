@@ -370,6 +370,8 @@ static int vdisk_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 
 /** SYSFS **/
 
+#ifndef CONFIG_SCST_PROC
+
 static ssize_t vdisk_mgmt_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdisk_mgmt_store(struct kobject *kobj,
@@ -459,6 +461,8 @@ static const struct attribute *vcdrom_attrs[] = {
 	NULL,
 };
 
+#endif /* CONFIG_SCST_PROC */
+
 static DEFINE_MUTEX(scst_vdisk_mutex);
 
 /* Both protected by scst_vdisk_mutex */
@@ -487,13 +491,14 @@ static struct scst_dev_type vdisk_file_devtype = {
 	.detach_tgt =		vdisk_detach_tgt,
 	.parse =		vdisk_parse,
 	.exec =			vdisk_do_job,
+	.task_mgmt_fn =		vdisk_task_mgmt_fn,
 #ifdef CONFIG_SCST_PROC
 	.read_proc =		vdisk_read_proc,
 	.write_proc =		vdisk_write_proc,
-#endif
-	.task_mgmt_fn =		vdisk_task_mgmt_fn,
+#else
 	.devt_attrs =		vdisk_attrs,
 	.dev_attrs =		vdisk_fileio_attrs,
+#endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
 	.trace_flags =		&trace_flag,
@@ -522,8 +527,10 @@ static struct scst_dev_type vdisk_blk_devtype = {
 	.parse =		vdisk_parse,
 	.exec =			vdisk_do_job,
 	.task_mgmt_fn =		vdisk_task_mgmt_fn,
+#ifndef CONFIG_SCST_PROC
 	.devt_attrs =		vdisk_attrs,
 	.dev_attrs =		vdisk_blockio_attrs,
+#endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
 	.trace_flags =		&trace_flag,
@@ -550,8 +557,10 @@ static struct scst_dev_type vdisk_null_devtype = {
 	.parse =		vdisk_parse,
 	.exec =			vdisk_do_job,
 	.task_mgmt_fn =		vdisk_task_mgmt_fn,
+#ifndef CONFIG_SCST_PROC
 	.devt_attrs =		vdisk_attrs,
 	.dev_attrs =		vdisk_nullio_attrs,
+#endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
 	.trace_flags =		&trace_flag,
@@ -575,13 +584,14 @@ static struct scst_dev_type vcdrom_devtype = {
 	.detach_tgt =		vdisk_detach_tgt,
 	.parse =		vcdrom_parse,
 	.exec =			vcdrom_exec,
+	.task_mgmt_fn =		vdisk_task_mgmt_fn,
 #ifdef CONFIG_SCST_PROC
 	.read_proc =		vcdrom_read_proc,
 	.write_proc =		vcdrom_write_proc,
-#endif
-	.task_mgmt_fn =		vdisk_task_mgmt_fn,
+#else
 	.devt_attrs =		vdisk_attrs,
 	.dev_attrs =		vcdrom_attrs,
+#endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
 	.trace_flags =		&trace_flag,
@@ -3656,6 +3666,8 @@ static int vcdrom_perform_cmd(struct vdev_type *vdt, int action, char *p,
 	return res;
 }
 
+#ifndef CONFIG_SCST_PROC
+
 static int vdisk_mgmt_cmd(const char *buffer, int length,
 	struct vdev_type *vdt)
 {
@@ -3953,7 +3965,7 @@ out:
 	return res;
 }
 
-#ifdef CONFIG_SCST_PROC
+#else /* CONFIG_SCST_PROC */
 
 /*
  * ProcFS
