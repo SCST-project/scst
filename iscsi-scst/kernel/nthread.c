@@ -647,68 +647,71 @@ static struct iscsi_cmnd *iscsi_get_send_cmnd(struct iscsi_conn *conn)
 static int do_recv(struct iscsi_conn *conn)
 {
 	int res;
+	mm_segment_t oldfs;
+	struct msghdr msg;
+	int first_len;
 
 	EXTRACHECKS_BUG_ON(conn->read_cmnd == NULL);
 
-	do {
-		mm_segment_t oldfs;
-		struct msghdr msg;
-		int first_len;
+	if (unlikely(conn->closing)) {
+		res = -EIO;
+		goto out;
+	}
 
-		if (unlikely(conn->closing)) {
-			res = -EIO;
-			goto out;
+	/*
+	 * We suppose that if sock_recvmsg() returned less data than requested,
+	 * then next time it will return -EAGAIN, so there's no point to call
+	 * it again.
+	 */
+
+restart:
+	memset(&msg, 0, sizeof(msg));
+	msg.msg_iov = conn->read_msg.msg_iov;
+	msg.msg_iovlen = conn->read_msg.msg_iovlen;
+	first_len = msg.msg_iov->iov_len;
+
+	oldfs = get_fs();
+	set_fs(get_ds());
+	res = sock_recvmsg(conn->sock, &msg, conn->read_size,
+			   MSG_DONTWAIT | MSG_NOSIGNAL);
+	set_fs(oldfs);
+
+	if (res > 0) {
+		/*
+		 * To save some considerable effort and CPU power we
+		 * suppose that TCP functions adjust
+		 * conn->read_msg.msg_iov and conn->read_msg.msg_iovlen
+		 * on amount of copied data. This BUG_ON is intended
+		 * to catch if it is changed in the future.
+		 */
+		sBUG_ON((res >= first_len) &&
+			(conn->read_msg.msg_iov->iov_len != 0));
+		conn->read_size -= res;
+		if (conn->read_size != 0) {
+			if (res >= first_len) {
+				int done = 1 + ((res - first_len) >> PAGE_SHIFT);
+				conn->read_msg.msg_iov += done;
+				conn->read_msg.msg_iovlen -= done;
+			}
 		}
-
-		memset(&msg, 0, sizeof(msg));
-		msg.msg_iov = conn->read_msg.msg_iov;
-		msg.msg_iovlen = conn->read_msg.msg_iovlen;
-		first_len = msg.msg_iov->iov_len;
-
-		oldfs = get_fs();
-		set_fs(get_ds());
-		res = sock_recvmsg(conn->sock, &msg, conn->read_size,
-				   MSG_DONTWAIT | MSG_NOSIGNAL);
-		set_fs(oldfs);
-
-		if (res > 0) {
-			/*
-			 * To save some considerable effort and CPU power we
-			 * suppose that TCP functions adjust
-			 * conn->read_msg.msg_iov and conn->read_msg.msg_iovlen
-			 * on amount of copied data. This BUG_ON is intended
-			 * to catch if it is changed in the future.
-			 */
-			sBUG_ON((res >= first_len) &&
-				(conn->read_msg.msg_iov->iov_len != 0));
-			conn->read_size -= res;
-			if (conn->read_size != 0) {
-				if (res >= first_len) {
-					int done = 1 + ((res - first_len) >> PAGE_SHIFT);
-					conn->read_msg.msg_iov += done;
-					conn->read_msg.msg_iovlen -= done;
-				}
-			}
+		res = conn->read_size;
+	} else {
+		switch (res) {
+		case -EAGAIN:
+			TRACE_DBG("EAGAIN received for conn %p", conn);
 			res = conn->read_size;
-		} else {
-			switch (res) {
-			case -EAGAIN:
-				TRACE_DBG("EAGAIN received for conn %p", conn);
-				res = conn->read_size;
-				break;
-			case -ERESTARTSYS:
-				TRACE_DBG("ERESTARTSYS received for conn %p", conn);
-				continue;
-			default:
-				PRINT_ERROR("sock_recvmsg() failed: %d", res);
-				mark_conn_closed(conn);
-				if (res == 0)
-					res = -EIO;
-				break;
-			}
+			break;
+		case -ERESTARTSYS:
+			TRACE_DBG("ERESTARTSYS received for conn %p", conn);
+			goto restart;
+		default:
+			PRINT_ERROR("sock_recvmsg() failed: %d", res);
+			mark_conn_closed(conn);
+			if (res == 0)
+				res = -EIO;
 			break;
 		}
-	} while (res > 0);
+	}
 
 out:
 	TRACE_EXIT_RES(res);
