@@ -224,7 +224,7 @@ function compile_scst_patched {
   local outputfile="${outputdir}/compilation-output-patched.txt"
   local workingdirectory="${outputdir}/scst-patched"
 
-  echo "Testing whether the full-perf SCST tree compiles fine ..."
+  echo "Testing whether the $1 SCST tree compiles fine ..."
   (
     if mkdir -p "${workingdirectory}"  \
        && cd "${workingdirectory}"     \
@@ -500,6 +500,8 @@ function run_make_htmldocs {
 # Argument verification #
 #########################
 
+export LC_ALL=C
+
 if [ ! -e scst -o ! -e iscsi-scst -o ! -e srpt ]; then
   echo "Please run this script from inside the SCST subversion source tree."
   exit 1
@@ -572,7 +574,7 @@ fi
 
 test_scst_tree_patches || exit $?
 compile_scst_unpatched || exit $?
-#compile_scst_patched debug2release || exit $?
+compile_scst_patched debug2release || exit $?
 
 first_iteration="true"
 for k in ${kernel_versions}
