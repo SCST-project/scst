@@ -1342,7 +1342,12 @@ static int scst_write_trace(const char *buf, size_t length,
 	case SCST_TRACE_ACTION_VALUE:
 		while (isspace(*p) && *p != '\0')
 			p++;
-		level = simple_strtoul(p, NULL, 0);
+		res = strict_strtoul(p, 0, &level);
+		if (res != 0) {
+			PRINT_ERROR("Invalud trace value \"%s\"", p);
+			res = -EINVAL;
+			goto out_free;
+		}
 		break;
 	}
 
