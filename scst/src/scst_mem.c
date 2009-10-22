@@ -1742,7 +1742,7 @@ int sgv_procinfo_show(struct seq_file *seq, void *v)
 	return 0;
 }
 
-#endif /* CONFIG_SCST_PROC */
+#else /* CONFIG_SCST_PROC */
 
 ssize_t sgv_sysfs_stat_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
@@ -1828,3 +1828,5 @@ ssize_t sgv_sysfs_global_stat_show(struct kobject *kobj,
 	TRACE_EXIT();
 	return res;
 }
+
+#endif /* CONFIG_SCST_PROC */

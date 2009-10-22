@@ -130,12 +130,12 @@ void sgv_pool_destroy(struct sgv_pool *pool);
 
 #ifdef CONFIG_SCST_PROC
 int sgv_procinfo_show(struct seq_file *seq, void *v);
-#endif
-
+#else
 ssize_t sgv_sysfs_stat_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 ssize_t sgv_sysfs_global_stat_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
+#endif
 
 void scst_sgv_pool_use_norm(struct scst_tgt_dev *tgt_dev);
 void scst_sgv_pool_use_norm_clust(struct scst_tgt_dev *tgt_dev);

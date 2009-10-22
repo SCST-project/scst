@@ -678,21 +678,6 @@ static int vdisk_get_file_size(const char *file_name, bool blockio,
 		goto out;
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
-	if ((fd->f_op == NULL) ||
-	    (fd->f_op->readv == NULL) ||
-	    (fd->f_op->writev == NULL)) {
-#else
-	if ((fd->f_op == NULL) ||
-	    (fd->f_op->aio_read == NULL) ||
-	    (fd->f_op->aio_write == NULL)) {
-#endif
-		PRINT_ERROR("%s", "Wrong f_op or FS doesn't have required "
-			"capabilities");
-		res = -EINVAL;
-		goto out_close;
-	}
-
 	inode = fd->f_dentry->d_inode;
 
 	if (blockio && !S_ISBLK(inode->i_mode)) {
@@ -2352,48 +2337,6 @@ out:
 	return thr->iv;
 }
 
-/*
- * copied from <ksrc>/fs/read_write.*
- */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19)
-static void wait_on_retry_sync_kiocb(struct kiocb *iocb)
-{
-	set_current_state(TASK_UNINTERRUPTIBLE);
-	if (!kiocbIsKicked(iocb))
-		schedule();
-	else
-		kiocbClearKicked(iocb);
-	__set_current_state(TASK_RUNNING);
-}
-
-typedef ssize_t (*iov_fn_t)(struct kiocb *, const struct iovec *,
-				unsigned long, loff_t);
-
-static ssize_t do_sync_readv_writev(struct file *filp, const struct iovec *iov,
-		unsigned long nr_segs, size_t len, loff_t *ppos, iov_fn_t fn)
-{
-	struct kiocb kiocb;
-	ssize_t ret;
-
-	init_sync_kiocb(&kiocb, filp);
-	kiocb.ki_pos = *ppos;
-	kiocb.ki_left = len;
-	kiocb.ki_nbytes = len;
-
-	for (;;) {
-		ret = fn(&kiocb, iov, nr_segs, kiocb.ki_pos);
-		if (ret != -EIOCBRETRY)
-			break;
-		wait_on_retry_sync_kiocb(&kiocb);
-	}
-
-	if (ret == -EIOCBQUEUED)
-		ret = wait_on_sync_kiocb(&kiocb);
-	*ppos = kiocb.ki_pos;
-	return ret;
-}
-#endif
-
 static void vdisk_exec_read(struct scst_cmd *cmd,
 	struct scst_vdisk_thr *thr, loff_t loff)
 {
@@ -2454,12 +2397,7 @@ static void vdisk_exec_read(struct scst_cmd *cmd,
 	}
 
 	/* READ */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
-	err = fd->f_op->readv(fd, iv, iv_count, &fd->f_pos);
-#else
-	err = do_sync_readv_writev(fd, iv, iv_count, full_len,
-				   &fd->f_pos, fd->f_op->aio_read);
-#endif
+	err = vfs_readv(fd, iv, iv_count, &fd->f_pos);
 
 	if ((err < 0) || (err < full_len)) {
 		PRINT_ERROR("readv() returned %lld from %zd",
@@ -2548,12 +2486,7 @@ restart:
 	}
 
 	/* WRITE */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
-	err = fd->f_op->writev(fd, eiv, eiv_count, &fd->f_pos);
-#else
-	err = do_sync_readv_writev(fd, iv, iv_count, full_len, &fd->f_pos,
-					fd->f_op->aio_write);
-#endif
+	err = vfs_writev(fd, eiv, eiv_count, &fd->f_pos);
 
 	if (err < 0) {
 		PRINT_ERROR("write() returned %lld from %zd",
@@ -2868,9 +2801,8 @@ static void vdisk_exec_verify(struct scst_cmd *cmd,
 		TRACE_DBG("Verify: length %zd - len_mem %zd", length, len_mem);
 
 		if (!virt_dev->nullio)
-			err = fd->f_op->read(fd,
-				(char __force __user *)mem_verify, len_mem,
-				&fd->f_pos);
+			err = vfs_read(fd, (char __force __user *)mem_verify,
+				len_mem, &fd->f_pos);
 		else
 			err = len_mem;
 		if ((err < 0) || (err < len_mem)) {

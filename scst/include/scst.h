@@ -41,10 +41,6 @@
 
 #include <scst_const.h>
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-#define kobj_attribute device_attribute
-#endif
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 #ifndef RHEL_RELEASE_CODE
 typedef _Bool bool;

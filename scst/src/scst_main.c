@@ -218,6 +218,7 @@ int __scst_register_target_template(struct scst_tgt_template *vtt,
 		goto out_err;
 	}
 
+#ifndef CONFIG_SCST_PROC
 	if (!vtt->enable_tgt || !vtt->is_tgt_enabled) {
 		PRINT_WARNING("Target driver %s doesn't have enable_tgt() "
 			"and/or is_tgt_enabled() method(s). This is unsafe "
@@ -225,8 +226,7 @@ int __scst_register_target_template(struct scst_tgt_template *vtt,
 			"initialization time can see an unexpected set of "
 			"devices or no devices at all!", vtt->name);
 	}
-
-#ifdef CONFIG_SCST_PROC
+#else
 	if (!vtt->no_proc_entry) {
 		res = scst_build_proc_target_dir_entries(vtt);
 		if (res < 0)
