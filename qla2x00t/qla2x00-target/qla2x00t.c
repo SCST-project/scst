@@ -1301,7 +1301,7 @@ out:
 	return;
 }
 
-uint32_t q2t_convert_to_fc_tm_status(int scst_mstatus)
+static uint32_t q2t_convert_to_fc_tm_status(int scst_mstatus)
 {
 	uint32_t res;
 
@@ -1794,15 +1794,13 @@ static int q2t_pre_xmit_response(struct q2t_cmd *cmd,
 {
 	int res;
 	struct q2t_tgt *tgt = cmd->tgt;
-	scsi_qla_host_t *ha;
+	scsi_qla_host_t *ha = tgt->ha;
 	uint16_t full_req_cnt;
 	struct scst_cmd *scst_cmd = cmd->scst_cmd;
 
 	TRACE_ENTRY();
 
 	if (unlikely(cmd->aborted)) {
-		scsi_qla_host_t *ha = tgt->ha;
-
 		TRACE(TRACE_MGMT_MINOR, "qla2x00tgt(%ld): terminating exchange "
 			"for aborted cmd=%p (scst_cmd=%p, tag=%d)",
 			ha->instance, cmd, scst_cmd, cmd->tag);
@@ -1830,7 +1828,6 @@ static int q2t_pre_xmit_response(struct q2t_cmd *cmd,
 	prm->seg_cnt = -1;
 	prm->req_cnt = 1;
 	prm->add_status_pkt = 0;
-	ha = tgt->ha;
 
 	TRACE_DBG("rq_result=%x, xmit_type=%x", prm->rq_result, xmit_type);
 	if (prm->rq_result != 0)

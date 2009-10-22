@@ -4194,8 +4194,8 @@ int qla2xxx_tgt_register_driver(struct qla_tgt_data *tgt_data)
 	ENTER(__func__);
 
 	if ((tgt_data == NULL) || (tgt_data->magic != QLA2X_TARGET_MAGIC)) {
-		printk("***ERROR*** Wrong version of the target mode add-on: "
-			"%d\n", tgt_data->magic);
+		printk(KERN_ERR "***ERROR*** Wrong version of the target mode "
+			"add-on: %d\n", tgt_data->magic);
 		res = -EINVAL;
 		goto out;
 	}

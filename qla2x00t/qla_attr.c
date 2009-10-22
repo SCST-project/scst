@@ -69,7 +69,7 @@ qla2x00_store_class2_enabled(struct device *dev,
 		break;
 	default:
 #if defined(QL_DEBUG_LEVEL_9) || defined(QL_DEBUG_LEVEL_11)
-		printk("%s: Requested action not understood: %s\n",
+		qla_printk(KERN_ERR "%s: Requested action not understood: %s\n",
 		       __func__, buffer);
 #endif
 		res = -EINVAL;
@@ -123,8 +123,8 @@ qla2x00_store_tgt_enabled(struct device *dev,
 		goto out;
 
 	if (qla_target.tgt_host_action == NULL) {
-		printk(KERN_INFO "%s: not acting for lack of target driver\n",
-		       __func__);
+		qla_printk(KERN_INFO, ha, "%s: not acting for lack of target "
+			"driver\n", __func__);
 		res = -EINVAL;
 		goto out;
 	}
@@ -137,8 +137,8 @@ qla2x00_store_tgt_enabled(struct device *dev,
 		res = qla_target.tgt_host_action(ha, ENABLE_TARGET_MODE);
 		break;
 	default:
-		printk("%s: Requested action not understood: %s\n",
-		       __func__, buffer);
+		qla_printk(KERN_ERR, ha, "%s: Requested action not "
+			"understood: %s\n", __func__, buffer);
 		res = -EINVAL;
 		goto out;
 	}
@@ -186,18 +186,18 @@ qla2x00_store_expl_conf_enabled(struct device *dev,
 	switch (buffer[0]) {
 	case '0':
 		ha->enable_explicit_conf = 0;
-		printk("qla2xxx(%ld): explicit conformation disabled\n",
-			ha->instance);
+		qla_printk(KERN_INFO, ha, "qla2xxx(%ld): explicit conformation "
+			"disabled\n", ha->instance);
 		break;
 	case '1':
 		ha->enable_explicit_conf = 1;
-		printk("qla2xxx(%ld): explicit conformation enabled\n",
-			ha->instance);
+		qla_printk(KERN_INFO, ha, "qla2xxx(%ld): explicit conformation "
+			"enabled\n", ha->instance);
 		break;
 	default:
 #if defined(QL_DEBUG_LEVEL_9) || defined(QL_DEBUG_LEVEL_11)
-		printk("%s: Requested action not understood: %s\n",
-		       __func__, buffer);
+		qla_printk(KERN_ERR, ha, "%s: Requested action not understood: "
+			"%s\n", __func__, buffer);
 #endif
 		break;
 	}
