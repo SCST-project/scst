@@ -375,7 +375,7 @@ static inline int scst_exec_req(struct scsi_device *sdev,
 	return scsi_execute_async(sdev, cmd, cmd_len, data_direction, (void *)sgl,
 		    bufflen, nents, timeout, retries, privdata, done, gfp);
 #elif !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
-	WARN_ON();
+	WARN_ON(1);
 	return -1;
 #else
 	return scsi_execute_async_fifo(sdev, cmd, cmd_len, data_direction,
