@@ -25,7 +25,12 @@ target-oriented access control for them. However, the initiator-oriented
 access control will still work very well. Note, you need NPIV-supporting
 firmware as well as NPIV-supporting switches to use NPIV.
 
-The original initiator driver was taken from the kernel 2.6.26.
+The original initiator driver was taken from the kernel 2.6.26. Also the
+following 2.6.26.x commits have been applied to it (upstream ID):
+048feec5548c0582ee96148c61b87cccbcb5f9be,
+031e134e5f95233d80fb1b62fdaf5e1be587597c,
+5f3a9a207f1fccde476dd31b4c63ead2967d934f,
+85821c906cf3563a00a3d98fa380a2581a7a5ff1.
 
 See also "ToDo" file for list of known issues and unimplemented
 features.
