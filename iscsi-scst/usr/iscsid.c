@@ -453,12 +453,6 @@ static void login_start(struct connection *conn)
 
 	conn->cid = be16_to_cpu(req->cid);
 	conn->sid.id64 = req->sid.id64;
-	if (!conn->sid.id64) {
-		rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
-		rsp->status_detail = ISCSI_STATUS_MISSING_FIELDS;
-		conn->state = STATE_EXIT;
-		return;
-	}
 
 	name = text_key_find(conn, "InitiatorName");
 	if (!name) {
