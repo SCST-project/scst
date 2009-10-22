@@ -2238,10 +2238,6 @@ static int scst_exec(struct scst_cmd **active_cmd)
 		cmd->scst_cmd_done = scst_cmd_done_local;
 		cmd->state = SCST_CMD_STATE_LOCAL_EXEC;
 
-		if (cmd->tgt_data_buf_alloced && cmd->dh_data_buf_alloced &&
-		    (cmd->data_direction & SCST_DATA_WRITE))
-			scst_copy_sg(cmd, SCST_SG_COPY_FROM_TARGET);
-
 		rc = scst_do_local_exec(cmd);
 		if (likely(rc == SCST_EXEC_NOT_COMPLETED))
 			/* Nothing to do */;
@@ -2906,10 +2902,6 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 		res = SCST_CMD_STATE_RES_CONT_SAME;
 		goto out;
 	}
-
-	if (cmd->tgt_data_buf_alloced && cmd->dh_data_buf_alloced &&
-	    (cmd->data_direction & SCST_DATA_READ))
-		scst_copy_sg(cmd, SCST_SG_COPY_TO_TARGET);
 
 	cmd->state = SCST_CMD_STATE_XMIT_RESP;
 	res = SCST_CMD_STATE_RES_CONT_SAME;

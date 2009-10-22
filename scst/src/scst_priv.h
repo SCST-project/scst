@@ -401,12 +401,6 @@ int scst_alloc_space(struct scst_cmd *cmd);
 int scst_lib_init(void);
 void scst_lib_exit(void);
 
-enum scst_sg_copy_dir {
-	SCST_SG_COPY_FROM_TARGET,
-	SCST_SG_COPY_TO_TARGET
-};
-void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir);
-
 uint64_t scst_pack_lun(const uint64_t lun);
 uint64_t scst_unpack_lun(const uint8_t *lun, int len);
 

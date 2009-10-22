@@ -618,6 +618,20 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 	return 0;
 }
 
+static int scst_local_targ_pre_exec(struct scst_cmd *scst_cmd)
+{
+	int res = SCST_PREPROCESS_STATUS_SUCCESS;
+
+	TRACE_ENTRY();
+
+	if (scst_cmd_get_dh_data_buff_alloced(scst_cmd) &&
+	    (scst_cmd_get_data_direction(scst_cmd) & SCST_DATA_WRITE))
+		scst_copy_sg(scst_cmd, SCST_SG_COPY_FROM_TARGET);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 static void scst_local_release_adapter(struct device *dev)
 {
 	struct scst_local_host_info *scst_lcl_host;
@@ -1068,6 +1082,10 @@ static int scst_local_targ_xmit_response(struct scst_cmd *scst_cmd)
 		return SCST_TGT_RES_SUCCESS;
 	}
 
+	if (scst_cmd_get_dh_data_buff_alloced(scst_cmd) &&
+	    (scst_cmd_get_data_direction(scst_cmd) & SCST_DATA_READ))
+		scst_copy_sg(scst_cmd, SCST_SG_COPY_TO_TARGET);
+
 	tgt_specific = scst_cmd_get_tgt_priv(scst_cmd);
 
 	/*
@@ -1124,6 +1142,7 @@ static struct scst_tgt_template scst_local_targ_tmpl = {
 	.xmit_response_atomic	= 1,
 	.detect			= scst_local_targ_detect,
 	.release		= scst_local_targ_release,
+	.pre_exec		= scst_local_targ_pre_exec,
 	.xmit_response		= scst_local_targ_xmit_response,
 	.on_free_cmd		= scst_local_targ_on_free_cmd,
 	.task_mgmt_fn_done	= scst_local_targ_task_mgmt_done,

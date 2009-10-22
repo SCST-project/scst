@@ -3184,6 +3184,7 @@ out:
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(scst_copy_sg);
 
 static const int SCST_CDB_LENGTH[8] = { 6, 10, 10, -1, 16, 12, -1, -1 };
 

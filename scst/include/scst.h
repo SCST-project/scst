@@ -3014,6 +3014,17 @@ static inline void sg_clear(struct scatterlist *sg)
 #endif
 }
 
+enum scst_sg_copy_dir {
+	SCST_SG_COPY_FROM_TARGET,
+	SCST_SG_COPY_TO_TARGET
+};
+
+/*
+ * Copies data between cmd->tgt_sg and cmd->sg in direction defined by
+ * copy_dir parameter.
+ */
+void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir);
+
 /*
  * Functions for access to the commands data (SG) buffer,
  * including HIGHMEM environment. Should be used instead of direct
