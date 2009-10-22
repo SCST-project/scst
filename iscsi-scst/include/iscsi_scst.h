@@ -141,7 +141,7 @@ struct iscsi_kern_register_info {
 #define ISCSI_PARAM_SET		_IOW('s', 7, struct iscsi_kern_param_info)
 #define ISCSI_PARAM_GET		_IOWR('s', 8, struct iscsi_kern_param_info)
 
-static inline int iscsi_is_key_declarative(int key)
+static inline int iscsi_is_key_internal(int key)
 {
 	switch (key) {
 	case key_max_xmit_data_length:

@@ -363,7 +363,7 @@ static void text_scan_login(struct connection *conn)
 
 			switch (conn->session_param[idx].key_state) {
 			case KEY_STATE_START:
-				if (iscsi_is_key_declarative(idx)) {
+				if (iscsi_is_key_internal(idx)) {
 					conn->session_param[idx].key_state = KEY_STATE_DONE;
 					break;
 				}
@@ -417,13 +417,13 @@ static int text_check_param(struct connection *conn)
 			switch (conn->state) {
 			case STATE_LOGIN_FULL:
 			case STATE_SECURITY_FULL:
-				if (iscsi_is_key_declarative(i)) {
+				if (iscsi_is_key_internal(i)) {
 					p[i].key_state = KEY_STATE_DONE;
 					continue;
 				}
 				break;
 			case STATE_LOGIN:
-				if (iscsi_is_key_declarative(i))
+				if (iscsi_is_key_internal(i))
 					continue;
 				memset(buf, 0, sizeof(buf));
 				param_val_to_str(session_keys, i, p[i].val, buf);
@@ -435,7 +435,7 @@ static int text_check_param(struct connection *conn)
 				p[i].key_state = KEY_STATE_REQUEST;
 				break;
 			default:
-				if (iscsi_is_key_declarative(i))
+				if (iscsi_is_key_internal(i))
 					continue;
 			}
 			cnt++;
