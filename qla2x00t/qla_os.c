@@ -1895,7 +1895,7 @@ qla2x00_remove_one(struct pci_dev *pdev)
 
 	ha->host_shutting_down = 1;
 
-	if (qla_target.tgt_host_action != NULL) 
+	if (qla_target.tgt_host_action != NULL)
 		qla_target.tgt_host_action(ha, REMOVE_TARGET);
 #endif
 
