@@ -23,47 +23,43 @@
 
 #ifdef CONFIG_SCST_PROC
 
-static void print_conn_state(char *p, size_t size, struct iscsi_conn *conn)
+static int print_conn_state(char *p, size_t size, struct iscsi_conn *conn)
 {
-	int printed = 0;
+	int pos = 0;
 
 	if (conn->closing) {
-		snprintf(p, size, "%s", "closing");
-		return;
+		pos += scnprintf(p, size, "%s", "closing");
+		goto out;
 	}
 
 	switch (conn->rd_state) {
 	case ISCSI_CONN_RD_STATE_PROCESSING:
-		size -= scnprintf(p, size, "%s", "read_processing ");
-		printed = 1;
+		pos += scnprintf(&p[pos], size - pos, "%s", "read_processing ");
 		break;
 	case ISCSI_CONN_RD_STATE_IN_LIST:
-		size -= scnprintf(p, size, "%s", "in_read_list ");
-		printed = 1;
+		pos += scnprintf(&p[pos], size - pos, "%s", "in_read_list ");
 		break;
 	}
 
 	switch (conn->wr_state) {
 	case ISCSI_CONN_WR_STATE_PROCESSING:
-		size -= scnprintf(p, size, "%s", "write_processing ");
-		printed = 1;
+		pos += scnprintf(&p[pos], size - pos, "%s", "write_processing ");
 		break;
 	case ISCSI_CONN_WR_STATE_IN_LIST:
-		size -= scnprintf(p, size, "%s", "in_write_list ");
-		printed = 1;
+		pos += scnprintf(&p[pos], size - pos, "%s", "in_write_list ");
 		break;
 	case ISCSI_CONN_WR_STATE_SPACE_WAIT:
-		size -= scnprintf(p, size, "%s", "space_waiting ");
-		printed = 1;
+		pos += scnprintf(&p[pos], size - pos, "%s", "space_waiting ");
 		break;
 	}
 
 	if (test_bit(ISCSI_CONN_REINSTATING, &conn->conn_aflags))
-		snprintf(p, size, "%s", "reinstating ");
-	else if (!printed)
-		snprintf(p, size, "%s", "established idle ");
+		pos += scnprintf(&p[pos], size - pos, "%s", "reinstating ");
+	else if (pos == 0)
+		pos += scnprintf(&p[pos], size - pos, "%s", "established idle ");
 
-	return;
+out:
+	return pos;
 }
 
 static void print_digest_state(char *p, size_t size, unsigned long flags)

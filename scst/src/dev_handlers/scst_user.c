@@ -3411,9 +3411,10 @@ static ssize_t dev_user_sysfs_commands_show(struct kobject *kobj,
 				atomic_read(&ucmd->ucmd_ref),
 				ucmd->sent_to_user, ucmd->seen_by_user,
 				ucmd->aborted, ucmd->jammed, ucmd->cmd);
-			if (pos >= SCST_SYSFS_BLOCK_SIZE) {
-				scnprintf(&buf[ppos],
+			if (pos >= SCST_SYSFS_BLOCK_SIZE-1) {
+				ppos += scnprintf(&buf[ppos],
 					SCST_SYSFS_BLOCK_SIZE - ppos, "...\n");
+				pos = ppos;
 				break;
 			}
 		}

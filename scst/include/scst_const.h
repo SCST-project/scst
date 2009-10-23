@@ -339,6 +339,6 @@ enum scst_cmd_queue_type {
 /*************************************************************
  ** Misc constants
  *************************************************************/
-#define SCST_SYSFS_BLOCK_SIZE (PAGE_SIZE - 64)
+#define SCST_SYSFS_BLOCK_SIZE PAGE_SIZE
 
 #endif /* __SCST_CONST_H */
