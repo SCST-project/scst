@@ -80,34 +80,34 @@ clean:
 extraclean: clean
 
 debug2release:
-	sed -c -i.aa s/"^CFLAGS += \-DEXTRACHECKS"/"#CFLAGS += \-DEXTRACHECKS"/ Makefile
+	sed -i.aa s/"^CFLAGS += \-DEXTRACHECKS"/"#CFLAGS += \-DEXTRACHECKS"/ Makefile
 	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
-	sed -c -i.aa s/"#CFLAGS += \-DTRACING"/"CFLAGS += \-DTRACING"/ Makefile
+	sed -i.aa s/"#CFLAGS += \-DTRACING"/"CFLAGS += \-DTRACING"/ Makefile
 	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
-	sed -c -i.aa s/"^CFLAGS += \-DDEBUG -g"/"#CFLAGS += \-DDEBUG -g"/ Makefile
+	sed -i.aa s/"^CFLAGS += \-DDEBUG -g"/"#CFLAGS += \-DDEBUG -g"/ Makefile
 	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
 	rm Makefile.aa
 
 release2debug:
-	sed -c -i.aa s/"#CFLAGS += \-DEXTRACHECKS"/"CFLAGS += \-DEXTRACHECKS"/ Makefile
+	sed -i.aa s/"#CFLAGS += \-DEXTRACHECKS"/"CFLAGS += \-DEXTRACHECKS"/ Makefile
 	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
-	sed -c -i.aa s/"^CFLAGS += \-DTRACING"/"#CFLAGS += \-DTRACING"/ Makefile
+	sed -i.aa s/"^CFLAGS += \-DTRACING"/"#CFLAGS += \-DTRACING"/ Makefile
 	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
-	sed -c -i.aa s/"#CFLAGS += \-DDEBUG -g"/"CFLAGS += \-DDEBUG -g"/ Makefile
+	sed -i.aa s/"#CFLAGS += \-DDEBUG -g"/"CFLAGS += \-DDEBUG -g"/ Makefile
 	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
 	rm Makefile.aa
 
 debug2perf:
-	sed -c -i.aa s/"^CFLAGS += \-DEXTRACHECKS"/"#CFLAGS += \-DEXTRACHECKS"/ Makefile
+	sed -i.aa s/"^CFLAGS += \-DEXTRACHECKS"/"#CFLAGS += \-DEXTRACHECKS"/ Makefile
 	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
-	sed -c -i.aa s/"^CFLAGS += \-DDEBUG -g"/"#CFLAGS += \-DDEBUG -g"/ Makefile
+	sed -i.aa s/"^CFLAGS += \-DDEBUG -g"/"#CFLAGS += \-DDEBUG -g"/ Makefile
 	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
 	rm Makefile.aa
 
 perf2debug:
-	sed -c -i.aa s/"#CFLAGS += \-DEXTRACHECKS"/"CFLAGS += \-DEXTRACHECKS"/ Makefile
+	sed -i.aa s/"#CFLAGS += \-DEXTRACHECKS"/"CFLAGS += \-DEXTRACHECKS"/ Makefile
 	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
-	sed -c -i.aa s/"#CFLAGS += \-DDEBUG -g"/"CFLAGS += \-DDEBUG -g"/ Makefile
+	sed -i.aa s/"#CFLAGS += \-DDEBUG -g"/"CFLAGS += \-DDEBUG -g"/ Makefile
 	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
 	rm Makefile.aa
 
