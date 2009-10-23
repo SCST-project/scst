@@ -5171,10 +5171,10 @@ static ssize_t q2t_enable_tgt(struct scst_tgt *scst_tgt, const char *buffer,
 	int res = 0;
 
 	switch (buffer[0]) {
-	case '0' : 
+	case '0':
 		res = q2t_host_action(ha, DISABLE_TARGET_MODE);
 		break;
-	case '1' :
+	case '1':
 		res = q2t_host_action(ha, ENABLE_TARGET_MODE);
 		break;
 	default:
@@ -5238,12 +5238,12 @@ static ssize_t q2t_store_expl_conf_enabled(struct kobject *kobj,
 	spin_lock_irqsave(&ha->hardware_lock, flags);
 
 	switch (buffer[0]) {
-	case '0' : 
+	case '0':
 		ha->enable_explicit_conf = 0;
 		PRINT_INFO("qla2xxx(%ld): explicit conformations disabled",
 			ha->instance);
 		break;
-	case '1' :
+	case '1':
 		ha->enable_explicit_conf = 1;
 		PRINT_INFO("qla2xxx(%ld): explicit conformations enabled",
 			ha->instance);

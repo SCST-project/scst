@@ -758,7 +758,7 @@ static int iscsi_rx_check_ddigest(struct iscsi_conn *conn)
 				goto out;
 			}
 		}
-	}		
+	}
 
 out:
 	return res;
@@ -798,7 +798,7 @@ static void process_read_io(struct iscsi_conn *conn, int *closed)
 				} else {
 					iscsi_conn_prepare_read_ahs(conn, cmnd);
 					conn->read_state = RX_AHS;
-				} 
+				}
 			}
 			break;
 

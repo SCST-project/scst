@@ -979,7 +979,7 @@ static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
 
 				dev_replaced = true;
 			}
- 		}
+		}
 
 		res = scst_acg_add_dev(acg, dev, virt_lun, read_only,
 					!dev_replaced);
@@ -1005,7 +1005,7 @@ static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
 						SCST_LOAD_SENSE(scst_sense_inquery_data_changed));
 				}
 			}
- 		}
+		}
 
 		break;
 	}
