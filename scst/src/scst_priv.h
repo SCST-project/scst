@@ -39,7 +39,9 @@
 void sgv_pool_destroy(struct sgv_pool *pool);
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
 #define SCST_MAJOR              177
+#endif
 
 #define TRACE_RTRY              0x80000000
 #define TRACE_SCSI_SERIALIZING  0x40000000

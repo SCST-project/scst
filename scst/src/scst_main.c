@@ -749,6 +749,7 @@ static int scst_register_device(struct scsi_device *scsidp)
 	snprintf(dev->virt_name, 50, "%d:%d:%d:%d", scsidp->host->host_no,
 		scsidp->channel, scsidp->id, scsidp->lun);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
 	dev->rq_disk = alloc_disk(1);
 	if (dev->rq_disk == NULL) {
 		PRINT_ERROR("Unable to alloc disk object for device %s",
@@ -758,6 +759,7 @@ static int scst_register_device(struct scsi_device *scsidp)
 		goto out_free_dev;
 	}
 	dev->rq_disk->major = SCST_MAJOR;
+#endif
 
 	dev->scsi_dev = scsidp;
 
@@ -798,7 +800,9 @@ out_err:
 
 out_free:
 	list_del(&dev->dev_list_entry);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
 	put_disk(dev->rq_disk);
+#endif
 
 out_free_dev:
 	scst_device_sysfs_put(dev);
@@ -836,7 +840,10 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 
 	scst_assign_dev_handler(dev, &scst_null_devtype);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
 	put_disk(dev->rq_disk);
+#endif
+
 	scst_device_sysfs_put(dev);
 
 	PRINT_INFO("Detached from scsi%d, channel %d, id %d, lun %d, type %d",

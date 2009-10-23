@@ -35,7 +35,6 @@
  for details."
 #endif
 
-#define DEV_USER_MAJOR			237
 #define DEV_USER_CMD_HASH_ORDER		6
 #define DEV_USER_ATTACH_TIMEOUT		(5*HZ)
 
@@ -231,6 +230,8 @@ static struct scst_dev_type dev_user_devtype = {
 	.trace_flags = &trace_flag,
 #endif
 };
+
+static int dev_user_major;
 
 static struct class *dev_user_sysfs_class;
 
@@ -3616,23 +3617,23 @@ static int __init init_scst_user(void)
 #endif
 	}
 
-	res = register_chrdev(DEV_USER_MAJOR, DEV_USER_NAME, &dev_user_fops);
-	if (res) {
-		PRINT_ERROR("Unable to get major %d for SCSI tapes",
-			    DEV_USER_MAJOR);
+	dev_user_major = register_chrdev(0, DEV_USER_NAME, &dev_user_fops);
+	if (dev_user_major < 0) {
+		PRINT_ERROR("register_chrdev() failed: %d", res);
+		res = dev_user_major;
 		goto out_class;
 	}
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
 	class_member = class_device_create(dev_user_sysfs_class, NULL,
-				MKDEV(DEV_USER_MAJOR, 0), NULL, DEV_USER_NAME);
+				MKDEV(dev_user_major, 0), NULL, DEV_USER_NAME);
 	if (IS_ERR(class_member)) {
 		res = PTR_ERR(class_member);
 		goto out_chrdev;
 	}
 #else
 	dev = device_create(dev_user_sysfs_class, NULL,
-			    MKDEV(DEV_USER_MAJOR, 0),
+			    MKDEV(dev_user_major, 0),
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
 				NULL,
 #endif
@@ -3657,13 +3658,13 @@ out:
 
 out_dev:
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
-	class_device_destroy(dev_user_sysfs_class, MKDEV(DEV_USER_MAJOR, 0));
+	class_device_destroy(dev_user_sysfs_class, MKDEV(dev_user_major, 0));
 #else
-	device_destroy(dev_user_sysfs_class, MKDEV(DEV_USER_MAJOR, 0));
+	device_destroy(dev_user_sysfs_class, MKDEV(dev_user_major, 0));
 #endif
 
 out_chrdev:
-	unregister_chrdev(DEV_USER_MAJOR, DEV_USER_NAME);
+	unregister_chrdev(dev_user_major, DEV_USER_NAME);
 
 out_class:
 	class_destroy(dev_user_sysfs_class);
@@ -3694,11 +3695,11 @@ static void __exit exit_scst_user(void)
 	if (rc < 0)
 		TRACE_MGMT_DBG("kthread_stop() failed: %d", rc);
 
-	unregister_chrdev(DEV_USER_MAJOR, DEV_USER_NAME);
+	unregister_chrdev(dev_user_major, DEV_USER_NAME);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
-	class_device_destroy(dev_user_sysfs_class, MKDEV(DEV_USER_MAJOR, 0));
+	class_device_destroy(dev_user_sysfs_class, MKDEV(dev_user_major, 0));
 #else
-	device_destroy(dev_user_sysfs_class, MKDEV(DEV_USER_MAJOR, 0));
+	device_destroy(dev_user_sysfs_class, MKDEV(dev_user_major, 0));
 #endif
 	class_destroy(dev_user_sysfs_class);
 
@@ -3719,6 +3720,5 @@ module_exit(exit_scst_user);
 
 MODULE_AUTHOR("Vladislav Bolkhovitin");
 MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("Virtual user space device handler for SCST");
+MODULE_DESCRIPTION("User space device handler for SCST");
 MODULE_VERSION(SCST_VERSION_STRING);
-MODULE_ALIAS_CHARDEV_MAJOR(DEV_USER_MAJOR);

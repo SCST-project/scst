@@ -1719,8 +1719,10 @@ struct scst_device {
 	/* Used for storage of dev handler private stuff */
 	void *dh_priv;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
 	/* Used to translate SCSI's cmd to SCST's cmd */
 	struct gendisk *rq_disk;
+#endif
 
 	/* Corresponding real SCSI device, could be NULL for virtual devices */
 	struct scsi_device *scsi_dev;
