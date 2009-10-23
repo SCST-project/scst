@@ -1045,7 +1045,8 @@ out_remove_acg_dev:
  */
 
 static struct kobj_attribute sgv_stat_attr =
-	__ATTR(stats, S_IRUGO, sgv_sysfs_stat_show, NULL);
+	__ATTR(stats, S_IRUGO | S_IWUSR, sgv_sysfs_stat_show,
+		sgv_sysfs_stat_reset);
 
 static struct attribute *sgv_attrs[] = {
 	&sgv_stat_attr.attr,
@@ -1104,7 +1105,8 @@ void scst_sgv_sysfs_put(struct sgv_pool *pool)
 }
 
 static struct kobj_attribute sgv_global_stat_attr =
-	__ATTR(global_stats, S_IRUGO, sgv_sysfs_global_stat_show, NULL);
+	__ATTR(global_stats, S_IRUGO | S_IWUSR, sgv_sysfs_global_stat_show,
+		sgv_sysfs_global_stat_reset);
 
 static struct attribute *sgv_default_attrs[] = {
 	&sgv_global_stat_attr.attr,

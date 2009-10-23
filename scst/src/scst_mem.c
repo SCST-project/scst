@@ -1800,6 +1800,35 @@ ssize_t sgv_sysfs_stat_show(struct kobject *kobj,
 	return res;
 }
 
+ssize_t sgv_sysfs_stat_reset(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	struct sgv_pool *pool;
+	int i;
+
+	TRACE_ENTRY();
+
+	pool = container_of(kobj, struct sgv_pool, sgv_kobj);
+
+	for (i = 0; i < SGV_POOL_ELEMENTS; i++) {
+		atomic_set(&pool->cache_acc[i].hit_alloc, 0);
+		atomic_set(&pool->cache_acc[i].total_alloc, 0);
+		atomic_set(&pool->cache_acc[i].merged, 0);
+	}
+
+	atomic_set(&pool->big_pages, 0);
+	atomic_set(&pool->big_merged, 0);
+	atomic_set(&pool->big_alloc, 0);
+	atomic_set(&pool->other_pages, 0);
+	atomic_set(&pool->other_merged, 0);
+	atomic_set(&pool->other_alloc, 0);
+
+	PRINT_INFO("Statistics for SGV pool %s resetted", pool->name);
+
+	TRACE_EXIT_RES(count);
+	return count;
+}
+
 ssize_t sgv_sysfs_global_stat_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
@@ -1827,6 +1856,21 @@ ssize_t sgv_sysfs_global_stat_show(struct kobject *kobj,
 
 	TRACE_EXIT();
 	return res;
+}
+
+ssize_t sgv_sysfs_global_stat_reset(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	TRACE_ENTRY();
+
+	atomic_set(&sgv_releases_on_hiwmk, 0);
+	atomic_set(&sgv_releases_on_hiwmk_failed, 0);
+	atomic_set(&sgv_other_total_alloc, 0);
+
+	PRINT_INFO("%s", "Global SGV pool statistics resetted");
+
+	TRACE_EXIT_RES(count);
+	return count;
 }
 
 #endif /* CONFIG_SCST_PROC */
