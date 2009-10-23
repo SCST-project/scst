@@ -54,6 +54,10 @@ extern int qla2x00_issue_marker(scsi_qla_host_t *ha, int ha_locked);
 
 extern void qla84xx_put_chip(struct scsi_qla_host *);
 
+extern int qla2x00_configure_loop(scsi_qla_host_t *);
+extern int qla2x00_configure_local_loop(scsi_qla_host_t *);
+extern int qla2x00_configure_fabric(scsi_qla_host_t *);
+
 /*
  * Global Data in qla_os.c source file.
  */

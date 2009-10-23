@@ -31,9 +31,6 @@ static void qla2x00_init_response_q_entries(scsi_qla_host_t *);
 static int qla2x00_init_rings(scsi_qla_host_t *);
 static int qla2x00_fw_ready(scsi_qla_host_t *);
 static int qla2x00_configure_hba(scsi_qla_host_t *);
-int qla2x00_configure_loop(scsi_qla_host_t *);
-int qla2x00_configure_local_loop(scsi_qla_host_t *);
-int qla2x00_configure_fabric(scsi_qla_host_t *);
 static int qla2x00_find_all_fabric_devs(scsi_qla_host_t *, struct list_head *);
 static int qla2x00_device_resync(scsi_qla_host_t *);
 static int qla2x00_fabric_dev_login(scsi_qla_host_t *, fc_port_t *,

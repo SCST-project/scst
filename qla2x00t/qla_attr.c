@@ -448,10 +448,6 @@ out:
 	return size;
 }
 
-extern int qla2x00_configure_loop(scsi_qla_host_t *);
-extern int qla2x00_configure_local_loop(scsi_qla_host_t *);
-extern int qla2x00_configure_fabric(scsi_qla_host_t *);
-
 static ssize_t
 qla2x00_update_portdb(struct device *dev,
 	struct device_attribute *attr, const char *buffer, size_t size)
