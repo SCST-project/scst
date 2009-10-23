@@ -221,8 +221,8 @@ function compile_scst_unpatched {
 # /lib/modules/$(uname -r)/build.
 function compile_scst_patched {
   local scst="$PWD"
-  local outputfile="${outputdir}/compilation-output-patched.txt"
-  local workingdirectory="${outputdir}/scst-patched"
+  local outputfile="${outputdir}/compilation-output-$1.txt"
+  local workingdirectory="${outputdir}/scst-$1"
 
   echo "Testing whether the $1 SCST tree compiles fine ..."
   (
@@ -575,6 +575,8 @@ fi
 test_scst_tree_patches || exit $?
 compile_scst_unpatched || exit $?
 compile_scst_patched debug2release || exit $?
+compile_scst_patched debug2perf    || exit $?
+compile_scst_patched disable_proc  || exit $?
 
 first_iteration="true"
 for k in ${kernel_versions}
