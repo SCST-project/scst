@@ -1025,21 +1025,21 @@ qla2x00_init_firmware(scsi_qla_host_t *ha, uint16_t size)
 #ifdef QL_DEBUG_LEVEL_5
 	if (IS_FWI2_CAPABLE(ha)) {
 		struct init_cb_24xx *icb = (struct init_cb_24xx *)ha->init_cb;
-		DEBUG5(printk("%s(): firmware_options_1 %x, "
+		DEBUG5(printk(KERN_INFO "%s(): firmware_options_1 %x, "
 			"firmware_options_2 %x, firmware_options_3 %x\n",
 			__func__, icb->firmware_options_1,
 			icb->firmware_options_2, icb->firmware_options_3));
-		DEBUG5(printk("%s(): Control Block:\n", __func__));
+		DEBUG5(printk(KERN_INFO "%s(): Control Block:\n", __func__));
 		DEBUG5(qla2x00_dump_buffer((uint8_t *)icb, sizeof(*icb)));
 	} else {
 		init_cb_t *icb = (init_cb_t *)ha->init_cb;
-		DEBUG5(printk("%s(): firmware_options[0] %x, "
+		DEBUG5(printk(KERN_INFO "%s(): firmware_options[0] %x, "
 			"firmware_options[1] %x, add_firmware_options[0] %x, "
 			"add_firmware_options[1] %x\n", __func__,
 			icb->firmware_options[0], icb->firmware_options[1],
 			icb->add_firmware_options[0],
 			icb->add_firmware_options[1]));
-		DEBUG5(printk("%s(): Control Block:\n", __func__));
+		DEBUG5(printk(KERN_INFO "%s(): Control Block:\n", __func__));
 		DEBUG5(qla2x00_dump_buffer((uint8_t *)icb, sizeof(*icb)));
 	}
 #endif

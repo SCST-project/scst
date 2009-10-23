@@ -1432,8 +1432,8 @@ qla2x00_fw_ready(scsi_qla_host_t *ha)
 	    ha->host_no, state[0], jiffies));
 
 	if (rval != QLA_SUCCESS) {
-		DEBUG2_3(printk("scsi(%ld): Firmware not ready (%x).\n",
-		    ha->host_no, rval));
+		DEBUG2_3(printk(KERN_INFO "scsi(%ld): Firmware not ready "
+		    "(%x).\n", ha->host_no, rval));
 	}
 
 	return (rval);

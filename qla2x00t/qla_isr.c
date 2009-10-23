@@ -406,7 +406,7 @@ qla2x00_async_event(scsi_qla_host_t *ha, uint16_t *mb)
 		break;
 
 	case MBA_ATIO_TRANSFER_ERR:	/* ATIO Queue Transfer Error */
-		DEBUG2(printk("scsi(%ld): ATIO Transfer Error.\n",
+		DEBUG2(printk(KERN_INFO "scsi(%ld): ATIO Transfer Error.\n",
 		    ha->host_no));
 		qla_printk(KERN_WARNING, ha, "ATIO Transfer Error.\n");
 
@@ -581,13 +581,11 @@ qla2x00_async_event(scsi_qla_host_t *ha, uint16_t *mb)
 			    "ignored %04x/%04x/%04x.\n", ha->host_no, mb[1],
 			    mb[2], mb[3]));
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
-			DEBUG2(printk("scsi(%ld): ha state %d init_done %d "
-				      "oper_mode %d topo %d\n",
-				      ha->host_no,
-				      atomic_read(&ha->loop_state),
-				      ha->flags.init_done,
-				      ha->operating_mode,
-				      ha->current_topology));
+			DEBUG2(printk(KERN_INFO "scsi(%ld): ha state %d "
+				"init_done %d oper_mode %d topo %d\n",
+				ha->host_no, atomic_read(&ha->loop_state),
+				ha->flags.init_done, ha->operating_mode,
+				ha->current_topology));
 			if (qla_target.tgt_async_event)
 				qla_target.tgt_async_event(mb[0], ha, mb);
 #endif
@@ -722,15 +720,15 @@ qla2x00_async_event(scsi_qla_host_t *ha, uint16_t *mb)
 		break;
 
 	case MBA_LOOP_INIT_ERR:
-		printk("scsi(%ld): Loop init error received -- "
+		printk(KERN_INFO "scsi(%ld): Loop init error received -- "
 		    "%04x %04x %04x.\n", ha->host_no, mb[1], mb[2],
 		    mb[3]);
 		break;
 
 	default:
-		printk("scsi(%ld): Unhandled async event %d received -- "
-		    "%04x %04x %04x.\n", ha->host_no, mb[0], mb[1], mb[2],
-		    mb[3]);
+		printk(KERN_INFO "scsi(%ld): Unhandled async event %d "
+		    "received -- %04x %04x %04x.\n", ha->host_no,
+		    mb[0], mb[1], mb[2], mb[3]);
 		break;
 	}
 
@@ -890,7 +888,7 @@ qla2x00_process_response_queue(struct scsi_qla_host *ha)
 	while (ha->response_ring_ptr->signature != RESPONSE_PROCESSED) {
 		pkt = (sts_entry_t *)ha->response_ring_ptr;
 
-		DEBUG5(printk("%s(): IOCB data:\n", __func__));
+		DEBUG5(printk(KERN_INFO "%s(): IOCB data:\n", __func__));
 		DEBUG5(qla2x00_dump_buffer((uint8_t *)pkt, RESPONSE_ENTRY_SIZE));
 
 		ha->rsp_ring_index++;
@@ -1532,13 +1530,13 @@ qla24xx_mbx_completion(scsi_qla_host_t *ha, uint16_t mb0)
 	}
 
 #if defined(QL_DEBUG_LEVEL_1)
-	printk("scsi(%ld): Mailbox registers:", ha->host_no);
+	printk(KERN_INFO "scsi(%ld): Mailbox registers:", ha->host_no);
 	for (cnt = 0; cnt < ha->mbx_count; cnt++) {
 		if ((cnt % 4) == 0)
-			printk("\n");
+			printk(KERN_CONT "\n");
 		printk("mbox %02d: 0x%04x   ", cnt, ha->mailbox_out[cnt]);
 	}
-	printk("\n");
+	printk(KERN_CONT "\n");
 #endif
 }
 
@@ -1561,7 +1559,7 @@ qla24xx_process_atio_queue(struct scsi_qla_host *ha)
 		pkt = ha->atio_ring_ptr;
 		cnt = pkt->entry_count;
 
-		DEBUG5(printk("%s(): IOCB data:\n", __func__));
+		DEBUG5(printk(KERN_INFO "%s(): IOCB data:\n", __func__));
 		DEBUG5(qla2x00_dump_buffer((uint8_t *)pkt, RESPONSE_ENTRY_SIZE));
 
 		DEBUG5(printk(KERN_WARNING
@@ -1607,7 +1605,7 @@ qla24xx_process_response_queue(struct scsi_qla_host *ha)
 	while (ha->response_ring_ptr->signature != RESPONSE_PROCESSED) {
 		pkt = (struct sts_entry_24xx *)ha->response_ring_ptr;
 
-		DEBUG5(printk("%s(): IOCB data:\n", __func__));
+		DEBUG5(printk(KERN_INFO "%s(): IOCB data:\n", __func__));
 		DEBUG5(qla2x00_dump_buffer((uint8_t *)pkt, RESPONSE_ENTRY_SIZE));
 
 		ha->rsp_ring_index++;

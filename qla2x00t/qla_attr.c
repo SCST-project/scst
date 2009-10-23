@@ -69,8 +69,8 @@ qla2x00_store_class2_enabled(struct device *dev,
 		break;
 	default:
 #if defined(QL_DEBUG_LEVEL_9) || defined(QL_DEBUG_LEVEL_11)
-		qla_printk(KERN_ERR "%s: Requested action not understood: %s\n",
-		       __func__, buffer);
+		qla_printk(KERN_ERR, ha, "%s: Requested action not understood: "
+			"%s\n", __func__, buffer);
 #endif
 		res = -EINVAL;
 		goto out_unlock;
