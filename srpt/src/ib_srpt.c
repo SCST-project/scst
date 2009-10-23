@@ -2640,7 +2640,6 @@ static struct scst_tgt_template srpt_template = {
 	.sg_tablesize = SRPT_DEF_SG_TABLESIZE,
 	.xmit_response_atomic = 1,
 	.rdy_to_xfer_atomic = 1,
-	.no_proc_entry = 0,
 	.detect = srpt_detect,
 	.release = srpt_release,
 	.xmit_response = srpt_xmit_response,
