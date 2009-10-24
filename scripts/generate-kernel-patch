@@ -175,7 +175,7 @@ do
 done
 
 if [ "${generating_upstream_patch}" = "true" ]; then
-  specialize_patch_options="${specialize_patch_options} -v generating_upstream_patch_defined=1 -v config_tcp_zero_copy_transfer_completion_notification_undefined=1"
+  specialize_patch_options="${specialize_patch_options} -v generating_upstream_patch_defined=1 -v config_tcp_zero_copy_transfer_completion_notification_undefined=1 -v config_scst_proc_undefined=1"
 fi
 
 if [ $# != 1 ]; then
