@@ -49,6 +49,8 @@
 #include "ib_srpt.h"
 #include "scst_debug.h"
 
+#define CONFIG_SCST_PROC
+
 /* Name of this kernel module. */
 #define DRV_NAME		"ib_srpt"
 /* Prefix for printk() kernel messages. */
@@ -120,7 +122,9 @@ MODULE_PARM_DESC(use_port_guid_in_session_name,
 static void srpt_add_one(struct ib_device *device);
 static void srpt_remove_one(struct ib_device *device);
 static void srpt_unregister_mad_agent(struct srpt_device *sdev);
+#ifdef CONFIG_SCST_PROC
 static void srpt_unregister_procfs_entry(struct scst_tgt_template *tgt);
+#endif /*CONFIG_SCST_PROC*/
 
 static struct ib_client srpt_client = {
 	.name = DRV_NAME,
@@ -2545,7 +2549,9 @@ static int srpt_release(struct scst_tgt *scst_tgt)
 		return -ENODEV;
 #endif
 
+#ifdef CONFIG_SCST_PROC
 	srpt_unregister_procfs_entry(scst_tgt->tgtt);
+#endif /*CONFIG_SCST_PROC*/
 
 	spin_lock_irq(&sdev->spinlock);
 	list_for_each_entry_safe(ch, tmp_ch, &sdev->rch_list, list) {
@@ -2660,6 +2666,8 @@ static void srpt_release_class_dev(struct device *dev)
 {
 }
 
+#ifdef CONFIG_SCST_PROC
+
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 static int srpt_trace_level_show(struct seq_file *seq, void *v)
 {
@@ -2678,6 +2686,8 @@ static struct scst_proc_data srpt_log_proc_data = {
 	.show = srpt_trace_level_show,
 };
 #endif
+
+#endif /* CONFIG_SCST_PROC */
 
 static struct class_attribute srpt_class_attrs[] = {
 	__ATTR_NULL,
@@ -2971,6 +2981,8 @@ static void srpt_remove_one(struct ib_device *device)
 	TRACE_EXIT();
 }
 
+#ifdef CONFIG_SCST_PROC
+
 /**
  * Create procfs entries for srpt. Currently the only procfs entry created
  * by this function is the "trace_level" entry.
@@ -3013,6 +3025,8 @@ static void srpt_unregister_procfs_entry(struct scst_tgt_template *tgt)
 #endif
 }
 
+#endif /*CONFIG_SCST_PROC*/
+
 /*
  * Module initialization.
  *
@@ -3038,11 +3052,13 @@ static int __init srpt_init_module(void)
 		goto out_unregister_class;
 	}
 
+#ifdef CONFIG_SCST_PROC
 	ret = srpt_register_procfs_entry(&srpt_template);
 	if (ret) {
 		PRINT_ERROR("%s", "couldn't register procfs entry");
 		goto out_unregister_target;
 	}
+#endif /*CONFIG_SCST_PROC*/
 
 	ret = ib_register_client(&srpt_client);
 	if (ret) {
@@ -3064,10 +3080,12 @@ static int __init srpt_init_module(void)
 	return 0;
 
 out_unregister_target:
+#ifdef CONFIG_SCST_PROC
 	/*
 	 * Note: the procfs entry is unregistered in srpt_release(), which is
 	 * called by scst_unregister_target_template().
 	 */
+#endif /*CONFIG_SCST_PROC*/
 	scst_unregister_target_template(&srpt_template);
 out_unregister_class:
 	class_unregister(&srpt_class);
