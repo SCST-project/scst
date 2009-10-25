@@ -581,29 +581,40 @@ compile_scst_patched disable_proc  || exit $?
 first_iteration="true"
 for kv in ${kernel_versions}
 do
-  echo "======================"
-  printf "= kernel %-11s =\n" "${kv}"
-  echo "======================"
+  echo "=========================="
+  printf "= kernel %-15s =\n" "${kv}"
+  echo "=========================="
 
-  if [ "${kv%-u}" != "${kv}" ]; then
-    k="${kv%-u}"
-    v="-u"
-  else
-    k="${kv}"
-  fi
+  run_checkpatch="true"
+  run_sparse="true"
+  generate_kernel_patch_options=""
+  while [ "${kv%-?}" != "${kv}" -o "${kv%-??}" != "${kv}" ]; do
+    kv_without_opt="${kv%-?}"
+    if [ "${kv_without_opt}" = "${kv}" ]; then
+      kv_without_opt="${kv%-??}"
+    fi
+    kopt="${kv#${kv_without_opt}}"
+    case "${kopt}" in
+      '-nc') run_checkpatch="false";;
+      '-ns') run_sparse="false";;
+      '-u')  generate_kernel_patch_options="-u";;
+      *)     echo "Error: unknown option ${kopt}."; exit 1;;
+    esac
+    kv="${kv_without_opt}"
+  done
+  k="${kv}"
 
   download_kernel $k || continue
-  generate_kernel_patch $k "$v" || continue
+  generate_kernel_patch $k "${generate_kernel_patch_options}" || continue
   test_if_patch_applies_cleanly $k || continue
-  if [ "${first_iteration}" = "true" -o "${k#2.6.26}" != "$k" ]; then
-    first_iteration="false"
+  if [ "${run_checkpatch}" = "true" ]; then
     run_checkpatch $k
-    patch_and_configure_kernel $k
-    run_sparse $k drivers/scst
-  else
-    patch_and_configure_kernel $k
-    compile_kernel $k drivers/scst
   fi
+  patch_and_configure_kernel $k
+  if [ "${run_sparse}" = "true" ]; then
+    run_sparse $k drivers/scst
+  fi
+  compile_kernel $k drivers/scst
   if [ "${full_check}" = "true" ]; then
     run_headers_check $k
     compile_patched_kernel $k
