@@ -5,7 +5,7 @@
 # Script for converting the SCST source tree as it exists in the Subversion
 # repository to a Linux kernel patch.
 #
-# Copyright (C) 2008 Bart Van Assche <bart.vanassche@gmail.com>
+# Copyright (C) 2008-2009 Bart Van Assche <bart.vanassche@gmail.com>
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -105,7 +105,12 @@ function specialize_patch {
        ${specialize_patch_options} \
        -v kernel_version="${kernel_version}" \
        -v SCSI_EXEC_REQ_FIFO_DEFINED="${scsi_exec_req_fifo_defined}" \
-       -v SCST_IO_CONTEXT="${scst_io_context}"
+       -v SCST_IO_CONTEXT="${scst_io_context}" \
+  | if [ "${generating_upstream_patch}" = "true" ]; then
+      scripts/filter-trace-entry-exit
+    else
+      cat
+    fi
 }
 
 # Read a patch from stdin, specialize it for kernel version ${kernel_version}
