@@ -377,7 +377,7 @@ static ssize_t vdisk_mgmt_show(struct kobject *kobj,
 static ssize_t vdisk_mgmt_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count);
 
-struct kobj_attribute vdisk_mgmt_attr =
+static struct kobj_attribute vdisk_mgmt_attr =
 	__ATTR(mgmt, S_IRUGO | S_IWUSR, vdisk_mgmt_show, vdisk_mgmt_store);
 
 static const struct attribute *vdisk_attrs[] = {
