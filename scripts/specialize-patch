@@ -283,25 +283,34 @@ function process_preprocessor_statement() {
     if (output)
       any_section_output[if_nesting_level] = 1
   }
-  if (delete_disabled_code                                      \
-      && (evaluated ~ "^+#define SCSI_EXEC_REQ_FIFO_DEFINED$"   \
-             && SCSI_EXEC_REQ_FIFO_DEFINED != ""                \
-          || evaluated ~ "^+#define SCST_IO_CONTEXT$"           \
-	     && SCST_IO_CONTEXT != ""                           \
-          || (evaluated ~ "^+#define CONFIG_SCST_PROC$"         \
-              && config_scst_proc_undefined)))
+  if (evaluated ~ "^+#define SCSI_EXEC_REQ_FIFO_DEFINED$"   \
+         && SCSI_EXEC_REQ_FIFO_DEFINED != ""                \
+      || evaluated ~ "^+#define SCST_IO_CONTEXT$"           \
+         && SCST_IO_CONTEXT != ""                           \
+      || (evaluated ~ "^+#define CONFIG_SCST_PROC$"         \
+         && config_scst_proc_undefined))
   {
-    lines_deleted += input_line_count
-    delete_next_blank_line = 1
+    if (blank_deleted_code)
+      for (i = 0; i < input_line_count; i++)
+        line[lines++] = "+"
+    else
+    {
+      lines_deleted += input_line_count
+      delete_next_blank_line = 1
+    }
   }
-  else if (delete_disabled_code == 0 || (output && (! condition || condition && matching_if !~ "^+#if [01]")))
+  else if (output && (! condition || condition && matching_if !~ "^+#if [01]"))
   {
     for (i = 0; i < input_line_count; i++)
       line[lines++] = input_line[i]
   }
   else
   {
-    lines_deleted += input_line_count
+    if (blank_deleted_code)
+      for (i = 0; i < input_line_count; i++)
+        line[lines++] = "+"
+    else
+      lines_deleted += input_line_count
   }
 }
 
@@ -349,8 +358,8 @@ BEGIN {
     printf "Error: kernel version (%s) is out of range.\n", kernel_version
     exit 1
   }
-  if (delete_disabled_code != 0 && delete_disabled_code != 1)
-    delete_disabled_code = 0
+  if (blank_deleted_code != 0 && blank_deleted_code != 1)
+    blank_deleted_code = 0
   if (generating_upstream_patch_defined != 0 && generating_upstream_patch_defined != 1)
     generating_upstream_patch_defined = 0
   if (config_tcp_zero_copy_transfer_completion_notification_undefined != 0 && config_tcp_zero_copy_transfer_completion_notification_undefined != 1)
@@ -385,10 +394,16 @@ BEGIN {
     dump_lines()
     match($0, "^@@ -([0-9]*),([0-9]*) \\+([0-9]*),([0-9]*) @@(.*)$", h)
   }
-  else if (delete_disabled_code && delete_next_blank_line && match($0, "^+$"))
+  else if (delete_next_blank_line && match($0, "^+$"))
   {
-    lines_deleted += input_line_count
-    delete_next_blank_line = 0
+    if (blank_deleted_code)
+      for (i = 0; i < input_line_count; i++)
+        line[lines++] = "+"
+    else
+    {
+      lines_deleted += input_line_count
+      delete_next_blank_line = 0
+    }
   }
   else
   {
@@ -397,16 +412,22 @@ BEGIN {
     {
       process_preprocessor_statement()
     }
-    else if (delete_disabled_code == 0 || output)
+    else if (output)
     {
       # Store the lines that were just read.
       for (i = 0; i < input_line_count; i++)
-        line[lines++]=input_line[i]
+        line[lines++] = input_line[i]
     }
     else
     {
       # Discard the last read lines.
-      lines_deleted += input_line_count
+      if (blank_deleted_code)
+      {
+        for (i = 0; i < input_line_count; i++)
+          line[lines++] = "+"
+      }
+      else
+        lines_deleted += input_line_count
     }
   }
 }

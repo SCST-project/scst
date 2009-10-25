@@ -278,7 +278,8 @@ function download_kernel {
   )
 }
 
-# Generate a kernel patch from the SCST source tree for kernel version $1.
+# Generate a kernel patch from the SCST source tree for kernel version $1
+# and with generate-kernel-patch options $2.
 function generate_kernel_patch {
   local scst_dir="${PWD}"
   local kver="$(kernel_version $1)"
@@ -287,23 +288,22 @@ function generate_kernel_patch {
 
   SIGNED_OFF_BY="..." \
   scripts/generate-kernel-patch \
-    $([ "${scst_local}" = "true" ] && echo -- "-l") \
-    $([ "${mpt_scst}"   = "true" ] && echo -- "-m") \
-    $([ "${qla2x00t}"   = "true" ] && echo -- "-q") \
-    ${1} > "${patchfile}"
+    $([ "${scst_local}" = "true" ] && echo "-l") \
+    $([ "${mpt_scst}"   = "true" ] && echo "-m") \
+    $([ "${qla2x00t}"   = "true" ] && echo "-q") \
+    $2 $1 > "${patchfile}"
 
   SIGNED_OFF_BY="..." \
   scripts/generate-kernel-patch \
-    -n                                              \
-    $([ "${scst_local}" = "true" ] && echo -- "-l") \
-    $([ "${mpt_scst}"   = "true" ] && echo -- "-m") \
-    $([ "${qla2x00t}"   = "true" ] && echo -- "-q") \
-    ${1} > "${patchfile_m}"
+    -n                                           \
+    $([ "${scst_local}" = "true" ] && echo "-l") \
+    $([ "${mpt_scst}"   = "true" ] && echo "-m") \
+    $([ "${qla2x00t}"   = "true" ] && echo "-q") \
+    $2 $1 > "${patchfile_m}"
 }
 
-# Generate a kernel patch through scripts/generate-kernel-patch and test
-# whether it applies cleanly to kernel version $1. Leaves a vanilla kernel
-# in directory "${outputdir}/linux-$1" at exit.
+# Test whether the generated kernel patch applies cleanly to kernel version $1.
+# Leaves a vanilla kernel tree in directory "${outputdir}/linux-$1" at exit.
 function test_if_patch_applies_cleanly {
   local kver="$(kernel_version $1)"
   local plevel="$(patchlevel $1)"
@@ -579,14 +579,21 @@ compile_scst_patched debug2perf    || exit $?
 compile_scst_patched disable_proc  || exit $?
 
 first_iteration="true"
-for k in ${kernel_versions}
+for kv in ${kernel_versions}
 do
-  echo "===================="
-  printf "= kernel %-9s =\n" "${k}"
-  echo "===================="
+  echo "======================"
+  printf "= kernel %-11s =\n" "${kv}"
+  echo "======================"
+
+  if [ "${kv%-u}" != "${kv}" ]; then
+    k="${kv%-u}"
+    v="-u"
+  else
+    k="${kv}"
+  fi
 
   download_kernel $k || continue
-  generate_kernel_patch $k || continue
+  generate_kernel_patch $k "$v" || continue
   test_if_patch_applies_cleanly $k || continue
   if [ "${first_iteration}" = "true" -o "${k#2.6.26}" != "$k" ]; then
     first_iteration="false"
@@ -597,8 +604,8 @@ do
     patch_and_configure_kernel $k
     compile_kernel $k drivers/scst
   fi
-  # run_headers_check $k
   if [ "${full_check}" = "true" ]; then
+    run_headers_check $k
     compile_patched_kernel $k
     run_checkstack $k
     run_namespacecheck $k

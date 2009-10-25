@@ -72,7 +72,7 @@ EOF
     # Insert a '+'-sign at the start of each line.
     sed -e 's/^/+/' < "$1" | \
     if [ "${replace_sbug_by_bug}" = "true" ]; then
-      sed -e 's/sBUG(\([^)]\)/BUG(\1/g' -e 's/sBUG_ON(\([^)]\)/BUG_ON(\1/g'
+      sed -e 's/sBUG(\([^)]*\)/BUG(\1/g' -e 's/sBUG_ON(\([^)]*\)/BUG_ON(\1/g'
     else
       cat
     fi \
@@ -163,8 +163,7 @@ do
     '-h') usage; exit 1;;
     '-l') shift;;
     '-m') mpt_scst="true"; shift;;
-    '-n') specialize_patch_options="-v delete_disabled_code=0"
-          replace_sbug_by_bug="false"
+    '-n') specialize_patch_options="-v blank_deleted_code=1"
           shift
           ;;
     '-p') multiple_patches="true"; patchdir="$2"; shift; shift;;
@@ -278,6 +277,10 @@ add_file "scst/kernel/in-tree/Makefile.scst" "drivers/scst/Makefile"
 
 for f in $(ls scst/src/*.[ch] 2>/dev/null)
 do
+  if [ "${generating_upstream_patch}" = "true" \
+       -a "${f}" = "scst/src/scst_proc.c" ]; then
+    continue
+  fi
   if ! in_separate_patch "${f}"; then
     add_file "${f}" "drivers/scst/${f#scst/src/}"
   fi
@@ -290,6 +293,10 @@ do
   fileset=$s
   for f in $(set | grep "^$s=" | sed -e "s/^$s='\(.*\)'\$/\1/" -e "s/^$s=\(.*\)\$/\1/")
   do
+    if [ "${generating_upstream_patch}" = "true" \
+         -a "${f}" = "scst/src/scst_proc.c" ]; then
+      continue
+    fi
     if [ "${f#scst/include}" != "${f}" ]; then
       add_file "${f}" "include/scst/${f#scst/include/}"
     else
