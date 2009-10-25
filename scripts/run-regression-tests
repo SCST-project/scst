@@ -4,7 +4,7 @@
 #
 # Script for running those SCST regression tests that can be run automatically.
 #
-# Copyright (C) 2008 Bart Van Assche <bart.vanassche@gmail.com>
+# Copyright (C) 2008-2009 Bart Van Assche <bart.vanassche@gmail.com>
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -58,8 +58,6 @@ function usage {
   echo "Usage: $0 [-c <dir>] [-d <dir>] [-f] [-h] [-j <jobs>] [-q] <kver1> <kver2> ..."
   echo "        -c - cache directory for Linux kernel tarballs."
   echo "        -d - directory for temporary regression test files."
-  echo "        -f - full check -- do not only compile SCST but the whole" \
-       "kernel tree."
   echo "        -h - display this help information."
   echo "        -j - number of jobs that 'make' should run simultaneously."
   echo "        -k - remove temporary files before exiting."
@@ -507,7 +505,6 @@ if [ ! -e scst -o ! -e iscsi-scst -o ! -e srpt ]; then
   exit 1
 fi
 
-full_check="false"
 # Where to store persistenly downloaded kernel tarballs and kernel patches.
 kernel_sources="$HOME/software/downloads"
 # URL for downloading kernel tarballs and kernel patches.
@@ -523,13 +520,12 @@ remove_temporary_files_at_end="false"
 scst_local="true"
 quiet_download="false"
 
-set -- $(/usr/bin/getopt "c:d:fj:hkq" "$@")
+set -- $(/usr/bin/getopt "c:d:j:hkq" "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
     '-c') kernel_sources="$2"; shift; shift;;
     '-d') outputdir="$2"; shift; shift;;
-    '-f') full_check="true"; shift;;
     '-h') usage; exit 1;;
     '-j') export MAKEFLAGS="-j$2"; shift; shift;;
     '-k') remove_temporary_files_at_end="true"; shift;;
@@ -585,9 +581,10 @@ do
   printf "= kernel %-15s =\n" "${kv}"
   echo "=========================="
 
+  full_check="false"
+  generate_kernel_patch_options=""
   run_checkpatch="true"
   run_sparse="true"
-  generate_kernel_patch_options=""
   while [ "${kv%-?}" != "${kv}" -o "${kv%-??}" != "${kv}" ]; do
     kv_without_opt="${kv%-?}"
     if [ "${kv_without_opt}" = "${kv}" ]; then
@@ -595,6 +592,7 @@ do
     fi
     kopt="${kv#${kv_without_opt}}"
     case "${kopt}" in
+      '-f')  full_check="true";;
       '-nc') run_checkpatch="false";;
       '-ns') run_sparse="false";;
       '-u')  generate_kernel_patch_options="-u";;
