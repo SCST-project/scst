@@ -19,15 +19,17 @@
 #
 ############################################################################
 
-function categorize_line() {
+function categorize_line(line) {
   is_blank = 0
   is_trace_entry = 0
   is_trace_exit = 0
-  if ($0 ~ "^+$")
+  if (line ~ "^+$")
     is_blank = 1
-  else if ($0 ~ "^+\tTRACE_ENTRY\\(\\);$")
+  else if (line ~ "^+\tTRACE_ENTRY\\(\\);$")
     is_trace_exit = 1
-  else if ($0 ~ "^+\tTRACE_EXIT\\(\\);$" || $0 ~ "^+\tTRACE_EXIT_RES\\(.*\\);$")
+  else if (line ~ "^+\tTRACE_EXIT\\(\\);$" \
+           || line ~ "^+\tTRACE_EXIT_RES\\(.*\\);$" \
+           || line ~ "^+\tTRACE_EXIT_HRES\\(.*\\);$")
     is_trace_exit = 1
 }
 
@@ -36,11 +38,19 @@ function print_conditionally() {
       && ! (before_previous_is_trace_entry && previous_is_blank) \
       && ! previous_is_trace_exit                                \
       && ! (previous_is_blank && is_trace_exit))
-    print previous_line
+  {
+    # printf "[%d] %s\n", lines, previous_line
+    line[lines++] = previous_line
+  }
+  else
+  {
+    # print "deleted", previous_line
+    lines_deleted++
+  }
 }
 
-function shift_state_variables() {
-  previous_line = $0
+function shift_state_variables(line) {
+  previous_line                  = line
   before_previous_is_blank       = previous_is_blank
   before_previous_is_trace_entry = previous_is_trace_entry
   before_previous_is_trace_exit  = previous_is_trace_exit
@@ -49,21 +59,72 @@ function shift_state_variables() {
   previous_is_trace_exit         = is_trace_exit
 }
 
+function reset_hunk_state_variables() {
+  lines                          = 0
+  lines_deleted                  = 0
+  first_line_of_hunk             = 1
+  before_previous_is_blank       = 0
+  before_previous_is_trace_entry = 0
+  before_previous_is_trace_exit  = 0
+  previous_is_blank              = 0
+  previous_is_trace_entry        = 0
+  previous_is_trace_exit         = 0
+}
+
+function dump_lines() {
+  # Detect empty hunks
+  first_modif = -1
+  for (i = 0; i < lines; i++)
+  {
+    if (line[i] ~ "^[+-]")
+    {
+      first_modif = i
+      break
+    }
+  }
+
+  # printf "dump_lines(): lines = %d, first_modif = %d\n", lines, first_modif
+
+  # Dump line[] as a hunk, but only if the hunk is not empty.
+  if (first_modif >= 0)
+  {
+    if (h[0] != "")
+      printf "@@ -%d,%d +%d,%d @@%s\n",h[1],h[2],h[3],h[4]-lines_deleted,h[5]
+    for (i = 0; i < lines; i++)
+      print line[i]
+  }
+  reset_hunk_state_variables()
+}
+
 BEGIN {
-  previous_is_blank       = 0
-  previous_is_trace_entry = 0
-  previous_is_trace_exit  = 0
-  getline
-  categorize_line()
-  shift_state_variables()
+  reset_hunk_state_variables()
 }
 
 {
-  categorize_line()
-  print_conditionally()
-  shift_state_variables()
+  # If the line currently being processed is a hunk header, print all lines
+  # that were stored in the array line[] since the last hunk header was read.
+  if (match($0, "^@@ -([0-9]*),([0-9]*) \\+([0-9]*),([0-9]*) @@(.*)$"))
+  {
+    categorize_line("")
+    print_conditionally()
+    dump_lines()
+    match($0, "^@@ -([0-9]*),([0-9]*) \\+([0-9]*),([0-9]*) @@(.*)$", h)
+  }
+  else
+  {
+    if (first_line_of_hunk)
+      first_line_of_hunk = 0
+    else
+    {
+      categorize_line($0)
+      print_conditionally()
+    }
+    shift_state_variables($0)
+  }
 }
 
 END {
+  categorize_line("")
   print_conditionally()
+  dump_lines()
 }
