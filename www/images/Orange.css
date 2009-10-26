@@ -314,6 +314,10 @@ div.logoimg {
 	border-bottom: 4px solid #FFA600;
 }
 
+/* Font colors */
+font.names { color: #EC981F ; }
+ 
+
 /* Alignment classes */
 .float-left   { float: left;}
 .float-right  { float: right; }
