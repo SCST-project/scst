@@ -1260,7 +1260,7 @@ static int scst_write_trace(const char *buf, size_t length,
 
 	buffer = kmalloc(length+1, GFP_KERNEL);
 	if (buffer == NULL) {
-		PRINT_ERROR("Unable to alloc intermediate buffer (size %d)",
+		PRINT_ERROR("Unable to alloc intermediate buffer (size %zd)",
 			length+1);
 		res = -ENOMEM;
 		goto out;
