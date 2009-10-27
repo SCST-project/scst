@@ -85,7 +85,9 @@
 #define TRACE_FUNCTION       0x00000002
 #define TRACE_LINE           0x00000004
 #define TRACE_PID            0x00000008
+#ifndef GENERATING_UPSTREAM_PATCH
 #define TRACE_ENTRYEXIT      0x00000010
+#endif
 #define TRACE_BUFF           0x00000020
 #define TRACE_MEMORY         0x00000040
 #define TRACE_SG_OP          0x00000080
@@ -249,6 +251,7 @@ do {									\
 	PRINT(KERN_CONT, format, args);					\
 } while (0)
 
+#ifndef GENERATING_UPSTREAM_PATCH
 #define TRACE_ENTRY()							\
 do {									\
 	if (trace_flag & TRACE_ENTRYEXIT) {				\
@@ -302,6 +305,7 @@ do {									\
 		}							\
 	}                                                               \
 } while (0)
+#endif
 
 #else  /* CONFIG_SCST_DEBUG */
 
@@ -313,10 +317,12 @@ do {									\
 #define TRACE_MGMT_DBG_SPECIAL(format, args...) do {} while (0)
 #define TRACE_BUFFER(message, buff, len) do {} while (0)
 #define TRACE_BUFF_FLAG(flag, message, buff, len) do {} while (0)
+#ifndef GENERATING_UPSTREAM_PATCH
 #define TRACE_ENTRY() do {} while (0)
 #define TRACE_EXIT() do {} while (0)
 #define TRACE_EXIT_RES(res) do {} while (0)
 #define TRACE_EXIT_HRES(res) do {} while (0)
+#endif
 
 #ifdef LOG_PREFIX
 

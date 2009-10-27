@@ -99,7 +99,9 @@ static struct scst_trace_log scst_proc_trace_tbl[] =
     { TRACE_SG_OP,		"sg" },
     { TRACE_MEMORY,		"mem" },
     { TRACE_BUFF,		"buff" },
+#ifndef GENERATING_UPSTREAM_PATCH
     { TRACE_ENTRYEXIT,		"entryexit" },
+#endif
     { TRACE_PID,		"pid" },
     { TRACE_LINE,		"line" },
     { TRACE_FUNCTION,		"function" },
