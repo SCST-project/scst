@@ -1,0 +1,27 @@
+#!/bin/gawk -f
+
+# awk script that reads a patch from stdin and prints all #define statements
+# that match the following patttern:
+# +#ifndef <symbol>
+# +#define <symbol> <text>
+# +#endif
+
+BEGIN {
+  previous_is_ifndef = 0
+  symbol = ""
+}
+
+{
+  is_ifndef = match($0, "^+#ifndef (.*)$", a)
+  if (is_ifndef)
+    symbol = a[1]
+  is_define = previous_is_ifndef && match($0, "^+#define " + symbol)
+  if (is_define)
+    define = $0
+  is_endif = match($0, "^+#endif$")
+  if (before_previous_is_ifndef && previous_is_define && is_endif)
+    print define
+  before_previous_is_ifndef = previous_is_ifndef
+  previous_is_ifndef = is_ifndef
+  previous_is_define = is_define
+}
