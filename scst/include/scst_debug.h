@@ -128,6 +128,11 @@
 #define ___unlikely(a)		unlikely(a)
 #endif
 
+/*
+ * We don't print prefix for debug traces to not put additional preasure
+ * on the logging system in case of a lot of logging.
+ */
+
 extern int debug_print_prefix(unsigned long trace_flag,
 	const char *prefix, const char *func, int line);
 extern void debug_print_buffer(const void *data, int len);
