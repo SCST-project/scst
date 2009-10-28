@@ -417,6 +417,9 @@ BEGIN {
       # Store the lines that were just read.
       for (i = 0; i < input_line_count; i++)
         line[lines++] = input_line[i]
+      # Delete double blank lines from the input.
+      if (line[lines-1] == "+")
+        delete_next_blank_line = 1
     }
     else
     {
