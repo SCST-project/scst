@@ -1,0 +1,31 @@
+#!/usr/bin/gawk -f
+
+############################################################################
+#
+# Script that takes a patch as input and lists the line numbers of double
+# blank lines in the input.
+#
+# Copyright (C) 2009 Bart Van Assche <bart.vanassche@gmail.com>
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, version 2
+# of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+############################################################################
+
+BEGIN {
+  last_is_blank = 0
+}
+
+{
+  is_blank = $0 ~ "^\\+$"
+  if (last_is_blank && is_blank)
+    print NR
+  last_is_blank = is_blank
+}
