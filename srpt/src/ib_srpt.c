@@ -170,6 +170,8 @@ static void srpt_event_handler(struct ib_event_handler *handler,
 	struct srpt_device *sdev;
 	struct srpt_port *sport;
 
+	TRACE_ENTRY();
+
 	sdev = ib_get_client_data(event->device, &srpt_client);
 	if (!sdev || sdev->device != event->device)
 		return;
@@ -207,6 +209,7 @@ static void srpt_event_handler(struct ib_event_handler *handler,
 		break;
 	}
 
+	TRACE_EXIT();
 }
 
 /*
@@ -215,7 +218,11 @@ static void srpt_event_handler(struct ib_event_handler *handler,
  */
 static void srpt_srq_event(struct ib_event *event, void *ctx)
 {
+	TRACE_ENTRY();
+
 	TRACE_DBG("SRQ event %d", event->event);
+
+	TRACE_EXIT();
 }
 
 /*
@@ -519,6 +526,8 @@ static int srpt_refresh_port(struct srpt_port *sport)
 	struct ib_port_attr port_attr;
 	int ret;
 
+	TRACE_ENTRY();
+
 	memset(&port_modify, 0, sizeof port_modify);
 	port_modify.set_port_cap_mask = IB_PORT_DEVICE_MGMT_SUP;
 	port_modify.clr_port_cap_mask = 0;
@@ -559,6 +568,8 @@ static int srpt_refresh_port(struct srpt_port *sport)
 		}
 	}
 
+	TRACE_EXIT_RES(0);
+
 	return 0;
 
 err_query_port:
@@ -568,6 +579,8 @@ err_query_port:
 	ib_modify_port(sport->sdev->device, sport->port, 0, &port_modify);
 
 err_mod_port:
+
+	TRACE_EXIT_RES(ret);
 
 	return ret;
 }
@@ -604,6 +617,8 @@ static struct srpt_ioctx *srpt_alloc_ioctx(struct srpt_device *sdev)
 {
 	struct srpt_ioctx *ioctx;
 
+	TRACE_ENTRY();
+
 	ioctx = kmalloc(sizeof *ioctx, GFP_KERNEL);
 	if (!ioctx)
 		goto out;
@@ -617,6 +632,8 @@ static struct srpt_ioctx *srpt_alloc_ioctx(struct srpt_device *sdev)
 	if (ib_dma_mapping_error(sdev->device, ioctx->dma))
 		goto out_free_buf;
 
+	TRACE_EXIT_RES(ioctx);
+
 	return ioctx;
 
 out_free_buf:
@@ -624,6 +641,7 @@ out_free_buf:
 out_free_ioctx:
 	kfree(ioctx);
 out:
+	TRACE_EXIT_RES(NULL);
 	return NULL;
 }
 
@@ -648,6 +666,8 @@ static int srpt_alloc_ioctx_ring(struct srpt_device *sdev)
 {
 	int i;
 
+	TRACE_ENTRY();
+
 	for (i = 0; i < SRPT_SRQ_SIZE; ++i) {
 		sdev->ioctx_ring[i] = srpt_alloc_ioctx(sdev);
 
@@ -657,6 +677,8 @@ static int srpt_alloc_ioctx_ring(struct srpt_device *sdev)
 		sdev->ioctx_ring[i]->index = i;
 	}
 
+	TRACE_EXIT_RES(0);
+
 	return 0;
 
 err:
@@ -664,6 +686,7 @@ err:
 		srpt_free_ioctx(sdev, sdev->ioctx_ring[i]);
 		sdev->ioctx_ring[i] = NULL;
 	}
+	TRACE_EXIT_RES(-ENOMEM);
 	return -ENOMEM;
 }
 
@@ -2763,6 +2786,8 @@ static void srpt_add_one(struct ib_device *device)
 
 	TRACE_ENTRY();
 
+	TRACE_DBG("device = %p, device->dma_ops = %p", device, device->dma_ops);
+
 	sdev = kzalloc(sizeof *sdev, GFP_KERNEL);
 	if (!sdev)
 		return;
@@ -2869,6 +2894,9 @@ static void srpt_add_one(struct ib_device *device)
 	}
 
 	scst_tgt_set_tgt_priv(sdev->scst_tgt, sdev);
+
+	WARN_ON(sdev->device->phys_port_cnt
+		>= sizeof(sdev->port)/sizeof(sdev->port[0]));
 
 	for (i = 1; i <= sdev->device->phys_port_cnt; i++) {
 		sport = &sdev->port[i - 1];
