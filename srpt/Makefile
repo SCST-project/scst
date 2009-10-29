@@ -68,6 +68,8 @@ src/Module.symvers src/Modules.symvers: $(SCST_DIR)/$(MODULE_SYMVERS)
 	    false;                                                          \
 	  elif [ -e $(KDIR)/scripts/Makefile.lib ]                          \
 	       && ! grep -wq '^c_flags .*PRE_CFLAGS'                        \
+                  $(KDIR)/scripts/Makefile.lib                              \
+	       && ! grep -wq '^_c_flags .*PRE_CFLAGS'                       \
                   $(KDIR)/scripts/Makefile.lib; then                        \
 	    echo "Error: $(KDIR)/scripts/Makefile.lib has not yet"          \
 		 "been patched.";                                           \
