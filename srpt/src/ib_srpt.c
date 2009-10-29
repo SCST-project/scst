@@ -617,8 +617,6 @@ static struct srpt_ioctx *srpt_alloc_ioctx(struct srpt_device *sdev)
 {
 	struct srpt_ioctx *ioctx;
 
-	TRACE_ENTRY();
-
 	ioctx = kmalloc(sizeof *ioctx, GFP_KERNEL);
 	if (!ioctx)
 		goto out;
@@ -632,8 +630,6 @@ static struct srpt_ioctx *srpt_alloc_ioctx(struct srpt_device *sdev)
 	if (ib_dma_mapping_error(sdev->device, ioctx->dma))
 		goto out_free_buf;
 
-	TRACE_EXIT_RES(ioctx);
-
 	return ioctx;
 
 out_free_buf:
@@ -641,7 +637,6 @@ out_free_buf:
 out_free_ioctx:
 	kfree(ioctx);
 out:
-	TRACE_EXIT_RES(NULL);
 	return NULL;
 }
 
@@ -2896,7 +2891,7 @@ static void srpt_add_one(struct ib_device *device)
 	scst_tgt_set_tgt_priv(sdev->scst_tgt, sdev);
 
 	WARN_ON(sdev->device->phys_port_cnt
-		>= sizeof(sdev->port)/sizeof(sdev->port[0]));
+		> sizeof(sdev->port)/sizeof(sdev->port[0]));
 
 	for (i = 1; i <= sdev->device->phys_port_cnt; i++) {
 		sport = &sdev->port[i - 1];
