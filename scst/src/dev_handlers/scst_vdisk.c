@@ -2397,7 +2397,8 @@ static void vdisk_exec_read(struct scst_cmd *cmd,
 	}
 
 	/* READ */
-	err = vfs_readv(fd, iv, iv_count, &fd->f_pos);
+	err = vfs_readv(fd, (struct iovec __force __user *)iv, iv_count,
+			&fd->f_pos);
 
 	if ((err < 0) || (err < full_len)) {
 		PRINT_ERROR("readv() returned %lld from %zd",
@@ -2486,7 +2487,8 @@ restart:
 	}
 
 	/* WRITE */
-	err = vfs_writev(fd, eiv, eiv_count, &fd->f_pos);
+	err = vfs_writev(fd, (struct iovec __force __user *)eiv, eiv_count,
+			 &fd->f_pos);
 
 	if (err < 0) {
 		PRINT_ERROR("write() returned %lld from %zd",
