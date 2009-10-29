@@ -266,7 +266,6 @@ function process_preprocessor_statement() {
   else if (evaluated ~ "^+#endif")
   {
     matching_if = if_stmnt[if_nesting_level]
-    delete_next_blank_line = ! any_section_output[if_nesting_level]
     if_nesting_level--
   }
   else
@@ -296,8 +295,8 @@ function process_preprocessor_statement() {
     else
     {
       lines_deleted += input_line_count
-      delete_next_blank_line = 1
     }
+    delete_next_blank_line = 1
   }
   else if (output && (! condition || condition && matching_if !~ "^+#if [01]"))
   {
@@ -311,6 +310,8 @@ function process_preprocessor_statement() {
         line[lines++] = "+"
     else
       lines_deleted += input_line_count
+    if (lines >= 1 && line[lines - 1] == "+")
+      delete_next_blank_line = 1
   }
 }
 
@@ -342,7 +343,6 @@ function dump_lines() {
     for (i = 0; i < lines; i++)
     print line[i]
   }
-  reset_hunk_state_variables()
 }
 
 BEGIN {
@@ -392,6 +392,7 @@ BEGIN {
   {
     /* print h[1], h[2], h[3], h[4], h[5] */
     dump_lines()
+    reset_hunk_state_variables()
     match($0, "^@@ -([0-9]*),([0-9]*) \\+([0-9]*),([0-9]*) @@(.*)$", h)
   }
   else if (delete_next_blank_line && match($0, "^+$"))
@@ -402,8 +403,8 @@ BEGIN {
     else
     {
       lines_deleted += input_line_count
-      delete_next_blank_line = 0
     }
+    delete_next_blank_line = 0
   }
   else
   {
@@ -417,7 +418,7 @@ BEGIN {
       # Store the lines that were just read.
       for (i = 0; i < input_line_count; i++)
         line[lines++] = input_line[i]
-      # Delete double blank lines from the input.
+      # Convert double blank lines into a single blank line.
       if (line[lines-1] == "+")
         delete_next_blank_line = 1
     }
@@ -431,6 +432,8 @@ BEGIN {
       }
       else
         lines_deleted += input_line_count
+      if (lines >= 1 && line[lines-1] == "+")
+        delete_next_blank_line = 1
     }
   }
 }
