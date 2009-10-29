@@ -875,7 +875,6 @@ static int __init scst_local_init(void)
 		goto driver_unregister;
 	}
 
-
 	/*
 	 * register the target driver and then create a host. This makes sure
 	 * that we see any targets that are there. Gotta figure out how to

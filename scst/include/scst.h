@@ -68,7 +68,6 @@ typedef _Bool bool;
 #define SCST_INTERFACE_VERSION	    \
 		SCST_VERSION_STRING "$Revision$" SCST_CONST_VERSION
 
-
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18))
 #define COMPLETION_INITIALIZER_ONSTACK(work) \
 	({ init_completion(&work); work; })

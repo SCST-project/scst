@@ -2350,7 +2350,6 @@ static struct scst_proc_data scst_sessions_proc_data = {
 	.show = scst_sessions_info_show,
 };
 
-
 static struct scst_proc_data scst_sgv_proc_data = {
 	SCST_DEF_RW_SEQ_OP(NULL)
 	.show = sgv_procinfo_show,

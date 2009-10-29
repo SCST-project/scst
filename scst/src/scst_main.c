@@ -2192,7 +2192,6 @@ static void __exit exit_scst(void)
 	return;
 }
 
-
 module_init(init_scst);
 module_exit(exit_scst);
 

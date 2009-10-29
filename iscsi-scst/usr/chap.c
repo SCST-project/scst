@@ -85,7 +85,6 @@ static void decode_hex_string(char *hex_string, u8 *intnum, int intlen)
 		intnum[j--] = 0;
 }
 
-
 /* Base64 decoding, taken from UNH-iSCSI "Base64codeToNumber()" */
 static u8 decode_base64_digit(char base64)
 {

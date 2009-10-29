@@ -1736,7 +1736,6 @@ int __init scst_sysfs_init(void)
 	if (scst_handlers_kobj == NULL)
 		goto handlers_kobj_error;
 
-
 out:
 	TRACE_EXIT_RES(retval);
 	return retval;
