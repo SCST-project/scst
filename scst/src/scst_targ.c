@@ -4398,8 +4398,6 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 
 	TRACE_ENTRY();
 
-	mcmd->state = SCST_MCMD_STATE_READY;
-
 	switch (mcmd->fn) {
 	case SCST_ABORT_TASK:
 	{
@@ -4454,6 +4452,7 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 	case SCST_NEXUS_LOSS:
 	case SCST_ABORT_ALL_TASKS:
 	case SCST_UNREG_SESS_TM:
+		mcmd->state = SCST_MCMD_STATE_READY;
 		break;
 
 	case SCST_ABORT_TASK_SET:
@@ -4461,12 +4460,14 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 	case SCST_CLEAR_TASK_SET:
 	case SCST_LUN_RESET:
 		rc = scst_mgmt_translate_lun(mcmd);
-		if (rc < 0) {
+		if (rc == 0)
+			mcmd->state = SCST_MCMD_STATE_READY;
+		else if (rc < 0) {
 			PRINT_ERROR("Corresponding device for LUN %lld not "
 				"found", (long long unsigned int)mcmd->lun);
 			mcmd->status = SCST_MGMT_STATUS_LUN_NOT_EXIST;
 			mcmd->state = SCST_MCMD_STATE_DONE;
-		} else if (rc != 0)
+		} else
 			res = rc;
 		break;
 
