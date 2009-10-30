@@ -37,7 +37,8 @@ static struct kobject *scst_devices_kobj;
 static struct kobject *scst_sgv_kobj;
 static struct kobject *scst_handlers_kobj;
 
-static struct sysfs_ops scst_sysfs_ops;
+struct sysfs_ops scst_sysfs_ops;
+EXPORT_SYMBOL(scst_sysfs_ops);
 
 static const char *scst_dev_handler_types[] =
 {
@@ -670,6 +671,7 @@ static struct kobj_type scst_session_ktype = {
 int scst_create_sess_sysfs(struct scst_session *sess)
 {
 	int retval = 0;
+	const struct attribute **pattr;
 
 	TRACE_ENTRY();
 
@@ -687,6 +689,20 @@ int scst_create_sess_sysfs(struct scst_session *sess)
 	 * In case of errors there's no need for additional cleanup, because
 	 * it will be done by the _put function() called by the caller.
 	 */
+
+	pattr = sess->tgt->tgtt->sess_attrs;
+	if (pattr != NULL) {
+		while (*pattr != NULL) {
+			retval = sysfs_create_file(&sess->sess_kobj, *pattr);
+			if (retval != 0) {
+				PRINT_ERROR("Can't add sess attr %s for sess "
+					"for initiator %s", (*pattr)->name,
+					sess->initiator_name);
+				goto out;
+			}
+			pattr++;
+		}
+	}
 
 out:
 	TRACE_EXIT_RES(retval);
@@ -1515,7 +1531,7 @@ static ssize_t scst_store(struct kobject *kobj, struct attribute *attr,
 	return kobj_attr->store(kobj, kobj_attr, buf, count);
 }
 
-static struct sysfs_ops scst_sysfs_ops = {
+struct sysfs_ops scst_sysfs_ops = {
 	.show = scst_show,
 	.store = scst_store,
 };

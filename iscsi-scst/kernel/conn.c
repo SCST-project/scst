@@ -21,8 +21,6 @@
 #include "iscsi.h"
 #include "digest.h"
 
-#ifdef CONFIG_SCST_PROC
-
 static int print_conn_state(char *p, size_t size, struct iscsi_conn *conn)
 {
 	int pos = 0;
@@ -62,15 +60,21 @@ out:
 	return pos;
 }
 
-static void print_digest_state(char *p, size_t size, unsigned long flags)
+static int print_digest_state(char *p, size_t size, unsigned long flags)
 {
+	int pos;
+
 	if (DIGEST_NONE & flags)
-		snprintf(p, size, "%s", "none");
+		pos = scnprintf(p, size, "%s", "none");
 	else if (DIGEST_CRC32C & flags)
-		snprintf(p, size, "%s", "crc32c");
+		pos = scnprintf(p, size, "%s", "crc32c");
 	else
-		snprintf(p, size, "%s", "unknown");
+		pos = scnprintf(p, size, "%s", "unknown");
+
+	return pos;
 }
+
+#ifdef CONFIG_SCST_PROC
 
 /* target_mutex supposed to be locked */
 void conn_info_show(struct seq_file *seq, struct iscsi_session *session)
@@ -108,6 +112,107 @@ void conn_info_show(struct seq_file *seq, struct iscsi_session *session)
 		seq_printf(seq, "dd:%s\n", buf);
 	}
 }
+
+#else /* CONFIG_SCST_PROC */
+
+static int conn_free(struct iscsi_conn *conn);
+
+static void iscsi_conn_release(struct kobject *kobj)
+{
+	struct iscsi_conn *conn;
+
+	TRACE_ENTRY();
+
+	conn = container_of(kobj, struct iscsi_conn, iscsi_conn_kobj);
+
+	conn_free(conn);
+
+	TRACE_EXIT();
+	return;
+}
+
+static struct kobj_type iscsi_conn_ktype = {
+	.sysfs_ops = &scst_sysfs_ops,
+	.release = iscsi_conn_release,
+};
+
+static ssize_t iscsi_conn_cid_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos;
+	struct iscsi_conn *conn;
+
+	TRACE_ENTRY();
+
+	conn = container_of(kobj, struct iscsi_conn, iscsi_conn_kobj);
+
+	pos = sprintf(buf, "%u", conn->cid);
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static struct kobj_attribute iscsi_conn_cid_attr =
+	__ATTR(cid, S_IRUGO, iscsi_conn_cid_show, NULL);
+
+static ssize_t iscsi_conn_state_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos;
+	struct iscsi_conn *conn;
+
+	TRACE_ENTRY();
+
+	conn = container_of(kobj, struct iscsi_conn, iscsi_conn_kobj);
+
+	pos = print_conn_state(buf, SCST_SYSFS_BLOCK_SIZE, conn);
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static struct kobj_attribute iscsi_conn_state_attr =
+	__ATTR(state, S_IRUGO, iscsi_conn_state_show, NULL);
+
+static ssize_t iscsi_conn_hdigest_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos;
+	struct iscsi_conn *conn;
+
+	TRACE_ENTRY();
+
+	conn = container_of(kobj, struct iscsi_conn, iscsi_conn_kobj);
+
+	pos = print_digest_state(buf, SCST_SYSFS_BLOCK_SIZE,
+		conn->hdigest_type);
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static struct kobj_attribute iscsi_conn_hdigest_attr =
+	__ATTR(hdigest, S_IRUGO, iscsi_conn_hdigest_show, NULL);
+
+static ssize_t iscsi_conn_ddigest_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos;
+	struct iscsi_conn *conn;
+
+	TRACE_ENTRY();
+
+	conn = container_of(kobj, struct iscsi_conn, iscsi_conn_kobj);
+
+	pos = print_digest_state(buf, SCST_SYSFS_BLOCK_SIZE,
+		conn->ddigest_type);
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static struct kobj_attribute iscsi_conn_ddigest_attr =
+	__ATTR(ddigest, S_IRUGO, iscsi_conn_ddigest_show, NULL);
 
 #endif /* CONFIG_SCST_PROC */
 
@@ -389,7 +494,11 @@ out:
 }
 
 /* target_mutex supposed to be locked */
+#ifdef CONFIG_SCST_PROC
 int conn_free(struct iscsi_conn *conn)
+#else
+static int conn_free(struct iscsi_conn *conn)
+#endif
 {
 	TRACE_MGMT_DBG("Freeing conn %p (sess=%p, %#Lx %u)", conn,
 		       conn->session,
@@ -437,6 +546,10 @@ static int iscsi_conn_alloc(struct iscsi_session *session,
 {
 	struct iscsi_conn *conn;
 	int res = 0;
+#ifndef CONFIG_SCST_PROC
+	struct sock *sk;
+	char addr[64];
+#endif
 
 	conn = kzalloc(sizeof(*conn), GFP_KERNEL);
 	if (!conn) {
@@ -487,12 +600,81 @@ static int iscsi_conn_alloc(struct iscsi_session *session,
 	if (res != 0)
 		goto out_err_free2;
 
+#ifndef CONFIG_SCST_PROC
+	sk = conn->sock->sk;
+	switch (sk->sk_family) {
+	case AF_INET:
+		snprintf(addr, sizeof(addr),
+			 "%u.%u.%u.%u", NIPQUAD(inet_sk(sk)->daddr));
+		break;
+	case AF_INET6:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,29)
+		snprintf(addr, sizeof(addr),
+			 "[%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x]",
+			 NIP6(inet6_sk(sk)->daddr));
+#else
+		snprintf(addr, sizeof(addr), "[%p6]",
+			&inet6_sk(sk)->daddr);
+#endif
+		break;
+	default:
+		break;
+	}
+
+	res = kobject_init_and_add(&conn->iscsi_conn_kobj, &iscsi_conn_ktype,
+		scst_sysfs_get_sess_kobj(session->scst_sess), addr);
+	if (res != 0) {
+		PRINT_ERROR("Unable create sysfs entries for conn %s",
+			addr);
+		goto out_err_free2;
+	}
+
+	TRACE_DBG("conn %p, iscsi_conn_kobj %p", conn, &conn->iscsi_conn_kobj);
+
+	res = sysfs_create_file(&conn->iscsi_conn_kobj,
+			&iscsi_conn_state_attr.attr);
+	if (res != 0) {
+		PRINT_ERROR("Unable create sysfs attribute %s for conn %s",
+			iscsi_conn_state_attr.attr.name, addr);
+		goto out_err_free3;
+	}
+
+	res = sysfs_create_file(&conn->iscsi_conn_kobj,
+			&iscsi_conn_cid_attr.attr);
+	if (res != 0) {
+		PRINT_ERROR("Unable create sysfs attribute %s for conn %s",
+			iscsi_conn_state_attr.attr.name, addr);
+		goto out_err_free3;
+	}
+
+	res = sysfs_create_file(&conn->iscsi_conn_kobj,
+			&iscsi_conn_hdigest_attr.attr);
+	if (res != 0) {
+		PRINT_ERROR("Unable create sysfs attribute %s for conn %s",
+			iscsi_conn_hdigest_attr.attr.name, addr);
+		goto out_err_free3;
+	}
+
+	res = sysfs_create_file(&conn->iscsi_conn_kobj,
+			&iscsi_conn_ddigest_attr.attr);
+	if (res != 0) {
+		PRINT_ERROR("Unable create sysfs attribute %s for conn %s",
+			iscsi_conn_ddigest_attr.attr.name, addr);
+		goto out_err_free3;
+	}
+#endif /* CONFIG_SCST_PROC */
+
 	list_add_tail(&conn->conn_list_entry, &session->conn_list);
 
 	*new_conn = conn;
 
 out:
 	return res;
+
+#ifndef CONFIG_SCST_PROC
+out_err_free3:
+	kobject_put(&conn->iscsi_conn_kobj);
+#endif
 
 out_err_free2:
 	fput(conn->file);
@@ -549,8 +731,10 @@ int conn_del(struct iscsi_session *session, struct iscsi_kern_conn_info *info)
 	int err = -EEXIST;
 
 	conn = conn_lookup(session, info->cid);
-	if (!conn)
+	if (!conn) {
+		PRINT_ERROR("Connection %d not found", info->cid);
 		return err;
+	}
 
 	PRINT_INFO("Deleting connection with initiator %s (%p)",
 		conn->session->initiator_name, conn);

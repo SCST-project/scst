@@ -92,6 +92,8 @@ static int iscsi_target_create(struct iscsi_kern_target_info *info, u32 tid)
 		goto out_free;
 	}
 
+	scst_tgt_set_tgt_priv(target->scst_tgt, target);
+
 	list_add_tail(&target->target_list_entry, &target_list);
 
 	return 0;
@@ -272,6 +274,8 @@ void target_del_all(void)
 	return;
 }
 
+#ifdef CONFIG_SCST_PROC
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 static struct list_head *seq_list_start(struct list_head *head, loff_t pos)
 {
@@ -337,3 +341,33 @@ const struct seq_operations iscsi_seq_op = {
 	.stop = iscsi_seq_stop,
 	.show = iscsi_seq_show,
 };
+
+#else /* CONFIG_SCST_PROC */
+
+static ssize_t iscsi_tgt_tid_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos;
+	struct scst_tgt *scst_tgt;
+	struct iscsi_target *tgt;
+
+	TRACE_ENTRY();
+
+	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	tgt = (struct iscsi_target *)scst_tgt_get_tgt_priv(scst_tgt);
+
+	pos = sprintf(buf, "%u\n", tgt->tid);
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static struct kobj_attribute iscsi_tgt_tid_attr =
+	__ATTR(tid, S_IRUGO, iscsi_tgt_tid_show, NULL);
+
+const struct attribute *iscsi_tgt_attrs[] = {
+	&iscsi_tgt_tid_attr.attr,
+	NULL,
+};
+
+#endif /* CONFIG_SCST_PROC */

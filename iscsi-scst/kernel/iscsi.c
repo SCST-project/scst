@@ -3143,12 +3143,41 @@ static int iscsi_target_release(struct scst_tgt *scst_tgt)
 	return 0;
 }
 
+#ifndef CONFIG_SCST_PROC
+static struct scst_trace_log iscsi_local_trace_tbl[] =
+{
+    { TRACE_D_READ,		"d_read" },
+    { TRACE_D_WRITE,		"d_write" },
+    { TRACE_CONN_OC,		"conn" },
+    { TRACE_CONN_OC_DBG,	"conn_dbg" },
+    { TRACE_D_IOV,		"iov" },
+    { TRACE_D_DUMP_PDU,		"pdu" },
+    { TRACE_NET_PG,		"net_page" },
+    { 0,			NULL }
+};
+
+#define ISCSI_TRACE_TLB_HELP	", d_read, d_write, conn, conn_dbg, iov, pdu, net_page"
+#endif
+
 struct scst_tgt_template iscsi_template = {
 	.name = "iscsi",
 	.sg_tablesize = 0xFFFF /* no limit */,
 	.threads_num = 0,
 	.no_clustering = 1,
 	.xmit_response_atomic = 0,
+#ifndef CONFIG_SCST_PROC
+	.tgtt_attrs = iscsi_attrs,
+	.tgt_attrs = iscsi_tgt_attrs,
+	.sess_attrs = iscsi_sess_attrs,
+#endif
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	.default_trace_flags = ISCSI_DEFAULT_LOG_FLAGS,
+	.trace_flags = &trace_flag,
+#ifndef CONFIG_SCST_PROC
+	.trace_tbl = iscsi_local_trace_tbl,
+	.trace_tbl_help = ISCSI_TRACE_TLB_HELP,
+#endif
+#endif
 	.detect = iscsi_target_detect,
 	.release = iscsi_target_release,
 	.xmit_response = iscsi_xmit_response,

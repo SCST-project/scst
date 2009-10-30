@@ -151,7 +151,8 @@ int kernel_conn_destroy(u32 tid, u64 sid, u32 cid)
 
 	if ((err = ioctl(ctrl_fd, DEL_CONN, &info)) < 0) {
 		err = -errno;
-		log_error("Can't destroy conn %d %u\n", errno, cid);
+		log_error("Can't destroy conn (errno %d, tid %u, sid 0x%"
+			PRIx64 ", cid %u\n", errno, tid, sid, cid);
 	}
 
 	return err;

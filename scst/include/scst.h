@@ -864,6 +864,9 @@ struct scst_tgt_template {
 
 	/* Optional sysfs target attributes */
 	const struct attribute **tgt_attrs;
+
+	/* Optional sysfs session attributes */
+	const struct attribute **sess_attrs;
 #endif
 
 	/** Private, must be inited to 0 by memset() **/
@@ -3239,6 +3242,9 @@ struct proc_dir_entry *scst_create_proc_entry(struct proc_dir_entry *root,
 
 #else /* CONFIG_SCST_PROC */
 
+/* Regular SCST sysfs operations */
+extern struct sysfs_ops scst_sysfs_ops;
+
 /*
  * Returns target driver's root sysfs kobject.
  * The driver can create own files/directories/links here.
@@ -3277,6 +3283,16 @@ static inline struct kobject *scst_sysfs_get_dev_kobj(
 	struct scst_device *dev)
 {
 	return &dev->dev_kobj;
+}
+
+/*
+ * Returns session's root sysfs kobject.
+ * The driver can create own files/directories/links here.
+ */
+static inline struct kobject *scst_sysfs_get_sess_kobj(
+	struct scst_session *sess)
+{
+	return &sess->sess_kobj;
 }
 
 #endif /* CONFIG_SCST_PROC */

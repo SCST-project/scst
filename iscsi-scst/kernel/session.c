@@ -348,4 +348,54 @@ const struct file_operations session_seq_fops = {
 	.release	= seq_release,
 };
 
+#else /* CONFIG_SCST_PROC */
+
+static ssize_t iscsi_sess_sid_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos;
+	struct scst_session *scst_sess;
+	struct iscsi_session *sess;
+
+	TRACE_ENTRY();
+
+	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
+	sess = (struct iscsi_session *)scst_sess_get_tgt_priv(scst_sess);
+
+	pos = sprintf(buf, "%llx\n", sess->sid);
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static struct kobj_attribute iscsi_sess_sid_attr =
+	__ATTR(sid, S_IRUGO, iscsi_sess_sid_show, NULL);
+
+static ssize_t iscsi_sess_reinstating_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos;
+	struct scst_session *scst_sess;
+	struct iscsi_session *sess;
+
+	TRACE_ENTRY();
+
+	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
+	sess = (struct iscsi_session *)scst_sess_get_tgt_priv(scst_sess);
+
+	pos = sprintf(buf, "%d\n", sess->sess_reinstating ? 1 : 0);
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static struct kobj_attribute iscsi_sess_reinstating_attr =
+	__ATTR(reinstating, S_IRUGO, iscsi_sess_reinstating_show, NULL);
+
+const struct attribute *iscsi_sess_attrs[] = {
+	&iscsi_sess_sid_attr.attr,
+	&iscsi_sess_reinstating_attr.attr,
+	NULL,
+};
+
 #endif /* CONFIG_SCST_PROC */

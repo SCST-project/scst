@@ -238,6 +238,11 @@ struct iscsi_conn {
 
 	/* Doesn't need any protection */
 	u16 cid;
+
+#ifndef CONFIG_SCST_PROC
+	/* Doesn't need any protection */
+	struct kobject iscsi_conn_kobj;
+#endif /* CONFIG_SCST_PROC */
 };
 
 struct iscsi_pdu {
@@ -429,7 +434,9 @@ extern struct iscsi_conn *conn_lookup(struct iscsi_session *, u16);
 extern void conn_reinst_finished(struct iscsi_conn *);
 extern int conn_add(struct iscsi_session *, struct iscsi_kern_conn_info *);
 extern int conn_del(struct iscsi_session *, struct iscsi_kern_conn_info *);
+#ifdef CONFIG_SCST_PROC
 extern int conn_free(struct iscsi_conn *);
+#endif
 extern void iscsi_make_conn_rd_active(struct iscsi_conn *conn);
 
 #define ISCSI_CONN_ACTIVE_CLOSE		1
@@ -454,6 +461,9 @@ extern int istwr(void *arg);
 extern void iscsi_task_mgmt_affected_cmds_done(struct scst_mgmt_cmd *scst_mcmd);
 
 /* target.c */
+#ifndef CONFIG_SCST_PROC
+extern const struct attribute *iscsi_tgt_attrs[];
+#endif
 struct iscsi_target *target_lookup_by_id(u32);
 extern int target_add(struct iscsi_kern_target_info *);
 extern int target_del(u32 id);
@@ -468,9 +478,14 @@ extern const struct seq_operations iscsi_seq_op;
 #ifdef CONFIG_SCST_PROC
 extern int iscsi_procfs_init(void);
 extern void iscsi_procfs_exit(void);
+#else
+extern const struct attribute *iscsi_attrs[];
 #endif
 
 /* session.c */
+#ifndef CONFIG_SCST_PROC
+extern const struct attribute *iscsi_sess_attrs[];
+#endif
 extern const struct file_operations session_seq_fops;
 extern struct iscsi_session *session_lookup(struct iscsi_target *, u64);
 extern void sess_reinst_finished(struct iscsi_session *);

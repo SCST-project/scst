@@ -25,8 +25,6 @@
 
 #define ISCSI_PROC_LOG_ENTRY_NAME	"trace_level"
 
-#include <linux/proc_fs.h>
-
 static struct scst_trace_log iscsi_local_trace_tbl[] =
 {
     { TRACE_D_READ,		"d_read" },
@@ -233,6 +231,43 @@ err:
 	goto out;
 }
 
+#else /* CONFIG_SCST_PROC */
+
+static ssize_t iscsi_version_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	TRACE_ENTRY();
+
+	sprintf(buf, "%s\n", ISCSI_VERSION_STRING);
+
+#ifdef CONFIG_SCST_EXTRACHECKS
+	strcat(buf, "EXTRACHECKS\n");
+#endif
+
+#ifdef CONFIG_SCST_TRACING
+	strcat(buf, "TRACING\n");
+#endif
+
+#ifdef CONFIG_SCST_DEBUG
+	strcat(buf, "DEBUG\n");
+#endif
+
+#ifdef CONFIG_SCST_ISCSI_DEBUG_DIGEST_FAILURES
+	strcat(buf, "DEBUG_DIGEST_FAILURES\n");
+#endif
+
+	TRACE_EXIT();
+	return strlen(buf);
+}
+
+static struct kobj_attribute iscsi_version_attr =
+	__ATTR(version, S_IRUGO, iscsi_version_show, NULL);
+
+const struct attribute *iscsi_attrs[] = {
+	&iscsi_version_attr.attr,
+	NULL,
+};
+
 #endif /* CONFIG_SCST_PROC */
 
 /* target_mutex supposed to be locked */
@@ -265,8 +300,11 @@ static int del_conn(struct iscsi_target *target, void __user *ptr)
 		return err;
 
 	session = session_lookup(target, info.sid);
-	if (!session)
+	if (!session) {
+		PRINT_ERROR("Session %llx not found",
+			(long long unsigned int)info.sid);
 		return -ENOENT;
+	}
 
 	return conn_del(session, &info);
 }
