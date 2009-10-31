@@ -69,10 +69,9 @@ src/Module.symvers src/Modules.symvers: $(SCST_DIR)/$(MODULE_SYMVERS)
 	  elif [ -e $(KDIR)/scripts/Makefile.lib ]                          \
 	       && ! grep -wq '^c_flags .*PRE_CFLAGS'                        \
                   $(KDIR)/scripts/Makefile.lib                              \
-	       && ! grep -wq '^_c_flags .*PRE_CFLAGS'                       \
-                  $(KDIR)/scripts/Makefile.lib; then                        \
-	    echo "Error: $(KDIR)/scripts/Makefile.lib has not yet"          \
-		 "been patched.";                                           \
+	       && ! grep -wq '^LINUXINCLUDE .*PRE_CFLAGS'                   \
+                  $(KDIR)/Makefile; then                                    \
+	    echo "Error: the kernel build system has not yet been patched.";\
 	    false;                                                          \
 	  else                                                              \
 	    echo "  Building against OFED InfiniBand kernel headers.";      \
