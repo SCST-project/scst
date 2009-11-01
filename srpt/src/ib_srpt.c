@@ -699,6 +699,7 @@ static void srpt_free_ioctx_ring(struct srpt_device *sdev)
 /** Atomically get the state of a command. */
 static enum srpt_command_state srpt_get_cmd_state(struct srpt_ioctx *ioctx)
 {
+	barrier();
 	return atomic_read(&ioctx->state);
 }
 
@@ -716,9 +717,11 @@ static enum srpt_command_state srpt_set_cmd_state(struct srpt_ioctx *ioctx,
 	enum srpt_command_state previous;
 
 	do {
+		barrier();
 		previous = atomic_read(&ioctx->state);
 	} while (previous != SRPT_STATE_ABORTED
 		 && atomic_cmpxchg(&ioctx->state, previous, new) != previous);
+	barrier();
 
 	return previous;
 }
@@ -741,10 +744,12 @@ srpt_test_and_set_cmd_state(struct srpt_ioctx *ioctx,
 	WARN_ON(new == SRPT_STATE_NEW);
 
 	do {
+		barrier();
 		previous = atomic_read(&ioctx->state);
 	} while (previous != SRPT_STATE_ABORTED
 		 && previous == expected
 		 && atomic_cmpxchg(&ioctx->state, previous, new) != previous);
+	barrier();
 
 	return previous;
 }
@@ -979,6 +984,8 @@ static void srpt_abort_scst_cmd(struct srpt_device *sdev,
 				scst_to_tgt_dma_dir(dir));
 
 	previous_state = srpt_set_cmd_state(ioctx, SRPT_STATE_ABORTED);
+	TRACE_DBG("Aborting cmd with state %d and tag %lld",
+		  previous_state, scst_cmd_get_tag(scmnd));
 	switch (previous_state) {
 	case SRPT_STATE_NEW:
 		/*
@@ -2143,7 +2150,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 
 	scat = scst_cmd_get_sg(scmnd);
 	dir = scst_cmd_get_data_direction(scmnd);
-	WARN_ON(scat == 0);
+	WARN_ON(scat == NULL);
 	count = ib_dma_map_sg(ch->sport->sdev->device, scat,
 			      scst_cmd_get_sg_cnt(scmnd),
 			      scst_to_tgt_dma_dir(dir));
@@ -2159,7 +2166,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 					  scst_cmd_atomic(scmnd)
 					  ? GFP_ATOMIC : GFP_KERNEL);
 		if (!ioctx->rdma_ius) {
-			WARN_ON(scat == 0);
+			WARN_ON(scat == NULL);
 			ib_dma_unmap_sg(ch->sport->sdev->device,
 					scat, scst_cmd_get_sg_cnt(scmnd),
 					scst_to_tgt_dma_dir(dir));
@@ -2297,7 +2304,7 @@ free_mem:
 
 	kfree(ioctx->rdma_ius);
 
-	WARN_ON(scat == 0);
+	WARN_ON(scat == NULL);
 	ib_dma_unmap_sg(ch->sport->sdev->device,
 			scat, scst_cmd_get_sg_cnt(scmnd),
 			scst_to_tgt_dma_dir(dir));
@@ -2382,16 +2389,21 @@ static int srpt_rdy_to_xfer(struct scst_cmd *scmnd)
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
 	BUG_ON(!ioctx);
 
-	if (srpt_get_cmd_state(ioctx) == SRPT_STATE_ABORTED)
+	if (srpt_get_cmd_state(ioctx) == SRPT_STATE_ABORTED) {
+		TRACE_DBG("cmd with tag %lld has been aborted",
+			  scst_cmd_get_tag(scmnd));
 		return SCST_TGT_RES_FATAL_ERROR;
+	}
 
 	ch = ioctx->ch;
 	WARN_ON(ch != scst_sess_get_tgt_priv(scst_cmd_get_session(scmnd)));
 	BUG_ON(!ch);
 
-	if (ch->state == RDMA_CHANNEL_DISCONNECTING)
+	if (ch->state == RDMA_CHANNEL_DISCONNECTING) {
+		TRACE_DBG("cmd with tag %lld: channel disconnecting",
+			  scst_cmd_get_tag(scmnd));
 		return SCST_TGT_RES_FATAL_ERROR;
-	else if (ch->state == RDMA_CHANNEL_CONNECTING)
+	} else if (ch->state == RDMA_CHANNEL_CONNECTING)
 		return SCST_TGT_RES_QUEUE_FULL;
 
 	srpt_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA);
@@ -2417,6 +2429,8 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	BUG_ON(!ioctx);
 
 	if (srpt_get_cmd_state(ioctx) == SRPT_STATE_ABORTED) {
+		TRACE_DBG("cmd with tag %lld has been aborted",
+			  scst_cmd_get_tag(scmnd));
 		ret = SCST_TGT_RES_FATAL_ERROR;
 		goto out;
 	}
@@ -2432,9 +2446,11 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 		PRINT_ERROR("%s: tag= %lld channel in bad state %d",
 		       __func__, (unsigned long long)tag, ch->state);
 
-		if (ch->state == RDMA_CHANNEL_DISCONNECTING)
+		if (ch->state == RDMA_CHANNEL_DISCONNECTING) {
+			TRACE_DBG("cmd with tag %lld: channel disconnecting",
+				  (unsigned long long)tag);
 			ret = SCST_TGT_RES_FATAL_ERROR;
-		else if (ch->state == RDMA_CHANNEL_CONNECTING)
+		} else if (ch->state == RDMA_CHANNEL_CONNECTING)
 			ret = SCST_TGT_RES_QUEUE_FULL;
 
 		if (unlikely(scst_cmd_aborted(scmnd)))
