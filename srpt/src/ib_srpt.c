@@ -114,6 +114,11 @@ MODULE_PARM_DESC(thread,
 		 "Executing ioctx in thread context. Default 0, i.e. soft IRQ, "
 		 "where possible");
 
+static unsigned int srp_max_rdma_size = 65536;
+module_param(srp_max_rdma_size, int, 0744);
+MODULE_PARM_DESC(thread,
+		 "Maximum size of SRP RDMA transfers for new connections");
+
 module_param(use_port_guid_in_session_name, bool, 0444);
 MODULE_PARM_DESC(use_port_guid_in_session_name,
 		 "Use target port ID in the SCST session name such that"
@@ -357,7 +362,8 @@ static void srpt_get_ioc(struct srpt_device *sdev, u32 slot,
 	iocp->send_queue_depth = cpu_to_be16(SRPT_SRQ_SIZE);
 	iocp->rdma_read_depth = 4;
 	iocp->send_size = cpu_to_be32(MAX_MESSAGE_SIZE);
-	iocp->rdma_size = cpu_to_be32(MAX_RDMA_SIZE);
+	iocp->rdma_size = cpu_to_be32(min(max(srp_max_rdma_size, 256U),
+					  1U << 24));
 	iocp->num_svc_entries = 1;
 	iocp->op_cap_mask = SRP_SEND_TO_IOC | SRP_SEND_FROM_IOC |
 		SRP_RDMA_READ_FROM_IOC | SRP_RDMA_WRITE_FROM_IOC;
@@ -715,6 +721,8 @@ static enum srpt_command_state srpt_set_cmd_state(struct srpt_ioctx *ioctx,
 						  enum srpt_command_state new)
 {
 	enum srpt_command_state previous;
+
+	WARN_ON(new == SRPT_STATE_NEW);
 
 	do {
 		barrier();
@@ -1429,7 +1437,7 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 	ioctx->rdma_ius = NULL;
 	ioctx->scmnd = NULL;
 	ioctx->ch = ch;
-	srpt_set_cmd_state(ioctx, SRPT_STATE_NEW);
+	atomic_set(&ioctx->state, SRPT_STATE_NEW);
 
 	srp_cmd = ioctx->buf;
 	srp_rsp = ioctx->buf;
