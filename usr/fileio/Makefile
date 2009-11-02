@@ -32,7 +32,7 @@ LIBS = -lpthread
 
 CFLAGS += -DEXTRACHECKS
 #CFLAGS += -DTRACING
-CFLAGS += -DDEBUG -g
+CFLAGS += -DDEBUG -g -fno-inline -fno-inline-functions
 CFLAGS += -W -Wno-unused-parameter
 
 #CFLAGS += -DDEBUG_NOMEM
@@ -84,7 +84,7 @@ debug2release:
 	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
 	sed -i.aa s/"#CFLAGS += \-DTRACING"/"CFLAGS += \-DTRACING"/ Makefile
 	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
-	sed -i.aa s/"^CFLAGS += \-DDEBUG -g"/"#CFLAGS += \-DDEBUG -g"/ Makefile
+	sed -i.aa s/"^CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/"#CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/ Makefile
 	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
 	rm Makefile.aa
 
@@ -93,21 +93,21 @@ release2debug:
 	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
 	sed -i.aa s/"^CFLAGS += \-DTRACING"/"#CFLAGS += \-DTRACING"/ Makefile
 	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
-	sed -i.aa s/"#CFLAGS += \-DDEBUG -g"/"CFLAGS += \-DDEBUG -g"/ Makefile
+	sed -i.aa s/"#CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/"CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/ Makefile
 	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
 	rm Makefile.aa
 
 debug2perf:
 	sed -i.aa s/"^CFLAGS += \-DEXTRACHECKS"/"#CFLAGS += \-DEXTRACHECKS"/ Makefile
 	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
-	sed -i.aa s/"^CFLAGS += \-DDEBUG -g"/"#CFLAGS += \-DDEBUG -g"/ Makefile
+	sed -i.aa s/"^CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/"#CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/ Makefile
 	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
 	rm Makefile.aa
 
 perf2debug:
 	sed -i.aa s/"#CFLAGS += \-DEXTRACHECKS"/"CFLAGS += \-DEXTRACHECKS"/ Makefile
 	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
-	sed -i.aa s/"#CFLAGS += \-DDEBUG -g"/"CFLAGS += \-DDEBUG -g"/ Makefile
+	sed -i.aa s/"#CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/"CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/ Makefile
 	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
 	rm Makefile.aa
 

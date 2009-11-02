@@ -92,7 +92,7 @@ debug2release:
 	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
 	sed -i.aa s/"#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/"EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/ $(KMOD)/Makefile
 	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
-	sed -i.aa s/"^EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g"/ $(KMOD)/Makefile
+	sed -i.aa s/"^EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ $(KMOD)/Makefile
 	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
 	rm $(KMOD)/Makefile.aa
 
@@ -101,21 +101,21 @@ release2debug:
 	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
 	sed -i.aa s/"^EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/ $(KMOD)/Makefile
 	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
-	sed -i.aa s/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g"/"EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g"/ $(KMOD)/Makefile
+	sed -i.aa s/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ $(KMOD)/Makefile
 	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
 	rm $(KMOD)/Makefile.aa
 
 debug2perf:
 	sed -i.aa s/"^EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ $(KMOD)/Makefile
 	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
-	sed -i.aa s/"^EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g"/ $(KMOD)/Makefile
+	sed -i.aa s/"^EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ $(KMOD)/Makefile
 	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
 	rm $(KMOD)/Makefile.aa
 
 perf2debug:
 	sed -i.aa s/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ $(KMOD)/Makefile
 	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
-	sed -i.aa s/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g"/"EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g"/ $(KMOD)/Makefile
+	sed -i.aa s/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ $(KMOD)/Makefile
 	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
 	rm $(KMOD)/Makefile.aa
 
