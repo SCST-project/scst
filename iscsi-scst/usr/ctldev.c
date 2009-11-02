@@ -258,7 +258,7 @@ int kernel_session_destroy(u32 tid, u64 sid)
 }
 
 int kernel_conn_create(u32 tid, u64 sid, u32 cid, u32 stat_sn, u32 exp_stat_sn,
-			     int fd, u32 hdigest, u32 ddigest)
+	int fd)
 {
 	struct iscsi_kern_conn_info info;
 	int res;
@@ -271,8 +271,6 @@ int kernel_conn_create(u32 tid, u64 sid, u32 cid, u32 stat_sn, u32 exp_stat_sn,
 	info.stat_sn = stat_sn;
 	info.exp_stat_sn = exp_stat_sn;
 	info.fd = fd;
-	info.header_digest = hdigest;
-	info.data_digest = ddigest;
 
 	res = ioctl(ctrl_fd, ADD_CONN, &info);
 	if (res < 0) {

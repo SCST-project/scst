@@ -59,8 +59,6 @@ struct iscsi_kern_conn_info {
 	u32 cid;
 	u32 stat_sn;
 	u32 exp_stat_sn;
-	int header_digest;
-	int data_digest;
 	int fd;
 };
 

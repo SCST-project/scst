@@ -551,20 +551,13 @@ static void close_conn(struct iscsi_conn *conn)
 			 conn);
 	event_send(target->tid, session->sid, conn->cid, E_CONN_CLOSE, 0);
 
-	mutex_lock(&target->target_mutex);
-
 #ifdef CONFIG_SCST_PROC
+	mutex_lock(&target->target_mutex);
 	conn_free(conn);
+	mutex_unlock(&target->target_mutex);
 #else
 	kobject_put(&conn->iscsi_conn_kobj);
 #endif
-
-	if (list_empty(&session->conn_list)) {
-		sBUG_ON(session->sess_reinst_successor != NULL);
-		session_free(session, true);
-	}
-
-	mutex_unlock(&target->target_mutex);
 
 	TRACE_EXIT();
 	return;

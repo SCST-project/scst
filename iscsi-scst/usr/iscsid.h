@@ -240,7 +240,7 @@ extern int kernel_session_create(u32 tid, u64 sid, u32 exp_cmd_sn,
 	char *name, char *user);
 extern int kernel_session_destroy(u32 tid, u64 sid);
 extern int kernel_conn_create(u32 tid, u64 sid, u32 cid, u32 stat_sn, u32 exp_stat_sn,
-	int fd, u32 hdigest, u32 ddigest);
+	int fd);
 extern int kernel_conn_destroy(u32 tid, u64 sid, u32 cid);	
 
 /* event.c */

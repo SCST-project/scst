@@ -60,20 +60,6 @@ out:
 	return pos;
 }
 
-static int print_digest_state(char *p, size_t size, unsigned long flags)
-{
-	int pos;
-
-	if (DIGEST_NONE & flags)
-		pos = scnprintf(p, size, "%s", "none");
-	else if (DIGEST_CRC32C & flags)
-		pos = scnprintf(p, size, "%s", "crc32c");
-	else
-		pos = scnprintf(p, size, "%s", "unknown");
-
-	return pos;
-}
-
 #ifdef CONFIG_SCST_PROC
 
 /* target_mutex supposed to be locked */
@@ -101,6 +87,8 @@ void conn_info_show(struct seq_file *seq, struct iscsi_session *session)
 #endif
 			break;
 		default:
+			snprintf(buf, sizeof(buf), "Unknown family %d",
+				sk->sk_family);
 			break;
 		}
 		seq_printf(seq, "\t\tcid:%u ip:%s ", conn->cid, buf);
@@ -120,12 +108,16 @@ static int conn_free(struct iscsi_conn *conn);
 static void iscsi_conn_release(struct kobject *kobj)
 {
 	struct iscsi_conn *conn;
+	struct iscsi_target *target;
 
 	TRACE_ENTRY();
 
 	conn = container_of(kobj, struct iscsi_conn, iscsi_conn_kobj);
+	target = conn->target;
 
+	mutex_lock(&target->target_mutex);
 	conn_free(conn);
+	mutex_unlock(&target->target_mutex);
 
 	TRACE_EXIT();
 	return;
@@ -135,6 +127,59 @@ static struct kobj_type iscsi_conn_ktype = {
 	.sysfs_ops = &scst_sysfs_ops,
 	.release = iscsi_conn_release,
 };
+
+static ssize_t iscsi_get_initiator_ip(struct iscsi_conn *conn,
+	char *buf, int size)
+{
+	int pos;
+	struct sock *sk;
+
+	TRACE_ENTRY();
+
+	sk = conn->sock->sk;
+	switch (sk->sk_family) {
+	case AF_INET:
+		pos = scnprintf(buf, size,
+			 "%u.%u.%u.%u", NIPQUAD(inet_sk(sk)->daddr));
+		break;
+	case AF_INET6:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,29)
+		pos = scnprintf(buf, size,
+			 "[%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x]",
+			 NIP6(inet6_sk(sk)->daddr));
+#else
+		pos = scnprintf(buf, size, "[%p6]",
+			&inet6_sk(sk)->daddr);
+#endif
+		break;
+	default:
+		pos = scnprintf(buf, size, "Unknown family %d",
+			sk->sk_family);
+		break;
+	}
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static ssize_t iscsi_conn_ip_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos;
+	struct iscsi_conn *conn;
+
+	TRACE_ENTRY();
+
+	conn = container_of(kobj, struct iscsi_conn, iscsi_conn_kobj);
+
+	pos = iscsi_get_initiator_ip(conn, buf, SCST_SYSFS_BLOCK_SIZE);
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static struct kobj_attribute iscsi_conn_ip_attr =
+	__ATTR(ip, S_IRUGO, iscsi_conn_ip_show, NULL);
 
 static ssize_t iscsi_conn_cid_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
@@ -173,46 +218,6 @@ static ssize_t iscsi_conn_state_show(struct kobject *kobj,
 
 static struct kobj_attribute iscsi_conn_state_attr =
 	__ATTR(state, S_IRUGO, iscsi_conn_state_show, NULL);
-
-static ssize_t iscsi_conn_hdigest_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
-{
-	int pos;
-	struct iscsi_conn *conn;
-
-	TRACE_ENTRY();
-
-	conn = container_of(kobj, struct iscsi_conn, iscsi_conn_kobj);
-
-	pos = print_digest_state(buf, SCST_SYSFS_BLOCK_SIZE,
-		conn->hdigest_type);
-
-	TRACE_EXIT_RES(pos);
-	return pos;
-}
-
-static struct kobj_attribute iscsi_conn_hdigest_attr =
-	__ATTR(hdigest, S_IRUGO, iscsi_conn_hdigest_show, NULL);
-
-static ssize_t iscsi_conn_ddigest_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
-{
-	int pos;
-	struct iscsi_conn *conn;
-
-	TRACE_ENTRY();
-
-	conn = container_of(kobj, struct iscsi_conn, iscsi_conn_kobj);
-
-	pos = print_digest_state(buf, SCST_SYSFS_BLOCK_SIZE,
-		conn->ddigest_type);
-
-	TRACE_EXIT_RES(pos);
-	return pos;
-}
-
-static struct kobj_attribute iscsi_conn_ddigest_attr =
-	__ATTR(ddigest, S_IRUGO, iscsi_conn_ddigest_show, NULL);
 
 #endif /* CONFIG_SCST_PROC */
 
@@ -500,10 +505,10 @@ int conn_free(struct iscsi_conn *conn)
 static int conn_free(struct iscsi_conn *conn)
 #endif
 {
+	struct iscsi_session *session = conn->session;
+
 	TRACE_MGMT_DBG("Freeing conn %p (sess=%p, %#Lx %u)", conn,
-		       conn->session,
-		       (long long unsigned int)conn->session->sid,
-		       conn->cid);
+		session, (long long unsigned int)session->sid, conn->cid);
 
 	del_timer_sync(&conn->rsp_timer);
 
@@ -518,7 +523,7 @@ static int conn_free(struct iscsi_conn *conn)
 	if (test_bit(ISCSI_CONN_REINSTATING, &conn->conn_aflags)) {
 		struct iscsi_conn *c;
 		TRACE_MGMT_DBG("Freeing being reinstated conn %p", conn);
-		list_for_each_entry(c, &conn->session->conn_list,
+		list_for_each_entry(c, &session->conn_list,
 					conn_list_entry) {
 			if (c->conn_reinst_successor == conn) {
 				c->conn_reinst_successor = NULL;
@@ -537,6 +542,11 @@ static int conn_free(struct iscsi_conn *conn)
 
 	kfree(conn);
 
+	if (list_empty(&session->conn_list)) {
+		sBUG_ON(session->sess_reinst_successor != NULL);
+		session_free(session, true);
+	}
+
 	return 0;
 }
 
@@ -547,7 +557,8 @@ static int iscsi_conn_alloc(struct iscsi_session *session,
 	struct iscsi_conn *conn;
 	int res = 0;
 #ifndef CONFIG_SCST_PROC
-	struct sock *sk;
+	struct iscsi_conn *c;
+	int n = 1;
 	char addr[64];
 #endif
 
@@ -577,8 +588,8 @@ static int iscsi_conn_alloc(struct iscsi_session *session,
 	conn->rd_state = ISCSI_CONN_RD_STATE_IDLE;
 	conn->wr_state = ISCSI_CONN_WR_STATE_IDLE;
 
-	conn->hdigest_type = info->header_digest;
-	conn->ddigest_type = info->data_digest;
+	conn->hdigest_type = session->sess_param.header_digest;
+	conn->ddigest_type = session->sess_param.data_digest;
 	res = digest_init(conn);
 	if (res != 0)
 		goto out_err_free1;
@@ -601,24 +612,22 @@ static int iscsi_conn_alloc(struct iscsi_session *session,
 		goto out_err_free2;
 
 #ifndef CONFIG_SCST_PROC
-	sk = conn->sock->sk;
-	switch (sk->sk_family) {
-	case AF_INET:
-		snprintf(addr, sizeof(addr),
-			 "%u.%u.%u.%u", NIPQUAD(inet_sk(sk)->daddr));
-		break;
-	case AF_INET6:
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,29)
-		snprintf(addr, sizeof(addr),
-			 "[%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x]",
-			 NIP6(inet6_sk(sk)->daddr));
-#else
-		snprintf(addr, sizeof(addr), "[%p6]",
-			&inet6_sk(sk)->daddr);
-#endif
-		break;
-	default:
-		break;
+	iscsi_get_initiator_ip(conn, addr, sizeof(addr));
+
+restart:
+	list_for_each_entry(c, &session->conn_list, conn_list_entry) {
+		if (strcmp(addr, conn->iscsi_conn_kobj.name) == 0) {
+			char c_addr[64];
+
+			iscsi_get_initiator_ip(conn, c_addr, sizeof(c_addr));
+
+			TRACE_DBG("Dublicated conn from the same initiator "
+				"%s found", c_addr);
+
+			snprintf(addr, sizeof(addr), "%s_%d", c_addr, n);
+			n++;
+			goto restart;
+		}
 	}
 
 	res = kobject_init_and_add(&conn->iscsi_conn_kobj, &iscsi_conn_ktype,
@@ -643,23 +652,15 @@ static int iscsi_conn_alloc(struct iscsi_session *session,
 			&iscsi_conn_cid_attr.attr);
 	if (res != 0) {
 		PRINT_ERROR("Unable create sysfs attribute %s for conn %s",
-			iscsi_conn_state_attr.attr.name, addr);
+			iscsi_conn_cid_attr.attr.name, addr);
 		goto out_err_free3;
 	}
 
 	res = sysfs_create_file(&conn->iscsi_conn_kobj,
-			&iscsi_conn_hdigest_attr.attr);
+			&iscsi_conn_ip_attr.attr);
 	if (res != 0) {
 		PRINT_ERROR("Unable create sysfs attribute %s for conn %s",
-			iscsi_conn_hdigest_attr.attr.name, addr);
-		goto out_err_free3;
-	}
-
-	res = sysfs_create_file(&conn->iscsi_conn_kobj,
-			&iscsi_conn_ddigest_attr.attr);
-	if (res != 0) {
-		PRINT_ERROR("Unable create sysfs attribute %s for conn %s",
-			iscsi_conn_ddigest_attr.attr.name, addr);
+			iscsi_conn_ip_attr.attr.name, addr);
 		goto out_err_free3;
 	}
 #endif /* CONFIG_SCST_PROC */
@@ -674,6 +675,7 @@ out:
 #ifndef CONFIG_SCST_PROC
 out_err_free3:
 	kobject_put(&conn->iscsi_conn_kobj);
+	goto out;
 #endif
 
 out_err_free2:

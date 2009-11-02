@@ -16,6 +16,24 @@
 
 #include "iscsi.h"
 
+#ifdef CONFIG_SCST_PROC 
+int print_digest_state(char *p, size_t size, unsigned long flags)
+#else
+static int print_digest_state(char *p, size_t size, unsigned long flags)
+#endif
+{
+	int pos;
+
+	if (DIGEST_NONE & flags)
+		pos = scnprintf(p, size, "%s", "none");
+	else if (DIGEST_CRC32C & flags)
+		pos = scnprintf(p, size, "%s", "crc32c");
+	else
+		pos = scnprintf(p, size, "%s", "unknown");
+
+	return pos;
+}
+
 /* target_mutex supposed to be locked */
 struct iscsi_session *session_lookup(struct iscsi_target *target, u64 sid)
 {
@@ -392,9 +410,55 @@ static ssize_t iscsi_sess_reinstating_show(struct kobject *kobj,
 static struct kobj_attribute iscsi_sess_reinstating_attr =
 	__ATTR(reinstating, S_IRUGO, iscsi_sess_reinstating_show, NULL);
 
+static ssize_t iscsi_sess_hdigest_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos;
+	struct scst_session *scst_sess;
+	struct iscsi_session *sess;
+
+	TRACE_ENTRY();
+
+	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
+	sess = (struct iscsi_session *)scst_sess_get_tgt_priv(scst_sess);
+
+	pos = print_digest_state(buf, SCST_SYSFS_BLOCK_SIZE,
+		sess->sess_param.header_digest);
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static struct kobj_attribute iscsi_sess_hdigest_attr =
+	__ATTR(hdigest, S_IRUGO, iscsi_sess_hdigest_show, NULL);
+
+static ssize_t iscsi_sess_ddigest_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos;
+	struct scst_session *scst_sess;
+	struct iscsi_session *sess;
+
+	TRACE_ENTRY();
+
+	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
+	sess = (struct iscsi_session *)scst_sess_get_tgt_priv(scst_sess);
+
+	pos = print_digest_state(buf, SCST_SYSFS_BLOCK_SIZE,
+		sess->sess_param.data_digest);
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static struct kobj_attribute iscsi_sess_ddigest_attr =
+	__ATTR(ddigest, S_IRUGO, iscsi_sess_ddigest_show, NULL);
+
 const struct attribute *iscsi_sess_attrs[] = {
 	&iscsi_sess_sid_attr.attr,
 	&iscsi_sess_reinstating_attr.attr,
+	&iscsi_sess_hdigest_attr.attr,
+	&iscsi_sess_ddigest_attr.attr,
 	NULL,
 };
 

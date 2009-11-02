@@ -195,7 +195,7 @@ struct iscsi_conn {
 	void (*old_data_ready)(struct sock *, int);
 	void (*old_write_space)(struct sock *);
 
-	/* Both read only */
+	/* Both read only. Stay here for better CPU cache locality. */
 	int hdigest_type;
 	int ddigest_type;
 
@@ -483,7 +483,9 @@ extern const struct attribute *iscsi_attrs[];
 #endif
 
 /* session.c */
-#ifndef CONFIG_SCST_PROC
+#ifdef CONFIG_SCST_PROC
+int print_digest_state(char *p, size_t size, unsigned long flags);
+#else
 extern const struct attribute *iscsi_sess_attrs[];
 #endif
 extern const struct file_operations session_seq_fops;

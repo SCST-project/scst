@@ -61,9 +61,7 @@ void conn_pass_to_kern(struct connection *conn, int fd)
 		fd, conn->cid, conn->stat_sn, conn->exp_stat_sn, conn->sid.id64);
 
 	err = kernel_conn_create(conn->tid, conn->sess->sid.id64, conn->cid,
-			      conn->stat_sn, conn->exp_stat_sn, fd,
-			      conn->session_param[key_header_digest].val,
-			      conn->session_param[key_data_digest].val);
+			      conn->stat_sn, conn->exp_stat_sn, fd);
 
 	/* We don't need to return err, because we are going to close conn anyway */
 	return;

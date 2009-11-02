@@ -643,8 +643,23 @@ ssize_t scst_sess_sysfs_commands_show(struct kobject *kobj,
 static struct kobj_attribute session_commands_attr =
 	__ATTR(commands, S_IRUGO, scst_sess_sysfs_commands_show, NULL);
 
+ssize_t scst_sess_sysfs_initiator_name_show(struct kobject *kobj,
+			    struct kobj_attribute *attr, char *buf)
+{
+	struct scst_session *sess;
+
+	sess = container_of(kobj, struct scst_session, sess_kobj);
+
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n",
+		sess->initiator_name);
+}
+
+static struct kobj_attribute session_initiator_name_attr =
+	__ATTR(initiator_name, S_IRUGO, scst_sess_sysfs_initiator_name_show, NULL);
+
 static struct attribute *scst_session_attrs[] = {
 	&session_commands_attr.attr,
+	&session_initiator_name_attr.attr,
 	NULL,
 };
 
@@ -668,21 +683,53 @@ static struct kobj_type scst_session_ktype = {
 	.default_attrs = scst_session_attrs,
 };
 
+/* scst_mutex supposed to be locked */
 int scst_create_sess_sysfs(struct scst_session *sess)
 {
 	int retval = 0;
+	struct scst_session *s;
 	const struct attribute **pattr;
+	char *name = (char *)sess->initiator_name;
+	int len = strlen(name) + 1, n = 1;
 
 	TRACE_ENTRY();
+
+restart:
+	list_for_each_entry(s, &sess->tgt->sess_list, sess_list_entry) {
+		if (!s->sess_kobj_initialized)
+			continue;
+
+		if (strcmp(name, s->sess_kobj.name) == 0) {
+			if (s == sess)
+				continue;
+
+			TRACE_DBG("Dublicated session from the same initiator "
+				"%s found", name);
+
+			if (name == sess->initiator_name) {
+				len = strlen(sess->initiator_name);
+				len += 20;
+				name = kmalloc(len, GFP_KERNEL);
+				if (name == NULL) {
+					PRINT_ERROR("Unable to allocate a "
+						"replacement name (size %d)",
+						len);
+				}
+			}
+
+			snprintf(name, len, "%s_%d", sess->initiator_name, n);
+			n++;
+			goto restart;
+		}
+	}
 
 	sess->sess_kobj_initialized = 1;
 
 	retval = kobject_init_and_add(&sess->sess_kobj, &scst_session_ktype,
-			      sess->tgt->tgt_sess_kobj, sess->initiator_name);
+			      sess->tgt->tgt_sess_kobj, name);
 	if (retval != 0) {
-		PRINT_ERROR("Can't add session %s to sysfs",
-			    sess->initiator_name);
-		goto out;
+		PRINT_ERROR("Can't add session %s to sysfs", name);
+		goto out_free;
 	}
 
 	/*
@@ -697,14 +744,17 @@ int scst_create_sess_sysfs(struct scst_session *sess)
 			if (retval != 0) {
 				PRINT_ERROR("Can't add sess attr %s for sess "
 					"for initiator %s", (*pattr)->name,
-					sess->initiator_name);
-				goto out;
+					name);
+				goto out_free;
 			}
 			pattr++;
 		}
 	}
 
-out:
+out_free:
+	if (name != sess->initiator_name)
+		kfree(name);
+
 	TRACE_EXIT_RES(retval);
 	return retval;
 }
@@ -772,7 +822,7 @@ int scst_create_acg_dev_sysfs(struct scst_acg *acg, unsigned int virt_lun,
 {
 	int retval;
 	struct scst_acg_dev *acg_dev = NULL, *acg_dev_tmp;
-	char str[10];
+	char str[20];
 
 	TRACE_ENTRY();
 
@@ -789,7 +839,8 @@ int scst_create_acg_dev_sysfs(struct scst_acg *acg, unsigned int virt_lun,
 		goto out;
 	}
 
-	snprintf(str, sizeof(str), "%u", acg_dev->dev->dev_exported_lun_num++);
+	snprintf(str, sizeof(str), "export%u",
+		acg_dev->dev->dev_exported_lun_num++);
 
 	acg_dev->acg_dev_kobj_initialized = 1;
 
