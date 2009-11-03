@@ -20,6 +20,14 @@
 #ifndef __SCST_CONST_H
 #define __SCST_CONST_H
 
+#ifndef GENERATING_UPSTREAM_PATCH
+/*
+ * Include <linux/version.h> only when not converting this header file into
+ * a patch for upstream review because only then the symbol LINUX_VERSION_CODE
+ * is needed.
+ */
+#include <linux/version.h>
+#endif
 #include <scsi/scsi.h>
 
 #define SCST_CONST_VERSION "$Revision$"
@@ -178,36 +186,23 @@ enum scst_cmd_queue_type {
 /*************************************************************
  * SCSI opcodes not listed anywhere else
  *************************************************************/
-#ifndef REPORT_DEVICE_IDENTIFIER
 #define REPORT_DEVICE_IDENTIFIER    0xA3
-#endif
-#ifndef INIT_ELEMENT_STATUS
 #define INIT_ELEMENT_STATUS         0x07
-#endif
-#ifndef INIT_ELEMENT_STATUS_RANGE
 #define INIT_ELEMENT_STATUS_RANGE   0x37
-#endif
-#ifndef PREVENT_ALLOW_MEDIUM
 #define PREVENT_ALLOW_MEDIUM        0x1E
-#endif
-#ifndef READ_ATTRIBUTE
 #define READ_ATTRIBUTE              0x8C
-#endif
-#ifndef REQUEST_VOLUME_ADDRESS
 #define REQUEST_VOLUME_ADDRESS      0xB5
-#endif
-#ifndef WRITE_ATTRIBUTE
 #define WRITE_ATTRIBUTE             0x8D
-#endif
-#ifndef WRITE_VERIFY_16
 #define WRITE_VERIFY_16             0x8E
-#endif
-#ifndef VERIFY_6
 #define VERIFY_6                    0x13
-#endif
-#ifndef VERIFY_12
 #define VERIFY_12                   0xAF
-#endif
+#ifndef GENERATING_UPSTREAM_PATCH
+/*
+ * The constants below have been defined in the kernel header <scsi/scsi.h>
+ * and hence are not needed when this header file is included in kernel code.
+ * The definitions below are only used when this header file is included during
+ * compilation of SCST's user space components.
+ */
 #ifndef READ_16
 #define READ_16               0x88
 #endif
@@ -224,12 +219,11 @@ enum scst_cmd_queue_type {
 /* values for service action in */
 #define	SAI_READ_CAPACITY_16  0x10
 #endif
-#ifndef MI_REPORT_TARGET_PGS
-/* values for maintenance in */
-#define MI_REPORT_TARGET_PGS  0x0a
 #endif
+#ifndef GENERATING_UPSTREAM_PATCH
 #ifndef REPORT_LUNS
 #define REPORT_LUNS           0xa0
+#endif
 #endif
 
 /*************************************************************
@@ -251,12 +245,8 @@ enum scst_cmd_queue_type {
 /*************************************************************
  ** Control byte field in CDB
  *************************************************************/
-#ifndef CONTROL_BYTE_LINK_BIT
 #define CONTROL_BYTE_LINK_BIT       0x01
-#endif
-#ifndef CONTROL_BYTE_NACA_BIT
 #define CONTROL_BYTE_NACA_BIT       0x04
-#endif
 
 /*************************************************************
  ** Byte 1 in INQUIRY CDB
