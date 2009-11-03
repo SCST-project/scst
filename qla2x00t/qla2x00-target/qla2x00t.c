@@ -3173,9 +3173,10 @@ out_sched:
 		prm->cmd = cmd;
 
 		spin_lock_irqsave(&tgt->sess_work_lock, flags);
-		if (list_empty(&tgt->sess_works_list))
+		if (!tgt->sess_works_pending)
 			tgt->tm_to_unknown = 0;
 		list_add_tail(&prm->sess_works_list_entry, &tgt->sess_works_list);
+		tgt->sess_works_pending = 1;
 		spin_unlock_irqrestore(&tgt->sess_work_lock, flags);
 
 		schedule_work(&tgt->sess_work);
@@ -4855,17 +4856,17 @@ static void q2t_sess_work_fn(struct work_struct *work)
 			tgt->sess_works_list.next, typeof(*prm),
 			sess_works_list_entry);
 
+		/*
+		 * This work can be scheduled on several CPUs at time, so we
+		 * must delete the entry to eliminate double processing
+		 */
+		list_del(&prm->sess_works_list_entry);
+
 		spin_unlock_irq(&tgt->sess_work_lock);
 
 		rc = q2t_exec_sess_work(tgt, prm);
 
 		spin_lock_irq(&tgt->sess_work_lock);
-
-		/*
-		 * Prm must be in the list on the exec time to sync with
-		 * tm_to_unknown clearance
-		 */
-		list_del(&prm->sess_works_list_entry);
 
 		if (rc != 0) {
 			PRINT_CRIT_ERROR("%s", "Unable to complete sess work");
@@ -4878,8 +4879,10 @@ static void q2t_sess_work_fn(struct work_struct *work)
 
 	spin_lock_irq(&tgt->ha->hardware_lock);
 	spin_lock(&tgt->sess_work_lock);
-	if (list_empty(&tgt->sess_works_list))
+	if (list_empty(&tgt->sess_works_list)) {
+		tgt->sess_works_pending = 0;
 		tgt->tm_to_unknown = 0;
+	}
 	spin_unlock(&tgt->sess_work_lock);
 	spin_unlock_irq(&tgt->ha->hardware_lock);
 

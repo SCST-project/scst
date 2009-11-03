@@ -129,6 +129,7 @@ struct q2t_tgt {
 	unsigned int tgt_enable_64bit_addr:1;	/* 64-bits PCI addressing enabled */
 	unsigned int link_reinit_iocb_pending:1;
 	unsigned int tm_to_unknown:1; /* TM to unknown session was sent */
+	unsigned int sess_works_pending:1; /* there are sess_work entries */
 
 	/*
 	 * Protected by tgt_mutex AND hardware_lock for writing and tgt_mutex
