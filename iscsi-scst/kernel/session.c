@@ -16,7 +16,7 @@
 
 #include "iscsi.h"
 
-#ifdef CONFIG_SCST_PROC 
+#ifdef CONFIG_SCST_PROC
 int print_digest_state(char *p, size_t size, unsigned long flags)
 #else
 static int print_digest_state(char *p, size_t size, unsigned long flags)

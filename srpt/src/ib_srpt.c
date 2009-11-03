@@ -3064,7 +3064,7 @@ static void srpt_remove_one(struct ib_device *device)
 		 * cancel_work_sync() was introduced in kernel 2.6.22. Older
 		 * kernels do not have a facility to cancel scheduled work.
 		 */
-		PRINT_ERROR("%s", 
+		PRINT_ERROR("%s",
 		       "your kernel does not provide cancel_work_sync().");
 #endif
 
