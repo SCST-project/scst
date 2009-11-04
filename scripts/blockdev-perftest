@@ -33,6 +33,8 @@ usage() {
   echo "        -f - force -- skip the test if there is still data present."
   echo "        -i - number times each test is iterated."
   echo "        -j - use fio instead of dd for benchmarking."
+  echo "        -m <l2min> - log2 of the smallest block size to use."
+  echo "        -M <l2min> - log2 of the largest block size to use."
   echo "        -n - do not verify the data on <dev> before overwriting it."
   echo "        -r - only perform the read test."
   echo "        -s - logarithm base two of the I/O size."
@@ -138,7 +140,7 @@ verify_device_data=true
 # Argument processing   #
 #########################
 
-set -- $(/usr/bin/getopt "adfhi:jnrs:t:" "$@")
+set -- $(/usr/bin/getopt "adfhi:jm:M:nrs:t:" "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
@@ -147,6 +149,8 @@ do
     '-f') force="true"; shift;;
     '-i') iterations="$2"; shift; shift;;
     '-j') use_fio=true; shift;;
+    '-m') log2_min_blocksize="$2"; shift; shift;;
+    '-M') log2_max_blocksize="$2"; shift; shift;;
     '-n') verify_device_data="false"; shift;;
     '-r') read_test_only="true"; shift;;
     '-s') log2_io_size="$2"; shift; shift;;
