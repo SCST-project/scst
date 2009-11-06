@@ -1145,6 +1145,12 @@ struct scst_tgt {
 	/* Set if tgt_kobj was initialized */
 	unsigned int tgt_kobj_initialized:1;
 
+	/*
+	 * Used to protect sysfs attributes to be called after this
+	 * object was unregistered.
+	 */
+	struct rw_semaphore tgt_attr_rwsem;
+
 	struct kobject tgt_kobj; /* main targets/target kobject */
 	struct kobject *tgt_sess_kobj; /* target/sessions/ */
 	struct kobject *tgt_luns_kobj; /* target/luns/ */
@@ -1273,6 +1279,12 @@ struct scst_session {
 
 	/* Set if sess_kobj was initialized */
 	unsigned int sess_kobj_initialized:1;
+
+	/*
+	 * Used to protect sysfs attributes to be called after this
+	 * object was unregistered.
+	 */
+	struct rw_semaphore sess_attr_rwsem;
 
 	struct kobject sess_kobj; /* kobject for this struct */
 
@@ -1793,6 +1805,12 @@ struct scst_device {
 	/* Set if tgt_kobj was initialized */
 	unsigned int dev_kobj_initialized:1;
 
+	/*
+	 * Used to protect sysfs attributes to be called after this
+	 * object was unregistered.
+	 */
+	struct rw_semaphore dev_attr_rwsem;
+
 	struct kobject dev_kobj; /* kobject for this struct */
 	struct kobject *dev_exp_kobj; /* exported groups */
 
@@ -2008,8 +2026,10 @@ struct scst_aen {
 #endif
 
 /*
- * Registers target template
- * Returns 0 on success or appropriate error code otherwise
+ * Registers target template.
+ * Returns 0 on success or appropriate error code otherwise.
+ *
+ * Note: *vtt must be static!
  */
 int __scst_register_target_template(struct scst_tgt_template *vtt,
 	const char *version);
@@ -2120,8 +2140,10 @@ void scst_unregister_session(struct scst_session *sess, int wait,
 	void (*unreg_done_fn) (struct scst_session *sess));
 
 /*
- * Registers dev handler driver
- * Returns 0 on success or appropriate error code otherwise
+ * Registers dev handler driver.
+ * Returns 0 on success or appropriate error code otherwise.
+ *
+ * Note: *dev_type must be static!
  */
 int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 	const char *version);
@@ -2136,8 +2158,10 @@ static inline int scst_register_dev_driver(struct scst_dev_type *dev_type)
 void scst_unregister_dev_driver(struct scst_dev_type *dev_type);
 
 /*
- * Registers dev handler driver for virtual devices (eg VDISK)
- * Returns 0 on success or appropriate error code otherwise
+ * Registers dev handler driver for virtual devices (eg VDISK).
+ * Returns 0 on success or appropriate error code otherwise.
+ *
+ * Note: *dev_type must be static!
  */
 int __scst_register_virtual_dev_driver(struct scst_dev_type *dev_type,
 	const char *version);

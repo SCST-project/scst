@@ -1438,8 +1438,6 @@ EXPORT_SYMBOL(sgv_pool_flush);
 
 static void sgv_pool_deinit_put(struct sgv_pool *pool)
 {
-	int i;
-
 	TRACE_ENTRY();
 
 	cancel_delayed_work_sync(&pool->sgv_purge_work);
@@ -1451,12 +1449,6 @@ static void sgv_pool_deinit_put(struct sgv_pool *pool)
 	list_del(&pool->sgv_pools_list_entry);
 	spin_unlock_bh(&sgv_pools_lock);
 	mutex_unlock(&sgv_pools_mutex);
-
-	for (i = 0; i < pool->max_caches; i++) {
-		if (pool->caches[i])
-			kmem_cache_destroy(pool->caches[i]);
-		pool->caches[i] = NULL;
-	}
 
 	scst_sgv_sysfs_put(pool);
 
@@ -1541,7 +1533,15 @@ EXPORT_SYMBOL(sgv_pool_create);
 
 void sgv_pool_destroy(struct sgv_pool *pool)
 {
+	int i;
+
 	TRACE_ENTRY();
+
+	for (i = 0; i < pool->max_caches; i++) {
+		if (pool->caches[i])
+			kmem_cache_destroy(pool->caches[i]);
+		pool->caches[i] = NULL;
+	}
 
 	kfree(pool);
 

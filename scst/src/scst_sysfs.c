@@ -280,14 +280,70 @@ static void scst_tgt_release(struct kobject *kobj)
 
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 
+	/* Let's make lockdep happy */
+	up_write(&tgt->tgt_attr_rwsem);
+
 	scst_free_tgt(tgt);
 
 	TRACE_EXIT();
 	return;
 }
 
+static ssize_t scst_tgt_attr_show(struct kobject *kobj, struct attribute *attr,
+			 char *buf)
+{
+	int res;
+	struct kobj_attribute *kobj_attr;
+	struct scst_tgt *tgt;
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+
+	if (down_read_trylock(&tgt->tgt_attr_rwsem) == 0) {
+		res = -ENOENT;
+		goto out;
+	}
+
+	kobj_attr = container_of(attr, struct kobj_attribute, attr);
+
+	res = kobj_attr->show(kobj, kobj_attr, buf);
+
+	up_read(&tgt->tgt_attr_rwsem);
+
+out:
+	return res;
+}
+
+static ssize_t scst_tgt_attr_store(struct kobject *kobj, struct attribute *attr,
+			  const char *buf, size_t count)
+{
+	int res;
+	struct kobj_attribute *kobj_attr;
+	struct scst_tgt *tgt;
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+
+	if (down_read_trylock(&tgt->tgt_attr_rwsem) == 0) {
+		res = -ENOENT;
+		goto out;
+	}
+
+	kobj_attr = container_of(attr, struct kobj_attribute, attr);
+
+	res = kobj_attr->store(kobj, kobj_attr, buf, count);
+
+	up_read(&tgt->tgt_attr_rwsem);
+
+out:
+	return res;
+}
+
+static struct sysfs_ops scst_tgt_sysfs_ops = {
+	.show = scst_tgt_attr_show,
+	.store = scst_tgt_attr_store,
+};
+
 static struct kobj_type tgt_ktype = {
-	.sysfs_ops = &scst_sysfs_ops,
+	.sysfs_ops = &scst_tgt_sysfs_ops,
 	.release = scst_tgt_release,
 };
 
@@ -349,6 +405,8 @@ int scst_create_tgt_sysfs(struct scst_tgt *tgt)
 	const struct attribute **pattr;
 
 	TRACE_ENTRY();
+
+	init_rwsem(&tgt->tgt_attr_rwsem);
 
 	tgt->tgt_kobj_initialized = 1;
 
@@ -441,6 +499,8 @@ void scst_tgt_sysfs_put(struct scst_tgt *tgt)
 		kobject_put(tgt->tgt_ini_grp_kobj);
 
 		kobject_del(&tgt->tgt_kobj);
+
+		down_write(&tgt->tgt_attr_rwsem);
 		kobject_put(&tgt->tgt_kobj);
 	} else
 		scst_free_tgt(tgt);
@@ -482,6 +542,9 @@ static void scst_sysfs_device_release(struct kobject *kobj)
 	TRACE_ENTRY();
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
+
+	/* Let's make lockdep happy */
+	up_write(&dev->dev_attr_rwsem);
 
 	scst_free_device(dev);
 
@@ -558,8 +621,61 @@ out:
 	return;
 }
 
+static ssize_t scst_dev_attr_show(struct kobject *kobj, struct attribute *attr,
+			 char *buf)
+{
+	int res;
+	struct kobj_attribute *kobj_attr;
+	struct scst_device *dev;
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+
+	if (down_read_trylock(&dev->dev_attr_rwsem) == 0) {
+		res = -ENOENT;
+		goto out;
+	}
+
+	kobj_attr = container_of(attr, struct kobj_attribute, attr);
+
+	res = kobj_attr->show(kobj, kobj_attr, buf);
+
+	up_read(&dev->dev_attr_rwsem);
+
+out:
+	return res;
+}
+
+static ssize_t scst_dev_attr_store(struct kobject *kobj, struct attribute *attr,
+			  const char *buf, size_t count)
+{
+	int res;
+	struct kobj_attribute *kobj_attr;
+	struct scst_device *dev;
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+
+	if (down_read_trylock(&dev->dev_attr_rwsem) == 0) {
+		res = -ENOENT;
+		goto out;
+	}
+
+	kobj_attr = container_of(attr, struct kobj_attribute, attr);
+
+	res = kobj_attr->store(kobj, kobj_attr, buf, count);
+
+	up_read(&dev->dev_attr_rwsem);
+
+out:
+	return res;
+}
+
+static struct sysfs_ops scst_dev_sysfs_ops = {
+	.show = scst_dev_attr_show,
+	.store = scst_dev_attr_store,
+};
+
 static struct kobj_type scst_device_ktype = {
-	.sysfs_ops = &scst_sysfs_ops,
+	.sysfs_ops = &scst_dev_sysfs_ops,
 	.release = scst_sysfs_device_release,
 	.default_attrs = scst_device_attrs,
 };
@@ -569,6 +685,8 @@ int scst_create_device_sysfs(struct scst_device *dev)
 	int retval = 0;
 
 	TRACE_ENTRY();
+
+	init_rwsem(&dev->dev_attr_rwsem);
 
 	dev->dev_kobj_initialized = 1;
 
@@ -618,6 +736,8 @@ void scst_device_sysfs_put(struct scst_device *dev)
 			kobject_put(dev->dev_exp_kobj);
 		}
 		kobject_del(&dev->dev_kobj);
+
+		down_write(&dev->dev_attr_rwsem);
 		kobject_put(&dev->dev_kobj);
 	} else
 		scst_free_device(dev);
@@ -671,14 +791,70 @@ static void scst_sysfs_session_release(struct kobject *kobj)
 
 	sess = container_of(kobj, struct scst_session, sess_kobj);
 
+	/* Let's make lockdep happy */
+	up_write(&sess->sess_attr_rwsem);
+
 	scst_release_session(sess);
 
 	TRACE_EXIT();
 	return;
 }
 
+static ssize_t scst_sess_attr_show(struct kobject *kobj, struct attribute *attr,
+			 char *buf)
+{
+	int res;
+	struct kobj_attribute *kobj_attr;
+	struct scst_session *sess;
+
+	sess = container_of(kobj, struct scst_session, sess_kobj);
+
+	if (down_read_trylock(&sess->sess_attr_rwsem) == 0) {
+		res = -ENOENT;
+		goto out;
+	}
+
+	kobj_attr = container_of(attr, struct kobj_attribute, attr);
+
+	res = kobj_attr->show(kobj, kobj_attr, buf);
+
+	up_read(&sess->sess_attr_rwsem);
+
+out:
+	return res;
+}
+
+static ssize_t scst_sess_attr_store(struct kobject *kobj, struct attribute *attr,
+			  const char *buf, size_t count)
+{
+	int res;
+	struct kobj_attribute *kobj_attr;
+	struct scst_session *sess;
+
+	sess = container_of(kobj, struct scst_session, sess_kobj);
+
+	if (down_read_trylock(&sess->sess_attr_rwsem) == 0) {
+		res = -ENOENT;
+		goto out;
+	}
+
+	kobj_attr = container_of(attr, struct kobj_attribute, attr);
+
+	res = kobj_attr->store(kobj, kobj_attr, buf, count);
+
+	up_read(&sess->sess_attr_rwsem);
+
+out:
+	return res;
+}
+
+static struct sysfs_ops scst_sess_sysfs_ops = {
+	.show = scst_sess_attr_show,
+	.store = scst_sess_attr_store,
+};
+
 static struct kobj_type scst_session_ktype = {
-	.sysfs_ops = &scst_sysfs_ops,
+	.sysfs_ops = &scst_sess_sysfs_ops,
 	.release = scst_sysfs_session_release,
 	.default_attrs = scst_session_attrs,
 };
@@ -699,7 +875,7 @@ restart:
 		if (!s->sess_kobj_initialized)
 			continue;
 
-		if (strcmp(name, s->sess_kobj.name) == 0) {
+		if (strcmp(name, kobject_name(&s->sess_kobj)) == 0) {
 			if (s == sess)
 				continue;
 
@@ -722,6 +898,8 @@ restart:
 			goto restart;
 		}
 	}
+
+	init_rwsem(&sess->sess_attr_rwsem);
 
 	sess->sess_kobj_initialized = 1;
 
@@ -765,6 +943,8 @@ void scst_sess_sysfs_put(struct scst_session *sess)
 
 	if (sess->sess_kobj_initialized) {
 		kobject_del(&sess->sess_kobj);
+
+		down_write(&sess->sess_attr_rwsem);
 		kobject_put(&sess->sess_kobj);
 	} else
 		scst_release_session(sess);
@@ -1854,6 +2034,14 @@ void __exit scst_sysfs_cleanup(void)
 	kobject_put(&scst_sysfs_root_kobj);
 
 	wait_for_completion(&scst_sysfs_root_release_completion);
+	/*
+	 * There is a race, when in the release() schedule happens just after
+	 * calling complete(), so if we exit and unload scst module immediately,
+	 * there will be oops there. So let's give it a chance to quit
+	 * gracefully. Unfortunately, current kobjects implementation
+	 * doesn't allow better ways to handle it.
+	 */
+	msleep(3000);
 
 	PRINT_INFO("%s", "Exiting SCST sysfs hierarchy done");
 
