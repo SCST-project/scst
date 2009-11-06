@@ -167,7 +167,6 @@ do {                                                                \
 #define PRINT_BUFF_FLAG(flag, message, buff, len)			\
 do {									\
 	if (___unlikely(trace_flag & (flag))) {				\
-		PRINTN(KERN_INFO, "%s", "");				\
 		debug_print_prefix(trace_flag, NULL, __func__, __LINE__);\
 		PRINT(KERN_CONT, "%s:", message);			\
 		debug_print_buffer(buff, len);				\
@@ -187,7 +186,6 @@ do {									\
 #define TRACE_DBG_FLAG(trace, format, args...)				\
 do {									\
 	if (trace_flag & (trace)) {					\
-		PRINTN(KERN_INFO, "%s", "");				\
 		debug_print_prefix(trace_flag, NULL, __func__, __LINE__);\
 		PRINT(KERN_CONT, format, args);				\
 	}								\
@@ -204,7 +202,6 @@ do {									\
 #define TRACE_BUFFER(message, buff, len)				\
 do {									\
 	if (trace_flag & TRACE_BUFF) {					\
-		PRINTN(KERN_INFO, "%s", "");				\
 		debug_print_prefix(trace_flag, NULL, __func__, __LINE__);\
 		PRINT(KERN_CONT, "%s:", message);			\
 		debug_print_buffer(buff, len);				\
@@ -214,7 +211,6 @@ do {									\
 #define TRACE_BUFF_FLAG(flag, message, buff, len)			\
 do {									\
 	if (trace_flag & (flag)) {					\
-		PRINTN(KERN_INFO, "%s", "");				\
 		debug_print_prefix(trace_flag, NULL, __func__, __LINE__);\
 		PRINT(KERN_CONT, "%s:", message);			\
 		debug_print_buffer(buff, len);				\
@@ -223,35 +219,30 @@ do {									\
 
 #define PRINT_LOG_FLAG(log_flag, format, args...)			\
 do {									\
-	PRINTN(KERN_INFO, "%s", "");					\
 	debug_print_prefix(trace_flag, __LOG_PREFIX, __func__, __LINE__);\
 	PRINT(KERN_CONT, format, args);					\
 } while (0)
 
 #define PRINT_WARNING(format, args...)					\
 do {									\
-	PRINTN(KERN_INFO, "%s", "");					\
 	debug_print_prefix(trace_flag, __LOG_PREFIX, __func__, __LINE__);\
 	PRINT(KERN_CONT, "***WARNING***: " format, args);		\
 } while (0)
 
 #define PRINT_ERROR(format, args...)					\
 do {									\
-	PRINTN(KERN_INFO, "%s", "");					\
 	debug_print_prefix(trace_flag, __LOG_PREFIX, __func__, __LINE__);\
 	PRINT(KERN_CONT, "***ERROR***: " format, args);			\
 } while (0)
 
 #define PRINT_CRIT_ERROR(format, args...)				\
 do {									\
-	PRINTN(KERN_INFO, "%s", "");					\
 	debug_print_prefix(trace_flag, __LOG_PREFIX, __func__, __LINE__);\
 	PRINT(KERN_CONT, "***CRITICAL ERROR***: " format, args);	\
 } while (0)
 
 #define PRINT_INFO(format, args...)					\
 do {									\
-	PRINTN(KERN_INFO, "%s", "");					\
 	debug_print_prefix(trace_flag, __LOG_PREFIX, __func__, __LINE__);\
 	PRINT(KERN_CONT, format, args);					\
 } while (0)
