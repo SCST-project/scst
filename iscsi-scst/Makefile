@@ -15,6 +15,7 @@ SBINDIR := /usr/local/sbin
 INITDIR := /etc/init.d
 RCDIR := /etc/rc.d
 KMOD := $(shell pwd)/kernel
+INCDIR := $(shell pwd)/include
 
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
@@ -120,7 +121,13 @@ perf2debug:
 	rm $(KMOD)/Makefile.aa
 
 disable_proc:
+	sed -i.aa s/"^#define CONFIG_SCST_PROC"/"\/* #define CONFIG_SCST_PROC *\/"/ $(INCDIR)/iscsi_scst_ver.h
+	@cmp $(INCDIR)/iscsi_scst_ver.h $(INCDIR)/iscsi_scst_ver.h.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(INCDIR)/iscsi_scst_ver.h.aa; echo "sed failed"; false; fi
+	rm $(INCDIR)/iscsi_scst_ver.h.aa
 
 enable_proc:
+	sed -i.aa s/"\/\* #define CONFIG_SCST_PROC \*\/"/"#define CONFIG_SCST_PROC"/ $(INCDIR)/iscsi_scst_ver.h
+	@cmp $(INCDIR)/iscsi_scst_ver.h $(INCDIR)/iscsi_scst_ver.h.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(INCDIR)/iscsi_scst_ver.h.aa; echo "sed failed"; false; fi
+	rm $(INCDIR)/iscsi_scst_ver.h.aa
 
 .PHONY: all mods progs install clean extraclean debug2release release2debug debug2perf perf2debug disable_proc enable_proc

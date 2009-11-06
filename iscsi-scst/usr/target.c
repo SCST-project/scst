@@ -155,6 +155,9 @@ int target_add(u32 *tid, char *name)
 	INIT_LIST_HEAD(&target->sessions_list);
 	INIT_LIST_HEAD(&target->isns_head);
 	target->tid = *tid;
+#ifdef CONFIG_SCST_PROC
+	target->tgt_enabled = 1;
+#endif
 	insque(&target->tlist, &targets_list);
 
 	isns_target_register(name);

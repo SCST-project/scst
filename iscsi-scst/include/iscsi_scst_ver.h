@@ -13,4 +13,12 @@
  *  GNU General Public License for more details.
  */
 
-#define ISCSI_VERSION_STRING	"1.0.2/0.4.17r214"
+#define CONFIG_SCST_PROC
+
+#ifdef CONFIG_SCST_PROC
+#define ISCSI_VERSION_STRING_SUFFIX  "-procfs"
+#else
+#define ISCSI_VERSION_STRING_SUFFIX
+#endif
+
+#define ISCSI_VERSION_STRING	"1.0.2/0.4.17r214" ISCSI_VERSION_STRING_SUFFIX
