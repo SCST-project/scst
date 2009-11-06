@@ -508,6 +508,14 @@ static void login_start(struct connection *conn)
 			return;
 		}
 
+		if (!target->tgt_enabled) {
+			log_debug(1, "Connect from %s to disabled target %s",
+				name, target_name);
+			rsp->status_class = ISCSI_STATUS_TARGET_ERR;
+			conn->state = STATE_CLOSE;
+			return;
+		}
+
 		conn->tid = target->tid;
 		if (config_initiator_access(conn->tid, conn->fd) ||
 		    isns_scn_access(conn->tid, conn->fd, name)) {

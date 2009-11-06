@@ -19,7 +19,8 @@
 #include "iscsi.h"
 #include "digest.h"
 
-#define	MAX_NR_TARGETS	(1UL << 30)
+#define MAX_NR_TARGETS		(1UL << 30)
+#define SYSFS_WAIT_TIMEOUT	(15 * HZ)
 
 DEFINE_MUTEX(target_mgmt_mutex);
 
@@ -83,6 +84,7 @@ static int iscsi_target_create(struct iscsi_kern_target_info *info, u32 tid)
 	strncpy(target->name, name, sizeof(target->name) - 1);
 
 	mutex_init(&target->target_mutex);
+	mutex_init(&target->target_sysfs_mutex);
 	INIT_LIST_HEAD(&target->session_list);
 
 	target->scst_tgt = scst_register(&iscsi_template, target->name);
@@ -150,6 +152,96 @@ static void target_destroy(struct iscsi_target *target)
 	kfree(target);
 
 	module_put(THIS_MODULE);
+}
+
+/* target_mgmt_mutex supposed to be locked */
+int target_enable(struct iscsi_kern_target_info *info)
+{
+	int res = 0;
+	struct iscsi_target *tgt;
+
+	TRACE_ENTRY();
+
+	tgt = target_lookup_by_id(info->tid);
+	if (tgt == NULL) {
+		PRINT_ERROR("Target %d not found", info->tid);
+		res = -EINVAL;
+		goto out;
+	}
+
+	mutex_lock(&tgt->target_sysfs_mutex);
+
+	if (tgt->expected_ioctl != ENABLE_TARGET) {
+		PRINT_ERROR("Unexpected ENABLE_TARGET IOCTL for target %d",
+			tgt->tid);
+		res = -EINVAL;
+		goto out_unlock;
+	}
+
+	tgt->expected_ioctl = 0;
+
+	WARN_ON(tgt->tgt_enabled);
+	tgt->tgt_enabled = 1;
+
+	tgt->ioctl_res = 0;
+
+	complete_all(tgt->target_enabling_cmpl);
+
+out_unlock:
+	mutex_unlock(&tgt->target_sysfs_mutex);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/* target_mgmt_mutex supposed to be locked */
+int target_disable(struct iscsi_kern_target_info *info)
+{
+	int res = 0;
+	struct iscsi_target *tgt;
+
+	TRACE_ENTRY();
+
+	tgt = target_lookup_by_id(info->tid);
+	if (tgt == NULL) {
+		PRINT_ERROR("Target %d not found", info->tid);
+		res = -EINVAL;
+		goto out;
+	}
+
+	mutex_lock(&tgt->target_sysfs_mutex);
+
+	if (tgt->expected_ioctl != DISABLE_TARGET) {
+		PRINT_ERROR("Unexpected DISABLE_TARGET IOCTL for target %d",
+			tgt->tid);
+		res = -EINVAL;
+		goto out_unlock;
+	}
+
+	mutex_unlock(&tgt->target_sysfs_mutex);
+
+	mutex_lock(&tgt->target_mutex);
+	target_del_all_sess(tgt, ISCSI_CONN_ACTIVE_CLOSE | ISCSI_CONN_DELETING);
+	mutex_unlock(&tgt->target_mutex);
+
+	mutex_lock(&tgt->target_sysfs_mutex);
+
+	tgt->expected_ioctl = 0;
+
+	WARN_ON(!tgt->tgt_enabled);
+	tgt->tgt_enabled = 0;
+
+	tgt->ioctl_res = 0;
+
+	complete_all(tgt->target_enabling_cmpl);
+
+out_unlock:
+	mutex_unlock(&tgt->target_sysfs_mutex);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 /* target_mgmt_mutex supposed to be locked */
@@ -369,5 +461,110 @@ const struct attribute *iscsi_tgt_attrs[] = {
 	&iscsi_tgt_tid_attr.attr,
 	NULL,
 };
+
+ssize_t iscsi_enable_target(struct scst_tgt *scst_tgt, const char *buf,
+	size_t size)
+{
+	struct iscsi_target *tgt =
+		(struct iscsi_target *)scst_tgt_get_tgt_priv(scst_tgt);
+	DECLARE_COMPLETION_ONSTACK(enabling_cmpl);
+	int res = 0, rc, ioctl_res = 0;
+	bool enable;
+
+	TRACE_ENTRY();
+
+	mutex_lock(&tgt->target_sysfs_mutex);
+
+	if (tgt->target_enabling_cmpl != NULL) {
+		TRACE_DBG("A sysfs command is being processed for target %d",
+			tgt->tid);
+		res = -ETXTBSY;
+		goto out_unlock;
+	}
+
+	tgt->target_enabling_cmpl = &enabling_cmpl;
+
+	switch (buf[0]) {
+	case '0':
+		if (!tgt->tgt_enabled) {
+			TRACE_DBG("Target %d already disabled", tgt->tid);
+			goto out_null_unlock;
+		}
+		enable = true;
+		tgt->expected_ioctl = DISABLE_TARGET;
+		res = event_send(tgt->tid, 0, 0, E_DISABLE_TARGET);
+		if (res <= 0) {
+			PRINT_ERROR("event_send() failed: %d", res);
+			goto out_null_unlock;
+		}
+		break;
+	case '1':
+		if (tgt->tgt_enabled) {
+			TRACE_DBG("Target %d already enabled", tgt->tid);
+			goto out_null_unlock;
+		}
+		enable = false;
+		tgt->expected_ioctl = ENABLE_TARGET;
+		res = event_send(tgt->tid, 0, 0, E_ENABLE_TARGET);
+		if (res <= 0) {
+			PRINT_ERROR("event_send() failed: %d", res);
+			goto out_null_unlock;
+		}
+		break;
+	default:
+		PRINT_ERROR("%s: Requested action not understood: %s",
+		       __func__, buf);
+		res = -EINVAL;
+		goto out_null_unlock;
+	}
+
+	mutex_unlock(&tgt->target_sysfs_mutex);
+
+	TRACE_DBG("Waiting for completion of enable/disable (%d) "
+		"target %d", enable, tgt->tid);
+
+	rc = wait_for_completion_interruptible_timeout(&enabling_cmpl,
+					SYSFS_WAIT_TIMEOUT);
+	if (res == 0) {
+		PRINT_ERROR("Timeout attempting to %s target %d",
+			enable ? "enable" : "disable", tgt->tid);
+		res = -EBUSY;
+		/* go through */
+	} else if (res < 0) {
+		if (res != -ERESTARTSYS)
+			PRINT_ERROR("wait_for_completion() failed: %d", res);
+		/* go through */
+	}
+
+	TRACE_DBG("Waiting for completion of enable/disable (%d) "
+		"target %d finished with res %d", enable, tgt->tid, res);
+
+	mutex_lock(&tgt->target_sysfs_mutex);
+
+	ioctl_res = tgt->ioctl_res;
+
+out_null_unlock:
+	tgt->target_enabling_cmpl = NULL;
+
+out_unlock:
+	mutex_unlock(&tgt->target_sysfs_mutex);
+
+	if (res == 0) {
+		res = ioctl_res;
+		if (res == 0)
+			res = size;
+	}
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+bool iscsi_is_target_enabled(struct scst_tgt *scst_tgt)
+{
+	struct iscsi_target *tgt =
+		(struct iscsi_target *)scst_tgt_get_tgt_priv(scst_tgt);
+
+	return tgt->tgt_enabled;
+}
 
 #endif /* CONFIG_SCST_PROC */

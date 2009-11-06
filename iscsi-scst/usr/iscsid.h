@@ -153,6 +153,8 @@ struct target {
 
 	struct __qelem sessions_list;
 
+	unsigned int tgt_enabled:1;
+
 	u32 tid;
 	char name[ISCSI_NAME_LEN];
 	char *alias;
@@ -178,7 +180,6 @@ extern void conn_free_rsp_buf_list(struct connection *conn);
 /* iscsi_scstd.c */
 extern uint16_t server_port;
 extern void isns_set_fd(int isns, int scn_listen, int scn);
-extern void wait_4_iscsi_event(int timeout);
 
 /* iscsid.c */
 extern int iscsi_debug;

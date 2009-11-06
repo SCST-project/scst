@@ -3169,6 +3169,8 @@ struct scst_tgt_template iscsi_template = {
 	.tgtt_attrs = iscsi_attrs,
 	.tgt_attrs = iscsi_tgt_attrs,
 	.sess_attrs = iscsi_sess_attrs,
+	.enable_tgt = iscsi_enable_target,
+	.is_tgt_enabled = iscsi_is_target_enabled,
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags = ISCSI_DEFAULT_LOG_FLAGS,

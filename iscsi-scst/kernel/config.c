@@ -361,6 +361,36 @@ out:
 }
 
 /* target_mgmt_mutex supposed to be locked */
+static int enable_target(void __user *ptr)
+{
+	int err;
+	struct iscsi_kern_target_info info;
+
+	err = copy_from_user(&info, ptr, sizeof(info));
+	if (err < 0)
+		return err;
+
+	err = target_enable(&info);
+
+	return err;
+}
+
+/* target_mgmt_mutex supposed to be locked */
+static int disable_target(void __user *ptr)
+{
+	int err;
+	struct iscsi_kern_target_info info;
+
+	err = copy_from_user(&info, ptr, sizeof(info));
+	if (err < 0)
+		return err;
+
+	err = target_disable(&info);
+
+	return err;
+}
+
+/* target_mgmt_mutex supposed to be locked */
 static int add_target(void __user *ptr)
 {
 	int err;
@@ -419,6 +449,8 @@ static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	switch (cmd) {
 	case ADD_TARGET:
 	case DEL_TARGET:
+	case ENABLE_TARGET:
+	case DISABLE_TARGET:
 	case ADD_SESSION:
 	case DEL_SESSION:
 	case ISCSI_PARAM_SET:
@@ -462,6 +494,12 @@ static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	switch (cmd) {
 	case ADD_TARGET:
 		err = add_target((void __user *) arg);
+		goto out_unlock;
+	case ENABLE_TARGET:
+		err = enable_target((void __user *) arg);
+		goto out_unlock;
+	case DISABLE_TARGET:
+		err = disable_target((void __user *) arg);
 		goto out_unlock;
 	case ADD_SESSION:
 		err = add_session(target, (void __user *) arg);

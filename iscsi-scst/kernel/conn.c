@@ -616,7 +616,7 @@ static int iscsi_conn_alloc(struct iscsi_session *session,
 
 restart:
 	list_for_each_entry(c, &session->conn_list, conn_list_entry) {
-		if (strcmp(addr, conn->iscsi_conn_kobj.name) == 0) {
+		if (strcmp(addr, kobject_name(&conn->iscsi_conn_kobj)) == 0) {
 			char c_addr[64];
 
 			iscsi_get_initiator_ip(conn, c_addr, sizeof(c_addr));

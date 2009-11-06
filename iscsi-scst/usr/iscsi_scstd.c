@@ -461,22 +461,6 @@ out:
 	return;
 }
 
-void wait_4_iscsi_event(int timeout)
-{
-	int res;
-
-	do {
-		res = poll(&poll_array[POLL_NL], 1, timeout);
-	} while (res < 0 && errno == EINTR);
-
-	if (poll_array[POLL_NL].revents && res > 0)
-		handle_iscsi_events(nl_fd);
-	else {
-		log_error("%s: unexpected error %d %d\n", __FUNCTION__, res,
-			errno);
-	}
-}
-
 static void event_loop(int timeout)
 {
 	int res, i;

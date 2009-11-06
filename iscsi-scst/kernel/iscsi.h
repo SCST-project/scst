@@ -82,6 +82,15 @@ struct iscsi_target {
 
 	struct list_head target_list_entry;
 	u32 tid;
+
+	/* All protected by target_sysfs_mutex */
+	unsigned int tgt_enabled:1;
+	unsigned int expected_ioctl;
+	int ioctl_res;
+	struct completion *target_enabling_cmpl;
+
+	struct mutex target_sysfs_mutex;
+
 	char name[ISCSI_NAME_LEN];
 };
 
@@ -463,9 +472,14 @@ extern void iscsi_task_mgmt_affected_cmds_done(struct scst_mgmt_cmd *scst_mcmd);
 /* target.c */
 #ifndef CONFIG_SCST_PROC
 extern const struct attribute *iscsi_tgt_attrs[];
+extern ssize_t iscsi_enable_target(struct scst_tgt *scst_tgt, const char *buf,
+	size_t size);
+extern bool iscsi_is_target_enabled(struct scst_tgt *scst_tgt);
 #endif
 struct iscsi_target *target_lookup_by_id(u32);
 extern int target_add(struct iscsi_kern_target_info *);
+extern int target_enable(struct iscsi_kern_target_info *);
+extern int target_disable(struct iscsi_kern_target_info *);
 extern int target_del(u32 id);
 extern void target_del_session(struct iscsi_target *target,
 	struct iscsi_session *session, int flags);
@@ -500,7 +514,7 @@ extern int iscsi_param_set(struct iscsi_target *,
 	struct iscsi_kern_param_info *, int);
 
 /* event.c */
-extern int event_send(u32, u64, u32, u32, int);
+extern int event_send(u32, u64, u32, u32);
 extern int event_init(void);
 extern void event_exit(void);
 

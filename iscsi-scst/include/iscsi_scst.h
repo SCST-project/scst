@@ -106,7 +106,9 @@ struct iscsi_kern_param_info {
 	s32 target_param[target_key_last];
 };
 
-enum iscsi_kern_event_state {
+enum iscsi_kern_event_code {
+	E_ENABLE_TARGET,
+	E_DISABLE_TARGET,
 	E_CONN_CLOSE,
 };
 
@@ -114,7 +116,7 @@ struct iscsi_kern_event {
 	u32 tid;
 	aligned_u64 sid;
 	u32 cid;
-	u32 state;
+	u32 code;
 };
 
 struct iscsi_kern_register_info {
@@ -132,12 +134,14 @@ struct iscsi_kern_register_info {
 
 #define ADD_TARGET		_IOW('s', 1, struct iscsi_kern_target_info)
 #define DEL_TARGET		_IOW('s', 2, struct iscsi_kern_target_info)
-#define ADD_SESSION		_IOW('s', 3, struct iscsi_kern_session_info)
-#define DEL_SESSION		_IOW('s', 4, struct iscsi_kern_session_info)
-#define ADD_CONN		_IOW('s', 5, struct iscsi_kern_conn_info)
-#define DEL_CONN		_IOW('s', 6, struct iscsi_kern_conn_info)
-#define ISCSI_PARAM_SET		_IOW('s', 7, struct iscsi_kern_param_info)
-#define ISCSI_PARAM_GET		_IOWR('s', 8, struct iscsi_kern_param_info)
+#define ENABLE_TARGET		_IOW('s', 3, struct iscsi_kern_target_info)
+#define DISABLE_TARGET		_IOW('s', 4, struct iscsi_kern_target_info)
+#define ADD_SESSION		_IOW('s', 5, struct iscsi_kern_session_info)
+#define DEL_SESSION		_IOW('s', 6, struct iscsi_kern_session_info)
+#define ADD_CONN		_IOW('s', 7, struct iscsi_kern_conn_info)
+#define DEL_CONN		_IOW('s', 8, struct iscsi_kern_conn_info)
+#define ISCSI_PARAM_SET		_IOW('s', 9, struct iscsi_kern_param_info)
+#define ISCSI_PARAM_GET		_IOWR('s', 10, struct iscsi_kern_param_info)
 
 static inline int iscsi_is_key_internal(int key)
 {

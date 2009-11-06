@@ -549,7 +549,7 @@ static void close_conn(struct iscsi_conn *conn)
 
 	TRACE_CONN_CLOSE("Notifying user space about closing connection %p",
 			 conn);
-	event_send(target->tid, session->sid, conn->cid, E_CONN_CLOSE, 0);
+	event_send(target->tid, session->sid, conn->cid, E_CONN_CLOSE);
 
 #ifdef CONFIG_SCST_PROC
 	mutex_lock(&target->target_mutex);

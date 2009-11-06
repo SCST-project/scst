@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/ioctl.h>
 
 #include <asm/types.h>
 #include <sys/socket.h>
@@ -82,10 +83,10 @@ void handle_iscsi_events(int fd)
 	struct session *session;
 	struct connection *conn;
 	struct iscsi_kern_event event;
-	int res;
+	int rc;
 
 retry:
-	if ((res = nl_read(fd, &event, sizeof(event))) < 0) {
+	if ((rc = nl_read(fd, &event, sizeof(event))) < 0) {
 		if (errno == EAGAIN)
 			return;
 		if (errno == EINTR)
@@ -94,10 +95,60 @@ retry:
 		exit(1);
 	}
 
-	log_debug(1, "conn %u session %#" PRIx64 " target %u, state %u",
-		  event.cid, event.sid, event.tid, event.state);
+	log_debug(1, "conn %u session %#" PRIx64 " target %u, code %u",
+		  event.cid, event.sid, event.tid, event.code);
 
-	switch (event.state) {
+	switch (event.code) {
+	case E_ENABLE_TARGET:
+	{
+		struct target *target;
+		struct iscsi_kern_target_info info;
+
+		target = target_find_by_id(event.tid);
+		if (target == NULL) {
+			log_error("Target %d not found", event.tid);
+			goto out;
+		}
+
+		target->tgt_enabled = 1;
+
+		memset(&info, 0, sizeof(info));
+
+		info.tid = event.tid;
+		rc = ioctl(ctrl_fd, ENABLE_TARGET, &info);
+		if (rc < 0) {
+			log_error("Can't enable target %u: %s\n", event.tid,
+				strerror(errno));
+			goto out;
+		}
+		break;
+	}
+
+	case E_DISABLE_TARGET:
+	{
+		struct target *target;
+		struct iscsi_kern_target_info info;
+
+		target = target_find_by_id(event.tid);
+		if (target == NULL) {
+			log_error("Target %d not found", event.tid);
+			goto out;
+		}
+
+		target->tgt_enabled = 0;
+
+		memset(&info, 0, sizeof(info));
+
+		info.tid = event.tid;
+		rc = ioctl(ctrl_fd, DISABLE_TARGET, &info);
+		if (rc < 0) {
+			log_error("Can't disable target %u: %s\n", event.tid,
+				strerror(errno));
+			goto out;
+		}
+		break;
+	}
+
 	case E_CONN_CLOSE:
 		session = session_find_id(event.tid, event.sid);
 		if (session == NULL) {
@@ -117,11 +168,15 @@ retry:
 		if (list_empty(&session->conn_list))
 			session_free(session);
 		break;
+
 	default:
-		log_warning("%s(%d) %u\n", __FUNCTION__, __LINE__, event.state);
+		log_warning("Unknown event %u", event.code);
 		exit(-1);
 		break;
 	}
+
+out:
+	return;
 }
 
 int nl_open(void)

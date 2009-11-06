@@ -86,13 +86,13 @@ static void event_recv(struct sock *sk, int length)
 }
 #endif
 
-static int notify(void *data, int len, gfp_t gfp_mask)
+static int notify(void *data, int len)
 {
 	struct sk_buff *skb;
 	struct nlmsghdr *nlh;
 	static u32 seq;
 
-	skb = alloc_skb(NLMSG_SPACE(len), gfp_mask);
+	skb = alloc_skb(NLMSG_SPACE(len), GFP_KERNEL);
 	if (!skb)
 		return -ENOMEM;
 
@@ -104,7 +104,7 @@ static int notify(void *data, int len, gfp_t gfp_mask)
 	return netlink_unicast(nl, skb, iscsid_pid, 0);
 }
 
-int event_send(u32 tid, u64 sid, u32 cid, u32 state, int atomic)
+int event_send(u32 tid, u64 sid, u32 cid, enum iscsi_kern_event_code code)
 {
 	int err;
 	struct iscsi_kern_event event;
@@ -112,9 +112,9 @@ int event_send(u32 tid, u64 sid, u32 cid, u32 state, int atomic)
 	event.tid = tid;
 	event.sid = sid;
 	event.cid = cid;
-	event.state = state;
+	event.code = code;
 
-	err = notify(&event, NLMSG_SPACE(sizeof(struct iscsi_kern_event)), 0);
+	err = notify(&event, NLMSG_SPACE(sizeof(struct iscsi_kern_event)));
 
 	return err;
 }
