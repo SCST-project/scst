@@ -92,7 +92,7 @@ enum {
 	SRPT_RQ_SIZE = 128,
 	SRPT_SRQ_SIZE = 4095,
 
-	MAX_MESSAGE_SIZE = 996,
+	MIN_MAX_MESSAGE_SIZE = 996,
 };
 
 #define SRPT_OP_RECV			(1 << 31)

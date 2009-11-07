@@ -112,12 +112,17 @@ MODULE_PARM_DESC(thread_processing_delay_in_us,
 module_param(thread, int, 0444);
 MODULE_PARM_DESC(thread,
 		 "Executing ioctx in thread context. Default 0, i.e. soft IRQ, "
-		 "where possible");
+		 "where possible.");
 
 static unsigned int srp_max_rdma_size = 65536;
 module_param(srp_max_rdma_size, int, 0744);
 MODULE_PARM_DESC(thread,
-		 "Maximum size of SRP RDMA transfers for new connections");
+		 "Maximum size of SRP RDMA transfers for new connections.");
+
+static unsigned int srp_max_message_size = 4096;
+module_param(srp_max_message_size, int, 0444);
+MODULE_PARM_DESC(thread,
+		 "Maximum size of SRP control messages in bytes.");
 
 module_param(use_port_guid_in_session_name, bool, 0444);
 MODULE_PARM_DESC(use_port_guid_in_session_name,
@@ -361,7 +366,7 @@ static void srpt_get_ioc(struct srpt_device *sdev, u32 slot,
 	iocp->protocol_version = cpu_to_be16(SRP_PROTOCOL_VERSION);
 	iocp->send_queue_depth = cpu_to_be16(SRPT_SRQ_SIZE);
 	iocp->rdma_read_depth = 4;
-	iocp->send_size = cpu_to_be32(MAX_MESSAGE_SIZE);
+	iocp->send_size = cpu_to_be32(srp_max_message_size);
 	iocp->rdma_size = cpu_to_be32(min(max(srp_max_rdma_size, 256U),
 					  1U << 24));
 	iocp->num_svc_entries = 1;
@@ -627,12 +632,12 @@ static struct srpt_ioctx *srpt_alloc_ioctx(struct srpt_device *sdev)
 	if (!ioctx)
 		goto out;
 
-	ioctx->buf = kzalloc(MAX_MESSAGE_SIZE, GFP_KERNEL);
+	ioctx->buf = kzalloc(srp_max_message_size, GFP_KERNEL);
 	if (!ioctx->buf)
 		goto out_free_ioctx;
 
 	ioctx->dma = ib_dma_map_single(sdev->device, ioctx->buf,
-				       MAX_MESSAGE_SIZE, DMA_BIDIRECTIONAL);
+				       srp_max_message_size, DMA_BIDIRECTIONAL);
 	if (ib_dma_mapping_error(sdev->device, ioctx->dma))
 		goto out_free_buf;
 
@@ -655,7 +660,7 @@ static void srpt_free_ioctx(struct srpt_device *sdev, struct srpt_ioctx *ioctx)
 		return;
 
 	ib_dma_unmap_single(sdev->device, ioctx->dma,
-			    MAX_MESSAGE_SIZE, DMA_BIDIRECTIONAL);
+			    srp_max_message_size, DMA_BIDIRECTIONAL);
 	kfree(ioctx->buf);
 	kfree(ioctx);
 }
@@ -773,7 +778,7 @@ static int srpt_post_recv(struct srpt_device *sdev, struct srpt_ioctx *ioctx)
 	wr.wr_id = ioctx->index | SRPT_OP_RECV;
 
 	list.addr = ioctx->dma;
-	list.length = MAX_MESSAGE_SIZE;
+	list.length = srp_max_message_size;
 	list.lkey = sdev->mr->lkey;
 
 	wr.next = NULL;
@@ -799,7 +804,7 @@ static int srpt_post_send(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 	struct srpt_device *sdev = ch->sport->sdev;
 
 	ib_dma_sync_single_for_device(sdev->device, ioctx->dma,
-				      MAX_MESSAGE_SIZE, DMA_TO_DEVICE);
+				      srp_max_message_size, DMA_TO_DEVICE);
 
 	list.addr = ioctx->dma;
 	list.length = len;
@@ -1163,7 +1168,7 @@ static int srpt_build_tskmgmt_rsp(struct srpt_rdma_ch *ch,
 	int resp_data_len = 0;
 
 	ib_dma_sync_single_for_cpu(ch->sport->sdev->device, ioctx->dma,
-				   MAX_MESSAGE_SIZE, DMA_TO_DEVICE);
+				   srp_max_message_size, DMA_TO_DEVICE);
 
 	srp_rsp = ioctx->buf;
 	memset(srp_rsp, 0, sizeof *srp_rsp);
@@ -1427,7 +1432,7 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 	spin_unlock_irqrestore(&ch->spinlock, flags);
 
 	ib_dma_sync_single_for_cpu(ch->sport->sdev->device, ioctx->dma,
-				   MAX_MESSAGE_SIZE, DMA_FROM_DEVICE);
+				   srp_max_message_size, DMA_FROM_DEVICE);
 
 	ioctx->data_len = 0;
 	ioctx->n_rbuf = 0;
@@ -1462,7 +1467,7 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 	}
 
 	ib_dma_sync_single_for_device(ch->sport->sdev->device,
-				   ioctx->dma, MAX_MESSAGE_SIZE,
+				   ioctx->dma, srp_max_message_size,
 				   DMA_FROM_DEVICE);
 
 	return;
@@ -1769,12 +1774,13 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		goto out;
 	}
 
-	if (it_iu_len > MAX_MESSAGE_SIZE || it_iu_len < 64) {
+	if (it_iu_len > srp_max_message_size || it_iu_len < 64) {
 		rej->reason =
 		    cpu_to_be32(SRP_LOGIN_REJ_REQ_IT_IU_LENGTH_TOO_LARGE);
 		ret = -EINVAL;
 		PRINT_ERROR("rejected SRP_LOGIN_REQ because its"
-			    " length (%d bytes) is invalid", it_iu_len);
+			    " length (%d bytes) is out of range (%d .. %d)",
+			    it_iu_len, 64, srp_max_message_size);
 		goto reject;
 	}
 
@@ -2468,7 +2474,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	}
 
 	ib_dma_sync_single_for_cpu(ch->sport->sdev->device, ioctx->dma,
-				   MAX_MESSAGE_SIZE, DMA_TO_DEVICE);
+				   srp_max_message_size, DMA_TO_DEVICE);
 
 	srp_rsp = ioctx->buf;
 
@@ -2485,10 +2491,13 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 
 	if (SCST_SENSE_VALID(scst_cmd_get_sense_buffer(scmnd))) {
 		srp_rsp->sense_data_len = scst_cmd_get_sense_buffer_len(scmnd);
+		BUILD_BUG_ON(MIN_MAX_MESSAGE_SIZE <= sizeof(*srp_rsp));
+		WARN_ON(srp_max_message_size <= sizeof(*srp_rsp));
 		if (srp_rsp->sense_data_len >
-		    (MAX_MESSAGE_SIZE - sizeof *srp_rsp))
+		    (srp_max_message_size - sizeof *srp_rsp))
 			srp_rsp->sense_data_len =
-			    MAX_MESSAGE_SIZE - sizeof *srp_rsp;
+			    srp_max_message_size - sizeof *srp_rsp;
+		WARN_ON(srp_rsp->sense_data_len <= 0);
 
 		memcpy((u8 *) (srp_rsp + 1), scst_cmd_get_sense_buffer(scmnd),
 		       srp_rsp->sense_data_len);
@@ -3145,6 +3154,15 @@ static void srpt_unregister_procfs_entry(struct scst_tgt_template *tgt)
 static int __init srpt_init_module(void)
 {
 	int ret;
+
+	ret = -EINVAL;
+	if (srp_max_message_size < MIN_MAX_MESSAGE_SIZE) {
+		PRINT_ERROR("invalid value %d for kernel module parameter"
+			    " srp_max_message_size -- must be at least %d.",
+			    srp_max_message_size,
+			    MIN_MAX_MESSAGE_SIZE);
+		goto out;
+	}
 
 	ret = class_register(&srpt_class);
 	if (ret) {
