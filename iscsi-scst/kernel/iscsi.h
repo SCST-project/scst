@@ -514,7 +514,7 @@ extern int iscsi_param_set(struct iscsi_target *,
 	struct iscsi_kern_param_info *, int);
 
 /* event.c */
-extern int event_send(u32, u64, u32, u32);
+extern int event_send(u32, u64, u32, enum iscsi_kern_event_code);
 extern int event_init(void);
 extern void event_exit(void);
 
