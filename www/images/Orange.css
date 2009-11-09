@@ -56,8 +56,8 @@ ul span, ol span { color: #666666; }
 img.float-right { margin: 5px 0px 5px 15px; }
 img.float-left { margin: 5px 15px 5px 0px; }
 
-a img { border: 2px solid #EC981F; }
-a:hover img { border: 2px solid #806B4D !important;border: 2px solid #EC981F; }
+a img { border: 0px solid #EC981F; }
+a:hover img { border: 0px solid #806B4D !important;border: 0px solid #EC981F; }
 
 code { 
 	margin: 5px 0;
@@ -317,6 +317,17 @@ div.logoimg {
 /* Font colors */
 font.names { color: #EC981F ; }
  
+/* Company Logo Boxes */
+.companybox { 
+	border-color : #FFFFFF;
+	border : 1px #FFFFFF;
+	border-top : #999999 1pt solid;
+	border-left : #999999 1pt solid; 
+	border-right : #999999 1pt solid;
+	border-bottom : #999999 1pt solid;
+	text-align: center;
+}
+
 
 /* Alignment classes */
 .float-left   { float: left;}
