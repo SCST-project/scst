@@ -840,7 +840,7 @@ again_poll:
 
 		switch(cmd.subcode) {
 		case SCST_USER_EXEC:
-			if (cmd.exec_cmd.data_direction == SCST_DATA_WRITE) {
+			if (cmd.exec_cmd.data_direction & SCST_DATA_WRITE) {
 				TRACE_BUFFER("Received cmd data",
 					(void *)(unsigned long)cmd.exec_cmd.pbuf,
 					cmd.exec_cmd.bufflen);

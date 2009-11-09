@@ -3075,7 +3075,7 @@ int scst_scsi_exec_async(struct scst_cmd *cmd,
 		}
 	}
 
-	if (cmd->data_direction  == SCST_DATA_BIDI) {
+	if (cmd->data_direction == SCST_DATA_BIDI) {
 		struct request *next_rq;
 
 		if (!test_bit(QUEUE_FLAG_BIDI, &q->queue_flags)) {
@@ -5526,7 +5526,7 @@ void scst_update_lat_stats(struct scst_cmd *cmd)
 		sess->max_dev_time = dev_time;
 
 	/* Save the extended latency information */
-	if (cmd->data_direction == SCST_DATA_READ) {
+	if (cmd->data_direction & SCST_DATA_READ) {
 		latency_stat->scst_time_rd += scst_time;
 		latency_stat->tgt_time_rd += tgt_time;
 		latency_stat->dev_time_rd += dev_time;
@@ -5570,7 +5570,7 @@ void scst_update_lat_stats(struct scst_cmd *cmd)
 			dev_latency_stat->max_tgt_time_rd = tgt_time;
 		if (dev_latency_stat->max_dev_time_rd < dev_time)
 			dev_latency_stat->max_dev_time_rd = dev_time;
-	} else if (cmd->data_direction == SCST_DATA_WRITE) {
+	} else if (cmd->data_direction & SCST_DATA_WRITE) {
 		latency_stat->scst_time_wr += scst_time;
 		latency_stat->tgt_time_wr += tgt_time;
 		latency_stat->dev_time_wr += dev_time;

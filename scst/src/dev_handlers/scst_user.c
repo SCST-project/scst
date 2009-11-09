@@ -918,7 +918,7 @@ static int dev_user_exec(struct scst_cmd *cmd)
 		"bufflen %d, data_len %d, ubuff %lx)", ucmd, ucmd->h,
 		cmd->bufflen, cmd->data_len, ucmd->ubuff);
 
-	if (cmd->data_direction == SCST_DATA_WRITE)
+	if (cmd->data_direction & SCST_DATA_WRITE)
 		dev_user_flush_dcache(ucmd);
 
 	BUILD_BUG_ON(sizeof(ucmd->user_cmd.exec_cmd.cdb) != sizeof(cmd->cdb));
@@ -982,7 +982,7 @@ static void dev_user_on_free_cmd(struct scst_cmd *cmd)
 		ucmd->buff_cached, ucmd->ubuff);
 
 	ucmd->cmd = NULL;
-	if (cmd->data_direction == SCST_DATA_WRITE && ucmd->buf_ucmd != NULL)
+	if ((cmd->data_direction & SCST_DATA_WRITE) && ucmd->buf_ucmd != NULL)
 		ucmd->buf_ucmd->buf_dirty = 1;
 
 	if (ucmd->dev->on_free_cmd_type == SCST_USER_ON_FREE_CMD_IGNORE) {
@@ -1255,6 +1255,7 @@ static int dev_user_process_reply_parse(struct scst_user_cmd *ucmd,
 
 	if (unlikely((preply->data_direction != SCST_DATA_WRITE) &&
 		     (preply->data_direction != SCST_DATA_READ) &&
+		     (preply->data_direction != SCST_DATA_BIDI) &&
 		     (preply->data_direction != SCST_DATA_NONE)))
 		goto out_inval;
 
@@ -1346,7 +1347,7 @@ static int dev_user_process_reply_exec(struct scst_user_cmd *ucmd,
 	} else if (ereply->reply_type == SCST_EXEC_REPLY_BACKGROUND) {
 		if (unlikely(ucmd->background_exec))
 			goto out_inval;
-		if (unlikely((cmd->data_direction == SCST_DATA_READ) ||
+		if (unlikely((cmd->data_direction & SCST_DATA_READ) ||
 			     (cmd->resp_data_len != 0)))
 			goto out_inval;
 		/*
