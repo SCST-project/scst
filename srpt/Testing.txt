@@ -23,23 +23,7 @@ The following tests must be run at least before releasing a new SRPT version:
 * Verify that an I/O stress test runs fine by running the following command
   on an initiator system after having created two partitions:
 
-fio <<EOF
-[global]
-bs=1M
-direct=1
-ioengine=sync
-verify=meta
-rw=write
-verify_fatal=1
-verify_async=1
-loops=10
-
-[partition1]
-filename=/dev/sdb1
-
-[partition2]
-filename=/dev/sdb2
-EOF
+    fio --bs=1M --direct=1 --ioengine=sync --verify=meta --rw=write --verify_fatal=1 --verify_async=1 --loops=10 --name=partition1 --filename=/dev/sdb1 --name=partition2 --filename=/dev/sdb2
 
 * Verify that a SCSI reset works properly by running the following command
   on an initiator system:
@@ -55,4 +39,26 @@ EOF
     target_id="id_ext=0002c9030003cca2,ioc_guid=0002c9030003cca2,dgid=fe800000000000000002c9030003cca3,pkey=ffff,service_id=0009030003cca2,ioc_guid=0002c9030003cca2,dgid=fe800000000000000002c9030003cca3,pkey=ffff,service_id=0002c9030003cca2"
     while true; do date; rmmod ib_srp; modprobe ib_srp; echo "${target_id}" > /sys/class/infiniband_srp/srp-mlx4_0-1/add_target; sleep 2; done
 
-  and verify that nothin unexpected happens.
+  and verify that nothing unexpected happens.
+
+* Log in twice from an initiator system, and verify that the first session
+  receives a DREQ upon the second login:
+
+    target_id="id_ext=0002c9030003cca2,ioc_guid=0002c9030003cca2,dgid=fe800000000000000002c9030003cca3,pkey=ffff,service_id=0009030003cca2,ioc_guid=0002c9030003cca2,dgid=fe800000000000000002c9030003cca3,pkey=ffff,service_id=0002c9030003cca2"
+    dmesg -c
+    echo "${target_id}" > /sys/class/infiniband_srp/srp-mlx4_0-1/add_target
+    dmesg -c
+    echo "${target_id}" > /sys/class/infiniband_srp/srp-mlx4_0-1/add_target
+    dmesg -c
+    echo "${target_id}" > /sys/class/infiniband_srp/srp-mlx4_0-1/add_target
+
+* Test low memory conditions: load SRPT, reduce the amount of available 
+  memory by creating a large file on a tmpfs file system and run a stress test
+  on an initiator system.
+
+* Test the state machine for SCST commands in SRPT by using SCST's error
+  injection mechanism. Add the following to scst/src/Makefile, log in from
+  an initiator system and trigger SRP I/O:
+    EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g
+    EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG_TM -DCONFIG_SCST_TM_DBG_GO_OFFLINE
+
