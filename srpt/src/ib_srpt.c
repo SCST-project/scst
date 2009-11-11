@@ -89,7 +89,7 @@ static u64 srpt_service_guid;
 /* List of srpt_device structures. */
 static atomic_t srpt_device_count;
 static int use_port_guid_in_session_name;
-static int thread;
+static int thread = 1;
 static struct srpt_thread srpt_thread;
 static DECLARE_WAIT_QUEUE_HEAD(ioctx_list_waitQ);
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
@@ -141,6 +141,21 @@ static struct ib_client srpt_client = {
 	.add = srpt_add_one,
 	.remove = srpt_remove_one
 };
+
+/**
+ * Atomically set the channel state.
+ * @ch: RDMA channel.
+ * @new: new channel state.
+ */
+static void srpt_set_channel_state(struct srpt_rdma_ch *ch,
+				   enum rdma_ch_state new)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&ch->spinlock, flags);
+	ch->state = new;
+	spin_unlock_irqrestore(&ch->spinlock, flags);
+}
 
 /**
  * Atomically test and set the channel state.
@@ -707,42 +722,33 @@ static void srpt_free_ioctx_ring(struct srpt_device *sdev)
 	}
 }
 
-/** Atomically get the state of a command. */
-static enum srpt_command_state srpt_get_cmd_state(struct srpt_ioctx *ioctx)
-{
-	barrier();
-	return atomic_read(&ioctx->state);
-}
-
 /**
- * Atomically set the state of a command.
+ * Set the state of a command.
  * @new: New state to be set.
  *
- * Does not modify the state of aborted commands.
- *
- * Returns the previous command state.
+ * Does not modify the state of aborted commands. Returns the previous command
+ * state.
  */
 static enum srpt_command_state srpt_set_cmd_state(struct srpt_ioctx *ioctx,
 						  enum srpt_command_state new)
 {
 	enum srpt_command_state previous;
 
+	WARN_ON(!ioctx);
+	WARN_ON(!mutex_is_locked(&ioctx->mutex));
 	WARN_ON(new == SRPT_STATE_NEW);
 
-	do {
-		barrier();
-		previous = atomic_read(&ioctx->state);
-	} while (previous != SRPT_STATE_ABORTED
-		 && atomic_cmpxchg(&ioctx->state, previous, new) != previous);
-	barrier();
+	previous = ioctx->state;
+	if (previous != SRPT_STATE_ABORTED)
+		ioctx->state = new;
 
 	return previous;
 }
 
 /**
- * Atomically test and set the state of a command.
+ * Test and set the state of a command.
  * @expected: State to compare against.
- * @new:      New state to be set if the current state matches 'expected'.
+ * @new: New state to be set if the current state matches 'expected'.
  *
  * Returns the previous command state.
  */
@@ -753,16 +759,14 @@ srpt_test_and_set_cmd_state(struct srpt_ioctx *ioctx,
 {
 	enum srpt_command_state previous;
 
+	WARN_ON(!ioctx);
+	WARN_ON(!mutex_is_locked(&ioctx->mutex));
 	WARN_ON(expected == SRPT_STATE_ABORTED);
 	WARN_ON(new == SRPT_STATE_NEW);
 
-	do {
-		barrier();
-		previous = atomic_read(&ioctx->state);
-	} while (previous != SRPT_STATE_ABORTED
-		 && previous == expected
-		 && atomic_cmpxchg(&ioctx->state, previous, new) != previous);
-	barrier();
+	previous = ioctx->state;
+	if (previous == expected)
+		ioctx->state = new;
 
 	return previous;
 }
@@ -978,17 +982,30 @@ static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 		atomic_inc(&ch->req_lim_delta);
 }
 
+/**
+ * Abort a command. Must be called from inside rdy_to_xfer, xmit_response or
+ * on_free_cmd because any call from outside SCST's command processing callback
+ * functions would be racy.
+ */
 static void srpt_abort_scst_cmd(struct srpt_device *sdev,
-				struct scst_cmd *scmnd,
-				bool tell_initiator)
+				struct scst_cmd *scmnd)
 {
 	struct srpt_ioctx *ioctx;
 	scst_data_direction dir;
-	struct srpt_rdma_ch *ch;
 	enum srpt_command_state previous_state;
 
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
 	BUG_ON(!ioctx);
+
+	mutex_lock(&ioctx->mutex);
+
+	previous_state = srpt_set_cmd_state(ioctx, SRPT_STATE_ABORTED);
+	if (previous_state == SRPT_STATE_ABORTED)
+		goto out;
+
+	TRACE_DBG("Aborting cmd with state %d and tag %lld",
+		  previous_state, scst_cmd_get_tag(scmnd));
+
 	dir = scst_cmd_get_data_direction(scmnd);
 	if (dir != SCST_DATA_NONE && scst_cmd_get_sg(scmnd))
 		ib_dma_unmap_sg(sdev->device,
@@ -996,33 +1013,14 @@ static void srpt_abort_scst_cmd(struct srpt_device *sdev,
 				scst_cmd_get_sg_cnt(scmnd),
 				scst_to_tgt_dma_dir(dir));
 
-	previous_state = srpt_set_cmd_state(ioctx, SRPT_STATE_ABORTED);
-	TRACE_DBG("Aborting cmd with state %d and tag %lld",
-		  previous_state, scst_cmd_get_tag(scmnd));
 	switch (previous_state) {
 	case SRPT_STATE_NEW:
-		/*
-		 * Do not try to abort the SCST command here but wait until
-		 * the SCST core has called srpt_rdy_to_xfer() or
-		 * srpt_xmit_response(). Since srpt_release_channel() will
-		 * finish before srpt_on_free_cmd() is called, set the channel
-		 * pointer inside the SCST command to NULL such that
-		 * srpt_on_free_cmd() will not dereference a dangling pointer.
-		 */
-		ch = ioctx->ch;
-		ioctx->ch = NULL;
-		BUG_ON(!ch);
-		spin_lock_irq(&ch->spinlock);
-		list_del(&ioctx->scmnd_list);
-		ch->active_scmnd_cnt--;
-		spin_unlock_irq(&ch->spinlock);
 		break;
 	case SRPT_STATE_NEED_DATA:
 		WARN_ON(scst_cmd_get_data_direction(ioctx->scmnd)
 			== SCST_DATA_READ);
 		scst_rx_data(scmnd,
-			     tell_initiator ? SCST_RX_STATUS_ERROR
-			     : SCST_RX_STATUS_ERROR_FATAL,
+			     SCST_RX_STATUS_ERROR,
 			     SCST_CONTEXT_THREAD);
 		break;
 	case SRPT_STATE_PROCESSED:
@@ -1034,6 +1032,9 @@ static void srpt_abort_scst_cmd(struct srpt_device *sdev,
 		TRACE_DBG("Aborting cmd with state %d", previous_state);
 		WARN_ON("ERROR: unexpected command state");
 	}
+
+out:
+	mutex_unlock(&ioctx->mutex);
 }
 
 static void srpt_handle_err_comp(struct srpt_rdma_ch *ch, struct ib_wc *wc)
@@ -1048,7 +1049,7 @@ static void srpt_handle_err_comp(struct srpt_rdma_ch *ch, struct ib_wc *wc)
 		ioctx = sdev->ioctx_ring[wc->wr_id];
 
 		if (ioctx->scmnd)
-			srpt_abort_scst_cmd(sdev, ioctx->scmnd, true);
+			srpt_abort_scst_cmd(sdev, ioctx->scmnd);
 		else
 			srpt_reset_ioctx(ch, ioctx);
 	}
@@ -1084,6 +1085,8 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 		return;
 	}
 
+	mutex_lock(&ioctx->mutex);
+
 	/*
 	 * If an RDMA completion notification has been received for a write
 	 * command, tell SCST that processing can continue by calling
@@ -1096,6 +1099,8 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 		scst_rx_data(ioctx->scmnd, SCST_RX_STATUS_SUCCESS,
 			     scst_estimate_context());
 	}
+
+	mutex_unlock(&ioctx->mutex);
 }
 
 /**
@@ -1405,9 +1410,9 @@ err:
 }
 
 /**
- * Process a receive completion event.
- * @ch: RDMA channel for which the completion event has been received.
- * @ioctx: SRPT I/O context for which the completion event has been received.
+ * Process a newly received information unit.
+ * @ch: RDMA channel through which the information unit has been received.
+ * @ioctx: SRPT I/O context associated with the information unit.
  */
 static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 			       struct srpt_ioctx *ioctx)
@@ -1434,6 +1439,7 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 	ib_dma_sync_single_for_cpu(ch->sport->sdev->device, ioctx->dma,
 				   srp_max_message_size, DMA_FROM_DEVICE);
 
+	mutex_init(&ioctx->mutex);
 	ioctx->data_len = 0;
 	ioctx->n_rbuf = 0;
 	ioctx->rbufs = NULL;
@@ -1442,7 +1448,7 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 	ioctx->rdma_ius = NULL;
 	ioctx->scmnd = NULL;
 	ioctx->ch = ch;
-	atomic_set(&ioctx->state, SRPT_STATE_NEW);
+	ioctx->state = SRPT_STATE_NEW;
 
 	srp_cmd = ioctx->buf;
 	srp_rsp = ioctx->buf;
@@ -1676,11 +1682,17 @@ static struct srpt_rdma_ch *srpt_find_channel(struct ib_cm_id *cm_id, bool del)
  * Note: the caller must have removed the channel from the channel list
  * before calling this function.
  */
-static void srpt_release_channel(struct srpt_rdma_ch *ch, int destroy_cmid)
+static void srpt_release_channel(struct srpt_rdma_ch *ch, bool destroy_cmid)
 {
 	TRACE_ENTRY();
 
 	WARN_ON(srpt_find_channel(ch->cm_id, false) == ch);
+
+	/*
+	 * Make sure that no new commands are accepted while the channel
+	 * is being released.
+	 */
+	srpt_set_channel_state(ch, RDMA_CHANNEL_DISCONNECTING);
 
 	if (ch->cm_id && destroy_cmid) {
 		TRACE_DBG("%s: destroy cm_id= %p", __func__, ch->cm_id);
@@ -1708,7 +1720,7 @@ static void srpt_release_channel(struct srpt_rdma_ch *ch, int destroy_cmid)
 
 			if (ioctx->scmnd)
 				srpt_abort_scst_cmd(ch->sport->sdev,
-						    ioctx->scmnd, true);
+						    ioctx->scmnd);
 
 			spin_lock_irq(&ch->spinlock);
 		}
@@ -2006,7 +2018,7 @@ static void srpt_find_and_release_channel(struct ib_cm_id *cm_id)
 
 static void srpt_cm_rej_recv(struct ib_cm_id *cm_id)
 {
-	PRINT_INFO("%s", "Received InfiniBand REJ packet.");
+	PRINT_INFO("Received InfiniBand REJ packet for cm_id %p.", cm_id);
 	srpt_find_and_release_channel(cm_id);
 }
 
@@ -2056,13 +2068,13 @@ static int srpt_cm_rtu_recv(struct ib_cm_id *cm_id)
 
 static void srpt_cm_timewait_exit(struct ib_cm_id *cm_id)
 {
-	PRINT_INFO("%s", "Received InfiniBand TimeWait exit.");
+	PRINT_INFO("Received InfiniBand TimeWait exit for cm_id %p.", cm_id);
 	srpt_find_and_release_channel(cm_id);
 }
 
 static void srpt_cm_rep_error(struct ib_cm_id *cm_id)
 {
-	PRINT_INFO("%s", "Received InfiniBand REP error.");
+	PRINT_INFO("Received InfiniBand REP error for cm_id %p.", cm_id);
 	srpt_find_and_release_channel(cm_id);
 }
 
@@ -2094,7 +2106,7 @@ static int srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
 
 static void srpt_cm_drep_recv(struct ib_cm_id *cm_id)
 {
-	PRINT_INFO("%s", "Received InfiniBand DREP message.");
+	PRINT_INFO("Received InfiniBand DREP message for cm_id %p.", cm_id);
 	srpt_find_and_release_channel(cm_id);
 }
 
@@ -2399,14 +2411,19 @@ static int srpt_rdy_to_xfer(struct scst_cmd *scmnd)
 {
 	struct srpt_rdma_ch *ch;
 	struct srpt_ioctx *ioctx;
+	int ret;
 
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
 	BUG_ON(!ioctx);
 
-	if (srpt_get_cmd_state(ioctx) == SRPT_STATE_ABORTED) {
+	mutex_lock(&ioctx->mutex);
+
+	if (srpt_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA)
+	    == SRPT_STATE_ABORTED) {
 		TRACE_DBG("cmd with tag %lld has been aborted",
 			  scst_cmd_get_tag(scmnd));
-		return SCST_TGT_RES_FATAL_ERROR;
+		ret = SCST_TGT_RES_FATAL_ERROR;
+		goto out;
 	}
 
 	ch = ioctx->ch;
@@ -2416,13 +2433,18 @@ static int srpt_rdy_to_xfer(struct scst_cmd *scmnd)
 	if (ch->state == RDMA_CHANNEL_DISCONNECTING) {
 		TRACE_DBG("cmd with tag %lld: channel disconnecting",
 			  scst_cmd_get_tag(scmnd));
-		return SCST_TGT_RES_FATAL_ERROR;
-	} else if (ch->state == RDMA_CHANNEL_CONNECTING)
-		return SCST_TGT_RES_QUEUE_FULL;
+		ret = SCST_TGT_RES_FATAL_ERROR;
+		goto out;
+	} else if (ch->state == RDMA_CHANNEL_CONNECTING) {
+		ret = SCST_TGT_RES_QUEUE_FULL;
+		goto out;
+	}
+	ret = srpt_xfer_data(ch, ioctx, scmnd);
 
-	srpt_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA);
+out:
+	mutex_unlock(&ioctx->mutex);
 
-	return srpt_xfer_data(ch, ioctx, scmnd);
+	return ret;
 }
 
 /*
@@ -2442,7 +2464,10 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
 	BUG_ON(!ioctx);
 
-	if (srpt_get_cmd_state(ioctx) == SRPT_STATE_ABORTED) {
+	mutex_lock(&ioctx->mutex);
+
+	if (srpt_set_cmd_state(ioctx, SRPT_STATE_PROCESSED)
+	    == SRPT_STATE_ABORTED) {
 		TRACE_DBG("cmd with tag %lld has been aborted",
 			  scst_cmd_get_tag(scmnd));
 		ret = SCST_TGT_RES_FATAL_ERROR;
@@ -2453,8 +2478,6 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	BUG_ON(!ch);
 
 	tag = scst_cmd_get_tag(scmnd);
-
-	srpt_set_cmd_state(ioctx, SRPT_STATE_PROCESSED);
 
 	if (ch->state != RDMA_CHANNEL_LIVE) {
 		PRINT_ERROR("%s: tag= %lld channel in bad state %d",
@@ -2531,15 +2554,14 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	}
 
 out:
+	mutex_unlock(&ioctx->mutex);
 	return ret;
 
 out_aborted:
 	ret = SCST_TGT_RES_SUCCESS;
-	scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_ABORTED);
-	srpt_set_cmd_state(ioctx, SRPT_STATE_ABORTED);
-	WARN_ON(scmnd->state != SCST_CMD_STATE_XMIT_WAIT);
-	scst_tgt_cmd_done(scmnd, SCST_CONTEXT_SAME);
-	goto out;
+	mutex_unlock(&ioctx->mutex);
+	srpt_abort_scst_cmd(ch->sport->sdev, scmnd);
+	return ret;
 }
 
 /*
@@ -2562,11 +2584,15 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 	ioctx = mgmt_ioctx->ioctx;
 	BUG_ON(!ioctx);
 
+	mutex_lock(&ioctx->mutex);
+
 	TRACE_DBG("%s: tsk_mgmt_done for tag= %lld status=%d",
 		  __func__, (unsigned long long)mgmt_ioctx->tag,
 		  scst_mgmt_cmd_get_status(mcmnd));
 
-	srpt_set_cmd_state(ioctx, SRPT_STATE_PROCESSED);
+	if (srpt_set_cmd_state(ioctx, SRPT_STATE_PROCESSED)
+	    == SRPT_STATE_ABORTED)
+		goto out;
 
 	rsp_len = srpt_build_tskmgmt_rsp(ch, ioctx,
 					 (scst_mgmt_cmd_get_status(mcmnd) ==
@@ -2579,6 +2605,9 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 	scst_mgmt_cmd_set_tgt_priv(mcmnd, NULL);
 
 	kfree(mgmt_ioctx);
+
+out:
+	mutex_unlock(&ioctx->mutex);
 }
 
 /*
@@ -2593,17 +2622,20 @@ static void srpt_on_free_cmd(struct scst_cmd *scmnd)
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
 	BUG_ON(!ioctx);
 
+	mutex_lock(&ioctx->mutex);
+
 	ch = ioctx->ch;
-	if (ch) {
-		spin_lock_irq(&ch->spinlock);
-		list_del(&ioctx->scmnd_list);
-		ch->active_scmnd_cnt--;
-		spin_unlock_irq(&ch->spinlock);
-		ioctx->ch = NULL;
-	}
+	BUG_ON(!ch);
+	spin_lock_irq(&ch->spinlock);
+	list_del(&ioctx->scmnd_list);
+	ch->active_scmnd_cnt--;
+	spin_unlock_irq(&ch->spinlock);
+	ioctx->ch = NULL;
 
 	srpt_reset_ioctx(ch, ioctx);
 	scst_cmd_set_tgt_priv(scmnd, NULL);
+
+	mutex_unlock(&ioctx->mutex);
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && ! defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
