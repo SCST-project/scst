@@ -765,7 +765,7 @@ out:
 static void process_read_io(struct iscsi_conn *conn, int *closed)
 {
 	struct iscsi_cmnd *cmnd = conn->read_cmnd;
-	int res;
+	int res = 0;
 
 	TRACE_ENTRY();
 
