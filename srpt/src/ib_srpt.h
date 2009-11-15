@@ -121,7 +121,6 @@ enum srpt_command_state {
 
 /* SRPT I/O context: SRPT-private data associated with a struct scst_cmd. */
 struct srpt_ioctx {
-	struct mutex mutex;
 	int index;
 	void *buf;
 	dma_addr_t dma;

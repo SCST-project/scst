@@ -636,7 +636,7 @@ static void srpt_unregister_mad_agent(struct srpt_device *sdev)
 	}
 }
 
-/*
+/**
  * Allocate and initialize an SRPT I/O context structure.
  */
 static struct srpt_ioctx *srpt_alloc_ioctx(struct srpt_device *sdev)
@@ -735,7 +735,6 @@ static enum srpt_command_state srpt_set_cmd_state(struct srpt_ioctx *ioctx,
 	enum srpt_command_state previous;
 
 	WARN_ON(!ioctx);
-	WARN_ON(!mutex_is_locked(&ioctx->mutex));
 	WARN_ON(new == SRPT_STATE_NEW);
 
 	previous = ioctx->state;
@@ -760,7 +759,6 @@ srpt_test_and_set_cmd_state(struct srpt_ioctx *ioctx,
 	enum srpt_command_state previous;
 
 	WARN_ON(!ioctx);
-	WARN_ON(!mutex_is_locked(&ioctx->mutex));
 	WARN_ON(expected == SRPT_STATE_ABORTED);
 	WARN_ON(new == SRPT_STATE_NEW);
 
@@ -771,7 +769,7 @@ srpt_test_and_set_cmd_state(struct srpt_ioctx *ioctx,
 	return previous;
 }
 
-/*
+/**
  * Post a receive request on the work queue of InfiniBand device 'sdev'.
  */
 static int srpt_post_recv(struct srpt_device *sdev, struct srpt_ioctx *ioctx)
@@ -792,7 +790,7 @@ static int srpt_post_recv(struct srpt_device *sdev, struct srpt_ioctx *ioctx)
 	return ib_post_srq_recv(sdev->srq, &wr, &bad_wr);
 }
 
-/*
+/**
  * Post an IB send request.
  * @ch: RDMA channel to post the send request on.
  * @ioctx: I/O context of the send request.
@@ -808,7 +806,7 @@ static int srpt_post_send(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 	struct srpt_device *sdev = ch->sport->sdev;
 
 	ib_dma_sync_single_for_device(sdev->device, ioctx->dma,
-				      srp_max_message_size, DMA_TO_DEVICE);
+				      len, DMA_TO_DEVICE);
 
 	list.addr = ioctx->dma;
 	list.length = len;
@@ -836,6 +834,10 @@ static int srpt_get_desc_tbl(struct srpt_ioctx *ioctx, struct srp_cmd *srp_cmd,
 		ioctx->n_rbuf = 1;
 		ioctx->rbufs = &ioctx->single_rbuf;
 
+		ib_dma_sync_single_for_cpu(ioctx->ch->sport->sdev->device,
+					   ioctx->dma + sizeof(struct srp_cmd),
+					   sizeof(*db), DMA_FROM_DEVICE);
+
 		db = (void *)srp_cmd->add_data;
 		memcpy(ioctx->rbufs, db, sizeof *db);
 		ioctx->data_len = be32_to_cpu(db->len);
@@ -860,6 +862,11 @@ static int srpt_get_desc_tbl(struct srpt_ioctx *ioctx, struct srp_cmd *srp_cmd,
 			ioctx->n_rbuf = 0;
 			return -ENOMEM;
 		}
+
+		ib_dma_sync_single_for_cpu(ioctx->ch->sport->sdev->device,
+					   ioctx->dma + sizeof(struct srp_cmd),
+					   ioctx->n_rbuf * sizeof(*db),
+					   DMA_FROM_DEVICE);
 
 		db = idb->desc_list;
 		memcpy(ioctx->rbufs, db, ioctx->n_rbuf * sizeof *db);
@@ -983,9 +990,7 @@ static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 }
 
 /**
- * Abort a command. Must be called from inside rdy_to_xfer, xmit_response or
- * on_free_cmd because any call from outside SCST's command processing callback
- * functions would be racy.
+ * Abort a command.
  */
 static void srpt_abort_scst_cmd(struct srpt_device *sdev,
 				struct scst_cmd *scmnd)
@@ -996,8 +1001,6 @@ static void srpt_abort_scst_cmd(struct srpt_device *sdev,
 
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
 	BUG_ON(!ioctx);
-
-	mutex_lock(&ioctx->mutex);
 
 	previous_state = srpt_set_cmd_state(ioctx, SRPT_STATE_ABORTED);
 	if (previous_state == SRPT_STATE_ABORTED)
@@ -1034,7 +1037,27 @@ static void srpt_abort_scst_cmd(struct srpt_device *sdev,
 	}
 
 out:
-	mutex_unlock(&ioctx->mutex);
+	;
+}
+
+/**
+ * Abort an SCST command if the channel is has been disconnected.
+ *
+ * Returns true if the command has been aborted because the channel is
+ * disconnecting, and false if the channel is not being disconnected.
+ * Must be called from inside rdy_to_xfer, xmit_response or on_free_cmd
+ * because any call from outside SCST's command processing callback functions
+ * would be racy.
+ */
+static bool srpt_abort_if_disconnecting(struct srpt_ioctx *ioctx)
+{
+	BUG_ON(!ioctx);
+
+	if (ioctx->ch->state == RDMA_CHANNEL_DISCONNECTING) {
+		srpt_abort_scst_cmd(ioctx->ch->sport->sdev, ioctx->scmnd);
+		return true;
+	}
+	return false;
 }
 
 static void srpt_handle_err_comp(struct srpt_rdma_ch *ch, struct ib_wc *wc)
@@ -1085,8 +1108,6 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 		return;
 	}
 
-	mutex_lock(&ioctx->mutex);
-
 	/*
 	 * If an RDMA completion notification has been received for a write
 	 * command, tell SCST that processing can continue by calling
@@ -1099,8 +1120,6 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 		scst_rx_data(ioctx->scmnd, SCST_RX_STATUS_SUCCESS,
 			     scst_estimate_context());
 	}
-
-	mutex_unlock(&ioctx->mutex);
 }
 
 /**
@@ -1124,7 +1143,12 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 	struct srp_rsp *srp_rsp;
 	struct sense_data *sense;
 	int limit_delta;
-	int sense_data_len = 0;
+	int sense_data_len;
+	int resp_len;
+
+	sense_data_len = (s_key == NO_SENSE) ? 0
+		: sizeof(*sense) + sizeof(*sense) % 4;
+	resp_len = sizeof(*srp_rsp) + sense_data_len;
 
 	srp_rsp = ioctx->buf;
 	memset(srp_rsp, 0, sizeof *srp_rsp);
@@ -1137,7 +1161,6 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 	srp_rsp->tag = tag;
 
 	if (s_key != NO_SENSE) {
-		sense_data_len = sizeof *sense + (sizeof *sense % 4);
 		srp_rsp->flags |= SRP_RSP_FLAG_SNSVALID;
 		srp_rsp->status = SAM_STAT_CHECK_CONDITION;
 		srp_rsp->sense_data_len = cpu_to_be32(sense_data_len);
@@ -1148,7 +1171,7 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 		sense->asc_ascq = s_code;
 	}
 
-	return sizeof(*srp_rsp) + sense_data_len;
+	return resp_len;
 }
 
 /**
@@ -1170,10 +1193,11 @@ static int srpt_build_tskmgmt_rsp(struct srpt_rdma_ch *ch,
 {
 	struct srp_rsp *srp_rsp;
 	int limit_delta;
-	int resp_data_len = 0;
+	int resp_data_len;
+	int resp_len;
 
-	ib_dma_sync_single_for_cpu(ch->sport->sdev->device, ioctx->dma,
-				   srp_max_message_size, DMA_TO_DEVICE);
+	resp_data_len = (rsp_code == SRP_TSK_MGMT_SUCCESS) ? 0 : 4;
+	resp_len = sizeof(*srp_rsp) + resp_data_len;
 
 	srp_rsp = ioctx->buf;
 	memset(srp_rsp, 0, sizeof *srp_rsp);
@@ -1186,13 +1210,12 @@ static int srpt_build_tskmgmt_rsp(struct srpt_rdma_ch *ch,
 	srp_rsp->tag = tag;
 
 	if (rsp_code != SRP_TSK_MGMT_SUCCESS) {
-		resp_data_len = 4;
 		srp_rsp->flags |= SRP_RSP_FLAG_RSPVALID;
 		srp_rsp->resp_data_len = cpu_to_be32(resp_data_len);
 		srp_rsp->data[3] = rsp_code;
 	}
 
-	return sizeof(*srp_rsp) + resp_data_len;
+	return resp_len;
 }
 
 /*
@@ -1312,6 +1335,10 @@ static int srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 	struct srp_tsk_mgmt *srp_tsk;
 	struct srpt_mgmt_ioctx *mgmt_ioctx;
 	int ret;
+
+	ib_dma_sync_single_for_cpu(ch->sport->sdev->device, ioctx->dma,
+				   sizeof(struct srp_tsk_mgmt),
+				   DMA_FROM_DEVICE);
 
 	srp_tsk = ioctx->buf;
 
@@ -1437,9 +1464,8 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 	spin_unlock_irqrestore(&ch->spinlock, flags);
 
 	ib_dma_sync_single_for_cpu(ch->sport->sdev->device, ioctx->dma,
-				   srp_max_message_size, DMA_FROM_DEVICE);
+				   sizeof(struct srp_cmd), DMA_FROM_DEVICE);
 
-	mutex_init(&ioctx->mutex);
 	ioctx->data_len = 0;
 	ioctx->n_rbuf = 0;
 	ioctx->rbufs = NULL;
@@ -1471,10 +1497,6 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 				   srp_cmd->tag);
 		goto err;
 	}
-
-	ib_dma_sync_single_for_device(ch->sport->sdev->device,
-				   ioctx->dma, srp_max_message_size,
-				   DMA_FROM_DEVICE);
 
 	return;
 
@@ -1684,6 +1706,8 @@ static struct srpt_rdma_ch *srpt_find_channel(struct ib_cm_id *cm_id, bool del)
  */
 static void srpt_release_channel(struct srpt_rdma_ch *ch, bool destroy_cmid)
 {
+	unsigned long flags;
+
 	TRACE_ENTRY();
 
 	WARN_ON(srpt_find_channel(ch->cm_id, false) == ch);
@@ -1713,20 +1737,20 @@ static void srpt_release_channel(struct srpt_rdma_ch *ch, bool destroy_cmid)
 		else
 			PRINT_INFO("Releasing session %s", ch->sess_name);
 
-		spin_lock_irq(&ch->spinlock);
+		spin_lock_irqsave(&ch->spinlock, flags);
 		list_for_each_entry_safe(ioctx, ioctx_tmp,
 					 &ch->active_scmnd_list, scmnd_list) {
-			spin_unlock_irq(&ch->spinlock);
+			spin_unlock_irqrestore(&ch->spinlock, flags);
 
 			if (ioctx->scmnd)
 				srpt_abort_scst_cmd(ch->sport->sdev,
 						    ioctx->scmnd);
 
-			spin_lock_irq(&ch->spinlock);
+			spin_lock_irqsave(&ch->spinlock, flags);
 		}
 		WARN_ON(!list_empty(&ch->active_scmnd_list));
 		WARN_ON(ch->active_scmnd_cnt != 0);
-		spin_unlock_irq(&ch->spinlock);
+		spin_unlock_irqrestore(&ch->spinlock, flags);
 
 		scst_unregister_session(ch->scst_sess, 0, NULL);
 		ch->scst_sess = NULL;
@@ -2416,10 +2440,9 @@ static int srpt_rdy_to_xfer(struct scst_cmd *scmnd)
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
 	BUG_ON(!ioctx);
 
-	mutex_lock(&ioctx->mutex);
-
 	if (srpt_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA)
-	    == SRPT_STATE_ABORTED) {
+	    == SRPT_STATE_ABORTED
+	    || srpt_abort_if_disconnecting(ioctx)) {
 		TRACE_DBG("cmd with tag %lld has been aborted",
 			  scst_cmd_get_tag(scmnd));
 		ret = SCST_TGT_RES_FATAL_ERROR;
@@ -2442,8 +2465,6 @@ static int srpt_rdy_to_xfer(struct scst_cmd *scmnd)
 	ret = srpt_xfer_data(ch, ioctx, scmnd);
 
 out:
-	mutex_unlock(&ioctx->mutex);
-
 	return ret;
 }
 
@@ -2464,10 +2485,9 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
 	BUG_ON(!ioctx);
 
-	mutex_lock(&ioctx->mutex);
-
 	if (srpt_set_cmd_state(ioctx, SRPT_STATE_PROCESSED)
-	    == SRPT_STATE_ABORTED) {
+	    == SRPT_STATE_ABORTED
+	    || srpt_abort_if_disconnecting(ioctx)) {
 		TRACE_DBG("cmd with tag %lld has been aborted",
 			  scst_cmd_get_tag(scmnd));
 		ret = SCST_TGT_RES_FATAL_ERROR;
@@ -2496,11 +2516,6 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 		goto out;
 	}
 
-	ib_dma_sync_single_for_cpu(ch->sport->sdev->device, ioctx->dma,
-				   srp_max_message_size, DMA_TO_DEVICE);
-
-	srp_rsp = ioctx->buf;
-
 	if (unlikely(scst_cmd_aborted(scmnd))) {
 		TRACE_MGMT_DBG("%s: tag= %lld already got aborted",
 			       __func__, (unsigned long long)tag);
@@ -2511,6 +2526,8 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	status = scst_cmd_get_status(scmnd) & 0xff;
 
 	srpt_build_cmd_rsp(ch, ioctx, NO_SENSE, NO_ADD_SENSE, tag);
+
+	srp_rsp = ioctx->buf;
 
 	if (SCST_SENSE_VALID(scst_cmd_get_sense_buffer(scmnd))) {
 		srp_rsp->sense_data_len = scst_cmd_get_sense_buffer_len(scmnd);
@@ -2554,14 +2571,12 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	}
 
 out:
-	mutex_unlock(&ioctx->mutex);
 	return ret;
 
 out_aborted:
 	ret = SCST_TGT_RES_SUCCESS;
-	mutex_unlock(&ioctx->mutex);
 	srpt_abort_scst_cmd(ch->sport->sdev, scmnd);
-	return ret;
+	goto out;
 }
 
 /*
@@ -2584,14 +2599,13 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 	ioctx = mgmt_ioctx->ioctx;
 	BUG_ON(!ioctx);
 
-	mutex_lock(&ioctx->mutex);
-
 	TRACE_DBG("%s: tsk_mgmt_done for tag= %lld status=%d",
 		  __func__, (unsigned long long)mgmt_ioctx->tag,
 		  scst_mgmt_cmd_get_status(mcmnd));
 
 	if (srpt_set_cmd_state(ioctx, SRPT_STATE_PROCESSED)
-	    == SRPT_STATE_ABORTED)
+	    == SRPT_STATE_ABORTED
+	    || srpt_abort_if_disconnecting(ioctx))
 		goto out;
 
 	rsp_len = srpt_build_tskmgmt_rsp(ch, ioctx,
@@ -2607,7 +2621,7 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 	kfree(mgmt_ioctx);
 
 out:
-	mutex_unlock(&ioctx->mutex);
+	;
 }
 
 /*
@@ -2618,24 +2632,22 @@ static void srpt_on_free_cmd(struct scst_cmd *scmnd)
 {
 	struct srpt_rdma_ch *ch;
 	struct srpt_ioctx *ioctx;
+	unsigned long flags;
 
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
 	BUG_ON(!ioctx);
 
-	mutex_lock(&ioctx->mutex);
-
+	srpt_set_cmd_state(ioctx, SRPT_STATE_ABORTED);
 	ch = ioctx->ch;
 	BUG_ON(!ch);
-	spin_lock_irq(&ch->spinlock);
+	spin_lock_irqsave(&ch->spinlock, flags);
 	list_del(&ioctx->scmnd_list);
 	ch->active_scmnd_cnt--;
-	spin_unlock_irq(&ch->spinlock);
+	spin_unlock_irqrestore(&ch->spinlock, flags);
 	ioctx->ch = NULL;
 
 	srpt_reset_ioctx(ch, ioctx);
 	scst_cmd_set_tgt_priv(scmnd, NULL);
-
-	mutex_unlock(&ioctx->mutex);
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && ! defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
