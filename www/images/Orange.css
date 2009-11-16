@@ -19,7 +19,7 @@ a:hover {
 }
 
 /* headers */
-h1, h2, h3, companysubtitle {
+h1, h2, h3, .companysubtitles {
 	font: bold 1em 'Trebuchet MS', Tahoma, Sans-serif;
 	text-transform: uppercase;
 	color: #555;
@@ -27,7 +27,7 @@ h1, h2, h3, companysubtitle {
 h1 { font-size: 1.5em; }
 h2 { font-size: 1.3em; }
 h3 { font-size: 1.2em; text-transform: none;}
-companysubtitle { font-size: 1.4em; }
+.companysubtitles { font-size: 1.3em; }
 
 #main h1, #rightbar h1 {
 	padding: 10px 0 5px 5px;
@@ -143,14 +143,14 @@ form.searchform input.button {
 /*****************/
 #wrap {
 	margin: 0 auto;
-	width: 850px;  	
+	width: 880px;  	
 	text-align: left;		
 	background: #FFF;	
 }
 #content-wrap {
 	clear:both;
 	margin: 0; padding:0;
-	width: 850px;	
+	width: 880px;	
 }
 
 /* header */
