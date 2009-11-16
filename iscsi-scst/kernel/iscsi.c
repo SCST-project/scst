@@ -302,7 +302,7 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 			case ISCSI_CMD_STATE_PROCESSED:
 				TRACE_DBG("cmd %p PROCESSED", cmnd);
 				scst_tgt_cmd_done(cmnd->scst_cmd,
-					SCST_CONTEXT_DIRECT);
+					SCST_CONTEXT_DIRECT_ATOMIC);
 				break;
 
 			case ISCSI_CMD_STATE_AFTER_PREPROC:

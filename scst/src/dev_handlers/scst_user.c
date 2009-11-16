@@ -671,7 +671,7 @@ static int dev_user_alloc_space(struct scst_user_cmd *ucmd)
 		goto out;
 	}
 
-	if ((cmd->data_direction != SCST_DATA_WRITE) &&
+	if (!(cmd->data_direction & SCST_DATA_WRITE) &&
 	    !scst_is_cmd_local(cmd)) {
 		TRACE_DBG("Delayed alloc, ucmd %p", ucmd);
 		goto out;

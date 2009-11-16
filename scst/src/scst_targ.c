@@ -480,7 +480,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	if (likely(!scst_is_cmd_local(cmd))) {
+	if (likely(!scst_is_cmd_fully_local(cmd))) {
 		if (unlikely(!dev->handler->parse_atomic &&
 			     scst_cmd_atomic(cmd))) {
 			/*
@@ -1603,12 +1603,13 @@ static int scst_request_sense_local(struct scst_cmd *cmd)
 
 	scst_put_buf(cmd, buffer);
 
-out_compl:
 	tgt_dev->tgt_dev_valid_sense_len = 0;
-	scst_set_resp_data_len(cmd, sl);
 
 	spin_unlock_bh(&tgt_dev->tgt_dev_lock);
 
+	scst_set_resp_data_len(cmd, sl);
+
+out_compl:
 	cmd->completed = 1;
 
 out_done:
@@ -1620,6 +1621,7 @@ out:
 	return res;
 
 out_hw_err:
+	spin_unlock_bh(&tgt_dev->tgt_dev_lock);
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 	goto out_compl;
 
@@ -2133,12 +2135,7 @@ static int scst_do_local_exec(struct scst_cmd *cmd)
 		goto out_done;
 	}
 
-	/*
-	 * Adding new commands here don't forget to update
-	 * scst_is_cmd_local() in scst.h, if necessary
-	 */
-
-	if (!(cmd->op_flags & SCST_LOCAL_EXEC_NEEDED)) {
+	if (!scst_is_cmd_local(cmd)) {
 		res = SCST_EXEC_NOT_COMPLETED;
 		goto out;
 	}
@@ -2745,7 +2742,7 @@ static int scst_dev_done(struct scst_cmd *cmd)
 
 	state = SCST_CMD_STATE_PRE_XMIT_RESP;
 
-	if (likely(!scst_is_cmd_local(cmd)) &&
+	if (likely(!scst_is_cmd_fully_local(cmd)) &&
 	    likely(dev->handler->dev_done != NULL)) {
 		int rc;
 
@@ -3503,6 +3500,8 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 	TRACE_ENTRY();
 
 	EXTRACHECKS_BUG_ON(in_irq() || irqs_disabled());
+	EXTRACHECKS_WARN_ON((in_atomic() || in_interrupt() || irqs_disabled()) &&
+			     !atomic);
 
 	cmd->atomic = atomic;
 
