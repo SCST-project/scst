@@ -19,7 +19,7 @@ a:hover {
 }
 
 /* headers */
-h1, h2, h3 {
+h1, h2, h3, companysubtitle {
 	font: bold 1em 'Trebuchet MS', Tahoma, Sans-serif;
 	text-transform: uppercase;
 	color: #555;
@@ -27,6 +27,7 @@ h1, h2, h3 {
 h1 { font-size: 1.5em; }
 h2 { font-size: 1.3em; }
 h3 { font-size: 1.2em; text-transform: none;}
+companysubtitle { font-size: 1.4em; }
 
 #main h1, #rightbar h1 {
 	padding: 10px 0 5px 5px;
@@ -41,7 +42,7 @@ h3 { font-size: 1.2em; text-transform: none;}
 	text-transform: uppercase;	
 }
 
-p, h1, h2, h3, h4 { margin: 10px 15px; }
+p, h1, h2, h3, h4, companysubtitle { margin: 10px 15px; }
 
 ul, ol {
 	margin: 10px 30px;
@@ -142,13 +143,13 @@ form.searchform input.button {
 /*****************/
 #wrap {
 	margin: 0 auto;
-   width: 850px;  	
+	width: 850px;  	
 	text-align: left;		
 	background: #FFF;	
 }
 #content-wrap {
 	clear:both;
-   margin: 0; padding:0;
+	margin: 0; padding:0;
 	width: 850px;	
 }
 
@@ -320,12 +321,13 @@ font.names { color: #EC981F ; }
 /* Company Logo Boxes */
 .companybox { 
 	border-color : #FFFFFF;
-	border : 1px #FFFFFF;
-	border-top : #999999 1pt solid;
-	border-left : #999999 1pt solid; 
-	border-right : #999999 1pt solid;
-	border-bottom : #999999 1pt solid;
-	text-align: center;
+	border : 0px #FFFFFF;
+	border-top : #999999 0pt solid;
+	border-left : #999999 0pt solid; 
+	border-right : #999999 0pt solid;
+	border-bottom : #999999 0pt solid;
+	text-align: left;
+	padding: 10px 10px 10px 10px;
 }
 
 
