@@ -1146,8 +1146,6 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 	int sense_data_len;
 	int resp_len;
 
-	BUILD_BUG_ON((sizeof(*sense) % 4) != 0);
-
 	sense_data_len = (s_key == NO_SENSE) ? 0 : sizeof(*sense);
 	resp_len = sizeof(*srp_rsp) + sense_data_len;
 
