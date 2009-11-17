@@ -3499,6 +3499,11 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 
 	TRACE_ENTRY();
 
+	/*
+	 * Checkpatch will complain on the use of in_atomic() below. You
+	 * can safely ignore this warning since in_atomic() is used here only
+	 * for debugging purposes.
+	 */
 	EXTRACHECKS_BUG_ON(in_irq() || irqs_disabled());
 	EXTRACHECKS_WARN_ON((in_atomic() || in_interrupt() || irqs_disabled()) &&
 			     !atomic);

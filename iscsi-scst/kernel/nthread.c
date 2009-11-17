@@ -765,7 +765,7 @@ out:
 static void process_read_io(struct iscsi_conn *conn, int *closed)
 {
 	struct iscsi_cmnd *cmnd = conn->read_cmnd;
-	int res = 0;
+	int res;
 
 	TRACE_ENTRY();
 
@@ -914,6 +914,7 @@ static void process_read_io(struct iscsi_conn *conn, int *closed)
 
 		default:
 			PRINT_CRIT_ERROR("%d %x", conn->read_state, cmnd_opcode(cmnd));
+			res = -1; /* to keep compiler happy */
 			sBUG();
 		}
 	} while (res == 0);
