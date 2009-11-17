@@ -2949,11 +2949,15 @@ static int q2x_do_send_cmd_to_scst(struct q2t_cmd *cmd)
 	scst_cmd_set_tag(cmd->scst_cmd, cmd->tag);
 	scst_cmd_set_tgt_priv(cmd->scst_cmd, cmd);
 
-	dir = SCST_DATA_NONE;
-	if (atio->execution_codes & ATIO_EXEC_READ)
-		dir |= SCST_DATA_READ;
-	if (atio->execution_codes & ATIO_EXEC_WRITE)
-		dir |= SCST_DATA_WRITE;
+	if ((atio->execution_codes & (ATIO_EXEC_READ | ATIO_EXEC_WRITE)) ==
+				(ATIO_EXEC_READ | ATIO_EXEC_WRITE))
+		dir = SCST_DATA_BIDI;
+	else if (atio->execution_codes & ATIO_EXEC_READ)
+		dir = SCST_DATA_READ;
+	else if (atio->execution_codes & ATIO_EXEC_WRITE)
+		dir = SCST_DATA_WRITE;
+	else
+		dir = SCST_DATA_NONE;
 	scst_cmd_set_expected(cmd->scst_cmd, dir,
 		le32_to_cpu(atio->data_length));
 
@@ -3021,11 +3025,14 @@ static int q24_do_send_cmd_to_scst(struct q2t_cmd *cmd)
 	scst_cmd_set_tag(cmd->scst_cmd, cmd->tag);
 	scst_cmd_set_tgt_priv(cmd->scst_cmd, cmd);
 
-	dir = SCST_DATA_NONE;
-	if (atio->fcp_cmnd.rddata)
-		dir |= SCST_DATA_READ;
-	if (atio->fcp_cmnd.wrdata)
-		dir |= SCST_DATA_WRITE;
+	if (atio->fcp_cmnd.rddata && atio->fcp_cmnd.wrdata)
+		dir = SCST_DATA_BIDI;
+	else if (atio->fcp_cmnd.rddata)
+		dir = SCST_DATA_READ;
+	else if (atio->fcp_cmnd.wrdata)
+		dir = SCST_DATA_WRITE;
+	else 
+		dir = SCST_DATA_NONE;
 	scst_cmd_set_expected(cmd->scst_cmd, dir,
 		be32_to_cpu(atio->fcp_cmnd.data_length));
 
