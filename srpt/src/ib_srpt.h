@@ -237,14 +237,24 @@ struct srpt_device {
 	struct scst_tgt *scst_tgt;
 };
 
-/* sense code/qualifier pairs */
+/*
+ * Sense code/qualifier pairs (sense_data::key) as defined in the SCSI Primary
+ * Commands (SPC) standard. Bits 0 .. 3 contain the sense key, bit 4 is
+ * reserved, bit 5 is the ILI (incorrect length indicator) bit, bit 6 is the
+ * EOM (end-of-medium) bit and bit 7 is the
+ * FILEMARK bit.
+ */
 enum {
-	NO_ADD_SENSE = 0x00,
-	LUN_NOT_READY = 0x04,
-	INVALID_CDB = 0x24,
-	INTERNAL_TARGET_FAILURE = 0x44
+	NO_ADD_SENSE            = 0x00,
+	LUN_NOT_READY           = 0x04, /* HARDWARE ERROR */
+	INVALID_CDB             = 0x24, /* ILI | HARDWARE ERROR */
+	INTERNAL_TARGET_FAILURE = 0x44  /* EOM | HARDWARE ERROR */
 };
 
+/*
+ * Sense data structure containing three sense bytes. See also the SCSI Primary
+ * Commands (SPC) standard.
+ */
 struct sense_data {
 	u8 err_code;
 	u8 segment_number;
