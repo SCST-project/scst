@@ -11,3 +11,22 @@
 
 4. Implement support for bidirectionial SCSI commands. The SRP protocol
    supports these, but the SRP target not yet.
+
+
+5. Remove "struct sense_data" from ib_srpt.h and use the functions for
+   manipulating sense data from the SCST core instead.
+
+
+6. Evaluate the possibility of removing the worker thread entirely and
+   instead to add a compile-time option called e.g. CONFIG_SRPT_WORK_IN_TREAD.
+   This compile-time option, if enabled, will process all commands in the SCST
+   context SCST_CONTEXT_THREAD, similar to CONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD.
+
+
+7. Allocate memory for task management data structures from a memory pool
+   instead of via kmalloc(..., GFP_ATOMIC). The last call has a high
+   probability of failing because the GFP_ATOMIC area is quite small and
+   heavily used when under load (e.g. network drivers allocate skb's from this
+   pool). Failure to allocate memory for even a single task management command
+   would lead to putting the whole device offline with possible corresponding
+   data loss.
