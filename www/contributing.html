@@ -38,7 +38,7 @@
 				better support and troubleshooting for you. Donations can be on one time or per period of time basis,
 				from companies or individuals. They can be sent by direct bank transfer or using
 				Western Union, Moneygram or similar payment systems. Unfortunately, more convenient options,
-				like PayPal, are not available in Russia.
+				like PayPal, are not available in Russia.</span></li>
 				<li><span>By sending patches, which fix bugs or implement new functionality.
     				          See below a list of possible SCST improvements with some possible 
     				          implementation ideas.</span></li>
@@ -46,7 +46,7 @@
 					For instance, <a href="scst_pg.html">SCST internals description</a> document is
 					in some areas quite outdated. Particularly, many functions were renamed since
 					time, when it was written. It would be good to bring it up to date.</span></li>
-    				<li><span>By reporting bugs or other problems.</span></li>
+    			<li><span>By reporting bugs or other problems.</span></li>
 				</ul>			
 
 				<p>Contributing in SCST, you investing not only
@@ -210,8 +210,8 @@
 				<li><span>In scst_finish_cmd() dev->max_exec_ratio set to max(dev->max_exec_ratio, 
 				(cmd's exec_time)*100/cmd->timeout).</span></li>
 
-				<li><span>If in scst_finish_cmd() cmd's exec time is above cmd->timeout/Q and 
-				time from the latest quick fall is above QI, then:
+				<li><font color="#666666">If in scst_finish_cmd() cmd's exec time is above cmd->timeout/Q and 
+				time from the latest quick fall is above QI, then:</font>
 
 					<ul>
 					<li><span>dev->queue_depth set to max(1, dev->queue_depth/QD).</span></li>
@@ -219,7 +219,7 @@
 				   	<li><span>Flow control period reset, i.e. started again, including setting 
 					dev->max_exec_ratio to 0 and dev->quick_fall_time to jiffies.</span></li>
 					</ul>
-					</span></li>
+				</li>
 				</ul>
 
 				<p>4. There should be a work, which once in a P seconds will check 
@@ -229,7 +229,7 @@
 				<li><span>If device neither underloaded, nor overloaded. i.e. max_exec_ratio 
 				between defined by MN and MX, do nothing.</span></li>
 
-				<li><span>If device was underloaded:
+				<li><font color="#666666">If device was underloaded:</font>
 				
 					<ul>
 					<li><span>if dev->queue_was_full is false, then do nothing.</span></li>
@@ -237,7 +237,7 @@
 				    	<li><span>if dev->queue_was_full is true, then set dev->queue_depth to
 					min(SCST_MAX_DEV_COMMANDS, dev->queue_depth + I).</span></li>
 					</ul>
-					</span></li>
+				</li>
 
 				<li><span>If device was overloaded, then set dev->queue_depth to max(1, 
 				dev->queue_depth/D).</span></li>
@@ -292,10 +292,11 @@
 				 
 				 <p>Then vdisk_do_job() should look like</p>
 				 
-				 <listing><p>static int vdisk_do_job(struct scst_cmd *cmd)
-{
-	return vdisk_exec_fns[cmd->cdb[0]](cmd);
-}</p></listing>
+				 <p><code>static int vdisk_do_job(struct scst_cmd *cmd)<br>
+				 			{<br>
+								return vdisk_exec_fns[cmd->cdb[0]](cmd);<br>
+							}
+				</code></p>
 
 				<A NAME="SG_LIMIT"></A><h3>Solve SG IO count limitation issue in pass-through mode</h3>
 				
@@ -317,11 +318,11 @@
 				<ul>
 				
 				<li><span><a href="sgv_big_order_alloc-r2.diff">sgv_big_order_alloc-r2.diff</a> - this patch
-				has all the required features, but has a memory corruption.</li></span>
+				has all the required features, but has a memory corruption.</span></li>
 
 				<li><span><a href="sgv_big_order_alloc-sfw4.diff">sgv_big_order_alloc-sfw4.diff</a> - this patch,
 				created by Frank Zago, works for him, but doesn't have all the required features to be merged
-				in SCST.</li></span>
+				in SCST.</span></li>
 
 				</ul>
 
@@ -453,18 +454,13 @@
 			</div>
 	</div>
 </div>
-<!-- wrap ends here -->
+<!-- wrap ends here -->
 <!-- footer starts here -->		
-		<div id="footer">
-			<p>
-			&copy; Copyright 2004-2009 <b><font color="#EC981F">Vladislav Bolkhovitin &amp others.</font>&nbsp;&nbsp;
-			Design by: <b><font color="#EC981F">Daniel Fernandes</font></b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;		
-			
-			</p>		
-		</div>	
+<div id="footer">
+	<p>&copy; Copyright 2004-2009 <b><font color="#EC981F">Vladislav Bolkhovitin &amp others.</font></b>&nbsp;&nbsp;
+	   Design by: <b><font color="#EC981F">Daniel Fernandes</font></b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</p>		
+</div>	
 <!-- footer ends here -->
-</body> 
-
 <!-- Piwik -->
 <script type="text/javascript">
 var pkBaseURL = (("https:" == document.location.protocol) ? "https://apps.sourceforge.net/piwik/scst/" : "http://apps.sourceforge.net/piwik/scst/");
@@ -475,7 +471,7 @@ piwik_idsite = 1;
 piwik_url = pkBaseURL + "piwik.php";
 piwik_log(piwik_action_name, piwik_idsite, piwik_url);
 </script>
-<object><noscript><p><img src="http://apps.sourceforge.net/piwik/scst/piwik.php?idsite=1" alt="piwik"/></p></noscript></object>
+<object><noscript><p><img src="http://apps.sourceforge.net/piwik/scst/piwik.php?idsite=1" alt="piwik"></p></noscript></object>
 <!-- End Piwik Tag -->
-
+</body>
 </html>

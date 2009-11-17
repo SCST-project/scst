@@ -113,7 +113,7 @@ be cleared.
 	can simply immediately retry them. For CLEAR TASK SET if TAS isn't set
 	all affected initiators will be notified by Unit Attention COMMANDS
 	CLEARED BY ANOTHER INITIATOR, so they also can immediately retry all
-	outstanding commands.</li></span>
+	outstanding commands.</span></li>
 
 	<li><span>In case of device reset the affected initiators will be notified via
 	the corresponding Unit Attention about the device reset, i.e. about reset of
@@ -121,7 +121,7 @@ be cleared.
 	recovery actions. Usually no recovery actions are needed, except for the
 	reservation holder, whose reservation was cleared. For it recovery might
 	be not trivial. But Persistent Reservations solve this issue, because
-	they are not cleared by the device reset.</li></span>
+	they are not cleared by the device reset.</span></li>
 </ul>
 
 <p>Thus, with Persistent Reservations or using  CLEAR TASK SET function
@@ -246,16 +246,11 @@ removed and, hence, all investments in it will be voided.</p>
 </div>		
 <!-- wrap ends here -->
 <!-- footer starts here -->		
-		<div id="footer">
-			<p>
-			&copy; Copyright 2004-2009 <b><font color="#EC981F">Vladislav Bolkhovitin &amp others.</font>&nbsp;&nbsp;
-			Design by: <b><font color="#EC981F">Daniel Fernandes</font></b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;		
-			
-			</p>		
-		</div>	
+<div id="footer">
+	<p>&copy; Copyright 2004-2009 <b><font color="#EC981F">Vladislav Bolkhovitin &amp others.</font></b>&nbsp;&nbsp;
+	   Design by: <b><font color="#EC981F">Daniel Fernandes</font></b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</p>		
+</div>	
 <!-- footer ends here -->
-</body>
-
 <!-- Piwik -->
 <script type="text/javascript">
 var pkBaseURL = (("https:" == document.location.protocol) ? "https://apps.sourceforge.net/piwik/scst/" : "http://apps.sourceforge.net/piwik/scst/");
@@ -266,7 +261,7 @@ piwik_idsite = 1;
 piwik_url = pkBaseURL + "piwik.php";
 piwik_log(piwik_action_name, piwik_idsite, piwik_url);
 </script>
-<object><noscript><p><img src="http://apps.sourceforge.net/piwik/scst/piwik.php?idsite=1" alt="piwik"/></p></noscript></object>
+<object><noscript><p><img src="http://apps.sourceforge.net/piwik/scst/piwik.php?idsite=1" alt="piwik"></p></noscript></object>
 <!-- End Piwik Tag -->
-
+</body>
 </html>
