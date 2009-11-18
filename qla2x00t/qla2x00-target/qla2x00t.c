@@ -3031,7 +3031,7 @@ static int q24_do_send_cmd_to_scst(struct q2t_cmd *cmd)
 		dir = SCST_DATA_READ;
 	else if (atio->fcp_cmnd.wrdata)
 		dir = SCST_DATA_WRITE;
-	else 
+	else
 		dir = SCST_DATA_NONE;
 	scst_cmd_set_expected(cmd->scst_cmd, dir,
 		be32_to_cpu(atio->fcp_cmnd.data_length));
