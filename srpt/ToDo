@@ -30,3 +30,13 @@
    pool). Failure to allocate memory for even a single task management command
    would lead to putting the whole device offline with possible corresponding
    data loss.
+
+
+8. Replace the calls to srpt_abort_if_disconnecting() by calls to
+   scst_cmd_aborted().
+
+
+9. Start using the SGV clustering pool. More information can be found in the
+   documentation of struct scst_tgt_template in scst.h (use_clustering has to
+   be set to 1). A general description of the SGV cache can be found here:
+   http://scst.sourceforge.net/sgv_cache.txt.
