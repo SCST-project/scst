@@ -33,6 +33,11 @@
 #include "scst.h"
 #include "scst_priv.h"
 
+#if 0 /* Temporary, left for future performance investigations */
+/* Deleting it don't forget to delete write_cmd_count */
+#define CONFIG_SCST_ORDERED_READS
+#endif
+
 static void scst_cmd_set_sn(struct scst_cmd *cmd);
 static int __scst_init_cmd(struct scst_cmd *cmd);
 static void scst_finish_cmd_mgmt(struct scst_cmd *cmd);
@@ -2855,10 +2860,11 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 	if (likely(cmd->tgt_dev != NULL)) {
 		atomic_dec(&cmd->tgt_dev->tgt_dev_cmd_count);
 		atomic_dec(&cmd->dev->dev_cmd_count);
+#ifdef CONFIG_SCST_ORDERED_READS
 		/* If expected values not set, expected direction is UNKNOWN */
 		if (cmd->expected_data_direction & SCST_DATA_WRITE)
 			atomic_dec(&cmd->dev->write_cmd_count);
-
+#endif
 		if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))
 			scst_on_hq_cmd_response(cmd);
 
@@ -3136,7 +3142,7 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 	switch (cmd->queue_type) {
 	case SCST_CMD_QUEUE_SIMPLE:
 	case SCST_CMD_QUEUE_UNTAGGED:
-#if 0 /* left for future performance investigations */
+#ifdef CONFIG_SCST_ORDERED_READS
 		if (scst_cmd_is_expected_set(cmd)) {
 			if ((cmd->expected_data_direction == SCST_DATA_READ) &&
 			    (atomic_read(&cmd->dev->write_cmd_count) == 0))
@@ -3332,9 +3338,11 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 			}
 		}
 
+#ifdef CONFIG_SCST_ORDERED_READS
 		/* If expected values not set, expected direction is UNKNOWN */
 		if (cmd->expected_data_direction & SCST_DATA_WRITE)
 			atomic_inc(&cmd->dev->write_cmd_count);
+#endif
 
 		if (unlikely(failure))
 			goto out_busy;
