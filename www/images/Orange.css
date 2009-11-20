@@ -201,6 +201,13 @@ div.logoimg {
 	/*border-left: 1px solid #f2f2f2;*/
 }
 
+#main2 {
+	float: left;
+	margin-left: 15px;
+	padding: 0;
+	width: 96%;	
+}
+
 .post-footer {
 	background-color: #FAFAFA;
 	padding: 5px; margin-top: 20px;
