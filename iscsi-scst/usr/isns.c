@@ -87,25 +87,29 @@ static int isns_get_ip(int fd)
 {
 	int err, i;
 	uint32_t addr;
-	struct sockaddr_storage lss;
+	union {
+		struct sockaddr sa;
+		struct sockaddr_in sin;
+		struct sockaddr_in6 sin6;
+	} lss;
 	socklen_t slen = sizeof(lss);
 
-	err = getsockname(fd, (struct sockaddr *) &lss, &slen);
+	err = getsockname(fd, &lss.sa, &slen);
 	if (err) {
 		log_error("getsockname error: %s!", gai_strerror(err));
 		return err;
 	}
 
-	err = getnameinfo((struct sockaddr *) &lss, sizeof(lss),
+	err = getnameinfo(&lss.sa, sizeof(lss),
 			  eid, sizeof(eid), NULL, 0, 0);
 	if (err) {
 		log_error("getaddrinfo error: %s!", gai_strerror(err));
 		return err;
 	}
 
-	switch (lss.ss_family) {
+	switch (lss.sa.sa_family) {
 	case AF_INET:
-		addr = (((struct sockaddr_in *) &lss)->sin_addr.s_addr);
+		addr = lss.sin.sin_addr.s_addr;
 
 		ip[10] = ip[11] = 0xff;
 		ip[15] = 0xff & (addr >> 24);
@@ -115,7 +119,7 @@ static int isns_get_ip(int fd)
 		break;
 	case AF_INET6:
 		for (i = 0; i < ARRAY_SIZE(ip); i++)
-			ip[i] = ((struct sockaddr_in6 *) &lss)->sin6_addr.s6_addr[i];
+			ip[i] = lss.sin6.sin6_addr.s6_addr[i];
 		break;
 	}
 
@@ -755,12 +759,16 @@ int isns_handle(int is_timeout, int *timeout)
 
 static int scn_accept_connection(void)
 {
-	struct sockaddr_storage from;
+	union {
+		struct sockaddr sa;
+		struct sockaddr_in sin;
+		struct sockaddr_in6 sin6;
+	} from;
 	socklen_t slen;
 	int fd, err, opt = 1;
 
 	slen = sizeof(from);
-	fd = accept(scn_listen_fd, (struct sockaddr *) &from, &slen);
+	fd = accept(scn_listen_fd, &from.sa, &slen);
 	if (fd < 0) {
 		log_error("%s %d: accept error: %s", __func__, __LINE__,
 			  strerror(errno));
@@ -850,7 +858,11 @@ int isns_scn_handle(int is_accept)
 static int scn_init(char *addr)
 {
 	int fd, opt, err;
-	struct sockaddr_storage lss;
+	union {
+		struct sockaddr sa;
+		struct sockaddr_in sin;
+		struct sockaddr_in6 sin6;
+	} lss;
 	socklen_t slen;
 
 	fd = socket(ss.ss_family, SOCK_STREAM, IPPROTO_TCP);
@@ -882,10 +894,10 @@ static int scn_init(char *addr)
 	}
 
 	/* protocol independent way ? */
-	if (lss.ss_family == AF_INET6)
-		scn_listen_port = ntohs(((struct sockaddr_in6 *) &lss)->sin6_port);
+	if (lss.sa.sa_family == AF_INET6)
+		scn_listen_port = ntohs(lss.sin6.sin6_port);
 	else
-		scn_listen_port = ntohs(((struct sockaddr_in *) &lss)->sin_port);
+		scn_listen_port = ntohs(lss.sin.sin_port);
 
 	log_error("scn listen port %u %d %d\n", scn_listen_port, fd, err);
 out:

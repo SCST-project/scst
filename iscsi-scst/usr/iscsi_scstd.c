@@ -205,7 +205,11 @@ static void create_listen_socket(struct pollfd *array)
 
 static void accept_connection(int listen)
 {
-	struct sockaddr_storage from, to;
+	union {
+		struct sockaddr sa;
+		struct sockaddr_in sin;
+		struct sockaddr_in6 sin6;
+	} from, to;
 	char portal[50]; /* for full IP6 address + port */
 	socklen_t namesize;
 	struct pollfd *pollfd;
@@ -213,7 +217,7 @@ static void accept_connection(int listen)
 	int fd, i, rc;
 
 	namesize = sizeof(from);
-	if ((fd = accept(listen, (struct sockaddr *)&from, &namesize)) < 0) {
+	if ((fd = accept(listen, &from.sa, &namesize)) < 0) {
 		switch (errno) {
 		case EINTR:
 		case EAGAIN:
@@ -234,14 +238,14 @@ static void accept_connection(int listen)
 	}
 
 	namesize = sizeof(to);
-	rc = getsockname(fd, (struct sockaddr *)&to, &namesize);
+	rc = getsockname(fd, &to.sa, &namesize);
 	if (rc == 0) {
-		if (from.ss_family == AF_INET) {
-			struct sockaddr_in *in = (struct sockaddr_in *)&to;
+		if (from.sa.sa_family == AF_INET) {
+			struct sockaddr_in *in = &to.sin;
 			rc = snprintf(portal, sizeof(portal), "%s:%hu",
 				inet_ntoa(in->sin_addr), ntohs(in->sin_port));
-		} else if (from.ss_family == AF_INET6) {
-			struct sockaddr_in6 *in6 = (struct sockaddr_in6 *)&to;
+		} else if (from.sa.sa_family == AF_INET6) {
+			struct sockaddr_in6 *in6 = &to.sin6;
 			rc = snprintf(portal, sizeof(portal), "%x:%x:%x:%x:%x:%x:%x:%x.%hu",
 				in6->sin6_addr.s6_addr16[7], in6->sin6_addr.s6_addr16[6],
 				in6->sin6_addr.s6_addr16[5], in6->sin6_addr.s6_addr16[4],
@@ -257,12 +261,12 @@ static void accept_connection(int listen)
 		goto out_close;
 	}
 
-	if (from.ss_family == AF_INET) {
-		struct sockaddr_in *in = (struct sockaddr_in *)&from;
+	if (from.sa.sa_family == AF_INET) {
+		struct sockaddr_in *in = &from.sin;
 		log_info("Connect from %s:%hu to %s", inet_ntoa(in->sin_addr),
 			ntohs(in->sin_port), portal);
-	} else if (from.ss_family == AF_INET6) {
-		struct sockaddr_in6 *in6 = (struct sockaddr_in6 *)&from;
+	} else if (from.sa.sa_family == AF_INET6) {
+		struct sockaddr_in6 *in6 = &from.sin6;
 		log_info("Connect from %x:%x:%x:%x:%x:%x:%x:%x.%hu to %s",
 			in6->sin6_addr.s6_addr16[7], in6->sin6_addr.s6_addr16[6],
 			in6->sin6_addr.s6_addr16[5], in6->sin6_addr.s6_addr16[4],
