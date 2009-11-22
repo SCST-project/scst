@@ -160,7 +160,10 @@ enum rdma_ch_state {
 
 struct srpt_rdma_ch {
 	struct ib_cm_id *cm_id;
+	/* IB queue pair. */
 	struct ib_qp *qp;
+	/* Number of WR's in the QP 'qp' that are not in use. */
+	atomic_t qp_wr_avail;
 	struct ib_cq *cq;
 	struct srpt_port *sport;
 	/* 128-bit initiator port identifier copied from SRP_LOGIN_REQ. */

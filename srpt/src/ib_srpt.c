@@ -135,6 +135,9 @@ static void srpt_unregister_mad_agent(struct srpt_device *sdev);
 #ifdef CONFIG_SCST_PROC
 static void srpt_unregister_procfs_entry(struct scst_tgt_template *tgt);
 #endif /*CONFIG_SCST_PROC*/
+static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
+				    struct srpt_ioctx *ioctx,
+				    struct scst_cmd *scmnd);
 
 static struct ib_client srpt_client = {
 	.name = DRV_NAME,
@@ -804,6 +807,14 @@ static int srpt_post_send(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 	struct ib_sge list;
 	struct ib_send_wr wr, *bad_wr;
 	struct srpt_device *sdev = ch->sport->sdev;
+	int ret;
+
+	ret = -ENOMEM;
+	if (atomic_dec_return(&ch->qp_wr_avail) < 0) {
+		atomic_inc(&ch->qp_wr_avail);
+		PRINT_ERROR("%s[%d]: SRQ full", __func__, __LINE__);
+		goto out;
+	}
 
 	ib_dma_sync_single_for_device(sdev->device, ioctx->dma,
 				      len, DMA_TO_DEVICE);
@@ -819,7 +830,10 @@ static int srpt_post_send(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 	wr.opcode = IB_WR_SEND;
 	wr.send_flags = IB_SEND_SIGNALED;
 
-	return ib_post_send(ch->qp, &wr, &bad_wr);
+	ret = ib_post_send(ch->qp, &wr, &bad_wr);
+
+out:
+	return ret;
 }
 
 static int srpt_get_desc_tbl(struct srpt_ioctx *ioctx, struct srp_cmd *srp_cmd,
@@ -1572,8 +1586,17 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 			} else
 				srpt_handle_new_iu(ch, ioctx);
 			continue;
-		} else
+		} else {
 			ioctx = sdev->ioctx_ring[wc.wr_id];
+			if (wc.opcode == IB_WC_SEND)
+				atomic_inc(&ch->qp_wr_avail);
+			else {
+				WARN_ON(wc.opcode != IB_WC_RDMA_READ);
+				WARN_ON(ioctx->n_rdma <= 0);
+				atomic_add(ioctx->n_rdma,
+					   &ch->qp_wr_avail);
+			}
+		}
 
 		if (thread) {
 			ioctx->ch = ch;
@@ -1652,6 +1675,8 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 		PRINT_ERROR("failed to create_qp ret= %d", ret);
 		goto out;
 	}
+
+	atomic_set(&ch->qp_wr_avail, qp_init->cap.max_send_wr);
 
 	TRACE_DBG("%s: max_cqe= %d max_sge= %d cm_id= %p",
 	       __func__, ch->cq->cqe, qp_init->cap.max_send_sge,
@@ -2269,6 +2294,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 			++riu->sge_cnt;
 
 			if (rsize > 0 && riu->sge_cnt == SRPT_DEF_SG_PER_WQE) {
+				++ioctx->n_rdma;
 				riu->sge =
 				    kmalloc(riu->sge_cnt * sizeof *riu->sge,
 					    scst_cmd_atomic(scmnd)
@@ -2276,7 +2302,6 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				if (!riu->sge)
 					goto free_mem;
 
-				++ioctx->n_rdma;
 				++riu;
 				riu->sge_cnt = 0;
 				riu->raddr = raddr;
@@ -2284,14 +2309,12 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 			}
 		}
 
+		++ioctx->n_rdma;
 		riu->sge = kmalloc(riu->sge_cnt * sizeof *riu->sge,
 				   scst_cmd_atomic(scmnd)
 				   ? GFP_ATOMIC : GFP_KERNEL);
-
 		if (!riu->sge)
 			goto free_mem;
-
-		++ioctx->n_rdma;
 	}
 
 	db = ioctx->rbufs;
@@ -2348,17 +2371,41 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	return 0;
 
 free_mem:
-	while (ioctx->n_rdma)
-		kfree(ioctx->rdma_ius[ioctx->n_rdma--].sge);
-
-	kfree(ioctx->rdma_ius);
-
-	WARN_ON(scat == NULL);
-	ib_dma_unmap_sg(ch->sport->sdev->device,
-			scat, scst_cmd_get_sg_cnt(scmnd),
-			scst_to_tgt_dma_dir(dir));
+	srpt_unmap_sg_to_ib_sge(ch, ioctx, scmnd);
 
 	return -ENOMEM;
+}
+
+static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
+				    struct srpt_ioctx *ioctx,
+				    struct scst_cmd *scmnd)
+{
+	struct scatterlist *scat;
+	scst_data_direction dir;
+
+	TRACE_ENTRY();
+
+	scat = scst_cmd_get_sg(scmnd);
+
+	TRACE_DBG("n_rdma = %d; rdma_ius = %p; scat = %p\n",
+		  ioctx->n_rdma, ioctx->rdma_ius, scat);
+
+	BUG_ON(ioctx->n_rdma && !ioctx->rdma_ius);
+
+	while (ioctx->n_rdma)
+		kfree(ioctx->rdma_ius[--ioctx->n_rdma].sge);
+
+	kfree(ioctx->rdma_ius);
+	ioctx->rdma_ius = NULL;
+
+	if (scat) {
+		dir = scst_cmd_get_data_direction(scmnd);
+		ib_dma_unmap_sg(ch->sport->sdev->device,
+				scat, scst_cmd_get_sg_cnt(scmnd),
+				scst_to_tgt_dma_dir(dir));
+	}
+
+	TRACE_EXIT();
 }
 
 static int srpt_perform_rdmas(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
@@ -2368,8 +2415,21 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 	struct ib_send_wr *bad_wr;
 	struct rdma_iu *riu;
 	int i;
-	int ret = 0;
+	int ret;
+	int srq_wr_avail;
 
+	if (dir == SCST_DATA_WRITE) {
+		ret = -ENOMEM;
+		srq_wr_avail = atomic_sub_return(ioctx->n_rdma,
+						 &ch->qp_wr_avail);
+		if (srq_wr_avail < 0) {
+			atomic_add(ioctx->n_rdma, &ch->qp_wr_avail);
+			PRINT_INFO("%s[%d]: SRQ full", __func__, __LINE__);
+			goto out;
+		}
+	}
+
+	ret = 0;
 	riu = ioctx->rdma_ius;
 	memset(&wr, 0, sizeof wr);
 
@@ -2389,9 +2449,10 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 
 		ret = ib_post_send(ch->qp, &wr, &bad_wr);
 		if (ret)
-			break;
+			goto out;
 	}
 
+out:
 	return ret;
 }
 
@@ -2412,18 +2473,25 @@ static int srpt_xfer_data(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 
 	ret = srpt_perform_rdmas(ch, ioctx, scst_cmd_get_data_direction(scmnd));
 	if (ret) {
-		PRINT_ERROR("%s[%d] ret=%d", __func__, __LINE__, ret);
-		if (ret == -EAGAIN || ret == -ENOMEM)
+		if (ret == -EAGAIN || ret == -ENOMEM) {
+			PRINT_INFO("%s[%d] queue full -- ret=%d",
+				   __func__, __LINE__, ret);
 			ret = SCST_TGT_RES_QUEUE_FULL;
-		else
+		} else {
+			PRINT_ERROR("%s[%d] fatal error -- ret=%d",
+				    __func__, __LINE__, ret);
 			ret = SCST_TGT_RES_FATAL_ERROR;
-		goto out;
+		}
+		goto out_unmap;
 	}
 
 	ret = SCST_TGT_RES_SUCCESS;
 
 out:
 	return ret;
+out_unmap:
+	srpt_unmap_sg_to_ib_sge(ch, ioctx, scmnd);
+	goto out;
 }
 
 /*
@@ -2811,6 +2879,9 @@ static struct scst_tgt_template srpt_template = {
 /*
  * The callback function srpt_release_class_dev() is called whenever a
  * device is removed from the /sys/class/infiniband_srpt device class.
+ * Although this function has been left empty, a release function has been
+ * defined such that upon module removal no complaint is logged about a
+ * missing release function.
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 static void srpt_release_class_dev(struct class_device *class_dev)
@@ -2842,20 +2913,6 @@ static struct scst_proc_data srpt_log_proc_data = {
 #endif
 
 #endif /* CONFIG_SCST_PROC */
-
-static struct class_attribute srpt_class_attrs[] = {
-	__ATTR_NULL,
-};
-
-static struct class srpt_class = {
-	.name = "infiniband_srpt",
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-	.release = srpt_release_class_dev,
-#else
-	.dev_release = srpt_release_class_dev,
-#endif
-	.class_attrs = srpt_class_attrs,
-};
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 static ssize_t show_login_info(struct class_device *class_dev, char *buf)
@@ -2897,11 +2954,25 @@ static ssize_t show_login_info(struct device *dev,
 	return len;
 }
 
+static struct class_attribute srpt_class_attrs[] = {
+	__ATTR_NULL,
+};
+
+static struct device_attribute srpt_dev_attrs[] = {
+	__ATTR(login_info,   S_IRUGO, show_login_info,   NULL),
+	__ATTR_NULL,
+};
+
+static struct class srpt_class = {
+	.name        = "infiniband_srpt",
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-static CLASS_DEVICE_ATTR(login_info, S_IRUGO, show_login_info, NULL);
+	.release = srpt_release_class_dev,
 #else
-static DEVICE_ATTR(login_info, S_IRUGO, show_login_info, NULL);
+	.dev_release = srpt_release_class_dev,
 #endif
+	.class_attrs = srpt_class_attrs,
+	.dev_attrs   = srpt_dev_attrs,
+};
 
 /*
  * Callback function called by the InfiniBand core when either an InfiniBand
@@ -2943,14 +3014,9 @@ static void srpt_add_one(struct ib_device *device)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 	if (class_device_register(&sdev->class_dev))
 		goto free_dev;
-	if (class_device_create_file(&sdev->class_dev,
-				     &class_device_attr_login_info))
-		goto err_dev;
 #else
 	if (device_register(&sdev->dev))
 		goto free_dev;
-	if (device_create_file(&sdev->dev, &dev_attr_login_info))
-		goto err_dev;
 #endif
 
 	if (ib_query_device(device, &sdev->dev_attr))
