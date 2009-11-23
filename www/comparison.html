@@ -47,37 +47,37 @@
 
 				<p><small>As on October 2009</small></p>
 
-<table bgcolor="#F0F0F0" border="1" cols="5" cellspacing="1" cellpadding="7" style="text-align:center" width="620">
+<table bgcolor="#F0F0F0" border="1" cellspacing="1" cellpadding="7" style="text-align:center" width="620">
 
 <tr>
-<th>
-</th><th> <a href="http://scst.sourceforge.net/" title="http://scst.sourceforge.net/" rel="nofollow">SCST</a>
-</th><th> <a href="http://stgt.berlios.de/" title="http://stgt.berlios.de/" rel="nofollow">STGT</a>
-</th><th> <a href="http://iscsitarget.sourceforge.net/" title="http://iscsitarget.sourceforge.net/" rel="nofollow">IET</a>
-</th><th> <a href="http://linux-iscsi.org/" title="http://linux-iscsi.org/" rel="nofollow">LIO</a>
-</th></tr>
+<td>
+</td><td><b><a href="http://scst.sourceforge.net/" title="http://scst.sourceforge.net/" rel="nofollow">SCST</a></b>
+</td><td><b><a href="http://stgt.berlios.de/" title="http://stgt.berlios.de/" rel="nofollow">STGT</a></b>
+</td><td><b><a href="http://iscsitarget.sourceforge.net/" title="http://iscsitarget.sourceforge.net/" rel="nofollow">IET</a></b>
+</td><td><b><a href="http://linux-iscsi.org/" title="http://linux-iscsi.org/" rel="nofollow">LIO</a></b>
+</td></tr>
 
 <tr bgcolor="#E0E0E0">
 <td colspan="5"> <b>General</b>
 </td></tr>
 <tr>
-<th align="left"> Upstream kernel</th>					<td> - </td>		<td> Kernel part </td>	<td> - </td>		<td> - </td>		
+<td align="left"><b>Upstream kernel</b></td>				<td> - </td>		<td> Kernel part </td>	<td> - </td>		<td> - </td>		
 </tr>                                                                                                                           
 <tr>                                                                                                                            
-<th align="left"> Generic Target Engine </th>				<td> + </td>		<td> + </td>		<td> iSCSI only </td>	<td> Under development </td>		
+<td align="left"><b>Generic Target Engine</b></td>			<td> + </td>		<td> + </td>		<td> iSCSI only </td>	<td> Under development </td>		
 </tr>
 <tr>                                                                                            
-<th align="left"> Architecture </th>					<td> Kernel only</td>	<td> User space only
+<td align="left"><b>Architecture</b></td>				<td> Kernel only</td>	<td> User space only
 												<sup><A HREF="#1">1</A>	
 												</sup> </td>		<td> - </td>		<td> Kernel only </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                           
-<th align="left"> Stability </th>					<td> + </td>		<td> +
+<td align="left"><b>Stability</b></td>					<td> + </td>		<td> +
 												<sup><A HREF="#3">3</A>	
 												</sup> </td>		<td> + </td>		<td> Under development </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                           
-<th align="left"> Performance <sup><A HREF="#4">4</A></sup></th>	<td> ***** <sup>
+<td align="left"><b>Performance <sup><A HREF="#4">4</A></sup></b></td>	<td> ***** <sup>
 									<A HREF="#5">5</A>
 									</sup></td>		<td> ***</td>		<td> **** </td>		<td> ****
 																		<sup><A HREF="#6">6</A></sup></td>
@@ -91,99 +91,102 @@ backend drivers</th>							<td> + <sup>
 												</sup> </td>		<td> + </td>		<td> + </td>		
 </tr>
 <tr>                                                                                            
-<th align="left"> Support for transports without expecting
-transfer values (parallel SCSI, SAS) </th>				<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+<td align="left"><b>Support for transports without expecting
+transfer values (parallel SCSI, SAS)</b></td>				<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                            
-<th align="left"> Interface with user space</th>			<td> ProcFS </td>	<td> Custom </td>	<td> - </td>		<td> ConfigFS/IOCTL/ProcFS </td>
+<td align="left"><b>Interface with user space</b></td>			<td> ProcFS </td>	<td> Custom </td>	<td> - </td>		<td> ConfigFS/IOCTL/ProcFS </td>
 </tr>                                                                                                                           
 
                                                                                                 
 <tr bgcolor="#E0E0E0">                                                                                                          
-<td colspan="5"> <b>Major features</b>                                                                                          
+<td colspan="5"><b>Major features</b>                                                                                          
 </td></tr>
 <tr>                                                                                            
-<th align="left"> Target drivers in kernel space </th>			<td> + </td>		<td> + </td>		<td> - </td>		<td> Under development </td>
+<td align="left"><b>Target drivers in kernel space</b></td>		<td> + </td>		<td> + </td>		<td> - </td>		<td> Under development </td>
 </tr>
 <tr>                                                                                            
-<th align="left"> Target drivers in user space </th>			<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
+<td align="left"><b>Target drivers in user space</b></td>		<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
-<th align="left"> Backstorage handlers in kernel space </th>		<td> + </td>		<td> - </td>		<td> - </td>		<td> + </td>
+<td align="left"><b>Backstorage handlers in kernel space</b></td>	<td> + </td>		<td> - </td>		<td> - </td>		<td> + </td>
 </tr>                                                                                                                           
 <tr>                                                                                            
-<th align="left"> Backstorage handlers in user space </th>		<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
+<td align="left"><b>Backstorage handlers in user space</b></td>		<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>                                                                                           
 <tr>                                                                                            
-<th align="left"> Local access to emulated backstorage devices 
-<sup><A HREF="#9">9</A></sup></th>					<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+<td align="left"><b>Local access to emulated backstorage devices 
+<sup><A HREF="#9">9</A></sup></b></td>					<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
-<th align="left"> Advanced devices access control 
-<sup><A HREF="#10">10</A></sup></th>					<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+<td align="left"><b>Advanced devices access control 
+<sup><A HREF="#10">10</A></sup></b></td>				<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
-<th align="left"> Support for Asynchronous Event Notifications
-(AEN) </th>								<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+<td align="left"><b>Support for Asynchronous Event Notifications
+(AEN)</b></td>								<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
-<th align="left"> Notifications for devices added/removed or
+<td align="left"><b>Notifications for devices added/removed or
 resized through AENs or Unit Attentions (Initiators can instantly see
-any target reconfiguration in a PnP-like fashion) </th>			<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+any target reconfiguration in a PnP-like fashion)</b></td>		<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                                                            
-<th align="left"> Bidirectional Commands </th>				<td> + <sup>
+<td align="left"><b>Bidirectional Commands</b></td>			<td> + <sup>
 									<A HREF="#11">11</A>
 									</sup></td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
-<th align="left"> Extended CDB (size >16 bytes) </th>			<td> + <sup>
+<td align="left"><b>Extended CDB (size >16 bytes)</b></td>		<td> + <sup>
 									<A HREF="#11">11</A>
 									</sup></td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
-<th align="left"> Descriptor sense support </th>			<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
+<td align="left"><b>Descriptor sense support</b></td>			<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
-<th align="left"> RESERVE/RELEASE                                                                                                       
-<small> (Windows 2003 clustering) </small></th>				<td> + </td>		<td> + </td>		<td> + </td>		<td> + </td>
+<tr>
+<td align="left"><b>RESERVE/RELEASE                                                                                                       
+<small> (Windows 2003 clustering) </small></b></td>			<td> + </td>		<td> + </td>		<td> + </td>		<td> + </td>
 </tr>
-<th align="left"> Safe RESERVE/RELEASE implementation according to
-SCSI requirements <sup><A HREF="#12">12</A></sup></th>			<td> Safe </td>		<td> Safe </td>		<td> Safe from
+<tr>
+<td align="left"><b>Safe RESERVE/RELEASE implementation according to
+SCSI requirements <sup><A HREF="#12">12</A></sup></b></td>		<td> Safe </td>		<td> Safe </td>		<td> Safe from
 															v1.4.18</td>		<td> Not safe </td>
 </tr>
-<th align="left"> Safe implementation of Task Management commands 
-<sup><A HREF="#13">13</A></sup></th>					<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>	<td> Not safe </td>
+<tr>
+<td align="left"><b>Safe implementation of Task Management commands 
+<sup><A HREF="#13">13</A></sup></b></td>				<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>	<td> Not safe </td>
 </tr>
 <tr>                                                                                                                            
-<th align="left"> Support for SCSI task attributes, including
-ORDERED commands</th>							<td> + </td>		<td> + </td>		<td> -, <br/> data
+<td align="left"><b>Support for SCSI task attributes, including
+ORDERED commands</b></td>						<td> + </td>		<td> + </td>		<td> -, <br> data
 															corruption possible
 															<sup><A HREF="#14">
-															14</A></sup></td>	<td>  -, <br/>data
+															14</A></sup></td>	<td>  -, <br>data
 																		corruption possible
 																		<sup><A HREF="#14">
 																		14</A></sup> </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                            
-<th align="left"> Persistent Reservations <br/>
-<small> (Windows 2008 clustering / RHEL5 I/O fencing)</small></th>	<td> Under development,
+<td align="left"><b>Persistent Reservations <br>
+<small> (Windows 2008 clustering / RHEL5 I/O fencing)</small></b></td>	<td> Under development,
 									patch is <a href=
 									"http://sourceforge.net/mailarchive/message.php?msg_name=4AFD61F5.10100%40open-e.com">
 									available</a> for
 									testing</td>		<td> - </td>		<td> - </td>		<td> Under development</td>
 </tr>                                                                                                                           
 <tr>                                                                                            
-<th align="left"> ALUA </th>						<td> - </td>		<td> - </td>		<td> - </td>		<td> Under development</td>		
+<td align="left"><b>ALUA</b></td>					<td> - </td>		<td> - </td>		<td> - </td>		<td> Under development</td>		
 </tr>                                                                                           
 <tr>                                                                                                                            
-<th align="left"> Failover Clustering </th>				<td> + </td>		<td> ? </td>		<td> + </td>		<td> + </td>		
+<td align="left"><b>Failover Clustering</b></td>			<td> + </td>		<td> ? </td>		<td> + </td>		<td> + </td>		
 </tr>                                                                                                                           
 <tr>                                                                                                                            
-<th align="left"> SCSI MIBs </th>					<td> - </td>		<td> - </td>		<td> - </td>		<td>  +- 
+<td align="left"><b>SCSI MIBs</b></td>					<td> - </td>		<td> - </td>		<td> - </td>		<td>  +- 
 																		<sup><A HREF="#15">15</A></sup></td>
 </tr>                                                                                                                           
 <tr>                                                                                                                            
-<th align="left"> Cluster Storage Integration </th>			<td> - </td>		<td> - </td>		<td> - </td>		<td> VHACS </td>	
+<td align="left"><b>Cluster Storage Integration</b></td>		<td> - </td>		<td> - </td>		<td> - </td>		<td> VHACS </td>	
 </tr>                                                                                                                           
                                                                                                 
                                                                                                 
@@ -191,53 +194,56 @@ ORDERED commands</th>							<td> + </td>		<td> + </td>		<td> -, <br/> data
 <td colspan="5"> <b>Supported transports and hardware</b>                                                                                          
 </td></tr>                                                                                                                      
 <tr>                                                                                                                            
-<th align="left"> iSCSI </th>						<td> + </td>		<td> + </td>		<td> + </td>		<td> + </td>
+<td align="left"><b>iSCSI</b></td>					<td> + </td>		<td> + </td>		<td> + </td>		<td> + </td>
 </tr>                                                                                                                           
 <tr>                                                                                            
-<th align="left"> QLogic (Fibre Channel) </th>				<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
-</tr>
-<th align="left"> Emulex (Fibre Channel and FCoE) </th>			<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
-</tr>
-<tr>                                                                                                                           
-<th align="left"> SRP </th>						<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
-</tr>                                                                                                                           
-<tr>                                                                                                                            
-<th align="left"> iSER </th>						<td> - </td>		<td> +
-												<sup><A HREF="#3">3</A>	
-												</sup> </td>		<td> - </td>		<td> - </td>		
-</tr>                                                                                                                           
-<th align="left"> Marvell (SAS) </th>					<td> Beta </td>		<td> - </td>		<td> - </td>		<td> - </td>		
+<td align="left"><b>QLogic (Fibre Channel)</b></td>			<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>
-<th align="left"> FCoE </th>						<td> Under
+<td align="left"><b>Emulex (Fibre Channel and FCoE)</b></td>		<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+</tr>
+<tr>                                                                                                                           
+<td align="left"><b>SRP</b></td>					<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+</tr>                                                                                                                           
+<tr>                                                                                                                            
+<td align="left"><b>iSER</b></td>					<td> - </td>		<td> +
+												<sup><A HREF="#3">3</A>	
+												</sup> </td>		<td> - </td>		<td> - </td>		
+</tr> 
+<tr>                                                                                                                          
+<td align="left"><b>Marvell (SAS)</b></td>				<td> Beta </td>		<td> - </td>		<td> - </td>		<td> - </td>		
+</tr>
+<tr>
+<td align="left"><b>FCoE</b></td>					<td> Under
 									 development </td>	<td>Under
-									 			 development</<td>	<td> - </td>		<td> - </td>	
+									 			 development</td>	<td> - </td>		<td> - </td>	
 </tr>                                                                                                                                                 
 <tr>                                                                                                                            
-<th align="left"> LSI (Parallel (Wide) SCSI and Fibre Channel)		<td> Alpha </td>	<td> - </td>		<td> - </td>		<td> - </td>
+<td align="left"><b>LSI (Parallel (Wide) SCSI and Fibre Channel)
+</b></td>								<td> Alpha </td>	<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
-<th align="left"> LSI (SAS)						<td> Preliminary </td>	<td> - </td>		<td> - </td>		<td> - </td>
-</tr>
-<tr>                                                                                                                            
+<tr>
+<td align="left"><b>LSI (SAS)</b></td>					<td> Preliminary </td>	<td> - </td>		<td> - </td>		<td> - </td>
+</tr>                                                                                                                            
 <tr>                                                                                            
-<th align="left"> IBM pSeries Virtual SCSI </th>			<td> - </td>		<td> + </td>		<td> - </td>		<td> - </td>
+<td align="left"><b>IBM pSeries Virtual SCSI</b></td>			<td> - </td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>                                                                                     
                                                                                                 
 <tr bgcolor="#E0E0E0">                                                                                                          
 <td colspan="5"> <b>Supported backstorage</b>                                                   
 </td></tr>
 <tr>                                                                                            
-<th align="left"> Kernel side FILEIO </th>				<td> + </td>		<td> - </td>		<td> + </td>		<td> + </td>
+<td align="left"><b>Kernel side FILEIO</b></td>				<td> + </td>		<td> - </td>		<td> + </td>		<td> + </td>
 </tr>
 <tr>                                                                                            
-<th align="left"> Kernel side BLOCKIO </th>				<td> + </td>		<td> - </td>		<td> + </td>		<td> + </td>		
+<td align="left"><b>Kernel side BLOCKIO</b></td>			<td> + </td>		<td> - </td>		<td> + </td>		<td> + </td>		
 </tr>
 <tr>                                                                                            
-<th align="left"> User space FILEIO </th>				<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
+<td align="left"><b>User space FILEIO</b></td>				<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
-<th align="left"> SCSI pass-through
-	<sup><A HREF="#16">16</A></sup></th>				<td> + </td>		<td> Disks only, single
+<td align="left"><b>SCSI pass-through
+	<sup><A HREF="#16">16</A></sup></b></td>			<td> + </td>		<td> Disks only, single
 												initiator only, not
 												enforced <sup>
 												<A HREF="#17">17</A>
@@ -245,7 +251,8 @@ ORDERED commands</th>							<td> + </td>		<td> + </td>		<td> -, <br/> data
 																		<sup><A HREF="#17">17</A></sup></td>
 </tr>
 <tr>                                                                                                                           
-<th align="left"> Zero-copy data read/write to/from backstorage</th>	<td>BLOCKIO, user space
+<td align="left"><b>Zero-copy data read/write to/from backstorage
+</b></td>								<td>BLOCKIO, user space
 									FILEIO in O_DIRECT mode,
 									pass-through <sup>
 									<A HREF="#18">18</A>
@@ -255,29 +262,30 @@ ORDERED commands</th>							<td> + </td>		<td> + </td>		<td> -, <br/> data
 									                                                                        through </td>		
 </tr>                                                                                           
 <tr>                                                                                                                            
-<th align="left"> 4k sectors support in pass-through mode </th>		<td> + </td>		<td> - </td>		<td> - </td>		<td> ? </td>
+<td align="left"><b>4k sectors support in pass-through mode</b></td>	<td> + </td>		<td> - </td>		<td> - </td>		<td> ? </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                            
-<th align="left"> 4k, 2k, 1k and 512 byte sectors emulation
-in modes, other than pass-through </th>					<td> + </td>		<td> - </td>		<td> - </td>		<td> + </td>		
+<td align="left"><b>4k, 2k, 1k and 512 byte sectors emulation
+in modes, other than pass-through</b></td>				<td> + </td>		<td> - </td>		<td> - </td>		<td> + </td>		
 </tr>
 <tr>                                                                                            
-<th align="left"> Virtual CD devices emulation from ISO files </th>	<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
+<td align="left"><b>Virtual CD devices emulation from ISO files
+</b></td>								<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
-<th align="left"> Possibility to write to emulated from ISO files
-CD devices</th>								<td> - </td>		<td> + </td>		<td> - </td>		<td> - </td>
+<td align="left"><b>Possibility to write to emulated from ISO files
+CD devices</b></td>							<td> - </td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
-<th align="left"> Emulation of virtual tape and media changer
-devices</th>								<td> - </td>		<td>Experimental</td>	<td> - </td>		<td> - </td>
+<td align="left"><b>Emulation of virtual tape and media changer
+devices</b></td>							<td> - </td>		<td>Experimental</td>	<td> - </td>		<td> - </td>
 </tr>
                                                                                                 
 <tr bgcolor="#E0E0E0">                                                                                                          
 <td colspan="5"> <b>iSCSI Target</b>                                                                                            
 </td></tr>
 <tr>                                                                                            
-<th align="left"> Architecture </th>					<td> Split <sup>
+<td align="left"><b>Architecture</b></td>				<td> Split <sup>
 									<A HREF="#2">2</A>
 									</sup> </td>		<td> User space 
 												only </td>		<td> Split <sup>
@@ -285,50 +293,53 @@ devices</th>								<td> - </td>		<td>Experimental</td>	<td> - </td>		<td> - </t
 															</sup></td>		<td> Kernel only </td>
 </tr>
 <tr>                                                                                                                            
-<th align="left"> Interface with user space</th>			<td>IOCTL/ProcFS/
+<td align="left"><b>Interface with user space</b></td>			<td>IOCTL/ProcFS/
 									Netlink</td>		<td> - </td>		<td>IOCTL/ProcFS/
 															Netlink</td>	<td> ConfigFS/IOCTL/ProcFS </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                            
-<th align="left"> Zero-copy data send/receive</th>			<td> Send only<sup>
+<td align="left"><b>Zero-copy data send/receive</b></td>		<td> Send only<sup>
 									<A HREF="#19">19</A>
 									</sup> </td>		<td> None <sup>
 												<A HREF="#8">8</A>	
 												</sup> </td>		<td> Send only</td>	<td> Send only </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                            
-<th align="left"><a href="mc_s.html">Multiple connections per session
- (MS/C)</a> </th>							<td> - </td>		<td> - </td>		<td> - </td>		<td> + </td>
+<td align="left"><b><a href="mc_s.html">Multiple connections per
+ session (MS/C)</a></b></td>						<td> - </td>		<td> - </td>		<td> - </td>		<td> + </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                            
-<th align="left"> Max ErrorRecoveryLevel </th>				<td> 0 </td>		<td> 0 </td>		<td> 0 </td>		<td> 2 </td>		
+<td align="left"><b>Max ErrorRecoveryLevel</b></td>			<td> 0 </td>		<td> 0 </td>		<td> 0 </td>		<td> 2 </td>		
 </tr>                                                                                                                           
 <tr>                                                                                                                            
-<th align="left"> Bidirectional Commands </th>				<td> + <sup>
+<td align="left"><b>Bidirectional Commands</b></td>			<td> + <sup>
 									<A HREF="#11">11</A>
 									</sup></td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
-<th align="left"> Extended CDB (size >16 bytes) </th>			<td> + <sup>
+<td align="left"><b>Extended CDB (size >16 bytes)</b></td>		<td> + <sup>
 									<A HREF="#11">11</A>
 									</sup></td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
-<th align="left"> Support for Asynchronous Event Notifications
-(AEN) </th>								<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
-</tr>                                                                                                                           
-<th align="left"> Safe implementation of connections and sessions
-reinstatement <sup><A HREF="#20">20</A></sup></th>			<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>	<td> Not safe </td>
+<td align="left"><b>Support for Asynchronous Event Notifications
+(AEN)</b></td>								<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
-<th align="left"> Safe restart <sup><A HREF="#21">21</A></sup></th>	<td> Safe </td>		<td> ? </td>		<td> Not safe </td>	<td> ?</td>
+<tr>                                                                                                                           
+<td align="left"><b>Safe implementation of connections and sessions
+reinstatement <sup><A HREF="#20">20</A></sup></b></td>			<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>	<td> Not safe </td>
+</tr>
+<tr>
+<td align="left"><b>Safe restart <sup><A HREF="#21">21</A></sup>
+</b></td>								<td> Safe </td>		<td> ? </td>		<td> Not safe </td>	<td> ?</td>
 </tr>
 <tr>                                                                                                                            
-<th align="left"> iSCSI MIBs </th>					<td> - </td>		<td> - </td>		<td> - </td>		<td> +- 
+<td align="left"><b>iSCSI MIBs</b></td>					<td> - </td>		<td> - </td>		<td> - </td>		<td> +- 
 																		<sup><A HREF="#15">15</A></sup></td>
 </tr>                                                                                                                           
 </table>
 
-<br/>
+<br>
 <p><strong><big><u>REMARKS:</u></big></strong></p>
 
 <p><A NAME="1"></A> 1. STGT has SCSI target engine and memory management in user space with small hooks in the kernel to interact with in-kernel target drivers.
@@ -423,18 +434,12 @@ reinstatement <sup><A HREF="#20">20</A></sup></th>			<td> Safe </td>		<td> Not s
 	  		</div> 
 	</div>
 </div>		
-<!-- wrap ends here -->
-<!-- footer starts here -->		
-		<div id="footer">
-			<p>
-			&copy; Copyright 2004-2009 <b><font color="#EC981F">Vladislav Bolkhovitin &amp others.</font>&nbsp;&nbsp;
-			Design by: <b><font color="#EC981F">Daniel Fernandes</font></b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;		
-			
-			</p>		
-		</div>	
+<!-- wrap ends here --><!-- footer starts here -->		
+<div id="footer">
+	<p>&copy; Copyright 2004-2009 <b><font color="#EC981F">Vladislav Bolkhovitin &amp others.</font></b>&nbsp;&nbsp;
+	   Design by: <b><font color="#EC981F">Daniel Fernandes</font></b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</p>		
+</div>	
 <!-- footer ends here -->
-</body>
-
 <!-- Piwik -->
 <script type="text/javascript">
 var pkBaseURL = (("https:" == document.location.protocol) ? "https://apps.sourceforge.net/piwik/scst/" : "http://apps.sourceforge.net/piwik/scst/");
@@ -445,7 +450,7 @@ piwik_idsite = 1;
 piwik_url = pkBaseURL + "piwik.php";
 piwik_log(piwik_action_name, piwik_idsite, piwik_url);
 </script>
-<object><noscript><p><img src="http://apps.sourceforge.net/piwik/scst/piwik.php?idsite=1" alt="piwik"/></p></noscript></object>
+<object><noscript><p><img src="http://apps.sourceforge.net/piwik/scst/piwik.php?idsite=1" alt="piwik"></p></noscript></object>
 <!-- End Piwik Tag -->
-
+</body>
 </html>
