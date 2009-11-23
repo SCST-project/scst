@@ -2959,7 +2959,7 @@ static struct class_attribute srpt_class_attrs[] = {
 };
 
 static struct device_attribute srpt_dev_attrs[] = {
-	__ATTR(login_info,   S_IRUGO, show_login_info,   NULL),
+	__ATTR(login_info, S_IRUGO, show_login_info, NULL),
 	__ATTR_NULL,
 };
 
