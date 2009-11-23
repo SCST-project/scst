@@ -847,6 +847,7 @@ static void process_read_io(struct iscsi_conn *conn, int *closed)
 			break;
 
 		case RX_END:
+			res = 0;
 			if (unlikely(conn->read_size != 0)) {
 				PRINT_CRIT_ERROR("%d %x %d", res,
 					cmnd_opcode(cmnd), conn->read_size);
