@@ -762,7 +762,7 @@ out:
 }
 
 /* No locks, conn is rd processing */
-static void process_read_io(struct iscsi_conn *conn, int *closed)
+static int process_read_io(struct iscsi_conn *conn, int *closed)
 {
 	struct iscsi_cmnd *cmnd = conn->read_cmnd;
 	int res;
@@ -847,9 +847,9 @@ static void process_read_io(struct iscsi_conn *conn, int *closed)
 			break;
 
 		case RX_END:
-			res = 0;
 			if (unlikely(conn->read_size != 0)) {
-				PRINT_CRIT_ERROR("%d %x %d", res,
+				PRINT_CRIT_ERROR("conn read_size !=0 on RX_END "
+					"(conn %p, op %x, read_size %d)", conn,
 					cmnd_opcode(cmnd), conn->read_size);
 				sBUG();
 			}
@@ -859,7 +859,14 @@ static void process_read_io(struct iscsi_conn *conn, int *closed)
 			cmnd_rx_end(cmnd);
 
 			EXTRACHECKS_BUG_ON(conn->read_size != 0);
-			break;
+
+			/*
+			 * To maintain fairness. Res must be 0 here anyway, the
+			 * assignment is only to remove compiler warning about
+			 * uninitialized variable.
+			 */
+			res = 0;
+			goto out;
 
 		case RX_INIT_HDIGEST:
 			iscsi_conn_init_read(conn,
@@ -925,8 +932,9 @@ static void process_read_io(struct iscsi_conn *conn, int *closed)
 		*closed = 1;
 	}
 
-	TRACE_EXIT();
-	return;
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 /*
@@ -944,7 +952,7 @@ static void scst_do_job_rd(void)
 	 */
 
 	while (!list_empty(&iscsi_rd_list)) {
-		int closed = 0;
+		int closed = 0, rc;
 		struct iscsi_conn *conn = list_entry(iscsi_rd_list.next,
 			typeof(*conn), rd_list_entry);
 
@@ -958,7 +966,7 @@ static void scst_do_job_rd(void)
 #endif
 		spin_unlock_bh(&iscsi_rd_lock);
 
-		process_read_io(conn, &closed);
+		rc = process_read_io(conn, &closed);
 
 		spin_lock_bh(&iscsi_rd_lock);
 
@@ -968,7 +976,7 @@ static void scst_do_job_rd(void)
 #ifdef CONFIG_SCST_EXTRACHECKS
 		conn->rd_task = NULL;
 #endif
-		if (conn->rd_data_ready) {
+		if ((rc == 0) || conn->rd_data_ready) {
 			list_add_tail(&conn->rd_list_entry, &iscsi_rd_list);
 			conn->rd_state = ISCSI_CONN_RD_STATE_IN_LIST;
 		} else
