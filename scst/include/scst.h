@@ -1811,6 +1811,9 @@ struct scst_device {
 	 */
 	struct rw_semaphore dev_attr_rwsem;
 
+	/* Used to serialize all the device sysfs calls */
+	struct mutex dev_sysfs_mutex;
+
 	struct kobject dev_kobj; /* kobject for this struct */
 	struct kobject *dev_exp_kobj; /* exported groups */
 

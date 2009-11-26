@@ -277,12 +277,6 @@ struct vdev_type_funcs {
 	void (*vdev_del) (struct scst_vdisk_dev *virt_dev);
 	struct scst_vdisk_dev *(*vdev_find) (const char *name);
 
-	int (*parse_cmd) (struct vdev_type *vdt, char *p, int *action);
-
-	/* Supposed to be called under scst_vdisk_mutex */
-	int (*perform_cmd) (struct vdev_type *vdt, int action, char *p,
-				char *name);
-
 	int (*parse_option) (struct scst_vdisk_dev *virt_dev, char *p);
 
 	int (*pre_register) (struct scst_vdisk_dev *virt_dev);
@@ -404,6 +398,9 @@ static ssize_t vdisk_sysfs_filename_show(struct kobject *kobj,
 static ssize_t vdisk_sysfs_resync_size_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count);
 
+static ssize_t vcdrom_sysfs_filename_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count);
+
 static struct kobj_attribute vdisk_size_attr =
 	__ATTR(size, S_IRUGO, vdisk_sysfs_size_show, NULL);
 static struct kobj_attribute vdisk_blocksize_attr =
@@ -422,6 +419,10 @@ static struct kobj_attribute vdisk_filename_attr =
 	__ATTR(filename, S_IRUGO, vdisk_sysfs_filename_show, NULL);
 static struct kobj_attribute vdisk_resync_size_attr =
 	__ATTR(resync_size, S_IWUSR, NULL, vdisk_sysfs_resync_size_store);
+
+static struct kobj_attribute vcdrom_filename_attr =
+	__ATTR(filename, S_IRUGO|S_IWUSR, vdisk_sysfs_filename_show,
+		vcdrom_sysfs_filename_store);
 
 static const struct attribute *vdisk_fileio_attrs[] = {
 	&vdisk_size_attr.attr,
@@ -457,12 +458,13 @@ static const struct attribute *vdisk_nullio_attrs[] = {
 static const struct attribute *vcdrom_attrs[] = {
 	&vdisk_size_attr.attr,
 	&vdisk_removable_attr.attr,
-	&vdisk_filename_attr.attr,
+	&vcdrom_filename_attr.attr,
 	NULL,
 };
 
 #endif /* CONFIG_SCST_PROC */
 
+/* Protects vdisks addition/deletion and related activities, like search */
 static DEFINE_MUTEX(scst_vdisk_mutex);
 
 /* Both protected by scst_vdisk_mutex */
@@ -2923,11 +2925,15 @@ static void vdisk_report_registering(const struct scst_vdisk_dev *virt_dev)
 	return;
 }
 
-/* scst_vdisk_mutex supposed to be held */
-static int __vdisk_resync_size(struct scst_vdisk_dev *virt_dev)
+static int vdisk_resync_size(struct scst_vdisk_dev *virt_dev)
 {
 	loff_t file_size;
 	int res = 0;
+
+	/*
+	 * There's no need in any lock here, because SCST core serializes
+	 * all device sysfs calls.
+	 */
 
 	if (!virt_dev->nullio) {
 		res = vdisk_get_file_size(virt_dev->file_name,
@@ -2966,26 +2972,6 @@ static int __vdisk_resync_size(struct scst_vdisk_dev *virt_dev)
 	scst_resume_activity();
 
 out:
-	return res;
-}
-
-/* scst_vdisk_mutex supposed to be held */
-static int vdisk_resync_size(struct vdev_type *vdt, char *p, const char *name)
-{
-	struct scst_vdisk_dev *virt_dev;
-	int res;
-
-	virt_dev = vdt->vfns.vdev_find(name);
-	if (virt_dev == NULL) {
-		PRINT_ERROR("Device %s not found", name);
-		res = -EINVAL;
-		goto out;
-	}
-
-	res = __vdisk_resync_size(virt_dev);
-
-out:
-	TRACE_EXIT_RES(res);
 	return res;
 }
 
@@ -3393,37 +3379,6 @@ static struct scst_vdisk_dev *vcdrom_find(const char *name)
 	return res;
 }
 
-static int vdisk_parse_cmd(struct vdev_type *vdt, char *p, int *action)
-{
-	int res = -EINVAL;
-
-	TRACE_ENTRY();
-
-	if (!strncmp("resync_size", p, 11)) {
-		res = 11;
-		p += res;
-		*action = VDISK_ACTION_RESYNC_SIZE;
-	}
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-/* scst_vdisk_mutex supposed to be held */
-static int vdisk_perform_cmd(struct vdev_type *vdt, int action, char *p,
-	char *name)
-{
-	int res = -EINVAL;
-
-	TRACE_ENTRY();
-
-	if (action == VDISK_ACTION_RESYNC_SIZE)
-		res = vdisk_resync_size(vdt, p, name);
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
 static void vcdrom_init(struct vdev_type *vdt,
 	struct scst_vdisk_dev *virt_dev)
 {
@@ -3460,29 +3415,48 @@ static int vcdrom_pre_register(struct scst_vdisk_dev *virt_dev)
 	return res;
 }
 
-/* scst_vdisk_mutex supposed to be held */
-static int vcdrom_change(struct vdev_type *vdt, char *p, const char *name)
+static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
+	const char *buffer, int length)
 {
 	loff_t err;
-	struct scst_vdisk_dev *virt_dev;
-	char *file_name, *fn = NULL, *old_fn;
-	int len;
+	char *old_fn, *i_buf, *p, *pp;
+	const char *file_name = NULL;
 	int res = 0;
 
-	virt_dev = vdt->vfns.vdev_find(name);
-	if (virt_dev == NULL) {
-		PRINT_ERROR("Virtual device with name "
-		       "%s not found", name);
-		res = -EINVAL;
+	TRACE_ENTRY();
+
+	/*
+	 * There's no need in any lock here, because SCST core serializes
+	 * all device sysfs calls.
+	 */
+
+	i_buf = kmalloc(length+1, GFP_KERNEL);
+	if (i_buf == NULL) {
+		PRINT_ERROR("Unable to alloc intermediate buffer with size %d",
+			length+1);
+		res = -ENOMEM;
 		goto out;
 	}
+
+	memcpy(i_buf, buffer, length);
+	i_buf[length] = '\0';
+	p = i_buf;
 
 	while (isspace(*p) && *p != '\0')
 		p++;
 	file_name = p;
-	while (!isspace(*p) && *p != '\0')
-		p++;
-	*p++ = '\0';
+	p = &i_buf[length-1];
+	pp = p;
+	while (isspace(*p) && *p != '\0') {
+		pp = p;
+		p--;
+	}
+	*pp = '\0';
+
+	res = scst_suspend_activity(true);
+	if (res != 0)
+		goto out;
+
 	if (*file_name == '\0') {
 		virt_dev->cdrom_empty = 1;
 		TRACE_DBG("%s", "No media");
@@ -3490,20 +3464,20 @@ static int vcdrom_change(struct vdev_type *vdt, char *p, const char *name)
 		PRINT_ERROR("File path \"%s\" is not "
 			"absolute", file_name);
 		res = -EINVAL;
-		goto out;
+		goto out_resume;
 	} else
 		virt_dev->cdrom_empty = 0;
 
 	old_fn = virt_dev->file_name;
 
 	if (!virt_dev->cdrom_empty) {
-		len = strlen(file_name) + 1;
-		fn = kmalloc(len, GFP_KERNEL);
+		int len = strlen(file_name) + 1;
+		char *fn = kmalloc(len, GFP_KERNEL);
 		if (fn == NULL) {
 			TRACE(TRACE_OUT_OF_MEM, "%s",
 				"Allocation of file_name failed");
 			res = -ENOMEM;
-			goto out;
+			goto out_resume;
 		}
 
 		strncpy(fn, file_name, len);
@@ -3518,15 +3492,11 @@ static int vcdrom_change(struct vdev_type *vdt, char *p, const char *name)
 		virt_dev->file_name = NULL;
 	}
 
-	res = scst_suspend_activity(true);
-	if (res != 0)
-		goto out_free;
-
 	if (virt_dev->prevent_allow_medium_removal) {
 		PRINT_ERROR("Prevent medium removal for "
-			"virtual device with name %s", name);
+			"virtual device with name %s", virt_dev->name);
 		res = -EINVAL;
-		goto out_free_resume;
+		goto out_free;
 	}
 
 	virt_dev->file_size = err;
@@ -3556,51 +3526,39 @@ out_resume:
 	scst_resume_activity();
 
 out:
+	TRACE_EXIT_RES(res);
 	return res;
 
 out_free:
+	kfree(virt_dev->file_name);
 	virt_dev->file_name = old_fn;
-	kfree(fn);
-	goto out;
-
-out_free_resume:
-	virt_dev->file_name = old_fn;
-	kfree(fn);
 	goto out_resume;
 }
 
-static int vcdrom_parse_cmd(struct vdev_type *vdt, char *p, int *action)
-{
-	int res = -EINVAL;
-
-	TRACE_ENTRY();
-
-	if (!strncmp("change", p, 6)) {
-		res = 6;
-		p += res;
-		*action = VCDROM_ACTION_CHANGE;
-	}
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-/* scst_vdisk_mutex supposed to be held */
-static int vcdrom_perform_cmd(struct vdev_type *vdt, int action, char *p,
-	char *name)
-{
-	int res = -EINVAL;
-
-	TRACE_ENTRY();
-
-	if (action == VCDROM_ACTION_CHANGE)
-		res = vcdrom_change(vdt, p, name);
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
 #ifndef CONFIG_SCST_PROC
+
+static ssize_t vcdrom_sysfs_filename_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
+
+	res = vcdrom_change(virt_dev, buf, count);
+	if (res != 0)
+		goto out;
+
+	res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
 
 static int vdisk_mgmt_cmd(const char *buffer, int length,
 	struct vdev_type *vdt)
@@ -3618,6 +3576,7 @@ static int vdisk_mgmt_cmd(const char *buffer, int length,
 	if (i_buf == NULL) {
 		PRINT_ERROR("Unable to alloc intermediate buffer with size %d",
 			length+1);
+		res = -ENOMEM;
 		goto out;
 	}
 
@@ -3639,15 +3598,9 @@ static int vdisk_mgmt_cmd(const char *buffer, int length,
 		p += 5;
 		action = VDEV_ACTION_CLOSE;
 	} else {
-		int n;
-		n = vdt->vfns.parse_cmd(vdt, p, &action);
-		if (n > 0)
-			p += n;
-		else {
-			PRINT_ERROR("Unknown action \"%s\"", p);
-			res = -EINVAL;
-			goto out_up;
-		}
+		PRINT_ERROR("Unknown action \"%s\"", p);
+		res = -EINVAL;
+		goto out_up;
 	}
 
 	if (!isspace(*p)) {
@@ -3681,11 +3634,9 @@ static int vdisk_mgmt_cmd(const char *buffer, int length,
 		res = vdt->vfns.vdev_close(vdt, name);
 		if (res != 0)
 			goto out_up;
-	} else {
-		res = vdt->vfns.perform_cmd(vdt, action, p, name);
-		if (res != 0)
-			goto out_up;
-	}
+	} else
+		sBUG();
+
 	res = length;
 
 out_up:
@@ -3880,19 +3831,11 @@ static ssize_t vdisk_sysfs_resync_size_store(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
 
-	if (mutex_lock_interruptible(&scst_vdisk_mutex) != 0) {
-		res = -EINTR;
-		goto out;
-	}
-
-	res = __vdisk_resync_size(virt_dev);
+	res = vdisk_resync_size(virt_dev);
 	if (res != 0)
-		goto out_unlock;
+		goto out;
 
 	res = count;
-
-out_unlock:
-	mutex_unlock(&scst_vdisk_mutex);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -3993,6 +3936,7 @@ static int vdisk_proc_mgmt_cmd(const char *buffer, int length,
 	if (i_buf == NULL) {
 		PRINT_ERROR("Unable to alloc intermediate buffer with size %d",
 			length+1);
+		res = -ENOMEM;
 		goto out;
 	}
 
@@ -4226,7 +4170,7 @@ static int vdisk_proc_mgmt_cmd(const char *buffer, int length,
 			goto out_up;
 		}
 
-		res = __vdisk_resync_size(virt_dev);
+		res = vdisk_resync_size(virt_dev);
 		if (res != 0)
 			goto out_up;
 	}
@@ -4296,6 +4240,26 @@ out:
 	return res;
 }
 
+/* scst_vdisk_mutex supposed to be held */
+static int vcdrom_proc_change(struct vdev_type *vdt, char *p, const char *name)
+{
+	struct scst_vdisk_dev *virt_dev;
+	int res;
+
+	virt_dev = vdt->vfns.vdev_find(name);
+	if (virt_dev == NULL) {
+		PRINT_ERROR("Virtual device with name "
+		       "%s not found", name);
+		res = -EINVAL;
+		goto out;
+	}
+
+	res = vcdrom_change(virt_dev, p, strlen(p) + 1);
+
+out:
+	return res;
+}
+
 static int vcdrom_proc_mgmt_cmd(const char *buffer, int length,
 	struct scst_dev_type *dev_type)
 {
@@ -4312,6 +4276,7 @@ static int vcdrom_proc_mgmt_cmd(const char *buffer, int length,
 	if (i_buf == NULL) {
 		PRINT_ERROR("Unable to alloc intermediate buffer with size %d",
 			length+1);
+		res = -ENOMEM;
 		goto out;
 	}
 
@@ -4365,7 +4330,7 @@ static int vcdrom_proc_mgmt_cmd(const char *buffer, int length,
 			goto out_up;
 	} else if (action == 1) {
 		/* change */
-		res = vcdrom_change(&vcdrom_type.parent_vdt, p, name);
+		res = vcdrom_proc_change(&vcdrom_type.parent_vdt, p, name);
 		if (res != 0)
 			goto out_up;
 	} else {
@@ -4558,7 +4523,7 @@ static void __init init_fileio_type(void)
 
 	vdt->vdt_name = "FILEIO";
 	vdt->help_string = "Usage:\n"
-		"	echo \"open|close|resync_size NAME [FILE_NAME "
+		"	echo \"open|close NAME [FILE_NAME "
 		"[BLOCK_SIZE] [WRITE_THROUGH] [READ_ONLY] [O_DIRECT] "
 		"[NV_CACHE] [REMOVABLE]]\" >mgmt\n";
 
@@ -4566,8 +4531,6 @@ static void __init init_fileio_type(void)
 
 	vdt->vfns.vdev_add = vdisk_add;
 	vdt->vfns.vdev_find = vdisk_find;
-	vdt->vfns.parse_cmd = vdisk_parse_cmd;
-	vdt->vfns.perform_cmd = vdisk_perform_cmd;
 	vdt->vfns.parse_option = vdisk_fileio_parse_option;
 	vdt->vfns.pre_register = vdisk_fileio_pre_register;
 
@@ -4582,7 +4545,7 @@ static void __init init_blockio_type(void)
 
 	vdt->vdt_name = "BLOCKIO";
 	vdt->help_string = "Usage:\n"
-		"	echo \"open|close|resync_size NAME [DEVICE_NAME "
+		"	echo \"open|close NAME [DEVICE_NAME "
 		"[BLOCK_SIZE] [READ_ONLY] [REMOVABLE]]\" >mgmt\n";
 
 	blockio_type.parent_vdt_vfns = vdt->vfns;
@@ -4590,8 +4553,6 @@ static void __init init_blockio_type(void)
 	vdt->vfns.vdev_init = vdisk_blockio_init;
 	vdt->vfns.vdev_add = vdisk_add;
 	vdt->vfns.vdev_find = vdisk_find;
-	vdt->vfns.parse_cmd = vdisk_parse_cmd;
-	vdt->vfns.perform_cmd = vdisk_perform_cmd;
 	vdt->vfns.parse_option = vdisk_parse_option;
 	vdt->vfns.pre_register = vdisk_blockio_pre_register;
 
@@ -4613,9 +4574,7 @@ static void __init init_nullio_type(void)
 	vdt->vfns.vdev_init = vdisk_nullio_init;
 	vdt->vfns.vdev_add = vdisk_add;
 	vdt->vfns.vdev_find = vdisk_find;
-	vdt->vfns.parse_cmd = vdisk_parse_cmd;
 	vdt->vfns.parse_option = vdisk_parse_option;
-	vdt->vfns.perform_cmd = vdisk_perform_cmd;
 
 	return;
 }
@@ -4634,8 +4593,6 @@ static void __init init_vcdrom_type(void)
 	vdt->vfns.vdev_init = vcdrom_init;
 	vdt->vfns.vdev_add = vcdrom_add;
 	vdt->vfns.vdev_find = vcdrom_find;
-	vdt->vfns.parse_cmd = vcdrom_parse_cmd;
-	vdt->vfns.perform_cmd = vcdrom_perform_cmd;
 	vdt->vfns.pre_register = vcdrom_pre_register;
 
 	return;

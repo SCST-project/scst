@@ -484,6 +484,10 @@ out_nomem:
 	goto out;
 }
 
+/*
+ * Must not be called under scst_mutex or there can be a deadlock with
+ * tgt_attr_rwsem
+ */
 void scst_tgt_sysfs_put(struct scst_tgt *tgt)
 {
 	if (tgt->tgt_kobj_initialized) {
@@ -635,9 +639,16 @@ static ssize_t scst_dev_attr_show(struct kobject *kobj, struct attribute *attr,
 		goto out;
 	}
 
+	if (mutex_lock_interruptible(&dev->dev_sysfs_mutex) != 0) {
+		res = -EINTR;
+		goto out;
+	}
+
 	kobj_attr = container_of(attr, struct kobj_attribute, attr);
 
 	res = kobj_attr->show(kobj, kobj_attr, buf);
+
+	mutex_unlock(&dev->dev_sysfs_mutex);
 
 	up_read(&dev->dev_attr_rwsem);
 
@@ -659,9 +670,16 @@ static ssize_t scst_dev_attr_store(struct kobject *kobj, struct attribute *attr,
 		goto out;
 	}
 
+	if (mutex_lock_interruptible(&dev->dev_sysfs_mutex) != 0) {
+		res = -EINTR;
+		goto out;
+	}
+
 	kobj_attr = container_of(attr, struct kobj_attribute, attr);
 
 	res = kobj_attr->store(kobj, kobj_attr, buf, count);
+
+	mutex_unlock(&dev->dev_sysfs_mutex);
 
 	up_read(&dev->dev_attr_rwsem);
 
@@ -687,6 +705,7 @@ int scst_create_device_sysfs(struct scst_device *dev)
 	TRACE_ENTRY();
 
 	init_rwsem(&dev->dev_attr_rwsem);
+	mutex_init(&dev->dev_sysfs_mutex);
 
 	dev->dev_kobj_initialized = 1;
 
@@ -726,6 +745,10 @@ out:
 	return retval;
 }
 
+/*
+ * Must not be called under scst_mutex or there can be a deadlock with
+ * dev_attr_rwsem
+ */
 void scst_device_sysfs_put(struct scst_device *dev)
 {
 	TRACE_ENTRY();
@@ -937,6 +960,10 @@ out_free:
 	return retval;
 }
 
+/*
+ * Must not be called under scst_mutex or there can be a deadlock with
+ * sess_attr_rwsem
+ */
 void scst_sess_sysfs_put(struct scst_session *sess)
 {
 	TRACE_ENTRY();

@@ -468,7 +468,7 @@ out_resume_free:
 	scst_resume_activity();
 
 out_free_tgt_err:
-	scst_tgt_sysfs_put(tgt);
+	scst_tgt_sysfs_put(tgt); /* must not be called under scst_mutex */
 	tgt = NULL;
 
 out_err:
@@ -544,7 +544,7 @@ again:
 
 	del_timer_sync(&tgt->retry_timer);
 
-	scst_tgt_sysfs_put(tgt);
+	scst_tgt_sysfs_put(tgt); /* must not be called under scst_mutex */
 
 	PRINT_INFO("Target %p for template %s unregistered successfully",
 		tgt, vtt->name);
@@ -805,8 +805,10 @@ out_free:
 #endif
 
 out_free_dev:
-	scst_device_sysfs_put(dev);
-	goto out_up;
+	mutex_unlock(&scst_mutex);
+	scst_resume_activity();
+	scst_device_sysfs_put(dev); /* must not be called under scst_mutex */
+	goto out_err;
 }
 
 static void scst_unregister_device(struct scsi_device *scsidp)
@@ -828,7 +830,7 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 	}
 	if (dev == NULL) {
 		PRINT_ERROR("%s", "Target device not found");
-		goto out_unblock;
+		goto out_resume;
 	}
 
 	list_del(&dev->dev_list_entry);
@@ -844,18 +846,23 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 	put_disk(dev->rq_disk);
 #endif
 
-	scst_device_sysfs_put(dev);
+	mutex_unlock(&scst_mutex);
+	scst_resume_activity();
+
+	scst_device_sysfs_put(dev); /* must not be called under scst_mutex */
 
 	PRINT_INFO("Detached from scsi%d, channel %d, id %d, lun %d, type %d",
 		scsidp->host->host_no, scsidp->channel, scsidp->id,
 		scsidp->lun, scsidp->type);
 
-out_unblock:
-	mutex_unlock(&scst_mutex);
-	scst_resume_activity();
-
+out:
 	TRACE_EXIT();
 	return;
+
+out_resume:
+	mutex_unlock(&scst_mutex);
+	scst_resume_activity();
+	goto out;
 }
 
 static int scst_dev_handler_check(struct scst_dev_type *dev_handler)
@@ -970,8 +977,10 @@ out_free_del:
 	list_del(&dev->dev_list_entry);
 
 out_release:
-	scst_device_sysfs_put(dev);
-	goto out_up;
+	mutex_unlock(&scst_mutex);
+	scst_resume_activity();
+	scst_device_sysfs_put(dev); /* must not be called under scst_mutex */
+	goto out;
 }
 EXPORT_SYMBOL(scst_register_virtual_device);
 
@@ -1009,11 +1018,11 @@ void scst_unregister_virtual_device(int id)
 	PRINT_INFO("Detached from virtual device %s (id %d)",
 		dev->virt_name, dev->virt_id);
 
-	scst_device_sysfs_put(dev);
-
 out_unblock:
 	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
+
+	scst_device_sysfs_put(dev); /* must not be called under scst_mutex */
 
 	TRACE_EXIT();
 	return;

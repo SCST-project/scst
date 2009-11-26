@@ -1334,7 +1334,6 @@ out:
 	return res;
 }
 
-/* Called under scst_mutex and suspended activity */
 void scst_free_device(struct scst_device *dev)
 {
 	TRACE_ENTRY();
@@ -2377,7 +2376,7 @@ void scst_free_session(struct scst_session *sess)
 
 	mutex_unlock(&scst_mutex);
 
-	scst_sess_sysfs_put(sess);
+	scst_sess_sysfs_put(sess); /* must not be called under scst_mutex */
 
 	TRACE_EXIT();
 	return;
