@@ -2597,18 +2597,18 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	srp_rsp = ioctx->buf;
 
 	if (SCST_SENSE_VALID(scst_cmd_get_sense_buffer(scmnd))) {
+		unsigned int max_sense_len;
+
 		srp_rsp->sense_data_len = scst_cmd_get_sense_buffer_len(scmnd);
 		BUILD_BUG_ON(MIN_MAX_MESSAGE_SIZE <= sizeof(*srp_rsp));
 		WARN_ON(srp_max_message_size <= sizeof(*srp_rsp));
-		if (srp_rsp->sense_data_len >
-		    (srp_max_message_size - sizeof *srp_rsp)) {
-			TRACE_DBG("truncated sense data from %d to %zd bytes",
-				  srp_rsp->sense_data_len,
-				  srp_max_message_size - sizeof *srp_rsp);
-			srp_rsp->sense_data_len =
-			    srp_max_message_size - sizeof *srp_rsp;
+		max_sense_len = srp_max_message_size - sizeof(*srp_rsp);
+		if (srp_rsp->sense_data_len > max_sense_len) {
+			PRINT_WARNING("truncated sense data from %d to %d"
+				" bytes", srp_rsp->sense_data_len,
+				max_sense_len);
+			srp_rsp->sense_data_len = max_sense_len;
 		}
-		WARN_ON(srp_rsp->sense_data_len <= 0);
 
 		memcpy((u8 *) (srp_rsp + 1), scst_cmd_get_sense_buffer(scmnd),
 		       srp_rsp->sense_data_len);
@@ -2962,7 +2962,11 @@ static struct class_attribute srpt_class_attrs[] = {
 	__ATTR_NULL,
 };
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+static struct class_device_attribute srpt_dev_attrs[] = {
+#else
 static struct device_attribute srpt_dev_attrs[] = {
+#endif
 	__ATTR(login_info, S_IRUGO, show_login_info, NULL),
 	__ATTR_NULL,
 };
@@ -2975,7 +2979,11 @@ static struct class srpt_class = {
 	.dev_release = srpt_release_class_dev,
 #endif
 	.class_attrs = srpt_class_attrs,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+	.class_dev_attrs = srpt_dev_attrs,
+#else
 	.dev_attrs   = srpt_dev_attrs,
+#endif
 };
 
 /*
