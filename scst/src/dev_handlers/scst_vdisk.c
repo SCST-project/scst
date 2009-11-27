@@ -214,6 +214,7 @@ struct scst_vdisk_dev {
 				   must be <= SCSI Model + 1 */
 	char *file_name;	/* File name, protected by
 				   scst_mutex and suspended activities */
+	char scsi_id[16+8+2];   /* SCSI ID */
 	char usn[MAX_USN_LEN];
 	struct scst_device *dev;
 	struct list_head vdisk_dev_list_entry;
@@ -362,6 +363,7 @@ static int vcdrom_write_proc(char *buffer, char **start, off_t offset,
 #endif
 static int vdisk_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	struct scst_tgt_dev *tgt_dev);
+static uint64_t vdisk_gen_dev_id_num(struct scst_vdisk_dev *virt_dev);
 
 /** SYSFS **/
 
@@ -398,6 +400,10 @@ static ssize_t vdisk_sysfs_filename_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdisk_sysfs_resync_size_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count);
+static ssize_t vdisk_sysfs_scsi_id_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count);
+static ssize_t vdisk_sysfs_scsi_id_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
 
 static ssize_t vcdrom_sysfs_filename_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count);
@@ -420,6 +426,9 @@ static struct kobj_attribute vdisk_filename_attr =
 	__ATTR(filename, S_IRUGO, vdisk_sysfs_filename_show, NULL);
 static struct kobj_attribute vdisk_resync_size_attr =
 	__ATTR(resync_size, S_IWUSR, NULL, vdisk_sysfs_resync_size_store);
+static struct kobj_attribute vdisk_scsi_id_attr =
+	__ATTR(scsi_id, S_IWUSR|S_IRUGO, vdisk_sysfs_scsi_id_show, 
+		vdisk_sysfs_scsi_id_store);
 
 static struct kobj_attribute vcdrom_filename_attr =
 	__ATTR(filename, S_IRUGO|S_IWUSR, vdisk_sysfs_filename_show,
@@ -435,6 +444,7 @@ static const struct attribute *vdisk_fileio_attrs[] = {
 	&vdisk_removable_attr.attr,
 	&vdisk_filename_attr.attr,
 	&vdisk_resync_size_attr.attr,
+	&vdisk_scsi_id_attr.attr,
 	NULL,
 };
 
@@ -445,6 +455,7 @@ static const struct attribute *vdisk_blockio_attrs[] = {
 	&vdisk_removable_attr.attr,
 	&vdisk_filename_attr.attr,
 	&vdisk_resync_size_attr.attr,
+	&vdisk_scsi_id_attr.attr,
 	NULL,
 };
 
@@ -453,6 +464,7 @@ static const struct attribute *vdisk_nullio_attrs[] = {
 	&vdisk_blocksize_attr.attr,
 	&vdisk_rd_only_attr.attr,
 	&vdisk_removable_attr.attr,
+	&vdisk_scsi_id_attr.attr,
 	NULL,
 };
 
@@ -460,6 +472,7 @@ static const struct attribute *vcdrom_attrs[] = {
 	&vdisk_size_attr.attr,
 	&vdisk_removable_attr.attr,
 	&vcdrom_filename_attr.attr,
+	&vdisk_scsi_id_attr.attr,
 	NULL,
 };
 
@@ -467,6 +480,7 @@ static const struct attribute *vcdrom_attrs[] = {
 
 /* Protects vdisks addition/deletion and related activities, like search */
 static DEFINE_MUTEX(scst_vdisk_mutex);
+static DEFINE_RWLOCK(vdisk_scsiid_rwlock);
 
 /* Both protected by scst_vdisk_mutex */
 static LIST_HEAD(vdisk_dev_list);
@@ -609,6 +623,8 @@ static struct scst_vdisk_thr nullio_thr_data;
 static char *vdisk_proc_help_string =
 	"echo \"open|close|resync_size NAME [FILE_NAME [BLOCK_SIZE] "
 	"[WRITE_THROUGH READ_ONLY O_DIRECT NULLIO NV_CACHE BLOCKIO]]\" "
+	">/proc/scsi_tgt/vdisk/vdisk\n"
+	"echo \"set_scsiid NAME SCSI_ID\" "
 	">/proc/scsi_tgt/vdisk/vdisk\n";
 
 static char *vcdrom_proc_help_string =
@@ -723,6 +739,10 @@ static int vdisk_attach(struct scst_device *dev)
 	loff_t err;
 	struct scst_vdisk_dev *virt_dev = NULL, *vv;
 	struct list_head *vd;
+	uint64_t dev_id_num;
+	int dev_id_len;
+	char dev_id_str[17];
+	int32_t i;
 
 	TRACE_ENTRY();
 
@@ -803,6 +823,18 @@ static int vdisk_attach(struct scst_device *dev)
 		dev->queue_alg = DEF_QUEUE_ALG;
 	dev->swp = DEF_SWP;
 	dev->tas = DEF_TAS;
+
+	/* generate SCSI id */
+	dev_id_num = vdisk_gen_dev_id_num(virt_dev);
+	dev_id_len = scnprintf(dev_id_str, sizeof(dev_id_str), "%llx",
+				dev_id_num);
+
+	write_lock(&vdisk_scsiid_rwlock);
+	i = strlen(virt_dev->name) + 1; /* for ' ' */
+	memset(virt_dev->scsi_id, ' ', i + dev_id_len);
+	memcpy(virt_dev->scsi_id, virt_dev->name, i-1);
+	memcpy(virt_dev->scsi_id + i, dev_id_str, dev_id_len);
+	write_unlock(&vdisk_scsiid_rwlock);
 
 out:
 	TRACE_EXIT();
@@ -1415,15 +1447,6 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 		buf[1] = 0x80;      /* removable */
 	/* Vital Product */
 	if (cmd->cdb[1] & EVPD) {
-		uint64_t dev_id_num;
-		int dev_id_len;
-		char dev_id_str[17];
-
-		dev_id_num = vdisk_gen_dev_id_num(virt_dev);
-		dev_id_len = scnprintf(dev_id_str, sizeof(dev_id_str), "%llx",
-					dev_id_num);
-		TRACE_DBG("dev_id num %lld, str %s, len %d", dev_id_num,
-			dev_id_str, dev_id_len);
 		if (0 == cmd->cdb[2]) {
 			/* supported vital product data pages */
 			buf[3] = 3;
@@ -1451,11 +1474,12 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			else
 				memcpy(&buf[num + 4], SCST_FIO_VENDOR, 8);
 
-			i = strlen(virt_dev->name) + 1; /* for ' ' */
-			memset(&buf[num + 12], ' ', i + dev_id_len);
-			memcpy(&buf[num + 12], virt_dev->name, i-1);
-			memcpy(&buf[num + 12 + i], dev_id_str, dev_id_len);
-			buf[num + 3] = 8 + i + dev_id_len;
+			read_lock(&vdisk_scsiid_rwlock);
+			i = strlen(virt_dev->scsi_id);
+			memcpy(&buf[num + 12], virt_dev->scsi_id, i);
+			read_unlock(&vdisk_scsiid_rwlock);
+			
+			buf[num + 3] = 8 + i;
 			num += buf[num + 3];
 
 #if 0 /* This isn't required and can be misleading, so let's disable it */
@@ -3852,6 +3876,72 @@ out:
 	return res;
 }
 
+static ssize_t vdisk_sysfs_scsi_id_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res, i;
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
+
+	write_lock(&vdisk_scsiid_rwlock);
+
+	if ((count > sizeof(virt_dev->scsi_id)) ||
+	    ((count == sizeof(virt_dev->scsi_id)) &&
+	     (buf[count-1] != '\n'))) {
+		PRINT_ERROR("SCSI ID is too long (max %zd "
+			"characters)", sizeof(virt_dev->scsi_id)-1);
+		res = -EINVAL;
+		goto out_unlock;
+	}
+
+	memset(virt_dev->scsi_id, 0, sizeof(virt_dev->scsi_id));
+	memcpy(virt_dev->scsi_id, buf, count);
+
+	i = 0;
+	while (i < sizeof(virt_dev->scsi_id)) {
+		if (virt_dev->scsi_id[i] == '\n') {
+			virt_dev->scsi_id[i] = '\0';
+			break;
+		}
+		i++;
+	}
+	res = count;
+
+	PRINT_INFO("SCSI ID for device %s changed to %s", virt_dev->name,
+		virt_dev->scsi_id);
+
+out_unlock:
+	write_unlock(&vdisk_scsiid_rwlock);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t vdisk_sysfs_scsi_id_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos = 0;
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
+
+	read_lock(&vdisk_scsiid_rwlock);
+	pos = sprintf(buf, "%s\n", virt_dev->scsi_id);
+	read_unlock(&vdisk_scsiid_rwlock);
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
 #else /* CONFIG_SCST_PROC */
 
 /*
@@ -3873,8 +3963,9 @@ static int vdisk_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
 		goto out;
 	}
 
-	seq_printf(seq, "%-17s %-11s %-11s %-15s %s\n",
-		   "Name", "Size(MB)", "Block size", "Options", "File name");
+	seq_printf(seq, "%-17s %-11s %-11s %-15s %-45s %-16s\n",
+		"Name", "Size(MB)", "Block size", "Options", "File name",
+		"SCSI id");
 
 	list_for_each_entry(virt_dev, &vdisk_dev_list, vdisk_dev_list_entry) {
 		int c;
@@ -3919,7 +4010,10 @@ static int vdisk_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
 			seq_printf(seq, " ");
 			c++;
 		}
-		seq_printf(seq, "%s\n", virt_dev->file_name);
+		read_lock(&vdisk_scsiid_rwlock);
+		seq_printf(seq, "%-45s %-16s\n", virt_dev->file_name,
+			virt_dev->scsi_id);
+		read_unlock(&vdisk_scsiid_rwlock);
 	}
 	mutex_unlock(&scst_vdisk_mutex);
 out:
@@ -3931,11 +4025,11 @@ static int vdisk_proc_mgmt_cmd(const char *buffer, int length,
 			       struct scst_dev_type *dev_type)
 {
 	int res = 0, action;
-	char *p, *name, *file_name, *i_buf;
+	char *p, *name, *file_name, *i_buf, *scsi_id;
 	struct scst_vdisk_dev *virt_dev, *vv;
 	uint32_t block_size = DEF_DISK_BLOCKSIZE;
 	int block_shift = DEF_DISK_BLOCKSIZE_SHIFT;
-	size_t len;
+	size_t len, slen;
 
 	TRACE_ENTRY();
 
@@ -3970,6 +4064,9 @@ static int vdisk_proc_mgmt_cmd(const char *buffer, int length,
 	} else if (!strncmp("resync_size ", p, 12)) {
 		p += 12;
 		action = 2;
+	} else if (!strncmp("set_scsiid ", p, 11)) {
+		p += 11;
+		action = 3;
 	} else {
 		PRINT_ERROR("Unknown action \"%s\"", p);
 		res = -EINVAL;
@@ -4165,7 +4262,7 @@ static int vdisk_proc_mgmt_cmd(const char *buffer, int length,
 
 		kfree(virt_dev->file_name);
 		kfree(virt_dev);
-	} else {	/* resync_size */
+	} else if (action == 2) {	/* resync_size */
 		virt_dev = NULL;
 		list_for_each_entry(vv, &vdisk_dev_list,
 					vdisk_dev_list_entry) {
@@ -4183,6 +4280,46 @@ static int vdisk_proc_mgmt_cmd(const char *buffer, int length,
 		res = vdisk_resync_size(virt_dev);
 		if (res != 0)
 			goto out_up;
+	} else if (action == 3) {	/* set scsi id */
+		virt_dev = NULL;
+		list_for_each_entry(vv, &vdisk_dev_list,
+					vdisk_dev_list_entry) {
+			if (strcmp(vv->name, name) == 0) {
+				virt_dev = vv;
+				break;
+			}
+		}
+		if (virt_dev == NULL) {
+			PRINT_ERROR("Device %s not found", name);
+			res = -EINVAL;
+			goto out_up;
+		}
+
+		while (isspace(*p) && *p != '\0')
+			p++;
+		scsi_id = p;
+		while (!isspace(*p) && *p != '\0')
+			p++;
+		*p++ = '\0';
+		if (*scsi_id == '\0') {
+			PRINT_ERROR("%s", "SCSI ID required");
+			res = -EINVAL;
+			goto out_up;
+		}
+
+		write_lock(&vdisk_scsiid_rwlock);
+
+		slen = (strlen(scsi_id) <= (sizeof(virt_dev->scsi_id)-1) ?
+			strlen(scsi_id) :
+			(sizeof(virt_dev->scsi_id)-1));
+
+		memset(virt_dev->scsi_id, 0, sizeof(virt_dev->scsi_id));
+		memcpy(virt_dev->scsi_id, scsi_id, slen);
+
+		PRINT_INFO("SCSI ID for device %s changed to %s",
+			virt_dev->name, virt_dev->scsi_id);
+
+		write_unlock(&vdisk_scsiid_rwlock);
 	}
 	res = length;
 
