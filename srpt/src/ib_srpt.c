@@ -2601,9 +2601,13 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 		BUILD_BUG_ON(MIN_MAX_MESSAGE_SIZE <= sizeof(*srp_rsp));
 		WARN_ON(srp_max_message_size <= sizeof(*srp_rsp));
 		if (srp_rsp->sense_data_len >
-		    (srp_max_message_size - sizeof *srp_rsp))
+		    (srp_max_message_size - sizeof *srp_rsp)) {
+			TRACE_DBG("truncated sense data from %d to %zd bytes",
+				  srp_rsp->sense_data_len,
+				  srp_max_message_size - sizeof *srp_rsp);
 			srp_rsp->sense_data_len =
 			    srp_max_message_size - sizeof *srp_rsp;
+		}
 		WARN_ON(srp_rsp->sense_data_len <= 0);
 
 		memcpy((u8 *) (srp_rsp + 1), scst_cmd_get_sense_buffer(scmnd),
