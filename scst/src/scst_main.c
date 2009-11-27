@@ -79,6 +79,7 @@
  * flush_scheduled_work().
  */
 struct mutex scst_mutex;
+EXPORT_SYMBOL(scst_mutex);
 
  /* All 3 protected by scst_mutex */
 struct list_head scst_template_list;
@@ -493,6 +494,8 @@ void scst_unregister(struct scst_tgt *tgt)
 	struct scst_tgt_template *vtt = tgt->tgtt;
 
 	TRACE_ENTRY();
+
+	scst_tgt_sysfs_prepare_put(tgt);
 
 	TRACE_DBG("%s", "Calling target driver's release()");
 	tgt->tgtt->release(tgt);

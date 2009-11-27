@@ -144,7 +144,6 @@ extern spinlock_t scst_main_lock;
 extern struct scst_sgv_pools scst_sgv;
 
 extern unsigned long scst_flags;
-extern struct mutex scst_mutex;
 extern atomic_t scst_cmd_count;
 extern struct list_head scst_template_list;
 extern struct list_head scst_dev_list;
@@ -443,6 +442,7 @@ static inline int scst_create_tgt_sysfs(struct scst_tgt *tgt)
 {
 	return 0;
 }
+static inline void scst_tgt_sysfs_prepare_put(struct scst_tgt *tgt) { }
 static inline void scst_tgt_sysfs_put(struct scst_tgt *tgt)
 {
 	scst_free_tgt(tgt);
@@ -497,6 +497,7 @@ void scst_sysfs_cleanup(void);
 int scst_create_tgtt_sysfs(struct scst_tgt_template *tgtt);
 void scst_tgtt_sysfs_put(struct scst_tgt_template *tgtt);
 int scst_create_tgt_sysfs(struct scst_tgt *tgt);
+void scst_tgt_sysfs_prepare_put(struct scst_tgt *tgt);
 void scst_tgt_sysfs_put(struct scst_tgt *tgt);
 int scst_create_sess_sysfs(struct scst_session *sess);
 void scst_sess_sysfs_put(struct scst_session *sess);

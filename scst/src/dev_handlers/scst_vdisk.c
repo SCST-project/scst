@@ -212,7 +212,8 @@ struct scst_vdisk_dev {
 	int virt_id;
 	char name[16+1];	/* Name of the virtual device,
 				   must be <= SCSI Model + 1 */
-	char *file_name;	/* File name */
+	char *file_name;	/* File name, protected by
+				   scst_mutex and suspended activities */
 	char usn[MAX_USN_LEN];
 	struct scst_device *dev;
 	struct list_head vdisk_dev_list_entry;
@@ -815,7 +816,8 @@ out:
  *
  *  Returns :  None
  *
- *  Description:  Called to detach this device type driver
+ *  Description:  Called to detach this device type driver.
+ *		  Scst_mutex supposed to be held.
  ************************************************************/
 static void vdisk_detach(struct scst_device *dev)
 {
@@ -3457,6 +3459,9 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 	if (res != 0)
 		goto out;
 
+	/* To sync with detach*() functions */
+	mutex_lock(&scst_mutex);
+
 	if (*file_name == '\0') {
 		virt_dev->cdrom_empty = 1;
 		TRACE_DBG("%s", "No media");
@@ -3464,7 +3469,7 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 		PRINT_ERROR("File path \"%s\" is not "
 			"absolute", file_name);
 		res = -EINVAL;
-		goto out_resume;
+		goto out_unlock;
 	} else
 		virt_dev->cdrom_empty = 0;
 
@@ -3477,7 +3482,7 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 			TRACE(TRACE_OUT_OF_MEM, "%s",
 				"Allocation of file_name failed");
 			res = -ENOMEM;
-			goto out_resume;
+			goto out_unlock;
 		}
 
 		strncpy(fn, file_name, len);
@@ -3503,6 +3508,8 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 	virt_dev->nblocks = virt_dev->file_size >> virt_dev->block_shift;
 	if (!virt_dev->cdrom_empty)
 		virt_dev->media_changed = 1;
+
+	mutex_unlock(&scst_mutex);
 
 	scst_dev_del_all_thr_data(virt_dev->dev);
 
@@ -3532,6 +3539,9 @@ out:
 out_free:
 	kfree(virt_dev->file_name);
 	virt_dev->file_name = old_fn;
+
+out_unlock:
+	mutex_unlock(&scst_mutex);
 	goto out_resume;
 }
 

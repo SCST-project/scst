@@ -1063,7 +1063,10 @@ struct scst_dev_type {
 	/* Optional sysfs attributes */
 	const struct attribute **devt_attrs;
 
-	/* Optional sysfs device attributes */
+	/*
+	 * Optional sysfs device attributes. They are serialized
+	 * by dev_sysfs_mutex.
+	 */
 	const struct attribute **dev_attrs;
 #endif
 
@@ -1144,6 +1147,9 @@ struct scst_tgt {
 
 	/* Set if tgt_kobj was initialized */
 	unsigned int tgt_kobj_initialized:1;
+
+	/* Set if scst_tgt_sysfs_prepare_put() was called for tgt_kobj */
+	unsigned int tgt_kobj_put_prepared:1;
 
 	/*
 	 * Used to protect sysfs attributes to be called after this
@@ -3217,6 +3223,12 @@ struct scst_trace_log {
 	unsigned int val;
 	const char *token;
 };
+
+/*
+ * Main SCST mutex. All targets, devices and dev_types management is done
+ * under this mutex.
+ */
+extern struct mutex scst_mutex;
 
 #ifdef CONFIG_SCST_PROC
 

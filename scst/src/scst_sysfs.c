@@ -488,6 +488,20 @@ out_nomem:
  * Must not be called under scst_mutex or there can be a deadlock with
  * tgt_attr_rwsem
  */
+void scst_tgt_sysfs_prepare_put(struct scst_tgt *tgt)
+{
+	if (tgt->tgt_kobj_initialized) {
+		down_write(&tgt->tgt_attr_rwsem);
+		tgt->tgt_kobj_put_prepared = 1;
+	}
+
+	return;
+}
+
+/*
+ * Must not be called under scst_mutex or there can be a deadlock with
+ * tgt_attr_rwsem
+ */
 void scst_tgt_sysfs_put(struct scst_tgt *tgt)
 {
 	if (tgt->tgt_kobj_initialized) {
@@ -504,7 +518,8 @@ void scst_tgt_sysfs_put(struct scst_tgt *tgt)
 
 		kobject_del(&tgt->tgt_kobj);
 
-		down_write(&tgt->tgt_attr_rwsem);
+		if (!tgt->tgt_kobj_put_prepared)
+			down_write(&tgt->tgt_attr_rwsem);
 		kobject_put(&tgt->tgt_kobj);
 	} else
 		scst_free_tgt(tgt);
