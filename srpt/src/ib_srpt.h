@@ -129,8 +129,6 @@ struct srpt_ioctx {
 	struct srp_direct_buf single_rbuf;
 	/* Node for insertion in srpt_rdma_ch::cmd_wait_list. */
 	struct list_head wait_list;
-	/* Node for insertion in srpt_rdma_ch::active_scmnd_list. */
-	struct list_head scmnd_list;
 	u16 n_rdma_ius;
 	u8 n_rdma;
 	u8 n_rbuf;
@@ -141,7 +139,7 @@ struct srpt_ioctx {
 	struct srpt_rdma_ch *ch;
 	struct scst_cmd *scmnd;
 	u64 data_len;
-	enum srpt_command_state state;
+	atomic_t state; /*enum srpt_command_state*/
 };
 
 /* Additional context information for SCST management commands. */
@@ -172,14 +170,14 @@ struct srpt_rdma_ch {
 	u8 t_port_id[16];
 	atomic_t req_lim_delta;
 	spinlock_t spinlock;
-	enum rdma_ch_state state;
+	atomic_t state; /*enum rdma_ch_state*/
 	/* Node for insertion in the srpt_device::rch_list list. */
 	struct list_head list;
-	/* List of waiting SCST commands (containt struct srpt_ioctx elem's). */
+	/*
+	 * List of SCST commands that arrived before the RTU event.
+	 * This list contains struct srpt_ioctx elements.
+	 */
 	struct list_head cmd_wait_list;
-	/* SCST commands being processed (contains struct srpt_ioctx elem's). */
-	struct list_head active_scmnd_list;
-	u32 active_scmnd_cnt;
 
 	struct scst_session *scst_sess;
 	u8 sess_name[36];
