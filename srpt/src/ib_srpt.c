@@ -715,9 +715,9 @@ static enum srpt_command_state srpt_set_cmd_state(struct srpt_ioctx *ioctx,
 	WARN_ON(!ioctx);
 	WARN_ON(new == SRPT_STATE_NEW);
 
-	do
+	do {
 		previous = atomic_read(&ioctx->state);
-	while (previous != SRPT_STATE_ABORTED
+	} while (previous != SRPT_STATE_ABORTED
 	       && atomic_cmpxchg(&ioctx->state, previous, new) != previous);
 
 	return previous;
@@ -949,7 +949,7 @@ out:
 
 static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 {
-	srpt_unmap_sg_to_ib_sge(ch, ioctx); 
+	srpt_unmap_sg_to_ib_sge(ch, ioctx);
 
 	if (ioctx->n_rbuf > 1) {
 		kfree(ioctx->rbufs);
@@ -1650,7 +1650,7 @@ out:
  * a call to ib_destroy_cm_id(), which locks the cm_id spinlock and hence
  * waits until this function has finished).
  */
-void srpt_release_channel_by_cmid(struct ib_cm_id *cm_id)
+static void srpt_release_channel_by_cmid(struct ib_cm_id *cm_id)
 {
 	struct srpt_device *sdev;
 	struct srpt_rdma_ch *ch;
@@ -1867,7 +1867,6 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		goto reject;
 	}
 
-	spin_lock_init(&ch->spinlock);
 	memcpy(ch->i_port_id, req->initiator_port_id, 16);
 	memcpy(ch->t_port_id, req->target_port_id, 16);
 	ch->sport = &sdev->port[param->port - 1];
