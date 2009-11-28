@@ -136,8 +136,7 @@ static void srpt_unregister_mad_agent(struct srpt_device *sdev);
 static void srpt_unregister_procfs_entry(struct scst_tgt_template *tgt);
 #endif /*CONFIG_SCST_PROC*/
 static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
-				    struct srpt_ioctx *ioctx,
-				    struct scst_cmd *scmnd);
+				    struct srpt_ioctx *ioctx);
 static void srpt_release_channel(struct scst_session *scst_sess);
 
 static struct ib_client srpt_client = {
@@ -950,20 +949,14 @@ out:
 
 static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 {
-	int i;
+	srpt_unmap_sg_to_ib_sge(ch, ioctx); 
 
-	if (ioctx->n_rdma_ius > 0 && ioctx->rdma_ius) {
-		struct rdma_iu *riu = ioctx->rdma_ius;
-
-		for (i = 0; i < ioctx->n_rdma_ius; ++i, ++riu)
-			kfree(riu->sge);
-		kfree(ioctx->rdma_ius);
+	if (ioctx->n_rbuf > 1) {
+		kfree(ioctx->rbufs);
+		ioctx->rbufs = NULL;
 	}
 
-	if (ioctx->n_rbuf > 1)
-		kfree(ioctx->rbufs);
-
-	/* If ch == NULL this means that the command has been aborted. */
+	WARN_ON(!ch);
 	if (!ch)
 		return;
 
@@ -1409,24 +1402,16 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 {
 	struct srp_cmd *srp_cmd;
 	struct srp_rsp *srp_rsp;
-	unsigned long flags;
 	enum rdma_ch_state ch_state;
 	int len;
 
 	ch_state = atomic_read(&ch->state);
-	if (ch_state != RDMA_CHANNEL_LIVE) {
-		spin_lock_irqsave(&ch->spinlock, flags);
-		ch_state = atomic_read(&ch->state);
-		if (ch_state == RDMA_CHANNEL_CONNECTING) {
-			list_add_tail(&ioctx->wait_list, &ch->cmd_wait_list);
-			spin_unlock_irqrestore(&ch->spinlock, flags);
-			return;
-		} else if (ch_state == RDMA_CHANNEL_DISCONNECTING) {
-			spin_unlock_irqrestore(&ch->spinlock, flags);
-			srpt_reset_ioctx(ch, ioctx);
-			return;
-		}
-		spin_unlock_irqrestore(&ch->spinlock, flags);
+	if (ch_state == RDMA_CHANNEL_CONNECTING) {
+		list_add_tail(&ioctx->wait_list, &ch->cmd_wait_list);
+		return;
+	} else if (ch_state == RDMA_CHANNEL_DISCONNECTING) {
+		srpt_reset_ioctx(ch, ioctx);
+		return;
 	}
 
 	WARN_ON(ch_state != RDMA_CHANNEL_LIVE);
@@ -1685,6 +1670,8 @@ static struct srpt_rdma_ch *srpt_find_channel(struct ib_cm_id *cm_id,
 		if (ch->cm_id == cm_id) {
 			if (release_ch) {
 				list_del(&ch->list);
+				atomic_set(&ch->state,
+					   RDMA_CHANNEL_DISCONNECTING);
 				scst_unregister_session(ch->scst_sess, 0,
 							srpt_release_channel);
 			}
@@ -1716,6 +1703,8 @@ static void srpt_release_channel(struct scst_session *scst_sess)
 	ch = scst_sess_get_tgt_priv(scst_sess);
 	BUG_ON(!ch);
 	WARN_ON(srpt_find_channel(ch->cm_id, false) == ch);
+
+	WARN_ON(atomic_read(&ch->state) != RDMA_CHANNEL_DISCONNECTING);
 
 	TRACE_DBG("destroying cm_id %p", ch->cm_id);
 	BUG_ON(!ch->cm_id);
@@ -1812,10 +1801,8 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 					  ch->sess_name, ch->cm_id,
 					  atomic_read(&ch->state));
 
-				prev_state
-				= srpt_test_and_set_channel_state(ch,
-					RDMA_CHANNEL_LIVE,
-					RDMA_CHANNEL_DISCONNECTING);
+				prev_state = atomic_xchg(&ch->state,
+						RDMA_CHANNEL_DISCONNECTING);
 				if (prev_state == RDMA_CHANNEL_CONNECTING)
 					list_del(&ch->list);
 
@@ -1974,6 +1961,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	goto out;
 
 release_channel:
+	atomic_set(&ch->state, RDMA_CHANNEL_DISCONNECTING);
 	scst_unregister_session(ch->scst_sess, 0, NULL);
 	ch->scst_sess = NULL;
 
@@ -2305,20 +2293,23 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	return 0;
 
 free_mem:
-	srpt_unmap_sg_to_ib_sge(ch, ioctx, scmnd);
+	srpt_unmap_sg_to_ib_sge(ch, ioctx);
 
 	return -ENOMEM;
 }
 
 static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
-				    struct srpt_ioctx *ioctx,
-				    struct scst_cmd *scmnd)
+				    struct srpt_ioctx *ioctx)
 {
+	struct scst_cmd *scmnd;
 	struct scatterlist *scat;
 	scst_data_direction dir;
 
 	TRACE_ENTRY();
 
+	scmnd = ioctx->scmnd;
+	BUG_ON(!scmnd);
+	BUG_ON(ioctx != scst_cmd_get_tgt_priv(scmnd));
 	scat = scst_cmd_get_sg(scmnd);
 
 	TRACE_DBG("n_rdma = %d; rdma_ius = %p; scat = %p\n",
@@ -2424,7 +2415,7 @@ static int srpt_xfer_data(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 out:
 	return ret;
 out_unmap:
-	srpt_unmap_sg_to_ib_sge(ch, ioctx, scmnd);
+	srpt_unmap_sg_to_ib_sge(ch, ioctx);
 	goto out;
 }
 
@@ -2682,6 +2673,7 @@ static int srpt_release(struct scst_tgt *scst_tgt)
 	spin_lock_irq(&sdev->spinlock);
 	list_for_each_entry_safe(ch, tmp_ch, &sdev->rch_list, list) {
 		list_del(&ch->list);
+		atomic_set(&ch->state, RDMA_CHANNEL_DISCONNECTING);
 		spin_unlock_irq(&sdev->spinlock);
 		ib_send_cm_dreq(ch->cm_id, NULL, 0);
 		scst_unregister_session(ch->scst_sess, true,

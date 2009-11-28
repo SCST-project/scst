@@ -175,7 +175,8 @@ struct srpt_rdma_ch {
 	struct list_head list;
 	/*
 	 * List of SCST commands that arrived before the RTU event.
-	 * This list contains struct srpt_ioctx elements.
+	 * This list contains struct srpt_ioctx elements and is protected
+	 * against concurrent modification by the cm_id spinlock.
 	 */
 	struct list_head cmd_wait_list;
 
