@@ -427,7 +427,7 @@ static struct kobj_attribute vdisk_filename_attr =
 static struct kobj_attribute vdisk_resync_size_attr =
 	__ATTR(resync_size, S_IWUSR, NULL, vdisk_sysfs_resync_size_store);
 static struct kobj_attribute vdisk_scsi_id_attr =
-	__ATTR(scsi_id, S_IWUSR|S_IRUGO, vdisk_sysfs_scsi_id_show, 
+	__ATTR(scsi_id, S_IWUSR|S_IRUGO, vdisk_sysfs_scsi_id_show,
 		vdisk_sysfs_scsi_id_store);
 
 static struct kobj_attribute vcdrom_filename_attr =
@@ -1478,7 +1478,7 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			i = strlen(virt_dev->scsi_id);
 			memcpy(&buf[num + 12], virt_dev->scsi_id, i);
 			read_unlock(&vdisk_scsiid_rwlock);
-			
+
 			buf[num + 3] = 8 + i;
 			num += buf[num + 3];
 
