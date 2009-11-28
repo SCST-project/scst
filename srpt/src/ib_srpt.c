@@ -1640,45 +1640,52 @@ out:
 }
 
 /**
- * Look up the RDMA channel that corresponds to the specified cm_id.
+ * Release the channel corresponding to the specified cm_id.
  *
- * Return NULL if no matching RDMA channel has been found.
- *
- * Notes:
- * - Must be called from inside srpt_cm_handler to avoid a race between
- *   accessing sdev->spinlock and the call to kfree(sdev) in srpt_remove_one()
- *   (the caller of srpt_cm_handler holds the cm_id spinlock;
- *   srpt_remove_one() waits until all SCST sessions for the associated
- *   IB device have been unregistered and SCST session registration involves
- *   a call to ib_destroy_cm_id(), which locks the cm_id spinlock and hence
- *   waits until this function has finished).
- * - When release_ch == true the return value may be compared with NULL but
- *   but must not be dereferenced because in this case the return value is a
- *   dangling pointer. 
+ * Note: must be called from inside srpt_cm_handler to avoid a race between
+ * accessing sdev->spinlock and the call to kfree(sdev) in srpt_remove_one()
+ * (the caller of srpt_cm_handler holds the cm_id spinlock;
+ * srpt_remove_one() waits until all SCST sessions for the associated
+ * IB device have been unregistered and SCST session registration involves
+ * a call to ib_destroy_cm_id(), which locks the cm_id spinlock and hence
+ * waits until this function has finished).
  */
-static struct srpt_rdma_ch *srpt_find_channel(struct ib_cm_id *cm_id,
-					      bool release_ch)
+void srpt_release_channel_by_cmid(struct ib_cm_id *cm_id)
 {
 	struct srpt_device *sdev;
 	struct srpt_rdma_ch *ch;
 
 	sdev = cm_id->context;
 	BUG_ON(!sdev);
-	ch = NULL;
 	spin_lock_irq(&sdev->spinlock);
 	list_for_each_entry(ch, &sdev->rch_list, list) {
 		if (ch->cm_id == cm_id) {
-			if (release_ch) {
-				list_del(&ch->list);
-				atomic_set(&ch->state,
-					   RDMA_CHANNEL_DISCONNECTING);
-				scst_unregister_session(ch->scst_sess, 0,
-							srpt_release_channel);
-			}
+			list_del(&ch->list);
+			atomic_set(&ch->state, RDMA_CHANNEL_DISCONNECTING);
+			scst_unregister_session(ch->scst_sess, 0,
+						srpt_release_channel);
 			break;
 		}
 	}
+	spin_unlock_irq(&sdev->spinlock);
+}
 
+/**
+ * Look up the RDMA channel that corresponds to the specified cm_id.
+ *
+ * Return NULL if no matching RDMA channel has been found.
+ */
+static struct srpt_rdma_ch *srpt_find_channel(struct srpt_device* sdev,
+					      struct ib_cm_id *cm_id)
+{
+	struct srpt_rdma_ch *ch;
+
+	BUG_ON(!sdev);
+	ch = NULL;
+	spin_lock_irq(&sdev->spinlock);
+	list_for_each_entry(ch, &sdev->rch_list, list)
+		if (ch->cm_id == cm_id)
+			break;
 	spin_unlock_irq(&sdev->spinlock);
 
 	return ch;
@@ -1702,7 +1709,7 @@ static void srpt_release_channel(struct scst_session *scst_sess)
 
 	ch = scst_sess_get_tgt_priv(scst_sess);
 	BUG_ON(!ch);
-	WARN_ON(srpt_find_channel(ch->cm_id, false) == ch);
+	WARN_ON(srpt_find_channel(ch->sport->sdev, ch->cm_id) == ch);
 
 	WARN_ON(atomic_read(&ch->state) != RDMA_CHANNEL_DISCONNECTING);
 
@@ -1992,7 +1999,7 @@ out:
 static void srpt_cm_rej_recv(struct ib_cm_id *cm_id)
 {
 	PRINT_INFO("Received InfiniBand REJ packet for cm_id %p.", cm_id);
-	srpt_find_channel(cm_id, true);
+	srpt_release_channel_by_cmid(cm_id);
 }
 
 /**
@@ -2006,7 +2013,7 @@ static void srpt_cm_rtu_recv(struct ib_cm_id *cm_id)
 	struct srpt_rdma_ch *ch;
 	int ret;
 
-	ch = srpt_find_channel(cm_id, false);
+	ch = srpt_find_channel(cm_id->context, cm_id);
 	WARN_ON(!ch);
 	if (!ch)
 		goto out;
@@ -2039,20 +2046,20 @@ out:
 static void srpt_cm_timewait_exit(struct ib_cm_id *cm_id)
 {
 	PRINT_INFO("Received InfiniBand TimeWait exit for cm_id %p.", cm_id);
-	srpt_find_channel(cm_id, true);
+	srpt_release_channel_by_cmid(cm_id);
 }
 
 static void srpt_cm_rep_error(struct ib_cm_id *cm_id)
 {
 	PRINT_INFO("Received InfiniBand REP error for cm_id %p.", cm_id);
-	srpt_find_channel(cm_id, true);
+	srpt_release_channel_by_cmid(cm_id);
 }
 
 static void srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
 {
 	struct srpt_rdma_ch *ch;
 
-	ch = srpt_find_channel(cm_id, false);
+	ch = srpt_find_channel(cm_id->context, cm_id);
 	WARN_ON(!ch);
 	if (!ch)
 		goto out;
@@ -2078,7 +2085,7 @@ out:
 static void srpt_cm_drep_recv(struct ib_cm_id *cm_id)
 {
 	PRINT_INFO("Received InfiniBand DREP message for cm_id %p.", cm_id);
-	srpt_find_channel(cm_id, true);
+	srpt_release_channel_by_cmid(cm_id);
 }
 
 /**
@@ -2305,15 +2312,10 @@ static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	struct scatterlist *scat;
 	scst_data_direction dir;
 
-	TRACE_ENTRY();
-
 	scmnd = ioctx->scmnd;
 	BUG_ON(!scmnd);
 	BUG_ON(ioctx != scst_cmd_get_tgt_priv(scmnd));
 	scat = scst_cmd_get_sg(scmnd);
-
-	TRACE_DBG("n_rdma = %d; rdma_ius = %p; scat = %p\n",
-		  ioctx->n_rdma, ioctx->rdma_ius, scat);
 
 	BUG_ON(ioctx->n_rdma && !ioctx->rdma_ius);
 
@@ -2329,8 +2331,6 @@ static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				scat, scst_cmd_get_sg_cnt(scmnd),
 				scst_to_tgt_dma_dir(dir));
 	}
-
-	TRACE_EXIT();
 }
 
 static int srpt_perform_rdmas(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
