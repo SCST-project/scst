@@ -2602,13 +2602,14 @@ static void srpt_on_free_cmd(struct scst_cmd *scmnd)
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
 	BUG_ON(!ioctx);
 
-	srpt_set_cmd_state(ioctx, SRPT_STATE_ABORTED);
 	ch = ioctx->ch;
 	BUG_ON(!ch);
-	ioctx->ch = NULL;
 
-	srpt_reset_ioctx(ch, ioctx);
 	scst_cmd_set_tgt_priv(scmnd, NULL);
+	srpt_set_cmd_state(ioctx, SRPT_STATE_ABORTED);
+	ioctx->scmnd = NULL;
+	ioctx->ch = NULL;
+	srpt_reset_ioctx(ch, ioctx);
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && ! defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
