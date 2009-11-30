@@ -793,7 +793,7 @@ static inline int test_tgt_sess_count(struct q2t_tgt *tgt)
 	return res;
 }
 
-/* Must be called under tgt_host_action_mutex */
+/* Must be called under tgt_host_action_mutex or q2t_unreg_rwsem write locked */
 static void q2t_target_stop(struct scst_tgt *scst_tgt)
 {
 	struct q2t_tgt *tgt = (struct q2t_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
@@ -859,7 +859,7 @@ static void q2t_target_stop(struct scst_tgt *scst_tgt)
 	return;
 }
 
-/* Must be called under tgt_host_action_mutex */
+/* Must be called under tgt_host_action_mutex or q2t_unreg_rwsem write locked */
 static int q2t_target_release(struct scst_tgt *scst_tgt)
 {
 	struct q2t_tgt *tgt = (struct q2t_tgt *)scst_tgt_get_tgt_priv(scst_tgt);

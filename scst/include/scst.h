@@ -1063,10 +1063,7 @@ struct scst_dev_type {
 	/* Optional sysfs attributes */
 	const struct attribute **devt_attrs;
 
-	/*
-	 * Optional sysfs device attributes. They are serialized
-	 * by dev_sysfs_mutex.
-	 */
+	/* Optional sysfs device attributes */
 	const struct attribute **dev_attrs;
 #endif
 
@@ -1816,9 +1813,6 @@ struct scst_device {
 	 * object was unregistered.
 	 */
 	struct rw_semaphore dev_attr_rwsem;
-
-	/* Used to serialize all the device sysfs calls */
-	struct mutex dev_sysfs_mutex;
 
 	struct kobject dev_kobj; /* kobject for this struct */
 	struct kobject *dev_exp_kobj; /* exported groups */
