@@ -2311,11 +2311,6 @@ static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	struct scatterlist *scat;
 	scst_data_direction dir;
 
-	scmnd = ioctx->scmnd;
-	BUG_ON(!scmnd);
-	BUG_ON(ioctx != scst_cmd_get_tgt_priv(scmnd));
-	scat = scst_cmd_get_sg(scmnd);
-
 	BUG_ON(ioctx->n_rdma && !ioctx->rdma_ius);
 
 	while (ioctx->n_rdma)
@@ -2324,11 +2319,16 @@ static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	kfree(ioctx->rdma_ius);
 	ioctx->rdma_ius = NULL;
 
-	if (scat) {
-		dir = scst_cmd_get_data_direction(scmnd);
-		ib_dma_unmap_sg(ch->sport->sdev->device,
-				scat, scst_cmd_get_sg_cnt(scmnd),
-				scst_to_tgt_dma_dir(dir));
+	scmnd = ioctx->scmnd;
+	if (scmnd) {
+		BUG_ON(ioctx != scst_cmd_get_tgt_priv(scmnd));
+		scat = scst_cmd_get_sg(scmnd);
+		if (scat) {
+			dir = scst_cmd_get_data_direction(scmnd);
+			ib_dma_unmap_sg(ch->sport->sdev->device,
+					scat, scst_cmd_get_sg_cnt(scmnd),
+					scst_to_tgt_dma_dir(dir));
+		}
 	}
 }
 
