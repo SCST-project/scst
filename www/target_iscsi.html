@@ -56,55 +56,55 @@
 			
 			<div id="main">
 				<h1>ISCSI target driver iSCSI-SCST</h1>
-				<p><strong>ISCSI-SCST</strong> is a forked (with all respects) version of <strong>IET</strong> with updates to work 
-				over <strong>SCST</strong> as well as with many improvements and bugfixes. The reason of fork is that the necessary 
-				changes are intrusive and with the current <strong>IET</strong> merge policy, where only simple bugfix-like patches,
-				 which doesn't touch the core code, could be merged, it is very unlikely that they will be merged in the main 
-				 <strong>IET</strong> trunk.</p>
-				
-				<p><strong>ISCSI-SCST</strong> has the following major advantages over <strong>IET</strong>. They are summarized on the
-					<a href="comparison.html">Comparison</a> page.</p>
+				<p><strong>ISCSI-SCST</strong> is a forked (with all respects) version of IET. Reasons of the fork were:</p>
+
 				<ul>
-					<li><font color="#666666">ISCSI-SCST uses full power of <strong>SCST core</strong>, hence has the following additional features:</font>
-					 <ul>
-						<li><span><strong>Pass-through mode with one to many relationship</strong>, i.e. when multiple initiators can connect to
-						exported pass-through devices. For instance, in this mode you can safely export your parallel
-						<strong>SCSI tape</strong> or <strong>tape library</strong> on 
-						your iSCSI net and multiple initiators can share it without risk of data loss because of the 
-						shared usage. Existing outdated "rawio" patch for IET supports only non-enforced 1:1 
-						relationship, so it is unsafe to use it in multiple initiators environments.</span></li>
-
-						<li><span><strong>More advanced devices visibility management</strong>, when different initiators can see different set of 
-						devices with different access permissions from the same target.</span></li>
-
-						<li><span><strong>O_DIRECT</strong>, i.e. <strong>"BLOCKIO on files"</strong>, mode, which has all advantages 
-						of BLOCKIO, but also supports files on file systems. Sometimes, in the appropriate cases, 
-						this mode can make performance difference in 100% or even more.</span></li>
-
-						<li><span><strong>4KB blocks</strong> eliminate abysmal write performance caused by misaligned partitions. 
-						</span></li>
-
-						<li><span><strong>Virtual CD/DVD-ROMs</strong>.</span></li>	
-
-						<li><span>Ability to create target devices emulators in the <strong>user space</strong>.</span></li>
-
-						<li><span>Ability to create <strong>multi-transport SCSI targets</strong>, which can export (possibly, the same) 
-						devices over multiple transports.</span></li>																 
-					 </ul>					 
-					 </li>
-
-					 <li><span>ISCSI-SCST has many code improvements and cleanups, including stability
-					  and iSCSI RFC violations fixes. 
-					  IET works well on "fast" paths and regularly used code branches, but in many corner
-					  cases it has various problems, from simply ignoring error processing, as it is for memory 
-					  allocations, and crashing itself with BUG() macro, as it is for malformed packets from initiators, to possible data
-					  corruptions, because of, for instance, unsafe task management or sessions reinstatement implementations.</span></li>
-
-					 <li><span>Due to reworked I/O architecture and SCST backend iSCSI-SCST has much
-					  better performance in many cases and has potential for future improvements, like zero-copy 
-					  with Linux cache FILEIO. In many tests iSCSI-SCST outperforms tuned for best
-					  performance IET on more than 100%.</span></li>
+					<li><span>To be able to use full power of <strong>SCST core</strong>.</span></li>
+					<li><span>To fix all the problems, corner cases issues and iSCSI standard violations IET which has.</span></li>
 				</ul>
+
+				<p>IET is a well recognized and widely used iSCSI target, but, frankly speaking, it works more or less well
+				on fast paths and regularly used code branches only, however in many corner
+				cases it has a lot of problems, like ignoring error processing, as it is for memory allocations,
+				crashing itself with BUG() macro, as it is for malformed packets from initiators, possible data
+				corruptions, because of, for instance, unsafe task management or sessions reinstatement implementations, etc.
+				There was no way to fix all them without a fork. As the result of this effort nearly 90% of the IET kernel code was fully
+				rewritten.</p>
+				 
+				<p>Since ISCSI-SCST uses SCST core, it has the following additional features:</font></p>
+
+				<ul>
+					<li><span><strong>Pass-through mode with one to many relationship</strong>, i.e. when multiple initiators can connect to
+					exported pass-through devices. For instance, in this mode you can safely export your parallel
+					<strong>SCSI tape</strong> or <strong>tape library</strong> (or <strong>VTL</strong>) on 
+					your iSCSI net and multiple initiators can share it without risk of data loss because of the 
+					shared usage. Existing outdated "rawio" patch for IET supports only non-enforced 1:1 
+					relationship, so it is unsafe to use it in multiple initiators environments.</span></li>
+
+					<li><span><strong>More advanced devices visibility management</strong>, when different initiators can see different set of 
+					devices with different access permissions from the same target.</span></li>
+
+					<li><span><strong>O_DIRECT</strong>, i.e. <strong>"BLOCKIO on files"</strong>, mode, which has all advantages 
+					of BLOCKIO, but also supports files on file systems. Sometimes, in the appropriate cases, 
+					this mode can make performance difference in 100% or even more.</span></li>
+
+					<li><span><strong>4KB blocks</strong> eliminate abysmal write performance caused by misaligned partitions. 
+					</span></li>
+
+					<li><span><strong>Virtual CD/DVD-ROMs</strong>.</span></li>	
+
+					<li><span>Ability to create target devices emulators in the <strong>user space</strong>.</span></li>
+
+					<li><span>Ability to create <strong>multi-transport SCSI targets</strong>, which can export (possibly, the same) 
+					devices over multiple transports.</span></li>																 
+				</ul>					 
+				
+				<p>Also, due to reworked I/O architecture and SCST backend iSCSI-SCST has much
+				better performance in many cases and has potential for future improvements, like zero-copy 
+				with Linux cache FILEIO. In many tests iSCSI-SCST outperforms tuned for best
+				performance IET on more than 100%.</p>
+				
+				<p>Advantages of iSCSI-SCST over IET are summarized on the <a href="comparison.html">Comparison</a> page.</p>
 
 				<p>If you are an IET user before installation carefully read README files of both iSCSI-SCST and 
 				the SCST core. Especially pay attention that now the LUN information for iSCSI-SCST is configured not using 
