@@ -88,7 +88,9 @@ my %_IO_TYPES_ = ($CDROM_TYPE => $IOTYPE_PHYSICAL,
 		  $TAPEPERF_TYPE => $IOTYPE_PERFORMANCE,
 		  $PROCESSOR_TYPE => $IOTYPE_PHYSICAL);
 
-my %_HANDLER_ALIASES_ = ('vdisk_blk' => 'vdisk');
+my %_HANDLER_ALIASES_ = ('vdisk_blk'     => 'vdisk',
+			 'vdisk_blockio' => 'vdisk',
+			 'vdisk_nullio'  => 'vdisk');
 
 my %_OPEN_OPTIONS_ = ('WRITE_THROUGH' => 'WRITE_THROUGH',
 		      'WT'	      => 'WRITE_THROUGH',
