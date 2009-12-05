@@ -93,6 +93,12 @@ enum {
 	SRPT_SRQ_SIZE = 4095,
 
 	MIN_MAX_MESSAGE_SIZE = 996,
+	DEFAULT_MAX_MESSAGE_SIZE
+		= sizeof(struct srp_cmd)/*48*/
+		+ sizeof(struct srp_indirect_buf)/*20*/
+		+ 128 * sizeof(struct srp_direct_buf)/*16*/,
+
+	DEFAULT_MAX_RDMA_SIZE = 65536,
 };
 
 #define SRPT_OP_RECV			(1 << 31)

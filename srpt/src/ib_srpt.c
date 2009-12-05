@@ -114,12 +114,12 @@ MODULE_PARM_DESC(thread,
 		 "Executing ioctx in thread context. Default 0, i.e. soft IRQ, "
 		 "where possible.");
 
-static unsigned int srp_max_rdma_size = 65536;
+static unsigned int srp_max_rdma_size = DEFAULT_MAX_RDMA_SIZE;
 module_param(srp_max_rdma_size, int, 0744);
 MODULE_PARM_DESC(thread,
 		 "Maximum size of SRP RDMA transfers for new connections.");
 
-static unsigned int srp_max_message_size = 4096;
+static unsigned int srp_max_message_size = DEFAULT_MAX_MESSAGE_SIZE;
 module_param(srp_max_message_size, int, 0444);
 MODULE_PARM_DESC(thread,
 		 "Maximum size of SRP control messages in bytes.");
@@ -807,20 +807,22 @@ out:
 }
 
 static int srpt_get_desc_tbl(struct srpt_ioctx *ioctx, struct srp_cmd *srp_cmd,
-			     int *ind)
+			     bool *incorrect_ind_desc)
 {
 	struct srp_indirect_buf *idb;
 	struct srp_direct_buf *db;
 
-	*ind = 0;
+	/*
+	 * The code below will only work correctly if the SRP_CMD request
+	 * contains a single CDB.
+	 */
+	WARN_ON(srp_cmd->add_cdb_len);
+
+	*incorrect_ind_desc = false;
 	if (((srp_cmd->buf_fmt & 0xf) == SRP_DATA_DESC_DIRECT) ||
 	    ((srp_cmd->buf_fmt >> 4) == SRP_DATA_DESC_DIRECT)) {
 		ioctx->n_rbuf = 1;
 		ioctx->rbufs = &ioctx->single_rbuf;
-
-		ib_dma_sync_single_for_cpu(ioctx->ch->sport->sdev->device,
-					   ioctx->dma + sizeof(struct srp_cmd),
-					   sizeof(*db), DMA_FROM_DEVICE);
 
 		db = (void *)srp_cmd->add_data;
 		memcpy(ioctx->rbufs, db, sizeof *db);
@@ -832,7 +834,13 @@ static int srpt_get_desc_tbl(struct srpt_ioctx *ioctx, struct srp_cmd *srp_cmd,
 
 		if (ioctx->n_rbuf >
 		    (srp_cmd->data_out_desc_cnt + srp_cmd->data_in_desc_cnt)) {
-			*ind = 1;
+			PRINT_ERROR("received corrupt SRP_CMD request"
+				    " (%u out + %u in != %u / %zu)",
+				    srp_cmd->data_out_desc_cnt,
+				    srp_cmd->data_in_desc_cnt,
+				    be32_to_cpu(idb->table_desc.len),
+				    sizeof(*db));
+			*incorrect_ind_desc = true;
 			ioctx->n_rbuf = 0;
 			goto out;
 		}
@@ -846,11 +854,6 @@ static int srpt_get_desc_tbl(struct srpt_ioctx *ioctx, struct srp_cmd *srp_cmd,
 			ioctx->n_rbuf = 0;
 			return -ENOMEM;
 		}
-
-		ib_dma_sync_single_for_cpu(ioctx->ch->sport->sdev->device,
-					   ioctx->dma + sizeof(struct srp_cmd),
-					   ioctx->n_rbuf * sizeof(*db),
-					   DMA_FROM_DEVICE);
 
 		db = idb->desc_list;
 		memcpy(ioctx->rbufs, db, ioctx->n_rbuf * sizeof *db);
@@ -1190,7 +1193,7 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 	struct srp_cmd *srp_cmd;
 	struct srp_rsp *srp_rsp;
 	scst_data_direction dir;
-	int indirect_desc = 0;
+	bool incorrect_ind_desc = false;
 	int ret;
 
 	srp_cmd = ioctx->buf;
@@ -1198,15 +1201,8 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 
 	dir = SCST_DATA_NONE;
 	if (srp_cmd->buf_fmt) {
-		ret = srpt_get_desc_tbl(ioctx, srp_cmd, &indirect_desc);
-		if (ret) {
-			srpt_build_cmd_rsp(ch, ioctx, NO_SENSE,
-					   NO_ADD_SENSE, srp_cmd->tag);
-			srp_rsp->status = SAM_STAT_TASK_SET_FULL;
-			goto err;
-		}
-
-		if (indirect_desc) {
+		ret = srpt_get_desc_tbl(ioctx, srp_cmd, &incorrect_ind_desc);
+		if (ret || incorrect_ind_desc) {
 			srpt_build_cmd_rsp(ch, ioctx, NO_SENSE,
 					   NO_ADD_SENSE, srp_cmd->tag);
 			srp_rsp->status = SAM_STAT_TASK_SET_FULL;
@@ -1291,10 +1287,6 @@ static int srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 	struct srp_tsk_mgmt *srp_tsk;
 	struct srpt_mgmt_ioctx *mgmt_ioctx;
 	int ret;
-
-	ib_dma_sync_single_for_cpu(ch->sport->sdev->device, ioctx->dma,
-				   sizeof(struct srp_tsk_mgmt),
-				   DMA_FROM_DEVICE);
 
 	srp_tsk = ioctx->buf;
 
@@ -1416,8 +1408,9 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 
 	WARN_ON(ch_state != RDMA_CHANNEL_LIVE);
 
-	ib_dma_sync_single_for_cpu(ch->sport->sdev->device, ioctx->dma,
-				   sizeof(struct srp_cmd), DMA_FROM_DEVICE);
+	ib_dma_sync_single_for_cpu(ch->sport->sdev->device,
+				   ioctx->dma, srp_max_message_size,
+				   DMA_FROM_DEVICE);
 
 	ioctx->data_len = 0;
 	ioctx->n_rbuf = 0;
