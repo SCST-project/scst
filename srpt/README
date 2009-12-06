@@ -29,11 +29,15 @@ Installation
 
 Proceed as follows to compile and install the SRP target driver:
 
-1. To minimize QUEUEFULL conditions, apply the
+1. To minimize QUEUE_FULL conditions, apply the
    scst_increase_max_tgt_cmds patch as follows:
 
    cd ${SCST_DIR}
    patch -p0 < srpt/patches/scst_increase_max_tgt_cmds.patch
+
+   This patch increases SCST's per-device queue size from 48 to 64. This
+   helps to avoid QUEUE_FULL conditions because the size of the transmit
+   queue in Linux' SRP initiator is also 64.
 
 2. Now compile and install SRPT:
 
@@ -48,6 +52,35 @@ Proceed as follows to compile and install the SRP target driver:
 4. Configure SCST such that it will be started during system boot:
 
    chkconfig scst on
+
+The ib_srpt kernel module suppors the following parameters:
+* srp_max_message_size (unsigned integer)
+  Maximum size of an SRP control message in bytes. Examples of SRP control
+  messages are: login request, logout request, data transfer request, ...
+  The larger this parameter, the more scatter/gather list elements can be
+  sent at once. Use the following formula to compute an appropriate value
+  for this parameter: 68 + 16 * (max_sg_elem_count). The default value of
+  this parameter is 2116, which corresponds to an sg list with 128 elements.
+* srp_max_rdma_size (unsigned integer)
+  Maximum number of bytes that may be transferred at once via RDMA. Defaults
+  to 65536 bytes, which is sufficient to use the full bandwidth of low-latency
+  HCA's such as Mellanox' ConnectX series. Increasing this value may decrease
+  latency for applications transferring large amounts of data at once via
+  direct I/O.
+* thread (0 or 1)
+  Whether incoming SRP requests will be processed in the IB interrupt that
+  was triggered by the request (thread=0) or on the context of a separate
+  thread (thread=1). The choice thread=0 results in the best performance,
+  while thread=1 makes debugging easier. If a kernel oops is triggered inside
+  an interrupt handler the system will be halted. As a result the call trace
+  associated with the kernel oops will not be written to the kernel log in
+  /var/log/messages. When using thread=1 however, the SRPT code runs in thread
+  context. Any kernel oops generated in thread context will cause the offending
+  thread to be killed. Other threads will keep running and call traces will be
+  written to the on-disk kernel log.
+* trace_flag (unsigned integer, only available in debug builds)
+  The individual bits of the trace_flag parameter define which categories of
+  trace messages should be sent to the kernel log and which ones not.
 
 
 Configuring the SRP Target System
@@ -72,16 +105,13 @@ Now load the new configuration:
 
   /etc/init.d/scst reload
 
-Note: SCSI device ID's in host:ch:id:lun format can be obtained by
-running the lsscsi command.
-
 
 Configuring the SRP Initiator System
 ------------------------------------
 
 First of all, load the SRP kernel module as follows:
 
-  modprobe ib_srp
+   modprobe ib_srp
 
 Next, discover the new SRP target by running the ibsrpdm command:
 
@@ -98,15 +128,15 @@ Finally run lsscsi to display the details of the newly discovered SCSI disks:
 SRP targets can be recognized in the output of lsscsi by looking for
 the disk names assigned on the SCST target ("disk01" in the example below):
 
-[8:0:0:0]    disk    SCST_FIO disk01            102  /dev/sdb
+   [8:0:0:0]    disk    SCST_FIO disk01            102  /dev/sdb
 
 Notes:
 * You can edit /etc/infiniband/openib.conf to load srp driver and srp HA daemon
   automatically ie. set SRP_LOAD=yes, and SRPHA_ENABLE=yes
 * To set up and use high availability feature you need dm-multipath driver
   and multipath tool
-* Please refer to OFED-1.x SRP's user manual for more in-details instructions
-  on how-to enable/use HA feature.
+* Please refer to the OFED-1.x user manual for more in-detail instructions
+  on how to enable and how to use the HA feature. See e.g. http://www.mellanox.com/related-docs/prod_software/Mellanox_OFED_Linux_user_manual_1_40_1.pdf.
 
 
 Performance notes
