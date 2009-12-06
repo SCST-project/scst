@@ -40,3 +40,7 @@
    documentation of struct scst_tgt_template in scst.h (use_clustering has to
    be set to 1). A general description of the SGV cache can be found here:
    http://scst.sourceforge.net/sgv_cache.txt.
+
+
+10. Evaluate how much performance of SRPT can be improved by implementing FMR
+    (fast memory registration).
