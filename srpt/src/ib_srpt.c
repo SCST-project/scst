@@ -806,29 +806,39 @@ out:
 	return ret;
 }
 
-static int srpt_get_desc_tbl(struct srpt_ioctx *ioctx, struct srp_cmd *srp_cmd,
-			     bool *incorrect_ind_desc)
+static int srpt_get_desc_tbl(struct srpt_ioctx *ioctx, struct srp_cmd *srp_cmd)
 {
 	struct srp_indirect_buf *idb;
 	struct srp_direct_buf *db;
+	unsigned add_cdb_offset;
+	int ret;
 
 	/*
-	 * The code below will only work correctly if the SRP_CMD request
-	 * contains a single CDB.
+	 * The pointer computations below will only be compiled correctly
+	 * if srp_cmd::add_data is declared as s8*, u8*, s8[] or u8[].
 	 */
-	WARN_ON(srp_cmd->add_cdb_len);
+	BUILD_BUG_ON(!__same_type(srp_cmd->add_data[0], (s8)0)
+		     && !__same_type(srp_cmd->add_data[0], (u8)0));
 
-	*incorrect_ind_desc = false;
+	ret = 0;
+	/*
+	 * According to the SRP spec, the lower two bits of the 'ADDITIONAL
+	 * CDB LENGTH' field are reserved and the size in bytes of this field
+	 * is four times the value specified in bits 3..7. Hence the "& ~3".
+	 */
+	add_cdb_offset = srp_cmd->add_cdb_len & ~3;
 	if (((srp_cmd->buf_fmt & 0xf) == SRP_DATA_DESC_DIRECT) ||
 	    ((srp_cmd->buf_fmt >> 4) == SRP_DATA_DESC_DIRECT)) {
 		ioctx->n_rbuf = 1;
 		ioctx->rbufs = &ioctx->single_rbuf;
 
-		db = (void *)srp_cmd->add_data;
+		db = (struct srp_direct_buf*)(srp_cmd->add_data
+					      + add_cdb_offset);
 		memcpy(ioctx->rbufs, db, sizeof *db);
 		ioctx->data_len = be32_to_cpu(db->len);
 	} else {
-		idb = (void *)srp_cmd->add_data;
+		idb = (struct srp_indirect_buf *)(srp_cmd->add_data
+						  + add_cdb_offset);
 
 		ioctx->n_rbuf = be32_to_cpu(idb->table_desc.len) / sizeof *db;
 
@@ -840,19 +850,21 @@ static int srpt_get_desc_tbl(struct srpt_ioctx *ioctx, struct srp_cmd *srp_cmd,
 				    srp_cmd->data_in_desc_cnt,
 				    be32_to_cpu(idb->table_desc.len),
 				    sizeof(*db));
-			*incorrect_ind_desc = true;
 			ioctx->n_rbuf = 0;
+			ret = -EINVAL;
 			goto out;
 		}
 
 		if (ioctx->n_rbuf == 1)
 			ioctx->rbufs = &ioctx->single_rbuf;
-		else
+		else {
 			ioctx->rbufs =
 				kmalloc(ioctx->n_rbuf * sizeof *db, GFP_ATOMIC);
-		if (!ioctx->rbufs) {
-			ioctx->n_rbuf = 0;
-			return -ENOMEM;
+			if (!ioctx->rbufs) {
+				ioctx->n_rbuf = 0;
+				ret = -ENOMEM;
+				goto out;
+			}
 		}
 
 		db = idb->desc_list;
@@ -860,7 +872,7 @@ static int srpt_get_desc_tbl(struct srpt_ioctx *ioctx, struct srp_cmd *srp_cmd,
 		ioctx->data_len = be32_to_cpu(idb->len);
 	}
 out:
-	return 0;
+	return ret;
 }
 
 /*
@@ -1193,7 +1205,6 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 	struct srp_cmd *srp_cmd;
 	struct srp_rsp *srp_rsp;
 	scst_data_direction dir;
-	bool incorrect_ind_desc = false;
 	int ret;
 
 	srp_cmd = ioctx->buf;
@@ -1201,8 +1212,8 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 
 	dir = SCST_DATA_NONE;
 	if (srp_cmd->buf_fmt) {
-		ret = srpt_get_desc_tbl(ioctx, srp_cmd, &incorrect_ind_desc);
-		if (ret || incorrect_ind_desc) {
+		ret = srpt_get_desc_tbl(ioctx, srp_cmd);
+		if (ret) {
 			srpt_build_cmd_rsp(ch, ioctx, NO_SENSE,
 					   NO_ADD_SENSE, srp_cmd->tag);
 			srp_rsp->status = SAM_STAT_TASK_SET_FULL;
