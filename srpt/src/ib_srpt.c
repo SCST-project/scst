@@ -817,8 +817,12 @@ static int srpt_get_desc_tbl(struct srpt_ioctx *ioctx, struct srp_cmd *srp_cmd)
 	 * The pointer computations below will only be compiled correctly
 	 * if srp_cmd::add_data is declared as s8*, u8*, s8[] or u8[].
 	 */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 	BUILD_BUG_ON(!__same_type(srp_cmd->add_data[0], (s8)0)
 		     && !__same_type(srp_cmd->add_data[0], (u8)0));
+#else
+	/* Note: the __same_type() macro has been introduced in kernel 2.6.30.*/
+#endif
 
 	ret = 0;
 	/*
@@ -832,8 +836,8 @@ static int srpt_get_desc_tbl(struct srpt_ioctx *ioctx, struct srp_cmd *srp_cmd)
 		ioctx->n_rbuf = 1;
 		ioctx->rbufs = &ioctx->single_rbuf;
 
-		db = (struct srp_direct_buf*)(srp_cmd->add_data
-					      + add_cdb_offset);
+		db = (struct srp_direct_buf *)(srp_cmd->add_data
+					       + add_cdb_offset);
 		memcpy(ioctx->rbufs, db, sizeof *db);
 		ioctx->data_len = be32_to_cpu(db->len);
 	} else {
