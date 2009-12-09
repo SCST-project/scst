@@ -1683,7 +1683,7 @@ static void srpt_release_channel_by_cmid(struct ib_cm_id *cm_id)
  *
  * Return NULL if no matching RDMA channel has been found.
  */
-static struct srpt_rdma_ch *srpt_find_channel(struct srpt_device* sdev,
+static struct srpt_rdma_ch *srpt_find_channel(struct srpt_device *sdev,
 					      struct ib_cm_id *cm_id)
 {
 	struct srpt_rdma_ch *ch;
