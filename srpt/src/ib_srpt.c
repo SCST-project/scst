@@ -781,7 +781,6 @@ static int srpt_post_send(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 
 	ret = -ENOMEM;
 	if (atomic_dec_return(&ch->qp_wr_avail) < 0) {
-		atomic_inc(&ch->qp_wr_avail);
 		PRINT_ERROR("%s[%d]: SRQ full", __func__, __LINE__);
 		goto out;
 	}
@@ -803,6 +802,8 @@ static int srpt_post_send(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 	ret = ib_post_send(ch->qp, &wr, &bad_wr);
 
 out:
+	if (ret < 0)
+		atomic_inc(&ch->qp_wr_avail);
 	return ret;
 }
 
