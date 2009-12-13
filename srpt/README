@@ -39,6 +39,10 @@ Proceed as follows to compile and install the SRP target driver:
    helps to avoid QUEUE_FULL conditions because the size of the transmit
    queue in Linux' SRP initiator is also 64.
 
+   Note: the SCSI layer of kernel 2.6.33 will have dynamic queue depth
+   adjustment. When using SRP initiator systems with kernel 2.6.33 or later,
+   this patch is less important.
+
 2. Now compile and install SRPT:
 
    cd ${SCST_DIR}
@@ -139,11 +143,20 @@ Notes:
   on how to enable and how to use the HA feature. See e.g. http://www.mellanox.com/related-docs/prod_software/Mellanox_OFED_Linux_user_manual_1_40_1.pdf.
 
 
-Performance notes
------------------
+Performance Notes - Initiator Side
+----------------------------------
 
 * For latency sensitive applications, using the noop scheduler at the initiator
-  side can give significantly better resuts than with other schedulers.
+  side can give significantly better results than with other schedulers.
+
+* The following parameters have a small but measureable impact on SRP
+  performance:
+  * /sys/class/block/${dev}/queue/rq_affinity
+  * /proc/irq/${ib_int_no}/smp_affinity
+
+
+Performance Notes - Target Side
+----------------------------------
 
 * In some cases, for instance working with SSD devices, which consume 100%
   of a single CPU load for data transfers in their internal threads, to
