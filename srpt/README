@@ -57,7 +57,7 @@ Proceed as follows to compile and install the SRP target driver:
 
    chkconfig scst on
 
-The ib_srpt kernel module suppors the following parameters:
+The ib_srpt kernel module supports the following parameters:
 * srp_max_message_size (unsigned integer)
   Maximum size of an SRP control message in bytes. Examples of SRP control
   messages are: login request, logout request, data transfer request, ...
