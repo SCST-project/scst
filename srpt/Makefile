@@ -81,8 +81,14 @@ src/Module.symvers src/Modules.symvers: $(SCST_DIR)/$(MODULE_SYMVERS)
 	    ) >$@;                                                          \
 	  fi                                                                \
 	else                                                                \
-	  echo "  Building against non-OFED InfiniBand kernel headers.";    \
-	  cp $< $@;                                                         \
+	  if $(OFED_KERNEL_IB_DEVEL_RPM_INSTALLED); then                    \
+	    echo "Error: the OFED package kernel-ib has not yet been"       \
+	         "installed.";                                              \
+	    false;                                                          \
+	  else                                                              \
+	    echo "  Building against non-OFED InfiniBand kernel headers.";  \
+	    cp $< $@;                                                       \
+	  fi;                                                               \
 	fi
 
 clean:
