@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-$Version  = 'SCST Configurator v1.0.10';
+$Version  = 'SCST Configurator v1.0.11';
 
 # Configures SCST
 #
@@ -35,6 +35,9 @@ Device Operations
          -handler <handler>
      -RemoveDev <device>  : Remove a device from a handler.
          -handler <handler>
+     -SetT10DeviceId <id> : Sets the T10 Device ID of a device.
+         -device <device>
+         -handler <handler>
  
 User Operations
      -adduser <user>      : Adds a user to a security group.
@@ -69,6 +72,7 @@ Assignment Operations
 
 Options
      -ForceConfig         : Force all configuration changes, even deletions (DANGER!).
+     -noprompt            : Do not prompt or pause. Use with caution!
   
 Debugging (limited support)
      -debug               : Debug mode - don\'t do anything destructive.
@@ -94,6 +98,9 @@ Examples:
        
      Create a device given an already existing disk file:
        scstadmin -adddev DISK01 -handler vdisk -path /vdisks/disk01.dsk -options READ_ONLY,WRITE_THROUGH
+
+     Setting the T10 Device ID of a device
+       scstadmin -SetT10DeviceId test_disk -device disk1 -handler vdisk
        
      Assign a device to a security group:
        scstadmin -assigndev DISK01 -group HOST01 -lun 1
@@ -197,6 +204,7 @@ sub getArgs {
 	my $resyncDev;
 	my $replaceDev;
 	my $removeDev;
+	my $sett10id;
 	my $addUser;
 	my $moveUser;
 	my $removeUser;
@@ -211,12 +219,14 @@ sub getArgs {
 	my $clearDevs;
 	my $devLun;
 	my $handler;
+	my $device;
 	my $group;
 	my $options;
 	my $blocksize;
 	my $enable;
 	my $disable;
 	my $issuelip;
+	my $noprompt;
 
 	my $p = new Getopt::Long::Parser;
 
@@ -230,6 +240,7 @@ sub getArgs {
 			    'path=s'		=> \$devPath,
 			    'ReplaceDev=s'	=> \$replaceDev,
 			    'RemoveDev=s'       => \$removeDev,
+			    'SetT10DeviceId=s'	=> \$sett10id,
 			    'lun=s'             => \$devLun,
 			    'adduser=s'         => \$addUser,
 			    'MoveUser=s'	=> \$moveUser,
@@ -244,12 +255,14 @@ sub getArgs {
 			    'ReleaseDev=s'      => \$releaseDev,
 			    'ClearDevs'         => \$clearDevs,
 			    'handler=s'         => \$handler,
+			    'device=s'		=> \$device,
 			    'group=s'           => \$group,
 			    'options=s'		=> \$options,
 			    'blocksize=s'	=> \$blocksize,
 			    'enable=s'		=> \$enable,
 			    'disable=s'		=> \$disable,
 			    'issuelip'		=> \$issuelip,
+			    'noprompt'		=> \$noprompt,
 			    'debug'             => \$_DEBUG_)) {
 		&usage();
 	}
@@ -343,6 +356,11 @@ sub getArgs {
 		usage();
 	}
 
+	if ($sett10id && (!$device || !$handler)) {
+		print "Please specify -device and -handler with -SetT10DeviceId.\n\n";
+		usage();
+	}
+
 	if ($clearDevs && !defined($group)) {
 		print "Please specify -group with -ClearDevs.\n\n";
 		usage();
@@ -358,6 +376,7 @@ sub getArgs {
 	$forceConfig = $TRUE if (defined($forceConfig));
 	$showSessions = $TRUE if (defined($showSessions));
 	$issuelip = $TRUE if (defined($issuelip));
+	$noprompt = $TRUE if (defined($noprompt));
 
 	$enable =~ tr/A-Z/a-z/; $disable =~ tr/A-Z/a-z/;
 	$options =~ tr/a-z/A-Z/ if ($options);
@@ -366,7 +385,8 @@ sub getArgs {
 	     defined($removeDev)+ defined($addUser) + defined($enable) + defined($disable) +
 	     defined($removeUser) + defined($clearUsers) + defined($assignDev) +
 	     defined($releaseDev) + defined($clearDevs) + defined($applyConfig) +
-	     defined($clearConfig) + defined($writeConfig) + defined($checkConfig)) > 1) {
+	     defined($clearConfig) + defined($writeConfig) + defined($checkConfig) +
+	     defined($sett10id)) > 1) {
 		print "Please specify only one operation at a time.\n";
 		usage();
 	}
@@ -376,8 +396,9 @@ sub getArgs {
 
 	return ($enable, $disable, $issuelip, $addDev, $devPath, $devLun, $resyncDev, $removeDev, $addUser,
 		$moveUser, $removeUser, $clearUsers, $addGroup, $renameGroup, $toGroup, $removeGroup,
-		$assignDev, $replaceDev, $releaseDev, $clearDevs, $handler, $group, $options, $blocksize,
-		$applyConfig, $forceConfig, $clearConfig, $writeConfig, $checkConfig, $showSessions);
+		$assignDev, $replaceDev, $releaseDev, $sett10id, $clearDevs, $handler, $device, $group,
+		$options, $blocksize, $applyConfig, $forceConfig, $clearConfig, $writeConfig, $checkConfig,
+		$showSessions, $noprompt);
 }
 
 sub main {
@@ -390,8 +411,9 @@ sub main {
 
 	my ($enable, $disable, $issuelip, $addDev, $devPath, $devLun, $resyncDev, $removeDev, $addUser,
 	    $moveUser, $removeUser, $clearUsers, $addGroup, $renameGroup, $toGroup, $removeGroup,
-	    $assignDev, $replaceDev, $releaseDev, $clearDevs, $handler, $group, $options, $blocksize,
-	    $applyConfig, $forceConfig, $clearConfig, $writeConfig, $checkConfig, $showSessions) = getArgs();
+	    $assignDev, $replaceDev, $releaseDev, $sett10id, $clearDevs, $handler, $device, $group,
+	    $options, $blocksize, $applyConfig, $forceConfig, $clearConfig, $writeConfig, $checkConfig,
+	    $showSessions, $noprompt) = getArgs();
 
 	$SCST = new SCST::SCST($_DEBUG_);
 
@@ -403,8 +425,10 @@ sub main {
 				$rc = applyConfiguration($applyConfig, $TRUE, $TRUE);
 				die("Configuration errors found, aborting.\n") if ($rc);
 
-				print "\nConfiguration will apply in 10 seconds, type ctrl-c to abort..\n";
-				sleep 10;
+				if (!$noprompt) {
+					print "\nConfiguration will apply in 10 seconds, type ctrl-c to abort..\n";
+					sleep 10;
+				}
 			}
 
 			readWorkingConfig();
@@ -424,7 +448,7 @@ sub main {
 			last SWITCH;
 		};
 		defined($clearConfig) && do {
-			$rc = clearConfiguration();
+			$rc = clearConfiguration($noprompt);
 			last SWITCH;
 		};
 		$addDev && do {
@@ -437,6 +461,10 @@ sub main {
 		};
 		$removeDev && do {
 			$rc = removeDevice($handler, $removeDev);
+			last SWITCH;
+		};
+		$sett10id && do {
+			$rc = setT10DeviceId($handler, $device, $sett10id);
 			last SWITCH;
 		};
 		$addUser && do {
@@ -612,7 +640,7 @@ sub writeConfiguration {
 			print $io "[HANDLER ".$_REVERSE_MAP_{$handler}."]\n";
 			print $io "#DEVICE <vdisk name>,<device path>";
 			if ($handler == $SCST::SCST::VDISK_TYPE) {
-				print $io ",<options>,<block size>\n";
+				print $io ",<options>,<block size>,<t10 device id>\n";
 			} else {
 				print $io "\n";
 			}
@@ -629,6 +657,7 @@ sub writeConfiguration {
 				print $io "DEVICE $device,".$$devices{$device}->{'PATH'};
 				print $io ",$options";
 				print $io ",".$$devices{$device}->{'BLOCKSIZE'};
+				print $io ",".$$devices{$device}->{'T10_DEVICE_ID'};
 				print $io "\n";
 			}
 
@@ -936,7 +965,7 @@ sub applyConfiguration {
 		}
 
 		foreach my $device (@{$$config{'HANDLER'}->{$_handler}->{'DEVICE'}}) {
-			my($vname, $path, $options, $blocksize) = split(/\,/, $device);
+			my($vname, $path, $options, $blocksize, $t10_id) = split(/\,/, $device);
 			$path = cleanupString($path);
 			$options =~ s/\s+//g;
 
@@ -961,6 +990,14 @@ sub applyConfiguration {
 					$errs++;
 				} else {
 					$changes++;
+				}
+
+				if ($t10_id ne '') {
+					if (setT10DeviceId($_handler, $vname, $t10_id)) {
+						$errs++;
+					} else {
+						$changes++;
+					}
 				}
 			}
 		}
@@ -1168,11 +1205,14 @@ sub applyConfiguration {
 }
 
 sub clearConfiguration {
+	my $noprompt = shift;
 	my $errs;
 
-	print "WARNING: This removes ALL applied SCST configuration and may result in data loss!\n";
-	print "If this is not what you intend, press ctrl-c now. Waiting 10 seconds.\n\n";
-	sleep 10;
+	if (!$noprompt) {
+		print "WARNING: This removes ALL applied SCST configuration and may result in data loss!\n";
+		print "If this is not what you intend, press ctrl-c now. Waiting 10 seconds.\n\n";
+		sleep 10;
+	}
 
 	print "\nRemoving all users and groups:\n\n";
 	foreach my $group (keys %GROUPS) {
@@ -1314,6 +1354,30 @@ sub removeDevice {
 	}
 
 	undef $$DEVICES{$device};
+
+	return $FALSE;
+}
+
+sub setT10DeviceId {
+	my $handler = shift;
+	my $device = shift;
+	my $t10_id = shift;
+
+	my $_handler = $_HANDLER_MAP_{$handler};
+	my $htype = $SCST->handlerType($_handler);
+
+	if (!defined($$DEVICES{$device})) {
+		print "WARNING: Device '$device' not defined.\n";
+		return $TRUE;
+	}
+
+	print "\t-> Changing T10 Device ID of virtual device '$device' to '$t10_id'..\n";
+
+	if ($SCST->setT10DeviceId($_handler, $device, $t10_id)) {
+		print "WARNING: Failed to changing T10 Device ID of virtual device '$device': ".
+		  $SCST->errorString()."\n";
+		return $TRUE;
+	}
 
 	return $FALSE;
 }

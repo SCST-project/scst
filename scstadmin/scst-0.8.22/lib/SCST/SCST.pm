@@ -43,11 +43,11 @@ $IOTYPE_PHYSICAL    = 100;
 $IOTYPE_VIRTUAL     = 101;
 $IOTYPE_PERFORMANCE = 102;
 
-$VERSION = 0.8.21;
+$VERSION = 0.8.22;
 
-my $_SCST_MIN_MAJOR_   = 1;
+my $_SCST_MIN_MAJOR_   = 2;
 my $_SCST_MIN_MINOR_   = 0;
-my $_SCST_MIN_RELEASE_ = 2;
+my $_SCST_MIN_RELEASE_ = 0;
 
 my %_IO_MAP_ = ($VDISK_TYPE => $_SCST_VDISK_IO_,
 		$VCDROM_TYPE => $_SCST_VCDROM_IO_);
@@ -89,6 +89,7 @@ my %_IO_TYPES_ = ($CDROM_TYPE => $IOTYPE_PHYSICAL,
 		  $PROCESSOR_TYPE => $IOTYPE_PHYSICAL);
 
 my %_HANDLER_ALIASES_ = ('vdisk_blk'     => 'vdisk',
+			 'vdisk_fileio'  => 'vdisk',
 			 'vdisk_blockio' => 'vdisk',
 			 'vdisk_nullio'  => 'vdisk');
 
@@ -413,8 +414,22 @@ sub handlerDevices {
 			next;
 		}
 
-		my ($vname, $size, $blocksize, $options, $path) =
-		  ($line =~ /(\S+)\s+(\S+)\s+(\S+)\s+(.*?)\s+(\S+)\s*$/);
+		my ($vname, $size, $blocksize, $options, $path, $t10_id) =
+		  ($line =~ '(\S+)\s+(\S+)\s+(\S+)\s+(.*?)\s+(/\S+)\s+(.*)$');
+
+		$t10_id = cleanupString($t10_id);
+
+		if ($options =~ /^\//) {
+			$t10_id = $path;
+			$path = $options;
+			$options = "";
+		}
+
+		if ($t10_id =~ /^\//) {
+			$options .= " ".$path;
+			$path = $t10_id;
+			$t10_id = "";
+		}
 
 		my $options_t;
 		foreach my $option (split(/\s/, cleanupString($options))) {
@@ -432,6 +447,7 @@ sub handlerDevices {
 		$devices{$vname}->{'SIZE'} = cleanupString($size);
 		$devices{$vname}->{'PATH'} = cleanupString($path);
 		$devices{$vname}->{'BLOCKSIZE'} = cleanupString($blocksize);
+		$devices{$vname}->{'T10_DEVICE_ID'} = $t10_id;
 	}
 
 	close $io;
@@ -594,6 +610,44 @@ sub resyncDevice {
 	return $rc if ($rc);
 
 	return $rc;
+}
+
+sub setT10DeviceId {
+	my $self = shift;
+	my $handler = shift;
+	my $device = shift;
+	my $t10_id = shift;
+	my $handler_io = $_IO_MAP_{$handler};
+
+	if (!$handler_io) {
+		$self->{'error'} = "setT10DeviceId(): Failed to open handler IO $handler_io or handler $handler invalid";
+		return 1;
+	}
+
+	if (!$self->handlerExists($handler)) {
+		$self->{'error'} = "setT10DeviceId(): Handler $handler does not exist";
+		return 1;
+	}
+
+	if (!$self->handlerDeviceExists($handler, $device)) {
+		$self->{'error'} = "setT10DeviceId(): Device $device is not open";
+		return 2;
+	}
+
+	my $cmd = "set_t10_dev_id $device $t10_id\n";
+
+	my $rc = $self->handler_private($handler_io, $cmd);
+
+	return 0 if ($self->{'debug'});
+	return $rc if ($rc);
+
+	my $devices = $self->handlerDevices($handler);
+
+	if ($$devices{$device}->{'T10_DEVICE_ID'} ne $t10_id) {
+                $self->{'error'} = "setT10DeviceId(): An error occured while setting T10 device ID to '$t10_id' ".
+		  "for device '$device'. See dmesg/kernel log for more information.";
+		return 1;
+	}
 }
 
 sub userExists {
@@ -1333,6 +1387,15 @@ Closes an open device configured for the specified device handler. Returns
 0 upon success, 1 if unsuccessfull and 2 of the device does not exist.
 
 Arguments: (int) $handler, (string) $device, (string) $path
+
+Returns: (int) $success
+
+=item SCST::SCST->setT10DeviceId();
+
+Changes the T10 device ID for the specified device and handler. Returns
+0 upon success, 1 if unsuccessfull and 2 of the device does not exist.
+
+Arguments: (int) $handler, (string) $device, (string) $t10_dev_id
 
 Returns: (int) $success
 

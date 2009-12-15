@@ -1,4 +1,4 @@
-MODULE_VERSION = 0.8.21
+MODULE_VERSION = 0.8.22
 TOOL = scstadmin
 
 SBINDIR := $(PREFIX)/usr/local/sbin
