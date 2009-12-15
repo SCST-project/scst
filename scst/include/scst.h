@@ -436,14 +436,11 @@ enum scst_exec_context {
 /* Set if the cmd is aborted by other initiator */
 #define SCST_CMD_ABORTED_OTHER		1
 
-/* Set if the cmd is aborted and counted in cmd_done_wait_count */
-#define SCST_CMD_DONE_COUNTED		2
-
 /* Set if no response should be sent to the target about this cmd */
-#define SCST_CMD_NO_RESP		3
+#define SCST_CMD_NO_RESP		2
 
 /* Set if the cmd is dead and can be destroyed at any time */
-#define SCST_CMD_CAN_BE_DESTROYED	4
+#define SCST_CMD_CAN_BE_DESTROYED	3
 
 /*************************************************************
  ** Tgt_dev's async. flags (tgt_dev_flags)
@@ -1634,6 +1631,9 @@ struct scst_mgmt_cmd_stub {
 
 	/* List entry in cmd->mgmt_cmd_list */
 	struct list_head cmd_mgmt_cmd_list_entry;
+
+	/* set if the cmd was counted in  mcmd->cmd_done_wait_count */
+	unsigned int done_counted:1;
 };
 
 struct scst_mgmt_cmd {

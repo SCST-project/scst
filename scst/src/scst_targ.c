@@ -3841,13 +3841,14 @@ void scst_done_cmd_mgmt(struct scst_cmd *cmd)
 
 	spin_lock_irqsave(&scst_mcmd_lock, flags);
 
-	if (!test_bit(SCST_CMD_DONE_COUNTED, &cmd->cmd_flags))
-		goto out_unlock;
-
 	list_for_each_entry(mstb, &cmd->mgmt_cmd_list,
 			cmd_mgmt_cmd_list_entry) {
-		struct scst_mgmt_cmd *mcmd = mstb->mcmd;
+		struct scst_mgmt_cmd *mcmd;
 
+		if (!mstb->done_counted)
+			continue;
+
+		mcmd = mstb->mcmd;
 		TRACE_MGMT_DBG("mcmd %p, mcmd->cmd_done_wait_count %d",
 			mcmd, mcmd->cmd_done_wait_count);
 
@@ -3870,7 +3871,6 @@ void scst_done_cmd_mgmt(struct scst_cmd *cmd)
 		}
 	}
 
-out_unlock:
 	spin_unlock_irqrestore(&scst_mcmd_lock, flags);
 
 	if (wake)
@@ -4089,6 +4089,8 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 				"stub failed (mcmd %p, cmd %p)", mcmd, cmd);
 			goto unlock;
 		}
+		memset(mstb, 0, sizeof(mstb));
+
 		mstb->mcmd = mcmd;
 
 		/*
@@ -4122,7 +4124,7 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 			TRACE_MGMT_DBG("cmd %p (tag %llu) is being executed "
 				"and not done yet", cmd,
 				(long long unsigned int)cmd->tag);
-			set_bit(SCST_CMD_DONE_COUNTED, &cmd->cmd_flags);
+			mstb->done_counted = 1;
 			mcmd->cmd_done_wait_count++;
 		}
 	}
