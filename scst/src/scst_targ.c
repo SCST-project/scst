@@ -4091,7 +4091,7 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 				"stub failed (mcmd %p, cmd %p)", mcmd, cmd);
 			goto unlock;
 		}
-		memset(mstb, 0, sizeof(mstb));
+		memset(mstb, 0, sizeof(*mstb));
 
 		mstb->mcmd = mcmd;
 
