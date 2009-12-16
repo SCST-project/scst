@@ -92,8 +92,7 @@ static struct proc_dir_entry *scst_proc_groups_root;
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 static struct scst_proc_data scst_log_proc_data;
 
-static struct scst_trace_log scst_proc_trace_tbl[] =
-{
+static struct scst_trace_log scst_proc_trace_tbl[] = {
     { TRACE_OUT_OF_MEM,		"out_of_mem" },
     { TRACE_MINOR,		"minor" },
     { TRACE_SG_OP,		"sg" },
@@ -114,8 +113,7 @@ static struct scst_trace_log scst_proc_trace_tbl[] =
     { 0,			NULL }
 };
 
-static struct scst_trace_log scst_proc_local_trace_tbl[] =
-{
+static struct scst_trace_log scst_proc_local_trace_tbl[] = {
     { TRACE_RTRY,		"retry" },
     { TRACE_SCSI_SERIALIZING,	"scsi_serializing" },
     { TRACE_RCV_BOT,		"recv_bot" },
@@ -163,8 +161,7 @@ static char *scst_proc_help_string =
 #endif
 ;
 
-static char *scst_proc_dev_handler_type[] =
-{
+static char *scst_proc_dev_handler_type[] = {
     "Direct-access device (e.g., magnetic disk)",
     "Sequential-access device (e.g., magnetic tape)",
     "Printer device",
@@ -414,11 +411,13 @@ out:
 
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 
-static char *scst_io_size_names[] = { "<=8K  ",
-				      "<=32K ",
-				      "<=128K",
-				      "<=512K",
-				      ">512K " };
+static char *scst_io_size_names[] = {
+	"<=8K  ",
+	"<=32K ",
+	"<=128K",
+	"<=512K",
+	">512K "
+};
 
 static int lat_info_show(struct seq_file *seq, void *v)
 {

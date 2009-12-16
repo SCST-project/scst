@@ -3144,8 +3144,7 @@ static int iscsi_target_release(struct scst_tgt *scst_tgt)
 }
 
 #ifndef CONFIG_SCST_PROC
-static struct scst_trace_log iscsi_local_trace_tbl[] =
-{
+static struct scst_trace_log iscsi_local_trace_tbl[] = {
     { TRACE_D_READ,		"d_read" },
     { TRACE_D_WRITE,		"d_write" },
     { TRACE_CONN_OC,		"conn" },

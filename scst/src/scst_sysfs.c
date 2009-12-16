@@ -40,8 +40,7 @@ static struct kobject *scst_handlers_kobj;
 struct sysfs_ops scst_sysfs_ops;
 EXPORT_SYMBOL(scst_sysfs_ops);
 
-static const char *scst_dev_handler_types[] =
-{
+static const char *scst_dev_handler_types[] = {
     "Direct-access device (e.g., magnetic disk)",
     "Sequential-access device (e.g., magnetic tape)",
     "Printer device",
@@ -64,8 +63,7 @@ static const char *scst_dev_handler_types[] =
 
 static DEFINE_MUTEX(scst_log_mutex);
 
-static struct scst_trace_log scst_trace_tbl[] =
-{
+static struct scst_trace_log scst_trace_tbl[] = {
     { TRACE_OUT_OF_MEM,		"out_of_mem" },
     { TRACE_MINOR,		"minor" },
     { TRACE_SG_OP,		"sg" },
@@ -86,8 +84,7 @@ static struct scst_trace_log scst_trace_tbl[] =
     { 0,			NULL }
 };
 
-static struct scst_trace_log scst_local_trace_tbl[] =
-{
+static struct scst_trace_log scst_local_trace_tbl[] = {
     { TRACE_RTRY,		"retry" },
     { TRACE_SCSI_SERIALIZING,	"scsi_serializing" },
     { TRACE_RCV_BOT,		"recv_bot" },

@@ -48,8 +48,7 @@
 
 #define TRACE_ORDER	0x80000000
 
-static struct scst_trace_log vdisk_local_trace_tbl[] =
-{
+static struct scst_trace_log vdisk_local_trace_tbl[] = {
     { TRACE_ORDER,		"order" },
     { 0,			NULL }
 };

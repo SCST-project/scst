@@ -25,8 +25,7 @@
 
 #define ISCSI_PROC_LOG_ENTRY_NAME	"trace_level"
 
-static struct scst_trace_log iscsi_local_trace_tbl[] =
-{
+static struct scst_trace_log iscsi_local_trace_tbl[] = {
     { TRACE_D_READ,		"d_read" },
     { TRACE_D_WRITE,		"d_write" },
     { TRACE_CONN_OC,		"conn" },
@@ -171,8 +170,7 @@ struct proc_entries {
 	const struct file_operations *const fops;
 };
 
-static struct proc_entries iscsi_proc_entries[] =
-{
+static struct proc_entries iscsi_proc_entries[] = {
 	{"session", &session_seq_fops},
 };
 

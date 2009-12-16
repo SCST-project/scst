@@ -2048,8 +2048,9 @@ out:
 int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
 {
 	int res = 0;
-	static const uint8_t request_sense[6] =
-	    { REQUEST_SENSE, 0, 0, 0, SCST_SENSE_BUFFERSIZE, 0 };
+	static const uint8_t request_sense[6] = {
+		REQUEST_SENSE, 0, 0, 0, SCST_SENSE_BUFFERSIZE, 0
+	};
 	struct scst_cmd *rs_cmd;
 
 	TRACE_ENTRY();
