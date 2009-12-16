@@ -138,10 +138,11 @@ static int scst_init_cmd(struct scst_cmd *cmd, enum scst_exec_context *context)
 		goto out;
 	}
 
+	EXTRACHECKS_BUG_ON(*context == SCST_CONTEXT_SAME);
+
 	/* Small context optimization */
 	if (((*context == SCST_CONTEXT_TASKLET) ||
-	     (*context == SCST_CONTEXT_DIRECT_ATOMIC) ||
-	     ((*context == SCST_CONTEXT_SAME) && scst_cmd_atomic(cmd))) &&
+	     (*context == SCST_CONTEXT_DIRECT_ATOMIC)) &&
 	      scst_cmd_is_expected_set(cmd)) {
 		if (cmd->expected_data_direction & SCST_DATA_WRITE) {
 			if (!test_bit(SCST_TGT_DEV_AFTER_INIT_WR_ATOMIC,
@@ -1106,6 +1107,7 @@ void scst_rx_data(struct scst_cmd *cmd, int status,
 		}
 #endif
 		cmd->state = SCST_CMD_STATE_TGT_PRE_EXEC;
+
 		/* Small context optimization */
 		if ((pref_context == SCST_CONTEXT_TASKLET) ||
 		    (pref_context == SCST_CONTEXT_DIRECT_ATOMIC) ||

@@ -1365,6 +1365,8 @@ static int dev_user_process_reply_exec(struct scst_user_cmd *ucmd,
 	TRACE_DBG("ucmd %p, status %d, resp_data_len %d", ucmd,
 		ereply->status, ereply->resp_data_len);
 
+	cmd->atomic = 0;
+
 	 if (ereply->resp_data_len != 0) {
 		if (ucmd->ubuff == 0) {
 			int pages, rc;

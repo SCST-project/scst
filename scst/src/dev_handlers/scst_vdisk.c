@@ -831,12 +831,12 @@ static int vdisk_attach(struct scst_device *dev)
 	dev_id_len = scnprintf(dev_id_str, sizeof(dev_id_str), "%llx",
 				dev_id_num);
 
-	write_lock(&vdisk_t10_dev_id_rwlock);
+	write_lock_bh(&vdisk_t10_dev_id_rwlock);
 	i = strlen(virt_dev->name) + 1; /* for ' ' */
 	memset(virt_dev->t10_dev_id, ' ', i + dev_id_len);
 	memcpy(virt_dev->t10_dev_id, virt_dev->name, i-1);
 	memcpy(virt_dev->t10_dev_id + i, dev_id_str, dev_id_len);
-	write_unlock(&vdisk_t10_dev_id_rwlock);
+	write_unlock_bh(&vdisk_t10_dev_id_rwlock);
 
 out:
 	TRACE_EXIT();
@@ -1476,10 +1476,10 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			else
 				memcpy(&buf[num + 4], SCST_FIO_VENDOR, 8);
 
-			read_lock(&vdisk_t10_dev_id_rwlock);
+			read_lock_bh(&vdisk_t10_dev_id_rwlock);
 			i = strlen(virt_dev->t10_dev_id);
 			memcpy(&buf[num + 12], virt_dev->t10_dev_id, i);
-			read_unlock(&vdisk_t10_dev_id_rwlock);
+			read_unlock_bh(&vdisk_t10_dev_id_rwlock);
 
 			buf[num + 3] = 8 + i;
 			num += buf[num + 3];
@@ -2316,8 +2316,6 @@ static int vdisk_fsync(struct scst_vdisk_thr *thr, loff_t loff,
 	struct scst_vdisk_dev *virt_dev =
 		(struct scst_vdisk_dev *)dev->dh_priv;
 	struct file *file = thr->fd;
-	struct inode *inode;
-	struct address_space *mapping;
 
 	TRACE_ENTRY();
 
@@ -2326,12 +2324,18 @@ static int vdisk_fsync(struct scst_vdisk_thr *thr, loff_t loff,
 	    virt_dev->o_direct_flag || virt_dev->nullio)
 		goto out;
 
-	inode = file->f_dentry->d_inode;
-	mapping = file->f_mapping;
-
-	res = sync_page_range(inode, mapping, loff, len);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
+	res = sync_page_range(file->f_dentry->d_inode, file->f_mapping,
+		loff, len);
+#else
+#if 0	/* For sparse files we might need to sync metadata as well */
+	res = generic_write_sync(file, loff, len);
+#else
+	res = filemap_write_and_wait_range(file->f_mapping, loff, len);
+#endif
+#endif
 	if (unlikely(res != 0)) {
-		PRINT_ERROR("sync_page_range() failed (%d)", res);
+		PRINT_ERROR("sync range failed (%d)", res);
 		if (cmd != NULL) {
 			scst_set_cmd_error(cmd,
 				SCST_LOAD_SENSE(scst_sense_write_error));
@@ -3916,7 +3920,7 @@ static ssize_t vdisk_sysfs_t10_dev_id_store(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
 
-	write_lock(&vdisk_t10_dev_id_rwlock);
+	write_lock_bh(&vdisk_t10_dev_id_rwlock);
 
 	if ((count > sizeof(virt_dev->t10_dev_id)) ||
 	    ((count == sizeof(virt_dev->t10_dev_id)) &&
@@ -3944,7 +3948,7 @@ static ssize_t vdisk_sysfs_t10_dev_id_store(struct kobject *kobj,
 		virt_dev->t10_dev_id);
 
 out_unlock:
-	write_unlock(&vdisk_t10_dev_id_rwlock);
+	write_unlock_bh(&vdisk_t10_dev_id_rwlock);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -3962,9 +3966,9 @@ static ssize_t vdisk_sysfs_t10_dev_id_show(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
 
-	read_lock(&vdisk_t10_dev_id_rwlock);
+	read_lock_bh(&vdisk_t10_dev_id_rwlock);
 	pos = sprintf(buf, "%s\n", virt_dev->t10_dev_id);
-	read_unlock(&vdisk_t10_dev_id_rwlock);
+	read_unlock_bh(&vdisk_t10_dev_id_rwlock);
 
 	TRACE_EXIT_RES(pos);
 	return pos;
@@ -4038,10 +4042,10 @@ static int vdisk_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
 			seq_printf(seq, " ");
 			c++;
 		}
-		read_lock(&vdisk_t10_dev_id_rwlock);
+		read_lock_bh(&vdisk_t10_dev_id_rwlock);
 		seq_printf(seq, "%-45s %-16s\n", virt_dev->file_name,
 			virt_dev->t10_dev_id);
-		read_unlock(&vdisk_t10_dev_id_rwlock);
+		read_unlock_bh(&vdisk_t10_dev_id_rwlock);
 	}
 	mutex_unlock(&scst_vdisk_mutex);
 out:
@@ -4335,7 +4339,7 @@ static int vdisk_proc_mgmt_cmd(const char *buffer, int length,
 			goto out_up;
 		}
 
-		write_lock(&vdisk_t10_dev_id_rwlock);
+		write_lock_bh(&vdisk_t10_dev_id_rwlock);
 
 		slen = (strlen(t10_dev_id) <= (sizeof(virt_dev->t10_dev_id)-1) ?
 			strlen(t10_dev_id) :
@@ -4347,7 +4351,7 @@ static int vdisk_proc_mgmt_cmd(const char *buffer, int length,
 		PRINT_INFO("T10 device id for device %s changed to %s",
 			virt_dev->name, virt_dev->t10_dev_id);
 
-		write_unlock(&vdisk_t10_dev_id_rwlock);
+		write_unlock_bh(&vdisk_t10_dev_id_rwlock);
 	}
 	res = length;
 
