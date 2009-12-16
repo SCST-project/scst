@@ -4092,8 +4092,8 @@ static int vdisk_proc_mgmt_cmd(const char *buffer, int length,
 	} else if (!strncmp("resync_size ", p, 12)) {
 		p += 12;
 		action = 2;
-	} else if (!strncmp("set_t10_dev_id ", p, 18)) {
-		p += 18;
+	} else if (!strncmp("set_t10_dev_id ", p, 15)) {
+		p += 15;
 		action = 3;
 	} else {
 		PRINT_ERROR("Unknown action \"%s\"", p);
