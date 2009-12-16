@@ -14,7 +14,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
-# Note! Dependencies are done automagically by 'make dep', which also
+# Note! Dependencies are done automatically by 'make dep', which also
 # removes any old dependencies. DON'T put your own dependencies here
 # unless it's something special (not a .c file).
 #

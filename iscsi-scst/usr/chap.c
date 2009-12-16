@@ -404,7 +404,7 @@ static int chap_initiator_auth_check_response(struct connection *conn)
 
 	conn->user = strdup(value);
 	if (conn->user == NULL) {
-		log_error("Unable to dublicate initiator's USER %s", value);
+		log_error("Unable to duplicate initiator's USER %s", value);
 	}
 
 	memset(pass, 0, sizeof(pass));

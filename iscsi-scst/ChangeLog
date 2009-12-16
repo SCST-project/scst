@@ -15,7 +15,7 @@ Summary of changes in iSCSI-SCST between versions 1.0.1 and 1.0.2
 Summary of changes in iSCSI-SCST between versions 1.0.0 and 1.0.1
 -----------------------------------------------------------------
 
- - Support for variable lenght CDB added
+ - Support for variable length CDB added
 
  - Sending and receiving padding bytes as well as sesnse data
    reimplemented to make it more reliable
@@ -131,7 +131,7 @@ Summary of changes in iSCSI-SCST since it was IET
  - Ability to send data with sense in a single response added.
 
  - Ability to handle initiators misbehavior a bit improved: several BUG()'s
-   were relaced by the proper handling. Hovewer, there is a plenty of work in
+   were replaced by the proper handling. However, there is a plenty of work in
    this area left, IET is known to have a lot of weaknesses here.
 
  - Task management made more robust. Particularly, possible data

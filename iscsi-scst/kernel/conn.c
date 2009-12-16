@@ -621,7 +621,7 @@ restart:
 
 			iscsi_get_initiator_ip(conn, c_addr, sizeof(c_addr));
 
-			TRACE_DBG("Dublicated conn from the same initiator "
+			TRACE_DBG("Duplicated conn from the same initiator "
 				"%s found", c_addr);
 
 			snprintf(addr, sizeof(addr), "%s_%d", c_addr, n);

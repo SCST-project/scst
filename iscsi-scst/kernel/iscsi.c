@@ -373,7 +373,7 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 }
 
 /*
- * Corresponding conn may also gets destroyed atfer this function, except only
+ * Corresponding conn may also get destroyed after this function, except only
  * if it's called from the read thread!
  *
  * It can't be called in parallel with iscsi_cmnds_init_write()!
@@ -453,7 +453,7 @@ again_rsp:
 }
 
 /*
- * Corresponding conn may also gets destroyed atfer this function, except only
+ * Corresponding conn may also get destroyed after this function, except only
  * if it's called from the read thread!
  */
 static void req_cmnd_release(struct iscsi_cmnd *req)
@@ -508,7 +508,7 @@ static void req_cmnd_release(struct iscsi_cmnd *req)
 }
 
 /*
- * Corresponding conn may also gets destroyed atfer this function, except only
+ * Corresponding conn may also get destroyed after this function, except only
  * if it's called from the read thread!
  */
 void rsp_cmnd_release(struct iscsi_cmnd *cmnd)
@@ -575,8 +575,8 @@ static void iscsi_cmnds_init_write(struct list_head *send, int flags)
 
 	/*
 	 * If we don't remove hashed req cmd from the hash list here, before
-	 * submitting it for transmittion, we will have a race, when for
-	 * some reason cmd's release is delayed after transmittion and
+	 * submitting it for transmission, we will have a race, when for
+	 * some reason cmd's release is delayed after transmission and
 	 * initiator sends cmd with the same ITT => this command will be
 	 * erroneously rejected as a duplicate.
 	 */
@@ -1444,7 +1444,7 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 
 	if (unlikely(!session->sess_param.immediate_data &&
 		     req->pdu.datasize)) {
-		PRINT_ERROR("Initiator %s violated negotiated paremeters: "
+		PRINT_ERROR("Initiator %s violated negotiated parameters: "
 			"forbidden immediate data sent (ITT %x, op  %x)",
 			session->initiator_name, cmnd_itt(req),
 			req_hdr->scb[0]);
@@ -1454,7 +1454,7 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 
 	if (unlikely(session->sess_param.initial_r2t &&
 		     !(req_hdr->flags & ISCSI_CMD_FINAL))) {
-		PRINT_ERROR("Initiator %s violated negotiated paremeters: "
+		PRINT_ERROR("Initiator %s violated negotiated parameters: "
 			"initial R2T is required (ITT %x, op  %x)",
 			session->initiator_name, cmnd_itt(req),
 			req_hdr->scb[0]);
@@ -2440,7 +2440,7 @@ static void iscsi_session_push_cmnd(struct iscsi_cmnd *cmnd)
 		 * non-immediate command outside of [from ExpCmdSN to MaxCmdSN
 		 * inclusive] range". But we won't honor the MaxCmdSN
 		 * requirement, because, since we adjust MaxCmdSN from the
-		 * separate write thread, rarery it is possible that initiator
+		 * separate write thread, rarely it is possible that initiator
 		 * can legally send command with CmdSN>MaxSN. But it won't
 		 * hurt anything, in the worst case it will lead to
 		 * additional QUEUE FULL status.
@@ -2662,7 +2662,7 @@ static inline void iscsi_set_state_wake_up(struct iscsi_cmnd *req,
 		req->scst_state = new_state;
 		iscsi_make_conn_rd_active(req->conn);
 		if (unlikely(req->conn->closing)) {
-			TRACE_DBG("Waiking up closing conn %p", req->conn);
+			TRACE_DBG("Waking up closing conn %p", req->conn);
 			wake_up(&req->conn->read_state_waitQ);
 		}
 		cmnd_put(req);

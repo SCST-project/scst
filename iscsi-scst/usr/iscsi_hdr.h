@@ -137,7 +137,7 @@ struct iscsi_login_rsp_hdr {
 	u32 stat_sn;
 	u32 exp_cmd_sn;
 	u32 max_cmd_sn;
-	u8  status_class;		/* see Login RSP ststus classes below */
+	u8  status_class;		/* see Login RSP Status classes below */
 	u8  status_detail;		/* see Login RSP Status details below */
 	u8  rsvd2[10];
 } __packed;

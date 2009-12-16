@@ -96,7 +96,7 @@ struct session *session_find_id(u32 tid, u64 sid)
 
 int session_create(struct connection *conn)
 {
-	/* We are single threaded, so it desn't need any protection */
+	/* We are single threaded, so it doesn't need any protection */
 	static u16 tsih = 1;
 	struct session *session;
 	char *user;

@@ -508,7 +508,7 @@ static void event_loop(int timeout)
 					"thread_name=9392A06CB0FDC847B3A530B3DC174E7B0"
 					"55F1EF3%40mse10be1.mse10.exchange.ms&forum_"
 					"name=scst-devel for more details. Alternatively, "
-					"you can desrease iscsi_scstd.c::INCOMING_MAX "
+					"you can decrease iscsi_scstd.c::INCOMING_MAX "
 					"constant to a lower value, e.g. 128, then "
 					"recompile and reinstall the user space part "
 					"of iSCSI-SCST.", __FUNCTION__);

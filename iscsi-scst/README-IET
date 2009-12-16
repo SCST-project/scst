@@ -19,7 +19,7 @@ CONFIG_CRYPTO_CRC32C, respectively. The user-space code requires
 OpenSSL library (http://www.openssl.org/).
 
 The iSCSI target consists of kernel modules and a daemon. Since IET
-is generally targetted at the latest stable mainline kernel, you might
+is generally targeted at the latest stable mainline kernel, you might
 need to apply a backward compatibility patch to compile it against
 older kernel versions:
 

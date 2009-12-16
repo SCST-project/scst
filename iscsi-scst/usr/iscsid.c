@@ -464,7 +464,7 @@ static void login_start(struct connection *conn)
 
 	conn->initiator = strdup(name);
 	if (conn->initiator == NULL) {
-		log_error("Unable to dublicate initiator's name %s", name);
+		log_error("Unable to duplicate initiator's name %s", name);
 		rsp->status_class = ISCSI_STATUS_TARGET_ERR;
 		rsp->status_detail = ISCSI_STATUS_NO_RESOURCES;
 		conn->state = STATE_EXIT;

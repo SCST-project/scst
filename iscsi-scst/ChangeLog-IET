@@ -13,7 +13,7 @@ Dave Jiang
   o fix digest endieness on LE archs
 
 FUJITA Tomonori
-  o fix SPARC alignement issues (based on a patch from joel.bertrand@systella.fr)
+  o fix SPARC alignment issues (based on a patch from joel.bertrand@systella.fr)
 
 Ross S. W. Walker
   o fix DISTDIR in Makefile for /etc install
@@ -455,7 +455,7 @@ Summary of changes from the ardis v20040211 to v0.1.0
 
 FUJITA Tomonori
   o Remove a kernel patch. Multiple threads execute I/O operations
-  o Replace IO functions with the kernel starndard functions
+  o Replace IO functions with the kernel standard functions
   o Add multiple IO modes feature
   o Fix several race issues
   o Fix several out-of-memory situation bugs

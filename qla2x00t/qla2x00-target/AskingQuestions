@@ -81,7 +81,7 @@ For example, this will cause problems in the following situation:
 2. scst_do_send_to_midlev is called with cmd == 0x8000100
 3. scst_do_send_to_midlev returns with SCST_EXEC_COMPLETED
    (in certain scenarios the command is already destroyed at this point)
-4. scst_check_deferred_commands finds the defferred cmd == 0x80000200
+4. scst_check_deferred_commands finds the deferred cmd == 0x80000200
 5. scst_do_send_to_midlev is called with cmd == 0x80000200
 6. scst_do_send_to_midlev returns with SCST_EXEC_NEED_THREAD
 7. scst_send_to_midlev returns with SCST_CMD_STATE_RES_NEED_THREAD
@@ -235,9 +235,9 @@ The strange thing is that the loop seems to be only running at 1 Gbps:
 [   61.852177] qla2300 0000:06:01.0: Extended memory detected (512 KB)...
 [   61.852294] qla2300 0000:06:01.0: Resizing request queue depth (2048 -> 4096)
 ...
-[   61.852604] qla2300 0000:06:01.0: LIP reset occured (f8e8).
+[   61.852604] qla2300 0000:06:01.0: LIP reset occurred (f8e8).
 [   61.852740] qla2300 0000:06:01.0: Waiting for LIP to complete...
-[   62.865911] qla2300 0000:06:01.0: LIP occured (f7f7).
+[   62.865911] qla2300 0000:06:01.0: LIP occurred (f7f7).
 [   62.866042] qla2300 0000:06:01.0: LOOP UP detected (1 Gbps).
 [   62.866269] qla2300 0000:06:01.0: Topology - (Loop), Host Loop address 0x0
 [   62.868285] scsi0 : qla2xxx
@@ -297,7 +297,7 @@ Mar 29 18:09:18 blade2 kernel: (probe0:isp0:0:0:5): Unretryable Error
 Mar 29 18:09:18 blade2 kernel: isp0: data overrun for command on 0.0.0
 Mar 29 18:09:18 blade2 kernel: (da1:isp0:0:0:0): Data Overrun
 Mar 29 18:09:18 blade2 kernel: (da1:isp0:0:0:0): error 5
-Mar 29 18:09:18 blade2 kernel: (da1:isp0:0:0:0): Retries Exausted
+Mar 29 18:09:18 blade2 kernel: (da1:isp0:0:0:0): Retries Exhausted
 Mar 29 18:09:18 blade2 kernel: (probe0:isp0:0:0:6): error 6
 Mar 29 18:09:18 blade2 kernel: (probe0:isp0:0:0:6): Unretryable Error
 Mar 29 18:09:19 blade2 kernel: (probe0:isp0:0:0:7): error 6

@@ -26,7 +26,7 @@
 #include "digest.h"
 
 enum rx_state {
-	RX_INIT_BHS, /* Must be zero for better "switch" optimiztion. */
+	RX_INIT_BHS, /* Must be zero for better "switch" optimization. */
 	RX_BHS,
 	RX_CMD_START,
 	RX_DATA,
@@ -42,7 +42,7 @@ enum rx_state {
 };
 
 enum tx_state {
-	TX_INIT = 0, /* Must be zero for better "switch" optimiztion. */
+	TX_INIT = 0, /* Must be zero for better "switch" optimization. */
 	TX_BHS_DATA,
 	TX_INIT_PADDING,
 	TX_PADDING,
