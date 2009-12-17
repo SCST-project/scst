@@ -1567,7 +1567,8 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	spin_lock_init(&tgt_dev->sn_lock);
 	INIT_LIST_HEAD(&tgt_dev->deferred_cmd_list);
 	INIT_LIST_HEAD(&tgt_dev->skipped_sn_list);
-	tgt_dev->expected_sn = 1;
+	tgt_dev->curr_sn = (typeof(tgt_dev->curr_sn)) -300;
+	tgt_dev->expected_sn = tgt_dev->curr_sn + 1;
 	tgt_dev->num_free_sn_slots = ARRAY_SIZE(tgt_dev->sn_slots)-1;
 	tgt_dev->cur_sn_slot = &tgt_dev->sn_slots[0];
 	for (i = 0; i < (int)ARRAY_SIZE(tgt_dev->sn_slots); i++)
@@ -2576,7 +2577,7 @@ void scst_free_cmd(struct scst_cmd *cmd)
 #ifdef CONFIG_SCST_EXTRACHECKS
 		if (unlikely(!cmd->sent_for_exec) && !cmd->internal) {
 			PRINT_ERROR("Finishing not executed cmd %p (opcode "
-			    "%d, target %s, LUN %lld, sn %ld, expected_sn %ld)",
+			    "%d, target %s, LUN %lld, sn %d, expected_sn %d)",
 			    cmd, cmd->cdb[0], cmd->tgtt->name,
 			    (long long unsigned int)cmd->lun,
 			    cmd->sn, cmd->tgt_dev->expected_sn);
@@ -2585,7 +2586,7 @@ void scst_free_cmd(struct scst_cmd *cmd)
 #endif
 
 		if (unlikely(cmd->out_of_sn)) {
-			TRACE_SN("Out of SN cmd %p (tag %llu, sn %ld), "
+			TRACE_SN("Out of SN cmd %p (tag %llu, sn %d), "
 				"destroy=%d", cmd,
 				(long long unsigned int)cmd->tag,
 				cmd->sn, destroy);
@@ -4481,7 +4482,7 @@ restart:
 		EXTRACHECKS_BUG_ON(cmd->queue_type ==
 			SCST_CMD_QUEUE_HEAD_OF_QUEUE);
 		if (cmd->sn == expected_sn) {
-			TRACE_SN("Deferred command %p (sn %ld, set %d) found",
+			TRACE_SN("Deferred command %p (sn %d, set %d) found",
 				cmd, cmd->sn, cmd->sn_set);
 			tgt_dev->def_cmd_count--;
 			list_del(&cmd->sn_cmd_list_entry);
@@ -4512,7 +4513,7 @@ restart:
 			 * !! sn_slot and sn_cmd_list_entry, could be	!!
 			 * !! already destroyed				!!
 			 */
-			TRACE_SN("cmd %p (tag %llu) with skipped sn %ld found",
+			TRACE_SN("cmd %p (tag %llu) with skipped sn %d found",
 				 cmd,
 				 (long long unsigned int)cmd->tag,
 				 cmd->sn);
@@ -4837,8 +4838,8 @@ static void __scst_unblock_deferred(struct scst_tgt_dev *tgt_dev,
 		tgt_dev->def_cmd_count++;
 		list_add_tail(&out_of_sn_cmd->sn_cmd_list_entry,
 			      &tgt_dev->skipped_sn_list);
-		TRACE_SN("out_of_sn_cmd %p with sn %ld added to skipped_sn_list"
-			" (expected_sn %ld)", out_of_sn_cmd, out_of_sn_cmd->sn,
+		TRACE_SN("out_of_sn_cmd %p with sn %d added to skipped_sn_list"
+			" (expected_sn %d)", out_of_sn_cmd, out_of_sn_cmd->sn,
 			tgt_dev->expected_sn);
 		spin_unlock_irq(&tgt_dev->sn_lock);
 	}

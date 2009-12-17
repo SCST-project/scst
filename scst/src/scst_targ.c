@@ -1917,7 +1917,7 @@ inc:
 	 * scst_post_exec_sn(). See comment in scst_send_for_exec().
 	 */
 	smp_mb();
-	TRACE_SN("Next expected_sn: %ld", tgt_dev->expected_sn);
+	TRACE_SN("Next expected_sn: %d", tgt_dev->expected_sn);
 
 out:
 	return;
@@ -2344,14 +2344,14 @@ static int scst_send_for_exec(struct scst_cmd **active_cmd)
 					      &cmd->cmd_flags))) {
 				/* Necessary to allow aborting out of sn cmds */
 				TRACE_MGMT_DBG("Aborting out of sn cmd %p "
-					"(tag %llu, sn %lu)", cmd,
+					"(tag %llu, sn %u)", cmd,
 					(long long unsigned)cmd->tag, cmd->sn);
 				tgt_dev->def_cmd_count--;
 				scst_set_cmd_abnormal_done_state(cmd);
 				res = SCST_CMD_STATE_RES_CONT_SAME;
 			} else {
-				TRACE_SN("Deferring cmd %p (sn=%ld, set %d, "
-					"expected_sn=%ld)", cmd, cmd->sn,
+				TRACE_SN("Deferring cmd %p (sn=%d, set %d, "
+					"expected_sn=%d)", cmd, cmd->sn,
 					cmd->sn_set, expected_sn);
 				list_add_tail(&cmd->sn_cmd_list_entry,
 					      &tgt_dev->deferred_cmd_list);
@@ -2360,7 +2360,7 @@ static int scst_send_for_exec(struct scst_cmd **active_cmd)
 			spin_unlock_irq(&tgt_dev->sn_lock);
 			goto out;
 		} else {
-			TRACE_SN("Somebody incremented expected_sn %ld, "
+			TRACE_SN("Somebody incremented expected_sn %d, "
 				"continuing", expected_sn);
 			tgt_dev->def_cmd_count--;
 			spin_unlock_irq(&tgt_dev->sn_lock);
@@ -2872,7 +2872,7 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 
 		if (unlikely(!cmd->sent_for_exec)) {
 			TRACE_SN("cmd %p was not sent to mid-lev"
-				" (sn %ld, set %d)",
+				" (sn %d, set %d)",
 				cmd, cmd->sn, cmd->sn_set);
 			scst_unblock_deferred(cmd->tgt_dev, cmd);
 			cmd->sent_for_exec = 1;
@@ -3159,7 +3159,7 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 			 */
 			if (atomic_inc_return(tgt_dev->cur_sn_slot) == 1) {
 				tgt_dev->curr_sn++;
-				TRACE_SN("Incremented curr_sn %ld",
+				TRACE_SN("Incremented curr_sn %d",
 					tgt_dev->curr_sn);
 			}
 			cmd->sn_slot = tgt_dev->cur_sn_slot;
@@ -3221,7 +3221,7 @@ ordered:
 		sBUG();
 	}
 
-	TRACE_SN("cmd(%p)->sn: %ld (tgt_dev %p, *cur_sn_slot %d, "
+	TRACE_SN("cmd(%p)->sn: %d (tgt_dev %p, *cur_sn_slot %d, "
 		"num_free_sn_slots %d, prev_cmd_ordered %ld, "
 		"cur_sn_slot %zd)", cmd, cmd->sn, tgt_dev,
 		atomic_read(tgt_dev->cur_sn_slot),
@@ -4113,7 +4113,7 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 		 * command actually gets executed *after* new commands sent
 		 * after this TM command completed.
 		 */
-		TRACE_MGMT_DBG("cmd %p (tag %llu, sn %lu) being "
+		TRACE_MGMT_DBG("cmd %p (tag %llu, sn %u) being "
 			"executed/xmitted (state %d, op %x, proc time %ld "
 			"sec., timeout %d sec.), deferring ABORT...", cmd,
 			(long long unsigned int)cmd->tag, cmd->sn, cmd->state,
@@ -4223,7 +4223,7 @@ static void scst_unblock_aborted_cmds(int scst_mutex_held)
 				if (__scst_check_unblock_aborted_cmd(cmd,
 						&cmd->sn_cmd_list_entry)) {
 					TRACE_MGMT_DBG("Unblocked aborted SN "
-						"cmd %p (sn %lu)",
+						"cmd %p (sn %u)",
 						cmd, cmd->sn);
 					tgt_dev->def_cmd_count--;
 				}
@@ -4433,7 +4433,7 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 		}
 		__scst_cmd_get(cmd);
 		spin_unlock_irq(&sess->sess_list_lock);
-		TRACE_MGMT_DBG("Cmd %p for tag %llu (sn %ld, set %d, "
+		TRACE_MGMT_DBG("Cmd %p for tag %llu (sn %d, set %d, "
 			"queue_type %x) found, aborting it",
 			cmd, (long long unsigned int)mcmd->tag,
 			cmd->sn, cmd->sn_set, cmd->queue_type);

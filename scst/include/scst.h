@@ -1479,7 +1479,7 @@ struct scst_cmd {
 	struct list_head sn_cmd_list_entry;
 
 	/* Cmd's serial number, used to execute cmd's in order of arrival */
-	unsigned long sn;
+	unsigned int sn;
 
 	/* The corresponding sn_slot in tgt_dev->sn_slots */
 	atomic_t *sn_slot;
@@ -1865,8 +1865,8 @@ struct scst_tgt_dev {
 	 */
 	int def_cmd_count;
 	spinlock_t sn_lock;
-	unsigned long expected_sn;
-	unsigned long curr_sn;
+	unsigned int expected_sn;
+	unsigned int curr_sn;
 	int hq_cmd_count;
 	struct list_head deferred_cmd_list;
 	struct list_head skipped_sn_list;
