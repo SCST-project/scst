@@ -3983,7 +3983,7 @@ EXPORT_SYMBOL(scst_to_tgt_dma_dir);
 
 int scst_obtain_device_parameters(struct scst_device *dev)
 {
-	int res = 0, i;
+	int rc, i;
 	uint8_t cmd[16];
 	uint8_t buffer[4+0x0A];
 	uint8_t sense_buffer[SCSI_SENSE_BUFFERSIZE];
@@ -4011,16 +4011,16 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 		memset(sense_buffer, 0, sizeof(sense_buffer));
 
 		TRACE(TRACE_SCSI, "%s", "Doing internal MODE_SENSE");
-		res = scsi_execute(dev->scsi_dev, cmd, SCST_DATA_READ, buffer,
+		rc = scsi_execute(dev->scsi_dev, cmd, SCST_DATA_READ, buffer,
 				sizeof(buffer), sense_buffer, 15, 0, 0
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,29)
 				, NULL
 #endif
 				);
 
-		TRACE_DBG("MODE_SENSE done: %x", res);
+		TRACE_DBG("MODE_SENSE done: %x", rc);
 
-		if (scsi_status_is_good(res)) {
+		if (scsi_status_is_good(rc)) {
 			int q;
 
 			PRINT_BUFF_FLAG(TRACE_SCSI,
@@ -4041,22 +4041,23 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 			/*
 			 * Unfortunately, SCSI ML doesn't provide a way to
 			 * specify commands task attribute, so we can rely on
-			 * device's restricted reordering only.
+			 * device's restricted reordering only. Linux I/O
+			 * subsystem doesn't reorder pass-through (PC) requests.
 			 */
 			dev->has_own_order_mgmt = !dev->queue_alg;
 
-			TRACE(TRACE_SCSI|TRACE_MGMT_MINOR,
-				"Device %s: TST %x, "
-				"QUEUE ALG %x, SWP %x, TAS %x, D_SENSE %d"
-				"has_own_order_mgmt %d",
+			PRINT_INFO("Device %s: TST %x, QUEUE ALG %x, SWP %x, "
+				"TAS %x, D_SENSE %d, has_own_order_mgmt %d",
 				dev->virt_name, dev->tst, dev->queue_alg,
 				dev->swp, dev->tas, dev->d_sense,
 				dev->has_own_order_mgmt);
 
 			goto out;
 		} else {
+			scst_check_internal_sense(dev, rc, sense_buffer,
+				sizeof(sense_buffer));
 #if 0
-			if ((status_byte(res) == CHECK_CONDITION) &&
+			if ((status_byte(rc) == CHECK_CONDITION) &&
 			    SCST_SENSE_VALID(sense_buffer)) {
 #else
 			/*
@@ -4065,51 +4066,58 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 			 */
 			if (SCST_SENSE_VALID(sense_buffer)) {
 #endif
+				PRINT_BUFF_FLAG(TRACE_SCSI,
+					"Returned sense data",
+					sense_buffer, sizeof(sense_buffer));
 				if (scst_analyze_sense(sense_buffer,
 						sizeof(sense_buffer),
 						SCST_SENSE_KEY_VALID,
 						ILLEGAL_REQUEST, 0, 0)) {
-					TRACE(TRACE_SCSI|TRACE_MGMT_MINOR,
-						"Device %s doesn't "
-						"support control mode page, "
-						"using defaults: TST %x, "
-						"QUEUE ALG %x, SWP %x, "
-						"TAS %x, D_SENSE %d, "
-						"has_own_order_mgmt %d ",
-						dev->virt_name,
-						dev->tst, dev->queue_alg,
-						dev->swp, dev->tas,
-						dev->d_sense,
-						dev->has_own_order_mgmt);
-					res = 0;
-					goto out;
+					PRINT_INFO("Device %s doesn't support "
+						"MODE SENSE", dev->virt_name);
+					break;
 				} else if (scst_analyze_sense(sense_buffer,
 						sizeof(sense_buffer),
 						SCST_SENSE_KEY_VALID,
 						NOT_READY, 0, 0)) {
-					TRACE(TRACE_SCSI, "Device %s not ready",
+					PRINT_ERROR("Device %s not ready",
 						dev->virt_name);
-					res = 0;
-					goto out;
+					break;
 				}
 			} else {
-				TRACE(TRACE_SCSI|TRACE_MGMT_MINOR,
-					"Internal MODE SENSE to "
+				PRINT_INFO("Internal MODE SENSE to "
 					"device %s failed: %x",
-					dev->virt_name, res);
-				PRINT_BUFF_FLAG(TRACE_SCSI|TRACE_MGMT_MINOR,
-					"MODE SENSE sense",
+					dev->virt_name, rc);
+				PRINT_BUFF_FLAG(TRACE_SCSI, "MODE SENSE sense",
 					sense_buffer, sizeof(sense_buffer));
+				switch (host_byte(rc)) {
+				case DID_RESET:
+				case DID_ABORT:
+				case DID_SOFT_ERROR:
+					break;
+				default:
+					goto brk;
+				}
+				switch (driver_byte(rc)) {
+				case DRIVER_BUSY:
+				case DRIVER_SOFT:
+					break;
+				default:
+					goto brk;
+				}
 			}
-			scst_check_internal_sense(dev, res, sense_buffer,
-					sizeof(sense_buffer));
 		}
 	}
-	res = -ENODEV;
+brk:
+	PRINT_WARNING("Unable to get device's %s control mode page, using "
+		"existing values/defaults: TST %x, QUEUE ALG %x, SWP %x, "
+		"TAS %x, D_SENSE %d, has_own_order_mgmt %d", dev->virt_name,
+		dev->tst, dev->queue_alg, dev->swp, dev->tas, dev->d_sense,
+		dev->has_own_order_mgmt);
 
 out:
-	TRACE_EXIT_RES(res);
-	return res;
+	TRACE_EXIT();
+	return 0;
 }
 EXPORT_SYMBOL(scst_obtain_device_parameters);
 
