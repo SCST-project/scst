@@ -1567,7 +1567,7 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	spin_lock_init(&tgt_dev->sn_lock);
 	INIT_LIST_HEAD(&tgt_dev->deferred_cmd_list);
 	INIT_LIST_HEAD(&tgt_dev->skipped_sn_list);
-	tgt_dev->curr_sn = (typeof(tgt_dev->curr_sn)) -300;
+	tgt_dev->curr_sn = (typeof(tgt_dev->curr_sn))(-300);
 	tgt_dev->expected_sn = tgt_dev->curr_sn + 1;
 	tgt_dev->num_free_sn_slots = ARRAY_SIZE(tgt_dev->sn_slots)-1;
 	tgt_dev->cur_sn_slot = &tgt_dev->sn_slots[0];
