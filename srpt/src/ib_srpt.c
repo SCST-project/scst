@@ -47,14 +47,13 @@
 #include <linux/seq_file.h>
 #endif
 #include "ib_srpt.h"
+#define LOG_PREFIX "ib_srpt" /* Prefix for SCST tracing macros. */
 #include "scst_debug.h"
 
 #define CONFIG_SCST_PROC
 
 /* Name of this kernel module. */
 #define DRV_NAME		"ib_srpt"
-/* Prefix for printk() kernel messages. */
-#define LOG_PFX			DRV_NAME ": "
 #define DRV_VERSION		"1.0.1"
 #define DRV_RELDATE		"July 10, 2008"
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
