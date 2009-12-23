@@ -2,6 +2,8 @@ Changes for 1.0.11
 
 - Added -noprompt option. Use with care!
 - Added support for T10 device ID.
+- Die if /proc/scsi_tgt/version doesn't exist.
+- Replace croak() with die() in the module.
 
 Changes for 1.0.10
 

@@ -128,6 +128,9 @@ sub new {
 
 	my $scstVersion = $self->scstVersion();
 
+	die("Failed to obtain SCST version information. Is the scst module loaded?\n")
+	  if ($scstVersion == -1);
+
 	my($major, $minor, $release) = split(/\./, $scstVersion, 3);
 	($release, undef) = split(/\-/, $release) if ($release =~ /\-/);
 
@@ -136,7 +139,7 @@ sub new {
 			    (($major == $_SCST_MIN_MAJOR_) && ($minor == $_SCST_MIN_MINOR_) &&
 			     ($release >= $_SCST_MIN_RELEASE_)));
 
-	croak("This module requires at least SCST version $_SCST_MIN_MAJOR_\.$_SCST_MIN_MINOR_\.".
+	die("This module requires at least SCST version $_SCST_MIN_MAJOR_\.$_SCST_MIN_MINOR_\.".
 	      "$_SCST_MIN_RELEASE_ and version $scstVersion was found") if ($badVersion);
 
 	return $self;
@@ -146,7 +149,7 @@ sub scstVersion {
 	my $self = shift;
 
 	my $io = new IO::File $_SCST_VERSION_IO_, O_RDONLY;
-	return 1 if (!$io);
+	return -1 if (!$io);
 
 	my $version = <$io>;
 	chomp $version;
