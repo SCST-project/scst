@@ -56,61 +56,62 @@
 			
 			<div id="main">
 				<h1>ISCSI target driver iSCSI-SCST</h1>
-				<p><strong>ISCSI-SCST</strong> is a forked (with all respects) version of IET. Reasons of the fork were:</p>
+				<p>ISCSI-SCST is an iSCSI target driver for SCST. It is a deeply reworked fork of
+				<a href="http://iscsitarget.sourceforge.net/">IET</a> with a lot of fixes and improvements. Reasons of the fork were:</p>
 
 				<ul>
-					<li><span>To be able to use full power of <strong>SCST core</strong>.</span></li>
-					<li><span>To fix all the problems, corner cases issues and iSCSI standard violations IET which has.</span></li>
+					<li><span>To be able to use full power of SCST core.</span></li>
+					<li><span>To fix all the problems, corner cases issues and iSCSI standard violations which IET has.</span></li>
 				</ul>
 
-				<p>IET is a well recognized and widely used iSCSI target, but, frankly speaking, it works more or less well
-				on fast paths and regularly used code branches only, however in many corner
-				cases it has a lot of problems, like ignoring error processing, as it is for memory allocations,
+				<p>IET in many corner cases has a lot of problems, like ignoring errors processing, as it is for memory allocations,
 				crashing itself with BUG() macro, as it is for malformed packets from initiators, possible data
 				corruptions, because of, for instance, unsafe task management or sessions reinstatement implementations, etc.
-				There was no way to fix all them without a fork. As the result of this effort nearly 90% of the IET kernel code was fully
-				rewritten.</p>
-				 
-				<p>Since ISCSI-SCST uses SCST core, it has the following additional features:</p>
+				There was no way to fix all them without a fork. As the result of this effort nearly all (80-90% overall and >90%
+				of the core) of the IET kernel code and 20-25% of the user space code were rewritten.</p>
+				
+				<p>You can find comparison of iSCSI-SCST with IET and other iSCSI targets on the <a href="comparison.html">Comparison</a> page.
+				Some highlights:
+				</p>
 
 				<ul>
-					<li><span><strong>Pass-through mode with one to many relationship</strong>, i.e. when multiple initiators can connect to
-					exported pass-through devices. For instance, in this mode you can safely export your parallel
-					<strong>SCSI tape</strong> or <strong>tape library</strong> (or <strong>VTL</strong>) on 
-					your iSCSI net and multiple initiators can share it without risk of data loss because of the 
-					shared usage. Existing outdated "rawio" patch for IET supports only non-enforced 1:1 
-					relationship, so it is unsafe to use it in multiple initiators environments.</span></li>
+					<li><span>Improved performance. In some cases there is >100% improvement.</span></li>
+				
+					<li><span>Pass-through mode with one to many relationship, when multiple initiators can connect to
+					exported local SCSI devices. For instance, in this mode you can safely export your parallel
+					SCSI tape or tape library, or VTL on your iSCSI net and multiple initiators can share it without risk of
+					data loss because of the shared usage.</span></li>
 
-					<li><span><strong>More advanced devices visibility management</strong>, when different initiators can see different set of 
-					devices with different access permissions from the same target.</span></li>
+					<li><span>Automatic PnP-like reconfiguration, when initiators instantly see any configuration changes on the
+					target, like addition of new LUNs or a LUN resize. No restart or anything like that is needed.</span></li>
 
-					<li><span><strong>O_DIRECT</strong>, i.e. <strong>"BLOCKIO on files"</strong>, mode, which has all advantages 
+					<li><span>Safe implementation of many management and errors recovery facilities as well as better handling of various
+					corner cases, which means better errors recovery stability without putting user data at risk.</span></li>
+
+					<li><span>Advanced devices visibility management, when different initiators can see different set of
+					devices from the same target.</span></li>
+
+					<li><span>O_DIRECT, i.e. "BLOCKIO on files", mode, which has all advantages 
 					of BLOCKIO, but also supports files on file systems. Sometimes, in the appropriate cases, 
 					this mode can make performance difference in 100% or even more.</span></li>
 
-					<li><span><strong>4KB blocks</strong> eliminate abysmal write performance caused by misaligned partitions. 
+					<li><span>4KB blocks eliminate abysmal write performance issues caused by misaligned partitions. 
 					</span></li>
 
-					<li><span><strong>Virtual CD/DVD-ROMs</strong>.</span></li>	
+					<li><span>Virtual CD/DVD-ROMs.</span></li>	
 
-					<li><span>Ability to create target devices emulators in the <strong>user space</strong>.</span></li>
+					<li><span>Ability to create target devices emulators in the user space.</span></li>
 
-					<li><span>Ability to create <strong>multi-transport SCSI targets</strong>, which can export (possibly, the same) 
-					devices over multiple transports.</span></li>																 
-				</ul>					 
-				
-				<p>Also, due to reworked I/O architecture and SCST backend iSCSI-SCST has much
-				better performance in many cases and has potential for future improvements, like zero-copy 
-				with Linux cache FILEIO. In many tests iSCSI-SCST outperforms tuned for best
-				performance IET on more than 100%.</p>
-				
-				<p>Advantages of iSCSI-SCST over IET are summarized on the <a href="comparison.html">Comparison</a> page.</p>
+					<li><span>Ability to create multi-transport SCSI targets, which can export (possibly, the same) 
+					devices over multiple transports.</span></li>
+				</ul>
 
 				<p>If you are an IET user before installation carefully read README files of both iSCSI-SCST and 
 				the SCST core. Especially pay attention that now the LUN information for iSCSI-SCST is configured not using 
-				iscsi-scstd.conf file in /etc, but using corresponding SCST facilities. This is because now the responsibilities 
-				are divided (as it should be) between the target driver (iSCSI-SCST) and the SCST core: target driver is 
-				responsible for handling targets and their parameters, SCST core is responsible for handling backstorage.</p>
+				iscsi-scstd.conf file in /etc, but using corresponding SCST facilities. This is because now responsibilities 
+				are divided (as it logically should be) between the target driver (iSCSI-SCST) and the SCSI target core (SCST),
+				where target driver is responsible for handling targets with their parameters, and SCST core is responsible for handling
+				backstorage.</p>
 
 				<p>The latest stable version is 1.0.1.1. Requires Linux kernel version 2.6.16.x or higher and SCST version 1.0.1.1 or higher. 
 				Tested mostly on i386 and x86_64, but should work on any other supported by Linux platform.</p>

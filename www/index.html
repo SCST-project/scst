@@ -33,7 +33,7 @@
 	  		<div id="main">
 				<h1>Generic SCSI Target Subsystem for Linux</h1>
 						
-				<p>The <strong>generic SCSI target subsystem for Linux (SCST)</strong> is an alternative
+				<p>The generic SCSI target subsystem for Linux (SCST) is an alternative
 					implementation of a SCSI target subsystem for Linux. It provides unified,
 					consistent interface between SCSI target drivers and 
 					Linux kernel as well as between Linux kernel and storage backend
@@ -63,13 +63,13 @@
 					<li><span>SCST core undertakes most problems, related to execution contexts, thus practically eliminating one of the most 
 								 complicated problem in the kernel drivers development. For example, target drivers for Marvell 
 								 SAS adapters or for InfiniBand SRP are less 3000 lines of code long.</span></li>
-					<li><span>Very low overhead, fine-grained locks and simplest commands processing path allow to reach 
-								 maximum possible performance and scalability. Particularly, incoming requests can be processed in 
+					<li><span>Very low overhead and fine-grained locks allow to reach the
+								 maximum performance and scalability. Particularly, incoming requests can be processed in 
 								 the caller's context or in one of the internal SCST core's tasklets without any
 								 extra context switches.</span></li>
-					<li><span>Device handlers, i.e. plugins, architecture allows various I/O 
-								 modes in backstorage handling. For example, pass-through device handlers allows to use real 
-								 SCSI hardware and vdisk device handler allows to use files as virtual disks.</span></li>
+					<li><span>Device handlers architecture allows various I/O 
+								 modes in backstorage handling. For example, pass-through device handlers allow to export real 
+								 SCSI hardware and vdisk device handler allows to export files as virtual disks.</span></li>
 					<li><span>Advanced per-initiator devices visibility management (LUN masking) allows different 
 								 initiators to see different set of devices with different access permissions. For instance, 
 								 initiator A could see exported from target T devices X and Y read-writable, and initiator B from 
@@ -95,8 +95,7 @@
 												 commands to non-existing devices and provides access control, so different remote 
 												 initiators could see different set of devices.</span></li>
 
-									<li><span>Other necessary functionality (task attributes, etc.) as specified in SAM-2, SPC-2, SAM-3,
-												 SPC-3 and other SCSI standards.</span></li>
+									<li><span>Other necessary functionality (task attributes, etc.) as specified in SCSI standards.</span></li>
 								 </ul>
 					</li>
 
@@ -110,24 +109,27 @@
 				will not know about it, which could 
 				lead to various problems, including data corruption. Thus, RESERVE/RELEASE commands, locally generated 
 				UNIT ATTENTIONs, etc. should be intercepted and passed through SCST core.</p>			
-					
+
+				<p>You can find comparison of SCST with other SCSI targets on the <a href="comparison.html">Comparison</a> page.
+				Some highlights what it can mean for end users you can find on the <a href="target_iscsi.html">iSCSI-SCST</a> page.
+
 				<h1>SCST core supports the following I/O modes</h1>
 				<ul>
-					<li><span><strong>Pass-through mode</strong> with one to many relationship, i.e. when multiple initiators can 
-						connect to the exported pass-through devices, for virtually all SCSI devices types: <strong>disks (type 0), 
+					<li><span>Pass-through mode with one to many relationship, i.e. when multiple initiators can 
+						connect to the exported pass-through devices, for virtually all SCSI devices types: disks (type 0), 
 						tapes (type 1), processors (type 3), CDROMs (type 5), MO disks (type 7), medium changers (type 8) and RAID 
-						controllers (type 0xC)</strong>. In this mode you can, for instance, share your parallel SCSI tape or SATA
+						controllers (type 0xC). In this mode you can, for instance, share your parallel SCSI tape or SATA
 						DVD-RW device to your iSCSI network.</span></li>
-    				<li><span><strong>FILEIO mode</strong>, which allows to use files on file systems or block devices as virtual 
-    					remotely available SCSI disks or CDROMs with benefits of the Linux <strong>cache</strong>.</span></li>
-    				<li><span><strong>BLOCKIO mode</strong>, which performs direct block IO with a block device, bypassing 
+    				<li><span>FILEIO mode, which allows to use files on file systems or block devices as virtual 
+    					remotely available SCSI disks or CDROMs with benefits of the Linux cache.</span></li>
+    				<li><span>BLOCKIO mode, which performs direct block IO with a block device, bypassing 
     					page-cache for all operations. This mode works well with high-end storage HBAs and for applications that 
     					either do not need caching between application and disk or need the large block throughput.</span></li>
-    				<li><span><strong>User space mode</strong> using scst_user device handler, which allows to implement in the 
+    				<li><span>User space mode using scst_user device handler, which allows to implement in the 
     					user space virtual SCSI devices in the SCST environment.</span></li>
-    				<li><span><strong>"Performance" device handlers</strong> as well as <strong>NULLIO</strong> mode provide
+    				<li><span>Performance testing device handlers as well as NULLIO mode to provide
     					a way for direct performance measurements without overhead of actual data
-    				        transferring from/to underlying SCSI device.
+    				        transfers from/to underlying SCSI devices.
     					</span></li>
 				</ul>			
 	  		</div>
