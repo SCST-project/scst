@@ -304,7 +304,7 @@ struct iscsi_key session_keys[] = {
 	{"FirstBurstLength", 65536, -1, 512, -1, &minimum_ops},
 	{"DefaultTime2Wait", 2, 2, 0, 3600, &maximum_ops},
 	{"DefaultTime2Retain", 20, 20, 0, 3600, &minimum_ops},
-	{"MaxOutstandingR2T", 1, 20, 1, 65535, &minimum_ops},
+	{"MaxOutstandingR2T", 1, 1, 1, 1, &minimum_ops},
 	{"DataPDUInOrder", 1, 0, 0, 1, &or_ops},
 	{"DataSequenceInOrder", 1, 0, 0, 1, &or_ops},
 	{"ErrorRecoveryLevel", 0, 0, 0, 0, &minimum_ops},
