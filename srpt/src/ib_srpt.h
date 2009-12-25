@@ -70,6 +70,19 @@ enum {
 	SRP_RDMA_READ_FROM_IOC = 0x08,
 	SRP_RDMA_WRITE_FROM_IOC = 0x20,
 
+	/*
+	 * srp_cmd::sol_nt / srp_tsk_mgmt::sol_not bitmasks. See also tables
+	 * 18 and 20 in the T10 r16a document.
+	 */
+	SRP_SCSOLNT = 0x02, /* SCSOLNT = successful solicited notification */
+	SRP_UCSOLNT = 0x04, /* UCSOLNT = unsuccessful solicited notification */
+
+	/*
+	 * srp_rsp::sol_not / srp_t_logout::sol_not bitmasks. See also tables
+	 * 16 and 22 in the T10 r16a document.
+	 */
+	SRP_SOLNT = 0x01, /* SOLNT = solicited notification */
+
 	/* See also table 24 in the T10 r16a document. */
 	SRP_TSK_MGMT_SUCCESS = 0x00,
 	SRP_TSK_MGMT_FUNC_NOT_SUPP = 0x04,
@@ -138,13 +151,13 @@ struct srpt_ioctx {
 	u16 n_rdma_ius;
 	u8 n_rdma;
 	u8 n_rbuf;
+	u8 sol_not;
 
 	enum ib_wc_opcode op;
 	/* Node for insertion in the srpt_thread::thread_ioctx_list. */
 	struct list_head comp_list;
 	struct srpt_rdma_ch *ch;
 	struct scst_cmd *scmnd;
-	u64 data_len;
 	atomic_t state; /*enum srpt_command_state*/
 };
 
@@ -174,6 +187,7 @@ struct srpt_rdma_ch {
 	u8 i_port_id[16];
 	/* 128-bit target port identifier copied from SRP_LOGIN_REQ. */
 	u8 t_port_id[16];
+	int max_ti_iu_len;
 	atomic_t req_lim_delta;
 	atomic_t state; /*enum rdma_ch_state*/
 	/* Node for insertion in the srpt_device::rch_list list. */
@@ -242,38 +256,6 @@ struct srpt_device {
 #endif
 
 	struct scst_tgt *scst_tgt;
-};
-
-/*
- * Sense code/qualifier pairs (sense_data::key) as defined in the SCSI Primary
- * Commands (SPC) standard. Bits 0 .. 3 contain the sense key, bit 4 is
- * reserved, bit 5 is the ILI (incorrect length indicator) bit, bit 6 is the
- * EOM (end-of-medium) bit and bit 7 is the
- * FILEMARK bit.
- */
-enum {
-	NO_ADD_SENSE            = 0x00,
-	LUN_NOT_READY           = 0x04, /* HARDWARE ERROR */
-	INVALID_CDB             = 0x24, /* ILI | HARDWARE ERROR */
-	INTERNAL_TARGET_FAILURE = 0x44  /* EOM | HARDWARE ERROR */
-};
-
-/*
- * Sense data structure containing three sense bytes. See also the SCSI Primary
- * Commands (SPC) standard.
- */
-struct sense_data {
-	u8 err_code;
-	u8 segment_number;
-	u8 key;
-	u8 info_bytes[4];
-	u8 addl_sense_len;
-	u8 cmd_info_bytes[4];
-	u8 addl_sense_code;
-	u8 addl_sense_code_qual;
-	u16 asc_ascq;
-	u8 fru_code;
-	u8 sense_bytes[3];
 };
 
 #endif				/* IB_SRPT_H */

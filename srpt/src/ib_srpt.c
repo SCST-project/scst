@@ -806,7 +806,22 @@ out:
 	return ret;
 }
 
-static int srpt_get_desc_tbl(struct srpt_ioctx *ioctx, struct srp_cmd *srp_cmd)
+/**
+ * srpt_get_desc_tbl() - Parse the data descriptors of an SRP_CMD request.
+ * @ioctx: Pointer to the I/O context associated with the request.
+ * @srp_cmd: Pointer to the SRP_CMD request data.
+ * @dir: Pointer to the variable to which the transfer direction will be
+ *   written.
+ * @data_len: Pointer to the variable to which the total data length of all
+ *   descriptors in the SRP_CMD request will be written.
+ *
+ * This function initializes ioctx->nrbuf and ioctx->r_bufs.
+ *
+ * Returns -EINVAL when the SRP_CMD request contains inconsistent descriptors;
+ * -ENOMEM when memory allocation fails and zero upon success.
+ */
+static int srpt_get_desc_tbl(struct srpt_ioctx *ioctx, struct srp_cmd *srp_cmd,
+			     scst_data_direction *dir, u64 *data_len)
 {
 	struct srp_indirect_buf *idb;
 	struct srp_direct_buf *db;
@@ -815,7 +830,8 @@ static int srpt_get_desc_tbl(struct srpt_ioctx *ioctx, struct srp_cmd *srp_cmd)
 
 	/*
 	 * The pointer computations below will only be compiled correctly
-	 * if srp_cmd::add_data is declared as s8*, u8*, s8[] or u8[].
+	 * if srp_cmd::add_data is declared as s8*, u8*, s8[] or u8[], so check
+	 * whether srp_cmd::add_data has been declared as a byte pointer.
 	 */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 31)
 	BUILD_BUG_ON(!__same_type(srp_cmd->add_data[0], (s8)0)
@@ -824,7 +840,25 @@ static int srpt_get_desc_tbl(struct srpt_ioctx *ioctx, struct srp_cmd *srp_cmd)
 	/* Note: the __same_type() macro has been introduced in kernel 2.6.31.*/
 #endif
 
+	BUG_ON(!dir);
+	BUG_ON(!data_len);
+
 	ret = 0;
+	*data_len = 0;
+
+	/*
+	 * The lower four bits of the buffer format field contain the DATA-IN
+	 * buffer descriptor format, and the highest four bits contain the
+	 * DATA-OUT buffer descriptor format.
+	 */
+	*dir = SCST_DATA_NONE;
+	if (srp_cmd->buf_fmt & 0xf)
+		/* DATA-IN: transfer data from target to initiator. */
+		*dir = SCST_DATA_READ;
+	else if (srp_cmd->buf_fmt >> 4)
+		/* DATA-OUT: transfer data from initiator to target. */
+		*dir = SCST_DATA_WRITE;
+
 	/*
 	 * According to the SRP spec, the lower two bits of the 'ADDITIONAL
 	 * CDB LENGTH' field are reserved and the size in bytes of this field
@@ -839,8 +873,9 @@ static int srpt_get_desc_tbl(struct srpt_ioctx *ioctx, struct srp_cmd *srp_cmd)
 		db = (struct srp_direct_buf *)(srp_cmd->add_data
 					       + add_cdb_offset);
 		memcpy(ioctx->rbufs, db, sizeof *db);
-		ioctx->data_len = be32_to_cpu(db->len);
-	} else {
+		*data_len = be32_to_cpu(db->len);
+	} else if (((srp_cmd->buf_fmt & 0xf) == SRP_DATA_DESC_INDIRECT) ||
+		   ((srp_cmd->buf_fmt >> 4) == SRP_DATA_DESC_INDIRECT)) {
 		idb = (struct srp_indirect_buf *)(srp_cmd->add_data
 						  + add_cdb_offset);
 
@@ -873,7 +908,7 @@ static int srpt_get_desc_tbl(struct srpt_ioctx *ioctx, struct srp_cmd *srp_cmd)
 
 		db = idb->desc_list;
 		memcpy(ioctx->rbufs, db, ioctx->n_rbuf * sizeof *db);
-		ioctx->data_len = be32_to_cpu(idb->len);
+		*data_len = be32_to_cpu(idb->len);
 	}
 out:
 	return ret;
@@ -1106,12 +1141,15 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 }
 
 /**
- * Build an SRP_RSP response.
+ * srpt_build_cmd_rsp() - Build an SRP_RSP response.
  * @ch: RDMA channel through which the request has been received.
- * @ioctx: I/O context in which the SRP_RSP response will be built.
- * @s_key: sense key that will be stored in the response.
- * @s_code: value that will be stored in the asc_ascq field of the sense data.
+ * @ioctx: I/O context associated with the SRP_CMD request. The response will
+ *   be built in the buffer ioctx->buf points at and hence this function will
+ *   overwrite the request data.
  * @tag: tag of the request for which this response is being generated.
+ * @status: value for the STATUS field of the SRP_RSP information unit.
+ * @sense_data: pointer to sense data to be included in the response.
+ * @sense_data_len: length in bytes of the sense data.
  *
  * Returns the size in bytes of the SRP_RSP response.
  *
@@ -1120,40 +1158,56 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
  * response. See also SPC-2 for more information about sense data.
  */
 static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
-			      struct srpt_ioctx *ioctx, u8 s_key, u8 s_code,
-			      u64 tag)
+			      struct srpt_ioctx *ioctx, u64 tag, int status,
+			      const u8 *sense_data, int sense_data_len)
 {
 	struct srp_rsp *srp_rsp;
-	struct sense_data *sense;
 	int limit_delta;
-	int sense_data_len;
-	int resp_len;
+	int max_sense_len;
 
-	sense_data_len = (s_key == NO_SENSE) ? 0 : sizeof(*sense);
-	resp_len = sizeof(*srp_rsp) + sense_data_len;
+	/*
+	 * The lowest bit of all SAM-3 status codes is zero (see also
+	 * paragraph 5.3 in SAM-3).
+	 */
+	WARN_ON(status & 1);
 
 	srp_rsp = ioctx->buf;
+	BUG_ON(!srp_rsp);
 	memset(srp_rsp, 0, sizeof *srp_rsp);
 
 	limit_delta = atomic_read(&ch->req_lim_delta);
 	atomic_sub(limit_delta, &ch->req_lim_delta);
 
 	srp_rsp->opcode = SRP_RSP;
+	/*
+	 * Copy the SCSOLNT or UCSOLNT bit from the request to the SOLNT bit
+	 * of the response.
+	 */
+	srp_rsp->sol_not
+		= (ioctx->sol_not
+		   & (status == SAM_STAT_GOOD ? SRP_SCSOLNT : SRP_UCSOLNT))
+		? SRP_SOLNT : 0;
 	srp_rsp->req_lim_delta = cpu_to_be32(limit_delta);
 	srp_rsp->tag = tag;
 
-	if (s_key != NO_SENSE) {
+	if (SCST_SENSE_VALID(sense_data)) {
+		BUILD_BUG_ON(MIN_MAX_MESSAGE_SIZE <= sizeof(*srp_rsp));
+		max_sense_len = ch->max_ti_iu_len - sizeof(*srp_rsp);
+		if (sense_data_len > max_sense_len) {
+			PRINT_WARNING("truncated sense data from %d to %d"
+				" bytes", sense_data_len,
+				max_sense_len);
+			sense_data_len = max_sense_len;
+		}
+
 		srp_rsp->flags |= SRP_RSP_FLAG_SNSVALID;
-		srp_rsp->status = SAM_STAT_CHECK_CONDITION;
+		srp_rsp->status = status;
 		srp_rsp->sense_data_len = cpu_to_be32(sense_data_len);
+		memcpy(srp_rsp + 1, sense_data, sense_data_len);
+	} else
+		sense_data_len = 0;
 
-		sense = (struct sense_data *)(srp_rsp + 1);
-		sense->err_code = 0x70;
-		sense->key = s_key;
-		sense->asc_ascq = s_code;
-	}
-
-	return resp_len;
+	return sizeof(*srp_rsp) + sense_data_len;
 }
 
 /**
@@ -1188,6 +1242,15 @@ static int srpt_build_tskmgmt_rsp(struct srpt_rdma_ch *ch,
 	atomic_sub(limit_delta, &ch->req_lim_delta);
 
 	srp_rsp->opcode = SRP_RSP;
+	/*
+	 * Copy the SCSOLNT or UCSOLNT bit from the request to the SOLNT bit
+	 * of the response.
+	 */
+	srp_rsp->sol_not
+		= (ioctx->sol_not
+		   & (rsp_code == SRP_TSK_MGMT_SUCCESS
+		      ? SRP_SCSOLNT : SRP_UCSOLNT))
+		? SRP_SOLNT : 0;
 	srp_rsp->req_lim_delta = cpu_to_be32(limit_delta);
 	srp_rsp->tag = tag;
 
@@ -1207,47 +1270,26 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 {
 	struct scst_cmd *scmnd;
 	struct srp_cmd *srp_cmd;
-	struct srp_rsp *srp_rsp;
 	scst_data_direction dir;
+	u64 data_len;
 	int ret;
 
 	srp_cmd = ioctx->buf;
-	srp_rsp = ioctx->buf;
-
-	dir = SCST_DATA_NONE;
-	if (srp_cmd->buf_fmt) {
-		ret = srpt_get_desc_tbl(ioctx, srp_cmd);
-		if (ret) {
-			srpt_build_cmd_rsp(ch, ioctx, NO_SENSE,
-					   NO_ADD_SENSE, srp_cmd->tag);
-			srp_rsp->status = SAM_STAT_TASK_SET_FULL;
-			goto err;
-		}
-
-		/*
-		 * The lower four bits of the buffer format field contain the
-		 * DATA-IN buffer descriptor format, and the highest four bits
-		 * contain the DATA-OUT buffer descriptor format.
-		 */
-		if (srp_cmd->buf_fmt & 0xf)
-			/* DATA-IN: transfer data from target to initiator. */
-			dir = SCST_DATA_READ;
-		else if (srp_cmd->buf_fmt >> 4)
-			/* DATA-OUT: transfer data from initiator to target. */
-			dir = SCST_DATA_WRITE;
-	}
 
 	scmnd = scst_rx_cmd(ch->scst_sess, (u8 *) &srp_cmd->lun,
 			    sizeof srp_cmd->lun, srp_cmd->cdb, 16,
 			    thread ? SCST_NON_ATOMIC : SCST_ATOMIC);
-	if (!scmnd) {
-		srpt_build_cmd_rsp(ch, ioctx, NO_SENSE,
-				   NO_ADD_SENSE, srp_cmd->tag);
-		srp_rsp->status = SAM_STAT_TASK_SET_FULL;
+	if (!scmnd)
 		goto err;
-	}
 
 	ioctx->scmnd = scmnd;
+
+	ret = srpt_get_desc_tbl(ioctx, srp_cmd, &dir, &data_len);
+	if (ret) {
+		scst_set_cmd_error(scmnd,
+			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		goto err;
+	}
 
 	switch (srp_cmd->task_attr) {
 	case SRP_CMD_HEAD_OF_Q:
@@ -1269,21 +1311,19 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 
 	scst_cmd_set_tag(scmnd, srp_cmd->tag);
 	scst_cmd_set_tgt_priv(scmnd, ioctx);
-	scst_cmd_set_expected(scmnd, dir, ioctx->data_len);
+	scst_cmd_set_expected(scmnd, dir, data_len);
 	scst_cmd_init_done(scmnd, scst_estimate_context());
 
 	return 0;
 
 err:
-	WARN_ON(srp_rsp->opcode != SRP_RSP);
-
 	return -1;
 }
 
 /*
- * Process an SRP_TSK_MGMT request.
+ * srpt_handle_tsk_mgmt() - Process an SRP_TSK_MGMT information unit.
  *
- * Returns 0 upon success and -1 upon failure.
+ * Returns SRP_TSK_MGMT_SUCCESS upon success.
  *
  * Each task management function is performed by calling one of the
  * scst_rx_mgmt_fn*() functions. These functions will either report failure
@@ -1296,12 +1336,13 @@ err:
  * For more information about SRP_TSK_MGMT information units, see also section
  * 6.7 in the T10 SRP r16a document.
  */
-static int srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
-				struct srpt_ioctx *ioctx)
+static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
+			       struct srpt_ioctx *ioctx)
 {
 	struct srp_tsk_mgmt *srp_tsk;
 	struct srpt_mgmt_ioctx *mgmt_ioctx;
 	int ret;
+	u8 srp_tsk_mgmt_status;
 
 	srp_tsk = ioctx->buf;
 
@@ -1312,12 +1353,10 @@ static int srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 		  (unsigned long long) srp_tsk->tag,
 		  ch->cm_id, ch->scst_sess);
 
+	srp_tsk_mgmt_status = SRP_TSK_MGMT_FAILED;
 	mgmt_ioctx = kmalloc(sizeof *mgmt_ioctx, GFP_ATOMIC);
-	if (!mgmt_ioctx) {
-		srpt_build_tskmgmt_rsp(ch, ioctx, SRP_TSK_MGMT_FAILED,
-				       srp_tsk->tag);
+	if (!mgmt_ioctx)
 		goto err;
-	}
 
 	mgmt_ioctx->ioctx = ioctx;
 	mgmt_ioctx->ch = ch;
@@ -1375,28 +1414,42 @@ static int srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 		break;
 	default:
 		TRACE_DBG("%s", "Unsupported task management function.");
-		srpt_build_tskmgmt_rsp(ch, ioctx,
-				       SRP_TSK_MGMT_FUNC_NOT_SUPP,
-				       srp_tsk->tag);
+		srp_tsk_mgmt_status = SRP_TSK_MGMT_FUNC_NOT_SUPP;
 		goto err;
 	}
 
 	if (ret) {
-		TRACE_DBG("%s", "Processing task management function failed.");
-		srpt_build_tskmgmt_rsp(ch, ioctx, SRP_TSK_MGMT_FAILED,
-				       srp_tsk->tag);
+		TRACE_DBG("Processing task management function failed"
+			  " (ret = %d).", ret);
 		goto err;
 	}
-
-	WARN_ON(srp_tsk->opcode == SRP_RSP);
-
-	return 0;
+	return SRP_TSK_MGMT_SUCCESS;
 
 err:
-	WARN_ON(srp_tsk->opcode != SRP_RSP);
-
 	kfree(mgmt_ioctx);
-	return -1;
+	return srp_tsk_mgmt_status;
+}
+
+/**
+ * set_sense() - A copy of the function with the same name in
+ * scst/src/common.c.
+ */
+static int set_sense(uint8_t *buffer, int len, int key, int asc, int ascq)
+{
+	int res = 18;
+
+	EXTRACHECKS_BUG_ON(len < res);
+
+	memset(buffer, 0, res);
+
+	buffer[0] = 0x70;	/* Error Code			*/
+	buffer[2] = key;	/* Sense Key			*/
+	buffer[7] = 0x0a;	/* Additional Sense Length	*/
+	buffer[12] = asc;	/* ASC				*/
+	buffer[13] = ascq;	/* ASCQ				*/
+
+	TRACE_BUFFER("Sense set", buffer, res);
+	return res;
 }
 
 /**
@@ -1408,9 +1461,24 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 			       struct srpt_ioctx *ioctx)
 {
 	struct srp_cmd *srp_cmd;
-	struct srp_rsp *srp_rsp;
 	enum rdma_ch_state ch_state;
+	u8 srp_response_status;
+	u8 srp_tsk_mgmt_status;
 	int len;
+
+	/*
+	 * A quote from SAM-3, paragraph 4.9.6: "Any command that is not
+	 * relayed to a dependent logical unit shall be terminated with a
+	 * CHECK CONDITION status. The sense key shall be set to ILLEGAL
+	 * REQUEST and the additional sense code shall be set to INVALID
+	 * COMMAND OPERATION CODE. If a task management function cannot be
+	 * relayed to a dependent logical unit, a service response of SERVICE
+	 * DELIVERY OR TARGET FAILURE shall be returned."
+	 */
+
+	srp_response_status = SAM_STAT_CHECK_CONDITION;
+	/* To keep the compiler happy. */
+	srp_tsk_mgmt_status = -1;
 
 	ch_state = atomic_read(&ch->state);
 	if (ch_state == RDMA_CHANNEL_CONNECTING) {
@@ -1427,7 +1495,8 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 				   ioctx->dma, srp_max_message_size,
 				   DMA_FROM_DEVICE);
 
-	ioctx->data_len = 0;
+	srp_cmd = ioctx->buf;
+
 	ioctx->n_rbuf = 0;
 	ioctx->rbufs = NULL;
 	ioctx->n_rdma = 0;
@@ -1435,44 +1504,65 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 	ioctx->rdma_ius = NULL;
 	ioctx->scmnd = NULL;
 	ioctx->ch = ch;
+	ioctx->sol_not = srp_cmd->sol_not;
 	atomic_set(&ioctx->state, SRPT_STATE_NEW);
-
-	srp_cmd = ioctx->buf;
-	srp_rsp = ioctx->buf;
 
 	switch (srp_cmd->opcode) {
 	case SRP_CMD:
-		if (srpt_handle_cmd(ch, ioctx) < 0)
+		if (srpt_handle_cmd(ch, ioctx) < 0) {
+			if (ioctx->scmnd)
+				srp_response_status =
+					scst_cmd_get_status(ioctx->scmnd);
 			goto err;
+		}
 		break;
 
 	case SRP_TSK_MGMT:
-		if (srpt_handle_tsk_mgmt(ch, ioctx) < 0)
+		srp_tsk_mgmt_status = srpt_handle_tsk_mgmt(ch, ioctx);
+		if (srp_tsk_mgmt_status != SRP_TSK_MGMT_SUCCESS)
 			goto err;
 		break;
 
 	case SRP_I_LOGOUT:
 	case SRP_AER_REQ:
 	default:
-		srpt_build_cmd_rsp(ch, ioctx, ILLEGAL_REQUEST, INVALID_CDB,
-				   srp_cmd->tag);
 		goto err;
 	}
 
 	return;
 
 err:
-	WARN_ON(srp_rsp->opcode != SRP_RSP);
-	len = (sizeof *srp_rsp) + be32_to_cpu(srp_rsp->sense_data_len);
-
 	ch_state = atomic_read(&ch->state);
 	if (ch_state != RDMA_CHANNEL_LIVE) {
 		/* Give up if another thread modified the channel state. */
 		PRINT_ERROR("%s: channel is in state %d", __func__, ch_state);
 		srpt_reset_ioctx(ch, ioctx);
-	} else if (srpt_post_send(ch, ioctx, len)) {
-		PRINT_ERROR("%s: sending SRP_RSP response failed", __func__);
-		srpt_reset_ioctx(ch, ioctx);
+	} else {
+		if (srp_cmd->opcode == SRP_TSK_MGMT) {
+			len = srpt_build_tskmgmt_rsp(ch, ioctx,
+				     srp_tsk_mgmt_status,
+				     ((struct srp_tsk_mgmt *)srp_cmd)->tag);
+		} else if (ioctx->scmnd)
+			len = srpt_build_cmd_rsp(ch, ioctx, srp_cmd->tag,
+				srp_response_status,
+				scst_cmd_get_sense_buffer(ioctx->scmnd),
+				scst_cmd_get_sense_buffer_len(ioctx->scmnd));
+		else {
+			u8 sense_buf[18];
+			int sense_len;
+
+			sense_len = set_sense(sense_buf,
+					      ARRAY_SIZE(sense_buf),
+					      scst_sense_invalid_field_in_cdb);
+			len = srpt_build_cmd_rsp(ch, ioctx, srp_cmd->tag,
+						 srp_response_status,
+						 sense_buf, sense_len);
+		}
+		if (srpt_post_send(ch, ioctx, len)) {
+			PRINT_ERROR("%s: sending SRP_RSP response failed",
+				    __func__);
+			srpt_reset_ioctx(ch, ioctx);
+		}
 	}
 }
 
@@ -1765,7 +1855,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	it_iu_len = be32_to_cpu(req->req_it_iu_len);
 
 	PRINT_INFO("Received SRP_LOGIN_REQ with"
-	    " i_port_id 0x%llx:0x%llx, t_port_id 0x%llx:0x%llx and length %d"
+	    " i_port_id 0x%llx:0x%llx, t_port_id 0x%llx:0x%llx and it_iu_len %d"
 	    " on port %d (guid=0x%llx:0x%llx)",
 	    (unsigned long long)be64_to_cpu(*(u64 *)&req->initiator_port_id[0]),
 	    (unsigned long long)be64_to_cpu(*(u64 *)&req->initiator_port_id[8]),
@@ -1945,6 +2035,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	rsp->tag = req->tag;
 	rsp->max_it_iu_len = req->req_it_iu_len;
 	rsp->max_ti_iu_len = req->req_it_iu_len;
+	ch->max_ti_iu_len = req->req_it_iu_len;
 	rsp->buf_fmt =
 	    cpu_to_be16(SRP_BUF_FORMAT_DIRECT | SRP_BUF_FORMAT_INDIRECT);
 	rsp->req_lim_delta = cpu_to_be32(SRPT_RQ_SIZE);
@@ -2463,19 +2554,19 @@ out:
 	return ret;
 }
 
-/*
- * Called by the SCST core. Transmits the response buffer and status held in
- * 'scmnd'. Must not block.
+/**
+ * srpt_xmit_response() - SCST callback function that transmits the response
+ * to a SCSI command.
+ *
+ * Must not block.
  */
 static int srpt_xmit_response(struct scst_cmd *scmnd)
 {
 	struct srpt_rdma_ch *ch;
 	struct srpt_ioctx *ioctx;
-	struct srp_rsp *srp_rsp;
-	u64 tag;
 	int ret = SCST_TGT_RES_SUCCESS;
 	int dir;
-	int status;
+	int resp_len;
 
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
 	BUG_ON(!ioctx);
@@ -2497,56 +2588,30 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 		goto out;
 	}
 
-	tag = scst_cmd_get_tag(scmnd);
 	dir = scst_cmd_get_data_direction(scmnd);
-	status = scst_cmd_get_status(scmnd) & 0xff;
-
-	srpt_build_cmd_rsp(ch, ioctx, NO_SENSE, NO_ADD_SENSE, tag);
-
-	srp_rsp = ioctx->buf;
-
-	if (SCST_SENSE_VALID(scst_cmd_get_sense_buffer(scmnd))) {
-		unsigned int max_sense_len;
-
-		srp_rsp->sense_data_len = scst_cmd_get_sense_buffer_len(scmnd);
-		BUILD_BUG_ON(MIN_MAX_MESSAGE_SIZE <= sizeof(*srp_rsp));
-		WARN_ON(srp_max_message_size <= sizeof(*srp_rsp));
-		max_sense_len = srp_max_message_size - sizeof(*srp_rsp);
-		if (srp_rsp->sense_data_len > max_sense_len) {
-			PRINT_WARNING("truncated sense data from %d to %d"
-				" bytes", srp_rsp->sense_data_len,
-				max_sense_len);
-			srp_rsp->sense_data_len = max_sense_len;
-		}
-
-		memcpy((u8 *) (srp_rsp + 1), scst_cmd_get_sense_buffer(scmnd),
-		       srp_rsp->sense_data_len);
-
-		srp_rsp->sense_data_len = cpu_to_be32(srp_rsp->sense_data_len);
-		srp_rsp->flags |= SRP_RSP_FLAG_SNSVALID;
-
-		if (!status)
-			status = SAM_STAT_CHECK_CONDITION;
-	}
-
-	srp_rsp->status = status;
 
 	/* For read commands, transfer the data to the initiator. */
 	if (dir == SCST_DATA_READ && scst_cmd_get_resp_data_len(scmnd)) {
 		ret = srpt_xfer_data(ch, ioctx, scmnd);
 		if (ret != SCST_TGT_RES_SUCCESS) {
 			PRINT_ERROR("%s: tag= %lld xfer_data failed",
-				    __func__, (unsigned long long)tag);
+				    __func__,
+				    (unsigned long long)
+				    scst_cmd_get_tag(scmnd));
 			goto out;
 		}
 	}
 
-	if (srpt_post_send(ch, ioctx,
-			   sizeof *srp_rsp +
-			   be32_to_cpu(srp_rsp->sense_data_len))) {
+	resp_len = srpt_build_cmd_rsp(ch, ioctx,
+				      scst_cmd_get_tag(scmnd),
+				      scst_cmd_get_status(scmnd),
+				      scst_cmd_get_sense_buffer(scmnd),
+				      scst_cmd_get_sense_buffer_len(scmnd));
+
+	if (srpt_post_send(ch, ioctx, resp_len)) {
 		PRINT_ERROR("%s[%d]: ch->state= %d tag= %lld",
 			    __func__, __LINE__, atomic_read(&ch->state),
-			    (unsigned long long)tag);
+			    (unsigned long long)scst_cmd_get_tag(scmnd));
 		ret = SCST_TGT_RES_FATAL_ERROR;
 	}
 
@@ -2554,9 +2619,11 @@ out:
 	return ret;
 }
 
-/*
- * Called by the SCST core to inform ib_srpt that a received task management
- * function has been completed. Must not block.
+/**
+ * srpt_tsk_mgmt_done() - SCST callback function that sends back the response
+ * for a task management request.
+ *
+ * Must not block.
  */
 static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 {
