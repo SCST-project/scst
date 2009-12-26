@@ -3867,7 +3867,7 @@ int scst_get_cdb_info(struct scst_cmd *cmd)
 
 	op = cmd->cdb[0];	/* get clear opcode */
 
-	TRACE_DBG("opcode=%02x, cdblen=%d bytes, tblsize=%ld, "
+	TRACE_DBG("opcode=%02x, cdblen=%d bytes, tblsize=%zd, "
 		"dev_type=%d", op, SCST_GET_CDB_LEN(op), SCST_CDB_TBL_SIZE,
 		dev_type);
 
