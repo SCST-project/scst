@@ -13,17 +13,13 @@
    supports these, but the SRP target not yet.
 
 
-5. Remove "struct sense_data" from ib_srpt.h and use the functions for
-   manipulating sense data from the SCST core instead.
-
-
-6. Evaluate the possibility of removing the worker thread entirely and
+5. Evaluate the possibility of removing the worker thread entirely and
    instead to add a compile-time option called e.g. CONFIG_SRPT_WORK_IN_TREAD.
    This compile-time option, if enabled, will process all commands in the SCST
    context SCST_CONTEXT_THREAD, similar to CONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD.
 
 
-7. Allocate memory for task management data structures from a memory pool
+6. Allocate memory for task management data structures from a memory pool
    instead of via kmalloc(..., GFP_ATOMIC). The last call has a high
    probability of failing because the GFP_ATOMIC area is quite small and
    heavily used when under load (e.g. network drivers allocate skb's from this
@@ -32,11 +28,11 @@
    data loss.
 
 
-8. Replace the calls to srpt_abort_if_disconnecting() by calls to
+7. Replace the calls to srpt_abort_if_disconnecting() by calls to
    scst_cmd_aborted().
 
 
-9. Start using the SGV clustering pool. More information can be found in the
+8. Start using the SGV clustering pool. More information can be found in the
    documentation of struct scst_tgt_template in scst.h (use_clustering has to
    be set to 1). A general description of the SGV cache can be found here:
    http://scst.sourceforge.net/sgv_cache.txt.
