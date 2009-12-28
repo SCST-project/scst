@@ -2036,7 +2036,7 @@ sysfs_root_add_error:
 	goto out;
 }
 
-void __exit scst_sysfs_cleanup(void)
+void scst_sysfs_cleanup(void)
 {
 	TRACE_ENTRY();
 
