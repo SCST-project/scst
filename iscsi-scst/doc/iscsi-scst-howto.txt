@@ -59,7 +59,8 @@ package provided by your Linux distro first and then to run the shell commands
 shown below. Verify the contents of the generated file.
 
   /etc/init.d/open-iscsi stop
-  { echo "InitiatorName=$(/usr/sbin/iscsi-iname)"; echo "InitiatorAlias=$(hostname)"; } >/etc/iscsi/initiatorname.iscsi
+  { echo "InitiatorName=$(if [ -e /usr/sbin/iscsi-iname ]; then /usr/sbin/iscsi-iname; else /sbin/iscsi-iname; fi)";
+                          echo "InitiatorAlias=$(hostname)"; } >/etc/iscsi/initiatorname.iscsi
   /etc/init.d/open-iscsi start
   cat /etc/iscsi/initiatorname.iscsi
 
@@ -77,6 +78,8 @@ script /etc/init.d/scst. All devices known by SCST are defined in this file.
 The shell statements shown below set up a configuration file for two vdisks.
 Replace the device names by names that apply to your system:
 
+  modprobe scst
+  modprobe scst_vdisk
   scstadmin -ClearConfig /etc/scst.conf
   scstadmin -adddev disk01 -path /dev/ram0 -handler vdisk -options NV_CACHE
   scstadmin -adddev disk02 -path /dev/ram1 -handler vdisk -options NV_CACHE
