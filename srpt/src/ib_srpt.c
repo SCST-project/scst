@@ -209,6 +209,7 @@ static void srpt_event_handler(struct ib_event_handler *handler,
 		}
 		break;
 	default:
+		PRINT_ERROR("received unrecognized IB event %d", event->event);
 		break;
 	}
 
@@ -255,6 +256,8 @@ static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 		}
 		break;
 	default:
+		PRINT_ERROR("received unrecognized IB QP event %d",
+			    event->event);
 		break;
 	}
 }
@@ -1431,28 +1434,6 @@ err:
 }
 
 /**
- * set_sense() - A copy of the function with the same name in
- * scst/src/common.c.
- */
-static int set_sense(uint8_t *buffer, int len, int key, int asc, int ascq)
-{
-	int res = 18;
-
-	EXTRACHECKS_BUG_ON(len < res);
-
-	memset(buffer, 0, res);
-
-	buffer[0] = 0x70;	/* Error Code			*/
-	buffer[2] = key;	/* Sense Key			*/
-	buffer[7] = 0x0a;	/* Additional Sense Length	*/
-	buffer[12] = asc;	/* ASC				*/
-	buffer[13] = ascq;	/* ASCQ				*/
-
-	TRACE_BUFFER("Sense set", buffer, res);
-	return res;
-}
-
-/**
  * Process a newly received information unit.
  * @ch: RDMA channel through which the information unit has been received.
  * @ioctx: SRPT I/O context associated with the information unit.
@@ -1476,7 +1457,7 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 	 * DELIVERY OR TARGET FAILURE shall be returned."
 	 */
 
-	srp_response_status = SAM_STAT_CHECK_CONDITION;
+	srp_response_status = SAM_STAT_BUSY;
 	/* To keep the compiler happy. */
 	srp_tsk_mgmt_status = -1;
 
@@ -1548,15 +1529,9 @@ err:
 				scst_cmd_get_sense_buffer(ioctx->scmnd),
 				scst_cmd_get_sense_buffer_len(ioctx->scmnd));
 		else {
-			u8 sense_buf[18];
-			int sense_len;
-
-			sense_len = set_sense(sense_buf,
-					      ARRAY_SIZE(sense_buf),
-					      scst_sense_invalid_field_in_cdb);
 			len = srpt_build_cmd_rsp(ch, ioctx, srp_cmd->tag,
 						 srp_response_status,
-						 sense_buf, sense_len);
+						 NULL, 0);
 		}
 		if (srpt_post_send(ch, ioctx, len)) {
 			PRINT_ERROR("%s: sending SRP_RSP response failed",
@@ -1652,6 +1627,8 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 				srpt_handle_rdma_comp(ch, ioctx);
 				break;
 			default:
+				PRINT_ERROR("received unrecognized IB WC"
+					    " opcode %d", wc.opcode);
 				break;
 			}
 		}
@@ -2226,6 +2203,8 @@ static int srpt_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
 		srpt_cm_rep_error(cm_id);
 		break;
 	default:
+		PRINT_ERROR("received unrecognized IB CM event %d",
+			    event->event);
 		break;
 	}
 
@@ -2602,6 +2581,8 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 		}
 	}
 
+	scst_check_convert_sense(scmnd);
+
 	resp_len = srpt_build_cmd_rsp(ch, ioctx,
 				      scst_cmd_get_tag(scmnd),
 				      scst_cmd_get_status(scmnd),
@@ -2820,6 +2801,8 @@ static int srpt_ioctx_thread(void *arg)
 				srpt_handle_new_iu(ioctx->ch, ioctx);
 				break;
 			default:
+				PRINT_ERROR("received unrecognized WC opcode"
+					    " %d", ioctx->op);
 				break;
 			}
 #if defined(CONFIG_SCST_DEBUG)
