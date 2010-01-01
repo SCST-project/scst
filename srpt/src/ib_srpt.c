@@ -66,6 +66,10 @@
 
 #define MELLANOX_SRPT_ID_STRING	"SCST SRP target"
 
+/* Similar to is_power_of_2(), but can be evaluated at compile time. */
+#define IS_POWER_OF_2(n) ((n) != 0 && (((n) & ((n) - 1)) == 0))
+
+
 MODULE_AUTHOR("Vu Pham");
 MODULE_DESCRIPTION("InfiniBand SCSI RDMA Protocol target "
 		   "v" DRV_VERSION " (" DRV_RELDATE ")");
@@ -130,6 +134,11 @@ MODULE_PARM_DESC(use_port_guid_in_session_name,
 
 static void srpt_add_one(struct ib_device *device);
 static void srpt_remove_one(struct ib_device *device);
+static struct srpt_ioctx *srpt_get_req_ioctx(struct srpt_rdma_ch *ch);
+static void srpt_put_req_ioctx(struct srpt_rdma_ch *ch,
+				struct srpt_ioctx *ioctx);
+static int srpt_send_cred_req(struct srpt_rdma_ch *ch);
+static void srpt_free_req_ring(struct srpt_rdma_ch *ch);
 static void srpt_unregister_mad_agent(struct srpt_device *sdev);
 #ifdef CONFIG_SCST_PROC
 static void srpt_unregister_procfs_entry(struct scst_tgt_template *tgt);
@@ -660,45 +669,56 @@ static void srpt_free_ioctx(struct srpt_device *sdev, struct srpt_ioctx *ioctx)
 	kfree(ioctx);
 }
 
-/*
- * Associate a ring of SRPT I/O context structures with the specified device.
+/**
+ * srpt_alloc_ioctx_ring() -- allocate a ring of SRPT I/O context structures.
+ * @sdev: device to allocate the I/O context ring for.
+ * @ioctx_ring: pointer to an array of I/O contexts.
+ * @ring_size: number of elements in the I/O context ring.
+ * @flags: flags to be set in the ring index.
  */
-static int srpt_alloc_ioctx_ring(struct srpt_device *sdev)
+static int srpt_alloc_ioctx_ring(struct srpt_device *sdev,
+				 struct srpt_ioctx **ioctx_ring,
+				 int ring_size,
+				 u32 flags)
 {
+	int res;
 	int i;
 
 	TRACE_ENTRY();
 
-	for (i = 0; i < SRPT_SRQ_SIZE; ++i) {
-		sdev->ioctx_ring[i] = srpt_alloc_ioctx(sdev);
+	res = -ENOMEM;
+	for (i = 0; i < ring_size; ++i) {
+		ioctx_ring[i] = srpt_alloc_ioctx(sdev);
 
-		if (!sdev->ioctx_ring[i])
+		if (!ioctx_ring[i])
 			goto err;
 
-		sdev->ioctx_ring[i]->index = i;
+		WARN_ON(i & flags);
+		ioctx_ring[i]->index = i | flags;
 	}
-
-	TRACE_EXIT_RES(0);
-
-	return 0;
+	res = 0;
+	goto out;
 
 err:
 	while (--i > 0) {
-		srpt_free_ioctx(sdev, sdev->ioctx_ring[i]);
-		sdev->ioctx_ring[i] = NULL;
+		srpt_free_ioctx(sdev, ioctx_ring[i]);
+		ioctx_ring[i] = NULL;
 	}
-	TRACE_EXIT_RES(-ENOMEM);
-	return -ENOMEM;
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 /* Free the ring of SRPT I/O context structures. */
-static void srpt_free_ioctx_ring(struct srpt_device *sdev)
+static void srpt_free_ioctx_ring(struct srpt_device *sdev,
+				 struct srpt_ioctx **ioctx_ring,
+				 int ring_size)
 {
 	int i;
 
-	for (i = 0; i < SRPT_SRQ_SIZE; ++i) {
-		srpt_free_ioctx(sdev, sdev->ioctx_ring[i]);
-		sdev->ioctx_ring[i] = NULL;
+	for (i = 0; i < ring_size; ++i) {
+		srpt_free_ioctx(sdev, ioctx_ring[i]);
+		ioctx_ring[i] = NULL;
 	}
 }
 
@@ -1020,8 +1040,16 @@ static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 	if (srpt_post_recv(ch->sport->sdev, ioctx))
 		PRINT_ERROR("%s", "SRQ post_recv failed - this is serious.");
 		/* we should queue it back to free_ioctx queue */
-	else
-		atomic_inc(&ch->req_lim_delta);
+	else {
+		int req_lim;
+
+		req_lim = atomic_inc_return(&ch->req_lim);
+		WARN_ON(req_lim > SRPT_RQ_SIZE);
+		if (req_lim == SRPT_RQ_SIZE / 2
+		    && atomic_xchg(&ch->send_cred_req, 0)
+		    && srpt_send_cred_req(ch) < 0)
+			PRINT_ERROR("%s", "sending SRP_CRED_REQ failed");
+	}
 }
 
 /**
@@ -1088,6 +1116,10 @@ static void srpt_handle_err_comp(struct srpt_rdma_ch *ch, struct ib_wc *wc)
 	if (wc->wr_id & SRPT_OP_RECV) {
 		ioctx = sdev->ioctx_ring[wc->wr_id & ~SRPT_OP_RECV];
 		PRINT_ERROR("%s", "This is serious - SRQ is in bad state.");
+	} else if (wc->wr_id & SRPT_OP_TXR) {
+		PRINT_ERROR("%s", "sending request failed");
+		ioctx = ch->req_ioctx_ring[wc->wr_id & ~SRPT_OP_TXR];
+		srpt_put_req_ioctx(ch, ioctx);
 	} else {
 		ioctx = sdev->ioctx_ring[wc->wr_id];
 
@@ -1144,6 +1176,29 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 }
 
 /**
+ * srpt_req_lim_delta() - Compute by how much req_lim changed since the
+ * last time this function has been called. This value is necessary for
+ * filling in the REQUEST LIMIT DELTA field of an SRP_RSP response.
+ *
+ * Note: It is possible that one or more requests will be received after
+ * sdev->req_lim has been read and hence that the req_lim value is larger than
+ * the actual value. This doesn't cause problems because the initiator
+ * decrements its request limit variable before sending.
+ */
+static int srpt_req_lim_delta(struct srpt_rdma_ch *ch)
+{
+	int req_lim;
+	int req_lim_delta;
+
+	req_lim = atomic_read(&ch->req_lim);
+	if (req_lim <= 1)
+		atomic_set(&ch->send_cred_req, 1);
+	req_lim_delta = req_lim - atomic_read(&ch->last_response_req_lim);
+	atomic_add(req_lim_delta, &ch->last_response_req_lim);
+	return req_lim_delta;
+}
+
+/**
  * srpt_build_cmd_rsp() - Build an SRP_RSP response.
  * @ch: RDMA channel through which the request has been received.
  * @ioctx: I/O context associated with the SRP_CMD request. The response will
@@ -1165,7 +1220,6 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 			      const u8 *sense_data, int sense_data_len)
 {
 	struct srp_rsp *srp_rsp;
-	int limit_delta;
 	int max_sense_len;
 
 	/*
@@ -1178,9 +1232,6 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 	BUG_ON(!srp_rsp);
 	memset(srp_rsp, 0, sizeof *srp_rsp);
 
-	limit_delta = atomic_read(&ch->req_lim_delta);
-	atomic_sub(limit_delta, &ch->req_lim_delta);
-
 	srp_rsp->opcode = SRP_RSP;
 	/*
 	 * Copy the SCSOLNT or UCSOLNT bit from the request to the SOLNT bit
@@ -1190,7 +1241,7 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 		= (ioctx->sol_not
 		   & (status == SAM_STAT_GOOD ? SRP_SCSOLNT : SRP_UCSOLNT))
 		? SRP_SOLNT : 0;
-	srp_rsp->req_lim_delta = cpu_to_be32(limit_delta);
+	srp_rsp->req_lim_delta = cpu_to_be32(srpt_req_lim_delta(ch) + 1);
 	srp_rsp->tag = tag;
 
 	if (SCST_SENSE_VALID(sense_data)) {
@@ -1231,7 +1282,6 @@ static int srpt_build_tskmgmt_rsp(struct srpt_rdma_ch *ch,
 				  u64 tag)
 {
 	struct srp_rsp *srp_rsp;
-	int limit_delta;
 	int resp_data_len;
 	int resp_len;
 
@@ -1240,9 +1290,6 @@ static int srpt_build_tskmgmt_rsp(struct srpt_rdma_ch *ch,
 
 	srp_rsp = ioctx->buf;
 	memset(srp_rsp, 0, sizeof *srp_rsp);
-
-	limit_delta = atomic_read(&ch->req_lim_delta);
-	atomic_sub(limit_delta, &ch->req_lim_delta);
 
 	srp_rsp->opcode = SRP_RSP;
 	/*
@@ -1254,7 +1301,7 @@ static int srpt_build_tskmgmt_rsp(struct srpt_rdma_ch *ch,
 		   & (rsp_code == SRP_TSK_MGMT_SUCCESS
 		      ? SRP_SCSOLNT : SRP_UCSOLNT))
 		? SRP_SOLNT : 0;
-	srp_rsp->req_lim_delta = cpu_to_be32(limit_delta);
+	srp_rsp->req_lim_delta = cpu_to_be32(srpt_req_lim_delta(ch) + 1);
 	srp_rsp->tag = tag;
 
 	if (rsp_code != SRP_TSK_MGMT_SUCCESS) {
@@ -1264,6 +1311,42 @@ static int srpt_build_tskmgmt_rsp(struct srpt_rdma_ch *ch,
 	}
 
 	return resp_len;
+}
+
+static int srpt_send_cred_req(struct srpt_rdma_ch *ch)
+{
+	int ret;
+	s32 req_lim_delta;
+	struct srpt_ioctx *ioctx;
+	struct srp_cred_req *srp_cred_req;
+
+	BUG_ON(!ch);
+	ret = -ENOMEM;
+	ioctx = srpt_get_req_ioctx(ch);
+	if (!ioctx) {
+		PRINT_ERROR("%s",
+			    "sending SRP_CRED_REQ failed -- no I/O context"
+			    " available !!");
+		goto out;
+	}
+	srp_cred_req = ioctx->buf;
+	BUG_ON(!srp_cred_req);
+	memset(srp_cred_req, 0, sizeof(*srp_cred_req));
+
+	req_lim_delta = srpt_req_lim_delta(ch);
+	PRINT_INFO("Sending SRP_CRED_REQ with req_lim_delta = %d and tag %lld",
+		   req_lim_delta, ch->cred_req_tag);
+	srp_cred_req->opcode = SRP_CRED_REQ;
+	srp_cred_req->sol_not = ch->crsolnt ? SRP_SOLNT : 0;
+	srp_cred_req->req_lim_delta = cpu_to_be32(req_lim_delta);
+	srp_cred_req->tag = cpu_to_be64(ch->cred_req_tag++);
+	ret = srpt_post_send(ch, ioctx, sizeof(*srp_cred_req));
+	if (ret) {
+		PRINT_ERROR("sending SRP_CRED_REQ failed: ret = %d.", ret);
+		atomic_sub(req_lim_delta, &ch->last_response_req_lim);
+	}
+out:
+	return ret;
 }
 
 /*
@@ -1504,8 +1587,17 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 			goto err;
 		break;
 
+	case SRP_CRED_RSP:
+		TRACE_DBG("%s", "received SRP_CRED_RSP");
+		srpt_reset_ioctx(ch, ioctx);
+		break;
+
+	case SRP_AER_RSP:
+		TRACE_DBG("%s", "received SRP_AER_RSP");
+		srpt_reset_ioctx(ch, ioctx);
+		break;
+
 	case SRP_I_LOGOUT:
-	case SRP_AER_REQ:
 	default:
 		goto err;
 	}
@@ -1585,13 +1677,23 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 	while (ib_poll_cq(ch->cq, 1, &wc) > 0) {
 		if (wc.status) {
 			PRINT_ERROR("failed %s status= %d",
-			       wc.wr_id & SRPT_OP_RECV ? "receive" : "send",
-			       wc.status);
+				    wc.wr_id & SRPT_OP_RECV
+				    ? "receiving"
+				    : wc.wr_id & SRPT_OP_TXR
+				    ? "sending request"
+				    : "sending response",
+				    wc.status);
 			srpt_handle_err_comp(ch, &wc);
 			break;
 		}
 
 		if (wc.wr_id & SRPT_OP_RECV) {
+			int req_lim;
+
+			req_lim = atomic_dec_return(&ch->req_lim);
+			if (req_lim < 0)
+				PRINT_ERROR("internal error: req_lim = %d < 0",
+					    req_lim);
 			ioctx = sdev->ioctx_ring[wc.wr_id & ~SRPT_OP_RECV];
 			if (thread) {
 				ioctx->ch = ch;
@@ -1600,6 +1702,11 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 			} else
 				srpt_handle_new_iu(ch, ioctx);
 			continue;
+		} else if (wc.wr_id & SRPT_OP_TXR) {
+			TRACE_DBG("received completion for request %llu",
+				  wc.wr_id & ~SRPT_OP_TXR);
+			ioctx = ch->req_ioctx_ring[wc.wr_id & ~SRPT_OP_TXR];
+			srpt_put_req_ioctx(ch, ioctx);
 		} else {
 			ioctx = sdev->ioctx_ring[wc.wr_id];
 			if (wc.opcode == IB_WC_SEND)
@@ -1612,7 +1719,9 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 			}
 		}
 
-		if (thread) {
+		if (wc.wr_id & SRPT_OP_TXR)
+			;
+		else if (thread) {
 			ioctx->ch = ch;
 			ioctx->op = wc.opcode;
 			srpt_schedule_thread(ioctx);
@@ -1708,7 +1817,6 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 		goto out;
 	}
 
-	atomic_set(&ch->req_lim_delta, SRPT_RQ_SIZE);
 out:
 	kfree(qp_init);
 	return ret;
@@ -1794,9 +1902,94 @@ static void srpt_release_channel(struct scst_session *scst_sess)
 
 	ib_destroy_qp(ch->qp);
 	ib_destroy_cq(ch->cq);
+	srpt_free_req_ring(ch);
 	kfree(ch);
 
 	TRACE_EXIT();
+}
+
+/**
+ * srpt_alloc_req_ring() - Allocate a ring of SRP I/O contexts and set
+ * the SRPT_OP_TXR flag in the index of each I/O context.
+ */
+static int srpt_alloc_req_ring(struct srpt_rdma_ch *ch)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	BUG_ON(!ch);
+	BUG_ON(!ch->sport);
+	BUG_ON(!ch->sport->sdev);
+
+	atomic_set(&ch->req_ioctx_head, 0);
+	atomic_set(&ch->req_ioctx_tail, 0);
+	res = srpt_alloc_ioctx_ring(ch->sport->sdev, ch->req_ioctx_ring,
+				    ARRAY_SIZE(ch->req_ioctx_ring),
+				    SRPT_OP_TXR);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static void srpt_free_req_ring(struct srpt_rdma_ch *ch)
+{
+	TRACE_ENTRY();
+
+	BUG_ON(!ch);
+	BUG_ON(!ch->sport);
+	BUG_ON(!ch->sport->sdev);
+
+	srpt_free_ioctx_ring(ch->sport->sdev, ch->req_ioctx_ring,
+			     ARRAY_SIZE(ch->req_ioctx_ring));
+
+	TRACE_EXIT();
+}
+
+static struct srpt_ioctx *srpt_get_req_ioctx(struct srpt_rdma_ch *ch)
+{
+	int tail;
+
+	BUG_ON(!ch);
+	BUILD_BUG_ON(!IS_POWER_OF_2(REQ_IOCTX_COUNT));
+
+	tail = atomic_inc_return(&ch->req_ioctx_tail) - 1;
+	if (tail - atomic_read(&ch->req_ioctx_head) >= REQ_IOCTX_COUNT) {
+		atomic_dec(&ch->req_ioctx_tail);
+		return NULL;
+	}
+#if 0
+	TRACE_DBG("head = %d, tail = %d -> %d, result = %d",
+		  atomic_read(&ch->req_ioctx_head), tail, tail + 1,
+		  tail & (REQ_IOCTX_COUNT - 1));
+#endif
+	return ch->req_ioctx_ring[tail & (REQ_IOCTX_COUNT - 1)];
+}
+
+static void srpt_put_req_ioctx(struct srpt_rdma_ch *ch,
+			       struct srpt_ioctx *ioctx)
+{
+#ifdef CONFIG_SCST_EXTRACHECKS
+	int i;
+#endif
+	int head;
+
+	BUG_ON(!ch);
+	BUILD_BUG_ON(!IS_POWER_OF_2(REQ_IOCTX_COUNT));
+
+#ifdef CONFIG_SCST_EXTRACHECKS
+	for (i = 0; i < ARRAY_SIZE(ch->req_ioctx_ring); ++i)
+		if (ioctx == ch->req_ioctx_ring[i])
+			break;
+	WARN_ON(i == ARRAY_SIZE(ch->req_ioctx_ring));
+	WARN_ON(i != (atomic_read(&ch->req_ioctx_head)
+		      & (REQ_IOCTX_COUNT - 1)));
+#endif
+	head = atomic_inc_return(&ch->req_ioctx_head);
+#if 0
+	TRACE_DBG("head = %d, tail = %d, result = %d",
+		  head - 1, head, atomic_read(&ch->req_ioctx_tail));
+#endif
 }
 
 /**
@@ -1864,7 +2057,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		goto reject;
 	}
 
-	if ((req->req_flags & 0x3) == SRP_MULTICHAN_SINGLE) {
+	if ((req->req_flags & SRP_MTCH_ACTION) == SRP_MULTICHAN_SINGLE) {
 		rsp->rsp_flags = SRP_LOGIN_RSP_MULTICHAN_NO_CHAN;
 
 		spin_lock_irq(&sdev->spinlock);
@@ -1945,16 +2138,25 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	memcpy(ch->i_port_id, req->initiator_port_id, 16);
 	memcpy(ch->t_port_id, req->target_port_id, 16);
 	ch->sport = &sdev->port[param->port - 1];
+	ch->losolnt = req->req_flags & SRP_LOSOLNT ? 1 : 0;
+	ch->crsolnt = req->req_flags & SRP_CRSOLNT ? 1 : 0;
+	ch->aesolnt = req->req_flags & SRP_AESOLNT ? 1 : 0;
 	ch->cm_id = cm_id;
 	atomic_set(&ch->state, RDMA_CHANNEL_CONNECTING);
 	INIT_LIST_HEAD(&ch->cmd_wait_list);
+
+	ret = srpt_alloc_req_ring(ch);
+	if (ret) {
+		PRINT_ERROR("%s", "send ring allocation failed");
+		goto free_ch;
+	}
 
 	ret = srpt_create_ch_ib(ch);
 	if (ret) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_ERROR("%s", "rejected SRP_LOGIN_REQ because creating"
 			    " a new RDMA channel failed.");
-		goto free_ch;
+		goto free_req_ring;
 	}
 
 	ret = srpt_ch_qp_rtr(ch, ch->qp);
@@ -2016,7 +2218,10 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	rsp->buf_fmt =
 	    cpu_to_be16(SRP_BUF_FORMAT_DIRECT | SRP_BUF_FORMAT_INDIRECT);
 	rsp->req_lim_delta = cpu_to_be32(SRPT_RQ_SIZE);
-	atomic_set(&ch->req_lim_delta, 0);
+	atomic_set(&ch->req_lim, SRPT_RQ_SIZE);
+	atomic_set(&ch->last_response_req_lim, SRPT_RQ_SIZE);
+	atomic_set(&ch->send_cred_req, 0);
+	ch->cred_req_tag = 0;
 
 	/* create cm reply */
 	rep_param->qp_num = ch->qp->qp_num;
@@ -2050,6 +2255,9 @@ release_channel:
 destroy_ib:
 	ib_destroy_qp(ch->qp);
 	ib_destroy_cq(ch->cq);
+
+free_req_ring:
+	srpt_free_req_ring(ch);
 
 free_ch:
 	kfree(ch);
@@ -3036,7 +3244,8 @@ static void srpt_add_one(struct ib_device *device)
 	if (ib_register_event_handler(&sdev->event_handler))
 		goto err_cm;
 
-	if (srpt_alloc_ioctx_ring(sdev))
+	if (srpt_alloc_ioctx_ring(sdev, sdev->ioctx_ring,
+				  ARRAY_SIZE(sdev->ioctx_ring), 0))
 		goto err_event;
 
 	INIT_LIST_HEAD(&sdev->rch_list);
@@ -3089,7 +3298,8 @@ err_refresh_port:
 	scst_unregister(sdev->scst_tgt);
 err_ring:
 	ib_set_client_data(device, &srpt_client, NULL);
-	srpt_free_ioctx_ring(sdev);
+	srpt_free_ioctx_ring(sdev, sdev->ioctx_ring,
+			     ARRAY_SIZE(sdev->ioctx_ring));
 err_event:
 	ib_unregister_event_handler(&sdev->event_handler);
 err_cm:
@@ -3164,7 +3374,8 @@ static void srpt_remove_one(struct ib_device *device)
 	device_unregister(&sdev->dev);
 #endif
 
-	srpt_free_ioctx_ring(sdev);
+	srpt_free_ioctx_ring(sdev, sdev->ioctx_ring,
+			     ARRAY_SIZE(sdev->ioctx_ring));
 	kfree(sdev);
 
 	TRACE_EXIT();
