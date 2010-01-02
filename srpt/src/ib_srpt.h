@@ -126,7 +126,7 @@ enum {
 	 * Number of I/O contexts to be allocated for sending back requests
 	 * from the target to the initiator.
 	 */
-	REQ_IOCTX_COUNT = 2,
+	REQ_IOCTX_COUNT = 1,
 };
 
 /* wr_id / wc_id flag for marking requests sent to the initiator. */

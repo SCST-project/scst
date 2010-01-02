@@ -134,11 +134,6 @@ MODULE_PARM_DESC(use_port_guid_in_session_name,
 
 static void srpt_add_one(struct ib_device *device);
 static void srpt_remove_one(struct ib_device *device);
-static struct srpt_ioctx *srpt_get_req_ioctx(struct srpt_rdma_ch *ch);
-static void srpt_put_req_ioctx(struct srpt_rdma_ch *ch,
-				struct srpt_ioctx *ioctx);
-static int srpt_send_cred_req(struct srpt_rdma_ch *ch);
-static void srpt_free_req_ring(struct srpt_rdma_ch *ch);
 static void srpt_unregister_mad_agent(struct srpt_device *sdev);
 #ifdef CONFIG_SCST_PROC
 static void srpt_unregister_procfs_entry(struct scst_tgt_template *tgt);
@@ -1024,6 +1019,115 @@ out:
 	return ret;
 }
 
+/* Obtain an I/O context for sending a request to the initiator. */
+static struct srpt_ioctx *srpt_get_req_ioctx(struct srpt_rdma_ch *ch)
+{
+	int tail;
+
+	BUG_ON(!ch);
+	BUILD_BUG_ON(!IS_POWER_OF_2(REQ_IOCTX_COUNT));
+
+	tail = atomic_inc_return(&ch->req_ioctx_tail) - 1;
+	if (tail - atomic_read(&ch->req_ioctx_head) >= REQ_IOCTX_COUNT) {
+		atomic_dec(&ch->req_ioctx_tail);
+		return NULL;
+	}
+	return ch->req_ioctx_ring[tail & (REQ_IOCTX_COUNT - 1)];
+}
+
+/*
+ * Put back an I/O context that has been used for sending a request to the
+ * initiator.
+ */
+static void srpt_put_req_ioctx(struct srpt_rdma_ch *ch,
+			       struct srpt_ioctx *ioctx)
+{
+	int head;
+
+	BUG_ON(!ch);
+	BUILD_BUG_ON(!IS_POWER_OF_2(REQ_IOCTX_COUNT));
+
+	head = atomic_inc_return(&ch->req_ioctx_head);
+}
+
+/**
+ * srpt_req_lim_delta() - Compute by how much req_lim changed since the
+ * last time this function has been called. This value is necessary for
+ * filling in the REQUEST LIMIT DELTA field of an SRP_RSP response.
+ *
+ * Side Effect: Modifies ch->last_response_req_lim.
+ */
+static int srpt_req_lim_delta(struct srpt_rdma_ch *ch)
+{
+	int req_lim;
+	int req_lim_delta;
+
+	req_lim = atomic_read(&ch->req_lim);
+	if (req_lim <= 1)
+		atomic_set(&ch->send_cred_req, 1);
+	req_lim_delta = req_lim - atomic_read(&ch->last_response_req_lim);
+	atomic_add(req_lim_delta, &ch->last_response_req_lim);
+	return req_lim_delta;
+}
+
+/* Send an SRP_CRED_REQ information unit to the initiator. */
+static int srpt_send_cred_req(struct srpt_rdma_ch *ch,
+			      struct srpt_ioctx *ioctx,
+			      s32 req_lim_delta)
+{
+	struct srp_cred_req *srp_cred_req;
+
+	BUG_ON(!ch);
+	srp_cred_req = ioctx->buf;
+	BUG_ON(!srp_cred_req);
+	memset(srp_cred_req, 0, sizeof(*srp_cred_req));
+
+	srp_cred_req->opcode = SRP_CRED_REQ;
+	srp_cred_req->sol_not = ch->crsolnt ? SRP_SOLNT : 0;
+	srp_cred_req->req_lim_delta = cpu_to_be32(req_lim_delta);
+	srp_cred_req->tag = cpu_to_be64(ch->cred_req_tag++);
+	return srpt_post_send(ch, ioctx, sizeof(*srp_cred_req));
+}
+
+static void srpt_alloc_and_send_cred_req(struct srpt_rdma_ch *ch)
+{
+	s32 req_lim_delta;
+	req_lim_delta = srpt_req_lim_delta(ch);
+	if (req_lim_delta) {
+		struct srpt_ioctx *ioctx;
+		int res;
+
+		ioctx = srpt_get_req_ioctx(ch);
+		if (ioctx) {
+			res = srpt_send_cred_req(ch, ioctx,
+						 req_lim_delta);
+			if (res == 0) {
+				PRINT_INFO("Sent SRP_CRED_REQ"
+					   " with req_lim_delta"
+					   " = %d and tag %lld",
+					   req_lim_delta,
+					   ch->cred_req_tag);
+			} else {
+				PRINT_ERROR("sending SRP_CRED_REQ"
+					    " failed (res = %d)", res);
+				goto err;
+			}
+		} else {
+			PRINT_ERROR("%s",
+			    "Sending SRP_CRED_REQ failed -- no I/O context"
+			    " available ! Does the initiator have SRP_CRED_REQ"
+			    " support ? This will sooner or later result in"
+			    " an initiator lockup.");
+			goto err;
+		}
+	}
+	return;
+
+err:
+	atomic_sub(req_lim_delta, &ch->last_response_req_lim);
+	return;
+}
+
 static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 {
 	srpt_unmap_sg_to_ib_sge(ch, ioctx);
@@ -1044,11 +1148,10 @@ static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 		int req_lim;
 
 		req_lim = atomic_inc_return(&ch->req_lim);
-		WARN_ON(req_lim > SRPT_RQ_SIZE);
+		WARN_ON(req_lim < 0 || req_lim > SRPT_RQ_SIZE);
 		if (req_lim == SRPT_RQ_SIZE / 2
-		    && atomic_xchg(&ch->send_cred_req, 0)
-		    && srpt_send_cred_req(ch) < 0)
-			PRINT_ERROR("%s", "sending SRP_CRED_REQ failed");
+		    && atomic_xchg(&ch->send_cred_req, 0))
+			srpt_alloc_and_send_cred_req(ch);
 	}
 }
 
@@ -1176,29 +1279,6 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 }
 
 /**
- * srpt_req_lim_delta() - Compute by how much req_lim changed since the
- * last time this function has been called. This value is necessary for
- * filling in the REQUEST LIMIT DELTA field of an SRP_RSP response.
- *
- * Note: It is possible that one or more requests will be received after
- * sdev->req_lim has been read and hence that the req_lim value is larger than
- * the actual value. This doesn't cause problems because the initiator
- * decrements its request limit variable before sending.
- */
-static int srpt_req_lim_delta(struct srpt_rdma_ch *ch)
-{
-	int req_lim;
-	int req_lim_delta;
-
-	req_lim = atomic_read(&ch->req_lim);
-	if (req_lim <= 1)
-		atomic_set(&ch->send_cred_req, 1);
-	req_lim_delta = req_lim - atomic_read(&ch->last_response_req_lim);
-	atomic_add(req_lim_delta, &ch->last_response_req_lim);
-	return req_lim_delta;
-}
-
-/**
  * srpt_build_cmd_rsp() - Build an SRP_RSP response.
  * @ch: RDMA channel through which the request has been received.
  * @ioctx: I/O context associated with the SRP_CMD request. The response will
@@ -1216,7 +1296,8 @@ static int srpt_req_lim_delta(struct srpt_rdma_ch *ch)
  * response. See also SPC-2 for more information about sense data.
  */
 static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
-			      struct srpt_ioctx *ioctx, u64 tag, int status,
+			      struct srpt_ioctx *ioctx, s32 req_lim_delta,
+			      u64 tag, int status,
 			      const u8 *sense_data, int sense_data_len)
 {
 	struct srp_rsp *srp_rsp;
@@ -1241,7 +1322,7 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 		= (ioctx->sol_not
 		   & (status == SAM_STAT_GOOD ? SRP_SCSOLNT : SRP_UCSOLNT))
 		? SRP_SOLNT : 0;
-	srp_rsp->req_lim_delta = cpu_to_be32(srpt_req_lim_delta(ch) + 1);
+	srp_rsp->req_lim_delta = cpu_to_be32(req_lim_delta);
 	srp_rsp->tag = tag;
 
 	if (SCST_SENSE_VALID(sense_data)) {
@@ -1278,8 +1359,8 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
  * response.
  */
 static int srpt_build_tskmgmt_rsp(struct srpt_rdma_ch *ch,
-				  struct srpt_ioctx *ioctx, u8 rsp_code,
-				  u64 tag)
+				  struct srpt_ioctx *ioctx, s32 req_lim_delta,
+				  u8 rsp_code, u64 tag)
 {
 	struct srp_rsp *srp_rsp;
 	int resp_data_len;
@@ -1301,7 +1382,7 @@ static int srpt_build_tskmgmt_rsp(struct srpt_rdma_ch *ch,
 		   & (rsp_code == SRP_TSK_MGMT_SUCCESS
 		      ? SRP_SCSOLNT : SRP_UCSOLNT))
 		? SRP_SOLNT : 0;
-	srp_rsp->req_lim_delta = cpu_to_be32(srpt_req_lim_delta(ch) + 1);
+	srp_rsp->req_lim_delta = cpu_to_be32(req_lim_delta);
 	srp_rsp->tag = tag;
 
 	if (rsp_code != SRP_TSK_MGMT_SUCCESS) {
@@ -1311,42 +1392,6 @@ static int srpt_build_tskmgmt_rsp(struct srpt_rdma_ch *ch,
 	}
 
 	return resp_len;
-}
-
-static int srpt_send_cred_req(struct srpt_rdma_ch *ch)
-{
-	int ret;
-	s32 req_lim_delta;
-	struct srpt_ioctx *ioctx;
-	struct srp_cred_req *srp_cred_req;
-
-	BUG_ON(!ch);
-	ret = -ENOMEM;
-	ioctx = srpt_get_req_ioctx(ch);
-	if (!ioctx) {
-		PRINT_ERROR("%s",
-			    "sending SRP_CRED_REQ failed -- no I/O context"
-			    " available !!");
-		goto out;
-	}
-	srp_cred_req = ioctx->buf;
-	BUG_ON(!srp_cred_req);
-	memset(srp_cred_req, 0, sizeof(*srp_cred_req));
-
-	req_lim_delta = srpt_req_lim_delta(ch);
-	PRINT_INFO("Sending SRP_CRED_REQ with req_lim_delta = %d and tag %lld",
-		   req_lim_delta, ch->cred_req_tag);
-	srp_cred_req->opcode = SRP_CRED_REQ;
-	srp_cred_req->sol_not = ch->crsolnt ? SRP_SOLNT : 0;
-	srp_cred_req->req_lim_delta = cpu_to_be32(req_lim_delta);
-	srp_cred_req->tag = cpu_to_be64(ch->cred_req_tag++);
-	ret = srpt_post_send(ch, ioctx, sizeof(*srp_cred_req));
-	if (ret) {
-		PRINT_ERROR("sending SRP_CRED_REQ failed: ret = %d.", ret);
-		atomic_sub(req_lim_delta, &ch->last_response_req_lim);
-	}
-out:
-	return ret;
 }
 
 /*
@@ -1611,23 +1656,27 @@ err:
 		PRINT_ERROR("%s: channel is in state %d", __func__, ch_state);
 		srpt_reset_ioctx(ch, ioctx);
 	} else {
+		s32 req_lim_delta;
+
+		req_lim_delta = srpt_req_lim_delta(ch) + 1;
 		if (srp_cmd->opcode == SRP_TSK_MGMT) {
-			len = srpt_build_tskmgmt_rsp(ch, ioctx,
+			len = srpt_build_tskmgmt_rsp(ch, ioctx, req_lim_delta,
 				     srp_tsk_mgmt_status,
 				     ((struct srp_tsk_mgmt *)srp_cmd)->tag);
 		} else if (ioctx->scmnd)
-			len = srpt_build_cmd_rsp(ch, ioctx, srp_cmd->tag,
-				srp_response_status,
+			len = srpt_build_cmd_rsp(ch, ioctx, req_lim_delta,
+				srp_cmd->tag, srp_response_status,
 				scst_cmd_get_sense_buffer(ioctx->scmnd),
 				scst_cmd_get_sense_buffer_len(ioctx->scmnd));
 		else {
 			len = srpt_build_cmd_rsp(ch, ioctx, srp_cmd->tag,
+						 req_lim_delta,
 						 srp_response_status,
 						 NULL, 0);
 		}
 		if (srpt_post_send(ch, ioctx, len)) {
-			PRINT_ERROR("%s: sending SRP_RSP response failed",
-				    __func__);
+			PRINT_ERROR("%s", "Sending SRP_RSP response failed.");
+			atomic_sub(req_lim_delta, &ch->last_response_req_lim);
 			srpt_reset_ioctx(ch, ioctx);
 		}
 	}
@@ -1701,7 +1750,6 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 				srpt_schedule_thread(ioctx);
 			} else
 				srpt_handle_new_iu(ch, ioctx);
-			continue;
 		} else if (wc.wr_id & SRPT_OP_TXR) {
 			TRACE_DBG("received completion for request %llu",
 				  wc.wr_id & ~SRPT_OP_TXR);
@@ -1717,28 +1765,26 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 				atomic_add(ioctx->n_rdma,
 					   &ch->qp_wr_avail);
 			}
-		}
-
-		if (wc.wr_id & SRPT_OP_TXR)
-			;
-		else if (thread) {
-			ioctx->ch = ch;
-			ioctx->op = wc.opcode;
-			srpt_schedule_thread(ioctx);
-		} else {
-			switch (wc.opcode) {
-			case IB_WC_SEND:
-				srpt_handle_send_comp(ch, ioctx,
-					scst_estimate_context());
-				break;
-			case IB_WC_RDMA_WRITE:
-			case IB_WC_RDMA_READ:
-				srpt_handle_rdma_comp(ch, ioctx);
-				break;
-			default:
-				PRINT_ERROR("received unrecognized IB WC"
-					    " opcode %d", wc.opcode);
-				break;
+			if (thread) {
+				ioctx->ch = ch;
+				ioctx->op = wc.opcode;
+				srpt_schedule_thread(ioctx);
+			} else {
+				switch (wc.opcode) {
+				case IB_WC_SEND:
+					srpt_handle_send_comp(ch, ioctx,
+						scst_estimate_context());
+					break;
+				case IB_WC_RDMA_WRITE:
+				case IB_WC_RDMA_READ:
+					srpt_handle_rdma_comp(ch, ioctx);
+					break;
+				default:
+					PRINT_ERROR("received unrecognized"
+						    " IB WC opcode %d",
+						    wc.opcode);
+					break;
+				}
 			}
 		}
 
@@ -1875,40 +1921,6 @@ static struct srpt_rdma_ch *srpt_find_channel(struct srpt_device *sdev,
 }
 
 /**
- * Release all resources associated with an RDMA channel.
- *
- * Notes:
- * - The caller must have removed the channel from the channel list before
- *   calling this function.
- * - Must be called as a callback function via scst_unregister_session(). Never
- *   call this function directly because doing so would trigger several race
- *   conditions.
- */
-static void srpt_release_channel(struct scst_session *scst_sess)
-{
-	struct srpt_rdma_ch *ch;
-
-	TRACE_ENTRY();
-
-	ch = scst_sess_get_tgt_priv(scst_sess);
-	BUG_ON(!ch);
-	WARN_ON(srpt_find_channel(ch->sport->sdev, ch->cm_id) == ch);
-
-	WARN_ON(atomic_read(&ch->state) != RDMA_CHANNEL_DISCONNECTING);
-
-	TRACE_DBG("destroying cm_id %p", ch->cm_id);
-	BUG_ON(!ch->cm_id);
-	ib_destroy_cm_id(ch->cm_id);
-
-	ib_destroy_qp(ch->qp);
-	ib_destroy_cq(ch->cq);
-	srpt_free_req_ring(ch);
-	kfree(ch);
-
-	TRACE_EXIT();
-}
-
-/**
  * srpt_alloc_req_ring() - Allocate a ring of SRP I/O contexts and set
  * the SRPT_OP_TXR flag in the index of each I/O context.
  */
@@ -1946,50 +1958,38 @@ static void srpt_free_req_ring(struct srpt_rdma_ch *ch)
 	TRACE_EXIT();
 }
 
-static struct srpt_ioctx *srpt_get_req_ioctx(struct srpt_rdma_ch *ch)
+/**
+ * Release all resources associated with an RDMA channel.
+ *
+ * Notes:
+ * - The caller must have removed the channel from the channel list before
+ *   calling this function.
+ * - Must be called as a callback function via scst_unregister_session(). Never
+ *   call this function directly because doing so would trigger several race
+ *   conditions.
+ */
+static void srpt_release_channel(struct scst_session *scst_sess)
 {
-	int tail;
+	struct srpt_rdma_ch *ch;
 
+	TRACE_ENTRY();
+
+	ch = scst_sess_get_tgt_priv(scst_sess);
 	BUG_ON(!ch);
-	BUILD_BUG_ON(!IS_POWER_OF_2(REQ_IOCTX_COUNT));
+	WARN_ON(srpt_find_channel(ch->sport->sdev, ch->cm_id) == ch);
 
-	tail = atomic_inc_return(&ch->req_ioctx_tail) - 1;
-	if (tail - atomic_read(&ch->req_ioctx_head) >= REQ_IOCTX_COUNT) {
-		atomic_dec(&ch->req_ioctx_tail);
-		return NULL;
-	}
-#if 0
-	TRACE_DBG("head = %d, tail = %d -> %d, result = %d",
-		  atomic_read(&ch->req_ioctx_head), tail, tail + 1,
-		  tail & (REQ_IOCTX_COUNT - 1));
-#endif
-	return ch->req_ioctx_ring[tail & (REQ_IOCTX_COUNT - 1)];
-}
+	WARN_ON(atomic_read(&ch->state) != RDMA_CHANNEL_DISCONNECTING);
 
-static void srpt_put_req_ioctx(struct srpt_rdma_ch *ch,
-			       struct srpt_ioctx *ioctx)
-{
-#ifdef CONFIG_SCST_EXTRACHECKS
-	int i;
-#endif
-	int head;
+	TRACE_DBG("destroying cm_id %p", ch->cm_id);
+	BUG_ON(!ch->cm_id);
+	ib_destroy_cm_id(ch->cm_id);
 
-	BUG_ON(!ch);
-	BUILD_BUG_ON(!IS_POWER_OF_2(REQ_IOCTX_COUNT));
+	ib_destroy_qp(ch->qp);
+	ib_destroy_cq(ch->cq);
+	srpt_free_req_ring(ch);
+	kfree(ch);
 
-#ifdef CONFIG_SCST_EXTRACHECKS
-	for (i = 0; i < ARRAY_SIZE(ch->req_ioctx_ring); ++i)
-		if (ioctx == ch->req_ioctx_ring[i])
-			break;
-	WARN_ON(i == ARRAY_SIZE(ch->req_ioctx_ring));
-	WARN_ON(i != (atomic_read(&ch->req_ioctx_head)
-		      & (REQ_IOCTX_COUNT - 1)));
-#endif
-	head = atomic_inc_return(&ch->req_ioctx_head);
-#if 0
-	TRACE_DBG("head = %d, tail = %d, result = %d",
-		  head - 1, head, atomic_read(&ch->req_ioctx_tail));
-#endif
+	TRACE_EXIT();
 }
 
 /**
@@ -2751,6 +2751,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 {
 	struct srpt_rdma_ch *ch;
 	struct srpt_ioctx *ioctx;
+	s32 req_lim_delta;
 	int ret = SCST_TGT_RES_SUCCESS;
 	int dir;
 	int resp_len;
@@ -2791,7 +2792,8 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 
 	scst_check_convert_sense(scmnd);
 
-	resp_len = srpt_build_cmd_rsp(ch, ioctx,
+	req_lim_delta = srpt_req_lim_delta(ch) + 1;
+	resp_len = srpt_build_cmd_rsp(ch, ioctx, req_lim_delta,
 				      scst_cmd_get_tag(scmnd),
 				      scst_cmd_get_status(scmnd),
 				      scst_cmd_get_sense_buffer(scmnd),
@@ -2801,6 +2803,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 		PRINT_ERROR("%s[%d]: ch->state= %d tag= %lld",
 			    __func__, __LINE__, atomic_read(&ch->state),
 			    (unsigned long long)scst_cmd_get_tag(scmnd));
+		atomic_sub(req_lim_delta, &ch->last_response_req_lim);
 		ret = SCST_TGT_RES_FATAL_ERROR;
 	}
 
@@ -2819,6 +2822,7 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 	struct srpt_rdma_ch *ch;
 	struct srpt_mgmt_ioctx *mgmt_ioctx;
 	struct srpt_ioctx *ioctx;
+	s32 req_lim_delta;
 	int rsp_len;
 
 	mgmt_ioctx = scst_mgmt_cmd_get_tgt_priv(mcmnd);
@@ -2838,13 +2842,17 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 	    == SRPT_STATE_ABORTED)
 		goto out;
 
-	rsp_len = srpt_build_tskmgmt_rsp(ch, ioctx,
+	req_lim_delta = srpt_req_lim_delta(ch) + 1;
+	rsp_len = srpt_build_tskmgmt_rsp(ch, ioctx, req_lim_delta,
 					 (scst_mgmt_cmd_get_status(mcmnd) ==
 					  SCST_MGMT_STATUS_SUCCESS) ?
 					 SRP_TSK_MGMT_SUCCESS :
 					 SRP_TSK_MGMT_FAILED,
 					 mgmt_ioctx->tag);
-	srpt_post_send(ch, ioctx, rsp_len);
+	if (srpt_post_send(ch, ioctx, rsp_len)) {
+		PRINT_ERROR("%s", "Sending SRP_RSP response failed.");
+		atomic_sub(req_lim_delta, &ch->last_response_req_lim);
+	}
 
 	scst_mgmt_cmd_set_tgt_priv(mcmnd, NULL);
 
