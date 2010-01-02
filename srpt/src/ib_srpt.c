@@ -1186,6 +1186,8 @@ static void srpt_abort_scst_cmd(struct srpt_device *sdev,
 
 	switch (previous_state) {
 	case SRPT_STATE_NEW:
+		scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_ABORTED);
+		scst_tgt_cmd_done(scmnd, scst_estimate_context());
 		break;
 	case SRPT_STATE_NEED_DATA:
 		WARN_ON(scst_cmd_get_data_direction(ioctx->scmnd)
