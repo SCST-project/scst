@@ -58,8 +58,8 @@ Remove any distro-provided InfiniBand drivers:
 Now locate the file Makefile.lib and patch it such that it supports
 the variable PRE_CFLAGS:
 
-  if -e /lib/modules/$(uname -r)/build/scripts/Makefile.lib; then
-    /lib/modules/$(uname -r)/build
+  if [ -e /lib/modules/$(uname -r)/build/scripts/Makefile.lib ]; then
+    cd /lib/modules/$(uname -r)/build
   else
     cd /usr/src/linux-$(uname -r)
   fi
