@@ -95,6 +95,7 @@ static int use_port_guid_in_session_name;
 static int thread = 1;
 static struct srpt_thread srpt_thread;
 static DECLARE_WAIT_QUEUE_HEAD(ioctx_list_waitQ);
+static atomic_t cleaning_up;
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 static unsigned long trace_flag = DEFAULT_SRPT_TRACE_FLAGS;
 module_param(trace_flag, long, 0644);
@@ -1187,25 +1188,22 @@ static void srpt_abort_scst_cmd(struct srpt_device *sdev,
 	switch (previous_state) {
 	case SRPT_STATE_NEW:
 		scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_ABORTED);
-		scst_tgt_cmd_done(scmnd, scst_estimate_context());
 		break;
 	case SRPT_STATE_NEED_DATA:
 		WARN_ON(scst_cmd_get_data_direction(ioctx->scmnd)
 			== SCST_DATA_READ);
-		scst_rx_data(scmnd,
-			     SCST_RX_STATUS_ERROR,
-			     SCST_CONTEXT_THREAD);
+		scst_rx_data(scmnd, SCST_RX_STATUS_ERROR,
+			     scst_estimate_context());
 		break;
 	case SRPT_STATE_DATA_IN:
 	case SRPT_STATE_PROCESSED:
 		scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_ABORTED);
-		WARN_ON(scmnd->state != SCST_CMD_STATE_XMIT_WAIT);
-		scst_tgt_cmd_done(scmnd, scst_estimate_context());
 		break;
 	default:
 		TRACE_DBG("Aborting cmd with state %d", previous_state);
 		WARN_ON("ERROR: unexpected command state");
 	}
+	scst_tgt_cmd_done(scmnd, scst_estimate_context());
 
 out:
 	;
@@ -1249,8 +1247,6 @@ static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
 					scst_cmd_get_sg(ioctx->scmnd),
 					scst_cmd_get_sg_cnt(ioctx->scmnd),
 					scst_to_tgt_dma_dir(dir));
-
-		WARN_ON(ioctx->scmnd->state != SCST_CMD_STATE_XMIT_WAIT);
 		scst_tgt_cmd_done(ioctx->scmnd, context);
 	} else
 		srpt_reset_ioctx(ch, ioctx);
@@ -2047,6 +2043,12 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	if (!rsp || !rej || !rep_param) {
 		ret = -ENOMEM;
 		goto out;
+	}
+
+	if (atomic_read(&cleaning_up)) {
+		PRINT_INFO("%s", "rejected SRP_LOGIN_REQ because ib_srpt is"
+			   " being removed");
+		goto reject;
 	}
 
 	if (it_iu_len > srp_max_message_size || it_iu_len < 64) {
@@ -3516,6 +3518,7 @@ static void __exit srpt_cleanup_module(void)
 {
 	TRACE_ENTRY();
 
+	atomic_set(&cleaning_up, true);
 	if (srpt_thread.thread)
 		kthread_stop(srpt_thread.thread);
 	ib_unregister_client(&srpt_client);
