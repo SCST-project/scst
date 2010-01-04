@@ -1340,6 +1340,12 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 	} else
 		sense_data_len = 0;
 
+#if 0
+	printk(KERN_DEBUG "SRP response:\n");
+	print_hex_dump(KERN_DEBUG, "", DUMP_PREFIX_OFFSET, 16, 1, srp_rsp,
+		       sizeof(*srp_rsp) + sense_data_len, 1);
+#endif
+
 	return sizeof(*srp_rsp) + sense_data_len;
 }
 
