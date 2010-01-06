@@ -372,6 +372,9 @@ static void iscsi_write_space_ready(struct sock *sk)
 static void conn_rsp_timer_fn(unsigned long arg)
 {
 	struct iscsi_conn *conn = (struct iscsi_conn *)arg;
+	struct iscsi_cmnd *cmnd;
+	unsigned long j = jiffies;
+	unsigned long timeout_time = j + ISCSI_RSP_SCHED_TIMEOUT;
 
 	TRACE_ENTRY();
 
@@ -379,31 +382,106 @@ static void conn_rsp_timer_fn(unsigned long arg)
 
 	spin_lock_bh(&conn->write_list_lock);
 
-	if (!list_empty(&conn->written_list)) {
-		struct iscsi_cmnd *wr_cmd = list_entry(conn->written_list.next,
-				struct iscsi_cmnd, written_list_entry);
+	if (!list_empty(&conn->write_timeout_list)) {
+		cmnd = list_entry(conn->write_timeout_list.next,
+				struct iscsi_cmnd, write_timeout_list_entry);
 
-		if (unlikely(time_after_eq(jiffies, wr_cmd->write_timeout))) {
+		if (unlikely(time_after_eq(j,
+				cmnd->write_start + ISCSI_RSP_TIMEOUT))) {
 			if (!conn->closing) {
-				PRINT_ERROR("Timeout sending data to initiator"
-					" %s (SID %llx), closing connection",
+				PRINT_ERROR("Timeout sending data/waiting "
+					"for reply to/from initiator "
+					"%s (SID %llx), closing connection",
 					conn->session->initiator_name,
 					(long long unsigned int)
 						conn->session->sid);
+				/*
+				 * We must call mark_conn_closed() outside of
+				 * write_list_lock or we will have a circular
+				 * locking dependency with iscsi_rd_lock.
+				 */
+				spin_unlock_bh(&conn->write_list_lock);
 				mark_conn_closed(conn);
+				goto out;
 			}
-		} else {
+		} else if (!timer_pending(&conn->rsp_timer) ||
+			   time_after(conn->rsp_timer.expires, timeout_time)) {
 			TRACE_DBG("Restarting timer on %ld (conn %p)",
-				wr_cmd->write_timeout, conn);
+				timeout_time, conn);
 			/*
 			 * Timer might have been restarted while we were
 			 * entering here.
 			 */
-			mod_timer(&conn->rsp_timer, wr_cmd->write_timeout);
+			mod_timer(&conn->rsp_timer, timeout_time);
 		}
 	}
 
 	spin_unlock_bh(&conn->write_list_lock);
+
+	if (unlikely(conn->conn_tm_active)) {
+		TRACE_MGMT_DBG("TM active: making conn %p RD active", conn);
+		iscsi_make_conn_rd_active(conn);
+	}
+
+out:
+	TRACE_EXIT();
+	return;
+}
+
+void iscsi_check_tm_data_wait_timeouts(struct iscsi_conn *conn, bool force)
+{
+	struct iscsi_cmnd *cmnd;
+	unsigned long j = jiffies;
+	bool aborted_cmds_pending;
+	unsigned long timeout_time = j + ISCSI_TM_DATA_WAIT_SCHED_TIMEOUT;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG_FLAG(force ? TRACE_CONN_OC_DBG : TRACE_MGMT_DEBUG,
+		"j %ld (TIMEOUT %d, force %d)", j,
+		ISCSI_TM_DATA_WAIT_SCHED_TIMEOUT, force);
+
+again:
+	spin_lock_bh(&iscsi_rd_lock);
+	spin_lock(&conn->write_list_lock);
+
+	aborted_cmds_pending = false;
+	list_for_each_entry(cmnd, &conn->write_timeout_list,
+				write_timeout_list_entry) {
+		if (test_bit(ISCSI_CMD_ABORTED, &cmnd->prelim_compl_flags)) {
+			TRACE_DBG_FLAG(force ? TRACE_CONN_OC_DBG : TRACE_MGMT_DEBUG,
+				"Checking aborted cmnd %p (scst_state %d, "
+				"on_write_timeout_list %d, write_start %ld, "
+				"r2t_len_to_receive %d)", cmnd,
+				cmnd->scst_state, cmnd->on_write_timeout_list,
+				cmnd->write_start, cmnd->r2t_len_to_receive);
+			if ((cmnd->r2t_len_to_receive != 0) &&
+			    (time_after_eq(j, cmnd->write_start + ISCSI_TM_DATA_WAIT_TIMEOUT) ||
+			     force)) {
+				spin_unlock(&conn->write_list_lock);
+				spin_unlock_bh(&iscsi_rd_lock);
+				iscsi_fail_data_waiting_cmnd(cmnd);
+				goto again;
+			}
+			aborted_cmds_pending = true;
+		}
+	}
+
+	if (aborted_cmds_pending) {
+		if (!force &&
+		    (!timer_pending(&conn->rsp_timer) ||
+		     time_after(conn->rsp_timer.expires, timeout_time))) {
+			TRACE_MGMT_DBG("Mod timer on %ld (conn %p)",
+				timeout_time, conn);
+			mod_timer(&conn->rsp_timer, timeout_time);
+		}
+	} else {
+		TRACE_MGMT_DBG("Clearing conn_tm_active for conn %p", conn);
+		conn->conn_tm_active = 0;
+	}
+
+	spin_unlock(&conn->write_list_lock);
+	spin_unlock_bh(&iscsi_rd_lock);
 
 	TRACE_EXIT();
 	return;
@@ -515,7 +593,7 @@ static int conn_free(struct iscsi_conn *conn)
 	sBUG_ON(atomic_read(&conn->conn_ref_cnt) != 0);
 	sBUG_ON(!list_empty(&conn->cmd_list));
 	sBUG_ON(!list_empty(&conn->write_list));
-	sBUG_ON(!list_empty(&conn->written_list));
+	sBUG_ON(!list_empty(&conn->write_timeout_list));
 	sBUG_ON(conn->conn_reinst_successor != NULL);
 	sBUG_ON(!test_bit(ISCSI_CONN_SHUTTINGDOWN, &conn->conn_aflags));
 
@@ -599,7 +677,7 @@ static int iscsi_conn_alloc(struct iscsi_session *session,
 	INIT_LIST_HEAD(&conn->cmd_list);
 	spin_lock_init(&conn->write_list_lock);
 	INIT_LIST_HEAD(&conn->write_list);
-	INIT_LIST_HEAD(&conn->written_list);
+	INIT_LIST_HEAD(&conn->write_timeout_list);
 	setup_timer(&conn->rsp_timer, conn_rsp_timer_fn, (unsigned long)conn);
 	init_waitqueue_head(&conn->read_state_waitQ);
 	init_completion(&conn->ready_to_free);

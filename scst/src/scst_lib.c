@@ -554,7 +554,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 SCST_DATA_NONE, SCST_LONG_TIMEOUT, 0, get_trans_cdb_len_10}
 };
 
-#define SCST_CDB_TBL_SIZE	ARRAY_SIZE(scst_scsi_op_table)
+#define SCST_CDB_TBL_SIZE	((int)ARRAY_SIZE(scst_scsi_op_table))
 
 static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev);
 static void scst_check_internal_sense(struct scst_device *dev, int result,
@@ -620,6 +620,11 @@ int scst_alloc_set_sense(struct scst_cmd *cmd, int atomic,
 
 	TRACE_ENTRY();
 
+	/*
+	 * We don't check here if the existing sense is valid or not, because
+	 * we suppose the caller did it based on cmd->status.
+	 */
+
 	res = scst_alloc_sense(cmd, atomic);
 	if (res != 0) {
 		PRINT_BUFFER("Lost sense", sense, len);
@@ -642,9 +647,18 @@ out:
 }
 EXPORT_SYMBOL(scst_alloc_set_sense);
 
-void scst_set_cmd_error_status(struct scst_cmd *cmd, int status)
+int scst_set_cmd_error_status(struct scst_cmd *cmd, int status)
 {
+	int res = 0;
+
 	TRACE_ENTRY();
+
+	if (cmd->status != 0) {
+		TRACE_MGMT_DBG("cmd %p already has status %x set", cmd,
+			cmd->status);
+		res = -EEXIST;
+		goto out;
+	}
 
 	cmd->status = status;
 	cmd->host_status = DID_OK;
@@ -658,21 +672,24 @@ void scst_set_cmd_error_status(struct scst_cmd *cmd, int status)
 
 	cmd->completed = 1;
 
-	TRACE_EXIT();
-	return;
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 }
 EXPORT_SYMBOL(scst_set_cmd_error_status);
 
-void scst_set_cmd_error(struct scst_cmd *cmd, int key, int asc, int ascq)
+int scst_set_cmd_error(struct scst_cmd *cmd, int key, int asc, int ascq)
 {
-	int rc;
+	int res;
 
 	TRACE_ENTRY();
 
-	scst_set_cmd_error_status(cmd, SAM_STAT_CHECK_CONDITION);
+	res = scst_set_cmd_error_status(cmd, SAM_STAT_CHECK_CONDITION);
+	if (res != 0)
+		goto out;
 
-	rc = scst_alloc_sense(cmd, 1);
-	if (rc != 0) {
+	res = scst_alloc_sense(cmd, 1);
+	if (res != 0) {
 		PRINT_ERROR("Lost sense data (key %x, asc %x, ascq %x)",
 			key, asc, ascq);
 		goto out;
@@ -683,8 +700,8 @@ void scst_set_cmd_error(struct scst_cmd *cmd, int key, int asc, int ascq)
 	TRACE_BUFFER("Sense set", cmd->sense, cmd->sense_valid_len);
 
 out:
-	TRACE_EXIT();
-	return;
+	TRACE_EXIT_RES(res);
+	return res;
 }
 EXPORT_SYMBOL(scst_set_cmd_error);
 
@@ -871,16 +888,22 @@ out:
 }
 EXPORT_SYMBOL(scst_check_convert_sense);
 
-static void scst_set_cmd_error_sense(struct scst_cmd *cmd, uint8_t *sense,
+static int scst_set_cmd_error_sense(struct scst_cmd *cmd, uint8_t *sense,
 	unsigned int len)
 {
+	int res;
+
 	TRACE_ENTRY();
 
-	scst_set_cmd_error_status(cmd, SAM_STAT_CHECK_CONDITION);
-	scst_alloc_set_sense(cmd, 1, sense, len);
+	res = scst_set_cmd_error_status(cmd, SAM_STAT_CHECK_CONDITION);
+	if (res != 0)
+		goto out;
 
-	TRACE_EXIT();
-	return;
+	res = scst_alloc_set_sense(cmd, 1, sense, len);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 void scst_set_busy(struct scst_cmd *cmd)
@@ -891,13 +914,13 @@ void scst_set_busy(struct scst_cmd *cmd)
 
 	if ((c <= 1) || (cmd->sess->init_phase != SCST_SESS_IPH_READY))	{
 		scst_set_cmd_error_status(cmd, SAM_STAT_BUSY);
-		TRACE(TRACE_MGMT_MINOR, "Sending BUSY status to initiator %s "
+		TRACE(TRACE_FLOW_CONTROL, "Sending BUSY status to initiator %s "
 			"(cmds count %d, queue_type %x, sess->init_phase %d)",
 			cmd->sess->initiator_name, c,
 			cmd->queue_type, cmd->sess->init_phase);
 	} else {
 		scst_set_cmd_error_status(cmd, SAM_STAT_TASK_SET_FULL);
-		TRACE(TRACE_MGMT_MINOR, "Sending QUEUE_FULL status to "
+		TRACE(TRACE_FLOW_CONTROL, "Sending QUEUE_FULL status to "
 			"initiator %s (cmds count %d, queue_type %x, "
 			"sess->init_phase %d)", cmd->sess->initiator_name, c,
 			cmd->queue_type, cmd->sess->init_phase);
@@ -996,7 +1019,7 @@ static void scst_free_aen(struct scst_aen *aen)
 	return;
 };
 
-/* Must be called unded scst_mutex */
+/* Must be called under scst_mutex */
 void scst_gen_aen_or_ua(struct scst_tgt_dev *tgt_dev,
 	int key, int asc, int ascq)
 {
@@ -1473,6 +1496,10 @@ int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
 	case SCST_CMD_STATE_INIT:
 	case SCST_CMD_STATE_PRE_PARSE:
 	case SCST_CMD_STATE_DEV_PARSE:
+		if (cmd->preprocessing_only) {
+			res = SCST_CMD_STATE_PREPROCESSING_DONE;
+			break;
+		} /* else go through */
 	case SCST_CMD_STATE_DEV_DONE:
 		if (cmd->internal)
 			res = SCST_CMD_STATE_FINISHED_INTERNAL;
@@ -1489,8 +1516,19 @@ int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
 		res = SCST_CMD_STATE_XMIT_RESP;
 		break;
 
-	case SCST_CMD_STATE_PREPROCESS_DONE:
+	case SCST_CMD_STATE_PREPROCESSING_DONE:
+	case SCST_CMD_STATE_PREPROCESSING_DONE_CALLED:
+		if (cmd->tgt_dev == NULL)
+			res = SCST_CMD_STATE_PRE_XMIT_RESP;
+		else
+			res = SCST_CMD_STATE_PRE_DEV_DONE;
+		break;
+
 	case SCST_CMD_STATE_PREPARE_SPACE:
+		if (cmd->preprocessing_only) {
+			res = SCST_CMD_STATE_PREPROCESSING_DONE;
+			break;
+		} /* else go through */
 	case SCST_CMD_STATE_RDY_TO_XFER:
 	case SCST_CMD_STATE_DATA_WAIT:
 	case SCST_CMD_STATE_TGT_PRE_EXEC:
@@ -1533,7 +1571,8 @@ void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 	cmd->state = scst_get_cmd_abnormal_done_state(cmd);
 
 #ifdef CONFIG_SCST_EXTRACHECKS
-	if ((cmd->state != SCST_CMD_STATE_PRE_XMIT_RESP) &&
+	if (((cmd->state != SCST_CMD_STATE_PRE_XMIT_RESP) &&
+	     (cmd->state != SCST_CMD_STATE_PREPROCESSING_DONE)) &&
 		   (cmd->tgt_dev == NULL) && !cmd->internal) {
 		PRINT_CRIT_ERROR("Wrong not inited cmd state %d (cmd %p, "
 			"op %x)", cmd->state, cmd, cmd->cdb[0]);
@@ -1706,8 +1745,7 @@ static void scst_hw_pending_work_fn(struct delayed_work *work)
 	spin_lock_irqsave(&sess->sess_list_lock, flags);
 
 restart:
-	list_for_each_entry(cmd, &sess->search_cmd_list,
-				sess_cmd_list_entry) {
+	list_for_each_entry(cmd, &sess->sess_cmd_list, sess_cmd_list_entry) {
 		int rc;
 
 		rc = scst_check_hw_pending_cmd(cmd, cur_time, max_time, sess,
@@ -1720,23 +1758,7 @@ restart:
 			goto restart;
 	}
 
-restart1:
-	list_for_each_entry(cmd, &sess->after_pre_xmit_cmd_list,
-				sess_cmd_list_entry) {
-		int rc;
-
-		rc = scst_check_hw_pending_cmd(cmd, cur_time, max_time, sess,
-					&flags, tgtt);
-		if (rc < 0)
-			break;
-		else if (rc == 0)
-			continue;
-		else
-			goto restart1;
-	}
-
-	if (!list_empty(&sess->search_cmd_list) ||
-	    !list_empty(&sess->after_pre_xmit_cmd_list)) {
+	if (list_empty(&sess->sess_cmd_list)) {
 		/*
 		 * For stuck cmds if there is no activity we might need to have
 		 * one more run to release them, so reschedule once again.
@@ -2438,7 +2460,7 @@ int scst_acg_add_name(struct scst_acg *acg, const char *name)
 		if (strcmp(n->name, name) == 0) {
 			PRINT_ERROR("Name %s already exists in group %s",
 				name, acg->acg_name);
-			res = -EINVAL;
+			res = -EEXIST;
 			goto out;
 		}
 	}
@@ -2834,8 +2856,7 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 		INIT_LIST_HEAD(sess_tgt_dev_list_head);
 	}
 	spin_lock_init(&sess->sess_list_lock);
-	INIT_LIST_HEAD(&sess->search_cmd_list);
-	INIT_LIST_HEAD(&sess->after_pre_xmit_cmd_list);
+	INIT_LIST_HEAD(&sess->sess_cmd_list);
 	sess->tgt = tgt;
 	INIT_LIST_HEAD(&sess->init_deferred_cmd_list);
 	INIT_LIST_HEAD(&sess->init_deferred_mcmd_list);
@@ -3867,7 +3888,7 @@ int scst_get_cdb_info(struct scst_cmd *cmd)
 
 	op = cmd->cdb[0];	/* get clear opcode */
 
-	TRACE_DBG("opcode=%02x, cdblen=%d bytes, tblsize=%zd, "
+	TRACE_DBG("opcode=%02x, cdblen=%d bytes, tblsize=%d, "
 		"dev_type=%d", op, SCST_GET_CDB_LEN(op), SCST_CDB_TBL_SIZE,
 		dev_type);
 
@@ -4676,9 +4697,9 @@ void scst_process_reset(struct scst_device *dev,
 
 		spin_lock_irq(&sess->sess_list_lock);
 
-		TRACE_DBG("Searching in search cmd list (sess=%p)", sess);
-		list_for_each_entry(cmd, &sess->search_cmd_list,
-				sess_cmd_list_entry) {
+		TRACE_DBG("Searching in sess cmd list (sess=%p)", sess);
+		list_for_each_entry(cmd, &sess->sess_cmd_list,
+					sess_cmd_list_entry) {
 			if (cmd == exclude_cmd)
 				continue;
 			if ((cmd->tgt_dev == tgt_dev) ||
@@ -4736,7 +4757,7 @@ again:
 		TRACE_DBG("%s",
 		      "SCST_TGT_DEV_UA_PENDING set, but UA_list empty");
 		res = -1;
-		goto out_unlock;
+		goto out_unlock_tgt_dev_lock;
 	}
 
 	UA_entry = list_entry(cmd->tgt_dev->UA_list.next, typeof(*UA_entry),
@@ -4774,8 +4795,9 @@ again:
 		goto again;
 	}
 
-	scst_set_cmd_error_sense(cmd, UA_entry->UA_sense_buffer,
-		UA_entry->UA_valid_sense_len);
+	if (scst_set_cmd_error_sense(cmd, UA_entry->UA_sense_buffer,
+			UA_entry->UA_valid_sense_len) != 0)
+		goto out_unlock;
 
 	cmd->ua_ignore = 1;
 
@@ -4831,6 +4853,7 @@ out_unlock:
 		spin_lock_bh(&cmd->tgt_dev->tgt_dev_lock);
 	}
 
+out_unlock_tgt_dev_lock:
 	spin_unlock_bh(&cmd->tgt_dev->tgt_dev_lock);
 
 	TRACE_EXIT_RES(res);
@@ -5600,7 +5623,6 @@ static void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev,
 		if (tm_dbg_tgt_dev != NULL)
 			tm_dbg_deinit_tgt_dev(tm_dbg_tgt_dev);
 
-		/* Do TM debugging only for LUN 0 */
 		spin_lock_irqsave(&scst_tm_dbg_lock, flags);
 		tm_dbg_state = INIT_TM_DBG_STATE;
 		tm_dbg_on_state_passes =

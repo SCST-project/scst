@@ -157,12 +157,14 @@ int digest_rx_data(struct iscsi_cmnd *cmnd)
 	u32 offset, crc;
 	int res = 0;
 
-	if (unlikely(cmnd->rejected))
-		goto out;
-
 	switch (cmnd_opcode(cmnd)) {
 	case ISCSI_OP_SCSI_DATA_OUT:
 		req = cmnd->cmd_req;
+		if (unlikely(req == NULL)) {
+			/* It can be for prelim completed commands */
+			req = cmnd;
+			goto out;
+		}
 		req_hdr = (struct iscsi_data_out_hdr *)&cmnd->pdu.bhs;
 		offset = be32_to_cpu(req_hdr->buffer_offset);
 		break;
@@ -171,6 +173,16 @@ int digest_rx_data(struct iscsi_cmnd *cmnd)
 		req = cmnd;
 		offset = 0;
 	}
+
+	/*
+	 * We need to skip the digest check for prelim completed commands,
+	 * because we use shared data buffer for them, so, most likely, the
+	 * check will fail. Plus, for such commands we sometimes don't have
+	 * sg_cnt set correctly (cmnd_prepare_get_rejected_cmd_data() doesn't
+	 * do it).
+	 */
+	if (unlikely(req->prelim_compl_flags != 0))
+		goto out;
 
 	crc = digest_data(req, cmnd->pdu.datasize, offset,
 		cmnd->conn->rpadding);

@@ -511,7 +511,6 @@ struct iscsi_nop_in_hdr {
 #define ISCSI_RESERVED_TAG	(0xffffffffU)
 
 #define cmnd_hdr(cmnd) ((struct iscsi_scsi_cmd_hdr *) (&((cmnd)->pdu.bhs)))
-#define cmnd_ttt(cmnd) cpu_to_be32((cmnd)->pdu.bhs.ttt)
 #define cmnd_itt(cmnd) cpu_to_be32((cmnd)->pdu.bhs.itt)
 #define cmnd_opcode(cmnd) ((cmnd)->pdu.bhs.opcode & ISCSI_OPCODE_MASK)
 #define cmnd_scsicode(cmnd) (cmnd_hdr((cmnd))->scb[0])

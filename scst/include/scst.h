@@ -115,41 +115,44 @@ static inline int list_is_last(const struct list_head *list,
 /* Allocation of the cmd's data buffer */
 #define SCST_CMD_STATE_PREPARE_SPACE 2
 
+/* Calling preprocessing_done() */
+#define SCST_CMD_STATE_PREPROCESSING_DONE 3
+
 /* Target driver's rdy_to_xfer() is going to be called */
-#define SCST_CMD_STATE_RDY_TO_XFER   3
+#define SCST_CMD_STATE_RDY_TO_XFER   4
 
 /* Target driver's pre_exec() is going to be called */
-#define SCST_CMD_STATE_TGT_PRE_EXEC  4
+#define SCST_CMD_STATE_TGT_PRE_EXEC  5
 
 /* Cmd is going to be sent for execution */
-#define SCST_CMD_STATE_SEND_FOR_EXEC 5
+#define SCST_CMD_STATE_SEND_FOR_EXEC 6
 
 /* Cmd is being checked if it should be executed locally */
-#define SCST_CMD_STATE_LOCAL_EXEC    6
+#define SCST_CMD_STATE_LOCAL_EXEC    7
 
 /* Cmd is ready for execution */
-#define SCST_CMD_STATE_REAL_EXEC     7
+#define SCST_CMD_STATE_REAL_EXEC     8
 
 /* Internal post-exec checks */
-#define SCST_CMD_STATE_PRE_DEV_DONE  8
+#define SCST_CMD_STATE_PRE_DEV_DONE  9
 
 /* Internal MODE SELECT pages related checks */
-#define SCST_CMD_STATE_MODE_SELECT_CHECKS 9
+#define SCST_CMD_STATE_MODE_SELECT_CHECKS 10
 
 /* Dev handler's dev_done() is going to be called */
-#define SCST_CMD_STATE_DEV_DONE      10
+#define SCST_CMD_STATE_DEV_DONE      11
 
 /* Target driver's xmit_response() is going to be called */
-#define SCST_CMD_STATE_PRE_XMIT_RESP 11
+#define SCST_CMD_STATE_PRE_XMIT_RESP 12
 
 /* Target driver's xmit_response() is going to be called */
-#define SCST_CMD_STATE_XMIT_RESP     12
+#define SCST_CMD_STATE_XMIT_RESP     13
 
 /* Cmd finished */
-#define SCST_CMD_STATE_FINISHED      13
+#define SCST_CMD_STATE_FINISHED      14
 
 /* Internal cmd finished */
-#define SCST_CMD_STATE_FINISHED_INTERNAL 14
+#define SCST_CMD_STATE_FINISHED_INTERNAL 15
 
 #define SCST_CMD_STATE_LAST_ACTIVE   (SCST_CMD_STATE_FINISHED_INTERNAL+100)
 
@@ -159,8 +162,8 @@ static inline int list_is_last(const struct list_head *list,
 /* LUN translation (cmd->tgt_dev assignment) */
 #define SCST_CMD_STATE_INIT          (SCST_CMD_STATE_LAST_ACTIVE+2)
 
-/* Allocation of the cmd's data buffer */
-#define SCST_CMD_STATE_PREPROCESS_DONE (SCST_CMD_STATE_LAST_ACTIVE+3)
+/* Waiting for scst_restart_cmd() */
+#define SCST_CMD_STATE_PREPROCESSING_DONE_CALLED (SCST_CMD_STATE_LAST_ACTIVE+3)
 
 /* Waiting for data from the initiator (until scst_rx_data() called) */
 #define SCST_CMD_STATE_DATA_WAIT     (SCST_CMD_STATE_LAST_ACTIVE+4)
@@ -704,6 +707,8 @@ struct scst_tgt_template {
 	 * A target driver could need to do some actions at this stage.
 	 * After the target driver done the needed actions, it shall call
 	 * scst_restart_cmd() in order to continue processing this command.
+	 * In case of preliminary the command completion, this function will
+	 * also be called before xmit_response().
 	 *
 	 * Called only if the cmd is queued using scst_cmd_init_stage1_done()
 	 * instead of scst_cmd_init_done().
@@ -1212,19 +1217,15 @@ struct scst_session {
 	struct list_head sess_tgt_dev_list_hash[TGT_DEV_HASH_SIZE];
 
 	/*
-	 * List of cmds in this session. Used to find a cmd in the
-	 * session. Protected by sess_list_lock.
+	 * List of cmds in this session. Protected by sess_list_lock.
+	 *
+	 * We must always keep commands in the sess list from the
+	 * very beginning, because otherwise they can be missed during
+	 * TM processing. 
 	 */
-	struct list_head search_cmd_list;
+	struct list_head sess_cmd_list;
 
-	spinlock_t sess_list_lock; /* protects search_cmd_list, etc */
-
-	/*
-	 * List of cmds in this in the state after PRE_XMIT_RESP. All the cmds
-	 * moved here from search_cmd_list. Needed for hw_pending_work.
-	 * Protected by sess_list_lock.
-	 */
-	struct list_head after_pre_xmit_cmd_list;
+	spinlock_t sess_list_lock; /* protects sess_cmd_list, etc */
 
 	atomic_t refcnt;		/* get/put counter */
 
@@ -1484,7 +1485,7 @@ struct scst_cmd {
 	/* The corresponding sn_slot in tgt_dev->sn_slots */
 	atomic_t *sn_slot;
 
-	/* List entry for sess's search_cmd_list and after_pre_xmit_cmd_list */
+	/* List entry for sess's sess_cmd_list */
 	struct list_head sess_cmd_list_entry;
 
 	/*
@@ -2326,14 +2327,18 @@ static inline int scst_rx_mgmt_fn_lun(struct scst_session *sess, int fn,
 int scst_get_cdb_info(struct scst_cmd *cmd);
 
 /*
- * Set error SCSI status in the command and prepares it for returning it
+ * Set error SCSI status in the command and prepares it for returning it.
+ *
+ * Returns 0 on success, error code otherwise.
  */
-void scst_set_cmd_error_status(struct scst_cmd *cmd, int status);
+int scst_set_cmd_error_status(struct scst_cmd *cmd, int status);
 
 /*
- * Set error in the command and fill the sense buffer
+ * Set error in the command and fill the sense buffer.
+ *
+ * Returns 0 on success, error code otherwise.
  */
-void scst_set_cmd_error(struct scst_cmd *cmd, int key, int asc, int ascq);
+int scst_set_cmd_error(struct scst_cmd *cmd, int key, int asc, int ascq);
 
 /*
  * Sets BUSY or TASK QUEUE FULL status
@@ -2488,6 +2493,14 @@ static inline int scst_cmd_atomic(struct scst_cmd *cmd)
 	}
 #endif
 	return res;
+}
+
+/*
+ * Returns TRUE if cmd has been completed.
+ */
+static inline int scst_cmd_completed(struct scst_cmd *cmd)
+{
+	return cmd->completed;
 }
 
 static inline enum scst_exec_context __scst_estimate_context(bool direct)

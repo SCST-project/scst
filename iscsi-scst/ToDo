@@ -1,5 +1,3 @@
  - Fix support of ranges in parameters negotiation.
 
- - Fix SNACK command handling. Currently it violates iSCSI RFC.
-
  - Minor "ToDo"'s spread in the code.

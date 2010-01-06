@@ -78,11 +78,12 @@ again:
 		struct iscsi_cmnd *rsp;
 		int restart = 0;
 
-		TRACE_CONN_CLOSE_DBG("cmd %p, scst_state %x, data_waiting %d, "
-			"ref_cnt %d, parent_req %p, net_ref_cnt %d, sg %p",
-			cmnd, cmnd->scst_state, cmnd->data_waiting,
-			atomic_read(&cmnd->ref_cnt), cmnd->parent_req,
-			atomic_read(&cmnd->net_ref_cnt), cmnd->sg);
+		TRACE_CONN_CLOSE_DBG("cmd %p, scst_state %x, "
+			"r2t_len_to_receive %d, ref_cnt %d, parent_req %p, "
+			"net_ref_cnt %d, sg %p", cmnd, cmnd->scst_state,
+			cmnd->r2t_len_to_receive, atomic_read(&cmnd->ref_cnt),
+			cmnd->parent_req, atomic_read(&cmnd->net_ref_cnt),
+			cmnd->sg);
 
 		sBUG_ON(cmnd->parent_req != NULL);
 
@@ -113,7 +114,6 @@ again:
 				goto again;
 		}
 
-		spin_lock_bh(&cmnd->rsp_cmd_lock);
 		list_for_each_entry(rsp, &cmnd->rsp_cmd_list,
 				rsp_cmd_list_entry) {
 			TRACE_CONN_CLOSE_DBG("  rsp %p, ref_cnt %d, "
@@ -138,7 +138,6 @@ again:
 
 					if (page->net_priv != NULL) {
 						if (restart == 0) {
-							spin_unlock_bh(&cmnd->rsp_cmd_lock);
 							spin_unlock_bh(&conn->cmd_list_lock);
 							restart = 1;
 						}
@@ -152,7 +151,6 @@ again:
 					goto again;
 			}
 		}
-		spin_unlock_bh(&cmnd->rsp_cmd_lock);
 	}
 	spin_unlock_bh(&conn->cmd_list_lock);
 
@@ -191,7 +189,7 @@ static void free_pending_commands(struct iscsi_conn *conn)
 
 				spin_unlock(&session->sn_lock);
 
-				req_cmnd_release_force(cmnd, 0);
+				req_cmnd_release_force(cmnd);
 
 				req_freed = 1;
 				spin_lock(&session->sn_lock);
@@ -231,7 +229,7 @@ static void free_orphaned_pending_commands(struct iscsi_conn *conn)
 
 				spin_unlock(&session->sn_lock);
 
-				req_cmnd_release_force(cmnd, 0);
+				req_cmnd_release_force(cmnd);
 
 				req_freed = 1;
 				spin_lock(&session->sn_lock);
@@ -261,13 +259,13 @@ static void trace_conn_close(struct iscsi_conn *conn)
 	list_for_each_entry(cmnd, &conn->cmd_list,
 			cmd_list_entry) {
 		TRACE_CONN_CLOSE_DBG(
-			"cmd %p, scst_state %x, scst_cmd state %d, "
-			"data_waiting %d, ref_cnt %d, sn %u, "
+			"cmd %p, scst_cmd %p, scst_state %x, scst_cmd state "
+			"%d, r2t_len_to_receive %d, ref_cnt %d, sn %u, "
 			"parent_req %p, pending %d",
-			cmnd, cmnd->scst_state,
-			(cmnd->parent_req && cmnd->scst_cmd) ?
+			cmnd, cmnd->scst_cmd, cmnd->scst_state,
+			((cmnd->parent_req == NULL) && cmnd->scst_cmd) ?
 				cmnd->scst_cmd->state : -1,
-			cmnd->data_waiting, atomic_read(&cmnd->ref_cnt),
+			cmnd->r2t_len_to_receive, atomic_read(&cmnd->ref_cnt),
 			cmnd->pdu.bhs.sn, cmnd->parent_req, cmnd->pending);
 #if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 		TRACE_CONN_CLOSE_DBG("net_ref_cnt %d, sg %p",
@@ -286,7 +284,6 @@ static void trace_conn_close(struct iscsi_conn *conn)
 
 		sBUG_ON(cmnd->parent_req != NULL);
 
-		spin_lock_bh(&cmnd->rsp_cmd_lock);
 		list_for_each_entry(rsp, &cmnd->rsp_cmd_list,
 				rsp_cmd_list_entry) {
 			TRACE_CONN_CLOSE_DBG("  rsp %p, "
@@ -305,7 +302,6 @@ static void trace_conn_close(struct iscsi_conn *conn)
 				}
 			}
 		}
-		spin_unlock_bh(&cmnd->rsp_cmd_lock);
 #endif /* CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION */
 	}
 	spin_unlock_bh(&conn->cmd_list_lock);
@@ -433,21 +429,27 @@ static void close_conn(struct iscsi_conn *conn)
 		struct iscsi_cmnd *cmnd = conn->read_cmnd;
 
 		if (cmnd->scst_state == ISCSI_CMD_STATE_RX_CMD) {
-			TRACE_DBG("Going to wait for cmnd %p to change state "
-				"from RX_CMD", cmnd);
+			TRACE_CONN_CLOSE_DBG("Going to wait for cmnd %p to "
+				"change state from RX_CMD", cmnd);
 		}
 		wait_event(conn->read_state_waitQ,
 			cmnd->scst_state != ISCSI_CMD_STATE_RX_CMD);
 
+		TRACE_CONN_CLOSE_DBG("Releasing conn->read_cmnd %p (conn %p)",
+			conn->read_cmnd, conn);
+
 		conn->read_cmnd = NULL;
 		conn->read_state = RX_INIT_BHS;
-		req_cmnd_release_force(cmnd, 0);
+		req_cmnd_release_force(cmnd);
 	}
 
 	conn_abort(conn);
 
 	/* ToDo: not the best way to wait */
 	while (atomic_read(&conn->conn_ref_cnt) != 0) {
+		if (conn->conn_tm_active)
+			iscsi_check_tm_data_wait_timeouts(conn, true);
+
 		mutex_lock(&target->target_mutex);
 		spin_lock(&session->sn_lock);
 		if (session->tm_rsp && session->tm_rsp->conn == conn) {
@@ -637,6 +639,24 @@ static struct iscsi_cmnd *iscsi_get_send_cmnd(struct iscsi_conn *conn)
 	}
 	spin_unlock_bh(&conn->write_list_lock);
 
+	if (unlikely(test_bit(ISCSI_CMD_ABORTED,
+			&cmnd->parent_req->prelim_compl_flags))) {
+		TRACE_MGMT_DBG("Going to send acmd %p (scst cmd %p, "
+			"state %d, parent_req %p)", cmnd, cmnd->scst_cmd,
+			cmnd->scst_state, cmnd->parent_req);
+	}
+
+	if (unlikely(cmnd_opcode(cmnd) == ISCSI_OP_SCSI_TASK_MGT_RSP)) {
+		struct iscsi_task_mgt_hdr *req_hdr =
+			(struct iscsi_task_mgt_hdr *)&cmnd->parent_req->pdu.bhs;
+		struct iscsi_task_rsp_hdr *rsp_hdr =
+			(struct iscsi_task_rsp_hdr *)&cmnd->pdu.bhs;
+		TRACE_MGMT_DBG("Going to send TM response %p (status %d, "
+			"fn %d, parent_req %p)", cmnd, rsp_hdr->response,
+			req_hdr->function & ISCSI_FUNCTION_MASK,
+			cmnd->parent_req);
+	}
+
 	return cmnd;
 }
 
@@ -702,8 +722,10 @@ restart:
 			TRACE_DBG("ERESTARTSYS received for conn %p", conn);
 			goto restart;
 		default:
-			PRINT_ERROR("sock_recvmsg() failed: %d", res);
-			mark_conn_closed(conn);
+			if (!conn->closing) {
+				PRINT_ERROR("sock_recvmsg() failed: %d", res);
+				mark_conn_closed(conn);
+			}
 			if (res == 0)
 				res = -EIO;
 			break;
@@ -970,8 +992,14 @@ static void scst_do_job_rd(void)
 
 		spin_lock_bh(&iscsi_rd_lock);
 
-		if (closed)
+		if (unlikely(closed))
 			continue;
+
+		if (unlikely(conn->conn_tm_active)) {
+			spin_unlock_bh(&iscsi_rd_lock);
+			iscsi_check_tm_data_wait_timeouts(conn, false);
+			spin_lock_bh(&iscsi_rd_lock);
+		}
 
 #ifdef CONFIG_SCST_EXTRACHECKS
 		conn->rd_task = NULL;
@@ -1107,7 +1135,76 @@ static inline void __iscsi_get_page_callback(struct iscsi_cmnd *cmd) {}
 static inline void __iscsi_put_page_callback(struct iscsi_cmnd *cmd) {}
 #endif
 
-/* This is partially taken from the Ardis code. */
+void req_add_to_write_timeout_list(struct iscsi_cmnd *req)
+{
+	struct iscsi_conn *conn;
+	unsigned long timeout_time;
+	bool set_conn_tm_active = false;
+
+	TRACE_ENTRY();
+
+	if (req->on_write_timeout_list)
+		goto out;
+
+	conn = req->conn;
+
+	TRACE_DBG("Adding req %p to conn %p write_timeout_list",
+		req, conn);
+
+	spin_lock_bh(&conn->write_list_lock);
+
+	req->on_write_timeout_list = 1;
+	req->write_start = jiffies;
+	list_add_tail(&req->write_timeout_list_entry,
+		&conn->write_timeout_list);
+
+	if (!timer_pending(&conn->rsp_timer)) {
+		if (unlikely(conn->conn_tm_active ||
+			     test_bit(ISCSI_CMD_ABORTED,
+					&req->prelim_compl_flags))) {
+			set_conn_tm_active = true;
+			timeout_time = req->write_start +
+				ISCSI_TM_DATA_WAIT_SCHED_TIMEOUT;
+		} else
+			timeout_time = req->write_start +
+				ISCSI_RSP_SCHED_TIMEOUT;
+
+		TRACE_DBG("Starting timer on %ld (con %p, write_start %ld)",
+			timeout_time, conn, req->write_start);
+
+		conn->rsp_timer.expires = timeout_time;
+		add_timer(&conn->rsp_timer);
+	} else if (unlikely(test_bit(ISCSI_CMD_ABORTED,
+				&req->prelim_compl_flags))) {
+		unsigned long timeout_time = jiffies +
+					ISCSI_TM_DATA_WAIT_SCHED_TIMEOUT;
+		set_conn_tm_active = true;
+		if (time_after(conn->rsp_timer.expires, timeout_time)) {
+			TRACE_MGMT_DBG("Mod timer on %ld (conn %p)",
+				timeout_time, conn);
+			mod_timer(&conn->rsp_timer, timeout_time);
+		}
+	}
+
+	spin_unlock_bh(&conn->write_list_lock);
+
+	/*
+	 * conn_tm_active can be already cleared by
+	 * iscsi_check_tm_data_wait_timeouts(). write_list_lock is an inner
+	 * lock for iscsi_rd_lock.
+	 */
+	if (unlikely(set_conn_tm_active)) {
+		spin_lock_bh(&iscsi_rd_lock);
+		TRACE_MGMT_DBG("Setting conn_tm_active for conn %p", conn);
+		conn->conn_tm_active = 1;
+		spin_unlock_bh(&iscsi_rd_lock);
+	}
+
+out:
+	TRACE_EXIT();
+	return;
+}
+
 static int write_data(struct iscsi_conn *conn)
 {
 	mm_segment_t oldfs;
@@ -1130,7 +1227,7 @@ static int write_data(struct iscsi_conn *conn)
 
 	iscsi_extracheck_is_wr_thread(conn);
 
-	if (write_cmnd->own_sg == 0) {
+	if (!write_cmnd->own_sg) {
 		ref_cmd = write_cmnd->parent_req;
 		ref_cmd_to_parent = true;
 	} else {
@@ -1138,28 +1235,7 @@ static int write_data(struct iscsi_conn *conn)
 		ref_cmd_to_parent = false;
 	}
 
-	if (!ref_cmd->on_written_list) {
-		TRACE_DBG("Adding cmd %p to conn %p written_list", ref_cmd,
-			conn);
-		spin_lock_bh(&conn->write_list_lock);
-		ref_cmd->on_written_list = 1;
-		ref_cmd->write_timeout = jiffies + ISCSI_RSP_TIMEOUT;
-		list_add_tail(&ref_cmd->written_list_entry,
-			&conn->written_list);
-		spin_unlock_bh(&conn->write_list_lock);
-	}
-
-	if (!timer_pending(&conn->rsp_timer)) {
-		sBUG_ON(!ref_cmd->on_written_list);
-		spin_lock_bh(&conn->write_list_lock);
-		if (likely(!timer_pending(&conn->rsp_timer))) {
-			TRACE_DBG("Starting timer on %ld (conn %p)",
-				ref_cmd->write_timeout, conn);
-			conn->rsp_timer.expires = ref_cmd->write_timeout;
-			add_timer(&conn->rsp_timer);
-		}
-		spin_unlock_bh(&conn->write_list_lock);
-	}
+	req_add_to_write_timeout_list(write_cmnd->parent_req);
 
 	file = conn->file;
 	size = conn->write_size;

@@ -81,6 +81,7 @@ static struct scst_trace_log scst_trace_tbl[] = {
     { TRACE_MGMT,		"mgmt" },
     { TRACE_MGMT_MINOR,		"mgmt_minor" },
     { TRACE_MGMT_DEBUG,		"mgmt_dbg" },
+    { TRACE_FLOW_CONTROL,	"flow_control" },
     { 0,			NULL }
 };
 
@@ -770,7 +771,7 @@ void scst_device_sysfs_put(struct scst_device *dev)
  * Target sessions directory implementation
  */
 
-ssize_t scst_sess_sysfs_commands_show(struct kobject *kobj,
+static ssize_t scst_sess_sysfs_commands_show(struct kobject *kobj,
 			    struct kobj_attribute *attr, char *buf)
 {
 	struct scst_session *sess;
@@ -783,7 +784,42 @@ ssize_t scst_sess_sysfs_commands_show(struct kobject *kobj,
 static struct kobj_attribute session_commands_attr =
 	__ATTR(commands, S_IRUGO, scst_sess_sysfs_commands_show, NULL);
 
-ssize_t scst_sess_sysfs_initiator_name_show(struct kobject *kobj,
+static ssize_t scst_sess_sysfs_active_commands_show(struct kobject *kobj,
+			    struct kobj_attribute *attr, char *buf)
+{
+	int res;
+	struct scst_session *sess;
+	int active_cmds = 0, t;
+
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
+		res = -EINTR;
+		goto out;
+	}
+
+	sess = container_of(kobj, struct scst_session, sess_kobj);
+
+	for (t = TGT_DEV_HASH_SIZE-1; t >= 0; t--) {
+		struct list_head *sess_tgt_dev_list_head =
+			&sess->sess_tgt_dev_list_hash[t];
+		struct scst_tgt_dev *tgt_dev;
+		list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
+				sess_tgt_dev_list_entry) {
+			active_cmds += atomic_read(&tgt_dev->tgt_dev_cmd_count);
+		}
+	}
+
+	mutex_unlock(&scst_mutex);
+
+	res = sprintf(buf, "%i\n", active_cmds);
+
+out:
+	return res;
+}
+
+static struct kobj_attribute session_active_commands_attr =
+	__ATTR(commands, S_IRUGO, scst_sess_sysfs_active_commands_show, NULL);
+
+static ssize_t scst_sess_sysfs_initiator_name_show(struct kobject *kobj,
 			    struct kobj_attribute *attr, char *buf)
 {
 	struct scst_session *sess;
@@ -799,6 +835,7 @@ static struct kobj_attribute session_initiator_name_attr =
 
 static struct attribute *scst_session_attrs[] = {
 	&session_commands_attr.attr,
+	&session_active_commands_attr.attr,
 	&session_initiator_name_attr.attr,
 	NULL,
 };
@@ -1241,7 +1278,7 @@ static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
 			if (action == SCST_LUN_ACTION_ADD) {
 				PRINT_ERROR("virt lun %d already exists in "
 					"group %s", virt_lun, acg->acg_name);
-				res = -EINVAL;
+				res = -EEXIST;
 				goto out_free_up;
 			} else {
 				/* Replace */

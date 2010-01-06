@@ -20,18 +20,12 @@
 
 #include <scst_debug.h>
 
-#define TRACE_D_READ		0x80000000
-#define TRACE_D_WRITE		0x40000000
-#define TRACE_CONN_OC		0x20000000
-#define TRACE_D_IOV		0x10000000
-#define TRACE_D_DUMP_PDU	0x08000000
-#define TRACE_NET_PG		0x04000000
-#define TRACE_CONN_OC_DBG	0x02000000
-
-#define TRACE_D_DATA		(TRACE_D_READ | TRACE_D_WRITE)
-
-#define TRACE_ALL_NO_DATA 	\
-	(TRACE_ALL & ~TRACE_D_IOV & ~TRACE_D_DUMP_PDU & ~TRACE_D_DATA)
+#define TRACE_D_WRITE		0x80000000
+#define TRACE_CONN_OC		0x40000000
+#define TRACE_D_IOV		0x20000000
+#define TRACE_D_DUMP_PDU	0x10000000
+#define TRACE_NET_PG		0x08000000
+#define TRACE_CONN_OC_DBG	0x04000000
 
 #ifdef CONFIG_SCST_DEBUG
 #define ISCSI_DEFAULT_LOG_FLAGS (TRACE_FUNCTION | TRACE_LINE | TRACE_PID | \
@@ -44,9 +38,13 @@
 
 #ifdef CONFIG_SCST_DEBUG
 struct iscsi_pdu;
+struct iscsi_cmnd;
 extern void iscsi_dump_pdu(struct iscsi_pdu *pdu);
+extern unsigned long iscsi_get_flow_ctrl_or_mgmt_dbg_log_flag(
+	struct iscsi_cmnd *cmnd);
 #else
 #define iscsi_dump_pdu(x) do {} while (0)
+#define iscsi_get_flow_ctrl_or_mgmt_dbg_log_flag(x) do {} while (0)
 #endif
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
@@ -54,20 +52,9 @@ extern unsigned long iscsi_trace_flag;
 #define trace_flag iscsi_trace_flag
 #endif
 
-#ifdef CONFIG_SCST_DEBUG
-
-#define TRACE_CONN_CLOSE(args...)	TRACE(TRACE_CONN_OC, args)
+#define TRACE_CONN_CLOSE(args...)	TRACE_DBG_FLAG(TRACE_DEBUG|TRACE_CONN_OC, args)
 #define TRACE_CONN_CLOSE_DBG(args...)	TRACE(TRACE_CONN_OC_DBG, args)
-#define TRACE_NET_PAGE(args...)		TRACE(TRACE_NET_PG, args)
-#define TRACE_WRITE(args...)		TRACE(TRACE_D_WRITE, args)
-#define TRACE_READ(args...)		TRACE(TRACE_D_READ, args)
-
-#else /* CONFIG_SCST_DEBUG */
-#define TRACE_CONN_CLOSE(format, args...) {}
-#define TRACE_CONN_CLOSE_DBG(format, args...) {}
-#define TRACE_NET_PAGE(format, args...) {}
-#define TRACE_WRITE(args...) {}
-#define TRACE_READ(args...) {}
-#endif
+#define TRACE_NET_PAGE(args...)		TRACE_DBG_FLAG(TRACE_NET_PG, args)
+#define TRACE_WRITE(args...)		TRACE_DBG_FLAG(TRACE_DEBUG|TRACE_D_WRITE, args)
 
 #endif

@@ -91,9 +91,9 @@ static int iscsi_session_alloc(struct iscsi_target *target,
 
 	spin_lock_init(&session->sn_lock);
 
-	spin_lock_init(&session->cmnd_hash_lock);
-	for (i = 0; i < ARRAY_SIZE(session->cmnd_hash); i++)
-		INIT_LIST_HEAD(&session->cmnd_hash[i]);
+	spin_lock_init(&session->cmnd_data_wait_hash_lock);
+	for (i = 0; i < ARRAY_SIZE(session->cmnd_data_wait_hash); i++)
+		INIT_LIST_HEAD(&session->cmnd_data_wait_hash[i]);
 
 	session->next_ttt = 1;
 
@@ -274,8 +274,8 @@ int session_free(struct iscsi_session *session, bool del)
 		sBUG();
 	}
 
-	for (i = 0; i < ARRAY_SIZE(session->cmnd_hash); i++)
-		sBUG_ON(!list_empty(&session->cmnd_hash[i]));
+	for (i = 0; i < ARRAY_SIZE(session->cmnd_data_wait_hash); i++)
+		sBUG_ON(!list_empty(&session->cmnd_data_wait_hash[i]));
 
 	if (session->sess_reinst_successor != NULL)
 		sess_reinst_finished(session->sess_reinst_successor);

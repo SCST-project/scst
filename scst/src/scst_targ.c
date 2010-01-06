@@ -164,6 +164,8 @@ out_redirect:
 		/*
 		 * Poor man solution for single threaded targets, where
 		 * blocking receiver at least sometimes means blocking all.
+		 * For instance, iSCSI target won't be able to receive
+		 * Data-Out PDUs.
 		 */
 		sBUG_ON(*context != SCST_CONTEXT_DIRECT);
 		scst_set_busy(cmd);
@@ -222,14 +224,14 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
 
 	if (unlikely(sess->init_phase != SCST_SESS_IPH_READY)) {
 		/*
-		 * We have to always keep command in the search list from the
-		 * very beginning, because otherwise it can be missed during
+		 * We must always keep commands in the sess list from the
+		 * very beginning, because otherwise they can be missed during
 		 * TM processing. This check is needed because there might be
 		 * old, i.e. deferred, commands and new, i.e. just coming, ones.
 		 */
 		if (cmd->sess_cmd_list_entry.next == NULL)
 			list_add_tail(&cmd->sess_cmd_list_entry,
-				&sess->search_cmd_list);
+				&sess->sess_cmd_list);
 		switch (sess->init_phase) {
 		case SCST_SESS_IPH_SUCCESS:
 			break;
@@ -250,7 +252,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
 		}
 	} else
 		list_add_tail(&cmd->sess_cmd_list_entry,
-			      &sess->search_cmd_list);
+			      &sess->sess_cmd_list);
 
 	spin_unlock_irqrestore(&sess->sess_list_lock, flags);
 
@@ -287,12 +289,6 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
 	rc = scst_init_cmd(cmd, &pref_context);
 	if (unlikely(rc < 0))
 		goto out;
-	else if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION)) {
-		if (rc == 0) {
-			/* Target driver preliminary completed cmd */
-			scst_set_cmd_abnormal_done_state(cmd);
-		}
-	}
 
 active:
 	/* Here cmd must not be in any cmd list, no locks */
@@ -303,12 +299,10 @@ active:
 
 	case SCST_CONTEXT_DIRECT:
 		scst_process_active_cmd(cmd, false);
-		/* For *NEED_THREAD wake_up() is already done */
 		break;
 
 	case SCST_CONTEXT_DIRECT_ATOMIC:
 		scst_process_active_cmd(cmd, true);
-		/* For *NEED_THREAD wake_up() is already done */
 		break;
 
 	default:
@@ -639,6 +633,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 	}
 
 set_res:
+#ifdef CONFIG_SCST_EXTRACHECKS
 	switch (state) {
 	case SCST_CMD_STATE_PREPARE_SPACE:
 	case SCST_CMD_STATE_PRE_PARSE:
@@ -654,8 +649,10 @@ set_res:
 	case SCST_CMD_STATE_XMIT_RESP:
 	case SCST_CMD_STATE_FINISHED:
 	case SCST_CMD_STATE_FINISHED_INTERNAL:
+#endif
 		cmd->state = state;
 		res = SCST_CMD_STATE_RES_CONT_SAME;
+#ifdef CONFIG_SCST_EXTRACHECKS
 		break;
 
 	default:
@@ -670,6 +667,7 @@ set_res:
 		}
 		goto out_error;
 	}
+#endif
 
 	if (cmd->resp_data_len == -1) {
 		if (cmd->data_direction & SCST_DATA_READ)
@@ -701,7 +699,7 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	if (cmd->data_direction == SCST_DATA_NONE)
-		goto prep_done;
+		goto done;
 
 	if (cmd->tgt_need_alloc_data_buf) {
 		int orig_bufflen = cmd->bufflen;
@@ -767,30 +765,10 @@ check:
 			goto out_no_space;
 	}
 
-prep_done:
-	if (cmd->preprocessing_only) {
-		cmd->preprocessing_only = 0;
-
-		if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
-			TRACE_MGMT_DBG("ABORTED set, returning ABORTED for "
-				"cmd %p", cmd);
-			scst_set_cmd_abnormal_done_state(cmd);
-			res = SCST_CMD_STATE_RES_CONT_SAME;
-			goto out;
-		}
-
-		res = SCST_CMD_STATE_RES_CONT_NEXT;
-		cmd->state = SCST_CMD_STATE_PREPROCESS_DONE;
-
-		TRACE_DBG("Calling preprocessing_done(cmd %p)", cmd);
-		scst_set_cur_start(cmd);
-		cmd->tgtt->preprocessing_done(cmd);
-		TRACE_DBG("%s", "preprocessing_done() returned");
-		goto out;
-
-	}
-
-	if (cmd->data_direction & SCST_DATA_WRITE)
+done:
+	if (cmd->preprocessing_only)
+		cmd->state = SCST_CMD_STATE_PREPROCESSING_DONE;
+	else if (cmd->data_direction & SCST_DATA_WRITE)
 		cmd->state = SCST_CMD_STATE_RDY_TO_XFER;
 	else
 		cmd->state = SCST_CMD_STATE_TGT_PRE_EXEC;
@@ -812,6 +790,28 @@ out_error:
 	scst_set_cmd_abnormal_done_state(cmd);
 	res = SCST_CMD_STATE_RES_CONT_SAME;
 	goto out;
+}
+
+static int scst_preprocessing_done(struct scst_cmd *cmd)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(!cmd->preprocessing_only);
+
+	cmd->preprocessing_only = 0;
+
+	res = SCST_CMD_STATE_RES_CONT_NEXT;
+	cmd->state = SCST_CMD_STATE_PREPROCESSING_DONE_CALLED;
+
+	TRACE_DBG("Calling preprocessing_done(cmd %p)", cmd);
+	scst_set_cur_start(cmd);
+	cmd->tgtt->preprocessing_done(cmd);
+	TRACE_DBG("%s", "preprocessing_done() returned");
+
+	TRACE_EXIT_HRES(res);
+	return res;
 }
 
 void scst_restart_cmd(struct scst_cmd *cmd, int status,
@@ -2777,6 +2777,7 @@ static int scst_dev_done(struct scst_cmd *cmd)
 	}
 
 	switch (state) {
+#ifdef CONFIG_SCST_EXTRACHECKS
 	case SCST_CMD_STATE_PRE_XMIT_RESP:
 	case SCST_CMD_STATE_DEV_PARSE:
 	case SCST_CMD_STATE_PRE_PARSE:
@@ -2792,16 +2793,18 @@ static int scst_dev_done(struct scst_cmd *cmd)
 	case SCST_CMD_STATE_XMIT_RESP:
 	case SCST_CMD_STATE_FINISHED:
 	case SCST_CMD_STATE_FINISHED_INTERNAL:
+#else
+	default:
+#endif
 		cmd->state = state;
 		break;
-
 	case SCST_CMD_STATE_NEED_THREAD_CTX:
 		TRACE_DBG("Dev handler %s dev_done() requested "
 		      "thread context, rescheduling",
 		      dev->handler->name);
 		res = SCST_CMD_STATE_RES_NEED_THREAD;
 		break;
-
+#ifdef CONFIG_SCST_EXTRACHECKS
 	default:
 		if (state >= 0) {
 			PRINT_ERROR("Dev handler %s dev_done() returned "
@@ -2816,6 +2819,7 @@ static int scst_dev_done(struct scst_cmd *cmd)
 			   SCST_LOAD_SENSE(scst_sense_hardw_error));
 		scst_set_cmd_abnormal_done_state(cmd);
 		break;
+#endif
 	}
 
 	if (cmd->needs_unblocking)
@@ -2838,7 +2842,6 @@ out:
 static int scst_pre_xmit_response(struct scst_cmd *cmd)
 {
 	int res;
-	struct scst_session *sess = cmd->sess;
 
 	TRACE_ENTRY();
 
@@ -2860,6 +2863,10 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 #endif
 
 	if (likely(cmd->tgt_dev != NULL)) {
+		/*
+		 * Those counters protect from not getting too long processing
+		 * latency, so we should decrement them after cmd completed.
+		 */
 		atomic_dec(&cmd->tgt_dev->tgt_dev_cmd_count);
 		atomic_dec(&cmd->dev->dev_cmd_count);
 #ifdef CONFIG_SCST_ORDERED_READS
@@ -2878,18 +2885,6 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 			cmd->sent_for_exec = 1;
 		}
 	}
-
-	/*
-	 * If we don't remove cmd from the search list here, before
-	 * submitting it for transmittion, we will have a race, when for
-	 * some reason cmd's release is delayed after transmittion and
-	 * initiator sends cmd with the same tag => it is possible that
-	 * a wrong cmd will be found by find() functions.
-	 */
-	spin_lock_irq(&sess->sess_list_lock);
-	list_move_tail(&cmd->sess_cmd_list_entry,
-		&sess->after_pre_xmit_cmd_list);
-	spin_unlock_irq(&sess->sess_list_lock);
 
 	cmd->done = 1;
 	smp_mb(); /* to sync with scst_abort_cmd() */
@@ -3318,7 +3313,7 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 
 		cnt = atomic_inc_return(&cmd->tgt_dev->tgt_dev_cmd_count);
 		if (unlikely(cnt > SCST_MAX_TGT_DEV_COMMANDS)) {
-			TRACE(TRACE_MGMT_MINOR,
+			TRACE(TRACE_FLOW_CONTROL,
 				"Too many pending commands (%d) in "
 				"session, returning BUSY to initiator \"%s\"",
 				cnt, (cmd->sess->initiator_name[0] == '\0') ?
@@ -3329,7 +3324,7 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 		cnt = atomic_inc_return(&cmd->dev->dev_cmd_count);
 		if (unlikely(cnt > SCST_MAX_DEV_COMMANDS)) {
 			if (!failure) {
-				TRACE(TRACE_MGMT_MINOR,
+				TRACE(TRACE_FLOW_CONTROL,
 					"Too many pending device "
 					"commands (%d), returning BUSY to "
 					"initiator \"%s\"", cnt,
@@ -3538,6 +3533,10 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 			res = scst_prepare_space(cmd);
 			break;
 
+		case SCST_CMD_STATE_PREPROCESSING_DONE:
+			res = scst_preprocessing_done(cmd);
+			break;
+
 		case SCST_CMD_STATE_RDY_TO_XFER:
 			res = scst_rdy_to_xfer(cmd);
 			break;
@@ -3624,8 +3623,8 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 		/* None */
 	} else if (res == SCST_CMD_STATE_RES_NEED_THREAD) {
 		spin_lock_irq(&cmd->cmd_lists->cmd_list_lock);
+#ifdef CONFIG_SCST_EXTRACHECKS
 		switch (cmd->state) {
-		case SCST_CMD_STATE_PRE_PARSE:
 		case SCST_CMD_STATE_DEV_PARSE:
 		case SCST_CMD_STATE_PREPARE_SPACE:
 		case SCST_CMD_STATE_RDY_TO_XFER:
@@ -3633,32 +3632,24 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 		case SCST_CMD_STATE_SEND_FOR_EXEC:
 		case SCST_CMD_STATE_LOCAL_EXEC:
 		case SCST_CMD_STATE_REAL_EXEC:
-		case SCST_CMD_STATE_PRE_DEV_DONE:
-		case SCST_CMD_STATE_MODE_SELECT_CHECKS:
 		case SCST_CMD_STATE_DEV_DONE:
-		case SCST_CMD_STATE_PRE_XMIT_RESP:
 		case SCST_CMD_STATE_XMIT_RESP:
-		case SCST_CMD_STATE_FINISHED:
-		case SCST_CMD_STATE_FINISHED_INTERNAL:
+#endif
 			TRACE_DBG("Adding cmd %p to head of active cmd list",
 				  cmd);
 			list_add(&cmd->cmd_list_entry,
 				&cmd->cmd_lists->active_cmd_list);
-			break;
 #ifdef CONFIG_SCST_EXTRACHECKS
-		/* not very valid commands */
-		case SCST_CMD_STATE_DEFAULT:
-		case SCST_CMD_STATE_NEED_THREAD_CTX:
+			break;
+		default:
 			PRINT_CRIT_ERROR("cmd %p is in invalid state %d)", cmd,
 				cmd->state);
 			spin_unlock_irq(&cmd->cmd_lists->cmd_list_lock);
 			sBUG();
 			spin_lock_irq(&cmd->cmd_lists->cmd_list_lock);
 			break;
-#endif
-		default:
-			break;
 		}
+#endif
 		wake_up(&cmd->cmd_lists->cmd_list_waitQ);
 		spin_unlock_irq(&cmd->cmd_lists->cmd_list_lock);
 	} else
@@ -4097,7 +4088,7 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 
 		/*
 		 * cmd can't die here or sess_list_lock already taken and
-		 * cmd is in the search list
+		 * cmd is in the sess list
 		 */
 		list_add_tail(&mstb->cmd_mgmt_cmd_list_entry,
 			&cmd->mgmt_cmd_list);
@@ -4250,8 +4241,8 @@ static void __scst_abort_task_set(struct scst_mgmt_cmd *mcmd,
 
 	spin_lock_irq(&sess->sess_list_lock);
 
-	TRACE_DBG("Searching in search cmd list (sess=%p)", sess);
-	list_for_each_entry(cmd, &sess->search_cmd_list,
+	TRACE_DBG("Searching in sess cmd list (sess=%p)", sess);
+	list_for_each_entry(cmd, &sess->sess_cmd_list,
 			    sess_cmd_list_entry) {
 		if ((cmd->tgt_dev == tgt_dev) ||
 		    ((cmd->tgt_dev == NULL) &&
@@ -4361,8 +4352,8 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 
 		spin_lock_irq(&sess->sess_list_lock);
 
-		TRACE_DBG("Searching in search cmd list (sess=%p)", sess);
-		list_for_each_entry(cmd, &sess->search_cmd_list,
+		TRACE_DBG("Searching in sess cmd list (sess=%p)", sess);
+		list_for_each_entry(cmd, &sess->sess_cmd_list,
 				    sess_cmd_list_entry) {
 			if ((cmd->dev == dev) ||
 			    ((cmd->dev == NULL) &&
@@ -5698,10 +5689,19 @@ static struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,
 
 	/* ToDo: hash list */
 
-	TRACE_DBG("%s (sess=%p, tag=%llu)", "Searching in search cmd list",
+	TRACE_DBG("%s (sess=%p, tag=%llu)", "Searching in sess cmd list",
 		  sess, (long long unsigned int)tag);
-	list_for_each_entry(cmd, &sess->search_cmd_list,
+	list_for_each_entry(cmd, &sess->sess_cmd_list,
 			sess_cmd_list_entry) {
+		/*
+		 * We must not count done commands, because they were
+		 * submitted for transmittion. Otherwise we can have a race,
+		 * when for some reason cmd's release delayed after
+		 * transmittion and initiator sends cmd with the same tag =>
+		 * it can be possible that a wrong cmd will be returned.
+		 */
+		if (cmd->done)
+			continue;
 		if (cmd->tag == tag)
 			goto out;
 	}
@@ -5725,9 +5725,17 @@ struct scst_cmd *scst_find_cmd(struct scst_session *sess, void *data,
 
 	spin_lock_irqsave(&sess->sess_list_lock, flags);
 
-	TRACE_DBG("Searching in search cmd list (sess=%p)", sess);
-	list_for_each_entry(cmd, &sess->search_cmd_list,
-			sess_cmd_list_entry) {
+	TRACE_DBG("Searching in sess cmd list (sess=%p)", sess);
+	list_for_each_entry(cmd, &sess->sess_cmd_list, sess_cmd_list_entry) {
+		/*
+		 * We must not count done commands, because they were
+		 * submitted for transmittion. Otherwise we can have a race,
+		 * when for some reason cmd's release delayed after
+		 * transmittion and initiator sends cmd with the same tag =>
+		 * it can be possible that a wrong cmd will be returned.
+		 */
+		if (cmd->done)
+			continue;
 		if (cmp_fn(cmd, data))
 			goto out_unlock;
 	}

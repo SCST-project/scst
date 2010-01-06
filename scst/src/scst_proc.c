@@ -110,6 +110,7 @@ static struct scst_trace_log scst_proc_trace_tbl[] = {
     { TRACE_MGMT,		"mgmt" },
     { TRACE_MGMT_MINOR,		"mgmt_minor" },
     { TRACE_MGMT_DEBUG,		"mgmt_dbg" },
+    { TRACE_FLOW_CONTROL,	"flow_control" },
     { 0,			NULL }
 };
 
@@ -1975,7 +1976,7 @@ static ssize_t scst_proc_groups_devices_write(struct file *file,
 			if (action == SCST_PROC_ACTION_ADD) {
 				PRINT_ERROR("virt lun %d already exists in "
 					"group %s", virt_lun, acg->acg_name);
-				res = -EINVAL;
+				res = -EEXIST;
 				goto out_free_up;
 			} else {
 				/* Replace */
@@ -2324,15 +2325,26 @@ static int scst_sessions_info_show(struct seq_file *seq, void *v)
 
 	seq_printf(seq, "%-20s %-45s %-35s %-15s\n",
 		   "Target name", "Initiator name",
-		   "Group name", "Command Count");
+		   "Group name", "Active/All Commands Count");
 
 	list_for_each_entry(acg, &scst_acg_list, scst_acg_list_entry) {
 		list_for_each_entry(sess, &acg->acg_sess_list,
-			acg_sess_list_entry) {
-			seq_printf(seq, "%-20s %-45s %-35s %-15d\n",
+				acg_sess_list_entry) {
+			int active_cmds = 0, t;
+			for (t = TGT_DEV_HASH_SIZE-1; t >= 0; t--) {
+				struct list_head *sess_tgt_dev_list_head =
+					&sess->sess_tgt_dev_list_hash[t];
+				struct scst_tgt_dev *tgt_dev;
+				list_for_each_entry(tgt_dev,
+						sess_tgt_dev_list_head,
+						sess_tgt_dev_list_entry) {
+					active_cmds += atomic_read(&tgt_dev->tgt_dev_cmd_count);
+				}
+			}
+			seq_printf(seq, "%-20s %-45s %-35s %d/%d\n",
 					sess->tgt->tgtt->name,
 					sess->initiator_name,
-					acg->acg_name,
+					acg->acg_name, active_cmds,
 					atomic_read(&sess->sess_cmd_count));
 		}
 	}

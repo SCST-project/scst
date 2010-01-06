@@ -98,6 +98,7 @@
 #define TRACE_MGMT_DEBUG     0x00001000
 #define TRACE_SCSI           0x00002000
 #define TRACE_SPECIAL        0x00004000 /* filtering debug, etc */
+#define TRACE_FLOW_CONTROL   0x00008000 /* flow control in action */
 #define TRACE_ALL            0xffffffff
 /* Flags 0xXXXX0000 are local for users */
 
@@ -308,11 +309,13 @@ do {									\
 #define TRACE_MEM(format, args...) do {} while (0)
 #define TRACE_SG(format, args...) do {} while (0)
 #define TRACE_DBG(format, args...) do {} while (0)
+#define TRACE_DBG_FLAG(format, args...) do {} while (0)
 #define TRACE_DBG_SPECIAL(format, args...) do {} while (0)
 #define TRACE_MGMT_DBG(format, args...) do {} while (0)
 #define TRACE_MGMT_DBG_SPECIAL(format, args...) do {} while (0)
 #define TRACE_BUFFER(message, buff, len) do {} while (0)
 #define TRACE_BUFF_FLAG(flag, message, buff, len) do {} while (0)
+
 #ifndef GENERATING_UPSTREAM_PATCH
 #define TRACE_ENTRY() do {} while (0)
 #define TRACE_EXIT() do {} while (0)

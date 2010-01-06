@@ -26,7 +26,6 @@
 #define ISCSI_PROC_LOG_ENTRY_NAME	"trace_level"
 
 static struct scst_trace_log iscsi_local_trace_tbl[] = {
-    { TRACE_D_READ,		"d_read" },
     { TRACE_D_WRITE,		"d_write" },
     { TRACE_CONN_OC,		"conn" },
     { TRACE_CONN_OC_DBG,	"conn_dbg" },
@@ -605,7 +604,7 @@ void iscsi_dump_pdu(struct iscsi_pdu *pdu)
 
 		buf = (void *)&pdu->bhs;
 		printk(KERN_DEBUG "BHS: (%p,%zd)\n", buf, sizeof(pdu->bhs));
-		for (i = 0; i < sizeof(pdu->bhs); i++)
+		for (i = 0; i < (int)sizeof(pdu->bhs); i++)
 			iscsi_dump_char(*buf++, text, &pos);
 		iscsi_dump_char(-1, text, &pos);
 
@@ -618,4 +617,25 @@ void iscsi_dump_pdu(struct iscsi_pdu *pdu)
 		printk(KERN_DEBUG "Data: (%d)\n", pdu->datasize);
 	}
 }
+
+unsigned long iscsi_get_flow_ctrl_or_mgmt_dbg_log_flag(struct iscsi_cmnd *cmnd)
+{
+	unsigned long flag;
+
+	if (cmnd->cmd_req != NULL)
+		cmnd = cmnd->cmd_req;
+
+	if (cmnd->scst_cmd == NULL)
+		flag = TRACE_MGMT_DEBUG;
+	else {
+		int status = scst_cmd_get_status(cmnd->scst_cmd);
+		if ((status == SAM_STAT_TASK_SET_FULL) ||
+		    (status == SAM_STAT_BUSY))
+			flag = TRACE_FLOW_CONTROL;
+		else
+			flag = TRACE_MGMT_DEBUG;
+	}
+	return flag;
+}
+
 #endif /* CONFIG_SCST_DEBUG */
