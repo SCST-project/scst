@@ -647,7 +647,7 @@ static inline struct iscsi_cmnd *iscsi_alloc_main_rsp(struct iscsi_cmnd *parent)
 
 	TRACE_ENTRY();
 
-	EXTRACHECKS_BUG_ON(parent->main_rsp != 0);
+	EXTRACHECKS_BUG_ON(parent->main_rsp != NULL);
 
 	rsp = iscsi_alloc_rsp(parent);
 	parent->main_rsp = rsp;
@@ -1722,7 +1722,7 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 			req->r2t_len_to_send = req->r2t_len_to_receive -
 				min_t(unsigned int,
 				      session->sess_param.first_burst_length -
-				      		req->pdu.datasize,
+						req->pdu.datasize,
 				      req->r2t_len_to_receive);
 		} else
 			req->r2t_len_to_send = req->r2t_len_to_receive;
@@ -1745,7 +1745,7 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 		}
 	}
 
-trace:	
+trace:
 	TRACE_DBG("req=%p, dir=%d, unsolicited_data_expected=%d, "
 		"r2t_len_to_receive=%d, r2t_len_to_send=%d, bufflen=%d, "
 		"own_sg %d", req, dir, unsolicited_data_expected,
@@ -2167,18 +2167,18 @@ static int cmnd_abort(struct iscsi_cmnd *req, int *status)
 		 * iSCSI RFC:
 		 *
 		 * b)  If the Referenced Task Tag does not identify an existing task,
- 	         * but if the CmdSN indicated by the RefCmdSN field in the Task
- 	         * Management function request is within the valid CmdSN window
- 	         * and less than the CmdSN of the Task Management function
- 	         * request itself, then targets must consider the CmdSN received
- 	         * and return the "Function complete" response.
+		 * but if the CmdSN indicated by the RefCmdSN field in the Task
+		 * Management function request is within the valid CmdSN window
+		 * and less than the CmdSN of the Task Management function
+		 * request itself, then targets must consider the CmdSN received
+		 * and return the "Function complete" response.
 		 *
 		 * c)  If the Referenced Task Tag does not identify an existing task
-          	 * and if the CmdSN indicated by the RefCmdSN field in the Task
-          	 * Management function request is outside the valid CmdSN window,
-          	 * then targets must return the "Task does not exist" response.
-          	 *
-          	 * 128 seems to be a good "window".
+		 * and if the CmdSN indicated by the RefCmdSN field in the Task
+		 * Management function request is outside the valid CmdSN window,
+		 * then targets must return the "Task does not exist" response.
+		 *
+		 * 128 seems to be a good "window".
 		 */
 		if (between(req_hdr->ref_cmd_sn, req_hdr->cmd_sn - 128,
 			    req_hdr->cmd_sn)) {

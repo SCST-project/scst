@@ -1221,7 +1221,7 @@ struct scst_session {
 	 *
 	 * We must always keep commands in the sess list from the
 	 * very beginning, because otherwise they can be missed during
-	 * TM processing. 
+	 * TM processing.
 	 */
 	struct list_head sess_cmd_list;
 
