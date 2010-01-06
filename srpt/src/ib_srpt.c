@@ -1944,8 +1944,6 @@ static int srpt_alloc_req_ring(struct srpt_rdma_ch *ch)
 {
 	int res;
 
-	TRACE_ENTRY();
-
 	BUG_ON(!ch);
 	BUG_ON(!ch->sport);
 	BUG_ON(!ch->sport->sdev);
@@ -1955,23 +1953,17 @@ static int srpt_alloc_req_ring(struct srpt_rdma_ch *ch)
 	res = srpt_alloc_ioctx_ring(ch->sport->sdev, ch->req_ioctx_ring,
 				    ARRAY_SIZE(ch->req_ioctx_ring),
 				    SRPT_OP_TXR);
-
-	TRACE_EXIT_RES(res);
 	return res;
 }
 
 static void srpt_free_req_ring(struct srpt_rdma_ch *ch)
 {
-	TRACE_ENTRY();
-
 	BUG_ON(!ch);
 	BUG_ON(!ch->sport);
 	BUG_ON(!ch->sport->sdev);
 
 	srpt_free_ioctx_ring(ch->sport->sdev, ch->req_ioctx_ring,
 			     ARRAY_SIZE(ch->req_ioctx_ring));
-
-	TRACE_EXIT();
 }
 
 /**
