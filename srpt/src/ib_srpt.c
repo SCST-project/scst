@@ -1887,20 +1887,28 @@ static void srpt_release_channel_by_cmid(struct ib_cm_id *cm_id)
 {
 	struct srpt_device *sdev;
 	struct srpt_rdma_ch *ch;
+	bool found;
+
+	TRACE_ENTRY();
 
 	sdev = cm_id->context;
 	BUG_ON(!sdev);
+	found = false;
 	spin_lock_irq(&sdev->spinlock);
 	list_for_each_entry(ch, &sdev->rch_list, list) {
 		if (ch->cm_id == cm_id) {
 			list_del(&ch->list);
 			atomic_set(&ch->state, RDMA_CHANNEL_DISCONNECTING);
-			scst_unregister_session(ch->scst_sess, 0,
-						srpt_release_channel);
+			found = true;
 			break;
 		}
 	}
 	spin_unlock_irq(&sdev->spinlock);
+
+	if (found)
+		scst_unregister_session(ch->scst_sess, 0, srpt_release_channel);
+
+	TRACE_EXIT();
 }
 
 /**
@@ -1912,16 +1920,20 @@ static struct srpt_rdma_ch *srpt_find_channel(struct srpt_device *sdev,
 					      struct ib_cm_id *cm_id)
 {
 	struct srpt_rdma_ch *ch;
+	bool found;
 
 	BUG_ON(!sdev);
-	ch = NULL;
+	found = false;
 	spin_lock_irq(&sdev->spinlock);
-	list_for_each_entry(ch, &sdev->rch_list, list)
-		if (ch->cm_id == cm_id)
+	list_for_each_entry(ch, &sdev->rch_list, list) {
+		if (ch->cm_id == cm_id) {
+			found = true;
 			break;
+		}
+	}
 	spin_unlock_irq(&sdev->spinlock);
 
-	return ch;
+	return found ? ch : NULL;
 }
 
 /**
