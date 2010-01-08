@@ -2418,6 +2418,7 @@ static int scst_check_sense(struct scst_cmd *cmd)
 					cmd->msg_status = 0;
 					cmd->host_status = DID_OK;
 					cmd->driver_status = 0;
+					cmd->completed = 0;
 
 					mempool_free(cmd->sense,
 						     scst_sense_mempool);
