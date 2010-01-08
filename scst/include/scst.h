@@ -1107,6 +1107,11 @@ struct scst_tgt {
 	struct scst_acg *default_acg; /* The default acg for this target. */
 
 	/*
+	 * Device ACG groups
+	 */
+	struct list_head acg_list;
+
+	/*
 	 * Maximum SG table size. Needed here, since different cards on the
 	 * same target template can have different SG table limitations.
 	 */
@@ -1966,8 +1971,8 @@ struct scst_acg {
 	/* List of attached acn's, protected by scst_mutex */
 	struct list_head acn_list;
 
-	/* List entry in scst_acg_list */
-	struct list_head scst_acg_list_entry;
+	/* List entry in tgt acg_list */
+	struct list_head acg_list_entry;
 
 	/* Name of this acg */
 	const char *acg_name;
@@ -1976,6 +1981,15 @@ struct scst_acg {
 	/* The pointer to the /proc directory entry */
 	struct proc_dir_entry *acg_proc_root;
 #endif
+
+	unsigned int acg_kobj_initialized:1;
+	unsigned int in_tgt_acg_list:1;
+
+	/* kobject for this structure */
+	struct kobject acg_kobj;
+
+	struct kobject *luns_kobj;
+	struct kobject *initiators_kobj;
 };
 
 /*
@@ -1987,6 +2001,9 @@ struct scst_acn {
 	const char *name;
 	/* List entry in acg->acn_list */
 	struct list_head acn_list_entry;
+
+	/* sysfs file attributes */
+	struct kobj_attribute *acn_attr;
 };
 
 /*

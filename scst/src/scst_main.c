@@ -102,8 +102,8 @@ struct kmem_cache *scst_tgtd_cachep;
 struct kmem_cache *scst_sess_cachep;
 struct kmem_cache *scst_acgd_cachep;
 
-struct list_head scst_acg_list;
 #ifdef CONFIG_SCST_PROC
+struct list_head scst_acg_list;
 struct scst_acg *scst_default_acg;
 #endif
 
@@ -416,14 +416,16 @@ struct scst_tgt *scst_register(struct scst_tgt_template *vtt,
 			SCST_DEFAULT_TGT_NAME_SUFFIX, tgt_num++);
 	}
 
-	tgt->default_acg = scst_alloc_add_acg(tgt->tgt_name);
+	tgt->default_acg = scst_alloc_add_acg(NULL, tgt->tgt_name);
 	if (tgt->default_acg == NULL)
 		goto out_free_tgt_name;
+
+	INIT_LIST_HEAD(&tgt->acg_list);
 
 #ifdef CONFIG_SCST_PROC
 	rc = scst_build_proc_target_entries(tgt);
 	if (rc < 0)
-		goto out_free_acg;
+		goto out_clear_acg;
 #endif
 
 	rc = scst_create_tgt_sysfs(tgt);
@@ -431,7 +433,7 @@ struct scst_tgt *scst_register(struct scst_tgt_template *vtt,
 #ifdef CONFIG_SCST_PROC
 		goto out_clean_proc;
 #else
-		goto out_free_acg;
+		goto out_clear_acg;
 #endif
 
 	list_add_tail(&tgt->tgt_list_entry, &vtt->tgt_list);
@@ -451,8 +453,8 @@ out_clean_proc:
 	scst_cleanup_proc_target_entries(tgt);
 #endif
 
-out_free_acg:
-	scst_destroy_acg(tgt->default_acg);
+out_clear_acg:
+	scst_clear_acg(tgt->default_acg);
 
 out_free_tgt_name:
 	kfree(tgt->tgt_name);
@@ -492,6 +494,7 @@ void scst_unregister(struct scst_tgt *tgt)
 {
 	struct scst_session *sess;
 	struct scst_tgt_template *vtt = tgt->tgtt;
+	struct scst_acg *acg, *acg_tmp;
 
 	TRACE_ENTRY();
 
@@ -534,16 +537,11 @@ again:
 	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
 
-	/*
-	 * It should be before freeing of tgt_name, because acg_name
-	 * points to it.
-	 */
-	scst_destroy_acg(tgt->default_acg);
+	scst_clear_acg(tgt->default_acg);
 
-	kfree(tgt->tgt_name);
-#ifdef CONFIG_SCST_PROC
-	kfree(tgt->default_group_name);
-#endif
+	list_for_each_entry_safe(acg, acg_tmp, &tgt->acg_list, acg_list_entry) {
+		scst_acg_sysfs_put(acg);
+	}
 
 	del_timer_sync(&tgt->retry_timer);
 
@@ -1904,7 +1902,9 @@ static int __init init_scst(void)
 	INIT_LIST_HEAD(&scst_dev_list);
 	INIT_LIST_HEAD(&scst_dev_type_list);
 	spin_lock_init(&scst_main_lock);
+#ifdef CONFIG_SCST_PROC
 	INIT_LIST_HEAD(&scst_acg_list);
+#endif
 	spin_lock_init(&scst_init_lock);
 	init_waitqueue_head(&scst_init_cmd_list_waitQ);
 	INIT_LIST_HEAD(&scst_init_cmd_list);
@@ -2048,7 +2048,7 @@ static int __init init_scst(void)
 		goto out_sysfs_cleanup;
 
 #ifdef CONFIG_SCST_PROC
-	scst_default_acg = scst_alloc_add_acg(SCST_DEFAULT_ACG_NAME);
+	scst_default_acg = scst_alloc_add_acg(NULL, SCST_DEFAULT_ACG_NAME);
 	if (scst_default_acg == NULL) {
 		res = -ENOMEM;
 		goto out_destroy_sgv_pool;

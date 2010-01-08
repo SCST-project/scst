@@ -5332,6 +5332,8 @@ static bool wildcmp(const char *wild, const char *string)
 	return !*wild;
 }
 
+#ifdef CONFIG_SCST_PROC
+
 /* scst_mutex supposed to be held */
 static struct scst_acg *scst_find_acg_by_name_wild(const char *initiator_name)
 {
@@ -5340,7 +5342,7 @@ static struct scst_acg *scst_find_acg_by_name_wild(const char *initiator_name)
 
 	TRACE_ENTRY();
 
-	list_for_each_entry(acg, &scst_acg_list, scst_acg_list_entry) {
+	list_for_each_entry(acg, &scst_acg_list, acg_list_entry) {
 		list_for_each_entry(n, &acg->acn_list, acn_list_entry) {
 			if (wildcmp(n->name, initiator_name)) {
 				TRACE_DBG("Access control group %s found",
@@ -5356,7 +5358,6 @@ out:
 	return res;
 }
 
-#ifdef CONFIG_SCST_PROC
 /* scst_mutex supposed to be held */
 static struct scst_acg *scst_find_acg_by_name(const char *acg_name)
 {
@@ -5364,7 +5365,7 @@ static struct scst_acg *scst_find_acg_by_name(const char *acg_name)
 
 	TRACE_ENTRY();
 
-	list_for_each_entry(acg, &scst_acg_list, scst_acg_list_entry) {
+	list_for_each_entry(acg, &scst_acg_list, acg_list_entry) {
 		if (strcmp(acg->acg_name, acg_name) == 0) {
 			TRACE_DBG("Access control group %s found",
 				acg->acg_name);
@@ -5377,27 +5378,55 @@ out:
 	TRACE_EXIT_HRES(res);
 	return res;
 }
+
+#else /* CONFIG_SCST_PROC */
+
+/* scst_mutex supposed to be held */
+static struct scst_acg *scst_find_tgt_acg_by_name_wild(struct scst_tgt *tgt,
+	const char *initiator_name)
+{
+	struct scst_acg *acg, *res = NULL;
+	struct scst_acn *n;
+
+	TRACE_ENTRY();
+
+	if (initiator_name == NULL)
+		goto out;
+
+	list_for_each_entry(acg, &tgt->acg_list, acg_list_entry) {
+		list_for_each_entry(n, &acg->acn_list, acn_list_entry) {
+			if (wildcmp(n->name, initiator_name)) {
+				TRACE_DBG("Access control group %s found",
+					acg->acg_name);
+				res = acg;
+				goto out;
+			}
+		}
+	}
+
+out:
+	TRACE_EXIT_HRES(res);
+	return res;
+}
+
 #endif /* CONFIG_SCST_PROC */
 
-/* Must be called under scst_mitex */
+/* Must be called under scst_mutex */
 struct scst_acg *scst_find_acg(const struct scst_session *sess)
 {
 	struct scst_acg *acg = NULL;
 
 	TRACE_ENTRY();
 
+#ifdef CONFIG_SCST_PROC
 	if (sess->initiator_name)
 		acg = scst_find_acg_by_name_wild(sess->initiator_name);
-#ifdef CONFIG_SCST_PROC
 	if ((acg == NULL) && (sess->tgt->default_group_name != NULL))
 		acg = scst_find_acg_by_name(sess->tgt->default_group_name);
-	if (acg == NULL) {
-		if (list_empty(&sess->tgt->default_acg->acg_dev_list))
-			acg = scst_default_acg;
-		else
-			acg = sess->tgt->default_acg;
-	}
+	if (acg == NULL)
+		acg = scst_default_acg;
 #else
+	acg = scst_find_tgt_acg_by_name_wild(sess->tgt, sess->initiator_name);
 	if (acg == NULL)
 		acg = sess->tgt->default_acg;
 #endif

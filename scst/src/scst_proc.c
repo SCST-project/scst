@@ -437,7 +437,7 @@ static int lat_info_show(struct seq_file *seq, void *v)
 		goto out;
 	}
 
-	list_for_each_entry(acg, &scst_acg_list, scst_acg_list_entry) {
+	list_for_each_entry(acg, &scst_acg_list, acg_list_entry) {
 		bool header_printed = false;
 
 		list_for_each_entry(sess, &acg->acg_sess_list,
@@ -688,7 +688,7 @@ static ssize_t scst_proc_scsi_tgt_gen_write_lat(struct file *file,
 		goto out;
 	}
 
-	list_for_each_entry(acg, &scst_acg_list, scst_acg_list_entry) {
+	list_for_each_entry(acg, &scst_acg_list, acg_list_entry) {
 		list_for_each_entry(sess, &acg->acg_sess_list,
 				acg_sess_list_entry) {
 			PRINT_INFO("Zeroing latency statistics for initiator "
@@ -881,7 +881,7 @@ static int scst_proc_group_add(const char *p)
 	}
 	strncpy(name, p, len);
 
-	acg = scst_alloc_add_acg(name);
+	acg = scst_alloc_add_acg(NULL, name);
 	if (acg == NULL) {
 		PRINT_ERROR("scst_alloc_add_acg() (name %s) failed", name);
 		goto out_free;
@@ -909,22 +909,22 @@ out_nomem:
 /* The activity supposed to be suspended and scst_mutex held */
 static int scst_proc_del_free_acg(struct scst_acg *acg, int remove_proc)
 {
-	const char *name;
 	struct proc_dir_entry *acg_proc_root = acg->acg_proc_root;
 	int res = 0;
 
 	TRACE_ENTRY();
 
 	if (acg != scst_default_acg) {
-		name = acg->acg_name;
-		res = scst_destroy_acg(acg);
-		if (res == 0) {
-			if (remove_proc)
-				scst_proc_del_acg_tree(acg_proc_root, name);
-			kfree(name);
+		if (!scst_acg_sess_is_empty(acg)) {
+			PRINT_ERROR("%s", "Session is not empty");
+			res = -EBUSY;
+			goto out;
 		}
+		if (remove_proc)
+			scst_proc_del_acg_tree(acg_proc_root, acg->acg_name);
+		scst_destroy_acg(acg);
 	}
-
+out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -1009,7 +1009,7 @@ static void scst_proc_cleanup_groups(void)
 
 	/* remove all groups (dir & entries) */
 	list_for_each_entry_safe(acg, acg_tmp, &scst_acg_list,
-				 scst_acg_list_entry) {
+				 acg_list_entry) {
 		scst_proc_del_free_acg(acg, 1);
 	}
 
@@ -1635,7 +1635,7 @@ static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file,
 			goto out_up_free;
 		}
 
-		list_for_each_entry(a, &scst_acg_list, scst_acg_list_entry) {
+		list_for_each_entry(a, &scst_acg_list, acg_list_entry) {
 			if (strcmp(a->acg_name, p) == 0) {
 				TRACE_DBG("group (acg) %p %s found",
 					  a, a->acg_name);
@@ -2172,7 +2172,7 @@ static ssize_t scst_proc_groups_names_write(struct file *file,
 				goto out_free_unlock;
 			}
 		}
-		list_for_each_entry(a, &scst_acg_list, scst_acg_list_entry) {
+		list_for_each_entry(a, &scst_acg_list, acg_list_entry) {
 			if (strcmp(a->acg_name, p) == 0) {
 				TRACE_DBG("group (acg) %p %s found",
 					  a, a->acg_name);
@@ -2189,12 +2189,14 @@ static ssize_t scst_proc_groups_names_write(struct file *file,
 		if (rc != 0)
 			goto out_free_unlock;
 		rc = scst_acg_add_name(new_acg, name);
+		if (rc != 0)
+			scst_acg_add_name(acg, name);
 		break;
 	}
 	case SCST_PROC_ACTION_CLEAR:
 		list_for_each_entry_safe(n, nn, &acg->acn_list,
 					 acn_list_entry) {
-			__scst_acg_remove_acn(n);
+			scst_acg_remove_acn(n);
 		}
 		scst_check_reassign_sessions();
 		break;
@@ -2327,7 +2329,7 @@ static int scst_sessions_info_show(struct seq_file *seq, void *v)
 		   "Target name", "Initiator name",
 		   "Group name", "Active/All Commands Count");
 
-	list_for_each_entry(acg, &scst_acg_list, scst_acg_list_entry) {
+	list_for_each_entry(acg, &scst_acg_list, acg_list_entry) {
 		list_for_each_entry(sess, &acg->acg_sess_list,
 				acg_sess_list_entry) {
 			int active_cmds = 0, t;

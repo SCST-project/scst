@@ -109,6 +109,26 @@ static ssize_t scst_luns_mgmt_show(struct kobject *kobj,
 static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
 				    struct kobj_attribute *attr,
 				    const char *buf, size_t count);
+static ssize_t scst_ini_group_mgmt_show(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   char *buf);
+static ssize_t scst_ini_group_mgmt_store(struct kobject *kobj,
+				    struct kobj_attribute *attr,
+				    const char *buf, size_t count);
+static ssize_t scst_acg_luns_mgmt_show(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   char *buf);
+static ssize_t scst_acg_luns_mgmt_store(struct kobject *kobj,
+				    struct kobj_attribute *attr,
+				    const char *buf, size_t count);
+static ssize_t scst_acg_ini_mgmt_show(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   char *buf);
+static ssize_t scst_acg_ini_mgmt_store(struct kobject *kobj,
+				    struct kobj_attribute *attr,
+				    const char *buf, size_t count);
+static ssize_t scst_acn_file_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
 
 static void scst_sysfs_release(struct kobject *kobj)
 {
@@ -288,7 +308,7 @@ static void scst_tgt_release(struct kobject *kobj)
 }
 
 static ssize_t scst_tgt_attr_show(struct kobject *kobj, struct attribute *attr,
-			 char *buf)
+	char *buf)
 {
 	int res;
 	struct kobj_attribute *kobj_attr;
@@ -311,8 +331,8 @@ out:
 	return res;
 }
 
-static ssize_t scst_tgt_attr_store(struct kobject *kobj, struct attribute *attr,
-			  const char *buf, size_t count)
+static ssize_t scst_tgt_attr_store(struct kobject *kobj,
+	struct attribute *attr, const char *buf, size_t count)
 {
 	int res;
 	struct kobj_attribute *kobj_attr;
@@ -345,9 +365,40 @@ static struct kobj_type tgt_ktype = {
 	.release = scst_tgt_release,
 };
 
+static void scst_acg_release(struct kobject *kobj)
+{
+	struct scst_acg *acg;
+
+	TRACE_ENTRY();
+
+	acg = container_of(kobj, struct scst_acg, acg_kobj);
+
+	scst_destroy_acg(acg);
+
+	TRACE_EXIT();
+	return;
+}
+
+static struct kobj_type acg_ktype = {
+	.sysfs_ops = &scst_sysfs_ops,
+	.release = scst_acg_release,
+};
+
 static struct kobj_attribute scst_luns_mgmt =
 	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_luns_mgmt_show,
 	       scst_luns_mgmt_store);
+
+static struct kobj_attribute scst_acg_luns_mgmt =
+	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_acg_luns_mgmt_show,
+	       scst_acg_luns_mgmt_store);
+
+static struct kobj_attribute scst_acg_ini_mgmt =
+	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_acg_ini_mgmt_show,
+	       scst_acg_ini_mgmt_store);
+
+static struct kobj_attribute scst_ini_group_mgmt =
+	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_ini_group_mgmt_show,
+	       scst_ini_group_mgmt_store);
 
 static ssize_t scst_tgt_enable_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
@@ -458,6 +509,14 @@ int scst_create_tgt_sysfs(struct scst_tgt *tgt)
 		goto out_nomem;
 	}
 
+	retval = sysfs_create_file(tgt->tgt_ini_grp_kobj,
+		&scst_ini_group_mgmt.attr);
+	if (retval != 0) {
+		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
+			scst_ini_group_mgmt.attr.name, tgt->tgt_name);
+		goto out;
+	}
+
 	pattr = tgt->tgtt->tgt_attrs;
 	if (pattr != NULL) {
 		while (*pattr != NULL) {
@@ -505,8 +564,6 @@ void scst_tgt_sysfs_put(struct scst_tgt *tgt)
 	if (tgt->tgt_kobj_initialized) {
 		kobject_del(tgt->tgt_sess_kobj);
 		kobject_put(tgt->tgt_sess_kobj);
-
-		sysfs_remove_file(tgt->tgt_luns_kobj, &scst_luns_mgmt.attr);
 
 		kobject_del(tgt->tgt_luns_kobj);
 		kobject_put(tgt->tgt_luns_kobj);
@@ -752,10 +809,9 @@ void scst_device_sysfs_put(struct scst_device *dev)
 	TRACE_ENTRY();
 
 	if (dev->dev_kobj_initialized) {
-		if (dev->dev_exp_kobj != NULL) {
-			kobject_del(dev->dev_exp_kobj);
-			kobject_put(dev->dev_exp_kobj);
-		}
+		kobject_del(dev->dev_exp_kobj);
+		kobject_put(dev->dev_exp_kobj);
+
 		kobject_del(&dev->dev_kobj);
 
 		down_write(&dev->dev_attr_rwsem);
@@ -1083,6 +1139,8 @@ int scst_create_acg_dev_sysfs(struct scst_acg *acg, unsigned int virt_lun,
 	snprintf(str, sizeof(str), "export%u",
 		acg_dev->dev->dev_exported_lun_num++);
 
+	kobject_get(&acg_dev->dev->dev_kobj);
+
 	acg_dev->acg_dev_kobj_initialized = 1;
 
 	retval = kobject_init_and_add(&acg_dev->acg_dev_kobj, &acg_dev_ktype,
@@ -1115,38 +1173,21 @@ out:
 	return retval;
 }
 
-static ssize_t scst_luns_mgmt_show(struct kobject *kobj,
-				   struct kobj_attribute *attr,
-				   char *buf)
-{
-	static char *help = "Usage: echo \"add|del H:C:I:L lun [READ_ONLY]\" "
-					">mgmt\n"
-			    "       echo \"add|del VNAME lun [READ_ONLY]\" "
-					">mgmt\n";
-
-	return sprintf(buf, help);
-}
-
-static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
-				    struct kobj_attribute *attr,
-				    const char *buf, size_t count)
+static ssize_t __scst_luns_mgmt_store(struct scst_acg *acg,
+	struct kobject *kobj, const char *buf, size_t count)
 {
 	int res, virt = 0, read_only = 0, action;
 	char *buffer, *p, *e = NULL;
 	unsigned int host, channel = 0, id = 0, lun = 0, virt_lun;
-	struct scst_acg *acg;
 	struct scst_acg_dev *acg_dev = NULL, *acg_dev_tmp;
 	struct scst_device *d, *dev = NULL;
-	struct scst_tgt *tgt;
 
 #define SCST_LUN_ACTION_ADD	1
 #define SCST_LUN_ACTION_DEL	2
 #define SCST_LUN_ACTION_REPLACE	3
+#define SCST_LUN_ACTION_CLEAR	4
 
 	TRACE_ENTRY();
-
-	tgt = container_of(kobj->parent, struct scst_tgt, tgt_kobj);
-	acg = tgt->default_acg;
 
 	buffer = kzalloc(count+1, GFP_KERNEL);
 	if (buffer == NULL) {
@@ -1170,14 +1211,11 @@ static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
 	} else if (!strncasecmp("replace", p, 7)) {
 		p += 7;
 		action = SCST_LUN_ACTION_REPLACE;
+	} else if (!strncasecmp("clear", p, 5)) {
+		p += 5;
+		action = SCST_LUN_ACTION_CLEAR;
 	} else {
 		PRINT_ERROR("Unknown action \"%s\"", p);
-		res = -EINVAL;
-		goto out_free;
-	}
-
-	if (!isspace(*p)) {
-		PRINT_ERROR("%s", "Syntax error");
 		res = -EINVAL;
 		goto out_free;
 	}
@@ -1191,53 +1229,61 @@ static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
 		goto out_free_resume;
 	}
 
-	while (isspace(*p) && *p != '\0')
-		p++;
-	e = p; /* save p */
-	host = simple_strtoul(p, &p, 0);
-	if (*p == ':') {
-		channel = simple_strtoul(p + 1, &p, 0);
-		id = simple_strtoul(p + 1, &p, 0);
-		lun = simple_strtoul(p + 1, &p, 0);
-		e = p;
-	} else {
-		virt++;
-		p = e; /* restore p */
-		while (!isspace(*e) && *e != '\0')
-			e++;
-		*e = '\0';
-	}
+	if (action != SCST_LUN_ACTION_CLEAR) {
+		if (!isspace(*p)) {
+			PRINT_ERROR("%s", "Syntax error");
+			res = -EINVAL;
+			goto out_free_up;
+		}
 
-	list_for_each_entry(d, &scst_dev_list, dev_list_entry) {
-		if (virt) {
-			if (d->virt_id && !strcmp(d->virt_name, p)) {
-				dev = d;
-				TRACE_DBG("Virt device %p (%s) found",
-					  dev, p);
-				break;
-			}
+		while (isspace(*p) && *p != '\0')
+			p++;
+		e = p; /* save p */
+		host = simple_strtoul(p, &p, 0);
+		if (*p == ':') {
+			channel = simple_strtoul(p + 1, &p, 0);
+			id = simple_strtoul(p + 1, &p, 0);
+			lun = simple_strtoul(p + 1, &p, 0);
+			e = p;
 		} else {
-			if (d->scsi_dev &&
-			    d->scsi_dev->host->host_no == host &&
-			    d->scsi_dev->channel == channel &&
-			    d->scsi_dev->id == id &&
-			    d->scsi_dev->lun == lun) {
-				dev = d;
-				TRACE_DBG("Dev %p (%d:%d:%d:%d) found",
-					  dev, host, channel, id, lun);
-				break;
+			virt++;
+			p = e; /* restore p */
+			while (!isspace(*e) && *e != '\0')
+				e++;
+			*e = '\0';
+		}
+
+		list_for_each_entry(d, &scst_dev_list, dev_list_entry) {
+			if (virt) {
+				if (d->virt_id && !strcmp(d->virt_name, p)) {
+					dev = d;
+					TRACE_DBG("Virt device %p (%s) found",
+						  dev, p);
+					break;
+				}
+			} else {
+				if (d->scsi_dev &&
+				    d->scsi_dev->host->host_no == host &&
+				    d->scsi_dev->channel == channel &&
+				    d->scsi_dev->id == id &&
+				    d->scsi_dev->lun == lun) {
+					dev = d;
+					TRACE_DBG("Dev %p (%d:%d:%d:%d) found",
+						  dev, host, channel, id, lun);
+					break;
+				}
 			}
 		}
-	}
-	if (dev == NULL) {
-		if (virt) {
-			PRINT_ERROR("Virt device %s not found", p);
-		} else {
-			PRINT_ERROR("Device %d:%d:%d:%d not found",
-				    host, channel, id, lun);
+		if (dev == NULL) {
+			if (virt) {
+				PRINT_ERROR("Virt device '%s' not found", p);
+			} else {
+				PRINT_ERROR("Device %d:%d:%d:%d not found",
+					    host, channel, id, lun);
+			}
+			res = -EINVAL;
+			goto out_free_up;
 		}
-		res = -EINVAL;
-		goto out_free_up;
 	}
 
 	switch (action) {
@@ -1306,7 +1352,7 @@ static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
 			struct scst_tgt_dev *tgt_dev;
 
 			list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
-					dev_tgt_dev_list_entry) {
+				dev_tgt_dev_list_entry) {
 				if ((tgt_dev->acg_dev->acg == acg) &&
 				    (tgt_dev->lun == virt_lun)) {
 					TRACE_MGMT_DBG("INQUIRY DATA HAS CHANGED"
@@ -1323,6 +1369,19 @@ static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
 		res = scst_acg_remove_dev(acg, dev, true);
 		if (res != 0)
 			goto out_free_up;
+		break;
+	case SCST_LUN_ACTION_CLEAR:
+		PRINT_INFO("Removed all devices from group %s",
+			acg->acg_name);
+		list_for_each_entry_safe(acg_dev, acg_dev_tmp,
+					 &acg->acg_dev_list,
+					 acg_dev_list_entry) {
+			res = scst_acg_remove_dev(acg, acg_dev->dev,
+				list_is_last(&acg_dev->acg_dev_list_entry,
+					     &acg->acg_dev_list));
+			if (res)
+				goto out_free_up;
+		}
 		break;
 	}
 
@@ -1348,6 +1407,624 @@ out_remove_acg_dev:
 #undef SCST_LUN_ACTION_ADD
 #undef SCST_LUN_ACTION_DEL
 #undef SCST_LUN_ACTION_REPLACE
+#undef SCST_LUN_ACTION_CLEAR
+}
+
+static ssize_t scst_luns_mgmt_show(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   char *buf)
+{
+	static char *help = "Usage: echo \"add|del H:C:I:L lun [READ_ONLY]\" "
+					">mgmt\n"
+			    "       echo \"add|del VNAME lun [READ_ONLY]\" "
+					">mgmt\n"
+			    "       echo \"replace H:C:I:L lun [READ_ONLY]\" "
+					">mgmt\n"
+			    "       echo \"replace VNAME lun [READ_ONLY]\" "
+					">mgmt\n"
+			    "       echo \"clear\" "
+					">mgmt\n";
+
+	return sprintf(buf, help);
+}
+
+static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
+				    struct kobj_attribute *attr,
+				    const char *buf, size_t count)
+{
+	int res;
+	struct scst_acg *acg;
+	struct scst_tgt *tgt;
+
+	tgt = container_of(kobj->parent, struct scst_tgt, tgt_kobj);
+	acg = tgt->default_acg;
+	res = __scst_luns_mgmt_store(acg, kobj, buf, count);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_create_acg_sysfs(struct scst_tgt *tgt,
+	struct scst_acg *acg)
+{
+	int retval = 0;
+
+	TRACE_ENTRY();
+
+	acg->acg_kobj_initialized = 1;
+
+	retval = kobject_init_and_add(&acg->acg_kobj, &acg_ktype,
+		tgt->tgt_ini_grp_kobj, acg->acg_name);
+	if (retval != 0) {
+		PRINT_ERROR("Can't add acg '%s' to sysfs", acg->acg_name);
+		goto out;
+	}
+
+	acg->luns_kobj = kobject_create_and_add("luns", &acg->acg_kobj);
+	if (acg->luns_kobj == NULL) {
+		PRINT_ERROR("Can't create luns kobj for tgt %s",
+			tgt->tgt_name);
+		retval = -ENOMEM;
+		goto out;
+	}
+
+	retval = sysfs_create_file(acg->luns_kobj, &scst_acg_luns_mgmt.attr);
+	if (retval != 0) {
+		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
+			scst_acg_luns_mgmt.attr.name, tgt->tgt_name);
+		goto out;
+	}
+
+	acg->initiators_kobj = kobject_create_and_add("initiators",
+		&acg->acg_kobj);
+	if (acg->initiators_kobj == NULL) {
+		PRINT_ERROR("Can't create initiators kobj for tgt %s",
+			tgt->tgt_name);
+		retval = -ENOMEM;
+		goto out;
+	}
+
+	retval = sysfs_create_file(acg->initiators_kobj,
+		&scst_acg_ini_mgmt.attr);
+	if (retval != 0) {
+		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
+			scst_acg_ini_mgmt.attr.name, tgt->tgt_name);
+		goto out;
+	}
+out:
+	TRACE_EXIT_RES(retval);
+	return retval;
+}
+
+void scst_acg_sysfs_put(struct scst_acg *acg)
+{
+	TRACE_ENTRY();
+
+	if (acg->acg_kobj_initialized) {
+		scst_clear_acg(acg);
+
+		kobject_del(acg->luns_kobj);
+		kobject_put(acg->luns_kobj);
+
+		kobject_del(acg->initiators_kobj);
+		kobject_put(acg->initiators_kobj);
+
+		kobject_del(&acg->acg_kobj);
+		kobject_put(&acg->acg_kobj);
+	} else
+		scst_destroy_acg(acg);
+
+	TRACE_EXIT();
+	return;
+}
+
+static ssize_t scst_ini_group_mgmt_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	static char *help = "Usage: echo \"create GROUP_NAME\" "
+					">mgmt\n"
+			    "       echo \"del GROUP_NAME\" "
+					">mgmt\n";
+
+	return sprintf(buf, help);
+}
+
+static ssize_t scst_ini_group_mgmt_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res, action;
+	int len;
+	char *name;
+	char *buffer, *p, *e = NULL;
+	struct scst_acg *a, *acg = NULL;
+	struct scst_tgt *tgt;
+
+#define SCST_INI_GROUP_ACTION_CREATE	1
+#define SCST_INI_GROUP_ACTION_DEL	2
+
+	TRACE_ENTRY();
+
+	tgt = container_of(kobj->parent, struct scst_tgt, tgt_kobj);
+
+	buffer = kzalloc(count+1, GFP_KERNEL);
+	if (buffer == NULL) {
+		res = -ENOMEM;
+		goto out;
+	}
+
+	memcpy(buffer, buf, count);
+	buffer[count] = '\0';
+	p = buffer;
+
+	p = buffer;
+	if (p[strlen(p) - 1] == '\n')
+		p[strlen(p) - 1] = '\0';
+	if (strncasecmp("create ", p, 7) == 0) {
+		p += 7;
+		action = SCST_INI_GROUP_ACTION_CREATE;
+	} else if (strncasecmp("del ", p, 4) == 0) {
+		p += 4;
+		action = SCST_INI_GROUP_ACTION_DEL;
+	} else {
+		PRINT_ERROR("Unknown action \"%s\"", p);
+		res = -EINVAL;
+		goto out_free;
+	}
+
+	res = scst_suspend_activity(true);
+	if (res != 0)
+		goto out_free;
+
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
+		res = -EINTR;
+		goto out_free_resume;
+	}
+
+	while (isspace(*p) && *p != '\0')
+		p++;
+	e = p;
+	while (!isspace(*e) && *e != '\0')
+		e++;
+	*e = '\0';
+
+	if (p[0] == '\0') {
+		PRINT_ERROR("%s", "Group name required");
+		res = -EINVAL;
+		goto out_free_up;
+	}
+
+	list_for_each_entry(a, &tgt->acg_list, acg_list_entry) {
+		if (strcmp(a->acg_name, p) == 0) {
+			TRACE_DBG("group (acg) %p %s found",
+				  a, a->acg_name);
+			acg = a;
+			break;
+		}
+	}
+
+	switch (action) {
+	case SCST_INI_GROUP_ACTION_CREATE:
+		TRACE_DBG("Creating group '%s'", p);
+		if (acg != NULL) {
+			PRINT_ERROR("acg name %s exist", p);
+			res = -EINVAL;
+			goto out_free_up;
+		}
+
+		len = strlen(p) + 1;
+		name = kmalloc(len, GFP_KERNEL);
+		if (name == NULL) {
+			PRINT_ERROR("%s", "Allocation of name failed");
+			res = -ENOMEM;
+			goto out_free_up;
+		}
+		strncpy(name, p, len);
+
+		acg = scst_alloc_add_acg(tgt, name);
+		kfree(name);
+		if (acg == NULL)
+			goto out_free_up;
+
+		res = scst_create_acg_sysfs(tgt, acg);
+		if (res != 0)
+			goto out_free_acg;
+		break;
+	case SCST_INI_GROUP_ACTION_DEL:
+		TRACE_DBG("Deleting group '%s'", p);
+		if (acg == NULL) {
+			PRINT_ERROR("Group %s not found", p);
+			res = -EINVAL;
+			goto out_free_up;
+		}
+		if (!scst_acg_sess_is_empty(acg)) {
+			PRINT_ERROR("Group %s is not empty", acg->acg_name);
+			res = -EBUSY;
+			goto out_free_up;
+		}
+		scst_acg_sysfs_put(acg);
+		break;
+	}
+
+	res = count;
+
+out_free_up:
+	mutex_unlock(&scst_mutex);
+
+out_free_resume:
+	scst_resume_activity();
+
+out_free:
+	kfree(buffer);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_free_acg:
+	scst_acg_sysfs_put(acg);
+	goto out_free_up;
+
+#undef SCST_LUN_ACTION_CREATE
+#undef SCST_LUN_ACTION_DEL
+}
+
+int scst_create_acn_sysfs(struct scst_acg *acg, struct scst_acn *acn)
+{
+	int retval = 0;
+	int len;
+	struct kobj_attribute *attr = NULL;
+
+	TRACE_ENTRY();
+
+	acn->acn_attr = NULL;
+
+	attr = kzalloc(sizeof(struct kobj_attribute), GFP_KERNEL);
+	if (attr == NULL) {
+		PRINT_ERROR("Unable to allocate attributes for initiator '%s'",
+			acn->name);
+		retval = -ENOMEM;
+		goto out;
+	}
+
+	len = strlen(acn->name) + 1;
+	attr->attr.name = kzalloc(len, GFP_KERNEL);
+	if (attr->attr.name == NULL) {
+		PRINT_ERROR("Unable to allocate attributes for initiator '%s'",
+			acn->name);
+		retval = -ENOMEM;
+		goto out_free;
+	}
+	strncpy((char *)attr->attr.name, acn->name, len);
+
+	attr->attr.owner = THIS_MODULE;
+	attr->attr.mode = S_IRUGO;
+	attr->show = scst_acn_file_show;
+	attr->store = NULL;
+
+	retval = sysfs_create_file(acg->initiators_kobj, &attr->attr);
+	if (retval != 0) {
+		PRINT_ERROR("Unable to allocate initiator '%s' for group '%s'",
+			acn->name, acg->acg_name);
+		kfree(attr->attr.name);
+		goto out_free;
+	}
+
+	acn->acn_attr = attr;
+
+out:
+	TRACE_EXIT_RES(retval);
+	return retval;
+
+out_free:
+	kfree(attr);
+	goto out;
+}
+
+void scst_acn_sysfs_del(struct scst_acg *acg, struct scst_acn *acn,
+	bool reassign)
+{
+	TRACE_ENTRY();
+
+	if (acn->acn_attr != NULL) {
+		sysfs_remove_file(acg->initiators_kobj,
+			&acn->acn_attr->attr);
+		kfree(acn->acn_attr->attr.name);
+		kfree(acn->acn_attr);
+	}
+	scst_acg_remove_acn(acn);
+	if (reassign)
+		scst_check_reassign_sessions();
+
+	TRACE_EXIT();
+	return;
+}
+
+static ssize_t scst_acn_file_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n",
+		attr->attr.name);
+}
+
+static ssize_t scst_acg_luns_mgmt_show(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   char *buf)
+{
+	static char *help = "Usage: echo \"add|del H:C:I:L lun [READ_ONLY]\" "
+					">mgmt\n"
+			    "       echo \"add|del VNAME lun [READ_ONLY]\" "
+					">mgmt\n"
+			    "       echo \"replace H:C:I:L lun [READ_ONLY]\" "
+					">mgmt\n"
+			    "       echo \"replace VNAME lun [READ_ONLY]\" "
+					">mgmt\n"
+			    "       echo \"clear\" "
+					">mgmt\n";
+
+	return sprintf(buf, help);
+}
+
+static ssize_t scst_acg_luns_mgmt_store(struct kobject *kobj,
+				    struct kobj_attribute *attr,
+				    const char *buf, size_t count)
+{
+	int res;
+	struct scst_acg *acg;
+
+	acg = container_of(kobj->parent, struct scst_acg, acg_kobj);
+	res = __scst_luns_mgmt_store(acg, kobj, buf, count);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t scst_acg_ini_mgmt_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	static char *help = "Usage: echo \"add INITIATOR_NAME\" "
+					">mgmt\n"
+			    "       echo \"del INITIATOR_NAME\" "
+					">mgmt\n"
+			    "       echo \"move INITIATOR_NAME DEST_GROUP_NAME\" "
+					">mgmt\n"
+			    "       echo \"clear\" "
+					">mgmt\n";
+
+	return sprintf(buf, help);
+}
+
+static ssize_t scst_acg_ini_mgmt_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res, action;
+	char *buffer, *p, *e = NULL;
+	char *name = NULL, *group = NULL;
+	struct scst_acg *acg = NULL, *acg_dest = NULL;
+	struct scst_tgt *tgt = NULL;
+	struct scst_acn *acn = NULL, *acn_tmp;
+
+#define SCST_ACG_ACTION_INI_ADD		1
+#define SCST_ACG_ACTION_INI_DEL		2
+#define SCST_ACG_ACTION_INI_CLEAR	3
+#define SCST_ACG_ACTION_INI_MOVE	4
+
+	TRACE_ENTRY();
+
+	acg = container_of(kobj->parent, struct scst_acg, acg_kobj);
+
+	buffer = kzalloc(count+1, GFP_KERNEL);
+	if (buffer == NULL) {
+		res = -ENOMEM;
+		goto out;
+	}
+
+	memcpy(buffer, buf, count);
+	buffer[count] = '\0';
+	p = buffer;
+
+	p = buffer;
+	if (p[strlen(p) - 1] == '\n')
+		p[strlen(p) - 1] = '\0';
+
+	if (strncasecmp("add", p, 3) == 0) {
+		p += 3;
+		action = SCST_ACG_ACTION_INI_ADD;
+	} else if (strncasecmp("del", p, 3) == 0) {
+		p += 3;
+		action = SCST_ACG_ACTION_INI_DEL;
+	} else if (strncasecmp("clear", p, 5) == 0) {
+		p += 5;
+		action = SCST_ACG_ACTION_INI_CLEAR;
+	} else if (strncasecmp("move", p, 4) == 0) {
+		p += 4;
+		action = SCST_ACG_ACTION_INI_MOVE;
+	} else {
+		PRINT_ERROR("Unknown action \"%s\"", p);
+		res = -EINVAL;
+		goto out_free;
+	}
+
+	if (action != SCST_ACG_ACTION_INI_CLEAR)
+		if (!isspace(*p)) {
+			PRINT_ERROR("%s", "Syntax error");
+			res = -EINVAL;
+			goto out_free;
+		}
+
+	res = scst_suspend_activity(true);
+	if (res != 0)
+		goto out_free;
+
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
+		res = -EINTR;
+		goto out_free_resume;
+	}
+
+	if (action != SCST_ACG_ACTION_INI_CLEAR)
+		while (isspace(*p) && *p != '\0')
+			p++;
+
+	switch (action) {
+	case SCST_ACG_ACTION_INI_ADD:
+		e = p;
+		while (!isspace(*e) && *e != '\0')
+			e++;
+		*e = '\0';
+		name = p;
+
+		if (name[0] == '\0') {
+			PRINT_ERROR("%s", "Invalid initiator name");
+			res = -EINVAL;
+			goto out_free_up;
+		}
+
+		res = scst_acg_add_name(acg, name);
+		if (res != 0)
+			goto out_free_up;
+		break;
+	case SCST_ACG_ACTION_INI_DEL:
+		e = p;
+		while (!isspace(*e) && *e != '\0')
+			e++;
+		*e = '\0';
+		name = p;
+
+		if (name[0] == '\0') {
+			PRINT_ERROR("%s", "Invalid initiator name");
+			res = -EINVAL;
+			goto out_free_up;
+		}
+
+		acn = scst_acg_find_name(acg, name);
+		if (acn == NULL) {
+			PRINT_ERROR("Unable to find "
+				"initiator '%s' in group '%s'",
+				name, acg->acg_name);
+			res = -EINVAL;
+			goto out_free_up;
+		}
+		scst_acn_sysfs_del(acg, acn, true);
+		break;
+	case SCST_ACG_ACTION_INI_CLEAR:
+		list_for_each_entry_safe(acn, acn_tmp, &acg->acn_list,
+				acn_list_entry) {
+			scst_acn_sysfs_del(acg, acn, false);
+		}
+		scst_check_reassign_sessions();
+		break;
+	case SCST_ACG_ACTION_INI_MOVE:
+		e = p;
+		while (!isspace(*e) && *e != '\0')
+			e++;
+		if (*e == '\0') {
+			PRINT_ERROR("%s", "Too few parameters");
+			res = -EINVAL;
+			goto out_free_up;
+		}
+		*e = '\0';
+		name = p;
+
+		if (name[0] == '\0') {
+			PRINT_ERROR("%s", "Invalid initiator name");
+			res = -EINVAL;
+			goto out_free_up;
+		}
+
+		e++;
+		p = e;
+		while (!isspace(*e) && *e != '\0')
+			e++;
+		*e = '\0';
+		group = p;
+
+		if (group[0] == '\0') {
+			PRINT_ERROR("%s", "Invalid group name");
+			res = -EINVAL;
+			goto out_free_up;
+		}
+
+		TRACE_DBG("Move initiator '%s' to group '%s'",
+			name, group);
+
+		/*
+		 * Better get tgt from hierarchy tgt_kobj -> tgt_ini_grp_kobj ->
+		 * acg_kobj -> initiators_kobj than have direct pointer to tgt
+		 * in struct acg and have a headache to care about its possible
+		 * wrong dereference on the destruction time.
+		 */
+		{
+			struct kobject *k;
+
+			/* acg_kobj */
+			k = kobj->parent;
+			if (k == NULL) {
+				res = -EINVAL;
+				goto out_free_up;
+			}
+			/* tgt_ini_grp_kobj */
+			k = k->parent;
+			if (k == NULL) {
+				res = -EINVAL;
+				goto out_free_up;
+			}
+			/* tgt_kobj */
+			k = k->parent;
+			if (k == NULL) {
+				res = -EINVAL;
+				goto out_free_up;
+			}
+
+			tgt = container_of(k, struct scst_tgt, tgt_kobj);
+		}
+
+		acn = scst_acg_find_name(acg, name);
+		if (acn == NULL) {
+			PRINT_ERROR("Unable to find "
+				"initiator '%s' in group '%s'",
+				name, acg->acg_name);
+			res = -EINVAL;
+			goto out_free_up;
+		}
+		acg_dest = scst_tgt_find_acg(tgt, group);
+		if (acg_dest == NULL) {
+			PRINT_ERROR("Unable to find group '%s' in target '%s'",
+				group, tgt->tgt_name);
+			res = -EINVAL;
+			goto out_free_up;
+		}
+		if (scst_acg_find_name(acg_dest, name) != NULL) {
+			PRINT_ERROR("Initiator '%s' already exists in group '%s'",
+				name, acg_dest->acg_name);
+			res = -EEXIST;
+			goto out_free_up;
+		}
+		scst_acn_sysfs_del(acg, acn, false);
+
+		res = scst_acg_add_name(acg_dest, name);
+		if (res != 0)
+			goto out_free_up;
+		break;
+	}
+
+	res = count;
+
+out_free_up:
+	mutex_unlock(&scst_mutex);
+
+out_free_resume:
+	scst_resume_activity();
+
+out_free:
+	kfree(buffer);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+#undef SCST_ACG_ACTION_INI_ADD
+#undef SCST_ACG_ACTION_INI_DEL
+#undef SCST_ACG_ACTION_INI_CLEAR
+#undef SCST_ACG_ACTION_INI_MOVE
 }
 
 /*
@@ -1660,7 +2337,7 @@ static int scst_write_trace(const char *buf, size_t length,
 			p++;
 		res = strict_strtoul(p, 0, &level);
 		if (res != 0) {
-			PRINT_ERROR("Invalud trace value \"%s\"", p);
+			PRINT_ERROR("Invalid trace value \"%s\"", p);
 			res = -EINVAL;
 			goto out_free;
 		}

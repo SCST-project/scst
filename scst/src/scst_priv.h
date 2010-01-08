@@ -150,8 +150,8 @@ extern struct list_head scst_dev_list;
 extern struct list_head scst_dev_type_list;
 extern wait_queue_head_t scst_dev_cmd_waitQ;
 
-extern struct list_head scst_acg_list;
 #ifdef CONFIG_SCST_PROC
+extern struct list_head scst_acg_list;
 extern struct scst_acg *scst_default_acg;
 #endif
 
@@ -303,8 +303,13 @@ void scst_free_tgt(struct scst_tgt *tgt);
 int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev);
 void scst_free_device(struct scst_device *dev);
 
-struct scst_acg *scst_alloc_add_acg(const char *acg_name);
-int scst_destroy_acg(struct scst_acg *acg);
+struct scst_acg *scst_alloc_add_acg(struct scst_tgt *tgt,
+	const char *acg_name);
+void scst_clear_acg(struct scst_acg *acg);
+void scst_destroy_acg(struct scst_acg *acg);
+void scst_free_acg(struct scst_acg *acg);
+
+struct scst_acg *scst_tgt_find_acg(struct scst_tgt *tgt, const char *name);
 
 struct scst_acg *scst_find_acg(const struct scst_session *sess);
 
@@ -322,8 +327,17 @@ int scst_acg_remove_dev(struct scst_acg *acg, struct scst_device *dev,
 void scst_acg_dev_destroy(struct scst_acg_dev *acg_dev);
 
 int scst_acg_add_name(struct scst_acg *acg, const char *name);
+#ifdef CONFIG_SCST_PROC
 int scst_acg_remove_name(struct scst_acg *acg, const char *name, bool reassign);
-void __scst_acg_remove_acn(struct scst_acn *n);
+#endif
+void scst_acg_remove_acn(struct scst_acn *acn);
+struct scst_acn *scst_acg_find_name(struct scst_acg *acg, const char *name);
+
+/* The activity supposed to be suspended and scst_mutex held */
+static inline bool scst_acg_sess_is_empty(struct scst_acg *acg)
+{
+	return list_empty(&acg->acg_sess_list);
+}
 
 int scst_prepare_request_sense(struct scst_cmd *orig_cmd);
 int scst_finish_internal_cmd(struct scst_cmd *cmd);
@@ -490,6 +504,17 @@ static inline int scst_create_devt_dev_sysfs(struct scst_device *dev)
 }
 static inline void scst_devt_dev_sysfs_put(struct scst_device *dev) { }
 
+static inline int scst_create_acn_sysfs(struct scst_acg *acg,
+	struct scst_acn *acn)
+{
+	return 0;
+}
+
+static inline void scst_acn_sysfs_del(struct scst_acg *acg,
+	struct scst_acn *acn, bool reassign) { }
+
+static inline void scst_acg_sysfs_put(struct scst_acg *acg) { }
+
 #else /* CONFIG_SCST_PROC */
 
 int scst_sysfs_init(void);
@@ -509,6 +534,11 @@ int scst_create_device_sysfs(struct scst_device *dev);
 void scst_device_sysfs_put(struct scst_device *dev);
 int scst_create_devt_dev_sysfs(struct scst_device *dev);
 void scst_devt_dev_sysfs_put(struct scst_device *dev);
+int scst_create_acn_sysfs(struct scst_acg *acg, struct scst_acn *acn);
+void scst_acn_sysfs_del(struct scst_acg *acg, struct scst_acn *acn,
+	bool reassign);
+
+void scst_acg_sysfs_put(struct scst_acg *acg);
 
 #endif /* CONFIG_SCST_PROC */
 
