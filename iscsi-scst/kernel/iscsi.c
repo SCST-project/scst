@@ -1650,8 +1650,8 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 	if (unlikely(scst_cmd_completed(scst_cmd) ||
 	    unlikely(req->prelim_compl_flags != 0) ||
 	    unlikely(scst_cmd_aborted(scst_cmd)))) {
-	    	if (scst_cmd_aborted(scst_cmd))
-	    		set_bit(ISCSI_CMD_ABORTED, &req->prelim_compl_flags);
+		if (scst_cmd_aborted(scst_cmd))
+			set_bit(ISCSI_CMD_ABORTED, &req->prelim_compl_flags);
 		res = iscsi_preliminary_complete(req, req, true);
 		goto trace;
 	}
