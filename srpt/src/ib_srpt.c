@@ -95,7 +95,6 @@ static int use_port_guid_in_session_name;
 static int thread = 1;
 static struct srpt_thread srpt_thread;
 static DECLARE_WAIT_QUEUE_HEAD(ioctx_list_waitQ);
-static atomic_t cleaning_up;
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 static unsigned long trace_flag = DEFAULT_SRPT_TRACE_FLAGS;
 module_param(trace_flag, long, 0644);
@@ -2055,12 +2054,6 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		goto out;
 	}
 
-	if (atomic_read(&cleaning_up)) {
-		PRINT_INFO("%s", "rejected SRP_LOGIN_REQ because ib_srpt is"
-			   " being removed");
-		goto reject;
-	}
-
 	if (it_iu_len > srp_max_message_size || it_iu_len < 64) {
 		rej->reason =
 		    cpu_to_be32(SRP_LOGIN_REJ_REQ_IT_IU_LENGTH_TOO_LARGE);
@@ -2968,8 +2961,6 @@ static int srpt_release(struct scst_tgt *scst_tgt)
 	}
 	spin_unlock_irq(&sdev->spinlock);
 
-	srpt_unregister_mad_agent(sdev);
-
 	scst_tgt_set_tgt_priv(scst_tgt, NULL);
 
 	TRACE_EXIT();
@@ -3366,35 +3357,41 @@ static void srpt_remove_one(struct ib_device *device)
 		return;
 #endif
 
-	/*
-	 * Cancel the work if it is queued. Wait until srpt_refresh_port_work()
-	 * finished if it is running.
-	 */
+	srpt_unregister_mad_agent(sdev);
+
+	ib_unregister_event_handler(&sdev->event_handler);
+
+	/* Cancel any work queued by the just unregistered IB event handler. */
 	for (i = 0; i < sdev->device->phys_port_cnt; i++)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 22)
 		cancel_work_sync(&sdev->port[i].work);
 #else
 		/*
 		 * cancel_work_sync() was introduced in kernel 2.6.22. Older
-		 * kernels do not have a facility to cancel scheduled work.
+		 * kernels do not have a facility to cancel scheduled work, so
+		 * wait until the scheduled work finished.
 		 */
-		PRINT_ERROR("%s",
-		       "your kernel does not provide cancel_work_sync().");
+		flush_workqueue(&sdev->port[i].work);
 #endif
 
-	scst_unregister(sdev->scst_tgt);
-	sdev->scst_tgt = NULL;
-
-	ib_unregister_event_handler(&sdev->event_handler);
 	ib_destroy_cm_id(sdev->cm_id);
 	ib_destroy_srq(sdev->srq);
 	ib_dereg_mr(sdev->mr);
 	ib_dealloc_pd(sdev->pd);
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 	class_device_unregister(&sdev->class_dev);
 #else
 	device_unregister(&sdev->dev);
 #endif
+
+	/*
+	 * Unregistering an SCST target must happen after destroying sdev->cm_id
+	 * such that no new SRP_LOGIN_REQ information units can arrive while
+	 * destroying the SCST target.
+	 */
+	scst_unregister(sdev->scst_tgt);
+	sdev->scst_tgt = NULL;
 
 	srpt_free_ioctx_ring(sdev, sdev->ioctx_ring,
 			     ARRAY_SIZE(sdev->ioctx_ring));
@@ -3528,11 +3525,10 @@ static void __exit srpt_cleanup_module(void)
 {
 	TRACE_ENTRY();
 
-	atomic_set(&cleaning_up, true);
-	if (srpt_thread.thread)
-		kthread_stop(srpt_thread.thread);
 	ib_unregister_client(&srpt_client);
 	scst_unregister_target_template(&srpt_template);
+	if (srpt_thread.thread)
+		kthread_stop(srpt_thread.thread);
 	class_unregister(&srpt_class);
 
 	TRACE_EXIT();
