@@ -63,7 +63,7 @@ the variable PRE_CFLAGS:
   else
     cd /usr/src/linux-$(uname -r)
   fi
-  patch -p0 < ${SCST_DIR}/srpt/patches/kernel-${KV}-pre-cflags.patch
+  patch -p1 < ${SCST_DIR}/srpt/patches/kernel-${KV}-pre-cflags.patch
 
 Next, download and install the OFED package. Make sure to disable
 OFED's SRP target driver (srpt=n) and to enable at least the

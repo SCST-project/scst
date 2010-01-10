@@ -1,5 +1,5 @@
---- scripts/Makefile.lib	2009-05-10 20:00:05.000000000 +0200
-+++ scripts/Makefile.lib	2009-05-10 20:00:25.000000000 +0200
+--- linux-2.6.18/scripts/Makefile.lib	2009-05-10 20:00:05.000000000 +0200
++++ linux-2.6.18/scripts/Makefile.lib	2009-05-10 20:00:25.000000000 +0200
 @@ -108,7 +108,7 @@
  __cpp_flags     =                          $(call flags,_cpp_flags)
  endif
