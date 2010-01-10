@@ -1,0 +1,63 @@
+commit 6b2eef8fd78ff909c3396b8671d57c42559cc51d
+Author: Roland Dreier <rolandd@cisco.com>
+Date:   Mon Sep 7 08:27:50 2009 -0700
+
+    IB/mad: Fix possible lock-lock-timer deadlock
+    
+    Lockdep reported a possible deadlock with cm_id_priv->lock,
+    mad_agent_priv->lock and mad_agent_priv->timed_work.timer; this
+    happens because the mad module does
+    
+    	cancel_delayed_work(&mad_agent_priv->timed_work);
+    
+    while holding mad_agent_priv->lock.  cancel_delayed_work() internally
+    does del_timer_sync(&mad_agent_priv->timed_work.timer).
+    
+    This can turn into a deadlock because mad_agent_priv->lock is taken
+    inside cm_id_priv->lock, so we can get the following set of contexts
+    that deadlock each other:
+    
+     A: holding cm_id_priv->lock, waiting for mad_agent_priv->lock
+     B: holding mad_agent_priv->lock, waiting for del_timer_sync()
+     C: interrupt during mad_agent_priv->timed_work.timer that takes
+        cm_id_priv->lock
+    
+    Fix this by using the new __cancel_delayed_work() interface (which
+    internally does del_timer() instead of del_timer_sync()) in all the
+    places where we are holding a lock.
+    
+    Addresses: http://bugzilla.kernel.org/show_bug.cgi?id=13757
+    Reported-by: Bart Van Assche <bart.vanassche@gmail.com>
+    Signed-off-by: Roland Dreier <rolandd@cisco.com>
+
+diff --git a/drivers/infiniband/core/mad.c b/drivers/infiniband/core/mad.c
+index de922a0..bc30c00 100644
+--- a/drivers/infiniband/core/mad.c
++++ b/drivers/infiniband/core/mad.c
+@@ -1974,7 +1974,7 @@ static void adjust_timeout(struct ib_mad_agent_private *mad_agent_priv)
+ 	unsigned long delay;
+ 
+ 	if (list_empty(&mad_agent_priv->wait_list)) {
+-		cancel_delayed_work(&mad_agent_priv->timed_work);
++		__cancel_delayed_work(&mad_agent_priv->timed_work);
+ 	} else {
+ 		mad_send_wr = list_entry(mad_agent_priv->wait_list.next,
+ 					 struct ib_mad_send_wr_private,
+@@ -1983,7 +1983,7 @@ static void adjust_timeout(struct ib_mad_agent_private *mad_agent_priv)
+ 		if (time_after(mad_agent_priv->timeout,
+ 			       mad_send_wr->timeout)) {
+ 			mad_agent_priv->timeout = mad_send_wr->timeout;
+-			cancel_delayed_work(&mad_agent_priv->timed_work);
++			__cancel_delayed_work(&mad_agent_priv->timed_work);
+ 			delay = mad_send_wr->timeout - jiffies;
+ 			if ((long)delay <= 0)
+ 				delay = 1;
+@@ -2023,7 +2023,7 @@ static void wait_for_response(struct ib_mad_send_wr_private *mad_send_wr)
+ 
+ 	/* Reschedule a work item if we have a shorter timeout */
+ 	if (mad_agent_priv->wait_list.next == &mad_send_wr->agent_list) {
+-		cancel_delayed_work(&mad_agent_priv->timed_work);
++		__cancel_delayed_work(&mad_agent_priv->timed_work);
+ 		queue_delayed_work(mad_agent_priv->qp_info->port_priv->wq,
+ 				   &mad_agent_priv->timed_work, delay);
+ 	}
