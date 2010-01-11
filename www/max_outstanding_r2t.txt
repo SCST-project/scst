@@ -35,8 +35,8 @@ sent as immediate/unsolicited data without explicit R2T request.
 1. The first target with MaxOutstandingR2T 1.
 
 MaxOutstandingR2T 1 means that only one R2T request can be active on 
-time. I.e., the next request for data transfer sent before the previous 
-one completed and all the data received.
+time. I.e., the next request for data transfer can be sent after the
+previous one completed and all the data received.
 
 Thus, on the first target each command will be completed on time:
 
@@ -56,5 +56,6 @@ Thus, on the second target each command will be completed on time:
 5 + 5 + 5 + 256K/64K * 0.5 * 7 + (256K-64K)/64K * 0.5 + 5 = 35.5ms, 
 i.e. 28 IOPS, which is 56MB/s.
 
-Thus, the second target will perform on 56/18 = 311% better that the 
-first target.
+
+Thus, the second target with MaxOutstandingR2T 16 will perform on 56/18 = 311%
+better that the first target with MaxOutstandingR2T 1.

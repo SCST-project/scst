@@ -54,14 +54,14 @@ practical value this feature has comparing with OS level multipath
 support it, despite of many years since iSCSI protocol started
 being actively used, nor going to implement it in the future.</p>
 
-<p> MC/S is done on the iSCSI level, while MPIO is done on the higher
+<p>MC/S is done on the iSCSI level, while MPIO is done on the higher
 level. Hence, all MPIO infrastructure is shared among all SCSI
 transports, including Fibre Channel, SAS, etc. </p>
 
-<p> MC/S was designed at time, when most OS'es didn't have standard OS level
+<p>MC/S was designed at time, when most OS'es didn't have standard OS level
 multipath. Instead, each vendor had its own implementation, which
 created huge interoperability problems. So, one of the goals of MC/S was
-to address this issue and standardize the multipath area. But
+to address this issue and standardize the multipath area in a single standard. But
 nowadays almost all OS'es has OS level multipath implemented using
 standard SCSI facilities, hence this purpose of MC/S isn't valid anymore.</p>
 
@@ -74,13 +74,13 @@ standard SCSI facilities, hence this purpose of MC/S isn't valid anymore.</p>
 
 </ol>
 
-<p>Let's look how much true those claims are.</p>
+<p>Let's look how realistic those claims are.</p>
 
 <h2>Failover recovery time</h2>
 
 <p>Let's consider a single target exporting a single device over 2 links.</p>
 
-<p>For MC/S failover recovery is pretty simple: all outstanding SCSI
+<p>For MC/S failover recovery is quite simple: all outstanding SCSI
 commands reassigned to another connection. No other actions are
 necessary, because session (i.e. I_T Nexus) remains the same.
 Consequently, all reservations and other SCSI states as well as other
@@ -117,9 +117,9 @@ be cleared.
 	CLEARED BY ANOTHER INITIATOR, so they also can immediately retry all
 	outstanding commands.</span></li>
 
-	<li><span>In case of device reset the affected initiators will be notified via
-	the corresponding Unit Attention about the device reset, i.e. about reset of
-	all SCSI settings to the initial state. Then they can do the necessary
+	<li><span>In case of the device reset the affected initiators will be notified via
+	the corresponding Unit Attention about reset of
+	all SCSI settings to the initial state. Then the initiators can do necessary
 	recovery actions. Usually no recovery actions are needed, except for the
 	reservation holder, whose reservation was cleared. For it recovery might
 	be not trivial. But Persistent Reservations solve this issue, because
@@ -142,8 +142,7 @@ only one SCSI command sent to target at time. For instance, in case of
 tape backup and restore. Both MC/S and MPIO work on the commands level,
 so can't split data transfers for a single command over several links.
 Only bonding (also known as NIC teaming or Link Aggregation) can improve
-performance in this case, although also with limitations, because it
-works on the link level.</p>
+performance in this case, because it works on the link level.</p>
 
 <p>MC/S over several links preserves commands execution order, i.e. with
 it commands executed in the same order as they were submitted. MPIO
@@ -180,7 +179,7 @@ for instance,
 
 <h2>When MC/S is better than MPIO</h2>
 
-<p>There are marginal cases, where MPIO can't be used or will not
+<p>For sake of completeness, we should mention that there are marginal cases, where MPIO can't be used or will not
 provide any benefit, but MC/S can be successful:</p>
 
 <ol>
@@ -216,7 +215,7 @@ and backup applications one or both can be true. But on practice:</p>
 
 <ol>
 	<li><span>Cost to develop MC/S is high, but benefits of it are marginal and with future MPIO
-	improvements can be made negligible.</span></li>
+	improvements can be fully eliminated.</span></li>
 
 	<li><span>MPIO allows to utilize existing infrastructure for all
 	transports, not only iSCSI.
@@ -231,17 +230,15 @@ and backup applications one or both can be true. But on practice:</p>
 
 </ol>
 
-<p> Simply, MC/S is done on the wrong level. No surprise then that no
+<p>Simply, MC/S is rather a workaround done on the wrong level for some deficiencies of existing SCSI standards used for MPIO,
+namely the lack of possibility to group several I_T Nexuses with ability to reassign commands
+between them and preserve commands order among them. If in future those features added in the SCSI standards, MC/S will
+not be needed at all, hence, all investments in it will be voided. No surprise then that no
 Open Source OS'es neither support, nor going to implement it. Moreover,
-when back to 2005 there was an attempt to add MC/S in Linux, it was
+when back to 2005 there was an attempt to add MC/S capable iSCSI initiator in Linux, it was
 rejected. See for more details <a href="http://article.gmane.org/gmane.linux.scsi/15769">here</a>
 and <a href="http://article.gmane.org/gmane.linux.scsi/16301">here</a>.
 </p>
-
-<p>If in future SCSI standards gain possibility to group several I_T nexuses
-with ability to reassign commands between them as well as preserve commands
-order among them, the above minor advantages of MC/S over MPIO will be
-removed and, hence, all investments in it will be voided.</p>
 
 	  		</div> 
 	</div>
