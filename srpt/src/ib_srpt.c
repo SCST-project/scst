@@ -2954,7 +2954,6 @@ static int srpt_release(struct scst_tgt *scst_tgt)
 		list_del(&ch->list);
 		atomic_set(&ch->state, RDMA_CHANNEL_DISCONNECTING);
 		spin_unlock_irq(&sdev->spinlock);
-		ib_send_cm_dreq(ch->cm_id, NULL, 0);
 		scst_unregister_session(ch->scst_sess, true,
 					srpt_release_channel);
 		spin_lock_irq(&sdev->spinlock);
