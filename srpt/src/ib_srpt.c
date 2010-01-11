@@ -1148,7 +1148,9 @@ static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 		int req_lim;
 
 		req_lim = atomic_inc_return(&ch->req_lim);
-		WARN_ON(req_lim < 0 || req_lim > SRPT_RQ_SIZE);
+		if (req_lim < 0 || req_lim > SRPT_RQ_SIZE)
+			PRINT_ERROR("internal error: req_lim = %d out of range"
+				    "%d .. %d", req_lim, 0, SRPT_RQ_SIZE);
 		if (req_lim == SRPT_RQ_SIZE / 2
 		    && atomic_xchg(&ch->send_cred_req, 0))
 			srpt_alloc_and_send_cred_req(ch);
