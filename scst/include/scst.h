@@ -2497,7 +2497,7 @@ static inline void scst_sess_set_tgt_priv(struct scst_session *sess,
  * safely ignore this warning since in_atomic() is used here only for debugging
  * purposes.
  */
-static inline int scst_cmd_atomic(struct scst_cmd *cmd)
+static inline bool scst_cmd_atomic(struct scst_cmd *cmd)
 {
 	int res = cmd->atomic;
 #ifdef CONFIG_SCST_EXTRACHECKS
@@ -2513,11 +2513,12 @@ static inline int scst_cmd_atomic(struct scst_cmd *cmd)
 }
 
 /*
- * Returns TRUE if cmd has been completed.
+ * Returns TRUE if cmd has been preliminary completed, i.e. completed or
+ * aborted.
  */
-static inline int scst_cmd_completed(struct scst_cmd *cmd)
+static inline bool scst_cmd_prelim_completed(struct scst_cmd *cmd)
 {
-	return cmd->completed;
+	return cmd->completed || test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags);
 }
 
 static inline enum scst_exec_context __scst_estimate_context(bool direct)

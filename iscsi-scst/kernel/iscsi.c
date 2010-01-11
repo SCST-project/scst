@@ -1646,12 +1646,16 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 
 	dir = scst_cmd_get_data_direction(scst_cmd);
 
-	/* Check prelim_compl_flags here to save R2Ts */
-	if (unlikely(scst_cmd_completed(scst_cmd) ||
-	    unlikely(req->prelim_compl_flags != 0) ||
-	    unlikely(scst_cmd_aborted(scst_cmd)))) {
-		if (scst_cmd_aborted(scst_cmd))
-			set_bit(ISCSI_CMD_ABORTED, &req->prelim_compl_flags);
+	/*
+	 * Check for preliminary completion here to save R2Ts. For TASK QUEUE
+	 * FULL statuses that might be a big performance win.
+	 */
+	if (unlikely(scst_cmd_prelim_completed(scst_cmd) ||
+	    unlikely(req->prelim_compl_flags != 0))) {
+		/*
+		 * If necessary, ISCSI_CMD_ABORTED will be set by
+		 * iscsi_xmit_response().
+		 */
 		res = iscsi_preliminary_complete(req, req, true);
 		goto trace;
 	}
