@@ -33,9 +33,14 @@
 #include "scst.h"
 #include "scst_priv.h"
 
-#if 0 /* Temporary, left for future performance investigations */
+#if 0 /* Temporary left for future performance investigations */
 /* Deleting it don't forget to delete write_cmd_count */
 #define CONFIG_SCST_ORDERED_READS
+#endif
+
+#if 0 /* Let's disable it for now to see if users will complain about it */
+/* Deleting it don't forget to delete write_cmd_count */
+#define CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
 #endif
 
 static void scst_cmd_set_sn(struct scst_cmd *cmd);
@@ -2869,7 +2874,9 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 		 * latency, so we should decrement them after cmd completed.
 		 */
 		atomic_dec(&cmd->tgt_dev->tgt_dev_cmd_count);
+#ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
 		atomic_dec(&cmd->dev->dev_cmd_count);
+#endif
 #ifdef CONFIG_SCST_ORDERED_READS
 		/* If expected values not set, expected direction is UNKNOWN */
 		if (cmd->expected_data_direction & SCST_DATA_WRITE)
@@ -3322,6 +3329,7 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 			failure = true;
 		}
 
+#ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
 		cnt = atomic_inc_return(&cmd->dev->dev_cmd_count);
 		if (unlikely(cnt > SCST_MAX_DEV_COMMANDS)) {
 			if (!failure) {
@@ -3335,6 +3343,7 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 				failure = true;
 			}
 		}
+#endif
 
 #ifdef CONFIG_SCST_ORDERED_READS
 		/* If expected values not set, expected direction is UNKNOWN */
