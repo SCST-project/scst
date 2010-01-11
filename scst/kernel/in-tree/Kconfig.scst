@@ -2,7 +2,6 @@ menu "SCSI target (SCST) support"
 
 config SCST
 	tristate "SCSI target (SCST) support"
-	default n
 	depends on SCSI && PROC_FS
 	help
 	  SCSI target (SCST) is designed to provide unified, consistent

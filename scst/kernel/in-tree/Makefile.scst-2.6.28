@@ -1,0 +1,12 @@
+ccflags-y += -Iinclude/scst -Wno-unused-parameter
+
+scst-y        += scst_main.o
+scst-y        += scst_targ.o
+scst-y        += scst_lib.o
+scst-y        += scst_proc.o
+scst-y        += scst_mem.o
+scst-y        += scst_debug.o
+
+obj-$(CONFIG_SCST)   += scst.o dev_handlers/ iscsi-scst/ qla2xxx-target/ srpt/ \
+			scst_local/
+

@@ -1,0 +1,6 @@
+SCST_INC_DIR := include/scst
+SCST_DIR := drivers/scst
+ccflags-y += -I$(SCST_INC_DIR) -I$(SCST_DIR)
+
+obj-$(CONFIG_SCST_LOCAL) += scst_local.o
+

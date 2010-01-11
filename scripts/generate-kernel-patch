@@ -278,7 +278,7 @@ add_patch "scst/kernel/in-tree/Makefile.drivers.Linux-${kernel_version}.patch"\
 (
 add_file "scst/kernel/in-tree/Kconfig.scst"  "drivers/scst/Kconfig"
 
-add_file "scst/kernel/in-tree/Makefile.scst" "drivers/scst/Makefile"
+add_file "scst/kernel/in-tree/Makefile.scst-${kernel_version}" "drivers/scst/Makefile"
 
 for f in $(ls scst/src/*.[ch] 2>/dev/null)
 do
@@ -319,7 +319,7 @@ add_file "scst/README_in-tree" "Documentation/scst/README.scst" \
 # Directory drivers/scst/dev_handlers/
 
 (
-add_file "scst/kernel/in-tree/Makefile.dev_handlers" \
+add_file "scst/kernel/in-tree/Makefile.dev_handlers-${kernel_version}" \
          "drivers/scst/dev_handlers/Makefile" \
 | process_patch "dev_handlers_makefile.diff"
 
@@ -383,7 +383,7 @@ if [ "${qla2x00t}" = "true" ]; then
   add_file "qla2x00t/qla2x_tgt_def.h" \
            "drivers/scsi/qla2xxx/qla2x_tgt_def.h"
 
-  add_file "qla2x00t/qla2x00-target/Makefile_in-tree" \
+  add_file "qla2x00t/qla2x00-target/Makefile_in-tree-${kernel_version}" \
            "drivers/scst/qla2xxx-target/Makefile"
 
   add_file "qla2x00t/qla2x00-target/Kconfig" \
@@ -462,7 +462,7 @@ fi
 (
   add_file "scst_local/in-tree/Kconfig" "drivers/scst/scst_local/Kconfig"
 
-  add_file "scst_local/in-tree/Makefile" "drivers/scst/scst_local/Makefile"
+  add_file "scst_local/in-tree/Makefile-${kernel_version}" "drivers/scst/scst_local/Makefile"
 
   add_file "scst_local/scst_local.c" "drivers/scst/scst_local/scst_local.c"
 ) \

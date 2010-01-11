@@ -1,5 +1,4 @@
-EXTRA_CFLAGS += -Iinclude/scst
-EXTRA_CFLAGS += -Idrivers/scsi/qla2xxx
+EXTRA_CFLAGS += -Iinclude/scst -Idrivers/scsi/qla2xxx
 
 qla2x00tgt-y := qla2x00t.o
 
