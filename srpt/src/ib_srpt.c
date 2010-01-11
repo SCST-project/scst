@@ -1730,15 +1730,15 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 	ib_req_notify_cq(ch->cq, IB_CQ_NEXT_COMP);
 	while (ib_poll_cq(ch->cq, 1, &wc) > 0) {
 		if (wc.status) {
-			PRINT_ERROR("failed %s status= %d",
-				    wc.wr_id & SRPT_OP_RECV
-				    ? "receiving"
-				    : wc.wr_id & SRPT_OP_TXR
-				    ? "sending request"
-				    : "sending response",
-				    wc.status);
+			PRINT_INFO("%s failed with status %d",
+				   wc.wr_id & SRPT_OP_RECV
+				   ? "receiving"
+				   : wc.wr_id & SRPT_OP_TXR
+				   ? "sending request"
+				   : "sending response",
+				   wc.status);
 			srpt_handle_err_comp(ch, &wc);
-			break;
+			continue;
 		}
 
 		if (wc.wr_id & SRPT_OP_RECV) {
