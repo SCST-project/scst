@@ -1976,6 +1976,9 @@ static void srpt_free_req_ring(struct srpt_rdma_ch *ch)
  * - Must be called as a callback function via scst_unregister_session(). Never
  *   call this function directly because doing so would trigger several race
  *   conditions.
+ * - Do not access ch->sport or ch->sport->sdev in this function because the
+ *   memory that was allocated for the sport and/or sdev data structures may
+ *   already have been freed at the time this function is called.
  */
 static void srpt_release_channel(struct scst_session *scst_sess)
 {
@@ -1985,8 +1988,6 @@ static void srpt_release_channel(struct scst_session *scst_sess)
 
 	ch = scst_sess_get_tgt_priv(scst_sess);
 	BUG_ON(!ch);
-	WARN_ON(srpt_find_channel(ch->sport->sdev, ch->cm_id) == ch);
-
 	WARN_ON(atomic_read(&ch->state) != RDMA_CHANNEL_DISCONNECTING);
 
 	TRACE_DBG("destroying cm_id %p", ch->cm_id);
