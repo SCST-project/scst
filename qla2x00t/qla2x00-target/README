@@ -95,7 +95,10 @@ You can find some installation and configuration HOWTOs in
 http://scst.sourceforge.net/qla2x00t-howto.html and
 https://forums.openfiler.com/viewtopic.php?id=3422.
 
-It is recommended to use firmware version 5.x.x or higher.
+It is strongly recommended to use firmware version 5.x or higher for
+24xx/25xx adapters. See
+http://sourceforge.net/mailarchive/forum.php?thread_name=4B4CD39F.6020401%40vlnb.net&forum_name=scst-devel
+for more details why.
 
 
 Explicit conformation

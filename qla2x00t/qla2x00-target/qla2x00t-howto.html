@@ -15,13 +15,22 @@ How to configure QLogic target driver for 22xx/23xx/24xx/25xx adapters
 
 2: Get the appropiate firmware for your QLogic card from<a href="ftp://ftp.qlogic.com/outgoing/linux/firmware">
    ftp://ftp.qlogic.com/outgoing/linux/firmware/</a> and put it under /lib/firmware.
-    Otherwise during boot or when you manually insert the QLogic module, you'll
+   It is strongly recommended to use firmware version 5.x or higher for 24xx/25xx adapters. See
+   <a href="http://sourceforge.net/mailarchive/forum.php?thread_name=4B4CD39F.6020401%40vlnb.net&forum_name=scst-devel">here</a>
+   for more details why.
+
+   </br></br>
+
+    Without a firmware image during boot or when you manually insert the QLogic module, you'll
     get the following error mesage in the logs(/var/log/messages)
-    &lt snip &gt</br></br>
+
+    </br></br>
+
+    &lt snip &gt</br>
 
     qla2xxx 0000:13:00.0: Firmware image unavailable.</br>
     qla2xxx 0000:13:00.0: Failed to initialize adapter</br>
-    &lt snip &gt</br>
+    &lt snip &gt</br></br>
 
     In this case I had to download ql2300_fw.bin</br></br></br>
 
