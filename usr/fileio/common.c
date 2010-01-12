@@ -645,9 +645,8 @@ static int do_tm(struct vdisk_cmd *vcmd)
 
 	TRACE_ENTRY();
 
-	TRACE((cmd->tm_cmd.fn == SCST_ABORT_TASK) ? TRACE_MGMT_MINOR : TRACE_MGMT,
-		"TM fn %d (sess_h %"PRIx64", cmd_h_to_abort %d)", cmd->tm_cmd.fn,
-		cmd->tm_cmd.sess_h, cmd->tm_cmd.cmd_h_to_abort);
+	TRACE(TRACE_MGMT, "TM fn %d (sess_h %"PRIx64", cmd_h_to_abort %d)",
+		cmd->tm_cmd.fn, cmd->tm_cmd.sess_h, cmd->tm_cmd.cmd_h_to_abort);
 
 	memset(reply, 0, sizeof(*reply));
 	reply->cmd_h = cmd->cmd_h;

@@ -454,8 +454,7 @@ static void close_conn(struct iscsi_conn *conn)
 		spin_lock(&session->sn_lock);
 		if (session->tm_rsp && session->tm_rsp->conn == conn) {
 			struct iscsi_cmnd *tm_rsp = session->tm_rsp;
-			TRACE(TRACE_MGMT_MINOR, "Dropping delayed TM rsp %p",
-				tm_rsp);
+			TRACE_MGMT_DBG("Dropping delayed TM rsp %p", tm_rsp);
 			session->tm_rsp = NULL;
 			session->tm_active--;
 			WARN_ON(session->tm_active < 0);
@@ -647,6 +646,7 @@ static struct iscsi_cmnd *iscsi_get_send_cmnd(struct iscsi_conn *conn)
 	}
 
 	if (unlikely(cmnd_opcode(cmnd) == ISCSI_OP_SCSI_TASK_MGT_RSP)) {
+#ifdef CONFIG_SCST_DEBUG
 		struct iscsi_task_mgt_hdr *req_hdr =
 			(struct iscsi_task_mgt_hdr *)&cmnd->parent_req->pdu.bhs;
 		struct iscsi_task_rsp_hdr *rsp_hdr =
@@ -655,6 +655,7 @@ static struct iscsi_cmnd *iscsi_get_send_cmnd(struct iscsi_conn *conn)
 			"fn %d, parent_req %p)", cmnd, rsp_hdr->response,
 			req_hdr->function & ISCSI_FUNCTION_MASK,
 			cmnd->parent_req);
+#endif
 	}
 
 	return cmnd;

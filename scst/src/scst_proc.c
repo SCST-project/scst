@@ -108,7 +108,6 @@ static struct scst_trace_log scst_proc_trace_tbl[] = {
     { TRACE_SPECIAL,		"special" },
     { TRACE_SCSI,		"scsi" },
     { TRACE_MGMT,		"mgmt" },
-    { TRACE_MGMT_MINOR,		"mgmt_minor" },
     { TRACE_MGMT_DEBUG,		"mgmt_dbg" },
     { TRACE_FLOW_CONTROL,	"flow_control" },
     { 0,			NULL }
@@ -156,7 +155,7 @@ static char *scst_proc_help_string =
 " >/proc/scsi_tgt/[DEV_HANDLER_NAME/]trace_level\n"
 "     where TOKEN is one of [debug, function, line, pid, entryexit,\n"
 "                            buff, mem, sg, out_of_mem, special, scsi,\n"
-"                            mgmt, minor, mgmt_minor, mgmt_dbg]\n"
+"                            mgmt, minor, mgmt_dbg]\n"
 "     Additionally for /proc/scsi_tgt/trace_level there are these TOKENs\n"
 "       [scsi_serializing, retry, recv_bot, send_bot, recv_top, send_top]\n"
 #endif

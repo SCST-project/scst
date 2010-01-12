@@ -55,11 +55,11 @@
 
 #ifdef CONFIG_SCST_DEBUG
 #define Q2T_DEFAULT_LOG_FLAGS (TRACE_FUNCTION | TRACE_LINE | TRACE_PID | \
-	TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_MGMT_MINOR | \
-	TRACE_MGMT_DEBUG | TRACE_MINOR | TRACE_SPECIAL)
+	TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_MGMT_DEBUG | \
+	TRACE_MINOR | TRACE_SPECIAL)
 #else
 # ifdef CONFIG_SCST_TRACING
-#define Q2T_DEFAULT_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_MINOR | \
+#define Q2T_DEFAULT_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MGMT | \
 	TRACE_SPECIAL)
 # endif
 #endif
@@ -1153,7 +1153,7 @@ static void q24_handle_abts(scsi_qla_host_t *ha, abts24_recv_entry_t *abts)
 		goto out_err;
 	}
 
-	TRACE(TRACE_MGMT_MINOR, "qla2x00tgt(%ld): task abort (s_id=%x:%x:%x, "
+	TRACE(TRACE_MGMT, "qla2x00tgt(%ld): task abort (s_id=%x:%x:%x, "
 		"tag=%d, param=%x)", ha->instance, abts->fcp_hdr_le.s_id[0],
 		abts->fcp_hdr_le.s_id[1], abts->fcp_hdr_le.s_id[2], tag,
 		le32_to_cpu(abts->fcp_hdr_le.parameter));
@@ -1801,7 +1801,7 @@ static int q2t_pre_xmit_response(struct q2t_cmd *cmd,
 	TRACE_ENTRY();
 
 	if (unlikely(cmd->aborted)) {
-		TRACE(TRACE_MGMT_MINOR, "qla2x00tgt(%ld): terminating exchange "
+		TRACE_MGMT_DBG("qla2x00tgt(%ld): terminating exchange "
 			"for aborted cmd=%p (scst_cmd=%p, tag=%d)",
 			ha->instance, cmd, scst_cmd, cmd->tag);
 
@@ -2822,8 +2822,9 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha, uint32_t handle,
 		case CTIO_ABORTED:
 		case CTIO_TIMEOUT:
 		case CTIO_INVALID_RX_ID:
-			/* they are OK */
-			TRACE(TRACE_MGMT_MINOR, "qla2x00tgt(%ld): CTIO with "
+			/* They are OK */
+			TRACE(TRACE_MINOR_AND_MGMT_DBG,
+				"qla2x00tgt(%ld): CTIO with "
 				"status %#x received, state %x, scst_cmd %p, "
 				"op %x (LIP_RESET=e, ABORTED=2, TARGET_RESET=17, "
 				"TIMEOUT=b, INVALID_RX_ID=8)", ha->instance,
@@ -3892,8 +3893,7 @@ static void q2t_prepare_srr_imm(scsi_qla_host_t *ha, void *iocb)
 
 	tgt->imm_srr_id++;
 
-	TRACE(TRACE_MGMT_MINOR, "qla2x00tgt(%ld): IMM NTFY SRR "
-		"received", ha->instance);
+	TRACE(TRACE_MGMT, "qla2x00tgt(%ld): SRR received", ha->instance);
 
 	imm = kzalloc(sizeof(*imm), GFP_ATOMIC);
 	if (imm != NULL) {
@@ -4076,7 +4076,7 @@ static void q2t_handle_imm_notify(scsi_qla_host_t *ha, void *iocb)
 		break;
 
 	case IMM_NTFY_ABORT_TASK:
-		TRACE(TRACE_MGMT_MINOR, "Abort Task (S %08x I %#x -> L %#x)",
+		TRACE(TRACE_MGMT, "Abort Task (S %08x I %#x -> L %#x)",
 		      le16_to_cpu(iocb2x->seq_id), GET_TARGET_ID(ha, iocb2x),
 		      le16_to_cpu(iocb2x->lun));
 		if (q2t_abort_task(ha, iocb2x) == 0)

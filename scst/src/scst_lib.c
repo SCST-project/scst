@@ -2720,7 +2720,7 @@ int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
 	rs_cmd->expected_transfer_len = SCST_SENSE_BUFFERSIZE;
 	rs_cmd->expected_values_set = 1;
 
-	TRACE(TRACE_MGMT_MINOR, "Adding REQUEST SENSE cmd %p to head of active "
+	TRACE_MGMT_DBG("Adding REQUEST SENSE cmd %p to head of active "
 		"cmd list", rs_cmd);
 	spin_lock_irq(&rs_cmd->cmd_lists->cmd_list_lock);
 	list_add(&rs_cmd->cmd_list_entry, &rs_cmd->cmd_lists->active_cmd_list);
@@ -2764,7 +2764,7 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 	if (len > 0)
 		scst_put_buf(req_cmd, buf);
 
-	TRACE(TRACE_MGMT_MINOR, "Adding orig cmd %p to head of active "
+	TRACE_MGMT_DBG("Adding orig cmd %p to head of active "
 		"cmd list", orig_cmd);
 	spin_lock_irq(&orig_cmd->cmd_lists->cmd_list_lock);
 	list_add(&orig_cmd->cmd_list_entry, &orig_cmd->cmd_lists->active_cmd_list);
@@ -4593,8 +4593,8 @@ static void scst_check_internal_sense(struct scst_device *dev, int result,
 
 	if (host_byte(result) == DID_RESET) {
 		int sl;
-		TRACE(TRACE_MGMT_MINOR, "%s", "DID_RESET received, triggering "
-			"reset UA");
+		TRACE(TRACE_MGMT, "DID_RESET received for device %s, "
+			"triggering reset UA", dev->virt_name);
 		sl = scst_set_sense(sense, sense_len, dev->d_sense,
 			SCST_LOAD_SENSE(scst_sense_reset_UA));
 		scst_dev_check_set_UA(dev, NULL, sense, sl);
@@ -4778,7 +4778,7 @@ void scst_process_reset(struct scst_device *dev,
 	if (dev->dev_reserved) {
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 				    dev_tgt_dev_list_entry) {
-			TRACE(TRACE_MGMT_MINOR, "Clearing RESERVE'ation for "
+			TRACE_MGMT_DBG("Clearing RESERVE'ation for "
 				"tgt_dev LUN %lld",
 				(long long unsigned int)tgt_dev->lun);
 			clear_bit(SCST_TGT_DEV_RESERVED,
@@ -4859,7 +4859,7 @@ int scst_set_pending_UA(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	TRACE(TRACE_MGMT_MINOR, "Setting pending UA cmd %p", cmd);
+	TRACE_MGMT_DBG("Setting pending UA cmd %p", cmd);
 
 	spin_lock_bh(&cmd->tgt_dev->tgt_dev_lock);
 
@@ -5082,7 +5082,7 @@ void __scst_dev_check_set_UA(struct scst_device *dev,
 {
 	TRACE_ENTRY();
 
-	TRACE(TRACE_MGMT_MINOR, "Processing UA dev %p", dev);
+	TRACE_MGMT_DBG("Processing UA dev %p", dev);
 
 	/* Check for reset UA */
 	if (scst_analyze_sense(sense, sense_len, SCST_SENSE_ASC_VALID,

@@ -360,10 +360,11 @@ static int scst_pre_parse(struct scst_cmd *cmd)
 			PRINT_BUFFER("Failed CDB", cmd->cdb, cmd->cdb_len);
 			goto out_xmit;
 		}
-		PRINT_ERROR("Unknown opcode 0x%02x for %s. "
+		TRACE(TRACE_MINOR, "Unknown opcode 0x%02x for %s. "
 			"Should you update scst_scsi_op_table?",
 			cmd->cdb[0], dev->handler->name);
-		PRINT_BUFFER("Failed CDB", cmd->cdb, cmd->cdb_len);
+		PRINT_BUFF_FLAG(TRACE_MINOR, "Failed CDB", cmd->cdb,
+			cmd->cdb_len);
 #ifdef CONFIG_SCST_USE_EXPECTED_VALUES
 		if (scst_cmd_is_expected_set(cmd)) {
 			TRACE(TRACE_SCSI, "Using initiator supplied values: "
@@ -601,8 +602,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 			    !scst_is_allowed_to_mismatch_cmd(cmd)) {
 				PRINT_ERROR("Expected data direction %d for "
 					"opcode 0x%02x (handler %s, target %s) "
-					"doesn't match "
-					"decoded value %d",
+					"doesn't match decoded value %d",
 					cmd->expected_data_direction,
 					cmd->cdb[0], dev->handler->name,
 					cmd->tgtt->name, cmd->data_direction);
@@ -614,7 +614,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 			}
 		}
 		if (unlikely(cmd->bufflen != cmd->expected_transfer_len)) {
-			TRACE(TRACE_MGMT_MINOR, "Warning: expected "
+			TRACE(TRACE_MINOR, "Warning: expected "
 				"transfer length %d for opcode 0x%02x "
 				"(handler %s, target %s) doesn't match "
 				"decoded value %d. Faulty initiator "
@@ -623,7 +623,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 				cmd->expected_transfer_len, cmd->cdb[0],
 				dev->handler->name, cmd->tgtt->name,
 				cmd->bufflen);
-			PRINT_BUFF_FLAG(TRACE_MGMT_MINOR, "Suspicious CDB",
+			PRINT_BUFF_FLAG(TRACE_MINOR, "Suspicious CDB",
 				cmd->cdb, cmd->cdb_len);
 		}
 #endif
@@ -2413,9 +2413,9 @@ static int scst_check_sense(struct scst_cmd *cmd)
 					SCST_SENSE_ASC_VALID,
 					0, SCST_SENSE_ASC_UA_RESET, 0)) {
 				if (cmd->double_ua_possible) {
-					TRACE(TRACE_MGMT_MINOR, "Double UA "
+					TRACE_MGMT_DBG("Double UA "
 						"detected for device %p", dev);
-					TRACE(TRACE_MGMT_MINOR, "Retrying cmd"
+					TRACE_MGMT_DBG("Retrying cmd"
 						" %p (tag %llu)", cmd,
 						(long long unsigned)cmd->tag);
 
@@ -2478,8 +2478,8 @@ static int scst_check_auto_sense(struct scst_cmd *cmd)
 	if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION) &&
 	    (!SCST_SENSE_VALID(cmd->sense) ||
 	     SCST_NO_SENSE(cmd->sense))) {
-		TRACE(TRACE_SCSI|TRACE_MINOR, "CHECK_CONDITION, but no sense: "
-		      "cmd->status=%x, cmd->msg_status=%x, "
+		TRACE(TRACE_SCSI|TRACE_MINOR_AND_MGMT_DBG, "CHECK_CONDITION, "
+			"but no sense: cmd->status=%x, cmd->msg_status=%x, "
 		      "cmd->host_status=%x, cmd->driver_status=%x (cmd %p)",
 		      cmd->status, cmd->msg_status, cmd->host_status,
 		      cmd->driver_status, cmd);
@@ -2491,9 +2491,9 @@ static int scst_check_auto_sense(struct scst_cmd *cmd)
 		    (cmd->host_status == DID_ABORT)) {
 			scst_set_busy(cmd);
 		} else {
-			TRACE(TRACE_SCSI|TRACE_MINOR, "Host status %x "
-				"received, returning HARDWARE ERROR instead "
-				"(cmd %p)", cmd->host_status, cmd);
+			TRACE(TRACE_SCSI|TRACE_MINOR_AND_MGMT_DBG, "Host "
+				"status %x received, returning HARDWARE ERROR "
+				"instead (cmd %p)", cmd->host_status, cmd);
 			scst_set_cmd_error(cmd,
 				SCST_LOAD_SENSE(scst_sense_hardw_error));
 		}
@@ -4043,9 +4043,7 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 
 	TRACE_ENTRY();
 
-	TRACE((mcmd && mcmd->fn == SCST_ABORT_TASK)
-		? TRACE_MGMT_MINOR : TRACE_MGMT,
-		"Aborting cmd %p (tag %llu, op %x)",
+	TRACE(TRACE_MGMT, "Aborting cmd %p (tag %llu, op %x)",
 		cmd, (long long unsigned int)cmd->tag, cmd->cdb[0]);
 
 	/* To protect from concurrent aborts */
@@ -4336,6 +4334,7 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 	TRACE(TRACE_MGMT, "Clearing task set (lun=%lld, mcmd=%p)",
 		(long long unsigned int)mcmd->lun, mcmd);
 
+#if 0 /* we are SAM-3 */
 	/*
 	 * When a logical unit is aborting one or more tasks from a SCSI
 	 * initiator port with the TASK ABORTED status it should complete all
@@ -4346,6 +4345,7 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 	spin_lock_bh(&dev->dev_lock);
 	__scst_block_dev(dev);
 	spin_unlock_bh(&dev->dev_lock);
+#endif
 
 	__scst_abort_task_set(mcmd, mcmd->mcmd_tgt_dev);
 
@@ -4424,7 +4424,7 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 		spin_lock_irq(&sess->sess_list_lock);
 		cmd = __scst_find_cmd_by_tag(sess, mcmd->tag);
 		if (cmd == NULL) {
-			TRACE(TRACE_MGMT_MINOR, "ABORT TASK failed: command "
+			TRACE_MGMT_DBG("ABORT TASK: command "
 			      "for tag %llu not found",
 			      (long long unsigned int)mcmd->tag);
 			mcmd->status = SCST_MGMT_STATUS_TASK_NOT_EXIST;
@@ -4698,10 +4698,10 @@ static int scst_abort_all_nexus_loss_sess(struct scst_mgmt_cmd *mcmd,
 	TRACE_ENTRY();
 
 	if (nexus_loss) {
-		TRACE(TRACE_MGMT_MINOR, "Nexus loss for sess %p (mcmd %p)",
+		TRACE_MGMT_DBG("Nexus loss for sess %p (mcmd %p)",
 			sess, mcmd);
 	} else {
-		TRACE(TRACE_MGMT_MINOR, "Aborting all from sess %p (mcmd %p)",
+		TRACE_MGMT_DBG("Aborting all from sess %p (mcmd %p)",
 			sess, mcmd);
 	}
 
@@ -4772,10 +4772,10 @@ static int scst_abort_all_nexus_loss_tgt(struct scst_mgmt_cmd *mcmd,
 	TRACE_ENTRY();
 
 	if (nexus_loss) {
-		TRACE(TRACE_MGMT_MINOR, "I_T Nexus loss (tgt %p, mcmd %p)",
+		TRACE_MGMT_DBG("I_T Nexus loss (tgt %p, mcmd %p)",
 			tgt, mcmd);
 	} else {
-		TRACE(TRACE_MGMT_MINOR, "Aborting all from tgt %p (mcmd %p)",
+		TRACE_MGMT_DBG("Aborting all from tgt %p (mcmd %p)",
 			tgt, mcmd);
 	}
 
@@ -4946,8 +4946,8 @@ static void scst_mgmt_cmd_send_done(struct scst_mgmt_cmd *mcmd)
 	if (scst_is_strict_mgmt_fn(mcmd->fn) && (mcmd->completed_cmd_count > 0))
 		mcmd->status = SCST_MGMT_STATUS_TASK_NOT_EXIST;
 
-	TRACE(TRACE_MGMT_MINOR, "TM command fn %d finished, status %x",
-		mcmd->fn, mcmd->status);
+	TRACE(TRACE_MINOR_AND_MGMT_DBG, "TM command fn %d finished, "
+		"status %x", mcmd->fn, mcmd->status);
 
 	if (!mcmd->affected_cmds_done_called) {
 		/* It might happen in case of errors */
@@ -5262,8 +5262,7 @@ int scst_rx_mgmt_fn(struct scst_session *sess,
 	mcmd->cmd_sn_set = params->cmd_sn_set;
 	mcmd->cmd_sn = params->cmd_sn;
 
-	TRACE((params->fn == SCST_ABORT_TASK) ? TRACE_MGMT_MINOR : TRACE_MGMT,
-		"TM fn %d", params->fn);
+	TRACE(TRACE_MGMT, "TM fn %d", params->fn);
 
 	TRACE_MGMT_DBG("sess=%p, tag_set %d, tag %lld, lun_set %d, "
 		"lun=%lld, cmd_sn_set %d, cmd_sn %d, priv %p", sess,

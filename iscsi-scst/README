@@ -4,22 +4,15 @@ iSCSI SCST target driver
 Version 1.0.2, XX XXXXX 2009
 ----------------------------
 
-This driver is a forked with all respects version of iSCSI Enterprise
-Target (IET) (http://iscsitarget.sourceforge.net/) with updates to work
-over SCST as well as with many improvements and bugfixes (see ChangeLog
-file). The reason of fork is that the necessary changes are intrusive
-and with the current IET merge policy, where only simple bugfix-like
-patches, which doesn't touch the core code, could be merged, it is very
-unlikely that they will be merged in the main IET trunk.
+ISCSI-SCST is a deeply reworked fork of iSCSI Enterprise Target (IET)
+(http://iscsitarget.sourceforge.net). Reasons of the fork were:
 
-To let it be installed and work at the same host together with IET
-simultaneously all the driver's modules and files were renamed:
+ - To be able to use full power of SCST core.
 
- * ietd.conf -> iscsi-scstd.conf
- * ietadm -> iscsi-scst-adm
- * ietd -> iscsi-scstd
- * iscsi-target -> iscsi-scst
- * iscsi-target.ko -> iscsi-scst.ko
+ - To fix all the problems, corner cases issues and iSCSI standard
+   violations which IET has.
+
+See more info at http://scst.sourceforge.net/target_iscsi.html.
 
 This version is compatible with SCST version 1.0.2 and higher.
 

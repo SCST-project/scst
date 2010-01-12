@@ -79,7 +79,6 @@ static struct scst_trace_log scst_trace_tbl[] = {
     { TRACE_SPECIAL,		"special" },
     { TRACE_SCSI,		"scsi" },
     { TRACE_MGMT,		"mgmt" },
-    { TRACE_MGMT_MINOR,		"mgmt_minor" },
     { TRACE_MGMT_DEBUG,		"mgmt_dbg" },
     { TRACE_FLOW_CONTROL,	"flow_control" },
     { 0,			NULL }
@@ -2205,7 +2204,7 @@ static ssize_t scst_trace_level_show(const struct scst_trace_log *local_tbl,
 		"		       buff, mem, sg, out_of_mem,\n"
 #endif
 		"		       special, scsi, mgmt, minor,\n"
-		"		       mgmt_minor, mgmt_dbg, scsi_serializing,\n"
+		"		       mgmt_dbg, scsi_serializing,\n"
 		"		       retry, recv_bot, send_bot, recv_top,\n"
 		"		       send_top%s]", help != NULL ? help : "");
 

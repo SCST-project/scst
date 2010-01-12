@@ -28,8 +28,12 @@ If you experience kernel crash, hang, etc., you should follow
 REPORTING-BUGS file from your kernel source tree.
 
 For most questions it is very desirable if you attach to your message
-full kernel log from target since it's booted. It will allow us to see
-your target and SCST configurations.
+full kernel log from the target since it's booted. Note, *SINCE IT
+BOOTED*. Please don't try to be smart and filter out what's you
+think isn't needed. What's usually removed could allow us to see the
+target and SCST configurations.
+
+Don't forget to compress your log using "bzip2 -9".
 
 Example of a really bad question:
 

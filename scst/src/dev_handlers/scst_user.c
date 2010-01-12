@@ -304,7 +304,7 @@ static inline int calc_num_pg(unsigned long buf, int len)
 
 static void __dev_user_not_reg(void)
 {
-	TRACE(TRACE_MGMT_MINOR, "%s", "Device not registered");
+	TRACE_MGMT_DBG("%s", "Device not registered");
 	return;
 }
 

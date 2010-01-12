@@ -48,12 +48,11 @@ extern pid_t gettid(void);
 #define TRACE_OUT_OF_MEM     0x00000100
 #define TRACE_MINOR          0x00000200 /* less important events */
 #define TRACE_MGMT           0x00000400
-#define TRACE_MGMT_MINOR     0x00000800
-#define TRACE_MGMT_DEBUG     0x00001000
-#define TRACE_SCSI           0x00002000
-#define TRACE_SPECIAL        0x00004000 /* filtering debug, etc */
-#define TRACE_TIME           0x00008000
-#define TRACE_ORDER          0x00010000
+#define TRACE_MGMT_DEBUG     0x00000800
+#define TRACE_SCSI           0x00001000
+#define TRACE_SPECIAL        0x00002000 /* filtering debug, etc */
+#define TRACE_TIME           0x00004000
+#define TRACE_ORDER          0x00008000
 #define TRACE_ALL            0xffffffff
 
 #define PRINT(format, args...)  fprintf(stdout, format "\n", ## args);

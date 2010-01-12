@@ -1331,16 +1331,21 @@ static void iscsi_set_resid(struct iscsi_cmnd *rsp, bool bufflen_set)
 static int iscsi_preliminary_complete(struct iscsi_cmnd *req,
 	struct iscsi_cmnd *orig_req, bool get_data)
 {
-	struct iscsi_hdr *req_hdr = &req->pdu.bhs;
 	int res = 0;
 	bool set_r2t_len;
 
 	TRACE_ENTRY();
 
-	TRACE_DBG_FLAG(iscsi_get_flow_ctrl_or_mgmt_dbg_log_flag(orig_req),
-		"Prelim completed req %p, orig_req %p (FINAL %x, "
-		"outstanding_r2t %d)", req, orig_req,
-		(req_hdr->flags & ISCSI_CMD_FINAL), orig_req->outstanding_r2t);
+#ifdef CONFIG_SCST_DEBUG
+	{
+		struct iscsi_hdr *req_hdr = &req->pdu.bhs;
+		TRACE_DBG_FLAG(iscsi_get_flow_ctrl_or_mgmt_dbg_log_flag(orig_req),
+			"Prelim completed req %p, orig_req %p (FINAL %x, "
+			"outstanding_r2t %d)", req, orig_req,
+			(req_hdr->flags & ISCSI_CMD_FINAL),
+			orig_req->outstanding_r2t);
+	}
+#endif
 
 	iscsi_extracheck_is_rd_thread(req->conn);
 	sBUG_ON(req->parent_req != NULL);
@@ -1933,7 +1938,7 @@ static int data_out_start(struct iscsi_cmnd *cmnd)
 		 * we received all related PDUs from the initiator or timeout
 		 * them. Let's quietly drop such PDUs.
 		 */
-		TRACE(TRACE_MGMT_MINOR, "Unable to find scsi task ITT %x",
+		TRACE_MGMT_DBG("Unable to find scsi task ITT %x",
 			cmnd_itt(cmnd));
 		res = iscsi_preliminary_complete(cmnd, cmnd, true);
 		goto out;
@@ -2312,12 +2317,11 @@ static void execute_task_management(struct iscsi_cmnd *req)
 	struct iscsi_session *sess = conn->session;
 	struct iscsi_task_mgt_hdr *req_hdr =
 		(struct iscsi_task_mgt_hdr *)&req->pdu.bhs;
-	int rc, status, function = req_hdr->function & ISCSI_FUNCTION_MASK;
+	int rc, status = ISCSI_RESPONSE_FUNCTION_REJECTED;
+	int function = req_hdr->function & ISCSI_FUNCTION_MASK;
 	struct scst_rx_mgmt_params params;
 
-	TRACE((function == ISCSI_FUNCTION_ABORT_TASK) ?
-			TRACE_MGMT_MINOR : TRACE_MGMT,
-		"TM fn %d", function);
+	TRACE(TRACE_MGMT, "TM fn %d", function);
 
 	TRACE_MGMT_DBG("TM req %p, ITT %x, RTT %x, sn %u, con %p", req,
 		cmnd_itt(req), req_hdr->rtt, req_hdr->cmd_sn, conn);
@@ -2330,7 +2334,7 @@ static void execute_task_management(struct iscsi_cmnd *req)
 	if (sess->tm_rsp != NULL) {
 		struct iscsi_cmnd *tm_rsp = sess->tm_rsp;
 
-		TRACE(TRACE_MGMT_MINOR, "Dropping delayed TM rsp %p", tm_rsp);
+		TRACE_MGMT_DBG("Dropping delayed TM rsp %p", tm_rsp);
 
 		sess->tm_rsp = NULL;
 		sess->tm_active--;
@@ -3105,8 +3109,9 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 		req->sg_cnt);
 
 	EXTRACHECKS_BUG_ON(req->hashed);
-	if (req->main_rsp != NULL)
+	if (req->main_rsp != NULL) {
 		EXTRACHECKS_BUG_ON(cmnd_opcode(req->main_rsp) != ISCSI_OP_REJECT);
+	}
 
 	if (unlikely((req->bufflen != 0) && !is_send_status)) {
 		PRINT_CRIT_ERROR("%s", "Sending DATA without STATUS is "
@@ -3199,7 +3204,7 @@ static void iscsi_check_send_delayed_tm_resp(struct iscsi_session *sess)
 	if (iscsi_is_delay_tm_resp(tm_rsp))
 		goto out;
 
-	TRACE(TRACE_MGMT_MINOR, "Sending delayed rsp %p", tm_rsp);
+	TRACE_MGMT_DBG("Sending delayed rsp %p", tm_rsp);
 
 	sess->tm_rsp = NULL;
 	sess->tm_active--;
@@ -3229,9 +3234,7 @@ static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status)
 	TRACE_ENTRY();
 
 	TRACE_MGMT_DBG("TM req %p finished", req);
-	TRACE((req_hdr->function == ISCSI_FUNCTION_ABORT_TASK) ?
-			 TRACE_MGMT_MINOR : TRACE_MGMT,
-		"TM fn %d finished, status %d", fn, status);
+	TRACE(TRACE_MGMT, "TM fn %d finished, status %d", fn, status);
 
 	rsp = iscsi_alloc_rsp(req);
 	rsp_hdr = (struct iscsi_task_rsp_hdr *)&rsp->pdu.bhs;
@@ -3250,9 +3253,9 @@ static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status)
 
 	spin_lock(&sess->sn_lock);
 	if (iscsi_is_delay_tm_resp(rsp)) {
-		TRACE(TRACE_MGMT_MINOR, "Delaying TM fn %d response %p "
-			"(req %p), because not all affected commands received "
-			"(TM cmd sn %u, exp sn %u)",
+		TRACE_MGMT_DBG("Delaying TM fn %d response %p "
+			"(req %p), because not all affected commands "
+			"received (TM cmd sn %u, exp sn %u)",
 			req_hdr->function & ISCSI_FUNCTION_MASK, rsp, req,
 			req_hdr->cmd_sn, sess->exp_cmd_sn);
 		sess->tm_rsp = rsp;
@@ -3446,7 +3449,8 @@ static int iscsi_target_release(struct scst_tgt *scst_tgt)
 	return 0;
 }
 
-#ifndef CONFIG_SCST_PROC
+#if !defined(CONFIG_SCST_PROC) && \
+	(defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING))
 static struct scst_trace_log iscsi_local_trace_tbl[] = {
     { TRACE_D_WRITE,		"d_write" },
     { TRACE_CONN_OC,		"conn" },
@@ -3476,7 +3480,8 @@ struct scst_tgt_template iscsi_template = {
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags = ISCSI_DEFAULT_LOG_FLAGS,
 	.trace_flags = &trace_flag,
-#ifndef CONFIG_SCST_PROC
+#if !defined(CONFIG_SCST_PROC) && \
+	(defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING))
 	.trace_tbl = iscsi_local_trace_tbl,
 	.trace_tbl_help = ISCSI_TRACE_TLB_HELP,
 #endif

@@ -59,10 +59,9 @@ extern unsigned long scst_trace_flag;
 
 #ifdef CONFIG_SCST_DEBUG
 
-/* TRACE_MGMT_MINOR disabled to not confuse regular users */
 #define SCST_DEFAULT_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MINOR | TRACE_PID | \
 	TRACE_LINE | TRACE_FUNCTION | TRACE_SPECIAL | TRACE_MGMT | \
-	/*TRACE_MGMT_MINOR |*/ TRACE_MGMT_DEBUG | TRACE_RTRY)
+	TRACE_MGMT_DEBUG | TRACE_RTRY)
 
 #define TRACE_RETRY(args...)	TRACE_DBG_FLAG(TRACE_RTRY, args)
 #define TRACE_SN(args...)	TRACE_DBG_FLAG(TRACE_SCSI_SERIALIZING, args)
@@ -74,7 +73,7 @@ extern unsigned long scst_trace_flag;
 #else /* CONFIG_SCST_DEBUG */
 
 # ifdef CONFIG_SCST_TRACING
-#define SCST_DEFAULT_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MINOR | TRACE_MGMT | \
+#define SCST_DEFAULT_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MGMT | \
 	TRACE_SPECIAL)
 # else
 #define SCST_DEFAULT_LOG_FLAGS 0

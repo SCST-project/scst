@@ -94,13 +94,14 @@
 #define TRACE_OUT_OF_MEM     0x00000100
 #define TRACE_MINOR          0x00000200 /* less important events */
 #define TRACE_MGMT           0x00000400
-#define TRACE_MGMT_MINOR     0x00000800
-#define TRACE_MGMT_DEBUG     0x00001000
-#define TRACE_SCSI           0x00002000
-#define TRACE_SPECIAL        0x00004000 /* filtering debug, etc */
-#define TRACE_FLOW_CONTROL   0x00008000 /* flow control in action */
+#define TRACE_MGMT_DEBUG     0x00000800
+#define TRACE_SCSI           0x00001000
+#define TRACE_SPECIAL        0x00002000 /* filtering debug, etc */
+#define TRACE_FLOW_CONTROL   0x00004000 /* flow control in action */
 #define TRACE_ALL            0xffffffff
 /* Flags 0xXXXX0000 are local for users */
+
+#define TRACE_MINOR_AND_MGMT_DBG	(TRACE_MINOR|TRACE_MGMT_DEBUG)
 
 #ifndef KERN_CONT
 #define KERN_CONT       ""

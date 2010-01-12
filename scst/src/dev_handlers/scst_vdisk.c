@@ -2181,7 +2181,7 @@ static void vdisk_exec_read_capacity16(struct scst_cmd *cmd)
 	 * But if you're using such buggy Windows and experience this problem,
 	 * change this '1' to '0'.
 	 */
-#if 1
+#if 0	/* there are too many such hosts */
 	if (length > READ_CAP16_LEN)
 		length = READ_CAP16_LEN;
 #else
