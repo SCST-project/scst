@@ -120,6 +120,8 @@ struct scst_user_scsi_cmd_parse {
 	int32_t bufflen;
 	int32_t in_bufflen;
 
+	uint32_t op_flags;
+
 	uint8_t queue_type;
 	uint8_t data_direction;
 
@@ -211,7 +213,8 @@ struct scst_user_get_cmd {
 struct scst_user_scsi_cmd_reply_parse {
 	uint8_t queue_type;
 	uint8_t data_direction;
-	uint8_t write_medium;
+	int16_t cdb_len;
+	uint32_t op_flags;
 	int32_t data_len;
 	int32_t bufflen;
 };

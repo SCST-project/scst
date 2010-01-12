@@ -4030,18 +4030,17 @@ int scst_get_cdb_info(struct scst_cmd *cmd)
 	}
 
 	if (unlikely(ptr == NULL)) {
-		/* opcode not found or now not used !!! */
-		TRACE(TRACE_SCSI, "Unknown opcode 0x%x for type %d", op,
+		/* opcode not found or now not used */
+		TRACE(TRACE_MINOR, "Unknown opcode 0x%x for type %d", op,
 		      dev_type);
 		res = -1;
-		cmd->op_flags = SCST_INFO_NOT_FOUND;
 		goto out;
 	}
 
 	cmd->cdb_len = SCST_GET_CDB_LEN(op);
 	cmd->op_name = ptr->op_name;
 	cmd->data_direction = ptr->direction;
-	cmd->op_flags = ptr->flags;
+	cmd->op_flags = ptr->flags | SCST_INFO_VALID;
 	res = (*ptr->get_trans_len)(cmd, ptr->off);
 
 out:

@@ -125,6 +125,23 @@ enum scst_cmd_queue_type {
 };
 
 /*************************************************************
+ ** CDB flags
+ *************************************************************/
+enum scst_cdb_flags {
+	SCST_TRANSFER_LEN_TYPE_FIXED =		0x001,
+	SCST_SMALL_TIMEOUT =			0x002,
+	SCST_LONG_TIMEOUT =			0x004,
+	SCST_UNKNOWN_LENGTH =			0x008,
+	SCST_INFO_VALID =			0x010, /* must be single bit */
+	SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED =	0x020,
+	SCST_IMPLICIT_HQ =			0x040,
+	SCST_SKIP_UA =				0x080,
+	SCST_WRITE_MEDIUM =			0x100,
+	SCST_LOCAL_CMD =			0x200,
+	SCST_FULLY_LOCAL_CMD =			0x400,
+};
+
+/*************************************************************
  ** Data direction aliases. Changing it don't forget to change
  ** scst_to_tgt_dma_dir as well!!
  *************************************************************/

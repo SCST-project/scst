@@ -2,7 +2,7 @@
 
 	  USER SPACE INTERFACE DESCRIPTION.
 
-		   Version 1.0.2
+		   Version 2.0.0
 
 
 		I. Description.
@@ -280,7 +280,7 @@ where:
 
  - subcode - subcommand code, see 4.1 below
 
-  - preply - pointer to the reply data or, if 0, there is no reply. See
+ - preply - pointer to the reply data or, if 0, there is no reply. See
    SCST_USER_REPLY_CMD for description of struct scst_user_reply_cmd
    fields
 
@@ -375,6 +375,8 @@ struct scst_user_scsi_cmd_parse
 	int32_t bufflen;
 	int32_t in_bufflen;
 
+	uint32_t op_flags;
+
 	uint8_t queue_type;
 	uint8_t data_direction;
 
@@ -403,6 +405,8 @@ where:
  - in_bufflen - for bidirectional commands command's IN, i.e. from
    initiator to target, buffer length
  
+ - op_flags - CDB flags, one or more scst_cdb_flags bits, see below.
+ 
  - queue_type - SCSI task attribute (queue type)
  
  - data_direction - command's data flow direction, one of SCST_DATA_*
@@ -417,6 +421,30 @@ where:
  - expected_transfer_len - remote initiator supplied transfer length
 
  - sn - command's SN, which might be used for task management
+
+Bits of scst_cdb_flags can be:
+
+ - SCST_TRANSFER_LEN_TYPE_FIXED - this command uses fixed blocks addressing
+
+ - SCST_SMALL_TIMEOUT - this command needs small timeout
+
+ - SCST_LONG_TIMEOUT - this command needs a long timeout
+
+ - SCST_UNKNOWN_LENGTH - data buffer lenght for this command is unknown
+
+ - SCST_INFO_VALID - bits of op_flags are valid
+
+ - SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED - mismatch of data_direction with
+   the value supplied by target driver is allowed
+
+ - SCST_IMPLICIT_HQ - this command is an implicit HEAD OF QUEUE command
+
+ - SCST_SKIP_UA - Unit Attentions shouldn't be delivered for this command 
+
+ - SCST_WRITE_MEDIUM - this command writes data on the medium, so should be
+   forbidden for read-only devices
+
+ - SCST_LOCAL_CMD - this command can be processed by SCST core.
 
 In the PARSE state of SCSI commands processing the user space device
 handler shall check and provide SCST values for command data buffer
@@ -811,7 +839,8 @@ struct scst_user_scsi_cmd_reply_parse
 {
 	uint8_t queue_type;
 	uint8_t data_direction;
-	uint8_t write_medium;
+	int16_t cdb_len; 
+	uint32_t op_flags;
 	int32_t data_len;
 	int32_t bufflen;
 },
@@ -822,8 +851,9 @@ where:
  
  - data_direction - command's data flow direction, one of SCST_DATA_* constants
 
- - write_medium - true, if command writes data to medium, so should be
-   forbidden for read-only devices, false otherwise
+ - cdb_len - length of CDB
+
+ - op_flags - commands flags, one or more scst_cdb_flags bits, see above.
 
  - data_len - command's data length
  

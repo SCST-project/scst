@@ -191,6 +191,8 @@ static int do_parse(struct vdisk_cmd *vcmd)
 	reply->data_direction = cmd->expected_data_direction;
 	reply->data_len = cmd->expected_transfer_len;
 	reply->bufflen = cmd->expected_transfer_len;
+	reply->cdb_len = cmd->cdb_len;
+	reply->op_flags = reply->op_flags;
 
 out:
 	TRACE_EXIT_RES(res);

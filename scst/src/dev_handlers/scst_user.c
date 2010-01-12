@@ -780,14 +780,14 @@ static int dev_user_parse(struct scst_cmd *cmd)
 	case SCST_USER_PARSE_STANDARD:
 		TRACE_DBG("PARSE STANDARD: ucmd %p", ucmd);
 		rc = dev->generic_parse(cmd, dev_user_get_block);
-		if ((rc != 0) || (cmd->op_flags & SCST_INFO_NOT_FOUND))
+		if ((rc != 0) || !(cmd->op_flags & SCST_INFO_VALID))
 			goto out_invalid;
 		break;
 
 	case SCST_USER_PARSE_EXCEPTION:
 		TRACE_DBG("PARSE EXCEPTION: ucmd %p", ucmd);
 		rc = dev->generic_parse(cmd, dev_user_get_block);
-		if ((rc == 0) && (!(cmd->op_flags & SCST_INFO_NOT_FOUND)))
+		if ((rc == 0) && (cmd->op_flags & SCST_INFO_VALID))
 			break;
 		else if (rc == SCST_CMD_STATE_NEED_THREAD_CTX) {
 			TRACE_MEM("Restarting PARSE to thread context "
@@ -821,6 +821,8 @@ static int dev_user_parse(struct scst_cmd *cmd)
 		ucmd->user_cmd.parse_cmd.expected_transfer_len =
 					cmd->expected_transfer_len;
 		ucmd->user_cmd.parse_cmd.sn = cmd->tgt_sn;
+		ucmd->user_cmd.parse_cmd.cdb_len = cmd->cdb_len;
+		ucmd->user_cmd.parse_cmd.op_flags = cmd->op_flags;
 		ucmd->state = UCMD_STATE_PARSING;
 		dev_user_add_to_ready(ucmd);
 		res = SCST_CMD_STATE_STOP;
@@ -1266,17 +1268,23 @@ static int dev_user_process_reply_parse(struct scst_user_cmd *ucmd,
 	if (unlikely((preply->bufflen < 0) || (preply->data_len < 0)))
 		goto out_inval;
 
+	if (unlikely(preply->cdb_len > SCST_MAX_CDB_SIZE))
+		goto out_inval;
+
 	TRACE_DBG("ucmd %p, queue_type %x, data_direction, %x, bufflen %d, "
-		"data_len %d, pbuf %llx", ucmd, preply->queue_type,
-		preply->data_direction, preply->bufflen, preply->data_len,
-		reply->alloc_reply.pbuf);
+		"data_len %d, pbuf %llx, cdb_len %d, op_flags %x", ucmd,
+		preply->queue_type, preply->data_direction, preply->bufflen,
+		preply->data_len, reply->alloc_reply.pbuf, preply->cdb_len,
+		preply->op_flags);
 
 	cmd->queue_type = preply->queue_type;
 	cmd->data_direction = preply->data_direction;
 	cmd->bufflen = preply->bufflen;
 	cmd->data_len = preply->data_len;
-	if (preply->write_medium)
-		cmd->op_flags |= SCST_WRITE_MEDIUM;
+	if (preply->cdb_len > 0)
+		cmd->cdb_len = preply->cdb_len;
+	if (preply->op_flags & SCST_INFO_VALID)
+		cmd->op_flags = preply->op_flags;
 
 out_process:
 	scst_post_parse_process_active_cmd(cmd, false);

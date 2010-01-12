@@ -93,17 +93,26 @@ struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
 	cmd->tgt = sess->tgt;
 	cmd->tgtt = sess->tgt->tgtt;
 
-	/*
-	 * For both wrong lun and CDB defer the error reporting for
-	 * scst_cmd_init_done()
-	 */
-
 	cmd->lun = scst_unpack_lun(lun, lun_len);
-
-	if (cdb_len <= SCST_MAX_CDB_SIZE) {
-		memcpy(cmd->cdb, cdb, cdb_len);
-		cmd->cdb_len = cdb_len;
+	if (unlikely(cmd->lun == NO_SUCH_LUN)) {
+		PRINT_ERROR("Wrong LUN %d, finishing cmd", -1);
+		scst_set_cmd_error(cmd,
+			   SCST_LOAD_SENSE(scst_sense_lun_not_supported));
 	}
+
+	/*
+	 * For cdb_len 0 defer the error reporting until scst_cmd_init_done(),
+	 * scst_set_cmd_error() supports nested calls.
+	 */
+	if (unlikely(cdb_len > SCST_MAX_CDB_SIZE)) {
+		PRINT_ERROR("Too big CDB len %d, finishing cmd", cdb_len);
+		cdb_len = SCST_MAX_CDB_SIZE;
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_invalid_message));
+	}
+
+	memcpy(cmd->cdb, cdb, cdb_len);
+	cmd->cdb_len = cdb_len;
 
 	TRACE_DBG("cmd %p, sess %p", cmd, sess);
 	scst_sess_get(sess);
@@ -261,16 +270,8 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
 
 	spin_unlock_irqrestore(&sess->sess_list_lock, flags);
 
-	if (unlikely(cmd->lun == NO_SUCH_LUN)) {
-		PRINT_ERROR("Wrong LUN %d, finishing cmd", -1);
-		scst_set_cmd_error(cmd,
-			   SCST_LOAD_SENSE(scst_sense_lun_not_supported));
-		scst_set_cmd_abnormal_done_state(cmd);
-		goto active;
-	}
-
 	if (unlikely(cmd->cdb_len == 0)) {
-		PRINT_ERROR("%s", "Wrong CDB len, finishing cmd");
+		PRINT_ERROR("%s", "Wrong CDB len 0, finishing cmd");
 		scst_set_cmd_error(cmd,
 			   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		scst_set_cmd_abnormal_done_state(cmd);
@@ -281,7 +282,6 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
 		PRINT_ERROR("Unsupported queue type %d", cmd->queue_type);
 		scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_sense_invalid_message));
-		scst_set_cmd_abnormal_done_state(cmd);
 		goto active;
 	}
 
@@ -358,95 +358,38 @@ static int scst_pre_parse(struct scst_cmd *cmd)
 	if (unlikely(rc != 0)) {
 		if (rc > 0) {
 			PRINT_BUFFER("Failed CDB", cmd->cdb, cmd->cdb_len);
-			goto out_xmit;
+			goto out_err;
 		}
+
+		EXTRACHECKS_BUG_ON(cmd->op_flags & SCST_INFO_VALID);
+
+		cmd->cdb_len = scst_get_cdb_len(cmd->cdb);
+
 		TRACE(TRACE_MINOR, "Unknown opcode 0x%02x for %s. "
 			"Should you update scst_scsi_op_table?",
 			cmd->cdb[0], dev->handler->name);
 		PRINT_BUFF_FLAG(TRACE_MINOR, "Failed CDB", cmd->cdb,
 			cmd->cdb_len);
-#ifdef CONFIG_SCST_USE_EXPECTED_VALUES
-		if (scst_cmd_is_expected_set(cmd)) {
-			TRACE(TRACE_SCSI, "Using initiator supplied values: "
-				"direction %d, transfer_len %d",
-				cmd->expected_data_direction,
-				cmd->expected_transfer_len);
-			cmd->data_direction = cmd->expected_data_direction;
-
-			cmd->bufflen = cmd->expected_transfer_len;
-			/* Restore (possibly) lost CDB length */
-			cmd->cdb_len = scst_get_cdb_len(cmd->cdb);
-			if (cmd->cdb_len == -1) {
-				PRINT_ERROR("Unable to get CDB length for "
-					"opcode 0x%02x. Returning INVALID "
-					"OPCODE", cmd->cdb[0]);
-				scst_set_cmd_error(cmd,
-				   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
-				goto out_xmit;
-			}
-		} else {
-			PRINT_ERROR("Unknown opcode 0x%02x for %s and "
-			     "target %s not supplied expected values",
-			     cmd->cdb[0], dev->handler->name, cmd->tgtt->name);
-			scst_set_cmd_error(cmd,
-				   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
-			goto out_xmit;
-		}
-#else
-		scst_set_cmd_error(cmd,
-			   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
-		goto out_xmit;
-#endif
 	} else {
-		TRACE(TRACE_SCSI, "op_name <%s> (cmd %p), direction=%d "
-			"(expected %d, set %s), transfer_len=%d (expected "
-			"len %d), flags=%d", cmd->op_name, cmd,
-			cmd->data_direction, cmd->expected_data_direction,
-			scst_cmd_is_expected_set(cmd) ? "yes" : "no",
-			cmd->bufflen, cmd->expected_transfer_len,
-			cmd->op_flags);
-
-		if (unlikely((cmd->op_flags & SCST_UNKNOWN_LENGTH) != 0)) {
-			if (scst_cmd_is_expected_set(cmd)) {
-				/*
-				 * Command data length can't be easily
-				 * determined from the CDB. ToDo, all such
-				 * commands processing should be fixed. Until
-				 * it's done, get the length from the supplied
-				 * expected value, but limit it to some
-				 * reasonable value (15MB).
-				 */
-				cmd->bufflen = min(cmd->expected_transfer_len,
-							15*1024*1024);
-				cmd->op_flags &= ~SCST_UNKNOWN_LENGTH;
-			} else
-				cmd->bufflen = 0;
-		}
-	}
-
-	if (unlikely(cmd->cdb[cmd->cdb_len - 1] & CONTROL_BYTE_NACA_BIT)) {
-		PRINT_ERROR("NACA bit in control byte CDB is not supported "
-			    "(opcode 0x%02x)", cmd->cdb[0]);
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
-		goto out_xmit;
-	}
-
-	if (unlikely(cmd->cdb[cmd->cdb_len - 1] & CONTROL_BYTE_LINK_BIT)) {
-		PRINT_ERROR("Linked commands are not supported "
-			    "(opcode 0x%02x)", cmd->cdb[0]);
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
-		goto out_xmit;
+		EXTRACHECKS_BUG_ON(!(cmd->op_flags & SCST_INFO_VALID));
 	}
 
 	cmd->state = SCST_CMD_STATE_DEV_PARSE;
+
+	TRACE_DBG("op_name <%s> (cmd %p), direction=%d "
+		"(expected %d, set %s), transfer_len=%d (expected "
+		"len %d), flags=%d", cmd->op_name, cmd,
+		cmd->data_direction, cmd->expected_data_direction,
+		scst_cmd_is_expected_set(cmd) ? "yes" : "no",
+		cmd->bufflen, cmd->expected_transfer_len,
+		cmd->op_flags);
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 
-out_xmit:
+out_err:
+	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 	scst_set_cmd_abnormal_done_state(cmd);
 	res = SCST_CMD_STATE_RES_CONT_SAME;
 	goto out;
@@ -457,22 +400,21 @@ static bool scst_is_allowed_to_mismatch_cmd(struct scst_cmd *cmd)
 {
 	bool res = false;
 
+	/* VERIFY commands with BYTCHK unset shouldn't fail here */
+	if ((cmd->op_flags & SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED) &&
+	    (cmd->cdb[1] & BYTCHK) == 0) {
+		res = true;
+		goto out;
+	}
+
 	switch (cmd->cdb[0]) {
 	case TEST_UNIT_READY:
 		/* Crazy VMware people sometimes do TUR with READ direction */
 		res = true;
 		break;
-	case VERIFY:
-	case VERIFY_6:
-	case VERIFY_12:
-	case VERIFY_16:
-		/* VERIFY commands with BYTCHK unset shouldn't fail here */
-		if ((cmd->op_flags & SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED) &&
-		    (cmd->cdb[1] & BYTCHK) == 0)
-			res = true;
-		break;
 	}
 
+out:
 	return res;
 }
 #endif
@@ -490,7 +432,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 		if (unlikely(!dev->handler->parse_atomic &&
 			     scst_cmd_atomic(cmd))) {
 			/*
-			 * It shouldn't be because of SCST_TGT_DEV_AFTER_*
+			 * It shouldn't be because of the SCST_TGT_DEV_AFTER_*
 			 * optimization.
 			 */
 			TRACE_DBG("Dev handler %s parse() needs thread "
@@ -531,15 +473,90 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 	} else
 		state = SCST_CMD_STATE_PREPARE_SPACE;
 
-	if (cmd->data_len == -1)
-		cmd->data_len = cmd->bufflen;
+	if (unlikely(state == SCST_CMD_STATE_PRE_XMIT_RESP))
+		goto set_res;
 
-	if (cmd->bufflen == 0) {
-		/*
-		 * According to SPC bufflen 0 for data transfer commands isn't
-		 * an error, so we need to fix the transfer direction.
-		 */
-		cmd->data_direction = SCST_DATA_NONE;
+	if (unlikely(!(cmd->op_flags & SCST_INFO_VALID))) {
+#ifdef CONFIG_SCST_USE_EXPECTED_VALUES
+		if (scst_cmd_is_expected_set(cmd)) {
+			TRACE(TRACE_MINOR, "Using initiator supplied values: "
+				"direction %d, transfer_len %d",
+				cmd->expected_data_direction,
+				cmd->expected_transfer_len);
+			cmd->data_direction = cmd->expected_data_direction;
+			cmd->bufflen = cmd->expected_transfer_len;
+		} else {
+			PRINT_ERROR("Unknown opcode 0x%02x for %s and "
+			     "target %s not supplied expected values",
+			     cmd->cdb[0], dev->handler->name, cmd->tgtt->name);
+			scst_set_cmd_error(cmd,
+				   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+			goto out_done;
+		}
+#else
+		scst_set_cmd_error(cmd,
+			   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		goto out_done;
+#endif
+	}
+
+	if (unlikely(cmd->cdb_len == -1)) {
+		PRINT_ERROR("Unable to get CDB length for "
+			"opcode 0x%02x. Returning INVALID "
+			"OPCODE", cmd->cdb[0]);
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		goto out_done;
+	}
+
+	EXTRACHECKS_BUG_ON(cmd->cdb_len == 0);
+
+	TRACE(TRACE_SCSI, "op_name <%s> (cmd %p), direction=%d "
+		"(expected %d, set %s), transfer_len=%d (expected "
+		"len %d), flags=%d", cmd->op_name, cmd,
+		cmd->data_direction, cmd->expected_data_direction,
+		scst_cmd_is_expected_set(cmd) ? "yes" : "no",
+		cmd->bufflen, cmd->expected_transfer_len,
+		cmd->op_flags);
+
+	if (unlikely((cmd->op_flags & SCST_UNKNOWN_LENGTH) != 0)) {
+		if (scst_cmd_is_expected_set(cmd)) {
+			/*
+			 * Command data length can't be easily
+			 * determined from the CDB. ToDo, all such
+			 * commands processing should be fixed. Until
+			 * it's done, get the length from the supplied
+			 * expected value, but limit it to some
+			 * reasonable value (15MB).
+			 */
+			cmd->bufflen = min(cmd->expected_transfer_len,
+						15*1024*1024);
+			cmd->op_flags &= ~SCST_UNKNOWN_LENGTH;
+		} else {
+			PRINT_ERROR("Unknown data transfer length for opcode "
+				"0x%x (handler %s, target %s)", cmd->cdb[0],
+				dev->handler->name, cmd->tgtt->name);
+			PRINT_BUFFER("Failed CDB", cmd->cdb, cmd->cdb_len);
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_invalid_message));
+			goto out_done;
+		}
+	}
+
+	if (unlikely(cmd->cdb[cmd->cdb_len - 1] & CONTROL_BYTE_NACA_BIT)) {
+		PRINT_ERROR("NACA bit in control byte CDB is not supported "
+			    "(opcode 0x%02x)", cmd->cdb[0]);
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		goto out_done;
+	}
+
+	if (unlikely(cmd->cdb[cmd->cdb_len - 1] & CONTROL_BYTE_LINK_BIT)) {
+		PRINT_ERROR("Linked commands are not supported "
+			    "(opcode 0x%02x)", cmd->cdb[0]);
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		goto out_done;
 	}
 
 	if (cmd->dh_data_buf_alloced &&
@@ -548,19 +565,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 			"is less, than required (size %d)", cmd->bufflen,
 			orig_bufflen);
 		PRINT_BUFFER("Failed CDB", cmd->cdb, cmd->cdb_len);
-		goto out_error;
-	}
-
-	if (unlikely(state == SCST_CMD_STATE_PRE_XMIT_RESP))
-		goto set_res;
-
-	if (unlikely((cmd->bufflen == 0) &&
-		     (cmd->op_flags & SCST_UNKNOWN_LENGTH))) {
-		PRINT_ERROR("Unknown data transfer length for opcode 0x%x "
-			"(handler %s, target %s)", cmd->cdb[0],
-			dev->handler->name, cmd->tgtt->name);
-		PRINT_BUFFER("Failed CDB", cmd->cdb, cmd->cdb_len);
-		goto out_error;
+		goto out_hw_error;
 	}
 
 #ifdef CONFIG_SCST_EXTRACHECKS
@@ -573,7 +578,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 			cmd->data_direction, cmd->bufflen, state, cmd->sg,
 			cmd->cdb[0]);
 		PRINT_BUFFER("Failed CDB", cmd->cdb, cmd->cdb_len);
-		goto out_error;
+		goto out_hw_error;
 	}
 #endif
 
@@ -582,14 +587,15 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 #	ifdef CONFIG_SCST_EXTRACHECKS
 		if ((cmd->data_direction != cmd->expected_data_direction) ||
 		    (cmd->bufflen != cmd->expected_transfer_len)) {
-			PRINT_WARNING("Expected values don't match decoded "
-				"ones: data_direction %d, "
+			TRACE(TRACE_MINOR, "Expected values don't match "
+				"decoded ones: data_direction %d, "
 				"expected_data_direction %d, "
 				"bufflen %d, expected_transfer_len %d",
 				cmd->data_direction,
 				cmd->expected_data_direction,
 				cmd->bufflen, cmd->expected_transfer_len);
-			PRINT_BUFFER("Suspicious CDB", cmd->cdb, cmd->cdb_len);
+			PRINT_BUFF_FLAG(TRACE_MINOR, "Suspicious CDB",
+				cmd->cdb, cmd->cdb_len);
 		}
 #	endif
 		cmd->data_direction = cmd->expected_data_direction;
@@ -606,11 +612,11 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 					cmd->expected_data_direction,
 					cmd->cdb[0], dev->handler->name,
 					cmd->tgtt->name, cmd->data_direction);
-				PRINT_BUFFER("Failed CDB",
-					cmd->cdb, cmd->cdb_len);
+				PRINT_BUFFER("Failed CDB", cmd->cdb,
+					cmd->cdb_len);
 				scst_set_cmd_error(cmd,
 				   SCST_LOAD_SENSE(scst_sense_invalid_message));
-				goto out_dev_done;
+				goto out_done;
 			}
 		}
 		if (unlikely(cmd->bufflen != cmd->expected_transfer_len)) {
@@ -634,10 +640,21 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 			"target %s", cmd->cdb[0], dev->handler->name,
 			cmd->tgtt->name);
 		PRINT_BUFFER("Failed CDB", cmd->cdb, cmd->cdb_len);
-		goto out_error;
+		goto out_hw_error;
 	}
 
 set_res:
+	if (cmd->data_len == -1)
+		cmd->data_len = cmd->bufflen;
+
+	if (cmd->bufflen == 0) {
+		/*
+		 * According to SPC bufflen 0 for data transfer commands isn't
+		 * an error, so we need to fix the transfer direction.
+		 */
+		cmd->data_direction = SCST_DATA_NONE;
+	}
+
 #ifdef CONFIG_SCST_EXTRACHECKS
 	switch (state) {
 	case SCST_CMD_STATE_PREPARE_SPACE:
@@ -670,7 +687,7 @@ set_res:
 				"error %d (opcode %d)", dev->handler->name,
 				state, cmd->cdb[0]);
 		}
-		goto out_error;
+		goto out_hw_error;
 	}
 #endif
 
@@ -681,18 +698,20 @@ set_res:
 			 cmd->resp_data_len = 0;
 	}
 
+	/* We already completed (with an error) */
+	if (unlikely(cmd->completed))
+		goto out_done;
+
 out:
 	TRACE_EXIT_HRES(res);
 	return res;
 
-out_error:
+out_hw_error:
 	/* dev_done() will be called as part of the regular cmd's finish */
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 
-#ifndef CONFIG_SCST_USE_EXPECTED_VALUES
-out_dev_done:
-#endif
-	cmd->state = SCST_CMD_STATE_PRE_DEV_DONE;
+out_done:
+	scst_set_cmd_abnormal_done_state(cmd);
 	res = SCST_CMD_STATE_RES_CONT_SAME;
 	goto out;
 }
@@ -915,7 +934,7 @@ static int scst_rdy_to_xfer(struct scst_cmd *cmd)
 
 	if (unlikely(!tgtt->rdy_to_xfer_atomic && scst_cmd_atomic(cmd))) {
 		/*
-		 * It shouldn't be because of SCST_TGT_DEV_AFTER_*
+		 * It shouldn't be because of the SCST_TGT_DEV_AFTER_*
 		 * optimization.
 		 */
 		TRACE_DBG("Target driver %s rdy_to_xfer() needs thread "
@@ -1976,7 +1995,7 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 	if (handler->exec) {
 		if (unlikely(!dev->handler->exec_atomic && atomic)) {
 			/*
-			 * It shouldn't be because of SCST_TGT_DEV_AFTER_*
+			 * It shouldn't be because of the SCST_TGT_DEV_AFTER_*
 			 * optimization.
 			 */
 			TRACE_DBG("Dev handler %s exec() needs thread "
@@ -2762,7 +2781,7 @@ static int scst_dev_done(struct scst_cmd *cmd)
 		if (unlikely(!dev->handler->dev_done_atomic &&
 			     scst_cmd_atomic(cmd))) {
 			/*
-			 * It shouldn't be because of SCST_TGT_DEV_AFTER_*
+			 * It shouldn't be because of the SCST_TGT_DEV_AFTER_*
 			 * optimization.
 			 */
 			TRACE_DBG("Dev handler %s dev_done() needs thread "
@@ -2931,7 +2950,7 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 	if (unlikely(!tgtt->xmit_response_atomic &&
 		     scst_cmd_atomic(cmd))) {
 		/*
-		 * It shouldn't be because of SCST_TGT_DEV_AFTER_*
+		 * It shouldn't be because of the SCST_TGT_DEV_AFTER_*
 		 * optimization.
 		 */
 		TRACE_DBG("Target driver %s xmit_response() needs thread "
