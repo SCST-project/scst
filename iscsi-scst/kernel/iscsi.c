@@ -3109,9 +3109,8 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 		req->sg_cnt);
 
 	EXTRACHECKS_BUG_ON(req->hashed);
-	if (req->main_rsp != NULL) {
+	if (req->main_rsp != NULL)
 		EXTRACHECKS_BUG_ON(cmnd_opcode(req->main_rsp) != ISCSI_OP_REJECT);
-	}
 
 	if (unlikely((req->bufflen != 0) && !is_send_status)) {
 		PRINT_CRIT_ERROR("%s", "Sending DATA without STATUS is "
