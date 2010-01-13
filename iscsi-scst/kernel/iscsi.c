@@ -207,7 +207,6 @@ unlock_cont:
 			req_cmnd_release(cmnd);
 			goto out;
 		}
-		EXTRACHECKS_BUG_ON(scst_cmd_get_status(cmnd->scst_cmd) == 0);
 
 		status = SCST_PREPROCESS_STATUS_ERROR_SENSE_SET;
 	} else
@@ -3079,9 +3078,6 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 		}
 
 		TRACE_DBG("Prelim completed req %p", req);
-
-		/* To make sure we didn't miss anything above */
-		sBUG_ON(status == 0);
 
 		/*
 		 * We could preliminary have finished req before we

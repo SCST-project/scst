@@ -665,12 +665,130 @@ out:
 }
 EXPORT_SYMBOL(scst_set_cmd_error_status);
 
+static int scst_set_lun_not_supported_request_sense(struct scst_cmd *cmd,
+	int key, int asc, int ascq)
+{
+	int res;
+	int sense_len;
+
+	TRACE_ENTRY();
+
+	if (cmd->status != 0) {
+		TRACE_MGMT_DBG("cmd %p already has status %x set", cmd,
+			cmd->status);
+		res = -EEXIST;
+		goto out;
+	}
+
+	if ((cmd->sg != NULL) && SCST_SENSE_VALID(sg_virt(cmd->sg))) {
+		TRACE_MGMT_DBG("cmd %p already has sense set", cmd);
+		res = -EEXIST;
+		goto out;
+	}
+
+	if (cmd->sg == NULL) {
+		if (cmd->bufflen == 0)
+			cmd->bufflen = cmd->cdb[4];
+
+		cmd->sg = scst_alloc(cmd->bufflen, GFP_ATOMIC, &cmd->sg_cnt);
+		if (cmd->sg == NULL) {
+			PRINT_CRIT_ERROR("Unable to alloc sg"
+				"(sense %x/%x/%x)", key, asc, ascq);
+			res = 1;
+			goto out;
+		}
+	}
+
+	TRACE_MEM("sg %p alloced for sense for cmd %p (cnt %d, "
+		"len %d)", cmd->sg, cmd, cmd->sg_cnt, cmd->bufflen);
+
+	sense_len = scst_set_sense(sg_virt(cmd->sg),
+		cmd->bufflen, cmd->cdb[1] & 1, key, asc, ascq);
+	scst_set_resp_data_len(cmd, sense_len);
+
+	TRACE_BUFFER("Sense set", sg_virt(cmd->sg), sense_len);
+
+	res = 0;
+	cmd->completed = 1;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_set_lun_not_supported_inquiry(struct scst_cmd *cmd)
+{
+	int res;
+	uint8_t *buf;
+	int len;
+
+	TRACE_ENTRY();
+
+	if (cmd->status != 0) {
+		TRACE_MGMT_DBG("cmd %p already has status %x set", cmd,
+			cmd->status);
+		res = -EEXIST;
+		goto out;
+	}
+
+	if (cmd->sg == NULL) {
+		if (cmd->bufflen == 0)
+			cmd->bufflen = min_t(int, 36, (cmd->cdb[3] << 8) | cmd->cdb[4]);
+
+		cmd->sg = scst_alloc(cmd->bufflen, GFP_ATOMIC, &cmd->sg_cnt);
+		if (cmd->sg == NULL) {
+			PRINT_CRIT_ERROR("%s", "Unable to alloc sg for INQUIRY "
+				"for not supported LUN");
+			res = 1;
+			goto out;
+		}
+	}
+
+	TRACE_MEM("sg %p alloced INQUIRY for cmd %p (cnt %d, len %d)",
+		cmd->sg, cmd, cmd->sg_cnt, cmd->bufflen);
+
+	buf = sg_virt(cmd->sg);
+	len = min_t(int, 36, cmd->bufflen);
+
+	memset(buf, 0, len);
+	buf[0] = 0x7F; /* Peripheral qualifier 011b, Peripheral device type 1Fh */
+
+	TRACE_BUFFER("INQUIRY for not supported LUN set", buf, len);
+
+	res = 0;
+	cmd->completed = 1;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 int scst_set_cmd_error(struct scst_cmd *cmd, int key, int asc, int ascq)
 {
 	int res;
 
 	TRACE_ENTRY();
 
+	/*
+	 * We need for LOGICAL UNIT NOT SUPPORTED special handling for
+	 * REQUEST SENSE and INQUIRY.
+	 */
+	if ((key == ILLEGAL_REQUEST) && (asc == 0x25) && (ascq == 0)) {
+		if (cmd->cdb[0] == REQUEST_SENSE)
+			res = scst_set_lun_not_supported_request_sense(cmd,
+				key, asc, ascq);
+		else if (cmd->cdb[0] == INQUIRY)
+			res = scst_set_lun_not_supported_inquiry(cmd);
+		else
+			goto do_sense;
+
+		if (res > 0)
+			goto do_sense;
+		else
+			goto out;
+	}
+
+do_sense:
 	res = scst_set_cmd_error_status(cmd, SAM_STAT_CHECK_CONDITION);
 	if (res != 0)
 		goto out;
@@ -3465,20 +3583,21 @@ static void scst_release_space(struct scst_cmd *cmd)
 {
 	TRACE_ENTRY();
 
-	if (cmd->sgv == NULL)
-		goto out;
+	if (cmd->sgv == NULL) {
+		if ((cmd->sg != NULL) &&
+		    !(cmd->tgt_data_buf_alloced || cmd->dh_data_buf_alloced)) {
+			TRACE_MEM("Freeing sg %p for cmd %p (cnt %d)", cmd->sg,
+				cmd, cmd->sg_cnt);
+			scst_free(cmd->sg, cmd->sg_cnt);
+			goto out_zero;
+		} else
+			goto out;
+	}
 
 	if (cmd->tgt_data_buf_alloced || cmd->dh_data_buf_alloced) {
 		TRACE_MEM("%s", "*data_buf_alloced set, returning");
 		goto out;
 	}
-
-	sgv_pool_free(cmd->sgv, &cmd->dev->dev_mem_lim);
-	cmd->sgv = NULL;
-	cmd->sg_cnt = 0;
-	cmd->sg = NULL;
-	cmd->bufflen = 0;
-	cmd->data_len = 0;
 
 	if (cmd->in_sgv != NULL) {
 		sgv_pool_free(cmd->in_sgv, &cmd->dev->dev_mem_lim);
@@ -3487,6 +3606,15 @@ static void scst_release_space(struct scst_cmd *cmd)
 		cmd->in_sg = NULL;
 		cmd->in_bufflen = 0;
 	}
+
+	sgv_pool_free(cmd->sgv, &cmd->dev->dev_mem_lim);
+
+out_zero:
+	cmd->sgv = NULL;
+	cmd->sg_cnt = 0;
+	cmd->sg = NULL;
+	cmd->bufflen = 0;
+	cmd->data_len = 0;
 
 out:
 	TRACE_EXIT();
