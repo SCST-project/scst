@@ -75,9 +75,9 @@
 #define EXTRACHECKS_WARN_ON(a)		WARN_ON(a)
 #define EXTRACHECKS_WARN_ON_ONCE(a)	WARN_ON_ONCE(a)
 #else
-#define EXTRACHECKS_BUG_ON(a)
-#define EXTRACHECKS_WARN_ON(a)
-#define EXTRACHECKS_WARN_ON_ONCE(a)
+#define EXTRACHECKS_BUG_ON(a)		do { } while (0)
+#define EXTRACHECKS_WARN_ON(a)		do { } while (0)
+#define EXTRACHECKS_WARN_ON_ONCE(a)	do { } while (0)
 #endif
 
 #define TRACE_NULL           0x00000000
