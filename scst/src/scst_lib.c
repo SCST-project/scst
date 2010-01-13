@@ -142,7 +142,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{0x00, "MMMMMMMMMMMMMMMM", "TEST UNIT READY",
 	 /* let's be HQ to don't look dead under high load */
 	 SCST_DATA_NONE, SCST_SMALL_TIMEOUT|SCST_IMPLICIT_HQ|
-	 		 SCST_REG_RESERVE_ALLOWED,
+			 SCST_REG_RESERVE_ALLOWED,
 	 0, get_trans_len_none},
 	{0x01, " M              ", "REWIND",
 	 SCST_DATA_NONE, SCST_LONG_TIMEOUT, 0, get_trans_len_none},
@@ -152,7 +152,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 SCST_DATA_NONE, SCST_SMALL_TIMEOUT, 0, get_trans_len_none},
 	{0x03, "MMMMMMMMMMMMMMMM", "REQUEST SENSE",
 	 SCST_DATA_READ, SCST_SMALL_TIMEOUT|SCST_SKIP_UA|SCST_LOCAL_CMD|
-	 		 SCST_REG_RESERVE_ALLOWED,
+			 SCST_REG_RESERVE_ALLOWED,
 	 4, get_trans_len_1},
 	{0x04, "M    O O        ", "FORMAT UNIT",
 	 SCST_DATA_WRITE, SCST_LONG_TIMEOUT|SCST_UNKNOWN_LENGTH|SCST_WRITE_MEDIUM,
@@ -207,7 +207,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 SCST_DATA_NONE, SCST_LONG_TIMEOUT, 0, get_trans_len_none},
 	{0x12, "MMMMMMMMMMMMMMMM", "INQUIRY",
 	 SCST_DATA_READ, SCST_SMALL_TIMEOUT|SCST_IMPLICIT_HQ|SCST_SKIP_UA|
-	 		 SCST_REG_RESERVE_ALLOWED,
+			 SCST_REG_RESERVE_ALLOWED,
 	 4, get_trans_len_1},
 	{0x13, "VOVVVV          ", "VERIFY(6)",
 	 SCST_DATA_NONE, SCST_TRANSFER_LEN_TYPE_FIXED|
