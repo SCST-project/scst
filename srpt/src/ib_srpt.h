@@ -121,31 +121,11 @@ enum {
 		+ 128 * sizeof(struct srp_direct_buf)/*16*/,
 
 	DEFAULT_MAX_RDMA_SIZE = 65536,
-
-	/*
-	 * Number of I/O contexts to be allocated for sending back requests
-	 * from the target to the initiator.
-	 */
-	REQ_IOCTX_COUNT = 1,
 };
 
-/* wr_id / wc_id flag for marking requests sent to the initiator. */
-#define SRPT_OP_TXR			(1 << 30)
 /* wr_id / wc_id flag for marking receive operations. */
 #define SRPT_OP_RECV			(1 << 31)
 
-
-/*
- * SRP_CRED_REQ information unit, as defined in section 6.10 of the T10 SRP
- * r16a document.
- */
-struct srp_cred_req {
-	u8 opcode;
-	u8 sol_not;
-	u8 reserved[2];
-	s32 req_lim_delta;
-	u64 tag;
-} __attribute__((packed));
 
 struct rdma_iu {
 	u64 raddr;
@@ -234,16 +214,8 @@ struct srpt_rdma_ch {
 	 * Value of req_lim the last time a response or SRP_CRED_REQ was sent.
 	 */
 	atomic_t last_response_req_lim;
-	/*
-	 * Flag that indicates whether or not an SRP_CRED_REQ message should
-	 * be sent to the initiator.
-	 */
-	atomic_t send_cred_req;
-	/*
-	 * Value for the tag field of the subsequent SRP_CRED_REQ message sent.
-	 */
-	u64 cred_req_tag;
-	atomic_t state; /*enum rdma_ch_state*/
+	/* Channel state -- see also enum rdma_ch_state. */
+	atomic_t state;
 	/* Node for insertion in the srpt_device::rch_list list. */
 	struct list_head list;
 	/*
@@ -252,13 +224,6 @@ struct srpt_rdma_ch {
 	 * against concurrent modification by the cm_id spinlock.
 	 */
 	struct list_head cmd_wait_list;
-	/*
-	 * I/O context head, tail and ring for sending requests from target
-	 * to initiator.
-	 */
-	atomic_t req_ioctx_head;
-	atomic_t req_ioctx_tail;
-	struct srpt_ioctx *req_ioctx_ring[REQ_IOCTX_COUNT];
 
 	struct scst_session *scst_sess;
 	u8 sess_name[36];
