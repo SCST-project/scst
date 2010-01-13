@@ -1827,15 +1827,7 @@ int scst_check_local_events(struct scst_cmd *cmd)
 	/* Reserve check before Unit Attention */
 	if (unlikely(test_bit(SCST_TGT_DEV_RESERVED,
 			      &tgt_dev->tgt_dev_flags))) {
-		if (cmd->cdb[0] != INQUIRY &&
-		    cmd->cdb[0] != REPORT_LUNS &&
-		    cmd->cdb[0] != RELEASE &&
-		    cmd->cdb[0] != RELEASE_10 &&
-		    cmd->cdb[0] != REPORT_DEVICE_IDENTIFIER &&
-		    (cmd->cdb[0] != ALLOW_MEDIUM_REMOVAL ||
-		     (cmd->cdb[4] & 3)) &&
-		    cmd->cdb[0] != LOG_SENSE &&
-		    cmd->cdb[0] != REQUEST_SENSE) {
+		if ((cmd->op_flags & SCST_REG_RESERVE_ALLOWED) == 0) {
 			scst_set_cmd_error_status(cmd,
 				SAM_STAT_RESERVATION_CONFLICT);
 			goto out_complete;
@@ -2626,14 +2618,16 @@ static int scst_pre_dev_done(struct scst_cmd *cmd)
 			goto out;
 		}
 	} else {
+		TRACE(TRACE_SCSI, "cmd %p not succeeded with status %x",
+			cmd, cmd->status);
+
 		if ((cmd->cdb[0] == RESERVE) || (cmd->cdb[0] == RESERVE_10)) {
 			if (!test_bit(SCST_TGT_DEV_RESERVED,
 					&cmd->tgt_dev->tgt_dev_flags)) {
 				struct scst_tgt_dev *tgt_dev_tmp;
 				struct scst_device *dev = cmd->dev;
 
-				TRACE(TRACE_SCSI,
-					"Real RESERVE failed lun=%lld, "
+				TRACE(TRACE_SCSI, "RESERVE failed lun=%lld, "
 					"status=%x",
 					(long long unsigned int)cmd->lun,
 					cmd->status);

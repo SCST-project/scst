@@ -139,6 +139,7 @@ enum scst_cdb_flags {
 	SCST_WRITE_MEDIUM =			0x100,
 	SCST_LOCAL_CMD =			0x200,
 	SCST_FULLY_LOCAL_CMD =			0x400,
+	SCST_REG_RESERVE_ALLOWED =		0x800,
 };
 
 /*************************************************************
@@ -151,10 +152,14 @@ enum scst_cdb_flags {
 #define SCST_DATA_BIDI			(SCST_DATA_WRITE | SCST_DATA_READ)
 #define SCST_DATA_NONE			4
 
+#ifdef CONFIG_SCST_PROC
+
 /*************************************************************
  ** Name of the "Default" security group
  *************************************************************/
 #define SCST_DEFAULT_ACG_NAME			"Default"
+
+#endif
 
 /*************************************************************
  ** Default suffix for targets with NULL names
