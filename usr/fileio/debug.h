@@ -33,7 +33,7 @@ extern pid_t gettid(void);
 #ifdef EXTRACHECKS
 #define EXTRACHECKS_BUG_ON(a)	sBUG_ON(a)
 #else
-#define EXTRACHECKS_BUG_ON(a)
+#define EXTRACHECKS_BUG_ON(a)	do { } while (0)
 #endif
 
 #define TRACE_NULL           0x00000000
