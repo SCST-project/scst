@@ -192,7 +192,7 @@ out:
 
 static void *align_alloc(size_t size)
 {
-	TRACE_MEM("Request to alloc %dKB", size / 1024);
+	TRACE_MEM("Request to alloc %zdKB", size / 1024);
 	return memalign(PAGE_SIZE, size);
 }
 
