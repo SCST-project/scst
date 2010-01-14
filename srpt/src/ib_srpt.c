@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2006 - 2009 Mellanox Technology Inc.  All rights reserved.
  * Copyright (C) 2008 Vladislav Bolkhovitin <vst@vlnb.net>
- * Copyright (C) 2008 - 2009 Bart Van Assche <bart.vanassche@gmail.com>
+ * Copyright (C) 2008 - 2010 Bart Van Assche <bart.vanassche@gmail.com>
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -1025,12 +1025,11 @@ out:
 static int srpt_req_lim_delta(struct srpt_rdma_ch *ch)
 {
 	int req_lim;
-	int req_lim_delta;
+	int last_rsp_req_lim;
 
 	req_lim = atomic_read(&ch->req_lim);
-	req_lim_delta = req_lim - atomic_read(&ch->last_response_req_lim);
-	atomic_add(req_lim_delta, &ch->last_response_req_lim);
-	return req_lim_delta;
+	last_rsp_req_lim = atomic_xchg(&ch->last_response_req_lim, req_lim);
+	return req_lim - last_rsp_req_lim;
 }
 
 static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
@@ -2595,6 +2594,20 @@ out:
 }
 
 /**
+ * srpt_must_wait_for_cred() - Whether or not the target must wait with
+ * sending a response towards the initiator in order to avoid that the
+ * initiator locks up. Since an initiator must not send an SRP_CMD request
+ * when its req_lim variable is less than 2, and since sending a response to
+ * the initiator will make its req_lim variable equal to ch->req_lim, do not
+ * send a response to the initiator that would make its req_lim variable less
+ * than 2.
+ */
+static inline bool srpt_must_wait_for_cred(struct srpt_rdma_ch *ch)
+{
+	return atomic_read(&ch->req_lim) < 2;
+}
+
+/**
  * srpt_xmit_response() - SCST callback function that transmits the response
  * to a SCSI command.
  *
@@ -2622,6 +2635,17 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 		ret = SCST_TGT_RES_SUCCESS;
 		goto out;
 	}
+
+	if (srpt_must_wait_for_cred(ch)) {
+		if (scst_cmd_atomic(scmnd)) {
+			TRACE_DBG("%s", "Switching to thread context.");
+			ret = SCST_TGT_RES_NEED_THREAD_CTX;
+			goto out;
+		}
+		while (srpt_must_wait_for_cred(ch))
+			schedule();
+	}
+
 
 	if (srpt_set_cmd_state(ioctx, SRPT_STATE_PROCESSED)
 	    == SRPT_STATE_ABORTED) {
@@ -2690,6 +2714,9 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 	TRACE_DBG("%s: tsk_mgmt_done for tag= %lld status=%d",
 		  __func__, (unsigned long long)mgmt_ioctx->tag,
 		  scst_mgmt_cmd_get_status(mcmnd));
+
+	if (atomic_read(&ch->req_lim) < 1)
+		PRINT_ERROR("%s", "Initiator may lock up !!");
 
 	if (srpt_set_cmd_state(ioctx, SRPT_STATE_PROCESSED)
 	    == SRPT_STATE_ABORTED)
