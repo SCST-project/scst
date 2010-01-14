@@ -447,7 +447,7 @@ enum scst_exec_context {
 
 /*
  * Set if the cmd's device has TAS flag set. Used only when aborted by
- * other initiator. 
+ * other initiator.
  */
 #define SCST_CMD_DEVICE_TAS		4
 
