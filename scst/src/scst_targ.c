@@ -47,7 +47,7 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd);
 static int __scst_init_cmd(struct scst_cmd *cmd);
 static void scst_finish_cmd_mgmt(struct scst_cmd *cmd);
 static struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,
-	uint64_t tag);
+	uint64_t tag, bool to_abort);
 static void scst_process_redirect_cmd(struct scst_cmd *cmd,
 	enum scst_exec_context context, int check_retries);
 
@@ -4435,7 +4435,7 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 		struct scst_cmd *cmd;
 
 		spin_lock_irq(&sess->sess_list_lock);
-		cmd = __scst_find_cmd_by_tag(sess, mcmd->tag);
+		cmd = __scst_find_cmd_by_tag(sess, mcmd->tag, true);
 		if (cmd == NULL) {
 			TRACE_MGMT_DBG("ABORT TASK: command "
 			      "for tag %llu not found",
@@ -5732,9 +5732,9 @@ int scst_global_mgmt_thread(void *arg)
 
 /* Called under sess->sess_list_lock */
 static struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,
-	uint64_t tag)
+	uint64_t tag, bool to_abort)
 {
-	struct scst_cmd *cmd = NULL;
+	struct scst_cmd *cmd, *res = NULL;
 
 	TRACE_ENTRY();
 
@@ -5742,24 +5742,46 @@ static struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,
 
 	TRACE_DBG("%s (sess=%p, tag=%llu)", "Searching in sess cmd list",
 		  sess, (long long unsigned int)tag);
+
 	list_for_each_entry(cmd, &sess->sess_cmd_list,
 			sess_cmd_list_entry) {
-		/*
-		 * We must not count done commands, because they were
-		 * submitted for transmittion. Otherwise we can have a race,
-		 * when for some reason cmd's release delayed after
-		 * transmittion and initiator sends cmd with the same tag =>
-		 * it can be possible that a wrong cmd will be returned.
-		 */
-		if (cmd->done)
-			continue;
-		if (cmd->tag == tag)
-			goto out;
+		if (cmd->tag == tag) {
+			/*
+			 * We must not count done commands, because
+			 * they were submitted for transmittion.
+			 * Otherwise we can have a race, when for
+			 * some reason cmd's release delayed
+			 * after transmittion and initiator sends
+			 * cmd with the same tag => it can be possible
+			 * that a wrong cmd will be returned.
+			 */
+			if (cmd->done) {
+				if (to_abort) {
+					/*
+					 * We should return the latest not
+					 * aborted cmd with this tag.
+					 */
+					if (res == NULL)
+						res = cmd;
+					else {
+						if (test_bit(SCST_CMD_ABORTED,
+								&res->cmd_flags)) {
+							res = cmd;
+						} else if (!test_bit(SCST_CMD_ABORTED,
+								&cmd->cmd_flags))
+							res = cmd;
+					}
+				}
+				continue;
+			} else {
+				res = cmd;
+				break;
+			}
+		}
 	}
-	cmd = NULL;
-out:
+
 	TRACE_EXIT();
-	return cmd;
+	return res;
 }
 
 struct scst_cmd *scst_find_cmd(struct scst_session *sess, void *data,
@@ -5808,7 +5830,7 @@ struct scst_cmd *scst_find_cmd_by_tag(struct scst_session *sess,
 	unsigned long flags;
 	struct scst_cmd *cmd;
 	spin_lock_irqsave(&sess->sess_list_lock, flags);
-	cmd = __scst_find_cmd_by_tag(sess, tag);
+	cmd = __scst_find_cmd_by_tag(sess, tag, false);
 	spin_unlock_irqrestore(&sess->sess_list_lock, flags);
 	return cmd;
 }
