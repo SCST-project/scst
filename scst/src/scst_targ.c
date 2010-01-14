@@ -4063,9 +4063,25 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 	spin_lock_irqsave(&other_ini_lock, flags);
 
 	if (other_ini) {
+		struct scst_device *dev = NULL;
+
 		/* Might be necessary if command aborted several times */
 		if (!test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))
 			set_bit(SCST_CMD_ABORTED_OTHER, &cmd->cmd_flags);
+
+		/* Necessary for scst_xmit_process_aborted_cmd */
+		if (cmd->dev != NULL)
+			dev = cmd->dev;
+		else if ((mcmd != NULL) && (mcmd->mcmd_tgt_dev != NULL))
+			dev = mcmd->mcmd_tgt_dev->dev;
+
+		if (dev != NULL) {
+			if (dev->tas)
+				set_bit(SCST_CMD_DEVICE_TAS, &cmd->cmd_flags);
+		} else
+			PRINT_WARNING("Abort cmd %p from other initiator, but "
+				"neither cmd, nor mcmd %p have tgt_dev set, so "
+				"TAS information can be lost", cmd, mcmd);
 	} else {
 		/* Might be necessary if command aborted several times */
 		clear_bit(SCST_CMD_ABORTED_OTHER, &cmd->cmd_flags);

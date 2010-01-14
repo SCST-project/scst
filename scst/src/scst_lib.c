@@ -5736,7 +5736,8 @@ void scst_xmit_process_aborted_cmd(struct scst_cmd *cmd)
 			goto out;
 		}
 
-		if (cmd->dev->tas) {
+		/* For not yet inited commands cmd->dev can be NULL here */
+		if (test_bit(SCST_CMD_DEVICE_TAS, &cmd->cmd_flags)) {
 			TRACE_MGMT_DBG("Flag ABORTED OTHER set for cmd %p "
 				"(tag %llu), returning TASK ABORTED ", cmd,
 				(long long unsigned int)cmd->tag);

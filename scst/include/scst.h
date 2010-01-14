@@ -445,6 +445,12 @@ enum scst_exec_context {
 /* Set if the cmd is dead and can be destroyed at any time */
 #define SCST_CMD_CAN_BE_DESTROYED	3
 
+/*
+ * Set if the cmd's device has TAS flag set. Used only when aborted by
+ * other initiator. 
+ */
+#define SCST_CMD_DEVICE_TAS		4
+
 /*************************************************************
  ** Tgt_dev's async. flags (tgt_dev_flags)
  *************************************************************/
