@@ -62,3 +62,4 @@ The following tests must be run at least before releasing a new SRPT version:
     EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g
     EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG_TM -DCONFIG_SCST_TM_DBG_GO_OFFLINE
 
+* Test with multiple values of ib_srp_tablesize in the range 1..128.
