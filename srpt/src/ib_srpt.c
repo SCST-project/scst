@@ -2596,15 +2596,29 @@ out:
 /**
  * srpt_must_wait_for_cred() - Whether or not the target must wait with
  * sending a response towards the initiator in order to avoid that the
- * initiator locks up. Since an initiator must not send an SRP_CMD request
- * when its req_lim variable is less than 2, and since sending a response to
- * the initiator will make its req_lim variable equal to ch->req_lim, do not
- * send a response to the initiator that would make its req_lim variable less
- * than 2.
+ * initiator locks up. The Linux SRP initiator locks up when:
+ * initiator.req_lim < req_lim_min (2 for SRP_CMD; 1 for SRP_TSK_MGMT).
+ * no new SRP_RSP is received, or new SRP_RSP do not increase initiator.req_lim.
+ * In order to avoid an initiator lock up, the target must not send an SRP_RSP
+ * that keeps initiator.req_lim < req_lim_min when initiator.req_lim
+ * < req_lim_min. when target.req_lim == req_lim_min - 1, initiator.req_lim must
+ * also equal req_lim_min - 1 because of the credit mechanism defined in the
+ * SRP standard. Hence wait with sending a response if that response would not
+ * increase initiator.req_lim.
  */
-static inline bool srpt_must_wait_for_cred(struct srpt_rdma_ch *ch)
+static bool srpt_must_wait_for_cred(struct srpt_rdma_ch *ch, int req_lim_min)
 {
-	return atomic_read(&ch->req_lim) < 2;
+	int req_lim;
+	req_lim = atomic_read(&ch->req_lim);
+
+	return req_lim < req_lim_min
+		&& req_lim - atomic_read(&ch->last_response_req_lim) + 1 <= 0;
+}
+
+static void srpt_wait_for_cred(struct srpt_rdma_ch *ch, int req_lim_min)
+{
+	while (unlikely(srpt_must_wait_for_cred(ch, req_lim_min)))
+		schedule();
 }
 
 /**
@@ -2636,16 +2650,13 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 		goto out;
 	}
 
-	if (srpt_must_wait_for_cred(ch)) {
-		if (scst_cmd_atomic(scmnd)) {
-			TRACE_DBG("%s", "Switching to thread context.");
-			ret = SCST_TGT_RES_NEED_THREAD_CTX;
-			goto out;
-		}
-		while (srpt_must_wait_for_cred(ch))
-			schedule();
+	if (unlikely(scst_cmd_atomic(scmnd))) {
+		TRACE_DBG("%s", "Switching to thread context.");
+		ret = SCST_TGT_RES_NEED_THREAD_CTX;
+		goto out;
 	}
 
+	srpt_wait_for_cred(ch, 2);
 
 	if (srpt_set_cmd_state(ioctx, SRPT_STATE_PROCESSED)
 	    == SRPT_STATE_ABORTED) {
@@ -2715,8 +2726,9 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 		  __func__, (unsigned long long)mgmt_ioctx->tag,
 		  scst_mgmt_cmd_get_status(mcmnd));
 
-	if (atomic_read(&ch->req_lim) < 1)
-		PRINT_ERROR("%s", "Initiator may lock up !!");
+	WARN_ON(in_irq());
+
+	srpt_wait_for_cred(ch, 1);
 
 	if (srpt_set_cmd_state(ioctx, SRPT_STATE_PROCESSED)
 	    == SRPT_STATE_ABORTED)
