@@ -223,7 +223,7 @@ do
   printf "%8s " "R"
   i=$((i+1))
 done
-printf "%8s %8s %8s" "R(avg," "R(std" "R"
+printf "%8s %8s %8s" "R(avg," "R(std," "R"
 printf "\n"
 
 # Header, line 2
@@ -234,14 +234,14 @@ do
   printf "%8s " "(s)"
   i=$((i+1))
 done
-printf "%8s %8s %8s " "MB/s)" ",MB/s)" "(IOPS)"
+printf "%8s %8s %8s " "MB/s)" "MB/s)" "(IOPS)"
 i=0
 while [ $i -lt ${iterations} ]
 do
   printf "%8s " "(s)"
   i=$((i+1))
 done
-printf "%8s %8s %8s" "MB/s)" ",MB/s)" "(IOPS)"
+printf "%8s %8s %8s" "MB/s)" "MB/s)" "(IOPS)"
 printf "\n"
 
 # Measurements
