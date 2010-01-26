@@ -872,7 +872,8 @@ out:
 }
 
 static struct kobj_attribute session_active_commands_attr =
-	__ATTR(commands, S_IRUGO, scst_sess_sysfs_active_commands_show, NULL);
+	__ATTR(active_commands, S_IRUGO, scst_sess_sysfs_active_commands_show,
+		NULL);
 
 static ssize_t scst_sess_sysfs_initiator_name_show(struct kobject *kobj,
 			    struct kobj_attribute *attr, char *buf)
