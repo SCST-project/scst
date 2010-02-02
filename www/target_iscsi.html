@@ -67,8 +67,9 @@
 				<p>IET in many corner cases has a lot of problems, like ignoring errors processing, as it is for memory allocations,
 				crashing itself with BUG() macro, as it is for malformed packets from initiators, possible data
 				corruptions, because of, for instance, unsafe task management or sessions reinstatement implementations, etc.
-				There was no way to fix all them without a fork. As the result of this effort nearly all (80-90% overall and >90%
-				of the core) of the IET kernel code and 20-25% of the user space code were rewritten.</p>
+				There was no way to fix all them without a fork, because it needed a deep code redesign to fix all internal architecture
+				and implementation issues which IET has. As the result of this effort nearly all (>90% overall and almost 100%
+				of the fast path core) of the IET kernel code and 20-25% of the user space code were rewritten.</p>
 				
 				<p>You can find comparison of iSCSI-SCST with IET and other iSCSI targets on the <a href="comparison.html">Comparison</a> page.
 				Some highlights:
