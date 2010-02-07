@@ -68,6 +68,27 @@ drop_caches() {
   fi
 }
 
+# Set the scaling governor, minimum and maximum frequency to $1, $2 and $3
+# respectively or disable frequency scaling when no arguments have been
+# provided.
+set_frequency_scaling() {
+  local syscpu=/sys/devices/system/cpu
+  local governor=$(<$syscpu/cpu0/cpufreq/scaling_governor)
+  local cpuinfo_min_freq=$(<$syscpu/cpu0/cpufreq/cpuinfo_min_freq)
+  local cpuinfo_max_freq=$(<$syscpu/cpu0/cpufreq/cpuinfo_max_freq)
+  local scaling_min_freq=$(<$syscpu/cpu0/cpufreq/scaling_min_freq)
+  local scaling_max_freq=$(<$syscpu/cpu0/cpufreq/scaling_max_freq)
+  if [ -w $syscpu/cpu0/cpufreq/scaling_governor ]; then
+    for d in $syscpu/cpu*/cpufreq
+    do
+      echo "${1:-userspace}"         >"$d/scaling_governor"
+      echo "${2:-$cpuinfo_max_freq}" >"$d/scaling_min_freq"
+      echo "${3:-$cpuinfo_max_freq}" >"$d/scaling_max_freq"
+    done
+  fi
+  echo $governor $scaling_min_freq $scaling_max_freq
+}
+
 # Read times in seconds from stdin, one number per line, echo each number
 # using format $1, and also echo the average transfer size in MB/s, its
 # standard deviation and the number of IOPS using the total I/O size $2 and
@@ -208,6 +229,16 @@ if ! can_drop_cache; then
   echo ""
 fi
 
+# Disable frequency scaling
+if [ -w /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor ]; then
+  frequency_scaling_params="$(set_frequency_scaling)"
+else
+  echo ""
+  echo "WARNING: insufficient privileges to disable CPU frequency scaling"
+  echo "-- results will be unreliable."
+  echo ""
+fi
+
 # Header, line 1
 printf "%9s " blocksize
 i=0
@@ -280,3 +311,6 @@ do
   printf "\n"
   log2_blocksize=$((log2_blocksize - 1))
 done
+
+# Restore frequency scaling
+set_frequency_scaling ${frequency_scaling_params} >/dev/null
