@@ -586,7 +586,7 @@ static void cmnd_reject(struct connection *conn, u8 reason)
 
 	memset(rej, 0x0, sizeof *rej);
 	rej->opcode = ISCSI_OP_REJECT_MSG;
-	rej->reason = ISCSI_REASON_INVALID_PDU_FIELD;
+	rej->reason = reason;
 	rej->ffffffff = ISCSI_RESERVED_TAG;
 	rej->flags |= ISCSI_FLG_FINAL;
 
