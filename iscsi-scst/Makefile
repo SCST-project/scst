@@ -5,6 +5,8 @@
 # removes any old dependencies. DON'T put your own dependencies here
 # unless it's something special (not a .c file).
 
+SHELL=/bin/bash
+
 SUBDIRS := $(shell pwd)
 
 #SCST_INC_DIR := /usr/local/include/scst

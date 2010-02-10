@@ -27,6 +27,8 @@
 #    - install and uninstall must be made as root
 #
 
+SHELL=/bin/bash
+
 ifneq ($(PATCHLEVEL),)
 SCST_INC_DIR := $(SUBDIRS)/../include
 

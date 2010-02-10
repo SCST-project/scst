@@ -14,6 +14,8 @@
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 #  GNU General Public License for more details.
 
+SHELL=/bin/bash
+
 SRCS_F = fileio.c common.c debug.c
 OBJS_F = $(SRCS_F:.c=.o)
 

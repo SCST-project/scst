@@ -28,6 +28,8 @@
 #    - install and uninstall must be made as root
 #
 
+SHELL=/bin/bash
+
 #SCST_INC_DIR := /usr/local/include/scst
 #SCST_DIR := $(SCST_INC_DIR)
 SCST_INC_DIR := $(SUBDIRS)/../../scst/include

@@ -27,6 +27,8 @@
 #    - install and uninstall must be made as root
 #
 
+SHELL=/bin/bash
+
 DEV_HANDLERS_DIR = dev_handlers
 
 ifneq ($(PATCHLEVEL),)
