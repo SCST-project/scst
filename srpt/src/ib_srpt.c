@@ -115,12 +115,12 @@ MODULE_PARM_DESC(thread,
 
 static unsigned int srp_max_rdma_size = DEFAULT_MAX_RDMA_SIZE;
 module_param(srp_max_rdma_size, int, 0744);
-MODULE_PARM_DESC(thread,
+MODULE_PARM_DESC(srp_max_rdma_size,
 		 "Maximum size of SRP RDMA transfers for new connections.");
 
 static unsigned int srp_max_message_size = DEFAULT_MAX_MESSAGE_SIZE;
 module_param(srp_max_message_size, int, 0444);
-MODULE_PARM_DESC(thread,
+MODULE_PARM_DESC(srp_max_message_size,
 		 "Maximum size of SRP control messages in bytes.");
 
 module_param(use_port_guid_in_session_name, bool, 0444);
