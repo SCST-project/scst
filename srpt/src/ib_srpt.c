@@ -1193,14 +1193,6 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 	memset(srp_rsp, 0, sizeof *srp_rsp);
 
 	srp_rsp->opcode = SRP_RSP;
-	/*
-	 * Copy the SCSOLNT or UCSOLNT bit from the request to the SOLNT bit
-	 * of the response.
-	 */
-	srp_rsp->sol_not
-		= (ioctx->sol_not
-		   & (status == SAM_STAT_GOOD ? SRP_SCSOLNT : SRP_UCSOLNT))
-		? SRP_SOLNT : 0;
 	srp_rsp->req_lim_delta = cpu_to_be32(req_lim_delta);
 	srp_rsp->tag = tag;
 
@@ -1252,15 +1244,6 @@ static int srpt_build_tskmgmt_rsp(struct srpt_rdma_ch *ch,
 	memset(srp_rsp, 0, sizeof *srp_rsp);
 
 	srp_rsp->opcode = SRP_RSP;
-	/*
-	 * Copy the SCSOLNT or UCSOLNT bit from the request to the SOLNT bit
-	 * of the response.
-	 */
-	srp_rsp->sol_not
-		= (ioctx->sol_not
-		   & (rsp_code == SRP_TSK_MGMT_SUCCESS
-		      ? SRP_SCSOLNT : SRP_UCSOLNT))
-		? SRP_SOLNT : 0;
 	srp_rsp->req_lim_delta = cpu_to_be32(req_lim_delta);
 	srp_rsp->tag = tag;
 
@@ -1484,7 +1467,6 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 	ioctx->rdma_ius = NULL;
 	ioctx->scmnd = NULL;
 	ioctx->ch = ch;
-	ioctx->sol_not = srp_cmd->sol_not;
 	atomic_set(&ioctx->state, SRPT_STATE_NEW);
 
 	switch (srp_cmd->opcode) {
@@ -1940,9 +1922,6 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	memcpy(ch->i_port_id, req->initiator_port_id, 16);
 	memcpy(ch->t_port_id, req->target_port_id, 16);
 	ch->sport = &sdev->port[param->port - 1];
-	ch->losolnt = req->req_flags & SRP_LOSOLNT ? 1 : 0;
-	ch->crsolnt = req->req_flags & SRP_CRSOLNT ? 1 : 0;
-	ch->aesolnt = req->req_flags & SRP_AESOLNT ? 1 : 0;
 	ch->cm_id = cm_id;
 	atomic_set(&ch->state, RDMA_CHANNEL_CONNECTING);
 	INIT_LIST_HEAD(&ch->cmd_wait_list);

@@ -163,7 +163,6 @@ struct srpt_ioctx {
 	u16 n_rdma_ius;
 	u8 n_rdma;
 	u8 n_rbuf;
-	u8 sol_not;
 
 	enum ib_wc_opcode op;
 	/* Node for insertion in the srpt_thread::thread_ioctx_list. */
@@ -188,12 +187,6 @@ enum rdma_ch_state {
 };
 
 struct srpt_rdma_ch {
-	/* AESOLNT flag from SRP_LOGIN_REQ. */
-	unsigned aesolnt:1;
-	/* CRSOLNT from SRP_LOGIN_REQ. */
-	unsigned crsolnt:1;
-	/* LOSOLNT flag from SRP_LOGIN_REQ. */
-	unsigned losolnt:1;
 	struct ib_cm_id *cm_id;
 	/* IB queue pair. */
 	struct ib_qp *qp;
