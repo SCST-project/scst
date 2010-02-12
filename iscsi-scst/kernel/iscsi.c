@@ -1915,7 +1915,9 @@ static int data_out_start(struct iscsi_cmnd *cmnd)
 	struct iscsi_data_out_hdr *req_hdr =
 		(struct iscsi_data_out_hdr *)&cmnd->pdu.bhs;
 	struct iscsi_cmnd *orig_req;
+#if 0
 	struct iscsi_hdr *orig_req_hdr;
+#endif
 	u32 offset = be32_to_cpu(req_hdr->buffer_offset);
 	int res = 0;
 
