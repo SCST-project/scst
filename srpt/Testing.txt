@@ -25,6 +25,15 @@ The following tests must be run at least before releasing a new SRPT version:
 
     fio --bs=1M --direct=1 --ioengine=sync --verify=meta --rw=write --verify_fatal=1 --verify_async=1 --loops=10 --name=partition1 --filename=/dev/sdb1 --name=partition2 --filename=/dev/sdb2
 
+* Another I/O stress test:
+  (initiator) Write data pattern:
+    lmdd if=internal of=/dev/sdb opat=1 bs=1M count=1000
+  (target)    Verify data:
+    lmdd if=/dev/exported-block of=internal ipat=1 bs=1M count=1000 mismatch=1
+  (initiator) Verify data:
+    lmdd if=/dev/sdb of=internal ipat=1 bs=1M count=1000 mismatch=1
+    for ((i=0;i<40;i++)); do lmdd if=/dev/sdb of=internal ipat=1 bs=1M count=1000 mismatch=1 & done
+
 * Verify that a SCSI reset works properly by running the following command
   on an initiator system:
 
