@@ -39,7 +39,6 @@
 #include <linux/err.h>
 #include <linux/ctype.h>
 #include <linux/string.h>
-#include <linux/kthread.h>
 #include <linux/delay.h>
 #include <asm/atomic.h>
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
@@ -71,14 +70,6 @@ MODULE_DESCRIPTION("InfiniBand SCSI RDMA Protocol target "
 		   "v" DRV_VERSION " (" DRV_RELDATE ")");
 MODULE_LICENSE("Dual BSD/GPL");
 
-struct srpt_thread {
-	/* Protects thread_ioctx_list. */
-	spinlock_t thread_lock;
-	/* I/O contexts to be processed by the kernel thread. */
-	struct list_head thread_ioctx_list;
-	/* SRPT kernel thread. */
-	struct task_struct *thread;
-};
 
 /*
  * Global Variables
@@ -87,9 +78,6 @@ struct srpt_thread {
 static u64 srpt_service_guid;
 /* List of srpt_device structures. */
 static atomic_t srpt_device_count;
-static int use_port_guid_in_session_name;
-static int thread = 1;
-static struct srpt_thread srpt_thread;
 static DECLARE_WAIT_QUEUE_HEAD(ioctx_list_waitQ);
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 static unsigned long trace_flag = DEFAULT_SRPT_TRACE_FLAGS;
@@ -102,27 +90,25 @@ static unsigned long interrupt_processing_delay_in_us;
 module_param(interrupt_processing_delay_in_us, long, 0744);
 MODULE_PARM_DESC(interrupt_processing_delay_in_us,
 		 "CQ completion handler interrupt delay in microseconds.");
-static unsigned long thread_processing_delay_in_us;
-module_param(thread_processing_delay_in_us, long, 0744);
-MODULE_PARM_DESC(thread_processing_delay_in_us,
-		 "SRP thread processing delay in microseconds.");
 #endif
 
+static int thread;
 module_param(thread, int, 0444);
 MODULE_PARM_DESC(thread,
-		 "Executing ioctx in thread context. Default 0, i.e. soft IRQ, "
-		 "where possible.");
+		 "Execute SCSI commands in thread context. Defaults to zero,"
+		 " i.e. soft IRQ whenever possible.");
 
-static unsigned int srp_max_rdma_size = DEFAULT_MAX_RDMA_SIZE;
+static unsigned srp_max_rdma_size = DEFAULT_MAX_RDMA_SIZE;
 module_param(srp_max_rdma_size, int, 0744);
 MODULE_PARM_DESC(srp_max_rdma_size,
 		 "Maximum size of SRP RDMA transfers for new connections.");
 
-static unsigned int srp_max_message_size = DEFAULT_MAX_MESSAGE_SIZE;
+static unsigned srp_max_message_size = DEFAULT_MAX_MESSAGE_SIZE;
 module_param(srp_max_message_size, int, 0444);
 MODULE_PARM_DESC(srp_max_message_size,
 		 "Maximum size of SRP control messages in bytes.");
 
+static int use_port_guid_in_session_name;
 module_param(use_port_guid_in_session_name, bool, 0444);
 MODULE_PARM_DESC(use_port_guid_in_session_name,
 		 "Use target port ID in the SCST session name such that"
@@ -222,11 +208,7 @@ static void srpt_event_handler(struct ib_event_handler *handler,
  */
 static void srpt_srq_event(struct ib_event *event, void *ctx)
 {
-	TRACE_ENTRY();
-
-	TRACE_DBG("SRQ event %d", event->event);
-
-	TRACE_EXIT();
+	PRINT_INFO("SRQ event %d", event->event);
 }
 
 /*
@@ -1062,7 +1044,8 @@ static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
  * Abort a command.
  */
 static void srpt_abort_scst_cmd(struct srpt_device *sdev,
-				struct scst_cmd *scmnd)
+				struct scst_cmd *scmnd,
+				enum scst_exec_context context)
 {
 	struct srpt_ioctx *ioctx;
 	scst_data_direction dir;
@@ -1094,8 +1077,7 @@ static void srpt_abort_scst_cmd(struct srpt_device *sdev,
 	case SRPT_STATE_NEED_DATA:
 		WARN_ON(scst_cmd_get_data_direction(ioctx->scmnd)
 			== SCST_DATA_READ);
-		scst_rx_data(scmnd, SCST_RX_STATUS_ERROR,
-			     scst_estimate_context());
+		scst_rx_data(scmnd, SCST_RX_STATUS_ERROR, context);
 		break;
 	case SRPT_STATE_DATA_IN:
 	case SRPT_STATE_PROCESSED:
@@ -1105,7 +1087,7 @@ static void srpt_abort_scst_cmd(struct srpt_device *sdev,
 		TRACE_DBG("Aborting cmd with state %d", previous_state);
 		WARN_ON("ERROR: unexpected command state");
 	}
-	scst_tgt_cmd_done(scmnd, scst_estimate_context());
+	scst_tgt_cmd_done(scmnd, context);
 
 out:
 	;
@@ -1113,7 +1095,8 @@ out:
 	TRACE_EXIT();
 }
 
-static void srpt_handle_err_comp(struct srpt_rdma_ch *ch, struct ib_wc *wc)
+static void srpt_handle_err_comp(struct srpt_rdma_ch *ch, struct ib_wc *wc,
+				 enum scst_exec_context context)
 {
 	struct srpt_ioctx *ioctx;
 	struct srpt_device *sdev = ch->sport->sdev;
@@ -1125,7 +1108,7 @@ static void srpt_handle_err_comp(struct srpt_rdma_ch *ch, struct ib_wc *wc)
 		ioctx = sdev->ioctx_ring[wc->wr_id];
 
 		if (ioctx->scmnd)
-			srpt_abort_scst_cmd(sdev, ioctx->scmnd);
+			srpt_abort_scst_cmd(sdev, ioctx->scmnd, context);
 		else
 			srpt_reset_ioctx(ch, ioctx);
 	}
@@ -1152,7 +1135,8 @@ static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
 
 /** Process an IB RDMA completion notification. */
 static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
-				  struct srpt_ioctx *ioctx)
+				  struct srpt_ioctx *ioctx,
+				  enum scst_exec_context context)
 {
 	if (!ioctx->scmnd) {
 		WARN_ON("ERROR: ioctx->scmnd == NULL");
@@ -1169,8 +1153,7 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 				SRPT_STATE_DATA_IN) == SRPT_STATE_NEED_DATA) {
 		WARN_ON(scst_cmd_get_data_direction(ioctx->scmnd)
 			== SCST_DATA_READ);
-		scst_rx_data(ioctx->scmnd, SCST_RX_STATUS_SUCCESS,
-			     scst_estimate_context());
+		scst_rx_data(ioctx->scmnd, SCST_RX_STATUS_SUCCESS, context);
 	}
 }
 
@@ -1300,12 +1283,14 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 	scst_data_direction dir;
 	u64 data_len;
 	int ret;
+	enum scst_exec_context context;
+
+	context = thread ? SCST_CONTEXT_THREAD : SCST_CONTEXT_TASKLET;
 
 	srp_cmd = ioctx->buf;
 
 	scmnd = scst_rx_cmd(ch->scst_sess, (u8 *) &srp_cmd->lun,
-			    sizeof srp_cmd->lun, srp_cmd->cdb, 16,
-			    thread ? SCST_NON_ATOMIC : SCST_ATOMIC);
+			    sizeof srp_cmd->lun, srp_cmd->cdb, 16, context);
 	if (!scmnd)
 		goto err;
 
@@ -1339,7 +1324,7 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 	scst_cmd_set_tag(scmnd, srp_cmd->tag);
 	scst_cmd_set_tgt_priv(scmnd, ioctx);
 	scst_cmd_set_expected(scmnd, dir, data_len);
-	scst_cmd_init_done(scmnd, scst_estimate_context());
+	scst_cmd_init_done(scmnd, context);
 
 	return 0;
 
@@ -1395,9 +1380,7 @@ static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 		ret = scst_rx_mgmt_fn_tag(ch->scst_sess,
 					  SCST_ABORT_TASK,
 					  srp_tsk->task_tag,
-					  thread ?
-					  SCST_NON_ATOMIC : SCST_ATOMIC,
-					  mgmt_ioctx);
+					  SCST_ATOMIC, mgmt_ioctx);
 		break;
 	case SRP_TSK_ABORT_TASK_SET:
 		TRACE_DBG("%s", "Processing SRP_TSK_ABORT_TASK_SET");
@@ -1405,9 +1388,7 @@ static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 					  SCST_ABORT_TASK_SET,
 					  (u8 *) &srp_tsk->lun,
 					  sizeof srp_tsk->lun,
-					  thread ?
-					  SCST_NON_ATOMIC : SCST_ATOMIC,
-					  mgmt_ioctx);
+					  SCST_ATOMIC, mgmt_ioctx);
 		break;
 	case SRP_TSK_CLEAR_TASK_SET:
 		TRACE_DBG("%s", "Processing SRP_TSK_CLEAR_TASK_SET");
@@ -1415,9 +1396,7 @@ static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 					  SCST_CLEAR_TASK_SET,
 					  (u8 *) &srp_tsk->lun,
 					  sizeof srp_tsk->lun,
-					  thread ?
-					  SCST_NON_ATOMIC : SCST_ATOMIC,
-					  mgmt_ioctx);
+					  SCST_ATOMIC, mgmt_ioctx);
 		break;
 	case SRP_TSK_LUN_RESET:
 		TRACE_DBG("%s", "Processing SRP_TSK_LUN_RESET");
@@ -1425,9 +1404,7 @@ static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 					  SCST_LUN_RESET,
 					  (u8 *) &srp_tsk->lun,
 					  sizeof srp_tsk->lun,
-					  thread ?
-					  SCST_NON_ATOMIC : SCST_ATOMIC,
-					  mgmt_ioctx);
+					  SCST_ATOMIC, mgmt_ioctx);
 		break;
 	case SRP_TSK_CLEAR_ACA:
 		TRACE_DBG("%s", "Processing SRP_TSK_CLEAR_ACA");
@@ -1435,9 +1412,7 @@ static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 					  SCST_CLEAR_ACA,
 					  (u8 *) &srp_tsk->lun,
 					  sizeof srp_tsk->lun,
-					  thread ?
-					  SCST_NON_ATOMIC : SCST_ATOMIC,
-					  mgmt_ioctx);
+					  SCST_ATOMIC, mgmt_ioctx);
 		break;
 	default:
 		TRACE_DBG("%s", "Unsupported task management function.");
@@ -1578,33 +1553,6 @@ err:
 	}
 }
 
-/*
- * Returns true if the ioctx list is non-empty or if the ib_srpt kernel thread
- * should stop.
- * @pre thread != 0
- */
-static inline int srpt_test_ioctx_list(void)
-{
-	int res = (!list_empty(&srpt_thread.thread_ioctx_list) ||
-		   unlikely(kthread_should_stop()));
-	return res;
-}
-
-/*
- * Add 'ioctx' to the tail of the ioctx list and wake up the kernel thread.
- *
- * @pre thread != 0
- */
-static inline void srpt_schedule_thread(struct srpt_ioctx *ioctx)
-{
-	unsigned long flags;
-
-	spin_lock_irqsave(&srpt_thread.thread_lock, flags);
-	list_add_tail(&ioctx->comp_list, &srpt_thread.thread_ioctx_list);
-	spin_unlock_irqrestore(&srpt_thread.thread_lock, flags);
-	wake_up(&ioctx_list_waitQ);
-}
-
 /**
  * InfiniBand completion queue callback function.
  * @cq: completion queue.
@@ -1617,6 +1565,9 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 	struct srpt_device *sdev = ch->sport->sdev;
 	struct ib_wc wc;
 	struct srpt_ioctx *ioctx;
+	enum scst_exec_context context;
+
+	context = thread ? SCST_CONTEXT_THREAD : SCST_CONTEXT_TASKLET;
 
 	ib_req_notify_cq(ch->cq, IB_CQ_NEXT_COMP);
 	while (ib_poll_cq(ch->cq, 1, &wc) > 0) {
@@ -1626,7 +1577,7 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 				   ? "receiving"
 				   : "sending response",
 				   wc.status);
-			srpt_handle_err_comp(ch, &wc);
+			srpt_handle_err_comp(ch, &wc, context);
 			continue;
 		}
 
@@ -1638,12 +1589,7 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 				PRINT_ERROR("internal error: req_lim = %d < 0",
 					    req_lim);
 			ioctx = sdev->ioctx_ring[wc.wr_id & ~SRPT_OP_RECV];
-			if (thread) {
-				ioctx->ch = ch;
-				ioctx->op = IB_WC_RECV;
-				srpt_schedule_thread(ioctx);
-			} else
-				srpt_handle_new_iu(ch, ioctx);
+			srpt_handle_new_iu(ch, ioctx);
 		} else {
 			ioctx = sdev->ioctx_ring[wc.wr_id];
 			if (wc.opcode == IB_WC_SEND)
@@ -1654,26 +1600,19 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 				atomic_add(ioctx->n_rdma,
 					   &ch->qp_wr_avail);
 			}
-			if (thread) {
-				ioctx->ch = ch;
-				ioctx->op = wc.opcode;
-				srpt_schedule_thread(ioctx);
-			} else {
-				switch (wc.opcode) {
-				case IB_WC_SEND:
-					srpt_handle_send_comp(ch, ioctx,
-						scst_estimate_context());
-					break;
-				case IB_WC_RDMA_WRITE:
-				case IB_WC_RDMA_READ:
-					srpt_handle_rdma_comp(ch, ioctx);
-					break;
-				default:
-					PRINT_ERROR("received unrecognized"
-						    " IB WC opcode %d",
-						    wc.opcode);
-					break;
-				}
+			switch (wc.opcode) {
+			case IB_WC_SEND:
+				srpt_handle_send_comp(ch, ioctx, context);
+				break;
+			case IB_WC_RDMA_WRITE:
+			case IB_WC_RDMA_READ:
+				srpt_handle_rdma_comp(ch, ioctx, context);
+				break;
+			default:
+				PRINT_ERROR("received unrecognized"
+					    " IB WC opcode %d",
+					    wc.opcode);
+				break;
 			}
 		}
 
@@ -2645,7 +2584,9 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	if (unlikely(scst_cmd_aborted(scmnd))) {
 		TRACE_DBG("cmd with tag %lld has been aborted",
 			  scst_cmd_get_tag(scmnd));
-		srpt_abort_scst_cmd(ch->sport->sdev, scmnd);
+		srpt_abort_scst_cmd(ch->sport->sdev, scmnd,
+				    thread ? SCST_CONTEXT_THREAD
+				    : SCST_CONTEXT_TASKLET);
 		ret = SCST_TGT_RES_SUCCESS;
 		goto out;
 	}
@@ -2852,83 +2793,10 @@ static int srpt_release(struct scst_tgt *scst_tgt)
 	return 0;
 }
 
-/*
- * Entry point for ib_srpt's kernel thread. This kernel thread is only created
- * when the module parameter 'thread' is not zero (the default is zero).
- * This thread processes the ioctx list srpt_thread.thread_ioctx_list.
- *
- * @pre thread != 0
- */
-static int srpt_ioctx_thread(void *arg)
-{
-	struct srpt_ioctx *ioctx;
-
-	/* Hibernation / freezing of the SRPT kernel thread is not supported. */
-	current->flags |= PF_NOFREEZE;
-
-	spin_lock_irq(&srpt_thread.thread_lock);
-	while (!kthread_should_stop()) {
-		wait_queue_t wait;
-		init_waitqueue_entry(&wait, current);
-
-		if (!srpt_test_ioctx_list()) {
-			add_wait_queue_exclusive(&ioctx_list_waitQ, &wait);
-
-			for (;;) {
-				set_current_state(TASK_INTERRUPTIBLE);
-				if (srpt_test_ioctx_list())
-					break;
-				spin_unlock_irq(&srpt_thread.thread_lock);
-				schedule();
-				spin_lock_irq(&srpt_thread.thread_lock);
-			}
-			set_current_state(TASK_RUNNING);
-			remove_wait_queue(&ioctx_list_waitQ, &wait);
-		}
-
-		while (!list_empty(&srpt_thread.thread_ioctx_list)) {
-			ioctx = list_entry(srpt_thread.thread_ioctx_list.next,
-					   struct srpt_ioctx, comp_list);
-
-			list_del(&ioctx->comp_list);
-
-			spin_unlock_irq(&srpt_thread.thread_lock);
-			switch (ioctx->op) {
-			case IB_WC_SEND:
-				srpt_handle_send_comp(ioctx->ch, ioctx,
-					SCST_CONTEXT_DIRECT);
-				break;
-			case IB_WC_RDMA_WRITE:
-			case IB_WC_RDMA_READ:
-				srpt_handle_rdma_comp(ioctx->ch, ioctx);
-				break;
-			case IB_WC_RECV:
-				srpt_handle_new_iu(ioctx->ch, ioctx);
-				break;
-			default:
-				PRINT_ERROR("received unrecognized WC opcode"
-					    " %d", ioctx->op);
-				break;
-			}
-#if defined(CONFIG_SCST_DEBUG)
-			if (thread_processing_delay_in_us
-			    <= MAX_UDELAY_MS * 1000)
-				udelay(thread_processing_delay_in_us);
-#endif
-			spin_lock_irq(&srpt_thread.thread_lock);
-		}
-	}
-	spin_unlock_irq(&srpt_thread.thread_lock);
-
-	return 0;
-}
-
 /* SCST target template for the SRP target implementation. */
 static struct scst_tgt_template srpt_template = {
 	.name = DRV_NAME,
 	.sg_tablesize = SRPT_DEF_SG_TABLESIZE,
-	.xmit_response_atomic = 1,
-	.rdy_to_xfer_atomic = 1,
 	.detect = srpt_detect,
 	.release = srpt_release,
 	.xmit_response = srpt_xmit_response,
@@ -3153,6 +3021,8 @@ static void srpt_add_one(struct ib_device *device)
 
 	ib_set_client_data(device, &srpt_client, sdev);
 
+	srpt_template.xmit_response_atomic = !thread;
+	srpt_template.rdy_to_xfer_atomic = !thread;
 	sdev->scst_tgt = scst_register(&srpt_template, NULL);
 	if (!sdev->scst_tgt) {
 		PRINT_ERROR("SCST registration failed for %s.",
@@ -3378,17 +3248,6 @@ static int __init srpt_init_module(void)
 		goto out_unregister_target;
 	}
 
-	if (thread) {
-		spin_lock_init(&srpt_thread.thread_lock);
-		INIT_LIST_HEAD(&srpt_thread.thread_ioctx_list);
-		srpt_thread.thread = kthread_run(srpt_ioctx_thread,
-						 NULL, "srpt_thread");
-		if (IS_ERR(srpt_thread.thread)) {
-			srpt_thread.thread = NULL;
-			thread = 0;
-		}
-	}
-
 	return 0;
 
 out_unregister_target:
@@ -3411,8 +3270,6 @@ static void __exit srpt_cleanup_module(void)
 
 	ib_unregister_client(&srpt_client);
 	scst_unregister_target_template(&srpt_template);
-	if (srpt_thread.thread)
-		kthread_stop(srpt_thread.thread);
 	class_unregister(&srpt_class);
 
 	TRACE_EXIT();
@@ -3420,4 +3277,3 @@ static void __exit srpt_cleanup_module(void)
 
 module_init(srpt_init_module);
 module_exit(srpt_cleanup_module);
-
