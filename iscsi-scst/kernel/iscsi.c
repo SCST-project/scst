@@ -1956,6 +1956,7 @@ static int data_out_start(struct iscsi_cmnd *cmnd)
 	}
 
 	/* Crazy iSCSI spec requires us to make this unneeded check */
+#if 0 /* ...but some initiators (Windows) don't care to correctly set it */
 	orig_req_hdr = &orig_req->pdu.bhs;
 	if (unlikely(orig_req_hdr->lun != req_hdr->lun)) {
 		PRINT_ERROR("Wrong LUN (%lld) in Data-Out PDU (expected %lld), "
@@ -1964,6 +1965,7 @@ static int data_out_start(struct iscsi_cmnd *cmnd)
 		create_reject_rsp(orig_req, ISCSI_REASON_PROTOCOL_ERROR, false);
 		goto go;
 	}
+#endif
 
 go:
 	if (req_hdr->flags & ISCSI_FLG_FINAL)
