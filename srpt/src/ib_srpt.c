@@ -1029,6 +1029,13 @@ static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 	BUG_ON(!ch);
 	BUG_ON(!ioctx);
 
+	/*
+	 * If the WARN_ON() below gets triggered this means that
+	 * srpt_unmap_sg_to_ib_sge() has not been called before
+	 * scst_tgt_cmd_done().
+	 */
+	WARN_ON(ioctx->mapped_sg_count);
+
 	if (ioctx->n_rbuf > 1) {
 		kfree(ioctx->rbufs);
 		ioctx->rbufs = NULL;
@@ -1075,6 +1082,8 @@ static void srpt_abort_scst_cmd(struct srpt_ioctx *ioctx,
 	TRACE_DBG("Aborting cmd with state %d and tag %lld",
 		  state, scst_cmd_get_tag(scmnd));
 
+	srpt_unmap_sg_to_ib_sge(ioctx->ch, ioctx);
+
 	switch (state) {
 	case SRPT_STATE_NEW:
 		scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_ABORTED);
@@ -1116,7 +1125,6 @@ static void srpt_handle_err_comp(struct srpt_rdma_ch *ch, struct ib_wc *wc,
 	} else {
 		ioctx = sdev->ioctx_ring[wc->wr_id];
 
-		srpt_unmap_sg_to_ib_sge(ch, ioctx);
 		if (ioctx->scmnd)
 			srpt_abort_scst_cmd(ioctx, context);
 		else
@@ -1167,8 +1175,10 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 
 	if (unlikely(scst_cmd_aborted(scmnd)))
 		srpt_abort_scst_cmd(ioctx, context);
-	else
+	else {
+		srpt_unmap_sg_to_ib_sge(ch, ioctx);
 		scst_rx_data(ioctx->scmnd, SCST_RX_STATUS_SUCCESS, context);
+	}
 }
 
 /**
@@ -2632,6 +2642,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 				      scst_cmd_get_sense_buffer_len(scmnd));
 
 	if (srpt_post_send(ch, ioctx, resp_len)) {
+		srpt_unmap_sg_to_ib_sge(ch, ioctx);
 		srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
 		scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_FAILED);
 		scst_tgt_cmd_done(scmnd, SCST_CONTEXT_SAME);
@@ -2716,13 +2727,6 @@ static void srpt_on_free_cmd(struct scst_cmd *scmnd)
 	BUG_ON(!ioctx);
 
 	WARN_ON(srpt_get_cmd_state(ioctx) != SRPT_STATE_DONE);
-
-	/*
-	 * If the WARN_ON() below gets triggered this means that
-	 * srpt_unmap_sg_to_ib_sge() has not been called before
-	 * scst_tgt_cmd_done().
-	 */
-	WARN_ON(ioctx->mapped_sg_count);
 
 	ch = ioctx->ch;
 	BUG_ON(!ch);
