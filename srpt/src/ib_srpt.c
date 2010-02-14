@@ -673,7 +673,7 @@ static int srpt_alloc_ioctx_ring(struct srpt_device *sdev,
 	goto out;
 
 err:
-	while (--i > 0) {
+	while (--i >= 0) {
 		srpt_free_ioctx(sdev, ioctx_ring[i]);
 		ioctx_ring[i] = NULL;
 	}
