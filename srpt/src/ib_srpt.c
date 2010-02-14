@@ -1710,6 +1710,21 @@ out:
 	return ret;
 }
 
+/* Caller must hold ch->sdev->spinlock. */
+static void srpt_unregister_channel(struct srpt_rdma_ch *ch)
+	__acquires(&ch->sport->sdev->spinlock)
+	__releases(&ch->sport->sdev->spinlock)
+{
+	struct srpt_device *sdev;
+	sdev = ch->sport->sdev;
+
+	list_del(&ch->list);
+	atomic_set(&ch->state, RDMA_CHANNEL_DISCONNECTING);
+	spin_unlock_irq(&sdev->spinlock);
+	scst_unregister_session(ch->scst_sess, 0, srpt_release_channel);
+	spin_lock_irq(&sdev->spinlock);
+}
+
 /**
  * Release the channel corresponding to the specified cm_id.
  *
@@ -1725,26 +1740,19 @@ static void srpt_release_channel_by_cmid(struct ib_cm_id *cm_id)
 {
 	struct srpt_device *sdev;
 	struct srpt_rdma_ch *ch;
-	bool found;
 
 	TRACE_ENTRY();
 
 	sdev = cm_id->context;
 	BUG_ON(!sdev);
-	found = false;
 	spin_lock_irq(&sdev->spinlock);
 	list_for_each_entry(ch, &sdev->rch_list, list) {
 		if (ch->cm_id == cm_id) {
-			list_del(&ch->list);
-			atomic_set(&ch->state, RDMA_CHANNEL_DISCONNECTING);
-			found = true;
+			srpt_unregister_channel(ch);
 			break;
 		}
 	}
 	spin_unlock_irq(&sdev->spinlock);
-
-	if (found)
-		scst_unregister_session(ch->scst_sess, 0, srpt_release_channel);
 
 	TRACE_EXIT();
 }
@@ -1895,7 +1903,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 				prev_state = atomic_xchg(&ch->state,
 						RDMA_CHANNEL_DISCONNECTING);
 				if (prev_state == RDMA_CHANNEL_CONNECTING)
-					list_del(&ch->list);
+					srpt_unregister_channel(ch);
 
 				spin_unlock_irq(&sdev->spinlock);
 
@@ -1916,9 +1924,6 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 					ib_send_cm_rej(ch->cm_id,
 						       IB_CM_REJ_NO_RESOURCES,
 						       NULL, 0, NULL, 0);
-					scst_unregister_session(ch->scst_sess,
-							0,
-							srpt_release_channel);
 				}
 
 				spin_lock_irq(&sdev->spinlock);
@@ -2778,7 +2783,7 @@ static int srpt_detect(struct scst_tgt_template *tp)
 static int srpt_release(struct scst_tgt *scst_tgt)
 {
 	struct srpt_device *sdev = scst_tgt_get_tgt_priv(scst_tgt);
-	struct srpt_rdma_ch *ch, *tmp_ch;
+	struct srpt_rdma_ch *ch;
 
 	TRACE_ENTRY();
 
@@ -2797,13 +2802,9 @@ static int srpt_release(struct scst_tgt *scst_tgt)
 #endif /*CONFIG_SCST_PROC*/
 
 	spin_lock_irq(&sdev->spinlock);
-	list_for_each_entry_safe(ch, tmp_ch, &sdev->rch_list, list) {
-		list_del(&ch->list);
-		atomic_set(&ch->state, RDMA_CHANNEL_DISCONNECTING);
-		spin_unlock_irq(&sdev->spinlock);
-		scst_unregister_session(ch->scst_sess, true,
-					srpt_release_channel);
-		spin_lock_irq(&sdev->spinlock);
+	while (!list_empty(&sdev->rch_list)) {
+		ch = list_first_entry(&sdev->rch_list, typeof(*ch), list);
+		srpt_unregister_channel(ch);
 	}
 	spin_unlock_irq(&sdev->spinlock);
 
