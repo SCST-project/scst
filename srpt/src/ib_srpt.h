@@ -136,18 +136,25 @@ struct rdma_iu {
 	int mem_id;
 };
 
-/* Command states. */
+/**
+ * enum srpt_command_state - SCSI command states managed by SRPT.
+ * @SRPT_STATE_NEW: New command arrived and is being processed.
+ * @SRPT_STATE_NEED_DATA: Processing a write or bidir command and waiting for
+ *   data arrival.
+ * @SRPT_STATE_DATA_IN: Data for the write or bidir command arrived and is
+ *   being processed.
+ * @SRPT_STATE_CMD_RSP_SENT: SRP_RSP for SRP_CMD has been sent.
+ * @SRPT_STATE_MGMT_RSP_SENT: SRP_RSP for SRP_TSK_MGMT has been sent.
+ * @SRPT_STATE_DONE: Command processing finished successfully, command
+ *   processing has been aborted or command processing failed.
+ */
 enum srpt_command_state {
-	/* New command arrived and is being processed. */
 	SRPT_STATE_NEW = 0,
-	/* Processing a write or bidir command and waiting for data arrival. */
 	SRPT_STATE_NEED_DATA = 1,
-	/* Data for the write or bidir command arrived and is being processed.*/
 	SRPT_STATE_DATA_IN = 2,
-	/* Command processing finished. */
-	SRPT_STATE_PROCESSED = 3,
-	/* Command processing has been aborted. */
-	SRPT_STATE_ABORTED = 4,
+	SRPT_STATE_CMD_RSP_SENT = 3,
+	SRPT_STATE_MGMT_RSP_SENT = 4,
+	SRPT_STATE_DONE = 5,
 };
 
 /* SRPT I/O context: SRPT-private data associated with a struct scst_cmd. */
@@ -160,6 +167,7 @@ struct srpt_ioctx {
 	struct srp_direct_buf single_rbuf;
 	/* Node for insertion in srpt_rdma_ch::cmd_wait_list. */
 	struct list_head wait_list;
+	int mapped_sg_count;
 	u16 n_rdma_ius;
 	u8 n_rdma;
 	u8 n_rbuf;
