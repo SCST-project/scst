@@ -89,6 +89,10 @@ fi
 kernel_mirror="ftp://ftp.eu.kernel.org/pub/linux/kernel/v2.6"
 kernel_sources="$HOME/software/downloads"
 
+scriptname="$0"
+if [ "${scriptname#/}" = "${scriptname}" ]; then
+  scriptname="$PWD/$scriptname"
+fi
 target="linux-$1"
 kernel_version="$(kernel_version "$1")"
 patchlevel="$(patchlevel "$1")"
@@ -103,9 +107,7 @@ tar --strip-components=1 -xjf "${kernel_sources}/linux-${kernel_version}.tar.bz2
 echo "==== ${kernel_sources}/patch-$1.bz2"
 bzip2 -cd < "${kernel_sources}/patch-$1.bz2" | patch -s -p1
 
-# Note: the command below will only work correctly when $0 is an absolute
-# directory, i.e. starts with a slash.
-svn status -v "$(dirname $(dirname $0))" \
+svn status -v "$(dirname "$(dirname "$scriptname")")" \
 | grep -v '^Performing' \
 | cut -c41- \
 | grep -- "-${kernel_version}.*.patch$" \
