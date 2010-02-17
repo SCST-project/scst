@@ -86,36 +86,88 @@ static void event_recv(struct sock *sk, int length)
 }
 #endif
 
-static int notify(void *data, int len)
+/* event_mutex supposed to be held */
+static int __event_send(const void *buf, int buf_len)
 {
+	int res = 0, len;
 	struct sk_buff *skb;
 	struct nlmsghdr *nlh;
-	static u32 seq;
+	static u32 seq; /* protected by event_mutex */
+
+	TRACE_ENTRY();
+
+	if (ctr_open_state != ISCSI_CTR_OPEN_STATE_OPEN)
+		goto out;
+
+	len = NLMSG_SPACE(buf_len);
 
 	skb = alloc_skb(NLMSG_SPACE(len), GFP_KERNEL);
-	if (!skb)
-		return -ENOMEM;
+	if (skb == NULL) {
+		PRINT_ERROR("alloc_skb() failed (len %d)", len);
+		res =  -ENOMEM;
+		goto out;
+	}
 
 	nlh = __nlmsg_put(skb, iscsid_pid, seq++, NLMSG_DONE,
 			  len - sizeof(*nlh), 0);
 
-	memcpy(NLMSG_DATA(nlh), data, len);
+	memcpy(NLMSG_DATA(nlh), buf, buf_len);
+	res = netlink_unicast(nl, skb, iscsid_pid, 0);
+	if (res <= 0) {
+		if (res != -ECONNREFUSED)
+			PRINT_ERROR("netlink_unicast() failed: %d", res);
+		else
+			TRACE(TRACE_MINOR, "netlink_unicast() failed: %s. "
+				"Not functioning user space?",
+				"Connection refused");
+		goto out;
+	}
 
-	return netlink_unicast(nl, skb, iscsid_pid, 0);
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
-int event_send(u32 tid, u64 sid, u32 cid, enum iscsi_kern_event_code code)
+int event_send(u32 tid, u64 sid, u32 cid, u32 cookie,
+	enum iscsi_kern_event_code code,
+	const char *param1, const char *param2)
 {
 	int err;
+	static DEFINE_MUTEX(event_mutex);
 	struct iscsi_kern_event event;
+	int param1_size, param2_size;
+
+	param1_size = (param1 != NULL) ? strlen(param1) : 0;
+	param2_size = (param2 != NULL) ? strlen(param2) : 0;
 
 	event.tid = tid;
 	event.sid = sid;
 	event.cid = cid;
 	event.code = code;
+	event.cookie = cookie;
+	event.param1_size = param1_size;
+	event.param2_size = param2_size;
 
-	err = notify(&event, NLMSG_SPACE(sizeof(struct iscsi_kern_event)));
+	mutex_lock(&event_mutex);
 
+	err = __event_send(&event, sizeof(event));
+	if (err <= 0)
+		goto out_unlock;
+
+	if (param1_size > 0) {
+		err = __event_send(param1, param1_size);
+		if (err <= 0)
+			goto out_unlock;
+	}
+
+	if (param2_size > 0) {
+		err = __event_send(param2, param2_size);
+		if (err <= 0)
+			goto out_unlock;
+	}
+
+out_unlock:
+	mutex_unlock(&event_mutex);
 	return err;
 }
 

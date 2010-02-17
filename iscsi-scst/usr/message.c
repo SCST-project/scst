@@ -65,22 +65,22 @@ static void iscsi_adm_request_exec(struct iscsi_adm_req *req, struct iscsi_adm_r
 		break;
 	case C_TRGT_UPDATE:
 		if (req->u.trgt.type & (1 << key_session))
-			err = config_param_set(req->tid, req->sid,
+			err = config_params_set(req->tid, req->sid,
 					      key_session,
 					      req->u.trgt.session_partial,
-					      req->u.trgt.session_param);
+					      req->u.trgt.session_params);
 
 		if (err < 0)
 			goto out;
 
 		if (req->u.trgt.type & (1 << key_target))
-			err = config_param_set(req->tid, req->sid, key_target,
+			err = config_params_set(req->tid, req->sid, key_target,
 					      req->u.trgt.target_partial,
-					      req->u.trgt.target_param);
+					      req->u.trgt.target_params);
 		break;
 	case C_TRGT_SHOW:
-		err = kernel_param_get(req->tid, req->sid, key_target,
-				    req->u.trgt.target_param);
+		err = config_params_get(req->tid, req->sid, key_target,
+				    req->u.trgt.target_params);
 		break;
 
 	case C_SESS_NEW:
@@ -88,8 +88,8 @@ static void iscsi_adm_request_exec(struct iscsi_adm_req *req, struct iscsi_adm_r
 	case C_SESS_UPDATE:
 		break;
 	case C_SESS_SHOW:
-		err = kernel_param_get(req->tid, req->sid, key_session,
-				    req->u.trgt.session_param);
+		err = config_params_get(req->tid, req->sid, key_session,
+				    req->u.trgt.session_params);
 		break;
 
 	case C_CONN_NEW:
@@ -105,11 +105,11 @@ static void iscsi_adm_request_exec(struct iscsi_adm_req *req, struct iscsi_adm_r
 	case C_ACCT_NEW:
 		err = config_account_add(req->tid, req->u.acnt.auth_dir,
 					req->u.acnt.u.user.name,
-					req->u.acnt.u.user.pass);
+					req->u.acnt.u.user.pass, NULL, 0);
 		break;
 	case C_ACCT_DEL:
 		err = config_account_del(req->tid, req->u.acnt.auth_dir,
-					req->u.acnt.u.user.name);
+					req->u.acnt.u.user.name, 0);
 		break;
 	case C_ACCT_LIST:
 		*rsp_data = malloc(req->u.acnt.u.list.alloc_len);

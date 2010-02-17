@@ -605,6 +605,7 @@ struct scst_tgt_template {
 	 * queuecommand. The target should transmit the response
 	 * buffer and the status in the scst_cmd struct.
 	 * The expectation is that this executing this command is NON-BLOCKING.
+	 * If it is blocking, consider to set threads_num to some none 0 number.
 	 *
 	 * After the response is actually transmitted, the target
 	 * should call the scst_tgt_cmd_done() function of the
@@ -631,7 +632,9 @@ struct scst_tgt_template {
 	 * the low-level driver needs to call scst_rx_data() in order to
 	 * continue processing this command.
 	 * Returns one of the SCST_TGT_RES_* constants.
+	 *
 	 * This command is expected to be NON-BLOCKING.
+	 * If it is blocking, consider to set threads_num to some none 0 number.
 	 *
 	 * Pay attention to "atomic" attribute of the cmd, which can be get
 	 * by scst_cmd_atomic(): it is true if the function called in the
@@ -708,6 +711,7 @@ struct scst_tgt_template {
 	 * scst_restart_cmd().
 	 *
 	 * This command is expected to be NON-BLOCKING.
+	 * If it is blocking, consider to set threads_num to some none 0 number.
 	 *
 	 * Pay attention to "atomic" attribute of the cmd, which can be get
 	 * by scst_cmd_atomic(): it is true if the function called in the
@@ -724,6 +728,7 @@ struct scst_tgt_template {
 	 * Returns one of the SCST_PREPROCESS_* constants.
 	 *
 	 * This command is expected to be NON-BLOCKING.
+	 * If it is blocking, consider to set threads_num to some none 0 number.
 	 *
 	 * Pay attention to "atomic" attribute of the cmd, which can be get
 	 * by scst_cmd_atomic(): it is true if the function called in the
@@ -815,7 +820,7 @@ struct scst_tgt_template {
 	 * case the too early connected initiators would see not those devices,
 	 * which they intended to see.
 	 */
-	ssize_t (*enable_tgt) (struct scst_tgt *tgt, const char *buffer,
+	ssize_t (*enable_target) (struct scst_tgt *tgt, const char *buffer,
 			   size_t size);
 
 	/*
@@ -823,7 +828,44 @@ struct scst_tgt_template {
 	 *
 	 * SHOULD HAVE, see above why.
 	 */
-	bool (*is_tgt_enabled) (struct scst_tgt *tgt);
+	bool (*is_target_enabled) (struct scst_tgt *tgt);
+
+	/*
+	 * This function adds a virtual target.
+	 *
+	 * If both add_target and del_target callbacks defined, then this
+	 * target driver supposed to support virtual targets. In this case
+	 * an "mgmt" entry will be created in the sysfs root for this driver.
+	 * The "mgmt" entry will support 2 commands: "add_target" and
+	 * "del_target", for which the corresponding callbacks will be called.
+	 * Also target driver can define own commands for the "mgmt" entry, see
+	 * mgmt_cmd and mgmt_cmd_help below.
+	 *
+	 * This approach allows uniform targets management to simplify external
+	 * management tools like scstadmin. See README for more details.
+	 *
+	 * Either both add_target and del_target must be defined, or none.
+	 *
+	 * MUST HAVE if virtual targets are supported.
+	 */
+	ssize_t (*add_target) (const char *target_name, const char *params);
+
+	/*
+	 * This function deletes a virtual target. See comment for add_target
+	 * above.
+	 *
+	 * MUST HAVE if virtual targets are supported.
+	 */
+	ssize_t (*del_target) (const char *target_name);
+
+	/*
+	 * This function called if not "add_target" or "del_target" command is
+	 * sent to the mgmt entry (see comment for add_target above). In this
+	 * case the command passed in this function as is in a string form.
+	 *
+	 * OPTIONAL.
+	 */
+	ssize_t (*mgmt_cmd) (const char *cmd);
 
 	/*
 	 * Name of the template. Must be unique to identify
@@ -861,6 +903,9 @@ struct scst_tgt_template {
 	/* Optional sysfs session attributes */
 	const struct attribute **sess_attrs;
 #endif
+
+	/* Optional help string for mgmt_cmd commands */
+	const char *mgmt_cmd_help;
 
 	/** Private, must be inited to 0 by memset() **/
 
@@ -3543,5 +3588,58 @@ static inline void add_wait_queue_exclusive_head(wait_queue_head_t *q,
 	__add_wait_queue(q, wait);
 	spin_unlock_irqrestore(&q->lock, flags);
 }
+
+#ifndef CONFIG_SCST_PROC
+
+/**
+ ** Helper functionality to help target drivers and dev handlers support
+ ** sending events to user space and wait for their completion in a safe
+ ** manner. See samples how to use it in iscsi-scst or scst_user.
+ **/
+
+struct scst_sysfs_user_info {
+	/* Unique cookie to identify request */
+	uint32_t info_cookie;
+
+	/* Entry in the global list */
+	struct list_head info_list_entry;
+
+	/* Set if reply from the user space is being executed */
+	unsigned int info_being_executed:1;
+
+	/* Set if this info is in the info_list */
+	unsigned int info_in_list:1;
+
+	/* Completion to wait on for the request completion */
+	struct completion info_completion;
+
+	/* Request completion status and optional data */
+	int info_status;
+	void *data;
+};
+
+/*
+ * This function creates an info structure and adds it in the info_list.
+ * Returns 0 and out_info on success, error code otherwise.
+ */
+int scst_sysfs_user_add_info(struct scst_sysfs_user_info **out_info);
+
+/* This function deletes and frees info */
+void scst_sysfs_user_del_info(struct scst_sysfs_user_info *info);
+
+/*
+ * This function finds the info based on cookie and set for it flag
+ * info_being_executed. Returns found entry or NULL.
+ */
+struct scst_sysfs_user_info *scst_sysfs_user_get_info(uint32_t cookie);
+
+/*
+ * This function waits for the info request been completed by user space.
+ * Returns status of the request completion.
+ */
+int scst_wait_info_completion(struct scst_sysfs_user_info *info,
+	unsigned long timeout);
+
+#endif /* CONFIG_SCST_PROC */
 
 #endif /* __SCST_H */

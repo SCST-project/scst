@@ -16,24 +16,6 @@
 
 #include "iscsi.h"
 
-#ifdef CONFIG_SCST_PROC
-int print_digest_state(char *p, size_t size, unsigned long flags)
-#else
-static int print_digest_state(char *p, size_t size, unsigned long flags)
-#endif
-{
-	int pos;
-
-	if (DIGEST_NONE & flags)
-		pos = scnprintf(p, size, "%s", "none");
-	else if (DIGEST_CRC32C & flags)
-		pos = scnprintf(p, size, "%s", "crc32c");
-	else
-		pos = scnprintf(p, size, "%s", "unknown");
-
-	return pos;
-}
-
 /* target_mutex supposed to be locked */
 struct iscsi_session *session_lookup(struct iscsi_target *target, u64 sid)
 {
@@ -62,10 +44,7 @@ static int iscsi_session_alloc(struct iscsi_target *target,
 
 	session->target = target;
 	session->sid = info->sid;
-	session->sess_param = target->trgt_sess_param;
-	session->max_queued_cmnds = target->trgt_param.queued_cmnds;
 	atomic_set(&session->active_cmds, 0);
-
 	session->exp_cmd_sn = info->exp_cmd_sn;
 
 	session->initiator_name = kstrdup(info->initiator_name, GFP_KERNEL);
@@ -74,6 +53,7 @@ static int iscsi_session_alloc(struct iscsi_target *target,
 		goto err;
 	}
 
+#ifdef CONFIG_SCST_PROC
 	name = kmalloc(strlen(info->user_name) + strlen(info->initiator_name) +
 			1, GFP_KERNEL);
 	if (name == NULL) {
@@ -85,6 +65,9 @@ static int iscsi_session_alloc(struct iscsi_target *target,
 		sprintf(name, "%s@%s", info->user_name, info->initiator_name);
 	else
 		sprintf(name, "%s", info->initiator_name);
+#else
+	name =  info->initiator_name;
+#endif
 
 	INIT_LIST_HEAD(&session->conn_list);
 	INIT_LIST_HEAD(&session->pending_list);
@@ -105,7 +88,9 @@ static int iscsi_session_alloc(struct iscsi_target *target,
 		goto err;
 	}
 
+#ifdef CONFIG_SCST_PROC
 	kfree(name);
+#endif
 
 	scst_sess_set_tgt_priv(session->scst_sess, session);
 
@@ -119,7 +104,9 @@ err:
 	if (session) {
 		kfree(session->initiator_name);
 		kfree(session);
+#ifdef CONFIG_SCST_PROC
 		kfree(name);
+#endif
 	}
 	return err;
 }
@@ -145,13 +132,14 @@ void sess_reinst_finished(struct iscsi_session *sess)
 }
 
 /* target_mgmt_mutex supposed to be locked */
-int session_add(struct iscsi_target *target,
+int __add_session(struct iscsi_target *target,
 	struct iscsi_kern_session_info *info)
 {
 	struct iscsi_session *new_sess = NULL, *sess, *old_sess;
-	int err = 0;
+	int err = 0, i;
 	union iscsi_sid sid;
 	bool reinstatement = false;
+	struct iscsi_kern_params_info *params_info;
 
 	TRACE_MGMT_DBG("Adding session SID %llx", info->sid);
 
@@ -166,6 +154,14 @@ int session_add(struct iscsi_target *target,
 		PRINT_ERROR("Attempt to add session with existing SID %llx",
 			info->sid);
 		err = -EEXIST;
+		goto out_err_unlock;
+	}
+
+	params_info = kmalloc(sizeof(*params_info), GFP_KERNEL);
+	if (params_info == NULL) {
+		PRINT_ERROR("Unable to allocate params info (size %d)",
+			sizeof(*params_info));
+		err = -ENOMEM;
 		goto out_err_unlock;
 	}
 
@@ -193,6 +189,31 @@ int session_add(struct iscsi_target *target,
 	sess = NULL;
 
 	list_add_tail(&new_sess->session_list_entry, &target->session_list);
+
+	memset(params_info, 0, sizeof(*params_info));
+	params_info->tid = target->tid;
+	params_info->sid = info->sid;
+	params_info->params_type = key_session;
+	for (i = 0; i < session_key_last; i++)
+		params_info->session_params[i] = info->session_params[i];
+
+	err = iscsi_params_set(target, params_info, 1);
+	if (err != 0)
+		goto out_del;
+
+	memset(params_info, 0, sizeof(*params_info));
+	params_info->tid = target->tid;
+	params_info->sid = info->sid;
+	params_info->params_type = key_target;
+	for (i = 0; i < target_key_last; i++)
+		params_info->target_params[i] = info->target_params[i];
+
+	err = iscsi_params_set(target, params_info, 1);
+	if (err != 0)
+		goto out_del;
+
+	kfree(params_info);
+	params_info = NULL;
 
 	if (old_sess != NULL) {
 		reinstatement = true;
@@ -225,6 +246,10 @@ int session_add(struct iscsi_target *target,
 
 out:
 	return err;
+
+out_del:
+	list_del(&new_sess->session_list_entry);
+	kfree(params_info);
 
 out_err_unlock:
 	mutex_unlock(&target->target_mutex);
@@ -312,7 +337,7 @@ int session_free(struct iscsi_session *session, bool del)
 }
 
 /* target_mutex supposed to be locked */
-int session_del(struct iscsi_target *target, u64 sid)
+int __del_session(struct iscsi_target *target, u64 sid)
 {
 	struct iscsi_session *session;
 
@@ -368,6 +393,76 @@ const struct file_operations session_seq_fops = {
 
 #else /* CONFIG_SCST_PROC */
 
+#define ISCSI_SESS_BOOL_PARAM_ATTR(name, exported_name)				\
+static ssize_t iscsi_sess_show_##name(struct kobject *kobj,			\
+	struct kobj_attribute *attr, char *buf)					\
+{										\
+	int pos;								\
+	struct scst_session *scst_sess;						\
+	struct iscsi_session *sess;						\
+										\
+	scst_sess = container_of(kobj, struct scst_session, sess_kobj);		\
+	sess = (struct iscsi_session *)scst_sess_get_tgt_priv(scst_sess);	\
+										\
+	pos = sprintf(buf, "%s\n",						\
+		iscsi_get_bool_value(sess->sess_params.name));			\
+										\
+	return pos;								\
+}										\
+										\
+static struct kobj_attribute iscsi_sess_attr_##name =				\
+	__ATTR(exported_name, S_IRUGO, iscsi_sess_show_##name, NULL);
+
+#define ISCSI_SESS_INT_PARAM_ATTR(name, exported_name)				\
+static ssize_t iscsi_sess_show_##name(struct kobject *kobj,			\
+	struct kobj_attribute *attr, char *buf)					\
+{										\
+	int pos;								\
+	struct scst_session *scst_sess;						\
+	struct iscsi_session *sess;						\
+										\
+	scst_sess = container_of(kobj, struct scst_session, sess_kobj);		\
+	sess = (struct iscsi_session *)scst_sess_get_tgt_priv(scst_sess);	\
+										\
+	pos = sprintf(buf, "%d\n", sess->sess_params.name);			\
+										\
+	return pos;								\
+}										\
+										\
+static struct kobj_attribute iscsi_sess_attr_##name =				\
+	__ATTR(exported_name, S_IRUGO, iscsi_sess_show_##name, NULL);
+
+#define ISCSI_SESS_DIGEST_PARAM_ATTR(name, exported_name)			\
+static ssize_t iscsi_sess_show_##name(struct kobject *kobj,			\
+	struct kobj_attribute *attr, char *buf)					\
+{										\
+	int pos;								\
+	struct scst_session *scst_sess;						\
+	struct iscsi_session *sess;						\
+	char digest_name[64];							\
+										\
+	scst_sess = container_of(kobj, struct scst_session, sess_kobj);		\
+	sess = (struct iscsi_session *)scst_sess_get_tgt_priv(scst_sess);	\
+										\
+	pos = sprintf(buf, "%s\n", iscsi_get_digest_name(			\
+			sess->sess_params.name, digest_name));			\
+										\
+	return pos;								\
+}										\
+										\
+static struct kobj_attribute iscsi_sess_attr_##name =				\
+	__ATTR(exported_name, S_IRUGO, iscsi_sess_show_##name, NULL);
+
+ISCSI_SESS_BOOL_PARAM_ATTR(initial_r2t, InitialR2T);
+ISCSI_SESS_BOOL_PARAM_ATTR(immediate_data, ImmediateData);
+ISCSI_SESS_INT_PARAM_ATTR(max_recv_data_length, MaxRecvDataSegmentLength);
+ISCSI_SESS_INT_PARAM_ATTR(max_xmit_data_length, MaxXmitDataSegmentLength);
+ISCSI_SESS_INT_PARAM_ATTR(max_burst_length, MaxBurstLength);
+ISCSI_SESS_INT_PARAM_ATTR(first_burst_length, FirstBurstLength);
+ISCSI_SESS_INT_PARAM_ATTR(max_outstanding_r2t, MaxOutstandingR2T);
+ISCSI_SESS_DIGEST_PARAM_ATTR(header_digest, HeaderDigest);
+ISCSI_SESS_DIGEST_PARAM_ATTR(data_digest, DataDigest);
+
 static ssize_t iscsi_sess_sid_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
@@ -386,7 +481,7 @@ static ssize_t iscsi_sess_sid_show(struct kobject *kobj,
 	return pos;
 }
 
-static struct kobj_attribute iscsi_sess_sid_attr =
+static struct kobj_attribute iscsi_attr_sess_sid =
 	__ATTR(sid, S_IRUGO, iscsi_sess_sid_show, NULL);
 
 static ssize_t iscsi_sess_reinstating_show(struct kobject *kobj,
@@ -407,58 +502,60 @@ static ssize_t iscsi_sess_reinstating_show(struct kobject *kobj,
 	return pos;
 }
 
-static struct kobj_attribute iscsi_sess_reinstating_attr =
+static struct kobj_attribute iscsi_sess_attr_reinstating =
 	__ATTR(reinstating, S_IRUGO, iscsi_sess_reinstating_show, NULL);
 
-static ssize_t iscsi_sess_hdigest_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t iscsi_sess_force_close_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
 {
-	int pos;
+	int res;
 	struct scst_session *scst_sess;
 	struct iscsi_session *sess;
+	struct iscsi_conn *conn;
 
 	TRACE_ENTRY();
 
 	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
 	sess = (struct iscsi_session *)scst_sess_get_tgt_priv(scst_sess);
 
-	pos = print_digest_state(buf, SCST_SYSFS_BLOCK_SIZE,
-		sess->sess_param.header_digest);
+	if (mutex_lock_interruptible(&sess->target->target_mutex) != 0) {
+		res = -EINTR;
+		goto out;
+	}
 
-	TRACE_EXIT_RES(pos);
-	return pos;
+	PRINT_INFO("Deleting session %llu with initiator %s (%p)",
+		(long long unsigned int)sess->sid, sess->initiator_name, sess);
+
+	list_for_each_entry(conn, &sess->conn_list, conn_list_entry) {
+		TRACE_MGMT_DBG("Deleting connection with initiator %p", conn);
+		__mark_conn_closed(conn, ISCSI_CONN_ACTIVE_CLOSE|ISCSI_CONN_DELETING);
+	}
+
+	mutex_unlock(&sess->target->target_mutex);
+
+	res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
-static struct kobj_attribute iscsi_sess_hdigest_attr =
-	__ATTR(hdigest, S_IRUGO, iscsi_sess_hdigest_show, NULL);
-
-static ssize_t iscsi_sess_ddigest_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
-{
-	int pos;
-	struct scst_session *scst_sess;
-	struct iscsi_session *sess;
-
-	TRACE_ENTRY();
-
-	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
-	sess = (struct iscsi_session *)scst_sess_get_tgt_priv(scst_sess);
-
-	pos = print_digest_state(buf, SCST_SYSFS_BLOCK_SIZE,
-		sess->sess_param.data_digest);
-
-	TRACE_EXIT_RES(pos);
-	return pos;
-}
-
-static struct kobj_attribute iscsi_sess_ddigest_attr =
-	__ATTR(ddigest, S_IRUGO, iscsi_sess_ddigest_show, NULL);
+static struct kobj_attribute iscsi_sess_attr_force_close =
+	__ATTR(force_close, S_IWUSR, NULL, iscsi_sess_force_close_store);
 
 const struct attribute *iscsi_sess_attrs[] = {
-	&iscsi_sess_sid_attr.attr,
-	&iscsi_sess_reinstating_attr.attr,
-	&iscsi_sess_hdigest_attr.attr,
-	&iscsi_sess_ddigest_attr.attr,
+	&iscsi_sess_attr_initial_r2t.attr,
+	&iscsi_sess_attr_immediate_data.attr,
+	&iscsi_sess_attr_max_recv_data_length.attr,
+	&iscsi_sess_attr_max_xmit_data_length.attr,
+	&iscsi_sess_attr_max_burst_length.attr,
+	&iscsi_sess_attr_first_burst_length.attr,
+	&iscsi_sess_attr_max_outstanding_r2t.attr,
+	&iscsi_sess_attr_header_digest.attr,
+	&iscsi_sess_attr_data_digest.attr,
+	&iscsi_attr_sess_sid.attr,
+	&iscsi_sess_attr_reinstating.attr,
+	&iscsi_sess_attr_force_close.attr,
 	NULL,
 };
 

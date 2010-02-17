@@ -158,8 +158,8 @@ static struct scst_tgt_template tgt2x_template = {
 	.on_free_cmd = q2t_on_free_cmd,
 	.task_mgmt_fn_done = q2t_task_mgmt_fn_done,
 	.on_hw_pending_cmd_timeout = q2t_on_hw_pending_cmd_timeout,
-	.enable_tgt = q2t_enable_tgt,
-	.is_tgt_enabled = q2t_is_tgt_enabled,
+	.enable_target = q2t_enable_tgt,
+	.is_target_enabled = q2t_is_tgt_enabled,
 #ifndef CONFIG_SCST_PROC
 	.tgtt_attrs = q2t_attrs,
 	.tgt_attrs = q2t_tgt_attrs,

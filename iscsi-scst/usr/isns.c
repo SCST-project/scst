@@ -54,9 +54,13 @@ struct isns_initiator {
 	struct __qelem ilist;
 };
 
+char *isns_server;
+int isns_access_control;
+int isns_timeout = -1;
+
 static LIST_HEAD(qry_list);
 static uint16_t scn_listen_port;
-static int use_isns, use_isns_ac, isns_fd, scn_listen_fd, scn_fd;
+static int isns_fd, scn_listen_fd, scn_fd;
 static struct isns_io isns_rx, scn_rx;
 static char *rxbuf;
 static uint16_t transaction;
@@ -70,11 +74,11 @@ int isns_scn_access(uint32_t tid, int fd, char *name)
 	struct isns_initiator *ini;
 	struct target *target = target_find_by_id(tid);
 
-	if (!use_isns || !use_isns_ac)
+	if ((isns_server == NULL) || !isns_access_control)
 		return 0;
 
 	if (!target)
-		return -EPERM;
+		return -ENOENT;
 
 	list_for_each_entry(ini, &target->isns_head, ilist) {
 		if (!strcmp(ini->name, name))
@@ -130,19 +134,25 @@ static int isns_connect(void)
 {
 	int fd, err;
 
+	log_debug(1, "Going to connect to iSNS server %s", isns_server);
+
 	fd = socket(ss.ss_family, SOCK_STREAM, IPPROTO_TCP);
 	if (fd < 0) {
 		log_error("unable to create (%s) %d!", strerror(errno),
 			  ss.ss_family);
-		return -1;
+		return -errno;
 	}
 
+	/*
+	 * ToDo: must be made non-blocking, otherwise for an unreacheable
+	 * server it blocks all other events processing until timeout (30 secs).
+	 */
 	err = connect(fd, (struct sockaddr *) &ss, sizeof(ss));
 	if (err < 0) {
 		log_error("unable to connect (%s) %d!", strerror(errno),
 			  ss.ss_family);
 		close(fd);
-		return -1;
+		return -errno;
 	}
 
 	log_error("%s %d: new connection %d", __func__, __LINE__, fd);
@@ -151,7 +161,7 @@ static int isns_connect(void)
 		err = isns_get_ip(fd);
 		if (err) {
 			close(fd);
-			return -1;
+			return err;
 		}
 	}
 
@@ -301,7 +311,7 @@ static int isns_attr_query(char *name)
 	mgmt = malloc(sizeof(*mgmt));
 	if (!mgmt)
 		return 0;
-	insque(&mgmt->qlist, &qry_list);
+	list_add_tail(&mgmt->qlist, &qry_list);
 
 	memset(buf, 0, sizeof(buf));
 	tlv = (struct isns_tlv *) hdr->pdu;
@@ -384,12 +394,14 @@ int isns_target_register(char *name)
 	struct target *target;
 	int err, initial = list_length_is_one(&targets_list);
 
-	if (!use_isns)
+	if (isns_server == NULL)
 		return 0;
 
-	if (!isns_fd)
-		if (isns_connect() < 0)
-			return 0;
+	if (!isns_fd) {
+		err = isns_connect();
+		if (err < 0)
+			return err;
+	}
 
 	memset(buf, 0, sizeof(buf));
 	tlv = (struct isns_tlv *) hdr->pdu;
@@ -447,7 +459,7 @@ static void free_all_acl(struct target *target)
 
 	while (!list_empty(&target->isns_head)) {
 		ini = list_entry(target->isns_head.q_forw, typeof(*ini), ilist);
-		remque(&ini->ilist);
+		list_del(&ini->ilist);
 	}
 }
 
@@ -464,7 +476,7 @@ int isns_target_deregister(char *name)
 	if (target)
 		free_all_acl(target);
 
-	if (!use_isns)
+	if (isns_server == NULL)
 		return 0;
 
 	if (!isns_fd)
@@ -637,7 +649,7 @@ static void qry_rsp_handle(struct isns_hdr *hdr)
 
 	list_for_each_entry_safe(mgmt, n, &qry_list, qlist) {
 		if (mgmt->transaction == transaction) {
-			remque(&mgmt->qlist);
+			list_del(&mgmt->qlist);
 			goto found;
 		}
 	}
@@ -690,7 +702,7 @@ found:
 					goto free_qry_mgmt;
 				snprintf(ini->name, sizeof(ini->name), "%s",
 					 name);
-				insque(&ini->ilist, &target->isns_head);
+				list_add_tail(&ini->ilist, &target->isns_head);
 			} else
 				name = NULL;
 			break;
@@ -707,7 +719,7 @@ free_qry_mgmt:
 	free(mgmt);
 }
 
-int isns_handle(int is_timeout, int *timeout)
+int isns_handle(int is_timeout)
 {
 	int err;
 	struct isns_io *rx = &isns_rx;
@@ -715,6 +727,9 @@ int isns_handle(int is_timeout, int *timeout)
 	uint32_t result;
 	uint16_t function, length, flags, transaction, sequence;
 	char *name = NULL;
+
+	if (isns_server == NULL)
+		return 0;
 
 	if (is_timeout)
 		return isns_attr_query(NULL);
@@ -855,7 +870,7 @@ int isns_scn_handle(int is_accept)
 	return 0;
 }
 
-static int scn_init(char *addr)
+static int scn_init(void)
 {
 	int fd, opt, err;
 	union {
@@ -868,29 +883,31 @@ static int scn_init(char *addr)
 	fd = socket(ss.ss_family, SOCK_STREAM, IPPROTO_TCP);
 	if (fd < 0) {
 		log_error("%s %d: %s\n", __func__, __LINE__, strerror(errno));
-		return -errno;
+		err = -errno;
+		goto out;
 	}
 
 	opt = 1;
 	if (ss.ss_family == AF_INET6) {
 		err = setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt));
-		if (err)
+		if (err) {
 			log_error("%s %d: %s\n", __func__, __LINE__,
 				  strerror(errno));
-		goto out;
+			goto out_close;
+		}
 	}
 
 	err = listen(fd, 5);
 	if (err) {
 		log_error("%s %d: %s\n", __func__, __LINE__, strerror(errno));
-		goto out;
+		goto out_close;
 	}
 
 	slen = sizeof(lss);
 	err = getsockname(fd, (struct sockaddr *) &lss, &slen);
 	if (err) {
 		log_error("%s %d: %s\n", __func__, __LINE__, strerror(errno));
-		goto out;
+		goto out_close;
 	}
 
 	/* protocol independent way ? */
@@ -899,8 +916,9 @@ static int scn_init(char *addr)
 	else
 		scn_listen_port = ntohs(lss.sin.sin_port);
 
-	log_error("scn listen port %u %d %d\n", scn_listen_port, fd, err);
-out:
+	log_info("scn listen port %u %d %d\n", scn_listen_port, fd, err);
+
+out_close:
 	if (err)
 		close(fd);
 	else {
@@ -908,10 +926,11 @@ out:
 		isns_set_fd(isns_fd, scn_listen_fd, scn_fd);
 	}
 
+out:
 	return err;
 }
 
-int isns_init(char *addr, int isns_ac)
+int isns_init(void)
 {
 	int err;
 	char port[8];
@@ -920,10 +939,11 @@ int isns_init(char *addr, int isns_ac)
 	snprintf(port, sizeof(port), "%d", ISNS_PORT);
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_socktype = SOCK_STREAM;
-	err = getaddrinfo(addr, (char *) &port, &hints, &res);
+	err = getaddrinfo(isns_server, (char *)&port, &hints, &res);
 	if (err) {
-		log_error("getaddrinfo error: %s, %s", gai_strerror(err), addr);
-		return -1;
+		log_error("getaddrinfo error: %s, %s", gai_strerror(err),
+			isns_server);
+		goto out;
 	}
 	memcpy(&ss, res->ai_addr, sizeof(ss));
 	freeaddrinfo(res);
@@ -931,28 +951,40 @@ int isns_init(char *addr, int isns_ac)
 	rxbuf = calloc(2, BUFSIZE);
 	if (!rxbuf) {
 		log_error("oom!");
-		return -1;
+		err = -ENOMEM;
+		goto out;
 	}
 
-	scn_init(addr);
+	err = scn_init();
+	if (err != 0)
+		goto out_free;
 
 	isns_rx.buf = rxbuf;
 	isns_rx.offset = 0;
 	scn_rx.buf = rxbuf + BUFSIZE;
 	scn_rx.offset = 0;
 
-	use_isns = 1;
-	use_isns_ac = isns_ac;
+	isns_timeout = current_timeout * 1000;
 
-	return current_timeout * 1000;
+	err = isns_connect();
+
+out:
+	return err;
+
+out_free:
+	free(rxbuf);
+	goto out;
 }
 
 void isns_exit(void)
 {
 	struct target *target;
 
-	if (!use_isns)
-		return;
+	if (isns_server == NULL)
+		goto out;
+
+	if (!isns_fd)
+		goto close;
 
 	list_for_each_entry(target, &targets_list, tlist)
 		isns_scn_deregister(target->name);
@@ -961,12 +993,28 @@ void isns_exit(void)
 	/* we can't receive events any more. */
 	isns_set_fd(0, 0, 0);
 
-	if (isns_fd)
+close:
+	if (isns_fd) {
 		close(isns_fd);
-	if (scn_listen_fd)
+		isns_fd = 0;
+	}
+	if (scn_listen_fd) {
 		close(scn_listen_fd);
-	if (scn_fd)
+		scn_listen_fd = 0;
+	}
+	if (scn_fd) {
 		close(scn_fd);
+		scn_fd = 0;
+	}
 
 	free(rxbuf);
+	rxbuf = NULL;
+
+	free(isns_server);
+	isns_server = NULL;
+
+	isns_timeout = -1;
+
+out:
+	return;
 }

@@ -878,7 +878,7 @@ static int scst_proc_group_add(const char *p)
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of name failed");
 		goto out_nomem;
 	}
-	strncpy(name, p, len);
+	strlcpy(name, p, len);
 
 	acg = scst_alloc_add_acg(NULL, name);
 	if (acg == NULL) {
@@ -942,7 +942,7 @@ static int scst_proc_rename_acg(struct scst_acg *acg, const char *new_name)
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of new name failed");
 		goto out_nomem;
 	}
-	strncpy(name, new_name, len);
+	strlcpy(name, new_name, len);
 
 	res = scst_proc_group_add_tree(acg, new_name);
 	if (res != 0)
@@ -2225,7 +2225,7 @@ static int scst_version_info_show(struct seq_file *seq, void *v)
 	seq_printf(seq, "%s\n", SCST_VERSION_STRING);
 
 #ifdef CONFIG_SCST_STRICT_SERIALIZING
-	seq_printf(seq, "Strict serializing enabled\n");
+	seq_printf(seq, "STRICT_SERIALIZING\n");
 #endif
 
 #ifdef CONFIG_SCST_EXTRACHECKS

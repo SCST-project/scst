@@ -2532,16 +2532,12 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 	ucmd->user_cmd.sess.lun = (uint64_t)tgt_dev->lun;
 	ucmd->user_cmd.sess.threads_num = tgt_dev->sess->tgt->tgtt->threads_num;
 	ucmd->user_cmd.sess.rd_only = tgt_dev->acg_dev->rd_only;
-	strncpy(ucmd->user_cmd.sess.initiator_name,
+	strlcpy(ucmd->user_cmd.sess.initiator_name,
 		tgt_dev->sess->initiator_name,
 		sizeof(ucmd->user_cmd.sess.initiator_name)-1);
-	ucmd->user_cmd.sess.initiator_name[
-		sizeof(ucmd->user_cmd.sess.initiator_name)-1] = '\0';
-	strncpy(ucmd->user_cmd.sess.target_name,
+	strlcpy(ucmd->user_cmd.sess.target_name,
 		tgt_dev->sess->tgt->tgt_name,
 		sizeof(ucmd->user_cmd.sess.target_name)-1);
-	ucmd->user_cmd.sess.target_name[
-		sizeof(ucmd->user_cmd.sess.target_name)-1] = '\0';
 
 	TRACE_MGMT_DBG("Preparing ATTACH_SESS %p (h %d, sess_h %llx, LUN %llx, "
 		"threads_num %d, rd_only %d, initiator %s, target %s)",
@@ -2757,8 +2753,7 @@ static int dev_user_register_dev(struct file *file,
 	for (i = 0; i < (int)ARRAY_SIZE(dev->ucmd_hash); i++)
 		INIT_LIST_HEAD(&dev->ucmd_hash[i]);
 
-	strncpy(dev->name, dev_desc->name, sizeof(dev->name)-1);
-	dev->name[sizeof(dev->name)-1] = '\0';
+	strlcpy(dev->name, dev_desc->name, sizeof(dev->name)-1);
 
 	scst_init_mem_lim(&dev->udev_mem_lim);
 

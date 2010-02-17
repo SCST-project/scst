@@ -64,9 +64,11 @@ static void dolog(int prio, const char *func, int line, const char *fmt, va_list
 		int len = strlen(func) + strlen(fmt);
 		char f[len+1+1];
 		if (fmt[len] != '\n')
-			sprintf(f, "%s:%d: %s\n", func, line, fmt);
+			sprintf(f, "%s:%d: %s %s\n", func, line,
+				(prio == LOG_ERR) ? "ERROR:" : "", fmt);
 		else
-			sprintf(f, "%s:%d: %s", func, line, fmt);
+			sprintf(f, "%s:%d: %s %s", func, line,
+				(prio == LOG_ERR) ? "ERROR: " : "", fmt);
 		vsyslog(prio, f, ap);
 	} else {
 		struct timeval time;

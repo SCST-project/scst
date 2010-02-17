@@ -351,6 +351,8 @@ enum scst_cdb_flags {
 /*************************************************************
  ** Misc constants
  *************************************************************/
-#define SCST_SYSFS_BLOCK_SIZE PAGE_SIZE
+#define SCST_SYSFS_BLOCK_SIZE	PAGE_SIZE
+
+#define SCST_SYSFS_KEY_MARK	"[key]"
 
 #endif /* __SCST_CONST_H */

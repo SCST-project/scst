@@ -16,37 +16,40 @@
 #include "iscsi.h"
 #include "digest.h"
 
-#define	CHECK_PARAM(info, iparam, word, min, max)			      \
-do {									      \
-	if (!(info)->partial || ((info)->partial & 1 << key_##word))	      \
-		if ((iparam)[key_##word] < (min) ||			      \
-			(iparam)[key_##word] > (max)) {			      \
-			PRINT_ERROR("%s: %u is out of range (%u %u)",	      \
-				#word, (iparam)[key_##word], (min), (max));   \
-			if ((iparam)[key_##word] < (min))		      \
-				(iparam)[key_##word] = (min);		      \
-			else						      \
-				(iparam)[key_##word] = (max);		      \
-		}							      \
+#define	CHECK_PARAM(info, iparams, word, min, max)				\
+do {										\
+	if (!(info)->partial || ((info)->partial & 1 << key_##word)) {		\
+		TRACE_DBG("%s: %u", #word, (iparams)[key_##word]);		\
+		if ((iparams)[key_##word] < (min) ||				\
+			(iparams)[key_##word] > (max)) {			\
+			PRINT_ERROR("%s: %u is out of range (%u %u)",		\
+				#word, (iparams)[key_##word], (min), (max));	\
+			if ((iparams)[key_##word] < (min))			\
+				(iparams)[key_##word] = (min);			\
+			else							\
+				(iparams)[key_##word] = (max);			\
+		}								\
+	}									\
 } while (0)
 
-#define	SET_PARAM(param, info, iparam, word)				      \
-({									      \
-	int changed = 0;						      \
-	if (!(info)->partial || ((info)->partial & 1 << key_##word)) {	      \
-		if ((param)->word != (iparam)[key_##word])		      \
-			changed = 1;					      \
-		(param)->word = (iparam)[key_##word];			      \
-	}								      \
-	changed;							      \
+#define	SET_PARAM(params, info, iparams, word)					\
+({										\
+	int changed = 0;							\
+	if (!(info)->partial || ((info)->partial & 1 << key_##word)) {		\
+		if ((params)->word != (iparams)[key_##word])			\
+			changed = 1;						\
+		(params)->word = (iparams)[key_##word];				\
+		TRACE_DBG("%s set to %u", #word, (iparams)[key_##word]);	\
+	}									\
+	changed;								\
 })
 
-#define	GET_PARAM(param, info, iparam, word)				      \
-do {									      \
-	(iparam)[key_##word] = (param)->word;				      \
+#define	GET_PARAM(params, info, iparams, word)					\
+do {										\
+	(iparams)[key_##word] = (params)->word;					\
 } while (0)
 
-static const char *get_bool_name(int val)
+const char *iscsi_get_bool_value(int val)
 {
 	if (val)
 		return "Yes";
@@ -54,210 +57,234 @@ static const char *get_bool_name(int val)
 		return "No";
 }
 
-static const char *get_digest_name(int val)
+const char *iscsi_get_digest_name(int val, char *res)
 {
-	if (val == DIGEST_NONE)
-		return "None";
-	else if (val == DIGEST_CRC32C)
-		return "CRC32C";
-	else
-		return "Unknown";
+	int pos = 0;
+
+	if (val & DIGEST_NONE)
+		pos = sprintf(&res[pos], "%s", "None");
+
+	if (val & DIGEST_CRC32C)
+		pos += sprintf(&res[pos], "%s%s", (pos != 0) ? ", " : "",
+			"CRC32C");
+
+	if (pos == 0)
+		sprintf(&res[pos], "%s", "Unknown");
+
+	return res;
 }
 
-static void log_params(struct iscsi_sess_param *param)
+static void log_params(struct iscsi_sess_params *params)
 {
+	char digest_name[64];
+
 	PRINT_INFO("Negotiated parameters: InitialR2T %s, ImmediateData %s, "
 		"MaxConnections %d, MaxRecvDataSegmentLength %d, "
 		"MaxXmitDataSegmentLength %d, ",
-		get_bool_name(param->initial_r2t),
-		get_bool_name(param->immediate_data), param->max_connections,
-		param->max_recv_data_length, param->max_xmit_data_length);
+		iscsi_get_bool_value(params->initial_r2t),
+		iscsi_get_bool_value(params->immediate_data), params->max_connections,
+		params->max_recv_data_length, params->max_xmit_data_length);
 	PRINT_INFO("    MaxBurstLength %d, FirstBurstLength %d, "
 		"DefaultTime2Wait %d, DefaultTime2Retain %d, ",
-		param->max_burst_length, param->first_burst_length,
-		param->default_wait_time, param->default_retain_time);
+		params->max_burst_length, params->first_burst_length,
+		params->default_wait_time, params->default_retain_time);
 	PRINT_INFO("    MaxOutstandingR2T %d, DataPDUInOrder %s, "
 		"DataSequenceInOrder %s, ErrorRecoveryLevel %d, ",
-		param->max_outstanding_r2t,
-		get_bool_name(param->data_pdu_inorder),
-		get_bool_name(param->data_sequence_inorder),
-		param->error_recovery_level);
+		params->max_outstanding_r2t,
+		iscsi_get_bool_value(params->data_pdu_inorder),
+		iscsi_get_bool_value(params->data_sequence_inorder),
+		params->error_recovery_level);
 	PRINT_INFO("    HeaderDigest %s, DataDigest %s, OFMarker %s, "
 		"IFMarker %s, OFMarkInt %d, IFMarkInt %d",
-		get_digest_name(param->header_digest),
-		get_digest_name(param->data_digest),
-		get_bool_name(param->ofmarker),
-		get_bool_name(param->ifmarker),
-		param->ofmarkint, param->ifmarkint);
+		iscsi_get_digest_name(params->header_digest, digest_name),
+		iscsi_get_digest_name(params->data_digest, digest_name),
+		iscsi_get_bool_value(params->ofmarker),
+		iscsi_get_bool_value(params->ifmarker),
+		params->ofmarkint, params->ifmarkint);
 }
 
 /* target_mutex supposed to be locked */
-static void sess_param_check(struct iscsi_kern_param_info *info)
+static void sess_params_check(struct iscsi_kern_params_info *info)
 {
-	int32_t *iparam = info->session_param;
+	int32_t *iparams = info->session_params;
+	const int max_len = ISCSI_CONN_IOV_MAX * PAGE_SIZE;
 
-	CHECK_PARAM(info, iparam, max_connections, 1, 1);
-	CHECK_PARAM(info, iparam, max_recv_data_length, 512,
-		    (int32_t) (ISCSI_CONN_IOV_MAX * PAGE_SIZE));
-	CHECK_PARAM(info, iparam, max_xmit_data_length, 512,
-		    (int32_t) (ISCSI_CONN_IOV_MAX * PAGE_SIZE));
-	CHECK_PARAM(info, iparam, error_recovery_level, 0, 0);
-	CHECK_PARAM(info, iparam, data_pdu_inorder, 0, 1);
-	CHECK_PARAM(info, iparam, data_sequence_inorder, 0, 1);
+	CHECK_PARAM(info, iparams, initial_r2t, 0, 1);
+	CHECK_PARAM(info, iparams, immediate_data, 0, 1);
+	CHECK_PARAM(info, iparams, max_connections, 1, 1);
+	CHECK_PARAM(info, iparams, max_recv_data_length, 512, max_len);
+	CHECK_PARAM(info, iparams, max_xmit_data_length, 512, max_len);
+	CHECK_PARAM(info, iparams, max_burst_length, 512, max_len);
+	CHECK_PARAM(info, iparams, first_burst_length, 512, max_len);
+	CHECK_PARAM(info, iparams, max_outstanding_r2t, 1, 65535);
+	CHECK_PARAM(info, iparams, error_recovery_level, 0, 0);
+	CHECK_PARAM(info, iparams, data_pdu_inorder, 0, 1);
+	CHECK_PARAM(info, iparams, data_sequence_inorder, 0, 1);
 
-	digest_alg_available(&iparam[key_header_digest]);
-	digest_alg_available(&iparam[key_data_digest]);
+	digest_alg_available(&iparams[key_header_digest]);
+	digest_alg_available(&iparams[key_data_digest]);
 
-	CHECK_PARAM(info, iparam, ofmarker, 0, 0);
-	CHECK_PARAM(info, iparam, ifmarker, 0, 0);
+	CHECK_PARAM(info, iparams, ofmarker, 0, 0);
+	CHECK_PARAM(info, iparams, ifmarker, 0, 0);
+
+	return;
 }
 
 /* target_mutex supposed to be locked */
-static void sess_param_set(struct iscsi_sess_param *param,
-			   struct iscsi_kern_param_info *info)
+static void sess_params_set(struct iscsi_sess_params *params,
+			   struct iscsi_kern_params_info *info)
 {
-	int32_t *iparam = info->session_param;
+	int32_t *iparams = info->session_params;
 
-	SET_PARAM(param, info, iparam, initial_r2t);
-	SET_PARAM(param, info, iparam, immediate_data);
-	SET_PARAM(param, info, iparam, max_connections);
-	SET_PARAM(param, info, iparam, max_recv_data_length);
-	SET_PARAM(param, info, iparam, max_xmit_data_length);
-	SET_PARAM(param, info, iparam, max_burst_length);
-	SET_PARAM(param, info, iparam, first_burst_length);
-	SET_PARAM(param, info, iparam, default_wait_time);
-	SET_PARAM(param, info, iparam, default_retain_time);
-	SET_PARAM(param, info, iparam, max_outstanding_r2t);
-	SET_PARAM(param, info, iparam, data_pdu_inorder);
-	SET_PARAM(param, info, iparam, data_sequence_inorder);
-	SET_PARAM(param, info, iparam, error_recovery_level);
-	SET_PARAM(param, info, iparam, header_digest);
-	SET_PARAM(param, info, iparam, data_digest);
-	SET_PARAM(param, info, iparam, ofmarker);
-	SET_PARAM(param, info, iparam, ifmarker);
-	SET_PARAM(param, info, iparam, ofmarkint);
-	SET_PARAM(param, info, iparam, ifmarkint);
+	SET_PARAM(params, info, iparams, initial_r2t);
+	SET_PARAM(params, info, iparams, immediate_data);
+	SET_PARAM(params, info, iparams, max_connections);
+	SET_PARAM(params, info, iparams, max_recv_data_length);
+	SET_PARAM(params, info, iparams, max_xmit_data_length);
+	SET_PARAM(params, info, iparams, max_burst_length);
+	SET_PARAM(params, info, iparams, first_burst_length);
+	SET_PARAM(params, info, iparams, default_wait_time);
+	SET_PARAM(params, info, iparams, default_retain_time);
+	SET_PARAM(params, info, iparams, max_outstanding_r2t);
+	SET_PARAM(params, info, iparams, data_pdu_inorder);
+	SET_PARAM(params, info, iparams, data_sequence_inorder);
+	SET_PARAM(params, info, iparams, error_recovery_level);
+	SET_PARAM(params, info, iparams, header_digest);
+	SET_PARAM(params, info, iparams, data_digest);
+	SET_PARAM(params, info, iparams, ofmarker);
+	SET_PARAM(params, info, iparams, ifmarker);
+	SET_PARAM(params, info, iparams, ofmarkint);
+	SET_PARAM(params, info, iparams, ifmarkint);
+	return;
 }
 
-static void sess_param_get(struct iscsi_sess_param *param,
-			   struct iscsi_kern_param_info *info)
+static void sess_params_get(struct iscsi_sess_params *params,
+			   struct iscsi_kern_params_info *info)
 {
-	int32_t *iparam = info->session_param;
+	int32_t *iparams = info->session_params;
 
-	GET_PARAM(param, info, iparam, initial_r2t);
-	GET_PARAM(param, info, iparam, immediate_data);
-	GET_PARAM(param, info, iparam, max_connections);
-	GET_PARAM(param, info, iparam, max_recv_data_length);
-	GET_PARAM(param, info, iparam, max_xmit_data_length);
-	GET_PARAM(param, info, iparam, max_burst_length);
-	GET_PARAM(param, info, iparam, first_burst_length);
-	GET_PARAM(param, info, iparam, default_wait_time);
-	GET_PARAM(param, info, iparam, default_retain_time);
-	GET_PARAM(param, info, iparam, max_outstanding_r2t);
-	GET_PARAM(param, info, iparam, data_pdu_inorder);
-	GET_PARAM(param, info, iparam, data_sequence_inorder);
-	GET_PARAM(param, info, iparam, error_recovery_level);
-	GET_PARAM(param, info, iparam, header_digest);
-	GET_PARAM(param, info, iparam, data_digest);
-	GET_PARAM(param, info, iparam, ofmarker);
-	GET_PARAM(param, info, iparam, ifmarker);
-	GET_PARAM(param, info, iparam, ofmarkint);
-	GET_PARAM(param, info, iparam, ifmarkint);
+	GET_PARAM(params, info, iparams, initial_r2t);
+	GET_PARAM(params, info, iparams, immediate_data);
+	GET_PARAM(params, info, iparams, max_connections);
+	GET_PARAM(params, info, iparams, max_recv_data_length);
+	GET_PARAM(params, info, iparams, max_xmit_data_length);
+	GET_PARAM(params, info, iparams, max_burst_length);
+	GET_PARAM(params, info, iparams, first_burst_length);
+	GET_PARAM(params, info, iparams, default_wait_time);
+	GET_PARAM(params, info, iparams, default_retain_time);
+	GET_PARAM(params, info, iparams, max_outstanding_r2t);
+	GET_PARAM(params, info, iparams, data_pdu_inorder);
+	GET_PARAM(params, info, iparams, data_sequence_inorder);
+	GET_PARAM(params, info, iparams, error_recovery_level);
+	GET_PARAM(params, info, iparams, header_digest);
+	GET_PARAM(params, info, iparams, data_digest);
+	GET_PARAM(params, info, iparams, ofmarker);
+	GET_PARAM(params, info, iparams, ifmarker);
+	GET_PARAM(params, info, iparams, ofmarkint);
+	GET_PARAM(params, info, iparams, ifmarkint);
+	return;
 }
 
 /* target_mutex supposed to be locked */
-static void trgt_param_check(struct iscsi_kern_param_info *info)
+static void tgt_params_check(struct iscsi_kern_params_info *info)
 {
-	int32_t *iparam = info->target_param;
+	int32_t *iparams = info->target_params;
 
-	CHECK_PARAM(info, iparam, queued_cmnds, MIN_NR_QUEUED_CMNDS,
+	CHECK_PARAM(info, iparams, queued_cmnds, MIN_NR_QUEUED_CMNDS,
 		    MAX_NR_QUEUED_CMNDS);
+	return;
 }
 
 /* target_mutex supposed to be locked */
-static void trgt_param_set(struct iscsi_target *target,
-			   struct iscsi_kern_param_info *info)
+static void tgt_params_set(struct iscsi_tgt_params *params,
+			   struct iscsi_kern_params_info *info)
 {
-	struct iscsi_trgt_param *param = &target->trgt_param;
-	int32_t *iparam = info->target_param;
+	int32_t *iparams = info->target_params;
 
-	SET_PARAM(param, info, iparam, queued_cmnds);
+	SET_PARAM(params, info, iparams, queued_cmnds);
+	return;
 }
 
 /* target_mutex supposed to be locked */
-static void trgt_param_get(struct iscsi_trgt_param *param,
-			   struct iscsi_kern_param_info *info)
+static void tgt_params_get(struct iscsi_tgt_params *params,
+			   struct iscsi_kern_params_info *info)
 {
-	int32_t *iparam = info->target_param;
+	int32_t *iparams = info->target_params;
 
-	GET_PARAM(param, info, iparam, queued_cmnds);
+	GET_PARAM(params, info, iparams, queued_cmnds);
+	return;
 }
 
 /* target_mutex supposed to be locked */
-static int trgt_param(struct iscsi_target *target,
-		      struct iscsi_kern_param_info *info, int set)
+static int iscsi_tgt_params_set(struct iscsi_session *session,
+		      struct iscsi_kern_params_info *info, int set)
 {
+	struct iscsi_tgt_params *params = &session->tgt_params;
+
 	if (set) {
-		struct iscsi_trgt_param *prm;
-		trgt_param_check(info);
-		trgt_param_set(target, info);
-
-		prm = &target->trgt_param;
-		PRINT_INFO("Target parameter changed: QueuedCommands %d",
-			prm->queued_cmnds);
+		tgt_params_check(info);
+		tgt_params_set(params, info);
+		PRINT_INFO("Target parameters set for session %llx: "
+			"QueuedCommands %d", session->sid,
+			params->queued_cmnds);
 	} else
-		trgt_param_get(&target->trgt_param, info);
+		tgt_params_get(params, info);
 
 	return 0;
 }
 
 /* target_mutex supposed to be locked */
-static int sess_param(struct iscsi_target *target,
-		      struct iscsi_kern_param_info *info, int set)
+static int iscsi_sess_params_set(struct iscsi_session *session,
+	struct iscsi_kern_params_info *info, int set)
 {
-	struct iscsi_session *session = NULL;
-	struct iscsi_sess_param *param;
-	int err = -ENOENT;
+	struct iscsi_sess_params *params;
 
 	if (set)
-		sess_param_check(info);
+		sess_params_check(info);
 
-	if (info->sid) {
-		session = session_lookup(target, info->sid);
-		if (!session)
-			goto out;
-		if (set && !list_empty(&session->conn_list)) {
-			err = -EBUSY;
-			goto out;
-		}
-		param = &session->sess_param;
-	} else
-		param = &target->trgt_sess_param;
+	params = &session->sess_params;
 
 	if (set) {
-		sess_param_set(param, info);
-		if (session != NULL)
-			log_params(param);
+		sess_params_set(params, info);
+		log_params(params);
 	} else
-		sess_param_get(param, info);
+		sess_params_get(params, info);
 
-	err = 0;
-out:
-	return err;
+	return 0;
 }
 
 /* target_mutex supposed to be locked */
-int iscsi_param_set(struct iscsi_target *target,
-	struct iscsi_kern_param_info *info, int set)
+int iscsi_params_set(struct iscsi_target *target,
+	struct iscsi_kern_params_info *info, int set)
 {
 	int err;
+	struct iscsi_session *session;
 
-	if (info->param_type == key_session)
-		err = sess_param(target, info, set);
-	else if (info->param_type == key_target)
-		err = trgt_param(target, info, set);
+	if (info->sid == 0) {
+		PRINT_ERROR("sid must not be %d", 0);
+		err = -EINVAL;
+		goto out;
+	}
+
+	session = session_lookup(target, info->sid);
+	if (session == NULL) {
+		PRINT_ERROR("Session for sid %llx not found", info->sid);
+		err = -ENOENT;
+		goto out;
+	}
+
+	if (set && !list_empty(&session->conn_list)) {
+		err = -EBUSY;
+		goto out;
+	}
+
+	if (info->params_type == key_session)
+		err = iscsi_sess_params_set(session, info, set);
+	else if (info->params_type == key_target)
+		err = iscsi_tgt_params_set(session, info, set);
 	else
 		err = -EINVAL;
 
+out:
 	return err;
 }

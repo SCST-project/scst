@@ -78,34 +78,25 @@ struct target *target_find_by_id(u32 tid)
 	return NULL;
 }
 
-static void all_accounts_del(u32 tid, int dir)
+int target_del(u32 tid, u32 cookie)
 {
-	char name[ISCSI_NAME_LEN], pass[ISCSI_NAME_LEN];
+	struct target *target;
+	int err;
 
-	memset(name, 0, sizeof(name));
-
-	for (; config_account_query(tid, dir, name, pass) != -ENOENT;
-		memset(name, 0, sizeof(name))) {
-		config_account_del(tid, dir, name);
-	}
-
-}
-
-int target_del(u32 tid)
-{
-	struct target *target = target_find_by_id(tid);
-	int err = kernel_target_destroy(tid);
+	err = kernel_target_destroy(tid, cookie);
 
 	if (err < 0 && err != -ENOENT)
 		return err;
-	else if (!err && !target)
+
+	target = target_find_by_id(tid);
+	if (!err && !target)
 		/* A leftover kernel object was cleaned up - don't complain. */
 		return 0;
 
 	if (!target)
 		return -ENOENT;
 
-	remque(&target->tlist);
+	list_del(&target->tlist);
 
 	if (!list_empty(&target->sessions_list)) {
 		log_error("%s: target %u still has sessions\n", __FUNCTION__,
@@ -113,62 +104,77 @@ int target_del(u32 tid)
 		exit(-1);
 	}
 
-	all_accounts_del(tid, AUTH_DIR_INCOMING);
-	all_accounts_del(tid, AUTH_DIR_OUTGOING);
-
 	isns_target_deregister(target->name);
-	free(target);
+
+	target_free(target);
 
 	return 0;
 }
 
-int target_add(u32 *tid, char *name)
+void target_free(struct target *target)
 {
+	accounts_free(&target->target_in_accounts);
+	accounts_free(&target->target_out_accounts);
+
+	free(target);
+	return;
+}
+
+int target_create(const char *name, struct target **out_target)
+{
+	int res = 0;
 	struct target *target;
-	int err;
-	struct iscsi_param tgt_params[target_key_last];
-	struct iscsi_param sess_params[session_key_last];
 
-	if (!name)
-		return -EINVAL;
+	if (name == NULL) {
+		res = EINVAL;
+		goto out;
+	}
 
-	if (!(target = malloc(sizeof(*target))))
-		return -ENOMEM;
+	target = malloc(sizeof(*target));
+	if (target == NULL) {
+		res = -ENOMEM;
+		goto out;
+	}
 
 	memset(target, 0, sizeof(*target));
 	memcpy(target->name, name, sizeof(target->name) - 1);
 
-	if ((err = kernel_target_create(tid, name)) < 0)
-		goto out_free;
-
-	param_set_defaults(tgt_params, target_keys);
-	err = kernel_param_set(*tid, 0, key_target, 0, tgt_params);
-	if (err != 0)
-		goto out_destroy;
-
-	param_set_defaults(sess_params, session_keys);
-	err = kernel_param_set(*tid, 0, key_session, 0, sess_params);
-	if (err != 0)
-		goto out_destroy;
+	params_set_defaults(target->target_params, target_keys);
+	params_set_defaults(target->session_params, session_keys);
 
 	INIT_LIST_HEAD(&target->tlist);
 	INIT_LIST_HEAD(&target->sessions_list);
+	INIT_LIST_HEAD(&target->target_in_accounts);
+	INIT_LIST_HEAD(&target->target_out_accounts);
 	INIT_LIST_HEAD(&target->isns_head);
-	target->tid = *tid;
+
+	*out_target = target;
+
+out:
+	return res;
+}
+
+int target_add(struct target *target, u32 *tid, u32 cookie)
+{
+	int err;
+
+	if (target_find_by_name(target->name)) {
+		log_error("duplicated target %s", target->name);
+		err = -EEXIST;
+		goto out;
+	}
+
+	err = kernel_target_create(target, tid, cookie);
+	if (err != 0)
+		goto out;
+
 #ifdef CONFIG_SCST_PROC
 	target->tgt_enabled = 1;
 #endif
-	insque(&target->tlist, &targets_list);
+	list_add_tail(&target->tlist, &targets_list);
 
-	isns_target_register(name);
+	isns_target_register(target->name);
 
 out:
 	return err;
-
-out_destroy:
-	kernel_target_destroy(*tid);
-
-out_free:
-	free(target);
-	goto out;
 }

@@ -30,6 +30,8 @@
 struct connection *conn_alloc(void)
 {
 	struct connection *conn;
+	unsigned int session_params[session_key_last];
+	int i;
 
 	conn = malloc(sizeof(*conn));
 	if (conn == NULL)
@@ -37,8 +39,12 @@ struct connection *conn_alloc(void)
 
 	memset(conn, 0, sizeof(*conn));
 	conn->state = STATE_FREE;
-	param_set_defaults(conn->session_param, session_keys);
 	INIT_LIST_HEAD(&conn->rsp_buf_list);
+
+	params_set_defaults(session_params, session_keys);
+
+	for (i = 0; i < session_key_last; i++)
+		conn->session_params[i].val = session_params[i];
 
 out:
 	return conn;
@@ -46,7 +52,7 @@ out:
 
 void conn_free(struct connection *conn)
 {
-	remque(&conn->clist);
+	list_del(&conn->clist);
 	free(conn->initiator);
 	free(conn->user);
 	free(conn);

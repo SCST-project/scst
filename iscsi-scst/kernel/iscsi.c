@@ -37,7 +37,6 @@
 
 static int ctr_major;
 static char ctr_name[] = "iscsi-scst-ctl";
-static int iscsi_template_registered;
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 unsigned long iscsi_trace_flag = ISCSI_DEFAULT_LOG_FLAGS;
@@ -725,7 +724,7 @@ static void send_data_rsp(struct iscsi_cmnd *req, u8 status, int send_status)
 
 	TRACE_DBG("req %p", req);
 
-	pdusize = req->conn->session->sess_param.max_xmit_data_length;
+	pdusize = req->conn->session->sess_params.max_xmit_data_length;
 	expsize = req->read_size;
 	size = min(expsize, (u32)req->bufflen);
 	offset = 0;
@@ -1007,7 +1006,7 @@ out:
 
 static inline int iscsi_get_allowed_cmds(struct iscsi_session *sess)
 {
-	int res = max(-1, (int)sess->max_queued_cmnds -
+	int res = max(-1, (int)sess->tgt_params.queued_cmnds -
 				atomic_read(&sess->active_cmds)-1);
 	TRACE_DBG("allowed cmds %d (sess %p, active_cmds %d)", res,
 		sess, atomic_read(&sess->active_cmds));
@@ -1461,12 +1460,12 @@ static void send_r2t(struct iscsi_cmnd *req)
 	 */
 
 	EXTRACHECKS_BUG_ON(req->outstanding_r2t >
-			   sess->sess_param.max_outstanding_r2t);
+			   sess->sess_params.max_outstanding_r2t);
 
-	if (req->outstanding_r2t == sess->sess_param.max_outstanding_r2t)
+	if (req->outstanding_r2t == sess->sess_params.max_outstanding_r2t)
 		goto out;
 
-	burst = sess->sess_param.max_burst_length;
+	burst = sess->sess_params.max_burst_length;
 	offset = be32_to_cpu(cmnd_hdr(req)->data_length) -
 			req->r2t_len_to_send;
 
@@ -1498,7 +1497,7 @@ static void send_r2t(struct iscsi_cmnd *req)
 		list_add_tail(&rsp->write_list_entry, &send);
 		req->outstanding_r2t++;
 
-	} while ((req->outstanding_r2t < sess->sess_param.max_outstanding_r2t) &&
+	} while ((req->outstanding_r2t < sess->sess_params.max_outstanding_r2t) &&
 		 (req->r2t_len_to_send != 0));
 
 	iscsi_cmnds_init_write(&send, ISCSI_INIT_WRITE_WAKE);
@@ -1679,7 +1678,7 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 	if (dir & SCST_DATA_WRITE) {
 		unsolicited_data_expected = !(req_hdr->flags & ISCSI_CMD_FINAL);
 
-		if (unlikely(session->sess_param.initial_r2t &&
+		if (unlikely(session->sess_params.initial_r2t &&
 		    unsolicited_data_expected)) {
 			PRINT_ERROR("Initiator %s violated negotiated "
 				"parameters: initial R2T is required (ITT %x, "
@@ -1688,7 +1687,7 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 			goto out_close;
 		}
 
-		if (unlikely(!session->sess_param.immediate_data &&
+		if (unlikely(!session->sess_params.immediate_data &&
 		    req->pdu.datasize)) {
 			PRINT_ERROR("Initiator %s violated negotiated "
 				"parameters: forbidden immediate data sent "
@@ -1697,13 +1696,13 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 			goto out_close;
 		}
 
-		if (unlikely(session->sess_param.first_burst_length < req->pdu.datasize)) {
+		if (unlikely(session->sess_params.first_burst_length < req->pdu.datasize)) {
 			PRINT_ERROR("Initiator %s violated negotiated "
 				"parameters: immediate data len (%d) > "
 				"first_burst_length (%d) (ITT %x, op  %x)",
 				session->initiator_name,
 				req->pdu.datasize,
-				session->sess_param.first_burst_length,
+				session->sess_params.first_burst_length,
 				cmnd_itt(req), req_hdr->scb[0]);
 			goto out_close;
 		}
@@ -1732,7 +1731,7 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 			req->outstanding_r2t = 1;
 			req->r2t_len_to_send = req->r2t_len_to_receive -
 				min_t(unsigned int,
-				      session->sess_param.first_burst_length -
+				      session->sess_params.first_burst_length -
 						req->pdu.datasize,
 				      req->r2t_len_to_receive);
 		} else
@@ -2853,12 +2852,12 @@ static int check_segment_length(struct iscsi_cmnd *cmnd)
 	struct iscsi_conn *conn = cmnd->conn;
 	struct iscsi_session *session = conn->session;
 
-	if (unlikely(cmnd->pdu.datasize > session->sess_param.max_recv_data_length)) {
+	if (unlikely(cmnd->pdu.datasize > session->sess_params.max_recv_data_length)) {
 		PRINT_ERROR("Initiator %s violated negotiated parameters: "
 			"data too long (ITT %x, datasize %u, "
 			"max_recv_data_length %u", session->initiator_name,
 			cmnd_itt(cmnd), cmnd->pdu.datasize,
-			session->sess_param.max_recv_data_length);
+			session->sess_params.max_recv_data_length);
 		mark_conn_closed(conn);
 		return -EINVAL;
 	}
@@ -3463,6 +3462,16 @@ static struct scst_trace_log iscsi_local_trace_tbl[] = {
 #define ISCSI_TRACE_TLB_HELP	", d_read, d_write, conn, conn_dbg, iov, pdu, net_page"
 #endif
 
+#define ISCSI_MGMT_CMD_HELP	\
+	"       echo \"add_attribute IncomingUser name password\" >mgmt\n" \
+	"       echo \"del_attribute IncomingUser name\" >mgmt\n" \
+	"       echo \"add_attribute OutgoingUser name password\" >mgmt\n" \
+	"       echo \"del_attribute OutgoingUser name\" >mgmt\n" \
+	"       echo \"add_target_attribute target_name IncomingUser name password\" >mgmt\n" \
+	"       echo \"del_target_attribute target_name IncomingUser name\" >mgmt\n" \
+	"       echo \"add_target_attribute target_name OutgoingUser name password\" >mgmt\n" \
+	"       echo \"del_target_attribute target_name OutgoingUser name\" >mgmt\n"
+
 struct scst_tgt_template iscsi_template = {
 	.name = "iscsi",
 	.sg_tablesize = 0xFFFF /* no limit */,
@@ -3473,8 +3482,12 @@ struct scst_tgt_template iscsi_template = {
 	.tgtt_attrs = iscsi_attrs,
 	.tgt_attrs = iscsi_tgt_attrs,
 	.sess_attrs = iscsi_sess_attrs,
-	.enable_tgt = iscsi_enable_target,
-	.is_tgt_enabled = iscsi_is_target_enabled,
+	.enable_target = iscsi_enable_target,
+	.is_target_enabled = iscsi_is_target_enabled,
+	.add_target = iscsi_sysfs_add_target,
+	.del_target = iscsi_sysfs_del_target,
+	.mgmt_cmd = iscsi_sysfs_mgmt_cmd,
+	.mgmt_cmd_help = ISCSI_MGMT_CMD_HELP,
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags = ISCSI_DEFAULT_LOG_FLAGS,
@@ -3593,8 +3606,6 @@ static int __init iscsi_init(void)
 	err = scst_register_target_template(&iscsi_template);
 	if (err < 0)
 		goto out_kmem;
-
-	iscsi_template_registered = 1;
 
 #ifdef CONFIG_SCST_PROC
 	err = iscsi_procfs_init();

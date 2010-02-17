@@ -21,9 +21,12 @@ OBJS_D = $(SRCS_D:.c=.o)
 SRCS_ADM = iscsi_adm.c param.c
 OBJS_ADM = $(SRCS_ADM:.c=.o)
 
+SCST_INC_DIR := ../../scst/include
+#SCST_INC_DIR := /usr/local/include/scst
+
 CFLAGS += -O2 -fno-inline -Wall -Wextra -Wstrict-prototypes -Wno-sign-compare \
 	-Wimplicit-function-declaration -Wno-unused-parameter \
-	-Wno-missing-field-initializers -g -I../include
+	-Wno-missing-field-initializers -g -I../include -I$(SCST_INC_DIR)
 CFLAGS += -D_GNU_SOURCE # required for glibc >= 2.8
 
 PROGRAMS = iscsi-scstd iscsi-scst-adm

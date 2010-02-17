@@ -3277,7 +3277,7 @@ static int vdev_open(struct vdev_type *vdt, char *p, const char *name)
 			res = -ENOMEM;
 			goto out_free_vdev;
 		}
-		strncpy(virt_dev->file_name, file_name, len);
+		strlcpy(virt_dev->file_name, file_name, len);
 	}
 
 	if (vdt->vfns.pre_register != NULL) {
@@ -3518,7 +3518,7 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 			goto out_unlock;
 		}
 
-		strncpy(fn, file_name, len);
+		strlcpy(fn, file_name, len);
 		virt_dev->file_name = fn;
 
 		res = vdisk_get_file_size(virt_dev->file_name,
@@ -4253,7 +4253,7 @@ static int vdisk_proc_mgmt_cmd(const char *buffer, int length,
 			res = -ENOMEM;
 			goto out_free_vdev;
 		}
-		strncpy(virt_dev->file_name, file_name, len);
+		strlcpy(virt_dev->file_name, file_name, len);
 
 		list_add_tail(&virt_dev->vdisk_dev_list_entry,
 				  &vdisk_dev_list);

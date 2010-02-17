@@ -1,3 +1,20 @@
- - Fix support of ranges in parameters negotiation.
+ - __cmnd_abort() must be called by SCST core through new callback
+   instead of the driver itself.
+
+ - Remove the "poor man solution" suspending. Instead, immediate/unsolicited
+   data for suspended commands should be received in the dummy_page and
+   then, when they are resumed, aborted with BUSY status. All other
+   commands should proceed normally.
+
+ - Separate iSCSI request and response structures. Currently they share the
+   same structure. This architecture decision derived from IET and makes
+   the code a lot less readable, maintainable and effective as well as more
+   errors prone, so it must be corrected.
+ 
+ - Code beautifying, i.e. make it be written in the same nice looking style.
+   Particularly, all functions and variables names should share the same style.
+
+ - Fix support of ranges in parameters negotiation. Are there any initiators who
+   use ranges and, hence, can be used for testing?
 
  - Minor "ToDo"'s spread in the code.

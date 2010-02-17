@@ -494,6 +494,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 			goto out_done;
 		}
 #else
+		PRINT_ERROR("Unknown opcode %x", cmd->cdb[0]);
 		scst_set_cmd_error(cmd,
 			   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		goto out_done;
@@ -585,8 +586,8 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 	if (scst_cmd_is_expected_set(cmd)) {
 #ifdef CONFIG_SCST_USE_EXPECTED_VALUES
 #	ifdef CONFIG_SCST_EXTRACHECKS
-		if ((cmd->data_direction != cmd->expected_data_direction) ||
-		    (cmd->bufflen != cmd->expected_transfer_len)) {
+		if (unlikely((cmd->data_direction != cmd->expected_data_direction) ||
+			     (cmd->bufflen != cmd->expected_transfer_len))) {
 			TRACE(TRACE_MINOR, "Expected values don't match "
 				"decoded ones: data_direction %d, "
 				"expected_data_direction %d, "

@@ -34,33 +34,8 @@
 #define aligned_u64 uint64_t __attribute__((aligned(8)))
 #endif
 
-struct iscsi_kern_target_info {
-	u32 tid;
-	char name[ISCSI_NAME_LEN];
-};
-
-struct iscsi_kern_session_info {
-	u32 tid;
-
-	aligned_u64 sid;
-	char initiator_name[ISCSI_NAME_LEN];
-	char user_name[ISCSI_NAME_LEN];
-	u32 exp_cmd_sn;
-};
-
-#define DIGEST_ALL		(DIGEST_NONE | DIGEST_CRC32C)
-#define DIGEST_NONE		(1 << 0)
-#define DIGEST_CRC32C           (1 << 1)
-
-struct iscsi_kern_conn_info {
-	u32 tid;
-	aligned_u64 sid;
-
-	u32 cid;
-	u32 stat_sn;
-	u32 exp_stat_sn;
-	int fd;
-};
+#define ISCSI_MAX_ATTR_NAME_LEN		50
+#define ISCSI_MAX_ATTR_VALUE_LEN	512
 
 enum {
 	key_initial_r2t,
@@ -95,20 +70,74 @@ enum {
 	key_target,
 };
 
-struct iscsi_kern_param_info {
+struct iscsi_kern_target_info {
+	u32 tid;
+	u32 cookie;
+	char name[ISCSI_NAME_LEN];
+	u32 attrs_num;
+	aligned_u64 attrs_ptr;
+};
+
+struct iscsi_kern_session_info {
+	u32 tid;
+	aligned_u64 sid;
+	char initiator_name[ISCSI_NAME_LEN];
+#ifdef CONFIG_SCST_PROC
+	char user_name[ISCSI_NAME_LEN];
+#endif
+	u32 exp_cmd_sn;
+	s32 session_params[session_key_last];
+	s32 target_params[target_key_last];
+};
+
+#define DIGEST_ALL		(DIGEST_NONE | DIGEST_CRC32C)
+#define DIGEST_NONE		(1 << 0)
+#define DIGEST_CRC32C           (1 << 1)
+
+struct iscsi_kern_conn_info {
 	u32 tid;
 	aligned_u64 sid;
 
-	u32 param_type;
+	u32 cid;
+	u32 stat_sn;
+	u32 exp_stat_sn;
+	int fd;
+};
+
+struct iscsi_kern_attr {
+	u32 mode;
+	char name[ISCSI_MAX_ATTR_NAME_LEN];
+};
+
+struct iscsi_kern_mgmt_cmd_res_info {
+	u32 tid;
+	u32 cookie;
+	u32 req_cmd;
+	u32 result;
+	char value[ISCSI_MAX_ATTR_VALUE_LEN];
+};
+
+struct iscsi_kern_params_info {
+	u32 tid;
+	aligned_u64 sid;
+
+	u32 params_type;
 	u32 partial;
 
-	s32 session_param[session_key_last];
-	s32 target_param[target_key_last];
+	s32 session_params[session_key_last];
+	s32 target_params[target_key_last];
 };
 
 enum iscsi_kern_event_code {
+#ifndef CONFIG_SCST_PROC
+	E_ADD_TARGET,
+	E_DEL_TARGET,
+	E_MGMT_CMD,
 	E_ENABLE_TARGET,
 	E_DISABLE_TARGET,
+	E_GET_ATTR_VALUE,
+	E_SET_ATTR_VALUE,
+#endif
 	E_CONN_CLOSE,
 };
 
@@ -117,10 +146,26 @@ struct iscsi_kern_event {
 	aligned_u64 sid;
 	u32 cid;
 	u32 code;
+	u32 cookie;
+	char target_name[ISCSI_NAME_LEN];
+	u32 param1_size;
+	u32 param2_size;
 };
 
 struct iscsi_kern_register_info {
-	aligned_u64 version;
+	union {
+		aligned_u64 version;
+		struct {
+			int max_data_seg_len;
+			int max_queued_cmds;
+		};
+	};
+};
+
+struct iscsi_kern_attr_info {
+	u32 tid;
+	u32 cookie;
+	struct iscsi_kern_attr attr;
 };
 
 #define	DEFAULT_NR_QUEUED_CMNDS	32
@@ -129,19 +174,21 @@ struct iscsi_kern_register_info {
 
 #define NETLINK_ISCSI_SCST	25
 
-/* On success returns MAX_DATA_SEG_LEN */
-#define REGISTER_USERD		_IOW('s', 0, struct iscsi_kern_register_info)
-
+#define REGISTER_USERD		_IOWR('s', 0, struct iscsi_kern_register_info)
 #define ADD_TARGET		_IOW('s', 1, struct iscsi_kern_target_info)
 #define DEL_TARGET		_IOW('s', 2, struct iscsi_kern_target_info)
-#define ENABLE_TARGET		_IOW('s', 3, struct iscsi_kern_target_info)
-#define DISABLE_TARGET		_IOW('s', 4, struct iscsi_kern_target_info)
-#define ADD_SESSION		_IOW('s', 5, struct iscsi_kern_session_info)
-#define DEL_SESSION		_IOW('s', 6, struct iscsi_kern_session_info)
-#define ADD_CONN		_IOW('s', 7, struct iscsi_kern_conn_info)
-#define DEL_CONN		_IOW('s', 8, struct iscsi_kern_conn_info)
-#define ISCSI_PARAM_SET		_IOW('s', 9, struct iscsi_kern_param_info)
-#define ISCSI_PARAM_GET		_IOWR('s', 10, struct iscsi_kern_param_info)
+#define ADD_SESSION		_IOW('s', 3, struct iscsi_kern_session_info)
+#define DEL_SESSION		_IOW('s', 4, struct iscsi_kern_session_info)
+#define ADD_CONN		_IOW('s', 5, struct iscsi_kern_conn_info)
+#define DEL_CONN		_IOW('s', 6, struct iscsi_kern_conn_info)
+#define ISCSI_PARAM_SET		_IOW('s', 7, struct iscsi_kern_params_info)
+#define ISCSI_PARAM_GET		_IOWR('s', 8, struct iscsi_kern_params_info)
+
+#ifndef CONFIG_SCST_PROC
+#define ISCSI_ATTR_ADD		_IOW('s', 9, struct iscsi_kern_attr_info)
+#define ISCSI_ATTR_DEL		_IOW('s', 10, struct iscsi_kern_attr_info)
+#define MGMT_CMD_CALLBACK	_IOW('s', 11, struct iscsi_kern_mgmt_cmd_res_info)
+#endif
 
 static inline int iscsi_is_key_internal(int key)
 {

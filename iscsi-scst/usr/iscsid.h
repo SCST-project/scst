@@ -68,7 +68,9 @@ struct connection {
 	struct session *sess;
 
 	u32 tid;
-	struct iscsi_param session_param[session_key_last];
+
+	/* Put here, because negotiations is done before session created */
+	struct iscsi_param session_params[session_key_last];
 
 	char *initiator;
 	char *user;
@@ -128,10 +130,6 @@ struct connection {
 #define AUTH_STATE_START	0
 #define AUTH_STATE_CHALLENGE	1
 
-/* don't touch these */
-#define AUTH_DIR_INCOMING       0
-#define AUTH_DIR_OUTGOING       1
-
 #define SESSION_NORMAL		0
 #define SESSION_DISCOVERY	1
 #define AUTH_UNKNOWN		-1
@@ -148,6 +146,21 @@ struct connection {
  */
 #define INCOMING_BUFSIZE	8192
 
+struct iscsi_user {
+	struct __qelem ulist;
+
+	struct target *target;
+
+#define ISCSI_USER_DIR_INCOMING		0
+#define ISCSI_USER_DIR_OUTGOING		1
+	int direction;
+
+	const char *name;
+	const char *password;
+
+	char sysfs_name[64];
+};
+
 struct target {
 	struct __qelem tlist;
 
@@ -155,9 +168,15 @@ struct target {
 
 	unsigned int tgt_enabled:1;
 
+	unsigned int target_params[target_key_last];
+	unsigned int session_params[session_key_last];
+
 	u32 tid;
 	char name[ISCSI_NAME_LEN];
 	char *alias;
+
+	struct __qelem target_in_accounts;
+	struct __qelem target_out_accounts;
 
 	struct __qelem isns_head;
 };
@@ -182,12 +201,12 @@ extern uint16_t server_port;
 extern void isns_set_fd(int isns, int scn_listen, int scn);
 
 /* iscsid.c */
-extern int iscsi_debug;
+extern int iscsi_enabled;
 
 extern int cmnd_execute(struct connection *conn);
 extern void cmnd_finish(struct connection *conn);
 extern char *text_key_find(struct connection *conn, char *searchKey);
-extern void text_key_add(struct connection *conn, char *key, char *value);
+extern void text_key_add(struct connection *conn, char *key, const char *value);
 
 /* log.c */
 extern int log_daemon;
@@ -219,8 +238,10 @@ extern struct connection *conn_find(struct session *session, u16 cid);
 
 /* target.c */
 extern struct __qelem targets_list;
-extern int target_add(u32 *, char *);
-extern int target_del(u32);
+extern int target_create(const char *name, struct target **out_target);
+extern void target_free(struct target *target);
+extern int target_add(struct target *target, u32 *tid, u32 cookie);
+extern int target_del(u32 tid, u32 cookie);
 extern u32 target_find_id_by_name(const char *name);
 extern struct target *target_find_by_name(const char *name);
 struct target *target_find_by_id(u32);
@@ -232,13 +253,19 @@ extern int iscsi_adm_request_handle(int accept_fd);
 
 /* ctldev.c */
 extern int kernel_open(int *max_data_seg_len);
-extern int kernel_param_get(u32 tid, u64 sid, int type, struct iscsi_param *param);
-extern int kernel_param_set(u32 tid, u64 sid, int type, u32 partial,
-	struct iscsi_param *param);
-extern int kernel_target_create(u32 *tid, char *name);
-extern int kernel_target_destroy(u32 tid);
-extern int kernel_session_create(u32 tid, u64 sid, u32 exp_cmd_sn,
-	char *name, char *user);
+extern int kernel_params_get(u32 tid, u64 sid, int type, struct iscsi_param *params);
+extern int kernel_params_set(u32 tid, u64 sid, int type, u32 partial,
+	const struct iscsi_param *params);
+extern int kernel_target_create(struct target *target, u32 *tid, u32 cookie);
+extern int kernel_target_destroy(u32 tid, u32 cookie);
+#ifndef CONFIG_SCST_PROC
+extern int kernel_user_add(struct iscsi_user *user, u32 cookie);
+extern int kernel_user_del(struct iscsi_user *user, u32 cookie);
+extern int kernel_attr_add(struct target *target, const char *name,
+	u32 mode, u32 cookie);
+extern int kernel_attr_del(struct target *target, const char *name, u32 cookie);
+#endif
+extern int kernel_session_create(struct connection *conn);
 extern int kernel_session_destroy(u32 tid, u64 sid);
 extern int kernel_conn_create(u32 tid, u64 sid, u32 cid, u32 stat_sn, u32 exp_stat_sn,
 	int fd);
@@ -248,26 +275,38 @@ extern int kernel_conn_destroy(u32 tid, u64 sid, u32 cid);
 extern void handle_iscsi_events(int fd);
 extern int nl_open(void);
 
-/* param.c */
-extern int param_index_by_name(char *name, struct iscsi_key *keys);
-
 /* config.c */
-extern int config_isns_load(char *params, char **isns, int *isns_ac);
-extern int config_load(char *params);
+extern char *config_sep_string(char **pp);
+extern int config_parse_main(const char *data, u32 cookie);
+extern int config_load(const char *config_name);
 extern int config_target_create(u32 *tid, char *name);
 extern int config_target_destroy(u32 tid);
-int config_account_add(u32 tid, int dir, char *name, char *pass);
-extern int config_account_query(u32 tid, int dir, char *name, char *pass);
+extern int config_account_add(u32 tid, int dir, char *name, char *pass,
+	char *sysfs_name, u32 cookie);
+extern int __config_account_add(struct target *target, int dir, char *name,
+	char *pass, char *sysfs_name, int send_to_kern, u32 cookie);
+extern int config_account_query(u32 tid, int dir, const char *name, char *pass);
 extern int config_account_list(u32 tid, int dir, u32 *cnt, u32 *overflow,
 	char *buf, size_t buf_sz);
-extern int config_account_del(u32 tid, int dir, char *name);
-extern int config_param_set(u32 tid, u64 sid, int type, u32 partial,
-	struct iscsi_param *param);
+extern int config_account_del(u32 tid, int dir, char *name, u32 cookie);
+extern int config_params_get(u32 tid, u64 sid, int type, struct iscsi_param *params);
+extern int config_params_set(u32 tid, u64 sid, int type, u32 partial,
+	struct iscsi_param *params);
 extern int config_initiator_access(u32 tid, int fd);
+extern int accounts_empty(u32 tid, int dir);
+extern struct iscsi_user *account_get_first(u32 tid, int dir);
+extern struct iscsi_user *account_lookup_by_sysfs_name(struct target *target,
+	int dir, const char *sysfs_name);
+extern int account_replace(struct target *target, int direction,
+	const char *sysfs_name, char *value);
+extern void accounts_free(struct __qelem *accounts_list);
 
 /* isns.c */
-extern int isns_init(char *addr, int isns_ac);
-extern int isns_handle(int is_timeout, int *timeout);
+extern char *isns_server;
+extern int isns_access_control;
+extern int isns_timeout;
+extern int isns_init(void);
+extern int isns_handle(int is_timeout);
 extern int isns_scn_handle(int accept);
 extern int isns_scn_access(u32 tid, int fd, char *name);
 extern int isns_target_register(char *name);

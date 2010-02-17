@@ -16,6 +16,11 @@
 #ifndef PARAMS_H
 #define PARAMS_H
 
+#define ISCSI_ISNS_SERVER_PARAM_NAME			"iSNSServer"
+#define ISCSI_ISNS_ACCESS_CONTROL_PARAM_NAME		"iSNSAccessControl"
+
+#define ISCSI_ENABLED_ATTR_NAME				"enabled"
+
 struct iscsi_key;
 
 struct iscsi_param {
@@ -24,7 +29,7 @@ struct iscsi_param {
 };
 
 struct iscsi_key_ops {
-	int (*val_to_str)(unsigned int, char *);
+	int (*val_to_str)(unsigned int, char *, int);
 	int (*str_to_val)(char *, unsigned int *);
 	int (*check_val)(struct iscsi_key *, unsigned int *);
 	int (*set_val)(struct iscsi_param *, int, unsigned int *);
@@ -36,17 +41,22 @@ struct iscsi_key {
 	unsigned int local_def;
 	unsigned int min;
 	unsigned int max;
+	int show_in_sysfs;
 	struct iscsi_key_ops *ops;
 };
 
 extern struct iscsi_key session_keys[];
 extern struct iscsi_key target_keys[];
+extern struct iscsi_key user_keys[];
 
-extern void param_set_defaults(struct iscsi_param *, struct iscsi_key *);
-extern int param_index_by_name(char *, struct iscsi_key *);
-extern int param_val_to_str(struct iscsi_key *, int, unsigned int, char *);
-extern int param_str_to_val(struct iscsi_key *, int, char *, unsigned int *);
-extern int param_check_val(struct iscsi_key *, int, unsigned int *);
-extern int param_set_val(struct iscsi_key *, struct iscsi_param *, int, unsigned int *);
+extern size_t strlcpy(char *dest, const char *src, size_t size);
+
+extern void params_set_defaults(unsigned int *, struct iscsi_key *);
+extern int params_index_by_name(char *, struct iscsi_key *);
+extern int params_index_by_name_numwild(char *, struct iscsi_key *);
+extern int params_val_to_str(struct iscsi_key *, int, unsigned int, char *, int);
+extern int params_str_to_val(struct iscsi_key *, int, char *, unsigned int *);
+extern int params_check_val(struct iscsi_key *, int, unsigned int *);
+extern int params_set_val(struct iscsi_key *, struct iscsi_param *, int, unsigned int *);
 
 #endif

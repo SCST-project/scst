@@ -27,8 +27,6 @@
 #include "scst_priv.h"
 #include "scst_mem.h"
 
-static DEFINE_MUTEX(scst_sysfs_mutex);
-
 static DECLARE_COMPLETION(scst_sysfs_root_release_completion);
 
 static struct kobject scst_sysfs_root_kobj;
@@ -204,6 +202,125 @@ static struct kobj_attribute tgtt_trace_attr =
 
 #endif /* #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING) */
 
+static ssize_t scst_tgtt_mgmt_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	char *help = "Usage: echo \"add_target target_name [parameters]\" "
+				">mgmt\n"
+		     "       echo \"del_target target_name\" >mgmt\n"
+		     "%s"
+		     "\n"
+		     "where parameters are one or more "
+		     "param_name=value pairs separated by ';'\n";
+	struct scst_tgt_template *tgtt;
+
+	tgtt = container_of(kobj, struct scst_tgt_template, tgtt_kobj);
+
+	return sprintf(buf, help, (tgtt->mgmt_cmd_help != NULL) ?
+					tgtt->mgmt_cmd_help : "");
+}
+
+static ssize_t scst_tgtt_mgmt_store(struct kobject *kobj,
+				    struct kobj_attribute *attr,
+				    const char *buf, size_t count)
+{
+	int res;
+	char *buffer, *p, *target_name;
+	struct scst_tgt_template *tgtt;
+
+	TRACE_ENTRY();
+
+	tgtt = container_of(kobj, struct scst_tgt_template, tgtt_kobj);
+
+	buffer = kzalloc(count+1, GFP_KERNEL);
+	if (buffer == NULL) {
+		res = -ENOMEM;
+		goto out;
+	}
+
+	memcpy(buffer, buf, count);
+	buffer[count] = '\0';
+	p = buffer;
+
+	p = buffer;
+	if (p[strlen(p) - 1] == '\n')
+		p[strlen(p) - 1] = '\0';
+
+	if (strncasecmp("add_target ", p, 11) == 0) {
+		p += 11;
+
+		while (isspace(*p) && *p != '\0')
+			p++;
+
+		if (p == '\0')
+			goto out_syntax_err;
+
+		target_name = p;
+
+		while (!isspace(*p) && *p != '\0')
+			p++;
+
+		if (*p != '\0') {
+			*p = '\0';
+			p++;
+		}
+
+		while (isspace(*p) && *p != '\0')
+			p++;
+
+		res = tgtt->add_target(target_name, p);
+	} else if (strncasecmp("del_target ", p, 11) == 0) {
+		p += 11;
+
+		while (isspace(*p) && *p != '\0')
+			p++;
+
+		if (p == '\0')
+			goto out_syntax_err;
+
+		target_name = p;
+
+		while (!isspace(*p) && *p != '\0')
+			p++;
+
+		if (*p != '\0') {
+			*p = '\0';
+			p++;
+			while (isspace(*p) && *p != '\0')
+				p++;
+			if (*p != '\0')
+				goto out_syntax_err;
+		}
+
+		res = tgtt->del_target(target_name);
+	} else if (tgtt->mgmt_cmd != NULL)
+		res = tgtt->mgmt_cmd(buffer);
+	else {
+		PRINT_ERROR("Unknown action \"%s\"", p);
+		res = -EINVAL;
+		goto out_free;
+	}
+
+	if (res == 0)
+		res = count;
+
+out_free:
+	kfree(buffer);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_syntax_err:
+	PRINT_ERROR("Syntax error on \"%s\"", p);
+	res = -EINVAL;
+	goto out_free;
+}
+
+static struct kobj_attribute scst_tgtt_mgmt =
+	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_tgtt_mgmt_show,
+	       scst_tgtt_mgmt_store);
+
 int scst_create_tgtt_sysfs(struct scst_tgt_template *tgtt)
 {
 	int retval = 0;
@@ -226,6 +343,16 @@ int scst_create_tgtt_sysfs(struct scst_tgt_template *tgtt)
 	 * In case of errors there's no need for additional cleanup, because
 	 * it will be done by the _put function() called by the caller.
 	 */
+
+	if (tgtt->add_target != NULL) {
+		retval = sysfs_create_file(&tgtt->tgtt_kobj,
+				&scst_tgtt_mgmt.attr);
+		if (retval != 0) {
+			PRINT_ERROR("Can't add mgmt attr for target driver %s",
+				tgtt->name);
+			goto out;
+		}
+	}
 
 	pattr = tgtt->tgtt_attrs;
 	if (pattr != NULL) {
@@ -410,7 +537,7 @@ static ssize_t scst_tgt_enable_show(struct kobject *kobj,
 
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 
-	enabled = tgt->tgtt->is_tgt_enabled(tgt);
+	enabled = tgt->tgtt->is_target_enabled(tgt);
 
 	res = sprintf(buf, "%d\n", enabled ? 1 : 0);
 
@@ -431,7 +558,9 @@ static ssize_t scst_tgt_enable_store(struct kobject *kobj,
 
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 
-	res = tgt->tgtt->enable_tgt(tgt, buf, count);
+	res = tgt->tgtt->enable_target(tgt, buf, count);
+	if (res == 0)
+		res = count;
 
 out:
 	TRACE_EXIT_RES(res);
@@ -470,8 +599,8 @@ int scst_create_tgt_sysfs(struct scst_tgt *tgt)
 	 * it will be done by the _put function() called by the caller.
 	 */
 
-	if ((tgt->tgtt->enable_tgt != NULL) &&
-	    (tgt->tgtt->is_tgt_enabled != NULL)) {
+	if ((tgt->tgtt->enable_target != NULL) &&
+	    (tgt->tgtt->is_target_enabled != NULL)) {
 		retval = sysfs_create_file(&tgt->tgt_kobj,
 				&tgt_enable_attr.attr);
 		if (retval != 0) {
@@ -1618,7 +1747,7 @@ static ssize_t scst_ini_group_mgmt_store(struct kobject *kobj,
 			res = -ENOMEM;
 			goto out_free_up;
 		}
-		strncpy(name, p, len);
+		strlcpy(name, p, len);
 
 		acg = scst_alloc_add_acg(tgt, name);
 		kfree(name);
@@ -1694,7 +1823,7 @@ int scst_create_acn_sysfs(struct scst_acg *acg, struct scst_acn *acn)
 		retval = -ENOMEM;
 		goto out_free;
 	}
-	strncpy((char *)attr->attr.name, acn->name, len);
+	strlcpy((char *)attr->attr.name, acn->name, len);
 
 	attr->attr.owner = THIS_MODULE;
 	attr->attr.mode = S_IRUGO;
@@ -1703,7 +1832,7 @@ int scst_create_acn_sysfs(struct scst_acg *acg, struct scst_acn *acn)
 
 	retval = sysfs_create_file(acg->initiators_kobj, &attr->attr);
 	if (retval != 0) {
-		PRINT_ERROR("Unable to allocate initiator '%s' for group '%s'",
+		PRINT_ERROR("Unable to create acn '%s' for group '%s'",
 			acn->name, acg->acg_name);
 		kfree(attr->attr.name);
 		goto out_free;
@@ -2131,12 +2260,10 @@ static ssize_t scst_threads_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
-	if (mutex_lock_interruptible(&scst_sysfs_mutex) != 0) {
+	if (mutex_lock_interruptible(&scst_global_threads_mutex) != 0) {
 		res = -EINTR;
 		goto out;
 	}
-
-	mutex_lock(&scst_global_threads_mutex);
 
 	oldtn = scst_nr_global_threads;
 	sscanf(buf, "%du", &newtn);
@@ -2144,7 +2271,7 @@ static ssize_t scst_threads_store(struct kobject *kobj,
 	if (newtn <= 0) {
 		PRINT_ERROR("Illegal threads num value %d", newtn);
 		res = -EINVAL;
-		goto out_up_thr_free;
+		goto out_up;
 	}
 	delta = newtn - oldtn;
 	if (delta < 0)
@@ -2154,10 +2281,8 @@ static ssize_t scst_threads_store(struct kobject *kobj,
 
 	PRINT_INFO("Changed cmd threads num: old %d, new %d", oldtn, newtn);
 
-out_up_thr_free:
+out_up:
 	mutex_unlock(&scst_global_threads_mutex);
-
-	mutex_unlock(&scst_sysfs_mutex);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -2408,7 +2533,7 @@ static ssize_t scst_version_show(struct kobject *kobj,
 	sprintf(buf, "%s\n", SCST_VERSION_STRING);
 
 #ifdef CONFIG_SCST_STRICT_SERIALIZING
-	strcat(buf, "Strict serializing enabled\n");
+	strcat(buf, "STRICT_SERIALIZING\n");
 #endif
 
 #ifdef CONFIG_SCST_EXTRACHECKS
@@ -2685,6 +2810,176 @@ void scst_devt_sysfs_put(struct scst_dev_type *devt)
 	TRACE_EXIT();
 	return;
 }
+
+static DEFINE_MUTEX(scst_sysfs_user_info_mutex);
+
+/* All protected by scst_sysfs_user_info_mutex */
+static LIST_HEAD(scst_sysfs_user_info_list);
+static uint32_t scst_sysfs_info_cur_cookie;
+
+/* scst_sysfs_user_info_mutex supposed to be held */
+static struct scst_sysfs_user_info *scst_sysfs_user_find_info(uint32_t cookie)
+{
+	struct scst_sysfs_user_info *info, *res = NULL;
+
+	TRACE_ENTRY();
+
+	list_for_each_entry(info, &scst_sysfs_user_info_list,
+			info_list_entry) {
+		if (info->info_cookie == cookie) {
+			res = info;
+			break;
+		}
+	}
+
+	TRACE_EXIT_HRES(res);
+	return res;
+}
+
+struct scst_sysfs_user_info *scst_sysfs_user_get_info(uint32_t cookie)
+{
+	struct scst_sysfs_user_info *res = NULL;
+
+	TRACE_ENTRY();
+
+	mutex_lock(&scst_sysfs_user_info_mutex);
+
+	res = scst_sysfs_user_find_info(cookie);
+	if (res != NULL) {
+		if (!res->info_being_executed)
+			res->info_being_executed = 1;
+	}
+
+	mutex_unlock(&scst_sysfs_user_info_mutex);
+
+	TRACE_EXIT_HRES(res);
+	return res;
+}
+EXPORT_SYMBOL(scst_sysfs_user_get_info);
+
+int scst_sysfs_user_add_info(struct scst_sysfs_user_info **out_info)
+{
+	int res = 0;
+	struct scst_sysfs_user_info *info;
+
+	TRACE_ENTRY();
+
+	info = kzalloc(sizeof(*info), GFP_KERNEL);
+	if (info == NULL) {
+		PRINT_ERROR("Unable to allocate sysfs user info (size %d)",
+			sizeof(*info));
+		res = -ENOMEM;
+		goto out;
+	}
+
+	mutex_lock(&scst_sysfs_user_info_mutex);
+
+	while ((info->info_cookie == 0) ||
+	       (scst_sysfs_user_find_info(info->info_cookie) != NULL))
+		info->info_cookie = scst_sysfs_info_cur_cookie++;
+
+	init_completion(&info->info_completion);
+
+	list_add_tail(&info->info_list_entry, &scst_sysfs_user_info_list);
+	info->info_in_list = 1;
+
+	*out_info = info;
+
+	mutex_unlock(&scst_sysfs_user_info_mutex);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+EXPORT_SYMBOL(scst_sysfs_user_add_info);
+
+void scst_sysfs_user_del_info(struct scst_sysfs_user_info *info)
+{
+	TRACE_ENTRY();
+
+	mutex_lock(&scst_sysfs_user_info_mutex);
+
+	if (info->info_in_list)
+		list_del(&info->info_list_entry);
+
+	mutex_unlock(&scst_sysfs_user_info_mutex);
+
+	kfree(info);
+
+	TRACE_EXIT();
+	return;
+}
+EXPORT_SYMBOL(scst_sysfs_user_del_info);
+
+static bool scst_sysfs_user_info_executing(struct scst_sysfs_user_info *info)
+{
+	bool res;
+
+	TRACE_ENTRY();
+
+	mutex_lock(&scst_sysfs_user_info_mutex);
+
+	res = info->info_being_executed;
+
+	if (info->info_in_list) {
+		list_del(&info->info_list_entry);
+		info->info_in_list = 0;
+	}
+
+	mutex_unlock(&scst_sysfs_user_info_mutex);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+int scst_wait_info_completion(struct scst_sysfs_user_info *info,
+	unsigned long timeout)
+{
+	int res, rc;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("Waiting for info %p completion", info);
+
+	while (1) {
+		rc = wait_for_completion_interruptible_timeout(
+			&info->info_completion, timeout);
+		if (rc > 0) {
+			TRACE_DBG("Waiting for info %p finished with %d",
+				info, rc);
+			break;
+		} else if (rc == 0) {
+			if (!scst_sysfs_user_info_executing(info)) {
+				PRINT_ERROR("Timeout waiting for user "
+					"space event %p", info);
+				res = -EBUSY;
+				goto out;
+			} else {
+				/* Req is being executed in the kernel */
+				TRACE_DBG("Keep waiting for info %p completion",
+					info);
+				wait_for_completion(&info->info_completion);
+				break;
+			}
+		} else if (rc != -ERESTARTSYS) {
+				res = rc;
+				PRINT_ERROR("wait_for_completion() failed: %d",
+					res);
+				goto out;
+		} else {
+			TRACE_DBG("Waiting for info %p finished with %d, "
+				"retrying", info, rc);
+		}
+	}
+
+	TRACE_DBG("info %p, status %d", info, info->info_status);
+	res = info->info_status;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+EXPORT_SYMBOL(scst_wait_info_completion);
 
 int __init scst_sysfs_init(void)
 {

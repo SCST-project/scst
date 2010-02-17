@@ -382,7 +382,7 @@ static void close_conn(struct iscsi_conn *conn)
 
 	TRACE_ENTRY();
 
-	TRACE_CONN_CLOSE("Closing connection %p (conn_ref_cnt=%d)", conn,
+	TRACE_MGMT_DBG("Closing connection %p (conn_ref_cnt=%d)", conn,
 		atomic_read(&conn->conn_ref_cnt));
 
 	iscsi_extracheck_is_rd_thread(conn);
@@ -550,7 +550,8 @@ static void close_conn(struct iscsi_conn *conn)
 
 	TRACE_CONN_CLOSE("Notifying user space about closing connection %p",
 			 conn);
-	event_send(target->tid, session->sid, conn->cid, E_CONN_CLOSE);
+	event_send(target->tid, session->sid, conn->cid, 0, E_CONN_CLOSE,
+		NULL, NULL);
 
 #ifdef CONFIG_SCST_PROC
 	mutex_lock(&target->target_mutex);

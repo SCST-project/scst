@@ -220,12 +220,20 @@ int __scst_register_target_template(struct scst_tgt_template *vtt,
 	}
 
 #ifndef CONFIG_SCST_PROC
-	if (!vtt->enable_tgt || !vtt->is_tgt_enabled) {
-		PRINT_WARNING("Target driver %s doesn't have enable_tgt() "
-			"and/or is_tgt_enabled() method(s). This is unsafe "
+	if (!vtt->enable_target || !vtt->is_target_enabled) {
+		PRINT_WARNING("Target driver %s doesn't have enable_target() "
+			"and/or is_target_enabled() method(s). This is unsafe "
 			"and can lead that initiators connected on the "
 			"initialization time can see an unexpected set of "
 			"devices or no devices at all!", vtt->name);
+	}
+
+	if (((vtt->add_target != NULL) && (vtt->del_target == NULL)) ||
+	    ((vtt->add_target == NULL) && (vtt->del_target != NULL))) {
+		PRINT_ERROR("Target driver %s must either define both "
+			"add_target() and del_target(), or none.", vtt->name);
+		res = -EINVAL;
+		goto out_err;
 	}
 #else
 	if (!vtt->no_proc_entry) {
@@ -1298,8 +1306,8 @@ int scst_add_dev_threads(struct scst_device *dev, int num)
 			PRINT_ERROR("Failed to allocate thr %d", res);
 			goto out_del;
 		}
-		strncpy(nm, dev->handler->name, ARRAY_SIZE(nm)-1);
-		nm[ARRAY_SIZE(nm)-1] = '\0';
+		strlcpy(nm, dev->handler->name, ARRAY_SIZE(nm));
+
 		thr->cmd_thread = kthread_create(scst_cmd_thread,
 			&dev->cmd_lists, "%sd%d_%d", nm, dev->dev_num, n++);
 		if (IS_ERR(thr->cmd_thread)) {
@@ -1801,7 +1809,7 @@ static void __init scst_print_config(void)
 	j = i;
 
 #ifdef CONFIG_SCST_STRICT_SERIALIZING
-	i += snprintf(&buf[i], sizeof(buf) - i, "Strict serializing");
+	i += snprintf(&buf[i], sizeof(buf) - i, "STRICT_SERIALIZING");
 #endif
 
 #ifdef CONFIG_SCST_EXTRACHECKS

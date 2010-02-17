@@ -62,6 +62,20 @@ out:
 
 #ifdef CONFIG_SCST_PROC
 
+static int print_digest_state(char *p, size_t size, unsigned long flags)
+{
+	int pos;
+
+	if (DIGEST_NONE & flags)
+		pos = scnprintf(p, size, "%s", "none");
+	else if (DIGEST_CRC32C & flags)
+		pos = scnprintf(p, size, "%s", "crc32c");
+	else
+		pos = scnprintf(p, size, "%s", "unknown");
+
+	return pos;
+}
+
 /* target_mutex supposed to be locked */
 void conn_info_show(struct seq_file *seq, struct iscsi_session *session)
 {
@@ -666,8 +680,8 @@ static int iscsi_conn_alloc(struct iscsi_session *session,
 	conn->rd_state = ISCSI_CONN_RD_STATE_IDLE;
 	conn->wr_state = ISCSI_CONN_WR_STATE_IDLE;
 
-	conn->hdigest_type = session->sess_param.header_digest;
-	conn->ddigest_type = session->sess_param.data_digest;
+	conn->hdigest_type = session->sess_params.header_digest;
+	conn->ddigest_type = session->sess_params.data_digest;
 	res = digest_init(conn);
 	if (res != 0)
 		goto out_err_free1;
@@ -770,7 +784,7 @@ out_err:
 }
 
 /* target_mutex supposed to be locked */
-int conn_add(struct iscsi_session *session, struct iscsi_kern_conn_info *info)
+int __add_conn(struct iscsi_session *session, struct iscsi_kern_conn_info *info)
 {
 	struct iscsi_conn *conn, *new_conn = NULL;
 	int err;
@@ -805,7 +819,7 @@ out:
 }
 
 /* target_mutex supposed to be locked */
-int conn_del(struct iscsi_session *session, struct iscsi_kern_conn_info *info)
+int __del_conn(struct iscsi_session *session, struct iscsi_kern_conn_info *info)
 {
 	struct iscsi_conn *conn;
 	int err = -EEXIST;

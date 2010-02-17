@@ -17,6 +17,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -36,7 +37,7 @@ int kernel_open(int *max_data_seg_len)
 	int devn;
 	int ctlfd = -1;
 	int err;
-	struct iscsi_kern_register_info reg = { 0 };
+	struct iscsi_kern_register_info reg;
 
 	if (!(f = fopen("/proc/devices", "r"))) {
 		err = -errno;
@@ -80,17 +81,18 @@ int kernel_open(int *max_data_seg_len)
 		goto out_err;
 	}
 
+	memset(&reg, 0, sizeof(reg));
 	reg.version = (uintptr_t)ISCSI_SCST_INTERFACE_VERSION;
 
 	err = ioctl(ctlfd, REGISTER_USERD, &reg);
-	if (err < 0) {
+	if (err != 0) {
 		err = -errno;
 		log_error("Unable to register: %s. Incompatible version of the "
 			"kernel module?\n", strerror(errno));
 		goto out_close;
 	} else {
 		log_debug(0, "MAX_DATA_SEG_LEN %d", err);
-		*max_data_seg_len = err;
+		*max_data_seg_len = reg.max_data_seg_len;
 	}
 
 out:
@@ -104,32 +106,98 @@ out_err:
 	goto out;
 }
 
-int kernel_target_create(u32 *tid, char *name)
+int kernel_target_create(struct target *target, u32 *tid, u32 cookie)
 {
-	int err;
+	int err, i, j;
 	struct iscsi_kern_target_info info;
+	struct iscsi_user *user;
+	struct iscsi_kern_attr *kern_attrs;
 
 	memset(&info, 0, sizeof(info));
+	strlcpy(info.name, target->name, sizeof(info.name));
+	info.tid = (tid != NULL) ? *tid : 0;
+	info.cookie = cookie;
 
-	memcpy(info.name, name, sizeof(info.name) - 1);
-	info.tid = *tid;
+	for (j = 0; j < session_key_last; j++) {
+		if (session_keys[j].show_in_sysfs)
+			info.attrs_num++;;
+	}
+	for (j = 0; j < target_key_last; j++) {
+		if (target_keys[j].show_in_sysfs)
+			info.attrs_num++;;
+	}
+	list_for_each_entry(user, &target->target_in_accounts, ulist) {
+		info.attrs_num++;
+	}
+	list_for_each_entry(user, &target->target_out_accounts, ulist) {
+		info.attrs_num++;
+	}
+
+	kern_attrs = calloc(info.attrs_num, sizeof(*kern_attrs));
+	if (kern_attrs == NULL) {
+		err = -ENOMEM;
+		goto out;
+	}
+	info.attrs_ptr = (unsigned long)kern_attrs;
+
+	i = 0;
+	for (j = 0; j < session_key_last; j++) {
+		if (!session_keys[j].show_in_sysfs)
+			continue;
+		kern_attrs[i].mode = 0644;
+		strlcpy(kern_attrs[i].name, session_keys[j].name,
+			sizeof(kern_attrs[i].name));
+		i++;
+	}
+	for (j = 0; j < target_key_last; j++) {
+		if (!target_keys[j].show_in_sysfs)
+			continue;
+		kern_attrs[i].mode = 0644;
+		strlcpy(kern_attrs[i].name, target_keys[j].name,
+			sizeof(kern_attrs[i].name));
+		i++;
+	}
+	list_for_each_entry(user, &target->target_in_accounts, ulist) {
+		kern_attrs[i].mode = 0600;
+		strlcpy(kern_attrs[i].name, user->sysfs_name,
+			sizeof(kern_attrs[i].name));
+		i++;
+	}
+	list_for_each_entry(user, &target->target_out_accounts, ulist) {
+		kern_attrs[i].mode = 0600;
+		strlcpy(kern_attrs[i].name, user->sysfs_name,
+			sizeof(kern_attrs[i].name));
+		i++;
+	}
+
+	log_debug(1, "Adding target %s (attrs_num %d)", target->name,
+		info.attrs_num);
+
 	if ((err = ioctl(ctrl_fd, ADD_TARGET, &info)) < 0) {
 		err = -errno;
-		log_error("Can't create target %u: %s\n", *tid,
+		log_error("Can't create target %s: %s\n", target->name,
 			strerror(errno));
-	} else
-		*tid = info.tid;
+	} else {
+		target->tid = err;
+		if (tid != NULL)
+			*tid = err;
+		err = 0;
+	}
 
+	free(kern_attrs);
+
+out:
 	return err;
 }
 
-int kernel_target_destroy(u32 tid)
+int kernel_target_destroy(u32 tid, u32 cookie)
 {
 	struct iscsi_kern_target_info info;
 	int res;
 
 	memset(&info, 0, sizeof(info));
 	info.tid = tid;
+	info.cookie = cookie;
 
 	res = ioctl(ctrl_fd, DEL_TARGET, &info);
 	if (res < 0) {
@@ -139,6 +207,88 @@ int kernel_target_destroy(u32 tid)
 
 	return res;
 }
+
+#ifndef CONFIG_SCST_PROC
+
+int kernel_attr_add(struct target *target, const char *name, u32 mode,
+	u32 cookie)
+{
+	struct iscsi_kern_attr_info info;
+	int res;
+
+	memset(&info, 0, sizeof(info));
+	if (target != NULL)
+		info.tid = target->tid;
+	info.cookie = cookie;
+
+	info.attr.mode = mode;
+	strlcpy(info.attr.name, name, sizeof(info.attr.name));
+
+	res = ioctl(ctrl_fd, ISCSI_ATTR_ADD, &info);
+	if (res < 0)
+		res = -errno;
+
+	return res;
+}
+
+int kernel_attr_del(struct target *target, const char *name, u32 cookie)
+{
+	struct iscsi_kern_attr_info info;
+	int res;
+
+	memset(&info, 0, sizeof(info));
+	if (target != NULL)
+		info.tid = target->tid;
+	info.cookie = cookie;
+
+	strlcpy(info.attr.name, name, sizeof(info.attr.name));
+
+	res = ioctl(ctrl_fd, ISCSI_ATTR_DEL, &info);
+	if (res < 0)
+		res = -errno;
+
+	return res;
+}
+
+static int __kernel_user_cmd(struct iscsi_user *user, u32 cookie, unsigned int cmd)
+{
+	struct iscsi_kern_attr_info info;
+	int res;
+
+	memset(&info, 0, sizeof(info));
+	if (user->target != NULL)
+		info.tid = user->target->tid;
+	info.cookie = cookie;
+
+	info.attr.mode = 0600;
+	strlcpy(info.attr.name, user->sysfs_name, sizeof(info.attr.name));
+
+	res = ioctl(ctrl_fd, cmd, &info);
+	if (res < 0)
+		res = -errno;
+
+	return res;
+}
+
+int kernel_user_add(struct iscsi_user *user, u32 cookie)
+{
+	int res;
+	res = __kernel_user_cmd(user, cookie, ISCSI_ATTR_ADD);
+	if (res != 0)
+		log_error("Can't add user %s (%d)\n", user->name, res);
+	return res;
+}
+
+int kernel_user_del(struct iscsi_user *user, u32 cookie)
+{
+	int res;
+	res = __kernel_user_cmd(user, cookie, ISCSI_ATTR_DEL);
+	if (res != 0)
+		log_error("Can't del user %s (%d)\n", user->name, res);
+	return res;
+}
+
+#endif /* CONFIG_SCST_PROC */
 
 int kernel_conn_destroy(u32 tid, u64 sid, u32 cid)
 {
@@ -158,82 +308,117 @@ int kernel_conn_destroy(u32 tid, u64 sid, u32 cid)
 	return err;
 }
 
-int kernel_param_get(u32 tid, u64 sid, int type, struct iscsi_param *param)
+int kernel_params_get(u32 tid, u64 sid, int type, struct iscsi_param *params)
 {
 	int err, i;
-	struct iscsi_kern_param_info info;
+	struct iscsi_kern_params_info info;
+
+	if (sid == 0) {
+		log_error("kernel_params_get(): sid must be not %d", 0);
+		err = -EINVAL;
+		goto out;
+	}
 
 	memset(&info, 0, sizeof(info));
 	info.tid = tid;
 	info.sid = sid;
-	info.param_type = type;
+	info.params_type = type;
 
 	if ((err = ioctl(ctrl_fd, ISCSI_PARAM_GET, &info)) < 0) {
 		err = -errno;
-		log_debug(1, "Can't get session param for session 0x%" PRIu64 
+		log_debug(1, "Can't get session params for session 0x%" PRIu64 
 			" (tid %u, err %d): %s\n", sid, tid, err, strerror(errno));
 	}
 
 	if (type == key_session)
 		for (i = 0; i < session_key_last; i++)
-			param[i].val = info.session_param[i];
+			params[i].val = info.session_params[i];
 	else
 		for (i = 0; i < target_key_last; i++)
-			param[i].val = info.target_param[i];
+			params[i].val = info.target_params[i];
 
+out:
 	return err;
 }
 
-int kernel_param_set(u32 tid, u64 sid, int type, u32 partial,
-	struct iscsi_param *param)
+int kernel_params_set(u32 tid, u64 sid, int type, u32 partial,
+	const struct iscsi_param *params)
 {
 	int i, err;
-	struct iscsi_kern_param_info info;
+	struct iscsi_kern_params_info info;
+
+	if (sid == 0) {
+		log_error("kernel_params_set(): sid must be not %d", 0);
+		err = -EINVAL;
+		goto out;
+	}
 
 	memset(&info, 0, sizeof(info));
 	info.tid = tid;
 	info.sid = sid;
-	info.param_type = type;
+	info.params_type = type;
 	info.partial = partial;
 
-	if (info.param_type == key_session)
+	if (info.params_type == key_session)
 		for (i = 0; i < session_key_last; i++)
-			info.session_param[i] = param[i].val;
+			info.session_params[i] = params[i].val;
 	else
 		for (i = 0; i < target_key_last; i++)
-			info.target_param[i] = param[i].val;
+			info.target_params[i] = params[i].val;
 
 	if ((err = ioctl(ctrl_fd, ISCSI_PARAM_SET, &info)) < 0) {
 		err = -errno;
-		log_error("Can't set session param for session 0x%" PRIu64 
+		log_error("Can't set session params for session 0x%" PRIu64 
 			" (tid %u, type %d, partial %d, err %d): %s\n", sid,
 			tid, type, partial, err, strerror(errno));
 	}
 
+out:
 	return err;
 }
 
-int kernel_session_create(u32 tid, u64 sid, u32 exp_cmd_sn,
-	char *name, char *user)
+int kernel_session_create(struct connection *conn)
 {
 	struct iscsi_kern_session_info info;
-	int res;
+	int res, i;
+	struct target *target;
 
 	memset(&info, 0, sizeof(info));
 
-	info.tid = tid;
-	info.sid = sid;
-	info.exp_cmd_sn = exp_cmd_sn;
-	strncpy(info.initiator_name, name, sizeof(info.initiator_name) - 1);
-	strncpy(info.user_name, user, sizeof(info.user_name) - 1);
+	info.tid = conn->tid;
+	info.sid = conn->sess->sid.id64;
+	info.exp_cmd_sn = conn->exp_cmd_sn;
+	strlcpy(info.initiator_name, conn->sess->initiator, sizeof(info.initiator_name));
+
+#ifdef CONFIG_SCST_PROC
+	if (conn->user != NULL)
+		strlcpy(info.user_name, conn->user, sizeof(info.user_name));
+	else
+		info.user_name[0] = '\0';
+#endif
+
+	target = target_find_by_id(conn->tid);
+	if (target == NULL) {
+		log_error("Target %d not found", conn->tid);
+		res = -EINVAL;
+		goto out;
+	}
+
+	for (i = 0; i < session_key_last; i++)
+		info.session_params[i] = conn->session_params[i].val;
+
+	for (i = 0; i < target_key_last; i++)
+		info.target_params[i] = target->target_params[i];
 
 	res = ioctl(ctrl_fd, ADD_SESSION, &info);
 	if (res < 0) {
 		res = -errno;
 		log_error("Can't create sess 0x%" PRIu64 " (tid %d, "
-			"initiator %s): %s\n", sid, tid, name, strerror(errno));
+			"initiator %s): %s\n", conn->sess->sid.id64, conn->tid,
+			conn->sess->initiator, strerror(errno));
 	}
 
+out:
 	return res;
 }
 

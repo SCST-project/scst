@@ -26,6 +26,8 @@
 
 #include "iscsid.h"
 
+int iscsi_enabled;
+
 static u32 ttt;
 
 static u32 get_next_ttt(struct connection *conn __attribute__((unused)))
@@ -39,7 +41,7 @@ static struct iscsi_key login_keys[] = {
 	{"InitiatorAlias",},
 	{"SessionType",},
 	{"TargetName",},
-	{NULL, 0, 0, 0, 0, NULL},
+	{NULL,},
 };
 
 char *text_key_find(struct connection *conn, char *searchKey)
@@ -67,7 +69,7 @@ char *text_key_find(struct connection *conn, char *searchKey)
 		datasize--;
 
 		if (keylen == value - key - 1
-		     && !strncmp(key, searchKey, keylen))
+		     && !strncasecmp(key, searchKey, keylen))
 			return value;
 	}
 }
@@ -114,7 +116,7 @@ static struct buf_segment *conn_alloc_buf_segment(struct connection *conn,
 	return seg;
 }
 
-void text_key_add(struct connection *conn, char *key, char *value)
+void text_key_add(struct connection *conn, char *key, const char *value)
 {
 	struct buf_segment *seg;
 	int keylen = strlen(key);
@@ -126,7 +128,7 @@ void text_key_add(struct connection *conn, char *key, char *value)
 	size_t data_sz;
 
 	data_sz = (conn->state == STATE_FULL) ?
-		conn->session_param[key_max_xmit_data_length].val :
+		conn->session_params[key_max_xmit_data_length].val :
 		INCOMING_BUFSIZE;
 
 	seg = list_empty(&conn->rsp_buf_list) ? NULL :
@@ -190,14 +192,6 @@ static void text_key_add_reject(struct connection *conn, char *key)
 	text_key_add(conn, key, "Reject");
 }
 
-static int account_empty(u32 tid, int dir)
-{
-	char pass[ISCSI_NAME_LEN];
-
-	memset(pass, 0, sizeof(pass));
-	return config_account_query(tid, dir, pass, pass) < 0 ? 1 : 0;
-}
-
 static void text_scan_security(struct connection *conn)
 {
 	struct iscsi_login_rsp_hdr *rsp = (struct iscsi_login_rsp_hdr *)&conn->rsp.bhs;
@@ -208,7 +202,7 @@ static void text_scan_security(struct connection *conn)
 	datasize = conn->req.datasize;
 
 	while ((key = next_key(&data, &datasize, &value))) {
-		if (!(param_index_by_name(key, login_keys) < 0))
+		if (!(params_index_by_name(key, login_keys) < 0))
 			;
 		else if (!strcmp(key, "AuthMethod")) {
 			do {
@@ -217,13 +211,13 @@ static void text_scan_security(struct connection *conn)
 					*nextValue++ = 0;
 
 				if (!strcmp(value, "None")) {
-					if (!account_empty(conn->tid, AUTH_DIR_INCOMING))
+					if (!accounts_empty(conn->tid, ISCSI_USER_DIR_INCOMING))
 						continue;
 					conn->auth_method = AUTH_NONE;
 					text_key_add(conn, key, "None");
 					break;
 				} else if (!strcmp(value, "CHAP")) {
-					if (account_empty(conn->tid, AUTH_DIR_INCOMING))
+					if (accounts_empty(conn->tid, ISCSI_USER_DIR_INCOMING))
 						continue;
 					conn->auth_method = AUTH_CHAP;
 					text_key_add(conn, key, "CHAP");
@@ -285,7 +279,7 @@ static int login_check_reinstatement(struct connection *conn)
 					"initiator %s)", conn->cid, conn->tid,
 					req->sid.id64, conn->initiator);
 				conn->sess = session;
-				insque(&conn->clist, &session->conn_list);
+				list_add_tail(&conn->clist, &session->conn_list);
 			} else {
 				log_error("Only a single connection supported "
 					"(initiator %s)", conn->initiator);
@@ -329,11 +323,11 @@ static void text_scan_login(struct connection *conn)
 	datasize = conn->req.datasize;
 
 	while ((key = next_key(&data, &datasize, &value))) {
-		if (!(param_index_by_name(key, login_keys) < 0))
+		if (!(params_index_by_name(key, login_keys) < 0))
 			;
 		else if (!strcmp(key, "AuthMethod"))
 			;
-		else if (!((idx = param_index_by_name(key, session_keys)) < 0)) {
+		else if (!((idx = params_index_by_name(key, session_keys)) < 0)) {
 			unsigned int val;
 			char buf[32];
 
@@ -342,12 +336,12 @@ static void text_scan_login(struct connection *conn)
 				continue;
 			}
 			if (idx == key_max_recv_data_length) {
-				conn->session_param[idx].key_state = KEY_STATE_DONE;
+				conn->session_params[idx].key_state = KEY_STATE_DONE;
 				idx = key_max_xmit_data_length;
 			};
 
-			if (param_str_to_val(session_keys, idx, value, &val) < 0) {
-				if (conn->session_param[idx].key_state == KEY_STATE_START) {
+			if (params_str_to_val(session_keys, idx, value, &val) < 0) {
+				if (conn->session_params[idx].key_state == KEY_STATE_START) {
 					text_key_add_reject(conn, key);
 					continue;
 				} else {
@@ -358,30 +352,30 @@ static void text_scan_login(struct connection *conn)
 				}
 			}
 
-			param_check_val(session_keys, idx, &val);
-			param_set_val(session_keys, conn->session_param, idx, &val);
+			params_check_val(session_keys, idx, &val);
+			params_set_val(session_keys, conn->session_params, idx, &val);
 
-			switch (conn->session_param[idx].key_state) {
+			switch (conn->session_params[idx].key_state) {
 			case KEY_STATE_START:
 				if (iscsi_is_key_internal(idx)) {
-					conn->session_param[idx].key_state = KEY_STATE_DONE;
+					conn->session_params[idx].key_state = KEY_STATE_DONE;
 					break;
 				}
 				memset(buf, 0, sizeof(buf));
-				param_val_to_str(session_keys, idx, val, buf);
+				params_val_to_str(session_keys, idx, val, buf, sizeof(buf));
 				text_key_add(conn, key, buf);
-				conn->session_param[idx].key_state = KEY_STATE_DONE_ADDED;
+				conn->session_params[idx].key_state = KEY_STATE_DONE_ADDED;
 				break;
 			case KEY_STATE_REQUEST:
-				if (val != conn->session_param[idx].val) {
+				if (val != conn->session_params[idx].val) {
 					rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
 					rsp->status_detail = ISCSI_STATUS_INIT_ERR;
 					conn->state = STATE_EXIT;
 					log_warning("%s %u %u\n", key,
-						val, conn->session_param[idx].val);
+						val, conn->session_params[idx].val);
 					goto out;
 				}
-				conn->session_param[idx].key_state = KEY_STATE_DONE;
+				conn->session_params[idx].key_state = KEY_STATE_DONE;
 				break;
 			case KEY_STATE_DONE_ADDED:
 			case KEY_STATE_DONE:
@@ -395,9 +389,9 @@ out:
 	return;
 }
 
-static int text_check_param(struct connection *conn)
+static int text_check_params(struct connection *conn)
 {
-	struct iscsi_param *p = conn->session_param;
+	struct iscsi_param *p = conn->session_params;
 	char buf[32];
 	int i, cnt;
 
@@ -426,7 +420,7 @@ static int text_check_param(struct connection *conn)
 				if (iscsi_is_key_internal(i))
 					continue;
 				memset(buf, 0, sizeof(buf));
-				param_val_to_str(session_keys, i, p[i].val, buf);
+				params_val_to_str(session_keys, i, p[i].val, buf, sizeof(buf));
 				text_key_add(conn, session_keys[i].name, buf);
 				if (i == key_max_recv_data_length) {
 					p[i].key_state = KEY_STATE_DONE;
@@ -443,6 +437,25 @@ static int text_check_param(struct connection *conn)
 	}
 
 	return cnt;
+}
+
+static int init_conn_session_params(struct connection *conn)
+{
+	int res = 0, i;
+	struct target *target;
+
+	target = target_find_by_id(conn->tid);
+	if (target == NULL) {
+		log_error("target %d not found", conn->tid);
+		res = -EINVAL;
+		goto out;
+	}
+
+	for (i = 0; i < session_key_last; i++)
+		conn->session_params[i].val = target->session_params[i];
+
+out:
+	return res;
 }
 
 static void login_start(struct connection *conn)
@@ -479,9 +492,9 @@ static void login_start(struct connection *conn)
 	conn->session_type = SESSION_NORMAL;
 
 	if (session_type) {
-		if (!strcmp(session_type, "Discovery"))
+		if (!strcmp(session_type, "Discovery")) {
 			conn->session_type = SESSION_DISCOVERY;
-		else if (strcmp(session_type, "Normal")) {
+		} else if (strcmp(session_type, "Normal")) {
 			rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
 			rsp->status_detail = ISCSI_STATUS_INV_SESSION_TYPE;
 			conn->state = STATE_EXIT;
@@ -509,7 +522,7 @@ static void login_start(struct connection *conn)
 		}
 
 		if (!target->tgt_enabled) {
-			log_debug(1, "Connect from %s to disabled target %s",
+			log_info("Connect from %s to disabled target %s refused",
 				name, target_name);
 			rsp->status_class = ISCSI_STATUS_TARGET_ERR;
 			conn->state = STATE_CLOSE;
@@ -527,15 +540,9 @@ static void login_start(struct connection *conn)
 			return;
 		}
 
-		err = kernel_param_get(conn->tid, conn->sid.id64, key_session,
-			conn->session_param);
-		if (err == -ENOENT) {
-			err = kernel_param_get(conn->tid, 0, key_session,
-				conn->session_param);
-		}
-
+		err = init_conn_session_params(conn);
 		if (err != 0) {
-			log_error("Can't get session param for session 0x%" PRIu64 
+			log_error("Can't get session params for session 0x%" PRIu64 
 				" (err %d): %s\n", conn->sid.id64, err,
 				strerror(-err));
 			rsp->status_class = ISCSI_STATUS_TARGET_ERR;
@@ -694,20 +701,20 @@ static void cmnd_exec_login(struct connection *conn)
 			conn->state = STATE_LOGIN;
 
 			login_start(conn);
-			if (!account_empty(conn->tid, AUTH_DIR_INCOMING))
+			if (!accounts_empty(conn->tid, ISCSI_USER_DIR_INCOMING))
 				goto auth_err;
 			if (rsp->status_class)
 				return;
 			text_scan_login(conn);
 			if (rsp->status_class)
 				return;
-			stay = text_check_param(conn);
+			stay = text_check_params(conn);
 			break;
 		case STATE_LOGIN:
 			text_scan_login(conn);
 			if (rsp->status_class)
 				return;
-			stay = text_check_param(conn);
+			stay = text_check_params(conn);
 			break;
 		default:
 			goto init_err;
@@ -737,7 +744,7 @@ static void cmnd_exec_login(struct connection *conn)
 			switch (conn->state) {
 			case STATE_SECURITY:
 			case STATE_SECURITY_DONE:
-				if ((nsg_disagree = text_check_param(conn))) {
+				if ((nsg_disagree = text_check_params(conn))) {
 					conn->state = STATE_LOGIN;
 					nsg = ISCSI_FLG_NSG_LOGIN;
 					break;
@@ -755,7 +762,7 @@ static void cmnd_exec_login(struct connection *conn)
 			}
 			if (!stay && !nsg_disagree) {
 				int err;
-				text_check_param(conn);
+				text_check_params(conn);
 				err = login_finish(conn);
 				if (err != 0) {
 					log_debug(1, "login_finish() failed: %d", err);

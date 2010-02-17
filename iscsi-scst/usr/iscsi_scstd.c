@@ -465,7 +465,7 @@ out:
 	return;
 }
 
-static void event_loop(int timeout)
+static void event_loop(void)
 {
 	int res, i;
 
@@ -491,9 +491,13 @@ static void event_loop(int timeout)
 	close(init_report_pipe[1]);
 
 	while (1) {
-		res = poll(poll_array, POLL_MAX, timeout);
+		if (!iscsi_enabled) {
+			handle_iscsi_events(nl_fd);
+			continue;
+		}
+		res = poll(poll_array, POLL_MAX, isns_timeout);
 		if (res == 0) {
-			isns_handle(1, &timeout);
+			isns_handle(1);
 			continue;
 		} else if (res < 0) {
 			if (errno == EINTR)
@@ -531,7 +535,7 @@ static void event_loop(int timeout)
 			iscsi_adm_request_handle(ipc_fd);
 
 		if (poll_array[POLL_ISNS].revents)
-			isns_handle(0, &timeout);
+			isns_handle(0);
 
 		if (poll_array[POLL_SCN_LISTEN].revents)
 			isns_scn_handle(1);
@@ -562,7 +566,7 @@ static void event_loop(int timeout)
 	}
 }
 
-void init_max_data_seg_len(int max_data_seg_len)
+static void init_max_data_seg_len(int max_data_seg_len)
 {
 	if ((session_keys[key_max_recv_data_length].local_def != -1) ||
 	    (session_keys[key_max_recv_data_length].max != -1) ||
@@ -597,13 +601,16 @@ void init_max_data_seg_len(int max_data_seg_len)
 
 int main(int argc, char **argv)
 {
-	int ch, longindex, timeout = -1;
+	int ch, longindex;
 	char *config = NULL;
 	uid_t uid = 0;
 	gid_t gid = 0;
-	char *isns = NULL;
-	int isns_ac = 0;
 	int max_data_seg_len = -1;
+	int err;
+
+#ifdef CONFIG_SCST_PROC
+	iscsi_enabled = 1;
+#endif
 
 	if (pipe(init_report_pipe) == -1) {
 		perror("pipe failed");
@@ -666,6 +673,18 @@ int main(int argc, char **argv)
 
 	init_max_data_seg_len(max_data_seg_len);
 
+#ifndef CONFIG_SCST_PROC
+	err = kernel_attr_add(NULL, ISCSI_ISNS_SERVER_PARAM_NAME,
+			S_IRUSR|S_IRGRP|S_IROTH|S_IWUSR, 0);
+	if (err != 0)
+		exit(err);
+
+	err = kernel_attr_add(NULL, ISCSI_ENABLED_ATTR_NAME,
+			S_IRUSR|S_IRGRP|S_IROTH|S_IWUSR, 0);
+	if (err != 0)
+		exit(err);
+#endif
+
 	if ((ipc_fd = iscsi_adm_request_listen()) < 0) {
 		perror("ipc failed\n");
 		exit(-1);
@@ -722,11 +741,8 @@ int main(int argc, char **argv)
 		setsid();
 	}
 
-	config_isns_load(config, &isns, &isns_ac);
-	if (isns)
-		timeout = isns_init(isns, isns_ac);
-
-	if (config_load(config) != 0)
+	err = config_load(config);
+	if (err != 0)
 		exit(1);
 
 	if (gid && setgid(gid) < 0)
@@ -735,7 +751,7 @@ int main(int argc, char **argv)
 	if (uid && setuid(uid) < 0)
 		perror("setuid failed");
 
-	event_loop(timeout);
+	event_loop();
 
 	return 0;
 }

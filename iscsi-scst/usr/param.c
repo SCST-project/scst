@@ -18,10 +18,24 @@
 #include <string.h>
 #include <strings.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 #include "iscsid.h"
 
-int param_index_by_name(char *name, struct iscsi_key *keys)
+/* Taken from Linux kernel sources */
+size_t strlcpy(char *dest, const char *src, size_t size)
+{
+	size_t ret = strlen(src);
+
+	if (size) {
+		size_t len = (ret >= size) ? size - 1 : ret;
+		memcpy(dest, src, len);
+		dest[len] = '\0';
+	}
+	return ret;
+}
+
+int params_index_by_name(char *name, struct iscsi_key *keys)
 {
 	int i, err = -ENOENT;
 
@@ -35,19 +49,43 @@ int param_index_by_name(char *name, struct iscsi_key *keys)
 	return err;
 }
 
-void param_set_defaults(struct iscsi_param *params, struct iscsi_key *keys)
+int params_index_by_name_numwild(char *name, struct iscsi_key *keys)
+{
+	int i, err = -ENOENT;
+
+	for (i = 0; keys[i].name; i++) {
+		if (!strncasecmp(keys[i].name, name, strlen(keys[i].name))) {
+			int j;
+			if (strlen(keys[i].name) > strlen(name))
+				continue;
+			for (j = strlen(keys[i].name); j < strlen(name); j++) {
+				if (!isdigit(name[j]))
+					goto next;
+				
+			}
+			err = i;
+			break;
+next:
+			continue;
+		}
+	}
+
+	return err;
+}
+
+void params_set_defaults(unsigned int *params, struct iscsi_key *keys)
 {
 	int i;
 
 	for (i = 0; keys[i].name; i++)
-		params[i].val = keys[i].local_def;
+		params[i] = keys[i].local_def;
 
 	return;
 }
 
-static int range_val_to_str(unsigned int val, char *str)
+static int range_val_to_str(unsigned int val, char *str, int len)
 {
-	sprintf(str, "%u", val);
+	snprintf(str, len, "%u", val);
 	return 0;
 }
 
@@ -57,16 +95,16 @@ static int range_str_to_val(char *str, unsigned int *val)
 	return 0;
 }
 
-static int bool_val_to_str(unsigned int val, char *str)
+static int bool_val_to_str(unsigned int val, char *str, int len)
 {
 	int err = 0;
 
 	switch (val) {
 	case 0:
-		strcpy(str, "No");
+		strlcpy(str, "No", len);
 		break;
 	case 1:
-		strcpy(str, "Yes");
+		strlcpy(str, "Yes", len);
 		break;
 	default:
 		err = -EINVAL;
@@ -136,18 +174,32 @@ static int maximum_set_val(struct iscsi_param *param, int idx, unsigned int *val
 	return 0;
 }
 
-static int digest_val_to_str(unsigned int val, char *str)
+static int digest_val_to_str(unsigned int val, char *str, int len)
 {
-	int err = 0;
+	int pos = 0;
 
-	if (val & DIGEST_CRC32C)
-		strcpy(str, "CRC32C");
-	else if (val & DIGEST_NONE)
-		strcpy(str, "None");
-	else
-		err = -EINVAL;
+	if (val & DIGEST_NONE) {
+		len -= pos;
+		pos = snprintf(&str[pos], len, "%s", "None");
+	}
 
-	return err;
+	if (pos >= len)
+		goto out;
+
+	if (val & DIGEST_CRC32C) {
+		len -= pos;
+		pos = snprintf(&str[pos], len, "%s%s",
+			(pos != 0) ? "," : "", "CRC32C");
+	}
+
+	if (pos >= len)
+		goto out;
+
+	if (pos == 0)
+		pos = snprintf(&str[0], len, "%s", "Unknown");
+
+out:
+	return 0;
 }
 
 static int digest_str_to_val(char *str, unsigned int *val)
@@ -156,11 +208,13 @@ static int digest_str_to_val(char *str, unsigned int *val)
 	char *p, *q;
 	p = str;
 
-	*val = DIGEST_NONE;
+	*val = 0;
 	do {
-		if (!strncmp(p, "None", strlen("None")))
+		while ((*p != '\0') && isspace(*p))
+			p++;
+		if (!strncasecmp(p, "None", strlen("None")))
 			*val |= DIGEST_NONE;
-		else if (!strncmp(p, "CRC32C", strlen("CRC32C")))
+		else if (!strncasecmp(p, "CRC32C", strlen("CRC32C")))
 			*val |= DIGEST_CRC32C;
 		else {
 			err = -EINVAL;
@@ -170,6 +224,9 @@ static int digest_str_to_val(char *str, unsigned int *val)
 		if ((q = strchr(p, ',')))
 			p = q + 1;
 	} while (q);
+
+	if (*val == 0)
+		*val = DIGEST_NONE;
 
 	return err;
 }
@@ -186,38 +243,38 @@ static int digest_set_val(struct iscsi_param *param, int idx, unsigned int *val)
 	return 0;
 }
 
-static int marker_val_to_str(unsigned int val, char *str)
+static int marker_val_to_str(unsigned int val, char *str, int len)
 {
 	if (val == 0)
-		strcpy(str, "Irrelevant");
+		strlcpy(str, "Irrelevant", len);
 	else
-		strcpy(str, "Reject");
+		strlcpy(str, "Reject", len);
 
 	return 0;
 }
 
-static int marker_set_val(struct iscsi_param *param, int idx, unsigned int *val)
+static int marker_set_val(struct iscsi_param *params, int idx, unsigned int *val)
 {
-	if ((idx == key_ofmarkint && param[key_ofmarker].key_state == KEY_STATE_DONE) ||
-	    (idx == key_ifmarkint && param[key_ifmarker].key_state == KEY_STATE_DONE))
+	if ((idx == key_ofmarkint && params[key_ofmarker].key_state == KEY_STATE_DONE) ||
+	    (idx == key_ifmarkint && params[key_ifmarker].key_state == KEY_STATE_DONE))
 		*val = 0;
 	else
 		*val = 1;
 
-	param[idx].val = *val;
+	params[idx].val = *val;
 
 	return 0;
 }
 
-int param_val_to_str(struct iscsi_key *keys, int idx, unsigned int val, char *str)
+int params_val_to_str(struct iscsi_key *keys, int idx, unsigned int val, char *str, int len)
 {
 	if (keys[idx].ops->val_to_str)
-		return keys[idx].ops->val_to_str(val, str);
+		return keys[idx].ops->val_to_str(val, str, len);
 	else
 		return 0;
 }
 
-int param_str_to_val(struct iscsi_key *keys, int idx, char *str, unsigned int *val)
+int params_str_to_val(struct iscsi_key *keys, int idx, char *str, unsigned int *val)
 {
 	if (keys[idx].ops->str_to_val)
 		return keys[idx].ops->str_to_val(str, val);
@@ -225,7 +282,7 @@ int param_str_to_val(struct iscsi_key *keys, int idx, char *str, unsigned int *v
 		return 0;
 }
 
-int param_check_val(struct iscsi_key *keys, int idx, unsigned int *val)
+int params_check_val(struct iscsi_key *keys, int idx, unsigned int *val)
 {
 	if (keys[idx].ops->check_val)
 		return keys[idx].ops->check_val(&keys[idx], val);
@@ -233,7 +290,7 @@ int param_check_val(struct iscsi_key *keys, int idx, unsigned int *val)
 		return 0;
 }
 
-int param_set_val(struct iscsi_key *keys, struct iscsi_param *param,
+int params_set_val(struct iscsi_key *keys, struct iscsi_param *param,
 		  int idx, unsigned int *val)
 {
 	if (keys[idx].ops->set_val)
@@ -284,35 +341,41 @@ static struct iscsi_key_ops marker_ops = {
 /*
  * List of local target keys with initial values.
  * Must match corresponding key_* enum in iscsi_scst.h!!
+ *
+ * Updating this array don't forget to update tgt_params_check() in
+ * the kernel as well!
  */
 struct iscsi_key target_keys[] = {
-	{"QueuedCommands", SET_KEY_VALUES(QUEUED_CMNDS), &minimum_ops},
+	{"QueuedCommands", SET_KEY_VALUES(QUEUED_CMNDS), 1, &minimum_ops},
 	{NULL,},
 };
 
 /*
  * List of iSCSI RFC specified session keys with initial values.
  * Must match corresponding key_* enum in iscsi_scst.h!!
+ *
+ * Updating this array don't forget to update sess_params_check() in
+ * the kernel as well!
  */
 struct iscsi_key session_keys[] = {
-	{"InitialR2T", 1, 0, 0, 1, &or_ops},
-	{"ImmediateData", 1, 1, 0, 1, &and_ops},
-	{"MaxConnections", 1, 1, 1, 1, &minimum_ops},
-	{"MaxRecvDataSegmentLength", 8192, -1, 512, -1, &minimum_ops},
-	{"MaxXmitDataSegmentLength", 8192, -1, 512, -1, &minimum_ops},
-	{"MaxBurstLength", 262144, -1, 512, -1, &minimum_ops},
-	{"FirstBurstLength", 65536, -1, 512, -1, &minimum_ops},
-	{"DefaultTime2Wait", 2, 0, 0, 3600, &maximum_ops},
-	{"DefaultTime2Retain", 20, 0, 0, 3600, &minimum_ops},
-	{"MaxOutstandingR2T", 1, 32, 1, 65535, &minimum_ops},
-	{"DataPDUInOrder", 1, 0, 0, 1, &or_ops},
-	{"DataSequenceInOrder", 1, 0, 0, 1, &or_ops},
-	{"ErrorRecoveryLevel", 0, 0, 0, 0, &minimum_ops},
-	{"HeaderDigest", DIGEST_NONE, DIGEST_NONE, DIGEST_NONE, DIGEST_ALL, &digest_ops},
-	{"DataDigest", DIGEST_NONE, DIGEST_NONE, DIGEST_NONE, DIGEST_ALL, &digest_ops},
-	{"OFMarker", 0, 0, 0, 0, &and_ops},
-	{"IFMarker", 0, 0, 0, 0, &and_ops},
-	{"OFMarkInt", 2048, 2048, 1, 65535, &marker_ops},
-	{"IFMarkInt", 2048, 2048, 1, 65535, &marker_ops},
+	{"InitialR2T", 1, 0, 0, 1, 1, &or_ops},
+	{"ImmediateData", 1, 1, 0, 1, 1, &and_ops},
+	{"MaxConnections", 1, 1, 1, 1, 0, &minimum_ops},
+	{"MaxRecvDataSegmentLength", 8192, -1, 512, -1, 1, &minimum_ops},
+	{"MaxXmitDataSegmentLength", 8192, -1, 512, -1, 1, &minimum_ops},
+	{"MaxBurstLength", 262144, -1, 512, -1, 1, &minimum_ops},
+	{"FirstBurstLength", 65536, -1, 512, -1, 1, &minimum_ops},
+	{"DefaultTime2Wait", 2, 0, 0, 3600, 0, &maximum_ops},
+	{"DefaultTime2Retain", 20, 0, 0, 3600, 0, &minimum_ops},
+	{"MaxOutstandingR2T", 1, 32, 1, 65535, 1, &minimum_ops},
+	{"DataPDUInOrder", 1, 0, 0, 1, 0, &or_ops},
+	{"DataSequenceInOrder", 1, 0, 0, 1, 0, &or_ops},
+	{"ErrorRecoveryLevel", 0, 0, 0, 0, 0, &minimum_ops},
+	{"HeaderDigest", DIGEST_NONE, DIGEST_NONE, DIGEST_NONE, DIGEST_ALL, 1, &digest_ops},
+	{"DataDigest", DIGEST_NONE, DIGEST_NONE, DIGEST_NONE, DIGEST_ALL, 1, &digest_ops},
+	{"OFMarker", 0, 0, 0, 0, 0, &and_ops},
+	{"IFMarker", 0, 0, 0, 0, 0, &and_ops},
+	{"OFMarkInt", 2048, 2048, 1, 65535, 0, &marker_ops},
+	{"IFMarkInt", 2048, 2048, 1, 65535, 0, &marker_ops},
 	{NULL,},
 };

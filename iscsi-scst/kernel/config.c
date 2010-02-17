@@ -15,6 +15,9 @@
 
 #include "iscsi.h"
 
+/* Protected by target_mgmt_mutex */
+int ctr_open_state;
+
 #ifdef CONFIG_SCST_PROC
 
 #include <linux/proc_fs.h>
@@ -61,7 +64,8 @@ static ssize_t iscsi_proc_log_entry_write(struct file *file,
 	TRACE_EXIT_RES(res);
 	return res;
 }
-#endif
+
+#endif /* DEBUG or TRACE */
 
 static int iscsi_version_info_show(struct seq_file *seq, void *v)
 {
@@ -230,6 +234,9 @@ err:
 
 #else /* CONFIG_SCST_PROC */
 
+/* Protected by target_mgmt_mutex */
+static LIST_HEAD(iscsi_attrs_list);
+
 static ssize_t iscsi_version_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
@@ -260,93 +267,236 @@ static ssize_t iscsi_version_show(struct kobject *kobj,
 static struct kobj_attribute iscsi_version_attr =
 	__ATTR(version, S_IRUGO, iscsi_version_show, NULL);
 
+static ssize_t iscsi_open_state_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	switch (ctr_open_state) {
+	case ISCSI_CTR_OPEN_STATE_CLOSED:
+		sprintf(buf, "%s\n", "closed");
+		break;
+	case ISCSI_CTR_OPEN_STATE_OPEN:
+		sprintf(buf, "%s\n", "open");
+		break;
+	case ISCSI_CTR_OPEN_STATE_CLOSING:
+		sprintf(buf, "%s\n", "closing");
+		break;
+	default:
+		sprintf(buf, "%s\n", "unknown");
+		break;
+	}
+
+	return strlen(buf);
+}
+
+static struct kobj_attribute iscsi_open_state_attr =
+	__ATTR(open_state, S_IRUGO, iscsi_open_state_show, NULL);
+
 const struct attribute *iscsi_attrs[] = {
 	&iscsi_version_attr.attr,
+	&iscsi_open_state_attr.attr,
 	NULL,
 };
 
 #endif /* CONFIG_SCST_PROC */
 
-/* target_mutex supposed to be locked */
-static int add_conn(struct iscsi_target *target, void __user *ptr)
-{
-	int err;
-	struct iscsi_session *session;
-	struct iscsi_kern_conn_info info;
-
-	err = copy_from_user(&info, ptr, sizeof(info));
-	if (err < 0)
-		return err;
-
-	session = session_lookup(target, info.sid);
-	if (!session)
-		return -ENOENT;
-
-	return conn_add(session, &info);
-}
-
-/* target_mutex supposed to be locked */
-static int del_conn(struct iscsi_target *target, void __user *ptr)
-{
-	int err;
-	struct iscsi_session *session;
-	struct iscsi_kern_conn_info info;
-
-	err = copy_from_user(&info, ptr, sizeof(info));
-	if (err < 0)
-		return err;
-
-	session = session_lookup(target, info.sid);
-	if (!session) {
-		PRINT_ERROR("Session %llx not found",
-			(long long unsigned int)info.sid);
-		return -ENOENT;
-	}
-
-	return conn_del(session, &info);
-}
-
 /* target_mgmt_mutex supposed to be locked */
-static int add_session(struct iscsi_target *target, void __user *ptr)
+static int add_conn(void __user *ptr)
 {
 	int err;
-	struct iscsi_kern_session_info info;
+	struct iscsi_session *session;
+	struct iscsi_kern_conn_info info;
+	struct iscsi_target *target;
 
-	err = copy_from_user(&info, ptr, sizeof(info));
-	if (err < 0)
-		return err;
-
-	info.initiator_name[ISCSI_NAME_LEN-1] = '\0';
-	info.user_name[ISCSI_NAME_LEN-1] = '\0';
-
-	return session_add(target, &info);
-}
-
-/* target_mutex supposed to be locked */
-static int del_session(struct iscsi_target *target, void __user *ptr)
-{
-	int err;
-	struct iscsi_kern_session_info info;
-
-	err = copy_from_user(&info, ptr, sizeof(info));
-	if (err < 0)
-		return err;
-
-	return session_del(target, info.sid);
-}
-
-/* target_mutex supposed to be locked */
-static int iscsi_param_config(struct iscsi_target *target, void __user *ptr,
-			      int set)
-{
-	int err;
-	struct iscsi_kern_param_info info;
+	TRACE_ENTRY();
 
 	err = copy_from_user(&info, ptr, sizeof(info));
 	if (err < 0)
 		goto out;
 
-	err = iscsi_param_set(target, &info, set);
+	target = target_lookup_by_id(info.tid);
+	if (target == NULL) {
+		PRINT_ERROR("Target %d not found", info.tid);
+		err = -ENOENT;
+		goto out;
+	}
+
+	mutex_lock(&target->target_mutex);
+
+	session = session_lookup(target, info.sid);
+	if (!session) {
+		PRINT_ERROR("Session %lld not found",
+			(long long unsigned int)info.tid);
+		err = -ENOENT;
+		goto out_unlock;
+	}
+
+	err = __add_conn(session, &info);
+
+out_unlock:
+	mutex_unlock(&target->target_mutex);
+
+out:
+	TRACE_EXIT_RES(err);
+	return err;
+}
+
+/* target_mgmt_mutex supposed to be locked */
+static int del_conn(void __user *ptr)
+{
+	int err;
+	struct iscsi_session *session;
+	struct iscsi_kern_conn_info info;
+	struct iscsi_target *target;
+
+	TRACE_ENTRY();
+
+	err = copy_from_user(&info, ptr, sizeof(info));
+	if (err < 0)
+		goto out;
+
+	target = target_lookup_by_id(info.tid);
+	if (target == NULL) {
+		PRINT_ERROR("Target %d not found", info.tid);
+		err = -ENOENT;
+		goto out;
+	}
+
+	mutex_lock(&target->target_mutex);
+
+	session = session_lookup(target, info.sid);
+	if (!session) {
+		PRINT_ERROR("Session %llx not found",
+			(long long unsigned int)info.sid);
+		err = -ENOENT;
+		goto out_unlock;
+	}
+
+	err = __del_conn(session, &info);
+
+out_unlock:
+	mutex_unlock(&target->target_mutex);
+
+out:
+	TRACE_EXIT_RES(err);
+	return err;
+}
+
+/* target_mgmt_mutex supposed to be locked */
+static int add_session(void __user *ptr)
+{
+	int err;
+	struct iscsi_kern_session_info *info;
+	struct iscsi_target *target;
+
+	TRACE_ENTRY();
+
+	info = kzalloc(sizeof(*info), GFP_KERNEL);
+	if (info == NULL) {
+		PRINT_ERROR("Can't alloc info (size %d)", sizeof(*info));
+		err = -ENOMEM;
+		goto out;
+	}
+
+	err = copy_from_user(info, ptr, sizeof(*info));
+	if (err != 0) {
+		PRINT_ERROR("copy_from_user() didn't copy %d bytes", err);
+		err = -EFAULT;
+		goto out_free;
+	}
+
+	info->initiator_name[sizeof(info->initiator_name)-1] = '\0';
+#ifdef CONFIG_SCST_PROC
+	info->user_name[sizeof(info->user_name)-1] = '\0'; 
+#endif
+
+	target = target_lookup_by_id(info->tid);
+	if (target == NULL) {
+		PRINT_ERROR("Target %d not found", info->tid);
+		err = -ENOENT;
+		goto out_free;
+	}
+
+	err = __add_session(target, info);
+
+out_free:
+	kfree(info);
+
+out:
+	TRACE_EXIT_RES(err);
+	return err;
+}
+
+/* target_mgmt_mutex supposed to be locked */
+static int del_session(void __user *ptr)
+{
+	int err;
+	struct iscsi_kern_session_info *info;
+	struct iscsi_target *target;
+
+	TRACE_ENTRY();
+
+	info = kzalloc(sizeof(*info), GFP_KERNEL);
+	if (info == NULL) {
+		PRINT_ERROR("Can't alloc info (size %d)", sizeof(*info));
+		err = -ENOMEM;
+		goto out;
+	}
+
+	err = copy_from_user(info, ptr, sizeof(*info));
+	if (err != 0) {
+		PRINT_ERROR("copy_from_user() didn't copy %d bytes", err);
+		err = -EFAULT;
+		goto out_free;
+	}
+
+	info->initiator_name[sizeof(info->initiator_name)-1] = '\0';
+#ifdef CONFIG_SCST_PROC
+	info->user_name[sizeof(info->user_name)-1] = '\0'; 
+#endif
+
+	target = target_lookup_by_id(info->tid);
+	if (target == NULL) {
+		PRINT_ERROR("Target %d not found", info->tid);
+		err = -ENOENT;
+		goto out_free;
+	}
+
+	mutex_lock(&target->target_mutex);
+	err = __del_session(target, info->sid);
+	mutex_unlock(&target->target_mutex);
+
+out_free:
+	kfree(info);
+
+out:
+	TRACE_EXIT_RES(err);
+	return err;
+}
+
+/* target_mgmt_mutex supposed to be locked */
+static int iscsi_params_config(void __user *ptr, int set)
+{
+	int err;
+	struct iscsi_kern_params_info info;
+	struct iscsi_target *target;
+
+	TRACE_ENTRY();
+
+	err = copy_from_user(&info, ptr, sizeof(info));
+	if (err < 0)
+		goto out;
+
+	target = target_lookup_by_id(info.tid);
+	if (target == NULL) {
+		PRINT_ERROR("Target %d not found", info.tid);
+		err = -ENOENT;
+		goto out;
+	}
+
+	mutex_lock(&target->target_mutex);
+	err = iscsi_params_set(target, &info, set);
+	mutex_unlock(&target->target_mutex);
+
 	if (err < 0)
 		goto out;
 
@@ -354,72 +504,473 @@ static int iscsi_param_config(struct iscsi_target *target, void __user *ptr,
 		err = copy_to_user(ptr, &info, sizeof(info));
 
 out:
+	TRACE_EXIT_RES(err);
 	return err;
+}
+
+#ifndef CONFIG_SCST_PROC
+
+/* target_mgmt_mutex supposed to be locked */
+static int mgmt_cmd_callback(void __user *ptr)
+{
+	int err = 0, rc;
+	struct iscsi_kern_mgmt_cmd_res_info cinfo;
+	struct scst_sysfs_user_info *info;
+
+	TRACE_ENTRY();
+
+	rc = copy_from_user(&cinfo, ptr, sizeof(cinfo));
+	if (rc != 0) {
+		err = -EFAULT;
+		goto out;
+	}
+
+	cinfo.value[sizeof(cinfo.value)-1] = '\0';
+
+	info = scst_sysfs_user_get_info(cinfo.cookie);
+	TRACE_DBG("cookie %u, info %p, result %d", cinfo.cookie, info,
+		cinfo.result);
+	if (info == NULL) {
+		err = -EINVAL;
+		goto out;
+	}
+
+	info->info_status = 0;
+
+	if (cinfo.result != 0) {
+		info->info_status = cinfo.result;
+		goto out_complete;
+	}
+
+	switch (cinfo.req_cmd) {
+	case E_ENABLE_TARGET:
+	case E_DISABLE_TARGET:
+	{
+		struct iscsi_target *target;
+
+		target = target_lookup_by_id(cinfo.tid);
+		if (target == NULL) {
+			PRINT_ERROR("Target %d not found", cinfo.tid);
+			err = -ENOENT;
+			goto out_status;
+		}
+
+		target->tgt_enabled = (cinfo.req_cmd == E_ENABLE_TARGET) ? 1 : 0;
+		break;
+	}
+
+	case E_GET_ATTR_VALUE:
+		info->data = kstrdup(cinfo.value, GFP_KERNEL);
+		if (info->data == NULL) {
+			PRINT_ERROR("Can't dublicate value %s", cinfo.value);
+			info->info_status = -ENOMEM;
+			goto out_complete;
+		}
+		break;
+	}
+
+out_complete:
+	complete(&info->info_completion);
+
+out:
+	TRACE_EXIT_RES(err);
+	return err;
+
+out_status:
+	info->info_status = err;
+	goto out_complete;
+}
+
+static ssize_t iscsi_attr_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos;
+	struct iscsi_attr *tgt_attr;
+	void *value;
+
+	TRACE_ENTRY();
+
+	tgt_attr = container_of(attr, struct iscsi_attr, attr);
+
+	pos = iscsi_sysfs_send_event(
+		(tgt_attr->target != NULL) ? tgt_attr->target->tid : 0,
+		E_GET_ATTR_VALUE, tgt_attr->name, NULL, &value);
+
+	if (pos != 0)
+		goto out;
+
+	pos = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n", (char *)value);
+
+	kfree(value);
+
+out:
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static ssize_t iscsi_attr_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	char *buffer;
+	struct iscsi_attr *tgt_attr;
+
+	TRACE_ENTRY();
+
+	buffer = kzalloc(count+1, GFP_KERNEL);
+	if (buffer == NULL) {
+		res = -ENOMEM;
+		goto out;
+	}
+
+	memcpy(buffer, buf, count);
+	buffer[count] = '\0';
+
+	tgt_attr = container_of(attr, struct iscsi_attr, attr);
+
+	res = iscsi_sysfs_send_event(
+		(tgt_attr->target != NULL) ? tgt_attr->target->tid : 0,
+		E_SET_ATTR_VALUE, tgt_attr->name, buffer, NULL);
+
+	kfree(buffer);
+
+	if (res == 0)
+		res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/*
+ * target_mgmt_mutex supposed to be locked. If target != 0, target_mutex
+ * supposed to be locked as well.
+ */
+int iscsi_add_attr(struct iscsi_target *target,
+	const struct iscsi_kern_attr *attr_info)
+{
+	int res = 0;
+	struct iscsi_attr *tgt_attr;
+	struct list_head *attrs_list;
+	const char *name;
+
+	TRACE_ENTRY();
+
+	if (target != NULL) {
+		attrs_list = &target->attrs_list;
+		name = target->name;
+	} else {
+		attrs_list = &iscsi_attrs_list;
+		name = "global";
+	}
+
+	list_for_each_entry(tgt_attr, attrs_list, attrs_list_entry) {
+		if (strncmp(tgt_attr->name, attr_info->name,
+				sizeof(tgt_attr->name) == 0)) {
+			PRINT_ERROR("Attribute %s for %s already exist",
+				attr_info->name, name);
+			res = -EEXIST;
+			goto out;
+		}
+	}
+
+	TRACE_DBG("Adding %s's attr %s with mode %x", name,
+		attr_info->name, attr_info->mode);
+
+	tgt_attr = kzalloc(sizeof(*tgt_attr), GFP_KERNEL);
+	if (tgt_attr == NULL) {
+		PRINT_ERROR("Unable to allocate user (size %d)",
+			sizeof(*tgt_attr));
+		res = -ENOMEM;
+		goto out;
+	}
+
+	tgt_attr->target = target;
+
+	tgt_attr->name = kstrdup(attr_info->name, GFP_KERNEL);
+	if (tgt_attr->name == NULL) {
+		PRINT_ERROR("Unable to allocate attr %s name/value (target %s)",
+			attr_info->name, name);
+		res = -ENOMEM;
+		goto out_free;
+	}
+
+	list_add(&tgt_attr->attrs_list_entry, attrs_list);
+
+	tgt_attr->attr.attr.name = tgt_attr->name;
+	tgt_attr->attr.attr.owner = THIS_MODULE;
+	tgt_attr->attr.attr.mode = attr_info->mode & (S_IRUGO | S_IWUGO);
+	tgt_attr->attr.show = iscsi_attr_show;
+	tgt_attr->attr.store = iscsi_attr_store;
+
+	res = sysfs_create_file(
+		(target != NULL) ? scst_sysfs_get_tgt_kobj(target->scst_tgt) :
+				scst_sysfs_get_tgtt_kobj(&iscsi_template),
+		&tgt_attr->attr.attr);
+	if (res != 0) {
+		PRINT_ERROR("Unable to create file '%s' for target '%s'",
+			tgt_attr->attr.attr.name, name);
+		goto out_del;
+	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_del:
+	list_del(&tgt_attr->attrs_list_entry);
+
+out_free:
+	kfree(tgt_attr->name);
+	kfree(tgt_attr);
+	goto out;
+}
+
+void __iscsi_del_attr(struct iscsi_target *target,
+	struct iscsi_attr *tgt_attr)
+{
+	TRACE_ENTRY();
+
+	TRACE_DBG("Deleting %s's attr %s",
+		(target != NULL) ? target->name : "global", tgt_attr->name);
+
+	list_del(&tgt_attr->attrs_list_entry);
+
+	sysfs_remove_file((target != NULL) ?
+			scst_sysfs_get_tgt_kobj(target->scst_tgt) :
+			scst_sysfs_get_tgtt_kobj(&iscsi_template),
+		&tgt_attr->attr.attr);
+
+	kfree(tgt_attr->name);
+	kfree(tgt_attr);
+
+	TRACE_EXIT();
+	return;
+}
+
+/*
+ * target_mgmt_mutex supposed to be locked. If target != 0, target_mutex
+ * supposed to be locked as well.
+ */
+static int iscsi_del_attr(struct iscsi_target *target,
+	const char *attr_name)
+{
+	int res = 0;
+	struct iscsi_attr *tgt_attr, *a;
+	struct list_head *attrs_list;
+
+	TRACE_ENTRY();
+
+	if (target != NULL)
+		attrs_list = &target->attrs_list;
+	else
+		attrs_list = &iscsi_attrs_list;
+
+	tgt_attr = NULL;
+	list_for_each_entry(a, attrs_list, attrs_list_entry) {
+		if (strncmp(a->name, attr_name, sizeof(a->name)) == 0) {
+			tgt_attr = a;
+			break;
+		}
+	}
+
+	if (tgt_attr == NULL) {
+		PRINT_ERROR("attr %s not found (target %s)", attr_name,
+			(target != NULL) ? target->name : "global");
+		res = -ENOENT;
+		goto out;
+	}
+
+	__iscsi_del_attr(target, tgt_attr);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 /* target_mgmt_mutex supposed to be locked */
-static int enable_target(void __user *ptr)
+static int iscsi_attr_cmd(void __user *ptr, unsigned int cmd)
 {
-	int err;
-	struct iscsi_kern_target_info info;
+	int rc, err = 0;
+	struct iscsi_kern_attr_info info;
+	struct iscsi_target *target;
+	struct scst_sysfs_user_info *i = NULL;
 
-	err = copy_from_user(&info, ptr, sizeof(info));
-	if (err < 0)
-		return err;
+	TRACE_ENTRY();
 
-	err = target_enable(&info);
+	rc = copy_from_user(&info, ptr, sizeof(info));
+	if (rc != 0) {
+		err = -EFAULT;
+		goto out;
+	}
 
+	info.attr.name[sizeof(info.attr.name)-1] = '\0';
+
+	if (info.cookie != 0) {
+		i = scst_sysfs_user_get_info(info.cookie);
+		TRACE_DBG("cookie %u, uinfo %p", info.cookie, i);
+		if (i == NULL) {
+			err = -EINVAL;
+			goto out;
+		}
+	}
+
+	target = target_lookup_by_id(info.tid);
+
+	if (target != NULL)
+		mutex_lock(&target->target_mutex);
+
+	switch (cmd) {
+	case ISCSI_ATTR_ADD:
+		err = iscsi_add_attr(target, &info.attr);
+		break;
+	case ISCSI_ATTR_DEL:
+		err = iscsi_del_attr(target, info.attr.name);
+		break;
+	default:
+		sBUG();
+	}
+
+	if (target != NULL)
+		mutex_unlock(&target->target_mutex);
+
+	if (i != NULL) {
+		i->info_status = err;
+		complete(&i->info_completion);
+	}
+
+out:
+	TRACE_EXIT_RES(err);
 	return err;
 }
 
-/* target_mgmt_mutex supposed to be locked */
-static int disable_target(void __user *ptr)
-{
-	int err;
-	struct iscsi_kern_target_info info;
-
-	err = copy_from_user(&info, ptr, sizeof(info));
-	if (err < 0)
-		return err;
-
-	err = target_disable(&info);
-
-	return err;
-}
+#endif /* CONFIG_SCST_PROC */
 
 /* target_mgmt_mutex supposed to be locked */
 static int add_target(void __user *ptr)
 {
 	int err;
-	struct iscsi_kern_target_info info;
+	struct iscsi_kern_target_info *info;
+#ifndef CONFIG_SCST_PROC
+	struct scst_sysfs_user_info *uinfo;
+#endif
 
-	err = copy_from_user(&info, ptr, sizeof(info));
-	if (err < 0)
-		return err;
+	TRACE_ENTRY();
 
-	err = target_add(&info);
-	if (!err)
-		err = copy_to_user(ptr, &info, sizeof(info));
-
-	return err;
-}
-
-static int iscsi_check_version(void __user *arg)
-{
-	struct iscsi_kern_register_info reg;
-	char ver[sizeof(ISCSI_SCST_INTERFACE_VERSION)+1];
-	int res;
-
-	res = copy_from_user(&reg, arg, sizeof(reg));
-	if (res < 0) {
-		PRINT_ERROR("%s", "Unable to get register info");
+	info = kzalloc(sizeof(*info), GFP_KERNEL);
+	if (info == NULL) {
+		PRINT_ERROR("Can't alloc info (size %d)", sizeof(*info));
+		err = -ENOMEM;
 		goto out;
 	}
 
-	res = copy_from_user(ver, (void __user *)(unsigned long)reg.version,
+	err = copy_from_user(info, ptr, sizeof(*info));
+	if (err != 0) {
+		PRINT_ERROR("copy_from_user() didn't copy %d bytes", err);
+		err = -EFAULT;
+		goto out_free;
+	}
+
+	if (target_lookup_by_id(info->tid) != NULL) {
+		PRINT_ERROR("Target %u already exist!", info->tid);
+		err = -EEXIST;
+		goto out_free;
+	}
+
+	info->name[sizeof(info->name)-1] = '\0';
+
+#ifndef CONFIG_SCST_PROC
+	if (info->cookie != 0) {
+		uinfo = scst_sysfs_user_get_info(info->cookie);
+		TRACE_DBG("cookie %u, uinfo %p", info->cookie, uinfo);
+		if (uinfo == NULL) {
+			err = -EINVAL;
+			goto out_free;
+		}
+	} else
+		uinfo = NULL;
+#endif
+
+	err = __add_target(info);
+
+#ifndef CONFIG_SCST_PROC
+	if (uinfo != NULL) {
+		uinfo->info_status = err;
+		complete(&uinfo->info_completion);
+	}
+#endif
+
+out_free:
+	kfree(info);
+
+out:
+	TRACE_EXIT_RES(err);
+	return err;
+}
+
+/* target_mgmt_mutex supposed to be locked */
+static int del_target(void __user *ptr)
+{
+	int err;
+	struct iscsi_kern_target_info info;
+#ifndef CONFIG_SCST_PROC
+	struct scst_sysfs_user_info *uinfo;
+#endif
+
+	TRACE_ENTRY();
+
+	err = copy_from_user(&info, ptr, sizeof(info));
+	if (err < 0)
+		goto out;
+
+	info.name[sizeof(info.name)-1] = '\0';
+
+#ifndef CONFIG_SCST_PROC
+	if (info.cookie != 0) {
+		uinfo = scst_sysfs_user_get_info(info.cookie);
+		TRACE_DBG("cookie %u, uinfo %p", info.cookie, uinfo);
+		if (uinfo == NULL) {
+			err = -EINVAL;
+			goto out;
+		}
+	} else
+		uinfo = NULL;
+#endif
+
+	err = __del_target(info.tid);
+
+#ifndef CONFIG_SCST_PROC
+	if (uinfo != NULL) {
+		uinfo->info_status = err;
+		complete(&uinfo->info_completion);
+	}
+#endif
+
+out:
+	TRACE_EXIT_RES(err);
+	return err;
+}
+
+static int iscsi_register(void __user *arg)
+{
+	struct iscsi_kern_register_info reg;
+	char ver[sizeof(ISCSI_SCST_INTERFACE_VERSION)+1];
+	int res, rc;
+
+	TRACE_ENTRY();
+
+	rc = copy_from_user(&reg, arg, sizeof(reg));
+	if (rc != 0) {
+		PRINT_ERROR("%s", "Unable to get register info");
+		res = -EFAULT;
+		goto out;
+	}
+
+	rc = copy_from_user(ver, (void __user *)(unsigned long)reg.version,
 				sizeof(ver));
-	if (res < 0) {
+	if (rc < 0) {
 		PRINT_ERROR("%s", "Unable to get version string");
+		res = -EFAULT;
 		goto out;
 	}
 	ver[sizeof(ver)-1] = '\0';
@@ -431,125 +982,141 @@ static int iscsi_check_version(void __user *arg)
 		goto out;
 	}
 
-	res = ISCSI_CONN_IOV_MAX << PAGE_SHIFT;
+	memset(&reg, 0, sizeof(reg));
+	reg.max_data_seg_len = ISCSI_CONN_IOV_MAX << PAGE_SHIFT;
+
+	res = 0;
+
+	rc = copy_to_user(arg, &reg, sizeof(reg));
+	if (rc != 0) {
+		PRINT_ERROR("copy_to_user() failed to copy %d bytes", res);
+		res = -EFAULT;
+		goto out;
+	}
 
 out:
+	TRACE_EXIT_RES(res);
 	return res;
 }
 
 static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-	struct iscsi_target *target = NULL;
 	long err;
-	u32 id;
 
-	switch (cmd) {
-	case ADD_TARGET:
-	case DEL_TARGET:
-	case ENABLE_TARGET:
-	case DISABLE_TARGET:
-	case ADD_SESSION:
-	case DEL_SESSION:
-	case ISCSI_PARAM_SET:
-	case ISCSI_PARAM_GET:
-	case ADD_CONN:
-	case DEL_CONN:
-		break;
+	TRACE_ENTRY();
 
-	case REGISTER_USERD:
-		err = iscsi_check_version((void __user *) arg);
-		goto out;
-
-	default:
-		PRINT_ERROR("Invalid ioctl cmd %x", cmd);
-		err = -EINVAL;
+	if (cmd == REGISTER_USERD) {
+		err = iscsi_register((void __user *)arg);
 		goto out;
 	}
-
-	err = get_user(id, (u32 __user *) arg);
-	if (err != 0)
-		goto out;
 
 	err = mutex_lock_interruptible(&target_mgmt_mutex);
 	if (err < 0)
 		goto out;
 
-	if (cmd == DEL_TARGET) {
-		err = target_del(id);
-		goto out_unlock;
-	}
-
-	target = target_lookup_by_id(id);
-
-	if (cmd == ADD_TARGET)
-		if (target) {
-			err = -EEXIST;
-			PRINT_ERROR("Target %u already exist!", id);
-			goto out_unlock;
-		}
-
 	switch (cmd) {
 	case ADD_TARGET:
-		err = add_target((void __user *) arg);
-		goto out_unlock;
-	case ENABLE_TARGET:
-		err = enable_target((void __user *) arg);
-		goto out_unlock;
-	case DISABLE_TARGET:
-		err = disable_target((void __user *) arg);
-		goto out_unlock;
+		err = add_target((void __user *)arg);
+		break;
+
+	case DEL_TARGET:
+		err = del_target((void __user *)arg);
+		break;
+
+#ifndef CONFIG_SCST_PROC
+	case ISCSI_ATTR_ADD:
+	case ISCSI_ATTR_DEL:
+		err = iscsi_attr_cmd((void __user *)arg, cmd);
+		break;
+
+	case MGMT_CMD_CALLBACK:
+		err = mgmt_cmd_callback((void __user *)arg);
+		break;
+#endif
+
 	case ADD_SESSION:
-		err = add_session(target, (void __user *) arg);
-		goto out_unlock;
-	}
+		err = add_session((void __user *)arg);
+		break;
 
-	if (!target) {
-		PRINT_ERROR("Can't find the target %u", id);
-		err = -EINVAL;
-		goto out_unlock;
-	}
-
-	mutex_lock(&target->target_mutex);
-
-	switch (cmd) {
 	case DEL_SESSION:
-		err = del_session(target, (void __user *) arg);
+		err = del_session((void __user *)arg);
 		break;
 
 	case ISCSI_PARAM_SET:
-		err = iscsi_param_config(target, (void __user *) arg, 1);
+		err = iscsi_params_config((void __user *)arg, 1);
 		break;
 
 	case ISCSI_PARAM_GET:
-		err = iscsi_param_config(target, (void __user *) arg, 0);
+		err = iscsi_params_config((void __user *)arg, 0);
 		break;
 
 	case ADD_CONN:
-		err = add_conn(target, (void __user *) arg);
+		err = add_conn((void __user *)arg);
 		break;
 
 	case DEL_CONN:
-		err = del_conn(target, (void __user *) arg);
+		err = del_conn((void __user *)arg);
 		break;
 
 	default:
-		sBUG();
-		break;
+		PRINT_ERROR("Invalid ioctl cmd %x", cmd);
+		err = -EINVAL;
+		goto out_unlock;
 	}
-
-	mutex_unlock(&target->target_mutex);
 
 out_unlock:
 	mutex_unlock(&target_mgmt_mutex);
 
 out:
+	TRACE_EXIT_RES(err);
 	return err;
+}
+
+int open(struct inode *inode, struct file *file)
+{
+	bool already;
+
+	mutex_lock(&target_mgmt_mutex);
+	already = (ctr_open_state != ISCSI_CTR_OPEN_STATE_CLOSED);
+	if (!already)
+		ctr_open_state = ISCSI_CTR_OPEN_STATE_OPEN;
+	mutex_unlock(&target_mgmt_mutex);
+
+	if (already) {
+		PRINT_WARNING("%s", "Attempt to second open the control "
+			"device!");
+		return -EBUSY;
+	} else
+		return 0;
 }
 
 static int release(struct inode *inode, struct file *filp)
 {
+#ifndef CONFIG_SCST_PROC
+	struct iscsi_attr *attr, *t;
+#endif
+
 	TRACE(TRACE_MGMT, "%s", "Releasing allocated resources");
+
+	mutex_lock(&target_mgmt_mutex);
+	ctr_open_state = ISCSI_CTR_OPEN_STATE_CLOSING;
+	mutex_unlock(&target_mgmt_mutex);
+
 	target_del_all();
+
+	mutex_lock(&target_mgmt_mutex);
+
+#ifndef CONFIG_SCST_PROC
+	list_for_each_entry_safe(attr, t, &iscsi_attrs_list,
+					attrs_list_entry) {
+		__iscsi_del_attr(NULL, attr);
+	}
+#endif
+
+	ctr_open_state = ISCSI_CTR_OPEN_STATE_CLOSED;
+
+	mutex_unlock(&target_mgmt_mutex);
+
 	return 0;
 }
 
@@ -557,6 +1124,7 @@ const struct file_operations ctr_fops = {
 	.owner		= THIS_MODULE,
 	.unlocked_ioctl	= ioctl,
 	.compat_ioctl	= ioctl,
+	.open		= open,
 	.release	= release,
 };
 

@@ -47,7 +47,7 @@ static int session_alloc(u32 tid, struct session **psess)
 
 	session->target = target;
 	INIT_LIST_HEAD(&session->slist);
-	insque(&session->slist, &target->sessions_list);
+	list_add_tail(&session->slist, &target->sessions_list);
 
 	*psess = session;
 
@@ -99,7 +99,6 @@ int session_create(struct connection *conn)
 	/* We are single threaded, so it doesn't need any protection */
 	static u16 tsih = 1;
 	struct session *session;
-	char *user;
 	int res = 0;
 
 	res = session_alloc(conn->tid, &session);
@@ -112,7 +111,7 @@ int session_create(struct connection *conn)
 	session->sid.id.tsih = tsih;
 	INIT_LIST_HEAD(&session->conn_list);
 
-	insque(&conn->clist, &session->conn_list);
+	list_add_tail(&conn->clist, &session->conn_list);
 	conn->sess = session;
 
 	conn->sess->initiator = strdup(conn->initiator);
@@ -136,26 +135,12 @@ int session_create(struct connection *conn)
 
 	log_debug(1, "sid %#" PRIx64, session->sid.id64);
 
-	if (conn->user != NULL)
-		user = conn->user;
-	else
-		user = "";
-
-	res = kernel_session_create(conn->tid, session->sid.id64, conn->exp_cmd_sn,
-			session->initiator, user);
+	res = kernel_session_create(conn);
 	if (res != 0)
 		goto out_free;
 
-	res = kernel_param_set(conn->tid, session->sid.id64, key_session, 0,
-		conn->session_param);
-	if (res != 0)
-		goto out_destroy;
-
 out:
 	return res;
-
-out_destroy:
-	kernel_session_destroy(conn->tid, session->sid.id64);
 
 out_free:
 	session_free(session);
@@ -171,10 +156,11 @@ void session_free(struct session *session)
 		kernel_session_destroy(session->target->tid, session->sid.id64);
 
 	if (session->target)
-		remque(&session->slist);
+		list_del(&session->slist);
 
 	free(session->initiator);
 	free(session);
+	return;
 }
 
 struct connection *conn_find(struct session *session, u16 cid)

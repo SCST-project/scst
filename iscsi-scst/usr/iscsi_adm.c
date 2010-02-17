@@ -245,9 +245,9 @@ out_close:
 	return err;
 }
 
-static void show_iscsi_param(int type, struct iscsi_param *param)
+static void show_iscsi_params(int type, struct iscsi_param *param)
 {
-	int i, nr;
+	int i, nr, len;
 	char buf[1024], *p;
 	struct iscsi_key *keys;
 
@@ -261,10 +261,11 @@ static void show_iscsi_param(int type, struct iscsi_param *param)
 
 	for (i = 0; i < nr; i++) {
 		memset(buf, 0, sizeof(buf));
-		strcpy(buf, keys[i].name);
-		p = buf + strlen(buf);
+		strlcpy(buf, keys[i].name, sizeof(buf));
+		len = strlen(buf);
+		p = buf + len;
 		*p++ = '=';
-		param_val_to_str(keys, i, param[i].val, p);
+		params_val_to_str(keys, i, param[i].val, p, sizeof(buf) - (len + 1));
 		printf("%s\n", buf);
 	}
 }
@@ -282,31 +283,31 @@ static int parse_trgt_params(struct msg_trgt *msg, char *params)
 			continue;
 		*q++ = '\0';
 
-		if (!((idx = param_index_by_name(p, target_keys)) < 0)) {
-			if (param_str_to_val(target_keys, idx, q, &val)) {
+		if (!((idx = params_index_by_name(p, target_keys)) < 0)) {
+			if (params_str_to_val(target_keys, idx, q, &val)) {
 				fprintf(stderr,
 					"Invalid %s value \"%s\".\n",
 					target_keys[idx].name, q);
 				return -EINVAL;
 			}
-			if (!param_check_val(target_keys, idx, &val))
+			if (!params_check_val(target_keys, idx, &val))
 				msg->target_partial |= (1 << idx);
-			msg->target_param[idx].val = val;
+			msg->target_params[idx].val = val;
 			msg->type |= 1 << key_target;
 
 			continue;
 		}
 
-		if (!((idx = param_index_by_name(p, session_keys)) < 0)) {
-			if (param_str_to_val(session_keys, idx, q, &val)) {
+		if (!((idx = params_index_by_name(p, session_keys)) < 0)) {
+			if (params_str_to_val(session_keys, idx, q, &val)) {
 				fprintf(stderr,
 					"Invalid %s value \"%s\".\n",
 					session_keys[idx].name, q);
 				return -EINVAL;
 			}
-			if (!param_check_val(session_keys, idx, &val))
+			if (!params_check_val(session_keys, idx, &val))
 				msg->session_partial |= (1 << idx);
-			msg->session_param[idx].val = val;
+			msg->session_params[idx].val = val;
 			msg->type |= 1 << key_session;
 
 			continue;
@@ -346,7 +347,7 @@ static int trgt_handle(int op, u32 set, u32 tid, char *params)
 			goto out;
 		}
 		req.rcmnd = C_TRGT_NEW;
-		strncpy(req.u.trgt.name, p, sizeof(req.u.trgt.name) - 1);
+		strlcpy(req.u.trgt.name, p, sizeof(req.u.trgt.name));
 		break;
 	}
 	case OP_DELETE:
@@ -364,7 +365,7 @@ static int trgt_handle(int op, u32 set, u32 tid, char *params)
 
 	err = iscsid_request(&req, NULL, 0);
 	if (!err && req.rcmnd == C_TRGT_SHOW)
-		show_iscsi_param(key_target, req.u.trgt.target_param);
+		show_iscsi_params(key_target, req.u.trgt.target_params);
 
 out:
 	return err;
@@ -395,7 +396,7 @@ static int sess_handle(int op, u32 set, u32 tid, u64 sid, char *params)
 		req.rcmnd = C_SESS_SHOW;
 		err = iscsid_request(&req, NULL, 0);
 		if (!err)
-			show_iscsi_param(key_session, req.u.trgt.session_param);
+			show_iscsi_params(key_session, req.u.trgt.session_params);
 		break;
 	}
 
@@ -424,14 +425,14 @@ static int parse_user_params(char *params, u32 *auth_dir, char **user,
 					"Already specified IncomingUser %s\n",
 					q);
 			*user = q;
-			*auth_dir = AUTH_DIR_INCOMING;
+			*auth_dir = ISCSI_USER_DIR_INCOMING;
 		} else if (!strcasecmp(p, "OutgoingUser")) {
 			if (*user)
 				fprintf(stderr,
 					"Already specified OutgoingUser %s\n",
 					q);
 			*user = q;
-			*auth_dir = AUTH_DIR_OUTGOING;
+			*auth_dir = ISCSI_USER_DIR_OUTGOING;
 		} else if (!strcasecmp(p, "Password")) {
 			if (*pass)
 				fprintf(stderr,
@@ -453,7 +454,7 @@ static void show_account(int auth_dir, char *user, char *pass)
 	if (pass)
 		snprintf(buf + strlen(buf), ISCSI_NAME_LEN, " %s", pass);
 
-	printf("%sUser %s\n", (auth_dir == AUTH_DIR_INCOMING) ?
+	printf("%sUser %s\n", (auth_dir == ISCSI_USER_DIR_INCOMING) ?
 	       "Incoming" : "Outgoing", buf);
 }
 
@@ -462,8 +463,7 @@ static int user_handle_show_user(struct iscsi_adm_req *req, char *user)
 	int err;
 
 	req->rcmnd = C_ACCT_SHOW;
-	strncpy(req->u.acnt.u.user.name, user,
-		sizeof(req->u.acnt.u.user.name) - 1);
+	strlcpy(req->u.acnt.u.user.name, user, sizeof(req->u.acnt.u.user.name));
 
 	err = iscsid_request(req, NULL, 0);
 	if (!err)
@@ -479,7 +479,7 @@ static int user_handle_show_list(struct iscsi_adm_req *req)
 	size_t buf_sz = 0;
 	char *buf;
 
-	req->u.acnt.auth_dir = AUTH_DIR_INCOMING;
+	req->u.acnt.auth_dir = ISCSI_USER_DIR_INCOMING;
 	req->rcmnd = C_ACCT_LIST;
 
 	do {
@@ -513,8 +513,8 @@ static int user_handle_show_list(struct iscsi_adm_req *req)
 			show_account(req->u.acnt.auth_dir,
 				     &buf[i * ISCSI_NAME_LEN], NULL);
 
-		if (req->u.acnt.auth_dir == AUTH_DIR_INCOMING) {
-			req->u.acnt.auth_dir = AUTH_DIR_OUTGOING;
+		if (req->u.acnt.auth_dir == ISCSI_USER_DIR_INCOMING) {
+			req->u.acnt.auth_dir = ISCSI_USER_DIR_OUTGOING;
 			buf_sz = 0;
 			retry = 1;
 		}
@@ -546,10 +546,8 @@ static int user_handle_new(struct iscsi_adm_req *req, char *user, char *pass)
 
 	req->rcmnd = C_ACCT_NEW;
 
-	strncpy(req->u.acnt.u.user.name, user,
-		sizeof(req->u.acnt.u.user.name) - 1);
-	strncpy(req->u.acnt.u.user.pass, pass,
-		sizeof(req->u.acnt.u.user.pass) - 1);
+	strlcpy(req->u.acnt.u.user.name, user, sizeof(req->u.acnt.u.user.name));
+	strlcpy(req->u.acnt.u.user.pass, pass, sizeof(req->u.acnt.u.user.pass));
 
 	return iscsid_request(req, NULL, 0);
 }
@@ -566,8 +564,7 @@ static int user_handle_del(struct iscsi_adm_req *req, char *user, char *pass)
 
 	req->rcmnd = C_ACCT_DEL;
 
-	strncpy(req->u.acnt.u.user.name, user,
-		sizeof(req->u.acnt.u.user.name) - 1);
+	strlcpy(req->u.acnt.u.user.name, user, sizeof(req->u.acnt.u.user.name));
 
 	return iscsid_request(req, NULL, 0);
 }

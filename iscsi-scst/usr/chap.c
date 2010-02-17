@@ -307,7 +307,8 @@ static inline void chap_encode_string(u8 *intnum, int buf_len, char *encode_buf,
 	}
 }
 
-static inline void chap_calc_digest_md5(char chap_id, char *secret, int secret_len, u8 *challenge, int challenge_len, u8 *digest)
+static inline void chap_calc_digest_md5(char chap_id, const char *secret, int secret_len,
+	const u8 *challenge, int challenge_len, u8 *digest)
 {
 	MD5_CTX ctx;
 
@@ -318,7 +319,8 @@ static inline void chap_calc_digest_md5(char chap_id, char *secret, int secret_l
 	MD5_Final(digest, &ctx);
 }
 
-static inline void chap_calc_digest_sha1(char chap_id, char *secret, int secret_len, u8 *challenge, int challenge_len, u8 *digest)
+static inline void chap_calc_digest_sha1(char chap_id, const char *secret, int secret_len,
+	const u8 *challenge, int challenge_len, u8 *digest)
 {
 	SHA_CTX ctx;
 
@@ -389,8 +391,7 @@ static int chap_initiator_auth_check_response(struct connection *conn)
 	int digest_len = 0, retval = 0, encoding_format;
 	char pass[ISCSI_NAME_LEN];
 
-	memset(pass, 0, sizeof(pass));
-	if (config_account_query(conn->tid, AUTH_DIR_INCOMING, pass, pass) < 0) {
+	if (accounts_empty(conn->tid, ISCSI_USER_DIR_INCOMING)) {
 		log_warning("CHAP initiator auth.: "
 			    "No CHAP credentials configured");
 		retval = CHAP_TARGET_ERROR;
@@ -408,7 +409,7 @@ static int chap_initiator_auth_check_response(struct connection *conn)
 	}
 
 	memset(pass, 0, sizeof(pass));
-	if (config_account_query(conn->tid, AUTH_DIR_INCOMING, value, pass) < 0) {
+	if (config_account_query(conn->tid, ISCSI_USER_DIR_INCOMING, value, pass) < 0) {
 		log_warning("CHAP initiator auth.: "
 			    "No valid user/pass combination for initiator %s "
 			    "found", conn->initiator);
@@ -493,19 +494,18 @@ static int chap_target_auth_create_response(struct connection *conn)
 	u8 *challenge = NULL, *digest = NULL;
 	int encoding_format, response_len;
 	int challenge_len = 0, digest_len = 0, retval = 0;
-	char pass[ISCSI_NAME_LEN], name[ISCSI_NAME_LEN];
+	struct iscsi_user *user;
 
 	if (!(value = text_key_find(conn, "CHAP_I"))) {
-		/* initiator doesn't want target auth!? */
+		/* Initiator doesn't want target auth!? */
 		conn->state = STATE_SECURITY_DONE;
 		retval = 0;
 		goto out;
 	}
 	chap_id = strtol(value, &value, 10);
 
-	memset(pass, 0, sizeof(pass));
-	memset(name, 0, sizeof(name));
-	if (config_account_query(conn->tid, AUTH_DIR_OUTGOING, name, pass) < 0) {
+	user = account_get_first(conn->tid, ISCSI_USER_DIR_OUTGOING);
+	if (user == NULL) {
 		log_warning("CHAP target auth.: "
 			    "no outgoing credentials configured%s",
 			    conn->tid ? "." : " for discovery.");
@@ -588,11 +588,11 @@ static int chap_target_auth_create_response(struct connection *conn)
 
 	switch (conn->auth.chap.digest_alg) {
 	case CHAP_DIGEST_ALG_MD5:
-		chap_calc_digest_md5(chap_id, pass, strlen(pass),
+		chap_calc_digest_md5(chap_id, user->password, strlen(user->password),
 				     challenge, challenge_len, digest);
 		break;
 	case CHAP_DIGEST_ALG_SHA1:
-		chap_calc_digest_sha1(chap_id, pass, strlen(pass),
+		chap_calc_digest_sha1(chap_id, user->password, strlen(user->password),
 				      challenge, challenge_len, digest);
 		break;
 	default:
@@ -602,7 +602,7 @@ static int chap_target_auth_create_response(struct connection *conn)
 
 	memset(response, 0x0, response_len);
 	chap_encode_string(digest, digest_len, response, encoding_format);
-	text_key_add(conn, "CHAP_N", name);
+	text_key_add(conn, "CHAP_N", user->name);
 	text_key_add(conn, "CHAP_R", response);
 
 	conn->state = STATE_SECURITY_DONE;

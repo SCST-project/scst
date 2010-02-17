@@ -33,7 +33,11 @@
 #define iscsi_sense_unexpected_unsolicited_data	ABORTED_COMMAND, 0x0C, 0x0C
 #define iscsi_sense_incorrect_amount_of_data	ABORTED_COMMAND, 0x0C, 0x0D
 
-struct iscsi_sess_param {
+/*
+ * All members must have int type to match expectations of iscsi_tgt_store_*()
+ * functions!
+ */
+struct iscsi_sess_params {
 	int initial_r2t;
 	int immediate_data;
 	int max_connections;
@@ -55,7 +59,11 @@ struct iscsi_sess_param {
 	int ifmarkint;
 };
 
-struct iscsi_trgt_param {
+/*
+ * All members must have int type to match expectations of iscsi_tgt_store_*()
+ * functions!
+ */
+struct iscsi_tgt_params {
 	int queued_cmnds;
 };
 
@@ -64,7 +72,17 @@ struct network_thread_info {
 	unsigned int ready;
 };
 
+struct iscsi_target;
 struct iscsi_cmnd;
+
+#ifndef CONFIG_SCST_PROC
+struct iscsi_attr {
+	struct list_head attrs_list_entry;
+	struct kobj_attribute attr;
+	struct iscsi_target *target;
+	const char *name;
+};
+#endif
 
 struct iscsi_target {
 	struct scst_tgt *scst_tgt;
@@ -73,24 +91,16 @@ struct iscsi_target {
 
 	struct list_head session_list; /* protected by target_mutex */
 
-	/* Both protected by target_mgmt_mutex */
-	struct iscsi_trgt_param trgt_param;
-	/*
-	 * Put here to have uniform parameters checking and assigning
-	 * from various places, including iscsi-scst-adm.
-	 */
-	struct iscsi_sess_param trgt_sess_param;
-
 	struct list_head target_list_entry;
 	u32 tid;
 
-	/* All protected by target_sysfs_mutex */
+	/* Protected by iscsi_sysfs_mutex */
 	unsigned int tgt_enabled:1;
-	unsigned int expected_ioctl;
-	int ioctl_res;
-	struct completion *target_enabling_cmpl;
 
-	struct mutex target_sysfs_mutex;
+#ifndef CONFIG_SCST_PROC
+	/* Protected by target_mutex */
+	struct list_head attrs_list;
+#endif
 
 	char name[ISCSI_NAME_LEN];
 };
@@ -107,7 +117,8 @@ struct iscsi_session {
 	/* Unprotected, since accessed only from a single read thread */
 	u32 next_ttt;
 
-	u32 max_queued_cmnds; /* unprotected, since read-only */
+	/* Read only, if there are connection(s) */
+	struct iscsi_tgt_params tgt_params;
 	atomic_t active_cmds;
 
 	spinlock_t sn_lock;
@@ -119,7 +130,7 @@ struct iscsi_session {
 	struct iscsi_cmnd *tm_rsp;
 
 	/* Read only, if there are connection(s) */
-	struct iscsi_sess_param sess_param;
+	struct iscsi_sess_params sess_params;
 
 	/*
 	 * In some corner cases commands can be deleted from the hash
@@ -440,8 +451,13 @@ struct iscsi_cmnd {
 #define ISCSI_TM_DATA_WAIT_TIMEOUT	(10 * HZ)
 #define ISCSI_TM_DATA_WAIT_SCHED_TIMEOUT (ISCSI_TM_DATA_WAIT_TIMEOUT + HZ)
 
+#define ISCSI_CTR_OPEN_STATE_CLOSED	0
+#define ISCSI_CTR_OPEN_STATE_OPEN	1
+#define ISCSI_CTR_OPEN_STATE_CLOSING	2	
+
 extern struct mutex target_mgmt_mutex;
 
+extern int ctr_open_state;
 extern const struct file_operations ctr_fops;
 
 extern spinlock_t iscsi_rd_lock;
@@ -470,8 +486,8 @@ extern void iscsi_fail_data_waiting_cmnd(struct iscsi_cmnd *cmnd);
 /* conn.c */
 extern struct iscsi_conn *conn_lookup(struct iscsi_session *, u16);
 extern void conn_reinst_finished(struct iscsi_conn *);
-extern int conn_add(struct iscsi_session *, struct iscsi_kern_conn_info *);
-extern int conn_del(struct iscsi_session *, struct iscsi_kern_conn_info *);
+extern int __add_conn(struct iscsi_session *, struct iscsi_kern_conn_info *);
+extern int __del_conn(struct iscsi_session *, struct iscsi_kern_conn_info *);
 #ifdef CONFIG_SCST_PROC
 extern int conn_free(struct iscsi_conn *);
 #endif
@@ -499,23 +515,28 @@ extern void iscsi_task_mgmt_affected_cmds_done(struct scst_mgmt_cmd *scst_mcmd);
 extern void req_add_to_write_timeout_list(struct iscsi_cmnd *req);
 
 /* target.c */
-#ifndef CONFIG_SCST_PROC
+#ifdef CONFIG_SCST_PROC
+extern const struct seq_operations iscsi_seq_op;
+#else
 extern const struct attribute *iscsi_tgt_attrs[];
 extern ssize_t iscsi_enable_target(struct scst_tgt *scst_tgt, const char *buf,
 	size_t size);
 extern bool iscsi_is_target_enabled(struct scst_tgt *scst_tgt);
+extern ssize_t iscsi_sysfs_send_event(uint32_t tid,
+	enum iscsi_kern_event_code code,
+	const char *param1, const char *param2, void **data);
 #endif
-struct iscsi_target *target_lookup_by_id(u32);
-extern int target_add(struct iscsi_kern_target_info *);
-extern int target_enable(struct iscsi_kern_target_info *);
-extern int target_disable(struct iscsi_kern_target_info *);
-extern int target_del(u32 id);
+extern struct iscsi_target *target_lookup_by_id(u32);
+extern int __add_target(struct iscsi_kern_target_info *);
+extern int __del_target(u32 id);
+extern ssize_t iscsi_sysfs_add_target(const char *target_name,
+	const char *params);
+extern ssize_t iscsi_sysfs_del_target(const char *target_name);
+extern ssize_t iscsi_sysfs_mgmt_cmd(const char *cmd);
 extern void target_del_session(struct iscsi_target *target,
 	struct iscsi_session *session, int flags);
 extern void target_del_all_sess(struct iscsi_target *target, int flags);
 extern void target_del_all(void);
-
-extern const struct seq_operations iscsi_seq_op;
 
 /* config.c */
 #ifdef CONFIG_SCST_PROC
@@ -523,27 +544,33 @@ extern int iscsi_procfs_init(void);
 extern void iscsi_procfs_exit(void);
 #else
 extern const struct attribute *iscsi_attrs[];
+extern int iscsi_add_attr(struct iscsi_target *target,
+	const struct iscsi_kern_attr *user_info);
+extern void __iscsi_del_attr(struct iscsi_target *target,
+	struct iscsi_attr *tgt_attr);
 #endif
 
 /* session.c */
-#ifdef CONFIG_SCST_PROC
-int print_digest_state(char *p, size_t size, unsigned long flags);
-#else
+#ifndef CONFIG_SCST_PROC
 extern const struct attribute *iscsi_sess_attrs[];
 #endif
 extern const struct file_operations session_seq_fops;
 extern struct iscsi_session *session_lookup(struct iscsi_target *, u64);
 extern void sess_reinst_finished(struct iscsi_session *);
-extern int session_add(struct iscsi_target *, struct iscsi_kern_session_info *);
-extern int session_del(struct iscsi_target *, u64);
+extern int __add_session(struct iscsi_target *,
+	struct iscsi_kern_session_info *);
+extern int __del_session(struct iscsi_target *, u64);
 extern int session_free(struct iscsi_session *session, bool del);
 
 /* params.c */
-extern int iscsi_param_set(struct iscsi_target *,
-	struct iscsi_kern_param_info *, int);
+extern const char *iscsi_get_digest_name(int val, char *res);
+extern const char *iscsi_get_bool_value(int val);
+extern int iscsi_params_set(struct iscsi_target *,
+	struct iscsi_kern_params_info *, int);
 
 /* event.c */
-extern int event_send(u32, u64, u32, enum iscsi_kern_event_code);
+extern int event_send(u32, u64, u32, u32, enum iscsi_kern_event_code,
+	const char *param1, const char *param2);
 extern int event_init(void);
 extern void event_exit(void);
 

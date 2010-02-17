@@ -17,9 +17,11 @@
 #include <dirent.h>
 #include <errno.h>
 #include <netdb.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
 
@@ -32,39 +34,9 @@
 
 #define BUFSIZE		4096
 #define CONFIG_FILE	"/etc/iscsi-scstd.conf"
-#define ACCT_CONFIG_FILE	CONFIG_FILE
 
-/*
- * Account configuration code
- */
-
-struct user {
-	struct __qelem ulist;
-
-	u32 tid;
-	char *name;
-	char *password;
-};
-
-/* this is the orignal Ardis code. */
-static char *target_sep_string(char **pp)
-{
-	char *p = *pp;
-	char *q;
-
-	for (p = *pp; isspace(*p); p++)
-		;
-	for (q = p; *q && !isspace(*q); q++)
-		;
-	if (*q)
-		*q++ = 0;
-	else
-		p = NULL;
-	*pp = q;
-	return p;
-}
-
-static struct iscsi_key user_keys[] = {
+/* Index must match ISCSI_USER_DIR_*!! */
+struct iscsi_key user_keys[] = {
 	{"IncomingUser",},
 	{"OutgoingUser",},
 	{NULL,},
@@ -73,78 +45,87 @@ static struct iscsi_key user_keys[] = {
 static struct __qelem discovery_users_in = LIST_HEAD_INIT(discovery_users_in);
 static struct __qelem discovery_users_out = LIST_HEAD_INIT(discovery_users_out);
 
-#define HASH_ORDER	4
-#define acct_hash(x)	((x) & ((1 << HASH_ORDER) - 1))
-
-static struct __qelem trgt_acct_in[1 << HASH_ORDER];
-static struct __qelem trgt_acct_out[1 << HASH_ORDER];
-
-static struct __qelem *account_list_get(u32 tid, int dir)
+static struct __qelem *account_list_get(struct target *target, int dir)
 {
 	struct __qelem *list = NULL;
 
-	if (tid) {
-		list = (dir == AUTH_DIR_INCOMING) ?
-			&trgt_acct_in[acct_hash(tid)] : &trgt_acct_out[acct_hash(tid)];
+	if (target != NULL) {
+		list = (dir == ISCSI_USER_DIR_INCOMING) ?
+			&target->target_in_accounts : &target->target_out_accounts;
 	} else
-		list = (dir == AUTH_DIR_INCOMING) ?
+		list = (dir == ISCSI_USER_DIR_INCOMING) ?
 			&discovery_users_in : &discovery_users_out;
 
 	return list;
 }
 
-static int config_account_init(char *filename)
+char *config_sep_string(char **pp)
 {
-	FILE *fp;
-	char buf[BUFSIZE], *p, *q;
-	u32 tid;
-	int idx, res = 0;
+	char *p = *pp;
+	char *q;
+	static char blank = '\0';
 
-	if (!(fp = fopen(filename, "r"))) {
-		return errno == ENOENT ? 0 : -errno;
-	}
+	if ((pp == NULL) || (*pp == NULL))
+		return &blank;
 
-	tid = 0;
-	while (fgets(buf, sizeof(buf), fp)) {
-		q = buf;
-		p = target_sep_string(&q);
-		if (!p || *p == '#')
-			continue;
+	for (p = *pp; isspace(*p) || (*p == '='); p++)
+		;
 
-		if (!strcasecmp(p, "Target")) {
-			tid = 0;
-			if (!(p = target_sep_string(&q)))
-				continue;
-			tid = target_find_id_by_name(p);
-		} else if (!((idx = param_index_by_name(p, user_keys)) < 0)) {
-			char *name, *pass;
-			name = target_sep_string(&q);
-			pass = target_sep_string(&q);
+	for (q = p; (*q != '\0') && !isspace(*q) && (*q != '='); q++)
+		;
 
-			res = config_account_add(tid, idx, name, pass);
-			if (res < 0) {
-				log_error("%s %s\n", name, pass);
-				break;
-			}
-		}
-	}
+	if (*q != '\0')
+		*q++ = '\0';
 
-	fclose(fp);
-
-	return res;
+	*pp = q;
+	return p;
 }
 
-/* Return the first account if the length of name is zero */
-static struct user *account_lookup_by_name(u32 tid, int dir, char *name)
+static char *config_gets(char *buf, int size, const char *data, int *offset)
 {
-	struct __qelem *list = account_list_get(tid, dir);
-	struct user *user = NULL;
+	int offs = *offset, i = 0;
+
+	while ((i < size-1) && (data[offs] != '\n') && (data[offs] != ';') && (data[offs] != '\0'))
+		buf[i++] = data[offs++];
+
+	if ((i == 0) && (data[offs] == '\0'))
+		return NULL;
+
+	if (data[offs] != '\0')
+		offs++;
+
+	*offset = offs;
+	buf[i] = '\0';
+
+	return buf;
+}
+
+int accounts_empty(u32 tid, int dir)
+{
+	struct target *target;
+	struct __qelem *list;
+
+	if (tid) {
+		target = target_find_by_id(tid);
+		if (target == NULL)
+			return 0;
+	} else
+		target = NULL;
+
+	list = account_list_get(target, dir);
+
+	return list_empty(list);
+}
+
+static struct iscsi_user *__account_lookup_by_name(struct target *target,
+	int dir, const char *name)
+{
+	struct __qelem *list;
+	struct iscsi_user *user = NULL;
+
+	list = account_list_get(target, dir);
 
 	list_for_each_entry(user, list, ulist) {
-		if (user->tid != tid)
-			continue;
-		if (!strlen(name))
-			return user;
 		if (!strcmp(user->name, name))
 			return user;
 	}
@@ -152,17 +133,67 @@ static struct user *account_lookup_by_name(u32 tid, int dir, char *name)
 	return NULL;
 }
 
-int config_account_query(u32 tid, int dir, char *name, char *pass)
+
+static struct iscsi_user *account_lookup_by_name(u32 tid, int dir, const char *name)
 {
-	struct user *user;
+	struct target *target;
+
+	if (tid) {
+		target = target_find_by_id(tid);
+		if (target == NULL)
+			return NULL;
+	} else
+		target = NULL;
+
+	return __account_lookup_by_name(target, dir, name);
+}
+
+struct iscsi_user *account_get_first(u32 tid, int dir)
+{
+	struct target *target;
+	struct __qelem *list;
+	struct iscsi_user *user = NULL;
+
+	if (tid) {
+		target = target_find_by_id(tid);
+		if (target == NULL)
+			return NULL;
+	} else
+		target = NULL;
+
+	list = account_list_get(target, dir);
+
+	list_for_each_entry(user, list, ulist) {
+		return user;
+	}
+
+	return NULL;
+}
+
+struct iscsi_user *account_lookup_by_sysfs_name(struct target *target,
+	int dir, const char *sysfs_name)
+{
+	struct __qelem *list;
+	struct iscsi_user *user = NULL;
+
+	list = account_list_get(target, dir);
+
+	list_for_each_entry(user, list, ulist) {
+		if (!strcmp(user->sysfs_name, sysfs_name))
+			return user;
+	}
+
+	return NULL;
+}
+
+int config_account_query(u32 tid, int dir, const char *name, char *pass)
+{
+	struct iscsi_user *user;
 
 	if (!(user = account_lookup_by_name(tid, dir, name)))
 		return -ENOENT;
 
-	if (!strlen(name))
-		strncpy(name, user->name, ISCSI_NAME_LEN);
-
-	strncpy(pass, user->password, ISCSI_NAME_LEN);
+	strlcpy(pass, user->password, ISCSI_NAME_LEN);
 
 	return 0;
 }
@@ -170,19 +201,27 @@ int config_account_query(u32 tid, int dir, char *name, char *pass)
 int config_account_list(u32 tid, int dir, u32 *cnt, u32 *overflow,
 	char *buf, size_t buf_sz)
 {
-	struct __qelem *list = account_list_get(tid, dir);
-	struct user *user;
+	struct target *target;
+	struct __qelem *list;
+	struct iscsi_user *user;
 
 	*cnt = *overflow = 0;
+
+	if (tid) {
+		target = target_find_by_id(tid);
+		if (target == NULL)
+			return -ENOENT;
+	} else
+		target = NULL;
+
+	list = account_list_get(target, dir);
 
 	if (!list)
 		return -ENOENT;
 
 	list_for_each_entry(user, list, ulist) {
-		if (user->tid != tid)
-			continue;
 		if (buf_sz >= ISCSI_NAME_LEN) {
-			strncpy(buf, user->name, ISCSI_NAME_LEN);
+			strlcpy(buf, user->name, ISCSI_NAME_LEN);
 			buf_sz -= ISCSI_NAME_LEN;
 			buf += ISCSI_NAME_LEN;
 			*cnt += 1;
@@ -193,89 +232,255 @@ int config_account_list(u32 tid, int dir, u32 *cnt, u32 *overflow,
 	return 0;
 }
 
-static void account_destroy(struct user *user)
+static void account_destroy(struct iscsi_user *user, int del)
 {
 	if (!user)
 		return;
-	remque(&user->ulist);
-	free(user->name);
-	free(user->password);
+	if (del)
+		list_del(&user->ulist);
+	free((void *)user->name);
+	free((void *)user->password);
 	free(user);
+	return;
 }
 
-int config_account_del(u32 tid, int dir, char *name)
+void accounts_free(struct __qelem *accounts_list)
 {
-	struct user *user;
+	struct iscsi_user *user, *t;
 
-	if (!name || !(user = account_lookup_by_name(tid, dir, name)))
-		return -ENOENT;
+	list_for_each_entry_safe(user, t, accounts_list, ulist) {
+		account_destroy(user, 1);
+	}
 
-	account_destroy(user);
-
-	/* update the file here. */
-	return 0;
+	return;
 }
 
-static struct user *account_create(void)
+int config_account_del(u32 tid, int dir, char *name, u32 cookie)
 {
-	struct user *user;
+	struct iscsi_user *user;
+	int res = 0;
+
+	if (!name) {
+		log_error("%s", "Name expected");
+		res = -EINVAL;
+		goto out;
+	}
+
+	user = account_lookup_by_name(tid, dir, name);
+	if (user == NULL) {
+		log_error("User %s not found", name);
+		res = -ENOENT;
+		goto out;
+	}
+
+#ifndef CONFIG_SCST_PROC
+	res = kernel_user_del(user, cookie);
+	if (res != 0)
+		goto out;
+#endif
+
+	account_destroy(user, 1);
+
+out:
+	return res;
+}
+
+static struct iscsi_user *account_create(struct target *target, int direction,
+	const char *sysfs_name, const char *name, const char *pass)
+{
+	struct iscsi_user *user;
 
 	if (!(user = malloc(sizeof(*user))))
 		return NULL;
 
 	memset(user, 0, sizeof(*user));
 	INIT_LIST_HEAD(&user->ulist);
+	user->target = target;
+	user->direction = direction;
 
+	if (!(user->name = strdup(name)) ||
+	    !(user->password = strdup(pass))) {
+		log_error("Unable to duplicate name (%s) or password (%s)",
+			name, pass);
+		goto out_destroy;
+	}
+
+	if (direction == ISCSI_USER_DIR_INCOMING) {
+		int inc_user_num = 0;
+
+		if (sysfs_name != NULL) {
+			strlcpy(user->sysfs_name, sysfs_name, sizeof(user->sysfs_name));
+			if (account_lookup_by_sysfs_name(target, direction, sysfs_name) == NULL)
+				goto out;
+		}
+
+		while (1) {
+			if (inc_user_num == 0)
+				snprintf(user->sysfs_name, sizeof(user->sysfs_name),
+					"IncomingUser");
+			else
+				snprintf(user->sysfs_name, sizeof(user->sysfs_name),
+					"IncomingUser%d", inc_user_num);
+			if (account_lookup_by_sysfs_name(target, direction, user->sysfs_name) == NULL)
+				break;
+			inc_user_num++;
+		}
+	} else
+		snprintf(user->sysfs_name, sizeof(user->sysfs_name),
+			"OutgoingUser");
+
+out:
 	return user;
+
+out_destroy:
+	account_destroy(user, 0);
+	user = NULL;
+	goto out;
 }
 
-int config_account_add(u32 tid, int dir, char *name, char *pass)
+int account_replace(struct target *target, int direction,
+	const char *sysfs_name, char *value)
 {
-	int err = -ENOMEM;
-	struct user *user;
+	int res = 0;
+	struct iscsi_user *user, *user1;
+	char *name, *pass, *n;
 	struct __qelem *list;
 
-	if (!name || !pass)
-		return -EINVAL;
+	name = config_sep_string(&value);
+	pass = config_sep_string(&value);
 
-	if (tid) {
-		/* check here */
-		/* return -ENOENT; */
+	n = config_sep_string(&value);
+	if (*n != '\0') {
+		log_error("Unexpected parameter value %s\n", n);
+		res = -EINVAL;
+		goto out;
+	}
+
+	user = account_lookup_by_sysfs_name(target, direction, sysfs_name);
+	if (user == NULL) {
+		log_error("Unknown parameter %s\n", sysfs_name);
+		res = -EINVAL;
+		goto out;
+	}
+
+	user1 = __account_lookup_by_name(target, direction, name);
+	if ((user1 != NULL) && (user1 != user)) {
+		log_error("User %s already exists\n", name);
+		res = -EEXIST;
+		goto out;
+	}
+
+	list = account_list_get(target, direction);
+
+	list_del(&user->ulist);
+
+	user1 = account_create(target, direction, sysfs_name, name, pass);
+	if (user1 == NULL) {
+		res = -ENOMEM;
+		goto out_add;
+	}
+
+	list_add_tail(user1, list);
+
+	account_destroy(user, 0);
+
+out:
+	return res;
+
+out_add:
+	list_add_tail(user, list);
+	goto out;
+}
+
+int __config_account_add(struct target *target, int dir, char *name,
+	char *pass, char *sysfs_name, int send_to_kern, u32 cookie)
+{
+	int err = 0;
+	struct iscsi_user *user;
+	struct __qelem *list;
+	int del = 0;
+
+	if (!name || !pass) {
+		log_error("%s", "Name or password is NULL");
+		err = -EINVAL;
+		goto out;
 	}
 
 	/* Check for minimum RFC defined value */
 	if (strlen(pass) < 12) {
 		log_error("Secret for user %s is too short. At least 12 bytes "
 			"are required\n", name);
-		return -EINVAL;
+		err = -EINVAL;
+		goto out;
 	}
 
-	if (!(user = account_create()) ||
-	    !(user->name = strdup(name)) ||
-	    !(user->password = strdup(pass)))
+	user = account_create(target, dir, sysfs_name, name, pass);
+	if (user == NULL) {
+		err = -ENOMEM;
 		goto out;
+	}
 
-	user->tid = tid;
-	list = account_list_get(tid, dir);
-	if (dir == AUTH_DIR_OUTGOING) {
-		struct user *old, *tmp;
-		list_for_each_entry_safe(old, tmp, list, ulist) {
-			if (tid != old->tid)
-				continue;
-			log_warning("Only one outgoing %s account is supported."
-				    " Replacing the old one.\n",
-				    tid ? "target" : "discovery");
-			account_destroy(old);
+	if (__account_lookup_by_name(target, dir, name) != NULL) {
+		log_error("User %s already exists for target %s (direction %s)",
+			name, target ? target->name : "discovery",
+			(dir == ISCSI_USER_DIR_OUTGOING) ? "outgoing" : "incoming");
+		err = -EEXIST;
+		goto out_destroy;
+	}
+
+	list = account_list_get(target, dir);
+	if (dir == ISCSI_USER_DIR_OUTGOING) {
+		struct iscsi_user *old;
+		list_for_each_entry(old, list, ulist) {
+			log_warning("Only one outgoing %s account is "
+				"supported. Replacing the old one.\n",
+				target ? "target" : "discovery");
+			account_destroy(old, 1);
+			break;
 		}
 	}
 
-	insque(user, list);
+	log_debug(1, "User %s added to target %s (direction %s)", user->name,
+		target ? target->name : "discovery",
+		(dir == ISCSI_USER_DIR_OUTGOING) ? "outgoing" : "incoming");
 
-	/* update the file here. */
-	return 0;
+	list_add_tail(user, list);
+	del = 1;
+
+#ifndef CONFIG_SCST_PROC
+	if (send_to_kern) {
+		err = kernel_user_add(user, cookie);
+		if (err != 0)
+			goto out_destroy;
+	}
+#endif
+
 out:
-	account_destroy(user);
+	return err;
 
+out_destroy:
+	account_destroy(user, del);
+	goto out;
+}
+
+int config_account_add(u32 tid, int dir, char *name, char *pass, char *sysfs_name,
+	u32 cookie)
+{
+	int err = 0;
+	struct target *target;
+
+	if (tid) {
+		target = target_find_by_id(tid);
+		if (target == NULL) {
+			err = -ENOENT;
+			goto out;
+		}
+	} else
+		target = NULL;
+
+	err = __config_account_add(target, dir, name, pass, sysfs_name, 1, cookie);
+
+out:
 	return err;
 }
 
@@ -467,167 +672,390 @@ int config_initiator_access(u32 tid, int fd)
  * Main configuration code
  */
 
-static int __config_target_create(u32 *tid, char *name, int update)
-{
-	int err;
-
-	if (target_find_by_name(name)) {
-		log_error("duplicated target %s", name);
-		return -EINVAL;
-	}
-	if ((err = target_add(tid, name)) < 0)
-		return err;
-
-	return err;
-}
-
 int config_target_create(u32 *tid, char *name)
 {
-	return __config_target_create(tid, name, 1);
+	int err;
+	struct target *target;
+
+	err = target_create(name, &target);
+	if (err != 0)
+		goto out;
+
+	err = target_add(target, tid, 0);
+	if (err != 0)
+		goto out_free;
+
+out:
+	return err;
+
+out_free:
+	target_free(target);
+	goto out;
 }
 
 int config_target_destroy(u32 tid)
 {
 	int err;
 
-	if ((err = target_del(tid)) < 0)
+	if ((err = target_del(tid, 0)) < 0)
 		return err;
 
 	return err;
 }
 
-int config_param_set(u32 tid, u64 sid, int type, u32 partial,
-	struct iscsi_param *param)
+int config_params_get(u32 tid, u64 sid, int type, struct iscsi_param *params)
 {
-	int err;
+	int err, i;
+	struct target *target;
 
-	err = kernel_param_set(tid, sid, type, partial, param);
+	if (sid != 0) {
+		err = kernel_params_get(tid, sid, type, params);
+		goto out;
+	}
 
+	err = 0;
+
+	target = target_find_by_id(tid);
+	if (target == NULL) {
+		log_error("target %d not found", tid);
+		err = -EINVAL;
+		goto out;
+	}
+
+	if (type == key_session) {
+		for (i = 0; i < session_key_last; i++)
+			params[i].val = target->session_params[i];
+	} else {
+		for (i = 0; i < target_key_last; i++)
+				params[i].val = target->target_params[i];
+	}
+
+out:
 	return err;
 }
 
-static int iscsi_param_partial_set(u32 tid, u64 sid, int type, int key, u32 val)
+int config_params_set(u32 tid, u64 sid, int type, u32 partial,
+	struct iscsi_param *params)
 {
-	struct iscsi_param *param;
-	struct iscsi_param session_param[session_key_last];
-	struct iscsi_param target_param[target_key_last];
+	int err, i;
+	struct target *target;
 
-	if (type == key_session)
-		param = session_param;
-	else
-		param = target_param;
-
-	param[key].val = val;
-
-	return config_param_set(tid, sid, type, 1 << key, param);
-}
-
-static int config_main_init(char *filename)
-{
-	FILE *config;
-	char buf[BUFSIZE];
-	char *p, *q;
-	int idx;
-	u32 tid, val;
-	int res = 0;
-
-	if (!(config = fopen(filename, "r"))) {
-		return errno == ENOENT ? 0 : -errno;
+	if (sid != 0) {
+		err = kernel_params_set(tid, sid, type, partial, params);
+		goto out;
 	}
 
-	tid = 0;
-	while (fgets(buf, BUFSIZE, config)) {
+	err = 0;
+
+	target = target_find_by_id(tid);
+	if (target == 0) {
+		log_error("target %d not found", tid);
+		err = -EINVAL;
+		goto out;
+	}
+
+	if (partial == 0)
+		partial = (typeof(partial))-1;
+
+	if (type == key_session) {
+		for (i = 0; i < session_key_last; i++) {
+			if (partial & (1 << i)) {
+				err = params_check_val(session_keys, i, &params[i].val);
+				if (err < 0) {
+					log_error("Wrong value %u for parameter %s\n",
+						params[i].val, session_keys[i].name);
+					goto out;
+				}
+			}
+		}
+		for (i = 0; i < session_key_last; i++) {
+			if (partial & (1 << i))
+				target->session_params[i] = params[i].val;
+		}
+	} else {
+		for (i = 0; i < target_key_last; i++) {
+			if (partial & (1 << i)) {
+				err = params_check_val(target_keys, i, &params[i].val);
+				if (err < 0) {
+					log_error("Wrong value %u for parameter %s\n",
+						params[i].val, target_keys[i].name);
+					goto out;
+				}
+			}
+		}
+		for (i = 0; i < target_key_last; i++) {
+			if (partial & (1 << i))
+				target->target_params[i] = params[i].val;
+		}
+	}
+
+out:
+	return err;
+}
+
+int config_parse_main(const char *data, u32 cookie)
+{
+	char buf[BUFSIZE];
+	char *p, *q, *n;
+	int idx, offset = 0;
+	u32 val;
+	int res = 0;
+	struct target *target = NULL;
+	int global_section = 1; /* supposed to be bool and true */
+	int parsed_something = 0; /* supposed to be bool and false */
+	int stop_on_errors = (cookie != 0);
+
+	while (config_gets(buf, sizeof(buf), data, &offset)) {
+		parsed_something = 1;
+		/*
+		 * If stop_on_errors is false, let's always continue parsing
+		 * and only report errors.
+		 */
+		if (stop_on_errors && (res != 0))
+			goto out_target_free;
+
 		q = buf;
-		p = target_sep_string(&q);
-		if (!p || *p == '#')
+		p = config_sep_string(&q);
+		if ((*p == '#') || (*p == '\0'))
 			continue;
+
 		if (!strcasecmp(p, "Target")) {
-			tid = 0;
-			if (!(p = target_sep_string(&q)))
+			global_section = 0;
+
+			if (target != NULL) {
+				res = target_add(target, NULL, cookie);
+				if (res != 0)
+					target_free(target);
+			}
+
+			target = NULL;
+			p = config_sep_string(&q);
+			if (p == '\0') {
+				log_error("Target name required on %s\n", q);
 				continue;
-			if (__config_target_create(&tid, p, 0))
-				log_debug(1, "creating target %s", p);
-		} else if (!strcasecmp(p, "Alias") && tid) {
+			}
+
+			n = config_sep_string(&q);
+			if (*n != '\0') {
+				log_error("Unexpected parameter value %s\n", n);
+				res = -EINVAL;
+				continue;
+			}
+
+			log_debug(1, "Creating target %s", p);
+			res = target_create(p, &target);
+			if (res != 0)
+				goto out;
+		} else if (!strcasecmp(p, "Alias") && target) {
 			;
-		} else if (!((idx = param_index_by_name(p, target_keys)) < 0) && tid) {
-			val = strtol(q, &q, 0);
-			if (param_check_val(target_keys, idx, &val) < 0) {
+		} else if (!((idx = params_index_by_name(p, target_keys)) < 0) && (target != NULL)) {
+			char *str = config_sep_string(&q);
+
+			n = config_sep_string(&q);
+			if (*n != '\0') {
+				log_error("Unexpected parameter value %s\n", n);
+				res = -EINVAL;
+				continue;
+			}
+
+			res = params_str_to_val(target_keys, idx, str, &val);
+			if (res < 0) {
+				log_error("Wrong value %s for parameter %s\n",
+					str, target_keys[idx].name);
+				continue;
+			}
+
+			res = params_check_val(target_keys, idx, &val);
+			if (res < 0) {
 				log_error("Wrong value %u for parameter %s\n",
 					val, target_keys[idx].name);
-				res = -1;
-				break;
+				continue;
 			}
-			iscsi_param_partial_set(tid, 0, key_target, idx, val);
-		} else if (!((idx = param_index_by_name(p, session_keys)) < 0) && tid) {
-			char *str = target_sep_string(&q);
-			if (param_str_to_val(session_keys, idx, str, &val) < 0) {
+			target->target_params[idx] = val;
+		} else if (!((idx = params_index_by_name(p, session_keys)) < 0) && (target != NULL)) {
+			char *str = config_sep_string(&q);
+
+			n = config_sep_string(&q);
+			if (*n != '\0') {
+				log_error("Unexpected parameter value %s\n", n);
+				res = -EINVAL;
+				continue;
+			}
+
+			res = params_str_to_val(session_keys, idx, str, &val);
+			if (res < 0) {
 				log_error("Wrong value %s for parameter %s\n",
 					str, session_keys[idx].name);
-				res = -1;
-				break;
+				continue;
 			}
-			if (param_check_val(session_keys, idx, &val) < 0) {
+
+			res = params_check_val(session_keys, idx, &val);
+			if (res < 0) {
 				log_error("Wrong value %u for parameter %s\n",
 					val, session_keys[idx].name);
-				res = -1;
-				break;
+				continue;
 			}
-			iscsi_param_partial_set(tid, 0, key_session, idx, val);
-		} else if (param_index_by_name(p, user_keys) < 0) {
-			log_warning("Unknown iscsi-scstd.conf param: %s\n", p);
-			res = -1;
-			break;
+			target->session_params[idx] = val;
+		} else if (!((idx = params_index_by_name_numwild(p, user_keys)) < 0) &&
+			   ((target != NULL) || global_section)) {
+			char *name, *pass;
+
+			name = config_sep_string(&q);
+			pass = config_sep_string(&q);
+
+			n = config_sep_string(&q);
+			if (*n != '\0') {
+				log_error("Unexpected parameter value %s\n", n);
+				res = -EINVAL;
+				continue;
+			}
+
+			res = __config_account_add(target, idx, name, pass, p,
+					(target == 0), 0);
+			if (res < 0)
+				continue;
+		} else if (global_section &&
+			   (!strcasecmp(p, ISCSI_ISNS_SERVER_PARAM_NAME) ||
+			    !strcasecmp(p, ISCSI_ISNS_ACCESS_CONTROL_PARAM_NAME)))
+			continue;
+		else {
+			log_error("Unknown or unexpected param: %s\n", p);
+			res = -EINVAL;
+			continue;
 		}
 	}
 
-	fclose(config);
-	return res;
-}
+	if (stop_on_errors && (res != 0))
+		goto out_target_free;
 
-int config_load(char *params)
-{
-	int i, err;
-
-	for (i = 0; i < 1 << HASH_ORDER; i++) {
-		INIT_LIST_HEAD(&trgt_acct_in[i]);
-		INIT_LIST_HEAD(&trgt_acct_out[i]);
+	if (target != NULL) {
+		res = target_add(target, NULL, cookie);
+		if (res != 0)
+			goto out_target_free;
 	}
 
-	/* First, we must finish the main configuration. */
-	if ((err = config_main_init(params ? params : CONFIG_FILE)))
-		return err;
+out:
+	if (stop_on_errors) {
+		if ((res == 0) && !parsed_something)
+			res = -ENOENT;
+	} else
+		res = 0;
 
-	if ((err = config_account_init(ACCT_CONFIG_FILE)) < 0)
-		return err;
+	return res;
 
-	/* TODO: error handling */
-
-	return err;
+out_target_free:
+	if (target != NULL)
+		target_free(target);
+	goto out;
 }
 
-int config_isns_load(char *params, char **isns, int *isns_ac)
+static int config_isns_load(const char *config)
 {
-	FILE *config;
 	char buf[BUFSIZE];
+	int offset = 0;
 	char *p, *q;
 
-	if (!(config = fopen(params ? : CONFIG_FILE, "r")))
-		return -errno;
-
-	while (fgets(buf, BUFSIZE, config)) {
+	while (config_gets(buf, sizeof(buf), config, &offset)) {
 		q = buf;
-		p = target_sep_string(&q);
-		if (!p || *p == '#')
+		p = config_sep_string(&q);
+		if ((*p == '\0') || (*p == '#'))
 			continue;
-		if (!strcasecmp(p, "iSNSServer")) {
-			*isns = strdup(target_sep_string(&q));
-		} else if (!strcasecmp(p, "iSNSAccessControl")) {
-			char *str = target_sep_string(&q);
-			if (!strcasecmp(str, "Yes"))
-				*isns_ac = 1;
+		if (!strcasecmp(p, ISCSI_ISNS_SERVER_PARAM_NAME)) {
+			isns_server = strdup(config_sep_string(&q));
+		} else if (!strcasecmp(p, ISCSI_ISNS_ACCESS_CONTROL_PARAM_NAME)) {
+			char *str = config_sep_string(&q);
+			if (!strcasecmp(str, "No"))
+				isns_access_control = 0;
+			else
+				isns_access_control = 1;
 		}
 	}
 
-	fclose(config);
 	return 0;
+}
+
+int config_load(const char *config_name)
+{
+	int i, err = 0, rc;
+	int config;
+	const char *cname;
+	int size;
+	char *buf;
+
+	if (config_name != NULL)
+		cname = config_name;
+	else
+		cname = CONFIG_FILE;
+
+	config = open(cname, O_RDONLY);
+	if (config == -1) {
+		if ((errno == ENOENT) && (config_name == NULL)) {
+#ifdef CONFIG_SCST_PROC
+			log_debug(3, "Default config file %s not found",
+				CONFIG_FILE);
+#endif
+			goto out;
+		} else {
+			err = -errno;
+			log_error("Open config file %s failed: %s", cname,
+				strerror(err));
+			goto out;
+		}
+	}
+
+	size = lseek(config, 0, SEEK_END);
+	if (size < 0) {
+		err = -errno;
+		log_error("lseek() failed: %s", strerror(err));
+		goto out_close;
+	}
+
+	buf = malloc(size+1);
+	if (buf == NULL) {
+		err = -ENOMEM;
+		log_error("malloc() failed: %s", strerror(err));
+		goto out_close;
+	}
+
+	rc = lseek(config, 0, SEEK_SET);
+	if (rc < 0) {
+		err = -errno;
+		log_error("lseek() failed: %s", strerror(err));
+		goto out_free;
+	}
+
+	i = 0;
+	do {
+		rc = read(config, &buf[i], size - i);
+		if (rc < 0) {
+			err = -errno;
+			log_error("read() failed: %s", strerror(err));
+			goto out_free;
+		} else if (rc == 0)
+			break;
+		i += rc;
+	} while (i < size);
+
+	size = i;
+	buf[size+1] = '\0';
+
+	config_parse_main(buf, 0);
+
+	err = config_isns_load(buf);
+	if ((err == 0) && (isns_server != NULL)) {
+		int rc = isns_init();
+		if (rc != 0) {
+			log_error("iSNS server %s init failed: %d", isns_server, rc);
+			isns_exit();
+		}
+	}
+
+out_free:
+	free(buf);
+
+out_close:
+	close(config);
+
+out:
+	return err;
 }
