@@ -1863,7 +1863,7 @@ restart:
 			goto restart;
 	}
 
-	if (list_empty(&sess->sess_cmd_list)) {
+	if (!list_empty(&sess->sess_cmd_list)) {
 		/*
 		 * For stuck cmds if there is no activity we might need to have
 		 * one more run to release them, so reschedule once again.
