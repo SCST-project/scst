@@ -1096,11 +1096,11 @@ static void srpt_abort_scst_cmd(struct srpt_ioctx *ioctx,
 		scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_ABORTED);
 		break;
 	case SRPT_STATE_MGMT_RSP_SENT:
-		WARN_ON(!"ERROR: srpt_abort_scst_cmd() has been called for"
+		WARN_ON("ERROR: srpt_abort_scst_cmd() has been called for"
 			" a management command.");
 		break;
 	default:
-		WARN_ON(!"ERROR: unexpected command state");
+		WARN_ON("ERROR: unexpected command state");
 		break;
 	}
 	scst_tgt_cmd_done(scmnd, context);
