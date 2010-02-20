@@ -143,8 +143,8 @@ BLOCKIO/deadline	17
 
 Single line NULLIO is 12.
 
-So, there is a 67% improvement using 2 lines. With 1Gbps it should be 
-equivalent of 200MB/s. Not too bad.
+So, there is a 96% on NULLIO and 83% with HDD storage improvement using
+2 lines. With 1Gbps 20MB/s should be equivalent of 200MB/s. Quite good!
 
 ==================================================================
 
