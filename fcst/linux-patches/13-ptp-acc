@@ -1,0 +1,32 @@
+libfc: point-to-point: send FLOGI LS_ACC to assigned D_DID
+
+The method we've been using for point-to-point mode requires
+that the LS_ACC for the FLOGI uses the D_ID and S_ID assigned
+to the remote port and local port, not those in the exchange.
+
+This is not the correct method, but for now, it's what works
+with the old target, as well as with new targets based on libfc.
+
+This patch changes the addresses used accordingly.
+
+Signed-off-by: Joe Eykholt <jeykholt@cisco.com>
+
+---
+ drivers/scsi/libfc/fc_lport.c |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+
+---
+diff --git a/drivers/scsi/libfc/fc_lport.c b/drivers/scsi/libfc/fc_lport.c
+index a728e99..a2a49a2 100644
+--- a/drivers/scsi/libfc/fc_lport.c
++++ b/drivers/scsi/libfc/fc_lport.c
+@@ -835,7 +835,7 @@ static void fc_lport_recv_flogi_req(struct fc_seq *sp_in,
+ 		 */
+ 		f_ctl = FC_FC_EX_CTX | FC_FC_LAST_SEQ | FC_FC_END_SEQ;
+ 		ep = fc_seq_exch(sp);
+-		fc_fill_fc_hdr(fp, FC_RCTL_ELS_REP, ep->did, ep->sid,
++		fc_fill_fc_hdr(fp, FC_RCTL_ELS_REP, remote_fid, local_fid,
+ 			       FC_TYPE_ELS, f_ctl, 0);
+ 		lport->tt.seq_send(lport, sp, fp);
+ 

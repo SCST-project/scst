@@ -1,0 +1,98 @@
+fcst README						v0.1 02/17/2010
+
+$Id$
+
+FCST is a module that depends on libfc and SCST to provide FC target support.
+
+To build for linux-2.6.33-rc8, do:
+
+1. Get the kernel:
+
+	KERNEL=linux-2.6.33-rc8
+
+	cd /usr/src/kernels
+	URL_DIR=http://www.kernel.org/pub/linux/kernel/v2.6/testing/
+	TARFILE=$VER.tar.bz2
+	wget -o $TARFILE $URL_DIR/$TARFILE
+	tar xfj $TARFILE
+	cd $KERNEL
+
+2. Apply patches needed for libfc target hooks and point-to-point fixes:
+
+	KDIR=/usr/src/kernels/$KERNEL
+	PDIR=/usr/src/scst/trunk/fcst/linux-patches	# use your dir here
+
+	cd $PDIR
+	for patch in `grep -v '^#' series-$KERNEL`
+	do
+		(cd $KDIR; patch -p1) < $patch
+	done
+
+3.  Apply SCST patches to the kernel
+	See trunk/scst/README
+	The readahead patches are not needed in 2.6.33.
+	The io_context patch needs to be adjusted for 2.6.33.  Skip it for now.
+
+4.  Configure and make your kernel
+
+5.  Install SCST
+	See trunk/scst/README. Make sure you are building sysfs SCST build, because
+	FCST supports only it.
+
+6.  Make FCST
+	In this directory, just do
+		make
+		make install
+
+7.  Install the FCoE admin tools, including dcbd and fcoeadm.
+	Some distros may have these.
+	You should be able to use the source at
+	http://www.open-fcoe.org/openfc/downloads/2.6.32/open-fcoe-2.6.32.tar.gz
+
+8.  Bring up SCST and configure the devices.
+
+9.  Bring up an FCoE initiator (we'll enable target mode on it later):
+	fcoeadm -c eth3
+
+    The other end can be an initiator as well, in point-to-point mode
+    over a full-duplex loss-less link (enable pause on both sides),
+    or a link to an FCoE switch.
+
+10. Use fcc (part of the open-fcoe debug tools in step 7) to see the 
+    initiator setup.  To get the FCoE port name for eth3 
+
+	# fcc
+	FC HBAs:
+	HBA       Port Name                Port ID   State     Device         
+	host4     20:00:00:1b:21:06:58:21  01:01:02  Online    eth3           
+
+	host4 Remote Ports:
+	Path      Port Name                Port ID   State     Roles          
+	4:0-0     10:00:50:41:4c:4f:3b:00  01:01:01  Online    FCP Initiator  
+
+    In the above example, there's one local host on eth3, and it's in
+    a point-to-point connection with the remote initiator with Port_id 010101.
+
+11.  Load fcst and create an ini-group for the remote initiator.  Do:
+
+	LPORT=20:00:00:1b:21:06:58:21		# the local Port_Name
+	INIT_PORT=10:00:50:41:4c:4f:3b:00	# remote Port Name
+	GROUP=test				# your choice ini_group name
+	GDIR=$LPORT/ini_group/$GROUP
+
+	modprobe fcst
+	cd /sys/kernel/scst_tgt/targets/fcst
+	echo create $GROUP > $LPORT/ini_group/mgmt
+	echo add $INIT_PORT > $GDIR/initiators/mgmt
+
+12.  Add any disks you want to the LUNs in that init group.
+
+	echo add disk-name 0 > $GDIR/luns/mgmt
+	
+13.  Enable the initiator:
+
+	echo 1 > $LPORT/enabled
+
+14.  As a temporary workaround, you may need to reset the interface
+     on the initiator side so it sees the SCST device as a target and
+     discovers LUNs.  You can avoid this by bringing up the initiator last.

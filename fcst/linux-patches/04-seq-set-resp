@@ -1,0 +1,84 @@
+libfc: add method for setting handler for incoming exchange
+
+Add a method for setting handler for incoming exchange.
+For multi-sequence exchanges, this allows the target driver
+to add a response handler for handling subsequent sequences,
+and exchange manager resets.
+
+The new function is called fc_seq_set_resp().
+
+Signed-off-by: Joe Eykholt <jeykholt@cisco.com>
+
+---
+ drivers/scsi/libfc/fc_exch.c |   19 +++++++++++++++++++
+ include/scsi/libfc.h         |   11 ++++++++++-
+ 2 files changed, 29 insertions(+), 1 deletions(-)
+
+
+---
+diff --git a/drivers/scsi/libfc/fc_exch.c b/drivers/scsi/libfc/fc_exch.c
+index 1ad1ded..aee3c59 100644
+--- a/drivers/scsi/libfc/fc_exch.c
++++ b/drivers/scsi/libfc/fc_exch.c
+@@ -545,6 +545,22 @@ static struct fc_seq *fc_seq_start_next(struct fc_seq *sp)
+ 	return sp;
+ }
+ 
++/*
++ * Set the response handler for the exchange associated with a sequence.
++ */
++static void fc_seq_set_resp(struct fc_seq *sp,
++			    void (*resp)(struct fc_seq *, struct fc_frame *,
++					 void *),
++			    void *arg)
++{
++	struct fc_exch *ep = fc_seq_exch(sp);
++
++	spin_lock_bh(&ep->ex_lock);
++	ep->resp = resp;
++	ep->arg = arg;
++	spin_unlock_bh(&ep->ex_lock);
++}
++
+ /**
+  * fc_seq_exch_abort() - Abort an exchange and sequence
+  * @req_sp:	The sequence to be aborted
+@@ -2280,6 +2296,9 @@ int fc_exch_init(struct fc_lport *lport)
+ 	if (!lport->tt.seq_start_next)
+ 		lport->tt.seq_start_next = fc_seq_start_next;
+ 
++	if (!lport->tt.seq_set_resp)
++		lport->tt.seq_set_resp = fc_seq_set_resp;
++
+ 	if (!lport->tt.exch_seq_send)
+ 		lport->tt.exch_seq_send = fc_exch_seq_send;
+ 
+diff --git a/include/scsi/libfc.h b/include/scsi/libfc.h
+index 9403d4e..87204da 100644
+--- a/include/scsi/libfc.h
++++ b/include/scsi/libfc.h
+@@ -566,6 +566,16 @@ struct libfc_function_template {
+ 	struct fc_seq *(*seq_start_next)(struct fc_seq *);
+ 
+ 	/*
++	 * Set a response handler for the exchange of the sequence.
++	 *
++	 * STATUS: OPTIONAL
++	 */
++	void (*seq_set_resp)(struct fc_seq *sp,
++			     void (*resp)(struct fc_seq *, struct fc_frame *,
++					  void *),
++			     void *arg);
++
++	/*
+ 	 * Reset an exchange manager, completing all sequences and exchanges.
+ 	 * If s_id is non-zero, reset only exchanges originating from that FID.
+ 	 * If d_id is non-zero, reset only exchanges sending to that FID.
+@@ -1058,7 +1068,6 @@ struct fc_seq *fc_elsct_send(struct fc_lport *, u32 did,
+ void fc_lport_flogi_resp(struct fc_seq *, struct fc_frame *, void *);
+ void fc_lport_logo_resp(struct fc_seq *, struct fc_frame *, void *);
+ 
+-
+ /*
+  * EXCHANGE MANAGER LAYER
+  *****************************/

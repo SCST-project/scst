@@ -1,0 +1,30 @@
+fcoe: call fcoe_ctlr_els_send even for ELS responses
+
+In point-to-point mode, the destination MAC address for
+the FLOGI response was zero because the LS_ACC for the FLOGI
+wasn't getting intercepted by FIP.
+
+Change to call fcoe_ctlr_els_send when sending any ELS,
+not just requests.
+
+Signed-off-by: Joe Eykholt <jeykholt@cisco.com>
+
+---
+ drivers/scsi/fcoe/fcoe.c |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+
+---
+diff --git a/drivers/scsi/fcoe/fcoe.c b/drivers/scsi/fcoe/fcoe.c
+index 2f47ae7..2f3b73c 100644
+--- a/drivers/scsi/fcoe/fcoe.c
++++ b/drivers/scsi/fcoe/fcoe.c
+@@ -1443,7 +1443,7 @@ int fcoe_xmit(struct fc_lport *lport, struct fc_frame *fp)
+ 		return 0;
+ 	}
+ 
+-	if (unlikely(fh->fh_r_ctl == FC_RCTL_ELS_REQ) &&
++	if (unlikely(fh->fh_type == FC_TYPE_ELS) &&
+ 	    fcoe_ctlr_els_send(&fcoe->ctlr, lport, skb))
+ 		return 0;
+ 

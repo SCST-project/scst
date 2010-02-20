@@ -1,0 +1,30 @@
+libfc: recognize incoming FLOGI for point-to-point mode
+
+When receiving a FLOGI request from a point-to-point peer,
+the D_ID of 0xfffffe was not recognized as belonging to one
+of the lports, so it was dropped.
+
+Change fc_vport_id_lookup() to treat d_id 0xfffffe as a match.
+
+Signed-off-by: Joe Eykholt <jeykholt@cisco.com>
+
+---
+ drivers/scsi/libfc/fc_npiv.c |    3 +++
+ 1 files changed, 3 insertions(+), 0 deletions(-)
+
+
+---
+diff --git a/drivers/scsi/libfc/fc_npiv.c b/drivers/scsi/libfc/fc_npiv.c
+index c68f6c7..45b6f1e 100644
+--- a/drivers/scsi/libfc/fc_npiv.c
++++ b/drivers/scsi/libfc/fc_npiv.c
+@@ -72,6 +72,9 @@ struct fc_lport *fc_vport_id_lookup(struct fc_lport *n_port, u32 port_id)
+ 	if (fc_host_port_id(n_port->host) == port_id)
+ 		return n_port;
+ 
++	if (port_id == FC_FID_FLOGI)
++		return n_port;		/* for point-to-point */
++
+ 	mutex_lock(&n_port->lp_mutex);
+ 	list_for_each_entry(vn_port, &n_port->vports, list) {
+ 		if (fc_host_port_id(vn_port->host) == port_id) {

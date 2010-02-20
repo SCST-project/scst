@@ -1,0 +1,31 @@
+libfc: fix sequence-initiative WARN in fc_seq_start_next
+
+The target code was getting a warning that sequence initiative
+wasn't held when starting the response sequence after sending
+the data sequence.
+
+The bug was that sequence initiative was cleared due to the
+END_SEQ flag being on.  The intent may have been to check LAST_SEQ.
+Change just to check SEQ_INIT.
+
+Signed-off-by: Joe Eykholt <jeykholt@cisco.com>
+
+---
+ drivers/scsi/libfc/fc_exch.c |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+
+---
+diff --git a/drivers/scsi/libfc/fc_exch.c b/drivers/scsi/libfc/fc_exch.c
+index 7f43647..1ad1ded 100644
+--- a/drivers/scsi/libfc/fc_exch.c
++++ b/drivers/scsi/libfc/fc_exch.c
+@@ -488,7 +488,7 @@ static int fc_seq_send(struct fc_lport *lport, struct fc_seq *sp,
+ 	 */
+ 	spin_lock_bh(&ep->ex_lock);
+ 	ep->f_ctl = f_ctl & ~FC_FC_FIRST_SEQ;	/* not first seq */
+-	if (f_ctl & (FC_FC_END_SEQ | FC_FC_SEQ_INIT))
++	if (f_ctl & FC_FC_SEQ_INIT)
+ 		ep->esb_stat &= ~ESB_ST_SEQ_INIT;
+ 	spin_unlock_bh(&ep->ex_lock);
+ 	return error;

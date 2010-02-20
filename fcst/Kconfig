@@ -1,0 +1,5 @@
+config FCST
+	tristate "SCST target module for Fibre Channel using libfc"
+	depends on LIBFC && SCST
+	---help---
+	  Supports using libfc HBAs as target adapters with SCST
