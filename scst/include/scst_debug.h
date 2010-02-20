@@ -21,7 +21,11 @@
 #ifndef __SCST_DEBUG_H
 #define __SCST_DEBUG_H
 
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 32)
 #include <linux/autoconf.h>	/* for CONFIG_* */
+#else
+#include <generated/autoconf.h>	/* for CONFIG_* */
+#endif
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 19)
 #include <linux/bug.h>		/* for WARN_ON_ONCE */

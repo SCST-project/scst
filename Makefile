@@ -31,6 +31,7 @@ USR_DIR=usr/fileio
 SRP_DIR=srpt
 SCST_LOCAL_DIR=scst_local
 MVSAS_DIR=mvsas_tgt
+FCST_DIR=fcst
 
 ISCSI_DIR=iscsi-scst
 #ISCSI_DESTDIR=../../../iscsi_scst_inst
@@ -303,6 +304,22 @@ mvsas_clean:
 mvsas_extraclean:
 	cd $(MVSAS_DIR) && $(MAKE) extraclean
 
+fcst:
+	cd $(FCST_DIR) && $(MAKE) all
+
+fcst_install:
+	cd $(FCST_DIR) && $(MAKE) install
+
+fcst_uninstall:
+	cd $(FCST_DIR) && $(MAKE) uninstall
+
+fcst_clean:
+	cd $(FCST_DIR) && $(MAKE) clean
+
+fcst_extraclean:
+	cd $(FCST_DIR) && $(MAKE) extraclean
+
+
 debug2perf:
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
@@ -372,5 +389,6 @@ disable_proc:
 	usr usr_install usr_uninstall usr_clean usr_extraclean \
 	scst_local scst_local_install scst_local_uninstall scst_local_clean scst_local_extraclean \
 	mvsas mvsas_install mvsas_uninstall mvsas_clean mvsas_extraclean \
+	fcst fcst_install fcst_uninstall fcst_clean fcst_extraclean \
 	debug2perf, debug2release, perf2debug, release2debug \
 	enable_proc disable_proc

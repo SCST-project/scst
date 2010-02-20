@@ -4,8 +4,10 @@
 #if defined(MODULE) && !defined(__GENKSYMS__)
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19))
 #include <linux/config.h>
-#else
+#elif LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 32)
 #include <linux/autoconf.h>
+#else
+#include <generated/autoconf.h>
 #endif
 #include <linux/module.h>
 #endif

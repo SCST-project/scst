@@ -79,13 +79,17 @@
 #define UNUSED_PARAMETER(x) (void) x
 #endif
 
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 32)
 #include <linux/autoconf.h>
+#else
+#include <generated/autoconf.h>
+#endif
+
 #ifdef  CONFIG_SMP
 #define __SMP__ 1
 #endif
 
 #include <linux/module.h>
-#include <linux/autoconf.h>
 #include <linux/init.h>
 #include <linux/types.h>
 #include <linux/blkdev.h>
