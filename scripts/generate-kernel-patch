@@ -333,6 +333,35 @@ done
 | process_patch "scst_passthrough.diff"
 
 
+# Directory drivers/scst/fcst/
+
+{
+  add_file "fcst/Makefile_in-tree" \
+           "drivers/scst/fcst/Makefile"
+  
+  add_file "fcst/Kconfig" "drivers/scst/fcst/Kconfig"
+  
+  for f in $(ls fcst/*.[ch] 2>/dev/null)
+  do
+    add_file "${f}" "drivers/scst/fcst/${f#fcst/}"
+  done
+} \
+| process_patch "fcst.diff"
+
+{
+  if [ "${kernel_version}" = 2.6.33 ]; then
+    for f in $(ls fcst/linux-patches/* 2>/dev/null)
+    do
+      cat "${f}"
+    done
+  fi
+} \
+| process_patch "fcst-in-tree.diff"
+
+add_file "fcst/README" "Documentation/scst/README.fcst" \
+| process_patch "fcst-doc.diff"
+
+
 # Directory drivers/scst/iscsi-scst/
 
 # Make sure the file iscsi-scst/iscsi_scst_itf_ver.h is up to date.
