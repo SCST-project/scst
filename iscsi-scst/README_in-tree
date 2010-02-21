@@ -45,7 +45,7 @@ is /sys/kernel/scst_tgt/targets/iscsi. It has the following entries:
 
  - None, one or more subdirectories for targets with name equal to names
    of the corresponding targets.
- 
+
  - IncomingUser[num] - optional one or more attributes containing user
    name and password for incoming discovery user name. Not exist by
    default and can be added through "mgmt" entry, see below.
@@ -86,12 +86,12 @@ Each target subdirectory contains the following entries:
  - ini_group - subdirectory defining initiator groups for this target,
    used to define per-initiator access control. See SCST core README for
    more details.
- 
+
  - luns - subdirectory defining LUNs of this target. See SCST core
    README for more details.
- 
+
  - sessions - subdirectory containing connected to this target sessions.
- 
+
  - IncomingUser[num] - optional one or more attributes containing user
    name and password for incoming user name. Not exist by default and can
    be added through the "mgmt" entry, see above.
@@ -121,31 +121,31 @@ Each session subdirectory contains the following entries:
  - One subdirectory for each TCP connection in this session. ISCSI-SCST
    supports 1 connection per session, but the session subdirectory can
    contain several connections: one active and other being closed.
-   
+
  - Entries defining negotiated iSCSI parameters.
 
  - initiator_name - contains initiator name
- 
+
  - sid - contains SID of this session
- 
+
  - reinstating - contains reinstatement state of this session
- 
+
  - force_close - write-only attribute, which allows to force close this
    session. This is the only writable session attribute.
-   
+
  - active_commands - contains number of active, i.e. not yet or being
    executed, SCSI commands in this session.
-   
+
  - commands - contains overall number of SCSI commands in this session.
 
 Each connection subdirectory contains the following entries:
 
  - cid - contains CID of this connection.
- 
+
  - ip - contains IP address of the connected initiator.
- 
+
  - state - contains processing state of this connection.
- 
+
 Below is a sample script, which configures 1 virtual disk "disk1" using
 /disk1 image and one target iqn.2006-10.net.vlnb:tgt with all default
 parameters:

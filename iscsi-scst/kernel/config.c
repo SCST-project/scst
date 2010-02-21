@@ -406,7 +406,7 @@ static int add_session(void __user *ptr)
 
 	info->initiator_name[sizeof(info->initiator_name)-1] = '\0';
 #ifdef CONFIG_SCST_PROC
-	info->user_name[sizeof(info->user_name)-1] = '\0'; 
+	info->user_name[sizeof(info->user_name)-1] = '\0';
 #endif
 
 	target = target_lookup_by_id(info->tid);
@@ -451,7 +451,7 @@ static int del_session(void __user *ptr)
 
 	info->initiator_name[sizeof(info->initiator_name)-1] = '\0';
 #ifdef CONFIG_SCST_PROC
-	info->user_name[sizeof(info->user_name)-1] = '\0'; 
+	info->user_name[sizeof(info->user_name)-1] = '\0';
 #endif
 
 	target = target_lookup_by_id(info->tid);

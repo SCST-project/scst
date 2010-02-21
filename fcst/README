@@ -58,17 +58,17 @@ To build for linux-2.6.33-rc8, do:
     over a full-duplex loss-less link (enable pause on both sides),
     or a link to an FCoE switch.
 
-10. Use fcc (part of the open-fcoe debug tools in step 7) to see the 
-    initiator setup.  To get the FCoE port name for eth3 
+10. Use fcc (part of the open-fcoe debug tools in step 7) to see the
+    initiator setup.  To get the FCoE port name for eth3
 
 	# fcc
 	FC HBAs:
-	HBA       Port Name                Port ID   State     Device         
-	host4     20:00:00:1b:21:06:58:21  01:01:02  Online    eth3           
+	HBA       Port Name                Port ID   State     Device
+	host4     20:00:00:1b:21:06:58:21  01:01:02  Online    eth3
 
 	host4 Remote Ports:
-	Path      Port Name                Port ID   State     Roles          
-	4:0-0     10:00:50:41:4c:4f:3b:00  01:01:01  Online    FCP Initiator  
+	Path      Port Name                Port ID   State     Roles
+	4:0-0     10:00:50:41:4c:4f:3b:00  01:01:01  Online    FCP Initiator
 
     In the above example, there's one local host on eth3, and it's in
     a point-to-point connection with the remote initiator with Port_id 010101.
@@ -88,7 +88,7 @@ To build for linux-2.6.33-rc8, do:
 12.  Add any disks you want to the LUNs in that init group.
 
 	echo add disk-name 0 > $GDIR/luns/mgmt
-	
+
 13.  Enable the initiator:
 
 	echo 1 > $LPORT/enabled

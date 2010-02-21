@@ -453,7 +453,7 @@ struct iscsi_cmnd {
 
 #define ISCSI_CTR_OPEN_STATE_CLOSED	0
 #define ISCSI_CTR_OPEN_STATE_OPEN	1
-#define ISCSI_CTR_OPEN_STATE_CLOSING	2	
+#define ISCSI_CTR_OPEN_STATE_CLOSING	2
 
 extern struct mutex target_mgmt_mutex;
 
