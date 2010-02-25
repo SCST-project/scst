@@ -88,8 +88,15 @@ static void req_del_from_write_timeout_list(struct iscsi_cmnd *req)
 		req, conn);
 
 	spin_lock_bh(&conn->write_list_lock);
+
+	/* Recheck, since it can be changed behind us */
+	if (unlikely(!req->on_write_timeout_list))
+		goto out_unlock;
+
 	list_del(&req->write_timeout_list_entry);
 	req->on_write_timeout_list = 0;
+
+out_unlock:
 	spin_unlock_bh(&conn->write_list_lock);
 
 out:
@@ -150,8 +157,6 @@ void iscsi_restart_cmnd(struct iscsi_cmnd *cmnd)
 
 	EXTRACHECKS_BUG_ON(cmnd->r2t_len_to_receive != 0);
 	EXTRACHECKS_BUG_ON(cmnd->r2t_len_to_send != 0);
-
-	iscsi_extracheck_is_rd_thread(cmnd->conn);
 
 	req_del_from_write_timeout_list(cmnd);
 

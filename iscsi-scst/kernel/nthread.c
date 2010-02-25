@@ -1155,8 +1155,15 @@ void req_add_to_write_timeout_list(struct iscsi_cmnd *req)
 
 	spin_lock_bh(&conn->write_list_lock);
 
+	/* Recheck, since it can be changed behind us */
+	if (unlikely(req->on_write_timeout_list)) {
+		spin_unlock_bh(&conn->write_list_lock);
+		goto out;
+	}
+
 	req->on_write_timeout_list = 1;
 	req->write_start = jiffies;
+
 	list_add_tail(&req->write_timeout_list_entry,
 		&conn->write_timeout_list);
 

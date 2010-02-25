@@ -449,8 +449,10 @@ struct scst_tgt *scst_register(struct scst_tgt_template *vtt,
 	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
 
-	PRINT_INFO("Target %s (%p) for template %s registered successfully",
-		target_name, tgt, vtt->name);
+	PRINT_INFO("Target %s for template %s registered successfully",
+		tgt->tgt_name, vtt->name);
+
+	TRACE_DBG("tgt %p", tgt);
 
 out:
 	TRACE_EXIT();
@@ -484,7 +486,8 @@ out_free_tgt_err:
 
 out_err:
 	PRINT_ERROR("Failed to register target %s for template %s (error %d)",
-		target_name, vtt->name, rc);
+		(tgt->tgt_name != NULL) ? tgt->tgt_name : target_name,
+		vtt->name, rc);
 	goto out;
 }
 EXPORT_SYMBOL(scst_register);
@@ -553,10 +556,12 @@ again:
 
 	del_timer_sync(&tgt->retry_timer);
 
+	PRINT_INFO("Target %s for template %s unregistered successfully",
+		tgt->tgt_name, vtt->name);
+
 	scst_tgt_sysfs_put(tgt); /* must not be called under scst_mutex */
 
-	PRINT_INFO("Target %p for template %s unregistered successfully",
-		tgt, vtt->name);
+	TRACE_DBG("Unregistering tgt %p finished", tgt);
 
 	TRACE_EXIT();
 	return;

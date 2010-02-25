@@ -189,6 +189,7 @@ struct iscsi_conn {
 	/* List of data pdus being sent, protected by write_list_lock */
 	struct list_head write_timeout_list;
 
+	/* Protected by write_list_lock */
 	struct timer_list rsp_timer;
 
 	/* All 2 protected by iscsi_wr_lock */
@@ -319,7 +320,7 @@ struct iscsi_cmnd {
 	struct iscsi_conn *conn;
 
 	/*
-	 * Some flags protected by conn->write_list_lock, but all modified only
+	 * Some flags used under conn->write_list_lock, but all modified only
 	 * from single read thread or when there are no references to cmd.
 	 */
 	unsigned int hashed:1;
@@ -378,7 +379,7 @@ struct iscsi_cmnd {
 		struct list_head write_timeout_list_entry;
 	};
 
-	/* Both modified only from single write thread */
+	/* Both protected by conn->write_list_lock */
 	unsigned int on_write_timeout_list:1;
 	unsigned long write_start;
 

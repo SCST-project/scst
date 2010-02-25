@@ -442,6 +442,7 @@ out:
 	return;
 }
 
+/* Must be called from rd thread only */
 void iscsi_check_tm_data_wait_timeouts(struct iscsi_conn *conn, bool force)
 {
 	struct iscsi_cmnd *cmnd;
@@ -454,6 +455,8 @@ void iscsi_check_tm_data_wait_timeouts(struct iscsi_conn *conn, bool force)
 	TRACE_DBG_FLAG(force ? TRACE_CONN_OC_DBG : TRACE_MGMT_DEBUG,
 		"j %ld (TIMEOUT %d, force %d)", j,
 		ISCSI_TM_DATA_WAIT_SCHED_TIMEOUT, force);
+
+	iscsi_extracheck_is_rd_thread(conn);
 
 again:
 	spin_lock_bh(&iscsi_rd_lock);
