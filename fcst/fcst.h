@@ -24,6 +24,8 @@
 #define FT_VERSION	"0.3"
 #define FT_MODULE	"fcst"
 
+#define FT_MAX_HW_PENDING_TIME	20	/* max I/O time in seconds */
+
 /*
  * Debug options.
  */
