@@ -1,0 +1,104 @@
+#!/sbin/runscript
+#
+# Copyright (C) 2008 Mark Buechler <mark.buechler@gmail.com>
+# Copyright (C) 2009 Bart Van Assche <bart.vanassche@gmail.com>
+# Copyright (C) 2010 Scott Bowe <scottb@sentania.net>
+# This software is made available under the GPLv2 license.
+#
+# System startup script for the QLogic 22xx/23xx card target driver.
+#
+# Customized for Gentoo Linux by Scott Bowe
+#
+# Note: on most Linux distributions /bin/sh is a soft link to /bin/bash, while
+# on a default Ubuntu setup /bin/sh is a soft link to /bin/dash !
+#
+
+opts="${opts} try-restart "
+depend() {
+	use logger localmount
+	before scst
+}
+PATH=/bin:/usr/bin:/sbin:/usr/sbin:/usr/local/sbin:/usr/local/bin
+
+# Modules to load/unload.
+KERNEL_MODULES="qla2x00tgt"
+MODPROBE="/sbin/modprobe"
+RMMOD="/sbin/rmmod"
+
+# Return values according to LSB for all commands but status:
+# 0 - success
+# 1 - generic or unspecified error
+# 2 - invalid or excess argument(s)
+# 3 - unimplemented feature (e.g. "reload")
+# 4 - insufficient privilege
+# 5 - program is not installed
+# 6 - program is not configured
+# 7 - program is not running
+#
+start(){
+    ## Start the service.
+        ebegin "Loading and configuring the QLogic target driver"
+	eindent
+        ret=0
+	for module in ${KERNEL_MODULES}; do
+		einfo "Loading ${module}"
+		if ! modprobe "${module}"; then
+			ret=5
+			eend $ret "Failed to load target driver"
+			return $ret
+		fi
+        done
+        einfo "Qlogic target driver loaded!!!"
+        eend $?
+        return $?
+}
+
+stop() {
+        ## Stop the service.
+        ebegin "Stopping the QLogic target driver"
+	eindent
+        reverse_list=""
+        for module in ${KERNEL_MODULES}; do
+            reverse_list="${module} ${reverse_list}"
+        done
+        for module in ${reverse_list}; do
+        	einfo "Unloading module"
+		if [ -e "/sys/module/${module}" ] && ! rmmod "${module}"; then
+			$eend $? "Failed to unload the target driver"
+        	        return $?
+	        fi
+        done
+        einfo "Qlogic target driver unloaded!!!"
+	eend $?
+	return $?
+}
+
+restart() {
+        ## Stop and restart the service if the service is already running,
+        ## otherwise start the service.
+	stop
+        start
+}
+
+try-restart() {
+        ## Restart the service if the service is already running.
+        status >/dev/null 2>&1 && restart
+}
+
+status() {
+	einfo "Qlogic target status: "
+	eindent
+
+        for module in ${SCST_MODULES}; do
+		if [ ! -e "/sys/module/${module}" ]; then
+               		einfo "${module} not loaded"
+			ret=3
+			eend $ret
+			return $ret
+		fi
+        done
+        ret=0
+        ebegin "Qlogic target loaded OK"
+        eend $ret
+        return $ret
+}

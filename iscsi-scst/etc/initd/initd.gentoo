@@ -1,7 +1,11 @@
 #!/sbin/runscript
 #
-# Start the iSCSI-SCST Target.
+# System startup script for the SCST iSCSI functionality.
 #
+# Customized for gentoo linux by Scott Bowe.
+#
+# Note: on most Linux distributions /bin/sh is a soft link to /bin/bash, while
+# on a default Ubuntu setup /bin/sh is a soft link to /bin/dash !
 
 PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin
 MEM_SIZE=1048576
@@ -9,6 +13,7 @@ MEM_SIZE=1048576
 depend()
 {
         use net
+        need scst
 }
 
 configure_memsize()
