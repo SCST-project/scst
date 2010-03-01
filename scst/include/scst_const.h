@@ -355,4 +355,7 @@ enum scst_cdb_flags {
 
 #define SCST_SYSFS_KEY_MARK	"[key]"
 
+#define SCST_MIN_REL_TGT_ID			1
+#define SCST_MAX_REL_TGT_ID			65535
+
 #endif /* __SCST_CONST_H */

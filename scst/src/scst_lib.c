@@ -1881,32 +1881,96 @@ restart:
 	return;
 }
 
-struct scst_tgt *scst_alloc_tgt(struct scst_tgt_template *tgtt)
+bool scst_is_relative_target_port_id_unique(uint16_t id, struct scst_tgt *t)
 {
-	struct scst_tgt *tgt;
+	bool res = true;
+	struct scst_tgt_template *tgtt;
 
 	TRACE_ENTRY();
 
-	tgt = kzalloc(sizeof(*tgt), GFP_KERNEL);
-	if (tgt == NULL) {
+	mutex_lock(&scst_mutex);
+	list_for_each_entry(tgtt, &scst_template_list,
+				scst_template_list_entry) {
+		struct scst_tgt *tgt;
+		list_for_each_entry(tgt, &tgtt->tgt_list, tgt_list_entry) {
+			if (tgt == t)
+				continue;
+			if (id == tgt->rel_tgt_id) {
+				res = false;
+				break;
+			}
+		}
+	}
+	mutex_unlock(&scst_mutex);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+int gen_relative_target_port_id(uint16_t *id)
+{
+	int res = -EOVERFLOW;
+	static unsigned long rti = SCST_MIN_REL_TGT_ID, rti_prev;
+
+	TRACE_ENTRY();
+
+	rti_prev = rti;
+	do {
+		if (scst_is_relative_target_port_id_unique(rti, NULL)) {
+			*id = (uint16_t)rti++;
+			res = 0;
+			goto out;
+		}
+		rti++;
+		if (rti > SCST_MAX_REL_TGT_ID)
+			rti = SCST_MIN_REL_TGT_ID;
+	} while (rti != rti_prev);
+
+	PRINT_ERROR("%s", "Unable to create unique relative target port id");
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+int scst_alloc_tgt(struct scst_tgt_template *tgtt, struct scst_tgt **tgt)
+{
+	struct scst_tgt *t;
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	t = kzalloc(sizeof(*t), GFP_KERNEL);
+	if (t == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of tgt failed");
+		res = -ENOMEM;
 		goto out;
 	}
 
-	INIT_LIST_HEAD(&tgt->sess_list);
-	init_waitqueue_head(&tgt->unreg_waitQ);
-	tgt->tgtt = tgtt;
-	tgt->sg_tablesize = tgtt->sg_tablesize;
-	spin_lock_init(&tgt->tgt_lock);
-	INIT_LIST_HEAD(&tgt->retry_cmd_list);
-	atomic_set(&tgt->finished_cmds, 0);
-	init_timer(&tgt->retry_timer);
-	tgt->retry_timer.data = (unsigned long)tgt;
-	tgt->retry_timer.function = scst_tgt_retry_timer_fn;
+	INIT_LIST_HEAD(&t->sess_list);
+	init_waitqueue_head(&t->unreg_waitQ);
+	t->tgtt = tgtt;
+	t->sg_tablesize = tgtt->sg_tablesize;
+	spin_lock_init(&t->tgt_lock);
+	INIT_LIST_HEAD(&t->retry_cmd_list);
+	atomic_set(&t->finished_cmds, 0);
+	init_timer(&t->retry_timer);
+	t->retry_timer.data = (unsigned long)t;
+	t->retry_timer.function = scst_tgt_retry_timer_fn;
+
+#ifdef CONFIG_SCST_PROC
+	res = gen_relative_target_port_id(&t->rel_tgt_id);
+	if (res != 0) {
+		scst_free_tgt(t);
+		goto out;
+	}
+#endif
+
+	*tgt = t;
 
 out:
-	TRACE_EXIT_HRES((unsigned long)tgt);
-	return tgt;
+	TRACE_EXIT_HRES(res);
+	return res;
 }
 
 void scst_free_tgt(struct scst_tgt *tgt)

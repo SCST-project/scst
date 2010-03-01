@@ -296,7 +296,7 @@ int scst_queue_retry_cmd(struct scst_cmd *cmd, int finished_cmds);
 static inline void scst_tgtt_cleanup(struct scst_tgt_template *tgtt) { }
 static inline void scst_devt_cleanup(struct scst_dev_type *devt) { }
 
-struct scst_tgt *scst_alloc_tgt(struct scst_tgt_template *tgtt);
+int scst_alloc_tgt(struct scst_tgt_template *tgtt, struct scst_tgt **tgt);
 void scst_free_tgt(struct scst_tgt *tgt);
 
 int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev);
@@ -734,6 +734,9 @@ static inline int scst_sn_before(__u32 seq1, __u32 seq2)
 {
 	return (__s32)(seq1-seq2) < 0;
 }
+
+bool scst_is_relative_target_port_id_unique(uint16_t id, struct scst_tgt *t);
+int gen_relative_target_port_id(uint16_t *id);
 
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 

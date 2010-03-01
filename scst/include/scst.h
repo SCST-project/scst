@@ -1180,8 +1180,10 @@ struct scst_tgt {
 	/* Name of the target */
 	char *tgt_name;
 
+	uint16_t rel_tgt_id;
+
 #ifdef CONFIG_SCST_PROC
-	/* Name on the default security group ("Default_target_name") */
+	/* Name of the default security group ("Default_target_name") */
 	char *default_group_name;
 #endif
 

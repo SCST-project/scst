@@ -361,11 +361,9 @@ struct scst_tgt *scst_register(struct scst_tgt_template *vtt,
 
 	TRACE_ENTRY();
 
-	tgt = scst_alloc_tgt(vtt);
-	if (tgt == NULL) {
-		rc = -ENOMEM;
+	rc = scst_alloc_tgt(vtt, &tgt);
+	if (rc != 0)
 		goto out_err;
-	}
 
 	rc = scst_suspend_activity(true);
 	if (rc != 0)
@@ -449,8 +447,13 @@ struct scst_tgt *scst_register(struct scst_tgt_template *vtt,
 	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
 
+#ifdef CONFIG_SCST_PROC
+	PRINT_INFO("Target %s (rel ID %d) for template %s registered successfully",
+		tgt->tgt_name, tgt->rel_tgt_id, vtt->name);
+#else
 	PRINT_INFO("Target %s for template %s registered successfully",
 		tgt->tgt_name, vtt->name);
+#endif
 
 	TRACE_DBG("tgt %p", tgt);
 
