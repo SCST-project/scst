@@ -220,9 +220,9 @@ int ft_send_response(struct scst_cmd *cmd)
 	lport = ep->lp;
 
 	if (scst_cmd_aborted(cmd)) {
+		FT_IO_DBG("cmd aborted did %x oxid %x\n", ep->did, ep->oxid);
 		scst_set_delivery_status(cmd, SCST_CMD_DELIVERY_ABORTED);
-		lport->tt.exch_done(fcmd->seq);
-		return SCST_TGT_RES_SUCCESS;
+		goto done;
 	}
 
 	if (!scst_cmd_get_is_send_status(cmd)) {
@@ -299,6 +299,7 @@ int ft_send_response(struct scst_cmd *cmd)
 		       FC_FC_EX_CTX | FC_FC_LAST_SEQ | FC_FC_END_SEQ, 0);
 
 	lport->tt.seq_send(lport, fcmd->seq, fp);
+done:
 	lport->tt.exch_done(fcmd->seq);
 	scst_tgt_cmd_done(cmd, SCST_CONTEXT_SAME);
 	return SCST_TGT_RES_SUCCESS;
