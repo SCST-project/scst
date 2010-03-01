@@ -1329,7 +1329,7 @@ static int sgv_pool_init(struct sgv_pool *pool, const char *name,
 		pool->purge_interval = SGV_DEFAULT_PURGE_INTERVAL;
 	if (single_alloc_pages == 0) {
 		pool->max_caches = SGV_POOL_ELEMENTS;
-		pool->max_cached_pages = 1 << SGV_POOL_ELEMENTS;
+		pool->max_cached_pages = 1 << (SGV_POOL_ELEMENTS - 1);
 	} else {
 		pool->max_caches = 1;
 		pool->max_cached_pages = single_alloc_pages;
