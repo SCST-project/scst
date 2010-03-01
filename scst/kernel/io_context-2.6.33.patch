@@ -1,0 +1,57 @@
+diff -upkr linux-2.6.33/block/blk-ioc.c linux-2.6.33/block/blk-ioc.c
+--- linux-2.6.33/block/blk-ioc.c	2010-02-24 21:52:17.000000000 +0300
++++ linux-2.6.33/block/blk-ioc.c	2010-03-01 15:39:49.000000000 +0300
+@@ -63,6 +63,19 @@ static void cfq_exit(struct io_context *
+ 	rcu_read_unlock();
+ }
+ 
++void __exit_io_context(struct io_context *ioc)
++{
++	if (ioc == NULL)
++		return;
++
++	if (atomic_dec_and_test(&ioc->nr_tasks)) {
++		cfq_exit(ioc);
++
++	}
++	put_io_context(ioc);
++}
++EXPORT_SYMBOL(__exit_io_context);
++
+ /* Called by the exitting task */
+ void exit_io_context(struct task_struct *task)
+ {
+@@ -73,11 +86,7 @@ void exit_io_context(struct task_struct 
+ 	task->io_context = NULL;
+ 	task_unlock(task);
+ 
+-	if (atomic_dec_and_test(&ioc->nr_tasks)) {
+-		cfq_exit(ioc);
+-
+-	}
+-	put_io_context(ioc);
++	__exit_io_context(ioc);
+ }
+ 
+ struct io_context *alloc_io_context(gfp_t gfp_flags, int node)
+@@ -100,6 +109,7 @@ struct io_context *alloc_io_context(gfp_
+ 
+ 	return ret;
+ }
++EXPORT_SYMBOL(alloc_io_context);
+ 
+ /*
+  * If the current task has no IO context then create one and initialise it.
+diff -upkr linux-2.6.33/include/linux/iocontext.h linux-2.6.33/include/linux/iocontext.h
+--- linux-2.6.33/include/linux/iocontext.h	2010-02-24 21:52:17.000000000 +0300
++++ linux-2.6.33/include/linux/iocontext.h	2010-03-01 15:38:54.000000000 +0300
+@@ -76,7 +76,9 @@ struct task_struct;
+ int put_io_context(struct io_context *ioc);
+ void exit_io_context(struct task_struct *task);
+ struct io_context *get_io_context(gfp_t gfp_flags, int node);
++#define SCST_IO_CONTEXT
+ struct io_context *alloc_io_context(gfp_t gfp_flags, int node);
++void __exit_io_context(struct io_context *ioc);
+ void copy_io_context(struct io_context **pdst, struct io_context **psrc);
+ #else
+ static inline void exit_io_context(struct task_struct *task)

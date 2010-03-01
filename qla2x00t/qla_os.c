@@ -127,7 +127,12 @@ static int qla2xxx_eh_target_reset(struct scsi_cmnd *);
 static int qla2xxx_eh_bus_reset(struct scsi_cmnd *);
 static int qla2xxx_eh_host_reset(struct scsi_cmnd *);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
 static int qla2x00_change_queue_depth(struct scsi_device *, int);
+#else
+static int qla2x00_change_queue_depth(struct scsi_device *sdev, int qdepth,
+		int reason);
+#endif
 static int qla2x00_change_queue_type(struct scsi_device *, int);
 
 static struct scsi_host_template qla2x00_driver_template = {
@@ -1149,12 +1154,69 @@ qla2xxx_slave_destroy(struct scsi_device *sdev)
 	sdev->hostdata = NULL;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
+
 static int
 qla2x00_change_queue_depth(struct scsi_device *sdev, int qdepth)
 {
 	scsi_adjust_queue_depth(sdev, scsi_get_tag_type(sdev), qdepth);
 	return sdev->queue_depth;
 }
+
+#else /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) */
+
+static void qla2x00_handle_queue_full(struct scsi_device *sdev, int qdepth)
+{
+	scsi_qla_host_t *ha = shost_priv(sdev->host);
+
+	if (!scsi_track_queue_full(sdev, qdepth))
+		return;
+
+	DEBUG2(qla_printk(KERN_INFO, ha,
+		"scsi(%ld:%d:%d:%d): Queue depth adjusted-down to %d.\n",
+		ha->host_no, sdev->channel, sdev->id, sdev->lun,
+		sdev->queue_depth));
+}
+
+static void qla2x00_adjust_sdev_qdepth_up(struct scsi_device *sdev, int qdepth)
+{
+	scsi_qla_host_t *ha = shost_priv(sdev->host);
+
+	if (ha->max_q_depth <= sdev->queue_depth || ha->max_q_depth < qdepth)
+		return;
+
+	if (sdev->ordered_tags)
+		scsi_adjust_queue_depth(sdev, MSG_ORDERED_TAG, qdepth);
+	else
+		scsi_adjust_queue_depth(sdev, MSG_SIMPLE_TAG, qdepth);
+
+	DEBUG2(qla_printk(KERN_INFO, ha,
+	       "scsi(%ld:%d:%d:%d): Queue depth adjusted-up to %d.\n",
+	       ha->host_no, sdev->channel, sdev->id, sdev->lun,
+	       sdev->queue_depth));
+}
+
+static int
+qla2x00_change_queue_depth(struct scsi_device *sdev, int qdepth, int reason)
+{
+	switch (reason) {
+	case SCSI_QDEPTH_DEFAULT:
+		scsi_adjust_queue_depth(sdev, scsi_get_tag_type(sdev), qdepth);
+		break;
+	case SCSI_QDEPTH_QFULL:
+		qla2x00_handle_queue_full(sdev, qdepth);
+		break;
+	case SCSI_QDEPTH_RAMP_UP:
+		qla2x00_adjust_sdev_qdepth_up(sdev, qdepth);
+		break;
+	default:
+		return EOPNOTSUPP;
+	}
+
+	return sdev->queue_depth;
+}
+
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) */
 
 static int
 qla2x00_change_queue_type(struct scsi_device *sdev, int tag_type)

@@ -88,7 +88,11 @@ void conn_info_show(struct seq_file *seq, struct iscsi_session *session)
 		switch (sk->sk_family) {
 		case AF_INET:
 			snprintf(buf, sizeof(buf),
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,33)
 				 "%u.%u.%u.%u", NIPQUAD(inet_sk(sk)->daddr));
+#else
+				 "%u.%u.%u.%u", NIPQUAD(inet_sk(sk)->inet_daddr));
+#endif
 			break;
 		case AF_INET6:
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,29)
@@ -154,7 +158,11 @@ static ssize_t iscsi_get_initiator_ip(struct iscsi_conn *conn,
 	switch (sk->sk_family) {
 	case AF_INET:
 		pos = scnprintf(buf, size,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,33)
 			 "%u.%u.%u.%u", NIPQUAD(inet_sk(sk)->daddr));
+#else
+			"%u.%u.%u.%u", NIPQUAD(inet_sk(sk)->inet_daddr));
+#endif
 		break;
 	case AF_INET6:
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,29)
