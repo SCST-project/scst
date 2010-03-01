@@ -348,16 +348,6 @@ done
 } \
 | process_patch "fcst.diff"
 
-{
-  if [ "${kernel_version}" = 2.6.33 ]; then
-    for f in $(ls fcst/linux-patches/* 2>/dev/null)
-    do
-      cat "${f}"
-    done
-  fi
-} \
-| process_patch "fcst-in-tree.diff"
-
 add_file "fcst/README" "Documentation/scst/README.fcst" \
 | process_patch "fcst-doc.diff"
 
