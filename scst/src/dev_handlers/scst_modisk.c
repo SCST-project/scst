@@ -229,6 +229,7 @@ static int modisk_attach(struct scst_device *dev)
 		if (!--retries) {
 			PRINT_ERROR("UA not cleared after %d retries",
 				    SCST_DEV_UA_RETRIES);
+			res = -ENODEV;
 			goto out_free_buf;
 		}
 	}
