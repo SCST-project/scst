@@ -152,7 +152,7 @@ module_exit(exit_scst_disk_driver);
  *************************************************************/
 static int disk_attach(struct scst_device *dev)
 {
-	int res = 0;
+	int res, rc;
 	uint8_t cmd[10];
 	const int buffer_size = 512;
 	uint8_t *buffer = NULL;
@@ -193,10 +193,11 @@ static int disk_attach(struct scst_device *dev)
 	retries = SCST_DEV_UA_RETRIES;
 	while (1) {
 		memset(buffer, 0, buffer_size);
+		memset(sense_buffer, 0, sizeof(sense_buffer));
 		data_dir = SCST_DATA_READ;
 
 		TRACE_DBG("%s", "Doing READ_CAPACITY");
-		res = scsi_execute(dev->scsi_dev, cmd, data_dir, buffer,
+		rc = scsi_execute(dev->scsi_dev, cmd, data_dir, buffer,
 				   buffer_size, sense_buffer,
 				   SCST_GENERIC_DISK_REG_TIMEOUT, 3, 0
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,29)
@@ -204,15 +205,12 @@ static int disk_attach(struct scst_device *dev)
 #endif
 				  );
 
-		TRACE_DBG("READ_CAPACITY done: %x", res);
+		TRACE_DBG("READ_CAPACITY done: %x", rc);
 
-		if ((res == 0) ||
+		if ((rc == 0) ||
 		    !scst_analyze_sense(sense_buffer,
-				sizeof(sense_buffer), SCST_SENSE_ALL_VALID,
-				SCST_LOAD_SENSE(scst_sense_medium_changed_UA)) ||
-		    !scst_analyze_sense(sense_buffer, sizeof(sense_buffer),
-				SCST_SENSE_KEY_VALID | SCST_SENSE_ASC_VALID,
-				UNIT_ATTENTION, 0x29, 0))
+				sizeof(sense_buffer), SCST_SENSE_KEY_VALID,
+				UNIT_ATTENTION, 0, 0))
 			break;
 		if (!--retries) {
 			PRINT_ERROR("UA not clear after %d retries",
@@ -221,7 +219,7 @@ static int disk_attach(struct scst_device *dev)
 			goto out_free_buf;
 		}
 	}
-	if (res == 0) {
+	if (rc == 0) {
 		int sector_size = ((buffer[4] << 24) | (buffer[5] << 16) |
 				     (buffer[6] << 8) | (buffer[7] << 0));
 		if (sector_size == 0)
@@ -230,10 +228,11 @@ static int disk_attach(struct scst_device *dev)
 			params->block_shift =
 				scst_calc_block_shift(sector_size);
 	} else {
-		TRACE_BUFFER("Returned sense", sense_buffer,
+		params->block_shift = DISK_DEF_BLOCK_SHIFT;
+		TRACE(TRACE_MINOR, "Read capacity failed: %x, using default "
+			"sector size %d", rc, params->block_shift);
+		PRINT_BUFF_FLAG(TRACE_MINOR, "Returned sense", sense_buffer,
 			sizeof(sense_buffer));
-		res = -ENODEV;
-		goto out_free_buf;
 	}
 
 	res = scst_obtain_device_parameters(dev);

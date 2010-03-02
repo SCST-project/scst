@@ -61,7 +61,7 @@ static struct scst_dev_type raid_devtype = {
  *************************************************************/
 static int raid_attach(struct scst_device *dev)
 {
-	int res = 0;
+	int res, rc;
 	int retries;
 
 	TRACE_ENTRY();
@@ -86,18 +86,19 @@ static int raid_attach(struct scst_device *dev)
 	retries = SCST_DEV_UA_RETRIES;
 	do {
 		TRACE_DBG("%s", "Doing TEST_UNIT_READY");
-		res = scsi_test_unit_ready(dev->scsi_dev,
+		rc = scsi_test_unit_ready(dev->scsi_dev,
 			SCST_GENERIC_RAID_TIMEOUT, RAID_RETRIES
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 					  );
 #else
 					  , NULL);
 #endif
-		TRACE_DBG("TEST_UNIT_READY done: %x", res);
-	} while ((--retries > 0) && res);
-	if (res) {
-		res = -ENODEV;
-		goto out;
+		TRACE_DBG("TEST_UNIT_READY done: %x", rc);
+	} while ((--retries > 0) && rc);
+
+	if (rc) {
+		PRINT_WARNING("Unit not ready: %x", rc);
+		/* Let's try not to be too smart and continue processing */
 	}
 
 	res = scst_obtain_device_parameters(dev);

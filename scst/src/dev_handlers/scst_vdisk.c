@@ -2353,7 +2353,7 @@ static struct iovec *vdisk_alloc_iv(struct scst_cmd *cmd,
 {
 	int iv_count;
 
-	iv_count = scst_get_buf_count(cmd);
+	iv_count = min_t(int, scst_get_buf_count(cmd), UIO_MAXIOV);
 	if (iv_count > thr->iv_count) {
 		kfree(thr->iv);
 		/* It can't be called in atomic context */
@@ -2382,6 +2382,7 @@ static void vdisk_exec_read(struct scst_cmd *cmd,
 	struct file *fd = thr->fd;
 	struct iovec *iv;
 	int iv_count, i;
+	bool finished = false;
 
 	TRACE_ENTRY();
 
@@ -2392,70 +2393,96 @@ static void vdisk_exec_read(struct scst_cmd *cmd,
 	if (iv == NULL)
 		goto out;
 
-	iv_count = 0;
-	full_len = 0;
-	i = -1;
 	length = scst_get_buf_first(cmd, (uint8_t __force **)&address);
-	while (length > 0) {
-		full_len += length;
-		i++;
-		iv_count++;
-		iv[i].iov_base = address;
-		iv[i].iov_len = length;
-		length = scst_get_buf_next(cmd, (uint8_t __force **)&address);
-	}
 	if (unlikely(length < 0)) {
-		PRINT_ERROR("scst_get_buf_() failed: %zd", length);
+		PRINT_ERROR("scst_get_buf_first() failed: %zd", length);
 		scst_set_cmd_error(cmd,
 		    SCST_LOAD_SENSE(scst_sense_hardw_error));
-		goto out_put;
+		goto out;
 	}
 
 	old_fs = get_fs();
 	set_fs(get_ds());
 
-	TRACE_DBG("reading(iv_count %d, full_len %zd)", iv_count, full_len);
-	/* SEEK */
-	if (fd->f_op->llseek)
-		err = fd->f_op->llseek(fd, loff, 0/*SEEK_SET*/);
-	else
-		err = default_llseek(fd, loff, 0/*SEEK_SET*/);
-	if (err != loff) {
-		PRINT_ERROR("lseek trouble %lld != %lld",
-			    (long long unsigned int)err,
-			    (long long unsigned int)loff);
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_hardw_error));
-		goto out_set_fs;
-	}
-
-	/* READ */
-	err = vfs_readv(fd, (struct iovec __force __user *)iv, iv_count,
-			&fd->f_pos);
-
-	if ((err < 0) || (err < full_len)) {
-		PRINT_ERROR("readv() returned %lld from %zd",
-			    (long long unsigned int)err,
-			    full_len);
-		if (err == -EAGAIN)
-			scst_set_busy(cmd);
-		else {
-			scst_set_cmd_error(cmd,
-			    SCST_LOAD_SENSE(scst_sense_read_error));
+	while (1) {
+		iv_count = 0;
+		full_len = 0;
+		i = -1;
+		while (length > 0) {
+			full_len += length;
+			i++;
+			iv_count++;
+			iv[i].iov_base = address;
+			iv[i].iov_len = length;
+			if (iv_count == UIO_MAXIOV)
+				break;
+			length = scst_get_buf_next(cmd,
+				(uint8_t __force **)&address);
 		}
-		goto out_set_fs;
-	}
+		if (length == 0) {
+			finished = true;
+			if (unlikely(iv_count == 0))
+				break;
+		} else if (unlikely(length < 0)) {
+			PRINT_ERROR("scst_get_buf_next() failed: %zd", length);
+			scst_set_cmd_error(cmd,
+			    SCST_LOAD_SENSE(scst_sense_hardw_error));
+			goto out_set_fs;
+		}
 
-out_set_fs:
+		TRACE_DBG("(iv_count %d, full_len %zd)", iv_count, full_len);
+		/* SEEK */
+		if (fd->f_op->llseek)
+			err = fd->f_op->llseek(fd, loff, 0/*SEEK_SET*/);
+		else
+			err = default_llseek(fd, loff, 0/*SEEK_SET*/);
+		if (err != loff) {
+			PRINT_ERROR("lseek trouble %lld != %lld",
+				    (long long unsigned int)err,
+				    (long long unsigned int)loff);
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_hardw_error));
+			goto out_set_fs;
+		}
+
+		/* READ */
+		err = vfs_readv(fd, (struct iovec __force __user *)iv, iv_count,
+				&fd->f_pos);
+
+		if ((err < 0) || (err < full_len)) {
+			PRINT_ERROR("readv() returned %lld from %zd",
+				    (long long unsigned int)err,
+				    full_len);
+			if (err == -EAGAIN)
+				scst_set_busy(cmd);
+			else {
+				scst_set_cmd_error(cmd,
+				    SCST_LOAD_SENSE(scst_sense_read_error));
+			}
+			goto out_set_fs;
+		}
+
+		for (i = 0; i < iv_count; i++)
+			scst_put_buf(cmd, (void __force *)(iv[i].iov_base));
+
+		if (finished)
+			break;
+
+		loff += full_len;
+		length = scst_get_buf_next(cmd, (uint8_t __force **)&address);
+	};
+
 	set_fs(old_fs);
-
-out_put:
-	for (; i >= 0; i--)
-		scst_put_buf(cmd, (void __force *)(iv[i].iov_base));
 
 out:
 	TRACE_EXIT();
 	return;
+
+out_set_fs:
+	set_fs(old_fs);
+	for (i = 0; i < iv_count; i++)
+		scst_put_buf(cmd, (void __force *)(iv[i].iov_base));
+	goto out;
 }
 
 static void vdisk_exec_write(struct scst_cmd *cmd,
@@ -2463,13 +2490,14 @@ static void vdisk_exec_write(struct scst_cmd *cmd,
 {
 	mm_segment_t old_fs;
 	loff_t err;
-	ssize_t length, full_len;
+	ssize_t length, full_len, saved_full_len;
 	uint8_t __user *address;
 	struct scst_vdisk_dev *virt_dev =
 	    (struct scst_vdisk_dev *)cmd->dev->dh_priv;
 	struct file *fd = thr->fd;
 	struct iovec *iv, *eiv;
-	int iv_count, eiv_count;
+	int i, iv_count, eiv_count;
+	bool finished = false;
 
 	TRACE_ENTRY();
 
@@ -2480,102 +2508,128 @@ static void vdisk_exec_write(struct scst_cmd *cmd,
 	if (iv == NULL)
 		goto out;
 
-	iv_count = 0;
-	full_len = 0;
 	length = scst_get_buf_first(cmd, (uint8_t __force **)&address);
-	while (length > 0) {
-		full_len += length;
-		iv[iv_count].iov_base = address;
-		iv[iv_count].iov_len = length;
-		iv_count++;
-		length = scst_get_buf_next(cmd, (uint8_t __force **)&address);
-	}
 	if (unlikely(length < 0)) {
-		PRINT_ERROR("scst_get_buf_() failed: %zd", length);
+		PRINT_ERROR("scst_get_buf_first() failed: %zd", length);
 		scst_set_cmd_error(cmd,
 		    SCST_LOAD_SENSE(scst_sense_hardw_error));
-		goto out_put;
+		goto out;
 	}
 
 	old_fs = get_fs();
 	set_fs(get_ds());
 
-	eiv = iv;
-	eiv_count = iv_count;
-restart:
-	TRACE_DBG("writing(eiv_count %d, full_len %zd)", eiv_count, full_len);
-
-	/* SEEK */
-	if (fd->f_op->llseek)
-		err = fd->f_op->llseek(fd, loff, 0 /*SEEK_SET */);
-	else
-		err = default_llseek(fd, loff, 0 /*SEEK_SET */);
-	if (err != loff) {
-		PRINT_ERROR("lseek trouble %lld != %lld",
-			    (long long unsigned int)err,
-			    (long long unsigned int)loff);
-		scst_set_cmd_error(cmd,
-				   SCST_LOAD_SENSE(scst_sense_hardw_error));
-		goto out_set_fs;
-	}
-
-	/* WRITE */
-	err = vfs_writev(fd, (struct iovec __force __user *)eiv, eiv_count,
-			 &fd->f_pos);
-
-	if (err < 0) {
-		PRINT_ERROR("write() returned %lld from %zd",
-			    (long long unsigned int)err,
-			    full_len);
-		if (err == -EAGAIN)
-			scst_set_busy(cmd);
-		else {
-			scst_set_cmd_error(cmd,
-			    SCST_LOAD_SENSE(scst_sense_write_error));
-		}
-		goto out_set_fs;
-	} else if (err < full_len) {
-		/*
-		 * Probably that's wrong, but sometimes write() returns
-		 * value less, than requested. Let's restart.
-		 */
-		int i, e = eiv_count;
-		TRACE_MGMT_DBG("write() returned %d from %zd "
-			"(iv_count=%d)", (int)err, full_len,
-			eiv_count);
-		if (err == 0) {
-			PRINT_INFO("Suspicious: write() returned 0 from "
-				"%zd (iv_count=%d)", full_len, eiv_count);
-		}
-		full_len -= err;
-		for (i = 0; i < e; i++) {
-			if ((long long)eiv->iov_len < err) {
-				err -= eiv->iov_len;
-				eiv++;
-				eiv_count--;
-			} else {
-				eiv->iov_base =
-					(uint8_t __force __user *)eiv->iov_base +
-					err;
-				eiv->iov_len -= err;
+	while (1) {
+		iv_count = 0;
+		full_len = 0;
+		i = -1;
+		while (length > 0) {
+			full_len += length;
+			i++;
+			iv_count++;
+			iv[i].iov_base = address;
+			iv[i].iov_len = length;
+			if (iv_count == UIO_MAXIOV)
 				break;
-			}
+			length = scst_get_buf_next(cmd,
+				(uint8_t __force **)&address);
 		}
-		goto restart;
+		if (length == 0) {
+			finished = true;
+			if (unlikely(iv_count == 0))
+				break;
+		} else if (unlikely(length < 0)) {
+			PRINT_ERROR("scst_get_buf_next() failed: %zd", length);
+			scst_set_cmd_error(cmd,
+			    SCST_LOAD_SENSE(scst_sense_hardw_error));
+			goto out_set_fs;
+		}
+
+		saved_full_len = full_len;
+		eiv = iv;
+		eiv_count = iv_count;
+restart:
+		TRACE_DBG("writing(eiv_count %d, full_len %zd)", eiv_count, full_len);
+
+		/* SEEK */
+		if (fd->f_op->llseek)
+			err = fd->f_op->llseek(fd, loff, 0 /*SEEK_SET */);
+		else
+			err = default_llseek(fd, loff, 0 /*SEEK_SET */);
+		if (err != loff) {
+			PRINT_ERROR("lseek trouble %lld != %lld",
+				    (long long unsigned int)err,
+				    (long long unsigned int)loff);
+			scst_set_cmd_error(cmd,
+				   SCST_LOAD_SENSE(scst_sense_hardw_error));
+			goto out_set_fs;
+		}
+
+		/* WRITE */
+		err = vfs_writev(fd, (struct iovec __force __user *)eiv, eiv_count,
+				 &fd->f_pos);
+
+		if (err < 0) {
+			PRINT_ERROR("write() returned %lld from %zd",
+				    (long long unsigned int)err,
+				    full_len);
+			if (err == -EAGAIN)
+				scst_set_busy(cmd);
+			else {
+				scst_set_cmd_error(cmd,
+				    SCST_LOAD_SENSE(scst_sense_write_error));
+			}
+			goto out_set_fs;
+		} else if (err < full_len) {
+			/*
+			 * Probably that's wrong, but sometimes write() returns
+			 * value less, than requested. Let's restart.
+			 */
+			int i, e = eiv_count;
+			TRACE_MGMT_DBG("write() returned %d from %zd "
+				"(iv_count=%d)", (int)err, full_len,
+				eiv_count);
+			if (err == 0) {
+				PRINT_INFO("Suspicious: write() returned 0 from "
+					"%zd (iv_count=%d)", full_len, eiv_count);
+			}
+			full_len -= err;
+			for (i = 0; i < e; i++) {
+				if ((long long)eiv->iov_len < err) {
+					err -= eiv->iov_len;
+					eiv++;
+					eiv_count--;
+				} else {
+					eiv->iov_base =
+					    (uint8_t __force __user *)eiv->iov_base + err;
+					eiv->iov_len -= err;
+					break;
+				}
+			}
+			goto restart;
+		}
+
+		for (i = 0; i < iv_count; i++)
+			scst_put_buf(cmd, (void __force *)(iv[i].iov_base));
+
+		if (finished)
+			break;
+
+		loff += saved_full_len;
+		length = scst_get_buf_next(cmd, (uint8_t __force **)&address);
 	}
 
-out_set_fs:
 	set_fs(old_fs);
-
-out_put:
-	while (iv_count > 0) {
-		scst_put_buf(cmd, (void __force *)(iv[iv_count-1].iov_base));
-		iv_count--;
-	}
 
 out:
 	TRACE_EXIT();
 	return;
+
+out_set_fs:
+	set_fs(old_fs);
+	for (i = 0; i < iv_count; i++)
+		scst_put_buf(cmd, (void __force *)(iv[i].iov_base));
+	goto out;
 }
 
 struct scst_blockio_work {

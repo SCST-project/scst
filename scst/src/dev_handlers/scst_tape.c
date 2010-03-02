@@ -157,7 +157,7 @@ module_exit(exit_scst_tape_driver);
  *************************************************************/
 static int tape_attach(struct scst_device *dev)
 {
-	int res = 0;
+	int res, rc;
 	int retries;
 	struct scsi_mode_data data;
 	const int buffer_size = 512;
@@ -181,6 +181,8 @@ static int tape_attach(struct scst_device *dev)
 		goto out;
 	}
 
+	params->block_size = TAPE_DEF_BLOCK_SIZE;
+
 	buffer = kmalloc(buffer_size, GFP_KERNEL);
 	if (!buffer) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Memory allocation failure");
@@ -191,39 +193,40 @@ static int tape_attach(struct scst_device *dev)
 	retries = SCST_DEV_UA_RETRIES;
 	do {
 		TRACE_DBG("%s", "Doing TEST_UNIT_READY");
-		res = scsi_test_unit_ready(dev->scsi_dev,
+		rc = scsi_test_unit_ready(dev->scsi_dev,
 			SCST_GENERIC_TAPE_SMALL_TIMEOUT, TAPE_RETRIES
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 					  );
 #else
 					  , NULL);
 #endif
-		TRACE_DBG("TEST_UNIT_READY done: %x", res);
-	} while ((--retries > 0) && res);
-	if (res) {
-		res = -ENODEV;
-		goto out;
+		TRACE_DBG("TEST_UNIT_READY done: %x", rc);
+	} while ((--retries > 0) && rc);
+
+	if (rc) {
+		PRINT_WARNING("Unit not ready: %x", rc);
+		/* Let's try not to be too smart and continue processing */
+		goto obtain;
 	}
 
 	TRACE_DBG("%s", "Doing MODE_SENSE");
-	res = scsi_mode_sense(dev->scsi_dev,
+	rc = scsi_mode_sense(dev->scsi_dev,
 			      ((dev->scsi_dev->scsi_level <= SCSI_2) ?
 			       ((dev->scsi_dev->lun << 5) & 0xe0) : 0),
 			      0 /* Mode Page 0 */,
 			      buffer, buffer_size,
 			      SCST_GENERIC_TAPE_SMALL_TIMEOUT, TAPE_RETRIES,
 			      &data, NULL);
-	TRACE_DBG("MODE_SENSE done: %x", res);
+	TRACE_DBG("MODE_SENSE done: %x", rc);
 
-	if (res == 0) {
+	if (rc == 0) {
 		int medium_type, mode, speed, density;
 		if (buffer[3] == 8) {
 			params->block_size = ((buffer[9] << 16) |
 					    (buffer[10] << 8) |
 					    (buffer[11] << 0));
-		} else {
+		} else
 			params->block_size = TAPE_DEF_BLOCK_SIZE;
-		}
 		medium_type = buffer[1];
 		mode = (buffer[2] & 0x70) >> 4;
 		speed = buffer[2] & 0x0f;
@@ -232,10 +235,12 @@ static int tape_attach(struct scst_device *dev)
 		      "speed 0x%02x dens 0x%02x", dev->scsi_dev->lun,
 		      params->block_size, medium_type, mode, speed, density);
 	} else {
+		PRINT_ERROR("MODE_SENSE failed: %x", rc);
 		res = -ENODEV;
 		goto out_free_buf;
 	}
 
+obtain:
 	res = scst_obtain_device_parameters(dev);
 	if (res != 0) {
 		PRINT_ERROR("Failed to obtain control parameters for device "
