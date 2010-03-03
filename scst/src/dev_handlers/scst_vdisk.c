@@ -1777,7 +1777,8 @@ static void vdisk_exec_mode_sense(struct scst_cmd *cmd)
 	pcode = cmd->cdb[2] & 0x3f;
 	subpcode = cmd->cdb[3];
 	msense_6 = (MODE_SENSE == cmd->cdb[0]);
-	dev_spec = (virt_dev->dev->rd_only ? WP : 0) | DPOFUA;
+	dev_spec = ((virt_dev->dev->rd_only ||
+		     cmd->tgt_dev->acg_dev->rd_only) ? WP : 0) | DPOFUA;
 
 	length = scst_get_buf_first(cmd, &address);
 	if (unlikely(length <= 0)) {
