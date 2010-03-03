@@ -1050,8 +1050,8 @@ static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 
 		req_lim = atomic_inc_return(&ch->req_lim);
 		if (req_lim < 0 || req_lim > SRPT_RQ_SIZE)
-			PRINT_ERROR("internal error: req_lim = %d out of range"
-				    " %d .. %d", req_lim, 0, SRPT_RQ_SIZE);
+			PRINT_ERROR("req_lim = %d out of range %d .. %d",
+				    req_lim, 0, SRPT_RQ_SIZE);
 	}
 }
 
@@ -1600,8 +1600,7 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 
 			req_lim = atomic_dec_return(&ch->req_lim);
 			if (req_lim < 0)
-				PRINT_ERROR("internal error: req_lim = %d < 0",
-					    req_lim);
+				PRINT_ERROR("req_lim = %d < 0", req_lim);
 			ioctx = sdev->ioctx_ring[wc.wr_id & ~SRPT_OP_RECV];
 			srpt_handle_new_iu(ch, ioctx);
 		} else {
