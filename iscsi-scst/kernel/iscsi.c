@@ -1546,7 +1546,7 @@ out:
 	return res;
 }
 
-static int noop_out_start(struct iscsi_cmnd *cmnd)
+static int nop_out_start(struct iscsi_cmnd *cmnd)
 {
 	struct iscsi_conn *conn = cmnd->conn;
 	struct iscsi_hdr *req_hdr = &cmnd->pdu.bhs;
@@ -2053,7 +2053,8 @@ out:
 /* Might be called under target_mutex and cmd_list_lock */
 static void __cmnd_abort(struct iscsi_cmnd *cmnd)
 {
-	unsigned long timeout_time = jiffies + ISCSI_TM_DATA_WAIT_SCHED_TIMEOUT;
+	unsigned long timeout_time = jiffies + ISCSI_TM_DATA_WAIT_TIMEOUT +
+					ISCSI_ADD_SCHED_TIME;
 	struct iscsi_conn *conn = cmnd->conn;
 
 	TRACE_MGMT_DBG("Aborting cmd %p, scst_cmd %p (scst state %x, "
@@ -2284,11 +2285,20 @@ static void task_set_abort(struct iscsi_cmnd *req)
 /* Must be called from the read or conn close thread */
 void conn_abort(struct iscsi_conn *conn)
 {
-	struct iscsi_cmnd *cmnd;
+	struct iscsi_cmnd *cmnd, *r, *t;
 
 	TRACE_MGMT_DBG("Aborting conn %p", conn);
 
 	iscsi_extracheck_is_rd_thread(conn);
+
+	cancel_delayed_work_sync(&conn->nop_in_delayed_work);
+
+	/* No locks, we are the only user */
+	list_for_each_entry_safe(r, t, &conn->nop_req_list,
+			nop_req_list_entry) {
+		list_del(&r->nop_req_list_entry);
+		cmnd_put(r);
+	}
 
 	spin_lock_bh(&conn->cmd_list_lock);
 again:
@@ -2461,7 +2471,7 @@ reject:
 	return;
 }
 
-static void noop_out_exec(struct iscsi_cmnd *req)
+static void nop_out_exec(struct iscsi_cmnd *req)
 {
 	struct iscsi_cmnd *rsp;
 	struct iscsi_nop_in_hdr *rsp_hdr;
@@ -2474,7 +2484,7 @@ static void noop_out_exec(struct iscsi_cmnd *req)
 		rsp = iscsi_alloc_main_rsp(req);
 
 		rsp_hdr = (struct iscsi_nop_in_hdr *)&rsp->pdu.bhs;
-		rsp_hdr->opcode = ISCSI_OP_NOOP_IN;
+		rsp_hdr->opcode = ISCSI_OP_NOP_IN;
 		rsp_hdr->flags = ISCSI_FLG_FINAL;
 		rsp_hdr->itt = req->pdu.bhs.itt;
 		rsp_hdr->ttt = cpu_to_be32(ISCSI_RESERVED_TAG);
@@ -2494,6 +2504,30 @@ static void noop_out_exec(struct iscsi_cmnd *req)
 		sBUG_ON(get_pgcnt(req->pdu.datasize, 0) > ISCSI_CONN_IOV_MAX);
 
 		rsp->pdu.datasize = req->pdu.datasize;
+	} else {
+		bool found = false;
+		struct iscsi_cmnd *r;
+		struct iscsi_conn *conn = req->conn;
+
+ 		TRACE_DBG("Receive NOP-in response (ttt 0x%08x)",
+			be32_to_cpu(cmnd_ttt(req)));
+
+		spin_lock_bh(&conn->nop_req_list_lock);
+		list_for_each_entry(r, &conn->nop_req_list,
+				nop_req_list_entry) {
+			if (cmnd_ttt(req) == cmnd_ttt(r)) {
+				list_del(&r->nop_req_list_entry);
+				found = true;
+				break;
+			}
+		}
+		spin_unlock_bh(&conn->nop_req_list_lock);
+
+		if (found)
+			cmnd_put(r);
+		else
+			TRACE_MGMT_DBG("%s", "Got NOP-out response without "
+				"corresponding NOP-in request");
 	}
 
 	req_cmnd_release(req);
@@ -2550,8 +2584,8 @@ static void iscsi_cmnd_exec(struct iscsi_cmnd *cmnd)
 	}
 
 	switch (cmnd_opcode(cmnd)) {
-	case ISCSI_OP_NOOP_OUT:
-		noop_out_exec(cmnd);
+	case ISCSI_OP_NOP_OUT:
+		nop_out_exec(cmnd);
 		break;
 	case ISCSI_OP_SCSI_TASK_MGT_MSG:
 		execute_task_management(cmnd);
@@ -2602,8 +2636,11 @@ void cmnd_tx_start(struct iscsi_cmnd *cmnd)
 	conn->write_offset = 0;
 
 	switch (cmnd_opcode(cmnd)) {
-	case ISCSI_OP_NOOP_IN:
-		cmnd_set_sn(cmnd, 1);
+	case ISCSI_OP_NOP_IN:
+		if (cmnd_itt(cmnd) == cpu_to_be32(ISCSI_RESERVED_TAG))
+			cmnd->pdu.bhs.sn = cmnd_set_sn(cmnd, 0);
+		else
+			cmnd_set_sn(cmnd, 1);
 		break;
 	case ISCSI_OP_SCSI_RSP:
 		cmnd_set_sn(cmnd, 1);
@@ -2662,7 +2699,7 @@ void cmnd_tx_end(struct iscsi_cmnd *cmnd)
 
 #ifdef CONFIG_SCST_EXTRACHECKS
 	switch (cmnd_opcode(cmnd)) {
-	case ISCSI_OP_NOOP_IN:
+	case ISCSI_OP_NOP_IN:
 	case ISCSI_OP_SCSI_RSP:
 	case ISCSI_OP_SCSI_TASK_MGT_RSP:
 	case ISCSI_OP_TEXT_RSP:
@@ -2892,8 +2929,8 @@ int cmnd_rx_start(struct iscsi_cmnd *cmnd)
 	case ISCSI_OP_SCSI_DATA_OUT:
 		res = data_out_start(cmnd);
 		goto out;
-	case ISCSI_OP_NOOP_OUT:
-		rc = noop_out_start(cmnd);
+	case ISCSI_OP_NOP_OUT:
+		rc = nop_out_start(cmnd);
 		break;
 	case ISCSI_OP_SCSI_TASK_MGT_MSG:
 	case ISCSI_OP_LOGOUT_CMD:
@@ -2926,9 +2963,12 @@ void cmnd_rx_end(struct iscsi_cmnd *cmnd)
 
 	TRACE_DBG("cmnd %p, opcode %x", cmnd, cmnd_opcode(cmnd));
 
+	cmnd->conn->last_rcv_time = jiffies;
+	TRACE_DBG("Updated last_rcv_time %ld", cmnd->conn->last_rcv_time);
+
 	switch (cmnd_opcode(cmnd)) {
 	case ISCSI_OP_SCSI_CMD:
-	case ISCSI_OP_NOOP_OUT:
+	case ISCSI_OP_NOP_OUT:
 	case ISCSI_OP_SCSI_TASK_MGT_MSG:
 	case ISCSI_OP_LOGOUT_CMD:
 		iscsi_push_cmnd(cmnd);
@@ -3438,6 +3478,51 @@ static int iscsi_report_aen(struct scst_aen *aen)
 
 	TRACE_EXIT_RES(res);
 	return res;
+}
+
+void iscsi_send_nop_in(struct iscsi_conn *conn)
+{
+	struct iscsi_cmnd *req, *rsp;
+	struct iscsi_nop_in_hdr *rsp_hdr;
+
+	TRACE_ENTRY();
+
+	req = cmnd_alloc(conn, NULL);
+	if (req == NULL) {
+		PRINT_ERROR("%s", "Unable to alloc fake NOP-IN request");
+		goto out_err;
+	}
+
+	rsp = iscsi_alloc_main_rsp(req);
+	if (rsp == NULL) {
+		PRINT_ERROR("%s", "Unable to alloc NOP-IN rsp");
+		goto out_err_free_req;
+	}
+
+	cmnd_get(rsp);
+
+	rsp_hdr = (struct iscsi_nop_in_hdr *)&rsp->pdu.bhs;
+	rsp_hdr->opcode = ISCSI_OP_NOP_IN;
+	rsp_hdr->flags = ISCSI_FLG_FINAL;
+	rsp_hdr->itt = cpu_to_be32(ISCSI_RESERVED_TAG);
+	rsp_hdr->ttt = conn->nop_in_ttt++;
+
+	if (conn->nop_in_ttt == cpu_to_be32(ISCSI_RESERVED_TAG))
+		conn->nop_in_ttt = 0;
+
+	/* Supposed that all other fields are zeroed */
+
+	TRACE_DBG("Sending NOP-in request (ttt 0x%08x)", rsp_hdr->ttt);
+	spin_lock_bh(&conn->nop_req_list_lock);
+	list_add_tail(&rsp->nop_req_list_entry, &conn->nop_req_list);
+	spin_unlock_bh(&conn->nop_req_list_lock);
+
+out_err_free_req:
+	req_cmnd_release(req);
+
+out_err:
+	TRACE_EXIT();
+	return;
 }
 
 static int iscsi_target_detect(struct scst_tgt_template *templ)

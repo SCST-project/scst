@@ -61,7 +61,6 @@ int params_index_by_name_numwild(char *name, struct iscsi_key *keys)
 			for (j = strlen(keys[i].name); j < strlen(name); j++) {
 				if (!isdigit(name[j]))
 					goto next;
-				
 			}
 			err = i;
 			break;
@@ -336,7 +335,7 @@ static struct iscsi_key_ops marker_ops = {
 	.set_val = marker_set_val,
 };
 
-#define	SET_KEY_VALUES(x)	DEFAULT_NR_##x,DEFAULT_NR_##x,MIN_NR_##x,MAX_NR_##x
+#define	SET_KEY_VALUES(x)	DEFAULT_##x,DEFAULT_##x,MIN_##x,MAX_##x
 
 /*
  * List of local target keys with initial values.
@@ -346,7 +345,10 @@ static struct iscsi_key_ops marker_ops = {
  * the kernel as well!
  */
 struct iscsi_key target_keys[] = {
-	{"QueuedCommands", SET_KEY_VALUES(QUEUED_CMNDS), 1, &minimum_ops},
+	/* name,  rfc_def, local_def, min, max, show_in_sysfs, ops */
+	{"QueuedCommands", SET_KEY_VALUES(NR_QUEUED_CMNDS), 1, &minimum_ops},
+	{"RspTimeout", SET_KEY_VALUES(RSP_TIMEOUT), 1, &minimum_ops},
+	{"NoopInInterval", SET_KEY_VALUES(NOP_IN_INTERVAL), 1, &minimum_ops},
 	{NULL,},
 };
 
@@ -358,6 +360,7 @@ struct iscsi_key target_keys[] = {
  * the kernel as well!
  */
 struct iscsi_key session_keys[] = {
+	/* name,  rfc_def, local_def, min, max, show_in_sysfs, ops */
 	{"InitialR2T", 1, 0, 0, 1, 1, &or_ops},
 	{"ImmediateData", 1, 1, 0, 1, 1, &and_ops},
 	{"MaxConnections", 1, 1, 1, 1, 0, &minimum_ops},

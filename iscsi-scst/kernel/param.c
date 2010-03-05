@@ -39,7 +39,7 @@ do {										\
 		if ((params)->word != (iparams)[key_##word])			\
 			changed = 1;						\
 		(params)->word = (iparams)[key_##word];				\
-		TRACE_DBG("%s set to %u", #word, (iparams)[key_##word]);	\
+		TRACE_DBG("%s set to %u", #word, (params)->word);		\
 	}									\
 	changed;								\
 })
@@ -192,26 +192,10 @@ static void tgt_params_check(struct iscsi_kern_params_info *info)
 
 	CHECK_PARAM(info, iparams, queued_cmnds, MIN_NR_QUEUED_CMNDS,
 		    MAX_NR_QUEUED_CMNDS);
-	return;
-}
-
-/* target_mutex supposed to be locked */
-static void tgt_params_set(struct iscsi_tgt_params *params,
-			   struct iscsi_kern_params_info *info)
-{
-	int32_t *iparams = info->target_params;
-
-	SET_PARAM(params, info, iparams, queued_cmnds);
-	return;
-}
-
-/* target_mutex supposed to be locked */
-static void tgt_params_get(struct iscsi_tgt_params *params,
-			   struct iscsi_kern_params_info *info)
-{
-	int32_t *iparams = info->target_params;
-
-	GET_PARAM(params, info, iparams, queued_cmnds);
+	CHECK_PARAM(info, iparams, rsp_timeout, MIN_RSP_TIMEOUT,
+		MAX_RSP_TIMEOUT);
+	CHECK_PARAM(info, iparams, nop_in_interval, MIN_NOP_IN_INTERVAL,
+		MAX_NOP_IN_INTERVAL);
 	return;
 }
 
@@ -220,15 +204,39 @@ static int iscsi_tgt_params_set(struct iscsi_session *session,
 		      struct iscsi_kern_params_info *info, int set)
 {
 	struct iscsi_tgt_params *params = &session->tgt_params;
+	int32_t *iparams = info->target_params;
 
 	if (set) {
+		struct iscsi_conn *conn;
+
 		tgt_params_check(info);
-		tgt_params_set(params, info);
+
+		SET_PARAM(params, info, iparams, queued_cmnds);
+		SET_PARAM(params, info, iparams, rsp_timeout);
+		SET_PARAM(params, info, iparams, nop_in_interval);
+
 		PRINT_INFO("Target parameters set for session %llx: "
-			"QueuedCommands %d", session->sid,
-			params->queued_cmnds);
-	} else
-		tgt_params_get(params, info);
+			"QueuedCommands %d, Response timeout %d, NOP-in "
+			"interval %d", session->sid, params->queued_cmnds,
+			params->rsp_timeout, params->nop_in_interval);
+
+		list_for_each_entry(conn, &session->conn_list,
+					conn_list_entry) {
+			conn->rsp_timeout = session->tgt_params.rsp_timeout * HZ;
+			conn->nop_in_interval = session->tgt_params.nop_in_interval * HZ;
+			spin_lock_bh(&iscsi_rd_lock);
+			if (!conn->closing && (conn->nop_in_interval > 0)) {
+				TRACE_DBG("Schedule NOP-In work for conn %p", conn);
+				schedule_delayed_work(&conn->nop_in_delayed_work,
+					conn->nop_in_interval + ISCSI_ADD_SCHED_TIME);
+			}
+			spin_unlock_bh(&iscsi_rd_lock);
+		}
+	} else {
+		GET_PARAM(params, info, iparams, queued_cmnds);
+		GET_PARAM(params, info, iparams, rsp_timeout);
+		GET_PARAM(params, info, iparams, nop_in_interval);
+	}
 
 	return 0;
 }
@@ -273,7 +281,8 @@ int iscsi_params_set(struct iscsi_target *target,
 		goto out;
 	}
 
-	if (set && !list_empty(&session->conn_list)) {
+	if (set && !list_empty(&session->conn_list) &&
+	    (info->params_type != key_target)) {
 		err = -EBUSY;
 		goto out;
 	}

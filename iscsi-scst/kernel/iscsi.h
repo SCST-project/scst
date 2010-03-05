@@ -33,10 +33,6 @@
 #define iscsi_sense_unexpected_unsolicited_data	ABORTED_COMMAND, 0x0C, 0x0C
 #define iscsi_sense_incorrect_amount_of_data	ABORTED_COMMAND, 0x0C, 0x0D
 
-/*
- * All members must have int type to match expectations of iscsi_tgt_store_*()
- * functions!
- */
 struct iscsi_sess_params {
 	int initial_r2t;
 	int immediate_data;
@@ -59,12 +55,10 @@ struct iscsi_sess_params {
 	int ifmarkint;
 };
 
-/*
- * All members must have int type to match expectations of iscsi_tgt_store_*()
- * functions!
- */
 struct iscsi_tgt_params {
 	int queued_cmnds;
+	unsigned int rsp_timeout;
+	unsigned int nop_in_interval;
 };
 
 struct network_thread_info {
@@ -191,6 +185,7 @@ struct iscsi_conn {
 
 	/* Protected by write_list_lock */
 	struct timer_list rsp_timer;
+	unsigned int rsp_timeout; /* in jiffies */
 
 	/* All 2 protected by iscsi_wr_lock */
 	unsigned short wr_state;
@@ -241,6 +236,8 @@ struct iscsi_conn {
 	struct task_struct *rd_task;
 #endif
 
+	unsigned long last_rcv_time;
+
 	/*
 	 * All are unprotected, since accessed only from a single read
 	 * thread.
@@ -266,6 +263,16 @@ struct iscsi_conn {
 
 	/* Doesn't need any protection */
 	u16 cid;
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20))
+	struct delayed_work nop_in_delayed_work;
+#else
+	struct work_struct nop_in_delayed_work;
+#endif
+	unsigned int nop_in_interval; /* in jiffies */
+	struct list_head nop_req_list;
+	spinlock_t nop_req_list_lock;
+	u32 nop_in_ttt;
 
 #ifndef CONFIG_SCST_PROC
 	/* Doesn't need any protection */
@@ -436,21 +443,17 @@ struct iscsi_cmnd {
 	u32 ddigest;
 
 	struct list_head cmd_list_entry;
+	struct list_head nop_req_list_entry;
 };
-
-/**
- ** Various timeouts. *_SCHED_TIMEOUT is needed to complete a burst of
- ** commands at once. Otherwise, a part of the burst can be timeouted
- ** only in double timeout time.
- **/
-
-/* Max time to wait for our response satisfied */
-#define ISCSI_RSP_TIMEOUT		(30 * HZ)
-#define ISCSI_RSP_SCHED_TIMEOUT		(ISCSI_RSP_TIMEOUT + HZ)
 
 /* Max time to wait for our response satisfied for aborted commands */
 #define ISCSI_TM_DATA_WAIT_TIMEOUT	(10 * HZ)
-#define ISCSI_TM_DATA_WAIT_SCHED_TIMEOUT (ISCSI_TM_DATA_WAIT_TIMEOUT + HZ)
+
+/*
+ * Needed addition to all timeouts to complete a burst of commands at once.
+ * Otherwise, a part of the burst can be timeouted only in double timeout time.
+ */
+#define ISCSI_ADD_SCHED_TIME		HZ
 
 #define ISCSI_CTR_OPEN_STATE_CLOSED	0
 #define ISCSI_CTR_OPEN_STATE_OPEN	1
@@ -483,6 +486,7 @@ extern void cmnd_done(struct iscsi_cmnd *cmnd);
 extern void conn_abort(struct iscsi_conn *conn);
 extern void iscsi_restart_cmnd(struct iscsi_cmnd *cmnd);
 extern void iscsi_fail_data_waiting_cmnd(struct iscsi_cmnd *cmnd);
+extern void iscsi_send_nop_in(struct iscsi_conn *conn);
 
 /* conn.c */
 extern struct iscsi_conn *conn_lookup(struct iscsi_session *, u16);

@@ -1173,10 +1173,11 @@ void req_add_to_write_timeout_list(struct iscsi_cmnd *req)
 					&req->prelim_compl_flags))) {
 			set_conn_tm_active = true;
 			timeout_time = req->write_start +
-				ISCSI_TM_DATA_WAIT_SCHED_TIMEOUT;
+					ISCSI_TM_DATA_WAIT_TIMEOUT +
+					ISCSI_ADD_SCHED_TIME;
 		} else
 			timeout_time = req->write_start +
-				ISCSI_RSP_SCHED_TIMEOUT;
+				conn->rsp_timeout + ISCSI_ADD_SCHED_TIME;
 
 		TRACE_DBG("Starting timer on %ld (con %p, write_start %ld)",
 			timeout_time, conn, req->write_start);
@@ -1186,7 +1187,7 @@ void req_add_to_write_timeout_list(struct iscsi_cmnd *req)
 	} else if (unlikely(test_bit(ISCSI_CMD_ABORTED,
 				&req->prelim_compl_flags))) {
 		unsigned long timeout_time = jiffies +
-					ISCSI_TM_DATA_WAIT_SCHED_TIMEOUT;
+			ISCSI_TM_DATA_WAIT_TIMEOUT + ISCSI_ADD_SCHED_TIME;
 		set_conn_tm_active = true;
 		if (time_after(conn->rsp_timer.expires, timeout_time)) {
 			TRACE_MGMT_DBG("Mod timer on %ld (conn %p)",

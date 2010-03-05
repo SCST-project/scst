@@ -396,7 +396,6 @@ static void conn_rsp_timer_fn(unsigned long arg)
 	struct iscsi_conn *conn = (struct iscsi_conn *)arg;
 	struct iscsi_cmnd *cmnd;
 	unsigned long j = jiffies;
-	unsigned long timeout_time = j + ISCSI_RSP_SCHED_TIMEOUT;
 
 	TRACE_ENTRY();
 
@@ -405,11 +404,14 @@ static void conn_rsp_timer_fn(unsigned long arg)
 	spin_lock_bh(&conn->write_list_lock);
 
 	if (!list_empty(&conn->write_timeout_list)) {
+		unsigned long timeout_time;
 		cmnd = list_entry(conn->write_timeout_list.next,
 				struct iscsi_cmnd, write_timeout_list_entry);
 
-		if (unlikely(time_after_eq(j,
-				cmnd->write_start + ISCSI_RSP_TIMEOUT))) {
+		timeout_time = j + conn->rsp_timeout + ISCSI_ADD_SCHED_TIME;
+
+		if (unlikely(time_after_eq(j, cmnd->write_start +
+						conn->rsp_timeout))) {
 			if (!conn->closing) {
 				PRINT_ERROR("Timeout sending data/waiting "
 					"for reply to/from initiator "
@@ -450,19 +452,50 @@ out:
 	return;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void conn_nop_in_delayed_work_fn(void *p)
+#else
+static void conn_nop_in_delayed_work_fn(struct delayed_work *work)
+#endif
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	struct iscsi_conn *conn = (struct iscsi_conn *)p;
+#else
+	struct iscsi_conn *conn = container_of(work, struct iscsi_conn,
+		nop_in_delayed_work);
+#endif
+
+	TRACE_ENTRY();
+
+	if (time_after_eq(jiffies, conn->last_rcv_time +
+				conn->nop_in_interval)) {
+		iscsi_send_nop_in(conn);
+	}
+
+	if (conn->nop_in_interval > 0) {
+		TRACE_DBG("Reschedule NOP-In work for conn %p", conn);
+		schedule_delayed_work(&conn->nop_in_delayed_work,
+			conn->nop_in_interval + ISCSI_ADD_SCHED_TIME);
+	}
+
+	TRACE_EXIT();
+	return;
+}
+
 /* Must be called from rd thread only */
 void iscsi_check_tm_data_wait_timeouts(struct iscsi_conn *conn, bool force)
 {
 	struct iscsi_cmnd *cmnd;
 	unsigned long j = jiffies;
 	bool aborted_cmds_pending;
-	unsigned long timeout_time = j + ISCSI_TM_DATA_WAIT_SCHED_TIMEOUT;
+	unsigned long timeout_time = j + ISCSI_TM_DATA_WAIT_TIMEOUT +
+					ISCSI_ADD_SCHED_TIME;
 
 	TRACE_ENTRY();
 
 	TRACE_DBG_FLAG(force ? TRACE_CONN_OC_DBG : TRACE_MGMT_DEBUG,
 		"j %ld (TIMEOUT %d, force %d)", j,
-		ISCSI_TM_DATA_WAIT_SCHED_TIMEOUT, force);
+		ISCSI_TM_DATA_WAIT_TIMEOUT + ISCSI_ADD_SCHED_TIME, force);
 
 	iscsi_extracheck_is_rd_thread(conn);
 
@@ -707,6 +740,25 @@ static int iscsi_conn_alloc(struct iscsi_session *session,
 	init_waitqueue_head(&conn->read_state_waitQ);
 	init_completion(&conn->ready_to_free);
 	INIT_LIST_HEAD(&conn->reinst_pending_cmd_list);
+	INIT_LIST_HEAD(&conn->nop_req_list);
+	spin_lock_init(&conn->nop_req_list_lock);
+
+	conn->nop_in_ttt = 0;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20))
+	INIT_DELAYED_WORK(&conn->nop_in_delayed_work,
+		(void (*)(struct work_struct *))conn_nop_in_delayed_work_fn);
+#else
+	INIT_WORK(&conn->nop_in_delayed_work, conn_nop_in_delayed_work_fn,
+		conn);
+#endif
+	conn->last_rcv_time = jiffies;
+	conn->rsp_timeout = session->tgt_params.rsp_timeout * HZ;
+	conn->nop_in_interval = session->tgt_params.nop_in_interval * HZ;
+	if (conn->nop_in_interval > 0) {
+		TRACE_DBG("Schedule NOP-In work for conn %p", conn);
+		schedule_delayed_work(&conn->nop_in_delayed_work,
+			conn->nop_in_interval + ISCSI_ADD_SCHED_TIME);
+	}
 
 	conn->file = fget(info->fd);
 

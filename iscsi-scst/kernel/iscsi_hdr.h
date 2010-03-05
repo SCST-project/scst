@@ -53,7 +53,7 @@ struct iscsi_hdr {
 #define ISCSI_OPCODE_MASK		0x3F
 
 /* Client to Server Message Opcode values */
-#define ISCSI_OP_NOOP_OUT		0x00
+#define ISCSI_OP_NOP_OUT		0x00
 #define ISCSI_OP_SCSI_CMD		0x01
 #define ISCSI_OP_SCSI_TASK_MGT_MSG	0x02
 #define ISCSI_OP_LOGIN_CMD		0x03
@@ -63,7 +63,7 @@ struct iscsi_hdr {
 #define ISCSI_OP_SNACK_CMD		0x10
 
 /* Server to Client Message Opcode values */
-#define ISCSI_OP_NOOP_IN		0x20
+#define ISCSI_OP_NOP_IN			0x20
 #define ISCSI_OP_SCSI_RSP		0x21
 #define ISCSI_OP_SCSI_TASK_MGT_RSP	0x22
 #define ISCSI_OP_LOGIN_RSP		0x23
@@ -512,6 +512,7 @@ struct iscsi_nop_in_hdr {
 
 #define cmnd_hdr(cmnd) ((struct iscsi_scsi_cmd_hdr *) (&((cmnd)->pdu.bhs)))
 #define cmnd_itt(cmnd) cpu_to_be32((cmnd)->pdu.bhs.itt)
+#define cmnd_ttt(cmnd) cpu_to_be32((cmnd)->pdu.bhs.ttt)
 #define cmnd_opcode(cmnd) ((cmnd)->pdu.bhs.opcode & ISCSI_OPCODE_MASK)
 #define cmnd_scsicode(cmnd) (cmnd_hdr((cmnd))->scb[0])
 

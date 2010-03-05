@@ -538,6 +538,9 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 	p = buf;
 	pp = config_sep_string(&p);
 	if (!((idx = params_index_by_name(pp, target_keys)) < 0)) {
+		struct iscsi_param params[target_key_last];
+		struct session *session;
+
 		if (target == NULL) {
 			log_error("Target expected for attr %s", pp);
 			res = -EINVAL;
@@ -568,6 +571,13 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 		}
 
 		target->target_params[idx] = val;
+
+		memset(&params, 0, sizeof(params));
+		params[idx].val = val;
+		list_for_each_entry(session, &target->sessions_list, slist) {
+			kernel_params_set(event->tid, session->sid.id64,
+				key_target, 1 << idx, params);
+		}
 	} else if (!((idx = params_index_by_name(pp, session_keys)) < 0)) {
 		if (target == NULL) {
 			log_error("Target expected for attr %s", pp);
