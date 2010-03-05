@@ -1483,24 +1483,28 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			buf[num + 3] = 8 + i;
 			num += buf[num + 3];
 
-#if 0 /* This isn't required and can be misleading, so let's disable it */
 			num += 4;
 
-			/* NAA IEEE registered identifier (faked) */
-			buf[num] = 0x1;	/* binary */
-			buf[num + 1] = 0x3;
-			buf[num + 2] = 0x0;
-			buf[num + 3] = 0x8;
-			buf[num + 4] = 0x51; /* IEEE OUI=0x123456 (faked) */
-			buf[num + 5] = 0x23;
-			buf[num + 6] = 0x45;
-			buf[num + 7] = 0x60;
-			buf[num + 8] = (dev_id_num >> 24);
-			buf[num + 9] = (dev_id_num >> 16) & 0xff;
-			buf[num + 10] = (dev_id_num >> 8) & 0xff;
-			buf[num + 11] = dev_id_num & 0xff;
-			num = num + 12 - 4;
-#endif
+			/* Binary */
+			buf[num + 0] = 0x01;
+
+			/* EUI-64 */
+			buf[num + 1] = 0x02;
+			buf[num + 2] = 0x00;
+			buf[num + 3] = 0x08;
+
+			/* IEEE id */
+			buf[num + 4] = virt_dev->t10_dev_id[0];
+			buf[num + 5] = virt_dev->t10_dev_id[1];
+			buf[num + 6] = virt_dev->t10_dev_id[2];
+
+			/* IEEE ext id */
+			buf[num + 7] = virt_dev->t10_dev_id[3];
+			buf[num + 8] = virt_dev->t10_dev_id[4];
+			buf[num + 9] = virt_dev->t10_dev_id[5];
+			buf[num + 10] = virt_dev->t10_dev_id[6];
+			buf[num + 11] = virt_dev->t10_dev_id[7];
+			num += buf[num + 3];
 
 			resp_len = num;
 			buf[2] = (resp_len >> 8) & 0xFF;
