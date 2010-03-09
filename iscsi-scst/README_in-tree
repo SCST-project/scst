@@ -17,11 +17,11 @@ Usage
 See in http://scst.sourceforge.net/iscsi-scst-howto.txt how to configure
 iSCSI-SCST.
 
-In 2.0.0 usage of iscsi-scstd.conf as well as iscsi-scst-adm is
+In 2.0.0 usage of iscsi-scstd.conf as well as iscsi-scst-adm utility is
 obsolete. Use the sysfs interface facilities instead.
 
 It is recommended to use TEST UNIT READY ("tur") command to check if
-iSCSI-SCST target is alive.
+iSCSI-SCST target is alive in MPIO configurations.
 
 IMPORTANT: In the procfs build all LUN information (access control)
 =========  MUST be configured BEFORE iscsi-scstd started!
@@ -77,9 +77,9 @@ is /sys/kernel/scst_tgt/targets/iscsi. It has the following entries:
    per-target attributes. See content of this file for help how to use
    it.
 
-Each iSCSI-SCST attribute can contain in the last line mark "[key]". It
-is automatically added mark used to allow scstadmin to see which
-attributes it should save in the config file. You can ignore it.
+Each iSCSI-SCST sysfs file (attribute) can contain in the last line mark
+"[key]". It is automatically added mark used to allow scstadmin to see
+which attributes it should save in the config file. You can ignore it.
 
 Each target subdirectory contains the following entries:
 
@@ -101,15 +101,39 @@ Each target subdirectory contains the following entries:
    the "mgmt" entry, see above.
 
  - Entries defining default iSCSI parameters values used during iSCSI
-   parameters negotiation.
+   parameters negotiation. Only entries which can be changed or make
+   sense are listed there.
 
  - QueuedCommands - defines maximum number of commands queued to any
-   session of this target.
+   session of this target. Default is 32 commands.
+
+ - RspTimeout - defines the maximum time in seconds a command can wait for
+   response from initiator, otherwise the corresponding connection will
+   be closed. For performance reasons it is implemented as a timer,
+   which once in RspTimeout time checks the oldest command waiting for
+   response and, if it's older than RspTimeout, then it closes the
+   connection. Hence, a stalled connection will be closed in time
+   between RspTimeout and 2*RspTimeout. Default is 30 seconds.
+
+ - NopInInterval - defines interval between NOP-In requests, which the
+   target will send on idle connections to check if the initiator is
+   still alive. If there is no NOP-Out reply from the initiator in
+   RspTimeout time, the corresponding connection will be closed. Default
+   is 30 seconds. If it's set to 0, then NOP-In requests are disabled.
 
  - enabled - using this attribute you can enable or disable iSCSI-SCST
    accept new connections to this target. It allows to finish
    configuring it before it starts accepting new connections. 0 by
    default.
+
+ - rel_tgt_id - allows to read or write SCSI Relative Target Port
+   Identifier attribute. This identifier is used to identify SCSI Target
+   Ports by some SCSI commands, mainly by Persistent Reservations
+   commands. This identifier must be unique among all SCST targets, but
+   for convenience SCST allows disabled targets to have not unique
+   rel_tgt_id. In this case SCST will not allow to enable this target
+   until rel_tgt_id becomes unique. This attribute initialized unique by
+   SCST by default.
 
  - tid - TID of this target.
 
@@ -122,7 +146,8 @@ Each session subdirectory contains the following entries:
    supports 1 connection per session, but the session subdirectory can
    contain several connections: one active and other being closed.
 
- - Entries defining negotiated iSCSI parameters.
+ - Entries defining negotiated iSCSI parameters. Only parameters which
+   can be changed or make sense are listed there.
 
  - initiator_name - contains initiator name
 
@@ -155,17 +180,15 @@ parameters:
 modprobe scst
 modprobe scst_vdisk
 
-echo "open disk1 /disk1 NV_CACHE" >/sys/kernel/scst_tgt/handlers/vdisk_fileio/mgmt
+echo "add_device disk1 filename=/disk1; nv_cache=1" >/sys/kernel/scst_tgt/handlers/vdisk_fileio/mgmt
 
 service iscsi-scst start
 
 echo "add_target iqn.2006-10.net.vlnb:tgt" >/sys/kernel/scst_tgt/targets/iscsi/mgmt
-
 echo "add disk1 0" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/luns/mgmt
 
 echo 1 >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/enabled
 echo 1 >/sys/kernel/scst_tgt/targets/iscsi/enabled
-
 
 Below is more advanced sample script, which configures more virtual
 devices of various types, including virtual CDROM and 2 targets, one
@@ -180,11 +203,11 @@ authentication for discovery sessions and iSNS server with access control.
 modprobe scst
 modprobe scst_vdisk
 
-echo "open disk1 /disk1 NV_CACHE" >/sys/kernel/scst_tgt/handlers/vdisk_fileio/mgmt
-echo "open disk2 /disk2 4096 NV_CACHE" >/sys/kernel/scst_tgt/handlers/vdisk_fileio/mgmt
-echo "open blockio /dev/sda5" >/sys/kernel/scst_tgt/handlers/vdisk_blockio/mgmt
-echo "open nullio none" >/sys/kernel/scst_tgt/handlers/vdisk_nullio/mgmt
-echo "open cdrom" >/sys/kernel/scst_tgt/handlers/vcdrom/mgmt
+echo "add_device disk1 filename=/disk1; nv_cache=1" >/sys/kernel/scst_tgt/handlers/vdisk_fileio/mgmt
+echo "add_device disk2 filename=/disk2; blocksize=4096; nv_cache=1" >/sys/kernel/scst_tgt/handlers/vdisk_fileio/mgmt
+echo "add_device blockio filename=/dev/sda5" >/sys/kernel/scst_tgt/handlers/vdisk_blockio/mgmt
+echo "add_device nullio" >/sys/kernel/scst_tgt/handlers/vdisk_nullio/mgmt
+echo "add_device cdrom" >/sys/kernel/scst_tgt/handlers/vcdrom/mgmt
 
 service iscsi-scst start
 
@@ -197,27 +220,26 @@ echo "add_target iqn.2006-10.net.vlnb:tgt" >/sys/kernel/scst_tgt/targets/iscsi/m
 echo "add disk1 0" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/luns/mgmt
 echo "add cdrom 1" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/luns/mgmt
 
-echo "add_target iqn.2006-10.net.vlnb:tgt1 \
-	IncomingUser1 joe2 12charsecret2; \
-	IncomingUser joe 12charsecret; \
-	OutgoingUser jim1 12charpasswd; \
-	InitialR2T			No; \
-	ImmediateData 			Yes; \
-	MaxRecvDataSegmentLength        8192; \
-	MaxXmitDataSegmentLength        8192; \
-	MaxBurstLength                  131072; \
-	FirstBurstLength                32768; \
-	MaxOutstandingR2T		1; \
-	HeaderDigest			CRC32C,None; \
-	DataDigest			CRC32C,None; \
-	QueuedCommands			8; \
-	" >/sys/kernel/scst_tgt/targets/iscsi/mgmt
+echo "add_target iqn.2006-10.net.vlnb:tgt1" >/sys/kernel/scst_tgt/targets/iscsi/mgmt
+echo "add_target_attribute iqn.2006-10.net.vlnb:tgt1 IncomingUser1 joe2 12charsecret2" >/sys/kernel/scst_tgt/targets/iscsi/mgmt             
+echo "add_target_attribute iqn.2006-10.net.vlnb:tgt1 IncomingUser joe 12charsecret" >/sys/kernel/scst_tgt/targets/iscsi/mgmt                
+echo "add_target_attribute iqn.2006-10.net.vlnb:tgt1 OutgoingUser jim1 12charpasswd" >/sys/kernel/scst_tgt/targets/iscsi/mgmt               
+echo "No" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/InitialR2T                                                          
+echo "Yes" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ImmediateData                                                      
+echo "8192" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/MaxRecvDataSegmentLength                                          
+echo "8192" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/MaxXmitDataSegmentLength                                          
+echo "131072" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/MaxBurstLength                                                  
+echo "32768" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/FirstBurstLength                                                 
+echo "1" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/MaxOutstandingR2T                                                    
+echo "CRC32C,None" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/HeaderDigest                                               
+echo "CRC32C,None" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/DataDigest                                                 
+echo "32" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/QueuedCommands                                                      
 
 echo "add disk2 0" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/luns/mgmt
 echo "add nullio 26" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/luns/mgmt
 
 echo "create special_ini" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_group/mgmt
-echo "add blockio 0" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_group/special_ini/luns/mgmt
+echo "add blockio 0 read_only=1" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_group/special_ini/luns/mgmt
 echo "add iqn.2005-03.org.open-iscsi:cacdcd2520" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_group/special_ini/initiators/mgmt
 
 echo 1 >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/enabled
@@ -231,7 +253,7 @@ both iSCSI-SCST targets will look like:
 /sys/kernel/scst_tgt
 |-- devices
 |   |-- blockio
-|   |   |-- block_size
+|   |   |-- blocksize
 |   |   |-- exported
 |   |   |   `-- export0 -> ../../../targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_group/special_ini/luns/0
 |   |   |-- filename
@@ -239,20 +261,21 @@ both iSCSI-SCST targets will look like:
 |   |   |-- read_only
 |   |   |-- removable
 |   |   |-- resync_size
-|   |   |-- size
+|   |   |-- size_mb
 |   |   |-- t10_dev_id
-|   |   `-- type
+|   |   |-- type
+|   |   `-- usn
 |   |-- cdrom
 |   |   |-- exported
 |   |   |   `-- export0 -> ../../../targets/iscsi/iqn.2006-10.net.vlnb:tgt/luns/1
 |   |   |-- filename
 |   |   |-- handler -> ../../handlers/vcdrom
-|   |   |-- removable
-|   |   |-- size
+|   |   |-- size_mb
 |   |   |-- t10_dev_id
-|   |   `-- type
+|   |   |-- type
+|   |   `-- usn
 |   |-- disk1
-|   |   |-- block_size
+|   |   |-- blocksize
 |   |   |-- exported
 |   |   |   `-- export0 -> ../../../targets/iscsi/iqn.2006-10.net.vlnb:tgt/luns/0
 |   |   |-- filename
@@ -262,12 +285,13 @@ both iSCSI-SCST targets will look like:
 |   |   |-- read_only
 |   |   |-- removable
 |   |   |-- resync_size
-|   |   |-- size
+|   |   |-- size_mb
 |   |   |-- t10_dev_id
 |   |   |-- type
+|   |   |-- usn
 |   |   `-- write_through
 |   |-- disk2
-|   |   |-- block_size
+|   |   |-- blocksize
 |   |   |-- exported
 |   |   |   `-- export0 -> ../../../targets/iscsi/iqn.2006-10.net.vlnb:tgt1/luns/0
 |   |   |-- filename
@@ -277,35 +301,42 @@ both iSCSI-SCST targets will look like:
 |   |   |-- read_only
 |   |   |-- removable
 |   |   |-- resync_size
-|   |   |-- size
+|   |   |-- size_mb
 |   |   |-- t10_dev_id
 |   |   |-- type
+|   |   |-- usn
 |   |   `-- write_through
 |   `-- nullio
-|       |-- block_size
+|       |-- blocksize
 |       |-- exported
 |       |   `-- export0 -> ../../../targets/iscsi/iqn.2006-10.net.vlnb:tgt1/luns/26
 |       |-- handler -> ../../handlers/vdisk_nullio
 |       |-- read_only
 |       |-- removable
-|       |-- size
+|       |-- size_mb
 |       |-- t10_dev_id
-|       `-- type
+|       |-- type
+|       `-- usn
 |-- handlers
 |   |-- vcdrom
+|   |   |-- cdrom -> ../../devices/cdrom
 |   |   |-- mgmt
 |   |   |-- trace_level
 |   |   `-- type
 |   |-- vdisk_blockio
+|   |   |-- blockio -> ../../devices/blockio
 |   |   |-- mgmt
 |   |   |-- trace_level
 |   |   `-- type
 |   |-- vdisk_fileio
+|   |   |-- disk1 -> ../../devices/disk1
+|   |   |-- disk2 -> ../../devices/disk2
 |   |   |-- mgmt
 |   |   |-- trace_level
 |   |   `-- type
 |   `-- vdisk_nullio
 |       |-- mgmt
+|       |-- nullio -> ../../devices/nullio
 |       |-- trace_level
 |       `-- type
 |-- sgv
@@ -344,6 +375,7 @@ both iSCSI-SCST targets will look like:
 |       |   |   |   |-- device -> ../../../../../devices/cdrom
 |       |   |   |   `-- read_only
 |       |   |   `-- mgmt
+|       |   |-- rel_tgt_id
 |       |   |-- sessions
 |       |   |   `-- iqn.2005-03.org.open-iscsi:cacdcd2520
 |       |   |       |-- 10.170.75.2
@@ -363,6 +395,7 @@ both iSCSI-SCST targets will look like:
 |       |   |       |-- commands
 |       |   |       |-- force_close
 |       |   |       |-- initiator_name
+|       |   |       |-- luns -> ../../luns
 |       |   |       |-- reinstating
 |       |   |       `-- sid
 |       |   `-- tid
@@ -400,6 +433,7 @@ both iSCSI-SCST targets will look like:
 |       |   |   |   |-- device -> ../../../../../devices/nullio
 |       |   |   |   `-- read_only
 |       |   |   `-- mgmt
+|       |   |-- rel_tgt_id
 |       |   |-- sessions
 |       |   |   `-- iqn.2005-03.org.open-iscsi:cacdcd2520
 |       |   |       |-- 10.170.75.2
@@ -419,6 +453,7 @@ both iSCSI-SCST targets will look like:
 |       |   |       |-- commands
 |       |   |       |-- force_close
 |       |   |       |-- initiator_name
+|       |   |       |-- luns -> ../../ini_group/special_ini/luns
 |       |   |       |-- reinstating
 |       |   |       `-- sid
 |       |   `-- tid

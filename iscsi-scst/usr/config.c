@@ -642,7 +642,7 @@ static int initiator_match(u32 tid, int fd, char *filename)
 		p = buf;
 		while (!isblank(*p) && (*p != '\0'))
 			p++;
-		if (p == '\0')
+		if (*p == '\0')
 			continue;
 
 		*p = '\0';
@@ -830,7 +830,7 @@ int config_parse_main(const char *data, u32 cookie)
 
 			target = NULL;
 			p = config_sep_string(&q);
-			if (p == '\0') {
+			if (*p == '\0') {
 				log_error("Target name required on %s\n", q);
 				continue;
 			}

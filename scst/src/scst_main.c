@@ -737,7 +737,7 @@ EXPORT_SYMBOL(scst_resume_activity);
 static int scst_register_device(struct scsi_device *scsidp)
 {
 	int res = 0;
-	struct scst_device *dev;
+	struct scst_device *dev, *d;
 	struct scst_dev_type *dt;
 
 	TRACE_ENTRY();
@@ -765,6 +765,14 @@ static int scst_register_device(struct scsi_device *scsidp)
 	}
 	snprintf(dev->virt_name, 50, "%d:%d:%d:%d", scsidp->host->host_no,
 		scsidp->channel, scsidp->id, scsidp->lun);
+
+	list_for_each_entry(d, &scst_dev_list, dev_list_entry) {
+		if (strcmp(d->virt_name, dev->virt_name) == 0) {
+			PRINT_ERROR("Device %s already exists", dev->virt_name);
+			res = -EEXIST;
+			goto out_free_dev;
+		}
+	}
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
 	dev->rq_disk = alloc_disk(1);
@@ -893,6 +901,19 @@ static int scst_dev_handler_check(struct scst_dev_type *dev_handler)
 		goto out;
 	}
 
+#ifndef CONFIG_SCST_PROC
+	if (((dev_handler->add_device != NULL) &&
+	     (dev_handler->del_device == NULL)) ||
+	    ((dev_handler->add_device == NULL) &&
+	     (dev_handler->del_device != NULL))) {
+		PRINT_ERROR("Dev handler %s must either define both "
+			"add_device() and del_device(), or none.",
+			dev_handler->name);
+		res = -EINVAL;
+		goto out;
+	}
+#endif
+
 	if (dev_handler->exec == NULL) {
 #ifdef CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
 		dev_handler->exec_atomic = 1;
@@ -913,7 +934,7 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 	const char *dev_name)
 {
 	int res, rc;
-	struct scst_device *dev = NULL;
+	struct scst_device *dev;
 
 	TRACE_ENTRY();
 
@@ -933,6 +954,14 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 	res = scst_dev_handler_check(dev_handler);
 	if (res != 0)
 		goto out;
+
+	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
+		if (strcmp(dev->virt_name, dev_name) == 0) {
+			PRINT_ERROR("Device %s already exists", dev_name);
+			res = -EEXIST;
+			goto out;
+		}
+	}
 
 	res = scst_suspend_activity(true);
 	if (res != 0)

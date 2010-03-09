@@ -86,7 +86,7 @@ will loose this performance benefit.
 3. readahead-2.6.X.patch. This patch fixes problem in Linux readahead
 subsystem and greatly improves performance for software RAIDs. See
 http://sourceforge.net/mailarchive/forum.php?thread_name=a0272b440906030714g67eabc5k8f847fb1e538cc62%40mail.gmail.com&forum_name=scst-devel
-thread for more details.
+thread for more details. It is included in the mainstream kernel 2.6.33.
 
 4. readahead-context-2.6.X.patch. This is backported from 2.6.31 version
 of the context readahead patch http://lkml.org/lkml/2009/4/12/9, big
@@ -176,7 +176,7 @@ Usage in failover mode
 ----------------------
 
 It is recommended to use TEST UNIT READY ("tur") command to check if
-SCST target is alive.
+SCST target is alive in MPIO configurations.
 
 
 Device handlers
@@ -311,7 +311,8 @@ in/out in Makefile:
 
  - CONFIG_SCST_MEASURE_LATENCY - if defined, provides in /proc/scsi_tgt/latency
    file average commands processing latency. You can clear already
-   measured results by writing 0 in this file. Note, you need a
+   measured results by writing 0 in this file. For the sysfs build you
+   can find those results in /sys/kernel/scst_tgt and below. Note, you need a
    non-preemptible kernel to have correct results.
 
 HIGHMEM kernel configurations are fully supported, but not recommended
@@ -347,12 +348,14 @@ Module scst supports the following parameters:
    default it is approximately TotalMem/4.
 
 
-SCST /proc commands
----------------------
+SCST /proc interface
+--------------------
 
 For communications with user space programs SCST provides proc-based
-interface in /proc/scsi_tgt directory. It contains the following
-entries:
+interface in /proc/scsi_tgt directory. This interface is available in
+the procfs build only. Starting from version 2.0.0 it is obsolete and
+will be removed in one of the next versions. It contains the following
+entries.
 
   - "help" file, which provides online help for SCST commands
 
@@ -406,8 +409,8 @@ will assign device handler "dev_disk" to real device sitting on host 1,
 channel 0, ID 1, LUN 0.
 
 
-Access and devices visibility management (LUN masking)
-------------------------------------------------------
+Access and devices visibility management (LUN masking) - /proc interface
+------------------------------------------------------------------------
 
 Access and devices visibility management allows for an initiator or
 group of initiators to see different devices with different LUNs
@@ -581,11 +584,325 @@ initiators or add new devices to old groups, but not altering existing
 LUNs in them.
 
 
+SCST sysfs interface
+--------------------
+
+Starting from 2.0.0 SCST has sysfs interface. You can switch to it by
+running "make disable_proc". To switch back to the procfs interface you
+should run "make enable_proc".
+
+Root of SCST sysfs interface is /sys/kernel/scst_tgt. It has the
+following entries:
+
+ - devices - this is a root subdirectory for all SCST devices
+
+ - handlers - this is a root subdirectory for all SCST dev handlers
+
+ - sgv - this is a root subdirectory for all SCST SGV caches
+
+ - targets - this is a root subdirectory for all SCST targets
+
+ - threads - allows to read and set number of global SCST I/O threads.
+   Those threads used with async. dev handlers, for instance, vdisk
+   BLOCKIO or NULLIO.
+
+ - trace_level - allows to enable and disable various tracing
+   facilities. See content of this file for help how to use it.
+
+ - version - read-only attribute, which allows to see version of
+   SCST and enabled optional features.
+
+Each SCST sysfs file (attribute) can contain in the last line mark
+"[key]". It is automatically added mark used to allow scstadmin to see
+which attributes it should save in the config file. You can ignore it.
+
+"Devices" subdirectory contains subdirectories for each SCST devices.
+
+Content of each device's subdirectory is dev handler specific. See
+documentation for your dev handlers for more info about it as well as
+SysfsRules file for more info about common to all dev handlers rules.
+Standard SCST dev handlers have at least the following common entries:
+
+ - exported - subdirectory containing links to all LUNs where this
+   device was exported.
+
+ - handler - if dev handler determined for this device, this link points
+   to it. The handler can be not set for pass-through devices.
+
+ - type - SCSI type of this device
+ 
+See below for more information about other entries of this subdirectory
+of the standard SCST dev handlers.
+
+"Handlers" subdirectory contains subdirectories for each SCST dev
+handler.
+
+Content of each handler's subdirectory is dev handler specific. See
+documentation for your dev handlers for more info about it as well as
+SysfsRules file for more info about common to all dev handlers rules.
+Standard SCST dev handlers have at least the following common entries:
+
+ - pass_through - if exists, it contains 1 and this dev handler is a
+   pass-through dev handler.
+
+ - trace_level - allows to enable and disable various tracing
+   facilities. See content of this file for help how to use it.
+
+ - type - SCSI type of devices served by this dev handler.
+
+See below for more information about other entries of this subdirectory
+of the standard SCST dev handlers.
+
+"Sgv" subdirectory contains statistic information of SCST SGV caches. It
+has the following entries:
+
+ - None, one or more subdirectories for each existing SGV cache.
+ 
+ - global_stats - file containing global SGV caches statistics.
+
+Each SGV cache's subdirectory has the following item:
+
+ - stats - file containing statistics for this SGV caches.
+
+"Targets" subdirectory contains subdirectories for each SCST target.
+
+Content of each target's subdirectory is target specific. See
+documentation for your target for more info about it as well as
+SysfsRules file for more info about common to all dev handlers rules.
+Every target should have at least the following entries:
+
+ - ini_group - subdirectory, which contains and allows to define
+   initiator-oriented access control information, see below.
+
+ - luns - subdirectory, which contains list of available LUNs in the
+   target-oriented access control and allows to define it, see below.
+
+ - sessions - subdirectory containing connected to this target sessions.
+
+ - enabled - using this attribute you can enable or disable this target/
+   It allows to finish configuring it before it starts accepting new
+   connections. 0 by default.
+
+ - rel_tgt_id - allows to read or write SCSI Relative Target Port
+   Identifier attribute. This identifier is used to identify SCSI Target
+   Ports by some SCSI commands, mainly by Persistent Reservations
+   commands. This identifier must be unique among all SCST targets, but
+   for convenience SCST allows disabled targets to have not unique
+   rel_tgt_id. In this case SCST will not allow to enable this target
+   until rel_tgt_id becomes unique. This attribute initialized unique by
+   SCST by default.
+
+Subdirectory "sessions" contains one subdirectory for each connected
+session with name equal to name of the connected initiator.
+
+Each session subdirectory contains the following entries:
+
+ - initiator_name - contains initiator name
+
+ - force_close - optional write-only attribute, which allows to force
+   close this session.
+
+ - active_commands - contains number of active, i.e. not yet or being
+   executed, SCSI commands in this session.
+
+ - commands - contains overall number of SCSI commands in this session.
+
+ - other target driver specific attributes and subdirectories.
+
+See below description of the VDISK's sysfs interface for samples.
+
+
+Access and devices visibility management (LUN masking) - sysfs interface
+------------------------------------------------------------------------
+
+Access and devices visibility management allows for an initiator or
+group of initiators to see different devices with different LUNs
+with necessary access permissions.
+
+SCST supports two modes of access control:
+
+1. Target-oriented. In this mode you define for each target a default
+set of LUNs, which are accessible to all initiators, connected to that
+target. This is a regular access control mode, which people usually mean
+thinking about access control in general. For instance, in IET this is
+the only supported mode.
+
+2. Initiator-oriented. In this mode you define which LUNs are accessible
+for each initiator. In this mode you should create for each set of one
+or more initiators, which should access to the same set of devices with
+the same LUNs, a separate security group, then add to it devices and
+names of allowed initiator(s).
+
+Both modes can be used simultaneously. In this case the
+initiator-oriented mode has higher priority, than the target-oriented,
+i.e. initiators are at first searched in all defined security groups for
+this target and, if none matches, the default target's set of LUNs is
+used. This set of LUNs might be empty, then the initiator will not see
+any LUNs from the target.
+
+You can at any time find out which set of LUNs each session is assigned
+to by looking where link
+/sys/kernel/scst_tgt/targets/target_driver/target_name/sessions/initiator_name/luns
+points to.
+
+To configure the target-oriented access control SCST provides the
+following interface. Each target's sysfs subdirectory
+(/sys/kernel/scst_tgt/targets/target_driver/target_name) has "luns"
+subdirectory. This subdirectory contains the list of already defined
+target-oriented access control LUNs for this target as well as file
+"mgmt". This file has the following commands, which you can send to it,
+for instance, using "echo" shell command. You can always get a small
+help about supported commands by looking inside this file. "Parameters"
+are one or more param_name=value pairs separated by ';'.
+
+ - "add H:C:I:L lun [parameters]" - adds a pass-through device with
+   host:channel:id:lun with LUN "lun". Optionally, the device could be
+   marked as read only by using parameter "read_only". The recommended
+   way to find out H:C:I:L numbers is use of lsscsi utility.
+
+ - "replace H:C:I:L lun [parameters]" - replaces by pass-through device
+   with host:channel:id:lun existing with LUN "lun" device with
+   generation of INQUIRY DATA HAS CHANGED Unit Attention. If the old
+   device doesn't exist, this command acts as the "add" command.
+   Optionally, the device could be marked as read only by using
+   parameter "read_only". The recommended way to find out H:C:I:L
+   numbers is use of lsscsi utility.
+
+ - "del H:C:I:L" - deletes a pass-through device with host:channel:id:lun
+   The recommended way to find out H:C:I:L numbers is use of lsscsi
+   utility.
+
+ - "add VNAME lun [parameters]" - adds a virtual device with name VNAME
+   with LUN "lun". Optionally, the device could be marked as read only
+   by using parameter "read_only".
+
+ - "replace VNAME lun [parameters]" - replaces by virtual device
+   with name VNAME existing with LUN "lun" device with generation of
+   INQUIRY DATA HAS CHANGED Unit Attention. If the old device doesn't
+   exist, this command acts as the "add" command. Optionally, the device
+   could be marked as read only by using parameter "read_only".
+
+ - "del VNAME" - deletes a virtual device with name VNAME.
+
+ - "clear" - clears the list of devices
+
+To configure the initiator-oriented access control SCST provides the
+following interface. Each target's sysfs subdirectory
+(/sys/kernel/scst_tgt/targets/target_driver/target_name) has "ini_group"
+subdirectory. This subdirectory contains the list of already defined
+security groups for this target as well as file "mgmt". This file has
+the following commands, which you can send to it, for instance, using
+"echo" shell command. You can always get a small help about supported
+commands by looking inside this file.
+
+ - "create GROUP_NAME" - creates a new security group.
+
+ - "del GROUP_NAME" - deletes a new security group.
+
+Each security group's subdirectory contains 2 subdirectories: initiators
+and luns.
+
+Each "initiators" subdirectory contains list of added to this groups
+initiator as well as as well as file "mgmt". This file has the following
+commands, which you can send to it, for instance, using "echo" shell
+command. You can always get a small help about supported commands by
+looking inside this file.
+
+ - "add INITIATOR_NAME" - adds initiator with name INITIATOR_NAME to the
+   group.
+
+ - "del INITIATOR_NAME" - deletes initiator with name INITIATOR_NAME
+   from the group.
+
+ - "move INITIATOR_NAME DEST_GROUP_NAME" moves initiator with name
+   INITIATOR_NAME from the current group to group with name
+   DEST_GROUP_NAME.
+
+ - "clear" - deletes all initiators from this group.
+                                  
+For "add" and "del" commands INITIATOR_NAME can be a simple DOS-type
+patterns, containing '*' and '?' symbols. '*' means match all any
+symbols, '?' means match only any single symbol. For instance,
+"blah.xxx" will match "bl?h.*".
+
+Each "luns" subdirectory contains the list of already defined LUNs for
+this group as well as file "mgmt". Content of this file as well as list
+of available in it commands is fully identical to the "luns"
+sybdirectory of the target-oriented access control.
+
+Examples:
+
+ - echo "create INI" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_group/mgmt -
+   creates security group INI for target iqn.2006-10.net.vlnb:tgt1.
+
+ - echo "add 2:0:1:0 11" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_group/INI/luns/mgmt -
+   adds a pass-through device sitting on host 2, channel 0, ID 1, LUN 0
+   to group with name INI as LUN 11.
+
+ - echo "add disk1 0" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_group/INI/luns/mgmt -
+   adds a virtual disk with name disk1 to group with name INI as LUN 0.
+
+ - echo "add 21:*:e0:?b:83:*" >/sys/kernel/scst_tgt/targets/21:00:00:a0:8c:54:52:12/ini_group/INI/initiators/mgmt -
+   adds a pattern to group with name INI to Fibre Channel target with
+   WWN 21:00:00:a0:8c:54:52:12, which matches WWNs of Fibre Channel
+   initiator ports.
+
+Consider you need to have an iSCSI target with name
+"iqn.2007-05.com.example:storage.disk1.sys1.xyz", which should export
+virtual device "dev1" with LUN 0 and virtual device "dev2" with LUN 1,
+but initiator with name
+"iqn.2007-05.com.example:storage.disk1.spec_ini.xyz" should see only
+virtual device "dev2" read only with LUN 0. To achieve that you should
+do the following commands:
+
+# echo "iqn.2007-05.com.example:storage.disk1.sys1.xyz" >/sys/kernel/scst_tgt/targets/iscsi/mgmt
+# echo "add dev1 0" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example:storage.disk1.sys1.xyz/luns/mgmt
+# echo "add dev2 1" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example:storage.disk1.sys1.xyz/luns/mgmt
+# echo "create SPEC_INI" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example:storage.disk1.sys1.xyz/ini_group/mgmt
+# echo "add dev2 0 read_only=1" \
+	>/sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example:storage.disk1.sys1.xyz/ini_group/SPEC_INI/luns/mgmt
+# echo "iqn.2007-05.com.example:storage.disk1.spec_ini.xyz" \
+	>/sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example:storage.disk1.sys1.xyz/ini_group/SPEC_INI/initiators/mgmt
+
+For Fibre Channel or SAS in the above example you should use target's
+and initiator ports WWNs instead of iSCSI names.
+
+It is highly recommended to use scstadmin utility instead of described
+in this section low level interface.
+
+IMPORTANT
+=========
+
+There must be LUN 0 in each set of LUNs, i.e. LUs numeration must not
+start from, e.g., 1. Otherwise you will see no devices on remote
+initiators and SCST core will write into the kernel log message: "tgt_dev
+for LUN 0 not found, command to unexisting LU?"
+
+IMPORTANT
+=========
+
+All the access control must be fully configured BEFORE the corresponding
+target is enabled! When you enable a target, it will immediately start
+accepting new connections, hence creating new sessions, and those new
+sessions will be assigned to security groups according to the
+*currently* configured access control settings. For instance, to
+the default target's set of LUNs, instead of "HOST004" group as you may
+need, because "HOST004" doesn't exist yet. So, one must configure all
+the security groups before new connections from the initiators are
+created, i.e. before the target enabled.
+
+
 VDISK device handler
 --------------------
 
+/proc interface
+~~~~~~~~~~~~~~~
+
+This interface starting from version 2.0.0 is obsolete and will be
+removed in one of the next versions.
+
 After loading VDISK device handler creates in /proc/scsi_tgt/
-subdirectories "vdisk" and "vcdrom". They have similar layout:
+subdirectories "vdisk" and "vcdrom". They have the following layout:
 
   - "trace_level" and "type" files as described above
 
@@ -665,16 +982,206 @@ mode is used.
 For example, "echo "open disk1 /vdisks/disk1" >/proc/scsi_tgt/vdisk/vdisk"
 will open file /vdisks/disk1 as virtual FILEIO disk with name "disk1".
 
-Also the VDISK handler has module parameter "num_threads", which
-specifies count of I/O threads for each VDISK's device. If you have a
-workload, which tends to produce rather random accesses (e.g. DB-like),
-you should increase this count to a bigger value, like 32. If you have a
-rather sequential workload, you should decrease it to a lower value,
-like number of CPUs on the target or even 1. Due to some limitations of
-Linux I/O subsystem, increasing number of I/O threads leads to
-performance drop, especially with deadline scheduler, so decreasing it
-can improve sequential performance. The default provides a good
-compromise between random and sequential accesses.
+/sys interface
+~~~~~~~~~~~~~~
+
+Starting from 2.0.0 VDISK device handler has sysfs interface. You can
+switch to it by running "make disable_proc". To switch back to the
+procfs interface you should run "make enable_proc". The procfs interface
+starting from version 2.0.0 is obsolete and will be removed in one of
+the next versions.
+
+VDISK has 4 built-in dev handlers: vdisk_fileio, vdisk_blockio,
+vdisk_nullio and vcdrom. Roots of their sysfs interface are
+/sys/kernel/scst_tgt/handlers/handler_name, e.g. for vdisk_fileio:
+/sys/kernel/scst_tgt/handlers/vdisk_fileio. Each root has the following
+entries:
+
+ - None, one or more links to devices with name equal to names
+   of the corresponding devices.
+
+ - trace_level - allows to enable and disable various tracing
+   facilities. See content of this file for help how to use it.
+
+ - mgmt - main management entry, which allows to add/delete VDISK
+   devices with the corresponding type.
+
+The "mgmt" file has the following commands, which you can send to it,
+for instance, using "echo" shell command. You can always get a small
+help about supported commands by looking inside this file. "Parameters"
+are one or more param_name=value pairs separated by ';'.
+
+ - echo "add_device device_name [parameters]" - adds a virtual device
+   with name device_name and specified parameters (see below)
+
+ - echo "del_device device_name" - deletes a virtual device with name
+   device_name.
+
+Handler vdisk_fileio provides FILEIO mode to create virtual devices.
+This mode uses as backend files and accesses to them using regular
+read()/write() file calls. This allows to use full power of Linux page
+cache. The following parameters possible for vdisk_fileio:
+
+ - filename - specifies path and file name of the backend file. The path
+   must be absolute.
+
+ - blocksize - specifies block size used by this virtual device. The
+   block size must be power of 2 and >= 512 bytes. Default is 512.
+
+ - write_through - disables write back caching. Note, this option
+   has sense only if you also *manually* disable write-back cache in
+   *all* your backstorage devices and make sure it's actually disabled,
+   since many devices are known to lie about this mode to get better
+   benchmark results. Default is 0.
+
+ - read_only - read only. Default is 0.
+
+ - o_direct - disables both read and write caching. This mode isn't
+   currently fully implemented, you should use user space fileio_tgt
+   program in O_DIRECT mode instead (see below).
+
+ - nv_cache - enables "non-volatile cache" mode. In this mode it is
+   assumed that the target has a GOOD UPS with ability to cleanly
+   shutdown target in case of power failure and it is software/hardware
+   bugs free, i.e. all data from the target's cache are guaranteed
+   sooner or later to go to the media. Hence all data synchronization
+   with media operations, like SYNCHRONIZE_CACHE, are ignored in order
+   to bring more performance. Also in this mode target reports to
+   initiators that the corresponding device has write-through cache to
+   disable all write-back cache workarounds used by initiators. Use with
+   extreme caution, since in this mode after a crash of the target
+   journaled file systems don't guarantee the consistency after journal
+   recovery, therefore manual fsck MUST be ran. Note, that since usually
+   the journal barrier protection (see "IMPORTANT" note below) turned
+   off, enabling NV_CACHE could change nothing from data protection
+   point of view, since no data synchronization with media operations
+   will go from the initiator. This option overrides "write_through"
+   option. Disabled by default.
+
+ - removable - with this flag set the device is reported to remote
+   initiators as removable.
+
+Handler vdisk_blockio provides BLOCKIO mode to create virtual devices.
+This mode performs direct block I/O with a block device, bypassing the
+page cache for all operations. This mode works ideally with high-end
+storage HBAs and for applications that either do not need caching
+between application and disk or need the large block throughput. See
+below for more info.
+
+The following parameters possible for vdisk_blockio: filename,
+blocksize, read_only, removable. See vdisk_fileio above for description
+of those parameters.
+
+Handler vdisk_nullio provides NULLIO mode to create virtual devices. In
+this mode no real I/O is done, but success returned to initiators.
+Intended to be used for performance measurements at the same way as
+"*_perf" handlers. The following parameters possible for vdisk_nullio:
+blocksize, read_only, removable. See vdisk_fileio above for description
+of those parameters.
+
+Handler vcdrom allows emulation of a virtual CDROM device using an ISO
+file as backend. It doesn't have any parameters.
+
+For example:
+
+echo "add_device disk1 filename=/disk1; blocksize=4096; nv_cache=1" >/sys/kernel/scst_tgt/handlers/vdisk_fileio/mgmt
+
+will create a FILEIO virtual device disk1 with backend file /disk1   
+with block size 4K and NV_CACHE enabled.
+
+Each vdisk_fileio's device has the following attributes in
+/sys/kernel/scst_tgt/devices/device_name:
+
+ - filename - contains path and file name of the backend file.
+
+ - blocksize - contains block size used by this virtual device.
+
+ - write_through - contains status of write back caching of this virtual
+   device.
+
+ - read_only - contains read only status of this virtual device.
+
+ - o_direct - contains O_DIRECT status of this virtual device.
+
+ - nv_cache - contains NV_CACHE status of this virtual device.
+
+ - removable - contains removable status of this virtual device.
+
+ - size_mb - contains size of this virtual device in MB.
+
+ - t10_dev_id - contains and allows to set T10 vendor specific
+   identifier for Device Identification VPD page (0x83) of INQUIRY data.
+   By default VDISK handler always generates t10_dev_id for every new
+   created device at creation time based on the device name and
+   scst_vdisk_ID scst_vdisk.ko module parameter (see below).
+
+ - usn - contains the virtual device's serial number of INQUIRY data. It
+   is created at the device creation time based on the device name and
+   scst_vdisk_ID scst_vdisk.ko module parameter (see below).
+
+ - type - contains SCSI type of this virtual device.
+
+ - resync_size - write only attribute, which makes vdisk_fileio to
+   rescan size of the backend file. It is usful if you changed it, for
+   instance, if you resized it.
+
+For example:
+
+/sys/kernel/scst_tgt/devices/disk1
+|-- blocksize
+|-- exported
+|   |-- export0 -> ../../../targets/iscsi/iqn.2006-10.net.vlnb:tgt/luns/0
+|   |-- export1 -> ../../../targets/iscsi/iqn.2006-10.net.vlnb:tgt/ini_group/INI/luns/0
+|   |-- export2 -> ../../../targets/iscsi/iqn.2006-10.net.vlnb:tgt1/luns/0
+|   |-- export3 -> ../../../targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_group/INI1/luns/0
+|   |-- export4 -> ../../../targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_group/INI2/luns/0
+|-- filename
+|-- handler -> ../../handlers/vdisk_fileio
+|-- nv_cache
+|-- o_direct
+|-- read_only
+|-- removable
+|-- resync_size
+|-- size_mb
+|-- t10_dev_id
+|-- type
+|-- usn
+`-- write_through
+
+Each vdisk_blockio's device has the following attributes in
+/sys/kernel/scst_tgt/devices/device_name: blocksize, filename,
+read_only, removable, resync_size, size_mb, t10_dev_id, type, usn. See
+description of vdisk_fileio's device for description of those parameters.
+
+Each vdisk_nullio's device has the following attributes in
+/sys/kernel/scst_tgt/devices/device_name: blocksize, read_only,
+removable, size_mb, t10_dev_id, type, usn. See description
+of vdisk_fileio's device for description of those parameters.
+
+Each vcdrom's device has the following attributes in
+/sys/kernel/scst_tgt/devices/device_name: filename,  size_mb,
+t10_dev_id, type, usn. See description of vdisk_fileio's device for
+description of those parameters. Exception is filename attribute. For
+vcdrom it is writable. Writing to it allows to virtually insert or
+change virtual CD media in the virtual CDROM device. For example:
+
+ - echo "/image.iso" >/sys/kernel/scst_tgt/devices/cdrom/filename - will
+   insert file /image.iso as virtual media to the virtual CDROM cdrom.
+
+ - echo "" >/sys/kernel/scst_tgt/devices/cdrom/filename - will remove
+   "media" from the virtual CDROM cdrom.
+
+Additionally to the sysfs/procfs interface VDISK handler has module
+parameter "num_threads", which specifies count of I/O threads for each
+VDISK's device. If you have a workload, which tends to produce rather
+random accesses (e.g. DB-like), you should increase this count to a
+bigger value, like 32. If you have a rather sequential workload, you
+should decrease it to a lower value, like number of CPUs on the target
+or even 1. Due to some limitations of Linux I/O subsystem, increasing
+number of I/O threads too much leads to sequential performance drop,
+especially with deadline scheduler, so decreasing it can improve
+sequential performance. The default provides a good compromise between
+random and sequential accesses.
 
 You shouldn't be afraid to have too many VDISK I/O threads if you have
 many VDISK devices. Kernel threads consume very little amount of
@@ -704,7 +1211,6 @@ CAUTION: If you partitioned/formatted your device with block size X, *NEVER*
 
 IMPORTANT: By default for performance reasons VDISK FILEIO devices use write
 =========  back caching policy. This is generally safe from the consistence of
-
            journaled file systems, laying over them, point of view, but
 	   your unsaved cached data will be lost in case of
 	   power/hardware/software failure, so you must supply your

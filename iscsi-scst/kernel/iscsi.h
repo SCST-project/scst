@@ -534,10 +534,9 @@ extern ssize_t iscsi_sysfs_send_event(uint32_t tid,
 extern struct iscsi_target *target_lookup_by_id(u32);
 extern int __add_target(struct iscsi_kern_target_info *);
 extern int __del_target(u32 id);
-extern ssize_t iscsi_sysfs_add_target(const char *target_name,
-	const char *params);
+extern ssize_t iscsi_sysfs_add_target(const char *target_name, char *params);
 extern ssize_t iscsi_sysfs_del_target(const char *target_name);
-extern ssize_t iscsi_sysfs_mgmt_cmd(const char *cmd);
+extern ssize_t iscsi_sysfs_mgmt_cmd(char *cmd);
 extern void target_del_session(struct iscsi_target *target,
 	struct iscsi_session *session, int flags);
 extern void target_del_all_sess(struct iscsi_target *target, int flags);

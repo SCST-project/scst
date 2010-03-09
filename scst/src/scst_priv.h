@@ -726,13 +726,9 @@ void scst_check_debug_sn(struct scst_cmd *cmd);
 static inline void scst_check_debug_sn(struct scst_cmd *cmd) {}
 #endif
 
-/*
- * It deals with comparing 32 bit unsigned ints and worry about wraparound
- * (automatic with unsigned arithmetic). Borrowed from net/tcp.h.
- */
-static inline int scst_sn_before(__u32 seq1, __u32 seq2)
+static inline int scst_sn_before(uint32_t seq1, uint32_t seq2)
 {
-	return (__s32)(seq1-seq2) < 0;
+	return (int32_t)(seq1-seq2) < 0;
 }
 
 bool scst_is_relative_target_port_id_unique(uint16_t id, struct scst_tgt *t);

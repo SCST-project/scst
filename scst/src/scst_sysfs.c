@@ -118,9 +118,6 @@ static ssize_t scst_rel_tgt_id_show(struct kobject *kobj,
 static ssize_t scst_rel_tgt_id_store(struct kobject *kobj,
 				    struct kobj_attribute *attr,
 				    const char *buf, size_t count);
-static ssize_t scst_acg_luns_mgmt_show(struct kobject *kobj,
-				   struct kobj_attribute *attr,
-				   char *buf);
 static ssize_t scst_acg_luns_mgmt_store(struct kobject *kobj,
 				    struct kobj_attribute *attr,
 				    const char *buf, size_t count);
@@ -217,13 +214,21 @@ static ssize_t scst_tgtt_mgmt_show(struct kobject *kobj,
 		     "%s"
 		     "\n"
 		     "where parameters are one or more "
-		     "param_name=value pairs separated by ';'\n";
+		     "param_name=value pairs separated by ';'\n"
+		     "%s%s";
 	struct scst_tgt_template *tgtt;
 
 	tgtt = container_of(kobj, struct scst_tgt_template, tgtt_kobj);
 
-	return sprintf(buf, help, (tgtt->mgmt_cmd_help != NULL) ?
-					tgtt->mgmt_cmd_help : "");
+	if (tgtt->add_target_parameters_help != NULL)
+		return sprintf(buf, help,
+			(tgtt->mgmt_cmd_help) ? tgtt->mgmt_cmd_help : "",
+			"\nThe following parameters available: ",
+			tgtt->add_target_parameters_help);
+	else
+		return sprintf(buf, help,
+			(tgtt->mgmt_cmd_help) ? tgtt->mgmt_cmd_help : "",
+			"", "");
 }
 
 static ssize_t scst_tgtt_mgmt_store(struct kobject *kobj,
@@ -231,7 +236,7 @@ static ssize_t scst_tgtt_mgmt_store(struct kobject *kobj,
 				    const char *buf, size_t count)
 {
 	int res;
-	char *buffer, *p, *target_name;
+	char *buffer, *p, *pp, *target_name;
 	struct scst_tgt_template *tgtt;
 
 	TRACE_ENTRY();
@@ -246,62 +251,38 @@ static ssize_t scst_tgtt_mgmt_store(struct kobject *kobj,
 
 	memcpy(buffer, buf, count);
 	buffer[count] = '\0';
-	p = buffer;
 
-	p = buffer;
-	if (p[strlen(p) - 1] == '\n')
-		p[strlen(p) - 1] = '\0';
+	pp = buffer;
+	if (pp[strlen(pp) - 1] == '\n')
+		pp[strlen(pp) - 1] = '\0';
 
-	if (strncasecmp("add_target ", p, 11) == 0) {
-		p += 11;
+	p = scst_get_next_lexem(&pp);
 
-		while (isspace(*p) && *p != '\0')
-			p++;
-
-		if (p == '\0')
-			goto out_syntax_err;
-
-		target_name = p;
-
-		while (!isspace(*p) && *p != '\0')
-			p++;
-
-		if (*p != '\0') {
-			*p = '\0';
-			p++;
+	if (strcasecmp("add_target", p) == 0) {
+		target_name = scst_get_next_lexem(&pp);
+		if (*target_name == '\0') {
+			PRINT_ERROR("%s", "Target name required");
+			res = -EINVAL;
+			goto out_free;
+		}
+		res = tgtt->add_target(target_name, pp);
+	} else if (strcasecmp("del_target", p) == 0) {
+		target_name = scst_get_next_lexem(&pp);
+		if (*target_name == '\0') {
+			PRINT_ERROR("%s", "Target name required");
+			res = -EINVAL;
+			goto out_free;
 		}
 
-		while (isspace(*p) && *p != '\0')
-			p++;
-
-		res = tgtt->add_target(target_name, p);
-	} else if (strncasecmp("del_target ", p, 11) == 0) {
-		p += 11;
-
-		while (isspace(*p) && *p != '\0')
-			p++;
-
-		if (p == '\0')
+		p = scst_get_next_lexem(&pp);
+		if (*p != '\0')
 			goto out_syntax_err;
-
-		target_name = p;
-
-		while (!isspace(*p) && *p != '\0')
-			p++;
-
-		if (*p != '\0') {
-			*p = '\0';
-			p++;
-			while (isspace(*p) && *p != '\0')
-				p++;
-			if (*p != '\0')
-				goto out_syntax_err;
-		}
 
 		res = tgtt->del_target(target_name);
-	} else if (tgtt->mgmt_cmd != NULL)
+	} else if (tgtt->mgmt_cmd != NULL) {
+		scst_restore_token_str(p, pp);
 		res = tgtt->mgmt_cmd(buffer);
-	else {
+	} else {
 		PRINT_ERROR("Unknown action \"%s\"", p);
 		res = -EINVAL;
 		goto out_free;
@@ -521,7 +502,7 @@ static struct kobj_attribute scst_luns_mgmt =
 	       scst_luns_mgmt_store);
 
 static struct kobj_attribute scst_acg_luns_mgmt =
-	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_acg_luns_mgmt_show,
+	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_luns_mgmt_show,
 	       scst_acg_luns_mgmt_store);
 
 static struct kobj_attribute scst_acg_ini_mgmt =
@@ -814,6 +795,14 @@ int scst_create_devt_dev_sysfs(struct scst_device *dev)
 		goto out;
 	}
 
+	retval = sysfs_create_link(&dev->handler->devt_kobj,
+			&dev->dev_kobj, dev->virt_name);
+	if (retval != 0) {
+		PRINT_ERROR("Can't create handler link for dev %s",
+			dev->virt_name);
+		goto out;
+	}
+
 	pattr = dev->handler->dev_attrs;
 	if (pattr != NULL) {
 		while (*pattr != NULL) {
@@ -852,6 +841,7 @@ void scst_devt_dev_sysfs_put(struct scst_device *dev)
 	}
 
 	sysfs_remove_link(&dev->dev_kobj, "handler");
+	sysfs_remove_link(&dev->handler->devt_kobj, dev->virt_name);
 
 out:
 	TRACE_EXIT();
@@ -1206,6 +1196,13 @@ restart:
 		}
 	}
 
+	if (sess->acg == sess->tgt->default_acg)
+		retval = sysfs_create_link(&sess->sess_kobj,
+				sess->tgt->tgt_luns_kobj, "luns");
+	else
+		retval = sysfs_create_link(&sess->sess_kobj,
+				sess->acg->luns_kobj, "luns");
+
 out_free:
 	if (name != sess->initiator_name)
 		kfree(name);
@@ -1260,8 +1257,10 @@ static ssize_t scst_lun_rd_only_show(struct kobject *kobj,
 
 	acg_dev = container_of(kobj, struct scst_acg_dev, acg_dev_kobj);
 
-	return sprintf(buf, "%d\n",
-		(acg_dev->rd_only || acg_dev->dev->rd_only) ? 1 : 0);
+	if (acg_dev->rd_only || acg_dev->dev->rd_only)
+		return sprintf(buf, "%d\n%s\n", 1, SCST_SYSFS_KEY_MARK);
+	else
+		return sprintf(buf, "%d\n", 0);
 }
 
 static struct kobj_attribute lun_options_attr =
@@ -1464,12 +1463,49 @@ static ssize_t __scst_luns_mgmt_store(struct scst_acg *acg,
 		while (isspace(*e) && *e != '\0')
 			e++;
 
-		if (*e != '\0') {
-			if ((strncasecmp("READ_ONLY", e, 9) == 0) &&
-			    (isspace(e[9]) || (e[9] == '\0')))
-				read_only = 1;
-			else {
-				PRINT_ERROR("Unknown option \"%s\"", e);
+		while (1) {
+			char *pp;
+			unsigned long val;
+			char *param = scst_get_next_token_str(&e);
+			if (param == NULL)
+				break;
+
+			p = scst_get_next_lexem(&param);
+			if (*p == '\0') {
+				PRINT_ERROR("Syntax error at %s (device %s)",
+					param, dev->virt_name);
+				res = -EINVAL;
+				goto out_free_up;
+			}
+
+			pp = scst_get_next_lexem(&param);
+			if (*pp == '\0') {
+				PRINT_ERROR("Parameter %s value missed for device %s",
+					p, dev->virt_name);
+				res = -EINVAL;
+				goto out_free_up;
+			}
+
+			if (scst_get_next_lexem(&param)[0] != '\0') {
+				PRINT_ERROR("Too many parameter's %s values (device %s)",
+					p, dev->virt_name);
+				res = -EINVAL;
+				goto out_free_up;
+			}
+
+			res = strict_strtoul(pp, 0, &val);
+			if (res != 0) {
+				PRINT_ERROR("strict_strtoul() for %s failed: %d "
+					"(device %s)", pp, res, dev->virt_name);
+				goto out_free_up;
+			}
+
+			if (!strcasecmp("read_only", p)) {
+				read_only = val;
+				TRACE_DBG("READ ONLY %d", read_only);
+			} else {
+				PRINT_ERROR("Unknown parameter %s (device %s)",
+					p, dev->virt_name);
 				res = -EINVAL;
 				goto out_free_up;
 			}
@@ -1578,16 +1614,19 @@ static ssize_t scst_luns_mgmt_show(struct kobject *kobj,
 				   struct kobj_attribute *attr,
 				   char *buf)
 {
-	static char *help = "Usage: echo \"add|del H:C:I:L lun [READ_ONLY]\" "
+	static char *help = "Usage: echo \"add|del H:C:I:L lun [parameters]\" "
 					">mgmt\n"
-			    "       echo \"add|del VNAME lun [READ_ONLY]\" "
+			    "       echo \"add|del VNAME lun [parameters]\" "
 					">mgmt\n"
-			    "       echo \"replace H:C:I:L lun [READ_ONLY]\" "
+			    "       echo \"replace H:C:I:L lun [parameters]\" "
 					">mgmt\n"
-			    "       echo \"replace VNAME lun [READ_ONLY]\" "
+			    "       echo \"replace VNAME lun [parameters]\" "
 					">mgmt\n"
-			    "       echo \"clear\" "
-					">mgmt\n";
+			    "       echo \"clear\" >mgmt\n"
+			    "\n"
+			    "where parameters are one or more "
+			    "param_name=value pairs separated by ';'\n"
+			    "\nThe following parameters available: read_only.";
 
 	return sprintf(buf, help);
 }
@@ -1982,24 +2021,6 @@ static ssize_t scst_acn_file_show(struct kobject *kobj,
 {
 	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n",
 		attr->attr.name);
-}
-
-static ssize_t scst_acg_luns_mgmt_show(struct kobject *kobj,
-				   struct kobj_attribute *attr,
-				   char *buf)
-{
-	static char *help = "Usage: echo \"add|del H:C:I:L lun [READ_ONLY]\" "
-					">mgmt\n"
-			    "       echo \"add|del VNAME lun [READ_ONLY]\" "
-					">mgmt\n"
-			    "       echo \"replace H:C:I:L lun [READ_ONLY]\" "
-					">mgmt\n"
-			    "       echo \"replace VNAME lun [READ_ONLY]\" "
-					">mgmt\n"
-			    "       echo \"clear\" "
-					">mgmt\n";
-
-	return sprintf(buf, help);
 }
 
 static ssize_t scst_acg_luns_mgmt_store(struct kobject *kobj,
@@ -2835,6 +2856,256 @@ static struct kobj_type scst_devt_ktype = {
 	.default_attrs = scst_devt_default_attrs,
 };
 
+static ssize_t scst_devt_mgmt_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	char *help = "Usage: echo \"add_device device_name [parameters]\" "
+				">mgmt\n"
+		     "       echo \"del_device device_name\" >mgmt\n"
+		     "%s"
+		     "\n"
+		     "where parameters are one or more "
+		     "param_name=value pairs separated by ';'\n"
+		     "%s%s";
+	struct scst_dev_type *devt;
+
+	devt = container_of(kobj, struct scst_dev_type, devt_kobj);
+
+	if (devt->add_device_parameters_help != NULL)
+		return sprintf(buf, help,
+			(devt->mgmt_cmd_help) ? devt->mgmt_cmd_help : "",
+			"\nThe following parameters available: ",
+			devt->add_device_parameters_help);
+	else
+		return sprintf(buf, help,
+			(devt->mgmt_cmd_help) ? devt->mgmt_cmd_help : "",
+			"", "");
+}
+
+static ssize_t scst_devt_mgmt_store(struct kobject *kobj,
+				    struct kobj_attribute *attr,
+				    const char *buf, size_t count)
+{
+	int res;
+	char *buffer, *p, *pp, *device_name;
+	struct scst_dev_type *devt;
+
+	TRACE_ENTRY();
+
+	devt = container_of(kobj, struct scst_dev_type, devt_kobj);
+
+	buffer = kzalloc(count+1, GFP_KERNEL);
+	if (buffer == NULL) {
+		res = -ENOMEM;
+		goto out;
+	}
+
+	memcpy(buffer, buf, count);
+	buffer[count] = '\0';
+
+	pp = buffer;
+	if (pp[strlen(pp) - 1] == '\n')
+		pp[strlen(pp) - 1] = '\0';
+
+	p = scst_get_next_lexem(&pp);
+
+	if (strcasecmp("add_device", p) == 0) {
+		device_name = scst_get_next_lexem(&pp);
+		if (*device_name == '\0') {
+			PRINT_ERROR("%s", "Device name required");
+			res = -EINVAL;
+			goto out_free;
+		}
+		res = devt->add_device(device_name, pp);
+	} else if (strcasecmp("del_device", p) == 0) {
+		device_name = scst_get_next_lexem(&pp);
+		if (*device_name == '\0') {
+			PRINT_ERROR("%s", "Device name required");
+			res = -EINVAL;
+			goto out_free;
+		}
+
+		p = scst_get_next_lexem(&pp);
+		if (*p != '\0')
+			goto out_syntax_err;
+
+		res = devt->del_device(device_name);
+	} else if (devt->mgmt_cmd != NULL) {
+		scst_restore_token_str(p, pp);
+		res = devt->mgmt_cmd(buffer);
+	} else {
+		PRINT_ERROR("Unknown action \"%s\"", p);
+		res = -EINVAL;
+		goto out_free;
+	}
+
+	if (res == 0)
+		res = count;
+
+out_free:
+	kfree(buffer);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_syntax_err:
+	PRINT_ERROR("Syntax error on \"%s\"", p);
+	res = -EINVAL;
+	goto out_free;
+}
+
+static struct kobj_attribute scst_devt_mgmt =
+	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_devt_mgmt_show,
+	       scst_devt_mgmt_store);
+
+static ssize_t scst_devt_pass_through_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "1");
+}
+
+static struct kobj_attribute scst_devt_pass_through =
+	__ATTR(pass_through, S_IRUGO, scst_devt_pass_through_show, NULL);
+
+static ssize_t scst_devt_pass_through_mgmt_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	char *help = "Usage: echo \"assign H:C:I:L\" >mgmt\n"
+		     "       echo \"unassign H:C:I:L\" >mgmt\n";
+	return sprintf(buf, help);
+}
+
+static ssize_t scst_devt_pass_through_mgmt_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	char *buffer, *p, *pp, *action;
+	struct scst_dev_type *devt;
+	unsigned long host, channel, id, lun;
+	struct scst_device *d, *dev = NULL;
+
+	TRACE_ENTRY();
+
+	devt = container_of(kobj, struct scst_dev_type, devt_kobj);
+
+	buffer = kzalloc(count+1, GFP_KERNEL);
+	if (buffer == NULL) {
+		res = -ENOMEM;
+		goto out;
+	}
+
+	memcpy(buffer, buf, count);
+	buffer[count] = '\0';
+
+	pp = buffer;
+	if (pp[strlen(pp) - 1] == '\n')
+		pp[strlen(pp) - 1] = '\0';
+
+	action = scst_get_next_lexem(&pp);
+	p = scst_get_next_lexem(&pp);
+	if (*p == '\0') {
+		PRINT_ERROR("%s", "Device required");
+		res = -EINVAL;
+		goto out_free;
+	}
+
+	;
+	if (*scst_get_next_lexem(&pp) != '\0') {
+		PRINT_ERROR("%s", "Too many parameters");
+		res = -EINVAL;
+		goto out_syntax_err;
+	}
+
+	host = simple_strtoul(p, &p, 0);
+	if ((host == ULONG_MAX) || (*p != ':'))
+		goto out_syntax_err;
+	p++;
+	channel = simple_strtoul(p, &p, 0);
+	if ((channel == ULONG_MAX) || (*p != ':'))
+		goto out_syntax_err;
+	p++;
+	id = simple_strtoul(p, &p, 0);
+	if ((channel == ULONG_MAX) || (*p != ':'))
+		goto out_syntax_err;
+	p++;
+	lun = simple_strtoul(p, &p, 0);
+	if (lun == ULONG_MAX)
+		goto out_syntax_err;
+
+	TRACE_DBG("Dev %ld:%ld:%ld:%ld", host, channel, id, lun);
+
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
+		res = -EINTR;
+		goto out_free;
+	}
+
+	list_for_each_entry(d, &scst_dev_list, dev_list_entry) {
+		if ((d->virt_id == 0) &&
+		    d->scsi_dev->host->host_no == host &&
+		    d->scsi_dev->channel == channel &&
+		    d->scsi_dev->id == id &&
+		    d->scsi_dev->lun == lun) {
+			dev = d;
+			TRACE_DBG("Dev %p (%ld:%ld:%ld:%ld) found",
+				  dev, host, channel, id, lun);
+			break;
+		}
+	}
+	if (dev == NULL) {
+		PRINT_ERROR("Device %ld:%ld:%ld:%ld not found",
+			       host, channel, id, lun);
+		res = -EINVAL;
+		goto out_unlock;
+	}
+
+	if (dev->scsi_dev->type != devt->type) {
+		PRINT_ERROR("Type %d of device %s differs from type "
+			"%d of dev handler %s", dev->type,
+			dev->virt_name, devt->type, devt->name);
+		res = -EINVAL;
+		goto out_unlock;
+	}
+
+	if (strcasecmp("assign", action) == 0)
+		res = scst_assign_dev_handler(dev, devt);
+	else if (strcasecmp("deassign", action) == 0) {
+		if (dev->handler != devt) {
+			PRINT_ERROR("Device %s is not assigned to handler %s",
+				dev->virt_name, devt->name);
+			res = -EINVAL;
+			goto out_unlock;
+		}
+		res = scst_assign_dev_handler(dev, &scst_null_devtype);
+	} else {
+		PRINT_ERROR("Unknown action \"%s\"", action);
+		res = -EINVAL;
+		goto out_unlock;
+	}
+
+	if (res == 0)
+		res = count;
+
+out_unlock:
+	mutex_unlock(&scst_mutex);
+
+out_free:
+	kfree(buffer);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_syntax_err:
+	PRINT_ERROR("Syntax error on \"%s\"", p);
+	res = -EINVAL;
+	goto out_free;
+}
+
+static struct kobj_attribute scst_devt_pass_through_mgmt =
+	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_devt_pass_through_mgmt_show,
+	       scst_devt_pass_through_mgmt_store);
+
 int scst_create_devt_sysfs(struct scst_dev_type *devt)
 {
 	int retval;
@@ -2863,6 +3134,32 @@ int scst_create_devt_sysfs(struct scst_dev_type *devt)
 	 * In case of errors there's no need for additional cleanup, because
 	 * it will be done by the _put function() called by the caller.
 	 */
+
+	if (devt->add_device != NULL) {
+		retval = sysfs_create_file(&devt->devt_kobj,
+				&scst_devt_mgmt.attr);
+		if (retval != 0) {
+			PRINT_ERROR("Can't add mgmt attr for dev handler %s",
+				devt->name);
+			goto out;
+		}
+	} else if (devt->pass_through) {
+		retval = sysfs_create_file(&devt->devt_kobj,
+				&scst_devt_pass_through_mgmt.attr);
+		if (retval != 0) {
+			PRINT_ERROR("Can't add mgmt attr for dev handler %s",
+				devt->name);
+			goto out;
+		}
+
+		retval = sysfs_create_file(&devt->devt_kobj,
+				&scst_devt_pass_through.attr);
+		if (retval != 0) {
+			PRINT_ERROR("Can't add pass_through attr for dev "
+				"handler %s", devt->name);
+			goto out;
+		}
+	}
 
 	pattr = devt->devt_attrs;
 	if (pattr != NULL) {

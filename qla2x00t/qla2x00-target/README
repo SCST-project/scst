@@ -17,7 +17,7 @@ Linux kernel 2.6.26 and higher. Sorry, kernels below 2.6.26 are not
 supported, because it's too hard to backport used initiator driver to
 older kernels.
 
-NPIV is particulary supported by this driver. You can create virtual
+NPIV is partially supported by this driver. You can create virtual
 targets using standard Linux interface by echoing wwpn:wwnn into
 /sys/class/fc_host/hostX/vport_create and work with them, but SCST core
 will not see those virtual targets and, hence, provide the
@@ -80,16 +80,22 @@ subdirectory. The target driver will be installed in
 uninstall'.
 
 After the drivers are loaded and adapters successfully initialized by
-the initiator driver, including firmware image load, the target mode
-should be enabled via a sysfs interface on a per card basis. Under the
-appropriate scsi_host there is an entry target_mode_enabled, where you
-should write "1", like:
+the initiator driver, including firmware image load, you should
+configure exported devices using the corresponding interface of SCST
+core. It is highly recommended to use scstadmin utility for that
+purpose.
+
+Then target mode should be enabled via a sysfs interface on a per card
+basis. Under the appropriate scsi_host there is an entry
+target_mode_enabled, where you should write "1", like:
 
 echo "1" >/sys/class/scsi_host/host0/target_mode_enabled
 
-Then you should configure exported devices using the corresponding
-interface of SCST core. It is highly recommended to use scstadmin
-utility for that purpose.
+For the sysfs build you should instead
+
+echo "1" >/sys/kernel/scst_tgt/targets/qla2x00t/target/enabled
+
+See below for full description of the driver's sysfs interface.
 
 You can find some installation and configuration HOWTOs in
 http://scst.sourceforge.net/qla2x00t-howto.html and
@@ -112,6 +118,9 @@ target/initiator state synchronization. Also check if initiator supports
 this feature, it is reported in the kernel logs ("confirmed completion
 supported" or not). No major performance degradation was noticed, if it
 is enabled. Supported only for 23xx+. Disabled by default.
+
+In the sysfs build it is moved in /sys/kernel/scst_tgt/targets/qla2x00t/target/
+subdirectory, see the sysfs interface description below.
 
 
 Class 2
@@ -148,6 +157,260 @@ in/out in Makefile:
    initiator to issue a retransmit request.
 
 
+Sysfs interface
+---------------
+
+Starting from 2.0.0 this driver has sysfs interface. You can switch to
+it by running "make disable_proc". To switch back to the procfs
+interface you should run "make enable_proc". The procfs interface from
+version 2.0.0 is obsolete and will be removed in one of the next
+versions.
+
+Root of SCST sysfs interface is /sys/kernel/scst_tgt. Root of this
+driver is /sys/kernel/scst_tgt/targets/qla2x00t. It has the following
+entries:
+
+ - None, one or more subdirectories for targets with name equal to port
+   names of the corresponding targets.
+
+ - trace_level - allows to enable and disable various tracing
+   facilities. See content of this file for help how to use it.
+
+ - version - read-only attribute, which allows to see version of
+   this driver and enabled optional features.
+
+Each target subdirectory contains the following entries:
+
+ - host - link pointing on the corresponding scsi_host of the initiator
+   driver
+
+ - ini_group - subdirectory defining initiator groups for this target,
+   used to define per-initiator access control. See SCST core README for
+   more details.
+
+ - luns - subdirectory defining LUNs of this target. See SCST core
+   README for more details.
+
+ - sessions - subdirectory containing connected to this target sessions.
+
+ - enabled - using this attribute you can enable or disable target mode
+   of this FC port. It allows to finish configuring it before it starts
+   accepting new connections. 0 by default.
+
+ - explicit_confirmation - allows to enable explicit conformations, see
+   above.
+
+ - rel_tgt_id - allows to read or write SCSI Relative Target Port
+   Identifier attribute. This identifier is used to identify SCSI Target
+   Ports by some SCSI commands, mainly by Persistent Reservations
+   commands. This identifier must be unique among all SCST targets, but
+   for convenience SCST allows disabled targets to have not unique
+   rel_tgt_id. In this case SCST will not allow to enable this target
+   until rel_tgt_id becomes unique. This attribute initialized unique by
+   SCST by default.
+
+Subdirectory "sessions" contains one subdirectory for each connected
+session with name equal to port name of the connected initiator.
+
+Each session subdirectory contains the following entries:
+
+ - initiator_name - contains initiator's port name
+
+ - active_commands - contains number of active, i.e. not yet or being
+   executed, SCSI commands in this session.
+
+ - commands - contains overall number of SCSI commands in this session.
+
+Below is a sample script, which configures 1 virtual disk "disk1" using
+/disk1 image for usage with 25:00:00:f0:98:87:92:f3 target. All
+initiators connected to this target will see this device.
+
+#!/bin/bash
+
+modprobe scst
+modprobe scst_vdisk
+
+echo "add_device disk1 filename=/disk1; nv_cache=1" >/sys/kernel/scst_tgt/handlers/vdisk_fileio/mgmt
+
+modprobe qla2x00tgt
+
+echo "add disk1 0" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/luns/mgmt
+echo 1 >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/enabled
+
+Below is more advanced sample script, which configures more virtual
+devices of various types, including virtual CDROM. In this script
+initiator 25:00:00:f0:99:87:94:a3 will see disk1 and disk2 devices, all
+other initiators will see read only blockio, nullio and cdrom devices.
+
+#!/bin/bash
+
+modprobe scst
+modprobe scst_vdisk
+
+echo "add_device disk1 filename=/disk1; nv_cache=1" >/sys/kernel/scst_tgt/handlers/vdisk_fileio/mgmt
+echo "add_device disk2 filename=/disk2; blocksize=4096; nv_cache=1" >/sys/kernel/scst_tgt/handlers/vdisk_fileio/mgmt
+echo "add_device blockio filename=/dev/sda5" >/sys/kernel/scst_tgt/handlers/vdisk_blockio/mgmt
+echo "add_device nullio" >/sys/kernel/scst_tgt/handlers/vdisk_nullio/mgmt
+echo "add_device cdrom" >/sys/kernel/scst_tgt/handlers/vcdrom/mgmt
+
+modprobe qla2x00tgt
+
+echo "add blockio 0 read_only=1" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/luns/mgmt
+echo "add nullio 1" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/luns/mgmt
+echo "add cdrom 2" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/luns/mgmt
+
+echo "create 25:00:00:f0:99:87:94:a3" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/ini_group/mgmt
+echo "add disk1 0" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/ini_group/25:00:00:f0:99:87:94:a3/luns/mgmt
+echo "add disk2 1" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/ini_group/25:00:00:f0:99:87:94:a3/luns/mgmt
+echo "add 25:00:00:f0:99:87:94:a3" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/ini_group/25:00:00:f0:99:87:94:a3/initiators/mgmt
+
+echo 1 >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/enabled
+
+The resulting overall SCST sysfs hierarchy with initiator
+25:00:00:f0:99:87:94:a3 connected will look like:
+
+/sys/kernel/scst_tgt
+|-- devices
+|   |-- blockio
+|   |   |-- blocksize
+|   |   |-- exported
+|   |   |   `-- export0 -> ../../../targets/qla2x00t/25:00:00:f0:98:87:92:f3/luns/0
+|   |   |-- filename
+|   |   |-- handler -> ../../handlers/vdisk_blockio
+|   |   |-- read_only
+|   |   |-- removable
+|   |   |-- resync_size
+|   |   |-- size_mb
+|   |   |-- t10_dev_id
+|   |   |-- type
+|   |   `-- usn
+|   |-- cdrom
+|   |   |-- exported
+|   |   |   `-- export0 -> ../../../targets/qla2x00t/25:00:00:f0:98:87:92:f3/luns/2
+|   |   |-- filename
+|   |   |-- handler -> ../../handlers/vcdrom
+|   |   |-- size_mb
+|   |   |-- t10_dev_id
+|   |   |-- type
+|   |   `-- usn
+|   |-- disk1
+|   |   |-- blocksize
+|   |   |-- exported
+|   |   |   `-- export0 -> ../../../targets/qla2x00t/25:00:00:f0:98:87:92:f3/ini_group/25:00:00:f0:99:87:94:a3/luns/0
+|   |   |-- filename
+|   |   |-- handler -> ../../handlers/vdisk_fileio
+|   |   |-- nv_cache
+|   |   |-- o_direct
+|   |   |-- read_only
+|   |   |-- removable
+|   |   |-- resync_size
+|   |   |-- size_mb
+|   |   |-- t10_dev_id
+|   |   |-- type
+|   |   |-- usn
+|   |   `-- write_through
+|   |-- disk2
+|   |   |-- blocksize
+|   |   |-- exported
+|   |   |   `-- export0 -> ../../../targets/qla2x00t/25:00:00:f0:98:87:92:f3/ini_group/25:00:00:f0:99:87:94:a3/luns/1
+|   |   |-- filename
+|   |   |-- handler -> ../../handlers/vdisk_fileio
+|   |   |-- nv_cache
+|   |   |-- o_direct
+|   |   |-- read_only
+|   |   |-- removable
+|   |   |-- resync_size
+|   |   |-- size_mb
+|   |   |-- t10_dev_id
+|   |   |-- type
+|   |   |-- usn
+|   |   `-- write_through
+|   `-- nullio
+|       |-- blocksize
+|       |-- exported
+|       |   `-- export0 -> ../../../targets/qla2x00t/25:00:00:f0:98:87:92:f3/luns/1
+|       |-- handler -> ../../handlers/vdisk_nullio
+|       |-- read_only
+|       |-- removable
+|       |-- size_mb
+|       |-- t10_dev_id
+|       |-- type
+|       `-- usn
+|-- handlers
+|   |-- vcdrom
+|   |   |-- cdrom -> ../../devices/cdrom
+|   |   |-- mgmt
+|   |   |-- trace_level
+|   |   `-- type
+|   |-- vdisk_blockio
+|   |   |-- blockio -> ../../devices/blockio
+|   |   |-- mgmt
+|   |   |-- trace_level
+|   |   `-- type
+|   |-- vdisk_fileio
+|   |   |-- disk1 -> ../../devices/disk1
+|   |   |-- disk2 -> ../../devices/disk2
+|   |   |-- mgmt
+|   |   |-- trace_level
+|   |   `-- type
+|   `-- vdisk_nullio
+|       |-- mgmt
+|       |-- nullio -> ../../devices/nullio
+|       |-- trace_level
+|       `-- type
+|-- sgv
+|   |-- global_stats
+|   |-- sgv
+|   |   `-- stats
+|   |-- sgv-clust
+|   |   `-- stats
+|   `-- sgv-dma
+|       `-- stats
+|-- targets
+|   `-- qla2x00t
+|       |-- 25:00:00:f0:98:87:92:f3
+|       |   |-- enabled
+|       |   |-- explicit_confirmation
+|       |   |-- host -> ../../../../../class/scsi_host/host4
+|       |   |-- ini_group
+|       |   |   |-- 25:00:00:f0:99:87:94:a3
+|       |   |   |   |-- initiators
+|       |   |   |   |   |-- 25:00:00:f0:99:87:94:a3
+|       |   |   |   |   `-- mgmt
+|       |   |   |   `-- luns
+|       |   |   |       |-- 0
+|       |   |   |       |   |-- device -> ../../../../../../../devices/disk1
+|       |   |   |       |   `-- read_only
+|       |   |   |       |-- 1
+|       |   |   |       |   |-- device -> ../../../../../../../devices/disk2
+|       |   |   |       |   `-- read_only
+|       |   |   |       `-- mgmt
+|       |   |   `-- mgmt
+|       |   |-- luns
+|       |   |   |-- 0
+|       |   |   |   |-- device -> ../../../../../devices/blockio
+|       |   |   |   `-- read_only
+|       |   |   |-- 1
+|       |   |   |   |-- device -> ../../../../../devices/nullio
+|       |   |   |   `-- read_only
+|       |   |   |-- 2
+|       |   |   |   |-- device -> ../../../../../devices/cdrom
+|       |   |   |   `-- read_only
+|       |   |   `-- mgmt
+|       |   |-- rel_tgt_id
+|       |   `-- sessions
+|       |       `-- 25:00:00:f0:99:87:94:a3
+|       |           |-- active_commands
+|       |           |-- commands
+|       |           |-- initiator_name
+|       |           `-- luns -> ../../ini_group/25:00:00:f0:99:87:94:a3/luns
+|       |-- trace_level
+|       `-- version
+|-- threads
+|-- trace_level
+`-- version
+
+
 Credits
 -------
 
@@ -162,6 +425,6 @@ initiator driver.
 WWN-based authentification, a lot of useful suggestions, bug reports and
 help in debugging.
 
- * Ming Zhang <mingz@ele.uri.edu> for his fixes.
+ * Ming Zhang <mingz@ele.uri.edu> for fixes.
 
 Vladislav Bolkhovitin <vst@vlnb.net>, http://scst.sourceforge.net

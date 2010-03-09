@@ -28,6 +28,7 @@
 #include <linux/unistd.h>
 #include <linux/string.h>
 #include <asm/kmap_types.h>
+#include <linux/ctype.h>
 
 #include "scst.h"
 #include "scst_priv.h"
@@ -5825,6 +5826,59 @@ out:
 	return;
 }
 
+char *scst_get_next_lexem(char **token_str)
+{
+	char *p = *token_str;
+	char *q;
+	static const char blank = '\0';
+
+	if ((token_str == NULL) || (*token_str == NULL))
+		return (char *)&blank;
+
+	for (p = *token_str; (*p != '\0') && (isspace(*p) || (*p == '=')); p++)
+		;
+
+	for (q = p; (*q != '\0') && !isspace(*q) && (*q != '='); q++)
+		;
+
+	if (*q != '\0')
+		*q++ = '\0';
+
+	*token_str = q;
+	return p;
+}
+EXPORT_SYMBOL(scst_get_next_lexem);
+
+void scst_restore_token_str(char *prev_lexem, char *token_str)
+{
+	if (&prev_lexem[strlen(prev_lexem)] != token_str)
+		prev_lexem[strlen(prev_lexem)] = ' ';
+	return;
+}
+EXPORT_SYMBOL(scst_restore_token_str);
+
+char *scst_get_next_token_str(char **input_str)
+{
+	char *p = *input_str;
+	int i = 0;
+
+	while ((p[i] != '\n') && (p[i] != ';') && (p[i] != '\0'))
+		i++;
+
+	if (i == 0)
+		return NULL;
+
+	if (p[i] == '\0')
+		*input_str = &p[i];
+	else
+		*input_str = &p[i+1];
+
+	p[i] = '\0';
+
+	return p;
+}
+EXPORT_SYMBOL(scst_get_next_token_str);
+
 static void __init scst_scsi_op_list_init(void)
 {
 	int i;
@@ -5907,7 +5961,7 @@ unsigned long scst_random(void)
 	return rv;
 }
 EXPORT_SYMBOL(scst_random);
-#endif
+#endif /* CONFIG_SCST_DEBUG */
 
 #ifdef CONFIG_SCST_DEBUG_TM
 

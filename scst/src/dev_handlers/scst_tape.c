@@ -53,6 +53,7 @@ static int tape_exec(struct scst_cmd *);
 static struct scst_dev_type tape_devtype = {
 	.name =			TAPE_NAME,
 	.type =			TYPE_TAPE,
+	.pass_through =		1,
 	.parse_atomic =		1,
 	.dev_done_atomic =	1,
 	.exec_atomic =		1,
@@ -69,6 +70,7 @@ static struct scst_dev_type tape_devtype = {
 static struct scst_dev_type tape_devtype_perf = {
 	.name =			TAPE_PERF_NAME,
 	.type =			TYPE_TAPE,
+	.pass_through =		1,
 	.parse_atomic =		1,
 	.dev_done_atomic =	1,
 	.exec_atomic =		1,

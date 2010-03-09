@@ -848,7 +848,7 @@ struct scst_tgt_template {
 	 *
 	 * MUST HAVE if virtual targets are supported.
 	 */
-	ssize_t (*add_target) (const char *target_name, const char *params);
+	ssize_t (*add_target) (const char *target_name, char *params);
 
 	/*
 	 * This function deletes a virtual target. See comment for add_target
@@ -861,11 +861,11 @@ struct scst_tgt_template {
 	/*
 	 * This function called if not "add_target" or "del_target" command is
 	 * sent to the mgmt entry (see comment for add_target above). In this
-	 * case the command passed in this function as is in a string form.
+	 * case the command passed to this function as is in a string form.
 	 *
 	 * OPTIONAL.
 	 */
-	ssize_t (*mgmt_cmd) (const char *cmd);
+	ssize_t (*mgmt_cmd) (char *cmd);
 
 	/*
 	 * Name of the template. Must be unique to identify
@@ -907,6 +907,9 @@ struct scst_tgt_template {
 	/* Optional help string for mgmt_cmd commands */
 	const char *mgmt_cmd_help;
 
+	/* Optional help string for add_target parameters */
+        const char *add_target_parameters_help;
+
 	/** Private, must be inited to 0 by memset() **/
 
 	/* List of targets per template, protected by scst_mutex */
@@ -937,6 +940,9 @@ struct scst_dev_type {
 	/* SCSI type of the supported device. MUST HAVE */
 	int type;
 
+	/* True, if this dev handler is a pass-through dev handler */
+	unsigned pass_through:1;
+
 	/*
 	 * True, if corresponding function supports execution in
 	 * the atomic (non-sleeping) context
@@ -946,12 +952,12 @@ struct scst_dev_type {
 	unsigned dev_done_atomic:1;
 
 #ifdef CONFIG_SCST_PROC
-	/* Set, if no /proc files should be automatically created by SCST */
+	/* True, if no /proc files should be automatically created by SCST */
 	unsigned no_proc:1;
 #endif
 
 	/*
-	 * Should be set, if exec() is synchronous. This is a hint to SCST core
+	 * Should be true, if exec() is synchronous. This is a hint to SCST core
 	 * to optimize commands order management.
 	 */
 	unsigned exec_sync:1;
@@ -1070,6 +1076,43 @@ struct scst_dev_type {
 	int (*read_proc) (struct seq_file *seq, struct scst_dev_type *dev_type);
 	int (*write_proc) (char *buffer, char **start, off_t offset,
 		int length, int *eof, struct scst_dev_type *dev_type);
+#else
+	/*
+	 * This function adds a virtual device.
+	 *
+	 * If both add_device and del_device callbacks defined, then this
+	 * dev handler supposed to support adding/deleting virtual devices.
+	 * In this case an "mgmt" entry will be created in the sysfs root for
+	 * this handler. The "mgmt" entry will support 2 commands: "add_device"
+	 * and "del_device", for which the corresponding callbacks will be called.
+	 * Also dev handler can define own commands for the "mgmt" entry, see
+	 * mgmt_cmd and mgmt_cmd_help below.
+	 *
+	 * This approach allows uniform devices management to simplify external
+	 * management tools like scstadmin. See README for more details.
+	 *
+	 * Either both add_device and del_device must be defined, or none.
+	 *
+	 * MUST HAVE if virtual devices are supported.
+	 */
+	ssize_t (*add_device) (const char *device_name, char *params);
+
+	/*
+	 * This function deletes a virtual device. See comment for add_device
+	 * above.
+	 *
+	 * MUST HAVE if virtual devices are supported.
+	 */
+	ssize_t (*del_device) (const char *device_name);
+
+	/*
+	 * This function called if not "add_device" or "del_device" command is
+	 * sent to the mgmt entry (see comment for add_device above). In this
+	 * case the command passed to this function as is in a string form.
+	 *
+	 * OPTIONAL.
+	 */
+	ssize_t (*mgmt_cmd) (char *cmd);
 #endif
 
 	/*
@@ -1094,10 +1137,16 @@ struct scst_dev_type {
 	/* Optional local trace table */
 	struct scst_trace_log *trace_tbl;
 
+#ifndef CONFIG_SCST_PROC
 	/* Optional local trace table help string */
 	const char *trace_tbl_help;
 
-#ifndef CONFIG_SCST_PROC
+	/* Optional help string for mgmt_cmd commands */
+        const char *mgmt_cmd_help;
+
+	/* Optional help string for add_device parameters */
+        const char *add_device_parameters_help;
+
 	/* Optional sysfs attributes */
 	const struct attribute **devt_attrs;
 
@@ -3643,5 +3692,26 @@ int scst_wait_info_completion(struct scst_sysfs_user_info *info,
 	unsigned long timeout);
 
 #endif /* CONFIG_SCST_PROC */
+
+/*
+ * This function returns pointer to the next lexem from token_str skipping
+ * spaces and '=' character and using them then as a delimeter. Content
+ * of token_str is modified by setting '\0' at the delimeter's position.
+ */
+char *scst_get_next_lexem(char **token_str);
+
+/*
+ * This function restores token_str modified by scst_get_next_lexem() to the
+ * previous value before scst_get_next_lexem() was called. Prev_lexem is
+ * a pointer to lexem returned by scst_get_next_lexem().
+ */
+void scst_restore_token_str(char *prev_lexem, char *token_str);
+
+/*
+ * This function returns pointer to the next token strings from input_str
+ * using '\n', ';' and '\0' as a delimeter. Content of input_str is
+ * modified by setting '\0' at the delimeter's position.
+ */
+char *scst_get_next_token_str(char **input_str);
 
 #endif /* __SCST_H */

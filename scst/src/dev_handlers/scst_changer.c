@@ -38,6 +38,7 @@ static int changer_parse(struct scst_cmd *);
 static struct scst_dev_type changer_devtype = {
 	.name =	CHANGER_NAME,
 	.type =	TYPE_MEDIUM_CHANGER,
+	.pass_through = 1,
 	.parse_atomic =	1,
 /*	.dev_done_atomic =	1, */
 	.attach =	changer_attach,

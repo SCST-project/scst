@@ -330,7 +330,7 @@ static int handle_e_mgmt_cmd(int fd, const struct iscsi_kern_event *event)
 		}
 		res = handle_del_param(target, p, event->cookie);
 	} else {
-		log_error("Syntax error at %s", p);
+		log_error("Syntax error at %s", pp);
 		res = -EINVAL;
 	}
 

@@ -547,7 +547,7 @@ bool iscsi_is_target_enabled(struct scst_tgt *scst_tgt)
 	return tgt->tgt_enabled;
 }
 
-ssize_t iscsi_sysfs_add_target(const char *target_name, const char *params)
+ssize_t iscsi_sysfs_add_target(const char *target_name, char *params)
 {
 	int res;
 
@@ -594,7 +594,7 @@ out:
 	return res;
 }
 
-ssize_t iscsi_sysfs_mgmt_cmd(const char *cmd)
+ssize_t iscsi_sysfs_mgmt_cmd(char *cmd)
 {
 	int res;
 

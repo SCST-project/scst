@@ -1,8 +1,12 @@
 Known issues and unimplemented features
 ---------------------------------------
 
+ - Allow to set port and node names through sysfs.
+ 
  - Complete NPIV support. Particularly, SCST core should see all the virtual
    targets and provide separate target-oriented access control for them.
+
+ - Minor "ToDo"'s spread in the code.
 
  - If a Linux initiator asks for devices using INQUIRY command too soon
    before the controller on the 23xx target is fully initialized in the
@@ -15,8 +19,7 @@ Known issues and unimplemented features
    "unknown or no device type", but the SCSI mid-level treats such
    devices as real and adds them to the system. To avoid it, try to
    leave the target enough time for initialization (some 10th seconds).
-
- - Minor "ToDo"'s spread in the code.
+   With the latest firmware that might be fixed.
 
  - On 23xx if on a tape with block size 0 we write block with size X
    and then read it with bs <X the tape skips all blocks with size X

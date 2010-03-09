@@ -48,6 +48,7 @@ static int disk_exec(struct scst_cmd *cmd);
 static struct scst_dev_type disk_devtype = {
 	.name =			DISK_NAME,
 	.type =			TYPE_DISK,
+	.pass_through =		1,
 	.parse_atomic =		1,
 	.dev_done_atomic =	1,
 	.exec_atomic =		1,
@@ -64,6 +65,7 @@ static struct scst_dev_type disk_devtype = {
 static struct scst_dev_type disk_devtype_perf = {
 	.name =			DISK_PERF_NAME,
 	.type =			TYPE_DISK,
+	.pass_through =		1,
 	.parse_atomic =		1,
 	.dev_done_atomic =	1,
 	.exec_atomic =		1,
