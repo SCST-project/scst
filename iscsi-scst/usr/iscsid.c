@@ -977,7 +977,6 @@ int cmnd_execute(struct connection *conn)
 			cmnd_reject(conn, ISCSI_REASON_PROTOCOL_ERROR);
 		else
 			cmnd_exec_logout(conn);
-		cmnd_exec_logout(conn);
 		break;
 	default:
 		cmnd_reject(conn, ISCSI_REASON_UNSUPPORTED_COMMAND);
