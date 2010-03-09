@@ -1252,6 +1252,9 @@ static int dev_user_process_reply_parse(struct scst_user_cmd *ucmd,
 
 	TRACE_ENTRY();
 
+	if (preply->status != 0)
+		goto out_status;
+
 	if (unlikely(preply->queue_type > SCST_CMD_QUEUE_ACA))
 		goto out_inval;
 
@@ -1297,9 +1300,40 @@ out_inval:
 		(long long unsigned int)cmd->lun, cmd->cdb[0], cmd);
 	PRINT_BUFFER("Invalid parse_reply", reply, sizeof(*reply));
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
-	scst_set_cmd_abnormal_done_state(cmd);
 	res = -EINVAL;
+	goto out_abnormal;
+
+out_hwerr_res_set:
+	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+
+out_abnormal:
+	scst_set_cmd_abnormal_done_state(cmd);
 	goto out_process;
+
+out_status:
+	TRACE_DBG("ucmd %p returned with error from user status %x",
+		ucmd, preply->status);
+
+	if (preply->sense_len != 0) {
+		int sense_len;
+
+		res = scst_alloc_sense(cmd, 0);
+		if (res != 0)
+			goto out_hwerr_res_set;
+
+		sense_len = min_t(int, cmd->sense_buflen, preply->sense_len);
+
+		res = copy_from_user(cmd->sense,
+			(void __user *)(unsigned long)preply->psense_buffer,
+			sense_len);
+		if (res < 0) {
+			PRINT_ERROR("%s", "Unable to get sense data");
+			goto out_hwerr_res_set;
+		}
+		cmd->sense_valid_len = sense_len;
+	}
+	scst_set_cmd_error_status(cmd, preply->status);
+	goto out_abnormal;
 }
 
 static int dev_user_process_reply_on_free(struct scst_user_cmd *ucmd)

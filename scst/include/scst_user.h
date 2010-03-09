@@ -211,12 +211,21 @@ struct scst_user_get_cmd {
 
 /* Be careful adding new members here, this structure is allocated on stack! */
 struct scst_user_scsi_cmd_reply_parse {
-	uint8_t queue_type;
-	uint8_t data_direction;
-	int16_t cdb_len;
-	uint32_t op_flags;
-	int32_t data_len;
-	int32_t bufflen;
+	uint8_t status;
+	union {
+		struct {
+			uint8_t queue_type;
+			uint8_t data_direction;
+			int16_t cdb_len;
+			uint32_t op_flags;
+			int32_t data_len;
+			int32_t bufflen;
+		};
+		struct {
+			uint8_t sense_len;
+			aligned_u64 psense_buffer;
+		};
+	};
 };
 
 /* Be careful adding new members here, this structure is allocated on stack! */
