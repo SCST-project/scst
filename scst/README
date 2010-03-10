@@ -388,8 +388,8 @@ entries.
 
      * Increase in .config of your kernel CONFIG_LOG_BUF_SHIFT variable
        to much bigger value, then recompile it. For example, value 25
-       will provide good protection from logging overflow aven under
-       high volume of loggin events, but to use it you will need to
+       will provide good protection from logging overflow even under
+       high volume of logging events, but to use it you will need to
        modify the maximum allowed value for CONFIG_LOG_BUF_SHIFT in the
        corresponding Kconfig file.
 
@@ -834,7 +834,7 @@ symbols, '?' means match only any single symbol. For instance,
 Each "luns" subdirectory contains the list of already defined LUNs for
 this group as well as file "mgmt". Content of this file as well as list
 of available in it commands is fully identical to the "luns"
-sybdirectory of the target-oriented access control.
+subdirectory of the target-oriented access control.
 
 Examples:
 
@@ -1128,7 +1128,7 @@ Each vdisk_fileio's device has the following attributes in
  - type - contains SCSI type of this virtual device.
 
  - resync_size - write only attribute, which makes vdisk_fileio to
-   rescan size of the backend file. It is usful if you changed it, for
+   rescan size of the backend file. It is useful if you changed it, for
    instance, if you resized it.
 
 For example:
@@ -1215,47 +1215,6 @@ CAUTION: If you partitioned/formatted your device with block size X, *NEVER*
 	 in, e.g., partition table, don't refer anymore to what they are
 	 intended to refer.
 
-IMPORTANT: By default for performance reasons VDISK FILEIO devices use write
-=========  back caching policy. This is generally safe from the consistence of
-           journaled file systems, laying over them, point of view, but
-	   your unsaved cached data will be lost in case of
-	   power/hardware/software failure, so you must supply your
-	   target server with some kind of UPS or disable write back
-	   caching using WRITE_THROUGH flag.
-	   Note, that the file systems journaling over write back
-	   caching enabled devices work reliably *ONLY* if the order of
-	   journal writes is guaranteed or they use some kind of data
-	   protection barriers (i.e. after writing journal data some
-	   kind of synchronization with media operations is used),
-	   otherwise, because of possible reordering in the cache, even
-	   after successful journal rollback, you very much risk to
-	   loose your data on the FS. Currently, Linux IO subsystem
-	   guarantees order of write operations only using data
-	   protection barriers. Some info about it from the XFS point of
-	   view could be found at
-	   http://oss.sgi.com/projects/xfs/faq.html#wcache. On Linux
-	   initiators for EXT3 and ReiserFS file systems the barrier
-	   protection could be turned on using "barrier=1" and
-	   "barrier=flush" mount options correspondingly. Note, that
-	   usually it's turned off by default (see
-	   http://lwn.net/Articles/283161). You can check if it's turn
-	   on or off by looking in /proc/mounts. Windows and, AFAIK,
-	   other UNIX'es don't need any special explicit options and do
-	   necessary barrier actions on write-back caching devices by
-	   default. Also note that on some real-life workloads write
-	   through caching might perform better, than write back one
-	   with the barrier protection turned on.
-	   Also you should understand that without barriers enabled
-	   (i.e. by default) Linux doesn't provide a guarantee that
-	   after sync()/fsync() all written data really hit permanent
-	   storage. They can be stored in the cache of your backstorage
-	   device only and lost on power failure event. Thus, ever with
-	   write-through cache mode, you still either need to enable
-	   barriers on your backend file system on the target (for
-	   devices in it is, indeed, impossible), or need a good UPS to
-	   protect yourself from your data loss (note, data loss, not
-	   the file system corruption).
-
 IMPORTANT: Some disk and partition table management utilities don't support
 =========  block sizes >512 bytes, therefore make sure that your favorite one
            supports it. Currently only cfdisk is known to work only with
@@ -1273,6 +1232,48 @@ IMPORTANT: Some disk and partition table management utilities don't support
 	   successfully mounted a file system over non-512 bytes block
 	   size device, the block size stops matter, any program will
 	   work with files on such file system.
+
+
+Caching
+-------
+
+By default for performance reasons VDISK FILEIO devices use write back
+caching policy. This is generally safe for modern applications who
+prepared to work in the write back caching environments, so know when to
+flush cache to keep their data consistent and minimize damage caused in
+case of power/hardware/software failures by lost in the cache data.
+
+For instance, journaled file systems flush cache on each meta data
+update, so they survive power/hardware/software failures pretty well.
+Note, Linux IO subsystem guarantees it work reliably only using data
+protection barriers, which, for instance, for Ext3 turned off by default
+(see http://lwn.net/Articles/283161). Some info about barriers from the
+XFS point of view could be found at
+http://oss.sgi.com/projects/xfs/faq.html#wcache. On Linux initiators for
+Ext3 and ReiserFS file systems the barrier protection could be turned on
+using "barrier=1" and "barrier=flush" mount options correspondingly. You
+can check if the barriers turn on or off by looking in /proc/mounts.
+Windows and, AFAIK, other UNIX'es don't need any special explicit
+options and do necessary barrier actions on write-back caching devices
+by default. 
+
+But even in case of journaled file systems your unsaved cached data will
+still be lost in case of power/hardware/software failures, so you may
+need to supply your target server with a good UPS with possibility to
+gracefully shutdown your target on power shortage or disable write back
+caching using WRITE_THROUGH flag. Note, on some real-life workloads
+write through caching might perform better, than write back one with the
+barrier protection turned on. Also note that without barriers enabled
+(i.e. by default) Linux doesn't provide a guarantee that after
+sync()/fsync() all written data really hit permanent storage. They can
+be stored in the cache of your backstorage devices and, hence, lost on a
+power failure event. Thus, ever with write-through cache mode, you still
+either need to enable barriers on your backend file system on the target
+(for devices this is, indeed, impossible), or need a good UPS to protect
+yourself from not committed data loss.
+
+To limit this data loss you can use files in /proc/sys/vm to limit
+amount of unflushed data in the system cache.
 
 
 BLOCKIO VDISK mode
