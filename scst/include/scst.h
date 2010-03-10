@@ -820,8 +820,7 @@ struct scst_tgt_template {
 	 * case the too early connected initiators would see not those devices,
 	 * which they intended to see.
 	 */
-	ssize_t (*enable_target) (struct scst_tgt *tgt, const char *buffer,
-			   size_t size);
+	int (*enable_target) (struct scst_tgt *tgt, bool enable);
 
 	/*
 	 * This function shows if particular target is enabled or not.

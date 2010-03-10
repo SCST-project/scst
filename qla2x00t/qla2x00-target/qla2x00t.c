@@ -119,15 +119,21 @@ struct kobj_attribute q2t_expl_conf_attr =
 	__ATTR(explicit_confirmation, S_IRUGO|S_IWUSR,
 	       q2t_show_expl_conf_enabled, q2t_store_expl_conf_enabled);
 
+static ssize_t q2t_abort_isp_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buffer, size_t size);
+
+struct kobj_attribute q2t_abort_isp_attr =
+	__ATTR(abort_isp, S_IWUSR, NULL, q2t_abort_isp_store);
+
 static const struct attribute *q2t_tgt_attrs[] = {
 	&q2t_expl_conf_attr.attr,
+	&q2t_abort_isp_attr.attr,
 	NULL,
 };
 
 #endif /* CONFIG_SCST_PROC */
 
-static ssize_t q2t_enable_tgt(struct scst_tgt *tgt, const char *buf,
-	size_t size);
+static int q2t_enable_tgt(struct scst_tgt *tgt, bool enable);
 static bool q2t_is_tgt_enabled(struct scst_tgt *tgt);
 
 /*
@@ -5175,36 +5181,17 @@ out:
 	return res;
 }
 
-static ssize_t q2t_enable_tgt(struct scst_tgt *scst_tgt, const char *buffer,
-	size_t size)
+static int q2t_enable_tgt(struct scst_tgt *scst_tgt, bool enable)
 {
 	struct q2t_tgt *tgt = (struct q2t_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
 	scsi_qla_host_t *ha = tgt->ha;
-	int res = 0;
+	int res;
 
-	switch (buffer[0]) {
-	case '0':
-		res = q2t_host_action(ha, DISABLE_TARGET_MODE);
-		break;
-	case '1':
+	if (enable)
 		res = q2t_host_action(ha, ENABLE_TARGET_MODE);
-		break;
-	default:
-		PRINT_ERROR("%s: Requested action not understood: %s",
-		       __func__, buffer);
-		res = -EINVAL;
-		goto out;
-	}
+	else
+		res = q2t_host_action(ha, DISABLE_TARGET_MODE);
 
-	if (res == 0)
-		res = size;
-
-	if ((size > 1) && (buffer[1] == 'r')) {
-		set_bit(ISP_ABORT_NEEDED, &ha->dpc_flags);
-		qla2x00_wait_for_hba_online(ha);
-	}
-
-out:
 	return res;
 }
 
@@ -5269,6 +5256,25 @@ static ssize_t q2t_store_expl_conf_enabled(struct kobject *kobj,
 	}
 
 	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+
+	return size;
+}
+
+static ssize_t q2t_abort_isp_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buffer, size_t size)
+{
+	struct scst_tgt *scst_tgt;
+	struct q2t_tgt *tgt;
+	scsi_qla_host_t *ha;
+
+	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	tgt = (struct q2t_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	ha = tgt->ha;
+
+	PRINT_INFO("qla2xxx(%ld): Aborting ISP", ha->instance);
+
+	set_bit(ISP_ABORT_NEEDED, &ha->dpc_flags);
+	qla2x00_wait_for_hba_online(ha);
 
 	return size;
 }

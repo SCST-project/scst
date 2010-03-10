@@ -503,38 +503,24 @@ out:
 	return res;
 }
 
-ssize_t iscsi_enable_target(struct scst_tgt *scst_tgt, const char *buf,
-	size_t size)
+int iscsi_enable_target(struct scst_tgt *scst_tgt, bool enable)
 {
 	struct iscsi_target *tgt =
 		(struct iscsi_target *)scst_tgt_get_tgt_priv(scst_tgt);
 	int res;
-	bool enable;
 	uint32_t type;
 
 	TRACE_ENTRY();
 
-	switch (buf[0]) {
-	case '0':
-		type = E_DISABLE_TARGET;
-		enable = false;
-		break;
-	case '1':
+	if (enable)
 		type = E_ENABLE_TARGET;
-		enable = true;
-		break;
-	default:
-		PRINT_ERROR("%s: Requested action not understood: %s",
-		       __func__, buf);
-		res = -EINVAL;
-		goto out;
-	}
+	else
+		type = E_DISABLE_TARGET;
 
 	TRACE_DBG("%s target %d", enable ? "Enabling" : "Disabling", tgt->tid);
 
 	res = iscsi_sysfs_send_event(tgt->tid, type, NULL, NULL, NULL);
 
-out:
 	TRACE_EXIT_RES(res);
 	return res;
 }

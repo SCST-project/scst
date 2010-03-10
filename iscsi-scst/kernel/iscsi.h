@@ -524,8 +524,7 @@ extern void req_add_to_write_timeout_list(struct iscsi_cmnd *req);
 extern const struct seq_operations iscsi_seq_op;
 #else
 extern const struct attribute *iscsi_tgt_attrs[];
-extern ssize_t iscsi_enable_target(struct scst_tgt *scst_tgt, const char *buf,
-	size_t size);
+extern int iscsi_enable_target(struct scst_tgt *scst_tgt, bool enable);
 extern bool iscsi_is_target_enabled(struct scst_tgt *scst_tgt);
 extern ssize_t iscsi_sysfs_send_event(uint32_t tid,
 	enum iscsi_kern_event_code code,
