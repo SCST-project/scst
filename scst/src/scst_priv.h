@@ -152,6 +152,8 @@ extern wait_queue_head_t scst_dev_cmd_waitQ;
 #ifdef CONFIG_SCST_PROC
 extern struct list_head scst_acg_list;
 extern struct scst_acg *scst_default_acg;
+#else
+extern unsigned int scst_setup_id;
 #endif
 
 extern spinlock_t scst_init_lock;
@@ -423,7 +425,7 @@ void scst_free_mgmt_cmd(struct scst_mgmt_cmd *mcmd);
 void scst_done_cmd_mgmt(struct scst_cmd *cmd);
 
 #ifdef CONFIG_SCST_PROC
-/* /proc support */
+
 int scst_proc_init_module(void);
 void scst_proc_cleanup_module(void);
 int scst_build_proc_target_dir_entries(struct scst_tgt_template *vtt);
@@ -432,10 +434,7 @@ int scst_build_proc_target_entries(struct scst_tgt *vtt);
 void scst_cleanup_proc_target_entries(struct scst_tgt *vtt);
 int scst_build_proc_dev_handler_dir_entries(struct scst_dev_type *dev_type);
 void scst_cleanup_proc_dev_handler_dir_entries(struct scst_dev_type *dev_type);
-#endif
 
-/* sysfs support  */
-#ifdef CONFIG_SCST_PROC
 static inline int scst_sysfs_init(void)
 {
 	return 0;

@@ -602,6 +602,12 @@ following entries:
 
  - targets - this is a root subdirectory for all SCST targets
 
+ - setup_id - allows to read and write SCST setup ID. This ID can be
+   used in cases, when the same SCST configuration should be installed
+   on several targets, but exported from those targets devices should
+   have different IDs and SNs. For instance, VDISK dev handler uses this
+   ID to generate T10 vendor specific identifier and SN of the devices.
+
  - threads - allows to read and set number of global SCST I/O threads.
    Those threads used with async. dev handlers, for instance, vdisk
    BLOCKIO or NULLIO.

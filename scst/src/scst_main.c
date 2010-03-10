@@ -105,6 +105,8 @@ struct kmem_cache *scst_acgd_cachep;
 #ifdef CONFIG_SCST_PROC
 struct list_head scst_acg_list;
 struct scst_acg *scst_default_acg;
+#else
+unsigned int scst_setup_id;
 #endif
 
 spinlock_t scst_init_lock;
@@ -1777,6 +1779,14 @@ void scst_put(void)
 	__scst_put();
 }
 EXPORT_SYMBOL(scst_put);
+
+#ifndef CONFIG_SCST_PROC
+unsigned int scst_get_setup_id(void)
+{
+	return scst_setup_id;
+}
+EXPORT_SYMBOL(scst_get_setup_id);
+#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 static int scst_add(struct class_device *cdev, struct class_interface *intf)

@@ -2396,8 +2396,8 @@ static ssize_t scst_threads_show(struct kobject *kobj,
 static ssize_t scst_threads_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count)
 {
-	int res = count;
-	int oldtn, newtn, delta;
+	int res;
+	long oldtn, newtn, delta;
 
 	TRACE_ENTRY();
 
@@ -2407,23 +2407,63 @@ static ssize_t scst_threads_store(struct kobject *kobj,
 	}
 
 	oldtn = scst_nr_global_threads;
-	sscanf(buf, "%du", &newtn);
 
-	if (newtn <= 0) {
-		PRINT_ERROR("Illegal threads num value %d", newtn);
-		res = -EINVAL;
+	res = strict_strtoul(buf, 0, &newtn);
+	if (res != 0) {
+		PRINT_ERROR("strict_strtoul() for %s failed: %d ", buf, res);
 		goto out_up;
 	}
+
 	delta = newtn - oldtn;
 	if (delta < 0)
 		__scst_del_global_threads(-delta);
 	else
 		__scst_add_global_threads(delta);
 
-	PRINT_INFO("Changed cmd threads num: old %d, new %d", oldtn, newtn);
+	PRINT_INFO("Changed cmd threads num: old %ld, new %ld", oldtn, newtn);
+
+	res = count;
 
 out_up:
 	mutex_unlock(&scst_global_threads_mutex);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t scst_setup_id_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int count;
+
+	TRACE_ENTRY();
+
+	count = sprintf(buf, "%x%s\n", scst_setup_id,
+		(scst_setup_id == 0) ? "" : SCST_SYSFS_KEY_MARK "\n");
+
+	TRACE_EXIT();
+	return count;
+}
+
+static ssize_t scst_setup_id_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	unsigned long val;
+
+	TRACE_ENTRY();
+
+	res = strict_strtoul(buf, 0, &val);
+	if (res != 0) {
+		PRINT_ERROR("strict_strtoul() for %s failed: %d ", buf, res);
+		goto out;
+	}
+
+	scst_setup_id = val;
+	PRINT_INFO("Changed scst_setup_id to %x", scst_setup_id);
+
+	res = count;
 
 out:
 	TRACE_EXIT_RES(res);
@@ -2725,6 +2765,10 @@ static struct kobj_attribute scst_threads_attr =
 	__ATTR(threads, S_IRUGO | S_IWUSR, scst_threads_show,
 	       scst_threads_store);
 
+static struct kobj_attribute scst_setup_id_attr =
+	__ATTR(setup_id, S_IRUGO | S_IWUSR, scst_setup_id_show,
+	       scst_setup_id_store);
+
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 static struct kobj_attribute scst_trace_level_attr =
 	__ATTR(trace_level, S_IRUGO | S_IWUSR, scst_main_trace_level_show,
@@ -2736,6 +2780,7 @@ static struct kobj_attribute scst_version_attr =
 
 static struct attribute *scst_sysfs_root_default_attrs[] = {
 	&scst_threads_attr.attr,
+	&scst_setup_id_attr.attr,
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	&scst_trace_level_attr.attr,
 #endif

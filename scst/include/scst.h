@@ -3690,6 +3690,12 @@ struct scst_sysfs_user_info *scst_sysfs_user_get_info(uint32_t cookie);
 int scst_wait_info_completion(struct scst_sysfs_user_info *info,
 	unsigned long timeout);
 
+/*
+ * This function returns SCST setup ID. This ID can be used with multiple
+ * setups with the same configuration.
+ */
+unsigned int scst_get_setup_id(void);
+
 #endif /* CONFIG_SCST_PROC */
 
 /*

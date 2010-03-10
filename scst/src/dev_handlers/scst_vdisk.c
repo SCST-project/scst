@@ -560,6 +560,7 @@ static struct scst_dev_type vcdrom_devtype = {
 static struct scst_vdisk_thr nullio_thr_data;
 
 #ifdef CONFIG_SCST_PROC
+
 static char *vdisk_proc_help_string =
 	"echo \"open|close|resync_size NAME [FILE_NAME [BLOCK_SIZE] "
 	"[WRITE_THROUGH READ_ONLY O_DIRECT NULLIO NV_CACHE BLOCKIO]]\" "
@@ -570,12 +571,13 @@ static char *vdisk_proc_help_string =
 static char *vcdrom_proc_help_string =
 	"echo \"open|change|close NAME [FILE_NAME]\" "
 	">/proc/scsi_tgt/vcdrom/vcdrom\n";
-#endif
 
 static int scst_vdisk_ID;
 
 module_param_named(scst_vdisk_ID, scst_vdisk_ID, int, S_IRUGO);
 MODULE_PARM_DESC(scst_vdisk_ID, "SCST virtual disk subsystem ID");
+
+#endif /* CONFIG_SCST_PROC */
 
 static const char *vdev_get_filename(const struct scst_vdisk_dev *virt_dev)
 {
@@ -1256,7 +1258,11 @@ static uint64_t vdisk_gen_dev_id_num(const char *virt_dev_name)
 		dev_id_num ^= ((rv << i) | (rv >> (32 - i)));
 	}
 
+#ifdef CONFIG_SCST_PROC
 	return ((uint64_t)scst_vdisk_ID << 32) | dev_id_num;
+#else
+	return ((uint64_t)scst_get_setup_id() << 32) | dev_id_num;
+#endif
 }
 
 static void vdisk_exec_inquiry(struct scst_cmd *cmd)
@@ -2925,9 +2931,10 @@ out:
 	return res;
 }
 
-static struct scst_vdisk_dev *vdev_create(struct scst_dev_type *devt,
-	const char *name)
+static int vdev_create(struct scst_dev_type *devt,
+	const char *name, struct scst_vdisk_dev **res_virt_dev)
 {
+	int res = 0;
 	struct scst_vdisk_dev *virt_dev;
 	uint64_t dev_id_num;
 	int dev_id_len;
@@ -2938,6 +2945,7 @@ static struct scst_vdisk_dev *vdev_create(struct scst_dev_type *devt,
 	if (virt_dev == NULL) {
 		PRINT_ERROR("Allocation of virtual device %s failed",
 			devt->name);
+		res = -ENOMEM;
 		goto out;
 	}
 
@@ -2951,7 +2959,13 @@ static struct scst_vdisk_dev *vdev_create(struct scst_dev_type *devt,
 	virt_dev->block_size = DEF_DISK_BLOCKSIZE;
 	virt_dev->block_shift = DEF_DISK_BLOCKSIZE_SHIFT;
 
-	strncpy(virt_dev->name, name, sizeof(virt_dev->name));
+	if (strlen(name) >= sizeof(virt_dev->name)) {
+		PRINT_ERROR("Name %s is too long (max allowed %d)", name,
+			sizeof(virt_dev->name)-1);
+		res = -EINVAL;
+		goto out_free;
+	}
+	strcpy(virt_dev->name, name);
 
 	dev_id_num = vdisk_gen_dev_id_num(virt_dev->name);
 	dev_id_len = scnprintf(dev_id_str, sizeof(dev_id_str), "%llx",
@@ -2966,8 +2980,14 @@ static struct scst_vdisk_dev *vdev_create(struct scst_dev_type *devt,
 	scnprintf(virt_dev->usn, sizeof(virt_dev->usn), "%llx", dev_id_num);
 	TRACE_DBG("usn %s", virt_dev->usn);
 
+	*res_virt_dev = virt_dev;
+
 out:
-	return virt_dev;
+	return res;
+
+out_free:
+	kfree(virt_dev);
+	goto out;
 }
 
 static void vdev_destroy(struct scst_vdisk_dev *virt_dev)
@@ -3008,11 +3028,9 @@ static int vdev_fileio_add_device(const char *device_name, char *params)
 
 	TRACE_ENTRY();
 
-	virt_dev = vdev_create(&vdisk_file_devtype, device_name);
-	if (virt_dev == NULL) {
-		res = -ENOMEM;
+	res = vdev_create(&vdisk_file_devtype, device_name, &virt_dev);
+	if (res != 0)
 		goto out;
-	}
 
 	virt_dev->wt_flag = DEF_WRITE_THROUGH;
 	virt_dev->nv_cache = DEF_NV_CACHE;
@@ -3160,11 +3178,9 @@ static int vdev_blockio_add_device(const char *device_name, char *params)
 
 	TRACE_ENTRY();
 
-	virt_dev = vdev_create(&vdisk_blk_devtype, device_name);
-	if (virt_dev == NULL) {
-		res = -ENOMEM;
+	res = vdev_create(&vdisk_blk_devtype, device_name, &virt_dev);
+	if (res != 0)
 		goto out;
-	}
 
 	virt_dev->blockio = 1;
 
@@ -3288,11 +3304,9 @@ static int vdev_nullio_add_device(const char *device_name, char *params)
 
 	TRACE_ENTRY();
 
-	virt_dev = vdev_create(&vdisk_null_devtype, device_name);
-	if (virt_dev == NULL) {
-		res = -ENOMEM;
+	res = vdev_create(&vdisk_null_devtype, device_name, &virt_dev);
+	if (res != 0)
 		goto out;
-	}
 
 	virt_dev->nullio = 1;
 
@@ -3511,11 +3525,9 @@ static int __vcdrom_add_device(const char *device_name, char *params)
 		goto out;
 	}
 
-	virt_dev = vdev_create(&vcdrom_devtype, device_name);
-	if (virt_dev == NULL) {
-		res = -ENOMEM;
+	res = vdev_create(&vcdrom_devtype, device_name, &virt_dev);
+	if (res != 0)
 		goto out;
-	}
 
 	virt_dev->rd_only = 1;
 	virt_dev->removable = 1;
@@ -4227,12 +4239,9 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 			goto out_up;
 		}
 
-		/* It's going to be removed code, anyway */
-		virt_dev = vdev_create(dev_type, name);
-		if (virt_dev == NULL) {
-			res = -ENOMEM;
+		res = vdev_create(dev_type, name, &virt_dev);
+		if (res != 0)
 			goto out_up;
-		}
 
 		virt_dev->wt_flag = DEF_WRITE_THROUGH;
 		virt_dev->nv_cache = DEF_NV_CACHE;
@@ -4508,13 +4517,10 @@ static int vcdrom_open(char *p, char *name)
 	} else
 		cdrom_empty = 0;
 
-	virt_dev = vdev_create(&vcdrom_devtype, name);
-	if (virt_dev == NULL) {
-		TRACE(TRACE_OUT_OF_MEM, "%s",
-		      "Allocation of virt_dev failed");
-		res = -ENOMEM;
+	res = vdev_create(&vcdrom_devtype, name, &virt_dev);
+	if (res != 0)
 		goto out;
-	}
+
 	virt_dev->cdrom_empty = cdrom_empty;
 	virt_dev->rd_only = 1;
 	virt_dev->removable = 1;
