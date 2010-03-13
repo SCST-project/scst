@@ -184,7 +184,7 @@ Each target subdirectory contains the following entries:
  - host - link pointing on the corresponding scsi_host of the initiator
    driver
 
- - ini_group - subdirectory defining initiator groups for this target,
+ - ini_groups - subdirectory defining initiator groups for this target,
    used to define per-initiator access control. See SCST core README for
    more details.
 
@@ -259,10 +259,10 @@ echo "add blockio 0 read_only=1" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00
 echo "add nullio 1" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/luns/mgmt
 echo "add cdrom 2" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/luns/mgmt
 
-echo "create 25:00:00:f0:99:87:94:a3" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/ini_group/mgmt
-echo "add disk1 0" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/ini_group/25:00:00:f0:99:87:94:a3/luns/mgmt
-echo "add disk2 1" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/ini_group/25:00:00:f0:99:87:94:a3/luns/mgmt
-echo "add 25:00:00:f0:99:87:94:a3" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/ini_group/25:00:00:f0:99:87:94:a3/initiators/mgmt
+echo "create 25:00:00:f0:99:87:94:a3" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/ini_groups/mgmt
+echo "add disk1 0" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/ini_groups/25:00:00:f0:99:87:94:a3/luns/mgmt
+echo "add disk2 1" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/ini_groups/25:00:00:f0:99:87:94:a3/luns/mgmt
+echo "add 25:00:00:f0:99:87:94:a3" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/ini_groups/25:00:00:f0:99:87:94:a3/initiators/mgmt
 
 echo 1 >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/enabled
 
@@ -296,7 +296,7 @@ The resulting overall SCST sysfs hierarchy with initiator
 |   |-- disk1
 |   |   |-- blocksize
 |   |   |-- exported
-|   |   |   `-- export0 -> ../../../targets/qla2x00t/25:00:00:f0:98:87:92:f3/ini_group/25:00:00:f0:99:87:94:a3/luns/0
+|   |   |   `-- export0 -> ../../../targets/qla2x00t/25:00:00:f0:98:87:92:f3/ini_groups/25:00:00:f0:99:87:94:a3/luns/0
 |   |   |-- filename
 |   |   |-- handler -> ../../handlers/vdisk_fileio
 |   |   |-- nv_cache
@@ -312,7 +312,7 @@ The resulting overall SCST sysfs hierarchy with initiator
 |   |-- disk2
 |   |   |-- blocksize
 |   |   |-- exported
-|   |   |   `-- export0 -> ../../../targets/qla2x00t/25:00:00:f0:98:87:92:f3/ini_group/25:00:00:f0:99:87:94:a3/luns/1
+|   |   |   `-- export0 -> ../../../targets/qla2x00t/25:00:00:f0:98:87:92:f3/ini_groups/25:00:00:f0:99:87:94:a3/luns/1
 |   |   |-- filename
 |   |   |-- handler -> ../../handlers/vdisk_fileio
 |   |   |-- nv_cache
@@ -372,7 +372,7 @@ The resulting overall SCST sysfs hierarchy with initiator
 |       |   |-- enabled
 |       |   |-- explicit_confirmation
 |       |   |-- host -> ../../../../../class/scsi_host/host4
-|       |   |-- ini_group
+|       |   |-- ini_groups
 |       |   |   |-- 25:00:00:f0:99:87:94:a3
 |       |   |   |   |-- initiators
 |       |   |   |   |   |-- 25:00:00:f0:99:87:94:a3
@@ -403,7 +403,7 @@ The resulting overall SCST sysfs hierarchy with initiator
 |       |           |-- active_commands
 |       |           |-- commands
 |       |           |-- initiator_name
-|       |           `-- luns -> ../../ini_group/25:00:00:f0:99:87:94:a3/luns
+|       |           `-- luns -> ../../ini_groups/25:00:00:f0:99:87:94:a3/luns
 |       |-- trace_level
 |       `-- version
 |-- threads

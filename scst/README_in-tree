@@ -571,6 +571,11 @@ documentation for your dev handlers for more info about it as well as
 SysfsRules file for more info about common to all dev handlers rules.
 Standard SCST dev handlers have at least the following common entries:
 
+ - mgmt - this entry allows to create virtual devices and their
+   attributes (for virtual devices dev handlers) or assign/unassign real
+   SCSI devices to/from this dev handler (for pass-through dev
+   handlers).
+
  - pass_through - if exists, it contains 1 and this dev handler is a
    pass-through dev handler.
 
@@ -597,10 +602,10 @@ Each SGV cache's subdirectory has the following item:
 
 Content of each target's subdirectory is target specific. See
 documentation for your target for more info about it as well as
-SysfsRules file for more info about common to all dev handlers rules.
+SysfsRules file for more info about common to all targets rules.
 Every target should have at least the following entries:
 
- - ini_group - subdirectory, which contains and allows to define
+ - ini_groups - subdirectory, which contains and allows to define
    initiator-oriented access control information, see below.
 
  - luns - subdirectory, which contains list of available LUNs in the
@@ -620,6 +625,14 @@ Every target should have at least the following entries:
    rel_tgt_id. In this case SCST will not allow to enable this target
    until rel_tgt_id becomes unique. This attribute initialized unique by
    SCST by default.
+
+A target driver may have also the follwoing entries:
+
+ - "hw_target" - if the target driver supports both hardware and virtual
+    targets (for instance, an FC adapter supporting NPIV, which has
+    hardware targets for its physical ports as well as virtual NPIV
+    targets), this read only attribute for all hardware targets will
+    exist and contain value 1.
 
 Subdirectory "sessions" contains one subdirectory for each connected
 session with name equal to name of the connected initiator.
@@ -717,7 +730,7 @@ are one or more param_name=value pairs separated by ';'.
 
 To configure the initiator-oriented access control SCST provides the
 following interface. Each target's sysfs subdirectory
-(/sys/kernel/scst_tgt/targets/target_driver/target_name) has "ini_group"
+(/sys/kernel/scst_tgt/targets/target_driver/target_name) has "ini_groups"
 subdirectory. This subdirectory contains the list of already defined
 security groups for this target as well as file "mgmt". This file has
 the following commands, which you can send to it, for instance, using
@@ -761,17 +774,17 @@ subdirectory of the target-oriented access control.
 
 Examples:
 
- - echo "create INI" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_group/mgmt -
+ - echo "create INI" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_groups/mgmt -
    creates security group INI for target iqn.2006-10.net.vlnb:tgt1.
 
- - echo "add 2:0:1:0 11" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_group/INI/luns/mgmt -
+ - echo "add 2:0:1:0 11" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_groups/INI/luns/mgmt -
    adds a pass-through device sitting on host 2, channel 0, ID 1, LUN 0
    to group with name INI as LUN 11.
 
- - echo "add disk1 0" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_group/INI/luns/mgmt -
+ - echo "add disk1 0" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_groups/INI/luns/mgmt -
    adds a virtual disk with name disk1 to group with name INI as LUN 0.
 
- - echo "add 21:*:e0:?b:83:*" >/sys/kernel/scst_tgt/targets/21:00:00:a0:8c:54:52:12/ini_group/INI/initiators/mgmt -
+ - echo "add 21:*:e0:?b:83:*" >/sys/kernel/scst_tgt/targets/21:00:00:a0:8c:54:52:12/ini_groups/INI/initiators/mgmt -
    adds a pattern to group with name INI to Fibre Channel target with
    WWN 21:00:00:a0:8c:54:52:12, which matches WWNs of Fibre Channel
    initiator ports.
@@ -787,11 +800,11 @@ do the following commands:
 # echo "iqn.2007-05.com.example:storage.disk1.sys1.xyz" >/sys/kernel/scst_tgt/targets/iscsi/mgmt
 # echo "add dev1 0" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example:storage.disk1.sys1.xyz/luns/mgmt
 # echo "add dev2 1" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example:storage.disk1.sys1.xyz/luns/mgmt
-# echo "create SPEC_INI" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example:storage.disk1.sys1.xyz/ini_group/mgmt
+# echo "create SPEC_INI" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example:storage.disk1.sys1.xyz/ini_groups/mgmt
 # echo "add dev2 0 read_only=1" \
-	>/sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example:storage.disk1.sys1.xyz/ini_group/SPEC_INI/luns/mgmt
+	>/sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example:storage.disk1.sys1.xyz/ini_groups/SPEC_INI/luns/mgmt
 # echo "iqn.2007-05.com.example:storage.disk1.spec_ini.xyz" \
-	>/sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example:storage.disk1.sys1.xyz/ini_group/SPEC_INI/initiators/mgmt
+	>/sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example:storage.disk1.sys1.xyz/ini_groups/SPEC_INI/initiators/mgmt
 
 For Fibre Channel or SAS in the above example you should use target's
 and initiator ports WWNs instead of iSCSI names.
@@ -1061,10 +1074,10 @@ For example:
 |-- blocksize
 |-- exported
 |   |-- export0 -> ../../../targets/iscsi/iqn.2006-10.net.vlnb:tgt/luns/0
-|   |-- export1 -> ../../../targets/iscsi/iqn.2006-10.net.vlnb:tgt/ini_group/INI/luns/0
+|   |-- export1 -> ../../../targets/iscsi/iqn.2006-10.net.vlnb:tgt/ini_groups/INI/luns/0
 |   |-- export2 -> ../../../targets/iscsi/iqn.2006-10.net.vlnb:tgt1/luns/0
-|   |-- export3 -> ../../../targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_group/INI1/luns/0
-|   |-- export4 -> ../../../targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_group/INI2/luns/0
+|   |-- export3 -> ../../../targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_groups/INI1/luns/0
+|   |-- export4 -> ../../../targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_groups/INI2/luns/0
 |-- filename
 |-- handler -> ../../handlers/vdisk_fileio
 |-- nv_cache
@@ -1237,18 +1250,47 @@ Pass-through mode
 
 In the pass-through mode (i.e. using the pass-through device handlers
 scst_disk, scst_tape, etc) SCSI commands, coming from remote initiators,
-are passed to local SCSI hardware on target as is, without any
-modifications. As any other hardware, the local SCSI hardware can not
-handle commands with amount of data and/or segments count in
-scatter-gather array bigger some values. Therefore, when using the
-pass-through mode you should note that values for maximum number of
-segments and maximum amount of transferred data for each SCSI command on
-devices on initiators can not be bigger, than corresponding values of
-the corresponding SCSI devices on the target. Otherwise you will see
-symptoms like small transfers work well, but large ones stall and
-messages like: "Unable to complete command due to SG IO count
-limitation" are printed in the kernel logs.
+are passed to local SCSI devices on target as is, without any
+modifications. 
 
+In the SYSFS interface all real SCSI devices are listed in
+/sys/kernel/scst_tgt/devices in form host:channel:id:lun numbers, for
+instance 1:0:0:0. The recommended way to match those numbers to your
+devices is use of lsscsi utility.
+
+When a pass-through dev handler is loaded it assigns itself to all
+existing SCSI devices of its SCSI type. If you later want to unassign some
+SCSI device from it or assign it to another dev handler you can use the
+following interface.
+
+Each pass-through dev handler has in its root subdirectory
+/sys/kernel/scst_tgt/handlers/handler_name, e.g.
+/sys/kernel/scst_tgt/handlers/dev_disk, "mgmt" file. It allows the
+following commands. They can be sent to it using, e.g., echo command.
+
+ - "assign" - this command assigns SCSI device with
+host:channel:id:lun numbers to this dev handler.
+
+echo "assign 1:0:0:0" >mgmt
+
+will assign SCSI device 1:0:0:0 to this dev handler.
+
+ - "unassign" - this command unassigns SCSI device with
+host:channel:id:lun numbers from this dev handler.
+
+As usually, on read the "mgmt" file returns small help about available
+commands.
+
+As any other hardware, the local SCSI hardware can not handle commands
+with amount of data and/or segments count in scatter-gather array bigger
+some values. Therefore, when using the pass-through mode you should note
+that values for maximum number of segments and maximum amount of
+transferred data for each SCSI command on devices on initiators can not
+be bigger, than corresponding values of the corresponding SCSI devices
+on the target. Otherwise you will see symptoms like small transfers work
+well, but large ones stall and messages like: "Unable to complete
+command due to SG IO count limitation" are printed in the kernel logs.
+ 
 You can't control from the user space limit of the scatter-gather
 segments, but for block devices usually it is sufficient if you set on
 the initiators /sys/block/DEVICE_NAME/queue/max_sectors_kb in the same

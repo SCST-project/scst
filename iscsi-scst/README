@@ -172,7 +172,7 @@ which attributes it should save in the config file. You can ignore it.
 
 Each target subdirectory contains the following entries:
 
- - ini_group - subdirectory defining initiator groups for this target,
+ - ini_groups - subdirectory defining initiator groups for this target,
    used to define per-initiator access control. See SCST core README for
    more details.
 
@@ -327,9 +327,9 @@ echo "32" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/QueuedCo
 echo "add disk2 0" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/luns/mgmt
 echo "add nullio 26" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/luns/mgmt
 
-echo "create special_ini" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_group/mgmt
-echo "add blockio 0 read_only=1" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_group/special_ini/luns/mgmt
-echo "add iqn.2005-03.org.open-iscsi:cacdcd2520" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_group/special_ini/initiators/mgmt
+echo "create special_ini" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_groups/mgmt
+echo "add blockio 0 read_only=1" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_groups/special_ini/luns/mgmt
+echo "add iqn.2005-03.org.open-iscsi:cacdcd2520" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_groups/special_ini/initiators/mgmt
 
 echo 1 >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/enabled
 echo 1 >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/enabled
@@ -344,7 +344,7 @@ both iSCSI-SCST targets will look like:
 |   |-- blockio
 |   |   |-- blocksize
 |   |   |-- exported
-|   |   |   `-- export0 -> ../../../targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_group/special_ini/luns/0
+|   |   |   `-- export0 -> ../../../targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_groups/special_ini/luns/0
 |   |   |-- filename
 |   |   |-- handler -> ../../handlers/vdisk_blockio
 |   |   |-- read_only
@@ -454,7 +454,7 @@ both iSCSI-SCST targets will look like:
 |       |   |-- MaxXmitDataSegmentLength
 |       |   |-- QueuedCommands
 |       |   |-- enabled
-|       |   |-- ini_group
+|       |   |-- ini_groups
 |       |   |   `-- mgmt
 |       |   |-- luns
 |       |   |   |-- 0
@@ -503,7 +503,7 @@ both iSCSI-SCST targets will look like:
 |       |   |-- OutgoingUser
 |       |   |-- QueuedCommands
 |       |   |-- enabled
-|       |   |-- ini_group
+|       |   |-- ini_groups
 |       |   |   |-- mgmt
 |       |   |   `-- special_ini
 |       |   |       |-- initiators
@@ -542,7 +542,7 @@ both iSCSI-SCST targets will look like:
 |       |   |       |-- commands
 |       |   |       |-- force_close
 |       |   |       |-- initiator_name
-|       |   |       |-- luns -> ../../ini_group/special_ini/luns
+|       |   |       |-- luns -> ../../ini_groups/special_ini/luns
 |       |   |       |-- reinstating
 |       |   |       `-- sid
 |       |   `-- tid

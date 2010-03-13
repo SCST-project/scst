@@ -648,7 +648,7 @@ int scst_create_tgt_sysfs(struct scst_tgt *tgt)
 		goto out;
 	}
 
-	tgt->tgt_ini_grp_kobj = kobject_create_and_add("ini_group",
+	tgt->tgt_ini_grp_kobj = kobject_create_and_add("ini_groups",
 					&tgt->tgt_kobj);
 	if (tgt->tgt_ini_grp_kobj == NULL) {
 		PRINT_ERROR("Can't create ini_grp kobj for tgt %s",
@@ -2439,7 +2439,7 @@ static ssize_t scst_setup_id_show(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
-	count = sprintf(buf, "%x%s\n", scst_setup_id,
+	count = sprintf(buf, "0x%x%s\n", scst_setup_id,
 		(scst_setup_id == 0) ? "" : SCST_SYSFS_KEY_MARK "\n");
 
 	TRACE_EXIT();
