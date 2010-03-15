@@ -2558,14 +2558,21 @@ out:
  * srpt_must_wait_for_cred() - Whether or not the target must wait with
  * sending a response towards the initiator in order to avoid that the
  * initiator locks up. The Linux SRP initiator locks up when:
- * initiator.req_lim < req_lim_min (2 for SRP_CMD; 1 for SRP_TSK_MGMT).
- * no new SRP_RSP is received, or new SRP_RSP do not increase initiator.req_lim.
- * In order to avoid an initiator lock up, the target must not send an SRP_RSP
- * that keeps initiator.req_lim < req_lim_min when initiator.req_lim
- * < req_lim_min. when target.req_lim == req_lim_min - 1, initiator.req_lim must
- * also equal req_lim_min - 1 because of the credit mechanism defined in the
- * SRP standard. Hence wait with sending a response if that response would not
- * increase initiator.req_lim.
+ * initiator.req_lim < req_lim_min (req_lim_min equals 2 for SRP_CMD and
+ * equals 1 for SRP_TSK_MGMT), no new SRP_RSP will be received by the
+ * initiator, or none of the received SRP_RSP responses increases
+ * initiator.req_lim.  One possible strategy to avoid an initiator lockup is
+ * that the target does not send an SRP_RSP that makes initiator.req_lim <
+ * req_lim_min. While the target does not know the value of initiator.req_lim,
+ * one can deduce from the credit mechanism specified in the SRP standard that
+ * when target.req_lim == req_lim_min - 1, initiator.req_lim must also equal
+ * req_lim_min - 1. Hence wait with sending a response when target.req_lim <
+ * req_lim_min if that response would not increase initiator.req_lim. The last
+ * condition is equivalent to srpt_req_lim_delta(ch) + 1 <= 0, which is also
+ * equivalent to ch->req_lim - ch->last_response_req_lim + 1 <= 0.
+ *
+ * See also: For more information about how to reproduce the initiator lockup,
+ * see also http://bugzilla.kernel.org/show_bug.cgi?id=14235.
  */
 static bool srpt_must_wait_for_cred(struct srpt_rdma_ch *ch, int req_lim_min)
 {
