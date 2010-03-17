@@ -503,17 +503,17 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 	scst_cmd_set_tag(scst_cmd, SCpnt->tag);
 	switch (scsi_get_tag_type(SCpnt->device)) {
 	case MSG_SIMPLE_TAG:
-		scst_cmd->queue_type = SCST_CMD_QUEUE_SIMPLE;
+		scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_SIMPLE);
 		break;
 	case MSG_HEAD_TAG:
-		scst_cmd->queue_type = SCST_CMD_QUEUE_HEAD_OF_QUEUE;
+		scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_HEAD_OF_QUEUE);
 		break;
 	case MSG_ORDERED_TAG:
-		scst_cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
+		scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_ORDERED);
 		break;
 	case SCSI_NO_TAG:
 	default:
-		scst_cmd->queue_type = SCST_CMD_QUEUE_UNTAGGED;
+		scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_UNTAGGED);
 		break;
 	}
 

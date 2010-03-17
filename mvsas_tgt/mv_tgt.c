@@ -1346,22 +1346,22 @@ static int mvst_do_send_cmd_to_scst(struct mvs_info *mvi, struct mvst_cmd *cmd)
 
 	switch (cmd->command_iu->task_attr) {
 	case TASK_ATTR_SIMPLE:
-		cmd->scst_cmd->queue_type = SCST_CMD_QUEUE_SIMPLE;
+		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_SIMPLE);
 		break;
 	case TASK_ATTR_HOQ:
-		cmd->scst_cmd->queue_type = SCST_CMD_QUEUE_HEAD_OF_QUEUE;
+		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_HEAD_OF_QUEUE);
 		break;
 	case TASK_ATTR_ORDERED:
-		cmd->scst_cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
+		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_ORDERED);
 		break;
 	case TASK_ATTR_ACA:
-		cmd->scst_cmd->queue_type = SCST_CMD_QUEUE_ACA;
+		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_ACA);
 		break;
 	default:
 		PRINT_ERROR("mvst tgt(%ld): Unknown task code %x, use "
 			"ORDERED instead", mvi->instance,
 			cmd->command_iu->task_attr);
-		cmd->scst_cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
+		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_ORDERED);
 		break;
 	}
 

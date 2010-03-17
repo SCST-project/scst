@@ -2833,6 +2833,21 @@ static inline int scst_cmd_get_sense_buffer_len(struct scst_cmd *cmd)
 }
 
 /*
+ * Get/Set functions for cmd's queue_type
+ */
+static inline enum scst_cmd_queue_type scst_cmd_get_queue_type(
+	struct scst_cmd *cmd)
+{
+	return cmd->queue_type;
+}
+
+static inline void scst_cmd_set_queue_type(struct scst_cmd *cmd,
+	enum scst_cmd_queue_type queue_type)
+{
+	cmd->queue_type = queue_type;
+}
+
+/*
  * Get/Set functions for cmd's target SN
  */
 static inline uint64_t scst_cmd_get_tag(struct scst_cmd *cmd)

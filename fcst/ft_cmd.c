@@ -607,17 +607,17 @@ static void ft_recv_cmd(struct ft_sess *sess, struct fc_seq *sp,
 
 	switch (fcp->fc_pri_ta & FCP_PTA_MASK) {
 	case FCP_PTA_SIMPLE:
-		cmd->queue_type = SCST_CMD_QUEUE_SIMPLE;
+		scst_cmd_set_queue_type(cmd, SCST_CMD_QUEUE_SIMPLE);
 		break;
 	case FCP_PTA_HEADQ:
-		cmd->queue_type = SCST_CMD_QUEUE_HEAD_OF_QUEUE;
+		scst_cmd_set_queue_type(cmd, SCST_CMD_QUEUE_HEAD_OF_QUEUE);
 		break;
 	case FCP_PTA_ACA:
-		cmd->queue_type = SCST_CMD_QUEUE_ACA;
+		scst_cmd_set_queue_type(cmd, SCST_CMD_QUEUE_ACA);
 		break;
 	case FCP_PTA_ORDERED:
 	default:
-		cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
+		scst_cmd_set_queue_type(cmd, SCST_CMD_QUEUE_ORDERED);
 		break;
 	}
 

@@ -2974,24 +2974,24 @@ static int q2x_do_send_cmd_to_scst(struct q2t_cmd *cmd)
 
 	switch (atio->task_codes) {
 	case ATIO_SIMPLE_QUEUE:
-		cmd->scst_cmd->queue_type = SCST_CMD_QUEUE_SIMPLE;
+		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_SIMPLE);
 		break;
 	case ATIO_HEAD_OF_QUEUE:
-		cmd->scst_cmd->queue_type = SCST_CMD_QUEUE_HEAD_OF_QUEUE;
+		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_HEAD_OF_QUEUE);
 		break;
 	case ATIO_ORDERED_QUEUE:
-		cmd->scst_cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
+		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_ORDERED);
 		break;
 	case ATIO_ACA_QUEUE:
-		cmd->scst_cmd->queue_type = SCST_CMD_QUEUE_ACA;
+		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_ACA);
 		break;
 	case ATIO_UNTAGGED:
-		cmd->scst_cmd->queue_type = SCST_CMD_QUEUE_UNTAGGED;
+		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_UNTAGGED);
 		break;
 	default:
 		PRINT_ERROR("qla2x00t: unknown task code %x, use "
 			"ORDERED instead", atio->task_codes);
-		cmd->scst_cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
+		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_ORDERED);
 		break;
 	}
 
@@ -3003,7 +3003,7 @@ static int q2x_do_send_cmd_to_scst(struct q2t_cmd *cmd)
 
 	TRACE_DBG("Context %x", context);
 	TRACE(TRACE_SCSI, "START Command (tag %d, queue_type %d)",
-		cmd->tag, cmd->scst_cmd->queue_type);
+		cmd->tag, scst_cmd_get_queue_type(cmd->scst_cmd));
 	scst_cmd_init_done(cmd->scst_cmd, context);
 
 out:
@@ -3049,24 +3049,24 @@ static int q24_do_send_cmd_to_scst(struct q2t_cmd *cmd)
 
 	switch (atio->fcp_cmnd.task_attr) {
 	case ATIO_SIMPLE_QUEUE:
-		cmd->scst_cmd->queue_type = SCST_CMD_QUEUE_SIMPLE;
+		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_SIMPLE);
 		break;
 	case ATIO_HEAD_OF_QUEUE:
-		cmd->scst_cmd->queue_type = SCST_CMD_QUEUE_HEAD_OF_QUEUE;
+		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_HEAD_OF_QUEUE);
 		break;
 	case ATIO_ORDERED_QUEUE:
-		cmd->scst_cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
+		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_ORDERED);
 		break;
 	case ATIO_ACA_QUEUE:
-		cmd->scst_cmd->queue_type = SCST_CMD_QUEUE_ACA;
+		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_ACA);
 		break;
 	case ATIO_UNTAGGED:
-		cmd->scst_cmd->queue_type = SCST_CMD_QUEUE_UNTAGGED;
+		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_UNTAGGED);
 		break;
 	default:
 		PRINT_ERROR("qla2x00t: unknown task code %x, use "
 			"ORDERED instead", atio->fcp_cmnd.task_attr);
-		cmd->scst_cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
+		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_ORDERED);
 		break;
 	}
 
@@ -3078,7 +3078,7 @@ static int q24_do_send_cmd_to_scst(struct q2t_cmd *cmd)
 
 	TRACE_DBG("Context %x", context);
 	TRACE(TRACE_SCSI, "START Command %p (tag %d, queue type %x)", cmd,
-		cmd->tag, cmd->scst_cmd->queue_type);
+		cmd->tag, scst_cmd_get_queue_type(cmd->scst_cmd));
 	scst_cmd_init_done(cmd->scst_cmd, context);
 
 out:

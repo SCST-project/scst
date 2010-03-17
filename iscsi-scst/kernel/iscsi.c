@@ -1847,24 +1847,24 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 
 	switch (req_hdr->flags & ISCSI_CMD_ATTR_MASK) {
 	case ISCSI_CMD_SIMPLE:
-		scst_cmd->queue_type = SCST_CMD_QUEUE_SIMPLE;
+		scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_SIMPLE);
 		break;
 	case ISCSI_CMD_HEAD_OF_QUEUE:
-		scst_cmd->queue_type = SCST_CMD_QUEUE_HEAD_OF_QUEUE;
+		scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_HEAD_OF_QUEUE);
 		break;
 	case ISCSI_CMD_ORDERED:
-		scst_cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
+		scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_ORDERED);
 		break;
 	case ISCSI_CMD_ACA:
-		scst_cmd->queue_type = SCST_CMD_QUEUE_ACA;
+		scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_ACA);
 		break;
 	case ISCSI_CMD_UNTAGGED:
-		scst_cmd->queue_type = SCST_CMD_QUEUE_UNTAGGED;
+		scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_UNTAGGED);
 		break;
 	default:
 		PRINT_ERROR("Unknown task code %x, use ORDERED instead",
 			req_hdr->flags & ISCSI_CMD_ATTR_MASK);
-		scst_cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
+		scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_ORDERED);
 		break;
 	}
 
@@ -1895,7 +1895,7 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 	}
 
 	TRACE_DBG("START Command (itt %x, queue_type %d)",
-		req_hdr->itt, scst_cmd->queue_type);
+		req_hdr->itt, scst_cmd_get_queue_type(scst_cmd));
 	req->scst_state = ISCSI_CMD_STATE_RX_CMD;
 	conn->rx_task = current;
 	scst_cmd_init_stage1_done(scst_cmd, SCST_CONTEXT_DIRECT, 0);

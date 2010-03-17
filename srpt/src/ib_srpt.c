@@ -1310,19 +1310,19 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 
 	switch (srp_cmd->task_attr) {
 	case SRP_CMD_HEAD_OF_Q:
-		scmnd->queue_type = SCST_CMD_QUEUE_HEAD_OF_QUEUE;
+		scst_cmd_set_queue_type(scmnd, SCST_CMD_QUEUE_HEAD_OF_QUEUE);
 		break;
 	case SRP_CMD_ORDERED_Q:
-		scmnd->queue_type = SCST_CMD_QUEUE_ORDERED;
+		scst_cmd_set_queue_type(scmnd, SCST_CMD_QUEUE_ORDERED);
 		break;
 	case SRP_CMD_SIMPLE_Q:
-		scmnd->queue_type = SCST_CMD_QUEUE_SIMPLE;
+		scst_cmd_set_queue_type(scmnd, SCST_CMD_QUEUE_SIMPLE);
 		break;
 	case SRP_CMD_ACA:
-		scmnd->queue_type = SCST_CMD_QUEUE_ACA;
+		scst_cmd_set_queue_type(scmnd, SCST_CMD_QUEUE_ACA);
 		break;
 	default:
-		scmnd->queue_type = SCST_CMD_QUEUE_ORDERED;
+		scst_cmd_set_queue_type(scmnd, SCST_CMD_QUEUE_ORDERED);
 		break;
 	}
 

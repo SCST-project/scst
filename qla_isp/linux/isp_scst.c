@@ -442,22 +442,22 @@ rx_loop:
 
     switch (tmd->cd_tagtype) {
         case CD_UNTAGGED:
-            scst_cmd->queue_type = SCST_CMD_QUEUE_UNTAGGED;
+            scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_UNTAGGED);
             break;
         case CD_SIMPLE_TAG:
-            scst_cmd->queue_type = SCST_CMD_QUEUE_SIMPLE;
+            scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_SIMPLE);
             break;
         case CD_ORDERED_TAG:
-            scst_cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
+            scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_ORDERED);
             break;
         case CD_HEAD_TAG:
-            scst_cmd->queue_type = SCST_CMD_QUEUE_HEAD_OF_QUEUE;
+            scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_HEAD_OF_QUEUE);
             break;
         case CD_ACA_TAG:
-            scst_cmd->queue_type = SCST_CMD_QUEUE_ACA;
+            scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_ACA);
             break;
         default:
-            scst_cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
+            scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_ORDERED);
             break;
     }
 
