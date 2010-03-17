@@ -350,11 +350,11 @@ void target_del_all(void)
 		list_for_each_entry_safe(target, t, &target_list,
 					 target_list_entry) {
 			mutex_lock(&target->target_mutex);
+
 			if (!list_empty(&target->session_list)) {
 				target_del_all_sess(target,
 					ISCSI_CONN_ACTIVE_CLOSE |
 					ISCSI_CONN_DELETING);
-				mutex_unlock(&target->target_mutex);
 			} else if (!first) {
 				TRACE_MGMT_DBG("Deleting target %p", target);
 				list_del(&target->target_list_entry);
@@ -363,6 +363,8 @@ void target_del_all(void)
 				target_destroy(target);
 				continue;
 			}
+
+			mutex_unlock(&target->target_mutex);
 		}
 		mutex_unlock(&target_mgmt_mutex);
 		msleep(100);
