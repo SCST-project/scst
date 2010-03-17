@@ -174,6 +174,7 @@ struct target {
 	u32 tid;
 	char name[ISCSI_NAME_LEN];
 	char *alias;
+	unsigned int sessions_count;
 
 	struct __qelem target_in_accounts;
 	struct __qelem target_out_accounts;
@@ -269,7 +270,7 @@ extern int kernel_session_create(struct connection *conn);
 extern int kernel_session_destroy(u32 tid, u64 sid);
 extern int kernel_conn_create(u32 tid, u64 sid, u32 cid, u32 stat_sn, u32 exp_stat_sn,
 	int fd);
-extern int kernel_conn_destroy(u32 tid, u64 sid, u32 cid);	
+extern int kernel_conn_destroy(u32 tid, u64 sid, u32 cid);
 
 /* event.c */
 extern void handle_iscsi_events(int fd);

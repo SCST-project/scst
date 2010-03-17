@@ -155,8 +155,15 @@ void session_free(struct session *session)
 	if (!session->sid.id.tsih)
 		kernel_session_destroy(session->target->tid, session->sid.id64);
 
-	if (session->target)
+	if (session->target) {
+		struct target *target = session->target;
+
+		target->sessions_count--;
+		log_debug(1, "target %s, sessions_count %d", target->name,
+			target->sessions_count);
+
 		list_del(&session->slist);
+	}
 
 	free(session->initiator);
 	free(session);

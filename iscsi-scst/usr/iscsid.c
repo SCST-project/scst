@@ -238,6 +238,13 @@ static void text_scan_security(struct connection *conn)
 	return;
 }
 
+#define ISCSI_SESS_REINSTATEMENT	1
+#define ISCSI_CONN_REINSTATEMENT	2
+
+/*
+ * Returns above ISCSI_*_REINSTATEMENT for session reinstatement,
+ * <0 for error, 0 otherwise.
+ */
 static int login_check_reinstatement(struct connection *conn)
 {
 	struct iscsi_login_req_hdr *req = (struct iscsi_login_req_hdr *)&conn->req.bhs;
@@ -259,6 +266,7 @@ static int login_check_reinstatement(struct connection *conn)
 			log_debug(1, "Session sid %#" PRIx64 " reinstatement "
 				"detected (tid %d, initiator %s)", req->sid.id64,
 				conn->tid, conn->initiator);
+			res = ISCSI_SESS_REINSTATEMENT;
 		} else if (req->sid.id.tsih != session->sid.id.tsih) {
 			log_error("TSIH for existing session sid %#" PRIx64
 				") doesn't match (tid %d, initiator %s, sid requested "
@@ -280,6 +288,7 @@ static int login_check_reinstatement(struct connection *conn)
 					req->sid.id64, conn->initiator);
 				conn->sess = session;
 				list_add_tail(&conn->clist, &session->conn_list);
+				res = ISCSI_CONN_REINSTATEMENT;
 			} else {
 				log_error("Only a single connection supported "
 					"(initiator %s)", conn->initiator);
@@ -504,7 +513,7 @@ static void login_start(struct connection *conn)
 
 	if (conn->session_type == SESSION_NORMAL) {
 		struct target *target;
-		int err;
+		int err, rc;
 
 		if (!target_name) {
 			rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
@@ -542,7 +551,7 @@ static void login_start(struct connection *conn)
 
 		err = init_conn_session_params(conn);
 		if (err != 0) {
-			log_error("Can't get session params for session 0x%" PRIu64 
+			log_error("Can't get session params for session 0x%" PRIu64
 				" (err %d): %s\n", conn->sid.id64, err,
 				strerror(-err));
 			rsp->status_class = ISCSI_STATUS_TARGET_ERR;
@@ -551,8 +560,28 @@ static void login_start(struct connection *conn)
 			return;
 		}
 
-		if (login_check_reinstatement(conn) != 0)
+		rc = login_check_reinstatement(conn);
+		if (rc < 0)
 			return;
+		else if (rc == ISCSI_SESS_REINSTATEMENT)
+			target->sessions_count++;
+		else if (rc != ISCSI_CONN_REINSTATEMENT) {
+			if ((target->target_params[key_max_sessions] == 0) ||
+			    (target->sessions_count < target->target_params[key_max_sessions]))
+				target->sessions_count++;
+			else {
+				log_warning("Initiator %s not allowed to connect to "
+					"target %s - max sessions limit "
+					"reached (%d)",	name, target_name,
+					target->target_params[key_max_sessions]);
+				rsp->status_class = ISCSI_STATUS_TARGET_ERR;
+				rsp->status_detail = ISCSI_STATUS_NO_RESOURCES;
+				conn->state = STATE_CLOSE;
+				return;
+			}
+		}
+		log_debug(1, "target %s, sessions_count %d", target_name,
+			target->sessions_count);
 	}
 
 	conn->exp_cmd_sn = be32_to_cpu(req->cmd_sn);

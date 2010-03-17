@@ -349,6 +349,7 @@ struct iscsi_key target_keys[] = {
 	{"QueuedCommands", SET_KEY_VALUES(NR_QUEUED_CMNDS), 1, &minimum_ops},
 	{"RspTimeout", SET_KEY_VALUES(RSP_TIMEOUT), 1, &minimum_ops},
 	{"NopInInterval", SET_KEY_VALUES(NOP_IN_INTERVAL), 1, &minimum_ops},
+	{"MaxSessions", 0, 0, 0, 65535, 1, &minimum_ops},
 	{NULL,},
 };
 

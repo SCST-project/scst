@@ -64,6 +64,7 @@ enum {
 	key_queued_cmnds,
 	key_rsp_timeout,
 	key_nop_in_interval,
+	key_max_sessions,
 	target_key_last,
 };
 
