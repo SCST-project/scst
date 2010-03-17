@@ -1245,7 +1245,7 @@ out_hwerr:
 static int dev_user_process_reply_parse(struct scst_user_cmd *ucmd,
 	struct scst_user_reply_cmd *reply)
 {
-	int res = 0;
+	int res = 0, rc;
 	struct scst_user_scsi_cmd_reply_parse *preply =
 		&reply->parse_reply;
 	struct scst_cmd *cmd = ucmd->cmd;
@@ -1323,11 +1323,12 @@ out_status:
 
 		sense_len = min_t(int, cmd->sense_buflen, preply->sense_len);
 
-		res = copy_from_user(cmd->sense,
+		rc = copy_from_user(cmd->sense,
 			(void __user *)(unsigned long)preply->psense_buffer,
 			sense_len);
-		if (res < 0) {
-			PRINT_ERROR("%s", "Unable to get sense data");
+		if (rc != 0) {
+			PRINT_ERROR("Failed to copy %d sense's bytes", rc);
+			res = -EFAULT;
 			goto out_hwerr_res_set;
 		}
 		cmd->sense_valid_len = sense_len;
@@ -1443,7 +1444,7 @@ static int dev_user_process_reply_exec(struct scst_user_cmd *ucmd,
 
 	cmd->status = ereply->status;
 	if (ereply->sense_len != 0) {
-		int sense_len;
+		int sense_len, rc;
 
 		res = scst_alloc_sense(cmd, 0);
 		if (res != 0)
@@ -1451,11 +1452,12 @@ static int dev_user_process_reply_exec(struct scst_user_cmd *ucmd,
 
 		sense_len = min((int)cmd->sense_buflen, (int)ereply->sense_len);
 
-		res = copy_from_user(cmd->sense,
+		rc = copy_from_user(cmd->sense,
 			(void __user *)(unsigned long)ereply->psense_buffer,
 			sense_len);
-		if (res < 0) {
-			PRINT_ERROR("%s", "Unable to get sense data");
+		if (rc != 0) {
+			PRINT_ERROR("Failed to copy %d sense's bytes", rc);
+			res = -EFAULT;
 			goto out_hwerr_res_set;
 		}
 		cmd->sense_valid_len = sense_len;
@@ -1610,7 +1612,7 @@ out_unlock:
 
 static int dev_user_reply_cmd(struct file *file, void __user *arg)
 {
-	int res = 0;
+	int res = 0, rc;
 	struct scst_user_dev *dev;
 	struct scst_user_reply_cmd reply;
 
@@ -1626,9 +1628,12 @@ static int dev_user_reply_cmd(struct file *file, void __user *arg)
 	down_read(&dev->dev_rwsem);
 	mutex_unlock(&dev_priv_mutex);
 
-	res = copy_from_user(&reply, arg, sizeof(reply));
-	if (unlikely(res < 0))
+	rc = copy_from_user(&reply, arg, sizeof(reply));
+	if (unlikely(rc != 0)) {
+		PRINT_ERROR("Failed to copy %d user's bytes", rc);
+		res = -EFAULT;
 		goto out_up;
+	}
 
 	TRACE_DBG("Reply for dev %s", dev->name);
 
@@ -1648,7 +1653,7 @@ out:
 
 static int dev_user_get_ext_cdb(struct file *file, void __user *arg)
 {
-	int res = 0;
+	int res = 0, rc;
 	struct scst_user_dev *dev;
 	struct scst_user_cmd *ucmd;
 	struct scst_cmd *cmd = NULL;
@@ -1666,9 +1671,12 @@ static int dev_user_get_ext_cdb(struct file *file, void __user *arg)
 	down_read(&dev->dev_rwsem);
 	mutex_unlock(&dev_priv_mutex);
 
-	res = copy_from_user(&get, arg, sizeof(get));
-	if (unlikely(res < 0))
+	rc = copy_from_user(&get, arg, sizeof(get));
+	if (unlikely(rc != 0)) {
+		PRINT_ERROR("Failed to copy %d user's bytes", rc);
+		res = -EFAULT;
 		goto out_up;
+	}
 
 	TRACE_MGMT_DBG("Get ext cdb for dev %s", dev->name);
 
@@ -1709,8 +1717,13 @@ static int dev_user_get_ext_cdb(struct file *file, void __user *arg)
 		goto out_cmd_put;
 
 	TRACE_BUFFER("EXT CDB", cmd->ext_cdb, cmd->ext_cdb_len);
-	res = copy_to_user((void __user *)(unsigned long)get.ext_cdb_buffer,
+	rc = copy_to_user((void __user *)(unsigned long)get.ext_cdb_buffer,
 		cmd->ext_cdb, cmd->ext_cdb_len);
+	if (unlikely(rc != 0)) {
+		PRINT_ERROR("Failed to copy to user %d bytes", rc);
+		res = -EFAULT;
+		goto out_cmd_put;
+	}
 
 out_cmd_put:
 	scst_cmd_put(cmd);
@@ -1878,7 +1891,7 @@ static int dev_user_get_next_cmd(struct scst_user_dev *dev,
 
 static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 {
-	int res = 0;
+	int res = 0, rc;
 	struct scst_user_dev *dev;
 	struct scst_user_get_cmd *cmd;
 	struct scst_user_reply_cmd *reply;
@@ -1898,11 +1911,14 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 	mutex_unlock(&dev_priv_mutex);
 
 	/* get_user() can't be used with 64-bit values on x86_32 */
-	res = copy_from_user(&ureply, (uint64_t __user *)
+	rc = copy_from_user(&ureply, (uint64_t __user *)
 		&((struct scst_user_get_cmd __user *)arg)->preply,
 		sizeof(ureply));
-	if (unlikely(res < 0))
+	if (unlikely(rc != 0)) {
+		PRINT_ERROR("Failed to copy %d user's bytes", rc);
+		res = -EFAULT;
 		goto out_up;
+	}
 
 	TRACE_DBG("ureply %lld (dev %s)", (long long unsigned int)ureply,
 		dev->name);
@@ -1916,9 +1932,12 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 	if (ureply != 0) {
 		unsigned long u = (unsigned long)ureply;
 		reply = (struct scst_user_reply_cmd *)cmd;
-		res = copy_from_user(reply, (void __user *)u, sizeof(*reply));
-		if (unlikely(res < 0))
+		rc = copy_from_user(reply, (void __user *)u, sizeof(*reply));
+		if (unlikely(rc != 0)) {
+			PRINT_ERROR("Failed to copy %d user's bytes", rc);
+			res = -EFAULT;
 			goto out_free;
+		}
 
 		TRACE_BUFFER("Reply", reply, sizeof(*reply));
 
@@ -1952,11 +1971,12 @@ again:
 		TRACE_DBG("ucmd %p (user_cmd %p), payload_len %d (len %d)",
 			ucmd, &ucmd->user_cmd, ucmd->user_cmd_payload_len, len);
 		TRACE_BUFFER("UCMD", &ucmd->user_cmd, len);
-		res = copy_to_user(arg, &ucmd->user_cmd, len);
-		if (unlikely(res != 0)) {
+		rc = copy_to_user(arg, &ucmd->user_cmd, len);
+		if (unlikely(rc != 0)) {
+			PRINT_ERROR("Copy to user failed (%d), requeuing ucmd "
+				"%p back to head of ready cmd list", rc, ucmd);
+			res = -EFAULT;
 			/* Requeue ucmd back */
-			TRACE_DBG("Copy to user failed (%d), requeuing ucmd %p "
-				"back to head of ready cmd list", res, ucmd);
 			spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
 			list_add(&ucmd->ready_cmd_list_entry,
 				&dev->ready_cmd_list);
@@ -1985,7 +2005,7 @@ out_free:
 static long dev_user_ioctl(struct file *file, unsigned int cmd,
 	unsigned long arg)
 {
-	long res;
+	long res, rc;
 
 	TRACE_ENTRY();
 
@@ -2014,9 +2034,11 @@ static long dev_user_ioctl(struct file *file, unsigned int cmd,
 			res = -ENOMEM;
 			goto out;
 		}
-		res = copy_from_user(dev_desc, (void __user *)arg,
+		rc = copy_from_user(dev_desc, (void __user *)arg,
 				     sizeof(*dev_desc));
-		if (res < 0) {
+		if (rc != 0) {
+			PRINT_ERROR("Failed to copy %ld user's bytes", rc);
+			res = -EFAULT;
 			kfree(dev_desc);
 			goto out;
 		}
@@ -2042,9 +2064,12 @@ static long dev_user_ioctl(struct file *file, unsigned int cmd,
 	{
 		struct scst_user_opt opt;
 		TRACE_DBG("%s", "SET_OPTIONS");
-		res = copy_from_user(&opt, (void __user *)arg, sizeof(opt));
-		if (res < 0)
+		rc = copy_from_user(&opt, (void __user *)arg, sizeof(opt));
+		if (rc != 0) {
+			PRINT_ERROR("Failed to copy %ld user's bytes", rc);
+			res = -EFAULT;
 			goto out;
+		}
 		TRACE_BUFFER("opt", &opt, sizeof(opt));
 		res = dev_user_set_opt(file, &opt);
 		break;
@@ -2705,13 +2730,14 @@ static void dev_user_setup_functions(struct scst_user_dev *dev)
 static int dev_user_check_version(const struct scst_user_dev_desc *dev_desc)
 {
 	char ver[sizeof(DEV_USER_VERSION)+1];
-	int res;
+	int res = 0, rc;
 
-	res = copy_from_user(ver,
+	rc = copy_from_user(ver,
 			(void __user *)(unsigned long)dev_desc->version_str,
 			sizeof(ver));
-	if (res < 0) {
+	if (rc != 0) {
 		PRINT_ERROR("%s", "Unable to get version string");
+		res = -EFAULT;
 		goto out;
 	}
 	ver[sizeof(ver)-1] = '\0';
@@ -3040,7 +3066,7 @@ out:
 
 static int dev_user_prealloc_buffer(struct file *file, void __user *arg)
 {
-	int res = 0;
+	int res = 0, rc;
 	struct scst_user_dev *dev;
 	union scst_user_prealloc_buffer pre;
 	aligned_u64 pbuf;
@@ -3062,9 +3088,12 @@ static int dev_user_prealloc_buffer(struct file *file, void __user *arg)
 	down_read(&dev->dev_rwsem);
 	mutex_unlock(&dev_priv_mutex);
 
-	res = copy_from_user(&pre.in, arg, sizeof(pre.in));
-	if (unlikely(res < 0))
+	rc = copy_from_user(&pre.in, arg, sizeof(pre.in));
+	if (unlikely(rc != 0)) {
+		PRINT_ERROR("Failed to copy %d user's bytes", rc);
+		res = -EFAULT;
 		goto out_up;
+	}
 
 	TRACE_MEM("Prealloc buffer with size %dKB for dev %s",
 		pre.in.bufflen / 1024, dev->name);
@@ -3120,7 +3149,12 @@ static int dev_user_prealloc_buffer(struct file *file, void __user *arg)
 	dev_user_free_sgv(ucmd);
 
 	pre.out.cmd_h = ucmd->h;
-	res = copy_to_user(arg, &pre.out, sizeof(pre.out));
+	rc = copy_to_user(arg, &pre.out, sizeof(pre.out));
+	if (unlikely(rc != 0)) {
+		PRINT_ERROR("Failed to copy to user %d bytes", rc);
+		res = -EFAULT;
+		goto out_put;
+	}
 
 out_put:
 	ucmd_put(ucmd);
@@ -3233,7 +3267,7 @@ out:
 
 static int dev_user_get_opt(struct file *file, void __user *arg)
 {
-	int res;
+	int res, rc;
 	struct scst_user_dev *dev;
 	struct scst_user_opt opt;
 
@@ -3267,9 +3301,16 @@ static int dev_user_get_opt(struct file *file, void __user *arg)
 		opt.on_free_cmd_type, opt.memory_reuse_type,
 		opt.partial_transfers_type, opt.partial_len);
 
-	res = copy_to_user(arg, &opt, sizeof(opt));
+	rc = copy_to_user(arg, &opt, sizeof(opt));
+	if (unlikely(rc != 0)) {
+		PRINT_ERROR("Failed to copy to user %d bytes", rc);
+		res = -EFAULT;
+		goto out_up;
+	}
 
+out_up:
 	up_read(&dev->dev_rwsem);
+
 out:
 	TRACE_EXIT_RES(res);
 	return res;

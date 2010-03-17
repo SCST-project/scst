@@ -302,16 +302,19 @@ const struct attribute *iscsi_attrs[] = {
 /* target_mgmt_mutex supposed to be locked */
 static int add_conn(void __user *ptr)
 {
-	int err;
+	int err, rc;
 	struct iscsi_session *session;
 	struct iscsi_kern_conn_info info;
 	struct iscsi_target *target;
 
 	TRACE_ENTRY();
 
-	err = copy_from_user(&info, ptr, sizeof(info));
-	if (err < 0)
+	rc = copy_from_user(&info, ptr, sizeof(info));
+	if (rc != 0) {
+		PRINT_ERROR("Failed to copy %d user's bytes", rc);
+		err = -EFAULT;
 		goto out;
+	}
 
 	target = target_lookup_by_id(info.tid);
 	if (target == NULL) {
@@ -343,16 +346,19 @@ out:
 /* target_mgmt_mutex supposed to be locked */
 static int del_conn(void __user *ptr)
 {
-	int err;
+	int err, rc;
 	struct iscsi_session *session;
 	struct iscsi_kern_conn_info info;
 	struct iscsi_target *target;
 
 	TRACE_ENTRY();
 
-	err = copy_from_user(&info, ptr, sizeof(info));
-	if (err < 0)
+	rc = copy_from_user(&info, ptr, sizeof(info));
+	if (rc != 0) {
+		PRINT_ERROR("Failed to copy %d user's bytes", rc);
+		err = -EFAULT;
 		goto out;
+	}
 
 	target = target_lookup_by_id(info.tid);
 	if (target == NULL) {
@@ -384,7 +390,7 @@ out:
 /* target_mgmt_mutex supposed to be locked */
 static int add_session(void __user *ptr)
 {
-	int err;
+	int err, rc;
 	struct iscsi_kern_session_info *info;
 	struct iscsi_target *target;
 
@@ -397,9 +403,9 @@ static int add_session(void __user *ptr)
 		goto out;
 	}
 
-	err = copy_from_user(info, ptr, sizeof(*info));
-	if (err != 0) {
-		PRINT_ERROR("copy_from_user() didn't copy %d bytes", err);
+	rc = copy_from_user(info, ptr, sizeof(*info));
+	if (rc != 0) {
+		PRINT_ERROR("Failed to copy %d user's bytes", rc);
 		err = -EFAULT;
 		goto out_free;
 	}
@@ -429,7 +435,7 @@ out:
 /* target_mgmt_mutex supposed to be locked */
 static int del_session(void __user *ptr)
 {
-	int err;
+	int err, rc;
 	struct iscsi_kern_session_info *info;
 	struct iscsi_target *target;
 
@@ -442,9 +448,9 @@ static int del_session(void __user *ptr)
 		goto out;
 	}
 
-	err = copy_from_user(info, ptr, sizeof(*info));
-	if (err != 0) {
-		PRINT_ERROR("copy_from_user() didn't copy %d bytes", err);
+	rc = copy_from_user(info, ptr, sizeof(*info));
+	if (rc != 0) {
+		PRINT_ERROR("Failed to copy %d user's bytes", rc);
 		err = -EFAULT;
 		goto out_free;
 	}
@@ -476,15 +482,18 @@ out:
 /* target_mgmt_mutex supposed to be locked */
 static int iscsi_params_config(void __user *ptr, int set)
 {
-	int err;
+	int err, rc;
 	struct iscsi_kern_params_info info;
 	struct iscsi_target *target;
 
 	TRACE_ENTRY();
 
-	err = copy_from_user(&info, ptr, sizeof(info));
-	if (err < 0)
+	rc = copy_from_user(&info, ptr, sizeof(info));
+	if (rc != 0) {
+		PRINT_ERROR("Failed to copy %d user's bytes", rc);
+		err = -EFAULT;
 		goto out;
+	}
 
 	target = target_lookup_by_id(info.tid);
 	if (target == NULL) {
@@ -500,8 +509,14 @@ static int iscsi_params_config(void __user *ptr, int set)
 	if (err < 0)
 		goto out;
 
-	if (!set)
-		err = copy_to_user(ptr, &info, sizeof(info));
+	if (!set) {
+		rc = copy_to_user(ptr, &info, sizeof(info));
+		if (rc != 0) {
+			PRINT_ERROR("Failed to copy to user %d bytes", rc);
+			err = -EFAULT;
+			goto out;
+		}
+	}
 
 out:
 	TRACE_EXIT_RES(err);
@@ -521,6 +536,7 @@ static int mgmt_cmd_callback(void __user *ptr)
 
 	rc = copy_from_user(&cinfo, ptr, sizeof(cinfo));
 	if (rc != 0) {
+		PRINT_ERROR("Failed to copy %d user's bytes", rc);
 		err = -EFAULT;
 		goto out;
 	}
@@ -800,6 +816,7 @@ static int iscsi_attr_cmd(void __user *ptr, unsigned int cmd)
 
 	rc = copy_from_user(&info, ptr, sizeof(info));
 	if (rc != 0) {
+		PRINT_ERROR("Failed to copy %d user's bytes", rc);
 		err = -EFAULT;
 		goto out;
 	}
@@ -849,7 +866,7 @@ out:
 /* target_mgmt_mutex supposed to be locked */
 static int add_target(void __user *ptr)
 {
-	int err;
+	int err, rc;
 	struct iscsi_kern_target_info *info;
 #ifndef CONFIG_SCST_PROC
 	struct scst_sysfs_user_info *uinfo;
@@ -864,9 +881,9 @@ static int add_target(void __user *ptr)
 		goto out;
 	}
 
-	err = copy_from_user(info, ptr, sizeof(*info));
-	if (err != 0) {
-		PRINT_ERROR("copy_from_user() didn't copy %d bytes", err);
+	rc = copy_from_user(info, ptr, sizeof(*info));
+	if (rc != 0) {
+		PRINT_ERROR("Failed to copy %d user's bytes", rc);
 		err = -EFAULT;
 		goto out_free;
 	}
@@ -911,7 +928,7 @@ out:
 /* target_mgmt_mutex supposed to be locked */
 static int del_target(void __user *ptr)
 {
-	int err;
+	int err, rc;
 	struct iscsi_kern_target_info info;
 #ifndef CONFIG_SCST_PROC
 	struct scst_sysfs_user_info *uinfo;
@@ -919,9 +936,12 @@ static int del_target(void __user *ptr)
 
 	TRACE_ENTRY();
 
-	err = copy_from_user(&info, ptr, sizeof(info));
-	if (err < 0)
+	rc = copy_from_user(&info, ptr, sizeof(info));
+	if (rc != 0) {
+		PRINT_ERROR("Failed to copy %d user's bytes", rc);
+		err = -EFAULT;
 		goto out;
+	}
 
 	info.name[sizeof(info.name)-1] = '\0';
 
@@ -968,7 +988,7 @@ static int iscsi_register(void __user *arg)
 
 	rc = copy_from_user(ver, (void __user *)(unsigned long)reg.version,
 				sizeof(ver));
-	if (rc < 0) {
+	if (rc != 0) {
 		PRINT_ERROR("%s", "Unable to get version string");
 		res = -EFAULT;
 		goto out;
@@ -989,7 +1009,7 @@ static int iscsi_register(void __user *arg)
 
 	rc = copy_to_user(arg, &reg, sizeof(reg));
 	if (rc != 0) {
-		PRINT_ERROR("copy_to_user() failed to copy %d bytes", res);
+		PRINT_ERROR("Failed to copy to user %d bytes", rc);
 		res = -EFAULT;
 		goto out;
 	}

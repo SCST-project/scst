@@ -184,7 +184,7 @@ int __add_target(struct iscsi_kern_target_info *info)
 
 		rc = copy_from_user(attr_info, attrs_ptr, sizeof(*attr_info));
 		if (rc != 0) {
-			PRINT_ERROR("copy_from_user() of users of target %s "
+			PRINT_ERROR("Failed to copy users of target %s "
 				"failed", info->name);
 			err = -EFAULT;
 			goto out_del_unlock;
