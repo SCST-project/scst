@@ -363,7 +363,9 @@ both iSCSI-SCST targets will look like:
 |       |   |-- MaxOutstandingR2T
 |       |   |-- MaxRecvDataSegmentLength
 |       |   |-- MaxXmitDataSegmentLength
+|       |   |-- NopInInterval
 |       |   |-- QueuedCommands
+|       |   |-- RspTimeout
 |       |   |-- enabled
 |       |   |-- ini_groups
 |       |   |   `-- mgmt
@@ -412,7 +414,9 @@ both iSCSI-SCST targets will look like:
 |       |   |-- MaxRecvDataSegmentLength
 |       |   |-- MaxXmitDataSegmentLength
 |       |   |-- OutgoingUser
+|       |   |-- NopInInterval
 |       |   |-- QueuedCommands
+|       |   |-- RspTimeout
 |       |   |-- enabled
 |       |   |-- ini_groups
 |       |   |   |-- mgmt

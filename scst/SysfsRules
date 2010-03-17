@@ -502,8 +502,8 @@ Rules summary
 
 A management utility (scstadmin) SHOULD NOT keep any knowledge specific
 to any device, dev handler, target or target driver. It SHOULD only know
-the common SCST SYSFS rules, which all dev handlers target drivers MUST
-follow. Namely:
+the common SCST SYSFS rules, which all dev handlers and target drivers
+MUST follow. Namely:
 
 Common rules:
 ~~~~~~~~~~~~~
