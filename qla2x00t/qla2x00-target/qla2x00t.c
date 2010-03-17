@@ -5217,7 +5217,8 @@ static ssize_t q2t_show_expl_conf_enabled(struct kobject *kobj,
 	tgt = (struct q2t_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
 	ha = tgt->ha;
 
-	size = scnprintf(buffer, PAGE_SIZE, "%d\n", ha->enable_explicit_conf);
+	size = scnprintf(buffer, PAGE_SIZE, "%d\n%s", ha->enable_explicit_conf,
+		ha->enable_explicit_conf ? SCST_SYSFS_KEY_MARK "\n" : "");
 
 	return size;
 }
