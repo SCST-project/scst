@@ -322,6 +322,7 @@ void target_del_all_sess(struct iscsi_target *target, int flags)
 void target_del_all(void)
 {
 	struct iscsi_target *target, *t;
+	bool first = true;
 
 	TRACE_ENTRY();
 
@@ -334,6 +335,18 @@ void target_del_all(void)
 		if (list_empty(&target_list))
 			break;
 
+		/*
+		 * In the first iteration we won't delete targets to go at
+		 * first through all sessions of all targets and close their
+		 * connections. Otherwise we can stuck for noticeable time
+		 * waiting during a target's unregistration for the activities
+		 * suspending over active connection. This can especially got
+		 * bad if any being wait connection itself stuck waiting for
+		 * something and can be recovered only by connection close.
+		 * Let's for such cases not wait while such connection recover
+		 * theyself, but act in advance.
+		 */
+
 		list_for_each_entry_safe(target, t, &target_list,
 					 target_list_entry) {
 			mutex_lock(&target->target_mutex);
@@ -342,7 +355,7 @@ void target_del_all(void)
 					ISCSI_CONN_ACTIVE_CLOSE |
 					ISCSI_CONN_DELETING);
 				mutex_unlock(&target->target_mutex);
-			} else {
+			} else if (!first) {
 				TRACE_MGMT_DBG("Deleting target %p", target);
 				list_del(&target->target_list_entry);
 				nr_targets--;
@@ -353,6 +366,8 @@ void target_del_all(void)
 		}
 		mutex_unlock(&target_mgmt_mutex);
 		msleep(100);
+
+		first = false;
 	}
 
 	mutex_unlock(&target_mgmt_mutex);
