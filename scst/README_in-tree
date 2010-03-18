@@ -617,6 +617,13 @@ Every target should have at least the following entries:
    It allows to finish configuring it before it starts accepting new
    connections. 0 by default.
 
+ - addr_method - used LUNs addressing method. Possible values:
+   "Peripheral" and "Flat". Most initiators work well with Peripheral
+   addressing method (default), but some (HP-UX, for instance) may
+   require Flat method. This attribute is also available in the
+   initiators security groups, so you can assign the addressing method
+   on per-initiator basis.
+
  - rel_tgt_id - allows to read or write SCSI Relative Target Port
    Identifier attribute. This identifier is used to identify SCSI Target
    Ports by some SCSI commands, mainly by Persistent Reservations
