@@ -342,10 +342,14 @@ static int scst_pre_parse(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
+#ifdef CONFIG_SCST_STRICT_SERIALIZING
+	cmd->inc_expected_sn_on_done = 1;
+#else
 	cmd->inc_expected_sn_on_done = dev->handler->exec_sync ||
 	     (!dev->has_own_order_mgmt &&
 	      (dev->queue_alg == SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER ||
 	       cmd->queue_type == SCST_CMD_QUEUE_ORDERED));
+#endif
 
 	/*
 	 * Expected transfer data supplied by the SCSI transport via the
@@ -3151,6 +3155,10 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 	/* Optimized for lockless fast path */
 
 	scst_check_debug_sn(cmd);
+
+#ifdef CONFIG_SCST_STRICT_SERIALIZING
+	cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
+#endif
 
 	if (cmd->dev->queue_alg == SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER) {
 		/*

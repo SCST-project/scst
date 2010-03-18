@@ -5549,24 +5549,6 @@ int scst_inc_on_dev_cmd(struct scst_cmd *cmd)
 		goto out;
 	}
 
-#ifdef CONFIG_SCST_STRICT_SERIALIZING
-	spin_lock_bh(&dev->dev_lock);
-	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)))
-		goto out_unlock;
-	if (dev->block_count > 0) {
-		scst_dec_on_dev_cmd(cmd);
-		TRACE_MGMT_DBG("Delaying cmd %p due to blocking or strict "
-			"serializing (tag %llu, dev %p)", cmd, cmd->tag, dev);
-		list_add_tail(&cmd->blocked_cmd_list_entry,
-			      &dev->blocked_cmd_list);
-		res = 1;
-	} else {
-		__scst_block_dev(dev);
-		cmd->inc_blocking = 1;
-	}
-	spin_unlock_bh(&dev->dev_lock);
-	goto out;
-#else
 repeat:
 	if (unlikely(dev->block_count > 0)) {
 		spin_lock_bh(&dev->dev_lock);
@@ -5604,7 +5586,6 @@ repeat:
 		}
 		spin_unlock_bh(&dev->dev_lock);
 	}
-#endif
 
 out:
 	TRACE_EXIT_RES(res);
@@ -5618,47 +5599,6 @@ out_unlock:
 /* Called under dev_lock */
 static void scst_unblock_cmds(struct scst_device *dev)
 {
-#ifdef CONFIG_SCST_STRICT_SERIALIZING
-	struct scst_cmd *cmd, *t;
-	unsigned long flags;
-
-	TRACE_ENTRY();
-
-	local_irq_save(flags);
-	list_for_each_entry_safe(cmd, t, &dev->blocked_cmd_list,
-				 blocked_cmd_list_entry) {
-		int brk = 0;
-		/*
-		 * Since only one cmd per time is being executed, expected_sn
-		 * can't change behind us, if the corresponding cmd is in
-		 * blocked_cmd_list, but we could be called before
-		 * scst_inc_expected_sn().
-		 *
-		 * For HQ commands SN is not set.
-		 */
-		if (likely(!cmd->internal && cmd->sn_set)) {
-			typeof(cmd->tgt_dev->expected_sn) expected_sn;
-			if (cmd->tgt_dev == NULL)
-				sBUG();
-			expected_sn = cmd->tgt_dev->expected_sn;
-			if (cmd->sn == expected_sn)
-				brk = 1;
-			else if (cmd->sn != (expected_sn+1))
-				continue;
-		}
-
-		list_del(&cmd->blocked_cmd_list_entry);
-		TRACE_MGMT_DBG("Adding cmd %p to head of active cmd list", cmd);
-		spin_lock(&cmd->cmd_lists->cmd_list_lock);
-		list_add(&cmd->cmd_list_entry,
-			 &cmd->cmd_lists->active_cmd_list);
-		wake_up(&cmd->cmd_lists->cmd_list_waitQ);
-		spin_unlock(&cmd->cmd_lists->cmd_list_lock);
-		if (brk)
-			break;
-	}
-	local_irq_restore(flags);
-#else /* CONFIG_SCST_STRICT_SERIALIZING */
 	struct scst_cmd *cmd, *tcmd;
 	unsigned long flags;
 
@@ -5680,7 +5620,6 @@ static void scst_unblock_cmds(struct scst_device *dev)
 		spin_unlock(&cmd->cmd_lists->cmd_list_lock);
 	}
 	local_irq_restore(flags);
-#endif /* CONFIG_SCST_STRICT_SERIALIZING */
 
 	TRACE_EXIT();
 	return;
