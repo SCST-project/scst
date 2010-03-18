@@ -22,12 +22,17 @@ do {										\
 		TRACE_DBG("%s: %u", #word, (iparams)[key_##word]);		\
 		if ((iparams)[key_##word] < (min) ||				\
 			(iparams)[key_##word] > (max)) {			\
-			PRINT_ERROR("%s: %u is out of range (%u %u)",		\
-				#word, (iparams)[key_##word], (min), (max));	\
-			if ((iparams)[key_##word] < (min))			\
+			if ((iparams)[key_##word] < (min)) {			\
 				(iparams)[key_##word] = (min);			\
-			else							\
+				PRINT_WARNING("%s: %u is too small, resetting "	\
+					"it to allowed min %u",			\
+					#word, (iparams)[key_##word], (min));	\
+			} else {						\
+				PRINT_WARNING("%s: %u is too big, resetting "	\
+					"it to allowed max %u",			\
+					#word, (iparams)[key_##word], (max));	\
 				(iparams)[key_##word] = (max);			\
+			}							\
 		}								\
 	}									\
 } while (0)
@@ -186,12 +191,14 @@ static void sess_params_get(struct iscsi_sess_params *params,
 }
 
 /* target_mutex supposed to be locked */
-static void tgt_params_check(struct iscsi_kern_params_info *info)
+static void tgt_params_check(struct iscsi_session *session,
+	struct iscsi_kern_params_info *info)
 {
 	int32_t *iparams = info->target_params;
 
 	CHECK_PARAM(info, iparams, queued_cmnds, MIN_NR_QUEUED_CMNDS,
-		    MAX_NR_QUEUED_CMNDS);
+		min_t(int, MAX_NR_QUEUED_CMNDS,
+		      scst_get_max_lun_commands(session->scst_sess, NO_SUCH_LUN)));
 	CHECK_PARAM(info, iparams, rsp_timeout, MIN_RSP_TIMEOUT,
 		MAX_RSP_TIMEOUT);
 	CHECK_PARAM(info, iparams, nop_in_interval, MIN_NOP_IN_INTERVAL,
@@ -209,14 +216,14 @@ static int iscsi_tgt_params_set(struct iscsi_session *session,
 	if (set) {
 		struct iscsi_conn *conn;
 
-		tgt_params_check(info);
+		tgt_params_check(session, info);
 
 		SET_PARAM(params, info, iparams, queued_cmnds);
 		SET_PARAM(params, info, iparams, rsp_timeout);
 		SET_PARAM(params, info, iparams, nop_in_interval);
 
 		PRINT_INFO("Target parameters set for session %llx: "
-			"QueuedCommands %d, Response timeout %d, NOP-in "
+			"QueuedCommands %d, Response timeout %d, Nop-In "
 			"interval %d", session->sid, params->queued_cmnds,
 			params->rsp_timeout, params->nop_in_interval);
 
@@ -226,7 +233,7 @@ static int iscsi_tgt_params_set(struct iscsi_session *session,
 			conn->nop_in_interval = session->tgt_params.nop_in_interval * HZ;
 			spin_lock_bh(&iscsi_rd_lock);
 			if (!conn->closing && (conn->nop_in_interval > 0)) {
-				TRACE_DBG("Schedule NOP-In work for conn %p", conn);
+				TRACE_DBG("Schedule Nop-In work for conn %p", conn);
 				schedule_delayed_work(&conn->nop_in_delayed_work,
 					conn->nop_in_interval + ISCSI_ADD_SCHED_TIME);
 			}

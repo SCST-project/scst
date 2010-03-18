@@ -62,6 +62,8 @@ static int incoming_cnt;
 int ctrl_fd, ipc_fd, nl_fd;
 int conn_blocked;
 
+struct iscsi_init_params iscsi_init_params;
+
 static char program_name[] = "iscsi-scstd";
 
 static struct option const long_options[] =
@@ -566,7 +568,7 @@ static void event_loop(void)
 	}
 }
 
-static void init_max_data_seg_len(int max_data_seg_len)
+static void init_max_params(void)
 {
 	if ((session_keys[key_max_recv_data_length].local_def != -1) ||
 	    (session_keys[key_max_recv_data_length].max != -1) ||
@@ -580,21 +582,29 @@ static void init_max_data_seg_len(int max_data_seg_len)
 		exit(-1);
 	}
 
+	/* QueuedCommands */
+	target_keys[key_queued_cmnds].local_def = min(target_keys[key_queued_cmnds].local_def,
+						      iscsi_init_params.max_queued_cmds);
+	target_keys[key_queued_cmnds].max = min(target_keys[key_queued_cmnds].max,
+						iscsi_init_params.max_queued_cmds);
+	target_keys[key_queued_cmnds].min = min(target_keys[key_queued_cmnds].min,
+						iscsi_init_params.max_queued_cmds);
+
 	/* MaxRecvDataSegmentLength */
-	session_keys[key_max_recv_data_length].local_def = max_data_seg_len;
-	session_keys[key_max_recv_data_length].max = max_data_seg_len;
+	session_keys[key_max_recv_data_length].local_def = iscsi_init_params.max_data_seg_len;
+	session_keys[key_max_recv_data_length].max = iscsi_init_params.max_data_seg_len;
 
 	/* MaxXmitDataSegmentLength */
-	session_keys[key_max_xmit_data_length].local_def = max_data_seg_len;
-	session_keys[key_max_xmit_data_length].max = max_data_seg_len;
+	session_keys[key_max_xmit_data_length].local_def = iscsi_init_params.max_data_seg_len;
+	session_keys[key_max_xmit_data_length].max = iscsi_init_params.max_data_seg_len;
 
 	/* MaxBurstLength */
-	session_keys[key_max_burst_length].local_def = max_data_seg_len;
-	session_keys[key_max_burst_length].max = max_data_seg_len;
+	session_keys[key_max_burst_length].local_def = iscsi_init_params.max_data_seg_len;
+	session_keys[key_max_burst_length].max = iscsi_init_params.max_data_seg_len;
 
 	/* FirstBurstLength */
-	session_keys[key_first_burst_length].local_def = max_data_seg_len;
-	session_keys[key_first_burst_length].max = max_data_seg_len;
+	session_keys[key_first_burst_length].local_def = iscsi_init_params.max_data_seg_len;
+	session_keys[key_first_burst_length].max = iscsi_init_params.max_data_seg_len;
 
 	return;
 }
@@ -605,7 +615,6 @@ int main(int argc, char **argv)
 	char *config = NULL;
 	uid_t uid = 0;
 	gid_t gid = 0;
-	int max_data_seg_len = -1;
 	int err;
 
 #ifdef CONFIG_SCST_PROC
@@ -668,10 +677,10 @@ int main(int argc, char **argv)
 		exit(-1);
 	};
 
-	if ((ctrl_fd = kernel_open(&max_data_seg_len)) < 0)
+	if ((ctrl_fd = kernel_open()) < 0)
 		exit(-1);
 
-	init_max_data_seg_len(max_data_seg_len);
+	init_max_params();
 
 #ifndef CONFIG_SCST_PROC
 	err = kernel_attr_add(NULL, ISCSI_ISNS_SERVER_PARAM_NAME,

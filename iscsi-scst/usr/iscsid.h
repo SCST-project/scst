@@ -30,6 +30,11 @@
 #define sBUG() assert(0)
 #define sBUG_ON(p) assert(!(p))
 
+struct iscsi_init_params {
+	int max_data_seg_len;
+	int max_queued_cmds;
+};
+
 struct buf_segment {
 	struct __qelem entry;
 
@@ -199,6 +204,7 @@ extern void conn_free_rsp_buf_list(struct connection *conn);
 
 /* iscsi_scstd.c */
 extern uint16_t server_port;
+extern struct iscsi_init_params iscsi_init_params;
 extern void isns_set_fd(int isns, int scn_listen, int scn);
 
 /* iscsid.c */
@@ -253,7 +259,7 @@ extern int iscsi_adm_request_listen(void);
 extern int iscsi_adm_request_handle(int accept_fd);
 
 /* ctldev.c */
-extern int kernel_open(int *max_data_seg_len);
+extern int kernel_open(void);
 extern int kernel_params_get(u32 tid, u64 sid, int type, struct iscsi_param *params);
 extern int kernel_params_set(u32 tid, u64 sid, int type, u32 partial,
 	const struct iscsi_param *params);

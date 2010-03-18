@@ -1558,7 +1558,7 @@ static int nop_out_start(struct iscsi_cmnd *cmnd)
 	iscsi_extracheck_is_rd_thread(conn);
 
 	if (!(req_hdr->flags & ISCSI_FLG_FINAL)) {
-		PRINT_ERROR("%s", "Initiator sent NOP-Out with not a single "
+		PRINT_ERROR("%s", "Initiator sent Nop-Out with not a single "
 			"PDU");
 		err = -ISCSI_REASON_PROTOCOL_ERROR;
 		goto out;
@@ -1567,7 +1567,7 @@ static int nop_out_start(struct iscsi_cmnd *cmnd)
 	if (cmnd_itt(cmnd) == cpu_to_be32(ISCSI_RESERVED_TAG)) {
 		if (unlikely(!(cmnd->pdu.bhs.opcode & ISCSI_OP_IMMEDIATE)))
 			PRINT_ERROR("%s", "Initiator sent RESERVED tag for "
-				"non-immediate NOP-Out command");
+				"non-immediate Nop-Out command");
 	}
 
 	spin_lock(&conn->session->sn_lock);
@@ -1588,7 +1588,7 @@ static int nop_out_start(struct iscsi_cmnd *cmnd)
 						&cmnd->sg_cnt);
 			if (sg == NULL) {
 				TRACE(TRACE_OUT_OF_MEM, "Allocating buffer for"
-				      " %d NOP-Out payload failed", size);
+				      " %d Nop-Out payload failed", size);
 				err = -ISCSI_REASON_OUT_OF_RESOURCES;
 				goto out;
 			}
@@ -2509,7 +2509,7 @@ static void nop_out_exec(struct iscsi_cmnd *req)
 		struct iscsi_cmnd *r;
 		struct iscsi_conn *conn = req->conn;
 
- 		TRACE_DBG("Receive NOP-in response (ttt 0x%08x)",
+ 		TRACE_DBG("Receive Nop-In response (ttt 0x%08x)",
 			be32_to_cpu(cmnd_ttt(req)));
 
 		spin_lock_bh(&conn->nop_req_list_lock);
@@ -2526,8 +2526,8 @@ static void nop_out_exec(struct iscsi_cmnd *req)
 		if (found)
 			cmnd_put(r);
 		else
-			TRACE_MGMT_DBG("%s", "Got NOP-out response without "
-				"corresponding NOP-in request");
+			TRACE_MGMT_DBG("%s", "Got Nop-out response without "
+				"corresponding Nop-In request");
 	}
 
 	req_cmnd_release(req);
@@ -3489,13 +3489,13 @@ void iscsi_send_nop_in(struct iscsi_conn *conn)
 
 	req = cmnd_alloc(conn, NULL);
 	if (req == NULL) {
-		PRINT_ERROR("%s", "Unable to alloc fake NOP-IN request");
+		PRINT_ERROR("%s", "Unable to alloc fake Nop-In request");
 		goto out_err;
 	}
 
 	rsp = iscsi_alloc_main_rsp(req);
 	if (rsp == NULL) {
-		PRINT_ERROR("%s", "Unable to alloc NOP-IN rsp");
+		PRINT_ERROR("%s", "Unable to alloc Nop-In rsp");
 		goto out_err_free_req;
 	}
 
@@ -3512,7 +3512,7 @@ void iscsi_send_nop_in(struct iscsi_conn *conn)
 
 	/* Supposed that all other fields are zeroed */
 
-	TRACE_DBG("Sending NOP-in request (ttt 0x%08x)", rsp_hdr->ttt);
+	TRACE_DBG("Sending Nop-In request (ttt 0x%08x)", rsp_hdr->ttt);
 	spin_lock_bh(&conn->nop_req_list_lock);
 	list_add_tail(&rsp->nop_req_list_entry, &conn->nop_req_list);
 	spin_unlock_bh(&conn->nop_req_list_lock);

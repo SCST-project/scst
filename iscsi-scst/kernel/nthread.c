@@ -767,7 +767,7 @@ static int iscsi_rx_check_ddigest(struct iscsi_conn *conn)
 			cmnd_get(cmnd);
 		} else if (cmnd_opcode(cmnd) != ISCSI_OP_SCSI_DATA_OUT) {
 			/*
-			 * We could get here only for NOP-Out. ISCSI RFC
+			 * We could get here only for Nop-Out. ISCSI RFC
 			 * doesn't specify how to deal with digest errors in
 			 * this case. Is closing connection correct?
 			 */

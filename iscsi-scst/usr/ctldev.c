@@ -29,7 +29,7 @@
 
 #define CTL_DEVICE	"/dev/iscsi-scst-ctl"
 
-int kernel_open(int *max_data_seg_len)
+int kernel_open(void)
 {
 	FILE *f;
 	char devname[256];
@@ -91,8 +91,10 @@ int kernel_open(int *max_data_seg_len)
 			"kernel module?\n", strerror(errno));
 		goto out_close;
 	} else {
-		log_debug(0, "MAX_DATA_SEG_LEN %d", err);
-		*max_data_seg_len = reg.max_data_seg_len;
+		log_debug(0, "max_data_seg_len %d, max_queued_cmds %d, ",
+			reg.max_data_seg_len, reg.max_queued_cmds);
+		iscsi_init_params.max_data_seg_len = reg.max_data_seg_len;
+		iscsi_init_params.max_queued_cmds = reg.max_queued_cmds;
 	}
 
 out:

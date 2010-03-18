@@ -1004,6 +1004,7 @@ static int iscsi_register(void __user *arg)
 
 	memset(&reg, 0, sizeof(reg));
 	reg.max_data_seg_len = ISCSI_CONN_IOV_MAX << PAGE_SHIFT;
+	reg.max_queued_cmds = scst_get_max_lun_commands(NULL, NO_SUCH_LUN);
 
 	res = 0;
 

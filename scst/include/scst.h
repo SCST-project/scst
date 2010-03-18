@@ -3639,6 +3639,18 @@ int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 int scst_obtain_device_parameters(struct scst_device *dev);
 
 /*
+ * Returns maximum commands count which can be queued to this LUN in this
+ * session.
+ *
+ * If lun is NO_SUCH_LUN, returns minimum of maximum commands count which
+ * can be queued to any LUN in this session.
+ *
+ * If sess is NULL, returns minimum of maximum commands count which can be
+ * queued to any SCST device.
+ */
+int scst_get_max_lun_commands(struct scst_session *sess, uint64_t lun);
+
+/*
  * Has to be put here open coded, because Linux doesn't have equivalent, which
  * allows exclusive wake ups of threads in LIFO order. We need it to let (yet)
  * unneeded threads sleep and not pollute CPU cache by their stacks.

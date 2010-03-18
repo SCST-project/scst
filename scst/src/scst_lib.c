@@ -5826,6 +5826,12 @@ out:
 	return;
 }
 
+int scst_get_max_lun_commands(struct scst_session *sess, uint64_t lun)
+{
+	return SCST_MAX_TGT_DEV_COMMANDS;
+}
+EXPORT_SYMBOL(scst_get_max_lun_commands);
+
 char *scst_get_next_lexem(char **token_str)
 {
 	char *p = *token_str;

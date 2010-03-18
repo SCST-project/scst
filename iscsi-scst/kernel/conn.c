@@ -473,7 +473,7 @@ static void conn_nop_in_delayed_work_fn(struct delayed_work *work)
 	}
 
 	if (conn->nop_in_interval > 0) {
-		TRACE_DBG("Reschedule NOP-In work for conn %p", conn);
+		TRACE_DBG("Reschedule Nop-In work for conn %p", conn);
 		schedule_delayed_work(&conn->nop_in_delayed_work,
 			conn->nop_in_interval + ISCSI_ADD_SCHED_TIME);
 	}
@@ -755,7 +755,7 @@ static int iscsi_conn_alloc(struct iscsi_session *session,
 	conn->rsp_timeout = session->tgt_params.rsp_timeout * HZ;
 	conn->nop_in_interval = session->tgt_params.nop_in_interval * HZ;
 	if (conn->nop_in_interval > 0) {
-		TRACE_DBG("Schedule NOP-In work for conn %p", conn);
+		TRACE_DBG("Schedule Nop-In work for conn %p", conn);
 		schedule_delayed_work(&conn->nop_in_delayed_work,
 			conn->nop_in_interval + ISCSI_ADD_SCHED_TIME);
 	}
