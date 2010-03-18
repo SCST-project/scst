@@ -1107,7 +1107,7 @@ static struct scst_aen *scst_alloc_aen(struct scst_session *sess,
 	aen->sess = sess;
 	scst_sess_get(sess);
 
-	aen->lun = scst_pack_lun(unpacked_lun);
+	aen->lun = scst_pack_lun(unpacked_lun, sess->acg->addr_method);
 
 out:
 	TRACE_EXIT_HRES((unsigned long)aen);
@@ -2161,6 +2161,8 @@ struct scst_acg *scst_alloc_add_acg(struct scst_tgt *tgt,
 		PRINT_ERROR("%s", "Allocation of acg_name failed");
 		goto out_free;
 	}
+
+	acg->addr_method = SCST_LUN_ADDR_METHOD_PERIPHERAL;
 
 #ifdef CONFIG_SCST_PROC
 	TRACE_DBG("Adding acg %s to scst_acg_list", acg_name);
@@ -4259,13 +4261,25 @@ out:
 }
 EXPORT_SYMBOL(scst_get_cdb_info);
 
-/* Packs SCST LUN back to SCSI form using peripheral device addressing method */
-uint64_t scst_pack_lun(const uint64_t lun)
+/* Packs SCST LUN back to SCSI form */
+uint64_t scst_pack_lun(const uint64_t lun, unsigned int addr_method)
 {
-	uint64_t res;
+
+	uint64_t res = 0;
 	uint16_t *p = (uint16_t *)&res;
 
 	res = lun;
+
+	if ((addr_method == SCST_LUN_ADDR_METHOD_FLAT) && (lun != 0)) {
+		/*
+		 * Flat space: luns other than 0 should use flat space
+		 * addressing method.
+		 */
+		*p = 0x7fff & *p;
+		*p = 0x4000 | *p;
+	}
+	/* Default is to use peripheral device addressing mode */
+
 	*p = cpu_to_be16(*p);
 
 	TRACE_EXIT_HRES((unsigned long)res);

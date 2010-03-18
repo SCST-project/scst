@@ -106,6 +106,12 @@ static ssize_t scst_luns_mgmt_show(struct kobject *kobj,
 static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
 				    struct kobj_attribute *attr,
 				    const char *buf, size_t count);
+static ssize_t scst_tgt_addr_method_show(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   char *buf);
+static ssize_t scst_tgt_addr_method_store(struct kobject *kobj,
+				    struct kobj_attribute *attr,
+				    const char *buf, size_t count);
 static ssize_t scst_ini_group_mgmt_show(struct kobject *kobj,
 				   struct kobj_attribute *attr,
 				   char *buf);
@@ -125,6 +131,12 @@ static ssize_t scst_acg_ini_mgmt_show(struct kobject *kobj,
 				   struct kobj_attribute *attr,
 				   char *buf);
 static ssize_t scst_acg_ini_mgmt_store(struct kobject *kobj,
+				    struct kobj_attribute *attr,
+				    const char *buf, size_t count);
+static ssize_t scst_acg_addr_method_show(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   char *buf);
+static ssize_t scst_acg_addr_method_store(struct kobject *kobj,
 				    struct kobj_attribute *attr,
 				    const char *buf, size_t count);
 static ssize_t scst_acn_file_show(struct kobject *kobj,
@@ -513,9 +525,17 @@ static struct kobj_attribute scst_ini_group_mgmt =
 	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_ini_group_mgmt_show,
 	       scst_ini_group_mgmt_store);
 
+static struct kobj_attribute scst_tgt_addr_method =
+	__ATTR(addr_method, S_IRUGO | S_IWUSR, scst_tgt_addr_method_show,
+	       scst_tgt_addr_method_store);
+
 static struct kobj_attribute scst_rel_tgt_id =
 	__ATTR(rel_tgt_id, S_IRUGO | S_IWUSR, scst_rel_tgt_id_show,
 	       scst_rel_tgt_id_store);
+
+static struct kobj_attribute scst_acg_addr_method =
+	__ATTR(addr_method, S_IRUGO | S_IWUSR, scst_acg_addr_method_show,
+		scst_acg_addr_method_store);
 
 static ssize_t scst_tgt_enable_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
@@ -669,6 +689,14 @@ int scst_create_tgt_sysfs(struct scst_tgt *tgt)
 	if (retval != 0) {
 		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			scst_rel_tgt_id.attr.name, tgt->tgt_name);
+		goto out;
+	}
+
+	retval = sysfs_create_file(&tgt->tgt_kobj,
+			&scst_tgt_addr_method.attr);
+	if (retval != 0) {
+		PRINT_ERROR("Can't add attribute %s for tgt %s",
+			scst_tgt_addr_method.attr.name, tgt->tgt_name);
 		goto out;
 	}
 
@@ -1652,7 +1680,71 @@ static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
 
 	tgt = container_of(kobj->parent, struct scst_tgt, tgt_kobj);
 	acg = tgt->default_acg;
+
 	res = __scst_luns_mgmt_store(acg, kobj, buf, count);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t __scst_acg_addr_method_show(struct scst_acg *acg, char *buf)
+{
+	int res;
+
+	switch (acg->addr_method) {
+	case SCST_LUN_ADDR_METHOD_FLAT:
+		res = sprintf(buf, "FLAT\n%s\n", SCST_SYSFS_KEY_MARK);
+		break;
+	case SCST_LUN_ADDR_METHOD_PERIPHERAL:
+		res = sprintf(buf, "PERIPHERAL\n");
+		break;
+	default:
+		res = sprintf(buf, "UNKNOWN\n");
+		break;
+	}
+
+	return res;
+}
+
+static ssize_t __scst_acg_addr_method_store(struct scst_acg *acg,
+	const char *buf, size_t count)
+{
+	int res = count;
+
+	if (strncasecmp(buf, "FLAT", min_t(int, 4, count)) == 0)
+		acg->addr_method = SCST_LUN_ADDR_METHOD_FLAT;
+	else if (strncasecmp(buf, "PERIPHERAL", min_t(int, 10, count)) == 0)
+		acg->addr_method = SCST_LUN_ADDR_METHOD_PERIPHERAL;
+	else {
+		PRINT_ERROR("Unknown address method %s", buf);
+		res = -EINVAL;
+	}
+	return res;
+}
+
+static ssize_t scst_tgt_addr_method_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_acg *acg;
+	struct scst_tgt *tgt;
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	acg = tgt->default_acg;
+
+	return __scst_acg_addr_method_show(acg, buf);
+}
+
+static ssize_t scst_tgt_addr_method_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	struct scst_acg *acg;
+	struct scst_tgt *tgt;
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	acg = tgt->default_acg;
+
+	res = __scst_acg_addr_method_store(acg, buf, count);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -1705,6 +1797,14 @@ static int scst_create_acg_sysfs(struct scst_tgt *tgt,
 			scst_acg_ini_mgmt.attr.name, tgt->tgt_name);
 		goto out;
 	}
+
+	retval = sysfs_create_file(&acg->acg_kobj, &scst_acg_addr_method.attr);
+	if (retval != 0) {
+		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
+			scst_acg_addr_method.attr.name,
+				tgt->tgt_name);
+		goto out;
+	}
 out:
 	TRACE_EXIT_RES(retval);
 	return retval;
@@ -1732,13 +1832,35 @@ void scst_acg_sysfs_put(struct scst_acg *acg)
 	return;
 }
 
+static ssize_t scst_acg_addr_method_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_acg *acg;
+
+	acg = container_of(kobj, struct scst_acg, acg_kobj);
+
+	return __scst_acg_addr_method_show(acg, buf);
+}
+
+static ssize_t scst_acg_addr_method_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	struct scst_acg *acg;
+
+	acg = container_of(kobj, struct scst_acg, acg_kobj);
+
+	res = __scst_acg_addr_method_store(acg, buf, count);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 static ssize_t scst_ini_group_mgmt_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
-	static char *help = "Usage: echo \"create GROUP_NAME\" "
-					">mgmt\n"
-			    "       echo \"del GROUP_NAME\" "
-					">mgmt\n";
+	static char *help = "Usage: echo \"create GROUP_NAME\" >mgmt\n"
+			    "       echo \"del GROUP_NAME\" >mgmt\n";
 
 	return sprintf(buf, help);
 }

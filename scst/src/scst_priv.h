@@ -125,6 +125,10 @@ extern unsigned long scst_trace_flag;
 
 #define SCST_TGT_RETRY_TIMEOUT               (3/2*HZ)
 
+/* Definitions of symbolic constants for LUN addressing method */
+#define SCST_LUN_ADDR_METHOD_PERIPHERAL	0
+#define SCST_LUN_ADDR_METHOD_FLAT 	1
+
 extern unsigned int scst_max_dev_cmd_mem;
 
 extern mempool_t *scst_mgmt_mempool;
@@ -417,7 +421,7 @@ int scst_alloc_space(struct scst_cmd *cmd);
 int scst_lib_init(void);
 void scst_lib_exit(void);
 
-uint64_t scst_pack_lun(const uint64_t lun);
+uint64_t scst_pack_lun(const uint64_t lun, unsigned int addr_method);
 uint64_t scst_unpack_lun(const uint8_t *lun, int len);
 
 struct scst_mgmt_cmd *scst_alloc_mgmt_cmd(gfp_t gfp_mask);

@@ -37,7 +37,7 @@
 static int scst_proc_init_groups(void);
 static void scst_proc_cleanup_groups(void);
 static int scst_proc_assign_handler(char *buf);
-static int scst_proc_group_add(const char *p);
+static int scst_proc_group_add(const char *p, unsigned int addr_method);
 static int scst_proc_del_free_acg(struct scst_acg *acg, int remove_proc);
 
 static struct scst_proc_data scst_version_proc_data;
@@ -45,6 +45,7 @@ static struct scst_proc_data scst_help_proc_data;
 static struct scst_proc_data scst_sgv_proc_data;
 static struct scst_proc_data scst_groups_names_proc_data;
 static struct scst_proc_data scst_groups_devices_proc_data;
+static struct scst_proc_data scst_groups_addr_method_proc_data;
 static struct scst_proc_data scst_sessions_proc_data;
 static struct scst_proc_data scst_dev_handler_type_proc_data;
 static struct scst_proc_data scst_tgt_proc_data;
@@ -67,6 +68,7 @@ static struct scst_proc_data scst_dev_handler_proc_data;
 #define SCST_PROC_GROUPS_ENTRY_NAME		"groups"
 #define SCST_PROC_GROUPS_DEVICES_ENTRY_NAME	"devices"
 #define SCST_PROC_GROUPS_USERS_ENTRY_NAME	"names"
+#define SCST_PROC_GROUPS_ADDR_METHOD_ENTRY_NAME "addr_method"
 
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 #define SCST_PROC_LAT_ENTRY_NAME		"latency"
@@ -127,7 +129,7 @@ static struct scst_trace_log scst_proc_local_trace_tbl[] = {
 static char *scst_proc_help_string =
 "   echo \"assign H:C:I:L HANDLER_NAME\" >/proc/scsi_tgt/scsi_tgt\n"
 "\n"
-"   echo \"add_group GROUP_NAME\" >/proc/scsi_tgt/scsi_tgt\n"
+"   echo \"add_group GROUP_NAME [FLAT]\" >/proc/scsi_tgt/scsi_tgt\n"
 "   echo \"del_group GROUP_NAME\" >/proc/scsi_tgt/scsi_tgt\n"
 "   echo \"rename_group OLD_NAME NEW_NAME\" >/proc/scsi_tgt/scsi_tgt\n"
 "\n"
@@ -811,17 +813,30 @@ static int scst_proc_group_add_tree(struct scst_acg *acg, const char *name)
 		goto out;
 	}
 
+	scst_groups_addr_method_proc_data.data = acg;
+	generic = scst_create_proc_entry(acg->acg_proc_root,
+				 SCST_PROC_GROUPS_ADDR_METHOD_ENTRY_NAME,
+				 &scst_groups_addr_method_proc_data);
+	if (!generic) {
+		PRINT_ERROR("Cannot init /proc/%s/%s/%s/%s",
+		       SCST_PROC_ENTRY_NAME,
+		       SCST_PROC_GROUPS_ENTRY_NAME,
+		       name, SCST_PROC_GROUPS_ADDR_METHOD_ENTRY_NAME);
+		res = -ENOMEM;
+		goto out_remove;
+	}
+
 	scst_groups_devices_proc_data.data = acg;
 	generic = scst_create_proc_entry(acg->acg_proc_root,
 					 SCST_PROC_GROUPS_DEVICES_ENTRY_NAME,
 					 &scst_groups_devices_proc_data);
 	if (!generic) {
-		PRINT_ERROR("cannot init /proc/%s/%s/%s/%s",
+		PRINT_ERROR("Cannot init /proc/%s/%s/%s/%s",
 			       SCST_PROC_ENTRY_NAME,
 			       SCST_PROC_GROUPS_ENTRY_NAME,
 			       name, SCST_PROC_GROUPS_DEVICES_ENTRY_NAME);
 		res = -ENOMEM;
-		goto out_remove;
+		goto out_remove0;
 	}
 
 	scst_groups_names_proc_data.data = acg;
@@ -829,7 +844,7 @@ static int scst_proc_group_add_tree(struct scst_acg *acg, const char *name)
 					 SCST_PROC_GROUPS_USERS_ENTRY_NAME,
 					 &scst_groups_names_proc_data);
 	if (!generic) {
-		PRINT_ERROR("cannot init /proc/%s/%s/%s/%s",
+		PRINT_ERROR("Cannot init /proc/%s/%s/%s/%s",
 			       SCST_PROC_ENTRY_NAME,
 			       SCST_PROC_GROUPS_ENTRY_NAME,
 			       name, SCST_PROC_GROUPS_USERS_ENTRY_NAME);
@@ -845,6 +860,9 @@ out_remove1:
 	remove_proc_entry(SCST_PROC_GROUPS_DEVICES_ENTRY_NAME,
 			  acg->acg_proc_root);
 
+out_remove0:
+	remove_proc_entry(SCST_PROC_GROUPS_ADDR_METHOD_ENTRY_NAME,
+			  acg->acg_proc_root);
 out_remove:
 	remove_proc_entry(name, scst_proc_groups_root);
 	goto out;
@@ -855,9 +873,9 @@ static void scst_proc_del_acg_tree(struct proc_dir_entry *acg_proc_root,
 {
 	TRACE_ENTRY();
 
+	remove_proc_entry(SCST_PROC_GROUPS_ADDR_METHOD_ENTRY_NAME, acg_proc_root);
 	remove_proc_entry(SCST_PROC_GROUPS_USERS_ENTRY_NAME, acg_proc_root);
-	remove_proc_entry(SCST_PROC_GROUPS_DEVICES_ENTRY_NAME,
-				acg_proc_root);
+	remove_proc_entry(SCST_PROC_GROUPS_DEVICES_ENTRY_NAME, acg_proc_root);
 	remove_proc_entry(name, scst_proc_groups_root);
 
 	TRACE_EXIT();
@@ -865,7 +883,7 @@ static void scst_proc_del_acg_tree(struct proc_dir_entry *acg_proc_root,
 }
 
 /* The activity supposed to be suspended and scst_mutex held */
-static int scst_proc_group_add(const char *p)
+static int scst_proc_group_add(const char *p, unsigned int addr_method)
 {
 	int res = 0, len = strlen(p) + 1;
 	struct scst_acg *acg;
@@ -885,6 +903,8 @@ static int scst_proc_group_add(const char *p)
 		PRINT_ERROR("scst_alloc_add_acg() (name %s) failed", name);
 		goto out_free;
 	}
+
+	acg->addr_method = addr_method;
 
 	res = scst_proc_group_add_tree(acg, p);
 	if (res != 0)
@@ -1536,8 +1556,9 @@ static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file,
 					size_t length, loff_t *off)
 {
 	int res, rc = 0, action;
-	char *buffer, *p, *pp;
+	char *buffer, *p, *pp, *ppp;
 	struct scst_acg *a, *acg = NULL;
+	unsigned int addr_method = SCST_LUN_ADDR_METHOD_PERIPHERAL;
 
 	TRACE_ENTRY();
 
@@ -1566,7 +1587,7 @@ static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file,
 	}
 
 	/*
-	 * Usage: echo "add_group GROUP_NAME" >/proc/scsi_tgt/scsi_tgt
+	 * Usage: echo "add_group GROUP_NAME [FLAT]" >/proc/scsi_tgt/scsi_tgt
 	 *   or   echo "del_group GROUP_NAME" >/proc/scsi_tgt/scsi_tgt
 	 *   or   echo "rename_group OLD_NAME NEW_NAME" >/proc/scsi_tgt/scsi_tgt"
 	 *   or   echo "assign H:C:I:L HANDLER_NAME" >/proc/scsi_tgt/scsi_tgt
@@ -1603,6 +1624,9 @@ static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file,
 
 	res = length;
 
+	while (isspace(*p) && *p != '\0')
+		p++;
+
 	switch (action) {
 	case SCST_PROC_ACTION_ADD_GROUP:
 	case SCST_PROC_ACTION_DEL_GROUP:
@@ -1618,6 +1642,29 @@ static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file,
 			if (*pp != '\0') {
 				switch (action) {
 				case SCST_PROC_ACTION_ADD_GROUP:
+					ppp = pp;
+					while (!isspace(*ppp) && *ppp != '\0')
+						ppp++;
+					if (*ppp != '\0') {
+						*ppp = '\0';
+					   ppp++;
+					   while (isspace(*ppp) && *ppp != '\0')
+						ppp++;
+					   if (*ppp != '\0') {
+						PRINT_ERROR("%s", "Too many "
+							"arguments");
+							res = -EINVAL;
+							goto out_up_free;
+					   }
+					}
+					if (strcasecmp(pp, "FLAT") != 0) {
+						PRINT_ERROR("Unexpected "
+							"argument %s", pp);
+						res = -EINVAL;
+						goto out_up_free;
+					} else
+						addr_method = SCST_LUN_ADDR_METHOD_FLAT;
+					break;
 				case SCST_PROC_ACTION_DEL_GROUP:
 					PRINT_ERROR("%s", "Too many "
 						"arguments");
@@ -1650,7 +1697,7 @@ static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file,
 				res = -EINVAL;
 				goto out_up_free;
 			}
-			rc = scst_proc_group_add(p);
+			rc = scst_proc_group_add(p, addr_method);
 			break;
 		case SCST_PROC_ACTION_DEL_GROUP:
 			if (acg == NULL) {
@@ -2396,6 +2443,40 @@ static struct scst_proc_data scst_groups_names_proc_data = {
 	.show = scst_groups_names_show,
 };
 
+static int scst_groups_addr_method_show(struct seq_file *seq, void *v)
+{
+	int res = 0;
+	struct scst_acg *acg = (struct scst_acg *)seq->private;
+
+	TRACE_ENTRY();
+
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
+		res = -EINTR;
+		goto out;
+	}
+
+	switch (acg->addr_method) {
+	case SCST_LUN_ADDR_METHOD_FLAT:
+		seq_printf(seq, "%s\n", "FLAT");
+		break;
+	case SCST_LUN_ADDR_METHOD_PERIPHERAL:
+		seq_printf(seq, "%s\n", "PERIPHERAL");
+		break;
+	default:
+		seq_printf(seq, "%s\n", "UNKNOWN");
+		break;
+	}
+
+	mutex_unlock(&scst_mutex);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+static struct scst_proc_data scst_groups_addr_method_proc_data = {
+	SCST_DEF_RW_SEQ_OP(NULL)
+	.show = scst_groups_addr_method_show,
+};
 static int scst_groups_devices_show(struct seq_file *seq, void *v)
 {
 	int res = 0;

@@ -2076,6 +2076,8 @@ struct scst_acg {
 
 	struct kobject *luns_kobj;
 	struct kobject *initiators_kobj;
+
+	unsigned int addr_method;
 };
 
 /*
