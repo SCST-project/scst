@@ -1311,7 +1311,7 @@ sizes.
 
 Another way to solve this issue is to build SG entries with more than 1
 page each. See the following patch as an example:
-http://scst.sf.net/sgv_big_order_alloc.diff
+http://scst.sourceforge.net/sgv_big_order_alloc.diff
 
 
 User space mode using scst_user dev handler

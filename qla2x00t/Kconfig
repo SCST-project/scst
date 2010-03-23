@@ -35,7 +35,8 @@ config SCSI_QLA2XXX_TARGET
 	Once the qla2x00tgt module is loaded, target mode can be enable via a
 	sysfs interface under scsi_host, thus enabling target mode for specific
 	cards.
-	You will also need the SCST middle level drivers from http://scst.sf.net/.
+	You will also need the SCST middle level drivers from
+	http://scst.sourceforge.net/.
 
 config SCSI_QLA2XXX_TARGET_DISABLE_INI_MODE
 	bool "Disable initiator mode for ports with enabled target mode"

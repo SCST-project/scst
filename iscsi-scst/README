@@ -12,7 +12,7 @@ ISCSI-SCST is a deeply reworked fork of iSCSI Enterprise Target (IET)
  - To fix all the problems, corner cases issues and iSCSI standard
    violations which IET has.
 
-See more info at http://scst.sourceforge.net/target_iscsi.html.
+See more info at http://iscsi-scst.sourceforge.net.
 
 This version is compatible with SCST version 2.0.0 and higher.
 

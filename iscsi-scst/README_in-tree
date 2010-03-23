@@ -9,13 +9,13 @@ ISCSI-SCST is a deeply reworked fork of iSCSI Enterprise Target (IET)
  - To fix all the problems, corner cases issues and iSCSI standard
    violations which IET has.
 
-See more info at http://scst.sourceforge.net/target_iscsi.html.
+See more info at http://iscsi-scst.sourceforge.net.
 
 Usage
 -----
 
-See in http://scst.sourceforge.net/iscsi-scst-howto.txt how to configure
-iSCSI-SCST.
+See in http://iscsi-scst.sourceforge.net/iscsi-scst-howto.txt how to
+configure iSCSI-SCST.
 
 In 2.0.0 usage of iscsi-scstd.conf as well as iscsi-scst-adm utility is
 obsolete. Use the sysfs interface facilities instead.
