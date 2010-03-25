@@ -41,9 +41,13 @@
 struct scst_user_dev {
 	struct rw_semaphore dev_rwsem;
 
-	struct scst_cmd_lists cmd_lists;
+	/*
+	 * Must be kept here, because it's needed on the cleanup time,
+	 * when corresponding scst_dev is already dead.
+	 */
+	struct scst_cmd_threads udev_cmd_threads;
 
-	/* Protected by cmd_lists.cmd_list_lock */
+	/* Protected by udev_cmd_threads.cmd_list_lock */
 	struct list_head ready_cmd_list;
 
 	/* Protected by dev_rwsem or don't need any protection */
@@ -74,7 +78,7 @@ struct scst_user_dev {
 
 	struct scst_dev_type devtype;
 
-	/* Both protected by cmd_lists.cmd_list_lock */
+	/* Both protected by udev_cmd_threads.cmd_list_lock */
 	unsigned int handle_counter;
 	struct list_head ucmd_hash[1 << DEV_USER_CMD_HASH_ORDER];
 
@@ -111,7 +115,7 @@ struct scst_user_cmd {
 
 	/*
 	 * Special flags, which can be accessed asynchronously (hence "long").
-	 * Protected by cmd_lists.cmd_list_lock.
+	 * Protected by udev_cmd_threads.cmd_list_lock.
 	 */
 	unsigned long sent_to_user:1;
 	unsigned long jammed:1;
@@ -245,7 +249,7 @@ static struct task_struct *cleanup_thread;
 
 /*
  * Skip this command if result is not 0. Must be called under
- * cmd_lists.cmd_list_lock and IRQ off.
+ * udev_cmd_threads.cmd_list_lock and IRQ off.
  */
 static inline bool ucmd_get_check(struct scst_user_cmd *ucmd)
 {
@@ -345,14 +349,14 @@ static void cmd_insert_hash(struct scst_user_cmd *ucmd)
 	struct scst_user_cmd *u;
 	unsigned long flags;
 
-	spin_lock_irqsave(&dev->cmd_lists.cmd_list_lock, flags);
+	spin_lock_irqsave(&dev->udev_cmd_threads.cmd_list_lock, flags);
 	do {
 		ucmd->h = dev->handle_counter++;
 		u = __ucmd_find_hash(dev, ucmd->h);
 	} while (u != NULL);
 	head = &dev->ucmd_hash[scst_user_cmd_hashfn(ucmd->h)];
 	list_add_tail(&ucmd->hash_list_entry, head);
-	spin_unlock_irqrestore(&dev->cmd_lists.cmd_list_lock, flags);
+	spin_unlock_irqrestore(&dev->udev_cmd_threads.cmd_list_lock, flags);
 
 	TRACE_DBG("Inserted ucmd %p, h=%d (dev %s)", ucmd, ucmd->h, dev->name);
 	return;
@@ -362,9 +366,9 @@ static inline void cmd_remove_hash(struct scst_user_cmd *ucmd)
 {
 	unsigned long flags;
 
-	spin_lock_irqsave(&ucmd->dev->cmd_lists.cmd_list_lock, flags);
+	spin_lock_irqsave(&ucmd->dev->udev_cmd_threads.cmd_list_lock, flags);
 	list_del(&ucmd->hash_list_entry);
-	spin_unlock_irqrestore(&ucmd->dev->cmd_lists.cmd_list_lock, flags);
+	spin_unlock_irqrestore(&ucmd->dev->udev_cmd_threads.cmd_list_lock, flags);
 
 	TRACE_DBG("Removed ucmd %p, h=%d", ucmd, ucmd->h);
 	return;
@@ -1073,7 +1077,7 @@ static void dev_user_add_to_ready(struct scst_user_cmd *ucmd)
 	if (ucmd->cmd)
 		do_wake |= ucmd->cmd->preprocessing_only;
 
-	spin_lock_irqsave(&dev->cmd_lists.cmd_list_lock, flags);
+	spin_lock_irqsave(&dev->udev_cmd_threads.cmd_list_lock, flags);
 
 	ucmd->this_state_unjammed = 0;
 
@@ -1118,10 +1122,10 @@ static void dev_user_add_to_ready(struct scst_user_cmd *ucmd)
 
 	if (do_wake) {
 		TRACE_DBG("Waking up dev %p", dev);
-		wake_up(&dev->cmd_lists.cmd_list_waitQ);
+		wake_up(&dev->udev_cmd_threads.cmd_list_waitQ);
 	}
 
-	spin_unlock_irqrestore(&dev->cmd_lists.cmd_list_lock, flags);
+	spin_unlock_irqrestore(&dev->udev_cmd_threads.cmd_list_lock, flags);
 
 	TRACE_EXIT();
 	return;
@@ -1504,7 +1508,7 @@ static int dev_user_process_reply(struct scst_user_dev *dev,
 
 	TRACE_ENTRY();
 
-	spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
+	spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
 	ucmd = __ucmd_find_hash(dev, reply->cmd_h);
 	if (unlikely(ucmd == NULL)) {
@@ -1549,7 +1553,7 @@ static int dev_user_process_reply(struct scst_user_dev *dev,
 	ucmd->sent_to_user = 0;
 
 unlock_process:
-	spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+	spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
 	switch (state) {
 	case UCMD_STATE_PARSING:
@@ -1602,11 +1606,11 @@ out_wrong_state:
 	dev_user_unjam_cmd(ucmd, 0, NULL);
 
 out_unlock_put:
-	spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+	spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 	goto out_put;
 
 out_unlock:
-	spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+	spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 	goto out;
 }
 
@@ -1682,7 +1686,7 @@ static int dev_user_get_ext_cdb(struct file *file, void __user *arg)
 
 	TRACE_BUFFER("Get ext cdb", &get, sizeof(get));
 
-	spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
+	spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
 	ucmd = __ucmd_find_hash(dev, get.cmd_h);
 	if (unlikely(ucmd == NULL)) {
@@ -1708,7 +1712,7 @@ static int dev_user_get_ext_cdb(struct file *file, void __user *arg)
 		goto out_unlock;
 	}
 
-	spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+	spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
 	if (cmd == NULL)
 		goto out_put;
@@ -1739,27 +1743,27 @@ out:
 	return res;
 
 out_unlock:
-	spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+	spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 	goto out_up;
 }
 
 static int dev_user_process_scst_commands(struct scst_user_dev *dev)
-	__releases(&dev->cmd_lists.cmd_list_lock)
-	__acquires(&dev->cmd_lists.cmd_list_lock)
+	__releases(&dev->udev_cmd_threads.cmd_list_lock)
+	__acquires(&dev->udev_cmd_threads.cmd_list_lock)
 {
 	int res = 0;
 
 	TRACE_ENTRY();
 
-	while (!list_empty(&dev->cmd_lists.active_cmd_list)) {
+	while (!list_empty(&dev->udev_cmd_threads.active_cmd_list)) {
 		struct scst_cmd *cmd = list_entry(
-			dev->cmd_lists.active_cmd_list.next, typeof(*cmd),
+			dev->udev_cmd_threads.active_cmd_list.next, typeof(*cmd),
 			cmd_list_entry);
 		TRACE_DBG("Deleting cmd %p from active cmd list", cmd);
 		list_del(&cmd->cmd_list_entry);
-		spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+		spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 		scst_process_active_cmd(cmd, false);
-		spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
+		spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 		res++;
 	}
 
@@ -1767,10 +1771,10 @@ static int dev_user_process_scst_commands(struct scst_user_dev *dev)
 	return res;
 }
 
-/* Called under cmd_lists.cmd_list_lock and IRQ off */
+/* Called under udev_cmd_threads.cmd_list_lock and IRQ off */
 static struct scst_user_cmd *__dev_user_get_next_cmd(struct list_head *cmd_list)
-	__releases(&dev->cmd_lists.cmd_list_lock)
-	__acquires(&dev->cmd_lists.cmd_list_lock)
+	__releases(&dev->udev_cmd_threads.cmd_list_lock)
+	__acquires(&dev->udev_cmd_threads.cmd_list_lock)
 {
 	struct scst_user_cmd *u;
 
@@ -1792,7 +1796,7 @@ again:
 
 				EXTRACHECKS_BUG_ON(u->jammed);
 
-				spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+				spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
 				rc = scst_check_local_events(u->cmd);
 				if (unlikely(rc != 0)) {
@@ -1804,11 +1808,11 @@ again:
 					 * !! already freed		   !!
 					 */
 					spin_lock_irq(
-						&dev->cmd_lists.cmd_list_lock);
+						&dev->udev_cmd_threads.cmd_list_lock);
 					goto again;
 				}
 
-				spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
+				spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 			} else if (unlikely(test_bit(SCST_CMD_ABORTED,
 					&u->cmd->cmd_flags))) {
 				switch (u->state) {
@@ -1828,16 +1832,16 @@ again:
 	return u;
 }
 
-static inline int test_cmd_lists(struct scst_user_dev *dev)
+static inline int test_cmd_threads(struct scst_user_dev *dev)
 {
-	int res = !list_empty(&dev->cmd_lists.active_cmd_list) ||
+	int res = !list_empty(&dev->udev_cmd_threads.active_cmd_list) ||
 		  !list_empty(&dev->ready_cmd_list) ||
 		  !dev->blocking || dev->cleanup_done ||
 		  signal_pending(current);
 	return res;
 }
 
-/* Called under cmd_lists.cmd_list_lock and IRQ off */
+/* Called under udev_cmd_threads.cmd_list_lock and IRQ off */
 static int dev_user_get_next_cmd(struct scst_user_dev *dev,
 	struct scst_user_cmd **ucmd)
 {
@@ -1849,20 +1853,20 @@ static int dev_user_get_next_cmd(struct scst_user_dev *dev,
 	init_waitqueue_entry(&wait, current);
 
 	while (1) {
-		if (!test_cmd_lists(dev)) {
+		if (!test_cmd_threads(dev)) {
 			add_wait_queue_exclusive_head(
-				&dev->cmd_lists.cmd_list_waitQ,
+				&dev->udev_cmd_threads.cmd_list_waitQ,
 				&wait);
 			for (;;) {
 				set_current_state(TASK_INTERRUPTIBLE);
-				if (test_cmd_lists(dev))
+				if (test_cmd_threads(dev))
 					break;
-				spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+				spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 				schedule();
-				spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
+				spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 			}
 			set_current_state(TASK_RUNNING);
-			remove_wait_queue(&dev->cmd_lists.cmd_list_waitQ,
+			remove_wait_queue(&dev->udev_cmd_threads.cmd_list_waitQ,
 				&wait);
 		}
 
@@ -1948,7 +1952,7 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 
 	kmem_cache_free(user_get_cmd_cachep, cmd);
 
-	spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
+	spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 again:
 	res = dev_user_get_next_cmd(dev, &ucmd);
 	if (res == 0) {
@@ -1963,7 +1967,7 @@ again:
 			/* Oops, this ucmd is already being destroyed. Retry. */
 			goto again;
 		}
-		spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+		spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
 		EXTRACHECKS_BUG_ON(ucmd->user_cmd_payload_len == 0);
 
@@ -1977,10 +1981,10 @@ again:
 				"%p back to head of ready cmd list", rc, ucmd);
 			res = -EFAULT;
 			/* Requeue ucmd back */
-			spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
+			spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 			list_add(&ucmd->ready_cmd_list_entry,
 				&dev->ready_cmd_list);
-			spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+			spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 		}
 #ifdef CONFIG_SCST_EXTRACHECKS
 		else
@@ -1988,7 +1992,7 @@ again:
 #endif
 		ucmd_put(ucmd);
 	} else
-		spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+		spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
 out_up:
 	up_read(&dev->dev_rwsem);
@@ -2118,30 +2122,30 @@ static unsigned int dev_user_poll(struct file *file, poll_table *wait)
 	down_read(&dev->dev_rwsem);
 	mutex_unlock(&dev_priv_mutex);
 
-	spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
+	spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
 	if (!list_empty(&dev->ready_cmd_list) ||
-	    !list_empty(&dev->cmd_lists.active_cmd_list)) {
+	    !list_empty(&dev->udev_cmd_threads.active_cmd_list)) {
 		res |= POLLIN | POLLRDNORM;
 		goto out_unlock;
 	}
 
-	spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+	spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
 	TRACE_DBG("Before poll_wait() (dev %s)", dev->name);
-	poll_wait(file, &dev->cmd_lists.cmd_list_waitQ, wait);
+	poll_wait(file, &dev->udev_cmd_threads.cmd_list_waitQ, wait);
 	TRACE_DBG("After poll_wait() (dev %s)", dev->name);
 
-	spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
+	spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
 	if (!list_empty(&dev->ready_cmd_list) ||
-	    !list_empty(&dev->cmd_lists.active_cmd_list)) {
+	    !list_empty(&dev->udev_cmd_threads.active_cmd_list)) {
 		res |= POLLIN | POLLRDNORM;
 		goto out_unlock;
 	}
 
 out_unlock:
-	spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+	spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
 	up_read(&dev->dev_rwsem);
 
@@ -2151,12 +2155,13 @@ out:
 }
 
 /*
- * Called under cmd_lists.cmd_list_lock, but can drop it inside, then reacquire.
+ * Called under udev_cmd_threads.cmd_list_lock, but can drop it inside,
+ * then reacquire.
  */
 static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 	unsigned long *flags)
-	__releases(&dev->cmd_lists.cmd_list_lock)
-	__acquires(&dev->cmd_lists.cmd_list_lock)
+	__releases(&dev->udev_cmd_threads.cmd_list_lock)
+	__acquires(&dev->udev_cmd_threads.cmd_list_lock)
 {
 	int state = ucmd->state;
 	struct scst_user_dev *dev = ucmd->dev;
@@ -2189,16 +2194,16 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 
 		TRACE_MGMT_DBG("Adding ucmd %p to active list", ucmd);
 		list_add(&ucmd->cmd->cmd_list_entry,
-			&ucmd->cmd->cmd_lists->active_cmd_list);
-		wake_up(&ucmd->dev->cmd_lists.cmd_list_waitQ);
+			&ucmd->cmd->cmd_threads->active_cmd_list);
+		wake_up(&ucmd->cmd->cmd_threads->cmd_list_waitQ);
 		break;
 
 	case UCMD_STATE_EXECING:
 		if (flags != NULL)
-			spin_unlock_irqrestore(&dev->cmd_lists.cmd_list_lock,
+			spin_unlock_irqrestore(&dev->udev_cmd_threads.cmd_list_lock,
 					       *flags);
 		else
-			spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+			spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
 		TRACE_MGMT_DBG("EXEC: unjamming ucmd %p", ucmd);
 
@@ -2217,10 +2222,10 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 		/* !! At this point cmd and ucmd can be already freed !! */
 
 		if (flags != NULL)
-			spin_lock_irqsave(&dev->cmd_lists.cmd_list_lock,
+			spin_lock_irqsave(&dev->udev_cmd_threads.cmd_list_lock,
 					  *flags);
 		else
-			spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
+			spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 		break;
 
 	case UCMD_STATE_ON_FREEING:
@@ -2229,10 +2234,10 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 	case UCMD_STATE_ATTACH_SESS:
 	case UCMD_STATE_DETACH_SESS:
 		if (flags != NULL)
-			spin_unlock_irqrestore(&dev->cmd_lists.cmd_list_lock,
+			spin_unlock_irqrestore(&dev->udev_cmd_threads.cmd_list_lock,
 					       *flags);
 		else
-			spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+			spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
 		switch (state) {
 		case UCMD_STATE_ON_FREEING:
@@ -2255,10 +2260,10 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 		}
 
 		if (flags != NULL)
-			spin_lock_irqsave(&dev->cmd_lists.cmd_list_lock,
+			spin_lock_irqsave(&dev->udev_cmd_threads.cmd_list_lock,
 					  *flags);
 		else
-			spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
+			spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 		break;
 
 	default:
@@ -2273,8 +2278,8 @@ out:
 }
 
 static int dev_user_unjam_dev(struct scst_user_dev *dev)
-	__releases(&dev->cmd_lists.cmd_list_lock)
-	__acquires(&dev->cmd_lists.cmd_list_lock)
+	__releases(&dev->udev_cmd_threads.cmd_list_lock)
+	__acquires(&dev->udev_cmd_threads.cmd_list_lock)
 {
 	int i, res = 0;
 	struct scst_user_cmd *ucmd;
@@ -2286,7 +2291,7 @@ static int dev_user_unjam_dev(struct scst_user_dev *dev)
 	sgv_pool_flush(dev->pool);
 	sgv_pool_flush(dev->pool_clust);
 
-	spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
+	spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
 repeat:
 	for (i = 0; i < (int)ARRAY_SIZE(dev->ucmd_hash); i++) {
@@ -2306,9 +2311,9 @@ repeat:
 
 			dev_user_unjam_cmd(ucmd, 0, NULL);
 
-			spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+			spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 			ucmd_put(ucmd);
-			spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
+			spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
 			goto repeat;
 		}
@@ -2317,7 +2322,7 @@ repeat:
 	if (dev_user_process_scst_commands(dev) != 0)
 		goto repeat;
 
-	spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+	spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -2359,7 +2364,7 @@ static void dev_user_abort_ready_commands(struct scst_user_dev *dev)
 
 	TRACE_ENTRY();
 
-	spin_lock_irqsave(&dev->cmd_lists.cmd_list_lock, flags);
+	spin_lock_irqsave(&dev->udev_cmd_threads.cmd_list_lock, flags);
 again:
 	list_for_each_entry(ucmd, &dev->ready_cmd_list, ready_cmd_list_entry) {
 		if ((ucmd->cmd != NULL) && !ucmd->seen_by_user &&
@@ -2376,7 +2381,7 @@ again:
 		}
 	}
 
-	spin_unlock_irqrestore(&dev->cmd_lists.cmd_list_lock, flags);
+	spin_unlock_irqrestore(&dev->udev_cmd_threads.cmd_list_lock, flags);
 
 	TRACE_EXIT();
 	return;
@@ -2489,7 +2494,6 @@ static int dev_user_attach(struct scst_device *sdev)
 		goto out;
 	}
 
-	sdev->p_cmd_lists = &dev->cmd_lists;
 	sdev->dh_priv = dev;
 	sdev->tst = dev->tst;
 	sdev->queue_alg = dev->queue_alg;
@@ -2536,7 +2540,7 @@ static int dev_user_process_reply_sess(struct scst_user_cmd *ucmd, int status)
 
 	TRACE_MGMT_DBG("ucmd %p, cmpl %p, status %d", ucmd, ucmd->cmpl, status);
 
-	spin_lock_irqsave(&ucmd->dev->cmd_lists.cmd_list_lock, flags);
+	spin_lock_irqsave(&ucmd->dev->udev_cmd_threads.cmd_list_lock, flags);
 
 	if (ucmd->state == UCMD_STATE_ATTACH_SESS) {
 		TRACE_MGMT_DBG("%s", "ATTACH_SESS finished");
@@ -2549,7 +2553,7 @@ static int dev_user_process_reply_sess(struct scst_user_cmd *ucmd, int status)
 	if (ucmd->cmpl != NULL)
 		complete_all(ucmd->cmpl);
 
-	spin_unlock_irqrestore(&ucmd->dev->cmd_lists.cmd_list_lock, flags);
+	spin_unlock_irqrestore(&ucmd->dev->udev_cmd_threads.cmd_list_lock, flags);
 
 	ucmd_put(ucmd);
 
@@ -2566,6 +2570,8 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 	DECLARE_COMPLETION_ONSTACK(cmpl);
 
 	TRACE_ENTRY();
+
+	tgt_dev->active_cmd_threads = &dev->udev_cmd_threads;
 
 	/*
 	 * We can't replace tgt_dev->pool, because it can be used to allocate
@@ -2621,9 +2627,9 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 
 	sBUG_ON(irqs_disabled());
 
-	spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
+	spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 	ucmd->cmpl = NULL;
-	spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+	spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
 	ucmd_put(ucmd);
 
@@ -2801,9 +2807,6 @@ static int dev_user_register_dev(struct file *file,
 	}
 
 	init_rwsem(&dev->dev_rwsem);
-	spin_lock_init(&dev->cmd_lists.cmd_list_lock);
-	INIT_LIST_HEAD(&dev->cmd_lists.active_cmd_list);
-	init_waitqueue_head(&dev->cmd_lists.cmd_list_waitQ);
 	INIT_LIST_HEAD(&dev->ready_cmd_list);
 	if (file->f_flags & O_NONBLOCK) {
 		TRACE_DBG("%s", "Non-blocking operations");
@@ -2812,6 +2815,8 @@ static int dev_user_register_dev(struct file *file,
 		dev->blocking = 1;
 	for (i = 0; i < (int)ARRAY_SIZE(dev->ucmd_hash); i++)
 		INIT_LIST_HEAD(&dev->ucmd_hash[i]);
+
+	scst_init_threads(&dev->udev_cmd_threads);
 
 	strlcpy(dev->name, dev_desc->name, sizeof(dev->name)-1);
 
@@ -2980,7 +2985,7 @@ static int dev_user_unregister_dev(struct file *file)
 	}
 
 	dev->blocking = 0;
-	wake_up_all(&dev->cmd_lists.cmd_list_waitQ);
+	wake_up_all(&dev->udev_cmd_threads.cmd_list_waitQ);
 
 	down_write(&dev->dev_rwsem);
 	file->private_data = NULL;
@@ -3333,7 +3338,7 @@ static int dev_user_exit_dev(struct scst_user_dev *dev)
 	spin_unlock(&dev_list_lock);
 
 	dev->blocking = 0;
-	wake_up_all(&dev->cmd_lists.cmd_list_waitQ);
+	wake_up_all(&dev->udev_cmd_threads.cmd_list_waitQ);
 
 	spin_lock(&cleanup_lock);
 	list_add_tail(&dev->cleanup_list_entry, &cleanup_list);
@@ -3352,12 +3357,14 @@ static int dev_user_exit_dev(struct scst_user_dev *dev)
 	dev->cleanup_done = 1;
 
 	wake_up(&cleanup_list_waitQ);
-	wake_up(&dev->cmd_lists.cmd_list_waitQ);
+	wake_up(&dev->udev_cmd_threads.cmd_list_waitQ);
 
 	wait_for_completion(&dev->cleanup_cmpl);
 
 	sgv_pool_del(dev->pool_clust);
 	sgv_pool_del(dev->pool);
+
+	scst_deinit_threads(&dev->udev_cmd_threads);
 
 	TRACE_MGMT_DBG("Releasing completed (dev %p)", dev);
 
@@ -3410,7 +3417,7 @@ static int dev_user_process_cleanup(struct scst_user_dev *dev)
 	TRACE_ENTRY();
 
 	sBUG_ON(dev->blocking);
-	wake_up_all(&dev->cmd_lists.cmd_list_waitQ); /* just in case */
+	wake_up_all(&dev->udev_cmd_threads.cmd_list_waitQ); /* just in case */
 
 	while (1) {
 		int rc1;
@@ -3421,13 +3428,13 @@ static int dev_user_process_cleanup(struct scst_user_dev *dev)
 		if ((rc1 == 0) && (rc == -EAGAIN) && dev->cleanup_done)
 			break;
 
-		spin_lock_irq(&dev->cmd_lists.cmd_list_lock);
+		spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
 		rc = dev_user_get_next_cmd(dev, &ucmd);
 		if (rc == 0)
 			dev_user_unjam_cmd(ucmd, 1, NULL);
 
-		spin_unlock_irq(&dev->cmd_lists.cmd_list_lock);
+		spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
 		if (rc == -EAGAIN) {
 			if (!dev->cleanup_done) {
@@ -3478,7 +3485,7 @@ static ssize_t dev_user_sysfs_commands_show(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	udev = (struct scst_user_dev *)dev->dh_priv;
 
-	spin_lock_irqsave(&udev->cmd_lists.cmd_list_lock, flags);
+	spin_lock_irqsave(&udev->udev_cmd_threads.cmd_list_lock, flags);
 	for (i = 0; i < (int)ARRAY_SIZE(udev->ucmd_hash); i++) {
 		struct list_head *head = &udev->ucmd_hash[i];
 		struct scst_user_cmd *ucmd;
@@ -3501,7 +3508,7 @@ static ssize_t dev_user_sysfs_commands_show(struct kobject *kobj,
 			}
 		}
 	}
-	spin_unlock_irqrestore(&udev->cmd_lists.cmd_list_lock, flags);
+	spin_unlock_irqrestore(&udev->udev_cmd_threads.cmd_list_lock, flags);
 
 	TRACE_EXIT_RES(pos);
 	return pos;
@@ -3525,7 +3532,7 @@ static int dev_user_read_proc(struct seq_file *seq, struct scst_dev_type *dev_ty
 	list_for_each_entry(dev, &dev_list, dev_list_entry) {
 		int i;
 		seq_printf(seq, "Device %s commands:\n", dev->name);
-		spin_lock_irqsave(&dev->cmd_lists.cmd_list_lock, flags);
+		spin_lock_irqsave(&dev->udev_cmd_threads.cmd_list_lock, flags);
 		for (i = 0; i < (int)ARRAY_SIZE(dev->ucmd_hash); i++) {
 			struct list_head *head = &dev->ucmd_hash[i];
 			struct scst_user_cmd *ucmd;
@@ -3539,7 +3546,7 @@ static int dev_user_read_proc(struct seq_file *seq, struct scst_dev_type *dev_ty
 					ucmd->aborted, ucmd->jammed, ucmd->cmd);
 			}
 		}
-		spin_unlock_irqrestore(&dev->cmd_lists.cmd_list_lock, flags);
+		spin_unlock_irqrestore(&dev->udev_cmd_threads.cmd_list_lock, flags);
 	}
 	spin_unlock(&dev_list_lock);
 

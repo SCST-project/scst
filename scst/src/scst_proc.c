@@ -1223,9 +1223,9 @@ static ssize_t scst_proc_threads_write(struct file *file,
 		goto out_free;
 	}
 
-	mutex_lock(&scst_global_threads_mutex);
+	mutex_lock(&scst_mutex);
 
-	oldtn = scst_nr_global_threads;
+	oldtn = scst_main_cmd_threads.nr_threads;
 	newtn = simple_strtoul(buffer, NULL, 0);
 	if (newtn <= 0) {
 		PRINT_ERROR("Illegal threads num value %d", newtn);
@@ -1234,14 +1234,18 @@ static ssize_t scst_proc_threads_write(struct file *file,
 	}
 	delta = newtn - oldtn;
 	if (delta < 0)
-		__scst_del_global_threads(-delta);
-	else
-		__scst_add_global_threads(delta);
+		scst_del_threads(&scst_main_cmd_threads, -delta);
+	else {
+		int rc = scst_add_threads(&scst_main_cmd_threads, NULL, NULL,
+					delta);
+		if (rc != 0)
+			res = rc;
+	}
 
 	PRINT_INFO("Changed cmd threads num: old %d, new %d", oldtn, newtn);
 
 out_up_thr_free:
-	mutex_unlock(&scst_global_threads_mutex);
+	mutex_unlock(&scst_mutex);
 
 	mutex_unlock(&scst_proc_mutex);
 
@@ -2648,7 +2652,7 @@ static int scst_threads_info_show(struct seq_file *seq, void *v)
 {
 	TRACE_ENTRY();
 
-	seq_printf(seq, "%d\n", scst_global_threads_count());
+	seq_printf(seq, "%d\n", scst_main_cmd_threads.nr_threads);
 
 	TRACE_EXIT();
 	return 0;

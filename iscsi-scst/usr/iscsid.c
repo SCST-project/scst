@@ -730,6 +730,8 @@ static void cmnd_exec_login(struct connection *conn)
 			conn->state = STATE_LOGIN;
 
 			login_start(conn);
+			if (rsp->status_class)
+				return;
 			if (!accounts_empty(conn->tid, ISCSI_USER_DIR_INCOMING))
 				goto auth_err;
 			if (rsp->status_class)

@@ -349,11 +349,25 @@ enum scst_cdb_flags {
 #define SCST_MAX_OTHER_TIMEOUT			(14000 * HZ)
 
 /*************************************************************
+ ** ACG MPIO attribute values. Must match scst_acg_mpio!
+ *************************************************************/
+#define SCST_ACG_MPIO_AUTO_STR			"auto"
+#define SCST_ACG_MPIO_ENABLE_STR		"enable"
+#define SCST_ACG_MPIO_DISABLE_STR		"disable"
+
+/*************************************************************
+ ** Threads pool type attribute values.
+ ** Must match scst_dev_type_threads_pool_type!
+ *************************************************************/
+#define SCST_THREADS_POOL_PER_INITIATOR_STR	"per_initiator"
+#define SCST_THREADS_POOL_SHARED_STR		"shared"
+
+/*************************************************************
  ** Misc constants
  *************************************************************/
-#define SCST_SYSFS_BLOCK_SIZE	PAGE_SIZE
+#define SCST_SYSFS_BLOCK_SIZE			PAGE_SIZE
 
-#define SCST_SYSFS_KEY_MARK	"[key]"
+#define SCST_SYSFS_KEY_MARK			"[key]"
 
 #define SCST_MIN_REL_TGT_ID			1
 #define SCST_MAX_REL_TGT_ID			65535

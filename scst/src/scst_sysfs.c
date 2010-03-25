@@ -112,6 +112,12 @@ static ssize_t scst_tgt_addr_method_show(struct kobject *kobj,
 static ssize_t scst_tgt_addr_method_store(struct kobject *kobj,
 				    struct kobj_attribute *attr,
 				    const char *buf, size_t count);
+static ssize_t scst_tgt_mpio_type_show(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   char *buf);
+static ssize_t scst_tgt_mpio_type_store(struct kobject *kobj,
+				    struct kobj_attribute *attr,
+				    const char *buf, size_t count);
 static ssize_t scst_ini_group_mgmt_show(struct kobject *kobj,
 				   struct kobj_attribute *attr,
 				   char *buf);
@@ -137,6 +143,12 @@ static ssize_t scst_acg_addr_method_show(struct kobject *kobj,
 				   struct kobj_attribute *attr,
 				   char *buf);
 static ssize_t scst_acg_addr_method_store(struct kobject *kobj,
+				    struct kobj_attribute *attr,
+				    const char *buf, size_t count);
+static ssize_t scst_acg_mpio_type_show(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   char *buf);
+static ssize_t scst_acg_mpio_type_store(struct kobject *kobj,
 				    struct kobj_attribute *attr,
 				    const char *buf, size_t count);
 static ssize_t scst_acn_file_show(struct kobject *kobj,
@@ -529,6 +541,10 @@ static struct kobj_attribute scst_tgt_addr_method =
 	__ATTR(addr_method, S_IRUGO | S_IWUSR, scst_tgt_addr_method_show,
 	       scst_tgt_addr_method_store);
 
+static struct kobj_attribute scst_tgt_mpio_type =
+	__ATTR(mpio_type, S_IRUGO | S_IWUSR, scst_tgt_mpio_type_show,
+	       scst_tgt_mpio_type_store);
+
 static struct kobj_attribute scst_rel_tgt_id =
 	__ATTR(rel_tgt_id, S_IRUGO | S_IWUSR, scst_rel_tgt_id_show,
 	       scst_rel_tgt_id_store);
@@ -536,6 +552,10 @@ static struct kobj_attribute scst_rel_tgt_id =
 static struct kobj_attribute scst_acg_addr_method =
 	__ATTR(addr_method, S_IRUGO | S_IWUSR, scst_acg_addr_method_show,
 		scst_acg_addr_method_store);
+
+static struct kobj_attribute scst_acg_mpio_type =
+	__ATTR(mpio_type, S_IRUGO | S_IWUSR, scst_acg_mpio_type_show,
+		scst_acg_mpio_type_store);
 
 static ssize_t scst_tgt_enable_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
@@ -700,6 +720,14 @@ int scst_create_tgt_sysfs(struct scst_tgt *tgt)
 		goto out;
 	}
 
+	retval = sysfs_create_file(&tgt->tgt_kobj,
+			&scst_tgt_mpio_type.attr);
+	if (retval != 0) {
+		PRINT_ERROR("Can't add attribute %s for tgt %s",
+			scst_tgt_mpio_type.attr.name, tgt->tgt_name);
+		goto out;
+	}
+
 	pattr = tgt->tgtt->tgt_attrs;
 	if (pattr != NULL) {
 		while (*pattr != NULL) {
@@ -787,8 +815,189 @@ ssize_t scst_device_sysfs_type_show(struct kobject *kobj,
 static struct kobj_attribute device_type_attr =
 	__ATTR(type, S_IRUGO, scst_device_sysfs_type_show, NULL);
 
+static ssize_t scst_device_sysfs_threads_num_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos = 0;
+	struct scst_device *dev;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+
+	pos = sprintf(buf, "%d\n%s", dev->threads_num,
+		(dev->threads_num != dev->handler->threads_num) ?
+			SCST_SYSFS_KEY_MARK "\n" : "");
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static ssize_t scst_device_sysfs_threads_data_store(struct scst_device *dev,
+	int threads_num, enum scst_dev_type_threads_pool_type threads_pool_type)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	if ((threads_num == dev->threads_num) &&
+	    (threads_pool_type == dev->threads_pool_type))
+		goto out;
+
+	res = scst_suspend_activity(true);
+	if (res != 0)
+		goto out;
+
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
+		res = -EINTR;
+		goto out_resume;
+	}
+
+	scst_stop_dev_threads(dev);
+
+	dev->threads_num = threads_num;
+	dev->threads_pool_type = threads_pool_type;
+
+	res = scst_create_dev_threads(dev);
+	if (res != 0)
+		goto out_up;
+
+out_up:
+	mutex_unlock(&scst_mutex);
+
+out_resume:
+	scst_resume_activity();
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t scst_device_sysfs_threads_num_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	struct scst_device *dev;
+	long newtn;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+
+	res = strict_strtoul(buf, 0, &newtn);
+	if (res != 0) {
+		PRINT_ERROR("strict_strtoul() for %s failed: %d ", buf, res);
+		goto out;
+	}
+
+	if (newtn <= 0) {
+		PRINT_ERROR("Illegal threads num value %ld", newtn);
+		res = -EINVAL;
+		goto out;
+	}
+
+	res = scst_device_sysfs_threads_data_store(dev, newtn,
+		dev->threads_pool_type);
+	if (res != 0)
+		goto out;
+
+	PRINT_INFO("Changed cmd threads num to %ld", newtn);
+
+	res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute device_threads_num_attr =
+	__ATTR(threads_num, S_IRUGO | S_IWUSR,
+		scst_device_sysfs_threads_num_show,
+		scst_device_sysfs_threads_num_store);
+
+static ssize_t scst_device_sysfs_threads_pool_type_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos = 0;
+	struct scst_device *dev;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+
+	if (dev->threads_num == 0) {
+		pos = sprintf(buf, "Async\n");
+		goto out;
+	} else if (dev->threads_num < 0) {
+		pos = sprintf(buf, "Not valid\n");
+		goto out;
+	}
+
+	switch (dev->threads_pool_type) {
+	case SCST_THREADS_POOL_PER_INITIATOR:
+		pos = sprintf(buf, "%s\n%s", SCST_THREADS_POOL_PER_INITIATOR_STR,
+			(dev->threads_pool_type != dev->handler->threads_pool_type) ?
+				SCST_SYSFS_KEY_MARK "\n" : "");
+		break;
+	case SCST_THREADS_POOL_SHARED:
+		pos = sprintf(buf, "%s\n%s", SCST_THREADS_POOL_SHARED_STR,
+			(dev->threads_pool_type != dev->handler->threads_pool_type) ?
+				SCST_SYSFS_KEY_MARK "\n" : "");
+		break;
+	default:
+		pos = sprintf(buf, "Unknown\n");
+		break;
+	}
+
+out:
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static ssize_t scst_device_sysfs_threads_pool_type_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	struct scst_device *dev;
+	enum scst_dev_type_threads_pool_type newtpt;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+
+	newtpt = scst_parse_threads_pool_type(buf, count);
+	if (newtpt == SCST_THREADS_POOL_TYPE_INVALID) {
+		PRINT_ERROR("Illegal threads pool type %s", buf);
+		res = -EINVAL;
+		goto out;
+	}
+
+	TRACE_DBG("buf %s, count %d, newtpt %d", buf, count, newtpt);
+
+	res = scst_device_sysfs_threads_data_store(dev, dev->threads_num,
+		newtpt);
+	if (res != 0)
+		goto out;
+
+	PRINT_INFO("Changed cmd threads pool type to %d", newtpt);
+
+	res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+
+static struct kobj_attribute device_threads_pool_type_attr =
+	__ATTR(threads_pool_type, S_IRUGO | S_IWUSR,
+		scst_device_sysfs_threads_pool_type_show,
+		scst_device_sysfs_threads_pool_type_store);
+
 static struct attribute *scst_device_attrs[] = {
 	&device_type_attr.attr,
+	&device_threads_num_attr.attr,
+	&device_threads_pool_type_attr.attr,
 	NULL,
 };
 
@@ -1750,6 +1959,109 @@ static ssize_t scst_tgt_addr_method_store(struct kobject *kobj,
 	return res;
 }
 
+static ssize_t __scst_acg_mpio_type_show(struct scst_acg *acg, char *buf)
+{
+	int res;
+
+	switch (acg->acg_mpio_type) {
+	case SCST_ACG_MPIO_AUTO:
+		res = sprintf(buf, "auto\n");
+		break;
+	case SCST_ACG_MPIO_ENABLE:
+		res = sprintf(buf, "enable\n%s\n", SCST_SYSFS_KEY_MARK);
+		break;
+	case SCST_ACG_MPIO_DISABLE:
+		res = sprintf(buf, "disable\n%s\n", SCST_SYSFS_KEY_MARK);
+		break;
+	default:
+		res = sprintf(buf, "Unknown\n");
+		break;
+	}
+
+	return res;
+}
+
+static ssize_t __scst_acg_mpio_type_store(struct scst_acg *acg,
+	const char *buf, size_t count)
+{
+	int res = count;
+	enum scst_acg_mpio prev = acg->acg_mpio_type;
+	struct scst_acg_dev *acg_dev;
+
+	if (strncasecmp(buf, SCST_ACG_MPIO_AUTO_STR,
+			min_t(int, strlen(SCST_ACG_MPIO_AUTO_STR), count)) == 0)
+		acg->acg_mpio_type = SCST_ACG_MPIO_AUTO;
+	else if (strncasecmp(buf, SCST_ACG_MPIO_ENABLE_STR,
+			min_t(int, strlen(SCST_ACG_MPIO_ENABLE_STR), count)) == 0)
+		acg->acg_mpio_type = SCST_ACG_MPIO_ENABLE;
+	else if (strncasecmp(buf, SCST_ACG_MPIO_DISABLE_STR,
+			min_t(int, strlen(SCST_ACG_MPIO_DISABLE_STR), count)) == 0)
+		acg->acg_mpio_type = SCST_ACG_MPIO_DISABLE;
+	else {
+		PRINT_ERROR("Unknown MPIO type %s", buf);
+		res = -EINVAL;
+		goto out;
+	}
+
+	if (prev == acg->acg_mpio_type)
+		goto out;
+
+	res = scst_suspend_activity(true);
+	if (res != 0)
+		goto out;
+
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
+		res = -EINTR;
+		goto out_resume;
+	}
+
+	list_for_each_entry(acg_dev, &acg->acg_dev_list, acg_dev_list_entry) {
+		int rc;
+
+		scst_stop_dev_threads(acg_dev->dev);
+
+		rc = scst_create_dev_threads(acg_dev->dev);
+		if (rc != 0)
+			res = rc;
+	}
+
+	mutex_unlock(&scst_mutex);
+
+out_resume:
+	scst_resume_activity();
+
+out:
+	return res;
+}
+
+static ssize_t scst_tgt_mpio_type_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_acg *acg;
+	struct scst_tgt *tgt;
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	acg = tgt->default_acg;
+
+	return __scst_acg_mpio_type_show(acg, buf);
+}
+
+static ssize_t scst_tgt_mpio_type_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	struct scst_acg *acg;
+	struct scst_tgt *tgt;
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	acg = tgt->default_acg;
+
+	res = __scst_acg_mpio_type_store(acg, buf, count);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 static int scst_create_acg_sysfs(struct scst_tgt *tgt,
 	struct scst_acg *acg)
 {
@@ -1801,10 +2113,17 @@ static int scst_create_acg_sysfs(struct scst_tgt *tgt,
 	retval = sysfs_create_file(&acg->acg_kobj, &scst_acg_addr_method.attr);
 	if (retval != 0) {
 		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
-			scst_acg_addr_method.attr.name,
-				tgt->tgt_name);
+			scst_acg_addr_method.attr.name, tgt->tgt_name);
 		goto out;
 	}
+
+	retval = sysfs_create_file(&acg->acg_kobj, &scst_acg_mpio_type.attr);
+	if (retval != 0) {
+		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
+			scst_acg_mpio_type.attr.name, tgt->tgt_name);
+		goto out;
+	}
+
 out:
 	TRACE_EXIT_RES(retval);
 	return retval;
@@ -1851,6 +2170,30 @@ static ssize_t scst_acg_addr_method_store(struct kobject *kobj,
 	acg = container_of(kobj, struct scst_acg, acg_kobj);
 
 	res = __scst_acg_addr_method_store(acg, buf, count);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t scst_acg_mpio_type_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_acg *acg;
+
+	acg = container_of(kobj, struct scst_acg, acg_kobj);
+
+	return __scst_acg_mpio_type_show(acg, buf);
+}
+
+static ssize_t scst_acg_mpio_type_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	struct scst_acg *acg;
+
+	acg = container_of(kobj, struct scst_acg, acg_kobj);
+
+	res = __scst_acg_mpio_type_store(acg, buf, count);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -2509,7 +2852,9 @@ static ssize_t scst_threads_show(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
-	count = sprintf(buf, "%d\n", scst_global_threads_count());
+	count = sprintf(buf, "%d\n%s", scst_main_cmd_threads.nr_threads,
+		(scst_main_cmd_threads.nr_threads != scst_threads) ?
+			SCST_SYSFS_KEY_MARK "\n" : "");
 
 	TRACE_EXIT();
 	return count;
@@ -2523,12 +2868,12 @@ static ssize_t scst_threads_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
-	if (mutex_lock_interruptible(&scst_global_threads_mutex) != 0) {
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
 		goto out;
 	}
 
-	oldtn = scst_nr_global_threads;
+	oldtn = scst_main_cmd_threads.nr_threads;
 
 	res = strict_strtoul(buf, 0, &newtn);
 	if (res != 0) {
@@ -2536,18 +2881,27 @@ static ssize_t scst_threads_store(struct kobject *kobj,
 		goto out_up;
 	}
 
+	if (newtn <= 0) {
+		PRINT_ERROR("Illegal threads num value %ld", newtn);
+		res = -EINVAL;
+		goto out_up;
+	}
+
 	delta = newtn - oldtn;
 	if (delta < 0)
-		__scst_del_global_threads(-delta);
-	else
-		__scst_add_global_threads(delta);
+		scst_del_threads(&scst_main_cmd_threads, -delta);
+	else {
+		res = scst_add_threads(&scst_main_cmd_threads, NULL, NULL, delta);
+		if (res != 0)
+			goto out_up;
+	}
 
 	PRINT_INFO("Changed cmd threads num: old %ld, new %ld", oldtn, newtn);
 
 	res = count;
 
 out_up:
-	mutex_unlock(&scst_global_threads_mutex);
+	mutex_unlock(&scst_mutex);
 
 out:
 	TRACE_EXIT_RES(res);

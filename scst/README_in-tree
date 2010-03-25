@@ -624,6 +624,24 @@ Every target should have at least the following entries:
    initiators security groups, so you can assign the addressing method
    on per-initiator basis.
 
+ - mpio_type - defines how I/O from sessions to this target are grouped
+   together. This I/O grouping is very important for performance. If
+   you have this attribute set in a wrong value, you can considerably
+   decrease performance of your setup. Possible values: "enable",
+   "disable" and "auto". When "enable" all I/O from all sessions will be
+   grouped together. When "disable", I/O from different sessions will
+   not be grouped together, i.e. all sessions will have separate
+   dedicated group. When "auto" (default), all I/O from initiators with
+   the same name (iSCSI initiator name, for instance) will be grouped
+   together with a separate dedicated group for each initiator name. For
+   iSCSI it works well, but other transports usually use different
+   names, so using them in MPIO configurations, you should instead use
+   value "enable". This attribute is also available in the initiators
+   security groups, so you can assign the addressing method on
+   per-initiator basis. Recommended practice is to create a separate
+   initiator security group for each MPIO sessions and set mpio_type in
+   "enable".
+
  - rel_tgt_id - allows to read or write SCSI Relative Target Port
    Identifier attribute. This identifier is used to identify SCSI Target
    Ports by some SCSI commands, mainly by Persistent Reservations
@@ -633,7 +651,7 @@ Every target should have at least the following entries:
    until rel_tgt_id becomes unique. This attribute initialized unique by
    SCST by default.
 
-A target driver may have also the follwoing entries:
+A target driver may have also the following entries:
 
  - "hw_target" - if the target driver supports both hardware and virtual
     targets (for instance, an FC adapter supporting NPIV, which has
@@ -1011,6 +1029,18 @@ cache. The following parameters possible for vdisk_fileio:
  - removable - with this flag set the device is reported to remote
    initiators as removable.
 
+ - threads_num - sets number of threads in this device's threads
+   pool. If 0 - no threads will be created, and global SCST threads pool
+   will be used. If <0 - creation of the threads pool will be
+   prohibited.
+
+ - threads_pool_type - sets threads pool type. Possible values:
+   "per_initiator" and "shared". When "per_initiator" (default), each
+   session from each initiator will use separate dedicated pool of
+   threads. When "shared", all sessions from all initiators will share
+   the same per-device pool of threads. Valid only if threads_num
+   attribute >0.
+
 Handler vdisk_blockio provides BLOCKIO mode to create virtual devices.
 This mode performs direct block I/O with a block device, bypassing the
 page cache for all operations. This mode works ideally with high-end
@@ -1094,26 +1124,31 @@ For example:
 |-- resync_size
 |-- size_mb
 |-- t10_dev_id
+|-- threads_num
+|-- threads_pool_type
 |-- type
 |-- usn
 `-- write_through
 
 Each vdisk_blockio's device has the following attributes in
 /sys/kernel/scst_tgt/devices/device_name: blocksize, filename,
-read_only, removable, resync_size, size_mb, t10_dev_id, type, usn. See
-description of vdisk_fileio's device for description of those parameters.
+read_only, removable, resync_size, size_mb, t10_dev_id, threads_num,
+threads_pool_type, type, usn. See description of vdisk_fileio's device
+for description of those parameters.
 
 Each vdisk_nullio's device has the following attributes in
 /sys/kernel/scst_tgt/devices/device_name: blocksize, read_only,
-removable, size_mb, t10_dev_id, type, usn. See description
-of vdisk_fileio's device for description of those parameters.
+removable, size_mb, t10_dev_id, threads_num, threads_pool_type, type,
+usn. See description of vdisk_fileio's device for description of those
+parameters.
 
 Each vcdrom's device has the following attributes in
 /sys/kernel/scst_tgt/devices/device_name: filename,  size_mb,
-t10_dev_id, type, usn. See description of vdisk_fileio's device for
-description of those parameters. Exception is filename attribute. For
-vcdrom it is writable. Writing to it allows to virtually insert or
-change virtual CD media in the virtual CDROM device. For example:
+t10_dev_id, threads_num, threads_pool_type, type, usn. See description
+of vdisk_fileio's device for description of those parameters. Exception
+is filename attribute. For vcdrom it is writable. Writing to it allows
+to virtually insert or change virtual CD media in the virtual CDROM
+device. For example:
 
  - echo "/image.iso" >/sys/kernel/scst_tgt/devices/cdrom/filename - will
    insert file /image.iso as virtual media to the virtual CDROM cdrom.
@@ -1330,13 +1365,12 @@ fileio_tgt's README file for more details.
 Performance
 -----------
 
-Before doing any performance measurements note that:
+Before doing any performance measurements note that performance results
+are very much dependent from your type of load, so it is crucial that
+you choose access mode (FILEIO, BLOCKIO, O_DIRECT, pass-through), which
+suits your needs the best.
 
-I. Performance results are very much dependent from your type of load,
-so it is crucial that you choose access mode (FILEIO, BLOCKIO,
-O_DIRECT, pass-through), which suits your needs the best.
-
-II. In order to get the maximum performance you should:
+In order to get the maximum performance you should:
 
 1. For SCST:
 
@@ -1364,7 +1398,17 @@ You can set the above options, except
 CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ, in the needed values
 using debug2perf root Makefile target.
 
-4. For other target and initiator software parts:
+4. If you are going to use your target in an VM environment, for
+instance as a shared storage with VMware, make sure all your VMs
+connected to the target via *separate* sessions. For instance, for iSCSI
+it means that each VM has own connection to the target, not all VMs
+connected using a single connection. You can check it using SCST proc or
+sysfs interface. For other transports you should use available
+facilities, like NPIV for Fibre Channel, to make separate sessions for
+each VM. If you miss it, you can greatly loose performance of parallel
+access to your target from different VMs.
+
+5. For other target and initiator software parts:
 
  - Make sure you applied on your kernel all available SCST patches,
    especially io_context-2.6.X.patch. If for your kernel version this
@@ -1425,7 +1469,7 @@ using debug2perf root Makefile target.
    files, because it allows considerably better linear write throughput,
    than ext3.
 
-5. For hardware on target.
+6. For hardware on target.
 
  - Make sure that your target hardware (e.g. target FC or network card)
    and underlaying IO hardware (e.g. IO card, like SATA, SCSI or RAID to
@@ -1442,7 +1486,7 @@ using debug2perf root Makefile target.
    you have no choice, but PCI bus sharing, set in the BIOS PCI latency
    as low as possible.
 
-6. If you use VDISK IO module in FILEIO mode, NV_CACHE option will
+7. If you use VDISK IO module in FILEIO mode, NV_CACHE option will
 provide you the best performance. But using it make sure you use a good
 UPS with ability to shutdown the target on the power failure.
 
@@ -1465,7 +1509,7 @@ IMPORTANT: If you use on initiator some versions of Windows (at least W2K)
 	   See also important notes about setting block sizes >512 bytes
 	   for VDISK FILEIO devices above.
 
-In some cases, for instance working with SSD devices, which consume 100%
+8. In some cases, for instance working with SSD devices, which consume 100%
 of a single CPU load for data transfers in their internal threads, to
 maximize IOPS it can be needed to assign for those threads dedicated
 CPUs using Linux CPU affinity facilities. No IRQ processing should be

@@ -935,6 +935,21 @@ struct scst_tgt_template {
 #endif
 };
 
+/* 
+ * Threads pool types. Changing them don't forget to change
+ * the corresponding *_STR values in scst_const.h!
+ */
+enum scst_dev_type_threads_pool_type {
+	/* Each initiator will have dedicated threads pool. */
+	SCST_THREADS_POOL_PER_INITIATOR = 0,
+
+	/* All connected initiators will use shared threads pool */
+	SCST_THREADS_POOL_SHARED,
+
+	/* Invalid value for scst_parse_threads_pool_type() */
+	SCST_THREADS_POOL_TYPE_INVALID,
+};
+
 struct scst_dev_type {
 	/* SCSI type of the supported device. MUST HAVE */
 	int type;
@@ -1122,10 +1137,14 @@ struct scst_dev_type {
 	char name[SCST_MAX_NAME + 10];
 
 	/*
-	 * Number of dedicated threads. If 0 - no dedicated threads will
-	 * be created, if <0 - creation of dedicated threads is prohibited.
+	 * Number of threads in this handler's devices' threads pools.
+	 * If 0 - no threads will be created, if <0 - creation of the threads
+	 * pools is prohibited. Also pay attention to threads_pool_type below.
 	 */
 	int threads_num;
+
+	/* Threads pool type. Valid only if threads_num > 0. */
+	enum scst_dev_type_threads_pool_type threads_pool_type;
 
 	/* Optional default log flags */
 	const unsigned long default_trace_flags;
@@ -1403,19 +1422,25 @@ struct scst_session {
 #endif
 };
 
-struct scst_cmd_lists {
+struct scst_cmd_threads {
 	spinlock_t cmd_list_lock;
 	struct list_head active_cmd_list;
 	wait_queue_head_t cmd_list_waitQ;
+
+	struct io_context *io_context;
+
+	int nr_threads;
+	struct list_head threads_list;
+
 	struct list_head lists_list_entry;
 };
 
 struct scst_cmd {
-	/* List entry for below *_cmd_lists */
+	/* List entry for below *_cmd_threads */
 	struct list_head cmd_list_entry;
 
 	/* Pointer to lists of commands with the lock */
-	struct scst_cmd_lists *cmd_lists;
+	struct scst_cmd_threads *cmd_threads;
 
 	atomic_t cmd_ref;
 
@@ -1836,14 +1861,8 @@ struct scst_device {
 	/* Corresponding real SCSI device, could be NULL for virtual devices */
 	struct scsi_device *scsi_dev;
 
-	/* Pointer to lists of commands with the lock */
-	struct scst_cmd_lists *p_cmd_lists;
-
 	/* Lists of commands with lock, if dedicated threads are used */
-	struct scst_cmd_lists cmd_lists;
-
-	/* Per-device dedicated IO context */
-	struct io_context *dev_io_ctx;
+	struct scst_cmd_threads dev_cmd_threads;
 
 	/* How many cmds alive on this dev */
 	atomic_t dev_cmd_count;
@@ -1891,11 +1910,11 @@ struct scst_device {
 	/* List of acg_dev's, one per acg, protected by scst_mutex */
 	struct list_head dev_acg_dev_list;
 
-	/* List of dedicated threads, protected by scst_mutex */
-	struct list_head threads_list;
+	/* Number of threads in the device's threads pools */
+	int threads_num;
 
-	/* Device number */
-	int dev_num;
+	/* Threads pool type of the device. Valid only if threads_num > 0. */
+	enum scst_dev_type_threads_pool_type threads_pool_type;
 
 	/* Set if tgt_kobj was initialized */
 	unsigned int dev_kobj_initialized:1;
@@ -1977,8 +1996,11 @@ struct scst_tgt_dev {
 	spinlock_t thr_data_lock;
 	struct list_head thr_data_list;
 
-	/* Per-(device, session) dedicated IO context */
-	struct io_context *tgt_dev_io_ctx;
+	/* Pointer to lists of commands with the lock */
+	struct scst_cmd_threads *active_cmd_threads;
+
+	/* Lists of commands with lock, if dedicated threads are used */
+	struct scst_cmd_threads tgt_dev_cmd_threads;
 
 	spinlock_t tgt_dev_lock;	/* per-session device lock */
 
@@ -2043,6 +2065,25 @@ struct scst_acg_dev {
 	struct kobject acg_dev_kobj;
 };
 
+/* 
+ * ACG MPIO types. Changing them don't forget to change
+ * the corresponding *_STR values in scst_const.h!
+ */
+enum scst_acg_mpio {
+	/*
+	 * All initiators with the same name connected to this group will have
+	 * shared IO context, for each name own context. All initiators with
+	 * different names will have own IO context.
+	 */
+	SCST_ACG_MPIO_AUTO = 0,
+
+	/* All initiators connected to this group will have shared IO context */
+	SCST_ACG_MPIO_ENABLE,
+
+	/* Each initiator connected to this group will have own IO context */
+	SCST_ACG_MPIO_DISABLE,
+};
+
 /*
  * ACG - access control group. Used to store group related
  * control information.
@@ -2067,6 +2108,9 @@ struct scst_acg {
 	/* The pointer to the /proc directory entry */
 	struct proc_dir_entry *acg_proc_root;
 #endif
+
+	/* Type of MPIO initiators groupping */
+	enum scst_acg_mpio acg_mpio_type;
 
 	unsigned int acg_kobj_initialized:1;
 	unsigned int in_tgt_acg_list:1;
@@ -3479,13 +3523,6 @@ static inline const char *scst_get_tgt_name(const struct scst_tgt *tgt)
 	return tgt->tgt_name;
 }
 
-/*
- * Adds and deletes (stops) num of global SCST's threads. Returns 0 on
- * success, error code otherwise.
- */
-int scst_add_global_threads(int num);
-void scst_del_global_threads(int num);
-
 int scst_alloc_sense(struct scst_cmd *cmd, int atomic);
 int scst_alloc_set_sense(struct scst_cmd *cmd, int atomic,
 	const uint8_t *sense, unsigned int len);
@@ -3747,5 +3784,18 @@ void scst_restore_token_str(char *prev_lexem, char *token_str);
  * modified by setting '\0' at the delimeter's position.
  */
 char *scst_get_next_token_str(char **input_str);
+
+/*
+ * Converts string presentation of threads pool type to enum.
+ * Returns SCST_THREADS_POOL_TYPE_INVALID if the string is invalid.
+ */
+enum scst_dev_type_threads_pool_type scst_parse_threads_pool_type(
+	const char *p, int len);
+
+/* Initializes scst_cmd_threads structure */
+void scst_init_threads(struct scst_cmd_threads *cmd_threads);
+
+/* Deinitializes scst_cmd_threads structure */
+void scst_deinit_threads(struct scst_cmd_threads *cmd_threads);
 
 #endif /* __SCST_H */

@@ -214,10 +214,14 @@ struct scst_vdisk_dev {
 				   must be <= SCSI Model + 1 */
 	char *filename;		/* File name, protected by
 				   scst_mutex and suspended activities */
+	unsigned int t10_dev_id_set:1; /* true if t10_dev_id manually set */
 	char t10_dev_id[16+8+2]; /* T10 device ID */
 	char usn[MAX_USN_LEN];
 	struct scst_device *dev;
 	struct list_head vdev_list_entry;
+
+	int threads_num;
+	enum scst_dev_type_threads_pool_type threads_pool_type;
 
 	struct mutex vdev_sysfs_mutex;
 	struct scst_dev_type *vdev_devt;
@@ -443,7 +447,8 @@ static struct scst_dev_type vdisk_file_devtype = {
 	.del_device =		vdisk_del_device,
 	.dev_attrs =		vdisk_fileio_attrs,
 	.add_device_parameters_help = "filename, blocksize, write_through, "
-		"nv_cache, o_direct, read_only, removable",
+		"nv_cache, o_direct, read_only, removable, threads_num, "
+		"threads_pool_type",
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -479,7 +484,7 @@ static struct scst_dev_type vdisk_blk_devtype = {
 	.del_device =		vdisk_del_device,
 	.dev_attrs =		vdisk_blockio_attrs,
 	.add_device_parameters_help = "filename, blocksize, read_only, "
-		"removable",
+		"removable, threads_num, threads_pool_type",
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -512,7 +517,8 @@ static struct scst_dev_type vdisk_null_devtype = {
 	.add_device =		vdisk_add_nullio_device,
 	.del_device =		vdisk_del_device,
 	.dev_attrs =		vdisk_nullio_attrs,
-	.add_device_parameters_help = "blocksize, read_only, removable",
+	.add_device_parameters_help = "blocksize, read_only, removable, "
+		"threads_num, threads_pool_type",
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -546,6 +552,7 @@ static struct scst_dev_type vcdrom_devtype = {
 	.add_device =		vcdrom_add_device,
 	.del_device =		vcdrom_del_device,
 	.dev_attrs =		vcdrom_attrs,
+	.add_device_parameters_help = "threads_num, threads_pool_type",
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -693,6 +700,8 @@ static int vdisk_attach(struct scst_device *dev)
 	virt_dev->dev = dev;
 
 	dev->rd_only = virt_dev->rd_only;
+	dev->threads_num = virt_dev->threads_num;
+	dev->threads_pool_type = virt_dev->threads_pool_type;
 
 	if (!virt_dev->cdrom_empty) {
 		if (virt_dev->nullio)
@@ -2952,6 +2961,8 @@ static int vdev_create(struct scst_dev_type *devt,
 	spin_lock_init(&virt_dev->flags_lock);
 	mutex_init(&virt_dev->vdev_sysfs_mutex);
 	virt_dev->vdev_devt = devt;
+	virt_dev->threads_num = devt->threads_num;
+	virt_dev->threads_pool_type = devt->threads_pool_type;
 
 	virt_dev->rd_only = DEF_RD_ONLY;
 	virt_dev->removable = DEF_REMOVABLE;
@@ -3018,23 +3029,14 @@ static struct scst_vdisk_dev *vdev_find(const char *name)
 
 #ifndef CONFIG_SCST_PROC
 
-/* scst_vdisk_mutex supposed to be held */
-static int vdev_fileio_add_device(const char *device_name, char *params)
+static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
+	char *params, const char *allowed_params[])
 {
 	int res = 0;
 	unsigned long val;
 	char *param, *p, *pp;
-	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
-
-	res = vdev_create(&vdisk_file_devtype, device_name, &virt_dev);
-	if (res != 0)
-		goto out;
-
-	virt_dev->wt_flag = DEF_WRITE_THROUGH;
-	virt_dev->nv_cache = DEF_NV_CACHE;
-	virt_dev->o_direct_flag = DEF_O_DIRECT;
 
 	while (1) {
 		param = scst_get_next_token_str(&params);
@@ -3044,49 +3046,79 @@ static int vdev_fileio_add_device(const char *device_name, char *params)
 		p = scst_get_next_lexem(&param);
 		if (*p == '\0') {
 			PRINT_ERROR("Syntax error at %s (device %s)",
-				param, device_name);
+				param, virt_dev->name);
 			res = -EINVAL;
-			goto out_destroy;
+			goto out;
 		}
 
 		pp = scst_get_next_lexem(&param);
 		if (*pp == '\0') {
 			PRINT_ERROR("Parameter %s value missed for device %s",
-				p, device_name);
+				p, virt_dev->name);
 			res = -EINVAL;
-			goto out_destroy;
+			goto out;
 		}
 
 		if (scst_get_next_lexem(&param)[0] != '\0') {
 			PRINT_ERROR("Too many parameter's %s values (device %s)",
-				p, device_name);
+				p, virt_dev->name);
 			res = -EINVAL;
-			goto out_destroy;
+			goto out;
+		}
+
+		if (allowed_params != NULL) {
+			const char **a = allowed_params;
+			bool allowed = false;
+
+			while (*a != NULL) {
+				if (!strcasecmp(*a, p)) {
+					allowed = true;
+					break;
+				}
+				a++;
+			}
+
+			if (!allowed) {
+				PRINT_ERROR("Unknown parameter %s (device %s)", p,
+					virt_dev->name);
+				res = -EINVAL;
+				goto out;
+			}
 		}
 
 		if (!strcasecmp("filename", p)) {
 			if (*pp != '/') {
 				PRINT_ERROR("Filename %s must be global "
-					"(device %s)", pp, device_name);
+					"(device %s)", pp, virt_dev->name);
 				res = -EINVAL;
-				goto out_destroy;
+				goto out;
 			}
 
 			virt_dev->filename = kstrdup(pp, GFP_KERNEL);
 			if (virt_dev->filename == NULL) {
 				PRINT_ERROR("Unable to duplicate file name %s "
-					"(device %s)", pp, device_name);
+					"(device %s)", pp, virt_dev->name);
 				res = -ENOMEM;
-				goto out_destroy;
+				goto out;
 			}
+			continue;
+		} else if (!strcasecmp("threads_pool_type", p)) {
+			virt_dev->threads_pool_type = scst_parse_threads_pool_type(pp,
+							strlen(pp));
+			if (virt_dev->threads_pool_type == SCST_THREADS_POOL_TYPE_INVALID) {
+				res = virt_dev->threads_pool_type;
+				goto out;
+			}
+			TRACE_DBG("threads_pool_type %d",
+				virt_dev->threads_pool_type);
 			continue;
 		}
 
 		res = strict_strtoul(pp, 0, &val);
 		if (res != 0) {
 			PRINT_ERROR("strict_strtoul() for %s failed: %d "
-				"(device %s)", pp, res, device_name);
-			goto out_destroy;
+				"(device %s)", pp, res, virt_dev->name);
+			goto out;
 		}
 
 		if (!strcasecmp("write_through", p)) {
@@ -3102,7 +3134,7 @@ static int vdev_fileio_add_device(const char *device_name, char *params)
 #else
 			PRINT_INFO("O_DIRECT flag doesn't currently"
 				" work, ignoring it, use fileio_tgt "
-				"in O_DIRECT mode instead (device %s)", device_name);
+				"in O_DIRECT mode instead (device %s)", virt_dev->name);
 #endif
 		} else if (!strcasecmp("read_only", p)) {
 			virt_dev->rd_only = val;
@@ -3110,24 +3142,52 @@ static int vdev_fileio_add_device(const char *device_name, char *params)
 		} else if (!strcasecmp("removable", p)) {
 			virt_dev->removable = val;
 			TRACE_DBG("REMOVABLE %d", virt_dev->removable);
+		} else if (!strcasecmp("threads_num", p)) {
+			virt_dev->threads_num = val;
+			TRACE_DBG("threads_num %d", virt_dev->threads_num);
 		} else if (!strcasecmp("blocksize", p)) {
 			virt_dev->block_size = val;
 			virt_dev->block_shift = scst_calc_block_shift(
 							virt_dev->block_size);
 			if (virt_dev->block_shift < 9) {
 				res = -EINVAL;
-				goto out_destroy;
+				goto out;
 			}
 			TRACE_DBG("block_size %d, block_shift %d",
 				virt_dev->block_size,
 				virt_dev->block_shift);
 		} else {
 			PRINT_ERROR("Unknown parameter %s (device %s)", p,
-				device_name);
+				virt_dev->name);
 			res = -EINVAL;
-			goto out_destroy;
+			goto out;
 		}
 	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/* scst_vdisk_mutex supposed to be held */
+static int vdev_fileio_add_device(const char *device_name, char *params)
+{
+	int res = 0;
+	struct scst_vdisk_dev *virt_dev;
+
+	TRACE_ENTRY();
+
+	res = vdev_create(&vdisk_file_devtype, device_name, &virt_dev);
+	if (res != 0)
+		goto out;
+
+	virt_dev->wt_flag = DEF_WRITE_THROUGH;
+	virt_dev->nv_cache = DEF_NV_CACHE;
+	virt_dev->o_direct_flag = DEF_O_DIRECT;
+
+	res = vdev_parse_add_dev_params(virt_dev, params, NULL);
+	if (res != 0)
+		goto out_destroy;
 
 	if (virt_dev->rd_only && (virt_dev->wt_flag || virt_dev->nv_cache)) {
 		PRINT_ERROR("Write options on read only device %s",
@@ -3172,8 +3232,8 @@ out_destroy:
 static int vdev_blockio_add_device(const char *device_name, char *params)
 {
 	int res = 0;
-	unsigned long val;
-	char *param, *p, *pp;
+	const char *allowed_params[] = { "filename", "threads_pool_type",
+		"read_only", "removable", "threads_num", "blocksize", NULL };
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
@@ -3184,83 +3244,9 @@ static int vdev_blockio_add_device(const char *device_name, char *params)
 
 	virt_dev->blockio = 1;
 
-	while (1) {
-		param = scst_get_next_token_str(&params);
-		if (param == NULL)
-			break;
-
-		p = scst_get_next_lexem(&param);
-		if (*p == '\0') {
-			PRINT_ERROR("Syntax error at %s (device %s)",
-				param, device_name);
-			res = -EINVAL;
-			goto out_destroy;
-		}
-
-		pp = scst_get_next_lexem(&param);
-		if (*pp == '\0') {
-			PRINT_ERROR("Parameter %s value missed for device %s",
-				p, device_name);
-			res = -EINVAL;
-			goto out_destroy;
-		}
-
-		if (scst_get_next_lexem(&param)[0] != '\0') {
-			PRINT_ERROR("Too many parameter's %s values (device %s)",
-				p, device_name);
-			res = -EINVAL;
-			goto out_destroy;
-		}
-
-		if (!strcasecmp("filename", p)) {
-			if (*pp != '/') {
-				PRINT_ERROR("Filename %s must be global "
-					"(device %s)", pp, device_name);
-				res = -EINVAL;
-				goto out_destroy;
-			}
-
-			virt_dev->filename = kstrdup(pp, GFP_KERNEL);
-			if (virt_dev->filename == NULL) {
-				PRINT_ERROR("Unable to duplicate file name %s "
-					"(device %s)", pp, device_name);
-				res = -ENOMEM;
-				goto out_destroy;
-			}
-			continue;
-		}
-
-		res = strict_strtoul(pp, 0, &val);
-		if (res != 0) {
-			PRINT_ERROR("strict_strtoul() for %s failed: %d "
-				"(device %s)", pp, res, device_name);
-			goto out_destroy;
-		}
-
-		if (!strcasecmp("read_only", p)) {
-			virt_dev->rd_only = val;
-			TRACE_DBG("READ ONLY %d", virt_dev->rd_only);
-		} else if (!strcasecmp("removable", p)) {
-			virt_dev->removable = val;
-			TRACE_DBG("REMOVABLE %d", virt_dev->removable);
-		} else if (!strcasecmp("blocksize", p)) {
-			virt_dev->block_size = val;
-			virt_dev->block_shift = scst_calc_block_shift(
-							virt_dev->block_size);
-			if (virt_dev->block_shift < 9) {
-				res = -EINVAL;
-				goto out_destroy;
-			}
-			TRACE_DBG("block_size %d, block_shift %d",
-				virt_dev->block_size,
-				virt_dev->block_shift);
-		} else {
-			PRINT_ERROR("Unknown parameter %s (device %s)", p,
-				device_name);
-			res = -EINVAL;
-			goto out_destroy;
-		}
-	}
+	res = vdev_parse_add_dev_params(virt_dev, params, allowed_params);
+	if (res != 0)
+		goto out_destroy;
 
 	if (virt_dev->filename == NULL) {
 		PRINT_ERROR("File name required (device %s)", virt_dev->name);
@@ -3298,8 +3284,8 @@ out_destroy:
 static int vdev_nullio_add_device(const char *device_name, char *params)
 {
 	int res = 0;
-	unsigned long val;
-	char *param, *p, *pp;
+	const char *allowed_params[] = { "threads_pool_type",
+		"read_only", "removable", "threads_num", "blocksize", NULL };
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
@@ -3310,65 +3296,9 @@ static int vdev_nullio_add_device(const char *device_name, char *params)
 
 	virt_dev->nullio = 1;
 
-	while (1) {
-		param = scst_get_next_token_str(&params);
-		if (param == NULL)
-			break;
-
-		p = scst_get_next_lexem(&param);
-		if (*p == '\0') {
-			PRINT_ERROR("Syntax error at %s (device %s)",
-				param, device_name);
-			res = -EINVAL;
-			goto out_destroy;
-		}
-
-		pp = scst_get_next_lexem(&param);
-		if (*pp == '\0') {
-			PRINT_ERROR("Parameter %s value missed for device %s",
-				p, device_name);
-			res = -EINVAL;
-			goto out_destroy;
-		}
-
-		if (scst_get_next_lexem(&param)[0] != '\0') {
-			PRINT_ERROR("Too many parameter's %s values (device %s)",
-				p, device_name);
-			res = -EINVAL;
-			goto out_destroy;
-		}
-
-		res = strict_strtoul(pp, 0, &val);
-		if (res != 0) {
-			PRINT_ERROR("strict_strtoul() for %s failed: %d "
-				"(device %s)", pp, res, device_name);
-			goto out_destroy;
-		}
-
-		if (!strcasecmp("read_only", p)) {
-			virt_dev->rd_only = val;
-			TRACE_DBG("READ ONLY %d", virt_dev->rd_only);
-		} else if (!strcasecmp("removable", p)) {
-			virt_dev->removable = val;
-			TRACE_DBG("REMOVABLE %d", virt_dev->removable);
-		} else if (!strcasecmp("blocksize", p)) {
-			virt_dev->block_size = val;
-			virt_dev->block_shift = scst_calc_block_shift(
-							virt_dev->block_size);
-			if (virt_dev->block_shift < 9) {
-				res = -EINVAL;
-				goto out_destroy;
-			}
-			TRACE_DBG("block_size %d, block_shift %d",
-				virt_dev->block_size,
-				virt_dev->block_shift);
-		} else {
-			PRINT_ERROR("Unknown parameter %s (device %s)", p,
-				device_name);
-			res = -EINVAL;
-			goto out_destroy;
-		}
-	}
+	res = vdev_parse_add_dev_params(virt_dev, params, allowed_params);
+	if (res != 0)
+		goto out_destroy;
 
 	list_add_tail(&virt_dev->vdev_list_entry, &vdev_list);
 
@@ -3512,18 +3442,11 @@ out:
 static int __vcdrom_add_device(const char *device_name, char *params)
 {
 	int res = 0;
-	char *p;
+	const char *allowed_params[] = { "threads_pool_type",
+			"threads_num", NULL };
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
-
-	p = scst_get_next_token_str(&params);
-	if (p != NULL) {
-		PRINT_ERROR("No parameters extected for device %s",
-			device_name);
-		res = -EINVAL;
-		goto out;
-	}
 
 	res = vdev_create(&vcdrom_devtype, device_name, &virt_dev);
 	if (res != 0)
@@ -3535,6 +3458,10 @@ static int __vcdrom_add_device(const char *device_name, char *params)
 
 	virt_dev->block_size = DEF_CDROM_BLOCKSIZE;
 	virt_dev->block_shift = DEF_CDROM_BLOCKSIZE_SHIFT;
+
+	res = vdev_parse_add_dev_params(virt_dev, params, allowed_params);
+	if (res != 0)
+		goto out_destroy;
 
 	list_add_tail(&virt_dev->vdev_list_entry, &vdev_list);
 
@@ -3557,6 +3484,7 @@ out:
 out_del:
 	list_del(&virt_dev->vdev_list_entry);
 
+out_destroy:
 	vdev_destroy(virt_dev);
 	goto out;
 }
@@ -4007,6 +3935,9 @@ static ssize_t vdev_sysfs_t10_dev_id_store(struct kobject *kobj,
 		}
 		i++;
 	}
+
+	virt_dev->t10_dev_id_set = 1;
+
 	res = count;
 
 	PRINT_INFO("T10 device id for device %s changed to %s", virt_dev->name,
@@ -4032,7 +3963,8 @@ static ssize_t vdev_sysfs_t10_dev_id_show(struct kobject *kobj,
 	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
 
 	read_lock_bh(&vdisk_t10_dev_id_rwlock);
-	pos = sprintf(buf, "%s\n", virt_dev->t10_dev_id);
+	pos = sprintf(buf, "%s\n%s", virt_dev->t10_dev_id,
+		virt_dev->t10_dev_id_set ? SCST_SYSFS_KEY_MARK "\n" : "");
 	read_unlock_bh(&vdisk_t10_dev_id_rwlock);
 
 	TRACE_EXIT_RES(pos);

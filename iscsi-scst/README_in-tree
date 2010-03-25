@@ -263,6 +263,8 @@ both iSCSI-SCST targets will look like:
 |   |   |-- resync_size
 |   |   |-- size_mb
 |   |   |-- t10_dev_id
+|   |   |-- threads_num
+|   |   |-- threads_pool_type
 |   |   |-- type
 |   |   `-- usn
 |   |-- cdrom
@@ -272,6 +274,8 @@ both iSCSI-SCST targets will look like:
 |   |   |-- handler -> ../../handlers/vcdrom
 |   |   |-- size_mb
 |   |   |-- t10_dev_id
+|   |   |-- threads_num
+|   |   |-- threads_pool_type
 |   |   |-- type
 |   |   `-- usn
 |   |-- disk1
@@ -303,6 +307,10 @@ both iSCSI-SCST targets will look like:
 |   |   |-- resync_size
 |   |   |-- size_mb
 |   |   |-- t10_dev_id
+|   |   |-- threads_num
+|   |   |-- threads_pool_type
+|   |   |-- threads_num
+|   |   |-- threads_pool_type
 |   |   |-- type
 |   |   |-- usn
 |   |   `-- write_through
@@ -315,6 +323,8 @@ both iSCSI-SCST targets will look like:
 |       |-- removable
 |       |-- size_mb
 |       |-- t10_dev_id
+|       |-- threads_num
+|       |-- threads_pool_type
 |       |-- type
 |       `-- usn
 |-- handlers
@@ -516,6 +526,17 @@ as well.
 
 3. ISCSI initiators built in pre-CentOS/RHEL 5 reported to have some
 performance problems. If you use it, it is strongly advised to upgrade.
+
+4. Pay attention to have mpio_type option set correctly. See SCST core's
+README for more details.
+
+5. If you are going to use your target in an VM environment, for
+instance as a shared storage with VMware, make sure all your VMs
+connected to the target via *separate* sessions, i.e. each VM has own
+connection to the target, not all VMs connected using a single
+connection. You can check it using SCST proc or sysfs interface. If you
+miss it, you can greatly loose performance of parallel access to your
+target from different VMs.
 
 
 Compilation options

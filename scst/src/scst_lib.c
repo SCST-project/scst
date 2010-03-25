@@ -562,12 +562,10 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 static void scst_tgt_retry_timer_fn(unsigned long arg);
 
 #ifdef CONFIG_SCST_DEBUG_TM
-static void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev,
-	struct scst_acg_dev *acg_dev);
+static void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev);
 static void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev);
 #else
-static inline void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev,
-	struct scst_acg_dev *acg_dev) {}
+static inline void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev) {}
 static inline void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev) {}
 #endif /* CONFIG_SCST_DEBUG_TM */
 
@@ -1997,7 +1995,6 @@ int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev)
 {
 	struct scst_device *dev;
 	int res = 0;
-	static int dev_num; /* protected by scst_mutex */
 
 	TRACE_ENTRY();
 
@@ -2010,7 +2007,6 @@ int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev)
 	}
 
 	dev->handler = &scst_null_devtype;
-	dev->p_cmd_lists = &scst_main_cmd_lists;
 	atomic_set(&dev->dev_cmd_count, 0);
 	atomic_set(&dev->write_cmd_count, 0);
 	scst_init_mem_lim(&dev->dev_mem_lim);
@@ -2019,23 +2015,11 @@ int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev)
 	INIT_LIST_HEAD(&dev->blocked_cmd_list);
 	INIT_LIST_HEAD(&dev->dev_tgt_dev_list);
 	INIT_LIST_HEAD(&dev->dev_acg_dev_list);
-	INIT_LIST_HEAD(&dev->threads_list);
 	init_waitqueue_head(&dev->on_dev_waitQ);
 	dev->dev_double_ua_possible = 1;
 	dev->queue_alg = SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER;
-	dev->dev_num = dev_num++;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25) && defined(SCST_IO_CONTEXT)
-#if defined(CONFIG_BLOCK)
-	dev->dev_io_ctx = alloc_io_context(GFP_KERNEL, -1);
-	if (dev->dev_io_ctx == NULL) {
-		TRACE(TRACE_OUT_OF_MEM, "%s", "Failed to alloc dev IO context");
-		res = -ENOMEM;
-		kfree(dev);
-		goto out;
-	}
-#endif
-#endif
+	scst_init_threads(&dev->dev_cmd_threads);
 
 	*out_dev = dev;
 
@@ -2057,9 +2041,9 @@ void scst_free_device(struct scst_device *dev)
 	}
 #endif
 
-	kfree(dev->virt_name);
-	__exit_io_context(dev->dev_io_ctx);
+	scst_deinit_threads(&dev->dev_cmd_threads);
 
+	kfree(dev->virt_name);
 	kfree(dev);
 
 	TRACE_EXIT();
@@ -2284,6 +2268,227 @@ struct scst_acg *scst_tgt_find_acg(struct scst_tgt *tgt, const char *name)
 	return acg_ret;
 }
 
+/* scst_mutex supposed to be held */
+static struct io_context *scst_find_shared_io_context(
+	struct scst_tgt_dev *tgt_dev)
+{
+	struct io_context *res = NULL;
+	struct scst_acg *acg = tgt_dev->acg_dev->acg;
+	struct scst_tgt_dev *t;
+
+	TRACE_ENTRY();
+
+	switch (acg->acg_mpio_type) {
+	case SCST_ACG_MPIO_AUTO:
+		if (tgt_dev->sess->initiator_name == NULL)
+			goto out;
+
+		list_for_each_entry(t, &tgt_dev->dev->dev_tgt_dev_list,
+				dev_tgt_dev_list_entry) {
+			if ((t == tgt_dev) ||
+			    (t->sess->initiator_name == NULL) ||
+			    (t->active_cmd_threads == NULL))
+				continue;
+
+			TRACE_DBG("t name %s (tgt_dev name %s)",
+				t->sess->initiator_name,
+				tgt_dev->sess->initiator_name);
+
+			/* We check other ACG's as well */
+
+			if (strcmp(t->sess->initiator_name,
+					tgt_dev->sess->initiator_name) == 0)
+				goto found;
+		}
+		break;
+
+	case SCST_ACG_MPIO_ENABLE:
+		list_for_each_entry(t, &tgt_dev->dev->dev_tgt_dev_list,
+				dev_tgt_dev_list_entry) {
+			if ((t == tgt_dev) || (t->active_cmd_threads == NULL))
+				continue;
+
+			TRACE_DBG("t name %s (tgt_dev name %s)",
+				t->sess->initiator_name,
+				tgt_dev->sess->initiator_name);
+
+			goto found;
+		}
+		break;
+
+	case SCST_ACG_MPIO_DISABLE:
+		goto out;
+
+	default:
+		PRINT_CRIT_ERROR("Unknown MPIO type %d (acg %s)",
+			acg->acg_mpio_type, acg->acg_name);
+		sBUG();
+		break;
+	}
+
+out:
+	TRACE_EXIT_HRES((unsigned long)res);
+	return res;
+
+found:
+	if (t->active_cmd_threads == &scst_main_cmd_threads) {
+		res = t->tgt_dev_cmd_threads.io_context;
+		TRACE_DBG("Going to share async IO context %p (t %p, ini %s, "
+			"dev %s, cmd_threads %p)", res, t,
+			t->sess->initiator_name, t->dev->virt_name,
+			&t->tgt_dev_cmd_threads);
+	} else {
+		res = t->active_cmd_threads->io_context;
+		if (res == NULL) {
+			TRACE_MGMT_DBG("IO context for t %p not yet "
+				"initialized, waiting...", t);
+			msleep(100);
+			barrier();
+			goto found;
+		}
+		TRACE_DBG("Going to share IO context %p (t %p, ini %s, "
+			"dev %s, cmd_threads %p)", res, t,
+			t->sess->initiator_name, t->dev->virt_name,
+			t->active_cmd_threads);
+	}
+	goto out;
+}
+
+enum scst_dev_type_threads_pool_type scst_parse_threads_pool_type(const char *p,
+	int len)
+{
+	enum scst_dev_type_threads_pool_type res;
+
+	if (strncasecmp(p, SCST_THREADS_POOL_PER_INITIATOR_STR,
+			min_t(int, strlen(SCST_THREADS_POOL_PER_INITIATOR_STR),
+				len)) == 0)
+		res = SCST_THREADS_POOL_PER_INITIATOR;
+	else if (strncasecmp(p, SCST_THREADS_POOL_SHARED_STR,
+			min_t(int, strlen(SCST_THREADS_POOL_SHARED_STR),
+				len)) == 0)
+		res = SCST_THREADS_POOL_SHARED;
+	else {
+		PRINT_ERROR("Unknown threads pool type %s", p);
+		res = SCST_THREADS_POOL_TYPE_INVALID;
+	}
+
+	return res;
+}
+EXPORT_SYMBOL(scst_parse_threads_pool_type);
+
+/* scst_mutex supposed to be held */
+int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
+{
+	int res = 0;
+	struct scst_device *dev = tgt_dev->dev;
+
+	TRACE_ENTRY();
+
+	if (dev->threads_num <= 0) {
+		tgt_dev->active_cmd_threads = &scst_main_cmd_threads;
+
+		if (dev->threads_num == 0) {
+			struct io_context *shared_io_context;
+
+			shared_io_context = scst_find_shared_io_context(tgt_dev);
+			if (shared_io_context != NULL) {
+				TRACE_DBG("Linking async io context %p for "
+					"shared tgt_dev %p (cmd_threads %p, "
+					"dev %s)", shared_io_context, tgt_dev,
+					&tgt_dev->tgt_dev_cmd_threads,
+					tgt_dev->dev->virt_name);
+				tgt_dev->tgt_dev_cmd_threads.io_context = 
+					ioc_task_link(shared_io_context);
+			} else {
+				/* Create new context */
+				struct io_context *io_context = current->io_context;
+				current->io_context = NULL;
+				tgt_dev->tgt_dev_cmd_threads.io_context =
+					ioc_task_link(get_io_context(GFP_KERNEL, -1));
+				current->io_context = io_context;
+				TRACE_DBG("Created async io context %p for "
+					"not shared tgt_dev %p (cmd_threads %p, "
+					"dev %s)", tgt_dev->tgt_dev_cmd_threads.io_context,
+					tgt_dev, &tgt_dev->tgt_dev_cmd_threads,
+					tgt_dev->dev->virt_name);
+			}
+		}
+
+		res = scst_add_threads(tgt_dev->active_cmd_threads, NULL, NULL,
+				tgt_dev->sess->tgt->tgtt->threads_num);
+		goto out;
+	}
+
+	switch (dev->threads_pool_type) {
+	case SCST_THREADS_POOL_PER_INITIATOR:
+	{
+		struct io_context *shared_io_context;
+
+		tgt_dev->active_cmd_threads = &tgt_dev->tgt_dev_cmd_threads;
+
+		shared_io_context = scst_find_shared_io_context(tgt_dev);
+		if (shared_io_context != NULL) {
+			TRACE_DBG("Linking io context %p for "
+				"shared tgt_dev %p (cmd_threads %p)",
+				shared_io_context, tgt_dev,
+				tgt_dev->active_cmd_threads);
+			tgt_dev->active_cmd_threads->io_context = 
+				ioc_task_link(shared_io_context);
+		}
+
+		res = scst_add_threads(tgt_dev->active_cmd_threads, NULL,
+			tgt_dev,
+			dev->threads_num + tgt_dev->sess->tgt->tgtt->threads_num);
+		break;
+	}
+	case SCST_THREADS_POOL_SHARED:
+		tgt_dev->active_cmd_threads = &dev->dev_cmd_threads;
+
+		res = scst_add_threads(tgt_dev->active_cmd_threads, dev, NULL,
+			tgt_dev->sess->tgt->tgtt->threads_num);
+		break;
+	default:
+		PRINT_CRIT_ERROR("Unknown threads pool type %d (dev %s)",
+			dev->threads_pool_type, dev->virt_name);
+		sBUG();
+		break;
+	}
+
+out:
+	if (res == 0)
+		tm_dbg_init_tgt_dev(tgt_dev);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/* scst_mutex supposed to be held */
+void scst_tgt_dev_stop_threads(struct scst_tgt_dev *tgt_dev)
+{
+	TRACE_ENTRY();
+
+	if (tgt_dev->active_cmd_threads == &scst_main_cmd_threads) {
+		/* Global async threads */
+		scst_del_threads(tgt_dev->active_cmd_threads,
+			tgt_dev->sess->tgt->tgtt->threads_num);
+		put_io_context(tgt_dev->tgt_dev_cmd_threads.io_context);
+		tgt_dev->tgt_dev_cmd_threads.io_context = NULL;
+	} else if (tgt_dev->active_cmd_threads == &tgt_dev->dev->dev_cmd_threads) {
+		/* Per device shared threads */
+		scst_del_threads(tgt_dev->active_cmd_threads,
+			tgt_dev->sess->tgt->tgtt->threads_num);
+	} else if (tgt_dev->active_cmd_threads == &tgt_dev->tgt_dev_cmd_threads) {
+		/* Per tgt_dev threads */
+		scst_del_threads(tgt_dev->active_cmd_threads, -1);
+	} /* else no threads (not yet initialized, e.g.) */
+
+	tm_dbg_deinit_tgt_dev(tgt_dev);
+	tgt_dev->active_cmd_threads = NULL;
+
+	TRACE_EXIT();
+	return;
+}
+
 /*
  * scst_mutex supposed to be held, there must not be parallel activity in this
  * session.
@@ -2292,12 +2497,10 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	struct scst_acg_dev *acg_dev)
 {
 	int ini_sg, ini_unchecked_isa_dma, ini_use_clustering;
-	struct scst_tgt_dev *tgt_dev, *t = NULL;
+	struct scst_tgt_dev *tgt_dev;
 	struct scst_device *dev = acg_dev->dev;
 	struct list_head *sess_tgt_dev_list_head;
-	struct scst_tgt_template *vtt = sess->tgt->tgtt;
 	int rc, i, sl;
-	bool share_io_ctx = false;
 	uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
 
 	TRACE_ENTRY();
@@ -2360,6 +2563,8 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	for (i = 0; i < (int)ARRAY_SIZE(tgt_dev->sn_slots); i++)
 		atomic_set(&tgt_dev->sn_slots[i], 0);
 
+	scst_init_threads(&tgt_dev->tgt_dev_cmd_threads);
+
 	if (dev->handler->parse_atomic &&
 	    (sess->tgt->tgtt->preprocessing_done == NULL)) {
 		if (sess->tgt->tgtt->rdy_to_xfer_atomic)
@@ -2388,64 +2593,18 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 		dev->d_sense, SCST_LOAD_SENSE(scst_sense_reset_UA));
 	scst_alloc_set_UA(tgt_dev, sense_buffer, sl, 0);
 
-	tm_dbg_init_tgt_dev(tgt_dev, acg_dev);
-
-	if (tgt_dev->sess->initiator_name != NULL) {
-		spin_lock_bh(&dev->dev_lock);
-		list_for_each_entry(t, &dev->dev_tgt_dev_list,
-				dev_tgt_dev_list_entry) {
-			TRACE_DBG("t name %s (tgt_dev name %s)",
-				t->sess->initiator_name,
-				tgt_dev->sess->initiator_name);
-			if (t->sess->initiator_name == NULL)
-				continue;
-			if (strcmp(t->sess->initiator_name,
-					tgt_dev->sess->initiator_name) == 0) {
-				share_io_ctx = true;
-				break;
-			}
-		}
-		spin_unlock_bh(&dev->dev_lock);
-	}
-
-	if (share_io_ctx) {
-		TRACE_MGMT_DBG("Sharing IO context %p (tgt_dev %p, ini %s)",
-			t->tgt_dev_io_ctx, tgt_dev,
-			tgt_dev->sess->initiator_name);
-		tgt_dev->tgt_dev_io_ctx = ioc_task_link(t->tgt_dev_io_ctx);
-	} else {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25) && defined(SCST_IO_CONTEXT)
-#if defined(CONFIG_BLOCK)
-		tgt_dev->tgt_dev_io_ctx = alloc_io_context(GFP_KERNEL, -1);
-		if (tgt_dev->tgt_dev_io_ctx == NULL) {
-			TRACE(TRACE_OUT_OF_MEM, "Failed to alloc tgt_dev IO "
-				"context for dev %s (initiator %s)",
-				dev->virt_name, sess->initiator_name);
-			goto out_free;
-		}
-#endif
-#endif
-	}
-
-	if (vtt->threads_num > 0) {
-		rc = 0;
-		if (dev->handler->threads_num > 0)
-			rc = scst_add_dev_threads(dev, vtt->threads_num);
-		else if (dev->handler->threads_num == 0)
-			rc = scst_add_global_threads(vtt->threads_num);
-		if (rc != 0)
-			goto out_free;
-	}
+	rc = scst_tgt_dev_setup_threads(tgt_dev);
+	if (rc != 0)
+		goto out_free;
 
 	if (dev->handler && dev->handler->attach_tgt) {
-		TRACE_DBG("Calling dev handler's attach_tgt(%p)",
-		      tgt_dev);
+		TRACE_DBG("Calling dev handler's attach_tgt(%p)", tgt_dev);
 		rc = dev->handler->attach_tgt(tgt_dev);
 		TRACE_DBG("%s", "Dev handler's attach_tgt() returned");
 		if (rc != 0) {
 			PRINT_ERROR("Device handler's %s attach_tgt() "
 			    "failed: %d", dev->handler->name, rc);
-			goto out_thr_free;
+			goto out_stop_threads;
 		}
 	}
 
@@ -2464,17 +2623,11 @@ out:
 	TRACE_EXIT();
 	return tgt_dev;
 
-out_thr_free:
-	if (vtt->threads_num > 0) {
-		if (dev->handler->threads_num > 0)
-			scst_del_dev_threads(dev, vtt->threads_num);
-		else if (dev->handler->threads_num == 0)
-			scst_del_global_threads(vtt->threads_num);
-	}
+out_stop_threads:
+	scst_tgt_dev_stop_threads(tgt_dev);
 
 out_free:
 	scst_free_all_UA(tgt_dev);
-	__exit_io_context(tgt_dev->tgt_dev_io_ctx);
 
 	kmem_cache_free(scst_tgtd_cachep, tgt_dev);
 	tgt_dev = NULL;
@@ -2513,11 +2666,8 @@ void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA)
 static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 {
 	struct scst_device *dev = tgt_dev->dev;
-	struct scst_tgt_template *vtt = tgt_dev->sess->tgt->tgtt;
 
 	TRACE_ENTRY();
-
-	tm_dbg_deinit_tgt_dev(tgt_dev);
 
 	spin_lock_bh(&dev->dev_lock);
 	list_del(&tgt_dev->dev_tgt_dev_list_entry);
@@ -2535,14 +2685,11 @@ static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 		TRACE_DBG("%s", "Dev handler's detach_tgt() returned");
 	}
 
-	if (vtt->threads_num > 0) {
-		if (dev->handler->threads_num > 0)
-			scst_del_dev_threads(dev, vtt->threads_num);
-		else if (dev->handler->threads_num == 0)
-			scst_del_global_threads(vtt->threads_num);
-	}
+	scst_tgt_dev_stop_threads(tgt_dev);
 
-	__exit_io_context(tgt_dev->tgt_dev_io_ctx);
+	scst_deinit_threads(&tgt_dev->tgt_dev_cmd_threads);
+
+	sBUG_ON(!list_empty(&tgt_dev->thr_data_list));
 
 	kmem_cache_free(scst_tgtd_cachep, tgt_dev);
 
@@ -2837,7 +2984,7 @@ static struct scst_cmd *scst_create_prepare_internal_cmd(
 	if (res == NULL)
 		goto out;
 
-	res->cmd_lists = orig_cmd->cmd_lists;
+	res->cmd_threads = orig_cmd->cmd_threads;
 	res->sess = orig_cmd->sess;
 	res->atomic = scst_cmd_atomic(orig_cmd);
 	res->internal = 1;
@@ -2894,10 +3041,10 @@ int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
 
 	TRACE_MGMT_DBG("Adding REQUEST SENSE cmd %p to head of active "
 		"cmd list", rs_cmd);
-	spin_lock_irq(&rs_cmd->cmd_lists->cmd_list_lock);
-	list_add(&rs_cmd->cmd_list_entry, &rs_cmd->cmd_lists->active_cmd_list);
-	wake_up(&rs_cmd->cmd_lists->cmd_list_waitQ);
-	spin_unlock_irq(&rs_cmd->cmd_lists->cmd_list_lock);
+	spin_lock_irq(&rs_cmd->cmd_threads->cmd_list_lock);
+	list_add(&rs_cmd->cmd_list_entry, &rs_cmd->cmd_threads->active_cmd_list);
+	wake_up(&rs_cmd->cmd_threads->cmd_list_waitQ);
+	spin_unlock_irq(&rs_cmd->cmd_threads->cmd_list_lock);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -2938,10 +3085,10 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 
 	TRACE_MGMT_DBG("Adding orig cmd %p to head of active "
 		"cmd list", orig_cmd);
-	spin_lock_irq(&orig_cmd->cmd_lists->cmd_list_lock);
-	list_add(&orig_cmd->cmd_list_entry, &orig_cmd->cmd_lists->active_cmd_list);
-	wake_up(&orig_cmd->cmd_lists->cmd_list_waitQ);
-	spin_unlock_irq(&orig_cmd->cmd_lists->cmd_list_lock);
+	spin_lock_irq(&orig_cmd->cmd_threads->cmd_list_lock);
+	list_add(&orig_cmd->cmd_list_entry, &orig_cmd->cmd_threads->active_cmd_list);
+	wake_up(&orig_cmd->cmd_threads->cmd_list_waitQ);
+	spin_unlock_irq(&orig_cmd->cmd_threads->cmd_list_lock);
 
 	TRACE_EXIT();
 	return;
@@ -3293,7 +3440,7 @@ struct scst_cmd *scst_alloc_cmd(gfp_t gfp_mask)
 	cmd->state = SCST_CMD_STATE_INIT_WAIT;
 	cmd->start_time = jiffies;
 	atomic_set(&cmd->cmd_ref, 1);
-	cmd->cmd_lists = &scst_main_cmd_lists;
+	cmd->cmd_threads = &scst_main_cmd_threads;
 	INIT_LIST_HEAD(&cmd->mgmt_cmd_list);
 	cmd->queue_type = SCST_CMD_QUEUE_SIMPLE;
 	cmd->timeout = SCST_DEFAULT_TIMEOUT;
@@ -3446,11 +3593,11 @@ void scst_check_retries(struct scst_tgt *tgt)
 			TRACE_RETRY("Moving retry cmd %p to head of active "
 				"cmd list (retry_cmds left %d)",
 				c, tgt->retry_cmds);
-			spin_lock(&c->cmd_lists->cmd_list_lock);
+			spin_lock(&c->cmd_threads->cmd_list_lock);
 			list_move(&c->cmd_list_entry,
-				  &c->cmd_lists->active_cmd_list);
-			wake_up(&c->cmd_lists->cmd_list_waitQ);
-			spin_unlock(&c->cmd_lists->cmd_list_lock);
+				  &c->cmd_threads->active_cmd_list);
+			wake_up(&c->cmd_threads->cmd_list_waitQ);
+			spin_unlock(&c->cmd_threads->cmd_list_lock);
 
 			need_wake_up++;
 			if (need_wake_up >= 2) /* "slow start" */
@@ -5053,11 +5200,11 @@ void scst_process_reset(struct scst_device *dev,
 			list_del(&cmd->blocked_cmd_list_entry);
 			TRACE_MGMT_DBG("Adding aborted blocked cmd %p "
 				"to active cmd list", cmd);
-			spin_lock_irq(&cmd->cmd_lists->cmd_list_lock);
+			spin_lock_irq(&cmd->cmd_threads->cmd_list_lock);
 			list_add_tail(&cmd->cmd_list_entry,
-				&cmd->cmd_lists->active_cmd_list);
-			wake_up(&cmd->cmd_lists->cmd_list_waitQ);
-			spin_unlock_irq(&cmd->cmd_lists->cmd_list_lock);
+				&cmd->cmd_threads->active_cmd_list);
+			wake_up(&cmd->cmd_threads->cmd_list_waitQ);
+			spin_unlock_irq(&cmd->cmd_threads->cmd_list_lock);
 		}
 	}
 
@@ -5365,13 +5512,13 @@ restart:
 			if (res == NULL)
 				res = cmd;
 			else {
-				spin_lock(&cmd->cmd_lists->cmd_list_lock);
+				spin_lock(&cmd->cmd_threads->cmd_list_lock);
 				TRACE_SN("Adding cmd %p to active cmd list",
 					cmd);
 				list_add_tail(&cmd->cmd_list_entry,
-					&cmd->cmd_lists->active_cmd_list);
-				wake_up(&cmd->cmd_lists->cmd_list_waitQ);
-				spin_unlock(&cmd->cmd_lists->cmd_list_lock);
+					&cmd->cmd_threads->active_cmd_list);
+				wake_up(&cmd->cmd_threads->cmd_list_waitQ);
+				spin_unlock(&cmd->cmd_threads->cmd_list_lock);
 			}
 		}
 	}
@@ -5462,12 +5609,12 @@ void scst_dev_del_all_thr_data(struct scst_device *dev)
 }
 EXPORT_SYMBOL(scst_dev_del_all_thr_data);
 
-struct scst_thr_data_hdr *__scst_find_thr_data(struct scst_tgt_dev *tgt_dev,
-	struct task_struct *tsk)
+/* thr_data_lock supposed to be held */
+static struct scst_thr_data_hdr *__scst_find_thr_data_locked(
+	struct scst_tgt_dev *tgt_dev, struct task_struct *tsk)
 {
 	struct scst_thr_data_hdr *res = NULL, *d;
 
-	spin_lock(&tgt_dev->thr_data_lock);
 	list_for_each_entry(d, &tgt_dev->thr_data_list, thr_data_list_entry) {
 		if (d->owner_thr == tsk) {
 			res = d;
@@ -5475,10 +5622,46 @@ struct scst_thr_data_hdr *__scst_find_thr_data(struct scst_tgt_dev *tgt_dev,
 			break;
 		}
 	}
+	return res;
+}
+
+struct scst_thr_data_hdr *__scst_find_thr_data(struct scst_tgt_dev *tgt_dev,
+	struct task_struct *tsk)
+{
+	struct scst_thr_data_hdr *res;
+
+	spin_lock(&tgt_dev->thr_data_lock);
+	res = __scst_find_thr_data_locked(tgt_dev, tsk);
 	spin_unlock(&tgt_dev->thr_data_lock);
+
 	return res;
 }
 EXPORT_SYMBOL(__scst_find_thr_data);
+
+bool scst_del_thr_data(struct scst_tgt_dev *tgt_dev, struct task_struct *tsk)
+{
+	bool res;
+	struct scst_thr_data_hdr *td;
+
+	spin_lock(&tgt_dev->thr_data_lock);
+
+	td = __scst_find_thr_data_locked(tgt_dev, tsk);
+	if (td != NULL) {
+		list_del(&td->thr_data_list_entry);
+		res = true;
+	} else
+		res = false;
+
+	spin_unlock(&tgt_dev->thr_data_lock);
+
+	if (td != NULL) {
+		/* the find() fn also gets it */
+		scst_thr_data_put(td);
+		scst_thr_data_put(td);
+	}
+
+	return res;
+}
 
 /* dev_lock supposed to be held and BH disabled */
 void __scst_block_dev(struct scst_device *dev)
@@ -5623,15 +5806,15 @@ static void scst_unblock_cmds(struct scst_device *dev)
 				 blocked_cmd_list_entry) {
 		list_del(&cmd->blocked_cmd_list_entry);
 		TRACE_MGMT_DBG("Adding blocked cmd %p to active cmd list", cmd);
-		spin_lock(&cmd->cmd_lists->cmd_list_lock);
+		spin_lock(&cmd->cmd_threads->cmd_list_lock);
 		if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))
 			list_add(&cmd->cmd_list_entry,
-				&cmd->cmd_lists->active_cmd_list);
+				&cmd->cmd_threads->active_cmd_list);
 		else
 			list_add_tail(&cmd->cmd_list_entry,
-				&cmd->cmd_lists->active_cmd_list);
-		wake_up(&cmd->cmd_lists->cmd_list_waitQ);
-		spin_unlock(&cmd->cmd_lists->cmd_list_lock);
+				&cmd->cmd_threads->active_cmd_list);
+		wake_up(&cmd->cmd_threads->cmd_list_waitQ);
+		spin_unlock(&cmd->cmd_threads->cmd_list_lock);
 	}
 	local_irq_restore(flags);
 
@@ -5948,10 +6131,9 @@ static struct scst_tgt_dev *tm_dbg_tgt_dev;
 
 static const int tm_dbg_on_state_num_passes[] = { 5, 1, 0x7ffffff };
 
-static void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev,
-	struct scst_acg_dev *acg_dev)
+static void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev)
 {
-	if (acg_dev->lun == 6) {
+	if (tgt_dev->lun == 6) {
 		unsigned long flags;
 
 		if (tm_dbg_tgt_dev != NULL)
@@ -5990,7 +6172,7 @@ static void tm_dbg_timer_fn(unsigned long arg)
 	tm_dbg_flags.tm_dbg_release = 1;
 	/* Used to make sure that all woken up threads see the new value */
 	smp_wmb();
-	wake_up_all(&tm_dbg_tgt_dev->dev->p_cmd_lists->cmd_list_waitQ);
+	wake_up_all(&tm_dbg_tgt_dev->active_cmd_threads->cmd_list_waitQ);
 	return;
 }
 
@@ -6033,9 +6215,9 @@ static void tm_dbg_delay_cmd(struct scst_cmd *cmd)
 		sBUG();
 	}
 	/* IRQs already off */
-	spin_lock(&cmd->cmd_lists->cmd_list_lock);
+	spin_lock(&cmd->cmd_threads->cmd_list_lock);
 	list_add_tail(&cmd->cmd_list_entry, &tm_dbg_delayed_cmd_list);
-	spin_unlock(&cmd->cmd_lists->cmd_list_lock);
+	spin_unlock(&cmd->cmd_threads->cmd_list_lock);
 	cmd->tm_dbg_delayed = 1;
 	tm_dbg_delayed_cmds_count++;
 	return;
@@ -6052,10 +6234,10 @@ void tm_dbg_check_released_cmds(void)
 			TRACE_MGMT_DBG("Releasing timed cmd %p (tag %llu), "
 				"delayed_cmds_count=%d", cmd, cmd->tag,
 				tm_dbg_delayed_cmds_count);
-			spin_lock(&cmd->cmd_lists->cmd_list_lock);
+			spin_lock(&cmd->cmd_threads->cmd_list_lock);
 			list_move(&cmd->cmd_list_entry,
-				&cmd->cmd_lists->active_cmd_list);
-			spin_unlock(&cmd->cmd_lists->cmd_list_lock);
+				&cmd->cmd_threads->active_cmd_list);
+			spin_unlock(&cmd->cmd_threads->cmd_list_lock);
 		}
 		tm_dbg_flags.tm_dbg_release = 0;
 		spin_unlock_irq(&scst_tm_dbg_lock);
@@ -6161,11 +6343,11 @@ void tm_dbg_release_cmd(struct scst_cmd *cmd)
 				}
 			}
 
-			spin_lock(&cmd->cmd_lists->cmd_list_lock);
+			spin_lock(&cmd->cmd_threads->cmd_list_lock);
 			list_move(&c->cmd_list_entry,
-				&c->cmd_lists->active_cmd_list);
-			wake_up(&c->cmd_lists->cmd_list_waitQ);
-			spin_unlock(&cmd->cmd_lists->cmd_list_lock);
+				&c->cmd_threads->active_cmd_list);
+			wake_up(&c->cmd_threads->cmd_list_waitQ);
+			spin_unlock(&cmd->cmd_threads->cmd_list_lock);
 			break;
 		}
 	}
@@ -6198,7 +6380,7 @@ void tm_dbg_task_mgmt(struct scst_device *dev, const char *fn, int force)
 		 */
 		smp_wmb();
 		if (tm_dbg_tgt_dev != NULL)
-			wake_up_all(&tm_dbg_tgt_dev->dev->p_cmd_lists->cmd_list_waitQ);
+			wake_up_all(&tm_dbg_tgt_dev->active_cmd_threads->cmd_list_waitQ);
 	} else {
 		TRACE_MGMT_DBG("%s: while OFFLINE state, doing nothing", fn);
 	}

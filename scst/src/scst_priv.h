@@ -129,6 +129,8 @@ extern unsigned long scst_trace_flag;
 #define SCST_LUN_ADDR_METHOD_PERIPHERAL	0
 #define SCST_LUN_ADDR_METHOD_FLAT 	1
 
+extern int scst_threads;
+
 extern unsigned int scst_max_dev_cmd_mem;
 
 extern mempool_t *scst_mgmt_mempool;
@@ -165,7 +167,7 @@ extern struct list_head scst_init_cmd_list;
 extern wait_queue_head_t scst_init_cmd_list_waitQ;
 extern unsigned int scst_init_poll_cnt;
 
-extern struct scst_cmd_lists scst_main_cmd_lists;
+extern struct scst_cmd_threads scst_main_cmd_threads;
 
 extern spinlock_t scst_mcmd_lock;
 /* The following lists protected by scst_mcmd_lock */
@@ -190,22 +192,22 @@ struct scst_cmd_thread_t {
 	struct list_head thread_list_entry;
 };
 
-#if defined(SCST_IO_CONTEXT)
-
 static inline bool scst_set_io_context(struct scst_cmd *cmd,
 	struct io_context **old)
 {
 	bool res;
 
-	if (cmd->cmd_lists == &scst_main_cmd_lists) {
+	if (cmd->cmd_threads == &scst_main_cmd_threads) {
 		EXTRACHECKS_BUG_ON(in_interrupt());
 		/*
 		 * No need to call ioc_task_link(), because io_context
 		 * supposed to be cleared in the end of the caller function.
 		 */
-		current->io_context = cmd->tgt_dev->tgt_dev_io_ctx;
+		current->io_context = cmd->tgt_dev->tgt_dev_cmd_threads.io_context;
 		res = true;
-		TRACE_DBG("io_context %p", cmd->tgt_dev->tgt_dev_io_ctx);
+		TRACE_DBG("io_context %p (cmd_threads %p)", current->io_context,
+			&cmd->tgt_dev->tgt_dev_cmd_threads);
+		EXTRACHECKS_BUG_ON(current->io_context == NULL);
 	} else
 		res = false;
 
@@ -220,31 +222,18 @@ static inline void scst_reset_io_context(struct scst_tgt_dev *tgt_dev,
 	return;
 }
 
-#else
+extern int scst_add_threads(struct scst_cmd_threads *cmd_threads,
+	struct scst_device *dev, struct scst_tgt_dev *tgt_dev, int num);
+extern void scst_del_threads(struct scst_cmd_threads *cmd_threads, int num);
 
-static inline bool scst_set_io_context(struct scst_cmd *cmd,
-	struct io_context **old)
-{
-	return false;
-}
-static inline void scst_reset_io_context(struct scst_tgt_dev *tgt_dev,
-	struct io_context *old) {}
-static inline void __exit_io_context(struct io_context *ioc) {}
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-static inline struct io_context *ioc_task_link(struct io_context *ioc)
-{
-	return NULL;
-}
-#endif
+extern int scst_create_dev_threads(struct scst_device *dev);
+extern void scst_stop_dev_threads(struct scst_device *dev);
 
-#endif
+extern int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev);
+extern void scst_tgt_dev_stop_threads(struct scst_tgt_dev *tgt_dev);
 
-extern struct mutex scst_global_threads_mutex;
-extern u32 scst_nr_global_threads;
-
-extern int scst_global_threads_count(void);
-extern int __scst_add_global_threads(int num);
-extern void __scst_del_global_threads(int num);
+extern bool scst_del_thr_data(struct scst_tgt_dev *tgt_dev,
+	struct task_struct *tsk);
 
 extern struct scst_dev_type scst_null_devtype;
 
@@ -269,11 +258,11 @@ static inline void scst_make_deferred_commands_active(
 	c = __scst_check_deferred_commands(tgt_dev);
 	if (c != NULL) {
 		TRACE_SN("Adding cmd %p to active cmd list", c);
-		spin_lock_irq(&c->cmd_lists->cmd_list_lock);
+		spin_lock_irq(&c->cmd_threads->cmd_list_lock);
 		list_add_tail(&c->cmd_list_entry,
-			&c->cmd_lists->active_cmd_list);
-		wake_up(&c->cmd_lists->cmd_list_waitQ);
-		spin_unlock_irq(&c->cmd_lists->cmd_list_lock);
+			&c->cmd_threads->active_cmd_list);
+		wake_up(&c->cmd_threads->cmd_list_waitQ);
+		spin_unlock_irq(&c->cmd_threads->cmd_list_lock);
 	}
 
 	return;
@@ -293,9 +282,6 @@ void scst_cmd_tasklet(long p);
 int scst_init_thread(void *arg);
 int scst_tm_thread(void *arg);
 int scst_global_mgmt_thread(void *arg);
-
-int scst_add_dev_threads(struct scst_device *dev, int num);
-void scst_del_dev_threads(struct scst_device *dev, int num);
 
 int scst_queue_retry_cmd(struct scst_cmd *cmd, int finished_cmds);
 

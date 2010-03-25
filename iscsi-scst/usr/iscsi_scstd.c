@@ -583,11 +583,11 @@ static void init_max_params(void)
 	}
 
 	/* QueuedCommands */
-	target_keys[key_queued_cmnds].local_def = min(target_keys[key_queued_cmnds].local_def,
+	target_keys[key_queued_cmnds].local_def = min((int)target_keys[key_queued_cmnds].local_def,
 						      iscsi_init_params.max_queued_cmds);
-	target_keys[key_queued_cmnds].max = min(target_keys[key_queued_cmnds].max,
+	target_keys[key_queued_cmnds].max = min((int)target_keys[key_queued_cmnds].max,
 						iscsi_init_params.max_queued_cmds);
-	target_keys[key_queued_cmnds].min = min(target_keys[key_queued_cmnds].min,
+	target_keys[key_queued_cmnds].min = min((int)target_keys[key_queued_cmnds].min,
 						iscsi_init_params.max_queued_cmds);
 
 	/* MaxRecvDataSegmentLength */
