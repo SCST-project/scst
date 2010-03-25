@@ -76,19 +76,12 @@ kernels don't have the required functionality (scsi_execute_async())
 anymore. So, on them to have pass-through working you have to apply
 scst_exec_req_fifo-2.6.X.patch.
 
-2. io_context-2.6.X.patch. This patch exports some IO context management
-functions from the kernel. For performance reasons SCST queues commands
-using a pool of IO threads. It is considerably better for performance
-(>30% increase on sequential reads) if threads in a pool have the same
-IO context. This patch allows that. If you don't apply this patch, you
-will loose this performance benefit.
-
-3. readahead-2.6.X.patch. This patch fixes problem in Linux readahead
+2. readahead-2.6.X.patch. This patch fixes problem in Linux readahead
 subsystem and greatly improves performance for software RAIDs. See
 http://sourceforge.net/mailarchive/forum.php?thread_name=a0272b440906030714g67eabc5k8f847fb1e538cc62%40mail.gmail.com&forum_name=scst-devel
 thread for more details. It is included in the mainstream kernel 2.6.33.
 
-4. readahead-context-2.6.X.patch. This is backported from 2.6.31 version
+3. readahead-context-2.6.X.patch. This is backported from 2.6.31 version
 of the context readahead patch http://lkml.org/lkml/2009/4/12/9, big
 thanks to Wu Fengguang. This is a performance improvement patch. It is
 included in the mainstream kernel 2.6.31.
@@ -1486,10 +1479,10 @@ access to your target from different VMs.
 
 5. For other target and initiator software parts:
 
- - Make sure you applied on your kernel all available SCST patches,
-   especially io_context-2.6.X.patch. If for your kernel version this
-   patch doesn't exist, it is strongly recommended to upgrade your
-   kernel to version, for which this patch exists.
+ - Make sure you applied on your kernel all available SCST patches.
+   If for your kernel version this patch doesn't exist, it is strongly
+   recommended to upgrade your kernel to version, for which this patch
+   exists.
 
  - Don't enable debug/hacking features in the kernel, i.e. use them as
    they are by default.

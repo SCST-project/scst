@@ -31,7 +31,6 @@ To build for linux-2.6.33-rc8, do:
 3.  Apply SCST patches to the kernel
 	See trunk/scst/README
 	The readahead patches are not needed in 2.6.33.
-	The io_context patch needs to be adjusted for 2.6.33.  Skip it for now.
 
 4.  Configure and make your kernel
 

@@ -1410,10 +1410,10 @@ access to your target from different VMs.
 
 5. For other target and initiator software parts:
 
- - Make sure you applied on your kernel all available SCST patches,
-   especially io_context-2.6.X.patch. If for your kernel version this
-   patch doesn't exist, it is strongly recommended to upgrade your
-   kernel to version, for which this patch exists.
+ - Make sure you applied on your kernel all available SCST patches.
+   If for your kernel version this patch doesn't exist, it is strongly
+   recommended to upgrade your kernel to version, for which this patch
+   exists.
 
  - Don't enable debug/hacking features in the kernel, i.e. use them as
    they are by default.
