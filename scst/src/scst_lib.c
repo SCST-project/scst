@@ -2278,8 +2278,11 @@ static struct io_context *scst_find_shared_io_context(
 
 	TRACE_ENTRY();
 
-	switch (acg->acg_mpio_type) {
-	case SCST_ACG_MPIO_AUTO:
+	TRACE_DBG("tgt_dev %s (acg %p, io_grouping_type %d)",
+		tgt_dev->sess->initiator_name, acg, acg->acg_io_grouping_type);
+
+	switch (acg->acg_io_grouping_type) {
+	case SCST_IO_GROUPING_AUTO:
 		if (tgt_dev->sess->initiator_name == NULL)
 			goto out;
 
@@ -2290,9 +2293,7 @@ static struct io_context *scst_find_shared_io_context(
 			    (t->active_cmd_threads == NULL))
 				continue;
 
-			TRACE_DBG("t name %s (tgt_dev name %s)",
-				t->sess->initiator_name,
-				tgt_dev->sess->initiator_name);
+			TRACE_DBG("t %s", t->sess->initiator_name);
 
 			/* We check other ACG's as well */
 
@@ -2302,27 +2303,37 @@ static struct io_context *scst_find_shared_io_context(
 		}
 		break;
 
-	case SCST_ACG_MPIO_ENABLE:
+	case SCST_IO_GROUPING_THIS_GROUP_ONLY:
 		list_for_each_entry(t, &tgt_dev->dev->dev_tgt_dev_list,
 				dev_tgt_dev_list_entry) {
 			if ((t == tgt_dev) || (t->active_cmd_threads == NULL))
 				continue;
 
-			TRACE_DBG("t name %s (tgt_dev name %s)",
-				t->sess->initiator_name,
-				tgt_dev->sess->initiator_name);
+			TRACE_DBG("t %s (acg %p)", t->sess->initiator_name,
+				t->acg_dev->acg);
 
-			goto found;
+			if (t->acg_dev->acg == acg)
+				goto found;
 		}
 		break;
 
-	case SCST_ACG_MPIO_DISABLE:
+	case SCST_IO_GROUPING_NEVER:
 		goto out;
 
 	default:
-		PRINT_CRIT_ERROR("Unknown MPIO type %d (acg %s)",
-			acg->acg_mpio_type, acg->acg_name);
-		sBUG();
+		list_for_each_entry(t, &tgt_dev->dev->dev_tgt_dev_list,
+				dev_tgt_dev_list_entry) {
+			if ((t == tgt_dev) || (t->active_cmd_threads == NULL))
+				continue;
+
+			TRACE_DBG("t %s (acg %p, io_grouping_type %d)",
+				t->sess->initiator_name, t->acg_dev->acg,
+				t->acg_dev->acg->acg_io_grouping_type);
+
+			if (t->acg_dev->acg->acg_io_grouping_type ==
+					acg->acg_io_grouping_type)
+				goto found;
+		}
 		break;
 	}
 
@@ -2333,10 +2344,11 @@ out:
 found:
 	if (t->active_cmd_threads == &scst_main_cmd_threads) {
 		res = t->tgt_dev_cmd_threads.io_context;
-		TRACE_DBG("Going to share async IO context %p (t %p, ini %s, "
-			"dev %s, cmd_threads %p)", res, t,
-			t->sess->initiator_name, t->dev->virt_name,
-			&t->tgt_dev_cmd_threads);
+		TRACE_MGMT_DBG("Going to share async IO context %p (t %p, "
+			"ini %s, dev %s, cmd_threads %p, grouping type %d)",
+			res, t, t->sess->initiator_name, t->dev->virt_name,
+			&t->tgt_dev_cmd_threads,
+			t->acg_dev->acg->acg_io_grouping_type);
 	} else {
 		res = t->active_cmd_threads->io_context;
 		if (res == NULL) {
@@ -2346,10 +2358,11 @@ found:
 			barrier();
 			goto found;
 		}
-		TRACE_DBG("Going to share IO context %p (t %p, ini %s, "
-			"dev %s, cmd_threads %p)", res, t,
+		TRACE_MGMT_DBG("Going to share IO context %p (t %p, ini %s, "
+			"dev %s, cmd_threads %p, grouping type %d)", res, t,
 			t->sess->initiator_name, t->dev->virt_name,
-			t->active_cmd_threads);
+			t->active_cmd_threads,
+			t->acg_dev->acg->acg_io_grouping_type);
 	}
 	goto out;
 }
@@ -2374,7 +2387,6 @@ enum scst_dev_type_threads_pool_type scst_parse_threads_pool_type(const char *p,
 
 	return res;
 }
-EXPORT_SYMBOL(scst_parse_threads_pool_type);
 
 /* scst_mutex supposed to be held */
 int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
@@ -2392,10 +2404,10 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 
 			shared_io_context = scst_find_shared_io_context(tgt_dev);
 			if (shared_io_context != NULL) {
-				TRACE_DBG("Linking async io context %p for "
-					"shared tgt_dev %p (cmd_threads %p, "
-					"dev %s)", shared_io_context, tgt_dev,
-					&tgt_dev->tgt_dev_cmd_threads,
+				TRACE_MGMT_DBG("Linking async io context %p "
+					"for shared tgt_dev %p (cmd_threads "
+					"%p, dev %s)", shared_io_context,
+					tgt_dev, &tgt_dev->tgt_dev_cmd_threads,
 					tgt_dev->dev->virt_name);
 				tgt_dev->tgt_dev_cmd_threads.io_context = 
 					ioc_task_link(shared_io_context);
@@ -2406,9 +2418,10 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 				tgt_dev->tgt_dev_cmd_threads.io_context =
 					ioc_task_link(get_io_context(GFP_KERNEL, -1));
 				current->io_context = io_context;
-				TRACE_DBG("Created async io context %p for "
-					"not shared tgt_dev %p (cmd_threads %p, "
-					"dev %s)", tgt_dev->tgt_dev_cmd_threads.io_context,
+				TRACE_MGMT_DBG("Created async io context %p "
+					"for not shared tgt_dev %p "
+					"(cmd_threads %p, dev %s)",
+					tgt_dev->tgt_dev_cmd_threads.io_context,
 					tgt_dev, &tgt_dev->tgt_dev_cmd_threads,
 					tgt_dev->dev->virt_name);
 			}
@@ -2428,7 +2441,7 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 
 		shared_io_context = scst_find_shared_io_context(tgt_dev);
 		if (shared_io_context != NULL) {
-			TRACE_DBG("Linking io context %p for "
+			TRACE_MGMT_DBG("Linking io context %p for "
 				"shared tgt_dev %p (cmd_threads %p)",
 				shared_io_context, tgt_dev,
 				tgt_dev->active_cmd_threads);

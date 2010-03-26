@@ -3762,7 +3762,7 @@ int scst_cmd_thread(void *arg)
 		if (p_cmd_threads->io_context == NULL) {
 			p_cmd_threads->io_context = ioc_task_link(
 				get_io_context(GFP_KERNEL, -1));
-			TRACE_DBG("Alloced new IO context %p "
+			TRACE_MGMT_DBG("Alloced new IO context %p "
 				"(p_cmd_threads %p)",
 				p_cmd_threads->io_context,
 				p_cmd_threads);
@@ -3770,7 +3770,7 @@ int scst_cmd_thread(void *arg)
 			put_io_context(current->io_context);
 			current->io_context = ioc_task_link(
 						p_cmd_threads->io_context);
-			TRACE_DBG("Linked IO context %p "
+			TRACE_MGMT_DBG("Linked IO context %p "
 				"(p_cmd_threads %p)",
 				p_cmd_threads->io_context,
 				p_cmd_threads);

@@ -558,6 +558,18 @@ Standard SCST dev handlers have at least the following common entries:
  - handler - if dev handler determined for this device, this link points
    to it. The handler can be not set for pass-through devices.
 
+ - threads_num - shows and allows to set number of threads in this device's
+   threads pool. If 0 - no threads will be created, and global SCST
+   threads pool will be used. If <0 - creation of the threads pool is
+   prohibited.
+
+ - threads_pool_type - shows and allows to sets threads pool type.
+   Possible values: "per_initiator" and "shared". When the value is
+   "per_initiator" (default), each session from each initiator will use
+   separate dedicated pool of threads. When the value is "shared", all
+   sessions from all initiators will share the same per-device pool of
+   threads. Valid only if threads_num attribute >0.
+
  - type - SCSI type of this device
  
 See below for more information about other entries of this subdirectory
@@ -624,23 +636,28 @@ Every target should have at least the following entries:
    initiators security groups, so you can assign the addressing method
    on per-initiator basis.
 
- - mpio_type - defines how I/O from sessions to this target are grouped
-   together. This I/O grouping is very important for performance. If
-   you have this attribute set in a wrong value, you can considerably
-   decrease performance of your setup. Possible values: "enable",
-   "disable" and "auto". When "enable" all I/O from all sessions will be
-   grouped together. When "disable", I/O from different sessions will
-   not be grouped together, i.e. all sessions will have separate
-   dedicated group. When "auto" (default), all I/O from initiators with
-   the same name (iSCSI initiator name, for instance) will be grouped
-   together with a separate dedicated group for each initiator name. For
-   iSCSI it works well, but other transports usually use different
-   names, so using them in MPIO configurations, you should instead use
-   value "enable". This attribute is also available in the initiators
-   security groups, so you can assign the addressing method on
-   per-initiator basis. Recommended practice is to create a separate
-   initiator security group for each MPIO sessions and set mpio_type in
-   "enable".
+ - io_grouping_type - defines how I/O from sessions to this target are
+   grouped together. This I/O grouping is very important for
+   performance. By setting this attribute in a right value, you can
+   considerably increase performance of your setup. This grouping is
+   performed only if you use CFQ I/O scheduler on the target and for
+   devices with threads_num >= 0 and, if threads_num > 0, with
+   threads_pool_type "per_initiator". Possible values:
+   "this_group_only", "never", "auto", or I/O group number >0. When the
+   value is "this_group_only" all I/O from all sessions in this target
+   will be grouped together. When the value is "never", I/O from
+   different sessions will not be grouped together, i.e. all sessions in
+   this target will have separate dedicated I/O groups. When the value
+   is "auto" (default), all I/O from initiators with the same name
+   (iSCSI initiator name, for instance) in all targets will be grouped
+   together with a separate dedicated I/O group for each initiator name.
+   For iSCSI this mode works well, but other transports usually use
+   different initiator names for different sessions, so using such
+   transports in MPIO configurations you should either use value
+   "this_group_only", or an explicit I/O group number. This attribute is
+   also available in the initiators security groups, so you can assign
+   the I/O groupping on per-initiator basis. See below for more info how
+   to use this attribute.
 
  - rel_tgt_id - allows to read or write SCSI Relative Target Port
    Identifier attribute. This identifier is used to identify SCSI Target
@@ -1029,18 +1046,6 @@ cache. The following parameters possible for vdisk_fileio:
  - removable - with this flag set the device is reported to remote
    initiators as removable.
 
- - threads_num - sets number of threads in this device's threads
-   pool. If 0 - no threads will be created, and global SCST threads pool
-   will be used. If <0 - creation of the threads pool will be
-   prohibited.
-
- - threads_pool_type - sets threads pool type. Possible values:
-   "per_initiator" and "shared". When "per_initiator" (default), each
-   session from each initiator will use separate dedicated pool of
-   threads. When "shared", all sessions from all initiators will share
-   the same per-device pool of threads. Valid only if threads_num
-   attribute >0.
-
 Handler vdisk_blockio provides BLOCKIO mode to create virtual devices.
 This mode performs direct block I/O with a block device, bypassing the
 page cache for all operations. This mode works ideally with high-end
@@ -1133,22 +1138,19 @@ For example:
 Each vdisk_blockio's device has the following attributes in
 /sys/kernel/scst_tgt/devices/device_name: blocksize, filename,
 read_only, removable, resync_size, size_mb, t10_dev_id, threads_num,
-threads_pool_type, type, usn. See description of vdisk_fileio's device
-for description of those parameters.
+threads_pool_type, type, usn. See above description of those parameters.
 
 Each vdisk_nullio's device has the following attributes in
 /sys/kernel/scst_tgt/devices/device_name: blocksize, read_only,
 removable, size_mb, t10_dev_id, threads_num, threads_pool_type, type,
-usn. See description of vdisk_fileio's device for description of those
-parameters.
+usn. See above description of those parameters.
 
 Each vcdrom's device has the following attributes in
 /sys/kernel/scst_tgt/devices/device_name: filename,  size_mb,
-t10_dev_id, threads_num, threads_pool_type, type, usn. See description
-of vdisk_fileio's device for description of those parameters. Exception
-is filename attribute. For vcdrom it is writable. Writing to it allows
-to virtually insert or change virtual CD media in the virtual CDROM
-device. For example:
+t10_dev_id, threads_num, threads_pool_type, type, usn. See above
+description of those parameters. Exception is filename attribute. For
+vcdrom it is writable. Writing to it allows to virtually insert or
+change virtual CD media in the virtual CDROM device. For example:
 
  - echo "/image.iso" >/sys/kernel/scst_tgt/devices/cdrom/filename - will
    insert file /image.iso as virtual media to the virtual CDROM cdrom.
@@ -1365,6 +1367,16 @@ fileio_tgt's README file for more details.
 Performance
 -----------
 
+SCST from the very beginning has been designed and implemented to
+provide the best possible performance. Since there is no "one fit all"
+the best performance configuration for different setups and loads, SCST
+provides extensive set of settings to allow to tune it for the best
+performance in each particular case. You don't have to necessary use
+those settings. If you don't, SCST will do very good job to autotune for
+you, so the resulting performance will, in average, be better
+(sometimes, much better) than with other SCSI targets. But in some cases
+you can by manual tuning improve it even more.
+
 Before doing any performance measurements note that performance results
 are very much dependent from your type of load, so it is crucial that
 you choose access mode (FILEIO, BLOCKIO, O_DIRECT, pass-through), which
@@ -1390,15 +1402,70 @@ In order to get the maximum performance you should:
  - Disable in Makefile CONFIG_SCST_TRACING and CONFIG_SCST_DEBUG.
 
 
-IMPORTANT: Some of the above compilation options in the SCST SVN enabled by default,
-=========  i.e. development version of SCST is optimized currently rather for
-           development and bug hunting, than for performance.
+IMPORTANT: Some of the above compilation options in the SCST SVN enabled
+=========  by default, i.e. the development version of SCST is optimized
+	   for development and bug hunting, not for performance. For it
+	   you can set the above options, except
+	   CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ, in the
+	   needed values by command "make debug2perf" performed in
+	   trunk/.
 
-You can set the above options, except
-CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ, in the needed values
-using debug2perf root Makefile target.
+4. Make sure you have io_grouping_type option set correctly, especially
+in the following cases:
 
-4. If you are going to use your target in an VM environment, for
+ - Several initiators share your target's backstorage. It can be a
+   shared LU using some cluster FS, like VMFS, as well as can be
+   different LUs located on the same backstorage (RAID array). For
+   instance, if you have 3 initiators and each of them using its own
+   dedicated FILEIO device file from the same RAID-6 array on the
+   target.
+
+   In this case for the best performance you should have
+   io_grouping_type option set in value "never" in all the LUNs' targets
+   and security groups.
+
+ - Your initiator connected to your target in MPIO mode. In this case for
+   the best performance you should:
+
+    * Either connect all the sessions from the initiator to a single
+      target or security group and have io_grouping_type option set in
+      value "this_group_only" in the target or security group,
+
+    * Or, if it isn't possible to connect all the sessions from the
+      initiator to a single target or security group, assign the same
+      numeric io_grouping_type value for each target/security group this
+      initiator connected to. The exact value itself doesn't matter,
+      important only that all the targets/security groups use the same
+      value.
+
+Don't forget, io_grouping_type makes sense only if you use CFQ I/O
+scheduler on the target and for devices with threads_num >= 0 and, if
+threads_num > 0, with threads_pool_type "per_initiator".
+
+You can check if in your setup io_grouping_type set correctly as well as
+if the "auto" io_grouping_type value works for you by tests like the
+following:
+
+ - For not MPIO case you can run single thread sequential reading, e.g.
+   using buffered dd, from one initiator, then run the same single
+   thread sequential reading from the second initiator in parallel. If
+   io_grouping_type is set correctly the aggregate throughput measured
+   on the target should only slightly decrease as well as all initiators
+   should have nearly equal share of it. If io_grouping_type is not set
+   correctly, the aggregate throughput and/or throughput on any
+   initiator will decrease significantly, in 2 times or even more. For
+   instance, you have 80MB/s single thread sequential reading from the
+   target on any initiator. When then both initiators are reading in
+   parallel you should see on the target aggregate throughput something
+   like 70-75MB/s with correct io_grouping_type and something like
+   35-40MB/s or 8-10MB/s on any initiator with incorrect.
+
+ - For the MPIO case it's quite easier. With incorrect io_grouping_type
+   you simply won't see performance increase from adding the second
+   session (assuming your hardware is capable to transfer data through
+   both sessions in parallel), or can even see a performance decrease.
+
+5. If you are going to use your target in an VM environment, for
 instance as a shared storage with VMware, make sure all your VMs
 connected to the target via *separate* sessions. For instance, for iSCSI
 it means that each VM has own connection to the target, not all VMs
@@ -1408,7 +1475,7 @@ facilities, like NPIV for Fibre Channel, to make separate sessions for
 each VM. If you miss it, you can greatly loose performance of parallel
 access to your target from different VMs.
 
-5. For other target and initiator software parts:
+6. For other target and initiator software parts:
 
  - Make sure you applied on your kernel all available SCST patches.
    If for your kernel version this patch doesn't exist, it is strongly
@@ -1469,7 +1536,7 @@ access to your target from different VMs.
    files, because it allows considerably better linear write throughput,
    than ext3.
 
-6. For hardware on target.
+7. For hardware on target.
 
  - Make sure that your target hardware (e.g. target FC or network card)
    and underlaying IO hardware (e.g. IO card, like SATA, SCSI or RAID to
@@ -1486,7 +1553,7 @@ access to your target from different VMs.
    you have no choice, but PCI bus sharing, set in the BIOS PCI latency
    as low as possible.
 
-7. If you use VDISK IO module in FILEIO mode, NV_CACHE option will
+8. If you use VDISK IO module in FILEIO mode, NV_CACHE option will
 provide you the best performance. But using it make sure you use a good
 UPS with ability to shutdown the target on the power failure.
 
@@ -1509,7 +1576,7 @@ IMPORTANT: If you use on initiator some versions of Windows (at least W2K)
 	   See also important notes about setting block sizes >512 bytes
 	   for VDISK FILEIO devices above.
 
-8. In some cases, for instance working with SSD devices, which consume 100%
+9. In some cases, for instance working with SSD devices, which consume 100%
 of a single CPU load for data transfers in their internal threads, to
 maximize IOPS it can be needed to assign for those threads dedicated
 CPUs using Linux CPU affinity facilities. No IRQ processing should be

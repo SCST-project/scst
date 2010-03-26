@@ -471,6 +471,24 @@ enum scst_exec_context {
 
 #define SCST_TGT_DEV_CLUST_POOL			11
 
+/*************************************************************
+ ** I/O groupping types. Changing them don't forget to change
+ ** the corresponding *_STR values in scst_const.h!
+ *************************************************************/
+
+/*
+ * All initiators with the same name connected to this group will have
+ * shared IO context, for each name own context. All initiators with
+ * different names will have own IO context.
+ */
+#define SCST_IO_GROUPING_AUTO			0
+
+/* All initiators connected to this group will have shared IO context */
+#define SCST_IO_GROUPING_THIS_GROUP_ONLY	-1
+
+/* Each initiator connected to this group will have own IO context */
+#define SCST_IO_GROUPING_NEVER			-2
+
 #ifdef CONFIG_SCST_PROC
 
 /*************************************************************
@@ -2065,25 +2083,6 @@ struct scst_acg_dev {
 	struct kobject acg_dev_kobj;
 };
 
-/* 
- * ACG MPIO types. Changing them don't forget to change
- * the corresponding *_STR values in scst_const.h!
- */
-enum scst_acg_mpio {
-	/*
-	 * All initiators with the same name connected to this group will have
-	 * shared IO context, for each name own context. All initiators with
-	 * different names will have own IO context.
-	 */
-	SCST_ACG_MPIO_AUTO = 0,
-
-	/* All initiators connected to this group will have shared IO context */
-	SCST_ACG_MPIO_ENABLE,
-
-	/* Each initiator connected to this group will have own IO context */
-	SCST_ACG_MPIO_DISABLE,
-};
-
 /*
  * ACG - access control group. Used to store group related
  * control information.
@@ -2109,8 +2108,8 @@ struct scst_acg {
 	struct proc_dir_entry *acg_proc_root;
 #endif
 
-	/* Type of MPIO initiators groupping */
-	enum scst_acg_mpio acg_mpio_type;
+	/* Type of I/O initiators groupping */
+	int acg_io_grouping_type;
 
 	unsigned int acg_kobj_initialized:1;
 	unsigned int in_tgt_acg_list:1;
@@ -3784,13 +3783,6 @@ void scst_restore_token_str(char *prev_lexem, char *token_str);
  * modified by setting '\0' at the delimeter's position.
  */
 char *scst_get_next_token_str(char **input_str);
-
-/*
- * Converts string presentation of threads pool type to enum.
- * Returns SCST_THREADS_POOL_TYPE_INVALID if the string is invalid.
- */
-enum scst_dev_type_threads_pool_type scst_parse_threads_pool_type(
-	const char *p, int len);
 
 /* Initializes scst_cmd_threads structure */
 void scst_init_threads(struct scst_cmd_threads *cmd_threads);

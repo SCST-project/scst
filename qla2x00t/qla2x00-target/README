@@ -424,8 +424,8 @@ The resulting overall SCST sysfs hierarchy with initiator
 Performance advices
 -------------------
 
-1. Pay attention to have mpio_type option set correctly. See SCST core's
-README for more details.
+1. Pay attention to have io_grouping_type option set correctly. See
+SCST core's README for more details.
 
 2. If you are going to use your target in an VM environment, for
 instance as a shared storage with VMware, make sure all your VMs

@@ -349,14 +349,15 @@ enum scst_cdb_flags {
 #define SCST_MAX_OTHER_TIMEOUT			(14000 * HZ)
 
 /*************************************************************
- ** ACG MPIO attribute values. Must match scst_acg_mpio!
+ ** I/O grouping attribute string values. Must match constants
+ ** w/o '_STR' suffix!
  *************************************************************/
-#define SCST_ACG_MPIO_AUTO_STR			"auto"
-#define SCST_ACG_MPIO_ENABLE_STR		"enable"
-#define SCST_ACG_MPIO_DISABLE_STR		"disable"
+#define SCST_IO_GROUPING_AUTO_STR		"auto"
+#define SCST_IO_GROUPING_THIS_GROUP_ONLY_STR	"this_group_only"
+#define SCST_IO_GROUPING_NEVER_STR		"never"
 
 /*************************************************************
- ** Threads pool type attribute values.
+ ** Threads pool type attribute string values.
  ** Must match scst_dev_type_threads_pool_type!
  *************************************************************/
 #define SCST_THREADS_POOL_PER_INITIATOR_STR	"per_initiator"

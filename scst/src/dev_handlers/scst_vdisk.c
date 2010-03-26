@@ -220,9 +220,6 @@ struct scst_vdisk_dev {
 	struct scst_device *dev;
 	struct list_head vdev_list_entry;
 
-	int threads_num;
-	enum scst_dev_type_threads_pool_type threads_pool_type;
-
 	struct mutex vdev_sysfs_mutex;
 	struct scst_dev_type *vdev_devt;
 };
@@ -447,8 +444,7 @@ static struct scst_dev_type vdisk_file_devtype = {
 	.del_device =		vdisk_del_device,
 	.dev_attrs =		vdisk_fileio_attrs,
 	.add_device_parameters_help = "filename, blocksize, write_through, "
-		"nv_cache, o_direct, read_only, removable, threads_num, "
-		"threads_pool_type",
+		"nv_cache, o_direct, read_only, removable",
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -484,7 +480,7 @@ static struct scst_dev_type vdisk_blk_devtype = {
 	.del_device =		vdisk_del_device,
 	.dev_attrs =		vdisk_blockio_attrs,
 	.add_device_parameters_help = "filename, blocksize, read_only, "
-		"removable, threads_num, threads_pool_type",
+		"removable",
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -517,8 +513,7 @@ static struct scst_dev_type vdisk_null_devtype = {
 	.add_device =		vdisk_add_nullio_device,
 	.del_device =		vdisk_del_device,
 	.dev_attrs =		vdisk_nullio_attrs,
-	.add_device_parameters_help = "blocksize, read_only, removable, "
-		"threads_num, threads_pool_type",
+	.add_device_parameters_help = "blocksize, read_only, removable",
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -552,7 +547,7 @@ static struct scst_dev_type vcdrom_devtype = {
 	.add_device =		vcdrom_add_device,
 	.del_device =		vcdrom_del_device,
 	.dev_attrs =		vcdrom_attrs,
-	.add_device_parameters_help = "threads_num, threads_pool_type",
+	.add_device_parameters_help = NULL,
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -700,8 +695,6 @@ static int vdisk_attach(struct scst_device *dev)
 	virt_dev->dev = dev;
 
 	dev->rd_only = virt_dev->rd_only;
-	dev->threads_num = virt_dev->threads_num;
-	dev->threads_pool_type = virt_dev->threads_pool_type;
 
 	if (!virt_dev->cdrom_empty) {
 		if (virt_dev->nullio)
@@ -2961,8 +2954,6 @@ static int vdev_create(struct scst_dev_type *devt,
 	spin_lock_init(&virt_dev->flags_lock);
 	mutex_init(&virt_dev->vdev_sysfs_mutex);
 	virt_dev->vdev_devt = devt;
-	virt_dev->threads_num = devt->threads_num;
-	virt_dev->threads_pool_type = devt->threads_pool_type;
 
 	virt_dev->rd_only = DEF_RD_ONLY;
 	virt_dev->removable = DEF_REMOVABLE;
@@ -3051,21 +3042,6 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 			goto out;
 		}
 
-		pp = scst_get_next_lexem(&param);
-		if (*pp == '\0') {
-			PRINT_ERROR("Parameter %s value missed for device %s",
-				p, virt_dev->name);
-			res = -EINVAL;
-			goto out;
-		}
-
-		if (scst_get_next_lexem(&param)[0] != '\0') {
-			PRINT_ERROR("Too many parameter's %s values (device %s)",
-				p, virt_dev->name);
-			res = -EINVAL;
-			goto out;
-		}
-
 		if (allowed_params != NULL) {
 			const char **a = allowed_params;
 			bool allowed = false;
@@ -3086,6 +3062,21 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 			}
 		}
 
+		pp = scst_get_next_lexem(&param);
+		if (*pp == '\0') {
+			PRINT_ERROR("Parameter %s value missed for device %s",
+				p, virt_dev->name);
+			res = -EINVAL;
+			goto out;
+		}
+
+		if (scst_get_next_lexem(&param)[0] != '\0') {
+			PRINT_ERROR("Too many parameter's %s values (device %s)",
+				p, virt_dev->name);
+			res = -EINVAL;
+			goto out;
+		}
+
 		if (!strcasecmp("filename", p)) {
 			if (*pp != '/') {
 				PRINT_ERROR("Filename %s must be global "
@@ -3101,16 +3092,6 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 				res = -ENOMEM;
 				goto out;
 			}
-			continue;
-		} else if (!strcasecmp("threads_pool_type", p)) {
-			virt_dev->threads_pool_type = scst_parse_threads_pool_type(pp,
-							strlen(pp));
-			if (virt_dev->threads_pool_type == SCST_THREADS_POOL_TYPE_INVALID) {
-				res = virt_dev->threads_pool_type;
-				goto out;
-			}
-			TRACE_DBG("threads_pool_type %d",
-				virt_dev->threads_pool_type);
 			continue;
 		}
 
@@ -3142,9 +3123,6 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 		} else if (!strcasecmp("removable", p)) {
 			virt_dev->removable = val;
 			TRACE_DBG("REMOVABLE %d", virt_dev->removable);
-		} else if (!strcasecmp("threads_num", p)) {
-			virt_dev->threads_num = val;
-			TRACE_DBG("threads_num %d", virt_dev->threads_num);
 		} else if (!strcasecmp("blocksize", p)) {
 			virt_dev->block_size = val;
 			virt_dev->block_shift = scst_calc_block_shift(
@@ -3232,8 +3210,8 @@ out_destroy:
 static int vdev_blockio_add_device(const char *device_name, char *params)
 {
 	int res = 0;
-	const char *allowed_params[] = { "filename", "threads_pool_type",
-		"read_only", "removable", "threads_num", "blocksize", NULL };
+	const char *allowed_params[] = { "filename", "read_only", "removable",
+					 "blocksize", NULL };
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
@@ -3284,8 +3262,8 @@ out_destroy:
 static int vdev_nullio_add_device(const char *device_name, char *params)
 {
 	int res = 0;
-	const char *allowed_params[] = { "threads_pool_type",
-		"read_only", "removable", "threads_num", "blocksize", NULL };
+	const char *allowed_params[] = { "read_only", "removable",
+					 "blocksize", NULL };
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
@@ -3442,8 +3420,7 @@ out:
 static int __vcdrom_add_device(const char *device_name, char *params)
 {
 	int res = 0;
-	const char *allowed_params[] = { "threads_pool_type",
-			"threads_num", NULL };
+	const char *allowed_params[] = { NULL }; /* no params */
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();

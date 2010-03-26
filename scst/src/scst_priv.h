@@ -222,6 +222,13 @@ static inline void scst_reset_io_context(struct scst_tgt_dev *tgt_dev,
 	return;
 }
 
+/*
+ * Converts string presentation of threads pool type to enum.
+ * Returns SCST_THREADS_POOL_TYPE_INVALID if the string is invalid.
+ */
+extern enum scst_dev_type_threads_pool_type scst_parse_threads_pool_type(
+	const char *p, int len);
+
 extern int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 	struct scst_device *dev, struct scst_tgt_dev *tgt_dev, int num);
 extern void scst_del_threads(struct scst_cmd_threads *cmd_threads, int num);

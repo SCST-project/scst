@@ -112,10 +112,10 @@ static ssize_t scst_tgt_addr_method_show(struct kobject *kobj,
 static ssize_t scst_tgt_addr_method_store(struct kobject *kobj,
 				    struct kobj_attribute *attr,
 				    const char *buf, size_t count);
-static ssize_t scst_tgt_mpio_type_show(struct kobject *kobj,
+static ssize_t scst_tgt_io_grouping_type_show(struct kobject *kobj,
 				   struct kobj_attribute *attr,
 				   char *buf);
-static ssize_t scst_tgt_mpio_type_store(struct kobject *kobj,
+static ssize_t scst_tgt_io_grouping_type_store(struct kobject *kobj,
 				    struct kobj_attribute *attr,
 				    const char *buf, size_t count);
 static ssize_t scst_ini_group_mgmt_show(struct kobject *kobj,
@@ -145,10 +145,10 @@ static ssize_t scst_acg_addr_method_show(struct kobject *kobj,
 static ssize_t scst_acg_addr_method_store(struct kobject *kobj,
 				    struct kobj_attribute *attr,
 				    const char *buf, size_t count);
-static ssize_t scst_acg_mpio_type_show(struct kobject *kobj,
+static ssize_t scst_acg_io_grouping_type_show(struct kobject *kobj,
 				   struct kobj_attribute *attr,
 				   char *buf);
-static ssize_t scst_acg_mpio_type_store(struct kobject *kobj,
+static ssize_t scst_acg_io_grouping_type_store(struct kobject *kobj,
 				    struct kobj_attribute *attr,
 				    const char *buf, size_t count);
 static ssize_t scst_acn_file_show(struct kobject *kobj,
@@ -541,9 +541,10 @@ static struct kobj_attribute scst_tgt_addr_method =
 	__ATTR(addr_method, S_IRUGO | S_IWUSR, scst_tgt_addr_method_show,
 	       scst_tgt_addr_method_store);
 
-static struct kobj_attribute scst_tgt_mpio_type =
-	__ATTR(mpio_type, S_IRUGO | S_IWUSR, scst_tgt_mpio_type_show,
-	       scst_tgt_mpio_type_store);
+static struct kobj_attribute scst_tgt_io_grouping_type =
+	__ATTR(io_grouping_type, S_IRUGO | S_IWUSR,
+	       scst_tgt_io_grouping_type_show,
+	       scst_tgt_io_grouping_type_store);
 
 static struct kobj_attribute scst_rel_tgt_id =
 	__ATTR(rel_tgt_id, S_IRUGO | S_IWUSR, scst_rel_tgt_id_show,
@@ -553,9 +554,10 @@ static struct kobj_attribute scst_acg_addr_method =
 	__ATTR(addr_method, S_IRUGO | S_IWUSR, scst_acg_addr_method_show,
 		scst_acg_addr_method_store);
 
-static struct kobj_attribute scst_acg_mpio_type =
-	__ATTR(mpio_type, S_IRUGO | S_IWUSR, scst_acg_mpio_type_show,
-		scst_acg_mpio_type_store);
+static struct kobj_attribute scst_acg_io_grouping_type =
+	__ATTR(io_grouping_type, S_IRUGO | S_IWUSR,
+	       scst_acg_io_grouping_type_show,
+	       scst_acg_io_grouping_type_store);
 
 static ssize_t scst_tgt_enable_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
@@ -721,10 +723,10 @@ int scst_create_tgt_sysfs(struct scst_tgt *tgt)
 	}
 
 	retval = sysfs_create_file(&tgt->tgt_kobj,
-			&scst_tgt_mpio_type.attr);
+			&scst_tgt_io_grouping_type.attr);
 	if (retval != 0) {
 		PRINT_ERROR("Can't add attribute %s for tgt %s",
-			scst_tgt_mpio_type.attr.name, tgt->tgt_name);
+			scst_tgt_io_grouping_type.attr.name, tgt->tgt_name);
 		goto out;
 	}
 
@@ -839,6 +841,13 @@ static ssize_t scst_device_sysfs_threads_data_store(struct scst_device *dev,
 	int res = 0;
 
 	TRACE_ENTRY();
+
+	if (dev->threads_num < 0) {
+		PRINT_ERROR("Threads pool disabled for device %s",
+			dev->virt_name);
+		res = -EPERM;
+		goto out;
+	}
 
 	if ((threads_num == dev->threads_num) &&
 	    (threads_pool_type == dev->threads_pool_type))
@@ -1959,51 +1968,61 @@ static ssize_t scst_tgt_addr_method_store(struct kobject *kobj,
 	return res;
 }
 
-static ssize_t __scst_acg_mpio_type_show(struct scst_acg *acg, char *buf)
+static ssize_t __scst_acg_io_grouping_type_show(struct scst_acg *acg, char *buf)
 {
 	int res;
 
-	switch (acg->acg_mpio_type) {
-	case SCST_ACG_MPIO_AUTO:
-		res = sprintf(buf, "auto\n");
+	switch (acg->acg_io_grouping_type) {
+	case SCST_IO_GROUPING_AUTO:
+		res = sprintf(buf, "%s\n", SCST_IO_GROUPING_AUTO_STR);
 		break;
-	case SCST_ACG_MPIO_ENABLE:
-		res = sprintf(buf, "enable\n%s\n", SCST_SYSFS_KEY_MARK);
+	case SCST_IO_GROUPING_THIS_GROUP_ONLY:
+		res = sprintf(buf, "%s\n%s\n",
+			SCST_IO_GROUPING_THIS_GROUP_ONLY_STR,
+			SCST_SYSFS_KEY_MARK);
 		break;
-	case SCST_ACG_MPIO_DISABLE:
-		res = sprintf(buf, "disable\n%s\n", SCST_SYSFS_KEY_MARK);
+	case SCST_IO_GROUPING_NEVER:
+		res = sprintf(buf, "%s\n%s\n", SCST_IO_GROUPING_NEVER_STR,
+			SCST_SYSFS_KEY_MARK);
 		break;
 	default:
-		res = sprintf(buf, "Unknown\n");
+		res = sprintf(buf, "%d\n%s\n", acg->acg_io_grouping_type,
+			SCST_SYSFS_KEY_MARK);
 		break;
 	}
 
 	return res;
 }
 
-static ssize_t __scst_acg_mpio_type_store(struct scst_acg *acg,
+static ssize_t __scst_acg_io_grouping_type_store(struct scst_acg *acg,
 	const char *buf, size_t count)
 {
-	int res = count;
-	enum scst_acg_mpio prev = acg->acg_mpio_type;
+	int res = 0;
+	int prev = acg->acg_io_grouping_type;
 	struct scst_acg_dev *acg_dev;
 
-	if (strncasecmp(buf, SCST_ACG_MPIO_AUTO_STR,
-			min_t(int, strlen(SCST_ACG_MPIO_AUTO_STR), count)) == 0)
-		acg->acg_mpio_type = SCST_ACG_MPIO_AUTO;
-	else if (strncasecmp(buf, SCST_ACG_MPIO_ENABLE_STR,
-			min_t(int, strlen(SCST_ACG_MPIO_ENABLE_STR), count)) == 0)
-		acg->acg_mpio_type = SCST_ACG_MPIO_ENABLE;
-	else if (strncasecmp(buf, SCST_ACG_MPIO_DISABLE_STR,
-			min_t(int, strlen(SCST_ACG_MPIO_DISABLE_STR), count)) == 0)
-		acg->acg_mpio_type = SCST_ACG_MPIO_DISABLE;
+	if (strncasecmp(buf, SCST_IO_GROUPING_AUTO_STR,
+			min_t(int, strlen(SCST_IO_GROUPING_AUTO_STR), count)) == 0)
+		acg->acg_io_grouping_type = SCST_IO_GROUPING_AUTO;
+	else if (strncasecmp(buf, SCST_IO_GROUPING_THIS_GROUP_ONLY_STR,
+			min_t(int, strlen(SCST_IO_GROUPING_THIS_GROUP_ONLY_STR), count)) == 0)
+		acg->acg_io_grouping_type = SCST_IO_GROUPING_THIS_GROUP_ONLY;
+	else if (strncasecmp(buf, SCST_IO_GROUPING_NEVER_STR,
+			min_t(int, strlen(SCST_IO_GROUPING_NEVER_STR), count)) == 0)
+		acg->acg_io_grouping_type = SCST_IO_GROUPING_NEVER;
 	else {
-		PRINT_ERROR("Unknown MPIO type %s", buf);
-		res = -EINVAL;
-		goto out;
+		long io_grouping_type;
+		res = strict_strtoul(buf, 0, &io_grouping_type);
+		if ((res != 0) || (io_grouping_type <= 0)) {
+			PRINT_ERROR("Unknown or not allowed I/O grouping type "
+				"%s", buf);
+			res = -EINVAL;
+			goto out;
+		}
+		acg->acg_io_grouping_type = io_grouping_type;
 	}
 
-	if (prev == acg->acg_mpio_type)
+	if (prev == acg->acg_io_grouping_type)
 		goto out;
 
 	res = scst_suspend_activity(true);
@@ -2034,7 +2053,7 @@ out:
 	return res;
 }
 
-static ssize_t scst_tgt_mpio_type_show(struct kobject *kobj,
+static ssize_t scst_tgt_io_grouping_type_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
 	struct scst_acg *acg;
@@ -2043,10 +2062,10 @@ static ssize_t scst_tgt_mpio_type_show(struct kobject *kobj,
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 	acg = tgt->default_acg;
 
-	return __scst_acg_mpio_type_show(acg, buf);
+	return __scst_acg_io_grouping_type_show(acg, buf);
 }
 
-static ssize_t scst_tgt_mpio_type_store(struct kobject *kobj,
+static ssize_t scst_tgt_io_grouping_type_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	int res;
@@ -2056,8 +2075,13 @@ static ssize_t scst_tgt_mpio_type_store(struct kobject *kobj,
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 	acg = tgt->default_acg;
 
-	res = __scst_acg_mpio_type_store(acg, buf, count);
+	res = __scst_acg_io_grouping_type_store(acg, buf, count);
+	if (res != 0)
+		goto out;
 
+	res = count;
+
+out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -2117,10 +2141,10 @@ static int scst_create_acg_sysfs(struct scst_tgt *tgt,
 		goto out;
 	}
 
-	retval = sysfs_create_file(&acg->acg_kobj, &scst_acg_mpio_type.attr);
+	retval = sysfs_create_file(&acg->acg_kobj, &scst_acg_io_grouping_type.attr);
 	if (retval != 0) {
 		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
-			scst_acg_mpio_type.attr.name, tgt->tgt_name);
+			scst_acg_io_grouping_type.attr.name, tgt->tgt_name);
 		goto out;
 	}
 
@@ -2175,17 +2199,17 @@ static ssize_t scst_acg_addr_method_store(struct kobject *kobj,
 	return res;
 }
 
-static ssize_t scst_acg_mpio_type_show(struct kobject *kobj,
+static ssize_t scst_acg_io_grouping_type_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
 	struct scst_acg *acg;
 
 	acg = container_of(kobj, struct scst_acg, acg_kobj);
 
-	return __scst_acg_mpio_type_show(acg, buf);
+	return __scst_acg_io_grouping_type_show(acg, buf);
 }
 
-static ssize_t scst_acg_mpio_type_store(struct kobject *kobj,
+static ssize_t scst_acg_io_grouping_type_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	int res;
@@ -2193,8 +2217,13 @@ static ssize_t scst_acg_mpio_type_store(struct kobject *kobj,
 
 	acg = container_of(kobj, struct scst_acg, acg_kobj);
 
-	res = __scst_acg_mpio_type_store(acg, buf, count);
+	res = __scst_acg_io_grouping_type_store(acg, buf, count);
+	if (res != 0)
+		goto out;
 
+	res = count;
+
+out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
