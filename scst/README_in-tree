@@ -571,7 +571,7 @@ Standard SCST dev handlers have at least the following common entries:
    threads. Valid only if threads_num attribute >0.
 
  - type - SCSI type of this device
- 
+
 See below for more information about other entries of this subdirectory
 of the standard SCST dev handlers.
 
@@ -603,7 +603,7 @@ of the standard SCST dev handlers.
 has the following entries:
 
  - None, one or more subdirectories for each existing SGV cache.
- 
+
  - global_stats - file containing global SGV caches statistics.
 
 Each SGV cache's subdirectory has the following item:
@@ -803,7 +803,7 @@ looking inside this file.
    DEST_GROUP_NAME.
 
  - "clear" - deletes all initiators from this group.
-                                  
+
 For "add" and "del" commands INITIATOR_NAME can be a simple DOS-type
 patterns, containing '*' and '?' symbols. '*' means match all any
 symbols, '?' means match only any single symbol. For instance,
@@ -1071,7 +1071,7 @@ For example:
 
 echo "add_device disk1 filename=/disk1; blocksize=4096; nv_cache=1" >/sys/kernel/scst_tgt/handlers/vdisk_fileio/mgmt
 
-will create a FILEIO virtual device disk1 with backend file /disk1   
+will create a FILEIO virtual device disk1 with backend file /disk1
 with block size 4K and NV_CACHE enabled.
 
 Each vdisk_fileio's device has the following attributes in
@@ -1236,7 +1236,7 @@ using "barrier=1" and "barrier=flush" mount options correspondingly. You
 can check if the barriers turn on or off by looking in /proc/mounts.
 Windows and, AFAIK, other UNIX'es don't need any special explicit
 options and do necessary barrier actions on write-back caching devices
-by default. 
+by default.
 
 But even in case of journaled file systems your unsaved cached data will
 still be lost in case of power/hardware/software failures, so you may
@@ -1295,7 +1295,7 @@ Pass-through mode
 In the pass-through mode (i.e. using the pass-through device handlers
 scst_disk, scst_tape, etc) SCSI commands, coming from remote initiators,
 are passed to local SCSI devices on target as is, without any
-modifications. 
+modifications.
 
 In the SYSFS interface all real SCSI devices are listed in
 /sys/kernel/scst_tgt/devices in form host:channel:id:lun numbers, for
@@ -1334,7 +1334,7 @@ be bigger, than corresponding values of the corresponding SCSI devices
 on the target. Otherwise you will see symptoms like small transfers work
 well, but large ones stall and messages like: "Unable to complete
 command due to SG IO count limitation" are printed in the kernel logs.
- 
+
 You can't control from the user space limit of the scatter-gather
 segments, but for block devices usually it is sufficient if you set on
 the initiators /sys/block/DEVICE_NAME/queue/max_sectors_kb in the same

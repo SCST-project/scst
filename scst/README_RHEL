@@ -23,7 +23,7 @@ building the kernel source tree in /usr/src/redhat/SOURCES/.
  - The kernel source tree can now be built by running the commands
 below. These commands will not only create a kernel source tree but will
 also install a kernel .config file:
- 
+
     yum install unifdef
     rm -rf /usr/src/redhat/BUILD
     mkdir -p /usr/src/redhat/BUILD
