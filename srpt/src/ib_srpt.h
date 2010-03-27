@@ -51,9 +51,8 @@
 #include "ib_dm_mad.h"
 
 /*
- * The prefix the ServiceName field of the ServiceName/ServiceID pair in the
- * device management ServiceEntries attribute pair must start with, as specified
- * in the SRP r16a document.
+ * The prefix the ServiceName field must start with in the device management
+ * ServiceEntries attribute pair. See also the SRP r16a document.
  */
 #define SRP_SERVICE_NAME_PREFIX		"SRP.T10:"
 
@@ -61,7 +60,7 @@ enum {
 	/*
 	 * SRP IOControllerProfile attributes for SRP target ports that have
 	 * not been defined in <scsi/srp.h>. Source: section B.7, table B.7
-	 * in the T10 SRP r16a document.
+	 * in the SRP r16a document.
 	 */
 	SRP_PROTOCOL = 0x0108,
 	SRP_PROTOCOL_VERSION = 0x0001,
@@ -72,7 +71,7 @@ enum {
 	SRP_RDMA_WRITE_FROM_IOC = 0x20,
 
 	/*
-	 * srp_login_cmd::req_flags bitmasks. See also table 9 in the T10 r16a
+	 * srp_login_cmd::req_flags bitmasks. See also table 9 in the SRP r16a
 	 * document.
 	 */
 	SRP_MTCH_ACTION = 0x03, /* MULTI-CHANNEL ACTION */
@@ -138,15 +137,15 @@ struct rdma_iu {
 
 /**
  * enum srpt_command_state - SCSI command states managed by SRPT.
- * @SRPT_STATE_NEW: New command arrived and is being processed.
- * @SRPT_STATE_NEED_DATA: Processing a write or bidir command and waiting for
- *   data arrival.
- * @SRPT_STATE_DATA_IN: Data for the write or bidir command arrived and is
- *   being processed.
- * @SRPT_STATE_CMD_RSP_SENT: SRP_RSP for SRP_CMD has been sent.
+ * @SRPT_STATE_NEW:           New command arrived and is being processed.
+ * @SRPT_STATE_NEED_DATA:     Processing a write or bidir command and waiting for
+ *                            data arrival.
+ * @SRPT_STATE_DATA_IN:       Data for the write or bidir command arrived and is
+ *                            being processed.
+ * @SRPT_STATE_CMD_RSP_SENT:  SRP_RSP for SRP_CMD has been sent.
  * @SRPT_STATE_MGMT_RSP_SENT: SRP_RSP for SRP_TSK_MGMT has been sent.
- * @SRPT_STATE_DONE: Command processing finished successfully, command
- *   processing has been aborted or command processing failed.
+ * @SRPT_STATE_DONE:          Command processing finished successfully, command
+ *                            processing has been aborted or command processing failed.
  */
 enum srpt_command_state {
 	SRPT_STATE_NEW = 0,
@@ -157,7 +156,15 @@ enum srpt_command_state {
 	SRPT_STATE_DONE = 5,
 };
 
-/* SRPT I/O context: SRPT-private data associated with a struct scst_cmd. */
+/**
+ * struct srpt_ioctx - SRPT-private data associated with a struct scst_cmd.
+ * @index:     Index of the I/O context in ioctx_ring.
+ * @buf:       Pointer to the message transferred via this I/O context.
+ * @dma:       DMA address of buf.
+ * @wait_list: Node for insertion in srpt_rdma_ch::cmd_wait_list.
+ * @comp_list: Node for insertion in the srpt_thread::thread_ioctx_list.
+ * @state:     I/O context state. See also enum srpt_command_state.
+ */
 struct srpt_ioctx {
 	int index;
 	void *buf;
@@ -165,7 +172,6 @@ struct srpt_ioctx {
 	struct rdma_iu *rdma_ius;
 	struct srp_direct_buf *rbufs;
 	struct srp_direct_buf single_rbuf;
-	/* Node for insertion in srpt_rdma_ch::cmd_wait_list. */
 	struct list_head wait_list;
 	int mapped_sg_count;
 	u16 n_rdma_ius;
@@ -173,117 +179,128 @@ struct srpt_ioctx {
 	u8 n_rbuf;
 
 	enum ib_wc_opcode op;
-	/* Node for insertion in the srpt_thread::thread_ioctx_list. */
 	struct list_head comp_list;
 	struct srpt_rdma_ch *ch;
 	struct scst_cmd *scmnd;
-	atomic_t state; /*enum srpt_command_state*/
+	atomic_t state;
 };
 
-/* Additional context information for SCST management commands. */
+/**
+ * struct srpt_mgmt_ioctx - SCST management command context information.
+ * @ioctx: SRPT I/O context associated with the management command.
+ * @ch:    RDMA channel over which the management command has been received.
+ * @tag:   SCSI tag of the management command.
+ */
 struct srpt_mgmt_ioctx {
 	struct srpt_ioctx *ioctx;
 	struct srpt_rdma_ch *ch;
 	u64 tag;
 };
 
-/* channel state */
+/**
+ * enum rdma_ch_state - SRP channel state.
+ */
 enum rdma_ch_state {
 	RDMA_CHANNEL_CONNECTING,
 	RDMA_CHANNEL_LIVE,
 	RDMA_CHANNEL_DISCONNECTING
 };
 
+/**
+ * struct srpt_rdma_ch - RDMA channel.
+ * @cm_id:         IB CM ID associated with the channel.
+ * @qp:            IB queue pair used for communicating over this channel.
+ * @qp_wr_avail:   number of WRs in qp that are not being processed by the HCA.
+ * @cq:            completion queue for send and receive operations over this channel.
+ * @sport:         pointer to the information of the HCA port used by this channel.
+ * @i_port_id:     128-bit initiator port identifier copied from SRP_LOGIN_REQ.
+ * @t_port_id:     128-bit target port identifier copied from SRP_LOGIN_REQ.
+ * @max_ti_iu_len: maximum target-to-initiator information unit length.
+ * @req_lim:       request limit: maximum number of requests that may be sent by the
+ *                 initiator without having received a response or SRP_CRED_REQ.
+ * @last_response_req_lim: value of req_lim the last time a response or
+ *                 SRP_CRED_REQ was sent.
+ * @state:         channel state. See also enum rdma_ch_state.
+ * @list:          node for insertion in the srpt_device::rch_list list.
+ * @cmd_wait_list: list of SCST commands that arrived before the RTU event. This list
+ *                 contains struct srpt_ioctx elements and is protected against
+ *                 concurrent modification by the cm_id spinlock.
+ * @scst_sess:     SCST session information associated with this SRP channel.
+ * @sess_name:     SCST session name.
+ */
 struct srpt_rdma_ch {
 	struct ib_cm_id *cm_id;
-	/* IB queue pair. */
 	struct ib_qp *qp;
-	/* Number of WR's in the QP 'qp' that are not in use. */
 	atomic_t qp_wr_avail;
 	struct ib_cq *cq;
 	struct srpt_port *sport;
-	/* 128-bit initiator port identifier copied from SRP_LOGIN_REQ. */
 	u8 i_port_id[16];
-	/* 128-bit target port identifier copied from SRP_LOGIN_REQ. */
 	u8 t_port_id[16];
 	int max_ti_iu_len;
-	/*
-	 * Request limit: maximum number of request that may be sent by
-	 * the initiator without having received a response or SRP_CRED_REQ.
-	 */
 	atomic_t req_lim;
-	/*
-	 * Value of req_lim the last time a response or SRP_CRED_REQ was sent.
-	 */
 	atomic_t last_response_req_lim;
-	/* Channel state -- see also enum rdma_ch_state. */
 	atomic_t state;
-	/* Node for insertion in the srpt_device::rch_list list. */
 	struct list_head list;
-	/*
-	 * List of SCST commands that arrived before the RTU event.
-	 * This list contains struct srpt_ioctx elements and is protected
-	 * against concurrent modification by the cm_id spinlock.
-	 */
 	struct list_head cmd_wait_list;
 
 	struct scst_session *scst_sess;
 	u8 sess_name[36];
 };
 
+/**
+ * struct srpt_port - Information associated by SRPT with a single IB port.
+ * @sdev:      backpointer to the HCA information.
+ * @mad_agent: per-port management datagram processing information.
+ * @port:      one-based port number.
+ * @sm_lid:    cached value of the port's sm_lid.
+ * @lid:       cached value of the port's lid.
+ * @gid:       cached value of the port's gid.
+ * @work:      work structure for refreshing the aforementioned cached values.
+ */
 struct srpt_port {
 	struct srpt_device *sdev;
 	struct ib_mad_agent *mad_agent;
-	/* One-based port number. */
 	u8 port;
-	/* Cached values of the port's sm_lid, lid and gid. */
 	u16 sm_lid;
 	u16 lid;
 	union ib_gid gid;
-	/* Work structure for refreshing the aforementioned cached values. */
 	struct work_struct work;
 };
 
-/*
- * Data stored by the ib_srpt kernel module per InfiniBand device
- * (struct ib_device).
+/**
+ * struct srpt_device - Information associated by SRPT with a single HCA.
+ * @device:        backpointer to the struct ib_device managed by the IB core.
+ * @pd:            IB protection domain.
+ * @mr:            L_Key (local key) with write access to all local memory.
+ * @srq:           Per-HCA SRQ (shared receive queue).
+ * @cm_id:         connection identifier.
+ * @dev_attr:      attributes of the InfiniBand device as obtained during the
+ *                 ib_client::add() callback.
+ * @ioctx_ring:    Per-HCA I/O context ring.
+ * @rch_list:      per-device channel list -- see also srpt_rdma_ch::list.
+ * @spinlock:      protects rch_list.
+ * @srpt_port:     information about the ports owned by this HCA.
+ * @event_handler: per-HCA asynchronous IB event handler.
+ * @dev:           per-port srpt-<portname> device instance.
+ * @scst_tgt:      SCST target information associated with this HCA.
  */
 struct srpt_device {
-	/* Backpointer to the struct ib_device managed by the IB core. */
 	struct ib_device *device;
-	/* Protection domain. */
 	struct ib_pd *pd;
-	/* L_Key (local key) with write access to all local memory. */
 	struct ib_mr *mr;
-	/* SRQ (shared receive queue). */
 	struct ib_srq *srq;
-	/* Connection identifier. */
 	struct ib_cm_id *cm_id;
-	/*
-	 * Attributes of the InfiniBand device as obtained during the
-	 * ib_client::add() callback.
-	 */
 	struct ib_device_attr dev_attr;
-	/* I/O context ring. */
 	struct srpt_ioctx *ioctx_ring[SRPT_SRQ_SIZE];
-	/*
-	 * List node for insertion in the srpt_rdma_ch::list list.
-	 * This list is protected by srpt_device::spinlock.
-	 */
 	struct list_head rch_list;
 	spinlock_t spinlock;
 	struct srpt_port port[2];
 	struct ib_event_handler event_handler;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-	/* per-port srpt-<portname> device instance. */
 	struct class_device class_dev;
 #else
 	struct device dev;
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
-	char init_name[20];
-#endif
-
 	struct scst_tgt *scst_tgt;
 };
 
