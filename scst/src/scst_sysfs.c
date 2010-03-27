@@ -2416,8 +2416,8 @@ static ssize_t scst_rel_tgt_id_store(struct kobject *kobj,
 
 	if (rel_tgt_id < SCST_MIN_REL_TGT_ID ||
 	    rel_tgt_id > SCST_MAX_REL_TGT_ID) {
-	    	if ((rel_tgt_id == 0) && !tgt->tgtt->is_target_enabled(tgt))
-	    		goto set;
+		if ((rel_tgt_id == 0) && !tgt->tgtt->is_target_enabled(tgt))
+			goto set;
 
 		PRINT_ERROR("Invalid relative port id %d",
 			(uint16_t)rel_tgt_id);

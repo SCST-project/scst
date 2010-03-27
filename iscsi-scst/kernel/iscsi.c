@@ -2509,7 +2509,7 @@ static void nop_out_exec(struct iscsi_cmnd *req)
 		struct iscsi_cmnd *r;
 		struct iscsi_conn *conn = req->conn;
 
- 		TRACE_DBG("Receive Nop-In response (ttt 0x%08x)",
+		TRACE_DBG("Receive Nop-In response (ttt 0x%08x)",
 			be32_to_cpu(cmnd_ttt(req)));
 
 		spin_lock_bh(&conn->nop_req_list_lock);

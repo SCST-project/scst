@@ -2409,7 +2409,7 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 					"%p, dev %s)", shared_io_context,
 					tgt_dev, &tgt_dev->tgt_dev_cmd_threads,
 					tgt_dev->dev->virt_name);
-				tgt_dev->tgt_dev_cmd_threads.io_context = 
+				tgt_dev->tgt_dev_cmd_threads.io_context =
 					ioc_task_link(shared_io_context);
 			} else {
 				/* Create new context */
@@ -2445,7 +2445,7 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 				"shared tgt_dev %p (cmd_threads %p)",
 				shared_io_context, tgt_dev,
 				tgt_dev->active_cmd_threads);
-			tgt_dev->active_cmd_threads->io_context = 
+			tgt_dev->active_cmd_threads->io_context =
 				ioc_task_link(shared_io_context);
 		}
 

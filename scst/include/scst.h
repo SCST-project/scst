@@ -925,7 +925,7 @@ struct scst_tgt_template {
 	const char *mgmt_cmd_help;
 
 	/* Optional help string for add_target parameters */
-        const char *add_target_parameters_help;
+	const char *add_target_parameters_help;
 
 	/** Private, must be inited to 0 by memset() **/
 
@@ -953,7 +953,7 @@ struct scst_tgt_template {
 #endif
 };
 
-/* 
+/*
  * Threads pool types. Changing them don't forget to change
  * the corresponding *_STR values in scst_const.h!
  */
@@ -1178,10 +1178,10 @@ struct scst_dev_type {
 	const char *trace_tbl_help;
 
 	/* Optional help string for mgmt_cmd commands */
-        const char *mgmt_cmd_help;
+	const char *mgmt_cmd_help;
 
 	/* Optional help string for add_device parameters */
-        const char *add_device_parameters_help;
+	const char *add_device_parameters_help;
 
 	/* Optional sysfs attributes */
 	const struct attribute **devt_attrs;
