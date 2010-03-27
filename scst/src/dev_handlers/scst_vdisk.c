@@ -2962,7 +2962,7 @@ static int vdev_create(struct scst_dev_type *devt,
 	virt_dev->block_shift = DEF_DISK_BLOCKSIZE_SHIFT;
 
 	if (strlen(name) >= sizeof(virt_dev->name)) {
-		PRINT_ERROR("Name %s is too long (max allowed %d)", name,
+		PRINT_ERROR("Name %s is too long (max allowed %zd)", name,
 			sizeof(virt_dev->name)-1);
 		res = -EINVAL;
 		goto out_free;

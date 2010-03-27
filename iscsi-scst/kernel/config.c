@@ -398,7 +398,7 @@ static int add_session(void __user *ptr)
 
 	info = kzalloc(sizeof(*info), GFP_KERNEL);
 	if (info == NULL) {
-		PRINT_ERROR("Can't alloc info (size %d)", sizeof(*info));
+		PRINT_ERROR("Can't alloc info (size %zd)", sizeof(*info));
 		err = -ENOMEM;
 		goto out;
 	}
@@ -443,7 +443,7 @@ static int del_session(void __user *ptr)
 
 	info = kzalloc(sizeof(*info), GFP_KERNEL);
 	if (info == NULL) {
-		PRINT_ERROR("Can't alloc info (size %d)", sizeof(*info));
+		PRINT_ERROR("Can't alloc info (size %zd)", sizeof(*info));
 		err = -ENOMEM;
 		goto out;
 	}
@@ -876,7 +876,7 @@ static int add_target(void __user *ptr)
 
 	info = kzalloc(sizeof(*info), GFP_KERNEL);
 	if (info == NULL) {
-		PRINT_ERROR("Can't alloc info (size %d)", sizeof(*info));
+		PRINT_ERROR("Can't alloc info (size %zd)", sizeof(*info));
 		err = -ENOMEM;
 		goto out;
 	}
@@ -1093,7 +1093,7 @@ out:
 	return err;
 }
 
-int open(struct inode *inode, struct file *file)
+static int open(struct inode *inode, struct file *file)
 {
 	bool already;
 

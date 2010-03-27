@@ -151,7 +151,7 @@ int __add_target(struct iscsi_kern_target_info *info)
 
 	add_info = kmalloc(sizeof(*add_info), GFP_KERNEL);
 	if (add_info == NULL) {
-		PRINT_ERROR("Unable to allocate additional info (size %d)",
+		PRINT_ERROR("Unable to allocate additional info (size %zd)",
 			sizeof(*add_info));
 		err = -ENOMEM;
 		goto out;
