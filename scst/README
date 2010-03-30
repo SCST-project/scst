@@ -726,7 +726,7 @@ Every target should have at least the following entries:
    transports in MPIO configurations you should either use value
    "this_group_only", or an explicit I/O group number. This attribute is
    also available in the initiators security groups, so you can assign
-   the I/O groupping on per-initiator basis. See below for more info how
+   the I/O grouping on per-initiator basis. See below for more info how
    to use this attribute.
 
  - rel_tgt_id - allows to read or write SCSI Relative Target Port
@@ -1445,6 +1445,12 @@ those settings. If you don't, SCST will do very good job to autotune for
 you, so the resulting performance will, in average, be better
 (sometimes, much better) than with other SCSI targets. But in some cases
 you can by manual tuning improve it even more.
+
+If you want to get maximum performance from your target, RHEL/CentOS 5.x
+kernels are not recommended, because they are based on very outdated
+2.6.18 kernel, hence, missed >3 years of important improvements in the
+kernel's storage area. You should use at least long maintained vanilla
+2.6.27.x kernel, although 2.6.29+ would be even better.
 
 Before doing any performance measurements note that performance results
 are very much dependent from your type of load, so it is crucial that

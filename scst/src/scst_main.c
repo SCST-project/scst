@@ -1407,8 +1407,7 @@ void scst_del_threads(struct scst_cmd_threads *cmd_threads, int num)
 			struct scst_tgt_dev *tgt_dev;
 			list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 					dev_tgt_dev_list_entry) {
-				if (scst_del_thr_data(tgt_dev, ct->cmd_thread))
-					break;
+				scst_del_thr_data(tgt_dev, ct->cmd_thread);
 			}
 		}
 
@@ -1421,10 +1420,8 @@ void scst_del_threads(struct scst_cmd_threads *cmd_threads, int num)
 			break;
 	}
 
-	if (cmd_threads->nr_threads == 0) {
-		put_io_context(cmd_threads->io_context);
-		cmd_threads->io_context = NULL;
-	}
+	EXTRACHECKS_BUG_ON((cmd_threads->nr_threads == 0) &&
+		(cmd_threads->io_context != NULL));
 
 out:
 	TRACE_EXIT();

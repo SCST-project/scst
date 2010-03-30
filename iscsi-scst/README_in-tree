@@ -527,10 +527,7 @@ as well.
 3. ISCSI initiators built in pre-CentOS/RHEL 5 reported to have some
 performance problems. If you use it, it is strongly advised to upgrade.
 
-4. Pay attention to have io_grouping_type option set correctly. See SCST
-core's README for more details.
-
-5. If you are going to use your target in an VM environment, for
+4. If you are going to use your target in an VM environment, for
 instance as a shared storage with VMware, make sure all your VMs
 connected to the target via *separate* sessions, i.e. each VM has own
 connection to the target, not all VMs connected using a single
@@ -538,7 +535,7 @@ connection. You can check it using SCST proc or sysfs interface. If you
 miss it, you can greatly loose performance of parallel access to your
 target from different VMs.
 
-6. Many dual port network adapters are not able to transfer data
+5. Many dual port network adapters are not able to transfer data
 simultaneousy on both ports, i.e. they transfer data via both ports on
 the same speed as via any single port. Thus, using such adapters in MPIO
 configuration can't improve performance. To allow MPIO to have double
@@ -546,6 +543,9 @@ performance you should either use separate network adapters, or find a
 dual-port adapter capable to to transfer data simultaneousy on both
 ports. You can check it by running 2 iperf's through both ports in
 parallel.
+
+6. See SCST core's README for more advices. Especially pay attention to
+have io_grouping_type option set correctly.
 
 
 Compilation options

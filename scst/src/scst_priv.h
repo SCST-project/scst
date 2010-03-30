@@ -200,13 +200,13 @@ static inline bool scst_set_io_context(struct scst_cmd *cmd,
 	if (cmd->cmd_threads == &scst_main_cmd_threads) {
 		EXTRACHECKS_BUG_ON(in_interrupt());
 		/*
-		 * No need to call ioc_task_link(), because io_context
+		 * No need for any ref counting action, because io_context
 		 * supposed to be cleared in the end of the caller function.
 		 */
-		current->io_context = cmd->tgt_dev->tgt_dev_cmd_threads.io_context;
+		current->io_context = cmd->tgt_dev->async_io_context;
 		res = true;
-		TRACE_DBG("io_context %p (cmd_threads %p)", current->io_context,
-			&cmd->tgt_dev->tgt_dev_cmd_threads);
+		TRACE_DBG("io_context %p (tgt_dev %p)", current->io_context,
+			cmd->tgt_dev);
 		EXTRACHECKS_BUG_ON(current->io_context == NULL);
 	} else
 		res = false;

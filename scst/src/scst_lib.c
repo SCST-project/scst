@@ -29,6 +29,7 @@
 #include <linux/string.h>
 #include <asm/kmap_types.h>
 #include <linux/ctype.h>
+#include <linux/delay.h>
 
 #include "scst.h"
 #include "scst_priv.h"
@@ -43,6 +44,19 @@ struct scsi_io_context {
 	unsigned char full_cdb[0];
 };
 static struct kmem_cache *scsi_io_context_cache;
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
+static int strncasecmp(const char *s1, const char *s2, size_t n)
+{
+	int c1, c2;
+
+	do {
+		c1 = tolower(*s1++);
+		c2 = tolower(*s2++);
+	} while ((--n > 0) && c1 == c2 && c1 != 0);
+	return c1 - c2;
+}
 #endif
 
 /* get_trans_len_x extract x bytes from cdb as length starting from off */
@@ -2269,10 +2283,10 @@ struct scst_acg *scst_tgt_find_acg(struct scst_tgt *tgt, const char *name)
 }
 
 /* scst_mutex supposed to be held */
-static struct io_context *scst_find_shared_io_context(
+static struct scst_tgt_dev *scst_find_shared_io_tgt_dev(
 	struct scst_tgt_dev *tgt_dev)
 {
-	struct io_context *res = NULL;
+	struct scst_tgt_dev *res = NULL;
 	struct scst_acg *acg = tgt_dev->acg_dev->acg;
 	struct scst_tgt_dev *t;
 
@@ -2343,23 +2357,24 @@ out:
 
 found:
 	if (t->active_cmd_threads == &scst_main_cmd_threads) {
-		res = t->tgt_dev_cmd_threads.io_context;
-		TRACE_MGMT_DBG("Going to share async IO context %p (t %p, "
-			"ini %s, dev %s, cmd_threads %p, grouping type %d)",
-			res, t, t->sess->initiator_name, t->dev->virt_name,
-			&t->tgt_dev_cmd_threads,
+		res = t;
+		TRACE_MGMT_DBG("Going to share async IO context %p (res %p, "
+			"ini %s, dev %s, grouping type %d)",
+			t->aic_keeper->aic, res, t->sess->initiator_name,
+			t->dev->virt_name,
 			t->acg_dev->acg->acg_io_grouping_type);
 	} else {
-		res = t->active_cmd_threads->io_context;
-		if (res == NULL) {
+		res = t;
+		if (res->active_cmd_threads->io_context == NULL) {
 			TRACE_MGMT_DBG("IO context for t %p not yet "
 				"initialized, waiting...", t);
 			msleep(100);
 			barrier();
 			goto found;
 		}
-		TRACE_MGMT_DBG("Going to share IO context %p (t %p, ini %s, "
-			"dev %s, cmd_threads %p, grouping type %d)", res, t,
+		TRACE_MGMT_DBG("Going to share IO context %p (res %p, ini %s, "
+			"dev %s, cmd_threads %p, grouping type %d)",
+			res->active_cmd_threads->io_context, res,
 			t->sess->initiator_name, t->dev->virt_name,
 			t->active_cmd_threads,
 			t->acg_dev->acg->acg_io_grouping_type);
@@ -2388,11 +2403,50 @@ enum scst_dev_type_threads_pool_type scst_parse_threads_pool_type(const char *p,
 	return res;
 }
 
+static int scst_ioc_keeper_thread(void *arg)
+{
+	struct scst_async_io_context_keeper *aic_keeper =
+		(struct scst_async_io_context_keeper *)arg;
+
+	TRACE_ENTRY();
+
+	TRACE_MGMT_DBG("AIC %p keeper thread %s (PID %d) started", aic_keeper,
+		current->comm, current->pid);
+
+	current->flags |= PF_NOFREEZE;
+
+	sBUG_ON(aic_keeper->aic != NULL);
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
+	aic_keeper->aic = get_io_context(GFP_KERNEL);
+#else
+	aic_keeper->aic = get_io_context(GFP_KERNEL, -1);
+#endif
+	TRACE_MGMT_DBG("Alloced new async IO context %p (aic %p)",
+		aic_keeper->aic, aic_keeper);
+
+	/* We have our own ref counting */
+	put_io_context(aic_keeper->aic);
+
+	/* We are ready */
+	wake_up_all(&aic_keeper->aic_keeper_waitQ);
+
+	wait_event_interruptible(aic_keeper->aic_keeper_waitQ,
+		kthread_should_stop());
+
+	TRACE_MGMT_DBG("AIC %p keeper thread %s (PID %d) finished", aic_keeper,
+		current->comm, current->pid);
+
+	TRACE_EXIT();
+	return 0;
+}
+
 /* scst_mutex supposed to be held */
 int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 {
 	int res = 0;
 	struct scst_device *dev = tgt_dev->dev;
+	struct scst_async_io_context_keeper *aic_keeper;
 
 	TRACE_ENTRY();
 
@@ -2400,31 +2454,52 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 		tgt_dev->active_cmd_threads = &scst_main_cmd_threads;
 
 		if (dev->threads_num == 0) {
-			struct io_context *shared_io_context;
+			struct scst_tgt_dev *shared_io_tgt_dev;
 
-			shared_io_context = scst_find_shared_io_context(tgt_dev);
-			if (shared_io_context != NULL) {
+			shared_io_tgt_dev = scst_find_shared_io_tgt_dev(tgt_dev);
+			if (shared_io_tgt_dev != NULL) {
+				aic_keeper = shared_io_tgt_dev->aic_keeper;
+				kref_get(&aic_keeper->aic_keeper_kref);
+
 				TRACE_MGMT_DBG("Linking async io context %p "
-					"for shared tgt_dev %p (cmd_threads "
-					"%p, dev %s)", shared_io_context,
-					tgt_dev, &tgt_dev->tgt_dev_cmd_threads,
+					"for shared tgt_dev %p (dev %s)",
+					aic_keeper->aic, tgt_dev,
 					tgt_dev->dev->virt_name);
-				tgt_dev->tgt_dev_cmd_threads.io_context =
-					ioc_task_link(shared_io_context);
 			} else {
 				/* Create new context */
-				struct io_context *io_context = current->io_context;
-				current->io_context = NULL;
-				tgt_dev->tgt_dev_cmd_threads.io_context =
-					ioc_task_link(get_io_context(GFP_KERNEL, -1));
-				current->io_context = io_context;
+				aic_keeper = kzalloc(sizeof(*aic_keeper),
+						GFP_KERNEL);
+				if (aic_keeper == NULL) {
+					PRINT_ERROR("Unable to alloc aic_keeper "
+						"(size %d)", sizeof(*aic_keeper));
+					res = -ENOMEM;
+					goto out;
+				}
+
+				kref_init(&aic_keeper->aic_keeper_kref);
+				init_waitqueue_head(&aic_keeper->aic_keeper_waitQ);
+
+				aic_keeper->aic_keeper_thr =
+					kthread_run(scst_ioc_keeper_thread,
+						aic_keeper, "aic_keeper");
+				if (IS_ERR(aic_keeper->aic_keeper_thr)) {
+					PRINT_ERROR("Error running ioc_keeper "
+						"thread (tgt_dev %p)", tgt_dev);
+					res = PTR_ERR(aic_keeper->aic_keeper_thr);
+					goto out_free_keeper;
+				}
+
+				wait_event(aic_keeper->aic_keeper_waitQ,
+					aic_keeper->aic != NULL);
+
 				TRACE_MGMT_DBG("Created async io context %p "
-					"for not shared tgt_dev %p "
-					"(cmd_threads %p, dev %s)",
-					tgt_dev->tgt_dev_cmd_threads.io_context,
-					tgt_dev, &tgt_dev->tgt_dev_cmd_threads,
+					"for not shared tgt_dev %p (dev %s)",
+					aic_keeper->aic, tgt_dev,
 					tgt_dev->dev->virt_name);
 			}
+
+			tgt_dev->async_io_context = aic_keeper->aic;
+			tgt_dev->aic_keeper = aic_keeper;
 		}
 
 		res = scst_add_threads(tgt_dev->active_cmd_threads, NULL, NULL,
@@ -2435,23 +2510,60 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 	switch (dev->threads_pool_type) {
 	case SCST_THREADS_POOL_PER_INITIATOR:
 	{
-		struct io_context *shared_io_context;
+		struct scst_tgt_dev *shared_io_tgt_dev;
+
+		scst_init_threads(&tgt_dev->tgt_dev_cmd_threads);
 
 		tgt_dev->active_cmd_threads = &tgt_dev->tgt_dev_cmd_threads;
 
-		shared_io_context = scst_find_shared_io_context(tgt_dev);
-		if (shared_io_context != NULL) {
+		shared_io_tgt_dev = scst_find_shared_io_tgt_dev(tgt_dev);
+		if (shared_io_tgt_dev != NULL) {
 			TRACE_MGMT_DBG("Linking io context %p for "
 				"shared tgt_dev %p (cmd_threads %p)",
-				shared_io_context, tgt_dev,
-				tgt_dev->active_cmd_threads);
+				shared_io_tgt_dev->active_cmd_threads->io_context,
+				tgt_dev, tgt_dev->active_cmd_threads);
+			/* It's ref counted via threads */
 			tgt_dev->active_cmd_threads->io_context =
-				ioc_task_link(shared_io_context);
+				shared_io_tgt_dev->active_cmd_threads->io_context;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
+			tgt_dev->active_cmd_threads->io_context_kref =
+				shared_io_tgt_dev->active_cmd_threads->io_context_kref;
+#endif
 		}
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
+		else {
+			struct kref *io_context_kref;
+
+			io_context_kref = kmalloc(sizeof(*io_context_kref),
+						GFP_KERNEL);
+			if (io_context_kref == NULL) {
+				PRINT_ERROR("Unable to alloc io_context_kref "
+					"(size %d)", sizeof(*io_context_kref));
+				res = -ENOMEM;
+				goto out;
+			}
+
+			kref_init(io_context_kref);
+			tgt_dev->tgt_dev_cmd_threads.io_context_kref =
+					io_context_kref;
+		}
+#endif
 
 		res = scst_add_threads(tgt_dev->active_cmd_threads, NULL,
 			tgt_dev,
 			dev->threads_num + tgt_dev->sess->tgt->tgtt->threads_num);
+		if (res != 0) {
+			/* Let's clear here, because no threads could be run */
+			tgt_dev->active_cmd_threads->io_context = NULL;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
+			if (shared_io_tgt_dev == NULL) {
+				if (tgt_dev->active_cmd_threads->io_context_kref != NULL) {
+					kfree(tgt_dev->active_cmd_threads->io_context_kref);
+					tgt_dev->active_cmd_threads->io_context_kref = NULL;
+				}
+			}
+#endif
+		}
 		break;
 	}
 	case SCST_THREADS_POOL_SHARED:
@@ -2473,6 +2585,27 @@ out:
 
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_free_keeper:
+	kfree(aic_keeper);
+	goto out;
+}
+
+static void scst_aic_keeper_release(struct kref *kref)
+{
+	struct scst_async_io_context_keeper *aic_keeper;
+
+	TRACE_ENTRY();
+
+	aic_keeper = container_of(kref, struct scst_async_io_context_keeper,
+			aic_keeper_kref);
+
+	kthread_stop(aic_keeper->aic_keeper_thr);
+
+	kfree(aic_keeper);
+
+	TRACE_EXIT();
+	return;
 }
 
 /* scst_mutex supposed to be held */
@@ -2482,10 +2615,10 @@ void scst_tgt_dev_stop_threads(struct scst_tgt_dev *tgt_dev)
 
 	if (tgt_dev->active_cmd_threads == &scst_main_cmd_threads) {
 		/* Global async threads */
-		scst_del_threads(tgt_dev->active_cmd_threads,
-			tgt_dev->sess->tgt->tgtt->threads_num);
-		put_io_context(tgt_dev->tgt_dev_cmd_threads.io_context);
-		tgt_dev->tgt_dev_cmd_threads.io_context = NULL;
+		kref_put(&tgt_dev->aic_keeper->aic_keeper_kref,
+			scst_aic_keeper_release);
+		tgt_dev->async_io_context = NULL;
+		tgt_dev->aic_keeper = NULL;
 	} else if (tgt_dev->active_cmd_threads == &tgt_dev->dev->dev_cmd_threads) {
 		/* Per device shared threads */
 		scst_del_threads(tgt_dev->active_cmd_threads,
@@ -2493,6 +2626,7 @@ void scst_tgt_dev_stop_threads(struct scst_tgt_dev *tgt_dev)
 	} else if (tgt_dev->active_cmd_threads == &tgt_dev->tgt_dev_cmd_threads) {
 		/* Per tgt_dev threads */
 		scst_del_threads(tgt_dev->active_cmd_threads, -1);
+		scst_deinit_threads(&tgt_dev->tgt_dev_cmd_threads);
 	} /* else no threads (not yet initialized, e.g.) */
 
 	tm_dbg_deinit_tgt_dev(tgt_dev);
@@ -2575,8 +2709,6 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 	tgt_dev->cur_sn_slot = &tgt_dev->sn_slots[0];
 	for (i = 0; i < (int)ARRAY_SIZE(tgt_dev->sn_slots); i++)
 		atomic_set(&tgt_dev->sn_slots[i], 0);
-
-	scst_init_threads(&tgt_dev->tgt_dev_cmd_threads);
 
 	if (dev->handler->parse_atomic &&
 	    (sess->tgt->tgtt->preprocessing_done == NULL)) {
@@ -2699,8 +2831,6 @@ static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 	}
 
 	scst_tgt_dev_stop_threads(tgt_dev);
-
-	scst_deinit_threads(&tgt_dev->tgt_dev_cmd_threads);
 
 	sBUG_ON(!list_empty(&tgt_dev->thr_data_list));
 

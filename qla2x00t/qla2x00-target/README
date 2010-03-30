@@ -424,16 +424,16 @@ The resulting overall SCST sysfs hierarchy with initiator
 Performance advices
 -------------------
 
-1. Pay attention to have io_grouping_type option set correctly. See
-SCST core's README for more details.
-
-2. If you are going to use your target in an VM environment, for
+1. If you are going to use your target in an VM environment, for
 instance as a shared storage with VMware, make sure all your VMs
 connected to the target via *separate* sessions. You can check it using
 SCST proc or sysfs interface. You should use available facilities, like
 NPIV, to make separate sessions for each VM. If you miss it, you can
 greatly loose performance of parallel access to your target from
 different VMs.
+
+2. See SCST core's README for more advices. Especially pay attention to
+have io_grouping_type option set correctly.
 
 
 Credits

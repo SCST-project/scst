@@ -899,7 +899,7 @@ static ssize_t scst_device_sysfs_threads_num_store(struct kobject *kobj,
 		goto out;
 	}
 
-	if (newtn <= 0) {
+	if (newtn < 0) {
 		PRINT_ERROR("Illegal threads num value %ld", newtn);
 		res = -EINVAL;
 		goto out;

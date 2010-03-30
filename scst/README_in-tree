@@ -656,7 +656,7 @@ Every target should have at least the following entries:
    transports in MPIO configurations you should either use value
    "this_group_only", or an explicit I/O group number. This attribute is
    also available in the initiators security groups, so you can assign
-   the I/O groupping on per-initiator basis. See below for more info how
+   the I/O grouping on per-initiator basis. See below for more info how
    to use this attribute.
 
  - rel_tgt_id - allows to read or write SCSI Relative Target Port

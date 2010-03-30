@@ -1447,6 +1447,14 @@ struct scst_cmd_threads {
 
 	struct io_context *io_context;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
+	/*
+	 * Those kernels don't support ref counting based IO context sharing
+	 * between threads/processes, so need own ref counting.
+	 */
+	struct kref *io_context_kref;
+#endif
+
 	int nr_threads;
 	struct list_head threads_list;
 
@@ -1963,6 +1971,16 @@ struct scst_thr_data_hdr {
 };
 
 /*
+ * Used to clearly dispose async io_context
+ */
+struct scst_async_io_context_keeper {
+	struct kref aic_keeper_kref;
+	struct io_context *aic;
+	struct task_struct *aic_keeper_thr;
+	wait_queue_head_t aic_keeper_waitQ;
+};
+
+/*
  * Used to store per-session specific device information
  */
 struct scst_tgt_dev {
@@ -2017,8 +2035,18 @@ struct scst_tgt_dev {
 	/* Pointer to lists of commands with the lock */
 	struct scst_cmd_threads *active_cmd_threads;
 
-	/* Lists of commands with lock, if dedicated threads are used */
-	struct scst_cmd_threads tgt_dev_cmd_threads;
+	/* Union to save some CPU cache footprint */
+	union {
+		struct {
+			/* Copy to save fast path dereference */
+			struct io_context *async_io_context;
+
+			struct scst_async_io_context_keeper *aic_keeper;
+		};
+
+		/* Lists of commands with lock, if dedicated threads are used */
+		struct scst_cmd_threads tgt_dev_cmd_threads;
+	};
 
 	spinlock_t tgt_dev_lock;	/* per-session device lock */
 
