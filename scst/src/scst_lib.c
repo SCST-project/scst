@@ -2417,7 +2417,7 @@ static int scst_ioc_keeper_thread(void *arg)
 
 	sBUG_ON(aic_keeper->aic != NULL);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 	aic_keeper->aic = get_io_context(GFP_KERNEL);
 #else
 	aic_keeper->aic = get_io_context(GFP_KERNEL, -1);

@@ -3767,7 +3767,7 @@ int scst_cmd_thread(void *arg)
 
 	if (p_cmd_threads != &scst_main_cmd_threads) {
 		if (p_cmd_threads->io_context == NULL) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 			p_cmd_threads->io_context = get_io_context(GFP_KERNEL);
 #else
 			p_cmd_threads->io_context = get_io_context(GFP_KERNEL, -1);
