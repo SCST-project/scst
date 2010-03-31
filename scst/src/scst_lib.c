@@ -2471,7 +2471,7 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 						GFP_KERNEL);
 				if (aic_keeper == NULL) {
 					PRINT_ERROR("Unable to alloc aic_keeper "
-						"(size %d)", sizeof(*aic_keeper));
+						"(size %zd)", sizeof(*aic_keeper));
 					res = -ENOMEM;
 					goto out;
 				}
