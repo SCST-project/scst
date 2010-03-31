@@ -2538,7 +2538,7 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 						GFP_KERNEL);
 			if (io_context_kref == NULL) {
 				PRINT_ERROR("Unable to alloc io_context_kref "
-					"(size %d)", sizeof(*io_context_kref));
+					"(size %zd)", sizeof(*io_context_kref));
 				res = -ENOMEM;
 				goto out;
 			}

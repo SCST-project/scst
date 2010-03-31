@@ -981,7 +981,7 @@ static ssize_t scst_device_sysfs_threads_pool_type_store(struct kobject *kobj,
 		goto out;
 	}
 
-	TRACE_DBG("buf %s, count %d, newtpt %d", buf, count, newtpt);
+	TRACE_DBG("buf %s, count %zd, newtpt %d", buf, count, newtpt);
 
 	res = scst_device_sysfs_threads_data_store(dev, dev->threads_num,
 		newtpt);
@@ -3833,7 +3833,7 @@ int scst_sysfs_user_add_info(struct scst_sysfs_user_info **out_info)
 
 	info = kzalloc(sizeof(*info), GFP_KERNEL);
 	if (info == NULL) {
-		PRINT_ERROR("Unable to allocate sysfs user info (size %d)",
+		PRINT_ERROR("Unable to allocate sysfs user info (size %zd)",
 			sizeof(*info));
 		res = -ENOMEM;
 		goto out;

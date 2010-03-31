@@ -292,7 +292,7 @@ static int vcdrom_write_proc(char *buffer, char **start, off_t offset,
 static ssize_t vdisk_add_fileio_device(const char *device_name, char *params);
 static ssize_t vdisk_add_blockio_device(const char *device_name, char *params);
 static ssize_t vdisk_add_nullio_device(const char *device_name, char *params);
-static int vdisk_del_device(const char *device_name);
+static ssize_t vdisk_del_device(const char *device_name);
 static ssize_t vcdrom_add_device(const char *device_name, char *params);
 static int vcdrom_del_device(const char *device_name);
 #endif
@@ -3387,7 +3387,7 @@ static void vdev_del_device(struct scst_vdisk_dev *virt_dev)
 
 #ifndef CONFIG_SCST_PROC
 
-static int vdisk_del_device(const char *device_name)
+static ssize_t vdisk_del_device(const char *device_name)
 {
 	int res = 0;
 	struct scst_vdisk_dev *virt_dev;
@@ -3417,7 +3417,7 @@ out:
 }
 
 /* scst_vdisk_mutex supposed to be held */
-static int __vcdrom_add_device(const char *device_name, char *params)
+static ssize_t __vcdrom_add_device(const char *device_name, char *params)
 {
 	int res = 0;
 	const char *allowed_params[] = { NULL }; /* no params */
