@@ -49,8 +49,6 @@
 #define LOG_PREFIX "ib_srpt" /* Prefix for SCST tracing macros. */
 #include "scst_debug.h"
 
-#define CONFIG_SCST_PROC
-
 /* Name of this kernel module. */
 #define DRV_NAME		"ib_srpt"
 #define DRV_VERSION		"1.0.1"
@@ -113,6 +111,17 @@ module_param(use_port_guid_in_session_name, bool, 0444);
 MODULE_PARM_DESC(use_port_guid_in_session_name,
 		 "Use target port ID in the SCST session name such that"
 		 " redundant paths between multiport systems can be masked.");
+
+static int srpt_get_u64_x(char *buffer, struct kernel_param *kp)
+{
+	return sprintf(buffer, "0x%016llx\n",
+		       (unsigned long long)*(u64 *)kp->arg);
+}
+module_param_call(srpt_service_guid, NULL, srpt_get_u64_x, &srpt_service_guid,
+		  0444);
+MODULE_PARM_DESC(srpt_service_guid,
+		 "Using this value for ioc_guid, id_ext, and cm_listen_id"
+		 " instead of using the node_guid of the first HCA.");
 
 static void srpt_add_one(struct ib_device *device);
 static void srpt_remove_one(struct ib_device *device);
@@ -1047,6 +1056,8 @@ static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 	BUG_ON(!ch);
 	BUG_ON(!ioctx);
 
+	WARN_ON(srpt_get_cmd_state(ioctx) != SRPT_STATE_DONE);
+
 	/*
 	 * If the WARN_ON() below gets triggered this means that
 	 * srpt_unmap_sg_to_ib_sge() has not been called before
@@ -1075,6 +1086,8 @@ static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 
 /**
  * srpt_abort_scst_cmd() - Abort a SCSI command.
+ * @ioctx:   I/O context associated with the SCSI command.
+ * @context: Preferred execution context.
  */
 static void srpt_abort_scst_cmd(struct srpt_ioctx *ioctx,
 				enum scst_exec_context context)
@@ -1086,7 +1099,23 @@ static void srpt_abort_scst_cmd(struct srpt_ioctx *ioctx,
 
 	BUG_ON(!ioctx);
 
-	state = srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
+	/*
+	 * Change the state of the command into SRPT_STATE_DONE, except when
+	 * the current state is SRPT_STATE_NEW or SRPT_STATE_NEED_DATA. For
+	 * these last two states, change the state into SRPT_STATE_DATA_IN.
+	 * Doing so ensures that srpt_xmit_response() will call this function
+	 * a second time and will invoke scst_tgt_cmd_done(). Unfortunately it
+	 * is not allowed to invoke scst_tgt_cmd_done() for commands that have
+	 * one of the states SRPT_STATE_NEW or SRPT_STATE_NEED_DATA
+	 */
+	state = srpt_test_and_set_cmd_state(ioctx, SRPT_STATE_NEW,
+					    SRPT_STATE_DATA_IN);
+	if (state != SRPT_STATE_NEW) {
+		state = srpt_test_and_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA,
+						    SRPT_STATE_DATA_IN);
+		if (state != SRPT_STATE_NEED_DATA)
+			state = srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
+	}
 	if (state == SRPT_STATE_DONE)
 		goto out;
 
@@ -1112,16 +1141,17 @@ static void srpt_abort_scst_cmd(struct srpt_ioctx *ioctx,
 	case SRPT_STATE_DATA_IN:
 	case SRPT_STATE_CMD_RSP_SENT:
 		scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_ABORTED);
+		scst_tgt_cmd_done(scmnd, context);
 		break;
 	case SRPT_STATE_MGMT_RSP_SENT:
 		WARN_ON("ERROR: srpt_abort_scst_cmd() has been called for"
 			" a management command.");
+		scst_tgt_cmd_done(scmnd, context);
 		break;
 	default:
 		WARN_ON("ERROR: unexpected command state");
 		break;
 	}
-	scst_tgt_cmd_done(scmnd, context);
 
 out:
 	;
@@ -1134,19 +1164,33 @@ static void srpt_handle_err_comp(struct srpt_rdma_ch *ch, struct ib_wc *wc,
 {
 	struct srpt_ioctx *ioctx;
 	struct srpt_device *sdev = ch->sport->sdev;
+	enum srpt_command_state state;
+	struct scst_cmd *scmnd;
 
-	TRACE_DBG("%s:%d wr_id = %#llx.", __func__, __LINE__, wc->wr_id);
-
-	if (wc->wr_id & SRPT_OP_RECV) {
-		ioctx = sdev->ioctx_ring[wc->wr_id & ~SRPT_OP_RECV];
-		PRINT_ERROR("%s", "This is serious - SRQ is in bad state.");
-	} else {
+	if (wc->wr_id & SRPT_OP_RECV)
+		PRINT_INFO("%s", "Received receive completion error. Is the"
+			   " ib_srpt.ko kernel module being unloaded ? Has an"
+			   " InfiniBand cable been disconnected ?");
+	else {
 		ioctx = sdev->ioctx_ring[wc->wr_id];
+		state = srpt_get_cmd_state(ioctx);
+		scmnd = ioctx->scmnd;
 
-		if (ioctx->scmnd)
+		WARN_ON(state != SRPT_STATE_CMD_RSP_SENT
+			&& state != SRPT_STATE_MGMT_RSP_SENT
+			&& state != SRPT_STATE_NEED_DATA
+			&& state != SRPT_STATE_DONE);
+		WARN_ON((state == SRPT_STATE_MGMT_RSP_SENT) != (scmnd == NULL));
+
+		if (state == SRPT_STATE_DONE)
+			TRACE_DBG("Received more than one error completion for"
+				  " wr_id = %u.", (unsigned)(wc->wr_id));
+		else if (scmnd)
 			srpt_abort_scst_cmd(ioctx, context);
-		else
+		else {
+			srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
 			srpt_reset_ioctx(ch, ioctx);
+		}
 	}
 }
 
@@ -1167,9 +1211,9 @@ static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
 		&& state != SRPT_STATE_MGMT_RSP_SENT);
 	WARN_ON(state == SRPT_STATE_MGMT_RSP_SENT && scmnd);
 
+	srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
 	if (scmnd) {
 		srpt_unmap_sg_to_ib_sge(ch, ioctx);
-		srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
 		scst_tgt_cmd_done(scmnd, context);
 	} else
 		srpt_reset_ioctx(ch, ioctx);
@@ -1493,6 +1537,7 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 	atomic_set(&ioctx->state, SRPT_STATE_NEW);
 
 	if (ch_state == RDMA_CHANNEL_DISCONNECTING) {
+		srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
 		srpt_reset_ioctx(ch, ioctx);
 		return;
 	}
@@ -1532,11 +1577,13 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 
 	case SRP_CRED_RSP:
 		TRACE_DBG("%s", "received SRP_CRED_RSP");
+		srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
 		srpt_reset_ioctx(ch, ioctx);
 		break;
 
 	case SRP_AER_RSP:
 		TRACE_DBG("%s", "received SRP_AER_RSP");
+		srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
 		srpt_reset_ioctx(ch, ioctx);
 		break;
 
@@ -1584,8 +1631,10 @@ err:
 	if (send_rsp_res) {
 		if (scmnd)
 			srpt_abort_scst_cmd(ioctx, context);
-		else
+		else {
+			srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
 			srpt_reset_ioctx(ch, ioctx);
+		}
 	}
 }
 
@@ -1605,10 +1654,11 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 	ib_req_notify_cq(ch->cq, IB_CQ_NEXT_COMP);
 	while (ib_poll_cq(ch->cq, 1, &wc) > 0) {
 		if (wc.status) {
-			PRINT_INFO("%s failed with status %d",
+			PRINT_INFO("%s for wr_id %u failed with status %d",
 				   wc.wr_id & SRPT_OP_RECV
 				   ? "receiving"
 				   : "sending response",
+				   (unsigned)(wc.wr_id & ~SRPT_OP_RECV),
 				   wc.status);
 			srpt_handle_err_comp(ch, &wc, context);
 			continue;
@@ -2644,9 +2694,16 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	struct srpt_rdma_ch *ch;
 	struct srpt_ioctx *ioctx;
 	s32 req_lim_delta;
-	int ret = SCST_TGT_RES_SUCCESS;
+	int ret;
 	int dir;
 	int resp_len;
+	enum srpt_command_state prev_state;
+
+	if (unlikely(scst_cmd_atomic(scmnd))) {
+		TRACE_DBG("%s", "Switching to thread context.");
+		ret = SCST_TGT_RES_NEED_THREAD_CTX;
+		goto out;
+	}
 
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
 	BUG_ON(!ioctx);
@@ -2654,17 +2711,21 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	ch = scst_sess_get_tgt_priv(scst_cmd_get_session(scmnd));
 	BUG_ON(!ch);
 
+	prev_state = srpt_get_cmd_state(ioctx);
 	if (unlikely(scst_cmd_aborted(scmnd))) {
-		TRACE_DBG("cmd with tag %lld has been aborted",
-			  scst_cmd_get_tag(scmnd));
+		TRACE_DBG("cmd with tag %lld has been aborted (SRPT state"
+			  " %d -> %d; SCST state %d)",
+			  scst_cmd_get_tag(scmnd), prev_state,
+			  srpt_get_cmd_state(ioctx),
+			  scmnd->state);
 		srpt_abort_scst_cmd(ioctx, SCST_CONTEXT_SAME);
+		/*
+		 * Returning SCST_TGT_RES_SUCCESS without having called
+		 * scst_tgt_cmd_done() first will cause session unregistration
+		 * to lock up. Hence the WARN_ON() below.
+		 */
+		WARN_ON(scmnd->state != SCST_CMD_STATE_FINISHED);
 		ret = SCST_TGT_RES_SUCCESS;
-		goto out;
-	}
-
-	if (unlikely(scst_cmd_atomic(scmnd))) {
-		TRACE_DBG("%s", "Switching to thread context.");
-		ret = SCST_TGT_RES_NEED_THREAD_CTX;
 		goto out;
 	}
 
@@ -2674,6 +2735,8 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 		== SRPT_STATE_DONE);
 
 	dir = scst_cmd_get_data_direction(scmnd);
+
+	ret = SCST_TGT_RES_SUCCESS;
 
 	/* For read commands, transfer the data to the initiator. */
 	if (dir == SCST_DATA_READ && scst_cmd_get_resp_data_len(scmnd)) {
@@ -2700,7 +2763,6 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 		srpt_unmap_sg_to_ib_sge(ch, ioctx);
 		srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
 		scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_FAILED);
-		scst_tgt_cmd_done(scmnd, SCST_CONTEXT_SAME);
 		PRINT_ERROR("%s[%d]: ch->state= %d tag= %lld",
 			    __func__, __LINE__, atomic_read(&ch->state),
 			    (unsigned long long)scst_cmd_get_tag(scmnd));
