@@ -2533,22 +2533,31 @@ static void blockio_endio(struct bio *bio, int error)
 		return 1;
 #endif
 
-	error = test_bit(BIO_UPTODATE, &bio->bi_flags) ? error : -EIO;
+	if (unlikely(!test_bit(BIO_UPTODATE, &bio->bi_flags))) {
+		if (error == 0) {
+			PRINT_ERROR("Not up to date bio with error 0 for "
+				"cmd %p, returning -EIO", blockio_work->cmd);
+			error = -EIO;
+		}
+	}
 
 	if (unlikely(error != 0)) {
+		static DEFINE_SPINLOCK(blockio_endio_lock);
+
 		PRINT_ERROR("cmd %p returned error %d", blockio_work->cmd,
 			error);
-		/*
-		 * The race with other such bio's doesn't matter, since all
-		 * scst_set_cmd_error() calls do the same local to this cmd
-		 * operations.
-		 */
+
+		/* To protect from several bios finishing simultaneously */
+		spin_lock_bh(&blockio_endio_lock);
+
 		if (bio->bi_rw & WRITE)
 			scst_set_cmd_error(blockio_work->cmd,
 				SCST_LOAD_SENSE(scst_sense_write_error));
 		else
 			scst_set_cmd_error(blockio_work->cmd,
 				SCST_LOAD_SENSE(scst_sense_read_error));
+
+		spin_unlock_bh(&blockio_endio_lock);
 	}
 
 	blockio_check_finish(blockio_work);
