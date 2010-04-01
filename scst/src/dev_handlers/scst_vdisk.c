@@ -294,7 +294,7 @@ static ssize_t vdisk_add_blockio_device(const char *device_name, char *params);
 static ssize_t vdisk_add_nullio_device(const char *device_name, char *params);
 static ssize_t vdisk_del_device(const char *device_name);
 static ssize_t vcdrom_add_device(const char *device_name, char *params);
-static int vcdrom_del_device(const char *device_name);
+static ssize_t vcdrom_del_device(const char *device_name);
 #endif
 static int vdisk_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	struct scst_tgt_dev *tgt_dev);
@@ -3496,7 +3496,7 @@ out:
 
 }
 
-static int vcdrom_del_device(const char *device_name)
+static ssize_t vcdrom_del_device(const char *device_name)
 {
 	int res = 0;
 	struct scst_vdisk_dev *virt_dev;

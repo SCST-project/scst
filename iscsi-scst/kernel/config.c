@@ -695,7 +695,7 @@ int iscsi_add_attr(struct iscsi_target *target,
 
 	tgt_attr = kzalloc(sizeof(*tgt_attr), GFP_KERNEL);
 	if (tgt_attr == NULL) {
-		PRINT_ERROR("Unable to allocate user (size %d)",
+		PRINT_ERROR("Unable to allocate user (size %zd)",
 			sizeof(*tgt_attr));
 		res = -ENOMEM;
 		goto out;
