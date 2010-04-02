@@ -1183,8 +1183,8 @@ static void srpt_handle_err_comp(struct srpt_rdma_ch *ch, struct ib_wc *wc,
 		WARN_ON((state == SRPT_STATE_MGMT_RSP_SENT) != (scmnd == NULL));
 
 		if (state == SRPT_STATE_DONE)
-			TRACE_DBG("Received more than one error completion for"
-				  " wr_id = %u.", (unsigned)(wc->wr_id));
+			PRINT_ERROR("Received more than one IB error completion"
+				    " for wr_id = %u.", (unsigned)(wc->wr_id));
 		else if (scmnd)
 			srpt_abort_scst_cmd(ioctx, context);
 		else {
@@ -1208,11 +1208,15 @@ static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
 	scmnd = ioctx->scmnd;
 
 	WARN_ON(state != SRPT_STATE_CMD_RSP_SENT
-		&& state != SRPT_STATE_MGMT_RSP_SENT);
+		&& state != SRPT_STATE_MGMT_RSP_SENT
+		&& state != SRPT_STATE_DONE);
 	WARN_ON(state == SRPT_STATE_MGMT_RSP_SENT && scmnd);
 
 	srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
-	if (scmnd) {
+	if (state == SRPT_STATE_DONE)
+		PRINT_ERROR("IB completion has been received too late for"
+			    " wr_id = %u.", ioctx->index);
+	else if (scmnd) {
 		srpt_unmap_sg_to_ib_sge(ch, ioctx);
 		scst_tgt_cmd_done(scmnd, context);
 	} else
@@ -2299,6 +2303,9 @@ static int srpt_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
 	case IB_CM_REP_ERROR:
 		srpt_cm_rep_error(cm_id);
 		break;
+	case IB_CM_DREQ_ERROR:
+		PRINT_INFO("%s", "Received IB_CM_DREQ_ERROR event.");
+		break;
 	default:
 		PRINT_ERROR("received unrecognized IB CM event %d",
 			    event->event);
@@ -2607,6 +2614,25 @@ out:
 out_unmap:
 	srpt_unmap_sg_to_ib_sge(ch, ioctx);
 	goto out;
+}
+
+/**
+ * srpt_pending_cmd_timeout() - SCST command hw processing timeout callback.
+ *
+ * Called by the SCST core if no IB completion notification has been received
+ * within than max_hw_pending_time seconds.
+ */
+static void srpt_pending_cmd_timeout(struct scst_cmd *scmnd)
+{
+	struct srpt_ioctx *ioctx;
+
+	ioctx = scst_cmd_get_tgt_priv(scmnd);
+	BUG_ON(!ioctx);
+
+	PRINT_ERROR("IB completion for wr_id %u has not been received in time",
+		    ioctx->index);
+
+	srpt_abort_scst_cmd(ioctx, SCST_CONTEXT_SAME);
 }
 
 /**
@@ -2937,10 +2963,12 @@ static int srpt_release(struct scst_tgt *scst_tgt)
 static struct scst_tgt_template srpt_template = {
 	.name = DRV_NAME,
 	.sg_tablesize = SRPT_DEF_SG_TABLESIZE,
+	.max_hw_pending_time = 60/*seconds*/,
 	.detect = srpt_detect,
 	.release = srpt_release,
 	.xmit_response = srpt_xmit_response,
 	.rdy_to_xfer = srpt_rdy_to_xfer,
+	.on_hw_pending_cmd_timeout = srpt_pending_cmd_timeout,
 	.on_free_cmd = srpt_on_free_cmd,
 	.task_mgmt_fn_done = srpt_tsk_mgmt_done
 };
