@@ -3289,7 +3289,7 @@ static void srpt_remove_one(struct ib_device *device)
 		 * kernels do not have a facility to cancel scheduled work, so
 		 * wait until the scheduled work finished.
 		 */
-		flush_workqueue(&sdev->port[i].work);
+		flush_scheduled_work();
 #endif
 
 	ib_destroy_cm_id(sdev->cm_id);
