@@ -42,6 +42,10 @@ function version_code(kver) {
 # it is the same order as the order of operators in C.
 
 function evaluate(stmnt) {
+
+  if (debug)
+    printf "/* debug specialize-patch: (a) %s */\n", stmnt
+
   # Remove C-style comments.
   gsub(" *\\/\\*[^*]*\\*\\/ *", "", stmnt)
 
@@ -123,6 +127,9 @@ function evaluate(stmnt) {
     gsub("defined *\\( *CONFIG_SCST_PROC *\\)", 0, stmnt)
   }
 
+  if (debug)
+    printf "/* debug specialize-patch: (b) %s */\n", stmnt
+
   do
   {
     last_stmnt = stmnt
@@ -175,6 +182,12 @@ function evaluate(stmnt) {
       sub(pattern, (op[1] != 0) && (op[2] != 0), stmnt)
     }
   
+    pattern="([01]) *\\&\\& *(!* *defined *\\( *[A-Za-z_]* *\\))"
+    while (match(stmnt, pattern, op) != 0)
+    {
+      sub(pattern, op[1] != 0 ? op[2] : op[1], stmnt)
+    }
+  
     pattern="(-*[0-9]+) *\\|\\| *(-*[0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
@@ -186,6 +199,10 @@ function evaluate(stmnt) {
     {
       sub(pattern, op[1], stmnt)
     }
+
+    if (debug)
+      printf "/* debug specialize-patch: (c) %s -> %s */\n", last_stmnt, stmnt
+
   } while (stmnt != last_stmnt)
 
   return stmnt
@@ -223,7 +240,10 @@ function handle_if()
   {
     evaluated = "+#if undecided"
   }
-  #printf "%s -> %s\n", $0, evaluated
+
+  if (debug)
+    printf "/* debug specialize-patch: (d) %s -> %s */\n", $0, evaluated
+
   if (evaluated ~ "^+#if")
   {
     if_stmnt[if_nesting_level] = evaluated
