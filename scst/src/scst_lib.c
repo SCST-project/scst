@@ -46,7 +46,9 @@ struct scsi_io_context {
 static struct kmem_cache *scsi_io_context_cache;
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22) \
+    && (!defined(RHEL_RELEASE_CODE) || RHEL_RELEASE_CODE -0 < 5 * 256 + 3) \
+    && !defined(CONFIG_PPC)
 static int strncasecmp(const char *s1, const char *s2, size_t n)
 {
 	int c1, c2;
