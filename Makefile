@@ -1,8 +1,8 @@
 #
 #  Common makefile for SCSI target mid-level and its drivers
 #  
-#  Copyright (C) 2004 - 2009 Vladislav Bolkhovitin <vst@vlnb.net>
-#  Copyright (C) 2007 - 2009 ID7 Ltd.
+#  Copyright (C) 2004 - 2010 Vladislav Bolkhovitin <vst@vlnb.net>
+#  Copyright (C) 2007 - 2010 ID7 Ltd.
 #  
 #  This program is free software; you can redistribute it and/or
 #  modify it under the terms of the GNU General Public License

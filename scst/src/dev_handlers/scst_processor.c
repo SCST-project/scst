@@ -1,9 +1,9 @@
 /*
  *  scst_processor.c
  *
- *  Copyright (C) 2004 - 2009 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2010 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
- *  Copyright (C) 2007 - 2009 ID7 Ltd.
+ *  Copyright (C) 2007 - 2010 ID7 Ltd.
  *
  *  SCSI medium processor (type 3) dev handler
  *

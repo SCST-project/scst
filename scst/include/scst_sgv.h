@@ -1,8 +1,8 @@
 /*
  *  include/scst_sgv.h
  *
- *  Copyright (C) 2004 - 2009 Vladislav Bolkhovitin <vst@vlnb.net>
- *  Copyright (C) 2007 - 2009 ID7 Ltd.
+ *  Copyright (C) 2004 - 2010 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2007 - 2010 ID7 Ltd.
  *
  *  Include file for SCST SGV cache.
  *

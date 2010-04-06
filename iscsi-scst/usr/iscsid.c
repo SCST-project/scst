@@ -1,7 +1,7 @@
 /*
  *  Copyright (C) 2002 - 2003 Ardis Technolgies <roman@ardistech.com>
- *  Copyright (C) 2007 - 2009 Vladislav Bolkhovitin
- *  Copyright (C) 2007 - 2009 ID7 Ltd.
+ *  Copyright (C) 2007 - 2010 Vladislav Bolkhovitin
+ *  Copyright (C) 2007 - 2010 ID7 Ltd.
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License

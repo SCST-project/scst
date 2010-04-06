@@ -1,8 +1,8 @@
 /*
  *  scst_user.c
  *
- *  Copyright (C) 2007 - 2009 Vladislav Bolkhovitin <vst@vlnb.net>
- *  Copyright (C) 2007 - 2009 ID7 Ltd.
+ *  Copyright (C) 2007 - 2010 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2007 - 2010 ID7 Ltd.
  *
  *  SCSI virtual user space device handler
  *
