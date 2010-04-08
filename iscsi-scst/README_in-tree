@@ -533,18 +533,31 @@ connected to the target via *separate* sessions, i.e. each VM has own
 connection to the target, not all VMs connected using a single
 connection. You can check it using SCST proc or sysfs interface. If you
 miss it, you can greatly loose performance of parallel access to your
-target from different VMs.
+target from different VMs. This isn't related to the case if your VMs
+are using the same shared storage, like with VMFS, for instance. In this
+case all your VM hosts will be connected to the target via separate
+sessions, which is enough.
 
 5. Many dual port network adapters are not able to transfer data
-simultaneousy on both ports, i.e. they transfer data via both ports on
+simultaneously on both ports, i.e. they transfer data via both ports on
 the same speed as via any single port. Thus, using such adapters in MPIO
 configuration can't improve performance. To allow MPIO to have double
 performance you should either use separate network adapters, or find a
-dual-port adapter capable to to transfer data simultaneousy on both
+dual-port adapter capable to to transfer data simultaneously on both
 ports. You can check it by running 2 iperf's through both ports in
 parallel.
 
-6. See SCST core's README for more advices. Especially pay attention to
+6. Since network offload works much better in the write direction, than
+for reading (simplifying, in the read direction often there's additional
+data copy) in many cases with 10GbE in a single initiator-target pair
+the initiator's CPU is a bottleneck, so you can see the initiator can
+read data on much slower rate, than write. You can check it by watching
+*each particular* CPU load to find out if any of them is close to 100%
+load, including IRQ processing load. Note, many tools like vmstat give
+aggregate load on all CPUs, so with 4 cores 25% corresponds to 100% load
+of any single CPU.
+
+7. See SCST core's README for more advices. Especially pay attention to
 have io_grouping_type option set correctly.
 
 

@@ -1473,7 +1473,10 @@ connected using a single connection. You can check it using SCST proc or
 sysfs interface. For other transports you should use available
 facilities, like NPIV for Fibre Channel, to make separate sessions for
 each VM. If you miss it, you can greatly loose performance of parallel
-access to your target from different VMs.
+access to your target from different VMs. This isn't related to the case
+if your VMs are using the same shared storage, like with VMFS, for
+instance. In this case all your VM hosts will be connected to the target
+via separate sessions, which is enough.
 
 6. For other target and initiator software parts:
 

@@ -430,7 +430,10 @@ connected to the target via *separate* sessions. You can check it using
 SCST proc or sysfs interface. You should use available facilities, like
 NPIV, to make separate sessions for each VM. If you miss it, you can
 greatly loose performance of parallel access to your target from
-different VMs.
+different VMs. This isn't related to the case if your VMs are using the
+same shared storage, like with VMFS, for instance. In this case all your
+VM hosts will be connected to the target via separate sessions, which is
+enough.
 
 2. See SCST core's README for more advices. Especially pay attention to
 have io_grouping_type option set correctly.
