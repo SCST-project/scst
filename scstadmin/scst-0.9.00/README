@@ -1,0 +1,19 @@
+SCST-SCST is a perl module for querying and configuring SCST.
+
+
+AVAILABILITY
+
+Currently SCST-SCST ships with SCST itself available from
+http://scst.sourceforge.net.
+
+
+INSTALLATION
+
+Install SCST-SCST as you would any other perl module:
+
+   perl Makefile.PL
+   make
+   make install
+
+NOTE: This version (0.9.00+) requires SCST to be
+compiled with sysfs support!
