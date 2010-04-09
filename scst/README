@@ -54,6 +54,10 @@ your compiler complains about redefinition of some symbol, you should
 either switch to vanilla kernel, or add or change as necessary the
 corresponding to that symbol "#if LINUX_VERSION_CODE" statement.
 
+The sysfs build supports only kernels 2.6.26 and higher, because in
+2.6.26 internal kernel's sysfs interface had a major change, which made
+it heavily incompatible with pre-2.6.26 version.
+
 At first, make sure that the link "/lib/modules/`you_kernel_version`/build" 
 points to the source code for your currently running kernel.
 
@@ -582,7 +586,10 @@ SCST sysfs interface
 
 Starting from 2.0.0 SCST has sysfs interface. You can switch to it by
 running "make disable_proc". To switch back to the procfs interface you
-should run "make enable_proc".
+should run "make enable_proc". The sysfs build supports only kernels
+2.6.26 and higher, because in 2.6.26 internal kernel's sysfs interface
+had a major change, which made it heavily incompatible with pre-2.6.26
+version.
 
 Root of SCST sysfs interface is /sys/kernel/scst_tgt. It has the
 following entries:

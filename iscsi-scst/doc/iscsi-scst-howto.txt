@@ -121,6 +121,164 @@ the following commands:
   /etc/init.d/iscsi-scst start
 
 
+Installing and using iSCSI-SCST without using scstadmin via /sys interface
+==========================================================================
+
+First repeat steps 1, 2 and 3 from the first section but leave out
+"scstadm scstadm_install" from the make command in step 1.
+
+Next load the scst_disk and scst_vdisk kernel modules as follows:
+
+modprobe scst_disk
+modprobe scst_vdisk
+
+The shell script /etc/init.d/iscsi-scst can now be used to start/stop/restart or
+check the status of iSCSI-SCST.
+
+
+Creating targets
+----------------
+
+echo "add_target iqn.2007-05.com.example:storage.iscsi-scst-1" > /sys/kernel/scst_tgt/targets/iscsi/mgmt
+
+This will add target iqn.2007-05.com.example:storage.iscsi-scst-1.
+
+
+Changing targets' parameters
+----------------------------
+
+echo "8192" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example\:storage.iscsi-scst-1/MaxRecvDataSegmentLength
+
+This will change MaxRecvDataSegmentLength parameter of target
+iqn.2007-05.com.example:storage.iscsi-scst-1 to 8192.
+
+You can read it then by:
+
+# cat /sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example\:storage.iscsi-scst-1/MaxRecvDataSegmentLength
+8192
+[key]
+
+The mark "[key]" shows high level management tools, like scstadmin, that
+this attribute has not default value. You can ignore it.
+
+
+Add vdisk devices
+-----------------
+
+dd if=/dev/zero of=/disk1 bs=1M count=1024
+
+This will create a backend file /disk1 for our future virtual device
+disk1.
+
+echo "add_device disk1 filename=/disk1; nv_cache=1" >/sys/kernel/scst_tgt/handlers/vdisk_fileio/mgmt
+
+This will add new FILEIO device disk1 with backend file /disk1 and
+NV_CACHE option enabled.
+
+
+Selecting devices to be used by SCST
+------------------------------------
+
+You can see the list of available devices:
+
+# ls -1 /sys/kernel/scst_tgt/devices
+0:0:0:0
+1:0:0:0
+3:0:0:0
+3:0:0:1
+3:0:0:2
+3:0:0:3
+3:0:0:4
+3:0:0:5
+3:0:0:6
+3:0:0:7
+2:0:0:0
+4:0:0:0
+4:0:0:5
+4:0:0:6
+4:0:0:7
+4:0:0:8
+4:0:0:9
+4:0:1:0
+4:0:1:1
+4:0:1:2
+4:0:1:3
+4:0:1:4
+5:0:0:0
+5:0:0:5
+5:0:0:6
+5:0:0:7
+5:0:0:8
+5:0:0:9
+5:0:1:0
+5:0:1:1
+5:0:1:2
+5:0:1:3
+5:0:1:4
+disk1
+
+
+Defining LUN masking
+--------------------
+
+In order to associate specific LUNs with target
+iqn.2007-05.com.example:storage.iscsi-scst-1, do the following:
+
+echo "add 4:0:0:8 0" > /sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example\:storage.iscsi-scst-1/luns/mgmt
+
+This will assign the LUN 0 for pass-through device 4:0:0:8 to the target
+iqn.2007-05.com.example:storage.iscsi-scst-1.
+
+Note, you must have LUN 0 for each group. That's a SCSI requirement
+(documented in SCST's README).
+
+echo "add disk1 1 read_only=1" > /sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example\:storage.iscsi-scst-1/luns/mgmt
+
+This will assign the read only LUN 1 for virtual device disk1 to the
+target iqn.2007-05.com.example:storage.iscsi-scst-1.
+
+
+Deleting a LUN from a group
+---------------------------
+
+Run the following command:
+
+echo "del disk1" > /sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example\:storage.iscsi-scst-1/luns/mgmt
+
+This will remove the LUN "disk1" from the target iqn.2007-05.com.example:storage.iscsi-scst-1.
+
+For more information about LUN masking, refer to SCST README, section
+"Access and devices visibility management (LUN masking)".
+
+
+Enabling targets
+----------------
+
+After you created and configured target, you should enable it:
+
+echo 1 >/sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example\:storage.iscsi-scst-1/enabled
+
+Then enable the iSCSI-SCST driver:
+
+echo 1 >/sys/kernel/scst_tgt/targets/iscsi/enabled
+
+
+Assigning targets to specific initiators
+----------------------------------------
+
+In order to assign targets to specific initiators, you need to have
+/etc/initiators.allow  and /etc/initiators.deny. You can find
+example files in etc/initiators.allow and etc/initiators.deny.
+
+Note that all targets are allowed to all initiators by default, so if
+you want to use /etc/initiators.allow, you will need to have
+/etc/initiators.deny that looks like this:
+
+ALL ALL
+
+This will deny all initiators expect for those defined in /etc/initiators.allow.
+
+
 Installing and using iSCSI-SCST without using scstadmin via /proc interface
 ===========================================================================
 
@@ -285,164 +443,6 @@ OFMarker=No
 IFMarker=No
 OFMarkInt=Reject
 IFMarkInt=Reject
-
-
-Installing and using iSCSI-SCST without using scstadmin via /sys interface
-==========================================================================
-
-First repeat steps 1, 2 and 3 from the first section but leave out
-"scstadm scstadm_install" from the make command in step 1.
-
-Next load the scst_disk and scst_vdisk kernel modules as follows:
-
-modprobe scst_disk
-modprobe scst_vdisk
-
-The shell script /etc/init.d/iscsi-scst can now be used to start/stop/restart or
-check the status of iSCSI-SCST.
-
-
-Creating targets
-----------------
-
-echo "add_target iqn.2007-05.com.example:storage.iscsi-scst-1" > /sys/kernel/scst_tgt/targets/iscsi/mgmt
-
-This will add target iqn.2007-05.com.example:storage.iscsi-scst-1.
-
-
-Changing targets' parameters
-----------------------------
-
-echo "8192" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example\:storage.iscsi-scst-1/MaxRecvDataSegmentLength
-
-This will change MaxRecvDataSegmentLength parameter of target
-iqn.2007-05.com.example:storage.iscsi-scst-1 to 8192.
-
-You can read it then by:
-
-# cat /sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example\:storage.iscsi-scst-1/MaxRecvDataSegmentLength
-8192
-[key]
-
-The mark "[key]" shows high level management tools, like scstadmin, that
-this attribute has not default value. You can ignore it.
-
-
-Add vdisk devices
------------------
-
-dd if=/dev/zero of=/disk1 bs=1M count=1024
-
-This will create a backend file /disk1 for our future virtual device
-disk1.
-
-echo "add_device disk1 filename=/disk1; nv_cache=1" >/sys/kernel/scst_tgt/handlers/vdisk_fileio/mgmt
-
-This will add new FILEIO device disk1 with backend file /disk1 and
-NV_CACHE option enabled.
-
-
-Selecting devices to be used by SCST
-------------------------------------
-
-You can see the list of available devices:
-
-# ls -1 /sys/kernel/scst_tgt/devices
-0:0:0:0
-1:0:0:0
-3:0:0:0
-3:0:0:1
-3:0:0:2
-3:0:0:3
-3:0:0:4
-3:0:0:5
-3:0:0:6
-3:0:0:7
-2:0:0:0
-4:0:0:0
-4:0:0:5
-4:0:0:6
-4:0:0:7
-4:0:0:8
-4:0:0:9
-4:0:1:0
-4:0:1:1
-4:0:1:2
-4:0:1:3
-4:0:1:4
-5:0:0:0
-5:0:0:5
-5:0:0:6
-5:0:0:7
-5:0:0:8
-5:0:0:9
-5:0:1:0
-5:0:1:1
-5:0:1:2
-5:0:1:3
-5:0:1:4
-disk1
-
-
-Defining LUN masking
---------------------
-
-In order to associate specific LUNs with target
-iqn.2007-05.com.example:storage.iscsi-scst-1, do the following:
-
-echo "add 4:0:0:8 0" > /sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example\:storage.iscsi-scst-1/luns/mgmt
-
-This will assign the LUN 0 for pass-through device 4:0:0:8 to the target
-iqn.2007-05.com.example:storage.iscsi-scst-1.
-
-Note, you must have LUN 0 for each group. That's a SCSI requirement
-(documented in SCST's README).
-
-echo "add disk1 1 read_only=1" > /sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example\:storage.iscsi-scst-1/luns/mgmt
-
-This will assign the read only LUN 1 for virtual device disk1 to the
-target iqn.2007-05.com.example:storage.iscsi-scst-1.
-
-
-Deleting a LUN from a group
----------------------------
-
-Run the following command:
-
-echo "del disk1" > /sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example\:storage.iscsi-scst-1/luns/mgmt
-
-This will remove the LUN "disk1" from the target iqn.2007-05.com.example:storage.iscsi-scst-1.
-
-For more information about LUN masking, refer to SCST README, section
-"Access and devices visibility management (LUN masking)".
-
-
-Enabling targets
-----------------
-
-After you created and configured target, you should enable it:
-
-echo 1 >/sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example\:storage.iscsi-scst-1/enabled
-
-Then enable the iSCSI-SCST driver:
-
-echo 1 >/sys/kernel/scst_tgt/targets/iscsi/enabled
-
-
-Assigning targets to specific initiators
-----------------------------------------
-
-In order to assign targets to specific initiators, you need to have
-/etc/initiators.allow  and /etc/initiators.deny. You can find
-example files in etc/initiators.allow and etc/initiators.deny.
-
-Note that all targets are allowed to all initiators by default, so if
-you want to use /etc/initiators.allow, you will need to have
-/etc/initiators.deny that looks like this:
-
-ALL ALL
-
-This will deny all initiators expect for those defined in /etc/initiators.allow.
 
 
 Bart Van Assche
