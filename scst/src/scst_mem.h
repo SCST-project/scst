@@ -30,6 +30,9 @@ struct trans_tbl_ent {
 	unsigned short pg_count;
 };
 
+/*
+ * SGV pool object
+ */
 struct sgv_pool_obj {
 	int cache_num;
 	int pages;
@@ -50,11 +53,17 @@ struct sgv_pool_obj {
 	struct scatterlist sg_entries_data[0];
 };
 
+/*
+ * SGV pool statistics accounting structure
+ */
 struct sgv_pool_cache_acc {
 	atomic_t total_alloc, hit_alloc;
 	atomic_t merged;
 };
 
+/*
+ * SGV pool allocation functions
+ */
 struct sgv_pool_alloc_fns {
 	struct page *(*alloc_pages_fn)(struct scatterlist *sg, gfp_t gfp_mask,
 		void *priv);
@@ -62,6 +71,9 @@ struct sgv_pool_alloc_fns {
 		void *priv);
 };
 
+/*
+ * SGV pool
+ */
 struct sgv_pool {
 	enum sgv_clustering_types clustering_type;
 	int single_alloc_pages;

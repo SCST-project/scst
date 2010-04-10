@@ -883,6 +883,21 @@ static void sgv_uncheck_allowed_mem(struct scst_mem_lim *mem_lim, int pages)
 	return;
 }
 
+/**
+ * sgv_pool_alloc - allocate an SG vector from the SGV pool
+ * @pool:	the cache to alloc from
+ * @size:	size of the resulting SG vector in bytes
+ * @gfp_mask:	the allocation mask
+ * @flags:	the allocation flags
+ * @count:	the resulting count of SG entries in the resulting SG vector
+ * @sgv:	the resulting SGV object
+ * @mem_lim:	memory limits
+ * @priv:	pointer to private for this allocation data
+ *
+ * Description:
+ *    Allocate an SG vector from the SGV pool and returns pointer to it or
+ *    NULL in case of any error. See the SGV pool documentation for more details.
+ */
 struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 	gfp_t gfp_mask, int flags, int *count,
 	struct sgv_pool_obj **sgv, struct scst_mem_lim *mem_lim, void *priv)
@@ -1140,12 +1155,26 @@ out_uncheck:
 }
 EXPORT_SYMBOL(sgv_pool_alloc);
 
+/**
+ * sgv_get_priv - return the private allocation data
+ *
+ * Allows to get the allocation private data for this SGV
+ * cache object. The private data supposed to be set by sgv_pool_alloc().
+ */
 void *sgv_get_priv(struct sgv_pool_obj *obj)
 {
 	return obj->allocator_priv;
 }
 EXPORT_SYMBOL(sgv_get_priv);
 
+/**
+ * sgv_pool_free - free previously allocated SG vector
+ * @sgv:	the SGV object to free
+ * @mem_lim:	memory limits
+ *
+ * Description:
+ *    Frees previously allocated SG vector and updates memory limits
+ */
 void sgv_pool_free(struct sgv_pool_obj *obj, struct scst_mem_lim *mem_lim)
 {
 	int pages = (obj->sg_count != 0) ? obj->pages : 0;
@@ -1168,6 +1197,13 @@ void sgv_pool_free(struct sgv_pool_obj *obj, struct scst_mem_lim *mem_lim)
 }
 EXPORT_SYMBOL(sgv_pool_free);
 
+/**
+ * scst_alloc() - allocates an SG vector
+ *
+ * Allocates and returns pointer to SG vector with data size "size".
+ * In *count returned the count of entries in the vector.
+ * Returns NULL for failure.
+ */
 struct scatterlist *scst_alloc(int size, gfp_t gfp_mask, int *count)
 {
 	struct scatterlist *res;
@@ -1230,6 +1266,11 @@ out_uncheck:
 }
 EXPORT_SYMBOL(scst_alloc);
 
+/**
+ * scst_free() - frees SG vector
+ *
+ * Frees SG vector returned by scst_alloc().
+ */
 void scst_free(struct scatterlist *sg, int count)
 {
 	TRACE_MEM("Freeing sg=%p", sg);
@@ -1403,6 +1444,11 @@ static void sgv_evaluate_local_max_pages(void)
 	return;
 }
 
+/**
+ * sgv_pool_flush - flushe the SGV pool
+ *
+ * Flushes, i.e. frees, all the cached entries in the SGV pool.
+ */
 void sgv_pool_flush(struct sgv_pool *pool)
 {
 	int i;
@@ -1457,6 +1503,16 @@ static void sgv_pool_deinit_put(struct sgv_pool *pool)
 	return;
 }
 
+/**
+ * sgv_pool_set_allocator - set custom pages allocator
+ * @pool:	the cache
+ * @alloc_pages_fn: pages allocation function
+ * @free_pages_fn: pages freeing function
+ *
+ * Description:
+ *    Allows to set custom pages allocator for the SGV pool.
+ *    See the SGV pool documentation for more details.
+ */
 void sgv_pool_set_allocator(struct sgv_pool *pool,
 	struct page *(*alloc_pages_fn)(struct scatterlist *, gfp_t, void *),
 	void (*free_pages_fn)(struct scatterlist *, int, void *))
@@ -1467,6 +1523,30 @@ void sgv_pool_set_allocator(struct sgv_pool *pool,
 }
 EXPORT_SYMBOL(sgv_pool_set_allocator);
 
+/**
+ * sgv_pool_create - creates and initializes an SGV pool
+ * @name:	the name of the SGV pool
+ * @clustered:	sets type of the pages clustering.
+ * @single_alloc_pages:	if 0, then the SGV pool will work in the set of
+ *		power 2 size buffers mode. If >0, then the SGV pool will
+ *		work in the fixed size buffers mode. In this case
+ *		single_alloc_pages sets the size of each buffer in pages.
+ * @shared:	sets if the SGV pool can be shared between devices or not.
+ *		The cache sharing allowed only between devices created inside
+ *		the same address space. If an SGV pool is shared, each
+ *		subsequent call of sgv_pool_create() with the same cache name
+ *		will not create a new cache, but instead return a reference
+ *		to it.
+ * @purge_interval: sets the cache purging interval. I.e., an SG buffer
+ *		will be freed if it's unused for time t
+ *		purge_interval <= t < 2*purge_interval. If purge_interval
+ *		is 0, then the default interval will be used (60 seconds).
+ *		If purge_interval <0, then the automatic purging will be
+ *		disabled.
+ *
+ * Description:
+ *    Returns the resulting SGV pool or NULL in case of any error.
+ */
 struct sgv_pool *sgv_pool_create(const char *name,
 	enum sgv_clustering_types clustering_type,
 	int single_alloc_pages, bool shared, int purge_interval)
@@ -1548,6 +1628,11 @@ void sgv_pool_destroy(struct sgv_pool *pool)
 	return;
 }
 
+/**
+ * sgv_pool_get - increase ref counter for the corresponding SGV pool
+ *
+ * Increases ref counter for the corresponding SGV pool
+ */
 void sgv_pool_get(struct sgv_pool *pool)
 {
 	atomic_inc(&pool->sgv_pool_ref);
@@ -1557,6 +1642,12 @@ void sgv_pool_get(struct sgv_pool *pool)
 }
 EXPORT_SYMBOL(sgv_pool_get);
 
+/**
+ * sgv_pool_put - decrease ref counter for the corresponding SGV pool
+ *
+ * Decreases ref counter for the corresponding SGV pool. If the ref
+ * counter reaches 0, the cache will be destroyed.
+ */
 void sgv_pool_put(struct sgv_pool *pool)
 {
 	TRACE_MEM("Decrementing sgv pool %p ref (new value %d)",
@@ -1567,6 +1658,14 @@ void sgv_pool_put(struct sgv_pool *pool)
 }
 EXPORT_SYMBOL(sgv_pool_put);
 
+/**
+ * sgv_pool_del - deletes the corresponding SGV pool
+ * @pool:	the cache to delete.
+ *
+ * Description:
+ *    If the cache is shared, it will decrease its reference counter.
+ *    If the reference counter reaches 0, the cache will be destroyed.
+ */
 void sgv_pool_del(struct sgv_pool *pool)
 {
 	TRACE_ENTRY();

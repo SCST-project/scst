@@ -65,9 +65,21 @@ static inline void scst_schedule_tasklet(struct scst_cmd *cmd)
 	tasklet_schedule(&t->tasklet);
 }
 
-/*
- * Must not be called in parallel with scst_unregister_session() for the
- * same sess
+/**
+ * scst_rx_cmd() - create new command
+ * @sess:	SCST session
+ * @lun:	LUN for the command
+ * @lun_len:	length of the LUN in bytes
+ * @cdb:	CDB of the command
+ * @cdb_len:	length of the CDB in bytes
+ * @atomic:	true, if current context is atomic
+ *
+ * Description:
+ *    Creates new SCST command. Returns new command on success or
+ *    NULL otherwise.
+ *
+ *    Must not be called in parallel with scst_unregister_session() for the
+ *    same session. 
  */
 struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
 			     const uint8_t *lun, int lun_len,
@@ -202,6 +214,29 @@ out_redirect:
 	goto out;
 }
 
+/**
+ * scst_cmd_init_done() - the command's initialization done
+ * @cmd:	SCST command
+ * @pref_context: preferred command execution context
+ *
+ * Description:
+ *    Notifies SCST that the driver finished its part of the command
+ *    initialization, and the command is ready for execution.
+ *    The second argument sets preferred command execition context.
+ *    See SCST_CONTEXT_* constants for details.
+ *
+ *    !!IMPORTANT!!
+ *
+ *    If cmd->set_sn_on_restart_cmd not set, this function, as well as
+ *    scst_cmd_init_stage1_done() and scst_restart_cmd(), must not be
+ *    called simultaneously for the same session (more precisely,
+ *    for the same session/LUN, i.e. tgt_dev), i.e. they must be
+ *    somehow externally serialized. This is needed to have lock free fast
+ *    path in scst_cmd_set_sn(). For majority of targets those functions are
+ *    naturally serialized by the single source of commands. Only iSCSI
+ *    immediate commands with multiple connections per session seems to be an
+ *    exception. For it, some mutex/lock shall be used for the serialization.
+ */
 void scst_cmd_init_done(struct scst_cmd *cmd,
 	enum scst_exec_context pref_context)
 {
@@ -846,6 +881,22 @@ static int scst_preprocessing_done(struct scst_cmd *cmd)
 	return res;
 }
 
+/**
+ * scst_restart_cmd() - restart execution of the command
+ * @cmd:	SCST commands
+ * @status:	completion status
+ * @pref_context: preferred command execition context
+ *
+ * Description:
+ *    Notifies SCST that the driver finished its part of the command's
+ *    preprocessing and it is ready for further processing.
+ *
+ *    The second argument sets completion status
+ *    (see SCST_PREPROCESS_STATUS_* constants for details)
+ *
+ *    See also comment for scst_cmd_init_done() for the serialization
+ *    requirements.
+ */
 void scst_restart_cmd(struct scst_cmd *cmd, int status,
 	enum scst_exec_context pref_context)
 {
@@ -1089,6 +1140,19 @@ static void scst_process_redirect_cmd(struct scst_cmd *cmd,
 	return;
 }
 
+/**
+ * scst_rx_data() - the command's data received
+ * @cmd:	SCST commands
+ * @status:	data receiving completion status
+ * @pref_context: preferred command execition context
+ *
+ * Description:
+ *    Notifies SCST that the driver received all the necessary data
+ *    and the command is ready for further processing.
+ *
+ *    The second argument sets data receiving completion status
+ *    (see SCST_RX_STATUS_* constants for details)
+ */
 void scst_rx_data(struct scst_cmd *cmd, int status,
 	enum scst_exec_context pref_context)
 {
@@ -1818,7 +1882,20 @@ out_done:
 	goto out;
 }
 
-/* No locks, no IRQ or IRQ-disabled context allowed */
+/**
+ * scst_check_local_events() - check if there are any local SCSI events
+ *
+ * Description:
+ *    Checks if the command can be executed or there are local events,
+ *    like reservatons, pending UAs, etc. Returns < 0 if command must be
+ *    aborted, > 0 if there is an event and command should be immediately
+ *    completed, or 0 otherwise.
+ *
+ * !! Dev handlers implementing exec() callback must call this function there
+ * !! just before the actual command's execution!
+ *
+ *    On call no locks, no IRQ or IRQ-disabled context allowed.
+ */
 int scst_check_local_events(struct scst_cmd *cmd)
 {
 	int res, rc;
@@ -3072,6 +3149,18 @@ out_error:
 	goto out;
 }
 
+/**
+ * scst_tgt_cmd_done() - the command's processing done
+ * @cmd:	SCST command
+ * @pref_context: preferred command execution context
+ *
+ * Description:
+ *    Notifies SCST that the driver sent the response and the command
+ *    can be freed now. Don't forget to set the delivery status, if it
+ *    isn't success, using scst_set_delivery_status() before calling
+ *    this function. The third argument sets preferred command execition
+ *    context (see SCST_CONTEXT_* constants for details)
+ */
 void scst_tgt_cmd_done(struct scst_cmd *cmd,
 	enum scst_exec_context pref_context)
 {
@@ -3539,7 +3628,16 @@ int scst_init_thread(void *arg)
 	return 0;
 }
 
-/* Called with no locks held */
+/**
+ * scst_process_active_cmd() - process active command
+ *
+ * Description:
+ *    Main SCST commands processing routing. Must be used only by dev handlers.
+ *
+ *    Argument atomic is true, if function called in atomic context.
+ *
+ *    Must be called with no locks held.
+ */
 void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 {
 	int res;
@@ -3702,6 +3800,13 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 }
 EXPORT_SYMBOL(scst_process_active_cmd);
 
+/**
+ * scst_post_parse_process_active_cmd() - process command after parse
+ *
+ * SCST commands processing routine, which should be called by dev handler
+ * after its parse() callback returned SCST_CMD_STATE_STOP. Arguments are
+ * the same as for scst_process_active_cmd().
+ */
 void scst_post_parse_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 {
 	scst_set_parse_time(cmd);
@@ -3989,7 +4094,14 @@ out:
 	return mcmd->cmd_finish_wait_count;
 }
 
-/* No locks */
+/**
+ * scst_prepare_async_mcmd() - prepare async management command
+ *
+ * Notifies SCST that management command is going to be async, i.e.
+ * will be completed in another context.
+ *
+ * No SCST locks supposed to be held on entrance.
+ */
 void scst_prepare_async_mcmd(struct scst_mgmt_cmd *mcmd)
 {
 	unsigned long flags;
@@ -4009,7 +4121,14 @@ void scst_prepare_async_mcmd(struct scst_mgmt_cmd *mcmd)
 }
 EXPORT_SYMBOL(scst_prepare_async_mcmd);
 
-/* No locks */
+/**
+ * scst_async_mcmd_completed() - async management command completed
+ *
+ * Notifies SCST that async management command, prepared by
+ * scst_prepare_async_mcmd(), completed.
+ *
+ * No SCST locks supposed to be held on entrance.
+ */
 void scst_async_mcmd_completed(struct scst_mgmt_cmd *mcmd, int status)
 {
 	unsigned long flags;
@@ -5316,9 +5435,16 @@ out_unlock:
 	goto out;
 }
 
-/*
- * Must not be called in parallel with scst_unregister_session() for the
- * same sess
+/**
+ * scst_rx_mgmt_fn() - create new management command and send it for execution
+ *
+ * Description:
+ *    Creates new management command and sends it for execution.
+ *
+ *    Returns 0 for success, error code otherwise.
+ *
+ *    Must not be called in parallel with scst_unregister_session() for the
+ *    same sess.
  */
 int scst_rx_mgmt_fn(struct scst_session *sess,
 	const struct scst_rx_mgmt_params *params)
@@ -5498,7 +5624,7 @@ static struct scst_acg *scst_find_tgt_acg_by_name_wild(struct scst_tgt *tgt,
 	if (initiator_name == NULL)
 		goto out;
 
-	list_for_each_entry(acg, &tgt->acg_list, acg_list_entry) {
+	list_for_each_entry(acg, &tgt->tgt_acg_list, acg_list_entry) {
 		list_for_each_entry(n, &acg->acn_list, acn_list_entry) {
 			if (wildcmp(n->name, initiator_name)) {
 				TRACE_DBG("Access control group %s found",
@@ -5622,6 +5748,48 @@ restart:
 	return res;
 }
 
+/**
+ * scst_register_session() - register session
+ * @tgt:	target
+ * @atomic:	true, if the function called in the atomic context. If false,
+ *		 this function will block until the session registration is
+ *		 completed.
+ * @initiator_name: remote initiator's name, any NULL-terminated string,
+ *		    e.g. iSCSI name, which used as the key to found appropriate
+ *		    access control group. Could be NULL, then the default
+ *		    target's LUNs are used.
+ * @data:	any target driver supplied data
+ * @result_fn:	pointer to the function that will be asynchronously called
+ *		 when session initialization finishes.
+ *		 Can be NULL. Parameters:
+ *		    - sess - session
+ *		    - data - target driver supplied to scst_register_session()
+ *			     data
+ *		    - result - session initialization result, 0 on success or
+ *			      appropriate error code otherwise
+ *
+ * Description:
+ *    Registers new session. Returns new session on success or NULL otherwise.
+ *
+ *    Note: A session creation and initialization is a complex task,
+ *    which requires sleeping state, so it can't be fully done
+ *    in interrupt context. Therefore the "bottom half" of it, if
+ *    scst_register_session() is called from atomic context, will be
+ *    done in SCST thread context. In this case scst_register_session()
+ *    will return not completely initialized session, but the target
+ *    driver can supply commands to this session via scst_rx_cmd().
+ *    Those commands processing will be delayed inside SCST until
+ *    the session initialization is finished, then their processing
+ *    will be restarted. The target driver will be notified about
+ *    finish of the session initialization by function result_fn().
+ *    On success the target driver could do nothing, but if the
+ *    initialization fails, the target driver must ensure that
+ *    no more new commands being sent or will be sent to SCST after
+ *    result_fn() returns. All already sent to SCST commands for
+ *    failed session will be returned in xmit_response() with BUSY status.
+ *    In case of failure the driver shall call scst_unregister_session()
+ *    inside result_fn(), it will NOT be called automatically.
+ */
 struct scst_session *scst_register_session(struct scst_tgt *tgt, int atomic,
 	const char *initiator_name, void *data,
 	void (*result_fn) (struct scst_session *sess, void *data, int result))
@@ -5666,9 +5834,38 @@ out_free:
 }
 EXPORT_SYMBOL(scst_register_session);
 
-/*
- * Must not be called in parallel with scst_rx_cmd() or
- * scst_rx_mgmt_fn_*() for the same sess
+/**
+ * scst_unregister_session() - unregister session
+ * @sess:	session to be unregistered
+ * @wait:	if true, instructs to wait until all commands, which
+ *		currently is being executed and belonged to the session,
+ *		finished. Otherwise, target driver should be prepared to
+ *		receive xmit_response() for the session's command after
+ *		scst_unregister_session() returns.
+ * @unreg_done_fn: pointer to the function that will be asynchronously called
+ *		   when the last session's command finishes and
+ *		   the session is about to be completely freed. Can be NULL.
+ *		   Parameter:
+ *			- sess - session
+ *
+ * Unregisters session.
+ *
+ * Notes:
+ * - All outstanding commands will be finished regularly. After
+ *   scst_unregister_session() returned, no new commands must be sent to
+ *   SCST via scst_rx_cmd().
+ *
+ * - The caller must ensure that no scst_rx_cmd() or scst_rx_mgmt_fn_*() is
+ *   called in paralell with scst_unregister_session().
+ *
+ * - Can be called before result_fn() of scst_register_session() called,
+ *   i.e. during the session registration/initialization.
+ *
+ * - It is highly recommended to call scst_unregister_session() as soon as it
+ *   gets clear that session will be unregistered and not to wait until all
+ *   related commands finished. This function provides the wait functionality,
+ *   but it also starts recovering stuck commands, if there are any.
+ *   Otherwise, your target driver could wait for those commands forever.
  */
 void scst_unregister_session(struct scst_session *sess, int wait,
 	void (*unreg_done_fn) (struct scst_session *sess))
@@ -5867,6 +6064,13 @@ static struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,
 	return res;
 }
 
+/**
+ * scst_find_cmd() - find command by custom comparison function
+ *
+ * Finds a command based on user supplied data and comparision
+ * callback function, that should return true, if the command is found.
+ * Returns the command on success or NULL otherwise
+ */
 struct scst_cmd *scst_find_cmd(struct scst_session *sess, void *data,
 			       int (*cmp_fn) (struct scst_cmd *cmd,
 					      void *data))
@@ -5907,6 +6111,13 @@ out:
 }
 EXPORT_SYMBOL(scst_find_cmd);
 
+/**
+ * scst_find_cmd_by_tag() - find command by tag
+ *
+ * Finds a command based on the supplied tag comparing it with one
+ * that previously set by scst_cmd_set_tag(). Returns the found command on
+ * success or NULL otherwise
+ */
 struct scst_cmd *scst_find_cmd_by_tag(struct scst_session *sess,
 	uint64_t tag)
 {
@@ -5918,23 +6129,3 @@ struct scst_cmd *scst_find_cmd_by_tag(struct scst_session *sess,
 	return cmd;
 }
 EXPORT_SYMBOL(scst_find_cmd_by_tag);
-
-void *scst_cmd_get_tgt_priv_lock(struct scst_cmd *cmd)
-{
-	void *res;
-	unsigned long flags;
-	spin_lock_irqsave(&scst_main_lock, flags);
-	res = cmd->tgt_priv;
-	spin_unlock_irqrestore(&scst_main_lock, flags);
-	return res;
-}
-EXPORT_SYMBOL(scst_cmd_get_tgt_priv_lock);
-
-void scst_cmd_set_tgt_priv_lock(struct scst_cmd *cmd, void *val)
-{
-	unsigned long flags;
-	spin_lock_irqsave(&scst_main_lock, flags);
-	cmd->tgt_priv = val;
-	spin_unlock_irqrestore(&scst_main_lock, flags);
-}
-EXPORT_SYMBOL(scst_cmd_set_tgt_priv_lock);

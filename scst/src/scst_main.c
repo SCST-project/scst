@@ -60,7 +60,8 @@
  **/
 
 /*
- * All targets, devices and dev_types management is done under this mutex.
+ * Main SCST mutex. All targets, devices and dev_types management is done
+ * under this mutex.
  *
  * It must NOT be used in any works (schedule_work(), etc.), because
  * otherwise a deadlock (double lock, actually) is possible, e.g., with
@@ -161,6 +162,19 @@ struct scst_dev_type scst_null_devtype = {
 
 static void __scst_resume_activity(void);
 
+/**
+ * __scst_register_target_template() - register target template.
+ * @vtt:	target template
+ * @version:	SCST_INTERFACE_VERSION version string to ensure that
+ *		SCST core and the target driver use the same version of
+ *		the SCST interface
+ *
+ * Description:
+ *    Registers a target template and returns 0 on success or appropriate
+ *    error code otherwise.
+ *
+ *    Note: *vtt must be static!
+ */
 int __scst_register_target_template(struct scst_tgt_template *vtt,
 	const char *version)
 {
@@ -291,6 +305,9 @@ out_err:
 }
 EXPORT_SYMBOL(__scst_register_target_template);
 
+/**
+ * scst_unregister_target_template() - unregister target template
+ */
 void scst_unregister_target_template(struct scst_tgt_template *vtt)
 {
 	struct scst_tgt *tgt;
@@ -341,6 +358,12 @@ out_err_up:
 }
 EXPORT_SYMBOL(scst_unregister_target_template);
 
+/**
+ * scst_register_target() - register target
+ *
+ * Rgisters a target for template vtt and returns new target structure on
+ * success or NULL otherwise.
+ */
 struct scst_tgt *scst_register(struct scst_tgt_template *vtt,
 	const char *target_name)
 {
@@ -414,7 +437,7 @@ struct scst_tgt *scst_register(struct scst_tgt_template *vtt,
 	if (tgt->default_acg == NULL)
 		goto out_free_tgt_name;
 
-	INIT_LIST_HEAD(&tgt->acg_list);
+	INIT_LIST_HEAD(&tgt->tgt_acg_list);
 
 #ifdef CONFIG_SCST_PROC
 	rc = scst_build_proc_target_entries(tgt);
@@ -492,6 +515,9 @@ static inline int test_sess_list(struct scst_tgt *tgt)
 	return res;
 }
 
+/**
+ * scst_unregister_target() - unregister target
+ */
 void scst_unregister(struct scst_tgt *tgt)
 {
 	struct scst_session *sess;
@@ -541,7 +567,8 @@ again:
 
 	scst_clear_acg(tgt->default_acg);
 
-	list_for_each_entry_safe(acg, acg_tmp, &tgt->acg_list, acg_list_entry) {
+	list_for_each_entry_safe(acg, acg_tmp, &tgt->tgt_acg_list,
+					acg_list_entry) {
 		scst_acg_sysfs_put(acg);
 	}
 
@@ -585,6 +612,19 @@ static int scst_susp_wait(bool interruptible)
 	return res;
 }
 
+/**
+ * scst_suspend_activity() - globally suspend any activity
+ *
+ * Description:
+ *    Globally suspends any activity and doesn't return, until there are any
+ *    active commands (state after SCST_CMD_STATE_INIT). If "interruptible"
+ *    is true, it returns after SCST_SUSPENDING_TIMEOUT or if it was interrupted
+ *    by a signal with the corresponding error status < 0. If "interruptible"
+ *    is false, it will wait virtually forever. On success returns 0.
+ *
+ *    New arriving commands stay in the suspended state until
+ *    scst_resume_activity() is called.
+ */
 int scst_suspend_activity(bool interruptible)
 {
 	int res = 0;
@@ -709,6 +749,11 @@ out:
 	return;
 }
 
+/**
+ * scst_resume_activity() - globally resume all activities
+ *
+ * Resumes suspended by scst_suspend_activity() activities.
+ */
 void scst_resume_activity(void)
 {
 	TRACE_ENTRY();
@@ -918,6 +963,15 @@ out:
 	return res;
 }
 
+/**
+ * scst_register_virtual_device() - register a virtual device.
+ * @dev_handler: the device's device handler
+ * @dev_name:	the new device name, NULL-terminated string. Must be uniq
+ *              among all virtual devices in the system.
+ *
+ * Registers a virtual device and returns assinged to the device ID on
+ * success, or negative value otherwise
+ */
 int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 	const char *dev_name)
 {
@@ -1018,6 +1072,10 @@ out_release:
 }
 EXPORT_SYMBOL(scst_register_virtual_device);
 
+/**
+ * scst_unregister_virtual_device() - unegister a virtual device.
+ * @id:		the device's ID, returned by the registration function
+ */
 void scst_unregister_virtual_device(int id)
 {
 	struct scst_device *d, *dev = NULL;
@@ -1063,6 +1121,19 @@ out_unblock:
 }
 EXPORT_SYMBOL(scst_unregister_virtual_device);
 
+/**
+ * __scst_register_dev_driver() - register pass-through dev handler driver
+ * @dev_type:	dev handler template
+ * @version:	SCST_INTERFACE_VERSION version string to ensure that
+ *		SCST core and the dev handler use the same version of
+ *		the SCST interface
+ *
+ * Description:
+ *    Registers a pass-through dev handler driver. Returns 0 on success
+ *    or appropriate error code otherwise.
+ *
+ *    Note: *dev_type must be static!
+ */
 int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 	const char *version)
 {
@@ -1179,6 +1250,9 @@ out_error:
 }
 EXPORT_SYMBOL(__scst_register_dev_driver);
 
+/**
+ * scst_unregister_dev_driver() - unregister pass-through dev handler driver
+ */
 void scst_unregister_dev_driver(struct scst_dev_type *dev_type)
 {
 	struct scst_device *dev;
@@ -1234,6 +1308,19 @@ out_up:
 }
 EXPORT_SYMBOL(scst_unregister_dev_driver);
 
+/**
+ * __scst_register_virtual_dev_driver() - register virtual dev handler driver
+ * @dev_type:	dev handler template
+ * @version:	SCST_INTERFACE_VERSION version string to ensure that
+ *		SCST core and the dev handler use the same version of
+ *		the SCST interface
+ *
+ * Description:
+ *    Registers a virtual dev handler driver. Returns 0 on success or
+ *    appropriate error code otherwise.
+ *
+ *    Note: *dev_type must be static!
+ */
 int __scst_register_virtual_dev_driver(struct scst_dev_type *dev_type,
 	const char *version)
 {
@@ -1292,6 +1379,9 @@ out_err:
 }
 EXPORT_SYMBOL(__scst_register_virtual_dev_driver);
 
+/**
+ * scst_unregister_virtual_dev_driver() - unregister virtual dev driver
+ */
 void scst_unregister_virtual_dev_driver(struct scst_dev_type *dev_type)
 {
 	TRACE_ENTRY();
@@ -1591,6 +1681,11 @@ out_null:
 	goto out;
 }
 
+/**
+ * scst_init_threads() - initialize SCST processing threads pool
+ *
+ * Initializes scst_cmd_threads structure
+ */
 void scst_init_threads(struct scst_cmd_threads *cmd_threads)
 {
 	TRACE_ENTRY();
@@ -1610,6 +1705,11 @@ void scst_init_threads(struct scst_cmd_threads *cmd_threads)
 }
 EXPORT_SYMBOL(scst_init_threads);
 
+/**
+ * scst_deinit_threads() - deinitialize SCST processing threads pool
+ *
+ * Deinitializes scst_cmd_threads structure
+ */
 void scst_deinit_threads(struct scst_cmd_threads *cmd_threads)
 {
 	TRACE_ENTRY();
@@ -1692,12 +1792,25 @@ out_unlock:
 	return res;
 }
 
+/**
+ * scst_get() - increase global SCST ref counter
+ *
+ * Increases global SCST ref counter that prevents from entering into suspended
+ * activities stage, so protects from any global management operations.
+ */
 void scst_get(void)
 {
 	__scst_get(0);
 }
 EXPORT_SYMBOL(scst_get);
 
+/**
+ * scst_put() - decrease global SCST ref counter
+ *
+ * Decreses global SCST ref counter that prevents from entering into suspended
+ * activities stage, so protects from any global management operations. On
+ * zero, if suspending activities is waiting, they will be suspended.
+ */
 void scst_put(void)
 {
 	__scst_put();
@@ -1705,6 +1818,12 @@ void scst_put(void)
 EXPORT_SYMBOL(scst_put);
 
 #ifndef CONFIG_SCST_PROC
+/**
+ * scst_get_setup_id() - return SCST setup ID
+ *
+ * Returns SCST setup ID. This ID can be used for multiple
+ * setups with the same configuration.
+ */
 unsigned int scst_get_setup_id(void)
 {
 	return scst_setup_id;

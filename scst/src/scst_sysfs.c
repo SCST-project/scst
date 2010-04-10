@@ -35,6 +35,7 @@ static struct kobject *scst_devices_kobj;
 static struct kobject *scst_sgv_kobj;
 static struct kobject *scst_handlers_kobj;
 
+/* Regular SCST sysfs operations */
 struct sysfs_ops scst_sysfs_ops;
 EXPORT_SYMBOL(scst_sysfs_ops);
 
@@ -2301,7 +2302,7 @@ static ssize_t scst_ini_group_mgmt_store(struct kobject *kobj,
 		goto out_free_up;
 	}
 
-	list_for_each_entry(a, &tgt->acg_list, acg_list_entry) {
+	list_for_each_entry(a, &tgt->tgt_acg_list, acg_list_entry) {
 		if (strcmp(a->acg_name, p) == 0) {
 			TRACE_DBG("group (acg) %p %s found",
 				  a, a->acg_name);
@@ -3803,6 +3804,14 @@ static struct scst_sysfs_user_info *scst_sysfs_user_find_info(uint32_t cookie)
 	return res;
 }
 
+/**
+ * scst_sysfs_user_get_info() - get user_info
+ *
+ * Finds the user_info based on cookie and mark it as received the reply by
+ * setting for it flag info_being_executed.
+ *
+ * Returns found entry or NULL.
+ */
 struct scst_sysfs_user_info *scst_sysfs_user_get_info(uint32_t cookie)
 {
 	struct scst_sysfs_user_info *res = NULL;
@@ -3824,6 +3833,18 @@ struct scst_sysfs_user_info *scst_sysfs_user_get_info(uint32_t cookie)
 }
 EXPORT_SYMBOL(scst_sysfs_user_get_info);
 
+/**
+ ** Helper functionality to help target drivers and dev handlers support
+ ** sending events to user space and wait for their completion in a safe
+ ** manner. See samples how to use it in iscsi-scst or scst_user.
+ **/
+
+/**
+ * scst_sysfs_user_add_info() - create and add user_info in the global list
+ *
+ * Creates an info structure and adds it in the info_list.
+ * Returns 0 and out_info on success, error code otherwise.
+ */
 int scst_sysfs_user_add_info(struct scst_sysfs_user_info **out_info)
 {
 	int res = 0;
@@ -3860,6 +3881,9 @@ out:
 }
 EXPORT_SYMBOL(scst_sysfs_user_add_info);
 
+/**
+ * scst_sysfs_user_del_info - delete and frees user_info
+ */
 void scst_sysfs_user_del_info(struct scst_sysfs_user_info *info)
 {
 	TRACE_ENTRY();
@@ -3878,6 +3902,11 @@ void scst_sysfs_user_del_info(struct scst_sysfs_user_info *info)
 }
 EXPORT_SYMBOL(scst_sysfs_user_del_info);
 
+/*
+ * Returns true if the reply received and being processed by another part of 
+ * the kernel, false otherwise. Also removes the user_info from the list to
+ * fix for the user space that it missed the timeout.
+ */
 static bool scst_sysfs_user_info_executing(struct scst_sysfs_user_info *info)
 {
 	bool res;
@@ -3899,6 +3928,16 @@ static bool scst_sysfs_user_info_executing(struct scst_sysfs_user_info *info)
 	return res;
 }
 
+/**
+ * scst_wait_info_completion() - wait an user space event's completion
+ *
+ * Waits for the info request been completed by user space at most timeout
+ * jiffies. If the reply received before timeout and being processed by
+ * another part of the kernel, i.e. scst_sysfs_user_info_executing()
+ * returned true, waits for it to complete indefinitely.
+ *
+ * Returns status of the request completion.
+ */
 int scst_wait_info_completion(struct scst_sysfs_user_info *info,
 	unsigned long timeout)
 {

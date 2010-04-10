@@ -552,24 +552,11 @@ struct scst_aen;
 typedef enum dma_data_direction scst_data_direction;
 
 /*
- * Scsi_Target_Template: defines what functions a target driver will
- * have to provide in order to work with the target mid-level.
- * MUST HAVEs define functions that are expected to be in order to work.
- * OPTIONAL says that there is a choice.
+ * SCST target template: defines target driver's parameters and callback
+ * functions.
  *
- * Also, pay attention to the fact that a command is BLOCKING or NON-BLOCKING.
- * NON-BLOCKING means that a function returns immediately and will not wait
- * for actual data transfer to finish. Blocking in such command could have
- * negative impact on overall system performance. If blocking is necessary,
- * it is worth to consider creating dedicated thread(s) in target driver, to
- * which the commands would be passed and which would perform blocking
- * operations instead of SCST.
- *
- * If the function allowed to sleep or not is determined by its last
- * argument, which is true, if sleeping is not allowed. In this case,
- * if the function requires sleeping, it  can return
- * SCST_TGT_RES_NEED_THREAD_CTX, and it will be recalled in the thread context,
- * where sleeping is allowed.
+ * MUST HAVEs define functions that are expected to be defined in order to
+ * work. OPTIONAL says that there is a choice.
  */
 struct scst_tgt_template {
 	/* public: */
@@ -968,6 +955,13 @@ enum scst_dev_type_threads_pool_type {
 	SCST_THREADS_POOL_TYPE_INVALID,
 };
 
+/*
+ * SCST dev handler template: defines dev handler's parameters and callback
+ * functions.
+ *
+ * MUST HAVEs define functions that are expected to be defined in order to
+ * work. OPTIONAL says that there is a choice.
+ */
 struct scst_dev_type {
 	/* SCSI type of the supported device. MUST HAVE */
 	int type;
@@ -1216,6 +1210,9 @@ struct scst_dev_type {
 	struct completion devt_kobj_release_compl;
 };
 
+/*
+ * An SCST target, analog of SCSI target port.
+ */
 struct scst_tgt {
 	/* List of remote sessions per target, protected by scst_mutex */
 	struct list_head sess_list;
@@ -1230,7 +1227,7 @@ struct scst_tgt {
 	/*
 	 * Device ACG groups
 	 */
-	struct list_head acg_list;
+	struct list_head tgt_acg_list;
 
 	/*
 	 * Maximum SG table size. Needed here, since different cards on the
@@ -1324,6 +1321,9 @@ struct scst_ext_latency_stat {
 
 #endif /* CONFIG_SCST_MEASURE_LATENCY */
 
+/*
+ * SCST session, analog of SCSI I_T nexus
+ */
 struct scst_session {
 	/*
 	 * Initialization phase, one of SCST_SESS_IPH_* constants, protected by
@@ -1440,12 +1440,15 @@ struct scst_session {
 #endif
 };
 
+/*
+ * Structure to control commands' queuing and threads pool processing the queue
+ */
 struct scst_cmd_threads {
 	spinlock_t cmd_list_lock;
-	struct list_head active_cmd_list;
+	struct list_head active_cmd_list; /* commands queue */
 	wait_queue_head_t cmd_list_waitQ;
 
-	struct io_context *io_context;
+	struct io_context *io_context; /* IO context of the threads pool */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 	/*
@@ -1455,12 +1458,15 @@ struct scst_cmd_threads {
 	struct kref *io_context_kref;
 #endif
 
-	int nr_threads;
-	struct list_head threads_list;
+	int nr_threads; /* number of processing threads */
+	struct list_head threads_list; /* processing threads */
 
 	struct list_head lists_list_entry;
 };
 
+/*
+ * SCST command, analog of I_T_L_Q nexus or task
+ */
 struct scst_cmd {
 	/* List entry for below *_cmd_threads */
 	struct list_head cmd_list_entry;
@@ -1756,6 +1762,9 @@ struct scst_cmd {
 #endif
 };
 
+/*
+ * Parameters for SCST management commands
+ */
 struct scst_rx_mgmt_params {
 	int fn;
 	uint64_t tag;
@@ -1769,6 +1778,9 @@ struct scst_rx_mgmt_params {
 	unsigned char cmd_sn_set;
 };
 
+/*
+ * A stub structure to link an management command and affected regular commands
+ */
 struct scst_mgmt_cmd_stub {
 	struct scst_mgmt_cmd *mcmd;
 
@@ -1779,6 +1791,9 @@ struct scst_mgmt_cmd_stub {
 	unsigned int done_counted:1;
 };
 
+/*
+ * SCST task management structure
+ */
 struct scst_mgmt_cmd {
 	/* List entry for *_mgmt_cmd_list */
 	struct list_head mgmt_cmd_list_entry;
@@ -1788,7 +1803,7 @@ struct scst_mgmt_cmd {
 	/* Mgmt cmd state, one of SCST_MCMD_STATE_* constants */
 	int state;
 
-	int fn;
+	int fn; /* task management function */
 
 	unsigned int completed:1;	/* set, if the mcmd is completed */
 	/* Set if device(s) should be unblocked after mcmd's finish */
@@ -1832,6 +1847,9 @@ struct scst_mgmt_cmd {
 	void *tgt_priv;
 };
 
+/*
+ * SCST device
+ */
 struct scst_device {
 	struct scst_dev_type *handler;	/* corresponding dev handler */
 
@@ -1981,7 +1999,8 @@ struct scst_async_io_context_keeper {
 };
 
 /*
- * Used to store per-session specific device information
+ * Used to store per-session specific device information, analog of
+ * SCSI I_T_L nexus.
  */
 struct scst_tgt_dev {
 	/* List entry in sess->sess_tgt_dev_list_hash */
@@ -2125,7 +2144,7 @@ struct scst_acg {
 	/* List of attached acn's, protected by scst_mutex */
 	struct list_head acn_list;
 
-	/* List entry in tgt acg_list */
+	/* List entry in acg_lists */
 	struct list_head acg_list_entry;
 
 	/* Name of this acg */
@@ -2218,133 +2237,34 @@ static inline int scst_register_target_template(struct scst_tgt_template *vtt)
 	return __scst_register_target_template(vtt, SCST_INTERFACE_VERSION);
 }
 
-/*
- * Unregisters target template
- */
 void scst_unregister_target_template(struct scst_tgt_template *vtt);
 
-/*
- * Registers and returns target adapter
- * Returns new target structure on success or NULL otherwise.
- *
- * If parameter "target_name" isn't NULL, then security group with name
- * "Default_##target_name", if created, will be used as the default
- * instead of "Default" one for all initiators not assigned to any other group.
- */
 struct scst_tgt *scst_register(struct scst_tgt_template *vtt,
 	const char *target_name);
-
-/*
- * Unregisters target adapter
- */
 void scst_unregister(struct scst_tgt *tgt);
 
-/*
- * Registers and returns a session
- *
- * Returns new session on success or NULL otherwise
- *
- * Parameters:
- *   tgt    - target
- *   atomic - true, if the function called in the atomic context. If false,
- *	this function will block until the session registration is completed.
- *   initiator_name - remote initiator's name, any NULL-terminated string,
- *      e.g. iSCSI name, which used as the key to found appropriate access
- *      control group. Could be NULL, then the default target's LUNs are used.
- *   data - any target driver supplied data
- *   result_fn - pointer to the function that will be
- *      asynchronously called when session initialization finishes.
- *      Can be NULL. Parameters:
- *       - sess - session
- *	 - data - target driver supplied to scst_register_session() data
- *       - result - session initialization result, 0 on success or
- *                  appropriate error code otherwise
- *
- * Note: A session creation and initialization is a complex task,
- *       which requires sleeping state, so it can't be fully done
- *       in interrupt context. Therefore the "bottom half" of it, if
- *       scst_register_session() is called from atomic context, will be
- *       done in SCST thread context. In this case scst_register_session()
- *       will return not completely initialized session, but the target
- *       driver can supply commands to this session via scst_rx_cmd().
- *       Those commands processing will be delayed inside SCST until
- *       the session initialization is finished, then their processing
- *       will be restarted. The target driver will be notified about
- *       finish of the session initialization by function result_fn().
- *       On success the target driver could do nothing, but if the
- *       initialization fails, the target driver must ensure that
- *       no more new commands being sent or will be sent to SCST after
- *       result_fn() returns. All already sent to SCST commands for
- *       failed session will be returned in xmit_response() with BUSY status.
- *       In case of failure the driver shall call scst_unregister_session()
- *       inside result_fn(), it will NOT be called automatically.
- */
 struct scst_session *scst_register_session(struct scst_tgt *tgt, int atomic,
 	const char *initiator_name, void *data,
 	void (*result_fn) (struct scst_session *sess, void *data, int result));
-
-/*
- * Unregisters a session.
- * Parameters:
- *   sess - session to be unregistered
- *   wait - if true, instructs to wait until all commands, which
- *      currently is being executed and belonged to the session, finished.
- *      Otherwise, target driver should be prepared to receive
- *      xmit_response() for the session's command after
- *      scst_unregister_session() returns.
- *   unreg_done_fn - pointer to the function that will be
- *      asynchronously called when the last session's command finishes and
- *      the session is about to be completely freed. Can be NULL.
- *      Parameter:
- *       - sess - session
- *
- * Notes:
- *
- * - All outstanding commands will be finished regularly. After
- *   scst_unregister_session() returned no new commands must be sent to
- *   SCST via scst_rx_cmd().
- *
- * - The caller must ensure that no scst_rx_cmd() or scst_rx_mgmt_fn_*() is
- *   called in paralell with scst_unregister_session().
- *
- * - Can be called before result_fn() of scst_register_session() called,
- *   i.e. during the session registration/initialization.
- *
- * - It is highly recommended to call scst_unregister_session() as soon as it
- *   gets clear that session will be unregistered and not to wait until all
- *   related commands finished. This function provides the wait functionality,
- *   but it also starts recovering stuck commands, if there are any.
- *   Otherwise, your target driver could wait for those commands forever.
- */
 void scst_unregister_session(struct scst_session *sess, int wait,
 	void (*unreg_done_fn) (struct scst_session *sess));
 
-/*
- * Registers dev handler driver.
- * Returns 0 on success or appropriate error code otherwise.
- *
- * Note: *dev_type must be static!
- */
 int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 	const char *version);
 static inline int scst_register_dev_driver(struct scst_dev_type *dev_type)
 {
 	return __scst_register_dev_driver(dev_type, SCST_INTERFACE_VERSION);
 }
-
-/*
- * Unregisters dev handler driver
- */
 void scst_unregister_dev_driver(struct scst_dev_type *dev_type);
 
+int __scst_register_virtual_dev_driver(struct scst_dev_type *dev_type,
+	const char *version);
 /*
  * Registers dev handler driver for virtual devices (eg VDISK).
  * Returns 0 on success or appropriate error code otherwise.
  *
  * Note: *dev_type must be static!
  */
-int __scst_register_virtual_dev_driver(struct scst_dev_type *dev_type,
-	const char *version);
 static inline int scst_register_virtual_dev_driver(
 	struct scst_dev_type *dev_type)
 {
@@ -2352,38 +2272,11 @@ static inline int scst_register_virtual_dev_driver(
 		SCST_INTERFACE_VERSION);
 }
 
-/*
- * Unregisters dev handler driver for virtual devices
- */
 void scst_unregister_virtual_dev_driver(struct scst_dev_type *dev_type);
 
-/*
- * Creates and sends new command to SCST.
- * Must not be called in parallel with scst_unregister_session() for the
- * same sess. Returns the command on success or NULL otherwise
- */
 struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
 	const uint8_t *lun, int lun_len, const uint8_t *cdb,
 	int cdb_len, int atomic);
-
-/*
- * Notifies SCST that the driver finished its part of the command
- * initialization, and the command is ready for execution.
- * The second argument sets preferred command execition context.
- * See SCST_CONTEXT_* constants for details.
- *
- * !!IMPORTANT!!
- *
- * If cmd->set_sn_on_restart_cmd not set, this function, as well as
- * scst_cmd_init_stage1_done() and scst_restart_cmd(), must not be
- * called simultaneously for the same session (more precisely,
- * for the same session/LUN, i.e. tgt_dev), i.e. they must be
- * somehow externally serialized. This is needed to have lock free fast path in
- * scst_cmd_set_sn(). For majority of targets those functions are naturally
- * serialized by the single source of commands. Only iSCSI immediate commands
- * with multiple connections per session seems to be an exception. For it, some
- * mutex/lock shall be used for the serialization.
- */
 void scst_cmd_init_done(struct scst_cmd *cmd,
 	enum scst_exec_context pref_context);
 
@@ -2394,7 +2287,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
  * should be called. The second argument sets preferred command execition
  * context. See SCST_CONTEXT_* constants for details.
  *
- * See also scst_cmd_init_done() comment for the serialization requirements.
+ * See comment for scst_cmd_init_done() for the serialization requirements.
  */
 static inline void scst_cmd_init_stage1_done(struct scst_cmd *cmd,
 	enum scst_exec_context pref_context, int set_sn)
@@ -2404,45 +2297,15 @@ static inline void scst_cmd_init_stage1_done(struct scst_cmd *cmd,
 	scst_cmd_init_done(cmd, pref_context);
 }
 
-/*
- * Notifies SCST that the driver finished its part of the command's
- * preprocessing and it is ready for further processing.
- * The second argument sets data receiving completion status
- * (see SCST_PREPROCESS_STATUS_* constants for details)
- * The third argument sets preferred command execition context
- * (see SCST_CONTEXT_* constants for details).
- *
- * See also scst_cmd_init_done() comment for the serialization requirements.
- */
 void scst_restart_cmd(struct scst_cmd *cmd, int status,
 	enum scst_exec_context pref_context);
 
-/*
- * Notifies SCST that the driver received all the necessary data
- * and the command is ready for further processing.
- * The second argument sets data receiving completion status
- * (see SCST_RX_STATUS_* constants for details)
- * The third argument sets preferred command execition context
- * (see SCST_CONTEXT_* constants for details)
- */
 void scst_rx_data(struct scst_cmd *cmd, int status,
 	enum scst_exec_context pref_context);
 
-/*
- * Notifies SCST that the driver sent the response and the command
- * can be freed now. Don't forget to set the delivery status, if it
- * isn't success, using scst_set_delivery_status() before calling
- * this function. The third argument sets preferred command execition
- * context (see SCST_CONTEXT_* constants for details)
- */
 void scst_tgt_cmd_done(struct scst_cmd *cmd,
 	enum scst_exec_context pref_context);
 
-/*
- * Creates new management command sends it for execution.
- * Must not be called in parallel with scst_unregister_session() for the
- * same sess. Returns 0 for success, error code otherwise.
- */
 int scst_rx_mgmt_fn(struct scst_session *sess,
 	const struct scst_rx_mgmt_params *params);
 
@@ -2495,74 +2358,24 @@ static inline int scst_rx_mgmt_fn_lun(struct scst_session *sess, int fn,
 	return scst_rx_mgmt_fn(sess, &params);
 }
 
-/*
- * Provides various info about command's CDB.
- *
- * Returns: 0 on success, <0 if command is unknown, >0 if command is invalid.
- */
 int scst_get_cdb_info(struct scst_cmd *cmd);
 
-/*
- * Set error SCSI status in the command and prepares it for returning it.
- *
- * Returns 0 on success, error code otherwise.
- */
 int scst_set_cmd_error_status(struct scst_cmd *cmd, int status);
-
-/*
- * Set error in the command and fill the sense buffer.
- *
- * Returns 0 on success, error code otherwise.
- */
 int scst_set_cmd_error(struct scst_cmd *cmd, int key, int asc, int ascq);
-
-/*
- * Sets BUSY or TASK QUEUE FULL status
- */
 void scst_set_busy(struct scst_cmd *cmd);
 
-/*
- * Check if sense in the sense buffer, if any, in the correct format. If not,
- * convert it to the correct format.
- */
 void scst_check_convert_sense(struct scst_cmd *cmd);
 
-/*
- * Sets initial Unit Attention for sess, replacing default scst_sense_reset_UA
- */
 void scst_set_initial_UA(struct scst_session *sess, int key, int asc, int ascq);
 
-/*
- * Notifies SCST core that dev changed its capacity
- */
 void scst_capacity_data_changed(struct scst_device *dev);
 
-/*
- * Finds a command based on the supplied tag comparing it with one
- * that previously set by scst_cmd_set_tag().
- * Returns the command on success or NULL otherwise
- */
 struct scst_cmd *scst_find_cmd_by_tag(struct scst_session *sess, uint64_t tag);
-
-/*
- * Finds a command based on user supplied data and comparision
- * callback function, that should return true, if the command is found.
- * Returns the command on success or NULL otherwise
- */
 struct scst_cmd *scst_find_cmd(struct scst_session *sess, void *data,
 			       int (*cmp_fn) (struct scst_cmd *cmd,
 					      void *data));
 
-/*
- * Translates SCST's data direction to DMA one from backend storage
- * perspective.
- */
 enum dma_data_direction scst_to_dma_dir(int scst_dir);
-
-/*
- * Translates SCST data direction to DMA data direction from the perspective
- * of the target device.
- */
 enum dma_data_direction scst_to_tgt_dma_dir(int scst_dir);
 
 /*
@@ -2589,24 +2402,8 @@ static inline bool scst_is_ua_command(struct scst_cmd *cmd)
 	return (cmd->op_flags & SCST_SKIP_UA) == 0;
 }
 
-/*
- * Registers a virtual device.
- * Parameters:
- *   dev_type - the device's device handler
- *   dev_name - the new device name, NULL-terminated string. Must be uniq
- *              among all virtual devices in the system. The value isn't
- *              copied, only the reference is stored, so the value must
- *              remain valid during the device lifetime.
- * Returns assinged to the device ID on success, or negative value otherwise
- */
 int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 	const char *dev_name);
-
-/*
- * Unegisters a virtual device.
- * Parameters:
- *   id - the device's ID, returned by the registration function
- */
 void scst_unregister_virtual_device(int id);
 
 /*
@@ -2949,9 +2746,6 @@ static inline void scst_cmd_set_tgt_priv(struct scst_cmd *cmd, void *val)
 	cmd->tgt_priv = val;
 }
 
-void *scst_cmd_get_tgt_priv_lock(struct scst_cmd *cmd);
-void scst_cmd_set_tgt_priv_lock(struct scst_cmd *cmd, void *val);
-
 /*
  * Get/Set functions for tgt_need_alloc_data_buf flag
  */
@@ -3192,12 +2986,6 @@ static inline void scst_set_aen_delivery_status(struct scst_aen *aen,
 	aen->delivery_status = status;
 }
 
-/*
- * Notifies SCST that the driver has sent the AEN and it
- * can be freed now. Don't forget to set the delivery status, if it
- * isn't success, using scst_set_aen_delivery_status() before calling
- * this function.
- */
 void scst_aen_done(struct scst_aen *aen);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
@@ -3264,10 +3052,6 @@ enum scst_sg_copy_dir {
 	SCST_SG_COPY_TO_TARGET
 };
 
-/*
- * Copies data between cmd->tgt_sg and cmd->sg in direction defined by
- * copy_dir parameter.
- */
 void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir);
 
 /*
@@ -3368,54 +3152,15 @@ static inline int cancel_delayed_work_sync(struct work_struct *work)
 }
 #endif
 
-/*
- * Suspends and resumes any activity.
- * Function scst_suspend_activity() doesn't return 0, until there are any
- * active commands (state after SCST_CMD_STATE_INIT). If "interruptible"
- * is true, it returns after SCST_SUSPENDING_TIMEOUT or if it was interrupted
- * by a signal with the coresponding error status < 0. If "interruptible"
- * is false, it will wait virtually forever.
- *
- * New arriving commands stay in that state until scst_resume_activity()
- * is called.
- */
 int scst_suspend_activity(bool interruptible);
 void scst_resume_activity(void);
 
-/*
- * Main SCST commands processing routing. Must be used only by dev handlers.
- * Argument atomic is true if function called in atomic context.
- */
 void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic);
-
-/*
- * SCST commands processing routine, which should be called by dev handler
- * after its parse() callback returned SCST_CMD_STATE_STOP. Arguments
- * the same as for scst_process_active_cmd().
- */
 void scst_post_parse_process_active_cmd(struct scst_cmd *cmd, bool atomic);
 
-/*
- * Checks if command can be executed (reservations, etc.) or there are local
- * events, like pending UAs. Returns < 0 if command must be aborted, > 0 if
- * there is an event and command should be immediately completed, or 0
- * otherwise.
- *
- * !! Dev handlers implementing exec() callback must call this function there !!
- * !! just before the actual command's execution                              !!
- */
 int scst_check_local_events(struct scst_cmd *cmd);
 
-/*
- * Returns the next state of the SCSI target state machine in case if command's
- * completed abnormally.
- */
 int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd);
-
-/*
- * Sets state of the SCSI target state machine in case if command's completed
- * abnormally.
- */
 void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd);
 
 struct scst_trace_log {
@@ -3423,10 +3168,6 @@ struct scst_trace_log {
 	const char *token;
 };
 
-/*
- * Main SCST mutex. All targets, devices and dev_types management is done
- * under this mutex.
- */
 extern struct mutex scst_mutex;
 
 #ifdef CONFIG_SCST_PROC
@@ -3489,7 +3230,6 @@ struct proc_dir_entry *scst_create_proc_entry(struct proc_dir_entry *root,
 
 #else /* CONFIG_SCST_PROC */
 
-/* Regular SCST sysfs operations */
 extern struct sysfs_ops scst_sysfs_ops;
 
 /*
@@ -3554,78 +3294,32 @@ int scst_alloc_sense(struct scst_cmd *cmd, int atomic);
 int scst_alloc_set_sense(struct scst_cmd *cmd, int atomic,
 	const uint8_t *sense, unsigned int len);
 
-/*
- * Sets the corresponding field in the sense buffer taking sense type
- * into account. Returns resulting sense length.
- */
 int scst_set_sense(uint8_t *buffer, int len, bool d_sense,
 	int key, int asc, int ascq);
 
-/*
- * Returns true if the sense is valid and carrying a Unit Attention or
- * false otherwise.
- */
 bool scst_is_ua_sense(const uint8_t *sense, int len);
 
-/*
- * Returnes true if sense matches to (key, asc, ascq) and false otherwise.
- * Valid_mask is one or several SCST_SENSE_*_VALID constants setting valid
- * (key, asc, ascq) values.
- */
 bool scst_analyze_sense(const uint8_t *sense, int len,
 	unsigned int valid_mask, int key, int asc, int ascq);
 
-/*
- * Returnes a pseudo-random number for debugging purposes. Available only in
- * the DEBUG build.
- */
 unsigned long scst_random(void);
 
-/*
- * Sets response data length for cmd and truncates its SG vector accordingly.
- * The cmd->resp_data_len must not be set directly, it must be set only
- * using this function. Value of resp_data_len must be <= cmd->bufflen.
- */
 void scst_set_resp_data_len(struct scst_cmd *cmd, int resp_data_len);
 
-/*
- * Get/put global ref counter that prevents from entering into suspended
- * activities stage, so protects from any global management operations.
- */
 void scst_get(void);
 void scst_put(void);
 
-/*
- * Cmd ref counters
- */
 void scst_cmd_get(struct scst_cmd *cmd);
 void scst_cmd_put(struct scst_cmd *cmd);
 
-/*
- * Allocates and returns pointer to SG vector with data size "size".
- * In *count returned the count of entries in the vector.
- * Returns NULL for failure.
- */
 struct scatterlist *scst_alloc(int size, gfp_t gfp_mask, int *count);
-
-/* Frees SG vector returned by scst_alloc() */
 void scst_free(struct scatterlist *sg, int count);
 
-/*
- * Adds local to the current thread data to tgt_dev
- * (they will be local for the tgt_dev and current thread).
- */
 void scst_add_thr_data(struct scst_tgt_dev *tgt_dev,
 	struct scst_thr_data_hdr *data,
 	void (*free_fn) (struct scst_thr_data_hdr *data));
-
-/* Deletes all local to threads data from tgt_dev */
 void scst_del_all_thr_data(struct scst_tgt_dev *tgt_dev);
-
-/* Deletes all local to threads data from all tgt_dev's of the dev */
 void scst_dev_del_all_thr_data(struct scst_device *dev);
-
-/* Finds local to the thread data. Returns NULL, if they not found. */
 struct scst_thr_data_hdr *__scst_find_thr_data(struct scst_tgt_dev *tgt_dev,
 	struct task_struct *tsk);
 
@@ -3636,84 +3330,42 @@ static inline struct scst_thr_data_hdr *scst_find_thr_data(
 	return __scst_find_thr_data(tgt_dev, current);
 }
 
+/* Increase ref counter for the thread data */
 static inline void scst_thr_data_get(struct scst_thr_data_hdr *data)
 {
 	atomic_inc(&data->ref);
 }
 
+/* Decrease ref counter for the thread data */
 static inline void scst_thr_data_put(struct scst_thr_data_hdr *data)
 {
 	if (atomic_dec_and_test(&data->ref))
 		data->free_fn(data);
 }
 
-/**
- ** Generic parse() support routines.
- ** Done via pointer on functions to avoid unneeded dereferences on
- ** the fast path.
- **/
-
-/* Calculates and returns block shift for the given sector size */
 int scst_calc_block_shift(int sector_size);
-
-/* Generic parse() for SBC (disk) devices */
 int scst_sbc_generic_parse(struct scst_cmd *cmd,
 	int (*get_block_shift)(struct scst_cmd *cmd));
-
-/* Generic parse() for MMC (cdrom) devices */
 int scst_cdrom_generic_parse(struct scst_cmd *cmd,
 	int (*get_block_shift)(struct scst_cmd *cmd));
-
-/* Generic parse() for MO disk devices */
 int scst_modisk_generic_parse(struct scst_cmd *cmd,
 	int (*get_block_shift)(struct scst_cmd *cmd));
-
-/* Generic parse() for tape devices */
 int scst_tape_generic_parse(struct scst_cmd *cmd,
 	int (*get_block_size)(struct scst_cmd *cmd));
-
-/* Generic parse() for changer devices */
 int scst_changer_generic_parse(struct scst_cmd *cmd,
 	int (*nothing)(struct scst_cmd *cmd));
-
-/* Generic parse() for "processor" devices */
 int scst_processor_generic_parse(struct scst_cmd *cmd,
 	int (*nothing)(struct scst_cmd *cmd));
-
-/* Generic parse() for RAID devices */
 int scst_raid_generic_parse(struct scst_cmd *cmd,
 	int (*nothing)(struct scst_cmd *cmd));
 
-/**
- ** Generic dev_done() support routines.
- ** Done via pointer on functions to avoid unneeded dereferences on
- ** the fast path.
- **/
-
-/* Generic dev_done() for block devices */
 int scst_block_generic_dev_done(struct scst_cmd *cmd,
 	void (*set_block_shift)(struct scst_cmd *cmd, int block_shift));
-
-/* Generic dev_done() for tape devices */
 int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 	void (*set_block_size)(struct scst_cmd *cmd, int block_size));
 
-/*
- * Issues a MODE SENSE for control mode page data and sets the corresponding
- * dev's parameter from it. Returns 0 on success and not 0 otherwise.
- */
 int scst_obtain_device_parameters(struct scst_device *dev);
 
-/*
- * Returns maximum commands count which can be queued to this LUN in this
- * session.
- *
- * If lun is NO_SUCH_LUN, returns minimum of maximum commands count which
- * can be queued to any LUN in this session.
- *
- * If sess is NULL, returns minimum of maximum commands count which can be
- * queued to any SCST device.
- */
 int scst_get_max_lun_commands(struct scst_session *sess, uint64_t lun);
 
 /*
@@ -3734,12 +3386,9 @@ static inline void add_wait_queue_exclusive_head(wait_queue_head_t *q,
 
 #ifndef CONFIG_SCST_PROC
 
-/**
- ** Helper functionality to help target drivers and dev handlers support
- ** sending events to user space and wait for their completion in a safe
- ** manner. See samples how to use it in iscsi-scst or scst_user.
- **/
-
+/*
+ * Structure to match events to user space and replies on them
+ */
 struct scst_sysfs_user_info {
 	/* Unique cookie to identify request */
 	uint32_t info_cookie;
@@ -3761,61 +3410,21 @@ struct scst_sysfs_user_info {
 	void *data;
 };
 
-/*
- * This function creates an info structure and adds it in the info_list.
- * Returns 0 and out_info on success, error code otherwise.
- */
 int scst_sysfs_user_add_info(struct scst_sysfs_user_info **out_info);
-
-/* This function deletes and frees info */
 void scst_sysfs_user_del_info(struct scst_sysfs_user_info *info);
-
-/*
- * This function finds the info based on cookie and set for it flag
- * info_being_executed. Returns found entry or NULL.
- */
 struct scst_sysfs_user_info *scst_sysfs_user_get_info(uint32_t cookie);
-
-/*
- * This function waits for the info request been completed by user space.
- * Returns status of the request completion.
- */
 int scst_wait_info_completion(struct scst_sysfs_user_info *info,
 	unsigned long timeout);
 
-/*
- * This function returns SCST setup ID. This ID can be used with multiple
- * setups with the same configuration.
- */
 unsigned int scst_get_setup_id(void);
 
 #endif /* CONFIG_SCST_PROC */
 
-/*
- * This function returns pointer to the next lexem from token_str skipping
- * spaces and '=' character and using them then as a delimeter. Content
- * of token_str is modified by setting '\0' at the delimeter's position.
- */
 char *scst_get_next_lexem(char **token_str);
-
-/*
- * This function restores token_str modified by scst_get_next_lexem() to the
- * previous value before scst_get_next_lexem() was called. Prev_lexem is
- * a pointer to lexem returned by scst_get_next_lexem().
- */
 void scst_restore_token_str(char *prev_lexem, char *token_str);
-
-/*
- * This function returns pointer to the next token strings from input_str
- * using '\n', ';' and '\0' as a delimeter. Content of input_str is
- * modified by setting '\0' at the delimeter's position.
- */
 char *scst_get_next_token_str(char **input_str);
 
-/* Initializes scst_cmd_threads structure */
 void scst_init_threads(struct scst_cmd_threads *cmd_threads);
-
-/* Deinitializes scst_cmd_threads structure */
 void scst_deinit_threads(struct scst_cmd_threads *cmd_threads);
 
 #endif /* __SCST_H */

@@ -3,6 +3,8 @@ To be done
 
  - See http://scst.sourceforge.net/contributing.html
 
+ - Remove cmd->data_len
+
  - Reimplement VDISK handler with usage of async. read/write operations
    (in order to avoid unnecessary context switches) and direct access to
    the page cache (in order to avoid data copy between it and internal
@@ -27,12 +29,10 @@ To be done
  
  - Small ToDo's spread all over the code.
 
- - Investigate possible missed emulated UA cases.
-
  - Additional ability for target drivers to ask for command's retry also
    after xmit_response() and rdy_to_xfer() returned (for example, if a
    command was successfully sent to the target card, but later it was
    returned by the card with BUSY completion status).
  
- - Advanced SCSI commands support: COPY, EXTENDED COPY, PERSISTENT
-   RESERVE IN/OUT, third party RESERVE, etc.
+ - Advanced SCSI commands support: COPY, EXTENDED COPY, third party
+   RESERVE, etc.

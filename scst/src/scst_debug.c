@@ -46,6 +46,11 @@ static inline int get_current_tid(void)
 #endif
 }
 
+/**
+ * debug_print_prefix() - print debug prefix for a log line
+ *
+ * Prints, if requested by trace_flag, debug prefix for each log line
+ */
 int debug_print_prefix(unsigned long trace_flag,
 	const char *prefix, const char *func, int line)
 {
@@ -75,6 +80,11 @@ int debug_print_prefix(unsigned long trace_flag,
 }
 EXPORT_SYMBOL(debug_print_prefix);
 
+/**
+ * debug_print_buffer() - print a buffer
+ *
+ * Prints in the log data from the buffer
+ */
 void debug_print_buffer(const void *data, int len)
 {
 	int z, z1, i;

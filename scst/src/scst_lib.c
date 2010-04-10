@@ -585,6 +585,13 @@ static inline void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev) {}
 static inline void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev) {}
 #endif /* CONFIG_SCST_DEBUG_TM */
 
+/**
+ * scst_alloc_sense() - allocate sense buffer for command
+ *
+ * Allocates, if necessary, sense buffer for command. Returns 0 on success
+ * and error code othrwise. Parameter "atomic" should be non-0 if the
+ * function called in atomic context.
+ */
 int scst_alloc_sense(struct scst_cmd *cmd, int atomic)
 {
 	int res = 0;
@@ -615,6 +622,13 @@ out:
 }
 EXPORT_SYMBOL(scst_alloc_sense);
 
+/**
+ * scst_alloc_set_sense() - allocate and fill sense buffer for command
+ *
+ * Allocates, if necessary, sense buffer for command and copies in
+ * it data from the supplied sense buffer. Returns 0 on success
+ * and error code othrwise.
+ */
 int scst_alloc_set_sense(struct scst_cmd *cmd, int atomic,
 	const uint8_t *sense, unsigned int len)
 {
@@ -649,6 +663,15 @@ out:
 }
 EXPORT_SYMBOL(scst_alloc_set_sense);
 
+/**
+ * scst_set_cmd_error_status() - set error SCSI status
+ * @cmd:	SCST command
+ * @status:	SCSI status to set
+ *
+ * Description:
+ *    Sets error SCSI status in the command and prepares it for returning it.
+ *    Returns 0 on success, error code otherwise.
+ */
 int scst_set_cmd_error_status(struct scst_cmd *cmd, int status)
 {
 	int res = 0;
@@ -778,6 +801,12 @@ out:
 	return res;
 }
 
+/**
+ * scst_set_cmd_error() - set error in the command and fill the sense buffer.
+ *
+ * Sets error in the command and fill the sense buffer. Returns 0 on success,
+ * error code otherwise.
+ */
 int scst_set_cmd_error(struct scst_cmd *cmd, int key, int asc, int ascq)
 {
 	int res;
@@ -825,6 +854,12 @@ out:
 }
 EXPORT_SYMBOL(scst_set_cmd_error);
 
+/**
+ * scst_set_sense() - set sense from KEY/ASC/ASCQ numbers
+ *
+ * Sets the corresponding fields in the sense buffer taking sense type
+ * into account. Returns resulting sense length.
+ */
 int scst_set_sense(uint8_t *buffer, int len, bool d_sense,
 	int key, int asc, int ascq)
 {
@@ -873,6 +908,13 @@ int scst_set_sense(uint8_t *buffer, int len, bool d_sense,
 }
 EXPORT_SYMBOL(scst_set_sense);
 
+/**
+ * scst_analyze_sense() - analyze sense
+ *
+ * Returns true if sense matches to (key, asc, ascq) and false otherwise.
+ * Valid_mask is one or several SCST_SENSE_*_VALID constants setting valid
+ * (key, asc, ascq) values.
+ */
 bool scst_analyze_sense(const uint8_t *sense, int len, unsigned int valid_mask,
 	int key, int asc, int ascq)
 {
@@ -942,6 +984,12 @@ out:
 }
 EXPORT_SYMBOL(scst_analyze_sense);
 
+/**
+ * scst_is_ua_sense() - determine if the sense is UA sense
+ *
+ * Returns true if the sense is valid and carrying a Unit
+ * Attention or false otherwise.
+ */
 bool scst_is_ua_sense(const uint8_t *sense, int len)
 {
 	if (SCST_SENSE_VALID(sense))
@@ -967,6 +1015,12 @@ bool scst_is_ua_global(const uint8_t *sense, int len)
 	return res;
 }
 
+/**
+ * scst_check_convert_sense() - check sense type and convert it if needed
+ *
+ * Checks if sense in the sense buffer, if any, is in the correct format.
+ * If not, converts it in the correct format.
+ */
 void scst_check_convert_sense(struct scst_cmd *cmd)
 {
 	bool d_sense;
@@ -1026,6 +1080,12 @@ out:
 	return res;
 }
 
+/**
+ * scst_set_busy() - set BUSY or TASK QUEUE FULL status
+ *
+ * Sets BUSY or TASK QUEUE FULL status depending on if this session has other
+ * outstanding commands or not.
+ */
 void scst_set_busy(struct scst_cmd *cmd)
 {
 	int c = atomic_read(&cmd->sess->sess_cmd_count);
@@ -1051,6 +1111,12 @@ void scst_set_busy(struct scst_cmd *cmd)
 }
 EXPORT_SYMBOL(scst_set_busy);
 
+/**
+ * scst_set_initial_UA() - set initial Unit Attention
+ *
+ * Sets initial Unit Attention on all devices of the session,
+ * replacing default scst_sense_reset_UA
+ */
 void scst_set_initial_UA(struct scst_session *sess, int key, int asc, int ascq)
 {
 	int i;
@@ -1185,7 +1251,11 @@ out:
 	return;
 }
 
-/* No locks */
+/**
+ * scst_capacity_data_changed() - notify SCST about device capacity change
+ *
+ * Notifies SCST core that dev has changed its capacity. Called under no locks.
+ */
 void scst_capacity_data_changed(struct scst_device *dev)
 {
 	struct scst_tgt_dev *tgt_dev;
@@ -1376,6 +1446,14 @@ void scst_report_luns_changed(struct scst_acg *acg)
 	return;
 }
 
+/**
+ * scst_aen_done() - AEN processing done
+ *
+ * Notifies SCST that the driver has sent the AEN and it
+ * can be freed now. Don't forget to set the delivery status, if it
+ * isn't success, using scst_set_aen_delivery_status() before calling
+ * this function.
+ */
 void scst_aen_done(struct scst_aen *aen)
 {
 	TRACE_ENTRY();
@@ -1605,6 +1683,12 @@ void scst_check_reassign_sessions(void)
 	return;
 }
 
+/**
+ * scst_get_cmd_abnormal_done_state() - get command's next abnormal done state
+ *
+ * Returns the next state of the SCSI target state machine in case if command's
+ * completed abnormally.
+ */
 int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
 {
 	int res;
@@ -1672,6 +1756,12 @@ int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
 }
 EXPORT_SYMBOL(scst_get_cmd_abnormal_done_state);
 
+/**
+ * scst_set_cmd_abnormal_done_state() - set command's next abnormal done state
+ *
+ * Sets state of the SCSI target state machine in case if command's completed
+ * abnormally.
+ */
 void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 {
 	TRACE_ENTRY();
@@ -1705,6 +1795,14 @@ void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 }
 EXPORT_SYMBOL(scst_set_cmd_abnormal_done_state);
 
+/**
+ * scst_set_resp_data_len() - set response data length
+ *
+ * Sets response data length for cmd and truncates its SG vector accordingly.
+ *
+ * The cmd->resp_data_len must not be set directly, it must be set only
+ * using this function. Value of resp_data_len must be <= cmd->bufflen.
+ */
 void scst_set_resp_data_len(struct scst_cmd *cmd, int resp_data_len)
 {
 	int i, l;
@@ -2066,6 +2164,13 @@ void scst_free_device(struct scst_device *dev)
 	return;
 }
 
+/**
+ * scst_init_mem_lim - initialize memory limits structure
+ *
+ * Initializes memory limits structure mem_lim according to
+ * the current system configuration. This structure should be latter used
+ * to track and limit allocated by one or more SGV pools memory.
+ */
 void scst_init_mem_lim(struct scst_mem_lim *mem_lim)
 {
 	atomic_set(&mem_lim->alloced_pages, 0);
@@ -2173,7 +2278,7 @@ struct scst_acg *scst_alloc_add_acg(struct scst_tgt *tgt,
 	if (tgt != NULL) {
 		TRACE_DBG("Adding acg '%s' to device '%s' acg_list", acg_name,
 			tgt->tgt_name);
-		list_add_tail(&acg->acg_list_entry, &tgt->acg_list);
+		list_add_tail(&acg->acg_list_entry, &tgt->tgt_acg_list);
 		acg->in_tgt_acg_list = 1;
 	}
 #endif
@@ -2273,7 +2378,7 @@ struct scst_acg *scst_tgt_find_acg(struct scst_tgt *tgt, const char *name)
 
 	TRACE_ENTRY();
 
-	list_for_each_entry(acg, &tgt->acg_list, acg_list_entry) {
+	list_for_each_entry(acg, &tgt->tgt_acg_list, acg_list_entry) {
 		if (strcmp(acg->acg_name, name) == 0) {
 			acg_ret = acg;
 			break;
@@ -3551,12 +3656,18 @@ void scst_sched_session_free(struct scst_session *sess)
 	return;
 }
 
+/**
+ * scst_cmd_get() - increase command's reference counter
+ */
 void scst_cmd_get(struct scst_cmd *cmd)
 {
 	__scst_cmd_get(cmd);
 }
 EXPORT_SYMBOL(scst_cmd_get);
 
+/**
+ * scst_cmd_put() - decrease command's reference counter
+ */
 void scst_cmd_put(struct scst_cmd *cmd)
 {
 	__scst_cmd_put(cmd);
@@ -4258,6 +4369,12 @@ out_free_sioc:
 
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30) && defined(SCSI_EXEC_REQ_FIFO_DEFINED) */
 
+/**
+ * scst_copy_sg() - copy data between the command's SGs
+ *
+ * Copies data between cmd->tgt_sg and cmd->sg in direction defined by
+ * copy_dir parameter.
+ */
 void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir)
 {
 	struct scatterlist *src_sg, *dst_sg;
@@ -4493,6 +4610,16 @@ static int get_trans_len_none(struct scst_cmd *cmd, uint8_t off)
 	return 0;
 }
 
+/**
+ * scst_get_cdb_info() - fill various info about the command's CDB
+ *
+ * Description:
+ *    Fills various info about the command's CDB in the corresponding fields
+ *    in the command.
+ *
+ *    Returns: 0 on success, <0 if command is unknown, >0 if command
+ *    is invalid.
+ */
 int scst_get_cdb_info(struct scst_cmd *cmd)
 {
 	int dev_type = cmd->dev->type;
@@ -4676,6 +4803,17 @@ out_err:
 	goto out;
 }
 
+/**
+ ** Generic parse() support routines.
+ ** Done via pointer on functions to avoid unneeded dereferences on
+ ** the fast path.
+ **/
+
+/**
+ * scst_calc_block_shift() - calculate block shift
+ *
+ * Calculates and returns block shift for the given sector size
+ */
 int scst_calc_block_shift(int sector_size)
 {
 	int block_shift = 0;
@@ -4701,6 +4839,11 @@ int scst_calc_block_shift(int sector_size)
 }
 EXPORT_SYMBOL(scst_calc_block_shift);
 
+/**
+ * scst_sbc_generic_parse() - generic SBC parsing
+ *
+ * Generic parse() for SBC (disk) devices
+ */
 int scst_sbc_generic_parse(struct scst_cmd *cmd,
 	int (*get_block_shift)(struct scst_cmd *cmd))
 {
@@ -4757,6 +4900,11 @@ set_timeout:
 }
 EXPORT_SYMBOL(scst_sbc_generic_parse);
 
+/**
+ * scst_cdrom_generic_parse() - generic MMC parse
+ *
+ * Generic parse() for MMC (cdrom) devices
+ */
 int scst_cdrom_generic_parse(struct scst_cmd *cmd,
 	int (*get_block_shift)(struct scst_cmd *cmd))
 {
@@ -4809,6 +4957,11 @@ set_timeout:
 }
 EXPORT_SYMBOL(scst_cdrom_generic_parse);
 
+/**
+ * scst_modisk_generic_parse() - generic MO parse
+ *
+ * Generic parse() for MO disk devices
+ */
 int scst_modisk_generic_parse(struct scst_cmd *cmd,
 	int (*get_block_shift)(struct scst_cmd *cmd))
 {
@@ -4861,6 +5014,11 @@ set_timeout:
 }
 EXPORT_SYMBOL(scst_modisk_generic_parse);
 
+/**
+ * scst_tape_generic_parse() - generic tape parse
+ *
+ * Generic parse() for tape devices
+ */
 int scst_tape_generic_parse(struct scst_cmd *cmd,
 	int (*get_block_size)(struct scst_cmd *cmd))
 {
@@ -4933,6 +5091,11 @@ static int scst_null_parse(struct scst_cmd *cmd)
 	return res;
 }
 
+/**
+ * scst_changer_generic_parse() - generic changer parse
+ *
+ * Generic parse() for changer devices
+ */
 int scst_changer_generic_parse(struct scst_cmd *cmd,
 	int (*nothing)(struct scst_cmd *cmd))
 {
@@ -4947,6 +5110,11 @@ int scst_changer_generic_parse(struct scst_cmd *cmd,
 }
 EXPORT_SYMBOL(scst_changer_generic_parse);
 
+/**
+ * scst_processor_generic_parse - generic SCSI processor parse
+ *
+ * Generic parse() for SCSI processor devices
+ */
 int scst_processor_generic_parse(struct scst_cmd *cmd,
 	int (*nothing)(struct scst_cmd *cmd))
 {
@@ -4961,6 +5129,11 @@ int scst_processor_generic_parse(struct scst_cmd *cmd,
 }
 EXPORT_SYMBOL(scst_processor_generic_parse);
 
+/**
+ * scst_raid_generic_parse() - generic RAID parse
+ *
+ * Generic parse() for RAID devices
+ */
 int scst_raid_generic_parse(struct scst_cmd *cmd,
 	int (*nothing)(struct scst_cmd *cmd))
 {
@@ -4975,6 +5148,17 @@ int scst_raid_generic_parse(struct scst_cmd *cmd,
 }
 EXPORT_SYMBOL(scst_raid_generic_parse);
 
+/**
+ ** Generic dev_done() support routines.
+ ** Done via pointer on functions to avoid unneeded dereferences on
+ ** the fast path.
+ **/
+
+/**
+ * scst_block_generic_dev_done() - generic SBC dev_done
+ *
+ * Generic dev_done() for block (SBC) devices
+ */
 int scst_block_generic_dev_done(struct scst_cmd *cmd,
 	void (*set_block_shift)(struct scst_cmd *cmd, int block_shift))
 {
@@ -5034,6 +5218,11 @@ out:
 }
 EXPORT_SYMBOL(scst_block_generic_dev_done);
 
+/**
+ * scst_tape_generic_dev_done() - generic tape dev done
+ *
+ * Generic dev_done() for tape devices
+ */
 int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 	void (*set_block_size)(struct scst_cmd *cmd, int block_shift))
 {
@@ -5121,6 +5310,12 @@ static void scst_check_internal_sense(struct scst_device *dev, int result,
 	return;
 }
 
+/**
+ * scst_to_dma_dir() - translate SCST's data direction to DMA direction
+ *
+ * Translates SCST's data direction to DMA one from backend storage
+ * perspective.
+ */
 enum dma_data_direction scst_to_dma_dir(int scst_dir)
 {
 	static const enum dma_data_direction tr_tbl[] = { DMA_NONE,
@@ -5130,6 +5325,12 @@ enum dma_data_direction scst_to_dma_dir(int scst_dir)
 }
 EXPORT_SYMBOL(scst_to_dma_dir);
 
+/*
+ * scst_to_tgt_dma_dir() - translate SCST data direction to DMA direction
+ *
+ * Translates SCST data direction to DMA data direction from the perspective
+ * of the target device.
+ */
 enum dma_data_direction scst_to_tgt_dma_dir(int scst_dir)
 {
 	static const enum dma_data_direction tr_tbl[] = { DMA_NONE,
@@ -5139,6 +5340,12 @@ enum dma_data_direction scst_to_tgt_dma_dir(int scst_dir)
 }
 EXPORT_SYMBOL(scst_to_tgt_dma_dir);
 
+/**
+ * scst_obtain_device_parameters() - obtain device control parameters
+ *
+ * Issues a MODE SENSE for control mode page data and sets the corresponding
+ * dev's parameter from it. Returns 0 on success and not 0 otherwise.
+ */
 int scst_obtain_device_parameters(struct scst_device *dev)
 {
 	int rc, i;
@@ -5703,6 +5910,18 @@ out_unlock:
 	return res;
 }
 
+/*****************************************************************
+ ** The following thr_data functions are necessary, because the
+ ** kernel doesn't provide a better way to have threads local
+ ** storage
+ *****************************************************************/
+
+/**
+ * scst_add_thr_data() - add the current thread's local data
+ *
+ * Adds local to the current thread data to tgt_dev
+ * (they will be local for the tgt_dev and current thread).
+ */
 void scst_add_thr_data(struct scst_tgt_dev *tgt_dev,
 	struct scst_thr_data_hdr *data,
 	void (*free_fn) (struct scst_thr_data_hdr *data))
@@ -5717,6 +5936,11 @@ void scst_add_thr_data(struct scst_tgt_dev *tgt_dev,
 }
 EXPORT_SYMBOL(scst_add_thr_data);
 
+/**
+ * scst_del_all_thr_data() - delete all thread's local data
+ *
+ * Deletes all local to threads data from tgt_dev
+ */
 void scst_del_all_thr_data(struct scst_tgt_dev *tgt_dev)
 {
 	spin_lock(&tgt_dev->thr_data_lock);
@@ -5734,6 +5958,11 @@ void scst_del_all_thr_data(struct scst_tgt_dev *tgt_dev)
 }
 EXPORT_SYMBOL(scst_del_all_thr_data);
 
+/**
+ * scst_dev_del_all_thr_data() - delete all thread's local data from device
+ *
+ * Deletes all local to threads data from all tgt_dev's of the device
+ */
 void scst_dev_del_all_thr_data(struct scst_device *dev)
 {
 	struct scst_tgt_dev *tgt_dev;
@@ -5770,6 +5999,11 @@ static struct scst_thr_data_hdr *__scst_find_thr_data_locked(
 	return res;
 }
 
+/**
+ * __scst_find_thr_data() - find local to the thread data
+ *
+ * Finds local to the thread data. Returns NULL, if they not found.
+ */
 struct scst_thr_data_hdr *__scst_find_thr_data(struct scst_tgt_dev *tgt_dev,
 	struct task_struct *tsk)
 {
@@ -6107,12 +6341,31 @@ out:
 	return;
 }
 
+/**
+ * scst_get_max_lun_commands() - return maximum supported commands count
+ *
+ * Returns maximum commands count which can be queued to this LUN in this
+ * session.
+ *
+ * If lun is NO_SUCH_LUN, returns minimum of maximum commands count which
+ * can be queued to any LUN in this session.
+ *
+ * If sess is NULL, returns minimum of maximum commands count which can be
+ * queued to any SCST device.
+ */
 int scst_get_max_lun_commands(struct scst_session *sess, uint64_t lun)
 {
 	return SCST_MAX_TGT_DEV_COMMANDS;
 }
 EXPORT_SYMBOL(scst_get_max_lun_commands);
 
+/**
+ * scst_get_next_lexem() - parse and return next lexem in the string
+ *
+ * Returns pointer to the next lexem from token_str skipping
+ * spaces and '=' character and using them then as a delimeter. Content
+ * of token_str is modified by setting '\0' at the delimeter's position.
+ */
 char *scst_get_next_lexem(char **token_str)
 {
 	char *p = *token_str;
@@ -6136,6 +6389,13 @@ char *scst_get_next_lexem(char **token_str)
 }
 EXPORT_SYMBOL(scst_get_next_lexem);
 
+/**
+ * scst_restore_token_str() - restore string modified by scst_get_next_lexem()
+ *
+ * Restores token_str modified by scst_get_next_lexem() to the
+ * previous value before scst_get_next_lexem() was called. Prev_lexem is
+ * a pointer to lexem returned by scst_get_next_lexem().
+ */
 void scst_restore_token_str(char *prev_lexem, char *token_str)
 {
 	if (&prev_lexem[strlen(prev_lexem)] != token_str)
@@ -6144,6 +6404,13 @@ void scst_restore_token_str(char *prev_lexem, char *token_str)
 }
 EXPORT_SYMBOL(scst_restore_token_str);
 
+/**
+ * scst_get_next_token_str() - parse and return next token
+ *
+ * This function returns pointer to the next token strings from input_str
+ * using '\n', ';' and '\0' as a delimeter. Content of input_str is
+ * modified by setting '\0' at the delimeter's position.
+ */
 char *scst_get_next_token_str(char **input_str)
 {
 	char *p = *input_str;
@@ -6220,7 +6487,15 @@ void scst_lib_exit(void)
 }
 
 #ifdef CONFIG_SCST_DEBUG
-/* Original taken from the XFS code */
+
+/**
+ * scst_random() - return a pseudo-random number for debugging purposes.
+ *
+ * Returns a pseudo-random number for debugging purposes. Available only in
+ * the DEBUG build.
+ *
+ * Original taken from the XFS code
+ */
 unsigned long scst_random(void)
 {
 	static int Inited;
