@@ -16,8 +16,8 @@ To be done
    pattern.
 
  - Fix in-kernel O_DIRECT mode.
- 
- - Close integration with Linux initiator SCSI mid-level, including 
+
+ - Close integration with Linux initiator SCSI mid-level, including
    queue types (simple, ordered, etc.) and local initiators (sd, st, sg,
    etc.) support. Requires modifications of the kernel.
 
@@ -26,13 +26,13 @@ To be done
    TST, UA_INTLCK_CTRL bits. Requires deep modifications of the kernel.
 
  - Better handle of devices DMA restrictions, where needed.
- 
+
  - Small ToDo's spread all over the code.
 
  - Additional ability for target drivers to ask for command's retry also
    after xmit_response() and rdy_to_xfer() returned (for example, if a
    command was successfully sent to the target card, but later it was
    returned by the card with BUSY completion status).
- 
+
  - Advanced SCSI commands support: COPY, EXTENDED COPY, third party
    RESERVE, etc.

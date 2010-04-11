@@ -3903,7 +3903,7 @@ void scst_sysfs_user_del_info(struct scst_sysfs_user_info *info)
 EXPORT_SYMBOL(scst_sysfs_user_del_info);
 
 /*
- * Returns true if the reply received and being processed by another part of 
+ * Returns true if the reply received and being processed by another part of
  * the kernel, false otherwise. Also removes the user_info from the list to
  * fix for the user space that it missed the timeout.
  */

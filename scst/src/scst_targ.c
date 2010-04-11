@@ -79,7 +79,7 @@ static inline void scst_schedule_tasklet(struct scst_cmd *cmd)
  *    NULL otherwise.
  *
  *    Must not be called in parallel with scst_unregister_session() for the
- *    same session. 
+ *    same session.
  */
 struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
 			     const uint8_t *lun, int lun_len,
