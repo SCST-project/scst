@@ -361,7 +361,7 @@ EXPORT_SYMBOL(scst_unregister_target_template);
 /**
  * scst_register_target() - register target
  *
- * Rgisters a target for template vtt and returns new target structure on
+ * Registers a target for template vtt and returns new target structure on
  * success or NULL otherwise.
  */
 struct scst_tgt *scst_register(struct scst_tgt_template *vtt,

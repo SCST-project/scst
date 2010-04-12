@@ -23,9 +23,6 @@ obsolete. Use the sysfs interface facilities instead.
 It is recommended to use TEST UNIT READY ("tur") command to check if
 iSCSI-SCST target is alive in MPIO configurations.
 
-IMPORTANT: In the procfs build all LUN information (access control)
-=========  MUST be configured BEFORE iscsi-scstd started!
-
 Also see SCST README file how to tune for the best performance.
 
 CAUTION: Working of target and initiator on the same host isn't fully
@@ -34,11 +31,6 @@ CAUTION: Working of target and initiator on the same host isn't fully
 
 Sysfs interface
 ---------------
-
-Starting from 2.0.0 iSCSI-SCST has sysfs interface. You can switch to it
-by running "make disable_proc". To switch back to the procfs interface
-you should run "make enable_proc". The procfs interface from version
-2.0.0 is obsolete and will be removed in one of the next versions.
 
 Root of SCST sysfs interface is /sys/kernel/scst_tgt. Root of iSCSI-SCST
 is /sys/kernel/scst_tgt/targets/iscsi. It has the following entries:
@@ -531,7 +523,7 @@ performance problems. If you use it, it is strongly advised to upgrade.
 instance as a shared storage with VMware, make sure all your VMs
 connected to the target via *separate* sessions, i.e. each VM has own
 connection to the target, not all VMs connected using a single
-connection. You can check it using SCST proc or sysfs interface. If you
+connection. You can check it using SCST sysfs interface. If you
 miss it, you can greatly loose performance of parallel access to your
 target from different VMs. This isn't related to the case if your VMs
 are using the same shared storage, like with VMFS, for instance. In this
