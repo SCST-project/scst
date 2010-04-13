@@ -2,7 +2,7 @@ menu "SCSI target (SCST) support"
 
 config SCST
 	tristate "SCSI target (SCST) support"
-	depends on SCSI && PROC_FS
+	depends on SCSI
 	help
 	  SCSI target (SCST) is designed to provide unified, consistent
 	  interface between SCSI target drivers and Linux kernel and
@@ -12,65 +12,58 @@ config SCST
 config SCST_DISK
 	tristate "SCSI target disk support"
 	default SCST
-	depends on SCSI && PROC_FS && SCST
+	depends on SCSI && SCST
 	help
 	  SCST pass-through device handler for disk device.
 
 config SCST_TAPE
 	tristate "SCSI target tape support"
 	default SCST
-	depends on SCSI && PROC_FS && SCST
+	depends on SCSI && SCST
 	help
 	  SCST pass-through device handler for tape device.
 
 config SCST_CDROM
 	tristate "SCSI target CDROM support"
 	default SCST
-	depends on SCSI && PROC_FS && SCST
+	depends on SCSI && SCST
 	help
 	  SCST pass-through device handler for CDROM device.
 
 config SCST_MODISK
 	tristate "SCSI target MO disk support"
 	default SCST
-	depends on SCSI && PROC_FS && SCST
+	depends on SCSI && SCST
 	help
 	  SCST pass-through device handler for MO disk device.
 
 config SCST_CHANGER
 	tristate "SCSI target changer support"
 	default SCST
-	depends on SCSI && PROC_FS && SCST
+	depends on SCSI && SCST
 	help
 	  SCST pass-through device handler for changer device.
 
 config SCST_PROCESSOR
 	tristate "SCSI target processor support"
 	default SCST
-	depends on SCSI && PROC_FS && SCST
+	depends on SCSI && SCST
 	help
 	  SCST pass-through device handler for processor device.
 
 config SCST_RAID
 	tristate "SCSI target storage array controller (RAID) support"
 	default SCST
-	depends on SCSI && PROC_FS && SCST
+	depends on SCSI && SCST
 	help
 	  SCST pass-through device handler for raid storage array controller (RAID) device.
 
 config SCST_VDISK
 	tristate "SCSI target virtual disk and/or CDROM support"
 	default SCST
-	depends on SCSI && PROC_FS && SCST
+	depends on SCSI && SCST
 	help
 	  SCST device handler for virtual disk and/or CDROM device.
-
-config SCST_USER
-	tristate "SCSI user space virtual target devices support"
-	default SCST
-	depends on SCSI && PROC_FS && SCST && ! HIGHMEM
-	help
-	  SCST device handler for virtual user space device.
 
 config SCST_STRICT_SERIALIZING
 	bool "Strict serialization"
@@ -164,7 +157,7 @@ config SCST_TRACING
 	default y
 	help
 	  Enable SCSI middle level tracing support. Tracing can be controlled
-	  dynamically via /proc/scsi_tgt/trace_level. The traced information
+	  dynamically via sysfs interface. The traced information
 	  is sent to the kernel log and may be very helpful when analyzing
 	  the cause of a communication problem between initiator and target.
 
@@ -240,16 +233,14 @@ config SCST_MEASURE_LATENCY
 	depends on SCST
 	help
 	  This option enables commands processing latency measurement
-	  facility in SCST. It will provide in /proc/scsi_tgt/latency
-	  file average commands processing latency. You can clear
-	  already measured results by writing 0 in this file. Note, you
-	  need a non-preemtible kernel to have correct results.
+	  facility in SCST. It will provide in the sysfs interface
+	  average commands processing latency statistics. You can clear
+	  already measured results by writing 0 in the corresponding sysfs file.
+	  Note, you need a non-preemtible kernel to have correct results.
 
 	  If unsure, say "N".
 
 source "drivers/scst/iscsi-scst/Kconfig"
-source "drivers/scst/qla2xxx-target/Kconfig"
 source "drivers/scst/srpt/Kconfig"
-source "drivers/scst/scst_local/Kconfig"
 
 endmenu

@@ -500,6 +500,8 @@ ssize_t iscsi_sysfs_send_event(uint32_t tid, enum iscsi_kern_event_code code,
 	res = event_send(tid, 0, 0, info->info_cookie, code, param1, param2);
 	if (res <= 0) {
 		PRINT_ERROR("event_send() failed: %d", res);
+		if (res == 0)
+			res = -EFAULT;
 		goto out_free;
 	}
 

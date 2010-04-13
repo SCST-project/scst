@@ -230,5 +230,5 @@ to track and limit allocated by one or more SGV caches memory.
 
 		Runtime information and statistics.
 
-Runtime information and statistics is available in /proc/scsi_tgt/sgv.
+Runtime information and statistics is available in /sys/kernel/scst_tgt/sgv.
 

@@ -248,7 +248,7 @@ done
 
 scst_debug="scst/include/scst_debug.h scst/src/scst_debug.c"
 scst_proc="scst/src/scst_proc.c"
-scst_sgv="scst/include/scst_sgv.h scst/src/scst_mem.h scst/src/scst_mem.c"
+scst_sgv="scst/include/scst_sgv.h scst/src/scst_mem.h scst/src/scst_mem.c doc/sgv_cache.txt"
 scst_user="scst/include/scst_user.h scst/src/dev_handlers/scst_user.c"
 scst_vdisk="scst/src/dev_handlers/scst_vdisk.c"
 separate_patches="scst_debug scst_proc scst_sgv scst_user scst_vdisk"
@@ -309,6 +309,8 @@ do
     fi
     if [ "${f#scst/include}" != "${f}" ]; then
       add_file "${f}" "include/scst/${f#scst/include/}"
+    elif [ "${f#doc}" != "${f}" ]; then
+      add_file "${f}" "Documentation/scst/${f#doc/}"
     else
       add_file "${f}" "drivers/scst/${f#scst/src/}"
     fi
@@ -316,9 +318,10 @@ do
   | process_patch "${s}.diff"
 done
 
-add_file "scst/README_in-tree" "Documentation/scst/README.scst" \
-| process_patch "scst_core_doc.diff"
-
+{
+	add_file "scst/README_in-tree" "Documentation/scst/README.scst"
+	add_file "scst/SysfsRules" "Documentation/scst/SysfsRules"
+} | process_patch "scst_core_doc.diff"
 
 
 # Directory drivers/scst/dev_handlers/
@@ -370,7 +373,7 @@ do
   fi
 done
 
-add_file "iscsi-scst/include/iscsi_scst_itf_ver.h" "include/scst/iscsi_scst_itf_ver.h" | process_patch ""
+add_file "iscsi-scst/include/iscsi_scst_itf_ver.h" "include/scst/iscsi_scst_itf_ver.h"
 
 add_file "iscsi-scst/kernel/Makefile.in-kernel" \
          "drivers/scst/iscsi-scst/Makefile"
