@@ -730,6 +730,11 @@ void handle_iscsi_events(int fd)
 #endif
 	int rc;
 
+	/*
+	 * The way of handling errors by exit() is one of the worst possible,
+	 * but IET developers thought it's OK. ToDo: fix somewhen.
+	 */
+
 retry:
 	if ((rc = nl_read(fd, &event, sizeof(event))) < 0) {
 		if (errno == EAGAIN)
@@ -829,7 +834,8 @@ retry:
 		break;
 
 	default:
-		log_warning("Unknown event %u", event.code);
+		log_error("Unknown event %u", event.code);
+		/* We might be out of sync in size */
 		exit(-1);
 		break;
 	}
