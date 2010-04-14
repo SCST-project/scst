@@ -357,9 +357,9 @@ static int do_exec(struct vdisk_cmd *vcmd)
 		lba_start |= ((uint64_t)cdb[4]) << 40;
 		lba_start |= ((uint64_t)cdb[5]) << 32;
 		lba_start |= ((uint64_t)cdb[6]) << 24;
-		lba_start |= ((uint64_t)cdb[6]) << 16;
-		lba_start |= ((uint64_t)cdb[7]) << 8;
-		lba_start |= ((uint64_t)cdb[8]);
+		lba_start |= ((uint64_t)cdb[7]) << 16;
+		lba_start |= ((uint64_t)cdb[8]) << 8;
+		lba_start |= ((uint64_t)cdb[9]);
 		data_len = cmd->bufflen;
 		break;
 	}
