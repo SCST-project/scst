@@ -485,7 +485,10 @@ static ssize_t scst_tgt_attr_store(struct kobject *kobj,
 
 	kobj_attr = container_of(attr, struct kobj_attribute, attr);
 
-	res = kobj_attr->store(kobj, kobj_attr, buf, count);
+	if (kobj_attr->store)
+		res = kobj_attr->store(kobj, kobj_attr, buf, count);
+	else
+		res = -EIO;
 
 	up_read(&tgt->tgt_attr_rwsem);
 
@@ -1146,7 +1149,10 @@ static ssize_t scst_dev_attr_store(struct kobject *kobj, struct attribute *attr,
 
 	kobj_attr = container_of(attr, struct kobj_attribute, attr);
 
-	res = kobj_attr->store(kobj, kobj_attr, buf, count);
+	if (kobj_attr->store)
+		res = kobj_attr->store(kobj, kobj_attr, buf, count);
+	else
+		res = -EIO;
 
 	up_read(&dev->dev_attr_rwsem);
 
@@ -1365,7 +1371,10 @@ static ssize_t scst_sess_attr_store(struct kobject *kobj, struct attribute *attr
 
 	kobj_attr = container_of(attr, struct kobj_attribute, attr);
 
-	res = kobj_attr->store(kobj, kobj_attr, buf, count);
+	if (kobj_attr->store)
+		res = kobj_attr->store(kobj, kobj_attr, buf, count);
+	else
+		res = -EIO;
 
 	up_read(&sess->sess_attr_rwsem);
 
@@ -3314,7 +3323,10 @@ static ssize_t scst_store(struct kobject *kobj, struct attribute *attr,
 	struct kobj_attribute *kobj_attr;
 	kobj_attr = container_of(attr, struct kobj_attribute, attr);
 
-	return kobj_attr->store(kobj, kobj_attr, buf, count);
+	if (kobj_attr->store)
+		return kobj_attr->store(kobj, kobj_attr, buf, count);
+	else
+		return -EIO;
 }
 
 struct sysfs_ops scst_sysfs_ops = {
