@@ -29,7 +29,7 @@ I. Rules for target drivers
 SCST core for each target driver (struct scst_tgt_template) creates a
 root subdirectory in /sys/kernel/scst_tgt/targets with name
 scst_tgt_template.name (called "target_driver_name" further in this
-document). 
+document).
 
 For each target (struct scst_tgt) SCST core creates a root subdirectory
 in /sys/kernel/scst_tgt/targets/target_driver_name with name
@@ -79,7 +79,7 @@ in all targets, but this is OPTIONAL.
 MUST be 0 by default.
 
 2. "trace_level" - this attribute SHOULD allow to change log level of this
-driver. 
+driver.
 
 This attribute SHOULD have read and write permissions for superuser and be
 read-only for other users.
@@ -114,7 +114,7 @@ For example:
 2.0.0
 EXTRACHECKS
 DEBUG
- 
+
 4. "mgmt" - this attribute MUST allow to add and delete targets, if
 virtual targets are supported by this driver, as well as it MAY allow to
 add and delete the target driver's or its targets' attributes.
@@ -138,7 +138,7 @@ Usage: echo "add_target target_name [parameters]" >mgmt
        echo "add_target_attribute target_name OutgoingUser name password" >mgmt
        echo "del_target_attribute target_name OutgoingUser name" >mgmt
 
-where parameters are one or more param_name=value pairs separated by ';'                                                                
+where parameters are one or more param_name=value pairs separated by ';'
 
 4.1. "add_target" - if supported, this command MUST add new target with
 name "target_name" and specified optional or required parameters. Each
@@ -151,7 +151,7 @@ this command.
 All target drivers supporting "add_target" command MUST support all
 read-only targets' key attributes as parameters to "add_target" command
 with the attributes' names as parameters' names and the attributes'
-values as parameters' values. 
+values as parameters' values.
 
 For example:
 
@@ -203,7 +203,7 @@ user (attribute
 /sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/IncomingUser)
 with name "name" and password "password".
 
-4.6. "del_target_attribute" - if supported, this command MUST delete 
+4.6. "del_target_attribute" - if supported, this command MUST delete
 target's attribute with the specified name and values. The values MUST
 be specified, because in some cases attributes MAY internally be
 distinguished by values. For instance, iSCSI target might have several
@@ -268,7 +268,7 @@ handlers. The children dev handlers depend from the parent dev handlers.
 SCST core for each parent dev handler (struct scst_dev_type with
 parent member with value NULL) creates a root subdirectory in
 /sys/kernel/scst_tgt/handlers with name scst_dev_type.name (called
-"dev_handler_name" further in this document). 
+"dev_handler_name" further in this document).
 
 Parent dev handlers can have one or more subdirectories for children dev
 handlers with names scst_dev_type.name of them.
@@ -307,7 +307,7 @@ support in its root subdirectory the following optional attributes. They
 MAY also support there other read-only or read-writable attributes.
 
 1. "trace_level" - this attribute SHOULD allow to change log level of this
-driver. 
+driver.
 
 This attribute SHOULD have read and write permissions for superuser and be
 read-only for other users.
@@ -383,7 +383,7 @@ separated by ';' symbol.
 All dev handlers supporting "add_device" command MUST support all
 read-only devices' key attributes as parameters to "add_device" command
 with the attributes' names as parameters' names and the attributes'
-values as parameters' values. 
+values as parameters' values.
 
 For example:
 
@@ -432,7 +432,7 @@ will add for device with name "device1" attribute
 /sys/kernel/scst_tgt/devices/device_name/AttributeDX) with value
 ValueDX.
 
-6. "del_device_attribute" - if supported, this command MUST delete 
+6. "del_device_attribute" - if supported, this command MUST delete
 device's attribute with the specified name and values. The values MUST
 be specified, because in some cases attributes MAY internally be
 distinguished by values. If not needed, dev handler might ignore the
@@ -792,7 +792,7 @@ be done in the following order:
  - Necessary initiators deleted, if they aren't going to be moved
 
  - LUNs updated
- 
+
  - Necessary initiators added or moved
 
 3.4.6. If this target should be enabled, enable it.

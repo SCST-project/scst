@@ -21,13 +21,13 @@ http://scst.st.net.
 		II. User space API.
 
 Module scst_user provides /dev/scst_user character device with the
-following system calls available: 
+following system calls available:
 
  - open() - allows to open the device and get a file handle, which
    will be used in all subsequent actions until close() is called
 
  - close() - closes file handle returned by open()
- 
+
  - poll() - allows to wait until some pending command from SCST to
    process is available.
 
@@ -165,10 +165,10 @@ where:
 
  - parse_type - defines how the user space handler wants to process
    PARSE subcommand. Possible values are:
-  
+
    * SCST_USER_PARSE_STANDARD - tells SCST use standard internal parser
      for this SCSI device type.
-   
+
    * SCST_USER_PARSE_CALL - tells SCST generate SCST_USER_PARSE for all
      SCSI commands
 
@@ -187,7 +187,7 @@ where:
  - memory_reuse_type - defines how memory allocated by the user space
    handler for a SCSI commands data buffers is then reused by the SCST
    core as data buffer for subsequent commands. Possible values are:
-   
+
    * SCST_USER_MEM_NO_REUSE - no memory reuse is possible, for each
      commands the user space handler will each time allocate a dedicated
      data buffer
@@ -216,7 +216,7 @@ where:
    have in that field SCST_USER_SUBCOMMAND_FINAL flag. All the
    subcommands will have the original unmodified CDB. Possible values
    are:
-   
+
    * SCST_USER_PARTIAL_TRANSFERS_NOT_SUPPORTED - the partial data
      transfers are not supported
 
@@ -329,7 +329,7 @@ where:
 
 When SCST_USER_ATTACH_SESS is returned, it is guaranteed that there are
 no other commands are being executed or pending.
- 
+
 After SCST_USER_ATTACH_SESS function completed, the user space device
 handler shall reply using "result" field of the corresponding reply
 command.
@@ -394,27 +394,27 @@ where:
  - cdb - SCSI CDB
 
  - cdb_len - SCSI CDB length
- 
+
  - ext_cdb_len - size of extended CDB, see SCST_USER_GET_EXTENDED_CDB
    for more details
- 
+
  - timeout - CDB execution timeout
 
  - bufflen - command's buffer length
- 
+
  - in_bufflen - for bidirectional commands command's IN, i.e. from
    initiator to target, buffer length
- 
+
  - op_flags - CDB flags, one or more scst_cdb_flags bits, see below.
- 
+
  - queue_type - SCSI task attribute (queue type)
- 
+
  - data_direction - command's data flow direction, one of SCST_DATA_*
    constants
 
  - expected_values_set - true if expected_data_direction and
    expected_transfer_len contain valid values
-   
+
  - expected_data_direction - remote initiator supplied command's data
    flow direction
 
@@ -439,7 +439,7 @@ Bits of scst_cdb_flags can be:
 
  - SCST_IMPLICIT_HQ - this command is an implicit HEAD OF QUEUE command
 
- - SCST_SKIP_UA - Unit Attentions shouldn't be delivered for this command 
+ - SCST_SKIP_UA - Unit Attentions shouldn't be delivered for this command
 
  - SCST_WRITE_MEDIUM - this command writes data on the medium, so should be
    forbidden for read-only devices
@@ -454,7 +454,7 @@ corresponding reply command.
 In case of any error the error reporting should be deferred until
 SCST_USER_EXEC subcommand, where the appropriate SAM status and sense
 shall be set.
-   
+
 
 		4.4.4. SCST_USER_ALLOC_MEM
 
@@ -502,7 +502,7 @@ where:
    for more details
 
  - alloc_len - command's buffer length
- 
+
  - queue_type - SCSI task attribute (queue type )
 
  - data_direction - command's data flow direction, one of SCST_DATA_*
@@ -519,7 +519,7 @@ set by SCST_USER_SET_OPTIONS function. If any type memory reusage is
 enabled, then SCST will use its internal SGV cache in order to cache
 allocated and fully built SG vectors for subsequent commands of this
 type, so for them SCST_USER_ALLOC_MEM subfunction will not be called and
-in SCST_USER_EXEC pbuf pointer will point to that reused buffer. 
+in SCST_USER_EXEC pbuf pointer will point to that reused buffer.
 
 SGV cache is a backend cache made on top of Linux kernel kmem cache. It
 caches unused SG vectors for future allocations to improve performance.
@@ -618,7 +618,7 @@ where:
  - data_len - command's data length. Could be different from bufflen for
    commands like VERIFY, which transfer different amount of data, than
    process, or even none of them
- 
+
  - bufflen - command's buffer length
 
  - alloc_len - command's buffer length, which should be allocated, if pbuf
@@ -636,7 +636,7 @@ where:
    have the following OR'ed flags:
 
    * SCST_USER_SUBCOMMAND - set if the command is a partial subcommand
-   
+
    * SCST_USER_SUBCOMMAND_FINAL - set if the subcommand is a final one
 
  - timeout - CDB execution timeout
@@ -707,7 +707,7 @@ where:
 
  - delivery_status - status of cmd's status/data delivery to remote
    initiator. Can be:
-   
+
    * SCST_CMD_DELIVERY_SUCCESS - delivery succeeded
 
    * SCST_CMD_DELIVERY_FAILED - delivery failed
@@ -736,7 +736,7 @@ where:
 
 
 		4.4.8. SCST_USER_TASK_MGMT
- 
+
 SCST_USER_TASK_MGMT subcommand returns a task management functions.
 Payload contains struct scst_user_tm, which is defined as the following:
 
@@ -763,7 +763,7 @@ where:
    more details.
 
  - cmd_sn_set - specifies if cmd_sn is valid
-   
+
 After TM function is completed, the user space device handler shall
 reply using "result" field of the corresponding reply command. It isn't
 necessary to wait for aborted command(s) finished, the result of TM
@@ -786,9 +786,9 @@ Possible values of "fn" field:
  - SCST_NEXUS_LOSS_SESS - notifies about nexus loss event for the session
 
  - SCST_ABORT_ALL_TASKS_SESS - all tasks in the session shall be aborted
- 
+
  - SCST_NEXUS_LOSS - notifies about global nexus loss event
- 
+
  - SCST_ABORT_ALL_TASKS - all tasks shall be aborted
 
 Possible return values are:
@@ -839,7 +839,7 @@ struct scst_user_scsi_cmd_reply_parse
 {
 	uint8_t queue_type;
 	uint8_t data_direction;
-	int16_t cdb_len; 
+	int16_t cdb_len;
 	uint32_t op_flags;
 	int32_t data_len;
 	int32_t bufflen;
@@ -848,7 +848,7 @@ struct scst_user_scsi_cmd_reply_parse
 where:
 
  - queue_type - SCSI task attribute (queue type )
- 
+
  - data_direction - command's data flow direction, one of SCST_DATA_* constants
 
  - cdb_len - length of CDB
@@ -856,7 +856,7 @@ where:
  - op_flags - commands flags, one or more scst_cdb_flags bits, see above.
 
  - data_len - command's data length
- 
+
  - bufflen - command's buffer length
 
 
@@ -890,14 +890,14 @@ where:
    original SCST_USER_EXEC subcommand pbuf field is 0
 
  - reply_type - could be one of the following constants:
- 
+
      * SCST_EXEC_REPLY_BACKGROUND - tells SCST send to the remote
        initiator GOOD status, but the command not yet completed by the
        user space handler, it is being executed in the background. When
        it will be completed, the user space handler will call
        SCST_USER_REPLY_CMD again with reply_type
        SCST_EXEC_REPLY_COMPLETED.
-     
+
      * SCST_EXEC_REPLY_COMPLETED - the user space handler completed the command
 
  - status - SAM status of the commands execution
@@ -988,9 +988,9 @@ Structure scst_user_prealloc_buffer_in has the following definition:
 where:
 
  - pbuf - pointer to the buffer
- 
+
  - bufflen - size of the buffer
- 
+
  - for_clust_pool - if 1, then the buffer will be preallocated in the
    clustered pool. If 0, then the buffer will be preallocated in the
    normal pool.
@@ -1014,7 +1014,7 @@ and errno is set appropriately.
 
 As the example consider a simple synchronous VTL, which serves one
 virtual SCSI tape device and can process only one command at time from
-any initiator. 
+any initiator.
 
 At the beginning the VTL opens using open() call /dev/scst_user in the
 default blocking mode.
@@ -1039,9 +1039,9 @@ prepares scst_user_reply_cmd structure, where:
  - cmd_h set to returned by SCST_USER_REPLY_AND_GET_CMD ioctl() cmd_h
 
  - subcode set to SCST_USER_ATTACH_SESS
- 
+
  - result set to 0
- 
+
 Then it prepares struct scst_user_get_cmd with reply set to the prepared
 scst_user_reply_cmd structure, calls SCST_USER_REPLY_AND_GET_CMD ioctl()
 and waits for some SCSI command arrives from the initiator.
@@ -1061,12 +1061,12 @@ scst_user_reply_cmd structure, where:
  - exec_reply.resp_data_len set to length of the read data
 
  - exec_reply.pbuf set to the data buffer, where the data were read
- 
+
  - exec_reply.reply_type set to SCST_EXEC_REPLY_COMPLETED
- 
+
  - exec_reply.status set to the SAM defined status of the
    operation
- 
+
  - exec_reply.sense_len set and exec_reply.psense_buffer filled with
    sense data, if necessary
 

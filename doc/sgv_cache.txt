@@ -35,12 +35,12 @@ In fileio_tgt application, which uses a regular malloc() function to
 allocate data buffers, this facility allows ~30% less CPU load and
 considerable performance increase.
 
- - Prevent each initiator or all initiators altogether to allocate too 
+ - Prevent each initiator or all initiators altogether to allocate too
 much memory and DoS the target. Consider 10 initiators, which can have
 access to 10 devices each. Any of them can queue up to 64 commands, each
 can transfer up to 1MB of data. So, all of them in a peak can allocate
 up to 10*10*64 = ~6.5GB of memory for data buffers. This amount must be
-limited somehow and the SGV cache performs this function. 
+limited somehow and the SGV cache performs this function.
 
 From implementation POV the SGV cache is a simple extension of the kmem
 cache. It can work in 2 modes:
@@ -58,10 +58,10 @@ below). This mode is in average allows less memory overhead comparing
 with the fixed size buffers mode.
 
 Consider how the SGV cache works in the set of buffers mode. When a
-request to allocate new SG vector comes, sgv_pool_alloc() via 
+request to allocate new SG vector comes, sgv_pool_alloc() via
 sgv_get_obj() checks if there is already a cached vector with that
-order. If yes, then that vector will be reused and its length, if 
-necessary, will be modified to match the requested size. In the above 
+order. If yes, then that vector will be reused and its length, if
+necessary, will be modified to match the requested size. In the above
 example request for 11KB buffer, 4 pages vector will be reused and
 modified using trans_tbl to contain 3 pages and the last entry will be
 modified to contain the requested length - 2*PAGE_SIZE. If there is no
@@ -88,7 +88,7 @@ sgv_shrink() called by system, when it's asking for memory.
 struct sgv_pool *sgv_pool_create(const char *name,
 	enum sgv_clustering_types clustered, int single_alloc_pages,
 	bool shared, int purge_interval)
-	
+
 This function creates and initializes an SGV cache. It has the following
 arguments:
 
@@ -105,7 +105,7 @@ arguments:
      * sgv_full_clustering - free merging of pages at any place in
        the SG is allowed. This mode usually provides the best merging
        rate.
- 
+
  - single_alloc_pages - if 0, then the SGV cache will work in the set of
    power 2 size buffers mode. If >0, then the SGV cache will work in the
    fixed size buffers mode. In this case single_alloc_pages sets the
@@ -151,11 +151,11 @@ user space pages.
 alloc_pages_fn() has the following parameters:
 
  - sg - SG entry, to which the allocated page should be added.
- 
+
  - gfp - the allocation GFP flags
- 
+
  - priv - pointer to a private data supplied to sgv_pool_alloc()
- 
+
 This function should return the allocated page or NULL, if no page was
 allocated.
 
@@ -163,9 +163,9 @@ allocated.
 free_pages_fn() has the following parameters:
 
  - sg - SG vector to free
- 
+
  - sg_count - number of SG entries in the sg
- 
+
  - priv - pointer to a private data supplied to the corresponding sgv_pool_alloc()
 
 
@@ -181,26 +181,26 @@ following parameters:
  - size - size of the resulting SG vector in bytes
 
  - gfp_mask - the allocation mask
- 
+
  - flags - the allocation flags. The following flags are possible and
    can be set using OR operation:
- 
+
      * SGV_POOL_ALLOC_NO_CACHED - the SG vector must not be cached.
- 
+
      * SGV_POOL_NO_ALLOC_ON_CACHE_MISS - don't do an allocation on a
        cache miss.
- 
+
      * SGV_POOL_RETURN_OBJ_ON_ALLOC_FAIL - return an empty SGV object,
        i.e. without the SG vector, if the allocation can't be completed.
        For instance, because SGV_POOL_NO_ALLOC_ON_CACHE_MISS flag set.
- 
+
  - count - the resulting count of SG entries in the resulting SG vector.
 
  - sgv - the resulting SGV object. It should be used to free the
    resulting SG vector.
- 
+
  - mem_lim - memory limits, see below.
- 
+
  - priv - pointer to private for this allocation data. This pointer will
    be supplied to alloc_pages_fn() and free_pages_fn() and can be
    retrieved by sgv_get_priv().
