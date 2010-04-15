@@ -558,7 +558,12 @@ void conn_reinst_finished(struct iscsi_conn *conn)
 					reinst_pending_cmd_list_entry) {
 		TRACE_MGMT_DBG("Restarting reinst pending cmnd %p",
 			cmnd);
+
 		list_del(&cmnd->reinst_pending_cmd_list_entry);
+
+		/* Restore the state for preliminary completion/cmnd_done() */
+		cmnd->scst_state = ISCSI_CMD_STATE_AFTER_PREPROC;
+
 		iscsi_restart_cmnd(cmnd);
 	}
 
