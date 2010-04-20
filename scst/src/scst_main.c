@@ -1430,7 +1430,7 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 		thr = kmalloc(sizeof(*thr), GFP_KERNEL);
 		if (!thr) {
 			res = -ENOMEM;
-			PRINT_ERROR("fail to allocate thr %d", res);
+			PRINT_ERROR("Fail to allocate thr %d", res);
 			goto out_error;
 		}
 
@@ -1459,6 +1459,15 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 		cmd_threads->nr_threads++;
 
 		wake_up_process(thr->cmd_thread);
+	}
+
+	if (cmd_threads != &scst_main_cmd_threads) {
+		/*
+		 * Wait for io_context gets initialized to avoid possible races
+		 * for it from the sharing it tgt_devs.
+		 */
+		while (cmd_threads->io_context == NULL)
+			msleep(50);
 	}
 
 	res = 0;

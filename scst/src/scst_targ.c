@@ -3893,6 +3893,9 @@ int scst_cmd_thread(void *arg)
 #else
 			current->io_context = p_cmd_threads->io_context;
 			kref_get(p_cmd_threads->io_context_kref);
+			TRACE_DBG("kref %p, new refcount %d",
+				p_cmd_threads->io_context_kref,
+				atomic_read(&p_cmd_threads->io_context_kref->refcount));
 #endif
 			TRACE_MGMT_DBG("Linked IO context %p "
 				"(p_cmd_threads %p)", p_cmd_threads->io_context,
@@ -3937,16 +3940,19 @@ int scst_cmd_thread(void *arg)
 	EXTRACHECKS_BUG_ON((p_cmd_threads->nr_threads == 1) &&
 		 !list_empty(&p_cmd_threads->active_cmd_list));
 
-	if ((p_cmd_threads->nr_threads == 1) &&
-	    (p_cmd_threads != &scst_main_cmd_threads))
-		p_cmd_threads->io_context = NULL;
-
+	if (p_cmd_threads != &scst_main_cmd_threads) {
+		if (p_cmd_threads->nr_threads == 1)
+			p_cmd_threads->io_context = NULL;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-	if (!kref_put(p_cmd_threads->io_context_kref, kref_free))
-		current->io_context = NULL;
-	else
-		p_cmd_threads->io_context_kref = NULL;
+		TRACE_DBG("kref %p, old refcount %d",
+			p_cmd_threads->io_context_kref,
+			atomic_read(&p_cmd_threads->io_context_kref->refcount));
+		if (kref_put(p_cmd_threads->io_context_kref, kref_free))
+			p_cmd_threads->io_context_kref = NULL;
+		else
+			current->io_context = NULL;
 #endif
+	}
 
 	PRINT_INFO("Processing thread %s (PID %d) finished", current->comm,
 		current->pid);

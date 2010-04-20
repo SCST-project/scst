@@ -2548,6 +2548,25 @@ static int scst_ioc_keeper_thread(void *arg)
 	return 0;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
+static struct kref *scst_alloc_io_context_kref(void)
+{
+	struct kref *io_context_kref;
+
+	io_context_kref = kmalloc(sizeof(*io_context_kref), GFP_KERNEL);
+	if (io_context_kref == NULL) {
+		PRINT_ERROR("Unable to alloc io_context_kref "
+			"(size %zd)", sizeof(*io_context_kref));
+		goto out;
+	}
+
+	kref_init(io_context_kref);
+
+out:
+	return io_context_kref;
+}
+#endif
+
 /* scst_mutex supposed to be held */
 int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 {
@@ -2640,17 +2659,11 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 		else {
 			struct kref *io_context_kref;
-
-			io_context_kref = kmalloc(sizeof(*io_context_kref),
-						GFP_KERNEL);
+			io_context_kref = scst_alloc_io_context_kref();
 			if (io_context_kref == NULL) {
-				PRINT_ERROR("Unable to alloc io_context_kref "
-					"(size %zd)", sizeof(*io_context_kref));
 				res = -ENOMEM;
 				goto out;
 			}
-
-			kref_init(io_context_kref);
 			tgt_dev->tgt_dev_cmd_threads.io_context_kref =
 					io_context_kref;
 		}
@@ -2674,11 +2687,21 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 		break;
 	}
 	case SCST_THREADS_POOL_SHARED:
+	{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
+		struct kref *io_context_kref = scst_alloc_io_context_kref();
+		if (io_context_kref == NULL) {
+			res = -ENOMEM;
+			goto out;
+		}
+		dev->dev_cmd_threads.io_context_kref = io_context_kref;
+#endif
 		tgt_dev->active_cmd_threads = &dev->dev_cmd_threads;
 
 		res = scst_add_threads(tgt_dev->active_cmd_threads, dev, NULL,
 			tgt_dev->sess->tgt->tgtt->threads_num);
 		break;
+	}
 	default:
 		PRINT_CRIT_ERROR("Unknown threads pool type %d (dev %s)",
 			dev->threads_pool_type, dev->virt_name);
