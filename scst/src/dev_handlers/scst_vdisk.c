@@ -39,6 +39,7 @@
 #include <linux/sched.h>
 #include <linux/version.h>
 #include <asm/div64.h>
+#include <asm/unaligned.h>
 
 #define LOG_PREFIX			"dev_vdisk"
 
@@ -1940,7 +1941,17 @@ static void vdisk_exec_read_capacity(struct scst_cmd *cmd)
 	blocksize = virt_dev->block_size;
 	nblocks = virt_dev->nblocks;
 
-	/* last block on the virt_dev is (nblocks-1) */
+	if ((cmd->cdb[8] & 1) == 0) {
+		uint64_t lba = be64_to_cpu(get_unaligned((uint64_t *)&cmd->cdb[2]));
+		if (lba != 0) {
+			TRACE_DBG("PMI zero and LBA not zero (cmd %p)", cmd);
+			scst_set_cmd_error(cmd,
+			    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+			goto out;
+		}
+	}
+
+	/* Last block on the virt_dev is (nblocks-1) */
 	memset(buffer, 0, sizeof(buffer));
 	if (nblocks >> 32) {
 		buffer[0] = 0xFF;
@@ -1996,6 +2007,16 @@ static void vdisk_exec_read_capacity16(struct scst_cmd *cmd)
 	virt_dev = (struct scst_vdisk_dev *)cmd->dev->dh_priv;
 	blocksize = virt_dev->block_size;
 	nblocks = virt_dev->nblocks - 1;
+
+	if ((cmd->cdb[14] & 1) == 0) {
+		uint64_t lba = be64_to_cpu(get_unaligned((uint64_t *)&cmd->cdb[2]));
+		if (lba != 0) {
+			TRACE_DBG("PMI zero and LBA not zero (cmd %p)", cmd);
+			scst_set_cmd_error(cmd,
+			    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+			goto out;
+		}
+	}
 
 	memset(buffer, 0, sizeof(buffer));
 
