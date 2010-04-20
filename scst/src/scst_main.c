@@ -771,7 +771,9 @@ static int scst_register_device(struct scsi_device *scsidp)
 {
 	int res = 0;
 	struct scst_device *dev, *d;
+#ifdef CONFIG_SCST_PROC
 	struct scst_dev_type *dt;
+#endif
 
 	TRACE_ENTRY();
 
@@ -827,6 +829,11 @@ static int scst_register_device(struct scsi_device *scsidp)
 	if (res != 0)
 		goto out_free;
 
+#ifdef CONFIG_SCST_PROC
+	/*
+	 * Let's don't attach to dev handler by default, but keep this code in
+	 * for compatibility in the proc build only.
+	 */
 	list_for_each_entry(dt, &scst_dev_type_list, dev_type_list_entry) {
 		if (dt->type == scsidp->type) {
 			res = scst_assign_dev_handler(dev, dt);
@@ -835,6 +842,7 @@ static int scst_register_device(struct scsi_device *scsidp)
 			break;
 		}
 	}
+#endif
 
 out_up:
 	mutex_unlock(&scst_mutex);
@@ -1138,7 +1146,9 @@ int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 	const char *version)
 {
 	struct scst_dev_type *dt;
+#ifdef CONFIG_SCST_PROC
 	struct scst_device *dev;
+#endif
 	int res;
 	int exist;
 
@@ -1211,12 +1221,18 @@ int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 
 	list_add_tail(&dev_type->dev_type_list_entry, &scst_dev_type_list);
 
+#ifdef CONFIG_SCST_PROC
+	/*
+	 * Let's don't attach to all devices by default, but keep this code in
+	 * for compatibility in the proc build only.
+	 */
 	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
 		if (dev->scsi_dev == NULL || dev->handler != &scst_null_devtype)
 			continue;
 		if (dev->scsi_dev->type == dev_type->type)
 			scst_assign_dev_handler(dev, dev_type);
 	}
+#endif
 
 	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
