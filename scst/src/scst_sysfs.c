@@ -3533,20 +3533,11 @@ static struct kobj_attribute scst_devt_mgmt =
 	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_devt_mgmt_show,
 	       scst_devt_mgmt_store);
 
-static ssize_t scst_devt_pass_through_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
-{
-	return sprintf(buf, "1");
-}
-
-static struct kobj_attribute scst_devt_pass_through =
-	__ATTR(pass_through, S_IRUGO, scst_devt_pass_through_show, NULL);
-
 static ssize_t scst_devt_pass_through_mgmt_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
-	char *help = "Usage: echo \"assign H:C:I:L\" >mgmt\n"
-		     "       echo \"unassign H:C:I:L\" >mgmt\n";
+	char *help = "Usage: echo \"add_device H:C:I:L\" >mgmt\n"
+		     "       echo \"del_device H:C:I:L\" >mgmt\n";
 	return sprintf(buf, help);
 }
 
@@ -3641,9 +3632,12 @@ static ssize_t scst_devt_pass_through_mgmt_store(struct kobject *kobj,
 		goto out_unlock;
 	}
 
-	if (strcasecmp("assign", action) == 0)
+	if (strcasecmp("add_device", action) == 0) {
 		res = scst_assign_dev_handler(dev, devt);
-	else if (strcasecmp("deassign", action) == 0) {
+		if (res == 0)
+			PRINT_INFO("Device %s assigned to dev handler %s",
+				dev->virt_name, devt->name);
+	} else if (strcasecmp("del_device", action) == 0) {
 		if (dev->handler != devt) {
 			PRINT_ERROR("Device %s is not assigned to handler %s",
 				dev->virt_name, devt->name);
@@ -3651,6 +3645,9 @@ static ssize_t scst_devt_pass_through_mgmt_store(struct kobject *kobj,
 			goto out_unlock;
 		}
 		res = scst_assign_dev_handler(dev, &scst_null_devtype);
+		if (res == 0)
+			PRINT_INFO("Device %s unassigned from dev handler %s",
+				dev->virt_name, devt->name);
 	} else {
 		PRINT_ERROR("Unknown action \"%s\"", action);
 		res = -EINVAL;
@@ -3712,27 +3709,14 @@ int scst_create_devt_sysfs(struct scst_dev_type *devt)
 	if (devt->add_device != NULL) {
 		retval = sysfs_create_file(&devt->devt_kobj,
 				&scst_devt_mgmt.attr);
-		if (retval != 0) {
-			PRINT_ERROR("Can't add mgmt attr for dev handler %s",
-				devt->name);
-			goto out;
-		}
-	} else if (devt->pass_through) {
+	} else {
 		retval = sysfs_create_file(&devt->devt_kobj,
 				&scst_devt_pass_through_mgmt.attr);
-		if (retval != 0) {
-			PRINT_ERROR("Can't add mgmt attr for dev handler %s",
-				devt->name);
-			goto out;
-		}
-
-		retval = sysfs_create_file(&devt->devt_kobj,
-				&scst_devt_pass_through.attr);
-		if (retval != 0) {
-			PRINT_ERROR("Can't add pass_through attr for dev "
-				"handler %s", devt->name);
-			goto out;
-		}
+	}
+	if (retval != 0) {
+		PRINT_ERROR("Can't add mgmt attr for dev handler %s",
+			devt->name);
+		goto out;
 	}
 
 	pattr = devt->devt_attrs;

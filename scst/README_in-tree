@@ -348,9 +348,6 @@ Standard SCST dev handlers have at least the following common entries:
    SCSI devices to/from this dev handler (for pass-through dev
    handlers).
 
- - pass_through - if exists, it contains 1 and this dev handler is a
-   pass-through dev handler.
-
  - trace_level - allows to enable and disable various tracing
    facilities. See content of this file for help how to use it.
 
@@ -975,14 +972,14 @@ Each pass-through dev handler has in its root subdirectory
 /sys/kernel/scst_tgt/handlers/dev_disk, "mgmt" file. It allows the
 following commands. They can be sent to it using, e.g., echo command.
 
- - "assign" - this command assigns SCSI device with
+ - "add_device" - this command assigns SCSI device with
 host:channel:id:lun numbers to this dev handler.
 
-echo "assign 1:0:0:0" >mgmt
+echo "add_device 1:0:0:0" >mgmt
 
 will assign SCSI device 1:0:0:0 to this dev handler.
 
- - "unassign" - this command unassigns SCSI device with
+ - "del_device" - this command unassigns SCSI device with
 host:channel:id:lun numbers from this dev handler.
 
 As usually, on read the "mgmt" file returns small help about available

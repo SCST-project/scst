@@ -966,9 +966,6 @@ struct scst_dev_type {
 	/* SCSI type of the supported device. MUST HAVE */
 	int type;
 
-	/* True, if this dev handler is a pass-through dev handler */
-	unsigned pass_through:1;
-
 	/*
 	 * True, if corresponding function supports execution in
 	 * the atomic (non-sleeping) context

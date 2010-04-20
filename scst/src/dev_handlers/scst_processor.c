@@ -38,7 +38,6 @@ static int processor_parse(struct scst_cmd *);
 static struct scst_dev_type processor_devtype = {
 	.name =			PROCESSOR_NAME,
 	.type =			TYPE_PROCESSOR,
-	.pass_through =		1,
 	.parse_atomic =		1,
 /*	.dev_done_atomic =	1,*/
 	.attach =		processor_attach,

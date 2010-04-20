@@ -281,9 +281,6 @@ handlers.
 Further in this document children dev handlers or parent dev handlers,
 which don't support children, will be called "end level dev handlers".
 
-Each end level dev handler MUST be either for pass-through, or for
-virtual devices.
-
 End level dev handlers can be recognized by existence of the "mgmt"
 attribute.
 
@@ -294,13 +291,9 @@ scst_device.virt_name (called "device_name" further in this document).
 Attributes for dev handlers
 ---------------------------
 
-Each pass-through dev handler MUST have in its root subdirectory
-"pass-through" and "mgmt" attributes and the "mgmt" attribute MUST
-support "assign" and "unassign" commands as described below.
-
-Each virtual devices dev handler MUST have it in its root subdirectory
-"mgmt" attribute, which MUST support "add_device" and "del_device"
-attributes as described below.
+Each dev handler MUST have it in its root subdirectory "mgmt" attribute,
+which MUST support "add_device" and "del_device" attributes as described
+below.
 
 Parent dev handlers and end level dev handlers without parents MAY
 support in its root subdirectory the following optional attributes. They
@@ -445,38 +438,35 @@ Attribute "mgmt" for pass-through devices dev handlers
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 For pass-through devices dev handlers "mgmt" attribute MUST allow to
-assign and unassign this dev handler to existing SCSI devices.
+assign and unassign this dev handler to existing SCSI devices via
+"add_device" and "del_device" commands correspondingly.
 
 On read it MUST return a help string describing available commands and
 parameters.
 
 For example:
 
-Usage: echo "assign H:C:I:L" >mgmt
-       echo "unassign H:C:I:L" >mgmt
+Usage: echo "add_device H:C:I:L" >mgmt
+       echo "del_device H:C:I:L" >mgmt
 
-1. "assign" - this command MUST assign SCSI device with
+1. "add_device" - this command MUST assign SCSI device with
 host:channel:id:lun numbers to this dev handler.
 
 All pass-through dev handlers MUST support this command.
 
 For example:
 
-echo "assign 1:0:0:0" >mgmt
+echo "add_device 1:0:0:0" >mgmt
 
 will assign SCSI device 1:0:0:0 to this dev handler.
 
-2. "unassign" - this command MUST unassign SCSI device with
+2. "del_device" - this command MUST unassign SCSI device with
 host:channel:id:lun numbers from this dev handler.
 
 SCST core will automatically create for all dev handlers the following
 attributes:
 
-1. "pass_through" - if the dev handler is a handler for pass-through
-devices, SCST core create this attribute. This attribute will have value
-1.
-
-2. "type" - SCSI type of device this dev handler can handle.
+1. "type" - SCSI type of device this dev handler can handle.
 
 See SCST core's README for more info about those attributes.
 
@@ -545,29 +535,24 @@ For devices and dev handlers:
 
 1. Each dev handler in its root subdirectory MUST have "mgmt" attribute.
 
-2. All pass-through dev handlers MUST have "pass_through" attribute.
+2. Each dev handler MUST support "add_device" and "del_device" commands
+to the "mgmt" attribute as specified above.
 
-3. Each virtual devices dev handler MUST support "add_device" and
-"del_device" commands to the "mgmt" attribute as specified above.
-
-4. Each pass-through dev handler MUST support "assign" and "unassign"
-commands to the "mgmt" attribute as specified above.
-
-5. If dev handler driver supports run time adding new key attributes, it
+3. If dev handler driver supports run time adding new key attributes, it
 MUST support "add_attribute" and "del_attribute" commands to the "mgmt"
 attribute as specified above.
 
-6. All device handlers have links in the root subdirectory pointing to
+4. All device handlers have links in the root subdirectory pointing to
 their devices.
 
-7. If device has read-only key attributes, the "add_device" command MUST
+5. If device has read-only key attributes, the "add_device" command MUST
 support them as parameters.
 
-8. If device supports run time adding new key attributes, its dev
+6. If device supports run time adding new key attributes, its dev
 handler MUST support "add_device_attribute" and "del_device_attribute"
 commands to the "mgmt" attribute as specified above.
 
-9. Each device has "handler" link to its dev handler's root
+7. Each device has "handler" link to its dev handler's root
 subdirectory.
 
 Algorithm to convert current SCST configuration to config file
@@ -681,7 +666,7 @@ only attributes as parameters.
 2.4. For pass-through dev handlers for each stores device:
 
 2.4.1. Assign the corresponding pass-through device to this dev handler
-using "assign" command, if it isn't already auto assigned to it.
+using "add_device" command, if it isn't already auto assigned to it.
 
 3. For each target driver:
 
@@ -754,9 +739,6 @@ not needed any more attributes using "del_device_attribute" command.
 
 2.3.2. If any read only key attribute for virtual device should be
 changed, delete the devices and recreate it.
-
-2.3.3. For pass-through devices dev handlers reassign handlers if
-necessary.
 
 3. Go through all subdirectories in /sys/kernel/scst_tgt/targets. For
 each target driver:
