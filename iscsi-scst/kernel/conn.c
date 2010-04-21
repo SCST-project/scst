@@ -894,7 +894,7 @@ int __del_conn(struct iscsi_session *session, struct iscsi_kern_conn_info *info)
 
 	conn = conn_lookup(session, info->cid);
 	if (!conn) {
-		PRINT_ERROR("Connection %d not found", info->cid);
+		PRINT_WARNING("Connection %d not found", info->cid);
 		return err;
 	}
 

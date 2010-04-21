@@ -152,8 +152,7 @@ void session_free(struct session *session)
 {
 	log_debug(1, "Freeing session sid %#"PRIx64, session->sid.id64);
 
-	if (!session->sid.id.tsih)
-		kernel_session_destroy(session->target->tid, session->sid.id64);
+	kernel_session_destroy(session->target->tid, session->sid.id64);
 
 	if (session->target) {
 		struct target *target = session->target;

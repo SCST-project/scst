@@ -70,6 +70,8 @@ struct connection {
 	int iostate;
 	int fd;
 
+	unsigned int passed_to_kern:1;
+
 	struct session *sess;
 
 	u32 tid;

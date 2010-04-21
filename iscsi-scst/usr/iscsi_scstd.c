@@ -557,12 +557,23 @@ static void event_loop(void)
 			event_conn(conn, pollfd);
 
 			if (conn->state == STATE_CLOSE) {
+				struct session *sess = conn->sess;
 				log_debug(1, "closing conn %p", conn);
 				conn_free_pdu(conn);
 				close(pollfd->fd);
 				pollfd->fd = -1;
 				incoming[i] = NULL;
 				incoming_cnt--;
+				if (conn->passed_to_kern) {
+					kernel_conn_destroy(conn->tid,
+						conn->sess->sid.id64, conn->cid);
+				} else {
+					conn_free(conn);
+					log_debug(1, "conn %p freed (sess %p, empty %d)",
+						conn, sess, sess ? list_empty(&sess->conn_list) : -1);
+					if (sess && list_empty(&sess->conn_list))
+						session_free(sess);
+				}
 			}
 		}
 	}

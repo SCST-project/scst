@@ -303,7 +303,7 @@ int kernel_conn_destroy(u32 tid, u64 sid, u32 cid)
 
 	if ((err = ioctl(ctrl_fd, DEL_CONN, &info)) < 0) {
 		err = -errno;
-		log_error("Can't destroy conn (errno %d, tid %u, sid 0x%"
+		log_debug(2, "Can't destroy conn (errno %d, tid %u, sid 0x%"
 			PRIx64 ", cid %u\n", errno, tid, sid, cid);
 	}
 
@@ -437,7 +437,7 @@ int kernel_session_destroy(u32 tid, u64 sid)
 	res = ioctl(ctrl_fd, DEL_SESSION, &info);
 	if (res < 0) {
 		res = -errno;
-		log_error("Can't destroy sess 0x%" PRIu64 " (tid %d): %s\n",
+		log_debug(2, "Can't destroy sess 0x%" PRIu64 " (tid %d): %s\n",
 			sid, tid, strerror(errno));
 	}
 

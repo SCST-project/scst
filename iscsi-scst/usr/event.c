@@ -112,6 +112,7 @@ static int send_mgmt_cmd_res(u32 tid, u32 cookie, u32 req_cmd, int result,
 
 	res = ioctl(ctrl_fd, MGMT_CMD_CALLBACK, &cinfo);
 	if (res != 0) {
+		res = -errno;
 		log_error("Can't send mgmt reply (cookie %d, result %d, "
 			"res %d): %s\n", cookie, result, res, strerror(errno));
 	}
