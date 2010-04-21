@@ -961,8 +961,10 @@ static void cmnd_exec_text(struct connection *conn)
 	}
 
 	if (list_empty(&conn->rsp_buf_list) ||
-	    list_length_is_one(&conn->rsp_buf_list))
+	    list_length_is_one(&conn->rsp_buf_list)) {
 		rsp->flags = ISCSI_FLG_FINAL;
+		conn->ttt = ISCSI_RESERVED_TAG;
+	}
 
 	rsp->ttt = conn->ttt;
 
