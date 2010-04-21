@@ -161,7 +161,7 @@ iscsi-scstd_request 203 3 \-1
 .IX Header "OPTIONS"
 \&\fB\-\-op new \-\-tid=[id] \-\-params Name=[name]\fR
 .PP
-add a new target with [id]. [id] must not be zero.
+add a new target with [id]. If [id] is zero, the lowest free [id] is allocated automatically to the new target.
 .PP
 \&\fB\-\-op delete \-\-tid=[id]\fR
 .PP
