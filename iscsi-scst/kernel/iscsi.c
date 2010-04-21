@@ -3772,4 +3772,6 @@ static void __exit iscsi_exit(void)
 module_init(iscsi_init);
 module_exit(iscsi_exit);
 
+MODULE_VERSION(ISCSI_VERSION_STRING);
 MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("SCST iSCSI Target");
