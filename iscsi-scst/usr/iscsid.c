@@ -953,8 +953,10 @@ static void cmnd_exec_text(struct connection *conn)
 		return;
 	}
 
-	if (list_length_is_one(&conn->rsp_buf_list))
+	if (list_empty(&conn->rsp_buf_list) ||
+	    list_length_is_one(&conn->rsp_buf_list))
 		rsp->flags = ISCSI_FLG_FINAL;
+
 	rsp->ttt = conn->ttt;
 
 	rsp->stat_sn = cpu_to_be32(conn->stat_sn++);
