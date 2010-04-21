@@ -467,10 +467,31 @@ out:
 	return res;
 }
 
+static void login_rsp_ini_err(struct connection *conn, int status_detail)
+{
+	struct iscsi_login_rsp_hdr * const rsp =
+		(struct iscsi_login_rsp_hdr * const)&conn->rsp.bhs;
+
+	rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
+	rsp->status_detail = status_detail;
+	conn->state = STATE_EXIT;
+	return;
+}
+
+static void login_rsp_tgt_err(struct connection *conn, int status_detail)
+{
+	struct iscsi_login_rsp_hdr * const rsp =
+		(struct iscsi_login_rsp_hdr * const)&conn->rsp.bhs;
+
+	rsp->status_class = ISCSI_STATUS_TARGET_ERR;
+	rsp->status_detail = status_detail;
+	conn->state = STATE_EXIT;
+	return;
+}
+
 static void login_start(struct connection *conn)
 {
 	struct iscsi_login_req_hdr *req = (struct iscsi_login_req_hdr *)&conn->req.bhs;
-	struct iscsi_login_rsp_hdr *rsp = (struct iscsi_login_rsp_hdr *)&conn->rsp.bhs;
 	char *name, *alias, *session_type, *target_name;
 
 	conn->cid = be16_to_cpu(req->cid);
@@ -478,18 +499,14 @@ static void login_start(struct connection *conn)
 
 	name = text_key_find(conn, "InitiatorName");
 	if (!name) {
-		rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
-		rsp->status_detail = ISCSI_STATUS_MISSING_FIELDS;
-		conn->state = STATE_EXIT;
+		login_rsp_ini_err(conn, ISCSI_STATUS_MISSING_FIELDS);
 		return;
 	}
 
 	conn->initiator = strdup(name);
 	if (conn->initiator == NULL) {
 		log_error("Unable to duplicate initiator's name %s", name);
-		rsp->status_class = ISCSI_STATUS_TARGET_ERR;
-		rsp->status_detail = ISCSI_STATUS_NO_RESOURCES;
-		conn->state = STATE_EXIT;
+		login_rsp_tgt_err(conn, ISCSI_STATUS_NO_RESOURCES);
 		return;
 	}
 
@@ -504,9 +521,7 @@ static void login_start(struct connection *conn)
 		if (!strcmp(session_type, "Discovery")) {
 			conn->session_type = SESSION_DISCOVERY;
 		} else if (strcmp(session_type, "Normal")) {
-			rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
-			rsp->status_detail = ISCSI_STATUS_INV_SESSION_TYPE;
-			conn->state = STATE_EXIT;
+			login_rsp_ini_err(conn, ISCSI_STATUS_INV_SESSION_TYPE);
 			return;
 		}
 	}
@@ -516,36 +531,31 @@ static void login_start(struct connection *conn)
 		int err, rc;
 
 		if (!target_name) {
-			rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
-			rsp->status_detail = ISCSI_STATUS_MISSING_FIELDS;
-			conn->state = STATE_EXIT;
+			login_rsp_ini_err(conn, ISCSI_STATUS_MISSING_FIELDS);
 			return;
 		}
 
 		target = target_find_by_name(target_name);
 		if (target == NULL) {
-			rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
-			rsp->status_detail = ISCSI_STATUS_TGT_NOT_FOUND;
-			conn->state = STATE_EXIT;
+			login_rsp_ini_err(conn, ISCSI_STATUS_TGT_NOT_FOUND);
 			return;
 		}
 
 		if (!target->tgt_enabled) {
 			log_info("Connect from %s to disabled target %s refused",
 				name, target_name);
-			rsp->status_class = ISCSI_STATUS_TARGET_ERR;
+			login_rsp_tgt_err(conn, 0);
 			conn->state = STATE_CLOSE;
 			return;
 		}
 
 		conn->tid = target->tid;
+
 		if (config_initiator_access(conn->tid, conn->fd) ||
 		    isns_scn_access(conn->tid, conn->fd, name)) {
 			log_info("Initiator %s not allowed to connect to "
 				"target %s", name, target_name);
-			rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
-			rsp->status_detail = ISCSI_STATUS_TGT_NOT_FOUND;
-			conn->state = STATE_EXIT;
+			login_rsp_ini_err(conn, ISCSI_STATUS_TGT_NOT_FOUND);
 			return;
 		}
 
@@ -554,9 +564,7 @@ static void login_start(struct connection *conn)
 			log_error("Can't get session params for session 0x%" PRIu64
 				" (err %d): %s\n", conn->sid.id64, err,
 				strerror(-err));
-			rsp->status_class = ISCSI_STATUS_TARGET_ERR;
-			rsp->status_detail = ISCSI_STATUS_TARGET_ERROR;
-			conn->state = STATE_EXIT;
+			login_rsp_tgt_err(conn, ISCSI_STATUS_TARGET_ERROR);
 			return;
 		}
 
@@ -574,8 +582,7 @@ static void login_start(struct connection *conn)
 					"target %s - max sessions limit "
 					"reached (%d)",	name, target_name,
 					target->target_params[key_max_sessions]);
-				rsp->status_class = ISCSI_STATUS_TARGET_ERR;
-				rsp->status_detail = ISCSI_STATUS_NO_RESOURCES;
+				login_rsp_tgt_err(conn, ISCSI_STATUS_NO_RESOURCES);
 				conn->state = STATE_CLOSE;
 				return;
 			}
