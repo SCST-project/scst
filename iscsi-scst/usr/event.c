@@ -42,7 +42,7 @@ static int nl_write(int fd, void *data, int len)
 {
 	struct iovec iov[2];
 	struct msghdr msg;
-	struct nlmsghdr nlh;
+	struct nlmsghdr nlh = {0};
 
 	iov[0].iov_base = &nlh;
 	iov[0].iov_len = sizeof(nlh);
