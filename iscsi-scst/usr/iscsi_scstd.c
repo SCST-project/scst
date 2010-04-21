@@ -557,7 +557,7 @@ static void event_loop(void)
 			event_conn(conn, pollfd);
 
 			if (conn->state == STATE_CLOSE) {
-				log_debug(0, "closing conn %p", conn);
+				log_debug(1, "closing conn %p", conn);
 				conn_free_pdu(conn);
 				close(pollfd->fd);
 				pollfd->fd = -1;

@@ -107,7 +107,7 @@ void __log_error(const char *func, int line, const char *fmt, ...)
 
 void __log_debug(const char *func, int line, int level, const char *fmt, ...)
 {
-	if (log_level > level) {
+	if (log_level >= level) {
 		va_list ap;
 		va_start(ap, fmt);
 		dolog(LOG_DEBUG, func, line, fmt, ap);
