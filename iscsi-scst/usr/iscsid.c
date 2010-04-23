@@ -545,7 +545,7 @@ static void login_start(struct connection *conn)
 			log_info("Connect from %s to disabled target %s refused",
 				name, target_name);
 			login_rsp_tgt_err(conn, 0);
-			conn->state = STATE_CLOSE;
+			conn->state = STATE_EXIT;
 			return;
 		}
 
@@ -583,7 +583,7 @@ static void login_start(struct connection *conn)
 					"reached (%d)",	name, target_name,
 					target->target_params[key_max_sessions]);
 				login_rsp_tgt_err(conn, ISCSI_STATUS_NO_RESOURCES);
-				conn->state = STATE_CLOSE;
+				conn->state = STATE_EXIT;
 				return;
 			}
 		}
@@ -1060,7 +1060,6 @@ void cmnd_finish(struct connection *conn)
 
 	switch (conn->state) {
 	case STATE_EXIT:
-		conn->state = STATE_CLOSE;
 		break;
 	case STATE_SECURITY_LOGIN:
 		conn->state = STATE_LOGIN;

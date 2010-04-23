@@ -342,7 +342,7 @@ static void event_conn(struct connection *conn, struct pollfd *pollfd)
 		res = read(pollfd->fd, conn->buffer, conn->rwsize);
 		if (res <= 0) {
 			if (res == 0 || (errno != EINTR && errno != EAGAIN))
-				conn->state = STATE_CLOSE;
+				conn->state = STATE_EXIT;
 			else if (errno == EINTR)
 				goto read_again;
 			break;
@@ -364,15 +364,15 @@ static void event_conn(struct connection *conn, struct pollfd *pollfd)
 				log_warning("Recv PDU with invalid size %d "
 					"(max: %d)", conn->rwsize,
 					INCOMING_BUFSIZE);
-					conn->state = STATE_CLOSE;
-					goto out;
+				conn->state = STATE_EXIT;
+				goto out;
 			}
 			if (conn->rwsize) {
 				if (!conn->req_buffer) {
 					conn->req_buffer = malloc(INCOMING_BUFSIZE);
 					if (!conn->req_buffer) {
 						log_error("Failed to alloc recv buffer");
-						conn->state = STATE_CLOSE;
+						conn->state = STATE_EXIT;
 						goto out;
 					}
 				}
@@ -388,7 +388,7 @@ static void event_conn(struct connection *conn, struct pollfd *pollfd)
 
 			log_pdu(2, &conn->req);
 			if (!cmnd_execute(conn))
-				conn->state = STATE_CLOSE;
+				conn->state = STATE_EXIT;
 			break;
 		}
 		break;
@@ -402,7 +402,7 @@ static void event_conn(struct connection *conn, struct pollfd *pollfd)
 		res = write(pollfd->fd, conn->buffer, conn->rwsize);
 		if (res < 0) {
 			if (errno != EINTR && errno != EAGAIN)
-				conn->state = STATE_CLOSE;
+				conn->state = STATE_EXIT;
 			else if (errno == EINTR)
 				goto write_again;
 			break;
@@ -556,7 +556,8 @@ static void event_loop(void)
 
 			event_conn(conn, pollfd);
 
-			if (conn->state == STATE_CLOSE) {
+			if ((conn->state == STATE_CLOSE) ||
+			    (conn->state == STATE_EXIT)) {
 				struct session *sess = conn->sess;
 				log_debug(1, "closing conn %p", conn);
 				conn_free_pdu(conn);
@@ -564,15 +565,19 @@ static void event_loop(void)
 				pollfd->fd = -1;
 				incoming[i] = NULL;
 				incoming_cnt--;
-				if (conn->passed_to_kern) {
-					kernel_conn_destroy(conn->tid,
-						conn->sess->sid.id64, conn->cid);
-				} else {
-					conn_free(conn);
-					log_debug(1, "conn %p freed (sess %p, empty %d)",
-						conn, sess, sess ? list_empty(&sess->conn_list) : -1);
-					if (sess && list_empty(&sess->conn_list))
-						session_free(sess);
+				if (conn->state == STATE_EXIT) {
+					if (conn->passed_to_kern) {
+						kernel_conn_destroy(conn->tid,
+							conn->sess->sid.id64,
+							conn->cid);
+					} else {
+						conn_free(conn);
+						log_debug(1, "conn %p freed (sess %p, empty %d)",
+							conn, sess,
+							sess ? list_empty(&sess->conn_list) : -1);
+						if (sess && list_empty(&sess->conn_list))
+							session_free(sess);
+					}
 				}
 			}
 		}
