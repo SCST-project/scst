@@ -24,11 +24,19 @@
 #include <inttypes.h>
 
 #if __BYTE_ORDER == __BIG_ENDIAN
+#define cpu_to_le16(x)		bswap_16(x)
+#define le16_to_cpu(x)		bswap_16(x)
+#define cpu_to_le32(x)		bswap_32(x)
+#define le32_to_cpu(x)		bswap_32(x)
 #define cpu_to_be16(x)		(x)
 #define be16_to_cpu(x)		(x)
 #define cpu_to_be32(x)		(x)
 #define be32_to_cpu(x)		(x)
 #elif __BYTE_ORDER == __LITTLE_ENDIAN
+#define cpu_to_le16(x)		(x)
+#define le16_to_cpu(x)		(x)
+#define cpu_to_le32(x)		(x)
+#define le32_to_cpu(x)		(x)
 #define cpu_to_be16(x)		bswap_16(x)
 #define be16_to_cpu(x)		bswap_16(x)
 #define cpu_to_be32(x)		bswap_32(x)

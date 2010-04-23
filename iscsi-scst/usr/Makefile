@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 
 SRCS_D = iscsid.c iscsi_scstd.c conn.c session.c target.c message.c ctldev.c \
-		log.c chap.c event.c param.c config.c isns.c
+		log.c chap.c event.c param.c config.c isns.c md5.o sha1.o
 OBJS_D = $(SRCS_D:.c=.o)
 
 SRCS_ADM = iscsi_adm.c param.c
@@ -30,7 +30,7 @@ CFLAGS += -O2 -fno-inline -Wall -Wextra -Wstrict-prototypes -Wno-sign-compare \
 CFLAGS += -D_GNU_SOURCE # required for glibc >= 2.8
 
 PROGRAMS = iscsi-scstd iscsi-scst-adm
-LIBS = -lcrypto
+LIBS =
 
 all: $(PROGRAMS)
 

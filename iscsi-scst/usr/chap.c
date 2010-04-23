@@ -27,8 +27,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <openssl/sha.h>
-#include <openssl/md5.h>
+#include "sha1.h"
+#include "md5.h"
 
 #include "iscsid.h"
 
@@ -310,25 +310,25 @@ static inline void chap_encode_string(u8 *intnum, int buf_len, char *encode_buf,
 static inline void chap_calc_digest_md5(char chap_id, const char *secret, int secret_len,
 	const u8 *challenge, int challenge_len, u8 *digest)
 {
-	MD5_CTX ctx;
+	struct md5_ctx ctx;
 
-	MD5_Init(&ctx);
-	MD5_Update(&ctx, &chap_id, 1);
-	MD5_Update(&ctx, secret, secret_len);
-	MD5_Update(&ctx, challenge, challenge_len);
-	MD5_Final(digest, &ctx);
+	md5_init(&ctx);
+	md5_update(&ctx, &chap_id, 1);
+	md5_update(&ctx, secret, secret_len);
+	md5_update(&ctx, challenge, challenge_len);
+	md5_final(&ctx, digest);
 }
 
 static inline void chap_calc_digest_sha1(char chap_id, const char *secret, int secret_len,
 	const u8 *challenge, int challenge_len, u8 *digest)
 {
-	SHA_CTX ctx;
+	struct sha1_ctx ctx;
 
-	SHA1_Init(&ctx);
-	SHA1_Update(&ctx, &chap_id, 1);
-	SHA1_Update(&ctx, secret, secret_len);
-	SHA1_Update(&ctx, challenge, challenge_len);
-	SHA1_Final(digest, &ctx);
+	sha1_init(&ctx);
+	sha1_update(&ctx, &chap_id, 1);
+	sha1_update(&ctx, secret, secret_len);
+	sha1_update(&ctx, challenge, challenge_len);
+	sha1_final(&ctx, digest);
 }
 
 static int chap_initiator_auth_create_challenge(struct connection *conn)
