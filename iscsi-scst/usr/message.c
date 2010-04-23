@@ -93,6 +93,7 @@ static void iscsi_adm_request_exec(struct iscsi_adm_req *req, struct iscsi_adm_r
 		break;
 
 	case C_CONN_NEW:
+		break;
 	case C_CONN_DEL:
 		conn_blocked = 1;
 		err = kernel_conn_destroy(req->tid, req->sid, req->cid);
