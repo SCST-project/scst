@@ -33,9 +33,9 @@ the OFED release notes. Each OFED distribution has been tested
 carefully, but only against the kernel versions specified in
 docs/OFED_release_notes.txt (you can find this document in the OFED
 distribution). Make sure that you are using a supported kernel / OFED
-combination. As an example, if you want to use OFED 1.4.1 on an Ubuntu
+combination. As an example, if you want to use OFED 1.5.1 on an Ubuntu
 system, you will have to start with replacing the Ubuntu kernel by a
-kernel from kernel.org since OFED 1.4.1 has not been tested on any
+kernel from kernel.org since OFED 1.5.1 has not been tested on any
 Ubuntu kernel.
 
 
