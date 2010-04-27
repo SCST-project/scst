@@ -83,7 +83,8 @@ scst_exec_req_fifo-2.6.X.patch.
 2. readahead-2.6.X.patch. This patch fixes problem in Linux readahead
 subsystem and greatly improves performance for software RAIDs. See
 http://sourceforge.net/mailarchive/forum.php?thread_name=a0272b440906030714g67eabc5k8f847fb1e538cc62%40mail.gmail.com&forum_name=scst-devel
-thread for more details. It is included in the mainstream kernel 2.6.33.
+thread for more details. It is included in the mainstream kernels 2.6.33
+and 2.6.32.11.
 
 3. readahead-context-2.6.X.patch. This is backported from 2.6.31 version
 of the context readahead patch http://lkml.org/lkml/2009/4/12/9, big
