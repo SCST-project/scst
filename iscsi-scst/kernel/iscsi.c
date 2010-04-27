@@ -2338,7 +2338,7 @@ static void execute_task_management(struct iscsi_cmnd *req)
 	int function = req_hdr->function & ISCSI_FUNCTION_MASK;
 	struct scst_rx_mgmt_params params;
 
-	TRACE(TRACE_MGMT, "TM fn %d", function);
+	TRACE(TRACE_MGMT, "iSCSI TM fn %d", function);
 
 	TRACE_MGMT_DBG("TM req %p, ITT %x, RTT %x, sn %u, con %p", req,
 		cmnd_itt(req), req_hdr->rtt, req_hdr->cmd_sn, conn);
@@ -3277,7 +3277,7 @@ static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status)
 	TRACE_ENTRY();
 
 	TRACE_MGMT_DBG("TM req %p finished", req);
-	TRACE(TRACE_MGMT, "TM fn %d finished, status %d", fn, status);
+	TRACE(TRACE_MGMT, "iSCSI TM fn %d finished, status %d", fn, status);
 
 	rsp = iscsi_alloc_rsp(req);
 	rsp_hdr = (struct iscsi_task_rsp_hdr *)&rsp->pdu.bhs;

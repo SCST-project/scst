@@ -328,7 +328,7 @@ int kernel_params_get(u32 tid, u64 sid, int type, struct iscsi_param *params)
 
 	if ((err = ioctl(ctrl_fd, ISCSI_PARAM_GET, &info)) < 0) {
 		err = -errno;
-		log_debug(1, "Can't get session params for session 0x%" PRIu64 
+		log_debug(1, "Can't get session params for session 0x%" PRIx64 
 			" (tid %u, err %d): %s\n", sid, tid, err, strerror(errno));
 	}
 
@@ -370,7 +370,7 @@ int kernel_params_set(u32 tid, u64 sid, int type, u32 partial,
 
 	if ((err = ioctl(ctrl_fd, ISCSI_PARAM_SET, &info)) < 0) {
 		err = -errno;
-		log_error("Can't set session params for session 0x%" PRIu64 
+		log_error("Can't set session params for session 0x%" PRIx64 
 			" (tid %u, type %d, partial %d, err %d): %s\n", sid,
 			tid, type, partial, err, strerror(errno));
 	}
@@ -415,7 +415,7 @@ int kernel_session_create(struct connection *conn)
 	res = ioctl(ctrl_fd, ADD_SESSION, &info);
 	if (res < 0) {
 		res = -errno;
-		log_error("Can't create sess 0x%" PRIu64 " (tid %d, "
+		log_error("Can't create sess 0x%" PRIx64 " (tid %d, "
 			"initiator %s): %s\n", conn->sess->sid.id64, conn->tid,
 			conn->sess->initiator, strerror(errno));
 	}
@@ -437,7 +437,7 @@ int kernel_session_destroy(u32 tid, u64 sid)
 	res = ioctl(ctrl_fd, DEL_SESSION, &info);
 	if (res < 0) {
 		res = -errno;
-		log_debug(2, "Can't destroy sess 0x%" PRIu64 " (tid %d): %s\n",
+		log_debug(2, "Can't destroy sess 0x%" PRIx64 " (tid %d): %s\n",
 			sid, tid, strerror(errno));
 	}
 
@@ -462,7 +462,7 @@ int kernel_conn_create(u32 tid, u64 sid, u32 cid, u32 stat_sn, u32 exp_stat_sn,
 	res = ioctl(ctrl_fd, ADD_CONN, &info);
 	if (res < 0) {
 		res = -errno;
-		log_error("Can't create conn %x (sess 0x%" PRIu64 ", tid %d): %s\n",
+		log_error("Can't create conn %x (sess 0x%" PRIx64 ", tid %d): %s\n",
 			cid, sid, tid, strerror(errno));
 	}
 

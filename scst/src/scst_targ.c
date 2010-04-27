@@ -5490,7 +5490,10 @@ int scst_rx_mgmt_fn(struct scst_session *sess,
 	mcmd->cmd_sn_set = params->cmd_sn_set;
 	mcmd->cmd_sn = params->cmd_sn;
 
-	TRACE(TRACE_MGMT, "TM fn %d", params->fn);
+	if (params->fn <= SCST_TARGET_RESET)
+		TRACE(TRACE_MGMT, "TM fn %d", params->fn);
+	else
+		TRACE_MGMT_DBG("TM fn %d", params->fn);
 
 	TRACE_MGMT_DBG("sess=%p, tag_set %d, tag %lld, lun_set %d, "
 		"lun=%lld, cmd_sn_set %d, cmd_sn %d, priv %p", sess,

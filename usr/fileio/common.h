@@ -81,7 +81,7 @@ struct vdisk_dev {
 #endif
 #endif
 
-	struct vdisk_tgt_dev tgt_devs[25];
+	struct vdisk_tgt_dev tgt_devs[64];
 
 	char *name;		/* Name of virtual device,
 				   must be <= SCSI Model + 1 */

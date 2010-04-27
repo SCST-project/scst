@@ -561,7 +561,7 @@ static void login_start(struct connection *conn)
 
 		err = init_conn_session_params(conn);
 		if (err != 0) {
-			log_error("Can't get session params for session 0x%" PRIu64
+			log_error("Can't get session params for session 0x%" PRIx64
 				" (err %d): %s\n", conn->sid.id64, err,
 				strerror(-err));
 			login_rsp_tgt_err(conn, ISCSI_STATUS_TARGET_ERROR);
