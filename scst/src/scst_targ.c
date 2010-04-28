@@ -1395,10 +1395,10 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 		scst_alloc_set_sense(cmd, 1, rq_sense, rq_sense_len);
 	}
 
-	TRACE(TRACE_SCSI, "cmd %p, result=%x, cmd->status=%x, resid=%d, "
-	      "cmd->msg_status=%x, cmd->host_status=%x, "
-	      "cmd->driver_status=%x (cmd %p)", cmd, result, cmd->status, resid,
-	      cmd->msg_status, cmd->host_status, cmd->driver_status, cmd);
+	TRACE(TRACE_SCSI, "cmd %p, result %x, cmd->status %x, resid %d, "
+	      "cmd->msg_status %x, cmd->host_status %x, "
+	      "cmd->driver_status %x", cmd, result, cmd->status, resid,
+	      cmd->msg_status, cmd->host_status, cmd->driver_status);
 
 	cmd->completed = 1;
 
@@ -1505,6 +1505,11 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state,
 	TRACE_ENTRY();
 
 	scst_set_exec_time(cmd);
+
+	TRACE(TRACE_SCSI, "cmd %p, status %x, msg_status %x, host_status %x, "
+	      "driver_status %x, resp_data_len %d", cmd, cmd->status,
+	      cmd->msg_status, cmd->host_status, cmd->driver_status,
+	      cmd->resp_data_len);
 
 	if (next_state == SCST_CMD_STATE_DEFAULT)
 		next_state = SCST_CMD_STATE_PRE_DEV_DONE;

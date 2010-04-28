@@ -2451,6 +2451,8 @@ static inline void scst_tgt_set_tgt_priv(struct scst_tgt *tgt, void *val)
 	tgt->tgt_priv = val;
 }
 
+void scst_update_hw_pending_start(struct scst_cmd *cmd);
+
 /*
  * Get/Set functions for session's target private data
  */

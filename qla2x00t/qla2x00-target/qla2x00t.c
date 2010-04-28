@@ -2604,6 +2604,9 @@ static int q2t_prepare_srr_ctio(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
 		goto out;
 	}
 
+	if (cmd->scst_cmd != NULL)
+		scst_update_hw_pending_start(cmd->scst_cmd);
+
 	sc = kzalloc(sizeof(*sc), GFP_ATOMIC);
 	if (sc != NULL) {
 		sc->cmd = cmd;
@@ -3604,6 +3607,8 @@ static void q24_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 
 	TRACE_ENTRY();
 
+	TRACE_MGMT_DBG("SRR cmd %p, srr_ui %x", cmd, ntfy->srr_ui);
+
 	switch (ntfy->srr_ui) {
 	case SRR_IU_STATUS:
 		spin_lock_irq(&ha->hardware_lock);
@@ -3701,6 +3706,8 @@ static void q2x_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 	struct q2t_cmd *cmd = sctio->cmd;
 
 	TRACE_ENTRY();
+
+	TRACE_MGMT_DBG("SRR cmd %p, srr_ui %x", cmd, ntfy->srr_ui);
 
 	switch (ntfy->srr_ui) {
 	case SRR_IU_STATUS:

@@ -1891,7 +1891,35 @@ out_unlock_tgt:
 	return res;
 }
 
-/* Returns 0 to continue, >0 to restart, <0 to break */
+/**
+ * scst_update_hw_pending_start() - update commands pending start
+ *
+ * Updates the command's hw_pending_start as if it's just started hw pending.
+ * Target drivers should call it if they received reply from this pending
+ * command, but SCST core won't see it.
+ */
+void scst_update_hw_pending_start(struct scst_cmd *cmd)
+{
+	unsigned long flags;
+
+	TRACE_ENTRY();
+
+	/* To sync with scst_check_hw_pending_cmd() */
+	spin_lock_irqsave(&cmd->sess->sess_list_lock, flags);
+	cmd->hw_pending_start = jiffies;
+	TRACE_MGMT_DBG("Updated hw_pending_start to %ld (cmd %p)",
+		cmd->hw_pending_start, cmd);
+	spin_unlock_irqrestore(&cmd->sess->sess_list_lock, flags);
+
+	TRACE_EXIT();
+	return;
+}
+EXPORT_SYMBOL(scst_update_hw_pending_start);
+
+/*
+ * Supposed to be called under sess_list_lock, but can release/reaquire it.
+ * Returns 0 to continue, >0 to restart, <0 to break.
+ */
 static int scst_check_hw_pending_cmd(struct scst_cmd *cmd,
 	unsigned long cur_time, unsigned long max_time,
 	struct scst_session *sess, unsigned long *flags,
@@ -1904,7 +1932,7 @@ static int scst_check_hw_pending_cmd(struct scst_cmd *cmd,
 		(long)(cur_time - cmd->start_time) / HZ,
 		(long)(cur_time - cmd->hw_pending_start) / HZ);
 
-	if (time_before_eq(cur_time, cmd->start_time + max_time)) {
+	if (time_before(cur_time, cmd->start_time + max_time)) {
 		/* Cmds are ordered, so no need to check more */
 		goto out;
 	}
@@ -1915,7 +1943,7 @@ static int scst_check_hw_pending_cmd(struct scst_cmd *cmd,
 	}
 
 	if (time_before(cur_time, cmd->hw_pending_start + max_time)) {
-		/* Cmds are ordered, so no need to check more */
+		res = 0; /* continue */
 		goto out;
 	}
 
@@ -5412,9 +5440,8 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 		if (scsi_status_is_good(rc)) {
 			int q;
 
-			PRINT_BUFF_FLAG(TRACE_SCSI,
-				"Returned control mode page data",
-				buffer,	sizeof(buffer));
+			PRINT_BUFF_FLAG(TRACE_SCSI, "Returned control mode "
+				"page data", buffer, sizeof(buffer));
 
 			dev->tst = buffer[4+2] >> 5;
 			q = buffer[4+3] >> 4;
@@ -5455,9 +5482,9 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 			 */
 			if (SCST_SENSE_VALID(sense_buffer)) {
 #endif
-				PRINT_BUFF_FLAG(TRACE_SCSI,
-					"Returned sense data",
-					sense_buffer, sizeof(sense_buffer));
+				PRINT_BUFF_FLAG(TRACE_SCSI, "Returned sense "
+					"data", sense_buffer,
+					sizeof(sense_buffer));
 				if (scst_analyze_sense(sense_buffer,
 						sizeof(sense_buffer),
 						SCST_SENSE_KEY_VALID,
