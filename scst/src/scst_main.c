@@ -28,6 +28,7 @@
 #include <linux/unistd.h>
 #include <linux/string.h>
 #include <linux/kthread.h>
+#include <linux/delay.h>
 
 #include "scst.h"
 #include "scst_priv.h"
