@@ -971,6 +971,7 @@ struct scst_dev_type {
 	 * the atomic (non-sleeping) context
 	 */
 	unsigned parse_atomic:1;
+	unsigned alloc_data_buf_atomic:1;
 	unsigned exec_atomic:1;
 	unsigned dev_done_atomic:1;
 
@@ -988,6 +989,7 @@ struct scst_dev_type {
 	/*
 	 * Called to parse CDB from the cmd and initialize
 	 * cmd->bufflen and cmd->data_direction (both - REQUIRED).
+	 *
 	 * Returns the command's next state or SCST_CMD_STATE_DEFAULT,
 	 * if the next default state should be used, or
 	 * SCST_CMD_STATE_NEED_THREAD_CTX if the function called in atomic
@@ -1003,6 +1005,26 @@ struct scst_dev_type {
 	 * MUST HAVE
 	 */
 	int (*parse) (struct scst_cmd *cmd);
+
+	/*
+	 * This function allows dev handler to handle data buffer
+	 * allocations on its own.
+	 *
+	 * Returns the command's next state or SCST_CMD_STATE_DEFAULT,
+	 * if the next default state should be used, or
+	 * SCST_CMD_STATE_NEED_THREAD_CTX if the function called in atomic
+	 * context, but requires sleeping, or SCST_CMD_STATE_STOP if the
+	 * command should not be further processed for now. In the
+	 * SCST_CMD_STATE_NEED_THREAD_CTX case the function
+	 * will be recalled in the thread context, where sleeping is allowed.
+	 *
+	 * Pay attention to "atomic" attribute of the cmd, which can be get
+	 * by scst_cmd_atomic(): it is true if the function called in the
+	 * atomic (non-sleeping) context.
+	 *
+	 * OPTIONAL
+	 */
+	int (*alloc_data_buf) (struct scst_cmd *cmd);
 
 	/*
 	 * Called to execute CDB. Useful, for instance, to implement
@@ -3153,7 +3175,9 @@ int scst_suspend_activity(bool interruptible);
 void scst_resume_activity(void);
 
 void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic);
-void scst_post_parse_process_active_cmd(struct scst_cmd *cmd, bool atomic);
+
+void scst_post_parse(struct scst_cmd *cmd);
+void scst_post_alloc_data_buf(struct scst_cmd *cmd);
 
 int scst_check_local_events(struct scst_cmd *cmd);
 

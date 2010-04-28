@@ -51,6 +51,31 @@ static struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,
 static void scst_process_redirect_cmd(struct scst_cmd *cmd,
 	enum scst_exec_context context, int check_retries);
 
+/**
+ * scst_post_parse() - do post parse actions
+ *
+ * This function must be called by dev handler after its parse() callback
+ * returned SCST_CMD_STATE_STOP before calling scst_process_active_cmd().
+ */
+void scst_post_parse(struct scst_cmd *cmd)
+{
+	scst_set_parse_time(cmd);
+}
+EXPORT_SYMBOL(scst_post_parse);
+
+/**
+ * scst_post_alloc_data_buf() - do post alloc_data_buf actions
+ *
+ * This function must be called by dev handler after its alloc_data_buf()
+ * callback returned SCST_CMD_STATE_STOP before calling
+ * scst_process_active_cmd().
+ */
+void scst_post_alloc_data_buf(struct scst_cmd *cmd)
+{
+	scst_set_alloc_buf_time(cmd);
+}
+EXPORT_SYMBOL(scst_post_alloc_data_buf);
+
 static inline void scst_schedule_tasklet(struct scst_cmd *cmd)
 {
 	struct scst_tasklet *t = &scst_tasklets[smp_processor_id()];
@@ -762,11 +787,61 @@ out_done:
 static int scst_prepare_space(struct scst_cmd *cmd)
 {
 	int r = 0, res = SCST_CMD_STATE_RES_CONT_SAME;
+	struct scst_device *dev = cmd->dev;
 
 	TRACE_ENTRY();
 
 	if (cmd->data_direction == SCST_DATA_NONE)
 		goto done;
+
+	if (likely(!scst_is_cmd_fully_local(cmd)) &&
+	    (dev->handler->alloc_data_buf != NULL)) {
+	    	int state;
+
+		if (unlikely(!dev->handler->alloc_data_buf_atomic &&
+			     scst_cmd_atomic(cmd))) {
+			/*
+			 * It shouldn't be because of the SCST_TGT_DEV_AFTER_*
+			 * optimization.
+			 */
+			TRACE_DBG("Dev handler %s alloc_data_buf() needs "
+				"thread context, rescheduling",
+				dev->handler->name);
+			res = SCST_CMD_STATE_RES_NEED_THREAD;
+			goto out;
+		}
+
+		TRACE_DBG("Calling dev handler %s alloc_data_buf(%p)",
+		      dev->handler->name, cmd);
+		scst_set_cur_start(cmd);
+		state = dev->handler->alloc_data_buf(cmd);
+		/* Caution: cmd can be already dead here */
+		TRACE_DBG("Dev handler %s alloc_data_buf() returned %d",
+			dev->handler->name, state);
+
+		switch (state) {
+		case SCST_CMD_STATE_NEED_THREAD_CTX:
+			scst_set_alloc_buf_time(cmd);
+			TRACE_DBG("Dev handler %s alloc_data_buf() requested "
+				"thread context, rescheduling",
+				dev->handler->name);
+			res = SCST_CMD_STATE_RES_NEED_THREAD;
+			goto out;
+
+		case SCST_CMD_STATE_STOP:
+			TRACE_DBG("Dev handler %s alloc_data_buf() requested "
+				"stop processing", dev->handler->name);
+			res = SCST_CMD_STATE_RES_CONT_NEXT;
+			goto out;
+		}
+
+		scst_set_alloc_buf_time(cmd);
+
+		if (unlikely(state != SCST_CMD_STATE_DEFAULT)) {
+			cmd->state = state;
+			goto out;
+		}
+	}
 
 	if (cmd->tgt_need_alloc_data_buf) {
 		int orig_bufflen = cmd->bufflen;
@@ -3799,20 +3874,6 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 	return;
 }
 EXPORT_SYMBOL(scst_process_active_cmd);
-
-/**
- * scst_post_parse_process_active_cmd() - process command after parse
- *
- * SCST commands processing routine, which should be called by dev handler
- * after its parse() callback returned SCST_CMD_STATE_STOP. Arguments are
- * the same as for scst_process_active_cmd().
- */
-void scst_post_parse_process_active_cmd(struct scst_cmd *cmd, bool atomic)
-{
-	scst_set_parse_time(cmd);
-	scst_process_active_cmd(cmd, atomic);
-}
-EXPORT_SYMBOL(scst_post_parse_process_active_cmd);
 
 /* Called under cmd_list_lock and IRQs disabled */
 static void scst_do_job_active(struct list_head *cmd_list,

@@ -145,6 +145,7 @@ static struct scst_user_cmd *dev_user_alloc_ucmd(struct scst_user_dev *dev,
 static void dev_user_free_ucmd(struct scst_user_cmd *ucmd);
 
 static int dev_user_parse(struct scst_cmd *cmd);
+static int dev_user_alloc_data_buf(struct scst_cmd *cmd);
 static int dev_user_exec(struct scst_cmd *cmd);
 static void dev_user_on_free_cmd(struct scst_cmd *cmd);
 static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
@@ -777,14 +778,18 @@ static int dev_user_parse(struct scst_cmd *cmd)
 
 	TRACE_DBG("ucmd %p, cmd %p, state %x", ucmd, cmd, ucmd->state);
 
-	if (ucmd->state != UCMD_STATE_NEW)
-		goto alloc;
+	if (ucmd->state == UCMD_STATE_PARSING) {
+		/* We've already done */
+		goto done;
+	}
+
+	EXTRACHECKS_BUG_ON(ucmd->state != UCMD_STATE_NEW);
 
 	switch (dev->parse_type) {
 	case SCST_USER_PARSE_STANDARD:
 		TRACE_DBG("PARSE STANDARD: ucmd %p", ucmd);
 		rc = dev->generic_parse(cmd, dev_user_get_block);
-		if ((rc != 0) || !(cmd->op_flags & SCST_INFO_VALID))
+		if (rc != 0)
 			goto out_invalid;
 		break;
 
@@ -837,7 +842,7 @@ static int dev_user_parse(struct scst_cmd *cmd)
 		goto out;
 	}
 
-alloc:
+done:
 	if (cmd->bufflen == 0) {
 		/*
 		 * According to SPC bufflen 0 for data transfer commands isn't
@@ -845,9 +850,6 @@ alloc:
 		 */
 		cmd->data_direction = SCST_DATA_NONE;
 	}
-
-	if (cmd->data_direction != SCST_DATA_NONE)
-		res = dev_user_alloc_space(ucmd);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -860,6 +862,23 @@ out_invalid:
 out_error:
 	res = scst_get_cmd_abnormal_done_state(cmd);
 	goto out;
+}
+
+static int dev_user_alloc_data_buf(struct scst_cmd *cmd)
+{
+	int res = SCST_CMD_STATE_DEFAULT;
+	struct scst_user_cmd *ucmd = (struct scst_user_cmd *)cmd->dh_priv;
+
+	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON((ucmd->state != UCMD_STATE_NEW) &&
+			   (ucmd->state != UCMD_STATE_PARSING) &&
+			   (ucmd->state != UCMD_STATE_BUF_ALLOCING));
+
+	res = dev_user_alloc_space(ucmd);
+
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 static void dev_user_flush_dcache(struct scst_user_cmd *ucmd)
@@ -1234,7 +1253,8 @@ static int dev_user_process_reply_alloc(struct scst_user_cmd *ucmd,
 	}
 
 out_process:
-	scst_post_parse_process_active_cmd(cmd, false);
+	scst_post_alloc_data_buf(cmd);
+	scst_process_active_cmd(cmd, false);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -1294,7 +1314,8 @@ static int dev_user_process_reply_parse(struct scst_user_cmd *ucmd,
 		cmd->op_flags = preply->op_flags;
 
 out_process:
-	scst_post_parse_process_active_cmd(cmd, false);
+	scst_post_parse(cmd);
+	scst_process_active_cmd(cmd, false);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -2192,6 +2213,11 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 		}
 		scst_set_cmd_abnormal_done_state(ucmd->cmd);
 
+		if (state == UCMD_STATE_PARSING)
+			scst_post_parse(ucmd->cmd);
+		else
+			scst_post_alloc_data_buf(ucmd->cmd);
+
 		TRACE_MGMT_DBG("Adding ucmd %p to active list", ucmd);
 		list_add(&ucmd->cmd->cmd_list_entry,
 			&ucmd->cmd->cmd_threads->active_cmd_list);
@@ -2682,6 +2708,7 @@ static void dev_user_setup_functions(struct scst_user_dev *dev)
 	TRACE_ENTRY();
 
 	dev->devtype.parse = dev_user_parse;
+	dev->devtype.alloc_data_buf = dev_user_alloc_data_buf;
 	dev->devtype.dev_done = NULL;
 
 	if (dev->parse_type != SCST_USER_PARSE_CALL) {
@@ -2862,6 +2889,7 @@ static int dev_user_register_dev(struct file *file,
 	dev->devtype.type = dev_desc->type;
 	dev->devtype.threads_num = -1;
 	dev->devtype.parse_atomic = 1;
+	dev->devtype.alloc_data_buf_atomic = 1;
 	dev->devtype.exec_atomic = 0; /* no point to make it 1 */
 	dev->devtype.dev_done_atomic = 1;
 #ifdef CONFIG_SCST_PROC

@@ -2841,6 +2841,7 @@ static struct scst_tgt_dev *scst_alloc_add_tgt_dev(struct scst_session *sess,
 		atomic_set(&tgt_dev->sn_slots[i], 0);
 
 	if (dev->handler->parse_atomic &&
+	    dev->handler->alloc_data_buf_atomic &&
 	    (sess->tgt->tgtt->preprocessing_done == NULL)) {
 		if (sess->tgt->tgtt->rdy_to_xfer_atomic)
 			__set_bit(SCST_TGT_DEV_AFTER_INIT_WR_ATOMIC,

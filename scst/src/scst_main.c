@@ -963,6 +963,9 @@ static int scst_dev_handler_check(struct scst_dev_type *dev_handler)
 #endif
 	}
 
+	if (dev_handler->alloc_data_buf == NULL)
+		dev_handler->alloc_data_buf_atomic = 1;
+
 	if (dev_handler->dev_done == NULL)
 		dev_handler->dev_done_atomic = 1;
 
