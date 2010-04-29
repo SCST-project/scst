@@ -333,7 +333,7 @@ Module scst supports the following parameters:
  - scst_threads - allows to set count of SCST's threads. By default it
    is CPU count.
 
- - scst_max_cmd_mem - sets maximum amount of memory in Mb allowed to be
+ - scst_max_cmd_mem - sets maximum amount of memory in MB allowed to be
    consumed by the SCST commands for data buffers at any given time. By
    default it is approximately TotalMem/4.
 
