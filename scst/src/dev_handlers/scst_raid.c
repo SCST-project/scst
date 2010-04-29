@@ -28,7 +28,6 @@
 #define RAID_NAME	"dev_raid"
 
 #define RAID_RETRIES		2
-#define READ_CAP_LEN		8
 
 static int raid_attach(struct scst_device *);
 /* static void raid_detach(struct scst_device *); */

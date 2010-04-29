@@ -310,8 +310,6 @@ enum scst_cdb_flags {
  ** Misc SCSI constants
  *************************************************************/
 #define SCST_SENSE_ASC_UA_RESET      0x29
-#define READ_CAP_LEN		     8
-#define READ_CAP16_LEN		     32
 #define BYTCHK			     0x02
 #define POSITION_LEN_SHORT           20
 #define POSITION_LEN_LONG            32

@@ -1933,7 +1933,7 @@ static void vdisk_exec_read_capacity(struct scst_cmd *cmd)
 	struct scst_vdisk_dev *virt_dev;
 	uint32_t blocksize;
 	uint64_t nblocks;
-	uint8_t buffer[READ_CAP_LEN];
+	uint8_t buffer[8];
 
 	TRACE_ENTRY();
 
@@ -1979,8 +1979,8 @@ static void vdisk_exec_read_capacity(struct scst_cmd *cmd)
 		goto out;
 	}
 
-	if (length > READ_CAP_LEN)
-		length = READ_CAP_LEN;
+	length = min_t(int, length, sizeof(buffer));
+
 	memcpy(address, buffer, length);
 
 	scst_put_buf(cmd, address);
@@ -2000,7 +2000,7 @@ static void vdisk_exec_read_capacity16(struct scst_cmd *cmd)
 	struct scst_vdisk_dev *virt_dev;
 	uint32_t blocksize;
 	uint64_t nblocks;
-	uint8_t buffer[READ_CAP16_LEN];
+	uint8_t buffer[32];
 
 	TRACE_ENTRY();
 
@@ -2063,23 +2063,8 @@ static void vdisk_exec_read_capacity16(struct scst_cmd *cmd)
 		goto out;
 	}
 
-	/*
-	 * Some versions of Windows have a bug, which makes them consider
-	 * response of READ CAPACITY(16) longer than 12 bytes as a faulty one.
-	 * As the result, such Windows'es refuse to see SCST exported
-	 * devices >2TB in size. This is fixed by MS in latter Windows
-	 * versions, probably, by some hotfix.
-	 *
-	 * But if you're using such buggy Windows and experience this problem,
-	 * change this '1' to '0'.
-	 */
-#if 0	/* there are too many such hosts */
-	if (length > READ_CAP16_LEN)
-		length = READ_CAP16_LEN;
-#else
-	if (length > 12)
-		length = 12;
-#endif
+	length = min_t(int, length, sizeof(buffer));
+
 	memcpy(address, buffer, length);
 
 	scst_put_buf(cmd, address);

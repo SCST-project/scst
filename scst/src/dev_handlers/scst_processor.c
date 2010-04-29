@@ -28,7 +28,6 @@
 #define PROCESSOR_NAME	"dev_processor"
 
 #define PROCESSOR_RETRIES	2
-#define READ_CAP_LEN		8
 
 static int processor_attach(struct scst_device *);
 /*static void processor_detach(struct scst_device *);*/

@@ -27,9 +27,10 @@
 #include <linux/cdrom.h>
 #include <linux/unistd.h>
 #include <linux/string.h>
-#include <asm/kmap_types.h>
 #include <linux/ctype.h>
 #include <linux/delay.h>
+#include <asm/kmap_types.h>
+#include <asm/unaligned.h>
 
 #include "scst.h"
 #include "scst_priv.h"
@@ -4500,7 +4501,7 @@ static int get_trans_len_block_limit(struct scst_cmd *cmd, uint8_t off)
 
 static int get_trans_len_read_capacity(struct scst_cmd *cmd, uint8_t off)
 {
-	cmd->bufflen = READ_CAP_LEN;
+	cmd->bufflen = 8;
 	return 0;
 }
 
@@ -4512,7 +4513,7 @@ static int get_trans_len_serv_act_in(struct scst_cmd *cmd, uint8_t off)
 
 	if ((cmd->cdb[1] & 0x1f) == SAI_READ_CAPACITY_16) {
 		cmd->op_name = "READ CAPACITY(16)";
-		cmd->bufflen = READ_CAP16_LEN;
+		cmd->bufflen = be32_to_cpu(get_unaligned((__be32 *)&cmd->cdb[10]));
 		cmd->op_flags |= SCST_IMPLICIT_HQ|SCST_REG_RESERVE_ALLOWED;
 	} else
 		cmd->op_flags |= SCST_UNKNOWN_LENGTH;

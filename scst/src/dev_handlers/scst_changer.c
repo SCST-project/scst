@@ -28,7 +28,6 @@
 #define CHANGER_NAME	"dev_changer"
 
 #define CHANGER_RETRIES       2
-#define READ_CAP_LEN          8
 
 static int changer_attach(struct scst_device *);
 /* static void changer_detach(struct scst_device *); */

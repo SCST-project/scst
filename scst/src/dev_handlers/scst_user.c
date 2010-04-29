@@ -665,7 +665,7 @@ static int dev_user_alloc_space(struct scst_user_cmd *ucmd)
 	TRACE_ENTRY();
 
 	ucmd->state = UCMD_STATE_BUF_ALLOCING;
-	cmd->dh_data_buf_alloced = 1;
+	scst_cmd_set_dh_data_buff_alloced(cmd);
 
 	rc = dev_user_alloc_sg(ucmd, is_buff_cached(ucmd));
 	if (rc == 0)

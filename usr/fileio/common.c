@@ -314,6 +314,8 @@ static int do_exec(struct vdisk_cmd *vcmd)
 		}
 	}
 
+	reply->resp_data_len = cmd->bufflen;
+
 	switch (opcode) {
 	case READ_6:
 	case WRITE_6:
@@ -1059,8 +1061,11 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 	sBUG_ON(resp_len >= (int)sizeof(buf));
 	if (length > resp_len)
 		length = resp_len;
+
 	memcpy(address, buf, length);
-	reply->resp_data_len = length;
+
+	if (length < reply->resp_data_len)
+		reply->resp_data_len = length;
 
 out:
 	TRACE_EXIT();
@@ -1080,8 +1085,11 @@ static void exec_request_sense(struct vdisk_cmd *vcmd)
 	l = set_sense(b, sizeof(b), SCST_LOAD_SENSE(scst_sense_no_sense));
 
 	length = min(l, length);
+
 	memcpy(address, b, length);
-	reply->resp_data_len = length;
+
+	if (length < reply->resp_data_len)
+		reply->resp_data_len = length;
 
 	TRACE_EXIT();
 	return;
@@ -1318,8 +1326,11 @@ static void exec_mode_sense(struct vdisk_cmd *vcmd)
 	sBUG_ON(offset >= (int)sizeof(buf));
 	if (offset > length)
 		offset = length;
+
 	memcpy(address, buf, offset);
-	reply->resp_data_len = offset;
+
+	if (offset < reply->resp_data_len)
+		reply->resp_data_len = offset;
 
 out:
 	TRACE_EXIT();
@@ -1420,7 +1431,7 @@ static void exec_read_capacity(struct vdisk_cmd *vcmd)
 	uint8_t *address = (uint8_t*)(unsigned long)cmd->pbuf;
 	uint32_t blocksize;
 	uint64_t nblocks;
-	uint8_t buffer[READ_CAP_LEN];
+	uint8_t buffer[8];
 
 	TRACE_ENTRY();
 
@@ -1445,11 +1456,12 @@ static void exec_read_capacity(struct vdisk_cmd *vcmd)
 	buffer[6] = (blocksize >> (BYTE * 1)) & 0xFF;
 	buffer[7] = (blocksize >> (BYTE * 0)) & 0xFF;
 
-	if (length > READ_CAP_LEN)
-		length = READ_CAP_LEN;
+	length = min(length, (int)sizeof(buffer));	
+
 	memcpy(address, buffer, length);
 
-	reply->resp_data_len = length;
+	if (length < reply->resp_data_len)
+		reply->resp_data_len = length;
 
 	TRACE_EXIT();
 	return;
@@ -1464,7 +1476,7 @@ static void exec_read_capacity16(struct vdisk_cmd *vcmd)
 	uint8_t *address = (uint8_t*)(unsigned long)cmd->pbuf;
 	uint32_t blocksize;
 	uint64_t nblocks;
-	uint8_t buffer[READ_CAP16_LEN];
+	uint8_t buffer[32];
 
 	TRACE_ENTRY();
 
@@ -1506,11 +1518,12 @@ static void exec_read_capacity16(struct vdisk_cmd *vcmd)
 		break;
 	}
 
-	if (length > READ_CAP16_LEN)
-		length = READ_CAP16_LEN;
+	length = min(length, (int)sizeof(buffer));	
+
 	memcpy(address, buffer, length);
 
-	reply->resp_data_len = length;
+	if (length < reply->resp_data_len)
+		reply->resp_data_len = length;
 
 	TRACE_EXIT();
 	return;
@@ -1585,8 +1598,11 @@ static void exec_read_toc(struct vdisk_cmd *vcmd)
 
 	if (off > length)
 		off = length;
+
 	memcpy(address, buffer, off);
-	reply->resp_data_len = off;
+
+	if (off < reply->resp_data_len)
+		reply->resp_data_len = off;
 
 out:
 	TRACE_EXIT();
