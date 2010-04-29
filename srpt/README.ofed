@@ -69,9 +69,9 @@ Next, download and install the OFED package. Make sure to disable
 OFED's SRP target driver (srpt=n) and to enable at least the
 kernel-ib, kernel-ib-devel and SRP tools packages. An example:
 
-  wget http://www.openfabrics.org/downloads/OFED/ofed-1.4/OFED-1.4.tgz
-  tar xzf OFED-1.4.tgz
-  cd OFED-1.4
+  wget http://www.openfabrics.org/downloads/OFED/ofed-1.5.1/OFED-1.5.1.tgz
+  tar xzf OFED-1.5.1.tgz
+  cd OFED-1.5.1
   cat <<EOF >ofed.conf
   libibverbs=y                                          
   libibverbs-utils=y                                    
