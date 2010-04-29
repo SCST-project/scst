@@ -1,0 +1,1280 @@
+#!/usr/bin/perl
+$Version  = 'SCST Configurator v2.0.0';
+
+# Configures SCST
+#
+# Author:       Mark R. Buechler
+# License:      GPLv2
+# Copyright (c) 2005-2010 Mark R. Buechler
+
+sub usage
+  {
+    die <<"EndUsage";
+$Version
+
+Usage:
+General Operations
+     -config <config>        : Configure SCST given the specified <file>.
+     -clear_config           : Clear all SCST configuration.
+     -write_config <file>    : Writes the current configuration out <file>.
+     -check_config <file>    : Checks the saved configuration in <file>.
+     -sessions               : List current initiator sessions.
+
+Query Operations
+     -list_handler [<hndlr>] : List all available handlers or specific <hndlr>.
+     -list_device [<device>] : List all open devices or specific <device>.
+         -device <device>
+     -list_driver [<driver>] : List all available drivers or specific <driver>.
+     -list_target [<target>] : List all available targets or specific <target>.
+         [-driver <driver>]
+     -list_group [<group>]   : List all configured groups, or specific <group>.  
+         [-driver <driver>]
+         [-target <target>]
+     -list_sessions          : List all current initiator sessions.
+
+Device Operations
+     -open_dev <device>      : Adds a new device using handler <handler>.
+         -handler <handler>
+         -parameters <p=v,...>
+     -resync_dev <device>    : Resync the device size with the initiator(s).
+     -close_dev <device>     : Closes a device belonging to handler <handler>.
+         -handler <handler>
+     -set_dev_parm <device>  : Sets device parameters(s) <a> to value <v>. 
+         -parameters <p=v,...>
+
+Group Operations
+     -add_group <group>      : Add a group to a given driver & target.
+         -driver <driver>
+         -target <target>
+     -remove_group <group>   : Remove a group from a given driver & target.
+         -driver <driver>
+         -target <target>
+ 
+Initiator Operations
+     -add_init <init>        : Adds an initiator to a group.
+         -driver <driver>
+         -target <target>
+         -group <group>
+     -remove_init <user>     : Removes an initiator from a group.
+         -driver <driver>
+         -target <target>
+         -group <group>
+     -move_init <init>       : Moves an initiator from one group to another.
+         -driver <driver>
+         -target <target>
+         -group <group 1>
+         -to <group 2>
+     -clear_inits            : Clear all initiators from a given group.
+         -driver <driver>
+         -target <target>
+         -group <group>
+
+Target LUN Operations
+     -add_lun <lun>          : Adds a given device to a group.
+         -driver <driver>
+         -target <target>
+         -group <group>
+         -device <device>
+         -parameters <p=v,...>
+     -remove_lun <lun>       : Remove a LUN from a group.
+         -driver <driver>
+         -target <target>
+         -group <group>
+     -replace_lun <lun>      : Replaces a LUN's device with a different one.
+         -driver <driver>
+         -target <target>
+         -group <group>
+         -device <device>
+         -parameters <p=v,...>
+     -clear_luns             : Clear all LUNs within a group.
+         -driver <driver>
+         -target <target>
+         -group <group>
+
+Target Driver Operations
+     -enable_target <t>      : Enable target mode for a given driver & target.
+         -driver <driver>
+     -disable_target <t>     : Disable target mode for a given driver & target.
+         -driver <driver>
+     -issue_lip              : Issue LIP on all target-enabled FC fabrics.
+
+Options
+     -force                  : Force all configuration changes,
+                               even deletions (DANGER!).
+     -noprompt               : Do not prompt or pause. Use with caution!
+  
+Debugging (limited support)
+     -debug                  : Debug mode - don\'t do anything destructive.
+
+Examples:
+     Open a new device:
+       scstadmin -open_dev DISK01 -handler vdisk_fileio \
+         -parameters filename=/vdisks/disk01.dsk,read_only
+
+     Setting the T10 Device ID of a device
+       scstadmin -set_dev_parm DISK01 -options t10_dev_id=0x2345 
+
+     Create a new security group:
+       scstadmin -add_group HOST01 -driver qla2x00t \
+         -target 50:06:0B:00:00:39:71:78
+       
+     Rename a security group:
+       scstadmin -rename_group HOST01 -to SERVER01 -driver qla2x00t \
+         -target 50:06:0B:00:00:39:71:78
+       
+     Add a LUN to a group:
+       scstadmin -add_lun 1 -driver qla2x00t -target 50:06:0B:00:00:39:71:78 \
+         -group HOST01 -device DISK01 -parameters read_only=1
+
+     Enable target mode for fibre card specifying its WWN
+       scstadmin -enable_target 50:06:0B:00:00:39:71:78 -driver qla2x00t
+
+     Tell all initiators to rescan LUNs:
+       scstadmin -issue_lip
+
+EndUsage
+  }
+
+use SCST::SCST;
+use Getopt::Long;
+use IO::File;
+use IO::Dir;
+use POSIX;
+use strict;
+
+my $_DEF_CONFIG_ = '/etc/scst.conf';
+
+use constant {
+TRUE             => 1,
+FALSE            => 0,
+
+DEF_CONFIG       => '/etc/scst.conf',
+MAX_LUNS         => 255,
+};
+
+my $SCST;
+my $_DEBUG_;
+
+my %CURRENT;
+
+$SIG{INT} = \&commitSuicide;
+
+use vars qw($Version);
+
+&main();
+
+sub getArgs {
+	my $applyConfig;
+	my $clearConfig;
+	my $writeConfig;
+	my $checkConfig;
+
+	my $listHandler;
+	my $listDevice;
+	my $listDriver;
+	my $listTarget;
+	my $listGroup;
+	my $listSessions;
+
+	my $openDev;
+	my $closeDev;
+	my $resyncDev;
+	my $setDevParm;
+	my $listDevParm;
+
+	my $addGroup;
+	my $removeGroup;
+
+	my $addInitiator;
+	my $removeInitiator;
+	my $moveInitiator;
+	my $clearInitiators;
+
+	my $addLun;
+	my $removeLun;
+	my $replaceLun;
+	my $clearLuns;
+
+	my $enableTarget;
+	my $disableTarget;
+	my $issueLip;
+
+	my $handler;
+	my $parameters;
+
+	my $driver;
+	my $target;
+	my $group;
+	my $to;
+	my $device;
+
+	my $noprompt;
+	my $force;
+
+	my $p = new Getopt::Long::Parser;
+
+	if (!$p->getoptions('config:s'		=> \$applyConfig,
+			    'clear_config'	=> \$clearConfig,
+			    'write_config=s'	=> \$writeConfig,
+			    'check_config:s'	=> \$checkConfig,
+
+			    'list_handler:s'	=> \$listHandler,
+			    'list_device:s'	=> \$listDevice,
+			    'list_driver:s'	=> \$listDriver,
+			    'list_target:s'	=> \$listTarget,
+			    'list_group:s'	=> \$listGroup,
+			    'list_sessions'	=> \$listSessions,
+
+			    'open_dev=s'	=> \$openDev,
+			    'close_dev=s'	=> \$closeDev,
+			    'resync_dev=s'	=> \$resyncDev,
+			    'set_dev_parm=s'	=> \$setDevParm,
+			    'list_dev_parm=s'	=> \$listDevParm,
+
+			    'add_group=s'	=> \$addGroup,
+			    'remove_group=s'	=> \$removeGroup,
+
+			    'add_init=s'	=> \$addInitiator,
+			    'remove_init=s'	=> \$removeInitiator,
+			    'move_init=s'	=> \$moveInitiator,
+			    'clear_inits'	=> \$clearInitiators,
+
+			    'add_lun=s'		=> \$addLun,
+			    'remove_lun=s'	=> \$removeLun,
+			    'replace_lun=s'	=> \$replaceLun,
+			    'clear_luns=s'	=> \$clearLuns,
+
+			    'enable_target=s'	=> \$enableTarget,
+			    'disable_target=s'	=> \$disableTarget,
+			    'issue_lip'		=> \$issueLip,
+
+			    'handler=s'		=> \$handler,
+			    'parameters=s'	=> \$parameters,
+
+			    'driver=s'		=> \$driver,
+			    'target=s'		=> \$target,
+			    'group=s'		=> \$group,
+			    'to=s'		=> \$to,
+			    'device=s'		=> \$device,
+
+			    'noprompt'		=> \$noprompt,
+			    'force'		=> \$force,
+			    'debug'             => \$_DEBUG_)) {
+		&usage();
+	}
+
+	$_DEBUG_ = TRUE if (defined($_DEBUG_));
+
+	$force = TRUE if (defined($force));
+	$noprompt = TRUE if (defined($noprompt));
+	$clearInitiators = TRUE if (defined($clearInitiators));
+	$clearLuns = TRUE if (defined($clearLuns));
+	$issueLip = TRUE if (defined($issueLip)); 
+
+	my $query_mode = defined($listHandler) || defined($listDevice) || defined($listDriver) ||
+	  defined($listTarget) || defined($listGroup) || defined($listSessions);
+
+	if ((defined($clearConfig) + defined($writeConfig) + defined($checkConfig) +
+             defined($openDev) + defined($closeDev) + defined($setDevParm) +
+	     defined($addGroup) + defined($removeGroup) + defined($addInitiator) +
+	     defined($removeInitiator) + defined($clearInitiators) +
+	     defined($addLun) + defined($removeLun) + defined($replaceLun) +
+	     defined($clearLuns) + defined($enableTarget) + defined($disableTarget) +
+	     defined($issueLip) + $query_mode) > 1) {
+		print "Please specify only one operation at a time.\n";
+		usage();
+	}
+
+	if (($openDev || $closeDev) && !$handler) {
+		print "Please specify -handler with -open_dev/-close_dev.\n";
+		usage();
+	}
+
+	if ($setDevParm && !$parameters) {
+		print "Please specify -parameters with -set_dev_parm.\n";
+		&usage();
+	}
+
+	if (($addGroup || $removeGroup) && (!$driver || !$target)) {
+		print "Please specify -driver and -target with -add_group/-remove_group.\n";
+		&usage();
+	}
+
+	if (($addInitiator || $removeInitiator || $clearInitiators) &&
+	    (!$target || !$driver || !$group)) {
+		print "Please specify -driver -target and -group with ".
+		  "-add_init/-remove_init/-clear_inits.\n";
+		&usage();
+	}
+
+	if ($moveInitiator && (!$driver || !$target || !$group || !$to)) {
+		print "Please specify -driver -target -group and -to with -move_init.\n";
+		&usage();
+	}
+
+	if (($addLun || $replaceLun || $removeLun) && (!$driver || !$target || !$group || !$device)) {
+		print "Please specify -driver -target -group and -device with -add_lun/-replace_lun.\n";
+		&usage();
+	}
+
+	if ($clearLuns && (!$driver || !$target || !$group)) {
+		print "Please specify -driver -target and -group with -remove_lun/-clear_luns.\n";
+		&usage();
+	}
+
+	$applyConfig = $_DEF_CONFIG_ if (defined($applyConfig) && !$applyConfig);
+	$checkConfig = $_DEF_CONFIG_ if (defined($checkConfig) && !$checkConfig);
+
+	my %_parameters;
+	if ($parameters) {
+		foreach my $parameter (split(/\,/, $parameters)) {
+			my $value;
+
+			if ($parameter =~ /\=/) {
+				$value = TRUE;
+			} else {
+				($parameter, $value) = split(/\=/, $parameter, 2);
+			}
+
+			$_parameters{$parameter} = $value;
+		}
+	}
+
+	return ($applyConfig, $clearConfig, $writeConfig, $checkConfig,
+		$listHandler, $listDevice, $listDriver, $listTarget, $listGroup, $listSessions,
+                $openDev, $closeDev, $resyncDev, $setDevParm, $listDevParm,
+		$addGroup, $removeGroup,
+		$addInitiator, $removeInitiator, $moveInitiator, $clearInitiators,
+		$addLun, $removeLun, $replaceLun, $clearLuns,
+		$enableTarget, $disableTarget, $issueLip,
+		$handler, \%_parameters,
+		$driver, $target, $group, $to, $device,
+		$noprompt, $force);
+}
+
+sub main {
+	my $rc;
+
+	STDOUT->autoflush(1);
+
+	# We need to run as root
+	if ( $> ) {die("This program must run as root.\n");}
+
+	my ($applyConfig, $clearConfig, $writeConfig, $checkConfig,
+	    $listHandler, $listDevice, $listDriver, $listTarget, $listGroup, $listSessions,
+	    $openDev, $closeDev, $resyncDev, $setDevParm, $listDevParm,
+	    $addGroup, $removeGroup,
+	    $addInitiator, $removeInitiator, $moveInitiator, $clearInitiators,
+	    $addLun, $removeLun, $replaceLun, $clearLuns,
+	    $enableTarget, $disableTarget, $issueLip,
+	    $handler, $parameters,
+	    $driver, $target, $group, $to, $device,
+	    $noprompt, $force) = getArgs();
+
+	$SCST = new SCST::SCST($_DEBUG_);
+
+	readWorkingConfig();
+
+	SWITCH: {
+		$applyConfig && do {
+			if ($force) {
+				$rc = applyConfiguration($applyConfig, TRUE, TRUE);
+				die("Configuration errors found, aborting.\n") if ($rc);
+
+				if (!$noprompt) {
+					print "\nConfiguration will apply in 10 seconds, type ctrl-c to abort..\n";
+					sleep 10;
+				}
+			}
+
+			readWorkingConfig();
+			$rc = applyConfiguration($applyConfig, $force, FALSE);
+			last SWITCH;
+		};
+		$checkConfig && do {
+			$rc = applyConfiguration($checkConfig, FALSE, TRUE);
+			last SWITCH;
+		};
+		$writeConfig && do {
+			$rc = writeConfiguration($writeConfig);
+			last SWITCH;
+		};
+		$clearConfig && do {
+			$rc = clearConfiguration($noprompt, $force);
+			last SWITCH;
+		};
+		defined($listHandler) && do {
+			$rc = listHandlers($listHandler);
+		};
+		defined($listDevice) && do {
+			$rc = listDevices($listDevice);
+		};
+		defined($listDriver) && do {
+			$rc = listDrivers($listDriver);
+		};
+		defined($listTarget) && do {
+			$rc = listTargets($listTarget, $driver);
+		};
+		defined($listGroup) && do {
+			$rc = listGroups($listGroup, $driver, $target);
+		};
+		defined($listSessions) && do {
+			$rc = listSessions();
+		};
+		$openDev && do {
+			$rc = openDevice($openDev, $handler, $parameters);
+			last SWITCH;
+		};
+		$closeDev && do {
+			$rc = closeDevice($closeDev, $handler, $force);
+			last SWITCH;
+		};
+		$resyncDev && do {
+			$rc = resyncDevice($resyncDev);
+			last SWITCH;
+		};
+		$setDevParm && do {
+			$rc = setDeviceParameters($setDevParm, $parameters);
+			last SWITCH;
+		};
+		$listDevParm && do {
+			$rc = listDeviceParameters($listDevParm);
+			last SWITCH;
+		};
+		$addGroup && do {
+			$rc = addGroup($addGroup, $driver, $target);
+			last SWITCH;
+		};
+		$removeGroup && do {
+			$rc = removeGroup($removeGroup, $driver, $target, $force);
+			last SWITCH;
+		};
+		$addInitiator && do {
+			$rc = addInitiator($addInitiator, $driver, $target, $group);
+			last SWITCH;
+		};
+		$removeInitiator && do {
+			$rc = removeInitiator($removeInitiator, $driver, $target, $group);
+			last SWITCH;
+		};
+		$moveInitiator && do {
+			$rc = moveInitiator($moveInitiator, $driver, $target, $group, $to);
+			last SWITCH;
+		};
+		$clearInitiators && do {
+			$rc = clearInitiators($driver, $target, $group);
+			last SWITCH;
+		};
+		$addLun && do {
+			$rc = addLun($addLun, $driver, $target, $group, $device, $parameters);
+			last SWITCH;
+		};
+		$removeLun && do {
+			$rc = removeLun($removeLun, $driver, $target, $group, $device);
+			last SWITCH;
+		};
+		$replaceLun && do {
+			$rc = replaceLun($replaceLun, $driver, $target, $group, $device, $parameters);
+			last SWITCH;
+		};
+		$clearLuns && do {
+			$rc = clearLuns($driver, $target, $group);
+			last SWITCH;
+		};
+		$enableTarget && do {
+			$rc = enableTarget($enableTarget);
+			last SWITCH;
+		};
+		$disableTarget && do {
+			$rc = disableTarget($disableTarget);
+			last SWITCH;
+		};
+		$issueLip && do {
+			$rc = issueLip();
+			last SWITCH;
+		};
+
+		print "No valid operations specified.\n";
+		usage();
+		exit TRUE;
+	}
+
+	print "\nAll done.\n";
+
+	exit $rc;
+}
+
+sub readWorkingConfig {
+	print "Collecting current configuration: ";
+
+	%CURRENT = ();
+
+	# Get current handlers/devices
+
+	my $handlers = $SCST->handlers();
+	immediateExit($SCST->errorString());
+
+	foreach my $handler (@{$handlers}) {
+		my $devices = $SCST->devicesByHandler($handler);
+		immediateExit($SCST->errorString());
+		$CURRENT{'handler'}->{$handler} = $devices;
+	}
+
+	# Get current assignments
+
+	my $drivers = $SCST->drivers();
+	immediateExit($SCST->errorString());
+
+	foreach my $driver (@{$drivers}) {
+		my $targets = $SCST->targets($driver);
+		immediateExit($SCST->errorString());
+		foreach my $target (@{$targets}) {
+			my $groups = $SCST->groups($driver, $target);
+			immediateExit($SCST->errorString());
+			foreach my $group (@{$groups}) {
+				$CURRENT{'assign'}->{$driver}->{$target}->{$group}->{'INITIATORS'} =
+				  $SCST->initiators($driver, $target, $group);
+				immediateExit($SCST->errorString());
+				$CURRENT{'assign'}->{$driver}->{$target}->{$group}->{'LUNS'} =
+				  $SCST->luns($driver, $target, $group);
+				immediateExit($SCST->errorString());
+			}
+		}
+	}
+
+	print "done.\n\n";
+}
+
+sub writeConfiguration {
+	my $file = shift;
+
+	if (-f $file) {
+		if (!unlink $file) {
+			print "Failed to save current configuration, specified ".
+			  "file exists and cannot be deleted.\n";
+			return TRUE;
+		}
+	}
+
+	my $io = new IO::File $file, O_CREAT|O_WRONLY;
+	
+	if (!$io) {
+		print "Failed to save configuration to file '$file': $!\n";
+		return 1;
+	}
+
+	print "Writing current configuration to file '$file'.. ";
+
+	print $io "# Automatically generated by $Version.\n\n";
+
+	my $parameters = $SCST->scstParameters();
+	immediateExit($SCST->errorString());
+
+	foreach my $parameter (keys %{$parameters}) {
+		next if (defined($$parameters{$parameter}->{'set'}));
+
+		if (!$$parameters{$parameter}->{'static'}) {
+			my $value = $$parameters{$parameter}->{'value'};
+			$value = "\"$value\"" if ($value =~ / /);
+			print $io "$parameter $value\n" if (defined($value));
+		}
+	}
+
+	print $io "\n";
+
+	foreach my $handler (keys %{$CURRENT{'handler'}}) {
+		my $handler_params = $SCST->deviceAvailableParameters($handler);
+
+		print $io "HANDLER $handler {\n";
+
+		$parameters = $SCST->handlerParameters($handler);
+
+		foreach my $parameter (keys %{$parameters}) {
+			next if (defined($$parameters{$parameter}->{'set'}));
+
+			if (!$$parameters{$parameter}->{'static'}) {
+				my $value = $$parameters{$parameter}->{'value'};
+				$value = "\"$value\"" if ($value =~ / /);
+				print $io "\t$parameter $value\n" if (defined($value));
+			}
+		}
+
+		my $devices = $CURRENT{'handler'}->{$handler};
+
+		foreach my $device (@{$devices}) {
+			print $io "\tDEVICE $device {\n";
+
+			$parameters = $SCST->deviceParameters($device);
+
+			my $written = 0;
+
+			foreach my $parameter (keys %{$parameters}) {
+				next if (defined($$parameters{$parameter}->{'set'}));
+
+				if (!defined($$handler_params{$parameter})) {
+					if (!$$parameters{$parameter}->{'static'}) {
+						my $value = $$parameters{$parameter}->{'value'};
+						$value = "\"$value\"" if ($value =~ / /);
+						if (defined($value)) {
+							print $io "\t\t$parameter $value\n";
+							$written++;
+						}
+					}
+				}
+			}
+
+			print $io "\n" if ($written);
+
+			print $io "\t\tCREATE_ATTRIBUTES {\n";
+
+			foreach my $parameter (keys %{$parameters}) {
+				next if (defined($$parameters{$parameter}->{'set'}));
+
+				if (defined($$handler_params{$parameter})) {
+					my $value = $$parameters{$parameter}->{'value'};
+					$value = "\"$value\"" if ($value =~ / /);
+					print $io "\t\t\t$parameter $value\n" if (defined($value));
+				}
+			}
+
+			print $io "\t\t}\n";
+
+			print $io "\t}\n";
+		}
+
+		print $io "}\n\n";
+	}
+
+	foreach my $driver (keys %{$CURRENT{'assign'}}) {
+		print $io "TARGET_DRIVER $driver {";
+
+		my $targets = $CURRENT{'assign'}->{$driver};
+
+		foreach my $target (keys %{$targets}) {
+			print $io "\n\tTARGET $target {";
+
+			my $groups = $CURRENT{'assign'}->{$driver}->{$target};
+
+			foreach my $group (keys %{$groups}) {
+				my $lun_params = $SCST->lunAvailableParameters($driver, $target, $group);
+				my $ini_params = $SCST->initiatorAvailableParameters($driver, $target, $group);
+
+				print $io "\n\t\tGROUP $group {";
+
+				my $luns = $CURRENT{'assign'}->{$driver}->{$target}->{$group}->{'LUNS'};
+
+				foreach my $lun (sort numerically keys %{$luns}) {
+					my $lun_dev = $$luns{$lun};
+
+					print $io "\n\t\t\tLUN $lun $lun_dev {\n";
+
+					$parameters = $SCST->lunParameters($driver, $target, $group, $lun);
+
+					foreach my $parameter (keys %{$parameters}) {
+						next if (defined($$parameters{$parameter}->{'set'}));
+
+						if (!$$parameters{$parameter}->{'static'} ||
+						    defined($$lun_params{$parameter})) {
+							my $value = $$parameters{$parameter}->{'value'};
+							$value = "\"$value\"" if ($value =~ / /);
+							print $io "\t\t\t\t$parameter $value\n" if (defined($value));
+						}
+					}
+
+					print $io "\t\t\t}\n";
+				}
+
+				my $inits = $CURRENT{'assign'}->{$driver}->{$target}->{$group}->{'INITIATORS'};
+
+				foreach my $init (@{$inits}) {
+					print $io "\n\t\t\tINITIATOR $init {\n";
+
+					$parameters = $SCST->initiatorParameters($driver, $target, $group, $init);
+
+					foreach my $parameter (keys %{$parameters}) {
+						next if (defined($$parameters{$parameter}->{'set'}));
+
+						if (!$$parameters{$parameter}->{'static'} ||
+						    defined($$ini_params{$parameter})) {
+							my $value = $$parameters{$parameter}->{'value'};
+							$value = "\"$value\"" if ($value =~ / /);
+							print $io "\t\t\t\t$parameter $value\n" if (defined($value));
+						}
+					}
+
+					print $io "\t\t\t}\n";
+				}
+
+				print $io "\t\t}\n";
+			}
+
+			print $io "\t}\n";
+		}
+
+		print $io "}\n\n";
+	}
+
+	close $io;
+
+	return FALSE;
+}
+
+sub applyConfiguration {
+	my $file = shift;
+
+	my $config = readConfig($file);
+}
+
+sub clearConfiguration {
+	my $noprompt = shift;
+	my $force = shift;
+}
+
+####################################################################
+
+sub listHandlers {
+	my $handler = shift;
+}
+
+sub listDevices {
+	my $device = shift;
+}
+
+sub listDrivers {
+	my $driver = shift;
+}
+
+sub listTargets {
+	my $target = shift;
+	my $driver = shift;
+}
+
+sub listGroups {
+	my $group = shift;
+	my $driver = shift;
+	my $target = shift;
+}
+
+sub listSessions {
+
+}
+
+sub listGroup {
+	my $driver = shift;
+	my $target = shift;
+	my $group = shift;
+	my $luns = shift;
+	my $initiators = shift;
+
+	$luns = $SCST->luns($driver, $target, $group) if (!$luns);
+	$initiators = $SCST->initiators($driver, $target, $group) if (!$initiators);
+
+	if ((keys %{$luns}) || ($#{$initiators} > -1)) {
+		my $l_device;
+		my $l_initiator;
+
+		foreach my $lun (keys %{$luns}) {
+			$l_device = length($$luns{$lun}) if (length($$luns{$lun}) > $l_device);
+		}
+
+		foreach my $initiator (@{$initiators}) {
+			$l_initiator = length($initiator) if (length($initiator) > $l_initiator);
+		}
+
+		if (keys %{$luns}) {
+			print "Group '$group' has the following LUNs:\n\n";
+			printf("\t%-4s %-*s\n", 'LUN', $l_device, 'Device');
+			print "\t";
+			for (my $x = 0; $x < ($l_device + 5); $x++) {
+				print "-";
+			}
+			print "\n";
+
+			foreach my $lun (sort keys %{$luns}) {
+				my $device = $$luns{$lun};
+
+				printf("\t%-4s %-*s\n", $lun, $l_device, $$luns{$lun});
+			}
+		}
+
+		if ($#{$initiators} > -1) {
+			print "\nGroup '$group' has the following initiators:\n\n";
+			print "\tInitiator\n";
+			print "\t";
+			for (my $x = 0; $x < $l_initiator; $x++) {
+				print "-";
+			}
+			print "\n";
+
+			foreach my $initiator (@{$initiators}) {
+				print "\t$initiator\n";
+			}
+		}		
+	} else {
+		print "Group '$group' has no associated LUNs or initiators.\n";
+	}
+
+}
+
+sub listExported {
+	my $device = shift;
+	my $parameters = shift;
+
+	$parameters = $SCST->deviceParameters($device) if (!$parameters);
+
+	if (keys %{$$parameters{'exported'}}) {
+		my $exported = $$parameters{'exported'}->{'value'};
+
+		my $l_driver;
+		my $l_target;
+		my $l_group;
+
+		foreach my $driver (keys %{$exported}) {
+			$l_driver = length($driver)
+			  if (length($driver) > $l_driver);
+
+			foreach my $target (keys %{$$exported{$driver}}) {
+				$l_target = length($target)
+				  if (length($target) > $l_target);
+
+				foreach my $group (keys %{$$exported{$driver}->{$target}}) {
+					$l_group = length($group)
+					  if (length($group) > $l_group);
+				}
+			}
+		}
+
+		print "Device '$device' is currently in use by the following:\n\n";
+		printf("\t%-*s %-*s %-*s %-4s\n", $l_driver, 'Driver', $l_target, 'Target',
+		  $l_group, 'Group', 'Lun');
+		print "\t";
+		for (my $x = 0; $x < ($l_driver + $l_target + $l_group + 5); $x++) {
+			print "-";
+		}
+		print "\n";
+
+		foreach my $driver (keys %{$exported}) {
+			foreach my $target (keys %{$$exported{$driver}}) {
+				foreach my $group (keys %{$$exported{$driver}->{$target}}) {
+					my $lun = $$exported{$driver}->{$target}->{$group};
+					printf("\t%-*s %-*s %-*s %-4s\n", $l_driver, $driver,
+					  $l_target, $target, $l_group, $group, $lun);
+				}
+			}
+		}
+	} else {
+		print "Device '$device' is not currently in use by any group.\n";
+	}
+}
+
+####################################################################
+
+sub openDevice {
+	my $device = shift;
+	my $handler = shift;
+	my $parameters = shift;
+
+	print "-> Opening device '$device' using handler '$handler': ";
+
+	my $rc = $SCST->openDevice($handler, $device, $parameters);
+
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
+}
+
+sub closeDevice {
+	my $device = shift;
+	my $handler = shift;
+	my $force = shift;
+
+	if (!$force) {
+		my $parameters = $SCST->deviceParameters($device);
+
+		if (keys %{$$parameters{'exported'}}) {
+			listExported($device, $parameters);
+			immediateExit("Device '$device' still in use, aborting. ".
+			  "Use -force to override.");
+		}
+	}
+
+	print "-> Closing device '$device' using handler '$handler': ";
+
+	my $rc = $SCST->closeDevice($handler, $device);
+
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
+}
+
+sub resyncDevice {
+	my $device = shift;
+	my $rc = FALSE;
+
+	my %parameters = ('resync_size', 1);
+
+	setDeviceParameters($device, \%parameters);
+}
+
+sub setDeviceParameters {
+	my $device = shift;
+	my $parameters = shift;
+
+	my $_parameters = $SCST->deviceParameters($device);
+
+	foreach my $parameter (keys %{$parameters}) {
+		if (defined($$_parameters{$parameter}) &&
+		    !$$_parameters{$parameter}->{'static'}) {
+			print "-> Setting device parameter '$parameter' for device '$device': ";
+
+			my $rc = $SCST->setDeviceParameter($device, $parameter, 1);
+
+			print "done.\n";
+
+			immediateExit($SCST->errorString($rc)) if ($rc);
+		} else {
+			print "-> WARNING: Device '$device' lacks the settable ".
+			  "parameter '$parameter', ignoring.\n";
+		}
+	}
+}
+
+sub listDeviceParameters {
+	my $device = shift;
+	my $l_parm;
+	my $l_val;
+
+	my $parameters = $SCST->deviceParameters($device);
+	immediateExit($SCST->errorString());
+
+	foreach my $parameter (sort keys %{$parameters}) {
+		my $value = $$parameters{$parameter}->{'value'};
+
+		next if (ref($value));
+
+		$l_parm = length($parameter) if (length($parameter) > $l_parm);
+		$l_val = length($value) if (length($value) > $l_val);
+	}
+
+	print "Parameters for device '$device':\n\n";
+
+	printf("\t%-*s %-*s %-5s\n", $l_parm, 'Parameter', $l_val, 'Value', 'Static');
+	print "\t";
+	for (my $x = 0; $x < ($l_parm + $l_val + 8); $x++) {
+		print "-";
+	}
+	print "\n";
+
+	foreach my $parameter (sort keys %{$parameters}) {
+		my $value = $$parameters{$parameter}->{'value'};
+		my $static = $$parameters{$parameter}->{'static'};
+
+		next if (ref($value));
+		$value = '-' if (!defined($value));
+		$static = ($static ? 'Yes' : 'No');
+
+		printf("\t%-*s %-*s %-5s\n", $l_parm, $parameter, $l_val, $value, $static);
+	}
+}
+
+####################################################################
+
+sub addGroup {
+	my $group = shift;
+	my $driver = shift;
+	my $target = shift;
+
+	print "-> Adding new group '$group' to driver/target '$driver/$target': ";
+
+	my $rc = $SCST->addGroup($driver, $target, $group);
+
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
+}
+
+sub removeGroup {
+	my $group = shift;
+	my $driver = shift;
+	my $target = shift;
+	my $force = shift;
+
+	if (!$force) {
+		my $luns = $SCST->luns($driver, $target, $group);
+		my $initiators = $SCST->initiators($driver, $target, $group);
+
+		if ((keys %{$luns}) || ($#{$initiators} > -1)) {
+			listGroup($driver, $target, $group, $luns, $initiators);
+			immediateExit("Group is still in use, aborting. Use -force to override.");
+		}
+	}
+
+	print "-> Removing group '$group' from driver/target '$driver/$target': ";
+
+	my $rc = $SCST->removeGroup($driver, $target, $group);
+
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
+}
+
+####################################################################
+
+sub addInitiator {
+	my $initiator = shift;
+	my $driver = shift;
+	my $target = shift;
+	my $group = shift;
+
+	print "-> Adding new initiator '$initiator' to driver/target/group ".
+	  "'$driver/$target/$group': ";
+
+	my $rc = $SCST->addInitiator($driver, $target, $group, $initiator);
+
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
+}
+
+sub removeInitiator {
+	my $initiator = shift;
+	my $driver = shift;
+	my $target = shift;
+	my $group = shift;
+
+	print "-> Removing initiator '$initiator' from driver/target/group ".
+	  "'$driver/$target/$group': ";
+
+	my $rc = $SCST->removeInitiator($driver, $target, $group, $initiator);
+
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
+}
+
+sub moveInitiator {
+	my $initiator = shift;
+	my $driver = shift;
+	my $target = shift;
+	my $group = shift;
+	my $to = shift;
+
+	print "-> Moving initiator '$initiator' from group '$group' to group '$to': ";
+
+	my $rc = $SCST->moveInitiator($driver, $target, $group, $to, $initiator);
+
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
+}
+
+sub clearInitiators {
+	my $driver  = shift;
+	my $target = shift;
+	my $group = shift;
+
+	print "-> Removing all initiators driver/target/group '$driver/$target/$group': ";
+
+	my $rc = $SCST->clearInitiators($driver, $target, $group);
+
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
+}
+
+####################################################################
+
+sub addLun {
+	my $lun = shift;
+	my $driver = shift;
+	my $target = shift;
+	my $group = shift;
+	my $device = shift;
+	my $parameters = shift;
+
+	print "-> Adding device '$device' at LUN $lun to driver/target/group ".
+	  "'$driver/$target/$group': ";
+
+	my $rc = $SCST->addLun($driver, $target, $group, $device, $lun, $parameters);
+
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
+}
+
+sub removeLun {
+	my $lun = shift;
+	my $driver = shift;
+	my $target = shift;
+	my $group = shift;
+	my $device = shift;
+
+	print "-> Removing device '$device' at LUN $lun from driver/target/group ".
+	  "'$driver/$target/$group': ";
+
+	my $rc = $SCST->removeLun($driver, $target, $group, $device, $lun);
+
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
+}
+
+sub replaceLun {
+	my $lun = shift;
+	my $driver = shift;
+	my $target = shift;
+	my $group = shift;
+	my $device = shift;
+	my $parameters = shift;
+
+	print "-> Replacing device '$device' at LUN $lun with device '$device' ".
+	  "in driver/target/group '$driver/$target/$group': ";
+
+	my $rc = $SCST->replaceLun($driver, $target, $group, $lun, $device, $parameters);
+
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
+}
+
+sub clearLuns {
+	my $driver = shift;
+	my $target = shift;
+	my $group = shift;
+
+	print "-> Removing all LUNs from driver/target/group '$driver/$target/$group': ";
+
+	my $rc = $SCST->clearLuns($driver, $target, $group);
+
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
+}
+
+####################################################################
+
+sub enableTarget {
+	my $target = shift;
+
+}
+
+sub disableTarget {
+	my $target = shift;
+
+}
+
+sub issueLip {
+
+}
+
+####################################################################
+
+sub readConfig {
+	my $file = shift;
+	my $buffer;
+	my @stanza;
+	my $level;
+
+	my $io = new IO::File $file, O_RDONLY;
+
+	immediateExit("Unable to open configuration file '$file': $!")
+	  if (!$io);
+
+	while (my $line = <$io>) {
+		$buffer .= $line;
+	}
+
+	my @buff_a;
+	@buff_a = split(//, $buffer);
+
+	my $config = parseStanza(\@buff_a);
+
+	return $config;
+}
+
+sub parseStanza {
+	my $buffer = shift;
+	my $line;
+	my %hash;
+	my $parameter;
+	my $value;
+	my $value2;
+	my $quoted;
+
+	while ($#{$buffer} > -1) {
+		my $char = shift @{$buffer};
+
+		if ($char eq '{') {
+			my $child = parseStanza($buffer);
+
+			if ($line) {
+				parseLine($line, \%hash, $child);
+				$line = undef;
+			}
+
+			next;
+		}
+
+		return \%hash if ($char eq '}');
+
+		if ($char eq "\n") {
+			my %empty;
+			parseLine($line, \%hash, \%empty);
+			$line = undef;
+		} else {
+			$line .= $char;
+		}
+	}
+
+	return \%hash;
+}	
+
+sub parseLine {
+	my $line = shift;
+	my $hash = shift;
+	my $child = shift;
+
+	($line, undef) = split(/\#/, $line, 2);
+	return if ($line =~ /^\s*$/);
+
+	$line =~ s/^\s+//; $line =~ s/\s+$//;
+
+	my @elements;
+	while ($line =~ m/"([^"\\]*(\\.[^"\\]*)*)"|([^\s]+)/g) {
+		push @elements, defined($1) ? $1:$3;
+	}
+
+	my $parameter = @elements[0];
+	my $value     = @elements[1];
+	my $value2    = @elements[2];
+
+	if (defined($parameter) && defined($value) && defined($value2)) {
+		$$hash{$parameter}->{$value}->{$value2} = $child;
+	} elsif (defined($parameter) && defined($value)) {
+		$$hash{$parameter}->{$value} = $child;
+	} elsif (defined($parameter)) {
+		$$hash{$parameter} = $child;
+	}
+}
+
+# If we have an unread error from SCST, exit immediately
+sub immediateExit {
+	my $error = shift;
+
+	return if (!$error);
+
+	print "\n\nFATAL: Received the following error:\n\n\t";
+	print "$error\n\n";
+
+	exit 1;
+}
+
+# Hey! Stop that!
+sub commitSuicide {
+	print "\n\nAborting immediately.\n";
+	exit 1;
+}
+
+sub numerically {
+	$a <=> $b;
+}

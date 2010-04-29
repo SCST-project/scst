@@ -16,6 +16,9 @@ The init script was written for debian but should work on most distributions.
 			a configuration file. See scst.conf. For command help,
 				#> scstadmin
 
+        scstadmin.sysfs This is the sysfs version of scstadmin, a complete rewrite. This
+                        is VERY incomplete at this point so don't expect results.
+
 	old		Script which configures SCST using configurations
 			found in a database. See the examples directory database
 			schema and example data. You will need to edit the

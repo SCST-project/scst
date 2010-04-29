@@ -82,7 +82,63 @@ SCST_C_LUN_RPL_DEV_FAIL     => 86,
 SCST_C_LUN_BAD_PARAMETERS   => 87,
 SCST_C_LUN_PARAMETER_STATIC => 88,
 SCST_C_LUN_SETPARAM_FAIL    => 89,
+
+SCST_C_INI_BAD_PARAMETERS   => 97,
+SCST_C_INI_PARAMETER_STATIC => 98,
+SCST_C_INI_SETPARAM_FAIL    => 99,
 };
+
+my %VERBOSE_ERROR = (
+(SCST_C_FATAL_ERROR)          => 'A fatal error occured. See "dmesg" for more information.',
+
+(SCST_C_HND_NO_HANDLER)       => 'No such handler exists.',
+
+(SCST_C_DEV_NO_DEVICE)        => 'No such device exists.',
+(SCST_C_DEV_EXISTS)           => 'Device already exists.',
+(SCST_C_DEV_OPEN_FAIL)        => 'Failed to open device. See "dmesg" for more information.',
+(SCST_C_DEV_CLOSE_FAIL)       => 'Failed to close device. See "dmesg" for more information.',
+(SCST_C_DEV_BAD_PARAMETERS)   => 'Bad parameters given for device.',
+(SCST_C_DEV_PARAMETER_STATIC) => 'Device parameter specified is static.',
+(SCST_C_DEV_SETPARAM_FAIL)    => 'Failed to set device parameter. See "dmesg" for more information.',
+
+(SCST_C_DRV_NO_DRIVER)        => 'No such driver exists.',
+(SCST_C_DRV_BAD_PARAMETERS)   => 'Bad parameters given for driver.',
+(SCST_C_DRV_PARAMETER_STATIC) => 'Driver parameter specified is static.',
+(SCST_C_DRV_SETPARAM_FAIL)    => 'Failed to set driver parameter. See "dmesg" for more information.',
+
+(SCST_C_TGT_NO_TARGET)        => 'No such target exists.',
+(SCST_C_TGT_BAD_PARAMETERS)   => 'Bad parameters given for target.',
+(SCST_C_TGT_PARAMETER_STATIC) => 'Target parameter specified is static.',
+(SCST_C_TGT_SETPARAM_FAIL)    => 'Failed to set target parameter. See "dmesg" for more information.',
+
+(SCST_C_GRP_NO_GROUP)         => 'No such group exists.',
+(SCST_C_GRP_EXISTS)           => 'Group already exists.',
+(SCST_C_GRP_ADD_FAIL)         => 'Failed to add group. See "dmesg" for more information.',
+(SCST_C_GRP_REM_FAIL)         => 'Failed to remove group. See "dmesg" for more information.',
+
+(SCST_C_GRP_NO_LUN)           => 'No such LUN exists.',
+(SCST_C_GRP_LUN_EXISTS)       => 'LUN already exists.',
+(SCST_C_GRP_ADD_LUN_FAIL)     => 'Failed to add LUN. See "dmesg" for more information.',
+(SCST_C_GRP_REM_LUN_FAIL)     => 'Failed to remove LUN. See "dmesg" for more information.',
+(SCST_C_GRP_CLR_LUN_FAIL)     => 'Failed to clear LUNs from group. See "dmesg" for more information.',
+
+(SCST_C_GRP_NO_INI)           => 'No such initiator exists.',
+(SCST_C_GRP_INI_EXISTS)       => 'Initiator already exists.',
+(SCST_C_GRP_ADD_INI_FAIL)     => 'Failed to add initiator. See "dmesg" for more information.',
+(SCST_C_GRP_REM_INI_FAIL)     => 'Failed to remove initiator. See "dmesg" for more information.',
+(SCST_C_GRP_MOV_INI_FAIL)     => 'Failed to move initiator. See "dmesg" for more information.',
+(SCST_C_GRP_CLR_INI_FAIL)     => 'Failed to clear initiators. See "dmesg" for more information.',
+
+(SCST_C_LUN_DEV_EXISTS)       => 'Device already exists for LUN.',
+(SCST_C_LUN_RPL_DEV_FAIL)     => 'Failed to replace device for LUN. See "dmesg" for more information.',
+(SCST_C_LUN_BAD_PARAMETERS)   => 'Bad parameters for LUN.',
+(SCST_C_LUN_PARAMETER_STATIC) => 'LUN parameter specified is static.',
+(SCST_C_LUN_SETPARAM_FAIL)    => 'Failed to set LUN parameter. See "dmesg" for more information.',
+
+(SCST_C_INI_BAD_PARAMETERS)   => 'Bad parameters for initiator.',
+(SCST_C_INI_PARAMETER_STATIC) => 'Initiator parameter specified is static.',
+(SCST_C_INI_SETPARAM_FAIL)    => 'Failed to set initiator parameter. See "dmesg" for more information.',
+);
 
 use vars qw(@ISA @EXPORT $VERSION);
 
@@ -126,17 +182,75 @@ sub new {
 sub scstVersion {
 	my $self = shift;
 
-	my $_path = mkpath(SCST_ROOT, SCST_VERSION_IO);
-	my $io = new IO::File $_path, O_RDONLY;
-	if (!defined($io)) {
-		$self->{'err_string'} = "version(): Failed to open '$_path' for reading: $!";
+	my $parameters = $self->scstParameters();
+
+	return undef if (!defined($parameters));
+	return $$parameters{'version'}->{'value'};
+}
+
+sub scstParameters {
+	my $self = shift;
+	my %parameters;
+
+	my $pHandle = new IO::Handle;	
+	my $_path = mkpath(SCST_ROOT); 
+	if (!(opendir $pHandle, $_path)) {
+		$self->{'err_string'} = "scstParameters(): Unable to read directory '$_path': $!";
 		return undef;
 	}
 
-	my $version = <$io>; # Only want first line
-	chomp $version;
+	foreach my $parameter (readdir($pHandle)) {
+		next if (($parameter eq '.') || ($parameter eq '..'));
+		my $pPath = mkpath(SCST_ROOT, $parameter);
+		my $mode = (stat($pPath))[2];
 
-	return $version;
+		if (-d $pPath) {
+			# Skip directories
+		} else {
+			if (!(($mode & S_IRUSR) >> 6)) {
+				$parameters{$parameter}->{'static'} = FALSE;
+				$parameters{$parameter}->{'value'} = undef;
+			} else {
+				my $is_static;
+				if (($mode & S_IWUSR) >> 6) {
+					$is_static = FALSE;
+				} else {
+					$is_static = TRUE;
+				}
+
+				my $io = new IO::File $pPath, O_RDONLY;
+
+				if (!$io) {
+					$self->{'err_string'} = "scsiParameters(): Unable to read ".
+					  "scst parameter '$parameter': $!";
+					return undef;
+				}
+
+				my $value = <$io>;
+				chomp $value;
+
+				if ($parameter eq SCST_TRACE_IO) {
+					$parameters{$parameter}->{'value'} = '';
+					my @possible;
+					foreach my $t (split(/\|/, $value)) {
+						$t =~ s/^\s//; $t =~ s/\s$//;
+						push @possible, $t;
+					}
+					$parameters{$parameter}->{'set'} = \@possible;
+				} elsif ($parameter eq SCST_VERSION_IO) {
+					my $version = <$io>; # Only want first line
+					chomp $version;
+					$parameters{$parameter}->{'value'} = $value;
+				} else {
+					$parameters{$parameter}->{'value'} = $value;
+				}
+
+				$parameters{$parameter}->{'static'} = $is_static;
+			}
+		}
+	}
+
+	return \%parameters;
 }
 
 sub drivers {
@@ -1022,8 +1136,10 @@ sub deviceParameters {
 					my $group = $3;
 					my $lun = $4;
 
-					$parameters{$parameter}->{$driver}->{$target}->{$group} = $lun;
+					$parameters{$parameter}->{'value'}->{$driver}->{$target}->{$group} = $lun;
 				}
+
+				$parameters{$parameter}->{'static'} = TRUE;
 			}
 		} elsif ($parameter eq 'handler') {
 			my $linked = readlink $pPath;
@@ -1428,6 +1544,134 @@ sub setLunParameter {
         return SCST_C_LUN_SETPARAM_FAIL;
 }
 
+sub initiatorParameters {
+	my $self = shift;
+	my $driver = shift;
+	my $target = shift;
+	my $group = shift;
+	my $initiator = shift;
+	my %parameters;
+
+	if ($self->driverExists($driver) != TRUE) {
+		$self->{'err_string'} = "initiatorParameters(): Driver '$driver' is not available";
+		return undef;
+	}
+
+	if ($self->targetExists($driver, $target) != TRUE) {
+		$self->{'err_string'} = "initiatorParameters(): Target '$target' is not available";
+		return undef;
+	}
+
+	if ($self->groupExists($driver, $target, $group) != TRUE) {
+		$self->{'err_string'} = "initiatorParameters(): Group '$group' does not exists";
+		return undef;
+	}
+
+	if ($self->initiatorExists($driver, $target, $group, $initiator) != TRUE) {
+		$self->{'err_string'} = "initiatorParameters(): Initiator '$initiator' does not exist";
+		return undef;
+	}
+
+	my $pHandle = new IO::Handle;	
+	my $_path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS,
+	  $group, SCST_INITIATORS, $initiator); 
+	if (!(opendir $pHandle, $_path)) {
+		$self->{'err_string'} = "initiatorParameters(): Unable to read directory '$_path': $!";
+		return undef;
+	}
+
+	foreach my $parameter (readdir($pHandle)) {
+		next if (($parameter eq '.') || ($parameter eq '..'));
+		my $pPath = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS,
+		  $group, SCST_INITIATORS, $initiator, $parameter);
+		my $mode = (stat($pPath))[2];
+		if (-d $pPath) {
+			# Skip directories
+		} else {
+			if (!(($mode & S_IRUSR) >> 6)) {
+				$parameters{$parameter}->{'static'} = FALSE;
+				$parameters{$parameter}->{'value'} = undef;
+			} else {
+				my $is_static;
+				if (($mode & S_IWUSR) >> 6) {
+					$is_static = FALSE;
+				} else {
+					$is_static = TRUE;
+				}
+
+				my $io = new IO::File $pPath, O_RDONLY;
+
+				if (!$io) {
+					$self->{'err_string'} = "initiatorParameters(): Unable to read ".
+					  "initiator parameter '$parameter': $!";
+					return undef;
+				}
+
+				my $value = <$io>;
+				chomp $value;
+
+				$parameters{$parameter}->{'static'} = $is_static;
+				$parameters{$parameter}->{'value'} = $value;
+			}
+		}
+	}
+
+	return \%parameters;
+}
+
+sub setInitiatorParameter {
+	my $self = shift;
+	my $driver = shift;
+	my $target = shift;
+	my $group = shift;
+	my $initiator = shift;
+	my $parameter = shift;
+	my $value = shift;
+
+	my $rc = $self->driverExists($driver);
+	return SCST_C_DRV_NO_DRIVER if (!$rc);
+	return $rc if ($rc > 1);
+
+	$rc = $self->targetExists($driver, $target);
+	return SCST_C_TGT_NO_TARGET if (!$rc);
+	return $rc if ($rc > 1);
+
+	$rc = $self->groupExists($driver, $target, $group);
+	return SCST_C_GRP_NO_GROUP if (!$rc);
+	return $rc if ($rc > 1);
+
+	$rc = $self->initiatorExists($driver, $target, $group, $initiator);
+	return SCST_C_GRP_NO_INI if (!$rc);
+	return $rc if ($rc > 1);
+
+	return TRUE if (!defined($parameter) || !defined($value));
+
+	my $parameters = $self->initiatorParameters($driver, $target, $group, $initiator);
+
+	return SCST_C_INI_BAD_PARAMETERS if (!defined($$parameters{$parameter}));
+	return SCST_C_INI_PARAMETER_STATIC if ($$parameters{$parameter}->{'static'});
+
+	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS,
+	   $group, SCST_LUNS, $initiator, $parameter);
+
+	my $io = new IO::File $path, O_WRONLY;
+
+	return SCST_C_INI_SETPARAM_FAIL if (!$io);
+
+	my $bytes;
+
+	if ($self->{'debug'}) {
+		print "DBG($$): $path -> $parameter = $value\n";
+	} else {
+		$bytes = syswrite($io, $value, length($value));
+	}
+
+	close $io;
+
+	return FALSE if ($self->{'debug'} || $bytes);
+        return SCST_C_INI_SETPARAM_FAIL;
+}
+
 sub handlers {
 	my $self = shift;
 	my @handlers;
@@ -1493,7 +1737,7 @@ sub handlerParameters {
 		my $mode = (stat($pPath))[2];
 
 		if (-d $pPath) {
-			push @{$parameters{'devices'}}, $parameter;
+			push @{$parameters{'devices'}->{'value'}}, $parameter;
 			next;
 		}
 
@@ -1541,6 +1785,8 @@ sub handlerParameters {
 		close $io;
 	}
 
+	$parameters{'devices'}->{'static'} = TRUE;
+
 	return \%parameters;
 }
 
@@ -1577,7 +1823,7 @@ sub devicesByHandler {
 	my $parameters = $self->handlerParameters($handler);
 
 	return undef if (!defined($parameters));
-	return \@{$$parameters{'devices'}};
+	return \@{$$parameters{'devices'}->{'value'}};
 }
 
 sub checkDeviceAvailableParameters {
@@ -1874,6 +2120,93 @@ sub lunAvailableParameters {
 	return \%parameters;
 }
 
+sub checkInitiatorAvailableParameters {
+	my $self = shift;
+	my $driver = shift;
+	my $target = shift;
+	my $group = shift;
+	my $check = shift;
+
+	return FALSE if (!defined($check));
+
+	my $rc = $self->driverExists($driver);
+	return SCST_C_DRV_NO_DRIVER if (!$rc);
+	return $rc if ($rc > 1);
+
+	$rc = $self->targetExists($driver, $target);
+	return SCST_C_TGT_NO_TARGET if (!$rc);
+	return $rc if ($rc > 1);
+
+	$rc = $self->groupExists($driver, $target, $group);
+	return SCST_C_GRP_NO_GROUP if (!$rc);
+	return $rc if ($rc > 1);
+
+	my $available = $self->initiatorAvailableParameters($driver, $target, $group);
+
+	return SCST_C_FATAL_ERROR if (!defined($available));
+
+	foreach my $parameter (keys %{$check}) {
+		if (!defined($$available{$parameter})) {
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
+sub initiatorAvailableParameters {
+	my $self = shift;
+	my $driver = shift;
+	my $target = shift;
+	my $group = shift;
+	my $available;
+	my %parameters;
+
+	if ($self->driverExists($driver) != TRUE) {
+		$self->{'err_string'} = "initiatorAvailableParameters(): Driver '$driver' ".
+		  "is not available";
+		return undef;
+	}
+
+	if ($self->targetExists($driver, $target) != TRUE) {
+		$self->{'err_string'} = "initiatorAvailableParameters(): Target '$target' ".
+		  "is not available";
+		return undef;
+	}
+
+	if ($self->groupExists($driver, $target, $group) != TRUE) {
+		$self->{'err_string'} = "initiatorAvailableParameters(): Group '$group' ".
+		  "does not exist";
+		return undef;
+	}
+
+	my $io = new IO::File mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target,
+	  SCST_GROUPS, $group, SCST_LUNS, SCST_MGMT_IO), O_RDONLY;
+
+	if (!$io) {
+		$self->{'err_string'} = "initiatorAvailableParameters(): Unable to open initiators mgmt ".
+		  "interface for group '$group': $!";
+		return undef;
+	}
+
+	while (my $in = <$io>) {
+		if ($in =~ /^The following parameters available\:/) {
+			(undef, $available) = split(/\:/, $in, 2);
+			$available =~ s/\.$//;
+		}
+	}
+
+	if ($available) {
+		foreach my $parameter (split(/\,/, $available)) {
+			$parameter =~ s/^\s+//;
+			$parameter =~ s/\s+$//;
+			$parameters{$parameter} = '';
+		}
+	}
+
+	return \%parameters;
+}
+
 sub sessions {
 	my $self = shift;
 	my $driver = shift;
@@ -2004,7 +2337,9 @@ sub sgvStats {
 
 sub errorString {
 	my $self = shift;
+	my $rc = shift;
 
+	return $VERBOSE_ERROR{$rc} if (defined($rc));
 	return undef if (!$self->{'err_string'});
 
 	my $string = $self->{'err_string'};
