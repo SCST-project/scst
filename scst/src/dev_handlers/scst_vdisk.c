@@ -1321,6 +1321,10 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			buf[4] = 0x0; /* this page */
 			buf[5] = 0x80; /* unit serial number */
 			buf[6] = 0x83; /* device identification */
+			if (virt_dev->dev->type == TYPE_DISK) {
+				buf[3] += 1;
+				buf[7] = 0xB0; /* block limits */
+			}
 			resp_len = buf[3] + 4;
 		} else if (0x80 == cmd->cdb[2]) {
 			/* unit serial number */
@@ -1377,6 +1381,31 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			buf[2] = (resp_len >> 8) & 0xFF;
 			buf[3] = resp_len & 0xFF;
 			resp_len += 4;
+		} else if ((0xB0 == cmd->cdb[2]) &&
+			   (virt_dev->dev->type == TYPE_DISK)) {
+			/* block limits */
+			buf[1] = 0xB0;
+			buf[3] = 0x1C;
+			/* Optimal transfer granuality is PAGE_SIZE */
+			put_unaligned(cpu_to_be16(max_t(int,
+					PAGE_SIZE/virt_dev->block_size, 1)),
+					(uint16_t *)&buf[6]);
+			/* Max transfer len is min of sg limit and 8M */
+			put_unaligned(cpu_to_be32(min_t(int,
+					cmd->tgt_dev->max_sg_cnt << PAGE_SHIFT,
+					8*1024*1024) / virt_dev->block_size),
+					(uint32_t *)&buf[8]);
+			/*
+			 * Let's have optimal transfer len 1MB. Better to not
+			 * set it at all, because we don't have such limit,
+			 * but some initiators may not understand that (?).
+			 * From other side, too big transfers  are not optimal,
+			 * because SGV cache supports only <4M buffers.
+			 */
+			put_unaligned(cpu_to_be32(
+					1*1024*1024 / virt_dev->block_size),
+					(uint32_t *)&buf[12]);
+			resp_len = buf[3] + 4;
 		} else {
 			TRACE_DBG("INQUIRY: Unsupported EVPD page %x",
 				cmd->cdb[2]);
@@ -1426,6 +1455,7 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 	}
 
 	sBUG_ON(resp_len >= INQ_BUF_SZ);
+
 	if (length > resp_len)
 		length = resp_len;
 	memcpy(address, buf, length);
