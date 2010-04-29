@@ -796,7 +796,7 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 
 	if (likely(!scst_is_cmd_fully_local(cmd)) &&
 	    (dev->handler->alloc_data_buf != NULL)) {
-	    	int state;
+		int state;
 
 		if (unlikely(!dev->handler->alloc_data_buf_atomic &&
 			     scst_cmd_atomic(cmd))) {
