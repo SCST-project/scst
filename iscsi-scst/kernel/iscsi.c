@@ -1382,24 +1382,18 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 {
 	struct scatterlist *sg = cmd->sg;
 	unsigned int bufflen = cmd->bufflen;
-	unsigned int idx, i;
-	char __user *addr;
+	unsigned int idx, i, buff_offs;
 	int res = 0;
 
-	TRACE_DBG("%p %u,%u", cmd->sg, offset, size);
+	TRACE_ENTRY();
+
+	TRACE_DBG("cmd %p, sg %p, offset %u, size %u", cmd, cmd->sg,
+		offset, size);
 
 	iscsi_extracheck_is_rd_thread(conn);
 
-	if (unlikely((offset >= bufflen) ||
-		     (offset + size > bufflen))) {
-		PRINT_ERROR("Wrong ltn (%u %u %u)", offset, size, bufflen);
-		mark_conn_closed(conn);
-		res = -EIO;
-		goto out;
-	}
-
-	offset += sg[0].offset;
-	idx = offset >> PAGE_SHIFT;
+	buff_offs = offset;
+	idx = (offset + sg[0].offset) >> PAGE_SHIFT;
 	offset &= ~PAGE_MASK;
 
 	conn->read_msg.msg_iov = conn->read_iov;
@@ -1407,21 +1401,40 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 
 	i = 0;
 	while (1) {
-		addr = (char __force __user *)(page_address(sg_page(&sg[idx])));
-		sBUG_ON(addr == NULL);
+		unsigned int sg_len;
+		char __user *addr;
+		
+		if (unlikely(buff_offs >= bufflen)) {
+			TRACE_DBG("Residual overflow (cmd %p, buff_offs %d, "
+				"bufflen %d)", cmd, buff_offs, bufflen);
+			idx = 0;
+			sg = &dummy_sg;
+			offset = 0;
+		}
+
+		addr = (char __force __user *)(sg_virt(&sg[idx]));
+		EXTRACHECKS_BUG_ON(addr == NULL);
+		sg_len = sg[idx].length - offset;
+
 		conn->read_iov[i].iov_base = addr + offset;
-		if (offset + size <= PAGE_SIZE) {
+
+		if (size <= sg_len) {
 			TRACE_DBG("idx=%d, offset=%u, size=%d, addr=%p",
 				idx, offset, size, addr);
 			conn->read_iov[i].iov_len = size;
-			conn->read_msg.msg_iovlen = ++i;
+			conn->read_msg.msg_iovlen = i;
 			break;
 		}
-		conn->read_iov[i].iov_len = PAGE_SIZE - offset;
-		TRACE_DBG("idx=%d, offset=%u, size=%d, iov_len=%zd, addr=%p",
-			idx, offset, size, conn->read_iov[i].iov_len, addr);
-		size -= conn->read_iov[i].iov_len;
-		if (unlikely(++i >= ISCSI_CONN_IOV_MAX)) {
+		conn->read_iov[i].iov_len = sg_len;
+
+		TRACE_DBG("idx=%d, offset=%u, size=%d, sg_len=%zd, addr=%p",
+			idx, offset, size, sg_len, addr);
+
+		size -= sg_len;
+		buff_offs += sg_len;
+
+		i++;
+		if (unlikely(i >= ISCSI_CONN_IOV_MAX)) {
 			PRINT_ERROR("Initiator %s violated negotiated "
 				"parameters by sending too much data (size "
 				"left %d)", conn->session->initiator_name,
@@ -1430,13 +1443,15 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 			res = -EINVAL;
 			break;
 		}
+
 		idx++;
-		offset = sg[idx].offset;
+		offset = 0;
 	}
+
 	TRACE_DBG("msg_iov=%p, msg_iovlen=%zd",
 		conn->read_msg.msg_iov, conn->read_msg.msg_iovlen);
 
-out:
+	TRACE_EXIT_RES(res);
 	return res;
 }
 
@@ -1668,7 +1683,7 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 		goto trace;
 	}
 
-	/* For prelim completed commands sg&K can be already set! */
+	/* For prelim completed commands sg & K can be already set! */
 
 	if (dir != SCST_DATA_BIDI) {
 		req->sg = scst_cmd_get_sg(scst_cmd);
@@ -1715,11 +1730,10 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 		req->r2t_len_to_receive = be32_to_cpu(req_hdr->data_length) -
 					  req->pdu.datasize;
 
-		if (unlikely(req->r2t_len_to_receive > req->bufflen)) {
-			PRINT_ERROR("req->r2t_len_to_receive %d > req->bufflen "
-				"%d", req->r2t_len_to_receive, req->bufflen);
-			goto out_close;
-		}
+		/*
+		 * In case of residual overflow req->r2t_len_to_receive and
+		 * req->pdu.datasize might be > req->bufflen
+		 */
 
 		res = cmnd_insert_data_wait_hash(req);
 		if (unlikely(res != 0)) {

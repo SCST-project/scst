@@ -314,7 +314,8 @@ static int do_exec(struct vdisk_cmd *vcmd)
 		}
 	}
 
-	reply->resp_data_len = cmd->bufflen;
+	if (cmd->data_direction & SCST_DATA_READ)
+		reply->resp_data_len = cmd->bufflen;
 
 	switch (opcode) {
 	case READ_6:
