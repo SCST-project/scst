@@ -1427,7 +1427,7 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 		}
 		conn->read_iov[i].iov_len = sg_len;
 
-		TRACE_DBG("idx=%d, offset=%u, size=%d, sg_len=%zd, addr=%p",
+		TRACE_DBG("idx=%d, offset=%u, size=%d, sg_len=%u, addr=%p",
 			idx, offset, size, sg_len, addr);
 
 		size -= sg_len;

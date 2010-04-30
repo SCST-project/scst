@@ -802,7 +802,7 @@ void scst_tgt_sysfs_put(struct scst_tgt *tgt)
  * Devices directory implementation
  */
 
-ssize_t scst_device_sysfs_type_show(struct kobject *kobj,
+static ssize_t scst_device_sysfs_type_show(struct kobject *kobj,
 			    struct kobj_attribute *attr, char *buf)
 {
 	int pos = 0;
@@ -897,9 +897,9 @@ static ssize_t scst_device_sysfs_threads_num_store(struct kobject *kobj,
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
-	res = strict_strtoul(buf, 0, &newtn);
+	res = strict_strtol(buf, 0, &newtn);
 	if (res != 0) {
-		PRINT_ERROR("strict_strtoul() for %s failed: %d ", buf, res);
+		PRINT_ERROR("strict_strtol() for %s failed: %d ", buf, res);
 		goto out;
 	}
 
@@ -1544,8 +1544,8 @@ static struct kobj_type acg_dev_ktype = {
 	.default_attrs = lun_attrs,
 };
 
-int scst_create_acg_dev_sysfs(struct scst_acg *acg, unsigned int virt_lun,
-	struct kobject *parent)
+static int scst_create_acg_dev_sysfs(struct scst_acg *acg,
+	unsigned int virt_lun, struct kobject *parent)
 {
 	int retval;
 	struct scst_acg_dev *acg_dev = NULL, *acg_dev_tmp;
@@ -2022,7 +2022,7 @@ static ssize_t __scst_acg_io_grouping_type_store(struct scst_acg *acg,
 		acg->acg_io_grouping_type = SCST_IO_GROUPING_NEVER;
 	else {
 		long io_grouping_type;
-		res = strict_strtoul(buf, 0, &io_grouping_type);
+		res = strict_strtol(buf, 0, &io_grouping_type);
 		if ((res != 0) || (io_grouping_type <= 0)) {
 			PRINT_ERROR("Unknown or not allowed I/O grouping type "
 				"%s", buf);
@@ -2914,9 +2914,9 @@ static ssize_t scst_threads_store(struct kobject *kobj,
 
 	oldtn = scst_main_cmd_threads.nr_threads;
 
-	res = strict_strtoul(buf, 0, &newtn);
+	res = strict_strtol(buf, 0, &newtn);
 	if (res != 0) {
-		PRINT_ERROR("strict_strtoul() for %s failed: %d ", buf, res);
+		PRINT_ERROR("strict_strtol() for %s failed: %d ", buf, res);
 		goto out_up;
 	}
 
