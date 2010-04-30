@@ -1131,7 +1131,7 @@ static int rigid_geo_pg(unsigned char *p, int pcontrol,
 				    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 				    0x3a, 0x98/* 15K RPM */, 0, 0};
 	int32_t ncyl, n;
-	
+
 	memcpy(p, geo_m_pg, sizeof(geo_m_pg));
 	ncyl = dev->nblocks / (DEF_HEADS * DEF_SECTORS);
 	if ((dev->nblocks % (DEF_HEADS * DEF_SECTORS)) != 0)
@@ -1457,7 +1457,7 @@ static void exec_read_capacity(struct vdisk_cmd *vcmd)
 	buffer[6] = (blocksize >> (BYTE * 1)) & 0xFF;
 	buffer[7] = (blocksize >> (BYTE * 0)) & 0xFF;
 
-	length = min(length, (int)sizeof(buffer));	
+	length = min(length, (int)sizeof(buffer));
 
 	memcpy(address, buffer, length);
 
@@ -1519,7 +1519,7 @@ static void exec_read_capacity16(struct vdisk_cmd *vcmd)
 		break;
 	}
 
-	length = min(length, (int)sizeof(buffer));	
+	length = min(length, (int)sizeof(buffer));
 
 	memcpy(address, buffer, length);
 

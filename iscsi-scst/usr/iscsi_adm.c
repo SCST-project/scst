@@ -558,7 +558,7 @@ static int user_handle_del(struct iscsi_adm_req *req, char *user, char *pass)
 		fprintf(stderr, "Username must be specified\n");
 		return -EINVAL;
 	}
-	
+
 	if (pass)
 		fprintf(stderr, "Ignoring specified password\n");
 

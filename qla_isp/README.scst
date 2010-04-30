@@ -12,7 +12,7 @@ advantage over it: support of 24xx and 25xx series of Qlogic adapters.
 From other side, qla2x00t is simpler, smaller and much better tested
 on 22xx and 23xx, hence perform more reliable and, thus, is recommended
 for these adapters. Since 24xx/25xx become fully supported on qla2x00t we
-encourage users to switch to this driver. 
+encourage users to switch to this driver.
 
 INSTALLATION
 

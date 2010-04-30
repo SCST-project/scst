@@ -1403,7 +1403,7 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 	while (1) {
 		unsigned int sg_len;
 		char __user *addr;
-		
+
 		if (unlikely(buff_offs >= bufflen)) {
 			TRACE_DBG("Residual overflow (cmd %p, buff_offs %d, "
 				"bufflen %d)", cmd, buff_offs, bufflen);

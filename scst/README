@@ -58,7 +58,7 @@ The sysfs build supports only kernels 2.6.26 and higher, because in
 2.6.26 internal kernel's sysfs interface had a major change, which made
 it heavily incompatible with pre-2.6.26 version.
 
-At first, make sure that the link "/lib/modules/`you_kernel_version`/build" 
+At first, make sure that the link "/lib/modules/`you_kernel_version`/build"
 points to the source code for your currently running kernel.
 
 Then you should consider to apply necessary kernel patches. SCST has the
@@ -641,7 +641,7 @@ Standard SCST dev handlers have at least the following common entries:
    threads. Valid only if threads_num attribute >0.
 
  - type - SCSI type of this device
- 
+
 See below for more information about other entries of this subdirectory
 of the standard SCST dev handlers.
 
@@ -670,7 +670,7 @@ of the standard SCST dev handlers.
 has the following entries:
 
  - None, one or more subdirectories for each existing SGV cache.
- 
+
  - global_stats - file containing global SGV caches statistics.
 
 Each SGV cache's subdirectory has the following item:
@@ -870,7 +870,7 @@ looking inside this file.
    DEST_GROUP_NAME.
 
  - "clear" - deletes all initiators from this group.
-                                  
+
 For "add" and "del" commands INITIATOR_NAME can be a simple DOS-type
 patterns, containing '*' and '?' symbols. '*' means match all any
 symbols, '?' means match only any single symbol. For instance,
@@ -1137,7 +1137,7 @@ For example:
 
 echo "add_device disk1 filename=/disk1; blocksize=4096; nv_cache=1" >/sys/kernel/scst_tgt/handlers/vdisk_fileio/mgmt
 
-will create a FILEIO virtual device disk1 with backend file /disk1   
+will create a FILEIO virtual device disk1 with backend file /disk1
 with block size 4K and NV_CACHE enabled.
 
 Each vdisk_fileio's device has the following attributes in
@@ -1285,12 +1285,12 @@ Caching
 -------
 
 By default for performance reasons VDISK FILEIO devices use write back
-caching policy. 
+caching policy.
 
 Generally, write back caching is reasonably safe for use and danger of
 it is greatly overestimated, because:
 
-1. Modern HDDs have at least 16MB of cache working in write back mode by 
+1. Modern HDDs have at least 16MB of cache working in write back mode by
 default, so for a 10 drives RAID it is 160MB of a write back cache. You
 can consider, how  many people are happy with it and how many disabled
 write back cache of  their HDDs? Almost all and almost nobody
@@ -1304,9 +1304,9 @@ to have acceptable performance their users have to use write back
 caching, hence on a power loss all not yet committed to flash chips, but
 acknowledged as written, data will be lost.
 
-2. Most, if not all, modern enterprise level applications are well 
-prepared to work with write back cached storage. They know well when to 
-flush the cache and how to flush it to make the lost on crash data 
+2. Most, if not all, modern enterprise level applications are well
+prepared to work with write back cached storage. They know well when to
+flush the cache and how to flush it to make the lost on crash data
 acceptable.
 
 For instance, journaled file systems flush cache on each meta data
@@ -1322,7 +1322,7 @@ using "barrier=1" and "barrier=flush" mount options correspondingly. You
 can check if the barriers turn on or off by looking in /proc/mounts.
 Windows and, AFAIK, other UNIX'es don't need any special explicit
 options and do necessary barrier actions on write-back caching devices
-by default. 
+by default.
 
 But even in case of journaled file systems your unsaved cached data will
 still be lost in case of power/hardware/software failures, so you may
@@ -1339,7 +1339,7 @@ impossible), or need a good UPS to protect yourself from not committed
 data loss.
 
 Note, on some real-life workloads write through caching might perform
-better, than write back one with the barrier protection turned on. 
+better, than write back one with the barrier protection turned on.
 
 To limit this data loss with write back caching you can use files in
 /proc/sys/vm to limit amount of unflushed data in the system cache.
@@ -1384,7 +1384,7 @@ Pass-through mode
 In the pass-through mode (i.e. using the pass-through device handlers
 scst_disk, scst_tape, etc) SCSI commands, coming from remote initiators,
 are passed to local SCSI devices on target as is, without any
-modifications. 
+modifications.
 
 In the SYSFS interface all real SCSI devices are listed in
 /sys/kernel/scst_tgt/devices in form host:channel:id:lun numbers, for
@@ -1828,6 +1828,6 @@ Thanks to:
 
  * Daniel Debonzi <debonzi@linux.vnet.ibm.com> for a big part of SCST sysfs tree
    implementation
- 
+
 
 Vladislav Bolkhovitin <vst@vlnb.net>, http://scst.sourceforge.net

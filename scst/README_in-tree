@@ -871,12 +871,12 @@ Caching
 -------
 
 By default for performance reasons VDISK FILEIO devices use write back
-caching policy. 
+caching policy.
 
 Generally, write back caching is reasonably safe for use and danger of
 it is greatly overestimated, because:
 
-1. Modern HDDs have at least 16MB of cache working in write back mode by 
+1. Modern HDDs have at least 16MB of cache working in write back mode by
 default, so for a 10 drives RAID it is 160MB of a write back cache. You
 can consider, how  many people are happy with it and how many disabled
 write back cache of  their HDDs? Almost all and almost nobody
@@ -890,9 +890,9 @@ to have acceptable performance their users have to use write back
 caching, hence on a power loss all not yet committed to flash chips, but
 acknowledged as written, data will be lost.
 
-2. Most, if not all, modern enterprise level applications are well 
-prepared to work with write back cached storage. They know well when to 
-flush the cache and how to flush it to make the lost on crash data 
+2. Most, if not all, modern enterprise level applications are well
+prepared to work with write back cached storage. They know well when to
+flush the cache and how to flush it to make the lost on crash data
 acceptable.
 
 For instance, journaled file systems flush cache on each meta data
@@ -925,7 +925,7 @@ impossible), or need a good UPS to protect yourself from not committed
 data loss.
 
 Note, on some real-life workloads write through caching might perform
-better, than write back one with the barrier protection turned on. 
+better, than write back one with the barrier protection turned on.
 
 To limit this data loss with write back caching you can use files in
 /proc/sys/vm to limit amount of unflushed data in the system cache.

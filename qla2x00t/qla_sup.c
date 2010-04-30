@@ -1700,7 +1700,7 @@ qla2x00_write_optrom_data(struct scsi_qla_host *ha, uint8_t *buf,
 				 */
 				rest_addr = 0xffff;
 				sec_mask = 0x10000;
-				break;   
+				break;
 			}
 			/*
 			 * ST m29w010b part - 16kb sector size
