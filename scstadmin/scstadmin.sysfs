@@ -23,14 +23,49 @@ General Operations
 Query Operations
      -list_handler [<hndlr>] : List all available handlers or specific <hndlr>.
      -list_device [<device>] : List all open devices or specific <device>.
-         -device <device>
      -list_driver [<driver>] : List all available drivers or specific <driver>.
      -list_target [<target>] : List all available targets or specific <target>.
          [-driver <driver>]
      -list_group [<group>]   : List all configured groups, or specific <group>.  
          [-driver <driver>]
          [-target <target>]
+
+     -list_hnd_parm <hndlr>  : List all parameters for a given handler.
+     -list_dev_parm <device> : List all parameters for a given device.
+     -list_drv_parm <driver> : List all parameters for a given driver.
+     -list_tgt_parm <target> : List all parameters for a given driver/target.
+          -driver <driver>
+     -list_lun_parm <lun>    : List all parameters for a driver/target/lun.
+          -driver <driver>
+          -target <target>
+          -group <group>
+     -list_ini_parm <ini>    : List all parms for a driver/target/initiator.
+          -driver <driver>
+          -target <target>
+          -group <group>
+
      -list_sessions          : List all current initiator sessions.
+
+Set Operations
+     -set_hnd_parm <hndlr>   : Sets handler parameter(s) <p> to value <v>.
+         -parameters <p=v,...>
+     -set_dev_parm <device>  : Sets device parameters(s) <p> to value <v>. 
+         -parameters <p=v,...>
+     -set_drv_parm <driver>  : Sets driver parameter(s) <p> to value <v>.
+         -parameters <p=v,...>
+     -set_tgt_parm <target>  : Sets target parameter(s) <p> to value <v>.
+         -driver <driver>
+         -parameters <p=v,...>
+     -set_lun_parm <lun>     : Sets LUN parameter(s) <p> to value <v>.
+         -driver <driver>
+         -target <target>
+         -group <group>
+         -parameters <p=v,...>
+     -set_ini_parm <ini>     : Sets initiator parameter(s) <p> to value <v>.
+         -driver <driver>
+         -target <target>
+         -group <group>
+         -parameters <p=v,...>
 
 Device Operations
      -open_dev <device>      : Adds a new device using handler <handler>.
@@ -39,8 +74,6 @@ Device Operations
      -resync_dev <device>    : Resync the device size with the initiator(s).
      -close_dev <device>     : Closes a device belonging to handler <handler>.
          -handler <handler>
-     -set_dev_parm <device>  : Sets device parameters(s) <a> to value <v>. 
-         -parameters <p=v,...>
 
 Group Operations
      -add_group <group>      : Add a group to a given driver & target.
@@ -176,11 +209,23 @@ sub getArgs {
 	my $listGroup;
 	my $listSessions;
 
+	my $listHandlerParm;
+	my $listDeviceParm;
+	my $listDriverParm;
+	my $listTargetParm;
+	my $listLunParm;
+	my $listInitiatorParm;
+
+	my $setHandlerParm;
+	my $setDeviceParm;
+	my $setDriverParm;
+	my $setTargetParm;
+	my $setLunParm;
+	my $setInitiatorParm;
+
 	my $openDev;
 	my $closeDev;
 	my $resyncDev;
-	my $setDevParm;
-	my $listDevParm;
 
 	my $addGroup;
 	my $removeGroup;
@@ -225,11 +270,23 @@ sub getArgs {
 			    'list_group:s'	=> \$listGroup,
 			    'list_sessions'	=> \$listSessions,
 
+			    'list_hnd_parm=s'	=> \$listHandlerParm,
+			    'list_dev_parm=s'	=> \$listDeviceParm,
+			    'list_drv_parm=s'	=> \$listDriverParm,
+			    'list_tgt_parm=s'	=> \$listTargetParm,
+			    'list_lun_parm=s'	=> \$listLunParm,
+			    'list_ini_parm=s'	=> \$listInitiatorParm,
+
+			    'set_hnd_parm=s'	=> \$setHandlerParm,
+			    'set_dev_parm=s'	=> \$setDeviceParm,
+			    'set_drv_parm=s'	=> \$setDriverParm,
+			    'set_tgt_parm=s'	=> \$setTargetParm,
+			    'set_lun_parm=s'	=> \$setLunParm,
+			    'set_ini_parm=s'	=> \$setInitiatorParm,
+
 			    'open_dev=s'	=> \$openDev,
 			    'close_dev=s'	=> \$closeDev,
 			    'resync_dev=s'	=> \$resyncDev,
-			    'set_dev_parm=s'	=> \$setDevParm,
-			    'list_dev_parm=s'	=> \$listDevParm,
 
 			    'add_group=s'	=> \$addGroup,
 			    'remove_group=s'	=> \$removeGroup,
@@ -260,7 +317,7 @@ sub getArgs {
 			    'noprompt'		=> \$noprompt,
 			    'force'		=> \$force,
 			    'debug'             => \$_DEBUG_)) {
-		&usage();
+		usage();
 	}
 
 	$_DEBUG_ = TRUE if (defined($_DEBUG_));
@@ -274,14 +331,62 @@ sub getArgs {
 	my $query_mode = defined($listHandler) || defined($listDevice) || defined($listDriver) ||
 	  defined($listTarget) || defined($listGroup) || defined($listSessions);
 
-	if ((defined($clearConfig) + defined($writeConfig) + defined($checkConfig) +
-             defined($openDev) + defined($closeDev) + defined($setDevParm) +
-	     defined($addGroup) + defined($removeGroup) + defined($addInitiator) +
-	     defined($removeInitiator) + defined($clearInitiators) +
-	     defined($addLun) + defined($removeLun) + defined($replaceLun) +
-	     defined($clearLuns) + defined($enableTarget) + defined($disableTarget) +
-	     defined($issueLip) + $query_mode) > 1) {
-		print "Please specify only one operation at a time.\n";
+	my $set_mode = defined($setHandlerParm) + defined($setDeviceParm) + defined($setDriverParm) +
+	  defined($setTargetParm) + defined($setLunParm) + defined($setInitiatorParm);
+
+	my $op_mode = defined($clearConfig) + defined($writeConfig) + defined($checkConfig) +
+             defined($openDev) + defined($closeDev) + defined($addGroup) + defined($removeGroup) +
+	     defined($addInitiator) + defined($removeInitiator) + defined($clearInitiators) +
+	     defined($addLun) + defined($removeLun) + defined($replaceLun) + defined($clearLuns) +
+	     defined($enableTarget) + defined($disableTarget) + defined($issueLip);
+
+	if (($query_mode + $set_mode + $op_mode) > 1) {
+		print "Please specify only one non-query operation at a time.\n";
+		usage();
+	}
+
+	if ($listTargetParm && !$driver) {
+		print "Please specify -driver with -list_tgt_parm.\n";
+		usage();
+	}
+
+	if ($listLunParm && (!$driver || !$target || !$group)) {
+		print "Please specify -driver -target and -group with -list_lun_parm.\n";
+		usage();
+	}
+
+	if ($listInitiatorParm && (!$driver || !$target || !$group)) {
+		print "Please specify -driver -target and -group with -list_ini_parm.\n";
+		usage();
+	}
+
+	if ($setHandlerParm && !$parameters) {
+		print "Please specify -parameters with -set_hnd_parm.\n";
+		usage();
+	}
+
+	if ($setDeviceParm && !$parameters) {
+		print "Please specify -parameters with -set_dev_parm.\n";
+		usage();
+	}
+
+	if ($setDriverParm && !$parameters) {
+		print "Please specify -parameters with -set_drv_parm.\n";
+		usage();
+	}
+
+	if ($setTargetParm && (!$driver || !$parameters)) {
+		print "Please specify -driver and -parameters with -set_tgt_parm.\n";
+		usage();
+	}
+
+	if ($setLunParm && (!$driver || !$target || !$group || !$parameters)) {
+		print "Please specify -driver -target -group and -parameters with -set_lun_parm.\n";
+		usage();
+	}
+
+	if ($setDeviceParm && (!$driver || !$target || !$group || !$parameters)) {
+		print "Please specify -driver -target -group and -parameters with -set_ini_parm.\n";
 		usage();
 	}
 
@@ -290,36 +395,31 @@ sub getArgs {
 		usage();
 	}
 
-	if ($setDevParm && !$parameters) {
-		print "Please specify -parameters with -set_dev_parm.\n";
-		&usage();
-	}
-
 	if (($addGroup || $removeGroup) && (!$driver || !$target)) {
 		print "Please specify -driver and -target with -add_group/-remove_group.\n";
-		&usage();
+		usage();
 	}
 
 	if (($addInitiator || $removeInitiator || $clearInitiators) &&
 	    (!$target || !$driver || !$group)) {
 		print "Please specify -driver -target and -group with ".
 		  "-add_init/-remove_init/-clear_inits.\n";
-		&usage();
+		usage();
 	}
 
 	if ($moveInitiator && (!$driver || !$target || !$group || !$to)) {
 		print "Please specify -driver -target -group and -to with -move_init.\n";
-		&usage();
+		usage();
 	}
 
 	if (($addLun || $replaceLun || $removeLun) && (!$driver || !$target || !$group || !$device)) {
 		print "Please specify -driver -target -group and -device with -add_lun/-replace_lun.\n";
-		&usage();
+		usage();
 	}
 
 	if ($clearLuns && (!$driver || !$target || !$group)) {
 		print "Please specify -driver -target and -group with -remove_lun/-clear_luns.\n";
-		&usage();
+		usage();
 	}
 
 	$applyConfig = $_DEF_CONFIG_ if (defined($applyConfig) && !$applyConfig);
@@ -342,7 +442,10 @@ sub getArgs {
 
 	return ($applyConfig, $clearConfig, $writeConfig, $checkConfig,
 		$listHandler, $listDevice, $listDriver, $listTarget, $listGroup, $listSessions,
-                $openDev, $closeDev, $resyncDev, $setDevParm, $listDevParm,
+		$listHandlerParm, $listDeviceParm, $listDriverParm, $listTargetParm, $listLunParm,
+		$listInitiatorParm, $setHandlerParm, $setDeviceParm, $setDriverParm, $setTargetParm,
+		$setLunParm, $setInitiatorParm,
+                $openDev, $closeDev, $resyncDev,
 		$addGroup, $removeGroup,
 		$addInitiator, $removeInitiator, $moveInitiator, $clearInitiators,
 		$addLun, $removeLun, $replaceLun, $clearLuns,
@@ -362,7 +465,10 @@ sub main {
 
 	my ($applyConfig, $clearConfig, $writeConfig, $checkConfig,
 	    $listHandler, $listDevice, $listDriver, $listTarget, $listGroup, $listSessions,
-	    $openDev, $closeDev, $resyncDev, $setDevParm, $listDevParm,
+	    $listHandlerParm, $listDeviceParm, $listDriverParm, $listTargetParm, $listLunParm,
+	    $listInitiatorParm, $setHandlerParm, $setDeviceParm, $setDriverParm, $setTargetParm,
+	    $setLunParm, $setInitiatorParm,
+	    $openDev, $closeDev, $resyncDev,
 	    $addGroup, $removeGroup,
 	    $addInitiator, $removeInitiator, $moveInitiator, $clearInitiators,
 	    $addLun, $removeLun, $replaceLun, $clearLuns,
@@ -374,6 +480,8 @@ sub main {
 	$SCST = new SCST::SCST($_DEBUG_);
 
 	readWorkingConfig();
+
+	my $all_good;
 
 	SWITCH: {
 		$applyConfig && do {
@@ -405,21 +513,75 @@ sub main {
 		};
 		defined($listHandler) && do {
 			$rc = listHandlers($listHandler);
+			$all_good = TRUE;
 		};
 		defined($listDevice) && do {
 			$rc = listDevices($listDevice);
+			$all_good = TRUE;
 		};
 		defined($listDriver) && do {
 			$rc = listDrivers($listDriver);
+			$all_good = TRUE;
 		};
 		defined($listTarget) && do {
 			$rc = listTargets($listTarget, $driver);
+			$all_good = TRUE;
 		};
 		defined($listGroup) && do {
 			$rc = listGroups($listGroup, $driver, $target);
+			$all_good = TRUE;
 		};
 		defined($listSessions) && do {
 			$rc = listSessions();
+			$all_good = TRUE;
+		};
+		$listHandlerParm && do {
+			$rc = listHandlerParameters($listHandlerParm);
+			$all_good = TRUE;
+		};
+		$listDeviceParm && do {
+			$rc = listDeviceParameters($listDeviceParm);
+			$all_good = TRUE;
+		};
+		$listDriverParm && do {
+			$rc = listDriverParameters($listHandlerParm);
+			$all_good = TRUE;
+		};
+		$listTargetParm && do {
+			$rc = listTargetParameters($listTargetParm, $driver);
+			$all_good = TRUE;
+		};
+		$listLunParm && do {
+			$rc = listLunParameters($listLunParm, $driver, $target, $group);
+			$all_good = TRUE;
+		};
+		$listInitiatorParm && do {
+			$rc = listInitiatorParameters($listInitiatorParm, $driver, $target, $group);
+			$all_good = TRUE;
+		};
+		$setHandlerParm && do {
+			$rc = setHandlerParameters($setHandlerParm, $parameters);
+			last SWITCH;
+		};
+		$setDeviceParm && do {
+			$rc = setDeviceParameters($setDeviceParm, $parameters);
+			last SWITCH;
+		};
+		$setDriverParm && do {
+			$rc = setDriverParameters($setDriverParm, $parameters);
+			last SWITCH;
+		};
+		$setTargetParm && do {
+			$rc = setTargetParameters($setTargetParm, $driver, $parameters);
+			last SWITCH;
+		};
+		$setLunParm && do {
+			$rc = setLunParameters($setLunParm, $driver, $target, $group, $parameters);
+			last SWITCH;
+		};
+		$setInitiatorParm && do {
+			$rc = setInitiatorParameters($setInitiatorParm, $driver, $target, $group, $parameters);
+			last SWITCH;
 		};
 		$openDev && do {
 			$rc = openDevice($openDev, $handler, $parameters);
@@ -431,14 +593,6 @@ sub main {
 		};
 		$resyncDev && do {
 			$rc = resyncDevice($resyncDev);
-			last SWITCH;
-		};
-		$setDevParm && do {
-			$rc = setDeviceParameters($setDevParm, $parameters);
-			last SWITCH;
-		};
-		$listDevParm && do {
-			$rc = listDeviceParameters($listDevParm);
 			last SWITCH;
 		};
 		$addGroup && do {
@@ -494,9 +648,11 @@ sub main {
 			last SWITCH;
 		};
 
-		print "No valid operations specified.\n";
-		usage();
-		exit TRUE;
+		if (!$all_good) {
+			print "No valid operations specified.\n";
+			usage();
+			exit TRUE;
+		}
 	}
 
 	print "\nAll done.\n";
@@ -742,17 +898,97 @@ sub listDevices {
 
 sub listDrivers {
 	my $driver = shift;
+
+	return listTargets(undef, $driver) if ($driver);
+
+	my $drivers = $SCST->drivers();
+
+	my $l_driver;
+	foreach my $driver (@{$drivers}) {
+		$l_driver = length($driver) if ($l_driver < length($driver));
+	}
+
+	print "\tDriver\n";
+	print "\t";
+	for (my $x = 0; $x < $l_driver; $x++) {
+		print "-";
+	}
+	print "\n";
+
+	foreach my $driver (@{$drivers}) {
+		print "\t$driver\n";
+	}
 }
 
 sub listTargets {
 	my $target = shift;
 	my $driver = shift;
+
+	return listGroups(undef, $driver, $target) if ($target && $driver);
+
+	my $drivers = $SCST->drivers();
+
+	my $l_driver;
+	my $l_target;
+	foreach my $driver (@{$drivers}) {
+		$l_driver = length($driver) if ($l_driver < length($driver));
+
+		my $targets = $SCST->targets($driver);
+
+		foreach my $target (@{$targets}) {
+			$l_target = length($target) if ($l_target < length($target));
+		}
+	}
+
+	printf("\t%-*s %-*s\n", $l_driver, 'Driver', $l_target, 'Target');
+	print "\t";
+	for (my $x = 0; $x < ($l_driver + $l_target + 1); $x++) {
+		print "-";
+	}
+	print "\n";
+
+	my %p;
+
+	foreach my $driver (@{$drivers}) {
+		my $targets = $SCST->targets($driver);
+
+		foreach my $target (@{$targets}) {
+			if (!defined($p{$driver})) {
+				printf("\t%-*s %-*s\n", $l_driver, $driver, $l_target, $target);
+				$p{$driver}++;
+			} else {
+				printf("\t%-*s %-*s\n", $l_driver, '', $l_target, $target);
+			}
+		}
+	}
 }
 
 sub listGroups {
 	my $group = shift;
 	my $driver = shift;
 	my $target = shift;
+
+	if ($group && $driver && $target) {
+		return listGroup($driver, $target, $group);
+	}
+
+	my $drivers = $SCST->drivers();
+
+	foreach my $driver (@{$drivers}) {
+		my $targets = $SCST->targets($driver);
+		foreach my $target (@{$targets}) {
+			my $groups = $SCST->groups($driver, $target);
+			foreach my $group (@{$groups}) {
+				print "Driver: $driver\n";
+				print "Target: $target\n";
+				print "Group : $group\n\n";
+
+				listGroup($driver, $target, $group);
+
+				print "\n\n";
+			}
+		}
+	}
 }
 
 sub listSessions {
@@ -781,8 +1017,9 @@ sub listGroup {
 			$l_initiator = length($initiator) if (length($initiator) > $l_initiator);
 		}
 
+		print "Assigned LUNs:\n\n";
+
 		if (keys %{$luns}) {
-			print "Group '$group' has the following LUNs:\n\n";
 			printf("\t%-4s %-*s\n", 'LUN', $l_device, 'Device');
 			print "\t";
 			for (my $x = 0; $x < ($l_device + 5); $x++) {
@@ -795,10 +1032,13 @@ sub listGroup {
 
 				printf("\t%-4s %-*s\n", $lun, $l_device, $$luns{$lun});
 			}
+		} else {
+			print "\t(none)\n";
 		}
 
+		print "\nAssigned Initiators:\n\n";
+
 		if ($#{$initiators} > -1) {
-			print "\nGroup '$group' has the following initiators:\n\n";
 			print "\tInitiator\n";
 			print "\t";
 			for (my $x = 0; $x < $l_initiator; $x++) {
@@ -809,6 +1049,8 @@ sub listGroup {
 			foreach my $initiator (@{$initiators}) {
 				print "\t$initiator\n";
 			}
+		} else {
+			print "\t(none)\n";
 		}		
 	} else {
 		print "Group '$group' has no associated LUNs or initiators.\n";
@@ -867,6 +1109,239 @@ sub listExported {
 	}
 }
 
+sub listHandlerParameters {
+	my $handler = shift;
+
+}
+
+sub listDeviceParameters {
+	my $device = shift;
+	my $l_parm;
+	my $l_val;
+
+	my $parameters = $SCST->deviceParameters($device);
+	immediateExit($SCST->errorString());
+
+	foreach my $parameter (sort keys %{$parameters}) {
+		my $value = $$parameters{$parameter}->{'value'};
+
+		next if (ref($value));
+
+		$l_parm = length($parameter) if (length($parameter) > $l_parm);
+		$l_val = length($value) if (length($value) > $l_val);
+	}
+
+	print "Parameters for device '$device':\n\n";
+
+	printf("\t%-*s %-*s %-5s\n", $l_parm, 'Parameter', $l_val, 'Value', 'Static');
+	print "\t";
+	for (my $x = 0; $x < ($l_parm + $l_val + 8); $x++) {
+		print "-";
+	}
+	print "\n";
+
+	foreach my $parameter (sort keys %{$parameters}) {
+		my $value = $$parameters{$parameter}->{'value'};
+		my $static = $$parameters{$parameter}->{'static'};
+
+		next if (ref($value));
+		$value = '-' if (!defined($value));
+		$static = ($static ? 'Yes' : 'No');
+
+		printf("\t%-*s %-*s %-5s\n", $l_parm, $parameter, $l_val, $value, $static);
+	}
+}
+
+sub listDriverParameters {
+	my $driver = shift;
+		
+}
+
+sub listTargetParameters {
+	my $target = shift;
+	my $driver = shift;
+
+}
+
+sub listLunParameters {
+	my $lun = shift;
+	my $driver = shift;
+	my $target = shift;
+	my $group = shift;
+
+}
+
+sub listInitiatorParameters {
+	my $initiator = shift;
+	my $driver = shift;
+	my $target = shift;
+	my $group = shift;
+
+}
+
+####################################################################
+
+sub setHandlerParameters {
+	my $handler = shift;
+	my $parameters = shift;
+
+	my $_parameters = $SCST->handlerParameters($handler);
+
+	foreach my $parameter (keys %{$parameters}) {
+		if (defined($$_parameters{$parameter}) &&
+		    !$$_parameters{$parameter}->{'static'}) {
+			my $value = $$parameters{$parameter};
+
+			print "-> Setting handler parameter '$parameter' to '$value' for handler '$handler': ";
+
+			my $rc = $SCST->setHandlerParameter($handler, $parameter, $value);
+
+			print "done.\n";
+
+			immediateExit($SCST->errorString($rc)) if ($rc);
+		} else {
+			print "-> WARNING: Handler '$handler' lacks the settable ".
+			  "parameter '$parameter', ignoring.\n";
+		}
+	}
+}
+
+sub setDeviceParameters {
+	my $device = shift;
+	my $parameters = shift;
+
+	my $_parameters = $SCST->deviceParameters($device);
+
+	foreach my $parameter (keys %{$parameters}) {
+		if (defined($$_parameters{$parameter}) &&
+		    !$$_parameters{$parameter}->{'static'}) {
+			my $value = $$parameters{$parameter};
+
+			print "-> Setting device parameter '$parameter' to value '$value' for device '$device': ";
+
+			my $rc = $SCST->setDeviceParameter($device, $parameter, $value);
+
+			print "done.\n";
+
+			immediateExit($SCST->errorString($rc)) if ($rc);
+		} else {
+			print "-> WARNING: Device '$device' lacks the settable ".
+			  "parameter '$parameter', ignoring.\n";
+		}
+	}
+}
+
+sub setDriverParameters {
+	my $driver = shift;
+	my $parameters = shift;
+
+	my $_parameters = $SCST->driverParameters($driver);
+
+	foreach my $parameter (keys %{$parameters}) {
+		if (defined($$_parameters{$parameter}) &&
+		    !$$_parameters{$parameter}->{'static'}) {
+			my $value = $$parameters{$parameter};
+
+			print "-> Setting driver parameter '$parameter' to value '$value' for driver '$driver': ";
+
+			my $rc = $SCST->setDriverParameter($driver, $parameter, $value);
+
+			print "done.\n";
+
+			immediateExit($SCST->errorString($rc)) if ($rc);
+		} else {
+			print "-> WARNING: Driver '$driver' lacks the settable ".
+			  "parameter '$parameter', ignoring.\n";
+		}
+	}
+}
+
+sub setTargetParameters {
+	my $target = shift;
+	my $driver = shift;
+	my $parameters = shift;
+
+	my $_parameters = $SCST->targetParameters($driver, $target);
+
+	foreach my $parameter (keys %{$parameters}) {
+		if (defined($$_parameters{$parameter}) &&
+		    !$$_parameters{$parameter}->{'static'}) {
+			my $value = $$parameters{$parameter};
+
+			print "-> Setting target parameter '$parameter' to value '$value' for ".
+			  "driver/target '$driver/$target': ";
+
+			my $rc = $SCST->setTargetParameter($driver, $target, $parameter, $value);
+
+			print "done.\n";
+
+			immediateExit($SCST->errorString($rc)) if ($rc);
+		} else {
+			print "-> WARNING: Driver/target '$driver/$target' lacks the settable ".
+			  "parameter '$parameter', ignoring.\n";
+		}
+	}
+}
+
+sub setLunParameters {
+	my $lun = shift;
+	my $driver = shift;
+	my $target = shift;
+	my $group = shift;
+	my $parameters = shift;
+
+	my $_parameters = $SCST->lunParameters($driver, $target, $group, $lun);
+
+	foreach my $parameter (keys %{$parameters}) {
+		if (defined($$_parameters{$parameter}) &&
+		    !$$_parameters{$parameter}->{'static'}) {
+			my $value = $$parameters{$parameter};
+
+			print "-> Setting LUN parameter '$parameter' to value '$value' for ".
+			  "driver/target/group/lun '$driver/$target/$group/$lun': ";
+
+			my $rc = $SCST->setLunParameter($driver, $target, $group, $lun, $parameter, $value);
+
+			print "done.\n";
+
+			immediateExit($SCST->errorString($rc)) if ($rc);
+		} else {
+			print "-> WARNING: Driver/target/group/lun '$driver/$target/$group/$lun' lacks the settable ".
+			  "parameter '$parameter', ignoring.\n";
+		}
+	}
+}
+
+sub setInitiatorParameters {
+	my $initiator = shift;
+	my $driver = shift;
+	my $target = shift;
+	my $group = shift;
+	my $parameters = shift;
+
+	my $_parameters = $SCST->initiatorParameters($driver, $target, $group, $initiator);
+
+	foreach my $parameter (keys %{$parameters}) {
+		if (defined($$_parameters{$parameter}) &&
+		    !$$_parameters{$parameter}->{'static'}) {
+			my $value = $$parameters{$parameter};
+
+			print "-> Setting initiator parameter '$parameter' to value '$value' for ".
+			  "driver/target/group/initiator '$driver/$target/$group/$initiator': ";
+
+			my $rc = $SCST->setInitiatorParameter($driver, $target, $group, $initiator,
+			  $parameter, $value);
+
+			print "done.\n";
+
+			immediateExit($SCST->errorString($rc)) if ($rc);
+		} else {
+			print "-> WARNING: Driver/target/group/initiator '$driver/$target/$group/$initiator' ".
+			  "lacks the settable parameter '$parameter', ignoring.\n";
+		}
+	}
+}
+
 ####################################################################
 
 sub openDevice {
@@ -914,67 +1389,6 @@ sub resyncDevice {
 	my %parameters = ('resync_size', 1);
 
 	setDeviceParameters($device, \%parameters);
-}
-
-sub setDeviceParameters {
-	my $device = shift;
-	my $parameters = shift;
-
-	my $_parameters = $SCST->deviceParameters($device);
-
-	foreach my $parameter (keys %{$parameters}) {
-		if (defined($$_parameters{$parameter}) &&
-		    !$$_parameters{$parameter}->{'static'}) {
-			print "-> Setting device parameter '$parameter' for device '$device': ";
-
-			my $rc = $SCST->setDeviceParameter($device, $parameter, 1);
-
-			print "done.\n";
-
-			immediateExit($SCST->errorString($rc)) if ($rc);
-		} else {
-			print "-> WARNING: Device '$device' lacks the settable ".
-			  "parameter '$parameter', ignoring.\n";
-		}
-	}
-}
-
-sub listDeviceParameters {
-	my $device = shift;
-	my $l_parm;
-	my $l_val;
-
-	my $parameters = $SCST->deviceParameters($device);
-	immediateExit($SCST->errorString());
-
-	foreach my $parameter (sort keys %{$parameters}) {
-		my $value = $$parameters{$parameter}->{'value'};
-
-		next if (ref($value));
-
-		$l_parm = length($parameter) if (length($parameter) > $l_parm);
-		$l_val = length($value) if (length($value) > $l_val);
-	}
-
-	print "Parameters for device '$device':\n\n";
-
-	printf("\t%-*s %-*s %-5s\n", $l_parm, 'Parameter', $l_val, 'Value', 'Static');
-	print "\t";
-	for (my $x = 0; $x < ($l_parm + $l_val + 8); $x++) {
-		print "-";
-	}
-	print "\n";
-
-	foreach my $parameter (sort keys %{$parameters}) {
-		my $value = $$parameters{$parameter}->{'value'};
-		my $static = $$parameters{$parameter}->{'static'};
-
-		next if (ref($value));
-		$value = '-' if (!defined($value));
-		$static = ($static ? 'Yes' : 'No');
-
-		printf("\t%-*s %-*s %-5s\n", $l_parm, $parameter, $l_val, $value, $static);
-	}
 }
 
 ####################################################################
