@@ -1894,6 +1894,47 @@ static void srpt_release_channel(struct scst_session *scst_sess)
 	TRACE_EXIT();
 }
 
+#if !defined(CONFIG_SCST_PROC)
+/**
+ * srpt_enable_target() - Allows to enable a target via sysfs.
+ */
+static int srpt_enable_target(struct scst_tgt *scst_tgt, bool enable)
+{
+	struct srpt_device *sdev = scst_tgt_get_tgt_priv(scst_tgt);
+
+	TRACE_DBG("%s target %s", enable ? "Enabling" : "Disabling",
+		  sdev->device->name);
+
+	spin_lock_irq(&sdev->spinlock);
+	sdev->enabled = enable;
+	spin_unlock_irq(&sdev->spinlock);
+
+	return 0;
+}
+
+/**
+ * srpt_is_target_enabled() - Allows to query a targets status via sysfs.
+ */
+static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
+{
+	struct srpt_device *sdev = scst_tgt_get_tgt_priv(scst_tgt);
+
+	bool res;
+	spin_lock_irq(&sdev->spinlock);
+	res = sdev->enabled;
+	spin_unlock_irq(&sdev->spinlock);
+	return res;
+}
+#else
+/**
+ * srpt_is_target_enabled() - Reports that a target is enabled when using procfs.
+ */
+static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
+{
+	return true;
+}
+#endif
+
 /**
  * srpt_cm_req_recv() - Process the event IB_CM_REQ_RECEIVED.
  *
@@ -1956,6 +1997,15 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		PRINT_ERROR("rejected SRP_LOGIN_REQ because its"
 			    " length (%d bytes) is out of range (%d .. %d)",
 			    it_iu_len, 64, srp_max_message_size);
+		goto reject;
+	}
+
+	if (!srpt_is_target_enabled(sdev->scst_tgt)) {
+		rej->reason =
+		    cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
+		ret = -EINVAL;
+		PRINT_ERROR("rejected SRP_LOGIN_REQ because the target %s"
+			    " has not yet been enabled", sdev->device->name);
 		goto reject;
 	}
 
@@ -2964,6 +3014,14 @@ static struct scst_tgt_template srpt_template = {
 	.name = DRV_NAME,
 	.sg_tablesize = SRPT_DEF_SG_TABLESIZE,
 	.max_hw_pending_time = 60/*seconds*/,
+#if !defined(CONFIG_SCST_PROC)
+	.enable_target = srpt_enable_target,
+	.is_target_enabled = srpt_is_target_enabled,
+#endif
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	.default_trace_flags = DEFAULT_SRPT_TRACE_FLAGS,
+	.trace_flags = &trace_flag,
+#endif
 	.detect = srpt_detect,
 	.release = srpt_release,
 	.xmit_response = srpt_xmit_response,
