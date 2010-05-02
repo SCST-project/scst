@@ -283,7 +283,7 @@ struct srpt_port {
  * @event_handler: per-HCA asynchronous IB event handler.
  * @dev:           per-port srpt-<portname> device instance.
  * @scst_tgt:      SCST target information associated with this HCA.
- * @enabled:       Whether or not this device is considered enabled by SCST.
+ * @enabled:       Whether or not this SCST target is enabled.
  */
 struct srpt_device {
 	struct ib_device *device;
