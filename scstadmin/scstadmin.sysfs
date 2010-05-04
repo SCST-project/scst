@@ -928,8 +928,7 @@ sub applyConfiguration {
 			}
 		}
 	}
-use Data::Dumper;
-print Dumper(\%CURRENT);
+
 	foreach my $driver (sort keys %{$assignments}) {
 		if (!defined($CURRENT{'assign'}->{$driver})) {
 			immediateExit("Target driver '$driver' is not loaded or available.");
