@@ -60,7 +60,7 @@ install: all
 	-/sbin/depmod -a $(KVER)
 
 uninstall:
-	rm -f $(INSTALL_DIR)/scst_*.ko
+	rm -f $(INSTALL_DIR)/dev_handlers/scst_*.ko
 endif
 
 ifeq ($(KVER),)
