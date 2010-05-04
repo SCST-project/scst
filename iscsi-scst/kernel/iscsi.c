@@ -3563,7 +3563,7 @@ static struct scst_trace_log iscsi_local_trace_tbl[] = {
     { 0,			NULL }
 };
 
-#define ISCSI_TRACE_TLB_HELP	", d_read, d_write, conn, conn_dbg, iov, pdu, net_page"
+#define ISCSI_TRACE_TBL_HELP	", d_write, conn, conn_dbg, iov, pdu, net_page"
 #endif
 
 #define ISCSI_MGMT_CMD_HELP	\
@@ -3599,7 +3599,7 @@ struct scst_tgt_template iscsi_template = {
 #if !defined(CONFIG_SCST_PROC) && \
 	(defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING))
 	.trace_tbl = iscsi_local_trace_tbl,
-	.trace_tbl_help = ISCSI_TRACE_TLB_HELP,
+	.trace_tbl_help = ISCSI_TRACE_TBL_HELP,
 #endif
 #endif
 	.detect = iscsi_target_detect,
