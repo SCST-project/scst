@@ -38,6 +38,9 @@ SCST_T10_IO      => 't10_dev_id',
 
 # Module return codes
 SCST_C_FATAL_ERROR          => 2,
+SCST_C_BAD_PARAMETERS       => 7,
+SCST_C_PARAMETER_STATIC     => 8,
+SCST_C_SETPARAM_FAIL        => 9,
 
 SCST_C_HND_NO_HANDLER       => 10,
 
@@ -90,6 +93,9 @@ SCST_C_INI_SETPARAM_FAIL    => 99,
 
 my %VERBOSE_ERROR = (
 (SCST_C_FATAL_ERROR)          => 'A fatal error occured. See "dmesg" for more information.',
+(SCST_C_BAD_PARAMETERS)       => 'Bad parameters given for SCST.',
+(SCST_C_PARAMETER_STATIC)     => 'SCST parameter specified is static',
+(SCST_C_SETPARAM_FAIL)        => 'Failed to set a SCST parameter. See "demsg" for more information.',
 
 (SCST_C_HND_NO_HANDLER)       => 'No such handler exists.',
 
@@ -251,6 +257,38 @@ sub scstParameters {
 	}
 
 	return \%parameters;
+}
+
+sub setScstParameter {
+	my $self = shift;
+	my $parameter = shift;
+	my $value = shift;
+
+	return TRUE if (!defined($parameter) || !defined($value));
+
+	my $parameters = $self->scstParameters();
+
+	return SCST_C_BAD_PARAMETERS if (!defined($$parameters{$parameter}));
+	return SCST_C_PARAMETER_STATIC if ($$parameters{$parameter}->{'static'});
+
+	my $path = mkpath(SCST_ROOT, $parameter);
+
+	my $io = new IO::File $path, O_WRONLY;
+
+	return SCST_C_SETPARAM_FAIL if (!$io);
+
+	my $bytes;
+
+	if ($self->{'debug'}) {
+		print "DBG($$): $path -> $parameter = $value\n";
+	} else {
+		$bytes = syswrite($io, $value, length($value));
+	}
+
+	close $io;
+
+	return FALSE if ($self->{'debug'} || $bytes);
+        return SCST_C_SETPARAM_FAIL;
 }
 
 sub drivers {
@@ -1151,6 +1189,13 @@ sub deviceParameters {
 				$parameters{$parameter}->{'static'} = TRUE;
 				$parameters{$parameter}->{'value'} = $handler;
 			}
+		} elsif ($parameter eq 'scsi_device') {
+			my $linked = readlink $pPath;
+
+			$linked =~ s/^\.\.\/\.\.\/\.\.\/\.\.\//\/sys\//;
+
+			$parameters{$parameter}->{'static'} = TRUE;
+			$parameters{$parameter}->{'value'} = $linked;
 		} else {
 			if (!(($mode & S_IRUSR) >> 6)) {
 				$parameters{$parameter}->{'static'} = FALSE;
@@ -1953,7 +1998,7 @@ sub closeDevice {
 	}
 
 	$rc = $self->handlerDeviceExists($handler, $device);
-	return SCST_C_DEV_NO_DEVICE if ($rc == TRUE);
+	return SCST_C_DEV_NO_DEVICE if ($rc != TRUE);
 	return $rc if ($rc > 1);
 
 	my $cmd = "del_device $device\n";
