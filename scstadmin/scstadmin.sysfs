@@ -506,22 +506,13 @@ sub main {
 
 	SWITCH: {
 		$applyConfig && do {
-			if ($force) {
-				$rc = applyConfiguration($applyConfig, TRUE, TRUE);
-				die("Configuration errors found, aborting.\n") if ($rc);
-
-				if (!$noprompt) {
-					print "\nConfiguration will apply in 10 seconds, type ctrl-c to abort..\n";
-					sleep 10;
-				}
-			}
-
-			readWorkingConfig();
-			$rc = applyConfiguration($applyConfig, $force, FALSE);
+			$rc = checkConfiguration($applyConfig);
+			immediateExit("Configuration has errors, aborting.") if ($rc);
+			$rc = applyConfiguration($applyConfig, $force);
 			last SWITCH;
 		};
 		$checkConfig && do {
-			$rc = applyConfiguration($checkConfig, FALSE, TRUE);
+			$rc = checkConfiguration($checkConfig);
 			last SWITCH;
 		};
 		$writeConfig && do {
@@ -772,7 +763,7 @@ sub writeConfiguration {
 	print $io "\n";
 
 	foreach my $handler (sort keys %{$CURRENT{'handler'}}) {
-		my $handler_params = $SCST->deviceAvailableParameters($handler);
+		my $handler_params = $SCST->deviceCreateParameters($handler);
 
 		print $io "HANDLER $handler {\n";
 
@@ -791,7 +782,7 @@ sub writeConfiguration {
 		my $devices = $CURRENT{'handler'}->{$handler};
 
 		foreach my $device (@{$devices}) {
-			print $io "\tDEVICE $device {\n";
+			print $io "\n\tDEVICE $device {\n";
 
 			$parameters = $SCST->deviceParameters($device);
 
@@ -814,19 +805,21 @@ sub writeConfiguration {
 
 			print $io "\n" if ($written);
 
-			print $io "\t\tCREATE_ATTRIBUTES {\n";
+			if (!defined($$parameters{'scsi_device'})) {
+				print $io "\t\tCREATE_ATTRIBUTES {\n";
 
-			foreach my $parameter (sort keys %{$parameters}) {
-				next if (defined($$parameters{$parameter}->{'set'}));
+				foreach my $parameter (sort keys %{$parameters}) {
+					next if (defined($$parameters{$parameter}->{'set'}));
 
-				if (defined($$handler_params{$parameter})) {
-					my $value = $$parameters{$parameter}->{'value'};
-					$value = "\"$value\"" if ($value =~ / /);
-					print $io "\t\t\t$parameter $value\n" if (defined($value));
+					if (defined($$handler_params{$parameter})) {
+						my $value = $$parameters{$parameter}->{'value'};
+						$value = "\"$value\"" if ($value =~ / /);
+						print $io "\t\t\t$parameter $value\n" if (defined($value));
+					}
 				}
-			}
 
-			print $io "\t\t}\n";
+				print $io "\t\t}\n";
+			}
 
 			print $io "\t}\n";
 		}
@@ -835,18 +828,37 @@ sub writeConfiguration {
 	}
 
 	foreach my $driver (sort keys %{$CURRENT{'assign'}}) {
-		print $io "TARGET_DRIVER $driver {";
+		print $io "TARGET_DRIVER $driver {\n";
 
 		my $targets = $CURRENT{'assign'}->{$driver};
 
 		foreach my $target (sort keys %{$targets}) {
+			my $tgt_params = $SCST->targetParameters($driver, $target);
+
 			print $io "\n\tTARGET $target {";
+
+			my $_wrote = FALSE;
+			foreach my $parm (keys %{$tgt_params}) {
+				next if ($$tgt_params{$parm}->{'static'});
+				next if ($$tgt_params{$parm}->{'set'});
+
+				my $value = $$tgt_params{$parm}->{'value'};
+
+				next if (!defined($value));
+
+				$value = "\"$value\"" if ($value =~ /\s/);
+
+				print $io "\n\t\t$parm $value";
+				$_wrote = TRUE;
+			}
+
+			print $io "\n" if ($_wrote);
 
 			my $groups = $CURRENT{'assign'}->{$driver}->{$target};
 
 			foreach my $group (sort keys %{$groups}) {
-				my $lun_params = $SCST->lunAvailableParameters($driver, $target, $group);
-				my $ini_params = $SCST->initiatorAvailableParameters($driver, $target, $group);
+				my $lun_params = $SCST->lunCreateParameters($driver, $target, $group);
+				my $ini_params = $SCST->initiatorCreateParameters($driver, $target, $group);
 
 				print $io "\n\t\tGROUP $group {";
 
@@ -908,13 +920,71 @@ sub writeConfiguration {
 	return FALSE;
 }
 
-sub applyConfiguration {
+sub checkConfiguration {
 	my $file = shift;
+
+	print "Checking configuration file '$file' for errors: ";
 
 	my $config = readConfig($file);
 
-	my $handlers = $$config{'HANDLER'};
-	my $assignments = $$config{'TARGET_DRIVER'};
+	print "done\n";
+
+	return FALSE;
+}
+
+sub applyConfiguration {
+	my $file = shift;
+	my $force = shift;
+
+	my $config = readConfig($file);
+
+	# Apply config deletions
+	if ($force) {
+		applyConfigAssignments($config, $force);
+		applyConfigDevices($config, $force);
+
+		readWorkingConfig();
+	}
+
+	# Apply config additions
+	applyConfigDevices($config, FALSE);
+	applyConfigAssignments($config, FALSE);
+
+	# And SCST parameters..
+	my %_parameters;
+	foreach my $item (keys %{$config}) {
+		next if ($item eq 'HANDLER');
+		next if ($item eq 'TARGET_DRIVER');
+		$_parameters{$item} = $$config{$item};
+	}
+
+	my $parameters = configToParm(\%_parameters);
+
+	setScstParameters($parameters);
+}
+
+sub applyConfigDevices {
+	my $config = shift;
+	my $deletions = shift;
+
+	my $handlers = $CURRENT{'handler'};
+
+	foreach my $handler (keys %{$handlers}) {
+		foreach my $device (@{$$handlers{$handler}}) {
+			if (!defined($$config{'HANDLER'}) ||
+			    !defined($$config{'HANDLER'}->{$handler}) ||
+			    !defined($$config{'HANDLER'}->{$handler}->{'DEVICE'}) ||
+			    !defined($$config{'HANDLER'}->{$handler}->{'DEVICE'}->{$device})) {
+				if ($deletions) {
+					closeDevice($device, $handler, $deletions);
+				} else {
+					print "-> Device '$device' is not in configuration. Use -force to close it.\n";
+				}
+			}
+		}
+	}
+
+	$handlers = $$config{'HANDLER'};
 
 	foreach my $handler (sort keys %{$handlers}) {
 		if (defined($$handlers{$handler}->{'DEVICE'})) {
@@ -928,6 +998,70 @@ sub applyConfiguration {
 			}
 		}
 	}
+}
+
+sub applyConfigAssignments {
+	my $config = shift;
+	my $deletions = shift;
+
+	my $assignments = $CURRENT{'assign'};
+
+	foreach my $driver (keys %{$assignments}) {
+		foreach my $target (keys %{$$assignments{$driver}}) {
+			foreach my $group (keys %{$$assignments{$driver}->{$target}}) {
+				my $luns = $$assignments{$driver}->{$target}->{$group}->{'LUNS'};
+				my $inits = $$assignments{$driver}->{$target}->{$group}->{'INITIATORS'};
+
+				if (!defined($$config{'TARGET_DRIVER'}) ||
+				    !defined($$config{'TARGET_DRIVER'}->{$driver}) ||
+				    !defined($$config{'TARGET_DRIVER'}->{$driver}->{'TARGET'}) ||
+				    !defined($$config{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}) ||
+				    !defined($$config{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}) ||
+				    !defined($$config{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}->{$group})) {
+					if ($deletions) {
+						removeGroup($group, $driver, $target);
+					} else {
+						print "-> Group '$group' is not in configuration. Use -force to remove.\n";
+					}
+
+					next;
+				}
+
+				my $def_group = $$config{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}->{$group};
+
+				foreach my $lun (keys %{$luns}) {
+					my $device = $$luns{$lun};
+
+					if (!defined($$def_group{'LUN'}) ||
+					    !defined($$def_group{'LUN'}->{$lun}) ||
+					    !defined($$def_group{'LUN'}->{$lun}->{$device})) {
+						if ($deletions) {
+							removeLun($lun, $driver, $target, $group, $device);
+						} else {
+							print "-> Device '$device' at LUN '$lun' is not in configuration ".
+							  "for driver/target/group '$driver/$target/$group'. ".
+							  "Use -force to remove it.\n";
+						}
+					}
+				}
+
+				foreach my $init (@{$inits}) {
+					if (!defined($$def_group{'INITIATOR'}) ||
+					    !defined($$def_group{'INITIATOR'}->{$init})) {
+						if ($deletions) {
+							removeInitiator($init, $driver, $target, $group);
+						} else {
+							print "-> Initiator '$init' is not in configuration ".
+							  "for driver/target/group '$driver/$target/$group'. ".
+							  "Use -force to remove it.\n";
+						}
+					}
+				}
+			}
+		}
+	}
+
+	$assignments = $$config{'TARGET_DRIVER'};
 
 	foreach my $driver (sort keys %{$assignments}) {
 		if (!defined($CURRENT{'assign'}->{$driver})) {
@@ -974,19 +1108,18 @@ sub applyConfiguration {
 					}
 				}
 			}
+
+			my %_parameters;
+			foreach my $item (keys %{$$targets{$target}}) {
+				next if ($item eq 'GROUP');
+				$_parameters{$item} = $$targets{$target}->{$item};
+			}
+
+			my $parameters = configToParm(\%_parameters);
+
+			setTargetParameters($target, $driver, $parameters);
 		}
 	}
-
-	my %_parameters;
-	foreach my $item (keys %{$config}) {
-		next if ($item eq 'HANDLER');
-		next if ($item eq 'TARGET_DRIVER');
-		$_parameters{$item} = $$config{$item};
-	}
-
-	my $parameters = configToParm(\%_parameters);
-
-	setScstParameters($parameters);
 }
 
 sub clearConfiguration {
@@ -1080,7 +1213,6 @@ sub listDevices {
 
 	listDevice($device) if ($device);
 
-	
 }
 
 sub listDevice {

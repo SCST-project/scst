@@ -899,7 +899,7 @@ sub addLun {
 	return SCST_C_DEV_NO_DEVICE if (!$rc);
 	return $rc if ($rc > 1);
 
-	$rc = $self->checkLunAvailableParameters($driver, $target, $group, $parameters);
+	$rc = $self->checkLunCreateParameters($driver, $target, $group, $parameters);
 	return SCST_C_LUN_BAD_PARAMETERS if ($rc == TRUE);
 	return $rc if ($rc > 1);
 
@@ -1014,7 +1014,7 @@ sub replaceLun {
 	return SCST_C_DEV_NO_DEVICE if (!$rc);
 	return $rc if ($rc > 1);
 
-	$rc = $self->checkLunAvailableParameters($driver, $target, $group, $parameters);
+	$rc = $self->checkLunCreateParameters($driver, $target, $group, $parameters);
 	return SCST_C_LUN_BAD_PARAMETERS if ($rc == TRUE);
 	return $rc if ($rc > 1);
 
@@ -1871,7 +1871,7 @@ sub devicesByHandler {
 	return \@{$$parameters{'devices'}->{'value'}};
 }
 
-sub checkDeviceAvailableParameters {
+sub checkDeviceCreateParameters {
 	my $self = shift;
 	my $handler = shift;
 	my $check = shift;
@@ -1882,7 +1882,7 @@ sub checkDeviceAvailableParameters {
 	return SCST_C_HND_NO_HANDLER if (!$rc);
 	return $rc if (!$rc > 1);
 
-	my $available = $self->deviceAvailableParameters($handler);
+	my $available = $self->deviceCreateParameters($handler);
 
 	return SCST_C_FATAL_ERROR if (!defined($available));
 
@@ -1895,14 +1895,14 @@ sub checkDeviceAvailableParameters {
 	return FALSE;
 }
 
-sub deviceAvailableParameters {
+sub deviceCreateParameters {
 	my $self = shift;
 	my $handler = shift;
 	my $available;
 	my %parameters;
 
 	if ($self->handlerExists($handler) != TRUE) {
-		$self->{'err_string'} = "deviceAvailableParameters():Handler '$handler' ".
+		$self->{'err_string'} = "deviceCreateParameters():Handler '$handler' ".
 		  "is not available";
 		return undef;
 	}
@@ -1910,7 +1910,7 @@ sub deviceAvailableParameters {
 	my $io = new IO::File mkpath(SCST_ROOT, SCST_HANDLERS, $handler, SCST_MGMT_IO), O_RDONLY;
 
 	if (!$io) {
-		$self->{'err_string'} = "deviceAvailableParameters(): Unable to open mgmt ".
+		$self->{'err_string'} = "deviceCreateParameters(): Unable to open mgmt ".
 		  "interface for handler '$handler': $!";
 		return undef;
 	}
@@ -1943,7 +1943,7 @@ sub openDevice {
 	return SCST_C_HND_NO_HANDLER if (!$rc);
 	return $rc if ($rc > 1);
 
-	$rc = $self->checkDeviceAvailableParameters($handler, $parameters);
+	$rc = $self->checkDeviceCreateParameters($handler, $parameters);
 	return SCST_C_DEV_BAD_PARAMETERS if ($rc == TRUE);
 	return $rc if ($rc > 1);
 
@@ -2078,7 +2078,7 @@ sub setT10DeviceId {
 	return $self->setDeviceParameter($device, 't10_dev_id', $t10_id);
 }
 
-sub checkLunAvailableParameters {
+sub checkLunCreateParameters {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
@@ -2099,7 +2099,7 @@ sub checkLunAvailableParameters {
 	return SCST_C_GRP_NO_GROUP if (!$rc);
 	return $rc if ($rc > 1);
 
-	my $available = $self->lunAvailableParameters($driver, $target, $group);
+	my $available = $self->lunCreateParameters($driver, $target, $group);
 
 	return SCST_C_FATAL_ERROR if (!defined($available));
 
@@ -2112,7 +2112,7 @@ sub checkLunAvailableParameters {
 	return FALSE;
 }
 
-sub lunAvailableParameters {
+sub lunCreateParameters {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
@@ -2121,19 +2121,19 @@ sub lunAvailableParameters {
 	my %parameters;
 
 	if ($self->driverExists($driver) != TRUE) {
-		$self->{'err_string'} = "lunAvailableParameters(): Driver '$driver' ".
+		$self->{'err_string'} = "lunCreateParameters(): Driver '$driver' ".
 		  "is not available";
 		return undef;
 	}
 
 	if ($self->targetExists($driver, $target) != TRUE) {
-		$self->{'err_string'} = "lunAvailableParameters(): Target '$target' ".
+		$self->{'err_string'} = "lunCreateParameters(): Target '$target' ".
 		  "is not available";
 		return undef;
 	}
 
 	if ($self->groupExists($driver, $target, $group) != TRUE) {
-		$self->{'err_string'} = "lunAvailableParameters(): Group '$group' ".
+		$self->{'err_string'} = "lunCreateParameters(): Group '$group' ".
 		  "does not exist";
 		return undef;
 	}
@@ -2142,7 +2142,7 @@ sub lunAvailableParameters {
 	  SCST_GROUPS, $group, SCST_LUNS, SCST_MGMT_IO), O_RDONLY;
 
 	if (!$io) {
-		$self->{'err_string'} = "lunAvailableParameters(): Unable to open luns mgmt ".
+		$self->{'err_string'} = "lunCreateParameters(): Unable to open luns mgmt ".
 		  "interface for group '$group': $!";
 		return undef;
 	}
@@ -2165,7 +2165,7 @@ sub lunAvailableParameters {
 	return \%parameters;
 }
 
-sub checkInitiatorAvailableParameters {
+sub checkInitiatorCreateParameters {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
@@ -2186,7 +2186,7 @@ sub checkInitiatorAvailableParameters {
 	return SCST_C_GRP_NO_GROUP if (!$rc);
 	return $rc if ($rc > 1);
 
-	my $available = $self->initiatorAvailableParameters($driver, $target, $group);
+	my $available = $self->initiatorCreateParameters($driver, $target, $group);
 
 	return SCST_C_FATAL_ERROR if (!defined($available));
 
@@ -2199,7 +2199,7 @@ sub checkInitiatorAvailableParameters {
 	return FALSE;
 }
 
-sub initiatorAvailableParameters {
+sub initiatorCreateParameters {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
@@ -2208,19 +2208,19 @@ sub initiatorAvailableParameters {
 	my %parameters;
 
 	if ($self->driverExists($driver) != TRUE) {
-		$self->{'err_string'} = "initiatorAvailableParameters(): Driver '$driver' ".
+		$self->{'err_string'} = "initiatorCreateParameters(): Driver '$driver' ".
 		  "is not available";
 		return undef;
 	}
 
 	if ($self->targetExists($driver, $target) != TRUE) {
-		$self->{'err_string'} = "initiatorAvailableParameters(): Target '$target' ".
+		$self->{'err_string'} = "initiatorCreateParameters(): Target '$target' ".
 		  "is not available";
 		return undef;
 	}
 
 	if ($self->groupExists($driver, $target, $group) != TRUE) {
-		$self->{'err_string'} = "initiatorAvailableParameters(): Group '$group' ".
+		$self->{'err_string'} = "initiatorCreateParameters(): Group '$group' ".
 		  "does not exist";
 		return undef;
 	}
@@ -2229,7 +2229,7 @@ sub initiatorAvailableParameters {
 	  SCST_GROUPS, $group, SCST_LUNS, SCST_MGMT_IO), O_RDONLY;
 
 	if (!$io) {
-		$self->{'err_string'} = "initiatorAvailableParameters(): Unable to open initiators mgmt ".
+		$self->{'err_string'} = "initiatorCreateParameters(): Unable to open initiators mgmt ".
 		  "interface for group '$group': $!";
 		return undef;
 	}
