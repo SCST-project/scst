@@ -39,24 +39,11 @@
 #include "iscsid.h"
 #include "iscsi_adm.h"
 
-#define LISTEN_MAX		8
-#define INCOMING_MAX		256
-
-enum {
-	POLL_LISTEN,
-	POLL_IPC = POLL_LISTEN + LISTEN_MAX,
-	POLL_NL,
-	POLL_ISNS,
-	POLL_SCN_LISTEN,
-	POLL_SCN,
-	POLL_INCOMING,
-	POLL_MAX = POLL_INCOMING + INCOMING_MAX,
-};
-
 static char* server_address;
 uint16_t server_port = ISCSI_LISTEN_PORT;
 
-static struct pollfd poll_array[POLL_MAX];
+struct pollfd poll_array[POLL_MAX];
+
 static struct connection *incoming[INCOMING_MAX];
 static int incoming_cnt;
 int ctrl_fd, ipc_fd, nl_fd;
@@ -137,11 +124,19 @@ static void sock_set_keepalive(int sock, int timeout)
 	}
 }
 
+const char *get_EAI_error_str(int error)
+{
+	if (error == EAI_SYSTEM)
+		return strerror(errno);
+	else
+		return gai_strerror(error);
+}
+
 static void create_listen_socket(struct pollfd *array)
 {
 	struct addrinfo hints, *res, *res0;
 	char servname[64];
-	int i, sock, opt;
+	int i, sock, opt, rc;
 
 	memset(servname, 0, sizeof(servname));
 	snprintf(servname, sizeof(servname), "%d", server_port);
@@ -150,8 +145,10 @@ static void create_listen_socket(struct pollfd *array)
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE;
 
-	if (getaddrinfo(server_address, servname, &hints, &res0)) {
-		log_error("Unable to get address info (%s)!", strerror(errno));
+	rc = getaddrinfo(server_address, servname, &hints, &res0);
+	if (rc != 0) {
+		log_error("Unable to get address info (%s)!",
+			get_EAI_error_str(rc));
 		exit(1);
 	}
 
@@ -212,11 +209,12 @@ static void accept_connection(int listen)
 		struct sockaddr_in sin;
 		struct sockaddr_in6 sin6;
 	} from, to;
-	char portal[50]; /* for full IP6 address + port */
 	socklen_t namesize;
 	struct pollfd *pollfd;
 	struct connection *conn;
 	int fd, i, rc;
+	char initiator_addr[ISCSI_PORTAL_LEN], initiator_port[NI_MAXSERV];
+	char target_portal[ISCSI_PORTAL_LEN], target_portal_port[NI_MAXSERV];
 
 	namesize = sizeof(from);
 	if ((fd = accept(listen, &from.sa, &namesize)) < 0) {
@@ -241,41 +239,31 @@ static void accept_connection(int listen)
 
 	namesize = sizeof(to);
 	rc = getsockname(fd, &to.sa, &namesize);
-	if (rc == 0) {
-		if (from.sa.sa_family == AF_INET) {
-			struct sockaddr_in *in = &to.sin;
-			rc = snprintf(portal, sizeof(portal), "%s:%hu",
-				inet_ntoa(in->sin_addr), ntohs(in->sin_port));
-		} else if (from.sa.sa_family == AF_INET6) {
-			struct sockaddr_in6 *in6 = &to.sin6;
-			rc = snprintf(portal, sizeof(portal), "%x:%x:%x:%x:%x:%x:%x:%x.%hu",
-				in6->sin6_addr.s6_addr16[7], in6->sin6_addr.s6_addr16[6],
-				in6->sin6_addr.s6_addr16[5], in6->sin6_addr.s6_addr16[4],
-				in6->sin6_addr.s6_addr16[3], in6->sin6_addr.s6_addr16[2],
-				in6->sin6_addr.s6_addr16[1], in6->sin6_addr.s6_addr16[0],
-				ntohs(in6->sin6_port));
-		}
-		if (rc >= sizeof(portal))
-			log_error("portal too small %zu (needed %d)", sizeof(portal), rc);
-	} else {
-		portal[0] = '\0';
+	if (rc != 0) {
 		perror("getsockname() failed");
 		goto out_close;
 	}
 
-	if (from.sa.sa_family == AF_INET) {
-		struct sockaddr_in *in = &from.sin;
-		log_info("Connect from %s:%hu to %s", inet_ntoa(in->sin_addr),
-			ntohs(in->sin_port), portal);
-	} else if (from.sa.sa_family == AF_INET6) {
-		struct sockaddr_in6 *in6 = &from.sin6;
-		log_info("Connect from %x:%x:%x:%x:%x:%x:%x:%x.%hu to %s",
-			in6->sin6_addr.s6_addr16[7], in6->sin6_addr.s6_addr16[6],
-			in6->sin6_addr.s6_addr16[5], in6->sin6_addr.s6_addr16[4],
-			in6->sin6_addr.s6_addr16[3], in6->sin6_addr.s6_addr16[2],
-			in6->sin6_addr.s6_addr16[1], in6->sin6_addr.s6_addr16[0],
-			ntohs(in6->sin6_port), portal);
+	rc = getnameinfo(&to.sa, sizeof(to), target_portal, sizeof(target_portal),
+		target_portal_port, sizeof(target_portal_port),
+		NI_NUMERICHOST | NI_NUMERICSERV);
+	if (rc != 0) {
+		log_error("Target portal getnameinfo() failed: %s!",
+			get_EAI_error_str(rc));
+		goto out_close;
 	}
+
+	rc = getnameinfo(&from.sa, sizeof(from), initiator_addr,
+		 sizeof(initiator_addr), initiator_port,
+		 sizeof(initiator_port), NI_NUMERICHOST | NI_NUMERICSERV);
+	if (rc != 0) {
+		log_error("Initiator getnameinfo() failed: %s!",
+			get_EAI_error_str(rc));
+		goto out_close;
+	}
+
+	log_info("Connect from %s:%s to %s:%s", initiator_addr, initiator_port,
+		target_portal, target_portal_port);
 
 	if (conn_blocked) {
 		log_warning("Connection refused due to blocking\n");
@@ -297,6 +285,12 @@ static void accept_connection(int listen)
 	}
 
 	conn->fd = fd;
+	conn->target_portal = strdup(target_portal);
+	if (conn->target_portal == NULL) {
+		log_error("Unable to duplicate target portal %s", target_portal);
+		goto out_free;
+	}
+
 	incoming[i] = conn;
 	conn_read_pdu(conn);
 
@@ -312,6 +306,9 @@ static void accept_connection(int listen)
 
 out:
 	return;
+
+out_free:
+	conn_free(conn);
 
 out_close:
 	close(fd);

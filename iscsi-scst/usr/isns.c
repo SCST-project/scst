@@ -69,22 +69,22 @@ static char eid[ISCSI_NAME_LEN];
 static uint8_t ip[16]; /* SCST iSCSI supports only one portal */
 static struct sockaddr_storage ss;
 
-int isns_scn_access(uint32_t tid, int fd, char *name)
+int isns_scn_access_allowed(uint32_t tid, char *name)
 {
 	struct isns_initiator *ini;
 	struct target *target = target_find_by_id(tid);
 
 	if ((isns_server == NULL) || !isns_access_control)
-		return 0;
+		return 1;
 
 	if (!target)
-		return -ENOENT;
+		return 0;
 
 	list_for_each_entry(ini, &target->isns_head, ilist) {
 		if (!strcmp(ini->name, name))
-			return 0;
+			return 1;
 	}
-	return -EPERM;
+	return 0;
 }
 
 static int isns_get_ip(int fd)
@@ -100,14 +100,14 @@ static int isns_get_ip(int fd)
 
 	err = getsockname(fd, &lss.sa, &slen);
 	if (err) {
-		log_error("getsockname error: %s!", gai_strerror(err));
+		log_error("getsockname error: %s!", strerror(err));
 		return err;
 	}
 
 	err = getnameinfo(&lss.sa, sizeof(lss),
 			  eid, sizeof(eid), NULL, 0, 0);
 	if (err) {
-		log_error("getaddrinfo error: %s!", gai_strerror(err));
+		log_error("getnameinfo error: %s!", get_EAI_error_str(err));
 		return err;
 	}
 
@@ -941,7 +941,7 @@ int isns_init(void)
 	hints.ai_socktype = SOCK_STREAM;
 	err = getaddrinfo(isns_server, (char *)&port, &hints, &res);
 	if (err) {
-		log_error("getaddrinfo error: %s, %s", gai_strerror(err),
+		log_error("getaddrinfo error: %s, %s", get_EAI_error_str(err),
 			isns_server);
 		goto out;
 	}

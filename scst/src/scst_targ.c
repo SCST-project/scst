@@ -5585,27 +5585,26 @@ out_free:
 EXPORT_SYMBOL(scst_rx_mgmt_fn);
 
 /*
- * Returns true if string "string" matches pattern "wild", false otherwise.
- * Pattern is a regular DOS-type pattern, containing '*' and '?' symbols.
- * '*' means match all any symbols, '?' means match only any single symbol.
- *
- * For instance:
- * if (wildcmp("bl?h.*", "blah.jpg")) {
- *   // match
- *  } else {
- *   // no match
- *  }
- *
  * Written by Jack Handy - jakkhandy@hotmail.com
  * Taken by Gennadiy Nerubayev <parakie@gmail.com> from
  * http://www.codeproject.com/KB/string/wildcmp.aspx. No license attached
  * to it, and it's posted on a free site; assumed to be free for use.
+ *
+ * Added the negative sign support - VLNB
+ *
+ * Also see comment for wildcmp().
+ *
+ * User space part of iSCSI-SCST also has a copy of this code, so fixing a bug
+ * here, don't forget to fix the copy too!
  */
-static bool wildcmp(const char *wild, const char *string)
+static bool __wildcmp(const char *wild, const char *string, int recursion_level)
 {
 	const char *cp = NULL, *mp = NULL;
 
 	while ((*string) && (*wild != '*')) {
+		if ((*wild == '!') && (recursion_level == 0))
+			return !__wildcmp(++wild, string, ++recursion_level);
+
 		if ((*wild != *string) && (*wild != '?'))
 			return false;
 
@@ -5614,6 +5613,9 @@ static bool wildcmp(const char *wild, const char *string)
 	}
 
 	while (*string) {
+		if ((*wild == '!') && (recursion_level == 0))
+			return !__wildcmp(++wild, string, ++recursion_level);
+
 		if (*wild == '*') {
 			if (!*++wild)
 				return true;
@@ -5633,6 +5635,34 @@ static bool wildcmp(const char *wild, const char *string)
 		wild++;
 
 	return !*wild;
+}
+
+/*
+ * Returns true if string "string" matches pattern "wild", false otherwise.
+ * Pattern is a regular DOS-type pattern, containing '*' and '?' symbols.
+ * '*' means match all any symbols, '?' means match only any single symbol.
+ *
+ * For instance:
+ * if (wildcmp("bl?h.*", "blah.jpg")) {
+ *   // match
+ *  } else {
+ *   // no match
+ *  }
+ *
+ * Also it supports boolean inversion sign '!', which does boolean inversion of
+ * the value of the rest of the string. Only one '!' allowed in the pattern,
+ * other '!' are treated as regular symbols. For instance:
+ * if (wildcmp("bl!?h.*", "blah.jpg")) {
+ *   // no match
+ *  } else {
+ *   // match
+ *  }
+ *
+ * Also see comment for __wildcmp().
+ */
+static bool wildcmp(const char *wild, const char *string)
+{
+	return __wildcmp(wild, string, 0);
 }
 
 #ifdef CONFIG_SCST_PROC
@@ -5715,28 +5745,61 @@ out:
 #endif /* CONFIG_SCST_PROC */
 
 /* Must be called under scst_mutex */
-struct scst_acg *scst_find_acg(const struct scst_session *sess)
+static struct scst_acg *__scst_find_acg(struct scst_tgt *tgt,
+	const char *initiator_name)
 {
 	struct scst_acg *acg = NULL;
 
 	TRACE_ENTRY();
 
 #ifdef CONFIG_SCST_PROC
-	if (sess->initiator_name)
-		acg = scst_find_acg_by_name_wild(sess->initiator_name);
-	if ((acg == NULL) && (sess->tgt->default_group_name != NULL))
-		acg = scst_find_acg_by_name(sess->tgt->default_group_name);
+	if (initiator_name)
+		acg = scst_find_acg_by_name_wild(initiator_name);
+	if ((acg == NULL) && (tgt->default_group_name != NULL))
+		acg = scst_find_acg_by_name(tgt->default_group_name);
 	if (acg == NULL)
 		acg = scst_default_acg;
 #else
-	acg = scst_find_tgt_acg_by_name_wild(sess->tgt, sess->initiator_name);
+	acg = scst_find_tgt_acg_by_name_wild(tgt, initiator_name);
 	if (acg == NULL)
-		acg = sess->tgt->default_acg;
+		acg = tgt->default_acg;
 #endif
 
 	TRACE_EXIT_HRES((unsigned long)acg);
 	return acg;
 }
+
+/* Must be called under scst_mutex */
+struct scst_acg *scst_find_acg(const struct scst_session *sess)
+{
+	return __scst_find_acg(sess->tgt, sess->initiator_name);
+}
+
+/**
+ * scst_initiator_has_luns() - check if this initiator will see any LUNs
+ *
+ * Checks if this initiator will see any LUNs upon connect to this target.
+ * Returns true if yes and false otherwise.
+ */
+bool scst_initiator_has_luns(struct scst_tgt *tgt, const char *initiator_name)
+{
+	bool res;
+	struct scst_acg *acg;
+
+	TRACE_ENTRY();
+
+	mutex_lock(&scst_mutex);
+
+	acg = __scst_find_acg(tgt, initiator_name);
+
+	res = !list_empty(&acg->acg_dev_list);
+
+	mutex_unlock(&scst_mutex);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+EXPORT_SYMBOL(scst_initiator_has_luns);
 
 static int scst_init_session(struct scst_session *sess)
 {

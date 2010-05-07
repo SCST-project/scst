@@ -551,8 +551,10 @@ static void login_start(struct connection *conn)
 
 		conn->tid = target->tid;
 
-		if (config_initiator_access(conn->tid, conn->fd) ||
-		    isns_scn_access(conn->tid, conn->fd, name)) {
+		if (!config_initiator_access_allowed(conn->tid, conn->fd) ||
+		    !target_portal_allowed(target, conn->target_portal,
+		    					conn->initiator) ||
+		    !isns_scn_access_allowed(conn->tid, name)) {
 			log_info("Initiator %s not allowed to connect to "
 				"target %s", name, target_name);
 			login_rsp_ini_err(conn, ISCSI_STATUS_TGT_NOT_FOUND);
@@ -863,8 +865,9 @@ tgt_no_mem:
 	return;
 }
 
-static void text_scan_text(struct connection *conn)
+static int text_scan_text(struct connection *conn)
 {
+	int res = 0;
 	char *key, *value, *data;
 	int datasize;
 
@@ -873,65 +876,34 @@ static void text_scan_text(struct connection *conn)
 
 	while ((key = next_key(&data, &datasize, &value))) {
 		if (!strcmp(key, "SendTargets")) {
-			struct sockaddr_storage ss;
-			socklen_t slen, blen;
-			char *p, *addr, buf[NI_MAXHOST + 128];
-			int suppress_ip6 = 0;
-
-			if (value[0] == 0)
-				continue;
-
-			p = addr = buf + 1;
-			buf[0] = '[';
-			blen = sizeof(buf) - 1;
-
-			slen = sizeof(ss);
-
-			getpeername(conn->fd, (struct sockaddr *) &ss, &slen);
-			if (ss.ss_family == AF_INET)
-				suppress_ip6 = 1;
-			else {
-				getnameinfo((struct sockaddr *) &ss, slen, p,
-					    blen, NULL, 0, NI_NUMERICHOST);
-
-				if (strstr(p, "::ffff:") == p)
-					suppress_ip6 = 1;	// ipv4-mapped ipv6 ?
+			if (value[0] == '\0')
+				value = conn->sess->target->name;
+			else if (strcasecmp(value, "All") == 0) {
+				if (conn->session_type != SESSION_DISCOVERY) {
+					log_error("SendTargets=All allowed only in "
+						"Discovery session, rejecting "
+						"(initiator %s)", conn->initiator);
+					cmnd_reject(conn, ISCSI_REASON_PROTOCOL_ERROR);
+					res = -EINVAL;
+					goto out;
+				}
 			}
 
-			getsockname(conn->fd, (struct sockaddr *) &ss, &slen);
-			slen = sizeof(ss);
-
-			getnameinfo((struct sockaddr *) &ss, slen, p, blen,
-				    NULL, 0, NI_NUMERICHOST);
-
-			if (ss.ss_family == AF_INET6 && suppress_ip6) {
-				if (strstr(p, "::ffff:") != p) {
-					log_error("%s, %s:%d.", __FILE__,
-						  __func__, __LINE__);
-					suppress_ip6 = 0;
-				} else
-					addr += 7;
-			}
-
-			p += strlen(p);
-
-			if (ss.ss_family == AF_INET6 && !suppress_ip6) {
-				*p++ = ']';
-				addr = buf;
-			}
-
-			sprintf(p, ":%d,1", server_port);
-			target_list_build(conn, addr,
+			target_list_build(conn,
 					  strcmp(value, "All") ? value : NULL);
 		} else
 			text_key_add(conn, key, "NotUnderstood");
 	}
+
+out:
+	return res;
 }
 
 static void cmnd_exec_text(struct connection *conn)
 {
 	struct iscsi_text_req_hdr *req = (struct iscsi_text_req_hdr *)&conn->req.bhs;
 	struct iscsi_text_rsp_hdr *rsp = (struct iscsi_text_rsp_hdr *)&conn->rsp.bhs;
+	int rc;
 
 	memset(rsp, 0, BHS_SIZE);
 
@@ -945,7 +917,9 @@ static void cmnd_exec_text(struct connection *conn)
 
 	if (req->ttt == ISCSI_RESERVED_TAG) {
 		conn_free_rsp_buf_list(conn);
-		text_scan_text(conn);
+		rc = text_scan_text(conn);
+		if (rc != 0)
+			goto out;
 		if (!list_empty(&conn->rsp_buf_list) &&
 		    !list_length_is_one(&conn->rsp_buf_list))
 			conn->ttt = get_next_ttt(conn);
@@ -971,6 +945,9 @@ static void cmnd_exec_text(struct connection *conn)
 	rsp->stat_sn = cpu_to_be32(conn->stat_sn++);
 	rsp->exp_cmd_sn = cpu_to_be32(conn->exp_cmd_sn);
 	rsp->max_cmd_sn = cpu_to_be32(conn->exp_cmd_sn + 1);
+
+out:
+	return;
 }
 
 static void cmnd_exec_logout(struct connection *conn)

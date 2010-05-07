@@ -1635,6 +1635,9 @@ next:
 		old_acg->acg_name, acg->acg_name);
 	list_move_tail(&sess->acg_sess_list_entry, &acg->acg_sess_list);
 
+	scst_recreate_sess_luns_link(sess);
+	/* Ignore possible error, since we can't do anything on it */
+
 	if (luns_changed) {
 		scst_report_luns_changed_sess(sess);
 

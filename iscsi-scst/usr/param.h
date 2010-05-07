@@ -16,10 +16,11 @@
 #ifndef PARAMS_H
 #define PARAMS_H
 
-#define ISCSI_ISNS_SERVER_PARAM_NAME			"iSNSServer"
-#define ISCSI_ISNS_ACCESS_CONTROL_PARAM_NAME		"iSNSAccessControl"
-
-#define ISCSI_ENABLED_ATTR_NAME				"enabled"
+#define ISCSI_ISNS_SERVER_PARAM_NAME		"iSNSServer"
+#define ISCSI_ISNS_ACCESS_CONTROL_PARAM_NAME	"iSNSAccessControl"
+#define ISCSI_ENABLED_ATTR_NAME			"enabled"
+#define ISCSI_ALLOWED_PORTAL_NAME		"allowed_portal"
+#define ISCSI_PER_PORTAL_ACL			"per_portal_acl"
 
 struct iscsi_key;
 

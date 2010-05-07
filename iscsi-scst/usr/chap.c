@@ -494,7 +494,7 @@ static int chap_target_auth_create_response(struct connection *conn)
 	u8 *challenge = NULL, *digest = NULL;
 	int encoding_format, response_len;
 	int challenge_len = 0, digest_len = 0, retval = 0;
-	struct iscsi_user *user;
+	struct iscsi_attr *user;
 
 	if (!(value = text_key_find(conn, "CHAP_I"))) {
 		/* Initiator doesn't want target auth!? */
@@ -588,12 +588,12 @@ static int chap_target_auth_create_response(struct connection *conn)
 
 	switch (conn->auth.chap.digest_alg) {
 	case CHAP_DIGEST_ALG_MD5:
-		chap_calc_digest_md5(chap_id, user->password, strlen(user->password),
-				     challenge, challenge_len, digest);
+		chap_calc_digest_md5(chap_id, ISCSI_USER_PASS(user),
+			strlen(ISCSI_USER_PASS(user)), challenge, challenge_len, digest);
 		break;
 	case CHAP_DIGEST_ALG_SHA1:
-		chap_calc_digest_sha1(chap_id, user->password, strlen(user->password),
-				      challenge, challenge_len, digest);
+		chap_calc_digest_sha1(chap_id, ISCSI_USER_PASS(user),
+			strlen(ISCSI_USER_PASS(user)), challenge, challenge_len, digest);
 		break;
 	default:
 		retval = CHAP_TARGET_ERROR;
@@ -602,7 +602,7 @@ static int chap_target_auth_create_response(struct connection *conn)
 
 	memset(response, 0x0, response_len);
 	chap_encode_string(digest, digest_len, response, encoding_format);
-	text_key_add(conn, "CHAP_N", user->name);
+	text_key_add(conn, "CHAP_N", ISCSI_USER_NAME(user));
 	text_key_add(conn, "CHAP_R", response);
 
 	conn->state = STATE_SECURITY_DONE;

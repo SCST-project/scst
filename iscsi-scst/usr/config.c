@@ -35,7 +35,10 @@
 #define BUFSIZE		4096
 #define CONFIG_FILE	"/etc/iscsi-scstd.conf"
 
-/* Index must match ISCSI_USER_DIR_*!! */
+/*
+ * Index must match ISCSI_USER_DIR_* and ISCSI_USER_DIR_OUTGOING must
+ * be the last to confirm expectations of __config_account_add()!!
+ */
 struct iscsi_key user_keys[] = {
 	{"IncomingUser",},
 	{"OutgoingUser",},
@@ -44,6 +47,187 @@ struct iscsi_key user_keys[] = {
 
 static struct __qelem discovery_users_in = LIST_HEAD_INIT(discovery_users_in);
 static struct __qelem discovery_users_out = LIST_HEAD_INIT(discovery_users_out);
+
+struct iscsi_attr *iscsi_attr_lookup_by_sysfs_name(
+	struct __qelem *attrs_list, const char *sysfs_name)
+{
+	struct iscsi_attr *attr;
+
+	list_for_each_entry(attr, attrs_list, ulist) {
+		if (!strcmp(attr->sysfs_name, sysfs_name))
+			return attr;
+	}
+
+	return NULL;
+}
+
+struct iscsi_attr *iscsi_attr_lookup_by_key(
+	struct __qelem *attrs_list, const char *key)
+{
+	struct iscsi_attr *attr;
+
+	list_for_each_entry(attr, attrs_list, ulist) {
+		if (!strcmp(attr->attr_key, key))
+			return attr;
+	}
+
+	return NULL;
+}
+
+static void __iscsi_attr_destroy(struct iscsi_attr *attr, int del)
+{
+	if (!attr)
+		return;
+
+	if (del)
+		list_del(&attr->ulist);
+
+	free((void *)attr->attr_key);
+	free((void *)attr->attr_value);
+	free(attr);
+	return;
+}
+
+void iscsi_attr_destroy(struct iscsi_attr *attr)
+{
+	__iscsi_attr_destroy(attr, 1);
+}
+
+void iscsi_attrs_free(struct __qelem *attrs_list)
+{
+	struct iscsi_attr *attr, *t;
+
+	list_for_each_entry_safe(attr, t, attrs_list, ulist) {
+		iscsi_attr_destroy(attr);
+	}
+
+	return;
+}
+
+int iscsi_attr_create(int attr_size, struct __qelem *attrs_list,
+	const char *sysfs_name_tmpl, const char *key, const char *val,
+	u32 mode, struct iscsi_attr **res_attr)
+{
+	int res = 0;
+	struct iscsi_attr *attr;
+	int num = 0;
+
+	if (iscsi_attr_lookup_by_key(attrs_list, key) != NULL) {
+		log_error("Attribute %s already exists", key);
+		res = -EINVAL;
+		goto out;
+	}
+
+	attr = malloc(attr_size);
+	if (attr == NULL)
+		goto out;
+
+	memset(attr, 0, attr_size);
+
+	attr->attr_key = strdup(key);
+	if (attr->attr_key == NULL) {
+		log_error("Unable to duplicate attr_key %s", key);
+		res = -ENOMEM;
+		goto out_free;
+	}
+
+	if ((val != NULL) && (*val != '\0')) {
+		attr->attr_value = strdup(val);
+		if (attr->attr_value == NULL) {
+			log_error("Unable to duplicate attr_value %s", val);
+			res = -ENOMEM;
+			goto out_free;
+		}
+	}
+
+	attr->sysfs_mode = mode;
+
+	if (sysfs_name_tmpl == NULL)
+		goto add;
+
+	if (sysfs_name_tmpl != NULL) {
+		strlcpy(attr->sysfs_name, sysfs_name_tmpl, sizeof(attr->sysfs_name));
+		if (iscsi_attr_lookup_by_sysfs_name(attrs_list, attr->sysfs_name) == NULL)
+			goto add;
+	}
+
+	while (1) {
+		if (num == 0)
+			num++;
+		snprintf(attr->sysfs_name, sizeof(attr->sysfs_name),
+			"%s%d", sysfs_name_tmpl, num);
+		if (iscsi_attr_lookup_by_sysfs_name(attrs_list, attr->sysfs_name) == NULL)
+			break;
+		num++;
+	}
+
+add:
+	list_add_tail(attr, attrs_list);
+
+	*res_attr = attr;
+
+out:
+	return res;
+
+out_free:
+	__iscsi_attr_destroy(attr, 0);
+	goto out;
+}
+
+int iscsi_attr_replace(struct __qelem *attrs_list, const char *sysfs_name,
+	char *raw_value)
+{
+	int res = 0;
+	struct iscsi_attr *attr, *a;
+	char *key, *val, *new_key, *new_val;
+
+	key = config_sep_string(&raw_value);
+	val = config_sep_string(&raw_value);
+
+	attr = iscsi_attr_lookup_by_sysfs_name(attrs_list, sysfs_name);
+	if (attr == NULL) {
+		log_error("Unknown parameter %s\n", sysfs_name);
+		res = -EINVAL;
+		goto out;
+	}
+
+	a = iscsi_attr_lookup_by_key(attrs_list, key);
+
+	list_add_tail(attr, attrs_list);
+
+	if ((a != NULL) && (a != attr)) {
+		log_error("Attr %s (sysfs_name %s) already exists\n", key,
+			a->sysfs_name);
+		res = -EEXIST;
+		goto out;
+	}
+
+	new_key = strdup(key);
+	if (new_key == NULL) {
+		log_error("Unable to duplicate attr_key %s", key);
+		res = -ENOMEM;
+		goto out;
+	}
+
+	if ((val != NULL) && (*val != '\0')) {
+		new_val = strdup(val);
+		if (new_val == NULL) {
+			log_error("Unable to duplicate attr_value %s", val);
+			res = -ENOMEM;
+			goto out;
+		}
+	} else
+		new_val = NULL;
+
+	free((void *)attr->attr_key);
+	attr->attr_key = new_key;
+
+	free((void *)attr->attr_value);
+	attr->attr_value = new_val;
+
+out:
+	return res;
+}
 
 static struct __qelem *account_list_get(struct target *target, int dir)
 {
@@ -117,24 +301,17 @@ int accounts_empty(u32 tid, int dir)
 	return list_empty(list);
 }
 
-static struct iscsi_user *__account_lookup_by_name(struct target *target,
+static struct iscsi_attr *__account_lookup_by_name(struct target *target,
 	int dir, const char *name)
 {
 	struct __qelem *list;
-	struct iscsi_user *user = NULL;
 
 	list = account_list_get(target, dir);
 
-	list_for_each_entry(user, list, ulist) {
-		if (!strcmp(user->name, name))
-			return user;
-	}
-
-	return NULL;
+	return iscsi_attr_lookup_by_key(list, name);
 }
 
-
-static struct iscsi_user *account_lookup_by_name(u32 tid, int dir, const char *name)
+static struct iscsi_attr *account_lookup_by_name(u32 tid, int dir, const char *name)
 {
 	struct target *target;
 
@@ -148,11 +325,11 @@ static struct iscsi_user *account_lookup_by_name(u32 tid, int dir, const char *n
 	return __account_lookup_by_name(target, dir, name);
 }
 
-struct iscsi_user *account_get_first(u32 tid, int dir)
+struct iscsi_attr *account_get_first(u32 tid, int dir)
 {
 	struct target *target;
 	struct __qelem *list;
-	struct iscsi_user *user = NULL;
+	struct iscsi_attr *user;
 
 	if (tid) {
 		target = target_find_by_id(tid);
@@ -170,30 +347,24 @@ struct iscsi_user *account_get_first(u32 tid, int dir)
 	return NULL;
 }
 
-struct iscsi_user *account_lookup_by_sysfs_name(struct target *target,
+struct iscsi_attr *account_lookup_by_sysfs_name(struct target *target,
 	int dir, const char *sysfs_name)
 {
 	struct __qelem *list;
-	struct iscsi_user *user = NULL;
 
 	list = account_list_get(target, dir);
 
-	list_for_each_entry(user, list, ulist) {
-		if (!strcmp(user->sysfs_name, sysfs_name))
-			return user;
-	}
-
-	return NULL;
+	return iscsi_attr_lookup_by_sysfs_name(list, sysfs_name);
 }
 
 int config_account_query(u32 tid, int dir, const char *name, char *pass)
 {
-	struct iscsi_user *user;
+	struct iscsi_attr *user;
 
 	if (!(user = account_lookup_by_name(tid, dir, name)))
 		return -ENOENT;
 
-	strlcpy(pass, user->password, ISCSI_NAME_LEN);
+	strlcpy(pass, ISCSI_USER_PASS(user), ISCSI_NAME_LEN);
 
 	return 0;
 }
@@ -203,7 +374,7 @@ int config_account_list(u32 tid, int dir, u32 *cnt, u32 *overflow,
 {
 	struct target *target;
 	struct __qelem *list;
-	struct iscsi_user *user;
+	struct iscsi_attr *user;
 
 	*cnt = *overflow = 0;
 
@@ -221,7 +392,7 @@ int config_account_list(u32 tid, int dir, u32 *cnt, u32 *overflow,
 
 	list_for_each_entry(user, list, ulist) {
 		if (buf_sz >= ISCSI_NAME_LEN) {
-			strlcpy(buf, user->name, ISCSI_NAME_LEN);
+			strlcpy(buf, ISCSI_USER_NAME(user), ISCSI_NAME_LEN);
 			buf_sz -= ISCSI_NAME_LEN;
 			buf += ISCSI_NAME_LEN;
 			*cnt += 1;
@@ -232,33 +403,23 @@ int config_account_list(u32 tid, int dir, u32 *cnt, u32 *overflow,
 	return 0;
 }
 
-static void account_destroy(struct iscsi_user *user, int del)
+static void account_destroy(struct iscsi_attr *user)
 {
-	if (!user)
-		return;
-	if (del)
-		list_del(&user->ulist);
-	free((void *)user->name);
-	free((void *)user->password);
-	free(user);
+	iscsi_attr_destroy(user);
 	return;
 }
 
 void accounts_free(struct __qelem *accounts_list)
 {
-	struct iscsi_user *user, *t;
-
-	list_for_each_entry_safe(user, t, accounts_list, ulist) {
-		account_destroy(user, 1);
-	}
-
+	iscsi_attrs_free(accounts_list);
 	return;
 }
 
 int config_account_del(u32 tid, int dir, char *name, u32 cookie)
 {
-	struct iscsi_user *user;
+	struct iscsi_attr *user;
 	int res = 0;
+	struct target *target;
 
 	if (!name) {
 		log_error("%s", "Name expected");
@@ -266,7 +427,17 @@ int config_account_del(u32 tid, int dir, char *name, u32 cookie)
 		goto out;
 	}
 
-	user = account_lookup_by_name(tid, dir, name);
+	if (tid) {
+		target = target_find_by_id(tid);
+		if (target == NULL) {
+			log_error("Target %d not found", tid);
+			res = -ESRCH;
+			goto out;
+		}
+	} else
+		target = NULL;
+
+	user = __account_lookup_by_name(target, dir, name);
 	if (user == NULL) {
 		log_error("User %s not found", name);
 		res = -ENOENT;
@@ -274,133 +445,42 @@ int config_account_del(u32 tid, int dir, char *name, u32 cookie)
 	}
 
 #ifndef CONFIG_SCST_PROC
-	res = kernel_user_del(user, cookie);
+	res = kernel_user_del(target, user, cookie);
 	if (res != 0)
 		goto out;
 #endif
 
-	account_destroy(user, 1);
+	account_destroy(user);
 
 out:
 	return res;
 }
 
-static struct iscsi_user *account_create(struct target *target, int direction,
-	const char *sysfs_name, const char *name, const char *pass)
+static int account_create(struct __qelem *list, const char *sysfs_name,
+	const char *name, const char *pass, struct iscsi_attr **res_user)
 {
-	struct iscsi_user *user;
-
-	if (!(user = malloc(sizeof(*user))))
-		return NULL;
-
-	memset(user, 0, sizeof(*user));
-	INIT_LIST_HEAD(&user->ulist);
-	user->target = target;
-	user->direction = direction;
-
-	if (!(user->name = strdup(name)) ||
-	    !(user->password = strdup(pass))) {
-		log_error("Unable to duplicate name (%s) or password (%s)",
-			name, pass);
-		goto out_destroy;
-	}
-
-	if (direction == ISCSI_USER_DIR_INCOMING) {
-		int inc_user_num = 0;
-
-		if (sysfs_name != NULL) {
-			strlcpy(user->sysfs_name, sysfs_name, sizeof(user->sysfs_name));
-			if (account_lookup_by_sysfs_name(target, direction, sysfs_name) == NULL)
-				goto out;
-		}
-
-		while (1) {
-			if (inc_user_num == 0)
-				snprintf(user->sysfs_name, sizeof(user->sysfs_name),
-					"IncomingUser");
-			else
-				snprintf(user->sysfs_name, sizeof(user->sysfs_name),
-					"IncomingUser%d", inc_user_num);
-			if (account_lookup_by_sysfs_name(target, direction, user->sysfs_name) == NULL)
-				break;
-			inc_user_num++;
-		}
-	} else
-		snprintf(user->sysfs_name, sizeof(user->sysfs_name),
-			"OutgoingUser");
-
-out:
-	return user;
-
-out_destroy:
-	account_destroy(user, 0);
-	user = NULL;
-	goto out;
+	return iscsi_attr_create(sizeof(struct iscsi_attr), list, sysfs_name,
+			name, pass, 0600, res_user);
 }
 
 int account_replace(struct target *target, int direction,
 	const char *sysfs_name, char *value)
 {
-	int res = 0;
-	struct iscsi_user *user, *user1;
-	char *name, *pass, *n;
 	struct __qelem *list;
-
-	name = config_sep_string(&value);
-	pass = config_sep_string(&value);
-
-	n = config_sep_string(&value);
-	if (*n != '\0') {
-		log_error("Unexpected parameter value %s\n", n);
-		res = -EINVAL;
-		goto out;
-	}
-
-	user = account_lookup_by_sysfs_name(target, direction, sysfs_name);
-	if (user == NULL) {
-		log_error("Unknown parameter %s\n", sysfs_name);
-		res = -EINVAL;
-		goto out;
-	}
-
-	user1 = __account_lookup_by_name(target, direction, name);
-	if ((user1 != NULL) && (user1 != user)) {
-		log_error("User %s already exists\n", name);
-		res = -EEXIST;
-		goto out;
-	}
 
 	list = account_list_get(target, direction);
 
-	list_del(&user->ulist);
-
-	user1 = account_create(target, direction, sysfs_name, name, pass);
-	if (user1 == NULL) {
-		res = -ENOMEM;
-		goto out_add;
-	}
-
-	list_add_tail(user1, list);
-
-	account_destroy(user, 0);
-
-out:
-	return res;
-
-out_add:
-	list_add_tail(user, list);
-	goto out;
+	return iscsi_attr_replace(list, sysfs_name, value);
 }
 
 int __config_account_add(struct target *target, int dir, char *name,
 	char *pass, char *sysfs_name, int send_to_kern, u32 cookie)
 {
 	int err = 0;
-	struct iscsi_user *user;
+	struct iscsi_attr *user;
 	struct __qelem *list;
-	int del = 0;
 
-	if (!name || !pass) {
+	if (!name || !pass || (*name == '\0') || (*pass == '\0')) {
 		log_error("%s", "Name or password is NULL");
 		err = -EINVAL;
 		goto out;
@@ -414,42 +494,41 @@ int __config_account_add(struct target *target, int dir, char *name,
 		goto out;
 	}
 
-	user = account_create(target, dir, sysfs_name, name, pass);
-	if (user == NULL) {
-		err = -ENOMEM;
+	if (dir > ISCSI_USER_DIR_OUTGOING) {
+		log_error("Wrong direction %d\n", dir);
+		err = -EINVAL;
 		goto out;
 	}
 
-	if (__account_lookup_by_name(target, dir, name) != NULL) {
-		log_error("User %s already exists for target %s (direction %s)",
-			name, target ? target->name : "discovery",
-			(dir == ISCSI_USER_DIR_OUTGOING) ? "outgoing" : "incoming");
-		err = -EEXIST;
-		goto out_destroy;
-	}
+	if (sysfs_name == NULL)
+		sysfs_name = (dir == ISCSI_USER_DIR_OUTGOING) ?
+				user_keys[ISCSI_USER_DIR_OUTGOING].name :
+				user_keys[ISCSI_USER_DIR_INCOMING].name;
 
 	list = account_list_get(target, dir);
+
 	if (dir == ISCSI_USER_DIR_OUTGOING) {
-		struct iscsi_user *old;
+		struct iscsi_attr *old;
 		list_for_each_entry(old, list, ulist) {
 			log_warning("Only one outgoing %s account is "
 				"supported. Replacing the old one.\n",
 				target ? "target" : "discovery");
-			account_destroy(old, 1);
+			account_destroy(old);
 			break;
 		}
 	}
 
-	log_debug(1, "User %s added to target %s (direction %s)", user->name,
+	err = account_create(list, sysfs_name, name, pass, &user);
+	if (err != 0)
+		goto out;
+
+	log_debug(1, "User %s added to target %s (direction %s)", ISCSI_USER_NAME(user),
 		target ? target->name : "discovery",
 		(dir == ISCSI_USER_DIR_OUTGOING) ? "outgoing" : "incoming");
 
-	list_add_tail(user, list);
-	del = 1;
-
 #ifndef CONFIG_SCST_PROC
-	if (send_to_kern) {
-		err = kernel_user_add(user, cookie);
+	if (send_to_kern && (sysfs_name != NULL)) {
+		err = kernel_user_add(target, user, cookie);
 		if (err != 0)
 			goto out_destroy;
 	}
@@ -458,8 +537,10 @@ int __config_account_add(struct target *target, int dir, char *name,
 out:
 	return err;
 
+#ifndef CONFIG_SCST_PROC
 out_destroy:
-	account_destroy(user, del);
+#endif
+	account_destroy(user);
 	goto out;
 }
 
@@ -659,13 +740,13 @@ static int initiator_match(u32 tid, int fd, char *filename)
 	return err;
 }
 
-int config_initiator_access(u32 tid, int fd)
+int config_initiator_access_allowed(u32 tid, int fd)
 {
 	if (initiator_match(tid, fd, "/etc/initiators.deny") &&
 	    !initiator_match(tid, fd, "/etc/initiators.allow"))
-		return -EPERM;
-	else
 		return 0;
+	else
+		return 1;
 }
 
 /*

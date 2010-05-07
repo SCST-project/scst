@@ -112,7 +112,8 @@ int kernel_target_create(struct target *target, u32 *tid, u32 cookie)
 {
 	int err, i, j;
 	struct iscsi_kern_target_info info;
-	struct iscsi_user *user;
+	struct iscsi_attr *user;
+	struct iscsi_attr *portal;
 	struct iscsi_kern_attr *kern_attrs;
 
 	memset(&info, 0, sizeof(info));
@@ -120,18 +121,23 @@ int kernel_target_create(struct target *target, u32 *tid, u32 cookie)
 	info.tid = (tid != NULL) ? *tid : 0;
 	info.cookie = cookie;
 
+	info.attrs_num = 1;
+
 	for (j = 0; j < session_key_last; j++) {
 		if (session_keys[j].show_in_sysfs)
-			info.attrs_num++;;
+			info.attrs_num++;
 	}
 	for (j = 0; j < target_key_last; j++) {
 		if (target_keys[j].show_in_sysfs)
-			info.attrs_num++;;
+			info.attrs_num++;
 	}
 	list_for_each_entry(user, &target->target_in_accounts, ulist) {
 		info.attrs_num++;
 	}
 	list_for_each_entry(user, &target->target_out_accounts, ulist) {
+		info.attrs_num++;
+	}
+	list_for_each_entry(portal, &target->allowed_portals, ulist) {
 		info.attrs_num++;
 	}
 
@@ -143,6 +149,12 @@ int kernel_target_create(struct target *target, u32 *tid, u32 cookie)
 	info.attrs_ptr = (unsigned long)kern_attrs;
 
 	i = 0;
+
+	kern_attrs[i].mode = 0644;
+	strlcpy(kern_attrs[i].name, ISCSI_PER_PORTAL_ACL,
+		sizeof(ISCSI_PER_PORTAL_ACL));
+	i++;
+
 	for (j = 0; j < session_key_last; j++) {
 		if (!session_keys[j].show_in_sysfs)
 			continue;
@@ -160,14 +172,20 @@ int kernel_target_create(struct target *target, u32 *tid, u32 cookie)
 		i++;
 	}
 	list_for_each_entry(user, &target->target_in_accounts, ulist) {
-		kern_attrs[i].mode = 0600;
+		kern_attrs[i].mode = user->sysfs_mode;
 		strlcpy(kern_attrs[i].name, user->sysfs_name,
 			sizeof(kern_attrs[i].name));
 		i++;
 	}
 	list_for_each_entry(user, &target->target_out_accounts, ulist) {
-		kern_attrs[i].mode = 0600;
+		kern_attrs[i].mode = user->sysfs_mode;
 		strlcpy(kern_attrs[i].name, user->sysfs_name,
+			sizeof(kern_attrs[i].name));
+		i++;
+	}
+	list_for_each_entry(portal, &target->allowed_portals, ulist) {
+		kern_attrs[i].mode = portal->sysfs_mode;
+		strlcpy(kern_attrs[i].name, portal->sysfs_name,
 			sizeof(kern_attrs[i].name));
 		i++;
 	}
@@ -252,45 +270,35 @@ int kernel_attr_del(struct target *target, const char *name, u32 cookie)
 	return res;
 }
 
-static int __kernel_user_cmd(struct iscsi_user *user, u32 cookie, unsigned int cmd)
+int kernel_user_add(struct target *target, struct iscsi_attr *user, u32 cookie)
 {
-	struct iscsi_kern_attr_info info;
-	int res;
-
-	memset(&info, 0, sizeof(info));
-	if (user->target != NULL)
-		info.tid = user->target->tid;
-	info.cookie = cookie;
-
-	info.attr.mode = 0600;
-	strlcpy(info.attr.name, user->sysfs_name, sizeof(info.attr.name));
-
-	res = ioctl(ctrl_fd, cmd, &info);
-	if (res < 0)
-		res = -errno;
-
-	return res;
+	return kernel_attr_add(target, user->sysfs_name, 0600, cookie);
 }
 
-int kernel_user_add(struct iscsi_user *user, u32 cookie)
+int kernel_user_del(struct target *target, struct iscsi_attr *user, u32 cookie)
 {
-	int res;
-	res = __kernel_user_cmd(user, cookie, ISCSI_ATTR_ADD);
-	if (res != 0)
-		log_error("Can't add user %s (%d)\n", user->name, res);
-	return res;
-}
-
-int kernel_user_del(struct iscsi_user *user, u32 cookie)
-{
-	int res;
-	res = __kernel_user_cmd(user, cookie, ISCSI_ATTR_DEL);
-	if (res != 0)
-		log_error("Can't del user %s (%d)\n", user->name, res);
-	return res;
+	return kernel_attr_del(target, user->sysfs_name, cookie);
 }
 
 #endif /* CONFIG_SCST_PROC */
+
+int kernel_initiator_allowed(u32 tid, const char *full_initiator_name)
+{
+	int err;
+	struct iscsi_kern_initiator_info info;
+
+	memset(&info, 0, sizeof(info));
+	info.tid = tid;
+	strlcpy(info.full_initiator_name, full_initiator_name, sizeof(info.full_initiator_name));
+
+	if ((err = ioctl(ctrl_fd, ISCSI_INITIATOR_ALLOWED, &info)) < 0) {
+		err = -errno;
+		log_error("Can't find out initiator %s permissions (errno %d, "
+			"tid %u", full_initiator_name, errno, tid);
+	}
+
+	return err;
+}
 
 int kernel_conn_destroy(u32 tid, u64 sid, u32 cid)
 {
@@ -385,6 +393,13 @@ int kernel_session_create(struct connection *conn)
 	int res, i;
 	struct target *target;
 
+	target = target_find_by_id(conn->tid);
+	if (target == NULL) {
+		log_error("Target %d not found", conn->tid);
+		res = -EINVAL;
+		goto out;
+	}
+
 	memset(&info, 0, sizeof(info));
 
 	info.tid = conn->tid;
@@ -399,12 +414,9 @@ int kernel_session_create(struct connection *conn)
 		info.user_name[0] = '\0';
 #endif
 
-	target = target_find_by_id(conn->tid);
-	if (target == NULL) {
-		log_error("Target %d not found", conn->tid);
-		res = -EINVAL;
-		goto out;
-	}
+	iscsi_make_full_initiator_name(target->per_portal_acl,
+		conn->sess->initiator, conn->target_portal,
+		info.full_initiator_name, sizeof(info.full_initiator_name));
 
 	for (i = 0; i < session_key_last; i++)
 		info.session_params[i] = conn->session_params[i].val;

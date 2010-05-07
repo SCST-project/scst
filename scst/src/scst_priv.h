@@ -465,6 +465,10 @@ static inline void scst_sess_sysfs_put(struct scst_session *sess)
 {
 	scst_release_session(sess);
 }
+static inline int scst_recreate_sess_luns_link(struct scst_session *sess)
+{
+	return 0;
+}
 
 static inline int scst_create_sgv_sysfs(struct sgv_pool *pool)
 {
@@ -521,6 +525,7 @@ void scst_tgt_sysfs_prepare_put(struct scst_tgt *tgt);
 void scst_tgt_sysfs_put(struct scst_tgt *tgt);
 int scst_create_sess_sysfs(struct scst_session *sess);
 void scst_sess_sysfs_put(struct scst_session *sess);
+int scst_recreate_sess_luns_link(struct scst_session *sess);
 int scst_create_sgv_sysfs(struct sgv_pool *pool);
 void scst_sgv_sysfs_put(struct sgv_pool *pool);
 int scst_create_devt_sysfs(struct scst_dev_type *devt);

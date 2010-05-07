@@ -19,6 +19,7 @@
 
 #include <search.h>
 #include <sys/types.h>
+#include <sys/poll.h>
 #include <assert.h>
 
 #include "types.h"
@@ -80,6 +81,7 @@ struct connection {
 	struct iscsi_param session_params[session_key_last];
 
 	char *initiator;
+	char *target_portal;
 	char *user;
 	union iscsi_sid sid;
 	u16 cid;
@@ -153,18 +155,17 @@ struct connection {
  */
 #define INCOMING_BUFSIZE	8192
 
-struct iscsi_user {
+#define ISCSI_USER_DIR_INCOMING	0
+#define ISCSI_USER_DIR_OUTGOING	1
+
+#define ISCSI_USER_NAME(attr)	(attr)->attr_key
+#define ISCSI_USER_PASS(attr)	(attr)->attr_value
+
+struct iscsi_attr {
 	struct __qelem ulist;
-
-	struct target *target;
-
-#define ISCSI_USER_DIR_INCOMING		0
-#define ISCSI_USER_DIR_OUTGOING		1
-	int direction;
-
-	const char *name;
-	const char *password;
-
+	const char *attr_key;
+	const char *attr_value;
+	u32 sysfs_mode;
 	char sysfs_name[64];
 };
 
@@ -174,6 +175,7 @@ struct target {
 	struct __qelem sessions_list;
 
 	unsigned int tgt_enabled:1;
+	unsigned int per_portal_acl:1;
 
 	unsigned int target_params[target_key_last];
 	unsigned int session_params[session_key_last];
@@ -186,11 +188,29 @@ struct target {
 	struct __qelem target_in_accounts;
 	struct __qelem target_out_accounts;
 
+	struct __qelem allowed_portals;
+
 	struct __qelem isns_head;
 };
 
 extern int ctrl_fd;
 extern int conn_blocked;
+
+#define LISTEN_MAX		8
+#define INCOMING_MAX		256
+
+enum {
+	POLL_LISTEN,
+	POLL_IPC = POLL_LISTEN + LISTEN_MAX,
+	POLL_NL,
+	POLL_ISNS,
+	POLL_SCN_LISTEN,
+	POLL_SCN,
+	POLL_INCOMING,
+	POLL_MAX = POLL_INCOMING + INCOMING_MAX,
+};
+
+extern struct pollfd poll_array[POLL_MAX];
 
 /* chap.c */
 extern int cmnd_exec_auth_chap(struct connection *conn);
@@ -208,6 +228,7 @@ extern void conn_free_rsp_buf_list(struct connection *conn);
 extern uint16_t server_port;
 extern struct iscsi_init_params iscsi_init_params;
 extern void isns_set_fd(int isns, int scn_listen, int scn);
+extern const char *get_EAI_error_str(int error);
 
 /* iscsid.c */
 extern int iscsi_enabled;
@@ -253,8 +274,13 @@ extern int target_add(struct target *target, u32 *tid, u32 cookie);
 extern int target_del(u32 tid, u32 cookie);
 extern u32 target_find_id_by_name(const char *name);
 extern struct target *target_find_by_name(const char *name);
-struct target *target_find_by_id(u32);
-extern void target_list_build(struct connection *, char *, char *);
+extern struct target *target_find_by_id(u32);
+extern void target_list_build(struct connection *, char *);
+extern int target_portal_allowed(struct target *target,
+	const char *target_portal, const char *initiator_name);
+extern const char *iscsi_make_full_initiator_name(int per_portal_acl,
+	const char *initiator_name, const char *target_portal,
+	char *buf, int size);
 
 /* message.c */
 extern int iscsi_adm_request_listen(void);
@@ -268,12 +294,15 @@ extern int kernel_params_set(u32 tid, u64 sid, int type, u32 partial,
 extern int kernel_target_create(struct target *target, u32 *tid, u32 cookie);
 extern int kernel_target_destroy(u32 tid, u32 cookie);
 #ifndef CONFIG_SCST_PROC
-extern int kernel_user_add(struct iscsi_user *user, u32 cookie);
-extern int kernel_user_del(struct iscsi_user *user, u32 cookie);
+extern int kernel_user_add(struct target *target, struct iscsi_attr *attr,
+		u32 cookie);
+extern int kernel_user_del(struct target *target, struct iscsi_attr *attr,
+		u32 cookie);
 extern int kernel_attr_add(struct target *target, const char *name,
 	u32 mode, u32 cookie);
 extern int kernel_attr_del(struct target *target, const char *name, u32 cookie);
 #endif
+extern int kernel_initiator_allowed(u32 tid, const char *initiator_name);
 extern int kernel_session_create(struct connection *conn);
 extern int kernel_session_destroy(u32 tid, u64 sid);
 extern int kernel_conn_create(u32 tid, u64 sid, u32 cid, u32 stat_sn, u32 exp_stat_sn,
@@ -301,14 +330,25 @@ extern int config_account_del(u32 tid, int dir, char *name, u32 cookie);
 extern int config_params_get(u32 tid, u64 sid, int type, struct iscsi_param *params);
 extern int config_params_set(u32 tid, u64 sid, int type, u32 partial,
 	struct iscsi_param *params);
-extern int config_initiator_access(u32 tid, int fd);
+extern int config_initiator_access_allowed(u32 tid, int fd);
 extern int accounts_empty(u32 tid, int dir);
-extern struct iscsi_user *account_get_first(u32 tid, int dir);
-extern struct iscsi_user *account_lookup_by_sysfs_name(struct target *target,
+extern struct iscsi_attr *account_get_first(u32 tid, int dir);
+extern struct iscsi_attr *account_lookup_by_sysfs_name(struct target *target,
 	int dir, const char *sysfs_name);
 extern int account_replace(struct target *target, int direction,
 	const char *sysfs_name, char *value);
 extern void accounts_free(struct __qelem *accounts_list);
+extern struct iscsi_attr *iscsi_attr_lookup_by_sysfs_name(
+	struct __qelem *attrs_list, const char *sysfs_name);
+extern struct iscsi_attr *iscsi_attr_lookup_by_key(
+	struct __qelem *attrs_list, const char *key);
+extern void iscsi_attrs_free(struct __qelem *attrs_list);
+extern int iscsi_attr_create(int attr_size, struct __qelem *attrs_list,
+	const char *sysfs_name_tmpl, const char *key, const char *val,
+	u32 mode, struct iscsi_attr **res_attr);
+extern void iscsi_attr_destroy(struct iscsi_attr *attr);
+extern int iscsi_attr_replace(struct __qelem *attrs_list, const char *sysfs_name,
+	char *raw_value);
 
 /* isns.c */
 extern char *isns_server;
@@ -317,7 +357,7 @@ extern int isns_timeout;
 extern int isns_init(void);
 extern int isns_handle(int is_timeout);
 extern int isns_scn_handle(int accept);
-extern int isns_scn_access(u32 tid, int fd, char *name);
+extern int isns_scn_access_allowed(u32 tid, char *name);
 extern int isns_target_register(char *name);
 extern int isns_target_deregister(char *name);
 extern void isns_exit(void);

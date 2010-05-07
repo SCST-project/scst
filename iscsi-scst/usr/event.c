@@ -93,6 +93,25 @@ static int nl_read(int fd, void *data, int len)
 
 #ifndef CONFIG_SCST_PROC
 
+static int strncasecmp_numwild(const char *name, const char *mask)
+{
+	int err = -EINVAL;
+
+	if (!strncasecmp(name, mask, strlen(name))) {
+		int j;
+		if (strlen(name) > strlen(mask))
+			goto out;
+		for (j = strlen(name); j < strlen(mask); j++) {
+			if (!isdigit(mask[j]))
+				goto out;
+		}
+		err = 0;
+	}
+
+out:
+	return err;
+}
+
 static int send_mgmt_cmd_res(u32 tid, u32 cookie, u32 req_cmd, int result,
 	const char *res_str)
 {
@@ -214,15 +233,73 @@ static int handle_add_user(struct target *target, int dir, char *sysfs_name,
 	return res;
 }
 
-static int handle_add_param(struct target *target, char *p, u32 cookie)
+static int __handle_add_attr(struct target *target, struct __qelem *attrs_list,
+	const char *sysfs_name_tmpl, char *p, int single_param_only, u32 cookie)
+{
+	int res;
+	const char *name = p;
+	const char *key, *val;
+	struct iscsi_attr *attr;
+
+	key = config_sep_string(&p);
+	val = config_sep_string(&p);
+
+	if (target == NULL) {
+		log_error("Target expected for attr %s", name);
+		res = -EINVAL;
+		goto out;
+	}
+
+	if ((key == NULL) || (*key == '\0')) {
+		log_error("Value expected for attr %s", name);
+		res = -EINVAL;
+		goto out;
+	}
+
+	if (val != NULL)
+		if (*val == '\0')
+			val = NULL;
+
+	if (single_param_only) {
+		if (val != NULL) {
+			log_error("Only one value expected for attr %s", key);
+			res = -EINVAL;
+			goto out;
+		}
+	}
+
+	res = iscsi_attr_create(sizeof(*attr), attrs_list, sysfs_name_tmpl, key,
+			val, 0644, &attr);
+	if (res != 0) {
+		log_error("Unknown portal %s", key);
+		goto out;
+	}
+
+	res = kernel_attr_add(target, attr->sysfs_name, attr->sysfs_mode, cookie);
+	if (res != 0)
+		goto out_free;
+
+out:
+	return res;
+
+out_free:
+	iscsi_attr_destroy(attr);
+	goto out;
+}
+
+static int handle_add_attr(struct target *target, char *p, u32 cookie)
 {
 	int res, dir;
 	char *pp;
 
 	pp = config_sep_string(&p);
+
 	dir = params_index_by_name_numwild(pp, user_keys);
 	if (dir >= 0)
 		res = handle_add_user(target, dir, pp, p, cookie);
+	else if (strncasecmp_numwild(ISCSI_ALLOWED_PORTAL_NAME, pp) == 0)
+		res = __handle_add_attr(target, &target->allowed_portals,
+				ISCSI_ALLOWED_PORTAL_NAME, p, 1, cookie);
 	else {
 		log_error("Syntax error at %s", pp);
 		res = -EINVAL;
@@ -246,15 +323,51 @@ static int handle_del_user(struct target *target, int dir, char *p, u32 cookie)
 	return res;
 }
 
-static int handle_del_param(struct target *target, char *p, u32 cookie)
+static int __handle_del_attr(struct target *target, struct __qelem *attrs_list,
+	char *p, u32 cookie)
+{
+	int res;
+	const char *key;
+	struct iscsi_attr *attr;
+
+	key = config_sep_string(&p);
+
+	if (target == NULL) {
+		log_error("Target expected for attr %s", p);
+		res = -EINVAL;
+		goto out;
+	}
+
+	attr = iscsi_attr_lookup_by_key(attrs_list, key);
+	if (attr == NULL) {
+		log_error("Unknown portal %s", key);
+		res = -EINVAL;
+		goto out;
+	}
+
+	res = kernel_attr_del(target, attr->sysfs_name, cookie);
+	if (res != 0)
+		goto out;
+
+	iscsi_attr_destroy(attr);
+
+out:
+	return res;
+}
+
+static int handle_del_attr(struct target *target, char *p, u32 cookie)
 {
 	int res, dir;
 	char *pp;
 
 	pp = config_sep_string(&p);
+
 	dir = params_index_by_name_numwild(pp, user_keys);
 	if (dir >= 0)
 		res = handle_del_user(target, dir, p, cookie);
+	else if (strncasecmp_numwild(ISCSI_ALLOWED_PORTAL_NAME, pp) == 0)
+		res = __handle_del_attr(target, &target->allowed_portals,
+				p, cookie);
 	else {
 		log_error("Syntax error at %s", pp);
 		res = -EINVAL;
@@ -307,7 +420,7 @@ static int handle_e_mgmt_cmd(int fd, const struct iscsi_kern_event *event)
 	p = buf;
 	pp = config_sep_string(&p);
 	if (strcasecmp("add_attribute", pp) == 0) {
-		res = handle_add_param(NULL, p, event->cookie);
+		res = handle_add_attr(NULL, p, event->cookie);
 	} else if (strcasecmp("add_target_attribute", pp) == 0) {
 		struct target *target;
 		pp = config_sep_string(&p);
@@ -317,10 +430,10 @@ static int handle_e_mgmt_cmd(int fd, const struct iscsi_kern_event *event)
 			res = -ENOENT;
 			goto out_free;
 		}
-		res = handle_add_param(target, p, event->cookie);
+		res = handle_add_attr(target, p, event->cookie);
 	} else if (strcasecmp("del_attribute", pp) == 0) {
-		res = handle_del_param(NULL, p, event->cookie);
-	} else if (strcasecmp("del_target_parameter", pp) == 0) {
+		res = handle_del_attr(NULL, p, event->cookie);
+	} else if (strcasecmp("del_target_attribute", pp) == 0) {
 		struct target *target;
 		pp = config_sep_string(&p);
 		target = target_find_by_name(pp);
@@ -329,7 +442,7 @@ static int handle_e_mgmt_cmd(int fd, const struct iscsi_kern_event *event)
 			res = -ENOENT;
 			goto out_free;
 		}
-		res = handle_del_param(target, p, event->cookie);
+		res = handle_del_attr(target, p, event->cookie);
 	} else {
 		log_error("Syntax error at %s", pp);
 		res = -EINVAL;
@@ -422,7 +535,7 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 		if (target->session_params[idx] != session_keys[idx].local_def)
 			add_key_mark(res_str, sizeof(res_str), 1);
 	} else if (!((idx = params_index_by_name_numwild(pp, user_keys)) < 0)) {
-		struct iscsi_user *user;
+		struct iscsi_attr *user;
 
 		user = account_lookup_by_sysfs_name(target, idx, pp);
 		if (user == NULL) {
@@ -431,8 +544,26 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 			goto out_free;
 		}
 
-		snprintf(res_str, sizeof(res_str), "%s %s\n", user->name,
-			user->password);
+		snprintf(res_str, sizeof(res_str), "%s %s\n", ISCSI_USER_NAME(user),
+			ISCSI_USER_PASS(user));
+		add_key_mark(res_str, sizeof(res_str), 0);
+	} else if (strncasecmp_numwild(ISCSI_ALLOWED_PORTAL_NAME, pp) == 0) {
+		struct iscsi_attr *portal;
+
+		if (target == NULL) {
+			log_error("Target expected for attr %s", pp);
+			res = -EINVAL;
+			goto out_free;
+		}
+
+		portal = iscsi_attr_lookup_by_sysfs_name(&target->allowed_portals, pp);
+		if (portal == NULL) {
+			log_error("Unknown portal attribute %s", pp);
+			res = -EINVAL;
+			goto out_free;
+		}
+
+		snprintf(res_str, sizeof(res_str), "%s\n", portal->attr_key);
 		add_key_mark(res_str, sizeof(res_str), 0);
 	} else if (strcasecmp(ISCSI_ENABLED_ATTR_NAME, pp) == 0) {
 		if (target != NULL) {
@@ -441,9 +572,17 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 			res = -EINVAL;
 			goto out_free;
 		}
-
 		snprintf(res_str, sizeof(res_str), "%d\n", iscsi_enabled);
-	} else if (strcasecmp(ISCSI_ISNS_SERVER_PARAM_NAME, pp) == 0) {
+	} else if (strcasecmp(ISCSI_PER_PORTAL_ACL, pp) == 0) {
+		if (target == NULL) {
+			log_error("Target expected for attr %s", pp);
+			res = -EINVAL;
+			goto out_free;
+		}
+		snprintf(res_str, sizeof(res_str), "%d\n", target->per_portal_acl);
+		if (target->per_portal_acl)
+			add_key_mark(res_str, sizeof(res_str), 0);
+	}else if (strcasecmp(ISCSI_ISNS_SERVER_PARAM_NAME, pp) == 0) {
 		if (target != NULL) {
 			log_error("Not NULL target %s for global attribute %s",
 				target->name, pp);
@@ -611,7 +750,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 
 		target->session_params[idx] = val;
 	} else if (!((idx = params_index_by_name_numwild(pp, user_keys)) < 0)) {
-		struct iscsi_user *user;
+		struct iscsi_attr *user;
 
 		user = account_lookup_by_sysfs_name(target, idx, pp);
 		if (user == NULL) {
@@ -623,6 +762,25 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 		res = account_replace(target, idx, pp, p);
 		if (res != 0)
 			goto out_free;
+	} else if (strncasecmp_numwild(ISCSI_ALLOWED_PORTAL_NAME, pp) == 0) {
+		struct iscsi_attr *portal;
+
+		if (target == NULL) {
+			log_error("Target expected for attr %s", pp);
+			res = -EINVAL;
+			goto out_free;
+		}
+
+		portal = iscsi_attr_lookup_by_sysfs_name(&target->allowed_portals, pp);
+		if (portal == NULL) {
+			log_error("Unknown portal attribute %s", pp);
+			res = -EINVAL;
+			goto out_free;
+		}
+
+		res = iscsi_attr_replace(&target->allowed_portals, pp, p);
+		if (res != 0)
+			goto out_free;
 	} else if (strcasecmp(ISCSI_ENABLED_ATTR_NAME, pp) == 0) {
 		if (target != NULL) {
 			log_error("Not NULL target %s for global attribute %s",
@@ -630,7 +788,6 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 			res = -EINVAL;
 			goto out_free;
 		}
-
 		pp = config_sep_string(&p);
 		if (strcmp(pp, "1") == 0)
 			iscsi_enabled = 1;
@@ -641,7 +798,23 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 			res = -EINVAL;
 			goto out_free;
 		}
-	} else if (strcasecmp(ISCSI_ISNS_SERVER_PARAM_NAME, pp) == 0) {
+	} else if (strcasecmp(ISCSI_PER_PORTAL_ACL, pp) == 0) {
+		if (target == NULL) {
+			log_error("Target expected for attr %s", pp);
+			res = -EINVAL;
+			goto out_free;
+		}
+		pp = config_sep_string(&p);
+		if (strcmp(pp, "1") == 0)
+			target->per_portal_acl = 1;
+		else if (strcmp(pp, "0") == 0)
+			target->per_portal_acl = 0;
+		else {
+			log_error("Unknown value %s", pp);
+			res = -EINVAL;
+			goto out_free;
+		}
+	}else if (strcasecmp(ISCSI_ISNS_SERVER_PARAM_NAME, pp) == 0) {
 		if (target != NULL) {
 			log_error("Not NULL target %s for global attribute %s",
 				target->name, pp);

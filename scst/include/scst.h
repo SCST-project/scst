@@ -2293,6 +2293,8 @@ static inline int scst_register_virtual_dev_driver(
 
 void scst_unregister_virtual_dev_driver(struct scst_dev_type *dev_type);
 
+bool scst_initiator_has_luns(struct scst_tgt *tgt, const char *initiator_name);
+
 struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
 	const uint8_t *lun, int lun_len, const uint8_t *cdb,
 	int cdb_len, int atomic);

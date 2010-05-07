@@ -414,6 +414,7 @@ static int add_session(void __user *ptr)
 #ifdef CONFIG_SCST_PROC
 	info->user_name[sizeof(info->user_name)-1] = '\0';
 #endif
+	info->full_initiator_name[sizeof(info->full_initiator_name)-1] = '\0';
 
 	target = target_lookup_by_id(info->tid);
 	if (target == NULL) {
@@ -517,6 +518,39 @@ static int iscsi_params_config(void __user *ptr, int set)
 			goto out;
 		}
 	}
+
+out:
+	TRACE_EXIT_RES(err);
+	return err;
+}
+
+/* target_mgmt_mutex supposed to be locked */
+static int iscsi_initiator_allowed(void __user *ptr)
+{
+	int err = 0, rc;
+	struct iscsi_kern_initiator_info cinfo;
+	struct iscsi_target *target;
+
+	TRACE_ENTRY();
+
+	rc = copy_from_user(&cinfo, ptr, sizeof(cinfo));
+	if (rc != 0) {
+		PRINT_ERROR("Failed to copy %d user's bytes", rc);
+		err = -EFAULT;
+		goto out;
+	}
+
+	cinfo.full_initiator_name[sizeof(cinfo.full_initiator_name)-1] = '\0';
+
+	target = target_lookup_by_id(cinfo.tid);
+	if (target == NULL) {
+		PRINT_ERROR("Target %d not found", cinfo.tid);
+		err = -ENOENT;
+		goto out;
+	}
+
+	err = scst_initiator_has_luns(target->scst_tgt,
+		cinfo.full_initiator_name);
 
 out:
 	TRACE_EXIT_RES(err);
@@ -1054,6 +1088,10 @@ static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		err = mgmt_cmd_callback((void __user *)arg);
 		break;
 #endif
+
+	case ISCSI_INITIATOR_ALLOWED:
+		err = iscsi_initiator_allowed((void __user *)arg);
+		break;
 
 	case ADD_SESSION:
 		err = add_session((void __user *)arg);

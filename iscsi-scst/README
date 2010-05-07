@@ -153,6 +153,20 @@ is /sys/kernel/scst_tgt/targets/iscsi. It has the following entries:
    "AccessControl" attribute, which allows to enable iSNS access
    control. Empty by default.
 
+ - allowed_portal[num] - optional attribute, which specifies, on which
+   portals (target's IP addresses) this target will be available. If not
+   specified (default) the target will be available on all all portals.
+   As soon as at least one allowed_portal specified, the target will be
+   accessible for initiators only on the specified portals. There might
+   be any number of the allowed_portal attributes. The portals
+   specification in the allowed_portal attributes can be a simple
+   DOS-type patterns, containing '*' and '?' symbols. '*' means match
+   all any symbols, '?' means match only any single symbol. For
+   instance, "10.170.77.2" will match "10.170.7?.*". Additionally, you
+   can use negative sign '!' to revert the value of the pattern. For
+   instance, "10.170.67.2" will match "!10.170.7?.*". See examples
+   below.
+
  - enabled - using this attribute you can enable or disable iSCSI-SCST
    accept new connections. It allows to finish configuring global
    iSCSI-SCST attributes before it starts accepting new connections. 0
@@ -160,6 +174,15 @@ is /sys/kernel/scst_tgt/targets/iscsi. It has the following entries:
 
  - open_state - read-only attribute, which allows to see if the user
    space part of iSCSI-SCST connected to the kernel part.
+
+ - per_portal_acl - if set, makes iSCSI-SCST work in the per-portal
+   access control mode. In this mode iSCSI-SCST registers all initiators
+   in SCST core as "initiator_name#portal_IP_address" pattern, like
+   "iqn.2006-10.net.vlnb:ini#10.170.77.2" for initiator
+   iqn.2006-10.net.vlnb connected through portal 10.170.77.2. This mode
+   allows to make particular initiators be able to use only particular
+   portals on the target and don't see/be able to connect through
+   others. See below for more details.
 
  - trace_level - allows to enable and disable various tracing
    facilities. See content of this file for help how to use it.
@@ -482,6 +505,7 @@ both iSCSI-SCST targets will look like:
 |       |   |   |   |-- device -> ../../../../../devices/cdrom
 |       |   |   |   `-- read_only
 |       |   |   `-- mgmt
+|       |   |-- per_portal_acl
 |       |   |-- rel_tgt_id
 |       |   |-- sessions
 |       |   |   `-- iqn.2005-03.org.open-iscsi:cacdcd2520
@@ -542,6 +566,7 @@ both iSCSI-SCST targets will look like:
 |       |   |   |   |-- device -> ../../../../../devices/nullio
 |       |   |   |   `-- read_only
 |       |   |   `-- mgmt
+|       |   |-- per_portal_acl
 |       |   |-- rel_tgt_id
 |       |   |-- sessions
 |       |   |   `-- iqn.2005-03.org.open-iscsi:cacdcd2520
@@ -573,6 +598,92 @@ both iSCSI-SCST targets will look like:
 |-- threads
 |-- trace_level
 `-- version
+
+
+Advanced initiators access control
+----------------------------------
+
+ISCSI-SCST allows you to optionally control visibility and accessibility
+of your target and its portals (IP addresses) to remote initiators. This
+control includes both the target's portals SendTargets discovery as well
+as regular LUNs access.
+
+This facility supersedes the obsolete initiators.[allow,deny] method,
+which is going to be removed in one of the future versions.
+
+This facility is available only in the sysfs build of iSCSI-SCST.
+
+By default, all portals are available for the initiators.
+
+1. If you want to enable/disable one or more target's portals for all
+initiators, you should define one ore more allowed_portal attributes.
+For example:
+
+echo 'add_target_attribute iqn.2006-10.net.vlnb:tgt allowed_portal 10.170.77.2' >/sys/kernel/scst_tgt/targets/iscsi/mgmt
+
+will enable only portal 10.170.77.2 and disable all other portals
+
+echo 'add_target_attribute iqn.2006-10.net.vlnb:tgt allowed_portal 10.170.77.2' >/sys/kernel/scst_tgt/targets/iscsi/mgmt
+echo 'add_target_attribute iqn.2006-10.net.vlnb:tgt allowed_portal 10.170.75.2' >/sys/kernel/scst_tgt/targets/iscsi/mgmt
+
+will enable only portals 10.170.77.2 and 10.170.75.2 and disable all
+other portals. 
+
+echo 'add_target_attribute iqn.2006-10.net.vlnb:tgt allowed_portal 10.170.7?.2' >/sys/kernel/scst_tgt/targets/iscsi/mgmt
+
+will enable only portals 10.170.7x.2 and disable all other portals. 
+
+echo 'add_target_attribute iqn.2006-10.net.vlnb:tgt allowed_portal !*' >/sys/kernel/scst_tgt/targets/iscsi/mgmt
+
+will disable all portals.
+
+2. If you want to want to allow only only specific set of initiators be
+able to connect to your target, you should don't add any default LUNs
+for the target and create for allowed initiators a security group to
+which they will be assigned.
+
+For example, we want initiator iqn.2005-03.org.vlnb:cacdcd2520 and only
+it be able to access target iqn.2006-10.net.vlnb:tgt:
+
+echo 'add_target iqn.2006-10.net.vlnb:tgt' >/sys/kernel/scst_tgt/targets/iscsi/mgmt
+echo 'create allowed_ini' >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/ini_groups/mgmt
+echo 'add dev1 0' >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/ini_groups/allowed_ini/luns/mgmt
+echo 'add iqn.2005-03.org.vlnb:cacdcd2520' >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/ini_groups/allowed_ini/initiators/mgmt
+echo 1 >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/enabled
+
+Since there will be no default LUNs for the target, all initiators other
+than iqn.2005-03.org.vlnb:cacdcd2520 will be blocked from accessing it.
+
+Alternatively, you can create an empty security group and filter out in
+it all initiators except the allowed one:
+
+echo 'add_target iqn.2006-10.net.vlnb:tgt' >/sys/kernel/scst_tgt/targets/iscsi/mgmt
+echo 'add dev1 0' >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/luns/mgmt
+echo 'create denied_inis' >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/ini_groups/mgmt
+echo 'add !iqn.2005-03.org.vlnb:cacdcd2520' >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/ini_groups/denied_inis/initiators/mgmt
+echo 1 >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/enabled
+
+3. If you want to enable/disable one or more target's portals for
+particular initiators, you should set per_portal_acl attribute to 1 and
+specify SCST access control to those initiators. If an SCST security
+group doesn't have any LUNs, all the initiator, which should be assigned
+to it, will not see this target and/or its portal. For example:
+
+(We assume that an empty group "BLOCKING_GROUP" is already created by for
+target iqn.2006-10.net.vlnb:tgt by command (see above for more information):
+"echo 'create BLOCKING_GROUP' >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/ini_groups/mgmt)
+
+echo 'add iqn.2005-03.org.vlnb:cacdcd2520#10.170.77.2' >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/ini_groups/BLOCKING_GROUP/initiators/mgmt
+
+will block access of initiator iqn.2005-03.org.vlnb:cacdcd2520 to
+target iqn.2006-10.net.vlnb:tgt portal 10.170.77.2.
+
+Another example:
+
+echo 'add iqn.2005-03.org.vlnb:cacdcd2520*' >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/ini_groups/BLOCKING_GROUP/initiators/mgmt
+
+will block access of initiator iqn.2005-03.org.vlnb:cacdcd2520 to
+all target iqn.2006-10.net.vlnb:tgt portals.
 
 
 Troubleshooting

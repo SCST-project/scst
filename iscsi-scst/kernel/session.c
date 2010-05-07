@@ -66,7 +66,7 @@ static int iscsi_session_alloc(struct iscsi_target *target,
 	else
 		sprintf(name, "%s", info->initiator_name);
 #else
-	name =  info->initiator_name;
+	name = info->full_initiator_name;
 #endif
 
 	INIT_LIST_HEAD(&session->conn_list);

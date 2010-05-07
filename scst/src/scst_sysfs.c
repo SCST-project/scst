@@ -1393,6 +1393,30 @@ static struct kobj_type scst_session_ktype = {
 	.default_attrs = scst_session_attrs,
 };
 
+static int scst_create_sess_luns_link(struct scst_session *sess)
+{
+	int retval;
+
+	if (sess->acg == sess->tgt->default_acg)
+		retval = sysfs_create_link(&sess->sess_kobj,
+				sess->tgt->tgt_luns_kobj, "luns");
+	else
+		retval = sysfs_create_link(&sess->sess_kobj,
+				sess->acg->luns_kobj, "luns");
+
+	if (retval != 0)
+		PRINT_ERROR("Can't create luns link for initiator %s",
+			sess->initiator_name);
+
+	return retval;
+}
+
+int scst_recreate_sess_luns_link(struct scst_session *sess)
+{
+	sysfs_remove_link(&sess->sess_kobj, "luns");
+	return scst_create_sess_luns_link(sess);
+}
+
 /* scst_mutex supposed to be locked */
 int scst_create_sess_sysfs(struct scst_session *sess)
 {
@@ -1463,12 +1487,7 @@ restart:
 		}
 	}
 
-	if (sess->acg == sess->tgt->default_acg)
-		retval = sysfs_create_link(&sess->sess_kobj,
-				sess->tgt->tgt_luns_kobj, "luns");
-	else
-		retval = sysfs_create_link(&sess->sess_kobj,
-				sess->acg->luns_kobj, "luns");
+	retval = scst_create_sess_luns_link(sess);
 
 out_free:
 	if (name != sess->initiator_name)

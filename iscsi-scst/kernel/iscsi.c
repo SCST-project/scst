@@ -3574,7 +3574,9 @@ static struct scst_trace_log iscsi_local_trace_tbl[] = {
 	"       echo \"add_target_attribute target_name IncomingUser name password\" >mgmt\n" \
 	"       echo \"del_target_attribute target_name IncomingUser name\" >mgmt\n" \
 	"       echo \"add_target_attribute target_name OutgoingUser name password\" >mgmt\n" \
-	"       echo \"del_target_attribute target_name OutgoingUser name\" >mgmt\n"
+	"       echo \"del_target_attribute target_name OutgoingUser name\" >mgmt\n" \
+	"       echo \"add_target_attribute target_name allowed_portal portal_mask\" >mgmt\n" \
+	"       echo \"del_target_attribute target_name allowed_portal portal_mask\" >mgmt\n"
 
 struct scst_tgt_template iscsi_template = {
 	.name = "iscsi",

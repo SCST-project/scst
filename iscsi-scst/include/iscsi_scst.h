@@ -26,6 +26,11 @@
 /* The maximum length of 223 bytes in the RFC. */
 #define ISCSI_NAME_LEN		256
 
+#define ISCSI_PORTAL_LEN	64
+
+/* Full name is iSCSI name + connected portal */
+#define ISCSI_FULL_NAME_LEN	(ISCSI_NAME_LEN + ISCSI_PORTAL_LEN)
+
 #define ISCSI_LISTEN_PORT	3260
 
 #define SCSI_ID_LEN		24
@@ -88,6 +93,7 @@ struct iscsi_kern_session_info {
 #ifdef CONFIG_SCST_PROC
 	char user_name[ISCSI_NAME_LEN];
 #endif
+	char full_initiator_name[ISCSI_FULL_NAME_LEN];
 	u32 exp_cmd_sn;
 	s32 session_params[session_key_last];
 	s32 target_params[target_key_last];
@@ -171,6 +177,11 @@ struct iscsi_kern_attr_info {
 	struct iscsi_kern_attr attr;
 };
 
+struct iscsi_kern_initiator_info {
+	u32 tid;
+	char full_initiator_name[ISCSI_FULL_NAME_LEN];
+};
+
 #define	DEFAULT_NR_QUEUED_CMNDS	32
 #define	MIN_NR_QUEUED_CMNDS	1
 #define	MAX_NR_QUEUED_CMNDS	256
@@ -200,6 +211,8 @@ struct iscsi_kern_attr_info {
 #define ISCSI_ATTR_DEL		_IOW('s', 10, struct iscsi_kern_attr_info)
 #define MGMT_CMD_CALLBACK	_IOW('s', 11, struct iscsi_kern_mgmt_cmd_res_info)
 #endif
+
+#define ISCSI_INITIATOR_ALLOWED	_IOW('s', 12, struct iscsi_kern_initiator_info)
 
 static inline int iscsi_is_key_internal(int key)
 {

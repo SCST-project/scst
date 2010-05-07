@@ -54,6 +54,7 @@ void conn_free(struct connection *conn)
 {
 	list_del(&conn->clist);
 	free(conn->initiator);
+	free(conn->target_portal);
 	free(conn->user);
 	free(conn);
 	return;

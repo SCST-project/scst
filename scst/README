@@ -495,10 +495,12 @@ following files and directories under /proc/scsi_tgt:
     for group "GROUP_NAME"
 
   - "add NAME" to /proc/scsi_tgt/groups/GROUP_NAME/names adds name "NAME" to group
-    "GROUP_NAME". For NAME you can use simple DOS-type patterns, containing
-    '*' and '?' symbols. '*' means match all any symbols, '?' means
-    match only any single symbol. For instance, "blah.xxx" will match
-    "bl?h.*".
+    "GROUP_NAME". For NAME you can use simple DOS-type patterns,
+    containing '*' and '?' symbols. '*' means match all any symbols, '?'
+    means match only any single symbol. For instance, "blah.xxx" will
+    match "bl?h.*". Additionally, you can use negative sign '!' to
+    revert the value of the pattern. For instance, "ah.xxx" will match
+    "!bl?h.*".
 
   - "del NAME" to /proc/scsi_tgt/groups/GROUP_NAME/names deletes name "NAME" from group
     "GROUP_NAME"
@@ -874,7 +876,9 @@ looking inside this file.
 For "add" and "del" commands INITIATOR_NAME can be a simple DOS-type
 patterns, containing '*' and '?' symbols. '*' means match all any
 symbols, '?' means match only any single symbol. For instance,
-"blah.xxx" will match "bl?h.*".
+"blah.xxx" will match "bl?h.*". Additionally, you can use negative sign
+'!' to revert the value of the pattern. For instance, "ah.xxx" will
+match "!bl?h.*".
 
 Each "luns" subdirectory contains the list of already defined LUNs for
 this group as well as file "mgmt". Content of this file as well as list
