@@ -763,9 +763,9 @@ sub writeConfiguration {
 	print $io "\n";
 
 	foreach my $handler (sort keys %{$CURRENT{'handler'}}) {
-		my $handler_params = $SCST->deviceCreateParameters($handler);
+		my $handler_buff;
 
-		print $io "HANDLER $handler {\n";
+		my $handler_params = $SCST->deviceCreateParameters($handler);
 
 		$parameters = $SCST->handlerParameters($handler);
 
@@ -775,19 +775,19 @@ sub writeConfiguration {
 			if (!$$parameters{$parameter}->{'static'}) {
 				my $value = $$parameters{$parameter}->{'value'};
 				$value = "\"$value\"" if ($value =~ / /);
-				print $io "\t$parameter $value\n" if (defined($value));
+				$handler_buff .= "\t$parameter $value\n" if (defined($value));
 			}
 		}
 
 		my $devices = $CURRENT{'handler'}->{$handler};
 
+		my $device_buff;
 		foreach my $device (@{$devices}) {
-			print $io "\n\tDEVICE $device {\n";
+			$device_buff .= "\tDEVICE $device";
 
 			$parameters = $SCST->deviceParameters($device);
 
-			my $written = 0;
-
+			my $parameter_buff;
 			foreach my $parameter (sort keys %{$parameters}) {
 				next if (defined($$parameters{$parameter}->{'set'}));
 
@@ -796,17 +796,16 @@ sub writeConfiguration {
 						my $value = $$parameters{$parameter}->{'value'};
 						$value = "\"$value\"" if ($value =~ / /);
 						if (defined($value)) {
-							print $io "\t\t$parameter $value\n";
-							$written++;
+							$parameter_buff .= "\t\t$parameter $value\n";
 						}
 					}
 				}
 			}
 
-			print $io "\n" if ($written);
+			$parameter_buff .= "\n" if ($parameter_buff);
 
 			if (!defined($$parameters{'scsi_device'})) {
-				print $io "\t\tCREATE_ATTRIBUTES {\n";
+				$parameter_buff .= "\t\tCREATE_ATTRIBUTES {\n";
 
 				foreach my $parameter (sort keys %{$parameters}) {
 					next if (defined($$parameters{$parameter}->{'set'}));
@@ -814,30 +813,46 @@ sub writeConfiguration {
 					if (defined($$handler_params{$parameter})) {
 						my $value = $$parameters{$parameter}->{'value'};
 						$value = "\"$value\"" if ($value =~ / /);
-						print $io "\t\t\t$parameter $value\n" if (defined($value));
+						$parameter_buff .= "\t\t\t$parameter $value\n"
+						  if (defined($value));
 					}
 				}
 
-				print $io "\t\t}\n";
+				$parameter_buff .= "\t\t}\n";
 			}
 
-			print $io "\t}\n";
+			if ($parameter_buff) {
+				$device_buff .= " {\n";
+				$device_buff .= $parameter_buff;
+				$device_buff .= "\t}\n\n";
+			} else {
+				$device_buff .= "\n";
+			}
 		}
 
-		print $io "}\n\n";
+		$device_buff =~ s/\n+$/\n/;
+
+		$handler_buff .= $device_buff;
+
+		if ($handler_buff) {
+			print $io "HANDLER $handler {\n";
+			print $io $handler_buff;
+			print $io "}\n\n";
+		}
 	}
 
 	foreach my $driver (sort keys %{$CURRENT{'assign'}}) {
-		print $io "TARGET_DRIVER $driver {\n";
+		my $driver_buff;
 
 		my $targets = $CURRENT{'assign'}->{$driver};
 
+		my $target_buff;
 		foreach my $target (sort keys %{$targets}) {
+			$target_buff .= "\tTARGET $target";
+
 			my $tgt_params = $SCST->targetParameters($driver, $target);
 
-			print $io "\n\tTARGET $target {";
-
-			my $_wrote = FALSE;
+			my $parameter_buff;
 			foreach my $parm (keys %{$tgt_params}) {
 				next if ($$tgt_params{$parm}->{'static'});
 				next if ($$tgt_params{$parm}->{'set'});
@@ -848,29 +863,31 @@ sub writeConfiguration {
 
 				$value = "\"$value\"" if ($value =~ /\s/);
 
-				print $io "\n\t\t$parm $value";
-				$_wrote = TRUE;
+				$parameter_buff .= "\t\t$parm $value\n";
 			}
 
-			print $io "\n" if ($_wrote);
+			$parameter_buff .= "\n" if ($parameter_buff);
 
 			my $groups = $CURRENT{'assign'}->{$driver}->{$target};
 
+			my $group_buff;
 			foreach my $group (sort keys %{$groups}) {
 				my $lun_params = $SCST->lunCreateParameters($driver, $target, $group);
 				my $ini_params = $SCST->initiatorCreateParameters($driver, $target, $group);
 
-				print $io "\n\t\tGROUP $group {";
+				$group_buff .= "\t\tGROUP $group";
 
 				my $luns = $CURRENT{'assign'}->{$driver}->{$target}->{$group}->{'LUNS'};
 
+				my $lun_buff;
 				foreach my $lun (sort numerically keys %{$luns}) {
 					my $lun_dev = $$luns{$lun};
 
-					print $io "\n\t\t\tLUN $lun $lun_dev {\n";
+					$lun_buff .= "\t\t\tLUN $lun $lun_dev";
 
 					$parameters = $SCST->lunParameters($driver, $target, $group, $lun);
 
+					my $parameter_buff;
 					foreach my $parameter (sort keys %{$parameters}) {
 						next if (defined($$parameters{$parameter}->{'set'}));
 
@@ -878,20 +895,29 @@ sub writeConfiguration {
 						    defined($$lun_params{$parameter})) {
 							my $value = $$parameters{$parameter}->{'value'};
 							$value = "\"$value\"" if ($value =~ / /);
-							print $io "\t\t\t\t$parameter $value\n" if (defined($value));
+							$parameter_buff .= "\t\t\t\t$parameter $value\n"
+							  if (defined($value));
 						}
 					}
 
-					print $io "\t\t\t}\n";
+					if ($parameter_buff) {
+						$lun_buff .= " {\n";
+						$lun_buff .= $parameter_buff;
+						$lun_buff .= "\t\t\t}\n\n";
+					} else {
+						$lun_buff .= "\n";
+					}
 				}
 
 				my $inits = $CURRENT{'assign'}->{$driver}->{$target}->{$group}->{'INITIATORS'};
 
+				my $init_buff;
 				foreach my $init (@{$inits}) {
-					print $io "\n\t\t\tINITIATOR $init {\n";
+					$init_buff .= "\t\t\tINITIATOR $init";
 
 					$parameters = $SCST->initiatorParameters($driver, $target, $group, $init);
 
+					my $parameter_buff;
 					foreach my $parameter (sort keys %{$parameters}) {
 						next if (defined($$parameters{$parameter}->{'set'}));
 
@@ -899,20 +925,71 @@ sub writeConfiguration {
 						    defined($$ini_params{$parameter})) {
 							my $value = $$parameters{$parameter}->{'value'};
 							$value = "\"$value\"" if ($value =~ / /);
-							print $io "\t\t\t\t$parameter $value\n" if (defined($value));
+							$parameter_buff .= "\t\t\t\t$parameter $value\n"
+							  if (defined($value));
 						}
 					}
 
-					print $io "\t\t\t}\n";
+					if ($parameter_buff) {
+						$init_buff .= " {\n";
+						$init_buff .= $parameter_buff;
+						$init_buff .= "\t\t\t}\n";
+					} else {
+						$init_buff .= "\n";
+					}
+
+					$init_buff .= "\n";
 				}
 
-				print $io "\t\t}\n";
+				$init_buff =~ s/\n\n$/\n/;
+
+				if ($lun_buff || $init_buff) {
+					$group_buff .= " {\n";
+
+					if ($lun_buff) {
+						$group_buff .= $lun_buff;
+					}
+
+					if ($init_buff) {
+						$group_buff .= $init_buff;
+					}
+
+					$group_buff =~ s/\n\n$/\n/;
+					$group_buff .= "\t\t}\n\n";
+				}
+
+				$group_buff .= "\n";
+				$group_buff =~ s/\n\n$/\n/;
 			}
 
-			print $io "\t}\n";
+			$group_buff .= "\n" if ($group_buff);
+
+			if ($parameter_buff || $group_buff ) {
+				$target_buff .= " {\n";
+
+				if ($parameter_buff) {
+					$target_buff .= $parameter_buff;
+				}
+
+				if ($group_buff) {
+					$target_buff .= $group_buff;
+				}
+
+				$target_buff =~ s/\n\n$/\n/;
+				$target_buff .= "\t}\n\n";
+			} else {
+				$target_buff .= "\n";
+			}
 		}
 
-		print $io "}\n\n";
+		$driver_buff .= $target_buff;
+		$driver_buff =~ s/\n\n$/\n/;
+
+		if ($driver_buff) {
+			print $io "TARGET_DRIVER $driver {\n";
+			print $io $driver_buff;
+			print $io "}\n\n";
+		}
 	}
 
 	close $io;
@@ -1148,6 +1225,8 @@ sub clearConfiguration {
 			}
 		}
 	}
+
+	# TODO: should we disable all target drivers as well?
 }
 
 ####################################################################
