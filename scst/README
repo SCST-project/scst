@@ -1501,13 +1501,18 @@ In order to get the maximum performance you should:
  - Disable in Makefile CONFIG_SCST_TRACING and CONFIG_SCST_DEBUG.
 
 
-IMPORTANT: Some of the above compilation options in the SCST SVN enabled
-=========  by default, i.e. the development version of SCST is optimized
-	   for development and bug hunting, not for performance. For it
-	   you can set the above options, except
-	   CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ, in the
-	   needed values by command "make debug2perf" performed in
-	   trunk/.
+IMPORTANT: The development version of SCST in the SVN is optimized for
+=========  development and bug hunting, not for performance. To reconfigure
+	   it for performance you should run "make debug2perf" in the
+	   root of your source code (e.g. trunk/). It will set the above
+	   options as needed. The only option it doesn't set is
+	   CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ, so, if
+	   needed, you should change it manually.
+
+IMPORTANT: You can't use debug SCST drivers with non-debug SCST core.
+=========  So, after disabling both CONFIG_SCST_TRACING and CONFIG_SCST_DEBUG
+	   for SCST core you have to disable them for all SCST drivers
+	   you are using as well.
 
 4. Make sure you have io_grouping_type option set correctly, especially
 in the following cases:
