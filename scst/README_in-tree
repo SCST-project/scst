@@ -1078,15 +1078,6 @@ In order to get the maximum performance you should:
 
  - Disable in Makefile CONFIG_SCST_TRACING and CONFIG_SCST_DEBUG.
 
-
-IMPORTANT: Some of the above compilation options in the SCST SVN enabled
-=========  by default, i.e. the development version of SCST is optimized
-	   for development and bug hunting, not for performance. For it
-	   you can set the above options, except
-	   CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ, in the
-	   needed values by command "make debug2perf" performed in
-	   trunk/.
-
 4. Make sure you have io_grouping_type option set correctly, especially
 in the following cases:
 

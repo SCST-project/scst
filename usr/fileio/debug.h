@@ -101,8 +101,8 @@ do {								\
 
 #else  /* DEBUG || TRACING */
 
-#define TRACE(trace, args...) {}
-#define PRINT_BUFFER(message, buff, len) {}
+#define TRACE(trace, args...) do {} while (0)
+#define PRINT_BUFFER(message, buff, len) do {} while (0)
 
 static inline int debug_init(void) { return 0; }
 static inline void debug_done(void) {}
@@ -257,16 +257,16 @@ do {								\
 #define	NDEBUG
 #include <assert.h>
 
-#define TRACE_MEM(format, args...) {}
-#define TRACE_DBG(format, args...) {}
-#define TRACE_DBG_SPECIAL(args...) {}
-#define TRACE_MGMT_DBG(format, args...) {}
-#define TRACE_BUFFER(message, buff, len) {}
-#define TRACE_BUFF_FLAG(flag, message, buff, len) {}
-#define TRACE_ENTRY() {}
-#define TRACE_EXIT() {}
-#define TRACE_EXIT_RES(res) {}
-#define TRACE_EXIT_HRES(res) {}
+#define TRACE_MEM(format, args...) do {} while (0)
+#define TRACE_DBG(format, args...) do {} while (0)
+#define TRACE_DBG_SPECIAL(args...) do {} while (0)
+#define TRACE_MGMT_DBG(format, args...) do {} while (0)
+#define TRACE_BUFFER(message, buff, len) do {} while (0)
+#define TRACE_BUFF_FLAG(flag, message, buff, len) do {} while (0)
+#define TRACE_ENTRY() do {} while (0)
+#define TRACE_EXIT() do {} while (0)
+#define TRACE_EXIT_RES(res) do {} while (0)
+#define TRACE_EXIT_HRES(res) do {} while (0)
 
 #ifdef LOG_PREFIX
 
