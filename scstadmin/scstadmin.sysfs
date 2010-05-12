@@ -188,6 +188,7 @@ MAX_LUNS         => 255,
 };
 
 my $SCST;
+my $CONFIG;
 my $_DEBUG_;
 
 my %CURRENT;
@@ -1000,11 +1001,9 @@ sub writeConfiguration {
 sub checkConfiguration {
 	my $file = shift;
 
-	print "Checking configuration file '$file' for errors: ";
+	print "-> Checking configuration file '$file' for errors.\n";
 
-	my $config = readConfig($file);
-
-	print "done\n";
+	$CONFIG = readConfig($file);
 
 	return FALSE;
 }
@@ -1013,26 +1012,26 @@ sub applyConfiguration {
 	my $file = shift;
 	my $force = shift;
 
-	my $config = readConfig($file);
+	$CONFIG = readConfig($file) if (!$CONFIG);
 
 	# Apply config deletions
 	if ($force) {
-		applyConfigAssignments($config, $force);
-		applyConfigDevices($config, $force);
+		applyConfigAssignments($CONFIG, $force);
+		applyConfigDevices($CONFIG, $force);
 
 		readWorkingConfig();
 	}
 
 	# Apply config additions
-	applyConfigDevices($config, FALSE);
-	applyConfigAssignments($config, FALSE);
+	applyConfigDevices($CONFIG, FALSE);
+	applyConfigAssignments($CONFIG, FALSE);
 
 	# And SCST parameters..
 	my %_parameters;
-	foreach my $item (keys %{$config}) {
+	foreach my $item (keys %{$CONFIG}) {
 		next if ($item eq 'HANDLER');
 		next if ($item eq 'TARGET_DRIVER');
-		$_parameters{$item} = $$config{$item};
+		$_parameters{$item} = $$CONFIG{$item};
 	}
 
 	my $parameters = configToParm(\%_parameters);
@@ -1052,10 +1051,15 @@ sub applyConfigDevices {
 			    !defined($$config{'HANDLER'}->{$handler}) ||
 			    !defined($$config{'HANDLER'}->{$handler}->{'DEVICE'}) ||
 			    !defined($$config{'HANDLER'}->{$handler}->{'DEVICE'}->{$device})) {
+
+				my $parameters = $SCST->deviceParameters($device);
+
+				next if (defined($$parameters{'scsi_device'}));
+
 				if ($deletions) {
 					closeDevice($device, $handler, $deletions);
 				} else {
-					print "-> Device '$device' is not in configuration. Use -force to close it.\n";
+					print "\t-> Device '$device' is not in configuration. Use -force to close it.\n";
 				}
 			}
 		}
@@ -1098,7 +1102,7 @@ sub applyConfigAssignments {
 					if ($deletions) {
 						removeGroup($group, $driver, $target);
 					} else {
-						print "-> Group '$group' is not in configuration. Use -force to remove.\n";
+						print "\t-> Group '$group' is not in configuration. Use -force to remove.\n";
 					}
 
 					next;
@@ -1115,7 +1119,7 @@ sub applyConfigAssignments {
 						if ($deletions) {
 							removeLun($lun, $driver, $target, $group, $device);
 						} else {
-							print "-> Device '$device' at LUN '$lun' is not in configuration ".
+							print "\t-> Device '$device' at LUN '$lun' is not in configuration ".
 							  "for driver/target/group '$driver/$target/$group'. ".
 							  "Use -force to remove it.\n";
 						}
@@ -1128,7 +1132,7 @@ sub applyConfigAssignments {
 						if ($deletions) {
 							removeInitiator($init, $driver, $target, $group);
 						} else {
-							print "-> Initiator '$init' is not in configuration ".
+							print "\t-> Initiator '$init' is not in configuration ".
 							  "for driver/target/group '$driver/$target/$group'. ".
 							  "Use -force to remove it.\n";
 						}
@@ -1805,9 +1809,11 @@ sub closeDevice {
 	my $handler = shift;
 	my $force = shift;
 
-	if (!$force) {
-		my $parameters = $SCST->deviceParameters($device);
+	my $parameters = $SCST->deviceParameters($device);
 
+	return if (defined($$parameters{'scsi_device'}));
+
+	if (!$force) {
 		if (keys %{$$parameters{'exported'}}) {
 			listExported($device, $parameters);
 			immediateExit("Device '$device' still in use, aborting. ".
@@ -2037,15 +2043,29 @@ sub readConfig {
 	  if (!$io);
 
 	while (my $line = <$io>) {
+		my($test, undef) = split(/\#/, $line, 2);
+		if ($test =~ /\[(.*)\s+.*\]/) {
+			my $parm = $1;
+
+			if (($parm eq 'HANDLER') || ($parm eq 'GROUP') ||
+			    ($parm eq 'ASSIGNMENT')) {
+				print "\nWARNING: Using a deprecated configuration file. ".
+				  "I will attempt to convert it for you. ".
+				  "Please note, groups will ONLY be configured for targets set as 'enable' ".
+				  "within your old configuration file.\n\n".
+				  "Please save your new configuration with -write_config and review.\n\n";
+
+				return readOldConfig($file);
+			} 
+		}
+
 		$buffer .= $line;
 	}
 
 	my @buff_a;
 	@buff_a = split(//, $buffer);
 
-	my $config = parseStanza(\@buff_a);
-
-	return $config;
+	return parseStanza(\@buff_a);
 }
 
 sub parseStanza {
@@ -2111,6 +2131,163 @@ sub parseLine {
 	} elsif (defined($parameter)) {
 		$$hash{$parameter} = $child;
 	}
+}
+
+sub readOldConfig {
+	my $confile = shift;
+	my $ignoreError = shift;
+	my %config;
+	my $section;
+	my $last_section;
+	my $arg;
+	my $last_arg;
+	my %empty;         
+
+	my $io = new IO::File $confile, O_RDONLY;
+
+	if (!$io) {
+		return undef if ($ignoreError);
+
+		die("FATAL: Unable to open specified configuration file $confile: $!\n");
+	}
+
+	while (my $line = <$io>) {
+		($line, undef) = split(/\#/, $line, 2);
+		$line =~ s/^\s+//; $line =~ s/\s+$//;
+
+		if ($line =~ /^\[(.*)\]$/) {
+			($section, $arg) = split(/\s+/, $1, 2);
+
+			$arg = 'default' if ($section eq 'OPTIONS');
+
+			if ($last_arg && ($last_arg ne $arg) &&
+			    !defined($config{$last_section}->{$last_arg})) {         
+				$config{$last_section}->{$last_arg} = \%empty;
+			}
+
+			$last_arg = $arg;
+			$last_section = $section;
+		} elsif ($section && $arg && $line) {
+			my($parameter, $value) = split(/\s+/, $line, 2);
+
+			if ($section eq 'OPTIONS') {
+				$value = TRUE if (($value == 1) ||
+						  ($value =~ /^TRUE$/i) ||
+						  ($value =~ /^YES$/i));
+				$value = FALSE if (($value == 0) ||
+						   ($value =~ /^FALSE$/i) ||
+						   ($value =~ /^NO$/i));
+			}
+
+			push @{$config{$section}->{$arg}->{$parameter}}, $value;
+		}
+	}
+
+	close $io;
+
+	# Convert to our new format
+	my %new;
+
+	my %o_converts = ('WRITE_THROUGH' => 'write_through',
+			  'WT'            => 'write_through',
+			  'READ_ONLY'     => 'read_only',
+			  'RO'            => 'read_only',
+			  'NV_CACHE'      => 'nv_cache',
+			  'NV'            => 'nv_cache',
+			  'REMOVABLE'     => 'removable',
+			  'RM'            => 'removable');
+
+	foreach my $handler (keys %{$config{'HANDLER'}}) {
+		foreach my $device (@{$config{'HANDLER'}->{$handler}->{'DEVICE'}}) {
+			my($device, $path, $options, $bsize, $t10) = split(/\,/, $device);
+
+			my $_handler = $handler;
+
+			foreach my $option (split(/\|/, $options)) {
+				if (($option eq 'NULLIO') || ($option eq 'NIO')) {
+					$_handler = 'vdisk_nullio' if ($_handler eq 'vdisk');
+				} elsif (($option eq 'BLOCKIO') || ($option eq 'BIO')) {
+					$_handler = 'vdisk_blockio' if ($_handler eq 'vdisk');
+				}
+			}
+
+			if ($_handler eq 'vdisk') {
+				$_handler = 'vdisk_fileio';
+			}
+
+			foreach my $option (split(/\|/, $options)) {
+				if (defined($o_converts{$option})) {
+					%{$new{'HANDLER'}->{$_handler}->{'DEVICE'}->{$device}->{'CREATE_ATTRIBUTES'}->{$o_converts{$option}}->{'1'}} = ();
+				}
+			}
+
+			%{$new{'HANDLER'}->{$_handler}->{'DEVICE'}->{$device}->{'t10_dev_id'}->{$t10}} = ()
+			  if ($t10);
+			%{$new{'HANDLER'}->{$_handler}->{'DEVICE'}->{$device}->{'CREATE_ATTRIBUTES'}->{'filename'}->{$path}} = ()
+			  if ($path);
+			%{$new{'HANDLER'}->{$_handler}->{'DEVICE'}->{$device}->{'CREATE_ATTRIBUTES'}->{'blocksize'}->{$bsize}} = ()
+			  if ($bsize);
+		}
+	}
+
+	foreach my $wwn (@{$config{'TARGETS'}->{'enable'}->{'HOST'}}) {
+		my $target = formatTarget($wwn);
+
+		my $driver = findTargetDriver($target);
+
+		if ($driver) {
+			%{$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'enabled'}->{'1'}} = ();
+
+			foreach my $group (keys %{$config{'GROUP'}}) {
+				%{$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}->{$group}} = ();
+				if (defined($config{'GROUP'}->{$group}->{'USER'})) {
+					foreach my $user (@{$config{'GROUP'}->{$group}->{'USER'}}) {
+						%{$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}->{$group}->{'INITIATOR'}->{$user}} = ();
+					}
+				}
+			}
+
+			foreach my $group (keys %{$config{'ASSIGNMENT'}}) {
+				foreach my $device (@{$config{'ASSIGNMENT'}->{$group}->{'DEVICE'}}) {
+					my($device, $lun) = split(/\,/, $device);
+					%{$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}->{$group}->{'LUN'}->{$lun}->{$device}} = ();
+				}
+			}
+		} else {
+			immediateExit("Unable to determine target driver information for target '$wwn'. ".
+			  "Please ensure this target driver is loaded.");
+		}
+	}
+
+	return \%new;
+}
+
+sub findTargetDriver {
+	my $target = shift;
+
+	foreach my $driver (keys %{$CURRENT{'assign'}}) {
+		foreach my $_target (keys %{$CURRENT{'assign'}->{$driver}}) {
+			$_target =~ tr/A-Z/a-z/;
+
+			return $driver if ($_target eq $target);
+		}
+	}
+
+	return undef;
+}
+
+sub formatTarget {
+	my $target = shift;
+
+	if ($target =~ /^0x/) {
+		$target =~ s/^0x//;
+		my($o1, $o2, $o3, $o4, $o5, $o6, $o7, $o8) = unpack("A2A2A2A2A2A2A2A2", $target);
+		$target = "$o1:$o2:$o3:$o4:$o5:$o6:$o7:$o8";
+	}
+
+	$target =~ tr/A-Z/a-z/;
+
+	return $target;
 }
 
 ####################################################################
