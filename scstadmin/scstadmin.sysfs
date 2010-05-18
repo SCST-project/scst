@@ -1000,10 +1000,61 @@ sub writeConfiguration {
 
 sub checkConfiguration {
 	my $file = shift;
+	my $no_drivers;
+	my $no_handlers;
 
 	print "-> Checking configuration file '$file' for errors.\n";
 
-	$CONFIG = readConfig($file);
+	$CONFIG = readConfig($file) if (!$CONFIG);
+
+	# Check for a minimum sane configuration
+	if (!defined($$CONFIG{'TARGET_DRIVER'}) ||
+	    !(scalar keys %{$$CONFIG{'TARGET_DRIVER'}})) {
+		print "\t-> WARNING: No TARGET_DRIVER section defined. ".
+		  "No target drivers will be configured.\n";
+		$no_drivers = TRUE;
+	}
+
+	if (!defined($$CONFIG{'HANDLER'}) ||
+	    !(scalar keys %{$$CONFIG{'HANDLER'}})) {
+		print "\t-> WARNING: No HANDLER section defined. ".
+		  "Only physical media will be configured for targets.\n";
+		$no_handlers = TRUE;
+	}
+
+	if ($no_drivers && $no_handlers) {
+		immediateExit("No target drivers or handlers defined, aborting!");
+	}
+
+	if (!$no_drivers) {
+		foreach my $driver (keys %{$$CONFIG{'TARGET_DRIVER'}}) {
+			my $no_targets;
+
+			if (!defined($CURRENT{'assign'}->{$driver})) {
+				print "\t-> WARNING: Target driver '$driver' is not loaded or available.\n";
+				next;
+			}
+
+			if (!defined($$CONFIG{'TARGET_DRIVER'}->{$driver}->{'TARGET'}) ||
+			    !(scalar keys %{$$CONFIG{'TARGET_DRIVER'}->{$driver}->{'TARGET'}})) {
+				print "\t-> WARNING: Driver '$driver' has no configured targets.\n";
+				$no_targets = TRUE;
+			}
+
+			if (!$no_targets) {
+				foreach my $target (keys %{$$CONFIG{'TARGET_DRIVER'}->{$driver}->{'TARGET'}}) {
+					if (!defined($CURRENT{'assign'}->{$driver}->{$target})) {
+						print "\t-> WARNING: Target '$target' for driver '$driver' ".
+						  "does not exist.\n";
+					}
+				}
+			}
+		}
+	}
+
+use Data::Dumper;
+#print Dumper($CONFIG);
+#print Dumper(\%CURRENT);
 
 	return FALSE;
 }
@@ -1149,56 +1200,112 @@ sub applyConfigAssignments {
 			immediateExit("Target driver '$driver' is not loaded or available.");
 		}
 
-		my $targets = $$assignments{$driver}->{'TARGET'};
-		foreach my $target (sort keys %{$targets}) {
-			if (!defined($CURRENT{'assign'}->{$driver}->{$target})) {
-				immediateExit("Target '$target' for driver '$driver' does not exist.");
-			}
-
-			my $groups = $$targets{$target}->{'GROUP'};
-			foreach my $group (sort keys %{$groups}) {
-				if (!defined($CURRENT{'assign'}->{$driver}->{$target}->{$group})) {
-					addGroup($group, $driver, $target);
-				}
-
-				my $inits = $CURRENT{'assign'}->{$driver}->{$target}->{$group}->{'INITIATORS'};
-				my $luns = $CURRENT{'assign'}->{$driver}->{$target}->{$group}->{'LUNS'};
-
-				if (defined($$groups{$group}->{'LUN'})) {
-					foreach my $lun (sort keys %{$$groups{$group}->{'LUN'}}) {
-						if (!defined($$luns{$lun})) {
-							if ((keys %{$$groups{$group}->{'LUN'}->{$lun}}) > 1) {
-								immediateExit("Invalid configuration encountered. ".
-								  "Driver/target/group/lun $driver/$target/$group/$lun ".
-								  "has multiple devices assigned.");
-							}
-
-							foreach my $device (sort keys %{$$groups{$group}->{'LUN'}->{$lun}}) {
-								my $parameters = configToParm($$groups{$group}->{'LUN'}->{$lun}->{$device});
-								addLun($lun, $driver, $target, $group, $device, $parameters);
-							}
-						}
-					}
-				}
-
-				if (defined($$groups{$group}->{'INITIATOR'})) {
-					foreach my $initiator (sort keys %{$$groups{$group}->{'INITIATOR'}}) {
-						if (!groupHasInitiator($inits, $initiator)) {
-							addInitiator($initiator, $driver, $target, $group);
-						}
-					}
-				}
-			}
-
-			my %_parameters;
-			foreach my $item (keys %{$$targets{$target}}) {
-				next if ($item eq 'GROUP');
-				$_parameters{$item} = $$targets{$target}->{$item};
+		my %_parameters;
+		foreach my $item (keys %{$$assignments{$driver}}) {
+			if ($item eq 'TARGET') {
+				applyTargetAssignments($driver, $$assignments{$driver}->{$item});
+			} else {
+				$_parameters{$item} = $$assignments{$driver}->{$item};
 			}
 
 			my $parameters = configToParm(\%_parameters);
 
-			setTargetParameters($target, $driver, $parameters);
+			setDriverParameters($driver, $parameters);
+		}
+	}
+}
+
+sub applyTargetAssignments {
+	my $driver = shift;
+	my $targets = shift;
+
+	foreach my $target (sort keys %{$targets}) {
+		if (!defined($CURRENT{'assign'}->{$driver}->{$target})) {
+			immediateExit("Target '$target' for driver '$driver' does not exist.");
+		}
+
+		my %_parameters;
+		foreach my $item (keys %{$$targets{$target}}) {
+			if ($item eq 'GROUP') {
+				applyGroupAssignments($driver, $target, $$targets{$target}->{$item});
+			} elsif ($item eq 'LUN') {
+				applyLunAssignments($driver, $target, $$targets{$target}->{$item});
+			} else {
+				$_parameters{$item} = $$targets{$target}->{$item};
+			}
+		}
+
+		my $parameters = configToParm(\%_parameters);
+
+		setTargetParameters($target, $driver, $parameters);
+	}
+}
+
+sub applyGroupAssignments {
+	my $driver = shift;
+	my $target = shift;
+	my $groups = shift;
+
+	foreach my $group (sort keys %{$groups}) {
+		if (!defined($CURRENT{'assign'}->{$driver}->{$target}->{$group})) {
+			addGroup($group, $driver, $target);
+		}
+
+
+		my %_parameters;
+		foreach my $item (keys %{$$groups{$group}}) {
+			if ($item eq 'LUN') {
+				applyLunAssignments($driver, $target, $group,
+				  $$groups{$group}->{$item});
+			} elsif ($item eq 'INITIATOR') {
+				applyInitiatorAssignments($driver, $target, $group,
+				  $$groups{$group}->{$item});
+			} else {
+				$_parameters{$item} = $$groups{$group}->{$item};
+			}
+		}
+
+		my $parameters = configToParm(\%_parameters);
+
+		setGroupParameters($target, $driver, $group, $parameters);
+	}
+}
+
+sub applyLunAssignments {
+	my $driver = shift;
+	my $target = shift;
+	my $group = shift;
+	my $luns = shift;
+
+	my $c_luns = $CURRENT{'assign'}->{$driver}->{$target}->{$group}->{'LUNS'};
+
+	foreach my $lun (sort keys %{$luns}) {
+		if (!defined($$c_luns{$lun})) {
+			if ((scalar keys %{$$luns{$lun}}) > 1) {
+				immediateExit("Invalid configuration encountered. ".
+				  "Driver/target/group/lun $driver/$target/$group/$lun ".
+				  "has multiple devices assigned.");
+			}
+
+			foreach my $device (sort keys %{$$luns{$lun}}) {
+				my $parameters = configToParm($$luns{$lun}->{$device});
+				addLun($lun, $driver, $target, $group, $device, $parameters);
+			}
+		}
+	}
+}
+
+sub applyInitiatorAssignments {
+	my $driver = shift;
+	my $target = shift;
+	my $group = shift;
+	my $initiators = shift;
+
+	my $c_inits = $CURRENT{'assign'}->{$driver}->{$target}->{$group}->{'INITIATORS'};
+
+	foreach my $initiator (sort keys %{$initiators}) {
+		if (!groupHasInitiator($c_inits, $initiator)) {
+			addInitiator($initiator, $driver, $target, $group);
 		}
 	}
 }
@@ -1720,6 +1827,36 @@ sub setTargetParameters {
 			immediateExit($SCST->errorString($rc)) if ($rc);
 		} else {
 			print "-> WARNING: Driver/target '$driver/$target' lacks the settable ".
+			  "parameter '$parameter', ignoring.\n";
+		}
+	}
+}
+
+sub setGroupParameters {
+	my $target = shift;
+	my $driver = shift;
+	my $group = shift;
+	my $parameters = shift;
+
+	my $_parameters = $SCST->groupParameters($driver, $target, $group);
+
+	foreach my $parameter (sort keys %{$parameters}) {
+		if (defined($$_parameters{$parameter}) &&
+		    !$$_parameters{$parameter}->{'static'}) {
+			my $value = $$parameters{$parameter};
+
+			next if ($$_parameters{$parameter}->{'value'} eq $value);
+
+			print "-> Setting group parameter '$parameter' to value '$value' for ".
+			  "driver/target/group '$driver/$target/$group': ";
+
+			my $rc = $SCST->setGroupParameter($driver, $target, $group, $parameter, $value);
+
+			print "done.\n";
+
+			immediateExit($SCST->errorString($rc)) if ($rc);
+		} else {
+			print "-> WARNING: Driver/target/group '$driver/$target/$group' lacks the settable ".
 			  "parameter '$parameter', ignoring.\n";
 		}
 	}
