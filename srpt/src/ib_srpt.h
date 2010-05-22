@@ -138,14 +138,15 @@ struct rdma_iu {
 /**
  * enum srpt_command_state - SCSI command states managed by SRPT.
  * @SRPT_STATE_NEW:           New command arrived and is being processed.
- * @SRPT_STATE_NEED_DATA:     Processing a write or bidir command and waiting for
- *                            data arrival.
+ * @SRPT_STATE_NEED_DATA:     Processing a write or bidir command and waiting
+ *                            for data arrival.
  * @SRPT_STATE_DATA_IN:       Data for the write or bidir command arrived and is
  *                            being processed.
  * @SRPT_STATE_CMD_RSP_SENT:  SRP_RSP for SRP_CMD has been sent.
  * @SRPT_STATE_MGMT_RSP_SENT: SRP_RSP for SRP_TSK_MGMT has been sent.
  * @SRPT_STATE_DONE:          Command processing finished successfully, command
- *                            processing has been aborted or command processing failed.
+ *                            processing has been aborted or command processing
+ *                            failed.
  */
 enum srpt_command_state {
 	SRPT_STATE_NEW = 0,
@@ -211,20 +212,23 @@ enum rdma_ch_state {
  * @cm_id:         IB CM ID associated with the channel.
  * @qp:            IB queue pair used for communicating over this channel.
  * @qp_wr_avail:   number of WRs in qp that are not being processed by the HCA.
- * @cq:            completion queue for send and receive operations over this channel.
- * @sport:         pointer to the information of the HCA port used by this channel.
+ * @cq:            completion queue for send and receive operations over this
+ *                 channel.
+ * @sport:         pointer to the information of the HCA port used by this
+ *                 channel.
  * @i_port_id:     128-bit initiator port identifier copied from SRP_LOGIN_REQ.
  * @t_port_id:     128-bit target port identifier copied from SRP_LOGIN_REQ.
  * @max_ti_iu_len: maximum target-to-initiator information unit length.
- * @req_lim:       request limit: maximum number of requests that may be sent by the
- *                 initiator without having received a response or SRP_CRED_REQ.
+ * @req_lim:       request limit: maximum number of requests that may be sent
+ *                 by the initiator without having received a response or
+ *                 SRP_CRED_REQ.
  * @last_response_req_lim: value of req_lim the last time a response or
  *                 SRP_CRED_REQ was sent.
  * @state:         channel state. See also enum rdma_ch_state.
  * @list:          node for insertion in the srpt_device::rch_list list.
- * @cmd_wait_list: list of SCST commands that arrived before the RTU event. This list
- *                 contains struct srpt_ioctx elements and is protected against
- *                 concurrent modification by the cm_id spinlock.
+ * @cmd_wait_list: list of SCST commands that arrived before the RTU event. This
+ *                 list contains struct srpt_ioctx elements and is protected
+ *                 against concurrent modification by the cm_id spinlock.
  * @scst_sess:     SCST session information associated with this SRP channel.
  * @sess_name:     SCST session name.
  */
