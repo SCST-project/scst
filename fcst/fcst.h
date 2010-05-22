@@ -35,10 +35,10 @@
 
 extern unsigned int ft_debug_logging;	/* debug options */
 
-#define FT_ERR(fmt, args...) 						\
+#define FT_ERR(fmt, args...)						\
 	printk(KERN_ERR FT_MODULE ": %s: " fmt, __func__, ##args)
 
-#define FT_DEBUG(mask, fmt, args...) 					\
+#define FT_DEBUG(mask, fmt, args...)					\
 	do {								\
 		if (ft_debug_logging & (mask))				\
 			printk(KERN_INFO FT_MODULE ": %s: " fmt,	\

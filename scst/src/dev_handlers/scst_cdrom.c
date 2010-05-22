@@ -40,14 +40,14 @@ static int cdrom_parse(struct scst_cmd *);
 static int cdrom_done(struct scst_cmd *);
 
 static struct scst_dev_type cdrom_devtype = {
-	.name = 		CDROM_NAME,
+	.name =			CDROM_NAME,
 	.type =			TYPE_ROM,
 	.parse_atomic =		1,
-	.dev_done_atomic = 	1,
-	.attach = 		cdrom_attach,
-	.detach = 		cdrom_detach,
-	.parse = 		cdrom_parse,
-	.dev_done = 		cdrom_done,
+	.dev_done_atomic =	1,
+	.attach =		cdrom_attach,
+	.detach =		cdrom_detach,
+	.parse =		cdrom_parse,
+	.dev_done =		cdrom_done,
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
 	.trace_flags =		&trace_flag,

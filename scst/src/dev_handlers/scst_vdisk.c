@@ -1523,7 +1523,7 @@ static int vdisk_err_recov_pg(unsigned char *p, int pcontrol,
 
 static int vdisk_disconnect_pg(unsigned char *p, int pcontrol,
 				struct scst_vdisk_dev *virt_dev)
-{ 	/* Disconnect-Reconnect page for mode_sense */
+{	/* Disconnect-Reconnect page for mode_sense */
 	const unsigned char disconnect_pg[] = {0x2, 0xe, 128, 128, 0, 10, 0, 0,
 					       0, 0, 0, 0, 0, 0, 0, 0};
 
@@ -1579,7 +1579,7 @@ static int vdisk_format_pg(unsigned char *p, int pcontrol,
 
 static int vdisk_caching_pg(unsigned char *p, int pcontrol,
 			     struct scst_vdisk_dev *virt_dev)
-{ 	/* Caching page for mode_sense */
+{	/* Caching page for mode_sense */
 	const unsigned char caching_pg[] = {0x8, 18, 0x10, 0, 0xff, 0xff, 0, 0,
 		0xff, 0xff, 0xff, 0xff, 0x80, 0x14, 0, 0, 0, 0, 0, 0};
 
@@ -1592,7 +1592,7 @@ static int vdisk_caching_pg(unsigned char *p, int pcontrol,
 
 static int vdisk_ctrl_m_pg(unsigned char *p, int pcontrol,
 			    struct scst_vdisk_dev *virt_dev)
-{ 	/* Control mode page for mode_sense */
+{	/* Control mode page for mode_sense */
 	const unsigned char ctrl_m_pg[] = {0xa, 0xa, 0, 0, 0, 0, 0, 0,
 					   0, 0, 0x2, 0x4b};
 

@@ -524,11 +524,11 @@ echo 'add_target_attribute iqn.2006-10.net.vlnb:tgt allowed_portal 10.170.77.2' 
 echo 'add_target_attribute iqn.2006-10.net.vlnb:tgt allowed_portal 10.170.75.2' >/sys/kernel/scst_tgt/targets/iscsi/mgmt
 
 will enable only portals 10.170.77.2 and 10.170.75.2 and disable all
-other portals. 
+other portals.
 
 echo 'add_target_attribute iqn.2006-10.net.vlnb:tgt allowed_portal 10.170.7?.2' >/sys/kernel/scst_tgt/targets/iscsi/mgmt
 
-will enable only portals 10.170.7x.2 and disable all other portals. 
+will enable only portals 10.170.7x.2 and disable all other portals.
 
 echo 'add_target_attribute iqn.2006-10.net.vlnb:tgt allowed_portal !*' >/sys/kernel/scst_tgt/targets/iscsi/mgmt
 

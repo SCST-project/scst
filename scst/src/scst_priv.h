@@ -127,7 +127,7 @@ extern unsigned long scst_trace_flag;
 
 /* Definitions of symbolic constants for LUN addressing method */
 #define SCST_LUN_ADDR_METHOD_PERIPHERAL	0
-#define SCST_LUN_ADDR_METHOD_FLAT 	1
+#define SCST_LUN_ADDR_METHOD_FLAT	1
 
 extern int scst_threads;
 

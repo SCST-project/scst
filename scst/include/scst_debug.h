@@ -66,7 +66,7 @@
 	typeof(condition) __ret_warn_once = (condition);	\
 								\
 	if (unlikely(__ret_warn_once))				\
-		if (!__warned) { 				\
+		if (!__warned) {				\
 			WARN_ON(1);				\
 			__warned = 1;				\
 		}						\
@@ -355,7 +355,7 @@ do {                                            \
 
 #else
 
-#define PRINT_INFO(format, args...)           	\
+#define PRINT_INFO(format, args...)		\
 do {                                            \
 	PRINT(KERN_INFO, format, args);		\
 } while (0)
@@ -366,9 +366,9 @@ do {                                            \
 		format, args);			\
 } while (0)
 
-#define PRINT_ERROR(format, args...)          	\
+#define PRINT_ERROR(format, args...)		\
 do {                                            \
-	PRINT(KERN_ERR, "***ERROR***: "	\
+	PRINT(KERN_ERR, "***ERROR***: "		\
 		format, args);			\
 } while (0)
 

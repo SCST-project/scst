@@ -339,19 +339,19 @@ echo "add disk1 0" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/
 echo "add cdrom 1" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/luns/mgmt
 
 echo "add_target iqn.2006-10.net.vlnb:tgt1" >/sys/kernel/scst_tgt/targets/iscsi/mgmt
-echo "add_target_attribute iqn.2006-10.net.vlnb:tgt1 IncomingUser1 joe2 12charsecret2" >/sys/kernel/scst_tgt/targets/iscsi/mgmt             
-echo "add_target_attribute iqn.2006-10.net.vlnb:tgt1 IncomingUser joe 12charsecret" >/sys/kernel/scst_tgt/targets/iscsi/mgmt                
-echo "add_target_attribute iqn.2006-10.net.vlnb:tgt1 OutgoingUser jim1 12charpasswd" >/sys/kernel/scst_tgt/targets/iscsi/mgmt               
-echo "No" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/InitialR2T                                                          
-echo "Yes" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ImmediateData                                                      
-echo "8192" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/MaxRecvDataSegmentLength                                          
-echo "8192" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/MaxXmitDataSegmentLength                                          
-echo "131072" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/MaxBurstLength                                                  
-echo "32768" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/FirstBurstLength                                                 
-echo "1" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/MaxOutstandingR2T                                                    
-echo "CRC32C,None" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/HeaderDigest                                               
-echo "CRC32C,None" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/DataDigest                                                 
-echo "32" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/QueuedCommands                                                      
+echo "add_target_attribute iqn.2006-10.net.vlnb:tgt1 IncomingUser1 joe2 12charsecret2" >/sys/kernel/scst_tgt/targets/iscsi/mgmt
+echo "add_target_attribute iqn.2006-10.net.vlnb:tgt1 IncomingUser joe 12charsecret" >/sys/kernel/scst_tgt/targets/iscsi/mgmt
+echo "add_target_attribute iqn.2006-10.net.vlnb:tgt1 OutgoingUser jim1 12charpasswd" >/sys/kernel/scst_tgt/targets/iscsi/mgmt
+echo "No" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/InitialR2T
+echo "Yes" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ImmediateData
+echo "8192" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/MaxRecvDataSegmentLength
+echo "8192" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/MaxXmitDataSegmentLength
+echo "131072" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/MaxBurstLength
+echo "32768" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/FirstBurstLength
+echo "1" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/MaxOutstandingR2T
+echo "CRC32C,None" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/HeaderDigest
+echo "CRC32C,None" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/DataDigest
+echo "32" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/QueuedCommands
 
 echo "add disk2 0" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/luns/mgmt
 echo "add nullio 26" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/luns/mgmt
@@ -627,11 +627,11 @@ echo 'add_target_attribute iqn.2006-10.net.vlnb:tgt allowed_portal 10.170.77.2' 
 echo 'add_target_attribute iqn.2006-10.net.vlnb:tgt allowed_portal 10.170.75.2' >/sys/kernel/scst_tgt/targets/iscsi/mgmt
 
 will enable only portals 10.170.77.2 and 10.170.75.2 and disable all
-other portals. 
+other portals.
 
 echo 'add_target_attribute iqn.2006-10.net.vlnb:tgt allowed_portal 10.170.7?.2' >/sys/kernel/scst_tgt/targets/iscsi/mgmt
 
-will enable only portals 10.170.7x.2 and disable all other portals. 
+will enable only portals 10.170.7x.2 and disable all other portals.
 
 echo 'add_target_attribute iqn.2006-10.net.vlnb:tgt allowed_portal !*' >/sys/kernel/scst_tgt/targets/iscsi/mgmt
 
