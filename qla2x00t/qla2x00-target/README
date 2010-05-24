@@ -237,7 +237,22 @@ modprobe qla2x00tgt
 echo "add disk1 0" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/luns/mgmt
 echo 1 >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/enabled
 
-Below is more advanced sample script, which configures more virtual
+Below is another sample script, which configures 1 real local SCSI disk
+0:0:1:0 for usage with 25:00:00:f0:98:87:92:f3 target:
+
+#!/bin/bash
+
+modprobe scst
+modprobe scst_disk
+
+echo "add_device 0:0:1:0" >/sys/kernel/scst_tgt/handlers/dev_disk/mgmt
+
+modprobe qla2x00tgt
+
+echo "add 0:0:1:0 0" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/luns/mgmt
+echo 1 >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/enabled
+
+Below is an advanced sample script, which configures more virtual
 devices of various types, including virtual CDROM. In this script
 initiator 25:00:00:f0:99:87:94:a3 will see disk1 and disk2 devices, all
 other initiators will see read only blockio, nullio and cdrom devices.

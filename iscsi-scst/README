@@ -308,13 +308,32 @@ echo "add disk1 0" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/
 echo 1 >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/enabled
 echo 1 >/sys/kernel/scst_tgt/targets/iscsi/enabled
 
-Below is more advanced sample script, which configures more virtual
+Below is another sample script, which configures 1 real local SCSI disk
+0:0:1:0 one target iqn.2006-10.net.vlnb:tgt with all default parameters:
+
+#!/bin/bash
+
+modprobe scst
+modprobe scst_disk
+
+echo "add_device 0:0:1:0" >/sys/kernel/scst_tgt/handlers/dev_disk/mgmt
+
+service iscsi-scst start
+
+echo "add_target iqn.2006-10.net.vlnb:tgt" >/sys/kernel/scst_tgt/targets/iscsi/mgmt
+echo "add 0:0:1:0 0" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/luns/mgmt
+
+echo 1 >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/enabled
+echo 1 >/sys/kernel/scst_tgt/targets/iscsi/enabled
+
+Below is an advanced sample script, which configures more virtual
 devices of various types, including virtual CDROM and 2 targets, one
 with all default parameters, another one with some not default
 parameters, incoming and outgoing user names for CHAP authentification,
 and special permissions for initiator iqn.2005-03.org.open-iscsi:cacdcd2520,
 which will see another set of devices. Also this sample configures CHAP
-authentication for discovery sessions and iSNS server with access control.
+authentication for discovery sessions and iSNS server with access
+control.
 
 #!/bin/bash
 
