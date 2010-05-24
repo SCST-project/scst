@@ -21,6 +21,7 @@
 #define LOG_PREFIX      "dev_raid"
 
 #include <scsi/scsi_host.h>
+#include <linux/slab.h>
 
 #include "scst.h"
 #include "scst_dev_handler.h"

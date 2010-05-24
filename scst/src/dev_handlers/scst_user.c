@@ -21,6 +21,7 @@
 #include <linux/delay.h>
 #include <linux/poll.h>
 #include <linux/stddef.h>
+#include <linux/slab.h>
 
 #define LOG_PREFIX		DEV_USER_NAME
 

@@ -40,6 +40,7 @@
 #include <linux/version.h>
 #include <asm/div64.h>
 #include <asm/unaligned.h>
+#include <linux/slab.h>
 
 #define LOG_PREFIX			"dev_vdisk"
 

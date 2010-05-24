@@ -22,6 +22,7 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/ctype.h>
+#include <linux/slab.h>
 
 #include "scst.h"
 #include "scst_priv.h"
@@ -36,7 +37,11 @@ static struct kobject *scst_sgv_kobj;
 static struct kobject *scst_handlers_kobj;
 
 /* Regular SCST sysfs operations */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34))
+const struct sysfs_ops scst_sysfs_ops;
+#else
 struct sysfs_ops scst_sysfs_ops;
+#endif
 EXPORT_SYMBOL(scst_sysfs_ops);
 
 static const char *scst_dev_handler_types[] = {
@@ -3348,7 +3353,11 @@ static ssize_t scst_store(struct kobject *kobj, struct attribute *attr,
 		return -EIO;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34))
+const struct sysfs_ops scst_sysfs_ops = {
+#else
 struct sysfs_ops scst_sysfs_ops = {
+#endif
 	.show = scst_show,
 	.store = scst_store,
 };

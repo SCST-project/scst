@@ -3255,7 +3255,11 @@ struct proc_dir_entry *scst_create_proc_entry(struct proc_dir_entry *root,
 
 #else /* CONFIG_SCST_PROC */
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34))
+extern const struct sysfs_ops scst_sysfs_ops;
+#else
 extern struct sysfs_ops scst_sysfs_ops;
+#endif
 
 /*
  * Returns target driver's root sysfs kobject.

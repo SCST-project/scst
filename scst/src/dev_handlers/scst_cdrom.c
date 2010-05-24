@@ -20,6 +20,7 @@
 
 #include <linux/cdrom.h>
 #include <scsi/scsi_host.h>
+#include <linux/slab.h>
 
 #define LOG_PREFIX	"dev_cdrom"
 
