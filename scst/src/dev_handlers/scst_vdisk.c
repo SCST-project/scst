@@ -2493,7 +2493,7 @@ restart:
 			 * Probably that's wrong, but sometimes write() returns
 			 * value less, than requested. Let's restart.
 			 */
-			int i, e = eiv_count;
+			int e = eiv_count;
 			TRACE_MGMT_DBG("write() returned %d from %zd "
 				"(iv_count=%d)", (int)err, full_len,
 				eiv_count);

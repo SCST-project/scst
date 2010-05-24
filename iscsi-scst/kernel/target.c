@@ -119,7 +119,7 @@ int __add_target(struct iscsi_kern_target_info *info)
 {
 	int err;
 	u32 tid = info->tid;
-	struct iscsi_target *target;
+	struct iscsi_target *target = NULL; /* to calm down sparse */
 	struct iscsi_kern_params_info *params_info;
 	struct iscsi_kern_attr *attr_info;
 	union add_info_union {

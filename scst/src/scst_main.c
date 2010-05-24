@@ -1445,8 +1445,6 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 	}
 
 	for (i = 0; i < num; i++) {
-		struct scst_cmd_thread_t *thr;
-
 		thr = kmalloc(sizeof(*thr), GFP_KERNEL);
 		if (!thr) {
 			res = -ENOMEM;

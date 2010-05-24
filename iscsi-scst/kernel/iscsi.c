@@ -975,9 +975,9 @@ static int create_reject_rsp(struct iscsi_cmnd *req, int reason, bool get_data)
 	if (cmnd_opcode(req) == ISCSI_OP_SCSI_CMD) {
 		if (req->scst_cmd == NULL) {
 			/* BUSY status must be already set */
-			struct iscsi_scsi_rsp_hdr *rsp_hdr;
-			rsp_hdr = (struct iscsi_scsi_rsp_hdr *)&req->main_rsp->pdu.bhs;
-			sBUG_ON(rsp_hdr->cmd_status == 0);
+			struct iscsi_scsi_rsp_hdr *rsp_hdr1;
+			rsp_hdr1 = (struct iscsi_scsi_rsp_hdr *)&req->main_rsp->pdu.bhs;
+			sBUG_ON(rsp_hdr1->cmd_status == 0);
 			/*
 			 * Let's not send REJECT here. The initiator will retry
 			 * and, hopefully, next time we will not fail allocating

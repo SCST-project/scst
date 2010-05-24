@@ -175,9 +175,9 @@ int __add_session(struct iscsi_target *target,
 	 */
 	list_for_each_entry_reverse(sess, &target->session_list,
 			session_list_entry) {
-		union iscsi_sid i = *(union iscsi_sid *)&sess->sid;
-		i.id.tsih = 0;
-		if ((sid.id64 == i.id64) &&
+		union iscsi_sid s = *(union iscsi_sid *)&sess->sid;
+		s.id.tsih = 0;
+		if ((sid.id64 == s.id64) &&
 		    (strcmp(info->initiator_name, sess->initiator_name) == 0)) {
 			if (!sess->sess_shutting_down) {
 				/* session reinstatement */

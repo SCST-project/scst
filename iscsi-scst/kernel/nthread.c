@@ -1140,7 +1140,6 @@ static inline void __iscsi_put_page_callback(struct iscsi_cmnd *cmd) {}
 void req_add_to_write_timeout_list(struct iscsi_cmnd *req)
 {
 	struct iscsi_conn *conn;
-	unsigned long timeout_time;
 	bool set_conn_tm_active = false;
 
 	TRACE_ENTRY();
@@ -1168,6 +1167,7 @@ void req_add_to_write_timeout_list(struct iscsi_cmnd *req)
 		&conn->write_timeout_list);
 
 	if (!timer_pending(&conn->rsp_timer)) {
+		unsigned long timeout_time;
 		if (unlikely(conn->conn_tm_active ||
 			     test_bit(ISCSI_CMD_ABORTED,
 					&req->prelim_compl_flags))) {
