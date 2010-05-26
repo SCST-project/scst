@@ -137,4 +137,95 @@ void debug_print_buffer(const void *data, int len)
 }
 EXPORT_SYMBOL(debug_print_buffer);
 
+#ifdef CONFIG_SCST_DEBUG
+
+/*
+ * This function converts transport_id in a string form into internal per-CPU
+ * static buffer. This buffer isn't anyhow protected, because it's acceptable
+ * if the name corrupted in the debug logs because of the race for this buffer.
+ *
+ * Note! You can't call this function 2 or more times in a single logging
+ * (printk) statement, because then each new call of this functon will override
+ * data written in this buffer by the previous call. You should instead split
+ * that logging statement on smaller statements each calling
+ * debug_transport_id_to_initiator_name() only once.
+ */
+const char *debug_transport_id_to_initiator_name(const uint8_t *transport_id)
+{
+	/*
+	 * No external protection, because it's acceptable if the name
+	 * corrupted in the debug logs because of the race for this
+	 * buffer.
+	 */
+#define SIZEOF_NAME_BUF 256
+	static char name_bufs[NR_CPUS][SIZEOF_NAME_BUF];
+	char *name_buf;
+	unsigned long flags;
+
+	sBUG_ON(transport_id == NULL); /* better to catch it not under lock */
+
+	spin_lock_irqsave(&trace_buf_lock, flags);
+
+	name_buf = name_bufs[smp_processor_id()];
+
+	/*
+	 * To prevent external racing with us users from accidentally
+	 * missing their NULL terminator.
+	 */
+	memset(name_buf, 0, SIZEOF_NAME_BUF);
+	smp_mb();
+
+	switch (transport_id[0] & 0x0f) {
+	case SCSI_TRANSPORTID_PROTOCOLID_ISCSI:
+		scnprintf(name_buf, SIZEOF_NAME_BUF, "%s",
+			&transport_id[4]);
+		break;
+	case SCSI_TRANSPORTID_PROTOCOLID_FCP2:
+		scnprintf(name_buf, SIZEOF_NAME_BUF,
+			"%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
+			transport_id[8], transport_id[9],
+			transport_id[10], transport_id[11],
+			transport_id[12], transport_id[13],
+			transport_id[14], transport_id[15]);
+		break;
+	case SCSI_TRANSPORTID_PROTOCOLID_SPI5:
+		scnprintf(name_buf, SIZEOF_NAME_BUF,
+			"%x:%x", be16_to_cpu((uint16_t)transport_id[2]),
+			be16_to_cpu((uint16_t)transport_id[6]));
+		break;
+	case SCSI_TRANSPORTID_PROTOCOLID_SRP:
+		scnprintf(name_buf, SIZEOF_NAME_BUF,
+			"%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x"
+			"%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
+			transport_id[8], transport_id[9],
+			transport_id[10], transport_id[11],
+			transport_id[12], transport_id[13],
+			transport_id[14], transport_id[15],
+			transport_id[16], transport_id[17],
+			transport_id[18], transport_id[19],
+			transport_id[20], transport_id[21],
+			transport_id[22], transport_id[23]);
+		break;
+	case SCSI_TRANSPORTID_PROTOCOLID_SAS:
+		scnprintf(name_buf, SIZEOF_NAME_BUF,
+			"%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
+			transport_id[4], transport_id[5],
+			transport_id[6], transport_id[7],
+			transport_id[8], transport_id[9],
+			transport_id[10], transport_id[11]);
+		break;
+	default:
+		scnprintf(name_buf, SIZEOF_NAME_BUF,
+			"(Not known protocol ID %x)", transport_id[0] & 0x0f);
+		break;
+	}
+
+	spin_unlock_irqrestore(&trace_buf_lock, flags);
+
+	return name_buf;
+#undef SIZEOF_NAME_BUF
+}
+
+#endif /* CONFIG_SCST_DEBUG */
+
 #endif /* CONFIG_SCST_DEBUG || CONFIG_SCST_TRACING */

@@ -646,6 +646,7 @@ static int do_tm(struct vdisk_cmd *vcmd)
 {
 	struct scst_user_get_cmd *cmd = vcmd->cmd;
 	struct scst_user_reply_cmd *reply = vcmd->reply;
+	struct vdisk_dev *dev = vcmd->dev;
 	int res = 0;
 
 	TRACE_ENTRY();
@@ -658,6 +659,16 @@ static int do_tm(struct vdisk_cmd *vcmd)
 		TRACE_MGMT_DBG("TM fn %d (sess_h %"PRIx64", cmd_h_to_abort %d)",
 			cmd->tm_cmd.fn, cmd->tm_cmd.sess_h,
 			cmd->tm_cmd.cmd_h_to_abort);
+
+	switch (cmd->tm_cmd.fn) {
+	case SCST_LUN_RESET:
+	case SCST_TARGET_RESET:
+	case SCST_PR_ABORT_ALL:
+		pthread_mutex_lock(&dev->dev_mutex);
+		dev->prevent_allow_medium_removal = 0;
+		pthread_mutex_unlock(&dev->dev_mutex);
+		break;
+	}
 
 	memset(reply, 0, sizeof(*reply));
 	reply->cmd_h = cmd->cmd_h;
@@ -1618,15 +1629,7 @@ static void exec_prevent_allow_medium_removal(struct vdisk_cmd *vcmd)
 	TRACE_DBG("PERSIST/PREVENT 0x%02x", cmd->cdb[4]);
 
 	pthread_mutex_lock(&dev->dev_mutex);
-	if (dev->type == TYPE_ROM)
-		dev->prevent_allow_medium_removal =
-			cmd->cdb[4] & 0x01 ? 1 : 0;
-	else {
-		PRINT_ERROR("%s", "Prevent allow medium removal for "
-			"non-CDROM device");
-		set_cmd_error(vcmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_opcode));
-	}
+	dev->prevent_allow_medium_removal = cmd->cdb[4] & 0x01 ? 1 : 0;
 	pthread_mutex_unlock(&dev->dev_mutex);
 
 	return;

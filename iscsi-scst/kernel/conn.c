@@ -613,12 +613,12 @@ static int conn_setup_sock(struct iscsi_conn *conn)
 	mm_segment_t oldfs;
 	struct iscsi_session *session = conn->session;
 
-	TRACE_DBG("%llu", (long long unsigned int)session->sid);
+	TRACE_DBG("%llx", (long long unsigned int)session->sid);
 
 	conn->sock = SOCKET_I(conn->file->f_dentry->d_inode);
 
 	if (conn->sock->ops->sendpage == NULL) {
-		PRINT_ERROR("Socket for sid %llu doesn't support sendpage()",
+		PRINT_ERROR("Socket for sid %llx doesn't support sendpage()",
 			    (long long unsigned int)session->sid);
 		res = -EINVAL;
 		goto out;

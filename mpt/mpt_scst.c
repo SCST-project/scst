@@ -381,9 +381,9 @@ mptstm_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     atomic_set(&tgt->sess_count, 0);
     init_waitqueue_head(&tgt->waitQ);
 
-    tgt->scst_tgt = scst_register(&tgt_template, MYNAM);
+    tgt->scst_tgt = scst_register_target(&tgt_template, MYNAM);
     if (tgt->scst_tgt == NULL) {
-	    PRINT_ERROR(MYNAM ": scst_register() "
+	    PRINT_ERROR(MYNAM ": scst_register_target() "
 			"failed for host %p", pdev);
 
 	    ret = -ENODEV;
@@ -399,7 +399,7 @@ mptstm_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	    PRINT_ERROR("Not enough memory to register "
 			    "target driver %s entry %s in /proc",
 			    tgt_template.name, name);
-	    scst_unregister(tgt->scst_tgt);
+	    scst_unregister_target(tgt->scst_tgt);
 	    ret = -ENOMEM;
 	    goto out;
     }
@@ -437,7 +437,7 @@ static struct mpt_pci_driver mptstm_driver = {
  *
  * this function is intended to detect the target adapters that are present in
  * the system. Each found adapter should be registered by calling
- * scst_register(). The function should return a value >= 0 to signify
+ * scst_register_target(). The function should return a value >= 0 to signify
  * the number of detected target adapters. A negative value should be
  * returned whenever there is an error.
  */
@@ -592,8 +592,6 @@ mpt_alloc_session_done(struct scst_session *scst_sess, void *data, int result)
 
 	TRACE_ENTRY();
 	if (result == 0) {
-		scst_sess_set_tgt_priv(scst_sess, sess);
-
 		while (!list_empty(&sess->delayed_cmds)) {
 			cmd = list_entry(sess->delayed_cmds.next,
 					 typeof(*cmd), delayed_cmds_entry);
@@ -979,7 +977,8 @@ stmapp_tgt_command(MPT_STM_PRIV *priv, u32 reply_word)
 		INIT_LIST_HEAD(&sess->delayed_cmds);
 
 		sess->scst_sess = scst_register_session(tgt->scst_tgt, 1,
-							"", sess, mpt_alloc_session_done);
+							"", sess, sess,
+							mpt_alloc_session_done);
 		if (sess->scst_sess == NULL) {
 			PRINT_ERROR(MYNAM ": scst_register_session failed %p",
 				    tgt);
@@ -990,7 +989,6 @@ stmapp_tgt_command(MPT_STM_PRIV *priv, u32 reply_word)
 		__set_bit(MPT_SESS_INITING, &sess->sess_flags);
 
 		tgt->sess[init_index] = sess;
-		scst_sess_set_tgt_priv(sess->scst_sess, sess);
 
 		cmd->sess = sess;
 		list_add_tail(&cmd->delayed_cmds_entry, &sess->delayed_cmds);

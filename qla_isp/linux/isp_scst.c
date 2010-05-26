@@ -288,7 +288,7 @@ alloc_ini(bus_chan_t *bc, uint64_t iid)
              GET(7), GET(6), GET(5) , GET(4), GET(3), GET(2), GET(1), GET(0));
     #undef GET
 
-    nptr->ini_scst_sess = scst_register_session(bc->scst_tgt, 0, ini_name, NULL, NULL);
+    nptr->ini_scst_sess = scst_register_session(bc->scst_tgt, 0, ini_name, NULL, NULL, NULL);
     if (!nptr->ini_scst_sess) {
         Eprintk("cannot register SCST session\n");
         kfree(nptr);
@@ -1637,7 +1637,7 @@ register_hba(bus_t *bp)
         }
 
         isp_tgt_template.sg_tablesize = get_sg_tablesize(bp->h.r_identity);
-        scst_tgt = scst_register(&isp_tgt_template, name);
+        scst_tgt = scst_register_target(&isp_tgt_template, name);
         if (scst_tgt == NULL) {
             Eprintk("cannot register scst device %s for %s%d\n", name, bp->h.r_name, bp->h.r_inst);
             goto err_free_chan;
@@ -1672,7 +1672,7 @@ register_hba(bus_t *bp)
 err_free_chan:
     for (chan = bp->h.r_nchannels -1; chan >= 0; chan--) {
         if (bchan[chan].scst_tgt) {
-            scst_unregister(bchan[chan].scst_tgt);
+            scst_unregister_target(bchan[chan].scst_tgt);
         }
     }
     kfree(bchan);
@@ -1726,7 +1726,7 @@ unregister_hba(bus_t *bp, hba_register_t *unreg_hp)
             BUS_DBG(bp, "Chan %d waiting for finishing %d sessions\n", chan, atomic_read(&bc->sess_count));
             wait_event(bc->wait_queue, atomic_read(&bc->sess_count) == 0);
             BUS_DBG(bp, "Chan %d all sessions finished\n", chan);
-            scst_unregister(bc->scst_tgt);
+            scst_unregister_target(bc->scst_tgt);
         }
     }
     kfree(bp->bchan);

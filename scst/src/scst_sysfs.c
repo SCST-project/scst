@@ -85,6 +85,7 @@ static struct scst_trace_log scst_trace_tbl[] = {
     { TRACE_MGMT,		"mgmt" },
     { TRACE_MGMT_DEBUG,		"mgmt_dbg" },
     { TRACE_FLOW_CONTROL,	"flow_control" },
+    { TRACE_PRES,		"pr" },
     { 0,			NULL }
 };
 
@@ -694,7 +695,7 @@ int scst_create_tgt_sysfs(struct scst_tgt *tgt)
 
 	retval = sysfs_create_file(tgt->tgt_luns_kobj, &scst_luns_mgmt.attr);
 	if (retval != 0) {
-		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
+		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			scst_luns_mgmt.attr.name, tgt->tgt_name);
 		goto out;
 	}
@@ -710,7 +711,7 @@ int scst_create_tgt_sysfs(struct scst_tgt *tgt)
 	retval = sysfs_create_file(tgt->tgt_ini_grp_kobj,
 			&scst_ini_group_mgmt.attr);
 	if (retval != 0) {
-		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
+		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			scst_ini_group_mgmt.attr.name, tgt->tgt_name);
 		goto out;
 	}
@@ -2445,7 +2446,7 @@ static ssize_t scst_rel_tgt_id_store(struct kobject *kobj,
 	if (res != 0)
 		goto out_err;
 
-	TRACE_DBG("Try to set relative target port id %d",
+	TRACE_DBG("Trying to set relative target port id %d",
 		(uint16_t)rel_tgt_id);
 
 	if (rel_tgt_id < SCST_MIN_REL_TGT_ID ||
@@ -3051,7 +3052,7 @@ static ssize_t scst_trace_level_show(const struct scst_trace_log *local_tbl,
 #endif
 		"		       special, scsi, mgmt, minor,\n"
 		"		       mgmt_dbg, scsi_serializing,\n"
-		"		       retry, recv_bot, send_bot, recv_top,\n"
+		"		       retry, recv_bot, send_bot, recv_top, pr\n"
 		"		       send_top%s]", help != NULL ? help : "");
 
 	return pos;
@@ -3288,12 +3289,12 @@ static ssize_t scst_version_show(struct kobject *kobj,
 	strcat(buf, "USE_EXPECTED_VALUES\n");
 #endif
 
-#ifdef CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
-	strcat(buf, "ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ\n");
+#ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
+	strcat(buf, "TEST_IO_IN_SIRQ\n");
 #endif
 
 #ifdef CONFIG_SCST_STRICT_SECURITY
-	strcat(buf, "SCST_STRICT_SECURITY\n");
+	strcat(buf, "STRICT_SECURITY\n");
 #endif
 
 	TRACE_EXIT();

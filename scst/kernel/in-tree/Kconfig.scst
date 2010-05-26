@@ -92,20 +92,18 @@ config SCST_STRICT_SECURITY
 
 	  If unsure, say "N".
 
-config SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
-	bool "Allow pass-through commands to be sent from soft-IRQ context"
+config SCST_TEST_IO_IN_SIRQ
+	bool "Allow test I/O from soft-IRQ context"
 	depends on SCST
 	help
-	  Allows SCST to submit SCSI pass-through commands to real SCSI devices
-	  via the SCSI middle layer using scsi_execute_async() function from
-	  soft-IRQ context (tasklets). This used to be the default, but
-	  currently it seems the SCSI middle layer starts expecting only thread
-	  context on the IO submit path, so it is disabled now by default.
-	  Enabling it will decrease amount of context switches and improve
-	  performance. It is more or less safe. In the worst case, if in your
-	  configuration the SCSI middle layer really doesn't expect SIRQ
-	  context in scsi_execute_async() function, you will get a warning
-	  message in the kernel log.
+	  Allows SCST to submit selected SCSI commands (TUR and
+	  READ/WRITE) from soft-IRQ context (tasklets). Enabling it will
+	  decrease amount of context switches and slightly improve
+	  performance. The goal of this option is to be able to measure
+	  overhead of the context switches. See more info about it in
+	  README.scst.
+
+	  WARNING! Improperly used, this option can lead you to a kernel crash!
 
 	  If unsure, say "N".
 

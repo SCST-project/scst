@@ -29,6 +29,8 @@ EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions
 
 #EXTRA_CFLAGS += -DCONFIG_SCST_ISCSI_DEBUG_DIGEST_FAILURES
 
+#EXTRA_CFLAGS += -DCONFIG_SCST_ISCSI_SKIP_ISID
+
 obj-m		+= iscsi-scst.o
 iscsi-scst-objs	:= iscsi.o nthread.o config.o digest.o \
 	conn.o session.o target.o event.o param.o

@@ -33,6 +33,7 @@
 #include "scst.h"
 #include "scst_priv.h"
 #include "scst_mem.h"
+#include "scst_pres.h"
 
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
 #warning "HIGHMEM kernel configurations are fully supported, but not\
@@ -214,6 +215,10 @@ int __scst_register_target_template(struct scst_tgt_template *vtt,
 		goto out_err;
 	}
 
+	if (vtt->get_initiator_port_transport_id == NULL)
+		PRINT_WARNING("Target driver %s doesn't support Persistent "
+			"Reservations", vtt->name);
+
 	if (vtt->threads_num < 0) {
 		PRINT_ERROR("Wrong threads_num value %d for "
 			"target \"%s\"", vtt->threads_num,
@@ -223,13 +228,12 @@ int __scst_register_target_template(struct scst_tgt_template *vtt,
 	}
 
 #ifndef CONFIG_SCST_PROC
-	if (!vtt->enable_target || !vtt->is_target_enabled) {
+	if (!vtt->enable_target || !vtt->is_target_enabled)
 		PRINT_WARNING("Target driver %s doesn't have enable_target() "
 			"and/or is_target_enabled() method(s). This is unsafe "
 			"and can lead that initiators connected on the "
 			"initialization time can see an unexpected set of "
 			"devices or no devices at all!", vtt->name);
-	}
 
 	if (((vtt->add_target != NULL) && (vtt->del_target == NULL)) ||
 	    ((vtt->add_target == NULL) && (vtt->del_target != NULL))) {
@@ -333,7 +337,7 @@ void scst_unregister_target_template(struct scst_tgt_template *vtt)
 restart:
 	list_for_each_entry(tgt, &vtt->tgt_list, tgt_list_entry) {
 		mutex_unlock(&scst_mutex);
-		scst_unregister(tgt);
+		scst_unregister_target(tgt);
 		mutex_lock(&scst_mutex);
 		goto restart;
 	}
@@ -365,7 +369,7 @@ EXPORT_SYMBOL(scst_unregister_target_template);
  * Registers a target for template vtt and returns new target structure on
  * success or NULL otherwise.
  */
-struct scst_tgt *scst_register(struct scst_tgt_template *vtt,
+struct scst_tgt *scst_register_target(struct scst_tgt_template *vtt,
 	const char *target_name)
 {
 	struct scst_tgt *tgt;
@@ -390,6 +394,7 @@ struct scst_tgt *scst_register(struct scst_tgt_template *vtt,
 #ifdef CONFIG_SCST_PROC
 		int len = strlen(target_name) +
 			strlen(SCST_DEFAULT_ACG_NAME) + 1 + 1;
+
 
 		tgt->default_group_name = kmalloc(len, GFP_KERNEL);
 		if (tgt->default_group_name == NULL) {
@@ -505,7 +510,7 @@ out_err:
 		vtt->name, rc);
 	goto out;
 }
-EXPORT_SYMBOL(scst_register);
+EXPORT_SYMBOL(scst_register_target);
 
 static inline int test_sess_list(struct scst_tgt *tgt)
 {
@@ -519,7 +524,7 @@ static inline int test_sess_list(struct scst_tgt *tgt)
 /**
  * scst_unregister_target() - unregister target
  */
-void scst_unregister(struct scst_tgt *tgt)
+void scst_unregister_target(struct scst_tgt *tgt)
 {
 	struct scst_session *sess;
 	struct scst_tgt_template *vtt = tgt->tgtt;
@@ -585,7 +590,7 @@ again:
 	TRACE_EXIT();
 	return;
 }
-EXPORT_SYMBOL(scst_unregister);
+EXPORT_SYMBOL(scst_unregister_target);
 
 static int scst_susp_wait(bool interruptible)
 {
@@ -956,14 +961,6 @@ static int scst_dev_handler_check(struct scst_dev_type *dev_handler)
 	}
 #endif
 
-	if (dev_handler->exec == NULL) {
-#ifdef CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
-		dev_handler->exec_atomic = 1;
-#else
-		dev_handler->exec_atomic = 0;
-#endif
-	}
-
 	if (dev_handler->alloc_data_buf == NULL)
 		dev_handler->alloc_data_buf_atomic = 1;
 
@@ -1009,14 +1006,6 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 	if (res != 0)
 		goto out;
 
-	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
-		if (strcmp(dev->virt_name, dev_name) == 0) {
-			PRINT_ERROR("Device %s already exists", dev_name);
-			res = -EEXIST;
-			goto out;
-		}
-	}
-
 	res = scst_suspend_activity(true);
 	if (res != 0)
 		goto out;
@@ -1024,6 +1013,14 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 	if (mutex_lock_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
 		goto out_resume;
+	}
+
+	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
+		if (strcmp(dev->virt_name, dev_name) == 0) {
+			PRINT_ERROR("Device %s already exists", dev_name);
+			res = -EEXIST;
+			goto out_up;
+		}
 	}
 
 	res = scst_alloc_device(GFP_KERNEL, &dev);
@@ -1051,10 +1048,16 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 		goto out_free_del;
 	}
 
-	rc = scst_assign_dev_handler(dev, dev_handler);
+	rc = scst_pr_init_dev(dev);
 	if (rc != 0) {
 		res = rc;
 		goto out_free_del;
+	}
+
+	rc = scst_assign_dev_handler(dev, dev_handler);
+	if (rc != 0) {
+		res = rc;
+		goto out_pr_clear_dev;
 	}
 
 out_up:
@@ -1072,6 +1075,9 @@ out:
 
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_pr_clear_dev:
+	scst_pr_clear_dev(dev);
 
 out_free_del:
 	list_del(&dev->dev_list_entry);
@@ -1116,6 +1122,8 @@ void scst_unregister_virtual_device(int id)
 				 dev_acg_dev_list_entry) {
 		scst_acg_remove_dev(acg_dev->acg, dev, true);
 	}
+
+	scst_pr_clear_dev(dev);
 
 	scst_assign_dev_handler(dev, &scst_null_devtype);
 
@@ -1773,6 +1781,7 @@ static void scst_stop_all_threads(void)
 	return;
 }
 
+/* It does NOT stop ran threads on error! */
 static int scst_start_all_threads(int num)
 {
 	int res;
@@ -1969,14 +1978,14 @@ static void __init scst_print_config(void)
 		(j == i) ? "" : ", ");
 #endif
 
-#ifdef CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
+#ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
 	i += snprintf(&buf[i], sizeof(buf) - i,
-		"%sALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ",
+		"%sTEST_IO_IN_SIRQ",
 		(j == i) ? "" : ", ");
 #endif
 
 #ifdef CONFIG_SCST_STRICT_SECURITY
-	i += snprintf(&buf[i], sizeof(buf) - i, "%sSCST_STRICT_SECURITY",
+	i += snprintf(&buf[i], sizeof(buf) - i, "%sSTRICT_SECURITY",
 		(j == i) ? "" : ", ");
 #endif
 
@@ -2188,6 +2197,10 @@ static int __init init_scst(void)
 
 #ifdef CONFIG_SCST_PROC
 	res = scst_proc_init_module();
+	if (res != 0)
+		goto out_thread_free;
+#else
+	res = scst_pr_check_pr_path();
 	if (res != 0)
 		goto out_thread_free;
 #endif

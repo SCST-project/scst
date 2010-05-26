@@ -102,6 +102,7 @@
 #define TRACE_SCSI           0x00001000
 #define TRACE_SPECIAL        0x00002000 /* filtering debug, etc */
 #define TRACE_FLOW_CONTROL   0x00004000 /* flow control in action */
+#define TRACE_PRES           0x00008000
 #define TRACE_ALL            0xffffffff
 /* Flags 0xXXXX0000 are local for users */
 
@@ -204,6 +205,9 @@ do {									\
 #define TRACE_MGMT_DBG(args...)		TRACE_DBG_FLAG(TRACE_MGMT_DEBUG, args)
 #define TRACE_MGMT_DBG_SPECIAL(args...)	\
 		TRACE_DBG_FLAG(TRACE_MGMT_DEBUG|TRACE_SPECIAL, args)
+#define TRACE_PR(args...)		TRACE_DBG_FLAG(TRACE_PRES, args)
+
+const char *debug_transport_id_to_initiator_name(const uint8_t *transport_id);
 
 #define TRACE_BUFFER(message, buff, len)				\
 do {									\
@@ -318,6 +322,7 @@ do {									\
 #define TRACE_DBG_SPECIAL(format, args...) do {} while (0)
 #define TRACE_MGMT_DBG(format, args...) do {} while (0)
 #define TRACE_MGMT_DBG_SPECIAL(format, args...) do {} while (0)
+#define TRACE_PR(format, args...) do {} while (0)
 #define TRACE_BUFFER(message, buff, len) do {} while (0)
 #define TRACE_BUFF_FLAG(flag, message, buff, len) do {} while (0)
 

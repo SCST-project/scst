@@ -644,7 +644,7 @@ static void scst_local_release_adapter(struct device *dev)
 			if (scst_lcl_host->session[i])
 				scst_unregister_session(
 					scst_lcl_host->session[i], TRUE, NULL);
-		scst_unregister(scst_lcl_host->target);
+		scst_unregister_target(scst_lcl_host->target);
 		kfree(scst_lcl_host);
 	}
 
@@ -683,7 +683,8 @@ static int scst_local_add_adapter(void)
 	 * Register a target with SCST and add a session
 	 */
 	sprintf(name, "scstlcltgt%d", scst_local_add_host);
-	scst_lcl_host->target = scst_register(&scst_local_targ_tmpl, name);
+	scst_lcl_host->target = scst_register_target(&scst_local_targ_tmpl,
+						     name);
 	if (!scst_lcl_host) {
 		printk(KERN_WARNING "scst_register_target failed:\n");
 		error = -1;
@@ -697,7 +698,7 @@ static int scst_local_add_adapter(void)
 		sprintf(name, "scstlclhst%d:%d", scst_local_add_host, i);
 		scst_lcl_host->session[i] = scst_register_session(
 						scst_lcl_host->target,
-						0, name, NULL, NULL);
+						0, name, NULL, NULL, NULL);
 		if (!scst_lcl_host->session[i]) {
 			printk(KERN_WARNING "scst_register_session failed:\n");
 			error = -1;
@@ -732,7 +733,7 @@ unregister_session:
 			TRUE, NULL);
 	}
 unregister_target:
-	scst_unregister(scst_lcl_host->target);
+	scst_unregister_target(scst_lcl_host->target);
 cleanup:
 	kfree(scst_lcl_host);
 	TRACE_EXIT();

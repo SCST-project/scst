@@ -43,6 +43,7 @@ scst-y        += scst_proc.o
 #scst-y        += scst_sysfs.o
 scst-y        += scst_mem.o
 scst-y        += scst_debug.o
+scst-y        += scst_pres.o
 obj-$(CONFIG_SCST)   += scst.o dev_handlers/
 
 obj-$(BUILD_DEV) += $(DEV_HANDLERS_DIR)/
@@ -86,6 +87,7 @@ ifneq ($(MOD_VERS),)
 	install -m 644 Module.symvers $(INSTALL_DIR_H)
 endif
 	-/sbin/depmod -a $(KVER)
+	mkdir -p /var/lib/scst/pr
 	@echo "****************************************************************"
 	@echo "*!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*"
 	@echo "*!!                                                          !!*"
@@ -122,8 +124,8 @@ EXTRA_CFLAGS += -I$(SCST_INC_DIR) -Wextra -Wno-unused-parameter \
 EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
 
 #EXTRA_CFLAGS += -DCONFIG_SCST_USE_EXPECTED_VALUES
-#EXTRA_CFLAGS += -DALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
-#EXTRA_CFLAGS += -DABORT_CONSIDER_FINISHED_TASKS_AS_NOT_EXISTING
+#EXTRA_CFLAGS += -DCONFIG_SCST_TEST_IO_IN_SIRQ
+#EXTRA_CFLAGS += -DCONFIG_SCST_ABORT_CONSIDER_FINISHED_TASKS_AS_NOT_EXISTING
 
 #EXTRA_CFLAGS += -fno-inline
 

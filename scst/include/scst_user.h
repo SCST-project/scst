@@ -96,6 +96,7 @@ struct scst_user_dev_desc {
 	int32_t sgv_purge_interval;
 	struct scst_user_opt opt;
 	uint32_t block_size;
+	uint8_t enable_pr_cmds_notifications;
 	char name[SCST_MAX_NAME];
 	char sgv_name[SCST_MAX_NAME];
 };

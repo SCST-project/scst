@@ -326,12 +326,17 @@ void iscsi_task_mgmt_affected_cmds_done(struct scst_mgmt_cmd *scst_mcmd)
 		struct iscsi_session *sess = conn->session;
 		struct iscsi_conn *c;
 
+		if (sess->sess_reinst_successor != NULL)
+			scst_reassign_persistent_sess_states(
+				sess->sess_reinst_successor->scst_sess,
+				sess->scst_sess);
+
 		mutex_lock(&sess->target->target_mutex);
 
 		/*
 		 * We can't mark sess as shutting down earlier, because until
 		 * now it might have pending commands. Otherwise, in case of
-		 * reinstatement it might lead to data corruption, because
+		 * reinstatement, it might lead to data corruption, because
 		 * commands in being reinstated session can be executed
 		 * after commands in the new session.
 		 */
@@ -374,6 +379,8 @@ static void close_conn(struct iscsi_conn *conn)
 	typeof(jiffies) shut_start_waiting = start_waiting;
 	bool pending_reported = 0, wait_expired = 0, shut_expired = 0;
 	bool reinst;
+	uint32_t tid, cid;
+	uint64_t sid;
 
 #define CONN_PENDING_TIMEOUT	((typeof(jiffies))10*HZ)
 #define CONN_WAIT_TIMEOUT	((typeof(jiffies))10*HZ)
@@ -548,10 +555,9 @@ static void close_conn(struct iscsi_conn *conn)
 
 	wait_for_completion(&conn->ready_to_free);
 
-	TRACE_CONN_CLOSE("Notifying user space about closing connection %p",
-			 conn);
-	event_send(target->tid, session->sid, conn->cid, 0, E_CONN_CLOSE,
-		NULL, NULL);
+	tid = target->tid;
+	sid = session->sid;
+	cid = conn->cid;
 
 #ifdef CONFIG_SCST_PROC
 	mutex_lock(&target->target_mutex);
@@ -560,6 +566,17 @@ static void close_conn(struct iscsi_conn *conn)
 #else
 	kobject_put(&conn->iscsi_conn_kobj);
 #endif
+
+	/*
+	 * We can't send E_CONN_CLOSE earlier, because otherwise we would have
+	 * a race, when the user space tried to destroy session, which still
+	 * has connections.
+	 *
+	 * !! All target, session and conn can be already dead here !!
+	 */
+	TRACE_CONN_CLOSE("Notifying user space about closing connection %p",
+			 conn);
+	event_send(tid, sid, cid, 0, E_CONN_CLOSE, NULL, NULL);
 
 	TRACE_EXIT();
 	return;

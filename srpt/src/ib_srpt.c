@@ -2137,7 +2137,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 
 	BUG_ON(!sdev->scst_tgt);
 	ch->scst_sess = scst_register_session(sdev->scst_tgt, 0, ch->sess_name,
-					      NULL, NULL);
+					      ch, NULL, NULL);
 	if (!ch->scst_sess) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		TRACE_DBG("%s", "Failed to create scst sess");
@@ -2146,8 +2146,6 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 
 	TRACE_DBG("Establish connection sess=%p name=%s cm_id=%p",
 		  ch->scst_sess, ch->sess_name, ch->cm_id);
-
-	scst_sess_set_tgt_priv(ch->scst_sess, ch);
 
 	/* create srp_login_response */
 	rsp->opcode = SRP_LOGIN_RSP;
@@ -2775,11 +2773,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	int resp_len;
 	enum srpt_command_state prev_state;
 
-	if (unlikely(scst_cmd_atomic(scmnd))) {
-		TRACE_DBG("%s", "Switching to thread context.");
-		ret = SCST_TGT_RES_NEED_THREAD_CTX;
-		goto out;
-	}
+	EXTRACHECKS_BUG_ON(scst_cmd_atomic(scst_cmd));
 
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
 	BUG_ON(!ioctx);
@@ -2971,8 +2965,8 @@ static int srpt_detect(struct scst_tgt_template *tp)
 /**
  * srpt_release() - SCST release callback function.
  *
- * Callback function called by the SCST core from scst_unregister() to free up
- * the resources associated with device scst_tgt.
+ * Callback function called by the SCST core from scst_unregister_target() to
+ * free up the resources associated with device scst_tgt.
  */
 static int srpt_release(struct scst_tgt *scst_tgt)
 {
@@ -3157,7 +3151,7 @@ static void srpt_add_one(struct ib_device *device)
 	if (!sdev)
 		return;
 
-	sdev->scst_tgt = scst_register(&srpt_template, NULL);
+	sdev->scst_tgt = scst_register_target(&srpt_template, NULL);
 	if (!sdev->scst_tgt) {
 		PRINT_ERROR("SCST registration failed for %s.",
 			    sdev->device->name);
@@ -3306,7 +3300,7 @@ err_dev:
 	device_unregister(&sdev->dev);
 #endif
 unregister_tgt:
-	scst_unregister(sdev->scst_tgt);
+	scst_unregister_target(sdev->scst_tgt);
 free_dev:
 	kfree(sdev);
 
@@ -3366,7 +3360,7 @@ static void srpt_remove_one(struct ib_device *device)
 	 * such that no new SRP_LOGIN_REQ information units can arrive while
 	 * destroying the SCST target.
 	 */
-	scst_unregister(sdev->scst_tgt);
+	scst_unregister_target(sdev->scst_tgt);
 	sdev->scst_tgt = NULL;
 
 	srpt_free_ioctx_ring(sdev, sdev->ioctx_ring,

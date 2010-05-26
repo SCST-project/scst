@@ -23,3 +23,17 @@ config SCST_ISCSI_DEBUG_DIGEST_FAILURES
 	  iSCSI initiator that is talking to SCST.
 
 	  If unsure, say "N".
+
+config CONFIG_SCST_ISCSI_SKIP_ISID
+	bool "Do not use ISID in initiator port transport id"
+	depends on SCST_ISCSI
+	help
+	  Makes iSCSI-SCST to always use iSCSI initiator port
+	  TransportID format 0, i.e. always identify initiators only by
+	  names and ignore ISID part in TransportIDs. This is useful for
+	  Persistent Reservations with initiators which don't use ISID
+	  in a standards confirming way, for instance by always
+	  incrementing it on each reconnect, as well as to debug
+	  Persistent Reservations.
+
+	  If unsure, say "N".

@@ -81,7 +81,7 @@ static int iscsi_session_alloc(struct iscsi_target *target,
 	session->next_ttt = 1;
 
 	session->scst_sess = scst_register_session(target->scst_tgt, 0,
-		name, NULL, NULL);
+		name, session, NULL, NULL);
 	if (session->scst_sess == NULL) {
 		PRINT_ERROR("%s", "scst_register_session() failed");
 		err = -ENOMEM;
@@ -91,8 +91,6 @@ static int iscsi_session_alloc(struct iscsi_target *target,
 #ifdef CONFIG_SCST_PROC
 	kfree(name);
 #endif
-
-	scst_sess_set_tgt_priv(session->scst_sess, session);
 
 	TRACE_MGMT_DBG("Session %p created: target %p, tid %u, sid %#Lx",
 		session, target, target->tid, info->sid);
@@ -346,7 +344,7 @@ int __del_session(struct iscsi_target *target, u64 sid)
 		return -ENOENT;
 
 	if (!list_empty(&session->conn_list)) {
-		PRINT_ERROR("%llu still have connections",
+		PRINT_ERROR("%llx still have connections",
 			    (long long unsigned int)session->sid);
 		return -EBUSY;
 	}
@@ -523,7 +521,7 @@ static ssize_t iscsi_sess_force_close_store(struct kobject *kobj,
 		goto out;
 	}
 
-	PRINT_INFO("Deleting session %llu with initiator %s (%p)",
+	PRINT_INFO("Deleting session %llx with initiator %s (%p)",
 		(long long unsigned int)sess->sid, sess->initiator_name, sess);
 
 	list_for_each_entry(conn, &sess->conn_list, conn_list_entry) {

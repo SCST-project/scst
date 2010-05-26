@@ -64,7 +64,7 @@ typedef _Bool bool;
 #else
 #define SCST_VERSION_STRING_SUFFIX
 #endif
-#define SCST_VERSION_STRING	    "2.0.0-pre1" SCST_VERSION_STRING_SUFFIX
+#define SCST_VERSION_STRING	    "2.0.0-rc1" SCST_VERSION_STRING_SUFFIX
 #define SCST_INTERFACE_VERSION	    \
 		SCST_VERSION_STRING "$Revision$" SCST_CONST_VERSION
 
@@ -200,22 +200,25 @@ static inline int list_is_last(const struct list_head *list,
  *************************************************************/
 
 /* LUN translation (mcmd->tgt_dev assignment) */
-#define SCST_MCMD_STATE_INIT     0
+#define SCST_MCMD_STATE_INIT				0
 
-/* Mgmt cmd is ready for processing */
-#define SCST_MCMD_STATE_READY    1
+/* Mgmt cmd is being processed */
+#define SCST_MCMD_STATE_EXEC				1
 
-/* Mgmt cmd is being executing */
-#define SCST_MCMD_STATE_EXECUTING 2
+/* Waiting for affected commands done */
+#define SCST_MCMD_STATE_WAITING_AFFECTED_CMDS_DONE	2
 
-/* Post check when affected commands done */
-#define SCST_MCMD_STATE_POST_AFFECTED_CMDS_DONE 3
+/* Post actions when affected commands done */
+#define SCST_MCMD_STATE_AFFECTED_CMDS_DONE		3
+
+/* Waiting for affected local commands finished */
+#define SCST_MCMD_STATE_WAITING_AFFECTED_CMDS_FINISHED	4
 
 /* Target driver's task_mgmt_fn_done() is going to be called */
-#define SCST_MCMD_STATE_DONE     4
+#define SCST_MCMD_STATE_DONE				5
 
 /* The mcmd finished */
-#define SCST_MCMD_STATE_FINISHED 5
+#define SCST_MCMD_STATE_FINISHED			6
 
 /*************************************************************
  ** Constants for "atomic" parameter of SCST's functions
@@ -309,9 +312,6 @@ enum scst_exec_context {
  */
 #define SCST_PREPROCESS_STATUS_ERROR_FATAL   3
 
-/* Thread context requested */
-#define SCST_PREPROCESS_STATUS_NEED_THREAD   4
-
 /*************************************************************
  ** Values for AEN functions
  *************************************************************/
@@ -373,12 +373,6 @@ enum scst_exec_context {
 
 /* The cmd should be sent to SCSI mid-level */
 #define SCST_EXEC_NOT_COMPLETED      1
-
-/*
- * Thread context is required to execute the command.
- * Exec() will be called again in the thread context.
- */
-#define SCST_EXEC_NEED_THREAD        2
 
 /*
  * Set if cmd is finished and there is status/sense to be sent.
@@ -463,11 +457,7 @@ enum scst_exec_context {
 
 /* Set if the corresponding context is atomic */
 #define SCST_TGT_DEV_AFTER_INIT_WR_ATOMIC	5
-#define SCST_TGT_DEV_AFTER_INIT_OTH_ATOMIC	6
-#define SCST_TGT_DEV_AFTER_RESTART_WR_ATOMIC	7
-#define SCST_TGT_DEV_AFTER_RESTART_OTH_ATOMIC	8
-#define SCST_TGT_DEV_AFTER_RX_DATA_ATOMIC	9
-#define SCST_TGT_DEV_AFTER_EXEC_ATOMIC		10
+#define SCST_TGT_DEV_AFTER_EXEC_ATOMIC		6
 
 #define SCST_TGT_DEV_CLUST_POOL			11
 
@@ -735,10 +725,6 @@ struct scst_tgt_template {
 	 * This command is expected to be NON-BLOCKING.
 	 * If it is blocking, consider to set threads_num to some none 0 number.
 	 *
-	 * Pay attention to "atomic" attribute of the cmd, which can be get
-	 * by scst_cmd_atomic(): it is true if the function called in the
-	 * atomic (non-sleeping) context.
-	 *
 	 * OPTIONAL
 	 */
 	int (*pre_exec) (struct scst_cmd *cmd);
@@ -815,6 +801,20 @@ struct scst_tgt_template {
 	int (*write_proc) (char *buffer, char **start, off_t offset,
 		int length, int *eof, struct scst_tgt *tgt);
 #endif
+
+	/*
+	 * This function returns in tr_id the corresponding to sess initiator
+	 * port TransporID in the form as it's used by PR commands, see
+	 * "Transport Identifiers" in SPC. Space for the initiator port
+	 * TransporID must be allocated via kmalloc(). Caller supposed to
+	 * kfree() it, when it isn't needed anymore.
+	 *
+	 * Returns 0 on success or negative error code otherwise.
+	 *
+	 * SHOULD HAVE, because it's required for Persistent Reservations.
+	 */
+	int (*get_initiator_port_transport_id) (struct scst_session *sess,
+		uint8_t **transport_id);
 
 	/*
 	 * This function allows to enable or disable particular target.
@@ -972,7 +972,6 @@ struct scst_dev_type {
 	 */
 	unsigned parse_atomic:1;
 	unsigned alloc_data_buf_atomic:1;
-	unsigned exec_atomic:1;
 	unsigned dev_done_atomic:1;
 
 #ifdef CONFIG_SCST_PROC
@@ -985,6 +984,13 @@ struct scst_dev_type {
 	 * to optimize commands order management.
 	 */
 	unsigned exec_sync:1;
+
+	/*
+	 * Should be set if the device wants to receive notification of
+	 * Persistent Reservation commands (PR OUT only)
+	 * Note: The notification will not be send if the command failed
+	 */
+	unsigned pr_cmds_notifications:1;
 
 	/*
 	 * Called to parse CDB from the cmd and initialize
@@ -1032,14 +1038,8 @@ struct scst_dev_type {
 	 * cmd->scst_cmd_done() callback.
 	 * Returns:
 	 *  - SCST_EXEC_COMPLETED - the cmd is done, go to other ones
-	 *  - SCST_EXEC_NEED_THREAD - thread context is required to execute
-	 *	the command. Exec() will be called again in the thread context.
 	 *  - SCST_EXEC_NOT_COMPLETED - the cmd should be sent to SCSI
 	 *	mid-level.
-	 *
-	 * Pay attention to "atomic" attribute of the cmd, which can be get
-	 * by scst_cmd_atomic(): it is true if the function called in the
-	 * atomic (non-sleeping) context.
 	 *
 	 * If this function provides sync execution, you should set
 	 * exec_sync flag and consider to setup dedicated threads by
@@ -1385,6 +1385,9 @@ struct scst_session {
 	/* Access control for this session and list entry there */
 	struct scst_acg *acg;
 
+	/* Initiator port transport id */
+	uint8_t *transport_id;
+
 	/* List entry for the sessions list inside ACG */
 	struct list_head acg_sess_list_entry;
 
@@ -1457,6 +1460,29 @@ struct scst_session {
 	uint64_t max_scst_time, max_tgt_time, max_dev_time;
 	struct scst_ext_latency_stat sess_latency_stat[SCST_LATENCY_STATS_NUM];
 #endif
+};
+
+/*
+ * SCST_PR_ABORT_ALL TM function helper structure
+ */
+struct scst_pr_abort_all_pending_mgmt_cmds_counter {
+	/*
+	 * How many there are pending for this cmd SCST_PR_ABORT_ALL TM
+	 * commands.
+	 */
+	atomic_t pr_abort_pending_cnt;
+
+	/* Saved completition routine */
+	void (*saved_cmd_done) (struct scst_cmd *cmd, int next_state,
+		enum scst_exec_context pref_context);
+
+	/*
+	 * How many there are pending for this cmd SCST_PR_ABORT_ALL TM
+	 * commands, which not yet aborted all affected commands and
+	 * a completion to signal, when it's done.
+	 */
+	atomic_t pr_aborting_cnt;
+	struct completion pr_aborting_cmpl;
 };
 
 /*
@@ -1566,6 +1592,12 @@ struct scst_cmd {
 	 * Set if the SG buffer was modified by scst_set_resp_data_len()
 	 */
 	unsigned int sg_buff_modified:1;
+
+	/*
+	 * Set if cmd buffer was vmallocated and copied from more
+	 * then one sg chunk
+	 */
+	unsigned int sg_buff_vmallocated:1;
 
 	/*
 	 * Set if scst_cmd_init_stage1_done() called and the target
@@ -1761,11 +1793,17 @@ struct scst_cmd {
 	/* Used to retry commands in case of double UA */
 	int dbl_ua_orig_resp_data_len, dbl_ua_orig_data_direction;
 
-	/* List corresponding mgmt cmd, if any, protected by sess_list_lock */
+	/*
+	 * List of the corresponding mgmt cmds, if any. Protected by
+	 * sess_list_lock.
+	 */
 	struct list_head mgmt_cmd_list;
 
 	/* List entry for dev's blocked_cmd_list */
 	struct list_head blocked_cmd_list_entry;
+
+	/* Counter of the corresponding SCST_PR_ABORT_ALL TM commands */
+	struct scst_pr_abort_all_pending_mgmt_cmds_counter *pr_abort_counter;
 
 	struct scst_cmd *orig_cmd; /* Used to issue REQUEST SENSE */
 
@@ -1806,8 +1844,11 @@ struct scst_mgmt_cmd_stub {
 	/* List entry in cmd->mgmt_cmd_list */
 	struct list_head cmd_mgmt_cmd_list_entry;
 
-	/* set if the cmd was counted in  mcmd->cmd_done_wait_count */
+	/* Set if the cmd was counted in  mcmd->cmd_done_wait_count */
 	unsigned int done_counted:1;
+
+	/* Set if the cmd was counted in  mcmd->cmd_finish_wait_count */
+	unsigned int finish_counted:1;
 };
 
 /*
@@ -1824,13 +1865,10 @@ struct scst_mgmt_cmd {
 
 	int fn; /* task management function */
 
-	unsigned int completed:1;	/* set, if the mcmd is completed */
 	/* Set if device(s) should be unblocked after mcmd's finish */
 	unsigned int needs_unblocking:1;
 	unsigned int lun_set:1;		/* set, if lun field is valid */
 	unsigned int cmd_sn_set:1;	/* set, if cmd_sn field is valid */
-	/* set, if scst_mgmt_affected_cmds_done was called */
-	unsigned int affected_cmds_done_called:1;
 
 	/*
 	 * Number of commands to finish before sending response,
@@ -1862,18 +1900,36 @@ struct scst_mgmt_cmd {
 	/* completition status, one of the SCST_MGMT_STATUS_* constants */
 	int status;
 
-	/* Used for storage of target driver private stuff */
-	void *tgt_priv;
+	/* Used for storage of target driver private stuff or origin PR cmd */
+	union {
+		void *tgt_priv;
+		struct scst_cmd *origin_pr_cmd;
+	};
+};
+
+/*
+ * Persistent reservations registrant
+ */
+struct scst_dev_registrant {
+	uint8_t *transport_id;
+	uint16_t rel_tgt_id;
+	uint64_t key;
+
+	/* tgt_dev (I_T nexus) for this registrant, if any */
+	struct scst_tgt_dev *tgt_dev;
+
+	/* List entry for dev_registrants_list */
+	struct list_head dev_registrants_list_entry;
+	
+	/* 2 auxiliary fields used to rollback changes for errors, etc. */
+	struct list_head aux_list_entry;
+	uint64_t rollback_key;
 };
 
 /*
  * SCST device
  */
 struct scst_device {
-	struct scst_dev_type *handler;	/* corresponding dev handler */
-
-	struct scst_mem_lim dev_mem_lim;
-
 	unsigned short type;	/* SCSI type of the device */
 
 	/*************************************************************
@@ -1890,12 +1946,15 @@ struct scst_device {
 	/* If set, dev is read only */
 	unsigned short rd_only:1;
 
+	/* Set if tgt_kobj was initialized */
+	unsigned short dev_kobj_initialized:1;
+
 	/**************************************************************/
 
 	/*************************************************************
 	 ** Dev's control mode page related values. Updates serialized
 	 ** by scst_block_dev(). It's long to not interfere with the
-	 ** above flags.
+	 ** neighbour fields.
 	 *************************************************************/
 
 	unsigned long queue_alg:4;
@@ -1913,6 +1972,23 @@ struct scst_device {
 
 	/**************************************************************/
 
+	/* Set if dev is persistently reserved. Protected by dev_pr_mutex. */
+	unsigned short pr_is_set:1;
+
+	/*
+	 * Set if there is a thread changing or going to change PR state(s).
+	 * Protected by dev_pr_mutex.
+	 */
+	unsigned short pr_writer_active:1;
+
+	/*
+	 * How many threads are checking commands for PR allowance. Used to
+	 * implement lockless read-only fast path.
+	 */
+	atomic_t pr_readers_count;
+
+	struct scst_dev_type *handler;	/* corresponding dev handler */
+
 	/* Used for storage of dev handler private stuff */
 	void *dh_priv;
 
@@ -1924,16 +2000,20 @@ struct scst_device {
 	/* Corresponding real SCSI device, could be NULL for virtual devices */
 	struct scsi_device *scsi_dev;
 
-	/* Lists of commands with lock, if dedicated threads are used */
+	/* List of commands with lock, if dedicated threads are used */
 	struct scst_cmd_threads dev_cmd_threads;
+
+	/* Memory limits for this device */
+	struct scst_mem_lim dev_mem_lim;
 
 	/* How many cmds alive on this dev */
 	atomic_t dev_cmd_count;
 
-	/* How many write cmds alive on this dev. Temporary, ToDo */
-	atomic_t write_cmd_count;
-
-	spinlock_t dev_lock;		/* device lock */
+	/*
+	 * How many there are "on_dev" commands, i.e. ones those are being
+	 * executed by the underlying SCSI/virtual device.
+	 */
+	atomic_t on_dev_count;
 
 	/*
 	 * How many times device was blocked for new cmds execution.
@@ -1941,11 +2021,48 @@ struct scst_device {
 	 */
 	int block_count;
 
+	/* How many write cmds alive on this dev. Temporary, ToDo */
+	atomic_t write_cmd_count;
+
+	/*************************************************************
+	 ** Persistent reservation fields. Protected by dev_pr_mutex.
+	 *************************************************************/
+
+	/* True if persist through power loss is activated */
+	unsigned short pr_aptpl:1;
+
+	/* Persistent reservation type */
+	uint8_t pr_type;
+
+	/* Persistent reservation scope */
+	uint8_t pr_scope;
+
+	/* Mutex to protect PR operations */
+	struct mutex dev_pr_mutex;
+
+	/* Persistent reservation generation value */
+	uint32_t pr_generation;
+
+	/* Reference to registrant - persistent reservation holder */
+	struct scst_dev_registrant *pr_holder;
+
+	/* List of dev's registrants */
+	struct list_head dev_registrants_list;
+
 	/*
-	 * How many there are "on_dev" commands, i.e. ones those are being
-	 * executed by the underlying SCSI/virtual device.
+	 * Count of connected tgt_devs from transports, which don't support
+	 * PRs, i.e. don't have get_initiator_port_transport_id(). Protected
+	 * by scst_mutex.
 	 */
-	atomic_t on_dev_count;
+	int not_pr_supporting_tgt_devs_num;
+
+	/* Persist through power loss files */
+	char *pr_file_name;
+	char *pr_file_name1;
+
+	/**************************************************************/
+
+	spinlock_t dev_lock;		/* device lock */
 
 	struct list_head blocked_cmd_list; /* protected by dev_lock */
 
@@ -1978,9 +2095,6 @@ struct scst_device {
 
 	/* Threads pool type of the device. Valid only if threads_num > 0. */
 	enum scst_dev_type_threads_pool_type threads_pool_type;
-
-	/* Set if tgt_kobj was initialized */
-	unsigned int dev_kobj_initialized:1;
 
 	/*
 	 * Used to protect sysfs attributes to be called after this
@@ -2093,6 +2207,9 @@ struct scst_tgt_dev {
 
 	struct scst_session *sess;	/* corresponding session */
 	struct scst_acg_dev *acg_dev;	/* corresponding acg_dev */
+
+	/* Reference to registrant to find quicker */
+	struct scst_dev_registrant *registrant;
 
 	/* List entry in dev->dev_tgt_dev_list */
 	struct list_head dev_tgt_dev_list_entry;
@@ -2258,12 +2375,12 @@ static inline int scst_register_target_template(struct scst_tgt_template *vtt)
 
 void scst_unregister_target_template(struct scst_tgt_template *vtt);
 
-struct scst_tgt *scst_register(struct scst_tgt_template *vtt,
+struct scst_tgt *scst_register_target(struct scst_tgt_template *vtt,
 	const char *target_name);
-void scst_unregister(struct scst_tgt *tgt);
+void scst_unregister_target(struct scst_tgt *tgt);
 
 struct scst_session *scst_register_session(struct scst_tgt *tgt, int atomic,
-	const char *initiator_name, void *data,
+	const char *initiator_name, void *tgt_priv, void *result_fn_data,
 	void (*result_fn) (struct scst_session *sess, void *data, int result));
 void scst_unregister_session(struct scst_session *sess, int wait,
 	void (*unreg_done_fn) (struct scst_session *sess));
@@ -3194,6 +3311,7 @@ struct scst_trace_log {
 };
 
 extern struct mutex scst_mutex;
+extern bool iscsi_tid_name_only;
 
 #ifdef CONFIG_SCST_PROC
 
@@ -3394,6 +3512,9 @@ int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 	void (*set_block_size)(struct scst_cmd *cmd, int block_size));
 
 int scst_obtain_device_parameters(struct scst_device *dev);
+
+void scst_reassign_persistent_sess_states(struct scst_session *new_sess,
+	struct scst_session *old_sess);
 
 int scst_get_max_lun_commands(struct scst_session *sess, uint64_t lun);
 

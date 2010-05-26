@@ -196,17 +196,20 @@ your favorite kernel configuration Makefile target, e.g. "make xconfig":
    patching is necessary for pass-through device handlers (scst_disk,
    etc.).
 
- - CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ - if defined, it will be
-   allowed to submit pass-through commands to real SCSI devices via the SCSI
-   middle layer using scsi_execute_async() function from soft IRQ
-   context (tasklets). This used to be the default, but currently it
-   seems the SCSI middle layer starts expecting only thread context on
-   the IO submit path, so it is disabled now by default. Enabling it
-   will decrease amount of context switches and improve performance. It
-   is more or less safe, in the worst case, if in your configuration the
-   SCSI middle layer really doesn't expect SIRQ context in
-   scsi_execute_async() function, you will get a warning message in the
-   kernel log.
+ - CONFIG_SCST_TEST_IO_IN_SIRQ - if defined, allows SCST to submit selected
+   SCSI commands (TUR and READ/WRITE) from soft-IRQ context (tasklets).
+   Enabling it will decrease amount of context switches and slightly
+   improve performance. The goal of this option is to be able to measure
+   overhead of the context switches. If after enabling this option you
+   don't see under load in vmstat output on the target significant
+   decrease of amount of context switches, then your target driver
+   doesn't submit commands to SCST in IRQ context. For instance,
+   iSCSI-SCST doesn't do that, but qla2x00t with
+   CONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD disabled - does. This option is
+   designed to be used with vdisk NULLIO backend. 
+
+   WARNING! Using with other backend than vdisk NULLIO is unsafe and can
+   lead you to a kernel crash!
 
  - CONFIG_SCST_STRICT_SECURITY - if defined, makes SCST zero allocated data
    buffers. Undefining it (default) considerably improves performance
@@ -869,6 +872,34 @@ IMPORTANT: Some disk and partition table management utilities don't support
 	   work with files on such file system.
 
 
+Persistent Reservations
+-----------------------
+
+SCST implements Persistent Reservations with full set of capabilities,
+including "Persistence Through Power Loss".
+
+The "Persistence Through Power Loss" data are saved in /var/lib/scst/pr
+with files with names the same as the names of the corresponding
+devices. Also this directory contains backup versions of those files
+with suffix ".1". Those backup files are used in case of power or other
+failure to prevent Persistent Reservation information from corruption
+during update.
+
+The Persistent Reservations available on all transports implementing
+get_initiator_port_transport_id() callback. Transports not implementing
+this callback will act in one of 2 possible scenarios ("all or
+nothing"):
+
+1. If a device has such transport connected and doesn't have persistent
+reservations, it will refuse Persistent Reservations commands as if it
+doesn't support them.
+
+2. If a device has persistent reservations, all initiators newly
+connecting via such transports will not see this device. After all
+persistent reservations from this device are released, upon reconnect
+the initiators will see it.
+
+
 Caching
 -------
 
@@ -1067,9 +1098,6 @@ In order to get the maximum performance you should:
 
  - Disable in Makefile CONFIG_SCST_STRICT_SERIALIZING, CONFIG_SCST_EXTRACHECKS,
    CONFIG_SCST_TRACING, CONFIG_SCST_DEBUG*, CONFIG_SCST_STRICT_SECURITY
-
- - For pass-through devices enable
-   CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ.
 
 2. For target drivers:
 

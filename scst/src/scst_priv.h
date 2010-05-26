@@ -108,7 +108,7 @@ extern unsigned long scst_trace_flag;
  **/
 #define SCST_CMD_STATE_RES_CONT_NEXT         SCST_EXEC_COMPLETED
 #define SCST_CMD_STATE_RES_CONT_SAME         SCST_EXEC_NOT_COMPLETED
-#define SCST_CMD_STATE_RES_NEED_THREAD       SCST_EXEC_NEED_THREAD
+#define SCST_CMD_STATE_RES_NEED_THREAD       (SCST_EXEC_NOT_COMPLETED+1)
 
 /**
  ** Maximum count of uncompleted commands that an initiator could
@@ -196,6 +196,10 @@ static inline bool scst_set_io_context(struct scst_cmd *cmd,
 	struct io_context **old)
 {
 	bool res;
+
+#ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
+	return false;
+#endif
 
 	if (cmd->cmd_threads == &scst_main_cmd_threads) {
 		EXTRACHECKS_BUG_ON(in_interrupt());
@@ -414,6 +418,9 @@ int scst_alloc_space(struct scst_cmd *cmd);
 int scst_lib_init(void);
 void scst_lib_exit(void);
 
+int scst_get_full_buf(struct scst_cmd *cmd, uint8_t **buf);
+void scst_put_full_buf(struct scst_cmd *cmd, uint8_t *buf);
+
 uint64_t scst_pack_lun(const uint64_t lun, unsigned int addr_method);
 uint64_t scst_unpack_lun(const uint8_t *lun, int len);
 
@@ -567,7 +574,7 @@ int scst_set_pending_UA(struct scst_cmd *cmd);
 void scst_report_luns_changed(struct scst_acg *acg);
 
 void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
-	int other_ini, int call_dev_task_mgmt_fn);
+	bool other_ini, bool call_dev_task_mgmt_fn);
 void scst_process_reset(struct scst_device *dev,
 	struct scst_session *originator, struct scst_cmd *exclude_cmd,
 	struct scst_mgmt_cmd *mcmd, bool setUA);
@@ -732,8 +739,9 @@ static inline int scst_sn_before(uint32_t seq1, uint32_t seq2)
 	return (int32_t)(seq1-seq2) < 0;
 }
 
-bool scst_is_relative_target_port_id_unique(uint16_t id, struct scst_tgt *t);
 int gen_relative_target_port_id(uint16_t *id);
+bool scst_is_relative_target_port_id_unique(uint16_t id,
+	const struct scst_tgt *t);
 
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 

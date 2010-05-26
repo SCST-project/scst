@@ -112,6 +112,7 @@ static struct scst_trace_log scst_proc_trace_tbl[] = {
     { TRACE_MGMT,		"mgmt" },
     { TRACE_MGMT_DEBUG,		"mgmt_dbg" },
     { TRACE_FLOW_CONTROL,	"flow_control" },
+    { TRACE_PRES,		"pr" },
     { 0,			NULL }
 };
 
@@ -2311,12 +2312,12 @@ static int scst_version_info_show(struct seq_file *seq, void *v)
 	seq_printf(seq, "USE_EXPECTED_VALUES\n");
 #endif
 
-#ifdef CONFIG_SCST_ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ
-	seq_printf(seq, "ALLOW_PASSTHROUGH_IO_SUBMIT_IN_SIRQ\n");
+#ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
+	seq_printf(seq, "TEST_IO_IN_SIRQ\n");
 #endif
 
 #ifdef CONFIG_SCST_STRICT_SECURITY
-	seq_printf(seq, "SCST_STRICT_SECURITY\n");
+	seq_printf(seq, "STRICT_SECURITY\n");
 #endif
 
 	TRACE_EXIT();

@@ -928,18 +928,6 @@ static int dev_user_exec(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-#if 0 /* We set exec_atomic in 0 to let SCST core know that we need a thread
-       * context to complete the necessary actions, but all we are going to
-       * do in this function is, in fact, atomic, so let's skip this check.
-       */
-	if (scst_cmd_atomic(cmd)) {
-		TRACE_DBG("%s", "User exec() can not be called in atomic "
-			"context, rescheduling to the thread");
-		res = SCST_EXEC_NEED_THREAD;
-		goto out;
-	}
-#endif
-
 	TRACE_DBG("Preparing EXEC for user space (ucmd=%p, h=%d, "
 		"bufflen %d, data_len %d, ubuff %lx)", ucmd, ucmd->h,
 		cmd->bufflen, cmd->data_len, ucmd->ubuff);
@@ -2891,7 +2879,6 @@ static int dev_user_register_dev(struct file *file,
 	dev->devtype.threads_num = -1;
 	dev->devtype.parse_atomic = 1;
 	dev->devtype.alloc_data_buf_atomic = 1;
-	dev->devtype.exec_atomic = 0; /* no point to make it 1 */
 	dev->devtype.dev_done_atomic = 1;
 #ifdef CONFIG_SCST_PROC
 	dev->devtype.no_proc = 1;
@@ -2905,8 +2892,8 @@ static int dev_user_register_dev(struct file *file,
 	dev->devtype.exec = dev_user_exec;
 	dev->devtype.on_free_cmd = dev_user_on_free_cmd;
 	dev->devtype.task_mgmt_fn = dev_user_task_mgmt_fn;
-
-	dev->devtype.parent = &dev_user_devtype;
+	if (dev_desc->enable_pr_cmds_notifications)
+		dev->devtype.pr_cmds_notifications = 1;
 
 	init_completion(&dev->cleanup_cmpl);
 	dev->block = block;

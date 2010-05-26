@@ -18,8 +18,11 @@
 #include <linux/hash.h>
 #include <linux/kthread.h>
 #include <linux/scatterlist.h>
+#include <linux/ctype.h>
 #include <net/tcp.h>
 #include <scsi/scsi.h>
+#include <asm/byteorder.h>
+#include <asm/unaligned.h>
 
 #include "iscsi.h"
 #include "digest.h"
@@ -3118,8 +3121,7 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 	u8 *sense = scst_cmd_get_sense_buffer(scst_cmd);
 	int sense_len = scst_cmd_get_sense_buffer_len(scst_cmd);
 
-	if (unlikely(scst_cmd_atomic(scst_cmd)))
-		return SCST_TGT_RES_NEED_THREAD_CTX;
+	EXTRACHECKS_BUG_ON(scst_cmd_atomic(scst_cmd));
 
 	scst_cmd_set_tgt_priv(scst_cmd, NULL);
 
@@ -3494,6 +3496,56 @@ static int iscsi_report_aen(struct scst_aen *aen)
 	return res;
 }
 
+int iscsi_get_initiator_port_transport_id(struct scst_session *scst_sess,
+	uint8_t **transport_id)
+{
+	struct iscsi_session *sess;
+	int res = 0;
+	union iscsi_sid sid;
+	int tr_id_size;
+	uint8_t *tr_id;
+	uint8_t q;
+
+	TRACE_ENTRY();
+
+	sess = (struct iscsi_session *)scst_sess_get_tgt_priv(scst_sess);
+
+	sid = *(union iscsi_sid *)&sess->sid;
+	sid.id.tsih = 0;
+
+	tr_id_size = 4 + strlen(sess->initiator_name) + 5 +
+		snprintf(&q, sizeof(q), "%llx", sid.id64) + 1;
+	tr_id_size = (tr_id_size + 3) & -4;
+
+	tr_id = kzalloc(tr_id_size, GFP_KERNEL);
+	if (tr_id == NULL) {
+		PRINT_ERROR("Allocation of TrandportID (size %d) failed",
+			tr_id_size);
+		res = -ENOMEM;
+		goto out;
+	}
+
+#ifdef CONFIG_SCST_ISCSI_SKIP_ISID
+	tr_id[0] = 0x0 | SCSI_TRANSPORTID_PROTOCOLID_ISCSI;
+	tr_id_size = 4 + sprintf(&tr_id[4], "%s", sess->initiator_name) + 1;
+	tr_id_size = (tr_id_size + 3) & -4;
+#else
+	tr_id[0] = 0x40 | SCSI_TRANSPORTID_PROTOCOLID_ISCSI;
+	sprintf(&tr_id[4], "%s,i,0x%llx", sess->initiator_name, sid.id64);
+#endif
+
+	put_unaligned(cpu_to_be16(tr_id_size - 4),
+		(__be16 *)&tr_id[2]);
+
+	*transport_id = tr_id;
+
+	TRACE_DBG("Created tid '%s'", &tr_id[4]);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 void iscsi_send_nop_in(struct iscsi_conn *conn)
 {
 	struct iscsi_cmnd *req, *rsp;
@@ -3615,6 +3667,7 @@ struct scst_tgt_template iscsi_template = {
 	.task_mgmt_affected_cmds_done = iscsi_task_mgmt_affected_cmds_done,
 	.task_mgmt_fn_done = iscsi_task_mgmt_fn_done,
 	.report_aen = iscsi_report_aen,
+	.get_initiator_port_transport_id = iscsi_get_initiator_port_transport_id,
 };
 
 static __init int iscsi_run_threads(int count, char *name, int (*fn)(void *))
@@ -3691,6 +3744,12 @@ static int __init iscsi_init(void)
 #endif
 #endif
 
+#ifdef CONFIG_SCST_ISCSI_SKIP_ISID
+	PRINT_WARNING("%s", "CONFIG_SCST_ISCSI_SKIP_ISID defined: identifying "
+		"initiators only by names and ignoring ISID part in "
+		"TransportIDs");
+#endif
+
 	ctr_major = register_chrdev(0, ctr_name, &ctr_fops);
 	if (ctr_major < 0) {
 		PRINT_ERROR("failed to register the control device %d",
@@ -3728,6 +3787,12 @@ static int __init iscsi_init(void)
 	err = iscsi_run_threads(num, "iscsiwr", istwr);
 	if (err != 0)
 		goto out_thr;
+
+#ifdef CONFIG_SCST_ISCSI_SKIP_ISID
+	iscsi_tid_name_only = true;
+#else
+	iscsi_tid_name_only = false;
+#endif
 
 out:
 	return err;

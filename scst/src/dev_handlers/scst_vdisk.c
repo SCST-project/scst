@@ -429,7 +429,6 @@ static struct scst_dev_type vdisk_file_devtype = {
 	.exec_sync =		1,
 	.threads_num =		-1,
 	.parse_atomic =		1,
-	.exec_atomic =		0,
 	.dev_done_atomic =	1,
 	.attach =		vdisk_attach,
 	.detach =		vdisk_detach,
@@ -465,7 +464,6 @@ static struct scst_dev_type vdisk_blk_devtype = {
 	.type =			TYPE_DISK,
 	.threads_num =		0,
 	.parse_atomic =		1,
-	.exec_atomic =		0,
 	.dev_done_atomic =	1,
 #ifdef CONFIG_SCST_PROC
 	.no_proc =		1,
@@ -499,7 +497,6 @@ static struct scst_dev_type vdisk_null_devtype = {
 	.type =			TYPE_DISK,
 	.threads_num =		0,
 	.parse_atomic =		1,
-	.exec_atomic =		1,
 	.dev_done_atomic =	1,
 #ifdef CONFIG_SCST_PROC
 	.no_proc =		1,
@@ -533,7 +530,6 @@ static struct scst_dev_type vcdrom_devtype = {
 	.exec_sync =		1,
 	.threads_num =		-1,
 	.parse_atomic =		1,
-	.exec_atomic =		0,
 	.dev_done_atomic =	1,
 	.attach =		vdisk_attach,
 	.detach =		vdisk_detach,
@@ -643,7 +639,7 @@ static int vdisk_get_file_size(const char *filename, bool blockio,
 	}
 
 	if (S_ISREG(inode->i_mode))
-		/* Nothing to do*/;
+		/* Nothing to do */;
 	else if (S_ISBLK(inode->i_mode))
 		inode = inode->i_bdev->bd_inode;
 	else {
@@ -1286,8 +1282,7 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	buf = kzalloc(INQ_BUF_SZ,
-		scst_cmd_atomic(cmd) ? GFP_ATOMIC : GFP_KERNEL);
+	buf = kzalloc(INQ_BUF_SZ, GFP_KERNEL);
 	if (buf == NULL) {
 		scst_set_busy(cmd);
 		goto out;
@@ -1357,8 +1352,25 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 
 			num += 4;
 
-			/* Binary */
-			buf[num + 0] = 0x01;
+			/*
+			 * Relative target port identifier
+			 */
+			buf[num + 0] = 0x01; /* binary */
+			/* Relative target port id */
+			buf[num + 1] = 0x10 | 0x04;
+
+			put_unaligned(cpu_to_be16(cmd->tgt->rel_tgt_id),
+				(__be16 *)&buf[num + 4 + 2]);
+
+			buf[num + 3] = 4;
+			num += buf[num + 3];
+
+			num += 4;
+
+			/*
+			 * IEEE id
+			 */
+			buf[num + 0] = 0x01; /* binary */
 
 			/* EUI-64 */
 			buf[num + 1] = 0x02;
@@ -1662,8 +1674,7 @@ static void vdisk_exec_mode_sense(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	buf = kzalloc(MSENSE_BUF_SZ,
-		scst_cmd_atomic(cmd) ? GFP_ATOMIC : GFP_KERNEL);
+	buf = kzalloc(MSENSE_BUF_SZ, GFP_KERNEL);
 	if (buf == NULL) {
 		scst_set_busy(cmd);
 		goto out;
@@ -2206,12 +2217,9 @@ static void vdisk_exec_prevent_allow_medium_removal(struct scst_cmd *cmd)
 
 	TRACE_DBG("PERSIST/PREVENT 0x%02x", cmd->cdb[4]);
 
-	if (cmd->dev->type == TYPE_ROM) {
-		spin_lock(&virt_dev->flags_lock);
-		virt_dev->prevent_allow_medium_removal =
-			cmd->cdb[4] & 0x01 ? 1 : 0;
-		spin_unlock(&virt_dev->flags_lock);
-	}
+	spin_lock(&virt_dev->flags_lock);
+	virt_dev->prevent_allow_medium_removal = cmd->cdb[4] & 0x01 ? 1 : 0;
+	spin_unlock(&virt_dev->flags_lock);
 
 	return;
 }
@@ -2876,7 +2884,16 @@ static int vdisk_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 		dev->swp = DEF_SWP;
 		dev->tas = DEF_TAS;
 
+		spin_lock(&virt_dev->flags_lock);
 		virt_dev->prevent_allow_medium_removal = 0;
+		spin_unlock(&virt_dev->flags_lock);
+	} else if (mcmd->fn == SCST_PR_ABORT_ALL) {
+		struct scst_device *dev = tgt_dev->dev;
+		struct scst_vdisk_dev *virt_dev =
+			(struct scst_vdisk_dev *)dev->dh_priv;
+		spin_lock(&virt_dev->flags_lock);
+		virt_dev->prevent_allow_medium_removal = 0;
+		spin_unlock(&virt_dev->flags_lock);
 	}
 
 	TRACE_EXIT();

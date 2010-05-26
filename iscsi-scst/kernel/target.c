@@ -89,9 +89,9 @@ static int iscsi_target_create(struct iscsi_kern_target_info *info, u32 tid,
 	INIT_LIST_HEAD(&target->attrs_list);
 #endif
 
-	target->scst_tgt = scst_register(&iscsi_template, target->name);
+	target->scst_tgt = scst_register_target(&iscsi_template, target->name);
 	if (!target->scst_tgt) {
-		PRINT_ERROR("%s", "scst_register() failed");
+		PRINT_ERROR("%s", "scst_register_target() failed");
 		err = -EBUSY;
 		goto out_free;
 	}
@@ -233,7 +233,7 @@ static void target_destroy(struct iscsi_target *target)
 	}
 #endif
 
-	scst_unregister(target->scst_tgt);
+	scst_unregister_target(target->scst_tgt);
 
 	kfree(target);
 

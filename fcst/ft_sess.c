@@ -56,7 +56,7 @@ static struct ft_tport *ft_tport_create(struct fc_lport *lport)
 	if (!tport)
 		return NULL;
 
-	tport->tgt = scst_register(&ft_scst_template, name);
+	tport->tgt = scst_register_target(&ft_scst_template, name);
 	if (!tport->tgt) {
 		kfree(tport);
 		return NULL;
@@ -94,7 +94,7 @@ static void ft_tport_delete(struct ft_tport *tport)
 	tgt = tport->tgt;
 	BUG_ON(!tgt);
 	FT_SESS_DBG("delete %s\n", scst_get_tgt_name(tgt));
-	scst_unregister(tgt);
+	scst_unregister_target(tgt);
 	lport = tport->lport;
 	BUG_ON(tport != lport->prov[FC_TYPE_FCP]);
 	rcu_assign_pointer(lport->prov[FC_TYPE_FCP], NULL);
@@ -214,7 +214,8 @@ static int ft_sess_create(struct ft_tport *tport, struct fc_rport_priv *rdata,
 
 	ft_format_wwn(name, sizeof(name), rdata->ids.port_name);
 	FT_SESS_DBG("register %s\n", name);
-	scst_sess = scst_register_session(tport->tgt, 0, name, NULL, NULL);
+	scst_sess = scst_register_session(tport->tgt, 0, name, sess, NULL,
+					  NULL);
 	if (!scst_sess) {
 		kfree(sess);
 		return FC_SPP_RESP_RES;		/* out of resources */
@@ -236,7 +237,6 @@ static int ft_sess_create(struct ft_tport *tport, struct fc_rport_priv *rdata,
 	sess->params = fcp_parm;
 
 	rdata->prli_count++;
-	scst_sess_set_tgt_priv(scst_sess, sess);
 	return 0;
 }
 
@@ -474,7 +474,7 @@ void ft_recv(struct fc_lport *lport, struct fc_seq *sp, struct fc_frame *fp)
 
 /*
  * Release all sessions for a target.
- * Called through scst_unregister() as well as directly.
+ * Called through scst_unregister_target() as well as directly.
  * Caller holds ft_lport_lock.
  */
 int ft_tgt_release(struct scst_tgt *tgt)
