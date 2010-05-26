@@ -260,10 +260,6 @@ static ssize_t iscsi_version_show(struct kobject *kobj,
 	strcat(buf, "DEBUG_DIGEST_FAILURES\n");
 #endif
 
-#ifdef CONFIG_SCST_ISCSI_SKIP_ISID
-	strcat(buf, "CONFIG_SCST_ISCSI_SKIP_ISID\n");
-#endif
-
 	TRACE_EXIT();
 	return strlen(buf);
 }

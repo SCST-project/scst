@@ -3525,14 +3525,8 @@ int iscsi_get_initiator_port_transport_id(struct scst_session *scst_sess,
 		goto out;
 	}
 
-#ifdef CONFIG_SCST_ISCSI_SKIP_ISID
-	tr_id[0] = 0x0 | SCSI_TRANSPORTID_PROTOCOLID_ISCSI;
-	tr_id_size = 4 + sprintf(&tr_id[4], "%s", sess->initiator_name) + 1;
-	tr_id_size = (tr_id_size + 3) & -4;
-#else
 	tr_id[0] = 0x40 | SCSI_TRANSPORTID_PROTOCOLID_ISCSI;
 	sprintf(&tr_id[4], "%s,i,0x%llx", sess->initiator_name, sid.id64);
-#endif
 
 	put_unaligned(cpu_to_be16(tr_id_size - 4),
 		(__be16 *)&tr_id[2]);
@@ -3744,12 +3738,6 @@ static int __init iscsi_init(void)
 #endif
 #endif
 
-#ifdef CONFIG_SCST_ISCSI_SKIP_ISID
-	PRINT_WARNING("%s", "CONFIG_SCST_ISCSI_SKIP_ISID defined: identifying "
-		"initiators only by names and ignoring ISID part in "
-		"TransportIDs");
-#endif
-
 	ctr_major = register_chrdev(0, ctr_name, &ctr_fops);
 	if (ctr_major < 0) {
 		PRINT_ERROR("failed to register the control device %d",
@@ -3787,12 +3775,6 @@ static int __init iscsi_init(void)
 	err = iscsi_run_threads(num, "iscsiwr", istwr);
 	if (err != 0)
 		goto out_thr;
-
-#ifdef CONFIG_SCST_ISCSI_SKIP_ISID
-	iscsi_tid_name_only = true;
-#else
-	iscsi_tid_name_only = false;
-#endif
 
 out:
 	return err;

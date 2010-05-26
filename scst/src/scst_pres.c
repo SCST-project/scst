@@ -65,15 +65,6 @@
 #define isblank(c)		((c) == ' ' || (c) == '\t')
 #endif
 
-/*
- * Experimental hack to support CONFIG_SCST_ISCSI_SKIP_ISID. ISCSI-SCST sets
- * this variable if CONFIG_SCST_ISCSI_SKIP_ISID defined, then tid_equal()
- * uses it to perform for iSCSI TransportIDs only initiator names comparison
- * ignoring the ISID part.
- */
-bool iscsi_tid_name_only = false;
-EXPORT_SYMBOL(iscsi_tid_name_only);
-
 static inline int tid_size(const uint8_t *tid)
 {
 	sBUG_ON(tid == NULL);
@@ -121,7 +112,7 @@ static bool tid_equal(const uint8_t *tid_a, const uint8_t *tid_b)
 		if (tid_a_fmt == 0x00)
 			tid_a_len = strnlen(tid_a, tid_a_max);
 		else if (tid_a_fmt == 0x40) {
-			if ((tid_a_fmt != tid_b_fmt) || iscsi_tid_name_only) {
+			if (tid_a_fmt != tid_b_fmt) {
 				uint8_t *p = strnchr(tid_a, tid_a_max, ',');
 				if (p == NULL)
 					goto out_error;
@@ -137,7 +128,7 @@ static bool tid_equal(const uint8_t *tid_a, const uint8_t *tid_b)
 		if (tid_b_fmt == 0x00)
 			tid_b_len = strnlen(tid_b, tid_b_max);
 		else if (tid_b_fmt == 0x40) {
-			if ((tid_a_fmt != tid_b_fmt) || iscsi_tid_name_only) {
+			if (tid_a_fmt != tid_b_fmt) {
 				uint8_t *p = strnchr(tid_b, tid_b_max, ',');
 				if (p == NULL)
 					goto out_error;
@@ -297,11 +288,11 @@ static void scst_pr_find_registrants_list_key(struct scst_device *dev,
 }
 
 /* dev_pr_mutex must be locked */
-static struct scst_dev_registrant *scst_pr_find_reg_not_used_first(
+static struct scst_dev_registrant *scst_pr_find_reg(
 	struct scst_device *dev, const uint8_t *transport_id,
-	const uint16_t rel_tgt_id, bool not_used_only)
+	const uint16_t rel_tgt_id)
 {
-	struct scst_dev_registrant *reg, *res = NULL, *res_used = NULL;
+	struct scst_dev_registrant *reg, *res = NULL;
 
 	TRACE_ENTRY();
 
@@ -309,16 +300,10 @@ static struct scst_dev_registrant *scst_pr_find_reg_not_used_first(
 				dev_registrants_list_entry) {
 		if ((reg->rel_tgt_id == rel_tgt_id) &&
 		    tid_equal(reg->transport_id, transport_id)) {
-			if (reg->tgt_dev == NULL) {
-				res = reg;
-				break;
-			} else if (!not_used_only && (res_used == NULL))
-				res_used = reg;
+			res = reg;
+			break;
 		}
 	}
-
-	if (res == NULL)
-		res = res_used;
 
 	TRACE_EXIT_HRES(res);
 	return res;
@@ -367,12 +352,26 @@ static struct scst_dev_registrant *scst_pr_add_registrant(
 	const uint16_t rel_tgt_id, uint64_t key,
 	struct scst_tgt_dev *tgt_dev, gfp_t gfp_flags)
 {
-	struct scst_dev_registrant *reg = NULL;
+	struct scst_dev_registrant *reg;
 
 	TRACE_ENTRY();
 
 	sBUG_ON(dev == NULL);
 	sBUG_ON(transport_id == NULL);
+
+	reg = scst_pr_find_reg(dev, transport_id, rel_tgt_id);
+	if (reg != NULL) {
+		/*
+		 * It might happen when a target driver would make >1 session
+		 * from the same initiator to the same target.
+		 */
+		PRINT_ERROR("Registrant X/%d (dev %s) already exists!",
+			rel_tgt_id, dev->virt_name);
+		PRINT_BUFFER("TransportID", transport_id, 24);
+		WARN_ON(1);
+		reg = NULL;
+		goto out;
+	}
 
 	TRACE_PR("Registering %s/%d (dev %s, tgt_dev %p)",
 		debug_transport_id_to_initiator_name(transport_id),
@@ -1224,9 +1223,8 @@ int scst_pr_init_tgt_dev(struct scst_tgt_dev *tgt_dev)
 
 	scst_pr_write_lock(dev);
 
-	reg = scst_pr_find_reg_not_used_first(dev, transport_id, rel_tgt_id,
-						true);
-	if (reg != NULL) {
+	reg = scst_pr_find_reg(dev, transport_id, rel_tgt_id);
+	if ((reg != NULL) && (reg->tgt_dev == NULL)) {
 		TRACE_PR("Assigning reg %p to tgt_dev %p", reg, tgt_dev);
 		tgt_dev->registrant = reg;
 		reg->tgt_dev = tgt_dev;
@@ -1254,10 +1252,12 @@ void scst_pr_clear_tgt_dev(struct scst_tgt_dev *tgt_dev)
 		tgt_dev->registrant = NULL;
 		reg->tgt_dev = NULL;
 
+		/* Just in case, actually. It should never happen. */
 		list_for_each_entry(t, &dev->dev_tgt_dev_list,
 					dev_tgt_dev_list_entry) {
-			if ((t->registrant == NULL) &&
-			    (t->sess->tgt->rel_tgt_id == reg->rel_tgt_id) &&
+			if (t == tgt_dev)
+				continue;
+			if ((t->sess->tgt->rel_tgt_id == reg->rel_tgt_id) &&
 			    tid_equal(t->sess->transport_id, reg->transport_id)) {
 				TRACE_PR("Reassigning reg %s/%d (%p) to tgt_dev "
 					"%p (being cleared tgt_dev %p)",
@@ -1361,8 +1361,7 @@ static int scst_pr_register_with_spec_i_pt(struct scst_cmd *cmd,
 			}
 			spin_unlock_bh(&dev->dev_lock);
 		} else {
-			reg = scst_pr_find_reg_not_used_first(dev, transport_id,
-				rel_tgt_id, false);
+			reg = scst_pr_find_reg(dev, transport_id, rel_tgt_id);
 			if (reg != NULL) {
 				TRACE_PR("Changing key of reg %p (tgt_dev %p)",
 					reg, reg->tgt_dev);
@@ -1742,8 +1741,7 @@ void scst_pr_register_and_move(struct scst_cmd *cmd, uint8_t *buffer,
 		goto out;
 	}
 
-	reg_move = scst_pr_find_reg_not_used_first(dev, transport_id_move,
-					rel_tgt_id_move, false);
+	reg_move = scst_pr_find_reg(dev, transport_id_move, rel_tgt_id_move);
 	if (reg_move == NULL) {
 		reg_move = scst_pr_add_registrant(dev, transport_id_move,
 			rel_tgt_id_move, action_key, NULL, GFP_KERNEL);

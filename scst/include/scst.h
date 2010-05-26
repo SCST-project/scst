@@ -3311,7 +3311,6 @@ struct scst_trace_log {
 };
 
 extern struct mutex scst_mutex;
-extern bool iscsi_tid_name_only;
 
 #ifdef CONFIG_SCST_PROC
 
