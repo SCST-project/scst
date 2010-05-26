@@ -2773,7 +2773,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	int resp_len;
 	enum srpt_command_state prev_state;
 
-	EXTRACHECKS_BUG_ON(scst_cmd_atomic(scst_cmd));
+	EXTRACHECKS_BUG_ON(scst_cmd_atomic(scmnd));
 
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
 	BUG_ON(!ioctx);
