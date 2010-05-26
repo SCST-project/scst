@@ -1074,8 +1074,8 @@ out:
 	 * to return HARDWARE ERROR and screw up all the interaction with
 	 * the affected initiator.
 	 */
-	 if (cmd != NULL)
-		 scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+	if (cmd != NULL)
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 #endif
 	}
 

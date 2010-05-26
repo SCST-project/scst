@@ -217,7 +217,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
 			  SCST_TEST_IO_IN_SIRQ_ALLOWED|
 #endif
-	 		  SCST_WRITE_MEDIUM,
+			  SCST_WRITE_MEDIUM,
 	 4, get_trans_len_1_256},
 	{0x0A, " M  O  OV       ", "WRITE(6)",
 	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
@@ -330,7 +330,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
 			  SCST_TEST_IO_IN_SIRQ_ALLOWED|
 #endif
-	 		  SCST_WRITE_MEDIUM,
+			  SCST_WRITE_MEDIUM,
 	 7, get_trans_len_2},
 	{0x2A, "         O      ", "SEND MESSAGE(10)",
 	 SCST_DATA_WRITE, FLAG_NONE, 7, get_trans_len_2},
@@ -513,7 +513,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
 			  SCST_TEST_IO_IN_SIRQ_ALLOWED|
 #endif
-	 		  SCST_WRITE_MEDIUM,
+			  SCST_WRITE_MEDIUM,
 	 10, get_trans_len_4},
 	{0x8C, "OOOOOOOOOO      ", "READ ATTRIBUTE",
 	 SCST_DATA_READ, FLAG_NONE, 10, get_trans_len_4},
@@ -595,7 +595,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
 			  SCST_TEST_IO_IN_SIRQ_ALLOWED|
 #endif
-	 		  SCST_WRITE_MEDIUM,
+			  SCST_WRITE_MEDIUM,
 	 6, get_trans_len_4},
 	{0xAA, "         O      ", "SEND MESSAGE(12)",
 	 SCST_DATA_WRITE, FLAG_NONE, 6, get_trans_len_4},

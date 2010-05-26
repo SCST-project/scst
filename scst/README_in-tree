@@ -206,7 +206,7 @@ your favorite kernel configuration Makefile target, e.g. "make xconfig":
    doesn't submit commands to SCST in IRQ context. For instance,
    iSCSI-SCST doesn't do that, but qla2x00t with
    CONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD disabled - does. This option is
-   designed to be used with vdisk NULLIO backend. 
+   designed to be used with vdisk NULLIO backend.
 
    WARNING! Using with other backend than vdisk NULLIO is unsafe and can
    lead you to a kernel crash!

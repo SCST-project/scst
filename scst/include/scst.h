@@ -1920,7 +1920,7 @@ struct scst_dev_registrant {
 
 	/* List entry for dev_registrants_list */
 	struct list_head dev_registrants_list_entry;
-	
+
 	/* 2 auxiliary fields used to rollback changes for errors, etc. */
 	struct list_head aux_list_entry;
 	uint64_t rollback_key;

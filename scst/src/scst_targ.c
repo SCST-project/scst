@@ -4715,7 +4715,7 @@ static int scst_set_mcmd_next_state(struct scst_mgmt_cmd *mcmd)
 				"preparing to wait", mcmd->cmd_done_wait_count);
 			mcmd->state = SCST_MCMD_STATE_WAITING_AFFECTED_CMDS_DONE;
 			res = -1;
-		} 
+		}
 		break;
 
 	case SCST_MCMD_STATE_AFFECTED_CMDS_DONE:
@@ -4728,7 +4728,7 @@ static int scst_set_mcmd_next_state(struct scst_mgmt_cmd *mcmd)
 				mcmd->cmd_finish_wait_count);
 			mcmd->state = SCST_MCMD_STATE_WAITING_AFFECTED_CMDS_FINISHED;
 			res = -1;
-		} 
+		}
 		break;
 
 	case SCST_MCMD_STATE_DONE:

@@ -769,7 +769,7 @@ static void scst_local_remove_adapter(void)
 }
 
 static struct scsi_host_template scst_lcl_ini_driver_template = {
-	.proc_info 			= scst_local_proc_info,
+	.proc_info			= scst_local_proc_info,
 	.proc_name			= scst_local_proc_name,
 	.name				= SCST_LOCAL_NAME,
 	.info				= scst_local_info,

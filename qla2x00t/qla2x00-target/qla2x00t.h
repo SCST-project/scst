@@ -56,7 +56,7 @@
 /* Immediate notify task flags */
 #define IMM_NTFY_TASK_MGMT_SHIFT    9
 
-#define Q2T_CLEAR_ACA          	    0x40
+#define Q2T_CLEAR_ACA               0x40
 #define Q2T_TARGET_RESET            0x20
 #define Q2T_LUN_RESET               0x10
 #define Q2T_CLEAR_TS                0x04
