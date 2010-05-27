@@ -1217,15 +1217,13 @@ int scst_pr_init_tgt_dev(struct scst_tgt_dev *tgt_dev)
 	if (tgt_dev->sess->transport_id == NULL)
 		goto out;
 
-	TRACE_PR("Looking for not used registrant %s/%d (tgt_dev %p, dev %p)",
-		debug_transport_id_to_initiator_name(transport_id),
-		rel_tgt_id, tgt_dev, dev);
-
 	scst_pr_write_lock(dev);
 
 	reg = scst_pr_find_reg(dev, transport_id, rel_tgt_id);
 	if ((reg != NULL) && (reg->tgt_dev == NULL)) {
-		TRACE_PR("Assigning reg %p to tgt_dev %p", reg, tgt_dev);
+		TRACE_PR("Assigning reg %s/%d (%p) to tgt_dev %p (dev %s)",
+			debug_transport_id_to_initiator_name(transport_id),
+			rel_tgt_id, reg, tgt_dev, dev->virt_name);
 		tgt_dev->registrant = reg;
 		reg->tgt_dev = tgt_dev;
 	}

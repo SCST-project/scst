@@ -568,6 +568,12 @@ again:
 	scst_cleanup_proc_target_entries(tgt);
 #endif
 
+	/*
+	 * There's no more any activity in this target, hence the lock and
+	 * suspending aren't needed as soon as later we are going to clean up
+	 * only local to this target entries.
+	 */
+
 	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
 

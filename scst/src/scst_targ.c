@@ -1730,15 +1730,15 @@ static int scst_request_sense_local(struct scst_cmd *cmd)
 	spin_lock_bh(&tgt_dev->tgt_dev_lock);
 
 	if (tgt_dev->tgt_dev_valid_sense_len == 0)
-		goto out_not_completed;
+		goto out_unlock_not_completed;
 
 	TRACE(TRACE_SCSI, "%s: Returning stored sense", cmd->op_name);
 
 	buffer_size = scst_get_buf_first(cmd, &buffer);
 	if (unlikely(buffer_size == 0))
-		goto out_compl;
+		goto out_unlock_compl;
 	else if (unlikely(buffer_size < 0))
-		goto out_hw_err;
+		goto out_unlock_hw_err;
 
 	memset(buffer, 0, buffer_size);
 
@@ -1797,15 +1797,19 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 
-out_hw_err:
+out_unlock_hw_err:
 	spin_unlock_bh(&tgt_dev->tgt_dev_lock);
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 	goto out_compl;
 
-out_not_completed:
+out_unlock_not_completed:
 	spin_unlock_bh(&tgt_dev->tgt_dev_lock);
 	res = SCST_EXEC_NOT_COMPLETED;
 	goto out;
+
+out_unlock_compl:
+	spin_unlock_bh(&tgt_dev->tgt_dev_lock);
+	goto out_compl;
 }
 
 static int scst_pre_select(struct scst_cmd *cmd)

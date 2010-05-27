@@ -3699,8 +3699,6 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 {
 	struct scst_session *sess;
 	int i;
-	int len;
-	char *nm;
 
 	TRACE_ENTRY();
 
@@ -3742,15 +3740,11 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 	spin_lock_init(&sess->lat_lock);
 #endif
 
-	len = strlen(initiator_name);
-	nm = kmalloc(len + 1, gfp_mask);
-	if (nm == NULL) {
-		PRINT_ERROR("%s", "Unable to allocate sess->initiator_name");
+	sess->initiator_name = kstrdup(initiator_name, gfp_mask);
+	if (sess->initiator_name == NULL) {
+		PRINT_ERROR("%s", "Unable to dup sess->initiator_name");
 		goto out_free;
 	}
-
-	strcpy(nm, initiator_name);
-	sess->initiator_name = nm;
 
 out:
 	TRACE_EXIT();
@@ -5873,7 +5867,7 @@ again:
 		TRACE_DBG("%s",
 		      "SCST_TGT_DEV_UA_PENDING set, but UA_list empty");
 		res = -1;
-		goto out_unlock_tgt_dev_lock;
+		goto out_unlock;
 	}
 
 	UA_entry = list_entry(cmd->tgt_dev->UA_list.next, typeof(*UA_entry),
@@ -5969,7 +5963,6 @@ out_unlock:
 		spin_lock_bh(&cmd->tgt_dev->tgt_dev_lock);
 	}
 
-out_unlock_tgt_dev_lock:
 	spin_unlock_bh(&cmd->tgt_dev->tgt_dev_lock);
 
 	TRACE_EXIT_RES(res);
@@ -6653,11 +6646,16 @@ void scst_reassign_persistent_sess_states(struct scst_session *new_sess,
 
 	TRACE_ENTRY();
 
-	TRACE_DBG("Reassigning persistent states from old_sess %p to "
+	TRACE_PR("Reassigning persistent states from old_sess %p to "
 		"new_sess %p", old_sess, new_sess);
 
 	if ((new_sess == NULL) || (old_sess == NULL)) {
 		TRACE_DBG("%s", "new_sess or old_sess is NULL");
+		goto out;
+	}
+
+	if (new_sess == old_sess) {
+		TRACE_DBG("%s", "new_sess or old_sess are the same");
 		goto out;
 	}
 
