@@ -165,4 +165,10 @@ void scst_pr_read_full_status(struct scst_cmd *cmd, uint8_t *buffer,
 void scst_pr_sync_device_file(struct scst_tgt_dev *tgt_dev, struct scst_cmd *cmd);
 #endif
 
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+void scst_pr_dump_prs(struct scst_device *dev, bool force);
+#else
+static inline void scst_pr_dump_prs(struct scst_device *dev, bool force) {}
+#endif
+
 #endif /* SCST_PRES_H_ */

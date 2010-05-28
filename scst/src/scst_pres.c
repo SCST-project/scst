@@ -195,19 +195,28 @@ out:
 	return res;
 }
 
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+
 /* Must be called under dev_pr_mutex */
-static void scst_pr_dump_prs(struct scst_device *dev)
+void scst_pr_dump_prs(struct scst_device *dev, bool force)
 {
-	TRACE_PR("Persistent reservations for device %s:", dev->virt_name);
+	if (!force) {
+#if defined(CONFIG_SCST_DEBUG)
+		if ((trace_flag & TRACE_PRES) == 0)
+#endif
+			goto out;
+	}
+
+	PRINT_INFO("Persistent reservations for device %s:", dev->virt_name);
 
 	if (list_empty(&dev->dev_registrants_list))
-		TRACE_PR("%s", "  No registrants");
+		PRINT_INFO("%s", "  No registrants");
 	else {
 		struct scst_dev_registrant *reg;
 		int i = 0;
 		list_for_each_entry(reg, &dev->dev_registrants_list,
 					dev_registrants_list_entry) {
-			TRACE_PR("  [%d] registrant %s/%d, key '%016llx' "
+			PRINT_INFO("  [%d] registrant %s/%d, key %016llx "
 				"(reg %p, tgt_dev %p)", i++,
 				debug_transport_id_to_initiator_name(
 					reg->transport_id),
@@ -218,21 +227,24 @@ static void scst_pr_dump_prs(struct scst_device *dev)
 	if (dev->pr_is_set) {
 		struct scst_dev_registrant *holder = dev->pr_holder;
 		if (holder != NULL)
-			TRACE_PR("Reservation holder is %s/%d (key '%016llx', "
+			PRINT_INFO("Reservation holder is %s/%d (key %016llx, "
 				"scope %x, type %x, reg %p, tgt_dev %p)",
 				debug_transport_id_to_initiator_name(
 							holder->transport_id),
 				holder->rel_tgt_id, holder->key, dev->pr_scope,
 				dev->pr_type, holder, holder->tgt_dev);
 		else
-			TRACE_PR("All registrants are reservation holders "
+			PRINT_INFO("All registrants are reservation holders "
 				"(scope %x, type %x)", dev->pr_scope,
 				dev->pr_type);
 	} else
-		TRACE_PR("%s", "Not reserved");
+		PRINT_INFO("%s", "Not reserved");
 
+out:
 	return;
 }
+
+#endif /* defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING) */
 
 /* dev_pr_mutex must be locked */
 static void scst_pr_find_registrants_list_all(struct scst_device *dev,
@@ -243,14 +255,14 @@ static void scst_pr_find_registrants_list_all(struct scst_device *dev,
 	TRACE_ENTRY();
 
 	TRACE_PR("Finding all registered records for device '%s' "
-		"with exclude reg key '%016llx'",
+		"with exclude reg key %016llx",
 		dev->virt_name, exclude_reg->key);
 
 	list_for_each_entry(reg, &dev->dev_registrants_list,
 				dev_registrants_list_entry) {
 		if (reg == exclude_reg)
 			continue;
-		TRACE_PR("Adding registrant %s/%d (%p) to find list (key '%016llx')",
+		TRACE_PR("Adding registrant %s/%d (%p) to find list (key %016llx)",
 			debug_transport_id_to_initiator_name(reg->transport_id),
 			reg->rel_tgt_id, reg, reg->key);
 		list_add_tail(&reg->aux_list_entry, list);
@@ -268,14 +280,14 @@ static void scst_pr_find_registrants_list_key(struct scst_device *dev,
 
 	TRACE_ENTRY();
 
-	TRACE_PR("Finding registrants for device '%s' with key '%016llx'",
+	TRACE_PR("Finding registrants for device '%s' with key %016llx",
 		dev->virt_name, key);
 
 	list_for_each_entry(reg, &dev->dev_registrants_list,
 				dev_registrants_list_entry) {
 		if (reg->key == key) {
 			TRACE_PR("Adding registrant %s/%d (%p) to the find "
-				"list (key '%016llx')",
+				"list (key %016llx)",
 				debug_transport_id_to_initiator_name(
 					reg->transport_id),
 				reg->rel_tgt_id, reg->tgt_dev, key);
@@ -443,7 +455,7 @@ static void scst_pr_remove_registrant(struct scst_device *dev,
 {
 	TRACE_ENTRY();
 
-	TRACE_PR("Removing registrant %s/%d (reg %p, tgt_dev %p, key '%016llx', "
+	TRACE_PR("Removing registrant %s/%d (reg %p, tgt_dev %p, key %016llx, "
 		"dev %s)", debug_transport_id_to_initiator_name(reg->transport_id),
 		reg->rel_tgt_id, reg, reg->tgt_dev, reg->key, dev->virt_name);
 
@@ -474,7 +486,7 @@ static void scst_pr_send_ua_reg(struct scst_device *dev,
 	scst_set_sense(ua, sizeof(ua), dev->d_sense, key, asc, ascq);
 
 	TRACE_PR("Queuing UA [%x %x %x]: registrant %s/%d (%p), tgt_dev %p, "
-		"key '%016llx'", ua[2], ua[12], ua[13],
+		"key %016llx", ua[2], ua[12], ua[13],
 		debug_transport_id_to_initiator_name(reg->transport_id),
 		reg->rel_tgt_id, reg, reg->tgt_dev, reg->key);
 
@@ -515,7 +527,7 @@ static void scst_pr_abort_reg(struct scst_device *dev,
 	TRACE_ENTRY();
 
 	if (reg->tgt_dev == NULL) {
-		TRACE_PR("Registrant %s/%d (%p, key '0x%016llx') has no session",
+		TRACE_PR("Registrant %s/%d (%p, key 0x%016llx) has no session",
 			debug_transport_id_to_initiator_name(reg->transport_id),
 			reg->rel_tgt_id, reg, reg->key);
 		goto out;
@@ -523,7 +535,7 @@ static void scst_pr_abort_reg(struct scst_device *dev,
 
 	sess = reg->tgt_dev->sess;
 
-	TRACE_PR("Aborting %d commands for %s/%d (reg %p, key '0x%016llx', "
+	TRACE_PR("Aborting %d commands for %s/%d (reg %p, key 0x%016llx, "
 		"tgt_dev %p, sess %p)",
 		atomic_read(&reg->tgt_dev->tgt_dev_cmd_count),
 		debug_transport_id_to_initiator_name(reg->transport_id),
@@ -781,7 +793,7 @@ static int scst_pr_load_device_file(struct scst_device *dev)
 
 	res = scst_pr_do_load_device_file(dev, dev->pr_file_name1);
 
-	scst_pr_dump_prs(dev);
+	scst_pr_dump_prs(dev, false);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1395,7 +1407,7 @@ static void scst_pr_unregister(struct scst_device *dev,
 
 	TRACE_ENTRY();
 
-	TRACE_PR("Unregistering key '%0llx'", reg->key);
+	TRACE_PR("Unregistering key %0llx", reg->key);
 
 	is_holder = scst_pr_is_holder(dev, reg);
 	pr_type = dev->pr_type;
@@ -1461,7 +1473,7 @@ void scst_pr_register(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 
 	reg = tgt_dev->registrant;
 
-	TRACE_PR("Register: initiator %s/%d (%p), key '%0llx', action_key '%0llx' "
+	TRACE_PR("Register: initiator %s/%d (%p), key %0llx, action_key %0llx "
 		"(tgt_dev %p)",
 		debug_transport_id_to_initiator_name(sess->transport_id),
 		sess->tgt->rel_tgt_id, reg, key, action_key, tgt_dev);
@@ -1502,7 +1514,7 @@ void scst_pr_register(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 	} else {
 		if (reg->key != key) {
 			TRACE_PR("tgt_dev %p already registered - reservation "
-				"key ('%0llx') mismatch", tgt_dev, reg->key);
+				"key %0llx mismatch", tgt_dev, reg->key);
 			scst_set_cmd_error_status(cmd,
 				SAM_STAT_RESERVATION_CONFLICT);
 			goto out;
@@ -1523,7 +1535,7 @@ void scst_pr_register(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 
 	dev->pr_aptpl = aptpl;
 
-	scst_pr_dump_prs(dev);
+	scst_pr_dump_prs(dev, false);
 
 out:
 	list_for_each_entry(reg, &rollback_list, aux_list_entry) {
@@ -1589,7 +1601,7 @@ void scst_pr_register_and_ignore(struct scst_cmd *cmd, uint8_t *buffer,
 	reg = tgt_dev->registrant;
 
 	TRACE_PR("Register and ignore: initiator %s/%d (%p), action_key "
-		"'%016llx' (tgt_dev %p)",
+		"%016llx (tgt_dev %p)",
 		debug_transport_id_to_initiator_name(sess->transport_id),
 		sess->tgt->rel_tgt_id, reg, action_key, tgt_dev);
 
@@ -1617,7 +1629,7 @@ void scst_pr_register_and_ignore(struct scst_cmd *cmd, uint8_t *buffer,
 
 	dev->pr_aptpl = aptpl;
 
-	scst_pr_dump_prs(dev);
+	scst_pr_dump_prs(dev, false);
 
 out:
 	TRACE_EXIT();
@@ -1753,7 +1765,7 @@ void scst_pr_register_and_move(struct scst_cmd *cmd, uint8_t *buffer,
 	}
 
 	TRACE_PR("Register and move: from initiator %s/%d (%p, tgt_dev %p) to "
-		"initiator %s/%d (%p, tgt_dev %p), key '%016llx' (unreg %d)",
+		"initiator %s/%d (%p, tgt_dev %p), key %016llx (unreg %d)",
 		debug_transport_id_to_initiator_name(reg->transport_id),
 		reg->rel_tgt_id, reg, reg->tgt_dev,
 		debug_transport_id_to_initiator_name(transport_id_move),
@@ -1770,7 +1782,7 @@ void scst_pr_register_and_move(struct scst_cmd *cmd, uint8_t *buffer,
 
 	dev->pr_aptpl = aptpl;
 
-	scst_pr_dump_prs(dev);
+	scst_pr_dump_prs(dev, false);
 
 out:
 	TRACE_EXIT();
@@ -1815,7 +1827,7 @@ void scst_pr_reserve(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 
 	reg = tgt_dev->registrant;
 
-	TRACE_PR("Reserve: initiator %s/%d (%p), key '%016llx', scope %d, "
+	TRACE_PR("Reserve: initiator %s/%d (%p), key %016llx, scope %d, "
 		"type %d (tgt_dev %p)",
 		debug_transport_id_to_initiator_name(cmd->sess->transport_id),
 		cmd->sess->tgt->rel_tgt_id, reg, key, scope, type, tgt_dev);
@@ -1855,7 +1867,7 @@ void scst_pr_reserve(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 		}
 	}
 
-	scst_pr_dump_prs(dev);
+	scst_pr_dump_prs(dev, false);
 
 out:
 	TRACE_EXIT();
@@ -1892,7 +1904,7 @@ void scst_pr_release(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 
 	reg = tgt_dev->registrant;
 
-	TRACE_PR("Release: initiator %s/%d (%p), key '%016llx', scope %d, type "
+	TRACE_PR("Release: initiator %s/%d (%p), key %016llx, scope %d, type "
 		"%d (tgt_dev %p)", debug_transport_id_to_initiator_name(
 					cmd->sess->transport_id),
 		cmd->sess->tgt->rel_tgt_id, reg, key, scope, type, tgt_dev);
@@ -1931,7 +1943,7 @@ void scst_pr_release(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 			SCST_LOAD_SENSE(scst_sense_reservation_released));
 	}
 
-	scst_pr_dump_prs(dev);
+	scst_pr_dump_prs(dev, false);
 
 out:
 	TRACE_EXIT();
@@ -1962,7 +1974,7 @@ void scst_pr_clear(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 
 	reg = tgt_dev->registrant;
 
-	TRACE_PR("Clear: initiator %s/%d (%p), key '%016llx' (tgt_dev %p)",
+	TRACE_PR("Clear: initiator %s/%d (%p), key %016llx (tgt_dev %p)",
 		debug_transport_id_to_initiator_name(cmd->sess->transport_id),
 		cmd->sess->tgt->rel_tgt_id, reg, key, tgt_dev);
 
@@ -1984,7 +1996,7 @@ void scst_pr_clear(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 
 	dev->pr_generation++;
 
-	scst_pr_dump_prs(dev);
+	scst_pr_dump_prs(dev, false);
 
 out:
 	TRACE_EXIT();
@@ -2024,8 +2036,8 @@ static void scst_pr_do_preempt(struct scst_cmd *cmd, uint8_t *buffer,
 
 	reg = tgt_dev->registrant;
 
-	TRACE_PR("Preempt%s: initiator %s/%d (%p), key '%016llx', action_key "
-		"'%016llx', scope %x type %x (tgt_dev %p)",
+	TRACE_PR("Preempt%s: initiator %s/%d (%p), key %016llx, action_key "
+		"%016llx, scope %x type %x (tgt_dev %p)",
 		abort ? " and abort" : "",
 		debug_transport_id_to_initiator_name(cmd->sess->transport_id),
 		cmd->sess->tgt->rel_tgt_id, reg, key, action_key, scope, type,
@@ -2143,14 +2155,14 @@ static void scst_pr_do_preempt(struct scst_cmd *cmd, uint8_t *buffer,
 done:
 	dev->pr_generation++;
 
-	scst_pr_dump_prs(dev);
+	scst_pr_dump_prs(dev, false);
 
 out:
 	TRACE_EXIT();
 	return;
 
 out_error:
-	TRACE_PR("Invalid key '%016llx'", action_key);
+	TRACE_PR("Invalid key %016llx", action_key);
 	scst_set_cmd_error_status(cmd, SAM_STAT_RESERVATION_CONFLICT);
 	goto out;
 }
@@ -2238,8 +2250,8 @@ bool scst_pr_crh_case(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	TRACE_DBG("Test if there is a CRH case for command '%s' (0x%x) from "
-		"'%s'", cmd->op_name, cmd->cdb[0], cmd->sess->initiator_name);
+	TRACE_DBG("Test if there is a CRH case for command %s (0x%x) from "
+		"%s", cmd->op_name, cmd->cdb[0], cmd->sess->initiator_name);
 
 	if (!dev->pr_is_set) {
 		TRACE_PR("%s", "PR not set");
@@ -2274,11 +2286,11 @@ bool scst_pr_crh_case(struct scst_cmd *cmd)
 	}
 
 	if (!allowed)
-		TRACE_PR("Command '%s' (0x%x) from '%s' rejected due "
-			"to not CRH reservation", cmd->op_name, cmd->cdb[0],
+		TRACE_PR("Command %s (0x%x) from %s rejected due to not CRH "
+			"reservation", cmd->op_name, cmd->cdb[0],
 			cmd->sess->initiator_name);
 	else
-		TRACE_DBG("Command %s (0x%x) from '%s' is allowed to execute "
+		TRACE_DBG("Command %s (0x%x) from %s is allowed to execute "
 			"due to CRH", cmd->op_name, cmd->cdb[0],
 			cmd->sess->initiator_name);
 
@@ -2302,7 +2314,7 @@ bool scst_pr_is_cmd_allowed(struct scst_cmd *cmd)
 
 	unlock = scst_pr_read_lock(dev);
 
-	TRACE_DBG("Testing if command '%s' (0x%x) from '%s' allowed to execute",
+	TRACE_DBG("Testing if command %s (0x%x) from %s allowed to execute",
 		cmd->op_name, cmd->cdb[0], cmd->sess->initiator_name);
 
 	/* Recheck, because it can change while we were waiting for the lock */
@@ -2352,11 +2364,11 @@ bool scst_pr_is_cmd_allowed(struct scst_cmd *cmd)
 	}
 
 	if (!allowed)
-		TRACE_PR("Command '%s' (0x%x) from '%s' rejected due "
+		TRACE_PR("Command %s (0x%x) from %s rejected due "
 			"to PR", cmd->op_name, cmd->cdb[0],
 			cmd->sess->initiator_name);
 	else
-		TRACE_DBG("Command %s (0x%x) from '%s' is allowed to execute",
+		TRACE_DBG("Command %s (0x%x) from %s is allowed to execute",
 			cmd->op_name, cmd->cdb[0], cmd->sess->initiator_name);
 
 out_unlock:

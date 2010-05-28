@@ -140,9 +140,10 @@
  * on the logging system in case of a lot of logging.
  */
 
-extern int debug_print_prefix(unsigned long trace_flag,
+int debug_print_prefix(unsigned long trace_flag,
 	const char *prefix, const char *func, int line);
-extern void debug_print_buffer(const void *data, int len);
+void debug_print_buffer(const void *data, int len);
+const char *debug_transport_id_to_initiator_name(const uint8_t *transport_id);
 
 #define TRACE(trace, format, args...)					\
 do {									\
@@ -206,8 +207,6 @@ do {									\
 #define TRACE_MGMT_DBG_SPECIAL(args...)	\
 		TRACE_DBG_FLAG(TRACE_MGMT_DEBUG|TRACE_SPECIAL, args)
 #define TRACE_PR(args...)		TRACE_DBG_FLAG(TRACE_PRES, args)
-
-const char *debug_transport_id_to_initiator_name(const uint8_t *transport_id);
 
 #define TRACE_BUFFER(message, buff, len)				\
 do {									\

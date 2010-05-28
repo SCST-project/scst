@@ -374,10 +374,11 @@ entries.
   - "version" file, which shows version of SCST
 
   - "trace_level" file, which allows to read and set trace (logging) level
-    for SCST. See /proc/scsi_tgt/help file for list of commands and
-    trace levels. If you want to enable logging options, which produce a
-    lot of events, like "debug", to not loose logged events you should
-    also:
+    for SCST. Also this file allows to dump persistent reservations
+    information about some device in the log file. See
+    /proc/scsi_tgt/help file for list of commands and trace levels. If
+    you want to enable logging options, which produce a lot of events,
+    like "debug", to not loose logged events you should also:
 
      * Increase in .config of your kernel CONFIG_LOG_BUF_SHIFT variable
        to much bigger value, then recompile it. For example, value 25
@@ -644,6 +645,9 @@ Standard SCST dev handlers have at least the following common entries:
    separate dedicated pool of threads. When the value is "shared", all
    sessions from all initiators will share the same per-device pool of
    threads. Valid only if threads_num attribute >0.
+
+ - dump_prs - allows to dump persistent reservations information in the   
+   kernel log.
 
  - type - SCSI type of this device
 

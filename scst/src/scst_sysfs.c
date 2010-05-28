@@ -27,6 +27,7 @@
 #include "scst.h"
 #include "scst_priv.h"
 #include "scst_mem.h"
+#include "scst_pres.h"
 
 static DECLARE_COMPLETION(scst_sysfs_root_release_completion);
 
@@ -827,6 +828,28 @@ static ssize_t scst_device_sysfs_type_show(struct kobject *kobj,
 static struct kobj_attribute device_type_attr =
 	__ATTR(type, S_IRUGO, scst_device_sysfs_type_show, NULL);
 
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+
+static ssize_t scst_device_sysfs_dump_prs(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	struct scst_device *dev;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+
+	scst_pr_dump_prs(dev, true);
+
+	TRACE_EXIT_RES(count);
+	return count;
+}
+
+static struct kobj_attribute device_dump_prs_attr =
+	__ATTR(dump_prs, S_IWUSR, NULL, scst_device_sysfs_dump_prs);
+
+#endif /* defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING) */
+
 static ssize_t scst_device_sysfs_threads_num_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
@@ -1015,6 +1038,9 @@ static struct kobj_attribute device_threads_pool_type_attr =
 
 static struct attribute *scst_device_attrs[] = {
 	&device_type_attr.attr,
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	&device_dump_prs_attr.attr,
+#endif
 	&device_threads_num_attr.attr,
 	&device_threads_pool_type_attr.attr,
 	NULL,

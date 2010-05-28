@@ -325,6 +325,9 @@ Standard SCST dev handlers have at least the following common entries:
    sessions from all initiators will share the same per-device pool of
    threads. Valid only if threads_num attribute >0.
 
+ - dump_prs - allows to dump persistent reservations information in the   
+   kernel log.
+
  - type - SCSI type of this device
 
 See below for more information about other entries of this subdirectory

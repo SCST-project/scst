@@ -33,6 +33,7 @@
 #include "scst.h"
 #include "scst_priv.h"
 #include "scst_mem.h"
+#include "scst_pres.h"
 
 static int scst_proc_init_groups(void);
 static void scst_proc_cleanup_groups(void);
@@ -87,6 +88,7 @@ static struct scst_proc_data scst_dev_handler_proc_data;
 #define SCST_PROC_ACTION_ADD_GROUP	11
 #define SCST_PROC_ACTION_DEL_GROUP	12
 #define SCST_PROC_ACTION_RENAME_GROUP	13
+#define SCST_PROC_ACTION_DUMP_PRS	14
 
 static struct proc_dir_entry *scst_proc_scsi_tgt;
 static struct proc_dir_entry *scst_proc_groups_root;
@@ -161,6 +163,7 @@ static char *scst_proc_help_string =
 "                            mgmt, minor, mgmt_dbg]\n"
 "     Additionally for /proc/scsi_tgt/trace_level there are these TOKENs\n"
 "       [scsi_serializing, retry, recv_bot, send_bot, recv_top, send_top]\n"
+"   echo \"dump_prs dev_name\" >/proc/scsi_tgt/trace_level\n"
 #endif
 ;
 
@@ -301,6 +304,9 @@ int scst_proc_log_entry_write(struct file *file, const char __user *buf,
 	} else if (!strncasecmp("value ", p, 6)) {
 		p += 6;
 		action = SCST_PROC_ACTION_VALUE;
+	} else if (!strncasecmp("dump_prs ", p, 9)) {
+		p += 9;
+		action = SCST_PROC_ACTION_DUMP_PRS;
 	} else {
 		if (p[strlen(p) - 1] == '\n')
 			p[strlen(p) - 1] = '\0';
@@ -358,6 +364,35 @@ int scst_proc_log_entry_write(struct file *file, const char __user *buf,
 			p++;
 		level = simple_strtoul(p, NULL, 0);
 		break;
+	case SCST_PROC_ACTION_DUMP_PRS:
+	{
+		struct scst_device *dev;
+
+		while (isspace(*p) && *p != '\0')
+			p++;
+		e = p;
+		while (!isspace(*e) && *e != '\0')
+			e++;
+		*e = '\0';
+
+		if (mutex_lock_interruptible(&scst_mutex) != 0) {
+			res = -EINTR;
+			goto out_free;
+		}
+
+		list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
+			if (strcmp(dev->virt_name, p) == 0) {
+				scst_pr_dump_prs(dev, true);
+				goto out_up;
+			}
+		}
+
+		PRINT_ERROR("Device %s not found", p);
+		res = -ENOENT;
+out_up:
+		mutex_unlock(&scst_mutex);
+		goto out_free;
+	}
 	}
 
 	oldlevel = *log_level;

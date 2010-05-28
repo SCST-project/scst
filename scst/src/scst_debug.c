@@ -137,8 +137,6 @@ void debug_print_buffer(const void *data, int len)
 }
 EXPORT_SYMBOL(debug_print_buffer);
 
-#ifdef CONFIG_SCST_DEBUG
-
 /*
  * This function converts transport_id in a string form into internal per-CPU
  * static buffer. This buffer isn't anyhow protected, because it's acceptable
@@ -225,7 +223,5 @@ const char *debug_transport_id_to_initiator_name(const uint8_t *transport_id)
 	return name_buf;
 #undef SIZEOF_NAME_BUF
 }
-
-#endif /* CONFIG_SCST_DEBUG */
 
 #endif /* CONFIG_SCST_DEBUG || CONFIG_SCST_TRACING */

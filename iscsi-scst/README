@@ -309,7 +309,7 @@ echo 1 >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/enabled
 echo 1 >/sys/kernel/scst_tgt/targets/iscsi/enabled
 
 Below is another sample script, which configures 1 real local SCSI disk
-0:0:1:0 one target iqn.2006-10.net.vlnb:tgt with all default parameters:
+0:0:1:0 and one target iqn.2006-10.net.vlnb:tgt with all default parameters:
 
 #!/bin/bash
 
