@@ -3524,7 +3524,7 @@ int iscsi_get_initiator_port_transport_id(struct scst_session *scst_sess,
 
 	tr_id = kzalloc(tr_id_size, GFP_KERNEL);
 	if (tr_id == NULL) {
-		PRINT_ERROR("Allocation of TrandportID (size %d) failed",
+		PRINT_ERROR("Allocation of TransportID (size %d) failed",
 			tr_id_size);
 		res = -ENOMEM;
 		goto out;
