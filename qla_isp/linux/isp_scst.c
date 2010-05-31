@@ -83,6 +83,8 @@
 #include <linux/seq_file.h>
 #include <linux/kthread.h>
 
+#include <asm/byteorder.h>
+
 #define LOG_PREFIX "qla_isp"
 
 #include <scsi/scsi_host.h>
@@ -288,12 +290,17 @@ alloc_ini(bus_chan_t *bc, uint64_t iid)
              GET(7), GET(6), GET(5) , GET(4), GET(3), GET(2), GET(1), GET(0));
     #undef GET
 
-    nptr->ini_scst_sess = scst_register_session(bc->scst_tgt, 0, ini_name, NULL, NULL, NULL);
+    /* Set the iid here so the callback to get transport ID will be able to extract it
+     * to generate the transport ID
+     */
+    nptr->ini_iid = iid;
+    nptr->ini_scst_sess = scst_register_session(bc->scst_tgt, 0, ini_name, nptr, NULL, NULL);
     if (!nptr->ini_scst_sess) {
         Eprintk("cannot register SCST session\n");
         kfree(nptr);
         return (NULL);
     }
+
     atomic_inc(&bc->sess_count);
     BUS_DBG(bc->bus, "0x%016llx, ++sess_count %d\n", iid, atomic_read(&bc->sess_count));
     return (nptr);
@@ -1314,6 +1321,49 @@ isp_task_mgmt_fn_done(struct scst_mgmt_cmd *mgmt_cmd)
     (*bp->h.r_action) (QIN_NOTIFY_ACK, ins);
 }
 
+int isp_get_initiator_port_transport_id(struct scst_session *scst_sess,
+	uint8_t **transport_id)
+{
+	ini_t *ini;
+	int res = 0;
+	int tr_id_size;
+	uint8_t *tr_id;
+	uint64_t iid;
+	uint64_t *n_port_name;
+
+	TRACE_ENTRY();
+
+	if (scst_sess == NULL) {
+		res = SCSI_TRANSPORTID_PROTOCOLID_FCP2;
+		goto out;
+	}
+
+	TRACE_DBG("Called to get transport ID (iid = %llu)", ini->ini_iid);
+	ini = (ini_t*)scst_sess_get_tgt_priv(scst_sess);
+
+	iid = ini->ini_iid;
+
+	tr_id_size = 24;
+	tr_id = kzalloc(tr_id_size, GFP_KERNEL);
+	if (tr_id == NULL) {
+		PRINT_ERROR("Allocation of TrandportID (size %d) failed",
+			tr_id_size);
+		res = -ENOMEM;
+		goto out;
+	}
+	n_port_name = (uint64_t*)&tr_id[8];
+	*n_port_name = __cpu_to_be64(iid);
+
+	PRINT_BUFF_FLAG(TRACE_DEBUG, "PR transport ID: 0x%x", tr_id, tr_id_size);
+
+	*transport_id = tr_id;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+
 static DEFINE_MUTEX(proc_mutex);
 
 /*
@@ -1550,6 +1600,7 @@ static struct scst_tgt_template isp_tgt_template =
     .task_mgmt_fn_done = isp_task_mgmt_fn_done,
 
     //.report_aen = isp_report_aen,
+    .get_initiator_port_transport_id = isp_get_initiator_port_transport_id,
 };
 
 #ifdef ISP_DAC_SUPPORTED
