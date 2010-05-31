@@ -71,6 +71,8 @@ static int __q24_xmit_response(struct q2t_cmd *cmd, int xmit_type);
 static int q2t_rdy_to_xfer(struct scst_cmd *scst_cmd);
 static void q2t_on_free_cmd(struct scst_cmd *scst_cmd);
 static void q2t_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd);
+static int q2t_get_initiator_port_transport_id(struct scst_session *scst_sess,
+	uint8_t **transport_id);
 
 /* Predefs for callbacks handed to qla2xxx(target) */
 static void q24_atio_pkt(scsi_qla_host_t *ha, atio7_entry_t *pkt);
@@ -167,6 +169,7 @@ static struct scst_tgt_template tgt2x_template = {
 	.rdy_to_xfer = q2t_rdy_to_xfer,
 	.on_free_cmd = q2t_on_free_cmd,
 	.task_mgmt_fn_done = q2t_task_mgmt_fn_done,
+	.get_initiator_port_transport_id = q2t_get_initiator_port_transport_id,
 	.on_hw_pending_cmd_timeout = q2t_on_hw_pending_cmd_timeout,
 	.enable_target = q2t_enable_tgt,
 	.is_target_enabled = q2t_is_tgt_enabled,
@@ -5205,6 +5208,47 @@ static bool q2t_is_tgt_enabled(struct scst_tgt *scst_tgt)
 	scsi_qla_host_t *ha = tgt->ha;
 
 	return qla_tgt_mode_enabled(ha);
+}
+
+static int q2t_get_initiator_port_transport_id(struct scst_session *scst_sess,
+	uint8_t **transport_id)
+{
+	struct q2t_sess *sess;
+	int res = 0;
+	int tr_id_size;
+	uint8_t *tr_id;
+
+	TRACE_ENTRY();
+
+	if (scst_sess == NULL) {
+		res = SCSI_TRANSPORTID_PROTOCOLID_FCP2;
+		goto out;
+	}
+
+	sess = (struct q2t_sess *)scst_sess_get_tgt_priv(scst_sess);
+
+	tr_id_size = 24;
+
+	tr_id = kzalloc(tr_id_size, GFP_KERNEL);
+	if (tr_id == NULL) {
+		PRINT_ERROR("Allocation of TransportID (size %d) failed",
+			tr_id_size);
+		res = -ENOMEM;
+		goto out;
+	}
+
+	tr_id[0] = SCSI_TRANSPORTID_PROTOCOLID_FCP2;
+
+	BUILD_BUG_ON(sizeof(sess->port_name) != 8);
+	memcpy(&tr_id[8], sess->port_name, 8);
+
+	*transport_id = tr_id;
+
+	TRACE_BUFF_FLAG(TRACE_DEBUG, "Created tid", tr_id, tr_id_size);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 #ifndef CONFIG_SCST_PROC
