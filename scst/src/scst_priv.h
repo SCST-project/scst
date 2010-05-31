@@ -129,6 +129,8 @@ extern unsigned long scst_trace_flag;
 #define SCST_LUN_ADDR_METHOD_PERIPHERAL	0
 #define SCST_LUN_ADDR_METHOD_FLAT	1
 
+extern struct mutex scst_mutex2;
+
 extern int scst_threads;
 
 extern unsigned int scst_max_dev_cmd_mem;

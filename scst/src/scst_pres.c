@@ -362,14 +362,19 @@ static void scst_pr_clear_holder(struct scst_device *dev)
 static struct scst_dev_registrant *scst_pr_add_registrant(
 	struct scst_device *dev, const uint8_t *transport_id,
 	const uint16_t rel_tgt_id, uint64_t key,
-	struct scst_tgt_dev *tgt_dev, gfp_t gfp_flags)
+	bool dev_lock_locked, gfp_t gfp_flags)
 {
 	struct scst_dev_registrant *reg;
+	struct scst_tgt_dev *t;
 
 	TRACE_ENTRY();
 
 	sBUG_ON(dev == NULL);
 	sBUG_ON(transport_id == NULL);
+
+	TRACE_PR("Registering %s/%d (dev %s)",
+		debug_transport_id_to_initiator_name(transport_id),
+		rel_tgt_id, dev->virt_name);
 
 	reg = scst_pr_find_reg(dev, transport_id, rel_tgt_id);
 	if (reg != NULL) {
@@ -377,17 +382,13 @@ static struct scst_dev_registrant *scst_pr_add_registrant(
 		 * It might happen when a target driver would make >1 session
 		 * from the same initiator to the same target.
 		 */
-		PRINT_ERROR("Registrant X/%d (dev %s) already exists!",
+		PRINT_ERROR("Registrant %p/%d (dev %s) already exists!", reg,
 			rel_tgt_id, dev->virt_name);
 		PRINT_BUFFER("TransportID", transport_id, 24);
 		WARN_ON(1);
 		reg = NULL;
 		goto out;
 	}
-
-	TRACE_PR("Registering %s/%d (dev %s, tgt_dev %p)",
-		debug_transport_id_to_initiator_name(transport_id),
-		rel_tgt_id, dev->virt_name, tgt_dev);
 
 	reg = kzalloc(sizeof(*reg), gfp_flags);
 	if (reg == NULL) {
@@ -405,33 +406,29 @@ static struct scst_dev_registrant *scst_pr_add_registrant(
 
 	reg->rel_tgt_id = rel_tgt_id;
 	reg->key = key;
-	reg->tgt_dev = tgt_dev;
 
-	if (tgt_dev == NULL) {
-		struct scst_tgt_dev *t;
-		/*
-		 * We can't use scst_mutex here, because of circular
-		 * locking dependency with dev_pr_mutex.
-		 */
+	/*
+	 * We can't use scst_mutex here, because of the circular
+	 * locking dependency with dev_pr_mutex.
+	 */
+	if (!dev_lock_locked)
 		spin_lock_bh(&dev->dev_lock);
-		list_for_each_entry(t, &dev->dev_tgt_dev_list,
-				dev_tgt_dev_list_entry) {
-			if (tid_equal(t->sess->transport_id, transport_id) &&
-			    (t->sess->tgt->rel_tgt_id == rel_tgt_id) &&
-			    (t->registrant == NULL)) {
-				/*
-				 * We must assign here, because t can die
-				 * immediately after we release dev_lock.
-				 */
-				TRACE_PR("Found tgt_dev %p", t);
-				reg->tgt_dev = t;
-				t->registrant = reg;
-				break;
-			}
+	list_for_each_entry(t, &dev->dev_tgt_dev_list, dev_tgt_dev_list_entry) {
+		if (tid_equal(t->sess->transport_id, transport_id) &&
+		    (t->sess->tgt->rel_tgt_id == rel_tgt_id) &&
+		    (t->registrant == NULL)) {
+			/*
+			 * We must assign here, because t can die
+			 * immediately after we release dev_lock.
+			 */
+			TRACE_PR("Found tgt_dev %p", t);
+			reg->tgt_dev = t;
+			t->registrant = reg;
+			break;
 		}
+	}
+	if (!dev_lock_locked)
 		spin_unlock_bh(&dev->dev_lock);
-	} else
-		tgt_dev->registrant = reg;
 
 	list_add_tail(&reg->dev_registrants_list_entry,
 		&dev->dev_registrants_list);
@@ -744,12 +741,7 @@ static int scst_pr_do_load_device_file(struct scst_device *dev,
 		rel_tgt_id = get_unaligned((uint16_t *)&buf[pos]);
 		pos += sizeof(rel_tgt_id);
 
-		/*
-		 * Add a registrant without initiator name and without
-		 * attaching to a tgt_dev. The attachment will be done in
-		 * scst_pr_init_tgt_dev.
-		 */
-		reg = scst_pr_add_registrant(dev, tid, rel_tgt_id, key, NULL,
+		reg = scst_pr_add_registrant(dev, tid, rel_tgt_id, key, false,
 						GFP_KERNEL);
 		if (reg == NULL) {
 			res = -ENOMEM;
@@ -1287,16 +1279,15 @@ void scst_pr_clear_tgt_dev(struct scst_tgt_dev *tgt_dev)
 	return;
 }
 
-/* Called with dev_pr_mutex locked, no IRQ */
+/* Called with dev_pr_mutex locked. Might also be called under scst_mutex2. */
 static int scst_pr_register_with_spec_i_pt(struct scst_cmd *cmd,
-	uint8_t *buffer, int buffer_size, struct list_head *rollback_list)
+	const uint16_t rel_tgt_id, uint8_t *buffer, int buffer_size,
+	struct list_head *rollback_list)
 {
 	int res = 0;
 	int offset, ext_size;
 	uint64_t action_key;
 	struct scst_device *dev = cmd->dev;
-	struct scst_session *sess = cmd->sess;
-	const uint16_t rel_tgt_id = sess->tgt->rel_tgt_id;
 	struct scst_dev_registrant *reg;
 	uint8_t *transport_id;
 
@@ -1334,24 +1325,34 @@ static int scst_pr_register_with_spec_i_pt(struct scst_cmd *cmd,
 
 		transport_id = &buffer[28 + offset];
 
+		TRACE_PR("rel_tgt_id %d, transport_id %s", rel_tgt_id,
+			debug_transport_id_to_initiator_name(transport_id));
+
 		if ((transport_id[0] & 0x0f) == SCSI_TRANSPORTID_PROTOCOLID_ISCSI &&
 		    (transport_id[0] & 0xc0) == 0) {
 			TRACE_PR("Wildcard iSCSI TransportID %s",
 				&transport_id[4]);
 			/*
-			 * We can't use scst_mutex here, because of circular
-			 * locking dependency with dev_pr_mutex.
+			 * We can't use scst_mutex here, because of the
+			 * circular locking dependency with dev_pr_mutex.
 			 */
 			spin_lock_bh(&dev->dev_lock);
 			list_for_each_entry(t, &dev->dev_tgt_dev_list,
-					dev_tgt_dev_list_entry) {
+						dev_tgt_dev_list_entry) {
+				/*
+				 * We must go over all matching tgt_devs and
+				 * register them on the requested rel_tgt_id
+				 */
 				if (!tid_equal(t->sess->transport_id,
 						transport_id))
 					continue;
-				if (t->registrant == NULL) {
+
+				reg = scst_pr_find_reg(dev,
+					t->sess->transport_id, rel_tgt_id);
+				if (reg == NULL) {
 					reg = scst_pr_add_registrant(dev,
 						t->sess->transport_id,
-						rel_tgt_id, action_key, t,
+						rel_tgt_id, action_key, true,
 						GFP_ATOMIC);
 					if (reg == NULL) {
 						spin_unlock_bh(&dev->dev_lock);
@@ -1359,13 +1360,14 @@ static int scst_pr_register_with_spec_i_pt(struct scst_cmd *cmd,
 						res = -ENOMEM;
 						goto out;
 					}
-				} else {
-					reg = t->registrant;
+				} else if (reg->key != action_key) {
 					TRACE_PR("Changing key of reg %p "
 						"(tgt_dev %p)", reg, t);
 					reg->rollback_key = reg->key;
 					reg->key = action_key;
-				}
+				} else
+					continue;
+
 				list_add_tail(&reg->aux_list_entry,
 					rollback_list);
 			}
@@ -1373,25 +1375,27 @@ static int scst_pr_register_with_spec_i_pt(struct scst_cmd *cmd,
 		} else {
 			reg = scst_pr_find_reg(dev, transport_id, rel_tgt_id);
 			if (reg != NULL) {
+				if (reg->key == action_key)
+					goto next;
 				TRACE_PR("Changing key of reg %p (tgt_dev %p)",
 					reg, reg->tgt_dev);
 				reg->rollback_key = reg->key;
 				reg->key = action_key;
-				goto rollback_add;
+			} else {
+				reg = scst_pr_add_registrant(dev, transport_id,
+						rel_tgt_id, action_key, false,
+						GFP_KERNEL);
+				if (reg == NULL) {
+					scst_set_busy(cmd);
+					res = -ENOMEM;
+					goto out;
+				}
 			}
 
-			reg = scst_pr_add_registrant(dev, transport_id,
-				rel_tgt_id, action_key, NULL, GFP_KERNEL);
-			if (reg == NULL) {
-				scst_set_busy(cmd);
-				res = -ENOMEM;
-				goto out;
-			}
-
-rollback_add:
 			list_add_tail(&reg->aux_list_entry,
 				rollback_list);
 		}
+next:
 		offset += tid_size(transport_id);
 	}
 out:
@@ -1430,6 +1434,180 @@ static void scst_pr_unregister(struct scst_device *dev,
 }
 
 /* Called with dev_pr_mutex locked, no IRQ */
+static void scst_pr_unregister_all_tg_pt(struct scst_device *dev,
+	const uint8_t *transport_id)
+{
+	struct scst_tgt_template *tgtt;
+	uint8_t proto_id = transport_id[0] & 0x0f;
+
+	TRACE_ENTRY();
+
+	/*
+	 * We can't use scst_mutex here, because of the circular locking
+	 * dependency with dev_pr_mutex.
+	 */
+	mutex_lock(&scst_mutex2);
+
+	list_for_each_entry(tgtt, &scst_template_list, scst_template_list_entry) {
+		struct scst_tgt *tgt;
+
+		if (tgtt->get_initiator_port_transport_id == NULL)
+			continue;
+
+		if (tgtt->get_initiator_port_transport_id(NULL, NULL) != proto_id)
+			continue;
+
+		list_for_each_entry(tgt, &tgtt->tgt_list, tgt_list_entry) {
+			struct scst_dev_registrant *reg;
+
+			reg = scst_pr_find_reg(dev, transport_id,
+					tgt->rel_tgt_id);
+			if (reg == NULL)
+				continue;
+
+			scst_pr_unregister(dev, reg);
+		}
+	}
+
+	mutex_unlock(&scst_mutex2);
+
+	TRACE_EXIT();
+	return;
+}
+
+/* Called with dev_pr_mutex locked. Might also be called under scst_mutex2. */
+static int scst_pr_register_on_tgt_id(struct scst_cmd *cmd,
+	const uint16_t rel_tgt_id, uint8_t *buffer, int buffer_size,
+	bool spec_i_pt, struct list_head *rollback_list)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	TRACE_PR("rel_tgt_id %d, spec_i_pt %d", rel_tgt_id, spec_i_pt);
+
+	if (spec_i_pt) {
+		res = scst_pr_register_with_spec_i_pt(cmd, rel_tgt_id, buffer,
+					buffer_size, rollback_list);
+		if (res != 0)
+			goto out;
+	}
+
+	/* tgt_dev can be among TIDs for scst_pr_register_with_spec_i_pt() */
+
+	if (scst_pr_find_reg(cmd->dev, cmd->sess->transport_id, rel_tgt_id) == NULL) {
+		uint64_t action_key;
+		struct scst_dev_registrant *reg;
+
+		action_key = get_unaligned((__be64 *)&buffer[8]);
+
+		reg = scst_pr_add_registrant(cmd->dev, cmd->sess->transport_id,
+			rel_tgt_id, action_key, false, GFP_KERNEL);
+		if (reg == NULL) {
+			res = -ENOMEM;
+			scst_set_busy(cmd);
+			goto out;
+		}
+
+		list_add_tail(&reg->aux_list_entry, rollback_list);
+	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/* Called with dev_pr_mutex locked, no IRQ */
+static int scst_pr_register_all_tg_pt(struct scst_cmd *cmd, uint8_t *buffer,
+	int buffer_size, bool spec_i_pt, struct list_head *rollback_list)
+{
+	int res = 0;
+	struct scst_tgt_template *tgtt;
+	uint8_t proto_id = cmd->sess->transport_id[0] & 0x0f;
+
+	TRACE_ENTRY();
+
+	/*
+	 * We can't use scst_mutex here, because of the circular locking
+	 * dependency with dev_pr_mutex.
+	 */
+	mutex_lock(&scst_mutex2);
+
+	list_for_each_entry(tgtt, &scst_template_list, scst_template_list_entry) {
+		struct scst_tgt *tgt;
+
+		if (tgtt->get_initiator_port_transport_id == NULL)
+			continue;
+
+		if (tgtt->get_initiator_port_transport_id(NULL, NULL) != proto_id)
+			continue;
+
+		TRACE_PR("tgtt %s, spec_i_pt %d", tgtt->name, spec_i_pt);
+
+		list_for_each_entry(tgt, &tgtt->tgt_list, tgt_list_entry) {
+			if (tgt->rel_tgt_id == 0)
+				continue;
+			TRACE_PR("tgt %s, rel_tgt_id %d", tgt->tgt_name,
+				tgt->rel_tgt_id);
+			res = scst_pr_register_on_tgt_id(cmd, tgt->rel_tgt_id,
+				buffer, buffer_size, spec_i_pt, rollback_list);
+			if (res != 0)
+				goto out_unlock;
+		}
+	}
+
+out_unlock:
+	mutex_unlock(&scst_mutex2);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/* Called with dev_pr_mutex locked, no IRQ */
+static int __scst_pr_register(struct scst_cmd *cmd, uint8_t *buffer,
+	int buffer_size, bool spec_i_pt, bool all_tg_pt)
+{
+	int res;
+	struct scst_dev_registrant *reg, *treg;
+	LIST_HEAD(rollback_list);
+
+	TRACE_ENTRY();
+
+	if (all_tg_pt) {
+		res = scst_pr_register_all_tg_pt(cmd, buffer, buffer_size,
+				spec_i_pt, &rollback_list);
+		if (res != 0)
+			goto out_rollback;
+	} else {
+		res = scst_pr_register_on_tgt_id(cmd,
+			cmd->sess->tgt->rel_tgt_id, buffer, buffer_size,
+			spec_i_pt, &rollback_list);
+		if (res != 0)
+			goto out_rollback;
+	}
+
+	list_for_each_entry(reg, &rollback_list, aux_list_entry) {
+		reg->rollback_key = 0;
+	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_rollback:
+	list_for_each_entry_safe(reg, treg, &rollback_list, aux_list_entry) {
+		list_del(&reg->aux_list_entry);
+		if (reg->rollback_key == 0)
+			scst_pr_remove_registrant(cmd->dev, reg);
+		else {
+			reg->key = reg->rollback_key;
+			reg->rollback_key = 0;
+		}
+	}
+	goto out;
+}
+
+/* Called with dev_pr_mutex locked, no IRQ */
 void scst_pr_register(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 {
 	int aptpl, spec_i_pt, all_tg_pt;
@@ -1437,8 +1615,7 @@ void scst_pr_register(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 	struct scst_device *dev = cmd->dev;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
 	struct scst_session *sess = cmd->sess;
-	struct scst_dev_registrant *reg, *treg;
-	LIST_HEAD(rollback_list);
+	struct scst_dev_registrant *reg;
 
 	TRACE_ENTRY();
 
@@ -1452,13 +1629,6 @@ void scst_pr_register(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 		TRACE_PR("Invalid buffer size %d", buffer_size);
 		scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_sense_parameter_list_length_invalid));
-		goto out;
-	}
-
-	if (all_tg_pt) {
-		TRACE_PR("%s", "ALL_TG_PT not supported");
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
 		goto out;
 	}
 
@@ -1487,28 +1657,10 @@ void scst_pr_register(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 			goto out;
 		}
 		if (action_key) {
-			if (spec_i_pt) {
-				int rc;
-				rc = scst_pr_register_with_spec_i_pt(cmd,
-					buffer, buffer_size, &rollback_list);
-				if (rc != 0)
-					goto out_rollback;
-			}
-
-			/*
-			 * tgt_dev can be among TIDs for
-			 * scst_pr_register_with_spec_i_pt()
-			 */
-			if (tgt_dev->registrant == NULL) {
-				reg = scst_pr_add_registrant(dev,
-					sess->transport_id,
-					sess->tgt->rel_tgt_id,
-					action_key, tgt_dev, GFP_KERNEL);
-				if (reg == NULL) {
-					scst_set_busy(cmd);
-					goto out_rollback;
-				}
-			}
+			int rc = __scst_pr_register(cmd, buffer, buffer_size,
+					spec_i_pt, all_tg_pt);
+			if (rc != 0)
+				goto out;
 		} else
 			TRACE_PR("%s", "Doing nothing - action_key is zero");
 	} else {
@@ -1525,9 +1677,13 @@ void scst_pr_register(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 				scst_sense_invalid_field_in_cdb));
 			goto out;
 		}
-		if (action_key == 0)
-			scst_pr_unregister(dev, reg);
-		else
+		if (action_key == 0) {
+			if (all_tg_pt)
+				scst_pr_unregister_all_tg_pt(dev,
+					sess->transport_id);
+			else
+				scst_pr_unregister(dev, reg);
+		} else
 			reg->key = action_key;
 	}
 
@@ -1538,24 +1694,8 @@ void scst_pr_register(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 	scst_pr_dump_prs(dev, false);
 
 out:
-	list_for_each_entry(reg, &rollback_list, aux_list_entry) {
-		reg->rollback_key = 0;
-	}
-
 	TRACE_EXIT();
 	return;
-
-out_rollback:
-	list_for_each_entry_safe(reg, treg, &rollback_list, aux_list_entry) {
-		list_del(&reg->aux_list_entry);
-		if (reg->rollback_key == 0)
-			scst_pr_remove_registrant(dev, reg);
-		else {
-			reg->key = reg->rollback_key;
-			reg->rollback_key = 0;
-		}
-	}
-	goto out;
 }
 
 /* Called with dev_pr_mutex locked, no IRQ */
@@ -1582,13 +1722,6 @@ void scst_pr_register_and_ignore(struct scst_cmd *cmd, uint8_t *buffer,
 		goto out;
 	}
 
-	if (all_tg_pt) {
-		TRACE_PR("%s", "ALL_TG_PT not supported");
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
-		goto out;
-	}
-
 #ifdef CONFIG_SCST_PROC
 	if (aptpl) {
 		TRACE_PR("%s", "APTL not supported");
@@ -1609,19 +1742,20 @@ void scst_pr_register_and_ignore(struct scst_cmd *cmd, uint8_t *buffer,
 		TRACE_PR("Tgt_dev %p is not registered yet - trying to "
 			"register", tgt_dev);
 		if (action_key) {
-			reg = scst_pr_add_registrant(dev, sess->transport_id,
-				sess->tgt->rel_tgt_id, action_key,
-				cmd->tgt_dev, GFP_KERNEL);
-			if (reg == NULL) {
-				scst_set_busy(cmd);
+			int rc = __scst_pr_register(cmd, buffer, buffer_size,
+					false, all_tg_pt);
+			if (rc != 0)
 				goto out;
-			}
 		} else
 			TRACE_PR("%s", "Doing nothing, action_key is zero");
 	} else {
-		if (action_key == 0)
-			scst_pr_unregister(dev, reg);
-		else
+		if (action_key == 0) {
+			if (all_tg_pt)
+				scst_pr_unregister_all_tg_pt(dev,
+					sess->transport_id);
+			else
+				scst_pr_unregister(dev, reg);
+		} else
 			reg->key = action_key;
 	}
 
@@ -1754,12 +1888,12 @@ void scst_pr_register_and_move(struct scst_cmd *cmd, uint8_t *buffer,
 	reg_move = scst_pr_find_reg(dev, transport_id_move, rel_tgt_id_move);
 	if (reg_move == NULL) {
 		reg_move = scst_pr_add_registrant(dev, transport_id_move,
-			rel_tgt_id_move, action_key, NULL, GFP_KERNEL);
+			rel_tgt_id_move, action_key, false, GFP_KERNEL);
 		if (reg_move == NULL) {
 			scst_set_busy(cmd);
 			goto out;
 		}
-	} else {
+	} else if (reg_move->key != action_key) {
 		TRACE_PR("Changing key for reg %p", reg);
 		reg_move->key = action_key;
 	}
@@ -2490,7 +2624,7 @@ void scst_pr_report_caps(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 {
 	int offset = 0;
 	unsigned int crh = 1;
-	unsigned int atp_c = 0;
+	unsigned int atp_c = 1;
 	unsigned int sip_c = 1;
 #ifdef CONFIG_SCST_PROC
 	unsigned int ptpl_c = 0;

@@ -809,6 +809,9 @@ struct scst_tgt_template {
 	 * TransporID must be allocated via kmalloc(). Caller supposed to
 	 * kfree() it, when it isn't needed anymore.
 	 *
+	 * If sess is NULL, this function must return TransportID PROTOCOL
+	 * IDENTIFIER of this transport.
+	 *
 	 * Returns 0 on success or negative error code otherwise.
 	 *
 	 * SHOULD HAVE, because it's required for Persistent Reservations.

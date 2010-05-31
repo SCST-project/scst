@@ -73,9 +73,18 @@
 struct mutex scst_mutex;
 EXPORT_SYMBOL(scst_mutex);
 
- /* All 3 protected by scst_mutex */
+/*
+ * Secondary level main mutex, inner for scst_mutex. Needed for
+ * __scst_pr_register_all_tg_pt(), since we can't use scst_mutex there,
+ * because of the circular locking dependency with dev_pr_mutex.
+ */
+struct mutex scst_mutex2;
+
+/* Both protected by scst_mutex or scst_mutex2 on read and both on write */
 struct list_head scst_template_list;
 struct list_head scst_dev_list;
+
+/* Protected by scst_mutex */
 struct list_head scst_dev_type_list;
 
 spinlock_t scst_main_lock;
@@ -282,7 +291,9 @@ int __scst_register_target_template(struct scst_tgt_template *vtt,
 	}
 
 	mutex_lock(&scst_mutex);
+	mutex_lock(&scst_mutex2);
 	list_add_tail(&vtt->scst_template_list_entry, &scst_template_list);
+	mutex_unlock(&scst_mutex2);
 	mutex_unlock(&scst_mutex);
 
 	res = 0;
@@ -341,7 +352,10 @@ restart:
 		mutex_lock(&scst_mutex);
 		goto restart;
 	}
+
+	mutex_lock(&scst_mutex2);
 	list_del(&vtt->scst_template_list_entry);
+	mutex_unlock(&scst_mutex2);
 
 	mutex_unlock(&scst_mutex);
 
@@ -459,7 +473,9 @@ struct scst_tgt *scst_register_target(struct scst_tgt_template *vtt,
 		goto out_clear_acg;
 #endif
 
+	mutex_lock(&scst_mutex2);
 	list_add_tail(&tgt->tgt_list_entry, &vtt->tgt_list);
+	mutex_unlock(&scst_mutex2);
 
 	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
@@ -562,7 +578,9 @@ again:
 	scst_suspend_activity(false);
 	mutex_lock(&scst_mutex);
 
+	mutex_lock(&scst_mutex2);
 	list_del(&tgt->tgt_list_entry);
+	mutex_unlock(&scst_mutex2);
 
 #ifdef CONFIG_SCST_PROC
 	scst_cleanup_proc_target_entries(tgt);
@@ -2026,6 +2044,7 @@ static int __init init_scst(void)
 	}
 
 	mutex_init(&scst_mutex);
+	mutex_init(&scst_mutex2);
 	INIT_LIST_HEAD(&scst_template_list);
 	INIT_LIST_HEAD(&scst_dev_list);
 	INIT_LIST_HEAD(&scst_dev_type_list);

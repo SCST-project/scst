@@ -3508,6 +3508,11 @@ int iscsi_get_initiator_port_transport_id(struct scst_session *scst_sess,
 
 	TRACE_ENTRY();
 
+	if (scst_sess == NULL) {
+		res = SCSI_TRANSPORTID_PROTOCOLID_ISCSI;
+		goto out;
+	}
+
 	sess = (struct iscsi_session *)scst_sess_get_tgt_priv(scst_sess);
 
 	sid = *(union iscsi_sid *)&sess->sid;
