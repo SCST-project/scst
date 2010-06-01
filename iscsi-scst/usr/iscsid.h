@@ -28,6 +28,10 @@
 #include "param.h"
 #include "misc.h"
 
+#ifndef bool
+typedef enum {false = 0, true} bool;
+#endif
+
 #define sBUG() assert(0)
 #define sBUG_ON(p) assert(!(p))
 
@@ -135,6 +139,7 @@ struct connection {
 #define STATE_KERNEL		9
 #define STATE_CLOSE		10
 #define STATE_EXIT		11
+#define STATE_DROP		12
 
 #define AUTH_STATE_START	0
 #define AUTH_STATE_CHALLENGE	1
@@ -211,6 +216,8 @@ enum {
 };
 
 extern struct pollfd poll_array[POLL_MAX];
+
+extern int nl_fd;
 
 /* chap.c */
 extern int cmnd_exec_auth_chap(struct connection *conn);
@@ -310,7 +317,7 @@ extern int kernel_conn_create(u32 tid, u64 sid, u32 cid, u32 stat_sn, u32 exp_st
 extern int kernel_conn_destroy(u32 tid, u64 sid, u32 cid);
 
 /* event.c */
-extern void handle_iscsi_events(int fd);
+extern int handle_iscsi_events(int fd, bool wait);
 extern int nl_open(void);
 
 /* config.c */

@@ -339,6 +339,9 @@ int target_del(u32 tid, u32 cookie)
 
 	list_del(&target->tlist);
 
+	/* We might need to handle session(s) removal event(s) from the kernel */
+	while (handle_iscsi_events(nl_fd, false) == 0);
+
 	if (!list_empty(&target->sessions_list)) {
 		log_error("%s: target %u still has sessions\n", __FUNCTION__,
 			  tid);

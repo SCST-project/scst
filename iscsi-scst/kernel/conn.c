@@ -269,6 +269,13 @@ void iscsi_make_conn_rd_active(struct iscsi_conn *conn)
 	TRACE_DBG("conn %p, rd_state %x, rd_data_ready %d", conn,
 		conn->rd_state, conn->rd_data_ready);
 
+	/*
+	 * Let's start processing ASAP not waiting for all the being waited
+	 * data be received, even if we need several wakup iteration to receive
+	 * them all, because starting ASAP, i.e. in parallel, is better for
+	 * performance, especially on multi-CPU/core systems.
+	 */
+
 	conn->rd_data_ready = 1;
 
 	if (conn->rd_state == ISCSI_CONN_RD_STATE_IDLE) {
@@ -291,6 +298,13 @@ void iscsi_make_conn_wr_active(struct iscsi_conn *conn)
 
 	TRACE_DBG("conn %p, wr_state %x, wr_space_ready %d", conn,
 		conn->wr_state, conn->wr_space_ready);
+
+	/*
+	 * Let's start sending waiting to be sent data ASAP, even if there's
+	 * still not all the needed buffers ready and we need several wakup
+	 * iteration to send them all, because starting ASAP, i.e. in parallel,
+	 * is better for performance, especially on multi-CPU/core systems.
+	 */
 
 	if (conn->wr_state == ISCSI_CONN_WR_STATE_IDLE) {
 		list_add_tail(&conn->wr_list_entry, &iscsi_wr_list);

@@ -541,11 +541,20 @@ static void login_start(struct connection *conn)
 			return;
 		}
 
+		/* We may "leak" here if we have an iSCSI event on the wrong time */
+		if (!iscsi_enabled) {
+			log_info("Connect from %s to disabled iSCSI-SCST refused",
+				name);
+			login_rsp_tgt_err(conn, 0);
+			conn->state = STATE_DROP;
+			return;
+		}
+
 		if (!target->tgt_enabled) {
 			log_info("Connect from %s to disabled target %s refused",
 				name, target_name);
 			login_rsp_tgt_err(conn, 0);
-			conn->state = STATE_EXIT;
+			conn->state = STATE_DROP;
 			return;
 		}
 
@@ -1037,6 +1046,7 @@ void cmnd_finish(struct connection *conn)
 
 	switch (conn->state) {
 	case STATE_EXIT:
+	case STATE_DROP:
 		break;
 	case STATE_SECURITY_LOGIN:
 		conn->state = STATE_LOGIN;

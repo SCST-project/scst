@@ -332,15 +332,17 @@ static void event_conn(struct connection *conn, struct pollfd *pollfd)
 {
 	int res, opt;
 
+again:
 	switch (conn->iostate) {
 	case IOSTATE_READ_BHS:
 	case IOSTATE_READ_AHS_DATA:
 	      read_again:
 		res = read(pollfd->fd, conn->buffer, conn->rwsize);
 		if (res <= 0) {
-			if (res == 0 || (errno != EINTR && errno != EAGAIN))
-				conn->state = STATE_EXIT;
-			else if (errno == EINTR)
+			if (res == 0 || (errno != EINTR && errno != EAGAIN)) {
+				conn->state = STATE_DROP;
+				goto out;
+			} else if (errno == EINTR)
 				goto read_again;
 			break;
 		}
@@ -361,7 +363,7 @@ static void event_conn(struct connection *conn, struct pollfd *pollfd)
 				log_warning("Recv PDU with invalid size %d "
 					"(max: %d)", conn->rwsize,
 					INCOMING_BUFSIZE);
-				conn->state = STATE_EXIT;
+				conn->state = STATE_DROP;
 				goto out;
 			}
 			if (conn->rwsize) {
@@ -369,7 +371,7 @@ static void event_conn(struct connection *conn, struct pollfd *pollfd)
 					conn->req_buffer = malloc(INCOMING_BUFSIZE);
 					if (!conn->req_buffer) {
 						log_error("Failed to alloc recv buffer");
-						conn->state = STATE_EXIT;
+						conn->state = STATE_DROP;
 						goto out;
 					}
 				}
@@ -386,6 +388,11 @@ static void event_conn(struct connection *conn, struct pollfd *pollfd)
 			log_pdu(2, &conn->req);
 			if (!cmnd_execute(conn))
 				conn->state = STATE_EXIT;
+
+			if (conn->state == STATE_EXIT) {
+				/* We need to send response */
+				goto again;
+			}
 			break;
 		}
 		break;
@@ -398,9 +405,10 @@ static void event_conn(struct connection *conn, struct pollfd *pollfd)
 		setsockopt(pollfd->fd, SOL_TCP, TCP_CORK, &opt, sizeof(opt));
 		res = write(pollfd->fd, conn->buffer, conn->rwsize);
 		if (res < 0) {
-			if (errno != EINTR && errno != EAGAIN)
-				conn->state = STATE_EXIT;
-			else if (errno == EINTR)
+			if (errno != EINTR && errno != EAGAIN) {
+				conn->state = STATE_DROP;
+				goto out;
+			} else if (errno == EINTR)
 				goto write_again;
 			break;
 		}
@@ -445,6 +453,7 @@ static void event_conn(struct connection *conn, struct pollfd *pollfd)
 				break;
 			case STATE_EXIT:
 			case STATE_CLOSE:
+			case STATE_DROP:
 				break;
 			default:
 				conn_read_pdu(conn);
@@ -491,7 +500,7 @@ static void event_loop(void)
 
 	while (1) {
 		if (!iscsi_enabled) {
-			handle_iscsi_events(nl_fd);
+			handle_iscsi_events(nl_fd, true);
 			continue;
 		}
 		res = poll(poll_array, POLL_MAX, isns_timeout);
@@ -528,7 +537,7 @@ static void event_loop(void)
 		}
 
 		if (poll_array[POLL_NL].revents)
-			handle_iscsi_events(nl_fd);
+			handle_iscsi_events(nl_fd, false);
 
 		if (poll_array[POLL_IPC].revents)
 			iscsi_adm_request_handle(ipc_fd);
@@ -554,7 +563,8 @@ static void event_loop(void)
 			event_conn(conn, pollfd);
 
 			if ((conn->state == STATE_CLOSE) ||
-			    (conn->state == STATE_EXIT)) {
+			    (conn->state == STATE_EXIT) ||
+			    (conn->state == STATE_DROP)) {
 				struct session *sess = conn->sess;
 				log_debug(1, "closing conn %p", conn);
 				conn_free_pdu(conn);
@@ -562,7 +572,7 @@ static void event_loop(void)
 				pollfd->fd = -1;
 				incoming[i] = NULL;
 				incoming_cnt--;
-				if (conn->state == STATE_EXIT) {
+				if (conn->state != STATE_CLOSE) {
 					if (conn->passed_to_kern) {
 						kernel_conn_destroy(conn->tid,
 							conn->sess->sid.id64,

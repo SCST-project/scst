@@ -1305,6 +1305,11 @@ with suffix ".1". Those backup files are used in case of power or other
 failure to prevent Persistent Reservation information from corruption
 during update.
 
+The "Persistence Through Power Loss" feature is not available in the
+procfs build, because the SCST proc interface doesn't allow to keep
+persistent Relative Target IDs of each target between reboots/reloads
+(they are load and initialization order dependent).
+
 The Persistent Reservations available on all transports implementing
 get_initiator_port_transport_id() callback. Transports not implementing
 this callback will act in one of 2 possible scenarios ("all or

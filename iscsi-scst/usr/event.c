@@ -63,7 +63,7 @@ static int nl_write(int fd, void *data, int len)
 	return sendmsg(fd, &msg, 0);
 }
 
-static int nl_read(int fd, void *data, int len)
+static int nl_read(int fd, void *data, int len, bool wait)
 {
 	struct iovec iov[2];
 	struct msghdr msg;
@@ -81,7 +81,7 @@ static int nl_read(int fd, void *data, int len)
 	msg.msg_iov = iov;
 	msg.msg_iovlen = 2;
 
-	res = recvmsg(fd, &msg, iscsi_enabled ? MSG_DONTWAIT : 0);
+	res = recvmsg(fd, &msg, wait ? 0 : MSG_DONTWAIT);
 	if (res > 0) {
 		res -= sizeof(nlh);
 		if (res < 0)
@@ -165,7 +165,7 @@ static int handle_e_add_target(int fd, const struct iscsi_kern_event *event)
 	offs = sprintf(buf, "Target ");
 
 	while (1) {
-		if ((rc = nl_read(fd, &buf[offs], event->param1_size)) < 0) {
+		if ((rc = nl_read(fd, &buf[offs], event->param1_size, true)) < 0) {
 			if ((errno == EINTR) || (errno == EAGAIN))
 				continue;
 			log_error("read netlink fd (%d) failed: %s", fd,
@@ -181,7 +181,7 @@ static int handle_e_add_target(int fd, const struct iscsi_kern_event *event)
 
 	if (event->param2_size > 0) {
 		while (1) {
-			if ((rc = nl_read(fd, &buf[offs], event->param2_size)) < 0) {
+			if ((rc = nl_read(fd, &buf[offs], event->param2_size, true)) < 0) {
 				if ((errno == EINTR) || (errno == EAGAIN))
 					continue;
 				log_error("read netlink fd (%d) failed: %s", fd,
@@ -402,7 +402,7 @@ static int handle_e_mgmt_cmd(int fd, const struct iscsi_kern_event *event)
 	}
 
 	while (1) {
-		if ((rc = nl_read(fd, buf, event->param1_size)) < 0) {
+		if ((rc = nl_read(fd, buf, event->param1_size, true)) < 0) {
 			if ((errno == EINTR) || (errno == EAGAIN))
 				continue;
 			log_error("read netlink fd (%d) failed: %s", fd,
@@ -491,7 +491,7 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 	}
 
 	while (1) {
-		if ((rc = nl_read(fd, buf, event->param1_size)) < 0) {
+		if ((rc = nl_read(fd, buf, event->param1_size, true)) < 0) {
 			if ((errno == EINTR) || (errno == EAGAIN))
 				continue;
 			log_error("read netlink fd (%d) failed: %s", fd,
@@ -642,7 +642,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 	}
 
 	while (1) {
-		if ((rc = nl_read(fd, buf, event->param1_size)) < 0) {
+		if ((rc = nl_read(fd, buf, event->param1_size, true)) < 0) {
 			if ((errno == EINTR) || (errno == EAGAIN))
 				continue;
 			log_error("read netlink fd (%d) failed: %s", fd,
@@ -657,7 +657,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 	offs += sprintf(&buf[offs], " ");
 
 	while (1) {
-		if ((rc = nl_read(fd, &buf[offs], event->param2_size)) < 0) {
+		if ((rc = nl_read(fd, &buf[offs], event->param2_size, true)) < 0) {
 			if ((errno == EINTR) || (errno == EAGAIN))
 				continue;
 			log_error("read netlink fd (%d) failed: %s", fd,
@@ -894,7 +894,7 @@ out_free_server:
 
 #endif /* CONFIG_SCST_PROC */
 
-void handle_iscsi_events(int fd)
+int handle_iscsi_events(int fd, bool wait)
 {
 	struct session *session;
 	struct connection *conn;
@@ -910,9 +910,9 @@ void handle_iscsi_events(int fd)
 	 */
 
 retry:
-	if ((rc = nl_read(fd, &event, sizeof(event))) < 0) {
+	if ((rc = nl_read(fd, &event, sizeof(event), wait)) < 0) {
 		if (errno == EAGAIN)
-			return;
+			return EAGAIN;
 		if (errno == EINTR)
 			goto retry;
 		log_error("read netlink fd (%d) failed: %s", fd, strerror(errno));
@@ -1014,7 +1014,7 @@ retry:
 		break;
 	}
 
-	return;
+	return 0;
 }
 
 int nl_open(void)
