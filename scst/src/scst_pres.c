@@ -362,10 +362,11 @@ static void scst_pr_clear_holder(struct scst_device *dev)
 static struct scst_dev_registrant *scst_pr_add_registrant(
 	struct scst_device *dev, const uint8_t *transport_id,
 	const uint16_t rel_tgt_id, uint64_t key,
-	bool dev_lock_locked, gfp_t gfp_flags)
+	bool dev_lock_locked)
 {
 	struct scst_dev_registrant *reg;
 	struct scst_tgt_dev *t;
+	gfp_t gfp_flags = dev_lock_locked ? GFP_ATOMIC : GFP_KERNEL;
 
 	TRACE_ENTRY();
 
@@ -741,8 +742,7 @@ static int scst_pr_do_load_device_file(struct scst_device *dev,
 		rel_tgt_id = get_unaligned((uint16_t *)&buf[pos]);
 		pos += sizeof(rel_tgt_id);
 
-		reg = scst_pr_add_registrant(dev, tid, rel_tgt_id, key, false,
-						GFP_KERNEL);
+		reg = scst_pr_add_registrant(dev, tid, rel_tgt_id, key, false);
 		if (reg == NULL) {
 			res = -ENOMEM;
 			goto out_close;
@@ -1352,8 +1352,7 @@ static int scst_pr_register_with_spec_i_pt(struct scst_cmd *cmd,
 				if (reg == NULL) {
 					reg = scst_pr_add_registrant(dev,
 						t->sess->transport_id,
-						rel_tgt_id, action_key, true,
-						GFP_ATOMIC);
+						rel_tgt_id, action_key, true);
 					if (reg == NULL) {
 						spin_unlock_bh(&dev->dev_lock);
 						scst_set_busy(cmd);
@@ -1383,8 +1382,7 @@ static int scst_pr_register_with_spec_i_pt(struct scst_cmd *cmd,
 				reg->key = action_key;
 			} else {
 				reg = scst_pr_add_registrant(dev, transport_id,
-						rel_tgt_id, action_key, false,
-						GFP_KERNEL);
+						rel_tgt_id, action_key, false);
 				if (reg == NULL) {
 					scst_set_busy(cmd);
 					res = -ENOMEM;
@@ -1502,7 +1500,7 @@ static int scst_pr_register_on_tgt_id(struct scst_cmd *cmd,
 		action_key = get_unaligned((__be64 *)&buffer[8]);
 
 		reg = scst_pr_add_registrant(cmd->dev, cmd->sess->transport_id,
-			rel_tgt_id, action_key, false, GFP_KERNEL);
+			rel_tgt_id, action_key, false);
 		if (reg == NULL) {
 			res = -ENOMEM;
 			scst_set_busy(cmd);
@@ -1888,7 +1886,7 @@ void scst_pr_register_and_move(struct scst_cmd *cmd, uint8_t *buffer,
 	reg_move = scst_pr_find_reg(dev, transport_id_move, rel_tgt_id_move);
 	if (reg_move == NULL) {
 		reg_move = scst_pr_add_registrant(dev, transport_id_move,
-			rel_tgt_id_move, action_key, false, GFP_KERNEL);
+			rel_tgt_id_move, action_key, false);
 		if (reg_move == NULL) {
 			scst_set_busy(cmd);
 			goto out;
