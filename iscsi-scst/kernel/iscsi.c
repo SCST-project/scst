@@ -69,8 +69,6 @@ static void cmnd_remove_data_wait_hash(struct iscsi_cmnd *cmnd);
 static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status);
 static void iscsi_check_send_delayed_tm_resp(struct iscsi_session *sess);
 static void req_cmnd_release(struct iscsi_cmnd *req);
-static int iscsi_preliminary_complete(struct iscsi_cmnd *req,
-	struct iscsi_cmnd *orig_req, bool get_data);
 static int cmnd_insert_data_wait_hash(struct iscsi_cmnd *cmnd);
 static void __cmnd_abort(struct iscsi_cmnd *cmnd);
 static void iscsi_set_resid(struct iscsi_cmnd *rsp, bool bufflen_set);
@@ -943,7 +941,7 @@ out:
 	return res;
 }
 
-static int set_scst_preliminary_status_rsp(struct iscsi_cmnd *req,
+int set_scst_preliminary_status_rsp(struct iscsi_cmnd *req,
 	bool get_data, int key, int asc, int ascq)
 {
 	int res = 0;
@@ -1334,7 +1332,7 @@ static void iscsi_set_resid(struct iscsi_cmnd *rsp, bool bufflen_set)
 	return;
 }
 
-static int iscsi_preliminary_complete(struct iscsi_cmnd *req,
+int iscsi_preliminary_complete(struct iscsi_cmnd *req,
 	struct iscsi_cmnd *orig_req, bool get_data)
 {
 	int res = 0;

@@ -487,6 +487,10 @@ extern void conn_abort(struct iscsi_conn *conn);
 extern void iscsi_restart_cmnd(struct iscsi_cmnd *cmnd);
 extern void iscsi_fail_data_waiting_cmnd(struct iscsi_cmnd *cmnd);
 extern void iscsi_send_nop_in(struct iscsi_conn *conn);
+extern int iscsi_preliminary_complete(struct iscsi_cmnd *req,
+	struct iscsi_cmnd *orig_req, bool get_data);
+extern int set_scst_preliminary_status_rsp(struct iscsi_cmnd *req,
+	bool get_data, int key, int asc, int ascq);
 
 /* conn.c */
 extern struct iscsi_conn *conn_lookup(struct iscsi_session *, u16);

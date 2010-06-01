@@ -188,7 +188,8 @@ int digest_rx_data(struct iscsi_cmnd *cmnd)
 		cmnd->conn->rpadding);
 
 	if (unlikely(crc != cmnd->ddigest)) {
-		PRINT_ERROR("%s", "RX data digest failed");
+		TRACE(TRACE_MINOR|TRACE_MGMT_DEBUG, "%s", "RX data digest "
+			"failed");
 		TRACE_MGMT_DBG("Calculated crc %x, ddigest %x, offset %d", crc,
 			cmnd->ddigest, offset);
 		iscsi_dump_pdu(&cmnd->pdu);

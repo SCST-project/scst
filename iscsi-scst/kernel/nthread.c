@@ -776,8 +776,13 @@ static int iscsi_rx_check_ddigest(struct iscsi_conn *conn)
 			cmnd->ddigest_checked = 1;
 			res = digest_rx_data(cmnd);
 			if (unlikely(res != 0)) {
-				mark_conn_closed(conn);
-				goto out;
+				if (unlikely(cmnd->scst_cmd == NULL)) {
+					/* Just drop it */
+					iscsi_preliminary_complete(cmnd, cmnd, false);
+				} else
+					set_scst_preliminary_status_rsp(cmnd, false,
+						SCST_LOAD_SENSE(iscsi_sense_crc_error));
+				res = 0;
 			}
 		} else if (cmnd_opcode(cmnd) == ISCSI_OP_SCSI_CMD) {
 			cmd_add_on_rx_ddigest_list(cmnd, cmnd);
@@ -786,19 +791,18 @@ static int iscsi_rx_check_ddigest(struct iscsi_conn *conn)
 			/*
 			 * We could get here only for Nop-Out. ISCSI RFC
 			 * doesn't specify how to deal with digest errors in
-			 * this case. Is closing connection correct?
+			 * this case. Let's just drop the command.
 			 */
 			TRACE_DBG("cmnd %p, opcode %x: checking NOP RX "
 				"ddigest", cmnd, cmnd_opcode(cmnd));
 			res = digest_rx_data(cmnd);
 			if (unlikely(res != 0)) {
-				mark_conn_closed(conn);
-				goto out;
+				iscsi_preliminary_complete(cmnd, cmnd, false);
+				res = 0;
 			}
 		}
 	}
 
-out:
 	return res;
 }
 
