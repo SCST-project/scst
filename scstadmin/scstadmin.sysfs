@@ -597,7 +597,7 @@ sub main {
 			last SWITCH;
 		};
 		$setLunParm && do {
-			$rc = setLunParameters($setLunParm, $driver, $target, $group, $parameters);
+			$rc = setLunParameters($setLunParm, $driver, $target, $parameters, $group);
 			last SWITCH;
 		};
 		$setInitiatorParm && do {
@@ -641,11 +641,11 @@ sub main {
 			last SWITCH;
 		};
 		$addLun && do {
-			$rc = addLun($addLun, $driver, $target, $group, $device, $parameters);
+			$rc = addLun($addLun, $driver, $target, $device, $parameters, $group);
 			last SWITCH;
 		};
 		$removeLun && do {
-			$rc = removeLun($removeLun, $driver, $target, $group, $device);
+			$rc = removeLun($removeLun, $driver, $target, $device, $group);
 			last SWITCH;
 		};
 		$replaceLun && do {
@@ -710,6 +710,10 @@ sub readWorkingConfig {
 		foreach my $target (@{$targets}) {
 			my %empty;
 			$CURRENT{'assign'}->{$driver}->{$target} = \%empty;
+
+			my $luns = $SCST->luns($driver, $target);
+			$CURRENT{'assign'}->{$driver}->{$target}->{'LUNS'} = $luns if (defined($luns));
+
 			my $groups = $SCST->groups($driver, $target);
 			immediateExit($SCST->errorString());
 			foreach my $group (@{$groups}) {
@@ -886,7 +890,7 @@ sub writeConfiguration {
 
 					$lun_buff .= "\t\t\tLUN $lun $lun_dev";
 
-					$parameters = $SCST->lunParameters($driver, $target, $group, $lun);
+					$parameters = $SCST->lunParameters($driver, $target, $lun, $group);
 
 					my $parameter_buff;
 					foreach my $parameter (sort keys %{$parameters}) {
@@ -1045,7 +1049,7 @@ sub checkConfiguration {
 				foreach my $target (keys %{$$CONFIG{'TARGET_DRIVER'}->{$driver}->{'TARGET'}}) {
 					if (!defined($CURRENT{'assign'}->{$driver}->{$target})) {
 						print "\t-> WARNING: Target '$target' for driver '$driver' ".
-						  "does not exist.\n";
+						  "does not exist.\n" if ($SCST->driverIsStatic($driver));
 					}
 				}
 			}
@@ -1140,7 +1144,28 @@ sub applyConfigAssignments {
 
 	foreach my $driver (keys %{$assignments}) {
 		foreach my $target (keys %{$$assignments{$driver}}) {
+			my $luns = $$assignments{$driver}->{$target}->{'LUNS'};
+			my $def_group = $$config{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target};
+
+			foreach my $lun (keys %{$luns}) {
+				my $device = $$luns{$lun};
+
+				if (!defined($$def_group{'LUN'}) ||
+				    !defined($$def_group{'LUN'}->{$lun}) ||
+				    !defined($$def_group{'LUN'}->{$lun}->{$device})) {
+					if ($deletions) {
+						removeLun($lun, $driver, $target, $device);
+					} else {
+						print "\t-> Device '$device' at LUN '$lun' is not in configuration ".
+						  "for driver/target '$driver/$target'. ".
+						  "Use -force to remove it.\n";
+					}
+				}
+			}
+
 			foreach my $group (keys %{$$assignments{$driver}->{$target}}) {
+				next if ($group eq 'LUNS');
+
 				my $luns = $$assignments{$driver}->{$target}->{$group}->{'LUNS'};
 				my $inits = $$assignments{$driver}->{$target}->{$group}->{'INITIATORS'};
 
@@ -1168,7 +1193,7 @@ sub applyConfigAssignments {
 					    !defined($$def_group{'LUN'}->{$lun}) ||
 					    !defined($$def_group{'LUN'}->{$lun}->{$device})) {
 						if ($deletions) {
-							removeLun($lun, $driver, $target, $group, $device);
+							removeLun($lun, $driver, $target, $device, $group);
 						} else {
 							print "\t-> Device '$device' at LUN '$lun' is not in configuration ".
 							  "for driver/target/group '$driver/$target/$group'. ".
@@ -1221,7 +1246,16 @@ sub applyTargetAssignments {
 
 	foreach my $target (sort keys %{$targets}) {
 		if (!defined($CURRENT{'assign'}->{$driver}->{$target})) {
-			immediateExit("Target '$target' for driver '$driver' does not exist.");
+			if ($SCST->driverIsStatic($driver)) {
+				immediateExit("Target '$target' for driver '$driver' does not exist.");
+			} else {
+				# TODO: Add $parameters
+				print "-> Creating target '$target' for driver '$driver': ";
+				my $rc = $SCST->addTarget($driver, $target);
+				print "done.\n";
+
+				immediateExit($SCST->errorString($rc)) if ($rc);
+			}
 		}
 
 		my %_parameters;
@@ -1229,7 +1263,7 @@ sub applyTargetAssignments {
 			if ($item eq 'GROUP') {
 				applyGroupAssignments($driver, $target, $$targets{$target}->{$item});
 			} elsif ($item eq 'LUN') {
-				applyLunAssignments($driver, $target, $$targets{$target}->{$item});
+				applyLunAssignments($driver, $target, undef, $$targets{$target}->{$item});
 			} else {
 				$_parameters{$item} = $$targets{$target}->{$item};
 			}
@@ -1276,9 +1310,15 @@ sub applyLunAssignments {
 	my $target = shift;
 	my $group = shift;
 	my $luns = shift;
+	my $c_luns;
 
-	my $c_luns = $CURRENT{'assign'}->{$driver}->{$target}->{$group}->{'LUNS'};
-
+	if ($group) {
+		$c_luns = $CURRENT{'assign'}->{$driver}->{$target}->{$group}->{'LUNS'};
+	} else {
+		$c_luns = $CURRENT{'assign'}->{$driver}->{$target}->{'LUNS'};
+	}
+#use Data::Dumper;
+#print Dumper(\%CURRENT);
 	foreach my $lun (sort keys %{$luns}) {
 		if (!defined($$c_luns{$lun})) {
 			if ((scalar keys %{$$luns{$lun}}) > 1) {
@@ -1289,7 +1329,7 @@ sub applyLunAssignments {
 
 			foreach my $device (sort keys %{$$luns{$lun}}) {
 				my $parameters = configToParm($$luns{$lun}->{$device});
-				addLun($lun, $driver, $target, $group, $device, $parameters);
+				addLun($lun, $driver, $target, $device, $parameters, $group);
 			}
 		}
 	}
@@ -1866,10 +1906,10 @@ sub setLunParameters {
 	my $lun = shift;
 	my $driver = shift;
 	my $target = shift;
-	my $group = shift;
 	my $parameters = shift;
+	my $group = shift;
 
-	my $_parameters = $SCST->lunParameters($driver, $target, $group, $lun);
+	my $_parameters = $SCST->lunParameters($driver, $target, $lun, $group);
 
 	foreach my $parameter (sort keys %{$parameters}) {
 		if (defined($$_parameters{$parameter}) &&
@@ -1881,7 +1921,7 @@ sub setLunParameters {
 			print "-> Setting LUN parameter '$parameter' to value '$value' for ".
 			  "driver/target/group/lun '$driver/$target/$group/$lun': ";
 
-			my $rc = $SCST->setLunParameter($driver, $target, $group, $lun, $parameter, $value);
+			my $rc = $SCST->setLunParameter($driver, $target, $lun, $parameter, $value, $group);
 
 			print "done.\n";
 
@@ -2087,14 +2127,19 @@ sub addLun {
 	my $lun = shift;
 	my $driver = shift;
 	my $target = shift;
-	my $group = shift;
 	my $device = shift;
 	my $parameters = shift;
+	my $group = shift;
 
-	print "-> Adding device '$device' at LUN $lun to driver/target/group ".
-	  "'$driver/$target/$group': ";
+	if ($group) {
+		print "-> Adding device '$device' at LUN $lun to driver/target/group ".
+		  "'$driver/$target/$group': ";
+	} else {
+		print "-> Adding device '$device' at LUN $lun to driver/target ".
+		  "'$driver/$target': ";
+	}
 
-	my $rc = $SCST->addLun($driver, $target, $group, $device, $lun, $parameters);
+	my $rc = $SCST->addLun($driver, $target, $device, $lun, $parameters, $group);
 
 	print "done.\n";
 
@@ -2105,13 +2150,18 @@ sub removeLun {
 	my $lun = shift;
 	my $driver = shift;
 	my $target = shift;
-	my $group = shift;
 	my $device = shift;
+	my $group = shift;
 
-	print "-> Removing device '$device' at LUN $lun from driver/target/group ".
-	  "'$driver/$target/$group': ";
+	if ($group) {
+		print "-> Removing device '$device' at LUN $lun from driver/target/group ".
+		  "'$driver/$target/$group': ";
+	} else {
+		print "-> Removing device '$device' at LUN $lun from driver/target ".
+		  "'$driver/$target': ";
+	}
 
-	my $rc = $SCST->removeLun($driver, $target, $group, $device, $lun);
+	my $rc = $SCST->removeLun($driver, $target, $device, $lun, $group);
 
 	print "done.\n";
 

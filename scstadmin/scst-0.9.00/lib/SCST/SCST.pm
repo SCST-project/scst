@@ -67,9 +67,13 @@ SCST_C_TGT_EXISTS           => 41,
 SCST_C_TGT_ADD_FAIL         => 42,
 SCST_C_TGT_REM_FAIL         => 43,
 SCST_C_TGT_SETATTR_FAIL     => 44,
+SCST_C_TGT_NO_LUN           => 54,
+SCST_C_TGT_ADD_LUN_FAIL     => 45,
+SCST_C_TGT_LUN_EXISTS       => 46,
 SCST_C_TGT_BAD_PARAMETERS   => 47,
 SCST_C_TGT_PARAMETER_STATIC => 48,
 SCST_C_TGT_SETPARAM_FAIL    => 49,
+SCST_C_TGT_CLR_LUN_FAIL     => 55,
 
 SCST_C_GRP_NO_GROUP         => 50,
 SCST_C_GRP_EXISTS           => 51,
@@ -132,9 +136,14 @@ my %VERBOSE_ERROR = (
 (SCST_C_TGT_EXISTS)           => 'Target already exists.',
 (SCST_C_TGT_ADD_FAIL)         => 'Failed to add target. See "dmesg" for more information.',
 (SCST_C_TGT_REM_FAIL)         => 'Failed to remove target. See "dmesg" for more information.',
+(SCST_C_TGT_SETATTR_FAIL)     => 'Failed to set target attribute. See "dmesg" for more information.',
+(SCST_C_TGT_NO_LUN)           => 'No such LUN exists.',
+(SCST_C_TGT_ADD_LUN_FAIL)     => 'Failed to add LUN. See "dmesg" for more information.',
+(SCST_C_TGT_LUN_EXISTS)       => 'LUN already exists.',
 (SCST_C_TGT_BAD_PARAMETERS)   => 'Bad parameters given for target.',
 (SCST_C_TGT_PARAMETER_STATIC) => 'Target parameter specified is static.',
 (SCST_C_TGT_SETPARAM_FAIL)    => 'Failed to set target parameter. See "dmesg" for more information.',
+(SCST_C_TGT_CLR_LUN_FAIL)     => 'Failed to clear LUNs from target. See "dmesg" for more information.',
 
 (SCST_C_GRP_NO_GROUP)         => 'No such group exists.',
 (SCST_C_GRP_EXISTS)           => 'Group already exists.',
@@ -464,14 +473,22 @@ sub luns {
 		return undef;
 	}
 
-	if ($self->groupExists($driver, $target, $group) != TRUE) {
-		$self->{'err_string'} = "initiators(): Group '$group' does not exist";
-		return undef;
+	my $_path;
+
+	if ($group) {
+		if ($self->groupExists($driver, $target, $group) != TRUE) {
+			$self->{'err_string'} = "initiators(): Group '$group' does not exist";
+			return undef;
+		}
+
+		$_path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS,
+		  $group, SCST_LUNS);
+	} else {
+		$_path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_LUNS);
 	}
 
 	my $lHandle = new IO::Handle;
-	my $_path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS,
-	  $group, SCST_LUNS);
+
 	if (!(opendir $lHandle, $_path)) {
 		$self->{'err_string'} = "luns(): Unable to read directory '$_path': $!";
 		return undef;
@@ -480,11 +497,9 @@ sub luns {
 	foreach my $lun (readdir($lHandle)) {
 		next if (($lun eq '.') || ($lun eq '..'));
 
-		if (-d mkpath(SCST_ROOT, SCST_TARGETS, $driver,
-		  $target, SCST_GROUPS, $group, SCST_LUNS, $lun)) {
-			my $lPath = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target,
-			  SCST_GROUPS, $group, SCST_LUNS, $lun);
+		my $lPath = mkpath($_path, $lun);
 
+		if (-d $lPath) {
 			my $_lHandle = new IO::Handle;
 
 			if (!(opendir $_lHandle, $lPath)) {
@@ -493,8 +508,7 @@ sub luns {
 			}
 
 			foreach my $parameter (readdir($_lHandle)) {
-				my $pPath = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target,
-				  SCST_GROUPS, $group, SCST_LUNS, $lun, $parameter);
+				my $pPath = mkpath($lPath, $parameter);
 
 				if (-l $pPath) {
 					my $linked = readlink($pPath);
@@ -543,7 +557,7 @@ sub addDriverAttribute {
 
 	my $io = new IO::File $path, O_WRONLY;
 
-	return SCST_C_TGT_ADD_FAIL if (!$io);
+	return SCST_C_TGT_ADD_FAIL if (!$io); # FIXME
 
 }
 
@@ -597,12 +611,12 @@ sub addTarget {
 	return $rc if ($rc > 1);
 
 	$rc = $self->targetExists($driver, $target);
-	return SCST_C_TGT_EXISTS if (!$rc);
+	return SCST_C_TGT_EXISTS if ($rc);
 	return $rc if ($rc > 1);
 
 	return SCST_C_DRV_STATIC if ($self->driverIsStatic($driver));
 
-	$rc = $self->checkTargetCreateParameters($driver, $target, $parameters);
+	$rc = $self->checkTargetCreateParameters($driver, $parameters);
 	return SCST_C_TGT_BAD_PARAMETERS if ($rc == TRUE);
 	return $rc if ($rc > 1);
 
@@ -635,7 +649,7 @@ sub addTarget {
 }
 
 sub addTargetAttribute {
-
+	print "NOT YET IMPLEMENTED\n";
 }
 
 sub removeTarget {
@@ -727,15 +741,25 @@ sub lunExists {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
-	my $group = shift;
 	my $lun = shift;
+	my $group = shift;
 
 	return FALSE if (!defined($lun));
 
-	my $rc = $self->groupExists($driver, $target, $group);
 
-	return FALSE if (!$rc);
+	my $rc = $self->driverExists($driver);
+	return SCST_C_DRV_NO_DRIVER if (!$rc);
 	return $rc if ($rc > 1);
+
+	$rc = $self->targetExists($driver, $target);
+	return SCST_C_TGT_EXISTS if (!$rc);
+	return $rc if ($rc > 1);
+
+	if ($group) {
+		my $rc = $self->groupExists($driver, $target, $group);
+		return SCST_C_GRP_NO_GROUP if (!$rc);
+		return $rc if ($rc > 1);
+	}
 
 	my $luns = $self->luns($driver, $target, $group);
 
@@ -1016,12 +1040,13 @@ sub addLun {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
-	my $group = shift;
 	my $device = shift;
 	my $lun = shift;
 	my $parameters = shift;
+	my $group = shift;
 
-	return SCST_C_GRP_ADD_LUN_FAIL if (!defined($lun));
+	my $err  = SCST_C_TGT_ADD_LUN_FAIL;
+	my $err2 = SCST_C_TGT_LUN_EXISTS;
 
 	my $rc = $self->driverExists($driver);
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
@@ -1031,28 +1056,39 @@ sub addLun {
 	return SCST_C_TGT_NO_TARGET if (!$rc);
 	return $rc if ($rc > 1);
 
-	$rc = $self->groupExists($driver, $target, $group);
-	return SCST_C_GRP_NO_GROUP if (!$rc);
-	return $rc if ($rc > 1);
-
-	$rc = $self->lunExists($driver, $target, $group, $lun);
-	return SCST_C_GRP_LUN_EXISTS if ($rc == TRUE);
-	return $rc if ($rc > 1);
-
 	$rc = $self->deviceOpen($device);
 	return SCST_C_DEV_NO_DEVICE if (!$rc);
 	return $rc if ($rc > 1);
 
-	$rc = $self->checkLunCreateParameters($driver, $target, $group, $parameters);
+	$rc = $self->checkLunCreateParameters($driver, $target, $parameters, $group);
 	return SCST_C_LUN_BAD_PARAMETERS if ($rc == TRUE);
 	return $rc if ($rc > 1);
 
-	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS,
-	  $group, SCST_LUNS, SCST_MGMT_IO);
+	my $path;
+
+	if ($group) {
+		$rc = $self->groupExists($driver, $target, $group);
+		return SCST_C_GRP_NO_GROUP if (!$rc);
+		return $rc if ($rc > 1);
+
+		$err  = SCST_C_GRP_ADD_LUN_FAIL;
+		$err2 = SCST_C_GRP_LUN_EXISTS;
+
+		$path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS,
+		  $group, SCST_LUNS, SCST_MGMT_IO);
+	} else {
+		$path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_LUNS, SCST_MGMT_IO);
+	}
+
+	return $err if (!defined($lun));
+
+	$rc = $self->lunExists($driver, $target, $lun, $group);
+	return $err2 if ($rc == TRUE);
+	return $rc if ($rc > 1);
 
 	my $io = new IO::File $path, O_WRONLY;
 
-	return SCST_C_GRP_ADD_LUN_FAIL if (!$io);
+	return $err if (!$io);
 
 	my $o_string;
 	foreach my $parameter (keys %{$parameters}) {
@@ -1074,16 +1110,19 @@ sub addLun {
 	close $io;
 
 	return FALSE if ($self->{'debug'} || $bytes);
-	return SCST_C_GRP_ADD_LUN_FAIL;
+	return $err;
 }
 
 sub removeLun {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
-	my $group = shift;
 	my $device = shift;
 	my $lun = shift;
+	my $group = shift;
+
+	my $err  = SCST_C_TGT_ADD_LUN_FAIL;
+	my $err2 = SCST_C_TGT_NO_LUN;
 
 	my $rc = $self->driverExists($driver);
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
@@ -1093,24 +1132,35 @@ sub removeLun {
 	return SCST_C_TGT_NO_TARGET if (!$rc);
 	return $rc if ($rc > 1);
 
-	$rc = $self->groupExists($driver, $target, $group);
-	return SCST_C_GRP_NO_GROUP if (!$rc);
-	return $rc if ($rc > 1);
+	my $path;
 
-	$rc = $self->lunExists($driver, $target, $group, $lun);
-	return SCST_C_GRP_NO_LUN if (!$rc);
+	if ($group) {
+		$rc = $self->groupExists($driver, $target, $group);
+		return SCST_C_GRP_NO_GROUP if (!$rc);
+		return $rc if ($rc > 1);
+
+		$err  = SCST_C_GRP_REM_LUN_FAIL;
+		$err2 = SCST_C_GRP_NO_LUN;
+
+		$path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS,
+		  $group, SCST_LUNS, SCST_MGMT_IO);
+	} else {
+		$path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_LUNS, SCST_MGMT_IO);
+	}
+
+	return $err if (!defined($lun));
+
+	$rc = $self->lunExists($driver, $target, $lun, $group);
+	return $err2 if (!$rc);
 	return $rc if ($rc > 1);
 
 	my $luns = $self->luns($driver, $target, $group);
 
-	return SCST_C_GRP_REM_LUN_FAIL if ($$luns{$lun} ne $device);
-
-	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS,
-	  $group, SCST_LUNS, SCST_MGMT_IO);
+	return $err if ($$luns{$lun} ne $device);
 
 	my $io = new IO::File $path, O_WRONLY;
 
-	return SCST_C_GRP_REM_LUN_FAIL if (!$io);
+	return $err if (!$io);
 
 	my $cmd = "del $device $lun\n";
 	my $bytes;
@@ -1124,17 +1174,19 @@ sub removeLun {
 	close $io;
 
 	return FALSE if ($self->{'debug'} || $bytes);
-	return SCST_C_GRP_REM_LUN_FAIL;
+	return $err;
 }
 
 sub replaceLun {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
-	my $group = shift;
 	my $lun = shift;
 	my $device = shift;
 	my $parameters = shift;
+	my $group = shift;
+
+	my $err = SCST_C_TGT_NO_LUN;
 
 	return TRUE if (!defined($lun));
 
@@ -1146,28 +1198,36 @@ sub replaceLun {
 	return SCST_C_TGT_NO_TARGET if (!$rc);
 	return $rc if ($rc > 1);
 
-	$rc = $self->groupExists($driver, $target, $group);
-	return SCST_C_GRP_NO_GROUP if (!$rc);
-	return $rc if ($rc > 1);
+	my $path;
 
-	$rc = $self->lunExists($driver, $target, $group, $lun);
-	return SCST_C_GRP_NO_LUN if (!$rc);
+	if ($group) {
+		$rc = $self->groupExists($driver, $target, $group);
+		return SCST_C_GRP_NO_GROUP if (!$rc);
+		return $rc if ($rc > 1);
+
+		$err = SCST_C_GRP_NO_LUN;
+
+		$path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS,
+		  $group, SCST_LUNS, SCST_MGMT_IO);
+	} else {
+		$path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_LUNS, SCST_MGMT_IO);
+	}
+
+	$rc = $self->lunExists($driver, $target, $lun, $group);
+	return $err if (!$rc);
 	return $rc if ($rc > 1);
 
 	$rc = $self->deviceOpen($device);
 	return SCST_C_DEV_NO_DEVICE if (!$rc);
 	return $rc if ($rc > 1);
 
-	$rc = $self->checkLunCreateParameters($driver, $target, $group, $parameters);
+	$rc = $self->checkLunCreateParameters($driver, $target, $parameters, $group);
 	return SCST_C_LUN_BAD_PARAMETERS if ($rc == TRUE);
 	return $rc if ($rc > 1);
 
 	my $luns = $self->luns($driver, $target, $group);
 
 	return SCST_C_LUN_DEV_EXISTS if ($$luns{$lun} eq $device);
-
-	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS,
-	  $group, SCST_LUNS, SCST_MGMT_IO);
 
 	my $io = new IO::File $path, O_WRONLY;
 
@@ -1201,6 +1261,8 @@ sub clearLuns {
 	my $target = shift;
 	my $group = shift;
 
+	my $err = SCST_C_TGT_CLR_LUN_FAIL;
+
 	my $rc = $self->driverExists($driver);
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
 	return $rc if ($rc > 1);
@@ -1209,16 +1271,24 @@ sub clearLuns {
 	return SCST_C_TGT_NO_TARGET if (!$rc);
 	return $rc if ($rc > 1);
 
-	$rc = $self->groupExists($driver, $target, $group);
-	return SCST_C_GRP_NO_GROUP if (!$rc);
-	return $rc if ($rc > 1);
+	my $path;
 
-	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS,
-	  $group, SCST_LUNS, SCST_MGMT_IO);
+	if ($group) {
+		$rc = $self->groupExists($driver, $target, $group);
+		return SCST_C_GRP_NO_GROUP if (!$rc);
+		return $rc if ($rc > 1);
+
+		$err = SCST_C_GRP_CLR_LUN_FAIL;
+
+		$path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS,
+		  $group, SCST_LUNS, SCST_MGMT_IO);
+	} else {
+		$path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_LUNS, SCST_MGMT_IO);
+	}
 
 	my $io = new IO::File $path, O_WRONLY;
 
-	return SCST_C_GRP_CLR_LUN_FAIL if (!$io);
+	return $err if (!$io);
 
 	my $cmd = "clear\n";
 	my $bytes;
@@ -1716,8 +1786,8 @@ sub lunParameters {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
-	my $group = shift;
 	my $lun = shift;
+	my $group = shift;
 	my %parameters;
 
 	if ($self->driverExists($driver) != TRUE) {
@@ -1730,19 +1800,26 @@ sub lunParameters {
 		return undef;
 	}
 
-	if ($self->groupExists($driver, $target, $group) != TRUE) {
-		$self->{'err_string'} = "lunParameters(): Group '$group' does not exist";
-		return undef;
+	my $_path;
+
+	if ($group) {
+		if ($self->groupExists($driver, $target, $group) != TRUE) {
+			$self->{'err_string'} = "lunParameters(): Group '$group' does not exist";
+			return undef;
+		}
+
+		$_path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS,
+		  $group, SCST_LUNS, $lun); 
+	} else {
+		$_path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_LUNS, $lun); 
 	}
 
-	if ($self->lunExists($driver, $target, $group, $lun) != TRUE) {
+	if ($self->lunExists($driver, $target, $lun, $group) != TRUE) {
 		$self->{'err_string'} = "lunParameters(): LUN '$lun' does not exist";
 		return undef;
 	}
 
 	my $pHandle = new IO::Handle;	
-	my $_path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS,
-	  $group, SCST_LUNS, $lun); 
 	if (!(opendir $pHandle, $_path)) {
 		$self->{'err_string'} = "lunParameters(): Unable to read directory '$_path': $!";
 		return undef;
@@ -1750,8 +1827,7 @@ sub lunParameters {
 
 	foreach my $parameter (readdir($pHandle)) {
 		next if (($parameter eq '.') || ($parameter eq '..'));
-		my $pPath = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS,
-		  $group, SCST_LUNS, $lun, $parameter);
+		my $pPath = mkpath($_path, $parameter);
 		my $mode = (stat($pPath))[2];
 
 		if ($parameter eq 'device') {
@@ -1801,10 +1877,10 @@ sub setLunParameter {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
-	my $group = shift;
 	my $lun = shift;
 	my $parameter = shift;
 	my $value = shift;
+	my $group = shift;
 
 	my $rc = $self->driverExists($driver);
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
@@ -1814,11 +1890,20 @@ sub setLunParameter {
 	return SCST_C_TGT_NO_TARGET if (!$rc);
 	return $rc if ($rc > 1);
 
-	$rc = $self->groupExists($driver, $target, $group);
-	return SCST_C_GRP_NO_GROUP if (!$rc);
-	return $rc if ($rc > 1);
+	my $path;
 
-	$rc = $self->lunExists($driver, $target, $group, $lun);
+	if ($group) {
+		$rc = $self->groupExists($driver, $target, $group);
+		return SCST_C_GRP_NO_GROUP if (!$rc);
+		return $rc if ($rc > 1);
+
+		$path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS,
+		   $group, SCST_LUNS, $lun, $parameter);
+	} else {
+		$path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_LUNS, $lun, $parameter);
+	}
+
+	$rc = $self->lunExists($driver, $target, $lun, $group);
 	return SCST_C_GRP_NO_LUN if (!$rc);
 	return $rc if ($rc > 1);
 
@@ -1828,9 +1913,6 @@ sub setLunParameter {
 
 	return SCST_C_LUN_BAD_PARAMETERS if (!defined($$parameters{$parameter}));
 	return SCST_C_LUN_PARAMETER_STATIC if ($$parameters{$parameter}->{'static'});
-
-	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS,
-	   $group, SCST_LUNS, $lun, $parameter);
 
 	my $io = new IO::File $path, O_WRONLY;
 
@@ -2442,8 +2524,8 @@ sub checkLunCreateParameters {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
-	my $group = shift;
 	my $check = shift;
+	my $group = shift;
 
 	return FALSE if (!defined($check));
 
@@ -2455,9 +2537,11 @@ sub checkLunCreateParameters {
 	return SCST_C_TGT_NO_TARGET if (!$rc);
 	return $rc if ($rc > 1);
 
-	$rc = $self->groupExists($driver, $target, $group);
-	return SCST_C_GRP_NO_GROUP if (!$rc);
-	return $rc if ($rc > 1);
+	if ($group) {
+		$rc = $self->groupExists($driver, $target, $group);
+		return SCST_C_GRP_NO_GROUP if (!$rc);
+		return $rc if ($rc > 1);
+	}
 
 	my $available = $self->lunCreateParameters($driver, $target, $group);
 
@@ -2492,14 +2576,23 @@ sub lunCreateParameters {
 		return undef;
 	}
 
-	if ($self->groupExists($driver, $target, $group) != TRUE) {
-		$self->{'err_string'} = "lunCreateParameters(): Group '$group' ".
-		  "does not exist";
-		return undef;
+	my $_path;
+
+	if ($group) {
+		if ($self->groupExists($driver, $target, $group) != TRUE) {
+			$self->{'err_string'} = "lunCreateParameters(): Group '$group' ".
+			  "does not exist";
+			return undef;
+		}
+
+		$_path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target,
+		  SCST_GROUPS, $group, SCST_LUNS, SCST_MGMT_IO), O_RDONLY;
+	} else {
+		$_path =  mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target,
+		  SCST_LUNS, SCST_MGMT_IO), O_RDONLY;
 	}
 
-	my $io = new IO::File mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target,
-	  SCST_GROUPS, $group, SCST_LUNS, SCST_MGMT_IO), O_RDONLY;
+	my $io = new IO::File $_path;
 
 	if (!$io) {
 		$self->{'err_string'} = "lunCreateParameters(): Unable to open luns mgmt ".
