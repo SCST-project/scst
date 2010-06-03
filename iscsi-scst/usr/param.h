@@ -16,11 +16,14 @@
 #ifndef PARAMS_H
 #define PARAMS_H
 
-#define ISCSI_ISNS_SERVER_PARAM_NAME		"iSNSServer"
-#define ISCSI_ISNS_ACCESS_CONTROL_PARAM_NAME	"iSNSAccessControl"
+#define ISCSI_ISNS_SERVER_ATTR_NAME		"iSNSServer"
+#define ISCSI_ISNS_ACCESS_CONTROL_ATTR_NAME	"iSNSAccessControl"
 #define ISCSI_ENABLED_ATTR_NAME			"enabled"
-#define ISCSI_ALLOWED_PORTAL_NAME		"allowed_portal"
-#define ISCSI_PER_PORTAL_ACL			"per_portal_acl"
+#define ISCSI_ALLOWED_PORTAL_ATTR_NAME		"allowed_portal"
+#define ISCSI_PER_PORTAL_ACL_ATTR_NAME		"per_portal_acl"
+#define ISCSI_TARGET_REDIRECTION_ATTR_NAME	"redirect"
+#define ISCSI_TARGET_REDIRECTION_VALUE_TEMP	"temp"
+#define ISCSI_TARGET_REDIRECTION_VALUE_PERM	"perm"
 
 struct iscsi_key;
 

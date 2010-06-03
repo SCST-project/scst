@@ -21,6 +21,7 @@
 #include <sys/types.h>
 #include <sys/poll.h>
 #include <assert.h>
+#include <netdb.h>
 
 #include "types.h"
 #include "iscsi_hdr.h"
@@ -190,6 +191,12 @@ struct target {
 	char *alias;
 	unsigned int sessions_count;
 
+	struct redirect_addr {
+		char addr[NI_MAXHOST + 1];
+		int port;
+		u8 type; /* one of ISCSI_STATUS_TGT_MOVED_* constants */
+	} redirect;
+
 	struct __qelem target_in_accounts;
 	struct __qelem target_out_accounts;
 
@@ -235,7 +242,7 @@ extern void conn_free_rsp_buf_list(struct connection *conn);
 extern uint16_t server_port;
 extern struct iscsi_init_params iscsi_init_params;
 extern void isns_set_fd(int isns, int scn_listen, int scn);
-extern const char *get_EAI_error_str(int error);
+extern const char *get_error_str(int error);
 
 /* iscsid.c */
 extern int iscsi_enabled;
@@ -288,6 +295,7 @@ extern int target_portal_allowed(struct target *target,
 extern const char *iscsi_make_full_initiator_name(int per_portal_acl,
 	const char *initiator_name, const char *target_portal,
 	char *buf, int size);
+extern bool target_redirected(struct target *target, struct connection *conn);
 
 /* message.c */
 extern int iscsi_adm_request_listen(void);

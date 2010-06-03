@@ -558,6 +558,20 @@ static void login_start(struct connection *conn)
 			return;
 		}
 
+		if (target_redirected(target, conn)) {
+			struct iscsi_login_rsp_hdr *rsp =
+				(struct iscsi_login_rsp_hdr *)&conn->rsp.bhs;
+
+			log_debug(1, "Redirecting target %s login to %s:%d",
+				target->name, target->redirect.addr,
+				target->redirect.port);
+
+			rsp->status_class = ISCSI_STATUS_REDIRECT;
+			rsp->status_detail = target->redirect.type;
+			conn->state = STATE_EXIT;
+			return;
+		}
+
 		conn->tid = target->tid;
 
 		if (!config_initiator_access_allowed(conn->tid, conn->fd) ||
@@ -574,7 +588,7 @@ static void login_start(struct connection *conn)
 		if (err != 0) {
 			log_error("Can't get session params for session 0x%" PRIx64
 				" (err %d): %s\n", conn->sid.id64, err,
-				strerror(-err));
+				get_error_str(-err));
 			login_rsp_tgt_err(conn, ISCSI_STATUS_TARGET_ERROR);
 			return;
 		}
@@ -991,7 +1005,7 @@ int cmnd_execute(struct connection *conn)
 		}
 		cmnd_exec_login(conn);
 		login_rsp = (struct iscsi_login_rsp_hdr *) &conn->rsp.bhs;
-		if (login_rsp->status_class)
+		if (login_rsp->status_class && login_rsp->status_class != ISCSI_STATUS_REDIRECT)
 			conn_free_rsp_buf_list(conn);
 		break;
 	case ISCSI_OP_TEXT_CMD:

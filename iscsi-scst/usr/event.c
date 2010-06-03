@@ -25,10 +25,10 @@
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <ctype.h>
-
 #include <asm/types.h>
 #include <sys/socket.h>
 #include <linux/netlink.h>
+#include <arpa/inet.h>
 
 #include <scst_const.h>
 
@@ -133,7 +133,7 @@ static int send_mgmt_cmd_res(u32 tid, u32 cookie, u32 req_cmd, int result,
 	if (res != 0) {
 		res = -errno;
 		log_error("Can't send mgmt reply (cookie %d, result %d, "
-			"res %d): %s\n", cookie, result, res, strerror(errno));
+			"res %d): %s\n", cookie, result, res, get_error_str(errno));
 	}
 
 	return res;
@@ -169,7 +169,7 @@ static int handle_e_add_target(int fd, const struct iscsi_kern_event *event)
 			if ((errno == EINTR) || (errno == EAGAIN))
 				continue;
 			log_error("read netlink fd (%d) failed: %s", fd,
-				strerror(errno));
+				get_error_str(errno));
 			send_mgmt_cmd_res(0, event->cookie, E_ADD_TARGET, -errno, NULL);
 			exit(1);
 		}
@@ -185,7 +185,7 @@ static int handle_e_add_target(int fd, const struct iscsi_kern_event *event)
 				if ((errno == EINTR) || (errno == EAGAIN))
 					continue;
 				log_error("read netlink fd (%d) failed: %s", fd,
-					strerror(errno));
+					get_error_str(errno));
 				send_mgmt_cmd_res(0, event->cookie, E_ADD_TARGET, -errno, NULL);
 				exit(1);
 			}
@@ -297,9 +297,9 @@ static int handle_add_attr(struct target *target, char *p, u32 cookie)
 	dir = params_index_by_name_numwild(pp, user_keys);
 	if (dir >= 0)
 		res = handle_add_user(target, dir, pp, p, cookie);
-	else if (strncasecmp_numwild(ISCSI_ALLOWED_PORTAL_NAME, pp) == 0)
+	else if (strncasecmp_numwild(ISCSI_ALLOWED_PORTAL_ATTR_NAME, pp) == 0)
 		res = __handle_add_attr(target, &target->allowed_portals,
-				ISCSI_ALLOWED_PORTAL_NAME, p, 1, cookie);
+				ISCSI_ALLOWED_PORTAL_ATTR_NAME, p, 1, cookie);
 	else {
 		log_error("Syntax error at %s", pp);
 		res = -EINVAL;
@@ -365,7 +365,7 @@ static int handle_del_attr(struct target *target, char *p, u32 cookie)
 	dir = params_index_by_name_numwild(pp, user_keys);
 	if (dir >= 0)
 		res = handle_del_user(target, dir, p, cookie);
-	else if (strncasecmp_numwild(ISCSI_ALLOWED_PORTAL_NAME, pp) == 0)
+	else if (strncasecmp_numwild(ISCSI_ALLOWED_PORTAL_ATTR_NAME, pp) == 0)
 		res = __handle_del_attr(target, &target->allowed_portals,
 				p, cookie);
 	else {
@@ -406,7 +406,7 @@ static int handle_e_mgmt_cmd(int fd, const struct iscsi_kern_event *event)
 			if ((errno == EINTR) || (errno == EAGAIN))
 				continue;
 			log_error("read netlink fd (%d) failed: %s", fd,
-				strerror(errno));
+				get_error_str(errno));
 			send_mgmt_cmd_res(0, event->cookie, E_MGMT_CMD, -errno, NULL);
 			exit(1);
 		}
@@ -495,7 +495,7 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 			if ((errno == EINTR) || (errno == EAGAIN))
 				continue;
 			log_error("read netlink fd (%d) failed: %s", fd,
-				strerror(errno));
+				get_error_str(errno));
 			send_mgmt_cmd_res(0, event->cookie, E_GET_ATTR_VALUE, -errno, NULL);
 			exit(1);
 		}
@@ -547,7 +547,7 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 		snprintf(res_str, sizeof(res_str), "%s %s\n", ISCSI_USER_NAME(user),
 			ISCSI_USER_PASS(user));
 		add_key_mark(res_str, sizeof(res_str), 0);
-	} else if (strncasecmp_numwild(ISCSI_ALLOWED_PORTAL_NAME, pp) == 0) {
+	} else if (strncasecmp_numwild(ISCSI_ALLOWED_PORTAL_ATTR_NAME, pp) == 0) {
 		struct iscsi_attr *portal;
 
 		if (target == NULL) {
@@ -573,7 +573,7 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 			goto out_free;
 		}
 		snprintf(res_str, sizeof(res_str), "%d\n", iscsi_enabled);
-	} else if (strcasecmp(ISCSI_PER_PORTAL_ACL, pp) == 0) {
+	} else if (strcasecmp(ISCSI_PER_PORTAL_ACL_ATTR_NAME, pp) == 0) {
 		if (target == NULL) {
 			log_error("Target expected for attr %s", pp);
 			res = -EINVAL;
@@ -582,7 +582,26 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 		snprintf(res_str, sizeof(res_str), "%d\n", target->per_portal_acl);
 		if (target->per_portal_acl)
 			add_key_mark(res_str, sizeof(res_str), 0);
-	}else if (strcasecmp(ISCSI_ISNS_SERVER_PARAM_NAME, pp) == 0) {
+	} else if (strcasecmp(ISCSI_TARGET_REDIRECTION_ATTR_NAME, pp) == 0) {
+		if (target == NULL) {
+			log_error("Target expected for attr %s", pp);
+			res = -EINVAL;
+			goto out_free;
+		}
+		if (strlen(target->redirect.addr) != 0) {
+			const char *type = (target->redirect.type == ISCSI_STATUS_TGT_MOVED_TEMP) ?
+						ISCSI_TARGET_REDIRECTION_VALUE_TEMP :
+						ISCSI_TARGET_REDIRECTION_VALUE_PERM;
+			if (target->redirect.port != ISCSI_LISTEN_PORT)
+				snprintf(res_str, sizeof(res_str), "%s:%d %s\n",
+					target->redirect.addr, target->redirect.port, type);
+			else
+				snprintf(res_str, sizeof(res_str), "%s %s\n",
+					target->redirect.addr, type);
+			add_key_mark(res_str, sizeof(res_str), 0);
+		} else
+			*res_str = '\0';
+	} else if (strcasecmp(ISCSI_ISNS_SERVER_ATTR_NAME, pp) == 0) {
 		if (target != NULL) {
 			log_error("Not NULL target %s for global attribute %s",
 				target->name, pp);
@@ -606,6 +625,99 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 
 out_free:
 	free(buf);
+
+out:
+	return res;
+}
+
+static int handle_target_redirect(struct target *target, char *p)
+{
+	int res = 0;
+	char *addr, *type, *t, *port;
+	int port_num = ISCSI_LISTEN_PORT;
+	int type_num;
+	union {
+		struct in_addr ia4;
+		struct in6_addr ia6;
+	} ia;
+
+	addr = config_sep_string(&p);
+	if (*addr == '\0') {
+		log_info("Target redirection for %s cleared", target->name);
+		target->redirect.addr[0] = '\0';
+		goto out;
+	}
+
+	type = config_sep_string(&p);
+	if (*type == '\0') {
+		log_error("%s", "Redirection type required");
+		res = -EINVAL;
+		goto out;
+	}
+
+	t = config_sep_string(&p);
+	if (*t != '\0') {
+		log_error("%s", "Too many arguments for redirection");
+		res = -EINVAL;
+		goto out;
+	}
+
+	t = strrchr(addr, ']');
+	if (t != NULL)
+		port = strchr(t, ':');
+	else
+		port = strrchr(addr, ':');
+	if (port != NULL) {
+		*port = '\0';
+		port++;
+		port_num = strtol(port, (char **) NULL, 10);
+		if ((port_num <= 0) || (errno == EINVAL)) {
+			log_error("Invalid port %s", port);
+			res = -EINVAL;
+			goto out;
+		}
+	}
+
+	if (strlen(addr) >= sizeof(target->redirect.addr)) {
+		log_error("Too long addr %s, max allowed %d", addr,
+			sizeof(target->redirect.addr)-1);
+		res = -ERANGE;
+		goto out;
+	}
+
+	if (inet_pton(AF_INET, addr, &ia) != 1) {
+		char tmp[sizeof(target->redirect.addr)];
+		if (*addr == '[')
+			t = addr+1;
+		else
+			t = addr;
+		strlcpy(tmp, t, strchrnul(t, ']')-t+1);
+		if (inet_pton(AF_INET6, tmp, &ia) != 1) {
+			log_error("Invalid addr %s", addr);
+			res = -EINVAL;
+			goto out;
+		}
+	}
+
+	if (strcasecmp(type, ISCSI_TARGET_REDIRECTION_VALUE_TEMP) == 0) {
+		log_debug(1, "Temporary redirection");
+		type_num = ISCSI_STATUS_TGT_MOVED_TEMP;
+	} else if (strcasecmp(type, ISCSI_TARGET_REDIRECTION_VALUE_PERM) == 0) {
+		log_debug(1, "Permament redirection");
+		type_num = ISCSI_STATUS_TGT_MOVED_PERM;
+	} else {
+		log_error("Invalid redirection type %s", type);
+		res = -EINVAL;
+		goto out;
+	}
+
+	log_info("Target %s %s redirected to %s:%d", target->name,
+		(type_num == ISCSI_STATUS_TGT_MOVED_TEMP) ? "temporarily" : "permanently",
+		addr, port_num);
+
+	strcpy(target->redirect.addr, addr);
+	target->redirect.port = port_num;
+	target->redirect.type = type_num;
 
 out:
 	return res;
@@ -646,7 +758,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 			if ((errno == EINTR) || (errno == EAGAIN))
 				continue;
 			log_error("read netlink fd (%d) failed: %s", fd,
-				strerror(errno));
+				get_error_str(errno));
 			send_mgmt_cmd_res(0, event->cookie, E_SET_ATTR_VALUE, -errno, NULL);
 			exit(1);
 		}
@@ -661,7 +773,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 			if ((errno == EINTR) || (errno == EAGAIN))
 				continue;
 			log_error("read netlink fd (%d) failed: %s", fd,
-				strerror(errno));
+				get_error_str(errno));
 			send_mgmt_cmd_res(0, event->cookie, E_SET_ATTR_VALUE, -errno, NULL);
 			exit(1);
 		}
@@ -762,7 +874,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 		res = account_replace(target, idx, pp, p);
 		if (res != 0)
 			goto out_free;
-	} else if (strncasecmp_numwild(ISCSI_ALLOWED_PORTAL_NAME, pp) == 0) {
+	} else if (strncasecmp_numwild(ISCSI_ALLOWED_PORTAL_ATTR_NAME, pp) == 0) {
 		struct iscsi_attr *portal;
 
 		if (target == NULL) {
@@ -798,7 +910,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 			res = -EINVAL;
 			goto out_free;
 		}
-	} else if (strcasecmp(ISCSI_PER_PORTAL_ACL, pp) == 0) {
+	} else if (strcasecmp(ISCSI_PER_PORTAL_ACL_ATTR_NAME, pp) == 0) {
 		if (target == NULL) {
 			log_error("Target expected for attr %s", pp);
 			res = -EINVAL;
@@ -814,7 +926,16 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 			res = -EINVAL;
 			goto out_free;
 		}
-	}else if (strcasecmp(ISCSI_ISNS_SERVER_PARAM_NAME, pp) == 0) {
+	} else if (strcasecmp(ISCSI_TARGET_REDIRECTION_ATTR_NAME, pp) == 0) {
+		if (target == NULL) {
+			log_error("Target expected for attr %s", pp);
+			res = -EINVAL;
+			goto out_free;
+		}
+		res = handle_target_redirect(target, p);
+		if (res != 0)
+			goto out_free;
+	} else if (strcasecmp(ISCSI_ISNS_SERVER_ATTR_NAME, pp) == 0) {
 		if (target != NULL) {
 			log_error("Not NULL target %s for global attribute %s",
 				target->name, pp);
@@ -915,7 +1036,7 @@ retry:
 			return EAGAIN;
 		if (errno == EINTR)
 			goto retry;
-		log_error("read netlink fd (%d) failed: %s", fd, strerror(errno));
+		log_error("read netlink fd (%d) failed: %s", fd, get_error_str(errno));
 		exit(1);
 	}
 

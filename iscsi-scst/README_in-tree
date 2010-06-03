@@ -150,6 +150,15 @@ Each target subdirectory contains the following entries:
    until rel_tgt_id becomes unique. This attribute initialized unique by
    SCST by default.
 
+ - redirect - allows to temporarily or permanently redirect login to the
+   target to another portal. Discovery sessions will not be impacted,
+   but normal sessions will be redirected before security negotiation.
+   The destination should be specified using format "<ip_addr>[:port] temp|perm".
+   IPv6 addresses need to be enclosed in [] brackets. To remove
+   redirection, provide an empty string. For example:
+   echo "10.170.77.2:32600 temp" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/redirect
+   will temporarily redirect login to portal 10.170.77.2 and port 32600. 
+
  - tid - TID of this target.
 
 Subdirectory "sessions" contains one subdirectory for each connected
@@ -422,6 +431,7 @@ both iSCSI-SCST targets will look like:
 |       |   |   |   `-- read_only
 |       |   |   `-- mgmt
 |       |   |-- per_portal_acl
+|       |   |-- redirect
 |       |   |-- rel_tgt_id
 |       |   |-- sessions
 |       |   |   `-- iqn.2005-03.org.open-iscsi:cacdcd2520
@@ -483,6 +493,7 @@ both iSCSI-SCST targets will look like:
 |       |   |   |   `-- read_only
 |       |   |   `-- mgmt
 |       |   |-- per_portal_acl
+|       |   |-- redirect
 |       |   |-- rel_tgt_id
 |       |   |-- sessions
 |       |   |   `-- iqn.2005-03.org.open-iscsi:cacdcd2520

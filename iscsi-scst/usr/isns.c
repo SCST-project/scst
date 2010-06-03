@@ -100,14 +100,14 @@ static int isns_get_ip(int fd)
 
 	err = getsockname(fd, &lss.sa, &slen);
 	if (err) {
-		log_error("getsockname error: %s!", strerror(err));
+		log_error("getsockname error: %s!", get_error_str(err));
 		return err;
 	}
 
 	err = getnameinfo(&lss.sa, sizeof(lss),
 			  eid, sizeof(eid), NULL, 0, 0);
 	if (err) {
-		log_error("getnameinfo error: %s!", get_EAI_error_str(err));
+		log_error("getnameinfo error: %s!", get_error_str(err));
 		return err;
 	}
 
@@ -138,7 +138,7 @@ static int isns_connect(void)
 
 	fd = socket(ss.ss_family, SOCK_STREAM, IPPROTO_TCP);
 	if (fd < 0) {
-		log_error("unable to create (%s) %d!", strerror(errno),
+		log_error("unable to create (%s) %d!", get_error_str(errno),
 			  ss.ss_family);
 		return -errno;
 	}
@@ -149,7 +149,7 @@ static int isns_connect(void)
 	 */
 	err = connect(fd, (struct sockaddr *) &ss, sizeof(ss));
 	if (err < 0) {
-		log_error("unable to connect (%s) %d!", strerror(errno),
+		log_error("unable to connect (%s) %d!", get_error_str(errno),
 			  ss.ss_family);
 		close(fd);
 		return -errno;
@@ -226,7 +226,7 @@ static int isns_scn_deregister(char *name)
 
 	err = write(isns_fd, buf, length + sizeof(struct isns_hdr));
 	if (err < 0)
-		log_error("%s %d: %s", __func__, __LINE__, strerror(errno));
+		log_error("%s %d: %s", __func__, __LINE__, get_error_str(errno));
 
 	return 0;
 }
@@ -285,7 +285,7 @@ static int isns_scn_register(void)
 
 	err = write(isns_fd, buf, length + sizeof(struct isns_hdr));
 	if (err < 0)
-		log_error("%s %d: %s", __func__, __LINE__, strerror(errno));
+		log_error("%s %d: %s", __func__, __LINE__, get_error_str(errno));
 
 	return 0;
 }
@@ -340,7 +340,7 @@ static int isns_attr_query(char *name)
 
 	err = write(isns_fd, buf, length + sizeof(struct isns_hdr));
 	if (err < 0)
-		log_error("%s %d: %s", __func__, __LINE__, strerror(errno));
+		log_error("%s %d: %s", __func__, __LINE__, get_error_str(errno));
 
 	return 0;
 }
@@ -378,7 +378,7 @@ static int isns_deregister(void)
 
 	err = write(isns_fd, buf, length + sizeof(struct isns_hdr));
 	if (err < 0)
-		log_error("%s %d: %s", __func__, __LINE__, strerror(errno));
+		log_error("%s %d: %s", __func__, __LINE__, get_error_str(errno));
 	return 0;
 }
 
@@ -443,7 +443,7 @@ int isns_target_register(char *name)
 
 	err = write(isns_fd, buf, length + sizeof(struct isns_hdr));
 	if (err < 0)
-		log_error("%s %d: %s", __func__, __LINE__, strerror(errno));
+		log_error("%s %d: %s", __func__, __LINE__, get_error_str(errno));
 
 	if (scn_listen_port)
 		isns_scn_register();
@@ -504,7 +504,7 @@ int isns_target_deregister(char *name)
 
 	err = write(isns_fd, buf, length + sizeof(struct isns_hdr));
 	if (err < 0)
-		log_error("%s %d: %s", __func__, __LINE__, strerror(errno));
+		log_error("%s %d: %s", __func__, __LINE__, get_error_str(errno));
 
 	return 0;
 }
@@ -786,7 +786,7 @@ static int scn_accept_connection(void)
 	fd = accept(scn_listen_fd, &from.sa, &slen);
 	if (fd < 0) {
 		log_error("%s %d: accept error: %s", __func__, __LINE__,
-			  strerror(errno));
+			  get_error_str(errno));
 		return -errno;
 	}
 	log_error("Accept scn connection %d", fd);
@@ -794,7 +794,7 @@ static int scn_accept_connection(void)
 	err = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
 	if (err)
 		log_error("%s %d: %s\n", __func__, __LINE__,
-			  strerror(errno));
+			  get_error_str(errno));
 	/* not critical, so ignore. */
 
 	scn_fd = fd;
@@ -824,7 +824,7 @@ static void send_scn_rsp(char *name, uint16_t transaction)
 
 	err = write(scn_fd, buf, length + sizeof(struct isns_hdr));
 	if (err < 0)
-		log_error("%s %d: %s", __func__, __LINE__, strerror(errno));
+		log_error("%s %d: %s", __func__, __LINE__, get_error_str(errno));
 }
 
 int isns_scn_handle(int is_accept)
@@ -882,7 +882,7 @@ static int scn_init(void)
 
 	fd = socket(ss.ss_family, SOCK_STREAM, IPPROTO_TCP);
 	if (fd < 0) {
-		log_error("%s %d: %s\n", __func__, __LINE__, strerror(errno));
+		log_error("%s %d: %s\n", __func__, __LINE__, get_error_str(errno));
 		err = -errno;
 		goto out;
 	}
@@ -892,21 +892,21 @@ static int scn_init(void)
 		err = setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt));
 		if (err) {
 			log_error("%s %d: %s\n", __func__, __LINE__,
-				  strerror(errno));
+				  get_error_str(errno));
 			goto out_close;
 		}
 	}
 
 	err = listen(fd, 5);
 	if (err) {
-		log_error("%s %d: %s\n", __func__, __LINE__, strerror(errno));
+		log_error("%s %d: %s\n", __func__, __LINE__, get_error_str(errno));
 		goto out_close;
 	}
 
 	slen = sizeof(lss);
 	err = getsockname(fd, (struct sockaddr *) &lss, &slen);
 	if (err) {
-		log_error("%s %d: %s\n", __func__, __LINE__, strerror(errno));
+		log_error("%s %d: %s\n", __func__, __LINE__, get_error_str(errno));
 		goto out_close;
 	}
 
@@ -941,7 +941,7 @@ int isns_init(void)
 	hints.ai_socktype = SOCK_STREAM;
 	err = getaddrinfo(isns_server, (char *)&port, &hints, &res);
 	if (err) {
-		log_error("getaddrinfo error: %s, %s", get_EAI_error_str(err),
+		log_error("getaddrinfo error: %s, %s", get_error_str(err),
 			isns_server);
 		goto out;
 	}

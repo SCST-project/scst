@@ -996,8 +996,8 @@ int config_parse_main(const char *data, u32 cookie)
 			if (res < 0)
 				continue;
 		} else if (global_section &&
-			   (!strcasecmp(p, ISCSI_ISNS_SERVER_PARAM_NAME) ||
-			    !strcasecmp(p, ISCSI_ISNS_ACCESS_CONTROL_PARAM_NAME)))
+			   (!strcasecmp(p, ISCSI_ISNS_SERVER_ATTR_NAME) ||
+			    !strcasecmp(p, ISCSI_ISNS_ACCESS_CONTROL_ATTR_NAME)))
 			continue;
 		else {
 			log_error("Unknown or unexpected param: %s\n", p);
@@ -1041,9 +1041,9 @@ static int config_isns_load(const char *config)
 		p = config_sep_string(&q);
 		if ((*p == '\0') || (*p == '#'))
 			continue;
-		if (!strcasecmp(p, ISCSI_ISNS_SERVER_PARAM_NAME)) {
+		if (!strcasecmp(p, ISCSI_ISNS_SERVER_ATTR_NAME)) {
 			isns_server = strdup(config_sep_string(&q));
-		} else if (!strcasecmp(p, ISCSI_ISNS_ACCESS_CONTROL_PARAM_NAME)) {
+		} else if (!strcasecmp(p, ISCSI_ISNS_ACCESS_CONTROL_ATTR_NAME)) {
 			char *str = config_sep_string(&q);
 			if (!strcasecmp(str, "No"))
 				isns_access_control = 0;
@@ -1079,7 +1079,7 @@ int config_load(const char *config_name)
 		} else {
 			err = -errno;
 			log_error("Open config file %s failed: %s", cname,
-				strerror(err));
+				get_error_str(err));
 			goto out;
 		}
 	}
@@ -1087,21 +1087,21 @@ int config_load(const char *config_name)
 	size = lseek(config, 0, SEEK_END);
 	if (size < 0) {
 		err = -errno;
-		log_error("lseek() failed: %s", strerror(err));
+		log_error("lseek() failed: %s", get_error_str(err));
 		goto out_close;
 	}
 
 	buf = malloc(size+1);
 	if (buf == NULL) {
 		err = -ENOMEM;
-		log_error("malloc() failed: %s", strerror(err));
+		log_error("malloc() failed: %s", get_error_str(err));
 		goto out_close;
 	}
 
 	rc = lseek(config, 0, SEEK_SET);
 	if (rc < 0) {
 		err = -errno;
-		log_error("lseek() failed: %s", strerror(err));
+		log_error("lseek() failed: %s", get_error_str(err));
 		goto out_free;
 	}
 
@@ -1110,7 +1110,7 @@ int config_load(const char *config_name)
 		rc = read(config, &buf[i], size - i);
 		if (rc < 0) {
 			err = -errno;
-			log_error("read() failed: %s", strerror(err));
+			log_error("read() failed: %s", get_error_str(err));
 			goto out_free;
 		} else if (rc == 0)
 			break;

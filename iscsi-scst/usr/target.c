@@ -425,3 +425,52 @@ int target_add(struct target *target, u32 *tid, u32 cookie)
 out:
 	return err;
 }
+
+bool target_redirected(struct target *target, struct connection *conn)
+{
+	bool res = false, rc;
+	union {
+		struct sockaddr sa;
+		struct sockaddr_in sin;
+		struct sockaddr_in6 sin6;
+	} sa;
+	socklen_t slen = sizeof(sa);
+	char tmp[NI_MAXHOST + 1];
+	char addr[NI_MAXHOST + 3];
+	char redirect[NI_MAXHOST + NI_MAXSERV + 4];
+	char *p;
+
+	if (strlen(target->redirect.addr) == 0)
+		goto out;
+
+	rc = getsockname(conn->fd, (struct sockaddr *)&sa.sa, &slen);
+	if (rc != 0) {
+		log_error("getsockname() failed: %s", get_error_str(errno));
+		goto out;
+	}
+
+	rc = getnameinfo(&sa.sa, sizeof(sa), tmp, sizeof(tmp), NULL, 0, NI_NUMERICHOST);
+	if (rc != 0) {
+		log_error("getnameinfo() failed: %s", get_error_str(errno));
+		goto out;
+	}
+
+	if ((p = strrchr(tmp, '%')))
+		*p = '\0';
+
+	if (sa.sa.sa_family == AF_INET6)
+		snprintf(addr, sizeof(addr), "[%s]", tmp);
+	else
+		snprintf(addr, sizeof(addr), "%s", tmp);
+
+	snprintf(redirect, sizeof(redirect), "%s:%d", target->redirect.addr,
+		target->redirect.port);
+
+	if (strcmp(target->redirect.addr, addr)) {
+		text_key_add(conn, "TargetAddress", redirect);
+		res = true;
+	}
+
+out:
+	return res;
+}

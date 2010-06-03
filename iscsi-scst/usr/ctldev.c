@@ -88,7 +88,7 @@ int kernel_open(void)
 	if (err != 0) {
 		err = -errno;
 		log_error("Unable to register: %s. Incompatible version of the "
-			"kernel module?\n", strerror(errno));
+			"kernel module?\n", get_error_str(errno));
 		goto out_close;
 	} else {
 		log_debug(0, "max_data_seg_len %d, max_queued_cmds %d, ",
@@ -121,7 +121,7 @@ int kernel_target_create(struct target *target, u32 *tid, u32 cookie)
 	info.tid = (tid != NULL) ? *tid : 0;
 	info.cookie = cookie;
 
-	info.attrs_num = 1;
+	info.attrs_num = 2;
 
 	for (j = 0; j < session_key_last; j++) {
 		if (session_keys[j].show_in_sysfs)
@@ -151,8 +151,13 @@ int kernel_target_create(struct target *target, u32 *tid, u32 cookie)
 	i = 0;
 
 	kern_attrs[i].mode = 0644;
-	strlcpy(kern_attrs[i].name, ISCSI_PER_PORTAL_ACL,
-		sizeof(ISCSI_PER_PORTAL_ACL));
+	strlcpy(kern_attrs[i].name, ISCSI_PER_PORTAL_ACL_ATTR_NAME,
+		sizeof(ISCSI_PER_PORTAL_ACL_ATTR_NAME));
+	i++;
+
+	kern_attrs[i].mode = 0644;
+	strlcpy(kern_attrs[i].name, ISCSI_TARGET_REDIRECTION_ATTR_NAME,
+		sizeof(ISCSI_TARGET_REDIRECTION_ATTR_NAME));
 	i++;
 
 	for (j = 0; j < session_key_last; j++) {
@@ -196,7 +201,7 @@ int kernel_target_create(struct target *target, u32 *tid, u32 cookie)
 	if ((err = ioctl(ctrl_fd, ADD_TARGET, &info)) < 0) {
 		err = -errno;
 		log_error("Can't create target %s: %s\n", target->name,
-			strerror(errno));
+			get_error_str(errno));
 	} else {
 		target->tid = err;
 		if (tid != NULL)
@@ -337,7 +342,7 @@ int kernel_params_get(u32 tid, u64 sid, int type, struct iscsi_param *params)
 	if ((err = ioctl(ctrl_fd, ISCSI_PARAM_GET, &info)) < 0) {
 		err = -errno;
 		log_debug(1, "Can't get session params for session 0x%" PRIx64 
-			" (tid %u, err %d): %s\n", sid, tid, err, strerror(errno));
+			" (tid %u, err %d): %s\n", sid, tid, err, get_error_str(errno));
 	}
 
 	if (type == key_session)
@@ -380,7 +385,7 @@ int kernel_params_set(u32 tid, u64 sid, int type, u32 partial,
 		err = -errno;
 		log_error("Can't set session params for session 0x%" PRIx64 
 			" (tid %u, type %d, partial %d, err %d): %s\n", sid,
-			tid, type, partial, err, strerror(errno));
+			tid, type, partial, err, get_error_str(errno));
 	}
 
 out:
@@ -429,7 +434,7 @@ int kernel_session_create(struct connection *conn)
 		res = -errno;
 		log_error("Can't create sess 0x%" PRIx64 " (tid %d, "
 			"initiator %s): %s\n", conn->sess->sid.id64, conn->tid,
-			conn->sess->initiator, strerror(errno));
+			conn->sess->initiator, get_error_str(errno));
 	}
 
 out:
@@ -450,7 +455,7 @@ int kernel_session_destroy(u32 tid, u64 sid)
 	if (res < 0) {
 		res = -errno;
 		log_debug(2, "Can't destroy sess 0x%" PRIx64 " (tid %d): %s\n",
-			sid, tid, strerror(errno));
+			sid, tid, get_error_str(errno));
 	}
 
 	return res;
@@ -475,7 +480,7 @@ int kernel_conn_create(u32 tid, u64 sid, u32 cid, u32 stat_sn, u32 exp_stat_sn,
 	if (res < 0) {
 		res = -errno;
 		log_error("Can't create conn %x (sess 0x%" PRIx64 ", tid %d): %s\n",
-			cid, sid, tid, strerror(errno));
+			cid, sid, tid, get_error_str(errno));
 	}
 
 	return res;

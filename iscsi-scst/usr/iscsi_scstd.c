@@ -98,9 +98,9 @@ static void set_non_blocking(int fd)
 	if (res != -1) {
 		res = fcntl(fd, F_SETFL, res | O_NONBLOCK);
 		if (res)
-			log_warning("unable to set fd flags (%s)!", strerror(errno));
+			log_warning("unable to set fd flags (%s)!", get_error_str(errno));
 	} else
-		log_warning("unable to get fd flags (%s)!", strerror(errno));
+		log_warning("unable to get fd flags (%s)!", get_error_str(errno));
 }
 
 static void sock_set_keepalive(int sock, int timeout)
@@ -109,22 +109,22 @@ static void sock_set_keepalive(int sock, int timeout)
 		int opt = 2;
 
 		if (setsockopt(sock, SOL_TCP, TCP_KEEPCNT, &opt, sizeof(opt)))
-			log_warning("unable to set TCP_KEEPCNT on server socket (%s)!", strerror(errno));
+			log_warning("unable to set TCP_KEEPCNT on server socket (%s)!", get_error_str(errno));
 
 		if (setsockopt(sock, SOL_TCP, TCP_KEEPIDLE, &timeout, sizeof(timeout)))
-			log_warning("unable to set TCP_KEEPIDLE on server socket (%s)!", strerror(errno));
+			log_warning("unable to set TCP_KEEPIDLE on server socket (%s)!", get_error_str(errno));
 
 		opt = 3;
 		if (setsockopt(sock, SOL_TCP, TCP_KEEPINTVL, &opt, sizeof(opt)))
-			log_warning("unable to set KEEPINTVL on server socket (%s)!", strerror(errno));
+			log_warning("unable to set KEEPINTVL on server socket (%s)!", get_error_str(errno));
 
 		opt = 1;
 		if (setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, &opt, sizeof(opt)))
-			log_warning("unable to set SO_KEEPALIVE on server socket (%s)!", strerror(errno));
+			log_warning("unable to set SO_KEEPALIVE on server socket (%s)!", get_error_str(errno));
 	}
 }
 
-const char *get_EAI_error_str(int error)
+const char *get_error_str(int error)
 {
 	if (error == EAI_SYSTEM)
 		return strerror(errno);
@@ -148,7 +148,7 @@ static void create_listen_socket(struct pollfd *array)
 	rc = getaddrinfo(server_address, servname, &hints, &res0);
 	if (rc != 0) {
 		log_error("Unable to get address info (%s)!",
-			get_EAI_error_str(rc));
+			get_error_str(rc));
 		exit(1);
 	}
 
@@ -157,7 +157,7 @@ static void create_listen_socket(struct pollfd *array)
 		sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 		if (sock < 0) {
 			log_error("Unable to create server socket (%s) %d %d %d!",
-				  strerror(errno), res->ai_family,
+				  get_error_str(errno), res->ai_family,
 				  res->ai_socktype, res->ai_protocol);
 			continue;
 		}
@@ -167,23 +167,23 @@ static void create_listen_socket(struct pollfd *array)
 		opt = 1;
 		if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)))
 			log_warning("Unable to set SO_REUSEADDR on server socket (%s)!",
-				    strerror(errno));
+				    get_error_str(errno));
 		opt = 1;
 		if (res->ai_family == AF_INET6 &&
 		    setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt))) {
-			log_error("Unable to restrict IPv6 socket (%s)", strerror(errno));
+			log_error("Unable to restrict IPv6 socket (%s)", get_error_str(errno));
 			close(sock);
 			continue;
 		}
 
 		if (bind(sock, res->ai_addr, res->ai_addrlen)) {
-			log_error("Unable to bind server socket (%s)!", strerror(errno));
+			log_error("Unable to bind server socket (%s)!", get_error_str(errno));
 			close(sock);
 			continue;
 		}
 
 		if (listen(sock, INCOMING_MAX)) {
-			log_error("Unable to listen to server socket (%s)!", strerror(errno));
+			log_error("Unable to listen to server socket (%s)!", get_error_str(errno));
 			close(sock);
 			continue;
 		}
@@ -231,7 +231,8 @@ static void accept_connection(int listen)
 		case ENETUNREACH:
 			break;
 		default:
-			perror("accept(incoming_socket) failed");
+			log_error("accept(incoming_socket) failed: %s",
+				get_error_str(errno));
 			exit(1);
 		}
 		goto out;
@@ -240,7 +241,7 @@ static void accept_connection(int listen)
 	namesize = sizeof(to);
 	rc = getsockname(fd, &to.sa, &namesize);
 	if (rc != 0) {
-		perror("getsockname() failed");
+		log_error("getsockname() failed: %s", get_error_str(errno));
 		goto out_close;
 	}
 
@@ -249,7 +250,7 @@ static void accept_connection(int listen)
 		NI_NUMERICHOST | NI_NUMERICSERV);
 	if (rc != 0) {
 		log_error("Target portal getnameinfo() failed: %s!",
-			get_EAI_error_str(rc));
+			get_error_str(rc));
 		goto out_close;
 	}
 
@@ -258,7 +259,7 @@ static void accept_connection(int listen)
 		 sizeof(initiator_port), NI_NUMERICHOST | NI_NUMERICSERV);
 	if (rc != 0) {
 		log_error("Initiator getnameinfo() failed: %s!",
-			get_EAI_error_str(rc));
+			get_error_str(rc));
 		goto out_close;
 	}
 
@@ -526,7 +527,7 @@ static void event_loop(void)
 					"of iSCSI-SCST.", __FUNCTION__);
 			else
 				log_error("%s: poll() failed: %s", __FUNCTION__,
-					strerror(errno));
+					get_error_str(errno));
 			exit(1);
 		}
 
@@ -706,7 +707,7 @@ int main(int argc, char **argv)
 	init_max_params();
 
 #ifndef CONFIG_SCST_PROC
-	err = kernel_attr_add(NULL, ISCSI_ISNS_SERVER_PARAM_NAME,
+	err = kernel_attr_add(NULL, ISCSI_ISNS_SERVER_ATTR_NAME,
 			S_IRUSR|S_IRGRP|S_IROTH|S_IWUSR, 0);
 	if (err != 0)
 		exit(err);
@@ -778,10 +779,10 @@ int main(int argc, char **argv)
 		exit(1);
 
 	if (gid && setgid(gid) < 0)
-		perror("setgid failed");
+		log_error("setgid failed: %s", get_error_str(errno));
 
 	if (uid && setuid(uid) < 0)
-		perror("setuid failed");
+		log_error("setuid failed: %s", get_error_str(errno));
 
 	event_loop();
 
