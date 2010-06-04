@@ -292,6 +292,7 @@ The resulting overall SCST sysfs hierarchy with initiator
 |   |   |   `-- export0 -> ../../../targets/qla2x00t/25:00:00:f0:98:87:92:f3/luns/0
 |   |   |-- filename
 |   |   |-- handler -> ../../handlers/vdisk_blockio
+|   |   |-- nv_cache
 |   |   |-- read_only
 |   |   |-- removable
 |   |   |-- resync_size

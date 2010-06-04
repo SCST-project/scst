@@ -41,6 +41,7 @@
 #include <asm/div64.h>
 #include <asm/unaligned.h>
 #include <linux/slab.h>
+#include <linux/bio.h>
 
 #define LOG_PREFIX			"dev_vdisk"
 
@@ -259,6 +260,7 @@ static void vdisk_exec_write(struct scst_cmd *cmd,
 	struct scst_vdisk_thr *thr, loff_t loff);
 static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 	u64 lba_start, int write);
+static int blockio_flush(struct block_device *bdev);
 static void vdisk_exec_verify(struct scst_cmd *cmd,
 	struct scst_vdisk_thr *thr, loff_t loff);
 static void vdisk_exec_read_capacity(struct scst_cmd *cmd);
@@ -372,6 +374,7 @@ static const struct attribute *vdisk_blockio_attrs[] = {
 	&vdev_size_attr.attr,
 	&vdisk_blocksize_attr.attr,
 	&vdisk_rd_only_attr.attr,
+	&vdisk_nv_cache_attr.attr,
 	&vdisk_removable_attr.attr,
 	&vdisk_filename_attr.attr,
 	&vdisk_resync_size_attr.attr,
@@ -602,6 +605,44 @@ static struct file *vdev_open_fd(const struct scst_vdisk_dev *virt_dev)
 	return fd;
 }
 
+static void vdisk_blockio_check_flush_support(struct scst_vdisk_dev *virt_dev)
+{
+	struct inode *inode;
+	struct file *fd;
+
+	TRACE_ENTRY();
+
+	if (!virt_dev->blockio || virt_dev->rd_only || virt_dev->nv_cache)
+		goto out;
+
+	fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
+	if (IS_ERR(fd)) {
+		PRINT_ERROR("filp_open(%s) returned error %ld",
+			virt_dev->filename, PTR_ERR(fd));
+		goto out;
+	}
+
+	inode = fd->f_dentry->d_inode;
+
+	if (!S_ISBLK(inode->i_mode)) {
+		PRINT_ERROR("%s is NOT a block device", virt_dev->filename);
+		goto out_close;
+	}
+
+	if (blockio_flush(inode->i_bdev) != 0) {
+		PRINT_WARNING("Device %s doesn't support barriers, switching "
+			"to NV_CACHE mode", virt_dev->filename);
+		virt_dev->nv_cache = 1;
+	}
+
+out_close:
+	filp_close(fd, NULL);
+
+out:
+	TRACE_EXIT();
+	return;
+}
+
 /* Returns 0 on success and file size in *file_size, error code otherwise */
 static int vdisk_get_file_size(const char *filename, bool blockio,
 	loff_t *file_size)
@@ -695,7 +736,10 @@ static int vdisk_attach(struct scst_device *dev)
 				goto out;
 		}
 		virt_dev->file_size = err;
+
 		TRACE_DBG("size of file: %lld", (long long unsigned int)err);
+
+		vdisk_blockio_check_flush_support(virt_dev);
 	} else
 		virt_dev->file_size = 0;
 
@@ -1612,8 +1656,11 @@ static void vdisk_exec_mode_sense(struct scst_cmd *cmd)
 	pcode = cmd->cdb[2] & 0x3f;
 	subpcode = cmd->cdb[3];
 	msense_6 = (MODE_SENSE == cmd->cdb[0]);
-	dev_spec = ((virt_dev->dev->rd_only ||
-		     cmd->tgt_dev->acg_dev->rd_only) ? WP : 0) | DPOFUA;
+	dev_spec = (virt_dev->dev->rd_only ||
+		     cmd->tgt_dev->acg_dev->rd_only) ? WP : 0;
+
+	if (!virt_dev->blockio)
+		dev_spec |= DPOFUA;
 
 	length = scst_get_buf_first(cmd, &address);
 	if (unlikely(length <= 0)) {
@@ -2152,14 +2199,21 @@ static int vdisk_fsync(struct scst_vdisk_thr *thr, loff_t loff,
 	int res = 0;
 	struct scst_vdisk_dev *virt_dev =
 		(struct scst_vdisk_dev *)dev->dh_priv;
-	struct file *file = thr->fd;
+	struct file *file;
 
 	TRACE_ENTRY();
 
 	/* Hopefully, the compiler will generate the single comparison */
-	if (virt_dev->nv_cache || virt_dev->blockio || virt_dev->wt_flag ||
+	if (virt_dev->nv_cache || virt_dev->wt_flag ||
 	    virt_dev->o_direct_flag || virt_dev->nullio)
 		goto out;
+
+	if (virt_dev->blockio) {
+		res = blockio_flush(thr->bdev);
+		goto out;
+	}
+
+	file = thr->fd;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
 	res = sync_page_range(file->f_dentry->d_inode, file->f_mapping,
@@ -2178,8 +2232,6 @@ static int vdisk_fsync(struct scst_vdisk_thr *thr, loff_t loff,
 				SCST_LOAD_SENSE(scst_sense_write_error));
 		}
 	}
-
-	/* ToDo: flush the device cache, if needed */
 
 out:
 	TRACE_EXIT_RES(res);
@@ -2500,7 +2552,7 @@ static void blockio_endio(struct bio *bio, int error)
 		return 1;
 #endif
 
-	if (unlikely(!test_bit(BIO_UPTODATE, &bio->bi_flags))) {
+	if (unlikely(!bio_flagged(bio, BIO_UPTODATE))) {
 		if (error == 0) {
 			PRINT_ERROR("Not up to date bio with error 0 for "
 				"cmd %p, returning -EIO", blockio_work->cmd);
@@ -2606,6 +2658,17 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 					(virt_dev->block_shift - 9);
 				bio->bi_bdev = bdev;
 				bio->bi_private = blockio_work;
+				/*
+				 * Better to fail fast w/o any local recovery
+				 * and retries.
+				 */
+#ifdef BIO_RW_FAILFAST
+				bio->bi_rw |= (1 << BIO_RW_FAILFAST);
+#else
+				bio->bi_rw |= (1 << BIO_RW_FAILFAST_DEV) |
+					      (1 << BIO_RW_FAILFAST_TRANSPORT) |
+					      (1 << BIO_RW_FAILFAST_DRIVER);
+#endif
 #if 0 /* It could be win, but could be not, so a performance study is needed */
 				bio->bi_rw |= 1 << BIO_RW_SYNC;
 #endif
@@ -2668,6 +2731,20 @@ out_no_bio:
 out_no_mem:
 	scst_set_busy(cmd);
 	goto out;
+}
+
+static int blockio_flush(struct block_device *bdev)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	res = blkdev_issue_flush(bdev, NULL);
+	if (res != 0)
+		PRINT_ERROR("blkdev_issue_flush() failed: %d", res);
+
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 static void vdisk_exec_verify(struct scst_cmd *cmd,
@@ -3196,7 +3273,7 @@ static int vdev_blockio_add_device(const char *device_name, char *params)
 {
 	int res = 0;
 	const char *allowed_params[] = { "filename", "read_only", "removable",
-					 "blocksize", NULL };
+					 "blocksize", "nv_cache", NULL };
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();

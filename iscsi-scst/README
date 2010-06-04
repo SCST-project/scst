@@ -404,6 +404,7 @@ both iSCSI-SCST targets will look like:
 |   |   |   `-- export0 -> ../../../targets/iscsi/iqn.2006-10.net.vlnb:tgt1/ini_groups/special_ini/luns/0
 |   |   |-- filename
 |   |   |-- handler -> ../../handlers/vdisk_blockio
+|   |   |-- nv_cache
 |   |   |-- read_only
 |   |   |-- removable
 |   |   |-- resync_size
