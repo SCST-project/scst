@@ -226,15 +226,6 @@ struct scst_vdisk_dev {
 	struct scst_dev_type *vdev_devt;
 };
 
-struct scst_vdisk_tgt_dev {
-	/*
-	 * Used without locking since SCST core ensures that only commands
-	 * with the same ORDERED type per tgt_dev can be processed
-	 * simultaneously.
-	 */
-	enum scst_cmd_queue_type last_write_cmd_queue_type;
-};
-
 struct scst_vdisk_thr {
 	struct scst_thr_data_hdr hdr;
 	struct file *fd;
@@ -832,60 +823,24 @@ out_free:
 
 static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev)
 {
-	struct scst_vdisk_tgt_dev *ftgt_dev;
 	int res = 0;
 
 	TRACE_ENTRY();
 
-	ftgt_dev = kzalloc(sizeof(*ftgt_dev), GFP_KERNEL);
-	if (ftgt_dev == NULL) {
-		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of per-session "
-			"virtual device failed");
-		res = -ENOMEM;
-		goto out;
-	}
+	/* Nothing to do */
 
-	tgt_dev->dh_priv = ftgt_dev;
-
-out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
 
 static void vdisk_detach_tgt(struct scst_tgt_dev *tgt_dev)
 {
-	struct scst_vdisk_tgt_dev *ftgt_dev =
-		(struct scst_vdisk_tgt_dev *)tgt_dev->dh_priv;
-
 	TRACE_ENTRY();
 
 	scst_del_all_thr_data(tgt_dev);
 
-	kfree(ftgt_dev);
-	tgt_dev->dh_priv = NULL;
-
 	TRACE_EXIT();
 	return;
-}
-
-static inline int vdisk_sync_queue_type(enum scst_cmd_queue_type qt)
-{
-	switch (qt) {
-	case SCST_CMD_QUEUE_ORDERED:
-	case SCST_CMD_QUEUE_HEAD_OF_QUEUE:
-		return 1;
-	default:
-		return 0;
-	}
-}
-
-static inline int vdisk_need_pre_sync(enum scst_cmd_queue_type cur,
-	enum scst_cmd_queue_type last)
-{
-	if (vdisk_sync_queue_type(cur))
-		if (!vdisk_sync_queue_type(last))
-			return 1;
-	return 0;
 }
 
 static int vdisk_do_job(struct scst_cmd *cmd)
@@ -1038,28 +993,13 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	case WRITE_12:
 	case WRITE_16:
 	{
-		int do_fsync = vdisk_sync_queue_type(cmd->queue_type);
-		struct scst_vdisk_tgt_dev *ftgt_dev =
-			(struct scst_vdisk_tgt_dev *)tgt_dev->dh_priv;
-		enum scst_cmd_queue_type last_queue_type =
-			ftgt_dev->last_write_cmd_queue_type;
-		ftgt_dev->last_write_cmd_queue_type = cmd->queue_type;
-		if (vdisk_need_pre_sync(cmd->queue_type, last_queue_type)) {
-			TRACE(TRACE_ORDER, "ORDERED WRITE(%d): loff=%lld, "
-				"data_len=%lld", cmd->queue_type,
-			      (long long unsigned int)loff,
-			      (long long unsigned int)data_len);
-			do_fsync = 1;
-			if (vdisk_fsync(thr, 0, 0, cmd, dev) != 0)
-				goto out_compl;
-		}
 		if (virt_dev->blockio) {
 			blockio_exec_rw(cmd, thr, lba_start, 1);
 			goto out_thr;
 		} else
 			vdisk_exec_write(cmd, thr, loff);
 		/* O_SYNC flag is used for WT devices */
-		if (do_fsync || fua)
+		if (fua)
 			vdisk_fsync(thr, loff, data_len, cmd, dev);
 		break;
 	}
@@ -1067,29 +1007,11 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	case WRITE_VERIFY_12:
 	case WRITE_VERIFY_16:
 	{
-		int do_fsync = vdisk_sync_queue_type(cmd->queue_type);
-		struct scst_vdisk_tgt_dev *ftgt_dev =
-			(struct scst_vdisk_tgt_dev *) tgt_dev->dh_priv;
-		enum scst_cmd_queue_type last_queue_type =
-			ftgt_dev->last_write_cmd_queue_type;
-		ftgt_dev->last_write_cmd_queue_type = cmd->queue_type;
-		if (vdisk_need_pre_sync(cmd->queue_type, last_queue_type)) {
-			TRACE(TRACE_ORDER, "ORDERED "
-			      "WRITE_VERIFY(%d): loff=%lld,"
-			      " data_len=%lld", cmd->queue_type,
-			      (long long unsigned int)loff,
-			      (long long unsigned int)data_len);
-			do_fsync = 1;
-			if (vdisk_fsync(thr, 0, 0, cmd, dev) != 0)
-				goto out_compl;
-		}
 		/* ToDo: BLOCKIO VERIFY */
 		vdisk_exec_write(cmd, thr, loff);
 		/* O_SYNC flag is used for WT devices */
 		if (scsi_status_is_good(cmd->status))
 			vdisk_exec_verify(cmd, thr, loff);
-		else if (do_fsync)
-			vdisk_fsync(thr, loff, data_len, cmd, dev);
 		break;
 	}
 	case SYNCHRONIZE_CACHE:

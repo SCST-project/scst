@@ -227,26 +227,6 @@ struct vdisk_tgt_dev *find_empty_tgt_dev(struct vdisk_dev *dev)
 	return res;
 }
 
-static inline int sync_queue_type(enum scst_cmd_queue_type qt)
-{
-	switch(qt) {
-		case SCST_CMD_QUEUE_ORDERED:
-		case SCST_CMD_QUEUE_HEAD_OF_QUEUE:
-			return 1;
-		default:
-			return 0;
-	}
-}
-
-static inline int need_pre_sync(enum scst_cmd_queue_type cur,
-	enum scst_cmd_queue_type last)
-{
-	if (sync_queue_type(cur))
-		if (!sync_queue_type(last))
-			return 1;
-	return 0;
-}
-
 static int do_exec(struct vdisk_cmd *vcmd)
 {
 	int res = 0;
@@ -405,9 +385,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 	case WRITE_12:
 	case WRITE_16:
 		if (!dev->rd_only_flag) {
-			int do_fsync = sync_queue_type(cmd->queue_type);
 			struct vdisk_tgt_dev *tgt_dev;
-			enum scst_cmd_queue_type last_queue_type;
 
 			tgt_dev = find_tgt_dev(dev, cmd->sess_h);
 			if (tgt_dev == NULL) {
@@ -418,20 +396,9 @@ static int do_exec(struct vdisk_cmd *vcmd)
 				goto out;
 			}
 
-			last_queue_type = tgt_dev->last_write_cmd_queue_type;
-			tgt_dev->last_write_cmd_queue_type = cmd->queue_type;
-			if (need_pre_sync(cmd->queue_type, last_queue_type)) {
-			    	TRACE(TRACE_ORDER, "ORDERED "
-			    		"WRITE(%d): loff=%"PRId64", data_len=%"
-			    		PRId64, cmd->queue_type, (uint64_t)loff,
-			    		(uint64_t)data_len);
-			    	do_fsync = 1;
-				if (exec_fsync(vcmd) != 0)
-					goto out;
-			}
 			exec_write(vcmd, loff);
 			/* O_SYNC flag is used for WT devices */
-			if (do_fsync || fua)
+			if (fua)
 				exec_fsync(vcmd);
 		} else {
 			PRINT_WARNING("Attempt to write to read-only "
@@ -444,9 +411,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 	case WRITE_VERIFY_12:
 	case WRITE_VERIFY_16:
 		if (!dev->rd_only_flag) {
-			int do_fsync = sync_queue_type(cmd->queue_type);
 			struct vdisk_tgt_dev *tgt_dev;
-			enum scst_cmd_queue_type last_queue_type;
 
 			tgt_dev = find_tgt_dev(dev, cmd->sess_h);
 			if (tgt_dev == NULL) {
@@ -457,22 +422,11 @@ static int do_exec(struct vdisk_cmd *vcmd)
 				goto out;
 			}
 
-			last_queue_type = tgt_dev->last_write_cmd_queue_type;
-			tgt_dev->last_write_cmd_queue_type = cmd->queue_type;
-			if (need_pre_sync(cmd->queue_type, last_queue_type)) {
-			    	TRACE(TRACE_ORDER, "ORDERED "
-			    		"WRITE_VERIFY(%d): loff=%"PRId64", "
-			    		"data_len=%"PRId64, cmd->queue_type,
-			    		(uint64_t)loff, (uint64_t)data_len);
-			    	do_fsync = 1;
-				if (exec_fsync(vcmd) != 0)
-					goto out;
-			}
 			exec_write(vcmd, loff);
 			/* O_SYNC flag is used for WT devices */
 			if (reply->status == 0)
 				exec_verify(vcmd, loff);
-			else if (do_fsync)
+			else if (fua)
 				exec_fsync(vcmd);
 		} else {
 			PRINT_WARNING("Attempt to write to read-only "
@@ -712,7 +666,6 @@ static int do_sess(struct vdisk_cmd *vcmd)
 		}
 
 		tgt_dev->sess_h = cmd->sess.sess_h;
-		tgt_dev->last_write_cmd_queue_type = SCST_CMD_QUEUE_SIMPLE;
 
 		PRINT_INFO("Session from initiator %s (target %s) attached "
 			"(LUN %"PRIx64", threads_num %d, rd_only %d, sess_h "
