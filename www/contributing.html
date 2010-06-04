@@ -99,22 +99,6 @@
 				page cache, namely, locking issues related to it. They should be carefully
 				investigated.</p>
 
-				<A NAME="PR"></A><h3>Persistent reservations</h3>
-
-				<p>Support for PERSISTENT RESERVE IN and PERSISTENT RESERVE OUT is required to
-				work in many cluster environments, e.g. Windows 2003 Cluster.</p>
-				
-				<p>For implementation you should use scst_reserve_local() and 
-				scst_release_local() as a base. You should store all reservation keys 
-				for in files in /var/scst, one file per device 
-				(it would allow to eliminate additional locking), like 
-				/var/scst/boot_disk for device "boot_disk" and load them in memory, when 
-				device would be registered.</p>
-				
-				<p>In the first version it can be done for virtual 
-				devices only and reject PERSISTENT RESERVE IN and OUT commands for 
-				pass-through devices with "COMMAND NOT SUPPORTED" sense data.</p>
-				
 				<A NAME="DYN_FLOW"></A><h3>Dynamic I/O flow control</h3>
 				
 				<p>At the moment, if an initiator or several initiators simultaneously send to
