@@ -19,6 +19,8 @@
 #ifndef SCST_PRES_H_
 #define SCST_PRES_H_
 
+#include <linux/delay.h>
+
 #define PR_REGISTER				0x00
 #define PR_RESERVE				0x01
 #define PR_RELEASE				0x02
