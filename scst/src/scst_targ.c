@@ -632,9 +632,6 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 				cmd->bufflen);
 			PRINT_BUFF_FLAG(TRACE_MGMT_MINOR, "Suspicious CDB",
 				cmd->cdb, cmd->cdb_len);
-			/* Needed, e.g., to get immediate iSCSI data */
-			cmd->bufflen = max(cmd->bufflen,
-					   cmd->expected_transfer_len);
 		}
 #endif
 	}
