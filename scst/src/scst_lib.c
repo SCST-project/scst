@@ -5516,6 +5516,9 @@ int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 	 * therefore change them only if necessary
 	 */
 
+	if (cmd->status != SAM_STAT_GOOD)
+		goto out;
+
 	switch (opcode) {
 	case MODE_SENSE:
 	case MODE_SELECT:
