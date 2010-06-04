@@ -412,7 +412,6 @@ struct iscsi_cmnd {
 				struct scst_cmd *scst_cmd;
 				struct scst_aen *scst_aen;
 			};
-			unsigned int read_size;
 
 			struct iscsi_cmnd *main_rsp;
 		};

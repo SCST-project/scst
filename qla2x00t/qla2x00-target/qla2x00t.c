@@ -1862,35 +1862,41 @@ static int q2t_pre_xmit_response(struct q2t_cmd *cmd,
 	full_req_cnt = prm->req_cnt;
 
 	if (xmit_type & Q2T_XMIT_STATUS) {
-		if (cmd->data_direction & SCST_DATA_READ) {
-			int expected;
-			if (IS_FWI2_CAPABLE(ha))
-				expected = be32_to_cpu(cmd->
-					     atio.atio7.fcp_cmnd.data_length);
+		if ((cmd->data_direction & SCST_DATA_READ) ||
+		    (cmd->data_direction & SCST_DATA_WRITE) ) {
+			int expected = scst_cmd_get_expected_transfer_len(scst_cmd);
+			/* Bidirectional transfers not supported (yet) */
+			if (cmd->data_direction & SCST_DATA_READ)
+				prm->residual = expected -
+					scst_cmd_get_resp_data_len(scst_cmd);
+			else if (likely(cmd->write_data_transferred))
+				prm->residual = expected -
+					scst_cmd_get_bufflen(scst_cmd);
 			else
-				expected = le32_to_cpu(cmd->
-						atio.atio2x.data_length);
-			prm->residual = expected -
-				scst_cmd_get_resp_data_len(scst_cmd);
-			if (prm->residual > 0) {
-				TRACE_DBG("Residual underflow: %d (tag %lld, "
-					"op %x, expected %d, resp_data_len "
-					"%d, bufflen %d, rq_result %x)",
-					prm->residual, scst_cmd->tag,
-					scst_cmd->cdb[0], expected,
-					scst_cmd_get_resp_data_len(scst_cmd),
-					cmd->bufflen, prm->rq_result);
-				prm->rq_result |= SS_RESIDUAL_UNDER;
-			} else if (prm->residual < 0) {
-				TRACE_DBG("Residual overflow: %d (tag %lld, "
-					"op %x, expected %d, resp_data_len "
-					"%d, bufflen %d, rq_result %x)",
-					prm->residual, scst_cmd->tag,
-					scst_cmd->cdb[0], expected,
-					scst_cmd_get_resp_data_len(scst_cmd),
-					cmd->bufflen, prm->rq_result);
-				prm->rq_result |= SS_RESIDUAL_OVER;
-				prm->residual = -prm->residual;
+				prm->residual = expected;
+			if (unlikely(prm->residual != 0)) {
+				if (prm->residual > 0) {
+					TRACE_DBG("Residual underflow: %d (tag "
+						"%lld, op %x, expected %d, "
+						"resp_data_len %d, bufflen %d, "
+						"rq_result %x)", prm->residual,
+						scst_cmd->tag, scst_cmd->cdb[0],
+						expected,
+						scst_cmd_get_resp_data_len(scst_cmd),
+						cmd->bufflen, prm->rq_result);
+					prm->rq_result |= SS_RESIDUAL_UNDER;
+				} else /* if (prm->residual < 0) */ {
+					TRACE_DBG("Residual overflow: %d (tag "
+						"%lld, op %x, expected %d, "
+						"resp_data_len %d, bufflen %d, "
+						"rq_result %x)", prm->residual,
+						scst_cmd->tag, scst_cmd->cdb[0],
+						expected,
+						scst_cmd_get_resp_data_len(scst_cmd),
+						cmd->bufflen, prm->rq_result);
+					prm->rq_result |= SS_RESIDUAL_OVER;
+					prm->residual = -prm->residual;
+				}
 			}
 		}
 
@@ -2392,6 +2398,7 @@ static int q2t_rdy_to_xfer(struct scst_cmd *scst_cmd)
 {
 	int res;
 	struct q2t_cmd *cmd;
+	int exp_len;
 
 	TRACE_ENTRY();
 
@@ -2399,6 +2406,9 @@ static int q2t_rdy_to_xfer(struct scst_cmd *scst_cmd)
 
 	cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
 	cmd->bufflen = scst_cmd_get_bufflen(scst_cmd);
+	exp_len = scst_cmd_get_expected_transfer_len(scst_cmd);
+	if (unlikely(cmd->bufflen > exp_len))
+		cmd->bufflen = exp_len;
 	cmd->sg = scst_cmd_get_sg(scst_cmd);
 	cmd->sg_cnt = scst_cmd_get_sg_cnt(scst_cmd);
 	cmd->data_direction = scst_cmd_get_data_direction(scst_cmd);
@@ -2885,6 +2895,8 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha, uint32_t handle,
 
 		if (unlikely(status != CTIO_SUCCESS))
 			rx_status = SCST_RX_STATUS_ERROR;
+		else
+			cmd->write_data_transferred = 1;
 
 		TRACE_DBG("Data received, context %x, rx_status %d",
 		      context, rx_status);

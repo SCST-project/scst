@@ -198,6 +198,7 @@ struct q2t_cmd {
 	unsigned int conf_compl_supported:1;/* to save extra sess dereferences */
 	unsigned int free_sg:1;
 	unsigned int aborted:1; /* Needed in case of SRR */
+	unsigned int write_data_transferred:1;
 
 	struct scatterlist *sg;	/* cmd data buffer SG vector */
 	int sg_cnt;		/* SG segments count */

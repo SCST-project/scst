@@ -1368,14 +1368,13 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 	cmd->host_status = host_byte(result);
 	cmd->driver_status = driver_byte(result);
 	if (unlikely(resid != 0)) {
-#ifdef CONFIG_SCST_EXTRACHECKS
-		if ((resid < 0) || (resid > cmd->resp_data_len)) {
-			PRINT_ERROR("Wrong resid %d (cmd->resp_data_len=%d, "
-				"op %x)", resid, cmd->resp_data_len,
-				cmd->cdb[0]);
-		} else
-#endif
+		if ((cmd->data_direction & SCST_DATA_READ) &&
+		    (resid > 0) && (resid < cmd->resp_data_len))
 			scst_set_resp_data_len(cmd, cmd->resp_data_len - resid);
+		/*
+		 * We ignore write direction residue, because from our
+		 * initiator's POV we already transferred all the data.
+		 */
 	}
 
 	if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION)) {

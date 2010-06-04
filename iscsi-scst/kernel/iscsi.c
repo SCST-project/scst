@@ -71,7 +71,6 @@ static void iscsi_check_send_delayed_tm_resp(struct iscsi_session *sess);
 static void req_cmnd_release(struct iscsi_cmnd *req);
 static int cmnd_insert_data_wait_hash(struct iscsi_cmnd *cmnd);
 static void __cmnd_abort(struct iscsi_cmnd *cmnd);
-static void iscsi_set_resid(struct iscsi_cmnd *rsp, bool bufflen_set);
 static void iscsi_cmnd_init_write(struct iscsi_cmnd *rsp, int flags);
 
 static void req_del_from_write_timeout_list(struct iscsi_cmnd *req)
@@ -720,6 +719,110 @@ static void iscsi_cmnd_init_write(struct iscsi_cmnd *rsp, int flags)
 	return;
 }
 
+static void iscsi_set_uni_resid(struct iscsi_cmnd *rsp,
+	int exp_transf_len, int transf_len)
+{
+	int resid;
+
+	resid = exp_transf_len - transf_len;
+	if (unlikely(resid != 0)) {
+		struct iscsi_scsi_rsp_hdr *rsp_hdr =
+			(struct iscsi_scsi_rsp_hdr *)&rsp->pdu.bhs;
+		if (resid > 0) {
+			rsp_hdr->flags |= ISCSI_FLG_RESIDUAL_UNDERFLOW;
+			rsp_hdr->residual_count = cpu_to_be32(resid);
+		} else /* if (resid < 0) */ {
+			resid = -resid;
+			rsp_hdr->flags |= ISCSI_FLG_RESIDUAL_OVERFLOW;
+			rsp_hdr->residual_count = cpu_to_be32(resid);
+		}
+	}
+	return;
+}
+
+static void iscsi_set_resid(struct iscsi_cmnd *rsp, bool no_read_transfer,
+	bool no_write_transfer)
+{
+	struct iscsi_cmnd *req = rsp->parent_req;
+	struct scst_cmd *scst_cmd = req->scst_cmd;
+	struct iscsi_scsi_cmd_hdr *req_hdr = cmnd_hdr(req);
+	int resid, transf_len, exp_transf_len;
+
+	if ((req_hdr->flags & ISCSI_CMD_READ) &&
+	    (req_hdr->flags & ISCSI_CMD_WRITE)) {
+	    	struct iscsi_scsi_rsp_hdr *rsp_hdr;
+	    	int in_transf_len, in_exp_transf_len;
+
+		rsp_hdr = (struct iscsi_scsi_rsp_hdr *)&rsp->pdu.bhs;
+
+		if (likely(scst_cmd != NULL)) {
+			exp_transf_len = scst_cmd_get_expected_transfer_len(scst_cmd);
+			transf_len = scst_cmd_get_resp_data_len(scst_cmd);
+			in_exp_transf_len = scst_cmd_get_expected_in_transfer_len(scst_cmd);
+			in_transf_len = scst_cmd_get_in_bufflen(scst_cmd);
+		} else {
+			exp_transf_len = be32_to_cpu(req_hdr->data_length);
+			transf_len = 0;
+			in_exp_transf_len = cmnd_read_size(req);
+			if (in_exp_transf_len < 0)
+				in_exp_transf_len = 0;
+			in_transf_len = 0;
+		}
+		if (unlikely(no_read_transfer))
+			transf_len = 0;
+		if (unlikely(no_write_transfer))
+			in_transf_len = 0;
+
+		resid = exp_transf_len - transf_len;
+		if (unlikely(resid != 0)) {
+			if (resid > 0) {
+				rsp_hdr->flags |= ISCSI_FLG_RESIDUAL_UNDERFLOW;
+				rsp_hdr->residual_count = cpu_to_be32(resid);
+			} else /* if (resid < 0) */ {
+				resid = -resid;
+				rsp_hdr->flags |= ISCSI_FLG_RESIDUAL_OVERFLOW;
+				rsp_hdr->residual_count = cpu_to_be32(resid);
+			}
+		}
+
+		resid = in_exp_transf_len - in_transf_len;
+		if (unlikely(resid != 0)) {
+			if (resid > 0) {
+				rsp_hdr->flags |= ISCSI_FLG_BIRESIDUAL_UNDERFLOW;
+				rsp_hdr->bi_residual_count = cpu_to_be32(resid);
+			} else /* if (resid < 0) */ {
+				resid = -resid;
+				rsp_hdr->flags |= ISCSI_FLG_BIRESIDUAL_OVERFLOW;
+				rsp_hdr->bi_residual_count = cpu_to_be32(resid);
+			}
+		}
+	} else if (req_hdr->flags & ISCSI_CMD_READ) {
+		if (likely(scst_cmd != NULL)) {
+			exp_transf_len = scst_cmd_get_expected_transfer_len(scst_cmd);
+			transf_len = scst_cmd_get_resp_data_len(scst_cmd);
+		} else {
+			exp_transf_len = be32_to_cpu(req_hdr->data_length);
+			transf_len = 0;
+		}
+		if (unlikely(no_read_transfer))
+			transf_len = 0;
+		iscsi_set_uni_resid(rsp, exp_transf_len, transf_len);
+	} else if (req_hdr->flags & ISCSI_CMD_WRITE) {
+		if (scst_cmd != NULL) {
+			exp_transf_len = scst_cmd_get_expected_transfer_len(scst_cmd);
+			transf_len = scst_cmd_get_bufflen(scst_cmd);
+		} else {
+			exp_transf_len = be32_to_cpu(req_hdr->data_length);
+			transf_len = 0;
+		}
+		if (unlikely(no_write_transfer))
+			transf_len = 0;
+		iscsi_set_uni_resid(rsp, exp_transf_len, transf_len);
+	}
+	return;
+}
+
+
 static void send_data_rsp(struct iscsi_cmnd *req, u8 status, int send_status)
 {
 	struct iscsi_cmnd *rsp;
@@ -731,7 +834,7 @@ static void send_data_rsp(struct iscsi_cmnd *req, u8 status, int send_status)
 	TRACE_DBG("req %p", req);
 
 	pdusize = req->conn->session->sess_params.max_xmit_data_length;
-	expsize = req->read_size;
+	expsize = scst_cmd_get_expected_transfer_len(req->scst_cmd);
 	size = min(expsize, (u32)req->bufflen);
 	offset = 0;
 	sn = 0;
@@ -754,8 +857,6 @@ static void send_data_rsp(struct iscsi_cmnd *req, u8 status, int send_status)
 			TRACE_DBG("offset %d, size %d", offset, size);
 			rsp->pdu.datasize = size;
 			if (send_status) {
-				unsigned int scsisize;
-
 				TRACE_DBG("status %x", status);
 
 				EXTRACHECKS_BUG_ON((cmnd_hdr(req)->flags & ISCSI_CMD_WRITE) != 0);
@@ -763,16 +864,7 @@ static void send_data_rsp(struct iscsi_cmnd *req, u8 status, int send_status)
 				rsp_hdr->flags = ISCSI_FLG_FINAL | ISCSI_FLG_STATUS;
 				rsp_hdr->cmd_status = status;
 
-				scsisize = req->bufflen;
-				if (scsisize < expsize) {
-					rsp_hdr->flags |= ISCSI_FLG_RESIDUAL_UNDERFLOW;
-					size = expsize - scsisize;
-				} else if (scsisize > expsize) {
-					rsp_hdr->flags |= ISCSI_FLG_RESIDUAL_OVERFLOW;
-					size = scsisize - expsize;
-				} else
-					size = 0;
-				rsp_hdr->residual_count = cpu_to_be32(size);
+				iscsi_set_uni_resid(rsp, expsize, req->bufflen);
 			}
 			list_add_tail(&rsp->write_list_entry, &send);
 			break;
@@ -794,7 +886,8 @@ static void send_data_rsp(struct iscsi_cmnd *req, u8 status, int send_status)
 }
 
 static void iscsi_init_status_rsp(struct iscsi_cmnd *rsp,
-	int status, const u8 *sense_buf, int sense_len, bool bufflen_set)
+	int status, const u8 *sense_buf, int sense_len,
+	bool no_read_transfer, bool no_write_transfer)
 {
 	struct iscsi_cmnd *req = rsp->parent_req;
 	struct iscsi_scsi_rsp_hdr *rsp_hdr;
@@ -829,14 +922,14 @@ static void iscsi_init_status_rsp(struct iscsi_cmnd *rsp,
 		rsp->bufflen = 0;
 	}
 
-	iscsi_set_resid(rsp, bufflen_set);
+	iscsi_set_resid(rsp, no_read_transfer, no_write_transfer);
 
 	TRACE_EXIT();
 	return;
 }
 
 static inline struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req,
-	int status, const u8 *sense_buf, int sense_len, bool bufflen_set)
+	int status, const u8 *sense_buf, int sense_len, bool no_read_transfer)
 {
 	struct iscsi_cmnd *rsp;
 
@@ -845,7 +938,8 @@ static inline struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req,
 	rsp = iscsi_alloc_rsp(req);
 	TRACE_DBG("rsp %p", rsp);
 
-	iscsi_init_status_rsp(rsp, status, sense_buf, sense_len, bufflen_set);
+	iscsi_init_status_rsp(rsp, status, sense_buf, sense_len,
+		no_read_transfer, false);
 
 	TRACE_EXIT_HRES((unsigned long)rsp);
 	return rsp;
@@ -861,7 +955,7 @@ static struct iscsi_cmnd *create_prelim_status_rsp(struct iscsi_cmnd *req,
 	rsp = iscsi_alloc_main_rsp(req);
 	TRACE_DBG("main rsp %p", rsp);
 
-	iscsi_init_status_rsp(rsp, status, sense_buf, sense_len, false);
+	iscsi_init_status_rsp(rsp, status, sense_buf, sense_len, true, true);
 
 	TRACE_EXIT_HRES((unsigned long)rsp);
 	return rsp;
@@ -914,7 +1008,6 @@ static int create_preliminary_status_rsp(struct iscsi_cmnd *req,
 	int status, const u8 *sense_buf, int sense_len)
 {
 	int res = 0;
-	struct iscsi_scsi_cmd_hdr *req_hdr = cmnd_hdr(req);
 
 	TRACE_ENTRY();
 
@@ -924,14 +1017,6 @@ static int create_preliminary_status_rsp(struct iscsi_cmnd *req,
 	}
 
 	req->scst_state = ISCSI_CMD_STATE_OUT_OF_SCST_PRELIM_COMPL;
-
-	if ((req_hdr->flags & ISCSI_CMD_READ) &&
-	    (req_hdr->flags & ISCSI_CMD_WRITE)) {
-		int sz = cmnd_read_size(req);
-		if (sz > 0)
-			req->read_size = sz;
-	} else if (req_hdr->flags & ISCSI_CMD_READ)
-		req->read_size = be32_to_cpu(req_hdr->data_length);
 
 	create_prelim_status_rsp(req, status, sense_buf, sense_len);
 	res = iscsi_preliminary_complete(req, req, true);
@@ -1267,68 +1352,6 @@ static void cmnd_prepare_get_rejected_immed_data(struct iscsi_cmnd *cmnd)
 
 out:
 	TRACE_EXIT();
-	return;
-}
-
-static void iscsi_set_resid(struct iscsi_cmnd *rsp, bool bufflen_set)
-{
-	struct iscsi_cmnd *req = rsp->parent_req;
-	struct iscsi_scsi_cmd_hdr *req_hdr = cmnd_hdr(req);
-	struct iscsi_scsi_rsp_hdr *rsp_hdr;
-	int resid, resp_len, in_resp_len;
-
-	if ((req_hdr->flags & ISCSI_CMD_READ) &&
-	    (req_hdr->flags & ISCSI_CMD_WRITE)) {
-		rsp_hdr = (struct iscsi_scsi_rsp_hdr *)&rsp->pdu.bhs;
-
-		if (bufflen_set) {
-			resp_len = req->bufflen;
-			if (req->scst_cmd != NULL)
-				in_resp_len = scst_cmd_get_in_bufflen(req->scst_cmd);
-			else
-				in_resp_len = 0;
-		} else {
-			resp_len = 0;
-			in_resp_len = 0;
-		}
-
-		resid = be32_to_cpu(req_hdr->data_length) - in_resp_len;
-		if (resid > 0) {
-			rsp_hdr->flags |= ISCSI_FLG_RESIDUAL_UNDERFLOW;
-			rsp_hdr->residual_count = cpu_to_be32(resid);
-		} else if (resid < 0) {
-			resid = -resid;
-			rsp_hdr->flags |= ISCSI_FLG_RESIDUAL_OVERFLOW;
-			rsp_hdr->residual_count = cpu_to_be32(resid);
-		}
-
-		resid = req->read_size - resp_len;
-		if (resid > 0) {
-			rsp_hdr->flags |= ISCSI_FLG_BIRESIDUAL_UNDERFLOW;
-			rsp_hdr->bi_residual_count = cpu_to_be32(resid);
-		} else if (resid < 0) {
-			resid = -resid;
-			rsp_hdr->flags |= ISCSI_FLG_BIRESIDUAL_OVERFLOW;
-			rsp_hdr->bi_residual_count = cpu_to_be32(resid);
-		}
-	} else {
-		if (bufflen_set)
-			resp_len = req->bufflen;
-		else
-			resp_len = 0;
-
-		resid = req->read_size - resp_len;
-		if (resid > 0) {
-			rsp_hdr = (struct iscsi_scsi_rsp_hdr *)&rsp->pdu.bhs;
-			rsp_hdr->flags |= ISCSI_FLG_RESIDUAL_UNDERFLOW;
-			rsp_hdr->residual_count = cpu_to_be32(resid);
-		} else if (resid < 0) {
-			rsp_hdr = (struct iscsi_scsi_rsp_hdr *)&rsp->pdu.bhs;
-			resid = -resid;
-			rsp_hdr->flags |= ISCSI_FLG_RESIDUAL_OVERFLOW;
-			rsp_hdr->residual_count = cpu_to_be32(resid);
-		}
-	}
 	return;
 }
 
@@ -1835,7 +1858,6 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 			set_scst_preliminary_status_rsp(req, true,
 			   SCST_LOAD_SENSE(scst_sense_parameter_value_invalid));
 		} else {
-			req->read_size = sz;
 			dir = SCST_DATA_BIDI;
 			scst_cmd_set_expected(scst_cmd, dir, sz);
 			scst_cmd_set_expected_in_transfer_len(scst_cmd,
@@ -1845,9 +1867,9 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 #endif
 		}
 	} else if (req_hdr->flags & ISCSI_CMD_READ) {
-		req->read_size = be32_to_cpu(req_hdr->data_length);
 		dir = SCST_DATA_READ;
-		scst_cmd_set_expected(scst_cmd, dir, req->read_size);
+		scst_cmd_set_expected(scst_cmd, dir,
+			be32_to_cpu(req_hdr->data_length));
 #if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 		scst_cmd_set_tgt_need_alloc_data_buf(scst_cmd);
 #endif
@@ -3193,13 +3215,13 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 			send_data_rsp(req, 0, 0);
 			if (is_send_status) {
 				rsp = create_status_rsp(req, status, sense,
-					sense_len, true);
+					sense_len, false);
 				iscsi_cmnd_init_write(rsp, 0);
 			}
 		}
 	} else if (is_send_status) {
 		struct iscsi_cmnd *rsp;
-		rsp = create_status_rsp(req, status, sense, sense_len, false);
+		rsp = create_status_rsp(req, status, sense, sense_len, true);
 		iscsi_cmnd_init_write(rsp, 0);
 	}
 #ifdef CONFIG_SCST_EXTRACHECKS
