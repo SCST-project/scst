@@ -194,7 +194,7 @@ const char *debug_transport_id_to_initiator_name(const uint8_t *transport_id)
 	case SCSI_TRANSPORTID_PROTOCOLID_SRP:
 		scnprintf(name_buf, SIZEOF_NAME_BUF,
 			"%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x"
-			"%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
+			":%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
 			transport_id[8], transport_id[9],
 			transport_id[10], transport_id[11],
 			transport_id[12], transport_id[13],
