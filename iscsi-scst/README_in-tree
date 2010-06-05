@@ -157,7 +157,7 @@ Each target subdirectory contains the following entries:
    IPv6 addresses need to be enclosed in [] brackets. To remove
    redirection, provide an empty string. For example:
    echo "10.170.77.2:32600 temp" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/redirect
-   will temporarily redirect login to portal 10.170.77.2 and port 32600. 
+   will temporarily redirect login to portal 10.170.77.2 and port 32600.
 
  - tid - TID of this target.
 

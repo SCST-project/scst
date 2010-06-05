@@ -750,8 +750,8 @@ static void iscsi_set_resid(struct iscsi_cmnd *rsp, bool no_read_transfer,
 
 	if ((req_hdr->flags & ISCSI_CMD_READ) &&
 	    (req_hdr->flags & ISCSI_CMD_WRITE)) {
-	    	struct iscsi_scsi_rsp_hdr *rsp_hdr;
-	    	int in_transf_len, in_exp_transf_len;
+		struct iscsi_scsi_rsp_hdr *rsp_hdr;
+		int in_transf_len, in_exp_transf_len;
 
 		rsp_hdr = (struct iscsi_scsi_rsp_hdr *)&rsp->pdu.bhs;
 
@@ -3516,7 +3516,7 @@ static int iscsi_report_aen(struct scst_aen *aen)
 	return res;
 }
 
-int iscsi_get_initiator_port_transport_id(struct scst_session *scst_sess,
+static int iscsi_get_initiator_port_transport_id(struct scst_session *scst_sess,
 	uint8_t **transport_id)
 {
 	struct iscsi_session *sess;

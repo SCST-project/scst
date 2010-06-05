@@ -1863,7 +1863,7 @@ static int q2t_pre_xmit_response(struct q2t_cmd *cmd,
 
 	if (xmit_type & Q2T_XMIT_STATUS) {
 		if ((cmd->data_direction & SCST_DATA_READ) ||
-		    (cmd->data_direction & SCST_DATA_WRITE) ) {
+		    (cmd->data_direction & SCST_DATA_WRITE)) {
 			int expected = scst_cmd_get_expected_transfer_len(scst_cmd);
 			/* Bidirectional transfers not supported (yet) */
 			if (cmd->data_direction & SCST_DATA_READ)
