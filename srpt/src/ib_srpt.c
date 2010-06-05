@@ -2902,6 +2902,53 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 }
 
 /**
+ * srpt_get_initiator_port_transport_id() - SCST TransportID callback function.
+ *
+ * See also SPC-3, section 7.5.4.5, TransportID for initiator ports using SRP.
+ */
+static int srpt_get_initiator_port_transport_id(struct scst_session *scst_sess,
+                                                uint8_t **transport_id)
+{
+	struct srpt_rdma_ch *ch;
+	struct spc_rdma_transport_id {
+		uint8_t protocol_identifier;
+		uint8_t reserved[7];
+		uint8_t i_port_id[16];
+	};
+	struct spc_rdma_transport_id *tr_id;
+	int res;
+
+	TRACE_ENTRY();
+
+	if (!scst_sess) {
+		res = SCSI_TRANSPORTID_PROTOCOLID_SRP;
+		goto out;
+	}
+
+	ch = scst_sess_get_tgt_priv(scst_sess);
+	BUG_ON(!ch);
+
+	BUILD_BUG_ON(sizeof(*tr_id) != 24);
+
+	tr_id = kzalloc(sizeof(struct spc_rdma_transport_id), GFP_KERNEL);
+	if (!tr_id) {
+		PRINT_ERROR("%s", "Allocation of TransportID failed");
+		res = -ENOMEM;
+		goto out;
+	}
+
+	res = 0;
+	tr_id->protocol_identifier = SCSI_TRANSPORTID_PROTOCOLID_SRP;
+	memcpy(tr_id->i_port_id, ch->i_port_id, sizeof(ch->i_port_id));
+
+	*transport_id = (uint8_t *)tr_id;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/**
  * srpt_on_free_cmd() - SCST on_free_cmd callback.
  *
  * Called by the SCST core to inform ib_srpt that the command 'scmnd' is about
@@ -3022,7 +3069,8 @@ static struct scst_tgt_template srpt_template = {
 	.rdy_to_xfer = srpt_rdy_to_xfer,
 	.on_hw_pending_cmd_timeout = srpt_pending_cmd_timeout,
 	.on_free_cmd = srpt_on_free_cmd,
-	.task_mgmt_fn_done = srpt_tsk_mgmt_done
+	.task_mgmt_fn_done = srpt_tsk_mgmt_done,
+	.get_initiator_port_transport_id = srpt_get_initiator_port_transport_id,
 };
 
 /**
