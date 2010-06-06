@@ -2907,7 +2907,7 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
  * See also SPC-3, section 7.5.4.5, TransportID for initiator ports using SRP.
  */
 static int srpt_get_initiator_port_transport_id(struct scst_session *scst_sess,
-                                                uint8_t **transport_id)
+						uint8_t **transport_id)
 {
 	struct srpt_rdma_ch *ch;
 	struct spc_rdma_transport_id {
