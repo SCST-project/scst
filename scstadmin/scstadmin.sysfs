@@ -29,17 +29,17 @@ Query Operations
          [-driver <driver>]
          [-target <target>]
 
-     -list_scst_parm         : List add attributes for SCST.
-     -list_hnd_parm <hndlr>  : List all attributes for a given handler.
-     -list_dev_parm <device> : List all attributes for a given device.
-     -list_drv_parm <driver> : List all attributes for a given driver.
-     -list_tgt_parm <target> : List all attributes for a given driver/target.
+     -list_scst_attr         : List add attributes for SCST.
+     -list_hnd_attr <hndlr>  : List all attributes for a given handler.
+     -list_dev_attr <device> : List all attributes for a given device.
+     -list_drv_attr <driver> : List all attributes for a given driver.
+     -list_tgt_attr <target> : List all attributes for a given driver/target.
           -driver <driver>
-     -list_lun_parm <lun>    : List all attributes for a driver/target/lun.
+     -list_lun_attr <lun>    : List all attributes for a driver/target/lun.
           -driver <driver>
           -target <target>
           -group <group>
-     -list_ini_parm <ini>    : List all parms for a driver/target/initiator.
+     -list_ini_attr <ini>    : List all attributes for a driver/target/initiator
           -driver <driver>
           -target <target>
           -group <group>
@@ -47,23 +47,23 @@ Query Operations
      -list_sessions          : List all current initiator sessions.
 
 Set Operations
-     -set_scst_parm          : Sets SCST attribute(s) <p> to value <v>.
+     -set_scst_attr          : Sets SCST attribute(s) <p> to value <v>.
          -attributes <p=v,...>
-     -set_hnd_parm <hndlr>   : Sets handler attribute(s) <p> to value <v>.
+     -set_hnd_attr <hndlr>   : Sets handler attribute(s) <p> to value <v>.
          -attributes <p=v,...>
-     -set_dev_parm <device>  : Sets device attributes(s) <p> to value <v>. 
+     -set_dev_attr <device>  : Sets device attributes(s) <p> to value <v>. 
          -attributes <p=v,...>
-     -set_drv_parm <driver>  : Sets driver attribute(s) <p> to value <v>.
+     -set_drv_attr <driver>  : Sets driver attribute(s) <p> to value <v>.
          -attributes <p=v,...>
-     -set_tgt_parm <target>  : Sets target attribute(s) <p> to value <v>.
+     -set_tgt_attr <target>  : Sets target attribute(s) <p> to value <v>.
          -driver <driver>
          -attributes <p=v,...>
-     -set_lun_parm <lun>     : Sets LUN attribute(s) <p> to value <v>.
+     -set_lun_attr <lun>     : Sets LUN attribute(s) <p> to value <v>.
          -driver <driver>
          -target <target>
          -group <group>
          -attributes <p=v,...>
-     -set_ini_parm <ini>     : Sets initiator attribute(s) <p> to value <v>.
+     -set_ini_attr <ini>     : Sets initiator attribute(s) <p> to value <v>.
          -driver <driver>
          -target <target>
          -group <group>
@@ -149,7 +149,7 @@ Examples:
          -attributes filename=/vdisks/disk01.dsk,read_only
 
      Setting the T10 Device ID of a device
-       scstadmin -set_dev_parm DISK01 -options t10_dev_id=0x2345 
+       scstadmin -set_dev_attr DISK01 -options t10_dev_id=0x2345 
 
      Create a new security group:
        scstadmin -add_group HOST01 -driver qla2x00t \
@@ -214,21 +214,21 @@ sub getArgs {
 	my $listGroup;
 	my $listSessions;
 
-	my $listScstParm;
-	my $listHandlerParm;
-	my $listDeviceParm;
-	my $listDriverParm;
-	my $listTargetParm;
-	my $listLunParm;
-	my $listInitiatorParm;
+	my $listScstAttr;
+	my $listHandlerAttr;
+	my $listDeviceAttr;
+	my $listDriverAttr;
+	my $listTargetAttr;
+	my $listLunAttr;
+	my $listInitiatorAttr;
 
-	my $setScstParm;
-	my $setHandlerParm;
-	my $setDeviceParm;
-	my $setDriverParm;
-	my $setTargetParm;
-	my $setLunParm;
-	my $setInitiatorParm;
+	my $setScstAttr;
+	my $setHandlerAttr;
+	my $setDeviceAttr;
+	my $setDriverAttr;
+	my $setTargetAttr;
+	my $setLunAttr;
+	my $setInitiatorAttr;
 
 	my $openDev;
 	my $closeDev;
@@ -278,21 +278,21 @@ sub getArgs {
 			    'list_group:s'	=> \$listGroup,
 			    'list_sessions'	=> \$listSessions,
 
-			    'list_scst_parm'	=> \$listScstParm,
-			    'list_hnd_parm=s'	=> \$listHandlerParm,
-			    'list_dev_parm=s'	=> \$listDeviceParm,
-			    'list_drv_parm=s'	=> \$listDriverParm,
-			    'list_tgt_parm=s'	=> \$listTargetParm,
-			    'list_lun_parm=s'	=> \$listLunParm,
-			    'list_ini_parm=s'	=> \$listInitiatorParm,
+			    'list_scst_attr'	=> \$listScstAttr,
+			    'list_hnd_attr=s'	=> \$listHandlerAttr,
+			    'list_dev_attr=s'	=> \$listDeviceAttr,
+			    'list_drv_attr=s'	=> \$listDriverAttr,
+			    'list_tgt_attr=s'	=> \$listTargetAttr,
+			    'list_lun_attr=s'	=> \$listLunAttr,
+			    'list_ini_attr=s'	=> \$listInitiatorAttr,
 
-			    'set_scst_parm'	=> \$setScstParm,
-			    'set_hnd_parm=s'	=> \$setHandlerParm,
-			    'set_dev_parm=s'	=> \$setDeviceParm,
-			    'set_drv_parm=s'	=> \$setDriverParm,
-			    'set_tgt_parm=s'	=> \$setTargetParm,
-			    'set_lun_parm=s'	=> \$setLunParm,
-			    'set_ini_parm=s'	=> \$setInitiatorParm,
+			    'set_scst_attr'	=> \$setScstAttr,
+			    'set_hnd_attr=s'	=> \$setHandlerAttr,
+			    'set_dev_attr=s'	=> \$setDeviceAttr,
+			    'set_drv_attr=s'	=> \$setDriverAttr,
+			    'set_tgt_attr=s'	=> \$setTargetAttr,
+			    'set_lun_attr=s'	=> \$setLunAttr,
+			    'set_ini_attr=s'	=> \$setInitiatorAttr,
 
 			    'open_dev=s'	=> \$openDev,
 			    'close_dev=s'	=> \$closeDev,
@@ -339,17 +339,17 @@ sub getArgs {
 	$clearLuns = TRUE if (defined($clearLuns));
 	$issueLip = TRUE if (defined($issueLip));
 	$listSessions = TRUE if (defined($listSessions));
-	$listScstParm = TRUE if (defined($listScstParm));
-	$setScstParm = TRUE if (defined($setScstParm));
+	$listScstAttr = TRUE if (defined($listScstAttr));
+	$setScstAttr = TRUE if (defined($setScstAttr));
 	$nonkey = TRUE if (defined($nonkey));
 
 	my $query_mode = defined($listHandler) || defined($listDevice) || defined($listDriver) ||
-	  defined($listTarget) || defined($listGroup) || defined($listSessions) || defined($listScstParm) ||
-	  defined($listHandlerParm) || defined($listDeviceParm) || defined($listDriverParm) ||
-	  defined($listTargetParm) || defined($listLunParm) || defined($listInitiatorParm);
+	  defined($listTarget) || defined($listGroup) || defined($listSessions) || defined($listScstAttr) ||
+	  defined($listHandlerAttr) || defined($listDeviceAttr) || defined($listDriverAttr) ||
+	  defined($listTargetAttr) || defined($listLunAttr) || defined($listInitiatorAttr);
 
-	my $set_mode = defined($setScstParm) + defined($setHandlerParm) + defined($setDeviceParm) +
-	  defined($setDriverParm) + defined($setTargetParm) + defined($setLunParm) + defined($setInitiatorParm);
+	my $set_mode = defined($setScstAttr) + defined($setHandlerAttr) + defined($setDeviceAttr) +
+	  defined($setDriverAttr) + defined($setTargetAttr) + defined($setLunAttr) + defined($setInitiatorAttr);
 
 	my $op_mode = defined($clearConfig) + defined($writeConfig) + defined($checkConfig) +
              defined($openDev) + defined($closeDev) + defined($addGroup) + defined($removeGroup) +
@@ -367,53 +367,53 @@ sub getArgs {
 		usage();
 	}
 
-	if ($listTargetParm && !$driver) {
-		print "Please specify -driver with -list_tgt_parm.\n";
+	if ($listTargetAttr && !$driver) {
+		print "Please specify -driver with -list_tgt_attr.\n";
 		usage();
 	}
 
-	if ($listLunParm && (!$driver || !$target || !$group)) {
-		print "Please specify -driver -target and -group with -list_lun_parm.\n";
+	if ($listLunAttr && (!$driver || !$target || !$group)) {
+		print "Please specify -driver -target and -group with -list_lun_attr.\n";
 		usage();
 	}
 
-	if ($listInitiatorParm && (!$driver || !$target || !$group)) {
-		print "Please specify -driver -target and -group with -list_ini_parm.\n";
+	if ($listInitiatorAttr && (!$driver || !$target || !$group)) {
+		print "Please specify -driver -target and -group with -list_ini_attr.\n";
 		usage();
 	}
 
-	if ($setScstParm && !$attributes) {
-		print "Please specify -attributes with -set_scst_parm.\n";
+	if ($setScstAttr && !$attributes) {
+		print "Please specify -attributes with -set_scst_attr.\n";
 		usage();
 	}
 
-	if ($setHandlerParm && !$attributes) {
-		print "Please specify -attributes with -set_hnd_parm.\n";
+	if ($setHandlerAttr && !$attributes) {
+		print "Please specify -attributes with -set_hnd_attr.\n";
 		usage();
 	}
 
-	if ($setDeviceParm && !$attributes) {
-		print "Please specify -attributes with -set_dev_parm.\n";
+	if ($setDeviceAttr && !$attributes) {
+		print "Please specify -attributes with -set_dev_attr.\n";
 		usage();
 	}
 
-	if ($setDriverParm && !$attributes) {
-		print "Please specify -attributes with -set_drv_parm.\n";
+	if ($setDriverAttr && !$attributes) {
+		print "Please specify -attributes with -set_drv_attr.\n";
 		usage();
 	}
 
-	if ($setTargetParm && (!$driver || !$attributes)) {
-		print "Please specify -driver and -attributes with -set_tgt_parm.\n";
+	if ($setTargetAttr && (!$driver || !$attributes)) {
+		print "Please specify -driver and -attributes with -set_tgt_attr.\n";
 		usage();
 	}
 
-	if ($setLunParm && (!$driver || !$target || !$group || !$attributes)) {
-		print "Please specify -driver -target -group and -attributes with -set_lun_parm.\n";
+	if ($setLunAttr && (!$driver || !$target || !$group || !$attributes)) {
+		print "Please specify -driver -target -group and -attributes with -set_lun_attr.\n";
 		usage();
 	}
 
-	if ($setDeviceParm && (!$driver || !$target || !$group || !$attributes)) {
-		print "Please specify -driver -target -group and -attributes with -set_ini_parm.\n";
+	if ($setDeviceAttr && (!$driver || !$target || !$group || !$attributes)) {
+		print "Please specify -driver -target -group and -attributes with -set_ini_attr.\n";
 		usage();
 	}
 
@@ -472,10 +472,10 @@ sub getArgs {
 	}
 
 	return ($applyConfig, $clearConfig, $writeConfig, $checkConfig,
-		$listScstParm, $listHandler, $listDevice, $listDriver, $listTarget, $listGroup,
-		$listSessions, $listHandlerParm, $listDeviceParm, $listDriverParm, $listTargetParm,
-		$listLunParm, $listInitiatorParm, $setScstParm, $setHandlerParm, $setDeviceParm,
-		$setDriverParm, $setTargetParm, $setLunParm, $setInitiatorParm,
+		$listScstAttr, $listHandler, $listDevice, $listDriver, $listTarget, $listGroup,
+		$listSessions, $listHandlerAttr, $listDeviceAttr, $listDriverAttr, $listTargetAttr,
+		$listLunAttr, $listInitiatorAttr, $setScstAttr, $setHandlerAttr, $setDeviceAttr,
+		$setDriverAttr, $setTargetAttr, $setLunAttr, $setInitiatorAttr,
                 $openDev, $closeDev, $resyncDev,
 		$addGroup, $removeGroup,
 		$addInitiator, $removeInitiator, $moveInitiator, $clearInitiators,
@@ -495,10 +495,10 @@ sub main {
 	if ( $> ) {die("This program must run as root.\n");}
 
 	my ($applyConfig, $clearConfig, $writeConfig, $checkConfig,
-	    $listScstParm, $listHandler, $listDevice, $listDriver, $listTarget, $listGroup,
-	    $listSessions, $listHandlerParm, $listDeviceParm, $listDriverParm, $listTargetParm,
-	    $listLunParm, $listInitiatorParm, $setScstParm, $setHandlerParm, $setDeviceParm,
-	    $setDriverParm, $setTargetParm, $setLunParm, $setInitiatorParm,
+	    $listScstAttr, $listHandler, $listDevice, $listDriver, $listTarget, $listGroup,
+	    $listSessions, $listHandlerAttr, $listDeviceAttr, $listDriverAttr, $listTargetAttr,
+	    $listLunAttr, $listInitiatorAttr, $setScstAttr, $setHandlerAttr, $setDeviceAttr,
+	    $setDriverAttr, $setTargetAttr, $setLunAttr, $setInitiatorAttr,
 	    $openDev, $closeDev, $resyncDev,
 	    $addGroup, $removeGroup,
 	    $addInitiator, $removeInitiator, $moveInitiator, $clearInitiators,
@@ -557,60 +557,60 @@ sub main {
 			$rc = listSessions();
 			$all_good = TRUE;
 		};
-		$listScstParm && do {
-			$rc = listScstParm();
+		$listScstAttr && do {
+			$rc = listScstAttr();
 			$all_good = TRUE;
 		};
-		$listHandlerParm && do {
-			$rc = listHandlerAttributes($listHandlerParm);
+		$listHandlerAttr && do {
+			$rc = listHandlerAttributes($listHandlerAttr);
 			$all_good = TRUE;
 		};
-		$listDeviceParm && do {
-			$rc = listDeviceAttributes($listDeviceParm);
+		$listDeviceAttr && do {
+			$rc = listDeviceAttributes($listDeviceAttr);
 			$all_good = TRUE;
 		};
-		$listDriverParm && do {
-			$rc = listDriverAttributes($listHandlerParm);
+		$listDriverAttr && do {
+			$rc = listDriverAttributes($listHandlerAttr);
 			$all_good = TRUE;
 		};
-		$listTargetParm && do {
-			$rc = listTargetAttributes($listTargetParm, $driver);
+		$listTargetAttr && do {
+			$rc = listTargetAttributes($listTargetAttr, $driver);
 			$all_good = TRUE;
 		};
-		$listLunParm && do {
-			$rc = listLunAttributes($listLunParm, $driver, $target, $group);
+		$listLunAttr && do {
+			$rc = listLunAttributes($listLunAttr, $driver, $target, $group);
 			$all_good = TRUE;
 		};
-		$listInitiatorParm && do {
-			$rc = listInitiatorAttributes($listInitiatorParm, $driver, $target, $group);
+		$listInitiatorAttr && do {
+			$rc = listInitiatorAttributes($listInitiatorAttr, $driver, $target, $group);
 			$all_good = TRUE;
 		};
-		$setScstParm && do {
+		$setScstAttr && do {
 			$rc = setScstAttributes($attributes);
 			last SWITCH;
 		};
-		$setHandlerParm && do {
-			$rc = setHandlerAttributes($setHandlerParm, $attributes);
+		$setHandlerAttr && do {
+			$rc = setHandlerAttributes($setHandlerAttr, $attributes);
 			last SWITCH;
 		};
-		$setDeviceParm && do {
-			$rc = setDeviceAttributes($setDeviceParm, $attributes);
+		$setDeviceAttr && do {
+			$rc = setDeviceAttributes($setDeviceAttr, $attributes);
 			last SWITCH;
 		};
-		$setDriverParm && do {
-			$rc = setDriverAttributes($setDriverParm, $attributes);
+		$setDriverAttr && do {
+			$rc = setDriverAttributes($setDriverAttr, $attributes);
 			last SWITCH;
 		};
-		$setTargetParm && do {
-			$rc = setTargetAttributes($setTargetParm, $driver, $attributes);
+		$setTargetAttr && do {
+			$rc = setTargetAttributes($setTargetAttr, $driver, $attributes);
 			last SWITCH;
 		};
-		$setLunParm && do {
-			$rc = setLunAttributes($setLunParm, $driver, $target, $attributes, $group);
+		$setLunAttr && do {
+			$rc = setLunAttributes($setLunAttr, $driver, $target, $attributes, $group);
 			last SWITCH;
 		};
-		$setInitiatorParm && do {
-			$rc = setInitiatorAttributes($setInitiatorParm, $driver, $target, $group, $attributes);
+		$setInitiatorAttr && do {
+			$rc = setInitiatorAttributes($setInitiatorAttr, $driver, $target, $group, $attributes);
 			last SWITCH;
 		};
 		$openDev && do {
@@ -1267,7 +1267,7 @@ sub applyConfiguration {
 		$_attributes{$item} = $$CONFIG{$item};
 	}
 
-	my $attributes = configToParm(\%_attributes);
+	my $attributes = configToAttr(\%_attributes);
 
 	setScstAttributes($attributes);
 }
@@ -1307,7 +1307,7 @@ sub applyConfigDevices {
 			foreach my $device (sort keys %{$devices}) {
 				next if (handlerHasDevice($handler, $device));
 
-				my $attributes = configToParm($$devices{$device}->{'CREATE_ATTRIBUTES'});
+				my $attributes = configToAttr($$devices{$device}->{'CREATE_ATTRIBUTES'});
 				openDevice($device, $handler, $attributes);
 			}
 		}
@@ -1411,7 +1411,7 @@ sub applyConfigAssignments {
 				$_attributes{$item} = $$assignments{$driver}->{$item};
 			}
 
-			my $attributes = configToParm(\%_attributes);
+			my $attributes = configToAttr(\%_attributes);
 
 			setDriverAttributes($driver, $attributes);
 		}
@@ -1447,7 +1447,7 @@ sub applyTargetAssignments {
 			}
 		}
 
-		my $attributes = configToParm(\%_attributes);
+		my $attributes = configToAttr(\%_attributes);
 
 		setTargetAttributes($target, $driver, $attributes);
 	}
@@ -1477,7 +1477,7 @@ sub applyGroupAssignments {
 			}
 		}
 
-		my $attributes = configToParm(\%_attributes);
+		my $attributes = configToAttr(\%_attributes);
 
 		setGroupAttributes($target, $driver, $group, $attributes);
 	}
@@ -1505,7 +1505,7 @@ sub applyLunAssignments {
 			}
 
 			foreach my $device (sort keys %{$$luns{$lun}}) {
-				my $attributes = configToParm($$luns{$lun}->{$device});
+				my $attributes = configToAttr($$luns{$lun}->{$device});
 				addLun($lun, $driver, $target, $device, $attributes, $group);
 			}
 		}
@@ -1852,7 +1852,7 @@ sub listHandlerAttributes {
 
 sub listDeviceAttributes {
 	my $device = shift;
-	my $l_parm;
+	my $l_attr;
 	my $l_val;
 
 	my $attributes = $SCST->deviceAttributes($device);
@@ -1863,15 +1863,15 @@ sub listDeviceAttributes {
 
 		next if (ref($value));
 
-		$l_parm = length($attribute) if (length($attribute) > $l_parm);
+		$l_attr = length($attribute) if (length($attribute) > $l_attr);
 		$l_val = length($value) if (length($value) > $l_val);
 	}
 
 	print "Attributes for device '$device':\n\n";
 
-	printf("\t%-*s %-*s %-5s\n", $l_parm, 'Attribute', $l_val, 'Value', 'Static');
+	printf("\t%-*s %-*s %-5s\n", $l_attr, 'Attribute', $l_val, 'Value', 'Static');
 	print "\t";
-	for (my $x = 0; $x < ($l_parm + $l_val + 8); $x++) {
+	for (my $x = 0; $x < ($l_attr + $l_val + 8); $x++) {
 		print "-";
 	}
 	print "\n";
@@ -1884,7 +1884,7 @@ sub listDeviceAttributes {
 		$value = '-' if (!defined($value));
 		$static = ($static ? 'Yes' : 'No');
 
-		printf("\t%-*s %-*s %-5s\n", $l_parm, $attribute, $l_val, $value, $static);
+		printf("\t%-*s %-*s %-5s\n", $l_attr, $attribute, $l_val, $value, $static);
 	}
 }
 
@@ -2774,24 +2774,24 @@ sub groupHasInitiator {
 	return FALSE;
 }
 
-sub configToParm {
+sub configToAttr {
 	my $config = shift;
 	my %attributes;
 
-	foreach my $parm (keys %{$config}) {
-		if ((keys %{$$config{$parm}}) > 1) {
-			foreach my $value (keys %{$$config{$parm}}) {
-				push @{$attributes{$parm}}, $value if ($value);
+	foreach my $attr (keys %{$config}) {
+		if ((keys %{$$config{$attr}}) > 1) {
+			foreach my $value (keys %{$$config{$attr}}) {
+				push @{$attributes{$attr}}, $value if ($value);
 			}
 		}
 
-		foreach my $value (keys %{$$config{$parm}}) {
-			if (keys %{$$config{$parm}->{$value}}) {
+		foreach my $value (keys %{$$config{$attr}}) {
+			if (keys %{$$config{$attr}->{$value}}) {
 				immediateExit("Invalid configuration encountered. ".
-				  "Attribute '$parm' has an invalid value.");
+				  "Attribute '$attr' has an invalid value.");
 			}
 
-			$attributes{$parm} = $value;
+			$attributes{$attr} = $value;
 		}
 	}
 
