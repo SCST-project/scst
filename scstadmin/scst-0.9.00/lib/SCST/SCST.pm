@@ -2971,7 +2971,7 @@ sub sessions {
 				my $value = <$io>;
 				chomp $value;
 
-				$_sessions{$session}->{attribute} = $value;
+				$_sessions{$session}->{$attribute} = $value;
 			}
 		}
 	}
