@@ -199,7 +199,7 @@ where:
      each time allocate a dedicated data buffer
 
    * SCST_USER_MEM_REUSE_WRITE - memory reuse by only WRITE-type
-     commands is allowed. For all WRITE-type commands the user space
+     commands is allowed. For all READ-type commands the user space
      handler will each time allocate a dedicated data buffer
 
    * SCST_USER_MEM_REUSE_ALL - unlimited memory reuse is possible.
