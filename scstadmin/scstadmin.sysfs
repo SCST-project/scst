@@ -29,13 +29,13 @@ Query Operations
          [-driver <driver>]
          [-target <target>]
 
-     -list_scst_parm         : List add parameters for SCST.
-     -list_hnd_parm <hndlr>  : List all parameters for a given handler.
-     -list_dev_parm <device> : List all parameters for a given device.
-     -list_drv_parm <driver> : List all parameters for a given driver.
-     -list_tgt_parm <target> : List all parameters for a given driver/target.
+     -list_scst_parm         : List add attributes for SCST.
+     -list_hnd_parm <hndlr>  : List all attributes for a given handler.
+     -list_dev_parm <device> : List all attributes for a given device.
+     -list_drv_parm <driver> : List all attributes for a given driver.
+     -list_tgt_parm <target> : List all attributes for a given driver/target.
           -driver <driver>
-     -list_lun_parm <lun>    : List all parameters for a driver/target/lun.
+     -list_lun_parm <lun>    : List all attributes for a driver/target/lun.
           -driver <driver>
           -target <target>
           -group <group>
@@ -47,32 +47,32 @@ Query Operations
      -list_sessions          : List all current initiator sessions.
 
 Set Operations
-     -set_scst_parm          : Sets SCST parameter(s) <p> to value <v>.
-         -parameters <p=v,...>
-     -set_hnd_parm <hndlr>   : Sets handler parameter(s) <p> to value <v>.
-         -parameters <p=v,...>
-     -set_dev_parm <device>  : Sets device parameters(s) <p> to value <v>. 
-         -parameters <p=v,...>
-     -set_drv_parm <driver>  : Sets driver parameter(s) <p> to value <v>.
-         -parameters <p=v,...>
-     -set_tgt_parm <target>  : Sets target parameter(s) <p> to value <v>.
+     -set_scst_parm          : Sets SCST attribute(s) <p> to value <v>.
+         -attributes <p=v,...>
+     -set_hnd_parm <hndlr>   : Sets handler attribute(s) <p> to value <v>.
+         -attributes <p=v,...>
+     -set_dev_parm <device>  : Sets device attributes(s) <p> to value <v>. 
+         -attributes <p=v,...>
+     -set_drv_parm <driver>  : Sets driver attribute(s) <p> to value <v>.
+         -attributes <p=v,...>
+     -set_tgt_parm <target>  : Sets target attribute(s) <p> to value <v>.
          -driver <driver>
-         -parameters <p=v,...>
-     -set_lun_parm <lun>     : Sets LUN parameter(s) <p> to value <v>.
-         -driver <driver>
-         -target <target>
-         -group <group>
-         -parameters <p=v,...>
-     -set_ini_parm <ini>     : Sets initiator parameter(s) <p> to value <v>.
+         -attributes <p=v,...>
+     -set_lun_parm <lun>     : Sets LUN attribute(s) <p> to value <v>.
          -driver <driver>
          -target <target>
          -group <group>
-         -parameters <p=v,...>
+         -attributes <p=v,...>
+     -set_ini_parm <ini>     : Sets initiator attribute(s) <p> to value <v>.
+         -driver <driver>
+         -target <target>
+         -group <group>
+         -attributes <p=v,...>
 
 Device Operations
      -open_dev <device>      : Adds a new device using handler <handler>.
          -handler <handler>
-         -parameters <p=v,...>
+         -attributes <p=v,...>
      -resync_dev <device>    : Resync the device size with the initiator(s).
      -close_dev <device>     : Closes a device belonging to handler <handler>.
          -handler <handler>
@@ -110,7 +110,7 @@ Target LUN Operations
          -target <target>
          -group <group>
          -device <device>
-         -parameters <p=v,...>
+         -attributes <p=v,...>
      -remove_lun <lun>       : Remove a LUN from a group.
          -driver <driver>
          -target <target>
@@ -120,7 +120,7 @@ Target LUN Operations
          -target <target>
          -group <group>
          -device <device>
-         -parameters <p=v,...>
+         -attributes <p=v,...>
      -clear_luns             : Clear all LUNs within a group.
          -driver <driver>
          -target <target>
@@ -134,6 +134,8 @@ Target Driver Operations
      -issue_lip              : Issue LIP on all target-enabled FC fabrics.
 
 Options
+     -nonkey                 : When writing a configuration file, store non-key
+                               attributes as well.
      -force                  : Force all configuration changes,
                                even deletions (DANGER!).
      -noprompt               : Do not prompt or pause. Use with caution!
@@ -144,7 +146,7 @@ Debugging (limited support)
 Examples:
      Open a new device:
        scstadmin -open_dev DISK01 -handler vdisk_fileio \
-         -parameters filename=/vdisks/disk01.dsk,read_only
+         -attributes filename=/vdisks/disk01.dsk,read_only
 
      Setting the T10 Device ID of a device
        scstadmin -set_dev_parm DISK01 -options t10_dev_id=0x2345 
@@ -159,7 +161,7 @@ Examples:
        
      Add a LUN to a group:
        scstadmin -add_lun 1 -driver qla2x00t -target 50:06:0B:00:00:39:71:78 \
-         -group HOST01 -device DISK01 -parameters read_only=1
+         -group HOST01 -device DISK01 -attributes read_only=1
 
      Enable target mode for fibre card specifying its WWN
        scstadmin -enable_target 50:06:0B:00:00:39:71:78 -driver qla2x00t
@@ -250,7 +252,7 @@ sub getArgs {
 	my $issueLip;
 
 	my $handler;
-	my $parameters;
+	my $attributes;
 
 	my $driver;
 	my $target;
@@ -258,6 +260,7 @@ sub getArgs {
 	my $to;
 	my $device;
 
+	my $nonkey;
 	my $noprompt;
 	my $force;
 
@@ -313,7 +316,7 @@ sub getArgs {
 			    'issue_lip'		=> \$issueLip,
 
 			    'handler=s'		=> \$handler,
-			    'parameters=s'	=> \$parameters,
+			    'attributes=s'	=> \$attributes,
 
 			    'driver=s'		=> \$driver,
 			    'target=s'		=> \$target,
@@ -321,6 +324,7 @@ sub getArgs {
 			    'to=s'		=> \$to,
 			    'device=s'		=> \$device,
 
+			    'nonkey'		=> \$nonkey,
 			    'noprompt'		=> \$noprompt,
 			    'force'		=> \$force,
 			    'debug'             => \$_DEBUG_)) {
@@ -337,6 +341,7 @@ sub getArgs {
 	$listSessions = TRUE if (defined($listSessions));
 	$listScstParm = TRUE if (defined($listScstParm));
 	$setScstParm = TRUE if (defined($setScstParm));
+	$nonkey = TRUE if (defined($nonkey));
 
 	my $query_mode = defined($listHandler) || defined($listDevice) || defined($listDriver) ||
 	  defined($listTarget) || defined($listGroup) || defined($listSessions) || defined($listScstParm) ||
@@ -377,38 +382,38 @@ sub getArgs {
 		usage();
 	}
 
-	if ($setScstParm && !$parameters) {
-		print "Please specify -parameters with -set_scst_parm.\n";
+	if ($setScstParm && !$attributes) {
+		print "Please specify -attributes with -set_scst_parm.\n";
 		usage();
 	}
 
-	if ($setHandlerParm && !$parameters) {
-		print "Please specify -parameters with -set_hnd_parm.\n";
+	if ($setHandlerParm && !$attributes) {
+		print "Please specify -attributes with -set_hnd_parm.\n";
 		usage();
 	}
 
-	if ($setDeviceParm && !$parameters) {
-		print "Please specify -parameters with -set_dev_parm.\n";
+	if ($setDeviceParm && !$attributes) {
+		print "Please specify -attributes with -set_dev_parm.\n";
 		usage();
 	}
 
-	if ($setDriverParm && !$parameters) {
-		print "Please specify -parameters with -set_drv_parm.\n";
+	if ($setDriverParm && !$attributes) {
+		print "Please specify -attributes with -set_drv_parm.\n";
 		usage();
 	}
 
-	if ($setTargetParm && (!$driver || !$parameters)) {
-		print "Please specify -driver and -parameters with -set_tgt_parm.\n";
+	if ($setTargetParm && (!$driver || !$attributes)) {
+		print "Please specify -driver and -attributes with -set_tgt_parm.\n";
 		usage();
 	}
 
-	if ($setLunParm && (!$driver || !$target || !$group || !$parameters)) {
-		print "Please specify -driver -target -group and -parameters with -set_lun_parm.\n";
+	if ($setLunParm && (!$driver || !$target || !$group || !$attributes)) {
+		print "Please specify -driver -target -group and -attributes with -set_lun_parm.\n";
 		usage();
 	}
 
-	if ($setDeviceParm && (!$driver || !$target || !$group || !$parameters)) {
-		print "Please specify -driver -target -group and -parameters with -set_ini_parm.\n";
+	if ($setDeviceParm && (!$driver || !$target || !$group || !$attributes)) {
+		print "Please specify -driver -target -group and -attributes with -set_ini_parm.\n";
 		usage();
 	}
 
@@ -444,21 +449,25 @@ sub getArgs {
 		usage();
 	}
 
+	if ($nonkey && !defined($writeConfig)) {
+		print "Option -nonkey ignored since -writeConfig was not specified.\n";
+	}
+
 	$applyConfig = $_DEF_CONFIG_ if (defined($applyConfig) && !$applyConfig);
 	$checkConfig = $_DEF_CONFIG_ if (defined($checkConfig) && !$checkConfig);
 
-	my %_parameters;
-	if ($parameters) {
-		foreach my $parameter (split(/\,/, $parameters)) {
+	my %_attributes;
+	if ($attributes) {
+		foreach my $attribute (split(/\,/, $attributes)) {
 			my $value;
 
-			if ($parameter =~ /\=/) {
+			if ($attribute =~ /\=/) {
 				$value = TRUE;
 			} else {
-				($parameter, $value) = split(/\=/, $parameter, 2);
+				($attribute, $value) = split(/\=/, $attribute, 2);
 			}
 
-			$_parameters{$parameter} = $value;
+			$_attributes{$attribute} = $value;
 		}
 	}
 
@@ -472,9 +481,9 @@ sub getArgs {
 		$addInitiator, $removeInitiator, $moveInitiator, $clearInitiators,
 		$addLun, $removeLun, $replaceLun, $clearLuns,
 		$enableTarget, $disableTarget, $issueLip,
-		$handler, \%_parameters,
+		$handler, \%_attributes,
 		$driver, $target, $group, $to, $device,
-		$noprompt, $force);
+		$nonkey, $noprompt, $force);
 }
 
 sub main {
@@ -495,9 +504,9 @@ sub main {
 	    $addInitiator, $removeInitiator, $moveInitiator, $clearInitiators,
 	    $addLun, $removeLun, $replaceLun, $clearLuns,
 	    $enableTarget, $disableTarget, $issueLip,
-	    $handler, $parameters,
+	    $handler, $attributes,
 	    $driver, $target, $group, $to, $device,
-	    $noprompt, $force) = getArgs();
+	    $nonkey, $noprompt, $force) = getArgs();
 
 	$SCST = new SCST::SCST($_DEBUG_);
 
@@ -517,7 +526,7 @@ sub main {
 			last SWITCH;
 		};
 		$writeConfig && do {
-			$rc = writeConfiguration($writeConfig);
+			$rc = writeConfiguration($writeConfig, $nonkey);
 			last SWITCH;
 		};
 		$clearConfig && do {
@@ -553,59 +562,59 @@ sub main {
 			$all_good = TRUE;
 		};
 		$listHandlerParm && do {
-			$rc = listHandlerParameters($listHandlerParm);
+			$rc = listHandlerAttributes($listHandlerParm);
 			$all_good = TRUE;
 		};
 		$listDeviceParm && do {
-			$rc = listDeviceParameters($listDeviceParm);
+			$rc = listDeviceAttributes($listDeviceParm);
 			$all_good = TRUE;
 		};
 		$listDriverParm && do {
-			$rc = listDriverParameters($listHandlerParm);
+			$rc = listDriverAttributes($listHandlerParm);
 			$all_good = TRUE;
 		};
 		$listTargetParm && do {
-			$rc = listTargetParameters($listTargetParm, $driver);
+			$rc = listTargetAttributes($listTargetParm, $driver);
 			$all_good = TRUE;
 		};
 		$listLunParm && do {
-			$rc = listLunParameters($listLunParm, $driver, $target, $group);
+			$rc = listLunAttributes($listLunParm, $driver, $target, $group);
 			$all_good = TRUE;
 		};
 		$listInitiatorParm && do {
-			$rc = listInitiatorParameters($listInitiatorParm, $driver, $target, $group);
+			$rc = listInitiatorAttributes($listInitiatorParm, $driver, $target, $group);
 			$all_good = TRUE;
 		};
 		$setScstParm && do {
-			$rc = setScstParameters($parameters);
+			$rc = setScstAttributes($attributes);
 			last SWITCH;
 		};
 		$setHandlerParm && do {
-			$rc = setHandlerParameters($setHandlerParm, $parameters);
+			$rc = setHandlerAttributes($setHandlerParm, $attributes);
 			last SWITCH;
 		};
 		$setDeviceParm && do {
-			$rc = setDeviceParameters($setDeviceParm, $parameters);
+			$rc = setDeviceAttributes($setDeviceParm, $attributes);
 			last SWITCH;
 		};
 		$setDriverParm && do {
-			$rc = setDriverParameters($setDriverParm, $parameters);
+			$rc = setDriverAttributes($setDriverParm, $attributes);
 			last SWITCH;
 		};
 		$setTargetParm && do {
-			$rc = setTargetParameters($setTargetParm, $driver, $parameters);
+			$rc = setTargetAttributes($setTargetParm, $driver, $attributes);
 			last SWITCH;
 		};
 		$setLunParm && do {
-			$rc = setLunParameters($setLunParm, $driver, $target, $parameters, $group);
+			$rc = setLunAttributes($setLunParm, $driver, $target, $attributes, $group);
 			last SWITCH;
 		};
 		$setInitiatorParm && do {
-			$rc = setInitiatorParameters($setInitiatorParm, $driver, $target, $group, $parameters);
+			$rc = setInitiatorAttributes($setInitiatorParm, $driver, $target, $group, $attributes);
 			last SWITCH;
 		};
 		$openDev && do {
-			$rc = openDevice($openDev, $handler, $parameters);
+			$rc = openDevice($openDev, $handler, $attributes);
 			last SWITCH;
 		};
 		$closeDev && do {
@@ -641,7 +650,7 @@ sub main {
 			last SWITCH;
 		};
 		$addLun && do {
-			$rc = addLun($addLun, $driver, $target, $device, $parameters, $group);
+			$rc = addLun($addLun, $driver, $target, $device, $attributes, $group);
 			last SWITCH;
 		};
 		$removeLun && do {
@@ -649,7 +658,7 @@ sub main {
 			last SWITCH;
 		};
 		$replaceLun && do {
-			$rc = replaceLun($replaceLun, $driver, $target, $group, $device, $parameters);
+			$rc = replaceLun($replaceLun, $driver, $target, $group, $device, $attributes);
 			last SWITCH;
 		};
 		$clearLuns && do {
@@ -717,10 +726,10 @@ sub readWorkingConfig {
 			my $groups = $SCST->groups($driver, $target);
 			immediateExit($SCST->errorString());
 			foreach my $group (@{$groups}) {
-				$CURRENT{'assign'}->{$driver}->{$target}->{$group}->{'INITIATORS'} =
+				$CURRENT{'assign'}->{$driver}->{$target}->{'GROUPS'}->{$group}->{'INITIATORS'} =
 				  $SCST->initiators($driver, $target, $group);
 				immediateExit($SCST->errorString());
-				$CURRENT{'assign'}->{$driver}->{$target}->{$group}->{'LUNS'} =
+				$CURRENT{'assign'}->{$driver}->{$target}->{'GROUPS'}->{$group}->{'LUNS'} =
 				  $SCST->luns($driver, $target, $group);
 				immediateExit($SCST->errorString());
 			}
@@ -732,6 +741,7 @@ sub readWorkingConfig {
 
 sub writeConfiguration {
 	my $file = shift;
+	my $nonkey = shift;
 
 	if (-f $file) {
 		if (!unlink $file) {
@@ -752,16 +762,24 @@ sub writeConfiguration {
 
 	print $io "# Automatically generated by $Version.\n\n";
 
-	my $parameters = $SCST->scstParameters();
+	my $attributes = $SCST->scstAttributes();
 	immediateExit($SCST->errorString());
 
-	foreach my $parameter (sort keys %{$parameters}) {
-		next if (defined($$parameters{$parameter}->{'set'}));
+	foreach my $attribute (sort keys %{$attributes}) {
+		next if (defined($$attributes{$attribute}->{'set'}));
 
-		if (!$$parameters{$parameter}->{'static'}) {
-			my $value = $$parameters{$parameter}->{'value'};
-			$value = "\"$value\"" if ($value =~ / /);
-			print $io "$parameter $value\n" if (defined($value));
+		if (!$$attributes{$attribute}->{'static'}) {
+			if (defined($$attributes{$attribute}->{'keys'})) {
+				foreach my $key (@{$$attributes{$attribute}->{'keys'}}) {
+					my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
+					$value = "\"$value\"" if ($value =~ / /);
+					print $io "\t$attribute $value\n" if (defined($value));
+				}
+			} else {
+				my $value = $$attributes{$attribute}->{'value'};
+				$value = "\"$value\"" if ($value =~ / /);
+				print $io "$attribute $value\n" if (defined($value));
+			}
 		}
 	}
 
@@ -769,18 +787,26 @@ sub writeConfiguration {
 
 	foreach my $handler (sort keys %{$CURRENT{'handler'}}) {
 		my $handler_buff;
+		my $handler_buff_nk;
 
-		my $handler_params = $SCST->deviceCreateParameters($handler);
+		my $handler_attrs = $SCST->deviceCreateAttributes($handler);
+		$attributes = $SCST->handlerAttributes($handler);
 
-		$parameters = $SCST->handlerParameters($handler);
+		foreach my $attribute (sort keys %{$attributes}) {
+			next if (defined($$attributes{$attribute}->{'set'}));
 
-		foreach my $parameter (sort keys %{$parameters}) {
-			next if (defined($$parameters{$parameter}->{'set'}));
-
-			if (!$$parameters{$parameter}->{'static'}) {
-				my $value = $$parameters{$parameter}->{'value'};
-				$value = "\"$value\"" if ($value =~ / /);
-				$handler_buff .= "\t$parameter $value\n" if (defined($value));
+			if (!$$attributes{$attribute}->{'static'}) {
+				if (defined($$attributes{$attribute}->{'keys'})) {
+					foreach my $key (@{$$attributes{$attribute}->{'keys'}}) {
+						my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
+						$value = "\"$value\"" if ($value =~ / /);
+						$handler_buff .= "\t$attribute $value\n" if (defined($value));
+					}
+				} elsif ($nonkey) {
+					my $value = $$attributes{$attribute}->{'value'};
+					$value = "\"$value\"" if ($value =~ / /);
+					$handler_buff_nk .= "\t$attribute $value\n" if (defined($value));
+				}
 			}
 		}
 
@@ -790,45 +816,67 @@ sub writeConfiguration {
 		foreach my $device (@{$devices}) {
 			$device_buff .= "\tDEVICE $device";
 
-			$parameters = $SCST->deviceParameters($device);
+			$attributes = $SCST->deviceAttributes($device);
 
-			my $parameter_buff;
-			foreach my $parameter (sort keys %{$parameters}) {
-				next if (defined($$parameters{$parameter}->{'set'}));
+			my $attribute_buff;
+			my $attribute_buff_nk;
+			foreach my $attribute (sort keys %{$attributes}) {
+				next if (defined($$attributes{$attribute}->{'set'}));
 
-				if (!defined($$handler_params{$parameter})) {
-					if (!$$parameters{$parameter}->{'static'}) {
-						my $value = $$parameters{$parameter}->{'value'};
-						$value = "\"$value\"" if ($value =~ / /);
-						if (defined($value)) {
-							$parameter_buff .= "\t\t$parameter $value\n";
+				if (!defined($$handler_attrs{$attribute})) {
+					if (!$$attributes{$attribute}->{'static'}) {
+						if (defined($$attributes{$attribute}->{'keys'})) {
+							foreach my $key (@{$$attributes{$attribute}->{'keys'}}) {
+								my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
+								$value = "\"$value\"" if ($value =~ / /);
+								$attribute_buff .= "\t\t$attribute $value\n"
+								  if (defined($value));
+							}
+						} elsif ($nonkey) {
+							my $value = $$attributes{$attribute}->{'value'};
+							$value = "\"$value\"" if ($value =~ / /);
+							$attribute_buff_nk .= "\t\t$attribute $value\n"
+							 if (defined($value));
 						}
 					}
 				}
 			}
 
-			$parameter_buff .= "\n" if ($parameter_buff);
+			$attribute_buff .= "\n" if ($attribute_buff);
+			$attribute_buff_nk .= "\n" if ($attribute_buff_nk);
 
-			if (!defined($$parameters{'scsi_device'})) {
-				$parameter_buff .= "\t\tCREATE_ATTRIBUTES {\n";
+			if (!defined($$attributes{'scsi_device'})) {
+				$attribute_buff .= "\t\tCREATE_ATTRIBUTES {\n";
 
-				foreach my $parameter (sort keys %{$parameters}) {
-					next if (defined($$parameters{$parameter}->{'set'}));
+				foreach my $attribute (sort keys %{$attributes}) {
+					next if (defined($$attributes{$attribute}->{'set'}));
 
-					if (defined($$handler_params{$parameter})) {
-						my $value = $$parameters{$parameter}->{'value'};
-						$value = "\"$value\"" if ($value =~ / /);
-						$parameter_buff .= "\t\t\t$parameter $value\n"
-						  if (defined($value));
+					if (defined($$handler_attrs{$attribute})) {
+						if (defined($$attributes{$attribute}->{'keys'})) {
+							foreach my $key (keys %{$$attributes{$attribute}->{'keys'}}) {
+								my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
+								$value = "\"$value\"" if ($value =~ / /);
+								$attribute_buff .= "\t\t\t$attribute $value\n"
+								  if (defined($value));
+							}
+						# Shouldn't be any non-key create attributes
+						}
 					}
 				}
 
-				$parameter_buff .= "\t\t}\n";
+				$attribute_buff .= "\t\t}\n";
 			}
 
-			if ($parameter_buff) {
+			if ($attribute_buff_nk) {
+				$attribute_buff .= "\t\t# Non-key attributes\n";
+				$attribute_buff .= $attribute_buff_nk;
+			}
+
+			$attribute_buff =~ s/\n+$/\n/;
+
+			if ($attribute_buff) {
 				$device_buff .= " {\n";
-				$device_buff .= $parameter_buff;
+				$device_buff .= $attribute_buff;
 				$device_buff .= "\t}\n\n";
 			} else {
 				$device_buff .= "\n";
@@ -838,6 +886,11 @@ sub writeConfiguration {
 		$device_buff =~ s/\n+$/\n/;
 
 		$handler_buff .= $device_buff;
+
+		if ($handler_buff_nk) {
+			$handler_buff .= "\t# Non-key attributes\n";
+			$handler_buff .= $handler_buff_nk;
+		}
 
 		if ($handler_buff) {
 			print $io "HANDLER $handler {\n";
@@ -849,40 +902,126 @@ sub writeConfiguration {
 	foreach my $driver (sort keys %{$CURRENT{'assign'}}) {
 		my $driver_buff;
 
+		my $drv_attrs = $SCST->driverAttributes($driver);
+
+		my $drv_attr_buff;
+		my $drv_attr_buff_nk;
+		foreach my $attr (keys %{$drv_attrs}) {
+			next if ($$drv_attrs{$attr}->{'static'});
+			next if ($$drv_attrs{$attr}->{'set'});
+
+			if (defined($$drv_attrs{$attr}->{'keys'})) {
+				foreach my $key (keys %{$$drv_attrs{$attr}->{'keys'}}) {
+					my $value = $$drv_attrs{$attr}->{'keys'}->{$key}->{'value'};
+					$value = "\"$value\"" if ($value =~ / /);
+					$drv_attr_buff .= "\t$attr $value\n"
+					  if (defined($value));
+				}
+			} elsif ($nonkey) {
+				my $value = $$drv_attrs{$attr}->{'value'};
+				$value = "\"$value\"" if ($value =~ /\s/);
+				$drv_attr_buff_nk .= "\t$attr $value\n"
+				  if (defined($value));
+			}
+		}
+
+		$drv_attr_buff .= "\n" if ($drv_attr_buff);
+		$drv_attr_buff_nk .= "\n" if ($drv_attr_buff_nk);
+
 		my $targets = $CURRENT{'assign'}->{$driver};
 
 		my $target_buff;
 		foreach my $target (sort keys %{$targets}) {
 			$target_buff .= "\tTARGET $target";
 
-			my $tgt_params = $SCST->targetParameters($driver, $target);
+			my $tgt_attrs = $SCST->targetAttributes($driver, $target);
 
-			my $parameter_buff;
-			foreach my $parm (keys %{$tgt_params}) {
-				next if ($$tgt_params{$parm}->{'static'});
-				next if ($$tgt_params{$parm}->{'set'});
+			my $attribute_buff;
+			my $attribute_buff_nk;
+			foreach my $attr (keys %{$tgt_attrs}) {
+				next if ($$tgt_attrs{$attr}->{'static'});
+				next if ($$tgt_attrs{$attr}->{'set'});
 
-				my $value = $$tgt_params{$parm}->{'value'};
-
-				next if (!defined($value));
-
-				$value = "\"$value\"" if ($value =~ /\s/);
-
-				$parameter_buff .= "\t\t$parm $value\n";
+				if (defined($$tgt_attrs{$attr}->{'keys'})) {
+					foreach my $key (keys %{$$tgt_attrs{$attr}->{'keys'}}) {
+						my $value = $$tgt_attrs{$attr}->{'keys'}->{$key}->{'value'};
+						$value = "\"$value\"" if ($value =~ / /);
+						$attribute_buff .= "\t\t$attr $value\n"
+						  if (defined($value));
+					}
+				} elsif ($nonkey) {
+					my $value = $$tgt_attrs{$attr}->{'value'};
+					$value = "\"$value\"" if ($value =~ /\s/);
+					$attribute_buff_nk .= "\t\t$attr $value\n"
+					  if (defined($value));
+				}
 			}
 
-			$parameter_buff .= "\n" if ($parameter_buff);
+			$attribute_buff .= "\n" if ($attribute_buff);
+			$attribute_buff_nk .= "\n" if ($attribute_buff_nk);
 
-			my $groups = $CURRENT{'assign'}->{$driver}->{$target};
+			my $luns = $CURRENT{'assign'}->{$driver}->{$target}->{'LUNS'};
+			my $lun_attrs = $SCST->lunCreateAttributes($driver, $target);
+
+			my $t_lun_buff;
+			foreach my $lun (sort numerically keys %{$luns}) {
+				my $lun_dev = $$luns{$lun};
+
+				$t_lun_buff .= "\t\tLUN $lun $lun_dev";
+
+				$attributes = $SCST->lunAttributes($driver, $target, $lun);
+
+				my $l_attribute_buff;
+				my $l_attribute_buff_nk;
+				foreach my $attribute (sort keys %{$attributes}) {
+					next if (defined($$attributes{$attribute}->{'set'}));
+
+					if (!$$attributes{$attribute}->{'static'} ||
+					    defined($$lun_attrs{$attribute})) {
+						if (defined($$attributes{$attribute}->{'keys'})) {
+							foreach my $key (keys %{$$attributes{$attribute}->{'keys'}}) {
+								my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
+								$value = "\"$value\"" if ($value =~ / /);
+								$l_attribute_buff .= "\t\t\t$attribute $value\n"
+								  if (defined($value));
+							}
+						} elsif ($nonkey) {
+							my $value = $$attributes{$attribute}->{'value'};
+							$value = "\"$value\"" if ($value =~ / /);
+							if (defined($$lun_attrs{$attribute})) {
+								$l_attribute_buff .= "\t\t\t$attribute $value\n"
+								  if (defined($value));
+							} else {
+								$l_attribute_buff_nk .= "\t\t\t$attribute $value\n"
+								  if (defined($value));
+							}
+						}
+					}
+				}
+
+				if ($l_attribute_buff_nk) {
+					$l_attribute_buff .= "\t\t\t\t# Non-key attributes\n";
+					$l_attribute_buff .= $l_attribute_buff_nk;
+				}
+
+				if ($l_attribute_buff) {
+					$t_lun_buff .= " {\n";
+					$t_lun_buff .= $l_attribute_buff;
+					$t_lun_buff .= "\t\t}\n\n";
+				} else {
+					$t_lun_buff .= "\n";
+				}
+			}
+			my $groups = $CURRENT{'assign'}->{$driver}->{$target}->{'GROUPS'};
 
 			my $group_buff;
 			foreach my $group (sort keys %{$groups}) {
-				my $lun_params = $SCST->lunCreateParameters($driver, $target, $group);
-				my $ini_params = $SCST->initiatorCreateParameters($driver, $target, $group);
+				my $lun_attrs = $SCST->lunCreateAttributes($driver, $target, $group);
+				my $ini_attrs = $SCST->initiatorCreateAttributes($driver, $target, $group);
 
 				$group_buff .= "\t\tGROUP $group";
 
-				my $luns = $CURRENT{'assign'}->{$driver}->{$target}->{$group}->{'LUNS'};
+				my $luns = $CURRENT{'assign'}->{$driver}->{$target}->{'GROUPS'}->{$group}->{'LUNS'};
 
 				my $lun_buff;
 				foreach my $lun (sort numerically keys %{$luns}) {
@@ -890,54 +1029,89 @@ sub writeConfiguration {
 
 					$lun_buff .= "\t\t\tLUN $lun $lun_dev";
 
-					$parameters = $SCST->lunParameters($driver, $target, $lun, $group);
+					$attributes = $SCST->lunAttributes($driver, $target, $lun, $group);
 
-					my $parameter_buff;
-					foreach my $parameter (sort keys %{$parameters}) {
-						next if (defined($$parameters{$parameter}->{'set'}));
+					my $l_attribute_buff;
+					my $l_attribute_buff_nk;
+					foreach my $attribute (sort keys %{$attributes}) {
+						next if (defined($$attributes{$attribute}->{'set'}));
 
-						if (!$$parameters{$parameter}->{'static'} ||
-						    defined($$lun_params{$parameter})) {
-							my $value = $$parameters{$parameter}->{'value'};
-							$value = "\"$value\"" if ($value =~ / /);
-							$parameter_buff .= "\t\t\t\t$parameter $value\n"
-							  if (defined($value));
+						if (!$$attributes{$attribute}->{'static'} ||
+						    defined($$lun_attrs{$attribute})) {
+							if (defined($$attributes{$attribute}->{'keys'})) {
+								foreach my $key (keys %{$$attributes{$attribute}->{'keys'}}) {
+									my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
+									$value = "\"$value\"" if ($value =~ / /);
+									$l_attribute_buff .= "\t\t\t\t$attribute $value\n"
+									  if (defined($value));
+								}
+							} elsif ($nonkey) {
+								my $value = $$attributes{$attribute}->{'value'};
+								$value = "\"$value\"" if ($value =~ / /);
+								if (defined($$lun_attrs{$attribute})) {
+									$l_attribute_buff .= "\t\t\t\t$attribute $value\n"
+									  if (defined($value));
+								} else {
+									$l_attribute_buff_nk .= "\t\t\t\t$attribute $value\n"
+									  if (defined($value));
+								}
+							}
 						}
 					}
 
-					if ($parameter_buff) {
+					if ($l_attribute_buff_nk) {
+						$l_attribute_buff .= "\t\t\t\t# Non-key attributes\n";
+						$l_attribute_buff .= $l_attribute_buff_nk;
+					}
+
+					if ($l_attribute_buff) {
 						$lun_buff .= " {\n";
-						$lun_buff .= $parameter_buff;
+						$lun_buff .= $l_attribute_buff;
 						$lun_buff .= "\t\t\t}\n\n";
 					} else {
 						$lun_buff .= "\n";
 					}
 				}
 
-				my $inits = $CURRENT{'assign'}->{$driver}->{$target}->{$group}->{'INITIATORS'};
+				my $inits = $CURRENT{'assign'}->{$driver}->{$target}->{'GROUPS'}->{$group}->{'INITIATORS'};
 
 				my $init_buff;
 				foreach my $init (@{$inits}) {
 					$init_buff .= "\t\t\tINITIATOR $init";
 
-					$parameters = $SCST->initiatorParameters($driver, $target, $group, $init);
+					$attributes = $SCST->initiatorAttributes($driver, $target, $group, $init);
 
-					my $parameter_buff;
-					foreach my $parameter (sort keys %{$parameters}) {
-						next if (defined($$parameters{$parameter}->{'set'}));
+					my $i_attribute_buff;
+					my $i_attribute_buff_nk;
+					foreach my $attribute (sort keys %{$attributes}) {
+						next if (defined($$attributes{$attribute}->{'set'}));
 
-						if (!$$parameters{$parameter}->{'static'} ||
-						    defined($$ini_params{$parameter})) {
-							my $value = $$parameters{$parameter}->{'value'};
-							$value = "\"$value\"" if ($value =~ / /);
-							$parameter_buff .= "\t\t\t\t$parameter $value\n"
-							  if (defined($value));
+						if (!$$attributes{$attribute}->{'static'} ||
+						    defined($$ini_attrs{$attribute})) {
+							if (defined($$attributes{$attribute}->{'keys'})) {
+								foreach my $key (keys %{$$attributes{$attribute}->{'keys'}}) {
+									my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
+									$value = "\"$value\"" if ($value =~ / /);
+									$i_attribute_buff .= "\t\t\t\t$attribute $value\n"
+									  if (defined($value));
+								}
+							} elsif ($nonkey) {
+								my $value = $$attributes{$attribute}->{'value'};
+								$value = "\"$value\"" if ($value =~ / /);
+								$i_attribute_buff_nk .= "\t\t\t\t$attribute $value\n"
+								  if (defined($value));
+							}
 						}
 					}
 
-					if ($parameter_buff) {
+					if ($i_attribute_buff_nk) {
+						$i_attribute_buff .= "\t\t\t\t# Non-key attributes\n";
+						$i_attribute_buff .= $i_attribute_buff_nk;
+					}
+
+					if ($i_attribute_buff) {
 						$init_buff .= " {\n";
-						$init_buff .= $parameter_buff;
+						$init_buff .= i_$attribute_buff;
 						$init_buff .= "\t\t\t}\n";
 					} else {
 						$init_buff .= "\n";
@@ -968,17 +1142,19 @@ sub writeConfiguration {
 			}
 
 			$group_buff .= "\n" if ($group_buff);
+			$group_buff =~ s/\n+$/\n/;
 
-			if ($parameter_buff || $group_buff ) {
+			if ($attribute_buff_nk) {
+				$attribute_buff .= "\t\t# Non-key attributes\n";
+				$attribute_buff .= $attribute_buff_nk;
+			}
+
+			if ($attribute_buff || $t_lun_buff || $group_buff ) {
 				$target_buff .= " {\n";
 
-				if ($parameter_buff) {
-					$target_buff .= $parameter_buff;
-				}
-
-				if ($group_buff) {
-					$target_buff .= $group_buff;
-				}
+				$target_buff .= $attribute_buff;
+				$target_buff .= $t_lun_buff;
+				$target_buff .= $group_buff;
 
 				$target_buff =~ s/\n\n$/\n/;
 				$target_buff .= "\t}\n\n";
@@ -987,6 +1163,12 @@ sub writeConfiguration {
 			}
 		}
 
+		if ($drv_attr_buff_nk) {
+			$drv_attr_buff .= "\t# Non-key attributes\n";
+			$drv_attr_buff .= $drv_attr_buff_nk;
+		}
+
+		$driver_buff .= $drv_attr_buff;
 		$driver_buff .= $target_buff;
 		$driver_buff =~ s/\n\n$/\n/;
 
@@ -1056,10 +1238,6 @@ sub checkConfiguration {
 		}
 	}
 
-use Data::Dumper;
-#print Dumper($CONFIG);
-#print Dumper(\%CURRENT);
-
 	return FALSE;
 }
 
@@ -1081,17 +1259,17 @@ sub applyConfiguration {
 	applyConfigDevices($CONFIG, FALSE);
 	applyConfigAssignments($CONFIG, FALSE);
 
-	# And SCST parameters..
-	my %_parameters;
+	# And SCST attributes..
+	my %_attributes;
 	foreach my $item (keys %{$CONFIG}) {
 		next if ($item eq 'HANDLER');
 		next if ($item eq 'TARGET_DRIVER');
-		$_parameters{$item} = $$CONFIG{$item};
+		$_attributes{$item} = $$CONFIG{$item};
 	}
 
-	my $parameters = configToParm(\%_parameters);
+	my $attributes = configToParm(\%_attributes);
 
-	setScstParameters($parameters);
+	setScstAttributes($attributes);
 }
 
 sub applyConfigDevices {
@@ -1107,9 +1285,9 @@ sub applyConfigDevices {
 			    !defined($$config{'HANDLER'}->{$handler}->{'DEVICE'}) ||
 			    !defined($$config{'HANDLER'}->{$handler}->{'DEVICE'}->{$device})) {
 
-				my $parameters = $SCST->deviceParameters($device);
+				my $attributes = $SCST->deviceAttributes($device);
 
-				next if (defined($$parameters{'scsi_device'}));
+				next if (defined($$attributes{'scsi_device'}));
 
 				if ($deletions) {
 					closeDevice($device, $handler, $deletions);
@@ -1129,8 +1307,8 @@ sub applyConfigDevices {
 			foreach my $device (sort keys %{$devices}) {
 				next if (handlerHasDevice($handler, $device));
 
-				my $parameters = configToParm($$devices{$device}->{'CREATE_ATTRIBUTES'});
-				openDevice($device, $handler, $parameters);
+				my $attributes = configToParm($$devices{$device}->{'CREATE_ATTRIBUTES'});
+				openDevice($device, $handler, $attributes);
 			}
 		}
 	}
@@ -1163,11 +1341,11 @@ sub applyConfigAssignments {
 				}
 			}
 
-			foreach my $group (keys %{$$assignments{$driver}->{$target}}) {
+			foreach my $group (keys %{$$assignments{$driver}->{$target}->{'GROUPS'}}) {
 				next if ($group eq 'LUNS');
 
-				my $luns = $$assignments{$driver}->{$target}->{$group}->{'LUNS'};
-				my $inits = $$assignments{$driver}->{$target}->{$group}->{'INITIATORS'};
+				my $luns = $$assignments{$driver}->{$target}->{'GROUPS'}->{$group}->{'LUNS'};
+				my $inits = $$assignments{$driver}->{$target}->{'GROUPS'}->{$group}->{'INITIATORS'};
 
 				if (!defined($$config{'TARGET_DRIVER'}) ||
 				    !defined($$config{'TARGET_DRIVER'}->{$driver}) ||
@@ -1225,17 +1403,17 @@ sub applyConfigAssignments {
 			immediateExit("Target driver '$driver' is not loaded or available.");
 		}
 
-		my %_parameters;
+		my %_attributes;
 		foreach my $item (keys %{$$assignments{$driver}}) {
 			if ($item eq 'TARGET') {
 				applyTargetAssignments($driver, $$assignments{$driver}->{$item});
 			} else {
-				$_parameters{$item} = $$assignments{$driver}->{$item};
+				$_attributes{$item} = $$assignments{$driver}->{$item};
 			}
 
-			my $parameters = configToParm(\%_parameters);
+			my $attributes = configToParm(\%_attributes);
 
-			setDriverParameters($driver, $parameters);
+			setDriverAttributes($driver, $attributes);
 		}
 	}
 }
@@ -1249,7 +1427,7 @@ sub applyTargetAssignments {
 			if ($SCST->driverIsStatic($driver)) {
 				immediateExit("Target '$target' for driver '$driver' does not exist.");
 			} else {
-				# TODO: Add $parameters
+				# TODO: Add $attributes
 				print "-> Creating target '$target' for driver '$driver': ";
 				my $rc = $SCST->addTarget($driver, $target);
 				print "done.\n";
@@ -1258,20 +1436,20 @@ sub applyTargetAssignments {
 			}
 		}
 
-		my %_parameters;
+		my %_attributes;
 		foreach my $item (keys %{$$targets{$target}}) {
 			if ($item eq 'GROUP') {
 				applyGroupAssignments($driver, $target, $$targets{$target}->{$item});
 			} elsif ($item eq 'LUN') {
 				applyLunAssignments($driver, $target, undef, $$targets{$target}->{$item});
 			} else {
-				$_parameters{$item} = $$targets{$target}->{$item};
+				$_attributes{$item} = $$targets{$target}->{$item};
 			}
 		}
 
-		my $parameters = configToParm(\%_parameters);
+		my $attributes = configToParm(\%_attributes);
 
-		setTargetParameters($target, $driver, $parameters);
+		setTargetAttributes($target, $driver, $attributes);
 	}
 }
 
@@ -1281,12 +1459,12 @@ sub applyGroupAssignments {
 	my $groups = shift;
 
 	foreach my $group (sort keys %{$groups}) {
-		if (!defined($CURRENT{'assign'}->{$driver}->{$target}->{$group})) {
+		if (!defined($CURRENT{'assign'}->{$driver}->{$target}->{'GROUPS'}->{$group})) {
 			addGroup($group, $driver, $target);
 		}
 
 
-		my %_parameters;
+		my %_attributes;
 		foreach my $item (keys %{$$groups{$group}}) {
 			if ($item eq 'LUN') {
 				applyLunAssignments($driver, $target, $group,
@@ -1295,13 +1473,13 @@ sub applyGroupAssignments {
 				applyInitiatorAssignments($driver, $target, $group,
 				  $$groups{$group}->{$item});
 			} else {
-				$_parameters{$item} = $$groups{$group}->{$item};
+				$_attributes{$item} = $$groups{$group}->{$item};
 			}
 		}
 
-		my $parameters = configToParm(\%_parameters);
+		my $attributes = configToParm(\%_attributes);
 
-		setGroupParameters($target, $driver, $group, $parameters);
+		setGroupAttributes($target, $driver, $group, $attributes);
 	}
 }
 
@@ -1313,12 +1491,11 @@ sub applyLunAssignments {
 	my $c_luns;
 
 	if ($group) {
-		$c_luns = $CURRENT{'assign'}->{$driver}->{$target}->{$group}->{'LUNS'};
+		$c_luns = $CURRENT{'assign'}->{$driver}->{$target}->{'GROUPS'}->{$group}->{'LUNS'};
 	} else {
 		$c_luns = $CURRENT{'assign'}->{$driver}->{$target}->{'LUNS'};
 	}
-#use Data::Dumper;
-#print Dumper(\%CURRENT);
+
 	foreach my $lun (sort keys %{$luns}) {
 		if (!defined($$c_luns{$lun})) {
 			if ((scalar keys %{$$luns{$lun}}) > 1) {
@@ -1328,8 +1505,8 @@ sub applyLunAssignments {
 			}
 
 			foreach my $device (sort keys %{$$luns{$lun}}) {
-				my $parameters = configToParm($$luns{$lun}->{$device});
-				addLun($lun, $driver, $target, $device, $parameters, $group);
+				my $attributes = configToParm($$luns{$lun}->{$device});
+				addLun($lun, $driver, $target, $device, $attributes, $group);
 			}
 		}
 	}
@@ -1341,7 +1518,7 @@ sub applyInitiatorAssignments {
 	my $group = shift;
 	my $initiators = shift;
 
-	my $c_inits = $CURRENT{'assign'}->{$driver}->{$target}->{$group}->{'INITIATORS'};
+	my $c_inits = $CURRENT{'assign'}->{$driver}->{$target}->{'GROUPS'}->{$group}->{'INITIATORS'};
 
 	foreach my $initiator (sort keys %{$initiators}) {
 		if (!groupHasInitiator($c_inits, $initiator)) {
@@ -1358,11 +1535,13 @@ sub clearConfiguration {
 
 	foreach my $driver (sort keys %{$assignments}) {
 		foreach my $target (sort keys %{$$assignments{$driver}}) {
-			foreach my $group (sort keys %{$$assignments{$driver}->{$target}}) {
+			foreach my $group (sort keys %{$$assignments{$driver}->{$target}->{'GROUPS'}}) {
 				clearInitiators($driver, $target, $group);
 				clearLuns($driver, $target, $group);
 				removeGroup($group, $driver, $target, $force);
 			}
+
+			clearLuns($driver, $target);
 		}
 	}
 
@@ -1370,8 +1549,8 @@ sub clearConfiguration {
 
 	foreach my $handler (sort keys %{$handlers}) {
 		foreach my $device (@{$$handlers{$handler}}) {
-			my $parameters = $SCST->deviceParameters($device);
-			if (!defined($$parameters{'scsi_device'})) {
+			my $attributes = $SCST->deviceAttributes($device);
+			if (!defined($$attributes{'scsi_device'})) {
 				closeDevice($device, $handler, $force);
 			}
 		}
@@ -1614,12 +1793,12 @@ sub listGroups {
 
 sub listExported {
 	my $device = shift;
-	my $parameters = shift;
+	my $attributes = shift;
 
-	$parameters = $SCST->deviceParameters($device) if (!$parameters);
+	$attributes = $SCST->deviceAttributes($device) if (!$attributes);
 
-	if (keys %{$$parameters{'exported'}}) {
-		my $exported = $$parameters{'exported'}->{'value'};
+	if (keys %{$$attributes{'exported'}}) {
+		my $exported = $$attributes{'exported'}->{'value'};
 
 		my $l_driver;
 		my $l_target;
@@ -1663,64 +1842,64 @@ sub listExported {
 	}
 }
 
-sub listScstParameters {
+sub listScstAttributes {
 }
 
-sub listHandlerParameters {
+sub listHandlerAttributes {
 	my $handler = shift;
 
 }
 
-sub listDeviceParameters {
+sub listDeviceAttributes {
 	my $device = shift;
 	my $l_parm;
 	my $l_val;
 
-	my $parameters = $SCST->deviceParameters($device);
+	my $attributes = $SCST->deviceAttributes($device);
 	immediateExit($SCST->errorString());
 
-	foreach my $parameter (sort keys %{$parameters}) {
-		my $value = $$parameters{$parameter}->{'value'};
+	foreach my $attribute (sort keys %{$attributes}) {
+		my $value = $$attributes{$attribute}->{'value'};
 
 		next if (ref($value));
 
-		$l_parm = length($parameter) if (length($parameter) > $l_parm);
+		$l_parm = length($attribute) if (length($attribute) > $l_parm);
 		$l_val = length($value) if (length($value) > $l_val);
 	}
 
-	print "Parameters for device '$device':\n\n";
+	print "Attributes for device '$device':\n\n";
 
-	printf("\t%-*s %-*s %-5s\n", $l_parm, 'Parameter', $l_val, 'Value', 'Static');
+	printf("\t%-*s %-*s %-5s\n", $l_parm, 'Attribute', $l_val, 'Value', 'Static');
 	print "\t";
 	for (my $x = 0; $x < ($l_parm + $l_val + 8); $x++) {
 		print "-";
 	}
 	print "\n";
 
-	foreach my $parameter (sort keys %{$parameters}) {
-		my $value = $$parameters{$parameter}->{'value'};
-		my $static = $$parameters{$parameter}->{'static'};
+	foreach my $attribute (sort keys %{$attributes}) {
+		my $value = $$attributes{$attribute}->{'value'};
+		my $static = $$attributes{$attribute}->{'static'};
 
 		next if (ref($value));
 		$value = '-' if (!defined($value));
 		$static = ($static ? 'Yes' : 'No');
 
-		printf("\t%-*s %-*s %-5s\n", $l_parm, $parameter, $l_val, $value, $static);
+		printf("\t%-*s %-*s %-5s\n", $l_parm, $attribute, $l_val, $value, $static);
 	}
 }
 
-sub listDriverParameters {
+sub listDriverAttributes {
 	my $driver = shift;
 		
 }
 
-sub listTargetParameters {
+sub listTargetAttributes {
 	my $target = shift;
 	my $driver = shift;
 
 }
 
-sub listLunParameters {
+sub listLunAttributes {
 	my $lun = shift;
 	my $driver = shift;
 	my $target = shift;
@@ -1728,7 +1907,7 @@ sub listLunParameters {
 
 }
 
-sub listInitiatorParameters {
+sub listInitiatorAttributes {
 	my $initiator = shift;
 	my $driver = shift;
 	my $target = shift;
@@ -1738,229 +1917,321 @@ sub listInitiatorParameters {
 
 ####################################################################
 
-sub setScstParameters {
-	my $parameters = shift;
+sub setScstAttributes {
+	my $attributes = shift;
 
-	my $_parameters = $SCST->scstParameters();
+	my $_attributes = $SCST->scstAttributes();
 
-	foreach my $parameter (sort keys %{$parameters}) {
-		if (defined($$_parameters{$parameter}) &&
-		    !$$_parameters{$parameter}->{'static'}) {
-			my $value = $$parameters{$parameter};
+	foreach my $attribute (sort keys %{$attributes}) {
+		if (defined($$_attributes{$attribute}) &&
+		    !$$_attributes{$attribute}->{'static'}) {
+			my $value = $$attributes{$attribute};
 
-			next if ($$_parameters{$parameter}->{'value'} eq $value);
+			next if ($$_attributes{$attribute}->{'value'} eq $value);
 
-			print "-> Setting SCST parameter '$parameter' to '$value': ";
+			print "-> Setting SCST attribute '$attribute' to '$value': ";
 
-			my $rc = $SCST->setScstParameter($parameter, $value);
+			my $rc = $SCST->setScstAttribute($attribute, $value);
 
 			print "done.\n";
 
 			immediateExit($SCST->errorString($rc)) if ($rc);
 		} else {
 			print "-> WARNING: SCST lacks the settable ".
-			  "paraneter '$parameter', ignoring.\n";
+			  "attribute '$attribute', ignoring.\n";
 		}
 	}
 }
 
-sub setHandlerParameters {
+sub setHandlerAttributes {
 	my $handler = shift;
-	my $parameters = shift;
+	my $attributes = shift;
 
-	my $_parameters = $SCST->handlerParameters($handler);
+	my $_attributes = $SCST->handlerAttributes($handler);
 
-	foreach my $parameter (sort keys %{$parameters}) {
-		if (defined($$_parameters{$parameter}) &&
-		    !$$_parameters{$parameter}->{'static'}) {
-			my $value = $$parameters{$parameter};
+	foreach my $attribute (sort keys %{$attributes}) {
+		if (defined($$_attributes{$attribute}) &&
+		    !$$_attributes{$attribute}->{'static'}) {
+			my $value = $$attributes{$attribute};
 
-			print "-> Setting handler parameter '$parameter' to '$value' for handler '$handler': ";
+			print "-> Setting handler attribute '$attribute' to '$value' for handler '$handler': ";
 
-			my $rc = $SCST->setHandlerParameter($handler, $parameter, $value);
+			my $rc = $SCST->setHandlerAttribute($handler, $attribute, $value);
 
 			print "done.\n";
 
 			immediateExit($SCST->errorString($rc)) if ($rc);
 		} else {
 			print "-> WARNING: Handler '$handler' lacks the settable ".
-			  "parameter '$parameter', ignoring.\n";
+			  "attribute '$attribute', ignoring.\n";
 		}
 	}
 }
 
-sub setDeviceParameters {
+sub setDeviceAttributes {
 	my $device = shift;
-	my $parameters = shift;
+	my $attributes = shift;
 
-	my $_parameters = $SCST->deviceParameters($device);
+	my $_attributes = $SCST->deviceAttributes($device);
 
-	foreach my $parameter (sort keys %{$parameters}) {
-		if (defined($$_parameters{$parameter}) &&
-		    !$$_parameters{$parameter}->{'static'}) {
-			my $value = $$parameters{$parameter};
+	foreach my $attribute (sort keys %{$attributes}) {
+		if (defined($$_attributes{$attribute}) &&
+		    !$$_attributes{$attribute}->{'static'}) {
+			my $value = $$attributes{$attribute};
 
-			next if ($$_parameters{$parameter}->{'value'} eq $value);
+			next if ($$_attributes{$attribute}->{'value'} eq $value);
 
-			print "-> Setting device parameter '$parameter' to value '$value' for device '$device': ";
+			print "-> Setting device attribute '$attribute' to value '$value' for device '$device': ";
 
-			my $rc = $SCST->setDeviceParameter($device, $parameter, $value);
+			my $rc = $SCST->setDeviceAttribute($device, $attribute, $value);
 
 			print "done.\n";
 
 			immediateExit($SCST->errorString($rc)) if ($rc);
 		} else {
 			print "-> WARNING: Device '$device' lacks the settable ".
-			  "parameter '$parameter', ignoring.\n";
+			  "attribute '$attribute', ignoring.\n";
 		}
 	}
 }
 
-sub setDriverParameters {
+sub setDriverAttributes {
 	my $driver = shift;
-	my $parameters = shift;
+	my $attributes = shift;
 
-	my $_parameters = $SCST->driverParameters($driver);
+	my $_attributes = $SCST->driverAttributes($driver);
 
-	foreach my $parameter (sort keys %{$parameters}) {
-		if (defined($$_parameters{$parameter}) &&
-		    !$$_parameters{$parameter}->{'static'}) {
-			my $value = $$parameters{$parameter};
+	foreach my $attribute (sort keys %{$attributes}) {
+		if (defined($$_attributes{$attribute}) &&
+		    !$$_attributes{$attribute}->{'static'}) {
+			if (!defined($$_attributes{$attribute}->{'keys'})) {
+				my $value = $$attributes{$attribute};
 
-			next if ($$_parameters{$parameter}->{'value'} eq $value);
+				next if ($$_attributes{$attribute}->{'value'} eq $value);
 
-			print "-> Setting driver parameter '$parameter' to value '$value' for driver '$driver': ";
+				print "-> Setting driver attribute '$attribute' to value '$value' for driver '$driver': ";
 
-			my $rc = $SCST->setDriverParameter($driver, $parameter, $value);
+				my $rc = $SCST->setDriverAttribute($driver, $attribute, $value);
 
-			print "done.\n";
+				print "done.\n";
 
-			immediateExit($SCST->errorString($rc)) if ($rc);
+				immediateExit($SCST->errorString($rc)) if ($rc);
+			} else {
+				if (ref($$attributes{$attribute}) eq 'ARRAY') {
+					foreach my $value (@{$$attributes{$attribute}}) {
+						checkDriverKeyAttributes($driver, $attribute, $value,
+						 $$_attributes{$attribute}->{'keys'});
+					}
+				} else {
+					my $value = $$attributes{$attribute};
+					checkDriverKeyAttributes($driver, $attribute, $value,
+					  $$_attributes{$attribute}->{'keys'});
+				}
+			}
 		} else {
-			print "-> WARNING: Driver '$driver' lacks the settable ".
-			  "parameter '$parameter', ignoring.\n";
+			# Maybe we can add it..
+			my $value = $$attributes{$attribute};
+			my $rc = 1;
+			if (!$SCST->driverIsStatic($driver)) {
+				print "-> Attempting to add driver attribute '$attribute' with value '$value' for driver '$driver': ";
+				$rc = $SCST->addDriverAttribute($driver, $attribute, $value);
+				print "done.\n";
+			}
+
+			print "\t-> WARNING: Driver '$driver' lacks the settable ".
+			  "attribute '$attribute', ignoring.\n" if ($rc);
 		}
 	}
 }
 
-sub setTargetParameters {
+sub checkDriverKeyAttributes {
+	my $driver = shift;
+	my $attribute = shift;
+	my $value = shift;
+	my $keys = shift;
+
+	my $found = FALSE;
+	foreach my $key (keys %{$keys}) {
+		if ($$keys{$key}->{'value'} eq $value) {
+			$found = TRUE;
+			last;
+		}
+	}
+
+	if (!$found) {
+		print "-> Attempting to add driver attribute '$attribute' with value '$value' for driver '$driver': ";
+		my $rc = $SCST->addDriverAttribute($driver, $attribute, $value);
+		print "done.\n";
+
+		print "\t-> WARNING: Unable to add attribute '$attribute' with value ".
+		  "'$value' to driver '$driver': ".$SCST->errorString($rc)."\n" if ($rc);
+	}
+}
+
+sub setTargetAttributes {
 	my $target = shift;
 	my $driver = shift;
-	my $parameters = shift;
+	my $attributes = shift;
 
-	my $_parameters = $SCST->targetParameters($driver, $target);
+	my $_attributes = $SCST->targetAttributes($driver, $target);
 
-	foreach my $parameter (sort keys %{$parameters}) {
-		if (defined($$_parameters{$parameter}) &&
-		    !$$_parameters{$parameter}->{'static'}) {
-			my $value = $$parameters{$parameter};
+	foreach my $attribute (sort keys %{$attributes}) {
+		if (defined($$_attributes{$attribute}) &&
+		    !$$_attributes{$attribute}->{'static'}) {
+			if (!defined($$_attributes{$attribute}->{'keys'})) {
+				my $value = $$attributes{$attribute};
 
-			next if ($$_parameters{$parameter}->{'value'} eq $value);
+				next if ($$_attributes{$attribute}->{'value'} eq $value);
 
-			print "-> Setting target parameter '$parameter' to value '$value' for ".
-			  "driver/target '$driver/$target': ";
+				print "-> Setting target attribute '$attribute' to value '$value' for ".
+				  "driver/target '$driver/$target': ";
 
-			my $rc = $SCST->setTargetParameter($driver, $target, $parameter, $value);
+				my $rc = $SCST->setTargetAttribute($driver, $target, $attribute, $value);
 
-			print "done.\n";
+				print "done.\n";
 
-			immediateExit($SCST->errorString($rc)) if ($rc);
+				immediateExit($SCST->errorString($rc)) if ($rc);
+			} else {
+				if (ref($$attributes{$attribute}) eq 'ARRAY') {
+					foreach my $value (@{$$attributes{$attribute}}) {
+						checkTargetKeyAttributes($driver, $target, $attribute, $value,
+						 $$_attributes{$attribute}->{'keys'});
+					}
+				} else {
+					my $value = $$attributes{$attribute};
+					checkTargetKeyAttributes($driver, $target, $attribute, $value,
+					  $$_attributes{$attribute}->{'keys'});
+				}
+			}
+
 		} else {
-			print "-> WARNING: Driver/target '$driver/$target' lacks the settable ".
-			  "parameter '$parameter', ignoring.\n";
+			# Maybe we can add it..
+			my $value = $$attributes{$attribute};
+			my $rc = 1;
+			if (!$SCST->driverIsStatic($driver)) {
+				print "-> Attempting to add driver attribute '$attribute' with value '$value' for driver/target '$driver/$target': ";
+				$rc = $SCST->addTargetAttribute($driver, $target, $attribute, $value);
+				print "done.\n";
+			}
+
+			print "\t-> WARNING: Driver/target '$driver/$target' lacks the settable ".
+			  "attribute '$attribute', ignoring.\n" if ($rc);
 		}
 	}
 }
 
-sub setGroupParameters {
+sub checkTargetKeyAttributes {
+	my $driver = shift;
+	my $target = shift;
+	my $attribute = shift;
+	my $value = shift;
+	my $keys = shift;
+
+	my $found = FALSE;
+	foreach my $key (keys %{$keys}) {
+		if ($$keys{$key}->{'value'} eq $value) {
+			$found = TRUE;
+			last;
+		}
+	}
+
+	if (!$found) {
+		my $rc = $SCST->addTargetAttribute($driver, $target, $attribute, $value);
+
+		print "-> WARNING: Unable to add attribute '$attribute' with value ".
+		  "'$value' to driver/target '$driver/$target': ".$SCST->errorString($rc)."\n" if ($rc);
+	}
+}
+
+sub setGroupAttributes {
 	my $target = shift;
 	my $driver = shift;
 	my $group = shift;
-	my $parameters = shift;
+	my $attributes = shift;
 
-	my $_parameters = $SCST->groupParameters($driver, $target, $group);
+	my $_attributes = $SCST->groupAttributes($driver, $target, $group);
 
-	foreach my $parameter (sort keys %{$parameters}) {
-		if (defined($$_parameters{$parameter}) &&
-		    !$$_parameters{$parameter}->{'static'}) {
-			my $value = $$parameters{$parameter};
+	foreach my $attribute (sort keys %{$attributes}) {
+		if (defined($$_attributes{$attribute}) &&
+		    !$$_attributes{$attribute}->{'static'}) {
+			my $value = $$attributes{$attribute};
 
-			next if ($$_parameters{$parameter}->{'value'} eq $value);
+			next if ($$_attributes{$attribute}->{'value'} eq $value);
 
-			print "-> Setting group parameter '$parameter' to value '$value' for ".
+			print "-> Setting group attribute '$attribute' to value '$value' for ".
 			  "driver/target/group '$driver/$target/$group': ";
 
-			my $rc = $SCST->setGroupParameter($driver, $target, $group, $parameter, $value);
+			my $rc = $SCST->setGroupAttribute($driver, $target, $group, $attribute, $value);
 
 			print "done.\n";
 
 			immediateExit($SCST->errorString($rc)) if ($rc);
 		} else {
 			print "-> WARNING: Driver/target/group '$driver/$target/$group' lacks the settable ".
-			  "parameter '$parameter', ignoring.\n";
+			  "attribute '$attribute', ignoring.\n";
 		}
 	}
 }
 
-sub setLunParameters {
+sub setLunAttributes {
 	my $lun = shift;
 	my $driver = shift;
 	my $target = shift;
-	my $parameters = shift;
+	my $attributes = shift;
 	my $group = shift;
 
-	my $_parameters = $SCST->lunParameters($driver, $target, $lun, $group);
+	my $_attributes = $SCST->lunAttributes($driver, $target, $lun, $group);
 
-	foreach my $parameter (sort keys %{$parameters}) {
-		if (defined($$_parameters{$parameter}) &&
-		    !$$_parameters{$parameter}->{'static'}) {
-			my $value = $$parameters{$parameter};
+	foreach my $attribute (sort keys %{$attributes}) {
+		if (defined($$_attributes{$attribute}) &&
+		    !$$_attributes{$attribute}->{'static'}) {
+			my $value = $$attributes{$attribute};
 
-			next if ($$_parameters{$parameter}->{'value'} eq $value);
+			next if ($$_attributes{$attribute}->{'value'} eq $value);
 
-			print "-> Setting LUN parameter '$parameter' to value '$value' for ".
+			print "-> Setting LUN attribute '$attribute' to value '$value' for ".
 			  "driver/target/group/lun '$driver/$target/$group/$lun': ";
 
-			my $rc = $SCST->setLunParameter($driver, $target, $lun, $parameter, $value, $group);
+			my $rc = $SCST->setLunAttribute($driver, $target, $lun, $attribute, $value, $group);
 
 			print "done.\n";
 
 			immediateExit($SCST->errorString($rc)) if ($rc);
 		} else {
 			print "-> WARNING: Driver/target/group/lun '$driver/$target/$group/$lun' lacks the settable ".
-			  "parameter '$parameter', ignoring.\n";
+			  "attribute '$attribute', ignoring.\n";
 		}
 	}
 }
 
-sub setInitiatorParameters {
+sub setInitiatorAttributes {
 	my $initiator = shift;
 	my $driver = shift;
 	my $target = shift;
 	my $group = shift;
-	my $parameters = shift;
+	my $attributes = shift;
 
-	my $_parameters = $SCST->initiatorParameters($driver, $target, $group, $initiator);
+	my $_attributes = $SCST->initiatorAttributes($driver, $target, $group, $initiator);
 
-	foreach my $parameter (sort keys %{$parameters}) {
-		if (defined($$_parameters{$parameter}) &&
-		    !$$_parameters{$parameter}->{'static'}) {
-			my $value = $$parameters{$parameter};
+	foreach my $attribute (sort keys %{$attributes}) {
+		if (defined($$_attributes{$attribute}) &&
+		    !$$_attributes{$attribute}->{'static'}) {
+			my $value = $$attributes{$attribute};
 
-			next if ($$_parameters{$parameter}->{'value'} eq $value);
+			next if ($$_attributes{$attribute}->{'value'} eq $value);
 
-			print "-> Setting initiator parameter '$parameter' to value '$value' for ".
+			print "-> Setting initiator attribute '$attribute' to value '$value' for ".
 			  "driver/target/group/initiator '$driver/$target/$group/$initiator': ";
 
-			my $rc = $SCST->setInitiatorParameter($driver, $target, $group, $initiator,
-			  $parameter, $value);
+			my $rc = $SCST->setInitiatorAttribute($driver, $target, $group, $initiator,
+			  $attribute, $value);
 
 			print "done.\n";
 
 			immediateExit($SCST->errorString($rc)) if ($rc);
 		} else {
 			print "-> WARNING: Driver/target/group/initiator '$driver/$target/$group/$initiator' ".
-			  "lacks the settable parameter '$parameter', ignoring.\n";
+			  "lacks the settable attribute '$attribute', ignoring.\n";
 		}
 	}
 }
@@ -1970,11 +2241,11 @@ sub setInitiatorParameters {
 sub openDevice {
 	my $device = shift;
 	my $handler = shift;
-	my $parameters = shift;
+	my $attributes = shift;
 
 	print "-> Opening device '$device' using handler '$handler': ";
 
-	my $rc = $SCST->openDevice($handler, $device, $parameters);
+	my $rc = $SCST->openDevice($handler, $device, $attributes);
 
 	print "done.\n";
 
@@ -1986,13 +2257,13 @@ sub closeDevice {
 	my $handler = shift;
 	my $force = shift;
 
-	my $parameters = $SCST->deviceParameters($device);
+	my $attributes = $SCST->deviceAttributes($device);
 
-	return if (defined($$parameters{'scsi_device'}));
+	return if (defined($$attributes{'scsi_device'}));
 
 	if (!$force) {
-		if (keys %{$$parameters{'exported'}}) {
-			listExported($device, $parameters);
+		if (keys %{$$attributes{'exported'}}) {
+			listExported($device, $attributes);
 			immediateExit("Device '$device' still in use, aborting. ".
 			  "Use -force to override.");
 		}
@@ -2011,9 +2282,9 @@ sub resyncDevice {
 	my $device = shift;
 	my $rc = FALSE;
 
-	my %parameters = ('resync_size', 1);
+	my %attributes = ('resync_size', 1);
 
-	setDeviceParameters($device, \%parameters);
+	setDeviceAttributes($device, \%attributes);
 }
 
 ####################################################################
@@ -2128,7 +2399,7 @@ sub addLun {
 	my $driver = shift;
 	my $target = shift;
 	my $device = shift;
-	my $parameters = shift;
+	my $attributes = shift;
 	my $group = shift;
 
 	if ($group) {
@@ -2139,7 +2410,7 @@ sub addLun {
 		  "'$driver/$target': ";
 	}
 
-	my $rc = $SCST->addLun($driver, $target, $device, $lun, $parameters, $group);
+	my $rc = $SCST->addLun($driver, $target, $device, $lun, $attributes, $group);
 
 	print "done.\n";
 
@@ -2174,12 +2445,12 @@ sub replaceLun {
 	my $target = shift;
 	my $group = shift;
 	my $device = shift;
-	my $parameters = shift;
+	my $attributes = shift;
 
 	print "-> Replacing device '$device' at LUN $lun with device '$device' ".
 	  "in driver/target/group '$driver/$target/$group': ";
 
-	my $rc = $SCST->replaceLun($driver, $target, $group, $lun, $device, $parameters);
+	my $rc = $SCST->replaceLun($driver, $target, $group, $lun, $device, $attributes);
 
 	print "done.\n";
 
@@ -2259,7 +2530,7 @@ sub parseStanza {
 	my $buffer = shift;
 	my $line;
 	my %hash;
-	my $parameter;
+	my $attribute;
 	my $value;
 	my $value2;
 	my $quoted;
@@ -2307,16 +2578,16 @@ sub parseLine {
 		push @elements, defined($1) ? $1:$3;
 	}
 
-	my $parameter = @elements[0];
+	my $attribute = @elements[0];
 	my $value     = @elements[1];
 	my $value2    = @elements[2];
 
-	if (defined($parameter) && defined($value) && defined($value2)) {
-		$$hash{$parameter}->{$value}->{$value2} = $child;
-	} elsif (defined($parameter) && defined($value)) {
-		$$hash{$parameter}->{$value} = $child;
-	} elsif (defined($parameter)) {
-		$$hash{$parameter} = $child;
+	if (defined($attribute) && defined($value) && defined($value2)) {
+		$$hash{$attribute}->{$value}->{$value2} = $child;
+	} elsif (defined($attribute) && defined($value)) {
+		$$hash{$attribute}->{$value} = $child;
+	} elsif (defined($attribute)) {
+		$$hash{$attribute} = $child;
 	}
 }
 
@@ -2355,7 +2626,7 @@ sub readOldConfig {
 			$last_arg = $arg;
 			$last_section = $section;
 		} elsif ($section && $arg && $line) {
-			my($parameter, $value) = split(/\s+/, $line, 2);
+			my($attribute, $value) = split(/\s+/, $line, 2);
 
 			if ($section eq 'OPTIONS') {
 				$value = TRUE if (($value == 1) ||
@@ -2366,7 +2637,7 @@ sub readOldConfig {
 						   ($value =~ /^NO$/i));
 			}
 
-			push @{$config{$section}->{$arg}->{$parameter}}, $value;
+			push @{$config{$section}->{$arg}->{$attribute}}, $value;
 		}
 	}
 
@@ -2505,25 +2776,26 @@ sub groupHasInitiator {
 
 sub configToParm {
 	my $config = shift;
-	my %parameters;
+	my %attributes;
 
 	foreach my $parm (keys %{$config}) {
 		if ((keys %{$$config{$parm}}) > 1) {
-			immediateExit("Invalid configuration encountered. ".
-			  "Parameter '$parm' has multiple values!");
+			foreach my $value (keys %{$$config{$parm}}) {
+				push @{$attributes{$parm}}, $value if ($value);
+			}
 		}
 
 		foreach my $value (keys %{$$config{$parm}}) {
 			if (keys %{$$config{$parm}->{$value}}) {
 				immediateExit("Invalid configuration encountered. ".
-				  "Parameter '$parm' has an invalid value.");
+				  "Attribute '$parm' has an invalid value.");
 			}
 
-			$parameters{$parm} = $value;
+			$attributes{$parm} = $value;
 		}
 	}
 
-	return \%parameters;
+	return \%attributes;
 }			
 
 sub numerically {
