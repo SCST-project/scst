@@ -22,6 +22,13 @@ set, this attribute will become back to a none-key attribute.
 Each user configurable attribute with a not default value MUST be marked
 as key attribute.
 
+Key attributes SHOULD NOT have names finished on digits, because such
+names SHOULD be used to store several attributes with the same name. For
+instance, iSCSI targets can have several incoming user names, so the
+corresponding attribute should have sysfs name "IncomingUser". If there
+are several user names, they should have sysfs names "IncomingUser" and
+"IncomingUser1".
+
 
 I. Rules for target drivers
 ===========================
@@ -559,7 +566,11 @@ Algorithm to convert current SCST configuration to config file
 --------------------------------------------------------------
 
 A management utility SHOULD use the following algorithm when converting
-current SCST configuration to a config file:
+current SCST configuration to a config file.
+
+For all attributes with digits at the end the name, the digits part
+should be omitted from the attributes' names during the store. For
+instance, "IncomingUser1" should be stored as "IncomingUser".
 
 1. Scan all attributes in /sys/kernel/scst_tgt (not requirsive) and store
 all found key attributes.
@@ -666,7 +677,7 @@ only attributes as parameters.
 2.4. For pass-through dev handlers for each stores device:
 
 2.4.1. Assign the corresponding pass-through device to this dev handler
-using "add_device" command, if it isn't already auto assigned to it.
+using "add_device" command.
 
 3. For each target driver:
 
