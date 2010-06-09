@@ -38,99 +38,103 @@ SCST_T10_IO      => 't10_dev_id',
 
 # Module return codes
 SCST_C_FATAL_ERROR          => 2,
-SCST_C_BAD_PARAMETERS       => 7,
-SCST_C_PARAMETER_STATIC     => 8,
-SCST_C_SETPARAM_FAIL        => 9,
+SCST_C_BAD_ATTRIBUTES       => 7,
+SCST_C_ATTRIBUTE_STATIC     => 8,
+SCST_C_SETATTR_FAIL         => 9,
 
 SCST_C_HND_NO_HANDLER       => 10,
-SCST_C_HND_BAD_PARAMETERS   => 17,
-SCST_C_HND_PARAMETER_STATIC => 18,
-SCST_C_HND_SETPARAM_FAIL    => 19,
+SCST_C_HND_BAD_ATTRIBUTES   => 17,
+SCST_C_HND_ATTRIBUTE_STATIC => 18,
+SCST_C_HND_SETATTR_FAIL     => 19,
 
 SCST_C_DEV_NO_DEVICE        => 20,
 SCST_C_DEV_EXISTS           => 21,
 SCST_C_DEV_OPEN_FAIL        => 22,
 SCST_C_DEV_CLOSE_FAIL       => 23,
-SCST_C_DEV_BAD_PARAMETERS   => 27,
-SCST_C_DEV_PARAMETER_STATIC => 28,
-SCST_C_DEV_SETPARAM_FAIL    => 29,
+SCST_C_DEV_BAD_ATTRIBUTES   => 27,
+SCST_C_DEV_ATTRIBUTE_STATIC => 28,
+SCST_C_DEV_SETATTR_FAIL     => 29,
 
 SCST_C_DRV_NO_DRIVER        => 30,
 SCST_C_DRV_STATIC           => 31,
 SCST_C_DRV_SETATTR_FAIL     => 34,
-SCST_C_DRV_BAD_PARAMETERS   => 37,
-SCST_C_DRV_PARAMETER_STATIC => 38,
-SCST_C_DRV_SETPARAM_FAIL    => 39,
+SCST_C_DRV_ADDATTR_FAIL     => 35,
+SCST_C_DRV_REMATTR_FAIL     => 36,
+SCST_C_DRV_BAD_ATTRIBUTES   => 37,
+SCST_C_DRV_ATTRIBUTE_STATIC => 38,
+SCST_C_DRV_SETATTR_FAIL     => 39,
 
 SCST_C_TGT_NO_TARGET        => 40,
 SCST_C_TGT_EXISTS           => 41,
 SCST_C_TGT_ADD_FAIL         => 42,
 SCST_C_TGT_REM_FAIL         => 43,
 SCST_C_TGT_SETATTR_FAIL     => 44,
-SCST_C_TGT_NO_LUN           => 54,
-SCST_C_TGT_ADD_LUN_FAIL     => 45,
-SCST_C_TGT_LUN_EXISTS       => 46,
-SCST_C_TGT_BAD_PARAMETERS   => 47,
-SCST_C_TGT_PARAMETER_STATIC => 48,
-SCST_C_TGT_SETPARAM_FAIL    => 49,
-SCST_C_TGT_CLR_LUN_FAIL     => 55,
+SCST_C_TGT_ADDATTR_FAIL     => 45,
+SCST_C_TGT_REMATTR_FAIL     => 46,
+SCST_C_TGT_NO_LUN           => 47,
+SCST_C_TGT_ADD_LUN_FAIL     => 48,
+SCST_C_TGT_LUN_EXISTS       => 49,
+SCST_C_TGT_BAD_ATTRIBUTES   => 50,
+SCST_C_TGT_ATTRIBUTE_STATIC => 51,
+SCST_C_TGT_SETATTR_FAIL     => 52,
+SCST_C_TGT_CLR_LUN_FAIL     => 53,
 
-SCST_C_GRP_NO_GROUP         => 50,
-SCST_C_GRP_EXISTS           => 51,
-SCST_C_GRP_ADD_FAIL         => 52,
-SCST_C_GRP_REM_FAIL         => 53,
+SCST_C_GRP_NO_GROUP         => 60,
+SCST_C_GRP_EXISTS           => 61,
+SCST_C_GRP_ADD_FAIL         => 62,
+SCST_C_GRP_REM_FAIL         => 63,
 
-SCST_C_GRP_NO_LUN           => 60,
-SCST_C_GRP_LUN_EXISTS       => 61,
-SCST_C_GRP_ADD_LUN_FAIL     => 62,
-SCST_C_GRP_REM_LUN_FAIL     => 63,
-SCST_C_GRP_CLR_LUN_FAIL     => 65,
-SCST_C_GRP_BAD_PARAMETERS   => 67,
-SCST_C_GRP_PARAMETER_STATIC => 68,
-SCST_C_GRP_SETPARAM_FAIL    => 69,
+SCST_C_GRP_NO_LUN           => 70,
+SCST_C_GRP_LUN_EXISTS       => 71,
+SCST_C_GRP_ADD_LUN_FAIL     => 72,
+SCST_C_GRP_REM_LUN_FAIL     => 73,
+SCST_C_GRP_CLR_LUN_FAIL     => 75,
+SCST_C_GRP_BAD_ATTRIBUTES   => 77,
+SCST_C_GRP_ATTRIBUTE_STATIC => 78,
+SCST_C_GRP_SETATTR_FAIL     => 79,
 
-SCST_C_GRP_NO_INI           => 70,
-SCST_C_GRP_INI_EXISTS       => 71,
-SCST_C_GRP_ADD_INI_FAIL     => 72,
-SCST_C_GRP_REM_INI_FAIL     => 73,
-SCST_C_GRP_MOV_INI_FAIL     => 74,
-SCST_C_GRP_CLR_INI_FAIL     => 75,
+SCST_C_GRP_NO_INI           => 80,
+SCST_C_GRP_INI_EXISTS       => 81,
+SCST_C_GRP_ADD_INI_FAIL     => 82,
+SCST_C_GRP_REM_INI_FAIL     => 83,
+SCST_C_GRP_MOV_INI_FAIL     => 84,
+SCST_C_GRP_CLR_INI_FAIL     => 85,
 
-SCST_C_LUN_DEV_EXISTS       => 81,
-SCST_C_LUN_RPL_DEV_FAIL     => 86,
-SCST_C_LUN_BAD_PARAMETERS   => 87,
-SCST_C_LUN_PARAMETER_STATIC => 88,
-SCST_C_LUN_SETPARAM_FAIL    => 89,
+SCST_C_LUN_DEV_EXISTS       => 91,
+SCST_C_LUN_RPL_DEV_FAIL     => 96,
+SCST_C_LUN_BAD_ATTRIBUTES   => 97,
+SCST_C_LUN_ATTRIBUTE_STATIC => 98,
+SCST_C_LUN_SETATTR_FAIL     => 99,
 
-SCST_C_INI_BAD_PARAMETERS   => 97,
-SCST_C_INI_PARAMETER_STATIC => 98,
-SCST_C_INI_SETPARAM_FAIL    => 99,
+SCST_C_INI_BAD_ATTRIBUTES   => 100,
+SCST_C_INI_ATTRIBUTE_STATIC => 101,
+SCST_C_INI_SETATTR_FAIL     => 102,
 };
 
 my %VERBOSE_ERROR = (
 (SCST_C_FATAL_ERROR)          => 'A fatal error occured. See "dmesg" for more information.',
-(SCST_C_BAD_PARAMETERS)       => 'Bad parameters given for SCST.',
-(SCST_C_PARAMETER_STATIC)     => 'SCST parameter specified is static',
-(SCST_C_SETPARAM_FAIL)        => 'Failed to set a SCST parameter. See "demsg" for more information.',
+(SCST_C_BAD_ATTRIBUTES)       => 'Bad attributes given for SCST.',
+(SCST_C_ATTRIBUTE_STATIC)     => 'SCST attribute specified is static',
+(SCST_C_SETATTR_FAIL)         => 'Failed to set a SCST attribute. See "demsg" for more information.',
 
 (SCST_C_HND_NO_HANDLER)       => 'No such handler exists.',
-(SCST_C_HND_BAD_PARAMETERS)   => 'Bad parameters given for handler.',
-(SCST_C_HND_PARAMETER_STATIC) => 'Handler parameter given is static.',
-(SCST_C_HND_SETPARAM_FAIL)    => 'Failed to set handler parameter. See "dmesg" for more information.',
+(SCST_C_HND_BAD_ATTRIBUTES)   => 'Bad attributes given for handler.',
+(SCST_C_HND_ATTRIBUTE_STATIC) => 'Handler attribute given is static.',
+(SCST_C_HND_SETATTR_FAIL)     => 'Failed to set handler attribute. See "dmesg" for more information.',
 
 (SCST_C_DEV_NO_DEVICE)        => 'No such device exists.',
 (SCST_C_DEV_EXISTS)           => 'Device already exists.',
 (SCST_C_DEV_OPEN_FAIL)        => 'Failed to open device. See "dmesg" for more information.',
 (SCST_C_DEV_CLOSE_FAIL)       => 'Failed to close device. See "dmesg" for more information.',
-(SCST_C_DEV_BAD_PARAMETERS)   => 'Bad parameters given for device.',
-(SCST_C_DEV_PARAMETER_STATIC) => 'Device parameter specified is static.',
-(SCST_C_DEV_SETPARAM_FAIL)    => 'Failed to set device parameter. See "dmesg" for more information.',
+(SCST_C_DEV_BAD_ATTRIBUTES)   => 'Bad attributes given for device.',
+(SCST_C_DEV_ATTRIBUTE_STATIC) => 'Device attribute specified is static.',
+(SCST_C_DEV_SETATTR_FAIL)     => 'Failed to set device attribute. See "dmesg" for more information.',
 
 (SCST_C_DRV_NO_DRIVER)        => 'No such driver exists.',
-(SCST_C_DRV_STATIC)           => 'Driver is incapable of dynamically adding/removing targets.',
-(SCST_C_DRV_BAD_PARAMETERS)   => 'Bad parameters given for driver.',
-(SCST_C_DRV_PARAMETER_STATIC) => 'Driver parameter specified is static.',
-(SCST_C_DRV_SETPARAM_FAIL)    => 'Failed to set driver parameter. See "dmesg" for more information.',
+(SCST_C_DRV_STATIC)           => 'Driver is incapable of dynamically adding/removing targets or attributes.',
+(SCST_C_DRV_BAD_ATTRIBUTES)   => 'Bad attributes given for driver.',
+(SCST_C_DRV_ATTRIBUTE_STATIC) => 'Driver attribute specified is static.',
+(SCST_C_DRV_SETATTR_FAIL)     => 'Failed to set driver attribute. See "dmesg" for more information.',
 
 (SCST_C_TGT_NO_TARGET)        => 'No such target exists.',
 (SCST_C_TGT_EXISTS)           => 'Target already exists.',
@@ -140,9 +144,9 @@ my %VERBOSE_ERROR = (
 (SCST_C_TGT_NO_LUN)           => 'No such LUN exists.',
 (SCST_C_TGT_ADD_LUN_FAIL)     => 'Failed to add LUN. See "dmesg" for more information.',
 (SCST_C_TGT_LUN_EXISTS)       => 'LUN already exists.',
-(SCST_C_TGT_BAD_PARAMETERS)   => 'Bad parameters given for target.',
-(SCST_C_TGT_PARAMETER_STATIC) => 'Target parameter specified is static.',
-(SCST_C_TGT_SETPARAM_FAIL)    => 'Failed to set target parameter. See "dmesg" for more information.',
+(SCST_C_TGT_BAD_ATTRIBUTES)   => 'Bad attributes given for target.',
+(SCST_C_TGT_ATTRIBUTE_STATIC) => 'Target attribute specified is static.',
+(SCST_C_TGT_SETATTR_FAIL)     => 'Failed to set target attribute. See "dmesg" for more information.',
 (SCST_C_TGT_CLR_LUN_FAIL)     => 'Failed to clear LUNs from target. See "dmesg" for more information.',
 
 (SCST_C_GRP_NO_GROUP)         => 'No such group exists.',
@@ -155,9 +159,9 @@ my %VERBOSE_ERROR = (
 (SCST_C_GRP_ADD_LUN_FAIL)     => 'Failed to add LUN. See "dmesg" for more information.',
 (SCST_C_GRP_REM_LUN_FAIL)     => 'Failed to remove LUN. See "dmesg" for more information.',
 (SCST_C_GRP_CLR_LUN_FAIL)     => 'Failed to clear LUNs from group. See "dmesg" for more information.',
-(SCST_C_GRP_BAD_PARAMETERS)   => 'Bad parameters given for group.',
-(SCST_C_GRP_PARAMETER_STATIC) => 'Group parameter specified is static.',
-(SCST_C_GRP_SETPARAM_FAIL)    => 'Failed to set group parameter. See "dmesg" for more information.',
+(SCST_C_GRP_BAD_ATTRIBUTES)   => 'Bad attributes given for group.',
+(SCST_C_GRP_ATTRIBUTE_STATIC) => 'Group attribute specified is static.',
+(SCST_C_GRP_SETATTR_FAIL)     => 'Failed to set group attribute. See "dmesg" for more information.',
 
 (SCST_C_GRP_NO_INI)           => 'No such initiator exists.',
 (SCST_C_GRP_INI_EXISTS)       => 'Initiator already exists.',
@@ -168,13 +172,13 @@ my %VERBOSE_ERROR = (
 
 (SCST_C_LUN_DEV_EXISTS)       => 'Device already exists for LUN.',
 (SCST_C_LUN_RPL_DEV_FAIL)     => 'Failed to replace device for LUN. See "dmesg" for more information.',
-(SCST_C_LUN_BAD_PARAMETERS)   => 'Bad parameters for LUN.',
-(SCST_C_LUN_PARAMETER_STATIC) => 'LUN parameter specified is static.',
-(SCST_C_LUN_SETPARAM_FAIL)    => 'Failed to set LUN parameter. See "dmesg" for more information.',
+(SCST_C_LUN_BAD_ATTRIBUTES)   => 'Bad attributes for LUN.',
+(SCST_C_LUN_ATTRIBUTE_STATIC) => 'LUN attribute specified is static.',
+(SCST_C_LUN_SETATTR_FAIL)     => 'Failed to set LUN attribute. See "dmesg" for more information.',
 
-(SCST_C_INI_BAD_PARAMETERS)   => 'Bad parameters for initiator.',
-(SCST_C_INI_PARAMETER_STATIC) => 'Initiator parameter specified is static.',
-(SCST_C_INI_SETPARAM_FAIL)    => 'Failed to set initiator parameter. See "dmesg" for more information.',
+(SCST_C_INI_BAD_ATTRIBUTES)   => 'Bad attributes for initiator.',
+(SCST_C_INI_ATTRIBUTE_STATIC) => 'Initiator attribute specified is static.',
+(SCST_C_INI_SETATTR_FAIL)     => 'Failed to set initiator attribute. See "dmesg" for more information.',
 );
 
 use vars qw(@ISA @EXPORT $VERSION);
@@ -219,34 +223,34 @@ sub new {
 sub scstVersion {
 	my $self = shift;
 
-	my $parameters = $self->scstParameters();
+	my $attributes = $self->scstAttributes();
 
-	return undef if (!defined($parameters));
-	return $$parameters{'version'}->{'value'};
+	return undef if (!defined($attributes));
+	return $$attributes{'version'}->{'value'};
 }
 
-sub scstParameters {
+sub scstAttributes {
 	my $self = shift;
-	my %parameters;
+	my %attributes;
 
 	my $pHandle = new IO::Handle;	
 	my $_path = mkpath(SCST_ROOT); 
 	if (!(opendir $pHandle, $_path)) {
-		$self->{'err_string'} = "scstParameters(): Unable to read directory '$_path': $!";
+		$self->{'err_string'} = "scstAttributes(): Unable to read directory '$_path': $!";
 		return undef;
 	}
 
-	foreach my $parameter (readdir($pHandle)) {
-		next if (($parameter eq '.') || ($parameter eq '..'));
-		my $pPath = mkpath(SCST_ROOT, $parameter);
+	foreach my $attribute (readdir($pHandle)) {
+		next if (($attribute eq '.') || ($attribute eq '..'));
+		my $pPath = mkpath(SCST_ROOT, $attribute);
 		my $mode = (stat($pPath))[2];
 
 		if (-d $pPath) {
 			# Skip directories
 		} else {
 			if (!(($mode & S_IRUSR) >> 6)) {
-				$parameters{$parameter}->{'static'} = FALSE;
-				$parameters{$parameter}->{'value'} = undef;
+				$attributes{$attribute}->{'static'} = FALSE;
+				$attributes{$attribute}->{'value'} = undef;
 			} else {
 				my $is_static;
 				if (($mode & S_IWUSR) >> 6) {
@@ -258,60 +262,73 @@ sub scstParameters {
 				my $io = new IO::File $pPath, O_RDONLY;
 
 				if (!$io) {
-					$self->{'err_string'} = "scsiParameters(): Unable to read ".
-					  "scst parameter '$parameter': $!";
+					$self->{'err_string'} = "scsiAttributes(): Unable to read ".
+					  "scst attribute '$attribute': $!";
 					return undef;
 				}
 
 				my $value = <$io>;
 				chomp $value;
 
-				if ($parameter eq SCST_TRACE_IO) {
-					$parameters{$parameter}->{'value'} = '';
+				my $is_key = <$io>;
+				$is_key = ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+
+				$is_key = TRUE if ($attribute eq 'enabled');
+
+				my $key = 0;
+				if ($is_key) {
+					if ($attribute =~ /.*(\d+)$/) {
+						$key = $1;
+						$attribute =~ s/\d+$//;
+					}
+				}
+
+				if ($attribute eq SCST_TRACE_IO) {
+					$attributes{$attribute}->{'value'} = '';
 					my @possible;
 					foreach my $t (split(/\|/, $value)) {
 						$t =~ s/^\s//; $t =~ s/\s$//;
 						push @possible, $t;
 					}
-					$parameters{$parameter}->{'set'} = \@possible;
-				} elsif ($parameter eq SCST_VERSION_IO) {
-					my $version = <$io>; # Only want first line
-					chomp $version;
-					$parameters{$parameter}->{'value'} = $value;
+					$attributes{$attribute}->{'set'} = \@possible;
 				} else {
-					$parameters{$parameter}->{'value'} = $value;
+					if ($is_key) {
+						$attributes{$attribute}->{'keys'}->{$key}->{'value'} = $value;
+					} else {
+						$attributes{$attribute}->{'value'} = $value;
+					}
 				}
 
-				$parameters{$parameter}->{'static'} = $is_static;
+				$attributes{$attribute}->{'static'} = $is_static;
 			}
 		}
 	}
 
-	return \%parameters;
+	return \%attributes;
 }
 
-sub setScstParameter {
+sub setScstAttribute {
 	my $self = shift;
-	my $parameter = shift;
+	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!defined($parameter) || !defined($value));
+	return TRUE if (!defined($attribute) || !defined($value));
 
-	my $parameters = $self->scstParameters();
+	my $attributes = $self->scstAttributes();
 
-	return SCST_C_BAD_PARAMETERS if (!defined($$parameters{$parameter}));
-	return SCST_C_PARAMETER_STATIC if ($$parameters{$parameter}->{'static'});
+	return SCST_C_BAD_ATTRIBUTES if (!defined($$attributes{$attribute}));
+	return SCST_C_ATTRIBUTE_STATIC if ($$attributes{$attribute}->{'static'});
 
-	my $path = mkpath(SCST_ROOT, $parameter);
+	my $path = mkpath(SCST_ROOT, $attribute);
 
 	my $io = new IO::File $path, O_WRONLY;
 
-	return SCST_C_SETPARAM_FAIL if (!$io);
+	return SCST_C_SETATTR_FAIL if (!$io);
 
 	my $bytes;
 
 	if ($self->{'debug'}) {
-		print "DBG($$): $path -> $parameter = $value\n";
+		print "DBG($$): $path -> $attribute = $value\n";
 	} else {
 		$bytes = syswrite($io, $value, length($value));
 	}
@@ -319,7 +336,7 @@ sub setScstParameter {
 	close $io;
 
 	return FALSE if ($self->{'debug'} || $bytes);
-        return SCST_C_SETPARAM_FAIL;
+        return SCST_C_SETATTR_FAIL;
 }
 
 sub drivers {
@@ -507,8 +524,8 @@ sub luns {
 				return undef;
 			}
 
-			foreach my $parameter (readdir($_lHandle)) {
-				my $pPath = mkpath($lPath, $parameter);
+			foreach my $attribute (readdir($_lHandle)) {
+				my $pPath = mkpath($lPath, $attribute);
 
 				if (-l $pPath) {
 					my $linked = readlink($pPath);
@@ -546,6 +563,8 @@ sub driverExists {
 sub addDriverAttribute {
 	my $self = shift;
 	my $driver = shift;
+	my $attribute = shift;
+	my $value = shift;
 
 	my $rc = $self->driverExists($driver);
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
@@ -553,11 +572,28 @@ sub addDriverAttribute {
 
 	return SCST_C_DRV_STATIC if ($self->driverIsStatic($driver));
 
+	# We won't bother checking if the attribute exists since the add
+	# may not use the specified attribute name anyway.
+
 	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, SCST_MGMT_IO);
 
 	my $io = new IO::File $path, O_WRONLY;
 
-	return SCST_C_TGT_ADD_FAIL if (!$io); # FIXME
+	return SCST_C_DRV_ADDATTR_FAIL if (!$io);
+
+	my $cmd = "add_attribute $attribute $value\n";
+	my $bytes;
+
+	if ($self->{'debug'}) {
+		print "DBG($$): $path -> $cmd\n";
+	} else {
+		$bytes = syswrite($io, $cmd, length($cmd));
+	}
+
+	close $io;
+
+	return FALSE if ($self->{'debug'} || $bytes);
+	return SCST_C_DRV_ADDATTR_FAIL;
 
 }
 
@@ -604,7 +640,7 @@ sub addTarget {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
-	my $parameters = shift;
+	my $attributes = shift;
 
 	my $rc = $self->driverExists($driver);
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
@@ -616,8 +652,8 @@ sub addTarget {
 
 	return SCST_C_DRV_STATIC if ($self->driverIsStatic($driver));
 
-	$rc = $self->checkTargetCreateParameters($driver, $parameters);
-	return SCST_C_TGT_BAD_PARAMETERS if ($rc == TRUE);
+	$rc = $self->checkTargetCreateAttributes($driver, $attributes);
+	return SCST_C_TGT_BAD_ATTRIBUTES if ($rc == TRUE);
 	return $rc if ($rc > 1);
 
 	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, SCST_MGMT_IO);
@@ -627,9 +663,9 @@ sub addTarget {
 	return SCST_C_TGT_ADD_FAIL if (!$io);
 
 	my $o_string;
-	foreach my $parameter (keys %{$parameters}) {
-		my $value = $$parameters{$parameter};
-		$o_string .= "$parameter=$value; ";
+	foreach my $attribute (keys %{$attributes}) {
+		my $value = $$attributes{$attribute};
+		$o_string .= "$attribute=$value; ";
 	}
 
         $o_string =~ s/\s$//;
@@ -649,7 +685,44 @@ sub addTarget {
 }
 
 sub addTargetAttribute {
-	print "NOT YET IMPLEMENTED\n";
+	my $self = shift;
+	my $driver = shift;
+	my $target = shift;
+	my $attribute = shift;
+	my $value = shift;
+
+	my $rc = $self->driverExists($driver);
+	return SCST_C_DRV_NO_DRIVER if (!$rc);
+	return $rc if ($rc > 1);
+
+	$rc = $self->targetExists($driver, $target);
+	return SCST_C_TGT_NO_TARGET if (!$rc);
+	return $rc if ($rc > 1);
+
+	return SCST_C_DRV_STATIC if ($self->driverIsStatic($driver));
+
+	# We won't bother checking if the attribute exists since the add
+	# may not use the specified attribute name anyway.
+
+	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, SCST_MGMT_IO);
+
+	my $io = new IO::File $path, O_WRONLY;
+
+	return SCST_C_TGT_ADDATTR_FAIL if (!$io);
+
+	my $cmd = "add_target_attribute $target $attribute $value\n";
+	my $bytes;
+
+	if ($self->{'debug'}) {
+		print "DBG($$): $path -> $cmd\n";
+	} else {
+		$bytes = syswrite($io, $cmd, length($cmd));
+	}
+
+	close $io;
+
+	return FALSE if ($self->{'debug'} || $bytes);
+	return SCST_C_TGT_ADDATTR_FAIL;
 }
 
 sub removeTarget {
@@ -1042,7 +1115,7 @@ sub addLun {
 	my $target = shift;
 	my $device = shift;
 	my $lun = shift;
-	my $parameters = shift;
+	my $attributes = shift;
 	my $group = shift;
 
 	my $err  = SCST_C_TGT_ADD_LUN_FAIL;
@@ -1060,8 +1133,8 @@ sub addLun {
 	return SCST_C_DEV_NO_DEVICE if (!$rc);
 	return $rc if ($rc > 1);
 
-	$rc = $self->checkLunCreateParameters($driver, $target, $parameters, $group);
-	return SCST_C_LUN_BAD_PARAMETERS if ($rc == TRUE);
+	$rc = $self->checkLunCreateAttributes($driver, $target, $attributes, $group);
+	return SCST_C_LUN_BAD_ATTRIBUTES if ($rc == TRUE);
 	return $rc if ($rc > 1);
 
 	my $path;
@@ -1091,9 +1164,9 @@ sub addLun {
 	return $err if (!$io);
 
 	my $o_string;
-	foreach my $parameter (keys %{$parameters}) {
-		my $value = $$parameters{$parameter};
-		$o_string .= "$parameter=$value; ";
+	foreach my $attribute (keys %{$attributes}) {
+		my $value = $$attributes{$attribute};
+		$o_string .= "$attribute=$value; ";
 	}
 
 	$o_string =~ s/\s$//;
@@ -1183,7 +1256,7 @@ sub replaceLun {
 	my $target = shift;
 	my $lun = shift;
 	my $device = shift;
-	my $parameters = shift;
+	my $attributes = shift;
 	my $group = shift;
 
 	my $err = SCST_C_TGT_NO_LUN;
@@ -1221,8 +1294,8 @@ sub replaceLun {
 	return SCST_C_DEV_NO_DEVICE if (!$rc);
 	return $rc if ($rc > 1);
 
-	$rc = $self->checkLunCreateParameters($driver, $target, $parameters, $group);
-	return SCST_C_LUN_BAD_PARAMETERS if ($rc == TRUE);
+	$rc = $self->checkLunCreateAttributes($driver, $target, $attributes, $group);
+	return SCST_C_LUN_BAD_ATTRIBUTES if ($rc == TRUE);
 	return $rc if ($rc > 1);
 
 	my $luns = $self->luns($driver, $target, $group);
@@ -1234,9 +1307,9 @@ sub replaceLun {
 	return SCST_C_LUN_RPL_DEV_FAIL if (!$io);
 
 	my $o_string;
-	foreach my $parameter (keys %{$parameters}) {
-		my $value = $$parameters{$parameter};
-		$o_string .= "$parameter=$value; ";
+	foreach my $attribute (keys %{$attributes}) {
+		my $value = $$attributes{$attribute};
+		$o_string .= "$attribute=$value; ";
 	}
 
 	$o_string =~ s/\s$//;
@@ -1346,32 +1419,32 @@ sub deviceOpen {
 	return FALSE;
 }
 
-sub deviceParameters {
+sub deviceAttributes {
 	my $self = shift;
 	my $device = shift;
-	my %parameters;
+	my %attributes;
 
 	if ($self->deviceOpen($device) != TRUE) {
-		$self->{'err_string'} = "deviceParameters(): Device '$device' is not open";
+		$self->{'err_string'} = "deviceAttributes(): Device '$device' is not open";
 		return undef;
 	}
 
 	my $pHandle = new IO::Handle;	
 	my $_path = mkpath(SCST_ROOT, SCST_DEVICES, $device); 
 	if (!(opendir $pHandle, $_path)) {
-		$self->{'err_string'} = "deviceParameters(): Unable to read directory '$_path': $!";
+		$self->{'err_string'} = "deviceAttributes(): Unable to read directory '$_path': $!";
 		return undef;
 	}
 
-	foreach my $parameter (readdir($pHandle)) {
-		next if (($parameter eq '.') || ($parameter eq '..'));
-		my $pPath = mkpath(SCST_ROOT, SCST_DEVICES, $device, $parameter);
+	foreach my $attribute (readdir($pHandle)) {
+		next if (($attribute eq '.') || ($attribute eq '..'));
+		my $pPath = mkpath(SCST_ROOT, SCST_DEVICES, $device, $attribute);
 		my $mode = (stat($pPath))[2];
 
-		if ($parameter eq 'exported') {
+		if ($attribute eq 'exported') {
 			my $eHandle = new IO::Handle;
 			opendir $eHandle, mkpath(SCST_ROOT, SCST_DEVICES,
-			  $device, $parameter);
+			  $device, $attribute);
 
 			foreach my $export (readdir($eHandle)) {
 				next if (($export eq '.') || ($export eq '..'));
@@ -1388,32 +1461,32 @@ sub deviceParameters {
 					my $group = $3;
 					my $lun = $4;
 
-					$parameters{$parameter}->{'value'}->{$driver}->{$target}->{$group} = $lun;
+					$attributes{$attribute}->{'value'}->{$driver}->{$target}->{$group} = $lun;
 				}
 
-				$parameters{$parameter}->{'static'} = TRUE;
+				$attributes{$attribute}->{'static'} = TRUE;
 			}
-		} elsif ($parameter eq 'handler') {
+		} elsif ($attribute eq 'handler') {
 			my $linked = readlink $pPath;
 
 			my $h = SCST_HANDLERS;
 
 			if ($linked =~ /\.\.\/\.\.\/$h\/(.*)/) {
 				my $handler = $1;
-				$parameters{$parameter}->{'static'} = TRUE;
-				$parameters{$parameter}->{'value'} = $handler;
+				$attributes{$attribute}->{'static'} = TRUE;
+				$attributes{$attribute}->{'value'} = $handler;
 			}
-		} elsif ($parameter eq 'scsi_device') {
+		} elsif ($attribute eq 'scsi_device') {
 			my $linked = readlink $pPath;
 
 			$linked =~ s/^\.\.\/\.\.\/\.\.\/\.\.\//\/sys\//;
 
-			$parameters{$parameter}->{'static'} = TRUE;
-			$parameters{$parameter}->{'value'} = $linked;
+			$attributes{$attribute}->{'static'} = TRUE;
+			$attributes{$attribute}->{'value'} = $linked;
 		} else {
 			if (!(($mode & S_IRUSR) >> 6)) {
-				$parameters{$parameter}->{'static'} = FALSE;
-				$parameters{$parameter}->{'value'} = undef;
+				$attributes{$attribute}->{'static'} = FALSE;
+				$attributes{$attribute}->{'value'} = undef;
 			} else {
 				my $is_static;
 				if (($mode & S_IWUSR) >> 6) {
@@ -1425,59 +1498,78 @@ sub deviceParameters {
 				my $io = new IO::File $pPath, O_RDONLY;
 
 				if (!$io) {
-					$self->{'err_string'} = "deviceParameters(): Unable to read ".
-					  "device parameter '$parameter': $!";
+					$self->{'err_string'} = "deviceAttributes(): Unable to read ".
+					  "device attribute '$attribute': $!";
 					return undef;
 				}
 
 				my $value = <$io>;
 				chomp $value;
 
-				if ($parameter eq 'type') {
-					my($type, $type_string) = split(/\s\-\s/, $value, 2);
-					$parameters{$parameter}->{'value'} = $type;
-					$parameters{'type_string'}->{'value'} = $type_string;
-					$parameters{'type_string'}->{'static'} = TRUE;
-				} else {
-					$parameters{$parameter}->{'value'} = $value;
+				my $is_key = <$io>;
+				$is_key = ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+
+				$is_key = TRUE if ($attribute eq 'enabled');
+
+				my $key = 0;
+				if ($is_key) {
+					if ($attribute =~ /.*(\d+)$/) {
+						$key = $1;
+						$attribute =~ s/\d+$//;
+					}
 				}
 
-				$parameters{$parameter}->{'static'} = $is_static;
+				next if ($attribute eq SCST_MGMT_IO);
+
+				if ($attribute eq 'type') {
+					my($type, $type_string) = split(/\s\-\s/, $value, 2);
+					$attributes{$attribute}->{'value'} = $type;
+					$attributes{'type_string'}->{'value'} = $type_string;
+					$attributes{'type_string'}->{'static'} = TRUE;
+				} else {
+					if ($is_key) {
+						$attributes{$attribute}->{'keys'}->{$key}->{'value'} = $value;
+					} else {
+						$attributes{$attribute}->{'value'} = $value;
+					}
+				}
+
+				$attributes{$attribute}->{'static'} = $is_static;
 			}
 		}
 	}
 
-	return \%parameters;
+	return \%attributes;
 }
 
-sub driverParameters {
+sub driverAttributes {
 	my $self = shift;
 	my $driver = shift;
-	my %parameters;
+	my %attributes;
 
 	if ($self->driverExists($driver) != TRUE) {
-		$self->{'err_string'} = "driverParameters(): Driver '$driver' is not available";
+		$self->{'err_string'} = "driverAttributes(): Driver '$driver' is not available";
 		return undef;
 	}
 
 	my $pHandle = new IO::Handle;	
 	my $_path = mkpath(SCST_ROOT, SCST_TARGETS, $driver); 
 	if (!(opendir $pHandle, $_path)) {
-		$self->{'err_string'} = "driverParameters(): Unable to read directory '$_path': $!";
+		$self->{'err_string'} = "driverAttributes(): Unable to read directory '$_path': $!";
 		return undef;
 	}
 
-	foreach my $parameter (readdir($pHandle)) {
-		next if (($parameter eq '.') || ($parameter eq '..'));
-		my $pPath = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $parameter);
+	foreach my $attribute (readdir($pHandle)) {
+		next if (($attribute eq '.') || ($attribute eq '..'));
+		my $pPath = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $attribute);
 		my $mode = (stat($pPath))[2];
 
 		if (-d $pPath) {
 			# Skip directories
 		} else {
 			if (!(($mode & S_IRUSR) >> 6)) {
-				$parameters{$parameter}->{'static'} = FALSE;
-				$parameters{$parameter}->{'value'} = undef;
+				$attributes{$attribute}->{'static'} = FALSE;
+				$attributes{$attribute}->{'value'} = undef;
 			} else {
 				my $is_static;
 				if (($mode & S_IWUSR) >> 6) {
@@ -1489,61 +1581,80 @@ sub driverParameters {
 				my $io = new IO::File $pPath, O_RDONLY;
 
 				if (!$io) {
-					$self->{'err_string'} = "driverParameters(): Unable to read ".
-					  "driver parameter '$parameter': $!";
+					$self->{'err_string'} = "driverAttributes(): Unable to read ".
+					  "driver attribute '$attribute': $!";
 					return undef;
 				}
 
 				my $value = <$io>;
 				chomp $value;
 
-				if ($parameter eq SCST_TRACE_IO) {
-					$parameters{$parameter}->{'value'} = '';
+				my $is_key = <$io>;
+				$is_key = ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+
+				$is_key = TRUE if ($attribute eq 'enabled');
+
+				my $key = 0;
+				if ($is_key) {
+					if ($attribute =~ /.*(\d+)$/) {
+						$key = $1;
+						$attribute =~ s/\d+$//;
+					}
+				}
+
+				next if ($attribute eq SCST_MGMT_IO);
+
+				if ($attribute eq SCST_TRACE_IO) {
+					$attributes{$attribute}->{'value'} = '';
 					my @possible;
 					foreach my $t (split(/\|/, $value)) {
 						$t =~ s/^\s//; $t =~ s/\s$//;
 						push @possible, $t;
 					}
-					$parameters{$parameter}->{'set'} = \@possible;
+					$attributes{$attribute}->{'set'} = \@possible;
 				} else {
-					$parameters{$parameter}->{'value'} = $value;
+					if ($is_key) {
+						$attributes{$attribute}->{'keys'}->{$key}->{'value'} = $value;
+					} else {
+						$attributes{$attribute}->{'value'} = $value;
+					}
 				}
 
-				$parameters{$parameter}->{'static'} = $is_static;
+				$attributes{$attribute}->{'static'} = $is_static;
 			}
 		}
 	}
 
-	return \%parameters;
+	return \%attributes;
 }
 
-sub setDriverParameter {
+sub setDriverAttribute {
 	my $self = shift;
 	my $driver = shift;
-	my $parameter = shift;
+	my $attribute = shift;
 	my $value = shift;
 
 	my $rc = $self->driverExists($driver);
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
 	return $rc if ($rc > 1);
 
-	return TRUE if (!defined($parameter) || !defined($value));
+	return TRUE if (!defined($attribute) || !defined($value));
 
-	my $parameters = $self->driverParameters($driver);
+	my $attributes = $self->driverAttributes($driver);
 
-	return SCST_C_DRV_BAD_PARAMETERS if (!defined($$parameters{$parameter}));
-	return SCST_C_DRV_PARAMETER_STATIC if ($$parameters{$parameter}->{'static'});
+	return SCST_C_DRV_BAD_ATTRIBUTES if (!defined($$attributes{$attribute}));
+	return SCST_C_DRV_ATTRIBUTE_STATIC if ($$attributes{$attribute}->{'static'});
 
-	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $parameter);
+	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $attribute);
 
 	my $io = new IO::File $path, O_WRONLY;
 
-	return SCST_C_DRV_SETPARAM_FAIL if (!$io);
+	return SCST_C_DRV_SETATTR_FAIL if (!$io);
 
 	my $bytes;
 
 	if ($self->{'debug'}) {
-		print "DBG($$): $path -> $parameter = $value\n";
+		print "DBG($$): $path -> $attribute = $value\n";
 	} else {
 		$bytes = syswrite($io, $value, length($value));
 	}
@@ -1551,50 +1662,50 @@ sub setDriverParameter {
 	close $io;
 
 	return FALSE if ($self->{'debug'} || $bytes);
-        return SCST_C_DRV_SETPARAM_FAIL;
+        return SCST_C_DRV_SETATTR_FAIL;
 }
 
-sub targetParameters {
+sub targetAttributes {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
-	my %parameters;
+	my %attributes;
 
 	if ($self->driverExists($driver) != TRUE) {
-		$self->{'err_string'} = "targetParameters(): Driver '$driver' is not available";
+		$self->{'err_string'} = "targetAttributes(): Driver '$driver' is not available";
 		return undef;
 	}
 
 	if ($self->targetExists($driver, $target) != TRUE) {
-		$self->{'err_string'} = "targetParameters(): Target '$target' is not available";
+		$self->{'err_string'} = "targetAttributes(): Target '$target' is not available";
 		return undef;
 	}
 
 	my $pHandle = new IO::Handle;	
 	my $_path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target); 
 	if (!(opendir $pHandle, $_path)) {
-		$self->{'err_string'} = "targetParameters(): Unable to read directory '$_path': $!";
+		$self->{'err_string'} = "targetAttributes(): Unable to read directory '$_path': $!";
 		return undef;
 	}
 
-	foreach my $parameter (readdir($pHandle)) {
-		next if (($parameter eq '.') || ($parameter eq '..'));
-		my $pPath = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, $parameter);
+	foreach my $attribute (readdir($pHandle)) {
+		next if (($attribute eq '.') || ($attribute eq '..'));
+		my $pPath = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, $attribute);
 		my $mode = (stat($pPath))[2];
 
-		if ($parameter eq 'host') {
+		if ($attribute eq 'host') {
 			my $linked = readlink($pPath);
 
 			$linked =~ s/\.\.\/\.\.\/\.\.\/\.\.\/\.\.\//\/sys\//;
 
-			$parameters{$parameter}->{'static'} = TRUE;
-			$parameters{$parameter}->{'value'} = $linked;
+			$attributes{$attribute}->{'static'} = TRUE;
+			$attributes{$attribute}->{'value'} = $linked;
 		} elsif (-d $pPath) {
 			# Skip directories
 		} else {
 			if (!(($mode & S_IRUSR) >> 6)) {
-				$parameters{$parameter}->{'static'} = FALSE;
-				$parameters{$parameter}->{'value'} = undef;
+				$attributes{$attribute}->{'static'} = FALSE;
+				$attributes{$attribute}->{'value'} = undef;
 			} else {
 				my $is_static;
 				if (($mode & S_IWUSR) >> 6) {
@@ -1606,28 +1717,48 @@ sub targetParameters {
 				my $io = new IO::File $pPath, O_RDONLY;
 
 				if (!$io) {
-					$self->{'err_string'} = "targetParameters(): Unable to read ".
-					  "target parameter '$parameter': $!";
+					$self->{'err_string'} = "targetAttributes(): Unable to read ".
+					  "target attribute '$attribute': $!";
 					return undef;
 				}
 
 				my $value = <$io>;
 				chomp $value;
 
-				$parameters{$parameter}->{'static'} = $is_static;
-				$parameters{$parameter}->{'value'} = $value;
+				my $is_key = <$io>;
+				$is_key = ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+
+				$is_key = TRUE if ($attribute eq 'enabled');
+
+				my $key = 0;
+				if ($is_key) {
+					if ($attribute =~ /.*(\d+)$/) {
+						$key = $1;
+						$attribute =~ s/\d+$//;
+					}
+				}
+
+				next if ($attribute eq SCST_MGMT_IO);
+
+				$attributes{$attribute}->{'static'} = $is_static;
+
+				if ($is_key) {
+					$attributes{$attribute}->{'keys'}->{$key}->{'value'} = $value;
+				} else {
+					$attributes{$attribute}->{'value'} = $value;
+				}
 			}
 		}
 	}
 
-	return \%parameters;
+	return \%attributes;
 }
 
-sub setTargetParameter {
+sub setTargetAttribute {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
-	my $parameter = shift;
+	my $attribute = shift;
 	my $value = shift;
 
 	my $rc = $self->driverExists($driver);
@@ -1638,23 +1769,23 @@ sub setTargetParameter {
 	return SCST_C_TGT_NO_TARGET if (!$rc);
 	return $rc if ($rc > 1);
 
-	return TRUE if (!defined($parameter) || !defined($value));
+	return TRUE if (!defined($attribute) || !defined($value));
 
-	my $parameters = $self->targetParameters($driver, $target);
+	my $attributes = $self->targetAttributes($driver, $target);
 
-	return SCST_C_TGT_BAD_PARAMETERS if (!defined($$parameters{$parameter}));
-	return SCST_C_TGT_PARAMETER_STATIC if ($$parameters{$parameter}->{'static'});
+	return SCST_C_TGT_BAD_ATTRIBUTES if (!defined($$attributes{$attribute}));
+	return SCST_C_TGT_ATTRIBUTE_STATIC if ($$attributes{$attribute}->{'static'});
 
-	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, $parameter);
+	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, $attribute);
 
 	my $io = new IO::File $path, O_WRONLY;
 
-	return SCST_C_TGT_SETPARAM_FAIL if (!$io);
+	return SCST_C_TGT_SETATTR_FAIL if (!$io);
 
 	my $bytes;
 
 	if ($self->{'debug'}) {
-		print "DBG($$): $path -> $parameter = $value\n";
+		print "DBG($$): $path -> $attribute = $value\n";
 	} else {
 		$bytes = syswrite($io, $value, length($value));
 	}
@@ -1662,50 +1793,50 @@ sub setTargetParameter {
 	close $io;
 
 	return FALSE if ($self->{'debug'} || $bytes);
-        return SCST_C_TGT_SETPARAM_FAIL;
+        return SCST_C_TGT_SETATTR_FAIL;
 }
 
-sub groupParameters {
+sub groupAttributes {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
 	my $group = shift;
-	my %parameters;
+	my %attributes;
 
 	if ($self->driverExists($driver) != TRUE) {
-		$self->{'err_string'} = "groupParameters(): Driver '$driver' is not available";
+		$self->{'err_string'} = "groupAttributes(): Driver '$driver' is not available";
 		return undef;
 	}
 
 	if ($self->targetExists($driver, $target) != TRUE) {
-		$self->{'err_string'} = "groupParameters(): Target '$target' is not available";
+		$self->{'err_string'} = "groupAttributes(): Target '$target' is not available";
 		return undef;
 	}
 
 	if ($self->groupExists($driver, $target, $group) != TRUE) {
-		$self->{'err_string'} = "groupParameters(): Group '$group' does not exist";
+		$self->{'err_string'} = "groupAttributes(): Group '$group' does not exist";
 		return undef;
 	}
 
 	my $pHandle = new IO::Handle;	
 	my $_path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS, $group); 
 	if (!(opendir $pHandle, $_path)) {
-		$self->{'err_string'} = "groupParameters(): Unable to read directory '$_path': $!";
+		$self->{'err_string'} = "groupAttributes(): Unable to read directory '$_path': $!";
 		return undef;
 	}
 
-	foreach my $parameter (readdir($pHandle)) {
-		next if (($parameter eq '.') || ($parameter eq '..'));
+	foreach my $attribute (readdir($pHandle)) {
+		next if (($attribute eq '.') || ($attribute eq '..'));
 		my $pPath = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS,
-		  $group, $parameter);
+		  $group, $attribute);
 		my $mode = (stat($pPath))[2];
 
 		if (-d $pPath) {
 			# Skip directories
 		} else {
 			if (!(($mode & S_IRUSR) >> 6)) {
-				$parameters{$parameter}->{'static'} = FALSE;
-				$parameters{$parameter}->{'value'} = undef;
+				$attributes{$attribute}->{'static'} = FALSE;
+				$attributes{$attribute}->{'value'} = undef;
 			} else {
 				my $is_static;
 				if (($mode & S_IWUSR) >> 6) {
@@ -1717,29 +1848,49 @@ sub groupParameters {
 				my $io = new IO::File $pPath, O_RDONLY;
 
 				if (!$io) {
-					$self->{'err_string'} = "groupParameters(): Unable to read ".
-					  "group parameter '$parameter': $!";
+					$self->{'err_string'} = "groupAttributes(): Unable to read ".
+					  "group attribute '$attribute': $!";
 					return undef;
 				}
 
 				my $value = <$io>;
 				chomp $value;
 
-				$parameters{$parameter}->{'static'} = $is_static;
-				$parameters{$parameter}->{'value'} = $value;
+				my $is_key = <$io>;
+				$is_key = ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+
+				$is_key = TRUE if ($attribute eq 'enabled');
+
+				my $key = 0;
+				if ($is_key) {
+					if ($attribute =~ /.*(\d+)$/) {
+						$key = $1;
+						$attribute =~ s/\d+$//;
+					}
+				}
+
+				next if ($attribute eq SCST_MGMT_IO);
+
+				$attributes{$attribute}->{'static'} = $is_static;
+
+				if ($is_key) {
+					$attributes{$attribute}->{'keys'}->{$key}->{'value'} = $value;
+				} else {
+					$attributes{$attribute}->{'value'} = $value;
+				}
 			}
 		}
 	}
 
-	return \%parameters;
+	return \%attributes;
 }
 
-sub setGroupParameter {
+sub setGroupAttribute {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
 	my $group = shift;
-	my $parameter = shift;
+	my $attribute = shift;
 	my $value = shift;
 
 	my $rc = $self->driverExists($driver);
@@ -1754,24 +1905,24 @@ sub setGroupParameter {
 	return SCST_C_GRP_NO_GROUP if (!$rc);
 	return $rc if ($rc > 1);
 
-	return TRUE if (!defined($parameter) || !defined($value));
+	return TRUE if (!defined($attribute) || !defined($value));
 
-	my $parameters = $self->groupParameters($driver, $target, $group);
+	my $attributes = $self->groupAttributes($driver, $target, $group);
 
-	return SCST_C_GRP_BAD_PARAMETERS if (!defined($$parameters{$parameter}));
-	return SCST_C_GRP_PARAMETER_STATIC if ($$parameters{$parameter}->{'static'});
+	return SCST_C_GRP_BAD_ATTRIBUTES if (!defined($$attributes{$attribute}));
+	return SCST_C_GRP_ATTRIBUTE_STATIC if ($$attributes{$attribute}->{'static'});
 
 	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS,
-	   $group, $parameter);
+	   $group, $attribute);
 
 	my $io = new IO::File $path, O_WRONLY;
 
-	return SCST_C_GRP_SETPARAM_FAIL if (!$io);
+	return SCST_C_GRP_SETATTR_FAIL if (!$io);
 
 	my $bytes;
 
 	if ($self->{'debug'}) {
-		print "DBG($$): $path -> $parameter = $value\n";
+		print "DBG($$): $path -> $attribute = $value\n";
 	} else {
 		$bytes = syswrite($io, $value, length($value));
 	}
@@ -1779,24 +1930,24 @@ sub setGroupParameter {
 	close $io;
 
 	return FALSE if ($self->{'debug'} || $bytes);
-        return SCST_C_GRP_SETPARAM_FAIL;
+        return SCST_C_GRP_SETATTR_FAIL;
 }
 
-sub lunParameters {
+sub lunAttributes {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
 	my $lun = shift;
 	my $group = shift;
-	my %parameters;
+	my %attributes;
 
 	if ($self->driverExists($driver) != TRUE) {
-		$self->{'err_string'} = "lunParameters(): Driver '$driver' is not available";
+		$self->{'err_string'} = "lunAttributes(): Driver '$driver' is not available";
 		return undef;
 	}
 
 	if ($self->targetExists($driver, $target) != TRUE) {
-		$self->{'err_string'} = "lunParameters(): Target '$target' is not available";
+		$self->{'err_string'} = "lunAttributes(): Target '$target' is not available";
 		return undef;
 	}
 
@@ -1804,7 +1955,7 @@ sub lunParameters {
 
 	if ($group) {
 		if ($self->groupExists($driver, $target, $group) != TRUE) {
-			$self->{'err_string'} = "lunParameters(): Group '$group' does not exist";
+			$self->{'err_string'} = "lunAttributes(): Group '$group' does not exist";
 			return undef;
 		}
 
@@ -1815,36 +1966,36 @@ sub lunParameters {
 	}
 
 	if ($self->lunExists($driver, $target, $lun, $group) != TRUE) {
-		$self->{'err_string'} = "lunParameters(): LUN '$lun' does not exist";
+		$self->{'err_string'} = "lunAttributes(): LUN '$lun' does not exist";
 		return undef;
 	}
 
 	my $pHandle = new IO::Handle;	
 	if (!(opendir $pHandle, $_path)) {
-		$self->{'err_string'} = "lunParameters(): Unable to read directory '$_path': $!";
+		$self->{'err_string'} = "lunAttributes(): Unable to read directory '$_path': $!";
 		return undef;
 	}
 
-	foreach my $parameter (readdir($pHandle)) {
-		next if (($parameter eq '.') || ($parameter eq '..'));
-		my $pPath = mkpath($_path, $parameter);
+	foreach my $attribute (readdir($pHandle)) {
+		next if (($attribute eq '.') || ($attribute eq '..'));
+		my $pPath = mkpath($_path, $attribute);
 		my $mode = (stat($pPath))[2];
 
-		if ($parameter eq 'device') {
+		if ($attribute eq 'device') {
 			my $linked = readlink($pPath);
 
 			my $r = SCST_ROOT;
 
 			$linked =~ s/\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/\.\.\//\/$r\//;
 
-			$parameters{$parameter}->{'static'} = TRUE;
-			$parameters{$parameter}->{'value'} = $linked;
+			$attributes{$attribute}->{'static'} = TRUE;
+			$attributes{$attribute}->{'value'} = $linked;
 		} elsif (-d $pPath) {
 			# Skip directories
 		} else {
 			if (!(($mode & S_IRUSR) >> 6)) {
-				$parameters{$parameter}->{'static'} = FALSE;
-				$parameters{$parameter}->{'value'} = undef;
+				$attributes{$attribute}->{'static'} = FALSE;
+				$attributes{$attribute}->{'value'} = undef;
 			} else {
 				my $is_static;
 				if (($mode & S_IWUSR) >> 6) {
@@ -1856,29 +2007,47 @@ sub lunParameters {
 				my $io = new IO::File $pPath, O_RDONLY;
 
 				if (!$io) {
-					$self->{'err_string'} = "lunParameters(): Unable to read ".
-					  "lun parameter '$parameter': $!";
+					$self->{'err_string'} = "lunAttributes(): Unable to read ".
+					  "lun attribute '$attribute': $!";
 					return undef;
 				}
 
 				my $value = <$io>;
 				chomp $value;
 
-				$parameters{$parameter}->{'static'} = $is_static;
-				$parameters{$parameter}->{'value'} = $value;
+				my $is_key = <$io>;
+				$is_key = ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+
+				my $key = 0;
+				if ($is_key) {
+					if ($attribute =~ /.*(\d+)$/) {
+						$key = $1;
+						$attribute =~ s/\d+$//;
+					}
+				}
+
+				next if ($attribute eq SCST_MGMT_IO);
+
+				$attributes{$attribute}->{'static'} = $is_static;
+
+				if ($is_key) {
+					$attributes{$attribute}->{'keys'}->{$key}->{'value'} = $value;
+				} else {
+					$attributes{$attribute}->{'value'} = $value;
+				}
 			}
 		}
 	}
 
-	return \%parameters;
+	return \%attributes;
 }
 
-sub setLunParameter {
+sub setLunAttribute {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
 	my $lun = shift;
-	my $parameter = shift;
+	my $attribute = shift;
 	my $value = shift;
 	my $group = shift;
 
@@ -1898,30 +2067,30 @@ sub setLunParameter {
 		return $rc if ($rc > 1);
 
 		$path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS,
-		   $group, SCST_LUNS, $lun, $parameter);
+		   $group, SCST_LUNS, $lun, $attribute);
 	} else {
-		$path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_LUNS, $lun, $parameter);
+		$path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_LUNS, $lun, $attribute);
 	}
 
 	$rc = $self->lunExists($driver, $target, $lun, $group);
 	return SCST_C_GRP_NO_LUN if (!$rc);
 	return $rc if ($rc > 1);
 
-	return TRUE if (!defined($parameter) || !defined($value));
+	return TRUE if (!defined($attribute) || !defined($value));
 
-	my $parameters = $self->lunParameters($driver, $target, $group, $lun);
+	my $attributes = $self->lunAttributes($driver, $target, $group, $lun);
 
-	return SCST_C_LUN_BAD_PARAMETERS if (!defined($$parameters{$parameter}));
-	return SCST_C_LUN_PARAMETER_STATIC if ($$parameters{$parameter}->{'static'});
+	return SCST_C_LUN_BAD_ATTRIBUTES if (!defined($$attributes{$attribute}));
+	return SCST_C_LUN_ATTRIBUTE_STATIC if ($$attributes{$attribute}->{'static'});
 
 	my $io = new IO::File $path, O_WRONLY;
 
-	return SCST_C_LUN_SETPARAM_FAIL if (!$io);
+	return SCST_C_LUN_SETATTR_FAIL if (!$io);
 
 	my $bytes;
 
 	if ($self->{'debug'}) {
-		print "DBG($$): $path -> $parameter = $value\n";
+		print "DBG($$): $path -> $attribute = $value\n";
 	} else {
 		$bytes = syswrite($io, $value, length($value));
 	}
@@ -1929,34 +2098,34 @@ sub setLunParameter {
 	close $io;
 
 	return FALSE if ($self->{'debug'} || $bytes);
-        return SCST_C_LUN_SETPARAM_FAIL;
+        return SCST_C_LUN_SETATTR_FAIL;
 }
 
-sub initiatorParameters {
+sub initiatorAttributes {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
 	my $group = shift;
 	my $initiator = shift;
-	my %parameters;
+	my %attributes;
 
 	if ($self->driverExists($driver) != TRUE) {
-		$self->{'err_string'} = "initiatorParameters(): Driver '$driver' is not available";
+		$self->{'err_string'} = "initiatorAttributes(): Driver '$driver' is not available";
 		return undef;
 	}
 
 	if ($self->targetExists($driver, $target) != TRUE) {
-		$self->{'err_string'} = "initiatorParameters(): Target '$target' is not available";
+		$self->{'err_string'} = "initiatorAttributes(): Target '$target' is not available";
 		return undef;
 	}
 
 	if ($self->groupExists($driver, $target, $group) != TRUE) {
-		$self->{'err_string'} = "initiatorParameters(): Group '$group' does not exist";
+		$self->{'err_string'} = "initiatorAttributes(): Group '$group' does not exist";
 		return undef;
 	}
 
 	if ($self->initiatorExists($driver, $target, $group, $initiator) != TRUE) {
-		$self->{'err_string'} = "initiatorParameters(): Initiator '$initiator' does not exist";
+		$self->{'err_string'} = "initiatorAttributes(): Initiator '$initiator' does not exist";
 		return undef;
 	}
 
@@ -1964,21 +2133,21 @@ sub initiatorParameters {
 	my $_path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS,
 	  $group, SCST_INITIATORS, $initiator); 
 	if (!(opendir $pHandle, $_path)) {
-		$self->{'err_string'} = "initiatorParameters(): Unable to read directory '$_path': $!";
+		$self->{'err_string'} = "initiatorAttributes(): Unable to read directory '$_path': $!";
 		return undef;
 	}
 
-	foreach my $parameter (readdir($pHandle)) {
-		next if (($parameter eq '.') || ($parameter eq '..'));
+	foreach my $attribute (readdir($pHandle)) {
+		next if (($attribute eq '.') || ($attribute eq '..'));
 		my $pPath = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS,
-		  $group, SCST_INITIATORS, $initiator, $parameter);
+		  $group, SCST_INITIATORS, $initiator, $attribute);
 		my $mode = (stat($pPath))[2];
 		if (-d $pPath) {
 			# Skip directories
 		} else {
 			if (!(($mode & S_IRUSR) >> 6)) {
-				$parameters{$parameter}->{'static'} = FALSE;
-				$parameters{$parameter}->{'value'} = undef;
+				$attributes{$attribute}->{'static'} = FALSE;
+				$attributes{$attribute}->{'value'} = undef;
 			} else {
 				my $is_static;
 				if (($mode & S_IWUSR) >> 6) {
@@ -1990,30 +2159,50 @@ sub initiatorParameters {
 				my $io = new IO::File $pPath, O_RDONLY;
 
 				if (!$io) {
-					$self->{'err_string'} = "initiatorParameters(): Unable to read ".
-					  "initiator parameter '$parameter': $!";
+					$self->{'err_string'} = "initiatorAttributes(): Unable to read ".
+					  "initiator attribute '$attribute': $!";
 					return undef;
 				}
 
 				my $value = <$io>;
 				chomp $value;
 
-				$parameters{$parameter}->{'static'} = $is_static;
-				$parameters{$parameter}->{'value'} = $value;
+				my $is_key = <$io>;
+				$is_key = ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+
+				$is_key = TRUE if ($attribute eq 'enabled');
+
+				my $key = 0;
+				if ($is_key) {
+					if ($attribute =~ /.*(\d+)$/) {
+						$key = $1;
+						$attribute =~ s/\d+$//;
+					}
+				}
+
+				next if ($attribute eq SCST_MGMT_IO);
+
+				$attributes{$attribute}->{'static'} = $is_static;
+
+				if ($is_key) {
+					$attributes{$attribute}->{'keys'}->{$key}->{'value'} = $value;
+				} else {
+					$attributes{$attribute}->{'value'} = $value;
+				}
 			}
 		}
 	}
 
-	return \%parameters;
+	return \%attributes;
 }
 
-sub setInitiatorParameter {
+sub setInitiatorAttribute {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
 	my $group = shift;
 	my $initiator = shift;
-	my $parameter = shift;
+	my $attribute = shift;
 	my $value = shift;
 
 	my $rc = $self->driverExists($driver);
@@ -2032,24 +2221,24 @@ sub setInitiatorParameter {
 	return SCST_C_GRP_NO_INI if (!$rc);
 	return $rc if ($rc > 1);
 
-	return TRUE if (!defined($parameter) || !defined($value));
+	return TRUE if (!defined($attribute) || !defined($value));
 
-	my $parameters = $self->initiatorParameters($driver, $target, $group, $initiator);
+	my $attributes = $self->initiatorAttributes($driver, $target, $group, $initiator);
 
-	return SCST_C_INI_BAD_PARAMETERS if (!defined($$parameters{$parameter}));
-	return SCST_C_INI_PARAMETER_STATIC if ($$parameters{$parameter}->{'static'});
+	return SCST_C_INI_BAD_ATTRIBUTES if (!defined($$attributes{$attribute}));
+	return SCST_C_INI_ATTRIBUTE_STATIC if ($$attributes{$attribute}->{'static'});
 
 	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS,
-	   $group, SCST_LUNS, $initiator, $parameter);
+	   $group, SCST_LUNS, $initiator, $attribute);
 
 	my $io = new IO::File $path, O_WRONLY;
 
-	return SCST_C_INI_SETPARAM_FAIL if (!$io);
+	return SCST_C_INI_SETATTR_FAIL if (!$io);
 
 	my $bytes;
 
 	if ($self->{'debug'}) {
-		print "DBG($$): $path -> $parameter = $value\n";
+		print "DBG($$): $path -> $attribute = $value\n";
 	} else {
 		$bytes = syswrite($io, $value, length($value));
 	}
@@ -2057,7 +2246,7 @@ sub setInitiatorParameter {
 	close $io;
 
 	return FALSE if ($self->{'debug'} || $bytes);
-        return SCST_C_INI_SETPARAM_FAIL;
+        return SCST_C_INI_SETATTR_FAIL;
 }
 
 sub handlers {
@@ -2101,33 +2290,33 @@ sub handlerExists {
 	return FALSE;
 }
 
-sub setHandlerParameter {
+sub setHandlerAttribute {
 	my $self = shift;
 	my $handler = shift;
-	my $parameter = shift;
+	my $attribute = shift;
 	my $value = shift;
 
 	my $rc = $self->handlerExists($handler);
 	return SCST_C_HND_NO_HANDLER if (!$rc);
 	return $rc if ($rc > 1);
 
-	return TRUE if (!defined($parameter) || !defined($value));
+	return TRUE if (!defined($attribute) || !defined($value));
 
-	my $parameters = $self->handlerParameters($handler);
+	my $attributes = $self->handlerAttributes($handler);
 
-	return SCST_C_HND_BAD_PARAMETERS if (!defined($$parameters{$parameter}));
-	return SCST_C_HND_PARAMETER_STATIC if ($$parameters{$parameter}->{'static'});
+	return SCST_C_HND_BAD_ATTRIBUTES if (!defined($$attributes{$attribute}));
+	return SCST_C_HND_ATTRIBUTE_STATIC if ($$attributes{$attribute}->{'static'});
 
-	my $path = mkpath(SCST_ROOT, SCST_HANDLERS, $handler, $parameter);
+	my $path = mkpath(SCST_ROOT, SCST_HANDLERS, $handler, $attribute);
 
 	my $io = new IO::File $path, O_WRONLY;
 
-	return SCST_C_HND_SETPARAM_FAIL if (!$io);
+	return SCST_C_HND_SETATTR_FAIL if (!$io);
 
 	my $bytes;
 
 	if ($self->{'debug'}) {
-		print "DBG($$): $path -> $parameter = $value\n";
+		print "DBG($$): $path -> $attribute = $value\n";
 	} else {
 		$bytes = syswrite($io, $value, length($value));
 	}
@@ -2135,34 +2324,34 @@ sub setHandlerParameter {
 	close $io;
 
 	return FALSE if ($self->{'debug'} || $bytes);
-        return SCST_C_HND_SETPARAM_FAIL;
+        return SCST_C_HND_SETATTR_FAIL;
 }
 
-sub handlerParameters {
+sub handlerAttributes {
 	my $self = shift;
 	my $handler = shift;
-	my %parameters;
+	my %attributes;
 
 	if ($self->handlerExists($handler) != TRUE) {
-		$self->{'err_string'} = "handlerParameters(): Handler '$handler' is not available";
+		$self->{'err_string'} = "handlerAttributes(): Handler '$handler' is not available";
 		return undef;
 	}
 
 	my $hHandle = new IO::Handle;
 	my $_path = mkpath(SCST_ROOT, SCST_HANDLERS, $handler);
 	if (!(opendir $hHandle, $_path)) {
-		$self->{'err_string'} = "handlerParameters(): Unable to read directory '$_path': $!";
+		$self->{'err_string'} = "handlerAttributes(): Unable to read directory '$_path': $!";
 		return undef;
 	}
 
-	foreach my $parameter (readdir($hHandle)) {
-		next if (($parameter eq '.') || ($parameter eq '..'));
-		next if ($parameter eq SCST_MGMT_IO);
-		my $pPath = mkpath(SCST_ROOT, SCST_HANDLERS, $handler, $parameter);
+	foreach my $attribute (readdir($hHandle)) {
+		next if (($attribute eq '.') || ($attribute eq '..'));
+		next if ($attribute eq SCST_MGMT_IO);
+		my $pPath = mkpath(SCST_ROOT, SCST_HANDLERS, $handler, $attribute);
 		my $mode = (stat($pPath))[2];
 
 		if (-d $pPath) {
-			push @{$parameters{'devices'}->{'value'}}, $parameter;
+			push @{$attributes{'devices'}->{'value'}}, $attribute;
 			next;
 		}
 
@@ -2174,45 +2363,64 @@ sub handlerParameters {
 		}
 
 		my $io = new IO::File
-		  mkpath(SCST_ROOT, SCST_HANDLERS, $handler, $parameter), O_RDONLY;
+		  mkpath(SCST_ROOT, SCST_HANDLERS, $handler, $attribute), O_RDONLY;
 
 		if (!$io) {
-			$self->{'err_string'} = "handlerParameters(): Unable to read handler parameter ".
-			  "'$parameter': $!";
+			$self->{'err_string'} = "handlerAttributes(): Unable to read handler attribute ".
+			  "'$attribute': $!";
 			return undef;
 		}
 
 		my $value = <$io>;
 		chomp $value;
 
+		my $is_key = <$io>;
+		$is_key = ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+
+		$is_key = TRUE if ($attribute eq 'enabled');
+
+		my $key = 0;
+		if ($is_key) {
+			if ($attribute =~ /.*(\d+)$/) {
+				$key = $1;
+				$attribute =~ s/\d+$//;
+			}
+		}
+
+		next if ($attribute eq SCST_MGMT_IO);
+
 		if (!(($mode & S_IRUSR) >> 6)) {
-			$parameters{$parameter}->{'static'} = FALSE;
-			$parameters{$parameter}->{'value'} = undef;
-		} elsif ($parameter eq SCST_TRACE_IO) {
-			$parameters{$parameter}->{'value'} = '';
+			$attributes{$attribute}->{'static'} = FALSE;
+			$attributes{$attribute}->{'value'} = undef;
+		} elsif ($attribute eq SCST_TRACE_IO) {
+			$attributes{$attribute}->{'value'} = '';
 			my @possible;
 			foreach my $t (split(/\|/, $value)) {
 				$t =~ s/^\s//; $t =~ s/\s$//;
 				push @possible, $t;
 			}
-			$parameters{$parameter}->{'set'} = \@possible;
-		} elsif ($parameter eq 'type') {
+			$attributes{$attribute}->{'set'} = \@possible;
+		} elsif ($attribute eq 'type') {
 			my($type, $type_string) = split(/\s\-\s/, $value, 2);
-			$parameters{$parameter}->{'value'} = $type;
-			$parameters{'type_string'}->{'value'} = $type_string;
-			$parameters{'type_string'}->{'static'} = TRUE;
+			$attributes{$attribute}->{'value'} = $type;
+			$attributes{'type_string'}->{'value'} = $type_string;
+			$attributes{'type_string'}->{'static'} = TRUE;
 		} else {
-			$parameters{$parameter}->{'value'} = $value;
+			if ($is_key) {
+				$attributes{$attribute}->{'keys'}->{$key}->{'value'} = $value;
+			} else {
+				$attributes{$attribute}->{'value'} = $value;
+			}
 		}
 
-		$parameters{$parameter}->{'static'} = $is_static;
+		$attributes{$attribute}->{'static'} = $is_static;
 
 		close $io;
 	}
 
-	$parameters{'devices'}->{'static'} = TRUE;
+	$attributes{'devices'}->{'static'} = TRUE;
 
-	return \%parameters;
+	return \%attributes;
 }
 
 sub handlerDeviceExists {
@@ -2245,13 +2453,13 @@ sub devicesByHandler {
 		return undef;
 	}
 
-	my $parameters = $self->handlerParameters($handler);
+	my $attributes = $self->handlerAttributes($handler);
 
-	return undef if (!defined($parameters));
-	return \@{$$parameters{'devices'}->{'value'}};
+	return undef if (!defined($attributes));
+	return \@{$$attributes{'devices'}->{'value'}};
 }
 
-sub checkDeviceCreateParameters {
+sub checkDeviceCreateAttributes {
 	my $self = shift;
 	my $handler = shift;
 	my $check = shift;
@@ -2262,12 +2470,12 @@ sub checkDeviceCreateParameters {
 	return SCST_C_HND_NO_HANDLER if (!$rc);
 	return $rc if (!$rc > 1);
 
-	my $available = $self->deviceCreateParameters($handler);
+	my $available = $self->deviceCreateAttributes($handler);
 
 	return SCST_C_FATAL_ERROR if (!defined($available));
 
-	foreach my $parameter (keys %{$check}) {
-		if (!defined($$available{$parameter})) {
+	foreach my $attribute (keys %{$check}) {
+		if (!defined($$available{$attribute})) {
 			return TRUE;
 		}
 	}
@@ -2275,14 +2483,14 @@ sub checkDeviceCreateParameters {
 	return FALSE;
 }
 
-sub deviceCreateParameters {
+sub deviceCreateAttributes {
 	my $self = shift;
 	my $handler = shift;
 	my $available;
-	my %parameters;
+	my %attributes;
 
 	if ($self->handlerExists($handler) != TRUE) {
-		$self->{'err_string'} = "deviceCreateParameters():Handler '$handler' ".
+		$self->{'err_string'} = "deviceCreateAttributes():Handler '$handler' ".
 		  "is not available";
 		return undef;
 	}
@@ -2290,7 +2498,7 @@ sub deviceCreateParameters {
 	my $io = new IO::File mkpath(SCST_ROOT, SCST_HANDLERS, $handler, SCST_MGMT_IO), O_RDONLY;
 
 	if (!$io) {
-		$self->{'err_string'} = "deviceCreateParameters(): Unable to open mgmt ".
+		$self->{'err_string'} = "deviceCreateAttributes(): Unable to open mgmt ".
 		  "interface for handler '$handler': $!";
 		return undef;
 	}
@@ -2303,28 +2511,28 @@ sub deviceCreateParameters {
 	}
 
 	if ($available) {
-		foreach my $parameter (split(/\,/, $available)) {
-			$parameter =~ s/^\s+//;
-			$parameter =~ s/\s+$//;
-			$parameters{$parameter} = '';
+		foreach my $attribute (split(/\,/, $available)) {
+			$attribute =~ s/^\s+//;
+			$attribute =~ s/\s+$//;
+			$attributes{$attribute} = '';
 		}
 	}
 
-	return \%parameters;
+	return \%attributes;
 }
 
 sub openDevice {
 	my $self = shift;
 	my $handler = shift;
 	my $device = shift;
-	my $parameters = shift;
+	my $attributes = shift;
 
 	my $rc = $self->handlerExists($handler);
 	return SCST_C_HND_NO_HANDLER if (!$rc);
 	return $rc if ($rc > 1);
 
-	$rc = $self->checkDeviceCreateParameters($handler, $parameters);
-	return SCST_C_DEV_BAD_PARAMETERS if ($rc == TRUE);
+	$rc = $self->checkDeviceCreateAttributes($handler, $attributes);
+	return SCST_C_DEV_BAD_ATTRIBUTES if ($rc == TRUE);
 	return $rc if ($rc > 1);
 
 	my $io = new IO::File mkpath(SCST_ROOT, SCST_HANDLERS, $handler, SCST_MGMT_IO), O_WRONLY;
@@ -2340,9 +2548,9 @@ sub openDevice {
 	return $rc if ($rc > 1);
 
 	my $o_string;
-	foreach my $parameter (keys %{$parameters}) {
-		my $value = $$parameters{$parameter};
-		$o_string .= "$parameter=$value; ";
+	foreach my $attribute (keys %{$attributes}) {
+		my $value = $$attributes{$attribute};
+		$o_string .= "$attribute=$value; ";
 	}
 
 	$o_string =~ s/\s$//;
@@ -2395,33 +2603,33 @@ sub closeDevice {
 	return SCST_C_DEV_CLOSE_FAIL;
 }
 
-sub setDeviceParameter {
+sub setDeviceAttribute {
 	my $self = shift;
 	my $device = shift;
-	my $parameter = shift;
+	my $attribute = shift;
 	my $value = shift;
 
 	my $rc = $self->deviceOpen($device);
 	return SCST_C_DEV_NO_DEVICE if (!$rc);
 	return $rc if ($rc > 1);
 
-	my $parameters = $self->deviceParameters($device);
+	my $attributes = $self->deviceAttributes($device);
 
-	return SCST_C_FATAL_ERROR if (!defined($parameters));
+	return SCST_C_FATAL_ERROR if (!defined($attributes));
 
-	return SCST_C_DEV_BAD_PARAMETERS if (!defined($$parameters{$parameter}));
-	return SCST_C_DEV_PARAMETER_STATIC if ($$parameters{$parameter}->{'static'});
+	return SCST_C_DEV_BAD_ATTRIBUTES if (!defined($$attributes{$attribute}));
+	return SCST_C_DEV_ATTRIBUTE_STATIC if ($$attributes{$attribute}->{'static'});
 
-	my $path = mkpath(SCST_ROOT, SCST_DEVICES, $device, $parameter);
+	my $path = mkpath(SCST_ROOT, SCST_DEVICES, $device, $attribute);
 
 	my $io = new IO::File $path, O_WRONLY;
 
-	return SCST_C_DEV_SETPARAM_FAIL if (!$io);
+	return SCST_C_DEV_SETATTR_FAIL if (!$io);
 
 	my $bytes;
 
 	if ($self->{'debug'}) {
-		print "DBG($$): $path -> $parameter = $value\n";
+		print "DBG($$): $path -> $attribute = $value\n";
 	} else {
 		$bytes = syswrite($io, $value, length($value));
 	}
@@ -2429,10 +2637,10 @@ sub setDeviceParameter {
 	close $io;
 
 	return FALSE if ($self->{'debug'} || $bytes);
-        return SCST_C_DEV_SETPARAM_FAIL;
+        return SCST_C_DEV_SETATTR_FAIL;
 }
 
-sub checkTargetCreateParameters {
+sub checkTargetCreateAttributes {
 	my $self = shift;
 	my $driver = shift;
 	my $check = shift;
@@ -2443,12 +2651,12 @@ sub checkTargetCreateParameters {
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
 	return $rc if ($rc > 1);
 
-	my $available = $self->targetCreateParameters($driver);
+	my $available = $self->targetCreateAttributes($driver);
 
 	return SCST_C_FATAL_ERROR if (!defined($available));
 
-	foreach my $parameter (keys %{$check}) {
-		if (!defined($$available{$parameter})) {
+	foreach my $attribute (keys %{$check}) {
+		if (!defined($$available{$attribute})) {
 			return TRUE;
 		}
 	}
@@ -2456,14 +2664,14 @@ sub checkTargetCreateParameters {
 	return FALSE;
 }
 
-sub targetCreateParameters {
+sub targetCreateAttributes {
 	my $self = shift;
 	my $driver = shift;
 	my $available;
-	my %parameters;
+	my %attributes;
 
 	if ($self->driverExists($driver) != TRUE) {
-		$self->{'err_string'} = "targetCreateParameters(): Driver '$driver' ".
+		$self->{'err_string'} = "targetCreateAttributes(): Driver '$driver' ".
 		  "is not available";
 		return undef;
 	}
@@ -2471,7 +2679,7 @@ sub targetCreateParameters {
 	my $io = new IO::File mkpath(SCST_ROOT, SCST_TARGETS, $driver, SCST_MGMT_IO), O_RDONLY;
 
 	if (!$io) {
-		$self->{'err_string'} = "targetCreateParameters(): Unable to open driver mgmt ".
+		$self->{'err_string'} = "targetCreateAttributes(): Unable to open driver mgmt ".
 		  "interface for driver '$driver': $!";
 		return undef;
 	}
@@ -2484,14 +2692,14 @@ sub targetCreateParameters {
 	}
 
 	if ($available) {
-		foreach my $parameter (split(/\,/, $available)) {
-			$parameter =~ s/^\s+//;
-			$parameter =~ s/\s+$//;
-			$parameters{$parameter} = '';
+		foreach my $attribute (split(/\,/, $available)) {
+			$attribute =~ s/^\s+//;
+			$attribute =~ s/\s+$//;
+			$attributes{$attribute} = '';
 		}
 	}
 
-	return \%parameters;
+	return \%attributes;
 }
 
 sub enableTarget {
@@ -2502,14 +2710,14 @@ sub enableTarget {
 
 	$enable = TRUE if ($enable);
 
-	return $self->setTargetParameter($driver, $target, 'enabled', $enable);
+	return $self->setTargetAttribute($driver, $target, 'enabled', $enable);
 }
 
 sub resyncDevice {
 	my $self = shift;
 	my $device = shift;
 
-	return $self->setDeviceParameter($device, 'resync_size', 1);
+	return $self->setDeviceAttribute($device, 'resync_size', 1);
 }
 
 sub setT10DeviceId {
@@ -2517,10 +2725,10 @@ sub setT10DeviceId {
 	my $device = shift;
 	my $t10_id = shift;
 
-	return $self->setDeviceParameter($device, 't10_dev_id', $t10_id);
+	return $self->setDeviceAttribute($device, 't10_dev_id', $t10_id);
 }
 
-sub checkLunCreateParameters {
+sub checkLunCreateAttributes {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
@@ -2543,12 +2751,12 @@ sub checkLunCreateParameters {
 		return $rc if ($rc > 1);
 	}
 
-	my $available = $self->lunCreateParameters($driver, $target, $group);
+	my $available = $self->lunCreateAttributes($driver, $target, $group);
 
 	return SCST_C_FATAL_ERROR if (!defined($available));
 
-	foreach my $parameter (keys %{$check}) {
-		if (!defined($$available{$parameter})) {
+	foreach my $attribute (keys %{$check}) {
+		if (!defined($$available{$attribute})) {
 			return TRUE;
 		}
 	}
@@ -2556,22 +2764,22 @@ sub checkLunCreateParameters {
 	return FALSE;
 }
 
-sub lunCreateParameters {
+sub lunCreateAttributes {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
 	my $group = shift;
 	my $available;
-	my %parameters;
+	my %attributes;
 
 	if ($self->driverExists($driver) != TRUE) {
-		$self->{'err_string'} = "lunCreateParameters(): Driver '$driver' ".
+		$self->{'err_string'} = "lunCreateAttributes(): Driver '$driver' ".
 		  "is not available";
 		return undef;
 	}
 
 	if ($self->targetExists($driver, $target) != TRUE) {
-		$self->{'err_string'} = "lunCreateParameters(): Target '$target' ".
+		$self->{'err_string'} = "lunCreateAttributes(): Target '$target' ".
 		  "is not available";
 		return undef;
 	}
@@ -2580,7 +2788,7 @@ sub lunCreateParameters {
 
 	if ($group) {
 		if ($self->groupExists($driver, $target, $group) != TRUE) {
-			$self->{'err_string'} = "lunCreateParameters(): Group '$group' ".
+			$self->{'err_string'} = "lunCreateAttributes(): Group '$group' ".
 			  "does not exist";
 			return undef;
 		}
@@ -2595,7 +2803,7 @@ sub lunCreateParameters {
 	my $io = new IO::File $_path;
 
 	if (!$io) {
-		$self->{'err_string'} = "lunCreateParameters(): Unable to open luns mgmt ".
+		$self->{'err_string'} = "lunCreateAttributes(): Unable to open luns mgmt ".
 		  "interface for group '$group': $!";
 		return undef;
 	}
@@ -2608,17 +2816,17 @@ sub lunCreateParameters {
 	}
 
 	if ($available) {
-		foreach my $parameter (split(/\,/, $available)) {
-			$parameter =~ s/^\s+//;
-			$parameter =~ s/\s+$//;
-			$parameters{$parameter} = '';
+		foreach my $attribute (split(/\,/, $available)) {
+			$attribute =~ s/^\s+//;
+			$attribute =~ s/\s+$//;
+			$attributes{$attribute} = '';
 		}
 	}
 
-	return \%parameters;
+	return \%attributes;
 }
 
-sub checkInitiatorCreateParameters {
+sub checkInitiatorCreateAttributes {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
@@ -2639,12 +2847,12 @@ sub checkInitiatorCreateParameters {
 	return SCST_C_GRP_NO_GROUP if (!$rc);
 	return $rc if ($rc > 1);
 
-	my $available = $self->initiatorCreateParameters($driver, $target, $group);
+	my $available = $self->initiatorCreateAttributes($driver, $target, $group);
 
 	return SCST_C_FATAL_ERROR if (!defined($available));
 
-	foreach my $parameter (keys %{$check}) {
-		if (!defined($$available{$parameter})) {
+	foreach my $attribute (keys %{$check}) {
+		if (!defined($$available{$attribute})) {
 			return TRUE;
 		}
 	}
@@ -2652,28 +2860,28 @@ sub checkInitiatorCreateParameters {
 	return FALSE;
 }
 
-sub initiatorCreateParameters {
+sub initiatorCreateAttributes {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
 	my $group = shift;
 	my $available;
-	my %parameters;
+	my %attributes;
 
 	if ($self->driverExists($driver) != TRUE) {
-		$self->{'err_string'} = "initiatorCreateParameters(): Driver '$driver' ".
+		$self->{'err_string'} = "initiatorCreateAttributes(): Driver '$driver' ".
 		  "is not available";
 		return undef;
 	}
 
 	if ($self->targetExists($driver, $target) != TRUE) {
-		$self->{'err_string'} = "initiatorCreateParameters(): Target '$target' ".
+		$self->{'err_string'} = "initiatorCreateAttributes(): Target '$target' ".
 		  "is not available";
 		return undef;
 	}
 
 	if ($self->groupExists($driver, $target, $group) != TRUE) {
-		$self->{'err_string'} = "initiatorCreateParameters(): Group '$group' ".
+		$self->{'err_string'} = "initiatorCreateAttributes(): Group '$group' ".
 		  "does not exist";
 		return undef;
 	}
@@ -2682,7 +2890,7 @@ sub initiatorCreateParameters {
 	  SCST_GROUPS, $group, SCST_LUNS, SCST_MGMT_IO), O_RDONLY;
 
 	if (!$io) {
-		$self->{'err_string'} = "initiatorCreateParameters(): Unable to open initiators mgmt ".
+		$self->{'err_string'} = "initiatorCreateAttributes(): Unable to open initiators mgmt ".
 		  "interface for group '$group': $!";
 		return undef;
 	}
@@ -2695,14 +2903,14 @@ sub initiatorCreateParameters {
 	}
 
 	if ($available) {
-		foreach my $parameter (split(/\,/, $available)) {
-			$parameter =~ s/^\s+//;
-			$parameter =~ s/\s+$//;
-			$parameters{$parameter} = '';
+		foreach my $attribute (split(/\,/, $available)) {
+			$attribute =~ s/^\s+//;
+			$attribute =~ s/\s+$//;
+			$attributes{$attribute} = '';
 		}
 	}
 
-	return \%parameters;
+	return \%attributes;
 }
 
 sub sessions {
@@ -2739,16 +2947,16 @@ sub sessions {
 			return undef;
 		}
 
-		foreach my $parameter (readdir($pHandle)) {
-			my $pPath = mkpath($sPath, $parameter);
+		foreach my $attribute (readdir($pHandle)) {
+			my $pPath = mkpath($sPath, $attribute);
 
-			if ($parameter eq 'luns') {
+			if ($attribute eq 'luns') {
 				my $linked = readlink $pPath;
 				my $g = SCST_GROUPS;
 				my $l = SCST_LUNS;
 				if ($linked =~ /\.\.\/\.\.\/$g\/(.*)\/$l/) {
 					my $group = $1;
-					$_sessions{$session}->{$parameter} =
+					$_sessions{$session}->{$attribute} =
 					  $self->luns($driver, $target, $group);
 				}
 			} else {
@@ -2756,14 +2964,14 @@ sub sessions {
 
 				if (!$io) {
 					$self->{'err_string'} = "sessions(): Unable to read ".
-					  "session parameter '$parameter': $!";
+					  "session attribute '$attribute': $!";
 					return undef;
 				}
 
 				my $value = <$io>;
 				chomp $value;
 
-				$_sessions{$session}->{parameter} = $value;
+				$_sessions{$session}->{attribute} = $value;
 			}
 		}
 	}
