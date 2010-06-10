@@ -166,16 +166,12 @@ void ft_cmd_tm_dump(struct scst_mgmt_cmd *mcmd, const char *caller)
 		mcmd->cmd_finish_wait_count, mcmd->cmd_done_wait_count,
 		mcmd->completed_cmd_count);
 	buf[0] = '\0';
-	if (mcmd->completed)
-		ft_cmd_flag(buf, sizeof(buf), "comp");
 	if (mcmd->needs_unblocking)
 		ft_cmd_flag(buf, sizeof(buf), "needs_unblock");
 	if (mcmd->lun_set)
 		ft_cmd_flag(buf, sizeof(buf), "lun_set");
 	if (mcmd->cmd_sn_set)
 		ft_cmd_flag(buf, sizeof(buf), "cmd_sn_set");
-	if (mcmd->affected_cmds_done_called)
-		ft_cmd_flag(buf, sizeof(buf), "cmds_done");
 	printk(KERN_INFO "%s flags %s\n", prefix, buf);
 	if (mcmd->cmd_to_abort)
 		ft_cmd_dump(mcmd->cmd_to_abort, caller);
