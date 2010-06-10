@@ -22,12 +22,14 @@ set, this attribute will become back to a none-key attribute.
 Each user configurable attribute with a not default value MUST be marked
 as key attribute.
 
-Key attributes SHOULD NOT have names finished on digits, because such
-names SHOULD be used to store several attributes with the same name. For
-instance, iSCSI targets can have several incoming user names, so the
-corresponding attribute should have sysfs name "IncomingUser". If there
-are several user names, they should have sysfs names "IncomingUser" and
-"IncomingUser1".
+Key attributes SHOULD NOT have sysfs names finished on digits, because
+such names SHOULD be used to store several attributes with the same name
+on the sysfs tree where duplicated names are not allowed. For instance,
+iSCSI targets can have several incoming user names, so the corresponding
+attribute should have sysfs name "IncomingUser". If there are 2 user
+names, they should have sysfs names "IncomingUser" and "IncomingUser1".
+In other words, all "IncomingUser[0-9]*" names should be considered as
+different instances of the same "IncomingUser" attribute.
 
 
 I. Rules for target drivers
@@ -265,6 +267,7 @@ MUST implement it using "force_close" write only session's attribute,
 which on write to it MUST close the corresponding session.
 
 See SCST core's README for more info about those attributes.
+
 
 II. Rules for dev handlers
 ==========================
@@ -562,6 +565,143 @@ commands to the "mgmt" attribute as specified above.
 7. Each device has "handler" link to its dev handler's root
 subdirectory.
 
+How to distinguish and process different types of attributes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Since management utilities only interested in key attributes, they
+should simply ignore all non-key attributes, like 
+devices/device_name/type or targets/target_driver/target_name/version 
+doesn't matter if they are read-only or writable. So, the word "key"
+will be omitted later in this section.
+
+At first, any attribute can be a key attribute, doesn't matter how it's
+created.
+
+All the existing on the configuration save time attributes should be 
+treated the same. Management utilities shouldn't try to separate anyhow
+them in config files.
+
+1. Always existing attributes
+-----------------------------
+
+There are 2 type of them:
+
+1.1. Writable, like devices/device_name/t10_dev_id or 
+targets/qla2x00tgt/target_name/explicit_confirmation. They are the
+simplest and all the values can just be read and written from/to them.
+
+On the configuration save time they can be distinguished as existing.
+
+On the write configuration time they can be distinguished as existing
+and writable.
+
+1.2. Read-only, like devices/fileio_device_name/filename or 
+devices/fileio_device_name/block_size. They are also easy to distinguish 
+looking at the permissions.
+
+On the configuration save time they can be distinguished the same as for 
+(1.1) as existing.
+
+On the write configuration time they can be distinguished as existing
+and read-only. They all should be passed to "add_target" or
+"add_device" commands for virtual targets and devices correspondingly.
+To apply changes to them, the whole corresponding object
+(fileio_device_name in this example) should be removed then recreated.
+
+2. Optional
+-----------
+
+For instance, targets/iscsi/IncomingUser or 
+targets/iscsi/target_name/IncomingUser. There are 4 types of them:
+
+2.1. Global for target drivers and dev handlers
+-----------------------------------------------
+
+For instance, targets/iscsi/IncomingUser or handlers/vdisk_fileio/XX 
+(none at the moment).
+
+On the configuration save time they can be distinguished the same as for 
+(1.1).
+
+On the write configuration time they can be distinguished as one of 4 
+choices:
+
+2.1.1. Existing and writable. In this case they should be treated  as
+(1.1)
+
+2.1.2. Existing and read-only. In this case they should be treated as
+(1.2).
+
+2.1.3. Not existing. In this case they should be added using 
+"add_attribute" command.
+
+2.1.4. Existing in the sysfs tree and not existing in the config file.
+In this case they should be deleted using "del_attribute" command.
+
+2.2. Global for targets
+-----------------------
+
+For instance, targets/iscsi/target_name/IncomingUser.
+
+On the configuration save time they can be distinguished the same as (1.1).
+
+On the write configuration time they can be distinguished as one of 4 
+choices:
+
+2.2.1. Existing and writable. In this case they should be treated  as
+(1.1).
+
+2.2.2. Existing and read-only. In this case they should be treated  as
+(1.2).
+
+2.2.3. Not existing. In this case they should be added using 
+"add_target_attribute" command.
+
+2.2.4. Existing in the sysfs tree and not existing in the config  file.
+In this case they should be deleted using "del_target_attribute" 
+command.
+
+2.3. Global for devices
+-----------------------
+
+For instance, devices/nullio/t10_dev_id.
+
+On the configuration save time they can be distinguished the same as (1.1).
+
+On the write configuration time they can be distinguished as one of 4 
+choices:
+
+2.3.1. Existing and writable. In this case they should be treated  as
+(1.1)
+
+2.3.2. Existing and read-only. In this case they should be treated  as
+(1.2).
+
+2.3.3. Not existing. In this case they should be added using 
+"add_device_attribute" command for the corresponding handler, e.g. 
+devices/nullio/handler/.
+
+2.3.4. Existing in the sysfs tree and not existing in the config  file.
+In this case they should be deleted using "del_device_attribute" 
+command for the corresponding handler, e.g. devices/nullio/handler/.
+
+Thus, management utility should implement only 8 procedures: (1.1),
+(1.2), (2.1.3), (2.1.4), (2.2.3), (2.2.4), (2.3.3), (2.3.4).
+
+
+How to distinguish hardware and virtual targets
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A target is hardware:
+  
+  * if exist both "hw_target" attribute and "mgmt" management file
+       
+  * or if both don't exist
+            
+A target is virtual if there is "mgmt" file and "hw_target" attribute
+doesn't exist.
+
+
 Algorithm to convert current SCST configuration to config file
 --------------------------------------------------------------
 
@@ -572,7 +712,7 @@ For all attributes with digits at the end the name, the digits part
 should be omitted from the attributes' names during the store. For
 instance, "IncomingUser1" should be stored as "IncomingUser".
 
-1. Scan all attributes in /sys/kernel/scst_tgt (not requirsive) and store
+1. Scan all attributes in /sys/kernel/scst_tgt (not recursive) and store
 all found key attributes.
 
 2. Scan all subdirectories of /sys/kernel/scst_tgt/handlers. Each
@@ -726,7 +866,7 @@ as possible. Thus, the management utility SHOULD support additional
 option, which, if set, will make it to disable all affected targets
 before doing any change with them.
 
-1. Scan all attributes in /sys/kernel/scst_tgt (not requirsive) and
+1. Scan all attributes in /sys/kernel/scst_tgt (not recursive) and
 compare stored and actual key attributes. Apply all changes.
 
 2. Scan all subdirectories of /sys/kernel/scst_tgt/handlers. Each
