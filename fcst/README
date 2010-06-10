@@ -1,18 +1,18 @@
-fcst README						v0.1 02/17/2010
+fcst README						v1.0 06/10/2010
 
 $Id$
 
 FCST is a module that depends on libfc and SCST to provide FC target support.
 
-To build for linux-2.6.33-rc8, do:
+To build for linux-2.6.34, do:
 
-1. Get the kernel:
+1. Get the kernel source:
 
-	KERNEL=linux-2.6.33-rc8
+	KERNEL=linux-2.6.34
 
 	cd /usr/src/kernels
-	URL_DIR=http://www.kernel.org/pub/linux/kernel/v2.6/testing/
-	TARFILE=$VER.tar.bz2
+	URL_DIR=http://www.kernel.org/pub/linux/kernel/v2.6
+	TARFILE=$KERNEL.tar.bz2
 	wget -o $TARFILE $URL_DIR/$TARFILE
 	tar xfj $TARFILE
 	cd $KERNEL
@@ -23,41 +23,47 @@ To build for linux-2.6.33-rc8, do:
 	PDIR=/usr/src/scst/trunk/fcst/linux-patches	# use your dir here
 
 	cd $PDIR
-	for patch in `grep -v '^#' series-$KERNEL`
+	for patch in `grep -v '^#' series-2.6.34`
 	do
 		(cd $KDIR; patch -p1) < $patch
 	done
 
 3.  Apply SCST patches to the kernel
 	See trunk/scst/README
-	The readahead patches are not needed in 2.6.33.
+	The readahead patches are not needed in 2.6.33 or later.
 
-4.  Configure and make your kernel
+4.  Configure, make, and install your kernel
 
 5.  Install SCST
-	See trunk/scst/README. Make sure you are building sysfs SCST build, because
-	FCST supports only it.
+	See trunk/scst/README. Make sure you are building sysfs SCST build,
+	because FCST supports only it.  You need to do 
+
+		cd trunk/scst
+		make disable_proc	# first time only
+		make
+		make install
 
 6.  Make FCST
-	In this directory, just do
+	In the directory containing this README, just do
 		make
 		make install
 
 7.  Install the FCoE admin tools, including dcbd and fcoeadm.
 	Some distros may have these.
 	You should be able to use the source at
-	http://www.open-fcoe.org/openfc/downloads/2.6.32/open-fcoe-2.6.32.tar.gz
+	http://www.open-fcoe.org/openfc/downloads/2.6.34/open-fcoe-2.6.34.tar.gz
 
 8.  Bring up SCST and configure the devices.
 
 9.  Bring up an FCoE initiator (we'll enable target mode on it later):
+	modprobe fcoe
 	fcoeadm -c eth3
 
     The other end can be an initiator as well, in point-to-point mode
-    over a full-duplex loss-less link (enable pause on both sides),
-    or a link to an FCoE switch.
+    over a full-duplex loss-less link (enable pause on both sides).
+    Alternatively, the other end can be an FCoE switch.
 
-10. Use fcc (part of the open-fcoe debug tools in step 7) to see the
+10. Use fcc (part of the open-fcoe contrib tools in step 7) to see the
     initiator setup.  To get the FCoE port name for eth3
 
 	# fcc
