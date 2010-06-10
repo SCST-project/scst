@@ -569,15 +569,15 @@ How to distinguish and process different types of attributes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Since management utilities only interested in key attributes, they
-should simply ignore all non-key attributes, like 
-devices/device_name/type or targets/target_driver/target_name/version 
+should simply ignore all non-key attributes, like
+devices/device_name/type or targets/target_driver/target_name/version
 doesn't matter if they are read-only or writable. So, the word "key"
 will be omitted later in this section.
 
 At first, any attribute can be a key attribute, doesn't matter how it's
 created.
 
-All the existing on the configuration save time attributes should be 
+All the existing on the configuration save time attributes should be
 treated the same. Management utilities shouldn't try to separate anyhow
 them in config files.
 
@@ -586,7 +586,7 @@ them in config files.
 
 There are 2 type of them:
 
-1.1. Writable, like devices/device_name/t10_dev_id or 
+1.1. Writable, like devices/device_name/t10_dev_id or
 targets/qla2x00tgt/target_name/explicit_confirmation. They are the
 simplest and all the values can just be read and written from/to them.
 
@@ -595,11 +595,11 @@ On the configuration save time they can be distinguished as existing.
 On the write configuration time they can be distinguished as existing
 and writable.
 
-1.2. Read-only, like devices/fileio_device_name/filename or 
-devices/fileio_device_name/block_size. They are also easy to distinguish 
+1.2. Read-only, like devices/fileio_device_name/filename or
+devices/fileio_device_name/block_size. They are also easy to distinguish
 looking at the permissions.
 
-On the configuration save time they can be distinguished the same as for 
+On the configuration save time they can be distinguished the same as for
 (1.1) as existing.
 
 On the write configuration time they can be distinguished as existing
@@ -611,19 +611,19 @@ To apply changes to them, the whole corresponding object
 2. Optional
 -----------
 
-For instance, targets/iscsi/IncomingUser or 
+For instance, targets/iscsi/IncomingUser or
 targets/iscsi/target_name/IncomingUser. There are 4 types of them:
 
 2.1. Global for target drivers and dev handlers
 -----------------------------------------------
 
-For instance, targets/iscsi/IncomingUser or handlers/vdisk_fileio/XX 
+For instance, targets/iscsi/IncomingUser or handlers/vdisk_fileio/XX
 (none at the moment).
 
-On the configuration save time they can be distinguished the same as for 
+On the configuration save time they can be distinguished the same as for
 (1.1).
 
-On the write configuration time they can be distinguished as one of 4 
+On the write configuration time they can be distinguished as one of 4
 choices:
 
 2.1.1. Existing and writable. In this case they should be treated  as
@@ -632,7 +632,7 @@ choices:
 2.1.2. Existing and read-only. In this case they should be treated as
 (1.2).
 
-2.1.3. Not existing. In this case they should be added using 
+2.1.3. Not existing. In this case they should be added using
 "add_attribute" command.
 
 2.1.4. Existing in the sysfs tree and not existing in the config file.
@@ -645,7 +645,7 @@ For instance, targets/iscsi/target_name/IncomingUser.
 
 On the configuration save time they can be distinguished the same as (1.1).
 
-On the write configuration time they can be distinguished as one of 4 
+On the write configuration time they can be distinguished as one of 4
 choices:
 
 2.2.1. Existing and writable. In this case they should be treated  as
@@ -654,11 +654,11 @@ choices:
 2.2.2. Existing and read-only. In this case they should be treated  as
 (1.2).
 
-2.2.3. Not existing. In this case they should be added using 
+2.2.3. Not existing. In this case they should be added using
 "add_target_attribute" command.
 
 2.2.4. Existing in the sysfs tree and not existing in the config  file.
-In this case they should be deleted using "del_target_attribute" 
+In this case they should be deleted using "del_target_attribute"
 command.
 
 2.3. Global for devices
@@ -668,7 +668,7 @@ For instance, devices/nullio/t10_dev_id.
 
 On the configuration save time they can be distinguished the same as (1.1).
 
-On the write configuration time they can be distinguished as one of 4 
+On the write configuration time they can be distinguished as one of 4
 choices:
 
 2.3.1. Existing and writable. In this case they should be treated  as
@@ -677,12 +677,12 @@ choices:
 2.3.2. Existing and read-only. In this case they should be treated  as
 (1.2).
 
-2.3.3. Not existing. In this case they should be added using 
-"add_device_attribute" command for the corresponding handler, e.g. 
+2.3.3. Not existing. In this case they should be added using
+"add_device_attribute" command for the corresponding handler, e.g.
 devices/nullio/handler/.
 
 2.3.4. Existing in the sysfs tree and not existing in the config  file.
-In this case they should be deleted using "del_device_attribute" 
+In this case they should be deleted using "del_device_attribute"
 command for the corresponding handler, e.g. devices/nullio/handler/.
 
 Thus, management utility should implement only 8 procedures: (1.1),
@@ -693,11 +693,11 @@ How to distinguish hardware and virtual targets
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 A target is hardware:
-  
+
   * if exist both "hw_target" attribute and "mgmt" management file
-       
+
   * or if both don't exist
-            
+
 A target is virtual if there is "mgmt" file and "hw_target" attribute
 doesn't exist.
 
