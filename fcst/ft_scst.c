@@ -61,6 +61,7 @@ struct scst_tgt_template ft_scst_template = {
 	.report_aen =		ft_report_aen,
 	.enable_target =	ft_tgt_enable,
 	.is_target_enabled =	ft_tgt_enabled,
+	.get_initiator_port_transport_id = ft_get_transport_id,
 	.max_hw_pending_time =	FT_MAX_HW_PENDING_TIME,
 	.name =			FT_MODULE,
 };

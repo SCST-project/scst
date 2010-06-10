@@ -212,6 +212,16 @@ static int ft_sess_create(struct ft_tport *tport, struct fc_rport_priv *rdata,
 	if (!sess)
 		return FC_SPP_RESP_RES;		/* out of resources */
 
+	sess->port_name = rdata->ids.port_name;
+	sess->max_payload = rdata->maxframe_size;
+	sess->max_lso_payload = rdata->maxframe_size;
+	if (tport->lport->seq_offload)
+		sess->max_lso_payload = tport->lport->lso_max;
+	sess->params = fcp_parm;
+	sess->tport = tport;
+	sess->port_id = port_id;
+	kref_init(&sess->kref);			/* ref for table entry */
+
 	ft_format_wwn(name, sizeof(name), rdata->ids.port_name);
 	FT_SESS_DBG("register %s\n", name);
 	scst_sess = scst_register_session(tport->tgt, 0, name, sess, NULL,
@@ -221,20 +231,10 @@ static int ft_sess_create(struct ft_tport *tport, struct fc_rport_priv *rdata,
 		return FC_SPP_RESP_RES;		/* out of resources */
 	}
 	sess->scst_sess = scst_sess;
-	sess->tport = tport;
-	sess->port_id = port_id;
-	kref_init(&sess->kref);			/* ref for table entry */
 	hlist_add_head_rcu(&sess->hash, head);
 	tport->sess_count++;
 
 	FT_SESS_DBG("port_id %x sess %p\n", port_id, sess);
-
-	sess->port_name = rdata->ids.port_name;
-	sess->max_payload = rdata->maxframe_size;
-	sess->max_lso_payload = rdata->maxframe_size;
-	if (tport->lport->seq_offload)
-		sess->max_lso_payload = tport->lport->lso_max;
-	sess->params = fcp_parm;
 
 	rdata->prli_count++;
 	return 0;
@@ -292,6 +292,33 @@ static void ft_sess_close(struct ft_sess *sess)
 	FT_SESS_DBG("port_id %x\n", port_id);
 	ft_sess_unhash(sess);
 	/* XXX should send LOGO or PRLO to rport */
+}
+
+/*
+ * Allocate and fill in the SPC Transport ID for persistent reservations.
+ */
+int ft_get_transport_id(struct scst_session *scst_sess, uint8_t **result)
+{
+	struct ft_sess *sess;
+	struct {
+		u8	format_proto;	/* format and protocol ID (0 for FC) */
+		u8	__resv1[7];
+		__be64	port_name;	/* N_Port Name */
+		u8	__resv2[8];
+	} __attribute__((__packed__)) *id;
+
+	if (!scst_sess)
+		return SCSI_TRANSPORTID_PROTOCOLID_FCP2;
+
+	id = kzalloc(sizeof(*id), GFP_KERNEL);
+	if (!id)
+		return -ENOMEM;
+
+	sess = scst_sess_get_tgt_priv(scst_sess);
+	id->port_name = cpu_to_be64(sess->port_name);
+	id->format_proto = SCSI_TRANSPORTID_PROTOCOLID_FCP2;
+	*result = (uint8_t *)id;
+	return 0;
 }
 
 /*
