@@ -78,21 +78,18 @@ To build for linux-2.6.34, do:
     In the above example, there's one local host on eth3, and it's in
     a point-to-point connection with the remote initiator with Port_id 010101.
 
-11.  Load fcst and create an ini-group for the remote initiator.  Do:
-
-	LPORT=20:00:00:1b:21:06:58:21		# the local Port_Name
-	INIT_PORT=10:00:50:41:4c:4f:3b:00	# remote Port Name
-	GROUP=test				# your choice ini_group name
-	GDIR=$LPORT/ini_group/$GROUP
+11.  Load fcst
 
 	modprobe fcst
-	cd /sys/kernel/scst_tgt/targets/fcst
-	echo create $GROUP > $LPORT/ini_group/mgmt
-	echo add $INIT_PORT > $GDIR/initiators/mgmt
 
-12.  Add any disks you want to the LUNs in that init group.
+12.  Add any disks (configured in step 8) you want to export
+     Note that you must have a LUN 0.
 
-	echo add disk-name 0 > $GDIR/luns/mgmt
+	LPORT=20:00:00:1b:21:06:58:21		# the local Port_Name
+
+	cd /sys/kernel/scst_tgt/targets/fcst/$LPORT
+	echo add disk-name 0 > luns/mgmt
+	echo add disk-name 1 > luns/mgmt
 
 13.  Enable the initiator:
 
