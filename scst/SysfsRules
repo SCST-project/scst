@@ -50,7 +50,7 @@ instance, a Fibre Channel adapter's port. Virtual targets are hardware
 independent targets, which can be dynamically added or removed, for
 instance, an iSCSI target, or NPIV Fibre Channel target.
 
-A target driver supporting virtual targets must support "mgmt" attribute
+A target driver supporting virtual targets MUST support "mgmt" attribute
 and "add_target"/"del_target" commands.
 
 If target driver supports both hardware and virtual targets (for
@@ -124,30 +124,35 @@ For example:
 EXTRACHECKS
 DEBUG
 
-4. "mgmt" - this attribute MUST allow to add and delete targets, if
-virtual targets are supported by this driver, as well as it MAY allow to
-add and delete the target driver's or its targets' attributes.
+4. "mgmt" - if supported this attribute MUST allow to add and delete
+targets, if virtual targets are supported by this driver, as well as it
+MAY allow to add and delete the target driver's or its targets'
+attributes.
 
 This attribute MUST have read and write permissions for superuser and be
 read-only for other users.
 
-On read it MUST return a help string describing available commands and
-parameters.
+On read it MUST return a help string describing available commands,
+parameters and attributes.
+
+To achieve that the target driver should just set in its struct
+scst_tgt_template correctly the following fields: mgmt_cmd_help,
+add_target_parameters, tgtt_optional_attributes and
+tgt_optional_attributes.
 
 For example:
 
 Usage: echo "add_target target_name [parameters]" >mgmt
        echo "del_target target_name" >mgmt
-       echo "add_attribute IncomingUser name password" >mgmt
-       echo "del_attribute IncomingUser name" >mgmt
-       echo "add_attribute OutgoingUser name password" >mgmt
-       echo "del_attribute OutgoingUser name" >mgmt
-       echo "add_target_attribute target_name IncomingUser name password" >mgmt
-       echo "del_target_attribute target_name IncomingUser name" >mgmt
-       echo "add_target_attribute target_name OutgoingUser name password" >mgmt
-       echo "del_target_attribute target_name OutgoingUser name" >mgmt
+       echo "add_attribute <attribute> <value>" >mgmt
+       echo "del_attribute <attribute> <value>" >mgmt
+       echo "add_target_attribute target_name <attribute> <value>" >mgmt
+       echo "del_target_attribute target_name <attribute> <value>" >mgmt
 
 where parameters are one or more param_name=value pairs separated by ';'
+
+The following target driver attributes available: IncomingUser, OutgoingUser
+The following target attributes available: IncomingUser, OutgoingUser, allowed_portal
 
 4.1. "add_target" - if supported, this command MUST add new target with
 name "target_name" and specified optional or required parameters. Each
@@ -361,22 +366,25 @@ handler's or its devices' attributes.
 On read it MUST return a help string describing available commands and
 parameters.
 
+To achieve that the dev handler should just set in its struct
+scst_dev_type correctly the following fields: mgmt_cmd_help,
+add_device_parameters, devt_optional_attributes and
+dev_optional_attributes.
+
 For example:
 
 Usage: echo "add_device device_name [parameters]" >mgmt
        echo "del_device device_name" >mgmt
-       echo "add_attribute AttributeX ValueX" >mgmt
-       echo "del_attribute AttributeX ValueX" >mgmt
-       echo "add_attribute AttributeY ValueY1 ValueY2" >mgmt
-       echo "del_attribute AttributeY" >mgmt
-       echo "add_device_attribute device_name AttributeDX ValueDX" >mgmt
-       echo "del_device_attribute device_name AttributeDX ValueDX" >mgmt
-       echo "add_device_attribute device_name AttributeDY ValueY1 ValueY2" >mgmt
-       echo "del_device_attribute device_name AttributeDY" >mgmt
+       echo "add_attribute <attribute> <value>" >mgmt
+       echo "del_attribute <attribute> <value>" >mgmt
+       echo "add_device_attribute device_name <attribute> <value>" >mgmt
+       echo "del_device_attribute device_name <attribute> <value>" >mgmt
 
 where parameters are one or more param_name=value pairs separated by ';'
 
 The following parameters available: filename, blocksize, write_through, nv_cache, o_direct, read_only, removable
+The following device driver attributes available: AttributeX, AttributeY
+The following device attributes available: AttributeDX, AttributeDY
 
 1. "add_device" - this command MUST add new device with name
 "device_name" and specified optional or required parameters. Each

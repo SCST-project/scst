@@ -901,21 +901,35 @@ struct scst_tgt_template {
 	const char *trace_tbl_help;
 
 #ifndef CONFIG_SCST_PROC
-	/* Optional sysfs attributes */
+	/* sysfs attributes, if any */
 	const struct attribute **tgtt_attrs;
 
-	/* Optional sysfs target attributes */
+	/* sysfs target attributes, if any */
 	const struct attribute **tgt_attrs;
 
-	/* Optional sysfs session attributes */
+	/* sysfs session attributes, if any */
 	const struct attribute **sess_attrs;
 #endif
 
 	/* Optional help string for mgmt_cmd commands */
 	const char *mgmt_cmd_help;
 
-	/* Optional help string for add_target parameters */
-	const char *add_target_parameters_help;
+	/* List of parameters for add_target command, if any */
+	const char *add_target_parameters;
+
+	/*
+	 * List of optional, i.e. which could be added by add_attribute command
+	 * and deleted by del_attribute command, sysfs attributes, if any.
+	 * Helpful for scstadmin to work correctly.
+	 */
+	const char *tgtt_optional_attributes;
+
+	/*
+	 * List of optional, i.e. which could be added by add_target_attribute
+	 * command and deleted by del_target_attribute command, sysfs
+	 * attributes, if any. Helpful for scstadmin to work correctly.
+	 */
+	const char *tgt_optional_attributes;
 
 	/** Private, must be inited to 0 by memset() **/
 
@@ -1196,13 +1210,27 @@ struct scst_dev_type {
 	/* Optional help string for mgmt_cmd commands */
 	const char *mgmt_cmd_help;
 
-	/* Optional help string for add_device parameters */
-	const char *add_device_parameters_help;
+	/* List of parameters for add_device command, if any */
+	const char *add_device_parameters;
 
-	/* Optional sysfs attributes */
+	/*
+	 * List of optional, i.e. which could be added by add_attribute command
+	 * and deleted by del_attribute command, sysfs attributes, if any.
+	 * Helpful for scstadmin to work correctly.
+	 */
+	const char *devt_optional_attributes;
+
+	/*
+	 * List of optional, i.e. which could be added by add_device_attribute
+	 * command and deleted by del_device_attribute command, sysfs
+	 * attributes, if any. Helpful for scstadmin to work correctly.
+	 */
+	const char *dev_optional_attributes;
+
+	/* sysfs attributes, if any */
 	const struct attribute **devt_attrs;
 
-	/* Optional sysfs device attributes */
+	/* sysfs device attributes, if any */
 	const struct attribute **dev_attrs;
 #endif
 

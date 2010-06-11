@@ -3637,18 +3637,6 @@ static struct scst_trace_log iscsi_local_trace_tbl[] = {
 #define ISCSI_TRACE_TBL_HELP	", d_write, conn, conn_dbg, iov, pdu, net_page"
 #endif
 
-#define ISCSI_MGMT_CMD_HELP	\
-	"       echo \"add_attribute IncomingUser name password\" >mgmt\n" \
-	"       echo \"del_attribute IncomingUser name\" >mgmt\n" \
-	"       echo \"add_attribute OutgoingUser name password\" >mgmt\n" \
-	"       echo \"del_attribute OutgoingUser name\" >mgmt\n" \
-	"       echo \"add_target_attribute target_name IncomingUser name password\" >mgmt\n" \
-	"       echo \"del_target_attribute target_name IncomingUser name\" >mgmt\n" \
-	"       echo \"add_target_attribute target_name OutgoingUser name password\" >mgmt\n" \
-	"       echo \"del_target_attribute target_name OutgoingUser name\" >mgmt\n" \
-	"       echo \"add_target_attribute target_name allowed_portal portal_mask\" >mgmt\n" \
-	"       echo \"del_target_attribute target_name allowed_portal portal_mask\" >mgmt\n"
-
 struct scst_tgt_template iscsi_template = {
 	.name = "iscsi",
 	.sg_tablesize = 0xFFFF /* no limit */,
@@ -3664,7 +3652,8 @@ struct scst_tgt_template iscsi_template = {
 	.add_target = iscsi_sysfs_add_target,
 	.del_target = iscsi_sysfs_del_target,
 	.mgmt_cmd = iscsi_sysfs_mgmt_cmd,
-	.mgmt_cmd_help = ISCSI_MGMT_CMD_HELP,
+	.tgtt_optional_attributes = "IncomingUser, OutgoingUser",
+	.tgt_optional_attributes = "IncomingUser, OutgoingUser, allowed_portal",
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags = ISCSI_DEFAULT_LOG_FLAGS,

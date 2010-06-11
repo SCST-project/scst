@@ -240,27 +240,41 @@ static struct kobj_attribute tgtt_trace_attr =
 static ssize_t scst_tgtt_mgmt_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
-	char *help = "Usage: echo \"add_target target_name [parameters]\" "
+char *help = "Usage: echo \"add_target target_name [parameters]\" "
 				">mgmt\n"
 		     "       echo \"del_target target_name\" >mgmt\n"
+		     "%s%s"
 		     "%s"
 		     "\n"
 		     "where parameters are one or more "
-		     "param_name=value pairs separated by ';'\n"
-		     "%s%s";
-	struct scst_tgt_template *tgtt;
+		     "param_name=value pairs separated by ';'\n\n"
+		     "%s%s%s%s%s%s%s%s\n";
+		struct scst_tgt_template *tgtt;
 
 	tgtt = container_of(kobj, struct scst_tgt_template, tgtt_kobj);
 
-	if (tgtt->add_target_parameters_help != NULL)
-		return sprintf(buf, help,
-			(tgtt->mgmt_cmd_help) ? tgtt->mgmt_cmd_help : "",
-			"\nThe following parameters available: ",
-			tgtt->add_target_parameters_help);
-	else
-		return sprintf(buf, help,
-			(tgtt->mgmt_cmd_help) ? tgtt->mgmt_cmd_help : "",
-			"", "");
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, help,
+		(tgtt->tgtt_optional_attributes != NULL) ?
+			"       echo \"add_attribute <attribute> <value>\" >mgmt\n"
+			"       echo \"del_attribute <attribute> <value>\" >mgmt\n" : "",
+		(tgtt->tgt_optional_attributes != NULL) ?
+			"       echo \"add_target_attribute target_name <attribute> <value>\" >mgmt\n"
+			"       echo \"del_target_attribute target_name <attribute> <value>\" >mgmt\n" : "",
+		(tgtt->mgmt_cmd_help) ? tgtt->mgmt_cmd_help : "",
+		(tgtt->add_target_parameters != NULL) ?
+			"The following parameters available: " : "",
+		(tgtt->add_target_parameters != NULL) ?
+			tgtt->add_target_parameters : "",
+		(tgtt->tgtt_optional_attributes != NULL) ?
+			"The following target driver attributes available: " : "",
+		(tgtt->tgtt_optional_attributes != NULL) ?
+			tgtt->tgtt_optional_attributes : "",
+		(tgtt->tgtt_optional_attributes != NULL) ? "\n" : "",
+		(tgtt->tgt_optional_attributes != NULL) ?
+			"The following target attributes available: " : "",
+		(tgtt->tgt_optional_attributes != NULL) ?
+			tgtt->tgt_optional_attributes : "",
+		(tgtt->tgt_optional_attributes != NULL) ? "\n" : "");
 }
 
 static ssize_t scst_tgtt_mgmt_store(struct kobject *kobj,
@@ -3491,24 +3505,38 @@ static ssize_t scst_devt_mgmt_show(struct kobject *kobj,
 	char *help = "Usage: echo \"add_device device_name [parameters]\" "
 				">mgmt\n"
 		     "       echo \"del_device device_name\" >mgmt\n"
+		     "%s%s"
 		     "%s"
 		     "\n"
 		     "where parameters are one or more "
-		     "param_name=value pairs separated by ';'\n"
-		     "%s%s";
+		     "param_name=value pairs separated by ';'\n\n"
+		     "%s%s%s%s%s%s%s%s\n";
 	struct scst_dev_type *devt;
 
 	devt = container_of(kobj, struct scst_dev_type, devt_kobj);
 
-	if (devt->add_device_parameters_help != NULL)
-		return sprintf(buf, help,
-			(devt->mgmt_cmd_help) ? devt->mgmt_cmd_help : "",
-			"\nThe following parameters available: ",
-			devt->add_device_parameters_help);
-	else
-		return sprintf(buf, help,
-			(devt->mgmt_cmd_help) ? devt->mgmt_cmd_help : "",
-			"", "");
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, help,
+		(devt->devt_optional_attributes != NULL) ?
+			"       echo \"add_attribute <attribute> <value>\" >mgmt\n"
+			"       echo \"del_attribute <attribute> <value>\" >mgmt\n" : "",
+		(devt->dev_optional_attributes != NULL) ?
+			"       echo \"add_device_attribute device_name <attribute> <value>\" >mgmt"
+			"       echo \"del_device_attribute device_name <attribute> <value>\" >mgmt\n" : "",
+		(devt->mgmt_cmd_help) ? devt->mgmt_cmd_help : "",
+		(devt->add_device_parameters != NULL) ?
+			"The following parameters available: " : "",
+		(devt->add_device_parameters != NULL) ?
+			devt->add_device_parameters : "",
+		(devt->devt_optional_attributes != NULL) ?
+			"The following dev handler attributes available: " : "",
+		(devt->devt_optional_attributes != NULL) ?
+			devt->devt_optional_attributes : "",
+		(devt->devt_optional_attributes != NULL) ? "\n" : "",
+		(devt->dev_optional_attributes != NULL) ?
+			"The following device attributes available: " : "",
+		(devt->dev_optional_attributes != NULL) ?
+			devt->dev_optional_attributes : "",
+		(devt->dev_optional_attributes != NULL) ? "\n" : "");
 }
 
 static ssize_t scst_devt_mgmt_store(struct kobject *kobj,

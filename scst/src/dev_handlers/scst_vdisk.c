@@ -438,7 +438,7 @@ static struct scst_dev_type vdisk_file_devtype = {
 	.add_device =		vdisk_add_fileio_device,
 	.del_device =		vdisk_del_device,
 	.dev_attrs =		vdisk_fileio_attrs,
-	.add_device_parameters_help = "filename, blocksize, write_through, "
+	.add_device_parameters = "filename, blocksize, write_through, "
 		"nv_cache, o_direct, read_only, removable",
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
@@ -473,7 +473,7 @@ static struct scst_dev_type vdisk_blk_devtype = {
 	.add_device =		vdisk_add_blockio_device,
 	.del_device =		vdisk_del_device,
 	.dev_attrs =		vdisk_blockio_attrs,
-	.add_device_parameters_help = "filename, blocksize, read_only, "
+	.add_device_parameters = "filename, blocksize, read_only, "
 		"removable",
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
@@ -506,7 +506,7 @@ static struct scst_dev_type vdisk_null_devtype = {
 	.add_device =		vdisk_add_nullio_device,
 	.del_device =		vdisk_del_device,
 	.dev_attrs =		vdisk_nullio_attrs,
-	.add_device_parameters_help = "blocksize, read_only, removable",
+	.add_device_parameters = "blocksize, read_only, removable",
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -539,7 +539,7 @@ static struct scst_dev_type vcdrom_devtype = {
 	.add_device =		vcdrom_add_device,
 	.del_device =		vcdrom_del_device,
 	.dev_attrs =		vcdrom_attrs,
-	.add_device_parameters_help = NULL,
+	.add_device_parameters = NULL,
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
