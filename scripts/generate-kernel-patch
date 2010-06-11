@@ -355,6 +355,11 @@ done
 # Directory drivers/scst/fcst/
 
 {
+  for f in $(ls fcst/linux-patches/[0-9]*)
+  do
+    cat "${f}"
+  done
+
   add_file "fcst/Makefile_in-tree" \
            "drivers/scst/fcst/Makefile"
   
