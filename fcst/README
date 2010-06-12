@@ -36,7 +36,7 @@ To build for linux-2.6.34, do:
 
 5.  Install SCST
 	See trunk/scst/README. Make sure you are building sysfs SCST build,
-	because FCST supports only it.  You need to do 
+	because FCST supports only it.  You need to do
 
 		cd trunk/scst
 		make disable_proc	# first time only
