@@ -355,9 +355,9 @@ done
 # Directory drivers/scst/fcst/
 
 {
-  for f in $(ls fcst/linux-patches/[0-9]*)
+  for f in $(grep -v '^#' fcst/linux-patches/series-2.6.33-rc8)
   do
-    cat "${f}"
+    cat "fcst/linux-patches/${f}"
   done
 
   add_file "fcst/Makefile_in-tree" \
