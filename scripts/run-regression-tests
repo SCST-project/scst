@@ -300,26 +300,6 @@ function generate_kernel_patch {
     $2 $1 > "${patchfile_m}"
 }
 
-# Test whether the generated kernel patch applies cleanly to kernel version $1.
-# Leaves a vanilla kernel tree in directory "${outputdir}/linux-$1" at exit.
-function test_if_patch_applies_cleanly {
-  local kver="$(kernel_version $1)"
-  local plevel="$(patchlevel $1)"
-  local outputfile="${outputdir}/kernel-$1-patch-output.txt"
-  local patchfile="${outputdir}/scst-$1-kernel.patch"
-  local rc=0
-
-  echo "Testing whether the generated kernel patch applies cleanly ..."
-  ( cd "${outputdir}" && extract_kernel_tree "$1" )
-  ( cd "${outputdir}/linux-$1" \
-    && patch -p1 --dry-run -f < "${patchfile}" &> "${outputfile}" )
-  if [ $? != 0 ]; then
-    echo "FAILED"
-    rc=1
-  fi
-  return $rc
-}
-
 # Run checkpatch on the generated kernel patch. Assumes that there is a
 # vanilla kernel tree present in directory "${outputdir}/linux-$1", and leaves
 # this kernel tree clean.
@@ -604,7 +584,7 @@ do
 
   download_kernel $k || continue
   generate_kernel_patch $k "${generate_kernel_patch_options}" || continue
-  test_if_patch_applies_cleanly $k || continue
+  ( cd "${outputdir}" && extract_kernel_tree $k ) || continue
   if [ "${run_checkpatch}" = "true" ]; then
     run_checkpatch $k
   fi
