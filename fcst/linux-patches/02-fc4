@@ -462,8 +462,8 @@ index 4b912ee..9403d4e 100644
  
 +/**
 + * struct fc4_prov - FC-4 provider registration
-+ * @prli: 		Handler for incoming PRLI
-+ * @prlo: 		Handler for session reset
++ * @prli:		Handler for incoming PRLI
++ * @prlo:		Handler for session reset
 + * @recv:		Handler for incoming request
 + * @module:		Pointer to module.  May be NULL.
 + */
