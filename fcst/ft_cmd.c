@@ -144,7 +144,7 @@ void ft_cmd_dump(struct scst_cmd *cmd, const char *caller)
 /*
  * Debug: dump mgmt command.
  */
-void ft_cmd_tm_dump(struct scst_mgmt_cmd *mcmd, const char *caller)
+static void ft_cmd_tm_dump(struct scst_mgmt_cmd *mcmd, const char *caller)
 {
 	struct ft_cmd *fcmd;
 	struct fc_exch *ep;
@@ -335,16 +335,6 @@ static void ft_recv_seq(struct fc_seq *sp, struct fc_frame *fp, void *arg)
 		fc_frame_free(fp);
 		break;
 	}
-}
-
-/*
- * Command is about to be sent to device.
- */
-int ft_pre_exec(struct scst_cmd *cmd)
-{
-	scst_restart_cmd(cmd, SCST_PREPROCESS_STATUS_SUCCESS,
-			 SCST_CONTEXT_SAME);
-	return SCST_PREPROCESS_STATUS_SUCCESS;
 }
 
 /*
