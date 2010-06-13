@@ -238,6 +238,7 @@ config SCST_MEASURE_LATENCY
 
 	  If unsure, say "N".
 
+source "drivers/scst/fcst/Kconfig"
 source "drivers/scst/iscsi-scst/Kconfig"
 source "drivers/scst/srpt/Kconfig"
 
