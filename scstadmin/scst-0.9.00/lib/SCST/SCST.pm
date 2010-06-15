@@ -278,8 +278,6 @@ sub scstAttributes {
 				my $is_key = <$io>;
 				$is_key = ($is_key =~ /\[key\]/) ? TRUE : FALSE;
 
-				$is_key = TRUE if ($attribute eq 'enabled');
-
 				my $key = 0;
 				if ($is_key) {
 					if ($attribute =~ /.*(\d+)$/) {
@@ -1745,8 +1743,6 @@ sub deviceAttributes {
 				my $is_key = <$io>;
 				$is_key = ($is_key =~ /\[key\]/) ? TRUE : FALSE;
 
-				$is_key = TRUE if ($attribute eq 'enabled');
-
 				my $key = 0;
 				if ($is_key) {
 					if ($attribute =~ /.*(\d+)$/) {
@@ -1827,8 +1823,6 @@ sub driverAttributes {
 
 				my $is_key = <$io>;
 				$is_key = ($is_key =~ /\[key\]/) ? TRUE : FALSE;
-
-				$is_key = TRUE if ($attribute eq 'enabled');
 
 				my $key = 0;
 				if ($is_key) {
@@ -1964,8 +1958,6 @@ sub targetAttributes {
 				my $is_key = <$io>;
 				$is_key = ($is_key =~ /\[key\]/) ? TRUE : FALSE;
 
-				$is_key = TRUE if ($attribute eq 'enabled');
-
 				my $key = 0;
 				if ($is_key) {
 					if ($attribute =~ /.*(\d+)$/) {
@@ -2094,8 +2086,6 @@ sub groupAttributes {
 
 				my $is_key = <$io>;
 				$is_key = ($is_key =~ /\[key\]/) ? TRUE : FALSE;
-
-				$is_key = TRUE if ($attribute eq 'enabled');
 
 				my $key = 0;
 				if ($is_key) {
@@ -2406,8 +2396,6 @@ sub initiatorAttributes {
 				my $is_key = <$io>;
 				$is_key = ($is_key =~ /\[key\]/) ? TRUE : FALSE;
 
-				$is_key = TRUE if ($attribute eq 'enabled');
-
 				my $key = 0;
 				if ($is_key) {
 					if ($attribute =~ /.*(\d+)$/) {
@@ -2612,8 +2600,6 @@ sub handlerAttributes {
 
 		my $is_key = <$io>;
 		$is_key = ($is_key =~ /\[key\]/) ? TRUE : FALSE;
-
-		$is_key = TRUE if ($attribute eq 'enabled');
 
 		my $key = 0;
 		if ($is_key) {

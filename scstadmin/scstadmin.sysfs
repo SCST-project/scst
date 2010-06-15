@@ -802,10 +802,14 @@ sub writeConfiguration {
 						$value = "\"$value\"" if ($value =~ / /);
 						$handler_buff .= "\t$attribute $value\n" if (defined($value));
 					}
-				} elsif ($nonkey) {
+				} elsif (($attribute eq 'enabled') || $nonkey) {
 					my $value = $$attributes{$attribute}->{'value'};
 					$value = "\"$value\"" if ($value =~ / /);
-					$handler_buff_nk .= "\t$attribute $value\n" if (defined($value));
+					if ($attribute eq 'enabled') {
+						$handler_buff .= "\t$attribute $value\n" if (defined($value));
+					} else {
+						$handler_buff_nk .= "\t$attribute $value\n" if (defined($value));
+					}
 				}
 			}
 		}
@@ -832,11 +836,16 @@ sub writeConfiguration {
 								$attribute_buff .= "\t\t$attribute $value\n"
 								  if (defined($value));
 							}
-						} elsif ($nonkey) {
+						} elsif (($attribute eq 'enabled') || $nonkey) {
 							my $value = $$attributes{$attribute}->{'value'};
 							$value = "\"$value\"" if ($value =~ / /);
-							$attribute_buff_nk .= "\t\t$attribute $value\n"
-							 if (defined($value));
+							if ($attribute eq 'enabled') {
+								$attribute_buff .= "\t\t$attribute $value\n"
+								 if (defined($value));
+							} else {
+								$attribute_buff_nk .= "\t\t$attribute $value\n"
+								 if (defined($value));
+							}
 						}
 					}
 				}
@@ -917,11 +926,16 @@ sub writeConfiguration {
 					$drv_attr_buff .= "\t$attr $value\n"
 					  if (defined($value));
 				}
-			} elsif ($nonkey) {
+			} elsif (($attr eq 'enabled') || $nonkey) {
 				my $value = $$drv_attrs{$attr}->{'value'};
 				$value = "\"$value\"" if ($value =~ /\s/);
-				$drv_attr_buff_nk .= "\t$attr $value\n"
-				  if (defined($value));
+				if ($attr eq 'enabled') {
+					$drv_attr_buff .= "\t$attr $value\n"
+					  if (defined($value));
+				} else {
+					$drv_attr_buff_nk .= "\t$attr $value\n"
+					  if (defined($value));
+				}
 			}
 		}
 
@@ -949,11 +963,16 @@ sub writeConfiguration {
 						$attribute_buff .= "\t\t$attr $value\n"
 						  if (defined($value));
 					}
-				} elsif ($nonkey) {
+				} elsif (($attr eq 'enabled') || $nonkey) {
 					my $value = $$tgt_attrs{$attr}->{'value'};
 					$value = "\"$value\"" if ($value =~ /\s/);
-					$attribute_buff_nk .= "\t\t$attr $value\n"
-					  if (defined($value));
+					if ($attr eq 'enabled') {
+						$attribute_buff .= "\t\t$attr $value\n"
+						  if (defined($value));
+					} else {
+						$attribute_buff_nk .= "\t\t$attr $value\n"
+						  if (defined($value));
+					}
 				}
 			}
 
@@ -985,10 +1004,13 @@ sub writeConfiguration {
 								$l_attribute_buff .= "\t\t\t$attribute $value\n"
 								  if (defined($value));
 							}
-						} elsif ($nonkey) {
+						} elsif (($attribute eq 'enabled') || $nonkey) {
 							my $value = $$attributes{$attribute}->{'value'};
 							$value = "\"$value\"" if ($value =~ / /);
 							if (defined($$lun_attrs{$attribute})) {
+								$l_attribute_buff .= "\t\t\t$attribute $value\n"
+								  if (defined($value));
+							} elsif ($attribute eq 'enabled') {
 								$l_attribute_buff .= "\t\t\t$attribute $value\n"
 								  if (defined($value));
 							} else {
@@ -1045,10 +1067,13 @@ sub writeConfiguration {
 									$l_attribute_buff .= "\t\t\t\t$attribute $value\n"
 									  if (defined($value));
 								}
-							} elsif ($nonkey) {
+							} elsif (($attribute eq 'enabled') || $nonkey) {
 								my $value = $$attributes{$attribute}->{'value'};
 								$value = "\"$value\"" if ($value =~ / /);
 								if (defined($$lun_attrs{$attribute})) {
+									$l_attribute_buff .= "\t\t\t\t$attribute $value\n"
+									  if (defined($value));
+								} elsif ($attribute eq 'enabled') {
 									$l_attribute_buff .= "\t\t\t\t$attribute $value\n"
 									  if (defined($value));
 								} else {
@@ -1095,11 +1120,16 @@ sub writeConfiguration {
 									$i_attribute_buff .= "\t\t\t\t$attribute $value\n"
 									  if (defined($value));
 								}
-							} elsif ($nonkey) {
+							} elsif (($attribute eq 'enabled') || $nonkey) {
 								my $value = $$attributes{$attribute}->{'value'};
 								$value = "\"$value\"" if ($value =~ / /);
-								$i_attribute_buff_nk .= "\t\t\t\t$attribute $value\n"
-								  if (defined($value));
+								if ($attribute eq 'enabled') {
+									$i_attribute_buff .= "\t\t\t\t$attribute $value\n"
+									  if (defined($value));
+								} else {
+									$i_attribute_buff_nk .= "\t\t\t\t$attribute $value\n"
+									  if (defined($value));
+								}
 							}
 						}
 					}
