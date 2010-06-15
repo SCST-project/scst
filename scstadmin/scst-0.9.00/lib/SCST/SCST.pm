@@ -56,7 +56,7 @@ SCST_C_DEV_ATTRIBUTE_STATIC => 28,
 SCST_C_DEV_SETATTR_FAIL     => 29,
 
 SCST_C_DRV_NO_DRIVER        => 30,
-SCST_C_DRV_STATIC           => 31,
+SCST_C_DRV_NOTVIRT          => 31,
 SCST_C_DRV_SETATTR_FAIL     => 34,
 SCST_C_DRV_ADDATTR_FAIL     => 35,
 SCST_C_DRV_REMATTR_FAIL     => 36,
@@ -131,7 +131,7 @@ my %VERBOSE_ERROR = (
 (SCST_C_DEV_SETATTR_FAIL)     => 'Failed to set device attribute. See "dmesg" for more information.',
 
 (SCST_C_DRV_NO_DRIVER)        => 'No such driver exists.',
-(SCST_C_DRV_STATIC)           => 'Driver is incapable of dynamically adding/removing targets or attributes.',
+(SCST_C_DRV_NOTVIRT)          => 'Driver is incapable of dynamically adding/removing targets or attributes.',
 (SCST_C_DRV_BAD_ATTRIBUTES)   => 'Bad attributes given for driver.',
 (SCST_C_DRV_ATTRIBUTE_STATIC) => 'Driver attribute specified is static.',
 (SCST_C_DRV_SETATTR_FAIL)     => 'Failed to set driver attribute. See "dmesg" for more information.',
@@ -182,6 +182,11 @@ my %VERBOSE_ERROR = (
 );
 
 use vars qw(@ISA @EXPORT $VERSION);
+
+my $TGT_TYPE_HARDWARE = 1;
+my $TGT_TYPE_VIRTUAL  = 2;
+
+use vars qw($TGT_TYPE_HARDWARE $TGT_TYPE_VIRTUAL);
 
 $VERSION = 0.9.00;
 
@@ -560,7 +565,69 @@ sub driverExists {
 	return FALSE;
 }
 
-sub addDriverAttribute {
+sub driverDynamicAttributes {
+	my $self = shift;
+	my $driver = shift;
+	my %attributes;
+	my $available;
+
+	if ($self->driverExists($driver) != TRUE) {
+		$self->{'err_string'} = "driverDynamicAttributes(): Driver '$driver' ".
+		  "is not available";
+		return undef;
+	}
+
+	my $io = new IO::File mkpath(SCST_ROOT, SCST_TARGETS, $driver, SCST_MGMT_IO), O_RDONLY;
+
+	if (!$io) {
+		$self->{'err_string'} = "driverDynamicAttributes(): Unable to open mgmt ".
+		  "interface for driver '$driver': $!";
+		return undef;
+	}
+
+	while (my $in = <$io>) {
+		if ($in =~ /^The following target driver attributes available\:/) {
+			(undef, $available) = split(/\:/, $in, 2);
+			$available =~ s/\.$//;
+		}
+	}
+
+	if ($available) {
+		foreach my $attribute (split(/\,/, $available)) {
+			$attribute =~ s/^\s+//;
+			$attribute =~ s/\s+$//;
+			$attributes{$attribute} = '';
+		}
+	}
+
+	return \%attributes;
+}
+
+sub checkDriverDynamicAttributes {
+	my $self = shift;
+	my $driver = shift;
+	my $check = shift;
+
+	return FALSE if (!defined($check));
+
+	my $rc = $self->driverExists($driver);
+	return SCST_C_DRV_NO_DRIVER if (!$rc);
+	return $rc if (!$rc > 1);
+
+	my $available = $self->driverDynamicAttributes($driver);
+
+	return SCST_C_FATAL_ERROR if (!defined($available));
+
+	foreach my $attribute (keys %{$check}) {
+		if (!defined($$available{$attribute})) {
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
+sub addDriverDynamicAttribute {
 	my $self = shift;
 	my $driver = shift;
 	my $attribute = shift;
@@ -570,10 +637,13 @@ sub addDriverAttribute {
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
 	return $rc if ($rc > 1);
 
-	return SCST_C_DRV_STATIC if ($self->driverIsStatic($driver));
+	return SCST_C_DRV_NOTVIRT if ($self->driverIsVirtualCapable($driver));
 
-	# We won't bother checking if the attribute exists since the add
-	# may not use the specified attribute name anyway.
+	my %attributes = ($attribute);
+
+	$rc = $self->checkDriverDynamicAttributes($driver, \%attributes);
+	return SCST_C_DRV_BAD_ATTRIBUTES if (!$rc);
+	return $rc if ($rc > 1);
 
 	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, SCST_MGMT_IO);
 
@@ -595,6 +665,45 @@ sub addDriverAttribute {
 	return FALSE if ($self->{'debug'} || $bytes);
 	return SCST_C_DRV_ADDATTR_FAIL;
 
+}
+
+sub removeDriverDynamicAttribute {
+	my $self = shift;
+	my $driver = shift;
+	my $attribute = shift;
+	my $value = shift;
+
+	my $rc = $self->driverExists($driver);
+	return SCST_C_DRV_NO_DRIVER if (!$rc);
+	return $rc if ($rc > 1);
+
+	return SCST_C_DRV_NOTVIRT if ($self->driverIsVirtualCapable($driver));
+
+	my %attributes = ($attribute);
+
+	$rc = $self->checkDriverDynamicAttributes($driver, \%attributes);
+	return SCST_C_DRV_BAD_ATTRIBUTES if (!$rc);
+	return $rc if ($rc > 1);
+
+	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, SCST_MGMT_IO);
+
+	my $io = new IO::File $path, O_WRONLY;
+
+	return SCST_C_DRV_REMATTR_FAIL if (!$io);
+
+	my $cmd = "del_attribute $attribute $value\n";
+	my $bytes;
+
+	if ($self->{'debug'}) {
+		print "DBG($$): $path -> $cmd\n";
+	} else {
+		$bytes = syswrite($io, $cmd, length($cmd));
+	}
+
+	close $io;
+
+	return FALSE if ($self->{'debug'} || $bytes);
+	return SCST_C_DRV_REMATTR_FAIL;
 }
 
 sub targetExists {
@@ -620,7 +729,7 @@ sub targetExists {
 	return FALSE;
 }
 
-sub driverIsStatic {
+sub driverIsVirtualCapable {
 	my $self = shift;
 	my $driver = shift;
 
@@ -636,7 +745,25 @@ sub driverIsStatic {
 	return FALSE;
 }
 
-sub addTarget {
+sub targetType {
+	my $self = shift;
+	my $driver = shift;
+	my $target = shift;
+
+	if ($self->driverIsVirtualCapable($driver)) {
+		my $attribs = $self->driverAttributes($driver);
+
+		if (defined($$attribs{'hw_target'})) {
+			return $TGT_TYPE_HARDWARE;
+		} else {
+			return $TGT_TYPE_VIRTUAL;
+		}
+	}
+
+	return $TGT_TYPE_HARDWARE;
+}
+
+sub addVirtualTarget {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
@@ -650,7 +777,7 @@ sub addTarget {
 	return SCST_C_TGT_EXISTS if ($rc);
 	return $rc if ($rc > 1);
 
-	return SCST_C_DRV_STATIC if ($self->driverIsStatic($driver));
+	return SCST_C_DRV_NOTVIRT if ($self->driverIsVirtualCapable($driver));
 
 	$rc = $self->checkTargetCreateAttributes($driver, $attributes);
 	return SCST_C_TGT_BAD_ATTRIBUTES if ($rc == TRUE);
@@ -684,7 +811,69 @@ sub addTarget {
 	return SCST_C_TGT_ADD_FAIL;
 }
 
-sub addTargetAttribute {
+sub targetDynamicAttributes {
+	my $self = shift;
+	my $driver = shift;
+	my %attributes;
+	my $available;
+
+	if ($self->driverExists($driver) != TRUE) {
+		$self->{'err_string'} = "targetDynamicAttributes(): Driver '$driver' ".
+		  "is not available";
+		return undef;
+	}
+
+	my $io = new IO::File mkpath(SCST_ROOT, SCST_TARGETS, $driver, SCST_MGMT_IO), O_RDONLY;
+
+	if (!$io) {
+		$self->{'err_string'} = "targetDynamicAttributes(): Unable to open mgmt ".
+		  "interface for driver '$driver': $!";
+		return undef;
+	}
+
+	while (my $in = <$io>) {
+		if ($in =~ /^The following target attributes available\:/) {
+			(undef, $available) = split(/\:/, $in, 2);
+			$available =~ s/\.$//;
+		}
+	}
+
+	if ($available) {
+		foreach my $attribute (split(/\,/, $available)) {
+			$attribute =~ s/^\s+//;
+			$attribute =~ s/\s+$//;
+			$attributes{$attribute} = '';
+		}
+	}
+
+	return \%attributes;
+}
+
+sub checkTargetDynamicAttributes {
+	my $self = shift;
+	my $driver = shift;
+	my $check = shift;
+
+	return FALSE if (!defined($check));
+
+	my $rc = $self->driverExists($driver);
+	return SCST_C_DRV_NO_DRIVER if (!$rc);
+	return $rc if (!$rc > 1);
+
+	my $available = $self->targetDynamicAttributes($driver);
+
+	return SCST_C_FATAL_ERROR if (!defined($available));
+
+	foreach my $attribute (keys %{$check}) {
+		if (!defined($$available{$attribute})) {
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
+sub addTargetDynamicAttribute {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
@@ -699,10 +888,13 @@ sub addTargetAttribute {
 	return SCST_C_TGT_NO_TARGET if (!$rc);
 	return $rc if ($rc > 1);
 
-	return SCST_C_DRV_STATIC if ($self->driverIsStatic($driver));
+	return SCST_C_DRV_NOTVIRT if ($self->driverIsVirtualCapable($driver));
 
-	# We won't bother checking if the attribute exists since the add
-	# may not use the specified attribute name anyway.
+	my %attributes = ($attribute);
+
+	$rc = $self->checkTargetDynamicAttributes($driver, \%attributes);
+	return SCST_C_TGT_BAD_ATTRIBUTES if (!$rc);
+	return $rc if ($rc > 1);
 
 	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, SCST_MGMT_IO);
 
@@ -725,7 +917,51 @@ sub addTargetAttribute {
 	return SCST_C_TGT_ADDATTR_FAIL;
 }
 
-sub removeTarget {
+sub removeTargetDynamicAttribute {
+	my $self = shift;
+	my $driver = shift;
+	my $target = shift;
+	my $attribute = shift;
+	my $value = shift;
+
+	my $rc = $self->driverExists($driver);
+	return SCST_C_DRV_NO_DRIVER if (!$rc);
+	return $rc if ($rc > 1);
+
+	$rc = $self->targetExists($driver, $target);
+	return SCST_C_TGT_NO_TARGET if (!$rc);
+	return $rc if ($rc > 1);
+
+	return SCST_C_DRV_NOTVIRT if ($self->driverIsVirtualCapable($driver));
+
+	my %attributes = ($attribute);
+
+	$rc = $self->checkTargetDynamicAttributes($driver, \%attributes);
+	return SCST_C_TGT_BAD_ATTRIBUTES if (!$rc);
+	return $rc if ($rc > 1);
+
+	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, SCST_MGMT_IO);
+
+	my $io = new IO::File $path, O_WRONLY;
+
+	return SCST_C_TGT_REMATTR_FAIL if (!$io);
+
+	my $cmd = "del_target_attribute $target $attribute $value\n";
+	my $bytes;
+
+	if ($self->{'debug'}) {
+		print "DBG($$): $path -> $cmd\n";
+	} else {
+		$bytes = syswrite($io, $cmd, length($cmd));
+	}
+
+	close $io;
+
+	return FALSE if ($self->{'debug'} || $bytes);
+	return SCST_C_TGT_REMATTR_FAIL;
+}
+
+sub removeVirtualTarget {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
@@ -738,7 +974,7 @@ sub removeTarget {
 	return SCST_C_TGT_NO_TARGET if (!$rc);
 	return $rc if ($rc > 1);
 
-	return SCST_C_DRV_STATIC if ($self->driverIsStatic($driver));
+	return SCST_C_DRV_NOTVIRT if ($self->driverIsVirtualCapable($driver));
 
 	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, SCST_MGMT_IO);
 
@@ -2490,7 +2726,7 @@ sub deviceCreateAttributes {
 	my %attributes;
 
 	if ($self->handlerExists($handler) != TRUE) {
-		$self->{'err_string'} = "deviceCreateAttributes():Handler '$handler' ".
+		$self->{'err_string'} = "deviceCreateAttributes(): Handler '$handler' ".
 		  "is not available";
 		return undef;
 	}
