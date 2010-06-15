@@ -741,8 +741,8 @@ sub driverIsVirtualCapable {
 
 	my $io = new IO::File $path, O_WRONLY;
 
-	return TRUE if (!$io);
-	return FALSE;
+	return FALSE if (!defined($io));
+	return TRUE;
 }
 
 sub targetType {
