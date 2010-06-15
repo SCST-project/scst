@@ -1231,7 +1231,7 @@ sub checkConfiguration {
 				foreach my $target (keys %{$$CONFIG{'TARGET_DRIVER'}->{$driver}->{'TARGET'}}) {
 					if (!defined($CURRENT{'assign'}->{$driver}->{$target})) {
 						print "\t-> WARNING: Target '$target' for driver '$driver' ".
-						  "does not exist.\n" if ($SCST->driverIsVirtualCapable($driver));
+						  "does not exist.\n" if (!$SCST->driverIsVirtualCapable($driver));
 					}
 				}
 			}
@@ -1424,7 +1424,7 @@ sub applyTargetAssignments {
 
 	foreach my $target (sort keys %{$targets}) {
 		if (!defined($CURRENT{'assign'}->{$driver}->{$target})) {
-			if ($SCST->driverIsVirtualCapable($driver)) {
+			if (!$SCST->driverIsVirtualCapable($driver)) {
 				immediateExit("Target '$target' for driver '$driver' does not exist.");
 			} else {
 				# TODO: Add $attributes
@@ -2032,7 +2032,7 @@ sub setDriverAttributes {
 			# Maybe we can add it..
 			my $value = $$attributes{$attribute};
 			my $rc = 1;
-			if (!$SCST->driverIsVirtualCapable($driver)) {
+			if ($SCST->driverIsVirtualCapable($driver)) {
 				print "-> Attempting to add driver attribute '$attribute' with value '$value' for driver '$driver': ";
 				$rc = $SCST->addDriverDynamicAttribute($driver, $attribute, $value);
 				print "done.\n";
@@ -2108,7 +2108,7 @@ sub setTargetAttributes {
 			# Maybe we can add it..
 			my $value = $$attributes{$attribute};
 			my $rc = 1;
-			if (!$SCST->driverIsVirtualCapable($driver)) {
+			if ($SCST->driverIsVirtualCapable($driver)) {
 				print "-> Attempting to add driver attribute '$attribute' with value '$value' for driver/target '$driver/$target': ";
 				$rc = $SCST->addTargetDynamicAttribute($driver, $target, $attribute, $value);
 				print "done.\n";
