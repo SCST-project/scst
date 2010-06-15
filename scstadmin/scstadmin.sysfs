@@ -1572,7 +1572,10 @@ sub clearConfiguration {
 			}
 
 			clearLuns($driver, $target);
+			removeTargetDynamicAttributes($driver, $target);
 		}
+
+		removeDriverDynamicAttributes($driver);
 	}
 
 	my $handlers = $CURRENT{'handler'};
@@ -2058,20 +2061,35 @@ sub setDriverAttributes {
 					  $$_attributes{$attribute}->{'keys'});
 				}
 			}
-		} else {
+		} elsif ($SCST->driverIsVirtualCapable($driver) &&
+			 !$SCST->checkDriverDynamicAttributes($driver, $attribute)) {
 			# Maybe we can add it..
-			my $value = $$attributes{$attribute};
-			my $rc = 1;
-			if ($SCST->driverIsVirtualCapable($driver)) {
-				print "-> Attempting to add driver attribute '$attribute' with value '$value' for driver '$driver': ";
-				$rc = $SCST->addDriverDynamicAttribute($driver, $attribute, $value);
-				print "done.\n";
+			if (ref($$attributes{$attribute}) eq 'ARRAY') {
+				foreach my $value (@{$$attributes{$attribute}}) {
+					my $rc = addDriverDynamicAttribute($driver, $attribute, $value);
+					immediateExit($SCST->errorString($rc)) if ($rc);
+				}
+			} else {
+				my $rc = addDriverDynamicAttribute($driver, $attribute, $$attributes{$attribute});
+				immediateExit($SCST->errorString($rc)) if ($rc);
 			}
-
+		} else {
 			print "\t-> WARNING: Driver '$driver' lacks the settable ".
-			  "attribute '$attribute', ignoring.\n" if ($rc);
+			  "attribute '$attribute', ignoring.\n";
 		}
 	}
+}
+
+sub addDriverDynamicAttribute {
+	my $driver = shift;
+	my $attribute = shift;
+	my $value = shift;
+
+	print "-> Attempting to add driver attribute '$attribute' with value '$value' for driver '$driver': ";
+	my $rc = $SCST->addDriverDynamicAttribute($driver, $attribute, $value);
+	print "done.\n";
+
+	return $rc;
 }
 
 sub checkDriverKeyAttributes {
@@ -2088,13 +2106,13 @@ sub checkDriverKeyAttributes {
 		}
 	}
 
-	if (!$found) {
-		print "-> Attempting to add driver attribute '$attribute' with value '$value' for driver '$driver': ";
-		my $rc = $SCST->addDriverAttribute($driver, $attribute, $value);
-		print "done.\n";
-
-		print "\t-> WARNING: Unable to add attribute '$attribute' with value ".
-		  "'$value' to driver '$driver': ".$SCST->errorString($rc)."\n" if ($rc);
+	if (!$found && $SCST->driverIsVirtualCapable($driver) &&
+	    !$SCST->checkDriverDynamicAttributes($driver, $attribute)) {
+		my $rc = addDriverDynamicAttribute($driver, $attribute, $value);
+		immediateExit($SCST->errorString($rc)) if ($rc);
+	} elsif (!$found) {
+		print "\t-> WARNING: Driver '$driver' lacks the settable ".
+		      "attribute '$attribute', ignoring.\n";
 	}
 }
 
@@ -2133,21 +2151,39 @@ sub setTargetAttributes {
 					  $$_attributes{$attribute}->{'keys'});
 				}
 			}
-
-		} else {
+		} elsif ($SCST->driverIsVirtualCapable($driver) &&
+			 !$SCST->checkTargetDynamicAttributes($driver, $attribute)) {
 			# Maybe we can add it..
-			my $value = $$attributes{$attribute};
-			my $rc = 1;
-			if ($SCST->driverIsVirtualCapable($driver)) {
-				print "-> Attempting to add driver attribute '$attribute' with value '$value' for driver/target '$driver/$target': ";
-				$rc = $SCST->addTargetDynamicAttribute($driver, $target, $attribute, $value);
-				print "done.\n";
+			if (ref($$attributes{$attribute}) eq 'ARRAY') {
+				foreach my $value (@{$$attributes{$attribute}}) {
+					my $rc = addTargetDynamicAttribute($driver, $target, $attribute, $value);
+					immediateExit($SCST->errorString($rc)) if ($rc);
+				}
+			} else {
+				my $rc = addTargetDynamicAttribute($driver, $target, $attribute,
+				  $$attributes{$attribute});
+				immediateExit($SCST->errorString($rc)) if ($rc);
 			}
 
+		} else {
 			print "\t-> WARNING: Driver/target '$driver/$target' lacks the settable ".
-			  "attribute '$attribute', ignoring.\n" if ($rc);
+			  "attribute '$attribute', ignoring.\n";
 		}
 	}
+}
+
+sub addTargetDynamicAttribute {
+	my $driver = shift;
+	my $target = shift;
+	my $attribute = shift;
+	my $value = shift;
+
+	print "-> Attempting to add driver attribute '$attribute' with value '$value' ".
+	  "for driver/target '$driver/$target': ";
+	my $rc = $SCST->addTargetDynamicAttribute($driver, $target, $attribute, $value);
+	print "done.\n";
+
+	return $rc;
 }
 
 sub checkTargetKeyAttributes {
@@ -2165,13 +2201,16 @@ sub checkTargetKeyAttributes {
 		}
 	}
 
-	if (!$found) {
-		my $rc = $SCST->addTargetDynamicAttribute($driver, $target, $attribute, $value);
-
-		print "-> WARNING: Unable to add attribute '$attribute' with value ".
-		  "'$value' to driver/target '$driver/$target': ".$SCST->errorString($rc)."\n" if ($rc);
+	if (!$found && $SCST->driverIsVirtualCapable($driver) &&
+	    !$SCST->checkTargetDynamicAttributes($driver, $attribute)) {
+		my $rc = addTargetDynamicAttribute($driver, $target, $attribute, $value);
+		immediateExit($SCST->errorString($rc)) if ($rc);
+	} elsif (!$found) {
+		print "\t-> WARNING: Target '$target' lacks the settable ".
+		      "attribute '$attribute', ignoring.\n";
 	}
 }
+
 
 sub setGroupAttributes {
 	my $target = shift;
@@ -2501,6 +2540,59 @@ sub clearLuns {
 	immediateExit($SCST->errorString($rc)) if ($rc);
 }
 
+sub removeDriverDynamicAttributes {
+	my $driver = shift;
+
+	return if (!$SCST->driverIsVirtualCapable($driver));
+
+	print "-> Removing all dynamic attributes from driver '$driver': ";
+
+	my $attributes = $SCST->driverAttributes($driver);
+	my $dynamic = $SCST->driverDynamicAttributes($driver);
+
+	foreach my $attribute (keys %{$attributes}) {
+		if (defined($$dynamic{$attribute})) {
+			if (defined($$attributes{$attribute}->{'keys'})) {
+				foreach my $key (keys %{$$attributes{$attribute}->{'keys'}}) {
+					my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
+					my $rc = $SCST->removeDriverDynamicAttribute($driver, $attribute, $value);
+
+					immediateExit($SCST->errorString($rc)) if ($rc);
+				}
+			}
+		}
+	}
+
+	print "done.\n";
+}
+
+sub removeTargetDynamicAttributes {
+	my $driver = shift;
+	my $target = shift;
+
+	return if (!$SCST->driverIsVirtualCapable($driver));
+
+	print "-> Removing all dynamic attributes from driver/target '$driver/$target': ";
+
+	my $attributes = $SCST->targetAttributes($driver, $target);
+	my $dynamic = $SCST->targetDynamicAttributes($driver);
+
+	foreach my $attribute (keys %{$attributes}) {
+		if (defined($$dynamic{$attribute})) {
+			if (defined($$attributes{$attribute}->{'keys'})) {
+				foreach my $key (keys %{$$attributes{$attribute}->{'keys'}}) {
+					my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
+					my $rc = $SCST->removeTargetDynamicAttribute($driver, $target, $attribute, $value);
+
+					immediateExit($SCST->errorString($rc)) if ($rc);
+				}
+			}
+		}
+	}
+
+	print "done.\n";
+}
+
 ####################################################################
 
 sub enableTarget {
@@ -2813,15 +2905,15 @@ sub configToAttr {
 			foreach my $value (keys %{$$config{$attr}}) {
 				push @{$attributes{$attr}}, $value if ($value);
 			}
-		}
+		} else {
+			foreach my $value (keys %{$$config{$attr}}) {
+				if (keys %{$$config{$attr}->{$value}}) {
+					immediateExit("Invalid configuration encountered. ".
+					  "Attribute '$attr' has an invalid value.");
+				}
 
-		foreach my $value (keys %{$$config{$attr}}) {
-			if (keys %{$$config{$attr}->{$value}}) {
-				immediateExit("Invalid configuration encountered. ".
-				  "Attribute '$attr' has an invalid value.");
+				$attributes{$attr} = $value;
 			}
-
-			$attributes{$attr} = $value;
 		}
 	}
 

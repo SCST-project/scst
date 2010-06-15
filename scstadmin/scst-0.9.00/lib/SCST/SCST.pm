@@ -616,8 +616,14 @@ sub checkDriverDynamicAttributes {
 
 	return SCST_C_FATAL_ERROR if (!defined($available));
 
-	foreach my $attribute (keys %{$check}) {
-		if (!defined($$available{$attribute})) {
+	if (ref($check) eq 'HASH') {
+		foreach my $attribute (keys %{$check}) {
+			if (!defined($$available{$attribute})) {
+				return TRUE;
+			}
+		}
+	} else {
+		if (!defined($$available{$check})) {
 			return TRUE;
 		}
 	}
@@ -635,12 +641,10 @@ sub addDriverDynamicAttribute {
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
 	return $rc if ($rc > 1);
 
-	return SCST_C_DRV_NOTVIRT if ($self->driverIsVirtualCapable($driver));
+	return SCST_C_DRV_NOTVIRT if (!$self->driverIsVirtualCapable($driver));
 
-	my %attributes = ($attribute);
-
-	$rc = $self->checkDriverDynamicAttributes($driver, \%attributes);
-	return SCST_C_DRV_BAD_ATTRIBUTES if (!$rc);
+	$rc = $self->checkDriverDynamicAttributes($driver, $attribute);
+	return SCST_C_DRV_BAD_ATTRIBUTES if ($rc == 1);
 	return $rc if ($rc > 1);
 
 	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, SCST_MGMT_IO);
@@ -675,12 +679,10 @@ sub removeDriverDynamicAttribute {
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
 	return $rc if ($rc > 1);
 
-	return SCST_C_DRV_NOTVIRT if ($self->driverIsVirtualCapable($driver));
+	return SCST_C_DRV_NOTVIRT if (!$self->driverIsVirtualCapable($driver));
 
-	my %attributes = ($attribute);
-
-	$rc = $self->checkDriverDynamicAttributes($driver, \%attributes);
-	return SCST_C_DRV_BAD_ATTRIBUTES if (!$rc);
+	$rc = $self->checkDriverDynamicAttributes($driver, $attribute);
+	return SCST_C_DRV_BAD_ATTRIBUTES if ($rc == 1);
 	return $rc if ($rc > 1);
 
 	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, SCST_MGMT_IO);
@@ -775,7 +777,7 @@ sub addVirtualTarget {
 	return SCST_C_TGT_EXISTS if ($rc);
 	return $rc if ($rc > 1);
 
-	return SCST_C_DRV_NOTVIRT if ($self->driverIsVirtualCapable($driver));
+	return SCST_C_DRV_NOTVIRT if (!$self->driverIsVirtualCapable($driver));
 
 	$rc = $self->checkTargetCreateAttributes($driver, $attributes);
 	return SCST_C_TGT_BAD_ATTRIBUTES if ($rc == TRUE);
@@ -862,8 +864,14 @@ sub checkTargetDynamicAttributes {
 
 	return SCST_C_FATAL_ERROR if (!defined($available));
 
-	foreach my $attribute (keys %{$check}) {
-		if (!defined($$available{$attribute})) {
+	if (ref($check) eq 'HASH') {
+		foreach my $attribute (keys %{$check}) {
+			if (!defined($$available{$attribute})) {
+				return TRUE;
+			}
+		}
+	} else {
+		if (!defined($$available{$check})) {
 			return TRUE;
 		}
 	}
@@ -886,12 +894,10 @@ sub addTargetDynamicAttribute {
 	return SCST_C_TGT_NO_TARGET if (!$rc);
 	return $rc if ($rc > 1);
 
-	return SCST_C_DRV_NOTVIRT if ($self->driverIsVirtualCapable($driver));
+	return SCST_C_DRV_NOTVIRT if (!$self->driverIsVirtualCapable($driver));
 
-	my %attributes = ($attribute);
-
-	$rc = $self->checkTargetDynamicAttributes($driver, \%attributes);
-	return SCST_C_TGT_BAD_ATTRIBUTES if (!$rc);
+	$rc = $self->checkTargetDynamicAttributes($driver, $attribute);
+	return SCST_C_TGT_BAD_ATTRIBUTES if ($rc == 1);
 	return $rc if ($rc > 1);
 
 	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, SCST_MGMT_IO);
@@ -930,12 +936,10 @@ sub removeTargetDynamicAttribute {
 	return SCST_C_TGT_NO_TARGET if (!$rc);
 	return $rc if ($rc > 1);
 
-	return SCST_C_DRV_NOTVIRT if ($self->driverIsVirtualCapable($driver));
+	return SCST_C_DRV_NOTVIRT if (!$self->driverIsVirtualCapable($driver));
 
-	my %attributes = ($attribute);
-
-	$rc = $self->checkTargetDynamicAttributes($driver, \%attributes);
-	return SCST_C_TGT_BAD_ATTRIBUTES if (!$rc);
+	$rc = $self->checkTargetDynamicAttributes($driver, $attribute);
+	return SCST_C_TGT_BAD_ATTRIBUTES if ($rc == 1);
 	return $rc if ($rc > 1);
 
 	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, SCST_MGMT_IO);
@@ -972,7 +976,7 @@ sub removeVirtualTarget {
 	return SCST_C_TGT_NO_TARGET if (!$rc);
 	return $rc if ($rc > 1);
 
-	return SCST_C_DRV_NOTVIRT if ($self->driverIsVirtualCapable($driver));
+	return SCST_C_DRV_NOTVIRT if (!$self->driverIsVirtualCapable($driver));
 
 	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, SCST_MGMT_IO);
 
@@ -2696,8 +2700,14 @@ sub checkDeviceCreateAttributes {
 
 	return SCST_C_FATAL_ERROR if (!defined($available));
 
-	foreach my $attribute (keys %{$check}) {
-		if (!defined($$available{$attribute})) {
+	if (ref($check) eq 'HASH') {
+		foreach my $attribute (keys %{$check}) {
+			if (!defined($$available{$attribute})) {
+				return TRUE;
+			}
+		}
+	} else {
+		if (!defined($$available{$check})) {
 			return TRUE;
 		}
 	}
@@ -2877,8 +2887,14 @@ sub checkTargetCreateAttributes {
 
 	return SCST_C_FATAL_ERROR if (!defined($available));
 
-	foreach my $attribute (keys %{$check}) {
-		if (!defined($$available{$attribute})) {
+	if (ref($check) eq 'HASH') {
+		foreach my $attribute (keys %{$check}) {
+			if (!defined($$available{$attribute})) {
+				return TRUE;
+			}
+		}
+	} else {
+		if (!defined($$available{$check})) {
 			return TRUE;
 		}
 	}
@@ -2977,8 +2993,14 @@ sub checkLunCreateAttributes {
 
 	return SCST_C_FATAL_ERROR if (!defined($available));
 
-	foreach my $attribute (keys %{$check}) {
-		if (!defined($$available{$attribute})) {
+	if (ref($check) eq 'HASH') {
+		foreach my $attribute (keys %{$check}) {
+			if (!defined($$available{$attribute})) {
+				return TRUE;
+			}
+		}
+	} else {
+		if (!defined($$available{$check})) {
 			return TRUE;
 		}
 	}
@@ -3073,8 +3095,14 @@ sub checkInitiatorCreateAttributes {
 
 	return SCST_C_FATAL_ERROR if (!defined($available));
 
-	foreach my $attribute (keys %{$check}) {
-		if (!defined($$available{$attribute})) {
+	if (ref($check) eq 'HASH') {
+		foreach my $attribute (keys %{$check}) {
+			if (!defined($$available{$attribute})) {
+				return TRUE;
+			}
+		}
+	} else {
+		if (!defined($$available{$check})) {
 			return TRUE;
 		}
 	}
