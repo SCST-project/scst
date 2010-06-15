@@ -1573,6 +1573,9 @@ sub clearConfiguration {
 
 			clearLuns($driver, $target);
 			removeTargetDynamicAttributes($driver, $target);
+			if ($SCST->targetType($driver, $target) == $SCST::SCST::TGT_TYPE_VIRTUAL) {
+				removeVirtualTarget($driver, $target);
+			}
 		}
 
 		removeDriverDynamicAttributes($driver);
@@ -1589,8 +1592,20 @@ sub clearConfiguration {
 		}
 	}
 
+	# Todo - check return code
 	# TODO: should we disable all target drivers as well?
 }
+
+sub removeVirtualTarget {
+	my $driver = shift;
+	my $target = shift;
+
+	print "-> Removing virtual target '$target' from driver '$driver': ";
+	my $rc = $SCST->removeVirtualTarget($driver, $target);
+	print "done.\n";
+
+	# Todo - check return code
+}	
 
 ####################################################################
 
