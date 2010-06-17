@@ -2347,7 +2347,7 @@ void scst_pr_preempt_and_abort(struct scst_cmd *cmd, uint8_t *buffer,
 	cmd->pr_abort_counter = kzalloc(sizeof(*cmd->pr_abort_counter),
 		GFP_KERNEL);
 	if (cmd->pr_abort_counter == NULL) {
-		PRINT_ERROR("Unable to allocate PR abort counter (size %d)",
+		PRINT_ERROR("Unable to allocate PR abort counter (size %zd)",
 			sizeof(*cmd->pr_abort_counter));
 		scst_set_busy(cmd);
 		goto out;
