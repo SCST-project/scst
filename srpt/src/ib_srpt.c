@@ -2152,7 +2152,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	rsp->tag = req->tag;
 	rsp->max_it_iu_len = req->req_it_iu_len;
 	rsp->max_ti_iu_len = req->req_it_iu_len;
-	ch->max_ti_iu_len = req->req_it_iu_len;
+	ch->max_ti_iu_len = it_iu_len;
 	rsp->buf_fmt =
 	    cpu_to_be16(SRP_BUF_FORMAT_DIRECT | SRP_BUF_FORMAT_INDIRECT);
 	rsp->req_lim_delta = cpu_to_be32(SRPT_RQ_SIZE);
