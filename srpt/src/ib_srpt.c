@@ -311,7 +311,7 @@ static void srpt_get_iou(struct ib_dm_mad *mad)
 	int i;
 
 	ioui = (struct ib_dm_iou_info *)mad->data;
-	ioui->change_id = 1;
+	ioui->change_id = cpu_to_be16(1);
 	ioui->max_controllers = 16;
 
 	/* set present for slot 1 and empty for the rest */
@@ -1970,16 +1970,14 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	PRINT_INFO("Received SRP_LOGIN_REQ with"
 	    " i_port_id 0x%llx:0x%llx, t_port_id 0x%llx:0x%llx and it_iu_len %d"
 	    " on port %d (guid=0x%llx:0x%llx)",
-	    (unsigned long long)be64_to_cpu(*(u64 *)&req->initiator_port_id[0]),
-	    (unsigned long long)be64_to_cpu(*(u64 *)&req->initiator_port_id[8]),
-	    (unsigned long long)be64_to_cpu(*(u64 *)&req->target_port_id[0]),
-	    (unsigned long long)be64_to_cpu(*(u64 *)&req->target_port_id[8]),
+	    (unsigned long long)be64_to_cpu(*(__be64 *)&req->initiator_port_id[0]),
+	    (unsigned long long)be64_to_cpu(*(__be64 *)&req->initiator_port_id[8]),
+	    (unsigned long long)be64_to_cpu(*(__be64 *)&req->target_port_id[0]),
+	    (unsigned long long)be64_to_cpu(*(__be64 *)&req->target_port_id[8]),
 	    it_iu_len,
 	    param->port,
-	    (unsigned long long)be64_to_cpu(*(u64 *)
-				&sdev->port[param->port - 1].gid.raw[0]),
-	    (unsigned long long)be64_to_cpu(*(u64 *)
-				&sdev->port[param->port - 1].gid.raw[8]));
+	    (unsigned long long)be64_to_cpu(*(__be64 *)&sdev->port[param->port - 1].gid.raw[0]),
+	    (unsigned long long)be64_to_cpu(*(__be64 *)&sdev->port[param->port - 1].gid.raw[8]));
 
 	rsp = kzalloc(sizeof *rsp, GFP_KERNEL);
 	rej = kzalloc(sizeof *rej, GFP_KERNEL);
@@ -2063,10 +2061,9 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	} else
 		rsp->rsp_flags = SRP_LOGIN_RSP_MULTICHAN_MAINTAINED;
 
-	if (((u64) (*(u64 *) req->target_port_id) !=
-	     cpu_to_be64(srpt_service_guid)) ||
-	    ((u64) (*(u64 *) (req->target_port_id + 8)) !=
-	     cpu_to_be64(srpt_service_guid))) {
+	if (*(__be64 *)req->target_port_id != cpu_to_be64(srpt_service_guid)
+	    || *(__be64 *)(req->target_port_id + 8) !=
+	    cpu_to_be64(srpt_service_guid)) {
 		rej->reason =
 		    cpu_to_be32(SRP_LOGIN_REJ_UNABLE_ASSOCIATE_CHANNEL);
 		ret = -ENOMEM;
@@ -2117,9 +2114,9 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		 */
 		snprintf(ch->sess_name, sizeof(ch->sess_name),
 			 "0x%016llx%016llx",
-			 (unsigned long long)be64_to_cpu(*(u64 *)
+			 (unsigned long long)be64_to_cpu(*(__be64 *)
 				&sdev->port[param->port - 1].gid.raw[8]),
-			 (unsigned long long)be64_to_cpu(*(u64 *)
+			 (unsigned long long)be64_to_cpu(*(__be64 *)
 				(ch->i_port_id + 8)));
 	} else {
 		/*
@@ -2128,8 +2125,8 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		 */
 		snprintf(ch->sess_name, sizeof(ch->sess_name),
 			 "0x%016llx%016llx",
-			 (unsigned long long)be64_to_cpu(*(u64 *)ch->i_port_id),
-			 (unsigned long long)be64_to_cpu(*(u64 *)
+			 (unsigned long long)be64_to_cpu(*(__be64 *)ch->i_port_id),
+			 (unsigned long long)be64_to_cpu(*(__be64 *)
 				 (ch->i_port_id + 8)));
 	}
 

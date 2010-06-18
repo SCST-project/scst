@@ -125,7 +125,7 @@ struct ib_dm_ioc_profile {
 
 struct ib_dm_svc_entry {
 	u8 name[40];
-	u64 id;
+	__be64 id;
 };
 
 /*
