@@ -45,8 +45,8 @@ void ft_recv_write_data(struct scst_cmd *cmd, struct fc_frame *fp)
 
 	dir = scst_cmd_get_data_direction(cmd);
 	if (dir == SCST_DATA_BIDI) {
-		mem_len = scst_get_in_buf_first(cmd, &buf);
-		bufflen = scst_cmd_get_in_bufflen(cmd);
+		mem_len = scst_get_out_buf_first(cmd, &buf);
+		bufflen = scst_cmd_get_out_bufflen(cmd);
 	} else {
 		mem_len = scst_get_buf_first(cmd, &buf);
 		bufflen = scst_cmd_get_bufflen(cmd);
@@ -77,8 +77,8 @@ void ft_recv_write_data(struct scst_cmd *cmd, struct fc_frame *fp)
 	while (frame_len) {
 		if (!mem_len) {
 			if (dir == SCST_DATA_BIDI) {
-				scst_put_in_buf(cmd, buf);
-				mem_len = scst_get_in_buf_next(cmd, &buf);
+				scst_put_out_buf(cmd, buf);
+				mem_len = scst_get_out_buf_next(cmd, &buf);
 			} else {
 				scst_put_buf(cmd, buf);
 				mem_len = scst_get_buf_next(cmd, &buf);
@@ -109,7 +109,7 @@ void ft_recv_write_data(struct scst_cmd *cmd, struct fc_frame *fp)
 	}
 	if (mem_len) {
 		if (dir == SCST_DATA_BIDI)
-			scst_put_in_buf(cmd, buf);
+			scst_put_out_buf(cmd, buf);
 		else
 			scst_put_buf(cmd, buf);
 	}

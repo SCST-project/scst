@@ -1862,41 +1862,23 @@ static int q2t_pre_xmit_response(struct q2t_cmd *cmd,
 	full_req_cnt = prm->req_cnt;
 
 	if (xmit_type & Q2T_XMIT_STATUS) {
-		if ((cmd->data_direction & SCST_DATA_READ) ||
-		    (cmd->data_direction & SCST_DATA_WRITE)) {
-			int expected = scst_cmd_get_expected_transfer_len(scst_cmd);
-			/* Bidirectional transfers not supported (yet) */
-			if (cmd->data_direction & SCST_DATA_READ)
-				prm->residual = expected -
-					scst_cmd_get_resp_data_len(scst_cmd);
-			else if (likely(cmd->write_data_transferred))
-				prm->residual = expected -
-					scst_cmd_get_bufflen(scst_cmd);
-			else
-				prm->residual = expected;
-			if (unlikely(prm->residual != 0)) {
-				if (prm->residual > 0) {
-					TRACE_DBG("Residual underflow: %d (tag "
-						"%lld, op %x, expected %d, "
-						"resp_data_len %d, bufflen %d, "
-						"rq_result %x)", prm->residual,
-						scst_cmd->tag, scst_cmd->cdb[0],
-						expected,
-						scst_cmd_get_resp_data_len(scst_cmd),
-						cmd->bufflen, prm->rq_result);
-					prm->rq_result |= SS_RESIDUAL_UNDER;
-				} else /* if (prm->residual < 0) */ {
-					TRACE_DBG("Residual overflow: %d (tag "
-						"%lld, op %x, expected %d, "
-						"resp_data_len %d, bufflen %d, "
-						"rq_result %x)", prm->residual,
-						scst_cmd->tag, scst_cmd->cdb[0],
-						expected,
-						scst_cmd_get_resp_data_len(scst_cmd),
-						cmd->bufflen, prm->rq_result);
-					prm->rq_result |= SS_RESIDUAL_OVER;
-					prm->residual = -prm->residual;
-				}
+		/* Bidirectional transfers not supported (yet) */
+		if (unlikely(scst_get_resid(scst_cmd, &prm->residual, NULL))) {
+			if (prm->residual > 0) {
+				TRACE_DBG("Residual underflow: %d (tag %lld, "
+					"op %x, bufflen %d, rq_result %x)",
+					prm->residual, scst_cmd->tag,
+					scst_cmd->cdb[0], cmd->bufflen,
+					prm->rq_result);
+				prm->rq_result |= SS_RESIDUAL_UNDER;
+			} else if (prm->residual < 0) {
+				TRACE_DBG("Residual overflow: %d (tag %lld, "
+					"op %x, bufflen %d, rq_result %x)",
+					prm->residual, scst_cmd->tag,
+					scst_cmd->cdb[0], cmd->bufflen,
+					prm->rq_result);
+				prm->rq_result |= SS_RESIDUAL_OVER;
+				prm->residual = -prm->residual;
 			}
 		}
 
@@ -2138,7 +2120,7 @@ static int q2x_xmit_response(struct scst_cmd *scst_cmd)
 	if (is_send_status)
 		xmit_type |= Q2T_XMIT_STATUS;
 
-	cmd->bufflen = scst_cmd_get_resp_data_len(scst_cmd);
+	cmd->bufflen = scst_cmd_get_adjusted_resp_data_len(scst_cmd);
 	cmd->sg = scst_cmd_get_sg(scst_cmd);
 	cmd->sg_cnt = scst_cmd_get_sg_cnt(scst_cmd);
 	cmd->data_direction = scst_cmd_get_data_direction(scst_cmd);
@@ -2398,19 +2380,14 @@ static int q2t_rdy_to_xfer(struct scst_cmd *scst_cmd)
 {
 	int res;
 	struct q2t_cmd *cmd;
-	int exp_len;
 
 	TRACE_ENTRY();
 
 	TRACE(TRACE_SCSI, "tag=%lld", scst_cmd_get_tag(scst_cmd));
 
 	cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
-	cmd->bufflen = scst_cmd_get_bufflen(scst_cmd);
-	exp_len = scst_cmd_get_expected_transfer_len(scst_cmd);
-	if (unlikely(cmd->bufflen > exp_len))
-		cmd->bufflen = exp_len;
-	cmd->sg = scst_cmd_get_sg(scst_cmd);
-	cmd->sg_cnt = scst_cmd_get_sg_cnt(scst_cmd);
+	cmd->bufflen = scst_cmd_get_write_fields(scst_cmd, &cmd->sg,
+		&cmd->sg_cnt);
 	cmd->data_direction = scst_cmd_get_data_direction(scst_cmd);
 	cmd->dma_data_direction = scst_to_tgt_dma_dir(cmd->data_direction);
 
@@ -3630,7 +3607,7 @@ static void q24_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 		__q24_xmit_response(cmd, Q2T_XMIT_STATUS);
 		break;
 	case SRR_IU_DATA_IN:
-		cmd->bufflen = scst_cmd_get_resp_data_len(cmd->scst_cmd);
+		cmd->bufflen = scst_cmd_get_adjusted_resp_data_len(cmd->scst_cmd);
 		if (q2t_has_data(cmd)) {
 			uint32_t offset;
 			int xmit_type;
@@ -3653,7 +3630,8 @@ static void q24_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 		}
 		break;
 	case SRR_IU_DATA_OUT:
-		cmd->bufflen = scst_cmd_get_bufflen(cmd->scst_cmd);
+		cmd->bufflen = scst_cmd_get_write_fields(cmd->scst_cmd,
+					&cmd->sg, &cmd->sg_cnt);
 		if (q2t_has_data(cmd)) {
 			uint32_t offset;
 			int xmit_type;
@@ -3730,7 +3708,7 @@ static void q2x_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 		__q2x_xmit_response(cmd, Q2T_XMIT_STATUS);
 		break;
 	case SRR_IU_DATA_IN:
-		cmd->bufflen = scst_cmd_get_resp_data_len(cmd->scst_cmd);
+		cmd->bufflen = scst_cmd_get_adjusted_resp_data_len(cmd->scst_cmd);
 		if (q2t_has_data(cmd)) {
 			uint32_t offset;
 			int xmit_type;
@@ -3753,7 +3731,8 @@ static void q2x_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 		}
 		break;
 	case SRR_IU_DATA_OUT:
-		cmd->bufflen = scst_cmd_get_bufflen(cmd->scst_cmd);
+		cmd->bufflen = scst_cmd_get_write_fields(cmd->scst_cmd,
+					&cmd->sg, &cmd->sg_cnt);
 		if (q2t_has_data(cmd)) {
 			uint32_t offset;
 			int xmit_type;

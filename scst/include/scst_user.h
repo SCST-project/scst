@@ -119,7 +119,7 @@ struct scst_user_scsi_cmd_parse {
 
 	int32_t timeout;
 	int32_t bufflen;
-	int32_t in_bufflen;
+	int32_t out_bufflen;
 
 	uint32_t op_flags;
 
@@ -129,6 +129,7 @@ struct scst_user_scsi_cmd_parse {
 	uint8_t expected_values_set;
 	uint8_t expected_data_direction;
 	int32_t expected_transfer_len;
+	int32_t expected_out_transfer_len;
 
 	uint32_t sn;
 };
@@ -164,8 +165,8 @@ struct scst_user_scsi_cmd_exec {
 	uint8_t partial;
 	int32_t timeout;
 
-	aligned_u64 p_in_buf;
-	int32_t in_bufflen;
+	aligned_u64 p_out_buf;
+	int32_t out_bufflen;
 
 	uint32_t sn;
 

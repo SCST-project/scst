@@ -57,13 +57,13 @@ void ft_cmd_dump(struct scst_cmd *cmd, const char *caller)
 		prefix, cmd, fcmd->write_data_len, fcmd->read_data_len);
 	printk(KERN_INFO "%s exp_dir %x exp_xfer_len %d exp_in_len %d\n",
 		prefix, cmd->expected_data_direction,
-		cmd->expected_transfer_len, cmd->expected_in_transfer_len);
-	printk(KERN_INFO "%s dir %x data_len %d bufflen %d in_bufflen %d\n",
+		cmd->expected_transfer_len, cmd->expected_out_transfer_len);
+	printk(KERN_INFO "%s dir %x data_len %d bufflen %d out_bufflen %d\n",
 		prefix, cmd->data_direction, cmd->data_len,
-		cmd->bufflen, cmd->in_bufflen);
+		cmd->bufflen, cmd->out_bufflen);
 	printk(KERN_INFO "%s sg_cnt reg %d in %d tgt %d tgt_in %d\n",
-		prefix, cmd->sg_cnt, cmd->in_sg_cnt,
-		cmd->tgt_sg_cnt, cmd->tgt_in_sg_cnt);
+		prefix, cmd->sg_cnt, cmd->out_sg_cnt,
+		cmd->tgt_sg_cnt, cmd->tgt_out_sg_cnt);
 
 	buf[0] = '\0';
 	if (cmd->sent_for_exec)
@@ -247,7 +247,7 @@ int ft_send_response(struct scst_cmd *cmd)
 		}
 
 		if (dir == SCST_DATA_BIDI) {
-			bi_resid = (signed)scst_cmd_get_in_bufflen(cmd) -
+			bi_resid = (signed)scst_cmd_get_out_bufflen(cmd) -
 				   scst_cmd_get_resp_data_len(cmd);
 			if (bi_resid)
 				len += sizeof(__be32);

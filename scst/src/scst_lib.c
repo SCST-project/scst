@@ -71,6 +71,8 @@ static int get_trans_len_2(struct scst_cmd *cmd, uint8_t off);
 static int get_trans_len_3(struct scst_cmd *cmd, uint8_t off);
 static int get_trans_len_4(struct scst_cmd *cmd, uint8_t off);
 
+static int get_bidi_trans_len_2(struct scst_cmd *cmd, uint8_t off);
+
 /* for special commands */
 static int get_trans_len_block_limit(struct scst_cmd *cmd, uint8_t off);
 static int get_trans_len_read_capacity(struct scst_cmd *cmd, uint8_t off);
@@ -442,6 +444,10 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 SCST_DATA_NONE, SCST_WRITE_MEDIUM, 0, get_trans_len_none},
 	{0x52, "     O          ", "READ TRACK INFORMATION",
 	 SCST_DATA_READ, FLAG_NONE, 7, get_trans_len_2},
+	{0x53, "O               ", "XDWRITEREAD(10)",
+	 SCST_DATA_READ|SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED|
+	 				 SCST_WRITE_MEDIUM,
+	 7, get_bidi_trans_len_2},
 	{0x53, "     O          ", "RESERVE TRACK",
 	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
 	{0x54, "     O          ", "SEND OPC INFORMATION",
@@ -797,6 +803,7 @@ int scst_set_cmd_error_status(struct scst_cmd *cmd, int status)
 
 	cmd->data_direction = SCST_DATA_NONE;
 	cmd->resp_data_len = 0;
+	cmd->resid_possible = 1;
 	cmd->is_send_status = 1;
 
 	cmd->completed = 1;
@@ -1792,13 +1799,7 @@ void scst_check_reassign_sessions(void)
 	return;
 }
 
-/**
- * scst_get_cmd_abnormal_done_state() - get command's next abnormal done state
- *
- * Returns the next state of the SCSI target state machine in case if command's
- * completed abnormally.
- */
-int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
+static int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
 {
 	int res;
 
@@ -1863,15 +1864,16 @@ int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
 	TRACE_EXIT_RES(res);
 	return res;
 }
-EXPORT_SYMBOL(scst_get_cmd_abnormal_done_state);
 
 /**
  * scst_set_cmd_abnormal_done_state() - set command's next abnormal done state
  *
- * Sets state of the SCSI target state machine in case if command's completed
- * abnormally.
+ * Sets state of the SCSI target state machine to abnormally complete command
+ * ASAP.
+ *
+ * Returns the new state.
  */
-void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
+int scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 {
 	TRACE_ENTRY();
 
@@ -1889,6 +1891,36 @@ void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 
 	cmd->state = scst_get_cmd_abnormal_done_state(cmd);
 
+	switch (cmd->state) {
+	case SCST_CMD_STATE_INIT_WAIT:
+	case SCST_CMD_STATE_INIT:
+	case SCST_CMD_STATE_PRE_PARSE:
+	case SCST_CMD_STATE_PREPROCESSING_DONE:
+	case SCST_CMD_STATE_PREPROCESSING_DONE_CALLED:
+	case SCST_CMD_STATE_PREPARE_SPACE:
+	case SCST_CMD_STATE_RDY_TO_XFER:
+	case SCST_CMD_STATE_DATA_WAIT:
+		cmd->write_len = 0;
+		cmd->resid_possible = 1;
+		break;
+	case SCST_CMD_STATE_TGT_PRE_EXEC:
+	case SCST_CMD_STATE_SEND_FOR_EXEC:
+	case SCST_CMD_STATE_LOCAL_EXEC:
+	case SCST_CMD_STATE_REAL_EXEC:
+	case SCST_CMD_STATE_REAL_EXECUTING:
+	case SCST_CMD_STATE_DEV_PARSE:
+	case SCST_CMD_STATE_DEV_DONE:
+	case SCST_CMD_STATE_PRE_DEV_DONE:
+	case SCST_CMD_STATE_MODE_SELECT_CHECKS:
+	case SCST_CMD_STATE_PRE_XMIT_RESP:
+		break;
+	default:
+		PRINT_CRIT_ERROR("Wrong cmd state %d (cmd %p, op %x)",
+			cmd->state, cmd, cmd->cdb[0]);
+		sBUG();
+		break;
+	}
+
 #ifdef CONFIG_SCST_EXTRACHECKS
 	if (((cmd->state != SCST_CMD_STATE_PRE_XMIT_RESP) &&
 	     (cmd->state != SCST_CMD_STATE_PREPROCESSING_DONE)) &&
@@ -1899,10 +1931,95 @@ void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 	}
 #endif
 
+	TRACE_EXIT_RES(cmd->state);
+	return cmd->state;
+}
+EXPORT_SYMBOL(scst_set_cmd_abnormal_done_state);
+
+void scst_zero_write_rest(struct scst_cmd *cmd)
+{
+	int len, offs = 0;
+	uint8_t *buf;
+
+	TRACE_ENTRY();
+
+	len = scst_get_sg_buf_first(cmd, &buf, *cmd->write_sg,
+		*cmd->write_sg_cnt);
+	while (len > 0) {
+		int cur_offs;
+
+		if (offs + len <= cmd->write_len)
+			goto next;
+		else if (offs >= cmd->write_len)
+			cur_offs = 0;
+		else
+			cur_offs = cmd->write_len - offs;
+
+		memset(&buf[cur_offs], 0, len - cur_offs);
+
+next:
+		offs += len;
+		scst_put_sg_buf(cmd, buf, *cmd->write_sg, *cmd->write_sg_cnt);
+		len = scst_get_sg_buf_next(cmd, &buf, *cmd->write_sg,
+		                *cmd->write_sg_cnt);
+	}
+
 	TRACE_EXIT();
 	return;
 }
-EXPORT_SYMBOL(scst_set_cmd_abnormal_done_state);
+
+static void scst_adjust_sg(struct scst_cmd *cmd, struct scatterlist *sg,
+	int *sg_cnt, int adjust_len)
+{
+	int i, l;
+
+	TRACE_ENTRY();
+
+	l = 0;
+	for (i = 0; i < *sg_cnt; i++) {
+		l += sg[i].length;
+		if (l >= adjust_len) {
+			int left = adjust_len - (l - sg[i].length);
+#ifdef CONFIG_SCST_DEBUG
+			TRACE(TRACE_SG_OP|TRACE_MEMORY, "cmd %p (tag %llu), "
+				"sg %p, sg_cnt %d, adjust_len %d, i %d, "
+				"sg[i].length %d, left %d",
+				cmd, (long long unsigned int)cmd->tag,
+				sg, *sg_cnt, adjust_len, i,
+				sg[i].length, left);
+#endif
+			cmd->orig_sg = sg;
+			cmd->p_orig_sg_cnt = sg_cnt;
+			cmd->orig_sg_cnt = *sg_cnt;
+			cmd->orig_sg_entry = i;
+			cmd->orig_entry_len = sg[i].length;
+			*sg_cnt = (left > 0) ? i+1 : i;
+			sg[i].length = left;
+			cmd->sg_buff_modified = 1;
+			break;
+		}
+	}
+
+	TRACE_EXIT();
+	return;
+}
+
+/**
+ * scst_restore_sg_buff() - restores modified sg buffer
+ *
+ * Restores modified sg buffer in the original state.
+ */
+void scst_restore_sg_buff(struct scst_cmd *cmd)
+{
+	TRACE_MEM("cmd %p, sg %p, orig_sg_entry %d, "
+		"orig_entry_len %d, orig_sg_cnt %d", cmd, cmd->orig_sg,
+		cmd->orig_sg_entry, cmd->orig_entry_len,
+		cmd->orig_sg_cnt);
+	cmd->orig_sg[cmd->orig_sg_entry].length = cmd->orig_entry_len;
+	*cmd->p_orig_sg_cnt = cmd->orig_sg_cnt;
+	cmd->sg_buff_modified = 0;
+}
+EXPORT_SYMBOL(scst_restore_sg_buff);
 
 /**
  * scst_set_resp_data_len() - set response data length
@@ -1914,8 +2031,6 @@ EXPORT_SYMBOL(scst_set_cmd_abnormal_done_state);
  */
 void scst_set_resp_data_len(struct scst_cmd *cmd, int resp_data_len)
 {
-	int i, l;
-
 	TRACE_ENTRY();
 
 	scst_check_restore_sg_buff(cmd);
@@ -1924,34 +2039,135 @@ void scst_set_resp_data_len(struct scst_cmd *cmd, int resp_data_len)
 	if (resp_data_len == cmd->bufflen)
 		goto out;
 
-	l = 0;
-	for (i = 0; i < cmd->sg_cnt; i++) {
-		l += cmd->sg[i].length;
-		if (l >= resp_data_len) {
-			int left = resp_data_len - (l - cmd->sg[i].length);
-#ifdef CONFIG_SCST_DEBUG
-			TRACE(TRACE_SG_OP|TRACE_MEMORY, "cmd %p (tag %llu), "
-				"resp_data_len %d, i %d, cmd->sg[i].length %d, "
-				"left %d",
-				cmd, (long long unsigned int)cmd->tag,
-				resp_data_len, i,
-				cmd->sg[i].length, left);
-#endif
-			cmd->orig_sg_cnt = cmd->sg_cnt;
-			cmd->orig_sg_entry = i;
-			cmd->orig_entry_len = cmd->sg[i].length;
-			cmd->sg_cnt = (left > 0) ? i+1 : i;
-			cmd->sg[i].length = left;
-			cmd->sg_buff_modified = 1;
-			break;
-		}
-	}
+	scst_adjust_sg(cmd, cmd->sg, &cmd->sg_cnt, resp_data_len);
+
+	cmd->resid_possible = 1;
 
 out:
 	TRACE_EXIT();
 	return;
 }
 EXPORT_SYMBOL(scst_set_resp_data_len);
+
+void scst_limit_sg_write_len(struct scst_cmd *cmd)
+{
+	TRACE_ENTRY();
+
+	TRACE_MEM("Limiting sg write len to %d (cmd %p, sg %p, sg_cnt %d)",
+		cmd->write_len, cmd, *cmd->write_sg, *cmd->write_sg_cnt);
+
+	scst_check_restore_sg_buff(cmd);
+	scst_adjust_sg(cmd, *cmd->write_sg, cmd->write_sg_cnt, cmd->write_len);
+
+	TRACE_EXIT();
+	return;
+}
+
+void scst_adjust_resp_data_len(struct scst_cmd *cmd)
+{
+	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(!cmd->expected_values_set);
+
+	cmd->adjusted_resp_data_len = min(cmd->resp_data_len,
+					cmd->expected_transfer_len);
+
+	if (cmd->adjusted_resp_data_len != cmd->resp_data_len) {
+		TRACE_MEM("Abjusting resp_data_len to %d (cmd %p, sg %p, "
+			"sg_cnt %d)", cmd->adjusted_resp_data_len, cmd, cmd->sg,
+			cmd->sg_cnt);
+		scst_check_restore_sg_buff(cmd);
+		scst_adjust_sg(cmd, cmd->sg, &cmd->sg_cnt,
+				cmd->adjusted_resp_data_len);
+	}
+
+	TRACE_EXIT();
+	return;
+}
+
+/**
+ * scst_cmd_set_write_not_received_data_len() - sets cmd's not received len
+ *
+ * Sets cmd's not received data length. Also automatically sets resid_possible.
+ */
+void scst_cmd_set_write_not_received_data_len(struct scst_cmd *cmd,
+	int not_received)
+{
+	TRACE_ENTRY();
+
+	sBUG_ON(!cmd->expected_values_set);
+
+	cmd->resid_possible = 1;
+
+	if ((cmd->expected_data_direction & SCST_DATA_READ) &&
+	    (cmd->expected_data_direction & SCST_DATA_WRITE)) {
+		cmd->write_len = cmd->expected_out_transfer_len - not_received;
+		if (cmd->write_len == cmd->out_bufflen)
+			goto out;
+	} else if (cmd->expected_data_direction & SCST_DATA_WRITE) {
+		cmd->write_len = cmd->expected_transfer_len - not_received;
+		if (cmd->write_len == cmd->bufflen)
+			goto out;
+	}
+
+	/*
+	 * Write len now can be bigger cmd->(out_)bufflen, but that's OK,
+	 * because it will be used to only calculate write residuals.
+	 */
+
+	TRACE_DBG("cmd %p, not_received %d, write_len %d", cmd, not_received,
+		cmd->write_len);
+
+	if (cmd->data_direction & SCST_DATA_WRITE)
+		scst_limit_sg_write_len(cmd);
+
+out:
+	TRACE_EXIT();
+	return;
+}
+EXPORT_SYMBOL(scst_cmd_set_write_not_received_data_len);
+
+/**
+ * __scst_get_resid() - returns residuals for cmd
+ *
+ * Returns residuals for command. Must not be called directly, use
+ * scst_get_resid() instead.
+ */
+bool __scst_get_resid(struct scst_cmd *cmd, int *resid, int *bidi_out_resid)
+{
+	TRACE_ENTRY();
+
+	*resid = 0;
+	if (bidi_out_resid != NULL)
+		*bidi_out_resid = 0;
+
+	sBUG_ON(!cmd->expected_values_set);
+
+	if (cmd->expected_data_direction & SCST_DATA_READ) {
+		*resid = cmd->expected_transfer_len - cmd->resp_data_len;
+		if ((cmd->expected_data_direction & SCST_DATA_WRITE) && bidi_out_resid) {
+			if (cmd->write_len < cmd->expected_out_transfer_len)
+				*bidi_out_resid = cmd->expected_out_transfer_len -
+							cmd->write_len;
+			else
+				*bidi_out_resid = cmd->write_len - cmd->out_bufflen;
+		}
+	} else if (cmd->expected_data_direction & SCST_DATA_WRITE) {
+		if (cmd->write_len < cmd->expected_transfer_len)
+			*resid = cmd->expected_transfer_len - cmd->write_len;
+		else
+			*resid = cmd->write_len - cmd->bufflen;
+	}
+
+	TRACE_DBG("cmd %p, resid %d, bidi_out_resid %d (resp_data_len %d, "
+		"expected_data_direction %d, write_len %d, bufflen %d)", cmd,
+		*resid, bidi_out_resid ? *bidi_out_resid : 0, cmd->resp_data_len,
+		cmd->expected_data_direction, cmd->write_len, cmd->bufflen);
+
+	TRACE_EXIT_RES(1);
+	return true;
+}
+EXPORT_SYMBOL(__scst_get_resid);
 
 /* No locks */
 int scst_queue_retry_cmd(struct scst_cmd *cmd, int finished_cmds)
@@ -3890,6 +4106,8 @@ struct scst_cmd *scst_alloc_cmd(gfp_t gfp_mask)
 	cmd->data_len = -1;
 	cmd->is_send_status = 1;
 	cmd->resp_data_len = -1;
+	cmd->write_sg = &cmd->sg;
+	cmd->write_sg_cnt = &cmd->sg_cnt;
 
 	cmd->dbl_ua_orig_data_direction = SCST_DATA_UNKNOWN;
 	cmd->dbl_ua_orig_resp_data_len = -1;
@@ -4197,21 +4415,21 @@ int scst_alloc_space(struct scst_cmd *cmd)
 	if (cmd->data_direction != SCST_DATA_BIDI)
 		goto success;
 
-	cmd->in_sg = sgv_pool_alloc(tgt_dev->pool, cmd->in_bufflen, gfp_mask,
-			 flags, &cmd->in_sg_cnt, &cmd->in_sgv,
+	cmd->out_sg = sgv_pool_alloc(tgt_dev->pool, cmd->out_bufflen, gfp_mask,
+			 flags, &cmd->out_sg_cnt, &cmd->out_sgv,
 			 &cmd->dev->dev_mem_lim, NULL);
-	if (cmd->in_sg == NULL)
+	if (cmd->out_sg == NULL)
 		goto out_sg_free;
 
-	if (unlikely(cmd->in_sg_cnt > tgt_dev->max_sg_cnt)) {
+	if (unlikely(cmd->out_sg_cnt > tgt_dev->max_sg_cnt)) {
 		if ((ll < 10)  || is_report_sg_limitation()) {
 			PRINT_INFO("Unable to complete command due to "
-				"SG IO count limitation (IN buffer, requested "
-				"%d, available %d, tgt lim %d)", cmd->in_sg_cnt,
+				"SG IO count limitation (OUT buffer, requested "
+				"%d, available %d, tgt lim %d)", cmd->out_sg_cnt,
 				tgt_dev->max_sg_cnt, cmd->tgt->sg_tablesize);
 			ll++;
 		}
-		goto out_in_sg_free;
+		goto out_out_sg_free;
 	}
 
 success:
@@ -4221,11 +4439,11 @@ out:
 	TRACE_EXIT();
 	return res;
 
-out_in_sg_free:
-	sgv_pool_free(cmd->in_sgv, &cmd->dev->dev_mem_lim);
-	cmd->in_sgv = NULL;
-	cmd->in_sg = NULL;
-	cmd->in_sg_cnt = 0;
+out_out_sg_free:
+	sgv_pool_free(cmd->out_sgv, &cmd->dev->dev_mem_lim);
+	cmd->out_sgv = NULL;
+	cmd->out_sg = NULL;
+	cmd->out_sg_cnt = 0;
 
 out_sg_free:
 	sgv_pool_free(cmd->sgv, &cmd->dev->dev_mem_lim);
@@ -4255,12 +4473,12 @@ static void scst_release_space(struct scst_cmd *cmd)
 		goto out;
 	}
 
-	if (cmd->in_sgv != NULL) {
-		sgv_pool_free(cmd->in_sgv, &cmd->dev->dev_mem_lim);
-		cmd->in_sgv = NULL;
-		cmd->in_sg_cnt = 0;
-		cmd->in_sg = NULL;
-		cmd->in_bufflen = 0;
+	if (cmd->out_sgv != NULL) {
+		sgv_pool_free(cmd->out_sgv, &cmd->dev->dev_mem_lim);
+		cmd->out_sgv = NULL;
+		cmd->out_sg_cnt = 0;
+		cmd->out_sg = NULL;
+		cmd->out_bufflen = 0;
 	}
 
 	sgv_pool_free(cmd->sgv, &cmd->dev->dev_mem_lim);
@@ -4482,20 +4700,21 @@ int scst_scsi_exec_async(struct scst_cmd *cmd,
 	rq->cmd_type = REQ_TYPE_BLOCK_PC;
 	rq->cmd_flags |= REQ_QUIET;
 
-	if (cmd->sg != NULL) {
-		res = blk_rq_map_kern_sg(rq, cmd->sg, cmd->sg_cnt, gfp);
-		if (res) {
-			TRACE_DBG("blk_rq_map_kern_sg() failed: %d", res);
-			goto out_free_rq;
-		}
-	}
+	if (cmd->sg == NULL)
+		goto done;
 
 	if (cmd->data_direction == SCST_DATA_BIDI) {
 		struct request *next_rq;
 
 		if (!test_bit(QUEUE_FLAG_BIDI, &q->queue_flags)) {
 			res = -EOPNOTSUPP;
-			goto out_free_unmap;
+			goto out_free_rq;
+		}
+
+		res = blk_rq_map_kern_sg(rq, cmd->out_sg, cmd->out_sg_cnt, gfp);
+		if (res != 0) {
+			TRACE_DBG("blk_rq_map_kern_sg() failed: %d", res);
+			goto out_free_rq;
 		}
 
 		next_rq = blk_get_request(q, READ, gfp);
@@ -4506,12 +4725,20 @@ int scst_scsi_exec_async(struct scst_cmd *cmd,
 		rq->next_rq = next_rq;
 		next_rq->cmd_type = rq->cmd_type;
 
-		res = blk_rq_map_kern_sg(next_rq, cmd->in_sg,
-			cmd->in_sg_cnt, gfp);
-		if (res != 0)
+		res = blk_rq_map_kern_sg(next_rq, cmd->sg, cmd->sg_cnt, gfp);
+		if (res != 0) {
+			TRACE_DBG("blk_rq_map_kern_sg() failed: %d", res);
 			goto out_free_unmap;
+		}
+	} else {
+		res = blk_rq_map_kern_sg(rq, cmd->sg, cmd->sg_cnt, gfp);
+		if (res != 0) {
+			TRACE_DBG("blk_rq_map_kern_sg() failed: %d", res);
+			goto out_free_rq;
+		}
 	}
 
+done:
 	TRACE_DBG("sioc %p, cmd %p", sioc, cmd);
 
 	sioc->data = cmd;
@@ -4576,9 +4803,9 @@ void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir)
 			to_copy = cmd->bufflen;
 		} else {
 			TRACE_MEM("BIDI cmd %p", cmd);
-			src_sg = cmd->tgt_in_sg;
-			dst_sg = cmd->in_sg;
-			to_copy = cmd->in_bufflen;
+			src_sg = cmd->tgt_out_sg;
+			dst_sg = cmd->out_sg;
+			to_copy = cmd->out_bufflen;
 		}
 	} else {
 		src_sg = cmd->sg;
@@ -4887,6 +5114,19 @@ static int get_trans_len_none(struct scst_cmd *cmd, uint8_t off)
 	return 0;
 }
 
+static int get_bidi_trans_len_2(struct scst_cmd *cmd, uint8_t off)
+{
+	const uint8_t *p = cmd->cdb + off;
+
+	cmd->bufflen = 0;
+	cmd->bufflen |= ((u32)p[0]) << 8;
+	cmd->bufflen |= ((u32)p[1]);
+
+	cmd->out_bufflen = cmd->bufflen;
+
+	return 0;
+}
+
 /**
  * scst_get_cdb_info() - fill various info about the command's CDB
  *
@@ -5159,6 +5399,7 @@ int scst_sbc_generic_parse(struct scst_cmd *cmd,
 		 * called, when there are existing commands.
 		 */
 		cmd->bufflen = cmd->bufflen << get_block_shift(cmd);
+		cmd->out_bufflen = cmd->out_bufflen << get_block_shift(cmd);
 	}
 
 set_timeout:
@@ -5215,8 +5456,10 @@ int scst_cdrom_generic_parse(struct scst_cmd *cmd,
 		break;
 	}
 
-	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED)
+	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED) {
 		cmd->bufflen = cmd->bufflen << get_block_shift(cmd);
+		cmd->out_bufflen = cmd->out_bufflen << get_block_shift(cmd);
+	}
 
 set_timeout:
 	if ((cmd->op_flags & (SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)) == 0)
@@ -5272,8 +5515,10 @@ int scst_modisk_generic_parse(struct scst_cmd *cmd,
 		break;
 	}
 
-	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED)
+	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED) {
 		cmd->bufflen = cmd->bufflen << get_block_shift(cmd);
+		cmd->out_bufflen = cmd->out_bufflen << get_block_shift(cmd);
+	}
 
 set_timeout:
 	if ((cmd->op_flags & (SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)) == 0)
@@ -5326,8 +5571,10 @@ int scst_tape_generic_parse(struct scst_cmd *cmd,
 		}
 	}
 
-	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED & cmd->cdb[1])
+	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED & cmd->cdb[1]) {
 		cmd->bufflen = cmd->bufflen * get_block_size(cmd);
+		cmd->out_bufflen = cmd->out_bufflen * get_block_size(cmd);
+	}
 
 	if ((cmd->op_flags & (SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)) == 0)
 		cmd->timeout = SCST_GENERIC_TAPE_REG_TIMEOUT;

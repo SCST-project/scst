@@ -648,7 +648,7 @@ prevent it.
 Performance advices
 -------------------
 
-1. If you use Windows XP or Windows 2003+ as initiators, you should
+1. If you use Windows XP or Windows 2003+ as initiators, you can
 consider to decrease TcpAckFrequency parameter to 1. See
 http://support.microsoft.com/kb/328890/ or google for "TcpAckFrequency"
 for more details.

@@ -1620,7 +1620,7 @@ struct scst_cmd {
 	unsigned int expected_values_set:1;
 
 	/*
-	 * Set if the SG buffer was modified by scst_set_resp_data_len()
+	 * Set if the SG buffer was modified by scst_adjust_sg()
 	 */
 	unsigned int sg_buff_modified:1;
 
@@ -1667,12 +1667,16 @@ struct scst_cmd {
 	/* Set if tgt_sn field is valid */
 	unsigned int tgt_sn_set:1;
 
+	/* Set if any direction residual is possible */
+	unsigned int resid_possible:1;
+
 	/* Set if cmd is done */
 	unsigned int done:1;
 
 	/* Set if cmd is finished */
 	unsigned int finished:1;
 
+#ifdef CONFIG_DEBUG_SG
 	/*
 	 * Set if the cmd was delayed by task management debugging code.
 	 * Used only if CONFIG_SCST_DEBUG_TM is on.
@@ -1684,6 +1688,7 @@ struct scst_cmd {
 	 * Used only if CONFIG_SCST_DEBUG_TM is on.
 	 */
 	unsigned int tm_dbg_immut:1;
+#endif
 
 	/**************************************************************/
 
@@ -1746,7 +1751,7 @@ struct scst_cmd {
 	/* Remote initiator supplied values, if any */
 	scst_data_direction expected_data_direction;
 	int expected_transfer_len;
-	int expected_in_transfer_len; /* for bidi writes */
+	int expected_out_transfer_len; /* for bidi writes */
 
 	/*
 	 * Cmd data length. Could be different from bufflen for commands like
@@ -1765,19 +1770,39 @@ struct scst_cmd {
 	int sg_cnt;			/* SG segments count */
 
 	/*
-	 * Response data length in data buffer. This field must not be set
-	 * directly, use scst_set_resp_data_len() for that
+	 * Response data length in data buffer. Must not be set
+	 * directly, use scst_set_resp_data_len() for that.
 	 */
 	int resp_data_len;
+
+	/*
+	 * Response data length adjusted on residual, i.e.
+	 * min(expected_len, resp_len), if expected len set.
+	 */
+	int adjusted_resp_data_len;
+
+	/*
+	 * Data length to write, i.e. transfer from the initiator. Might be
+	 * different from (out_)bufflen, if the initiator asked too big or too
+	 * small expected(_out_)transfer_len.
+	 */
+	int write_len;
+
+	/*
+	 * Write sg and sg_cnt to point out either on sg/sg_cnt, or on
+	 * out_sg/out_sg_cnt.
+	 */
+	struct scatterlist **write_sg;
+	int *write_sg_cnt;
 
 	/* scst_get_sg_buf_[first,next]() support */
 	int get_sg_buf_entry_num;
 
 	/* Bidirectional transfers support */
-	int in_bufflen;			/* WRITE buffer length */
-	struct sgv_pool_obj *in_sgv;	/* WRITE sgv object */
-	struct scatterlist *in_sg;	/* WRITE data buffer SG vector */
-	int in_sg_cnt;			/* WRITE SG segments count */
+	int out_bufflen;			/* WRITE buffer length */
+	struct sgv_pool_obj *out_sgv;	/* WRITE sgv object */
+	struct scatterlist *out_sg;	/* WRITE data buffer SG vector */
+	int out_sg_cnt;			/* WRITE SG segments count */
 
 	/*
 	 * Used if both target driver and dev handler request own memory
@@ -1790,8 +1815,8 @@ struct scst_cmd {
 	 */
 	struct scatterlist *tgt_sg;
 	int tgt_sg_cnt;
-	struct scatterlist *tgt_in_sg;	/* bidirectional */
-	int tgt_in_sg_cnt;		/* bidirectional */
+	struct scatterlist *tgt_out_sg;	/* bidirectional */
+	int tgt_out_sg_cnt;		/* bidirectional */
 
 	/*
 	 * The status fields in case of errors must be set using
@@ -1815,10 +1840,9 @@ struct scst_cmd {
 	/* Used for storage of dev handler private stuff */
 	void *dh_priv;
 
-	/*
-	 * Used to restore the SG vector if it was modified by
-	 * scst_set_resp_data_len()
-	 */
+	/* Used to restore sg if it was modified by scst_adjust_sg() */
+	struct scatterlist *orig_sg;
+	int *p_orig_sg_cnt;
 	int orig_sg_cnt, orig_sg_entry, orig_entry_len;
 
 	/* Used to retry commands in case of double UA */
@@ -2713,6 +2737,12 @@ static inline int scst_cmd_get_resp_data_len(struct scst_cmd *cmd)
 	return cmd->resp_data_len;
 }
 
+/* Returns cmd's adjusted response data length */
+static inline int scst_cmd_get_adjusted_resp_data_len(struct scst_cmd *cmd)
+{
+	return cmd->adjusted_resp_data_len;
+}
+
 /* Returns if status should be sent for cmd */
 static inline int scst_cmd_get_is_send_status(struct scst_cmd *cmd)
 {
@@ -2756,35 +2786,44 @@ static inline unsigned int scst_cmd_get_bufflen(struct scst_cmd *cmd)
 /*
  * Returns pointer to cmd's bidirectional in (WRITE) SG data buffer.
  *
- * Usage of this function is not recommended, use scst_get_in_buf_*()
+ * Usage of this function is not recommended, use scst_get_out_buf_*()
  * family of functions instead.
  */
-static inline struct scatterlist *scst_cmd_get_in_sg(struct scst_cmd *cmd)
+static inline struct scatterlist *scst_cmd_get_out_sg(struct scst_cmd *cmd)
 {
-	return cmd->in_sg;
+	return cmd->out_sg;
 }
 
 /*
  * Returns cmd's bidirectional in (WRITE) sg_cnt.
  *
- * Usage of this function is not recommended, use scst_get_in_buf_*()
+ * Usage of this function is not recommended, use scst_get_out_buf_*()
  * family of functions instead.
  */
-static inline int scst_cmd_get_in_sg_cnt(struct scst_cmd *cmd)
+static inline int scst_cmd_get_out_sg_cnt(struct scst_cmd *cmd)
 {
-	return cmd->in_sg_cnt;
+	return cmd->out_sg_cnt;
+}
+
+void scst_restore_sg_buff(struct scst_cmd *cmd);
+
+/* Restores modified sg buffer in the original state, if necessary */
+static inline void scst_check_restore_sg_buff(struct scst_cmd *cmd)
+{
+	if (unlikely(cmd->sg_buff_modified))
+		scst_restore_sg_buff(cmd);
 }
 
 /*
  * Returns cmd's bidirectional in (WRITE) data buffer length.
  *
  * In case if you need to iterate over data in the buffer, usage of
- * this function is not recommended, use scst_get_in_buf_*()
+ * this function is not recommended, use scst_get_out_buf_*()
  * family of functions instead.
  */
-static inline unsigned int scst_cmd_get_in_bufflen(struct scst_cmd *cmd)
+static inline unsigned int scst_cmd_get_out_bufflen(struct scst_cmd *cmd)
 {
-	return cmd->in_bufflen;
+	return cmd->out_bufflen;
 }
 
 /* Returns pointer to cmd's target's SG data buffer */
@@ -2808,26 +2847,26 @@ static inline void scst_cmd_set_tgt_sg(struct scst_cmd *cmd,
 	cmd->tgt_data_buf_alloced = 1;
 }
 
-/* Returns pointer to cmd's target's IN SG data buffer */
-static inline struct scatterlist *scst_cmd_get_in_tgt_sg(struct scst_cmd *cmd)
+/* Returns pointer to cmd's target's OUT SG data buffer */
+static inline struct scatterlist *scst_cmd_get_out_tgt_sg(struct scst_cmd *cmd)
 {
-	return cmd->tgt_in_sg;
+	return cmd->tgt_out_sg;
 }
 
-/* Returns cmd's target's IN sg_cnt */
-static inline int scst_cmd_get_tgt_in_sg_cnt(struct scst_cmd *cmd)
+/* Returns cmd's target's OUT sg_cnt */
+static inline int scst_cmd_get_tgt_out_sg_cnt(struct scst_cmd *cmd)
 {
-	return cmd->tgt_in_sg_cnt;
+	return cmd->tgt_out_sg_cnt;
 }
 
-/* Sets cmd's target's IN SG data buffer */
-static inline void scst_cmd_set_tgt_in_sg(struct scst_cmd *cmd,
+/* Sets cmd's target's OUT SG data buffer */
+static inline void scst_cmd_set_tgt_out_sg(struct scst_cmd *cmd,
 	struct scatterlist *sg, int sg_cnt)
 {
 	WARN_ON(!cmd->tgt_data_buf_alloced);
 
-	cmd->tgt_in_sg = sg;
-	cmd->tgt_in_sg_cnt = sg_cnt;
+	cmd->tgt_out_sg = sg;
+	cmd->tgt_out_sg_cnt = sg_cnt;
 }
 
 /* Returns cmd's data direction */
@@ -2835,6 +2874,32 @@ static inline scst_data_direction scst_cmd_get_data_direction(
 	struct scst_cmd *cmd)
 {
 	return cmd->data_direction;
+}
+
+/* Returns cmd's write len as well as write SG and sg_cnt */
+static inline int scst_cmd_get_write_fields(struct scst_cmd *cmd,
+	struct scatterlist **sg, int *sg_cnt)
+{
+	*sg = *cmd->write_sg;
+	*sg_cnt = *cmd->write_sg_cnt;
+	return cmd->write_len;
+}
+
+void scst_cmd_set_write_not_received_data_len(struct scst_cmd *cmd,
+	int not_received);
+
+bool __scst_get_resid(struct scst_cmd *cmd, int *resid, int *bidi_out_resid);
+
+/*
+ * Returns true if cmd has residual(s) and returns them in the corresponding
+ * parameters(s).
+ */
+static inline bool scst_get_resid(struct scst_cmd *cmd,
+	int *resid, int *bidi_out_resid)
+{
+	if (likely(!cmd->resid_possible))
+		return false;
+	return __scst_get_resid(cmd, resid, bidi_out_resid);
 }
 
 /* Returns cmd's status byte from host device */
@@ -3022,10 +3087,10 @@ static inline int scst_cmd_get_expected_transfer_len(
 	return cmd->expected_transfer_len;
 }
 
-static inline int scst_cmd_get_expected_in_transfer_len(
+static inline int scst_cmd_get_expected_out_transfer_len(
 	struct scst_cmd *cmd)
 {
-	return cmd->expected_in_transfer_len;
+	return cmd->expected_out_transfer_len;
 }
 
 static inline void scst_cmd_set_expected(struct scst_cmd *cmd,
@@ -3037,11 +3102,11 @@ static inline void scst_cmd_set_expected(struct scst_cmd *cmd,
 	cmd->expected_values_set = 1;
 }
 
-static inline void scst_cmd_set_expected_in_transfer_len(struct scst_cmd *cmd,
-	int expected_in_transfer_len)
+static inline void scst_cmd_set_expected_out_transfer_len(struct scst_cmd *cmd,
+	int expected_out_transfer_len)
 {
 	WARN_ON(!cmd->expected_values_set);
-	cmd->expected_in_transfer_len = expected_in_transfer_len;
+	cmd->expected_out_transfer_len = expected_out_transfer_len;
 }
 
 /*
@@ -3273,19 +3338,39 @@ static inline void scst_put_buf(struct scst_cmd *cmd, void *buf)
 	/* Nothing to do */
 }
 
-static inline int scst_get_in_buf_first(struct scst_cmd *cmd, uint8_t **buf)
+static inline int scst_get_out_buf_first(struct scst_cmd *cmd, uint8_t **buf)
 {
 	cmd->get_sg_buf_entry_num = 0;
 	cmd->may_need_dma_sync = 1;
-	return __scst_get_buf(cmd, cmd->in_sg, cmd->in_sg_cnt, buf);
+	return __scst_get_buf(cmd, cmd->out_sg, cmd->out_sg_cnt, buf);
 }
 
-static inline int scst_get_in_buf_next(struct scst_cmd *cmd, uint8_t **buf)
+static inline int scst_get_out_buf_next(struct scst_cmd *cmd, uint8_t **buf)
 {
-	return __scst_get_buf(cmd, cmd->in_sg, cmd->in_sg_cnt, buf);
+	return __scst_get_buf(cmd, cmd->out_sg, cmd->out_sg_cnt, buf);
 }
 
-static inline void scst_put_in_buf(struct scst_cmd *cmd, void *buf)
+static inline void scst_put_out_buf(struct scst_cmd *cmd, void *buf)
+{
+	/* Nothing to do */
+}
+
+static inline int scst_get_sg_buf_first(struct scst_cmd *cmd, uint8_t **buf,
+	struct scatterlist *sg, int sg_cnt)
+{
+	cmd->get_sg_buf_entry_num = 0;
+	cmd->may_need_dma_sync = 1;
+	return __scst_get_buf(cmd, sg, sg_cnt, buf);
+}
+
+static inline int scst_get_sg_buf_next(struct scst_cmd *cmd, uint8_t **buf,
+	struct scatterlist *sg, int sg_cnt)
+{
+	return __scst_get_buf(cmd, sg, sg_cnt, buf);
+}
+
+static inline void scst_put_sg_buf(struct scst_cmd *cmd, void *buf,
+	struct scatterlist *sg, int sg_cnt)
 {
 	/* Nothing to do */
 }
@@ -3301,11 +3386,11 @@ static inline int scst_get_buf_count(struct scst_cmd *cmd)
 
 /*
  * Returns approximate higher rounded buffers count that
- * scst_get_in_buf_[first|next]() return.
+ * scst_get_out_buf_[first|next]() return.
  */
-static inline int scst_get_in_buf_count(struct scst_cmd *cmd)
+static inline int scst_get_out_buf_count(struct scst_cmd *cmd)
 {
-	return (cmd->in_sg_cnt == 0) ? 1 : cmd->in_sg_cnt;
+	return (cmd->out_sg_cnt == 0) ? 1 : cmd->out_sg_cnt;
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
@@ -3333,8 +3418,7 @@ void scst_post_alloc_data_buf(struct scst_cmd *cmd);
 
 int scst_check_local_events(struct scst_cmd *cmd);
 
-int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd);
-void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd);
+int scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd);
 
 struct scst_trace_log {
 	unsigned int val;

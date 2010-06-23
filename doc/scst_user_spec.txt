@@ -373,7 +373,7 @@ struct scst_user_scsi_cmd_parse
 
 	uint32_t timeout;
 	int32_t bufflen;
-	int32_t in_bufflen;
+	int32_t out_bufflen;
 
 	uint32_t op_flags;
 
@@ -383,6 +383,7 @@ struct scst_user_scsi_cmd_parse
 	uint8_t expected_values_set;
 	uint8_t expected_data_direction;
 	int32_t expected_transfer_len;
+	int32_t expected_out_transfer_len;
 
 	uint32_t sn;
 },
@@ -402,7 +403,7 @@ where:
 
  - bufflen - command's buffer length
 
- - in_bufflen - for bidirectional commands command's IN, i.e. from
+ - out_bufflen - for bidirectional commands command's OUT, i.e. from
    initiator to target, buffer length
 
  - op_flags - CDB flags, one or more scst_cdb_flags bits, see below.
@@ -419,6 +420,9 @@ where:
    flow direction
 
  - expected_transfer_len - remote initiator supplied transfer length
+
+ - expected_out_transfer_len - remote initiator supplied out, i.e. from
+   initiator to target, transfer length for bidirectional commands.
 
  - sn - command's SN, which might be used for task management
 
@@ -594,8 +598,8 @@ struct scst_user_scsi_cmd_exec
 	uint8_t partial;
 	uint32_t timeout;
 
-	aligned_u64 p_in_buf;
-	int32_t in_bufflen;
+	aligned_u64 p_out_buf;
+	int32_t out_bufflen;
 
 	uint32_t sn;
 
@@ -641,11 +645,11 @@ where:
 
  - timeout - CDB execution timeout
 
- - p_in_buf - for bidirectional commands pointer on command's IN, i.e. from
+ - p_out_buf - for bidirectional commands pointer on command's OUT, i.e. from
    initiator to target, data buffer or 0 for SCSI commands without data
    transfer
 
- - in_bufflen - for bidirectional commands command's IN, i.e. from
+ - out_bufflen - for bidirectional commands command's OUT, i.e. from
    initiator to target, buffer length
 
  - sn - command's SN, which might be used for task management

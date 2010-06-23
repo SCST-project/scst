@@ -296,6 +296,10 @@ int scst_init_thread(void *arg);
 int scst_tm_thread(void *arg);
 int scst_global_mgmt_thread(void *arg);
 
+void scst_zero_write_rest(struct scst_cmd *cmd);
+void scst_limit_sg_write_len(struct scst_cmd *cmd);
+void scst_adjust_resp_data_len(struct scst_cmd *cmd);
+
 int scst_queue_retry_cmd(struct scst_cmd *cmd, int finished_cmds);
 
 static inline void scst_tgtt_cleanup(struct scst_tgt_template *tgtt) { }
@@ -694,19 +698,6 @@ static inline void __scst_cmd_put(struct scst_cmd *cmd)
 
 extern void scst_throttle_cmd(struct scst_cmd *cmd);
 extern void scst_unthrottle_cmd(struct scst_cmd *cmd);
-
-static inline void scst_check_restore_sg_buff(struct scst_cmd *cmd)
-{
-	if (cmd->sg_buff_modified) {
-		TRACE_MEM("cmd %p, sg %p, orig_sg_entry %d, "
-			"orig_entry_len %d, orig_sg_cnt %d", cmd, cmd->sg,
-			cmd->orig_sg_entry, cmd->orig_entry_len,
-			cmd->orig_sg_cnt);
-		cmd->sg[cmd->orig_sg_entry].length = cmd->orig_entry_len;
-		cmd->sg_cnt = cmd->orig_sg_cnt;
-		cmd->sg_buff_modified = 0;
-	}
-}
 
 #ifdef CONFIG_SCST_DEBUG_TM
 extern void tm_dbg_check_released_cmds(void);

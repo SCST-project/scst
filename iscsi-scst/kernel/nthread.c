@@ -776,12 +776,23 @@ static int iscsi_rx_check_ddigest(struct iscsi_conn *conn)
 			cmnd->ddigest_checked = 1;
 			res = digest_rx_data(cmnd);
 			if (unlikely(res != 0)) {
-				if (unlikely(cmnd->scst_cmd == NULL)) {
+				struct iscsi_cmnd *orig_req;
+				if (cmnd_opcode(cmnd) == ISCSI_OP_SCSI_DATA_OUT)
+					orig_req = cmnd->cmd_req;
+				else
+					orig_req = cmnd;
+				if (unlikely(orig_req->scst_cmd == NULL)) {
 					/* Just drop it */
-					iscsi_preliminary_complete(cmnd, cmnd, false);
-				} else
-					set_scst_preliminary_status_rsp(cmnd, false,
+					iscsi_preliminary_complete(cmnd, orig_req, false);
+				} else {
+					set_scst_preliminary_status_rsp(orig_req, false,
 						SCST_LOAD_SENSE(iscsi_sense_crc_error));
+					/*
+					 * Let's prelim complete cmnd too to
+					 * handle the DATA OUT case
+					 */
+					iscsi_preliminary_complete(cmnd, orig_req, false);
+				}
 				res = 0;
 			}
 		} else if (cmnd_opcode(cmnd) == ISCSI_OP_SCSI_CMD) {

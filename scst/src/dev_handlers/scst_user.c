@@ -552,10 +552,10 @@ static int dev_user_alloc_sg(struct scst_user_cmd *ucmd, int cached_buff)
 		orig_bufflen = cmd->bufflen;
 		pool = (struct sgv_pool *)cmd->tgt_dev->dh_priv;
 	} else {
-		/* Make in_sg->offset 0 */
+		/* Make out_sg->offset 0 */
 		int len = cmd->bufflen + ucmd->first_page_offset;
 		out_sg_pages = (len >> PAGE_SHIFT) + ((len & ~PAGE_MASK) != 0);
-		orig_bufflen = (out_sg_pages << PAGE_SHIFT) + cmd->in_bufflen;
+		orig_bufflen = (out_sg_pages << PAGE_SHIFT) + cmd->out_bufflen;
 		pool = dev->pool;
 	}
 	bufflen = orig_bufflen;
@@ -609,11 +609,11 @@ static int dev_user_alloc_sg(struct scst_user_cmd *ucmd, int cached_buff)
 			cmd->sg[cmd->sg_cnt-1].length);
 
 		if (cmd->data_direction == SCST_DATA_BIDI) {
-			cmd->in_sg = &cmd->sg[out_sg_pages];
-			cmd->in_sg_cnt = cmd->sg_cnt - out_sg_pages;
+			cmd->out_sg = &cmd->sg[out_sg_pages];
+			cmd->out_sg_cnt = cmd->sg_cnt - out_sg_pages;
 			cmd->sg_cnt = out_sg_pages;
-			TRACE_MEM("cmd %p, in_sg %p, in_sg_cnt %d, sg_cnt %d",
-				cmd, cmd->in_sg, cmd->in_sg_cnt, cmd->sg_cnt);
+			TRACE_MEM("cmd %p, out_sg %p, out_sg_cnt %d, sg_cnt %d",
+				cmd, cmd->out_sg, cmd->out_sg_cnt, cmd->sg_cnt);
 		}
 
 		if (unlikely(cmd->sg_cnt > cmd->tgt_dev->max_sg_cnt)) {
@@ -673,7 +673,7 @@ static int dev_user_alloc_space(struct scst_user_cmd *ucmd)
 		goto out;
 	else if (rc < 0) {
 		scst_set_busy(cmd);
-		res = scst_get_cmd_abnormal_done_state(cmd);
+		res = scst_set_cmd_abnormal_done_state(cmd);
 		goto out;
 	}
 
@@ -821,7 +821,7 @@ static int dev_user_parse(struct scst_cmd *cmd)
 		ucmd->user_cmd.parse_cmd.ext_cdb_len = cmd->ext_cdb_len;
 		ucmd->user_cmd.parse_cmd.timeout = cmd->timeout / HZ;
 		ucmd->user_cmd.parse_cmd.bufflen = cmd->bufflen;
-		ucmd->user_cmd.parse_cmd.in_bufflen = cmd->in_bufflen;
+		ucmd->user_cmd.parse_cmd.out_bufflen = cmd->out_bufflen;
 		ucmd->user_cmd.parse_cmd.queue_type = cmd->queue_type;
 		ucmd->user_cmd.parse_cmd.data_direction = cmd->data_direction;
 		ucmd->user_cmd.parse_cmd.expected_values_set =
@@ -830,6 +830,8 @@ static int dev_user_parse(struct scst_cmd *cmd)
 					cmd->expected_data_direction;
 		ucmd->user_cmd.parse_cmd.expected_transfer_len =
 					cmd->expected_transfer_len;
+		ucmd->user_cmd.parse_cmd.expected_out_transfer_len =
+					cmd->expected_out_transfer_len;
 		ucmd->user_cmd.parse_cmd.sn = cmd->tgt_sn;
 		ucmd->user_cmd.parse_cmd.cdb_len = cmd->cdb_len;
 		ucmd->user_cmd.parse_cmd.op_flags = cmd->op_flags;
@@ -861,7 +863,7 @@ out_invalid:
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 
 out_error:
-	res = scst_get_cmd_abnormal_done_state(cmd);
+	res = scst_set_cmd_abnormal_done_state(cmd);
 	goto out;
 }
 
@@ -957,9 +959,9 @@ static int dev_user_exec(struct scst_cmd *cmd)
 	ucmd->user_cmd.exec_cmd.data_direction = cmd->data_direction;
 	ucmd->user_cmd.exec_cmd.partial = 0;
 	ucmd->user_cmd.exec_cmd.timeout = cmd->timeout / HZ;
-	ucmd->user_cmd.exec_cmd.p_in_buf = ucmd->ubuff +
+	ucmd->user_cmd.exec_cmd.p_out_buf = ucmd->ubuff +
 						(cmd->sg_cnt << PAGE_SHIFT);
-	ucmd->user_cmd.exec_cmd.in_bufflen = cmd->in_bufflen;
+	ucmd->user_cmd.exec_cmd.out_bufflen = cmd->out_bufflen;
 	ucmd->user_cmd.exec_cmd.sn = cmd->tgt_sn;
 
 	ucmd->state = UCMD_STATE_EXECING;

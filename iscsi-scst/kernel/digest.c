@@ -184,8 +184,24 @@ int digest_rx_data(struct iscsi_cmnd *cmnd)
 	if (unlikely(req->prelim_compl_flags != 0))
 		goto out;
 
+	/*
+	 * Temporary to not crash with write residual overflows. ToDo. Until
+	 * that let's always have succeeded data digests for such overflows.
+	 * In ideal, we should allocate additional one or more sg's for the
+	 * overflowed data and free them here or on req release. It's quite
+	 * not trivial for such virtually never used case, so let's do it,
+	 * when it gets needed.
+	 */
+	if (unlikely(offset + cmnd->pdu.datasize > req->bufflen)) {
+		PRINT_WARNING("Skipping RX data digest check for residual "
+			"overflow command op %x (data size %d, buffer size %d)",
+			cmnd_hdr(req)->scb[0], offset + cmnd->pdu.datasize,
+			req->bufflen);
+		goto out;
+	}
+
 	crc = digest_data(req, cmnd->pdu.datasize, offset,
-		cmnd->conn->rpadding);
+			cmnd->conn->rpadding);
 
 	if (unlikely(crc != cmnd->ddigest)) {
 		TRACE(TRACE_MINOR|TRACE_MGMT_DEBUG, "%s", "RX data digest "

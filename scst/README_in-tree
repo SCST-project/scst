@@ -228,7 +228,7 @@ your favorite kernel configuration Makefile target, e.g. "make xconfig":
    default.
 
  - CONFIG_SCST_MEASURE_LATENCY - if defined, provides in /sys/kernel/scst_tgt
-   and below statisctics about average commands processing latency. You
+   and below statistics about average commands processing latency. You
    can clear already measured results by writing 0 in the corresponding
    file. Note, you need a non-preemptible kernel to have correct
    results.
@@ -925,24 +925,46 @@ correspondingly? Moreover, many  HDDs lie about state of their cache and
 report write through while  working in write back mode. They are also
 successfully used.
 
-Also, at the moment we don't know any SDDs, which are acceptably fast,
-i.e. faster than HDDs in average, with write back caching disabled. So
-to have acceptable performance their users have to use write back
-caching, hence on a power loss all not yet committed to flash chips, but
-acknowledged as written, data will be lost.
-
 2. Most, if not all, modern enterprise level applications are well
-prepared to work with write back cached storage. They know well when to
-flush the cache and how to flush it to make the lost on crash data
-acceptable.
+prepared to work with write back cached storage. Particularly, all
+transactions-based applications. Those applications flush cache to make
+the lost on crash data event acceptable and recoverable.
 
 For instance, journaled file systems flush cache on each meta data
 update, so they survive power/hardware/software failures pretty well.
 
-Note, Linux I/O subsystem guarantees this facility to work reliably only
-using data protection barriers, which usually turned off by default (see
-http://lwn.net/Articles/283161). Some info about barriers from the XFS
-point of view could be found at
+Summarizing, locally on initiators write back caching is always on. So,
+if an application cares about its data consistency, it does flush the
+cache when necessary or on any write, if open files with O_SYNC. If it
+doesn't care, it doesn't flush the cache. As soon as the cache flushes
+propagated to the storage, write back caching on it doesn't make any
+difference. If application doesn't flush the cache, it's doomed to loose
+data in case of a crash or power failure doesn't matter where this cache
+located, locally or on the storage.
+
+For example, consider a user who wants to copy /src directory to /dst
+directory reliably, i.e. after the copy finished no power failure or
+crash could lead to the loss of data in /dst. There are 2 ways to
+achieve this:
+
+1. Slow. Make the device behind /dst working in write through caching
+mode and then run "cp -a /src /dst".
+
+2. Fast. Let the device behind /dst working in write back caching mode
+and then run "cp -a /src /dst; sync". The reliability of the result is
+the same, but it's much faster than (1).
+
+Note, Linux I/O subsystem guarantees to propagated cache flushes to the
+storage only using data protection barriers, which usually turned off by
+default (see http://lwn.net/Articles/283161). Without barriers enabled
+Linux doesn't provide a guarantee that after sync()/fsync() all written
+data really hit permanent storage. They can be stored in the cache of
+your backstorage devices and, hence, lost on a power failure event.
+Thus, ever with write-through cache mode, you still either need to
+enable barriers on your backend file system on the target (for direct
+/dev/sdX devices this is, indeed, impossible), or need a good UPS to
+protect yourself from not committed data loss. Some info about barriers
+from the XFS point of view could be found at
 http://oss.sgi.com/projects/xfs/faq.html#wcache. On Linux initiators for
 Ext3 and ReiserFS file systems the barrier protection could be turned on
 using "barrier=1" and "barrier=flush" mount options correspondingly. You
@@ -951,19 +973,12 @@ Windows and, AFAIK, other UNIX'es don't need any special explicit
 options and do necessary barrier actions on write-back caching devices
 by default.
 
-But even in case of journaled file systems your unsaved cached data will
-still be lost in case of power/hardware/software failures, so you may
-need to supply your target server with a good UPS with possibility to
-gracefully shutdown your target on power shortage or disable write back
-caching using WRITE_THROUGH flag. Note, that without barriers enabled
-(i.e. by default) Linux doesn't provide a guarantee that after
-sync()/fsync() all written data really hit permanent storage (see
-above). They can be stored in the cache of your backstorage devices and,
-hence, lost on a power failure event. Thus, ever with write-through
-cache mode, you still either need to enable barriers on your backend
-file system on the target (for direct /dev/sdX devices this is, indeed,
-impossible), or need a good UPS to protect yourself from not committed
-data loss.
+But even in case of journaled file systems if you are using a not cache
+flushing application, your unsaved cached data will still be lost in
+case of power/hardware/software failures, so you may need to supply your
+target server with a good UPS with possibility to gracefully shutdown
+your target on power shortage or disable write back caching using
+WRITE_THROUGH flag.
 
 Note, on some real-life workloads write through caching might perform
 better, than write back one with the barrier protection turned on.

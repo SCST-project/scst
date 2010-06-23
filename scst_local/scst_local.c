@@ -580,11 +580,11 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 		/* Some of these symbols are only defined after 2.6.24 */
 		dir = SCST_DATA_BIDI;
 		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(SCpnt));
-		scst_cmd_set_expected_in_transfer_len(scst_cmd,
+		scst_cmd_set_expected_out_transfer_len(scst_cmd,
 			scsi_in(SCpnt)->length);
-		scst_cmd_set_tgt_sg(scst_cmd, sgl, sgl_count);
-		scst_cmd_set_tgt_in_sg(scst_cmd, scsi_in(SCpnt)->table.sgl,
+		scst_cmd_set_tgt_sg(scst_cmd, scsi_in(SCpnt)->table.sgl,
 			scsi_in(SCpnt)->table.nents);
+		scst_cmd_set_tgt_out_sg(scst_cmd, sgl, sgl_count);
 		break;
 #endif
 	case DMA_NONE:

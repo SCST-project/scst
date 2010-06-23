@@ -445,12 +445,12 @@ static int scst_pre_parse(struct scst_cmd *cmd)
 	cmd->state = SCST_CMD_STATE_DEV_PARSE;
 
 	TRACE_DBG("op_name <%s> (cmd %p), direction=%d "
-		"(expected %d, set %s), transfer_len=%d (expected "
-		"len %d), flags=%d", cmd->op_name, cmd,
+		"(expected %d, set %s), bufflen=%d, out_bufflen=%d (expected "
+		"len %d, out expected len %d), flags=%d", cmd->op_name, cmd,
 		cmd->data_direction, cmd->expected_data_direction,
 		scst_cmd_is_expected_set(cmd) ? "yes" : "no",
-		cmd->bufflen, cmd->expected_transfer_len,
-		cmd->op_flags);
+		cmd->bufflen, cmd->out_bufflen, cmd->expected_transfer_len,
+		cmd->expected_out_transfer_len, cmd->op_flags);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -478,7 +478,9 @@ static bool scst_is_allowed_to_mismatch_cmd(struct scst_cmd *cmd)
 	switch (cmd->cdb[0]) {
 	case TEST_UNIT_READY:
 		/* Crazy VMware people sometimes do TUR with READ direction */
-		res = true;
+		if ((cmd->expected_data_direction == SCST_DATA_READ) ||
+		    (cmd->expected_data_direction == SCST_DATA_NONE))
+			res = true;
 		break;
 	}
 
@@ -548,11 +550,13 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 #ifdef CONFIG_SCST_USE_EXPECTED_VALUES
 		if (scst_cmd_is_expected_set(cmd)) {
 			TRACE(TRACE_MINOR, "Using initiator supplied values: "
-				"direction %d, transfer_len %d",
+				"direction %d, transfer_len %d/%d",
 				cmd->expected_data_direction,
-				cmd->expected_transfer_len);
+				cmd->expected_transfer_len,
+				cmd->expected_out_transfer_len);
 			cmd->data_direction = cmd->expected_data_direction;
 			cmd->bufflen = cmd->expected_transfer_len;
+			cmd->out_bufflen = cmd->expected_out_transfer_len;
 		} else {
 			PRINT_ERROR("Unknown opcode 0x%02x for %s and "
 			     "target %s not supplied expected values",
@@ -581,12 +585,12 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 	EXTRACHECKS_BUG_ON(cmd->cdb_len == 0);
 
 	TRACE(TRACE_SCSI, "op_name <%s> (cmd %p), direction=%d "
-		"(expected %d, set %s), transfer_len=%d (expected "
-		"len %d), flags=%d", cmd->op_name, cmd,
+		"(expected %d, set %s), bufflen=%d, out_bufflen=%d, (expected "
+		"len %d, out expected len %d), flags=%x", cmd->op_name, cmd,
 		cmd->data_direction, cmd->expected_data_direction,
 		scst_cmd_is_expected_set(cmd) ? "yes" : "no",
-		cmd->bufflen, cmd->expected_transfer_len,
-		cmd->op_flags);
+		cmd->bufflen, cmd->out_bufflen, cmd->expected_transfer_len,
+		cmd->expected_out_transfer_len, cmd->op_flags);
 
 	if (unlikely((cmd->op_flags & SCST_UNKNOWN_LENGTH) != 0)) {
 		if (scst_cmd_is_expected_set(cmd)) {
@@ -600,6 +604,9 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 			 */
 			cmd->bufflen = min(cmd->expected_transfer_len,
 						15*1024*1024);
+			if (cmd->data_direction == SCST_DATA_BIDI)
+				cmd->out_bufflen = min(cmd->expected_out_transfer_len,
+							15*1024*1024);
 			cmd->op_flags &= ~SCST_UNKNOWN_LENGTH;
 		} else {
 			PRINT_ERROR("Unknown data transfer length for opcode "
@@ -653,22 +660,25 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 
 	if (scst_cmd_is_expected_set(cmd)) {
 #ifdef CONFIG_SCST_USE_EXPECTED_VALUES
-#	ifdef CONFIG_SCST_EXTRACHECKS
 		if (unlikely((cmd->data_direction != cmd->expected_data_direction) ||
-			     (cmd->bufflen != cmd->expected_transfer_len))) {
+			     (cmd->bufflen != cmd->expected_transfer_len) ||
+			     (cmd->out_bufflen != cmd->expected_out_transfer_len))) {
 			TRACE(TRACE_MINOR, "Expected values don't match "
 				"decoded ones: data_direction %d, "
 				"expected_data_direction %d, "
-				"bufflen %d, expected_transfer_len %d",
+				"bufflen %d, expected_transfer_len %d, "
+				"out_bufflen %d, expected_out_transfer_len %d",
 				cmd->data_direction,
 				cmd->expected_data_direction,
-				cmd->bufflen, cmd->expected_transfer_len);
+				cmd->bufflen, cmd->expected_transfer_len,
+				cmd->out_bufflen, cmd->expected_out_transfer_len);
 			PRINT_BUFF_FLAG(TRACE_MINOR, "Suspicious CDB",
 				cmd->cdb, cmd->cdb_len);
+			cmd->data_direction = cmd->expected_data_direction;
+			cmd->bufflen = cmd->expected_transfer_len;
+			cmd->out_bufflen = cmd->expected_out_transfer_len;
+			cmd->resid_possible = 1;
 		}
-#	endif
-		cmd->data_direction = cmd->expected_data_direction;
-		cmd->bufflen = cmd->expected_transfer_len;
 #else
 		if (unlikely(cmd->data_direction !=
 				cmd->expected_data_direction)) {
@@ -700,6 +710,23 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 				cmd->bufflen);
 			PRINT_BUFF_FLAG(TRACE_MINOR, "Suspicious CDB",
 				cmd->cdb, cmd->cdb_len);
+			if ((cmd->data_direction & SCST_DATA_READ) ||
+			    (cmd->data_direction & SCST_DATA_WRITE))
+				cmd->resid_possible = 1;
+		}
+		if (unlikely(cmd->out_bufflen != cmd->expected_out_transfer_len)) {
+			TRACE(TRACE_MINOR, "Warning: expected bidirectional OUT "
+				"transfer length %d for opcode 0x%02x "
+				"(handler %s, target %s) doesn't match "
+				"decoded value %d. Faulty initiator "
+				"(e.g. VMware is known to be such) or "
+				"scst_scsi_op_table should be updated?",
+				cmd->expected_out_transfer_len, cmd->cdb[0],
+				dev->handler->name, cmd->tgtt->name,
+				cmd->out_bufflen);
+			PRINT_BUFF_FLAG(TRACE_MINOR, "Suspicious CDB",
+				cmd->cdb, cmd->cdb_len);
+			cmd->resid_possible = 1;
 		}
 #endif
 	}
@@ -783,6 +810,45 @@ out_done:
 	scst_set_cmd_abnormal_done_state(cmd);
 	res = SCST_CMD_STATE_RES_CONT_SAME;
 	goto out;
+}
+
+static void scst_set_write_len(struct scst_cmd *cmd)
+{
+	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(!(cmd->data_direction & SCST_DATA_WRITE));
+
+	if (cmd->data_direction & SCST_DATA_READ) {
+		cmd->write_len = cmd->out_bufflen;
+		cmd->write_sg = &cmd->out_sg;
+		cmd->write_sg_cnt = &cmd->out_sg_cnt;
+	} else {
+		cmd->write_len = cmd->bufflen;
+		/* write_sg and write_sg_cnt already initialized correctly */
+	}
+
+	TRACE_MEM("cmd %p, write_len %d, write_sg %p, write_sg_cnt %d, "
+		"resid_possible %d", cmd, cmd->write_len, *cmd->write_sg,
+		*cmd->write_sg_cnt, cmd->resid_possible);
+
+	if (unlikely(cmd->resid_possible)) {
+		if (cmd->data_direction & SCST_DATA_READ) {
+			cmd->write_len = min(cmd->out_bufflen,
+				cmd->expected_out_transfer_len);
+			if (cmd->write_len == cmd->out_bufflen)
+				goto out;
+		} else {
+			cmd->write_len = min(cmd->bufflen,
+				cmd->expected_transfer_len);
+			if (cmd->write_len == cmd->bufflen)
+				goto out;
+		}
+		scst_limit_sg_write_len(cmd);
+	}
+
+out:
+	TRACE_EXIT();
+	return;
 }
 
 static int scst_prepare_space(struct scst_cmd *cmd)
@@ -887,8 +953,8 @@ alloc:
 		TRACE_MEM("tgt_data_buf_alloced set (cmd %p)", cmd);
 		cmd->sg = cmd->tgt_sg;
 		cmd->sg_cnt = cmd->tgt_sg_cnt;
-		cmd->in_sg = cmd->tgt_in_sg;
-		cmd->in_sg_cnt = cmd->tgt_in_sg_cnt;
+		cmd->out_sg = cmd->tgt_out_sg;
+		cmd->out_sg_cnt = cmd->tgt_out_sg_cnt;
 		r = 0;
 	} else {
 		TRACE_MEM("Both *_data_buf_alloced set (cmd %p, sg %p, "
@@ -909,11 +975,14 @@ check:
 	}
 
 done:
-	if (cmd->preprocessing_only)
+	if (cmd->preprocessing_only) {
 		cmd->state = SCST_CMD_STATE_PREPROCESSING_DONE;
-	else if (cmd->data_direction & SCST_DATA_WRITE)
+		if (cmd->data_direction & SCST_DATA_WRITE)
+			scst_set_write_len(cmd);
+	} else if (cmd->data_direction & SCST_DATA_WRITE) {
 		cmd->state = SCST_CMD_STATE_RDY_TO_XFER;
-	else
+		scst_set_write_len(cmd);
+	} else
 		cmd->state = SCST_CMD_STATE_TGT_PRE_EXEC;
 
 out:
@@ -1253,10 +1322,10 @@ void scst_rx_data(struct scst_cmd *cmd, int status,
 		if (trace_flag & TRACE_RCV_BOT) {
 			int i;
 			struct scatterlist *sg;
-			if (cmd->in_sg != NULL)
-				sg = cmd->in_sg;
-			else if (cmd->tgt_in_sg != NULL)
-				sg = cmd->tgt_in_sg;
+			if (cmd->out_sg != NULL)
+				sg = cmd->out_sg;
+			else if (cmd->tgt_out_sg != NULL)
+				sg = cmd->tgt_out_sg;
 			else if (cmd->tgt_sg != NULL)
 				sg = cmd->tgt_sg;
 			else
@@ -1321,6 +1390,23 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
+	if (unlikely(cmd->resid_possible)) {
+		if (cmd->data_direction & SCST_DATA_WRITE) {
+			bool do_zero = false;
+			if (cmd->data_direction & SCST_DATA_READ) {
+				if (cmd->write_len != cmd->out_bufflen)
+					do_zero = true;
+			} else {
+				if (cmd->write_len != cmd->bufflen)
+					do_zero = true;
+			}
+			if (do_zero) {
+				scst_check_restore_sg_buff(cmd);
+				scst_zero_write_rest(cmd);
+			}
+		}
+	}
+
 	cmd->state = SCST_CMD_STATE_SEND_FOR_EXEC;
 
 	if ((cmd->tgtt->pre_exec == NULL) || unlikely(cmd->internal))
@@ -1372,7 +1458,7 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 		    (resid > 0) && (resid < cmd->resp_data_len))
 			scst_set_resp_data_len(cmd, cmd->resp_data_len - resid);
 		/*
-		 * We ignore write direction residue, because from our
+		 * We ignore write direction residue, because from the
 		 * initiator's POV we already transferred all the data.
 		 */
 	}
@@ -1770,8 +1856,8 @@ static int scst_request_sense_local(struct scst_cmd *cmd)
 			sl = tgt_dev->tgt_dev_valid_sense_len;
 		else {
 			sl = buffer_size;
-			PRINT_WARNING("%s: Being returned sense truncated to "
-				"size %d (needed %d)", cmd->op_name,
+			TRACE(TRACE_MINOR, "%s: Being returned sense truncated "
+				"to size %d (needed %d)", cmd->op_name,
 				buffer_size, tgt_dev->tgt_dev_valid_sense_len);
 		}
 		memcpy(buffer, tgt_dev->tgt_dev_sense, sl);
@@ -3337,6 +3423,11 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 		res = SCST_CMD_STATE_RES_CONT_SAME;
 		goto out;
 	}
+
+	if (unlikely(cmd->resid_possible))
+		scst_adjust_resp_data_len(cmd);
+	else
+		cmd->adjusted_resp_data_len = cmd->resp_data_len;
 
 	cmd->state = SCST_CMD_STATE_XMIT_RESP;
 	res = SCST_CMD_STATE_RES_CONT_SAME;
@@ -6569,7 +6660,7 @@ static struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,
  *
  * Finds a command based on user supplied data and comparision
  * callback function, that should return true, if the command is found.
- * Returns the command on success or NULL otherwise
+ * Returns the command on success or NULL otherwise.
  */
 struct scst_cmd *scst_find_cmd(struct scst_session *sess, void *data,
 			       int (*cmp_fn) (struct scst_cmd *cmd,
@@ -6616,7 +6707,7 @@ EXPORT_SYMBOL(scst_find_cmd);
  *
  * Finds a command based on the supplied tag comparing it with one
  * that previously set by scst_cmd_set_tag(). Returns the found command on
- * success or NULL otherwise
+ * success or NULL otherwise.
  */
 struct scst_cmd *scst_find_cmd_by_tag(struct scst_session *sess,
 	uint64_t tag)

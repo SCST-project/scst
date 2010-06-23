@@ -443,6 +443,8 @@ struct iscsi_cmnd {
 
 	struct list_head cmd_list_entry;
 	struct list_head nop_req_list_entry;
+
+	unsigned int not_received_data_len;
 };
 
 /* Max time to wait for our response satisfied for aborted commands */
