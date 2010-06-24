@@ -546,11 +546,10 @@ qla2x00_rff_id(scsi_qla_host_t *ha)
 	 * FC-4 Feature bit 0 indicates target functionality to the name server.
 	 */
 	if (qla_tgt_mode_enabled(ha)) {
-#ifdef CONFIG_SCSI_QLA2XXX_TARGET_DISABLE_INI_MODE
-		ct_req->req.rff_id.fc4_feature = BIT_0;
-#else
-		ct_req->req.rff_id.fc4_feature = BIT_0 | BIT_1;
-#endif
+		if (qla_ini_mode_enabled(ha))
+			ct_req->req.rff_id.fc4_feature = BIT_0 | BIT_1;
+		else
+			ct_req->req.rff_id.fc4_feature = BIT_0;
 	} else
 #endif
 		ct_req->req.rff_id.fc4_feature = BIT_1;

@@ -1754,9 +1754,10 @@ qla2x00_nvram_config(scsi_qla_host_t *ha)
 
 			/* Enable target mode */
 			nv->firmware_options[0] |= BIT_4;
-#ifdef CONFIG_SCSI_QLA2XXX_TARGET_DISABLE_INI_MODE
-			nv->firmware_options[0] |= BIT_5;
-#endif
+
+			/* Disable ini mode, if requested */
+			if (!qla_ini_mode_enabled(ha))
+				nv->firmware_options[0] |= BIT_5;
 
 			/* Disable Full Login after LIP */
 			nv->firmware_options[1] &= ~BIT_5;
@@ -3745,9 +3746,10 @@ qla24xx_nvram_config(scsi_qla_host_t *ha)
 
 		/* Enable target mode */
 		nv->firmware_options_1 |= __constant_cpu_to_le32(BIT_4);
-#ifdef CONFIG_SCSI_QLA2XXX_TARGET_DISABLE_INI_MODE
-		nv->firmware_options_1 |= __constant_cpu_to_le32(BIT_5);
-#endif
+
+		/* Disable ini mode, if requested */
+		if (!qla_ini_mode_enabled(ha))
+			nv->firmware_options_1 |= __constant_cpu_to_le32(BIT_5);
 
 		/* Disable Full Login after LIP */
 		nv->firmware_options_1 &= __constant_cpu_to_le32(~BIT_13);

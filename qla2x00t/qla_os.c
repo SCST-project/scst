@@ -36,6 +36,18 @@ struct qla_tgt_data qla_target;
  */
 static LIST_HEAD(qla_ha_list);
 static DEFINE_MUTEX(qla_ha_list_mutex);
+
+static char *qlini_mode = QLA2X_INI_MODE_STR_EXCLUSIVE;
+module_param(qlini_mode, charp, S_IRUGO);
+MODULE_PARM_DESC(qlini_mode,
+	"Determines when initiator mode will be enabled. Possible values: "
+	"\"exclusive\" (default) - initiator mode will be enabled on load, "
+	"disabled on enabling target mode and then on disabling target mode "
+	"enabled back; "
+	"\"disabled\" - initiator mode will never be enabled; "
+	"\"enabled\" - initiator mode will always stay enabled.");
+
+static int ql2x_ini_mode = QLA2X_INI_MODE_EXCLUSIVE;
 #endif
 
 /*
@@ -3073,6 +3085,76 @@ static struct pci_driver qla2xxx_pci_driver = {
 	.err_handler	= &qla2xxx_err_handler,
 };
 
+#ifdef CONFIG_SCSI_QLA2XXX_TARGET
+
+/* Must be called under HW lock */
+void qla_set_tgt_mode(scsi_qla_host_t *ha)
+{
+	switch (ql2x_ini_mode) {
+	case QLA2X_INI_MODE_DISABLED:
+	case QLA2X_INI_MODE_EXCLUSIVE:
+		ha->host->active_mode = MODE_TARGET;
+		break;
+	case QLA2X_INI_MODE_ENABLED:
+		ha->host->active_mode |= MODE_TARGET;
+		break;
+	default:
+		BUG();
+		break;
+	}
+
+	if (ha->ini_mode_force_reverse)
+		qla_reverse_ini_mode(ha);
+
+	return;
+}
+EXPORT_SYMBOL(qla_set_tgt_mode);
+
+/* Must be called under HW lock */
+void qla_clear_tgt_mode(scsi_qla_host_t *ha)
+{
+	switch (ql2x_ini_mode) {
+	case QLA2X_INI_MODE_DISABLED:
+		ha->host->active_mode = MODE_UNKNOWN;
+		break;
+	case QLA2X_INI_MODE_EXCLUSIVE:
+		ha->host->active_mode = MODE_INITIATOR;
+		break;
+	case QLA2X_INI_MODE_ENABLED:
+		ha->host->active_mode &= ~MODE_TARGET;
+		break;
+	default:
+		BUG();
+		break;
+	}
+
+	if (ha->ini_mode_force_reverse)
+		qla_reverse_ini_mode(ha);
+
+	return;
+}
+EXPORT_SYMBOL(qla_clear_tgt_mode);
+
+static bool __init qla2x00_parse_ini_mode(void)
+{
+	if (strcasecmp(qlini_mode, QLA2X_INI_MODE_STR_EXCLUSIVE) == 0)
+		ql2x_ini_mode = QLA2X_INI_MODE_EXCLUSIVE;
+	else if (strcasecmp(qlini_mode, QLA2X_INI_MODE_STR_DISABLED) == 0)
+		ql2x_ini_mode = QLA2X_INI_MODE_DISABLED;
+	else if (strcasecmp(qlini_mode, QLA2X_INI_MODE_STR_ENABLED) == 0)
+		ql2x_ini_mode = QLA2X_INI_MODE_ENABLED;
+	else
+		return false;
+
+	return true;
+}
+#else
+static inline bool qla2x00_parse_ini_mode(void)
+{
+	return true;
+}
+#endif
+
 /**
  * qla2x00_module_init - Module initialization.
  **/
@@ -3099,6 +3181,11 @@ qla2x00_module_init(void)
     defined(QL_DEBUG_LEVEL_16)
 	ql2xextended_error_logging = 1;
 #endif
+
+	if (!qla2x00_parse_ini_mode()) {
+		printk("Wrong qlini_mode value %s\n", qlini_mode);
+		return -EINVAL;
+	}
 
 	/* Allocate cache for SRBs. */
 	srb_cachep = kmem_cache_create("qla2xxx_srbs", sizeof(srb_t), 0,

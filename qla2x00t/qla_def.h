@@ -2352,6 +2352,7 @@ typedef struct scsi_qla_host {
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 	unsigned int	enable_explicit_conf	:1;
 	unsigned int	host_shutting_down	:1;
+	unsigned int	ini_mode_force_reverse	:1;
 
 	dma_addr_t	atio_dma;           /* Physical address. */
 	atio_t		*atio_ring;         /* Base virtual address */

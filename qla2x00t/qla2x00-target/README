@@ -107,6 +107,37 @@ http://sourceforge.net/mailarchive/forum.php?thread_name=4B4CD39F.6020401%40vlnb
 for more details why.
 
 
+Initiator and target modes
+--------------------------
+
+When qla2xxx compiled with CONFIG_SCSI_QLA2XXX_TARGET enabled, it has
+parameter "ini_mode", which determines when initiator mode will be
+enabled. Possible values:
+
+ - "exclusive" (default ) - initiator mode will be enabled on load,
+disabled on enabling target mode and then on disabling target mode
+enabled back.
+
+ - "disabled" - initiator mode will never be enabled.
+
+ - "enabled" - initiator mode will always stay enabled.
+
+Usage of mode "disabled" is recommended if you have incorrectly
+functioning remote for your target initiators, which if they once seen a
+port in initiator mode, later refuse to see it as a target.
+
+Use mode "enabled" if you need your QLA adapters to work in both
+initiator and target modes at the same time.
+
+In all the modes you can at any time use sysfs attribute
+ini_mode_force_reverse to force enable or disable initiator mode on any
+particular port. Setting this attribute to 1 will reverse current status
+of the initiator mode from enabled to disabled and vice versa.
+
+You can always see which modes are currently active in active_mode sysfs
+attribute.
+
+
 Explicit conformation
 ---------------------
 

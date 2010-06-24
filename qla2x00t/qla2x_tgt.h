@@ -34,29 +34,25 @@ extern request_t *qla2x00_req_pkt(scsi_qla_host_t *ha);
 
 extern struct qla_tgt_data qla_target;
 
-/* Called under HW lock */
-static inline void qla_set_tgt_mode(scsi_qla_host_t *ha)
-{
-#ifdef CONFIG_SCSI_QLA2XXX_TARGET_DISABLE_INI_MODE
-	ha->host->active_mode = MODE_TARGET;
-#else
-	ha->host->active_mode |= MODE_TARGET;
-#endif
-}
-
-/* Called under HW lock */
-static inline void qla_clear_tgt_mode(scsi_qla_host_t *ha)
-{
-#ifdef CONFIG_SCSI_QLA2XXX_TARGET_DISABLE_INI_MODE
-	ha->host->active_mode = MODE_INITIATOR;
-#else
-	ha->host->active_mode &= ~MODE_TARGET;
-#endif
-}
+void qla_set_tgt_mode(scsi_qla_host_t *ha);
+void qla_clear_tgt_mode(scsi_qla_host_t *ha);
 
 static inline bool qla_tgt_mode_enabled(scsi_qla_host_t *ha)
 {
 	return ha->host->active_mode & MODE_TARGET;
+}
+
+static inline bool qla_ini_mode_enabled(scsi_qla_host_t *ha)
+{
+	return ha->host->active_mode & MODE_INITIATOR;
+}
+
+static inline void qla_reverse_ini_mode(scsi_qla_host_t *ha)
+{
+	if (ha->host->active_mode & MODE_INITIATOR)
+		ha->host->active_mode &= ~MODE_INITIATOR;
+	else
+		ha->host->active_mode |= MODE_INITIATOR;
 }
 
 /********************************************************************\

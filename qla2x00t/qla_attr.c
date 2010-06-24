@@ -215,6 +215,75 @@ static DEVICE_ATTR(explicit_conform_enabled,
 #endif /* CONFIG_SCST_PROC */
 
 static ssize_t
+qla2x00_show_ini_mode_force_reverse(struct device *dev,
+	struct device_attribute *attr, char *buffer)
+{
+	scsi_qla_host_t *ha = shost_priv(class_to_shost(dev));
+	ulong max_size = PAGE_SIZE;
+	ulong size;
+
+	size = scnprintf(buffer, max_size, "%x\n", ha->ini_mode_force_reverse);
+
+	return size;
+}
+
+static ssize_t
+qla2x00_store_ini_mode_force_reverse(struct device *dev,
+	struct device_attribute *attr, const char *buffer, size_t size)
+{
+	struct scsi_qla_host *ha = shost_priv(class_to_shost(dev));
+	unsigned long flags;
+
+	if (buffer == NULL)
+		return size;
+
+	spin_lock_irqsave(&ha->hardware_lock, flags);
+
+	switch (buffer[0]) {
+	case '0':
+		if (!ha->ini_mode_force_reverse)
+			goto out_unlock;
+		ha->ini_mode_force_reverse = 0;
+		qla_printk(KERN_INFO, ha, "qla2xxx(%ld): initiator mode force "
+			"reverse disabled\n", ha->instance);
+		qla_reverse_ini_mode(ha);
+		break;
+	case '1':
+		if (ha->ini_mode_force_reverse)
+			goto out_unlock;
+		ha->ini_mode_force_reverse = 1;
+		qla_printk(KERN_INFO, ha, "qla2xxx(%ld): initiator mode force "
+			"reverse enabled\n", ha->instance);
+		qla_reverse_ini_mode(ha);
+		break;
+	default:
+#if defined(QL_DEBUG_LEVEL_9) || defined(QL_DEBUG_LEVEL_11)
+		qla_printk(KERN_ERR, ha, "%s: Requested action not understood: "
+			"%s\n", __func__, buffer);
+#endif
+		break;
+	}
+
+	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+
+	set_bit(ISP_ABORT_NEEDED, &ha->dpc_flags);
+	qla2xxx_wake_dpc(ha);
+	qla2x00_wait_for_hba_online(ha);
+
+out:
+	return size;
+
+out_unlock:
+	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+	goto out;
+}
+
+static DEVICE_ATTR(ini_mode_force_reverse,
+		   S_IRUGO|S_IWUSR,
+		   qla2x00_show_ini_mode_force_reverse,
+		   qla2x00_store_ini_mode_force_reverse);
+
+static ssize_t
 qla2x00_show_resource_counts(struct device *dev,
 	struct device_attribute *attr, char *buffer)
 {
@@ -1338,6 +1407,7 @@ struct device_attribute *qla2x00_host_attrs[] = {
 	&dev_attr_target_mode_enabled,
 	&dev_attr_explicit_conform_enabled,
 #endif
+	&dev_attr_ini_mode_force_reverse,
 	&dev_attr_resource_counts,
 	&dev_attr_port_database,
 #endif
