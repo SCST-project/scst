@@ -34,21 +34,21 @@
 	<!-- content-wrap starts here -->	
 	<div id="content-wrap">  
 			<div id="main">
-				<h1>Stable SCST Releases</h1>
+				<h1>SCST Downloads</h1>
 
-				<p>The latest stable version of SCST core is 1.0.1.1. It requires Linux kernel 2.6.16 or higher.
+				<p>The latest stable released version of SCST core is 1.0.1.1. It requires Linux kernel 2.6.16 or higher.
 				More detail information you could find in its README file.</p>
 
-				<p>You can also download prebuilt SCST modules for RHEL5-based
-				<a href="http://linuxsoft.cern.ch/cern/slc5X/x86_64/yum/extras/repoview">Scientific Linux CERN 5</a> and
-				<a href="https://launchpad.net/~ast/+archive/scst">Ubuntu Lucid 10.04</a>.</p>
+				<p>But at the moment it is recommended to use instead version 2.0-rcX, which you can find in the SCST SVN.
+				It has a lot of new features and generally should be more stable. Final 2.0 should be released in the next few weeks.</p>
+
+				<p>You can also download prebuilt SCST modules for
+				<a href="http://linuxsoft.cern.ch/cern/slc5X/x86_64/yum/extras/repoview">Scientific Linux CERN 5</a> (RHEL5-based),
+				<a href="https://launchpad.net/~ast/+archive/scst">Ubuntu Lucid 10.04</a> and
+				<a href="http://www.motschke.de/debian/packages">Debian</a>.</p>
 
 				<p>The latest development version of SCST core, target drivers and user space utilities is available directly from the 
-				project's SVN. The SCST release policy is to make stable releases once or twice a 
-				year, with the only exception if the current stable version contains a critical bug. But every commit in the 
-				SVN is carefully tested, so you can consider them as mini releases.</p>
-
-				<p>You can access it using either <a href="http://scst.svn.sourceforge.net/">web-based SVN repository viewer</a> or 
+				SCST SVN. You can access it using either <a href="http://scst.svn.sourceforge.net/">web-based SVN repository viewer</a> or 
 				using anonymous access:</p>
 
 				<p><code>svn co https://scst.svn.sourceforge.net/svnroot/scst/trunk</code></p>
@@ -67,39 +67,24 @@
 				</p>
 			</div>
 			<div id="rightbar">
-				<h1>Stable Releases</h1>
-				<h3>:: scst</h3>
-				<ul><li><a href="https://sourceforge.net/projects/scst/files/scst/scst-1.0.1.1.tar.gz/download">scst-1.0.1.1.tar.gz</a></li></ul>
+				<h1>SCST Releases</h1>
+				<h3><a href="https://sourceforge.net/projects/scst/files/scst">scst</a></h3>
 
-				<h3>:: scstadmin</h3>				
-				<ul><li><a href="https://sourceforge.net/projects/scst/files/scstadmin/scstadmin-1.0.6.tar.gz/download">scstadmin-1.0.6.tar.gz</a></li></ul>
+				<h3><a href="https://sourceforge.net/projects/scst/files/scstadmin">scstadmin</a></h3>				
 
-				<h3>:: qla2x00-target</h3>
-				<ul><li><a href="https://sourceforge.net/projects/scst/files/qla2x00-target/qla2x00t-1.0.1.1.tar.gz/download">qla2x00t-1.0.1.1.tar.gz</a></li></ul>
-
-				<h3>:: qla_isp</h3>
-				<ul><li><a href="https://sourceforge.net/projects/scst/files/qla_isp/1.0.2/qla_isp-1.0.2.tar.gz/download">qla_isp-1.0.2.tar.gz</a></li></ul>
-
-				<h3>:: iscsi-scst</h3>
-				<ul><li><a href="https://sourceforge.net/projects/scst/files/iscsi-scst/iscsi-scst-1.0.1.1.tar.gz/download">iscsi-scst-1.0.1.1.tar.gz</a></li></ul>				
-
-				<h3>:: srpt</h3>
-				<ul><li><a href="https://sourceforge.net/projects/scst/files/srpt/srpt-1.0.0.tar.gz/download">srpt-1.0.0.tar.gz</a></li></ul>				
+				<h3><a href="https://sourceforge.net/projects/scst/files/iscsi-scst/">iscsi-scst</a></h3>
 				
-				<h3>:: local</h3>
-				<ul><li><a href="https://sourceforge.net/projects/scst/files/scst_local/scst_local-0.9.tar.gz/download">scst_local-0.9.tar.gz </a></li></ul>				
+				<h3><a href="https://sourceforge.net/projects/scst/files/qla2x00-target">qla2x00t</a></h3>
 
-				<h3>:: fileio_tgt</h3>
-				<ul><li><a href="https://sourceforge.net/projects/scst/files/fileio_tgt/fileio-1.0.1.1.tar.gz/download">fileio-1.0.1.1.tar.gz</a></li></ul>				
+				<h3><a href="https://sourceforge.net/projects/scst/files/srpt/">srpt</a></h3>
 
-				<h3>:: doc-src</h3>
-				<ul><li><a href="https://sourceforge.net/projects/scst/files/doc-src/doc-0.9.3-pre4.tgz/download">doc-0.9.3-pre4.tgz</a></li></ul>
+				<h3><a href="https://sourceforge.net/projects/scst/files/scst_local">scst_local</a></h3>
 
-				<h3>:: qla2x00-target-24</h3>				
-				<ul><li><a href="https://sourceforge.net/projects/scst/files/qla2x00-target-24/qla2x00-target-0.9.3.4.tgz/download">qla2x00-target-0.9.3.4.tgz</a></li></ul>
+				<h3><a href="https://sourceforge.net/projects/scst/files/fileio_tgt/fileio">fileio_tgt</a></h3>
 
-				<h3>:: scst-24</h3>				
-				<ul><li><a href="https://sourceforge.net/projects/scst/files/scst-24/scst-0.9.3.1-24.tar.gz/download">scst-0.9.3.1-24.tar.gz</a></li></ul>			
+				<h3><a href="https://sourceforge.net/projects/scst/files/qla_isp">qla_isp</a></h3>
+
+				<h3><a href="https://sourceforge.net/projects/scst/files/doc-src">doc-src</a></h3>
 	  		</div> 
 	</div>
 </div>		
