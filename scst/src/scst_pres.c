@@ -2537,7 +2537,7 @@ void scst_pr_read_keys(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 	i = 0;
 	list_for_each_entry(reg, &dev->dev_registrants_list,
 				dev_registrants_list_entry) {
-		if (size_max - size > 8) {
+		if (size_max - size >= 8) {
 			TRACE_PR("Read Keys (dev %s): key 0x%llx",
 				dev->virt_name, reg->key);
 
