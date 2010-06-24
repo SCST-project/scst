@@ -558,6 +558,18 @@ static void login_start(struct connection *conn)
 			return;
 		}
 
+		conn->tid = target->tid;
+
+		if (!config_initiator_access_allowed(conn->tid, conn->fd) ||
+		    !target_portal_allowed(target, conn->target_portal,
+		    					conn->initiator) ||
+		    !isns_scn_access_allowed(conn->tid, name)) {
+			log_info("Initiator %s not allowed to connect to "
+				"target %s", name, target_name);
+			login_rsp_ini_err(conn, ISCSI_STATUS_TGT_NOT_FOUND);
+			return;
+		}
+
 		if (target_redirected(target, conn)) {
 			struct iscsi_login_rsp_hdr *rsp =
 				(struct iscsi_login_rsp_hdr *)&conn->rsp.bhs;
@@ -569,18 +581,6 @@ static void login_start(struct connection *conn)
 			rsp->status_class = ISCSI_STATUS_REDIRECT;
 			rsp->status_detail = target->redirect.type;
 			conn->state = STATE_EXIT;
-			return;
-		}
-
-		conn->tid = target->tid;
-
-		if (!config_initiator_access_allowed(conn->tid, conn->fd) ||
-		    !target_portal_allowed(target, conn->target_portal,
-		    					conn->initiator) ||
-		    !isns_scn_access_allowed(conn->tid, name)) {
-			log_info("Initiator %s not allowed to connect to "
-				"target %s", name, target_name);
-			login_rsp_ini_err(conn, ISCSI_STATUS_TGT_NOT_FOUND);
 			return;
 		}
 
