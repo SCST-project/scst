@@ -1962,8 +1962,8 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 		break;
 	}
 
-	/* cmd_sn is already in CPU format converted in check_cmd_sn() */
-	scst_cmd_set_tgt_sn(scst_cmd, req_hdr->cmd_sn);
+	/* check_cmd_sn() not called yet to convert cmd_sn in the CPU format */
+	scst_cmd_set_tgt_sn(scst_cmd, be32_to_cpu(req_hdr->cmd_sn));
 
 	ahdr = (struct iscsi_ahs_hdr *)req->pdu.ahs;
 	if (ahdr != NULL) {
