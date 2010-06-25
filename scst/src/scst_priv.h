@@ -555,8 +555,6 @@ void scst_acg_sysfs_put(struct scst_acg *acg);
 
 #endif /* CONFIG_SCST_PROC */
 
-int scst_get_cdb_len(const uint8_t *cdb);
-
 void __scst_dev_check_set_UA(struct scst_device *dev, struct scst_cmd *exclude,
 	const uint8_t *sense, int sense_len);
 static inline void scst_dev_check_set_UA(struct scst_device *dev,

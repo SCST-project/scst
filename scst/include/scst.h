@@ -1733,7 +1733,7 @@ struct scst_cmd {
 
 	/* CDB and its len */
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
-	short cdb_len; /* it might be -1 */
+	unsigned short cdb_len;
 	unsigned short ext_cdb_len;
 	uint8_t *ext_cdb;
 
@@ -2469,7 +2469,7 @@ bool scst_initiator_has_luns(struct scst_tgt *tgt, const char *initiator_name);
 
 struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
 	const uint8_t *lun, int lun_len, const uint8_t *cdb,
-	int cdb_len, int atomic);
+	unsigned int cdb_len, int atomic);
 void scst_cmd_init_done(struct scst_cmd *cmd,
 	enum scst_exec_context pref_context);
 
@@ -2700,7 +2700,7 @@ static inline const uint8_t *scst_cmd_get_cdb(struct scst_cmd *cmd)
 }
 
 /* Returns cmd's CDB length */
-static inline int scst_cmd_get_cdb_len(struct scst_cmd *cmd)
+static inline unsigned int scst_cmd_get_cdb_len(struct scst_cmd *cmd)
 {
 	return cmd->cdb_len;
 }
@@ -2712,7 +2712,7 @@ static inline const uint8_t *scst_cmd_get_ext_cdb(struct scst_cmd *cmd)
 }
 
 /* Returns cmd's extended CDB length */
-static inline int scst_cmd_get_ext_cdb_len(struct scst_cmd *cmd)
+static inline unsigned int scst_cmd_get_ext_cdb_len(struct scst_cmd *cmd)
 {
 	return cmd->ext_cdb_len;
 }

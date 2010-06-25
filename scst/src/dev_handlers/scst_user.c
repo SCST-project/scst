@@ -833,7 +833,6 @@ static int dev_user_parse(struct scst_cmd *cmd)
 		ucmd->user_cmd.parse_cmd.expected_out_transfer_len =
 					cmd->expected_out_transfer_len;
 		ucmd->user_cmd.parse_cmd.sn = cmd->tgt_sn;
-		ucmd->user_cmd.parse_cmd.cdb_len = cmd->cdb_len;
 		ucmd->user_cmd.parse_cmd.op_flags = cmd->op_flags;
 		ucmd->state = UCMD_STATE_PARSING;
 		dev_user_add_to_ready(ucmd);
@@ -1452,9 +1451,14 @@ static int dev_user_process_reply_exec(struct scst_user_cmd *ucmd,
 		cmd->may_need_dma_sync = 1;
 		scst_set_resp_data_len(cmd, ereply->resp_data_len);
 	} else if (cmd->resp_data_len != ereply->resp_data_len) {
-		if (ucmd->ubuff == 0)
+		if (ucmd->ubuff == 0) {
+			/*
+			 * We have an empty SG, so can't call
+			 * scst_set_resp_data_len()
+			 */
 			cmd->resp_data_len = ereply->resp_data_len;
-		else
+			cmd->resid_possible = 1;
+		} else
 			scst_set_resp_data_len(cmd, ereply->resp_data_len);
 	}
 

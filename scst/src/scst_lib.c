@@ -4923,15 +4923,10 @@ out:
 	return;
 }
 
-static const int SCST_CDB_LENGTH[8] = { 6, 10, 10, -1, 16, 12, -1, -1 };
+static const int SCST_CDB_LENGTH[8] = { 6, 10, 10, 0, 16, 12, 0, 0 };
 
 #define SCST_CDB_GROUP(opcode)   ((opcode >> 5) & 0x7)
 #define SCST_GET_CDB_LEN(opcode) SCST_CDB_LENGTH[SCST_CDB_GROUP(opcode)]
-
-int scst_get_cdb_len(const uint8_t *cdb)
-{
-	return SCST_GET_CDB_LEN(cdb[0]);
-}
 
 /* get_trans_len_x extract x bytes from cdb as length starting from off */
 

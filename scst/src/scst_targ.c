@@ -108,8 +108,8 @@ static inline void scst_schedule_tasklet(struct scst_cmd *cmd)
  *    same session.
  */
 struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
-			     const uint8_t *lun, int lun_len,
-			     const uint8_t *cdb, int cdb_len, int atomic)
+	const uint8_t *lun, int lun_len, const uint8_t *cdb,
+	unsigned int cdb_len, int atomic)
 {
 	struct scst_cmd *cmd;
 
@@ -431,8 +431,6 @@ static int scst_pre_parse(struct scst_cmd *cmd)
 
 		EXTRACHECKS_BUG_ON(cmd->op_flags & SCST_INFO_VALID);
 
-		cmd->cdb_len = scst_get_cdb_len(cmd->cdb);
-
 		TRACE(TRACE_MINOR, "Unknown opcode 0x%02x for %s. "
 			"Should you update scst_scsi_op_table?",
 			cmd->cdb[0], dev->handler->name);
@@ -573,7 +571,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 #endif
 	}
 
-	if (unlikely(cmd->cdb_len == -1)) {
+	if (unlikely(cmd->cdb_len == 0)) {
 		PRINT_ERROR("Unable to get CDB length for "
 			"opcode 0x%02x. Returning INVALID "
 			"OPCODE", cmd->cdb[0]);

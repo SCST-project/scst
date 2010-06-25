@@ -778,6 +778,7 @@ void *main_loop(void *arg)
 				PRINT_ERROR("SCST_USER_REPLY_AND_GET_CMD failed: "
 					"%s (%d)", strerror(res), res);
 #if 1
+				cmd.preply = 0;
 				continue;
 #else
 				goto out_close;
