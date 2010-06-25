@@ -5198,10 +5198,9 @@ out:
 EXPORT_SYMBOL(scst_get_cdb_info);
 
 /* Packs SCST LUN back to SCSI form */
-uint64_t scst_pack_lun(const uint64_t lun, unsigned int addr_method)
+__be64 scst_pack_lun(const uint64_t lun, unsigned int addr_method)
 {
-
-	uint64_t res = 0;
+	uint64_t res;
 	uint16_t *p = (uint16_t *)&res;
 
 	res = lun;
@@ -5216,10 +5215,10 @@ uint64_t scst_pack_lun(const uint64_t lun, unsigned int addr_method)
 	}
 	/* Default is to use peripheral device addressing mode */
 
-	*p = cpu_to_be16(*p);
+	*p = (__force u16)cpu_to_be16(*p);
 
 	TRACE_EXIT_HRES((unsigned long)res);
-	return res;
+	return (__force __be64)res;
 }
 
 /*
@@ -5246,16 +5245,16 @@ uint64_t scst_unpack_lun(const uint8_t *lun, int len)
 	if (len > 2) {
 		switch (len) {
 		case 8:
-			if ((*((uint64_t *)lun) &
+			if ((*((__be64 *)lun) &
 			  __constant_cpu_to_be64(0x0000FFFFFFFFFFFFLL)) != 0)
 				goto out_err;
 			break;
 		case 4:
-			if (*((uint16_t *)&lun[2]) != 0)
+			if (*((__be16 *)&lun[2]) != 0)
 				goto out_err;
 			break;
 		case 6:
-			if (*((uint32_t *)&lun[2]) != 0)
+			if (*((__be32 *)&lun[2]) != 0)
 				goto out_err;
 			break;
 		default:

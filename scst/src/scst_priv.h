@@ -427,7 +427,7 @@ void scst_lib_exit(void);
 int scst_get_full_buf(struct scst_cmd *cmd, uint8_t **buf);
 void scst_put_full_buf(struct scst_cmd *cmd, uint8_t *buf);
 
-uint64_t scst_pack_lun(const uint64_t lun, unsigned int addr_method);
+__be64 scst_pack_lun(const uint64_t lun, unsigned int addr_method);
 uint64_t scst_unpack_lun(const uint8_t *lun, int len);
 
 struct scst_mgmt_cmd *scst_alloc_mgmt_cmd(gfp_t gfp_mask);

@@ -188,8 +188,8 @@ const char *debug_transport_id_to_initiator_name(const uint8_t *transport_id)
 		break;
 	case SCSI_TRANSPORTID_PROTOCOLID_SPI5:
 		scnprintf(name_buf, SIZEOF_NAME_BUF,
-			"%x:%x", be16_to_cpu((uint16_t)transport_id[2]),
-			be16_to_cpu((uint16_t)transport_id[6]));
+			"%x:%x", be16_to_cpu((__force __be16)transport_id[2]),
+			be16_to_cpu((__force __be16)transport_id[6]));
 		break;
 	case SCSI_TRANSPORTID_PROTOCOLID_SRP:
 		scnprintf(name_buf, SIZEOF_NAME_BUF,

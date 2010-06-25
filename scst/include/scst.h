@@ -2396,7 +2396,7 @@ struct scst_aen {
 	int event_fn; /* AEN fn */
 
 	struct scst_session *sess;	/* corresponding session */
-	uint64_t lun;			/* corresponding LUN in SCSI form */
+	__be64 lun;			/* corresponding LUN in SCSI form */
 
 	union {
 		/* SCSI AEN data */

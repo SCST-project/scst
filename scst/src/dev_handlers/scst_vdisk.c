@@ -1535,7 +1535,7 @@ static int vdisk_rigid_geo_pg(unsigned char *p, int pcontrol,
 	if (rem != 0)
 		ncyl++;
 	memcpy(&n, p + 2, sizeof(u32));
-	n = n | (cpu_to_be32(ncyl) >> 8);
+	n = n | ((__force u32)cpu_to_be32(ncyl) >> 8);
 	memcpy(p + 2, &n, sizeof(u32));
 	if (1 == pcontrol)
 		memset(p + 2, 0, sizeof(geo_m_pg) - 2);
@@ -1956,7 +1956,7 @@ static void vdisk_exec_read_capacity(struct scst_cmd *cmd)
 	nblocks = virt_dev->nblocks;
 
 	if ((cmd->cdb[8] & 1) == 0) {
-		uint64_t lba = be64_to_cpu(get_unaligned((uint64_t *)&cmd->cdb[2]));
+		uint64_t lba = be64_to_cpu(get_unaligned((__be64 *)&cmd->cdb[2]));
 		if (lba != 0) {
 			TRACE_DBG("PMI zero and LBA not zero (cmd %p)", cmd);
 			scst_set_cmd_error(cmd,
@@ -2023,7 +2023,7 @@ static void vdisk_exec_read_capacity16(struct scst_cmd *cmd)
 	nblocks = virt_dev->nblocks - 1;
 
 	if ((cmd->cdb[14] & 1) == 0) {
-		uint64_t lba = be64_to_cpu(get_unaligned((uint64_t *)&cmd->cdb[2]));
+		uint64_t lba = be64_to_cpu(get_unaligned((__be64 *)&cmd->cdb[2]));
 		if (lba != 0) {
 			TRACE_DBG("PMI zero and LBA not zero (cmd %p)", cmd);
 			scst_set_cmd_error(cmd,

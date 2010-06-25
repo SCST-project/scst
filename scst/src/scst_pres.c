@@ -519,7 +519,7 @@ static void scst_pr_abort_reg(struct scst_device *dev,
 	struct scst_cmd *pr_cmd, struct scst_dev_registrant *reg)
 {
 	struct scst_session *sess;
-	uint64_t packed_lun;
+	__be64 packed_lun;
 	int rc;
 
 	TRACE_ENTRY();
