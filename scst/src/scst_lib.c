@@ -1326,6 +1326,10 @@ void scst_gen_aen_or_ua(struct scst_tgt_dev *tgt_dev,
 
 	TRACE_ENTRY();
 
+	if ((tgt_dev->sess->init_phase != SCST_SESS_IPH_READY) ||
+	    (tgt_dev->sess->shut_phase != SCST_SESS_SPH_READY))
+		goto out;
+
 	if (tgtt->report_aen != NULL) {
 		struct scst_aen *aen;
 		int rc;
@@ -1487,6 +1491,10 @@ static void scst_report_luns_changed_sess(struct scst_session *sess)
 	uint64_t lun = 0;
 
 	TRACE_ENTRY();
+
+	if ((sess->init_phase != SCST_SESS_IPH_READY) ||
+	    (sess->shut_phase != SCST_SESS_SPH_READY))
+		goto out;
 
 	TRACE_DBG("REPORTED LUNS DATA CHANGED (sess %p)", sess);
 
@@ -4020,6 +4028,15 @@ void scst_free_session_callback(struct scst_session *sess)
 	cancel_delayed_work_sync(&sess->hw_pending_work);
 
 	c = sess->shutdown_compl;
+
+	mutex_lock(&scst_mutex);
+	/*
+	 * Necessary to sync with other threads trying to queue AEN, which
+	 * the target driver will not be able to serve and crash, because after
+	 * unreg_done_fn() called its internal session data will be destroyed.
+	 */
+	sess->shut_phase = SCST_SESS_SPH_UNREG_DONE_CALLING;
+	mutex_unlock(&scst_mutex);
 
 	if (sess->unreg_done_fn) {
 		TRACE_DBG("Calling unreg_done_fn(%p)", sess);

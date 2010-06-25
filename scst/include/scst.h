@@ -416,6 +416,9 @@ enum scst_exec_context {
 /* Set if session is shutting down */
 #define SCST_SESS_SPH_SHUTDOWN       1
 
+/* Set if session is shutting down */
+#define SCST_SESS_SPH_UNREG_DONE_CALLING 2
+
 /*************************************************************
  ** Session's async (atomic) flags
  *************************************************************/
@@ -783,7 +786,13 @@ struct scst_tgt_template {
 	 * After AEN is sent, target driver must call scst_aen_done() and,
 	 * optionally, scst_set_aen_delivery_status().
 	 *
-	 * This command is expected to be NON-BLOCKING, but can sleep.
+	 * This function is expected to be NON-BLOCKING, but can sleep.
+	 *
+	 * This function must be prepared to handle AENs between calls for the
+	 * corresponding session of scst_unregister_session() and
+	 * unreg_done_fn() callback called or before scst_unregister_session()
+	 * returned, if its called in the blocking mode. AENs for such sessions
+	 * should be ignored.
 	 *
 	 * MUST HAVE, if low-level protocol supports AENs.
 	 */
