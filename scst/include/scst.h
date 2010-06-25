@@ -3198,7 +3198,7 @@ static inline struct scst_session *scst_aen_get_sess(struct scst_aen *aen)
 }
 
 /* Returns AEN's LUN */
-static inline uint64_t scst_aen_get_lun(struct scst_aen *aen)
+static inline __be64 scst_aen_get_lun(struct scst_aen *aen)
 {
 	return aen->lun;
 }

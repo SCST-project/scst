@@ -3477,7 +3477,7 @@ static void iscsi_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 static int iscsi_scsi_aen(struct scst_aen *aen)
 {
 	int res = SCST_AEN_RES_SUCCESS;
-	uint64_t lun = scst_aen_get_lun(aen);
+	__be64 lun = scst_aen_get_lun(aen);
 	const uint8_t *sense = scst_aen_get_sense(aen);
 	int sense_len = scst_aen_get_sense_len(aen);
 	struct iscsi_session *sess = scst_sess_get_tgt_priv(
