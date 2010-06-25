@@ -446,7 +446,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 SCST_DATA_READ, FLAG_NONE, 7, get_trans_len_2},
 	{0x53, "O               ", "XDWRITEREAD(10)",
 	 SCST_DATA_READ|SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED|
-	 				 SCST_WRITE_MEDIUM,
+					 SCST_WRITE_MEDIUM,
 	 7, get_bidi_trans_len_2},
 	{0x53, "     O          ", "RESERVE TRACK",
 	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
@@ -1969,7 +1969,7 @@ next:
 		offs += len;
 		scst_put_sg_buf(cmd, buf, *cmd->write_sg, *cmd->write_sg_cnt);
 		len = scst_get_sg_buf_next(cmd, &buf, *cmd->write_sg,
-		                *cmd->write_sg_cnt);
+					*cmd->write_sg_cnt);
 	}
 
 	TRACE_EXIT();
