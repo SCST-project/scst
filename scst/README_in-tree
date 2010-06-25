@@ -914,45 +914,54 @@ Caching
 By default for performance reasons VDISK FILEIO devices use write back
 caching policy.
 
-Generally, write back caching is reasonably safe for use and danger of
-it is greatly overestimated, because:
+Generally, write back caching is safe for use and danger of it is
+greatly overestimated, because most modern (especially, enterprise
+level) applications are well prepared to work with write back cached
+storage. Particularly, such are all transactions-based applications.
+Those applications flush cache to completely AVOID ANY data loss on a
+crash or power failure. For instance, journaled file systems flush cache
+on each meta data update, so they survive power/hardware/software
+failures pretty well.
 
-1. Modern HDDs have at least 16MB of cache working in write back mode by
-default, so for a 10 drives RAID it is 160MB of a write back cache. You
-can consider, how  many people are happy with it and how many disabled
-write back cache of  their HDDs? Almost all and almost nobody
-correspondingly? Moreover, many  HDDs lie about state of their cache and
-report write through while  working in write back mode. They are also
-successfully used.
-
-2. Most, if not all, modern enterprise level applications are well
-prepared to work with write back cached storage. Particularly, all
-transactions-based applications. Those applications flush cache to make
-the lost on crash data event acceptable and recoverable.
-
-For instance, journaled file systems flush cache on each meta data
-update, so they survive power/hardware/software failures pretty well.
-
-Summarizing, locally on initiators write back caching is always on. So,
-if an application cares about its data consistency, it does flush the
-cache when necessary or on any write, if open files with O_SYNC. If it
-doesn't care, it doesn't flush the cache. As soon as the cache flushes
+Since locally on initiators write back caching is always on, if an
+application cares about its data consistency, it does flush the cache
+when necessary or on any write, if open files with O_SYNC. If it doesn't
+care, it doesn't flush the cache. As soon as the cache flushes
 propagated to the storage, write back caching on it doesn't make any
 difference. If application doesn't flush the cache, it's doomed to loose
 data in case of a crash or power failure doesn't matter where this cache
 located, locally or on the storage.
 
-For example, consider a user who wants to copy /src directory to /dst
+To illustrate how data loss can be avoided with write back caching,
+consider, for example, a user who wants to copy /src directory to /dst
 directory reliably, i.e. after the copy finished no power failure or
-crash could lead to the loss of data in /dst. There are 2 ways to
-achieve this:
+software/hardware crash could lead to a loss of the data in /dst. There
+are 2 ways to achieve this. Let's suppose for simplicity cp opens files
+for writing with O_SYNC flag, hence bypassing the local cache.
 
 1. Slow. Make the device behind /dst working in write through caching
 mode and then run "cp -a /src /dst".
 
 2. Fast. Let the device behind /dst working in write back caching mode
 and then run "cp -a /src /dst; sync". The reliability of the result is
-the same, but it's much faster than (1).
+the same, but it's much faster than (1). Nobody would care if a crash
+happens during the copy, because after recovery simply leftovers from
+the not completed attempt would be deleted and the operation would be
+restarted from the very beginning.
+
+So, you can see in (2) there is no danger of ANY data loss from the
+write back caching. Moreover, since on practice cp doesn't open files
+for writing with O_SYNC flag, to get the copy done reliably, sync
+command must be called after cp anyway, so enabling write back caching
+wouldn't make any difference for reliability.
+
+Also you can consider it from another side. Modern HDDs have at least
+16MB of cache working in write back mode by default, so for a 10 drives
+RAID it is 160MB of a write back cache. How many people are happy with
+it and how many disabled write back cache of their HDDs? Almost all and
+almost nobody correspondingly? Moreover, many HDDs lie about state of
+their cache and report write through while working in write back mode.
+They are also successfully used.
 
 Note, Linux I/O subsystem guarantees to propagated cache flushes to the
 storage only using data protection barriers, which usually turned off by
@@ -973,18 +982,17 @@ Windows and, AFAIK, other UNIX'es don't need any special explicit
 options and do necessary barrier actions on write-back caching devices
 by default.
 
-But even in case of journaled file systems if you are using a not cache
-flushing application, your unsaved cached data will still be lost in
-case of power/hardware/software failures, so you may need to supply your
-target server with a good UPS with possibility to gracefully shutdown
-your target on power shortage or disable write back caching using
-WRITE_THROUGH flag.
+To limit this data loss with write back caching you can use files in
+/proc/sys/vm to limit amount of unflushed data in the system cache.
+
+If you for some reason have to use VDISK FILEIO devices in write through
+caching mode, don't forget to disable internal caching on their backend
+devices or make sure they have additional battery or supercapacitors
+power supply on board. Otherwise, you still on a power failure would
+loose all the unsaved yet data in the devices internal cache.
 
 Note, on some real-life workloads write through caching might perform
 better, than write back one with the barrier protection turned on.
-
-To limit this data loss with write back caching you can use files in
-/proc/sys/vm to limit amount of unflushed data in the system cache.
 
 
 BLOCKIO VDISK mode
