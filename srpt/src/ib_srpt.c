@@ -1657,7 +1657,7 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 
 	ib_req_notify_cq(ch->cq, IB_CQ_NEXT_COMP);
 	while (ib_poll_cq(ch->cq, 1, &wc) > 0) {
-		if (wc.status) {
+		if (unlikely(wc.status)) {
 			PRINT_INFO("%s for wr_id %u failed with status %d",
 				   wc.wr_id & SRPT_OP_RECV
 				   ? "receiving"
@@ -1672,33 +1672,23 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 			int req_lim;
 
 			req_lim = atomic_dec_return(&ch->req_lim);
-			if (req_lim < 0)
+			if (unlikely(req_lim < 0))
 				PRINT_ERROR("req_lim = %d < 0", req_lim);
 			ioctx = sdev->ioctx_ring[wc.wr_id & ~SRPT_OP_RECV];
 			srpt_handle_new_iu(ch, ioctx);
 		} else {
 			ioctx = sdev->ioctx_ring[wc.wr_id];
-			if (wc.opcode == IB_WC_SEND)
+			if (wc.opcode == IB_WC_SEND) {
 				atomic_inc(&ch->qp_wr_avail);
-			else {
+				srpt_handle_send_comp(ch, ioctx, context);
+			} else {
+#if defined(CONFIG_SCST_DEBUG)
 				WARN_ON(wc.opcode != IB_WC_RDMA_READ);
 				WARN_ON(ioctx->n_rdma <= 0);
+#endif
 				atomic_add(ioctx->n_rdma,
 					   &ch->qp_wr_avail);
-			}
-			switch (wc.opcode) {
-			case IB_WC_SEND:
-				srpt_handle_send_comp(ch, ioctx, context);
-				break;
-			case IB_WC_RDMA_WRITE:
-			case IB_WC_RDMA_READ:
 				srpt_handle_rdma_comp(ch, ioctx, context);
-				break;
-			default:
-				PRINT_ERROR("received unrecognized"
-					    " IB WC opcode %d",
-					    wc.opcode);
-				break;
 			}
 		}
 
