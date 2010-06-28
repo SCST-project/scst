@@ -2771,9 +2771,9 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	enum srpt_command_state prev_state;
 
 	if (unlikely(scst_cmd_atomic(scmnd))) {
-		TRACE_DBG("%s", "Switching to thread context."); 	 
-		ret = SCST_TGT_RES_NEED_THREAD_CTX; 	 
-		goto out; 	 
+		TRACE_DBG("%s", "Switching to thread context.");
+		ret = SCST_TGT_RES_NEED_THREAD_CTX;
+		goto out;
 	}
 
 	EXTRACHECKS_BUG_ON(scst_cmd_atomic(scmnd));
