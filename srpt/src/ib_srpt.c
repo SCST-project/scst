@@ -1810,6 +1810,8 @@ static void srpt_release_channel_by_cmid(struct ib_cm_id *cm_id)
 
 	TRACE_ENTRY();
 
+	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
+
 	sdev = cm_id->context;
 	BUG_ON(!sdev);
 	spin_lock_irq(&sdev->spinlock);
@@ -1836,7 +1838,9 @@ static struct srpt_rdma_ch *srpt_find_channel(struct srpt_device *sdev,
 	struct srpt_rdma_ch *ch;
 	bool found;
 
+	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
 	BUG_ON(!sdev);
+
 	found = false;
 	spin_lock_irq(&sdev->spinlock);
 	list_for_each_entry(ch, &sdev->rch_list, list) {
@@ -1892,6 +1896,8 @@ static int srpt_enable_target(struct scst_tgt *scst_tgt, bool enable)
 {
 	struct srpt_device *sdev = scst_tgt_get_tgt_priv(scst_tgt);
 
+	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
+
 	TRACE_DBG("%s target %s", enable ? "Enabling" : "Disabling",
 		  sdev->device->name);
 
@@ -1908,8 +1914,10 @@ static int srpt_enable_target(struct scst_tgt *scst_tgt, bool enable)
 static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
 {
 	struct srpt_device *sdev = scst_tgt_get_tgt_priv(scst_tgt);
-
 	bool res;
+
+	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
+
 	spin_lock_irq(&sdev->spinlock);
 	res = sdev->enabled;
 	spin_unlock_irq(&sdev->spinlock);
@@ -1943,6 +1951,8 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	struct srpt_rdma_ch *ch, *tmp_ch;
 	u32 it_iu_len;
 	int ret = 0;
+
+	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
 	WARN_ON(!sdev || !private_data);
@@ -2760,6 +2770,12 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	int resp_len;
 	enum srpt_command_state prev_state;
 
+	if (unlikely(scst_cmd_atomic(scmnd))) {
+		TRACE_DBG("%s", "Switching to thread context."); 	 
+		ret = SCST_TGT_RES_NEED_THREAD_CTX; 	 
+		goto out; 	 
+	}
+
 	EXTRACHECKS_BUG_ON(scst_cmd_atomic(scmnd));
 
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
@@ -3008,6 +3024,8 @@ static int srpt_release(struct scst_tgt *scst_tgt)
 	struct srpt_rdma_ch *ch;
 
 	TRACE_ENTRY();
+
+	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
 
 	BUG_ON(!scst_tgt);
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
