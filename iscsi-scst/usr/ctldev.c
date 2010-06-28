@@ -47,7 +47,7 @@ int kernel_open(void)
 
 	devn = 0;
 	while (!feof(f)) {
-		if (!fgets(buf, sizeof (buf), f)) {
+		if (!fgets(buf, sizeof(buf), f)) {
 			break;
 		}
 		if (sscanf(buf, "%d %s", &devn, devname) != 2) {
