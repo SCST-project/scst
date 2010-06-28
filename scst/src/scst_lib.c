@@ -5405,12 +5405,13 @@ int scst_sbc_generic_parse(struct scst_cmd *cmd,
 	}
 
 	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED) {
+		int block_shift = get_block_shift(cmd);
 		/*
 		 * No need for locks here, since *_detach() can not be
 		 * called, when there are existing commands.
 		 */
-		cmd->bufflen = cmd->bufflen << get_block_shift(cmd);
-		cmd->out_bufflen = cmd->out_bufflen << get_block_shift(cmd);
+		cmd->bufflen = cmd->bufflen << block_shift;
+		cmd->out_bufflen = cmd->out_bufflen << block_shift;
 	}
 
 set_timeout:
@@ -5468,8 +5469,9 @@ int scst_cdrom_generic_parse(struct scst_cmd *cmd,
 	}
 
 	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED) {
-		cmd->bufflen = cmd->bufflen << get_block_shift(cmd);
-		cmd->out_bufflen = cmd->out_bufflen << get_block_shift(cmd);
+		int block_shift = get_block_shift(cmd);
+		cmd->bufflen = cmd->bufflen << block_shift;
+		cmd->out_bufflen = cmd->out_bufflen << block_shift;
 	}
 
 set_timeout:
@@ -5527,8 +5529,9 @@ int scst_modisk_generic_parse(struct scst_cmd *cmd,
 	}
 
 	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED) {
-		cmd->bufflen = cmd->bufflen << get_block_shift(cmd);
-		cmd->out_bufflen = cmd->out_bufflen << get_block_shift(cmd);
+		int block_shift = get_block_shift(cmd);
+		cmd->bufflen = cmd->bufflen << block_shift;
+		cmd->out_bufflen = cmd->out_bufflen << block_shift;
 	}
 
 set_timeout:
@@ -5583,8 +5586,9 @@ int scst_tape_generic_parse(struct scst_cmd *cmd,
 	}
 
 	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED & cmd->cdb[1]) {
-		cmd->bufflen = cmd->bufflen * get_block_size(cmd);
-		cmd->out_bufflen = cmd->out_bufflen * get_block_size(cmd);
+		int block_size = get_block_size(cmd);
+		cmd->bufflen = cmd->bufflen * block_size;
+		cmd->out_bufflen = cmd->out_bufflen * block_size;
 	}
 
 	if ((cmd->op_flags & (SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)) == 0)

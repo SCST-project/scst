@@ -4844,6 +4844,7 @@ out:
 	return res;
 }
 
+/* IRQs supposed to be disabled */
 static bool __scst_check_unblock_aborted_cmd(struct scst_cmd *cmd,
 	struct list_head *list_entry)
 {
