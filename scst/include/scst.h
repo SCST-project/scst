@@ -1977,7 +1977,7 @@ struct scst_mgmt_cmd {
 struct scst_dev_registrant {
 	uint8_t *transport_id;
 	uint16_t rel_tgt_id;
-	uint64_t key;
+	__be64 key;
 
 	/* tgt_dev (I_T nexus) for this registrant, if any */
 	struct scst_tgt_dev *tgt_dev;
@@ -1987,7 +1987,7 @@ struct scst_dev_registrant {
 
 	/* 2 auxiliary fields used to rollback changes for errors, etc. */
 	struct list_head aux_list_entry;
-	uint64_t rollback_key;
+	__be64 rollback_key;
 };
 
 /*

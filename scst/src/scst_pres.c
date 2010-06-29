@@ -274,7 +274,7 @@ static void scst_pr_find_registrants_list_all(struct scst_device *dev,
 
 /* dev_pr_mutex must be locked */
 static void scst_pr_find_registrants_list_key(struct scst_device *dev,
-	uint64_t key, struct list_head *list)
+	__be64 key, struct list_head *list)
 {
 	struct scst_dev_registrant *reg;
 
@@ -361,7 +361,7 @@ static void scst_pr_clear_holder(struct scst_device *dev)
 /* Must be called under dev_pr_mutex */
 static struct scst_dev_registrant *scst_pr_add_registrant(
 	struct scst_device *dev, const uint8_t *transport_id,
-	const uint16_t rel_tgt_id, uint64_t key,
+	const uint16_t rel_tgt_id, __be64 key,
 	bool dev_lock_locked)
 {
 	struct scst_dev_registrant *reg;
@@ -1286,7 +1286,7 @@ static int scst_pr_register_with_spec_i_pt(struct scst_cmd *cmd,
 {
 	int res = 0;
 	int offset, ext_size;
-	uint64_t action_key;
+	__be64 action_key;
 	struct scst_device *dev = cmd->dev;
 	struct scst_dev_registrant *reg;
 	uint8_t *transport_id;
@@ -1494,7 +1494,7 @@ static int scst_pr_register_on_tgt_id(struct scst_cmd *cmd,
 	/* tgt_dev can be among TIDs for scst_pr_register_with_spec_i_pt() */
 
 	if (scst_pr_find_reg(cmd->dev, cmd->sess->transport_id, rel_tgt_id) == NULL) {
-		uint64_t action_key;
+		__be64 action_key;
 		struct scst_dev_registrant *reg;
 
 		action_key = get_unaligned((__be64 *)&buffer[8]);
@@ -1609,7 +1609,7 @@ out_rollback:
 void scst_pr_register(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 {
 	int aptpl, spec_i_pt, all_tg_pt;
-	uint64_t key, action_key;
+	__be64 key, action_key;
 	struct scst_device *dev = cmd->dev;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
 	struct scst_session *sess = cmd->sess;
@@ -1701,7 +1701,7 @@ void scst_pr_register_and_ignore(struct scst_cmd *cmd, uint8_t *buffer,
 	int buffer_size)
 {
 	int aptpl, all_tg_pt;
-	uint64_t action_key;
+	__be64 action_key;
 	struct scst_dev_registrant *reg = NULL;
 	struct scst_device *dev = cmd->dev;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
@@ -1775,7 +1775,7 @@ void scst_pr_register_and_move(struct scst_cmd *cmd, uint8_t *buffer,
 	int aptpl;
 	int unreg;
 	int tid_buffer_size;
-	uint64_t key, action_key;
+	__be64 key, action_key;
 	struct scst_device *dev = cmd->dev;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
 	struct scst_session *sess = cmd->sess;
@@ -1925,7 +1925,7 @@ out:
 void scst_pr_reserve(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 {
 	uint8_t scope, type;
-	uint64_t key;
+	__be64 key;
 	struct scst_device *dev = cmd->dev;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
 	struct scst_dev_registrant *reg;
@@ -2010,7 +2010,7 @@ out:
 void scst_pr_release(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 {
 	int scope, type;
-	uint64_t key;
+	__be64 key;
 	struct scst_device *dev = cmd->dev;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
 	struct scst_dev_registrant *reg;
@@ -2086,7 +2086,7 @@ out:
 void scst_pr_clear(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 {
 	int scope, type;
-	uint64_t key;
+	__be64 key;
 	struct scst_device *dev = cmd->dev;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
 	struct scst_dev_registrant *reg, *r, *t;
@@ -2138,7 +2138,7 @@ out:
 static void scst_pr_do_preempt(struct scst_cmd *cmd, uint8_t *buffer,
 	int buffer_size, bool abort)
 {
-	uint64_t key, action_key;
+	__be64 key, action_key;
 	int scope, type;
 	struct scst_device *dev = cmd->dev;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
@@ -2590,7 +2590,7 @@ void scst_pr_read_reservation(struct scst_cmd *cmd, uint8_t *buffer,
 
 		size = 8;
 	} else {
-		uint64_t key = dev->pr_holder ? dev->pr_holder->key : 0;
+		__be64 key = dev->pr_holder ? dev->pr_holder->key : 0;
 
 		TRACE_PR("Read Reservation: dev %s, holder %p, key 0x%llx, "
 			"scope %d, type %d", dev->virt_name, dev->pr_holder,
