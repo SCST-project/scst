@@ -574,6 +574,7 @@ static struct q2t_sess *q2t_create_sess(scsi_qla_host_t *ha, fc_port_t *fcport,
 				sess->deleted = 0;
 			}
 
+			q2t_sess_get(sess);
 			sess->s_id = fcport->d_id;
 			sess->loop_id = fcport->loop_id;
 			sess->conf_compl_supported = fcport->conf_compl_supported;
