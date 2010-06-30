@@ -2665,7 +2665,7 @@ out_unmap:
  * srpt_pending_cmd_timeout() - SCST command hw processing timeout callback.
  *
  * Called by the SCST core if no IB completion notification has been received
- * within than max_hw_pending_time seconds.
+ * within max_hw_pending_time seconds.
  */
 static void srpt_pending_cmd_timeout(struct scst_cmd *scmnd)
 {
