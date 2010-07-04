@@ -212,8 +212,8 @@ enum rdma_ch_state {
  * @cm_id:         IB CM ID associated with the channel.
  * @qp:            IB queue pair used for communicating over this channel.
  * @qp_wr_avail:   number of WRs in qp that are not being processed by the HCA.
- * @cq:            completion queue for send and receive operations over this
- *                 channel.
+ * @rcq:           completion queue for receive operations over this channel.
+ * @scq:           completion queue for send operations over this channel.
  * @sport:         pointer to the information of the HCA port used by this
  *                 channel.
  * @i_port_id:     128-bit initiator port identifier copied from SRP_LOGIN_REQ.
@@ -236,7 +236,9 @@ struct srpt_rdma_ch {
 	struct ib_cm_id *cm_id;
 	struct ib_qp *qp;
 	atomic_t qp_wr_avail;
-	struct ib_cq *cq;
+	spinlock_t recv_lock;
+	struct ib_cq *rcq;
+	struct ib_cq *scq;
 	struct srpt_port *sport;
 	u8 i_port_id[16];
 	u8 t_port_id[16];
