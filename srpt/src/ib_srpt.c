@@ -1778,7 +1778,7 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	if (IS_ERR(ch->rcq)) {
 		ret = PTR_ERR(ch->rcq);
 		PRINT_ERROR("failed to create CQ cqe= %d ret= %d",
-                            SRPT_RQ_SIZE, ret);
+			    SRPT_RQ_SIZE, ret);
 		goto out;
 	}
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) \
@@ -1792,7 +1792,7 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	if (IS_ERR(ch->scq)) {
 		ret = PTR_ERR(ch->scq);
 		PRINT_ERROR("failed to create CQ cqe= %d ret= %d",
-                            SRPT_SQ_SIZE, ret);
+			    SRPT_SQ_SIZE, ret);
 		goto out_destroy_rcq;
 	}
 
@@ -2864,12 +2864,11 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 			  srpt_get_cmd_state(ioctx),
 			  scmnd->state);
 		srpt_abort_scst_cmd(ioctx, SCST_CONTEXT_SAME);
-		/*
-		 * Returning SCST_TGT_RES_SUCCESS without having called
-		 * scst_tgt_cmd_done() first will cause session unregistration
-		 * to lock up. Hence the WARN_ON() below.
-		 */
-		WARN_ON(scmnd->state != SCST_CMD_STATE_FINISHED);
+		if (scmnd->state != SCST_CMD_STATE_FINISHED)
+			PRINT_INFO("cmd with tag %lld has been aborted"
+				   " and has now SCST state %d - session"
+				   " unregistration will wait.",
+				   scst_cmd_get_tag(scmnd), scmnd->state);
 		ret = SCST_TGT_RES_SUCCESS;
 		goto out;
 	}
