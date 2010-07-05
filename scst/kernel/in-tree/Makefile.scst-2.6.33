@@ -1,6 +1,7 @@
 ccflags-y += -Iinclude/scst -Wno-unused-parameter
 
 scst-y        += scst_main.o
+scst-y        += scst_pres.o
 scst-y        += scst_targ.o
 scst-y        += scst_lib.o
 scst-y        += scst_sysfs.o
