@@ -598,11 +598,11 @@ sub main {
 			last SWITCH;
 		};
 		$setDriverAttr && do {
-			$rc = setDriverAttributes($setDriverAttr, $attributes);
+			$rc = setDriverAttributes($setDriverAttr, $attributes, FALSE);
 			last SWITCH;
 		};
 		$setTargetAttr && do {
-			$rc = setTargetAttributes($setTargetAttr, $driver, $attributes);
+			$rc = setTargetAttributes($setTargetAttr, $driver, $attributes, FALSE);
 			last SWITCH;
 		};
 		$setLunAttr && do {
@@ -855,7 +855,7 @@ sub writeConfiguration {
 			$attribute_buff_nk .= "\n" if ($attribute_buff_nk);
 
 			if (!defined($$attributes{'scsi_device'})) {
-				$attribute_buff .= "\t\tCREATE_ATTRIBUTES {\n";
+				my $create_buff;
 
 				foreach my $attribute (sort keys %{$attributes}) {
 					next if (defined($$attributes{$attribute}->{'set'}));
@@ -865,7 +865,7 @@ sub writeConfiguration {
 							foreach my $key (keys %{$$attributes{$attribute}->{'keys'}}) {
 								my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
 								$value = "\"$value\"" if ($value =~ / /);
-								$attribute_buff .= "\t\t\t$attribute $value\n"
+								$create_buff .= "\t\t\t$attribute $value\n"
 								  if (defined($value));
 							}
 						# Shouldn't be any non-key create attributes
@@ -873,7 +873,11 @@ sub writeConfiguration {
 					}
 				}
 
-				$attribute_buff .= "\t\t}\n";
+				if ($create_buff) {
+					$attribute_buff .= "\t\tCREATE_ATTRIBUTES {\n";
+					$attribute_buff .= $create_buff;
+					$attribute_buff .= "\t\t}\n";
+				}
 			}
 
 			if ($attribute_buff_nk) {
@@ -1279,8 +1283,12 @@ sub applyConfiguration {
 
 	# Apply config deletions
 	if ($force) {
-		applyConfigAssignments($CONFIG, $force);
 		applyConfigDevices($CONFIG, $force);
+
+		readWorkingConfig();
+
+		applyConfigAssignments($CONFIG, $force);
+		applyConfigDevices($CONFIG, FALSE);
 
 		readWorkingConfig();
 	}
@@ -1436,14 +1444,15 @@ sub applyConfigAssignments {
 		my %_attributes;
 		foreach my $item (keys %{$$assignments{$driver}}) {
 			if ($item eq 'TARGET') {
-				applyTargetAssignments($driver, $$assignments{$driver}->{$item});
+				applyTargetAssignments($driver, $$assignments{$driver}->{$item},
+				  $deletions);
 			} else {
 				$_attributes{$item} = $$assignments{$driver}->{$item};
 			}
 
 			my $attributes = configToAttr(\%_attributes);
 
-			setDriverAttributes($driver, $attributes);
+			setDriverAttributes($driver, $attributes, $deletions);
 		}
 	}
 }
@@ -1451,6 +1460,7 @@ sub applyConfigAssignments {
 sub applyTargetAssignments {
 	my $driver = shift;
 	my $targets = shift;
+	my $deletions = shift;
 
 	foreach my $target (sort keys %{$targets}) {
 		if (!defined($CURRENT{'assign'}->{$driver}->{$target})) {
@@ -1479,7 +1489,7 @@ sub applyTargetAssignments {
 
 		my $attributes = configToAttr(\%_attributes);
 
-		setTargetAttributes($target, $driver, $attributes);
+		setTargetAttributes($target, $driver, $attributes, $deletions);
 	}
 }
 
@@ -2043,9 +2053,22 @@ sub setDeviceAttributes {
 	}
 }
 
+sub setDriverAttribute {
+	my $driver = shift;
+	my $attribute = shift;
+	my $value = shift;
+
+	print "-> Setting driver attribute '$attribute' to value '$value' for driver '$driver': ";
+	my $rc = $SCST->setDriverAttribute($driver, $attribute, $value);
+	print "done.\n";
+
+	return $rc;
+}
+
 sub setDriverAttributes {
 	my $driver = shift;
 	my $attributes = shift;
+	my $deletions = shift;
 
 	my $_attributes = $SCST->driverAttributes($driver);
 
@@ -2056,24 +2079,52 @@ sub setDriverAttributes {
 				my $value = $$attributes{$attribute};
 
 				next if ($$_attributes{$attribute}->{'value'} eq $value);
-
-				print "-> Setting driver attribute '$attribute' to value '$value' for driver '$driver': ";
-
-				my $rc = $SCST->setDriverAttribute($driver, $attribute, $value);
-
-				print "done.\n";
-
+				my $rc = setDriverAttribute($driver, $attribute, $value);
 				immediateExit($SCST->errorString($rc)) if ($rc);
 			} else {
 				if (ref($$attributes{$attribute}) eq 'ARRAY') {
+					my %set;
 					foreach my $value (@{$$attributes{$attribute}}) {
 						checkDriverKeyAttributes($driver, $attribute, $value,
 						 $$_attributes{$attribute}->{'keys'});
+						$set{$value}++;
 					}
+
+					foreach my $_key (keys %{$$_attributes{$attribute}->{'keys'}}) {
+						my $value = $$_attributes{$attribute}->{'keys'}->{$_key}->{'value'};
+
+						if (!defined($set{$value})) {
+							if ($deletions) {
+								print "-> Removing driver dynamic attribute '$attribute' ".
+								  "for driver '$driver' with value '$value'\n";
+								$SCST->removeDriverDynamicAttribute($driver, $attribute, $value);
+							} else {
+								print "-> Driver dynamic attribute '$attribute' with value ".
+								  "'$value' is not in configuration. Use -force to remove it.\n"
+							}
+						}
+					}
+
 				} else {
 					my $value = $$attributes{$attribute};
 					checkDriverKeyAttributes($driver, $attribute, $value,
 					  $$_attributes{$attribute}->{'keys'});
+
+					foreach my $_key (keys %{$$_attributes{$attribute}->{'keys'}}) {
+						my $_value = $$_attributes{$attribute}->{'keys'}->{$_key}->{'value'};
+
+						if ($value ne $_value) {
+							if ($deletions) {
+								print "-> Removing driver dynamic attribute '$attribute' ".
+								  "for driver '$driver' with value '$value'\n";
+								$SCST->removeDriverDynamicAttribute($driver, $attribute, $value);
+							} else {
+								print "-> Driver dynamic attribute '$attribute' with value ".
+								  "'$value' is not in configuration. Use -force to remove it.\n"
+							}
+						}
+					}
+
 				}
 			}
 		} elsif ($SCST->driverIsVirtualCapable($driver) &&
@@ -2123,18 +2174,34 @@ sub checkDriverKeyAttributes {
 
 	if (!$found && $SCST->driverIsVirtualCapable($driver) &&
 	    !$SCST->checkDriverDynamicAttributes($driver, $attribute)) {
+
 		my $rc = addDriverDynamicAttribute($driver, $attribute, $value);
 		immediateExit($SCST->errorString($rc)) if ($rc);
 	} elsif (!$found) {
-		print "\t-> WARNING: Driver '$driver' lacks the settable ".
-		      "attribute '$attribute', ignoring.\n";
+		my $rc = setDriverAttribute($driver, $attribute, $value);
+		immediateExit($SCST->errorString($rc)) if ($rc);
 	}
+}
+
+sub setTargetAttribute {
+	my $driver = shift;
+	my $target = shift;
+	my $attribute = shift;
+	my $value = shift;
+
+	print "-> Setting target attribute '$attribute' to value '$value' for ".
+	  "driver/target '$driver/$target': ";
+	my $rc = $SCST->setTargetAttribute($driver, $target, $attribute, $value);
+	print "done.\n";
+
+	return $rc;
 }
 
 sub setTargetAttributes {
 	my $target = shift;
 	my $driver = shift;
 	my $attributes = shift;
+	my $deletions = shift;
 
 	my $_attributes = $SCST->targetAttributes($driver, $target);
 
@@ -2146,24 +2213,48 @@ sub setTargetAttributes {
 
 				next if ($$_attributes{$attribute}->{'value'} eq $value);
 
-				print "-> Setting target attribute '$attribute' to value '$value' for ".
-				  "driver/target '$driver/$target': ";
-
-				my $rc = $SCST->setTargetAttribute($driver, $target, $attribute, $value);
-
-				print "done.\n";
-
+				my $rc = setTargetAttribute($driver, $target, $attribute, $value);
 				immediateExit($SCST->errorString($rc)) if ($rc);
 			} else {
 				if (ref($$attributes{$attribute}) eq 'ARRAY') {
+					my %set;
 					foreach my $value (@{$$attributes{$attribute}}) {
-						checkTargetKeyAttributes($driver, $target, $attribute, $value,
-						 $$_attributes{$attribute}->{'keys'});
+						checkTargetKeyAttributes($driver, $target,
+						  $attribute, $value, $$_attributes{$attribute}->{'keys'});
+						$set{$value}++;
+					}
+
+					foreach my $_key (keys %{$$_attributes{$attribute}->{'keys'}}) {
+						my $value = $$_attributes{$attribute}->{'keys'}->{$_key}->{'value'};
+
+						if (!defined($set{$value})) {
+							if ($deletions) {
+								$SCST->removeTargetDynamicAttribute($driver, $target,
+								  $attribute, $value);
+							} else {
+								print "\t-> Target dynamic attribute '$attribute' with value ".
+								  "'$value' is not in configuration. Use -force to remove it.\n"
+							}
+						}
 					}
 				} else {
 					my $value = $$attributes{$attribute};
 					checkTargetKeyAttributes($driver, $target, $attribute, $value,
 					  $$_attributes{$attribute}->{'keys'});
+
+					foreach my $_key (keys %{$$_attributes{$attribute}->{'keys'}}) {
+						my $_value = $$_attributes{$attribute}->{'keys'}->{$_key}->{'value'};
+
+						if ($value ne $_value) {
+							if ($deletions) {
+								$SCST->removeTargetDynamicAttribute($driver, $target,
+								  $attribute, $value);
+							} else {
+								print "\t-> Target dynamic attribute '$attribute' with value ".
+								  "'$value' is not in configuration. Use -force to remove it.\n"
+							}
+						}
+					}
 				}
 			}
 		} elsif ($SCST->driverIsVirtualCapable($driver) &&
@@ -2221,11 +2312,10 @@ sub checkTargetKeyAttributes {
 		my $rc = addTargetDynamicAttribute($driver, $target, $attribute, $value);
 		immediateExit($SCST->errorString($rc)) if ($rc);
 	} elsif (!$found) {
-		print "\t-> WARNING: Target '$target' lacks the settable ".
-		      "attribute '$attribute', ignoring.\n";
+		my $rc = setTargetAttribute($driver, $target, $attribute, $value);
+		immediateExit($SCST->errorString($rc)) if ($rc);
 	}
 }
-
 
 sub setGroupAttributes {
 	my $target = shift;

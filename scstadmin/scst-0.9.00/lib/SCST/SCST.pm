@@ -2590,8 +2590,14 @@ sub handlerAttributes {
 			$is_static = TRUE;
 		}
 
-		my $io = new IO::File
-		  mkpath(SCST_ROOT, SCST_HANDLERS, $handler, $attribute), O_RDONLY;
+		my $path = mkpath(SCST_ROOT, SCST_HANDLERS, $handler, $attribute);
+
+		if ($attribute =~ /\//) { # Hack
+			push @{$attributes{'devices'}->{'value'}}, $attribute;
+			next;
+		}
+
+		my $io = new IO::File $path, O_RDONLY;
 
 		if (!$io) {
 			$self->{'err_string'} = "handlerAttributes(): Unable to read handler attribute ".
