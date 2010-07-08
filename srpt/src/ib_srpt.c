@@ -1399,6 +1399,7 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 	scst_cmd_set_tag(scmnd, srp_cmd->tag);
 	scst_cmd_set_tgt_priv(scmnd, ioctx);
 	scst_cmd_set_expected(scmnd, dir, data_len);
+	scst_cmd_set_no_sgv(scmnd);
 	scst_cmd_init_done(scmnd, context);
 
 	return 0;
