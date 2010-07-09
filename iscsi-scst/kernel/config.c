@@ -715,8 +715,8 @@ int iscsi_add_attr(struct iscsi_target *target,
 	}
 
 	list_for_each_entry(tgt_attr, attrs_list, attrs_list_entry) {
-		if (strncmp(tgt_attr->name, attr_info->name,
-				sizeof(tgt_attr->name) == 0)) {
+		/* Both for sure NULL-terminated */
+		if (strcmp(tgt_attr->name, attr_info->name) == 0) {
 			PRINT_ERROR("Attribute %s for %s already exist",
 				attr_info->name, name);
 			res = -EEXIST;
@@ -753,6 +753,8 @@ int iscsi_add_attr(struct iscsi_target *target,
 	tgt_attr->attr.show = iscsi_attr_show;
 	tgt_attr->attr.store = iscsi_attr_store;
 
+	TRACE_DBG("tgt_attr %p, attr %p", tgt_attr, &tgt_attr->attr.attr);
+
 	res = sysfs_create_file(
 		(target != NULL) ? scst_sysfs_get_tgt_kobj(target->scst_tgt) :
 				scst_sysfs_get_tgtt_kobj(&iscsi_template),
@@ -781,8 +783,9 @@ void __iscsi_del_attr(struct iscsi_target *target,
 {
 	TRACE_ENTRY();
 
-	TRACE_DBG("Deleting %s's attr %s",
-		(target != NULL) ? target->name : "global", tgt_attr->name);
+	TRACE_DBG("Deleting attr %s (target %s, tgt_attr %p, attr %p)",
+		tgt_attr->name, (target != NULL) ? target->name : "global",
+		tgt_attr, &tgt_attr->attr.attr);
 
 	list_del(&tgt_attr->attrs_list_entry);
 
@@ -818,7 +821,8 @@ static int iscsi_del_attr(struct iscsi_target *target,
 
 	tgt_attr = NULL;
 	list_for_each_entry(a, attrs_list, attrs_list_entry) {
-		if (strncmp(a->name, attr_name, sizeof(a->name)) == 0) {
+		/* Both for sure NULL-terminated */
+		if (strcmp(a->name, attr_name) == 0) {
 			tgt_attr = a;
 			break;
 		}

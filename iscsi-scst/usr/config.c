@@ -444,6 +444,11 @@ int config_account_del(u32 tid, int dir, char *name, u32 cookie)
 		goto out;
 	}
 
+	log_debug(1, "Deleting %s user %s (%p, target %s, sysfs name %s)",
+		(dir == ISCSI_USER_DIR_OUTGOING) ? "outgoing" : "incoming",
+		ISCSI_USER_NAME(user), user, target ? target->name : "discovery",
+		user->sysfs_name);
+
 #ifndef CONFIG_SCST_PROC
 	res = kernel_user_del(target, user, cookie);
 	if (res != 0)
@@ -522,10 +527,6 @@ int __config_account_add(struct target *target, int dir, char *name,
 	if (err != 0)
 		goto out;
 
-	log_debug(1, "User %s added to target %s (direction %s)", ISCSI_USER_NAME(user),
-		target ? target->name : "discovery",
-		(dir == ISCSI_USER_DIR_OUTGOING) ? "outgoing" : "incoming");
-
 #ifndef CONFIG_SCST_PROC
 	if (send_to_kern && (sysfs_name != NULL)) {
 		err = kernel_user_add(target, user, cookie);
@@ -533,6 +534,11 @@ int __config_account_add(struct target *target, int dir, char *name,
 			goto out_destroy;
 	}
 #endif
+
+	log_debug(1, "User %s (%p, sysfs name %s) added to target %s "
+		"(direction %s)", ISCSI_USER_NAME(user), user, user->sysfs_name,
+		target ? target->name : "discovery",
+		(dir == ISCSI_USER_DIR_OUTGOING) ? "outgoing" : "incoming");
 
 out:
 	return err;
