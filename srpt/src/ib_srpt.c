@@ -1050,6 +1050,10 @@ static int srpt_req_lim_delta(struct srpt_rdma_ch *ch)
 
 /**
  * srpt_reset_ioctx() - Free up resources and post again for receiving.
+ *
+ * Note: Do NOT modify *ioctx after this function has finished. Otherwise a
+ * race condition will be triggered between srpt_rcv_completion() and the
+ * caller of this function on *ioctx.
  */
 static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 {
@@ -1057,6 +1061,9 @@ static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 	BUG_ON(!ioctx);
 
 	WARN_ON(srpt_get_cmd_state(ioctx) != SRPT_STATE_DONE);
+
+	ioctx->scmnd = NULL;
+	ioctx->ch = NULL;
 
 	/*
 	 * If the WARN_ON() below gets triggered this means that
@@ -1399,7 +1406,6 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 	scst_cmd_set_tag(scmnd, srp_cmd->tag);
 	scst_cmd_set_tgt_priv(scmnd, ioctx);
 	scst_cmd_set_expected(scmnd, dir, data_len);
-	scst_cmd_set_no_sgv(scmnd);
 	scst_cmd_init_done(scmnd, context);
 
 	return 0;
@@ -3043,10 +3049,6 @@ static void srpt_on_free_cmd(struct scst_cmd *scmnd)
 	BUG_ON(!ch);
 
 	srpt_reset_ioctx(ch, ioctx);
-
-	scst_cmd_set_tgt_priv(scmnd, NULL);
-	ioctx->scmnd = NULL;
-	ioctx->ch = NULL;
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && ! defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
