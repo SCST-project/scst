@@ -652,7 +652,7 @@ static int scst_pr_do_load_device_file(struct scst_device *dev,
 	}
 
 	pos = 0;
-	rc = vfs_read(file, buf, file_size, &pos);
+	rc = vfs_read(file, (void __force __user *)buf, file_size, &pos);
 	if (rc != file_size) {
 		PRINT_ERROR("Unable to read file '%s' - error %d", file_name,
 			rc);
@@ -853,14 +853,14 @@ static int scst_pr_copy_file(const char *src, const char *dest)
 	}
 
 	pos = 0;
-	res = vfs_read(file_src, buf, file_size, &pos);
+	res = vfs_read(file_src, (void __force __user *)buf, file_size, &pos);
 	if (res != file_size) {
 		PRINT_ERROR("Unable to read file '%s' - error %d", src, res);
 		goto out_skip;
 	}
 
 	pos = 0;
-	res = vfs_write(file_dest, buf, file_size, &pos);
+	res = vfs_write(file_dest, (void __force __user *)buf, file_size, &pos);
 	if (res != file_size) {
 		PRINT_ERROR("Unable to write to '%s' - error %d", dest, res);
 		goto out_skip;
@@ -962,7 +962,7 @@ void scst_pr_sync_device_file(struct scst_tgt_dev *tgt_dev, struct scst_cmd *cmd
 	 */
 	sign = 0;
 	pos = 0;
-	res = vfs_write(file, (char *)&sign, sizeof(sign), &pos);
+	res = vfs_write(file, (void __force __user *)&sign, sizeof(sign), &pos);
 	if (res != sizeof(sign))
 		goto write_error;
 
@@ -970,7 +970,7 @@ void scst_pr_sync_device_file(struct scst_tgt_dev *tgt_dev, struct scst_cmd *cmd
 	 * version
 	 */
 	version = SCST_PR_FILE_VERSION;
-	res = vfs_write(file, (char *)&version, sizeof(version), &pos);
+	res = vfs_write(file, (void __force __user *)&version, sizeof(version), &pos);
 	if (res != sizeof(version))
 		goto write_error;
 
@@ -978,7 +978,7 @@ void scst_pr_sync_device_file(struct scst_tgt_dev *tgt_dev, struct scst_cmd *cmd
 	 * APTPL
 	 */
 	aptpl = dev->pr_aptpl;
-	res = vfs_write(file, (char *)&aptpl, sizeof(aptpl), &pos);
+	res = vfs_write(file, (void __force __user *)&aptpl, sizeof(aptpl), &pos);
 	if (res != sizeof(aptpl))
 		goto write_error;
 
@@ -986,15 +986,15 @@ void scst_pr_sync_device_file(struct scst_tgt_dev *tgt_dev, struct scst_cmd *cmd
 	 * reservation
 	 */
 	pr_is_set = dev->pr_is_set;
-	res = vfs_write(file, (char *)&pr_is_set, sizeof(pr_is_set), &pos);
+	res = vfs_write(file, (void __force __user *)&pr_is_set, sizeof(pr_is_set), &pos);
 	if (res != sizeof(pr_is_set))
 		goto write_error;
 
-	res = vfs_write(file, &dev->pr_type, sizeof(dev->pr_type), &pos);
+	res = vfs_write(file, (void __force __user *)&dev->pr_type, sizeof(dev->pr_type), &pos);
 	if (res != sizeof(dev->pr_type))
 		goto write_error;
 
-	res = vfs_write(file, &dev->pr_scope, sizeof(dev->pr_scope), &pos);
+	res = vfs_write(file, (void __force __user *)&dev->pr_scope, sizeof(dev->pr_scope), &pos);
 	if (res != sizeof(dev->pr_scope))
 		goto write_error;
 
@@ -1011,22 +1011,22 @@ void scst_pr_sync_device_file(struct scst_tgt_dev *tgt_dev, struct scst_cmd *cmd
 
 			is_holder = (dev->pr_holder == reg);
 
-			res = vfs_write(file, &is_holder, sizeof(is_holder),
+			res = vfs_write(file, (void __force __user *)&is_holder, sizeof(is_holder),
 					&pos);
 			if (res != sizeof(is_holder))
 				goto write_error;
 
 			size = tid_size(reg->transport_id);
-			res = vfs_write(file, reg->transport_id, size, &pos);
+			res = vfs_write(file, (void __force __user *)reg->transport_id, size, &pos);
 			if (res != size)
 				goto write_error;
 
-			res = vfs_write(file, (char *)&reg->key,
+			res = vfs_write(file, (void __force __user *)&reg->key,
 					sizeof(reg->key), &pos);
 			if (res != sizeof(reg->key))
 				goto write_error;
 
-			res = vfs_write(file, (char *)&reg->rel_tgt_id,
+			res = vfs_write(file, (void __force __user *)&reg->rel_tgt_id,
 					sizeof(reg->rel_tgt_id), &pos);
 			if (res != sizeof(reg->rel_tgt_id))
 				goto write_error;
@@ -1045,7 +1045,7 @@ void scst_pr_sync_device_file(struct scst_tgt_dev *tgt_dev, struct scst_cmd *cmd
 
 	sign = SCST_PR_FILE_SIGN;
 	pos = 0;
-	res = vfs_write(file, (char *)&sign, sizeof(sign), &pos);
+	res = vfs_write(file, (void __force __user *)&sign, sizeof(sign), &pos);
 	if (res != sizeof(sign))
 		goto write_error;
 
