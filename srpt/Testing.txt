@@ -21,9 +21,15 @@ The following tests must be run at least before releasing a new SRPT version:
       for ((i=0;i<100000;i++)); do echo 'id_ext=0002c9030003cca2,ioc_guid=0002c9030003cca2,pkey=ffff,dgid=fe800000000000000002c9030003cca3,service_id=0002c9030003cca3' >/sys/class/infiniband_srp/srp-mlx4_0-1/add_target ; done                
 
 * Verify that an I/O stress test runs fine by running the following command
-  on an initiator system after having created two partitions:
+  where $dev1 and $dev2 are device nodes created by the SRP initiator and go
+  over different IB connections to the target:
 
-    fio --bs=1M --direct=1 --ioengine=sync --verify=meta --rw=write --verify_fatal=1 --verify_async=1 --loops=10 --name=partition1 --filename=/dev/sdb1 --name=partition2 --filename=/dev/sdb2
+    for dev in $dev1 $dev2
+    do
+        fio --bs=4K --buffered=0 --rw=write --ioengine=psync --verify=sha256 \
+            --verify_fatal=1 --loops=1000                                    \
+            --name=partition1 --filename=$dev &
+    done
 
 * Another I/O stress test:
   (initiator) Write data pattern:
