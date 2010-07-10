@@ -1211,7 +1211,7 @@ static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
 	enum srpt_command_state state;
 	struct scst_cmd *scmnd;
 
-	state = srpt_get_cmd_state(ioctx);
+	state = srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
 	scmnd = ioctx->scmnd;
 
 	WARN_ON(state != SRPT_STATE_CMD_RSP_SENT
@@ -1219,7 +1219,6 @@ static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
 		&& state != SRPT_STATE_DONE);
 	WARN_ON(state == SRPT_STATE_MGMT_RSP_SENT && scmnd);
 
-	srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
 	if (state == SRPT_STATE_DONE)
 		PRINT_ERROR("IB completion has been received too late for"
 			    " wr_id = %u.", ioctx->index);
