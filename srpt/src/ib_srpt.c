@@ -1107,21 +1107,21 @@ static void srpt_abort_scst_cmd(struct srpt_ioctx *ioctx,
 	BUG_ON(!ioctx);
 
 	/*
-	 * Change the state of the command into SRPT_STATE_DONE, except when
-	 * the current state is SRPT_STATE_NEW or SRPT_STATE_NEED_DATA. For
-	 * these last two states, change the state into SRPT_STATE_DATA_IN.
-	 * Doing so ensures that srpt_xmit_response() will call this function
-	 * a second time and will invoke scst_tgt_cmd_done(). Unfortunately it
-	 * is not allowed to invoke scst_tgt_cmd_done() for commands that have
-	 * one of the states SRPT_STATE_NEW or SRPT_STATE_NEED_DATA
+	 * If the command is in a state where the SCST core is waiting for the
+	 * ib_srpt driver, change the state to the next state. Changing the
+	 * state of the command from SRPT_NEED_DATA to SRPT_STATE_DATA_IN
+	 * ensures that srpt_xmit_response() will call this function a second
+	 * time.
 	 */
-	state = srpt_test_and_set_cmd_state(ioctx, SRPT_STATE_NEW,
+	state = srpt_test_and_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA,
 					    SRPT_STATE_DATA_IN);
-	if (state != SRPT_STATE_NEW) {
-		state = srpt_test_and_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA,
-						    SRPT_STATE_DATA_IN);
-		if (state != SRPT_STATE_NEED_DATA)
-			state = srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
+	if (state != SRPT_STATE_NEED_DATA) {
+		state = srpt_test_and_set_cmd_state(ioctx,
+			    SRPT_STATE_CMD_RSP_SENT, SRPT_STATE_DONE);
+		if (state != SRPT_STATE_CMD_RSP_SENT)
+			state = srpt_test_and_set_cmd_state(ioctx,
+					    SRPT_STATE_MGMT_RSP_SENT,
+					    SRPT_STATE_DONE);
 	}
 	if (state == SRPT_STATE_DONE)
 		goto out;
@@ -1140,19 +1140,26 @@ static void srpt_abort_scst_cmd(struct srpt_ioctx *ioctx,
 
 	switch (state) {
 	case SRPT_STATE_NEW:
-		scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_ABORTED);
-		break;
-	case SRPT_STATE_NEED_DATA:
+		WARN_ON("This code should never be reached.");
 		scst_rx_data(scmnd, SCST_RX_STATUS_ERROR, context);
 		break;
+	case SRPT_STATE_NEED_DATA:
+		/* RDMA read error or RDMA read timeout. */
 	case SRPT_STATE_DATA_IN:
-	case SRPT_STATE_CMD_RSP_SENT:
-		scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_ABORTED);
-		scst_tgt_cmd_done(scmnd, context);
+		/*
+		 * SCST command abort flag has been set after the RDMA read
+		 * started and before srpt_xmit_response() has been invoked.
+		 */
+		scst_rx_data(scmnd, SCST_RX_STATUS_ERROR, context);
 		break;
+	case SRPT_STATE_CMD_RSP_SENT:
+		/*
+		 * SRP_RSP sending failed or the SRP_RSP send completion has
+		 * not been received in time.
+		 */
 	case SRPT_STATE_MGMT_RSP_SENT:
-		WARN_ON("ERROR: srpt_abort_scst_cmd() has been called for"
-			" a management command.");
+		/* Management command response sending failed. */
+		scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_ABORTED);
 		scst_tgt_cmd_done(scmnd, context);
 		break;
 	default:
@@ -2852,7 +2859,6 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	int ret;
 	int dir;
 	int resp_len;
-	enum srpt_command_state prev_state;
 
 	EXTRACHECKS_BUG_ON(scst_cmd_atomic(scmnd));
 
@@ -2862,19 +2868,10 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	ch = scst_sess_get_tgt_priv(scst_cmd_get_session(scmnd));
 	BUG_ON(!ch);
 
-	prev_state = srpt_get_cmd_state(ioctx);
 	if (unlikely(scst_cmd_aborted(scmnd))) {
-		TRACE_DBG("cmd with tag %lld has been aborted (SRPT state"
-			  " %d -> %d; SCST state %d)",
-			  scst_cmd_get_tag(scmnd), prev_state,
-			  srpt_get_cmd_state(ioctx),
-			  scmnd->state);
-		srpt_abort_scst_cmd(ioctx, SCST_CONTEXT_SAME);
-		if (scmnd->state != SCST_CMD_STATE_FINISHED)
-			PRINT_INFO("cmd with tag %lld has been aborted"
-				   " and has now SCST state %d - session"
-				   " unregistration will wait.",
-				   scst_cmd_get_tag(scmnd), scmnd->state);
+		WARN_ON(ioctx->mapped_sg_count);
+		srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
+		scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_ABORTED);
 		ret = SCST_TGT_RES_SUCCESS;
 		goto out;
 	}
