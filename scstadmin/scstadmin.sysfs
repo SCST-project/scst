@@ -773,12 +773,14 @@ sub writeConfiguration {
 				foreach my $key (@{$$attributes{$attribute}->{'keys'}}) {
 					my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
 					$value = "\"$value\"" if ($value =~ / /);
-					print $io "\t$attribute $value\n" if (defined($value));
+					print $io "\t$attribute $value\n"
+					  if (defined($value) && ($value ne ''));
 				}
 			} else {
 				my $value = $$attributes{$attribute}->{'value'};
 				$value = "\"$value\"" if ($value =~ / /);
-				print $io "$attribute $value\n" if (defined($value));
+				print $io "$attribute $value\n"
+				  if (defined($value) && ($value ne ''));
 			}
 		}
 	}
@@ -1303,19 +1305,13 @@ sub applyConfiguration {
 
 	# Apply config deletions
 	if ($force) {
-		applyConfigDevices($CONFIG, $force);
-
-		readWorkingConfig();
-
-		applyConfigAssignments($CONFIG, $force);
-		applyConfigDevices($CONFIG, FALSE);
-
+		applyConfigAssignments($CONFIG, $force, TRUE);
 		readWorkingConfig();
 	}
 
 	# Apply config additions
-	applyConfigDevices($CONFIG, FALSE);
-	applyConfigAssignments($CONFIG, FALSE);
+	applyConfigDevices($CONFIG, $force);
+	applyConfigAssignments($CONFIG, $force);
 
 	# And SCST attributes..
 	my %_attributes;
@@ -1375,6 +1371,7 @@ sub applyConfigDevices {
 sub applyConfigAssignments {
 	my $config = shift;
 	my $deletions = shift;
+	my $only_del = shift;
 
 	my $assignments = $CURRENT{'assign'};
 
@@ -1454,6 +1451,8 @@ sub applyConfigAssignments {
 		}
 	}
 
+	return if ($only_del);
+
 	$assignments = $$config{'TARGET_DRIVER'};
 
 	foreach my $driver (sort keys %{$assignments}) {
@@ -1470,10 +1469,11 @@ sub applyConfigAssignments {
 				$_attributes{$item} = $$assignments{$driver}->{$item};
 			}
 
-			my $attributes = configToAttr(\%_attributes);
-
-			setDriverAttributes($driver, $attributes, $deletions);
 		}
+
+		my $attributes = configToAttr(\%_attributes);
+
+		setDriverAttributes($driver, $attributes, $deletions) if (scalar keys %{$attributes});
 	}
 }
 
@@ -2089,79 +2089,77 @@ sub setDriverAttributes {
 	my $driver = shift;
 	my $attributes = shift;
 	my $deletions = shift;
+	my %toset;
+	my %existing;
 
+	my $driverCap = $SCST->driverIsVirtualCapable($driver);
 	my $_attributes = $SCST->driverAttributes($driver);
 
-	foreach my $attribute (sort keys %{$attributes}) {
-		if (defined($$_attributes{$attribute}) &&
-		    !$$_attributes{$attribute}->{'static'}) {
-			if (!defined($$_attributes{$attribute}->{'keys'})) {
-				my $value = $$attributes{$attribute};
-
-				next if ($$_attributes{$attribute}->{'value'} eq $value);
-				my $rc = setDriverAttribute($driver, $attribute, $value);
-				immediateExit($SCST->errorString($rc)) if ($rc);
-			} else {
-				if (ref($$attributes{$attribute}) eq 'ARRAY') {
-					my %set;
-					foreach my $value (@{$$attributes{$attribute}}) {
-						checkDriverKeyAttributes($driver, $attribute, $value,
-						 $$_attributes{$attribute}->{'keys'});
-						$set{$value}++;
-					}
-
-					foreach my $_key (keys %{$$_attributes{$attribute}->{'keys'}}) {
-						my $value = $$_attributes{$attribute}->{'keys'}->{$_key}->{'value'};
-
-						if (!defined($set{$value})) {
-							if ($deletions) {
-								print "-> Removing driver dynamic attribute '$attribute' ".
-								  "for driver '$driver' with value '$value'\n";
-								$SCST->removeDriverDynamicAttribute($driver, $attribute, $value);
-							} else {
-								print "-> Driver dynamic attribute '$attribute' with value ".
-								  "'$value' is not in configuration. Use -force to remove it.\n"
-							}
-						}
-					}
-
-				} else {
-					my $value = $$attributes{$attribute};
-					checkDriverKeyAttributes($driver, $attribute, $value,
-					  $$_attributes{$attribute}->{'keys'});
-
-					foreach my $_key (keys %{$$_attributes{$attribute}->{'keys'}}) {
-						my $_value = $$_attributes{$attribute}->{'keys'}->{$_key}->{'value'};
-
-						if ($value ne $_value) {
-							if ($deletions) {
-								print "-> Removing driver dynamic attribute '$attribute' ".
-								  "for driver '$driver' with value '$value'\n";
-								$SCST->removeDriverDynamicAttribute($driver, $attribute, $value);
-							} else {
-								print "-> Driver dynamic attribute '$attribute' with value ".
-								  "'$value' is not in configuration. Use -force to remove it.\n"
-							}
-						}
-					}
-
-				}
-			}
-		} elsif ($SCST->driverIsVirtualCapable($driver) &&
-			 !$SCST->checkDriverDynamicAttributes($driver, $attribute)) {
-			# Maybe we can add it..
-			if (ref($$attributes{$attribute}) eq 'ARRAY') {
-				foreach my $value (@{$$attributes{$attribute}}) {
-					my $rc = addDriverDynamicAttribute($driver, $attribute, $value);
-					immediateExit($SCST->errorString($rc)) if ($rc);
-				}
-			} else {
-				my $rc = addDriverDynamicAttribute($driver, $attribute, $$attributes{$attribute});
-				immediateExit($SCST->errorString($rc)) if ($rc);
+	# build caches for easier matching
+	foreach my $attribute (keys %{$attributes}) {
+		if (ref($$attributes{$attribute}) eq 'ARRAY') {
+			foreach my $value (@{$$attributes{$attribute}}) {
+				$toset{$attribute}->{$value} = FALSE;
 			}
 		} else {
-			print "\t-> WARNING: Driver '$driver' lacks the settable ".
-			  "attribute '$attribute', ignoring.\n";
+			$toset{$attribute}->{$$attributes{$attribute}} = FALSE;
+		}
+	}
+
+	foreach my $attribute (keys %{$_attributes}) {
+		next if ($$_attributes{$attribute}->{'static'});
+
+		if (defined($$_attributes{$attribute}->{'keys'})) {
+			foreach my $key (keys %{$$_attributes{$attribute}->{'keys'}}) {
+				my $value = $$_attributes{$attribute}->{'keys'}->{$key}->{'value'};
+				$existing{$attribute}->{$value} = FALSE
+				  if (defined($value) && ($value ne ''));
+			}
+		} else {
+			my $value = $$_attributes{$attribute}->{'value'};
+			$existing{$attribute}->{$value} = FALSE
+			  if (defined($value) && ($value ne ''));
+		}
+	}
+
+	# add/change
+	foreach my $attribute (keys %toset) {
+		foreach my $value (keys %{$toset{$attribute}}) {
+			if (!defined($existing{$attribute}) &&
+			    $driverCap && !$SCST->checkDriverDynamicAttributes($driver, $attribute)) {
+				addDriverDynamicAttribute($driver, $attribute, $value);
+				next;
+			}
+
+			# already set, move on
+			if (defined($existing{$attribute}->{$value})) {
+				$existing{$attribute}->{$value} = TRUE;
+				next;
+			}
+
+			# Set the existing attribute
+			if ($driverCap && !$SCST->checkDriverDynamicAttributes($driver, $attribute)) {
+				addDriverDynamicAttribute($driver, $attribute, $value);
+			} else {
+				setDriverAttribute($driver, $attribute, $value);
+			}
+
+			$existing{$attribute}->{$value} = TRUE;
+		}
+	}
+
+	foreach my $attribute (keys %existing) {
+		next if (!$driverCap || $SCST->checkDriverDynamicAttributes($driver, $attribute));
+
+		foreach my $value (keys %{$existing{$attribute}}) {
+			if (!$existing{$attribute}->{$value}) {
+				if ($deletions) {
+					removeDriverDynamicAttribute($driver, $attribute, $value);
+				} else {
+					print "-> Driver dynamic attribute '$attribute' with value '$value' ".
+					  "is not in configuration. Use -force to remove it.\n";
+				}
+			}
 		}
 	}
 }
@@ -2175,37 +2173,26 @@ sub addDriverDynamicAttribute {
 	my $rc = $SCST->addDriverDynamicAttribute($driver, $attribute, $value);
 	print "done.\n";
 
-	return $rc;
+	immediateExit($SCST->errorString($rc)) if ($rc); 
 }
 
-sub checkDriverKeyAttributes {
+sub removeDriverDynamicAttribute {
 	my $driver = shift;
 	my $attribute = shift;
 	my $value = shift;
-	my $keys = shift;
 
-	my $found = FALSE;
-	foreach my $key (keys %{$keys}) {
-		if ($$keys{$key}->{'value'} eq $value) {
-			$found = TRUE;
-			last;
-		}
-	}
+	return if (!$SCST->driverIsVirtualCapable($driver));
 
-	if (!$found && $SCST->driverIsVirtualCapable($driver) &&
-	    !$SCST->checkDriverDynamicAttributes($driver, $attribute)) {
+	print "-> Removing dynamic attribute '$attribute' with value '$value' for driver '$driver': ";
+	my $rc = $SCST->removeDriverDynamicAttribute($driver, $attribute, $value);
+	print "done.\n";
 
-		my $rc = addDriverDynamicAttribute($driver, $attribute, $value);
-		immediateExit($SCST->errorString($rc)) if ($rc);
-	} elsif (!$found) {
-		my $rc = setDriverAttribute($driver, $attribute, $value);
-		immediateExit($SCST->errorString($rc)) if ($rc);
-	}
+	immediateExit($SCST->errorString($rc)) if ($rc);
 }
 
 sub setTargetAttribute {
-	my $driver = shift;
 	my $target = shift;
+	my $driver = shift;
 	my $attribute = shift;
 	my $value = shift;
 
@@ -2214,7 +2201,7 @@ sub setTargetAttribute {
 	my $rc = $SCST->setTargetAttribute($driver, $target, $attribute, $value);
 	print "done.\n";
 
-	return $rc;
+	immediateExit($SCST->errorString($rc)) if ($rc);
 }
 
 sub setTargetAttributes {
@@ -2222,78 +2209,81 @@ sub setTargetAttributes {
 	my $driver = shift;
 	my $attributes = shift;
 	my $deletions = shift;
+	my %toset;
+	my %existing;
+
+	my $driverCap = $SCST->driverIsVirtualCapable($driver);
 
 	my $_attributes = $SCST->targetAttributes($driver, $target);
 
-	foreach my $attribute (sort keys %{$attributes}) {
-		if (defined($$_attributes{$attribute}) &&
-		    !$$_attributes{$attribute}->{'static'}) {
-			if (!defined($$_attributes{$attribute}->{'keys'})) {
-				my $value = $$attributes{$attribute};
-
-				next if ($$_attributes{$attribute}->{'value'} eq $value);
-
-				my $rc = setTargetAttribute($driver, $target, $attribute, $value);
-				immediateExit($SCST->errorString($rc)) if ($rc);
-			} else {
-				if (ref($$attributes{$attribute}) eq 'ARRAY') {
-					my %set;
-					foreach my $value (@{$$attributes{$attribute}}) {
-						checkTargetKeyAttributes($driver, $target,
-						  $attribute, $value, $$_attributes{$attribute}->{'keys'});
-						$set{$value}++;
-					}
-
-					foreach my $_key (keys %{$$_attributes{$attribute}->{'keys'}}) {
-						my $value = $$_attributes{$attribute}->{'keys'}->{$_key}->{'value'};
-
-						if (!defined($set{$value})) {
-							if ($deletions) {
-								$SCST->removeTargetDynamicAttribute($driver, $target,
-								  $attribute, $value);
-							} else {
-								print "\t-> Target dynamic attribute '$attribute' with value ".
-								  "'$value' is not in configuration. Use -force to remove it.\n"
-							}
-						}
-					}
-				} else {
-					my $value = $$attributes{$attribute};
-					checkTargetKeyAttributes($driver, $target, $attribute, $value,
-					  $$_attributes{$attribute}->{'keys'});
-
-					foreach my $_key (keys %{$$_attributes{$attribute}->{'keys'}}) {
-						my $_value = $$_attributes{$attribute}->{'keys'}->{$_key}->{'value'};
-
-						if ($value ne $_value) {
-							if ($deletions) {
-								$SCST->removeTargetDynamicAttribute($driver, $target,
-								  $attribute, $value);
-							} else {
-								print "\t-> Target dynamic attribute '$attribute' with value ".
-								  "'$value' is not in configuration. Use -force to remove it.\n"
-							}
-						}
-					}
-				}
+	# build caches for easier matching
+	foreach my $attribute (keys %{$attributes}) {
+		if (ref($$attributes{$attribute}) eq 'ARRAY') {
+			foreach my $value (@{$$attributes{$attribute}}) {
+				$toset{$attribute}->{$value} = FALSE;
 			}
-		} elsif ($SCST->driverIsVirtualCapable($driver) &&
-			 !$SCST->checkTargetDynamicAttributes($driver, $attribute)) {
-			# Maybe we can add it..
-			if (ref($$attributes{$attribute}) eq 'ARRAY') {
-				foreach my $value (@{$$attributes{$attribute}}) {
-					my $rc = addTargetDynamicAttribute($driver, $target, $attribute, $value);
-					immediateExit($SCST->errorString($rc)) if ($rc);
-				}
-			} else {
-				my $rc = addTargetDynamicAttribute($driver, $target, $attribute,
-				  $$attributes{$attribute});
-				immediateExit($SCST->errorString($rc)) if ($rc);
-			}
-
 		} else {
-			print "\t-> WARNING: Driver/target '$driver/$target' lacks the settable ".
-			  "attribute '$attribute', ignoring.\n";
+			$toset{$attribute}->{$$attributes{$attribute}} = FALSE;
+		}
+	}
+
+	foreach my $attribute (keys %{$_attributes}) {
+		next if ($$_attributes{$attribute}->{'static'});
+
+		if (defined($$_attributes{$attribute}->{'keys'})) {
+			foreach my $key (keys %{$$_attributes{$attribute}->{'keys'}}) {
+				my $value = $$_attributes{$attribute}->{'keys'}->{$key}->{'value'};
+				$existing{$attribute}->{$value} = FALSE
+				  if (defined($value) && ($value ne ''));
+			}
+		} else {
+			my $value = $$_attributes{$attribute}->{'value'};
+			$existing{$attribute}->{$value} = FALSE
+			  if (defined($value) && ($value ne ''));
+		}
+	}
+use Data::Dumper;
+#print Dumper(\%toset);
+#print "----\n";
+#print Dumper(\%existing);
+	# add/change
+	foreach my $attribute (keys %toset) {
+		foreach my $value (keys %{$toset{$attribute}}) {
+			if (!defined($existing{$attribute}) &&
+			    $driverCap && !$SCST->checkTargetDynamicAttributes($driver, $attribute)) {
+				addTargetDynamicAttribute($driver, $target, $attribute, $value);
+				next;
+			}
+
+			# already set, move on
+			if (defined($existing{$attribute}->{$value})) {
+				$existing{$attribute}->{$value} = TRUE;
+				next;
+			}
+
+			# Set the existing attribute
+			if ($driverCap && !$SCST->checkTargetDynamicAttributes($driver, $attribute)) {
+				addTargetDynamicAttribute($driver, $target, $attribute, $value);
+			} else {
+				setTargetAttribute($target, $driver, $attribute, $value);
+			}
+
+			$existing{$attribute}->{$value} = TRUE;
+		}
+	}
+
+	foreach my $attribute (keys %existing) {
+		next if (!$driverCap || $SCST->checkTargetDynamicAttributes($driver, $attribute));
+
+		foreach my $value (keys %{$existing{$attribute}}) {
+			if (!$existing{$attribute}->{$value}) {
+				if ($deletions) {
+					removeTargetDynamicAttribute($driver, $target, $attribute, $value);
+				} else {
+					print "-> Target dynamic attribute '$attribute' with value '$value' ".
+					  "is not in configuration. Use -force to remove it.\n";
+				}
+			}
 		}
 	}
 }
@@ -2309,32 +2299,22 @@ sub addTargetDynamicAttribute {
 	my $rc = $SCST->addTargetDynamicAttribute($driver, $target, $attribute, $value);
 	print "done.\n";
 
-	return $rc;
+	immediateExit($SCST->errorString($rc)) if ($rc); 
 }
 
-sub checkTargetKeyAttributes {
+sub removeTargetDynamicAttribute {
 	my $driver = shift;
 	my $target = shift;
 	my $attribute = shift;
 	my $value = shift;
-	my $keys = shift;
 
-	my $found = FALSE;
-	foreach my $key (keys %{$keys}) {
-		if ($$keys{$key}->{'value'} eq $value) {
-			$found = TRUE;
-			last;
-		}
-	}
+	return if (!$SCST->driverIsVirtualCapable($driver));
 
-	if (!$found && $SCST->driverIsVirtualCapable($driver) &&
-	    !$SCST->checkTargetDynamicAttributes($driver, $attribute)) {
-		my $rc = addTargetDynamicAttribute($driver, $target, $attribute, $value);
-		immediateExit($SCST->errorString($rc)) if ($rc);
-	} elsif (!$found) {
-		my $rc = setTargetAttribute($driver, $target, $attribute, $value);
-		immediateExit($SCST->errorString($rc)) if ($rc);
-	}
+	print "-> Removing dynamic attribute '$attribute' with value '$value' for driver/target '$driver/$target': ";
+	my $rc = $SCST->removeTargetDynamicAttribute($driver, $target, $attribute, $value);
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
 }
 
 sub setGroupAttributes {
@@ -3028,7 +3008,8 @@ sub configToAttr {
 	foreach my $attr (keys %{$config}) {
 		if ((keys %{$$config{$attr}}) > 1) {
 			foreach my $value (keys %{$$config{$attr}}) {
-				push @{$attributes{$attr}}, $value if ($value);
+				push @{$attributes{$attr}}, $value if (defined($value) &&
+								       ($value ne ''));
 			}
 		} else {
 			foreach my $value (keys %{$$config{$attr}}) {
