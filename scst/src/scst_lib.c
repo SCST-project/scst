@@ -4387,15 +4387,6 @@ void scst_release_request(struct scst_cmd *cmd)
 }
 #endif
 
-static bool is_report_sg_limitation(void)
-{
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-	return (trace_flag & TRACE_OUT_OF_MEM) != 0;
-#else
-	return false;
-#endif
-}
-
 int scst_alloc_space(struct scst_cmd *cmd)
 {
 	gfp_t gfp_mask;
@@ -4419,7 +4410,7 @@ int scst_alloc_space(struct scst_cmd *cmd)
 		goto out;
 
 	if (unlikely(cmd->sg_cnt > tgt_dev->max_sg_cnt)) {
-		if ((ll < 10) || is_report_sg_limitation()) {
+		if ((ll < 10) || (trace_flag & TRACE_MINOR)) {
 			PRINT_INFO("Unable to complete command due to "
 				"SG IO count limitation (requested %d, "
 				"available %d, tgt lim %d)", cmd->sg_cnt,
@@ -4439,7 +4430,7 @@ int scst_alloc_space(struct scst_cmd *cmd)
 		goto out_sg_free;
 
 	if (unlikely(cmd->out_sg_cnt > tgt_dev->max_sg_cnt)) {
-		if ((ll < 10)  || is_report_sg_limitation()) {
+		if ((ll < 10)  || (trace_flag & TRACE_MINOR)) {
 			PRINT_INFO("Unable to complete command due to "
 				"SG IO count limitation (OUT buffer, requested "
 				"%d, available %d, tgt lim %d)", cmd->out_sg_cnt,
