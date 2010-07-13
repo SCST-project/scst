@@ -2695,6 +2695,7 @@ qla2x00_find_all_fabric_devs(scsi_qla_host_t *ha, struct list_head *new_fcports)
 	scsi_qla_host_t *pha = to_qla_parent(ha);
 
 	rval = QLA_SUCCESS;
+	wrap.b24 = 0; /* undefined */
 
 	/* Try GID_PT to get device list, else GAN. */
 	swl = kcalloc(MAX_FIBRE_DEVICES, sizeof(sw_info_t), GFP_ATOMIC);
