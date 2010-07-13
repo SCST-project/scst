@@ -996,6 +996,20 @@ out:
 	return res;
 }
 
+static int scst_check_device_name(const char *dev_name)
+{
+	int res = 0;
+
+	if (strchr(dev_name, '/') != NULL) {
+		PRINT_ERROR("Dev name %s contains illegal character '/'",
+			dev_name);
+		res = -EINVAL;
+	}
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 /**
  * scst_register_virtual_device() - register a virtual device.
  * @dev_handler: the device's device handler
@@ -1025,6 +1039,10 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 		res = -EINVAL;
 		goto out;
 	}
+
+	res = scst_check_device_name(dev_name);
+	if (res != 0)
+		goto out;
 
 	res = scst_dev_handler_check(dev_handler);
 	if (res != 0)
