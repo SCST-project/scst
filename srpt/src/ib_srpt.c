@@ -1157,10 +1157,17 @@ static void srpt_abort_scst_cmd(struct srpt_ioctx *ioctx,
 		 * SRP_RSP sending failed or the SRP_RSP send completion has
 		 * not been received in time.
 		 */
-	case SRPT_STATE_MGMT_RSP_SENT:
-		/* Management command response sending failed. */
 		scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_ABORTED);
 		scst_tgt_cmd_done(scmnd, context);
+		break;
+	case SRPT_STATE_MGMT_RSP_SENT:
+		/*
+		 * Management command response sending failed. This state is
+		 * never reached since there is no scmnd associated with
+		 * management commands. Note: the SCST core frees these
+		 * commands immediately after srpt_tsk_mgmt_done() returned.
+		 */
+		WARN_ON("ERROR: unexpected command state");
 		break;
 	default:
 		WARN_ON("ERROR: unexpected command state");
@@ -1190,11 +1197,12 @@ static void srpt_handle_err_comp(struct srpt_rdma_ch *ch, struct ib_wc *wc,
 		state = srpt_get_cmd_state(ioctx);
 		scmnd = ioctx->scmnd;
 
-		WARN_ON(state != SRPT_STATE_CMD_RSP_SENT
-			&& state != SRPT_STATE_MGMT_RSP_SENT
-			&& state != SRPT_STATE_NEED_DATA
-			&& state != SRPT_STATE_DONE);
-		WARN_ON((state == SRPT_STATE_MGMT_RSP_SENT) != (scmnd == NULL));
+		EXTRACHECKS_WARN_ON(state != SRPT_STATE_CMD_RSP_SENT
+				    && state != SRPT_STATE_MGMT_RSP_SENT
+				    && state != SRPT_STATE_NEED_DATA
+				    && state != SRPT_STATE_DONE);
+		EXTRACHECKS_WARN_ON((state == SRPT_STATE_MGMT_RSP_SENT)
+				    != (scmnd == NULL));
 
 		if (state == SRPT_STATE_DONE)
 			PRINT_ERROR("Received more than one IB error completion"
@@ -1221,10 +1229,11 @@ static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
 	state = srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
 	scmnd = ioctx->scmnd;
 
-	WARN_ON(state != SRPT_STATE_CMD_RSP_SENT
-		&& state != SRPT_STATE_MGMT_RSP_SENT
-		&& state != SRPT_STATE_DONE);
-	WARN_ON(state == SRPT_STATE_MGMT_RSP_SENT && scmnd);
+	EXTRACHECKS_WARN_ON(state != SRPT_STATE_CMD_RSP_SENT
+			    && state != SRPT_STATE_MGMT_RSP_SENT
+			    && state != SRPT_STATE_DONE);
+	EXTRACHECKS_WARN_ON((state == SRPT_STATE_MGMT_RSP_SENT)
+			    != (scmnd == NULL));
 
 	if (state == SRPT_STATE_DONE)
 		PRINT_ERROR("IB completion has been received too late for"
@@ -2058,14 +2067,20 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	PRINT_INFO("Received SRP_LOGIN_REQ with"
 	    " i_port_id 0x%llx:0x%llx, t_port_id 0x%llx:0x%llx and it_iu_len %d"
 	    " on port %d (guid=0x%llx:0x%llx)",
-	    (unsigned long long)be64_to_cpu(*(__be64 *)&req->initiator_port_id[0]),
-	    (unsigned long long)be64_to_cpu(*(__be64 *)&req->initiator_port_id[8]),
-	    (unsigned long long)be64_to_cpu(*(__be64 *)&req->target_port_id[0]),
-	    (unsigned long long)be64_to_cpu(*(__be64 *)&req->target_port_id[8]),
+	    (unsigned long long)
+		be64_to_cpu(*(__be64 *)&req->initiator_port_id[0]),
+	    (unsigned long long)
+		be64_to_cpu(*(__be64 *)&req->initiator_port_id[8]),
+	    (unsigned long long)
+		be64_to_cpu(*(__be64 *)&req->target_port_id[0]),
+	    (unsigned long long)
+		be64_to_cpu(*(__be64 *)&req->target_port_id[8]),
 	    it_iu_len,
 	    param->port,
-	    (unsigned long long)be64_to_cpu(*(__be64 *)&sdev->port[param->port - 1].gid.raw[0]),
-	    (unsigned long long)be64_to_cpu(*(__be64 *)&sdev->port[param->port - 1].gid.raw[8]));
+	    (unsigned long long)
+		be64_to_cpu(*(__be64 *)&sdev->port[param->port - 1].gid.raw[0]),
+	    (unsigned long long)
+	       be64_to_cpu(*(__be64 *)&sdev->port[param->port - 1].gid.raw[8]));
 
 	rsp = kzalloc(sizeof *rsp, GFP_KERNEL);
 	rej = kzalloc(sizeof *rej, GFP_KERNEL);
@@ -2215,9 +2230,10 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		 */
 		snprintf(ch->sess_name, sizeof(ch->sess_name),
 			 "0x%016llx%016llx",
-			 (unsigned long long)be64_to_cpu(*(__be64 *)ch->i_port_id),
-			 (unsigned long long)be64_to_cpu(*(__be64 *)
-				 (ch->i_port_id + 8)));
+			 (unsigned long long)
+			     be64_to_cpu(*(__be64 *)ch->i_port_id),
+			 (unsigned long long)
+			     be64_to_cpu(*(__be64 *)(ch->i_port_id + 8)));
 	}
 
 	TRACE_DBG("registering session %s", ch->sess_name);
@@ -2765,8 +2781,9 @@ static void srpt_pending_cmd_timeout(struct scst_cmd *scmnd)
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
 	BUG_ON(!ioctx);
 
-	PRINT_ERROR("IB completion for wr_id %u has not been received in time",
-		    ioctx->index);
+	PRINT_ERROR("IB completion for wr_id %u has not been received in time"
+		    " (SRPT command state %d)",
+		    ioctx->index, srpt_get_cmd_state(ioctx));
 
 	srpt_abort_scst_cmd(ioctx, SCST_CONTEXT_SAME);
 }
@@ -2781,14 +2798,15 @@ static int srpt_rdy_to_xfer(struct scst_cmd *scmnd)
 {
 	struct srpt_rdma_ch *ch;
 	struct srpt_ioctx *ioctx;
+	enum srpt_command_state new_state;
 	enum rdma_ch_state ch_state;
 	int ret;
 
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
 	BUG_ON(!ioctx);
 
-	WARN_ON(srpt_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA)
-		== SRPT_STATE_DONE);
+	new_state = srpt_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA);
+	WARN_ON(new_state == SRPT_STATE_DONE);
 
 	ch = ioctx->ch;
 	WARN_ON(ch != scst_sess_get_tgt_priv(scst_cmd_get_session(scmnd)));
@@ -2855,6 +2873,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 {
 	struct srpt_rdma_ch *ch;
 	struct srpt_ioctx *ioctx;
+	enum srpt_command_state new_state;
 	s32 req_lim_delta;
 	int ret;
 	int dir;
@@ -2878,8 +2897,8 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 
 	srpt_wait_for_cred(ch, 2);
 
-	WARN_ON(srpt_set_cmd_state(ioctx, SRPT_STATE_CMD_RSP_SENT)
-		== SRPT_STATE_DONE);
+	new_state = srpt_set_cmd_state(ioctx, SRPT_STATE_CMD_RSP_SENT);
+	WARN_ON(new_state == SRPT_STATE_DONE);
 
 	dir = scst_cmd_get_data_direction(scmnd);
 
@@ -2932,6 +2951,7 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 	struct srpt_rdma_ch *ch;
 	struct srpt_mgmt_ioctx *mgmt_ioctx;
 	struct srpt_ioctx *ioctx;
+	enum srpt_command_state new_state;
 	s32 req_lim_delta;
 	int rsp_len;
 
@@ -2952,8 +2972,8 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 
 	srpt_wait_for_cred(ch, 1);
 
-	WARN_ON(srpt_set_cmd_state(ioctx, SRPT_STATE_MGMT_RSP_SENT)
-		== SRPT_STATE_DONE);
+	new_state = srpt_set_cmd_state(ioctx, SRPT_STATE_MGMT_RSP_SENT);
+	WARN_ON(new_state == SRPT_STATE_DONE);
 
 	req_lim_delta = srpt_req_lim_delta(ch) + 1;
 	rsp_len = srpt_build_tskmgmt_rsp(ch, ioctx, req_lim_delta,
