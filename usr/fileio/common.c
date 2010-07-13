@@ -1475,11 +1475,8 @@ static void exec_read_capacity16(struct vdisk_cmd *vcmd)
 	case 2048:
 		buffer[13] = 1;
 		break;
-	default:
-		PRINT_ERROR("READ CAPACITY(16): Unexpected block size %d6",
-			blocksize);
-		/* go through */
 	case 4096:
+	default:
 		buffer[13] = 0;
 		break;
 	}

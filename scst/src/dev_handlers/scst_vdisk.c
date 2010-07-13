@@ -2058,11 +2058,8 @@ static void vdisk_exec_read_capacity16(struct scst_cmd *cmd)
 	case 2048:
 		buffer[13] = 1;
 		break;
-	default:
-		PRINT_ERROR("%s: Unexpected block size %d",
-			cmd->op_name, blocksize);
-		/* go through */
 	case 4096:
+	default:
 		buffer[13] = 0;
 		break;
 	}
