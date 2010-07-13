@@ -691,7 +691,7 @@ sub main {
 }
 
 sub readWorkingConfig {
-	print "Collecting current configuration: ";
+	print "\nCollecting current configuration: ";
 
 	%CURRENT = ();
 
@@ -1266,13 +1266,16 @@ sub checkConfiguration {
 			if (!$no_targets) {
 				foreach my $target (keys %{$$CONFIG{'TARGET_DRIVER'}->{$driver}->{'TARGET'}}) {
 					if (!defined($CURRENT{'assign'}->{$driver}->{$target})) {
-						print "\t-> WARNING: Target '$target' for driver '$driver' ".
+						print "\t-> FATAL: Target '$target' for driver '$driver' ".
 						  "does not exist.\n" if (!$SCST->driverIsVirtualCapable($driver));
+						return TRUE;
 					}
 				}
 			}
 		}
 	}
+
+	my %cdevices;
 
 	foreach my $handler (sort keys %{$$CONFIG{'HANDLER'}}) {
 		foreach my $device (sort keys %{$$CONFIG{'HANDLER'}->{$handler}->{'DEVICE'}}) {
@@ -1291,8 +1294,46 @@ sub checkConfiguration {
 				  "contain character '/'.\n";
 				return TRUE;
 			}
+
+			$cdevices{$device}++;
 		}
 	}				
+
+	foreach my $driver (keys %{$$CONFIG{'TARGET_DRIVER'}}) {
+		foreach my $target (keys %{$$CONFIG{'TARGET_DRIVER'}->{$driver}->{'TARGET'}}) {
+			my $tgt = $$CONFIG{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target};
+
+			if (defined($$tgt{'LUN'})) {
+				foreach my $lun (keys %{$$tgt{'LUN'}}) {
+					foreach my $device (keys %{$$tgt{'LUN'}->{$lun}}) {
+						if (!defined($cdevices{$device})) {
+							print "\t-> WARNING: Device '$device' associated with driver/target ".
+							  "'$driver/$target' at LUN $lun is not defined within configuration, ".
+							  "removing it.\n";
+							delete $$tgt{'LUN'}->{$lun};
+						}
+					}
+				}
+			}
+
+			if (defined($$tgt{'GROUP'})) {
+				foreach my $group (keys %{$$tgt{'GROUP'}}) {
+					if (defined($$tgt{'GROUP'}->{$group}->{'LUN'})) {
+						foreach my $lun (keys %{$$tgt{'GROUP'}->{$group}->{'LUN'}}) {
+							foreach my $device (keys %{$$tgt{'GROUP'}->{$group}->{'LUN'}->{$lun}}) {
+								if (!defined($cdevices{$device})) {
+									print "\t-> WARNING: Device '$device' associated with ".
+									  "driver/target '$driver/$target' at LUN $lun is not ".
+									  "defined within configuration, removing it.\n";
+									delete $$tgt{'GROUP'}->{$group}->{'LUN'}->{$lun};
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 
 	return FALSE;
 }
@@ -1383,9 +1424,7 @@ sub applyConfigAssignments {
 			foreach my $lun (keys %{$luns}) {
 				my $device = $$luns{$lun};
 
-				if (!defined($$def_group{'LUN'}) ||
-				    !defined($$def_group{'LUN'}->{$lun}) ||
-				    !defined($$def_group{'LUN'}->{$lun}->{$device})) {
+				if (!defined($$def_group{'LUN'}->{$lun}->{$device})) {
 					if ($deletions) {
 						removeLun($lun, $driver, $target, $device);
 					} else {
@@ -1402,29 +1441,12 @@ sub applyConfigAssignments {
 				my $luns = $$assignments{$driver}->{$target}->{'GROUPS'}->{$group}->{'LUNS'};
 				my $inits = $$assignments{$driver}->{$target}->{'GROUPS'}->{$group}->{'INITIATORS'};
 
-				if (!defined($$config{'TARGET_DRIVER'}) ||
-				    !defined($$config{'TARGET_DRIVER'}->{$driver}) ||
-				    !defined($$config{'TARGET_DRIVER'}->{$driver}->{'TARGET'}) ||
-				    !defined($$config{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}) ||
-				    !defined($$config{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}) ||
-				    !defined($$config{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}->{$group})) {
-					if ($deletions) {
-						removeGroup($group, $driver, $target);
-					} else {
-						print "\t-> Group '$group' is not in configuration. Use -force to remove.\n";
-					}
-
-					next;
-				}
-
 				my $def_group = $$config{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}->{$group};
 
 				foreach my $lun (keys %{$luns}) {
 					my $device = $$luns{$lun};
 
-					if (!defined($$def_group{'LUN'}) ||
-					    !defined($$def_group{'LUN'}->{$lun}) ||
-					    !defined($$def_group{'LUN'}->{$lun}->{$device})) {
+					if (!defined($$def_group{'LUN'}->{$lun}->{$device})) {
 						if ($deletions) {
 							removeLun($lun, $driver, $target, $device, $group);
 						} else {
@@ -1436,8 +1458,7 @@ sub applyConfigAssignments {
 				}
 
 				foreach my $init (@{$inits}) {
-					if (!defined($$def_group{'INITIATOR'}) ||
-					    !defined($$def_group{'INITIATOR'}->{$init})) {
+					if (!defined($$def_group{'INITIATOR'}->{$init})) {
 						if ($deletions) {
 							removeInitiator($init, $driver, $target, $group);
 						} else {
@@ -1446,6 +1467,16 @@ sub applyConfigAssignments {
 							  "Use -force to remove it.\n";
 						}
 					}
+				}
+
+				if (!defined($$config{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}->{$group})) {
+					if ($deletions) {
+						removeGroup($group, $driver, $target);
+					} else {
+						print "\t-> Group '$group' is not in configuration. Use -force to remove.\n";
+					}
+
+					next;
 				}
 			}
 		}
@@ -2242,10 +2273,7 @@ sub setTargetAttributes {
 			  if (defined($value) && ($value ne ''));
 		}
 	}
-use Data::Dumper;
-#print Dumper(\%toset);
-#print "----\n";
-#print Dumper(\%existing);
+
 	# add/change
 	foreach my $attribute (keys %toset) {
 		foreach my $value (keys %{$toset{$attribute}}) {
