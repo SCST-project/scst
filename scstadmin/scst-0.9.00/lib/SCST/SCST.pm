@@ -2592,11 +2592,6 @@ sub handlerAttributes {
 
 		my $path = mkpath(SCST_ROOT, SCST_HANDLERS, $handler, $attribute);
 
-		if ($attribute =~ /\//) { # Hack
-			push @{$attributes{'devices'}->{'value'}}, $attribute;
-			next;
-		}
-
 		my $io = new IO::File $path, O_RDONLY;
 
 		if (!$io) {

@@ -1272,6 +1272,26 @@ sub checkConfiguration {
 		}
 	}
 
+	foreach my $handler (sort keys %{$$CONFIG{'HANDLER'}}) {
+		foreach my $device (sort keys %{$$CONFIG{'HANDLER'}->{$handler}->{'DEVICE'}}) {
+			# Since some people may get confused with how to open
+			# a vcdrom, we'll support having '/dev/cdrom' instead of just 'cdrom'.
+			if ($device =~ /^\/dev\//) {
+				my $_device = $device;
+				$_device =~ s/^\/dev\///o;
+				my $tree = $$CONFIG{'HANDLER'}->{$handler}->{'DEVICE'}->{$device};
+				print "\t-> WARNING: Device '$device' configured for handler '$handler' may ".
+				  "not contain the full /dev path, please change to '$_device'.\n";
+				delete $$CONFIG{'HANDLER'}->{$handler}->{'DEVICE'}->{$device};
+				$$CONFIG{'HANDLER'}->{$handler}->{'DEVICE'}->{$_device} = $tree;
+			} elsif ($device =~ /\//) {
+				print "\t-> FATAL: Device '$device' configured for handler '$handler' may not ".
+				  "contain character '/'.\n";
+				return TRUE;
+			}
+		}
+	}				
+
 	return FALSE;
 }
 
