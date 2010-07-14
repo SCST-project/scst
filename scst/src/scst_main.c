@@ -1926,7 +1926,8 @@ static int scst_add(struct device *cdev, struct class_interface *intf)
 	scsidp = to_scsi_device(cdev->parent);
 #endif
 
-	if (strcmp(scsidp->host->hostt->name, SCST_LOCAL_NAME) != 0)
+	if ((scsidp->host->hostt->name == NULL) ||
+	    (strcmp(scsidp->host->hostt->name, SCST_LOCAL_NAME) != 0))
 		res = scst_register_device(scsidp);
 
 	TRACE_EXIT();
@@ -1949,7 +1950,8 @@ static void scst_remove(struct device *cdev, struct class_interface *intf)
 	scsidp = to_scsi_device(cdev->parent);
 #endif
 
-	if (strcmp(scsidp->host->hostt->name, SCST_LOCAL_NAME) != 0)
+	if ((scsidp->host->hostt->name == NULL) ||
+	    (strcmp(scsidp->host->hostt->name, SCST_LOCAL_NAME) != 0))
 		scst_unregister_device(scsidp);
 
 	TRACE_EXIT();
