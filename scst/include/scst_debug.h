@@ -145,6 +145,8 @@ int debug_print_prefix(unsigned long trace_flag,
 void debug_print_buffer(const void *data, int len);
 const char *debug_transport_id_to_initiator_name(const uint8_t *transport_id);
 
+#define TRACING_MINOR() (trace_flag & TRACE_MINOR)
+
 #define TRACE(trace, format, args...)					\
 do {									\
 	if (___unlikely(trace_flag & (trace))) {			\
@@ -182,6 +184,8 @@ do {									\
 } while (0)
 
 #else  /* CONFIG_SCST_DEBUG || CONFIG_SCST_TRACING */
+
+#define TRACING_MINOR() (false)
 
 #define TRACE(trace, args...) do {} while (0)
 #define PRINT_BUFFER(message, buff, len) do {} while (0)

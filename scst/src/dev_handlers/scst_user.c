@@ -618,8 +618,7 @@ static int dev_user_alloc_sg(struct scst_user_cmd *ucmd, int cached_buff)
 
 		if (unlikely(cmd->sg_cnt > cmd->tgt_dev->max_sg_cnt)) {
 			static int ll;
-			if ((ll < 10) || (trace_flag & TRACE_MINOR))
-			if (ll < 10) {
+			if ((ll < 10) || TRACING_MINOR()) {
 				PRINT_INFO("Unable to complete command due to "
 					"SG IO count limitation (requested %d, "
 					"available %d, tgt lim %d)",

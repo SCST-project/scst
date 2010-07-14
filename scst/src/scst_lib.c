@@ -4410,7 +4410,7 @@ int scst_alloc_space(struct scst_cmd *cmd)
 		goto out;
 
 	if (unlikely(cmd->sg_cnt > tgt_dev->max_sg_cnt)) {
-		if ((ll < 10) || (trace_flag & TRACE_MINOR)) {
+		if ((ll < 10) || TRACING_MINOR()) {
 			PRINT_INFO("Unable to complete command due to "
 				"SG IO count limitation (requested %d, "
 				"available %d, tgt lim %d)", cmd->sg_cnt,
@@ -4430,7 +4430,7 @@ int scst_alloc_space(struct scst_cmd *cmd)
 		goto out_sg_free;
 
 	if (unlikely(cmd->out_sg_cnt > tgt_dev->max_sg_cnt)) {
-		if ((ll < 10)  || (trace_flag & TRACE_MINOR)) {
+		if ((ll < 10) || TRACING_MINOR()) {
 			PRINT_INFO("Unable to complete command due to "
 				"SG IO count limitation (OUT buffer, requested "
 				"%d, available %d, tgt lim %d)", cmd->out_sg_cnt,
