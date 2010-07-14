@@ -805,8 +805,8 @@ static int srpt_post_send(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 	int ret;
 
 	ret = -ENOMEM;
-	if (atomic_dec_return(&ch->qp_wr_avail) < 0) {
-		PRINT_ERROR("%s[%d]: SRQ full", __func__, __LINE__);
+	if (atomic_dec_return(&ch->sq_wr_avail) < 0) {
+		PRINT_ERROR("%s[%d]: send queue full", __func__, __LINE__);
 		goto out;
 	}
 
@@ -828,7 +828,7 @@ static int srpt_post_send(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 
 out:
 	if (ret < 0)
-		atomic_inc(&ch->qp_wr_avail);
+		atomic_inc(&ch->sq_wr_avail);
 	return ret;
 }
 
@@ -1756,7 +1756,7 @@ static void srpt_send_completion(struct ib_cq *cq, void *ctx)
 
 		ioctx = sdev->ioctx_ring[wc.wr_id];
 		if (wc.opcode == IB_WC_SEND) {
-			atomic_inc(&ch->qp_wr_avail);
+			atomic_inc(&ch->sq_wr_avail);
 			srpt_handle_send_comp(ch, ioctx, context);
 		} else {
 #if defined(CONFIG_SCST_DEBUG)
@@ -1764,7 +1764,7 @@ static void srpt_send_completion(struct ib_cq *cq, void *ctx)
 			WARN_ON(ioctx->n_rdma <= 0);
 #endif
 			atomic_add(ioctx->n_rdma,
-				   &ch->qp_wr_avail);
+				   &ch->sq_wr_avail);
 			srpt_handle_rdma_comp(ch, ioctx, context);
 		}
 
@@ -1843,11 +1843,12 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 		goto out_destroy_scq;
 	}
 
-	atomic_set(&ch->qp_wr_avail, qp_init->cap.max_send_wr);
+	atomic_set(&ch->sq_wr_avail, qp_init->cap.max_send_wr);
 
-	TRACE_DBG("%s: max_cqe= %d r max_sge= %d s max_sge= %d cm_id= %p",
-	       __func__, ch->rcq->cqe, ch->scq->cqe, qp_init->cap.max_send_sge,
-	       ch->cm_id);
+	TRACE_DBG("%s: max_cqe= %d r max_sge= %d s max_sge= %d sq_size = %d"
+		  " cm_id= %p", __func__, ch->rcq->cqe, ch->scq->cqe,
+		  qp_init->cap.max_send_sge, qp_init->cap.max_send_wr,
+		  ch->cm_id);
 
 	/* Modify the attributes and the state of queue pair ch->qp. */
 
@@ -2688,15 +2689,16 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 	struct rdma_iu *riu;
 	int i;
 	int ret;
-	int srq_wr_avail;
+	int sq_wr_avail;
 
 	if (dir == SCST_DATA_WRITE) {
 		ret = -ENOMEM;
-		srq_wr_avail = atomic_sub_return(ioctx->n_rdma,
-						 &ch->qp_wr_avail);
-		if (srq_wr_avail < 0) {
-			atomic_add(ioctx->n_rdma, &ch->qp_wr_avail);
-			PRINT_INFO("%s[%d]: SRQ full", __func__, __LINE__);
+		sq_wr_avail = atomic_sub_return(ioctx->n_rdma,
+						 &ch->sq_wr_avail);
+		if (sq_wr_avail < 0) {
+			atomic_add(ioctx->n_rdma, &ch->sq_wr_avail);
+			PRINT_ERROR("%s[%d]: send queue full",
+				    __func__, __LINE__);
 			goto out;
 		}
 	}
