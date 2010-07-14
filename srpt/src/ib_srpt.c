@@ -2940,7 +2940,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 			    __func__, __LINE__, atomic_read(&ch->state),
 			    (unsigned long long)scst_cmd_get_tag(scmnd));
 		atomic_sub(req_lim_delta, &ch->last_response_req_lim);
-		ret = SCST_TGT_RES_FATAL_ERROR;
+		ret = SCST_TGT_RES_QUEUE_FULL;
 	}
 
 out:
