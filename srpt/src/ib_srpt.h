@@ -112,7 +112,9 @@ enum {
 
 	SRPT_SQ_SIZE = 128 * SRPT_DEF_SG_PER_WQE,
 	SRPT_RQ_SIZE = 128,
-	SRPT_SRQ_SIZE = 4095,
+	MIN_SRPT_SRQ_SIZE = 4,
+	DEFAULT_SRPT_SRQ_SIZE = 4095,
+	MAX_SRPT_SRQ_SIZE = 65535,
 
 	MIN_MAX_MESSAGE_SIZE = 996,
 	DEFAULT_MAX_MESSAGE_SIZE
@@ -298,7 +300,8 @@ struct srpt_device {
 	struct ib_srq *srq;
 	struct ib_cm_id *cm_id;
 	struct ib_device_attr dev_attr;
-	struct srpt_ioctx *ioctx_ring[SRPT_SRQ_SIZE];
+	int srq_size;
+	struct srpt_ioctx **ioctx_ring;
 	struct list_head rch_list;
 	spinlock_t spinlock;
 	struct srpt_port port[2];

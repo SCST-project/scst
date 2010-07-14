@@ -106,6 +106,11 @@ module_param(srp_max_message_size, int, 0444);
 MODULE_PARM_DESC(srp_max_message_size,
 		 "Maximum size of SRP control messages in bytes.");
 
+static int srpt_srq_size = DEFAULT_SRPT_SRQ_SIZE;
+module_param(srpt_srq_size, int, 0444);
+MODULE_PARM_DESC(srpt_srq_size,
+		 "Shared receive queue (SRQ) size.");
+
 static int use_port_guid_in_session_name;
 module_param(use_port_guid_in_session_name, bool, 0444);
 MODULE_PARM_DESC(use_port_guid_in_session_name,
@@ -358,7 +363,7 @@ static void srpt_get_ioc(struct srpt_device *sdev, u32 slot,
 	iocp->io_subclass = cpu_to_be16(SRP_IO_SUBCLASS);
 	iocp->protocol = cpu_to_be16(SRP_PROTOCOL);
 	iocp->protocol_version = cpu_to_be16(SRP_PROTOCOL_VERSION);
-	iocp->send_queue_depth = cpu_to_be16(SRPT_SRQ_SIZE);
+	iocp->send_queue_depth = cpu_to_be16(sdev->srq_size);
 	iocp->rdma_read_depth = 4;
 	iocp->send_size = cpu_to_be32(srp_max_message_size);
 	iocp->rdma_size = cpu_to_be32(min(max(srp_max_rdma_size, 256U),
@@ -3341,9 +3346,11 @@ static void srpt_add_one(struct ib_device *device)
 	if (IS_ERR(sdev->mr))
 		goto err_pd;
 
+	sdev->srq_size = min(srpt_srq_size, sdev->dev_attr.max_srq_wr);
+
 	srq_attr.event_handler = srpt_srq_event;
 	srq_attr.srq_context = (void *)sdev;
-	srq_attr.attr.max_wr = min(SRPT_SRQ_SIZE, sdev->dev_attr.max_srq_wr);
+	srq_attr.attr.max_wr = sdev->srq_size;
 	srq_attr.attr.max_sge = 1;
 	srq_attr.attr.srq_limit = 0;
 
@@ -3352,7 +3359,7 @@ static void srpt_add_one(struct ib_device *device)
 		goto err_mr;
 
 	TRACE_DBG("%s: create SRQ #wr= %d max_allow=%d dev= %s",
-	       __func__, srq_attr.attr.max_wr,
+	      __func__, sdev->srq_size,
 	      sdev->dev_attr.max_srq_wr, device->name);
 
 	if (!srpt_service_guid)
@@ -3383,14 +3390,18 @@ static void srpt_add_one(struct ib_device *device)
 	if (ib_register_event_handler(&sdev->event_handler))
 		goto err_cm;
 
-	if (srpt_alloc_ioctx_ring(sdev, sdev->ioctx_ring,
-				  ARRAY_SIZE(sdev->ioctx_ring)))
+	sdev->ioctx_ring = kmalloc(sdev->srq_size * sizeof sdev->ioctx_ring[0],
+				   GFP_KERNEL);
+	if (!sdev->ioctx_ring)
 		goto err_event;
+
+	if (srpt_alloc_ioctx_ring(sdev, sdev->ioctx_ring, sdev->srq_size))
+		goto err_alloc_ring;
 
 	INIT_LIST_HEAD(&sdev->rch_list);
 	spin_lock_init(&sdev->spinlock);
 
-	for (i = 0; i < SRPT_SRQ_SIZE; ++i)
+	for (i = 0; i < sdev->srq_size; ++i)
 		srpt_post_recv(sdev, sdev->ioctx_ring[i]);
 
 	ib_set_client_data(device, &srpt_client, sdev);
@@ -3426,8 +3437,9 @@ static void srpt_add_one(struct ib_device *device)
 
 err_ring:
 	ib_set_client_data(device, &srpt_client, NULL);
-	srpt_free_ioctx_ring(sdev, sdev->ioctx_ring,
-			     ARRAY_SIZE(sdev->ioctx_ring));
+	srpt_free_ioctx_ring(sdev, sdev->ioctx_ring, sdev->srq_size);
+err_alloc_ring:
+	kfree(sdev->ioctx_ring);
 err_event:
 	ib_unregister_event_handler(&sdev->event_handler);
 err_cm:
@@ -3508,8 +3520,9 @@ static void srpt_remove_one(struct ib_device *device)
 	scst_unregister_target(sdev->scst_tgt);
 	sdev->scst_tgt = NULL;
 
-	srpt_free_ioctx_ring(sdev, sdev->ioctx_ring,
-			     ARRAY_SIZE(sdev->ioctx_ring));
+	srpt_free_ioctx_ring(sdev, sdev->ioctx_ring, sdev->srq_size);
+	kfree(sdev->ioctx_ring);
+	sdev->ioctx_ring = NULL;
 	kfree(sdev);
 
 	TRACE_EXIT();
@@ -3584,6 +3597,15 @@ static int __init srpt_init_module(void)
 			    " srp_max_message_size -- must be at least %d.",
 			    srp_max_message_size,
 			    MIN_MAX_MESSAGE_SIZE);
+		goto out;
+	}
+
+	if (srpt_srq_size < MIN_SRPT_SRQ_SIZE
+	    || srpt_srq_size > MAX_SRPT_SRQ_SIZE) {
+		PRINT_ERROR("invalid value %d for kernel module parameter"
+			    " srpt_srq_size -- must be in the range [%d..%d].",
+			    srpt_srq_size, MIN_SRPT_SRQ_SIZE,
+			    MAX_SRPT_SRQ_SIZE);
 		goto out;
 	}
 
